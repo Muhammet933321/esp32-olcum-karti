@@ -71,6 +71,12 @@
       76
     ]
   ],
+  "B25 Kart bringup kosucusu (kayitli kart)": [
+    [
+      36,
+      36
+    ]
+  ],
   "B3  Sema (ERC + netlist)": [
     [
       150,
@@ -89,8 +95,8 @@
       7
     ],
     [
-      68,
-      68
+      69,
+      69
     ]
   ],
   "B7  Arayuz + komut denetimi": [

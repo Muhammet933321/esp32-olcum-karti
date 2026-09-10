@@ -106,6 +106,12 @@
       Semadan uretilen malzeme listesi envanter.csv ile karsilastiriliyor;
       tasarim elde olmayan bir parca istiyorsa zincir soyluyor. Kurulum
       kilavuzu da buradan uretiliyor — sayilar elle yazilmiyor.
+  B25 Kart bringup kosucusu                 (kayitli kart)
+      DONANIM GELDIGINDE `python tezgah_kart.py` gercek karti sinayacak.
+      Bu adim o kosucunun KENDISINI siniyor: saglikli bir kart
+      benzetiminde her denetim yesil, 13 kasitli bozuk senaryoda DOGRU
+      denetim kirmizi olmali. Yanlis bir bringup testi, testsizlikten
+      kotudur — gecmeyen bir karta "gecti" der.
   B7  Arayuz + KOMUT DENETIMI                (node)
       Arayuzun gonderebilecegi her komut harfi, firmware'in gercekten
       tanidigi `case` harfleriyle karsilastiriliyor — HEM app.js HEM
@@ -114,8 +120,8 @@
 
 ⚠ YUKARIDAKI SIRA ANLATIM SIRASI, KOSMA SIRASI DEGIL. Gercek sira
   `ADIMLAR` listesi + main() govdesi: once 12 hesap/simulasyon adimi
-  (B1 B2 B15 B11 B16 B18 B19 B17 B20 B21 B22a B22b), sonra bes agir adim
-  (B3 sema, B4/B5 AVR, B6 derleme, B7 arayuz, B9 malzeme). Toplam 17.
+  (B1 B2 B15 B11 B16 B18 B19 B17 B20 B21 B22a B22b B25), sonra bes agir
+  adim (B3 sema, B4/B5 AVR, B6 derleme, B7 arayuz, B9 malzeme). Toplam 18.
 
 Cikis kodu 0 ise her sey gecti.
 
@@ -181,6 +187,11 @@ ADIMLAR = [
     # B22.4 — kartin kendi web katmani. Serial aynasi, cok istemcili SSE,
     # komut ucu ve CSRF yuzeyi FIRMWARE KAYNAGINDAN dogrulaniyor.
     ("B22b Kart web katmani (ayna + SSE + komut ucu)", "sim3_web.py"),
+    # B25 — DONANIM GELDIGINDE kosulacak bringup kosucusunun KENDISI.
+    # Gercek karti dogrulamiyor; kosucunun dogru soruyu sorup dogru
+    # cevaba baktigini siniyor (KayitKart uzerinde, 13 bozuk senaryo).
+    # Yanlis bir bringup testi testsizlikten kotudur.
+    ("B25 Kart bringup kosucusu (kayitli kart)", "test_tezgah_kart.py"),
 ]
 
 

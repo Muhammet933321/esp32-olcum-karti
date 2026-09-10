@@ -6,7 +6,7 @@ yeni bir kalem eklemek icin o adimin `tezgah(...)` cagrisina ekle.
 
 ## Ilk gun
 
-Bu 9 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
+Bu 10 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 
 > Asagidaki sira ZINCIR sirasi, oncelik sirasi DEGIL — kalemler arasinda elle bir siralama tutulsaydi yine bayatlardi. Hepsi ilk gun yapilacak; hangisinin once oldugu kalemin kendi kabul olcutunde yaziyor (orn. *bedava test*, *kart calisir calismaz*).
 
@@ -19,8 +19,9 @@ Bu 9 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 5 | B20 Ornekleme hizi ve bant | `K` satiri — loop_azami_us |
 | 6 | B21 Pil kapasite testi | FAILSAFE — kart calisirken RESET at |
 | 7 | B21 Pil kapasite testi | BAYPAS denetimi — yuku bilerek J3'e bagla |
-| 8 | B7 Arayuz | Arayuz tarayicida GERCEKTEN dogru gorunuyor mu |
-| 9 | B9 Malzeme listesi | Direnc adetleri SAYIM degil goz karari |
+| 8 | B25 Kart bringup kosucusu | Kosucunun kendisi gercek kartta calisiyor mu |
+| 9 | B7 Arayuz | Arayuz tarayicida GERCEKTEN dogru gorunuyor mu |
+| 10 | B9 Malzeme listesi | Direnc adetleri SAYIM degil goz karari |
 
 
 ## B1 On uc tasarimi
@@ -140,44 +141,52 @@ Bu 9 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 56 | Telefondan ilk yukleme suresi | 93 753 B gzip. 3 s'yi gecerse panel cikarma adimi acilir (5.12.38). Ikinci acilista statik trafik 0 B olmali |
 | 57 | arayuz-yaz.py ile karta yazma | esptool yolu ve 0x310000 ofseti HIC denenmedi. `python arayuz-uret.py && python arayuz-yaz.py` |
 
+## B25 Kart bringup kosucusu
+
+| # | Olcum | Kabul olcutu |
+|---|---|---|
+| 58 | [!] Kosucunun kendisi gercek kartta calisiyor mu | Bu adim kosucuyu KAYITLI bir kart uzerinde siniyor. Gercek seri port, gercek zamanlama ve gercek USB CDC davranisi yalnizca kart takilinca gorulur: `python tezgah_kart.py --sifirla` |
+| 59 | Acilis afisi yakalanabiliyor mu | DTR/RTS ile reset YALNIZCA UART kopruli kartlarda calisiyor. Yerel USB CDC'de EN dugmesine elle basmak gerekir — afis alinamazsa PSRAM/LittleFS denetimleri ATLANIR, kirmizi olmaz |
+| 60 | Denetimler yeterli mi | Kosucu 24 denetim yapiyor; `_tezgah.md` 72 kalem sayiyor. Fark, multimetre isteyen kalemler. Kart calisir calismaz ikisini birlikte kullan |
+
 ## B3 Sema
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 58 | Kurulan kart SEMAYLA ayni mi | Netlist yalnizca semayi dogruluyor; lehimlenen kart baska olabilir. Olcum: her dugumu ohmmetrenin sureklilik kipiyle netliste karsi tek tek gec |
-| 59 | Polarite: elektrolitik ve diyot yonleri | ERC yon hatasi YAKALAMAZ. Olcum: montajdan ONCE her kutuplu parcayi gozle dogrula — enerji verdikten sonra elektrolitik geri donusu yok |
+| 61 | Kurulan kart SEMAYLA ayni mi | Netlist yalnizca semayi dogruluyor; lehimlenen kart baska olabilir. Olcum: her dugumu ohmmetrenin sureklilik kipiyle netliste karsi tek tek gec |
+| 62 | Polarite: elektrolitik ve diyot yonleri | ERC yon hatasi YAKALAMAZ. Olcum: montajdan ONCE her kutuplu parcayi gozle dogrula — enerji verdikten sonra elektrolitik geri donusu yok |
 
 ## B4/B5 Olcum matematigi
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 60 | ESP32'nin gercek ADC gurultusu ve INL'i | Sabit gerilimde 1000 ornek al, standart sapmayi olc. Skop cozunurlugu (28.8 mV) bu gurultunun altinda kalmali |
-| 61 | Gercek ADS1115 ofset (+-3 LSB) ve kazanc (%0.15) hatasi | Kalibrasyon SONRASI bilinen iki noktada olc. Kalan hata veri sayfasi sinirlarinin icinde mi |
-| 62 | ESP32 ADC'sinin gercek TAM OLCEGI | 3.1 V nominal ama yongaya gore degisiyor; skop volt/adim dogrudan buna bagli |
+| 63 | ESP32'nin gercek ADC gurultusu ve INL'i | Sabit gerilimde 1000 ornek al, standart sapmayi olc. Skop cozunurlugu (28.8 mV) bu gurultunun altinda kalmali |
+| 64 | Gercek ADS1115 ofset (+-3 LSB) ve kazanc (%0.15) hatasi | Kalibrasyon SONRASI bilinen iki noktada olc. Kalan hata veri sayfasi sinirlarinin icinde mi |
+| 65 | ESP32 ADC'sinin gercek TAM OLCEGI | 3.1 V nominal ama yongaya gore degisiyor; skop volt/adim dogrudan buna bagli |
 
 ## B6 Firmware derleme + ikili
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 63 | I2C gercekten calisiyor mu | `#` komutu -> `I2C: 0x48 0x49`. Ikisi de gorunmuyorsa adres pinleri ya da cekme direncleri yanlis |
-| 64 | Menzil gecisi gercek gerilimde puruzsuz mu | Yavas artan bir gerilimde NORMAL->YUKSEK gecisini izle. Sicrama varsa histerezis yetersiz |
-| 65 | PSRAM kartta gercekten var mi | Acilista `PSRAM: 8192 KB` yazmali. `YOK` yazarsa hedef2.py'de PSRAM=opi yerine PSRAM=enabled (quad) denenecek |
+| 66 | I2C gercekten calisiyor mu | `#` komutu -> `I2C: 0x48 0x49`. Ikisi de gorunmuyorsa adres pinleri ya da cekme direncleri yanlis |
+| 67 | Menzil gecisi gercek gerilimde puruzsuz mu | Yavas artan bir gerilimde NORMAL->YUKSEK gecisini izle. Sicrama varsa histerezis yetersiz |
+| 68 | PSRAM kartta gercekten var mi | Acilista `PSRAM: 8192 KB` yazmali. `YOK` yazarsa hedef2.py'de PSRAM=opi yerine PSRAM=enabled (quad) denenecek |
 
 ## B7 Arayuz
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 66 | [!] Arayuz tarayicida GERCEKTEN dogru gorunuyor mu | Bu adim Vue`yu TAKLIT ediyor; sayfa hic render edilmiyor. B22.0`da arayuz zincir 15/15 yesilken tarayicida HIC acilmiyordu. `python arayuz3/sunucu.py` -> konsolda 0 hata, ham {{ }} yok |
-| 67 | J7/J3 baypas uyarisi KIRMIZI seritli gorunuyor mu | Emniyet uyarisi govde metninden ayirt edilebilmeli. B22.0 oncesi `.uyari` sinifi hic tanimli degildi ve duz paragraf olarak cikiyordu |
-| 68 | Osiloskop iki yoldan da AYNI cizimi veriyor mu | USB`de ASCII, WiFi`de ikili (/skop.bin) yol kullaniliyor. Ayni sinyalde iki kip AYNI dalgayi cizmeli; farkliysa cozuculerden biri yanlis (endian, olcek ya da ofset) |
-| 69 | Telefonda Ana Ekrana Ekle | iPhone: adres cubugu OLMADAN, kendi ikonuyla acilmali. Android: kisayol Chrome sekmesinde acilir — bu beklenen davranis, gercek PWA kurulumu HTTPS istiyor |
+| 69 | [!] Arayuz tarayicida GERCEKTEN dogru gorunuyor mu | Bu adim Vue`yu TAKLIT ediyor; sayfa hic render edilmiyor. B22.0`da arayuz zincir 15/15 yesilken tarayicida HIC acilmiyordu. `python arayuz3/sunucu.py` -> konsolda 0 hata, ham {{ }} yok |
+| 70 | J7/J3 baypas uyarisi KIRMIZI seritli gorunuyor mu | Emniyet uyarisi govde metninden ayirt edilebilmeli. B22.0 oncesi `.uyari` sinifi hic tanimli degildi ve duz paragraf olarak cikiyordu |
+| 71 | Osiloskop iki yoldan da AYNI cizimi veriyor mu | USB`de ASCII, WiFi`de ikili (/skop.bin) yol kullaniliyor. Ayni sinyalde iki kip AYNI dalgayi cizmeli; farkliysa cozuculerden biri yanlis (endian, olcek ya da ofset) |
+| 72 | Telefonda Ana Ekrana Ekle | iPhone: adres cubugu OLMADAN, kendi ikonuyla acilmali. Android: kisayol Chrome sekmesinde acilir — bu beklenen davranis, gercek PWA kurulumu HTTPS istiyor |
 
 ## B9 Malzeme listesi
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 70 | [!] Direnc adetleri SAYIM degil goz karari | envanter.csv'nin direnc adetleri yaklasik (CLAUDE.md). Listede yeter gorunen bir deger tezgahta bitebilir. Olcum: montajdan ONCE kritik degerleri say |
-| 71 | Kayitta gorunmeyen parca GERCEKTEN yok mu | Bobin/cekirdek ve modul alanlari KISMEN girildi. 'kayitta yok' = 'elde yok' DEGIL. Olcum: kutuya bak |
-| 72 | Parcalarin gercek degerleri etiketiyle ayni mi | Ozellikle HV bolucusundeki 4.9 M ohm zinciri. Olcum: lehimlemeden once her direnci ohmmetreyle gec |
+| 73 | [!] Direnc adetleri SAYIM degil goz karari | envanter.csv'nin direnc adetleri yaklasik (CLAUDE.md). Listede yeter gorunen bir deger tezgahta bitebilir. Olcum: montajdan ONCE kritik degerleri say |
+| 74 | Kayitta gorunmeyen parca GERCEKTEN yok mu | Bobin/cekirdek ve modul alanlari KISMEN girildi. 'kayitta yok' = 'elde yok' DEGIL. Olcum: kutuya bak |
+| 75 | Parcalarin gercek degerleri etiketiyle ayni mi | Ozellikle HV bolucusundeki 4.9 M ohm zinciri. Olcum: lehimlemeden once her direnci ohmmetreyle gec |
 
-**Toplam 72 kalem, 9 tanesi ilk gun.**
+**Toplam 75 kalem, 10 tanesi ilk gun.**

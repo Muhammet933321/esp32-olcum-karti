@@ -159,6 +159,18 @@ def main() -> int:
     ok("RAM payi yeterli (< %25)", mr is not None and int(mr.group(2)) < 25,
        f"%{mr.group(2)}" if mr else "AYRISTIRILAMADI")
 
+    # 🔴 `tasarim3_sabit.ESP_DRAM_KULLANILAN` bir OLCUMDUR ve elle tutulunca
+    #    bayatladi: 51 084'te dondu, gercek 71 420 B. B21'in pil tamponu
+    #    iddiasini 20 KB IYIMSER besliyordu. Artik `_firmware.json`'dan
+    #    okunuyor; burasi da YEDEK sabitin olcumle esit oldugunu sinar —
+    #    yedek, temiz bir klonda (B6 hic kosmamisken) devreye giriyor,
+    #    o yuzden onun da dogru kalmasi gerekiyor.
+    if mr:
+        ok("Yedek DRAM sabiti olculen degerle AYNI",
+           T._ESP_DRAM_SON_OLCUM == int(mr.group(1)),
+           f"sabit {T._ESP_DRAM_SON_OLCUM} B, olculen {mr.group(1)} B — "
+           f"esit degilse tasarim3_sabit.py:_ESP_DRAM_SON_OLCUM guncellenecek")
+
     # Olculen boyut KULLANICI belgesine gidiyor (`4-kurulum.html` kunyesi).
     # Elle yazildigi surece bayatladi: sayfa 481 935 B (%15) diyordu,
     # gercek 1 067 423 B (%33) idi — iki kattan fazla sapma, ve hicbir

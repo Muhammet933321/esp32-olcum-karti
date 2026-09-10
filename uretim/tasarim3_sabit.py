@@ -785,7 +785,33 @@ PIL_IC_KAPASITE = int(_re.search(
 PIL_TAMPON_BAYT = PIL_IC_KAPASITE * PIL_NOKTA_BAYT
 PIL_TAMPON_S = PIL_IC_KAPASITE / PIL_KAYIT_HZ
 ESP_DRAM_TOPLAM = 327680                  # bayt, arduino-cli'nin bildirdigi
-ESP_DRAM_KULLANILAN = 51084               # bayt, B6 derlemesinden (guncellenir)
+
+# 🔴 BU SAYI BIR OLCUMDUR, ELLE TUTULMAZ. Yorumu "(guncellenir)" diyordu
+#    ama guncellenmedi: 51 084'te dondu, gercek derleme 71 420 B veriyor.
+#    Aradaki 20 KB, B21'in "pil tamponu bos DRAM'in ucte birinden kucuk"
+#    iddiasini IYIMSER besliyordu (iddia yine geciyordu, ama iddia edilen
+#    pay gercek degildi). B23.3/B24'te bulundu.
+#
+#    Cozum: B6 her derlemede olctugu degeri `_firmware.json`'a yaziyor;
+#    burasi onu okuyor. Dosya yoksa (temiz klon, B6 hic kosmamis) son
+#    OLCULEN deger yedek olarak kullaniliyor ve B6 kostugunda ikisinin
+#    esitligi AYRI BIR IDDIA olarak sinaniyor — yani bir daha sessizce
+#    kayamaz.
+_ESP_DRAM_SON_OLCUM = 71420               # bayt, B6 derlemesi 2026-09-11
+
+
+def _dram_kullanilan() -> int:
+    import json as _json
+    p = _P(__file__).parent / "_firmware.json"
+    if p.exists():
+        try:
+            return int(_json.loads(p.read_text(encoding="utf-8"))["ram_bayt"])
+        except (ValueError, KeyError, OSError):
+            pass
+    return _ESP_DRAM_SON_OLCUM
+
+
+ESP_DRAM_KULLANILAN = _dram_kullanilan()
 
 # ── DCIR (ic direnc) darbesi
 PIL_DCIR_ARALIK_S = 300.0                 # 5 dakikada bir

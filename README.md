@@ -79,7 +79,7 @@ send `N0` over the serial console if you want the measurement loop left alone.
 | [`arayuz3/`](arayuz3) | Web interface (Vue 3, no build step, vendored locally) |
 | [`kopru/`](kopru) | PC bridge — serial↔SSE relay, disk archive, driver arbitration. Python standard library only |
 | [`BELGELER/`](BELGELER) | **User documentation, generated** — HTML + PDF. Start at `index.html` |
-| [`uretim/`](uretim) | The verification chain, simulations and every generator |
+| [`uretim/`](uretim) | The verification chain, simulations, generators and the hardware bring-up harness |
 | [`uretim/_tezgah.md`](uretim/_tezgah.md) | **Generated** — the 72 things that must be measured once the hardware exists |
 | [`DEVIR.md`](DEVIR.md) | Engineering journal. Long, chronological, Turkish — the record of how every decision was reached |
 | [`arsiv/`](arsiv) | Earlier stages (ATmega328P, then a first ESP32 revision), each with its own chain |
@@ -119,6 +119,41 @@ application partition (not of the 16 MB flash), plus **71 420 B RAM (21 %)**.
 The interface is **93 753 B** — 7 assets, 6 of them gzip-precompressed (the
 PNG icon is stored raw) — inside a 917 504 B LittleFS partition.
 
+## When the hardware arrives
+
+The design is verified but nothing has been built. There is a runnable
+bring-up harness for the day the board shows up — it automates everything
+that does not need a multimeter:
+
+```bash
+cd uretim
+python tezgah_kart.py --liste                       # show what it checks
+python tezgah_kart.py --sifirla                     # stage 0: bare ESP32
+python tezgah_kart.py --sifirla --asama 1           # + ADS1115 modules
+python tezgah_kart.py --sifirla --http olcum.local  # + the web layer
+```
+
+**24 checks**, staged by what hardware you have: boot banner (PSRAM size,
+LittleFS, network mode), the command surface, the guards that once bricked a
+channel, the I²C scan, the `D` line's format, rate and **sample count**, and
+on the HTTP side CSRF, token, `p0`-always-free and the Host allowlist. Every
+expected string is read from the firmware source, so it cannot drift.
+
+It reads `loop_azami_us` from the board and compares it against the
+**20 000 µs** threshold — the single measurement that decides whether the
+sampling loop moves to its own core.
+
+🔴 **The harness never drives a load.** Starting a battery discharge is not
+something a test script may do on its own; that check stays manual.
+
+The harness itself is tested without hardware: `test_tezgah_kart.py` runs it
+against a scripted replay board — green on a healthy board, and each of **13
+deliberately broken boards** must turn the *right* check red. A wrong bring-up
+test is worse than none: it tells you a bad board is good.
+
+What still needs a multimeter is in
+[`uretim/_tezgah.md`](uretim/_tezgah.md) — 72 items, 9 marked for day one.
+
 ## The verification chain
 
 This is the part the project actually spends its time on. The design is
@@ -126,12 +161,12 @@ checked by a chain of runnable steps rather than by review:
 
 ```bash
 cd uretim
-python dogrula3.py     # current stage — 17 steps, ~6 min
+python dogrula3.py     # current stage — 18 steps, ~6 min
 python dogrula2.py     # archived stage 2
 python dogrula.py      # archived stage 1
 ```
 
-**17 steps, 1027 assertions.** Circuit behaviour is simulated with **ngspice**;
+**18 steps.** Circuit behaviour is simulated with **ngspice**;
 the firmware's measurement math is executed as *real compiled code* inside a
 bit-verified **AVR emulator**; the schematic is checked node by node from the
 netlist (ERC only says "connected", not "correct"); the firmware is compiled

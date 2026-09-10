@@ -52,6 +52,9 @@ ONESTOPBIT = 0
 DTR_CONTROL_DISABLE = 0
 RTS_CONTROL_DISABLE = 0
 
+# EscapeCommFunction — otomatik reset dizisi icin.
+SETRTS, CLRRTS, SETDTR, CLRDTR = 3, 4, 5, 6
+
 
 class DCB(ctypes.Structure):
     """Win32 DCB. Alan SIRASI ve bit alanlari ONEMLI — yanlis duzen
@@ -129,6 +132,8 @@ def _kernel32():
     k.WriteFile.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD,
                             ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p]
     k.WriteFile.restype = wintypes.BOOL
+    k.EscapeCommFunction.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    k.EscapeCommFunction.restype = wintypes.BOOL
     return k
 
 
@@ -268,6 +273,38 @@ class SeriKart:
             else:
                 time.sleep(0.002)
 
+    def sifirla(self, bekle: float = 0.35) -> bool:
+        """Karti DONANIMDAN sifirlamayi dener. Basardiysa True.
+
+        NEDEN VAR: kart acilis afisinde PSRAM boyutunu, pil tamponunu ve
+        LittleFS durumunu YALNIZCA BIR KEZ basiyor. `ac()` DTR/RTS'i
+        DISABLE kuruyor (bilerek: acilista kazara reset atmasin), o
+        yuzden baglandigimizda afis coktan gecmis oluyor.
+
+        Klasik oto-reset devresi: DTR -> EN, RTS -> IO0.
+            RTS=1, DTR=0  ->  IO0 asagi, EN yukari
+            DTR=1         ->  EN asagi  (reset)
+            DTR=0, RTS=0  ->  birak     (normal acilis)
+
+        ⚠ Yerel USB CDC'li kartlarda (ESP32-S3'un kendi USB'si) bu
+          dizinin HICBIR ETKISI YOK — orada DTR/RTS gercek bir pine
+          bagli degil. Zararsiz; True donmesi "sinyaller gonderildi"
+          demek, "kart gercekten sifirlandi" demek DEGIL. Cagiran taraf
+          afisi GORDU MU diye bakmali.
+        """
+        if not self._h:
+            return False
+        k = self._k32
+        for islev in (SETRTS, CLRDTR):
+            k.EscapeCommFunction(self._h, islev)
+        time.sleep(0.05)
+        k.EscapeCommFunction(self._h, SETDTR)      # EN asagi — reset
+        time.sleep(0.05)
+        k.EscapeCommFunction(self._h, CLRDTR)      # EN birak
+        k.EscapeCommFunction(self._h, CLRRTS)
+        time.sleep(bekle)                          # acilis
+        return True
+
     def yaz(self, metin: str) -> None:
         veri = (metin + "\n").encode("utf-8")
         yazilan = wintypes.DWORD(0)
@@ -299,6 +336,16 @@ class KayitKart:
 
     def ac(self) -> None:
         self._i = 0
+
+    def sifirla(self, bekle: float = 0.0) -> bool:
+        """`SeriKart.sifirla()` ile AYNI YUZEY — kaydi bastan oynatir.
+
+        Bringup kosucusu iki kart tipini ayirt etmek zorunda kalmasin
+        diye var; yoksa kosucunun icinde `isinstance` dali dogar ve
+        kayitli kosu gercek kosudan AYRISIR.
+        """
+        self._i = 0
+        return True
 
     def kapat(self) -> None:
         pass

@@ -99,7 +99,7 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
 
 ### ✅ B15 bitti (2026-09-09) — sonuçlar **5.12.24**'te
 
-`uretim/sim3_ariza.py` · 109 doğrulama · 27 senaryo · `dogrula3.py`'de B15.
+`uretim/sim3_ariza.py` · 111 doğrulama · 27 senaryo · `dogrula3.py`'de B15.
 **DEVİR'in kendi dört sayısı yanlış çıktı** ve şemada **üç kusur düzeltildi**
 (R34/R35/R36/R38/R39 seri korumaları + C1 100nF→1nF). Kabul ölçütü sağlandı:
 hiçbir bileşen arızası ESP32'yi ya da PC'yi öldürmüyor; ölen en pahalı parça
@@ -232,6 +232,20 @@ en pahalı kanıtı:
 istiyor (USB-only değil). **Tek istisna `p0`** (pil deşarjını durdur) —
 her zaman parolasız çalışıyor, çünkü emniyet kolaylıktan önce gelir.
 
+### 🔌 B25 — ESP32 için bringup koşucusu HAZIR (2026-09-11) — **5.12.41**
+
+Kart gelmeden hazırlandı. `uretim/tezgah_kart.py` gerçek karta seri + HTTP
+üzerinden bağlanıp **24 otomatik denetim** yapıyor; aşamalı (çıplak ESP32 →
++ADS → +analog ön uç). Kullanımı bu bloğun altındaki
+**"🔌 ESP32 geldiğinde"** bölümünde.
+
+🔴 **Koşucunun kendisi zincirde sınanıyor** (B25, 13 kasıtlı bozuk senaryo).
+Yanlış bir bringup testi testsizlikten kötüdür. Öz-test yazılırken koşucuda
+**üç gerçek hata** buldu — biri "aynı kapsam hatası, üçüncü kez".
+
+🔴 **`loop_azami_us` artık bir komut mesafesinde** — aylardır açık duran
+çift çekirdek kararını kapatacak tek ölçüm.
+
 ### ✅ B24 — GitHub'da yayında (2026-09-11) — sonuçlar **5.12.40**'ta
 
 <https://github.com/Muhammet933321/esp32-olcum-karti> · MIT · 180 dosya.
@@ -309,6 +323,67 @@ kuruluyor ama **kurulmazsa yetkilendirme kapalı** — açılışta yüksek sesl
 uyarılıyor. Parola zorunlu kılınsın mı, yoksa jeton + `Host` beyaz listesi
 yeterli mi? TLS olmadığı için parolanın koruduğu şey *"evdeki başka biri
 yanlışlıkla basmasın"*; LAN'daki bir dinleyiciye karşı koruma değil.
+
+### 🔌 ESP32 geldiğinde — sırayla
+
+> Bu bölüm **kart elinize geçtiği gün** için. Analog ön uç kurulmuş olmasına
+> gerek yok; aşağıdakilerin çoğu **çıplak ESP32-S3 ile** koşuyor.
+
+**1 · Firmware'i yükle.** Tam FQBN şart — varsayılanlar çalışmaz:
+
+```bash
+cd projeler/olcum-karti
+arduino-cli compile --warnings all \
+  --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=huge_app \
+  kod/olcum-karti-a3
+arduino-cli upload -p COM? \
+  --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=huge_app \
+  kod/olcum-karti-a3
+```
+
+`FlashSize=16M` olmadan LittleFS'in `0x310000` ofseti 4 MB sınırına düşer;
+`PSRAM=opi` olmadan 8 MB PSRAM hiç açılmaz. Tek kaynak `uretim/hedef2.py`.
+
+**2 · Arayüzü karta yaz.**
+
+```bash
+cd uretim
+python arayuz-uret.py     # LittleFS görüntüsünü paketle
+python arayuz-yaz.py      # 0x310000'e yaz (esptool)
+```
+
+**3 · Bringup koşucusunu çalıştır** — elle denenmesi gerekmeyen her şeyi
+otomatik sınıyor:
+
+```bash
+python tezgah_kart.py --liste            # ne yapacağını göster
+python tezgah_kart.py --sifirla          # aşama 0: çıplak ESP32
+python tezgah_kart.py --sifirla --asama 1        # ADS'ler bağlıyken
+python tezgah_kart.py --sifirla --http olcum.local   # web katmanı da
+```
+
+**24 denetim.** Açılış afişi (PSRAM boyutu, LittleFS, ağ kipi), komut
+yüzeyi, çıplak `g`/`i` reddi (K3 tuğlalama), `R` onay kapısı, I²C taraması,
+`D` satırının biçimi/hızı/**örnek sayısı**, ve web tarafında CSRF · jeton ·
+`p0` serbestliği · Host beyaz listesi.
+
+⚠ Açılış afişi yalnızca açılışta basılıyor. `--sifirla` DTR/RTS ile reset
+denemesi yapıyor ama **yerel USB CDC'li kartlarda bu çalışmaz** — o zaman
+EN düğmesine basıp komutu tekrar çalıştırın. Afiş alınamazsa PSRAM ve
+LittleFS denetimleri **atlanır**, kırmızı olmaz.
+
+🔴 **Koşucu hiçbir aşamada yük sürmüyor.** Pil deşarjını başlatan komut
+otomatik gönderilmiyor; failsafe ve baypas denetimi elle yapılacak.
+
+**4 · İlk gün ölçümleri** — `uretim/_tezgah.md`'nin başındaki `[!]` işaretli
+9 kalem. Bunlar multimetre isteyen, koşucunun yapamadığı şeyler. En kritiği:
+**+3V3 rayının geri beslenmesi** (USB'yi çıkar, 24 V takılı bırak, rayı ölç
+— beklenen 1.670 V).
+
+**5 · Çift çekirdek kararı.** Koşucu `K` satırından `loop_azami_us` okuyup
+**20 000 µs** eşiğiyle karşılaştırıyor. Üstündeyse ölçüm döngüsü çekirdek
+1'e taşınacak (5.12.34); altındaysa **yapılmayacak**. Bu tek ölçüm, aylardır
+açık duran bir mimari kararı kapatıyor.
 
 #### Sıradaki iş: DONANIMI KUR (B10)
 
@@ -738,7 +813,7 @@ ve düzelt.
 > | ⚪ Zaten kapanmıştı | 4.3 · 4.4 (+ 4.5 yanlış alarm) |
 > | ✅ Daha önce çözülmüş | 4.1 · 4.10 |
 > | ⏸️ Ön uç işine bağlandı | **4.8 · 4.13** — bkz. 5.12.4 bağımlılık zinciri |
-> | 🟡 Açık, bağımsız | 4.11 (ikili aktarım) · 4.12 (WiFi arayüzü) |
+> | 🟡 Açık, bağımsız | 4.11 (ikili aktarım) — **4.12 B22'de kapandı** |
 >
 > Zincir: **6/6 adım, 182 doğrulama, 0 hata** (A1 24 → 33 kural).
 
@@ -973,12 +1048,16 @@ Bugünkü ASCII protokolü ile:
 8 MB PSRAM'in derin belleği ancak **yerel USB CDC (GPIO19/20) + ikili biçim** ile
 anlamlı. UART köprüsünde 115200'de kalırsan PSRAM'in hiçbir işe yaramaz.
 
-### 4.12 🟡 WiFi yolunda arayüz yok
+### 4.12 ✅ WiFi yolunda arayüz yok — **B22'de KAPANDI** (2026-09-10)
 
-Firmware `/akis` adresinden SSE yayınlıyor (`text/event-stream`), ama `arayuz/app.js`
-**yalnız Web Serial** istemcisi — dosyada `fetch` veya `EventSource` geçmiyor. Yani
-WiFi ile bağlanınca gösterilecek arayüz yok, sadece ham SSE akışı var. Kalıcı alet için
-bu boşluk doldurulmalı.
+> Aşağıdaki tespit Aşama 2 dönemine ait ve **artık geçerli değil.** B22.2
+> taşıyıcı katmanını kurdu (`TasiyiciAkis` = SSE), B22.5 arayüzü kartın
+> LittleFS'inden servis etti. Ayrıca metindeki `arayuz/app.js` yolu da
+> yanlış — o klasör yok, dosya `arayuz3/app.js`. Ayrıntı **5.12.35** ve
+> **5.12.38**'de.
+
+Özgün tespit: *"Firmware `/akis` adresinden SSE yayınlıyor ama arayüz
+yalnız Web Serial istemcisi; WiFi ile bağlanınca gösterilecek arayüz yok."*
 
 ### 4.13 🔴 Alt koruma kelepçeleri 1N4148 — korudukları çipin sınırını AŞIYOR
 
@@ -3225,7 +3304,7 @@ açılır.
 
 #### 5.12.24 ✅ B15 SONUÇLARI — arıza simülasyonu (2026-09-09)
 
-`uretim/sim3_ariza.py` · **109 doğrulama · 27 senaryo · ~4 s** ·
+`uretim/sim3_ariza.py` · **111 doğrulama · 27 senaryo · ~4 s** ·
 `dogrula3.py` → **B15** adımı. Zincir B11 ile birlikte **9/9**.
 
 > ⚠ **Bu bir HESAP, tezgah ölçümü değil.** Donanım kurulmadı. B15 tasarımı
@@ -6307,6 +6386,135 @@ listesi bu bölümde, biri canımı sıkarsa buradan bakılır.
 
 ---
 
+#### 5.12.41 ✅ B25 — DONANIM BRINGUP KOSUCUSU (2026-09-11)
+
+ESP32 **yarın geliyor.** Zincirin 18 adımı tasarımı doğruluyor ama kart
+elde olduğunda çalıştırılabilecek tek bir donanım testi yoktu:
+`uretim/_tezgah.md` bir **kontrol listesi** — insan okur, koşmaz. 75 kalemi
+elle denemek hem yavaş hem atlamaya açık.
+
+`uretim/tezgah_kart.py` bunu kapatıyor: gerçek karta **seri + HTTP**
+üzerinden bağlanıp elle denenmesi gerekmeyen her şeyi otomatik sınıyor.
+
+```
+python tezgah_kart.py --liste                       # ne yapacağını gösterir
+python tezgah_kart.py --sifirla                     # aşama 0: çıplak ESP32
+python tezgah_kart.py --sifirla --asama 1           # + ADS1115
+python tezgah_kart.py --sifirla --http olcum.local  # + web katmanı
+```
+
+##### Aşamalar — elde ne varsa o kadarı
+
+| Aşama | Donanım | Ne sınanıyor |
+|---|---|---|
+| **0** | Yalnız ESP32-S3 | Açılış afişi (PSRAM boyutu, LittleFS, ağ kipi), komut yüzeyi, `K` blokaj sayacı, NVS savunmaları, web katmanı |
+| **1** | + ADS1115 modülleri | I²C adresleri, `D` satırının biçimi · hızı · **örnek sayısı** |
+| **2** | + analog ön uç | Değer denetimleri (henüz kalem yok — kart kurulunca eklenecek) |
+
+**24 denetim.** Her beklenen yanıt **firmware kaynağından okunuyor** —
+`D` satırının alan sayısı `.ino`'daki biçim dizesinden sayılıyor, mDNS adı
+`ag.h`'den, beklenen örnek sayısı `sim3_bant.py` ile **aynı bütçeden**
+hesaplanıyor. Elle yazılmış tek beklenti yok.
+
+🔴 **`loop_azami_us` okunuyor ve 20 000 µs eşiğiyle karşılaştırılıyor.**
+Aylardır açık duran çift çekirdek kararını kapatan tek ölçüm bu; artık bir
+komut mesafesinde.
+
+##### Emniyet
+
+🔴 **Koşucu hiçbir aşamada yük sürmüyor.** Pil deşarjını başlatan komutu
+bir test betiğinin kendiliğinden göndermesi kabul edilemez — ve bu bir
+niyet beyanı değil, **iddiayla korunuyor**: B25 koşucunun kaynağını tarayıp
+gönderdiği `p`-komutlarını çıkarıyor, `p0` (durdur) dışında bir şey varsa
+kırmızı. `R!` (fabrika sıfırlama) de hiç gönderilmiyor.
+
+NVS'e kalıcı yazan denetimler `--yazmaya-izin-ver` istiyor; varsayılan
+kapalı, taze bir kartın kalibrasyonunu bringup koşusu bozmasın diye.
+
+##### Koşucunun kendisi nasıl sınandı
+
+Bu asıl mesele: **yanlış bir bringup testi, testsizlikten kötüdür** —
+geçmeyen bir karta "geçti" der ve kusur tezgahtan çıkıp alana gider.
+
+`kopru/kart_baglanti.py`'deki **`KayitKart`** tam bunun için vardı:
+`SeriKart` ile aynı yüzey, komutlara betiklenmiş yanıt, ve yanıtı akışın
+**içine** koyuyor — gerçek kartta olduğu gibi. `test_tezgah_kart.py`
+(zincirde **B25**) koşucuyu bunun üzerinde iki yönlü sınıyor:
+
+1. **Sağlıklı kart** senaryosunda her denetim yeşil
+2. **13 kasıtlı bozuk senaryo** — doğru denetim kırmızı, ötekiler yeşil
+
+| Bozuk senaryo | Yakalayan denetim |
+|---|---|
+| PSRAM yok (FQBN'de `PSRAM=opi` eksik) | PSRAM satırı |
+| PSRAM 2 MB (yanlış modül) | PSRAM ≥ 8 MB |
+| LittleFS boş (arayüz yazılmamış) | Arayüz LittleFS'te |
+| Pil tamponu ayrılamadı | Tampon AYRILDI |
+| `loop_azami_us` eşik üstünde | Çift çekirdek eşiği |
+| Çıplak `g` **kabul ediliyor** (K3 geri geldi) | K3 tuğlalama koruması |
+| `R` onaysız fabrika sıfırlıyor | Onay kapısı |
+| Bilinmeyen komut sessizce yutuluyor | Açık ret |
+| ADS bağlı değil / yalnız 0x48 var | I²C adresleri |
+| Örnek sayısı ~100 / ~19 | Örnek sayısı bandı |
+| `D` satırı hiç gelmiyor | Ölçüm satırı |
+
+Ayrıca **telemetri ayıklama** ayrıca sınanıyor: kart sürekli `D` basıyor ve
+komut yanıtı bu akışın içine düşüyor. Naif bir "gönder, bir satır oku"
+%90 ihtimalle telemetri okur. **36/36 geçiyor.**
+
+##### Öz-test koşucuda ÜÇ GERÇEK HATA buldu
+
+Yazılmasının sebebi buydu ve daha yazılırken karşılığını verdi:
+
+1. **`KayitKart` sonlu.** Gerçek kart sonsuza kadar `D` basıyor, kayıt
+   bitiyor — `D` denetimleri kaydı tüketip **0 satır** görüyordu ve
+   sağlıklı senaryoda bile kırmızıydı. Çözüm: aşamalama + `gecikme` ile
+   gerçek tempoyu taklit etmek.
+2. **Telemetri ayıklama testi BOŞTU.** `KayitKart.yaz()` yanıtı imlecin
+   **önüne** koyuyor, yani yanıt her zaman ilk satır — ayıklanacak hiçbir
+   şey yoktu (0 telemetri satırı). Test "çalışıyor" diyordu ama hiçbir şey
+   sınamamıştı. Yanıtın kendisi telemetriyle sarılarak düzeltildi.
+3. **Emniyet denetiminin kapsamı çok genişti.** Deseni her tırnaklı
+   p-dizgesini yakalıyordu ve *"pil egri tamponu"* gibi **metinleri komut
+   sanıyordu**. Artık yalnızca gerçekten gönderilen komutlara bakıyor.
+   ⚠ **Aynı kapsam hatası, aynı oturumda üçüncü kez.**
+
+##### Açılış afişi tuzağı
+
+Afiş (PSRAM boyutu, pil tamponu, LittleFS) **yalnızca açılışta** basılıyor,
+ama `SeriKart.ac()` DTR/RTS'i bilerek `DISABLE` kuruyor — bağlanmak kartı
+sıfırlamıyor, yani afiş çoktan geçmiş oluyor.
+
+`SeriKart.sifirla()` eklendi (klasik oto-reset dizisi: DTR→EN, RTS→IO0).
+⚠ **Yerel USB CDC'li kartlarda etkisi yok** — orada DTR/RTS gerçek bir pine
+bağlı değil. O yüzden `sifirla()` "sinyaller gönderildi" diyor, "kart
+sıfırlandı" demiyor; çağıran taraf **afişi gördü mü** diye bakıyor.
+Görülmezse PSRAM/LittleFS denetimleri **atlanıyor, kırmızı olmuyor** ve
+kullanıcıya EN düğmesine basması söyleniyor.
+
+`KayitKart`'a da aynı yüzey eklendi — yoksa koşucunun içinde `isinstance`
+dalı doğar ve kayıtlı koşu gerçek koşudan **ayrışır**.
+
+##### Yan düzeltme: bayat RAM sabiti
+
+`tasarim3_sabit.ESP_DRAM_KULLANILAN` **51 084**'te donmuştu (yorumu
+"güncellenir" diyordu), gerçek derleme **71 420 B**. Bu sayı B21'in *"pil
+tamponu boş DRAM'in üçte birinden küçük"* iddiasını **20 KB iyimser**
+besliyordu — iddia yine geçiyordu ama iddia edilen pay gerçek değildi.
+Artık `_firmware.json`'dan okunuyor ve **B6 yedek sabitin ölçümle eşit
+olduğunu sınıyor**, bir daha sessizce kayamaz.
+
+##### Doğrulama
+
+Zincir **18/18**, 1066 iddia, 75 tezgah kalemi. B25 `--liste` ile ne
+koşacağını yazıyor; `--sifirla` olmadan afiş denetimleri atlanıyor.
+
+⚠ **Bu adım gerçek donanımı doğrulamıyor.** Yalnızca koşucunun doğru soruyu
+sorup doğru cevaba baktığını sınıyor. Gerçek seri port, gerçek zamanlama ve
+gerçek USB CDC davranışı yarın görülecek.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |
@@ -6315,7 +6523,7 @@ listesi bu bölümde, biri canımı sıkarsa buradan bakılır.
 | ~~B11~~ | ✅ **±12 V rayı (E0)** | **BİTTİ (2026-09-09).** 7912 orta nokta regülatörü; şemada BLOK 9. Sonuçlar **5.12.25**'te. Stoktan çıktı, yalnızca 50 mA sigorta alınacak |
 | B12 | İkili aktarım + USB CDC | **Donanım çalıştıktan SONRA** — Serial'i değiştiriyor |
 | B13 | Sürekli hızlı yol | Skop/ADC paylaşımı çözülmeli |
-| ~~B15~~ | ✅ **Arıza ve zorlama simülasyonu** | **BİTTİ (2026-09-09).** Sonuçlar **5.12.24**'te: 109 doğrulama, 27 senaryo, DEVİR'in 4 sayısı düzeltildi, şemada 3 kusur kapatıldı |
+| ~~B15~~ | ✅ **Arıza ve zorlama simülasyonu** | **BİTTİ (2026-09-09).** Sonuçlar **5.12.24**'te: 111 doğrulama, 27 senaryo, DEVİR'in 4 sayısı düzeltildi, şemada 3 kusur kapatıldı |
 | ~~B17~~ | ✅ **ADS eş zamanlılığı + süzgeç düzeltmesi** | **BİTTİ (2026-09-09).** Sonuçlar **5.12.29**'da: 26 doğrulama + AVR 70→87. Tek atış kipi, kesirli gecikme, ölçek düzeltmesi, faz kalibrasyonu |
 | ~~B20~~ | ✅ **Örnekleme hızı + bant sınırı + menzil** | **BİTTİ (2026-09-10).** Sonuçlar **5.12.30**'da: 41 doğrulama, firmware'de 7 düzeltme. 91 → 671 SPS, `f` sınırı 400 → 100 Hz, AC menzil chatter'ı, SSE blokajı, imza, skop adımı |
 | ~~B21~~ | ✅ **Pil kapasite testi** | **BİTTİ (2026-09-10).** Sonuçlar **5.12.31**'de: 32 doğrulama, şemada BLOK 10, `pil_test.h`, arayüzde panel. mAh + kesme + eğri + DCIR. Failsafe kapı, ≤38.5 V sınırı |
@@ -6466,65 +6674,117 @@ sunulmadı (4 seçenek sınırı), kullanıcıya sorulabilir.
 
 ## 9. Dosya haritası ve komutlar
 
+> ⚠️ **Adım başına doğrulama sayıları burada TUTULMUYOR.** Bir kuşak boyunca
+> tutuldular ve bayatladılar (B17 26→31, B3 128→150, B15 109→111). Tek kaynak
+> **`uretim/beklenen_sayim.json`** ve zincir her koşuda birebir karşılaştırıyor.
+
 ### Komutlar
 
 ```bash
 cd projeler/olcum-karti/uretim
-python dogrula2.py            # Aşama 2 tam zincir (A1-A5), ~30 s
-python dogrula.py             # Aşama 1 tam zincir (S1-S9), ~2.5 dk
-python dogrula.py --hizli     # Aşama 1 hızlı (S1-S7), ~20 s
-node test_skop_arayuz.js      # yalnız osiloskop protokol köprüsü
-python kanit2-uret.py         # kanıt sayfasını yeniden üret
+python dogrula3.py            # AŞAMA 3 — GÜNCEL, 17 adım, ~6 dk
+python dogrula2.py            # Aşama 2 (arşiv), A1–A6, ~70 s
+python dogrula.py             # Aşama 1 (arşiv), S1–S9, ~110 s
+python dogrula.py --hizli     # Aşama 1 hızlı (S1–S7), ~20 s
+
+python mutasyon.py            # iddialar gerçekten ısırıyor mu — ~15 s
+python mutasyon.py --liste    # ne koşacağını yazar, koşmaz
+
+python belge-uret.py          # BELGELER/ yeniden üret (7 sayfa)
+python arayuz-uret.py         # arayüzü LittleFS görüntüsüne paketle
+python arayuz-yaz.py          # görüntüyü karta yaz (esptool, 0x310000)
 
 cd projeler/olcum-karti
-py arayuz/sunucu.py           # arayüz (Web Serial güvenli bağlam ister)
+python arayuz3/sunucu.py      # arayüzü PC'den sun (Web Serial)
+Kopru Baslat.bat              # PC köprüsü (telefondan bağlanmak için)
 ```
 
-### Üretim betikleri
+### Üretim betikleri — Aşama 3 (güncel)
+
+| Betik | Adım | Görevi |
+|---|---|---|
+| `dogrula3.py` | — | Zincir koşturucu + tezgah toplayıcı + sayım kilidi |
+| `tasarim3.py` + `tasarim3_sabit.py` | **B1** | Aşama 3 tasarımı; **tüm mutlak sınırlar `tasarim3_sabit.py`'de, kaynaklarıyla** |
+| `sim3_giris.py` | **B2** | Çift yönlü ön uç, ngspice |
+| `sim3_ariza.py` | **B15** | Arıza ve zorlama — 27 senaryo. Kabul ölçütü: hiçbir TEK arıza ESP32'yi ya da PC'yi öldürmemeli |
+| `sim3_besleme.py` | **B11** | ±12 V rayı, 7912 orta nokta regülatörü |
+| `sim3_ortusme.py` | **B16** | V/I süzgeç eşleştirmesi + akım kanalı örtüşme süzgeci |
+| `sim3_kelepce.py` | **B18** | GPIO kelepçeleri ve +3V3 geri beslemesi |
+| `sim3_skop.py` | **B19** | Osiloskop kanalı çift yönlü |
+| `sim3_senkron.py` | **B17** | ADS eş zamanlılığı, ölçek düzeltmesi, faz kalibrasyonu |
+| `sim3_bant.py` | **B20** | Örnekleme hızı, bant sınırı, menzil + kütüphane taraması |
+| `sim3_pil.py` | **B21** | Pil kapasite testi — anahtar, kapı yönü, tampon |
+| `test_kopru.py` | **B22a** | PC köprüsü — röle bayt-şeffaflığı, arşiv, sürücü hakemi |
+| `sim3_web.py` | **B22b** | Kartın web katmanı — SSE, komut ucu, CSRF, ağ |
+| `sema3-uret.py` / `netlist3_dogrula.py` | **B3** | Şema üretimi + netlist polarite denetimi |
+| `test_olcum3.py` | **B4/B5** | Ölçüm matematiği, GERÇEK kod AVR emülatöründe |
+| `test_firmware3.py` | **B6** | Derleme (gerçek ESP32-S3) + ikilide ölü kod |
+| `test_arayuz3.js` | **B7** | Arayüz + arayüz↔firmware komut denetimi |
+| `bom_dogrula.py` / `kurulum3-uret.py` | **B9** | Malzeme listesi + tezgah kılavuzu |
+
+### Ortak altyapı (B23'te eklendi)
 
 | Betik | Görevi |
 |---|---|
-| `dogrula.py` / `dogrula2.py` / `dogrula3.py` | Zincir koşturucular |
-| `tasarim3.py` + `tasarim3_sabit.py` | **B1** — Aşama 3 tasarımı; **tüm mutlak sınırlar `tasarim3_sabit.py`'de, kaynaklarıyla** |
-| `sim3_giris.py` | **B2** — çift yönlü ön uç, ngspice |
-| **`sim3_ariza.py`** | **B15** — arıza ve zorlama simülasyonu (27 senaryo, 109 doğrulama) |
-| **`b15_kanit_uret.py`** | B15'in araştırma/denetim kanıtını `uretim/b15-arastirma.md`'ye döker |
-| **`sim3_besleme.py`** | **B11** — ±12 V rayı, 7912 orta nokta regülatörü (23 doğrulama) |
-| **`sim3_ortusme.py`** | **B16** — V/I süzgeç eşleştirmesi + akım kanalı örtüşme süzgeci (41 doğrulama, ngspice çapraz denetimli) |
-| **`sim3_kelepce.py`** | **B18** — GPIO kelepçeleri ve +3V3 geri beslemesi (46 doğrulama, bağımsız denetimden geçti) |
-| **`sim3_skop.py`** | **B19** — osiloskop kanalı çift yönlü (24 doğrulama) |
-| **`sim3_senkron.py`** | **B17** — ADS eş zamanlılığı, ölçek düzeltmesi, faz kalibrasyonu (26 doğrulama) |
-| `sema3-uret.py` / `netlist3_dogrula.py` | **B3** — Aşama 3 şeması + **128** netlist denetimi |
-| `test_olcum3.py` / `test_firmware3.py` / `test_arayuz3.js` | **B4/B5** · **B6** · **B7** |
-| `bom_dogrula.py` / `kurulum3-uret.py` | **B9** — malzeme listesi + tezgah kılavuzu |
-| `tasarim2.py` | **A1** — tasarım belgesi + test; tüm sabitler burada |
-| `sim_referans.py` `sim_bolucu.py` `sim_akim.py` | S1-S3 ngspice |
+| `tezgah.py` | Tezgah kalemi biçimi; konsolun çizemeyeceği karakteri **yazmadan önce** yakalar |
+| `mutasyon.py` | Mutasyon koşucusu — kaynağı bir **kopyada** bozup testin kırmızıya döndüğünü ölçer |
+| `sayim.py` | Adım özet satırlarının ortak ayrıştırıcısı (dört ayrı biçim) |
+| `gecici.py` | Kendini silen geçici dizin (`atexit`) |
+| `belge_menu.py` | `BELGELER/` gezinme şeridi — **tek kaynak**, iki üreteç paylaşır |
+| `spice.py` · `hedef2.py` · `kutuphane.py` | ngspice sürücüsü · FQBN · sembol kütüphanesi |
+
+### Üretilen dosyalar (elle düzenlenmez)
+
+| Dosya | Kim üretiyor |
+|---|---|
+| `uretim/_tezgah.md` | `dogrula3.py` — tezgahta ölçülecekler |
+| `uretim/beklenen_sayim.json` | `dogrula3.py` — iddia sayısı kilidi |
+| `uretim/_firmware.json` | `test_firmware3.py` — ölçülen flash/RAM |
+| `uretim/_fs.json` · `_fs.bin` | `arayuz-uret.py` — LittleFS görüntüsü ve künyesi |
+| `BELGELER/*.html` | `belge-uret.py` (+ `4-kurulum.html`: `kurulum3-uret.py`) |
+| `uretim/b15-arastirma.md` | `b15_kanit_uret.py` — B15'in ham araştırma kanıtı |
+
+### Arşiv betikleri (Aşama 1 · 2)
+
+| Betik | Görevi |
+|---|---|
+| `tasarim2.py` | **A1** — tasarım belgesi + test |
+| `sim_referans.py` `sim_bolucu.py` `sim_akim.py` | S1–S3 ngspice |
 | `sim2_giris.py` | **A2** — 4 kelepçe seçeneğinin taranması |
 | `sim_kart.py` / `sim2_kart.py` | S9 / **A4** — uçtan uca |
 | `test_firmware.py` | S4 — aritmetik |
 | `test_avr.py` | S8 — emülatörün kendisinin doğrulanması |
-| `test_skop.py` + `test_skop_arayuz.js` | **A5** — osiloskop protokolü + ölü kod denetimi |
+| `test_skop.py` + `test_skop_arayuz.js` | **A5** — osiloskop protokolü + ölü kod |
 | `netlist_dogrula.py` / `netlist2_dogrula.py` | S5 / **A3** — netlist polarite ve adres |
-| `sema-uret.py` / `sema2-uret.py` | Şema üreteçleri (KiCad dosyasını sıfırdan yazar) |
-| `sema_uret_ortak.py` `kutuphane.py` `spice.py` | Ortak yardımcılar |
+| `sema-uret.py` / `sema2-uret.py` | Şema üreteçleri |
 | `gorsel.py` `gorsel_a2.py` `gorsel_s9.py` | SVG grafik üreteçleri |
-| `kanit-uret.py` `kanit2-uret.py` | Kanıt sayfaları |
-| `uretim/b15-arastirma.md` | **B15'in ham kanıtı** — 10 araştırma konusu, 80 doğrulanmış iddia (35 çürütülmüş), 6 denetim boyutu, 437 KB |
-| `kurulum-uret.py` `sayfa-uret.py` | Kurulum / doğrulama sayfaları |
+| `kanit-uret.py` `kanit2-uret.py` `sayfa-uret.py` `kurulum-uret.py` | Arşiv sayfaları |
 | `avr/cekirdek.py` `avr/mega328.py` `avr/elf.py` | AVR emülatörü |
-| `fiyat_tara.py` | Türk sitelerinde fiyat karşılaştırma |
 
 ### Kaynak dosyalar
 
 | Yol | İçerik |
 |---|---|
-| `kod/olcum-karti/olcum-karti.ino` + `tipler.h` | Aşama 1 firmware (ATmega328P) |
-| `kod/olcum-karti-a2/olcum-karti-a2.ino` | Aşama 2 firmware (ESP32-S3) |
-| `kod/olcum-karti-a2/olcum2.h` | **Platform bağımsız aritmetik** — AVR'de de koşar |
-| `arayuz/app.js` `index.html` `style.css` `sunucu.py` | Vue 3, derleme adımı yok |
-| `sema/` `sema2/` | KiCad şemaları (betikle üretiliyor) |
-| `kanit/` | Doğrulama kayıtları ve kanıt sayfaları |
-| `kurulum2.html` | Aşama 2 tezgah kurulum kılavuzu (breadboard'a göre — plakete güncellenmeli) |
+| `kod/olcum-karti-a3/olcum-karti-a3.ino` | **Güncel firmware** (ESP32-S3) |
+| `kod/olcum-karti-a3/olcum3.h` | **Platform bağımsız aritmetik** — AVR emülatöründe de koşar |
+| `kod/olcum-karti-a3/pil_test.h` · `ag.h` · `web_akis.h` · `web_satir.h` · `tipler3.h` | Pil testi · ağ · `Serial` aynası · satır tamponu · tipler |
+| `arayuz3/app.js` `index.html` `style.css` `ek.css` `sunucu.py` | **Güncel arayüz** — Vue 3, derleme adımı yok |
+| `kopru/kopru.py` `kart_baglanti.py` `arsiv.py` | **PC köprüsü** — yalnızca standart kütüphane |
+| `sema3/olcum-karti-a3.kicad_sch` | **Güncel şema** (betikle üretiliyor) |
+| `arsiv/asama1/` · `arsiv/asama2/` | Eski aşamalar. ⚠ `arsiv/asama2/kurulum2.html` **canlı bağımlılık**: `kurulum3-uret.py` biçimini oradan okuyor |
+
+
+### Arşiv kaynakları (Aşama 1 · 2)
+
+| Yol | İçerik |
+|---|---|
+| `arsiv/asama1/olcum-karti/olcum-karti.ino` + `tipler.h` | Aşama 1 firmware (ATmega328P) |
+| `arsiv/asama2/olcum-karti-a2/olcum-karti-a2.ino` | Aşama 2 firmware (ESP32-S3) |
+| `arsiv/asama2/.../olcum2.h` | Aşama 2'nin platform bağımsız aritmetiği |
+| `arsiv/asama1/arayuz/` · `arsiv/asama2/arayuz2/` | Eski arayüzler |
+| `arsiv/asama1/sema/` · `arsiv/asama2/sema2/` | Eski KiCad şemaları |
+| `arsiv/asama*/kanit/` | Doğrulama kayıtları ve kanıt sayfaları |
+| `arsiv/asama2/kurulum2.html` | Aşama 2 kurulum kılavuzu — ⚠ **biçimi hâlâ kullanılıyor**, bkz. yukarıdaki uyarı |
 
 ### Firmware arayüzü (Aşama 2)
 
