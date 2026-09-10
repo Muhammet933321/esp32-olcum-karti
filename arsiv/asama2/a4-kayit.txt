@@ -1,0 +1,75 @@
+==============================================================================
+  A4 — ASAMA 2 UCTAN UCA
+==============================================================================
+
+--- 1. Analog kati ngspice ile tara -------------------------------
+  [OK] Bolucu orani ngspice'tan  15.706 (tasarim 15.706)
+  [OK] Sont + RC suzgeci egimi 1 ohm'a esit  0.999717 ohm
+
+--- 2. Uygulanan degerleri ADS1115 koduna cevir --------------------
+    V uyg     dugum   kod_v |    I uyg   sont mV   kod_i
+  ------------------------------------------------------------
+     3.30   0.21011    3362 |   0.0100    9.9972    1280
+     5.00   0.31835    5094 |   0.0500   49.9858    6398
+    12.00   0.76404   12225 |   0.1000   99.9717   12796
+    24.00   1.52809   24449 |   0.2000  199.9434   25593
+    30.00   1.91011   30562 |   0.2500  249.9292   31991
+
+--- 3. GERCEK donusum kodunu AVR'de kostur ------------------------
+  [OK] olcum2.h AVR'de uyarisiz derlendi  0 uyari
+  [OK] Program tamamlandi  60 000 000 cevrim
+
+--- 4. Her deger BIT BIREBIR karsilastiriliyor --------------------
+  [OK] 5 olcum satiri geldi  5 satir
+
+       nokta   volt (AVR)  volt (numpy)      amper       watt
+  --------------------------------------------------------------
+    3.30 V       40533675      40533675         OK         OK
+    5.00 V       40a002f4      40a002f4         OK         OK
+   12.00 V       41400121      41400121         OK         OK
+   24.00 V       41bfff1f      41bfff1f         OK         OK
+   30.00 V       41f00069      41f00069         OK         OK
+  [OK] Tum donusumler bit birebir tuttu
+  [OK] Enerji satiri geldi
+  [OK] uint64 pJ birikimi birebir  16 025 132 842 pJ
+  [OK] Joule donusumu birebir  0.016025 J
+  [OK] Wh donusumu DOGRU sabitle (3.6e15, 3.6e18 DEGIL)  0.000004451 Wh
+  [OK] PGA kademe satiri geldi
+  [OK] Otomatik kademe secimi birebir  2.048 1.024 0.512 0.256 0.256
+  [OK] Kademe tam olcek degerleri birebir  32.1656 / 16.0828 / 8.0414 / 4.0207
+  [OK] Kademe adim degerleri birebir  0.0010 / 0.0005 / 0.0002 / 0.0001
+
+--- 5. Protokol satirini GERCEK arayuze ver -----------------------
+  [OK] Sabit noktadan IKI protokol satiri uretildi  D 12.0003 0.099969 1.199651 0.2400 0.0000667 200 172 | D 12.0003 0.099969 1.199651 0.4799 0.0001333 400 172
+  Kartin gonderdigi 108 bayt / 3 satir arayuze verildi
+  
+  [OK] Arayuz en az bir olcum ayristirdi  2 nokta
+  [OK] Ekrandaki gerilim uygulanan gerilime esit  12.0003 V  (uygulanan 12.00 V)
+  [OK] Ekrandaki akim uygulanan akima esit  99.97 mA  (uygulanan 99.97 mA)
+  [OK] Ekrandaki guc = gerilim x akim  1.1997 W
+  [OK] Enerji alanlari dolduruldu  0.4799 J = 0.0001333 Wh
+  [OK] Ornekleme hizi hesaplandi  860 /sn
+  [OK] Gurultu bastirma gosterildi  √172 ≈ 13× bastırma
+  [OK] Gecmis zaman ekseni artiyor  0.000 s -> 0.200 s
+  [OK] Veri satirlari gunluge dusmedi  0 gunluk kaydi
+  [OK] Hicbir noktada NaN yok
+  
+    EKRANDA GORUNEN:  12.0003 V   99.97 mA   1.1997 W   0.4799 J
+  
+    10/10 dogrulama gecti
+  [OK] Arayuz zincirin sonunu dogruladi
+
+--- 6. AYNI kaynak gercek ESP32-S3 derleyicisiyle -----------------
+  [OK] ESP32-S3 icin derlendi  flash 455033 B (%34), RAM 30968 B (%9)
+  [OK] ESP32-S3 derlemesi uyarisiz  0 uyari
+
+==============================================================================
+  A4: 18/18 kosul gecti   (19.4 s)
+==============================================================================
+
+  BU TEST KANITLAMAZ (tezgahta olculmeli):
+    * ADS1115'in kendi ofset (+-3 LSB) ve kazanc (%0.15) hatasi
+    * lehim/temas direnci — 15 mohm kademesinde Kelvin sart
+    * gercek gurultu, sicaklik suruklenmesi
+    * ESP32-S3 ADC'sinin dogrusalsizligi (osiloskop kanali)
+    * direnc toleranslari (%1 metal film varsayildi)

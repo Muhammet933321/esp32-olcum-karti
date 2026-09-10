@@ -1,0 +1,12 @@
+{
+  "name": "Ölçüm Kartı",
+  "short_name": "Ölçüm",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#161b21",
+  "theme_color": "#161b21",
+  "icons": [
+    { "src": "ikon-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}

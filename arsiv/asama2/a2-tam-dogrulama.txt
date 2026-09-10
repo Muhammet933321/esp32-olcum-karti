@@ -1,0 +1,655 @@
+==============================================================================
+  OLCUM KARTI — ASAMA 2 DOGRULAMA ZINCIRI  (ESP32-S3 + ADS1115)
+==============================================================================
+
+------------------------------------------------------------------------------
+  A1  Tasarim ve hata butcesi
+------------------------------------------------------------------------------
+
+==============================================================================
+  1. BESLEME VE MANTIK SEVIYELERI
+==============================================================================
+  ESP32-S3 kart uzerinde 3.3 V uretiyor; ADS1115 de 3.3 V'ta calisiyor.
+
+  ADS1115 VIH = 0.7 x VDD = 2.31 V,  ESP32 cikis yuksek = 3.3 V
+  [OK] I2C seviyeleri uyumlu (ayni 3.3 V)   3.30 V >= 2.31 V
+
+  NEDEN 5 V DEGIL: ADS1115'i 5 V'ta besleseydik VIH = 3.50 V olurdu;
+  ESP32'nin 3.3 V'luk yuksek seviyesi bunu KARSILAMAZDI. Seviye
+  cevirici gerekirdi. 3.3 V'ta besleyerek o parcayi tamamen siliyoruz.
+
+  BEDELI: analog giris 3.3 V ile sinirli. PGA +-4.096 V
+  secilse bile aralaigin sadece %81'i
+  (26 400 sayim) kullanilabiliyor.
+
+==============================================================================
+  2. GERILIM KANALI  (ADS #2, AIN0 tekli)
+==============================================================================
+  Bolucu 100K / 6.8K  ->  oran 15.706
+  (A2 SPICE taramasi bu orani secti — gerekce asagida)
+  Thevenin direnci 6.37 kohm, dugum kondansatoru 1 nF
+  Kesim frekansi 25.0 kHz
+
+  KELEPCE: dugum -> 1N4148 -> TL431 rayi (2.495 V)
+  Dugum en fazla 3.195 V'a cikabilir (girise vurulursa 50.2 V)
+  [OK] Kelepce ADS1115 mutlak azamisinin altinda   3.195 V < 3.6 V
+
+  NEDEN TL431, neden 3.3 V rayina degil:
+    3.3 V rayina 1N4148 ile kelepcelenseydi dugum 4.0 V'a cikardi.
+    ADS1115 mutlak azamisi 3.6 V — 0.4 V
+    asardi. TL431 rayi 0.8 V daha alcak oldugu icin pay birakiyor.
+
+  PGA merdiveni (yazilimdan secilir, donanim degismez):
+
+           PGA   tam olcek       adim   12 V hatasi
+    ------------------------------------------------
+    +- 4.096     51.83 V   1963.2 uV        %0.057
+    +- 2.048     32.17 V    981.6 uV        %0.029
+    +- 1.024     16.08 V    490.8 uV        %0.014
+    +- 0.512      8.04 V    245.4 uV             —
+    +- 0.256      4.02 V    122.7 uV             —
+
+  [OK] Gerilim tam olcegi Asama 1'i (27.14 V) asiyor   32.17 V
+  [OK] Gerilim adimi Asama 1'den (26.53 mV) ince   0.982 mV
+  [OK] Kelepce olcum araligini kisitlamiyor   kelepce 50.2 V vs tam olcek 32.2 V
+
+==============================================================================
+  3. AKIM KANALI  (ADS #1, AIN0-AIN1 DIFERANSIYEL, alcak taraf)
+==============================================================================
+  PGA +-0.256 V sabit, adim 7.8125 uV
+  Diferansiyel giris: sontun iki ucu dogrudan okunuyor, ortak uc sorunu yok.
+
+   kademe      sont   tam olcek       adim  FS gerilim    FS guc  lehim hatasi
+  ----------------------------------------------------------------------------
+       uA   10.0000     0.026 A     0.78 uA     256.0 mV    0.01 W  %      0.01
+       mA    1.0000     0.256 A     7.81 uA     256.0 mV    0.07 W  %      0.10
+        A    0.1000     2.560 A    78.12 uA     256.0 mV    0.66 W  %      1.00
+      10A    0.0150    11.547 A   520.83 uA     173.2 mV    2.00 W  %      6.67
+
+  [OK] En hassas kademe Asama 1'den (30.5 uA) ince   0.78 uA
+  [OK] En yuksek kademe Asama 1'i (31 mA) asiyor   11.55 A
+
+  KUSUR ve DOGRU GEREKCE:
+  Lehim direnci SABIT oldugu icin statik hatasi kalibrasyonla silinir.
+  Kelvin'in asil gerekcesi bu degil, su iki sey:
+
+  (a) YUKE BAGLI SURUKLENME — eklem akimla isinir, direnci degisir:
+        akim   eklem P      dT        dR   15 mohmda hata
+      ----------------------------------------------------
+          1 A     1.0 mW    0.1 C     0.4 uohm           0.003%
+          2 A     4.0 mW    0.4 C     1.6 uohm           0.010%
+          5 A    25.0 mW    2.5 C     9.8 uohm           0.065%
+         10 A   100.0 mW   10.0 C    39.0 uohm           0.260%
+
+  (b) 10 A KALIBRASYON KAYNAGI GEREKTIRMEZ — Kelvin olmadan kademeyi
+      kullanmak icin elinde 10 A veren ve olcen bir referans olmali.
+      Kelvin ile sontun kendi %1 toleransi yeterli, kalibrasyon sart degil.
+
+  Kelvin'in COZMEDIGI: sontun kendi isinmasi (alasim TCR 75 ppm/C)
+         1 A:  0.01 W -> dT   0.3 C -> %0.002 degisim  (kacinilmaz)
+         5 A:  0.38 W -> dT   7.5 C -> %0.056 degisim  (kacinilmaz)
+        10 A:  1.50 W -> dT  30.0 C -> %0.225 degisim  (kacinilmaz)
+  [OK] Kelvin gerektiren kademeler tespit edildi ve semada ayri izle cizilecek   1 kademe
+  [OK] Kelvinsiz yuke bagli suruklenme 10 A'de %0.1'i asiyor   %0.260 — kalibrasyon bunu silemez
+
+  Termo-emk (bakir/alasim birlesimi, en kotu 3 uV):
+       uA:      0.3 uA esdeger  (tam olcegin %0.0012'i)
+       mA:      3.0 uA esdeger  (tam olcegin %0.0012'i)
+        A:     30.0 uA esdeger  (tam olcegin %0.0012'i)
+      10A:    200.0 uA esdeger  (tam olcegin %0.0017'i)
+
+==============================================================================
+  4. AKIM GIRISI ORTUSME SUZGECI
+==============================================================================
+  Her bacakta 100 ohm, aralarinda 100 nF
+  Diferansiyel kesim 7.96 kHz
+  ADS1115 giris direnci (PGA +-0.256 V) ~710 kohm
+  [OK] Seri direncin yarattigi kazanc hatasi < %0.1   %0.0282
+  [OK] Kesim frekansi anahtarlama gurultusunun (100 kHz) altinda   8.0 kHz
+
+==============================================================================
+  5. OSILOSKOP KANALI  (ESP32-S3 ADC1_CH3 / GPIO4)
+==============================================================================
+  AYRI giris, ayri bolucu — voltmetreyle ayni dugum DEGIL.
+  Bolucu yine 16:1, ESP32 ADC ust siniri 3.1 V
+  Tam olcek 48.7 V, adim 11.9 mV (12 bit)
+  Ornekleme 83 333 Sa/s
+  Nyquist 41.7 kHz, ortusme suzgeci kesimi 25.0 kHz
+
+  [OK] Kelepce ESP32 GPIO mutlak azamisinin altinda   3.195 V < 3.6 V
+  [OK] Ornekleme Asama 1'i (76 923 Sa/s) asiyor   83 333 Sa/s
+  [OK] Cozunurluk Asama 1'i (8 bit) asiyor   12 bit
+  [OK] Ortusme suzgeci Nyquist'in altinda   25.0 kHz < 41.7 kHz
+
+  UYARI: ESP32-S3 ADC'si dogrusal DEGILDIR. Bu kanal dalga SEKLI icin;
+  sayisal deger her zaman ADS1115'ten okunmali.
+
+==============================================================================
+  6. ORNEKLEME VE GURULTU TABANI
+==============================================================================
+  Iki ayri ADS1115 kullaniliyor: biri akim, biri gerilim.
+  Ikisi de SUREKLI kipte 860 SPS -> kanal basina 860 ornek/s
+  V ve I ES ZAMANLI orneklendigi icin P = V x I carpimi dogru.
+
+  (Tek ADS1115 ile kanal degistirseydik 430 cift/s olurdu ve
+   V ile I arasinda 1.16 ms gecikme kalirdi.)
+
+  200 ms pencere = 172 ornek -> sqrt(N) = 13.1x
+  200 ms tam 10 sebeke cevrimi (50 Hz) -> ugultu sifirlanir
+
+       uA kademesi gurultu tabani:   0.0596 uA
+       mA kademesi gurultu tabani:   0.5957 uA
+        A kademesi gurultu tabani:   5.9570 uA
+      10A kademesi gurultu tabani:  39.7132 uA
+
+  [OK] Gurultu tabani Asama 1'den (1.644 uA) iyi   0.0596 uA (28 kat)
+  [OK] DC ornekleme Asama 1'in yarisina dustu (bilinen odun)   860 < 1720 ornek/s — gurultu tabani yine de iyi
+
+==============================================================================
+  7. HATA BUTCESI  (kalibrasyon SONRASI, 25 C)
+==============================================================================
+  Kalibrasyonla silinenler: ADS kazanc hatasi (%0.15), direnc
+  toleransi (%1), sont toleransi. Geriye kalanlar:
+
+  GERILIM (PGA +-2.048, SECILEN)  (12.0V olcerken)
+      kuantalama +-0.5 LSB                   490.81 uV  % 0.0041
+      ADS ofseti +-3 LSB                    2944.85 uV  % 0.0245
+      TOPLAM (en kotu hal)                  3435.66 uV  % 0.0286
+
+  GERILIM (PGA +-0.512, kucuk gerilim)  (3.3V olcerken)
+      kuantalama +-0.5 LSB                   122.70 uV  % 0.0037
+      ADS ofseti +-3 LSB                     736.21 uV  % 0.0223
+      TOPLAM (en kotu hal)                   858.92 uV  % 0.0260
+
+  AKIM (1 ohm sont)  (0.1A olcerken)
+      kuantalama +-0.5 LSB                     3.91 uA  % 0.0039
+      ADS ofseti +-3 LSB                      23.44 uA  % 0.0234
+      termo-emk                                3.00 uA  % 0.0030
+      lehim direnci (1 mohm)                 100.00 uA  % 0.1000
+      TOPLAM (en kotu hal)                   130.34 uA  % 0.1303
+
+  AKIM (15 mohm, KELVINSIZ, KALIBRESIZ)  (10.0A olcerken)
+      kuantalama +-0.5 LSB                   260.42 uA  % 0.0026
+      ADS ofseti +-3 LSB                    1562.50 uA  % 0.0156
+      termo-emk                              200.00 uA  % 0.0020
+      lehim direnci — statik              666666.67 uA  % 6.6667
+      TOPLAM (en kotu hal)                668689.58 uA  % 6.6869
+
+  AKIM (15 mohm, KELVINSIZ ama 10 A'de KALIBRE)  (10.0A olcerken)
+      kuantalama +-0.5 LSB                   260.42 uA  % 0.0026
+      ADS ofseti +-3 LSB                    1562.50 uA  % 0.0156
+      termo-emk                              200.00 uA  % 0.0020
+      eklem yuke bagli suruklenme          26000.00 uA  % 0.2600
+      sont oz-isinmasi                     22500.00 uA  % 0.2250
+      TOPLAM (en kotu hal)                 50522.92 uA  % 0.5052
+
+  AKIM (15 mohm, KELVIN ile, kalibrasyonsuz)  (10.0A olcerken)
+      kuantalama +-0.5 LSB                   260.42 uA  % 0.0026
+      ADS ofseti +-3 LSB                    1562.50 uA  % 0.0156
+      termo-emk                              200.00 uA  % 0.0020
+      sont toleransi %1 (etiket degeri)   100000.00 uA  % 1.0000
+      sont oz-isinmasi                     22500.00 uA  % 0.2250
+      TOPLAM (en kotu hal)                124522.92 uA  % 1.2452
+
+  [OK] 12 V olcumunde hata < %0.1   %0.0286
+  [OK] 100 mA olcumunde hata < %0.2   %0.1303
+  [OK] 15 mohm KELVINSIZ+KALIBRESIZ kabul edilemez (kusur dogrulandi)   %6.69
+  [OK] Kalibrasyon statik kismi siliyor ama tamamini degil   %0.505 — yuke bagli kalan
+  [OK] KELVIN ile kalibrasyonsuz bile %1.5'in altinda   %1.245 (sontun kendi %1 toleransi baskin)
+
+==============================================================================
+  8. I2C VE PIN PLANI
+==============================================================================
+  ADS1115 adresleri (ADDR pini):
+    ADS #1  0x48  ADDR->GND  AKIM   AIN0-AIN1 diferansiyel
+    ADS #2  0x49  ADDR->VDD  GERILIM AIN0 tekli
+    ADS #3  0x4A  ADDR->SDA  yedek / 2. kanal (verim)
+
+  ESP32-S3 pinleri:
+    GPIO8    I2C SDA  (4.7K pull-up -> 3.3 V)
+    GPIO9    I2C SCL  (4.7K pull-up -> 3.3 V)
+    GPIO4    ADC1_CH3 — osiloskop girisi
+    GPIO5    ADC1_CH4 — osiloskop 2. kanal (yedek)
+    GPIO7    ADS #1 ALERT/RDY (donusum hazir kesmesi)
+
+  KACINILAN PINLER (N16R8 varyantinda kullanilamaz):
+    GPIO0, GPIO3, GPIO45, GPIO46 — strapping
+    GPIO19, GPIO20              — yerel USB D-/D+
+    GPIO26..GPIO32              — SPI flash
+    GPIO33..GPIO37              — oktal PSRAM (R8 varyanti)
+  [OK] Secilen ADC pinleri ADC1'de (WiFi ile cakismaz)   GPIO4, GPIO5 -> ADC1_CH3, CH4
+  [OK] Secilen pinlerin hicbiri yasakli listede degil   cakisma yok
+
+==============================================================================
+  9. ON PANEL — 5 UC CIFTI
+==============================================================================
+  uc           baglanti       menzil                 konnektor
+  --------------------------------------------------------------------------
+  V            yuke PARALEL   0 - 32.2 V             muz jak kirmizi+siyah
+  uA/mA        yuke SERI      0 - 256 mA             muz jak sari+siyah
+  A            yuke SERI      0 - 2.56 A             muz jak mavi+siyah
+  10A          yuke SERI      0 - 11.5 A             vidali klemens
+  SCOPE        gezici prob    0 - 48.7 V             muz jak yesil+siyah
+
+  Akim kademeleri AYRI UC — anahtarla secilmez.
+  Sebep: 20 mohm'luk bir anahtar kontagi 15 mohm sontun 1.3 katidir.
+  Gerilim kademesi ise yazilimdan (PGA), orada anahtar yok.
+
+==============================================================================
+  8b. I2C PULL-UP — R8/R9 DEGERI
+==============================================================================
+  Her ADS1115 modulunde kart ustu 10K pull-up var; modulleri veri
+  yoluna ekledikce paralel direnc DUSER (yukselme hizlanir).
+  Fast-mode (400 kHz) siniri: t_r <= 300 ns,  t_r = 0.8473 x R x C
+
+  300 ns'e izin veren azami toplam pull-up: 2360 ohm
+
+     modul   R8/R9    toplam       t_r     sink  sonuc
+    ----------------------------------------------------
+         2     yok     5000o    635.5n    0.66m  KALIR
+         2    4.7K     2423o    307.9n    1.36m  KALIR
+         2    2.7K     1753o    222.8n    1.88m  gecer
+         3     yok     3333o    423.6n    0.99m  KALIR
+         3    4.7K     1950o    247.9n    1.69m  gecer
+         3    2.7K     1492o    189.6n    2.21m  gecer
+
+  KUSUR (DEVIR 4.7 / kurulum2.html): belge 'R8/R9 = 4.7K tak, 308 ns,
+  gecer' diyordu. 308 ns kendi verdigi 300 ns sinirinin USTUNDE — iki
+  modullu yapilandirmada KALIYOR. 2.7K (stokta 10 adet) her iki modul
+  sayisinda da geciyor, secilen bu.
+  [OK] 2 modul + 4.7K Fast-mode'da KALIYOR (belgedeki iddia yanlisti)   307.9 ns > 300 ns
+  [OK] 2 modul + 2.7K geciyor   222.8 ns
+  [OK] 3 modul + 2.7K geciyor   189.6 ns
+  [OK] 2.7K'da sink akimi 3 mA sinirinin altinda (her iki durumda)   en kotu 2.21 mA
+
+  100 kHz'e DUSMEK BEDAVA DEGIL — DEVIR 4.7 'ornekleme hizini
+  etkilemez' diyor, veri yolu doluluguna bakilinca oyle degil:
+
+    400 kHz: okuma basina  122.5 us x 1720 okuma/s = %21 veri yolu dolulugu
+    100 kHz: okuma basina  490.0 us x 1720 okuma/s = %84 veri yolu dolulugu
+  [OK] 400 kHz'te veri yolu dolulugu %50'nin altinda   %21
+  [OK] 100 kHz yedek yolu BEDAVA DEGIL — doluluk %80'i asiyor   %84 — son care, ilk secenek degil
+
+  IYILESTIRME (uygulanmadi): ADS1115 yazmac isaretcisini KORUR.
+  Ilk okumadan sonra isaretci yazmayi atlayip dogrudan 2 bayt
+  istenirse islem 49 bit yerine ~29 bit olur (-%41).
+
+==============================================================================
+  9. DERLEME HEDEFI — PSRAM
+==============================================================================
+  KUSUR: FQBN duz 'esp32:esp32:esp32s3' idi. Kartin PSRAM varsayilani
+  'disabled' oldugu icin ps_malloc() SESSIZCE NULL doner ve derin skop
+  bellegi hic ayrilamaz — hata mesaji da olmaz.
+
+  FQBN: esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=huge_app
+
+    PSRAM            opi
+    FlashSize        16M
+    PartitionScheme  huge_app
+
+  [OK] PSRAM acik (N16R8 = 8 MB oktal)   PSRAM=opi
+  [OK] Flash boyutu N16R8'in gercek boyutu   FlashSize=16M (varsayilan 4M yanlisti)
+  [OK] Uygulama bolumu 473 KB'lik firmware icin genis   huge_app = 3 MB
+
+  BU KURAL NEYI KANITLAMAZ: kartta gercekten PSRAM oldugunu. Derleme
+  secenegi yalnizca surucuyu derler. Kanit, firmware'in acilista
+  yazdigi 'PSRAM: 8192 KB' satiridir — tezgahta ONA bak.
+
+==============================================================================
+  OZET
+==============================================================================
+  33/33 tasarim kurali gecti
+
+  BULUNAN KUSURLAR ve COZUMLERI:
+   1. ADS1115 girisi VDD ile sinirli -> tam olcek 45 V degil, 32.2 V.
+      Cozum: kabul edildi; yine de Asama 1'in 27.1 V'undan genis.
+   2. 3.3 V rayina kelepce ADS/ESP mutlak azamisini asiyor.
+      Cozum: TL431 rayina (2.495 V) kelepce -> dugum en fazla 3.20 V.
+   3. 15 mohm ve altinda lehim direnci baskin hata (%6.7).
+      Cozum: Kelvin (4 telli) baglanti — semada ayri algilama izi.
+   4. DC ornekleme 1720 -> 860 ornek/s dustu.
+      Cozum gerekmez: gurultu tabani yine de 28 kat iyi.
+   5. ESP32-S3 ADC'si dogrusal degil.
+      Cozum: yalnizca dalga sekli icin; sayisal deger ADS1115'ten.
+
+------------------------------------------------------------------------------
+  A2  Analog giris korumasi
+------------------------------------------------------------------------------
+     A2 — Asama 2 analog giris korumasi
+     
+       1. KELEPCE SECENEKLERI — 0..300 V taramasi
+     
+          secenek                 dugum@30V   dugum@230V  ariza akimi  ADS guvenli
+          ------------------------------------------------------------------------
+          11:1, kelepce yok        2.7273 V     3.941 V     2.260 mA        evet
+          11:1, 3.3 V rayina       2.7274 V     3.906 V     2.260 mA        evet
+          11:1, TL431 rayina       2.7235 V     3.139 V     2.268 mA        evet
+          15.71:1, TL431 rayina    1.9102 V     3.135 V     2.268 mA        evet
+     
+       2. DOGRUSALLIK — kelepce sizintisi olcumu ne zaman bozuyor?
+          (ideal dugum = Vin / oran; A,B,C icin 11, D icin 15.71)
+     
+              Vin          sec A         sec B         sec C         sec D
+          --------------------------------------------------
+              5 V          88 ppm        176 ppm        176 ppm        176 ppm
+             10 V          43 ppm         87 ppm         87 ppm         87 ppm
+             20 V          22 ppm         44 ppm         44 ppm         44 ppm
+             25 V          17 ppm         35 ppm         34 ppm         35 ppm
+             30 V          14 ppm         29 ppm      -1401 ppm         29 ppm
+             32 V          14 ppm         27 ppm     -18311 ppm         27 ppm
+             35 V          11 ppm         23 ppm     -78690 ppm         25 ppm
+     
+       3. HER SECENEGIN KULLANILABILIR MENZILI (hata < 1000 ppm = %0.1)
+     
+          secenek A:  38.70 V'a kadar %0.1 icinde
+          secenek B:  38.40 V'a kadar %0.1 icinde
+          secenek C:  29.70 V'a kadar %0.1 icinde
+          secenek D:  42.75 V'a kadar %0.1 icinde
+     
+[OK] Secenek A ariza akimi ADS mutlak azamisinin altinda 2.260 mA < 10 mA
+[OK] Secenek B dugumu ADS mutlak azamisini ASIYOR (elendi) 3.906 V > 3.5999999999999996 V
+[OK] Secenek C dugumu ADS mutlak azamisinin altinda 3.139 V < 3.5999999999999996 V
+[OK] Secenek C 32 V'u KAPSAMIYOR (red gerekcesi dogrulandi) sadece 29.7 V — sizinti kesiyor
+[OK] Secenek A menzili C'den genis (sizinti yok)  A=38.7 V, C=29.7 V
+[OK] SECILEN D: menzil 32 V'u kapsiyor            42.8 V
+[OK] SECILEN D: arizada dugum ADS mutlak azamisinin altinda 3.135 V < 3.5999999999999996 V
+     
+       SECIM: D — bolucu 100K/6.8K (oran 15.71) + TL431 rayina kelepce
+     
+         ISPAT — 1N4148 ile hem tam menzil hem guvenli kelepce OLMAZ:
+           tam olcekte diyodun kapali kalmasi icin gereken marj  0.22 V
+           arizada diyodun ileri dusumu                          0.70 V
+           gereken toplam acikli                                 0.92 V
+           elde olan (3.6 V mutlak azami - 3.3 V tam olcek)      0.30 V
+     
+         COZUM: tam olcek DUGUM gerilimini dusur. PGA +-2.048 V ile
+         dugum 2.048 V'da kaliyor, TL431 rayi 2.495 V — diyot tum
+         menzil boyunca TERS KUTUPLU, sizinti sifir. Bolucu 15.71:1
+         olunca tam olcek 32.2 V'a cikiyor (Asama 1: 27.1 V).
+     
+         Elenme sebepleri:
+           A — dugum gerilimini sinirlamiyor; ADS'in kendi ESD diyoduna
+               surekli akim basmak iyi uygulama degil.
+           B — dugum 3.6 V mutlak azamisini asiyor.
+           C — sizinti menzili 29.7 V'ta kesiyor.
+     
+       4. ORTUSME (ANTI-ALIAS) SUZGECI
+          Thevenin 6.37 kohm, 1 nF -> beklenen 25.0 kHz
+[OK] Bolucu kesim frekansi                        olculen    2.512e+04 Hz  beklenen    2.5e+04 Hz  sapma % 0.49
+[OK] Osiloskop Nyquist'inin altinda               25.1 kHz < 41.7 kHz
+          NOT: ADS1115 Nyquist'i 430 Hz; suzgec 25.1 kHz.
+          ADS1115 delta-sigma oldugu icin ic modulatoru cok daha hizli
+          ornekliyor, ortusme veri hizinda degil modulator hizinda olur.
+          Sebeke uugultusu 200 ms'lik pencerede (10 tam cevrim) sifirlanir.
+     
+       5. AKIM GIRISI DIFERANSIYEL RC SUZGECI
+          100 ohm + 100 nF     kesim    7.94 kHz, DC kazanc kaybi %0.0282
+[OK]   Seri direncin DC kazanc kaybi < %0.05      %0.0282 (710 kohm ADS girisine karsi 200 ohm)
+[OK]   Kesim anahtarlama gurultusunun (100 kHz) altinda 7.94 kHz
+          100 ohm + 10 nF      kesim   79.43 kHz, DC kazanc kaybi %0.0282
+
+  11/11 dogrulama gecti
+
+------------------------------------------------------------------------------
+  A3  Sema: uretim + ERC + netlist
+------------------------------------------------------------------------------
+yazildi: C:\Muhammet\Elekronic\projeler\olcum-karti\sema2\olcum-karti-a2.kicad_sch
+  214 ogesi, 10 sembol tanimi
+  ERC: Found 0 violations
+A3 — Asama 2 netlist'i tasarima uyuyor mu
+
+  [OK] net +3V3           7 pin
+  [OK] net /TL_RAY        6 pin
+  [OK] net /V_GIRIS       2 pin
+  [OK] net /V_DUGUM       6 pin
+  [OK] net /YUK_EKSI      3 pin
+  [OK] net /I_ARTI        3 pin
+  [OK] net /I_EKSI        3 pin
+  [OK] net /SKOP_GIRIS    2 pin
+  [OK] net /SKOP          6 pin
+  [OK] net /SDA           4 pin
+  [OK] net /SCL           4 pin
+  [OK] net /ALERT         2 pin
+  [OK] net GND            22 pin
+
+  ERC'nin GOREMEDIGI kurallar (yon / polarite / adres):
+  [OK]   D1 gerilim kelepcesi: KATOT TL rayinda           D1.1(K) -> /TL_RAY
+  [OK]   D1 gerilim kelepcesi: ANOT olcum dugumunde       D1.2(A) -> /V_DUGUM
+  [OK]   D2 alt kelepce: KATOT olcum dugumunde            D2.1(K) -> /V_DUGUM
+  [OK]   D2 alt kelepce: ANOT GND'de                      D2.2(A) -> GND
+  [OK]   D3 skop kelepcesi: KATOT TL rayinda              D3.1(K) -> /TL_RAY
+  [OK]   D3 skop kelepcesi: ANOT skop dugumunde           D3.2(A) -> /SKOP
+  [OK]   D4 skop alt kelepce: KATOT skop dugumunde        D4.1(K) -> /SKOP
+  [OK]   D4 skop alt kelepce: ANOT GND'de                 D4.2(A) -> GND
+  [OK]   TL431: ANOT GND'de                               U1.2(A) -> GND
+  [OK]   TL431: REF katoda bagli (2 uclu sont kipi)       U1.1(REF) -> /TL_RAY
+  [OK]   ADS #1 (akim) adresi 0x48: ADDR -> GND           U2.1(ADDR) -> GND
+  [OK]   ADS #2 (gerilim) adresi 0x49: ADDR -> +3V3       U3.1(ADDR) -> +3V3
+  [OK]   ADS #1 AIN0 sontun ARTI ucunda                   U2.4(AIN0) -> /I_ARTI
+  [OK]   ADS #1 AIN1 sontun EKSI ucunda                   U2.5(AIN1) -> /I_EKSI
+  [OK]   ADS #2 AIN0 gerilim bolucusunde                  U3.4(AIN0) -> /V_DUGUM
+  [OK]   Osiloskop ESP32 GPIO4'e gidiyor (ADS'e DEGIL)    J4.5 -> /SKOP
+  [OK]   Kullanilmayan ADS girisleri GND'de (acikta degil) U2.6(AIN2) -> GND
+  [OK]   Kullanilmayan ADS girisleri GND'de (acikta degil) U3.7(AIN3) -> GND
+  [OK]   ADS #1 beslemesi +3V3 (5 V DEGIL — I2C seviyesi icin) U2.8(VDD) -> +3V3
+  [OK]   Yalniz U3.ALERT bilerek bos                      ['unconnected-(U3-ALERT{slash}RDY-Pad2)']
+
+  33/33 dogrulama gecti
+
+------------------------------------------------------------------------------
+  A4  Uctan uca
+------------------------------------------------------------------------------
+==============================================================================
+  A4 — ASAMA 2 UCTAN UCA
+==============================================================================
+
+--- 1. Analog kati ngspice ile tara -------------------------------
+  [OK] Bolucu orani ngspice'tan  15.706 (tasarim 15.706)
+  [OK] Sont + RC suzgeci egimi 1 ohm'a esit  0.999717 ohm
+
+--- 2. Uygulanan degerleri ADS1115 koduna cevir --------------------
+    V uyg     dugum   kod_v |    I uyg   sont mV   kod_i
+  ------------------------------------------------------------
+     3.30   0.21011    3362 |   0.0100    9.9972    1280
+     5.00   0.31835    5094 |   0.0500   49.9858    6398
+    12.00   0.76404   12225 |   0.1000   99.9717   12796
+    24.00   1.52809   24449 |   0.2000  199.9434   25593
+    30.00   1.91011   30562 |   0.2500  249.9292   31991
+
+--- 3. GERCEK donusum kodunu AVR'de kostur ------------------------
+  [OK] olcum2.h AVR'de uyarisiz derlendi  0 uyari
+  [OK] Program tamamlandi  60 000 001 cevrim
+
+--- 4. Her deger BIT BIREBIR karsilastiriliyor --------------------
+  [OK] 5 olcum satiri geldi  5 satir
+
+       nokta   volt (AVR)  volt (numpy)      amper       watt
+  --------------------------------------------------------------
+    3.30 V       40533675      40533675         OK         OK
+    5.00 V       40a002f4      40a002f4         OK         OK
+   12.00 V       41400121      41400121         OK         OK
+   24.00 V       41bfff1f      41bfff1f         OK         OK
+   30.00 V       41f00069      41f00069         OK         OK
+  [OK] Tum donusumler bit birebir tuttu
+  [OK] Enerji satiri geldi
+  [OK] uint64 pJ birikimi birebir  16 025 132 842 pJ
+  [OK] Joule donusumu birebir  0.016025 J
+  [OK] Wh donusumu DOGRU sabitle (3.6e15, 3.6e18 DEGIL)  0.000004451 Wh
+  [OK] PGA kademe satiri geldi
+  [OK] Otomatik kademe secimi birebir  2.048 1.024 0.512 0.256 0.256
+  [OK] Kademe tam olcek degerleri birebir  32.1656 / 16.0828 / 8.0414 / 4.0207
+  [OK] Kademe adim degerleri birebir  0.0010 / 0.0005 / 0.0002 / 0.0001
+
+--- 5. Protokol satirini GERCEK arayuze ver -----------------------
+  [OK] Sabit noktadan IKI protokol satiri uretildi  D 12.0003 0.099969 1.199651 0.2400 0.0000667 200 172 | D 12.0003 0.099969 1.199651 0.4799 0.0001333 400 172
+  Kartin gonderdigi 108 bayt / 3 satir arayuze verildi
+  
+  [OK] Arayuz en az bir olcum ayristirdi  2 nokta
+  [OK] Ekrandaki gerilim uygulanan gerilime esit  12.0003 V  (uygulanan 12.00 V)
+  [OK] Ekrandaki akim uygulanan akima esit  99.97 mA  (uygulanan 99.97 mA)
+  [OK] Ekrandaki guc = gerilim x akim  1.1997 W
+  [OK] Enerji alanlari dolduruldu  0.4799 J = 0.0001333 Wh
+  [OK] Ornekleme hizi hesaplandi  860 /sn
+  [OK] Gurultu bastirma gosterildi  √172 ≈ 13× bastırma
+  [OK] Gecmis zaman ekseni artiyor  0.000 s -> 0.200 s
+  [OK] Veri satirlari gunluge dusmedi  0 gunluk kaydi
+  [OK] Hicbir noktada NaN yok
+  
+    EKRANDA GORUNEN:  12.0003 V   99.97 mA   1.1997 W   0.4799 J
+  
+    10/10 dogrulama gecti
+  [OK] Arayuz zincirin sonunu dogruladi
+
+--- 6. AYNI kaynak gercek ESP32-S3 derleyicisiyle -----------------
+  [OK] ESP32-S3 icin derlendi  flash 479303 B (%15), RAM 47452 B (%14)
+  [OK] ESP32-S3 derlemesi uyarisiz  0 uyari
+
+==============================================================================
+  A4: 18/18 kosul gecti   (22.6 s)
+==============================================================================
+
+  BU TEST KANITLAMAZ (tezgahta olculmeli):
+    * ADS1115'in kendi ofset (+-3 LSB) ve kazanc (%0.15) hatasi
+    * lehim/temas direnci — 15 mohm kademesinde Kelvin sart
+    * gercek gurultu, sicaklik suruklenmesi
+    * ESP32-S3 ADC'sinin dogrusalsizligi (osiloskop kanali)
+    * direnc toleranslari (%1 metal film varsayildi)
+
+------------------------------------------------------------------------------
+  A5  Osiloskop
+------------------------------------------------------------------------------
+  --- 1. protokol koprusu (arayuzun kendi ayristiricisi) ---
+
+  kaynaktan: tavan=3.1 sayim=4095 oran=15.70588235
+  hiz 611..83333 Sa/s, 10 bolme
+  volt/adim = 0.011890 V, tam olcek 48.7 V
+  zaman tabani: 12 kademe 100 us .. 500000 us
+
+  --- zaman tabani ---
+  [OK] Firmware ve arayuz AYNI zaman tabani merdivenini tasiyor  12 vs 12 kademe
+  [OK] Her kademe donanim sinirlari icinde kaliyor  hiz 611..83333, adet 100..4000
+  [OK] En uzun pencere >= 1 s (50 Hz rahat sigar)  5.00 s
+  [OK] En kisa pencere <= 2 ms (hizli kenar gorunur)  1.00 ms
+  [OK] 50 Hz icin en az bir tam cevrim sigan kademe VAR  8 kademe
+
+  --- arayuz akisi ---
+  [OK] Arayuz yakalamayi tamamladi
+  [OK] Ornek adedi firmware ile ayni  1000
+  [OK] Ornekleme hizi firmware ile ayni  10000 Sa/s
+  [OK] Toplanan ornek sayisi basliktaki adede esit  1000
+  [OK] Tetik konumu tasindi  250
+  [OK] Zaman tabani tasindi  10000 us
+  [OK] Tetiklendi bayragi tasindi
+  [OK] volt/adim kaynaktan turetilene esit  0.011890 V ~ 0.011890 V
+  [OK] Kodlar bit birebir geri geldi
+  [OK] Arayuz zaman tabani indeksini basliktan ogrendi  6 == 6
+  [OK] M olcum satiri ayristirildi
+  [OK] Frekans alani  50.000000 Hz ~ 50.000000 Hz
+  [OK] Vpp alani  35.669000 V ~ 35.669000 V
+  [OK] Duty alani  50.000000 % ~ 50.000000 %
+  [OK] Olcum paneli doldu  10 kalem
+  [OK] Panelde frekans var
+  [OK] Tam olcek tasarim belgesiyle uyumlu (48.7 V)  48.688235 V ~ 48.700000 V
+  [OK] Bu kademede 50 Hz icin >= 1 tam cevrim var  5.00 cevrim
+  [OK] Uyari yok (kademe uygun)  ""
+
+  --- komut kumesi ---
+  [OK] Sont komutu Asama 2 bicimi (s<ohm>)  s10
+  [OK] Gerilim kalibresi Asama 2 bicimi (v<gercek>)  v12.05
+  [OK] Akim kalibresi Asama 2 bicimi (i<gercek>)  i0.1187
+  [OK] Zaman tabani komutu (tb<n>)  tb6
+  [OK] Otomatik kurulum komutu (ta)  ta
+
+  --- firmware kaynagi ---
+  [OK] Tetikleme basarisizlik dali duruyor
+  [OK] Histerezis mantigi duruyor
+  [OK] On-tetik halka tamponu duruyor
+  [OK] Otomatik kurulum duruyor
+  [OK] S2 basligi duruyor
+  [OK] E sonlandiricisi duruyor
+
+  35 gecti, 0 kaldi
+
+  --- 2. derlenmis ikilide olu kod denetimi ---
+  [OK] Derleme uyarisiz  0 uyari
+       ikili olcum-karti-a2.ino.bin  479,456 bayt
+  [OK] Ikilide duruyor: tetikleme basarisizlik dali  "! tetiklenemedi"
+  [OK] Ikilide duruyor: akim sifirlama komutu  "ok i_ofset="
+  [OK] Ikilide duruyor: gerilim kalibrasyon komutu  "ok v_duzeltme="
+  [OK] Ikilide duruyor: akim kalibrasyon komutu  "ok i_duzeltme="
+  [OK] Ikilide duruyor: sont degeri komutu  "ok sont_ohm="
+  [OK] Ikilide duruyor: ayar raporu  "A sont="
+  [OK] Ikilide duruyor: komut ayristirici varsayilan dali  "! bilinmeyen komut"
+  [OK] Ikilide duruyor: I2C tarama dali  "(hicbir cihaz yok)"
+  [OK] Denetim yanlis pozitif vermiyor
+
+  10 gecti, 0 kaldi
+
+------------------------------------------------------------------------------
+  A6  Osiloskop olcum matematigi
+------------------------------------------------------------------------------
+==============================================================================
+  A6  OSILOSKOP OLCUM MATEMATIGI  (gercek kod, AVR emulatorunde)
+==============================================================================
+
+--- 1. Derleme ve kosum -------------------------------------------
+  [OK] olcum2.h skop katmani AVR'de uyarisiz derlendi  0 uyari
+  [OK] Program tamamlandi (BITTI)  120 000 000 cevrim
+  [OK] Emulator tum dalgalari isledi  5/5 dalga
+
+--- 2. Volt/adim ---------------------------------------------------
+  [OK] SKOP_VOLT_ADIM olcum2.h ile ayni  0.0118897 V ~ 0.0118897 V (fark 5.2e-10)
+  [OK] Tam olcek 48.7 V (tasarim2.py ile ayni)  48.6882 V ~ 48.7 V (fark 0.0118)
+
+--- 3. KARE dalga: 80 ornek periyot, 5 cevrim ----------------------
+  [OK] Frekans = 10000/80  125 Hz ~ 125 Hz (fark 0)
+  [OK] Periyot = 1/125  0.008 s ~ 0.008 s (fark 3.8e-10)
+  [OK] Vpp = 3600 kod  42.8028 V ~ 42.8028 V (fark 1.15e-06)
+  [OK] Vmax = 3800 kod  45.1808 V ~ 45.1808 V (fark 4.84e-07)
+  [OK] Vmin = 200 kod  2.37794 V ~ 2.37794 V (fark 3.73e-08)
+  [OK] Vort = 2000 kod (simetrik kare)  23.7793 V ~ 23.7794 V (fark 4.47e-05)
+  [OK] Duty = %50  49.7925 % ~ 50 % (fark 0.207)
+  [OK] Cevrim 3 (i=0'daki kenar oncesi ornek yok, algilanamaz)  3
+  [OK] Vrms = kare dalga RMS'i  31.9919 V ~ 31.9919 V (fark 2.96e-05)
+  [OK] Vac = 1800 kod (AC bileseni)  21.4015 V ~ 21.4014 V (fark 9.29e-05)
+
+--- 4. UCGEN dalga: 100 ornek periyot, 4 cevrim --------------------
+  [OK] Frekans = 10000/100  100 Hz ~ 100 Hz (fark 0)
+  [OK] Vpp = 3600 kod  42.8028 V ~ 42.8028 V (fark 1.15e-06)
+  [OK] Duty = %50  51.1628 % ~ 50 % (fark 1.16)
+  [OK] Vac = ucgen RMS'i (genlik/√3)  12.3611 V ~ 12.3561 V (fark 0.00496)
+
+--- 5. SINUS: 64 ornek periyot, 6 cevrim ---------------------------
+  [OK] Frekans = 10000/64  156.25 Hz ~ 156.25 Hz (fark 0)
+  [OK] Vpp = 3000 kod  35.669 V ~ 35.669 V (fark 2.23e-06)
+  [OK] Vort = 2048 kod (merkez)  24.3501 V ~ 24.3501 V (fark 7.63e-06)
+  [OK] Duty = %50  51.751 % ~ 50 % (fark 1.75)
+  [OK] Vac = sinus RMS'i (genlik/√2)  12.6113 V ~ 12.6109 V (fark 0.000362)
+
+--- 6. DUZ CIZGI: olcum YAPILAMAMALI -------------------------------
+  [OK] Frekans 0 (periyodik sinyal yok)  0.0
+  [OK] Cevrim 0  0
+  [OK] Vpp 0  0 V ~ 0 V (fark 0)
+  [OK] Vort = 2048 kod  24.35 V ~ 24.3501 V (fark 4.77e-05)
+  [OK] Vac 0 (AC bileseni yok)  0 V ~ 0 V (fark 0)
+
+--- 7. ASIMETRIK KARE: %25 duty ------------------------------------
+  [OK] Frekans yine 125 Hz  125 Hz ~ 125 Hz (fark 0)
+  [OK] Duty = %25  24.8963 % ~ 25 % (fark 0.104)
+  [OK] Duty simetrikten AYIRT EDILIYOR  %24.9 vs %49.8
+
+==============================================================================
+  A6: 32/32 kosul gecti
+==============================================================================
+
+==============================================================================
+  OZET
+==============================================================================
+  GECTI  A1  Tasarim ve hata butcesi                 0.0 s
+  GECTI  A2  Analog giris korumasi                   0.5 s
+  GECTI  A3  Sema (ERC + netlist)                    2.7 s
+  GECTI  A4  Uctan uca (+ ESP32-S3 derleme)         22.8 s
+  GECTI  A5  Osiloskop (protokol + ikili)           10.5 s
+  GECTI  A6  Skop olcumleri (AVR emulatoru)         30.0 s
+
+  Asama 2 tasarimi dogrulandi — kurulmaya hazir.

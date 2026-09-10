@@ -1,0 +1,598 @@
+<title>Aşama 2 Tezgâh Kurulumu</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --kagit:      #f2f1ee;
+    --yuzey:      #fbfaf8;
+    --cizgi:      #d9d6d0;
+    --murekkep:   #1c1f24;
+    --soluk:      #5c626c;
+    --olcum:      #0f6f74;   /* ölçülen değer / kanıt */
+    --olcum-zemin:#e2eeee;
+    --uyari:      #8a5a12;
+    --uyari-zemin:#f4ead8;
+    --tehlike:    #a32f26;
+    --tehlike-zemin:#f6e3e0;
+    --golge:      0 1px 2px rgba(28,31,36,.06);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --kagit:      #16181c;
+      --yuzey:      #1e2126;
+      --cizgi:      #32363d;
+      --murekkep:   #e6e6e4;
+      --soluk:      #99a0ab;
+      --olcum:      #4fc3c8;
+      --olcum-zemin:#152a2c;
+      --uyari:      #d9a441;
+      --uyari-zemin:#2c2415;
+      --tehlike:    #ef6f61;
+      --tehlike-zemin:#2e1a18;
+      --golge:      0 1px 2px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --kagit:      #16181c;
+    --yuzey:      #1e2126;
+    --cizgi:      #32363d;
+    --murekkep:   #e6e6e4;
+    --soluk:      #99a0ab;
+    --olcum:      #4fc3c8;
+    --olcum-zemin:#152a2c;
+    --uyari:      #d9a441;
+    --uyari-zemin:#2c2415;
+    --tehlike:    #ef6f61;
+    --tehlike-zemin:#2e1a18;
+    --golge:      0 1px 2px rgba(0,0,0,.3);
+  }
+
+  body {
+    background: var(--kagit);
+    color: var(--murekkep);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 20px 96px;
+  }
+  .sayfa { max-width: 830px; margin: 0 auto; }
+
+  /* ── başlık ─────────────────────────────────────────── */
+  header { padding: 56px 0 28px; border-bottom: 2px solid var(--murekkep); }
+  .ust-etiket {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--soluk); margin-bottom: 14px;
+  }
+  h1 {
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 700; font-size: clamp(30px, 5.6vw, 44px);
+    line-height: 1.08; letter-spacing: -.015em;
+    margin: 0 0 14px; text-wrap: balance;
+  }
+  .ozet { color: var(--soluk); max-width: 62ch; margin: 0; }
+
+  .kunye {
+    display: flex; flex-wrap: wrap; gap: 6px 26px;
+    margin-top: 22px; font-family: "IBM Plex Mono", monospace; font-size: 12px;
+    color: var(--soluk);
+  }
+  .kunye b { color: var(--murekkep); font-weight: 600; }
+
+  /* ── adımlar ────────────────────────────────────────── */
+  section { padding-top: 44px; }
+  .adim-basi { display: flex; align-items: baseline; gap: 14px; }
+  .adim-no {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600;
+    color: var(--olcum); border: 1px solid var(--olcum);
+    border-radius: 2px; padding: 1px 7px; flex: none;
+    letter-spacing: .04em;
+  }
+  h2 {
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 600; font-size: 25px; letter-spacing: -.01em;
+    margin: 0; text-wrap: balance;
+  }
+  h3 {
+    font-size: 12px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--soluk);
+    margin: 30px 0 10px;
+  }
+  p { max-width: 68ch; }
+
+  /* ── kanıt kapısı: sayfadaki TEK renkli nesne ────────── */
+  .kanit {
+    background: var(--olcum-zemin);
+    border-left: 3px solid var(--olcum);
+    padding: 15px 18px; margin: 22px 0; border-radius: 0 3px 3px 0;
+  }
+  .kanit-baslik {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--olcum); font-weight: 600; margin-bottom: 8px;
+  }
+  .kanit p { margin: 0; max-width: 64ch; }
+  .kanit p + p { margin-top: 8px; }
+
+  .uyari, .tehlike {
+    padding: 14px 18px; margin: 22px 0; border-radius: 3px;
+    border-left: 3px solid var(--uyari); background: var(--uyari-zemin);
+  }
+  .tehlike { border-left-color: var(--tehlike); background: var(--tehlike-zemin); }
+  .uyari-baslik {
+    font-weight: 600; color: var(--uyari); margin-bottom: 5px; font-size: 14px;
+  }
+  .tehlike .uyari-baslik { color: var(--tehlike); }
+  .uyari p, .tehlike p { margin: 0; max-width: 64ch; }
+  .uyari p + p, .tehlike p + p { margin-top: 10px; }
+  .uyari .kaydir, .tehlike .kaydir { margin: 12px 0; }
+
+  /* ── tablolar ───────────────────────────────────────── */
+  .kaydir { overflow-x: auto; margin: 18px 0; }
+  table {
+    border-collapse: collapse; width: 100%; font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  th {
+    text-align: left; font-weight: 600; font-size: 11px;
+    letter-spacing: .07em; text-transform: uppercase; color: var(--soluk);
+    border-bottom: 1px solid var(--murekkep); padding: 0 14px 7px 0;
+    white-space: nowrap;
+  }
+  td { padding: 7px 14px 7px 0; border-bottom: 1px solid var(--cizgi); vertical-align: top; }
+  td:last-child, th:last-child { padding-right: 0; }
+  .mono, code { font-family: "IBM Plex Mono", monospace; font-size: .92em; }
+  code {
+    background: var(--yuzey); border: 1px solid var(--cizgi);
+    border-radius: 3px; padding: .5px 5px;
+  }
+  .deger { color: var(--olcum); font-weight: 600; }
+
+  pre {
+    background: var(--yuzey); border: 1px solid var(--cizgi);
+    border-radius: 3px; padding: 13px 15px; overflow-x: auto;
+    font-family: "IBM Plex Mono", monospace; font-size: 12.5px;
+    line-height: 1.55; margin: 16px 0;
+  }
+  pre .yorum { color: var(--soluk); }
+
+  ol, ul { max-width: 68ch; padding-left: 22px; }
+  li { margin-bottom: 7px; }
+  li::marker { color: var(--soluk); }
+
+  hr { border: 0; border-top: 1px solid var(--cizgi); margin: 52px 0 0; }
+  footer {
+    margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--cizgi);
+    font-size: 12.5px; color: var(--soluk);
+  }
+  a { color: var(--olcum); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="sayfa">
+
+<header>
+  <div class="ust-etiket">Ölçüm Kartı · Aşama 2 · ESP32-S3 + 2× ADS1115</div>
+  <h1>Aşama 2 Tezgâh Kurulumu</h1>
+  <p class="ozet">Yedi adım, her birinin sonunda geçilmeden ilerlenmeyen bir ölçüm kapısı.
+     Bir kapı tutmuyorsa hata o adımdadır — sonraki adımı kurmak onu gizler, çözmez.</p>
+  <div class="kunye">
+    <span>Doğrulama <b>A1–A6, 6/6 · 173 kontrol</b></span>
+    <span>ERC <b>0 ihlal</b></span>
+    <span>Firmware <b>479 303 B (%15/3 MB)</b></span>
+    <span>Tam ölçek <b>32.2 V · 11.5 A · 48.7 V skop</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">00</span><h2>Önce bunlar</h2></div>
+
+  <div class="tehlike">
+    <div class="uyari-baslik">Şebeke gerilimi bu karta bağlanmaz</div>
+    <p>Tam ölçek 32.2 V DC. Kart izole değil ve USB üzerinden bilgisayarına bağlı.
+       230 V AC'yi bu karta bağlamak bilgisayarını da şebekeye bağlar.</p>
+  </div>
+
+  <h3>Bu adımlarda kurmuyoruz</h3>
+  <p>AC gerilim/akım, direnç, süreklilik, diyot, kapasite ve akımda otomatik
+     kademe sonraya bırakıldı. Kart bu haliyle beş iş yapıyor: voltmetre,
+     ampermetre, wattmetre, enerji sayacı ve osiloskop.</p>
+
+  <h3>Gereken aletler</h3>
+  <ul>
+    <li>Multimetre — kalibrasyonun referansı bu, kartın doğruluğu bunu aşamaz</li>
+    <li>Ayarlanabilir güç kaynağı ya da bilinen bir gerilim (12 V adaptör olur)</li>
+    <li>Bilinen bir yük — <span class="mono">100R</span> direnç 12 V'ta 120 mA çeker</li>
+    <li>Breadboard, jumper, USB-C kablo</li>
+  </ul>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">01</span><h2>Malzeme</h2></div>
+  <p>Hepsi şemanın netlist'inden çıkarıldı; stok sütunu
+     <span class="mono">envanter.csv</span>'den okundu.</p>
+
+  <div class="kaydir">
+  <table>
+    <thead><tr><th>Ref</th><th>Değer</th><th>Adet</th><th>Stok</th><th>Nerede</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">R1</td><td class="mono">220R</td><td>1</td><td>10</td><td>TL431 besleme</td></tr>
+      <tr><td class="mono">R2, R6</td><td class="mono">100K</td><td>2</td><td>33</td><td>bölücü üst bacak</td></tr>
+      <tr><td class="mono">R3, R7</td><td class="mono">6.8K</td><td>2</td><td>18</td><td>bölücü alt bacak</td></tr>
+      <tr><td class="mono">R4, R5</td><td class="mono">100R</td><td>2</td><td>30</td><td>şönt süzgeci</td></tr>
+      <tr><td class="mono">R8, R9</td><td class="mono">2.7K</td><td>2</td><td>10</td><td>I2C pull-up — <b>tak</b> (4.7K değil, aşağıya bak)</td></tr>
+      <tr><td class="mono">RS</td><td class="mono">10R</td><td>1</td><td>30</td><td>ilk şönt (mA kademesi)</td></tr>
+      <tr><td class="mono">C1, C3</td><td class="mono">100nF</td><td>2</td><td>51</td><td>ayırma</td></tr>
+      <tr><td class="mono">C2, C4</td><td class="mono">1nF</td><td>2</td><td>16</td><td>örtüşme süzgeci</td></tr>
+      <tr><td class="mono">D1–D4</td><td class="mono">1N4148</td><td>4</td><td>8</td><td>koruma kelepçesi</td></tr>
+      <tr><td class="mono">U1</td><td class="mono">TL431</td><td>1</td><td>10</td><td>kelepçe rayı 2.495 V</td></tr>
+      <tr><td class="mono">U2, U3</td><td class="mono">ADS1115 modül</td><td>2</td><td>sipariş</td><td>ADC</td></tr>
+      <tr><td class="mono">J4</td><td class="mono">ESP32-S3 N16R8</td><td>1</td><td>var</td><td>işlemci</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="uyari">
+    <div class="uyari-baslik">Şemadaki “DNP” notu bu kurulum için geçerli değil — ve eski 4.7K önerisi yanlıştı</div>
+    <p>R8/R9 şemada “takma” diye işaretli, çünkü o not <b>üç</b> ADS1115 modülü
+       varsayıyordu. Doğru cevap kaç modülün <b>veri yoluna bağlı</b> olduğuna
+       bağlı — kaç tane sahip olduğuna değil. Her modülde kart üstü 10K pull-up
+       var, modül ekledikçe paralel direnç düşer.</p>
+    <p>Fast-mode (400 kHz) sınırı <span class="mono">t_r ≤ 300 ns</span>,
+       <span class="mono">t_r = 0.847·R·C</span>, C ≈ 150 pF (delikli plaket,
+       kısa tel):</p>
+    <div class="kaydir">
+    <table>
+      <thead><tr><th>Veri yolundaki modül</th><th>R8/R9</th><th>Toplam pull-up</th><th>t_r</th><th>Sonuç</th></tr></thead>
+      <tbody>
+        <tr><td>2</td><td class="mono">yok</td><td class="mono">5000 Ω</td><td class="mono">635 ns</td><td>❌ kalır</td></tr>
+        <tr><td>2</td><td class="mono">4.7K</td><td class="mono">2423 Ω</td><td class="mono">308 ns</td><td>❌ <b>kalır</b> — sınır 300 ns</td></tr>
+        <tr><td>2</td><td class="mono">2.7K</td><td class="mono">1753 Ω</td><td class="mono">223 ns</td><td>✅ geçer</td></tr>
+        <tr><td>3</td><td class="mono">yok</td><td class="mono">3333 Ω</td><td class="mono">424 ns</td><td>❌ kalır</td></tr>
+        <tr><td>3</td><td class="mono">4.7K</td><td class="mono">1950 Ω</td><td class="mono">248 ns</td><td>✅ geçer</td></tr>
+        <tr><td>3</td><td class="mono">2.7K</td><td class="mono">1492 Ω</td><td class="mono">190 ns</td><td>✅ geçer</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><b>Bu sayfanın önceki sürümü “4.7K tak, 308 ns, geçer” diyordu — yanlıştı.</b>
+       308 ns, sayfanın kendi verdiği 300 ns sınırının üstünde. İki modüllü
+       yapılandırmada 4.7K <b>kalıyor</b>. Üç modülde tesadüfen geçiyor, çünkü
+       modül arttıkça paralel direnç düşüyor.</p>
+    <p><b>Karar: R8/R9 = 2.7K</b> (stokta 10 adet). Hem iki hem üç modülde
+       geçiyor, sink akımı en kötü 2.21 mA ile 3 mA sınırının altında kalıyor.
+       Böylece ileride 3. ADS1115'i (verim ölçer) taktığında hiçbir şey
+       değiştirmen gerekmiyor.</p>
+    <p><b>100 kHz'e düşmek bedava değil.</b> Devir belgesi
+       “örnekleme hızını etkilemez” diyordu; veri yolu doluluğuna bakınca öyle
+       değil. İki ADS 860 SPS'te = 1720 okuma/s, okuma başına ~49 bit:
+       400 kHz'te <span class="mono">%21</span> doluluk, 100 kHz'te
+       <span class="mono">%84</span>. <span class="mono">Wire</span> blokladığı
+       için bu CPU'yu da bloklar. 100 kHz <b>son çare</b>, ilk seçenek değil.</p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">02</span><h2>ESP32-S3 tek başına</h2></div>
+  <p>Hiçbir analog parça bağlamadan önce kartın kendisinin konuştuğunu gör.</p>
+
+  <h3>Sıra</h3>
+  <ol>
+    <li>Firmware'i yükle:
+      <code>arduino-cli compile --fqbn esp32:esp32:esp32s3 -u -p COMx kod/olcum-karti-a2</code></li>
+    <li>USB-C'yi <b>UART</b> soketine tak. Kartta iki tane var; <span class="mono">USB CDC On Boot</span>
+      kapalı derlendiği için <span class="mono">Serial</span> UART köprüsünden çıkıyor.
+      Yanlış sokette hiçbir şey görünmez ve bu bir arıza değildir.</li>
+    <li>Seri terminali 115200 baud aç.</li>
+  </ol>
+
+  <div class="kanit">
+    <div class="kanit-baslik">Kanıt kapısı</div>
+    <p>Açılışta şu üç satır gelmeli:</p>
+    <pre>Olcum Karti — Asama 2 (ESP32-S3 + ADS1115)
+  tam olcek 32.17 V, adim 982.1 uV
+Cikis bicimi: D &lt;volt&gt; &lt;amper&gt; &lt;watt&gt; &lt;joule&gt; &lt;wh&gt; &lt;ms&gt; &lt;ornek&gt;
+Komutlar: ?  #  z  v&lt;gercek&gt;  i&lt;gercek&gt;  s&lt;ohm&gt;
+Skop: t yakala &middot; ta otomatik &middot; tb&lt;0-11&gt; zaman tabani &middot; t+ t-
+      tl&lt;0-4095&gt; esik &middot; te&lt;0/1&gt; kenar &middot; th&lt;hist&gt; &middot; tp&lt;%&gt; &middot; tm&lt;kip&gt; &middot; t?</pre>
+    <p><code>?</code> yaz — <span class="mono">A sont=…</span> satırı dönmeli.
+       <span class="deger">Bu satır gelmiyorsa</span> sonraki adıma geçme.</p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">03</span><h2>I2C ve iki ADS1115</h2></div>
+
+  <h3>Bağlantı</h3>
+  <div class="kaydir">
+  <table>
+    <thead><tr><th>ESP32-S3</th><th>Gider</th><th>Not</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">GPIO8</td><td>her iki modülün SDA'sı + R8 → 3.3 V</td><td>I2C veri</td></tr>
+      <tr><td class="mono">GPIO9</td><td>her iki modülün SCL'si + R9 → 3.3 V</td><td>I2C saat</td></tr>
+      <tr><td class="mono">GPIO7</td><td>U2 (0x48) ALERT/RDY</td><td>dönüşüm hazır</td></tr>
+      <tr><td class="mono">3V3, GND</td><td>iki modülün VDD/GND'si</td><td>—</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Adres jumper'ları</h3>
+  <ul>
+    <li><b>U2 — akım.</b> <span class="mono">ADDR → GND</span>, adres <span class="mono">0x48</span></li>
+    <li><b>U3 — gerilim.</b> <span class="mono">ADDR → VDD</span>, adres <span class="mono">0x49</span></li>
+  </ul>
+  <p><span class="mono">ADDR</span> boşta bırakılırsa adres tanımsızdır. Modüllerin
+     çoğunda varsayılan olarak GND'ye çekilidir — yine de teli çek, boşta bırakma.</p>
+
+  <div class="kanit">
+    <div class="kanit-baslik">Kanıt kapısı</div>
+    <p><code>#</code> yaz. Beklenen:</p>
+    <pre>I2C: 0x48 0x49
+  beklenen: 0x48 (akim)  0x49 (gerilim) — bulunan 2</pre>
+    <p>Tek adres görünüyorsa iki modülün ADDR'ı aynı. Hiç görünmüyorsa SDA/SCL
+       ters ya da pull-up yok. <span class="deger">İki adres de görünmeden devam etme.</span></p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">04</span><h2>TL431 kelepçe rayı</h2></div>
+  <p>Koruma diyotlarının dayandığı 2.495 V'luk ray. Bu ray olmadan kelepçeler
+     ADS1115'in 3.6 V mutlak azamisini aşar — yani bu adım atlanamaz.</p>
+
+  <h3>Sıra</h3>
+  <ol>
+    <li><span class="mono">R1 220R</span>: 3.3 V → TL_RAY</li>
+    <li><span class="mono">U1 TL431</span>: katot ve REF birlikte TL_RAY'e, anot GND'ye</li>
+    <li><span class="mono">C1 100nF</span>: TL_RAY ile GND arası</li>
+  </ol>
+  <p>Besleme akımı (3.3 − 2.495) / 220 = <span class="mono">3.66 mA</span>;
+     TL431'in ihtiyacı olan 1 mA'in üstünde.</p>
+
+  <div class="kanit">
+    <div class="kanit-baslik">Kanıt kapısı</div>
+    <p>Multimetre ile TL_RAY–GND arası: <span class="deger">2.49 – 2.50 V</span>.</p>
+    <p>3.3 V okuyorsan TL431 ters takılı ya da REF bağlı değil. 0.5 V civarı
+       okuyorsan katot–anot ters.</p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">05</span><h2>Gerilim kanalı</h2></div>
+
+  <h3>Sıra</h3>
+  <ol>
+    <li><span class="mono">R2 100K</span>: V girişi → V_DUGUM</li>
+    <li><span class="mono">R3 6.8K</span>: V_DUGUM → GND</li>
+    <li><span class="mono">C2 1nF</span>: V_DUGUM → GND (örtüşme süzgeci, kesim 25 kHz)</li>
+    <li><span class="mono">D1</span>: anot V_DUGUM, <b>katot TL_RAY</b></li>
+    <li><span class="mono">D2</span>: anot GND, <b>katot V_DUGUM</b></li>
+    <li>V_DUGUM → U3 (0x49) <span class="mono">AIN0</span></li>
+  </ol>
+  <p>Bölme oranı (100K + 6.8K)/6.8K = <span class="mono">15.706</span>.
+     Diyot yönü kritik: ters takılan D1 girişi 2.5 V'ta kırpar ve ölçüm 3 V'un
+     üstüne hiç çıkmaz.</p>
+
+  <div class="kanit">
+    <div class="kanit-baslik">Kanıt kapısı — ve kalibrasyon</div>
+    <p>Girişe 12 V uygula. Akan <code>D</code> satırlarındaki ilk alan
+       <span class="deger">11.4 – 12.6 V</span> arasında olmalı (%5 karbon direnç toleransı).</p>
+    <p>Sonra multimetrenin okuduğu gerçek değeri yaz — örneğin
+       <code>v12.043</code>. Dönen satır:</p>
+    <pre>ok v_duzeltme=1.021400  (olculen 11.7910 V)</pre>
+    <p>Ayar NVS'e yazıldı, güç kesilince kaybolmaz. Şimdi okunan değer
+       multimetrenle <span class="deger">±10 mV</span> içinde olmalı.</p>
+  </div>
+
+  <div class="uyari">
+    <div class="uyari-baslik">Bu bir voltmetre değil, güç ölçer</div>
+    <p>Giriş empedansı 106.8 kΩ; bir multimetrede 10 MΩ'dur. 1 kΩ çıkış
+       empedanslı bir kaynakta %0.93, 10 kΩ'da %8.6 hata yapar. Düşük empedanslı
+       düğümlerde (besleme rayları, yük uçları) doğru; yüksek empedanslı
+       düğümlerde multimetreni kullan.</p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">06</span><h2>Akım kanalı</h2></div>
+  <p>İlk kurulumda <span class="mono">10R</span> şöntle başla — stokta var,
+     tam ölçeği 25 mA ve hiç Kelvin gerektirmiyor. Düşük dirençli şöntlere
+     ölçümü doğrulattıktan sonra geç.</p>
+
+  <h3>Sıra</h3>
+  <ol>
+    <li><span class="mono">RS</span>: yük dönüşü → GND</li>
+    <li><span class="mono">R4 100R</span>: RS'in yük tarafı → U2 <span class="mono">AIN0</span></li>
+    <li><span class="mono">R5 100R</span>: RS'in GND tarafı → U2 <span class="mono">AIN1</span></li>
+    <li><span class="mono">C3 100nF</span>: AIN0 ile AIN1 arası (diferansiyel, kesim 8 kHz)</li>
+  </ol>
+
+  <div class="uyari">
+    <div class="uyari-baslik">Algılama telleri şöntün gövdesine iner</div>
+    <p>R4/R5'i breadboard'un ortak toprak hattına değil, <b>şönt bacağının
+       kendisine</b> bağla. Aradaki her santim tel şöntün üstüne eklenir.
+       10R'de bu önemsiz; 15 mΩ'da <span class="mono">%6.7</span> hatadır.</p>
+  </div>
+
+  <div class="kanit">
+    <div class="kanit-baslik">Kanıt kapısı — ve kalibrasyon</div>
+    <ol style="margin:0">
+      <li>Şöntün değerini bildir: <code>s10.0</code></li>
+      <li><b>Yükü çıkar</b>, akım sıfırken <code>z</code> yaz →
+          <span class="mono">ok i_ofset=…</span> (birkaç LSB olmalı, yüzlerce değil)</li>
+      <li>Bilinen yükü bağla (12 V, 100R → ~120 mA); multimetreni seriye al</li>
+      <li>Multimetrenin okuduğunu yaz: <code>i0.1187</code></li>
+    </ol>
+    <p style="margin-top:10px">Sonrası: <code>D</code> satırının akım alanı
+       multimetrenle <span class="deger">±0.2 mA</span> içinde olmalı.</p>
+  </div>
+
+  <div class="uyari">
+    <div class="uyari-baslik">Yıldız toprak — hiçbir simülasyonun göremediği hata</div>
+    <p>Alçak taraf şönt kullandığımız için yük akımı kartın toprağından geçer.
+       Şönt toprağı ile ESP32 toprağı ayrı noktalardan birleşirse aradaki iz
+       direnci ölçüme girer: 10 A × 10 mΩ = 100 mV, 12 V'ta <span class="mono">%0.8</span>.
+       Şönt toprağı, ADS toprağı ve ESP toprağı <b>tek bir noktada</b> buluşsun.</p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">07</span><h2>Osiloskop kanalı</h2></div>
+  <p>Gerilim kanalından tamamen ayrı bir bölücü ve ayrı bir ADC — ESP32-S3'ün
+     kendi ADC'si, DMA ile 83 333 örnek/s.</p>
+
+  <h3>Sıra</h3>
+  <ol>
+    <li><span class="mono">R6 100K</span>: skop probu → SKOP</li>
+    <li><span class="mono">R7 6.8K</span>: SKOP → GND</li>
+    <li><span class="mono">C4 1nF</span>: SKOP → GND</li>
+    <li><span class="mono">D3</span>: anot SKOP, katot TL_RAY &nbsp;·&nbsp;
+        <span class="mono">D4</span>: anot GND, katot SKOP</li>
+    <li>SKOP → <span class="mono">GPIO4</span> (ADC1_CH3)</li>
+  </ol>
+
+  <div class="kanit">
+    <div class="kanit-baslik">Kanıt kapısı</div>
+    <p><code>ta</code> yaz (otomatik kurulum + yakala). Beklenen:</p>
+    <pre>T tdiv=6/11 (10000 us/bolme) hz=10000 adet=1000 pencere_ms=100.00 ...
+S2 1000 10000 0.011890 250 10000 0 1
+M f=50.000 T=0.020000000 Vpp=... duty=50.00 n=4
+2041 2038 2044 2039 …   <span class="yorum">← 16'şar sayı</span>
+E</pre>
+    <p><code>S2</code> başlığı: adet · örnekleme · volt/adım · tetik konumu ·
+       s/bölme · kip · tetiklendi. <code>M</code> satırı kartın kendi
+       hesapladığı ölçümler. Tam ölçek <span class="deger">48.7 V</span>.</p>
+    <p>Sinyal yoksa <code>t</code> ile serbest yakalama da yapabilirsin.</p>
+    <p><code>! tetiklenemedi</code> dönüyorsa DMA sürücüsü kurulamamıştır —
+       açılış satırlarında <span class="mono">! osiloskop suruculu kurulamadi</span>
+       var mı bak.</p>
+  </div>
+
+  <div class="uyari">
+    <div class="uyari-baslik">Osiloskop rakamı okumak için değil</div>
+    <p>ESP32-S3'ün ADC'si doğrusal değil; referansı çipten çipe 1000–1200 mV
+       arasında oynuyor. Genlik doğruluğu kalibrasyondan sonra bile
+       <span class="mono">%2–5</span>. Sayısal değeri her zaman ADS1115'ten
+       oku; bu kanal dalga <em>şekli</em> içindir.</p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">08</span><h2>Arayüz</h2></div>
+  <ol>
+    <li><code>py arayuz/sunucu.py</code> — Web Serial güvenli bağlam istediği için
+        <span class="mono">file://</span> ile açılmaz</li>
+    <li>Chrome ya da Edge ile <span class="mono">http://localhost</span></li>
+    <li>“Bağlan” → seri portu seç</li>
+  </ol>
+  <p>Donanım olmadan arayüzü görmek için adrese <code>?demo</code> ekle.</p>
+
+  <div class="uyari">
+    <div class="uyari-baslik">WiFi açıksa kart yüzer</div>
+    <p><span class="mono">WIFI_AD</span> doldurulup WiFi ile bağlanırsan kartın
+       USB toprağı kalkar ve ölçüm referansı kayar. Kalibrasyon ve hassas ölçüm
+       her zaman USB kablosuyla yapılır; WiFi uzaktan izleme içindir.</p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">09</span><h2>Komut özeti</h2></div>
+  <div class="kaydir">
+  <table>
+    <thead><tr><th>Komut</th><th>Ne yapar</th><th>Ne zaman</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">?</td><td>ayarları yazar</td><td>her zaman</td></tr>
+      <tr><td class="mono">#</td><td>I2C taraması</td><td>ADS cevap vermiyorsa</td></tr>
+      <tr><td class="mono">t</td><td>osiloskop yakalar</td><td>mevcut ayarlarla</td></tr>
+      <tr><td class="mono">ta</td><td><b>otomatik kurulum</b> — tabanı ve tetiği kendi bulur</td><td>sinyali bilmiyorsan bununla başla</td></tr>
+      <tr><td class="mono">tb&lt;0-11&gt;</td><td>zaman tabanı (100 µs … 500 ms/bölme)</td><td><span class="mono">t+</span> / <span class="mono">t-</span> bir kademe kaydırır</td></tr>
+      <tr><td class="mono">tl&lt;0-4095&gt;</td><td>tetik seviyesi</td><td>ADC kodu</td></tr>
+      <tr><td class="mono">te&lt;0/1&gt;</td><td>tetik kenarı</td><td>0 yükselen · 1 düşen</td></tr>
+      <tr><td class="mono">th&lt;kod&gt;</td><td>histerezis</td><td>gürültülü eşikte sahte tetiği önler</td></tr>
+      <tr><td class="mono">tp&lt;0-90&gt;</td><td>ön-tetik yüzdesi</td><td>tetik ÖNCESİNİ gösterir</td></tr>
+      <tr><td class="mono">tm&lt;0-2&gt;</td><td>tetik kipi</td><td>0 oto · 1 normal · 2 tek atış</td></tr>
+      <tr><td class="mono">t?</td><td>skop ayarlarını yazar</td><td></td></tr>
+      <tr><td class="mono">z</td><td>akım sıfırını alır</td><td><b>yük bağlı değilken</b></td></tr>
+      <tr><td class="mono">v&lt;gercek&gt;</td><td>gerilim kalibresi</td><td>bilinen gerilim uygulıyken</td></tr>
+      <tr><td class="mono">i&lt;gercek&gt;</td><td>akım kalibresi</td><td>bilinen akım akarken</td></tr>
+      <tr><td class="mono">s&lt;ohm&gt;</td><td>şönt değeri</td><td>şönt değiştirince</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Hepsi NVS'e yazılır — güç kesilince kaybolmaz. Şöntü her değiştirdiğinde
+     <code>s</code> ve ardından <code>z</code> çalıştır.</p>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">10</span><h2>Kurulum bitince ne göreceksin</h2></div>
+  <p>Kalibrasyondan sonra tezgâhta beklenen gerçek rakamlar — simülasyon değil,
+     hata bütçesinden ve benzer sistemlerin bilinen davranışından.</p>
+
+  <div class="kaydir">
+  <table>
+    <thead><tr><th>Ölçüm</th><th>Oynama</th><th>Doğruluk</th><th>12 V / 100 mA'de</th></tr></thead>
+    <tbody>
+      <tr><td>Gerilim</td><td class="mono">±0.2 mV</td><td class="mono">±%0.1–0.3</td><td class="mono">±12–36 mV</td></tr>
+      <tr><td>Akım (10R)</td><td class="mono">±2 µA</td><td class="mono">±%0.2–0.5</td><td class="mono">±0.2–0.5 mA</td></tr>
+      <tr><td>Akım (15 mΩ, Kelvin)</td><td class="mono">±0.3 mA</td><td class="mono">±%1–2</td><td>10 A'de ±100–200 mA</td></tr>
+      <tr><td>Osiloskop genliği</td><td>—</td><td class="mono">±%2–5</td><td>şekil için, rakam için değil</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Karşılaştırma için: DT830B <span class="mono">2 000</span> sayım okur,
+     UT61E <span class="mono">22 000</span>, bu kart 200 ms ortalamada
+     <span class="mono">146 000</span>. Ama <b>mutlak doğruluğu kendi
+     multimetrene karşı kalibre edildiği için onu aşamaz</b> — kartın kazandığı
+     şey çözünürlük, eşzamanlı V×I güç ölçümü, enerji sayımı ve sürekli kayıt.</p>
+</section>
+
+<hr>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">11</span><h2>Bir şey tutmuyorsa</h2></div>
+  <div class="kaydir">
+  <table>
+    <thead><tr><th>Belirti</th><th>Muhtemel sebep</th></tr></thead>
+    <tbody>
+      <tr><td>Seri portta hiçbir şey yok</td><td>USB yanlış sokette (UART değil, native)</td></tr>
+      <tr><td><span class="mono">#</span> hiç adres bulmuyor</td><td>SDA/SCL ters, ya da pull-up yok</td></tr>
+      <tr><td><span class="mono">#</span> tek adres buluyor</td><td>iki modülün ADDR'ı aynı yere bağlı</td></tr>
+      <tr><td>Gerilim 3 V'ta takılıyor</td><td>D1 ters — TL_RAY'i kırpıyor</td></tr>
+      <tr><td>Gerilim iki katı okunuyor</td><td>R2/R3 yer değiştirmiş</td></tr>
+      <tr><td>Akım hep sıfır</td><td>AIN0/AIN1 aynı düğümde, şönt köprülenmiş</td></tr>
+      <tr><td>Akım gürültülü</td><td>C3 yok, ya da algılama telleri ortak toprakta</td></tr>
+      <tr><td>Örnek sayısı 800'ün altında</td><td>ALERT (GPIO7) bağlı değil</td></tr>
+      <tr><td>Örnek sayısı 3000 civarı</td><td>ALERT bağlı ama aynı dönüşüm defalarca okunuyor</td></tr>
+      <tr><td>Skop <span class="mono">! tetiklenemedi</span></td><td>eşik sinyalin tepesinin üstünde, <code>t0</code> dene</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer>
+  Ölçüm Kartı · Aşama 2 · doğrulama zinciri <span class="mono">uretim/dogrula2.py</span> (A1–A5, 5/5) ·
+  şema <span class="mono">sema2/olcum-karti-a2.kicad_sch</span> (ERC 0 ihlal) ·
+  firmware <span class="mono">kod/olcum-karti-a2/</span>
+</footer>
+
+</div>

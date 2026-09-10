@@ -1,0 +1,34 @@
+# Metin dosyalari depoda LF olarak saklanir; Windows'ta calisma kopyasi
+# CRLF olur. Boylece platformlar arasi gurultulu diff olmuyor.
+* text=auto
+
+# Kaynak — her zaman LF
+*.py    text eol=lf
+*.js    text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.html  text eol=lf
+*.css   text eol=lf
+*.ino   text eol=lf
+*.h     text eol=lf
+*.net   text eol=lf
+
+# Windows'ta cift tiklanan dosyalar — CRLF olmali
+*.bat   text eol=crlf
+
+# KiCad dosyalari: metin ama ELLE duzenlenmiyor, arac uretiyor
+*.kicad_sch  text eol=lf
+*.kicad_pro  text eol=lf
+
+# Ikili
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.bin   binary
+
+# GitHub'in dil istatistigi: uretilen ve vendor edilen dosyalar sayilmasin
+BELGELER/*.html            linguist-generated=true
+arsiv/**                   linguist-vendored=true
+arayuz3/vendor/**          linguist-vendored=true
+uretim/_tezgah.md          linguist-generated=true
+uretim/olcum-karti.svg     linguist-generated=true

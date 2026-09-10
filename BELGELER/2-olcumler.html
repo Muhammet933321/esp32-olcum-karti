@@ -1,0 +1,179 @@
+<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Olcumler — Ölçüm Kartı</title><style>
+:root{color-scheme:light dark;
+  --yz:#fcfcfb; --yz2:#f4f3f0; --cizgi:#e2e0da;
+  --m1:#0b0b0b; --m2:#52514e; --m3:#77756d;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --iyi:#0a7d3f; --uyari:#b25e00; --kotu:#b3261e;}
+@media (prefers-color-scheme:dark){:root:not([data-tema="acik"]){
+  --yz:#1a1a19; --yz2:#232322; --cizgi:#3a3a37;
+  --m1:#ffffff; --m2:#c3c2b7; --m3:#9a988e;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --iyi:#4ec27d; --uyari:#e0a350; --kotu:#f2837a;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--yz);color:var(--m1);
+  font:16px/1.65 -apple-system,"Segoe UI",Roboto,sans-serif;}
+.kutu{max-width:960px;margin:0 auto;padding:32px 22px 80px}
+h1{font-size:30px;line-height:1.25;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:21px;margin:44px 0 4px;letter-spacing:-.01em;
+   padding-top:18px;border-top:1px solid var(--cizgi)}
+h3{font-size:16px;margin:26px 0 6px;color:var(--m2);
+   text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+p{margin:10px 0}
+.alt{color:var(--m2);font-size:15px;margin:0 0 26px}
+.ust{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px;font-size:14px}
+.ust a{color:var(--m2);text-decoration:none;padding:5px 11px;
+  border:1px solid var(--cizgi);border-radius:99px}
+.ust a:hover{color:var(--m1);border-color:var(--m3)}
+.ust a.bu{background:var(--m1);color:var(--yz);border-color:var(--m1)}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--cizgi)}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+   color:var(--m3);font-weight:600}
+td.s,th.s{text-align:right;font-variant-numeric:tabular-nums}
+.kart{background:var(--yz2);border:1px solid var(--cizgi);
+  border-radius:12px;padding:16px 18px;margin:14px 0}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;margin:16px 0}
+.kpi div{background:var(--yz2);border:1px solid var(--cizgi);
+  border-radius:10px;padding:12px 14px}
+.kpi b{display:block;font-size:24px;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--m2);text-transform:uppercase;
+  letter-spacing:.05em}
+.uy{border-left:3px solid var(--uyari);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+.ok{border-left:3px solid var(--iyi);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+.no{border-left:3px solid var(--kotu);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+figure{margin:22px 0}
+figcaption{font-size:14px;color:var(--m2);margin-top:8px}
+svg{max-width:100%;height:auto;display:block}
+code{background:var(--yz2);padding:1px 6px;border-radius:5px;
+  font:14px/1 ui-monospace,Consolas,monospace}
+.kucuk{font-size:14px;color:var(--m2)}
+.rozet{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;
+  background:var(--yz2);border:1px solid var(--cizgi);color:var(--m2)}
+</style></head><body>
+<div class="kutu"><nav class="ust"><a href="index.html">Başla</a><a href="1-ne-yapabilir.html">Ne yapabilir</a><a href="2-olcumler.html" class='bu'>Ölçümler</a><a href="3-pil-testi.html">Pil testi</a><a href="6-ag.html">Bağlanma</a><a href="2-malzemeler.html">Malzemeler</a><a href="4-kurulum.html">Kurulum</a><a href="5-muhendislik.html">Mühendislik</a></nav>
+<h1>Olcumler</h1><p class="alt">Neyi, ne kadar hassas, ne siklikla</p>
+
+<p>Bu sayfa "neyi, ne kadar hassas, ne sıklıkla" sorusunun cevabı.</p>
+
+<h2>Gerilim</h2>
+<p>İki menzil var ve kart <b>otomatik</b> geçiş yapıyor. İkisi de
+<b>çift yönlü</b> — eksi gerilimi de okuyor.</p>
+<table>
+<tr><th>Menzil</th><th class="s">Ölçebildiği</th><th class="s">Adım</th>
+    <th class="s">Saniyede</th></tr>
+<tr><td><b>NORMAL</b></td><td class="s">±32.4 V</td>
+    <td class="s">1.042 mV</td>
+    <td class="s">665</td></tr>
+<tr><td><b>YÜKSEK</b></td><td class="s">±613.7 V</td>
+    <td class="s">18.78 mV</td>
+    <td class="s">665</td></tr>
+</table>
+<div class="no"><b>⚠ 615 V ölümcüldür.</b> Yüksek menzil şebeke ve
+üstündeki gerilimler için. Ayrı, işaretli bir girişten bağlanıyor ve
+o girişteyken karta dokunulmaz.</div>
+
+<h2>Akım</h2>
+<p>Şöntü değiştirerek menzil seçiyorsunuz. Küçük şönt = büyük akım,
+büyük şönt = ince çözünürlük.</p>
+<table>
+<tr><th>Takılı şönt</th><th class="s">Ölçebildiği</th><th class="s">Adım</th>
+    <th>Sınırı koyan</th></tr><tr><td>10 Ω</td><td class='s'>±0.026 A</td><td class='s'>0.8 µA</td><td>ADC</td></tr><tr><td>1 Ω</td><td class='s'>±0.256 A</td><td class='s'>7.8 µA</td><td>ADC</td></tr><tr><td>100 mΩ</td><td class='s'>±2.560 A</td><td class='s'>78.1 µA</td><td>ADC</td></tr><tr><td>15 mΩ</td><td class='s'>±11.547 A</td><td class='s'>520.8 µA</td><td>şöntün ısınması</td></tr></table>
+<p class="kucuk">15 mΩ şöntte <b>Kelvin bağlantısı şart</b> — lehim
+direnci şöntün kendisiyle aynı mertebede olduğu için.</p>
+
+<h2>Güç ve enerji</h2>
+<table>
+<tr><td>Güç</td><td class="s">±7.1 kW</td>
+    <td>gerilim × akım, <b>işaretli</b> (negatif = geri besleme)</td></tr>
+<tr><td>Enerji</td><td class="s">±2 562 Wh</td>
+    <td>25 W'ta 102 saat boyunca taşmaz</td></tr>
+<tr><td>Yük (pil testi)</td><td class="s">±2 562 Ah</td>
+    <td>şarj yönünde <b>geri sayar</b></td></tr>
+</table>
+<div class="uy"><b>Güç ölçümünün geçerli olduğu bant: 40–70 Hz.</b>
+Kart şebeke frekansında (50/60 Hz) kalibre ediliyor ve o bandın dışında
+kalibrasyon geçerliliğini yitiriyor. <code>f</code> ayarı bu yüzden
+100 Hz'de kesiliyor. DC ölçerken ayarı <b>DC</b> yapın —
+yoksa güç %82 yüksek okunur (arayüz bunu uyarıyor).</div>
+
+<h2>Osiloskop</h2>
+<table>
+<tr><th>Zaman tabanı</th><th class="s">Örnekleme</th>
+    <th class="s">Pencere</th><th class="s">Örnek</th></tr><tr><td>100 µs</td><td class='s'>83.33 kSa/s</td><td class='s'>1 ms</td><td class='s'>100</td></tr><tr><td>200 µs</td><td class='s'>83.33 kSa/s</td><td class='s'>2 ms</td><td class='s'>167</td></tr><tr><td>500 µs</td><td class='s'>83.33 kSa/s</td><td class='s'>5 ms</td><td class='s'>417</td></tr><tr><td>1 ms</td><td class='s'>83.33 kSa/s</td><td class='s'>10 ms</td><td class='s'>833</td></tr><tr><td>2 ms</td><td class='s'>50.00 kSa/s</td><td class='s'>20 ms</td><td class='s'>1000</td></tr><tr><td>5 ms</td><td class='s'>20.00 kSa/s</td><td class='s'>50 ms</td><td class='s'>1000</td></tr><tr><td>10 ms</td><td class='s'>10.00 kSa/s</td><td class='s'>100 ms</td><td class='s'>1000</td></tr><tr><td>20 ms</td><td class='s'>5.00 kSa/s</td><td class='s'>200 ms</td><td class='s'>1000</td></tr><tr><td>50 ms</td><td class='s'>2.00 kSa/s</td><td class='s'>500 ms</td><td class='s'>1000</td></tr><tr><td>100 ms</td><td class='s'>1.00 kSa/s</td><td class='s'>1000 ms</td><td class='s'>1000</td></tr><tr><td>200 ms</td><td class='s'>0.61 kSa/s</td><td class='s'>2000 ms</td><td class='s'>1222</td></tr><tr><td>500 ms</td><td class='s'>0.61 kSa/s</td><td class='s'>5000 ms</td><td class='s'>3055</td></tr></table>
+<table>
+<tr><td>Dikey menzil</td>
+    <td class="s">-63.5 … +46.8 V</td></tr>
+<tr><td>Dikey adım</td><td class="s">28.8 mV</td></tr>
+<tr><td>Bant genişliği</td><td class="s">16.5 kHz</td></tr>
+</table>
+<p class="kucuk">Osiloskop kanalı <b>dalga şekli</b> için. Sayısal
+kesinlik isteyen ölçümü wattmetre yolundan alın — o 16 bit, bu 12 bit.</p>
+
+<h2>Ölçüm hızı — ne demek</h2>
+<figure><svg viewBox="0 0 880 260" role="img" width="880" height="260">
+<line x1="291.3" y1="28" x2="291.3" y2="212" stroke="var(--cizgi)"/>
+<text x="291.3" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">1</text>
+<line x1="388.6" y1="28" x2="388.6" y2="212" stroke="var(--cizgi)"/>
+<text x="388.6" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">10</text>
+<line x1="485.9" y1="28" x2="485.9" y2="212" stroke="var(--cizgi)"/>
+<text x="485.9" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">100</text>
+<line x1="583.1" y1="28" x2="583.1" y2="212" stroke="var(--cizgi)"/>
+<text x="583.1" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">1 000</text>
+<line x1="680.4" y1="28" x2="680.4" y2="212" stroke="var(--cizgi)"/>
+<text x="680.4" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">10 000</text>
+<line x1="777.7" y1="28" x2="777.7" y2="212" stroke="var(--cizgi)"/>
+<text x="777.7" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">100 000</text>
+<line x1="262" y1="46" x2="565.9" y2="46" stroke="#2a78d6" stroke-width="2" opacity="0.3"/>
+<circle cx="565.9" cy="46" r="7" fill="#2a78d6" stroke="var(--yz)" stroke-width="2"/>
+<text x="254.0" y="50.0" text-anchor="end" font-size="12" fill="var(--m1)">Wattmetre (V·I·W·mAh)</text>
+<text x="579.9" y="50.0" text-anchor="start" font-size="11" fill="var(--m2)">665 örnek/s</text>
+<line x1="262" y1="80" x2="770.0" y2="80" stroke="#1baf7a" stroke-width="2" opacity="0.3"/>
+<circle cx="770.0" cy="80" r="7" fill="#1baf7a" stroke="var(--yz)" stroke-width="2"/>
+<text x="254.0" y="84.0" text-anchor="end" font-size="12" fill="var(--m1)">Osiloskop — en hizli</text>
+<text x="784.0" y="84.0" text-anchor="start" font-size="11" fill="var(--m2)">83 333 örnek/s</text>
+<line x1="262" y1="114" x2="562.3" y2="114" stroke="#1baf7a" stroke-width="2" opacity="0.3"/>
+<circle cx="562.3" cy="114" r="7" fill="#1baf7a" stroke="var(--yz)" stroke-width="2"/>
+<text x="254.0" y="118.0" text-anchor="end" font-size="12" fill="var(--m1)">Osiloskop — en yavas</text>
+<text x="576.3" y="118.0" text-anchor="start" font-size="11" fill="var(--m2)">611 örnek/s</text>
+<line x1="262" y1="148" x2="740.7" y2="148" stroke="#eb6834" stroke-width="2" opacity="0.3"/>
+<circle cx="740.7" cy="148" r="7" fill="#eb6834" stroke="var(--yz)" stroke-width="2"/>
+<text x="254.0" y="152.0" text-anchor="end" font-size="12" fill="var(--m1)">Hizli akim (dalga sekli)</text>
+<text x="754.7" y="152.0" text-anchor="start" font-size="11" fill="var(--m2)">41 666 örnek/s</text>
+<line x1="262" y1="182" x2="291.3" y2="182" stroke="#eda100" stroke-width="2" opacity="0.3"/>
+<circle cx="291.3" cy="182" r="7" fill="#eda100" stroke="var(--yz)" stroke-width="2"/>
+<text x="254.0" y="186.0" text-anchor="end" font-size="12" fill="var(--m1)">Pil testi egri kaydi</text>
+<text x="305.3" y="186.0" text-anchor="start" font-size="11" fill="var(--m2)">1 örnek/s</text>
+<text x="530.0" y="250.0" text-anchor="middle" font-size="12" fill="var(--m2)">saniyede kaç örnek (logaritmik ölçek)</text>
+</svg>
+<figcaption>Wattmetre yolu saniyede 665 kez örnekliyor.
+Ekrandaki değer 200 ms'de bir yenileniyor ve her yenileme
+133 ölçümün ortalaması — bu, gürültüyü
+12 kat bastırıyor.</figcaption></figure>
+
+<h2>Hassasiyet ile doğruluk aynı şey değil</h2>
+<table>
+<tr><th></th><th>Ne demek</th><th>Bu kartta</th></tr>
+<tr><td><b>Adım</b></td><td>Okuyabildiği en küçük basamak</td>
+    <td class="s">1.04 mV</td></tr>
+<tr><td><b>Gürültü</b></td><td>Sabit girişte okumanın oynaması</td>
+    <td class="s">0.039 mV</td></tr>
+<tr><td><b>Doğruluk</b></td><td>Gerçek değere ne kadar yakın</td>
+    <td>kalibrasyon referansı kadar (±%0.8)</td></tr>
+</table>
+<p>Kart 0.04 mV'luk bir <i>değişimi</i> görebiliyor ama "bu gerilim tam
+12.000 V" diyemiyor — çünkü onu söyleyebilmek için ondan daha doğru bir
+referans gerekiyor. Pratikte bu şu demek: <b>karşılaştırma ve eğilim
+için mükemmel, mutlak kalibrasyon için multimetreniz kadar.</b></p>
+
+<p class="kucuk" style="margin-top:60px;border-top:1px solid var(--cizgi);
+ padding-top:14px">Bu sayfa <code>uretim/belge-uret.py</code> tarafından
+ üretildi — buradaki her sayı tasarım dosyalarından hesaplanıyor, elle
+ yazılmıyor. Donanım henüz kurulmadı; değerler tasarımın vaadidir.</p>
+</div></body></html>

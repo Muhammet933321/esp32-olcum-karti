@@ -1,0 +1,128 @@
+==============================================================================
+  S9 — KART UCTAN UCA  (ngspice -> gercek firmware -> gercek arayuz)
+==============================================================================
+
+--- 1. Gercek firmware'i derle -----------------------------------
+  olcum-karti.ino.elf  (60,472 bayt ELF)
+  [OK] main() ELF'te var
+  [OK] Durum degiskenlerinin hepsi SRAM'de  8 simge
+  [OK] Kaynaktaki metinler ikilinin icinde  6 metin
+
+--- 2. Analog kati ngspice ile tara ------------------------------
+  [OK] Bolucu orani ngspice'tan  11.0000 (beklenen 11.0000, sapma %0.000)
+  [OK] LM358 kazanci ngspice'tan (egim)  7.9111 (beklenen 7.9118, sapma %0.008)
+    sifir akimda cikis 20.0 mV — 's' komutu bunu siler
+
+--- 3. Firmware'i baslat -----------------------------------------
+  [OK] Acilis basligi geldi
+  [OK] Ayar dokumu basildi
+  [OK] Yardim metni basildi
+  [OK] Cikis bicimi ilan edildi
+  [OK] ADMUX REFS = 00 (HARICI referans secili)  ADMUX = 0x01
+  [OK] ADC en az bir donusum yapti  1858 donusum
+  [OK] Olcum akisi kendiliginden basladi  1 rapor satiri
+  [OK] h50 komutu kabul edildi
+
+--- 4. Uygulanan deger ile okunan degeri karsilastir --------------
+  AREF = 2.47 V (tezgahta olculen), sont = 10.0 ohm, ADC adimi = 26.5 mV
+
+           uygulanan             okunan      hata        hata
+         V        mA        V        mA         V        mA
+  --------------------------------------------------------------
+      3.30      5.00    3.290     5.183    -0.010    +0.183
+      5.00     10.00    4.988    10.183    -0.012    +0.183
+     12.00     20.00   11.993    20.183    -0.007    +0.183
+     24.00     30.00   23.986    30.183    -0.014    +0.183
+
+  1 LSB = 26.5 mV gerilimde, 30.5 uA akimda
+
+  [OK]    3.30 V: firmware ADC kodu 124 ile birebir  3.2901 V (beklenen 3.2901, fark 0.0000)
+  [OK]    3.30 V: okuma uygulanan degere esit  3.2901 V (beklenen 3.3000, fark 0.0099)
+  [OK]    5.00 mA: firmware ADC kodu 170 ile birebir  0.0052 A (beklenen 0.0052, fark 0.0000)
+  [OK]    3.30 V x akim = watt tutarli  0.0171 W (beklenen 0.0171, fark 0.0000)
+  [OK]    5.00 V: firmware ADC kodu 188 ile birebir  4.9882 V (beklenen 4.9882, fark 0.0000)
+  [OK]    5.00 V: okuma uygulanan degere esit  4.9882 V (beklenen 5.0000, fark 0.0118)
+  [OK]   10.00 mA: firmware ADC kodu 334 ile birebir  0.0102 A (beklenen 0.0102, fark 0.0000)
+  [OK]    5.00 V x akim = watt tutarli  0.0508 W (beklenen 0.0508, fark 0.0000)
+  [OK]   12.00 V: firmware ADC kodu 452 ile birebir  11.9930 V (beklenen 11.9930, fark 0.0000)
+  [OK]   12.00 V: okuma uygulanan degere esit  11.9930 V (beklenen 12.0000, fark 0.0070)
+  [OK]   20.00 mA: firmware ADC kodu 662 ile birebir  0.0202 A (beklenen 0.0202, fark 0.0000)
+  [OK]   12.00 V x akim = watt tutarli  0.2421 W (beklenen 0.2421, fark 0.0000)
+  [OK]   24.00 V: firmware ADC kodu 904 ile birebir  23.9860 V (beklenen 23.9860, fark 0.0000)
+  [OK]   24.00 V: okuma uygulanan degere esit  23.9860 V (beklenen 24.0000, fark 0.0140)
+  [OK]   30.00 mA: firmware ADC kodu 990 ile birebir  0.0302 A (beklenen 0.0302, fark 0.0000)
+  [OK]   24.00 V x akim = watt tutarli  0.7240 W (beklenen 0.7240, fark 0.0000)
+
+--- 5. 's' komutu: LM358 giris ofsetini sifirla -------------------
+  ngspice: sifir akimda LM358 cikisi 20.0 mV -> ADC kodu 8 bekleniyor
+  (LM358 vos = 2 mV, kazanc 7.912; makromodelin cikis tabani 20 mV oldugu icin ideal cebirden biraz yuksek)
+  [OK] 's' komutu ofseti buldu ve yazdi  Ofset = 8 adim
+  [OK]   Bulunan ofset LM358 modelini dogruluyor  8.0000 adim (beklenen 8.0000, fark 0.0000)
+  [OK]   Ofset sonrasi okuma (kod - ofset) x adim ile birebir  0.0199 A (beklenen 0.0199, fark 0.0000)
+  [OK]   Ofset sonrasi 20.00 mA okumasi (kalan sapma)  0.0199 A (beklenen 0.0200, fark 0.0001)
+
+--- 6. EEPROM: ayar yeniden aciliste duruyor mu -------------------
+  [OK] EEPROM'a gercekten yazildi  imza = c0fe (0xC0FE bekleniyor)
+  [OK] Yeniden aciliste ofset EEPROM'dan geldi  okunan 8 / yazilan 8
+
+--- 7. 'kv' kalibrasyonu: yanlis AREF'i duzeltiyor mu -------------
+  Kart AREF = 2.478 V ile calistiriliyor ama firmware 2.47 V sabitine inaniyor
+  -> beklenen sistematik hata: %-0.323 (referans buyudukce okuma duser)
+  kalibrasyon oncesi: 11.9399 V  (hata %-0.501)
+  [OK] 'kv' komutu duzeltme carpani hesapladi  v_duzeltme = 1.00503
+  kalibrasyon sonrasi: 12.0000 V  (hata %+0.000)
+  [OK]   Kalibrasyon sonrasi 12.00 V  12.0000 V (beklenen 12.0000, fark 0.0000)
+  [OK]   Kalibrasyon hatayi kucultttu  60.1 mV -> 0.0 mV
+
+--- 8. Enerji sayaci ---------------------------------------------
+  [OK] 'e' enerji sayacini sifirladi
+  0.951 s icinde 0.2275 J biriktirdi, anlik guc 0.2391 W
+  [OK]   Enerji = guc x sure  0.2275 J (beklenen 0.2274, sapma %0.040)
+  [OK]   Wh alani Joule ile tutarli  0.2498 J (beklenen 0.2498, sapma %0.016)
+  [OK]   Sayac ileri gidiyor  0.0223 -> 0.2498 J
+
+--- 9. Ornekleme -------------------------------------------------
+  50 ms pencerede 85 ornek -> 1,700 ornek/sn
+  [OK]   Ornekleme hizi ADC tavaninin (2,404/sn) altinda  1,700 ornek/sn (ADC 4 donusum x 13 saat x 128 on bolucu)
+  [OK]   Gurultu bastirma = sqrt(N)  sqrt(85) = 9.2 kat
+
+--- 10. Osiloskop kipi -------------------------------------------
+  [OK] Osiloskop basligi dogru bicimde  S 1000 76923 0.106133
+  [OK]   1000 ornek geldi  1000 adet
+  ornekleme 76,923 Hz, volt/adim 0.106133, tepeden tepeye 11.99 V (uygulanan 12.00 V)
+  [OK]   Tepeden tepeye gerilim  11.9930 V (beklenen 12.0000, sapma %0.058)
+  [OK]   Ortalama = DC bileseni (tam 3 cevrim)  11.9469 V (beklenen 12.0000, sapma %0.443)
+  tetikleme denemesi: esik 112 (isaret 56-169 adim arasinda)
+  [OK]   Tetiklemeli yakalama basarili  S 1000 76923 0.106133
+  [OK]   Yakalama esigin uzerinde basliyor  ilk ornek 113, esik 112
+  [OK]   Ulasilamaz esikte '! tetiklenemedi' donuyor  olu koddu, artik calisiyor
+
+--- 11. Hatali girdi ---------------------------------------------
+  [OK] Bilinmeyen komut reddedildi
+  [OK] Sinir disi rapor araligi reddedildi
+  [OK] Tampon tasmasi kartsi cokertmedi (16 baytlik sabit tampon)
+
+--- 12. Yakalanan seri akisini gercek arayuze ver -----------------
+  434 bayt yazildi: kanit/seri-akis.txt
+  Kartin gonderdigi 442 bayt / 9 satir arayuze verildi
+  
+  [OK] Arayuz en az bir olcum ayristirdi  8 nokta
+  [OK] Ekrandaki gerilim uygulanan gerilime esit  11.9930 V  (uygulanan 12.00 V)
+  [OK] Ekrandaki akim uygulanan akima esit  19.94 mA  (uygulanan 20.00 mA)
+  [OK] Ekrandaki guc = gerilim x akim  239.13 mW
+  [OK] Enerji alanlari dolduruldu  0.8604 J = 0.0002390 Wh
+  [OK] Ornekleme hizi hesaplandi  1.7k /sn
+  [OK] Gurultu bastirma gosterildi  √85 ≈ 9× bastırma
+  [OK] Gecmis zaman ekseni artiyor  0.000 s -> 0.350 s
+  [OK] Veri satirlari gunluge dusmedi  0 gunluk kaydi
+  [OK] Hicbir noktada NaN yok
+  
+    EKRANDA GORUNEN:  11.9930 V   19.94 mA   239.13 mW   0.8604 J
+  
+    10/10 dogrulama gecti
+  [OK] Arayuz zincirin sonunu dogruladi
+
+==============================================================================
+  ham sonuclar: kanit/s9-veri.json
+  S9: 55/55 kosul gecti   (186,400,010 AVR cevrimi, 111.1 s)
+==============================================================================

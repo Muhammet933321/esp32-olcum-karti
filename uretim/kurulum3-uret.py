@@ -1,0 +1,467 @@
+# -*- coding: utf-8 -*-
+"""Asama 3 tezgah kurulum kilavuzunu uretir  ->  ../BELGELER/4-kurulum.html
+
+    python kurulum3-uret.py
+
+NEDEN URETILIYOR, ELLE YAZILMIYOR: sayfadaki her olcum degeri
+`tasarim3_sabit.py`'den geliyor. Bolucu degisirse kilavuzdaki "sunu
+olcmelisin" degeri de pesinden gidiyor. Asama 2'nin kurulum2.html'i elle
+yazilmisti ve icindeki 4.7K pull-up onerisi tasarimla AYRISMISTI
+(DEVIR 4.7); ayni hatayi tekrarlamamak icin bu uretiliyor.
+
+Her adimin bir KAPISI var: gecmeden sonrakine gecilmez. Bu, projenin
+dogrulama kulturunun tezgahtaki karsiligi — bir kapi tutmuyorsa hata O
+adimdadir, sonraki adimi kurmak onu gizler, cozmez.
+"""
+from __future__ import annotations
+
+import html
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+import tasarim3_sabit as T                        # noqa: E402
+import belge_menu as MN                           # noqa: E402
+import json                                       # noqa: E402
+import dogrula3 as D3                             # noqa: E402
+
+
+_FW = Path(__file__).parent / "_firmware.json"
+if _FW.exists():
+    _f = json.loads(_FW.read_text(encoding="utf-8"))
+    FW = f"{_f['flash_bayt']:,} B (%{_f['flash_yuzde']})".replace(",", " ")
+else:
+    FW = "olculmedi (dogrula3.py kosturun)"
+
+
+def semada_kac(deger: str) -> int:
+    """Semada bu degerden kac adet var — netlist'ten SAYILIYOR.
+
+    Elle yazilmis adet, semadan sessizce ayrisir: bu tablo bir sure
+    'BAT85 x6' dedi, semada 4 vardi. Sayilar artik tek kaynaktan.
+    """
+    import re
+    net = Path(__file__).parent / "netlist3.net"
+    if not net.exists():
+        raise SystemExit("netlist3.net yok — once sema3-uret.py + kicad-cli "
+                         "netlist calistirilmali (zincirde B3, B9'dan once)")
+    return sum(1 for _r, v in re.findall(
+        r'\(comp\s+\(ref "([^"]+)"\)\s+\(value "([^"]+)"\)',
+        net.read_text(encoding="utf-8")) if v == deger)
+
+
+BAT85_ADET = semada_kac("BAT85")
+# DIP-8 govdeli entegreler: LM358 x2 (U3, U4) + TL072 x2 (U5, U8).
+# TL431 TO-92, ADS1115'ler modul — soket almiyorlar.
+DIP8_ADET = semada_kac("LM358") + semada_kac("TL072")
+
+BURASI = Path(__file__).parent
+KOK = BURASI.parent
+HEDEF = KOK / "BELGELER" / "4-kurulum.html"
+
+KN, KH = T.KANALLAR[0], T.KANALLAR[1]
+HIZLI_KAZANC = 4.7
+ESP_TAVAN = 3.1
+salinim = min(ESP_TAVAN - T.VREF, T.VREF)
+
+
+def e(x):
+    return html.escape(str(x))
+
+
+# ─────────────────────────────────────────────────────── adimlar
+ADIMLAR = [
+    dict(
+        no="01",
+        baslik="Vref rayı — her şey buna dayanıyor",
+        govde=f"""
+<p>TL431 rayını ve ondan türeyen <b>Vref</b>'i kur. Çift yönlü ölçümün
+tamamı Vref'e dayanıyor: bölücülerin alt ucu GND'ye değil buraya gidiyor.</p>
+<pre>  +3V3 ──[ 220R ]──┬── TL431 katot ──┬── <span class="y">TL_RAY {T.TL431_V} V</span>
+                   │       (U1)      │
+                   │                 └──[100nF]── GND
+                   └── TL431 REF (katoda bağlı)
+
+  TL_RAY ──[ {T.VREF_RA/1e3:.0f}K ]──┬──[ {T.VREF_RB/1e3:.0f}K ]── GND
+                     │
+                  U3A izleyici ── <span class="y">VREF {T.VREF:.4f} V</span></pre>
+<p><b>Vref TAMPONSUZ OLAMAZ.</b> İki bölücünün akımı (~290 µA) tamponsuz
+bölücünün {T.par(T.VREF_RA, T.VREF_RB)/1e3:.1f} kΩ'luk Thevenin'inden aksa
+2 V'a varan kayma yapardı.</p>
+<p>U3 = LM358, <b>+5 V</b>'ta beslenecek. 3.3 V'ta çıkışı yeterince
+yükselemez; +12 V'ta ise ADS'i zorlar.</p>
+""",
+        kapi=f"""TL431 katodunda <b>{T.TL431_V} V</b> ±%2, U3A çıkışında
+<b>{T.VREF:.4f} V</b> ±10 mV ölç. Vref multimetreyle ölçülürken
+<b>yük altında</b> (bölücüler bağlıyken) da aynı kalmalı — kaymıyorsa
+tampon çalışıyor demektir.""",
+    ),
+    dict(
+        no="02",
+        baslik="ESP32-S3 + I²C — iki ADS de görünmeli",
+        govde=f"""
+<p>ADS1115 modüllerini <b>3.3 V</b>'ta besle (5 V'ta VIH 3.5 V olurdu ve
+ESP32'nin 3.3 V çıkışı yetmezdi). Adresler:</p>
+<table>
+  <thead><tr><th>Modül</th><th>ADDR</th><th>Adres</th><th>Görev</th></tr></thead>
+  <tbody>
+    <tr><td>ADS #1 (U6)</td><td class="mono">GND</td><td class="mono">0x48</td><td>AKIM, AIN0-AIN1 diferansiyel</td></tr>
+    <tr><td>ADS #2 (U7)</td><td class="mono">+3V3</td><td class="mono">0x49</td><td>GERİLİM, AIN0-1 ve AIN2-3</td></tr>
+  </tbody>
+</table>
+<p><b>Pull-up: R24/R25 = 2.7K</b> — 4.7K DEĞİL. İki modülde 4.7K ile
+yükselme süresi 308 ns çıkıyor ve Fast-mode sınırı 300 ns. 2.7K hem iki
+hem üç modülde geçiyor (223 / 190 ns).</p>
+<p>Modüllerin kendi 10K pull-up'ları var; 2.7K onlara <em>paralel</em> geliyor.</p>
+""",
+        kapi="""Firmware'i yükle, seri portu 115200'de aç, <code>#</code> yaz.
+<b>0x48 ve 0x49 ikisi de görünmeli.</b> Görünmüyorsa sorun kabloda:
+SDA/SCL ters, ADDR boşta, ya da pull-up yok. Kalibrasyona geçme.""",
+    ),
+    dict(
+        no="03",
+        baslik="Akım kanalı — şönt, Kelvin, çift yönlü",
+        govde=f"""
+<p>Şöntü <b>soketli</b> tak. Kelvin (4 telli) algılama uçlarını şöntün
+<em>kendi gövdesinden</em> al, akımın geçtiği izden değil.</p>
+<p><b>Kelvin uçları İKİ yere gidiyor:</b> ADS'in koluna (R18/R19 100R,
+sonra B15/F2'nin koruma dirençleri R38/R39 1K) ve hızlı yolun fark
+yükseltecine (R27/R29). Hızlı yol R38/R39'un <em>önünden</em> çekiliyor.</p>
+<p><b>B16 — süzgeç ADS'in KENDİ kolunda:</b> C4 artık
+{T.SONT_C*1e9:.0f}nF (yalnızca RF). Örtüşme süzgeci
+<b>C18 1µF + C19 220nF + C20 100nF = {T.ADS_AKIM_C*1e6:.2f} µF</b>
+olarak <b>R38/R39'un ardına</b>, ADS'in giriş pinleri arasına konuyor —
+bacaklar kısa, pinlere yakın. Süzgeç C4 düğümüne konsaydı hızlı yolun
+bandı da kapanırdı (B16 öncesi tam bu oluyordu: I_HIZLI 7.8 kHz'te
+kalıyor, skop kanalı 16.55 kHz'te duruyordu).</p>
+<p><b>Neden bu değer:</b> gerilim kanalının zaman sabitiyle eşleşsin diye.
+Eşleşmezse wattmetre <em>reaktif</em> yükte çöker — B16 öncesi 50 Hz'te
+V/I faz farkı −41.6°, PF=0.5'te %155 hata. Dirençli yükte fark kendini
+götürdüğü için gözden kaçmıştı.</p>
+<p><b>Kondansatörlerin üzerindeki tolerans harfini oku (J = %5,
+K = %10).</b> B16 bölüm 4: artık baskın hata kaynağı tolerans. %10'luk
+parçalarla kartların %5'i PF=0.5'te %13'ten kötü olabiliyor — o yüzden
+firmware'de menzil başına <b>faz kalibrasyonu</b> (dirençli yükle,
+referans cihaz gerekmiyor) gerekli.</p>
+<table>
+  <thead><tr><th>Şönt</th><th>ADS menzili</th><th>Adım</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">10R</td><td>±26 mA</td><td>0.78 µA</td><td></td></tr>
+    <tr><td class="mono">1R</td><td>±256 mA</td><td>7.81 µA</td><td></td></tr>
+    <tr><td class="mono">0.1R</td><td>±2.56 A</td><td>78 µA</td><td></td></tr>
+    <tr><td class="mono">15 mΩ</td><td>±11.5 A</td><td>521 µA</td><td><b>Kelvin şart</b></td></tr>
+  </tbody>
+</table>
+""",
+        kapi="""Yükü <b>tamamen kes</b>, <code>Z</code> yaz (akım sıfırı).
+Sonra bilinen bir akım uygula ve <code>i&lt;amper&gt;</code> ile kalibre et.
+<b>Akımı ters çevir</b> — okuma negatif olmalı. Sıfırda kalıyorsa
+firmware kırpması geri gelmiş demektir.""",
+    ),
+    dict(
+        no="04",
+        baslik="NORMAL gerilim kanalı — ±32 V, çift yönlü",
+        govde=f"""
+<pre>  V_GİRİŞ ──[ {KN['rust']/1e3:.0f}K ]──┬──[ {KN['ralt']/1e3:.1f}K ]── <span class="y">VREF</span>
+                       │
+                    [{T.RC_R/1e3:.0f}K]── C2 {T.RC_C*1e9:.0f}nF ── VREF
+                       │
+                  U3B izleyici ── ADS #2 AIN0     (AIN1 = VREF)</pre>
+<table>
+  <thead><tr><th></th><th>Değer</th></tr></thead>
+  <tbody>
+    <tr><td>Bölme oranı N</td><td class="mono">{KN['N']:.3f}</td></tr>
+    <tr><td><b>Simetrik menzil</b></td><td class="mono deger">±{KN['fs_sim']:.2f} V</td></tr>
+    <tr><td>Gerçek sınırlar</td><td class="mono">{KN['fs_alt']:.2f} .. {KN['fs_ust']:.2f} V</td></tr>
+    <tr><td>Adım</td><td class="mono">{KN['adim']*1e3:.3f} mV</td></tr>
+    <tr><td>Giriş empedansı</td><td class="mono">{KN['giris_z']/1e3:.0f} kΩ</td></tr>
+  </tbody>
+</table>
+<p>⚠️ <b>Menzil simetrik değil.</b> <code>fark = (Vin − Vref)/N</code>
+olduğu için ADS'in ±PGA penceresi girişe <b>Vref kadar yukarı kaymış</b>
+bir aralık veriyor. Güvenle kullanılabilir aralık ±{KN['fs_sim']:.2f} V;
+üstünde kırpar.</p>
+""",
+        kapi=f"""Girişi <b>0 V'a bağla</b> ve <code>z</code> yaz (gerilim
+sıfırı — Vref'in gerçek değerini ölçüp çıkarır). Sonra bilinen bir gerilim
+uygula, <code>g&lt;volt&gt;</code> ile kalibre et. <b>Sonra girişi ters
+çevir</b> — okuma negatif ve aynı büyüklükte olmalı. +{KN['fs_sim']:.0f} V
+ve −{KN['fs_sim']:.0f} V'ta kırpma olmamalı.""",
+    ),
+    dict(
+        no="05",
+        baslik="YÜKSEK gerilim kanalı — ±613 V",
+        tehlike=True,
+        govde=f"""
+<pre>  HV_GİRİŞ ──[ {KH['rust_adet']}× {KH['rust_bir']/1e3:.0f}K seri ]──┬──[ {KH['ralt']/1e3:.1f}K ]── <span class="y">VREF</span>
+                                 │
+                              [R17 {T.RC_R/1e3:.0f}K]── C3 {T.RC_C*1e9:.0f}nF ── VREF
+                                 │
+                            U4A izleyici ── ADS #2 AIN2   (AIN3 = VREF)</pre>
+<p><b>Alt bacak {KH['ralt']/1e3:.1f}K, zincirin yüzde biri.</b> 6 × R /
+(R/100) her R için bölme oranını tam 601 yapar; listede hem R hem R/100
+bulunan en büyük çift 820K / 8.2K, giriş empedansı da orada en yüksek.</p>
+<table>
+  <thead><tr><th></th><th>Değer</th></tr></thead>
+  <tbody>
+    <tr><td>Bölme oranı N</td><td class="mono">{KH['N']:.1f}</td></tr>
+    <tr><td><b>Simetrik menzil</b></td><td class="mono deger">±{KH['fs_sim']:.1f} V</td></tr>
+    <tr><td>Adım</td><td class="mono">{KH['adim']*1e3:.2f} mV</td></tr>
+    <tr><td>Giriş empedansı</td><td class="mono">{KH['giris_z']/1e6:.2f} MΩ</td></tr>
+    <tr><td>Direnç başına (tam ölçekte)</td><td class="mono">{KH['r_gerilim']:.0f} V — sınırın %{KH['r_gerilim']/T.R_1_4W_AZAMI_V*100:.0f}'i</td></tr>
+  </tbody>
+</table>
+<p><b>Neden {KH['rust_adet']} adet:</b> 1/4W metal filmin azami
+<em>çalışma</em> gerilimi 200 V. 4 adetle hem direnç başına 154 V düşerdi
+hem tam ölçek 410 V'ta kalırdı.</p>
+<p><b>Neden 820K, 2.2M değil:</b> alt bacak zincirin yüzde biri olduğu
+sürece oran <b>tam 601.0</b> kalıyor, yani 820K / 2.2M / 6.8M üçü de aynı
+menzili ve aynı adımı verirdi. Ayıran tek şey <b>yüzey kaçağı</b>: delikli
+plakette zincire paralel oluşan bir kaçak yolu bölme oranını aşağı çeker ve
+hata doğrudan zincir direnciyle orantılıdır. 10 GΩ'luk bir kaçakta 820K
+%0.049, 2.2M %0.132, 6.8M %0.408 hata yapar. Kaçak <b>kalibrasyonla
+silinmez</b> — nemle günden güne değişir, tıpkı karbon filmi eleyen gerekçe
+gibi. 2.2M'in kazandırdığı şey giriş empedansı (13.2 MΩ'a karşı 4.9 MΩ) ama
+bu kanalın ölçeceği şeyler (doğrultulmuş şebeke, DC bara, SMPS çıkışı)
+miliohm mertebesinde kaynaklar; orada fark ölçülemez.</p>
+<p class="not"><b>Kartı temiz tut:</b> zincirin etrafındaki lehim pastası
+kalıntısı ve parmak izi kaçak yolu demektir. Lehimledikten sonra izopropil
+alkolle sil ve iyice kurut — bu bölücüde temizlik bir doğruluk parametresi.</p>
+""",
+        kapi=f"""<b>ÖNCE DÜŞÜK GERİLİMLE.</b> 12 V uygula ve okumayı kontrol
+et — {KH['adim']*1e3:.1f} mV adımla 12 V ≈ {12/KH['adim']:.0f} kod, gürültü
+içinde kaybolmaz. Sonra 100 V, sonra kademeli olarak yukarı.
+Her adımda <b>eller uzakta</b>, tek elle çalış.""",
+    ),
+    dict(
+        no="06",
+        baslik="Osiloskop kanalı + Sallen-Key",
+        govde=f"""
+<p>Ayrı giriş, ayrı bölücü (100K/{T.SKOP_RALT/1e3:.1f}K, oran
+{T.SKOP_N:.3f}) — gerilim kanallarıyla <b>aynı düğüm değil</b>.</p>
+<p><b>B19 — kanal ÇİFT YÖNLÜ.</b> R23'ün alt ucu <b>GND'ye değil VREF'e</b>
+gidiyor (gerilim kanallarının zaten kullandığı çözüm). Sıfır giriş =
+VREF, eksi giriş aşağı, artı giriş yukarı. Menzil
+<span class="deger">{T.SKOP_MENZIL_EKSI:.1f} … +{T.SKOP_MENZIL_ARTI:.1f} V</span>,
+adım {T.SKOP_ADIM*1e3:.1f} mV. Öncesi 0…45.5 V tek yönlüydü, adım
+11.1 mV — <b>bedeli çözünürlük</b>.</p>
+<p>⚠️ <b>R23'ü GND'ye lehimleme.</b> Şemada VREF'e gidiyor; GND'ye
+takılırsa kanal sessizce tek yönlü kalır ve okumalar
+{T.SKOP_VOLT_OFSET:.0f} V kayar.</p>
+<p><b>Sallen-Key örtüşme süzgeci</b> (U5A): R21/R22 = {T.SK_R/1e3:.1f}K,
+C5 = {T.SK_C1*1e9:.0f}nF (2× 1nF paralel), C6 = {T.SK_C2*1e9:.0f}nF →
+f0 = <span class="deger">{T.SK_F0/1e3:.2f} kHz</span>, Q = {T.SK_Q:.4f}.</p>
+<p>🔴 <b>B20 düzeltmesi:</b> bu satır eskiden <b>R22/R23</b> ve <b>C7</b>
+diyordu; ikisi de yanlıştı ve <b>montaj tuzağıydı</b>. Netlistten
+doğrulanan gerçek: <b>R23 bölücünün alt bacağıdır</b> (2.7K, VREF'e —
+yukarıdaki uyarının konusu), Sallen-Key'in direnci <b>R21</b>'dir; <b>C7
+ise U5B'ye</b> (hızlı akım Sallen-Key'i) aittir, U5A'nınki <b>C5</b>.
+R23'e {T.SK_R/1e3:.1f}K takmak skop kanalını hem tek yönlü bırakır hem
+ölçeğini bozardı.</p>
+<p>Eski tasarımdaki tek kutuplu RC 25 kHz'teydi — kanal başına Nyquist
+{T.ESP_NYQUIST/1e3:.2f} kHz olduğu için <b>Nyquist'in üstünde</b>, yani
+hiçbir şey süzmüyordu. 100 kHz'lik bir SMPS dalgalanması hiç zayıflamadan
+16.7 kHz'e katlanıp <em>gerçekmiş gibi</em> görünürdü.</p>
+<p><b>Koruma:</b> {T.R_SERI/1e3:.0f}K seri + 2× BAT85 (D1 üste +3V3'e,
+D2 altta GND'ye). <b>1N4148 OLMAZ</b> — SPICE ölçtü: arıza akımının
+%25'i ADS'in iç ESD diyoduna gidiyor. BAT85 ile pin −0.268 V'ta kalıyor.</p>
+<p><b>B18/F12 — seri direnç {T.R_SERI_ESKI/1e3:.1f}K değil {T.R_SERI/1e3:.0f}K.</b>
+Bu direnç, kart <em>beslemesizken</em> (USB çıkık ama 24 V takılı) ölü
++3V3 rayına geri beslenen akımı belirliyor. 2.7K'da ray 3.582 V'a
+çıkıyordu — ESP32 besleme pini sınırı 3.60 V, <b>pay 18 mV</b>.
+10K + <b>R41 (1K boşaltma direnci)</b> ile ray 1.67 V'ta kalıyor.
+Menzillerde hiçbir kayıp yok; ADC tarafındaki bedel sızıntı 0.5 mV
+(&lt;1 LSB), oturma 330 ns (örnek aralığının 1/73'ü).</p>
+<p><b>R41'i unutma:</b> +3V3 ile GND arasına 1K. Küçük görünür ama
+kartın beslemesiz haldeki tek koruması odur — ve TL431'e bağlı değildir.</p>
+""",
+        kapi="""Bilinen bir kare dalga uygula (NE555 ya da ESP32'nin kendi
+PWM'i). <code>ta</code> yaz (otomatik kurulum) — frekans ve duty doğru
+çıkmalı. Düz çizgide ölçüm <b>yapılamamalı</b> (frekans 0).""",
+    ),
+    dict(
+        no="07",
+        baslik="Hızlı akım yolu — gerçek güç ve PF",
+        govde=f"""
+<pre>  SONT_P ──[10K]──┬── U8A(+)      <span class="y">fark yükselteci, G = {HIZLI_KAZANC}</span>
+                  └──[47K]── VREF   (REF ucu VREF'te → çift yönlü)
+  SONT_N ──[10K]──┬── U8A(−)
+                  └──[47K]── çıkış
+  çıkış ── U5B Sallen-Key {T.SK_F0/1e3:.2f} kHz ── {T.R_SERI/1e3:.1f}K ── 2× BAT85 ── GPIO5</pre>
+<p>Kazanç <b>{HIZLI_KAZANC}</b> (47K/10K): tam ölçek şönt gerilimi
+{salinim/HIZLI_KAZANC*1e3:.1f} mV, yani ADS'in 256 mV'undan geniş —
+<b>önce ADS kırpar</b>, hızlı yol değil.</p>
+<p>U5B Aşama 3'e kadar boşta duruyordu; artık hızlı akım Sallen-Key'i.</p>
+""",
+        kapi=f"""Dirençsel bir yük bağla, <code>w</code> yaz.
+<b>PF ≈ 1.00</b> çıkmalı ve arayüz "hizalama farkı yok (dirençsel)"
+demeli. Sonra bir kondansatör/bobin ekle — PF düşmeli ve arayüz
+hizalamanın kaç yüzde düzelttiğini göstermeli.
+<br><br>⚠️ Çıktıdaki <b>pencere</b> satırına bak: 50 Hz'te 1 çevrimin
+altındaysa yanlılık büyük. Bu sayı <em>mutlak watt</em> için değil,
+<b>güç faktörü ve dalga şekli</b> için.""",
+    ),
+]
+
+
+def adim_html(a):
+    tehlike = a.get("tehlike")
+    kutu = "tehlike" if tehlike else "kanit"
+    baslik = "TEHLİKE" if tehlike else "KAPI — geçmeden ilerleme"
+    return f"""
+<section>
+  <div class="adim-basi"><span class="adim-no">{a['no']}</span><h2>{e(a['baslik'])}</h2></div>
+  {a['govde']}
+  <div class="{kutu}">
+    <div class="kanit-baslik">{baslik}</div>
+    <p>{a['kapi']}</p>
+  </div>
+</section>
+<hr>
+"""
+
+
+# ⚠ GUNCEL KILAVUZ, ARSIVDEN BESLENIYOR. Bicim Asama 2'nin kurulum
+#   sayfasindan aliniyor — yani `arsiv/` "eski asamalar" degil, bu
+#   uretecin CANLI bagimliligi. B23.3'te mutasyon kopyasi `arsiv/`'i
+#   disladigi icin B9 kirmizi dondu ve bagimlilik boyle gorunur oldu.
+#   Tasinmadi: bicim calisiyor ve kopyalamak yeni bir ayrisma yuzeyi
+#   acardi. Arsivi tasirken ya da silerken BURAYA BAK.
+_BICIM_KAYNAGI = KOK / "arsiv" / "asama2" / "kurulum2.html"
+if not _BICIM_KAYNAGI.exists():
+    raise SystemExit(
+        f"kurulum3-uret.py: bicim kaynagi yok -> {_BICIM_KAYNAGI}\n"
+        f"  Guncel kurulum kilavuzunun CSS'i ARSIVDEN geliyor; arsiv "
+        f"tasindiysa bu yolu guncelle.")
+CSS = _BICIM_KAYNAGI.read_text(encoding="utf-8")
+CSS = CSS[CSS.index("<style>"):CSS.index("</style>") + 8]
+
+sayfa = f"""<!-- URETILDI: uretim/kurulum3-uret.py — ELLE DUZENLEME -->
+<title>Aşama 3 Tezgâh Kurulumu</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+{CSS}
+
+<div class="sayfa">
+
+{MN.serit("4-kurulum.html", gomulu=True)}
+
+<header>
+  <div class="ust-etiket">Ölçüm Kartı · Aşama 3 · ÇİFT YÖNLÜ ön uç</div>
+  <h1>Aşama 3 Tezgâh Kurulumu</h1>
+  <p class="ozet">Yedi adım, her birinin sonunda geçilmeden ilerlenmeyen bir
+     ölçüm kapısı. Bir kapı tutmuyorsa hata o adımdadır — sonraki adımı
+     kurmak onu gizler, çözmez.</p>
+  <div class="kunye">
+    <span>Doğrulama <b>{D3.ADIM_SAYISI} adımlık zincir</b></span>
+    <span>ERC <b>0 ihlal</b></span>
+    <span>Firmware <b>{FW}</b></span>
+    <span>Menzil <b>±{KN['fs_sim']:.1f} V · ±{KH['fs_sim']:.0f} V · ±11.5 A</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="adim-basi"><span class="adim-no">00</span><h2>Önce bunlar</h2></div>
+
+  <div class="tehlike">
+    <div class="uyari-baslik">615 V öldürür — ve bu kart izole DEĞİL</div>
+    <p>Kart USB üzerinden bilgisayarına bağlı. Şebeke referanslı bir devreye
+       (izole olmayan SMPS'in birincil tarafı gibi) bağlarsan
+       <b>bilgisayarına şebeke gerilimi taşırsın</b>. Yalnız izole ikincil
+       taraf, ya da tamamen izole çalışma (pil + WiFi, USB takılı değil).</p>
+    <p>Yüksek gerilim ucunu ölçüm ucundan <b>fiziksel olarak ayrı</b> tut,
+       farklı renk kullan, tek elle çalış.</p>
+  </div>
+
+  <div class="uyari">
+    <div class="uyari-baslik">Delikli plakette 615 V — delik adımı yetmez</div>
+    <p>Delik adımı 2.54 mm. 6 adetlik HV zincirini <b>delik atlayarak</b>,
+       aralarında boşluk bırakarak koy; tercihen doğrudan muz jakın üstünde
+       havada kur. Bu, lehim becerisinden bağımsız ayrı bir dikkat konusu.</p>
+  </div>
+
+  <h3>Satın alınacak</h3>
+  <div class="uyari">
+    <div class="uyari-baslik">Dirençler METAL FİLM olmalı — karbon film tasarımı anlamsız kılıyor</div>
+    <p>601:1'lik bölücüde direncin <b>tipi</b>, değerinden daha belirleyici.
+       20 °C oda salınımı ve direnç başına 102 V ile toplam hata:
+       karbon film <b>%4.10</b>, metal film %1/50 ppm <b>%0.41</b>.
+       Kıyas: ADS kalibrasyon sonrası %0.03, referans multimetre %0.5.</p>
+    <p>İki kalem <b>kalibrasyonla silinmez</b>: VCR gerilime bağlı olduğu
+       için doğrusal değil (12 V'ta kalibre edip 600 V ölçersen hata geri
+       gelir), ve karbon filmin %1–3'lük 1000 saatlik sürüklenmesi
+       <b>kalibrasyonu haftalar içinde bayatlatır</b> — sayı hâlâ
+       inandırıcı görünürken.</p>
+    <p>Ayırt etme: metal film genelde <b>mavi/yeşil gövde, 5 halka</b> (%1);
+       karbon film <b>bej, 4 halka</b> (%5).</p>
+  </div>
+  <table>
+    <thead><tr><th>Parça</th><th>Adet</th><th>Neden</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">BAT85</td><td>{BAT85_ADET + 2}</td><td>Kelepçe — şemada <b>{BAT85_ADET} adet</b> (skop yolu 2, hızlı akım yolu 2) + 2 yedek. 1N4148 arıza akımının %25'ini iç ESD diyoduna bırakıyor</td></tr>
+      <tr><td class="mono">1N4148</td><td>0</td><td><b>Bu kartta kullanılmıyor</b> — kelepçelerin hepsi BAT85. Stoktaki 8 adet Aşama 1/2 kartları için; 1N4148 ×20 kalemi <i>elektronik yük</i> projesinin (donanım watchdog) listesinde</td></tr>
+      <tr><td><b>Metal film %1, hepsi 1/4W</b></td><td>—</td><td><b>820K ×8</b> (6 kullanılıyor + 2 yedek), <b>8.2K ×5</b>, 10K ×10, 22K ×10, 220K ×5, 6.8K ×10, 47K ×10, 2.7K ×10, 100K ×5. HV zincirinde direnç başına 102 V = sınırın %51'i; en yüksek güç yükü %20.<br><b>220R ve 100R metal film listesinde yok</b> — onlar oranı kurmuyor (TL431 ön gerilimi ve şönt RC'si), stoktaki karbon film yeterli</td></tr>
+      <tr><td class="mono">DIP-8 IC soketi</td><td>{DIP8_ADET + 2}</td><td>Şemada <b>{DIP8_ADET} adet</b> DIP-8 gövde (LM358 ×2, TL072 ×2) + 2 yedek. TL431 TO-92, ADS1115'ler modül — onlar soket almaz.<br><b>Tedarikçide adı:</b> "8 pin dip soket" / "entegre soketi" / "ic soket" — <b>direnç kategorisinde değil</b>, bağlantı/soket tarafında. Aranan: 8 pin, 2.54 mm adım, 7.62 mm sıra aralığı (300 mil)<br>Zorunlu değil ama delikli plakette 8 bacaklı bir DIP'i sökmek eziyet; ayrıca lehim ısısı op-amp'e hiç gitmez</td></tr>
+      <tr><td>Yedek ESP32-S3</td><td>1</td><td><i>önerilen</i> — 615 V ile çalışılacak, elde tek kart var</td></tr>
+      <tr><td>Silikon test kablosu</td><td>1 çift</td><td>600 V için jumper kablo <b>kullanılmaz</b></td></tr>
+    </tbody>
+  </table>
+  <p><b>10K dikkat:</b> 1/4W'lık R019 tükenmiş. R032 (1/2W) ya da R033 (1W)
+     var — bu tasarımda dördü de düşük güçte, sorun değil.</p>
+
+  <h3>Gereken aletler</h3>
+  <ul>
+    <li>Multimetre — kalibrasyonun referansı bu, kartın <em>mutlak</em>
+        doğruluğu bunu aşamaz</li>
+    <li>Ayarlanabilir güç kaynağı (12 V adaptör başlangıç için yeter)</li>
+    <li>±12 V rayı — TL072'ler (U5, U8) buna bağlı. Tek besleme olmaz:
+        çıkışları 0.69 V'a inemez.</li>
+    <li>+5 V — LM358'ler (U3, U4) buna bağlı</li>
+  </ul>
+
+  <h3>Ayırma kondansatörleri — atlanmaz</h3>
+  <p>Her op-amp besleme ucuna <b>yerel 100nF</b>: C9 (U3, +5V), C10 (U4, +5V),
+     C11/C12 (U5, ±12V), C13/C14 (U8, ±12V), C15 (ADS rayı). Yedisi de stokta.</p>
+  <p>Op-amp çıkışı kapasitif yük sürüyor (Sallen-Key'in C'leri); besleme
+     empedansı yüksekse bu <b>salınıma</b> dönüşür. TL072'nin slew hızı
+     13 V/µs — ani akım talebini yerel kondansatör karşılamalı, 20 cm'lik
+     besleme teli değil.</p>
+</section>
+<hr>
+{''.join(adim_html(a) for a in ADIMLAR)}
+
+<section>
+  <div class="adim-basi"><span class="adim-no">08</span><h2>Sorun giderme</h2></div>
+  <div class="kaydir">
+  <table>
+    <thead><tr><th>Belirti</th><th>Muhtemel sebep</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mono">#</span> hiç adres bulmuyor</td><td>SDA/SCL ters, ADDR boşta, ya da pull-up yok</td></tr>
+      <tr><td>Yalnız 0x48 görünüyor</td><td>ADS #2'nin ADDR'ı +3V3'e bağlı değil</td></tr>
+      <tr><td>Gerilim hep aynı sayıda takılı</td><td>Bölücünün altı VREF'e değil GND'ye gitmiş — çift yönlülük buna bağlı</td></tr>
+      <tr><td>Negatif giriş 0 okunuyor</td><td>ADS tekli (single-ended) kipte; diferansiyel MUX yazılmamış</td></tr>
+      <tr><td>Kalibrasyon başka noktada tutmuyor</td><td>Sıfır ve kazanç sırası: önce <span class="mono">z</span>, sonra <span class="mono">g</span></td></tr>
+      <tr><td><span class="mono">PSRAM: YOK</span></td><td>FQBN'de <span class="mono">PSRAM=opi</span> yok; bazı N16R8'lerde quad — <span class="mono">PSRAM=enabled</span> dene</td></tr>
+      <tr><td>Hızlı yolda PF saçma</td><td>Pencere 1 çevrimin altında; sinyal frekansı çok düşük</td></tr>
+      <tr><td>Menzil sürekli gidip geliyor</td><td>Giriş histerezis bandında (NORMAL FS'in %70–90'ı); <span class="mono">a0</span> ile otomatiği kapat</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer>
+  Üretildi: <span class="mono">uretim/kurulum3-uret.py</span> ·
+  Değerler <span class="mono">uretim/tasarim3_sabit.py</span>'den okunuyor,
+  elle yazılmıyor. Tasarım değişirse bu sayfa peşinden gider.
+</footer>
+</div>
+"""
+
+# BELGELER/ yoksa YARAT. Bu betik B9'da `belge-uret.py`'den ONCE
+# kosuyor ve yalnizca o mkdir yapiyordu; klasor silinmis bir agacta
+# (ya da mutasyon kopyasinda) B9 burada cokuyordu.
+HEDEF.parent.mkdir(parents=True, exist_ok=True)
+HEDEF.write_text(sayfa, encoding="utf-8")
+print(f"yazildi: {HEDEF}")
+print(f"  {len(ADIMLAR)} adim, {HEDEF.stat().st_size // 1024} KB")

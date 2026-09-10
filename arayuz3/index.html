@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ölçüm Kartı — Aşama 3</title>
+
+<!-- ═══ B22.5 — TELEFONDA UYGULAMA GİBİ ═══════════════════════════════
+     iOS: `apple-mobile-web-app-capable` DÜZ HTTP'de de çalışıyor. Ana
+     Ekrana Ekle → adres çubuğu olmadan, kendi ikonuyla, kendi kartıyla.
+     ⚠ Android'de GERÇEK PWA kurulumu HTTPS + service worker istiyor;
+       kart düz HTTP konuştuğu için kısayol Chrome sekmesinde açılıyor.
+       Bu vaat EDİLMİYOR, belgede de böyle yazıyor.
+     ⚠ Service worker YOK (güvenli bağlam şart). Çevrimdışı davranış
+       sıradan HTTP önbelleğinden geliyor: vendor/ `immutable` ile bir
+       kez iniyor. Bu, LAN'daki bir karttan alınabilecek en iyi sonuç. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ölçüm">
+<meta name="theme-color" content="#161b21">
+<link rel="apple-touch-icon" href="ikon-180.png">
+<link rel="icon" href="ikon-180.png">
+<link rel="manifest" href="manifest.json">
+
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="ek.css">
+</head>
+<body>
+
+<div id="uyg" class="sarmal" v-cloak>
+
+  <!-- ───────────────────────────────────────────── üst şerit -->
+  <header class="ust">
+    <div>
+      <h1>Ölçüm Kartı <span class="menzil-rozet">AŞAMA 3 · ÇİFT YÖNLÜ</span></h1>
+      <p class="alt">Voltmetre · Ampermetre · Wattmetre · Osiloskop</p>
+    </div>
+    <div class="bosluk"></div>
+
+    <span class="rozet" :class="bagli ? 'acik' : 'kapali'">
+      <span class="nokta"></span>{{ bagli ? 'bağlı' : 'bağlı değil' }}
+    </span>
+
+    <!-- B22.2: TAŞIYICI SEÇİCİ. Modlar arasındaki fark kodda değil
+         burada: aynı arayüz, farklı yol. -->
+    <select v-model="tasiyiciAdi" :disabled="bagli" title="bağlantı yolu">
+      <option value="seri">USB (Web Serial)</option>
+      <option value="akis">WiFi / köprü (akış)</option>
+    </select>
+    <input v-if="tasiyiciAdi === 'akis'" v-model="kartTaban" :disabled="bagli"
+           placeholder="http://olcum.local (boş = aynı köken)"
+           style="min-width:220px">
+
+    <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">
+      Karta bağlan
+    </button>
+    <button v-else @click="kes">Bağlantıyı kes</button>
+  </header>
+
+  <!-- 🔴 Yetenek yoksa düğme kapalı ama NEDENİ görünür. Ölü düğme
+       bırakmak DEVIR 4.15'in ta kendisiydi. -->
+  <div v-if="!destekli" class="hata">
+    <strong>Bu kipte bağlanılamıyor.</strong> {{ desteksizNeden }}
+    <template v-if="tasiyiciAdi === 'seri'">
+      Ayrıca sayfa <code>http://localhost</code> üzerinden açılmalı —
+      <code>file://</code> ile Web Serial çalışmaz.
+      Sunucuyu başlatmak için: <code>python arayuz3/sunucu.py</code>
+    </template>
+  </div>
+  <div v-if="kopruAdresi" class="uyari">
+    Kart bir bilgisayara bağlı. Sınırsız geçmiş ve çoklu izleyici için
+    arayüzü <a :href="kopruAdresi">{{ kopruAdresi }}</a> üzerinden açın.
+  </div>
+  <div v-if="hata" class="hata">{{ hata }}</div>
+  <!-- B22.3: köprüde N izleyici, BIR sürücü. Yetki sunucuda; burası
+       yalnızca durumu gösteriyor ve devri istiyor. -->
+  <div v-if="bagli && !surucuyum" class="uyari">
+    Bu oturum <b>izleyici</b> — ölçümü görüyorsun ama komut gönderemezsin.
+    Kalibrasyon ve pil testi sürücüdeyken tek elde olmalı.
+    <b>Durdurma (<code>p0</code>) her zaman açık.</b>
+    <button @click="devral" style="margin-left:8px">Sürücülüğü devral</button>
+  </div>
+
+  <!-- ───────────────────────────────────────────── anlık ölçümler -->
+  <div class="olcumler">
+    <div class="olcum v">
+      <div class="ad">Gerilim <span class="menzil-rozet">{{ menzilAd }}</span></div>
+      <div class="deger">{{ bicim(volt, 3) }}<span class="birim">V</span></div>
+      <div class="alt-bilgi">{{ menzilAralik }}</div>
+    </div>
+    <div class="olcum i">
+      <div class="ad">Akım</div>
+      <div class="deger">{{ akimGoster }}<span class="birim">{{ akimBirim }}</span></div>
+    </div>
+    <div class="olcum w">
+      <div class="ad">Güç</div>
+      <div class="deger">{{ gucGoster }}<span class="birim">{{ gucBirim }}</span></div>
+      <div class="alt-bilgi">{{ gucYon }}</div>
+    </div>
+  </div>
+
+  <div class="ikincil">
+    <div class="kutu">
+      <div class="ad">Enerji</div>
+      <div class="deger">{{ bicim(joule, 2) }} J</div>
+    </div>
+    <div class="kutu">
+      <div class="ad">Enerji</div>
+      <div class="deger">{{ wh.toFixed(6) }} Wh</div>
+    </div>
+    <div class="kutu">
+      <div class="ad">Geçen süre</div>
+      <div class="deger">{{ sureGoster }}</div>
+    </div>
+    <div class="kutu">
+      <div class="ad">Örnekleme</div>
+      <div class="deger">{{ orneklemeHizi }}</div>
+      <div class="ad" style="margin:2px 0 0">{{ gurultuBastirma }}</div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────────────── grafik -->
+  <section class="kart">
+    <h2>Zaman grafiği</h2>
+    <div class="gosterge">
+      <label><input type="checkbox" v-model="gosterV">
+        <span class="cizgi" style="background:var(--volt)"></span> Gerilim</label>
+      <label><input type="checkbox" v-model="gosterI">
+        <span class="cizgi" style="background:var(--amper)"></span> Akım</label>
+      <label><input type="checkbox" v-model="gosterW">
+        <span class="cizgi" style="background:var(--watt)"></span> Güç</label>
+      <div class="bosluk"></div>
+      <label>Pencere:
+        <select v-model.number="pencere" style="width:auto">
+          <option :value="30">30 sn</option>
+          <option :value="60">1 dk</option>
+          <option :value="300">5 dk</option>
+          <option :value="1800">30 dk</option>
+        </select>
+      </label>
+    </div>
+    <div class="tuval-sarmal"><canvas ref="grafik" height="300"></canvas></div>
+    <div class="satir" style="margin-top:12px">
+      <button @click="gecmisiTemizle" :disabled="!gecmis.length">Grafiği temizle</button>
+      <button @click="csvIndir" :disabled="!gecmis.length">CSV indir</button>
+    </div>
+  </section>
+
+  <!-- ───────────────────────────────────────────── osiloskop -->
+  <section class="kart">
+    <h2>Osiloskop — 12 bit, 611 Sa/s … 83.3 kSa/s, ayarlanabilir zaman tabanı</h2>
+
+    <div v-if="demo" class="demo-serit">
+      <span class="demo-rozet">DEMO</span>
+      <label>
+        Prob ucundaki test sinyali
+        <select v-model="demoSinyal" @change="demoSinyalDegisti">
+          <option v-for="(s, k) in demoSinyaller" :key="k" :value="k">{{ s.ad }}</option>
+        </select>
+      </label>
+      <span class="demo-not">karta bağlı değil — sahte kart aynı protokolü konuşuyor</span>
+    </div>
+
+    <div class="satir" style="margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <button class="birincil" @click="osiloYakala"
+              :disabled="!bagli || osiloBekliyor || surekli">
+        {{ osiloBekliyor ? 'Yakalanıyor…' : 'Yakala' }}
+      </button>
+      <button @click="surekliDegis" :disabled="!bagli"
+              :class="{ 'kosuyor': surekli }"
+              title="Sürekli yakala — gerçek osiloskoplardaki RUN/STOP">
+        {{ surekli ? '■ Durdur' : '▶ Sürekli' }}
+      </button>
+      <button @click="osiloOtomatik" :disabled="!bagli || osiloBekliyor"
+              title="Sinyali bulup zaman tabanını ve tetiği kendisi ayarlar">
+        Otomatik
+      </button>
+
+      <span class="skop-grup">
+        <button @click="tabanDegistir(-1)" :disabled="!bagli || tdivEnHizli"
+                title="Zaman tabanını hızlandır">◀</button>
+        <span class="skop-deger">{{ tdivEtiket }}</span>
+        <button @click="tabanDegistir(1)" :disabled="!bagli || tdivEnYavas"
+                title="Zaman tabanını yavaşlat">▶</button>
+      </span>
+
+      <select v-model.number="skopKip" @change="skopKomut('tm' + skopKip)"
+              :disabled="!bagli" title="Tetikleme kipi">
+        <option :value="0">Oto</option>
+        <option :value="1">Normal</option>
+        <option :value="2">Tek atış</option>
+      </select>
+
+      <select v-model.number="skopKenar" @change="skopKomut('te' + skopKenar)"
+              :disabled="!bagli" title="Tetik kenarı">
+        <option :value="0">↑ Yükselen</option>
+        <option :value="1">↓ Düşen</option>
+      </select>
+    </div>
+
+    <div class="satir" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <label class="skop-kaydir">
+        Tetik seviyesi
+        <input type="range" min="0" max="4095" step="16" v-model.number="skopEsik"
+               @input="osiloCiz" @change="skopKomut('tl' + skopEsik)"
+               :disabled="!bagli">
+        <span class="skop-deger" :class="{ 'uyari-renk': esikMenzilDisi }">
+          {{ esikVolt.toFixed(2) }} V
+        </span>
+      </label>
+      <label class="skop-kaydir">
+        Ön-tetik
+        <input type="range" min="0" max="90" step="5" v-model.number="skopOn"
+               @change="skopKomut('tp' + skopOn)" :disabled="!bagli">
+        <span class="skop-deger">%{{ skopOn }}</span>
+      </label>
+    </div>
+
+    <div class="tuval-sarmal">
+      <canvas ref="osiloTuval" height="360" @wheel="tekerlek"
+              @mousedown="surukBasla" class="surukle"></canvas>
+    </div>
+
+    <!-- Yakınlaştırma: kartı hiç meşgul etmez, yakalanmış kaydın
+         içinde gezinir. Gerçek osiloskoplardaki zoom penceresi. -->
+    <div class="satir zoom-satir">
+      <span class="zoom-grup">
+        <span class="zoom-ad">Dikey</span>
+        <button @click="dikeyBuyut(1/1.5)" title="Uzaklaştır">−</button>
+        <span class="skop-deger">{{ dikeyZoomEtiket }}</span>
+        <button @click="dikeyBuyut(1.5)" title="Yakınlaştır">+</button>
+        <button @click="dikeyKaydirDegis(-0.25)" title="Yukarı kaydır">▲</button>
+        <button @click="dikeyKaydirDegis(0.25)" title="Aşağı kaydır">▼</button>
+        <button @click="dikeySifirla" title="Otomatik ölçeğe dön">oto</button>
+      </span>
+
+      <span class="zoom-grup">
+        <span class="zoom-ad">Yatay</span>
+        <button @click="yatayBuyut(1/2)" :disabled="yatayZoom <= 1" title="Uzaklaştır">−</button>
+        <span class="skop-deger">{{ yatayZoomEtiket }}</span>
+        <button @click="yatayBuyut(2)" title="Yakınlaştır">+</button>
+        <button @click="yatayKaydirDegis(-0.5)" :disabled="yatayZoom <= 1" title="Sola">◀</button>
+        <button @click="yatayKaydirDegis(0.5)" :disabled="yatayZoom <= 1" title="Sağa">▶</button>
+        <button @click="yatayTetigeGit" :disabled="yatayZoom <= 1" title="Tetik anına git">T</button>
+        <button @click="yatarSifirla" :disabled="yatayZoom <= 1" title="Tam kayda dön">tam</button>
+      </span>
+
+      <span class="demo-not">fare tekerleği: dikey · Shift+tekerlek: yatay</span>
+    </div>
+
+    <p v-if="skopUyari" class="skop-uyari">⚠ {{ skopUyari }}</p>
+
+    <!-- Otomatik ölçümler — gerçek osiloskopların ekran altı satırı.
+         Değerler kartta skop_olc() ile hesaplanıyor (olcum2.h), burada
+         yalnızca biçimleniyor. -->
+    <div v-if="skopOlcumler.length" class="skop-olcum">
+      <div v-for="m in skopOlcumler" :key="m.ad"
+           class="skop-olcum-oge" :class="{ vurgu: m.vurgu }">
+        <span class="skop-olcum-ad">{{ m.ad }}</span>
+        <span class="skop-olcum-deger">{{ m.d }}</span>
+      </div>
+    </div>
+
+    <p v-if="osilo" class="ipucu">
+      {{ osilo.adet }} örnek · {{ (osilo.hz/1000).toFixed(2) }} kSa/s ·
+      pencere {{ skopPencere }} ·
+      {{ osilo.tetiklendi ? 'tetiklendi' : 'serbest koşu' }}
+      <span v-if="surekli"> · {{ surekliHiz.toFixed(1) }} yakalama/sn</span>
+    </p>
+    <p v-if="esikMenzilDisi" class="skop-uyari">
+      ⚠ Tetik seviyesi ({{ esikVolt.toFixed(2) }} V) sinyalin dışında —
+      hiçbir zaman tetiklenmez. Kaydırıcıyı dalganın içine getir ya da
+      <strong>Otomatik</strong>'e bas.
+    </p>
+
+    <p class="ipucu">
+      <strong>Menzil 0 – 48.7 V, tek yönlü.</strong> Sinyal sıfırın altına
+      inerse alt yarısı kırpılır — sinyal üretecinde <strong>DC offset</strong>
+      kullan. Örtüşme (aliasing) sınırı: girişteki 1 nF + 100 K süzgeci
+      25 kHz'te kesiyor, Nyquist 41.7 kHz. Bunun üstündeki bileşenler sahte,
+      yavaş bir sinyal olarak görünür.
+      <strong>Şebekeye bağlanamaz</strong> — kart izole değil.
+    </p>
+  </section>
+
+  <!-- ───────────────────────────────────────────── denetimler -->
+  <!-- ─────────────────────────────────── hızlı yol (B8) -->
+  <section class="kart">
+    <h2>Hızlı ölçüm — gerçek güç ve güç faktörü</h2>
+    <p class="ipucu">
+      ESP32'nin dahili ADC'si iki kanalı <strong>41.7 kSa/s</strong> ile
+      okuyup <code>ort(V×I)</code> hesaplıyor. Akım örnekleri yarım örnek
+      geç alındığı için Lagrange hizalayıcıyla geri kaydırılıyor —
+      reaktif yükte düzeltmesiz sonuç %78'e varan hata veriyor.
+    </p>
+    <div class="satir" style="margin-bottom:12px">
+      <button @click="hizliOlc" :disabled="!bagli">Hızlı ölçüm yap</button>
+    </div>
+    <div v-if="hizli" class="olcumler">
+      <div class="olcum w">
+        <div class="ad">Gerçek güç</div>
+        <div class="deger">{{ bicim(hizli.p, 4) }}<span class="birim">W</span></div>
+        <div class="alt-bilgi">{{ hizalamaFarki }}</div>
+      </div>
+      <div class="olcum i">
+        <div class="ad">Güç faktörü</div>
+        <div class="deger">{{ bicim(hizli.pf, 3) }}</div>
+        <div class="alt-bilgi">görünür {{ bicim(hizli.s, 3) }} VA</div>
+      </div>
+      <div class="olcum v">
+        <div class="ad">Vrms / Irms</div>
+        <div class="deger">{{ bicim(hizli.vRms, 3) }}<span class="birim">V</span></div>
+        <div class="alt-bilgi">{{ bicim(hizli.iRms * 1000, 2) }} mA · {{ hizli.n }} örnek</div>
+      </div>
+    </div>
+    <p v-if="hizli" class="ipucu">
+      ⚠️ Bu sayının <strong>mutlak</strong> doğruluğu ESP32 ADC'sinin
+      çözünürlüğü ve pencere yanlılığıyla sınırlı. Mutlak watt değeri için
+      yukarıdaki <strong>D satırı</strong> (ADS1115) geçerli; burası
+      <strong>güç faktörü ve dalga şekli</strong> için.
+    </p>
+  </section>
+
+  <section class="kart">
+    <h2>Kalibrasyon ve ayar</h2>
+
+    <div class="satir" style="margin-bottom:14px">
+      <div class="alan">
+        <label>Gerilim menzili</label>
+        <div class="dugme-grup">
+          <button @click="menzilSec(0)" :disabled="!bagli"
+                  :class="{ etkin: menzil === 0 }">NORMAL ±32 V</button>
+          <button @click="menzilSec(1)" :disabled="!bagli"
+                  :class="{ etkin: menzil === 1 }">YÜKSEK ±614 V</button>
+        </div>
+      </div>
+      <button @click="otoMenzilDegistir" :disabled="!bagli"
+              :class="{ etkin: otoMenzil }">Otomatik menzil</button>
+    </div>
+
+    <div class="satir" style="margin-bottom:14px">
+      <div class="alan">
+        <label>Takılı şönt</label>
+        <select v-model="sontSecim" @change="sontGonder">
+          <option value="10">10R — ±26 mA</option>
+          <option value="1">1R — ±256 mA</option>
+          <option value="0.1">0.1R — ±2.56 A</option>
+          <option value="0.015">15 mΩ — ±11.5 A (Kelvin şart)</option>
+        </select>
+      </div>
+      <button @click="sifirlaA" :disabled="!bagli">Akımı sıfırla</button>
+      <button @click="enerjiSifirla" :disabled="!bagli">Enerjiyi sıfırla</button>
+      <button @click="komut('?')" :disabled="!bagli">Ayarları göster</button>
+      <button @click="komut('#')" :disabled="!bagli">I²C tara</button>
+    </div>
+
+    <div class="satir">
+      <button @click="sifirlaV" :disabled="!bagli">Gerilimi sıfırla</button>
+
+      <div class="alan">
+        <label>Gerçek gerilim (multimetre)</label>
+        <input type="text" v-model="kalibV" placeholder="12.34 · −24 da olur"
+               @keyup.enter="kalibreV">
+      </div>
+      <button @click="kalibreV" :disabled="!bagli || !kalibV">Gerilimi kalibre et</button>
+
+      <div class="alan">
+        <label>Gerçek akım, amper</label>
+        <input type="text" v-model="kalibA" placeholder="0.250 · −0.25 da olur"
+               @keyup.enter="kalibreA">
+      </div>
+      <button @click="kalibreA" :disabled="!bagli || !kalibA">Akımı kalibre et</button>
+    </div>
+
+    <!-- B20: `f` ve `F` komutları B17'de firmware'e eklenmiş ama arayüze
+         hiç konmamıştı; kullanıcı şebeke frekansını yalnızca seri porttan
+         ayarlayabiliyordu. Fabrika ayarı 50 Hz olduğu için DC ölçümünde
+         güç %82 yüksek okunuyordu ve bunu düzeltecek bir denetim yoktu. -->
+    <div class="satir" style="margin-top:14px">
+      <div class="alan">
+        <label>Şebeke frekansı (ölçek düzeltmesi)</label>
+        <select v-model="sebekeHz" @change="sebekeGonder">
+          <option value="0">DC — düzeltme KAPALI</option>
+          <option value="50">50 Hz (Türkiye)</option>
+          <option value="60">60 Hz</option>
+        </select>
+      </div>
+      <div class="alan">
+        <label>Faz kalibrasyonu, µs (−2000 … +2000)</label>
+        <input type="text" v-model="fazKal" placeholder="dirençli yükte PF en büyük"
+               @keyup.enter="fazGonder">
+      </div>
+      <button @click="fazGonder" :disabled="!bagli || !fazKal">Fazı ayarla</button>
+      <button @click="komut('F')" :disabled="!bagli">Fazı göster</button>
+    </div>
+
+    <p class="uyari" style="margin-top:12px">
+      ⚠ <b>Fabrika ayarları</b> tüm kalibrasyonu (gerilim/akım sıfırı ve
+      kazancı, şönt, faz) siler ve kartı varsayılanlara döndürür. Yalnızca
+      kalibrasyon bozulduysa kullanın — kart tekrar kalibre edilmelidir.
+      <button @click="fabrikaSifirla" :disabled="!bagli"
+              style="margin-left:8px">
+        {{ sifirlaOnay ? 'Eminim, sıfırla' : 'Fabrika ayarlarına dön' }}
+      </button>
+      <button v-if="sifirlaOnay" @click="sifirlaOnay = false">Vazgeç</button>
+    </p>
+
+    <p v-if="sebekeUyari" class="uyari" style="margin-top:8px">{{ sebekeUyari }}</p>
+
+    <!-- ═══════════ B22.4 — AĞ KURULUMU ═══════════ -->
+    <h2 style="margin-top:26px">Ağ — kartı kablosuz yapma</h2>
+
+    <p class="ipucu">
+      <strong>Sıra:</strong> kartı <em>USB ile</em> bağla, ağ bilgilerini
+      buradan gir, kartı yeniden başlat. Kart önce ev ağına bağlanmayı
+      dener; 10 saniyede olmazsa <strong>kendi ağını kurar</strong>
+      (<code>OLCUM-KARTI-XXXX</code>). AP parolası ilk açılışta rastgele
+      üretilip <strong>seri konsola yazılır</strong> — oradan okuyun.
+    </p>
+    <p v-if="tasiyiciAdi !== 'seri'" class="uyari">
+      ⚠ Şu anda <b>ağ üzerinden</b> bağlısın. Buraya yazacağın parolalar
+      <b>şifrelenmeden</b> gidiyor (kartta TLS yok). Ağ kurulumunu
+      tercihen <b>USB ile</b> yap.
+    </p>
+
+    <div class="satir" style="margin-top:12px">
+      <div class="alan">
+        <label>Ev ağı adı (SSID)</label>
+        <input type="text" v-model="agSsid" @keyup.enter="agSsidGonder">
+      </div>
+      <button @click="agSsidGonder" :disabled="!bagli || !agSsid">Ağ adını yaz</button>
+      <div class="alan">
+        <label>Ev ağı parolası</label>
+        <input type="password" v-model="agSifre" @keyup.enter="agSifreGonder">
+      </div>
+      <button @click="agSifreGonder" :disabled="!bagli">Parolayı yaz</button>
+    </div>
+
+    <div class="satir" style="margin-top:10px">
+      <div class="alan">
+        <label>Web parolası (boş = koruma yok)</label>
+        <input type="password" v-model="agWebSifre" @keyup.enter="agWebSifreGonder">
+      </div>
+      <button @click="agWebSifreGonder" :disabled="!bagli">Web parolasını yaz</button>
+      <button @click="komut('N?')" :disabled="!bagli">Ağ durumunu göster</button>
+      <button @click="komut('N1')" :disabled="!bagli">Ağı aç</button>
+      <button @click="komut('N0')" :disabled="!bagli">Ağı kapat</button>
+    </div>
+
+    <p class="ipucu">
+      Değişiklikler <strong>bir sonraki açılışta</strong> geçerli. Ağ
+      ayarları kalibrasyondan <em>ayrı</em> saklanıyor — WiFi parolası
+      değiştirmek kalibrasyonu silmez.
+    </p>
+
+    <!-- ═══════════ B21 — PİL KAPASİTE TESTİ ═══════════ -->
+    <h2 style="margin-top:26px">Pil kapasite testi — mAh · Wh · deşarj eğrisi · iç direnç</h2>
+
+    <p class="uyari">
+      ⚠ Yükü <b>J7</b>'ye bağlayın, J3'e değil. J3 doğrudan şönte gider;
+      oraya bağlarsanız MOSFET <b>baypas</b> olur ve <b>kesme çalışmaz</b>.
+      Kart bunu başlangıçta denetleyip testi reddediyor.
+      Pil gerilimi <b>≤ 38.5 V</b> olmalı (MOSFET V<sub>dss</sub> sınırı).
+    </p>
+
+    <div class="satir">
+      <div class="alan">
+        <label>Kesme gerilimi, V (Li-ion 3.0 · kurşun asit 10.5)</label>
+        <input type="text" v-model="pilKesmeGiris" placeholder="3.0"
+               @keyup.enter="pilKesmeGonder">
+      </div>
+      <button @click="pilKesmeGonder" :disabled="!bagli || !pilKesmeGiris">
+        Kesmeyi ayarla</button>
+      <button class="birincil" @click="pilBaslat"
+              :disabled="!bagli || pilDurum === 'CALISIYOR'">Testi başlat</button>
+      <button @click="pilDurdurKomut"
+              :disabled="!bagli || pilDurum !== 'CALISIYOR'">Durdur</button>
+      <button @click="pilCsvIndir" :disabled="!pilNokta.length">CSV indir</button>
+      <button @click="pilTemizle" :disabled="!pilNokta.length">Kaydı sil</button>
+    </div>
+
+    <div class="satir" style="margin-top:12px">
+      <div class="kpi"><span class="kpi-ad">Durum</span>
+        <span class="kpi-deger">{{ pilDurum }}</span></div>
+      <div class="kpi"><span class="kpi-ad">Kapasite</span>
+        <span class="kpi-deger">{{ bicim(pilMah, 1) }} mAh</span></div>
+      <div class="kpi"><span class="kpi-ad">Enerji</span>
+        <span class="kpi-deger">{{ bicim(pilWh, 4) }} Wh</span></div>
+      <div class="kpi"><span class="kpi-ad">OCV → şimdi</span>
+        <span class="kpi-deger">{{ bicim(pilOcv, 3) }} → {{ bicim(pilVson, 3) }} V</span></div>
+      <div class="kpi"><span class="kpi-ad">Kesme</span>
+        <span class="kpi-deger">{{ bicim(pilKesme, 2) }} V</span></div>
+      <div class="kpi"><span class="kpi-ad">İç direnç ({{ pilDcirN }} ölçüm)</span>
+        <span class="kpi-deger">{{ bicim(pilDcirAni * 1000, 1) }} mΩ</span></div>
+    </div>
+
+    <p v-if="pilHata && pilHata !== '-'" class="hata">
+      Pil testi: {{ pilHata }}</p>
+    <!-- B22.2: kart yanıt vermiyorsa SÖYLE. Eskiden 404 sessizce
+         ayrıştırılıp tüm KPI'lar 0 gösteriliyordu. -->
+    <p v-if="pilHataMetni" class="uyari">Pil verisi alınamıyor: {{ pilHataMetni }}</p>
+
+    <p v-if="pilBosluk" class="uyari">
+      ⚠ Eğride <b>{{ pilBosluk }} nokta boşluk</b> var — tarayıcı kartın
+      tuttuğu 1.5 saatlik pencereden daha uzun kapalı kaldı. Boşluk
+      grafikte işaretli; <b>mAh ve Wh toplamları etkilenmedi</b>, çünkü
+      sayaçlar kartta kesintisiz birikiyor.</p>
+
+    <p class="ipucu" v-if="pilNokta.length">
+      {{ pilNokta.length }} nokta kayıtlı (tarayıcıda, sekme kapansa da
+      durur). İç direnç 1.5 ms sonra ölçülüyor — <b>mutlak DCIR değil</b>,
+      aynı pili tekrar ölçünce <b>karşılaştırılabilir</b> bir sağlık
+      göstergesi.</p>
+
+    <p class="ipucu">
+      <strong>Sıra önemli.</strong> Önce girişi 0 V'a bağla ve
+      “Gerilimi sıfırla” — bu, Vref'in gerçek değerini ölçüp çıkarır.
+      Sonra <strong>yükü kes</strong> ve “Akımı sıfırla”. En son bilinen bir
+      gerilim/akım uygulayıp multimetrenin okuduğu değeri gir.
+      Kalibrasyon her menzil için <em>ayrı</em> tutulur ve NVS'e yazılır.
+    </p>
+    <p class="ipucu">
+      Kalibrasyon değeri <strong>negatif de olabilir</strong> — kart çift
+      yönlü. Sıfıra çok yakın bir değerle kalibre etmeye çalışırsan kart
+      reddeder (tam ölçeğin %5'i eşiği).
+    </p>
+  </section>
+
+  <!-- ───────────────────────────────────────────── günlük -->
+  <section class="kart">
+    <details>
+      <summary>Seri port günlüğü</summary>
+      <div>
+        <div class="satir" style="margin-bottom:10px">
+          <div class="alan" style="flex:1">
+            <input type="text" v-model="elleKomut" placeholder="komut yaz (y = yardım)"
+                   @keyup.enter="elleGonder">
+          </div>
+          <button @click="elleGonder" :disabled="!bagli || !elleKomut">Gönder</button>
+          <button @click="gunluk = []">Temizle</button>
+        </div>
+        <div class="gunluk" ref="gunlukKutu">
+          <div v-for="(s, i) in gunluk" :key="i" :class="{ giden: s.giden }"
+            >{{ s.giden ? '> ' : '' }}{{ s.metin }}</div>
+        </div>
+      </div>
+    </details>
+  </section>
+
+</div>
+
+<script src="vendor/vue.global.prod.js"></script>
+<!-- sahte-kart.js BILEREK YOK: yalnizca ?demo kipinde gerekiyor ve
+     app.js icindeki betikYukle() ile dinamik iniyor (B22.0). -->
+<script src="app.js"></script>
+</body>
+</html>

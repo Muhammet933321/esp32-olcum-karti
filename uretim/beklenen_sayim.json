@@ -1,0 +1,108 @@
+{
+  "B1  On uc tasarimi ve hata butcesi": [
+    [
+      89,
+      89
+    ]
+  ],
+  "B2  Analog on uc (negatif dahil)": [
+    [
+      31,
+      31
+    ]
+  ],
+  "B15 Ariza ve zorlama simulasyonu": [
+    [
+      111,
+      111
+    ]
+  ],
+  "B11 +-12 V rayi (7912 orta nokta)": [
+    [
+      23,
+      23
+    ]
+  ],
+  "B16 V/I suzgec eslestirmesi": [
+    [
+      41,
+      41
+    ]
+  ],
+  "B18 GPIO kelepceleri (+3V3 geri besleme)": [
+    [
+      46,
+      46
+    ]
+  ],
+  "B19 Skop kanali cift yonlu": [
+    [
+      24,
+      24
+    ]
+  ],
+  "B17 ADS es zamanliligi + suzgec duzeltmesi": [
+    [
+      31,
+      31
+    ]
+  ],
+  "B20 Ornekleme hizi + bant siniri + menzil": [
+    [
+      47,
+      47
+    ]
+  ],
+  "B21 Pil kapasite testi (anahtar + kapi + tampon)": [
+    [
+      32,
+      32
+    ]
+  ],
+  "B22a PC koprusu (role + arsiv + surucu hakemi)": [
+    [
+      24,
+      24
+    ]
+  ],
+  "B22b Kart web katmani (ayna + SSE + komut ucu)": [
+    [
+      74,
+      74
+    ]
+  ],
+  "B3  Sema (ERC + netlist)": [
+    [
+      150,
+      150
+    ]
+  ],
+  "B4/B5  Firmware + Lagrange (AVR)": [
+    [
+      104,
+      104
+    ]
+  ],
+  "B6  Firmware derleme + ikili": [
+    [
+      7,
+      7
+    ],
+    [
+      68,
+      68
+    ]
+  ],
+  "B7  Arayuz + komut denetimi": [
+    [
+      122,
+      122
+    ]
+  ],
+  "B9  Malzeme + kurulum kilavuzu": [
+    [
+      3,
+      3
+    ]
+  ]
+}

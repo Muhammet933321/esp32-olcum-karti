@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────────────
+# Üretilen / yeniden üretilebilir dosyalar
+# Kural: doğrulama zinciri kendi çöpünü toplar; burada kalanlar
+# `dogrula3.py` ya da bir üreteç tarafından her koşuda yeniden üretiliyor.
+# ─────────────────────────────────────────────────────────────────────
+
+# Python
+__pycache__/
+*.py[cod]
+
+# LittleFS görüntüsü — 896 KB ikili, `python arayuz-uret.py` üretir.
+# Ölçüleri `_fs.json`'da; o dosya KAYITLI (bayatlık denetimi ona bakıyor).
+uretim/_fs.bin
+
+# Derleme çıktıları — arduino-cli / avr-gcc
+**/build/
+uretim/_a4_*.elf
+uretim/_b[0-9]*/
+uretim/_chk*/
+uretim/_lk*/
+
+# KiCad ERC raporları — her koşuda yeniden üretiliyor
+uretim/erc*.rpt
+
+# Mutasyon koşucusunun kardeş dizini (normalde kendi siler)
+../_mutasyon-*/
+*.mutyedek
+
+# ─────────────────────────────────────────────────────────────────────
+# KULLANICI VERİSİ — depoya girmemeli
+# ─────────────────────────────────────────────────────────────────────
+
+# Köprünün ölçüm günlüğü: kullanıcının kendi kayıtları, proje çöpü değil
+kopru/arsiv/
+
+# Ağ kimlik bilgileri kartın NVS'inde tutuluyor, kaynakta değil —
+# ama biri buraya bir dosya bırakırsa diye:
+*.local.json
+gizli*.json
+
+# ─────────────────────────────────────────────────────────────────────
+# İşletim sistemi / editör
+# ─────────────────────────────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

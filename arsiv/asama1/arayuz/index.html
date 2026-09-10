@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ölçüm Kartı</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="uyg" class="sarmal" v-cloak>
+
+  <!-- ───────────────────────────────────────────── üst şerit -->
+  <header class="ust">
+    <div>
+      <h1>Ölçüm Kartı</h1>
+      <p class="alt">Voltmetre · Ampermetre · Wattmetre · Osiloskop</p>
+    </div>
+    <div class="bosluk"></div>
+
+    <span class="rozet" :class="bagli ? 'acik' : 'kapali'">
+      <span class="nokta"></span>{{ bagli ? 'bağlı' : 'bağlı değil' }}
+    </span>
+
+    <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">
+      Karta bağlan
+    </button>
+    <button v-else @click="kes">Bağlantıyı kes</button>
+  </header>
+
+  <div v-if="!destekli" class="hata">
+    <strong>Bu tarayıcı Web Serial desteklemiyor.</strong>
+    Chrome veya Edge kullan. Ayrıca sayfa <code>http://localhost</code> üzerinden
+    açılmalı — <code>file://</code> ile Web Serial çalışmaz.
+    Sunucuyu başlatmak için: <code>python arayuz/sunucu.py</code>
+  </div>
+  <div v-if="hata" class="hata">{{ hata }}</div>
+
+  <!-- ───────────────────────────────────────────── anlık ölçümler -->
+  <div class="olcumler">
+    <div class="olcum v">
+      <div class="ad">Gerilim</div>
+      <div class="deger">{{ bicim(volt, 3) }}<span class="birim">V</span></div>
+    </div>
+    <div class="olcum i">
+      <div class="ad">Akım</div>
+      <div class="deger">{{ akimGoster }}<span class="birim">{{ akimBirim }}</span></div>
+    </div>
+    <div class="olcum w">
+      <div class="ad">Güç</div>
+      <div class="deger">{{ gucGoster }}<span class="birim">{{ gucBirim }}</span></div>
+    </div>
+  </div>
+
+  <div class="ikincil">
+    <div class="kutu">
+      <div class="ad">Enerji</div>
+      <div class="deger">{{ bicim(joule, 2) }} J</div>
+    </div>
+    <div class="kutu">
+      <div class="ad">Enerji</div>
+      <div class="deger">{{ wh.toFixed(6) }} Wh</div>
+    </div>
+    <div class="kutu">
+      <div class="ad">Geçen süre</div>
+      <div class="deger">{{ sureGoster }}</div>
+    </div>
+    <div class="kutu">
+      <div class="ad">Örnekleme</div>
+      <div class="deger">{{ orneklemeHizi }}</div>
+      <div class="ad" style="margin:2px 0 0">{{ gurultuBastirma }}</div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────────────── grafik -->
+  <section class="kart">
+    <h2>Zaman grafiği</h2>
+    <div class="gosterge">
+      <label><input type="checkbox" v-model="gosterV">
+        <span class="cizgi" style="background:var(--volt)"></span> Gerilim</label>
+      <label><input type="checkbox" v-model="gosterI">
+        <span class="cizgi" style="background:var(--amper)"></span> Akım</label>
+      <label><input type="checkbox" v-model="gosterW">
+        <span class="cizgi" style="background:var(--watt)"></span> Güç</label>
+      <div class="bosluk"></div>
+      <label>Pencere:
+        <select v-model.number="pencere" style="width:auto">
+          <option :value="30">30 sn</option>
+          <option :value="60">1 dk</option>
+          <option :value="300">5 dk</option>
+          <option :value="1800">30 dk</option>
+        </select>
+      </label>
+    </div>
+    <div class="tuval-sarmal"><canvas ref="grafik" height="300"></canvas></div>
+    <div class="satir" style="margin-top:12px">
+      <button @click="gecmisiTemizle" :disabled="!gecmis.length">Grafiği temizle</button>
+      <button @click="csvIndir" :disabled="!gecmis.length">CSV indir</button>
+    </div>
+  </section>
+
+  <!-- ───────────────────────────────────────────── osiloskop -->
+  <section class="kart">
+    <h2>Osiloskop — 12 bit, 611 Sa/s … 83.3 kSa/s, ayarlanabilir zaman tabanı</h2>
+
+    <div v-if="demo" class="demo-serit">
+      <span class="demo-rozet">DEMO</span>
+      <label>
+        Prob ucundaki test sinyali
+        <select v-model="demoSinyal" @change="demoSinyalDegisti">
+          <option v-for="(s, k) in demoSinyaller" :key="k" :value="k">{{ s.ad }}</option>
+        </select>
+      </label>
+      <span class="demo-not">karta bağlı değil — sahte kart aynı protokolü konuşuyor</span>
+    </div>
+
+    <div class="satir" style="margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <button class="birincil" @click="osiloYakala"
+              :disabled="!bagli || osiloBekliyor || surekli">
+        {{ osiloBekliyor ? 'Yakalanıyor…' : 'Yakala' }}
+      </button>
+      <button @click="surekliDegis" :disabled="!bagli"
+              :class="{ 'kosuyor': surekli }"
+              title="Sürekli yakala — gerçek osiloskoplardaki RUN/STOP">
+        {{ surekli ? '■ Durdur' : '▶ Sürekli' }}
+      </button>
+      <button @click="osiloOtomatik" :disabled="!bagli || osiloBekliyor"
+              title="Sinyali bulup zaman tabanını ve tetiği kendisi ayarlar">
+        Otomatik
+      </button>
+
+      <span class="skop-grup">
+        <button @click="tabanDegistir(-1)" :disabled="!bagli || tdivEnHizli"
+                title="Zaman tabanını hızlandır">◀</button>
+        <span class="skop-deger">{{ tdivEtiket }}</span>
+        <button @click="tabanDegistir(1)" :disabled="!bagli || tdivEnYavas"
+                title="Zaman tabanını yavaşlat">▶</button>
+      </span>
+
+      <select v-model.number="skopKip" @change="skopKomut('tm' + skopKip)"
+              :disabled="!bagli" title="Tetikleme kipi">
+        <option :value="0">Oto</option>
+        <option :value="1">Normal</option>
+        <option :value="2">Tek atış</option>
+      </select>
+
+      <select v-model.number="skopKenar" @change="skopKomut('te' + skopKenar)"
+              :disabled="!bagli" title="Tetik kenarı">
+        <option :value="0">↑ Yükselen</option>
+        <option :value="1">↓ Düşen</option>
+      </select>
+    </div>
+
+    <div class="satir" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <label class="skop-kaydir">
+        Tetik seviyesi
+        <input type="range" min="0" max="4095" step="16" v-model.number="skopEsik"
+               @input="osiloCiz" @change="skopKomut('tl' + skopEsik)"
+               :disabled="!bagli">
+        <span class="skop-deger" :class="{ 'uyari-renk': esikMenzilDisi }">
+          {{ esikVolt.toFixed(2) }} V
+        </span>
+      </label>
+      <label class="skop-kaydir">
+        Ön-tetik
+        <input type="range" min="0" max="90" step="5" v-model.number="skopOn"
+               @change="skopKomut('tp' + skopOn)" :disabled="!bagli">
+        <span class="skop-deger">%{{ skopOn }}</span>
+      </label>
+    </div>
+
+    <div class="tuval-sarmal">
+      <canvas ref="osiloTuval" height="360" @wheel="tekerlek"
+              @mousedown="surukBasla" class="surukle"></canvas>
+    </div>
+
+    <!-- Yakınlaştırma: kartı hiç meşgul etmez, yakalanmış kaydın
+         içinde gezinir. Gerçek osiloskoplardaki zoom penceresi. -->
+    <div class="satir zoom-satir">
+      <span class="zoom-grup">
+        <span class="zoom-ad">Dikey</span>
+        <button @click="dikeyBuyut(1/1.5)" title="Uzaklaştır">−</button>
+        <span class="skop-deger">{{ dikeyZoomEtiket }}</span>
+        <button @click="dikeyBuyut(1.5)" title="Yakınlaştır">+</button>
+        <button @click="dikeyKaydirDegis(-0.25)" title="Yukarı kaydır">▲</button>
+        <button @click="dikeyKaydirDegis(0.25)" title="Aşağı kaydır">▼</button>
+        <button @click="dikeySifirla" title="Otomatik ölçeğe dön">oto</button>
+      </span>
+
+      <span class="zoom-grup">
+        <span class="zoom-ad">Yatay</span>
+        <button @click="yatayBuyut(1/2)" :disabled="yatayZoom <= 1" title="Uzaklaştır">−</button>
+        <span class="skop-deger">{{ yatayZoomEtiket }}</span>
+        <button @click="yatayBuyut(2)" title="Yakınlaştır">+</button>
+        <button @click="yatayKaydirDegis(-0.5)" :disabled="yatayZoom <= 1" title="Sola">◀</button>
+        <button @click="yatayKaydirDegis(0.5)" :disabled="yatayZoom <= 1" title="Sağa">▶</button>
+        <button @click="yatayTetigeGit" :disabled="yatayZoom <= 1" title="Tetik anına git">T</button>
+        <button @click="yatarSifirla" :disabled="yatayZoom <= 1" title="Tam kayda dön">tam</button>
+      </span>
+
+      <span class="demo-not">fare tekerleği: dikey · Shift+tekerlek: yatay</span>
+    </div>
+
+    <p v-if="skopUyari" class="skop-uyari">⚠ {{ skopUyari }}</p>
+
+    <!-- Otomatik ölçümler — gerçek osiloskopların ekran altı satırı.
+         Değerler kartta skop_olc() ile hesaplanıyor (olcum2.h), burada
+         yalnızca biçimleniyor. -->
+    <div v-if="skopOlcumler.length" class="skop-olcum">
+      <div v-for="m in skopOlcumler" :key="m.ad"
+           class="skop-olcum-oge" :class="{ vurgu: m.vurgu }">
+        <span class="skop-olcum-ad">{{ m.ad }}</span>
+        <span class="skop-olcum-deger">{{ m.d }}</span>
+      </div>
+    </div>
+
+    <p v-if="osilo" class="ipucu">
+      {{ osilo.adet }} örnek · {{ (osilo.hz/1000).toFixed(2) }} kSa/s ·
+      pencere {{ skopPencere }} ·
+      {{ osilo.tetiklendi ? 'tetiklendi' : 'serbest koşu' }}
+      <span v-if="surekli"> · {{ surekliHiz.toFixed(1) }} yakalama/sn</span>
+    </p>
+    <p v-if="esikMenzilDisi" class="skop-uyari">
+      ⚠ Tetik seviyesi ({{ esikVolt.toFixed(2) }} V) sinyalin dışında —
+      hiçbir zaman tetiklenmez. Kaydırıcıyı dalganın içine getir ya da
+      <strong>Otomatik</strong>'e bas.
+    </p>
+
+    <p class="ipucu">
+      <strong>Menzil 0 – 48.7 V, tek yönlü.</strong> Sinyal sıfırın altına
+      inerse alt yarısı kırpılır — sinyal üretecinde <strong>DC offset</strong>
+      kullan. Örtüşme (aliasing) sınırı: girişteki 1 nF + 100 K süzgeci
+      25 kHz'te kesiyor, Nyquist 41.7 kHz. Bunun üstündeki bileşenler sahte,
+      yavaş bir sinyal olarak görünür.
+      <strong>Şebekeye bağlanamaz</strong> — kart izole değil.
+    </p>
+  </section>
+
+  <!-- ───────────────────────────────────────────── denetimler -->
+  <section class="kart">
+    <h2>Kalibrasyon ve ayar</h2>
+
+    <div class="satir" style="margin-bottom:14px">
+      <div class="alan">
+        <label>Takılı şönt</label>
+        <select v-model="sontSecim" @change="sontGonder">
+          <option value="10">1× 10R — 0–31 mA</option>
+          <option value="1">10× 10R ∥ = 1R — 0–313 mA</option>
+          <option value="0.3333">30× 10R ∥ = 0.33R — 0–939 mA</option>
+        </select>
+      </div>
+      <!-- DEVIR 4.15: bu üç düğme sessizce çalışmıyordu.
+           's' ŞÖNT komutu (boş değerle reddedilir) — doğrusu 'z'.
+           'd' diye bir komut yok — doğrusu '?'.
+           'e' (enerji sıfırlama) Aşama 2 firmware'inde HİÇ YOK, kaldırıldı;
+           Aşama 3'te var (bkz. arayuz3/). -->
+      <button @click="komut('z')" :disabled="!bagli">Akımı sıfırla</button>
+      <button @click="komut('?')" :disabled="!bagli">Ayarları göster</button>
+      <button @click="komut('#')" :disabled="!bagli">I²C tara</button>
+    </div>
+
+    <div class="satir">
+      <div class="alan">
+        <label>Gerçek gerilim (multimetre)</label>
+        <input type="text" v-model="kalibV" placeholder="12.34" @keyup.enter="kalibreV">
+      </div>
+      <button @click="kalibreV" :disabled="!bagli || !kalibV">Gerilimi kalibre et</button>
+
+      <div class="alan">
+        <label>Gerçek akım, amper</label>
+        <input type="text" v-model="kalibA" placeholder="0.250" @keyup.enter="kalibreA">
+      </div>
+      <button @click="kalibreA" :disabled="!bagli || !kalibA">Akımı kalibre et</button>
+    </div>
+
+    <p class="ipucu">
+      Sıra: önce <strong>yükü kes</strong> ve “Akımı sıfırla” — LM358'in giriş
+      ofseti bu adımda ölçülüp çıkarılır. Sonra bilinen bir gerilim/akım uygula
+      ve multimetrenin okuduğu değeri gir. Kalibrasyon EEPROM'a yazılır.
+    </p>
+  </section>
+
+  <!-- ───────────────────────────────────────────── günlük -->
+  <section class="kart">
+    <details>
+      <summary>Seri port günlüğü</summary>
+      <div>
+        <div class="satir" style="margin-bottom:10px">
+          <div class="alan" style="flex:1">
+            <input type="text" v-model="elleKomut" placeholder="komut yaz (y = yardım)"
+                   @keyup.enter="elleGonder">
+          </div>
+          <button @click="elleGonder" :disabled="!bagli || !elleKomut">Gönder</button>
+          <button @click="gunluk = []">Temizle</button>
+        </div>
+        <div class="gunluk" ref="gunlukKutu">
+          <div v-for="(s, i) in gunluk" :key="i" :class="{ giden: s.giden }"
+            >{{ s.giden ? '> ' : '' }}{{ s.metin }}</div>
+        </div>
+      </div>
+    </details>
+  </section>
+
+</div>
+
+<script src="vendor/vue.global.prod.js"></script>
+<script src="sahte-kart.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

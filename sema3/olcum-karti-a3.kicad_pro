@@ -1,0 +1,12 @@
+{
+  "board": {},
+  "boards": [],
+  "cvpcb": {"equivalence_files": []},
+  "libraries": {"pinned_footprint_libs": [], "pinned_symbol_libs": []},
+  "meta": {"filename": "olcum-karti-a3.kicad_pro", "version": 3},
+  "erc": {"rule_severities": {"ground_pin_not_ground": "ignore"}},
+  "net_settings": {"classes": [{"name": "Default"}]},
+  "schematic": {"legacy_lib_dir": "", "legacy_lib_list": []},
+  "sheets": [["a8e2c1dc-1853-4264-be85-56be03e7e2e9", "Root"]],
+  "text_variables": {}
+}

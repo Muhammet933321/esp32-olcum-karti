@@ -1,0 +1,700 @@
+<title>Ölçüm Kartı Doğrulaması</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   Ölçüm Kartı — doğrulama raporu
+   Palet: soğuk ölçü aleti; mavi=gerilim, turuncu=akım, yeşil=geçti
+   Tipografi: IBM Plex Serif (anlatı) + IBM Plex Mono (her sayı)
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --kagit:    #f4f6f9;
+  --yuzey:    #ffffff;
+  --yuzey-2:  #eef1f6;
+  --murekkep: #131820;
+  --soluk:    #5b6675;
+  --cok-soluk:#8c95a3;
+  --cizgi:    #dce1ea;
+  --cizgi-2:  #c3cbd8;
+  --olcum:    #2853c6;
+  --olcum-zem:#e8eefc;
+  --gecti:    #15734a;
+  --gecti-zem:#e4f4ec;
+  --kaldi:    #bf3226;
+  --kaldi-zem:#fbeae8;
+  --akim:     #b45a09;
+  --golge:    0 1px 2px rgba(19,24,32,.05), 0 8px 24px rgba(19,24,32,.05);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --kagit:    #0d1117;
+    --yuzey:    #151b23;
+    --yuzey-2:  #1c232d;
+    --murekkep: #e3e8ef;
+    --soluk:    #8b95a5;
+    --cok-soluk:#6b7686;
+    --cizgi:    #242c37;
+    --cizgi-2:  #333d4a;
+    --olcum:    #7aa2ff;
+    --olcum-zem:#16233d;
+    --gecti:    #4ec98d;
+    --gecti-zem:#0e2b1e;
+    --kaldi:    #ff8b80;
+    --kaldi-zem:#2e1512;
+    --akim:     #f2a05a;
+    --golge:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --kagit:    #0d1117;
+  --yuzey:    #151b23;
+  --yuzey-2:  #1c232d;
+  --murekkep: #e3e8ef;
+  --soluk:    #8b95a5;
+  --cok-soluk:#6b7686;
+  --cizgi:    #242c37;
+  --cizgi-2:  #333d4a;
+  --olcum:    #7aa2ff;
+  --olcum-zem:#16233d;
+  --gecti:    #4ec98d;
+  --gecti-zem:#0e2b1e;
+  --kaldi:    #ff8b80;
+  --kaldi-zem:#2e1512;
+  --akim:     #f2a05a;
+  --golge:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--kagit);
+  color: var(--murekkep);
+  font-family: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  font-size: 16.5px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sayfa { max-width: 1140px; margin: 0 auto; padding: 0 24px 96px; }
+
+/* ── ölçü aleti künyesi ───────────────────────────────────────── */
+.kunye {
+  border-bottom: 2px solid var(--murekkep);
+  padding: 52px 0 22px;
+  margin-bottom: 6px;
+}
+.kunye .ust {
+  display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap;
+  margin-bottom: 26px;
+}
+h1 {
+  font-size: clamp(30px, 5vw, 46px);
+  line-height: 1.08; font-weight: 600; margin: 0;
+  letter-spacing: -.02em; text-wrap: balance; flex: 1 1 340px;
+}
+h1 em { font-style: italic; color: var(--olcum); }
+
+.damga {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12.5px; font-weight: 600; letter-spacing: .04em;
+  padding: 7px 13px; border-radius: 3px;
+  background: var(--gecti-zem); color: var(--gecti);
+  border: 1px solid currentColor; white-space: nowrap;
+}
+
+.girisyazi {
+  font-size: 18px; color: var(--soluk); max-width: 64ch;
+  margin: 0 0 26px; text-wrap: pretty;
+}
+.girisyazi strong { color: var(--murekkep); font-weight: 600; }
+
+/* künye ızgarası — ölçü aletinin etiket plakası */
+.plaka {
+  display: grid; gap: 1px; background: var(--cizgi);
+  border: 1px solid var(--cizgi);
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+}
+.plaka div { background: var(--yuzey); padding: 12px 14px; }
+.plaka dt {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px; font-weight: 500; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--cok-soluk); margin-bottom: 4px;
+}
+.plaka dd {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 19px; font-weight: 500; margin: 0;
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+}
+.plaka dd small {
+  font-size: 12.5px; color: var(--soluk); font-weight: 400; margin-left: 2px;
+}
+
+/* ── bölüm başlıkları ─────────────────────────────────────────── */
+section { margin-top: 64px; }
+h2 {
+  font-size: 27px; font-weight: 600; margin: 0 0 8px;
+  letter-spacing: -.015em; text-wrap: balance;
+}
+.bolum-not {
+  color: var(--soluk); max-width: 62ch; margin: 0 0 28px; font-size: 16px;
+}
+h3 {
+  font-size: 19px; font-weight: 600; margin: 0 0 6px;
+  letter-spacing: -.01em; text-wrap: balance;
+}
+
+.etiket {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px; font-weight: 600; letter-spacing: .11em;
+  text-transform: uppercase; color: var(--olcum);
+  margin: 0 0 10px;
+}
+
+/* ── şema levhası: her zaman açık zemin (kâğıda basılır) ──────── */
+.sema-levha {
+  background: #fcfcfa;
+  border: 1px solid var(--cizgi-2);
+  border-radius: 2px;
+  padding: 18px;
+  overflow-x: auto;
+  box-shadow: var(--golge);
+}
+.sema { display: block; width: 100%; min-width: 760px; height: auto; }
+.altyazi {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px; color: var(--cok-soluk); margin: 10px 0 0;
+  line-height: 1.6;
+}
+
+/* ── doğrulama adımları ───────────────────────────────────────── */
+.adim {
+  display: grid; gap: 24px 30px; align-items: start;
+  grid-template-columns: 74px minmax(0, 1fr);
+  padding: 30px 0;
+  border-top: 1px solid var(--cizgi);
+}
+.adim:first-of-type { border-top: 2px solid var(--cizgi-2); }
+
+.adim-no {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 15px; font-weight: 600; letter-spacing: .02em;
+  color: var(--olcum);
+  padding-top: 2px;
+}
+.adim-no span {
+  display: block; font-size: 11px; font-weight: 500; color: var(--cok-soluk);
+  letter-spacing: .06em; margin-top: 3px;
+}
+.adim-govde > p { margin: 0 0 16px; max-width: 62ch; }
+.adim-govde > p:last-child { margin-bottom: 0; }
+
+.cerceve {
+  background: var(--yuzey); border: 1px solid var(--cizgi);
+  border-radius: 3px; padding: 14px 16px 10px; margin: 18px 0 0;
+  overflow-x: auto;
+}
+.grafik { display: block; width: 100%; min-width: 480px; height: auto; }
+
+/* ── sonuç satırları ──────────────────────────────────────────── */
+.sonuc {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13.5px; list-style: none; padding: 0;
+  margin: 16px 0 0; display: grid; gap: 5px;
+}
+.sonuc li {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: 12px; align-items: baseline;
+  padding: 5px 0; border-bottom: 1px dotted var(--cizgi);
+}
+.sonuc .im { color: var(--gecti); font-weight: 600; }
+.sonuc .deger {
+  font-variant-numeric: tabular-nums; color: var(--soluk); white-space: nowrap;
+}
+
+/* ── hata kartları ────────────────────────────────────────────── */
+.hatalar { display: grid; gap: 2px; background: var(--cizgi); border: 1px solid var(--cizgi); }
+.hata { background: var(--yuzey); padding: 22px 24px; display: grid; gap: 10px; }
+.hata-ust { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.hata-no {
+  font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600;
+  color: var(--kaldi); background: var(--kaldi-zem);
+  border-radius: 2px; padding: 3px 8px; letter-spacing: .04em;
+}
+.hata h3 { margin: 0; flex: 1 1 260px; }
+.hata p { margin: 0; color: var(--soluk); max-width: 68ch; font-size: 15.5px; }
+.hata p strong { color: var(--murekkep); font-weight: 600; }
+.duzeltme {
+  font-family: "IBM Plex Mono", monospace; font-size: 13px;
+  display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+  padding-top: 4px;
+}
+.duzeltme .yanlis { color: var(--kaldi); text-decoration: line-through; }
+.duzeltme .ok { color: var(--cok-soluk); }
+.duzeltme .dogru { color: var(--gecti); font-weight: 600; }
+
+/* ── tablolar ─────────────────────────────────────────────────── */
+.tablo-sarmal { overflow-x: auto; margin-top: 18px; }
+table {
+  border-collapse: collapse; width: 100%; min-width: 460px;
+  font-family: "IBM Plex Mono", monospace; font-size: 13.5px;
+}
+th {
+  text-align: left; font-weight: 600; font-size: 10.5px;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--cok-soluk);
+  padding: 0 14px 8px 0; border-bottom: 1px solid var(--cizgi-2);
+}
+td {
+  padding: 8px 14px 8px 0; border-bottom: 1px solid var(--cizgi);
+  font-variant-numeric: tabular-nums;
+}
+td.ad { font-weight: 500; }
+tr:last-child td { border-bottom: none; }
+.tik { color: var(--gecti); font-weight: 600; }
+.carpi { color: var(--kaldi); font-weight: 600; }
+
+/* ── arayüz görseli ───────────────────────────────────────────── */
+.ekran {
+  display: block; width: 100%; height: auto; border-radius: 4px;
+  border: 1px solid var(--cizgi-2); box-shadow: var(--golge);
+}
+
+/* ── uyarı kutusu ─────────────────────────────────────────────── */
+.uyari {
+  border-left: 3px solid var(--akim);
+  background: var(--yuzey); padding: 16px 20px; margin-top: 22px;
+  border-radius: 0 3px 3px 0;
+}
+.uyari p { margin: 0; font-size: 15.5px; }
+.uyari code, code {
+  font-family: "IBM Plex Mono", monospace; font-size: .88em;
+  background: var(--yuzey-2); padding: 1px 5px; border-radius: 3px;
+}
+
+/* ── kapanış ──────────────────────────────────────────────────── */
+.kapanis {
+  margin-top: 72px; padding-top: 26px;
+  border-top: 2px solid var(--murekkep);
+  display: grid; gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+.kapanis h3 { margin-bottom: 4px; }
+.kapanis p { margin: 0; color: var(--soluk); font-size: 15.5px; }
+.kapanis code { font-size: 13px; }
+
+.dipnot {
+  margin-top: 44px; font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px; color: var(--cok-soluk); line-height: 1.8;
+}
+
+@media (max-width: 620px) {
+  .adim { grid-template-columns: 1fr; gap: 12px; }
+  .adim-no { display: flex; gap: 10px; align-items: baseline; }
+  .adim-no span { margin-top: 0; }
+  body { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="sayfa">
+
+<!-- ══════════════════════════════════════════════ künye ══════ -->
+<header class="kunye">
+  <div class="ust">
+    <h1>Ölçüm Kartı<br><em>kurulmadan önce doğrulandı</em></h1>
+    <span class="damga">7 / 7 ADIM · 93 DOĞRULAMA</span>
+  </div>
+
+  <p class="girisyazi">
+    Arduino tabanlı bir voltmetre · ampermetre · wattmetre · basit osiloskop.
+    Tamamı envanterdeki parçalarla — <strong>satın alınacak hiçbir şey yok</strong>.
+    Lehim havyası tutulmadan önce her blok SPICE'ta simüle edildi, şema netlist
+    düzeyinde denetlendi, firmware derlendi ve arayüz mantığı test edildi.
+    Bu süreç <strong>altı gerçek tasarım hatası</strong> yakaladı.
+  </p>
+
+  <dl class="plaka">
+    <div><dt>Gerilim</dt><dd>0–27.2<small>V</small></dd></div>
+    <div><dt>Akım</dt><dd>0–939<small>mA</small></dd></div>
+    <div><dt>Güç</dt><dd>25.6<small>W</small></dd></div>
+    <div><dt>Osiloskop</dt><dd>~8<small>kHz</small></dd></div>
+    <div><dt>Doğruluk</dt><dd>±0.6<small>%</small></dd></div>
+    <div><dt>Maliyet</dt><dd>0<small>TL</small></dd></div>
+  </dl>
+</header>
+
+<!-- ══════════════════════════════════════════════ şema ══════ -->
+<section>
+  <p class="etiket">KiCad · ERC temiz · netlist doğrulandı</p>
+  <h2>Şema</h2>
+  <p class="bolum-not">
+    Dört blok: TL431 gerilim referansı, 1:11 bölücü ve koruma kelepçeleri,
+    şönt + LM358 akım yükselteci, besleme. Her direnç ve kondansatörün yanında
+    envanterdeki karşılığı var.
+  </p>
+  <div class="sema-levha">
+    {{SEMA}}
+  </div>
+  <p class="altyazi">
+    A3 sayfa · 16 bileşen · 10 net · ERC 0 ihlal.
+    Şema levhası her iki temada açık zeminde duruyor — kâğıda basıldığı gibi.
+  </p>
+</section>
+
+<!-- ══════════════════════════════════════ doğrulama zinciri ══ -->
+<section>
+  <p class="etiket">ngspice · numpy · kicad-cli · arduino-cli · node</p>
+  <h2>Doğrulama zinciri</h2>
+  <p class="bolum-not">
+    Yedi adım, sırayla. Her biri bağımsız çalışır ve kendi iddialarını sayısal
+    olarak ölçer — grafikler bu koşulardan çıkan gerçek veridir.
+    Tek komut: <code>python uretim/dogrula.py</code>
+  </p>
+
+  <!-- S1 -->
+  <div class="adim">
+    <div class="adim-no">S1<span>ngspice</span></div>
+    <div class="adim-govde">
+      <h3>Gerilim referansı</h3>
+      <p>
+        Arduino'nun varsayılan referansı USB'den gelen 5 V rayıdır ve
+        4.7–5.2 V arası oynar. TL431 bunu sabitliyor. Ama AREF pini boşta
+        değil: ADC etkinken iç merdiven direnci üzerinden <strong>77 µA</strong>
+        çekiyor, ve seri koruma direnci bu akımı taşıdığı için üzerinde
+        gerilim düşürüyor.
+      </p>
+      <div class="cerceve">{{S1}}</div>
+      <ul class="sonuc">
+        <li><span class="im">✓</span><span>TL431 katot gerilimi</span><span class="deger">2.495 V</span></li>
+        <li><span class="im">✓</span><span>TL431 çalışma akımı ≥ 1 mA</span><span class="deger">2.43 mA</span></li>
+        <li><span class="im">✓</span><span>Seçilen 220 Ω ile AREF</span><span class="deger">2.478 V</span></li>
+        <li><span class="im">✓</span><span>Sıcaklık sürünmesi</span><span class="deger">%0.069</span></li>
+        <li><span class="im">✓</span><span>Arıza akımı (çip güvende)</span><span class="deger">11.4 mA</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- S2 -->
+  <div class="adim">
+    <div class="adim-no">S2<span>ngspice</span></div>
+    <div class="adim-govde">
+      <h3>Bölücü, koruma kelepçeleri, örtüşme süzgeci</h3>
+      <p>
+        1:11 bölücü 27.26 V tam ölçek veriyor, doğrusallık sapması %0.006.
+        Asıl merak edilen iki şey: giriş kazara yüksek gerilime değerse
+        Arduino sağ kalıyor mu, ve düğümdeki kondansatör osiloskop kipini
+        boğuyor mu.
+      </p>
+      <div class="cerceve">{{S2A}}</div>
+      <div class="cerceve">{{S2B}}</div>
+      <p>
+        <strong>400 V girişte bile düğüm 5.67 V'ta kelepçeleniyor</strong> ve
+        akım 3.94 mA — 1N4148'in 200 mA sınırının çok altında. Giriş şebeke
+        gerilimine değse bile kart hayatta kalır.
+      </p>
+      <div class="cerceve">{{S2C}}</div>
+      <ul class="sonuc">
+        <li><span class="im">✓</span><span>Bölme oranı</span><span class="deger">1 : 11</span></li>
+        <li><span class="im">✓</span><span>Doğrusallık sapması</span><span class="deger">%0.006</span></li>
+        <li><span class="im">✓</span><span>400 V'ta düğüm gerilimi</span><span class="deger">5.671 V</span></li>
+        <li><span class="im">✓</span><span>En büyük kelepçe akımı</span><span class="deger">3.94 mA</span></li>
+        <li><span class="im">✓</span><span>Seçilen 1nF ile kesim</span><span class="deger">17.8 kHz</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- S3 -->
+  <div class="adim">
+    <div class="adim-no">S3<span>ngspice</span></div>
+    <div class="adim-govde">
+      <h3>Şönt ve LM358 akım katı</h3>
+      <p>
+        Envanterde 30 adet 10 Ω direnç var. Bunları paralelleyerek üç kademe
+        çıkıyor. İşin zarif tarafı: şönt gerilimi her kademede 313 mV'ta sabit
+        kaldığı için <strong>her direnç daima 9.8 mW harcıyor</strong> — 1/4 W'ın
+        %4'ü. Isınma kaynaklı kayma diye bir sorun oluşmuyor.
+      </p>
+      <div class="cerceve">{{S3A}}</div>
+      <p>
+        LM358 bu işte darboğaz değil: kapalı çevrim bandı 89.1 kHz, ADC ise
+        8 kHz'te tıkanıyor. Op-amp on bir kat daha hızlı.
+      </p>
+      <div class="cerceve">{{S3B}}</div>
+      <ul class="sonuc">
+        <li><span class="im">✓</span><span>Kapalı çevrim kazanç (tasarım 7.912)</span><span class="deger">7.911</span></li>
+        <li><span class="im">✓</span><span>Çıkış AREF'e ulaşıyor</span><span class="deger">2.478 V</span></li>
+        <li><span class="im">✓</span><span>Direnç başına ısı, her kademede</span><span class="deger">9.8 mW</span></li>
+        <li><span class="im">✓</span><span>Küçük sinyal bandı</span><span class="deger">89.1 kHz</span></li>
+        <li><span class="im">✓</span><span>Tam güç bandı (slew)</span><span class="deger">38.5 kHz</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- S4 -->
+  <div class="adim">
+    <div class="adim-no">S4<span>numpy</span></div>
+    <div class="adim-govde">
+      <h3>Firmware aritmetiği</h3>
+      <p>
+        ATmega328P'de <code>double</code> diye ayrı bir tip yoktur —
+        <code>float</code>'a takma addır, 24 bit mantis. Enerjiyi float'ta
+        biriktirirsen toplam büyüdükçe küçük eklemeler sessizce yutulur.
+        Bu iddiayı ölçtüm: makinede AVR derleyicisi olmadığı için firmware'in
+        aritmetiği numpy <code>float32</code> ile birebir yeniden üretildi.
+      </p>
+      <div class="cerceve">{{S4}}</div>
+      <p>
+        0.1 W yükte float32 sayacı 440 saniyede <strong>%2.47</strong> sapıyor.
+        Daha kötüsü: 512 J'de (0.142 Wh) eklemeler yuvarlanıp yok oluyor ve
+        sayaç <strong>tamamen duruyor</strong>. Firmware bu yüzden pikojoule
+        cinsinden <code>uint64</code> kullanıyor — µW × µs = pJ, çarpma tam
+        sayı, kayıp yok.
+      </p>
+      <ul class="sonuc">
+        <li><span class="im">✓</span><span>uint64 hatası, 440 sn sonra</span><span class="deger">%0.000000</span></li>
+        <li><span class="im">✓</span><span>Gerilim tam ölçek</span><span class="deger">27.23 V</span></li>
+        <li><span class="im">✓</span><span>Kalibrasyon sonrası gerilim hatası</span><span class="deger">%0.31</span></li>
+        <li><span class="im">✓</span><span>Kalibrasyon sonrası akım hatası</span><span class="deger">%0.54</span></li>
+        <li><span class="im">✓</span><span>micros() sarmasında enerji kaybı</span><span class="deger">yok</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- S5 -->
+  <div class="adim">
+    <div class="adim-no">S5<span>kicad-cli</span></div>
+    <div class="adim-govde">
+      <h3>Şema netlist denetimi</h3>
+      <p>
+        ERC "bağlı mı" diye sorar, "doğru mu" diye sormaz. Ters bağlı bir
+        diyotta iki uç da bağlı olduğu için ERC temiz geçer. Bu yüzden netlist
+        ayrı denetleniyor: her yönlü parçanın hangi ucunun hangi nete gittiği
+        pin işlevlerinden (K / A) okunup tasarıma karşı ölçülüyor.
+      </p>
+      <div class="tablo-sarmal">
+        <table>
+          <thead><tr><th>Net</th><th>Pin sayısı</th><th>Kritik kural</th><th>Durum</th></tr></thead>
+          <tbody>
+            <tr><td class="ad">+5V</td><td>4</td><td>D1 katodu burada</td><td class="tik">✓</td></tr>
+            <tr><td class="ad">/A0</td><td>6</td><td>D1 anodu + D2 katodu</td><td class="tik">✓</td></tr>
+            <tr><td class="ad">GND</td><td>12</td><td>D2 anodu + TL431 anodu</td><td class="tik">✓</td></tr>
+            <tr><td class="ad">/AREF</td><td>3</td><td>R2 → C1 → Arduino</td><td class="tik">✓</td></tr>
+            <tr><td class="ad">Net-(U1-K)</td><td>4</td><td>TL431 REF katoda bağlı</td><td class="tik">✓</td></tr>
+            <tr><td class="ad">/YUK_EKSI</td><td>3</td><td>LM358 + girişi şöntte</td><td class="tik">✓</td></tr>
+            <tr><td class="ad">Net-(U2A--)</td><td>3</td><td>LM358 − girişi geri beslemede</td><td class="tik">✓</td></tr>
+            <tr><td class="ad">/A1</td><td>3</td><td>LM358 çıkışı</td><td class="tik">✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="altyazi">10 netin tamamı ve 10 kritik polarite kuralı — 21/21 geçti.</p>
+    </div>
+  </div>
+
+  <!-- S6 -->
+  <div class="adim">
+    <div class="adim-no">S6<span>arduino-cli</span></div>
+    <div class="adim-govde">
+      <h3>Firmware derleme</h3>
+      <p>
+        Simülasyon devreyi doğrular, kodu doğrulamaz. Firmware gerçekten
+        derlendi — ve iki hata daha çıktı, ikisi de yalnızca derleyicinin
+        görebileceği türden.
+      </p>
+      <div class="tablo-sarmal">
+        <table>
+          <thead><tr><th>Kart</th><th>Flash</th><th>SRAM</th><th>Boş</th><th>Uyarı</th></tr></thead>
+          <tbody>
+            <tr><td class="ad">Uno</td><td>8444 B · %26</td><td>1261 B · %61</td><td>787 B</td><td class="tik">0</td></tr>
+            <tr><td class="ad">Nano</td><td>8444 B · %27</td><td>1261 B · %61</td><td>787 B</td><td class="tik">0</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="altyazi">
+        <code>--warnings all</code> ile sıfır uyarı. SRAM'in 1000 baytı
+        osiloskop tamponu; yığıt için 787 bayt kalıyor.
+      </p>
+    </div>
+  </div>
+
+  <!-- S7 -->
+  <div class="adim">
+    <div class="adim-no">S7<span>node</span></div>
+    <div class="adim-govde">
+      <h3>Arayüz mantığı</h3>
+      <p>
+        Tarayıcı açmadan test etmek için Vue ve DOM taklit edilip
+        <code>app.js</code> yüklendi, sonra firmware'in gerçekten ürettiği
+        satırlar ayrıştırıcıya verildi: ölçüm satırı, osiloskop akışı, parçalı
+        veri toplama, birim ölçekleme, geçmiş budama, süre biçimi.
+      </p>
+      <ul class="sonuc">
+        <li><span class="im">✓</span><span>Ölçüm satırı ayrıştırma</span><span class="deger">7 kontrol</span></li>
+        <li><span class="im">✓</span><span>Birim ölçekleme (A → mA → µA)</span><span class="deger">6 kontrol</span></li>
+        <li><span class="im">✓</span><span>Osiloskop akışı ve kırpma</span><span class="deger">7 kontrol</span></li>
+        <li><span class="im">✓</span><span>Günlük ve hata yolu</span><span class="deger">4 kontrol</span></li>
+        <li><span class="im">✓</span><span>Geçmiş budama, süre biçimi</span><span class="deger">8 kontrol</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ hatalar ══════ -->
+<section>
+  <p class="etiket">Breadboard'a dokunulmadan bulundu</p>
+  <h2>Yakalanan altı hata</h2>
+  <p class="bolum-not">
+    Hepsi ilk tasarımda vardı. Üçü devreyi yanlış çalıştırırdı, biri şemayı
+    okunamaz yapardı, ikisi kodu derlenmez ya da kırılgan bırakırdı.
+  </p>
+
+  <div class="hatalar">
+
+    <article class="hata">
+      <div class="hata-ust"><span class="hata-no">01</span>
+        <h3>AREF seri direnci referansı %12.8 kaydırıyordu</h3></div>
+      <p>
+        4.7 kΩ, AREF'in 77 µA'lik iç yükü üzerinden <strong>319 mV</strong>
+        düşürüyordu. Menzilin sekizde biri gider, üstelik sıcaklık sürünmesi
+        on sekiz kat artardı.
+      </p>
+      <p class="duzeltme"><span class="yanlis">4.7 kΩ</span>
+        <span class="ok">→</span><span class="dogru">220 Ω &nbsp;(düşüm 17 mV)</span></p>
+    </article>
+
+    <article class="hata">
+      <div class="hata-ust"><span class="hata-no">02</span>
+        <h3>Bölücü kondansatörü osiloskop kipini öldürüyordu</h3></div>
+      <p>
+        Düğümde görülen Thevenin direnci 9.09 kΩ. Oraya 100 nF koyunca kesim
+        <strong>178 Hz</strong>'e düşüyor — 8 kHz'lik osiloskoptan geriye
+        hiçbir şey kalmazdı.
+      </p>
+      <p class="duzeltme"><span class="yanlis">100 nF · 178 Hz</span>
+        <span class="ok">→</span><span class="dogru">1 nF · 17.8 kHz</span></p>
+    </article>
+
+    <article class="hata">
+      <div class="hata-ust"><span class="hata-no">03</span>
+        <h3>Her iki koruma diyotu da ters bağlıydı — ERC görmedi</h3></div>
+      <p>
+        Şema üretecindeki dönme formülünde 90°'de işaret hatası vardı.
+        Bu haliyle D1 ölçüm düğümünü sürekli 4.3 V'a çeker, D2 ise düğümü
+        0.7 V üstünde toprağa kısa devre ederdi. <strong>ERC sıfır ihlal
+        verdi</strong>, çünkü diyotun her iki ucu da bir yere bağlıydı.
+        Hata ancak netlist'teki pin işlevleri okunca ortaya çıktı.
+      </p>
+      <p class="duzeltme"><span class="yanlis">y = y₀ + px·sin + py·cos</span>
+        <span class="ok">→</span><span class="dogru">y = y₀ − (px·sin + py·cos)</span></p>
+    </article>
+
+    <article class="hata">
+      <div class="hata-ust"><span class="hata-no">04</span>
+        <h3>Şema doğruydu ama hiçbir tel çizilmiyordu</h3></div>
+      <p>
+        Tellerde <code>(width 0)</code> "proje varsayılanını kullan" demek.
+        Betiğin ürettiği minimal <code>.kicad_pro</code> dosyasında o varsayılan
+        yoktu, bu yüzden teller <strong>sıfır kalınlıkta</strong> çizildi.
+        ERC temiz, netlist doğru — ama PDF'e bakıp kuran biri hiçbir bağlantı
+        göremezdi.
+      </p>
+      <p class="duzeltme"><span class="yanlis">(width 0)</span>
+        <span class="ok">→</span><span class="dogru">(width 0.1524)</span></p>
+    </article>
+
+    <article class="hata">
+      <div class="hata-ust"><span class="hata-no">05</span>
+        <h3>Arduino'nun prototip üreteci struct'ı tanımıyordu</h3></div>
+      <p>
+        Arduino <code>.ino</code> dosyasının başına otomatik fonksiyon
+        prototipleri ekler. Kendi struct'ını döndüren <code>Okuma olc()</code>
+        fonksiyonunun prototipi, struct tanımından <strong>önce</strong>
+        yerleştiği için derleme <code>'Okuma' does not name a type</code>
+        ile durdu.
+      </p>
+      <p class="duzeltme"><span class="yanlis">struct .ino içinde</span>
+        <span class="ok">→</span><span class="dogru">tipler.h</span></p>
+    </article>
+
+    <article class="hata">
+      <div class="hata-ust"><span class="hata-no">06</span>
+        <h3>String, 2 KB SRAM'de yığın parçalanması riski</h3></div>
+      <p>
+        Komut okuma <code>String</code> kullanıyordu; AVR'de String yığından
+        yer alır ve yığıtla çakışıp sessiz çökmelere yol açar. Sabit tampona
+        çevirmek riski kaldırdı ve <strong>1.7 KB flash</strong> kazandırdı.
+      </p>
+      <p class="duzeltme"><span class="yanlis">String · 10042 B</span>
+        <span class="ok">→</span><span class="dogru">char[16] · 8444 B</span></p>
+    </article>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ arayüz ══════ -->
+<section>
+  <p class="etiket">Web Serial · vanilya Vue 3 · derleme adımı yok</p>
+  <h2>Arayüz</h2>
+  <p class="bolum-not">
+    Kart seri porttan makine biçiminde satır basıyor, tarayıcı doğrudan
+    okuyor. Aşağıdaki görüntü gerçek — headless tarayıcıda önizleme kipiyle
+    alındı.
+  </p>
+  <img class="ekran" src="{{ARAYUZ}}"
+       alt="Ölçüm Kartı arayüzü: anlık gerilim, akım, güç değerleri; zaman grafiği; osiloskop yakalaması">
+  <p class="altyazi">
+    Anlık V / A / W · enerji sayacı · üç serili zaman grafiği · osiloskop
+    yakalaması · kalibrasyon · CSV indirme. Vue yerel kopya, internetsiz çalışır.
+  </p>
+  <div class="uyari">
+    <p>
+      Web Serial güvenli bağlam ister — <code>file://</code> ile açılan sayfada
+      <code>navigator.serial</code> yoktur. <code>python arayuz/sunucu.py</code>
+      sayfayı <code>http://localhost</code> üzerinden veriyor; tek işi bu.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ kapanış ══════ -->
+<footer class="kapanis">
+  <div>
+    <h3>Sıradaki adım</h3>
+    <p>
+      TL431 referansını kur — beş parça, on dakika. Multimetreyle AREF'te
+      <strong>2.478 V</strong> oku. O tutarsa geri kalanı üstüne oturur.
+    </p>
+  </div>
+  <div>
+    <h3>Tek uyarı</h3>
+    <p>
+      <code>analogReference(EXTERNAL)</code> ilk <code>analogRead()</code>'den
+      <strong>önce</strong> çağrılmalı. Yoksa dahili referans harici referansla
+      kısa devre olur ve çip yanar.
+    </p>
+  </div>
+  <div>
+    <h3>Sonra ne var</h3>
+    <p>
+      Aşama 2: STM32F407 ile ~720 kHz osiloskop. Aşama 3: ESP-01 ile WiFi
+      izolasyonu — 400 V ölçümüne geçerken zorunlu olacak.
+    </p>
+  </div>
+</footer>
+
+<p class="dipnot">
+  Doğrulama zinciri: ngspice 46 (KiCad 10.0.6 içinden) · numpy 2.4 ·
+  kicad-cli 10.0.6 · arduino-cli 1.5.2 / avr 1.8.8 · node 24<br>
+  Kaynak: <code>projeler/olcum-karti/</code> — <code>python uretim/dogrula.py</code>
+  her şeyi baştan koşturur ve grafikleri yeniden üretir.
+</p>
+
+</div>
