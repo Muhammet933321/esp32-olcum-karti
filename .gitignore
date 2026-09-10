@@ -19,6 +19,16 @@ uretim/_b[0-9]*/
 uretim/_chk*/
 uretim/_lk*/
 
+# Simülasyon/üreteç çalışma dizinleri. Bunlar uretim/ altına açılıyor ve
+# dogrula3.py'nin temizlik listesinde YOK — aşama 1/2 betikleri hâlâ
+# üretiyor. Adları kaynaktan tarandı (B23.3 denetimi).
+uretim/_fs/
+uretim/_gecici/
+uretim/_s9_*/
+uretim/_a2_*/
+uretim/_a4_v*/
+uretim/_a4_i*/
+
 # KiCad ERC raporları — her koşuda yeniden üretiliyor
 uretim/erc*.rpt
 
@@ -32,6 +42,12 @@ uretim/erc*.rpt
 
 # Köprünün ölçüm günlüğü: kullanıcının kendi kayıtları, proje çöpü değil
 kopru/arsiv/
+
+# Fiyat karşılaştırma aracı — yerel kalsın, yayınlanmasın.
+# İki ticari siteyi adıyla hedefliyor, docstring'i bot engelini aşmayı
+# amaç olarak yazıyor ve makineye özgü bir Chrome yolu taşıyor.
+# Doğrulama zincirinin parçası DEĞİL; alışveriş için tek seferlik araç.
+uretim/fiyat_tara.py
 
 # Ağ kimlik bilgileri kartın NVS'inde tutuluyor, kaynakta değil —
 # ama biri buraya bir dosya bırakırsa diye:

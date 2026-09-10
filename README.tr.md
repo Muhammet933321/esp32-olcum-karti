@@ -85,9 +85,11 @@ Zincir sonunda iki şey üretiyor:
 Bir iddianın gerçekten ısırdığını görmek için:
 
 ```
-python mutasyon.py                 # hafif mutasyonlar (~2 dk)
+python mutasyon.py                 # hafif mutasyonlar (~15 s)
 python mutasyon.py --adim B22b     # tek adım
 python mutasyon.py --liste         # ne koşacağını yazar
+python mutasyon.py --adim B3       # tam zincir koşar (~12 dk) —
+python mutasyon.py --adim B23      # bu ikisi zincirin KENDİ korumalarını sınar
 ```
 
 Kaynağı **bozup** testin kırmızıya döndüğünü ölçüyor. Mutasyon bir
@@ -102,6 +104,44 @@ CSRF yüzeyi) ve malzeme listesi.
 
 > Zincir **tasarımı** doğrular, kurulmuş bir kartı değil. Gerçek bileşen
 > toleransları, sıcaklık sürüklenmesi ve gürültü tezgâhta ölçülür.
+
+---
+
+## ⚠️ Emniyet — önce bunu okuyun
+
+**615 V öldürür ve bu kart izole DEĞİL.** USB takılıyken kartın toprağı
+bilgisayarınızın toprağıdır; şebeke referanslı bir devreye (izole olmayan
+bir SMPS'in birincil tarafı gibi) bağlarsanız **bilgisayarınıza şebeke
+gerilimi taşırsınız.**
+
+**Pille yüzdürmek çözüm değil.** Arıza analizi (B15/D2) bunu ölçtü:
+yüzdürmek **bilgisayarı kurtarır, sizi kurtarmaz** — kart o anda şebeke
+potansiyeline çıkar ve **kartın her noktası** tehlikeli olur. 615 V,
+yüzen alet sınırının **14.6 katı**. Şebeke referanslı ölçüm için:
+
+* **yalıtımlı kutu şart** — hiçbir noktaya elle erişilememeli
+* delikli plakette takviyeli yalıtım için **5 delik atlayın** (12.7 mm)
+* enerji varken karta **dokunmayın**
+
+Ayrıntısı `BELGELER/4-kurulum.html`'in başındaki uyarıda.
+
+**Ağ tarafı:** tehlikeli komutlar (pil deşarjı başlatmak, kalibrasyon
+yazmak) her zaman oturum anahtarı ister, ama **web parolası varsayılan
+olarak KURULU DEĞİLDİR** — `Ns<parola>` ile kurana kadar ağınızdaki
+herkes bu komutları gönderebilir. Kart bunu açılışta yüksek sesle söyler.
+**Deşarjı durdurma komutu hiçbir şey istemez** — emniyet, kolaylıktan
+önce gelir.
+
+---
+
+## Lisans
+
+**MIT** — bkz. [LICENSE](LICENSE). Kullanın, değiştirin, satın; telif
+bildirimini koruyun. Arayüzdeki Vue 3.5.13 de MIT, aynı dosyada belirtildi.
+
+⚠️ Lisans hiçbir garanti vermiyor ve bu proje için bunun ağırlığı normalden
+fazla: **615 V'luk, hiç kurulmamış ve hiç ölçülmemiş** bir alet tasarımı.
+Kendi emniyetinizden siz sorumlusunuz.
 
 ---
 

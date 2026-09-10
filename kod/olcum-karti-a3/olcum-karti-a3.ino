@@ -2248,9 +2248,15 @@ void komut_calistir(const char *s) {
         ag_nvs.putString("ap_sifre", deg);
         Serial.println(F("* AP parolasi kaydedildi"));
       }
+      /* 🔴 Web parolasi ANINDA gecerli: web_yetkili() her istekte NVS'ten
+         okuyor. Eskiden buradaki tek ortak satir "bir sonraki acilista
+         gecerli" diyordu ve `Ns` (bos) ile korumayi KALDIRAN kullaniciya
+         korumanin surdugunu dusundurtuyordu. Mesaj artik alt komuta gore. */
       else if (alt == 's') { ag_nvs.putString("web_sifre", deg);
-                        Serial.println(strlen(deg) ? F("* web parolasi kuruldu")
-                                                   : F("* web parolasi KALDIRILDI")); }
+                        Serial.println(strlen(deg)
+                            ? F("* web parolasi kuruldu — HEMEN gecerli")
+                            : F("! web parolasi KALDIRILDI — komut ucu SU AN"
+                                " korumasiz")); break; }
       else if (alt == '1' || alt == '0') {
         ag_nvs.putUChar("acik", alt == '1');
         Serial.println(alt == '1' ? F("* ag ACIK") : F("* ag KAPALI"));

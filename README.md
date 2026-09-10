@@ -6,14 +6,23 @@ from a web browser — from a phone with no computer involved, or from a PC
 over USB.
 
 > **Status: the design is verified, the hardware is not built yet.**
-> Every number in this repository is computed or simulated, never typed by
-> hand. Nothing here has been measured on a physical board. What that means
-> in practice is spelled out in [What this repo does *not* prove](#what-this-repo-does-not-prove).
+> Nothing here has been measured on a physical board — every figure is
+> computed or simulated. What that means in practice is spelled out in
+> [What this repo does *not* prove](#what-this-repo-does-not-prove).
+>
+> The **generated** documents under `BELGELER/` and `uretim/_tezgah.md` take
+> every number from the design files, so they cannot drift. This README is
+> written by hand and is checked against the sources rather than generated.
 
-> **Language note.** The code comments, the engineering journal
-> ([`DEVIR.md`](DEVIR.md)) and the user documentation ([`BELGELER/`](BELGELER))
-> are in **Turkish** — that is the language this project was built in. This
+> **Language note.** Everything except this file is in **Turkish**: code
+> comments, the web interface, the serial console, the engineering journal
+> ([`DEVIR.md`](DEVIR.md)), the user documentation ([`BELGELER/`](BELGELER))
+> and the bench list. That is the language the project was built in. This
 > README is the English entry point. Türkçe rehber: [README.tr.md](README.tr.md).
+>
+> ℹ️ The `BELGELER/*.html` pages are **generated documents meant to be opened
+> in a browser** — GitHub shows them as source. Clone the repo (or download the
+> ZIP) and open `BELGELER/index.html` locally.
 
 ---
 
@@ -25,7 +34,7 @@ over USB.
 | **Voltage** — high channel | ±613.7 V | 4.9 MΩ divider chain |
 | **Current** | up to ±11.55 A | four shunt options: 10 / 1 / 0.1 / 0.015 Ω |
 | **Power · energy** | V × I, signed | true power with per-range phase calibration |
-| **Sample rate** | **665 Sa/s** | both channels sampled *simultaneously* (see below) |
+| **Sample rate** | **665 Sa/s** | two ADCs started back-to-back; the residual ~95 µs skew is removed in software |
 | **Oscilloscope** | −63.5 … +46.8 V | 611 – 83 333 Sa/s, 28.8 mV step |
 | **Battery test** | ≤ 38.5 V, 6.55 A | mAh **and** Wh, discharge curve, DC internal resistance |
 
@@ -55,10 +64,11 @@ to the board. Readings are archived on the PC instead of being limited by the
 board's memory. The board's Wi-Fi does **not** turn itself off in this mode —
 send `N0` over the serial console if you want the measurement loop left alone.
 
-> ⚠️ **USB is not always an option.** The board is **not isolated**: with USB
-> plugged in, the board's ground is your computer's ground. For a
-> mains-referenced circuit you must run on battery + Wi-Fi with USB unplugged —
-> i.e. mode 1. See [Safety](#safety).
+> ⚠️ **USB is not always an option, and Wi-Fi alone is not the answer either.**
+> The board is **not isolated**: with USB plugged in, its ground is your
+> computer's ground. Floating it on battery + Wi-Fi saves the computer but
+> **does not save you** — the board then sits at mains potential. See
+> [Safety](#safety) before measuring anything mains-referenced.
 
 ## What's in this repository
 
@@ -80,17 +90,34 @@ send `N0` over the serial console if you want the measurement loop left alone.
    generated from the schematic, so it can't drift from the design.
 2. **Assembly** — [`BELGELER/4-kurulum.html`](BELGELER/4-kurulum.html): seven
    steps, each ending in a measurement gate you must pass before continuing.
-3. **Firmware** — open `kod/olcum-karti-a3/olcum-karti-a3.ino` in the Arduino
-   IDE (ESP32 core 3.3.x, board `ESP32S3 Dev Module`, partition `huge_app`),
-   or compile with `arduino-cli`. It builds warning-free with `-Wall -Wextra`.
+   ⚠️ **There is no PCB in this repository** — no gerbers, no layout. The board
+   is built on perfboard by hand, and the guide is written for that. The
+   schematic is the design of record.
+3. **Firmware** — the board must be an **ESP32-S3 N16R8** (16 MB flash,
+   8 MB octal PSRAM). The full FQBN matters; the defaults will not work:
+
+   ```bash
+   arduino-cli compile --warnings all \
+     --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=huge_app \
+     kod/olcum-karti-a3
+   ```
+
+   In the Arduino IDE that is board *ESP32S3 Dev Module* with **PSRAM: OPI
+   PSRAM**, **Flash Size: 16MB**, **Partition Scheme: Huge APP**. With the
+   default `FlashSize=4M` only the first 4 MB is visible and the LittleFS
+   image at `0x310000` lands on the partition boundary; without `PSRAM=opi`
+   the 8 MB PSRAM never comes up. It builds warning-free with `-Wall -Wextra`.
+   The single source for this string is
+   [`uretim/hedef2.py`](uretim/hedef2.py).
 4. **Interface onto the board** —
    `cd uretim && python arayuz-uret.py && python arayuz-yaz.py` packs the UI
    into a LittleFS image and flashes it at offset `0x310000`.
 5. **PC bridge (optional)** — double-click `Kopru Baslat.bat`.
 
-**Footprint:** firmware **1 067 423 B (33 % of flash)**, **71 420 B RAM
-(21 %)**. The interface is **93 753 B** (7 assets, gzip-precompressed) inside a
-917 504 B LittleFS partition.
+**Footprint:** firmware **1 067 423 B**, which is 33 % of the 3 MB `huge_app`
+application partition (not of the 16 MB flash), plus **71 420 B RAM (21 %)**.
+The interface is **93 753 B** — 7 assets, 6 of them gzip-precompressed (the
+PNG icon is stored raw) — inside a 917 504 B LittleFS partition.
 
 ## The verification chain
 
@@ -142,9 +169,11 @@ python mutasyon.py --adim B3       # runs the whole chain (~12 min):
 python mutasyon.py --adim B23      # these two test the chain's OWN guards
 ```
 
-Each mutation runs against a **copy** of the tree, never in place — this
-project is not a git repo on the author's machine, so an interrupted in-place
-mutation would have no way back. On the day it was built, the runner found
+Each mutation runs against a **copy** of the tree, never in place. The runner
+was written before this project was under version control, when an interrupted
+in-place mutation would have had no way back; copying is still the right
+default, because a mutation run must never be able to damage the tree you are
+working in. On the day it was built, the runner found
 **three empty assertions** (one matched a substring so a renamed call still
 passed; one constant had no assertion at all) and **two invisible
 dependencies** that only appear when the project is run from a clean tree.
@@ -158,7 +187,9 @@ with an acceptance criterion. **9 of them are marked for the first day**, among
 them:
 
 - the `+3V3` rail being back-fed through the clamps when USB is unplugged while
-  the ±12 V supply is on — the calculated headroom is **18 mV**
+  the ±12 V supply is on — expected rail **1.670 V**, i.e. **1930 mV** of
+  headroom below the ESP32's 3.60 V limit. (Before the B18 fix it was 18 mV;
+  if you measure anything near 3.6 V a series resistor is missing.)
 - the sample count in the live data line: is it really ~133 per 200 ms?
 - the battery-test failsafe: reset the board mid-discharge and confirm the load
   actually disconnects
@@ -180,26 +211,52 @@ its bench items turns the chain red.
 Two things live **outside** this repository and are expected to be missing on a
 fresh clone — both are handled with an explicit message rather than a crash:
 
-- `arduino-cli.exe`, looked up two directories above the project root
+- `arduino-cli.exe`, looked up at `../../.araclar/arduino-cli.exe` relative to
+  the project root (a hidden tools directory outside the repo)
 - the author's personal component inventory (`stok-takip/envanter.csv`), which
-  the BOM step compares the design against. Without it, that comparison is
-  announced as skipped; the assertion-count lock will then report a difference
-  for that step, so run `python dogrula3.py --sayim-kilidi-yaz` once to set
-  your own baseline.
+  **two** steps compare the design against. Without it, B16 announces the skip
+  and keeps its assertion count intact, but **B9 exits early and the chain goes
+  red** — it stops before declaring its bench items, and that check is separate
+  from the count lock, so `--sayim-kilidi-yaz` does not silence it. Everything
+  the inventory step would tell you is already in
+  [`BELGELER/2-malzemeler.html`](BELGELER/2-malzemeler.html); the other 16
+  steps do not need it.
 
 Tool paths are currently hard-coded for Windows (`C:\Program Files\KiCad\10.0\bin`).
 
-## Safety
+**615 V is lethal, and this board is not isolated.** With USB connected, the
+board's ground is your computer's ground — connect it to a mains-referenced
+circuit (the primary side of a non-isolated SMPS, say) and you put mains on
+your computer.
 
-**615 V is lethal, and this board is not isolated** — it is connected to your
-computer over USB. Do not connect it to a mains-referenced circuit (for example
-the primary side of a non-isolated SMPS) unless you understand exactly what
-that means for every ground in the room. The assembly guide repeats this where
-it matters, and the failure-mode analysis
-([`uretim/sim3_ariza.py`](uretim/sim3_ariza.py), 111 assertions) quantifies
-over 30 abuse scenarios — reverse voltage, overvoltage, supply loss, component
-failure — against one acceptance criterion: *no single fault may kill the
-ESP32 or the PC.*
+**Floating the board on battery + Wi-Fi is not the fix.** The failure analysis
+measured exactly this case (scenario D2): floating **saves the PC, not you** —
+the board itself then rises to mains potential and *every point on it* becomes
+dangerous. 615 V is **14.6×** the limit for a floating instrument. For any
+mains-referenced measurement you need an **insulated enclosure** with no
+reachable metal, **5 skipped holes (12.7 mm)** on perfboard for reinforced
+creepage, and no touching the board while it is live. The assembly guide
+spells this out first, before any construction step.
+
+The failure-mode analysis ([`uretim/sim3_ariza.py`](uretim/sim3_ariza.py),
+111 assertions) quantifies **27 abuse scenarios** — reverse voltage,
+overvoltage, supply loss, component failure, user error — against one
+acceptance criterion: *no single fault may kill the ESP32 or the PC.* That
+criterion is about **equipment**, not about you; scenario D2 is the reason
+the sentence above exists.
+
+## License
+
+**MIT** — see [LICENSE](LICENSE). Use it, change it, sell it; keep the notice.
+
+The vendored Vue 3.5.13 in `arayuz3/vendor/` is MIT as well, credited in the
+same file.
+
+⚠️ The licence disclaims warranty, and that matters more than usual here: this
+is a **615 V instrument whose design has never been built or measured**. You
+are responsible for your own safety.
+
+## Safety
 
 Dangerous commands over the network (starting a battery discharge, writing
 calibration) always require a session token plus a custom header, which stops
@@ -210,3 +267,8 @@ commands. The firmware says so loudly at boot.
 
 **Stopping a discharge requires neither** — no token, no password, always.
 Safety comes before convenience.
+
+The paragraph above describes the **board**. The PC bridge applies the same
+rule at its own endpoint, but there the token travels over your LAN in clear
+text like everything else — it keeps other pages from driving your board, not
+a listener on the network.

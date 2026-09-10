@@ -71,7 +71,7 @@ Bu 9 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 20 | [!] +3V3 rayinin GERI BESLENMESI | En kritik olcum. USB'yi CIKAR, 24 V kaynagi TAKILI birak, +3V3 rayini voltmetreyle oku. 3.60 V'u asarsa ESP32 mutlak maksimumu asilmis demektir — hesap 3.582 V, pay 18 mV |
+| 20 | [!] +3V3 rayinin GERI BESLENMESI | En kritik olcum. USB'yi CIKAR, 24 V kaynagi TAKILI birak, +3V3 rayini voltmetreyle oku. Beklenen ray 1.670 V, ESP32 siniri 3.60 V, yani pay 1930 mV. 3.60 V'a yaklasiyorsa R41 ya da 10K seri dirençlerden biri YOK demektir (B18/F12 oncesi pay 18 mV idi) |
 | 21 | Acma SIRASI her iki yonde de guvenli mi | Yukaridaki olcumu iki sirayla da yap: once USB sonra 24 V, sonra tersi. Ikisi de gecmezse talimat degil DEVRE degisecek |
 | 22 | R41'in gercek degeri ve isinmasi | Geri besleme akimini sinirlayan parca. Olcum: devreden cikarip ohmmetre, sonra hata halinde 10 dk isinma |
 
@@ -80,8 +80,8 @@ Bu 9 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | # | Olcum | Kabul olcutu |
 |---|---|---|
 | 23 | Skop girisi VREF'i ne kadar kaydiriyor (capraz konusma) | Skop akimi artik GND'ye degil VREF'e gidiyor ve VREF BUTUN kanallarin referansi. Olcum: skop girisine 40 V ver, GERILIM kanalinin okumasi degisiyor mu bak — degisiyorsa VREF tamponu yetersiz |
-| 24 | Gercek menzil -65.2 .. +45.1 V mi | R23 2.7K'ya dusuruldu. Olcum: her iki uctan da sinira yakin DC ver, kirpma noktalarini oku |
-| 25 | Cozunurluk kaybi kabul edilebilir mi | Adim 11.1 mV'tan 26.9 mV'a cikti. Olcum: kucuk genlikli (1 V tepe) bir dalga sekli cizdir, basamaklanma goze batiyorsa karar yeniden gorusulecek |
+| 24 | Gercek menzil -63.5 .. +46.8 V mi | R23 2.7K'ya dusuruldu. Olcum: her iki uctan da sinira yakin DC ver, kirpma noktalarini oku |
+| 25 | Cozunurluk kaybi kabul edilebilir mi | Adim 28.8 mV (tek yonluyken 11.1 mV idi). Olcum: kucuk genlikli (1 V tepe) bir dalga sekli cizdir, basamaklanma goze batiyorsa karar yeniden gorusulecek |
 
 ## B17 ADS es zamanliligi ve faz
 

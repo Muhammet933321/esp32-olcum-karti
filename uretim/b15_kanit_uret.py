@@ -10,7 +10,7 @@ oturuma bagli bir gecici dizinde uretildi:
     ~/.claude/projects/<proje>/<oturum-id>/subagents/workflows/<run-id>/
 
 O dizin oturumla birlikte KAYBOLUR. Bu betik oradaki `journal.jsonl`
-dosyalarini okuyup `kanit/b15-arastirma.md` uretir — projenin `kanit/`
+dosyalarini okuyup `uretim/b15-arastirma.md` uretir — projenin `kanit/`
 klasoru zaten kalici kanit deposu (a2-tam-dogrulama.txt, s9-kayit.txt ...).
 
 Dizinler bulunamazsa betik SESSIZCE mevcut belgeyi korur ve 0 doner;

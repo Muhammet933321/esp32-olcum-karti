@@ -2,7 +2,7 @@
 	(version 20250114)
 	(generator "claude")
 	(generator_version "9.0")
-	(uuid "a8e2c1dc-1853-4264-be85-56be03e7e2e9")
+	(uuid "a6876ea0-044c-4ce9-9e56-e326331687dc")
 	(paper "A2")
 	(title_block
 		(title "Olcum Karti — Asama 3 (CIFT YONLU on uc, +-615 V)")
@@ -4318,7 +4318,7 @@
 	(text "BLOK 1  —  TL431 rayi 2.495 V  +  Vref 1.7153 V (TAMPONLU)"
 		(at 25.4 20.32 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "75ca9072-abba-4fb7-82cc-17543764b482")
+		(uuid "9fa88fc3-1493-46ed-b14d-fe0eebd2dcfe")
 	)
 	(symbol
 		(lib_id "power:+3V3")
@@ -4328,7 +4328,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "63b4fca2-075f-4234-bf05-2475c2085fa8")
+		(uuid "4c3b176e-8440-44bc-82bf-08d4520766b7")
 		(property "Reference" "#PWR001"
 			(at 43.84 27.48 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4343,7 +4343,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR001") (unit 1)
 				)
 			)
@@ -4357,7 +4357,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "d130276f-5494-40c2-a520-3c9d36599612")
+		(uuid "503a0c43-8bcb-445b-98de-d9592f7fabb2")
 		(property "Reference" "R1"
 			(at 43.84 37.64 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4372,7 +4372,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R1") (unit 1)
 				)
 			)
@@ -4386,7 +4386,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "94829105-a3ee-4060-8bd6-98b2f8f30dbe")
+		(uuid "8a61877c-0559-4a3e-8cc0-0ada54b518d2")
 		(property "Reference" "U1"
 			(at 43.84 55.42 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4401,7 +4401,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U1") (unit 1)
 				)
 			)
@@ -4415,7 +4415,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "67da7eeb-2ec8-441e-9f86-de5c2c143043")
+		(uuid "7e2133e3-13e9-4e14-a7dc-5c4249eef5f5")
 		(property "Reference" "C1"
 			(at 64.16 55.42 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4430,7 +4430,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C1") (unit 1)
 				)
 			)
@@ -4444,7 +4444,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "c7a646e3-d579-4ac7-8beb-71bf23dabf27")
+		(uuid "234ccdf7-cfa7-46fa-83b8-33d47904497b")
 		(property "Reference" "#PWR002"
 			(at 33.68 55.42 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4459,7 +4459,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR002") (unit 1)
 				)
 			)
@@ -4473,7 +4473,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "e9216672-b16a-4e7b-8085-7cd00095044f")
+		(uuid "a06c1660-bb70-493f-8123-9c707a901755")
 		(property "Reference" "#PWR003"
 			(at 64.16 65.58 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4488,7 +4488,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR003") (unit 1)
 				)
 			)
@@ -4499,89 +4499,89 @@
 			(xy 40.64 30.48) (xy 40.64 36.83)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a4ff05f3-24f4-455a-b256-8de18601418c")
+		(uuid "f00cf08c-2bc7-4178-81d7-bc27eb961756")
 	)
 	(wire
 		(pts
 			(xy 40.64 44.45) (xy 40.64 50.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "802e1ccd-8887-4a41-b8b3-bdbcc2542cb4")
+		(uuid "6e23ee4d-4edb-4330-b060-288258ec3606")
 	)
 	(wire
 		(pts
 			(xy 40.64 50.8) (xy 43.18 58.42)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d4d4741a-d8e2-4fc2-ab9a-53701acaebaf")
+		(uuid "cf3c9995-f12b-4595-9ae3-c3b34ae7bb2f")
 	)
 	(wire
 		(pts
 			(xy 38.1 58.42) (xy 30.48 58.42)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "df2f3220-d6dd-44ad-b29b-d9b24fbec4f8")
+		(uuid "99a2b964-f29b-4348-97d6-bc91eba7df39")
 	)
 	(wire
 		(pts
 			(xy 40.64 55.88) (xy 38.1 54.61)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a2bbdf16-4ac5-4ceb-8b08-b8087b911b15")
+		(uuid "22ee9339-5a8e-49e0-b7f2-edaeefaefc7a")
 	)
 	(wire
 		(pts
 			(xy 38.1 54.61) (xy 38.1 50.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "78d3df6e-e39b-44a9-b7c0-39f0fb886e5e")
+		(uuid "417821df-e3a8-4110-903a-7d03f03d7477")
 	)
 	(wire
 		(pts
 			(xy 38.1 50.8) (xy 40.64 50.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "5d0fff49-9114-497d-910e-5e59894a9825")
+		(uuid "0774a179-3660-4103-ad9b-e265cdc0be23")
 	)
-	(junction (at 40.64 50.8) (diameter 0.9144) (color 0 0 0 0) (uuid "6621afaa-6409-4481-a863-d9bee17121d8"))
+	(junction (at 40.64 50.8) (diameter 0.9144) (color 0 0 0 0) (uuid "74003b44-07a0-4cde-889e-e28335eeac11"))
 	(wire
 		(pts
 			(xy 40.64 50.8) (xy 60.96 50.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "ed9606f6-b0d8-49d6-a1d8-e9dcf661ff37")
+		(uuid "5b230996-8648-49aa-adb5-fb0a8186a960")
 	)
 	(wire
 		(pts
 			(xy 60.96 50.8) (xy 60.96 54.61)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "ec2d51b3-e25e-4c41-8d31-84fcae30d2f5")
+		(uuid "db43c5e7-e65a-42f1-b109-e20583f366fc")
 	)
-	(junction (at 60.96 50.8) (diameter 0.9144) (color 0 0 0 0) (uuid "bdda4253-7267-4260-8f7e-b6e1f78fe393"))
+	(junction (at 60.96 50.8) (diameter 0.9144) (color 0 0 0 0) (uuid "cf80d6e8-680e-4c1c-aa95-272d626a5f3f"))
 	(wire
 		(pts
 			(xy 60.96 62.23) (xy 60.96 68.58)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1b3b4866-bf81-430f-83b9-be3536174d04")
+		(uuid "2ceadb9f-8a7c-4157-8018-f7a4f61dd3f8")
 	)
 	(wire
 		(pts
 			(xy 60.96 50.8) (xy 71.12 50.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1b4d3246-0432-40f8-ac71-2fc978eeebbf")
+		(uuid "607bbdaf-ee0d-465c-8177-c8290616503a")
 	)
 	(label "TL_RAY"
 		(at 71.12 50.8 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "ce3aa6bd-9cef-454f-a66f-c451e0191066")
+		(uuid "23801231-aee7-4efd-86d5-cc3edebe65c5")
 	)
 	(label "TL_RAY"
 		(at 25.4 78.74 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "b89a85db-97a0-4c14-a4c0-4d335cb59ca0")
+		(uuid "d7fdca20-7c5c-48a8-964d-1a637bb345bc")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -4591,7 +4591,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ed39b2c8-4d89-4d22-8acc-2b6b96b4b279")
+		(uuid "3986d563-9067-458a-b5ca-5c34f64bf456")
 		(property "Reference" "R2"
 			(at 43.84 85.9 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4606,7 +4606,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R2") (unit 1)
 				)
 			)
@@ -4620,7 +4620,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "bbf78ade-e8ca-4bfc-99b6-508fc17ee329")
+		(uuid "67501b11-9d7f-48ca-b6b8-7472b87e1cf3")
 		(property "Reference" "R3"
 			(at 43.84 108.76 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4635,7 +4635,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R3") (unit 1)
 				)
 			)
@@ -4649,7 +4649,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "6c3658f8-0970-4504-b37d-25f225304185")
+		(uuid "07f199df-88f8-437b-9f42-f273cc9d0f64")
 		(property "Reference" "#PWR004"
 			(at 43.84 118.92 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4664,7 +4664,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR004") (unit 1)
 				)
 			)
@@ -4675,35 +4675,35 @@
 			(xy 25.4 78.74) (xy 40.64 78.74)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "b9963bb0-770a-48fb-995a-c2ae6cccd688")
+		(uuid "3c8891e1-538a-4e05-9687-24e3d641e1f2")
 	)
 	(wire
 		(pts
 			(xy 40.64 78.74) (xy 40.64 85.09)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3084f746-e4ca-4c46-a2d7-483df09c23dc")
+		(uuid "d07a35cd-6a48-41a1-b1b1-8bd58223ab5d")
 	)
 	(wire
 		(pts
 			(xy 40.64 92.71) (xy 40.64 99.06)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "8a632794-3fca-4e74-bdce-efd26a45ba5e")
+		(uuid "411b0eab-babb-403b-85d7-7515e5068401")
 	)
 	(wire
 		(pts
 			(xy 40.64 99.06) (xy 40.64 107.95)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1ccbf5cb-e412-4652-9ee4-88b31e98994e")
+		(uuid "30ac0cd0-b376-4d8a-9e7a-ef82966cca02")
 	)
 	(wire
 		(pts
 			(xy 40.64 115.57) (xy 40.64 121.92)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "cd5e914c-154f-452d-965e-b151a3810eab")
+		(uuid "b0453d84-691f-4e8b-894c-2afe5879e6e9")
 	)
 	(symbol
 		(lib_id "Amplifier_Operational:LM358")
@@ -4713,7 +4713,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8eb19937-9728-4d54-a2d3-f5204b13ca6e")
+		(uuid "076e831a-3b99-44b5-a606-3482727deb98")
 		(property "Reference" "U3"
 			(at 74.32 96.06 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4728,7 +4728,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U3") (unit 1)
 				)
 			)
@@ -4739,62 +4739,62 @@
 			(xy 40.64 99.06) (xy 63.5 96.52)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3d6ffe0d-874b-4792-b9a3-9ce3c227f91f")
+		(uuid "b79898f9-69f2-4a42-b3aa-cd34b1b3517f")
 	)
 	(wire
 		(pts
 			(xy 78.74 99.06) (xy 81.28 99.06)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "5de91465-4a0d-49d8-9788-dccc3f6cfaa9")
+		(uuid "517e7c51-b0df-49d0-9e14-e59764d59710")
 	)
 	(wire
 		(pts
 			(xy 81.28 99.06) (xy 96.52 99.06)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "026274ee-48ee-42ed-be92-c56e08df4232")
+		(uuid "482e0500-e345-48b3-a65f-ce5fec423069")
 	)
 	(wire
 		(pts
 			(xy 63.5 101.6) (xy 60.96 96.52)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4a885ffb-a610-4b00-8af5-8b29bfd762ea")
+		(uuid "645af141-ba95-4c8d-9e29-e0abf0838960")
 	)
 	(wire
 		(pts
 			(xy 60.96 96.52) (xy 60.96 106.68)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "144a1ff3-e995-47f8-b74c-31f60ace7041")
+		(uuid "45aa37bc-c348-465a-87c4-bf06594dd6c0")
 	)
 	(wire
 		(pts
 			(xy 60.96 106.68) (xy 81.28 106.68)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d8dc935e-c8b4-4526-9f19-e4b0810c913e")
+		(uuid "ad5b3839-205d-4235-b307-f1e7c023d982")
 	)
 	(wire
 		(pts
 			(xy 81.28 106.68) (xy 81.28 99.06)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "97336e09-1d54-47b3-aab9-536d73460fcb")
+		(uuid "979958e9-78b3-410d-a567-6cec2f4115c8")
 	)
-	(junction (at 81.28 99.06) (diameter 0.9144) (color 0 0 0 0) (uuid "19aa0d46-5981-4ecc-a09f-eb6282c62700"))
+	(junction (at 81.28 99.06) (diameter 0.9144) (color 0 0 0 0) (uuid "c255465e-9762-4463-8478-27c4cafa797e"))
 	(label "VREF"
 		(at 96.52 99.06 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "36ea6887-4ac3-41b4-b373-f703aa2c96e5")
+		(uuid "4e3e8745-e4eb-49b4-b6ec-b2354468f4f5")
 	)
 	(wire
 		(pts
 			(xy 96.52 99.06) (xy 109.22 99.06)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "106b71c1-2dc1-446b-a78a-464118486710")
+		(uuid "3cb01dbc-fd48-40b7-b2ca-09deca2f96ef")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -4804,7 +4804,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "5080da90-ee86-4b28-a67c-936310289fe5")
+		(uuid "5080ee36-a8d4-46e4-b2f0-d4467187de04")
 		(property "Reference" "R36"
 			(at 116.23 96.06 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4819,7 +4819,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R36") (unit 1)
 				)
 			)
@@ -4830,37 +4830,37 @@
 			(xy 116.84 99.06) (xy 124.46 99.06)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "2ae053ca-9376-4d19-90ac-2ce582edab52")
+		(uuid "1a7cc9f0-bae8-4782-86f0-c8aa20103248")
 	)
 	(label "VREF_ADS"
 		(at 124.46 99.06 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "82995207-8d45-437d-98ac-7c74f2fb4714")
+		(uuid "6c715caf-09fb-467b-a264-cc2cba39bbb3")
 	)
 	(text "Vref TAMPONSUZ OLAMAZ: iki bolucunun akimi (~290 uA) 6.9 kohm'luk"
 		(at 25.4 132.08 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "f1d33a31-2c2d-486e-bb63-27ead0558d21")
+		(uuid "c00c99f3-c56c-4db3-adf9-09c5bfa8c033")
 	)
 	(text "bolucu Thevenin'inden aksa 2 V'a varan kayma yapardi."
 		(at 25.4 137.16 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "4e7b0936-4fcf-4f09-915a-042cd6c3ba39")
+		(uuid "e00974f5-6d1e-450a-8475-c6a00d1af695")
 	)
 	(text "Vref hatasi girise vurulmus SABIT ofsettir (N'den bagimsiz),"
 		(at 25.4 142.24 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "8af42b22-7819-43fd-ac97-dc6ccbd23904")
+		(uuid "18c5aead-53c4-44a7-9638-0afd71a9a943")
 	)
 	(text "kazanc hatasi degil — sifir kalibrasyonu siler."
 		(at 25.4 147.32 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "79d4759d-4330-4021-a17a-dfe7575b84ad")
+		(uuid "c1c653d8-3bc2-466e-b31b-2f71bda17990")
 	)
 	(text "BLOK 2  —  NORMAL gerilim  +-32.4 V  (220K / 6.8K)  ->  ADS #2 AIN0"
 		(at 137.16 20.32 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "2150f366-7bde-4563-9145-ef1a2fb9f08b")
+		(uuid "9c334516-f9f4-4a5a-9148-30f0c63e906c")
 	)
 	(symbol
 		(lib_id "Connector:Screw_Terminal_01x02")
@@ -4870,7 +4870,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "0958d379-89e4-49fc-968c-feac5515c7fe")
+		(uuid "31a74e1e-5465-4e6f-b953-868424443458")
 		(property "Reference" "J1"
 			(at 140.36 30.02 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4885,7 +4885,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "J1") (unit 1)
 				)
 			)
@@ -4899,7 +4899,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "4f477a73-f2b8-4134-af00-440b99bf5b25")
+		(uuid "e941a30a-d3da-4bc9-88fa-050df3624d27")
 		(property "Reference" "#PWR005"
 			(at 153.06 27.48 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4914,7 +4914,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR005") (unit 1)
 				)
 			)
@@ -4925,26 +4925,26 @@
 			(xy 142.24 33.02) (xy 162.56 33.02)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "dbad656f-2696-4762-8551-8f05ac04a223")
+		(uuid "634f38f2-8d15-4489-9edb-6f9a572a9fac")
 	)
 	(wire
 		(pts
 			(xy 162.56 33.02) (xy 162.56 38.1)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1b8693e3-dd22-44a4-9fbc-9863f2554f98")
+		(uuid "b88b30d3-9d7e-450b-be84-8cdae13c6a7d")
 	)
 	(wire
 		(pts
 			(xy 142.24 30.48) (xy 149.86 30.48)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "cc77362e-c108-4856-97ac-782bad97c31e")
+		(uuid "f267e2f1-fb9c-4a5b-bf77-2ab2c88e8688")
 	)
 	(label "V_GIRIS"
 		(at 162.56 38.1 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "499f9303-237e-4d1d-8eba-8028db4e0b15")
+		(uuid "e9488d3b-4f9e-4ada-85bb-af4437187b2c")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -4954,7 +4954,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "48550db5-b08b-4891-b142-662c4c73e834")
+		(uuid "5b29e516-296a-4879-8e61-01a088da1e53")
 		(property "Reference" "R4"
 			(at 165.76 60.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -4969,7 +4969,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R4") (unit 1)
 				)
 			)
@@ -4980,14 +4980,14 @@
 			(xy 162.56 38.1) (xy 162.56 59.69)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "cdda8558-4fef-47f5-97c4-0b4ad77b223c")
+		(uuid "3c5308b4-2439-46b2-a708-6922c940647d")
 	)
 	(wire
 		(pts
 			(xy 162.56 67.31) (xy 162.56 88.9)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "6fc403f4-53ad-4ee9-841e-bacf36f76cde")
+		(uuid "f4948e64-c7c3-44f1-8141-d0af03b90d03")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -4997,7 +4997,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "07d41a57-2e73-4f09-b5fd-c1e6e01a614a")
+		(uuid "64cf5248-353d-44f6-a351-8ae3e7bd79ea")
 		(property "Reference" "R6"
 			(at 165.76 96.06 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5012,7 +5012,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R6") (unit 1)
 				)
 			)
@@ -5023,19 +5023,19 @@
 			(xy 162.56 88.9) (xy 162.56 95.25)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "969d4bd9-1208-4836-9599-b544c054bf9a")
+		(uuid "ba94a773-c38a-489a-9283-2d6cc07eca78")
 	)
 	(label "VREF"
 		(at 162.56 111.76 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "1779a89f-d799-40df-bfc7-075d3dcfbbc6")
+		(uuid "5f7653eb-3c21-45e9-abeb-4ce08c121fb5")
 	)
 	(wire
 		(pts
 			(xy 162.56 102.87) (xy 162.56 111.76)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f25ac6c2-893d-473b-83a0-623c6392ef24")
+		(uuid "a11cfe58-3e82-4184-9588-fed96be856b6")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -5045,7 +5045,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "bf38f24e-9f77-4dc5-ba93-17e7823e52b2")
+		(uuid "7b9e467f-8759-4096-b341-1dee93a447f5")
 		(property "Reference" "R7"
 			(at 181.0 85.9 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5060,7 +5060,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R7") (unit 1)
 				)
 			)
@@ -5074,7 +5074,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "58be0a12-f1d5-44e2-95ff-a4a37d3933f2")
+		(uuid "282bcb78-8c14-4849-80e6-dcfec1a80a05")
 		(property "Reference" "C2"
 			(at 193.7 96.06 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5089,7 +5089,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C2") (unit 1)
 				)
 			)
@@ -5100,35 +5100,35 @@
 			(xy 162.56 88.9) (xy 173.99 88.9)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1a1439c6-9db2-44f9-8196-88888aa4e64f")
+		(uuid "84720056-b550-450e-a411-1095f5b4b214")
 	)
 	(wire
 		(pts
 			(xy 181.61 88.9) (xy 190.5 88.9)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e94391be-e386-42a3-b723-7afc54997887")
+		(uuid "bccc953c-dbf1-4d88-bda1-243e272f0734")
 	)
 	(wire
 		(pts
 			(xy 190.5 88.9) (xy 190.5 95.25)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "390cac83-b4cc-40a1-ace0-9ed8bcd4da64")
+		(uuid "90ff5495-2115-4799-a7b3-4b944b4d9184")
 	)
 	(label "VREF"
 		(at 190.5 111.76 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "fa50616e-41c4-4004-94a4-9cbb6d04ae54")
+		(uuid "ecc937ce-5a78-437e-bc3a-d0dd3081f0aa")
 	)
 	(wire
 		(pts
 			(xy 190.5 102.87) (xy 190.5 111.76)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1ba05260-a863-4d8d-af07-8478831701ce")
+		(uuid "e96a95b3-292a-4f1d-990a-306809829467")
 	)
-	(junction (at 190.5 88.9) (diameter 0.9144) (color 0 0 0 0) (uuid "149eca80-ff4b-4409-839c-75396c86a50d"))
+	(junction (at 190.5 88.9) (diameter 0.9144) (color 0 0 0 0) (uuid "e719c873-554e-49a2-a24b-4ab4dd83a250"))
 	(symbol
 		(lib_id "Amplifier_Operational:LM358")
 		(at 213.36 88.9 0)
@@ -5137,7 +5137,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "4593e5e6-fea3-4acc-9fe3-a755f01e4922")
+		(uuid "3b5ba214-8f68-4fed-a6e4-faffd5ab6dc4")
 		(property "Reference" "U3"
 			(at 216.56 85.9 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5152,7 +5152,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U3") (unit 2)
 				)
 			)
@@ -5163,62 +5163,62 @@
 			(xy 190.5 88.9) (xy 205.74 86.36)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e13aa479-2f60-4f1d-b54f-550a2ecbd90b")
+		(uuid "771b2420-7c16-4cc1-b1be-81327e4c5c5e")
 	)
 	(wire
 		(pts
 			(xy 220.98 88.9) (xy 223.52 88.9)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "02b45253-5964-4d63-84e1-eeecb206e5e5")
+		(uuid "9f2dd1c8-2933-470a-a73e-6e323151dd6e")
 	)
 	(wire
 		(pts
 			(xy 223.52 88.9) (xy 238.76 88.9)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "b35b5200-2977-4de8-9f12-bbd091de2286")
+		(uuid "2956ad01-a9d1-4310-b4e9-7a2c0f9459b3")
 	)
 	(wire
 		(pts
 			(xy 205.74 91.44) (xy 203.2 86.36)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3cb44e9f-ee4d-4b5a-a870-34fae8c6b5c1")
+		(uuid "262523c9-cecb-4620-b0b2-53abb424c313")
 	)
 	(wire
 		(pts
 			(xy 203.2 86.36) (xy 203.2 78.74)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d6fbe744-7dd4-4c7c-9a9e-eb4a4d1fac97")
+		(uuid "83c93d43-c233-41cd-8c4f-211f7f4a517d")
 	)
 	(wire
 		(pts
 			(xy 203.2 78.74) (xy 223.52 78.74)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f52f09db-e485-4609-a410-e5377dd2f317")
+		(uuid "2f6ca827-69ed-4076-8769-5020fd953bef")
 	)
 	(wire
 		(pts
 			(xy 223.52 78.74) (xy 223.52 88.9)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3ca3f962-deb5-4c78-b830-fe60a622470e")
+		(uuid "c9c152d2-c04d-42f4-b0db-ce44411c519c")
 	)
-	(junction (at 223.52 88.9) (diameter 0.9144) (color 0 0 0 0) (uuid "5cb0eb14-5f7a-4f76-9c59-a9af5722b05a"))
+	(junction (at 223.52 88.9) (diameter 0.9144) (color 0 0 0 0) (uuid "d09f6699-83c3-4a5d-8034-693bf8c05c03"))
 	(label "V_TAMPON"
 		(at 238.76 88.9 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "7e47ed63-ada5-4f0d-a33a-cbb03df0627b")
+		(uuid "2b7211dd-67bd-4e40-a7bc-a18599bba33a")
 	)
 	(wire
 		(pts
 			(xy 238.76 88.9) (xy 242.57 88.9)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "6d6bafd5-431e-4504-b235-cc7f9966731d")
+		(uuid "6c88566a-c890-4cdd-897f-21ab9097f0fe")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -5228,7 +5228,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "3fa68c4a-e9e2-4075-a1dc-666b5979f118")
+		(uuid "ade54329-db21-43bd-b422-15eb0d0b7001")
 		(property "Reference" "R34"
 			(at 249.58 85.9 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5243,7 +5243,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R34") (unit 1)
 				)
 			)
@@ -5254,47 +5254,47 @@
 			(xy 250.19 88.9) (xy 254.0 88.9)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f787bcae-f660-4215-9d6c-6173bf8c20eb")
+		(uuid "b3112a1b-206b-44d7-8c30-d147977270a7")
 	)
 	(label "V_ADS"
 		(at 254.0 88.9 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "6c8ff68a-1ba4-42e7-a153-aa2018786ec2")
+		(uuid "daf5a223-b714-4095-8a7f-ffbabec18ea8")
 	)
 	(text "Simetrik menzil +-32.44 V @ PGA +-1.024, adim 1.042 mV."
 		(at 137.16 124.46 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "3a259273-d680-4e4c-9d0a-c9427be7f9ae")
+		(uuid "596ec66b-c405-4273-9fb6-61a69d400ae3")
 	)
 	(text "Menzil Vref kadar YUKARI kaymistir: -32.44 .. +35.87 V."
 		(at 137.16 119.38 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "8013ab70-471a-4ec7-a2ad-4567fd1824bf")
+		(uuid "5edb0dce-245b-43b8-97bc-e251595d5ab0")
 	)
 	(text "Bolucunun ALT ucu GND'ye degil VREF'e gidiyor: fark = (Vin-Vref)/N,"
 		(at 137.16 129.54 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "d61275eb-38ab-44bd-8b72-0666374ddc4e")
+		(uuid "729b8221-2cb0-4600-b586-3d04d7320776")
 	)
 	(text "ADS diferansiyel okudugu icin ISARETLI -> negatif kendiliginden geliyor."
 		(at 137.16 134.62 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "3948b7a6-1bba-4fa2-9abf-92ba6c97ecb5")
+		(uuid "832b882e-85e2-47a0-9380-6891fd44b00f")
 	)
 	(text "TAMPON ZORUNLU: tamponsuz bolucude ADS'in giris empedansi PGA ile"
 		(at 137.16 139.7 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "5d409e1b-98d4-4be3-bc36-c77ae0fdc5a5")
+		(uuid "b6b098ab-81c3-41ed-8b7a-580f317b4752")
 	)
 	(text "degistigi icin oto-kademe %0.67 puan kazanc sicramasi yapiyor (4.14)."
 		(at 137.16 144.78 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "3c485784-a358-46d6-bc10-bf368b1c0cd0")
+		(uuid "500d0d66-8d9a-4fcc-aef6-8bbe8ea5b685")
 	)
 	(text "BLOK 3  —  YUKSEK gerilim  +-613.7 V  (6x820K / 8.2K)  ->  ADS #2 AIN2"
 		(at 269.24 20.32 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "92dbf2ae-d104-4bf1-b4e4-eb5aa46cbfd0")
+		(uuid "ba4ee470-a76d-4355-850d-65e1a0c45cdf")
 	)
 	(symbol
 		(lib_id "Connector:Screw_Terminal_01x02")
@@ -5304,7 +5304,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "535494b8-1e80-4546-bb0f-ecdc938629cc")
+		(uuid "cbd59927-9ae4-4008-867a-3eaaae7e66cb")
 		(property "Reference" "J2"
 			(at 272.44 30.02 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5319,7 +5319,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "J2") (unit 1)
 				)
 			)
@@ -5333,7 +5333,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "41194ba2-18cc-412d-a379-29161f7ef64d")
+		(uuid "3c761112-bc9d-46df-93cc-742d83846bbb")
 		(property "Reference" "#PWR006"
 			(at 285.14 27.48 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5348,7 +5348,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR006") (unit 1)
 				)
 			)
@@ -5359,26 +5359,26 @@
 			(xy 274.32 33.02) (xy 294.64 33.02)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "799c4838-c7cf-456f-9c79-a65d55d44c56")
+		(uuid "2259875e-a78f-46c0-9e4b-fa70565b1fec")
 	)
 	(wire
 		(pts
 			(xy 294.64 33.02) (xy 294.64 38.1)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "78515e08-6650-493f-bcde-298a01c028cd")
+		(uuid "ffeacb96-8ba3-4459-9ba5-cad3d3acb8cf")
 	)
 	(wire
 		(pts
 			(xy 274.32 30.48) (xy 281.94 30.48)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "8b63c676-dc23-4676-98e0-08c7a2b78ac8")
+		(uuid "a0a211be-7eb4-472f-9eb3-af605605076f")
 	)
 	(label "HV_GIRIS"
 		(at 294.64 38.1 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "820b1a60-1258-4ee4-b7ed-d24dbe9c7413")
+		(uuid "d2e084eb-a103-479e-b22d-d5e03c47a1f5")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -5388,7 +5388,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "2ee0a667-5580-47d1-a2e6-788c3e3e895e")
+		(uuid "56afdcfc-ba41-4595-bd3d-fafbd04d6ef8")
 		(property "Reference" "R10"
 			(at 297.84 45.26 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5403,7 +5403,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R10") (unit 1)
 				)
 			)
@@ -5417,7 +5417,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "30feac05-f089-4f5c-9826-6f578176a21f")
+		(uuid "0e0d582f-3552-498e-ae84-66715ae6c1ff")
 		(property "Reference" "R11"
 			(at 297.84 57.96 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5432,7 +5432,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R11") (unit 1)
 				)
 			)
@@ -5446,7 +5446,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "6416de93-a023-4e4c-b869-d2b8581c4579")
+		(uuid "200634ef-7bb2-43ea-8809-13d7e21ee9ff")
 		(property "Reference" "R12"
 			(at 297.84 70.66 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5461,7 +5461,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R12") (unit 1)
 				)
 			)
@@ -5475,7 +5475,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "9997ff8a-eabb-462d-a048-cff05ef42f70")
+		(uuid "56a22861-5bce-4e6d-8277-e05d7c57d231")
 		(property "Reference" "R13"
 			(at 297.84 83.36 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5490,7 +5490,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R13") (unit 1)
 				)
 			)
@@ -5504,7 +5504,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "205951bd-3034-4348-9e8b-eeff11f89cd2")
+		(uuid "0c8a7603-d964-4849-84de-ef86899b71c9")
 		(property "Reference" "R14"
 			(at 297.84 96.06 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5519,7 +5519,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R14") (unit 1)
 				)
 			)
@@ -5533,7 +5533,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "673c2a92-a071-416b-88f2-b3b744b8358b")
+		(uuid "85cd1b43-5a69-4a84-8078-dd57c8e150ce")
 		(property "Reference" "R15"
 			(at 297.84 108.76 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5548,7 +5548,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R15") (unit 1)
 				)
 			)
@@ -5559,49 +5559,49 @@
 			(xy 294.64 52.07) (xy 294.64 57.15)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f5cdecc5-1a68-47ad-9f98-086481ca3ea8")
+		(uuid "0df172ed-1c3b-498a-b3c8-cb2414695838")
 	)
 	(wire
 		(pts
 			(xy 294.64 64.77) (xy 294.64 69.85)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "5bf82488-b907-40f4-bb13-c02e7b12cb7c")
+		(uuid "40bbf7d8-be52-4349-8b70-09c84780022e")
 	)
 	(wire
 		(pts
 			(xy 294.64 77.47) (xy 294.64 82.55)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "57863137-d65b-409c-a634-7b3ff367b6da")
+		(uuid "b63672a3-42bc-4c63-a821-5bf68e1208b5")
 	)
 	(wire
 		(pts
 			(xy 294.64 90.17) (xy 294.64 95.25)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3755ff3f-f3bc-426e-81a7-d9d05cd3d8ab")
+		(uuid "778bea6c-5b31-4a57-bd16-e6c285c2742e")
 	)
 	(wire
 		(pts
 			(xy 294.64 102.87) (xy 294.64 107.95)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "7493cc03-af98-432c-8cb9-decf97f642ac")
+		(uuid "a71b2c75-74ca-4287-9002-736b6935fc5e")
 	)
 	(wire
 		(pts
 			(xy 294.64 38.1) (xy 294.64 44.45)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "af359ee6-1284-40fc-a25a-db6cafecb7a9")
+		(uuid "52e2b0d6-9d34-4f71-8c66-9adbfbda5782")
 	)
 	(wire
 		(pts
 			(xy 294.64 115.57) (xy 294.64 129.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4fbb1ca7-c011-4a1c-be8d-8eb69af1711e")
+		(uuid "bbe67578-189e-47e2-83fe-5a4c1a401767")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -5611,7 +5611,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "4ff63cce-30e3-48b5-81a6-45b7b568db5d")
+		(uuid "1fe74f30-a2bf-4d6d-99e6-f6a660cc05e9")
 		(property "Reference" "R16"
 			(at 297.84 136.7 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5626,7 +5626,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R16") (unit 1)
 				)
 			)
@@ -5637,19 +5637,19 @@
 			(xy 294.64 129.54) (xy 294.64 135.89)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "0f3c039a-cb34-43d6-ad9a-010e4e0ad612")
+		(uuid "64e97b4d-c32f-45c0-9e51-3444d758b5ee")
 	)
 	(label "VREF"
 		(at 294.64 152.4 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "e772d218-9e64-498e-ade7-c7d48037fd69")
+		(uuid "ef8816c1-a46b-47c0-a076-5682977f3b82")
 	)
 	(wire
 		(pts
 			(xy 294.64 143.51) (xy 294.64 152.4)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f9e09177-6a47-4479-8671-e594071af038")
+		(uuid "b57f95fd-b872-4bba-bea0-b0685f984993")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -5659,7 +5659,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ca70e3c2-1739-4ced-9d56-9cf6f23dda90")
+		(uuid "ab63cc05-facb-491b-a023-2762616d2d3b")
 		(property "Reference" "R17"
 			(at 325.78 126.54 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5674,7 +5674,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R17") (unit 1)
 				)
 			)
@@ -5685,7 +5685,7 @@
 			(xy 294.64 129.54) (xy 318.77 129.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "19dfd101-5a62-4d13-9ab6-d673685400db")
+		(uuid "548eb134-1935-4282-be37-ce81daf1cb06")
 	)
 	(symbol
 		(lib_id "Device:C")
@@ -5695,7 +5695,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "da309669-f74e-41b3-873b-b114f2451625")
+		(uuid "7b632433-bf57-4db4-9ba2-740bcd33b722")
 		(property "Reference" "C3"
 			(at 348.64 136.7 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5710,7 +5710,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C3") (unit 1)
 				)
 			)
@@ -5721,28 +5721,28 @@
 			(xy 326.39 129.54) (xy 345.44 129.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "660439db-5c60-4ae0-9bbf-b17e88243ec8")
+		(uuid "7369d36f-d1d8-46d4-911f-66c71ecdbd27")
 	)
 	(wire
 		(pts
 			(xy 345.44 129.54) (xy 345.44 135.89)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "532d660f-c981-4285-8608-acbc03bc164e")
+		(uuid "70c163ae-38f9-4ca0-9f68-2b5e457ec435")
 	)
 	(label "VREF"
 		(at 345.44 152.4 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "92352426-34e9-4e8d-83a0-0b9cde257d28")
+		(uuid "c779a9c9-527d-46f9-8ebb-5ce3f36bd534")
 	)
 	(wire
 		(pts
 			(xy 345.44 143.51) (xy 345.44 152.4)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f40b0ce5-45e5-4979-9923-8fcb71e57fa7")
+		(uuid "7be5010f-206a-484f-9b4d-77aa454e251f")
 	)
-	(junction (at 345.44 129.54) (diameter 0.9144) (color 0 0 0 0) (uuid "550c17e2-7a04-4394-9a7f-2f6041fdb4b6"))
+	(junction (at 345.44 129.54) (diameter 0.9144) (color 0 0 0 0) (uuid "a7f6b6ea-f002-488e-9538-401c59140108"))
 	(symbol
 		(lib_id "Amplifier_Operational:LM358")
 		(at 368.3 129.54 0)
@@ -5751,7 +5751,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b590270d-1afd-42d1-8305-dfe19e8b6aa4")
+		(uuid "432b7b49-a1f0-4e14-9e12-1e74d02c5ac5")
 		(property "Reference" "U4"
 			(at 371.5 126.54 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5766,7 +5766,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U4") (unit 1)
 				)
 			)
@@ -5777,62 +5777,62 @@
 			(xy 345.44 129.54) (xy 360.68 127.0)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "50a74442-4def-4d36-90c3-ef0a1f72613e")
+		(uuid "80c9ecab-dc10-4f5f-9dbe-7a4e39af8d27")
 	)
 	(wire
 		(pts
 			(xy 375.92 129.54) (xy 378.46 129.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "405e9a55-4289-402d-998a-97960a3e1c6c")
+		(uuid "3f2e19ba-b915-4d2f-88ad-95196f1d5a08")
 	)
 	(wire
 		(pts
 			(xy 378.46 129.54) (xy 393.7 129.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "c6b9d960-27bc-4280-a3fe-a846c26dabc8")
+		(uuid "d30613f8-d04b-46a7-9ad5-293da8274d24")
 	)
 	(wire
 		(pts
 			(xy 360.68 132.08) (xy 358.14 127.0)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "2b1c738e-14bb-48ea-b393-9c10d88ef244")
+		(uuid "a9ae7329-67eb-4a28-a023-d04e8768463d")
 	)
 	(wire
 		(pts
 			(xy 358.14 127.0) (xy 358.14 119.38)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e0ec7320-8aaa-4804-b42a-985753b7e473")
+		(uuid "e4a2fbeb-f437-4f9e-b4c2-1bc5c195f475")
 	)
 	(wire
 		(pts
 			(xy 358.14 119.38) (xy 378.46 119.38)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "76961506-2ee1-4060-9b01-50e7b86ee4b3")
+		(uuid "99dec5f7-6989-4d83-b0f6-29209464afdc")
 	)
 	(wire
 		(pts
 			(xy 378.46 119.38) (xy 378.46 129.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f0c3c156-08cf-490c-8b17-dd16179702d4")
+		(uuid "8fa8e89c-dd7a-4f56-b31a-49fc23d0881b")
 	)
-	(junction (at 378.46 129.54) (diameter 0.9144) (color 0 0 0 0) (uuid "b4b3efae-bc37-46b1-95a2-5daaced1d829"))
+	(junction (at 378.46 129.54) (diameter 0.9144) (color 0 0 0 0) (uuid "b4c2cd2c-0dfa-4e8b-a1b3-aa57e647ebd3"))
 	(label "HV_TAMPON"
 		(at 393.7 129.54 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "01ad7148-89aa-47ea-b489-02308e816711")
+		(uuid "5eac20f5-e85e-47bc-8f30-9e1c77af5c16")
 	)
 	(wire
 		(pts
 			(xy 393.7 129.54) (xy 393.7 137.16)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d0af6e8f-15a2-451b-863d-5183b3538477")
+		(uuid "7b321b91-0fe7-41db-8a45-a089394c06fc")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -5842,7 +5842,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "aa994410-28ca-4ac6-a5c4-d314dc20b389")
+		(uuid "e8fb31b0-cc73-41cf-a70e-851e2290ab27")
 		(property "Reference" "R35"
 			(at 396.9 137.97 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5857,7 +5857,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R35") (unit 1)
 				)
 			)
@@ -5868,47 +5868,47 @@
 			(xy 393.7 144.78) (xy 393.7 148.59)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "b19a63b4-8d93-4ac7-a8f7-d554cba1cb1b")
+		(uuid "f16e06f2-72a2-412d-b977-9a1fec011993")
 	)
 	(label "HV_ADS"
 		(at 393.7 148.59 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "585114c1-b34a-4578-97e2-36cd981122cc")
+		(uuid "45e510fc-3cdc-4472-94bd-fc35cd90e29e")
 	)
 	(text "!!! 615 V OLDURUR. Delikli plakette bu 6 direnc DELIK ATLAYARAK,"
 		(at 269.24 165.1 0)
 		(effects (font (size 1.6 1.6)) (justify left bottom))
-		(uuid "2f60bb43-6a62-46ac-b3f9-e4bef8c62ace")
+		(uuid "4ec3bce8-4df4-46bb-902c-981dfb284df0")
 	)
 	(text "    aralarinda bosluk birakilarak konmali — 2.54 mm adim YETMEZ."
 		(at 269.24 170.18 0)
 		(effects (font (size 1.6 1.6)) (justify left bottom))
-		(uuid "6ff69653-0956-4ffc-8541-b4db45ac069d")
+		(uuid "9468e85d-c39c-4956-9aad-8ca09c154789")
 	)
 	(text "6 adet 820K: 1/4W metal filmin azami CALISMA gerilimi 200 V (Yageo MFR)."
 		(at 269.24 177.8 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "4d0c1663-72c5-4cbb-ae81-6ba5839466a5")
+		(uuid "fa4171e1-7903-46fb-a11b-c8390d5033d1")
 	)
 	(text "615 V'ta direnc basina 102 V = sinirin %51'i. Tedarikcinin METAL FILM"
 		(at 269.24 182.88 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "175076e7-e1ff-4d71-9c04-573d717b377b")
+		(uuid "b1ee56ad-36fc-4f45-89b6-a2697c6caeb3")
 	)
 	(text "hatti 820K'da bitiyor; 6x820K / 8.2K N'yi TAM 601.0'da tutuyor."
 		(at 269.24 187.96 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "53910a66-e0e0-4390-8d04-02efbb5e8f47")
+		(uuid "475975d8-dc14-42b9-a502-682059edc842")
 	)
 	(text "Giris empedansi 4.93 Mohm (Asama 2'de 106.8 kohm idi)."
 		(at 269.24 193.04 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "1b6fa7bc-1f5e-412d-b957-d0c1e8bb7598")
+		(uuid "8c3cdc72-4269-4fb4-8088-d2db66a6cfca")
 	)
 	(text "BLOK 4  —  Sont + KELVIN + diferansiyel RC  ->  ADS #1 AIN0/AIN1  (CIFT YONLU)"
 		(at 25.4 165.1 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "836dee81-2be0-4d37-bc59-3535fdecd1a0")
+		(uuid "7be40195-aa1f-4f90-a974-c8ae7ec73855")
 	)
 	(symbol
 		(lib_id "Connector:Screw_Terminal_01x02")
@@ -5918,7 +5918,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1f862b8e-eaae-4890-83c7-18e02bd3f94e")
+		(uuid "ad863110-1455-43cb-a6dd-398466198330")
 		(property "Reference" "J3"
 			(at 28.6 174.8 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5933,7 +5933,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "J3") (unit 1)
 				)
 			)
@@ -5947,7 +5947,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "91c46983-d017-483f-9c26-6b5d76b489e6")
+		(uuid "b7dc4621-0a7a-42bf-8fb2-7044b04cf889")
 		(property "Reference" "#PWR007"
 			(at 41.3 172.26 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5962,7 +5962,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR007") (unit 1)
 				)
 			)
@@ -5973,7 +5973,7 @@
 			(xy 30.48 175.26) (xy 38.1 175.26)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9c46542b-a7a3-421d-98f6-064dc5313683")
+		(uuid "e8e964db-38a8-4091-a34f-c196d62941f8")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -5983,7 +5983,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "dfedaf32-6bc8-4b76-925b-a765a0a68bf2")
+		(uuid "f05e1200-970d-4cbe-a544-af48eefeb88b")
 		(property "Reference" "RS"
 			(at 59.08 187.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -5998,7 +5998,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "RS") (unit 1)
 				)
 			)
@@ -6012,7 +6012,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "3faa4f06-051f-4f0d-ba19-3b7283de7a91")
+		(uuid "b03736c7-1530-43dc-ba60-68a5c371b3ea")
 		(property "Reference" "#PWR008"
 			(at 59.08 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6027,7 +6027,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR008") (unit 1)
 				)
 			)
@@ -6038,40 +6038,40 @@
 			(xy 30.48 177.8) (xy 43.18 177.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "c3e28056-9838-4d83-8a81-12cd6a436a04")
+		(uuid "0118d3d7-366c-4889-ab10-d2827e43b275")
 	)
 	(wire
 		(pts
 			(xy 43.18 177.8) (xy 55.88 177.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "fccd4bea-d3b6-4033-b712-eaa7cdea28c9")
+		(uuid "462c5fc8-6bea-4c14-917a-6c704bbdc816")
 	)
 	(wire
 		(pts
 			(xy 55.88 177.8) (xy 55.88 182.88)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d59d69ef-7608-4a9e-9d6f-1e855ca3f8cb")
+		(uuid "42c0be9d-e92f-43ec-a8fb-036da6450505")
 	)
 	(label "YUK_EKSI"
 		(at 43.18 177.8 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "f9077a9c-12eb-4748-88c3-9f92b31e52d7")
+		(uuid "95de93ea-9960-471a-bef0-a89323f0706d")
 	)
 	(wire
 		(pts
 			(xy 55.88 182.88) (xy 55.88 186.69)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "96157f28-9d68-4b03-bfa8-20d7205e2b19")
+		(uuid "4b99876d-68b5-477c-abe4-dccc17cbe0f1")
 	)
 	(wire
 		(pts
 			(xy 55.88 194.31) (xy 55.88 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "ab38f025-8812-46af-ad8a-48fb310e73cc")
+		(uuid "db6cdd3d-118e-4f7c-9100-e611eb01bbe0")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -6081,7 +6081,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "a8ba1bf3-1758-428e-b8ca-c6b454d932c3")
+		(uuid "18709e87-b82f-411b-b8b2-4200a93b27a8")
 		(property "Reference" "R18"
 			(at 81.94 179.88 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6096,7 +6096,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R18") (unit 1)
 				)
 			)
@@ -6110,7 +6110,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "76cadb2a-53de-42ca-8ddf-5b1a4f1122af")
+		(uuid "369871ee-9e0e-40b3-8b1f-c631817a14dd")
 		(property "Reference" "R19"
 			(at 81.94 195.12 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6125,7 +6125,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R19") (unit 1)
 				)
 			)
@@ -6139,7 +6139,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "e435cd32-ed5a-4567-b8a9-38653b6b1ffc")
+		(uuid "987ab53a-6af1-4e89-9c23-506fda60d6c7")
 		(property "Reference" "C4"
 			(at 99.72 187.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6154,7 +6154,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C4") (unit 1)
 				)
 			)
@@ -6165,97 +6165,97 @@
 			(xy 55.88 182.88) (xy 68.58 182.88)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f2dbb71b-6d69-4661-b8f5-fa5adf2ebdf1")
+		(uuid "ed0bbdaf-f024-4017-bff4-fe766529aec3")
 	)
 	(wire
 		(pts
 			(xy 68.58 182.88) (xy 74.93 182.88)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "c4c46b99-5b26-40fd-8d70-c0587f1978a9")
+		(uuid "45eb9446-9e35-4120-84b8-aff22ad19143")
 	)
 	(wire
 		(pts
 			(xy 55.88 198.12) (xy 68.58 198.12)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "73927de5-f6fa-48de-ba5f-8753453e0cf3")
+		(uuid "fa9c53ea-8812-4b13-86a5-02a5d14561fb")
 	)
 	(wire
 		(pts
 			(xy 68.58 198.12) (xy 74.93 198.12)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d06671d7-5d42-4d1f-8e0f-5e438651469c")
+		(uuid "a3714094-1303-4c4e-850c-069ade01c5c3")
 	)
-	(junction (at 55.88 198.12) (diameter 0.9144) (color 0 0 0 0) (uuid "113bb18c-0aaf-4b38-b7e8-3a09a8d9a179"))
+	(junction (at 55.88 198.12) (diameter 0.9144) (color 0 0 0 0) (uuid "c30eed2f-aae8-4d28-9dcb-ae6e5533215c"))
 	(wire
 		(pts
 			(xy 82.55 182.88) (xy 91.44 182.88)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a9855e3b-706a-4dcf-ae4c-353bed63744b")
+		(uuid "e63c8d1e-7703-4f39-9a06-fd960d290c4b")
 	)
 	(wire
 		(pts
 			(xy 82.55 198.12) (xy 91.44 198.12)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3032b5d6-ccca-44ab-a70d-0b6b1003cb3e")
+		(uuid "11a41f55-2f2f-49d3-9863-b556dcbef457")
 	)
 	(wire
 		(pts
 			(xy 91.44 182.88) (xy 96.52 182.88)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9a85bb64-b605-4b06-96ee-c1b36300a6df")
+		(uuid "9c97e94c-24a4-4d88-b637-9079f0137fc6")
 	)
 	(wire
 		(pts
 			(xy 96.52 182.88) (xy 92.71 190.5)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "07368130-9c27-4896-a588-2f3031401d72")
+		(uuid "f4a0da12-26fc-4b01-8bc4-eee8b71e0c72")
 	)
 	(wire
 		(pts
 			(xy 100.33 190.5) (xy 96.52 198.12)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9bfe759c-4b0a-460d-850e-6eb99bc8632d")
+		(uuid "fd7e3a48-5eb9-439d-8ae6-b8b173d1f8e7")
 	)
 	(wire
 		(pts
 			(xy 96.52 198.12) (xy 91.44 198.12)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "7d453914-1838-4ffc-a8bc-e8514707f0d8")
+		(uuid "1e755b1b-ca60-45eb-b52e-253894303899")
 	)
-	(junction (at 96.52 182.88) (diameter 0.9144) (color 0 0 0 0) (uuid "24d3d2ff-8c59-4285-9971-b511758f9652"))
-	(junction (at 96.52 198.12) (diameter 0.9144) (color 0 0 0 0) (uuid "af1b8b60-9148-4e0e-8927-ab803aa722ca"))
+	(junction (at 96.52 182.88) (diameter 0.9144) (color 0 0 0 0) (uuid "ec05c0cd-4524-41fd-abab-d3e60f38033d"))
+	(junction (at 96.52 198.12) (diameter 0.9144) (color 0 0 0 0) (uuid "4774074f-9ee5-4db1-a4dd-08857c185daf"))
 	(wire
 		(pts
 			(xy 91.44 182.88) (xy 114.3 182.88)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "adec3dea-4402-4342-8052-b1ac41f853ce")
+		(uuid "09d348f0-fb30-4449-bf8c-66f7133e1ca2")
 	)
 	(wire
 		(pts
 			(xy 91.44 198.12) (xy 114.3 198.12)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e7018020-5133-4cf2-8ed4-0df6d11d0819")
+		(uuid "536fb152-ae91-4469-a5bd-391140b4814b")
 	)
 	(label "SONT_P"
 		(at 114.3 182.88 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "348e6b57-7ec7-4529-ba0f-656766cdc86d")
+		(uuid "ce6dd6b7-22cc-4d1e-93f8-8e9ab26df888")
 	)
 	(label "SONT_N"
 		(at 114.3 198.12 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "a7ea67e4-1e43-47b5-b3a5-87a71aa5eb5b")
+		(uuid "052c71f7-34e4-4022-908a-9b9d132e9ddb")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -6265,7 +6265,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "cf0d1fb9-9a91-4127-84f0-4cf86d0d8a2a")
+		(uuid "1cd73022-12d3-458c-8886-914bc3a17efa")
 		(property "Reference" "R38"
 			(at 125.12 179.88 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6280,7 +6280,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R38") (unit 1)
 				)
 			)
@@ -6294,7 +6294,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b6ff5656-7c16-4c87-9e24-32f8599e122a")
+		(uuid "a862561d-97dc-413e-93b1-ed51f8af07b5")
 		(property "Reference" "R39"
 			(at 125.12 195.12 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6309,7 +6309,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R39") (unit 1)
 				)
 			)
@@ -6320,67 +6320,67 @@
 			(xy 114.3 182.88) (xy 118.11 182.88)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9c1ab382-6cec-4b99-bca6-141193a80e7b")
+		(uuid "5d94dff9-5674-4b46-8e21-c7866b77723c")
 	)
 	(wire
 		(pts
 			(xy 114.3 198.12) (xy 118.11 198.12)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a2033f9b-1d05-43d7-88a2-f1bce5d69ddc")
+		(uuid "4f1fc5d5-3113-42b6-8318-f9ad03cf3cb0")
 	)
 	(wire
 		(pts
 			(xy 125.73 182.88) (xy 129.54 182.88)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "07fa3315-5da6-450b-a844-f34b809f9022")
+		(uuid "8337f4b0-8b0d-4876-bfb6-31db1475c192")
 	)
 	(wire
 		(pts
 			(xy 125.73 198.12) (xy 129.54 198.12)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "73ed8fdc-a7d6-41ab-b0b9-bacddc712bcb")
+		(uuid "9a0ea7b6-8f59-4b5e-b77c-0d179a29993a")
 	)
 	(label "SONT_P_A"
 		(at 129.54 182.88 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "f92c098b-6f0b-417b-8f10-1ab171381e07")
+		(uuid "ec379bb2-3584-45eb-8418-1665dabdf777")
 	)
 	(label "SONT_N_A"
 		(at 129.54 198.12 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "6d251780-81a6-446d-988d-80bde59801ec")
+		(uuid "fe9ae285-d4c6-4a89-9fcc-ecc622a7df5c")
 	)
 	(text "B16  —  ADS akim girisi ortusme suzgeci:  C18+C19+C20 = 1.32 uF (gerilim kanaliyla tau eslesmesi)"
 		(at 25.4 228.6 0)
 		(effects (font (size 1.6 1.6)) (justify left bottom))
-		(uuid "23fccbb4-ced0-408f-91f9-b0cbef02f94f")
+		(uuid "10ae3596-0f8e-4dba-8928-e03d4e6129a9")
 	)
 	(wire
 		(pts
 			(xy 38.1 232.41) (xy 96.52 232.41)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "219dfcaf-2452-4b4a-b036-38dd48f1b39b")
+		(uuid "60da7f6c-300c-4cae-b84a-cd9ef2f70745")
 	)
 	(label "SONT_P_A"
 		(at 38.1 232.41 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "73edf8c7-5f54-46f3-9ea7-1c0a8e3e2bd1")
+		(uuid "4370fa42-be6c-4bf1-8c8c-c0ef9520a38b")
 	)
 	(wire
 		(pts
 			(xy 38.1 247.65) (xy 96.52 247.65)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "822feb45-c757-4a75-87ac-a81f882b1953")
+		(uuid "903a80bb-8142-4737-b900-260f79e38d3b")
 	)
 	(label "SONT_N_A"
 		(at 38.1 247.65 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "fd93fde5-2940-45e7-9a76-00379fc05bb7")
+		(uuid "54e5b25a-ddd8-4545-8171-3bd88f62141d")
 	)
 	(symbol
 		(lib_id "Device:C")
@@ -6390,7 +6390,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1825cb49-ff43-4dbf-98f4-736e9698762f")
+		(uuid "c96e733f-ca3d-4c63-9452-fa1de168832a")
 		(property "Reference" "C18"
 			(at 59.08 237.03 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6405,7 +6405,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C18") (unit 1)
 				)
 			)
@@ -6416,17 +6416,17 @@
 			(xy 55.88 232.41) (xy 52.07 240.03)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e7f9ab87-a106-4765-bbae-04f01f1f981c")
+		(uuid "9888cf41-d0be-4eb7-ac8a-dbe08300d6c9")
 	)
 	(wire
 		(pts
 			(xy 59.69 240.03) (xy 55.88 247.65)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "339dcaf1-3534-4c08-a6ee-6a25f20600f7")
+		(uuid "d143829b-d6fd-48c4-91fd-9feec4a435a0")
 	)
-	(junction (at 55.88 232.41) (diameter 0.9144) (color 0 0 0 0) (uuid "49b1163b-a574-4d48-9665-25e0643a023f"))
-	(junction (at 55.88 247.65) (diameter 0.9144) (color 0 0 0 0) (uuid "381aec44-d8a6-4526-b880-1d7b101a611a"))
+	(junction (at 55.88 232.41) (diameter 0.9144) (color 0 0 0 0) (uuid "e764cb52-daf5-4f4a-bd07-472289fecc6f"))
+	(junction (at 55.88 247.65) (diameter 0.9144) (color 0 0 0 0) (uuid "b9129ffb-5ca9-4547-932f-3fe6aae69715"))
 	(symbol
 		(lib_id "Device:C")
 		(at 76.2 240.03 90)
@@ -6435,7 +6435,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "d4d7c274-d32f-489c-9cec-7bf6a8a895fd")
+		(uuid "fff78139-357e-4d06-a464-37cc6fad1141")
 		(property "Reference" "C19"
 			(at 79.4 237.03 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6450,7 +6450,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C19") (unit 1)
 				)
 			)
@@ -6461,17 +6461,17 @@
 			(xy 76.2 232.41) (xy 72.39 240.03)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9602222f-73d6-4584-91e1-09f05e11bd36")
+		(uuid "8d685f01-80b8-4550-a8df-cd4a4184a1a5")
 	)
 	(wire
 		(pts
 			(xy 80.01 240.03) (xy 76.2 247.65)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f873f925-96bc-44fa-8182-b1f7dc7f5055")
+		(uuid "175000db-cfa4-4f6a-99cc-402df22489c3")
 	)
-	(junction (at 76.2 232.41) (diameter 0.9144) (color 0 0 0 0) (uuid "74ac649c-3d7d-4b62-b77a-e7d3064e8fcd"))
-	(junction (at 76.2 247.65) (diameter 0.9144) (color 0 0 0 0) (uuid "1a0652a6-850c-4945-9878-92b2a75453a1"))
+	(junction (at 76.2 232.41) (diameter 0.9144) (color 0 0 0 0) (uuid "8c16c255-6568-4be8-804e-eb4a45270baa"))
+	(junction (at 76.2 247.65) (diameter 0.9144) (color 0 0 0 0) (uuid "a091ea6f-81fa-4979-8fde-8fd6e00ae336"))
 	(symbol
 		(lib_id "Device:C")
 		(at 96.52 240.03 90)
@@ -6480,7 +6480,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1864614d-e134-4c31-8bd1-0d134acdf4dc")
+		(uuid "0025d92c-eb13-4af2-a335-a03e5646149f")
 		(property "Reference" "C20"
 			(at 99.72 237.03 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6495,7 +6495,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C20") (unit 1)
 				)
 			)
@@ -6506,54 +6506,54 @@
 			(xy 96.52 232.41) (xy 92.71 240.03)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "29fa7896-cb00-47db-9493-ad3d28a983b6")
+		(uuid "d03f2f8d-d883-430c-86c1-2ca1cebfa15e")
 	)
 	(wire
 		(pts
 			(xy 100.33 240.03) (xy 96.52 247.65)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "c3d7c66b-97bf-45be-abb7-f9081f2f87fc")
+		(uuid "b5e8b06a-e219-4744-bd56-a0b93ba334eb")
 	)
 	(text "Toplam 1.320 uF; ideal 1.300 uF (%1.5 uste)."
 		(at 106.68 236.22 0)
 		(effects (font (size 1.4 1.4)) (justify left bottom))
-		(uuid "a42f3c43-96ec-43ba-be6b-43d269d197ae")
+		(uuid "344ab16a-7fd3-4bb0-8e97-d8c3579def23")
 	)
 	(text "Kesim 54.8 Hz — gerilim kanalinin 55.7 Hz'i ile"
 		(at 106.68 240.03 0)
 		(effects (font (size 1.4 1.4)) (justify left bottom))
-		(uuid "271099ec-4c18-4892-af4b-dd231976c60b")
+		(uuid "0965923a-eaf3-4b56-8904-87248d7ce280")
 	)
 	(text "eslesiyor ve 430 Hz Nyquist'i koruyor."
 		(at 106.68 243.84 0)
 		(effects (font (size 1.4 1.4)) (justify left bottom))
-		(uuid "54be420a-e66c-4b0d-9237-9b08b6ae14b5")
+		(uuid "196b7757-9124-4e18-a682-2e1d718dd321")
 	)
 	(text "!!! ADS pinlerine YAKIN, KISA bacakli."
 		(at 106.68 247.65 0)
 		(effects (font (size 1.4 1.4)) (justify left bottom))
-		(uuid "c82861c1-bf94-407a-941c-bc95b013558d")
+		(uuid "5fa9faf1-3b4b-47ab-b52b-7f3c428e3708")
 	)
 	(text "Asama 2'de firmware negatif akimi SIFIRA KIRPIYORDU. Donanim zaten"
 		(at 25.4 213.36 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "995a0072-f921-49c1-a835-2cfeab353738")
+		(uuid "43fae545-7ca6-405d-995a-a8edc4d9b4dc")
 	)
 	(text "diferansiyel ve isaretli; kirpma kaldirildi (olcum3.h). Guc"
 		(at 25.4 218.44 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "cdc6733e-34a3-43d7-9563-a9afa007758f")
+		(uuid "f17a4c7e-21c6-4dfe-bb04-6582b4200ba9")
 	)
 	(text "elektroniginde bobin akimi ters doner — tek yonlu olcum yanlis cevaptir."
 		(at 25.4 223.52 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "4445182b-98ef-47e4-8d53-3f92b05e30f5")
+		(uuid "d58bae13-9cb2-4661-b01b-8ed47c14b0b1")
 	)
 	(text "BLOK 5  —  Osiloskop CIFT YONLU: -65..+45 V -> Sallen-Key 16.55 kHz -> BAT85 -> GPIO4"
 		(at 137.16 165.1 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "d929fe05-5c35-4281-bde1-24f6192b98dc")
+		(uuid "ca8c33bf-9b67-43ee-9220-ecfdde603626")
 	)
 	(symbol
 		(lib_id "Connector:Screw_Terminal_01x02")
@@ -6563,7 +6563,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "cca60973-1fe1-421b-9976-b4945ec154b9")
+		(uuid "62948f01-2064-474c-a7f6-93d3e6d22dbb")
 		(property "Reference" "J4"
 			(at 140.36 174.8 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6578,7 +6578,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "J4") (unit 1)
 				)
 			)
@@ -6592,7 +6592,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1e5e0493-8745-4801-82ac-430dabbbe2de")
+		(uuid "38874891-39e8-4b52-a2f7-86c00f8910ac")
 		(property "Reference" "#PWR009"
 			(at 153.06 172.26 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6607,7 +6607,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR009") (unit 1)
 				)
 			)
@@ -6618,26 +6618,26 @@
 			(xy 142.24 177.8) (xy 162.56 177.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9e35119c-8430-4201-a910-40d64fad75fd")
+		(uuid "49fea496-5c9f-4e5d-93cb-7bf95bac6ccf")
 	)
 	(wire
 		(pts
 			(xy 162.56 177.8) (xy 162.56 182.88)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4dd7a77a-67b4-4767-8827-8b28baf0b919")
+		(uuid "a89cef04-84d3-47b3-95fc-42c75571f40f")
 	)
 	(wire
 		(pts
 			(xy 142.24 175.26) (xy 149.86 175.26)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3ed4bb34-c408-411f-b767-05b11b99cde3")
+		(uuid "f848c287-34ae-4c74-8e7b-bbf3584b5b89")
 	)
 	(label "SKOP_GIRIS"
 		(at 162.56 182.88 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "1668b4f6-c0f0-422d-97d3-ba13edbfc3aa")
+		(uuid "c6325a16-35ab-4e39-8ba5-26aebeccf592")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -6647,7 +6647,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "5fcce326-258a-4c9f-a596-ecf51483e25f")
+		(uuid "dd377299-c057-4ebc-858e-5f5338814bf4")
 		(property "Reference" "R20"
 			(at 165.76 190.04 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6662,7 +6662,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R20") (unit 1)
 				)
 			)
@@ -6676,7 +6676,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "167069ed-05ad-4435-81da-7afe2c3ec9d2")
+		(uuid "b4f38e2d-5dcc-4c81-ad8b-f563dceb60cb")
 		(property "Reference" "R23"
 			(at 165.76 212.9 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6691,7 +6691,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R23") (unit 1)
 				)
 			)
@@ -6702,33 +6702,33 @@
 			(xy 162.56 182.88) (xy 162.56 189.23)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "92d96251-4330-4681-8d47-094a31690dd3")
+		(uuid "6e80f2e5-0698-4cf5-92a2-c0622e975253")
 	)
 	(wire
 		(pts
 			(xy 162.56 196.85) (xy 162.56 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "183960c5-299f-4bdc-a677-09fcbc80c3b1")
+		(uuid "d0638687-6194-4747-ab96-af925e227fd4")
 	)
 	(wire
 		(pts
 			(xy 162.56 203.2) (xy 162.56 212.09)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "ee6ffc94-6cec-4215-a393-eda0cecaca32")
+		(uuid "fbc7a516-707b-456b-af92-9d5da0bbe5e4")
 	)
 	(wire
 		(pts
 			(xy 162.56 219.71) (xy 162.56 226.06)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "22ff609e-ff0e-4654-bbb1-f51c903d2548")
+		(uuid "4961ba16-f821-4c87-8271-ff033798b118")
 	)
 	(label "VREF"
 		(at 162.56 226.06 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "8b22d25a-726a-4811-8b3d-8249294a79cf")
+		(uuid "580955a1-c724-41ba-b1a0-439e17705c83")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -6738,7 +6738,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "383d964a-49a9-4b78-987f-ef71b0130590")
+		(uuid "6c538ede-1785-4976-8ce6-31507f8b9753")
 		(property "Reference" "R22"
 			(at 183.54 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6753,7 +6753,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R22") (unit 1)
 				)
 			)
@@ -6767,7 +6767,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "262c1f66-8918-465c-815a-c527356fb694")
+		(uuid "f68b2849-1649-4601-95c8-230227d39ec2")
 		(property "Reference" "R21"
 			(at 201.32 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6782,7 +6782,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R21") (unit 1)
 				)
 			)
@@ -6796,7 +6796,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "db048b58-d3d4-4f93-8c9e-dda8fc75f3cd")
+		(uuid "9405868d-ed8f-4a40-a799-b46311ef2ffb")
 		(property "Reference" "C6"
 			(at 211.48 210.36 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6811,7 +6811,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C6") (unit 1)
 				)
 			)
@@ -6825,7 +6825,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "0d6ac17d-657b-4e3c-8298-9f90c47b4af1")
+		(uuid "f2a4e298-61f9-4f52-b736-e22d213198d6")
 		(property "Reference" "#PWR010"
 			(at 211.48 223.06 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6840,7 +6840,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR010") (unit 1)
 				)
 			)
@@ -6854,7 +6854,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "745e36eb-0766-4bb7-8107-f1719df0bca8")
+		(uuid "2b19463a-bc6c-4a38-9ea0-e97da3dc740f")
 		(property "Reference" "U5"
 			(at 229.26 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6869,7 +6869,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U5") (unit 1)
 				)
 			)
@@ -6883,7 +6883,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8f594be1-9ca5-4cc2-bb27-a875ed3b1399")
+		(uuid "aee829aa-ceb2-46db-84af-b25af4af23c1")
 		(property "Reference" "C5"
 			(at 193.7 184.96 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -6898,7 +6898,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C5") (unit 1)
 				)
 			)
@@ -6909,131 +6909,131 @@
 			(xy 162.56 203.2) (xy 176.53 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "8da263b2-c35d-469d-aad7-1bf7d38cbdc4")
+		(uuid "06f6dac6-18d1-4887-9ac1-a3df4194ea5f")
 	)
 	(wire
 		(pts
 			(xy 184.15 203.2) (xy 190.5 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "867daf55-6253-4883-a7d0-dc4597d2bcd8")
+		(uuid "95ae5723-fd51-4c36-85f8-098110cf1b29")
 	)
 	(wire
 		(pts
 			(xy 190.5 203.2) (xy 194.31 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "23de4f6a-a6d5-4fbc-8d08-5af81b5e59a1")
+		(uuid "cdc85d2e-319a-408e-8dd5-2f46eb57f2ed")
 	)
 	(wire
 		(pts
 			(xy 201.93 203.2) (xy 208.28 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e6df597d-9646-471e-8493-d706e43f35ba")
+		(uuid "8f1f47cd-ce1e-4069-88ba-15622b431636")
 	)
 	(wire
 		(pts
 			(xy 208.28 203.2) (xy 208.28 209.55)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "eeb1310f-0502-4038-96f5-b43046f0fe2d")
+		(uuid "3047f5f9-2cb1-4390-b471-e77cc12c3da9")
 	)
 	(wire
 		(pts
 			(xy 208.28 217.17) (xy 208.28 226.06)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3524282c-b978-465f-beb5-2eade3abd847")
+		(uuid "59edd231-b60c-4a93-a31e-a5ec0852086c")
 	)
-	(junction (at 208.28 203.2) (diameter 0.9144) (color 0 0 0 0) (uuid "396e6970-2d41-4412-bd97-960f05c7ba3c"))
+	(junction (at 208.28 203.2) (diameter 0.9144) (color 0 0 0 0) (uuid "e59f32df-9a29-4822-811f-15c69369ae94"))
 	(wire
 		(pts
 			(xy 208.28 203.2) (xy 218.44 200.66)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "0deda85e-5035-478d-aca4-68e31abefde2")
+		(uuid "95c61a69-82e9-48f8-8644-38e41d543e4e")
 	)
 	(wire
 		(pts
 			(xy 233.68 203.2) (xy 236.22 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "45ebd99a-e556-4323-ab6a-c0e9a8cf2eb8")
+		(uuid "212c98d6-4f79-477a-9d07-f9941aba7075")
 	)
 	(wire
 		(pts
 			(xy 218.44 205.74) (xy 215.9 200.66)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "366a9591-53bc-4934-87d6-6168b2684d90")
+		(uuid "fd15d773-a311-41d6-b245-45571bd09ecc")
 	)
 	(wire
 		(pts
 			(xy 215.9 200.66) (xy 215.9 195.58)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "8d165df4-107f-4e63-8b1b-6fa702194ea5")
+		(uuid "bd1b674c-8fb4-4f23-83d7-fca462d89803")
 	)
 	(wire
 		(pts
 			(xy 215.9 195.58) (xy 236.22 195.58)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "82c91fb3-1a30-4f0d-a38e-acf4c71bc7b5")
+		(uuid "446c3235-699f-41ba-8e81-dbc6e987b2b6")
 	)
 	(wire
 		(pts
 			(xy 236.22 195.58) (xy 236.22 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "ec316049-f60a-47dd-8d87-c4c2a8db1652")
+		(uuid "818f816e-a62b-4fdd-ad76-6deed0e8cef4")
 	)
-	(junction (at 236.22 203.2) (diameter 0.9144) (color 0 0 0 0) (uuid "aaac2eae-45fd-453f-b7a3-0e1c37d53765"))
+	(junction (at 236.22 203.2) (diameter 0.9144) (color 0 0 0 0) (uuid "91c5452c-ef0a-49e0-b47d-187151dcb94a"))
 	(wire
 		(pts
 			(xy 190.5 203.2) (xy 190.5 193.04)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "954d154d-96c6-4057-9c8e-04802954ac3e")
+		(uuid "aa126871-51eb-47bb-aa57-02507e54d3d4")
 	)
 	(wire
 		(pts
 			(xy 190.5 193.04) (xy 190.5 184.15)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "07d87531-b391-418c-aacb-b6feaf85cc00")
+		(uuid "29084140-264f-4020-8179-f87c391d9896")
 	)
 	(wire
 		(pts
 			(xy 190.5 191.77) (xy 198.12 187.96)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "aab0e26a-5d42-4a4b-a024-c70a2b0f9d21")
+		(uuid "bf663318-9f3d-4622-94a4-25596940c204")
 	)
 	(wire
 		(pts
 			(xy 198.12 187.96) (xy 243.84 187.96)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3600e0f0-f90e-4b34-8136-0b8372cfccbe")
+		(uuid "dd4bf2f5-7f88-4319-9818-c25b284c5a47")
 	)
 	(wire
 		(pts
 			(xy 243.84 187.96) (xy 243.84 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "0f6d2034-88a9-4976-9511-4db4e9097b6b")
+		(uuid "d99676cc-36bb-4be0-a0d8-29515185e748")
 	)
 	(wire
 		(pts
 			(xy 243.84 203.2) (xy 236.22 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "86c0a2b3-bed5-49fd-a3dc-5d3d2325d0a2")
+		(uuid "af45e217-ee2f-48b9-b01a-2477a558117b")
 	)
-	(junction (at 190.5 203.2) (diameter 0.9144) (color 0 0 0 0) (uuid "9f4f9382-ad74-420d-b8d1-b8906fe57ddc"))
-	(junction (at 236.22 203.2) (diameter 0.9144) (color 0 0 0 0) (uuid "3846307c-85bd-4d94-9b5a-cb949d530a4f"))
+	(junction (at 190.5 203.2) (diameter 0.9144) (color 0 0 0 0) (uuid "c8a4a660-89b2-4097-a44b-b2aa321e0ccc"))
+	(junction (at 236.22 203.2) (diameter 0.9144) (color 0 0 0 0) (uuid "3b39888e-3adc-4069-98cb-541d4742a352"))
 	(symbol
 		(lib_id "Device:R")
 		(at 254.0 203.2 90)
@@ -7042,7 +7042,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "6860af4e-361e-49f6-a0cb-b27d630080cb")
+		(uuid "cf0a0531-4f1f-48f4-aa52-092c9799005e")
 		(property "Reference" "R26"
 			(at 257.2 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7057,7 +7057,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R26") (unit 1)
 				)
 			)
@@ -7068,14 +7068,14 @@
 			(xy 236.22 203.2) (xy 250.19 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "ea7bd155-adae-422a-b8d0-48991c81f73a")
+		(uuid "9b2be685-724e-4fe4-8c04-66bd5ef35199")
 	)
 	(wire
 		(pts
 			(xy 257.81 203.2) (xy 269.24 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "7026b483-86b9-4c98-bc71-2e377146a715")
+		(uuid "b64352cd-bea9-47c1-869a-105b5c5ca430")
 	)
 	(symbol
 		(lib_id "Device:D_Schottky")
@@ -7085,7 +7085,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "6fa41c12-02fb-449e-8510-41888a9cfe98")
+		(uuid "064facb5-06a9-475d-8e72-2477e5a469fe")
 		(property "Reference" "D1"
 			(at 272.44 190.04 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7100,7 +7100,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "D1") (unit 1)
 				)
 			)
@@ -7114,7 +7114,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "5d644e94-d0e1-4dad-92b6-1030b512c43a")
+		(uuid "b0aabc9d-c952-4ff3-9abe-f0abdb8f0fff")
 		(property "Reference" "#PWR011"
 			(at 272.44 179.88 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7129,7 +7129,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR011") (unit 1)
 				)
 			)
@@ -7140,14 +7140,14 @@
 			(xy 269.24 203.2) (xy 269.24 189.23)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d71cf840-22d6-43f1-8064-a2ab28dd7a2e")
+		(uuid "7de52f2b-45cf-489c-be39-ab409f96f82f")
 	)
 	(wire
 		(pts
 			(xy 269.24 196.85) (xy 269.24 182.88)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "2c683c27-5fad-4142-ae4b-01a0d7cb958b")
+		(uuid "bf2490c4-39a6-4a33-a006-1bac2292d20c")
 	)
 	(symbol
 		(lib_id "Device:D_Schottky")
@@ -7157,7 +7157,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "e995f5c1-d8a8-471e-a47c-754840b2abfb")
+		(uuid "162b24d1-d09c-43e3-a9cb-fa9045f0fb99")
 		(property "Reference" "D2"
 			(at 272.44 210.36 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7172,7 +7172,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "D2") (unit 1)
 				)
 			)
@@ -7186,7 +7186,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "bc2233c7-6f6d-4822-8ebb-eb069ebbdf7e")
+		(uuid "66823fd6-526e-4aca-a811-b7dc32aa7fe1")
 		(property "Reference" "#PWR012"
 			(at 272.44 220.52 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7201,7 +7201,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR012") (unit 1)
 				)
 			)
@@ -7212,72 +7212,72 @@
 			(xy 269.24 203.2) (xy 269.24 217.17)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "22542abd-586b-4eff-b878-0c5a12469d09")
+		(uuid "2eefcf07-ffa7-4f90-b070-cb8b5745bc48")
 	)
 	(wire
 		(pts
 			(xy 269.24 209.55) (xy 269.24 223.52)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "06ccb41c-064b-4fde-b04d-eb9a521fc7ec")
+		(uuid "ad117e2b-c02f-43c4-9659-d9f5e50c0655")
 	)
-	(junction (at 269.24 203.2) (diameter 0.9144) (color 0 0 0 0) (uuid "1aea2049-65dd-4af8-978b-a3fcb8757a2c"))
+	(junction (at 269.24 203.2) (diameter 0.9144) (color 0 0 0 0) (uuid "ed7d77ac-9b80-4c83-ad67-19c990f83b54"))
 	(wire
 		(pts
 			(xy 269.24 203.2) (xy 284.48 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4f04d100-cbe5-40e8-89de-98405999e7e1")
+		(uuid "98b03bf4-4c63-449e-8ebb-c98ad4fbae1d")
 	)
 	(label "SKOP"
 		(at 284.48 203.2 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "481a50b9-acb8-42d0-af50-7d54c386ab96")
+		(uuid "cb95e92c-952b-487c-8e79-8dd5bb2b5aca")
 	)
 	(text "BAT85 (DO-34 EKSENEL, delikli) — BAT54 SOT-23 oldugu icin secilmedi."
 		(at 137.16 236.22 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "1fde6a90-e610-4990-ae90-b36971df7a2c")
+		(uuid "e8ec7b5c-c647-42d8-beae-1fd173e149bd")
 	)
 	(text "1N4148 OLMAZ: B2 olctu, ariza akiminin %25'i ADS'in ic ESD diyoduna"
 		(at 137.16 241.3 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "ced7930c-dce8-4d49-91f5-a1f3d22cf321")
+		(uuid "0c1bf5d1-ac5d-4df3-993b-3a0edb00befe")
 	)
 	(text "gidiyor. BAT85 ile pin -0.268 V'ta kaliyor, ESD payi ~%0."
 		(at 137.16 246.38 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "4fab28de-038a-4595-8b39-ba8e41428c17")
+		(uuid "3bae3526-6d1c-45a1-b190-91d32f2a767d")
 	)
 	(text "Seri direnc 2.7K: 1K olsaydi +-12 V arizada 11.3 mA — sinir 10 mA."
 		(at 137.16 251.46 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "6856dbaa-03a2-4ac5-a217-3a8efd8b8673")
+		(uuid "245aab5f-cbed-4634-9803-ff4eda5b91d4")
 	)
 	(text "Sallen-Key f0 16.55 kHz, Q 0.707. Eski tek kutuplu RC 25 kHz'teydi —"
 		(at 137.16 256.54 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "31f3646d-c3fc-49d3-a7fb-88defad1af91")
+		(uuid "53663e0a-d41a-4137-ac73-3a5012fe6f4d")
 	)
 	(text "Nyquist'in (20.83 kHz) USTUNDE, yani hicbir sey suzmuyordu (4.8)."
 		(at 137.16 261.62 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "e91e440f-f50e-45ef-a976-d4d64b293a8a")
+		(uuid "69290733-fcc8-4448-a494-df37e31f683c")
 	)
 	(text "BLOK 8  —  Hizli akim yolu: fark yukselteci -> Sallen-Key -> GPIO5"
 		(at 355.6 20.32 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "1ac83398-92ae-4d1b-8a97-d217f38fd856")
+		(uuid "71b3ec11-e536-450e-8a46-2f353a556c00")
 	)
 	(label "SONT_P"
 		(at 355.6 40.64 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "1110020e-f6eb-48bc-9e03-97ff073bb370")
+		(uuid "b3b4a2be-3af2-41ca-b5cb-cebdbd117091")
 	)
 	(label "SONT_N"
 		(at 355.6 63.5 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "7fb3c137-c623-43e1-8e46-039a4f2c2d4e")
+		(uuid "bdead167-a21e-4072-a9d8-e5007460118f")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -7287,7 +7287,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b17a782c-a613-47c4-aad9-b04c297a4eac")
+		(uuid "ad0aa828-6616-473a-bb17-ce96329b2432")
 		(property "Reference" "R27"
 			(at 379.12 37.64 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7302,7 +7302,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R27") (unit 1)
 				)
 			)
@@ -7316,7 +7316,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "080e4eaf-4695-4c7d-ace3-0aa0d077a00a")
+		(uuid "3b5e2641-366f-4462-b435-3d8c4da50e8d")
 		(property "Reference" "R29"
 			(at 379.12 60.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7331,7 +7331,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R29") (unit 1)
 				)
 			)
@@ -7342,14 +7342,14 @@
 			(xy 355.6 40.64) (xy 372.11 40.64)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "15b2ac89-9740-4ed0-8a4e-41d327084f97")
+		(uuid "dc77ca40-e25b-4782-ab49-6573517ed037")
 	)
 	(wire
 		(pts
 			(xy 355.6 63.5) (xy 372.11 63.5)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "64a9809e-aafa-40a6-83c6-adaf9aa54d03")
+		(uuid "3db65a24-e466-494f-ad35-34ec6136e834")
 	)
 	(symbol
 		(lib_id "Amplifier_Operational:TL072")
@@ -7359,7 +7359,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "5ccb084b-4625-4a4e-9c5c-7861cfbdef17")
+		(uuid "9626e67d-5d68-485d-b778-6880d0d5bb72")
 		(property "Reference" "U8"
 			(at 414.68 49.07 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7374,7 +7374,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U8") (unit 1)
 				)
 			)
@@ -7385,56 +7385,56 @@
 			(xy 379.73 40.64) (xy 388.62 40.64)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "23c31b79-fbcb-4d97-bff4-20f857206732")
+		(uuid "4a914b0f-28b8-45a0-a4f3-823a82fd96e7")
 	)
 	(wire
 		(pts
 			(xy 379.73 63.5) (xy 388.62 63.5)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "478dfdb7-2314-4e90-810c-a63d15c8c931")
+		(uuid "931704e8-627c-499d-bc54-5a6fc4dd263b")
 	)
 	(wire
 		(pts
 			(xy 388.62 40.64) (xy 401.32 40.64)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f47959cb-14af-4cfc-91aa-588d080e30b6")
+		(uuid "6bdac150-f861-4513-a966-03d24efcd852")
 	)
 	(wire
 		(pts
 			(xy 401.32 40.64) (xy 401.32 49.53)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4351a875-d452-4f48-81bc-ed2c1ab32d29")
+		(uuid "b1654e37-f069-4011-a486-b7c297f97eb2")
 	)
 	(wire
 		(pts
 			(xy 401.32 49.53) (xy 403.86 49.53)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "af4f7efd-eec4-4a27-9add-238317fbfae9")
+		(uuid "f90168e4-30b1-4fbe-944e-a023a4650435")
 	)
 	(wire
 		(pts
 			(xy 388.62 63.5) (xy 401.32 63.5)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d7904105-c344-4f42-86b2-2951bf10ef78")
+		(uuid "95432462-63e0-4ff2-b685-451e2097a34d")
 	)
 	(wire
 		(pts
 			(xy 401.32 63.5) (xy 401.32 54.61)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "7b366d2a-cb55-41a3-8bf1-3a76925bd2f9")
+		(uuid "2a21aade-8d19-4e8d-a295-10e948ef48fa")
 	)
 	(wire
 		(pts
 			(xy 401.32 54.61) (xy 403.86 54.61)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e35e38d2-874c-48ab-aa70-01be27b82e71")
+		(uuid "4e9b61c1-d4a3-4e48-9eb6-26633b81d507")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -7444,7 +7444,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "fc7b8ab7-3da0-4efd-9b68-ff73b26710fb")
+		(uuid "34aac625-ad39-4b38-82cc-8f4c33d2aff5")
 		(property "Reference" "R28"
 			(at 391.82 24.94 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7459,7 +7459,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R28") (unit 1)
 				)
 			)
@@ -7470,27 +7470,27 @@
 			(xy 388.62 40.64) (xy 388.62 31.75)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "81fd0ca6-d5f4-4ef6-8851-53611b893867")
+		(uuid "16bc2698-06f5-421b-ba9f-87f4dde0723b")
 	)
 	(wire
 		(pts
 			(xy 388.62 24.13) (xy 388.62 20.32)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "471284a6-636e-4806-b8df-0340417e65f1")
+		(uuid "6f721769-f225-45e9-8c46-85ab525d95d8")
 	)
 	(label "VREF"
 		(at 388.62 20.32 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "0830831f-a598-49b1-bdd5-308a94f9f75a")
+		(uuid "24a9b597-f6dc-4d6e-8c3b-9a5b81820414")
 	)
-	(junction (at 388.62 40.64) (diameter 0.9144) (color 0 0 0 0) (uuid "9e6f6f28-4fe0-47ab-94ed-69dd95e492d5"))
+	(junction (at 388.62 40.64) (diameter 0.9144) (color 0 0 0 0) (uuid "85d3146e-aae1-4a24-9772-61606f7f5b64"))
 	(wire
 		(pts
 			(xy 419.1 52.07) (xy 426.72 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "6cbd4883-35aa-4253-a66a-b7c79243c1c7")
+		(uuid "bafc8867-c181-4d38-9900-9d5f5b971cb3")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -7500,7 +7500,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "7d4fb471-0cdc-4080-b970-216848710c41")
+		(uuid "fa51e9e1-1351-4cb1-bbc2-5e7148345c60")
 		(property "Reference" "R30"
 			(at 391.82 73.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7515,7 +7515,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R30") (unit 1)
 				)
 			)
@@ -7526,45 +7526,45 @@
 			(xy 388.62 63.5) (xy 388.62 72.39)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "84732f14-47ca-4b13-a24d-29de408c2ae7")
+		(uuid "6316a58d-60c1-4966-ac12-95d73d8e28bc")
 	)
 	(wire
 		(pts
 			(xy 388.62 80.01) (xy 388.62 86.36)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "fa99ee79-9ff9-4cf4-b0c0-6508e69a6856")
+		(uuid "6976344e-d3ad-4fc7-9ac4-9a956afca993")
 	)
 	(wire
 		(pts
 			(xy 388.62 86.36) (xy 426.72 86.36)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "53007631-fbda-4963-a118-c96f90f8e2d3")
+		(uuid "a53c8489-fffc-4544-9178-b44bb4e371b8")
 	)
 	(wire
 		(pts
 			(xy 426.72 86.36) (xy 426.72 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "6ca15a11-e1ae-4e65-8d30-2efea73a3299")
+		(uuid "1d0a3cae-04a4-4216-9ae3-b9a0806d7f3d")
 	)
-	(junction (at 388.62 63.5) (diameter 0.9144) (color 0 0 0 0) (uuid "4f810172-78ee-4a87-aa3a-ab8ed90f59e9"))
-	(junction (at 426.72 52.07) (diameter 0.9144) (color 0 0 0 0) (uuid "31a19d3c-df1e-42b3-9508-e0431c968a7c"))
+	(junction (at 388.62 63.5) (diameter 0.9144) (color 0 0 0 0) (uuid "7af63cd7-cc2b-432f-8cd3-36f0cdbdc296"))
+	(junction (at 426.72 52.07) (diameter 0.9144) (color 0 0 0 0) (uuid "9c8a12b9-3cba-4d3e-af46-87e8285a5c7f"))
 	(text "Kazanc 47K/10K = 4.7 · tam olcek sont 294.6 mV (ADS 256 mV'ta once kirpar)"
 		(at 355.6 96.52 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "66329786-d7f5-4a95-b542-cd0bbf7103a5")
+		(uuid "bd9ea938-5aa9-4db7-b21c-74f31f524435")
 	)
 	(text "REF ucu VREF'te (1.7153 V, tamponlu) — cikis 1.7153 V +- 1.385 V."
 		(at 355.6 101.6 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "36fcb1d4-791c-40c7-99d6-7d2277ff93dc")
+		(uuid "627d113c-32b2-4535-87f2-bf88c8538acc")
 	)
 	(text "Bant 526 kHz; darbogaz Sallen-Key (16.55 kHz), yukseltec DEGIL."
 		(at 355.6 106.68 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "e73ddb8f-ee6c-4c2c-a002-6b4ff9bba529")
+		(uuid "1a0745a1-f112-49b5-ba03-ddb3ed16fb9a")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -7574,7 +7574,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "a911e9ab-1da0-4cd2-9777-a9c8eeee2082")
+		(uuid "538e8de7-8b9d-4dd1-b578-f8d9ce9c4222")
 		(property "Reference" "R31"
 			(at 445.16 49.07 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7589,7 +7589,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R31") (unit 1)
 				)
 			)
@@ -7603,7 +7603,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "fb29157c-e7c3-47f6-b531-48b8e56796f8")
+		(uuid "492448aa-9c07-41ab-ac43-b460c792ee18")
 		(property "Reference" "R32"
 			(at 462.94 49.07 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7618,7 +7618,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R32") (unit 1)
 				)
 			)
@@ -7632,7 +7632,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b1ce14ab-087a-4b50-9964-b50043782b43")
+		(uuid "96ec2f98-9fd4-439e-b95f-66a88e5da6e7")
 		(property "Reference" "C8"
 			(at 473.1 59.23 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7647,7 +7647,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C8") (unit 1)
 				)
 			)
@@ -7661,7 +7661,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "3543dfee-7021-4374-a768-1e445cf3a9f4")
+		(uuid "8b229dc5-0301-4b90-85b4-7c09fcbceece")
 		(property "Reference" "#PWR013"
 			(at 473.1 71.93 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7676,7 +7676,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR013") (unit 1)
 				)
 			)
@@ -7690,7 +7690,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8f3470ca-a206-4c99-b4d2-3fc3423da01d")
+		(uuid "d69322ae-50d3-467e-8abc-2c0c1f1e43ad")
 		(property "Reference" "U5"
 			(at 490.88 49.07 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7705,7 +7705,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U5") (unit 2)
 				)
 			)
@@ -7719,7 +7719,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "76ac3f6c-efcc-4fa3-8352-3a4306ca20ed")
+		(uuid "40db37b5-fac2-4301-be26-976a8165ebd9")
 		(property "Reference" "C7"
 			(at 454.05 33.83 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7734,7 +7734,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C7") (unit 1)
 				)
 			)
@@ -7745,130 +7745,130 @@
 			(xy 426.72 52.07) (xy 438.15 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "19b80eed-1d4e-4bf3-bbeb-0a429423b304")
+		(uuid "1d7a309a-e795-4bac-b5e9-347b88709f5b")
 	)
 	(wire
 		(pts
 			(xy 445.77 52.07) (xy 450.85 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "c54ec181-bf07-4e2e-b7b3-a72d5aa1dc5e")
+		(uuid "6036e4c2-14dd-48d0-9e77-21f1653f248c")
 	)
 	(wire
 		(pts
 			(xy 450.85 52.07) (xy 455.93 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4db5cf44-a2e0-4cdb-bf8e-f4741dfdeaae")
+		(uuid "ca081f20-2570-4ca9-8604-c72ccdc1edac")
 	)
 	(wire
 		(pts
 			(xy 463.55 52.07) (xy 469.9 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "bad2f1e9-fef0-4f08-8cbc-490ab41a1684")
+		(uuid "591df1d8-5302-44bd-9897-36923591c1ab")
 	)
 	(wire
 		(pts
 			(xy 469.9 52.07) (xy 469.9 58.42)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "72c7eade-1ab9-465c-a597-b5fd7a573702")
+		(uuid "b7e9f872-56be-4f78-a0c5-fa6ddb227e49")
 	)
 	(wire
 		(pts
 			(xy 469.9 66.04) (xy 469.9 74.93)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "7ea88cb6-2c34-4c6d-82e5-7d451c554580")
+		(uuid "c78e2eb8-ffad-4a2e-903d-efae7c5a10ce")
 	)
-	(junction (at 469.9 52.07) (diameter 0.9144) (color 0 0 0 0) (uuid "8c20ff60-6c12-4aff-9c0d-833e158f3142"))
+	(junction (at 469.9 52.07) (diameter 0.9144) (color 0 0 0 0) (uuid "dd3d0508-2e0e-4c18-94e2-7294766f0085"))
 	(wire
 		(pts
 			(xy 469.9 52.07) (xy 480.06 49.53)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d44980fc-c2a9-4339-8089-138e99aee8bf")
+		(uuid "fe7d8b8c-65a8-40aa-a22e-00fb1b429a2c")
 	)
 	(wire
 		(pts
 			(xy 495.3 52.07) (xy 497.84 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "94a0908e-f66d-4aeb-9f2f-fe623ee499b0")
+		(uuid "61aaf8c1-9a40-4573-b458-17e29a887947")
 	)
 	(wire
 		(pts
 			(xy 480.06 54.61) (xy 477.52 49.53)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9969515d-b60d-4b05-83a7-8818816a8423")
+		(uuid "f700f91c-7678-4034-9b8e-2f65912be875")
 	)
 	(wire
 		(pts
 			(xy 477.52 49.53) (xy 477.52 44.45)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "87457538-200a-4614-8d10-3571abe9a3e6")
+		(uuid "fcc1e378-b431-49f9-9b5f-4aff280e46c7")
 	)
 	(wire
 		(pts
 			(xy 477.52 44.45) (xy 497.84 44.45)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "50c0e186-0c63-432e-a2a8-350adcc9a632")
+		(uuid "e34ab5a3-2f38-40a4-9e92-9e5ca6666233")
 	)
 	(wire
 		(pts
 			(xy 497.84 44.45) (xy 497.84 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "df23939b-77cc-426f-b327-17ab2c90a9d3")
+		(uuid "78f5570c-a816-4768-93bd-5117abe5de7f")
 	)
-	(junction (at 497.84 52.07) (diameter 0.9144) (color 0 0 0 0) (uuid "8ca38101-2c5c-45ae-98c4-9db51037e42d"))
+	(junction (at 497.84 52.07) (diameter 0.9144) (color 0 0 0 0) (uuid "083bf440-35ad-43d1-886c-34efa0e526c3"))
 	(wire
 		(pts
 			(xy 450.85 52.07) (xy 447.04 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "80b0c5f1-c7e4-497a-a67e-868421d33713")
+		(uuid "b6d46024-3ed5-4e6c-a045-516f5d278c31")
 	)
 	(wire
 		(pts
 			(xy 447.04 52.07) (xy 447.04 36.83)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "24611a7a-f717-450a-9651-29162d10e78b")
+		(uuid "202d7b5a-2d19-4be2-80ed-1ec7f5d2e168")
 	)
 	(wire
 		(pts
 			(xy 447.04 36.83) (xy 447.04 36.83)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3a18b4f3-9fc7-4cbf-98be-52f1b174d814")
+		(uuid "7b8ed87d-010a-401f-98fe-0f866a400844")
 	)
 	(wire
 		(pts
 			(xy 454.66 36.83) (xy 505.46 36.83)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "b9c317be-ce2b-4b7f-b205-677d63c276d3")
+		(uuid "d778dc28-28a9-4576-9861-a9f64c781d1d")
 	)
 	(wire
 		(pts
 			(xy 505.46 36.83) (xy 505.46 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f5622529-f4b5-4912-9783-0188afdba73c")
+		(uuid "7e3b4e7f-4914-4fb3-a7e1-a12996e9c3c3")
 	)
 	(wire
 		(pts
 			(xy 505.46 52.07) (xy 497.84 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a2dc60af-310d-4a8f-a42f-9a09a009fdfe")
+		(uuid "234be3b6-0a26-43b1-a282-3d5ebace3885")
 	)
-	(junction (at 450.85 52.07) (diameter 0.9144) (color 0 0 0 0) (uuid "64a235de-dfce-48be-a880-bed0dd7004bc"))
+	(junction (at 450.85 52.07) (diameter 0.9144) (color 0 0 0 0) (uuid "5d6dce00-401a-4ac1-8471-6899b7394894"))
 	(symbol
 		(lib_id "Device:R")
 		(at 515.62 52.07 90)
@@ -7877,7 +7877,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "687f6729-fb3c-4d4c-beb6-ac9bc81b982f")
+		(uuid "6546f0e2-aac3-4fa4-943f-5ad0fa403df3")
 		(property "Reference" "R33"
 			(at 518.82 49.07 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7892,7 +7892,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R33") (unit 1)
 				)
 			)
@@ -7903,14 +7903,14 @@
 			(xy 497.84 52.07) (xy 511.81 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d5ff2cc8-54d9-4c48-84bb-6bca480345b7")
+		(uuid "a131699c-c5e2-43e3-af58-a0b5472164de")
 	)
 	(wire
 		(pts
 			(xy 519.43 52.07) (xy 530.86 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9d162560-c1f4-4b30-89cc-3b3e1e52ca87")
+		(uuid "4df8bb66-bc29-4a08-851e-7505f2bd084e")
 	)
 	(symbol
 		(lib_id "Device:D_Schottky")
@@ -7920,7 +7920,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "0ab1c2f5-33c6-4b3a-b892-145f592c01a1")
+		(uuid "01c73b90-1b2e-45e7-a145-d4c39692f08b")
 		(property "Reference" "D3"
 			(at 534.06 38.91 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7935,7 +7935,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "D3") (unit 1)
 				)
 			)
@@ -7949,7 +7949,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "f1454173-13b8-4f2d-8a6e-10809ac82770")
+		(uuid "4a7ac180-01e0-4812-82e5-5695549b508a")
 		(property "Reference" "#PWR014"
 			(at 534.06 28.75 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -7964,7 +7964,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR014") (unit 1)
 				)
 			)
@@ -7975,14 +7975,14 @@
 			(xy 530.86 52.07) (xy 530.86 38.1)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d3f08176-8ddf-4813-97df-1febd9e43a4d")
+		(uuid "291f9735-fdb1-46ed-8f72-1b6db09982ad")
 	)
 	(wire
 		(pts
 			(xy 530.86 45.72) (xy 530.86 31.75)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "2c953d9d-8d57-4db9-94ba-519f0373a834")
+		(uuid "296903db-0d6e-4bce-b49e-d5ac0b381e2e")
 	)
 	(symbol
 		(lib_id "Device:D_Schottky")
@@ -7992,7 +7992,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "f7f6a8f7-43ce-46b3-abd1-14154b9e8f74")
+		(uuid "581904b6-d9da-4e3b-8e72-37713788d068")
 		(property "Reference" "D4"
 			(at 534.06 59.23 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8007,7 +8007,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "D4") (unit 1)
 				)
 			)
@@ -8021,7 +8021,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "6f519184-170d-4de6-a7b4-d645646af054")
+		(uuid "2dd23d47-a759-4112-8886-df03c2f604c5")
 		(property "Reference" "#PWR015"
 			(at 534.06 69.39 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8036,7 +8036,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR015") (unit 1)
 				)
 			)
@@ -8047,47 +8047,47 @@
 			(xy 530.86 52.07) (xy 530.86 66.04)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "30b73de6-da80-434e-beb2-46ef09b821a0")
+		(uuid "85bdc877-7d26-4099-a405-d298426f0989")
 	)
 	(wire
 		(pts
 			(xy 530.86 58.42) (xy 530.86 72.39)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "dafb5b23-aef1-465d-9d9c-fb7bc05356d6")
+		(uuid "e3175137-722f-46e8-ab75-cf99503733aa")
 	)
-	(junction (at 530.86 52.07) (diameter 0.9144) (color 0 0 0 0) (uuid "ea7853ae-13ac-479b-8102-8235fee1787a"))
+	(junction (at 530.86 52.07) (diameter 0.9144) (color 0 0 0 0) (uuid "6574ff36-3670-4e44-b0d6-fc6b30dfb6ff"))
 	(wire
 		(pts
 			(xy 530.86 52.07) (xy 546.1 52.07)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1e243d24-6cf6-498e-b32f-b7dff148c2c9")
+		(uuid "d9ac6706-7469-417d-b08a-59fb41f81b0d")
 	)
 	(label "I_HIZLI"
 		(at 546.1 52.07 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "4f8f5a9a-5a71-4562-b692-f2f41266ff82")
+		(uuid "f88c51ae-7152-4ce8-bc3e-a51871a4f1e0")
 	)
 	(text "U5B Asama 3'e kadar BOSTA duruyordu; artik hizli akim Sallen-Key'i."
 		(at 355.6 116.84 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "ca91cf8b-2373-4aea-a763-d8f287e02257")
+		(uuid "c82f3bb6-c73d-419b-8768-441972ad5597")
 	)
 	(text "Sont KELVIN uclari IKI yere gidiyor: ADS'in RC'sine ve buraya."
 		(at 355.6 121.92 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "6a32f183-72ac-41b6-8458-a5ff9bdc1f41")
+		(uuid "12091f0e-da09-40ff-9c7d-d36088516339")
 	)
 	(text "Hizli yol RC'nin ARDINDAN cekilseydi 7.96 kHz'e hapsolurdu."
 		(at 355.6 127.0 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "70e273ad-167a-4b52-8080-aad9f12281b2")
+		(uuid "cea265e9-445d-422b-8b45-a05c15caae43")
 	)
 	(text "BLOK 6  —  ADS1115 x2  ·  I2C pull-up 2.7K (4.7K DEGIL)"
 		(at 25.4 251.46 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "a8b4b014-4ae8-45fe-9fd3-9ba29b83566e")
+		(uuid "88f0277a-5349-4344-84e8-66de1b3d9663")
 	)
 	(symbol
 		(lib_id "Analog_ADC:ADS1115IDGS")
@@ -8097,7 +8097,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1978ec97-4204-4c4b-b6a6-3cfa27e4386d")
+		(uuid "0eace78a-b1f3-4dd6-b960-ac717501430d")
 		(property "Reference" "U6"
 			(at 64.16 276.4 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8112,7 +8112,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U6") (unit 1)
 				)
 			)
@@ -8121,26 +8121,26 @@
 	(label "SONT_P_A"
 		(at 33.02 276.86 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "90560aac-a566-428d-8bb6-4c1204322daf")
+		(uuid "24016437-b1c6-4da1-9f5c-742a1c754404")
 	)
 	(wire
 		(pts
 			(xy 33.02 276.86) (xy 50.8 276.86)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "fe32c134-a463-4a74-8edd-bb8de685160c")
+		(uuid "cb8660dd-af6e-4492-ab45-074acd435d8d")
 	)
 	(label "SONT_N_A"
 		(at 33.02 279.4 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "136053d1-e8e0-4bfd-8bc1-1d374b10b8bf")
+		(uuid "db06332d-5fe2-4650-b5ba-517d22c42099")
 	)
 	(wire
 		(pts
 			(xy 33.02 279.4) (xy 50.8 279.4)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "fcba1b35-557f-438b-8e68-f6f22006e52b")
+		(uuid "eadf8084-7c9f-418e-ba67-09102fe986d3")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -8150,7 +8150,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "15008e3c-7130-468d-a4ef-5232549d4ca3")
+		(uuid "e084e24f-3132-441e-a5db-52f7cffa87af")
 		(property "Reference" "#PWR016"
 			(at 64.16 289.1 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8165,7 +8165,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR016") (unit 1)
 				)
 			)
@@ -8176,7 +8176,7 @@
 			(xy 60.96 289.56) (xy 60.96 292.1)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9c8d230e-ef45-4a6e-8794-dd07285e8eaf")
+		(uuid "2f4031f5-0162-431c-b87f-7a61eb9d638e")
 	)
 	(symbol
 		(lib_id "power:+3V3")
@@ -8186,7 +8186,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "60532225-d1c3-4ece-944b-569c3402df12")
+		(uuid "c24716f2-c344-44c8-946d-80f277ed649e")
 		(property "Reference" "#PWR017"
 			(at 64.16 261.16 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8201,7 +8201,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR017") (unit 1)
 				)
 			)
@@ -8212,7 +8212,7 @@
 			(xy 60.96 266.7) (xy 60.96 264.16)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1e873f34-ceb8-4b9d-8d99-cc37c607dbd8")
+		(uuid "16982363-df63-4132-a76d-52262385f263")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -8222,7 +8222,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "7cf152af-d181-449e-b873-2d7fc081eebd")
+		(uuid "f1265282-c006-4c00-943b-95452f8218ae")
 		(property "Reference" "#PWR018"
 			(at 84.48 266.24 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8237,7 +8237,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR018") (unit 1)
 				)
 			)
@@ -8248,57 +8248,57 @@
 			(xy 71.12 284.48) (xy 76.2 274.32)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f6568ae1-dd96-4e2c-aca6-d741d9c95dc6")
+		(uuid "e2bc4fdf-8f0e-4f50-829d-e9ec2c7602c6")
 	)
 	(wire
 		(pts
 			(xy 76.2 274.32) (xy 76.2 269.24)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4da30255-3d5b-4035-b74f-c48746311423")
+		(uuid "08cdd843-e7bf-4803-bec7-51f80e21f22e")
 	)
 	(wire
 		(pts
 			(xy 76.2 269.24) (xy 81.28 269.24)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "b60da29f-d6b9-4548-9fe8-ba44c097d261")
+		(uuid "ae36db80-2873-4899-9fd0-d727f7d8fe43")
 	)
 	(wire
 		(pts
 			(xy 71.12 281.94) (xy 86.36 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1441fb17-a103-4012-9966-0833aa245bf3")
+		(uuid "ccb2982d-4d4b-458a-8f43-bf85d6be7798")
 	)
 	(label "SDA"
 		(at 86.36 281.94 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "230fb93b-d7ad-4293-ae42-94f10a757bd9")
+		(uuid "78fb4509-482b-4370-a23a-e9fff7dab9bf")
 	)
 	(wire
 		(pts
 			(xy 71.12 279.4) (xy 86.36 279.4)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "6cf927a3-0d09-496b-94e6-425799cc7f0f")
+		(uuid "53f7c5ce-3a27-4310-9ad7-5de378e6ed6d")
 	)
 	(label "SCL"
 		(at 86.36 279.4 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "89905634-027e-4d80-b0db-cd5c32539bb5")
+		(uuid "66106d14-800d-40f8-8d08-a67c74d3cc0f")
 	)
 	(wire
 		(pts
 			(xy 71.12 274.32) (xy 86.36 274.32)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "49d7cb73-7859-48f3-be53-dbb4dfa77ed4")
+		(uuid "48493911-e2b3-442d-b9c0-1f96357e5c93")
 	)
 	(label "HAZIR"
 		(at 86.36 274.32 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "b553ef54-0a65-4764-ac70-0cd1a87bd23e")
+		(uuid "7aadb37b-2f60-4375-87be-9b7f0e922bf0")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -8308,7 +8308,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "cc3b155b-f164-4247-bb6a-be0483690903")
+		(uuid "c8abc345-e59b-4f4b-80f4-801499d9f8e4")
 		(property "Reference" "#PWR019"
 			(at 43.84 286.56 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8323,7 +8323,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR019") (unit 1)
 				)
 			)
@@ -8334,44 +8334,44 @@
 			(xy 50.8 281.94) (xy 45.72 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f6af2fe0-7251-4666-936c-642c6df67f7b")
+		(uuid "07c7be6a-311d-4607-94d8-470a8b7f5ba4")
 	)
 	(wire
 		(pts
 			(xy 45.72 281.94) (xy 45.72 287.02)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "774f9633-2dff-4bb7-92ee-7aec49c3c21b")
+		(uuid "0ce00ed6-cdca-433e-a596-1c2c56f60675")
 	)
 	(wire
 		(pts
 			(xy 45.72 287.02) (xy 40.64 287.02)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9b3efc80-3e9d-4197-ab5b-a14318988293")
+		(uuid "c9d596b4-6d9d-4510-8656-c2666a2a2392")
 	)
 	(wire
 		(pts
 			(xy 40.64 287.02) (xy 40.64 289.56)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a9790e17-74ee-4595-a657-515987fad606")
+		(uuid "68dff60b-657d-4c34-a6ed-6baf17fde835")
 	)
 	(wire
 		(pts
 			(xy 50.8 284.48) (xy 43.18 284.48)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4eba7eeb-d99e-45f6-a1ee-ee6870e21466")
+		(uuid "1eb55ab0-907b-4295-b5ea-e59e6e58c723")
 	)
 	(wire
 		(pts
 			(xy 43.18 284.48) (xy 43.18 287.02)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9d856d7a-670a-499b-bf62-27bf1f7623e5")
+		(uuid "53f34fec-09cb-4f82-ba5c-89189da16082")
 	)
-	(junction (at 43.18 287.02) (diameter 0.9144) (color 0 0 0 0) (uuid "adfd4731-d1db-4901-ab78-e7f4c47b7822"))
+	(junction (at 43.18 287.02) (diameter 0.9144) (color 0 0 0 0) (uuid "5498e0d0-042d-4124-9538-924155d24434"))
 	(symbol
 		(lib_id "Analog_ADC:ADS1115IDGS")
 		(at 152.4 279.4 0)
@@ -8380,7 +8380,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "27c5f59c-9ed5-4d73-8b1e-d22d775b86db")
+		(uuid "0c32de8d-bc64-45dc-9736-52dcb7cb1ade")
 		(property "Reference" "U7"
 			(at 155.6 276.4 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8395,7 +8395,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U7") (unit 1)
 				)
 			)
@@ -8404,50 +8404,50 @@
 	(label "V_ADS"
 		(at 116.84 276.86 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "a121e5ed-604e-400c-9666-86ea5833d6d5")
+		(uuid "495f8190-303a-44d9-8c4d-0c7907263532")
 	)
 	(wire
 		(pts
 			(xy 116.84 276.86) (xy 142.24 276.86)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "11db64f1-e258-4e63-b214-10917a4dd2fe")
+		(uuid "28806d40-db61-485a-9dfb-fe408576cf30")
 	)
 	(label "VREF_ADS"
 		(at 116.84 279.4 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "0233fc4b-1b22-4f56-a0f1-c8147839ac30")
+		(uuid "5a4b14ce-e5b1-481a-aaee-4af3a4e32933")
 	)
 	(wire
 		(pts
 			(xy 116.84 279.4) (xy 142.24 279.4)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a2ce9ff3-158f-4fa3-a07c-93b19d7c2d96")
+		(uuid "1d5deae6-4832-403e-8c13-0e98d0aba345")
 	)
 	(label "HV_ADS"
 		(at 116.84 281.94 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "aa36113c-0c88-4d8b-8e6b-528da9f69532")
+		(uuid "a39cbd54-9b28-47cf-9803-caefa603c6a7")
 	)
 	(wire
 		(pts
 			(xy 116.84 281.94) (xy 142.24 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1cd0be13-18b9-4b40-b84b-dd0ff8a4736b")
+		(uuid "75fda24e-bd01-4ba6-8e21-9c906c831531")
 	)
 	(label "VREF_ADS"
 		(at 116.84 284.48 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "92d8f3d2-8399-40f3-82df-83d095d36d26")
+		(uuid "ed8440e5-d83c-42ed-807b-cc9b6c9d99c5")
 	)
 	(wire
 		(pts
 			(xy 116.84 284.48) (xy 142.24 284.48)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e46b9a02-ed3e-4b62-8228-1e72d789732c")
+		(uuid "2e921bdb-0bde-49e1-a91e-1ab654742034")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -8457,7 +8457,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1c091033-86a0-416d-9edf-47e2d3245bad")
+		(uuid "5afc84c2-0300-4690-ab07-5541b23b4734")
 		(property "Reference" "#PWR020"
 			(at 155.6 289.1 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8472,7 +8472,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR020") (unit 1)
 				)
 			)
@@ -8483,7 +8483,7 @@
 			(xy 152.4 289.56) (xy 152.4 292.1)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "7ef07b9e-d41a-4fed-b878-ba71bbd26a23")
+		(uuid "1fe4b9f5-8860-4fa1-b24d-5b909a4be02a")
 	)
 	(symbol
 		(lib_id "power:+3V3")
@@ -8493,7 +8493,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "97bab632-05a8-4db2-ab01-a8ea7b9ba4ba")
+		(uuid "cdface4f-5ff0-44e3-b08f-2fad17bb0fd0")
 		(property "Reference" "#PWR021"
 			(at 155.6 261.16 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8508,7 +8508,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR021") (unit 1)
 				)
 			)
@@ -8519,51 +8519,51 @@
 			(xy 152.4 266.7) (xy 152.4 264.16)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a68ddf12-db50-4bb3-9011-036f635a2bb5")
+		(uuid "c8595669-af8b-4479-9862-0dcf671628ac")
 	)
-	(no_connect (at 162.56 274.32) (uuid "59aeb26a-101f-4715-b287-124ccfbb1653"))
+	(no_connect (at 162.56 274.32) (uuid "981502af-6e7f-4b5b-a833-b89b062797e0"))
 	(wire
 		(pts
 			(xy 162.56 284.48) (xy 167.64 274.32)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "5c395d46-1286-440e-83b3-020fbc707fa8")
+		(uuid "88694f37-4d92-446f-a238-34f878a77ead")
 	)
 	(wire
 		(pts
 			(xy 167.64 274.32) (xy 167.64 266.7)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "28e4523e-b4a1-416f-8d94-5ed5b1eb5b90")
+		(uuid "fae42cae-90d4-4cd7-8334-e2a9bfe17c5f")
 	)
 	(label "+3V3"
 		(at 167.64 266.7 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "0d3fd969-6cff-4962-ac02-05f3dbb8b75d")
+		(uuid "6e428032-8e2c-4cb3-817d-bb2cd5f23f68")
 	)
 	(wire
 		(pts
 			(xy 162.56 281.94) (xy 177.8 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "00f4d301-6693-4e24-8cb9-0961361a2061")
+		(uuid "d91b0f4f-af35-4773-b1ae-d28271b64889")
 	)
 	(label "SDA"
 		(at 177.8 281.94 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "a699e2f7-8533-4f40-8553-3fed2bd67edb")
+		(uuid "e09f6dbf-0434-4cdb-ac97-f600570c34f3")
 	)
 	(wire
 		(pts
 			(xy 162.56 279.4) (xy 177.8 279.4)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "5bb1979c-3da7-41c7-bb6f-f3ae406113fd")
+		(uuid "48d7c2a8-7e78-4c18-ad0d-82ac81af2420")
 	)
 	(label "SCL"
 		(at 177.8 279.4 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "13aced48-d55c-4438-91d3-21391a13cd45")
+		(uuid "c27cb6c3-cbcb-4e3f-b87a-1ba12035c5b6")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -8573,7 +8573,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "257759e0-0050-4f28-8c4e-cd340b101b5d")
+		(uuid "b794ad66-c1e1-4420-a55c-c02f3ea635db")
 		(property "Reference" "R25"
 			(at 216.56 266.24 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8588,7 +8588,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R25") (unit 1)
 				)
 			)
@@ -8602,7 +8602,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "16da6782-54a4-4da5-a196-be6dd9466ac6")
+		(uuid "f51191ec-37cf-489b-b2b5-ca1e196ce884")
 		(property "Reference" "R24"
 			(at 231.8 266.24 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8617,7 +8617,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R24") (unit 1)
 				)
 			)
@@ -8631,7 +8631,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "c504b5b2-ac2f-4038-8570-1bb1fae7fbc9")
+		(uuid "0efae83c-2b81-435f-82e6-b3c2c88a8a2f")
 		(property "Reference" "#PWR022"
 			(at 216.56 256.08 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8646,7 +8646,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR022") (unit 1)
 				)
 			)
@@ -8660,7 +8660,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "d05a4e40-6c90-4b61-803c-c411c95f60ba")
+		(uuid "31b3f50e-dd53-4b5c-b64b-aba8369848b6")
 		(property "Reference" "#PWR023"
 			(at 231.8 256.08 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8675,7 +8675,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR023") (unit 1)
 				)
 			)
@@ -8686,53 +8686,53 @@
 			(xy 213.36 259.08) (xy 213.36 265.43)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "638fa71e-1cc4-4a94-a05e-185adca5ad95")
+		(uuid "dba49a4b-8bba-4151-b101-3e7eb32b9098")
 	)
 	(wire
 		(pts
 			(xy 228.6 259.08) (xy 228.6 265.43)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "054734af-082c-40e0-b00d-32095d1f2416")
+		(uuid "d49541c9-0b8e-45e4-92e1-67e9b5ee7ffc")
 	)
 	(wire
 		(pts
 			(xy 213.36 273.05) (xy 213.36 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "2a9907dd-e2e0-4fe1-a0a6-eb0532b6c755")
+		(uuid "e76904b9-c7b4-4bb3-b21b-00ca7ffa7319")
 	)
 	(label "SDA"
 		(at 213.36 281.94 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "fed8d729-67f9-4386-88a0-12f1a80edb1a")
+		(uuid "9d9ba853-1e39-451c-8411-53ca83460a30")
 	)
 	(wire
 		(pts
 			(xy 228.6 273.05) (xy 228.6 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "0f16b9be-e1d7-4cdf-9607-c9d5e6cb38e3")
+		(uuid "93c9a5e4-cb16-449a-9ecc-54b3deb5c965")
 	)
 	(label "SCL"
 		(at 228.6 281.94 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "5e4ee95a-ba60-418a-8897-dfed30460701")
+		(uuid "5b142b3c-0985-491f-bcdf-0e1ab40b43a9")
 	)
 	(text "4.7K iki modulde 2.42 kohm -> t_r 308 ns; Fast-mode siniri 300 ns."
 		(at 25.4 302.26 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "0104f8b4-9d18-4ad1-8fd8-3a596db3eb74")
+		(uuid "929eb9a9-115a-4c0d-9403-c9f03978d34e")
 	)
 	(text "2.7K hem 2 hem 3 modulde geciyor (223 / 190 ns), sink 2.21 mA < 3 mA."
 		(at 25.4 307.34 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "ea55683e-3f4a-4009-8c79-b2d13bcce777")
+		(uuid "8533874f-cb9a-4f7f-b2d2-a36a6406b4df")
 	)
 	(text "BLOK 7  —  ESP32-S3 N16R8"
 		(at 269.24 251.46 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "c062c88e-71b0-4dfa-9180-c09ff364417c")
+		(uuid "adb36ed8-270b-4ba5-ba62-9227881123f6")
 	)
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x10")
@@ -8742,7 +8742,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "f8f673b9-801f-48fa-a752-404150430b30")
+		(uuid "4ece3b23-b6f0-4c10-ab66-0acb20c1dec1")
 		(property "Reference" "J5"
 			(at 297.84 278.94 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8757,7 +8757,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "J5") (unit 1)
 				)
 			)
@@ -8768,130 +8768,130 @@
 			(xy 289.56 271.78) (xy 309.88 271.78)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "cb475c10-9f1f-4a20-bcd2-e2253bdecf48")
+		(uuid "4bb22816-4d2f-4c32-a3c7-964047b988ac")
 	)
 	(label "+3V3"
 		(at 309.88 271.78 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "b5e47b89-76c5-4d3d-a289-a6eb0f69aabd")
+		(uuid "9ba83383-e84d-4673-bc27-f542f3a53efc")
 	)
 	(wire
 		(pts
 			(xy 289.56 274.32) (xy 309.88 274.32)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "40bcf5d3-78c0-4c98-8cc4-5d62c0ce73ed")
+		(uuid "bd76a929-f4db-4403-9bbb-6385fe6cc541")
 	)
 	(label "GND"
 		(at 309.88 274.32 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "5450c602-f2ad-44fd-b278-7ba70e62875d")
+		(uuid "6c133d0f-46c7-4a9e-890e-abb73c7310e3")
 	)
 	(wire
 		(pts
 			(xy 289.56 276.86) (xy 309.88 276.86)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "c864792f-ddc6-4918-82ab-84cee61c73da")
+		(uuid "54ddc85c-83a9-4aab-98f6-7267eeb70146")
 	)
 	(label "SDA"
 		(at 309.88 276.86 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "ea8077bc-68b6-4644-92a2-17d8a69f0329")
+		(uuid "ac6ed183-85b3-406c-ada1-9c21d9303e00")
 	)
 	(wire
 		(pts
 			(xy 289.56 279.4) (xy 309.88 279.4)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "8942e46c-c6f1-4ce5-a562-68ab2eab4de7")
+		(uuid "73ac8d87-1c20-4f63-a583-d996d8313f75")
 	)
 	(label "SCL"
 		(at 309.88 279.4 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "e46ca34b-3f19-4bc6-bb1f-a6bc17609e1f")
+		(uuid "8b99d203-a2da-48ed-9e6e-b75700a724c7")
 	)
 	(wire
 		(pts
 			(xy 289.56 281.94) (xy 309.88 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "9c266b03-3462-463c-8092-ae94624e9d5f")
+		(uuid "04e4da1c-7724-452c-8bf5-97fce1494325")
 	)
 	(label "SKOP"
 		(at 309.88 281.94 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "08cdea09-38db-4559-bf6f-2e543e57600b")
+		(uuid "8df9b3e7-9681-40e5-8d86-b5dddc4036a6")
 	)
 	(wire
 		(pts
 			(xy 289.56 284.48) (xy 309.88 284.48)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "458a68c0-b6fe-43df-b230-64a93890e9f7")
+		(uuid "6ea8349e-8d68-4d97-88d1-bae0957efc21")
 	)
 	(label "HAZIR"
 		(at 309.88 284.48 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "fa499b46-de99-46b7-96bc-c7b722c4522c")
+		(uuid "e9c15f00-f69c-4809-91a4-4f97d77b2dc0")
 	)
 	(wire
 		(pts
 			(xy 289.56 287.02) (xy 309.88 287.02)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "da532341-ee2d-47da-8b41-21e674fa87ca")
+		(uuid "c92e580f-fbae-4893-8576-4396112d1e3c")
 	)
 	(label "I_HIZLI"
 		(at 309.88 287.02 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "ecf80c5a-f0cd-4024-9b40-216c4c2416c8")
+		(uuid "1e043bd0-7b2f-4479-af42-995f6c8bf000")
 	)
 	(wire
 		(pts
 			(xy 289.56 289.56) (xy 309.88 289.56)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "bc55f0a2-b554-4a6f-a988-de711c5801c8")
+		(uuid "55ba1837-0f9d-4f44-8483-2788543c9996")
 	)
 	(label "+5V"
 		(at 309.88 289.56 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "9bf65758-33a1-44ff-a30a-dc6491c737c0")
+		(uuid "1b845382-6684-4ed2-8faf-0c3e4941e9af")
 	)
 	(wire
 		(pts
 			(xy 289.56 292.1) (xy 309.88 292.1)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "ace9eb2c-2882-458f-9756-113a5c706786")
+		(uuid "ea578605-673b-418c-bfb9-6ec671ddb32c")
 	)
 	(label "GND"
 		(at 309.88 292.1 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "e25e0286-5f2d-41c9-bda1-41e273ef4870")
+		(uuid "d57a9010-f183-41da-a32c-99c6cbabc0da")
 	)
 	(wire
 		(pts
 			(xy 289.56 294.64) (xy 309.88 294.64)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "8262a4c2-a990-4bb6-a17a-3d2fb02b461b")
+		(uuid "878041ca-66bf-462a-94a9-fadfe39b8788")
 	)
 	(label "PIL_KAPI"
 		(at 309.88 294.64 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "4fac5195-794d-4803-b5c4-4996b10240d5")
+		(uuid "abf443a4-6fdb-4024-9855-35407cd167ae")
 	)
 	(text "GPIO8 SDA · GPIO9 SCL · GPIO4 SKOP (ADC1_CH3) · GPIO5 I_HIZLI (CH4) · GPIO7 HAZIR"
 		(at 269.24 302.26 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "f859d5f8-1347-43e7-b344-868e8456f118")
+		(uuid "8c426856-4eff-455a-ba29-07ebfbde8633")
 	)
 	(text "OP-AMP BESLEMELERI"
 		(at 355.6 251.46 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "f84829e2-d6b4-40df-b812-1a4cdc863dc5")
+		(uuid "4a64c194-f989-4945-8e18-67104708cd0a")
 	)
 	(symbol
 		(lib_id "Amplifier_Operational:LM358")
@@ -8901,7 +8901,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "49d1a0fa-e91a-4462-a735-79b6499c074f")
+		(uuid "88074479-657c-425c-91ef-f582585f3ee2")
 		(property "Reference" "U3"
 			(at 376.58 268.78 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8916,7 +8916,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U3") (unit 3)
 				)
 			)
@@ -8930,7 +8930,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "d6acef8c-fc9b-4caa-92a5-f4a31ebc5811")
+		(uuid "c00b1c67-c07c-405a-8653-0bbe4bd78503")
 		(property "Reference" "#PWR024"
 			(at 376.58 258.62 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8945,7 +8945,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR024") (unit 1)
 				)
 			)
@@ -8959,7 +8959,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "fe15bae7-5133-4581-abcd-a449e48dc049")
+		(uuid "132f49ab-59a9-41c1-a682-256b22a97d64")
 		(property "Reference" "#PWR025"
 			(at 376.58 278.94 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -8974,7 +8974,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR025") (unit 1)
 				)
 			)
@@ -8985,14 +8985,14 @@
 			(xy 370.84 264.16) (xy 373.38 261.62)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d339e2c0-66fc-4821-91ce-7bf23e1b85c9")
+		(uuid "07be0abc-cf1a-430c-90ce-85f8ee6c3a1d")
 	)
 	(wire
 		(pts
 			(xy 370.84 279.4) (xy 373.38 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e85e2e75-797a-4d3a-a71d-4eed3c23c18b")
+		(uuid "e4950cc1-ff64-4d23-9e5b-006715e9cc95")
 	)
 	(symbol
 		(lib_id "Amplifier_Operational:LM358")
@@ -9002,7 +9002,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "d31b985e-cb5e-4e4d-829d-d131be23fa1d")
+		(uuid "c7114aeb-a93d-439a-b4a6-9c7226322092")
 		(property "Reference" "U4"
 			(at 407.06 268.78 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9017,7 +9017,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U4") (unit 3)
 				)
 			)
@@ -9031,7 +9031,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8d39ea7f-0117-4888-af6b-819984b4e6d1")
+		(uuid "d4da3b6f-be47-42c1-89c5-56dee839a42a")
 		(property "Reference" "#PWR026"
 			(at 407.06 258.62 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9046,7 +9046,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR026") (unit 1)
 				)
 			)
@@ -9060,7 +9060,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "dd32ffab-6037-4a1b-b8f1-05e5a2a8902e")
+		(uuid "4c0d5af9-a9dc-4341-bfdb-4675ce5c1402")
 		(property "Reference" "#PWR027"
 			(at 407.06 278.94 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9075,7 +9075,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR027") (unit 1)
 				)
 			)
@@ -9086,14 +9086,14 @@
 			(xy 401.32 264.16) (xy 403.86 261.62)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4a411963-c916-40ae-81e9-5b900040c20c")
+		(uuid "16b4ad4b-0698-4c35-bff9-257e9a236ab6")
 	)
 	(wire
 		(pts
 			(xy 401.32 279.4) (xy 403.86 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "6a500897-b26b-4710-9471-58531e008aa7")
+		(uuid "62237522-bb05-4f84-8769-9afe9477f8f6")
 	)
 	(symbol
 		(lib_id "Amplifier_Operational:TL072")
@@ -9103,7 +9103,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "0e34f486-6afa-472f-bbfa-c727950cb40b")
+		(uuid "4e38d080-9e24-4567-97f4-053c379aa6b5")
 		(property "Reference" "U5"
 			(at 437.54 268.78 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9118,7 +9118,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U5") (unit 3)
 				)
 			)
@@ -9132,7 +9132,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "59cd5a0f-f2c2-4cc2-afdc-59ea13ce3a19")
+		(uuid "78c9a0e6-b369-40df-9d1b-208fe4b60a9b")
 		(property "Reference" "#PWR028"
 			(at 437.54 258.62 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9147,7 +9147,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR028") (unit 1)
 				)
 			)
@@ -9161,7 +9161,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "4323335e-9a6f-4216-a285-5f6bbae44e2a")
+		(uuid "a8f4d3d9-5e2d-4e7f-95ce-d3121b126166")
 		(property "Reference" "#PWR029"
 			(at 437.54 278.94 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9176,7 +9176,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR029") (unit 1)
 				)
 			)
@@ -9187,14 +9187,14 @@
 			(xy 431.8 264.16) (xy 434.34 261.62)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "8f3d3b46-4864-4df8-a68c-b6153fa40a75")
+		(uuid "14b644cf-59e0-4897-93c0-735faa3286b0")
 	)
 	(wire
 		(pts
 			(xy 431.8 279.4) (xy 434.34 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "6b8d020c-106e-4308-917f-efcf85c2e9c8")
+		(uuid "a4fe355d-06b5-4f6e-974a-77bb59a12c3d")
 	)
 	(symbol
 		(lib_id "Amplifier_Operational:TL072")
@@ -9204,7 +9204,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ce522255-3d00-4366-a9cb-f061a18e83b1")
+		(uuid "497ca2ea-da3b-433d-87ee-ccc1943ab6c7")
 		(property "Reference" "U8"
 			(at 468.02 268.78 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9219,7 +9219,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U8") (unit 3)
 				)
 			)
@@ -9233,7 +9233,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "a3878a11-5479-4452-b01d-7c9d658053b8")
+		(uuid "3c47bb96-bc66-4995-8075-45c6dd0cc92d")
 		(property "Reference" "#PWR030"
 			(at 468.02 258.62 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9248,7 +9248,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR030") (unit 1)
 				)
 			)
@@ -9262,7 +9262,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "56d18778-827e-4a25-8bf3-8373624e7793")
+		(uuid "29e8009a-0810-4438-97de-e596be3a1efe")
 		(property "Reference" "#PWR031"
 			(at 468.02 278.94 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9277,7 +9277,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR031") (unit 1)
 				)
 			)
@@ -9288,19 +9288,19 @@
 			(xy 462.28 264.16) (xy 464.82 261.62)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a2fad1f4-0092-40cf-aff9-c9af3df38224")
+		(uuid "d59c0873-72b4-42e6-a08c-a95d5daf907b")
 	)
 	(wire
 		(pts
 			(xy 462.28 279.4) (xy 464.82 281.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "751c73ac-65d7-41c0-86b3-e085e79c4fd9")
+		(uuid "152671ef-985b-4f87-87e9-aaf14fcdf9f4")
 	)
 	(text "AYIRMA KONDANSATORLERI — her op-amp besleme ucuna yerel 100nF"
 		(at 355.6 175.26 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "849828c3-9a92-4162-b262-336524b5cae5")
+		(uuid "1b836a3d-1b19-4404-9a2b-6086dbcb91d6")
 	)
 	(symbol
 		(lib_id "power:+5V")
@@ -9310,7 +9310,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "dcde49f8-e0eb-4abb-b224-f6487dca336b")
+		(uuid "7703bde8-2f82-41b8-86e9-730ec6ecb02f")
 		(property "Reference" "#PWR032"
 			(at 384.2 174.8 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9325,7 +9325,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR032") (unit 1)
 				)
 			)
@@ -9339,7 +9339,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b7ea717e-081b-451a-aa4d-b3aa4622e9fb")
+		(uuid "ac46e7b0-b318-4349-bfac-2a96438d3067")
 		(property "Reference" "C9"
 			(at 384.2 187.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9354,7 +9354,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C9") (unit 1)
 				)
 			)
@@ -9368,7 +9368,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "e946d505-1429-46de-ad08-788a82dc7ffb")
+		(uuid "e48a565f-08df-4b85-8e02-62d2f690fa32")
 		(property "Reference" "#PWR033"
 			(at 384.2 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9383,7 +9383,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR033") (unit 1)
 				)
 			)
@@ -9394,14 +9394,14 @@
 			(xy 381.0 177.8) (xy 381.0 186.69)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "26fc4464-3b73-474f-afc8-06edd26e5d14")
+		(uuid "54f7200f-7d29-4011-9e90-efc76d22849c")
 	)
 	(wire
 		(pts
 			(xy 381.0 194.31) (xy 381.0 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "cc021cfa-a147-49e0-a8e4-4c3fd9399493")
+		(uuid "b6487015-957d-4e7f-a9ce-35d53718acb6")
 	)
 	(symbol
 		(lib_id "power:+5V")
@@ -9411,7 +9411,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "2f554b30-656b-43b5-b4e0-aef326a79ba7")
+		(uuid "8f5beafd-415b-49d6-8762-550910603f92")
 		(property "Reference" "#PWR034"
 			(at 407.06 174.8 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9426,7 +9426,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR034") (unit 1)
 				)
 			)
@@ -9440,7 +9440,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "d9e03b05-15c3-4df7-8e03-3d33db903546")
+		(uuid "515b5670-2d1c-46b7-a5ba-c719cf50d36f")
 		(property "Reference" "C10"
 			(at 407.06 187.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9455,7 +9455,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C10") (unit 1)
 				)
 			)
@@ -9469,7 +9469,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "5e0d936b-f0a6-41c7-bc8b-e154a883573a")
+		(uuid "4fa5594c-7832-41c1-ad79-9f6ee02016f4")
 		(property "Reference" "#PWR035"
 			(at 407.06 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9484,7 +9484,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR035") (unit 1)
 				)
 			)
@@ -9495,14 +9495,14 @@
 			(xy 403.86 177.8) (xy 403.86 186.69)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e7b3f8a8-8ff7-4e34-99c8-fdf034f295c5")
+		(uuid "57c5b656-cb58-4ba8-8d4b-0553d7ea7563")
 	)
 	(wire
 		(pts
 			(xy 403.86 194.31) (xy 403.86 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4eaffd67-99ec-403c-97b7-1b591f8fb2f2")
+		(uuid "b404f763-82c2-4b5e-b0a9-ce93da700369")
 	)
 	(symbol
 		(lib_id "power:+12V")
@@ -9512,7 +9512,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b3c7c92d-6e35-45c8-9094-e18aa42bbb02")
+		(uuid "e653e9cf-6678-4a7a-95ac-c450827b46b3")
 		(property "Reference" "#PWR036"
 			(at 429.92 174.8 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9527,7 +9527,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR036") (unit 1)
 				)
 			)
@@ -9541,7 +9541,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "a8e58a38-1a02-4ba5-a47f-e721f9755769")
+		(uuid "4837a24b-8994-437d-9405-919d85a1f0ca")
 		(property "Reference" "C11"
 			(at 429.92 187.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9556,7 +9556,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C11") (unit 1)
 				)
 			)
@@ -9570,7 +9570,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "01fb5a29-bad9-4a53-9512-ddd375ab83e4")
+		(uuid "f8727421-72cd-467a-91e2-8787070a3f8c")
 		(property "Reference" "#PWR037"
 			(at 429.92 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9585,7 +9585,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR037") (unit 1)
 				)
 			)
@@ -9596,14 +9596,14 @@
 			(xy 426.72 177.8) (xy 426.72 186.69)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "cbc4fc9c-1f05-4cd0-be16-a51812749ce4")
+		(uuid "912cc1ba-0146-49de-a27c-328be2fac829")
 	)
 	(wire
 		(pts
 			(xy 426.72 194.31) (xy 426.72 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e583b88f-d98a-4d3b-877d-1932c5ee3054")
+		(uuid "820a2c90-a2ab-4eb6-91a9-c1c684014dea")
 	)
 	(symbol
 		(lib_id "power:-12V")
@@ -9613,7 +9613,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "cd19fcde-85e2-49ce-bed2-923543e25d67")
+		(uuid "d5798dec-f5a0-4237-84f4-ce94e0a5c87d")
 		(property "Reference" "#PWR038"
 			(at 452.78 174.8 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9628,7 +9628,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR038") (unit 1)
 				)
 			)
@@ -9642,7 +9642,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "962742cc-595f-4f7c-89df-aedd4c9ef3b1")
+		(uuid "35ed98f4-a86e-45f2-81a2-58db41ca02f3")
 		(property "Reference" "C12"
 			(at 452.78 187.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9657,7 +9657,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C12") (unit 1)
 				)
 			)
@@ -9671,7 +9671,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "d289d0a2-524c-4416-b55b-a0e4406d1e18")
+		(uuid "180591cc-b302-49ef-ae0b-871efa65c9f0")
 		(property "Reference" "#PWR039"
 			(at 452.78 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9686,7 +9686,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR039") (unit 1)
 				)
 			)
@@ -9697,14 +9697,14 @@
 			(xy 449.58 177.8) (xy 449.58 186.69)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a0dc3a9e-784b-4342-8083-5e5efd82b718")
+		(uuid "aa4f9ec8-49fd-414c-bd6e-6847cab33a92")
 	)
 	(wire
 		(pts
 			(xy 449.58 194.31) (xy 449.58 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "128c4121-0fec-457b-969d-1f38fef4be9a")
+		(uuid "171bf1be-3e06-46d8-a5f3-3d6db3161d80")
 	)
 	(symbol
 		(lib_id "power:+12V")
@@ -9714,7 +9714,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "087d9780-e633-4416-b47f-6446112ad732")
+		(uuid "21af213f-4a54-49d2-a1c3-52bf1223c1ee")
 		(property "Reference" "#PWR040"
 			(at 475.64 174.8 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9729,7 +9729,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR040") (unit 1)
 				)
 			)
@@ -9743,7 +9743,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "bf7dde2d-9aba-40dd-bb2f-812dff38b092")
+		(uuid "09d1735b-85be-4b30-b33e-e9fa4bc87d68")
 		(property "Reference" "C13"
 			(at 475.64 187.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9758,7 +9758,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C13") (unit 1)
 				)
 			)
@@ -9772,7 +9772,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b75dd597-0f32-46a9-81fc-fc7eddea6e0f")
+		(uuid "8480da48-4666-46d6-b4c5-cc7ad8e29847")
 		(property "Reference" "#PWR041"
 			(at 475.64 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9787,7 +9787,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR041") (unit 1)
 				)
 			)
@@ -9798,14 +9798,14 @@
 			(xy 472.44 177.8) (xy 472.44 186.69)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "eee34c08-762f-442d-aed8-54d712ca5019")
+		(uuid "675b298c-889a-428d-81ce-e26607b3b92c")
 	)
 	(wire
 		(pts
 			(xy 472.44 194.31) (xy 472.44 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "8202c063-d246-4e31-8c48-c8d9b2abc9bb")
+		(uuid "dd36064d-bbc2-4148-81bc-36a963a0c57e")
 	)
 	(symbol
 		(lib_id "power:-12V")
@@ -9815,7 +9815,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b55b0f93-4448-4c30-b982-679b0bb92e56")
+		(uuid "70c2ecec-68a6-4050-ad33-00ea01041e17")
 		(property "Reference" "#PWR042"
 			(at 498.5 174.8 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9830,7 +9830,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR042") (unit 1)
 				)
 			)
@@ -9844,7 +9844,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "cc3dfa24-3c49-40d8-b9e3-b23e5e4852f6")
+		(uuid "72bfaa35-ff3b-4e9f-a20c-e4e483830a3e")
 		(property "Reference" "C14"
 			(at 498.5 187.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9859,7 +9859,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C14") (unit 1)
 				)
 			)
@@ -9873,7 +9873,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "45204b2d-5211-4b18-b0dd-eaec3244e40e")
+		(uuid "34e5bb4c-d626-4cd4-845c-c034c0f1fdb0")
 		(property "Reference" "#PWR043"
 			(at 498.5 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9888,7 +9888,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR043") (unit 1)
 				)
 			)
@@ -9899,14 +9899,14 @@
 			(xy 495.3 177.8) (xy 495.3 186.69)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "5a7e731f-6fd3-4497-b514-1089879450fd")
+		(uuid "e5a8a8c3-7db7-468d-ba01-b5d51b723e43")
 	)
 	(wire
 		(pts
 			(xy 495.3 194.31) (xy 495.3 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "57261759-5ffe-4062-8814-f76fb3da0f2b")
+		(uuid "32ba154c-ed48-4e3b-ac10-be6ce41d9096")
 	)
 	(symbol
 		(lib_id "power:+3V3")
@@ -9916,7 +9916,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "a25cab97-06d6-4328-acad-242a3171df48")
+		(uuid "8aea451f-afe3-4556-ac87-b7414498b990")
 		(property "Reference" "#PWR044"
 			(at 521.36 174.8 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9931,7 +9931,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR044") (unit 1)
 				)
 			)
@@ -9945,7 +9945,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1c74b565-1283-4364-bc0b-a3ba96df9a4f")
+		(uuid "cb166aa4-c81a-4cdb-aa40-384bbe76317d")
 		(property "Reference" "C15"
 			(at 521.36 187.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9960,7 +9960,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C15") (unit 1)
 				)
 			)
@@ -9974,7 +9974,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "dce8204b-d6b9-4a73-8d22-425e50f0d5a1")
+		(uuid "25322b33-6bc0-4cb2-bc79-95a3af26064b")
 		(property "Reference" "#PWR045"
 			(at 521.36 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -9989,7 +9989,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR045") (unit 1)
 				)
 			)
@@ -10000,19 +10000,19 @@
 			(xy 518.16 177.8) (xy 518.16 186.69)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "101ef85f-76b8-4f49-976c-f519bb556cf1")
+		(uuid "4f30a951-b3bd-40c9-b601-ec667f5221f9")
 	)
 	(wire
 		(pts
 			(xy 518.16 194.31) (xy 518.16 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "40084393-7123-4791-93e4-6e815380cb82")
+		(uuid "24ce4549-aefd-4639-a485-1a13a7f74224")
 	)
 	(text "C9 U3 · C10 U4 · C11/C12 U5 · C13/C14 U8 · C15 ADS rayi"
 		(at 355.6 210.82 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "9fb667f8-6fec-4615-9c92-cfc0c0c7b389")
+		(uuid "937c0e17-fabb-4e07-aba5-f58e143067ea")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -10022,7 +10022,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "42287981-5817-40f5-95ca-76b64c714aaa")
+		(uuid "80cf44b2-4ff1-4c56-8293-7e709cd94734")
 		(property "Reference" "R41"
 			(at 544.22 187.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10037,7 +10037,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R41") (unit 1)
 				)
 			)
@@ -10051,7 +10051,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "51402f80-d8db-4ce7-99cd-e1e223a66a65")
+		(uuid "ef3f1a65-2898-4d85-9d0d-4c4c16d2a6c2")
 		(property "Reference" "#PWR046"
 			(at 544.22 174.8 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10066,7 +10066,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR046") (unit 1)
 				)
 			)
@@ -10077,7 +10077,7 @@
 			(xy 541.02 177.8) (xy 541.02 186.69)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1198f315-68fe-4cb7-a277-33c4e324422f")
+		(uuid "a9316173-d9ac-4dae-9ee4-944fbe8a7303")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -10087,7 +10087,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "2484b152-8b7b-41d5-836c-d10f6e28df90")
+		(uuid "c771117c-e2f5-427e-93ae-18eb592e562b")
 		(property "Reference" "#PWR047"
 			(at 544.22 200.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10102,7 +10102,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR047") (unit 1)
 				)
 			)
@@ -10113,22 +10113,22 @@
 			(xy 541.02 194.31) (xy 541.02 203.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "71e6394e-0ca2-4281-a1d1-4a19e259f9af")
+		(uuid "795f03e5-f872-4428-a631-d1ce575bca3a")
 	)
 	(text "R41 (B18/F12): 3V3 bosaltma. Beslemesiz kartta kelepce akimina yol"
 		(at 355.6 218.44 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "5b0ac67e-5773-40ea-af86-d1eeed105e4d")
+		(uuid "618cfda2-7315-4a05-bb55-66dc6dcb657f")
 	)
 	(text "verir; ray 3.58 V yerine 1.67 V'ta kalir ve TL431'e bagimli olmaz."
 		(at 355.6 223.52 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "8344c2a6-250c-47da-a8ee-cd993135915b")
+		(uuid "a24348dd-b708-4026-89c4-03adccac8231")
 	)
 	(text "KULLANILMAYAN KESITLER — izleyici olarak baglandi"
 		(at 355.6 300.99 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "9d850cf2-00b8-42e1-a664-b3fe9d56315e")
+		(uuid "b75d6f42-a86c-4082-9d24-c21c9e05cee8")
 	)
 	(symbol
 		(lib_id "Amplifier_Operational:LM358")
@@ -10138,7 +10138,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "9cdda210-6979-43a8-b86d-25ef90f1ab05")
+		(uuid "2f82e5f9-a48e-4d95-9186-4c575e6abafc")
 		(property "Reference" "U4"
 			(at 384.2 311.96 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10153,7 +10153,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U4") (unit 2)
 				)
 			)
@@ -10167,7 +10167,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ddf91c2b-64b7-4515-9e50-9c09f32afdc3")
+		(uuid "8dfa9de4-d395-4cf1-a0ca-0190d98a49f2")
 		(property "Reference" "#PWR048"
 			(at 366.42 314.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10182,7 +10182,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR048") (unit 1)
 				)
 			)
@@ -10193,44 +10193,44 @@
 			(xy 373.38 312.42) (xy 363.22 317.5)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "076394c3-da4e-43f4-9c8e-7c2bcc9e73d8")
+		(uuid "8c250c8a-6862-4d44-b5b7-6232d1d92cf1")
 	)
 	(wire
 		(pts
 			(xy 388.62 314.96) (xy 391.16 314.96)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "5d33e0b1-43bc-4456-bf01-afba35db561d")
+		(uuid "d3840096-0dfb-4d4f-ad1b-947cac4c70ba")
 	)
 	(wire
 		(pts
 			(xy 373.38 317.5) (xy 370.84 312.42)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "44116b8e-57b5-43a4-a213-8ea27b616f3d")
+		(uuid "f9df9ceb-4331-4f88-8fee-945f31382efa")
 	)
 	(wire
 		(pts
 			(xy 370.84 312.42) (xy 370.84 304.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a9ce0999-be12-4d64-b9cc-ccfd4cb10e23")
+		(uuid "63261ede-236d-4d2e-8413-e5e3ce02460f")
 	)
 	(wire
 		(pts
 			(xy 370.84 304.8) (xy 391.16 304.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "24c8c853-9c90-4278-a72d-22f9e83fe8e9")
+		(uuid "20f750c9-ac52-487f-bbb5-f0d4efab73ae")
 	)
 	(wire
 		(pts
 			(xy 391.16 304.8) (xy 391.16 314.96)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "aab847ff-ad8c-4521-a818-4ea35e960db9")
+		(uuid "5e4ca4d7-7cf5-49ba-b92a-720b3de5fd8c")
 	)
-	(junction (at 391.16 314.96) (diameter 0.9144) (color 0 0 0 0) (uuid "1395f01e-e85b-4fc6-b0a8-83f98b523f18"))
+	(junction (at 391.16 314.96) (diameter 0.9144) (color 0 0 0 0) (uuid "31495dbf-42ed-4011-856c-d425400b7eda"))
 	(symbol
 		(lib_id "Amplifier_Operational:TL072")
 		(at 434.34 314.96 0)
@@ -10239,7 +10239,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "af642f24-e53e-42d8-9588-7cbe0c28fe10")
+		(uuid "848d0b4f-4986-46cd-877b-c97566080802")
 		(property "Reference" "U8"
 			(at 437.54 311.96 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10254,7 +10254,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U8") (unit 2)
 				)
 			)
@@ -10268,7 +10268,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8436abf6-1e92-4f8c-9645-199b3cf8838d")
+		(uuid "4b791407-e01f-4ba3-9f89-4ea7f41a0e29")
 		(property "Reference" "#PWR049"
 			(at 419.76 314.5 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10283,7 +10283,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR049") (unit 1)
 				)
 			)
@@ -10294,48 +10294,48 @@
 			(xy 426.72 312.42) (xy 416.56 317.5)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "78a87ba3-a1a0-4393-a0be-b618500c2ca3")
+		(uuid "13d87135-6198-4bda-aaab-a30b1f0568e3")
 	)
 	(wire
 		(pts
 			(xy 441.96 314.96) (xy 444.5 314.96)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4f85634e-c2f9-4afb-93ff-f471e026d1fa")
+		(uuid "830e25b5-0c03-429f-95a7-a854b7270944")
 	)
 	(wire
 		(pts
 			(xy 426.72 317.5) (xy 424.18 312.42)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a6293159-4fc8-4f74-ba77-552d721a669d")
+		(uuid "51d55b5d-300e-41fd-9d2e-0bc0c0a8d6b9")
 	)
 	(wire
 		(pts
 			(xy 424.18 312.42) (xy 424.18 304.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "ab1dfa4f-8960-4d8d-95a0-d0504e1028b5")
+		(uuid "0cfc30a5-2e66-4686-b6cd-d571f95d45d2")
 	)
 	(wire
 		(pts
 			(xy 424.18 304.8) (xy 444.5 304.8)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "965eb105-bbd1-42c9-99b2-f632d3b10461")
+		(uuid "4f2563cd-8708-4365-aa68-7c91512824df")
 	)
 	(wire
 		(pts
 			(xy 444.5 304.8) (xy 444.5 314.96)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "57890cc3-56f1-4242-9b4f-c02911cd4c95")
+		(uuid "69648018-d3fe-49a6-a196-bccb0aae138c")
 	)
-	(junction (at 444.5 314.96) (diameter 0.9144) (color 0 0 0 0) (uuid "73612bf7-d112-4df2-b5cd-3083a590db2a"))
+	(junction (at 444.5 314.96) (diameter 0.9144) (color 0 0 0 0) (uuid "a40a8ade-eec3-4bef-ba9c-fa8937126ed5"))
 	(text "BLOK 9  —  +-12 V RAYI (B11):  24 V  ->  7912 orta nokta regulatoru"
 		(at 25.4 378.46 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "ff52c94a-c343-4822-9e1b-daf297904403")
+		(uuid "77637435-852d-4643-9a17-f186adc36968")
 	)
 	(symbol
 		(lib_id "Connector:Screw_Terminal_01x02")
@@ -10345,7 +10345,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "e8b580b4-8ff6-42df-b6e2-a2105ebad14c")
+		(uuid "87433553-5b82-4fd4-9788-02c2d5462dd0")
 		(property "Reference" "J6"
 			(at 28.6 393.24 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10360,7 +10360,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "J6") (unit 1)
 				)
 			)
@@ -10371,28 +10371,28 @@
 			(xy 30.48 396.24) (xy 43.18 396.24)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "095b2964-d87d-49a3-8b2a-08ac76583e02")
+		(uuid "6960f46e-e4ba-4c59-b6b9-ab45896acbaf")
 	)
 	(wire
 		(pts
 			(xy 30.48 393.7) (xy 38.1 393.7)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1ce22062-2b30-436b-a138-7d1314b06feb")
+		(uuid "1dcc160f-ca2d-4eda-ad01-4a73266ece86")
 	)
 	(wire
 		(pts
 			(xy 38.1 393.7) (xy 38.1 408.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "bd78647d-0549-420d-ba39-ff1b83a0aba6")
+		(uuid "48b1e8a8-5799-4f04-b8d5-535457beab99")
 	)
 	(wire
 		(pts
 			(xy 38.1 408.94) (xy 43.18 408.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "ca9de705-0dbe-450d-88af-08fcaf20d777")
+		(uuid "9a35b7c1-455c-48c0-b426-513ac9a8993e")
 	)
 	(symbol
 		(lib_id "Device:Fuse")
@@ -10402,7 +10402,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "0684153e-e8b5-45aa-abb7-7dff99cc377f")
+		(uuid "0833433e-acbe-455c-a5d8-0a39b148f1f0")
 		(property "Reference" "F1"
 			(at 54.0 393.24 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10417,7 +10417,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "F1") (unit 1)
 				)
 			)
@@ -10428,24 +10428,24 @@
 			(xy 43.18 396.24) (xy 46.99 396.24)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "ae370c01-3c1f-4fb5-8e87-1248a8f79fac")
+		(uuid "53f9466f-c2df-4d3a-933e-1e66570c6f8d")
 	)
 	(wire
 		(pts
 			(xy 54.61 396.24) (xy 60.96 396.24)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "bde2b849-c7a6-4139-bbc5-c4e2417bd095")
+		(uuid "d4273f3d-0b81-47b3-addc-c25ca59be1ff")
 	)
 	(label "+12V"
 		(at 60.96 396.24 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "ddf8980b-c88b-4f98-9849-0485834ad650")
+		(uuid "a14cc588-28b8-4383-9bf6-eb0a25aa6113")
 	)
 	(label "-12V"
 		(at 43.18 408.94 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "21432bf2-1c74-48a7-b52b-d144d1d33b58")
+		(uuid "d8ed3204-64ff-49c6-b2d6-55a4515191a1")
 	)
 	(symbol
 		(lib_id "Regulator_Linear:L7912")
@@ -10455,7 +10455,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "c71bd910-e698-4c49-ba17-4d2b5b63fb60")
+		(uuid "499cf75c-cc8d-4a9c-aedc-df64e2491270")
 		(property "Reference" "U9"
 			(at 99.72 393.24 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10470,7 +10470,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "U9") (unit 1)
 				)
 			)
@@ -10481,31 +10481,31 @@
 			(xy 96.52 388.62) (xy 96.52 383.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "292660b3-4b58-4f5f-bb0a-3d8869b0305d")
+		(uuid "74b3485f-6bc0-4979-84ff-35c177974149")
 	)
 	(label "+12V"
 		(at 96.52 383.54 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "b9b9a386-16d4-4725-84aa-16160a30b435")
+		(uuid "73fd78e4-a4f5-4e28-b653-d02086c627e6")
 	)
 	(wire
 		(pts
 			(xy 88.9 396.24) (xy 78.74 396.24)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4a18cb8a-f9cb-4261-aca0-9ec5a9652c21")
+		(uuid "44de1b5b-baf6-4d86-be87-20bd6f036af4")
 	)
 	(label "-12V"
 		(at 78.74 396.24 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "04df8831-5c26-4f5e-8655-a56aeb51c41a")
+		(uuid "f803bed5-2a5f-4f1e-bb4b-daecf46f6861")
 	)
 	(wire
 		(pts
 			(xy 104.14 396.24) (xy 114.3 396.24)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a88804a2-e1ef-45a8-b2aa-d3dec08e0514")
+		(uuid "0d8d7996-2cce-4143-9655-ec361c2c4245")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -10515,7 +10515,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "d1cc8b48-d026-4a17-ab8e-b0b10ca345e6")
+		(uuid "e7cb17fc-46b1-4766-b174-b7ab4351db6b")
 		(property "Reference" "#PWR050"
 			(at 117.5 398.32 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10530,7 +10530,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR050") (unit 1)
 				)
 			)
@@ -10541,7 +10541,7 @@
 			(xy 114.3 396.24) (xy 114.3 401.32)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "2a667a9c-806d-4d4f-b377-4240e1cbd391")
+		(uuid "008a5459-bf95-4433-bd4c-5c217530da50")
 	)
 	(symbol
 		(lib_id "Device:C_Polarized")
@@ -10551,7 +10551,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "0d3ab06f-c12e-4c13-b861-4cccd546363f")
+		(uuid "c1b0d8b9-b3f6-4091-9585-8aa2511ab5de")
 		(property "Reference" "C16"
 			(at 140.36 393.24 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10566,7 +10566,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C16") (unit 1)
 				)
 			)
@@ -10577,24 +10577,24 @@
 			(xy 137.16 392.43) (xy 137.16 383.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "e54320d7-0491-4c0c-90db-235bd775ec25")
+		(uuid "2750dc91-e65a-4657-9499-db1c9a2197f8")
 	)
 	(label "+12V"
 		(at 137.16 383.54 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "da8ec697-d5ec-4f0d-a6ff-1cbc94e865d1")
+		(uuid "3946a5a1-28b3-48a4-86a5-4e99a0ce038a")
 	)
 	(wire
 		(pts
 			(xy 137.16 400.05) (xy 137.16 408.94)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "efd09f9a-21b2-4a40-9817-c547b7c321f8")
+		(uuid "92a9b698-177d-4fde-869f-ea0a7f1c3204")
 	)
 	(label "-12V"
 		(at 137.16 408.94 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "344bbb89-1369-424b-bc78-e1b7f6abc7ba")
+		(uuid "c371d77a-c7b3-4c9d-9924-d68c1e102bdb")
 	)
 	(symbol
 		(lib_id "Device:C_Polarized")
@@ -10604,7 +10604,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "74336878-7aa1-4d63-abb4-98a9f4c111e8")
+		(uuid "f278c73b-cdf2-446f-b35e-7ba48cfa1a84")
 		(property "Reference" "C17"
 			(at 163.22 393.24 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10619,7 +10619,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "C17") (unit 1)
 				)
 			)
@@ -10630,12 +10630,12 @@
 			(xy 160.02 392.43) (xy 160.02 383.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a7f88817-a660-474e-a1c0-30210272a136")
+		(uuid "8073c68e-5cb0-4c3d-8105-1e549209a216")
 	)
 	(label "+12V"
 		(at 160.02 383.54 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "448140a6-7f5d-439b-8296-7c7b104877b6")
+		(uuid "59dedea7-c5a0-4249-ae3d-836616e7651c")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -10645,7 +10645,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "05e90d05-8a7e-46a5-ba40-b3bd54eaf444")
+		(uuid "1521a082-8ceb-492d-a5c4-ce4268c431c7")
 		(property "Reference" "#PWR051"
 			(at 163.22 402.13 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10660,7 +10660,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR051") (unit 1)
 				)
 			)
@@ -10671,7 +10671,7 @@
 			(xy 160.02 400.05) (xy 160.02 405.13)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "72c643f8-3412-497f-a402-a8b199ebe024")
+		(uuid "bdb467b7-1761-43a7-818e-88b773016138")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -10681,7 +10681,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "74f1e1a7-c3d7-46a4-a0a8-59dfa3f10b99")
+		(uuid "19d61427-198f-4412-ae37-34b206347201")
 		(property "Reference" "R40"
 			(at 186.08 393.24 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10696,7 +10696,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R40") (unit 1)
 				)
 			)
@@ -10707,12 +10707,12 @@
 			(xy 182.88 392.43) (xy 182.88 383.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "86253ef5-51e7-4596-8baf-9dc1e69514b5")
+		(uuid "85670a9e-d48b-401c-bcc5-d9b9ee27f6c9")
 	)
 	(label "+12V"
 		(at 182.88 383.54 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "2678017f-1794-4998-bccb-5e7bf803848c")
+		(uuid "920032bf-dd41-4075-a260-ce33fd235624")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -10722,7 +10722,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "dae2148d-8b69-4ca4-86f9-f5ef2d8663d7")
+		(uuid "efc4bce2-cd0d-47b3-bb68-a316589429a1")
 		(property "Reference" "#PWR052"
 			(at 186.08 402.13 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10737,7 +10737,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR052") (unit 1)
 				)
 			)
@@ -10748,32 +10748,32 @@
 			(xy 182.88 400.05) (xy 182.88 405.13)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "f72cf199-0144-465e-b5f4-4ad53c5b25a4")
+		(uuid "7be6a073-c5f4-4c5e-9804-23259dc3234e")
 	)
 	(text "7912: GND pini +12V'ta, VI -12V'ta, VO kart GND'sinde. Orta noktayi TANIMLAYAN parca bu."
 		(at 25.4 416.56 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "326c8220-0e90-4e44-a469-e611ac36287a")
+		(uuid "247e9970-7576-4dc8-8398-3172614d2404")
 	)
 	(text "R40 (1K) minimum yuku garantiliyor: 12 mA > 5 mA. Dengesizlik sifir olsa bile regulasyon suruyor."
 		(at 25.4 421.64 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "d8d595ec-ba1b-4762-8b90-83bafbe4ad3f")
+		(uuid "8144a098-f34b-4ec2-aa85-cfbb5dfcd2c3")
 	)
 	(text "C16/C17 68uF: veri sayfasi 25uF aluminyum istiyor; 100uF'in ALTINDA kalindi (ustunde VI->VO diyodu sart)."
 		(at 25.4 426.72 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "a552c6a4-72e6-4035-bae1-9f4ce7f36aa1")
+		(uuid "fbf90f6e-d242-4574-8890-6388c33452c7")
 	)
 	(text "!!! TO-220 TABI VI (-12 V) PININDE — 78xx'ten FARKLI. Sogutucuya VIDALAMA. Pin sirasi GND-VI-VO."
 		(at 25.4 431.8 0)
 		(effects (font (size 1.6 1.6)) (justify left bottom))
-		(uuid "abbbffc2-0b9c-4790-8194-b67cfcd44baf")
+		(uuid "ad2f99e0-6fe9-42d3-86a4-08d01aec91b4")
 	)
 	(text "F1 50 mA: normal cekis 30 mA. Ters polarite TVS ile korunamiyor (B15/F8) -> konnektor MEKANIK ANAHTARLI olmali."
 		(at 25.4 436.88 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "7a47dfb1-771e-4a7b-98f2-42953102d9fb")
+		(uuid "9c519388-0768-4ba6-94c9-65af0b212e99")
 	)
 	(symbol
 		(lib_id "power:+3V3")
@@ -10783,7 +10783,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "3cc8fa2b-c130-4113-ab86-c3ecc4b6e3a3")
+		(uuid "288c4180-2cb1-4369-b17b-57df09c2869b")
 		(property "Reference" "#PWR053"
 			(at 28.6 332.28 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10798,7 +10798,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR053") (unit 1)
 				)
 			)
@@ -10812,7 +10812,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ba63a269-593e-45ab-97a8-c2eeda80c14b")
+		(uuid "f948c585-1e7d-42a5-85f2-d2a3386feef6")
 		(property "Reference" "#FLG054"
 			(at 28.6 327.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10827,7 +10827,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#FLG054") (unit 1)
 				)
 			)
@@ -10838,7 +10838,7 @@
 			(xy 25.4 335.28) (xy 25.4 330.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "5c48cf37-3b80-4977-acec-88ef65acbe71")
+		(uuid "1f9e9347-acf7-40b7-a69c-10afa16dcbf4")
 	)
 	(symbol
 		(lib_id "power:+5V")
@@ -10848,7 +10848,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ca8b7d44-93ab-4312-8953-a667c47b393d")
+		(uuid "149428aa-ac53-49fb-bc31-6f43e62e5607")
 		(property "Reference" "#PWR055"
 			(at 59.08 332.28 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10863,7 +10863,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR055") (unit 1)
 				)
 			)
@@ -10877,7 +10877,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8d0aa620-021a-49fc-a0a2-6c5870865b58")
+		(uuid "f7ec859d-367d-4541-b3d9-6ecb713559e7")
 		(property "Reference" "#FLG056"
 			(at 59.08 327.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10892,7 +10892,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#FLG056") (unit 1)
 				)
 			)
@@ -10903,7 +10903,7 @@
 			(xy 55.88 335.28) (xy 55.88 330.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "2b67ca19-115b-40c9-86ea-52a214c4aedc")
+		(uuid "caf81210-d669-4ec9-9c72-33c9c2f63bcc")
 	)
 	(symbol
 		(lib_id "power:+12V")
@@ -10913,7 +10913,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ba9a1125-9e78-4834-aa3e-22171545a28a")
+		(uuid "38fc6979-386e-48a7-a7f9-b25535a9b924")
 		(property "Reference" "#PWR057"
 			(at 89.56 332.28 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10928,7 +10928,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR057") (unit 1)
 				)
 			)
@@ -10942,7 +10942,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "481fb155-692b-4d71-bdff-e02ff6fe9231")
+		(uuid "3e0fd598-a22e-41ef-9ec2-5806d9947f94")
 		(property "Reference" "#FLG058"
 			(at 89.56 327.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10957,7 +10957,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#FLG058") (unit 1)
 				)
 			)
@@ -10968,7 +10968,7 @@
 			(xy 86.36 335.28) (xy 86.36 330.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "81bd653f-00d3-48d1-9784-baa54d0492e6")
+		(uuid "05e014fa-441c-4e8f-aa61-fd4425f1cc5e")
 	)
 	(symbol
 		(lib_id "power:-12V")
@@ -10978,7 +10978,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "6cf9a313-9d5a-49f1-a459-aabf00fa549a")
+		(uuid "12c8bcc5-77b6-45f6-b4f5-f1c661073c15")
 		(property "Reference" "#PWR059"
 			(at 120.04 332.28 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -10993,7 +10993,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR059") (unit 1)
 				)
 			)
@@ -11007,7 +11007,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "35be8395-3787-477c-b5a5-3f65363b845d")
+		(uuid "c5b7c38a-d414-46d6-9e03-337bccb2cf94")
 		(property "Reference" "#FLG060"
 			(at 120.04 327.2 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11022,7 +11022,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#FLG060") (unit 1)
 				)
 			)
@@ -11033,32 +11033,32 @@
 			(xy 116.84 335.28) (xy 116.84 330.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "25065706-a752-4ee2-a7c3-d9b43f35d00a")
+		(uuid "126686f9-e5a3-4d1d-abc1-10f8a1beab45")
 	)
 	(text "Asama 3 — CIFT YONLU on uc. Tum degerler uretim/tasarim3.py (89 kural), uretim/sim3_giris.py (30 SPICE) ve uretim/sim3_ariza.py (B15, 89 ariza) ile sinandi."
 		(at 25.4 350.52 0)
 		(effects (font (size 1.7 1.7)) (justify left bottom))
-		(uuid "c5d05005-390e-4787-a692-3aba744f1595")
+		(uuid "f9909944-0fc9-4769-a922-61077c4bafa2")
 	)
 	(text "B15 KORUMALARI: R34/R35/R36 (1K) tampon cikislari ile ADS pinleri arasinda; R38/R39 (1K) sont kolunda. Bunlar OLMADAN tampon doydugu her an ADS'in"
 		(at 25.4 360.68 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "9054cfb3-1639-4b3f-b827-024517fef3b0")
+		(uuid "d113b5e5-e351-478c-bb6b-9d3de75bfd17")
 	)
 	(text "mutlak maksimumu (3.6 V) asiliyordu ve sont arizasi ADS'i olduruyordu. C1 = 1nF (100nF TL431'i osile ettiriyordu — TI SLVA482A)."
 		(at 25.4 365.76 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "f6bf560f-58ee-4214-8229-03f02dd9f87f")
+		(uuid "1897171e-3a29-4d9a-815b-bd523363e6d6")
 	)
 	(text "KART IZOLE DEGIL. 615 V kanali sebeke referansli bir devreye BAGLANMAZ — USB uzerinden bilgisayara sebeke tasir."
 		(at 25.4 355.6 0)
 		(effects (font (size 1.7 1.7)) (justify left bottom))
-		(uuid "86cfd2e7-40de-46e7-9b2b-f06fc70b6463")
+		(uuid "47b49baa-509f-47e3-99a8-9bda5edf6092")
 	)
 	(text "BLOK 10  —  PIL KAPASITE TESTI (B21): tas direnc yuk + MOSFET anahtar"
 		(at 210.82 325.12 0)
 		(effects (font (size 2.0 2.0)) (justify left bottom))
-		(uuid "1cae0cae-6b2a-45c7-be74-cc6e73c99b4f")
+		(uuid "736f5b1c-d182-4b65-85a7-3e936bc82031")
 	)
 	(symbol
 		(lib_id "Connector:Screw_Terminal_01x02")
@@ -11068,7 +11068,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8b363235-78c3-454d-8976-0d6289e29eeb")
+		(uuid "e92d21bc-9d71-4d79-9672-0b8418bc9480")
 		(property "Reference" "J7"
 			(at 214.02 329.74 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11083,7 +11083,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "J7") (unit 1)
 				)
 			)
@@ -11097,7 +11097,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1a83bdf1-bf36-47e5-88e2-d976637f78ad")
+		(uuid "2ccfcb1a-ebf6-4701-8242-590897b95d55")
 		(property "Reference" "#PWR061"
 			(at 219.1 319.58 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11112,7 +11112,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR061") (unit 1)
 				)
 			)
@@ -11123,21 +11123,21 @@
 			(xy 215.9 330.2) (xy 215.9 330.2)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "3e2cd27d-a75e-4b16-806e-b123072058b6")
+		(uuid "d976d487-41fd-40c3-9ac0-042b37cf22e5")
 	)
 	(wire
 		(pts
 			(xy 215.9 330.2) (xy 215.9 322.58)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1d35fdff-725b-4ce5-9455-d8418ce6ce5b")
+		(uuid "6aecead1-562c-4ddc-bc2f-a380eaa45866")
 	)
 	(wire
 		(pts
 			(xy 215.9 322.58) (xy 215.9 322.58)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "10f1da0a-bc28-4498-b31f-f8d197097036")
+		(uuid "189138ce-de90-455a-bfd5-2ac3de6fbd9c")
 	)
 	(symbol
 		(lib_id "Device:Q_NMOS")
@@ -11147,7 +11147,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "92d50df1-ce3d-488d-89f6-d89e63b979ed")
+		(uuid "f2c816c9-f49e-4238-bf0c-b4deff2625ed")
 		(property "Reference" "Q1"
 			(at 368.96 347.52 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11162,7 +11162,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "Q1") (unit 1)
 				)
 			)
@@ -11173,40 +11173,40 @@
 			(xy 215.9 332.74) (xy 368.3 332.74)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "1475978a-34e2-48cf-8273-d91517dbbbcd")
+		(uuid "d5ff0ecb-a4d7-4ea9-9ab0-7ff285bec142")
 	)
 	(wire
 		(pts
 			(xy 368.3 332.74) (xy 368.3 345.44)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "07684e9b-5fff-40a4-8031-038cd1590a09")
+		(uuid "9dffcab1-3b87-4a48-acdb-09b62a5155ee")
 	)
 	(wire
 		(pts
 			(xy 368.3 355.6) (xy 368.3 383.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "4f531592-7292-4af1-a4cc-b5964f612184")
+		(uuid "bf3eeaa8-67d4-4a50-885d-913e2adbec1b")
 	)
 	(wire
 		(pts
 			(xy 368.3 383.54) (xy 345.44 383.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "76d9561e-9c99-4d60-9a74-5f752098610d")
+		(uuid "889e6344-5a08-4416-977d-fe9911e17f1a")
 	)
 	(label "YUK_EKSI"
 		(at 345.44 383.54 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "9df9d422-d25f-4c99-9e0e-1586b762cbab")
+		(uuid "99a46fae-7c2b-4327-9cef-d39cb42d8e1b")
 	)
 	(wire
 		(pts
 			(xy 360.68 350.52) (xy 350.52 350.52)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d1695e60-18b8-423c-8e39-342566bb69ff")
+		(uuid "3b82d1c6-f698-47d2-9027-242fc1712d89")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -11216,7 +11216,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "32d29ef2-fab9-44e6-bf72-e328e3a84c0c")
+		(uuid "4d8a61f1-f5f2-4c76-a7fe-a6f25726e9d2")
 		(property "Reference" "R45"
 			(at 338.48 352.6 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11231,7 +11231,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R45") (unit 1)
 				)
 			)
@@ -11242,16 +11242,16 @@
 			(xy 339.09 355.6) (xy 350.52 355.6)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "0a71beb7-fcef-41c7-b081-d75c3e3b855b")
+		(uuid "5865478d-2c76-44cf-a41a-37ea05327f98")
 	)
 	(wire
 		(pts
 			(xy 350.52 355.6) (xy 350.52 350.52)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "604ceffc-9c8d-4acf-b427-229ade75208e")
+		(uuid "22410807-534c-45bf-9af6-da67c64c2918")
 	)
-	(junction (at 350.52 355.6) (diameter 0.9144) (color 0 0 0 0) (uuid "6fde5b2c-c2be-49d4-a444-a405082d14d1"))
+	(junction (at 350.52 355.6) (diameter 0.9144) (color 0 0 0 0) (uuid "5381d49b-b570-42a0-9162-961b13381d67"))
 	(symbol
 		(lib_id "Device:R")
 		(at 350.52 365.76 0)
@@ -11260,7 +11260,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1ffcb5db-9244-450e-b547-6eed8c99f9c3")
+		(uuid "c6707b21-e156-47e5-8eb7-c21527a78cfc")
 		(property "Reference" "R42"
 			(at 353.72 362.76 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11275,7 +11275,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R42") (unit 1)
 				)
 			)
@@ -11286,7 +11286,7 @@
 			(xy 350.52 355.6) (xy 350.52 361.95)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "2e9e8a3f-e9f8-41dd-95b4-c5892cf890f9")
+		(uuid "8b59208c-d1a4-4c7d-8c81-59f7ecd16c1b")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -11296,7 +11296,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "eeba15b8-c97f-4986-9627-a1cd24458beb")
+		(uuid "5e5c16d0-2b0c-48bc-af5d-c868c25b1e0b")
 		(property "Reference" "#PWR062"
 			(at 353.72 372.92 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11311,7 +11311,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR062") (unit 1)
 				)
 			)
@@ -11322,7 +11322,7 @@
 			(xy 350.52 369.57) (xy 350.52 375.92)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "a016c023-bd43-4f90-9cec-831f33952922")
+		(uuid "f2af2d71-142d-42fc-9f50-f5dc36b2798e")
 	)
 	(symbol
 		(lib_id "Transistor_BJT:BC557")
@@ -11332,7 +11332,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "3caad6d9-0a6f-4a75-a4c3-662f2decc57b")
+		(uuid "64db5919-de9b-41e4-a9f7-7a5d27d0e50f")
 		(property "Reference" "Q3"
 			(at 315.62 347.52 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11347,7 +11347,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "Q3") (unit 1)
 				)
 			)
@@ -11361,7 +11361,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "55ff2cec-1ff3-4e7e-ac5e-d358928485d8")
+		(uuid "20622cb0-3447-4e94-aa2d-6355b505cb8f")
 		(property "Reference" "#PWR063"
 			(at 313.08 337.36 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11376,7 +11376,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR063") (unit 1)
 				)
 			)
@@ -11387,14 +11387,14 @@
 			(xy 309.88 345.44) (xy 309.88 340.36)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "6148e8c6-6cd8-4594-b884-88480a36f6f5")
+		(uuid "a53e0a5c-481f-4176-8d47-84182d3d20ee")
 	)
 	(wire
 		(pts
 			(xy 309.88 355.6) (xy 331.47 355.6)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "40c1d82a-c29e-45b5-8ead-98249acfef8c")
+		(uuid "4f1bd77b-0b21-4a96-860a-7a97716fcec8")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -11404,7 +11404,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "74f14d61-0c8b-4387-921a-5ca153361544")
+		(uuid "abf8847d-35c9-45c2-9566-d49a6aacc90f")
 		(property "Reference" "R43"
 			(at 302.92 362.76 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11419,7 +11419,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R43") (unit 1)
 				)
 			)
@@ -11430,14 +11430,14 @@
 			(xy 317.5 350.52) (xy 317.5 365.76)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "fa7d7e57-1383-431b-828e-bd5a35b6bfa6")
+		(uuid "12c2e877-7f4e-45df-8bcc-00b789a62e7c")
 	)
 	(wire
 		(pts
 			(xy 317.5 365.76) (xy 303.53 365.76)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "99c629a3-839e-4884-8f3d-6894e19d44ea")
+		(uuid "059b55c2-0b21-4ffa-9ea8-c071345557dd")
 	)
 	(symbol
 		(lib_id "Transistor_BJT:BC547")
@@ -11447,7 +11447,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8bbcd600-43a9-4875-b22a-55d986a69aad")
+		(uuid "17fdea39-41ef-46ac-8940-b66b8251f24a")
 		(property "Reference" "Q2"
 			(at 262.28 367.84 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11462,7 +11462,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "Q2") (unit 1)
 				)
 			)
@@ -11473,7 +11473,7 @@
 			(xy 295.91 365.76) (xy 261.62 365.76)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "d14aa008-403b-4645-a82c-068bf559062b")
+		(uuid "febf7fa0-341e-450f-93f8-36149122903f")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -11483,7 +11483,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "adefd681-8970-4b2c-8414-9309c5e53e4b")
+		(uuid "846d0b7e-9244-4604-90e9-db4ed64956b1")
 		(property "Reference" "#PWR064"
 			(at 264.82 380.54 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11498,7 +11498,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "#PWR064") (unit 1)
 				)
 			)
@@ -11509,7 +11509,7 @@
 			(xy 261.62 375.92) (xy 261.62 383.54)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "6aafd950-38ea-4896-ab11-3dcf41643342")
+		(uuid "9c4c80ec-ee57-4722-952b-d5ba3943921d")
 	)
 	(symbol
 		(lib_id "Device:R")
@@ -11519,7 +11519,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "242a416a-8fdd-4016-ab75-3f586d4db99e")
+		(uuid "c771a832-4c8c-4338-88e8-5ce1ea9c92f0")
 		(property "Reference" "R44"
 			(at 244.5 367.84 0)
 			(effects (font (size 1.27 1.27)) (justify left))
@@ -11534,7 +11534,7 @@
 		)
 		(instances
 			(project "olcum-karti-a3"
-				(path "/a8e2c1dc-1853-4264-be85-56be03e7e2e9"
+				(path "/a6876ea0-044c-4ce9-9e56-e326331687dc"
 					(reference "R44") (unit 1)
 				)
 			)
@@ -11545,44 +11545,44 @@
 			(xy 254.0 370.84) (xy 245.11 370.84)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "c8ac01c8-81f3-4eaa-81ab-055e31a3374d")
+		(uuid "0abcd3db-dc1d-42c7-825f-d11f4eb4a6dc")
 	)
 	(wire
 		(pts
 			(xy 237.49 370.84) (xy 228.6 370.84)
 		)
 		(stroke (width 0.1524) (type default))
-		(uuid "bb9bf7c0-1e61-4a5d-bf87-f2722b223be8")
+		(uuid "26c82ade-97e8-4bfb-8c58-4552fafe339c")
 	)
 	(label "PIL_KAPI"
 		(at 228.6 370.84 0)
 		(effects (font (size 1.27 1.27)) (justify left bottom))
-		(uuid "0915f176-7b3e-4b59-9530-9ce6fd309589")
+		(uuid "5c2eabb4-f695-4a41-b6c1-ad0d9ea3ed9b")
 	)
 	(text "Kapi GND'ye CEKILI (R42): ESP32 olurse/reset atarsa MOSFET KAPANIR"
 		(at 210.82 393.7 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "4d813059-ad6b-4929-a1ee-0f892c2c4b08")
+		(uuid "d222da1f-37c6-47dc-9047-504c7f717c57")
 	)
 	(text "ve pil bosalmayi durdurur. TERS KURMAYIN (kapiyi +12 V'a cekmeyin)."
 		(at 210.82 398.78 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "ff2cd765-ed8b-4533-a2dd-c12ed740167f")
+		(uuid "455ba4f2-c684-42d8-8f55-54e0779666f2")
 	)
 	(text "Pil gerilimi <= 38.5 V (IRFZ44N Vdss 55 V, %70 pay) — 48 V paket OLMAZ."
 		(at 210.82 403.86 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "5ad1cd8b-31cd-4dc6-8823-6e9255715b35")
+		(uuid "8c9c1581-5f83-428f-ac0f-53abadbb9cb4")
 	)
 	(text "Yuk J7'ye baglanir. J3'e baglanirsa MOSFET BAYPAS olur ve KESME"
 		(at 210.82 408.94 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "c864d2ec-08a6-442f-878c-98a2d9dc2237")
+		(uuid "9438e93e-4f75-4f88-9136-7e27f4d88258")
 	)
 	(text "CALISMAZ — firmware test basinda bunu denetleyip testi reddediyor."
 		(at 210.82 414.02 0)
 		(effects (font (size 1.5 1.5)) (justify left bottom))
-		(uuid "9addad4a-e692-45d8-a906-76350e618e38")
+		(uuid "3de0cfb6-2141-4ddc-84a8-c6f767efffab")
 	)
 	(sheet_instances
 		(path "/" (page "1"))

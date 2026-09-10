@@ -268,6 +268,28 @@ def bolum5(r):
             "MDNS.begin(AG_MDNS)" in AG_KOD.replace(" ", ""),
             "elle yazilirsa sabitle sessizce ayrisir")
 
+    # [!] `Ns` (web parolasi) ANINDA gecerli — web_yetkili() her istekte
+    #     NVS'ten okuyor. `N` komutunun ortak kuyrugu ise "bir sonraki
+    #     acilista gecerli" diyor. Ns o kuyruga DUSERSE, korumayi KALDIRAN
+    #     kullaniciya korumanin surdugu soylenmis olur. Yani mesajin
+    #     dogrulugu bir EMNIYET ozelligi.
+    #     ⚠ Kapsam: yorumlar ciplak metinde de gecebilir, o yuzden
+    #     yalnizca KOD uzerinde ve `alt == 's'` dalinin ICINDE ariyoruz.
+    #     🔴 Ilk yazimda dilim `alt == 's'`den ortak kuyruga kadardi ve
+    #     SONRAKI dallarin `break`lerini de iceriyordu — mutasyon (Ns'in
+    #     kendi break'ini sil) KACTI. Dilim artik yalnizca o dalin govdesi:
+    #     `alt == 's'`den bir SONRAKI `else`e kadar.
+    _ns = INO_KOD.find("alt == 's'")
+    _son = INO_KOD.find("else", _ns + 1) if _ns >= 0 else -1
+    _dal = INO_KOD[_ns:_son] if 0 <= _ns < _son else ""
+    r.kosul("  5b: `Ns` dali ortak 'sonraki acilis' kuyruguna DUSMUYOR",
+            "break" in _dal,
+            "Ns ANINDA gecerli; kuyruga duserse parolayi KALDIRAN "
+            "kullaniciya korumanin surdugu soylenir")
+    r.kosul("  5b: parola KALDIRILDI mesaji korumasizligi SOYLUYOR",
+            "korumasiz" in _dal,
+            "sessiz 'kaldirildi' yeterli degil — komut ucu o an aciliyor")
+
     # [!] NVS AYRILIGI: Ayar3 buyurse imza bumplanir ve KALIBRASYON GIDER.
     r.kosul("  5b: ag ayarlari AYRI NVS ad alaninda",
             'AG_ALAN "olcumag"' in AG_H and '"olcum3"' not in AG_KOD,

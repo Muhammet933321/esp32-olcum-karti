@@ -84,6 +84,11 @@ MUTASYONLAR = [
      '#define AG_MDNS "olcum"', '#define AG_MDNS ""',
      "mDNS adi bosalirsa http://olcum.local cozulmez"),
 
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "korumasiz", "parola yok",
+     "web parolasi KALDIRILDI mesaji, komut ucunun O AN korumasiz "
+     "kaldigini soylemeli — sessiz bir 'kaldirildi' yetmez"),
+
     # ── B22a · PC koprusu
     ("B22a", "test_kopru.py", "kopru/kopru.py",
      'SERBEST_KOMUTLAR = {"p0"}', "SERBEST_KOMUTLAR = set()",

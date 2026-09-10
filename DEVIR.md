@@ -232,6 +232,18 @@ en pahalı kanıtı:
 istiyor (USB-only değil). **Tek istisna `p0`** (pil deşarjını durdur) —
 her zaman parolasız çalışıyor, çünkü emniyet kolaylıktan önce gelir.
 
+### ✅ B24 — GitHub'da yayında (2026-09-11) — sonuçlar **5.12.40**'ta
+
+<https://github.com/Muhammet933321/esp32-olcum-karti> · MIT · 180 dosya.
+İngilizce tanıtım `README.md`, Türkçe rehber `README.tr.md`.
+
+🔴 **Yayın öncesi iki bağımsız denetim 129 doğrulanmış bulgu çıkardı** ve
+en pahalıları yayınlanmış belgelerdeki **yanlış emniyet bilgisiydi**:
+*"pil + Wi-Fi ile yüzdür"* şebeke ölçümünün çözümü diye sunuluyordu, oysa
+B15/D2 bunu ölçüp **"PC kurtulur, KULLANICI kurtulmaz"** demişti —
+**yalıtımlı kutu şartı hiçbir belgede yoktu.** Ayrıca ağ sayfası parola
+korumasının varsayılan olarak **açık** olduğunu ima ediyordu; değil.
+
 ### ✅ B23 bitti (2026-09-10) — sonuçlar **5.12.39**'da
 
 Donanım beklerken **elle yazıldığı için ölçümle bağı kopmuş bilgi** kaynağa
@@ -3304,7 +3316,7 @@ without an output capacitor"*).
 
 → **DÜZELTİLDİ:** C1 = **1 nF** (envanterde C049, 10 adet).
 
-##### 📁 Ham araştırma ve denetim kanıtı — `kanit/b15-arastirma.md`
+##### 📁 Ham araştırma ve denetim kanıtı — `uretim/b15-arastirma.md`
 
 B15'in dayandığı **her veri sayfası sayısı**, kaynağı, ve her iddianın
 bağımsız doğrulama sonucu bu dosyada (**437 KB**):
@@ -6206,6 +6218,95 @@ Hiçbiri donanımsız doğrulanamaz; hepsi `_tezgah.md`'de. **Ertelendi:**
 B22.6 (köprünün ağ yukarı-akışı) · çift çekirdek (eşik `loop_azami_us >
 20 000 µs`, ölçümü tezgah listesinde).
 
+#### 5.12.40 ✅ B24 — GITHUB YAYINI VE YAYIN ÖNCESİ DENETİM (2026-09-11)
+
+Proje **herkese açık** yayınlandı: <https://github.com/Muhammet933321/esp32-olcum-karti>
+(MIT). `git init` + `.gitignore` + `.gitattributes`; 180 dosya, 11 MB.
+Dışarıda: derleme çıktıları, `__pycache__`, `_fs.bin`, **kullanıcının
+ölçüm günlüğü** (`kopru/arsiv/`) ve `fiyat_tara.py`.
+
+İngilizce tanıtım `README.md`, mevcut Türkçe rehber `README.tr.md` oldu.
+
+##### Yayından önce denetim — ve yayından SONRA çıkanlar
+
+İki bağımsız denetim koşturuldu (12 + 10 ajan). **129 doğrulanmış bulgu.**
+En pahalıları, yayınlanmış belgelerde **yanlış güvenlik ve emniyet
+bilgisi** olmasıydı:
+
+🔴 **`BELGELER/6-ag.html` dört yanlış iddia taşıyordu.** Üçü kaynağa
+bakınca çürüdü: *"USB kipinde kartın Wi-Fi'si hiç açılmıyor"* (varsayılan
+**açık**, `N0` gerekiyor) · *"kart aynı anda tek sürücüye hizmet eder"*
+(aslında `AKIS_AZAMI`=4 tarayıcı; tek-sürücü kuralı **yalnızca köprü
+kayıtlıyken**) · *"tehlikeli komutlar parola istiyor"* — `web_yetkili()`
+parola kurulmamışsa **`true` dönüyor**, yani varsayılan kurulumda
+yetkilendirme **kapalı**. Dördüncüsü çelişkiydi: ağ sayfası USB'yi
+koşulsuz öneriyordu, kurulum kılavuzu izole olmayan devrede USB'yi
+**yasaklıyor**.
+
+🔴 **En ciddisi: "pil + Wi-Fi ile yüzdür" ÇÖZÜM DEĞİL.** Hem kurulum
+kılavuzu hem benim yazdığım README bunu şebeke referanslı ölçümün cevabı
+diye sunuyordu. B15/D2 bunu zaten ölçmüş ve yazmış: *"PC kurtulur;
+KULLANICI kurtulmaz — kart 615 V'a çıkar. Yalıtımlı kutu + 5 delik
+aralık ŞART."* **Yalıtımlı kutu şartı hiçbir kullanıcı belgesinde
+geçmiyordu.** Artık kurulum kılavuzunun ilk uyarısında, ağ sayfasında ve
+iki README'de de var; sayılar (12.6 mm creepage, 5 delik) kaynaktan.
+
+🔴 **Firmware kullanıcıya yanlış söylüyordu.** `N` komutunun ortak
+kuyruğu her alt komuttan sonra *"(bir sonraki açılışta geçerli)"*
+basıyordu — ama `Ns` (web parolası) **anında** geçerli. Yani `Ns` ile
+korumayı KALDIRAN kullanıcıya korumanın sürdüğü söyleniyordu. Mesaj
+alt komuta göre ayrıldı ve **iki yeni iddiaya** bağlandı (B22b 74 → 76).
+
+⚠ İlk yazdığım iddia **boştu**: dilim `alt == 's'`den ortak kuyruğa
+kadardı ve sonraki dalların `break`'lerini de içeriyordu — mutasyon
+kaçtı. Dilim dalın gövdesine daraltıldı, iki mutasyon da yakalandı.
+**Aynı kapsam hatası, aynı oturumda üçüncü kez.**
+
+##### Yayınlanan dosyada kişisel iz
+
+`uretim/b15-arastirma.md` üç satırda Windows kullanıcı adı ve Claude
+oturum kimliği taşıyordu (geçici dizin yolları). Temizlendi; bilgi değeri
+(`<yerel-gecici-dizin>`) korundu.
+
+##### Bayat sayılar — yine
+
+| Nerede | Yazıyordu | Gerçek |
+|---|---|---|
+| `_tezgah.md` (B18 kalemi) | pay **18 mV** | **1930 mV** — 18 mV B18/F12 **öncesinin** değeri |
+| `_tezgah.md` (B19 kalemleri) | skop `-65.2/+45.1 V`, `26.9 mV` | `-63.5/+46.8 V`, `28.8 mV` |
+| `README.md` | "over 30 abuse scenarios" | **27** |
+| `bom_dogrula.py` | "diğer 15 adım" | **16** |
+| `CLAUDE.md` | zincir **15/15**, ~5 dk | **17/17**, ~6 dk |
+| `DEVIR.md` (4 yer) | B15 **109** doğrulama | **111** |
+| `README.md` · `DEVIR.md` | mutasyon **~2 dk** | ölçüldü: **~14 s** |
+
+İlk ikisi **üretilen** `_tezgah.md`'nin içindeydi: kalem metinleri elle
+yazılmıştı. İkisi de artık ölçümden türetiliyor.
+
+⚠ Ayrıca README'nin *"hiçbir sayı elle yazılmadı"* iddiası **kendisi
+için yanlıştı** — README üretilmiyor. Cümle, üretilen belgelerle sınırlı
+hâle getirildi.
+
+##### Klonlayan biri ne yaşar
+
+* `arduino-cli` ve kişisel envanter depo **dışında**. İkisi de artık
+  traceback yerine açık mesaj veriyor. B16 atlamayı **duyurup iddia
+  sayısını koruyor**; B9 erken çıkıyor ve zincir kırmızı dönüyor —
+  `--sayim-kilidi-yaz` bunu **susturmaz**, tezgah denetimi sayımdan
+  bağımsız.
+* FQBN eksikti: README yalnızca `huge_app` diyordu. **`PSRAM=opi` ve
+  `FlashSize=16M` olmadan N16R8 kartta derleme yanlış çıkıyor** —
+  LittleFS'in `0x310000` ofseti 4 MB sınırına düşüyor. Tam FQBN yazıldı.
+
+##### Açık kalan
+
+Denetimlerin düşük öncelikli bulguları (`__pycache__`'in kaynak yolu
+taşıması, arşivde yinelenen kanıt dosyaları, `4-kurulum.html`'in tek dış
+font bağlantısı, AVR emülatörünün ATmega328P olması) **kapatılmadı** —
+listesi bu bölümde, biri canımı sıkarsa buradan bakılır.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |
@@ -6387,7 +6488,7 @@ py arayuz/sunucu.py           # arayüz (Web Serial güvenli bağlam ister)
 | `tasarim3.py` + `tasarim3_sabit.py` | **B1** — Aşama 3 tasarımı; **tüm mutlak sınırlar `tasarim3_sabit.py`'de, kaynaklarıyla** |
 | `sim3_giris.py` | **B2** — çift yönlü ön uç, ngspice |
 | **`sim3_ariza.py`** | **B15** — arıza ve zorlama simülasyonu (27 senaryo, 109 doğrulama) |
-| **`b15_kanit_uret.py`** | B15'in araştırma/denetim kanıtını `kanit/b15-arastirma.md`'ye döker |
+| **`b15_kanit_uret.py`** | B15'in araştırma/denetim kanıtını `uretim/b15-arastirma.md`'ye döker |
 | **`sim3_besleme.py`** | **B11** — ±12 V rayı, 7912 orta nokta regülatörü (23 doğrulama) |
 | **`sim3_ortusme.py`** | **B16** — V/I süzgeç eşleştirmesi + akım kanalı örtüşme süzgeci (41 doğrulama, ngspice çapraz denetimli) |
 | **`sim3_kelepce.py`** | **B18** — GPIO kelepçeleri ve +3V3 geri beslemesi (46 doğrulama, bağımsız denetimden geçti) |
@@ -6408,7 +6509,7 @@ py arayuz/sunucu.py           # arayüz (Web Serial güvenli bağlam ister)
 | `sema_uret_ortak.py` `kutuphane.py` `spice.py` | Ortak yardımcılar |
 | `gorsel.py` `gorsel_a2.py` `gorsel_s9.py` | SVG grafik üreteçleri |
 | `kanit-uret.py` `kanit2-uret.py` | Kanıt sayfaları |
-| `kanit/b15-arastirma.md` | **B15'in ham kanıtı** — 10 araştırma konusu, 80 doğrulanmış iddia (35 çürütülmüş), 6 denetim boyutu, 437 KB |
+| `uretim/b15-arastirma.md` | **B15'in ham kanıtı** — 10 araştırma konusu, 80 doğrulanmış iddia (35 çürütülmüş), 6 denetim boyutu, 437 KB |
 | `kurulum-uret.py` `sayfa-uret.py` | Kurulum / doğrulama sayfaları |
 | `avr/cekirdek.py` `avr/mega328.py` `avr/elf.py` | AVR emülatörü |
 | `fiyat_tara.py` | Türk sitelerinde fiyat karşılaştırma |

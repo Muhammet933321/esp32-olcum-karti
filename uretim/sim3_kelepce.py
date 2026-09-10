@@ -1045,6 +1045,7 @@ def main() -> int:
     r.bilgi("  Bu adim TASARIMI sinar, kurulmus bir KARTI degil.")
     bolum0(r)
     sonuc = bolum1(r)
+    sec = sonuc["10K + 1K bosaltma   <= SECILEN"]
     bolum2(r)
     bolum3(r)
     bolum4(r)
@@ -1054,10 +1055,19 @@ def main() -> int:
     # F6 OLCULDU ve REDDEDILDI; yerine gecen R26/R33 + R41 duzeni
     # yalnizca simulasyonda dogrulandi.
     tezgah("B18 GPIO kelepceleri", [
+        # 🔴 Bu kalemin sayilari ELLE yaziliydi ve B18/F12 ONCESININ
+        #    degerleriydi: "hesap 3.582 V, pay 18 mV". Duzeltme
+        #    uygulandiktan sonra pay 1930 mV oldu ama kalem donmustu —
+        #    ve URETILEN `_tezgah.md` ile README oradan besleniyordu.
+        #    Artik ayni bolumun OLCTUGU degerden biciMLENIYOR.
         ("[!] +3V3 rayinin GERI BESLENMESI",
-         "En kritik olcum. USB'yi CIKAR, 24 V kaynagi TAKILI birak, "
-         "+3V3 rayini voltmetreyle oku. 3.60 V'u asarsa ESP32 mutlak "
-         "maksimumu asilmis demektir — hesap 3.582 V, pay 18 mV"),
+         f"En kritik olcum. USB'yi CIKAR, 24 V kaynagi TAKILI birak, "
+         f"+3V3 rayini voltmetreyle oku. Beklenen ray "
+         f"{sec[0]['v(ray)']:.3f} V, ESP32 siniri "
+         f"{T.ESP_MUTLAK_PIN_UST:.2f} V, "
+         f"yani pay {sec[0]['pay']:.0f} mV. 3.60 V'a yaklasiyorsa R41 ya "
+         f"da 10K seri dirençlerden biri YOK demektir (B18/F12 oncesi "
+         f"pay 18 mV idi)"),
         ("Acma SIRASI her iki yonde de guvenli mi",
          "Yukaridaki olcumu iki sirayla da yap: once USB sonra 24 V, "
          "sonra tersi. Ikisi de gecmezse talimat degil DEVRE degisecek"),

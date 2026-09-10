@@ -335,6 +335,12 @@ if not _BICIM_KAYNAGI.exists():
         f"kurulum3-uret.py: bicim kaynagi yok -> {_BICIM_KAYNAGI}\n"
         f"  Guncel kurulum kilavuzunun CSS'i ARSIVDEN geliyor; arsiv "
         f"tasindiysa bu yolu guncelle.")
+# Emniyet uyarisinin sayilari da kaynaktan (B15/D2 ile AYNI hesap).
+import math as _math
+creepage = T.IEC60664_CREEPAGE_TAKVIYELI
+n_delik = _math.ceil(creepage / T.DELIKLI_ADIM)
+mesafe = n_delik * T.DELIKLI_ADIM
+
 CSS = _BICIM_KAYNAGI.read_text(encoding="utf-8")
 CSS = CSS[CSS.index("<style>"):CSS.index("</style>") + 8]
 
@@ -370,6 +376,20 @@ sayfa = f"""<!-- URETILDI: uretim/kurulum3-uret.py — ELLE DUZENLEME -->
        (izole olmayan SMPS'in birincil tarafı gibi) bağlarsan
        <b>bilgisayarına şebeke gerilimi taşırsın</b>. Yalnız izole ikincil
        taraf, ya da tamamen izole çalışma (pil + WiFi, USB takılı değil).</p>
+    <p><b>Ama yüzdürmek yetmez.</b> Arıza analizi (B15/D2) bunu ölçtü:
+       pille yüzdürmek <b>bilgisayarı kurtarır, SENİ KURTARMAZ</b> — kart
+       o anda şebeke potansiyeline çıkar ve kartın <b>her noktası</b>
+       tehlikelidir. 615 V, yüzen alet sınırının <b>14.6 katı</b>.
+       Bu yüzden şebeke referanslı ölçümde:</p>
+    <ul>
+      <li><b>Yalıtımlı kutu ŞART</b> — kartın hiçbir noktasına elle
+          erişilememeli, prob uçları dahil</li>
+      <li>Delikli plakette takviyeli yalıtım için <b>{n_delik} delik
+          atla</b> ({mesafe:.2f} mm, IEC 60664 creepage
+          {creepage:.1f} mm)</li>
+      <li>Enerji verilmişken karta <b>dokunma</b>; ölçüm bitince önce
+          devreyi kes, sonra probu al</li>
+    </ul>
     <p>Yüksek gerilim ucunu ölçüm ucundan <b>fiziksel olarak ayrı</b> tut,
        farklı renk kullan, tek elle çalış.</p>
   </div>

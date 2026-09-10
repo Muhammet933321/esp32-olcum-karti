@@ -119,8 +119,16 @@ def envanteri_oku():
         print("  Bu adim, semadan uretilen malzeme listesini KULLANICININ")
         print("  kisisel stok kaydiyla karsilastiriyor. O kayit bu deponun")
         print("  parcasi degil, o yuzden depoyu klonlayan birinde bu adim")
-        print("  KOSAMAZ. Diger 15 adim envanterden bagimsiz calisir.")
+        import dogrula3 as _d3
+        print(f"  KOSAMAZ. Diger {_d3.ADIM_SAYISI - 1} adim envanterden")
+        print("  bagimsiz calisir.")
         print("  Malzeme listesinin kendisi: BELGELER/2-malzemeler.html")
+        print()
+        print("  ⚠ Bu adim erken cikiyor, yani tezgah kalemlerini de")
+        print("    BASMIYOR ve `dogrula3.py` bunu KIRMIZI rapor eder.")
+        print("    (B16 ayni durumda atlamasini DUYURUP iddia sayisini")
+        print("     koruyor; bu adim koruyamiyor.) --sayim-kilidi-yaz")
+        print("    bunu SUSTURMAZ; denetim sayimdan bagimsiz.")
         raise SystemExit(0)
     kayit = []
     with open(ENVANTER, encoding="utf-8") as f:
