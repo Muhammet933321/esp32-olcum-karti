@@ -1,14 +1,20 @@
 # Ölçüm Kartı — Devir Belgesi
 
-> **Tarih:** 11 Eylül 2026 · **Devreden oturum:** Claude Opus 5 · **Durum:** Aşama 3
-> tasarımı doğrulandı (**18/18**) · **ESP32-S3 GELDİ ve ilk bringup koşuldu
-> (B26)** — firmware + arayüz kartta, aşama 0 **31 geçti / 1 kaldı / 5 atlandı**.
-> Analog ön uç hâlâ kurulmadı. Kart artık **telefondan, bilgisayar olmadan**
-> kullanılabiliyor (B22).
+> **Tarih:** 12 Eylül 2026 · **Devreden oturum:** Claude Opus 5 · **Durum:** Aşama 3
+> tasarımı doğrulandı (**18/18**) · **ESP32-S3 GELDİ, bringup koşuldu (B26)**
+> — firmware + arayüz kartta, **bir ADS1115 (`0x48`) breadboard'da**, kart ev
+> ağında ve web katmanı doğrulandı. Bringup: **48 geçti / 3 kaldı / 1 atlandı**.
+> Analog ön uç hâlâ kurulmadı.
 >
-> 🔴 **B26'da üç kusur bulundu** — ikisi yalnızca gerçek donanımda görülebilirdi.
-> En ciddisi: **AP SSID'i MAC'ten gelmiyordu** (ilklenmemiş bellek). Üçü de
-> düzeltildi. Kalan tek kırmızı **anlamlı**: çift çekirdek kararının sinyali.
+> 🔴 **B26'da beş kusur bulundu, hepsi düzeltildi** — ikisi firmware'de, üçü
+> belge/test tarafında, artı **beş koşucu kusuru** daha. En ciddi ikisi:
+> **AP SSID'i MAC'ten gelmiyordu** (ilklenmemiş bellek) ve **ALERT/RDY kenar
+> yönü tersti** — ikincisi örnekleme hızını 665 yerine **162**'de tutuyordu ve
+> B20'nin düzeltmesinin *altında* duruyordu.
+>
+> **Ölçülen örnekleme hızı: 485/s** (tek ADS ile; ikinci ADS takılınca banda
+> oturması bekleniyor). Kalan üç kırmızıdan ikisi eksik ADS'ten, biri
+> **gerçek**: çift çekirdek kararının sinyali — 30 saniyede bir ~26 ms blokaj.
 >
 > **Kullanıcının okuyacağı belgeler `BELGELER/` klasöründe** — bu dosya
 > mühendislik günlüğü, oraya kullanıcıyı yönlendirme.
@@ -6912,6 +6918,131 @@ GND'ye bağlı; tel bir delik kayarsa GPIO7 sürekli LOW kalır ve belirti
 ⚠ Bu, B20'nin 91 SPS'inin **aynı sınıfı ama aynısı değil**: orada pin
 yüksek empedansta kalıyordu (COMP_QUE=11b), burada firmware doğru,
 donanım yolu şüpheli.
+
+##### 🔴 Kusur 5 — ALERT/RDY KENAR YÖNÜ TERSTİ (162 SPS'in asıl sebebi)
+
+Kablolama süreklilikle doğrulandı, 3V3 rayı 3.26 V — donanım sağlamdı.
+Sebebi tahmin etmek yerine GPIO7'yi doğrudan dinleyen geçici bir tanı
+yazılımı yüklendi (yalnızca `0x48` ile konuşuyor, yani eksik ikinci ADS
+hipotezi tamamen devre dışı):
+
+```
+GPIO7 bosta: HIGH (beklenen)     -> kablo doğru, GND'ye kaçmamış
+Hi_thresh=0x8000  Lo_thresh=0x0  -> eşikler yazıldı VE geri okundu
+RDY dustu: EVET @1228 us         -> pin DÜŞÜYOR, tam dönüşüm süresinde
+kalkti: HAYIR                    -> ama GERİ KALKMIYOR
+```
+
+Kontrol grubu (`COMP_QUE=11`, pin yüksek empedans) hiç darbe vermedi —
+ölçüm düzeneğinin kendisi doğrulandı.
+
+`yeni_donusum_bekle` önce **düşmeyi**, sonra **kalkmayı** bekliyordu. ADS'in
+RDY pini ise dönüşüm bitince LOW'a çekip **öyle kalıyor**; pini geri
+kaldıran şey **yeni dönüşümü başlatan ayar yazması**. (İlk hipotez "okuma
+kaldırır"dı, o da ölçülüp çürütüldü: `okuma oncesi LOW | okuma sonrasi LOW`.)
+
+Yani ikinci döngü **hiç gelmeyecek bir kenarı** bekliyor, her turda
+4000 µs zaman aşımı + 1300 µs yedek = ölçülen 6.17 ms.
+
+**Düzeltme:** kenar yönü ters çevrildi — önce kalkmayı (yeni dönüşüm
+başladı), sonra düşmeyi (dönüşüm bitti) bekle. Ters sıra ayrıca teorik bir
+yarışa açıktı: ayar yazması bitmeden pin hâlâ LOW iken bakılırsa ÖNCEKİ
+dönüşüm okunur. Tezgahta 300 turda **sıfır zaman aşımı**, 620 örnek/s.
+
+| | önce | sonra |
+|---|---|---|
+| örnek / 200 ms | 33 | **97** |
+| örnek/s | 162 | **485** |
+| tur süresi | 6.17 ms | 2.06 ms |
+
+⚠️ **Bu kusur B20'nin düzeltmesinin ALTINDA duruyordu.** B20 `COMP_QUE=11b`
+sorununu doğru teşhis edip düzeltmişti (91 SPS) — ama kenar yönü hatası
+altta kaldı ve donanım olmadığı için 665 SPS hiç ölçülmemişti.
+**Düzeltilmiş bir kusurun arkasında ikinci bir kusur.** Zincire kenar
+yönünü sınayan iddia (`sim3_bant.py` 1b-bis) ve onu yalanlayan mutasyon
+eklendi.
+
+Kalan 97 → 133 farkının sebebi eksik `0x49`: firmware her turda ona da
+yazıp okumaya çalışıyor. Yalın testte (tek ADS) 1.61 ms/tur, firmware'de
+2.06 ms. **Tahmin: ikinci ADS takılınca bant tutar** — sınanabilir.
+
+##### Web katmanı gerçek donanımda açıldı
+
+Kart ev ağına alındı (`Na`/`Np`), web parolası kuruldu (`Ns`). Atlanan
+5 denetim koştu ve **hepsi yeşil**:
+
+| Denetim | Sonuç |
+|---|---|
+| Arayüz servis ediliyor | 200 · 26 683 bayt (gzip'li 8 046) |
+| CSRF — özel başlık zorunlu | 400 |
+| Geçersiz jeton | 403 |
+| **`p0` jetonsuz geçiyor** | **204** ← emniyet özelliği |
+| Yabancı Host (DNS rebinding) | 403 |
+
+⚠️ Ama önce **beş koşucu kusuru** çıktı, hepsi kartı haksız yere suçluyordu:
+
+1. **`Content-Type`.** `urllib` gövde verilince başlık yoksa
+   `application/x-www-form-urlencoded` ekliyor; ESP32 `WebServer` onu FORM
+   diye ayrıştırıp ham gövdeyi `arg("plain")`'e koymuyor → 400 "bos komut".
+   Koşucu bunu *"`p0` GEÇMİYOR — EMNİYET kusuru"* diye raporluyordu.
+   **Olmayan bir emniyet kusuru uyduruyordu**, ki bu yanlış-yeşilden beter.
+   Ölçüldü: form-ct → 400, `text/plain` → 204.
+2. **gzip.** Kök sayfa `Content-Encoding: gzip` geliyor; `urllib` açmıyor,
+   denetim ham baytta `<!doctype` arıyordu.
+3. **Afiş penceresi.** STA kipinde afiş `AG_STA_BEKLE_MS` (10 s) kadar
+   gecikiyor; sabit 3 sn yüzünden afişe dayanan **12 denetim birden
+   atlandı** ve koşu "23 geçti · 12 atlandı" diye yanıltıcı göründü. Artık
+   `D` satırı görünene kadar bekliyor, tavan `ag.h`'den türetiliyor.
+4. **SSID/MAC denetimi** STA kipinde yanlış kırmızı veriyordu — orada SSID
+   yönlendiriciden geliyor, MAC'ten türetilmiyor. Artık AP kipi dışında
+   atlanıyor.
+5. **Parola uyarısı** "uyarı metni var mı" diye bakıyordu; parola kurulunca
+   metin kaybolur ve denetim kırmızı olurdu — oysa o tam istenen durum.
+   Artık koşullu: korumasızsa uyarı OLMALI, korumalıysa yanıltıcı uyarı
+   OLMAMALI. İki yön de sınanıyor.
+
+**Sonuç: 23 geçti · 5 kaldı · 12 atlandı → 48 geçti · 3 kaldı · 1 atlandı.**
+
+##### NVS kalıcılığı — yeni kalıcı denetim
+
+`NVS kalibrasyon kaliciligi` eklendi (tehlike sınıfı `NVS-yazar`, yani
+`--yazmaya-izin-ver` olmadan koşmuyor). Ayırt edici bir değer yazıp
+resetleyip hayatta kaldığını doğruluyor, sonra **eski değeri geri
+yüklüyor** — tezgahta iz bırakmıyor. Gerçek kartta doğrulandı.
+
+⚠️ İlk yazımı **boş bir iddiaydı**: `i_ofset` kullanıyordu ve girişler
+GND'deyken hem varsayılan hem ölçülen değer 0 olduğu için NVS hiç
+çalışmasa da `0 == 0` diye geçerdi. `s<ohm>`'a geçildi. Sahte kartın da
+bunu modelleyebilmesi için küçük durumlu `AyarliKart` yazıldı — **durumsuz
+bir taklit bu soruyu cevaplayamıyor**, ki boş iddianın kaynağı tam buydu.
+
+##### PC köprüsü ilk kez gerçek kartla
+
+`kopru/` tamamen sınanmamıştı. Uçtan uca çalıştığı görüldü: seri↔SSE
+rölesi (6 sn'de 32 olay ≈ kartın rapor hızı), jeton, sürücü hakemi, disk
+arşivi (gün dosyası gece yarısı döndü). Stok sunucusunu bozmuyor:
+`127.0.0.1` stoka, köprü LAN adresine düşüyor.
+
+##### Çift çekirdek: olay PERİYODİK, 30 saniyede bir
+
+Daha önce "45 sn kararlı halde 30 382 µs" denmişti; o ölçüm **bozuk
+firmware'le** ve tek pencereyle alınmıştı. 180 saniye ölçüldü:
+
+```
+ 30 sn -> K 0 26209 1      120 sn -> K 0 26342 4
+ 60 sn -> K 0 26209 2      150 sn -> K 0 26342 5
+ 90 sn -> K 0 26342 3      180 sn -> K 0 26342 6
+```
+
+**Her 30 saniyede tam bir tane ~26 ms blokaj**, aralarda döngü en fazla
+2.4 ms, `atlanan_ms` hep 0. Karar değişmiyor (eşik 20 ms aşılıyor) ama
+gerekçe artık çok daha sağlam: seyrek/rastgele değil, **periyodik** —
+muhtemelen mDNS ya da WiFi bakımı.
+
+⚠️ Bu, koşucudaki bir iddiayı da düzeltti: "sayaçlar sıfırlandı mı" 45 sn
+BEKLEDİKTEN SONRA bakıyordu, ama periyodik olay o pencerede değeri geri
+tırmandırıyor — sıfırlama kusursuz çalışırken bile kırmızı dönüyordu.
+Sıfırlamanın kanıtı **sıfırlama anındaki** değerdir.
 
 ##### Mutasyon koşucusu bu oturumda benim iddiamı çürüttü
 

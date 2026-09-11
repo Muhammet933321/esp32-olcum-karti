@@ -214,6 +214,34 @@ def bolum1(r):
             (komp_tek & 3) != 3,
             f"COMP_QUE = {komp_tek & 3:02b}b — komparator etkin, pin surulur")
 
+    # --- 1b-bis. B26: KENAR YONU. COMP_QUE dogru olsa da bu yanlisti.
+    alt(r, "1b-bis · RDY kenar yonu: once KALKMA, sonra DUSME")
+    r.bilgi("     🔴 B20 bu pinin BIR kusurunu duzeltti (COMP_QUE=11b ->")
+    r.bilgi("        pin yuksek empedansta, 91 SPS). Duzeltme DOGRUYDU ama")
+    r.bilgi("        YETMIYORDU: altinda ikinci bir kusur duruyordu ve")
+    r.bilgi("        donanim olmadigi icin 665 SPS hic OLCULMEMISTI.")
+    r.bilgi("")
+    r.bilgi("     Tezgahta olculdu (B26, 2026-09-11):")
+    r.bilgi("       RDY dustu @1228 us  |  kalkti: HAYIR")
+    r.bilgi("       okuma oncesi LOW    |  okuma sonrasi LOW")
+    r.bilgi("     Yani pin donusum bitince LOW'a cekip OYLE KALIYOR;")
+    r.bilgi("     geri kaldiran sey YENI DONUSUMU BASLATAN ayar yazmasi,")
+    r.bilgi("     donusum yazmacini okumak DEGIL.")
+    r.bilgi("")
+    r.bilgi("     Eski sira (once dus, sonra kalk) ikinci dongude HER")
+    r.bilgi("     cagrida 4000 us zaman asimina dusuyordu: 6.17 ms/tur,")
+    r.bilgi("     162 ornek/s — hedefin dortte biri. Duzeltilince 33 ->")
+    r.bilgi("     97 ornek/200 ms olctuk (tek ADS).")
+    r.bilgi("")
+    g_bekle = yorumsuz(govde(INO, "bool yeni_donusum_bekle"))
+    kenar = re.findall(r"digitalRead\(PIN_HAZIR\)\s*==\s*(LOW|HIGH)", g_bekle)
+    r.kosul("  1b-bis: `yeni_donusum_bekle` iki kenara da bakiyor",
+            len(kenar) >= 2, f"bulunan: {kenar or 'YOK'}")
+    r.kosul("  1b-bis: ONCE de-assert (LOW bitsin), SONRA donusum (HIGH bitsin)",
+            kenar[:2] == ["LOW", "HIGH"],
+            f"sira {kenar[:2]} — ters olursa ikinci dongu HIC bitmez ve "
+            f"her tur zaman asimina duser (B26'nin olctugu kusur)")
+
     # ALERT/RDY hangi cipte telli? Netlistten oku — elle yazma.
     net = (BURASI / "netlist3.net").read_text(encoding="utf-8", errors="replace")
     m = re.search(r'\(name "/HAZIR"\)(.*?)\n\t\t\)', net, re.S)

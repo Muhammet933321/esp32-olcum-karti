@@ -48,11 +48,13 @@ gecmeyen bir karta "gecti" der.
 from __future__ import annotations
 
 import argparse
+import gzip
 import re
 import sys
 import time
 import urllib.error
 import urllib.request
+import zlib
 from pathlib import Path
 
 BURASI = Path(__file__).parent
@@ -89,6 +91,9 @@ MDNS_AD = _tanim("AG_MDNS", AG_H)
 AP_ONEK = re.search(r'"(OLCUM-KARTI-)%02X%02X"', AG_H).group(1)
 AKIS_AZAMI = int(re.search(r"#define AKIS_AZAMI\s+(\d+)", INO).group(1))
 CIFT_CEKIRDEK_ESIK_US = 20000       # DEVIR 5.12.34 — karar olcutu
+# STA baglanti bekleme suresi ag.h'den — afis o bitmeden basilmiyor.
+AG_STA_BEKLE_S = int(re.search(r"#define AG_STA_BEKLE_MS\s+(\d+)",
+                               AG_H).group(1)) / 1000.0
 # B26: karar artik acilistan beri maksimuma degil, sayaclar sifirlandiktan
 # sonraki KARARLI HAL olcumune dayaniyor. Sure kisa olursa seyrek olay
 # (kartta ~40-60 sn'de bir ~30 ms) hic gorunmez; uzun olursa bringup yavaslar.
@@ -225,18 +230,46 @@ class Konusma:
 def http(adres: str, yol: str, basliklar: dict | None = None,
          govde: bytes | None = None, metod: str = "GET",
          zaman_asimi: float = 5.0):
-    """(durum, basliklar, govde) dondurur. Ag hatasi (0, {}, hata) olur."""
+    """(durum, basliklar, govde) dondurur. Ag hatasi (0, {}, hata) olur.
+
+    🔴 B26 — IKI TUZAK, IKISI DE GERCEK KARTTA YAKALANDI:
+
+    1. CONTENT-TYPE. `urllib` govde verilince baslik konmamissa
+       `application/x-www-form-urlencoded` EKLIYOR. ESP32 `WebServer`
+       o icerik turunu FORM diye ayristiriyor ve ham govdeyi
+       `arg("plain")`e KOYMUYOR — kart "bos komut" deyip 400 donuyor.
+       Kosucu bunu "jeton reddedilmedi" ve "p0 GECMIYOR" diye
+       raporluyordu; ikincisi EMNIYET KUSURU olarak isaretli.
+       Yani kosucu OLMAYAN bir emniyet kusuru uyduruyordu.
+       Olculdu: form-ct -> 400, text/plain -> 204.
+
+    2. GZIP. Kart kok sayfayi `Content-Encoding: gzip` ile veriyor
+       (8046 -> 26683 bayt). `urllib` KENDILIGINDEN ACMAZ; denetim ham
+       gzip baytlarinda `<!doctype` arayip bulamiyordu.
+    """
     url = f"http://{adres}{yol}"
     istek = urllib.request.Request(url, data=govde, method=metod)
     for k, v in (basliklar or {}).items():
         istek.add_header(k, v)
+    if govde is not None and not istek.has_header("Content-type"):
+        istek.add_header("Content-Type", "text/plain")
     try:
         with urllib.request.urlopen(istek, timeout=zaman_asimi) as y:
-            return y.status, dict(y.headers), y.read()
+            return y.status, dict(y.headers), _govde_ac(y.headers, y.read())
     except urllib.error.HTTPError as e:
-        return e.code, dict(e.headers), e.read()
+        return e.code, dict(e.headers), _govde_ac(e.headers, e.read())
     except (urllib.error.URLError, OSError, TimeoutError) as e:
         return 0, {}, str(e).encode()
+
+
+def _govde_ac(basliklar, ham: bytes) -> bytes:
+    """gzip'li yaniti acar. Kart statik varliklari sikistirilmis veriyor."""
+    if (basliklar.get("Content-Encoding") or "").lower() != "gzip":
+        return ham
+    try:
+        return gzip.decompress(ham)
+    except (OSError, EOFError, zlib.error):
+        return ham
 
 
 # ═══════════════════════════════════════════════════════ DENETIMLER
@@ -337,6 +370,15 @@ def d_ssid_mac_tutarli(c):
                   sat.strip()[:90]):
         return
     ssid, mac = m_ssid.group(1), m_mac.group(1)
+    # ⚠ B26: bu iddia YALNIZCA AP kipinde anlamli. STA kipinde SSID ev
+    #   yonlendiricisinin adi; MAC ile hicbir iliskisi yok
+    #   ve karsilastirmak YANLIS KIRMIZI uretir. Kart ev agina alininca
+    #   tam bu oldu.
+    if not ssid.startswith(AP_ONEK):
+        c.s.atla("SSID soneki gercek MAC'in son iki bayti",
+                 f"STA kipi — SSID '{ssid}' yonlendiriciden geliyor, "
+                 f"MAC'ten turetilmiyor")
+        return
     sonek = ssid.rsplit("-", 1)[-1].upper()
     mac_sonek = "".join(mac.split(":")[-2:]).upper()
     uyar = "" if sonek == mac_sonek else "  <- AYRISMA: ad MAC'ten gelmiyor"
@@ -344,14 +386,112 @@ def d_ssid_mac_tutarli(c):
            f"SSID={ssid} (sonek {sonek}) · MAC={mac} (sonek {mac_sonek}){uyar}")
 
 
-def d_parola_uyarisi(c):
-    """Parola kurulu DEGILSE kart bunu YUKSEK SESLE soylemeli."""
-    if c.afis is None:
-        c.s.atla("Parolasizlik acikca uyariliyor", "afis yok")
+"""Sinama degeri. ⚠ HEM firmware varsayilanindan (0.1) HEM de sahte
+kartin degerinden (0.015) FARKLI olmali — aksi halde "reset'i atlatti"
+iddiasi BOSALIR: NVS hic calismasa da okunan deger ayni cikardi.
+B26'nin ilk yaziminda tam bu oldu (`i_ofset` hem varsayilan hem olculen
+deger olarak 0'di, iddia 0 == 0 diye geciyordu)."""
+NVS_SINAMA_SONT = 0.123456
+
+
+def _sont_oku(c):
+    """`?` ciktisindaki `A ...` satirindan sont degerini okur."""
+    sat = c.k.sor("?", r"^A menzil=", zaman_asimi=3.0)
+    if not sat:
+        return None
+    m = re.search(r"\bsont=([\d.]+)", sat[0])
+    return float(m.group(1)) if m else None
+
+
+def d_nvs_kalicilik(c):
+    """[!] Ayarlar RESET'i ATLATIYOR MU — NVS gercekten kalici mi.
+
+    NEDEN TASARIM ZINCIRI GOREMEZ: `ayar_yukle` okudugu baytin
+    `sizeof(Ayar3)` ile, imzanin `AYAR3_IMZA` ile tutmasini istiyor.
+    Tutmazsa SESSIZCE varsayilana doner. Yapi buyudugunde ya da imza
+    bumplandiginda butun kalibrasyon gider ve kullanici bunu ancak
+    olctugu deger kayinca anlar. Gercek NVS + gercek reset gerekiyor.
+
+    NEDEN `s<ohm>`: saf bir sayi, donanim okumasi gerektirmiyor ve
+    varsayilandan ayirt edilebilir bir deger yazilabiliyor. `Z`/`z`
+    kalibrasyonlari ADC okuyor; girisler GND'deyken yazacaklari deger
+    varsayilanla AYNI (0) cikar ve iddia bosalir.
+
+    ⚠ Denetim ESKI DEGERI GERI YUKLUYOR — tezgahta iz birakmamali.
+    ⚠ Karti SIFIRLIYOR, o yuzden DENETIMLER listesinin EN SONUNDA:
+      blokaj sayaci (45 sn kararli hal) gibi olcumleri bozmasin.
+    """
+    once = _sont_oku(c)
+    if not c.s.ok("`?` sont degerini basiyor", once is not None, str(once)):
         return
-    c.s.ok("Parola durumu afiste ACIKCA yaziyor",
-           _afis_ara(c, "web parolasi YOK") or _afis_ara(c, "AP parolasi"),
-           "parolasizsa sessiz kalinmamali")
+    if abs(once - NVS_SINAMA_SONT) < 1e-9:
+        c.s.atla("Ayar RESET'i ATLATTI (NVS gercekten kalici)",
+                 "sont zaten sinama degerinde — once baska degere al")
+        return
+
+    try:
+        sat = c.k.sor(f"s{NVS_SINAMA_SONT:.6f}", r"^\* sont ", zaman_asimi=4.0)
+        if not c.s.ok("`s<ohm>` yeni degeri kabul ediyor", bool(sat),
+                      sat[0].strip()[:60] if sat else "yanit yok"):
+            return
+        c.s.bilgi(f"sont: {once} -> {NVS_SINAMA_SONT}")
+
+        yazildi = _sont_oku(c)
+        if not c.s.ok("Yazilan deger ANINDA ayarda gorunuyor",
+                      yazildi is not None
+                      and abs(yazildi - NVS_SINAMA_SONT) < 1e-6,
+                      f"beklenen {NVS_SINAMA_SONT}, okunan {yazildi}"):
+            return
+
+        # ⚠ `ek` metni GECERKEN de basiliyor; "afis alinamadi" yazmak
+        #   yesil bir satirda YALAN olurdu. Durumu metnin kendisi soylesin.
+        _afis = afis_al(c.k.kart, c.k, True, bekle=3.0)
+        if not c.s.ok("Reset sonrasi kart geri geldi", _afis is not None,
+                      f"{len(_afis)} afis satiri" if _afis else
+                      "afis YOK — kart acilmadi ya da DTR/RTS reset atmadi"):
+            return
+        sonra = _sont_oku(c)
+        c.s.ok("Ayar RESET'i ATLATTI (NVS gercekten kalici)",
+               sonra is not None and abs(sonra - NVS_SINAMA_SONT) < 1e-6,
+               f"reset oncesi {NVS_SINAMA_SONT}, sonrasi {sonra} — esit "
+               f"degilse `ayar_yukle` varsayilana donuyor demektir")
+    finally:
+        c.k.sor(f"s{once:.6f}", r"^\* sont ", zaman_asimi=4.0)
+        geri = _sont_oku(c)
+        c.s.ok("Eski sont degeri GERI YUKLENDI",
+               geri is not None and abs(geri - once) < 1e-6,
+               f"{once} bekleniyordu, {geri} okundu — denetim tezgahta "
+               f"iz birakmamali")
+
+
+def d_parola_uyarisi(c):
+    """Parola kurulu DEGILSE kart bunu YUKSEK SESLE soylemeli.
+
+    🔴 B26'da DUZELTILDI. Eski hali "afiste `web parolasi YOK` YA DA
+    `AP parolasi` gecsin" diyordu. Bu, kart AP kipinde ve parolasizken
+    dogru calisiyordu — ama parola KURULUP kart ev agina (STA) alininca
+    iki metin de kaybolur ve denetim YANLIS KIRMIZI verir. Oysa o durum
+    tam olarak ISTENEN durum.
+
+    Dogru iddia bir KOSULLU: korumasizsa uyari OLMALI, korumaliysa
+    yaniltici uyari OLMAMALI. Iki yonu de sinaniyor.
+    """
+    if c.afis is None:
+        c.s.atla("Parola durumu afiste dogru bildiriliyor", "afis yok")
+        return
+    sat = c.k.sor("N", r"^\* web parolasi:", zaman_asimi=3.0)
+    if not c.s.ok("`N` web parolasi durumunu bildiriyor", bool(sat),
+                  sat[0].strip() if sat else "yanit yok"):
+        return
+    korumali = "KURULU" in sat[0]
+    uyari = _afis_ara(c, "web parolasi YOK")
+    if korumali:
+        c.s.ok("Parola KURULUYKEN afis yaniltici uyari BASMIYOR", not uyari,
+               "korumali kartta 'parola YOK' yazmak kullaniciyi bosuna "
+               "tedirgin eder")
+    else:
+        c.s.ok("Parola YOKKEN afis ACIKCA uyariyor", uyari,
+               "sessiz 'guvenlik yok', guvenlik olmamasindan KOTUDUR")
 
 
 # ── Asama 0 · arastirmanin isaret ettigi ek denetimler ───────────────
@@ -467,6 +607,22 @@ def d_blokaj_sayaci(c):
                   bool(sifir), sifir[0].strip()[:80] if sifir else "yanit yok"):
         return
 
+    # 🔴 B26: "sifirlama tuttu mu" HEMEN sorulmali. Once bu iddia 45 sn
+    #   BEKLEDIKTEN SONRA "azami dustu mu" diye bakiyordu — ama kartta
+    #   ~30 sn'de bir ~26 ms'lik periyodik bir blokaj var, yani azami o
+    #   pencerede ZATEN geri tirmaniyor. Iddia, sifirlama mukemmel
+    #   calisirken bile kirmizi doniyordu. Sifirlamanin kaniti, sifirlama
+    #   ANINDAKI degerdir.
+    hemen = _k_oku(c)
+    if _canli_port(c):
+        c.s.ok("Sayaclar sifirlama ANINDA dustu",
+               hemen is not None and hemen[1] < ilk[1],
+               f"{ilk[1]} -> {hemen[1] if hemen else '?'} us "
+               f"(45 sn sonrasina bakmak YANLIS: periyodik olay geri tirmandirir)")
+    else:
+        c.s.atla("Sayaclar sifirlama ANINDA dustu",
+                 "kayit tekrarinda `?` hep ayni satiri doner")
+
     if _canli_port(c):
         c.s.bilgi(f"{BLOKAJ_OLCUM_SN:.0f} sn kararli hal olcumu...")
         time.sleep(BLOKAJ_OLCUM_SN)
@@ -476,16 +632,6 @@ def d_blokaj_sayaci(c):
     atlanan, azami, uzun = son
     c.s.bilgi(f"kararli hal: azami {azami} us, >20ms tur {uzun}, "
               f"atlanan {atlanan} ms   esik {CIFT_CEKIRDEK_ESIK_US}")
-    if _canli_port(c):
-        c.s.ok("Sayaclar GERCEKTEN sifirlandi (azami dustu)",
-               azami < ilk[1] or ilk[1] == 0,
-               f"{ilk[1]} -> {azami} us; dusmediyse `K` sifirlamiyor demektir")
-    else:
-        # Kayit tekrarinda `?` her cagrida AYNI satiri donuyor; "dustu mu"
-        # sorusu orada anlamsiz. Esik ve atlanan-pencere iddialari yine
-        # sinaniyor (ikisi de saf sayi karsilastirmasi).
-        c.s.atla("Sayaclar GERCEKTEN sifirlandi (azami dustu)",
-                 "kayit tekrarinda zaman ilerlemiyor")
     c.s.ok("KARARLI HALDE loop_azami_us esigin ALTINDA",
            azami < CIFT_CEKIRDEK_ESIK_US,
            f"{azami} us — ustundeyse olcum dongusu cekirdek 1'e "
@@ -658,7 +804,10 @@ def d_web_kok(c):
     if not c.http:
         c.s.atla("Arayuz HTTP'den servis ediliyor", "--http verilmedi")
         return
-    durum, bas, govde = http(c.http, "/")
+    # 26 KB'lik sayfa; kart tek cekirdekli ve WiFi uzerinden
+    # veriyor. Bir kosuda gecici `durum 0` gorulduysa da tekrar
+    # uretilemedi — en buyuk aktarim oldugu icin comert sure.
+    durum, bas, govde = http(c.http, "/", zaman_asimi=15.0)
     if not c.s.ok("Kok istegi yanit veriyor", durum == 200,
                   f"durum {durum}"):
         return
@@ -744,6 +893,10 @@ DENETIMLER = [
     ("Olcum satiri bicimi",     1, "yok", d_olcum_satiri_bicimi),
     ("Ornek sayisi",            1, "yok", d_ornek_sayisi),
     ("Olcum hizi",              1, "yok", d_olcum_hizi),
+
+    # ⚠ EN SONDA DURMALI: karti SIFIRLIYOR. Daha yukari alinirsa blokaj
+    #   sayaci (45 sn kararli hal) ve telemetri olcumleri bozulur.
+    ("NVS kalibrasyon kaliciligi", 0, "NVS-yazar", d_nvs_kalicilik),
 ]
 
 
@@ -784,12 +937,29 @@ def afis_al(kart, konusma, sifirla: bool, bekle: float = 3.0):
     SIFIRLAMIYOR (bu bilerek: kazara reset atmasin). Afis ise yalnizca
     acilista basiliyor. O yuzden afisi gormek icin ya kart yeni
     acilmis olmali ya da `--sifirla` verilmeli.
+
+    🔴 B26 — SABIT 3 sn YETMIYOR. Kart ev agina (STA) alininca afis,
+    `ag_baslat()` baglantiyi bitirene kadar BASILMIYOR; ag.h'deki
+    `AG_STA_BEKLE_MS` (10 s) kadar gecikebiliyor. Sabit pencere yuzunden
+    afis kacinca afise dayanan 12 denetim birden ATLANDI ve kosu
+    "23 gecti · 12 atlandi" gibi yaniltici gorundu.
+
+    Artik: `D ` telemetri satirini GORENE KADAR bekle (o satir yalnizca
+    setup() bittikten sonra basiliyor), tavani ag.h'den turet.
     """
     if not sifirla:
         return None
     if not kart.sifirla():
         return None
-    sat = konusma.topla(bekle)
+    tavan = max(bekle, AG_STA_BEKLE_S + 4.0)
+    sat = []
+    son = time.monotonic() + tavan
+    while time.monotonic() < son:
+        sat += konusma.topla(0.4)
+        # `D ` = loop() basladi, yani afis tamamlandi.
+        if any(x.startswith("D ") for x in sat) and \
+           any("Olcum Karti" in x for x in sat):
+            break
     # Afis geldi mi? Baslik satiri yoksa kart yerel USB CDC'li olabilir
     # ve DTR/RTS bir pine bagli degildir — sinyaller gitti ama reset olmadi.
     return sat if any("Olcum Karti" in x for x in sat) else None

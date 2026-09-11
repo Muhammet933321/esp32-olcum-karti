@@ -272,12 +272,44 @@ void ayar_kaydet() {
 // ───────────────────────────────────────────────── ölçüm
 // Yeni bir donusumun bitmesini bekler. Zaman asimi varsa yine de okur
 // (ALERT pini baglanmamis olabilir) ama o zaman sayim guvenilmez.
+/* 🔴 B26 (2026-09-11, GERCEK KARTTA OLCULDU) — KENAR YONU TERSTI.
+ *
+ * Eskiden once DUSMEYI, sonra KALKMAYI bekliyordu:
+ *     while (... == HIGH) {}   // dus
+ *     while (... == LOW)  {}   // kalk   <- BU HIC GELMEZ
+ *
+ * ADS1115'in ALERT/RDY pini bu yapilandirmada (Hi=0x8000, Lo=0x0000,
+ * COMP_QUE=00) donusum bitince LOW'a cekiyor ve OYLE KALIYOR. Pini
+ * geri kaldiran sey YENI DONUSUMU BASLATAN AYAR YAZMASI — donusum
+ * yazmacini okumak DEGIL. Tezgahta olculdu:
+ *
+ *     RDY dustu: EVET @1228 us   |  kalkti: HAYIR
+ *     okuma oncesi: LOW  |  okuma sonrasi: LOW      <- okuma kaldirmiyor
+ *
+ * Yani ikinci dongu her cagrida 4000 us zaman asimina dusuyor, sonra
+ * cagiran taraf 1300 us daha bekliyordu. Olculen tur suresi 6.17 ms,
+ * yani 162 ornek/s — firmware'in her yerde yazdigi 665'in DORTTE BIRI.
+ *
+ * ⚠ B20 bu pinin B I R kusurunu duzeltmisti (COMP_QUE=11b pini yuksek
+ * empedansta birakiyordu, 91 SPS). O duzeltme DOGRUYDU ama YETMIYORDU:
+ * kenar yonu hatasi altinda duruyordu ve donanim olmadigi icin kimse
+ * 665'i gercekten olcmemisti. "Yesil test bir sey kanitlamaz"in bir
+ * baska bicimi: duzeltilmis bir kusurun ARKASINDA ikinci bir kusur.
+ *
+ * DOGRU SIRA: once pinin KALKTIGINI dogrula (ayar yazmasi yeni donusumu
+ * baslatti), sonra DUSMESINI bekle (donusum bitti). Ters sira teorik bir
+ * yarisa da aciktir: ayar yazmasi bitmeden pin hala LOW iken bakilirsa
+ * ONCEKI donusum okunur ve "kac ornek" sayisi yine yalan olur.
+ *
+ * Tezgahta olculen (tek ADS, 300 tur): 1614 us/tur, 620 ornek/s,
+ * her iki dongude de SIFIR zaman asimi.
+ */
 bool yeni_donusum_bekle(uint32_t azami_us) {
   uint32_t t0 = micros();
-  while (digitalRead(PIN_HAZIR) == HIGH) {
+  while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */
     if (micros() - t0 > azami_us) return false;
   }
-  while (digitalRead(PIN_HAZIR) == LOW) {
+  while (digitalRead(PIN_HAZIR) == HIGH) {       /* donusum bitti mi */
     if (micros() - t0 > azami_us) return false;
   }
   return true;

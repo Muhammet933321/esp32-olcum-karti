@@ -115,6 +115,13 @@ MUTASYONLAR = [
     ("B20", "sim3_bant.py", "uretim/tasarim3_sabit.py",
      "ADS_SPS = 860", "ADS_SPS = 250",
      "ornekleme hizi butun zamanlama butcesinin tabani"),
+    # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
+    ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",
+     "while (digitalRead(PIN_HAZIR) == HIGH) {       /* yeni donusum basladi mi */",
+     "ESKI KUSURU geri koyar: once dusmeyi bekleyince ikinci dongu "
+     "(kalkmayi bekleyen) HIC bitmez, her tur 4000 us zaman asimina "
+     "duser. Kartta olculdu: 6.17 ms/tur, 162 ornek/s — hedefin 1/4'u"),
 
     # ── B4/B5 · platform bagimsizligi (B25'te bulunan kapsam bosluğu:
     #    mutasyon tablosunda olcum3.h'ye ait TEK kayit yoktu)

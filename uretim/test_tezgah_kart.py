@@ -152,6 +152,7 @@ def yanitlar_saglikli(loop_us=8500, i2c="I2C: 0x48 0x49",
     y["fabc"] = ["! f: frekans gerekli, orn. `f50` ya da `f0` (DC)"]
     y["K"] = [f"* blokaj sayaclari sifirlandi — onceki: atlanan 0 ms, "
               f"en uzun dongu {loop_us} us, >20ms tur 0"]
+    y["Z"] = ["* akim sifiri ham=0"]
     y["R"] = (["! R: onay gerekli — `R!` yaz. TUM kalibrasyonu siler."]
               if r_onayi else ["* FABRIKA AYARLARI yuklendi"])
     y["QQ"] = (["! bilinmeyen komut — `h` yardim"] if bilinmeyen else [])
@@ -159,7 +160,7 @@ def yanitlar_saglikli(loop_us=8500, i2c="I2C: 0x48 0x49",
 
 
 def kart_kur(afis=None, yanit=None, telemetri_adet=40, ornek=None,
-             gecikme=0.0):
+             gecikme=0.0, kalici=None):
     """Saglikli bir kart benzetimi. Afis + surekli `D` akisi + yanitlar.
 
     ⚠ `KayitKart` SONLU: gercek kart sonsuza kadar `D` basiyor, kayit
@@ -170,9 +171,11 @@ def kart_kur(afis=None, yanit=None, telemetri_adet=40, ornek=None,
     """
     satirlar = list(afis if afis is not None else afis_satirlari())
     satirlar += [d_satiri(ornek) for _ in range(telemetri_adet)]
-    return KayitKart(satirlar,
-                     yanit if yanit is not None else yanitlar_saglikli(),
-                     gecikme=gecikme)
+    y = yanit if yanit is not None else yanitlar_saglikli()
+    if kalici is None:
+        return KayitKart(satirlar, y, gecikme=gecikme)
+    # B26: NVS kalicilik denetimi DURUM istiyor — bkz. AyarliKart
+    return AyarliKart(satirlar, y, gecikme=gecikme, kalici=kalici)
 
 
 def kart_kur_telemetrili(**kw):
@@ -182,11 +185,61 @@ def kart_kur_telemetrili(**kw):
     return kart_kur(**kw)
 
 
-def kosturi(kart, asama=0, http_adres=None, sifirla=True):
-    """Kosucuyu sessizce kostur, Sonuc'u ve ciktisini dondur."""
+class AyarliKart(KayitKart):
+    """`KayitKart` + KUCUK BIR DURUM: `s<ohm>` yazinca `?` ciktisindaki
+    `sont=` gercekten degisir ve reset'i atlatir.
+
+    🔴 NEDEN GEREKLI (B26): NVS kalicilik denetimi "ayirt edici bir deger
+    yaz, resetle, hayatta kaldi mi" diye soruyor. DURUMSUZ bir sahte kart
+    bu soruyu modelleyemez — `?` hep ayni satiri doner ve iddia, NVS hic
+    calismasa bile gecer. Denetimin ilk yaziminda tam bu oldu: yazilan da
+    varsayilan da 0'di, "0 == 0" diye yesil yaniyordu.
+
+    `kalici=False` ise yazma KABUL EDILIR ama reset degeri geri alir —
+    yani `ayar_kaydet()` hic cagrilmamis gibi davranir.
+    """
+
+    def __init__(self, *a, kalici=True, varsayilan=0.015, **kw):
+        super().__init__(*a, **kw)
+        self.kalici = kalici
+        self.varsayilan = varsayilan
+        self._yazilan = None
+
+    def _sont_yaz(self, deger):
+        y = self.yanitlar.get("?")
+        if y:
+            self.yanitlar["?"] = [
+                re.sub(r"sont=[\d.]+", f"sont={deger:.6f}", x) for x in y]
+
+    def yaz(self, metin):
+        if metin.startswith("s") and len(metin) > 1:
+            try:
+                v = float(metin[1:])
+            except ValueError:
+                v = None
+            if v is not None and v > 1e-4:
+                self._yazilan = v
+                self._sont_yaz(v)
+                self.yanitlar[metin] = [
+                    f"* sont {v:.6f} ohm, menzil +-{0.256 / v:.4f} A"]
+        super().yaz(metin)
+
+    def sifirla(self, bekle: float = 0.0) -> bool:
+        if not self.kalici:
+            # NVS'e yazilmamis gibi: reset varsayilana donduruyor
+            self._sont_yaz(self.varsayilan)
+        return super().sifirla(bekle)
+
+
+def kosturi(kart, asama=0, http_adres=None, sifirla=True, yazma=False):
+    """Kosucuyu sessizce kostur, Sonuc'u ve ciktisini dondur.
+
+    `yazma` = NVS'e yazan (tehlike sinifli) denetimler de kossun mu.
+    Varsayilan KAPALI, tipki gercek kosucuda oldugu gibi.
+    """
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        s = TK.kosum(kart, asama, http_adres, sifirla, False)
+        s = TK.kosum(kart, asama, http_adres, sifirla, yazma)
     return s, buf.getvalue()
 
 
@@ -285,6 +338,27 @@ def bolum2_mutasyonlar():
         ok(f"{ad[:52]:<52} -> yakalandi", yakalandi,
            f"beklenen kirmizi: '{beklenen_kirmizi}'" if not yakalandi
            else f"{len(kirmizi)} kirmizi")
+
+    # ── B26: NVS kalicilik denetimi TEHLIKE SINIFLI, yani yalnizca
+    #    --yazmaya-izin-ver ile kosuyor. Ayri blok, cunku yukaridaki
+    #    senaryolar bilerek yazma izni OLMADAN kosuyor.
+    _s, c_izinsiz = kosturi(kart_kur(), asama=0, yazma=False)
+    ok("NVS denetimi izin YOKKEN kosmuyor",
+       "NVS kalibrasyon kaliciligi" in c_izinsiz
+       and "--yazmaya-izin-ver gerekiyor" in c_izinsiz,
+       "tehlike sinifli denetim varsayilan olarak ATLANMALI")
+
+    _s, c_izinli = kosturi(kart_kur(kalici=True), asama=0, yazma=True)
+    ok("NVS denetimi izin VARKEN saglikli kartta yesil",
+       not any("NVS" in x or "RESET'i ATLATTI" in x
+               for x in kirmizilar(c_izinli)),
+       f"{len(kirmizilar(c_izinli))} kirmizi")
+
+    _s, c_bozuk = kosturi(kart_kur(kalici=False), asama=0, yazma=True)
+    ok("Ayar RESET'te KAYBOLURSA yakalaniyor",
+       any("RESET'i ATLATTI" in x for x in kirmizilar(c_bozuk)),
+       "yazma kabul ediliyor ama reset varsayilana donduruyor — "
+       "`ayar_kaydet()` hic cagrilmamis gibi")
 
 
 def bolum3_kapsam():
