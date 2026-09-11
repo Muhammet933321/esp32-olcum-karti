@@ -588,15 +588,46 @@ def d_olcum_satiri_bicimi(c):
            f"{alan - 1} alan, firmware bicimi {D_ALAN} diyor")
 
 
+def _ornek_indeksi(c):
+    """`ornek` alaninin KACINCI alan oldugunu AFISTEN ogrenir.
+
+    🔴 B26 (gercek kartta bulundu): burasi `split()[-1]` diyordu, yani
+    SON alani okuyordu. Ama firmware bicimi
+        D <volt> <amper> <watt> <joule> <wh> <ms> <ornek> <menzil>
+    ve son alan `menzil`. Kosucu menzili ornek sanip "ornek = 0"
+    raporluyordu (menzil 0 = NORMAL).
+
+    Kacmasinin sebebi: `test_tezgah_kart.py`'deki sahte kart ornek
+    sayisini SON alana koyuyordu, yani ayni hatayi paylasiyordu —
+    ikisi birbiriyle tutarli, ikisi de gercekle uyumsuz. Yandaki
+    "Ilan edilen alan sayisi AYNI" denetimi de yalnizca SAYIYA
+    bakiyordu, SIRAYA degil.
+
+    Cozum: sirayi tahmin etme, afisin ilan ettigi ad listesinden OKU.
+    Firmware alan sirasini degistirirse ayristirici pesinden gider.
+    """
+    for x in (c.afis or []):
+        if x.startswith("Cikis: D "):
+            adlar = [a.strip("<>") for a in x.split()[2:]]
+            if "ornek" in adlar:
+                return adlar.index("ornek") + 1      # split()[0] == "D"
+    return None
+
+
 def d_ornek_sayisi(c):
     """[!] Ilk, en ucuz ve en onemli test."""
+    i = _ornek_indeksi(c)
+    if i is None:
+        c.s.atla("Ornek sayisi beklenen bantta",
+                 "afis yok ya da protokol ilani `ornek` icermiyor")
+        return
     sat = [x for x in c.k.topla(3.0) if x.startswith("D ")]
     if not c.s.ok("`D` satiri ornek sayisi tasiyor", bool(sat)):
         return
     try:
-        n = int(sat[-1].split()[-1])
+        n = int(sat[-1].split()[i])
     except (ValueError, IndexError):
-        c.s.ok("`D` son alani ornek sayisi", False, sat[-1][:60])
+        c.s.ok(f"`D` {i}. alani ornek sayisi", False, sat[-1][:60])
         return
     alt = ORNEK_BEKLENEN * (1 - ORNEK_PAY)
     ust = ORNEK_BEKLENEN * (1 + ORNEK_PAY)

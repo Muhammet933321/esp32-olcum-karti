@@ -107,9 +107,23 @@ def afis_satirlari(psram_kb=8192, fs=True, tampon=True, parola_yok=True,
     return s
 
 
-def d_satiri(ornek=None):
+def d_satiri(ornek=None, menzil=0):
+    """🔴 B26 — ALAN SIRASI DUZELTILDI.
+
+    Eskiden ornek sayisi SON alana konuyordu:
+        f"D ... 200 1234 {n}"          # <- n, menzil'in yerinde
+    Firmware bicimi ise
+        D <volt> <amper> <watt> <joule> <wh> <ms> <ornek> <menzil>
+    yani ornek 7., menzil 8. alan. Sahte kart bu sirayi yanlis
+    modelliyordu ve kosucunun `split()[-1]` ayristiricisi de ayni
+    hatayi paylastigi icin test YESIL kaliyordu. Gercek kartta
+    kosulunca ornek sayisi olarak `menzil` (0) okundu.
+
+    Ders: sahte kartin GERCEK firmware'i modelledigi ayrica
+    sinanmali — kendi kendine tutarli olmasi yetmiyor.
+    """
     n = _ORNEK if ornek is None else ornek
-    return f"D 12.3456 0.123456 1.52345 0.1234 0.0001234 200 1234 {n}"
+    return f"D 12.3456 0.123456 1.52345 0.1234 0.0001234 200 {n} {menzil}"
 
 
 def yanitlar_saglikli(loop_us=8500, i2c="I2C: 0x48 0x49",
@@ -374,6 +388,26 @@ def bolum6_beklentiler_kaynaktan():
     print("\n--- 6. BEKLENTILER KAYNAKTAN TURETILIYOR MU " + "-" * 27)
     ok("`D` alan sayisi firmware bicim dizesinden", TK.D_ALAN == 8,
        f"{TK.D_ALAN} — .ino'daki 'D %.4f ...' bicimi sayiliyor")
+
+    # 🔴 B26 — SAYI DEGIL, SIRA. Yandaki iddia yalnizca ALAN SAYISINA
+    #    bakiyordu (8 == 8) ve alan sirasi takas olunca sessiz kaldi:
+    #    sahte kart ornegi SON alana koyuyor, kosucu da SON alani
+    #    okuyordu; ikisi tutarli, ikisi de firmware'den farkliydi.
+    #    Gercek kartta "ornek = 0" (yani `menzil`) okundu.
+    _ilan = next(x for x in afis_satirlari() if x.startswith("Cikis: D "))
+    _adlar = [a.strip("<>") for a in _ilan.split()[2:]]
+    ok("Protokol ilani `ornek` alanini adlandiriyor", "ornek" in _adlar,
+       " ".join(_adlar))
+    if "ornek" in _adlar:
+        _i = _adlar.index("ornek") + 1
+        _alanlar = d_satiri(777).split()
+        ok("Sahte kart `ornek`i ILAN EDILEN yere koyuyor",
+           _alanlar[_i] == "777",
+           f"{_i}. alan = {_alanlar[_i]} — sahte kart gercek firmware'i "
+           f"modellemeli, kendi kendine tutarli olmasi YETMEZ")
+        ok("Kosucu ayni indeksi afisten turetiyor",
+           TK._ornek_indeksi(type("B", (), {"afis": afis_satirlari()})) == _i,
+           f"indeks {_i} — elle yazilmiyor")
     ok("mDNS adi ag.h'den", TK.MDNS_AD == "olcum", TK.MDNS_AD)
     ok("AP oneki ag.h'den", TK.AP_ONEK == "OLCUM-KARTI-", TK.AP_ONEK)
     ok("AKIS_AZAMI .ino'dan", TK.AKIS_AZAMI == 4, str(TK.AKIS_AZAMI))

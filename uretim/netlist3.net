@@ -2,7 +2,7 @@
 	(version "E")
 	(design
 		(source "C:\\Muhammet\\Elekronic\\projeler\\olcum-karti\\sema3\\olcum-karti-a3.kicad_sch")
-		(date "2026-09-11T20:14:15")
+		(date "2026-09-11T23:10:30")
 		(tool "Eeschema 10.0.6")
 		(sheet
 			(number "1")
