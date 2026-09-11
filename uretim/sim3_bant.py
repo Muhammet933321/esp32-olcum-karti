@@ -834,6 +834,87 @@ def bolum7(r):
     r.kosul("  7: loop() akisa DOGRUDAN yazmiyor (ayna ile cift olurdu)",
             "akis_yolla" not in g_loop,
             "B26: acik cagri + ayna = her satir iki kez")
+
+    # --- 8. B27/K1: YANIT VERMEYEN ADC SESSIZ KALMASIN
+    alt(r, "8 · K1: ADC yanit vermezse `durum` alani ve enerji kapisi")
+    r.bilgi("     Gercek kartta tek ADS ile gorulen: 0x49 yokken firmware")
+    r.bilgi("     sessizce 0 donuyor, kalibrasyon o sifira uygulaniyor ve")
+    r.bilgi("     ekranda kendinden emin '1.716 V' cikiyordu — ters cevrilmis")
+    r.bilgi("     n_sifir. Cip bozulunca da ayni sahte sayi. Enerji de bu")
+    r.bilgi("     copla birikiyordu (0.03 J / 3 dk, bos giristen).")
+    r.bilgi("")
+    g_oku = yorumsuz(govde(INO, "static int16_t ads_oku"))
+    # `if (Wire.available() < 2)` blogunun ICINDE hata biti kurulmali
+    _m = re.search(r"if\s*\(\s*Wire\.available\(\)\s*<\s*2\s*\)\s*\{([^}]*)\}",
+                   g_oku)
+    # ⚠ `\bads_hata\s*\|=` — kelime siniri SART. Ilk yazim `"ads_hata" in
+    #   blok` idi ve mutasyon KACTI: `ads_hata_pencere |= bit;` satiri alt
+    #   dizge olarak eslesip iddiayi yesil tutuyordu (hafizadaki "alt dizge
+    #   tuzagi", bir kez daha).
+    r.kosul("  8: ads_oku okuma basarisizken hata bitini KURUYOR",
+            bool(_m) and re.search(r"\bads_hata\s*\|=", _m.group(1)) is not None,
+            "kurmazsa `durum` hep 0 kalir ve arayuz sahte sayiyi olcum sanir")
+    r.kosul("  8: ads_oku okuma basariliyken hata bitini TEMIZLIYOR",
+            re.search(r"ads_hata\s*&=\s*~", g_oku) is not None,
+            "temizlemezse bir kez dusen cip sonsuza kadar 'yok' gorunur")
+    r.kosul("  8: loop() enerjiyi ADC hatasi YOKKEN biriktiriyor",
+            re.search(r"if\s*\(\s*!\s*ads_hata\s*\)\s*enerji_biriktir", g_loop)
+            is not None,
+            "kapisiz olursa yanit vermeyen cipin copu Wh sayacina girer")
+    _d = re.search(r'"D (%[^"]*)"', INO)
+    r.kosul("  8: `D` bicimi `durum` alanini tasiyor (9 alan)",
+            bool(_d) and _d.group(1).count("%") == 9,
+            f"{_d.group(1).count('%') if _d else '?'} alan")
+    r.kosul("  8: afis ilani `<durum>` diyor",
+            "<menzil> <durum>" in INO,
+            "kosucu ve arayuz indeksi bu ilandan turetiyor")
+
+    # --- 9. B27/K4: ARAYUZ METNI SABITLE AYNI MI
+    alt(r, "9 · K4: skop yardim metni tasarim sabitiyle ayni")
+    r.bilgi("     index.html 'Menzil 0 – 48.7 V, tek yönlü' diyordu; B19 skopu")
+    r.bilgi("     cift yonlu yapmisti (-63.5 … +46.8 V). Arayuz Python sabitini")
+    r.bilgi("     goremez (derleme yok) — o yuzden metin burada SABITLE")
+    r.bilgi("     KARSILASTIRILIYOR. 'Ayni sayi kac dosyada duruyor?' dersi.")
+    r.bilgi("")
+    _html = (KOK / "arayuz3" / "index.html").read_text(encoding="utf-8",
+                                                          errors="replace")
+    # ⚠ HTML yorumlari CIKARILIYOR: aciklama yorumu eski ifadeyi ("tek
+    #   yönlü") alintiliyor ve iddia ilk yazimda KENDI yorumunu yakaladi.
+    _html = re.sub(r"<!--.*?-->", "", _html, flags=re.S)
+    _eksi = f"{T.SKOP_MENZIL_EKSI:.1f}".replace("-", "−")   # tipografik eksi
+    _arti = f"+{T.SKOP_MENZIL_ARTI:.1f}"
+    r.kosul(f"  9: metin '{_eksi} … {_arti} V' diyor (sabitten)",
+            f"Menzil {_eksi} … {_arti} V" in _html,
+            f"SKOP_MENZIL_EKSI={T.SKOP_MENZIL_EKSI:.1f} "
+            f"SKOP_MENZIL_ARTI={T.SKOP_MENZIL_ARTI:.1f} — metin sapmis")
+    # --- 10. B27/K3: BOS GIRISTEN 223 W BASILMASIN
+    alt(r, "10 · K3: hizli yol, giris raydaysa W basmiyor")
+    r.bilgi("     GPIO4 bostayken ham ADC raya yapisik (~0) okunuyor; olcek o")
+    r.bilgi("     degeri -63.5 V'a, akimi 3.5 A'e cevirip P=223.5667 W diye DORT")
+    r.bilgi("     ondalikla basiyordu. Artik ham ortalama raydaysa (<%2 / >%98)")
+    r.bilgi("     `! hizli yol: giris RAYDA` basilip W ATLANIYOR. Kartta 3/3.")
+    r.bilgi("")
+    g_hizli = yorumsuz(govde(INO, "static void hizli_yolla"))
+    _ray = g_hizli.find("RAYDA")
+    _olcek = g_hizli.find("hizli_olcekle(adet)")
+    _w = g_hizli.find('Serial.print(F("W "))')
+    r.kosul("  10: rayda denetimi hizli_olcekle'den ONCE",
+            0 <= _ray < _olcek,
+            "olcekten sonra ham kod kaybolur, rayda oldugu anlasilamaz")
+    # `return;` RAYDA'dan SONRA ve hizli_olcekle'den ONCE olmali. Ilk yazim
+    # `RAYDA[^}]*return;` idi — aradaki ic `if {}` bloklari yuzunden dogru
+    # kodda bile eslesmiyordu.
+    _ret = g_hizli.find("return;", _ray) if _ray >= 0 else -1
+    r.kosul("  10: rayda denetimi W basilmadan ONCE ve return ediyor",
+            0 <= _ray < _ret < _olcek and _ray < _w,
+            "return olmazsa uyari basilir AMA W de basilir — sahte sayi yine ekrana gider")
+    r.kosul("  10: esik ADC sayimindan turetiliyor (%2), elle yazilmiyor",
+            "SKOP_ADC_SAYIM * 0.02f" in g_hizli,
+            "82 diye sabit yazilsaydi ADC bit derinligi degisince sessizce kayardi")
+
+    r.kosul("  9: metin 'çift yönlü' diyor, 'tek yönlü' DEGIL",
+            "çift yönlü" in _html and "tek yönlü" not in _html,
+            "B19 oncesi ifade geri gelmis olur")
     r.kosul("  7: baglanti kopunca istemci temizleniyor",
             "stop()" in yorumsuz(govde(INO, "static void akis_yolla")),
             "kopmus istemciye yazmaya devam edilmiyor")

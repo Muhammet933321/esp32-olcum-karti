@@ -162,12 +162,36 @@ static void ads_yaz(uint8_t adres, uint8_t yazmac, uint16_t deger) {
   Wire.endTransmission();
 }
 
+/* 🔴 B27/K1 (2026-09-12, GERCEK KARTTA gorüldu) — YANIT VERMEYEN ADC
+   SESSIZCE 0 DONUYORDU. Kalibrasyon o sifira uygulaniyor ve ekranda
+   kendinden emin bir "1.716 V" cikiyordu:
+
+       V = (0 - n_sifir) * adim = (0 - (-1646)) * 1.0423 mV = 1.7156 V
+
+   Yani gosterilen sayi ters cevrilmis sifir-ofset sabitiydi, olcum degil.
+   Cip takili degilken de, cip BOZULDUGUNDA da, kablo CIKTIGINDA da AYNI
+   sahte sayi. Arayuz "veri yok" ile "veri sifir"i ayirt edemiyordu.
+
+   Artik her okuma kendi cipinin hata bitini kuruyor/temizliyor; `D`
+   satirina `durum` alani eklendi (bit0 = GERILIM okunamadi, bit1 = AKIM
+   okunamadi), enerji hatali ornekle BIRIKTIRILMIYOR. */
+static uint8_t ads_hata = 0;            /* son turun okuma hatalari */
+static uint8_t ads_hata_pencere = 0;    /* rapor penceresinde BIRIKEN */
+#define ADS_HATA_V 0x01
+#define ADS_HATA_I 0x02
+
 static int16_t ads_oku(uint8_t adres) {
+  const uint8_t bit = (adres == ADS_GERILIM) ? ADS_HATA_V : ADS_HATA_I;
   Wire.beginTransmission(adres);
   Wire.write(ADS_DONUSUM);
   Wire.endTransmission();
   Wire.requestFrom(adres, (uint8_t)2);
-  if (Wire.available() < 2) return 0;
+  if (Wire.available() < 2) {
+    ads_hata |= bit;
+    ads_hata_pencere |= bit;
+    return 0;
+  }
+  ads_hata &= ~bit;
   uint16_t h = Wire.read();
   uint16_t l = Wire.read();
   return (int16_t)((h << 8) | l);
@@ -1166,6 +1190,47 @@ static void hizli_yolla(void) {
     }
 
     uint16_t adet = (nv < ni) ? nv : ni;
+
+    /* 🔴 B27/K3 (2026-09-12, GERCEK KARTTA gorüldu) — BOS GIRIS 223 W
+       BASIYORDU. GPIO4 ve akim kanali hicbir seye bagli degilken ham ADC
+       raya yapisik (~0) okunuyor; olcekleme onu -63.5 V'a, akim kanalini
+       3.5 A'e cevirip P = 223.5667 W diye DORT ondalikla basiyordu. Sayi
+       hicbir sinyali temsil etmiyordu ama kendinden emin duruyordu.
+
+       OLCUT: ham kodlarin ORTALAMASI bir raya yapisik (<%2 ya da >%98).
+       On uc alt ucu VREF'e cektigi icin gecerli bir sinyalin DC'si ORTA
+       olcekte durur — tam olcekli AC bile ortalamada oradadir. Ortalama
+       raydaysa ya on uc bagli degil (bos giris) ya da sinyal kirpilmis;
+       iki durumda da olcum gecersiz ve W BASILMIYOR.
+
+       ⚠ Ilk yazim "VE yayilim < 41 LSB" da istiyordu ve kartta KACIRDI:
+       bostaki pin GURULTULUDUR (ham ort 14 LSB ama yayilim >41), sart
+       tutmadi ve 218 W yine basildi. Yayilim, rayda olmanin kaniti
+       degil; ortalama yeter. */
+    {
+        float v_min = 1e9f, v_max = -1e9f, v_top = 0, i_min = 1e9f, i_max = -1e9f, i_top = 0;
+        for (uint16_t n = 0; n < adet; n++) {
+            if (hizli_v[n] < v_min) v_min = hizli_v[n];
+            if (hizli_v[n] > v_max) v_max = hizli_v[n];
+            v_top += hizli_v[n];
+            if (hizli_i[n] < i_min) i_min = hizli_i[n];
+            if (hizli_i[n] > i_max) i_max = hizli_i[n];
+            i_top += hizli_i[n];
+        }
+        const float alt = SKOP_ADC_SAYIM * 0.02f, ust = SKOP_ADC_SAYIM * 0.98f;
+        float v_ort = v_top / adet, i_ort = i_top / adet;
+        bool v_rayda = (v_ort < alt || v_ort > ust);
+        bool i_rayda = (i_ort < alt || i_ort > ust);
+        (void)v_min; (void)v_max; (void)i_min; (void)i_max;
+        if (v_rayda || i_rayda) {
+            Serial.print(F("! hizli yol: giris RAYDA — sinyal yok"));
+            if (v_rayda) { Serial.print(F("  V ham ort=")); Serial.print(v_ort, 0); }
+            if (i_rayda) { Serial.print(F("  I ham ort=")); Serial.print(i_ort, 0); }
+            Serial.println(F("  (bos giris ya da on uc bagli degil)"));
+            return;   /* K3: W BASILMAZ */
+        }
+    }
+
     hizli_olcekle(adet);
 
     GucOlcum g, g0;
@@ -2512,7 +2577,7 @@ void setup() {
   }
 
   Serial.println(F("Cikis: D <volt> <amper> <watt> <joule> <wh> <ms> "
-                   "<ornek> <menzil>"));
+                   "<ornek> <menzil> <durum>"));
   Serial.println(F("`h` yardim"));
   if (!skop_kulp) Serial.println(F("! osiloskop suruculu kurulamadi"));
   // ── B22.4: AG DURUMU — sessiz kalmasi YASAK ──────────────────────
@@ -2591,7 +2656,11 @@ void loop() {
 
   Okuma3 o = olcum_al();
   // Guc ORNEK BASINA carpilir: ort(VxI) != ort(V) x ort(I).
-  enerji_biriktir(o.watt);
+  // B27/K1: iki ciften biri okunamadiysa watt COP — enerjiye katma.
+  // (Ornek yine sayiliyor ve D basiliyor; arayuz `durum` alanindan
+  // hangi kanalin gecersiz oldugunu ogreniyor. D'yi kesmek karti olu
+  // gosterirdi, o daha kotu.)
+  if (!ads_hata) enerji_biriktir(o.watt);
   // B21: pil testi kendi sayaclarini AYRI tutuyor (genel enerji sayaci
   // sifirlanabiliyor; test sayaci teste ait olmali).
   {
@@ -2610,13 +2679,19 @@ void loop() {
   uint32_t ms = millis();
   if (ms - son_rapor >= rapor_ms && ornek) {
     snprintf(son_satir, sizeof(son_satir),
-             "D %.4f %.6f %.5f %.4f %.7f %lu %lu %u",
+             "D %.4f %.6f %.5f %.4f %.7f %lu %lu %u %u",
              (double)(v_top / ornek), (double)(i_top / ornek),
              (double)(w_top / ornek),
              (double)enerji_joule3(enerji_pJ),
              (double)enerji_wh3(enerji_pJ),
              (unsigned long)ms, (unsigned long)ornek,
-             (unsigned)ayar.menzil);
+             (unsigned)ayar.menzil,
+             /* B27/K1: pencere boyunca BIRIKEN ADC hatasi. bit0 = GERILIM
+                (0x49) okunamadi, bit1 = AKIM (0x48) okunamadi. 0 = ikisi
+                de yanit verdi. Arayuz bununla "veri yok"u "veri sifir"dan
+                ayiriyor. Tek ornek bile hataliysa pencere isaretli. */
+             (unsigned)ads_hata_pencere);
+    ads_hata_pencere = 0;
     /* 🔴 B26: BURADAKI `akis_yolla(son_satir)` KALDIRILDI — SATIR IKI KEZ
        GIDIYORDU. B20 bu cagriyi ekledigi sirada SSE'yi besleyen TEK yol
        buydu. B22.4 `Serial` aynasini (WebAkis) getirdi: tamamlanan HER

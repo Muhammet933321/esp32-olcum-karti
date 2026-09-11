@@ -7150,6 +7150,86 @@ Kapsam `setup()` gövdesine daraltıldı, mutasyon artık yakalanıyor.
 
 ---
 
+#### 5.12.43 📋 B27 — ARAYÜZ YENİDEN YAPIMI: PLAN (2026-09-12, onaylandı)
+
+Kullanıcı gerçek kartta arayüzü açtı ve iki şey istedi: *"yavan ve karışık,
+her yerde bildirim; ayrı sayfalar olsun; PC'de güzel görünsün"* ve demin
+bulunan beş kusurun çözülmesi.
+
+**Teknik zemin — değişmeyecek kararlar:**
+
+* Arayüz **tarayıcıda** çalışır; ESP32 yalnızca dosya sunar + SSE akıtır.
+  Animasyon/sayfa/renk ESP'ye **yük bindirmez.** ESP'yi ilgilendiren:
+  dosya boyutu (LittleFS 917 KB) ve istek sayısı (tek çekirdek servis).
+* **Vue 3'te kalınıyor.** Framework değişimi kazandırmaz, kaybettirir:
+  `test_arayuz3.js` (122 iddia) Vue'ya bağlı, "derleme adımı yok" ilkesi
+  bozulur. Eksik olan yönlendirme ve tasarım.
+* **Hash yönlendirme** (`#/olcum` …) — stok-takip'te kanıtlanmış desen.
+  Tek HTML, sıfır ek istek.
+* Aynı kod PC + telefon; CSS kırılma noktası.
+
+**Aşama 0 · Doğruluk** — sahte sayıyı güzelleştirmek yanlış olur
+
+| # | Kusur | Düzeltme |
+|---|---|---|
+| K1 | `ads_oku` yanıt gelmeyince sessizce 0 dönüyor; kalibrasyon o sıfıra uygulanıp **1.716 V** gösteriliyor (ters çevrilmiş `n_sifir`). Çip bozulunca da aynı sahte sayı | Firmware hata bayrağı; `D` satırına durum alanı; arayüzde "veri yok" |
+| K5 | Şönt menüsü `localStorage`'daki tercihi gösteriyor, karttan hiç okumuyor (menü 10R, kart 0.1R) | Bağlanınca `?`'den `sont`/menzil/kalibrasyon okunur |
+| K2 | "geri besleme" etiketi gürültüde yanıp sönüyor | Ölü bant |
+| K4 | Skop metni "0–48.7 V tek yönlü" — B19 çift yönlü yaptı | Metin `tasarim3_sabit`'ten türetilir |
+| K3 | Hızlı ölçüm boş pinden 223.5667 W basıyor | Sinyal varlığı eşiği, altında "sinyal yok" |
+
+Her biri: iddia + mutasyon + kartta doğrulama.
+
+**Aşama 1 · Yapı** — beş görünüm, kalıcı üst şerit
+
+```
+#/olcum   Ölçüm      KPI + zaman grafiği          (açılış)
+#/skop    Osiloskop  skop + hızlı ölçüm
+#/pil     Pil testi
+#/ayar    Ayarlar    kalibrasyon · şönt · menzil · ağ
+#/konsol  Konsol     ham satırlar, komut
+```
+
+Üst şerit: bağlantı durumu, kart adı, **tek** bildirim alanı. Emniyet
+uyarısı (J7/J3) ayrı ve kalıcı. `test_arayuz3.js`'nin "her firmware komutu
+arayüzden erişilebilir" denetimi korunur.
+
+**Aşama 2 · Tasarım sistemi** — tek kaynak CSS değişkenleri; laboratuvar
+cihazı yönü (koyu zemin, fosfor izler, tabular rakamlar, tek vurgu);
+ölçülü hareket; açık/koyu tema sistem tercihine uyar.
+
+**Aşama 3 · PC ↔ telefon** — telefonda KPI + grafik + durdur, gerisi katlanır.
+
+**Aşama 4 · Doğrulama** — her görünüm headless Edge ile render (B22.0
+dersi: zincir render etmiyor); gzip toplam **< 250 KB**, dosya **≤ 8**;
+ilk yükleme karta karşı ölçülür; PC + telefonda gerçek deneme.
+
+Çok oturumluk iş. Aşama 0 ≈ 1, 1 ≈ 1, 2 ≈ 1-2, 3-4 ≈ 1.
+
+##### ✅ Aşama 0 bitti (2026-09-12) — beşi de gerçek kartta doğrulandı
+
+| # | Yapılan | Kanıt |
+|---|---|---|
+| **K1** | `ads_oku` hata bitini kuruyor/temizliyor; `D`'ye 10. alan **`durum`** (bit0 V, bit1 I okunamadı); enerji `if (!ads_hata)` kapısıyla birikiyor; arayüz "—" ve "veri yok — ADC yanıt vermiyor" gösteriyor | Tek ADS ile `D … 97 0 1`; koşucu I²C taramasıyla tutarlılığını doğruluyor (`0x49 YOK → durum=1, kart 1 dedi`). **Enerji 0.03 J çöpten 0.0000'a düştü** |
+| **K2** | `gucYon` ölü bandı 1 mW | −10 µW etiket üretmiyor, −6 W hâlâ "kaynak" diyor (birim test) |
+| **K3** | `hizli_yolla` ham ADC ortalaması raydaysa (<%2 / >%98) `! hizli yol: giris RAYDA` basıp **W'yi atlıyor**; arayüz eski sonucu siliyor | Kartta 3/3: `V ham ort=6…62` — 218 W artık hiç basılmıyor |
+| **K4** | Skop metni "−63.5 … +46.8 V, çift yönlü"; `sim3_bant.py` metni `SKOP_MENZIL_EKSI/ARTI` ile karşılaştırıyor | 57/57 |
+| **K5** | Bağlanınca `?` gönderiliyor; `A menzil=… sont=…` ayrıştırılıp menü **kartın** değerine uyduruluyor; uyuşmazlık görünür | 0.1 → menü `0.1`; 0.123456 → menü dokunulmaz, "uyuşmuyor" uyarısı |
+
+**Mutasyon kapsamı genişledi:** `mutasyon.py` artık `.js` betikleri de koşuyor — `test_arayuz3.js`'in 138 iddiası ilk kez mutasyon altında (önce **hiçbiri** sınanmıyordu). B7: 2/2, B20: 6/6 yakalanıyor.
+
+**Bu aşamada yakalanan kendi hatalarım** (hepsi mutasyon ya da test tarafından):
+
+* K3'ün ilk ölçütü "ortalama raydada **VE** yayılım < 41 LSB" idi; kartta **kaçırdı** — boştaki pin gürültülüdür (yayılım >41), 218 W yine basıldı. Yayılım rayda olmanın kanıtı değil; ortalama yeter.
+* K1 kaynak iddiası `"ads_hata" in blok` idi; mutasyon **kaçtı** — `ads_hata_pencere` alt dizge olarak eşleşiyordu. Kelime sınırı eklendi.
+* K3 sıra iddiası `RAYDA[^}]*return;` idi; iç `if {}` blokları yüzünden **doğru kodda bile** kırmızıydı. Sıra tabanlı yazıldı.
+* `test_tezgah_kart.py` ve `test_arayuz3.js` D alan sayısını **sabit** (`8` / `9`) yazmıştı; "kaynaktan türetiliyor mu" iddiası beklentiyi elle tutuyordu. İkisi de bağımsız sayımla karşılaştırıyor artık.
+* Heredoc `\n` tuzağına **üç kez** düşüldü (`mutasyon.py`'ye çok satırlı dizge, `app.js`'e `\b` → backspace 0x08). Hafızadaki ders, tekrar.
+
+⚠ **Aşama 2 tezgah kalemi:** K3'ün %2 rayda eşiği gerçek ön uçla doğrulanacak — boştaki pin 62 LSB'ye kadar sürüklendi (eşik 82).
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

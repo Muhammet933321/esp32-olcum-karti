@@ -137,6 +137,31 @@ MUTASYONLAR = [
     ("B20", "sim3_bant.py", "uretim/tasarim3_sabit.py",
      "ADS_SPS = 860", "ADS_SPS = 250",
      "ornekleme hizi butun zamanlama butcesinin tabani"),
+    # ── B27/K1 · yanit vermeyen ADC sessiz kalmasin (kartta gorüldu)
+    ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    ads_hata |= bit;", "    /* ads_hata |= bit; */",
+     "ESKI KUSURU geri koyar: okuma basarisizken hata biti kurulmaz, "
+     "`durum` hep 0, arayuz sahte 1.716 V'u olcum sanir"),
+    ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (!ads_hata) enerji_biriktir(o.watt);",
+     "  enerji_biriktir(o.watt);",
+     "enerji kapisi kalkarsa yanit vermeyen cipin copu Wh sayacina girer "
+     "(kartta 3 dk'da 0.03 J bos giristen)"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "this.adsDurum = p.length >= 10 ? parseInt(p[9], 10) : 0;",
+     "this.adsDurum = 0;",
+     "arayuz `durum` alanini okumazsa 'veri yok' hic gorunmez"),
+    # ── B27/K3 · bos giris W basmasin
+    ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "            return;   /* K3: W BASILMAZ */",
+     "            /* return; */   /* K3: W BASILMAZ */",
+     "return kalkarsa uyari basilir AMA W de basilir; bos giristen 223 W "
+     "yine ekrana gider"),
+    # ── B27/K2 · guc yonu olu bandi
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "Math.abs(this.watt) < 1e-3", "Math.abs(this.watt) < 0",
+     "olu bant kalkarsa gurultu duzeyindeki -10 uW 'kaynak' etiketi uretir"),
+
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",
@@ -202,7 +227,12 @@ def kopyala(hedef: Path) -> None:
 
 
 def kosut(kopya: Path, betik: str) -> tuple[int, str]:
-    r = subprocess.run([sys.executable, betik], cwd=kopya / "uretim",
+    # B27: `.js` betikleri (test_arayuz3.js — B7, 132 iddia) node ile.
+    # Onceden yalnizca Python kosuyordu, yani arayuz iddialarinin HICBIRI
+    # mutasyonla sinanmiyordu — "olmayan iddia gorunmezdir" sinifinin
+    # koca bir dosyalik ornegi.
+    calistirici = ["node"] if betik.endswith(".js") else [sys.executable]
+    r = subprocess.run(calistirici + [betik], cwd=kopya / "uretim",
                        capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=1800)
     return r.returncode, r.stdout + r.stderr

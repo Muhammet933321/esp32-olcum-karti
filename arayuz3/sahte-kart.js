@@ -381,7 +381,7 @@ const SahteKart = (() => {
       return {
         satir: `D ${v.toFixed(4)} ${a.toFixed(6)} ${w.toFixed(5)} ` +
                `${enerjiJ.toFixed(4)} ${(enerjiJ / 3600).toFixed(7)} ` +
-               `${ms} 172 ${menzil}`,
+               `${ms} 172 ${menzil} 0`,   // B27/K1: durum=0, iki ADC de yanit veriyor
         w,
       };
     },

@@ -395,6 +395,61 @@ console.log('\n--- 4. CIFT YONLU gosterim ---');
   ok('negatif guc "kaynak" diye isaretleniyor',
      u.gucYon.includes('kaynak'), u.gucYon);
   ok('negatif enerji okunabiliyor', u.joule < 0, String(u.joule));
+
+  /* 🔴 B27/K1 — `durum` alani: ADC yanit vermeyince "veri yok".
+     Gercek kartta tek ADS ile gorulen satir: `... 97 0 1` -> bit0 = V yok.
+     Firmware sessizce 0 donup kalibrasyon sabitini ters cevirince ekranda
+     "1.716 V" cikiyordu; arayuz bunu ARTIK olcum sanmamali. */
+  u.satirIsle('D 1.7156 0.000012 0.00004 0.0000 0.0000000 67704 97 0 1');
+  ok('durum=1: gerilim GECERSIZ isaretleniyor', u.voltGecersiz === true,
+     `adsDurum=${u.adsDurum}`);
+  ok('durum=1: akim hala GECERLI', u.amperGecersiz === false, '');
+  ok('durum=1: guc gecersiz (V yoksa V*I de yok)', u.gucGecersiz === true, '');
+  ok('durum=1: guc yonu etiketi BOS (sahte sayiya etiket yok)',
+     u.gucYon === '', JSON.stringify(u.gucYon));
+  u.satirIsle('D 12.0 0.5 6.0 1.0 0.0003 68000 97 0 2');
+  ok('durum=2: akim GECERSIZ, gerilim gecerli',
+     u.amperGecersiz === true && u.voltGecersiz === false, '');
+  u.satirIsle('D 12.0 0.5 6.0 1.0 0.0003 68200 97 0 0');
+  ok('durum=0: ikisi de gecerli', !u.voltGecersiz && !u.amperGecersiz, '');
+  ok('eski firmware (9 alan) -> durum 0 sayilir (guven)',
+     (u.satirIsle('D 12.0 0.5 6.0 1.0 0.0003 68400 97 0'), u.adsDurum === 0),
+     `adsDurum=${u.adsDurum}`);
+
+  /* B27/K5 — sont menusu KARTI gostermeli, tarayiciyi degil.
+     Gercek kartin `?` cevabi (sont=0.100000) menude '0.1' secmeli;
+     listede olmayan bir deger menuyu bozmamali ama gercek gorunmeli. */
+  u.sontSecim = '10';
+  u.satirIsle('A menzil=NORMAL oto=1 n_kazanc=1.000000 n_sifir=-1646 '
+              + 'y_kazanc=1.000000 y_sifir=-91 sont=0.100000 i_duz=1.000000 i_ofset=0');
+  ok('K5: `?` cevabindan kartSont okunuyor', u.kartSont === 0.1, String(u.kartSont));
+  ok('K5: menu kartin degerine UYDURULUYOR (10 -> 0.1)', u.sontSecim === '0.1',
+     u.sontSecim);
+  ok('K5: uyusma var, uyari yok', u.sontUyumsuz === false, '');
+  ok('K5: kart degeri yaziya dokuluyor', u.kartSontYazi.includes('100') && u.kartSontYazi.includes('mΩ'),
+     u.kartSontYazi);
+  u.satirIsle('A menzil=NORMAL oto=1 n_kazanc=1 n_sifir=0 y_kazanc=1 y_sifir=0 '
+              + 'sont=0.123456 i_duz=1 i_ofset=0');
+  ok('K5: listede olmayan deger menuyu DEGISTIRMIYOR', u.sontSecim === '0.1', u.sontSecim);
+  ok('K5: ama uyusmazlik UYARILIYOR', u.sontUyumsuz === true, `kartSont=${u.kartSont}`);
+
+  /* B27/K3 — kart "giris rayda" derse ESKI sonuc panelde kalmamali */
+  u.satirIsle('W 218.11 218.47 0.9984 61.78 3.536 -61.37 -3.49 297 218.35');
+  ok('K3: W satiri hizli sonucu dolduruyor', u.hizli !== null && u.hizli.p > 200,
+     String(u.hizli && u.hizli.p));
+  u.satirIsle('! hizli yol: giris RAYDA — sinyal yok  V ham ort=14  (bos giris ya da on uc bagli degil)');
+  ok('K3: "giris rayda" gelince ESKI sonuc SILINIYOR', u.hizli === null, String(u.hizli));
+  ok('K3: hata metni panelde', u.hizliHata.includes('RAYDA'), u.hizliHata);
+  u.satirIsle('W 12.0 12.1 0.99 12.0 1.0 12.0 1.0 297 12.0');
+  ok('K3: yeni gecerli W hatayi temizliyor', u.hizliHata === '' && u.hizli !== null, '');
+
+  /* B27/K2 — olu bant: gurultu duzeyinde guc etiket URETMEMELI */
+  u.satirIsle('D 1.7156 -0.000004 -0.00001 0 0 68600 97 0 0');
+  ok('K2: -10 uW "kaynak" etiketi uretmiyor (olu bant)', u.gucYon === '',
+     JSON.stringify(u.gucYon));
+  u.satirIsle('D 12.0 -0.5 -6.0 0 0 68800 97 0 0');
+  ok('K2: -6 W hala "kaynak" diyor (olu bant gercek geri beslemeyi yutmuyor)',
+     u.gucYon.includes('kaynak'), u.gucYon);
 }
 
 console.log('\n--- 5. Kalibrasyon NEGATIF degeri kabul ediyor mu ---');
@@ -468,8 +523,18 @@ console.log('\n--- 6. Demo kart Asama 3 protokolu uretiyor mu ---');
   const SahteKart = require(path.join(ARAYUZ, 'sahte-kart.js'));
   const d = SahteKart.dSatiri(1000, 1.5);
   const p = d.satir.split(/\s+/);
-  ok('D satiri 9 alanli', p.length === 9, `${p.length} alan: ${d.satir}`);
+  /* 🔴 B27: burasi `p.length === 9` idi — firmware'e alan eklenince (K1
+     `durum`) demo kart guncellendi ama bu sabit kaldi ve YANLIS KIRMIZI
+     verdi. Beklenen, firmware'in KENDI bicim dizesinden turetiliyor:
+     "D " + N adet % => N+1 alan. Demo kart firmware'den sapinca burasi
+     kirmizi olur; sabit bir sayi ise firmware degisince kirmizi olurdu. */
+  const dBicim = ino.match(/"D (%[^"]*)"/);
+  const alanBeklenen = dBicim ? dBicim[1].split(/\s+/).length + 1 : -1;
+  ok(`D satiri ${alanBeklenen} alanli (firmware bicim dizesinden)`,
+     p.length === alanBeklenen, `${p.length} alan: ${d.satir}`);
   ok('9. alan menzil', p[8] === '0' || p[8] === '1', p[8]);
+  ok('10. alan durum (ADC yanit bitleri, demo kartta 0)', p[9] === '0',
+     `durum=${p[9]} — demo kartta iki ADC de "var"`);
 
   const u = ornek();
   u.satirIsle(d.satir);

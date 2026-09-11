@@ -85,7 +85,7 @@ def afis_satirlari(psram_kb=8192, fs=True, tampon=True, parola_yok=True,
         s.append("  pil egri tamponu: 5400 nokta = 1.50 saat @ 1.00 Hz, "
                  "63 KB (ic RAM)")
     s.append("Cikis: D <volt> <amper> <watt> <joule> <wh> <ms> "
-             "<ornek> <menzil>")
+             "<ornek> <menzil> <durum>")
     s.append("`h` yardim")
     if not skop:
         s.append("! osiloskop suruculu kurulamadi")
@@ -111,7 +111,7 @@ def afis_satirlari(psram_kb=8192, fs=True, tampon=True, parola_yok=True,
     return s
 
 
-def d_satiri(ornek=None, menzil=0):
+def d_satiri(ornek=None, menzil=0, durum=0):
     """🔴 B26 — ALAN SIRASI DUZELTILDI.
 
     Eskiden ornek sayisi SON alana konuyordu:
@@ -127,7 +127,8 @@ def d_satiri(ornek=None, menzil=0):
     sinanmali — kendi kendine tutarli olmasi yetmiyor.
     """
     n = _ORNEK if ornek is None else ornek
-    return f"D 12.3456 0.123456 1.52345 0.1234 0.0001234 200 {n} {menzil}"
+    # B27/K1: 10. alan `durum` — bit0 GERILIM okunamadi, bit1 AKIM okunamadi
+    return f"D 12.3456 0.123456 1.52345 0.1234 0.0001234 200 {n} {menzil} {durum}"
 
 
 def yanitlar_saglikli(loop_us=8500, i2c="I2C: 0x48 0x49",
@@ -464,8 +465,15 @@ def bolum5_emniyet():
 def bolum6_beklentiler_kaynaktan():
     """Kosucunun beklentileri ELLE YAZILMIS OLMAMALI."""
     print("\n--- 6. BEKLENTILER KAYNAKTAN TURETILIYOR MU " + "-" * 27)
-    ok("`D` alan sayisi firmware bicim dizesinden", TK.D_ALAN == 8,
-       f"{TK.D_ALAN} — .ino'daki 'D %.4f ...' bicimi sayiliyor")
+    # 🔴 B27: burasi `TK.D_ALAN == 8` idi — iddia "kaynaktan turetiliyor
+    #    mu" diye sorarken BEKLENTIYI ELLE yaziyordu. Firmware'e alan
+    #    eklenince (K1 `durum`) turetme dogru calisti, test yanlis kirmizi
+    #    verdi. Dogru iddia: turetilen sayi, bicim dizesindeki `%`
+    #    sayisiyla BAGIMSIZ olarak ayni mi.
+    _m = re.search(r'"D (%[^"]*)"', TK.INO)
+    _bagimsiz = _m.group(1).count("%") if _m else -1
+    ok("`D` alan sayisi firmware bicim dizesinden", TK.D_ALAN == _bagimsiz,
+       f"{TK.D_ALAN} — bicimde {_bagimsiz} adet %% var, ikisi ayni olmali")
 
     # 🔴 B26 — SAYI DEGIL, SIRA. Yandaki iddia yalnizca ALAN SAYISINA
     #    bakiyordu (8 == 8) ve alan sirasi takas olunca sessiz kaldi:
@@ -497,12 +505,13 @@ def bolum6_beklentiler_kaynaktan():
     import importlib
     eski = TK.INO
     try:
-        TK.INO = eski.replace('"D %.4f %.6f %.5f %.4f %.7f %lu %lu %u"',
-                              '"D %.4f %.6f %lu"')
+        # Bicim dizesini NE OLURSA OLSUN 3 alana indir — sabit metin
+        # eslestirmesi firmware degisince sessizce eslesmez oluyordu.
+        TK.INO = re.sub(r'"D (%[^"]*)"', '"D %.4f %.6f %lu"', eski, count=1)
         m = re.search(r'"D (%[^"]*)"', TK.INO)
         yeni_alan = len(m.group(1).split())
         ok("Bicim degisince alan sayisi da degisiyor", yeni_alan == 3,
-           f"{yeni_alan} — sabit olsaydi 8 kalirdi")
+           f"{yeni_alan} — turetme sabit olsaydi {TK.D_ALAN} kalirdi")
     finally:
         TK.INO = eski
         importlib.reload  # noqa: B018  (yalnizca niyet belgesi)

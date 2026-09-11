@@ -99,3 +99,7 @@ button.etkin {
   color: var(--yazi);
   font-variant-numeric: tabular-nums;
 }
+
+/* B27/K1 — ADC yanıt vermediğinde sayı yerine "—", soluk ve uyarı metni */
+.olcum .deger.gecersiz { opacity: .35; }
+.olcum .alt-bilgi.uyari-metin { color: var(--uyari, #d98324); }

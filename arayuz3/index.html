@@ -85,17 +85,22 @@
   <div class="olcumler">
     <div class="olcum v">
       <div class="ad">Gerilim <span class="menzil-rozet">{{ menzilAd }}</span></div>
-      <div class="deger">{{ bicim(volt, 3) }}<span class="birim">V</span></div>
-      <div class="alt-bilgi">{{ menzilAralik }}</div>
+      <div class="deger" v-if="!voltGecersiz">{{ bicim(volt, 3) }}<span class="birim">V</span></div>
+      <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
+      <div class="alt-bilgi" v-if="!voltGecersiz">{{ menzilAralik }}</div>
+      <div class="alt-bilgi uyari-metin" v-else>veri yok — gerilim ADC'si (0x49) yanıt vermiyor</div>
     </div>
     <div class="olcum i">
       <div class="ad">Akım</div>
-      <div class="deger">{{ akimGoster }}<span class="birim">{{ akimBirim }}</span></div>
+      <div class="deger" v-if="!amperGecersiz">{{ akimGoster }}<span class="birim">{{ akimBirim }}</span></div>
+      <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
+      <div class="alt-bilgi uyari-metin" v-if="amperGecersiz">veri yok — akım ADC'si (0x48) yanıt vermiyor</div>
     </div>
     <div class="olcum w">
       <div class="ad">Güç</div>
-      <div class="deger">{{ gucGoster }}<span class="birim">{{ gucBirim }}</span></div>
-      <div class="alt-bilgi">{{ gucYon }}</div>
+      <div class="deger" v-if="!gucGecersiz">{{ gucGoster }}<span class="birim">{{ gucBirim }}</span></div>
+      <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
+      <div class="alt-bilgi">{{ gucGecersiz ? 'veri yok' : gucYon }}</div>
     </div>
   </div>
 
@@ -274,8 +279,13 @@
     </p>
 
     <p class="ipucu">
-      <strong>Menzil 0 – 48.7 V, tek yönlü.</strong> Sinyal sıfırın altına
-      inerse alt yarısı kırpılır — sinyal üretecinde <strong>DC offset</strong>
+<!-- B27/K4: bu sayilar tasarim3_sabit.SKOP_MENZIL_EKSI / _ARTI ile AYNI
+     olmali; sim3_bant.py her kosuda karsilastiriyor. Eski metin "0 – 48.7 V,
+     tek yönlü" diyordu — B19 skopu cift yonlu yapmisti (alt uc VREF'te),
+     metin bir yil geride kalmisti. -->
+      <strong>Menzil −63.5 … +46.8 V, çift yönlü.</strong> Alt uç GND'de
+      değil VREF'te; negatif sinyal de okunur. Menzil dışı kırpılır — sinyal
+      üretecinde <strong>DC offset</strong>
       kullan. Örtüşme (aliasing) sınırı: girişteki 1 nF + 100 K süzgeci
       25 kHz'te kesiyor, Nyquist 41.7 kHz. Bunun üstündeki bileşenler sahte,
       yavaş bir sinyal olarak görünür.
@@ -295,6 +305,7 @@
     </p>
     <div class="satir" style="margin-bottom:12px">
       <button @click="hizliOlc" :disabled="!bagli">Hızlı ölçüm yap</button>
+    <div v-if="hizliHata" class="hata" style="margin-top:8px">{{ hizliHata }}</div>
     </div>
     <div v-if="hizli" class="olcumler">
       <div class="olcum w">
@@ -347,6 +358,7 @@
           <option value="0.1">0.1R — ±2.56 A</option>
           <option value="0.015">15 mΩ — ±11.5 A (Kelvin şart)</option>
         </select>
+        <span class="ipucu" :class="{ 'uyari-metin': sontUyumsuz }">{{ kartSontYazi }}<template v-if="sontUyumsuz"> — menüyle UYUŞMUYOR, menü tercihini gösterir, kart bunu kullanıyor</template></span>
       </div>
       <button @click="sifirlaA" :disabled="!bagli">Akımı sıfırla</button>
       <button @click="enerjiSifirla" :disabled="!bagli">Enerjiyi sıfırla</button>

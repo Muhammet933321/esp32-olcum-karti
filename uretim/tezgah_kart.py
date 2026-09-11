@@ -784,6 +784,53 @@ def d_ornek_sayisi(c):
            f"~19 ise B20 duzeltmeleri gitmis demektir")
 
 
+def _durum_indeksi(c):
+    """`durum` alaninin indeksi — afisten, ornek ile ayni yontem."""
+    for x in (c.afis or []):
+        if x.startswith("Cikis: D "):
+            adlar = [a.strip("<>") for a in x.split()[2:]]
+            if "durum" in adlar:
+                return adlar.index("durum") + 1
+    return None
+
+
+def d_ads_durum(c):
+    """[!] B27/K1 — `D` satirinin `durum` alani, I2C taramasiyla TUTARLI mi.
+
+    Iki BAGIMSIZ gozlemi birbirine bagliyor: `#` taramasi hangi ciplerin
+    yanit verdigini soyluyor, `durum` alani ise olcum dongusunun hangi
+    cipleri okuyamadigini. Tutmaliar. Tek ADS bagliyken bu denetim
+    "0x49 yok -> bit0 kurulu" diye GERCEK bir sinama yapiyor; iki ADS
+    bagliyken "ikisi de var -> durum 0".
+
+    Bu alan olmadan yanit vermeyen ADC sessizce 0 donuyor ve ekranda
+    kalibrasyon sabitinin ters cevrilmis hali ("1.716 V") kendinden
+    emin bir olcum gibi duruyordu.
+    """
+    i = _durum_indeksi(c)
+    if i is None:
+        c.s.atla("`durum` alani I2C taramasiyla tutarli",
+                 "afis yok ya da protokol ilani `durum` icermiyor")
+        return
+    sat = c.k.satirlar("#", sure=2.0)
+    tarama = next((x for x in sat if x.startswith("I2C:")), "")
+    var_v = "0x49" in tarama
+    var_i = "0x48" in tarama
+    d = [x for x in c.k.topla(1.5) if x.startswith("D ")]
+    if not c.s.ok("`D` satiri `durum` alani tasiyor", bool(d) and
+                  len(d[-1].split()) > i, d[-1][:60] if d else "D yok"):
+        return
+    durum = int(d[-1].split()[i])
+    beklenen = (0 if var_v else 1) | (0 if var_i else 2)
+    c.s.ok("`durum` alani I2C taramasiyla tutarli", durum == beklenen,
+           f"tarama: 0x48={'var' if var_i else 'YOK'} 0x49="
+           f"{'var' if var_v else 'YOK'} -> beklenen durum={beklenen}, "
+           f"kart {durum} dedi")
+    if not var_v:
+        c.s.ok("Gerilim ADC'si yokken bit0 kurulu (sahte 1.716 V'a karsi)",
+               durum & 1, "kurulu degilse arayuz sahte sayiyi olcum sanir")
+
+
 def d_olcum_hizi(c):
     t0 = time.monotonic()
     sat = [x for x in c.k.topla(3.0) if x.startswith("D ")]
@@ -893,6 +940,7 @@ DENETIMLER = [
     ("Olcum satiri bicimi",     1, "yok", d_olcum_satiri_bicimi),
     ("Ornek sayisi",            1, "yok", d_ornek_sayisi),
     ("Olcum hizi",              1, "yok", d_olcum_hizi),
+    ("ADC yanit durumu",        1, "yok", d_ads_durum),
 
     # ⚠ EN SONDA DURMALI: karti SIFIRLIYOR. Daha yukari alinirsa blokaj
     #   sayaci (45 sn kararli hal) ve telemetri olcumleri bozulur.

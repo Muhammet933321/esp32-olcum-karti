@@ -237,6 +237,9 @@ createApp({
       bagli: false,
       hata: '',
       menzil: null,       // 0 NORMAL, 1 YUKSEK, null bilinmiyor
+      adsDurum: 0,        // B27/K1: bit0 V okunamadi, bit1 I okunamadi
+      kartSont: null,     // B27/K5: kartin `?` ile bildirdigi GERCEK sont (ohm)
+      hizliHata: '',      // B27/K3: kart 'giris rayda' derse burada
       hizli: null,        // B8 hizli yol olcumu
       otoMenzil: true,
 
@@ -541,8 +544,29 @@ createApp({
     /* Guc isareti: negatif guc, yukun KAYNAK durumuna gectigi anlamina
        gelir (geri besleme, sarj olan pil, ters donen bobin akimi).
        Asama 2 bunu hic gosteremiyordu — akimi sifira kirpiyordu. */
+    /* B27/K1: ADC yanıt vermediyse sayı ANLAMSIZ — kalibrasyon sabitinin
+       ters çevrilmiş hâli. Kart bunu `D` satırının `durum` alanında söylüyor. */
+    /* B27/K5 */
+    kartSontYazi() {
+      if (this.kartSont === null) return 'kart: — (bağlanınca okunur)';
+      const r = this.kartSont;
+      return 'kart: ' + (r < 1 ? (r * 1000).toFixed(r < 0.1 ? 0 : 1) + ' mΩ' : r + ' Ω');
+    },
+    sontUyumsuz() {
+      if (this.kartSont === null) return false;
+      return Math.abs(parseFloat(this.sontSecim) - this.kartSont) > 0.01 * this.kartSont;
+    },
+    voltGecersiz()  { return (this.adsDurum & 1) !== 0; },
+    amperGecersiz() { return (this.adsDurum & 2) !== 0; },
+    gucGecersiz()   { return this.voltGecersiz || this.amperGecersiz; },
+    /* Guc isareti: negatif guc, yukun KAYNAK durumuna gectigi anlamina
+       gelir (geri besleme, sarj olan pil, ters donen bobin akimi).
+       B27/K2: ÖLÜ BANT. Girişler GND'deyken gürültü ±10 µW'lık işaret
+       değiştiren güç üretiyor ve etiket "yük / kaynak" arasında yanıp
+       sönüyordu. 1 mW altı bir "geri besleme" ölçüm değil gürültüdür. */
     gucYon() {
-      if (!isFinite(this.watt) || this.watt === 0) return '';
+      if (this.gucGecersiz) return '';
+      if (!isFinite(this.watt) || Math.abs(this.watt) < 1e-3) return '';
       return this.watt > 0 ? 'yük çekiyor' : 'kaynak — geri besleme';
     },
 
@@ -777,6 +801,11 @@ createApp({
       try {
         await this.tasiyici.ac(this);
         this.bagli = true;
+        /* B27/K5: kartın GERÇEK ayarlarını sor. Şönt menüsü daha önce
+           yalnızca tarayıcının localStorage tercihini gösteriyordu (menü
+           10R derken kart 0.1R çalışıyordu — akım menzili 100 kat yanlış
+           sanılırdı). `?` parola isteyebilir; tarayıcı bir kez sorar. */
+        try { await this.gonder('?'); } catch (e2) { /* yetkisiz: kartSont null kalır */ }
       } catch (e) {
         // Kullanıcı port seçim kutusunu kapattıysa bu hata değil.
         if (e.name !== 'NotFoundError') this.hata = 'Bağlanamadı: ' + e.message;
@@ -871,6 +900,21 @@ createApp({
         return;
       }
 
+      /* B27/K5 — `?` yaniti: A menzil=... sont=<ohm> ... Kartin gercek
+         ayari. Menu buna UYDURULUYOR; eslesen secenek yoksa menu
+         dokunulmaz ama `kartSont` yine gosterilir — gercek her zaman
+         gorunur olsun. */
+      if (satir.startsWith('A menzil=')) {
+        const m = satir.match(/\bsont=([\d.]+)/);
+        if (m) {
+          this.kartSont = parseFloat(m[1]);
+          const secenek = ['10', '1', '0.1', '0.015']
+            .find((s) => Math.abs(parseFloat(s) - this.kartSont) <= 0.01 * this.kartSont);
+          if (secenek) this.sontSecim = secenek;
+        }
+        return;
+      }
+
       if (p[0] === 'D' && p.length >= 7) {
         this.volt   = parseFloat(p[1]);
         this.amper  = parseFloat(p[2]);
@@ -886,6 +930,14 @@ createApp({
            Asama 2 firmware'i bu alani gondermiyor; o zaman menzil
            bilinmiyor sayilir ve arayuz "—" gosterir. */
         this.menzil = p.length >= 9 ? parseInt(p[8], 10) : null;
+        /* 🔴 B27/K1 — 10. alan `durum`: ADC yanıt verdi mi.
+           bit0 = GERİLİM (0x49) okunamadı, bit1 = AKIM (0x48) okunamadı.
+           Yokken firmware sessizce 0 dönüyor ve kalibrasyon o sıfıra
+           uygulanıp kendinden emin bir "1.716 V" çıkıyordu — ters
+           çevrilmiş sıfır-ofset sabiti. Çip bozulduğunda da aynı sahte
+           sayı. Bu alan olmadan "veri yok" ile "veri sıfır" ayırt
+           edilemiyordu. Eski firmware göndermez → 0 (bilinmiyor = güven). */
+        this.adsDurum = p.length >= 10 ? parseInt(p[9], 10) : 0;
 
         if (this.ilkMs === null) this.ilkMs = this.kartMs;
         this.gecmis.push({
@@ -901,6 +953,7 @@ createApp({
          W <P> <S> <PF> <Vrms> <Irms> <Vort> <Iort> <n> <P_hizalamasiz>
          Son alan BILEREK var: hizalamanin ne kadar fark ettigi gorunsun. */
       if (p[0] === 'W' && p.length >= 10) {
+        this.hizliHata = '';
         this.hizli = {
           p: parseFloat(p[1]),   s: parseFloat(p[2]),
           pf: parseFloat(p[3]),  vRms: parseFloat(p[4]),
@@ -923,6 +976,14 @@ createApp({
 
       this.kaydet(satir);
       if (satir.startsWith('!')) this.osiloBekliyor = false;
+      /* B27/K3: kart "giris rayda — sinyal yok" derse eski sonucu ekranda
+         BIRAKMA. Bos giristen hesaplanan 223 W, kart artik basmiyor; ama
+         bir onceki gecerli sonuc panelde kalsaydi kullanici onu yeni
+         olcum sanirdi. */
+      if (satir.startsWith('! hizli yol:')) {
+        this.hizli = null;
+        this.hizliHata = satir.slice(2).trim();
+      }
     },
 
     // ─────────────────────────────────────────────── komutlar
