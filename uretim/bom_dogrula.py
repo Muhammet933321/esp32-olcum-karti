@@ -68,28 +68,44 @@ ESLEME = {
     "68uF 50V": ("68µF 50V", "Kondansatör",
                  "C035 — 7912'nin giris ve cikis kondansatoru"),
     "LM358":  ("LM358", "Entegre", None),
+    # B26 (2026-09-11): ikisi de GELDI ve envantere girdi. Once
+    # BILINEN_DIS'te "yolda" diye ELLE yaziliydi; parca elde oldugu halde
+    # alisveris listesinde gorunuyordu. Artik envanterden cozuluyorlar,
+    # yani bir daha elle guncellenmeleri gerekmeyecek.
+    "ESP32-S3": ("ESP32-S3", "Geliştirme Kartı", "BRD003 — N16R8, 2026-09-11"),
+    "ADS1115 #1 akim": ("ADS1115", "Modül", "MOD003 — 3 adet, ADDR->GND = 0x48"),
+    "ADS1115 #2 gerilim": ("ADS1115", "Modül", "MOD003 — ayni stok, ADDR->VDD = 0x49"),
+
+    # ── 2026-09-11 direnc.net teslimati: BILINEN_DIS'te "yolda" yazan
+    #    kalemlerin cogu GELDI ve envantere girdi. Elle tutulan "yolda"
+    #    etiketi, parca elde oldugu halde onu alisveris listesinde
+    #    gosteriyordu — ESP32/ADS1115 ile ayni bayatlama sinifi.
+    "TL072": ("TL072CP", "Entegre", "IC — B16/B17 tamponlari"),
+    # RS semada TEK konum; dort deger SECILEBILIR kademe. 15mR Type-C
+    # tasarimin birincil secimi (DEVIR 3.2), otekiler de stokta:
+    # 5mR Type-C, 0.1R tas, 1R tas.
+    "10R/1R/0R1/15mR": ("15mR Type-C Şönt Direnç", "Direnç",
+                        "RS tek konum; 5mR/0.1R/1R de stokta — kademe secimi"),
+    "24V girisi": ("2 Pin Bariyer Klemens", "Konnektör", "B11, 24 V kaynak girisi"),
+    "Yuk donusu": ("2 Pin Bariyer Klemens", "Konnektör", "ayni stok"),
+    "Pil testi yuk donusu": ("2 Pin Bariyer Klemens", "Konnektör",
+                             "B21. J3'ten AYRI olmali: J3 dogrudan sonte gider, "
+                             "J7 MOSFET'ten gecer. Karistirilirsa kesme CALISMAZ"),
+    # Muz jaklar: renkli born jaklar (sase, disi) + mevcut CON009/CON010.
+    # "4mm Born Jak" onek eslesmesiyle hepsi sayiliyor.
+    "V girisi +-32V": ("4mm Born Jak", "Konnektör", "sase born jak"),
+    "HV +-615V": ("4mm Born Jak", "Konnektör",
+                  "615 V icin AYRI ve ISARETLI olmali — kirmizi/siyah ayir"),
+    "Skop girisi": ("4mm Born Jak", "Konnektör", "sase born jak"),
 }
 
 # Envanterde OLMAYAN ama durumu BILINEN parcalar.
 # `yolda`  : siparis edildi, DEVIR 3.2'de belgelendi
 # `alinacak`: satin alma listesinde (DEVIR 5.12.9)
 BILINEN_DIS = {
-    "TL072":  ("yolda", "direnc.net siparisi, 4 adet — DEVIR 3.2"),
     "BAT85":  ("alinacak", "DO-34 eksenel Schottky — 1N5711 de olur"),
     "820K":   ("alinacak", "metal film %1, 1/4W — tedarikcinin metal film hatti 820K'da bitiyor; 6 adet + 2 yedek"),
     "8.2K":   ("alinacak", "metal film %1, 1/4W — HV bolucusunun alt bacagi; stokta yok"),
-    "ADS1115 #1 akim": ("yolda", "Robotistan siparisi, 3 adet"),
-    "ADS1115 #2 gerilim": ("yolda", "Robotistan siparisi, 3 adet"),
-    "ESP32-S3": ("yolda", "direnc.net siparisi, 1 adet"),
-    "V girisi +-32V": ("yolda", "muz jak / bariyer klemens siparisi"),
-    "HV +-615V": ("yolda", "muz jak — 615 V icin AYRI ve isaretli olmali"),
-    "Yuk donusu": ("yolda", "bariyer klemens"),
-    "Pil testi yuk donusu": ("yolda",
-        "bariyer klemens — B21. J3'ten AYRI olmali: J3 dogrudan sonte "
-        "gider, J7 MOSFET'ten gecer. Karistirilirsa kesme CALISMAZ"),
-    "Skop girisi": ("yolda", "muz jak"),
-    "10R/1R/0R1/15mR": ("yolda", "sont seti: 0.1R tas, 15mR Type-C — DEVIR 3.2"),
-    "24V girisi": ("yolda", "bariyer klemens — B11, 24 V kaynak girisi"),
     "50mA": ("alinacak", "cam sigorta + yuva; +-12 V yuku 30 mA, 1.7x pay — B15/F8"),
 }
 
