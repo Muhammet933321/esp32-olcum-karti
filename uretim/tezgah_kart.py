@@ -314,6 +314,59 @@ def d_parola_uyarisi(c):
            "parolasizsa sessiz kalinmamali")
 
 
+# ── Asama 0 · arastirmanin isaret ettigi ek denetimler ───────────────
+# (B25 hazirlanirken bagimsiz bir denetim bunlari kaynaktan cikardi)
+
+def d_skop_surucusu(c):
+    """OLUMSUZ denetim: skop DMA surucusu kurulamadiysa afiste soyluyor.
+
+    Bu analog on uce BAGLI DEGIL — ic ADC + DMA yolu ayakta mi diye
+    soruyor. Kurulamamissa `t`/`w` komutlarinin hicbiri kosmaz.
+    """
+    if c.afis is None:
+        c.s.atla("Osiloskop DMA surucusu kuruldu", "afis yok")
+        return
+    c.s.ok("Osiloskop DMA surucusu kuruldu",
+           not _afis_ara(c, "osiloskop suruculu kurulamadi"),
+           "kurulamadiysa t/tB/w komutlari hic calismaz")
+
+
+def d_afis_satirlari_kapali(c):
+    """Afisin her satiri KAPANMIS mi — yapisik satir yok mu.
+
+    🔴 B25 hazirlanirken bulundu: `Ag:` blogunun sonunda `println`
+    YOKTU ve cikti `...http://192.168.4.1Arayuz: ...` seklinde
+    yapisiyordu. Adresi kopyalayan kullanici BOZUK adres aliyordu.
+    Firmware duzeltildi; bu denetim geri gelmesini engelliyor.
+    """
+    if c.afis is None:
+        c.s.atla("Afis satirlari yapisik degil", "afis yok")
+        return
+    yapisik = [x for x in c.afis if "Arayuz:" in x and not x.startswith("Arayuz:")]
+    c.s.ok("Afis satirlari yapisik DEGIL", not yapisik,
+           (yapisik[0][:70] if yapisik else "her satir kendi basina") +
+           "  — yapisiksa IP adresi bir sonraki etikete karisir")
+
+
+def d_protokol_satiri(c):
+    """`D` satirinin alan adlari afiste ilan ediliyor mu.
+
+    Arayuz, sahte-kart.js ve bu kosucu ayni siraya dayaniyor; alan
+    eklenirse hepsi birden guncellenmeli (ino'daki not bunu soyluyor).
+    """
+    if c.afis is None:
+        c.s.atla("Cikis protokolu ilan ediliyor", "afis yok")
+        return
+    sat = [x for x in c.afis if x.startswith("Cikis: D ")]
+    if not c.s.ok("Cikis protokolu ilan ediliyor", bool(sat)):
+        return
+    alan = len(sat[0].split()) - 2          # "Cikis:" ve "D" haric
+    c.s.ok("Ilan edilen alan sayisi firmware bicimiyle AYNI",
+           alan == D_ALAN,
+           f"afiste {alan}, bicim dizesinde {D_ALAN} — ayrisirsa arayuz "
+           f"ve kosucu yanlis alani okur")
+
+
 # ── Asama 0 · komut yuzeyi ───────────────────────────────────────────
 
 def d_ayar_dokumu(c):
@@ -519,6 +572,9 @@ DENETIMLER = [
     ("LittleFS arayuzu",        0, "yok", d_littlefs),
     ("Ag kipi",                 0, "yok", d_ag_satiri),
     ("Parola uyarisi",          0, "yok", d_parola_uyarisi),
+    ("Osiloskop DMA surucusu",  0, "yok", d_skop_surucusu),
+    ("Afis satirlari kapali",   0, "yok", d_afis_satirlari_kapali),
+    ("Cikis protokolu ilani",   0, "yok", d_protokol_satiri),
     ("Ayar dokumu (?)",         0, "yok", d_ayar_dokumu),
     ("Blokaj sayaci (K)",       0, "yok", d_blokaj_sayaci),
     ("Ciplak g reddi",          0, "yok", d_ciplak_g_reddi),

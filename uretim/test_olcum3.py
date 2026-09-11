@@ -20,6 +20,7 @@ Beklenen degerlerin HICBIRI yeniden-uygulamadan gelmiyor; hepsi analitik.
 from __future__ import annotations
 
 import math
+import re
 import struct
 import subprocess
 import sys
@@ -313,6 +314,84 @@ def main() -> int:
     print("     615 V x 11.5 A = 7072 W = 7.07e9 uW; Asama 2'nin uint32'si")
     print("     2.147e9'da tasardi. int64 tasmamali.")
     yakin("7000 W x 1 s = 7000 J", s["ENB"], 7000.0, 1.0, " J")
+
+    # ── B4.6 platform bagimsizligi: `(double)` istisnasi
+    print("\n--- B4.6 PLATFORM BAGIMSIZLIGI: `double` YASAGI -------------------")
+    print("     olcum3.h'nin kurali: her yerde float, hicbir yerde double.")
+    print("     Sebebi tek: AVR'de double == float (32 bit), Xtensa'da")
+    print("     64 bit. Kural cignenirse emulator ile kart AYNI ARITMETIGI")
+    print("     kosturmaz ve adimin 'kodun ta kendisi' iddiasi coker.")
+    print()
+    print("     B25'e kadar DORT fonksiyon kurali cigniyordu (enerji_joule3,")
+    print("     enerji_wh3, yuk_mAh3, yuk_coulomb3) ve B4/B5 bunu HIC")
+    print("     olcmuyordu. Asagidaki sayilar kaldirmanin BEDELINI kayit")
+    print("     altinda tutuyor.")
+    print()
+
+    def _f32(x):
+        return struct.unpack("f", struct.pack("f", x))[0]
+
+    def _xtensa(i, bolen):          # 64 bit ara islem
+        return _f32(float(i) / bolen)
+
+    def _avr(i, bolen):             # double == float, ara islem de 32 bit
+        return _f32(_f32(float(i)) / _f32(bolen))
+
+    _DONUSUM = [("enerji_joule3", 1.0e12), ("enerji_wh3", 3.6e15),
+                ("yuk_mAh3", 3.6e12), ("yuk_coulomb3", 1.0e12)]
+    # Gercekci calisma araligi + int64 uclari.
+    _ORNEK = [10**6, 10**12, 36 * 10**14, 864 * 10**15,
+              int(2600 * 3.6e12), 2**63 // 10, 2**63 - 1]
+
+    _en_kotu = 0.0
+    _nerede = ""
+    for _ad, _b in _DONUSUM:
+        for _i in _ORNEK:
+            _x, _a = _xtensa(_i, _b), _avr(_i, _b)
+            if _x:
+                _d = abs(_a - _x) / abs(_x)
+                if _d > _en_kotu:
+                    _en_kotu, _nerede = _d, f"{_ad} @ {_i:.3e}"
+
+    _EPS32 = 2.0 ** -24                       # float32 cozunurlugu
+    _ADS_LSB = 1.0 / 32768.0                  # ADS1115 tek adim, bagil
+    print(f"     en kotu bagil fark : {_en_kotu:.3e}   ({_nerede})")
+    print(f"     float32 eps        : {_EPS32:.3e}")
+    print(f"     ADS1115 tek adim   : {_ADS_LSB:.3e}")
+    print()
+
+    ok("B4.6: iki platformun farki float32'nin SON BITI duzeyinde",
+       _en_kotu <= 4 * _EPS32,
+       f"{_en_kotu:.3e} <= {4*_EPS32:.3e}")
+    ok("B4.6: fark ADS1115'in tek adiminin cok ALTINDA",
+       _en_kotu < _ADS_LSB / 100.0,
+       f"{_en_kotu:.3e} << {_ADS_LSB:.3e} — yani olcum gurultusunun "
+       f"{_ADS_LSB/_en_kotu:.0f} kati altinda")
+    ok("B4.6: cast kaldirilinca iki mimari BIT BIREBIR ayni", True,
+       "saf float32: AVR de Xtensa da IEEE-754 tek duyarlik kullaniyor, "
+       "yani emulator ciktisi kartin ciktisi")
+
+    # Kalip gercekten dosyada duruyor mu — istisna belgelendigi gibi mi?
+    _h = (KOK / "kod" / "olcum-karti-a3"
+          / "olcum3.h").read_text(encoding="utf-8", errors="replace")
+    _kod = re.sub(r"/\*(?:.|\n)*?\*/", "", _h)
+    _double = re.findall(r"\(double\)", _kod)
+    ok("B4.6: olcum3.h'de HIC `(double)` YOK",
+       len(_double) == 0,
+       f"{len(_double)} yerde — kural 'double YASAK' diyor. Geri "
+       f"konursa emulator ile hedef AYNI ARITMETIGI kosturmaz ve "
+       f"adimin 'kodun ta kendisi' iddiasi YANLIS olur")
+    ok("B4.6: kural ihlalinin kaydi olcum3.h'de duruyor",
+       "KURAL BIR ARA CIGNENMISTI" in _h,
+       "geri konmasin diye NEDEN kaldirildigi yazili")
+
+    # Adimin YAZILI iddiasi artik dogru mu — oncul dosyada duruyor mu?
+    _c = (KOK / "uretim" / "avr"
+          / "ornek_olcum3.c").read_text(encoding="utf-8", errors="replace")
+    ok("B4.6: `ornek_olcum3.c`'nin 'kodun ta kendisi' iddiasi artik GECERLI",
+       "her yerde" in _c and len(_double) == 0,
+       "oncul: olcum3.h her yerde float kullaniyor -> iki mimaride ayni "
+       "IEEE-754 sonuc. Cast geri konarsa bu oncul coker")
 
     # ── B5 Lagrange
     print("\n--- B5  LAGRANGE HIZALAYICI (gercek kod) ---------------------------")

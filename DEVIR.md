@@ -6504,10 +6504,84 @@ besliyordu — iddia yine geçiyordu ama iddia edilen pay gerçek değildi.
 Artık `_firmware.json`'dan okunuyor ve **B6 yedek sabitin ölçümle eşit
 olduğunu sınıyor**, bir daha sessizce kayamaz.
 
+##### Bağımsız araştırma iki gerçek kusur daha çıkardı
+
+B25 hazırlanırken, "elde ne varsa onunla ne sınanabilir" sorusunu
+kaynaktan cevaplaması için ayrı bir denetim koşturuldu (10 ajan, 161
+doğrulanmış kalem). İki bulgusu koşucudan bağımsız, **firmware ve
+zincirin kendisiyle** ilgiliydi.
+
+🔴 **Açılış afişinde satır kapanmıyordu.** `Ag:` bloğunun sonunda
+`Serial.println()` **yoktu**; çıktı şöyle yapışıyordu:
+
+```
+Ag: AP  SSID=OLCUM-KARTI-A1B2  http://192.168.4.1Arayuz: YOK — ...
+```
+
+Yani **kullanıcının seri konsoldan kopyalayacağı IP adresi bir sonraki
+etikete karışıyordu** ve afiş ayrıştırılamaz haldeydi. Kart daha hiç
+açılmadığı için kimse görmemişti. Düzeltildi; `sim3_web.py` artık `Ag:`
+bloğunun `Arayuz:`den **önce kapandığını** ayrıca sınıyor (mutasyonla
+doğrulandı: `println` geri silinince kırmızı).
+
+🔴 **`olcum3.h` kendi kuralını çiğniyordu ve adımın iddiası yanlıştı.**
+Dosyanın başında *"`int` ve `double` YASAK; her yerde açık genişlikli tip
+ve `float`"* yazıyor — sebebi tek: **avr-gcc'de `double`, `float`a takma
+addır (32 bit), Xtensa'da 64 bittir.** Kural, emülatörle kartın **bit
+birebir aynı** aritmetiği koşturmasını garanti etmek için var.
+
+Dört fonksiyon bu kuralı çiğniyordu (`enerji_joule3`, `enerji_wh3`,
+`yuk_mAh3`, `yuk_coulomb3`), hepsi
+`(float)((double)<int64> / <sabit>)` kalıbında — Aşama 1'den devralınmış
+bir alışkanlık; kaynakta savunan tek satır yoktu.
+
+Sonucu: **`uretim/avr/ornek_olcum3.c`'nin *"burada koşturulan kod,
+ESP32'de koşacak kodun ta kendisidir"* iddiası bu dört fonksiyon için
+DOĞRU DEĞİLDİ** — ve aynı iddia `DEVIR.md`'de ve **kullanıcıya gösterilen
+belgede** (`5-muhendislik.html`: *"sınanan şey kartta çalışacak kodun ta
+kendisi"*) tekrarlanıyordu.
+
+**Ölçüldü, iki bağımsız yoldan.** Denetim kodu avr-gcc ile derleyip
+projenin **kendi emülatöründe** koşturdu ve Xtensa çıktısını
+disassemble etti (`__floatdidf`/`__divdf3` vs `__floatdisf`/`__divsf3`).
+Ayrı olarak ben de sayısal modelle ölçtüm. İki ölçüm aynı yere çıktı:
+
+| Büyüklük | Değer |
+|---|---|
+| İki yolun en kötü bağıl farkı | **6.8e-8** (1 ULP) |
+| float32'nin kendi çözünürlüğü | 6.0e-8 |
+| ADS1115 tek adımı | 3.1e-5 — **450 kat büyük** |
+| ADS1115 kazanç hatası | 1.5e-3 — 22 000 kat büyük |
+
+**İlk kararım "cast kalsın" idi** — çünkü `(double)` hedefte ölçülebilir
+biçimde *daha doğru*: int64 uçlarında hata 0.046 yerine 0.016. Bağımsız
+denetim buna katılmadı ve haklı çıktı: kazanılan şey **0.5 ULP**, kaybedilen
+şey **emülatörün temsil gücü** — yani B4/B5'in bütün değerinin dayandığı
+şey. Ayrıca yanlış bir iddia **kullanıcıya yayınlanmış** durumdaydı.
+
+Dört cast kaldırıldı, saf `float`a geçildi. Mevcut 110 iddianın hiçbiri
+bozulmadı — bu da denetimin *"B4/B5 bu satırları hiç ölçmüyordu"*
+bulgusunu bağımsız olarak doğruluyor.
+
+**Yeni kapsam:** `test_olcum3.py` B4.6 artık altı şey sınıyor — farkın
+sınırı, ADS gürültüsüne oranı, bit-birebirlik, dosyada **hiç `(double)`
+olmadığı**, kaldırma gerekçesinin kayıtta durduğu ve
+`ornek_olcum3.c`'nin öncülünün artık geçerli olduğu.
+`mutasyon.py`'ye de karşılığı eklendi (denetimin ayrı bir bulgusu:
+**mutasyon tablosunda `olcum3.h`'ye ait tek kayıt yoktu**) — cast geri
+konunca zincir kırmızı, ölçüldü.
+
+⚠ **Açık kalan (arşiv):** `sim2_kart.py:267` Aşama 2'de beklenen değeri
+**float64** modeliyle üretip emülatörün float32 çıktısıyla karşılaştırıyor.
+Aşama 2 zinciri geçiyor ama model tutarsız; Aşama 2 arşiv olduğu için
+dokunulmadı.
+
 ##### Doğrulama
 
-Zincir **18/18**, 1066 iddia, 75 tezgah kalemi. B25 `--liste` ile ne
-koşacağını yazıyor; `--sifirla` olmadan afiş denetimleri atlanıyor.
+Zincir **18/18**, 75 tezgah kalemi (güncel iddia sayısı
+`beklenen_sayim.json`'da). B25 `--liste` ile ne koşacağını yazıyor;
+`--sifirla` olmadan afiş denetimleri atlanıyor. Bringup koşucusu
+**27 denetim** yapıyor, öz-testi **15 bozuk senaryoyu** yakalıyor.
 
 ⚠ **Bu adım gerçek donanımı doğrulamıyor.** Yalnızca koşucunun doğru soruyu
 sorup doğru cevaba baktığını sınıyor. Gerçek seri port, gerçek zamanlama ve

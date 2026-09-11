@@ -104,6 +104,14 @@ MUTASYONLAR = [
      "ADS_SPS = 860", "ADS_SPS = 250",
      "ornekleme hizi butun zamanlama butcesinin tabani"),
 
+    # ── B4/B5 · platform bagimsizligi (B25'te bulunan kapsam bosluğu:
+    #    mutasyon tablosunda olcum3.h'ye ait TEK kayit yoktu)
+    ("B4", "test_olcum3.py", "kod/olcum-karti-a3/olcum3.h",
+     "return (float)pJ / 1.0e12f;", "return (float)((double)pJ / 1.0e12);",
+     "olcum3.h'de `double` YASAK: AVR'de 32 bit, Xtensa'da 64 bit. "
+     "Geri konursa emulator ile kart ayni aritmetigi kosturmaz ve "
+     "adimin 'kodun ta kendisi' iddiasi YANLIS olur"),
+
     # ── B17 · es zamanlilik
     ("B17", "sim3_senkron.py", "kod/olcum-karti-a3/tipler3.h",
      "float    faz_kal_us[2];", "float    faz_kal[2];",

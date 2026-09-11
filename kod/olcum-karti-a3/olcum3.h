@@ -8,6 +8,29 @@
  * derleniyor, hem de bit-birebir dogrulanmis AVR emulatorunde kosuyor.
  * (Asama 2'de olcum2.h ayni disiplinle yazilmisti; A4/A6 bunu kullaniyor.)
  *
+ * 🔴 KURAL BIR ARA CIGNENMISTI — B25'te (2026-09-11) geri getirildi.
+ * enerji_joule3 · enerji_wh3 · yuk_mAh3 · yuk_coulomb3 fonksiyonlari
+ * `(float)((double)<int64> / <sabit>)` yaziyordu. Asama 1'den devralinan
+ * bir aliskanlikti; kaynakta savunan tek satir yoktu.
+ *
+ * NEDEN ONEMLIYDI: avr-gcc `double`u 32 bit yapiyor (takma ad),
+ * Xtensa'da 64 bit. Yani B4/B5'in EMULATORDE kosturdugu aritmetik,
+ * kartta kosacak olandan FARKLIYDI — degerlerin bir kisminda son bit
+ * ayriliyordu. Adimin (ve kullanici belgesinin) "sinanan sey kartta
+ * calisacak kodun TA KENDISI" iddiasi bu dort fonksiyon icin DOGRU
+ * DEGILDI. Fark kucuktu ama iddia yanlisti.
+ *
+ * OLCULDU, sonra duzeltildi: iki yolun farki en kotu durumda 1 ULP
+ * (bagil 6.8e-8; float32 eps 6.0e-8). ADS1115'in tek adimi 3.1e-5,
+ * yani fark olcum gurultusunun 450 kati altinda. Saf float'a gecmenin
+ * bedeli int64 uclarinda ~0.5 ULP dogruluk; karsiliginda iki mimaride
+ * BIT BIREBIR ayni sonuc. Bu takas dogru: emulatorun temsil gucu,
+ * olculemeyecek bir 0.5 ULP'den kiymetli.
+ *
+ * `test_olcum3.py` B4.6 artik dosyada HIC `(double)` olmadigini
+ * sinıyor ve bedeli kayit altinda tutuyor. `mutasyon.py`de karsiligi
+ * var: cast geri konursa zincir kirmizi.
+ *
  * NEDEN AYRI DOSYA: olcum2.h Asama 2 zincirinde (A4, A5, A6) kullaniliyor
  * ve o zincir gecmeye devam etmeli. Asama 3 farkli bir ON UC'tur; ayni
  * dosyayi degistirmek dogrulanmis Asama 2'yi bozardi.
@@ -261,7 +284,7 @@ static int64_t enerji_ekle3(int64_t pJ, float watt, uint32_t dt_us)
 
 static float enerji_joule3(int64_t pJ)
 {
-    return (float)((double)pJ / 1.0e12);
+    return (float)pJ / 1.0e12f;
 }
 
 /* ─────────────────────────────────── B21: ISARETLI YUK (mAh) BIRIKIMI
@@ -286,19 +309,19 @@ static int64_t yuk_ekle3(int64_t pC, float amper, uint32_t dt_us)
 
 static float yuk_mAh3(int64_t pC)
 {
-    return (float)((double)pC / 3.6e12);
+    return (float)pC / 3.6e12f;
 }
 
 static float yuk_coulomb3(int64_t pC)
 {
-    return (float)((double)pC / 1.0e12);
+    return (float)pC / 1.0e12f;
 }
 
 static float enerji_wh3(int64_t pJ)
 {
     /* 1 Wh = 3600 J = 3.6e15 pJ.  (3.6e18 = 1 kWh — Asama 1'de buraya
      * 3.6e18 yazilmisti, Wh alani tam 1000 kat kucuk cikiyordu.) */
-    return (float)((double)pJ / 3.6e15);
+    return (float)pJ / 3.6e15f;
 }
 
 /* ─────────────────────────────────── V-I KAYMA HIZALAYICI

@@ -65,22 +65,40 @@ _ORNEK = int(round(TK.ORNEK_BEKLENEN))
 RAPOR_S = TK.RAPOR_MS / 1000.0
 
 
-def afis_satirlari(psram_kb=8192, fs=True, tampon=True, parola_yok=True):
+def afis_satirlari(psram_kb=8192, fs=True, tampon=True, parola_yok=True,
+                   skop=True, yapisik=False):
     s = [
         "",
         "Olcum Karti — Asama 3 (CIFT YONLU on uc)",
         f"PSRAM: {psram_kb} KB" if psram_kb else "PSRAM: YOK — derin skop bellegi kullanilamaz",
     ]
-    s.append("  pil egri tamponu: 5400 nokta = 1.50 saat @ 1.00 Hz, 63 KB (ic RAM)"
-             if tampon else "  pil egri tamponu: AYRILAMADI — mAh/Wh sayaclari calisir")
-    s += [
-        "Cikis: D <volt> <amper> <watt> <joule> <wh> <ms> <ornek> <bayrak>",
-        "`h` yardim",
-        "Ag: AP  SSID=OLCUM-KARTI-A1B2  http://192.168.4.1",
-        "Arayuz: LittleFS'te (karttan servis ediliyor)" if fs
-        else "Arayuz: YOK — uretim/arayuz-yaz.py ile yukleyin",
-        "",
-    ]
+    # PSRAM varken firmware tamponu 24 SAATE cikariyor (ino:2412-2415):
+    # 86400 nokta, 86400*12/1024 = 1012 KB, PSRAM'de. Ilk yazimda burada
+    # ic RAM hali (5400/1.50 saat/63 KB) "saglikli" sayilmisti — oysa o
+    # PSRAM'siz DUSMUS hal. Senaryo gercek saglikli kartı tarif etmeli.
+    if not tampon:
+        s.append("  pil egri tamponu: AYRILAMADI — mAh/Wh sayaclari calisir")
+    elif psram_kb:
+        s.append("  pil egri tamponu: 86400 nokta = 24.00 saat @ 1.00 Hz, "
+                 "1012 KB (PSRAM)")
+    else:
+        s.append("  pil egri tamponu: 5400 nokta = 1.50 saat @ 1.00 Hz, "
+                 "63 KB (ic RAM)")
+    s.append("Cikis: D <volt> <amper> <watt> <joule> <wh> <ms> "
+             "<ornek> <menzil>")
+    s.append("`h` yardim")
+    if not skop:
+        s.append("! osiloskop suruculu kurulamadi")
+    _ag = "Ag: AP  SSID=OLCUM-KARTI-A1B2  http://192.168.4.1"
+    _ar = ("Arayuz: LittleFS'te (karttan servis ediliyor)" if fs
+           else "Arayuz: YOK — uretim/arayuz-yaz.py ile yukleyin")
+    if yapisik:
+        # Firmware'de `Ag:` blogunun sonunda println YOKKEN olusan hal.
+        s.append(_ag + _ar)
+    else:
+        s.append(_ag)
+        s.append(_ar)
+    s.append("")
     if parola_yok:
         s.append("! UYARI: web parolasi YOK — komut ucu yalnizca jeton ile korunuyor")
     return s
@@ -205,6 +223,12 @@ def bolum2_mutasyonlar():
         ("Bilinmeyen komut SESSIZCE yutuluyor",
          dict(yanit=yanitlar_saglikli(bilinmeyen=False)),
          "Bilinmeyen komut ACIKCA reddediliyor", 0),
+        ("Osiloskop DMA surucusu kurulamadi",
+         dict(afis=afis_satirlari(skop=False)),
+         "Osiloskop DMA surucusu kuruldu", 0),
+        ("Afis satirlari YAPISIK (Ag: sonrasi println yok)",
+         dict(afis=afis_satirlari(yapisik=True)),
+         "Afis satirlari yapisik DEGIL", 0),
         ("I2C'de hicbir cihaz yok (ADS bagli degil)",
          dict(yanit=yanitlar_saglikli(i2c="I2C: (hicbir cihaz yok)")),
          "0x48 adresinde gorunuyor", 1),

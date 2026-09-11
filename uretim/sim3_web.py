@@ -262,6 +262,23 @@ def bolum5(r):
     # 🔴 Ad BOSALIRSA `http://<ad>.local` cozulmez ve BELGELER/6-ag.html
     #    bos adres yazar — B23.3 mutasyonu bunu KACIRDI, iddia yoktu.
     _mdns = re.search(r'#define AG_MDNS\s+"([^"]*)"', AG_KOD)
+    # 🔴 Afis satirlarinin KAPANDIGI denetimi. "Ag: ..." blogunun sonunda
+    #    println YOKTU ve cikti `http://192.168.4.1Arayuz: ...` seklinde
+    #    yapisiyordu — adresi kopyalayan kullanici BOZUK adres aliyordu.
+    #    B25 bringup kosucusu hazirlanirken bulundu (2026-09-11).
+    #    ⚠ Kapsam: `setup()` govdesinin ICINDE, "Ag: " ile "Arayuz: "
+    #    arasindaki parcaya bakiyoruz — tum dosyada aramak komsu
+    #    fonksiyonlarin println'lerini kabul ederdi.
+    _kur = govde(INO, "void setup()")
+    _i = _kur.find('F("Ag: ")')
+    _j = _kur.find('F("Arayuz: ")', _i + 1)
+    _ara = _kur[_i:_j] if 0 <= _i < _j else ""
+    r.kosul("  5a: `Ag:` satiri `Arayuz:`den ONCE KAPANIYOR",
+            "Serial.println();" in _ara.replace(" ", "").replace(
+                "Serial.println()", "Serial.println();").replace(";;", ";"),
+            "kapanmazsa IP adresi bir sonraki etikete yapisir ve "
+            "kullanici bozuk adres kopyalar")
+
     r.kosul("  5a: mDNS adi BOS DEGIL", bool(_mdns and _mdns.group(1)),
             f"http://{_mdns.group(1) if _mdns else '?'}.local")
     r.kosul("  5a: MDNS.begin adi sabitten aliyor",

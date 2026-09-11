@@ -67,14 +67,14 @@
   ],
   "B22b Kart web katmani (ayna + SSE + komut ucu)": [
     [
-      76,
-      76
+      77,
+      77
     ]
   ],
   "B25 Kart bringup kosucusu (kayitli kart)": [
     [
-      36,
-      36
+      38,
+      38
     ]
   ],
   "B3  Sema (ERC + netlist)": [
@@ -85,8 +85,8 @@
   ],
   "B4/B5  Firmware + Lagrange (AVR)": [
     [
-      104,
-      104
+      110,
+      110
     ]
   ],
   "B6  Firmware derleme + ikili": [

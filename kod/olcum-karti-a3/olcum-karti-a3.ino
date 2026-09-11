@@ -2459,6 +2459,13 @@ void setup() {
     Serial.print(F("  http://")); Serial.print(ag_durum.ip);
     if (ag_durum.mdns) Serial.print(F("  http://" AG_MDNS ".local"));
   }
+  /* 🔴 Buradaki println EKSIKTI: "Ag:" satiri kapanmadigi icin cikti
+     `...http://192.168.4.1Arayuz: YOK...` seklinde yapisiyordu. Adresi
+     seri konsoldan kopyalayan kullanici BOZUK bir adres aliyordu ve
+     acilis afisi ayristirilamaz haldeydi. B25 bringup kosucusu
+     hazirlanirken bulundu (2026-09-11); sim3_web.py artik afisin her
+     satirinin KAPANDIGINI ayrica sinıyor. */
+  Serial.println();
   Serial.print(F("Arayuz: "));
   Serial.println(fs_hazir ? F("LittleFS'te (karttan servis ediliyor)")
                           : F("YOK — uretim/arayuz-yaz.py ile yukleyin"));
