@@ -162,6 +162,27 @@ MUTASYONLAR = [
      "Math.abs(this.watt) < 1e-3", "Math.abs(this.watt) < 0",
      "olu bant kalkarsa gurultu duzeyindeki -10 uW 'kaynak' etiketi uretir"),
 
+    # ── B27 A1 · gorunumler (hash yonlendirme)
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     "<main class=\"gorunum\" v-show=\"gorunum === 'skop'\">",
+     "<main class=\"gorunum\" v-if=\"gorunum === 'skop'\">",
+     "v-if tuvali YOK EDER: skop sekmesine donunce yakalama kaybolur, "
+     "grafik ilk D satirina kadar bos"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      this.$nextTick(() => { this.grafikCiz(); this.osiloCiz(); });\n    },\n    /* B22.2",
+     "      this.$nextTick(() => { this.grafikCiz(); });\n    },\n    /* B22.2",
+     "skop yeniden cizilmezse gizliyken 0 genislik okuyan tuval 300px "
+     "varsayilanda, sola yapisik kalir"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "return GORUNUMLER.some((g) => g.id === h) ? h : GORUNUM_VARSAYILAN;",
+     "return h || GORUNUM_VARSAYILAN;",
+     "bilinmeyen hash (#/yok) bes gorunumun HICBIRINI acmaz — bos sayfa"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); });",
+     "",
+     "hashchange dinlenmezse geri tusu adresi degistirir ama gorunum "
+     "degismez — adres ile ekran ayrisir"),
+
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",

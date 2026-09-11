@@ -7228,6 +7228,28 @@ ilk yükleme karta karşı ölçülür; PC + telefonda gerçek deneme.
 
 ⚠ **Aşama 2 tezgah kalemi:** K3'ün %2 rayda eşiği gerçek ön uçla doğrulanacak — boştaki pin 62 LSB'ye kadar sürüklendi (eşik 82).
 
+##### ✅ Aşama 1 bitti (2026-09-12) — beş görünüm, karttan sunuluyor
+
+Tek kaydırmalı 569 satırlık sayfa **hash yönlendirmeli beş görünüme** bölündü; yapı stok-takip'teki desenle aynı (`#/olcum` … `#/konsol`, geri tuşu çalışır, adres paylaşılabilir). ESP'ye **ek istek yok**: aynı tek `index.html`, görünümler `v-show` ile saklanıyor.
+
+| Ne | Nasıl | Neden böyle |
+|---|---|---|
+| `GORUNUMLER` listesi (app.js) | id · ad · alt açıklama; sekme şeridi `v-for` ile bundan üretiliyor | Elle kopya olsaydı sekme ↔ görünüm ayrışırdı |
+| `hashtenGorunum()` | `#/skop`, `#skop` → `skop`; bilinmeyen/boş → `olcum` | Bozuk adres boş sayfa **açmasın** |
+| `v-show`, `v-if` **değil** | beş `<main class="gorunum">` | `v-if` tuvali yok eder; skop'a dönünce yakalama kaybolurdu |
+| `watch.gorunum` → `$nextTick` → `grafikCiz()+osiloCiz()` | görünüme dönünce yeniden çizim | `display:none` tuval **0 genişlik** okur; çizilmezse 300 px varsayılanda sola yapışık kalır — headless'ta `nodemo-olcum,skop.png` ile **ispatlandı** (skop gizliyken açıldı, tam genişlik + ortalı "yakalama yok") |
+| Tek `.bildirimler` sarmalı | üst şeritteki dört koşullu blok | `:empty` ise yer kaplamaz |
+| Konsol | `<details>` katlaması gitti, kendi sekmesi | "kartla ham konuşma" artık gizli değil |
+
+**Ayrışınca ortaya çıkan iki yerleşim kusuru** (tek sayfada fark edilmiyordu):
+
+* *"Sıra önemli — önce girişi 0 V'a bağla…"* ve *"Kalibrasyon değeri negatif de olabilir"* paragrafları **pil bölümünün altında** duruyordu; sekmeler ayrılınca "Pil testi" ekranında kalibrasyon talimatı belirdi. Kalibrasyon kartına taşındı; test artık yerini civiliyor.
+* Köprü olayı (`kopru` SSE) aynı bilgiyi **hem** `.hata` **hem** `.uyari` kutusunda basıyordu — iki bildirim, tek olgu. Bağlantılı olan kaldı (kullanıcının "çok bildirim" şikâyetinin ilk somut kalemi).
+
+**Doğrulama:** `test_arayuz3.js` 142 → **156** (bölüm 10: liste↔HTML birebir, v-show, hash çözümü 4 durum, `watch.gorunum` davranışı sahte `this` ile, bildirim sarmalı, paragraf yeri). `mutasyon.py` B7 **6/6** — v-if'e çevirme, skop çizimini düşürme, hash doğrulamasını kaldırma, `hashchange` dinleyicisini silme: hepsi yakalanıyor. Headless Edge: 5 görünüm dev sunucudan (demo) + 5 görünüm **gerçek karttan** (kartın ev ağı adresinden, LittleFS `_fs.bin` 98.3 KB, %10.7) render edildi; geçiş testi iframe'de yalnızca hash değiştirerek (yeniden yükleme yok) yapıldı.
+
+**Aşama 2'ye devredilen gözlemler:** üst şeritte taşıyıcı seçici + adres kutusu dar alanda alt satıra sarıyor (tasarım işi); demo kipinde seçici boş görünüyor (`demo` seçeneği menüde yok); sayfa karttan geldiğinde "Karta bağlan"a basmak gerekiyor — **otomatik bağlanma** değerlendirilecek (kart sunuyorsa taşıyıcı zaten belli).
+
 ---
 
 #### 5.12.17 Sırada ne var

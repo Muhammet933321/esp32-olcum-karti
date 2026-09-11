@@ -103,3 +103,57 @@ button.etkin {
 /* B27/K1 — ADC yanıt vermediğinde sayı yerine "—", soluk ve uyarı metni */
 .olcum .deger.gecersiz { opacity: .35; }
 .olcum .alt-bilgi.uyari-metin { color: var(--uyari, #d98324); }
+
+/* ═══════════════════════════════════ B27 Aşama 1 — GÖRÜNÜMLER
+ *
+ * Tek kaydırmalı sayfa beş görünüme bölündü (#/olcum #/skop #/pil
+ * #/ayar #/konsol). Burası yalnızca YAPI: sekme şeridi, görünüm
+ * sarmalı, tek bildirim alanı. Renk/animasyon/tipografi Aşama 2'de
+ * (tasarım sistemi) gelecek; şimdilik style.css belirteçleri.
+ */
+
+/* Sekme şeridi — üst şeridin hemen altında, kaydırınca üstte kalır. */
+.gorunum-nav {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  margin: 0 0 16px;
+  padding: 6px 0 0;
+  border-bottom: 1px solid var(--kenar-c);
+  background: var(--zemin);
+  overflow-x: auto;            /* dar ekranda yatay kaydır, sayfayı taşırma */
+  scrollbar-width: none;
+}
+.gorunum-nav::-webkit-scrollbar { display: none; }
+
+.gorunum-sekme {
+  flex: 0 0 auto;
+  padding: 8px 14px 10px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;         /* alt çizgi şeridin çizgisine otursun */
+  color: var(--soluk);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--gecis), border-color var(--gecis);
+}
+.gorunum-sekme:hover { color: var(--yazi); }
+.gorunum-sekme:focus-visible { outline: 2px solid var(--vurgu); outline-offset: -2px; border-radius: 4px; }
+.gorunum-sekme.etkin {
+  color: var(--vurgu);
+  border-bottom-color: var(--vurgu);
+  font-weight: 600;
+}
+
+/* Görünüm sarmalı — v-show ile saklanıyor; blok elemanı olsun yeter. */
+.gorunum { display: block; }
+
+/* Tek bildirim alanı. Hiç bildirim yoksa yer kaplamasın:
+   içindeki tüm bloklar v-if olduğundan sarmal gerçekten boşalıyor. */
+.bildirimler { display: flex; flex-direction: column; gap: 8px; }
+.bildirimler:empty { display: none; }
+.bildirimler > .hata, .bildirimler > .uyari { margin: 0; }
+.bildirimler:not(:empty) { margin-bottom: 16px; }

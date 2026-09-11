@@ -809,6 +809,106 @@ console.log('\n--- 9. Tasiyici katmani: uc tasima, tek arayuz ---');
      'ozel kipte ve kota dolunca ERISIMIN KENDISI atiyor');
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   10. GORUNUMLER — hash yonlendirme (B27 Asama 1)
+
+   Tek kaydirmali sayfa bes gorunume bolundu. Iki tuzak var ve ikisi de
+   Vue taklidinde GORUNMEZ:
+   (a) Gorunum `v-if` ile saklanirsa tuval YOK OLUR: gecmis kaybolmaz ama
+       geri donunce bos bir grafik gelir, ilk D satirina kadar. `v-show`
+       sart.
+   (b) `display:none` tuval 0 genislik okur. Gorunum degisince yeniden
+       cizilmezse skop/grafik 300x150 varsayilan olcude, sola yapisik
+       kalir. Bu yuzden watch `gorunum` -> $nextTick -> grafikCiz+osiloCiz.
+   Ikisi de headless Edge'de DOGRULANDI (nodemo-olcum,skop.png); burada
+   yapi ve davranis civileniyor ki sonraki asamalarda kirilirsa gorulsun.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 10. Gorunumler: hash yonlendirme, v-show, yeniden cizim ---');
+{
+  const kod = yorumsuz(appKaynak);
+  const html = yorumsuz(htmlKaynak);
+
+  // app.js'teki liste ile index.html'deki v-show sarmallari BIREBIR ayni mi
+  let G = null;
+  try { G = vm.runInContext('GORUNUMLER', sandbox); } catch (e) { /* yok */ }
+  const appIdler = G ? G.map((g) => g.id) : [];
+  const htmlIdler = [...html.matchAll(/<main[^>]*v-show="gorunum === '([a-z]+)'"/g)]
+    .map((m) => m[1]);
+  ok('GORUNUMLER listesi var ve 5 gorunum tanimli',
+     appIdler.length === 5, appIdler.join(' '));
+  ok('index.html\'deki her <main v-show> app.js listesindeki bir gorunum',
+     htmlIdler.length === appIdler.length &&
+       htmlIdler.every((id) => appIdler.includes(id)) &&
+       new Set(htmlIdler).size === htmlIdler.length,
+     'html: ' + htmlIdler.join(' '));
+  ok('Gorunumler v-show ile saklaniyor, v-if ile DEGIL (tuval canli kalsin)',
+     !/<main[^>]*v-if="gorunum/.test(html) && htmlIdler.length === 5);
+
+  // her gorunumun sekmesi var: nav, GORUNUMLER uzerinde v-for
+  ok('Sekme seridi GORUNUMLER listesinden uretiliyor (elle kopya degil)',
+     /<nav[^>]*class="gorunum-nav"[\s\S]{0,300}v-for="g in gorunumler"/.test(html) &&
+       /gorunumler:\s*GORUNUMLER/.test(kod));
+
+  // hash -> gorunum: bilinmeyen hash varsayilana duser, bilinen hash gecer
+  let hashten = null;
+  try { hashten = vm.runInContext('hashtenGorunum', sandbox); } catch (e) { /* yok */ }
+  if (hashten) {
+    const dene = (h) => { sandbox.location = { hash: h }; return hashten(); };
+    ok('hashtenGorunum: #/skop -> skop', dene('#/skop') === 'skop');
+    ok('hashtenGorunum: #skop (egik cizgisiz) -> skop', dene('#skop') === 'skop');
+    ok('hashtenGorunum: bilinmeyen (#/yok) -> varsayilan olcum', dene('#/yok') === 'olcum');
+    ok('hashtenGorunum: bos hash -> varsayilan olcum', dene('') === 'olcum');
+    delete sandbox.location;
+  } else {
+    ok('hashtenGorunum fonksiyonu sandbox\'ta erisilebilir', false);
+  }
+
+  // mounted: hashchange dinleniyor (geri tusu calissin)
+  ok('mounted() hashchange olayini dinliyor',
+     govdeIcinde(appKaynak, 'mounted', "'hashchange'"));
+
+  // DAVRANIS: watch.gorunum gercekten iki tuvali $nextTick icinde cizdiriyor mu.
+  // Sahte `this`: nextTick'i hemen kosuyoruz, cizimleri sayiyoruz.
+  const w = secenekler.watch && secenekler.watch.gorunum;
+  ok('watch.gorunum tanimli', typeof w === 'function');
+  if (typeof w === 'function') {
+    let g = 0, o = 0, tick = 0;
+    const sahte = {
+      $nextTick(fn) { tick++; fn(); },
+      grafikCiz() { g++; }, osiloCiz() { o++; },
+    };
+    sandbox.location = { hash: '#/olcum' };
+    sandbox.history = { replaceState() {} };
+    w.call(sahte, 'skop');
+    ok('gorunum degisince grafik VE skop $nextTick icinde yeniden ciziliyor',
+       tick === 1 && g === 1 && o === 1, `nextTick=${tick} grafik=${g} skop=${o}`);
+    delete sandbox.location; delete sandbox.history;
+  }
+
+  // CSS: sekme sinifi ve etkin durumu tanimli (8. bolum genel sinif
+  // denetimini yapiyor; burada ETKIN sekmenin ayirt edildigini civiliyoruz)
+  const tumCss = ['style.css', 'ek.css']
+    .map((d) => fs.readFileSync(path.join(ARAYUZ, d), 'utf8')).join('\n');
+  ok('Etkin sekme gorsel olarak ayirt ediliyor (.gorunum-sekme.etkin)',
+     /\.gorunum-sekme\.etkin\s*\{[^}]*(color|border)/.test(tumCss));
+
+  // Bildirimler TEK alanda: ust seritteki dort kosullu blok tek sarmalda
+  // (yorumsuz() HTML yorumlarini sildiginden kapanis isareti degil, ilk
+  //  <main> sinir: bildirim sarmali gorunumlerden ONCE bitmeli)
+  const bildirimBlok = html.match(/<div class="bildirimler">([\s\S]*?)<main /);
+  ok('Ust bildirimler tek .bildirimler sarmalinda',
+     !!bildirimBlok && ['!destekli', 'kopruAdresi', 'v-if="hata"', '!surucuyum']
+       .every((k) => bildirimBlok[1].includes(k)));
+
+  // Kalibrasyon talimati pil sekmesinde DEGIL, ayar sekmesinde.
+  // (Gorunumler ayrilinca ortaya cikan yerlesim kusuru — B27 A1.)
+  const ayarBlok = html.match(/v-show="gorunum === 'ayar'"([\s\S]*?)<\/main>/);
+  const pilBlok = html.match(/v-show="gorunum === 'pil'"([\s\S]*?)<\/main>/);
+  ok('"Sira onemli" kalibrasyon talimati AYAR gorunumunde, pilde degil',
+     !!ayarBlok && ayarBlok[1].includes('Sıra önemli') &&
+       !!pilBlok && !pilBlok[1].includes('Sıra önemli'));
+}
+
 console.log(`\n${gecti}/${gecti + kaldi} dogrulama gecti`);
 
 /* ── TEZGAH KALEMLERI (B23.1) ──────────────────────────────────────────

@@ -57,6 +57,21 @@
     <button v-else @click="kes">Bağlantıyı kes</button>
   </header>
 
+  <!-- ───────────────────────────────────────────── gezinme (B27 A1)
+       Tek sayfa, beş görünüm. Sekme = adres (#/olcum …); geri tuşu
+       çalışır. Görünümler v-show ile saklı — tuvaller canlı kalır. -->
+  <nav class="gorunum-nav" aria-label="görünümler">
+    <a v-for="g in gorunumler" :key="g.id"
+       :href="'#/' + g.id"
+       class="gorunum-sekme" :class="{ etkin: gorunum === g.id }"
+       :aria-current="gorunum === g.id ? 'page' : null"
+       :title="g.alt">{{ g.ad }}</a>
+  </nav>
+
+  <!-- ───────────────────────────────────────────── bildirimler
+       TEK alan; her görünümde aynı yerde. Bloklar koşullu — hiçbiri
+       yoksa sarmal boş kalır ve yer kaplamaz (ek.css :empty). -->
+  <div class="bildirimler">
   <!-- 🔴 Yetenek yoksa düğme kapalı ama NEDENİ görünür. Ölü düğme
        bırakmak DEVIR 4.15'in ta kendisiydi. -->
   <div v-if="!destekli" class="hata">
@@ -80,6 +95,10 @@
     <b>Durdurma (<code>p0</code>) her zaman açık.</b>
     <button @click="devral" style="margin-left:8px">Sürücülüğü devral</button>
   </div>
+  </div><!-- /bildirimler -->
+
+  <!-- ═════════════════════════════════════════════ #/olcum -->
+  <main class="gorunum" v-show="gorunum === 'olcum'">
 
   <!-- ───────────────────────────────────────────── anlık ölçümler -->
   <div class="olcumler">
@@ -150,6 +169,11 @@
       <button @click="csvIndir" :disabled="!gecmis.length">CSV indir</button>
     </div>
   </section>
+
+  </main><!-- /olcum -->
+
+  <!-- ═════════════════════════════════════════════ #/skop -->
+  <main class="gorunum" v-show="gorunum === 'skop'">
 
   <!-- ───────────────────────────────────────────── osiloskop -->
   <section class="kart">
@@ -332,6 +356,11 @@
     </p>
   </section>
 
+  </main><!-- /skop -->
+
+  <!-- ═════════════════════════════════════════════ #/ayar -->
+  <main class="gorunum" v-show="gorunum === 'ayar'">
+
   <section class="kart">
     <h2>Kalibrasyon ve ayar</h2>
 
@@ -417,10 +446,29 @@
       <button v-if="sifirlaOnay" @click="sifirlaOnay = false">Vazgeç</button>
     </p>
 
+    <!-- B27 A1: bu iki paragraf yıllardır pil bölümünün ALTINDA duruyordu
+         — tek kaydırmalı sayfada fark edilmiyordu; görünümler ayrılınca
+         "Pil testi" sekmesinde kalibrasyon talimatı belirdi. Yerine geldi. -->
+    <p class="ipucu">
+      <strong>Sıra önemli.</strong> Önce girişi 0 V'a bağla ve
+      “Gerilimi sıfırla” — bu, Vref'in gerçek değerini ölçüp çıkarır.
+      Sonra <strong>yükü kes</strong> ve “Akımı sıfırla”. En son bilinen bir
+      gerilim/akım uygulayıp multimetrenin okuduğu değeri gir.
+      Kalibrasyon her menzil için <em>ayrı</em> tutulur ve NVS'e yazılır.
+    </p>
+    <p class="ipucu">
+      Kalibrasyon değeri <strong>negatif de olabilir</strong> — kart çift
+      yönlü. Sıfıra çok yakın bir değerle kalibre etmeye çalışırsan kart
+      reddeder (tam ölçeğin %5'i eşiği).
+    </p>
+
     <p v-if="sebekeUyari" class="uyari" style="margin-top:8px">{{ sebekeUyari }}</p>
 
-    <!-- ═══════════ B22.4 — AĞ KURULUMU ═══════════ -->
-    <h2 style="margin-top:26px">Ağ — kartı kablosuz yapma</h2>
+  </section>
+
+  <!-- ═══════════ B22.4 — AĞ KURULUMU ═══════════ -->
+  <section class="kart">
+    <h2>Ağ — kartı kablosuz yapma</h2>
 
     <p class="ipucu">
       <strong>Sıra:</strong> kartı <em>USB ile</em> bağla, ağ bilgilerini
@@ -465,8 +513,16 @@
       değiştirmek kalibrasyonu silmez.
     </p>
 
-    <!-- ═══════════ B21 — PİL KAPASİTE TESTİ ═══════════ -->
-    <h2 style="margin-top:26px">Pil kapasite testi — mAh · Wh · deşarj eğrisi · iç direnç</h2>
+  </section>
+
+  </main><!-- /ayar -->
+
+  <!-- ═════════════════════════════════════════════ #/pil -->
+  <main class="gorunum" v-show="gorunum === 'pil'">
+
+  <!-- ═══════════ B21 — PİL KAPASİTE TESTİ ═══════════ -->
+  <section class="kart">
+    <h2>Pil kapasite testi — mAh · Wh · deşarj eğrisi · iç direnç</h2>
 
     <p class="uyari">
       ⚠ Yükü <b>J7</b>'ye bağlayın, J3'e değil. J3 doğrudan şönte gider;
@@ -524,24 +580,21 @@
       aynı pili tekrar ölçünce <b>karşılaştırılabilir</b> bir sağlık
       göstergesi.</p>
 
-    <p class="ipucu">
-      <strong>Sıra önemli.</strong> Önce girişi 0 V'a bağla ve
-      “Gerilimi sıfırla” — bu, Vref'in gerçek değerini ölçüp çıkarır.
-      Sonra <strong>yükü kes</strong> ve “Akımı sıfırla”. En son bilinen bir
-      gerilim/akım uygulayıp multimetrenin okuduğu değeri gir.
-      Kalibrasyon her menzil için <em>ayrı</em> tutulur ve NVS'e yazılır.
-    </p>
-    <p class="ipucu">
-      Kalibrasyon değeri <strong>negatif de olabilir</strong> — kart çift
-      yönlü. Sıfıra çok yakın bir değerle kalibre etmeye çalışırsan kart
-      reddeder (tam ölçeğin %5'i eşiği).
-    </p>
   </section>
+
+  </main><!-- /pil -->
+
+  <!-- ═════════════════════════════════════════════ #/konsol -->
+  <main class="gorunum" v-show="gorunum === 'konsol'">
 
   <!-- ───────────────────────────────────────────── günlük -->
   <section class="kart">
-    <details>
-      <summary>Seri port günlüğü</summary>
+    <h2>Konsol — kartla ham konuşma</h2>
+    <p class="ipucu">
+      Karttan gelen her satır burada; <code>y</code> yazıp göndermek
+      komut listesini verir. Panelin gösterdiği her şey bu satırlardan
+      türetiliyor — bir değerden şüphelenirsen kaynağı burada.
+    </p>
       <div>
         <div class="satir" style="margin-bottom:10px">
           <div class="alan" style="flex:1">
@@ -556,8 +609,9 @@
             >{{ s.giden ? '> ' : '' }}{{ s.metin }}</div>
         </div>
       </div>
-    </details>
   </section>
+
+  </main><!-- /konsol -->
 
 </div>
 

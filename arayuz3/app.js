@@ -145,9 +145,10 @@ const TasiyiciAkis = {
     /* Kart TEK sürücüye hizmet ediyor. Köprü kayıtlıysa ikinci istemci
        reddediliyor ve NEREYE gideceği söyleniyor — sessiz kapanma yok. */
     uyg.akis.addEventListener('kopru', (e) => {
+      /* B27 A1: aynı bilgi HEM .hata HEM .uyari kutusunda çıkıyordu —
+         iki bildirim, tek olgu. Bağlantılı olan (.uyari, kopruAdresi)
+         kaldı; hata satırı düştü. */
       uyg.kopruAdresi = String(e.data).trim();
-      uyg.hata = 'Kart bilgisayara bağlı — arayüzü '
-               + uyg.kopruAdresi + ' üzerinden açın';
     });
     /* PC köprüsü N izleyiciye yayın yapıyor ama SÜRÜCÜ bir tane. Jeton
        burada geliyor ve her komutta geri gönderiliyor. Kart doğrudan
@@ -221,6 +222,25 @@ const TASIYICILAR = {
   demo: TasiyiciSahte,
 };
 
+/* ═══ B27 Aşama 1 — GÖRÜNÜMLER ═══════════════════════════════════════
+   Tek sayfa, hash yönlendirme (#/olcum …). stok-takip'teki desenle aynı:
+   geri tuşu çalışır, adres paylaşılabilir, ESP'ye ek istek yok.
+   Görünümler `v-show` ile gizleniyor, `v-if` ile DEĞİL — tuvaller
+   (zaman grafiği, skop) canlı kalsın, geçişte yalnızca yeniden çizilsin. */
+const GORUNUMLER = [
+  { id: 'olcum',  ad: 'Ölçüm',     alt: 'V · I · P · enerji · zaman grafiği' },
+  { id: 'skop',   ad: 'Osiloskop', alt: 'yakalama · tetik · hızlı güç ölçümü' },
+  { id: 'pil',    ad: 'Pil testi', alt: 'deşarj eğrisi · mAh · Wh · iç direnç' },
+  { id: 'ayar',   ad: 'Ayarlar',   alt: 'kalibrasyon · şönt · menzil · ağ' },
+  { id: 'konsol', ad: 'Konsol',    alt: 'ham satırlar · komut' },
+];
+const GORUNUM_VARSAYILAN = 'olcum';
+
+function hashtenGorunum() {
+  const h = (typeof location !== 'undefined' ? location.hash : '').replace(/^#\/?/, '');
+  return GORUNUMLER.some((g) => g.id === h) ? h : GORUNUM_VARSAYILAN;
+}
+
 createApp({
   data() {
     return {
@@ -237,6 +257,8 @@ createApp({
       bagli: false,
       hata: '',
       menzil: null,       // 0 NORMAL, 1 YUKSEK, null bilinmiyor
+      gorunum: hashtenGorunum(),   // B27 Aşama 1: #/olcum #/skop #/pil #/ayar #/konsol
+      gorunumler: GORUNUMLER,
       adsDurum: 0,        // B27/K1: bit0 V okunamadi, bit1 I okunamadi
       kartSont: null,     // B27/K5: kartin `?` ile bildirdigi GERCEK sont (ohm)
       hizliHata: '',      // B27/K3: kart 'giris rayda' derse burada
@@ -595,6 +617,14 @@ createApp({
   },
 
   watch: {
+    /* B27 Aşama 1: gizli (display:none) tuval 0 genişlik okur; görünüme
+       dönünce yeniden çizilmeli. Adres çubuğunu da eşitle. */
+    gorunum(v) {
+      if (typeof location !== 'undefined' && location.hash !== '#/' + v) {
+        try { history.replaceState(null, '', '#/' + v); } catch (e) { /* file:// */ }
+      }
+      this.$nextTick(() => { this.grafikCiz(); this.osiloCiz(); });
+    },
     /* B22.2: cizimi tazele VE tercihi sakla. Bu alanlar her acilista
        yeniden giriliyordu — localStorage hic kullanilmiyordu. */
     pencere(v) { this.grafikCiz(); this.ayarYaz('pencere', v); },
@@ -620,6 +650,7 @@ createApp({
     this.tercihleriYukle();
     this.kopruyuAlgila();
     window.addEventListener('resize', () => { this.grafikCiz(); this.osiloCiz(); });
+    window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); });
     window.addEventListener('mousemove', (e) => this.surukHareket(e));
     window.addEventListener('mouseup', () => this.surukBitir());
     this.grafikCiz();
@@ -637,6 +668,7 @@ createApp({
   },
 
   methods: {
+    gorunumeGit(id) { this.gorunum = id; },
     bicim(x, n) {
       if (!isFinite(x)) return '—';
       return x.toFixed(n);
