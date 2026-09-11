@@ -14,7 +14,7 @@ eksi giris asagi, arti giris yukari.
     R23  6.8K -> 2.7K   (oran 15.71 -> 38.04)
     R23'un alt ucu GND -> VREF
 
-    ONCE :  0 .. +45.5 V   TEK YONLU,  adim 11.1 mV
+    ONCE :  0 .. +45.5 V   TEK YONLU,  adim 11.9 mV
     SONRA: -63.5 .. +46.8 V,           adim 28.8 mV
 
 BEDELI COZUNURLUK — arti taraf HIC daralmiyor, adim iki katina cikiyor.
@@ -445,7 +445,8 @@ def main() -> int:
          "R23 2.7K'ya dusuruldu. Olcum: her iki uctan da sinira yakin "
          "DC ver, kirpma noktalarini oku"),
         ("Cozunurluk kaybi kabul edilebilir mi",
-         f"Adim {T.SKOP_ADIM*1e3:.1f} mV (tek yonluyken 11.1 mV idi). "
+         f"Adim {T.SKOP_ADIM*1e3:.1f} mV (tek yonluyken 11.9 mV idi; "
+         f"ikisi de NOMINAL tam olcekten). "
          "Olcum: kucuk genlikli (1 V tepe) bir dalga sekli cizdir, "
          "basamaklanma goze batiyorsa karar yeniden gorusulecek"),
     ])

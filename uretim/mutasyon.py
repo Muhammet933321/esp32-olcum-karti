@@ -123,6 +123,14 @@ MUTASYONLAR = [
      "#define PIL_AZAMI_V", "#define PIL_AZAMI_V_",
      "pil gerilim tavani yoksa sinir disi pil kabul edilir"),
 
+    # ── B3 · sema YENIDEN URETILEBILIR mi (B25'te bulundu)
+    ("B3s", "netlist3_dogrula.py", "uretim/sema_uret_ortak.py",
+     'return str(uuid.uuid5(_AD_ALANI, f"olcum-karti/{_SAYAC}"))',
+     "return str(uuid.uuid4())",
+     "sema UUID'leri belirlenimli olmali; uuid4 geri gelirse .kicad_sch "
+     "ve netlist HER kosuda degisir, 858 satirlik anlamsiz diff verir "
+     "ve gercek bir tasarim degisikligini bogar"),
+
     # ── B3 · sema (B23.3'te bulunan delik)
     ("B3", "dogrula3.py", "uretim/sema3-uret.py",
      'print(f"yazildi: {hedef}")', "raise SystemExit(1)",

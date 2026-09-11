@@ -1,7 +1,7 @@
 # Ölçüm Kartı — Devir Belgesi
 
 > **Tarih:** 10 Eylül 2026 · **Devreden oturum:** Claude Opus 5 · **Durum:** Aşama 3
-> tasarımı doğrulandı (**17/17**), parçalar yolda, **donanım hâlâ kurulmadı**.
+> tasarımı doğrulandı (**18/18**), **ESP32 geliyor**, kart hâlâ kurulmadı.
 > Kart artık **telefondan, bilgisayar olmadan** kullanılabiliyor (B22).
 >
 > **Kullanıcının okuyacağı belgeler `BELGELER/` klasöründe** — bu dosya
@@ -16,7 +16,7 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
 1. **Doğrulama zincirini koştur.** Belgede yazan her şey bu zincire dayanıyor:
    ```
    cd projeler/olcum-karti/uretim
-   python dogrula3.py          # AŞAMA 3 — GÜNCEL AŞAMA, B1..B22b, 17/17, ~350 s
+   python dogrula3.py          # AŞAMA 3 — GÜNCEL, B1..B25, 18/18, ~6 dk
    python dogrula2.py          # Aşama 2 — A1..A6, 6/6 geçmeli, ~70 s
    python dogrula.py           # Aşama 1 — S1..S9, 9/9 geçmeli, ~110 s
    ```
@@ -34,7 +34,30 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
    ⚠️ Zincir **tasarımı** doğruluyor, kurulmuş bir kartı değil. Donanım
    henüz kurulmadı.
 
-2. **Dosya düzenini bil** (5.12.32'de sadeleştirildi):
+2. **Depo GitHub'da — değişikliği göndermeyi unutma.**
+
+   <https://github.com/Muhammet933321/esp32-olcum-karti> · MIT · public.
+   Yerel depo `projeler/olcum-karti/`, remote `origin`.
+
+   ```
+   cd projeler/olcum-karti
+   git add -A && git commit -m "..."
+   git push origin main
+   ```
+
+   Kimlik **Git Credential Manager**'da kayıtlı (`Muhammet933321`) —
+   şifre sorulmaz, push sessizce geçer. ⚠ **`gh` CLI kurulu ama oturum
+   AÇIK DEĞİL** (`gh auth login` etkileşimli, ajan tamamlayamaz). Depo
+   oluşturmak/ayar değiştirmek gerekirse kullanıcı tarayıcıdan yapar;
+   **push için `gh` gerekmiyor.**
+
+   ⚠ Yayınlamadan önce: `.gitignore` kullanıcının ölçüm günlüğünü
+   (`kopru/arsiv/`) ve `fiyat_tara.py`'yi **bilerek** dışarıda tutuyor.
+   Kişisel iz taraması bütün metin dosyalarını kapsamalı — B24'te
+   `uretim/b15-arastirma.md` üç satırda Windows kullanıcı adı taşıyordu
+   ve ilk tarama onu kaçırmıştı.
+
+3. **Dosya düzenini bil** (5.12.32'de sadeleştirildi):
 
    | Klasör | Ne |
    |---|---|
@@ -42,7 +65,7 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
    | `kod/olcum-karti-a3/` · `sema3/` · `arayuz3/` | Güncel sürümler |
    | **`kopru/`** | **PC köprüsü** (B22.3) — seri↔SSE rölesi, disk arşivi, sürücü hakemi. `Kopru Baslat.bat` ile çalışıyor |
    | `uretim/` | Doğrulama zinciri + üreteçler |
-   | **`uretim/_tezgah.md`** | **ÜRETİLİYOR** — kart kurulunca tezgahta ölçülecek 72 kalem. Elle düzenleme, kalemi ilgili adımın `tezgah(...)` çağrısına ekle |
+   | **`uretim/_tezgah.md`** | **ÜRETİLİYOR** — kart kurulunca tezgahta ölçülecekler. Sayı dosyanın sonunda; elle düzenleme, kalemi ilgili adımın `tezgah(...)` çağrısına ekle |
    | `arsiv/asama1/` · `arsiv/asama2/` | Eski aşamalar, kendi zincirleriyle. ⚠ **`arsiv/` tamamen ölü değil:** `kurulum3-uret.py` biçimini `arsiv/asama2/kurulum2.html`'den okuyor (B23.3'te bulundu) |
 
    Bir sayı değişince `BELGELER/` kendiliğinden güncelleniyor (zincirin
@@ -58,7 +81,7 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
    | `gecici.py` | Kendini silen geçici dizin (`atexit`). Altı betik `mkdtemp` çağırıp silmiyordu |
    | `belge_menu.py` | `BELGELER/` gezinme şeridi — **tek kaynak**, iki üreteç paylaşıyor |
 
-3. **Bu projenin altın kuralı: yeşil test bir şey kanıtlamaz.**
+4. **Bu projenin altın kuralı: yeşil test bir şey kanıtlamaz.**
    Son üç adımda (B17, B20, B21) her seferinde, zincir yeşilken
    **gerçek ve büyük** kusurlar bulundu:
 
@@ -87,15 +110,15 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
    `MUTASYONLAR` listesine onu yalanlayan değişikliği de ekle —
    **koşucu ilk turunda üç boş iddia buldu.**
 
-4. **Bölüm 4'teki "bilinen kusurlar" listesini doğrula.** Gerçekten var mı? Ben yanılmış
+5. **Bölüm 4'teki "bilinen kusurlar" listesini doğrula.** Gerçekten var mı? Ben yanılmış
    olabilirim.
 
-5. **İnternetten araştır.** Bölüm 7'de başlıklar var. Benzer sistem kuranlar ne sorun
+6. **İnternetten araştır.** Bölüm 7'de başlıklar var. Benzer sistem kuranlar ne sorun
    yaşamış, buradaki mimari varsayımlar tutuyor mu, gözden kaçan ne var?
 
-6. **Kendi hata avını yap.** Bu belgeye güvenme.
+7. **Kendi hata avını yap.** Bu belgeye güvenme.
 
-7. **Sonra kullanıcıya ne yapacağını anlat, onay al, öyle başla.**
+8. **Sonra kullanıcıya ne yapacağını anlat, onay al, öyle başla.**
 
 ### ✅ B15 bitti (2026-09-09) — sonuçlar **5.12.24**'te
 
@@ -137,7 +160,8 @@ açık devre kalıntısını kapatmıyordu. Yerine **B18/F12**: R26/R33
 
 Kullanıcı osiloskobun **çift yönlü** olmasını istedi. Bölücünün alt ucu
 GND yerine VREF'e bağlandı ve R23 6.8K → 2.7K: **0…45.5 V tek yönlü**
-yerine **−63.5 … +46.8 V**. Bedeli çözünürlük (11.1 → 26.9 mV).
+yerine **−63.5 … +46.8 V**. Bedeli çözünürlük (**11.9 → 28.8 mV**,
+ikisi de nominal tam ölçekten).
 B19 kendi yazdığım dönüşüm formülündeki hatayı yakaladı (ofset VREF×N
 değil VREF×(N−1); 0 V giriş −65 V okuyordu).
 
@@ -235,11 +259,11 @@ her zaman parolasız çalışıyor, çünkü emniyet kolaylıktan önce gelir.
 ### 🔌 B25 — ESP32 için bringup koşucusu HAZIR (2026-09-11) — **5.12.41**
 
 Kart gelmeden hazırlandı. `uretim/tezgah_kart.py` gerçek karta seri + HTTP
-üzerinden bağlanıp **24 otomatik denetim** yapıyor; aşamalı (çıplak ESP32 →
+üzerinden bağlanıp **27 otomatik denetim** yapıyor; aşamalı (çıplak ESP32 →
 +ADS → +analog ön uç). Kullanımı bu bloğun altındaki
 **"🔌 ESP32 geldiğinde"** bölümünde.
 
-🔴 **Koşucunun kendisi zincirde sınanıyor** (B25, 13 kasıtlı bozuk senaryo).
+🔴 **Koşucunun kendisi zincirde sınanıyor** (B25, 15 kasıtlı bozuk senaryo).
 Yanlış bir bringup testi testsizlikten kötüdür. Öz-test yazılırken koşucuda
 **üç gerçek hata** buldu — biri "aynı kapsam hatası, üçüncü kez".
 
@@ -263,7 +287,8 @@ korumasının varsayılan olarak **açık** olduğunu ima ediyordu; değil.
 Donanım beklerken **elle yazıldığı için ölçümle bağı kopmuş bilgi** kaynağa
 bağlandı. Üç şey kalıcı:
 
-* **`uretim/_tezgah.md` ÜRETİLİYOR** (72 kalem, 17/17 adım). Her tezgah
+* **`uretim/_tezgah.md` ÜRETİLİYOR** (B23'te 72 kalem / 17 adımdı; güncel
+  sayı dosyanın kendisinde). Her tezgah
   kalemi, onu **doğrulayamayan kodun yanında** yaşıyor. DEVIR'de artık liste
   yok, yönlendirme var — çünkü buradaki elle yazılmış 8 satırlık tablo
   B20/B21'de donmuştu ve B22'nin üç bölümü **içermediği** kalemlere atıf
@@ -282,7 +307,7 @@ yazıyordu.
 
 ### 🎯 Şu an sıradaki iş
 
-**Zincir yeşil (17/17). Sıradaki gerçek adım donanımı kurmak.**
+**Zincir yeşil (18/18). ESP32 geliyor — sıradaki gerçek adım kartı kurmak.**
 
 > ⚠️ **Buraya bir kez "tasarım tarafında yapılacak iş kalmadı" yazıldı
 > (B21 sonrası) ve ardından ALTI bölüm boyunca büyük kusurlar bulundu:**
@@ -332,17 +357,18 @@ yanlışlıkla basmasın"*; LAN'daki bir dinleyiciye karşı koruma değil.
 **1 · Firmware'i yükle.** Tam FQBN şart — varsayılanlar çalışmaz:
 
 ```bash
-cd projeler/olcum-karti
-arduino-cli compile --warnings all \
-  --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=huge_app \
-  kod/olcum-karti-a3
-arduino-cli upload -p COM? \
-  --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=huge_app \
-  kod/olcum-karti-a3
+cd projeler/olcum-karti/uretim
+python yukle.py --liste     # ne yapacağını gösterir
+python yukle.py             # derle + yükle (portu kendi bulur)
 ```
 
-`FlashSize=16M` olmadan LittleFS'in `0x310000` ofseti 4 MB sınırına düşer;
-`PSRAM=opi` olmadan 8 MB PSRAM hiç açılmaz. Tek kaynak `uretim/hedef2.py`.
+⚠️ **Çıplak `arduino-cli` komutu çalışmaz** — ikili PATH'te değil,
+`Elekronic/.araclar/arduino-cli.exe` altında. `yukle.py` hem onu buluyor
+hem FQBN'i `hedef2.py`'den okuyor, yani ikisi de elle yazılmıyor.
+
+FQBN tuzaklı: `FlashSize=16M` olmadan LittleFS'in `0x310000` ofseti 4 MB
+sınırına düşer, `PSRAM=opi` olmadan 8 MB PSRAM hiç açılmaz. Kart
+**ESP32-S3 N16R8** olmalı.
 
 **2 · Arayüzü karta yaz.**
 
@@ -369,7 +395,8 @@ python tezgah_kart.py --sifirla --asama 1        # ADS'ler bağlıyken
 python tezgah_kart.py --sifirla --http olcum.local   # web katmanı da
 ```
 
-**24 denetim.** Açılış afişi (PSRAM boyutu, LittleFS, ağ kipi), komut
+**27 denetim** (güncel sayı: `python tezgah_kart.py --liste`). Açılış afişi
+(PSRAM boyutu, LittleFS, ağ kipi), komut
 yüzeyi, çıplak `g`/`i` reddi (K3 tuğlalama), `R` onay kapısı, I²C taraması,
 `D` satırının biçimi/hızı/**örnek sayısı**, ve web tarafında CSRF · jeton ·
 `p0` serbestliği · Host beyaz listesi.
@@ -6418,7 +6445,7 @@ python tezgah_kart.py --sifirla --http olcum.local  # + web katmanı
 | **1** | + ADS1115 modülleri | I²C adresleri, `D` satırının biçimi · hızı · **örnek sayısı** |
 | **2** | + analog ön uç | Değer denetimleri (henüz kalem yok — kart kurulunca eklenecek) |
 
-**24 denetim.** Her beklenen yanıt **firmware kaynağından okunuyor** —
+**27 denetim.** Her beklenen yanıt **firmware kaynağından okunuyor** —
 `D` satırının alan sayısı `.ino`'daki biçim dizesinden sayılıyor, mDNS adı
 `ag.h`'den, beklenen örnek sayısı `sim3_bant.py` ile **aynı bütçeden**
 hesaplanıyor. Elle yazılmış tek beklenti yok.
@@ -6449,7 +6476,7 @@ geçmeyen bir karta "geçti" der ve kusur tezgahtan çıkıp alana gider.
 (zincirde **B25**) koşucuyu bunun üzerinde iki yönlü sınıyor:
 
 1. **Sağlıklı kart** senaryosunda her denetim yeşil
-2. **13 kasıtlı bozuk senaryo** — doğru denetim kırmızı, ötekiler yeşil
+2. **15 kasıtlı bozuk senaryo** — doğru denetim kırmızı, ötekiler yeşil
 
 | Bozuk senaryo | Yakalayan denetim |
 |---|---|
@@ -6467,7 +6494,7 @@ geçmeyen bir karta "geçti" der ve kusur tezgahtan çıkıp alana gider.
 
 Ayrıca **telemetri ayıklama** ayrıca sınanıyor: kart sürekli `D` basıyor ve
 komut yanıtı bu akışın içine düşüyor. Naif bir "gönder, bir satır oku"
-%90 ihtimalle telemetri okur. **36/36 geçiyor.**
+%90 ihtimalle telemetri okur. **38/38 geçiyor.**
 
 ##### Öz-test koşucuda ÜÇ GERÇEK HATA buldu
 
@@ -6583,6 +6610,74 @@ konunca zincir kırmızı, ölçüldü.
 Aşama 2 zinciri geçiyor ama model tutarsız; Aşama 2 arşiv olduğu için
 dokunulmadı.
 
+##### Yan bulgu: şema her koşuda değişiyordu
+
+🔴 Depo GitHub'a çıkınca görüldü: `sema3-uret.py` UUID'leri
+`uuid.uuid4()` ile üretiyordu, yani **şema her üretildiğinde bütün
+UUID'ler değişiyordu.** 242 KB'lik `.kicad_sch` ve 114 KB'lik netlist
+her zincir koşusunda **858 satırlık anlamsız bir diff** veriyordu — ve
+bu her commit'te tekrarlayıp **gerçek bir tasarım değişikliğini
+boğardı**.
+
+UUID'ler artık bir sayaçtan türetiliyor (`uuid.uuid5` + sabit ad alanı).
+KiCad için tek gereklilik dosya **içinde** benzersizlik; küresel
+benzersizlik gerekmiyor. Ölçüldü: üç ardışık üretim **aynı SHA-256**.
+
+Şema böylece projenin geri kalanıyla aynı disipline girdi —
+**yeniden üretilebilir bir yapı**. `netlist3_dogrula.py` iki iddiayla
+koruyor (mutasyon: `uuid4` geri konunca kırmızı, ölçüldü).
+
+⚠ İddianın ilk iki yazımı **boştu**: aradığı `uuid4()` dizgesi kendi
+gerekçe yorumunda ve bir docstring'te de geçiyordu, yani iddia
+**kendi açıklaması yüzünden** kırmızı yanıyordu. Kapsam koda
+sınırlandırıldı. *Aynı sınıf, bu oturumda dördüncü kez.*
+
+##### Kayıt denetimi (10 ajan, 60 doğrulanmış bulgu)
+
+Kayıt yazıldıktan **sonra** bağımsız bir denetim koşturuldu — "yeni bir
+oturum bunu okuyup ne yapacağını bilebilir mi" diye. On yüksek öncelikli
+bulgu çıktı ve hepsi kapatıldı:
+
+🔴 **ESP32 gününün BİRİNCİ komutu olduğu gibi koşmuyordu.** İlk gün akışı
+çıplak `arduino-cli compile` yazıyordu; ikili **PATH'te değil**,
+`Elekronic/.araclar/` altında. Üstelik FQBN iki komutta **elle
+tekrarlanıyordu** — tek kaynak `hedef2.py` olduğu hâlde. `uretim/yukle.py`
+ikisini birden kapattı: `arduino-cli`'yi buluyor, FQBN'i `hedef2.py`'den
+okuyor.
+
+🔴 **DEVIR kendi içinde çelişiyordu:** aynı bölüm hem "24 denetim / 13
+senaryo / 36-36" hem "27 denetim / 15 senaryo" diyordu. Sayılar
+tazelendi; `--liste` artık **aşama başına** sayıyı basıyor.
+
+🔴 **Bölüm 6.1'in emniyet kutusu** hâlâ *"pil + WiFi ile yüzdür"*ü
+koşulsuz çözüm diye sunuyordu — 5.12.40'ın düzeltmesi oraya işlenmemişti.
+Yalıtımlı kutu şartı eklendi.
+
+🔴 **`tezgah_kart.py` boş bir vaat taşıyordu:** docstring "aşama 2 = değer
+denetimleri" diyordu ama o aşamaya ait **tek denetim yoktu**; `--asama 2`
+ile `--asama 1` aynı kümeyi koşturuyordu. Docstring dürüstleştirildi ve
+`--liste` boş aşamayı **açıkça** gösteriyor.
+
+🔴 **README'nin `#safety` bağlantısı yanlış yere gidiyordu** — lisans
+bölümünü eklerken elektriksel emniyet metnini başlıksız bırakmışım, yani
+*"615 V öldürür"* uyarısına giden bağlantı **ağ güvenliği** paragrafına
+düşüyordu. Bölüm yeniden kuruldu: **elektriksel önce**.
+
+🔴 **Envanteri iki değil ÜÇ adım okuyor.** B11 bunu `.exists()` ile
+korumuyordu: temiz bir klonda iddia sessizce başarısız oluyor ve
+*"envanter.csv okundu (0 B): 7912 var"* gibi anlamsız bir mesaj veriyordu.
+B16'nın deseni uygulandı — atlama duyuruluyor, iddia sayısı korunuyor.
+
+🔴 **Skop çözünürlüğü altı dosyada iki farklı tabandan** yazılıydı:
+"11.1 → 26.9 mV" — öncesi **etkin aralıktan** (2.9 V), sonrası
+**nominalden** (3.1 V). B20 adımın bir LSB olduğunu, yani nominalden
+türediğini söylüyor. Hepsi aynı tabana getirildi (**11.9 → 28.8 mV**) ve
+kullanıcı kılavuzu artık `SKOP_ADIM_ESKI` sabitinden türetiyor.
+
+🔴 **`4-kurulum.html`'de `<!doctype>`, `charset` ve `viewport` yoktu** —
+sekiz sayfadan yalnızca onda. Tezgahta okunacak, Türkçe karakterli bir
+sayfa için tarayıcının kodlamayı tahmin etmesine bırakılmıştı.
+
 ##### Doğrulama
 
 Zincir **18/18**, 75 tezgah kalemi (güncel iddia sayısı
@@ -6656,6 +6751,16 @@ düşük empedanslı düğümlerde doğru; yüksek empedanslı düğümlerde mul
 >
 > Yalnız **izole ikincil taraf**, ya da tamamen izole çalışma (pil + WiFi, USB takılı
 > değil).
+>
+> 🔴 **AMA YÜZDÜRMEK TEK BAŞINA YETMEZ — B15/D2 bunu ölçtü.** Pille
+> yüzdürmek **bilgisayarı kurtarır, KULLANICIYI kurtarmaz**: kart o anda
+> şebeke potansiyeline çıkar ve **kartın her noktası** tehlikeli olur.
+> 615 V, yüzen alet sınırının **14.6 katı**. Şebeke referanslı ölçümde
+> **yalıtımlı kutu ŞART** (hiçbir noktaya el erişimi yok), delikli
+> plakette takviyeli yalıtım için **5 delik atlanacak** (12.7 mm,
+> IEC 60664 creepage 12.6 mm) ve enerji varken karta dokunulmayacak.
+> Ayrıntı **5.12.40**'ta; kullanıcı tarafı `BELGELER/4-kurulum.html`'in
+> ilk uyarısında.
 
 Aşama 2 yol haritasındaki *"ESP-01 WiFi izolasyonu — 400 V ölçümüyle birlikte zorunlu"*
 notu bunun aynısıydı. **Hızlı skop kanalı gelince bu not isteğe bağlı olmaktan çıkıp

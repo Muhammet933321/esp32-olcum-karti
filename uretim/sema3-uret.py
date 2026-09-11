@@ -49,7 +49,7 @@ sema_uret_ortak.PROJE = "olcum-karti-a3"                 # parca() bunu kullanir
 
 from kutuphane import sembol_cek                         # noqa: E402
 from sema_uret_ortak import (KOK, dugum, etiket, parca,   # noqa: E402
-                             pin_konum, yazi, yol)
+                             pin_konum, u, yazi, yol)
 import tasarim3_sabit as T                               # noqa: E402
 
 BURASI = Path(__file__).parent
@@ -100,9 +100,12 @@ def guc(sembol, x, y, aci=0):
 
 
 def baglanti_yok(x, y):
-    """KiCad no_connect ogesi — ucun BILEREK bos oldugunu ERC'ye soyler."""
-    import uuid as _uuid
-    return f'\t(no_connect (at {x} {y}) (uuid "{_uuid.uuid4()}"))\n'
+    """KiCad no_connect ogesi — ucun BILEREK bos oldugunu ERC'ye soyler.
+
+    ⚠ UUID ortak yardimcidan (belirlenimli). `uuid.uuid4()` kullanilirsa
+    sema her uretimde degisir ve git diff'i anlamsizlasir.
+    """
+    return f'\t(no_connect (at {x} {y}) (uuid "{u()}"))\n'
 
 
 def seri_direncler(x, y_bas, adet, ilk_no, deger, aralik=17.78):
@@ -415,7 +418,7 @@ r18 = koy(R, 162.56, 193.04, "R20", "100K")
 #       cozumun aynisi. Sifir giris = VREF, eksi giris asagi, arti yukari.
 #       R23 6.8K -> 2.7K ile oran 38.04:
 #            -65.2 V .. +45.1 V   (arti taraf HIC daralmiyor)
-#       Bedeli COZUNURLUK: adim 11.1 -> 26.9 mV.
+#       Bedeli COZUNURLUK: adim 11.9 -> 28.8 mV (ikisi de nominal 3.1 V).
 #
 # ⚠ YENI AKIM YOLU: skop girisinden gelen akim artik GND'ye degil VREF'e
 #   gidiyor. Normalde +-0.65 mA, 615 V arizasinda 6.0 mA. sim3_skop.py

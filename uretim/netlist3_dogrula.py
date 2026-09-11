@@ -464,6 +464,40 @@ def main() -> int:
     print(f"  {'[OK]' if tamam else '[!!]'}   "
           f"{'Bilerek bos uclar: ADS#2 ALERT + J5 yedek pin':<52} {bos}")
 
+    # 🔴 SEMA YENIDEN URETILEBILIR OLMALI. UUID'ler `uuid.uuid4()` ile
+    #    uretiliyordu ve sema her kosuda DEGISIYORDU: 242 KB'lik
+    #    `.kicad_sch` ve 114 KB'lik netlist her zincir kosusunda 858
+    #    satirlik ANLAMSIZ bir diff veriyordu. Depo GitHub'da oldugu icin
+    #    bu her commit'te tekrarlar ve gercek bir tasarim degisikligini
+    #    bogardi. Artik UUID'ler bir sayactan turetiliyor.
+    # ⚠ Kapsam: yorumlarda da "uuid4()" gecıyor (kaldirma gerekcesi orada
+    #   yaziyor). Ham metinde aramak iddiayi BOZUYORDU — kendi aciklamasi
+    #   yuzunden kirmizi yaniyordu. Yalnizca KODA bak.
+    def _kod(x):
+        # Yalnizca `#` cikarmak YETMEDI: gerekce bir DOCSTRING'te de
+        # yaziyordu ve iddia yine kendi aciklamasi yuzunden kirmizi
+        # yandi. Docstring'ler de cikariliyor. (Bu projede ayni kapsam
+        # hatasi defalarca tekrarlandi — metin tabanli her iddiada
+        # "aradigim sey yorumda da gecıyor mu?" diye sor.)
+        x = re.sub(r'"""', '\x00', x)
+        x = re.sub(r"\x00[^\x00]*\x00", "", x)
+        return re.sub(r"#.*", "", x)
+
+    _ort = (BURASI / "sema_uret_ortak.py").read_text(encoding="utf-8")
+    _u3 = (BURASI / "sema3-uret.py").read_text(encoding="utf-8")
+    print()
+    print("  Sema YENIDEN URETILEBILIR mi")
+    for ad, tamam, ek in (
+            ("Sema UUID'leri BELIRLENIMLI (uuid4 yok)",
+             "uuid4()" not in _kod(_ort) and "uuid4()" not in _kod(_u3),
+             "uuid4 geri gelirse sema her kosuda degisir"),
+            ("UUID sabit bir ad alanindan uretiliyor",
+             "uuid.uuid5(" in _kod(_ort),
+             "ayni girdi -> ayni dosya")):
+        gecti += tamam
+        kaldi += not tamam
+        print(f"  {'[OK]' if tamam else '[!!]'}   {ad:<52} {ek}")
+
     print()
     print(f"  {gecti}/{gecti + kaldi} dogrulama gecti")
     tezgah("B3 Sema", [

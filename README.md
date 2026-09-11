@@ -80,7 +80,7 @@ send `N0` over the serial console if you want the measurement loop left alone.
 | [`kopru/`](kopru) | PC bridge — serial↔SSE relay, disk archive, driver arbitration. Python standard library only |
 | [`BELGELER/`](BELGELER) | **User documentation, generated** — HTML + PDF. Start at `index.html` |
 | [`uretim/`](uretim) | The verification chain, simulations, generators and the hardware bring-up harness |
-| [`uretim/_tezgah.md`](uretim/_tezgah.md) | **Generated** — the 72 things that must be measured once the hardware exists |
+| [`uretim/_tezgah.md`](uretim/_tezgah.md) | **Generated** — everything that must be measured once the hardware exists |
 | [`DEVIR.md`](DEVIR.md) | Engineering journal. Long, chronological, Turkish — the record of how every decision was reached |
 | [`arsiv/`](arsiv) | Earlier stages (ATmega328P, then a first ESP32 revision), each with its own chain |
 
@@ -133,7 +133,8 @@ python tezgah_kart.py --sifirla --asama 1           # + ADS1115 modules
 python tezgah_kart.py --sifirla --http olcum.local  # + the web layer
 ```
 
-**24 checks**, staged by what hardware you have: boot banner (PSRAM size,
+**27 checks** (`--liste` prints the current set), staged by what hardware
+you have: boot banner (PSRAM size,
 LittleFS, network mode), the command surface, the guards that once bricked a
 channel, the I²C scan, the `D` line's format, rate and **sample count**, and
 on the HTTP side CSRF, token, `p0`-always-free and the Host allowlist. Every
@@ -147,12 +148,13 @@ sampling loop moves to its own core.
 something a test script may do on its own; that check stays manual.
 
 The harness itself is tested without hardware: `test_tezgah_kart.py` runs it
-against a scripted replay board — green on a healthy board, and each of **13
+against a scripted replay board — green on a healthy board, and each of **15
 deliberately broken boards** must turn the *right* check red. A wrong bring-up
 test is worse than none: it tells you a bad board is good.
 
 What still needs a multimeter is in
-[`uretim/_tezgah.md`](uretim/_tezgah.md) — 72 items, 9 marked for day one.
+[`uretim/_tezgah.md`](uretim/_tezgah.md) — the count and the day-one subset
+are at the top of that generated file.
 
 ## The verification chain
 
@@ -217,9 +219,9 @@ dependencies** that only appear when the project is run from a clean tree.
 
 Everything here is computation and simulation. The board has never been built.
 The chain therefore ends by generating **[`uretim/_tezgah.md`](uretim/_tezgah.md)** —
-**72 measurements**, each written next to the code that *cannot* verify it,
-with an acceptance criterion. **9 of them are marked for the first day**, among
-them:
+Every item is written next to the code that *cannot* verify it, with an
+acceptance criterion, and the ones marked for the first day are listed at the
+top. Among them:
 
 - the `+3V3` rail being back-fed through the clamps when USB is unplugged while
   the ±12 V supply is on — expected rail **1.670 V**, i.e. **1930 mV** of
@@ -249,15 +251,18 @@ fresh clone — both are handled with an explicit message rather than a crash:
 - `arduino-cli.exe`, looked up at `../../.araclar/arduino-cli.exe` relative to
   the project root (a hidden tools directory outside the repo)
 - the author's personal component inventory (`stok-takip/envanter.csv`), which
-  **two** steps compare the design against. Without it, B16 announces the skip
-  and keeps its assertion count intact, but **B9 exits early and the chain goes
-  red** — it stops before declaring its bench items, and that check is separate
-  from the count lock, so `--sayim-kilidi-yaz` does not silence it. Everything
-  the inventory step would tell you is already in
-  [`BELGELER/2-malzemeler.html`](BELGELER/2-malzemeler.html); the other 16
-  steps do not need it.
+  **three** steps compare the design against. B11 and B16 announce the skip and
+  keep their assertion counts intact, so they stay green; **B9 exits early and
+  the chain goes red** — it stops before declaring its bench items, and that
+  check is separate from the count lock, so `--sayim-kilidi-yaz` does not
+  silence it. Everything the inventory step would tell you is already in
+  [`BELGELER/2-malzemeler.html`](BELGELER/2-malzemeler.html).
 
 Tool paths are currently hard-coded for Windows (`C:\Program Files\KiCad\10.0\bin`).
+
+## Safety
+
+### Electrical — this is the part that can kill you
 
 **615 V is lethal, and this board is not isolated.** With USB connected, the
 board's ground is your computer's ground — connect it to a mains-referenced
@@ -280,18 +285,7 @@ acceptance criterion: *no single fault may kill the ESP32 or the PC.* That
 criterion is about **equipment**, not about you; scenario D2 is the reason
 the sentence above exists.
 
-## License
-
-**MIT** — see [LICENSE](LICENSE). Use it, change it, sell it; keep the notice.
-
-The vendored Vue 3.5.13 in `arayuz3/vendor/` is MIT as well, credited in the
-same file.
-
-⚠️ The licence disclaims warranty, and that matters more than usual here: this
-is a **615 V instrument whose design has never been built or measured**. You
-are responsible for your own safety.
-
-## Safety
+### Over the network
 
 Dangerous commands over the network (starting a battery discharge, writing
 calibration) always require a session token plus a custom header, which stops
@@ -307,3 +301,14 @@ The paragraph above describes the **board**. The PC bridge applies the same
 rule at its own endpoint, but there the token travels over your LAN in clear
 text like everything else — it keeps other pages from driving your board, not
 a listener on the network.
+
+## License
+
+**MIT** — see [LICENSE](LICENSE). Use it, change it, sell it; keep the notice.
+
+The vendored Vue 3.5.13 in `arayuz3/vendor/` is MIT as well, credited in the
+same file.
+
+⚠️ The licence disclaims warranty, and that matters more than usual here: this
+is a **615 V instrument whose design has never been built or measured**. You
+are responsible for your own safety.

@@ -12,12 +12,40 @@ import uuid
 
 from kutuphane import pinler
 
-KOK = str(uuid.uuid4())
 PROJE = "olcum-karti-a2"
 PROJE2 = "olcum-karti-a2"
 
+# 🔴 UUID'LER BELIRLENIMLI. Once `uuid.uuid4()` kullaniliyordu ve sema her
+#    uretildiginde butun UUID'ler degisiyordu: `sema3/*.kicad_sch` (242 KB)
+#    ve `netlist3.net` her zincir kosusunda 858 SATIRLIK anlamsiz bir diff
+#    veriyordu. Depo GitHub'da oldugu icin bu her commit'te tekrarlardi ve
+#    GERCEK bir tasarim degisikligini bogardi.
+#
+#    Artik UUID'ler bir sayactan TURETILIYOR: ayni girdi -> ayni dosya.
+#    Boylece `git diff` yalnizca gercekten degisen seyi gosteriyor ve
+#    sema YENIDEN URETILEBILIR bir yapi olmus oluyor — projenin geri
+#    kalaniyla ayni disiplin.
+#
+#    ⚠ UUID'lerin KiCad icin tek gerekliligi dosya ICINDE benzersiz
+#    olmalari; kuresel benzersizlik gerekmiyor. `uuid.uuid5` sabit bir ad
+#    alaniyla bunu saglıyor.
+_AD_ALANI = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
+_SAYAC = 0
+
+
+def uuid_sifirla() -> None:
+    """Uretime baslarken cagrilir — iki kosu ayni diziyi versin."""
+    global _SAYAC
+    _SAYAC = 0
+
+
 def u() -> str:
-    return str(uuid.uuid4())
+    global _SAYAC
+    _SAYAC += 1
+    return str(uuid.uuid5(_AD_ALANI, f"olcum-karti/{_SAYAC}"))
+
+
+KOK = u()
 
 
 # ---------------------------------------------------------- pin konumlari

@@ -9,9 +9,9 @@
     python tezgah_kart.py --http olcum.local web katmanini da sina
     python tezgah_kart.py --liste            ne kosacagini yazar, kosmaz
 
-🔴 NEDEN VAR. Zincirin 17 adimi TASARIMI dogruluyor; kart hic kurulmadi.
+🔴 NEDEN VAR. Zincirin adimlari TASARIMI dogruluyor; kart hic kurulmadi.
 `uretim/_tezgah.md` neyin olculecegini soyluyor ama bir KONTROL LISTESI —
-insan okur, koşmaz. Donanim geldiginde elle 70 kalem denemek hem yavas hem
+insan okur, kosmaz. Donanim geldiginde onlarca kalemi elle denemek hem yavas hem
 atlamaya acik. Bu betik, elle denenmesi gerekmeyen her seyi OTOMATIK
 kosturuyor; geriye yalnizca gercekten multimetre isteyen kalemler kaliyor.
 
@@ -21,7 +21,11 @@ kosturuyor; geriye yalnizca gercekten multimetre isteyen kalemler kaliyor.
   1  + ADS1115 modulleri (I2C). Girisler BOSTA.
      Adresler, olcum satirinin BICIMI ve HIZI. DEGERLER anlamsiz — o
      yuzden hicbir denetim okunan gerilime/akima BAKMIYOR.
-  2  + analog on uc kurulmus. Deger denetimleri burada anlamli olur.
+  2  + analog on uc kurulmus. ⚠ SU AN BOS — bu asamaya ait tek denetim
+     YOK. Deger denetimleri (bolucu dogrusallugu, Vref rayi, sont Kelvin)
+     multimetre istiyor ve `uretim/_tezgah.md`'de ELLE yapilacak kalem
+     olarak duruyor. `--asama 2` bugun `--asama 1` ile ayni kumeyi
+     kosturuyor; `--liste` her asamanin denetim sayisini basiyor.
 
 Her denetim hangi asamada kosabilecegini KENDI soyluyor; ustteki asama
 alttakileri de kosturuyor.
@@ -717,6 +721,13 @@ def main() -> int:
             if islev.__doc__:
                 print(f"       {islev.__doc__.strip().splitlines()[0]}")
         print()
+        # Asama basina sayi KAYNAKTAN: bos bir asama varsa gorunsun.
+        from collections import Counter
+        _say = Counter(g for _a, g, _t, _i in DENETIMLER)
+        for _as in (0, 1, 2):
+            _n = _say.get(_as, 0)
+            _not = "  (bos — bu asamanin kalemleri _tezgah.md'de elle)" if not _n else ""
+            print(f"  asama {_as}: {_n} denetim{_not}")
         print(f"  Toplam {len(DENETIMLER)} denetim.")
         print("  Elle yapilacaklar (multimetre isteyenler): uretim/_tezgah.md")
         return 0

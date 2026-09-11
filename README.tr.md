@@ -115,17 +115,18 @@ CSRF yüzeyi) ve malzeme listesi.
 **1 · Firmware'i yükle.** Tam FQBN şart — varsayılanlar çalışmaz:
 
 ```bash
-cd projeler/olcum-karti
-arduino-cli compile --warnings all \
-  --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=huge_app \
-  kod/olcum-karti-a3
-arduino-cli upload -p COM? \
-  --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=huge_app \
-  kod/olcum-karti-a3
+cd projeler/olcum-karti/uretim
+python yukle.py --liste     # ne yapacağını gösterir
+python yukle.py             # derle + yükle (portu kendi bulur)
 ```
 
-`FlashSize=16M` olmadan LittleFS'in `0x310000` ofseti 4 MB sınırına düşer;
-`PSRAM=opi` olmadan 8 MB PSRAM hiç açılmaz. Tek kaynak `uretim/hedef2.py`.
+⚠️ **Çıplak `arduino-cli` komutu çalışmaz** — ikili PATH'te değil,
+`Elekronic/.araclar/arduino-cli.exe` altında. `yukle.py` hem onu buluyor
+hem FQBN'i `hedef2.py`'den okuyor, yani ikisi de elle yazılmıyor.
+
+FQBN tuzaklı: `FlashSize=16M` olmadan LittleFS'in `0x310000` ofseti 4 MB
+sınırına düşer, `PSRAM=opi` olmadan 8 MB PSRAM hiç açılmaz. Kart
+**ESP32-S3 N16R8** olmalı.
 
 **2 · Arayüzü karta yaz.**
 
@@ -152,7 +153,8 @@ python tezgah_kart.py --sifirla --asama 1        # ADS'ler bağlıyken
 python tezgah_kart.py --sifirla --http olcum.local   # web katmanı da
 ```
 
-**24 denetim.** Açılış afişi (PSRAM boyutu, LittleFS, ağ kipi), komut
+**27 denetim** (güncel sayı: `python tezgah_kart.py --liste`). Açılış
+afişi (PSRAM boyutu, LittleFS, ağ kipi), komut
 yüzeyi, çıplak `g`/`i` reddi (K3 tuğlalama), `R` onay kapısı, I²C taraması,
 `D` satırının biçimi/hızı/**örnek sayısı**, ve web tarafında CSRF · jeton ·
 `p0` serbestliği · Host beyaz listesi.

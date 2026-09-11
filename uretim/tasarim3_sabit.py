@@ -578,13 +578,22 @@ KELEPCE_DUGUM_C = 33e-12
 #
 # B19 (2026-09-09, kullanici karari): kanal CIFT YONLU yapildi.
 #   ONCE : R23 6.8K, alt uc GND'de -> 0 .. 45.5 V TEK YONLU
-#   SIMDI: R23 2.7K, alt uc VREF'te -> -65.2 .. +45.1 V
+#   SIMDI: R23 2.7K, alt uc VREF'te -> SKOP_MENZIL_EKSI .. +ARTI
 # Alt ucun VREF'e baglanmasi, gerilim kanallarinin zaten kullandigi
-# cozumun aynisi. Bedeli COZUNURLUK: adim 11.1 -> 26.9 mV.
+# cozumun aynisi. Bedeli COZUNURLUK.
+#
+# ⚠ SAYILAR BURADA YAZILMIYOR. Bir ara "-65.2 .. +45.1 V" ve
+#   "adim 11.1 -> 26.9 mV" yaziyordu; ikisi de BAYATTI ve ustelik
+#   11.1 ile 26.9 FARKLI TABANDAN hesaplanmisti (biri ETKIN aralik
+#   2.9 V, oteki NOMINAL 3.1 V). B20 adimin bir LSB oldugunu, yani
+#   NOMINALDEN turedigini soyluyor. Guncel degerler asagida
+#   SKOP_MENZIL_* ve SKOP_ADIM olarak HESAPLANIYOR; eski adim da
+#   SKOP_ADIM_ESKI ile ayni tabandan turetiliyor.
 SKOP_RUST = 100e3
 SKOP_RALT_ESKI = 6.8e3                    # B19 oncesi
 SKOP_RALT = 2.7e3
 SKOP_N = (SKOP_RUST + SKOP_RALT) / SKOP_RALT
+SKOP_N_ESKI = (SKOP_RUST + SKOP_RALT_ESKI) / SKOP_RALT_ESKI
 SKOP_ALT_UC_VREF = True                   # B19: alt uc GND'de DEGIL
 SKOP_TAVAN = 3.1                          # ESP32 ADC'nin nominal ustu
                                           # (kelepce/pay hesaplari icin;
@@ -619,6 +628,10 @@ SKOP_MENZIL_ARTI = ESP_ADC_ETKIN_UST * SKOP_N - SKOP_VOLT_OFSET
 #   kalibre edilmeli. sim3_bant.py bolum 6c dort kopyanin AYNI kalmasini
 #   sinar, DOGRU olmasini degil.
 SKOP_ADIM = SKOP_TAVAN / 4096 * SKOP_N
+# B19 oncesi adim — AYNI TABANDAN (nominal 3.1 V). Kullanici
+# kilavuzu 'bedeli cozunurluk' cumlesinde bunu kullaniyor; elle
+# yazilinca iki farkli taban karisiyordu.
+SKOP_ADIM_ESKI = SKOP_TAVAN / 4096 * SKOP_N_ESKI
 
 # ── Sont kanali (BLOK 4)
 SONT_KELVIN_R = 100.0                     # R18 / R19

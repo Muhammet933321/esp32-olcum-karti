@@ -246,7 +246,8 @@ gidiyor (gerilim kanallarının zaten kullandığı çözüm). Sıfır giriş =
 VREF, eksi giriş aşağı, artı giriş yukarı. Menzil
 <span class="deger">{T.SKOP_MENZIL_EKSI:.1f} … +{T.SKOP_MENZIL_ARTI:.1f} V</span>,
 adım {T.SKOP_ADIM*1e3:.1f} mV. Öncesi 0…45.5 V tek yönlüydü, adım
-11.1 mV — <b>bedeli çözünürlük</b>.</p>
+{T.SKOP_ADIM_ESKI*1e3:.1f} mV —
+<b>bedeli çözünürlük</b>.</p>
 <p>⚠️ <b>R23'ü GND'ye lehimleme.</b> Şemada VREF'e gidiyor; GND'ye
 takılırsa kanal sessizce tek yönlü kalır ve okumalar
 {T.SKOP_VOLT_OFSET:.0f} V kayar.</p>
@@ -344,10 +345,15 @@ mesafe = n_delik * T.DELIKLI_ADIM
 CSS = _BICIM_KAYNAGI.read_text(encoding="utf-8")
 CSS = CSS[CSS.index("<style>"):CSS.index("</style>") + 8]
 
-sayfa = f"""<!-- URETILDI: uretim/kurulum3-uret.py — ELLE DUZENLEME -->
+sayfa = f"""<!doctype html>
+<!-- URETILDI: uretim/kurulum3-uret.py — ELLE DUZENLEME -->
+<html lang="tr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Aşama 3 Tezgâh Kurulumu</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 {CSS}
+</head><body>
 
 <div class="sayfa">
 
@@ -476,6 +482,7 @@ sayfa = f"""<!-- URETILDI: uretim/kurulum3-uret.py — ELLE DUZENLEME -->
   elle yazılmıyor. Tasarım değişirse bu sayfa peşinden gider.
 </footer>
 </div>
+</body></html>
 """
 
 # BELGELER/ yoksa YARAT. Bu betik B9'da `belge-uret.py`'den ONCE

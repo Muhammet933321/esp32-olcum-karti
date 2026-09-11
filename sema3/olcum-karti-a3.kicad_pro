@@ -7,6 +7,6 @@
   "erc": {"rule_severities": {"ground_pin_not_ground": "ignore"}},
   "net_settings": {"classes": [{"name": "Default"}]},
   "schematic": {"legacy_lib_dir": "", "legacy_lib_list": []},
-  "sheets": [["d04efb21-6198-40f1-9b3b-8cdfa77f3889", "Root"]],
+  "sheets": [["6df7e97a-884c-504b-bdcb-42316ece052a", "Root"]],
   "text_variables": {}
 }

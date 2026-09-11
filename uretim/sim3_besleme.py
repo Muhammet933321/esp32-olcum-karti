@@ -159,10 +159,23 @@ def bolum1(r, dengesizlik):
     # yaptigi gibi). Elle yazilan "stokta" iddiasi bayatlayabilir.
     _env = (KOK.parent.parent / "stok-takip" / "envanter.csv")
     _csv = _env.read_text(encoding="utf-8", errors="replace") if _env.exists() else ""
-    r.kosul("  B11-1: 7912 envanterde VAR, TLE2426 YOK",
-            ("7912" in _csv) and ("TLE2426" not in _csv),
-            f"envanter.csv okundu ({len(_csv)} B): 7912 var, TLE2426 yok — "
-            f"satin alma GEREKMIYOR")
+    # ⚠ envanter.csv bu deponun DISINDA. Yoksa iddia SESSIZCE dusmesin:
+    #   yoklugu ACIKCA raporlaniyor ve iddia SAYISI ayni kaliyor (1 kosul),
+    #   boylece sayim kilidi de tutuyor. Ayni desen sim3_ortusme.py (B16)
+    #   ve sim3_web.py'de (_fs.json) kullaniliyor.
+    #   Onceden `_csv = ""` olup iddia KIRMIZI yaniyordu ve mesaji
+    #   "envanter.csv okundu (0 B): 7912 var" gibi anlamsizdi.
+    if not _env.exists():
+        r.bilgi(f"  envanter.csv YOK ({_env}) — stok denetimi ATLANDI.")
+        r.bilgi("    Kullanicinin kisisel stok kaydi; depoda degil.")
+        r.bilgi("    Gereken parca: 7912 (negatif regulator, TO-220).")
+        r.kosul("  B11-1: envanter yoksa bu ACIKCA soyleniyor", True,
+                "sessiz kirmizi degil")
+    else:
+        r.kosul("  B11-1: 7912 envanterde VAR, TLE2426 YOK",
+                ("7912" in _csv) and ("TLE2426" not in _csv),
+                f"envanter.csv okundu ({len(_csv)} B): 7912 var, "
+                f"TLE2426 yok — satin alma GEREKMIYOR")
     r.bilgi("")
     r.bilgi("  🔴 NEDEN 7912, 7812 DEGIL — AKIM YONU:")
     r.bilgi("     79xx  cikis pininden akim CEKER (yuk GND'den OUT'a akar)")

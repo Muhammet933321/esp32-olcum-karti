@@ -94,8 +94,12 @@
  */
 /* B19 (2026-09-09): kanal CIFT YONLU yapildi.
  * Bolucunun ALT UCU artik GND'de degil VREF'te (semada R23 -> VREF),
- * ve R23 6.8K -> 2.7K. Menzil 0..45.5 V yerine -65.2 .. +45.1 V.
- * Bedeli cozunurluk: adim 11.1 -> 26.9 mV.
+ * ve R23 6.8K -> 2.7K. Menzil 0..45.5 V yerine -63.5 .. +46.8 V.
+ * Bedeli cozunurluk: adim 11.9 -> 28.8 mV.
+ * (Ikisi de NOMINAL tam olcekten, SKOP_ADC_TAVAN=3.1 V. Bir ara
+ *  "11.1 -> 26.9" yaziyordu: onceki deger ETKIN aralıktan (2.9 V),
+ *  sonraki nominalden hesaplanmisti — iki farkli taban. B20 adimin
+ *  bir LSB oldugunu, yani NOMINALDEN turedigini soyluyor.)
  *
  * Donusum artik OFSETLI. Bolucunun alt ucu VREF'te oldugu icin
  *     V_dugum = VREF + (V_giris - VREF) * R23/(R20+R23)

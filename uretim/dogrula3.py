@@ -62,7 +62,8 @@
       ESP32'nin ADC'si eksi okumadigi icin skop kanali 0..45.5 V TEK
       YONLUYDU. Bolucunun alt ucu GND yerine VREF'e baglandi (gerilim
       kanallarinin zaten kullandigi cozum) ve R23 6.8K -> 2.7K yapildi:
-      -63.5 .. +46.8 V. Bedeli cozunurluk (11.1 -> 26.9 mV). Yeni akim
+      -63.5 .. +46.8 V. Bedeli cozunurluk (11.9 -> 28.8 mV, ikisi de
+      NOMINAL tam olcekten). Yeni akim
       yolu (skop akimi artik VREF'e gidiyor) normalde ve 615 V arizasinda
       olculuyor: VREF kaymiyor. Ayrica ayni sayinin dort dosyada
       (sabitler, sema, firmware, arayuz) ayrismadigi denetleniyor.
@@ -150,6 +151,7 @@ donanimi henuz kurulmadi.
 """
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import textwrap
@@ -354,6 +356,21 @@ def main() -> int:
     ihlal = [x for x in erc.stdout.splitlines() if "violation" in x.lower()]
     erc_temiz = "Found 0 violations" in erc.stdout
     print(f"  ERC: {ihlal[0].strip() if ihlal else '?'}")
+    # 🔴 NETLIST'I NORMALLESTIR. kicad-cli iki UCUCU sey gomuyor:
+    #    uretim ZAMAN DAMGASI ve semanin MUTLAK YOLU. Ikisi de her
+    #    kosuda degisiyor/makineye ozgu:
+    #      * zaman damgasi -> her commit'te anlamsiz diff
+    #      * `C:\Muhammet\...` -> YAYINLANAN depoda kisisel iz
+    #    Netlist bir yapi urunu ama `belge-uret.py` onu okuyor, o yuzden
+    #    depoda duruyor. Normallestirince hem belirlenimli hem temiz.
+    _net = BURASI / "netlist3.net"
+    if _net.exists():
+        _m = _net.read_text(encoding="utf-8", errors="replace")
+        _m = re.sub(r'\(date "[^"]*"\)', '(date "")', _m, count=1)
+        _m = re.sub(r'\(source "[^"]*"\)',
+                    '(source "sema3/olcum-karti-a3.kicad_sch")', _m, count=1)
+        _net.write_text(_m, encoding="utf-8")
+
     n = subprocess.run([sys.executable, "netlist3_dogrula.py"], cwd=BURASI,
                        capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=300)
