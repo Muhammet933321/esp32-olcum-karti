@@ -364,8 +364,112 @@ def adim4() -> str:
     return cizim("Adım 4 — şönt + LM358", o, aciklama, netler)
 
 
+# ═══════════════════════════════════ B26: ADS BRINGUP (asama 1)
+ADS_PINLER = ["VDD", "GND", "SCL", "SDA", "ADDR", "ALRT",
+              "A0", "A1", "A2", "A3"]
+
+
+def modul(sutun, pin_adlari, etiket, kimlik):
+    """Tek sirali breakout modulu (ADS1115 gibi).
+
+    Pinler E satirinda, govde kanali ortuyor — DIP'in tek sirali hali.
+    Her pinin BOS kardes delikleri A-D'de kaliyor, teller oraya gidiyor.
+    """
+    n = len(pin_adlari)
+    x1, _ = xy("E", sutun)
+    x2, _ = xy("E", sutun + n - 1)
+    ye = SATIRLAR["E"]
+    gy1, gy2 = ye + 13, SATIRLAR["I"]
+    o = [f'<rect x="{x1-13}" y="{gy1}" width="{x2-x1+26}" height="{gy2-gy1}" '
+         f'rx="3" fill="#1d4ed8" stroke="#14328c" stroke-width="1.2" opacity=".93"/>']
+    for i, ad in enumerate(pin_adlari):
+        px, _ = xy("E", sutun + i)
+        o.append(f'<circle cx="{px}" cy="{ye}" r="3.6" fill="#c9ccd1"/>')
+        o.append(f'<text x="{px}" y="{ye-11}" font-size="10" font-weight="600" '
+                 f'fill="currentColor" text-anchor="middle">{ad}</text>')
+        o.append(f'<line x1="{px}" y1="{ye+4}" x2="{px}" y2="{gy1}" '
+                 f'stroke="#9aa3ad" stroke-width="1.6"/>')
+    o.append(f'<text x="{(x1+x2)/2}" y="{(gy1+gy2)/2+2}" font-size="13" '
+             f'font-weight="700" fill="#fff" text-anchor="middle">{etiket}</text>')
+    o.append(f'<text x="{(x1+x2)/2}" y="{(gy1+gy2)/2+18}" font-size="10.5" '
+             f'fill="#c7d2fe" text-anchor="middle">{kimlik}</text>')
+    return "".join(o)
+
+
+def adim_ads() -> str:
+    """B26 — asama 1 bringup: iki ADS1115, analog on uc YOK.
+
+    Sadece I2C + ALERT + besleme. Analog girisler GND'ye cekiliyor:
+    havada birakilan diferansiyel giris gurultu toplar, GND'de BILINEN
+    bir 0 V okunur ve okuma yolunun calistigi kanitlanir.
+    """
+    A, B = 2, 17                       # modullerin ilk sutunlari
+    P = {ad: i for i, ad in enumerate(ADS_PINLER)}
+
+    def p1(ad):                        # ADS #1 pininin sutunu
+        return A + P[ad]
+
+    def p2(ad):                        # ADS #2 pininin sutunu
+        return B + P[ad]
+
+    o = [modul(A, ADS_PINLER, "ADS1115 #1", "0x48 · AKIM"),
+         modul(B, ADS_PINLER, "ADS1115 #2", "0x49 · GERİLİM")]
+
+    # ── besleme: moduller -> raylar (A satirindaki bos kardes delikten)
+    for s in (p1("VDD"), p2("VDD")):
+        o.append(tel("A", s, "+", s, RENK["tel-k"], kavis=10))
+    for s in (p1("GND"), p2("GND")):
+        o.append(tel("A", s, "-", s, RENK["tel-s"], kavis=10))
+
+    # ── I2C veri yolu: ESP32 -> #1 -> #2  (papatya zinciri)
+    o.append(uno_pin("B", p1("SDA"), "GPIO8 SDA", RENK["tel-y"],
+                     onek="ESP32 ", yon="sol"))
+    o.append(tel("C", p1("SDA"), "C", p2("SDA"), RENK["tel-y"], kavis=44))
+    o.append(uno_pin("D", p1("SCL"), "GPIO9 SCL", RENK["tel-t"],
+                     onek="ESP32 ", yon="sol"))
+    o.append(tel("B", p1("SCL"), "B", p2("SCL"), RENK["tel-t"], kavis=30))
+
+    # ── ADRES: adresi bu iki tel belirliyor
+    o.append(tel("A", p1("ADDR"), "-", p1("ADDR"), RENK["tel-s"], kavis=10))
+    o.append(tel("A", p2("ADDR"), "+", p2("ADDR"), RENK["tel-k"], kavis=10))
+
+    # ── ALERT: YALNIZCA #1'den. Atlanirsa ornek sayimi guvenilmez olur.
+    o.append(uno_pin("C", p1("ALRT"), "GPIO7 ALERT", RENK["tel-m"],
+                     onek="ESP32 ", yon="sol"))
+
+    # ── analog girisler GND'ye
+    for s in (p1("A0"), p1("A1"), p2("A0"), p2("A1"), p2("A2"), p2("A3")):
+        o.append(tel("B", s, "-", s, RENK["tel-s"], kavis=16))
+
+    # ── ESP32'nin kendi beslemesi
+    o.append(uno_pin("+", 29, "3V3", RENK["tel-k"], onek="ESP32 ", yon="sag"))
+    o.append(uno_pin("-", 29, "GND", RENK["tel-s"], onek="ESP32 ", yon="sag"))
+
+    aciklama = [
+        (RENK["tel-k"], "3V3 — ⚠ 5V DEĞİL: ADS girişi VDD ile sınırlı, I²C 3.3 V mantık"),
+        (RENK["tel-s"], "GND · ADDR→GND (0x48) · analog girişler GND'ye (bilinen 0 V)"),
+        (RENK["tel-y"], "SDA — GPIO8, iki modüle de PARALEL (veri yolu, yıldız değil)"),
+        (RENK["tel-t"], "SCL — GPIO9, aynı şekilde paralel"),
+        (RENK["tel-m"], "ALERT — GPIO7, YALNIZCA #1'den. Atlanırsa örnek sayımı güvenilmez"),
+        (RENK["soluk"], "Bir sütunun A–E delikleri AYNI noktadır — zinciri böyle uzatıyorsun"),
+        (RENK["soluk"], "I²C 400 kHz: telleri kısa tut. GPIO4 (skop) ve GPIO6 (pil kapısı) boşta"),
+    ]
+    # Vurgu: SDA/SCL/ADDR sutunlari — "bir sutunun A-E'si AYNI nokta" fikri
+    # gorunur olsun. ⚠ Etiket metni BILEREK bos: `cizim` onu y2+30'a, yani
+    # E satirinin ALTINA koyuyor ve orada modul govdesi var — ilk surumde
+    # yazilar mavi govdenin uzerine dusup okunmuyordu.
+    netler = [(p1("SDA"), RENK["tel-y"], ""), (p2("SDA"), RENK["tel-y"], ""),
+              (p1("SCL"), RENK["tel-t"], ""), (p2("SCL"), RENK["tel-t"], ""),
+              (p1("ADDR"), RENK["eksi"], ""), (p2("ADDR"), RENK["arti"], "")]
+    # sol_pay: `uno_pin(yon="sol")` kutusu SOL-230'a kadar uzaniyor
+    # (74-230 = -156). 150 yetmiyordu, etiketler kirpiliyordu.
+    return cizim("Aşama 1 bringup — 2× ADS1115 (analog ön uç YOK)",
+                 o, aciklama, netler, sol_pay=210)
+
+
 if __name__ == "__main__":
     (CIKTI / "breadboard-adim2.svg").write_text(adim2(), encoding="utf-8")
     (CIKTI / "breadboard-adim3.svg").write_text(adim3(), encoding="utf-8")
     (CIKTI / "breadboard-adim4.svg").write_text(adim4(), encoding="utf-8")
-    print("yazildi: adim2 + adim3 + adim4")
+    (CIKTI / "breadboard-ads.svg").write_text(adim_ads(), encoding="utf-8")
+    print("yazildi: adim2 + adim3 + adim4 + ads")
