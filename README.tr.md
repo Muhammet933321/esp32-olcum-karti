@@ -135,6 +135,13 @@ python arayuz-uret.py     # LittleFS görüntüsünü paketle
 python arayuz-yaz.py      # 0x310000'e yaz (esptool)
 ```
 
+⚠️ **İKİ USB SOKETİ VARSA: UART/COM soketine takın, yerel USB'ye değil.**
+Firmware `Serial`i UART köprüsünde tutuyor — `hedef2.py` `CDCOnBoot`/
+`USBMode` seçeneklerini **bilerek** eklemiyor (yerel CDC tezgah ilk
+açılışını bozabilir, bu iş 4.11'de ayrı ele alınacak). Yanlış sokette
+hiçbir satır gelmez ve boşuna sürücü aranır. Aynı sebeple `--sifirla`'nın
+DTR/RTS reset'i **UART soketinde çalışır**.
+
 **3 · Bringup koşucusunu çalıştır** — elle denenmesi gerekmeyen her şeyi
 otomatik sınıyor:
 

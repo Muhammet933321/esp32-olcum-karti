@@ -605,9 +605,16 @@ def kart_ac(port: str | None):
     portlar = kart_baglanti.portlari_listele()
     if port is None:
         if not portlar:
-            return None, ("Seri port bulunamadi. Kart takili mi? "
-                          "Surucu kurulu mu? (Aygit Yoneticisi -> Baglanti "
-                          "noktalari)")
+            return None, "\n".join([
+                "Seri port bulunamadi.",
+                "  * Kart takili mi, surucu kurulu mu?"
+                " (Aygit Yoneticisi -> Baglanti noktalari)",
+                "  * 🔴 IKI USB SOKETLI bir gelistirme kartiysa UART/COM",
+                "    soketine tak, YEREL USB'ye degil. Firmware `Serial`i",
+                "    UART koprusunde tutuyor: hedef2.py CDCOnBoot/USBMode'u",
+                "    BILEREK eklemiyor (yerel CDC tezgah ilk acilisini",
+                "    bozabilir). Yanlis sokette HICBIR satir gelmez.",
+            ])
         if len(portlar) > 1:
             return None, (f"Birden cok port var: {', '.join(portlar)}. "
                           f"--port ile secin.")
