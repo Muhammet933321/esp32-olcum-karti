@@ -2617,8 +2617,20 @@ void loop() {
              (double)enerji_wh3(enerji_pJ),
              (unsigned long)ms, (unsigned long)ornek,
              (unsigned)ayar.menzil);
+    /* 🔴 B26: BURADAKI `akis_yolla(son_satir)` KALDIRILDI — SATIR IKI KEZ
+       GIDIYORDU. B20 bu cagriyi ekledigi sirada SSE'yi besleyen TEK yol
+       buydu. B22.4 `Serial` aynasini (WebAkis) getirdi: tamamlanan HER
+       satir `web_satir_hazir()` -> `akis_yolla()` yolundan zaten gidiyor.
+       Eski cagri kaldirilmadi ve her `D` satiri akisa IKI KEZ dustu.
+
+       Tezgahta olculdu (2026-09-12): 8 sn'de 80 `D` olayi, 40 benzersiz
+       satir, tekrar dagilimi {2: 40} — istisnasiz hepsi cift. Kartin
+       rapor hizi 5/s iken yayin 10/s idi. Bedeli: iki kat WiFi trafigi,
+       grafikte ust uste binen noktalar, CSV'de cift satir.
+
+       ⚠ Bir mekanizma daha genelini getirdiginde ESKISINI KALDIR;
+       ikisi birlikte calisirsa sonuc sessizce iki katina cikar. */
     Serial.println(son_satir);
-    akis_yolla(son_satir);      // B20: SSE artik BURADAN besleniyor
     /* B22.1: `K` YALNIZ degisince basiliyor — surekli akista gurultu
        yapmasin. ⚠ `D` satirina ALAN EKLENMEDI: 9 alan arayuzde,
        sahte-kart.js'te ve testte sabit; alan eklemek ucunu ayni anda
@@ -2630,8 +2642,7 @@ void loop() {
                (unsigned long)enerji_kayip_ms,
                (unsigned long)loop_azami_us,
                (unsigned long)loop_uzun_adet);
-      Serial.println(ksat);
-      akis_yolla(ksat);
+      Serial.println(ksat);   /* ayna SSE'ye kendisi yolluyor — B26 */
       k_degisti = 0;
     }
     v_top = i_top = w_top = 0;

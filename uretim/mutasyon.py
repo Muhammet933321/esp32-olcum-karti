@@ -83,6 +83,13 @@ MUTASYONLAR = [
     ("B22b", "sim3_web.py", "kod/olcum-karti-a3/ag.h",
      '#define AG_MDNS "olcum"', '#define AG_MDNS ""',
      "mDNS adi bosalirsa http://olcum.local cozulmez"),
+    # ── B26 · ayna + acik cagri = her satir IKI KEZ (kartta olculdu)
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    Serial.println(son_satir);",
+     "    Serial.println(son_satir);\n    akis_yolla(son_satir);",
+     "ESKI KUSURU geri koyar: ayna zaten yolluyorken acik cagri da "
+     "eklenince her `D` satiri SSE'ye iki kez dusuyor. Kartta olculdu: "
+     "8 sn'de 80 olay / 40 benzersiz, dagilim {2: 40}"),
 
     # ── B26 · AP SSID gercekten MAC'ten mi geliyor (GERCEK KARTTA bulundu)
     ("B22b", "sim3_web.py", "kod/olcum-karti-a3/ag.h",
@@ -100,6 +107,21 @@ MUTASYONLAR = [
      "korumasiz", "parola yok",
      "web parolasi KALDIRILDI mesaji, komut ucunun O AN korumasiz "
      "kaldigini soylemeli — sessiz bir 'kaldirildi' yetmez"),
+
+    # ── B26 · gizlilik: depo herkese acik, kisisel iz KIRMIZI olmali
+    #    (dosya: README.md — takip ediliyor, metin, kopyada da var)
+    #    ⚠ Ornek dizgeler PARCALI kuruluyor: literal olarak yazilsalardi
+    #      tarayici BU DOSYAYI yakalar ve taban kosu kirmizi olurdu —
+    #      metin tabanli iddianin kendi test verisini yakalamasi, bu
+    #      projede besinci kez. chr(92) = ters bolu, chr(64) = @.
+    ("B26", "gizlilik_dogrula.py", "README.md",
+     "# ", "# C:" + chr(92) + "Users" + chr(92) + "birisi" + chr(92) + "x ",
+     "kullanici klasoru yolu takip edilen bir dosyaya girerse tarama "
+     "KIRMIZI donmeli; donmezse denetim kordur (B26'da 59 iz yesil "
+     "zincirin altinda duruyordu)"),
+    ("B26", "gizlilik_dogrula.py", "README.md",
+     "# ", "# birisi" + chr(64) + "ornek.com ",
+     "e-posta adresi takip edilen dosyaya girerse tarama kirmizi donmeli"),
 
     # ── B22a · PC koprusu
     ("B22a", "test_kopru.py", "kopru/kopru.py",
@@ -169,6 +191,13 @@ def kopyala(hedef: Path) -> None:
         return [a for a in adlar
                 if a in ATLA or a in ATLA_DOSYA
                 or a.endswith((".pyc", ".elf", ".rpt"))]
+    # 🔴 B26: hedef VARSA once sil. Dizin adi PID'den turuyor ve Windows
+    #   PID'leri geri donusturuyor; olduruLen ya da coken bir onceki kosunun
+    #   kalintisi ayni adi alinca `copytree` FileExistsError ile cokuyordu.
+    #   Bir oturumda IKI KEZ tetiklendi. Kalinti bizim yazdigimiz gecici bir
+    #   kopya, silmek guvenli.
+    if hedef.exists():
+        shutil.rmtree(hedef, ignore_errors=True)
     shutil.copytree(KOK, hedef, ignore=gormezden)
 
 

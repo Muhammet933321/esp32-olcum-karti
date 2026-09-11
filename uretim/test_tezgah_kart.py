@@ -91,7 +91,11 @@ def afis_satirlari(psram_kb=8192, fs=True, tampon=True, parola_yok=True,
         s.append("! osiloskop suruculu kurulamadi")
     # B26: afis GERCEK MAC'i de ilan ediyor. `mac_uyumsuz` eski kusuru
     # taklit eder: SSID ilklenmemis bellekten gelmis, MAC ise gercek.
-    _mac = "6A:EE:8F:4B:AB:AB" if mac_uyumsuz else "6A:EE:8F:4B:A1:B2"
+    # ⚠ OUI BILEREK SENTETIK (02:00:00 = yerel yonetimli, uretici yok).
+    #   Gercek kartin OUI'si burada dursaydi, DEVIR'de kasitli olarak
+    #   kisaltilmis MAC son ekiyle birlesip tam adresi kurardi — bagimsiz
+    #   gizlilik denetimi bunu B26'da yakaladi.
+    _mac = "02:00:00:00:AB:AB" if mac_uyumsuz else "02:00:00:00:A1:B2"
     _ag = f"Ag: AP  SSID=OLCUM-KARTI-A1B2  MAC={_mac}  http://192.168.4.1"
     _ar = ("Arayuz: LittleFS'te (karttan servis ediliyor)" if fs
            else "Arayuz: YOK — uretim/arayuz-yaz.py ile yukleyin")

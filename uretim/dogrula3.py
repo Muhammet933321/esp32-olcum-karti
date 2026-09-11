@@ -314,6 +314,21 @@ def tezgah_birlestir(sonuclar) -> list[str]:
         for b in sessiz:
             print(f"    * {b}")
         print("    Duzeltme: o adimin betiginin sonuna tezgah(...) ekle.")
+    # 🔴 B26: GIZLILIK — depo herkese acik. Kural yukarida bir YORUM olarak
+    #    duruyordu ve yorum kurali korumaz: bagimsiz bir denetim HEAD'de 59
+    #    mutlak yol buldu. Artik zincirin bir DEGISMEZI; adim degil, cunku
+    #    tek bir adima degil deponun tamamina ait. Temizse tek satir basar.
+    g = subprocess.run([sys.executable, "gizlilik_dogrula.py"], cwd=BURASI,
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=300)
+    if g.returncode != 0:
+        print()
+        print(g.stdout.rstrip())
+        hatalar.append("gizlilik_dogrula.py kisisel iz buldu — "
+                       "yayinlamadan once temizle")
+    else:
+        print("  gizlilik: takip edilen dosyalarda kisisel iz yok")
+
     if hatalar:
         print()
         for h in hatalar:
@@ -360,16 +375,13 @@ def main() -> int:
     #    uretim ZAMAN DAMGASI ve semanin MUTLAK YOLU. Ikisi de her
     #    kosuda degisiyor/makineye ozgu:
     #      * zaman damgasi -> her commit'te anlamsiz diff
-    #      * `C:\Muhammet\...` -> YAYINLANAN depoda kisisel iz
+    #      * semanin MUTLAK diskteki yolu -> yayinlanan depoda kisisel iz
     #    Netlist bir yapi urunu ama `belge-uret.py` onu okuyor, o yuzden
     #    depoda duruyor. Normallestirince hem belirlenimli hem temiz.
-    _net = BURASI / "netlist3.net"
-    if _net.exists():
-        _m = _net.read_text(encoding="utf-8", errors="replace")
-        _m = re.sub(r'\(date "[^"]*"\)', '(date "")', _m, count=1)
-        _m = re.sub(r'\(source "[^"]*"\)',
-                    '(source "sema3/olcum-karti-a3.kicad_sch")', _m, count=1)
-        _net.write_text(_m, encoding="utf-8")
+    #    ⚠ Temizlik ARTIK `netlist_temizle.py`de — TEK KAYNAK. Buradaki
+    #      kopya B9'da netlist yeniden uretilince eziliyordu (B26).
+    import netlist_temizle
+    netlist_temizle.temizle(BURASI / "netlist3.net")
 
     n = subprocess.run([sys.executable, "netlist3_dogrula.py"], cwd=BURASI,
                        capture_output=True, text=True, encoding="utf-8",

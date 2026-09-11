@@ -337,6 +337,18 @@ createApp({
     desteksizNeden() {
       if (this.destekli) return '';
       if (this.tasiyiciAdi === 'seri') {
+        /* 🔴 B26: SEBEBİ DOĞRU SÖYLE. Chrome/Edge Web Serial'i destekler
+           ama YALNIZCA güvenli bağlamda: `navigator.serial` http://<ip>
+           ya da http://olcum.local üzerinde TANIMSIZDIR. Eski metin bunu
+           "tarayıcın desteklemiyor" diye okutuyordu ve kullanıcı Chrome'da
+           olduğu hâlde yanlış yere bakıyordu. */
+        if (typeof window !== 'undefined' && window.isSecureContext === false) {
+          return 'Bu sayfa güvenli bağlamda değil, o yüzden Web Serial '
+               + 'kapalı — tarayıcının suçu değil. Web Serial yalnızca '
+               + 'https:// ya da http://localhost üzerinde çalışır. Sayfa '
+               + 'kartın kendisinden geldiğine göre doğru kip WiFi (akış); '
+               + 'yukarıdan onu seçin.';
+        }
         return 'Bu tarayıcı Web Serial desteklemiyor. Chrome veya Edge '
              + 'gerekiyor; telefonda hiçbir tarayıcı desteklemiyor — '
              + 'telefondan bağlanmak için WiFi (akış) kipini seçin.';
@@ -639,6 +651,28 @@ createApp({
        tercihi EZMEZ. */
     async kopruyuAlgila() {
       if (this.ayarOku('tasiyici', null) !== null) return;
+
+      /* 🔴 B26: SAYFAYI KART SUNUYORSA DA 'akis' SEÇ.
+         Aşağıdaki `/durum` yoklaması B22.3'te KÖPRÜ için yazıldı; o uç
+         YALNIZCA köprüde var. B22.4/B22.5 kartı kendi sayfasını sunar
+         hale getirdi ama algılama genişletilmedi — kartta `/durum` 404
+         dönüyor, algılama sessizce vazgeçiyor, taşıyıcı 'seri'de kalıyor.
+         Web Serial de güvenli bağlam olmadığı için çalışmıyor: kullanıcı
+         "bağlı değil" görüyor. Telefonda hiç açılmıyordu.
+
+         Doğru ölçüt: sayfayı BİRİ SUNDUYSA ve o biri localhost değilse,
+         sunan taraf kart ya da köprüdür — ikisi de `/akis` veriyor.
+         localhost ise `arayuz3/sunucu.py` geliştirme sunucusu olabilir ve
+         orada USB doğru kiptir; o yüzden `/durum` yoklaması korunuyor. */
+      const k = (typeof location !== 'undefined') ? location : null;
+      const yerel = !k || k.protocol === 'file:'
+                 || /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(k.hostname);
+      if (!yerel) {
+        this.tasiyiciAdi = 'akis';
+        this.kaydet('— sayfa ' + k.host + ' üzerinden geldi: akış kipi —');
+        return;
+      }
+
       try {
         const y = await fetch(this.kartAdres('/durum'));
         if (!y.ok) return;

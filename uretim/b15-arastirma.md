@@ -847,7 +847,7 @@ tamami `sim3_ariza.py`'de duzeltildi.
 
 **[kritik] A7 (sont acik devre) SPICE netlist'i semadaki R38'i (1K) yok sayiyor — iki iddia da tersine doner** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (853 (A7 netlist'i, bolum2b) — sonuclari kullanan kosullar 880-883 ve 890-895, kaydet 902-903)
+- **Yer:** `uretim/sim3_ariza.py` (853 (A7 netlist'i, bolum2b) — sonuclari kullanan kosullar 880-883 ve 890-895, kaydet 902-903)
 - **Simdiki:** A7'nin devresi sont dugumu ile ADS pini arasina YALNIZCA `R18 yuk sp {T.SONT_KELVIN_R}` (100R) koyuyor, ESD diyotlari dogrudan `sp` dugumune bagli. Cikan tablo: 12 V / 1 A yuk -> 66.32 mA, 12 V ciplak -> 73.53 mA, 32 V ciplak -> 255 mA. Buna dayanarak `A7: DUSUK empedansli yukte (1 A) ADS sinirini ASIYOR` (66.3 mA > 10 mA) ve `A7: 3V3 rayini yukseltecek akim ancak dusuk empedansli yukte` (66 mA > 40 mA) kosullari [OK] veriyor, kaydet(...esp=False) ile OZET matrisinde A7 'ESP RISK' isaretleniyor.
 - **Dogrusu:** netlist3.net'te bu kol artik ikiye bolunmus: /SONT_P = C4.1, R18.2, R27.1, R38.1 ve /SONT_P_A = R38.2, U6.4 (R38 = 1K). Yani ADS pinine giden seri direnc 100R degil 100+1000 = 1100R. Netlist'e `R38 sp spa 1k` eklenip ESD diyotlari spa'ya tasindiginda 12 V / 1 A -> 7.26 mA (<10 mA), 12 V ciplak -> 7.34 mA, 32 V ciplak -> 25.33 mA. Yani iki kosul da FAIL olur; A7 artik ADS'i 12 V'ta OLDURMUYOR ve 3V3 rayini hicbir durumda yukseltmiyor (hicbir hal 40 mA'i asmiyor) -> esp=False bayragi ve OZET'in ESP32 risk satiri gecersiz. Bu ayni betigin gerilim kanallarinda tutarsiz: A1/A1b/C5 R34'un 1K'sini ZATEN hesaba katiyor (satir 419, 558, 1530), akim kanalinda R38 hesaba katilmiyor.
 - **Kanit:** netlist3.net cozumu: /SONT_P = C4.1, R18.2, R27.1, R38.1 · /SONT_P_A = R38.2, U6.4 · (comp (ref "R38") (value "1K")). Kendi ngspice kosumum (ayni D_ESD modeli, ayni AYARLAR):
@@ -860,7 +860,7 @@ Betigin bugunku ciktisi: `[OK] A7: DUSUK empedansli yukte (1 A) ADS sinirini ASI
 
 **[kritik] A6 esik formulu de yalnizca R18'i sayiyor; ustelik netlist alintisi artik yanlis ('SERI DIRENC YOK' diyor, var)** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (788-789 (netlist alintisi) ve 798-799 (esik formulu); kosullar 810-816)
+- **Yer:** `uretim/sim3_ariza.py` (788-789 (netlist alintisi) ve 798-799 (esik formulu); kosullar 810-816)
 - **Simdiki:** Ekrana `🔴 SONT_P ile ADS pini arasinda SERI DIRENC YOK: /SONT_P = C4.1, R18.2, R27.1, U6.4` yaziliyor. Esikler `i_10ma = (T.ADS_GIRIS_AKIM_MAKS * T.SONT_KELVIN_R + 3.9) / rs` ve `i_ray = (T.ESP_BOSTA_AKIM * T.SONT_KELVIN_R + 3.9) / rs` ile, yani yalnizca 100R ile hesaplaniyor. 10R sont icin: ADS 10 mA esigi 0.490 A, 3V3 tehlike esigi 0.790 A. Iki kosul da buna dayaniyor: `i10[1] < 0.6` ve `i10[2] < 2.0`.
 - **Dogrusu:** Alinti netlist3.net ile celisiyor: gercek net /SONT_P = C4.1, R18.2, R27.1, R38.1 ve R38 (1K) tam da o 'olmayan' seri direnc. Formullerde R = SONT_KELVIN_R + ADS_SERI_R = 1100R olmali: 10R sont icin ADS 10 mA esigi 0.490 A -> 1.490 A, 3V3 tehlike esigi 0.790 A -> 4.790 A. O zaman `i10[1] < 0.6` (1.49 < 0.6) ve `i10[2] < 2.0` (4.79 < 2.0) kosullarinin IKISI DE FAIL olur ve kaydet('A6', ..., esp=False) gecersizlesir. Ayrica elle yazilan 3.9 sabiti, ayni betigin F2 bolumunun kullandigi T.VDD + T.ADS_ESD_VF = 3.8 ile celisiyor (docstring 'elle yazilmis sonuc sayisi YOK' diyor).
 - **Kanit:** Hesap (python, T sabitleriyle):
@@ -870,14 +870,14 @@ Betigin bugunku ciktisi: `[OK] A6: 10R sont takiliyken 0.5 A'lik bir yuk ADS'i o
 
 **[onemli] C4/F4 semada artik bulunmayan bir kusuru raporluyor: C1 100nF degil, 1nF** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py (ve tasarim3_sabit.py:305-307)` (1471 (baslik), 1478, 1482-1487 (kosul), 1497-1499 (kaydet) — sabit: tasarim3_sabit.py C1_BUGUN = 100e-9)
+- **Yer:** `uretim/sim3_ariza.py (ve tasarim3_sabit.py:305-307)` (1471 (baslik), 1478, 1482-1487 (kosul), 1497-1499 (kaydet) — sabit: tasarim3_sabit.py C1_BUGUN = 100e-9)
 - **Simdiki:** Bolum basligi `C4 · 🔴 C1 (100nF) TL431'i OSILE ETTIRIYOR — semadaki gercek kusur`. `Semada bugun: C1 = 100 nF` yaziyor, `kararsiz = TL431_KARARSIZ_C[0] <= T.C1_BUGUN <= TL431_KARARSIZ_C[1]` ile [OK] veriyor ve kaydet('C4', 'C1 (100nF) TL431'i osile ettiriyor', ...) ile OZET matrisine AKTIF bir ariza olarak giriyor. F4 de duzeltmeyi hala 'onerilecek' olarak sunuyor.
 - **Dogrusu:** Sema ve netlist zaten 1nF: sema3-uret.py:116 `c1 = koy(C, 60.96, 58.42, "C1", "1nF")`, netlist3.net `(comp (ref "C1") (value "1nF"))`. 1nF = TL431_GUVENLI_C_ALT, yani guvenli bolgede. C1_BUGUN sabiti C1_ESKI olarak yeniden adlandirilip C4 'kapatilmis kusur' olarak yazilmali, kaydet('C4', ...) OZET'ten cikmali, F4 'uygulandi' olmali. Aksi halde OZET matrisi var olmayan bir salinim arizasini listeliyor.
 - **Kanit:** grep '"C1"' sema3-uret.py -> `c1 = koy(C, 60.96, 58.42, "C1", "1nF")`; netlist3.net satir 58-59 -> `(ref "C1") (value "1nF")`. Betigin bugunku ciktisi: `[OK] C4: 🔴 C1 kararsiz bolgenin TAM ICINDE  100 nF, aralik 10 nF .. 2.2 uF`
 
 **[onemli] Kazanc hatasi / PGA sicramasi TEK bacagin direnciyle hesaplanmis; ADS'in Z_diff'i iki bacagi birden gorur** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1823 (F1: hata = T.ADS_SERI_R / zd * 100) ve 1861 (F2: sicrama = (rs / zd_alt - rs / zd_ust) * 100))
+- **Yer:** `uretim/sim3_ariza.py` (1823 (F1: hata = T.ADS_SERI_R / zd * 100) ve 1861 (F2: sicrama = (rs / zd_alt - rs / zd_ust) * 100))
 - **Simdiki:** F1: hata = 1K / 2.4 Mohm = %0.042, kosul `hata/100 < ADS_PGA_UYUM` [OK]. F2: rs = 1K icin sicrama = 0.120 puan, `sicrama/100 < ADS_PGA_UYUM*1.5` (0.15) saglandigi icin secim = 1K ve `F2: 1K seri direnc, PGA sicramasini ADS'in kendi spek'i mertebesinde tutuyor` [OK].
 - **Dogrusu:** PGA_TABLO'daki Z_diff, AIN_P ile AIN_N ARASINDAKI empedans (SBAS444 Tablo 2). Semada her diferansiyel cift artik IKI seri direnc goruyor: AIN0-AIN1 = R34 + R36, AIN2-AIN3 = R35 + R36, akim cifti = R38 + R39 (+ R18/R19). Yani hesaba giren direnc 1K degil 2K (akim kanalinda R18/R19 ile 2.2K). Duzeltilince F1'de hata %0.042 -> %0.083 (hala <%0.1 ama pay 2.4x'ten 1.2x'e duser), F2'de sicrama 0.120 -> 0.241 puan (R18/R19 ile 0.265), yani F2'nin KENDI olcutu olan 0.15 puani ASAR: secim None kalir, `F2: 1K seri direnc, PGA sicramasini ... mertebesinde tutuyor` FAIL olur ve ona bagli iki kosul (`if secim:`) hic kosmaz. Ayrica tablonun rs=0 satiri da 0 degil, R18+R19=200R yuzunden 0.024 puan olmali.
 - **Kanit:** Hesap (T.PGA_TABLO ile): zd(2.048)=4.9M, zd(0.256)=710k.
@@ -889,21 +889,21 @@ netlist3.net: /V_ADS = R34.2, U7.4 · /VREF_ADS = R36.2, U7.5, U7.7 · /SONT_P_A
 
 **[kucuk] Iki yerde daha netlist alintisi eskimis: /V_TAMPON ve /VREF artik dogrudan ADS pinine gitmiyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (577 (A1b) ve 1503-1504 (C5))
+- **Yer:** `uretim/sim3_ariza.py` (577 (A1b) ve 1503-1504 (C5))
 - **Simdiki:** Satir 577: `/V_TAMPON  = U3.6, U3.7, U7.4  (tampon cikisi ADS pinine DOGRUDAN gidiyor)`. Satir 1503-1504: `VREF, ADS'in AIN1 ve AIN3 pinlerine DOGRUDAN gidiyor (netlist: /VREF ... U7.5, U7.7)`. Ikisi de kanit olarak sunuluyor.
 - **Dogrusu:** netlist3.net: /V_TAMPON = R34.1, U3.6, U3.7 ve /V_ADS = R34.2, U7.4 (arada R34 = 1K var). /VREF = C2.2, C3.2, R16.2, R28.1, R36.1, R6.2, U3.1, U3.2 ve /VREF_ADS = R36.2, U7.5, U7.7 (arada R36 = 1K var). Alintilar guncellenmeli; C5'in SIMULASYONU zaten 1K'li halini de olcuyor, yanlis olan yalnizca metin, ama betigin 'her sayi netlist'ten' iddiasini zedeliyor.
 - **Kanit:** netlist3.net cozumu: `/V_TAMPON = R34.1, U3.6, U3.7`, `/V_ADS = R34.2, U7.4`, `/VREF_ADS = R36.2, U7.5, U7.7`. netlist3_dogrula.py de bunu dogruluyor: `[OK] ADS#2 AIN0 = NORMAL tampon cikisi (1K ardinda) U7.4(AIN0) -> /V_ADS`
 
 **[kucuk] F1 semada olmayan bir parcaya (R37) atif yapiyor; VREF kolunda tek direnc var** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1818 (baslik: 'R34..R37') ve 1833-1834)
+- **Yer:** `uretim/sim3_ariza.py` (1818 (baslik: 'R34..R37') ve 1833-1834)
 - **Simdiki:** `F1 · ADS gerilim girislerine 1K seri direnc (R34..R37)` ve `4 direnc: R34 (U3B->AIN0), R35 (U4A->AIN2), R36/R37 (VREF->AIN1/AIN3, cifti simetrik tutmak icin)` — yani dort direnc, VREF kolunda ikisi.
 - **Dogrusu:** Semada R37 YOK. Tek bir R36 hem U7.5'i hem U7.7'yi besliyor (/VREF_ADS = R36.2, U7.5, U7.7); B15'in bu oturumda eklettigi direnc sayisi 5 (R34, R35, R36, R38, R39), 6 degil. Basliktan R37 cikarilmali ve metin 'R36 iki pini birden besliyor (ADS tek MUX'lu, cift sirayla donusturuluyor; her cift 1K/1K gordugu icin simetri bozulmuyor)' olarak duzeltilmeli.
 - **Kanit:** netlist3.net bilesen listesi: R34 1K, R35 1K, R36 1K, R38 1K, R39 1K — R37 yok (67 bilesen). bom_dogrula.py ciktisi: `1K  5  30  yeterli` (5 adet, 4 degil).
 
 **[kucuk] FIYAT eslestirmesi A7'nin olen parcasini 45 TL yerine 0.15 TL fiyatlandiriyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1765-1772 (bolum6, `if k.split()[0] in o or o.split()[0] in k`))
+- **Yer:** `uretim/sim3_ariza.py` (1765-1772 (bolum6, `if k.split()[0] in o or o.split()[0] in k`))
 - **Simdiki:** A7'nin olen parcasi 'U6 (ADS1115 #1) + R18'. Dongu FIYAT sozlugunu sirayla tariyor ve 'R18 (100R)' anahtarinda `k.split()[0] = 'R18'` metnin icinde gectigi icin eslesip 0.15 TL veriyor. Ciktida `U6 (ADS1115 #1) + R18   0.15 TL` yaziyor — ayni cip A6 satirinda 45.00 TL.
 - **Dogrusu:** Eslesme parca adi icinde alt-dizge aramakla degil, kayitta ayri bir fiyat anahtari alani ile yapilmali (ya da en pahali eslesme secilmeli). Dogru fiyat 45 TL (U6/U7 ADS1115 modulu). 'RS (sont) + R18' de ayni sebeple 0.15 TL gorunuyor. 'OZET: bilesen arizalarinda olen en pahali parca UCUZ' kosulu su an tesadufen gecerli kaliyor (A6 satiri U6'yi tek basina 45 TL listeledigi icin), ama tablo yaniltici.
 - **Kanit:** Betigin ciktisi:
@@ -916,7 +916,7 @@ FIYAT sozlugunde 'R18 (100R)': 0.15, 'U6/U7 (ADS1115 modulu)': 45.0 ve 'R18' ana
 
 **[kritik] A6/A7: sont kolundaki R38 (1K) netlistte VAR ama betigin devresinde YOK — ADS akimi 9 kat abartiliyor, 5 kural ters donuyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (788-789 (iddia metni), 796-799 (A6 formulleri), 846-857 (A7 netlisti), kurallar 811 / 814 / 880 / 884 / 888)
+- **Yer:** `uretim/sim3_ariza.py` (788-789 (iddia metni), 796-799 (A6 formulleri), 846-857 (A7 netlisti), kurallar 811 / 814 / 880 / 884 / 888)
 - **Simdiki:** Betik SONT_P ile U6.4 arasinda yalnizca R18 = 100 R oldugunu varsayiyor ve bunu metinde de yaziyor: "SONT_P ile ADS pini arasinda SERI DIRENC YOK: /SONT_P = C4.1, R18.2, R27.1, U6.4". A7 netlisti (satir 853) sadece `R18 yuk sp 100` kuruyor, ESD diyotlari dogrudan `sp` dugumune baglaniyor. A6'nin analitik esikleri de 100 R kullaniyor: `i_10ma = (10e-3*100 + 3.9)/rs`.
 - **Dogrusu:** netlist3.net satir 4763-4798: /SONT_P = C4.1, R18.2, R27.1, **R38.1** ve /SONT_P_A = R38.2, U6.4; R38 degeri "1K" (netlist3.net satir 3160). ESD yolundaki toplam seri direnc 100 R degil **1100 R**. A7 netlistine `R38 sp spa 1k` eklenip ESD diyotlari `spa` dugumune tasinmali; A6'da `T.SONT_KELVIN_R` yerine `T.SONT_KELVIN_R + T.ADS_SERI_R` kullanilmali. Sema (sema3-uret.py satir 340-341) bu direnci zaten koymus — yani Bolum 7'deki "F2 · EN KRITIK duzeltme" uygulanmis durumda, betik hala uygulanmamis gibi rapor veriyor.
 - **Kanit:** Ayni netlist R38'li/R38'siz kosturuldu (ngspice, spice.kos):
@@ -929,7 +929,7 @@ Bunun sonucu: 811 (`i10[1] < 0.6`), 814 (`i10[2] < 2.0`), 880 (`>10 mA`), 884 (`
 
 **[kritik] C3b: -0.96 V bolucu dugumunun degeri ADS'in pin sinirina karsi test ediliyor — o dugum ADS'e hic ulasmiyor, arada doymus LM358 tamponu var** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1541-1560 (netlist + kural), 1568 (kaydet C3b))
+- **Yer:** `uretim/sim3_ariza.py` (1541-1560 (netlist + kural), 1568 (kaydet C3b))
 - **Simdiki:** TL431 kisa devre senaryosunun netlisti YALNIZCA bolucuyu kuruyor (`Vin/R4/R6`, satir 1542-1547); tampon da ADS de yok. Sonra bolucu dugumu ADS'in pin sinirina karsi olculuyor: `dug_kisa < T.ADS_MUTLAK_GIRIS_ALT` -> "-0.959 V < -0.3 V — bu ariza ADS'i de goturebilir" ve C3b matriste "olen parca: U7 (ADS1115 #2)" olarak kayitli.
 - **Dogrusu:** Semada bu dugum ADS'e degil, R7 (22K) uzerinden U3B'nin + girisine gidiyor; ADS pinini suren sey U3B'nin CIKISI (netlist3.net /V_TAMPON = R34.1, U3.6, U3.7 -> R34 -> /V_ADS -> U7.4). U3B tek besleme (+5 V / GND) ile calistigi icin cikisi GND'nin altina inemez; ADS pini V_OL'da kalir. Gercekten zorlanan parca LM358'in GIRISI (V- ye gore -0.3 V mutlak sinir). Kural `dug_kisa`'ya degil, tam zincirin `v(pin)` ve `v(filt)` degerlerine bakmali; olen/riskli parca U7 degil U3 olarak kaydedilmeli.
 - **Kanit:** Ayni senaryo tam zincirle (R4/R6/R7/C2 + LM358 makromodeli + R34 + ADS ESD diyotlari) kosturuldu:
@@ -938,7 +938,7 @@ ADS pini mutlak alt sinirin (-0.3 V) 0.32 V USTUNDE; hicbir ESD akimi yok. Betig
 
 **[onemli] A5 (skop): Sallen-Key'in seri dirençleri R22+R21 (2x6.8K) giris yolundan atlanmis — bolucu dugumu ve TL072 kelepce akimi yanlis** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (727-748 (A5 netlisti; ozellikle 735-737))
+- **Yer:** `uretim/sim3_ariza.py` (727-748 (A5 netlisti; ozellikle 735-737))
 - **Simdiki:** Netlist `R20 giris dugum 100k` / `R23 dugum 0 6.8k` kurup TL072'yi DOGRUDAN bolucu dugumune bagliyor (`XU dugum cik cik ...`). Boylece TL072'nin giris kelepce diyodu bolucu dugumunun uzerine biniyor ve tablodaki "bolucu" sutunu 250 V'un uzerinde +12.68 V'ta cakiliyor.
 - **Dogrusu:** netlist3.net: Net-(R20-Pad2) = R20.2, R22.1, R23.1 -> R22 (6.8K) -> Net-(C5-Pad1) -> R21 (6.8K) -> Net-(U5A-+) = C6.1, R21.2, U5.3. Yani bolucu dugumu ile TL072 girisi arasinda 13.6 kohm SERI direnc var; akim sinirlamasini yapan da odur. Netliste `R22 dugum sk1 6.8k` + `R21 sk1 opin 6.8k` eklenmeli. Betik bunu kendi A9 senaryosunda zaten dogru biliyor (satir 973: `i_tl = (d20 - ...) / (T.SK_R * 2)`) — A5 ile A9 ayni yolu iki farkli sekilde modelliyor.
 - **Kanit:** Iki netlist yan yana kosturuldu (ngspice):
@@ -949,7 +949,7 @@ GPIO ve BAT85 kelepce akimi degismiyor (kurallar donmuyor) ama raporun "bolucu" 
 
 **[onemli] A3 (230 V AC): transient netlistte LM358 hic yok — "LM358 girisi -5.59 V" gercekte -0.62 V, jonksiyon akimi formulu de yanlis referans kullaniyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (620-648 (netlist satir 630 `Rin filt vref 1T`; rapor satiri 641; formul satir 644))
+- **Yer:** `uretim/sim3_ariza.py` (620-648 (netlist satir 630 `Rin filt vref 1T`; rapor satiri 641; formul satir 644))
 - **Simdiki:** Netlist op-amp yerine `Rin filt vref 1T` koyuyor, yani giris jonksiyonu (V- ye parazitik diyot) hic yok. Rapor bu KELEPCESIZ dugum gerilimini "LM358 girisi : -5.591 .. +8.919 V" diye basiyor. Giris akimi da simulasyondan degil, elle yazilan `i_neg = (T.VREF + abs(min(dug))) / T.RC_R` formulunden geliyor — bu formul girisin +VREF'te tutuldugunu varsayiyor.
 - **Dogrusu:** LM358'in girisi V-'nin (GND) ~0.6 V altinda parazitik jonksiyondan kelepcelenir — makromodelde de bu diyot var (`Dsub_p valt arti DSUBS`). Netliste `Rin filt vref 1T` yerine gercek tampon (`XU filt cik cik vp 0 LM358`) baglanmali ve akim seri bir ampermetreden okunmali. Kelepce seviyesi VREF degil, V- - 0.6 V'tur.
 - **Kanit:** Ayni transient LM358 makromodeli bagli halde kosturuldu (tran 20u 80m):
@@ -959,28 +959,28 @@ Betigin bildirdigi 403 uA hesabi %54 yuksek; raporlanan -5.59 V degeri ise gerce
 
 **[onemli] A1b / C4 / C5 metinleri netlist3.net ile celisiyor: R34, R36 ve 1nF'lik C1 semada ZATEN var, betik hala eski semayi anlatiyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py (+ tasarim3_sabit.py C1_BUGUN)` (576-578 (A1b), 1580-1588 (C4), 1605-1606 (C5); tasarim3_sabit.py satir 305-306)
+- **Yer:** `uretim/sim3_ariza.py (+ tasarim3_sabit.py C1_BUGUN)` (576-578 (A1b), 1580-1588 (C4), 1605-1606 (C5); tasarim3_sabit.py satir 305-306)
 - **Simdiki:** A1b: "Netlist'te o direnc YOK: /V_TAMPON = U3.6, U3.7, U7.4 (tampon cikisi ADS pinine DOGRUDAN gidiyor)". C4: "Semada bugun: C1 = 100 nF" ve bu "semadaki gercek kusur" diye kirmizi baslikla veriliyor (T.C1_BUGUN = 100e-9). C5: "VREF, ADS'in AIN1 ve AIN3 pinlerine DOGRUDAN gidiyor (netlist: /VREF ... U7.5, U7.7)".
 - **Dogrusu:** netlist3.net satir 4936-4952: /V_TAMPON = **R34.1**, U3.6, U3.7 ve /V_ADS = R34.2, U7.4 — R34 = 1K arada. netlist3.net satir 4882: /VREF_ADS = **R36.2**, U7.5, U7.7 — R36 = 1K arada. netlist3.net satir 58-59: C1 degeri **"1nF"**, yani TL431'in kararsiz bolgesinin (10 nF..2.2 uF) DISINDA. Bu uc metin de guncellenmeli; C4 artik var olmayan bir kusuru raporluyor ve T.C1_BUGUN 1e-9 olmali. (Betigin kendisi A1 kuralinda "R34 = 1K seri direnc sayesinde" diyor — yani guncelleme yarim kalmis.)
 - **Kanit:** netlist3.net (2026-09-09 03:33 uretimi) ve sema3-uret.py satir 126 `c1 = koy(C, ..., "C1", "1nF")`, satir 169/223/276/340-341 (r36/r34/r35/r38/r39). Betik ciktisi ise hala "[OK] C4: C1 kararsiz bolgenin TAM ICINDE  100 nF" ve "Netlist'te o direnc YOK" basiyor.
 
 **[onemli] Bolum 0'daki "govde tablosu semadaki her direnci kapsiyor" kurali kapsam denetimi YAPMIYOR — 5 direnc tablonun disinda** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (256-259)
+- **Yer:** `uretim/sim3_ariza.py` (256-259)
 - **Simdiki:** `all(g in T.DIRENC_GOVDE for g in T.DIRENC_GOVDESI.values())` — bu yalnizca tablodaki govde ADLARININ ("1/4W", "1W"...) gecerli oldugunu dogruluyor; semadaki direnclerin tabloda olup olmadigina hic bakmiyor. Yine de "semadaki her direnci kapsiyor / 30 pozisyon" diye rapor ediliyor.
 - **Dogrusu:** Kural netlisti (ya da netlist3_dogrula.py'nin cikardigi listeyi) okuyup `set(netlist_direncleri) - set(T.DIRENC_GOVDESI) == set()` seklinde kurulmali. Bu onemli, cunku eksik direnclerden biri R38: A7'nin en kotu halinde (32 V ciplak) uzerinde 0.642 W dusuyor ve 1/4W gövdede bu 2.6x asiri yuk demek — hicbir senaryo bunu olcmuyor.
 - **Kanit:** netlist3.net'te 35 direnc var, T.DIRENC_GOVDESI'nde 30 kayit; tabloda OLMAYANLAR: R34, R35, R36, R38, R39. Buna ragmen kural bugun [OK] veriyor: "Direnc govde tablosu semadaki her direnci kapsiyor  30 pozisyon, 4 farkli govde".
 
 **[kucuk] A4 (HV kanali) R35'i (1K) atliyor — A1 R34'u kullaniyor, iki kanal ayni yol icin farkli modelleniyor; ayrica kural etiketi "18 kat" ile olculen 4.9x uyusmuyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (689 (`_kanal_arizasi(r, "J2", vin, HV)` — ads_seri varsayilan 0), 419 ile karsilastir; kural 705-707)
+- **Yer:** `uretim/sim3_ariza.py` (689 (`_kanal_arizasi(r, "J2", vin, HV)` — ads_seri varsayilan 0), 419 ile karsilastir; kural 705-707)
 - **Simdiki:** NORMAL kanal 1K seri direncle (`ads_seri=T.ADS_SERI_R`), HV kanal seri direncsiz (`ads_seri` verilmiyor -> `Rads cik pin 1m`) simule ediliyor. Ayrica kural basligi "A4: HV kanali NORMAL kanaldan 18 kat dayanikli" derken kontrol `v_asma / 615.0 > 1.5` ve basilan sayi 3005 V (615 V'a gore 4.9 kat).
 - **Dogrusu:** netlist3.net /HV_TAMPON = R35.1, U4.1, U4.2 ve /HV_ADS = R35.2, U7.6 — HV tamponunun cikisinda da 1K (R35) var; cagri `ads_seri=T.ADS_SERI_R` ile yapilmali. "18 kat" iddiasi ya sayidan turetilmeli ya da kaldirilmali: R4 (1W, 350 V) icin sinir ~361 V girise karsilik geliyor, oran 3005/361 = 8.3 kat.
 - **Kanit:** A4 tablosunda tampon 3.5 V'ta doydugu icin ADS pini her iki modelde de ayni cikiyor (ESD iletmiyor), yani bugun sonuc degismiyor — ama model semadan sapiyor ve tampon doyma tavani degistigi anda (A1b'deki EN KOTU hal, V_OH = ray) HV kanalinda ADS akimi seri direncsiz hesaplanir. Kural ciktisi: "[OK] A4: HV kanali NORMAL kanaldan 18 kat dayanikli  direnc gerilim siniri ancak 3005 V'ta asiliyor".
 
 **[kucuk] Bolum 6 fiyat eslestirmesi yanlis eslesiyor: 45 TL'lik ADS arizasi 0.15 TL olarak listeleniyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1874 (`if k.split()[0] in o or o.split()[0] in k`))
+- **Yer:** `uretim/sim3_ariza.py` (1874 (`if k.split()[0] in o or o.split()[0] in k`))
 - **Simdiki:** Alt-dizgi eslestirmesi FIYAT sozlugundeki ILK kabaca uyan satiri aliyor. "U6 (ADS1115 #1) + R18" icin "R18 (100R)".split()[0] = "R18" metnin icinde gectigi icin fiyat 0.15 TL olarak eslesiyor.
 - **Dogrusu:** Eslestirme parca referanslarini duzenli ifadeyle ayiklayip (`re.findall(r'\b[A-Z]+\d+', o)`) hepsinin fiyatini toplamali ya da en pahalisini almali; "U6 ... + R18" 45 + 0.15 = 45.15 TL olmali.
 - **Kanit:** Betik ciktisi, "OLEN PARCALARIN FIYATI" tablosu:
@@ -993,7 +993,7 @@ Betigin bildirdigi 403 uA hesabi %54 yuksek; raporlanan -5.59 V degeri ise gerce
 
 **[kritik] A6/A7'nin TAMAMI, netlist'te GERCEKTEN VAR OLAN R38/R39 (1K) yok sayilarak kuruldu — sonuc ters cikiyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (788-789 (bolum2b metni), 881 (A7 iddiasi), 812/818 (A6 iddiasi + kaydet), 903 (A7 kaydet))
+- **Yer:** `uretim/sim3_ariza.py` (788-789 (bolum2b metni), 881 (A7 iddiasi), 812/818 (A6 iddiasi + kaydet), 903 (A7 kaydet))
 - **Simdiki:** Betik 'SONT_P ile ADS pini arasinda SERI DIRENC YOK: /SONT_P = C4.1, R18.2, R27.1, U6.4' diyor ve A6/A7 devrelerini seri direncsiz kuruyor. Sonuc: 12 V / 1 A yukte 66.3 mA (>10 mA) -> 'A7: DUSUK empedansli yukte ADS sinirini ASIYOR' [OK], A6'da esik 0.49 A, ikisi de kaydet(..., esp=False) ile OZET matrisine 'ESP RISK' olarak giriyor.
 - **Dogrusu:** netlist3.net'te /SONT_P = C4.1, R18.2, R27.1, R38.1 ve /SONT_P_A = R38.2, U6.4 — R38 = 1K MEVCUT (R39 = 1K de SONT_N'de). Ayni ngspice devresine R38=1K eklenince 12 V/1 A halinde ADS akimi 7.26 mA'e (<10 mA sinir) duser, yani A7'nin kirmizi bulgusu bugunku sema icin YANLIS; A6'nin esigi de 0.49 A degil 1.49 A olur. Ya sim R38/R39 ile kosturulup A6/A7 'F2 ile kapandi' diye isaretlenmeli, ya da bolumun basligi acikca 'F2 ONCESI sema' olmali — cunku BOLUM 6 'KABUL OLCUTU DENETIMI — BUGUNKU SEMA' basligi altinda bu iki satiri ESP RISK sayiyor.
 - **Kanit:** netlist3.net ayristirmasi: '/SONT_P:  C4.1, R18.2, R27.1, R38.1' · '/SONT_P_A:  R38.2, U6.4' · komponent listesi 'R38 = 1K', 'R39 = 1K'. Ayni A7 netlist'ine R38 eklenerek kosturuldu:
@@ -1003,7 +1003,7 @@ Betigin bildirdigi 403 uA hesabi %54 yuksek; raporlanan -5.59 V degeri ise gerce
 
 **[kritik] C5'in tek iddiasi hicbir sey sinamiyor: senaryonun adi 'cikis RAYA oturuyor' ama simulasyon raydan 1.5 V asagiyi suruyor; gercek rayla iddia KIRMIZI olur** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1638-1640 (r.kosul 'C5: seri direncle U3A arizasi ADS'i tehdit etmiyor'), kaynak deger 1615 civari: ('V_OH'a oturur', 5.0 - T.LM358_VOH_DUSUM))
+- **Yer:** `uretim/sim3_ariza.py` (1638-1640 (r.kosul 'C5: seri direncle U3A arizasi ADS'i tehdit etmiyor'), kaynak deger 1615 civari: ('V_OH'a oturur', 5.0 - T.LM358_VOH_DUSUM))
 - **Simdiki:** Bolum basligi ve kaydet adi 'Vref tamponu (U3A) cikisi RAYA oturuyor' ama simule edilen deger 5.0 - 1.5 = 3.5 V. Olculen ESD akimi 0.000 mA ve iddia '0.0 uA < 1 mA' ile [OK] geciyor; kaydet notu bunu '1K seri direnc sayesinde ADS korunuyor' diye yaziyor.
 - **Dogrusu:** 3.5 V'ta ESD diyodu neredeyse hic iletmiyor, dolayisiyla sonuc 1K'dan TAMAMEN BAGIMSIZ — seri direnc 0 iken de 0.000 mA. Betigin kendi A1b bolumu 'en kotu hal rayin kendisi (LM358_VOH_DUSUM_EN_KOTU = 0.0)' diyor; C5 de o modelle (vcik = 5.0 V, hatta USB'nin 5.25 V'u ile) kosturulmali. O zaman 1K ile akim 1.184 mA olur ve iddia ADS_TASARIM_AKIM_HEDEFI = 1 mA'i ASAR, yani test KIRMIZI olmali.
 - **Kanit:** Ayni C5 netlist'i vcik ve Rs taranarak kosturuldu:
@@ -1014,7 +1014,7 @@ Betigin bildirdigi 403 uA hesabi %54 yuksek; raporlanan -5.59 V degeri ise gerce
 
 **[kritik] A1'in ADS akimi iddiasi R34'e hic duyarli degil — aciklamasi '1K seri direnc sayesinde' diyor ama direnc kaldirilinca sonuc ayni kaliyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (443-446 (r.kosul 'A1: ADS giris akimi TI'in tasarim hedefinin altinda'))
+- **Yer:** `uretim/sim3_ariza.py` (443-446 (r.kosul 'A1: ADS giris akimi TI'in tasarim hedefinin altinda'))
 - **Simdiki:** s['i_esd'] <= T.ADS_TASARIM_AKIM_HEDEFI, aciklama: '0.0 uA <= 1 mA (R34 = 1K seri direnc sayesinde)'. Kanit sayisi tam 0.0 uA.
 - **Dogrusu:** 615 V'ta tamponun cikisi GARANTI modelde 3.5 V; ESD diyodu 3.3 V'a gore yalnizca 0.2 V ileri kutuplu, akim nA mertebesinde — bu, R34 olsa da olmasa da boyle. Iddia ya A1b'nin en kotu modeliyle (LM358K, V_OH = ray) kurulmali (o zaman R34 gercekten belirleyici olur), ya da aciklamadaki 'R34 sayesinde' atfi kaldirilmali. Su haliyle 'elle yazilmis olmayan bir sayi' uretiyor ama hicbir seyi kanitlamiyor.
 - **Kanit:** Mutasyon testi (tasarim3_sabit.ADS_SERI_R = 1e-3 yapilip bolum2 kosturuldu):
@@ -1024,7 +1024,7 @@ Yani kosum altyapisi calisiyor; A1'in iddiasi kasitli bozulmaya ragmen sessizce 
 
 **[onemli] OZET matrisi B5'te 'olen parca U3' diyor, ayni bolumun olculmus iddiasi ise 'U3 SAG CIKIYOR' diyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1293 (r.kosul 'B5: DIP-8 govde bu kisa devreden SAG CIKIYOR') ile 1309-1310 (kaydet 'B5', olen='U3 orta nokta tamponu (soketli LM358)'))
+- **Yer:** `uretim/sim3_ariza.py` (1293 (r.kosul 'B5: DIP-8 govde bu kisa devreden SAG CIKIYOR') ile 1309-1310 (kaydet 'B5', olen='U3 orta nokta tamponu (soketli LM358)'))
 - **Simdiki:** Iddia: tj_dip < T.LM358_TJ_MAKS -> 'Tj 111 C < 125 C' [OK]. Not satiri da 'Tj 111 C ile DIP-8 sag cikabilir' diyor. Ama kaydet'in 3. argumani (olen) 'U3 orta nokta tamponu (soketli LM358)' — matris satiri 'olen parca: U3 orta nokta tamponu' basiyor ve U3 8 TL ile fiyat tablosuna giriyor.
 - **Dogrusu:** Olculen sonuc 'parca yasiyor' oldugu icin olen alani '' (bos) olmali; olen istiyorsa yalnizca SOIC govde icin sarta bagli yazilmali. Su haliyle 'ariza -> olen parca' matrisi, o arizayi olcen iddianin tam tersini soyluyor.
 - **Kanit:** Kosturma ciktisi:
@@ -1034,42 +1034,42 @@ Yani kosum altyapisi calisiyor; A1'in iddiasi kasitli bozulmaya ragmen sessizce 
 
 **[onemli] C3b: olculen dugum LM358'in GIRISI, ADS pini degil — matris yine de 'olen parca U7 (ADS1115 #2)' diyor; betigin kendi A2 olcumu bunu curutuyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1562-1564 (r.kosul 'C3: TL431 kisa devre olursa ADS mutlak ALT siniri asiliyor') ve 1573 (kaydet 'C3b', olen='U7 (ADS1115 #2)'))
+- **Yer:** `uretim/sim3_ariza.py` (1562-1564 (r.kosul 'C3: TL431 kisa devre olursa ADS mutlak ALT siniri asiliyor') ve 1573 (kaydet 'C3b', olen='U7 (ADS1115 #2)'))
 - **Simdiki:** Netlist'te yalnizca Vin/Vref/R4/R6 var; olculen v(dugum) = -0.959 V, T.ADS_MUTLAK_GIRIS_ALT (-0.3 V) ile karsilastiriliyor ve 'bu ariza ADS'i de goturebilir' deniyor.
 - **Dogrusu:** netlist3.net'e gore o dugum (Net-(R4-Pad2) = R4.2, R6.1, R7.1) R7 uzerinden U3.5'e, yani LM358'in GIRISINE gidiyor; ADS pini (U7.4) tamponun CIKISINDAN R34 ile besleniyor. Karsilastirilacak sinir T.LM358_GIRIS_MUTLAK_ALT olmali ve olen parca U3 olmali. Tampon cikisi V_OL'un (0.02 V) altina inemedigi icin ADS pini negatife hic gitmiyor — bunu betigin kendi A2 olcumu gosteriyor: dugum -13 V iken ADS pini +0.020 V.
 - **Kanit:** Ayni kosumun A2 satiri: '[OK] A2: ADS pini ters gerilimde de mutlak sinirin ustunde +0.020 V >= -0.3 V' (o senaryoda bolucu dugumu -13.05 V, yani C3b'deki -0.96 V'tan cok daha negatif). netlist3.net: '/V_ADS: R34.2, U7.4' · '/V_TAMPON: R34.1, U3.6, U3.7' · 'Net-(U3B-+): C2.1, R7.2, U3.5'.
 
 **[onemli] Iki iddia dogrudan `True` sabitiyle geciyor (hicbir sey sinamiyor)** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1023 (B6) ve 1205 (B4a))
+- **Yer:** `uretim/sim3_ariza.py` (1023 (B6) ve 1205 (B4a))
 - **Simdiki:** r.kosul("    B6: bugunku sema (tek kaynak) bu ariza modunu HIC acmiyor", True, ...) ve r.kosul("      B4a: DEVIR'in '5.6 mA orta nokta yuku' sayisi YANLIS", True, ...)
 - **Dogrusu:** B6 icin sinanabilir hali var: netlist3.net'te +5V agi = C10.1, C9.1, J5.8, U3.8, U4.8 — yani +5V'a bagli TEK kaynak pini J5.8. Kosul, netlist'ten okunan '+5V agindaki kaynak pini sayisi == 1' olmali. B4a icin sinanabilir hali: toplam_normal (6.4 mA) hesabinda TL072 bosta akiminin katkisinin 0 olmasi zaten sayisal olarak kuruluyor; iddia 'toplam_normal < 5.6e-3 + tl072_bosta' gibi gercek bir karsilastirma olmali. `True` yazan bir kosul 94/94'un iki tanesini bedava dolduruyor.
 - **Kanit:** grep: '1023:            True, "netlist: +5V = J5.8 (yalnizca ESP32 karti) — 7805 YOK")' ve '1205:            True, "op-amp bosta akimi raydan raya akiyor, orta noktaya 0 mA")'. Kosturmada ikisi de [OK]; hicbir sabiti degistirerek kirmizi yapmak mumkun degil.
 
 **[onemli] Bes iddia yalnizca literal/tanim geregi dogru ifadeler siniyor — hicbir sabit degisikligi onlari kirmizi yapamaz** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (254 (bolum0), 1042 (B7), 1257 (B3), 1515 (C2), 1746 (D1b))
+- **Yer:** `uretim/sim3_ariza.py` (254 (bolum0), 1042 (B7), 1257 (B3), 1515 (C2), 1746 (D1b))
 - **Simdiki:** 254: abs(T.ADS_MUTLAK_GIRIS_UST - (T.VDD + 0.3)) < 1e-9 · 1042: 32.0 ** 2 / 0.015 > 1000 · 1257: 24.0 / abs(T.LM358_GIRIS_MUTLAK_ALT) > 50 · 1515: 613.0 < 3000.0 * 6.3 · 1746: T.USB_GND_KORUMA == 0.0
 - **Dogrusu:** 254 tavtolojik: tasarim3_sabit.py:217'de ADS_MUTLAK_GIRIS_UST zaten `VDD + 0.3` olarak TANIMLI, yani ifade her zaman dogru. 1746 ayni sekilde: USB_GND_KORUMA sabiti tasarim3_sabit.py:431'de 0.0 olarak yaziliyor. 1042, 1257 ve 1515 tamamen literallerden olusuyor (32, 0.015, 24, 613, 3000, 6.3) — hicbiri T'den gelmiyor ve hicbiri simulasyondan. Bunlarin ya T'deki sabitlerden (T.SONT_SECENEK[3], T.RAY_24V, T.TL072_BESLEME_MAKS ...) beslenmesi ya da r.bilgi'ye dusurulmesi gerekir; 'dogrulama gecti' sayacini sismelerinden aritmak sarttir.
 - **Kanit:** Bes ifade de derleme zamaninda sabit: 3.6-3.6=0<1e-9 ; 68266>1000 ; 80>50 ; 613<18900 ; 0.0==0.0. Kosturmada besi de [OK]. Ayrica B3'un olculen olen parcasi netlist'e gore U5/U8 (TL072, +-12V raylari yalnizca U5.8/U5.4/U8.8/U8.4'e gidiyor) ama kosul LM358'in GIRIS sinirini (-0.3 V) olcut aliyor; TL072'nin kendi siniri (T.TL072_BESLEME_MAKS = 18 V) hic kullanilmiyor.
 
 **[onemli] A4: baslikta '18 kat' yaziyor, kosul '>1.5' siniyor, kanit ise bambaska bir buyukluk (3005 V)** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (707-709 (r.kosul 'A4: HV kanali NORMAL kanaldan 18 kat dayanikli'))
+- **Yer:** `uretim/sim3_ariza.py` (707-709 (r.kosul 'A4: HV kanali NORMAL kanaldan 18 kat dayanikli'))
 - **Simdiki:** Kosul: v_asma / 615.0 > 1.5 · kanit: 'direnc gerilim siniri ancak 3005 V'ta asiliyor'. v_asma/615 = 4.9, baslikta '18 kat'.
 - **Dogrusu:** '18 kat' aslinda bolme oranlarinin orani: HV['N']/NORMAL['N'] = 601/33.35 = 18.0. Kosul da onu olcmeli (orn. HV['N'] / NORMAL['N'] > 15). Su haliyle baslikta 18, kosulda 1.5, kanitta 4.9 — uc farkli sayi ve hicbiri digerini dogrulamiyor. Ayrica ayni bolumdeki '1000 V'ta ADS pini mutlak sinirin altinda (tampon doyuyor, koruyor)' kaniti da yanlis: 1000 V'ta cikis 3.376 V, yani tampon DOYMUYOR (V_OH = 3.5 V).
 - **Kanit:** Kosturma: '[OK] A4: HV kanali NORMAL kanaldan 18 kat dayanikli   direnc gerilim siniri ancak 3005 V'ta asiliyor' (3005/615 = 4.89). Tablo satiri: '+1000V  +3.376V  +3.376V  +3.376V' — dugum = cikis = ADS pini, doyma yok. Ayrica A4 opad varsayilani 'LM358' (garanti model); A1b'nin en kotu modeliyle (LM358K) kosturuldugunda 1500 V'ta ADS pini 3.964 V ve ESD akimi 10.358 mA (>10 mA mutlak sinir) cikiyor — ama A4 kaydet'i 'hicbir sinir asilmiyor, olen parca yok' diyor.
 
 **[onemli] F3'te simulasyon sonucu ELLE yazilmis: `p_bir = 1.609 / 2` — betigin kendi kuralinin ihlali ve payi yalnizca 2.4 C** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (2006 (p_bir = 1.609 / 2) ve 2000-2001 (metinde '595 V', '1.61 W', '201 C', '6.4x'))
+- **Yer:** `uretim/sim3_ariza.py` (2006 (p_bir = 1.609 / 2) ve 2000-2001 (metinde '595 V', '1.61 W', '201 C', '6.4x'))
 - **Simdiki:** p_bir = 1.609 / 2 ; t_bir = T.ORTAM_C + p_bir * T.DIRENC_GOVDE['1/4W'][2] -> 152.6 C ; kosul t_bir <= 155 C.
 - **Dogrusu:** 1.609 W, BOLUM 2'de ngspice'tan gelen s['p_ust'] degeri; F3 onu global bir degiskene alip kullanmali (bolum2 sonucunu dondurmeli ya da modul duzeyinde saklamali). Modul docstring'i acikca 'Elle yazilmis sonuc sayisi YOK' diyor. Pay 155-152.6 = 2.4 C oldugu icin, bolucu ya da R4 degeri degistiginde bu iddia ESKI sayiyla yesil kalmaya devam eder. Ayrica metindeki '6.4x' bayat: R4'un govdesi envanterde 1W oldugu icin gercek oran 1.609/1.00 = 1.6x (satir 452'deki 'Buradaki 1.6x tam o sinirda' cumlesi de bu yuzden yanlis — 6.25x kalifikasyon sinirinin 4 kat altinda).
 - **Kanit:** grep '2006:    p_bir = 1.609 / 2'. Kosturma: '[OK] F3: bolununce film sicakligi sinirin altina iniyor  153 C <= 155 C'. BOLUM 2 tablosu ayni sayiyi simulasyondan uretiyor: '+615V ... 2.704mA  1.609W'. BOLUM 2 metni: '= 6.25x nominal GUC. Buradaki 1.6x tam o sinirda.'
 
 **[onemli] BOLUM 6 fiyat eslestirmesi ilk substring eslesmesini aliyor: olen ADS1115 modulu 0.15 TL fiyatlaniyor — 'ucuz parca' olcutu kandirilabilir** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1872-1876 (fiyat arama dongusu) ve 1885 (r.kosul 'OZET: bilesen arizalarinda olen en pahali parca UCUZ'))
+- **Yer:** `uretim/sim3_ariza.py` (1872-1876 (fiyat arama dongusu) ve 1885 (r.kosul 'OZET: bilesen arizalarinda olen en pahali parca UCUZ'))
 - **Simdiki:** for k, v in FIYAT.items(): if k.split()[0] in o or o.split()[0] in k: fiyat = v; break — A7'nin olen alani 'U6 (ADS1115 #1) + R18' oldugu icin dongu once 'R18 (100R)' anahtarina takiliyor ve 45 TL yerine 0.15 TL yaziyor.
 - **Dogrusu:** Bilesik 'olen' metinlerinde TUM eslesmeler bulunup EN PAHALISI alinmali (break yerine max). Su haliyle kabul olcutu ('en pahali parca <= 50 TL') bir arizanin gercek maliyetini gormeden gecebilir: A6 kaydi silinse, ADS1115'in oldugu A7 satiri 0.15 TL olarak fiyatlanir ve iddia yine yesil kalir.
 - **Kanit:** Kosturma ciktisindaki fiyat tablosu:
@@ -1079,14 +1079,14 @@ Yani kosum altyapisi calisiyor; A1'in iddiasi kasitli bozulmaya ragmen sessizce 
 
 **[onemli] A6'nin iki kosulu da sihirli sayilarla kuruluyor ve iddiayi kanitlamiyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (811-816 (r.kosul 'A6: 10R sont takiliyken 0.5 A...' ve 'A6: ayni ariza 3V3 rayini da yukseltebiliyor'))
+- **Yer:** `uretim/sim3_ariza.py` (811-816 (r.kosul 'A6: 10R sont takiliyken 0.5 A...' ve 'A6: ayni ariza 3V3 rayini da yukseltebiliyor'))
 - **Simdiki:** i10[1] < 0.6 ve i10[2] < 2.0. Kanitlar 'esik 0.490 A' ve '0.790 A ustunde kacak ...'.
 - **Dogrusu:** '0.5 A'lik bir yuk ADS'i oldururuyor' iddiasini kanitlayan kosul i10[1] < 0.5 olmali; 0.6 esigiyle test, esik 0.55 A cikip iddia YANLIS oldugunda da yesil kalir. Ikinci kosuldaki 2.0 A ise iddiayla hic iliskili degil — 'ayni ariza 3V3 rayini yukseltir' demek icin karsilastirilmasi gereken sey i10[2] ile A6'nin senaryo akimi (0.5 A), yani i10[2] < 0.5 olmali; 0.790 A esigi zaten 0.5 A'lik senaryoda rayin YUKSELMEDIGINI soyluyor. Iki sayi da (0.6 ve 2.0) T'den gelmiyor.
 - **Kanit:** Kosturma: '[OK] A6: 10R sont takiliyken 0.5 A'lik bir yuk ADS'i oldururuyor   esik 0.490 A' ve '[OK] A6: ayni ariza 3V3 rayini da yukseltebiliyor (ESP32 riski)   0.790 A ustunde kacak ESP32'nin bosta akimini asiyor' — ikinci satirdaki 0.790 A, senaryonun 0.5 A'inin USTUNDE, yani kanit iddianin tersini soyluyor. Bu iddiaya dayanarak A6 kaydi esp=False ile matrise 'ESP RISK' yaziliyor.
 
 **[onemli] R4'u bolme cozumu, 5 SANIYELIK asiri yuk carpanini SUREKLI ariza kosuluna uyguluyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (482 (ok = tf <= T.DIRENC_FILM_TMAKS and vbir <= gv * T.DIRENC_ASIRI_YUK_CARPANI) ve 487 (r.kosul 'A1: R4'u bolmek 615 V arizasini govde sinirlarina sokuyor'))
+- **Yer:** `uretim/sim3_ariza.py` (482 (ok = tf <= T.DIRENC_FILM_TMAKS and vbir <= gv * T.DIRENC_ASIRI_YUK_CARPANI) ve 487 (r.kosul 'A1: R4'u bolmek 615 V arizasini govde sinirlarina sokuyor'))
 - **Simdiki:** 2 x 110K secimi 'OLUR' sayiliyor cunku parca basina 297.4 V, 200 V x 2.0 = 400 V'un altinda. Kabul olcutu boylece 297 V'u onayliyor.
 - **Dogrusu:** tasarim3_sabit.py:362'de sabitin kendi aciklamasi 'DIRENC_ASIRI_YUK_CARPANI = 2.0  # kisa sureli (5 s) overload gerilimi'. A1 senaryosu (yanlis klemense 615 V DC baglanmis ve oyle kalmis) SUREKLI bir kosul; orada gecerli olan azami CALISMA gerilimi (1/4W icin 200 V), yani 2 x 110K parcalarinin 297 V'u sinir DISI. Sadece 3 x 73.3K (198 V/parca) surekli kosulu sagliyor ve tablo onu da 'OLUR' basiyor. Kosul `vbir <= gv` olmali; oyle olursa en_iyi 3 parca cikar ve F3'un '2 x 110K' onerisi degisir.
 - **Kanit:** Kosturma tablosu:
@@ -1097,21 +1097,21 @@ tasarim3_sabit.py:362 aciklamasi: 'kisa sureli (5 s) overload gerilimi'.
 
 **[onemli] F2'nin PGA sicramasi iddiasi, kosula gizlice konmus 1.5 carpani sayesinde geciyor — cikplak karsilastirma 0.120 > 0.100 ile KIRMIZI** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1969 (if secim is None and rs > 0 and sicrama / 100 < T.ADS_PGA_UYUM * 1.5) ve 1980 (r.kosul 'F2: 1K seri direnc, PGA sicramasini ADS'in kendi spek'i mertebesinde tutuyor'))
+- **Yer:** `uretim/sim3_ariza.py` (1969 (if secim is None and rs > 0 and sicrama / 100 < T.ADS_PGA_UYUM * 1.5) ve 1980 (r.kosul 'F2: 1K seri direnc, PGA sicramasini ADS'in kendi spek'i mertebesinde tutuyor'))
 - **Simdiki:** Secim olcutu ADS_PGA_UYUM * 1.5 = %0.15. 1K icin hesaplanan sicrama 0.120 puan; kanit metni ise '(ADS'in kendi spek'i 0.1 puan)' diyor.
 - **Dogrusu:** 1K'nin urettigi kazanc sicramasi (0.120 puan) ADS'in kendi kademe uyum spek'ini (%0.1 = 0.100 puan) %20 ASIYOR. Ya iddia durustce 'ADS'in spek'inin %20 ustunde ama kalibre edilebilir' demeli ve olcut buna gore yazilmali, ya da 1.5 carpani kaldirilmali. Kaldirilirsa dongudeki hicbir aday (1K -> 0.120, 2.7K -> 0.325, 10K -> 1.204) olcutu saglamaz, secim None kalir ve iddia kirmizi olur — yani 1.5 carpaninin TEK islevi testi yesil tutmak. Kiyas: ayni betigin F1 iddiasi hicbir carpan kullanmadan `hata / 100 < T.ADS_PGA_UYUM` yaziyor.
 - **Kanit:** Kosturma: '[OK] F2: 1K seri direnc, PGA sicramasini ADS'in kendi spek'i mertebesinde tutuyor   1K -> 0.120 puan (ADS'in kendi spek'i 0.1 puan)'. Hesap: (1000/710e3 - 1000/4.9e6)*100 = 0.1204 puan; T.ADS_PGA_UYUM*100 = 0.100 puan.
 
 **[onemli] C4 iddiasi, netlist'te ZATEN DUZELTILMIS bir kusuru 'semadaki gercek kusur' diye raporluyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (C4 bolumu — 'Semada bugun: C1 = {T.C1_BUGUN*1e9:.0f} nF' satiri ve r.kosul 'C4: C1 kararsiz bolgenin TAM ICINDE')
+- **Yer:** `uretim/sim3_ariza.py` (C4 bolumu — 'Semada bugun: C1 = {T.C1_BUGUN*1e9:.0f} nF' satiri ve r.kosul 'C4: C1 kararsiz bolgenin TAM ICINDE')
 - **Simdiki:** T.C1_BUGUN = 100e-9 (tasarim3_sabit.py:306 'Semadaki C1 (TL_RAY <-> GND) bugun 100nF'); kosul kararsiz = 10nF <= 100nF <= 2.2uF -> [OK]. F4 de 'C1 -> 1nF' onermeye devam ediyor.
 - **Dogrusu:** netlist3.net komponent listesi 'C1 = 1nF' diyor ve /TL_RAY agi C1.1, R1.2, R2.1, U1.1, U1.3 — duzeltme SEMAYA UYGULANMIS. T.C1_BUGUN 1e-9 yapilirsa kararsiz False olur ve iddia kirmizi doner; yani bu iddia bugun sabit ile semanin ayrismis olmasi sayesinde yesil. Ayni bayatlik A1b metninde ('/V_TAMPON = U3.6, U3.7, U7.4 — tampon cikisi ADS pinine DOGRUDAN gidiyor') ve C5 metninde ('VREF ... U7.5, U7.7'e DOGRUDAN gidiyor') de var: netlist'te R34 = 1K ve R36 = 1K mevcut.
 - **Kanit:** netlist3.net: 'C1 = 1nF' · '/V_TAMPON:  R34.1, U3.6, U3.7' · '/V_ADS:  R34.2, U7.4' · '/VREF: ... R36.1 ...' · '/VREF_ADS:  R36.2, U7.5, U7.7' · 'R34 = 1K', 'R36 = 1K'. Betik ciktisi: '[OK] C4: C1 kararsiz bolgenin TAM ICINDE  100 nF, aralik 10 nF .. 2.2 uF'.
 
 **[kucuk] A9 ve A5'te baslik/kanit/kosul sayilari uc ayri deger** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (969-971 (A9: '14x' baslik, p20 / gp20 > 10 kosul, '13x' kanit) ve 772-774 (A5: v_p20 < 250.0))
+- **Yer:** `uretim/sim3_ariza.py` (969-971 (A9: '14x' baslik, p20 / gp20 > 10 kosul, '13x' kanit) ve 772-774 (A5: v_p20 < 250.0))
 - **Simdiki:** A9 basligi '...R20 aniden 14x asiri yukleniyor', kanit '3.32 W / 0.25 W = 13x', kosul '> 10'. A5 iddiasi 'R20 skop kanalinin gercek sinirini belirliyor' kosulu v_p20 < 250.0 (elle yazilmis esik), kaniti '169 V — bolucu 49 V okuyabilir'.
 - **Dogrusu:** A9 basligindaki '14x' hesaplanan degerle (13.3x) uyusmuyor; baslik f-string ile p20/gp20'den uretilmeli. A5'teki 250.0 ne T'den ne simulasyondan geliyor ve iddiayi sinamiyor: 'R20 gercek siniri belirliyor' demek icin karsilastirma v_p20 ile GPIO kelepcelerinin dayandigi gerilim (taramadaki +-400 V) ya da T.SKOP_TAVAN*T.SKOP_N (49 V) arasinda olmali; kosul su haliyle v_p20 = 60 V cikarsa da yesil kalir ve o durumda iddia yanlis olurdu.
 - **Kanit:** Kosturma: '[OK] A9: 615 V skop girisine degerse R20 aniden 14x asiri yukleniyor   3.32 W / 0.25 W = 13x' ve '[OK] A5: R20 skop kanalinin gercek sinirini belirliyor   169 V — bolucu 49 V okuyabilir ama R20 dayanmaz'.
@@ -1120,70 +1120,70 @@ tasarim3_sabit.py:362 aciklamasi: 'kisa sureli (5 s) overload gerilimi'.
 
 **[kritik] LM358 termal direncleri (120 / 200 K/W) gosterilen veri sayfasinda YOK — B5'in 'SOIC olurdu' yargisi tersine doner** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\tasarim3_sabit.py` (282-283 (LM358_THETA_DIP8 / LM358_THETA_SOIC8))
+- **Yer:** `uretim/tasarim3_sabit.py` (282-283 (LM358_THETA_DIP8 / LM358_THETA_SOIC8))
 - **Simdiki:** LM358_THETA_DIP8 = 120.0  # K/W, TI PDIP  ve  LM358_THETA_SOIC8 = 200.0  # K/W, SOIC (189..238 araligi). Bolum basligi kaynagi 'TI SLOS068AB / onsemi LM358' diye veriyor. sim3_ariza.py bolum3 B5 bunlarla Tj hesapliyor ve 'B5: ayni ariza SOIC govdede parcayi OLDURURDU, Tj 169 C' diye KOSUL gecirtiyor.
 - **Dogrusu:** SLOS068AB (JUNE 1976 - REVISED OCTOBER 2024) 5.4 Thermal Information: P (PDIP) 8 PINS RthetaJA = 80.9 C/W, D (SOIC) 8 PINS RthetaJA = 124.7 C/W. Ne 120, ne 200, ne de '189..238' araligi belgede geciyor. Dogru sayilarla Tj(DIP) = 25 + 0.72 x 80.9 = 83 C, Tj(SOIC) = 25 + 0.72 x 124.7 = 115 C — yani SOIC de OLMEZ; betigin 'delikli plaket SMD'den DAHA saglam' cikarimi kayboluyor. Serbest hava / soketli perfboard degeri kastediliyorsa kaynak ACIKCA baska bir belge (or. LM358-N SNOSBT3) olarak yazilmali ve DIP/SOIC karsilastirmasi yeniden turetilmeli.
 - **Kanit:** TI SLOS068AB s.5, Tablo 5.4: 'RthetaJA Junction-to-ambient thermal resistance | D(SOIC) 124.7 | P(PDIP) 80.9 | ... C/W'. Kosturma ciktisi (b15.txt s.512-517): 'I_SC maksimum / DIP-8  60.0 mA -> P 720 mW -> Tj 111 C YASAR' / 'I_SC maksimum / SOIC-8 60.0 mA -> P 720 mW -> Tj 169 C OLUR' / '[OK] B5: ayni ariza SOIC govdede parcayi OLDURURDU Tj 169 C'. Duzeltilmis: 25 + 0.72*124.7 = 114.8 C.
 
 **[kritik] IEC 60664-1 kacak yolu 615 V icin degil 400 V icin alinmis — delikli plaket kurali bir delik EKSIK cikiyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\tasarim3_sabit.py` (438-441 (IEC60664_CREEPAGE_TEMEL / _TAKVIYELI))
+- **Yer:** `uretim/tasarim3_sabit.py` (438-441 (IEC60664_CREEPAGE_TEMEL / _TAKVIYELI))
 - **Simdiki:** Bolum basligi '# IEC 60664-1 / IPC-2221B mesafeler (615 V DC, kirlilik derecesi 2, FR4 = IIIa)' diyor, ama hemen altinda IEC60664_CREEPAGE_TEMEL = 4.0 '# mm, 400 Vrms, PD2, grup III' ve IEC60664_CREEPAGE_TAKVIYELI = 8.0. Yani baslik 615 V, sayi 400 V.
 - **Dogrusu:** IEC 60664-1 kacak yolu tablosu (PD2, malzeme grubu IIIa) basamak basamak: 400 V -> 4.0 mm, 500 V -> 5.0 mm, 630 V -> 6.3 mm. 615 V DC calisma gerilimi icin bir ust basamak (630 V) alinir: TEMEL 6.3 mm, TAKVIYELI (2x) 12.6 mm. 2.54 mm adimda temel ceil(6.3/2.54) = 3 delik, takviyeli ceil(12.6/2.54) = 5 delik (12.70 mm).
 - **Kanit:** Kosturma ciktisi (b15.txt s.738-744): '· IEC 60664-1 kacak yolu: temel 4.0 mm, takviyeli 8.0 mm' -> 'temel yalitim : 2 delik atla (5.08 mm)' / 'takviyeli yalitim: 4 delik atla (10.16 mm)' ve '[OK] D2: ... kullanici ile HV arasinda 4 delik (10.16 mm)'. Ayni sayi F9'da (sim3_ariza.py 2134-2147) tekrar 'takviyeli yalitim' kurali olarak veriliyor. 615 V'ta gerekli olan 12.7 mm; kart 2.54 mm (bir delik) eksik yalitimla boyutlanmis oluyor. Karsilastirma: ayni satirdaki IPC2221_KACAK_615V = 3.08 mm DOGRU (IPC-2221 Tablo 6-1, sutun B2: 301-500 V icin 2.5 mm + >500 V icin 0.005 mm/V -> 2.5 + 115*0.005 = 3.075).
 
 **[onemli] LM358_CL_MAKS = 50 pF — 'veri sayfasi Application Information' diyor ama o cumle veri sayfasinda yok** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\tasarim3_sabit.py` (273-276 (LM358_CL_MAKS))
+- **Yer:** `uretim/tasarim3_sabit.py` (273-276 (LM358_CL_MAKS))
 - **Simdiki:** '# KAPASITIF YUK: veri sayfasi Application Information bolumu, EN KOTU baglanti olan evirmeyen BIRIM KAZANC icin yalnizca 50 pF veriyor' -> LM358_CL_MAKS = 50e-12. sim3_ariza.py B4b bunu '700 nF / 50 pF = 14000 kat' diye raporluyor.
 - **Dogrusu:** SLOS068AB'nin Application and Implementation (bolum 8) kismi kapasitif yuk hakkinda TEK KELIME etmiyor. Belgedeki tek kapasitif yuk SPEKI 'CLOAD Capacitive load drive = 100 pF' ve yalnizca 5.5 (LM358B/LM358BA) ile 5.6 (LM2904B) tablolarinda; kullanicinin stokundaki DUZ LM358'in tablosunda (5.7) CLOAD satiri HIC YOK. 50 pF sayisi belgede yalnizca Sekil 5-43/5-44'un test yuku olarak geciyor ('Voltage Follower Large/Small Signal Response (50 pF)') — sinir degil, olcum kosulu. Dogru ifade: 'duz LM358 icin veri sayfasi kapasitif yuk siniri VERMIYOR; en yakin sayi B surumunun 100 pF CLOAD'i.' Oran da 700 nF / 100 pF = 7000 kat olur.
 - **Kanit:** PDF metin taramasi (SLOS068AB, 68 sayfa) 'apacit|pF' eslesmeleri: s.6 ve s.8 'CLOAD Capacitive load drive 100 pF' (bolum 5.5 / 5.6 basliklari: 'Electrical Characteristics: LM358B and LM358BA' / 'LM2904B and LM2904BA'), s.6/8 'Thetam Phase margin G = +1, RL = 10kOhm, CL = 20 pF 56 derece', s.19 'Figure 5-27 Phase Margin vs Capacitive Load', s.22 'Figure 5-43/5-44 Voltage Follower ... (50 pF)'. Bolum 8'de (s.27-29) yalnizca bypass kondansatoru yerlesimi anlatiliyor. Kosturma ciktisi (b15.txt s.486): '[OK] B4b: kapasitif yuk veri sayfasi sinirinin cok uzerinde 700 nF / 50 pF = 14000 kat'.
 
 **[onemli] V_OH 1.35 V tipik / 1.42 V maks sayilari LM358'e ait degil — SLOS068AB 5.5 LM358B'nin tablosu** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\tasarim3_sabit.py` (56-57, 127-131, 257-260)
+- **Yer:** `uretim/tasarim3_sabit.py` (56-57, 127-131, 257-260)
 - **Simdiki:** s.56: 'LM358'in cikis tavani V+ - 1.35 V (TI SLOS068AB 5.5) ... 4.95 V'un ustunde tavan 3.6 V'u asiyor'. s.128-130: 'TI SLOS068AB 5.5 (s.6) I_OUT = 50 uA'da V+ - V_OH dusumu 1.35 V tipik / 1.42 V maks. +5.00 V rayda tavan 3.65 V'. s.257-260 ayni sayilari tekrarliyor. Ayni dosya s.96-119'da ise 'MIN ve TYP YOK' diyor — kendi icinde de celisiyor.
 - **Dogrusu:** SLOS068AB 5.5'in basligi 'Electrical Characteristics: LM358B and LM358BA'; I_OUT = 50 uA / 1 mA / 5 mA satirlari (1.35 tip - 1.42 maks / 1.4 - 1.48 / 1.5 - 1.61 V) B SURUMUNE ait. Kullanicinin stokundaki duz LM358'in tablosu 5.7 'Electrical Characteristics: LM358, LM358A' ve orada V_S = 5 V; R_L >= 2 kOhm icin YALNIZCA MAX = 1.5 V var; I_OUT tabanli satir, TYP ve MIN yok. Yani LM358_VOH_DUSUM = 1.5 DOGRU ve 'TYP yok' saptamasi DOGRU; yanlis olan onun yanindaki 1.35/1.42 atifi ve ondan turetilen '4.95 V esigi' ile '3.65 V tavan' cumleleri. Duz LM358 icin veri sayfasindan turetilebilecek TEK sey: tavan >= V+ - 1.5 V; ust ucu baglayan hicbir sayi yok.
 - **Kanit:** SLOS068AB s.6 baslik: '5.5 Electrical Characteristics: LM358B and LM358BA' — V_O 'Voltage output swing from rail / Positive rail: I_OUT = 50 uA | 1.35 | 1.42 V'. SLOS068AB s.10 baslik: '5.7 Electrical Characteristics: LM358, LM358A, For V_S = 5 V, T_A = 25 C' — V_O Positive rail satirlari yalnizca 'V_S = 30 V; R_L = 2 kOhm (TA 0-70 C) MAX 4', 'V_S = 30 V; R_L >= 10 kOhm TYP 2 MAX 3', 'V_S = 5 V; R_L >= 2 kOhm MAX 1.5'. Sonuc: kodun kullandigi 5.0 - 1.5 = 3.5 V dogru, yorumdaki 3.65 V ve 4.95 V esigi kaynaksiz.
 
 **[onemli] DIRENC_GOVDE'nin Rth sutunu kendi gosterdigi kaynakla celisiyor; R4 film sicakligi 56 C dusuk cikiyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\tasarim3_sabit.py` (355-361 (DIRENC_GOVDE ve ustundeki kaynak notu))
+- **Yer:** `uretim/tasarim3_sabit.py` (355-361 (DIRENC_GOVDE ve ustundeki kaynak notu))
 - **Simdiki:** Kaynak notu: '# Rth: Vishay VR25 140 K/W, PR01 135 K/W (0207 govde).' Tablo: '1/4W': (200, 0.25, 140.0), '1/2W': (250, 0.50, 120.0), '1W': (350, 1.00, 100.0), '2W': (500, 2.00, 70.0). PR01 bir 1 W parcasi ama tablonun 1W satiri 100 K/W diyor; 1/2W (120) ve 2W (70) satirlarinin ve butun gerilim sutununun (250/350/500 V) hicbir kaynagi yok.
 - **Dogrusu:** Ya tablonun 1W satiri kaynagin verdigi 135 K/W olmali, ya da 100 K/W'in kaynagi yazilmali. Notta adi gecen tek 1 W parcasi (PR01) 135 K/W ise R4 (envanterde 1W, 220K) icin film sicakligi 40 + 1.609 x 135 = 257 C olur, betigin yazdigi 201 C degil. Ayni sekilde 1/2W ve 2W satirlari ile 350 V / 500 V calisma gerilimleri kaynaksiz — ozellikle 2W -> 500 V, A4'te '820K'nin 500 V calisma siniri 2437 V girise kadar asilmiyor' yargisinin TEK dayanagi.
 - **Kanit:** Kosturma ciktisi (b15.txt s.65-69): 'R4 govdesi envanterden: 1W (350 V calisma, 1.00 W, Rth 100 K/W)' ve 'Film sicakligi: 40 + 1.61 x 100 = 201 C (izin verilen 155 C)'. Kaynak notunun kendi sayisiyla: 40 + 1.61 x 135 = 257 C. Ayni Rth farki F3'un sinirda gecen '2 x 1/4W -> 153 C <= 155 C' yargisini da (1/4W icin 140 K/W kullaniliyor, o satir kaynakli) 2 C'lik bir paya birakiyor.
 
 **[onemli] 'Buradaki 1.6x tam o sinirda' cumlesi yanlis — 1/4W varsayimindan kalma, R4 artik 1W** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (450-452 (bolum2, A1 raporu))
+- **Yer:** `uretim/sim3_ariza.py` (450-452 (bolum2, A1 raporu))
 - **Simdiki:** r.bilgi'ler: 'IEC 60115-1 4.13 nitelendirme testi 2.5 x RCWV / 5 s = 6.25x nominal GUC. Buradaki 1.6x tam o sinirda.' — 6.25x ile 1.6x'in 'tam ayni' oldugu soyleniyor.
 - **Dogrusu:** s['p_ust']/p_sinir = 1.609 W / 1.00 W = 1.6x; 6.25x'in yaklasik dortte biri, 'tam o sinirda' DEGIL. Cumle DIRENC_GOVDESI['R4'] hala '1/4W' iken dogruydu (1.609/0.25 = 6.4x ~ 6.25x); govde 'W' olarak duzeltilince metin guncellenmemis. Ya cumle 'nitelendirme sinirinin dortte biri' olmali, ya da karsilastirma 1/4W govde uzerinden yapildigi acikca yazilmali. Ayni eskime kaydet('A1', ...) notunda da var ("1.6 W'ta 6.4x asiri yukleniyor").
 - **Kanit:** Kosturma ciktisi (b15.txt s.65-66, 75-77): 'R4 govdesi envanterden: 1W (350 V calisma, 1.00 W ...)' ve '615 V'ta R4: 595 V (1.7x sinir) · 1.61 W (1.6x sinir)' ardindan '= 6.25x nominal GUC. Buradaki 1.6x tam o sinirda.'
 
 **[kucuk] TL431 kararsizlik penceresi (10 nF..2.2 uF) I_KA = 10 mA icin — devre 3.7 mA'de calisiyor, kosul yazilmamis** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\tasarim3_sabit.py` (300-304 (TL431_KARARSIZ_C, TL431_GUVENLI_C_ALT/UST))
+- **Yer:** `uretim/tasarim3_sabit.py` (300-304 (TL431_KARARSIZ_C, TL431_GUVENLI_C_ALT/UST))
 - **Simdiki:** '# KARARLILIK TUZAGI - TI SLVA482A: katot-anot arasindaki kondansator bu aralikta OSILASYONA yol aciyor. Guvenli: < 1 nF ya da > 22 uF.' TL431_KARARSIZ_C = (10e-9, 2.2e-6). Hicbir katot akimi / V_KA kosulu yazili degil.
 - **Dogrusu:** SLVA482A bu iki sayiyi TEK BIR CALISMA NOKTASI icin veriyor: V_KA = V_ref (seri 'A') ve I_KA = 10 mA. Kararlilik sinir egrileri I_KA'ya gore kayiyor, yani pencere devrenin akimina baglidir. Bu tasarimda TL431 kolu R1 = 220 R ile +3.3 V'tan besleniyor: I_KA = (3.3 - 2.495)/220 = 3.7 mA. Sabitin yanina '@ V_KA = V_ref, I_KA = 10 mA (SLVA482A ornegi)' kosulu yazilmali ve 3.7 mA icin sinirlar grafikten yeniden okunmali (C1 = 100 nF buyuk olasilikla yine kararsiz bolgede, ama bu SAYILARLA gosterilmis olmuyor).
 - **Kanit:** SLVA482A s.2: 'The 10 mA cathode current line intersects series A close to 0.01 uF (red dot) and a second time at 2.2 uF (green dot). This means the capacitance range between 0.01 uF and 2.2 uF would cause a typical device to oscillate.' ve s.3: 'the recommended range is less than 1 nF or greater than 22 uF'. Devrenin akimi: sim3_ariza.py B1 netlistindeki 'R1 ray tlk 220' -> (3.3-2.495)/220 = 3.66 mA.
 
 **[kucuk] LM358_GIRIS_AKIM_GUVENLI 'yaygin uygulama siniri' diye kaynaksiz yazilmis — veri sayfasinda ACIKCA var (ve yanindaki uyari atlanmis)** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\tasarim3_sabit.py` (254-256 (LM358_GIRIS_AKIM_GUVENLI))
+- **Yer:** `uretim/tasarim3_sabit.py` (254-256 (LM358_GIRIS_AKIM_GUVENLI))
 - **Simdiki:** LM358_GIRIS_AKIM_GUVENLI = 1e-3 '# V- altina inildiginde parazitik jonksiyona akan akim icin yaygin uygulama siniri' — yani sayi bir muhendislik gelenegi gibi sunuluyor.
 - **Dogrusu:** SLOS068AB 7.3.3 bunu kelimesi kelimesine soyluyor: girisin V- den 0.3 V fazla asagi inmesi halinde giris akimi 1 mA ile sinirlanmali. Kaynak 'SLOS068AB 7.3.3' olarak yazilmali. Daha onemlisi ayni cumlenin ikinci yarisi B15'te hic gecmiyor: 'the output phase is undefined'. A2 (-615 V) ve A3 (230 V AC negatif yarim dalga) senaryolarinda giris tam da o bolgeye giriyor; betik 'hicbir parca gitmiyor' derken dogru ama tamponun cikisinin FAZ DONMESI yapabilecegini soylemiyor — ve opamp_makro() makromodelinde faz donmesi davranisi olmadigi icin simulasyon bunu gosteremez.
 - **Kanit:** SLOS068AB s.26, 7.3.3 Input Common-Mode Range: 'If either input more than 0.3 V below V- then input current should be limited to 1 mA and the output phase is undefined.' Ayni paragraf B15'in ana bulgusunu da dogruluyor: 'Inputs may exceed V_S up to the maximum V_S without device damage.' Betikteki kullanim: sim3_ariza.py 499-501 (A2, 564 uA) ve 646-648 (A3).
 
 **[kucuk] Bolum 1 (d) testinin kaynak etiketi yanlis: '26 V min, 27 V tip' diye bir satir veri sayfasinda yok** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (335-336 (bolum1, makromodel dogrulama (d)))
+- **Yer:** `uretim/sim3_ariza.py` (335-336 (bolum1, makromodel dogrulama (d)))
 - **Simdiki:** r.kosul('  (d) V+=30 V, R_L=2k'da V_OH veri sayfasi araliginda (>=26 V)', vcik >= 26.0, f'{vcik:.2f} V  (TI SLOS068: 26 V min, 27 V tip)')
 - **Dogrusu:** SLOS068AB 5.7'de V_S = 30 V icin iki ayri satir var: R_L = 2 kOhm (T_A = 0-70 C) yalnizca MAX dusum 4 V -> V_OH >= 26 V (TYP verilmemis), ve R_L >= 10 kOhm TYP 2 / MAX 3 V -> V_OH tipik 28 V, en dusuk 27 V. Yani 27 V, 2 kOhm'un tipigi degil 10 kOhm'un MINIMUMU. Etiket '2k'da yalnizca min 26 V verilmis (0-70 C); 27/28 V 10k satirindan' olmali. Ayni karisiklik LM358_ROUT_DOYMUS = 100 ohm'un turetimini de etkiliyor (opamp_makro docstring, sim3_ariza.py 100-104): iki farkli satirin (biri 25 C, digeri 0-70 C) MAKS degerleri arasinda egim aliniyor; veri sayfasinin kendi acik-cevrim cikis direnci ise R_O = 300 ohm olarak veriliyor.
 - **Kanit:** SLOS068AB s.10, 5.7 OUTPUT / V_O satirlari: 'Positive rail | V_S = 30 V; R_L = 2 kOhm | T_A = 0 C to 70 C | (MAX) 4 | V' ; 'V_S = 30 V; R_L >= 10 kOhm | (TYP) 2 (MAX) 3 | V'. R_O icin s.6: 'R_O Open-loop output resistance f = 1 MHz, I_O = 0 A | 300 | Ohm'.
 
 **[kucuk] BAT85 kacak sabitleri kendi aralarinda fiziksel olarak tutarsiz (2 V'ta 200 nA, 3 V'ta 100 nA)** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\tasarim3_sabit.py` (144 (DIYOTLAR, BAT85 satiri) ve 341 (BAT85_IR_TIPIK_3V))
+- **Yer:** `uretim/tasarim3_sabit.py` (144 (DIYOTLAR, BAT85 satiri) ve 341 (BAT85_IR_TIPIK_3V))
 - **Simdiki:** DIYOTLAR'da BAT85 icin 'kacak@2V/25C = 0.2e-6' (kaynak: Nexperia Sekil 2), s.341'de BAT85_IR_TIPIK_3V = 0.1e-6 '# V_R ~3 V, 25 C (Vishay egrisi)'. Yani ters gerilim ARTARKEN kacak YARIYA iniyor.
 - **Dogrusu:** I_R(V_R) monoton artan bir buyukluktur; ayni sicaklikta 3 V'taki kacak 2 V'takinden kucuk olamaz. Iki sayi iki ayri ureticinin egrisinden okunmus ve karistirilmis. Tek bir veri sayfasi secilip (Nexperia BAT85 Sekil 2, 25 C egrisi) her iki nokta oradan okunmali; ya da kararsizlik acikca 'ureticiler arasi sacilma' olarak yazilmali. Ayni 25 C noktasinin 60 C degeri (BAT85_IR_TIPIK_3V_60C = 1 uA) F5 karsilastirmasinda BAT85'i eledigi icin bu zincirin tutarli olmasi gerekiyor.
 - **Kanit:** Nexperia BAT85 veri sayfasi (24 July 2012) Tablo 7: 'IR reverse current VR = 25 V; Tamb = 25 C - - 2 uA' ve Sekil 2 'Reverse current as a function of reverse voltage; typical values' — egri monoton artan. Sabitlerin kendisi: 0.2e-6 @2 V vs 0.1e-6 @3 V. (Not: BAT85_VF_MAKS tablosunun tamami — 0.1 mA/240 mV, 1 mA/320, 10 mA/400, 30 mA/500, 100 mA/800 — ve IF/IFRM/IFSM/VR degerleri Nexperia Tablo 5+7 ile BIREBIR dogru cikti.)
@@ -1192,63 +1192,63 @@ tasarim3_sabit.py:362 aciklamasi: 'kisa sureli (5 s) overload gerilimi'.
 
 **[kritik] Endüktif yük kesilmesi (flyback) hiç yok — sont kolunun bütün senaryoları dirençli/DC kaynak varsayıyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (784-937 (bolum2b: A6/A7/A8) + 1945-1998 (F2))
+- **Yer:** `uretim/sim3_ariza.py` (784-937 (bolum2b: A6/A7/A8) + 1945-1998 (F2))
 - **Simdiki:** A7'nin tablosu yalnızca 5/12/32 V dirençli kaynaklarla (10 mA..1 A yük) kuruluyor, A8 ters akımı DC tam ölçekte, B7b J3'e 32 V DC. Dosyada 'endükt', 'flyback', 'di/dt' hiç geçmiyor (grep = 0); 'bobin' yalnızca 1155. satırda skop kanalının kör noktası bağlamında. F2 güvenceyi açıkça sınırlıyor: 'ESP32 47 V'luk bir sont arizasina kadar guvende'.
 - **Dogrusu:** Sont, yükün DÖNÜŞ kolunda (netlist: /YUK_EKSI = J3.1 = R18.1 = RS.1, RS.2 = GND) — kart yük akımının tamamını taşıyor. Kart bilerek 'çift yönlü akım' için tasarlandı ve kullanıcının alanı SMPS/inverter, yani yük neredeyse her zaman endüktif. Akımın herhangi bir yerde kesilmesi (soketli sontun kademesini canlı değiştirmek, gevşek klemens, MOSFET'in kapanması) L·di/dt'yi doğrudan J3.1'e bindirir. Bu, A7'nin açık-sont hâlinin gerilimi kaynak gerilimiyle SINIRLI OLMAYAN versiyonudur ve F2'nin kendi gerekçesine göre bu kanalda kelepçe kullanılamadığı için tek koruma R18 + R38'dir. Senaryo A7'nin yanına 'endüktif yük + kesme' satırı olarak eklenmeli ve F2'nin 1K'sı bu tepeye göre yeniden boyutlanmalı (ya da sont koluna TVS/sigorta).
 - **Kanit:** ngspice, netlist3.net topolojisi (R18=100R + R38=1K + ADS ESD modeli): 100 V'luk bir tepede ADS pini 4.781 V, ESD akımı 86.6 mA = mutlak sınırın (T.ADS_GIRIS_AKIM_MAKS = 10 mA) 8.7 katı ve B15'in kendi '3V3 rayı yükselir' eşiğinin (T.ESP_BOSTA_AKIM = 40 mA) 2.2 katı. 100 V için 1 mH / 1 A / 10 us kesme yetiyor. Kaba tablo: 1mH/1A/1us -> 1000 V -> 906 mA; 0.1mH/5A/1us -> 500 V -> 451 mA; 10mH/0.5A/100us -> 50 V -> 42 mA. R38 olmasaydı (B15'in A7'sinin varsaydığı gibi) 100 V'ta 962 mA.
 
 **[kritik] Sont arızalarının ikinci kolu (R27 -> U8A -> U5B -> GPIO5) hiçbir senaryoda simüle edilmiyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (785-820 (A6), 822-906 (A7), 1028-1055 (B7b); kaydet çağrıları 817, 902, 1050)
+- **Yer:** `uretim/sim3_ariza.py` (785-820 (A6), 822-906 (A7), 1028-1055 (B7b); kaydet çağrıları 817, 902, 1050)
 - **Simdiki:** Bütün sont senaryoları yalnızca /SONT_P -> R18 -> ADS ESD kolunu kuruyor. Netlist'te /SONT_P aynı anda R27 (10K) ile U8A'nın + girişine gidiyor; oradan R30/R31 -> U5B Sallen-Key -> R33 -> D3/D4 -> J5.7 (GPIO5). Betikte 'U8A' 1 kez geçiyor (satır 1386, B2 bağlamında), 'GPIO5' 1 kez (satır 1152, 2d-b bağlamında). A5 skop kanalının GPIO4'ünü tam olarak simüle ediyor ama hiçbir akım-kanalı arızası GPIO5'e bakmıyor. kaydet('A7', ..., 'U6 (ADS1115 #1) + R18') ve kaydet('B7b', ..., 'RS (sont) + R18') listelerinde U5/U8 yok.
 - **Dogrusu:** Her sont arızası bu ikinci kolu da içermeli; TL072'nin mutlak giriş sınırı (T.TL072_GIRIS_MUTLAK = ±15 V) ve GPIO5'in ESP32 penceresi (T.ESP_MUTLAK_PIN_UST = 3.6 V) sınanmalı. Ölen parça listelerine U5/U8 (2x15 TL) eklenmeli — yoksa Bölüm 6'nın 'ölen en pahalı parça UCUZ mu' ölçütü eksik veri üstünde çalışıyor.
 - **Kanit:** ngspice, netlist3.net topolojisiyle (R18/R19=100R, R38=1K, R27/R29=10K, R28/R30=47K, SK 6.8K, R33=2.7K, D3/D4 BAT85, TL072 makromodeli ±12 V): A7'nin en kötü satırı '32 V çıplak' -> SONT_P = 29.32 V; U8A'nın + pini 12.67 V'ta kelepçeleniyor (±15 V mutlak sınırın altında ama +12 V beslemenin ÜSTÜNDE) ve +12 V rayına 1.43 mA enjekte ediyor; U8A çıkışı 10.48 V'ta doyuyor; GPIO5 D3 üzerinden 3.552 V'a oturuyor — 3.6 V sınırına pay yalnızca 48 mV, üstelik bu TİPİK BAT85 SPICE modeliyle. T.BAT85_VF_MAKS[1e-3] = 0.320 V (maksimum) alınırsa kelepçe 3.62 V, yani sınırın üstünde. Aynı 3.552 V, '12 V / 1 A yük' ve '5 V çıplak' satırlarında da çıkıyor.
 
 **[onemli] A9 (prob ucu kayması) yalnızca SICAK ucun SİNYAL pinlerine kaymasını sayıyor — GND pinleri ve GND ucunun kayması listede yok** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (947-952 (kaymalar listesi), 983-987 (önerilen çözüm), 988 (kaydet))
+- **Yer:** `uretim/sim3_ariza.py` (947-952 (kaymalar listesi), 983-987 (önerilen çözüm), 988 (kaydet))
 - **Simdiki:** `kaymalar` listesinde sadece iki hedef var: J1'in sinyal ucu ve J4'ün sinyal ucu. Önerilen çözüm (satır 983-987): '615 V terminali DİĞER UÇTA, aralarında en az bir boş yuva, ayrı renk ve etiketli olsun.' kaydet('A9', '615 V ucu SKOP girisine kayiyor', 'R20 (100K)') hiçbir esp/pc argümanı vermiyor, yani varsayılan esp=True, pc=True ile kaydediliyor ve Bölüm 6 A9'u 'ESP ok / PC ok' gösteriyor.
 - **Dogrusu:** netlist3.net'te dört giriş klemensinin de 2. pini kart GND'si: GND net'i J1.2, J2.2, J3.2, J4.2, J5.2, J5.9 içeriyor ve bu düğüm aynı zamanda USB GND'sidir. Yani her sıcak pinin BİR PİN yanında (aynı klemens bloğunda) GND var — J1/J4'ün sinyal pinlerinden çok daha yakın bir kayma hedefi. Ayrıca A9 yalnızca sıcak ucun kaymasını ele alıyor; DÖNÜŞ (GND) ucunun kayması ya da DUT içinde yanlış düğüme oturması kart GND'sini — dolayısıyla USB üzerinden PC şasisini — DUT potansiyeline çıkarır. Bu D1b'nin ta kendisidir, ama D1b onu 'kart GND'sini canlı bir düğüme BAĞLARSAN' diye KASITLI bir hata gibi yazıyor; madde 13'ün sorduğu KAZA yolu hiçbir yerde yok. A9'un mekanik çözümü (boş yuva bırakmak) bu yola hiç dokunmuyor ve kaydet'in ölen-parça etiketi (R20) yanlış: bu kaymada giden şey PC anakartı.
 - **Kanit:** netlist3.net ayrıştırması: `GND  C1.2 ... J1.2 J2.2 J3.2 J4.2 J5.2 J5.9 R19.1 R23.2 R3.2 RS.2 ...`. B15'in kendi D1b'si 230 V için 329 A buluyor; aynı 0.7 ohm'luk döngü 615 V'ta 879 A verir ve betiğin kendi erime_suresi() fonksiyonu 879 A'de 28AWG USB GND teli için 683 us, 24AWG için 4.37 ms veriyor — RCD'nin 40 ms'inin çok altında. Ayrıca ngspice ile ölçtüm: A9'un 'J1'e kayma = A1' iddiası elektriksel olarak DOĞRU (tek fark VREF tamponunun sink yükünün 2.704 mA'den 2.829 mA'e çıkması, ikisi de sınırın altında) — sorun o iddia değil, kayma hedefleri listesinin eksikliği.
 
 **[onemli] DEVIR madde 13'ün ikinci yarısı — 'sıcak takma' — hiç yok** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (dosya geneli; madde 13 yalnızca A9 (940-990) ile karşılanmış)
+- **Yer:** `uretim/sim3_ariza.py` (dosya geneli; madde 13 yalnızca A9 (940-990) ile karşılanmış)
 - **Simdiki:** grep 'sicak takma' = 0. Dosyadaki tek zaman-alanı (tran) analizi A3'ün 230 V AC sinüsü (satır 617-670); hiçbir bağlama/sökme olayı simüle edilmiyor. Bütün B senaryoları (B1, B2, B3, B5, B6) kararlı-hâl DC işletme noktaları.
 - **Dogrusu:** Bu kartta sıcak takmanın iki somut örneği var ve ikisi de betiğin kendi metninden çıkıyor: (1) Satır 823 'Sont soketli/vidali; gevsek baglanti cok olasi' diyor — kademe değişimi canlı yükte yapılan bir SICAK TAKMA'dır, A7'nin açık-sont durumundan geçer ve endüktif yükte yukarıdaki flyback tepesini üretir. (2) J5, +3V3 (J5.1), +5V (J5.8) ve iki GND (J5.2, J5.9) taşıyan 10 pinli bir header; sıcak takıp çıkarmada pin oturma sırası hem '+5 V önce' hem '+3V3 önce' hâlini mümkün kılıyor. B15 yalnızca B1 (±12 var / +3V3 yok) ve B2 (+5 yok / ±12 var) KARARLI hâllerini inceliyor, geçişi hiç incelemiyor. En az sont sıcak-değişimi bir senaryo olarak eklenmeli.
 - **Kanit:** grep -ci 'sicak takma' sim3_ariza.py -> 0. Betikteki tek `tran` çağrısı A3'te (satır ~632: `tran 20u 80m 0 20u`). J5 pin haritası netlist3.net'ten: J5.1=+3V3, J5.2=GND, J5.3=/SDA, J5.4=/SCL, J5.5=/SKOP, J5.6=/HAZIR, J5.7=/I_HIZLI, J5.8=+5V, J5.9=GND, J5.10=bağlı değil.
 
 **[onemli] DEVIR madde 6'nın 've tersi' hâli (+5V/+3V3 VAR, ±12 V YOK) hiçbir yerde yok** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1316-1382 (B1), 1384-1403 (B2))
+- **Yer:** `uretim/sim3_ariza.py` (1316-1382 (B1), 1384-1403 (B2))
 - **Simdiki:** B1 = (±12 V var, +3V3 yok), B2 = (+5 V yok, ±12 V var). İkisi de aynı aileden: '24 V açık / USB kapalı'. Üstelik B2 kendi kendini de kapatıyor (satır ~1399: 'Pratikte +5 V ve +3V3 birlikte gidiyor... bu senaryo B1'in içinde eriyor'). Tamamlayıcı hâl — USB takılı (+5 V ve +3V3 VAR), 24 V kapalı (±12 V YOK) — hiç ele alınmıyor.
 - **Dogrusu:** Bu hâl nadir değil, kartı programlarken/kalibre ederken her seferinde içinde bulunulan durum. O sırada U3/U4 (LM358, +5V = J5.8) BESLENİYOR ve VREF = 1.712 V var; U5/U8 (TL072) BESLEMESİZ ama girişleri sürülüyor: U8A'nın + girişi R28 (47K) üzerinden VREF'e, U5A'nın + girişi R22+R21 (2x6.8K) üzerinden skop bölücüsüne bağlı. Ölü ±12 V rayının tek kapasitansı C11+C13 = 200 nF (24 V kaynağı kopuk olduğu için başka yük yok). Rayın nereye oturduğu, TL072'nin besleme farkının mutlak sınırı (T.TL072_BESLEME_MAKS = 18 V) aşıp aşmadığı ve giriş enjeksiyon akımı hiç hesaplanmamış.
 - **Kanit:** A5'in kendi en kötü hâli J4'te 400 V: skop bölücü düğümü = 400 x 6.8/106.8 = 25.5 V; R22+R21 = 13.6K üzerinden ölü +12 V rayına (25.5-0.7)/13.6k = 1.82 mA enjeksiyon (T.TL072_GIRIS_AKIM_MAKS = 10 mA'in altında, o yönden güvenli). Ama ray yüksüz: 200 nF'de dV/dt = 1.82mA/200nF = 9.1 kV/s, yani T.TL072_BESLEME_MAKS = 18 V'a 1.98 ms'te varır. Karşılaştırma: B1 tam tersi yönü (kelepçelerin 3V3 rayını geri beslemesi) titizlikle simüle edip 'TL431 yoksa ray ESP32'yi kesinlikle ÖLDÜRÜR' sonucuna varıyor — aynı titizlik bu yöne uygulanmamış.
 
 **[onemli] /HAZIR hattı (J5.6 <-> U6.2) tamamen korumasız ve 'firmware GPIO'yu çıkış sürüyor' senaryosu hiç yok** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\netlist3.net (net /HAZIR, satır 4524-4538) + sim3_ariza.py'de karşılığı YOK` (netlist3.net 4524-4538; sim3_ariza.py'de tek geçiş yok (grep 'HAZIR' -> yalnızca 1911. satırdaki 'Envanterde hazir' kelimesi))
+- **Yer:** `uretim/netlist3.net (net /HAZIR, satır 4524-4538) + sim3_ariza.py'de karşılığı YOK` (netlist3.net 4524-4538; sim3_ariza.py'de tek geçiş yok (grep 'HAZIR' -> yalnızca 1911. satırdaki 'Envanterde hazir' kelimesi))
 - **Simdiki:** /HAZIR net'i tam olarak iki düğümden ibaret: J5.6 (pintype passive, ESP32 header pini) ve U6.2 (pintype output, ADS1115 ALERT/RDY). Arada seri direnç yok, kelepçe yok, pull-up yok. Betikte 'ALERT', 'I2C', 'ADDR' hiç geçmiyor (grep = 0). 'GPIO' 23 kez geçiyor ama hepsi GPIO'nun analog aşırı gerilimin KURBANI olduğu bağlamda; GPIO'nun SÜRÜCÜ (agresör) olduğu tek bir senaryo yok.
 - **Dogrusu:** İki ayrı eksik: (a) ADS1115'in ALERT/RDY'si açık-drenajdır; pull-up olmadan hat yüzer ve J5.6'daki ESP32 girişi tanımsız okur (netlist'ten doğrudan görülen işlevsel kusur). (b) Firmware o pini push-pull ÇIKIŞ yapıp HIGH sürerken ADS ALERT'i LOW çekerse çekişme akımını sınırlayan HİÇBİR eleman yok — yalnızca iki çıkış katının Ron'u. Kartın geri kalanı bu ilkeyi zaten uyguluyor: /SKOP'ta R26 = 2.7K + D1/D2, /I_HIZLI'da R33 = 2.7K + D3/D4, /SDA ve /SCL'de R24/R25 = 2.7K pull-up. Aynı çekişme o hatlarda ~1.2 mA ile sınırlı, /HAZIR'da ~3.3 V / (25+30 ohm) ~ 60 mA olur — ESP32-S3'ün pin başına sürme sınırının (~40 mA, T.ESP_LATCHUP_AKIM = 200 mA'in çok altında ama DC sürme sınırının üstünde) üzerinde. B15'in 'hiçbir TEK arıza ESP32'yi öldürmemeli' kabul ölçütü firmware arızasına karşı hiç sınanmamış; oysa ölçütün korumaya çalıştığı parça (350 TL, lehimli) tam da bu.
 - **Kanit:** netlist3.net ayrıştırması: `/HAZIR  J5.6(Pin_6_6)  U6.2(ALERT/RDY_2)` — iki düğüm, başka hiçbir eleman. Karşılaştırma: `/SKOP  D1.2(A) D2.1(K) J5.5 R26.2`, `/I_HIZLI  D3.2(A) D4.1(K) J5.7 R33.2`, `/SCL  J5.4 R24.2 U6.10 U7.10` (R24.1 = +3V3), `/SDA  J5.3 R25.2 U6.9 U7.9` (R25.1 = +3V3). U6.2'nin pintype'ı netlist'te 'output', U7'ninki 'output+no_connect'.
 
 **[onemli] Hiçbir arıza senaryosunda iki giriş aynı anda sürülmüyor ve VREF her yerde İDEAL kaynak — U3A tamponunun arıza yükü hiç sayılmamış** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (366 (`Vref vref 0 DC {T.VREF}`), 345-386 (gerilim_kanali_netlist), 407-782 (bolum2 tamamı))
+- **Yer:** `uretim/sim3_ariza.py` (366 (`Vref vref 0 DC {T.VREF}`), 345-386 (gerilim_kanali_netlist), 407-782 (bolum2 tamamı))
 - **Simdiki:** Bölüm 2'nin her netlist'inde TEK bir kaynak var (Vin) ve VREF her yerde ideal bir gerilim kaynağı olarak modellenmiş. Gerçekte VREF, +5 V'tan beslenen U3A tamponunun ÇIKIŞI (netlist: /VREF = C2.2, C3.2, R16.2, R28.1, R36.1, R6.2, U3.1, U3.2) ve HER İKİ gerilim kanalının alt bacağı ile ADS'in AIN1/AIN3'ü oraya bağlı. Kart 4 girişli ve normal kullanımda en az ikisi aynı anda bağlı; hiçbir senaryoda ikisi birden sürülmüyor.
 - **Dogrusu:** 615 V yanlış klemense bağlandığında R4/R6 üzerinden akan akımın TAMAMINI U3A'nın çıkış katı yutmak zorunda. B15, B4a bölümünde (satır 1167-1225) tam olarak bu bütçeyi orta nokta tamponu için titizlikle çıkarıyor ve LM358'in 0..70 C garantisi olan 5 mA'i '🔴 pay yok' diye işaretliyor; aynı LM358'in aynı 5 mA'lik sink garantisi VREF tamponu için hiç sayılmamış. Ayrıca VREF sürüklenirse C3'ün kendi tespitine göre iki gerilim kanalı da aynı anda ve N'den bağımsız SABİT OFSET'le kayar — yani ölçüm sessizce bozulur.
 - **Kanit:** ngspice, VREF'i ideal kaynak yerine gerçek U3A tamponu ile (TL431 -> R2/R3 -> LM358 izleyici, +5 V; her iki bölücü + R36 -> ADS ESD): boşta -0.008 mA; J1'e +615 V (A1) -> U3A çıkışı +2.704 mA SINK; J1 ve J2 aynı anda +615 V (prob köprüsü) -> 2.829 mA; J1'e -615 V (A2) -> 2.172 mA SOURCE; normal kullanım (J1=+32, J2=+613) -> 0.258 mA. T.LM358_SINK_MIN_SICAK = 5 mA, yani A1 arızasında 0..70 C garantisinin %54'ü, iki giriş birlikte %57'si. VREF bu koşumlarda 1.7153 V'ta sabit kaldı (makromodel 40 mA sink edebiliyor), yani gerçek LM358'in sink sınırı bu senaryoyu belirleyecek — ideal kaynak modeliyle bu soru hiç sorulamıyor.
 
 **[kucuk] B6 (madde 8 — 'USB + harici besleme birlikte') tautolojik: iddia argümanı literal `True` ve sayılar elle yazılmış** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (992-1027; özellikle 1004 ve 1023)
+- **Yer:** `uretim/sim3_ariza.py` (992-1027; özellikle 1004 ve 1023)
 - **Simdiki:** B6'nın iki iddiası var. Satır 1023: `r.kosul("    B6: bugunku sema (tek kaynak) bu ariza modunu HIC acmiyor", True, "netlist: +5V = J5.8 ...")` — iddia argümanı literal `True`, yani şema ne olursa olsun geçer, hiçbir şeyi sınamaz. Satır 1004: `fark = 5.25 - 4.80` — iki sayı da elle yazılmış, tasarim3_sabit.py'de yok. Bölümde tek bir ngspice koşumu yok. Dosyanın kendi kuralı (satır 35): 'Elle yazilmis sonuc sayisi YOK; her sayi ya tasarim3_sabit.py'den gelen bir veri sayfasi siniri, ya da burada hesaplanan/simule edilen bir sonuc.'
 - **Dogrusu:** Madde 8 bugünkü şemada gerçekten VAR: USB (VBUS -> ESP32 kartı -> J5.8 = +5V ve J5.1 = +3V3) ile 24 V adaptörü (-> ±12 V) iki bağımsız kaynak ve ikisi de aynı GND'ye referanslı. B6 bunun yerine netlist3.net'te bulunmayan bir 7805'i tartışıp senaryoyu 'bizde yok' diye kapatıyor. Yalıtımlı 24 V + USB birlikte hâli (yani normal kullanımın kendisi) yalnızca B5'te ve yalnızca '24 V yalıtımsızsa' varsayımıyla inceleniyor. Sınanabilir bir iddia gerekiyor: iki kaynağın açılış sırası, ortak GND üzerinden akan dolaşım akımı, ve 24 V kesildiğinde ±12 V raylarının USB tarafından beslenen girişler üzerinden nasıl boşaldığı.
 - **Kanit:** Satır 1023'ün ikinci argümanı literal `True`; satır 1004 `fark = 5.25 - 4.80`. netlist3.net bileşen listesinde 7805 ya da herhangi bir regülatör yok: C1..C15, D1..D4 (BAT85), J1..J5, R1..R39, RS, U1 (TL431LP), U3/U4 (LM358), U5/U8 (TL072), U6/U7 (ADS1115). +12V net'i = C11.1, C13.1, U5.8, U8.8 ve -12V net'i = C12.1, C14.1, U5.4, U8.4 — yani ±12 V'un netlist'te hiçbir KAYNAĞI (konnektör ya da regülatör) yok.
 
 **[kucuk] Bölüm 6'nın kabul ölçütü elle girilen esp/pc bayraklarına bakıyor — eksik senaryo özet matriste görünmez** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (180-181 (kaydet imzası), 1842-1920 (bolum6))
+- **Yer:** `uretim/sim3_ariza.py` (180-181 (kaydet imzası), 1842-1920 (bolum6))
 - **Simdiki:** `def kaydet(kod, ad, olen, esp=True, pc=True, not_="")` — esp/pc bayrakları her çağrıda ELLE veriliyor, hiçbir simülasyon sonucundan türetilmiyor. Bölüm 6'nın 'KABUL OLCUTU DENETIMI' bloğu ve `r.kosul("  OZET: ESP32'yi riske atan BILESEN arizalarinin HEPSI sont kanalinda", all(a.kod in ("A6","A7","B7b") for a in esp_bilesen))` iddiası tamamen bu elle girilmiş etiketler üstünde çalışıyor.
 - **Dogrusu:** Bayraklar ölçülen sayılardan türetilmeli: örn. ADS pin akımı > T.ADS_GIRIS_AKIM_MAKS ya da GPIO gerilimi > T.ESP_MUTLAK_PIN_UST ise esp=False otomatik konsun. Şu hâliyle hem yukarıda sayılan eksik senaryolar hem de yanlış etiketlenmiş mevcutlar (A9, satır 988, hiç esp/pc argümanı vermeden varsayılan True/True alıyor) özet matriste 'ok' görünüyor ve betiğin '89/89 doğrulama geçti' sonucu eksikliği gizliyor. Kabul ölçütünün kendisi bir kapsam denetimi de içermeli: DEVIR 5.12.22'nin 13 maddesinin her biri için en az bir Ariza kaydı olduğunu doğrulayan bir kural.
 - **Kanit:** kaydet imzası satır 180; A9 çağrısı satır 988-990 hiçbir esp/pc argümanı içermiyor; bolum6'nın kabul iddiası ARIZALAR listesinden `all(...)` ile hesaplanıyor. Betiğin çıktısı: '89/89 dogrulama gecti' — yani hiçbir iddia bu bulgu listesindeki eksikliklerin varlığından etkilenmiyor.
@@ -1257,7 +1257,7 @@ tasarim3_sabit.py:362 aciklamasi: 'kisa sureli (5 s) overload gerilimi'.
 
 **[kritik] C1'in "LM358 girisi 60 V" basligi devrenin degil, kaynaksiz BV=60 model parametresinin sonucu** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (120 (.model DSUBS ... BV=60), sonucu bolum4/C1)
+- **Yer:** `uretim/sim3_ariza.py` (120 (.model DSUBS ... BV=60), sonucu bolum4/C1)
 - **Simdiki:** opamp_makro() icinde `.model DSUBS D(IS=1.0E-14 N=1.0 RS=5 CJO=2.0E-12 BV=60 IBV=1E-5)`. C1 raporu bunu bir olcum gibi yaziyor: "R16 ACIK -> LM358'in girisi 60 V goruyor", "Guc 7.1 mW mertebesinde", iddia "60 V > 32 V (2 kat)". BV=60 ne tasarim3_sabit.py'de var, ne bir veri sayfasi satirina baglanmis, ne de hesaplanmis. Betigin kendi kurali (dosya basligi): "Elle yazilmis sonuc sayisi YOK; her sayi ya tasarim3_sabit.py'den gelen bir veri sayfasi siniri, ya da burada hesaplanan/simule edilen bir sonuc." Ustelik ayni dosya satir 32'de "gercek LM358'in giris jonksiyonunun kirilma gerilimi yalnizc
 - **Dogrusu:** BV bir sonuc degil, bir varsayim. Ya kaynagiyla tasarim3_sabit.py'ye tasinmali (orn. LM358_GIRIS_KIRILMA_VARSAYIMI), ya da C1 tek sayi yerine BV taramasi olarak raporlanmali. En kotu hal 60 V DEGIL: jonksiyon hic kirilmazsa dugum 615 V'a oturuyor, yani bugunku rapor kotumser degil IYIMSER. Ayrica ayni bolumdeki i_zincir = (615-32)/(rust+RC_R) = 118 uA hesabi dugum gerilimi olarak 32 V (mutlak sinir) kullaniyor, simulasyonun verdigi 60 V'u degil — 112 uA olmali.
 - **Kanit:** Tek degisken BV, geri kalan her sey ayni (HV kanali, alt bacak ACIK, 615 V):
@@ -1272,7 +1272,7 @@ Ayni testte ACIK (1e9..1e18) ve .options (betik vs ngspice varsayilani) C1 sonuc
 
 **[onemli] A3 (230 V AC) netlist'inde LM358 HIC YOK; raporlanan "-5.591 V" kelepcesiz 1 Tohm'un sonucu** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (632 (`Rin filt vref 1T`) ve 646 (`i_neg = (T.VREF + abs(min(dug))) / T.RC_R`))
+- **Yer:** `uretim/sim3_ariza.py` (632 (`Rin filt vref 1T`) ve 646 (`i_neg = (T.VREF + abs(min(dug))) / T.RC_R`))
 - **Simdiki:** A3 bolumu "LM358'in girisi GND altina iniyor" iddiasini sinamak icin kurdugu netlist'te op-amp'i 1 Tohm'luk bir direncle temsil ediyor. Yani sinanan parcanin giris jonksiyonu devrede YOK. Rapor "LM358 girisi: -5.591 .. +8.919 V" ve "R7 akimi 403 uA" yaziyor; 403 uA da simulasyondan degil, elle yazilmis (VREF + |min(dug)|)/22k formulunden geliyor. Formul kelepce seviyesini VREF (+1.7153 V) sayiyor, oysa parazitik jonksiyon V- den ~0.6 V ASAGIDA kelepceler.
 - **Dogrusu:** Ayni netlist, betigin BOLUM 1'de dogruladigi LM358 makromodeliyle kosturulmali (`Vam filt opin DC 0` + `XU opin cik cik vp 0 LM358`). O zaman hem gerilim hem akim SIMULE edilmis olur ve elle formule gerek kalmaz.
 - **Kanit:** Ayni tran (SIN 325.27 V / 50 Hz, 20u/80m, t>=40 ms):
@@ -1283,7 +1283,7 @@ Raporlanan -5.591 V gercek modelin verdiginin 9 kati; raporlanan 403 uA da olcul
 
 **[onemli] C3/C3b: ADS mutlak alt siniri YANLIS DUGUMLE karsilastiriliyor — tampon araya giriyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (1567-1582 (C3 kisa devre netlist'i + iddia), 1592 (kaydet("C3b", ... "U7 (ADS1115 #2)")))
+- **Yer:** `uretim/sim3_ariza.py` (1567-1582 (C3 kisa devre netlist'i + iddia), 1592 (kaydet("C3b", ... "U7 (ADS1115 #2)")))
 - **Simdiki:** Netlist yalnizca bolucuyu iceriyor (`R4 giris dugum` / `R6 dugum vref`, vref=0, giris -32 V), sonra `dug_kisa = v(dugum)` = -0.959 V dogrudan T.ADS_MUTLAK_GIRIS_ALT (-0.3 V) ile karsilastiriliyor ve "TL431 kisa devre olursa ADS mutlak ALT siniri asiliyor — bu ariza ADS'i de goturebilir" deniyor; ozet matrisine C3b satiri "olen parca: U7 (ADS1115 #2)" olarak giriyor.
 - **Dogrusu:** v(dugum) bir ADS pini DEGIL. netlist3.net: bolucu dugumu `Net-(R4-Pad2) = R4.2, R6.1, R7.1` — yalnizca LM358 tamponunun girisine gidiyor. ADS pini tamponun CIKISI: `/V_TAMPON = R34.1, U3.6, U3.7` -> `/V_ADS = R34.2, U7.4`. Tampon +5 V tek beslemeli oldugu icin cikisi V_OL'un (0.02 V) altina inemez. Iddia ya tam zincirle kurulmali ya da kaldirilmali; C3b'nin "olen parca U7" satiri dayanaksiz.
 - **Kanit:** Tam zinciri (bolucu -> R7/C2 -> LM358 makromodeli -> R34 1K -> ADS ESD diyotlari) VREF=0 ve Vin=-32 V ile kosturdum:
@@ -1295,7 +1295,7 @@ Karsilastirma icin VREF saglamken (1.7153 V) ayni giriste ADS pini +0.7045 V. Ya
 
 **[onemli] A5: TL072 "iki raya kelepceli" (yeni die) varsayimi belirtilmiyor ve alternatifi hic denenmiyor; TL072'nin kendi giris sinirlari sinanmiyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (138 (`TL072 = opamp_makro("TL072", 1.5, 1.5, 40e-3, giris_kelepce="iki")`), kullanildigi yer 717-780 (A5))
+- **Yer:** `uretim/sim3_ariza.py` (138 (`TL072 = opamp_makro("TL072", 1.5, 1.5, 40e-3, giris_kelepce="iki")`), kullanildigi yer 717-780 (A5))
 - **Simdiki:** Skop kanalinin butun A5 hukmu TL072'nin girisinde her iki raya kelepce diyodu bulundugu varsayimina dayaniyor. Bu bir die-revizyonu varsayimi: tasarim3_sabit.py satir 291 `TL072_GIRIS_AKIM_MAKS = 10e-3  # yeni die, raylara kelepceli` diyerek farkin farkinda, ama sim3_ariza.py bunu hicbir yerde yazmiyor — opamp_makro docstring'i yalnizca "TL072 / CMOS gibi her iki raya kelepceli giris" diyor. Ayrica A5 ne v(dugum)'u T.TL072_GIRIS_MUTLAK (15 V) ile, ne de kelepce akimini T.TL072_GIRIS_AKIM_MAKS (10 mA) ile karsilastiriyor; ikisi de A5'te hic kullanilmiyor. Olen parca olarak yalnizca "R20 (100K)"
 - **Dogrusu:** Ya varsayim yazilmali ve klasik die de simule edilip karsilastirilmali (LM358'de yapildigi gibi), ya da kelepcesiz hal en kotu hal olarak alinmali. Kelepcesiz halde A5'in sonucu degisiyor: TL072 mutlak giris sinirini asiyor ve olen parca listesine U5 (TL072) girmesi gerekiyor.
 - **Kanit:** Ayni A5 netlist'i, tek fark giris kelepcesi (giris_kelepce="iki" vs "alt"), giris jonksiyonu akimi icin seri ampermetre eklenerek:
@@ -1305,7 +1305,7 @@ T.TL072_GIRIS_MUTLAK = 15.0 V. Yani klasik die ile +250 V'ta sinir zaten asiliyo
 
 **[onemli] C2'nin "okuma sifir, guvenli ariza" hukmu tamamen ACIK=1e12 secimine bagli; 1e9'da iddia FAIL ediyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (79 (`ACIK = 1e12`) ve 1511 (`Racik a dugum {ACIK}`), iddia 1525)
+- **Yer:** `uretim/sim3_ariza.py` (79 (`ACIK = 1e12`) ve 1511 (`Racik a dugum {ACIK}`), iddia 1525)
 - **Simdiki:** C2 (zincirdeki bir 820K acik devre) icin `r.kosul(..., abs(v(dugum) - VREF) < 1e-3, "sapma 5.5 uV")` ve rapor "dugum VREF'e oturuyor — GUVENLI, okuma sifir ... ariza KARARLI ve GUVENLI". 1e12 ohm'un kaynagi yok; satir 78-79'daki yorum yalnizca "elemani silmek dugumu yuzer birakir" diyor, deger secimini gerekcelendirmiyor.
 - **Dogrusu:** Bu, 4.93 Mohm'luk zincirdeki tek gercekten yuksek empedansli dugum ve tek ACIK-duyarli sonuc. Deger ya gerekcelendirilmeli (delikli plakette, 613 V altinda, kirli/nemli yuzeyde catlak bir direncin kacagi 1e9-1e11 mertebesinde olabilir), ya da C2 bir ACIK taramasi olarak raporlanmali — cunku sonucun kendisi "ariza gorunmez mi, yoksa sessiz bir ofset mi yaratir mi" sorusunun cevabi.
 - **Kanit:** Tek degisken ACIK, geri kalan ayni:
@@ -1318,7 +1318,7 @@ Olumsuz sonuc olarak: ACIK'in baska hicbir yerde etkisi yok (A7 sont-acik akimi 
 
 **[kucuk] ESD diyodu IS turetimi I*RS terimini atliyor — model 1 mA'de 0.500 V degil 0.510 V veriyor** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (64-65 (D_ESD yorumu ve modeli))
+- **Yer:** `uretim/sim3_ariza.py` (64-65 (D_ESD yorumu ve modeli))
 - **Simdiki:** Yorum: "IS bu noktaya oturtuldu: Vf(1 mA) = 26 mV * ln(1e-3/4e-12) = 0.500 V", model `.model DESD D(IS=4.0E-12 N=1.0 RS=10 ...)`. Formul iki yerde eksik: (a) RS=10 ohm'un 1 mA'de kattigi 10 mV hesaba katilmamis, (b) ngspice'in varsayilan TNOM/TEMP = 27 C'de Vt = 25.865 mV, 26 mV degil.
 - **Dogrusu:** Vf = N*Vt*ln(I/IS) + I*RS = 25.865 mV * ln(1e-3/4e-12) + 1 mA * 10 ohm = 500.15 + 10.00 = 510.15 mV. Hedeflenen 0.500 V'a tam oturmak icin IS ≈ 5.9e-12 olmali (ya da RS=0 alinmali). Yon iyi haber: model TI'in verdigi ~500 mV'tan 10 mV DAHA SERT kelepceliyor, yani biraz daha iyimser — kotumser degil; bu, yorumun iddia ettiginin tersi.
 - **Kanit:** ngspice ile dogrudan olctum (ayni model karti, akim kaynagiyla surulen diyot, betigin .options'i):
@@ -1330,7 +1330,7 @@ A1b'de raporlanan en kotu akim (12.585 mA seri direncsiz, 1.300 mA 1K ile) bu 10
 
 **[kucuk] BOLUM 0'daki "Direnc govde tablosu semadaki her direnci kapsiyor" iddiasi semaya hic bakmiyor ve yanlis** · —
 
-- **Yer:** `c:\Muhammet\Elekronic\projeler\olcum-karti\uretim\sim3_ariza.py` (257-259)
+- **Yer:** `uretim/sim3_ariza.py` (257-259)
 - **Simdiki:** `r.kosul("Direnc govde tablosu semadaki her direnci kapsiyor", all(g in T.DIRENC_GOVDE for g in T.DIRENC_GOVDESI.values()), "30 pozisyon, 4 farkli govde")`. Kosul yalnizca tablonun KENDI degerlerinin ('1/4W', '1W'...) DIRENC_GOVDE anahtarlarindan biri olup olmadigini denetliyor — netlist3.net'e hic bakmiyor, bu yuzden yapisal olarak hicbir zaman FAIL edemez.
 - **Dogrusu:** Iddia netlist3.net'ten direnc referanslarini okuyup `set(sema) - set(T.DIRENC_GOVDESI)` bos mu diye bakmali. Bugun bakilsa FAIL ederdi.
 - **Kanit:** netlist3.net'i ayristirdim: semada 35 direnc var (R1,R2,R3,R4,R6,R7,R10..R20,R21..R33,R34,R35,R36,R38,R39). T.DIRENC_GOVDESI'nde 30 pozisyon var; tabloda BULUNMAYAN semadaki direncler: R34, R35, R36, R38, R39 (hepsi 1K, B15'in kendi F1/F2 duzeltmeleriyle eklenmis). Iddia buna ragmen [OK] veriyor ve "30 pozisyon" yaziyor.

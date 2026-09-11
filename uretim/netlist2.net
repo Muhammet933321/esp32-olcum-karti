@@ -1,8 +1,8 @@
 (export
 	(version "E")
 	(design
-		(source "C:\\Muhammet\\Elekronic\\projeler\\olcum-karti\\arsiv\\asama2\\sema2\\olcum-karti-a2.kicad_sch")
-		(date "2026-09-10T15:44:13")
+		(source "sema2/olcum-karti-a2.kicad_sch")
+		(date "")
 		(tool "Eeschema 10.0.6")
 		(sheet
 			(number "1")
@@ -13,7 +13,7 @@
 				(company "Elektronik Calisma Alani")
 				(rev "2")
 				(date)
-				(source "olcum-karti-a2.kicad_sch")
+				(source "sema2/olcum-karti-a2.kicad_sch")
 				(comment
 					(number "1")
 					(value "Voltmetre 0-32.2 V / 982 uV · Ampermetre 0.78 uA - 11.5 A · Osiloskop 83 kSa/s 12 bit")

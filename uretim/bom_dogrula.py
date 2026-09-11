@@ -182,6 +182,11 @@ def main() -> int:
         print(u.stdout, u.stderr)
         return 1
 
+    # 🔴 B26: uretim mutlak yolu ve zaman damgasini gomuyor. Temizlik
+    #    dogrula3.py'nin B3 adiminda vardi ama BU URETIM ONU EZIYORDU —
+    #    B9, B3'ten SONRA kosuyor. Artik uretimin yaninda.
+    import netlist_temizle
+    netlist_temizle.temizle(BURASI / "netlist3.net")
     t = (BURASI / "netlist3.net").read_text(encoding="utf-8")
     comps = re.findall(r'\(comp\s+\(ref "([^"]+)"\)\s+\(value "([^"]+)"\)', t)
     gerekli: dict[str, list[str]] = {}

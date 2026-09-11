@@ -130,6 +130,24 @@ def bolum1(r):
     r.kosul("  1b: ayna kirpilan sayacini disari veriyor",
             "kirpilan()" in kod(AKIS_H))
 
+    # 🔴 B26 — AYNA + ACIK CAGRI = HER SATIR IKI KEZ.
+    #    B20 `loop()`in rapor blogunda `akis_yolla(son_satir)` cagiriyordu;
+    #    o sirada SSE'yi besleyen tek yol buydu. B22.4 `Serial` aynasini
+    #    getirince tamamlanan her satir zaten `web_satir_hazir()` ->
+    #    `akis_yolla()` yolundan gitmeye basladi, ama eski cagri kaldirilmadi.
+    #    Tezgahta olculdu: 8 sn'de 80 `D` olayi / 40 benzersiz satir,
+    #    tekrar dagilimi {2: 40}. Kart 5/s rapor ederken yayin 10/s idi.
+    #    Bir mekanizma daha genelini getirdiginde eskisi KALDIRILMALI.
+    #    ⚠ `(?<!void )` SART: yoksa fonksiyonun KENDI TANIMI da cagri
+    #      sayiliyor ve iddia dogru kodda bile kirmizi yaniyor.
+    _cagri = [m.start()
+              for m in re.finditer(r"(?<!void )\bakis_yolla\s*\(", INO_KOD)]
+    _g_hazir = kod(govde(INO, "void web_satir_hazir"))
+    r.kosul("  1b: `akis_yolla` YALNIZCA ayna geri cagrisindan cagriliyor",
+            len(_cagri) == 1 and "akis_yolla(" in _g_hazir,
+            f"{len(_cagri)} cagri yeri — birden fazlaysa ayna ile birlikte "
+            f"calisip satiri COGALTIR")
+
 
 def bolum2(r):
     bolum(r, "BOLUM 2 — SSE: cok istemci, kalp atisi, yer imi")

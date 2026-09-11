@@ -1,12 +1,12 @@
 ==============================================================================
-  OLCUM KARTI — DOGRULAMA ZINCIRI
+  OLCUM KARTI ï¿½ DOGRULAMA ZINCIRI
 ==============================================================================
 
 ------------------------------------------------------------------------------
   S1  TL431 referansi
 ------------------------------------------------------------------------------
 
-     S1 — TL431 referansi ve AREF seri direnci
+     S1 ï¿½ TL431 referansi ve AREF seri direnci
      
 [OK] TL431 katot gerilimi                         olculen        2.495 V  beklenen      2.495 V  sapma % 0.02
 [OK] TL431 calisma akimi >= 1 mA                  2.43 mA  (bias 2.50 mA, AREF 77 uA)
@@ -20,7 +20,7 @@
           1000  2.4199 V    75.1 mV  %0.304      2.5 mA
           4700  2.1759 V   319.1 mV  %1.283      0.5 mA
      
-[OK] 4.7K seri direnc REDDEDILDI                  AREF'i 319 mV dusuruyor — menzilin %13'u gider
+[OK] 4.7K seri direnc REDDEDILDI                  AREF'i 319 mV dusuruyor ï¿½ menzilin %13'u gider
 [OK] SECILEN Rs=220 ohm -> AREF                   olculen        2.478 V  beklenen      2.478 V  sapma % 0.02
 [OK]   dusum < %1 (kalibrasyon yutar)             16.6 mV = %0.66
 [OK]   sicaklik surunmesi < %0.1                  %0.069
@@ -32,21 +32,21 @@
   S2  Bolucu + kelepce + suzgec
 ------------------------------------------------------------------------------
 
-     S2 — Gerilim bolucu, kelepceler ve ortusme suzgeci
+     S2 ï¿½ Gerilim bolucu, kelepceler ve ortusme suzgeci
      
 [OK] Bolme orani (20 V girise karsilik)           olculen           11  beklenen         11  sapma % 0.00
 [OK] Dogrusallik sapmasi < %0.1                   en kotu %0.0060
          Tam olcek : 27.26 V
          Cozunurluk: 26.6 mV / adim
      
-       Ariza dayanimi — girise yanlislikla yuksek gerilim gelirse:
+       Ariza dayanimi ï¿½ girise yanlislikla yuksek gerilim gelirse:
            30.0 V girisde -> dugum 2.727 V, kelepce akimi   0.27 mA
           100.0 V girisde -> dugum 5.562 V, kelepce akimi   0.94 mA
           230.0 V girisde -> dugum 5.635 V, kelepce akimi   2.24 mA
           400.0 V girisde -> dugum 5.671 V, kelepce akimi   3.94 mA
 [OK] 400 V'ta dugum 6 V'un altinda kaliyor        en yuksek 5.671 V
 [OK] Kelepce akimi 1N4148 sinirinin (200 mA) cok altinda en buyuk 3.94 mA
-[OK] 5 V rayina basilan akim Arduino tuketiminin altinda 3.94 mA << ~30 mA — ray yukselmez
+[OK] 5 V rayina basilan akim Arduino tuketiminin altinda 3.94 mA << ~30 mA ï¿½ ray yukselmez
      
        Dugum kondansatorunun osiloskop kipine etkisi:
          Dugumde gorulen Thevenin direnci: 9.09 kohm
@@ -54,9 +54,9 @@
          C =   10nF -> kesim      1778 Hz (teorik 1751 Hz)
          C =    1nF -> kesim     17783 Hz (teorik 17507 Hz)
      
-[OK] 100nF REDDEDILDI — osiloskop kipini oldururdu kesim 178 Hz, 8 kHz bandin cok altinda
-[OK] SECILEN 1nF — 8 kHz bandi geciriyor          kesim 17783 Hz > 8 kHz
-[OK] SECILEN 1nF — ortusmeyi hala bastiriyor      kesim 17783 Hz < 38 kHz (Nyquist)
+[OK] 100nF REDDEDILDI ï¿½ osiloskop kipini oldururdu kesim 178 Hz, 8 kHz bandin cok altinda
+[OK] SECILEN 1nF ï¿½ 8 kHz bandi geciriyor          kesim 17783 Hz > 8 kHz
+[OK] SECILEN 1nF ï¿½ ortusmeyi hala bastiriyor      kesim 17783 Hz < 38 kHz (Nyquist)
 
   8/8 dogrulama gecti
 
@@ -64,7 +64,7 @@
   S3  Sont + LM358
 ------------------------------------------------------------------------------
 
-     S3 — Sont + LM358 akim olcum kati
+     S3 ï¿½ Sont + LM358 akim olcum kati
      
          Tasarim kazanci = 1 + 47K/6.8K = 7.9118
          Maks sont gerilimi = 2.478 / 7.912 = 313.2 mV
@@ -78,20 +78,20 @@
          1x 10R      10.000 ohm      31.3 mA        31 uA      9.8 mW
          10x 10R      1.000 ohm     313.2 mA       306 uA      9.8 mW
          30x 10R      0.333 ohm     939.6 mA       918 uA      9.8 mW
-[OK] Her kademede direnc basina isi ayni ve < 15 mW 9.8 mW — 1/4W direncin %4'i
+[OK] Her kademede direnc basina isi ayni ve < 15 mW 9.8 mW ï¿½ 1/4W direncin %4'i
      
        LM358 giris ofsetinin akim okumasina etkisi:
          ofset     cikis kaymasi   10R'de hata   tam olcegin %'si
          ----------------------------------------------------------
           2 mV          20.0 mV       0.253 mA    %0.81
           7 mV          55.4 mV       0.700 mA    %2.23
-[OK] En kotu ofset tam olcegin %3'unden az        %2.23 — yazilimda sifirlanacak, kalaný surunme
+[OK] En kotu ofset tam olcegin %3'unden az        %2.23 ï¿½ yazilimda sifirlanacak, kalanï¿½ surunme
      
 [OK] Kucuk sinyal bandi (SPICE, = GBW/kazanc)     olculen    8.913e+04 Hz  beklenen  8.848e+04 Hz  sapma % 0.73
-[OK]   ADC sinirinin (8 kHz) uzerinde             89.1 kHz — darbogaz LM358 degil, ADC
+[OK]   ADC sinirinin (8 kHz) uzerinde             89.1 kHz ï¿½ darbogaz LM358 degil, ADC
      
        Slew siniri (analitik): 0.3 V/us, tam olcek tepe genlik 1.239 V
-[OK] Tam guc bandi da 8 kHz'in uzerinde           38.5 kHz — buyuk sinyalde de LM358 yetiyor
+[OK] Tam guc bandi da 8 kHz'in uzerinde           38.5 kHz ï¿½ buyuk sinyalde de LM358 yetiyor
 
   7/7 dogrulama gecti
 
@@ -99,7 +99,7 @@
   S4  Firmware aritmetigi
 ------------------------------------------------------------------------------
 
-     S4 — Firmware aritmetigi (olcum-karti.ino)
+     S4 ï¿½ Firmware aritmetigi (olcum-karti.ino)
      
        1. Enerji birikimi: float32 vs uint64
      
@@ -114,9 +114,9 @@
            uint64        44.0000 J   hata %0.000000
            float32       45.0892 J   hata %2.4755
 [OK]     uint64 hatasi < %0.01  (0.1 W yuk (Arduino'nun kendisi)) %0.000000
-[OK]     float32 GERCEKTEN kayiyor (iddia dogrulandi) %2.48 kayip — tam sayi sart
+[OK]     float32 GERCEKTEN kayiyor (iddia dogrulandi) %2.48 kayip ï¿½ tam sayi sart
      
-         float32 sayaci 512.0 J'de TAMAMEN duruyor (0.142 Wh) — eklemeler yuvarlanip yok oluyor
+         float32 sayaci 512.0 J'de TAMAMEN duruyor (0.142 Wh) ï¿½ eklemeler yuvarlanip yok oluyor
      
 [OK] uint64 tavani > 1 kWh                        1.845e+07 J = 5.12 kWh (25 W'ta 205 saat)
      
@@ -166,11 +166,11 @@
 ------------------------------------------------------------------------------
   S5  Sema: uretim + ERC + netlist
 ------------------------------------------------------------------------------
-yazildi: C:\Muhammet\Elekronic\projeler\olcum-karti\sema\olcum-karti.kicad_sch
+yazildi: sema/olcum-karti.kicad_sch
   108 ogesi, 10 sembol tanimi
   ERC: Found 0 violations
 
-     S5 — Sema netlist'i tasarlanan devreye uyuyor mu
+     S5 ï¿½ Sema netlist'i tasarlanan devreye uyuyor mu
      
 [OK] Net sayisi beklendigi gibi                   10 net (beklenen 10)
      
@@ -445,4 +445,4 @@ S8 â€” AVR simulatorunun dogrulanmasi
   GECTI  S8  AVR simulatorunun dogrulanmasi  22.4 s
   GECTI  S9  Kart uctan uca (+ S10 arayuz)  110.7 s
 
-  Tum dogrulamalar gecti — kart kurulmaya hazir.
+  Tum dogrulamalar gecti ï¿½ kart kurulmaya hazir.

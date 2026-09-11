@@ -7044,6 +7044,76 @@ BEKLEDİKTEN SONRA bakıyordu, ama periyodik olay o pencerede değeri geri
 tırmandırıyor — sıfırlama kusursuz çalışırken bile kırmızı dönüyordu.
 Sıfırlamanın kanıtı **sıfırlama anındaki** değerdir.
 
+##### Arayüz: sayfayı kart sunarken kip `seri`de kalıyordu
+
+Kullanıcı `http://olcum.local`'ı açtı, "bağlı değil" gördü, telefonda hiç
+açılmadı. Sebep: `kopruyuAlgila()` otomatik kip seçimi için `/durum`
+ucunu yokluyor — o uç **yalnızca PC köprüsünde** var, kartta 404. B22.3
+bu algılamayı köprü için yazmış; B22.4/B22.5 sonradan kartı da sunucu
+yapmış ama algılama genişletilmemiş. Kart sunarken yoklama sessizce
+başarısız oluyor, kip `seri`de kalıyor, Web Serial de güvenli bağlam
+olmadığı için çalışmıyor.
+
+İkinci kusur: hata metni *"tarayıcı Web Serial desteklemiyor"* diyordu.
+Chrome destekliyor — `navigator.serial` **güvenli bağlam** istiyor ve
+`http://olcum.local` güvenli bağlam değil. Metin yanlış yere baktırıyordu.
+
+**Düzeltme:** sayfayı localhost olmayan bir adres sunuyorsa sunan taraf
+kart ya da köprüdür, ikisi de `/akis` veriyor → doğrudan akış kipi.
+Mesaj artık `window.isSecureContext`'e bakıp gerçek sebebi söylüyor.
+Headless tarayıcıda doğrulandı: kip kendiliğinden "WiFi / köprü (akış)",
+kırmızı kutu yok, sayfa tam render.
+
+##### SSE: her satır İKİ KEZ yayınlanıyordu
+
+Yayını ölçerken kart 5/s rapor ederken SSE'den **10/s** geldi:
+8 sn'de 80 `D` olayı, 40 benzersiz satır, dağılım `{2: 40}` —
+istisnasız hepsi çift. Sebep: B20 `loop()`'a `akis_yolla(son_satir)`
+eklediğinde SSE'yi besleyen tek yol oydu; **B22.4 `Serial` aynasını
+getirdi** (tamamlanan her satır zaten aynadan gidiyor) ama eski çağrı
+kaldırılmadı. `K` satırında da aynısı. Bedeli: iki kat WiFi trafiği,
+grafikte üst üste noktalar, CSV'de çift satır.
+
+İki çağrı da kaldırıldı; ölçüldü: 40 olay / 40 benzersiz / `{1: 40}`.
+Zincire *"`akis_yolla` yalnızca ayna geri çağrısından çağrılır"* iddiası
+ve onu yalanlayan mutasyon eklendi.
+
+⚠ **Bir mekanizma daha genelini getirdiğinde eskisini KALDIR.** İkisi
+birlikte çalışırsa sonuç sessizce iki katına çıkar.
+
+##### Gizlilik: yayınlanan depoda 59 kişisel iz + geçmişte kullanıcı adı
+
+Kullanıcının isteğiyle iki bağımsız ajan depoyu denetledi (çalışma
+ağacı + tüm git geçmişi). **Parola, e-posta, ağ kimliği yok** — ama:
+
+* **HEAD'de 59 mutlak yol** (`C:\<proje kökü>\...`): `b15-arastirma.md`
+  56×, `arsiv/*/tam-dogrulama.txt` 2×, üç netlist. Kural `dogrula3.py`'de
+  bir **yorum** olarak duruyordu — ve **yorum kuralı korumaz.**
+* Netlist temizliği vardı ama **işe yaramıyordu**: B3 temizliyor, B9
+  netlist'i **sonradan yeniden üretiyordu**. Üstelik `count=1` ile
+  yalnızca ilk geçişi değiştiriyordu.
+* **Git geçmişinde `076a366`** (ilk yayın): `b15-arastirma.md`'de üç satır
+  Windows kullanıcı klasörü altındaki geçici bir yol — B24'te temizlenmiş ama geçmişte
+  duruyor. Windows hesap adı + ölü bir oturum UUID'si; kimlik bilgisi yok.
+  **Geçmişi yeniden yazmak kullanıcının kararı**, yapılmadı.
+* Benim MAC fikstürüm (`test_tezgah_kart.py`) gerçek kartın OUI'sini
+  taşıyordu; DEVIR'deki kasıtlı kısaltmayla birleşince tam adres
+  kurulabiliyordu. Sentetik OUI'ye (`02:00:00`) çevrildi.
+* ⚠ **Bu ortamda `grep` güvenilmez.** Ajan `grep -i` ile birden fazla
+  `-e` deseninin çöktüğünü (`Aborted`) ve `2>/dev/null` varsa **sessizce
+  boş** döndüğünü bildirdi. Benim ilk taramam da bu yüzden "temiz"
+  demişti. Gizlilik taraması artık saf Python.
+
+**Düzeltmeler:** `netlist_temizle.py` (tek kaynak, her üretim yerinde
+çağrılıyor, tüm geçişler) · 59 yol depoya göreli yapıldı (klonlayan için
+zaten daha kullanışlı) · **`gizlilik_dogrula.py`** yeni araç, zincirin
+bir **değişmezi** olarak her koşuda çalışıyor (adım değil; deponun
+tamamına ait) · iki mutasyon (yol + e-posta enjeksiyonu) yakalanıyor.
+
+⚠ Tarayıcı ilk yazımında **kendi test verisini yakaladı** — `mutasyon.py`
+örnekleri ve `netlist_temizle.py` docstring'i. Metin tabanlı iddianın kendi
+açıklamasını yakalaması, bu projede **beşinci** kez.
+
 ##### Mutasyon koşucusu bu oturumda benim iddiamı çürüttü
 
 Yeni SSID denetimi için iki mutasyon yazıldı. İkincisi — afişten `MAC=`

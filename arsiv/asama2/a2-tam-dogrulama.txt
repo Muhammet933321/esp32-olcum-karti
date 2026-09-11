@@ -393,7 +393,7 @@
 ------------------------------------------------------------------------------
   A3  Sema: uretim + ERC + netlist
 ------------------------------------------------------------------------------
-yazildi: C:\Muhammet\Elekronic\projeler\olcum-karti\sema2\olcum-karti-a2.kicad_sch
+yazildi: sema2/olcum-karti-a2.kicad_sch
   214 ogesi, 10 sembol tanimi
   ERC: Found 0 violations
 A3 — Asama 2 netlist'i tasarima uyuyor mu

@@ -817,10 +817,23 @@ def bolum7(r):
             "ozyineleme riski")
     r.kosul("  7: akis_sayfa icinde delay YOK",
             "delay" not in g, "isleyici hemen donuyor")
+    # 🔴 B26: BU IDDIA BAYATLAMISTI. B20 `loop()`a acik bir `akis_yolla`
+    #    cagrisi koymus ve "SSE loop()'tan besleniyor" diye sinamisti.
+    #    B22.4 `Serial` aynasini (WebAkis) getirdi: `Serial.println` ile
+    #    yazilan HER satir zaten `web_satir_hazir` -> `akis_yolla` yolundan
+    #    gidiyor. Acik cagri kaldirilmadigi icin her `D` satiri SSE'ye IKI
+    #    KEZ dustu (kartta olculdu: 80 olay / 40 benzersiz). Cagri
+    #    kaldirilinca bu iddia kirmiziya dondu — cunku ESKI mekanizmayi
+    #    ariyordu. Dogru iddia: loop() `D` satirini SERIAL'E yaziyor
+    #    (aynanin tetiklenmesi icin bu yeter), dogrudan akisa DEGIL.
+    #    Tek-cagri-yeri iddiasi sim3_web.py'de (1b).
     g_loop = yorumsuz(govde(INO, "void loop()"))
-    r.kosul("  7: SSE artik loop()'tan besleniyor",
-            "akis_yolla" in g_loop,
-            "her D satiri uretiminde saklanan istemciye yaziliyor")
+    r.kosul("  7: loop() `D` satirini Serial'e yaziyor (ayna SSE'ye tasir)",
+            "Serial.println(son_satir)" in g_loop,
+            "aynayi tetikleyen tek sey Serial yazmasi")
+    r.kosul("  7: loop() akisa DOGRUDAN yazmiyor (ayna ile cift olurdu)",
+            "akis_yolla" not in g_loop,
+            "B26: acik cagri + ayna = her satir iki kez")
     r.kosul("  7: baglanti kopunca istemci temizleniyor",
             "stop()" in yorumsuz(govde(INO, "static void akis_yolla")),
             "kopmus istemciye yazmaya devam edilmiyor")
