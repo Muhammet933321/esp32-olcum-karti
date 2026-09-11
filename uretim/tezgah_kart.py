@@ -89,6 +89,10 @@ MDNS_AD = _tanim("AG_MDNS", AG_H)
 AP_ONEK = re.search(r'"(OLCUM-KARTI-)%02X%02X"', AG_H).group(1)
 AKIS_AZAMI = int(re.search(r"#define AKIS_AZAMI\s+(\d+)", INO).group(1))
 CIFT_CEKIRDEK_ESIK_US = 20000       # DEVIR 5.12.34 — karar olcutu
+# B26: karar artik acilistan beri maksimuma degil, sayaclar sifirlandiktan
+# sonraki KARARLI HAL olcumune dayaniyor. Sure kisa olursa seyrek olay
+# (kartta ~40-60 sn'de bir ~30 ms) hic gorunmez; uzun olursa bringup yavaslar.
+BLOKAJ_OLCUM_SN = 45.0
 
 # `D` satirinin alan sayisi, firmware'in KENDI bicim dizesinden.
 _D_BICIM = re.search(r'"D (%[^"]*)"', INO)
@@ -308,6 +312,38 @@ def d_ag_satiri(c):
            next((x.strip() for x in c.afis if x.startswith("Ag: ")), ""))
 
 
+def d_ssid_mac_tutarli(c):
+    """🔴 B26: AP SSID'i GERCEKTEN MAC'ten mi turetiliyor.
+
+    Eski kusur: ag_baslat() ag_ap_ssid()'yi WiFi.mode()'dan ONCE
+    cagiriyordu; surucu baslamadigi icin WiFi.macAddress() tampona
+    dokunmuyor ve SSID'e ILKLENMEMIS YIGIN BELLEGI giriyordu. Kartta
+    gercek MAC ...96:9c iken ad `OLCUM-KARTI-ABAB` cikiyordu.
+
+    NEDEN BU OLCUT: afisteki MAC softAP AYAGA KALKTIKTAN SONRA
+    okunuyor (ag.h), yani SSID'den BAGIMSIZ bir dogruluk kaynagi.
+    Ayni cagriyi kullansaydi test totoloji olur, kusuru kacirirdi.
+
+    NEDEN ESKI DENETIM YAKALAMADI: "Ag kipi bildirildi" yalnizca
+    satirin VAR oldugunu siniyordu, icerigin tutarliligini degil.
+    """
+    if c.afis is None:
+        c.s.atla("SSID gercek MAC'ten turetiliyor", "afis yok")
+        return
+    sat = next((x for x in c.afis if x.startswith("Ag: ")), "")
+    m_ssid = re.search(r"SSID=(\S+)", sat)
+    m_mac = re.search(r"MAC=([0-9A-Fa-f:]{17})", sat)
+    if not c.s.ok("Afiste hem SSID hem MAC var", bool(m_ssid and m_mac),
+                  sat.strip()[:90]):
+        return
+    ssid, mac = m_ssid.group(1), m_mac.group(1)
+    sonek = ssid.rsplit("-", 1)[-1].upper()
+    mac_sonek = "".join(mac.split(":")[-2:]).upper()
+    uyar = "" if sonek == mac_sonek else "  <- AYRISMA: ad MAC'ten gelmiyor"
+    c.s.ok("SSID soneki gercek MAC'in son iki bayti", sonek == mac_sonek,
+           f"SSID={ssid} (sonek {sonek}) · MAC={mac} (sonek {mac_sonek}){uyar}")
+
+
 def d_parola_uyarisi(c):
     """Parola kurulu DEGILSE kart bunu YUKSEK SESLE soylemeli."""
     if c.afis is None:
@@ -382,21 +418,80 @@ def d_ayar_dokumu(c):
            any(x.startswith("R normal=") for x in sat))
 
 
-def d_blokaj_sayaci(c):
-    """[!] CIFT CEKIRDEK KARARININ TEK OLCUTU."""
+def _canli_port(c) -> bool:
+    """Gercek seri port mu, yoksa kayit tekrari mi.
+
+    ⚠ B26: kararli hal olcumu GERCEK zaman bekliyor. Kayit tekrarinda
+    beklemek hicbir sey degistirmez (satirlar zaten hazir) ama
+    `test_tezgah_kart.py` kosucuyu ONLARCA KEZ cagirdigi icin test
+    paketini dakikalarca uyutur — ilk yazimda tam bunu yapti.
+    `SeriKart`'ta `port` var, `KayitKart`'ta yok.
+    """
+    return hasattr(getattr(c.k, "kart", None), "port")
+
+
+def _k_oku(c):
     sat = c.k.sor("?", r"^K \d+ \d+ \d+", zaman_asimi=3.0)
-    if not c.s.ok("`K` blokaj sayaci satiri geliyor", bool(sat),
+    if not sat:
+        return None
+    m = re.match(r"K (\d+) (\d+) (\d+)", sat[0])
+    return int(m.group(1)), int(m.group(2)), int(m.group(3))
+
+
+def d_blokaj_sayaci(c):
+    """[!] CIFT CEKIRDEK KARARININ TEK OLCUTU.
+
+    🔴 B26'da OLCUM YONTEMI DEGISTI. Eskiden acilistan beri biriken
+    `loop_azami_us` okunuyordu. O sayi KOSAN MAKSIMUM ve isinma payi
+    yok, yani setup() sonrasi WiFi/mDNS ayaga kalkarken olusan TEK
+    SEFERLIK sicrama kalici olarak cakiliyor.
+
+    Gercek kartta olculdu: taze acilista 18 203 us (esigin ALTINDA,
+    0 uzun tur), birkac dakika sonra seyrek bir ~30 ms olayla
+    30 397 us (esigin USTUNDE). Ayni kart, ne zaman baktigina gore
+    iki farkli cevap veriyordu — ve aylardir acik duran mimari karar
+    (DEVIR 5.12.34) buna baglanacakti.
+
+    Artik: sayaclari `K` ile SIFIRLA, belirli bir sure olc, KARARLI
+    HALDEKI degere bak. Acilis degeri bilgi olarak yine basiliyor.
+    """
+    ilk = _k_oku(c)
+    if not c.s.ok("`K` blokaj sayaci satiri geliyor", ilk is not None,
                   "K <atlanan ms> <en uzun dongu us> <20ms ustu tur>"):
         return
-    m = re.match(r"K (\d+) (\d+) (\d+)", sat[0])
-    azami = int(m.group(2))
-    c.s.bilgi(f"loop_azami_us = {azami}   esik {CIFT_CEKIRDEK_ESIK_US}")
-    c.s.ok("loop_azami_us cift cekirdek esiginin ALTINDA",
+    c.s.bilgi(f"acilistan beri: azami {ilk[1]} us, >20ms tur {ilk[2]} "
+              f"(ISINMA DAHIL — karar olcutu DEGIL)")
+
+    sifir = c.k.sor("K", r"^\* blokaj sayaclari sifirlandi", zaman_asimi=3.0)
+    if not c.s.ok("`K` sayaclari sifirliyor (eski degeri basarak)",
+                  bool(sifir), sifir[0].strip()[:80] if sifir else "yanit yok"):
+        return
+
+    if _canli_port(c):
+        c.s.bilgi(f"{BLOKAJ_OLCUM_SN:.0f} sn kararli hal olcumu...")
+        time.sleep(BLOKAJ_OLCUM_SN)
+    son = _k_oku(c)
+    if not c.s.ok("Sifirlama sonrasi K okunabiliyor", son is not None):
+        return
+    atlanan, azami, uzun = son
+    c.s.bilgi(f"kararli hal: azami {azami} us, >20ms tur {uzun}, "
+              f"atlanan {atlanan} ms   esik {CIFT_CEKIRDEK_ESIK_US}")
+    if _canli_port(c):
+        c.s.ok("Sayaclar GERCEKTEN sifirlandi (azami dustu)",
+               azami < ilk[1] or ilk[1] == 0,
+               f"{ilk[1]} -> {azami} us; dusmediyse `K` sifirlamiyor demektir")
+    else:
+        # Kayit tekrarinda `?` her cagrida AYNI satiri donuyor; "dustu mu"
+        # sorusu orada anlamsiz. Esik ve atlanan-pencere iddialari yine
+        # sinaniyor (ikisi de saf sayi karsilastirmasi).
+        c.s.atla("Sayaclar GERCEKTEN sifirlandi (azami dustu)",
+                 "kayit tekrarinda zaman ilerlemiyor")
+    c.s.ok("KARARLI HALDE loop_azami_us esigin ALTINDA",
            azami < CIFT_CEKIRDEK_ESIK_US,
            f"{azami} us — ustundeyse olcum dongusu cekirdek 1'e "
            f"tasinacak (DEVIR 5.12.34)")
-    c.s.ok("Atlanan enerji penceresi yok", int(m.group(1)) == 0,
-           f"atlanan {m.group(1)} ms")
+    c.s.ok("Atlanan enerji penceresi yok", atlanan == 0,
+           f"atlanan {atlanan} ms — enerji sayaci icin ASIL onemli olan bu")
 
 
 def d_ciplak_g_reddi(c):
@@ -411,9 +506,28 @@ def d_ciplak_i_reddi(c):
     c.s.ok("Ciplak `i` REDDEDILIYOR", bool(sat))
 
 
-def d_ciplak_f_reddi(c):
-    sat = c.k.sor("f", r"^! f: frekans gerekli", zaman_asimi=3.0)
-    c.s.ok("Ciplak `f` REDDEDILIYOR (sessiz DC gecisi)", bool(sat))
+def d_ciplak_f(c):
+    """🔴 B26'da DUZELTILDI — bu denetim BAYATTI.
+
+    Eskiden `! f: frekans gerekli` bekliyordu ve gercek kartta KIRMIZI
+    donuyordu. Ama firmware dogru, TEST yanlisti: B22.1 ciplak `f`'i
+    bilerek degistirmis, artik `F`/`P` gibi DEGERI BASIYOR
+    (`* sebeke frekansi 50.00 Hz`). Hata mesaji yalnizca BOZUK girdide
+    (`fabc`) cikiyor. Denetim `g`/`i` desenini kopyalarken f'in farkli
+    tasarimini gormemis.
+
+    DERS: kirmizi bir test de tek basina kusur KANITLAMAZ — once
+    kaynaga bakilir.
+
+    Iki sey birlikte sinaniyor: ciplak `f` degeri BASIYOR (sessizce DC'ye
+    gecmiyor) ve BOZUK girdi hala REDDEDILIYOR.
+    """
+    sat = c.k.sor("f", r"^\* sebeke frekansi ", zaman_asimi=3.0)
+    c.s.ok("Ciplak `f` degeri BASIYOR (sessiz DC gecisi yok)", bool(sat),
+           sat[0].strip() if sat else "yanit yok")
+    bozuk = c.k.sor("fabc", r"^! f: frekans gerekli", zaman_asimi=3.0)
+    c.s.ok("Bozuk `f` girdisi REDDEDILIYOR", bool(bozuk),
+           "`fabc` sessizce yutulursa yazim hatasi fark edilmez")
 
 
 def d_fabrika_onayi(c):
@@ -575,6 +689,7 @@ DENETIMLER = [
     ("Pil egri tamponu",        0, "yok", d_pil_tampon),
     ("LittleFS arayuzu",        0, "yok", d_littlefs),
     ("Ag kipi",                 0, "yok", d_ag_satiri),
+    ("SSID/MAC tutarliligi",    0, "yok", d_ssid_mac_tutarli),
     ("Parola uyarisi",          0, "yok", d_parola_uyarisi),
     ("Osiloskop DMA surucusu",  0, "yok", d_skop_surucusu),
     ("Afis satirlari kapali",   0, "yok", d_afis_satirlari_kapali),
@@ -583,7 +698,7 @@ DENETIMLER = [
     ("Blokaj sayaci (K)",       0, "yok", d_blokaj_sayaci),
     ("Ciplak g reddi",          0, "yok", d_ciplak_g_reddi),
     ("Ciplak i reddi",          0, "yok", d_ciplak_i_reddi),
-    ("Ciplak f reddi",          0, "yok", d_ciplak_f_reddi),
+    ("Ciplak f davranisi",      0, "yok", d_ciplak_f),
     ("Fabrika sifirlama onayi", 0, "yok", d_fabrika_onayi),
     ("Bilinmeyen komut",        0, "yok", d_bilinmeyen_komut),
     ("Ag durumu (N)",           0, "yok", d_ag_durumu),

@@ -1,8 +1,14 @@
 # Ölçüm Kartı — Devir Belgesi
 
-> **Tarih:** 10 Eylül 2026 · **Devreden oturum:** Claude Opus 5 · **Durum:** Aşama 3
-> tasarımı doğrulandı (**18/18**), **ESP32 geliyor**, kart hâlâ kurulmadı.
-> Kart artık **telefondan, bilgisayar olmadan** kullanılabiliyor (B22).
+> **Tarih:** 11 Eylül 2026 · **Devreden oturum:** Claude Opus 5 · **Durum:** Aşama 3
+> tasarımı doğrulandı (**18/18**) · **ESP32-S3 GELDİ ve ilk bringup koşuldu
+> (B26)** — firmware + arayüz kartta, aşama 0 **31 geçti / 1 kaldı / 5 atlandı**.
+> Analog ön uç hâlâ kurulmadı. Kart artık **telefondan, bilgisayar olmadan**
+> kullanılabiliyor (B22).
+>
+> 🔴 **B26'da üç kusur bulundu** — ikisi yalnızca gerçek donanımda görülebilirdi.
+> En ciddisi: **AP SSID'i MAC'ten gelmiyordu** (ilklenmemiş bellek). Üçü de
+> düzeltildi. Kalan tek kırmızı **anlamlı**: çift çekirdek kararının sinyali.
 >
 > **Kullanıcının okuyacağı belgeler `BELGELER/` klasöründe** — bu dosya
 > mühendislik günlüğü, oraya kullanıcıyı yönlendirme.
@@ -337,11 +343,25 @@ doğrulanmadan yapılmamalı. Ölçümler 5.12.30'da hazır.
 ⚠ B22.1 `faz_kal`'ı **örnek → mikrosaniye**'ye çevirdi (periyot bağımlılığı
 kalktı) ama τ modeline geçmedi; bu karar hâlâ açık.
 
-**2. Çift çekirdeğe geçilecek mi** (B22.1'den). Ölçüm döngüsü çekirdek 1'de
-kalıp web çekirdek 0'a taşınırsa blokaj sınıfı kökten kapanır. **Eşik
-şimdiden yazılı:** tezgahta `loop_azami_us` **> 20 000 µs** ölçülürse
-yapılır, altındaysa yapılmaz. Açılan risk sınıfı (yarış koşulları)
-5.12.34'te adlandırıldı.
+**2. Çift çekirdeğe geçilecek mi** (B22.1'den) — ✅ **ÖLÇÜLDÜ, CEVAP EVET
+(B26, 2026-09-11).** Eşik `loop_azami_us` **> 20 000 µs** idi.
+
+⚠ Ölçüm yöntemi B26'da **değiştirilmek zorunda kaldı**: eski sayı açılıştan
+beri sıfırlanmayan koşan maksimumdu ve ısınmayı içeriyordu — taze açılışta
+**18 203 µs** (eşiğin ALTINDA), dakikalar sonra **30 397 µs** (ÜSTÜNDE).
+Aynı kart iki farklı cevap veriyordu. Firmware'e `K` komutu eklendi
+(sayaçları sıfırlar, eski değerleri basarak) ve koşucu artık sıfırlayıp
+**45 sn kararlı hal** ölçüyor.
+
+**Sonuç: sıfırlamadan sonra 45 sn'de yine 30 382 µs.** Olay açılış artığı
+değil, kararlı halde ~45 sn'de bir tekrarlıyor → **ölçüm döngüsü çekirdek
+1'e taşınacak.** Açılan risk sınıfı (yarış koşulları) 5.12.34'te
+adlandırıldı; **iş henüz yapılmadı.**
+
+⚠ `atlanan_ms` **hep 0** — enerji penceresi kaçmıyor, yani aciliyet enerji
+sayacında değil, skop/örnekleme sürekliliğinde. Ölçüm ADS'ler bağlı
+değilken alındı; 30 ms'lik blokaj I²C'den gelemez (WiFi/mDNS bakımı
+muhtemel), ADS eklemek iyileştirmez.
 
 **3. Web parolası politikası** (B22.4'ten). Bugün `Ns<parola>` ile
 kuruluyor ama **kurulmazsa yetkilendirme kapalı** — açılışta yüksek sesle
@@ -349,10 +369,19 @@ uyarılıyor. Parola zorunlu kılınsın mı, yoksa jeton + `Host` beyaz listesi
 yeterli mi? TLS olmadığı için parolanın koruduğu şey *"evdeki başka biri
 yanlışlıkla basmasın"*; LAN'daki bir dinleyiciye karşı koruma değil.
 
-### 🔌 ESP32 geldiğinde — sırayla
+### ✅ ESP32 geldi — bu akış 2026-09-11'de koşuldu (B26)
 
-> Bu bölüm **kart elinize geçtiği gün** için. Analog ön uç kurulmuş olmasına
-> gerek yok; aşağıdakilerin çoğu **çıplak ESP32-S3 ile** koşuyor.
+> **Bu bölümün tamamı bir kez koşuldu ve çalıştı.** Sonuçlar ve bulunan üç
+> kusur **5.12.42**'de. Aşağısı artık *"ilk gün"* değil, **tekrar yükleme
+> yordamı** — firmware değiştiğinde aynı sırayla koşulur.
+>
+> **Kartın kimliği (esptool ile okundu):** ESP32-S3 QFN56 rev v0.2 ·
+> flash 16 MB · PSRAM 8 MB oktal · MAC `…:96:9c` · **COM6**,
+> köprü çipi **CH343** (`VID_1A86`/`PID_55D3`).
+>
+> **Kart iki Type-C soketli, doğru olan COM yazan.** ⚠ *"Bir COM portu
+> belirdi"* doğru sokete takıldığının kanıtı DEĞİL: yerel USB soketi de
+> port açar (`VID_303A`) ama **sessiz** kalır. Ayırt edici ölçüt **VID**.
 
 **1 · Firmware'i yükle.** Tam FQBN şart — varsayılanlar çalışmaz:
 
@@ -465,7 +494,9 @@ Bir adım hiç kalem basmazsa `dogrula3.py` **kırmızı** dönüyor — taban
 | **B22.6** (planda) | **Köprünün ağ yukarı-akışı** — kart uzaktayken (615 V ölçüyor, kablo çekilemez) PC ona WiFi ile bağlansın. `kopru/kart_baglanti.py`'ye `AgKart` + `POST /kopru` kaydı. **Ertelendi:** donanımsız uçtan uca doğrulanamıyor |
 | **B22.5** (5.12.38) | `?demo` kipi **karttan çalışmıyor** — `sahte-kart.js` görüntüye bilerek konmadı (15 936 B). Geliştirme aracı, kartta anlamsız; ama kullanıcı denerse sebebini görüyor |
 | **B22.4** (5.12.37) | Kartın `/skop.bin` ucu var ama **derin bellek (PSRAM) hâlâ kullanılmıyor** — skop 4000 örnekte sabit. B14/B12 ile aynı yere bakıyor |
-| **B23.3** (5.12.39) | `mutasyon.py`'de **10 mutasyon** var, iddia sayısı **1027**. Kapsam dar: her adımın yalnızca bir-iki iddiası sınanıyor. Yeni iddia yazan her bölüm listeye kendi yalanlamasını eklemeli |
+| **B23.3** (5.12.39) | `mutasyon.py` kapsamı dar: her adımın yalnızca bir-iki iddiası sınanıyor. Yeni iddia yazan her bölüm listeye kendi yalanlamasını eklemeli. ⚠ Sayıyı buraya **yazma** — `python mutasyon.py --liste` söyler (B26'da "10 mutasyon" yazıyordu, gerçek 15'ti) |
+| **B26** (5.12.42) | `mutasyon.py` geçici kopyayı `projeler/_mutasyon-<pid>` diye açıyor ve **dizin varsa çöküyor** (`FileExistsError`). Windows PID'leri geri dönüştürdüğü için bir kez tetiklendi. `dirs_exist_ok=True` ya da kopyalamadan önce temizleme gerekiyor |
+| **B26** (5.12.42) | `yukle.py` derlerken `--clean` geçmiyor, zincirdeki `test_firmware3.py` geçiyor (B21 dersi: önbellek uyarı gizler). Bugün zararsız çıktı ama ayrışma yüzeyi duruyor — `--temiz` bayrağı eklenebilir |
 | **B23.3** (5.12.39) | `kurulum3-uret.py` biçimini **`arsiv/asama2/kurulum2.html`**'den okuyor. Taşınmadı (yeni ayrışma yüzeyi açardı) ama arşiv taşınır/silinirse **buraya bakılacak** — dosya yoksa açık bir hatayla düşüyor |
 | **B23.2** (5.12.39) | `index.html`'deki *"hangi belgeye bakmalıyım"* tablosu `MENU`'den **türetilmiyor**, elle yazılıyor. Bir denetim ayrışmayı kırmızı yapıyor ama tablo hâlâ iki temsil |
 | **B23.1** (5.12.39) | `_tezgah.md`'nin *"İlk gün"* sıralaması **zincir sırası**, öncelik sırası değil. Öncelik gerekirse `[!]` işaretine bir derece eklenmeli |
@@ -6688,6 +6719,164 @@ Zincir **18/18**, 75 tezgah kalemi (güncel iddia sayısı
 ⚠ **Bu adım gerçek donanımı doğrulamıyor.** Yalnızca koşucunun doğru soruyu
 sorup doğru cevaba baktığını sınıyor. Gerçek seri port, gerçek zamanlama ve
 gerçek USB CDC davranışı yarın görülecek.
+
+---
+
+#### 5.12.42 ✅ B26 — KART GELDİ: İLK GERÇEK BRINGUP (2026-09-11)
+
+ESP32-S3 elde. Firmware yüklendi, arayüz karta yazıldı, aşama 0 bringup
+koşuldu. **Tasarım zinciri 18/18 yeşilken üç kusur çıktı** — ikisi
+yalnızca gerçek donanımda görülebilirdi.
+
+##### Kart gerçekten N16R8 mi — etikete değil silikona soruldu
+
+`esptool flash-id`: ESP32-S3 (QFN56) rev v0.2 · flash **16 MB** ·
+**Embedded PSRAM 8 MB (AP_3v3)** · MAC `…:96:9c` (tam adres kasıtlı kısaltıldı — depo herkese açık).
+Açılış afişi: `PSRAM: 8192 KB`, pil eğri tamponu 86400 nokta = 24 saat,
+**1012 KB PSRAM'de**.
+
+Yani `hedef2.py`'nin uyarısı karşılandı: *"Derleme başarılı olması kartta
+PSRAM bulunduğunu KANITLAMAZ — kanıt açılış satırıdır."* PSRAM hem var
+hem gerçekten kullanılıyor. `PSRAM=opi` ve `FlashSize=16M` doğru seçim.
+
+##### Hangi soket — VID ile ayırt edilir, "port göründü" yetmez
+
+COM yazan soket: **CH343** USB-UART köprüsü (`VID_1A86` / `PID_55D3`,
+wch.cn) → `COM6`. Sürücü Windows 11'de hazır geldi.
+
+⚠ **"Bir COM portu belirdi" doğru sokete takıldığının kanıtı DEĞİL.**
+ESP32-S3'ün içinde ayrı bir USB Serial/JTAG birimi var; yerel USB
+soketine takılırsa Windows **yine** bir COM portu açar (`VID_303A`) ama
+firmware `Serial`i UART0'da tuttuğu için o port **sessiz** kalır.
+Ayırt edici ölçüt VID: `1A86`/`10C4`/`0403` = köprü çipi (doğru soket),
+`303A` = yerel USB (yanlış soket).
+
+`esptool`'un `Hard resetting via RTS pin` satırı da doğru sokette
+olunduğunu bağımsız olarak doğruluyor — DTR/RTS otomatik reset yalnızca
+köprü çipinde çalışıyor.
+
+##### 🔴 Kusur 1 — AP SSID MAC'ten GELMİYORDU
+
+`ag.h`'de sıra tersti:
+
+```c
+String ap = ag_ap_ssid();   // WiFi.macAddress(m) BURADA
+WiFi.mode(WIFI_AP);         // WiFi ancak BURADA başlıyor
+```
+
+Kayıtlı ev ağı yokken (varsayılan durum) WiFi sürücüsü o ana kadar hiç
+başlamamış oluyor. `esp_wifi_get_mac` böyle bir durumda
+`ESP_ERR_WIFI_NOT_INIT` dönüp tampona **dokunmuyor**, yani `m[6]`
+**ilklenmemiş yığın belleği** olarak SSID'e giriyordu.
+
+**Kanıt:** gerçek MAC `…96:9c` iken ad, firmware yazıldıktan sonraki ilk
+açılışta `OLCUM-KARTI-0400`, sonrasında **hep** `OLCUM-KARTI-ABAB`
+(`AB AB` = tekrarlayan dolgu baytı deseni). Dört sıcak reset boyunca
+sabit kaldığı için kusur *"rastgele ad"* gibi de görünmüyordu — aynı kod
+yolu aynı yığın içeriğini bıraktığından **deterministik çöp** üretiyor.
+
+⚠ Bu, "sabit olması doğru olduğu anlamına gelmez" sınıfının iyi bir
+örneği: ilk hipotezim *"her açılışta değişiyor"* idi, dört resetlik
+deney bunu **çürüttü**, ama kusur yine de oradaydı.
+
+**Neden önemli:** B22'nin bütün *"telefondan, bilgisayarsız kullan"*
+hikâyesi bu ada dayanıyor. Ad değiştiği her seferde telefondaki ağ
+profili kırılıyor ve 12 karakterlik AP parolası elle yeniden giriliyor.
+Ayrıca AP parolasını MAC'ten **türetmeme** kararının gerekçesi (*"SSID
+zaten MAC son ekini yayınlıyor"*) fiilen yanlıştı.
+
+**Düzeltme:** `esp_read_mac(m, ESP_MAC_WIFI_SOFTAP)` — eFuse'tan okur,
+sürücünün başlatılmış olmasını gerektirmez, hem STA hem AP yolunda
+çalışır. Kartta doğrulandı: **`SSID=OLCUM-KARTI-969C`**,
+`MAC=…:96:9C`. (softAP MAC son baytı artırmıyor, ilk oktetteki
+yerel-yönetim bitini kuruyor: `68`→`6A`.)
+
+**Neden eski koşucu yakalamadı:** *"Ag kipi bildirildi"* denetimi yalnızca
+satırın **var olduğuna** bakıyordu, içeriğin tutarlılığına değil.
+
+Yeni denetim: afiş artık softAP **ayağa kalktıktan sonra** okunan gerçek
+MAC'i de ilan ediyor ve `tezgah_kart.py` SSID sonekini onunla
+karşılaştırıyor. ⚠ MAC'i `ag_ap_ssid()` ile **aynı kaynaktan** okusaydı
+test totoloji olur ve eski kusuru kaçırırdı — bağımsızlık kasıtlı.
+
+##### 🔴 Kusur 2 — çift çekirdek ölçütü kırılgandı → **KARAR ÇIKTI**
+
+`loop_azami_us` açılıştan beri sıfırlanmayan **koşan maksimum** ve ısınma
+payı yok (ölçüm ikinci `loop()` turunda başlıyor). Yani `setup()` sonrası
+WiFi/mDNS ayağa kalkarken oluşan tek seferlik bir sıçrama kalıcı olarak
+çakılıyordu.
+
+Ölçülen: taze açılışta **18 203 µs** (eşiğin ALTINDA, 0 uzun tur),
+dakikalar sonra **30 397 µs** (ÜSTÜNDE). **Aynı kart, ne zaman baktığına
+göre iki farklı cevap veriyordu** — ve 5.12.34'ün *"bu tek ölçüm aylardır
+açık duran mimari kararı kapatıyor"* dediği ölçüt buydu.
+
+Firmware'e **`K` komutu** eklendi: blokaj sayaçlarını sıfırlar, **eski
+değerleri basarak** (bu projede bir sayının sessizce kaybolması kabul
+edilmiyor). Koşucu artık sıfırlayıp **45 sn kararlı hal** ölçüyor.
+
+**Sonuç:** sıfırlamadan sonra 45 sn'de yine **30 382 µs**, 1 uzun tur.
+Yani ~30 ms'lik olay **açılış sıçraması değil, kararlı halde ~45 sn'de
+bir tekrarlıyor.** İlk yorumum *"muhtemelen açılış artığı"* idi; **ölçüm
+onu çürüttü.** Tahmin etmek yerine sayacı eklemenin karşılığı buydu.
+
+→ **DEVIR 5.12.34'ün kararı: ölçüm döngüsü çekirdek 1'e taşınacak.**
+
+⚠ İki sınır: (1) ölçüm **ADS'ler bağlı değilken** alındı — ama 30 ms'lik
+bir blokaj I²C okumasından gelemez (WiFi/mDNS bakımı olması muhtemel),
+ADS eklemek bunu iyileştirmez, kötüleştirir. (2) `atlanan_ms` **hep 0**:
+enerji penceresi kaçmıyor, yani bugün enerji sayacı zarar görmüyor; asıl
+risk skop/örnekleme sürekliliğinde.
+
+##### 🔴 Kusur 3 — bayat `f` denetimi (firmware doğru, TEST yanlıştı)
+
+`d_ciplak_f_reddi` çıplak `f`'in `! f: frekans gerekli` ile reddedilmesini
+bekliyordu ve gerçek kartta **kırmızı** döndü. Ama B22.1 bunu bilerek
+değiştirmiş: çıplak `f` artık `F`/`P` gibi **değeri basıyor**
+(`* sebeke frekansi 50.00 Hz`, kartta doğrulandı). Hata mesajı yalnızca
+**bozuk** girdide (`fabc`) çıkıyor. Denetim `g`/`i` desenini kopyalarken
+`f`'in farklı tasarımını görmemiş.
+
+⚠ Üstelik kayıt tabanlı sahte kart da `f` için hata dönüyordu, yani
+**bayat denetimi "doğruluyordu"**. İkisi birlikte onarıldı; artık iki şey
+sınanıyor: çıplak `f` değeri basıyor **ve** `fabc` reddediliyor.
+
+**Ders:** yeşil test bir şey kanıtlamaz — ama **kırmızı test de tek
+başına kusur kanıtlamaz.** Önce kaynağa bakılır.
+
+##### Mutasyon koşucusu bu oturumda benim iddiamı çürüttü
+
+Yeni SSID denetimi için iki mutasyon yazıldı. İkincisi — afişten `MAC=`
+satırını silmek — **KAÇTI**: iddiam `"MAC=" in INO` diyordu ve `N` komut
+çıktısındaki kopya onu yeşil tutuyordu. Koşucu afişi okuyor, `N`'i değil.
+Kapsam `setup()` gövdesine daraltıldı, mutasyon artık yakalanıyor.
+
+⚠ **Bu tam olarak B23.3'te koşucunun kurulma gerekçesiydi** ve ilk turunda
+üç boş iddia bulmuştu. Bugün dördüncüyü buldu — **yazan bendim.**
+
+##### Yan düzeltmeler
+
+* `test_tezgah_kart.py`'deki *"24 denetim / 72 kalem"* elle yazılıydı ve
+  **ikisi de bayattı** (gerçek 27/75) — üstelik kalem sayısı `_tezgah.md`'nin
+  kendi son satırında doğru yazıyordu, yani üretilen belge **kendi içinde
+  çelişiyordu**. Denetim sayısı artık `len(TK.DENETIMLER)`'den türetiliyor,
+  kalem sayısı hiç yazılmıyor.
+* `yukle.py` derlerken `--clean` geçmiyor, zincirdeki `test_firmware3.py`
+  geçiyor (B21 dersi: önbellek uyarı gizler). Bugün zararsız çıktı —
+  temiz derleme de **0 uyarı** ve **bayt bayt aynı** boyut verdi — ama
+  ayrışma yüzeyi duruyor.
+* `mutasyon.py` geçici kopya dizinini `_mutasyon-<pid>` diye açıyor ve
+  dizin varsa **çöküyor**. Windows PID'leri geri dönüştürdüğü için bir kez
+  tetiklendi; `dirs_exist_ok` ya da önceden temizleme gerekiyor.
+
+##### Henüz sınanmayanlar
+
+* **Web katmanı** — 5 denetim atlandı, `--http` istiyor. PC'nin kartın
+  AP'sine katılması gerek: `OLCUM-KARTI-969C`, parola seri konsoldan
+  (`N` komutu) okunuyor.
+* **Aşama 1** — ADS1115'ler bağlanınca. I²C taraması şu an boş (beklendiği
+  gibi); envanterde 3 modül var (MOD003).
+* **`_tezgah.md`'nin ilk gün kalemleri** — multimetre isteyenler.
 
 ---
 

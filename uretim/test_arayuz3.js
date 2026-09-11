@@ -156,6 +156,19 @@ const gonderilenHarfler = new Set(
 const ARAYUZSUZ = {
   h: 'yardim — seri port icin',
   Y: 'yardim (es anlamli)',
+  /* B26: TEZGAH TESHIS komutu — blokaj sayaclarini sifirlar.
+     `tezgah_kart.py` bununla acilis isinmasini disarida birakip
+     KARARLI HAL olcuyor (cift cekirdek karari, DEVIR 5.12.34).
+
+     Neden B20'nin `f`/`F` durumundan FARKLI: o ikisi kullanicinin
+     OKUDUGU degeri degistiriyordu (sebeke frekansi yanlis kalinca guc
+     %82 yanlis okunuyordu), yani arayuzde olmamalari gercek bir kusurdu.
+     `K` hicbir olcumu, kalibrasyonu ya da gosterilen degeri
+     degistirmiyor — yalnizca teshis sayaclarini sifirliyor. Arayuzde
+     blokaj sayaci PANELI de yok; olsaydi dugmesi oraya konurdu.
+     ⚠ Arayuze bir gun blokaj/tani paneli eklenirse bu harf listeden
+     CIKARILACAK. */
+  K: 'blokaj sayaci sifirlama — tezgah teshisi, olcumu etkilemiyor',
 };
 const arayuzdeYok = [...firmwareHarfleri]
   .filter((h) => !gonderilenHarfler.has(h) && !(h in ARAYUZSUZ));

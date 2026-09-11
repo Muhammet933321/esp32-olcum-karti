@@ -337,6 +337,34 @@ def bolum5(r):
     r.kosul("  5c: WPA2 asgari uzunlugu denetleniyor",
             "< 8" in AG_KOD or "strlen(deg) < 8" in INO_KOD)
 
+    # 🔴 B26 (2026-09-11) — GERCEK KARTTA bulundu, tasarim zinciri
+    #    18/18 yesilken GORUNMUYORDU. `ag_baslat()` `ag_ap_ssid()`'yi
+    #    `WiFi.mode()`'dan ONCE cagiriyor; kayitli ev agi yokken WiFi
+    #    surucusu o ana kadar hic baslamamis oluyor ve
+    #    `WiFi.macAddress()` tampona DOKUNMUYOR (ESP_ERR_WIFI_NOT_INIT).
+    #    Sonuc: SSID'e ILKLENMEMIS YIGIN BELLEGI giriyordu. Kartin
+    #    gercek MAC'i ...:96:9c iken ad `OLCUM-KARTI-ABAB`
+    #    cikti (AB AB = dolgu bayti deseni). Deger acilislar arasinda
+    #    SABIT kaldigi icin kusur "rastgele ad" gibi de gorunmuyordu.
+    g_ssid = kod(govde(AG_H, "static String ag_ap_ssid"))
+    r.kosul("  5c: AP SSID'i eFuse MAC'inden (esp_read_mac) turetiliyor",
+            bool(g_ssid) and "esp_read_mac" in g_ssid
+            and "WiFi.macAddress" not in g_ssid,
+            "esp_read_mac eFuse'tan okur, WiFi surucusunun baslatilmis "
+            "olmasini gerektirmez; WiFi.macAddress() gerektirir")
+    # Kartta sinanan iddianin BAGIMSIZ olcutu: afis, softAP ayaga
+    # kalktiktan SONRA okunan GERCEK MAC'i da basmali. Ayni kaynaktan
+    # okusaydi tezgah denetimi totoloji olur, eski kusuru kacirirdi.
+    # ⚠ Ilk yazimda kosul `"MAC=" in INO` idi ve MUTASYON KACTI: afis
+    #   satiri silinse bile `N` komut ciktisindaki kopya iddiayi yesil
+    #   tutuyordu. Kosucu AFISI okuyor, `N`'i degil — kapsam setup()'a
+    #   daraltildi. (mutasyon.py bunu ilk turda yakaladi.)
+    g_setup = govde(INO, "void setup()")
+    r.kosul("  5c: ACILIS AFISI gercek MAC'i da ilan ediyor",
+            "MAC=" in g_setup and "ag_durum.mac" in kod(g_setup),
+            "tezgah_kart.py SSID sonekini AFISTEKI MAC ile "
+            "karsilastiriyor; `N` ciktisindaki kopya yetmez")
+
     r.kosul("  5d: web parolasi YOKSA acilista UYARILIYOR",
             "web parolasi YOK" in INO,
             "sessiz 'guvenlik yok', guvenlik olmamasindan kotudur")

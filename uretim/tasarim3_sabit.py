@@ -810,7 +810,10 @@ ESP_DRAM_TOPLAM = 327680                  # bayt, arduino-cli'nin bildirdigi
 #    OLCULEN deger yedek olarak kullaniliyor ve B6 kostugunda ikisinin
 #    esitligi AYRI BIR IDDIA olarak sinaniyor — yani bir daha sessizce
 #    kayamaz.
-_ESP_DRAM_SON_OLCUM = 71420               # bayt, B6 derlemesi 2026-09-11
+# B26: 71420 -> 71444 (+24 B). `ag.h`'deki AgDurum'a `char mac[18]`
+# eklendi (hizalamayla 24 B): afis artik softAP'in GERCEK MAC'ini da
+# ilan ediyor, tezgah kosucusu SSID sonegini onunla karsilastiriyor.
+_ESP_DRAM_SON_OLCUM = 71444               # bayt, B6 derlemesi 2026-09-11
 
 
 def _dram_kullanilan() -> int:

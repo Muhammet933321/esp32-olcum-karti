@@ -66,7 +66,7 @@ RAPOR_S = TK.RAPOR_MS / 1000.0
 
 
 def afis_satirlari(psram_kb=8192, fs=True, tampon=True, parola_yok=True,
-                   skop=True, yapisik=False):
+                   skop=True, yapisik=False, mac_uyumsuz=False):
     s = [
         "",
         "Olcum Karti — Asama 3 (CIFT YONLU on uc)",
@@ -89,7 +89,10 @@ def afis_satirlari(psram_kb=8192, fs=True, tampon=True, parola_yok=True,
     s.append("`h` yardim")
     if not skop:
         s.append("! osiloskop suruculu kurulamadi")
-    _ag = "Ag: AP  SSID=OLCUM-KARTI-A1B2  http://192.168.4.1"
+    # B26: afis GERCEK MAC'i de ilan ediyor. `mac_uyumsuz` eski kusuru
+    # taklit eder: SSID ilklenmemis bellekten gelmis, MAC ise gercek.
+    _mac = "6A:EE:8F:4B:AB:AB" if mac_uyumsuz else "6A:EE:8F:4B:A1:B2"
+    _ag = f"Ag: AP  SSID=OLCUM-KARTI-A1B2  MAC={_mac}  http://192.168.4.1"
     _ar = ("Arayuz: LittleFS'te (karttan servis ediliyor)" if fs
            else "Arayuz: YOK — uretim/arayuz-yaz.py ile yukleyin")
     if yapisik:
@@ -127,7 +130,14 @@ def yanitlar_saglikli(loop_us=8500, i2c="I2C: 0x48 0x49",
     y["g"] = (["! g: gerilim degeri gerekli, orn. `g12.34`"] if g_reddi
               else ["* gerilim kazanci 0.000000"])
     y["i"] = ["! i: akim degeri gerekli, orn. `i1.5`"]
-    y["f"] = ["! f: frekans gerekli, orn. `f50` ya da `f0` (DC)"]
+    # B26: ciplak `f` REDDEDILMIYOR — B22.1'den beri DEGERI basiyor.
+    # Hata mesaji yalnizca BOZUK girdide cikiyor. Eski kayit `f` icin
+    # hata donduruyordu, yani sahte kart gercek firmware'i YANLIS
+    # modelliyordu ve bayat denetimi "dogruluyordu".
+    y["f"] = ["* sebeke frekansi 50.00 Hz"]
+    y["fabc"] = ["! f: frekans gerekli, orn. `f50` ya da `f0` (DC)"]
+    y["K"] = [f"* blokaj sayaclari sifirlandi — onceki: atlanan 0 ms, "
+              f"en uzun dongu {loop_us} us, >20ms tur 0"]
     y["R"] = (["! R: onay gerekli — `R!` yaz. TUM kalibrasyonu siler."]
               if r_onayi else ["* FABRIKA AYARLARI yuklendi"])
     y["QQ"] = (["! bilinmeyen komut — `h` yardim"] if bilinmeyen else [])
@@ -213,7 +223,14 @@ def bolum2_mutasyonlar():
          "Pil egri tamponu AYRILDI", 0),
         ("loop_azami_us esigin USTUNDE (cift cekirdek gerekiyor)",
          dict(yanit=yanitlar_saglikli(loop_us=TK.CIFT_CEKIRDEK_ESIK_US + 1)),
-         "cift cekirdek esiginin ALTINDA", 0),
+         "esigin ALTINDA", 0),
+        # 🔴 B26 — GERCEK KARTTA bulunan kusurun senaryosu: SSID
+        #    ilklenmemis bellekten gelmis, MAC gercek. Eski kosucu bunu
+        #    GORMUYORDU ("Ag kipi bildirildi" yalnizca satirin VARLIGINA
+        #    bakiyordu), o yuzden 18/18 yesilken kart yanlis ad yayinladi.
+        ("AP SSID'i MAC'ten gelmiyor (ilklenmemis bellek)",
+         dict(afis=afis_satirlari(mac_uyumsuz=True)),
+         "SSID soneki gercek MAC", 0),
         ("Ciplak `g` KABUL EDILIYOR (K3 tuglalama geri geldi)",
          dict(yanit=yanitlar_saglikli(g_reddi=False)),
          "Ciplak `g` REDDEDILIYOR", 0),
@@ -405,10 +422,19 @@ def main() -> int:
          "DTR/RTS ile reset YALNIZCA UART kopruli kartlarda calisiyor. "
          "Yerel USB CDC'de EN dugmesine elle basmak gerekir — afis "
          "alinamazsa PSRAM/LittleFS denetimleri ATLANIR, kirmizi olmaz"),
+        # 🔴 B26: bu satirdaki IKI SAYI da elle yaziliydi ve IKISI de
+        #    bayatlamisti ("24 denetim / 72 kalem" derken gercek 27/75
+        #    idi) — ustelik kalem sayisi ayni dosyanin SONUNDA dogru
+        #    yaziyordu, yani uretilen belge kendi icinde celisiyordu.
+        #    Bu, DEVIR'in "projenin defalarca yandigi ayrisma sinifinin
+        #    belge surumu" dedigi seyin ta kendisi. Denetim sayisi artik
+        #    TURETILIYOR; kalem sayisi buradan gorunmedigi icin hic
+        #    yazilmiyor (dosyanin kendi toplam satiri zaten veriyor).
         ("Denetimler yeterli mi",
-         "Kosucu 24 denetim yapiyor; `_tezgah.md` 72 kalem sayiyor. "
-         "Fark, multimetre isteyen kalemler. Kart calisir calismaz "
-         "ikisini birlikte kullan"),
+         f"Kosucu {len(TK.DENETIMLER)} denetim yapiyor; `_tezgah.md` bundan "
+         "COK DAHA fazla kalem sayiyor (toplam dosyanin sonunda). Fark, "
+         "multimetre isteyen kalemler. Kart calisir calismaz ikisini "
+         "birlikte kullan"),
     ])
     return 0 if kaldi == 0 else 1
 

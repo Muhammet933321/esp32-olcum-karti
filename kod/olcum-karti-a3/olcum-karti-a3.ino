@@ -1876,6 +1876,7 @@ void yardim() {
   Serial.println(F("  f<Hz> sebeke frekansi (0=DC, olcek duzeltmesi)"));
   Serial.println(F("  F<us> faz kalibrasyonu us (direncli yukle), F goster"));
   Serial.println(F("  P<volt> pil kesme   p1/p0 pil testi baslat/durdur   p durum"));
+  Serial.println(F("  K blokaj sayaclarini sifirla (eski degeri basar)"));
   Serial.println(F("  R! fabrika ayarlari (kalibrasyonu SIFIRLAR)"));
   Serial.println(F("  t yakala  ta otomatik  tb<0-11> zaman tabani  t+ t-"));
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  t?"));
@@ -1890,6 +1891,36 @@ void komut_calistir(const char *s) {
     case 'e':
       enerji_pJ = 0;
       Serial.println(F("* enerji sifirlandi"));
+      break;
+
+    /* 🔴 B26 — BLOKAJ SAYAÇLARINI SIFIRLA.
+
+       NEDEN VAR: `loop_azami_us` acilistan beri sifirlanmayan KOSAN
+       MAKSIMUM ve isinma payi yok (olcum ikinci loop() turunda basliyor).
+       Yani setup() sonrasi WiFi/mDNS ayaga kalkarken olusan TEK SEFERLIK
+       bir sicrama degeri KALICI olarak cakiliyordu.
+
+       Bu onemli, cunku DEVIR 5.12.34 cift cekirdek kararini TAM OLARAK
+       bu sayiya bagliyor (esik 20 000 us). Gercek kartta olculen:
+       taze acilista 18 203 us (esigin ALTINDA, 0 uzun tur), birkac
+       dakika sonra seyrek bir ~30 ms olayla 30 397 us (esigin USTUNDE).
+       Yani ayni kart, NE ZAMAN BAKTIGINA gore iki farkli cevap veriyordu
+       ve aylardir acik duran mimari karar buna dayandirilacakti.
+
+       Sifirlayip BELIRLI bir sure olcmek, kararı tekrarlanabilir kiliyor.
+       Eski degerler SILINMEDEN ONCE BASILIYOR — bu projede bir sayinin
+       sessizce kaybolmasi kabul edilmiyor. */
+    case 'K':
+      Serial.print(F("* blokaj sayaclari sifirlandi — onceki: atlanan "));
+      Serial.print(enerji_kayip_ms);
+      Serial.print(F(" ms, en uzun dongu "));
+      Serial.print(loop_azami_us);
+      Serial.print(F(" us, >20ms tur "));
+      Serial.println(loop_uzun_adet);
+      loop_azami_us = 0;
+      loop_uzun_adet = 0;
+      enerji_kayip_ms = 0;
+      k_degisti = 1;
       break;
 
     // --- gerilim SIFIR kalibrasyonu
@@ -2227,6 +2258,7 @@ void komut_calistir(const char *s) {
       if (alt == 0 || alt == '?') {
         Serial.print(F("* ag: "));       Serial.print(ag_kip_adi(ag_durum.kip));
         Serial.print(F("  SSID="));      Serial.print(ag_durum.ssid);
+        Serial.print(F("  MAC="));       Serial.print(ag_durum.mac);
         Serial.print(F("  IP="));        Serial.print(ag_durum.ip);
         Serial.print(F("  mDNS="));
         Serial.println(ag_durum.mdns ? F(AG_MDNS ".local") : F("yok"));
@@ -2456,6 +2488,9 @@ void setup() {
   Serial.print(ag_kip_adi(ag_durum.kip));
   if (ag_durum.kip != AG_KAPALI) {
     Serial.print(F("  SSID=")); Serial.print(ag_durum.ssid);
+    /* B26: GERCEK MAC. Ad bundan turetiliyor; ikisi ayrisirsa SSID
+       yanlis uretilmis demektir (bkz. ag.h'deki B26 notu). */
+    Serial.print(F("  MAC=")); Serial.print(ag_durum.mac);
     Serial.print(F("  http://")); Serial.print(ag_durum.ip);
     if (ag_durum.mdns) Serial.print(F("  http://" AG_MDNS ".local"));
   }

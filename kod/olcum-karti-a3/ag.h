@@ -31,6 +31,7 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <Preferences.h>
+#include <esp_mac.h>          /* esp_read_mac — B26, asagiya bak */
 
 #define AG_ALAN "olcumag"        /* NVS ad alani — "olcum3" DEGIL */
 #define AG_MDNS "olcum"          /* http://olcum.local */
@@ -42,11 +43,14 @@ struct AgDurum {
     uint8_t kip;
     char    ssid[33];
     char    ip[16];
+    char    mac[18];        /* B26: arayuzun GERCEK MAC'i, surucu ayaga
+                               kalktiktan SONRA okundu. SSID'in dogru
+                               turetildigini sinamanin BAGIMSIZ olcutu. */
     bool    mdns;
 };
 
 static Preferences ag_nvs;
-static AgDurum ag_durum = {AG_KAPALI, "", "", false};
+static AgDurum ag_durum = {AG_KAPALI, "", "", "", false};
 
 static void ag_rastgele_parola(char *hedef, uint8_t n)
 {
@@ -67,10 +71,36 @@ static void ag_yukle(void)
     }
 }
 
+/* 🔴 B26 (2026-09-11, GERCEK KARTTA bulundu) — SSID MAC'TEN GELMIYORDU.
+
+   Eskiden burasi `WiFi.macAddress(m)` cagiriyordu. Ama `ag_baslat()`
+   bu fonksiyonu `WiFi.mode()`'dan ONCE cagiriyor ve kayitli ev agi
+   yokken (varsayilan durum) WiFi surucusu o ana kadar HIC baslamamis
+   oluyor. `esp_wifi_get_mac` boyle bir durumda ESP_ERR_WIFI_NOT_INIT
+   donup tampona DOKUNMUYOR, yani `m[6]` ILKLENMEMIS YIGIN BELLEGI
+   olarak SSID'e giriyordu.
+
+   Olculen: kartin gercek MAC'i ...:96:9c, yani SSID
+   `OLCUM-KARTI-969C/969D` olmaliydi. Gorulen: firmware yazildiktan
+   sonraki ilk acilista `OLCUM-KARTI-0400`, sonraki acilislarda hep
+   `OLCUM-KARTI-ABAB` (AB AB = tekrarlayan dolgu bayti deseni).
+   Deger SABIT kaldigi icin kusur "rastgele SSID" gibi gorunmuyor —
+   ayni kod yolu ayni yigin icerigini biraktigindan deterministik
+   cop uretiyor. Akis degisince (flash sonrasi) bir kez zaten degisti.
+
+   NEDEN ONEMLI: B22'nin butun "telefondan, bilgisayarsiz kullan"
+   hikayesi bu ada dayaniyor. Ad degistigi her seferde telefondaki ag
+   profili kiriliyor ve 12 karakterlik AP parolasi elle yeniden
+   giriliyor. Ayrica AP parolasini MAC'ten TURETMEME kararinin
+   gerekcesi ("SSID zaten MAC son ekini yayinliyor") fiilen yanlisti.
+
+   COZUM: `esp_read_mac()` eFuse'tan okur, WiFi surucusunun baslatilmis
+   olmasini GEREKTIRMEZ ve hem STA hem AP yolunda ayni sonucu verir.
+   ESP_MAC_WIFI_SOFTAP secildi cunku ad AP arayuzunu tanitiyor. */
 static String ag_ap_ssid(void)
 {
-    uint8_t m[6];
-    WiFi.macAddress(m);
+    uint8_t m[6] = {0};
+    esp_read_mac(m, ESP_MAC_WIFI_SOFTAP);
     char s[24];
     snprintf(s, sizeof(s), "OLCUM-KARTI-%02X%02X", m[4], m[5]);
     return String(s);
@@ -94,6 +124,9 @@ static uint8_t ag_baslat(void)
             snprintf(ag_durum.ssid, sizeof(ag_durum.ssid), "%s", ad.c_str());
             snprintf(ag_durum.ip, sizeof(ag_durum.ip), "%s",
                      WiFi.localIP().toString().c_str());
+            /* B26: surucu AYAKTA, bu MAC gercek. */
+            snprintf(ag_durum.mac, sizeof(ag_durum.mac), "%s",
+                     WiFi.macAddress().c_str());
             ag_durum.mdns = MDNS.begin(AG_MDNS);
             return AG_STA;
         }
@@ -109,6 +142,14 @@ static uint8_t ag_baslat(void)
     snprintf(ag_durum.ssid, sizeof(ag_durum.ssid), "%s", ap.c_str());
     snprintf(ag_durum.ip, sizeof(ag_durum.ip), "%s",
              WiFi.softAPIP().toString().c_str());
+    /* 🔴 B26: SSID'i DOGRULAYAN BAGIMSIZ OLCUT. Bu satir softAP AYAGA
+       KALKTIKTAN SONRA calisiyor, yani buradaki MAC her halukarda
+       gercek. SSID ise ag_ap_ssid()'den geliyor. Ikisi ayrisirsa ad
+       yanlis turetilmis demektir — tezgah kosucusu tam bunu siniyor.
+       Ayni kaynaktan okusaydi test totoloji olurdu ve eski kusuru
+       YAKALAYAMAZDI. */
+    snprintf(ag_durum.mac, sizeof(ag_durum.mac), "%s",
+             WiFi.softAPmacAddress().c_str());
     ag_durum.mdns = ok && MDNS.begin(AG_MDNS);
     return ag_durum.kip;
 }

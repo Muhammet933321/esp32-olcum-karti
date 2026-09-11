@@ -84,6 +84,18 @@ MUTASYONLAR = [
      '#define AG_MDNS "olcum"', '#define AG_MDNS ""',
      "mDNS adi bosalirsa http://olcum.local cozulmez"),
 
+    # ── B26 · AP SSID gercekten MAC'ten mi geliyor (GERCEK KARTTA bulundu)
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/ag.h",
+     "esp_read_mac(m, ESP_MAC_WIFI_SOFTAP);", "WiFi.macAddress(m);",
+     "TAM ESKI KUSURU geri koyar: ag_baslat() bu fonksiyonu "
+     "WiFi.mode()'dan ONCE cagirdigi icin surucu baslamamis olur, "
+     "WiFi.macAddress() tampona dokunmaz ve SSID'e ilklenmemis yigin "
+     "bellegi girer (kartta gorulen: OLCUM-KARTI-ABAB)"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     'Serial.print(F("  MAC=")); Serial.print(ag_durum.mac);', "",
+     "afisten GERCEK MAC kalkarsa tezgah kosucusunun SSID denetimi "
+     "karsilastiracak bagimsiz olcutu kaybeder"),
+
     ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "korumasiz", "parola yok",
      "web parolasi KALDIRILDI mesaji, komut ucunun O AN korumasiz "
