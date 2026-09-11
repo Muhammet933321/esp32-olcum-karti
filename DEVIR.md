@@ -452,14 +452,28 @@ açık duran bir mimari kararı kapatıyor.
 
 Kartın elektroniği tam. Kurulum kılavuzu `BELGELER/4-kurulum.html`.
 
-**Tek eksik parça: taş direnç** (pil testi yükü) — 18650 için
-4.7–7.5 Ω / **10 W**. 12 V akü de test edilecekse ayrıca 10–15 Ω / 50 W.
-⚠️ Dirençlerde ayrılmamış dağınık bir yığın var; oraya bakılsın, çıkarsa
-satın almaya gerek yok.
+✅ **Taş direnç geldi (2026-09-11).** Pil testi yükü 18650 için
+4.7–7.5 Ω / 10 W isteniyordu: **2× 3.3 Ω 11 W seri = 6.6 Ω / 22 W**
+aralığın tam ortasına düşüyor (stokta 3 adet 3.3R 11W var). 18650'de
+3.7 V / 6.6 Ω ≈ 0.56 A, 2.1 W — 22 W'lık kapasitenin çok altında.
+Ayrıca 1R ve 0.1R taş dirençler de geldi. 12 V akü için istenen
+10–15 Ω / 50 W hâlâ yok.
 
-Ayrıca alınacaklar (`BELGELER/2-malzemeler.html` güncel listeyi üretiyor):
-820K ×6, 8.2K ×1, BAT85 ×4, 50 mA sigorta ×1 · sarf: delikli plaket,
-izopropil alkol, lehim teli, yedek ESP32-S3.
+⚠️ Değerleri **ölçerek doğrula**: ürün sayfası 3.3R diyor ama URL slug'ı
+33R diyordu. Zaten `_tezgah.md` "lehimlemeden önce her direnci
+ohmmetreyle geç" diyor.
+
+**Kalan satın alma listesi — dört kalem**
+(`BELGELER/2-malzemeler.html` güncel listeyi üretiyor; oradaki
+"Sipariş edildi" tablosu artık **boş**):
+820K ×6, 8.2K ×1, BAT85 ×4, 50 mA sigorta ×1.
+
+⚠️ **Stoktaki 820K yerine geçmez:** R038 ×30 var ama **2W**; HV bölücüsü
+(4.9 MΩ zinciri) **metal film %1** istiyor — tolerans ve sıcaklık
+katsayısı doğrudan ölçüme giriyor.
+
+Sarf tarafı: **delikli plaket geldi** (6x13 ×3, 10x10 ×2, 5x5 ×2);
+izopropil alkol, lehim teli, yedek ESP32-S3 hâlâ listede.
 
 #### Kurulum sonrası ilk ölçülecekler → **`uretim/_tezgah.md`**
 
