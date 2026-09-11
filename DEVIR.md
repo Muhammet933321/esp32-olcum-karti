@@ -6858,6 +6858,61 @@ sınanıyor: çıplak `f` değeri basıyor **ve** `fabc` reddediliyor.
 **Ders:** yeşil test bir şey kanıtlamaz — ama **kırmızı test de tek
 başına kusur kanıtlamaz.** Önce kaynağa bakılır.
 
+##### 🔴 Kusur 4 — koşucu `D` satırında YANLIŞ ALANI okuyordu
+
+Aşama 1 ilk kez gerçek donanımda koşuldu (tek ADS, `0x48`) ve
+**`ornek = 0`** raporladı. Kart suçsuzdu. Biçim:
+
+```
+D <volt> <amper> <watt> <joule> <wh> <ms> <ornek> <menzil>
+```
+
+Örnek sayısı **7.** alan, son alan `menzil`. `d_ornek_sayisi` ise
+`split()[-1]` ile **son** alanı okuyor, yani menzili (NORMAL = `0`)
+örnek sayısı sanıyordu.
+
+**Neden kaçtı:** `test_tezgah_kart.py`'deki sahte kart da örnek sayısını
+son alana koyuyordu. İkisi **birbiriyle tutarlı**, ikisi de firmware'den
+farklıydı. Yandaki *"İlan edilen alan sayısı firmware biçimiyle AYNI"*
+denetimi yalnızca **sayıya** bakıyor, **sıraya** bakmıyordu — `8 == 8`
+olduğu için sessiz kaldı.
+
+⚠️ Bu, B22.2'deki *"bir iddia düşerken başkası eklendi, toplam sabit
+kaldığı için mutasyon kaçtı"* olayının **alan sırası sürümü.** Aynı sınıf:
+**bir sayı korunuyor diye içerik korunuyor sanmak.**
+
+**Düzeltme:** indeks artık **afişin ilan ettiği alan adlarından**
+türetiliyor (`_ornek_indeksi`); firmware sırayı değiştirirse ayrıştırıcı
+peşinden gider. Sahte kartın alan sırası gerçeğe uyduruldu. Üç yeni iddia:
+protokol ilanı `ornek`i adlandırıyor mu · sahte kart onu **ilan edilen**
+yere koyuyor mu · koşucu aynı indeksi afişten türetiyor mu. **Sahte kartın
+kendi kendine tutarlı olması artık yetmiyor.**
+
+##### İlk gerçek ölçüm: örnekleme hızı 4 kat düşük
+
+Düzeltilmiş ayrıştırıcıyla, tek ADS bağlıyken:
+
+| | |
+|---|---|
+| `ornek` | **33** / 200 ms → **~162 örnek/s** |
+| beklenen | 133 / 200 ms → **665 örnek/s** |
+| tur süresi | 203.5 ÷ 33 = **6.17 ms** |
+| zaman aşımı yolu | 4000 µs + 1300 µs yedek + I²C ≈ **6.2 ms** |
+
+Sayılar sebebi tek başına söylüyor: **ALERT/RDY sinyali gelmiyor**, kod
+her turda `yeni_donusum_bekle(4000)`'de zaman aşımına düşüp
+`delayMicroseconds(1300)` yedeğine kaçıyor.
+
+Firmware doğru: eşik yazmaçları (`0x8000`/`0x0000`) `ADS_AKIM`'a
+yazılıyor, `pinMode(PIN_HAZIR, INPUT_PULLUP)` kurulu. **Fiziksel bağlantı
+sınanacak.** ⚠ `ALRT` pininin iki komşusu (`ADDR`, `A0`) bu kurulumda
+GND'ye bağlı; tel bir delik kayarsa GPIO7 sürekli LOW kalır ve belirti
+*"tel hiç yok"* ile **birebir aynı** olur.
+
+⚠ Bu, B20'nin 91 SPS'inin **aynı sınıfı ama aynısı değil**: orada pin
+yüksek empedansta kalıyordu (COMP_QUE=11b), burada firmware doğru,
+donanım yolu şüpheli.
+
 ##### Mutasyon koşucusu bu oturumda benim iddiamı çürüttü
 
 Yeni SSID denetimi için iki mutasyon yazıldı. İkincisi — afişten `MAC=`
