@@ -325,6 +325,41 @@ MUTASYONLAR = [
      "      return 2000;",
      "bosta da 2 s'de bir yoklanir: kartta bosuna ~15 ms/2 s olcum kaybi"),
 
+    # ── B28 · cift cekirdek (kartta OLCULDU: 186 ms -> 3.8 ms)
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  komut_isle();              // seri porttan gelen komutlar",
+     "  sunucu.handleClient();\n  komut_isle();              // seri porttan gelen komutlar",
+     "handleClient loop()'a geri gelirse sayfa sunmak olcumu yine "
+     "blokluyor — bu asamanin butun sebebi"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "                            &ag_gorev_kolu, 0);",
+     "                            &ag_gorev_kolu, 1);",
+     "gorev olcum cekirdegine (1) kurulursa ayirma gorunuste var ama "
+     "gercekte yok: ayni cekirdek, ayni blokaj"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    vTaskDelay(1);             // 1 tik = 1 ms; IDLE0 ac kalmasin",
+     "    /* vTaskDelay(1); */",
+     "tik birakmayan gorev IDLE0'i ac birakir; gorev bekci kopegi karti "
+     "yeniden baslatir"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (xQueueSend(akis_kuyrugu_q, &ak, 0) != pdTRUE) akis_tasma++;",
+     "  akis_yolla(satir);",
+     "olcum cekirdegi sokete yazmaya geri doner: hem akis[] dizisinde "
+     "ikinci yazar hem de kaldirilan blokaj geri gelir"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (skop_kilidi && xSemaphoreTake(skop_kilidi, 0) != pdTRUE) {",
+     "    if (skop_kilidi && xSemaphoreTake(skop_kilidi, portMAX_DELAY) != pdTRUE) {",
+     "olcum tarafi HTTP dokumunu beklerse cift cekirdegin anlami kalmaz"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     '    snprintf(isaret, sizeof(isaret), "! akis: %lu satir dustu (kuyruk doldu)",',
+     '    snprintf(isaret, sizeof(isaret), "",',
+     "dusen satir sessiz kalir: eksik bir skop dokumu TAM sanilir"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  Serial.setTxBufferSize(2048);\n  Serial.begin(115200);",
+     "  Serial.begin(115200);\n  Serial.setTxBufferSize(2048);",
+     "begin()'den SONRA cagrilan setTxBufferSize ise yaramaz; `?` "
+     "ciktisi yine 27 ms bloklar"),
+
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",
@@ -408,7 +443,18 @@ def uygula(kopya: Path, dosya: str, eski: str, yeni: str) -> bool:
     s = p.read_text(encoding="utf-8", errors="replace")
     if eski not in s:
         return False
-    p.write_text(s.replace(eski, yeni), encoding="utf-8")
+    # ⚠ WINDOWS: yeni kopyalanan agaci Defender/arama dizinleyicisi
+    #   tararken dosya KISA SURELI kilitli kalabiliyor ve yazma
+    #   PermissionError atiyor. Kosu tam ortasinda cokuyordu (B28'de iki
+    #   kez). Kusur mutasyonda degil ortamda; birkac kez denemek yeter.
+    for deneme in range(5):
+        try:
+            p.write_text(s.replace(eski, yeni), encoding="utf-8")
+            break
+        except PermissionError:
+            if deneme == 4:
+                raise
+            time.sleep(0.3)
     return True
 
 

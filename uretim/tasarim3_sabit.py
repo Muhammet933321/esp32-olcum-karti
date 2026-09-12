@@ -813,7 +813,12 @@ ESP_DRAM_TOPLAM = 327680                  # bayt, arduino-cli'nin bildirdigi
 # B26: 71420 -> 71444 (+24 B). `ag.h`'deki AgDurum'a `char mac[18]`
 # eklendi (hizalamayla 24 B): afis artik softAP'in GERCEK MAC'ini da
 # ilan ediyor, tezgah kosucusu SSID sonegini onunla karsilastiriyor.
-_ESP_DRAM_SON_OLCUM = 71444               # bayt, B6 derlemesi 2026-09-11
+# B28: 71444 -> 71284 (-160 B). Cift cekirdek: kuyruk/gorev kollari,
+# tasma sayaclari ve `C` telemetri degiskenleri statik DRAM'e eklendi.
+# ⚠ Bu BAG ANI degeri; kuyruklarin kendisi (48 x 224 B) ve ag gorevinin
+#   8 KB yigini CALISMA ANINDA ayriliyor — kartta `?` ciktisindaki
+#   `bos_dram=` alanina bak.
+_ESP_DRAM_SON_OLCUM = 71284               # bayt, B6 derlemesi 2026-09-12
 
 
 def _dram_kullanilan() -> int:

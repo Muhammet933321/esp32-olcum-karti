@@ -774,6 +774,16 @@ static bool skop_hiz_ayarla(uint32_t hz) {
 // Histerezis: yükselen kenarda önce sinyalin (esik - histerezis) altına
 // inmesi ŞART. Bu olmadan gürültülü bir eşikte yüzlerce sahte tetik alınır
 // ve bir MOSFET anahtarlama çalması aynı çevrimde defalarca tetikler.
+/* B28: skop tamponu TEK yerde yeniden yaziliyor (yakalama) ve TEK
+   yerde okunuyor (/skop.bin, cekirdek 0). Ikisi ayni anda olursa
+   indirilen dalga YARI ESKI YARI YENI olur — sessiz ve inandirici bir
+   yanlis. Kilit bunu kesiyor; OLCUM TARAFI ASLA BEKLEMIYOR (timeout 0),
+   dokum suruyorsa yakalama reddedilip kullaniciya soyleniyor. */
+static SemaphoreHandle_t skop_kilidi = nullptr;
+static inline void skop_kilidi_birak() {
+    if (skop_kilidi) xSemaphoreGive(skop_kilidi);
+}
+
 static bool skop_yakala()
 {
     uint32_t hz;
@@ -781,8 +791,12 @@ static bool skop_yakala()
     skop_taban_coz(skop_ayar.tdiv, &hz, &n);
 
     if (!skop_kulp) return false;
-    if (!skop_hiz_ayarla(hz)) return false;
-    if (adc_continuous_start(skop_kulp) != ESP_OK) return false;
+    if (skop_kilidi && xSemaphoreTake(skop_kilidi, 0) != pdTRUE) {
+        Serial.println(F("! skop: dokum suruyor, yakalama atlandi — tekrar dene"));
+        return false;
+    }
+    if (!skop_hiz_ayarla(hz)) { skop_kilidi_birak(); return false; }
+    if (adc_continuous_start(skop_kulp) != ESP_OK) { skop_kilidi_birak(); return false; }
 
     uint16_t on = (uint16_t)((uint32_t)n * skop_ayar.on_yuzde / 100u);
     if (on + 2u > n) on = (uint16_t)(n - 2u);
@@ -855,6 +869,7 @@ static bool skop_yakala()
         if (skop_ayar.kip != SKOP_KIP_OTO) return false;
         if (dolu < 2u) return false;
     } else if (kalan > 0u) {
+        skop_kilidi_birak();
         return false;                    // zaman aşımı, pencere dolmadı
     }
 
@@ -869,6 +884,7 @@ static bool skop_yakala()
     skop_tetiklendi = bulundu;
     skop_tetik_idx = bulundu ? (uint16_t)((tetik_w + n - bas) % n) : 0u;
     if (skop_tetik_idx >= dolu) skop_tetik_idx = 0u;
+    skop_kilidi_birak();
     return true;
 }
 
@@ -1594,6 +1610,13 @@ void pil_sayfa() {
 
 void skop_bin_sayfa() {
   if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  /* B28: yakalama surerken dokum almak yari eski yari yeni dalga verir.
+     Okuyucu BEKLER (200 ms) — yakalama kisa; olmazsa 503, arayuz tekrar
+     dener. Bekleyen taraf HEP cekirdek 0: olcum asla beklemiyor. */
+  if (skop_kilidi && xSemaphoreTake(skop_kilidi, pdMS_TO_TICKS(200)) != pdTRUE) {
+    sunucu.send(503, "text/plain", "yakalama suruyor, tekrar dene");
+    return;
+  }
 
   uint8_t b[32];
   memset(b, 0, sizeof(b));
@@ -1625,6 +1648,7 @@ void skop_bin_sayfa() {
     uint16_t n2 = (uint16_t)((adet - i) < PARCA ? (adet - i) : PARCA);
     sunucu.sendContent((const char *)(skop_veri + i), (size_t)n2 * 2u);
   }
+  skop_kilidi_birak();
 }
 
 // ═════════════════════════════════════════════════ B22.4 — SSE ═══════
@@ -1735,9 +1759,53 @@ static void akis_yolla(const char *satir) {
   if (!giden) akis_dusen++;
 }
 
-// `Serial` aynasinin geri cagrisi — tamamlanan her satir buraya geliyor.
+/* 🔴 B28 — SOKETE YAZMA ARTIK YALNIZCA CEKIRDEK 0'DA.
+   `web_satir_hazir` OLCUM cekirdeginde (1) cagriliyor: satirlari basan
+   `Serial.println` orada. Soketlere oradan yazmak iki sorun dogururdu:
+     * `akis[]` dizisini ag gorevi (yeni istemci kabulu, kalp atisi) ile
+       AYNI ANDA elleyen ikinci bir yazar,
+     * ve daha kotusu, TCP yazmasinin olcum dongusunu bloklamasi —
+       yani bu asamanin cozmeye calistigi seyin ta kendisi.
+   Satir bir kuyruga birakiliyor, ag gorevi bosaltiyor. Kuyruk dolarsa
+   satir DUSER ve sayilir: olcumu yavaslatmaktansa telemetri satirini
+   kaybetmek yeglenir (D satiri zaten bir sonrakinde tazeleniyor). */
+typedef struct { char m[WEB_SATIR_AZAMI]; } AkisKalem;
+static QueueHandle_t akis_kuyrugu_q = nullptr;
+/* Ag gorevinin kolu ve tur sayaci BURADA tanimli: `?` ciktisi (bolum
+   ayar_yaz_seri) bunlari okuyor ve o fonksiyon gorev tanimindan ONCE
+   geliyor — .ino tek ceviri birimi oldugundan sira onemli. */
+static TaskHandle_t ag_gorev_kolu = nullptr;
+static volatile uint32_t ag_tur = 0;
+static volatile uint32_t akis_tasma = 0;      // kuyruk dolu -> dusen satir
+
 void web_satir_hazir(const char *satir) {
-  akis_yolla(satir);
+  if (!akis_kuyrugu_q) return;                // ag kurulmadan once (afis)
+  AkisKalem ak;
+  snprintf(ak.m, sizeof(ak.m), "%s", satir);
+  /* `volatile` uzerinde `++` C++20'de kullanimdan kalkti (-Wvolatile).
+     Acik oku-yaz ayni sey ama uyarisiz. Yaris yok: bu sayaci YALNIZCA
+     olcum cekirdegi yaziyor, otekiler okuyor (tek yazar disiplini). */
+  if (xQueueSend(akis_kuyrugu_q, &ak, 0) != pdTRUE) akis_tasma = akis_tasma + 1;
+}
+
+/* 🔴 DUSEN SATIR SESSIZ KALMAZ. Kuyruk yalnizca ag gorevi uzun bir
+   istekte (ornegin 58 KB'lik vue.js) mesgulken doluyor; olculdu: skop
+   ASCII dokumu (63 satirlik patlama) + es zamanli sayfa yuklemesinde
+   32 satir dustu. Dinleyen taraf bunu BILMELI, yoksa eksik bir dokumu
+   tam sanar. Yer acilir acilmaz tek bir isaret satiri gonderiliyor. */
+static uint32_t akis_bildirilen_tasma = 0;
+
+static void akis_kuyrugunu_bosalt() {
+  AkisKalem ak;
+  while (xQueueReceive(akis_kuyrugu_q, &ak, 0) == pdTRUE) akis_yolla(ak.m);
+  uint32_t t = akis_tasma;
+  if (t != akis_bildirilen_tasma) {
+    char isaret[64];
+    snprintf(isaret, sizeof(isaret), "! akis: %lu satir dustu (kuyruk doldu)",
+             (unsigned long)(t - akis_bildirilen_tasma));
+    akis_bildirilen_tasma = t;
+    akis_yolla(isaret);
+  }
 }
 
 // NAT ve ara vekiller sessiz baglantiyi dusuruyor. Yorum satiri istemciye
@@ -1761,24 +1829,30 @@ void komut_calistir(const char *s);   // asagida tanimli (imza birebir)
 //   3. Cift cekirdege gecilirse (B22.5 sonrasi karar) tek yazar
 //      disiplini zaten kurulmus oluyor
 #define KOMUT_KUYRUK 4
-static char komut_kuyruk[KOMUT_KUYRUK][48];
-static uint8_t komut_bas = 0, komut_adet = 0;
+/* 🔴 B28 — CEKIRDEKLER ARASI KUYRUK. Eskiden `komut_adet++` / `--`
+   ile elle halka tamponu vardi; TEK cekirdekte dogruydu. Artik uretici
+   AG GOREVI (cekirdek 0, HTTP), tuketici OLCUM DONGUSU (cekirdek 1):
+   iki cekirdekten okunup yazilan bir sayac YARIS demektir (kayip komut
+   ya da ayni komutun iki kez calismasi). FreeRTOS kuyrugu bunu kendi
+   kritik bolgesiyle cozuyor; `false` donusu (kuyruk dolu -> HTTP 503)
+   ve 48 baytlik kalem sinirlari AYNI kaldi. */
+typedef struct { char m[48]; } KomutKalem;
+static QueueHandle_t komut_kuyrugu_q = nullptr;
 
 static bool komut_kuyruga(const char *k) {
-  if (komut_adet >= KOMUT_KUYRUK) return false;
-  uint8_t yer = (uint8_t)((komut_bas + komut_adet) % KOMUT_KUYRUK);
-  snprintf(komut_kuyruk[yer], sizeof(komut_kuyruk[0]), "%s", k);
-  komut_adet++;
-  return true;
+  if (!komut_kuyrugu_q) return false;
+  KomutKalem kk;
+  snprintf(kk.m, sizeof(kk.m), "%s", k);
+  /* Bekleme YOK: dolu kuyrukta HTTP isteyicisini bloklamak, olcum
+     dongusunu de yavaslatan bir geri basinc olurdu. */
+  return xQueueSend(komut_kuyrugu_q, &kk, 0) == pdTRUE;
 }
 
 static void komut_kuyrugu_bosalt() {
-  while (komut_adet) {
-    char yerel[48];
-    snprintf(yerel, sizeof(yerel), "%s", komut_kuyruk[komut_bas]);
-    komut_bas = (uint8_t)((komut_bas + 1) % KOMUT_KUYRUK);
-    komut_adet--;
-    komut_calistir(yerel);
+  if (!komut_kuyrugu_q) return;
+  KomutKalem kk;
+  while (xQueueReceive(komut_kuyrugu_q, &kk, 0) == pdTRUE) {
+    komut_calistir(kk.m);
   }
 }
 
@@ -1969,6 +2043,21 @@ void ayar_yaz_seri() {
   Serial.print(' ');       Serial.print(loop_azami_us);
   Serial.print(' ');       Serial.println(loop_uzun_adet);
   Serial.println(F("  (K = atlanan enerji ms · en uzun dongu us · >20ms tur)"));
+  /* B28: cift cekirdek telemetrisi. Yigin dip degeri OLCULEN sayi —
+     8 KB tahmin degil, kalan pay gorunur. `dusen` sifirdan buyukse
+     akis kuyrugu tasmis demektir (satir kaybi). */
+  Serial.print(F("C olcum_cekirdek="));  Serial.print(xPortGetCoreID());
+  Serial.print(F(" ag_gorev="));
+  Serial.print(ag_gorev_kolu ? F("var") : F("yok"));
+  Serial.print(F(" ag_tur="));           Serial.print(ag_tur);
+  Serial.print(F(" ag_yigin_dip="));
+  Serial.print(ag_gorev_kolu ? (unsigned)uxTaskGetStackHighWaterMark(ag_gorev_kolu) : 0u);
+  Serial.print(F(" akis_dusen="));       Serial.print(akis_tasma);
+  /* B28: kuyruklar ve gorev yigini CALISMA ANINDA ayriliyor (~19 KB);
+     zincirin B6 adimi yalnizca BAG ANI DRAM'ini olcuyor. Gercek pay
+     burada gorunur. */
+  Serial.print(F(" bos_dram="));
+  Serial.println((unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 }
 
 // Bir ADS1115 cevap vermiyorsa sebep genelde uctan bire indirgenir:
@@ -2483,7 +2572,52 @@ void komut_isle() {
 }
 
 // ───────────────────────────────────────────────── setup / loop
+/* ═══════════════════════════════════════════════════════════════════
+   B28 — CIFT CEKIRDEK
+
+   NEDEN: kartta olculdu (B27 A4). Her HTTP istegi olcum dongusunu
+   BOYUTUYLA ORANTILI blokluyordu — `app.js` 186 ms, `vue` 155 ms; bir
+   sayfa acilisi ~0.4 s olcum kaybi. Esik 20 ms. Ustune istemci yokken
+   bile ~50-60 s'de bir 22.5 ms'lik bir olay vardi (300 s'de 5 tur).
+
+   BOLUM:
+     cekirdek 1  Arduino `loop()`  — ADS okuma, enerji, pil testi, D
+                 satiri, seri komutlar, komut kuyrugunu bosaltma, skop
+     cekirdek 0  `ag_gorevi()`     — WebServer, SSE yazimi, kalp atisi
+
+   Cekirdek 0'i secmemizin sebebi: WiFi/lwIP gorevleri zaten orada.
+   Ag isini oraya koymak TCP'yi kendi cekirdeginde tutuyor.
+
+   ARALARINDA YALNIZCA KUYRUK VAR — paylasilan degisken yok:
+     komut_kuyrugu_q   cekirdek 0 -> 1  (HTTP komutu)
+     akis_kuyrugu_q    cekirdek 1 -> 0  (SSE satiri)
+     skop_kilidi       tek tampon; OLCUM TARAFI ASLA BEKLEMEZ (timeout 0)
+
+   Kalibrasyon (`ayar`), enerji sayaclari ve pil durumu YALNIZCA
+   cekirdek 1'de yaziliyor (komutlar orada calisiyor). Pil halkasi
+   ekle-yalniz: `/pil` okuyucusu yazilmis noktalara bakiyor, yazar
+   eskilere dokunmuyor.
+
+   ⚠ `vTaskDelay(1)` SART: ag gorevi bosta donerken tik birakmazsa ayni
+     cekirdekteki bos gorev (IDLE0) ac kalir ve gorev bekci kopegi
+     karti yeniden baslatir. */
+static void ag_gorevi(void *) {
+  for (;;) {
+    sunucu.handleClient();
+    akis_kuyrugunu_bosalt();   // olcum cekirdeginin biraktigi satirlar
+    akis_kalp();               // 15 s'de bir, NAT zaman asimi icin
+    ag_tur = ag_tur + 1;      // bkz. akis_tasma: tek yazar, -Wvolatile
+    vTaskDelay(1);             // 1 tik = 1 ms; IDLE0 ac kalmasin
+  }
+}
+
 void setup() {
+  /* B28: TX tamponu buyutuldu. 115200 baud'da `?` ciktisi (9 satir,
+     ~700 bayt) varsayilan tamponu doldurup `Serial.print`i BLOKLUYORDU:
+     olculdu, tek bir loop() turu 27 ms. Cift cekirdekten sonra geriye
+     kalan TEK >20 ms kaynagi buydu. 2 KB tampon tam ciktiyi yutuyor,
+     gonderme arka planda suruyor. Serial.begin'den ONCE cagrilmali. */
+  Serial.setTxBufferSize(2048);
   Serial.begin(115200);
   ayar_yukle();
 
@@ -2528,6 +2662,15 @@ void setup() {
   // savunmasi SESSIZCE devre disi kalirdi.
   const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin"};
   sunucu.collectHeaders(toplanacak, 3);
+
+  /* B28: kuyruklar SUNUCUDAN ONCE kurulmali — ilk istek gorev
+     baslamadan once gelebilir ve `komut_kuyruga` null kuyrukta 503
+     donerdi. Boyutlar: komut 8 kalem (KOMUT_KUYRUK ile ayni),
+     akis 48 satir: D satiri 5/s ama skop ASCII dokumu TEK SEFERDE ~63
+     satir basiyor; 24'te olculen tasma buydu. 48 x 224 B ≈ 10.7 KB. */
+  komut_kuyrugu_q = xQueueCreate(KOMUT_KUYRUK, sizeof(KomutKalem));
+  akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));
+  skop_kilidi = xSemaphoreCreateMutex();
 
   sunucu.on("/", kok_sayfa);
   sunucu.on("/akis", akis_sayfa);
@@ -2653,6 +2796,18 @@ void setup() {
     Serial.print(F("  AP parolasi: "));
     Serial.println(ag_nvs.getString("ap_sifre", ""));
   }
+  /* B28: ag gorevi EN SONDA baslatiliyor — sunucu, kuyruklar ve afis
+     hazir olduktan sonra. Onceden baslatilsaydi ilk istek yarim kurulmus
+     bir sunucuya duserdi. Yigin 8 KB: WebServer + LittleFS akisi
+     (olculen dip deger `?` ciktisinda). */
+  if (ag_durum.kip != AG_KAPALI) {
+    xTaskCreatePinnedToCore(ag_gorevi, "ag", 8192, nullptr, 1,
+                            &ag_gorev_kolu, 0);
+    Serial.print(F("Cekirdek: olcum="));
+    Serial.print(xPortGetCoreID());
+    Serial.println(F("  ag=0 (WebServer + SSE ayri gorevde)"));
+  }
+
   if (ag_durum.kip != AG_KAPALI && !ag_nvs.getString("web_sifre", "").length()) {
     // Sessiz "guvenlik yok" durumu, guvenlik olmamasindan daha kotudur.
     Serial.println(F("! UYARI: web parolasi YOK — komut ucu yalnizca jeton"
@@ -2673,10 +2828,12 @@ void loop() {
     tur_son_us = simdi;
   }
 
-  sunucu.handleClient();
-  akis_kalp();               // B22.4: 15 s'de bir, NAT zaman asimi icin
+  /* 🔴 B28: `sunucu.handleClient()` ve `akis_kalp()` BURADAN CIKTI —
+     ikisi de artik cekirdek 0'daki `ag_gorevi()` icinde. Sayfa sunmak
+     bu donguyu bloklamiyor. Komutlar yine BURADA calisiyor: tek yazar
+     disiplini korunuyor (kalibrasyon, NVS, skop hep cekirdek 1'de). */
   komut_isle();              // seri porttan gelen komutlar
-  komut_kuyrugu_bosalt();    // B22.4: HTTP'den gelenler — TEK yazar
+  komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
 
   // 🔴 B20 (2026-09-10) — BURADA OLU BIR BEKLEME VARDI:
   //     if (!yeni_donusum_bekle(4000)) delay(2);

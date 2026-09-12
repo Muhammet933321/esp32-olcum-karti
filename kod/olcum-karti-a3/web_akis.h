@@ -43,6 +43,9 @@ public:
 
     /* Seri porta delege edilenler — cagri yerleri degismesin diye. */
     void begin(unsigned long baud) { _s.begin(baud); }
+    /* B28: TX tamponu — `Serial` bu aynayla gölgelendiği için delege
+       edilmeli, yoksa `Serial.setTxBufferSize` derlenmez. */
+    void setTxBufferSize(size_t n) { _s.setTxBufferSize(n); }
     int available() { return _s.available(); }
     int read() { return _s.read(); }
     void flush() { _s.flush(); }

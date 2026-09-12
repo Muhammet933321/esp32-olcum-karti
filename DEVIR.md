@@ -7364,6 +7364,52 @@ Yani kendiliğinden olay **var ama daha küçük ve daha seyrek**: ~50–60 s'de
 
 ---
 
+#### 5.12.44 ✅ B28 — ÇİFT ÇEKİRDEK (2026-09-12)
+
+Aylardır açık duran karar (5.12.34) kapandı. Gerekçe B27 Aşama 4'te **ölçülmüştü**: her HTTP isteği ölçüm döngüsünü boyutuyla orantılı blokluyordu (`app.js` 186 ms, `vue` 155 ms; eşik 20 ms), üstüne boşta ~50–60 s'de bir 22.5 ms.
+
+**Bölüm:**
+
+| çekirdek | ne yapıyor |
+|---|---|
+| **1** — Arduino `loop()` | ADS okuma, enerji, pil testi, `D` satırı, seri komutlar, komut kuyruğunu boşaltma, osiloskop |
+| **0** — yeni `ag_gorevi()` | `WebServer.handleClient()`, SSE yazımı, kalp atışı |
+
+Çekirdek 0 seçildi çünkü **WiFi/lwIP görevleri zaten orada**; ağ işini oraya koymak TCP'yi kendi çekirdeğinde tutuyor.
+
+**Aralarında paylaşılan değişken YOK, yalnızca kuyruk:**
+
+* `komut_kuyrugu_q` (0 → 1) — HTTP komutu. Elle sayaçlı halka tamponu iki çekirdekte **yarış** demekti (kayıp komut ya da aynı komutun iki kez çalışması); FreeRTOS kuyruğu oldu. `false` dönüşü (dolu → HTTP 503) ve 48 baytlık kalem sınırı **aynı**.
+* `akis_kuyrugu_q` (1 → 0) — SSE satırı. Ölçüm çekirdeğinden sokete yazmak hem `akis[]` dizisinde ikinci yazar olurdu hem de kaldırılan blokajı geri getirirdi. Bırakma **beklemesiz**: kuyruk dolarsa satır **düşer ve sayılır**, ölçümü yavaşlatmaktansa telemetri satırını kaybetmek yeğdir.
+* `skop_kilidi` — iki çekirdeğin gördüğü tek tampon. **Ölçüm tarafı asla beklemiyor** (`timeout 0`; döküm sürüyorsa yakalama reddedilip kullanıcıya söyleniyor), bekleyen hep çekirdek 0 (`/skop.bin`, 200 ms, sonra 503).
+
+Kalibrasyon, NVS ve osiloskop yazımı **yalnızca çekirdek 1'de** — komutlar orada çalışmaya devam ediyor, tek yazar disiplini korundu. Pil halkası ekle-yalnız olduğu için `/pil` okuyucusu kilitsiz güvenli.
+
+**Kartta ölçülen sonuç** (pasif dinleme; seri komut göndermeden, kartın kendiliğinden bastığı `K` satırlarından):
+
+| | önce | **sonra** |
+|---|---|---|
+| tam sayfa yüklemesi sırasında `loop_azami` | **186 ms** | **3.8–4.1 ms** |
+| boşta (40 s) | 16.7 ms + ~50 s'de bir 22.5 ms | **3.0 ms, 0 uzun tur** |
+| örnekleme | 478 /s | **500–503 /s** |
+| bringup koşucusunun kararlı-hal ölçütü | 26 541 µs ❌ | **11 418 µs ✅** |
+
+**Geriye kalan tek >20 ms kaynağı benim kendi ölçüm komutumdu:** `?` çıktısı (9 satır, ~700 B) 115200 baud'da varsayılan TX tamponunu doldurup `Serial.print`i bloklıyordu — tek bir tur 27 ms. `setTxBufferSize(2048)` (begin'den **önce**) ile 11.8 ms'e indi. Ders: *ölçüm aracının kendisi ölçülen şeye karışabilir* — pasif dinleme olmasa bu sayı "çift çekirdek yetmedi" diye okunurdu.
+
+**Bir gerçek yan etki bulundu ve görünür kılındı:** yoğun anlarda (osiloskopun ASCII dökümü ~63 satırlık patlama üretiyor + eşzamanlı sayfa yüklemesi) akış kuyruğu taştı — 32 satır düştü. Kuyruk 24 → 48 kalem (~10.7 KB) büyütüldü ve **düşen satır artık sessiz kalmıyor**: yer açılınca `! akis: N satir dustu (kuyruk doldu)` gönderiliyor. Eksik bir dökümü tam sanmak, düşmesinden kötüdür. Aynı yük tekrarlandı: **0 düşme**.
+
+**Doğrulama:** `sim3_web.py` 82 → **97** (bölüm 3b: `loop()` artık `handleClient` çağırmıyor, görev çekirdek 0'a sabit, `vTaskDelay` var, komut kuyruğu FreeRTOS kuyruğu, komutlar hâlâ çekirdek 1'de, `web_satir_hazir` sokete yazmıyor, bırakma beklemesiz, düşen satır bildiriliyor, skop kilidinin iki yanı, TX tamponu `begin`'den önce, `C` telemetri satırı). Mutasyon B22b **15/15** — yedi yeni mutasyon: `handleClient`'ı `loop()`'a geri koy, görevi çekirdek 1'e kur, `vTaskDelay`'i sil, `web_satir_hazir`'ı sokete yazdır, skop kilidini `portMAX_DELAY` yap, düşme işaretini boşalt, `setTxBufferSize`'ı `begin`'den sonraya al.
+
+**İki bayat iddia yenilendi** (B20'de aynısı olmuştu): *"`akis_yolla` yalnızca ayna geri çağrısından çağrılıyor"* ve *"kalp atışı `loop()`'tan çağrılıyor"* eski mimariyi kodluyordu. Niyetleri korunarak yeniden yazıldı: **sokete yazan tek yol** kuyruk boşaltıcıdır ve ölçüm tarafından çağrılmaz; kalp atışı **ağ görevinden** çağrılır. Eskisi bırakılsaydı çift gönderim koruması sessizce yok olurdu.
+
+**İşlevsel doğrulama (kartta):** SSE 44 olay / 44 benzersiz / dağılım `{1: 44}` (B26 düzeltmesi kuyrukta korundu) · HTTP `?` → 204 ve yanıtı SSE'den geldi (çekirdekler arası komut yolu uçtan uca) · `/skop.bin` 5 tur eşzamanlı sayfa yüklemesiyle, beşinde de `32 + 2×adet` bayt, uyumsuzluk yok · 120 s dayanma: **0 yeniden başlatma**, 491 örnek/s, `ag_yigin_dip` 4828 B boş (8 KB yığının ~%40'ı kullanımda).
+
+**Araç kusuru:** `mutasyon.py` Windows'ta yeni kopyalanan ağaca yazarken `PermissionError` alıp koşu ortasında çöktü (Defender/dizinleyici kısa süreli kilit). Yazma 5 kez deneniyor artık.
+
+**Kalan:** ikinci ADS takılınca örnekleme bandı ve `durum` alanı yeniden ölçülecek. Çift çekirdek kararı kapandı — `loop_azami` eşiği artık 4 ms civarında, 20 ms'lik ölçüt rahat.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

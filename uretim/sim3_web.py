@@ -140,13 +140,26 @@ def bolum1(r):
     #    Bir mekanizma daha genelini getirdiginde eskisi KALDIRILMALI.
     #    ⚠ `(?<!void )` SART: yoksa fonksiyonun KENDI TANIMI da cagri
     #      sayiliyor ve iddia dogru kodda bile kirmizi yaniyor.
-    _cagri = [m.start()
-              for m in re.finditer(r"(?<!void )\bakis_yolla\s*\(", INO_KOD)]
+    #    ⚠ B28'de bu iddianin SEKLI degisti, NIYETI degismedi. Artik
+    #      `web_satir_hazir` (cekirdek 1) satiri KUYRUGA birakiyor ve
+    #      `akis_kuyrugunu_bosalt` (cekirdek 0) sokete yaziyor. Yani
+    #      "tek cagri yeri" olcutu artik yanlis — dogru olcut: sokete
+    #      yazan TEK FONKSIYON var ve o da olcum tarafindan cagrilmiyor.
+    #      (Bayat iddia tehlikesi: eski hali B28'den sonra da yesildi
+    #      diye birakilsa, cift gonderim korumasi yok olurdu.)
     _g_hazir = kod(govde(INO, "void web_satir_hazir"))
-    r.kosul("  1b: `akis_yolla` YALNIZCA ayna geri cagrisindan cagriliyor",
-            len(_cagri) == 1 and "akis_yolla(" in _g_hazir,
-            f"{len(_cagri)} cagri yeri — birden fazlaysa ayna ile birlikte "
-            f"calisip satiri COGALTIR")
+    _g_bosalt = kod(govde(INO, "static void akis_kuyrugunu_bosalt()"))
+    _cagri_yerleri = [m.start()
+                      for m in re.finditer(r"(?<!void )(?<!static void )\bakis_yolla\s*\(", INO_KOD)]
+    _bosalt_bas = INO_KOD.find("static void akis_kuyrugunu_bosalt()")
+    _bosalt_son = _bosalt_bas + len(_g_bosalt) + 64 if _bosalt_bas >= 0 else -1
+    _disarida = [i for i in _cagri_yerleri if not (_bosalt_bas <= i <= _bosalt_son)]
+    r.kosul("  1b: sokete yazan TEK yol var (kuyruk bosaltici)",
+            _bosalt_bas >= 0 and not _disarida and "akis_yolla(" in _g_bosalt,
+            f"{len(_disarida)} cagri bosalticinin DISINDA — ikinci bir yol "
+            f"satiri COGALTIR (B26: 8 sn'de 80 olay / 40 benzersiz)")
+    r.kosul("  1b: ayna geri cagrisi satiri KUYRUGA veriyor",
+            "xQueueSend" in _g_hazir and "akis_yolla" not in _g_hazir)
 
 
 def bolum2(r):
@@ -165,9 +178,11 @@ def bolum2(r):
     r.kosul("  2b: kalp atisi var (NAT/vekil zaman asimi)",
             "akis_kalp" in INO_KOD and ": kalp" in INO,
             "15 s")
-    r.kosul("  2b: kalp atisi loop()'tan cagriliyor",
-            "akis_kalp()" in kod(govde(INO, "void loop()")),
-            "cagrilmayan bir kalp atisi yoktur")
+    # B28: kalp atisi da soket isi — ag gorevine tasindi. Cagrilmayan
+    # bir kalp atisi yoktur; NEREDEN cagrildigi mimariyle degisir.
+    r.kosul("  2b: kalp atisi ag gorevinden cagriliyor",
+            "akis_kalp()" in kod(govde(INO, "static void ag_gorevi(void *)")),
+            "soketlere dokunan her sey cekirdek 0'da")
     r.kosul("  2c: `id:` yer imi gonderiliyor",
             "id: " in INO and "akis_sira" in INO_KOD,
             "yeniden baglanmada nerede kalindigi bilinsin")
@@ -255,6 +270,73 @@ def bolum3(r):
 
 
 def bolum4(r):
+    bolum(r, "BOLUM 3b — CIFT CEKIRDEK (B28): ag isi olcumden AYRI mi")
+    # ── Bu bolum, B27 A4'te KARTTA OLCULEN kusurun kapandigini civiliyor:
+    #    her HTTP istegi olcum dongusunu boyutuyla orantili blokluyordu
+    #    (app.js 186 ms, vue 155 ms; esik 20 ms). Cozum: ag isi cekirdek
+    #    0'da ayri bir gorevde, arada YALNIZCA kuyruk.
+    g_loop = kod(govde(INO, "void loop()"))
+    g_gorev = kod(govde(INO, "static void ag_gorevi(void *)"))
+    g_hazir = kod(govde(INO, "void web_satir_hazir(const char *satir)"))
+    g_yakala = kod(govde(INO, "static bool skop_yakala()"))
+    g_bin = kod(govde(INO, "void skop_bin_sayfa()"))
+
+    r.kosul("  3b.1: [!] loop() ARTIK handleClient cagirmiyor",
+            "handleClient" not in g_loop,
+            "olcumun sayfa sunumunu beklemesi bu asamanin cozdugu seyin ta kendisi")
+    r.kosul("  3b.1: ag gorevi handleClient'i USTLENDI",
+            "sunucu.handleClient()" in g_gorev and "akis_kalp()" in g_gorev)
+    r.kosul("  3b.2: gorev CEKIRDEK 0'a sabitlendi (WiFi/lwIP orada)",
+            "xTaskCreatePinnedToCore(ag_gorevi" in INO
+            and re.search(r"xTaskCreatePinnedToCore\(ag_gorevi[^;]*?,\s*&ag_gorev_kolu,\s*0\)",
+                          INO, re.S) is not None)
+    r.kosul("  3b.2: gorev dongusunde vTaskDelay VAR",
+            "vTaskDelay" in g_gorev,
+            "tik birakilmazsa IDLE0 ac kalir ve gorev bekci kopegi karti yeniden baslatir")
+
+    # Cekirdekler arasi tek gecit: kuyruklar. Elle sayacli halka tamponu
+    # iki cekirdekte YARIS demek (kayip komut ya da cift calisma).
+    r.kosul("  3b.3: komut kuyrugu FreeRTOS kuyrugu (elle sayac DEGIL)",
+            "xQueueSend(komut_kuyrugu_q" in INO
+            and "xQueueReceive(komut_kuyrugu_q" in INO
+            and "komut_adet" not in INO_KOD)   # yorumlar haric: tarihce anlatiyor
+    r.kosul("  3b.3: komutlar hala OLCUM cekirdeginde calisiyor (tek yazar)",
+            "komut_kuyrugu_bosalt()" in g_loop and "komut_calistir" not in g_gorev,
+            "kalibrasyon, NVS ve skop tek cekirdekten yaziliyor")
+
+    # 🔴 B26'nin dersi burada da gecerli: sokete YAZAN tek bir yol olmali.
+    r.kosul("  3b.4: [!] web_satir_hazir SOKETE YAZMIYOR, kuyruga birakiyor",
+            "xQueueSend(akis_kuyrugu_q" in g_hazir and "akis_yolla" not in g_hazir,
+            "olcum cekirdeginden TCP yazmak hem akis[] dizisinde ikinci "
+            "yazar demek hem de bu asamanin kaldirdigi blokajin geri gelmesi")
+    r.kosul("  3b.4: satirlari ag gorevi bosaltiyor",
+            "akis_kuyrugunu_bosalt()" in g_gorev
+            and "akis_yolla" in kod(govde(INO, "static void akis_kuyrugunu_bosalt()")))
+    r.kosul("  3b.4: kuyruga birakma BEKLEMESIZ (olcum asla bloklanmaz)",
+            "xQueueSend(akis_kuyrugu_q, &ak, 0)" in g_hazir)
+    r.kosul("  3b.4: [!] dusen satir SESSIZ KALMIYOR",
+            "satir dustu" in kod(govde(INO, "static void akis_kuyrugunu_bosalt()")),
+            "eksik bir skop dokumunu tam sanmak, dusmesinden kotudur")
+
+    # Skop tamponu iki cekirdekten gorulen TEK paylasilan tampon.
+    r.kosul("  3b.5: skop yakalamasi kilidi BEKLEMEDEN aliyor (timeout 0)",
+            "xSemaphoreTake(skop_kilidi, 0)" in g_yakala,
+            "olcum tarafi beklerse cift cekirdegin anlami kalmaz")
+    r.kosul("  3b.5: /skop.bin okuyucusu BEKLEYEN taraf",
+            "xSemaphoreTake(skop_kilidi, pdMS_TO_TICKS" in g_bin
+            and "503" in g_bin)
+
+    # Seri cikti: cift cekirdekten sonra geriye kalan tek >20 ms kaynagi.
+    r.kosul("  3b.6: seri TX tamponu begin()'den ONCE buyutuluyor",
+            INO.find("setTxBufferSize") < INO.find("Serial.begin(115200)")
+            and "setTxBufferSize" in INO,
+            "`?` ciktisi (9 satir) varsayilan tamponu doldurup print'i "
+            "blokluyordu: olculdu, 27 ms")
+    r.kosul("  3b.7: `C` telemetri satiri cekirdek/yigin/dusen bildiriyor",
+            all(x in kod(govde(INO, "void ayar_yaz_seri()"))
+                for x in ("olcum_cekirdek=", "ag_yigin_dip=", "akis_dusen=")),
+            "yigin payi TAHMIN degil OLCULEN sayi olmali")
+
     bolum(r, "BOLUM 4 — CORS: `enableCORS(true)` KULLANILMAMALI")
     r.bilgi("  WebServer::enableCORS(true) uc basligi da `*` yapiyor")
     r.bilgi("  (WebServer.cpp:663-667): Allow-Origin, Allow-Methods,")
