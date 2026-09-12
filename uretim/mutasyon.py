@@ -183,6 +183,70 @@ MUTASYONLAR = [
      "hashchange dinlenmezse geri tusu adresi degistirir ama gorunum "
      "degismez — adres ile ekran ayrisir"),
 
+    # ── B27 A2 · rapor araligi + grafik bosluklari
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "          v: this.voltGecersiz  ? NaN : this.volt,",
+     "          v: this.volt,",
+     "grafik K1 sizintisi geri gelir: kartlar 'veri yok' derken cizgi "
+     "sahte 1.72 V'u cizer"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "          if (Number.isNaN(deger)) { kopuk = true; continue; }",
+     "          if (Number.isNaN(deger)) { continue; }",
+     "bosluk yerine NaN'in iki yani BIRLESTIRILIR — yanit vermeyen "
+     "pencere yokmus gibi cizilir"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "          if (this.kartRapor !== this.raporMs && this.surucuyum) {",
+     "          if (this.kartRapor !== this.raporMs) {",
+     "izleyici de r<ms> yollar: sunucu reddeder ama her baglanti bir "
+     "hata satiri uretir"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      if (grafikBekliyor) return;",
+     "      if (false) return;",
+     "cizim birlestirme kalkar: 20 satir/s'de saniyede 20 tam cizim"),
+    ("B7", "test_arayuz3.js", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "        if (v < RAPOR_MS_EN_AZ)  v = RAPOR_MS_EN_AZ;",
+     "        /* alt sinir yok */",
+     "`r1` kabul edilir: olcum dongusu satir basmaktan olcum alamaz"),
+    ("B7", "test_arayuz3.js", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    akis[i].write((const uint8_t *)olay, (size_t)n);",
+     "    akis[i].print(olay);",
+     "SSE olayi yine tek parca ama print() — write() iddiasi bunu "
+     "ayirt etmeli (print sonunda ek kopya, ayni sey degil)"),
+    ("B7", "test_arayuz3.js", "arayuz3/sahte-kart.js",
+     "        raporMs = Math.max(RAPOR_EN_AZ, Math.min(RAPOR_EN_COK, v));",
+     "        raporMs = v;",
+     "demo kipi firmware'den farkli davranir: r5 -> 5 ms"),
+
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      if (/(^|[?&])demo(=|&|$)/.test(k.search)) return false;",
+     "",
+     "?demo'da da baglanmaya kalkar: sahte kart yerine gercek /akis aranir, "
+     "demo 'Baglanamadi' ile acilir"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      return this.tasiyiciAdi === 'akis' && !this.bagli;",
+     "      return !this.bagli;",
+     "USB kipinde de otomatik baglanir: Web Serial izin penceresi kullanici "
+     "istemeden acilir"),
+
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      uyg.akis.addEventListener('kimlik', bitir, { once: true });",
+     "      bitir();",
+     "ac() kimlik gelmeden doner: `?` bos jetonla gider, kart 403 der, "
+     "K5 esitlemesi WiFi'de hic calismaz (kartta CDP ile olculdu)"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      uyg.akis.addEventListener('error', bitir, { once: true });",
+     "",
+     "akis hatasinda ac() askida kalir: baglan() hic donmez"),
+
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (k[0] == '?' && k[1] == 0) return true;",
+     "  if (k[0] == '?') return true;",
+     "`?x` de serbest olur — tam eslesme iddiasi bunu yakalamali"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (k[0] == '?' && k[1] == 0) return true;\n  return false;",
+     "  if (k[0] == '?' && k[1] == 0) return true;\n  if (k[0] == 'N') return true;\n  return false;",
+     "`N` serbest olursa AP ve web parolasi jetonsuz okunur"),
+
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",

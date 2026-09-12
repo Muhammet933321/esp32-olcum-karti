@@ -250,7 +250,8 @@ kesinlik isteyen ölçümü wattmetre yolundan alın — o 16 bit, bu 12 bit.</p
 <h2>Ölçüm hızı — ne demek</h2>
 <figure>{G.hizlar(d['hiz_kalem'])}
 <figcaption>Wattmetre yolu saniyede {sek(d['sps'])} kez örnekliyor.
-Ekrandaki değer {d['rapor_ms']:.0f} ms'de bir yenileniyor ve her yenileme
+Ekrandaki değer varsayılan olarak {d['rapor_ms']:.0f} ms'de bir yenileniyor
+(panelden 50 ms … 1 s arası seçilebilir) ve her yenileme
 {sek(d['ornek_pencere'])} ölçümün ortalaması — bu, gürültüyü
 {math.sqrt(d['ornek_pencere']):.0f} kat bastırıyor.</figcaption></figure>
 

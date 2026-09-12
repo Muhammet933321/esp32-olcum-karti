@@ -161,6 +161,19 @@ const TasiyiciAkis = {
       } catch (err) { /* kimlik olayı yoksa varsayılan geçerli */ }
     });
     uyg.kaydet('— akış açıldı: ' + uyg.kartAdres('/akis') + ' —');
+    /* 🔴 B27 A2 — `kimlik` GELMEDEN DÖNME. Kart komut ucunda önce jetona
+       bakıyor (403), sonra parolaya (401). `ac()` hemen dönünce baglan()
+       `?`yi BOŞ jetonla yolluyordu: gerçek kartta CDP ile ölçüldü, her
+       açılışta "Komut gönderilemedi (403): gecersiz oturum jetonu" —
+       K5 eşitlemesi WiFi yolunda hiç çalışmamış, üstelik her açılış bir
+       hata bildirimiyle başlıyordu. `kimlik` olayı jetonu getirince
+       dönüyoruz; eski köprü (kimlik yollamayan) ya da hata için 3 s tavan. */
+    await new Promise((coz) => {
+      const tavan = setTimeout(coz, 3000);
+      const bitir = () => { clearTimeout(tavan); coz(); };
+      uyg.akis.addEventListener('kimlik', bitir, { once: true });
+      uyg.akis.addEventListener('error', bitir, { once: true });
+    });
   },
   async kapat(uyg) {
     if (uyg.akis) uyg.akis.close();
@@ -208,7 +221,7 @@ const TasiyiciSahte = {
   destekli() { return typeof SahteKart !== 'undefined'; },
   async ac() { /* kurulum demoVeri() içinde */ },
   async kapat(uyg) {
-    if (uyg.demoZaman) clearInterval(uyg.demoZaman);
+    if (uyg.demoZaman) clearTimeout(uyg.demoZaman);   // B27 A2: setTimeout zinciri
     uyg.demoZaman = null;
   },
   async gonder(uyg, metin) {
@@ -235,6 +248,23 @@ const GORUNUMLER = [
   { id: 'konsol', ad: 'Konsol',    alt: 'ham satırlar · komut' },
 ];
 const GORUNUM_VARSAYILAN = 'olcum';
+
+/* B27 A2 — RAPOR ARALIGI secenekleri (ms). Kartin `r<ms>` siniri 20..5000;
+   menu bilerek daha dar: 50 ms altinda grafik noktasi degil gurultu
+   gorunur, 1 s ustunde arayuz "koptu" hissi verir. */
+const RAPOR_SECENEKLERI = [
+  { ms: 50,   ad: '20 / s' },
+  { ms: 100,  ad: '10 / s' },
+  { ms: 200,  ad: '5 / s (varsayılan)' },
+  { ms: 500,  ad: '2 / s' },
+  { ms: 1000, ad: '1 / s' },
+];
+
+/* Cizim istekleri bir kareye BIRLESTIRILIYOR. 20 satir/s'de her satirda
+   ayri cizim, 60 s pencerede 1200 noktayi saniyede 20 kez yeniden cizmek
+   demek; telefonu isitir. requestAnimationFrame yoksa (test sanaligi)
+   dogrudan ciziliyor. Bayrak Vue verisi DEGIL: reaktif olmasi gerekmiyor. */
+let grafikBekliyor = false;
 
 function hashtenGorunum() {
   const h = (typeof location !== 'undefined' ? location.hash : '').replace(/^#\/?/, '');
@@ -268,6 +298,9 @@ createApp({
       // anlık ölçüm
       volt: 0, amper: 0, watt: 0, joule: 0, wh: 0, kartMs: 0,
       ornekAdet: 0, sonAralik: 0,
+      raporMs: 200,          // B27 A2: tercih (localStorage); kart `r<ms>` ile uyar
+      raporSecenekleri: RAPOR_SECENEKLERI,
+      kartRapor: null,       // kartin `A rapor=` / `* rapor araligi` dedigi deger
 
       // geçmiş: { t (sn), v, i, w }
       gecmis: [],
@@ -519,10 +552,22 @@ createApp({
 
     /* Kart her raporda kaç ham örnek ortalamış — gürültü bastırmanın ölçüsü.
        Beyaz gürültü √N kat azalır. */
+    /* B27 A2: iki ayri hiz var ve ikisi de OLCULUYOR, iddia edilmiyor.
+       orneklemeHizi = ADC'nin pencere icinde aldigi ornek / pencere suresi
+       (kartin ici, ~465/s). guncellemeHizi = D satirlarinin ekrana dusme
+       sikligi (1000 / olculen aralik). Eski etiket "463 /sn" yalnizca
+       ilkini soyluyordu ve kullanici ekranin o hizda guncellenmedigini
+       fark edip haklı olarak sordu. */
     orneklemeHizi() {
       if (!this.ornekAdet || !this.sonAralik) return '—';
       const hz = this.ornekAdet / (this.sonAralik / 1000);
-      return (hz >= 1000 ? (hz / 1000).toFixed(1) + 'k' : Math.round(hz)) + ' /sn';
+      return (hz >= 1000 ? (hz / 1000).toFixed(1) + 'k' : Math.round(hz)) + ' örnek/s';
+    },
+    guncellemeHizi() {
+      if (!this.sonAralik || this.sonAralik <= 0) return '';
+      const hz = 1000 / this.sonAralik;
+      // 5 -> "5", 0.2 -> "0.2", 4.98 -> "5": tam sayiya yakinsa ondalik yok
+      return String(hz >= 10 ? Math.round(hz) : Math.round(hz * 10) / 10) + ' güncelleme/s';
     },
     gurultuBastirma() {
       return this.ornekAdet ? '√' + this.ornekAdet + ' ≈ ' +
@@ -632,6 +677,14 @@ createApp({
     gosterI(v) { this.grafikCiz(); this.ayarYaz('gosterI', v); },
     gosterW(v) { this.grafikCiz(); this.ayarYaz('gosterW', v); },
     sontSecim(v) { this.ayarYaz('sontSecim', v); },
+    /* B27 A2: rapor araligi tercihi — sakla ve bagliysa karta uygula.
+       Kartin yaniti (`* rapor araligi N ms`) kartRapor'u gunceller. */
+    raporMs(v) {
+      this.ayarYaz('raporMs', v);
+      if (this.bagli && this.surucuyum && v !== this.kartRapor) {
+        this.gonder('r' + v).catch(() => {});
+      }
+    },
     sebekeHz(v) { this.ayarYaz('sebekeHz', v); },
     kartTaban(v) { this.ayarYaz('kartTaban', v); },
     /* Tasiyici degisince ONCE mevcut baglantiyi kapat — akis acikken
@@ -648,7 +701,12 @@ createApp({
 
   mounted() {
     this.tercihleriYukle();
-    this.kopruyuAlgila();
+    /* B27 A2: sayfayı KART ya da KÖPRÜ sunduysa kendiliğinden bağlan.
+       Kullanıcı kartın adresini açmışsa ölçümü görmek istiyor; "Karta
+       bağlan"a basmak fazladan bir adımdı ve headless doğrulamada da
+       sayfa hep "bağlı değil" halinde kalıyordu. localhost/file:// ve
+       ?demo'da DEĞİL — orada taşıyıcı USB ya da sahte kart. */
+    this.kopruyuAlgila().then(() => { if (this.otomatikBaglanmali()) this.baglan(); });
     window.addEventListener('resize', () => { this.grafikCiz(); this.osiloCiz(); });
     window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); });
     window.addEventListener('mousemove', (e) => this.surukHareket(e));
@@ -705,6 +763,14 @@ createApp({
        kalmasin (Web Serial telefonda hicbir tarayicida yok).
        ⚠ Kullanici bir kez SECMISSE dokunulmuyor: otomatik algilama
        tercihi EZMEZ. */
+    otomatikBaglanmali() {
+      const k = (typeof location !== 'undefined') ? location : null;
+      if (!k || k.protocol === 'file:') return false;
+      if (/^(localhost|127\.0\.0\.1|\[::1\])$/i.test(k.hostname)) return false;
+      if (/(^|[?&])demo(=|&|$)/.test(k.search)) return false;
+      return this.tasiyiciAdi === 'akis' && !this.bagli;
+    },
+
     async kopruyuAlgila() {
       if (this.ayarOku('tasiyici', null) !== null) return;
 
@@ -749,6 +815,7 @@ createApp({
       this.gosterW = this.ayarOku('gosterW', this.gosterW);
       this.sontSecim = this.ayarOku('sontSecim', this.sontSecim);
       this.sebekeHz = this.ayarOku('sebekeHz', this.sebekeHz);
+      this.raporMs = this.ayarOku('raporMs', this.raporMs);
     },
 
     /* Tek seferlik betik yukleyici. `sahte-kart.js` YALNIZCA ?demo kipinde
@@ -796,13 +863,18 @@ createApp({
       this.demoMs = 300 * 200;
       this.demoJ = j;
 
-      // canli akis: gercek kart gibi 200 ms'de bir D satiri
-      this.demoZaman = setInterval(() => {
-        this.demoMs += 200;
+      // canli akis: gercek kart gibi rapor araliginda bir D satiri.
+      // B27 A2: aralik sahte karttan okunuyor (`r<ms>` ile degisir),
+      // o yuzden setInterval degil kendini yeniden kuran setTimeout.
+      const tik = () => {
+        const aralik = SahteKart.raporAralik();
+        this.demoMs += aralik;
         const d = SahteKart.dSatiri(this.demoMs, this.demoJ);
-        this.demoJ += d.w * 0.2;
+        this.demoJ += d.w * aralik / 1000;
         this.satirIsle(d.satir);
-      }, 200);
+        this.demoZaman = setTimeout(tik, aralik);
+      };
+      this.demoZaman = setTimeout(tik, SahteKart.raporAralik());
 
       // acilista bir yakalama yap ki ekran bos kalmasin
       this.$nextTick(() => this.osiloOtomatik());
@@ -944,6 +1016,27 @@ createApp({
             .find((s) => Math.abs(parseFloat(s) - this.kartSont) <= 0.01 * this.kartSont);
           if (secenek) this.sontSecim = secenek;
         }
+        /* B27 A2: rapor araligi. Sont'un TERSI yon: sont fiziksel, kart
+           haklidir; rapor araligi bir GORUNTULEME tercihi, tarayici
+           haklidir. Kart farkli calisiyorsa ve surucuysek uydururuz.
+           Eski firmware `rapor=` gondermez -> dokunulmaz. */
+        const r = satir.match(/\brapor=(\d+)/);
+        if (r) {
+          this.kartRapor = parseInt(r[1], 10);
+          if (this.kartRapor !== this.raporMs && this.surucuyum) {
+            this.gonder('r' + this.raporMs).catch(() => {});
+          }
+        }
+        return;
+      }
+      /* Kartin `r` yaniti — KIRPILMIS deger buradan geliyor (r5 -> 20). */
+      if (satir.startsWith('* rapor araligi ')) {
+        const r = satir.match(/(\d+) ms/);
+        if (r) {
+          this.kartRapor = parseInt(r[1], 10);
+          if (this.kartRapor !== this.raporMs) this.raporMs = this.kartRapor;
+        }
+        this.kaydet(satir);
         return;
       }
 
@@ -972,12 +1065,21 @@ createApp({
         this.adsDurum = p.length >= 10 ? parseInt(p[9], 10) : 0;
 
         if (this.ilkMs === null) this.ilkMs = this.kartMs;
+        /* 🔴 B27 A2 — K1'in GRAFIK yarisi eksikti: kartlar "veri yok"
+           derken grafik sahte 1.72 V'u duz cizgi olarak cizmeye, "tepe
+           1.72 V" yazmaya devam ediyordu (kullanicinin ekran goruntusu,
+           2026-09-12). Gecersiz kanal NaN olarak giriyor: cizgi KOPAR,
+           tepe etiketi susar, CSV'de hucre bos kalir. */
         this.gecmis.push({
           t: (this.kartMs - this.ilkMs) / 1000,
-          v: this.volt, i: this.amper, w: this.watt,
+          v: this.voltGecersiz  ? NaN : this.volt,
+          i: this.amperGecersiz ? NaN : this.amper,
+          w: this.gucGecersiz   ? NaN : this.watt,
         });
-        if (this.gecmis.length > 20000) this.gecmis.splice(0, 5000);
-        this.grafikCiz();
+        /* 20 satir/s'de 30 dk = 36 000 nokta; eski 20 000 tavani 30 dk
+           penceresini sessizce kirpardi. */
+        if (this.gecmis.length > 60000) this.gecmis.splice(0, 10000);
+        this.grafikPlanla();
         return;
       }
 
@@ -1471,7 +1573,8 @@ createApp({
     csvIndir() {
       const satirlar = ['saniye;volt;amper;watt'];
       for (const g of this.gecmis) {
-        satirlar.push(`${g.t.toFixed(3)};${g.v};${g.i};${g.w}`.replace(/\./g, ','));
+        const h = (x) => (Number.isNaN(x) ? '' : String(x));   // B27 A2: veri yok = boş hücre
+        satirlar.push(`${g.t.toFixed(3)};${h(g.v)};${h(g.i)};${h(g.w)}`.replace(/\./g, ','));
       }
       const bl = new Blob(['﻿' + satirlar.join('\r\n')],
                           { type: 'text/csv;charset=utf-8' });
@@ -1524,6 +1627,13 @@ createApp({
       c.stroke();
     },
 
+    grafikPlanla() {
+      if (grafikBekliyor) return;
+      if (typeof requestAnimationFrame !== 'function') { this.grafikCiz(); return; }
+      grafikBekliyor = true;
+      requestAnimationFrame(() => { grafikBekliyor = false; this.grafikCiz(); });
+    },
+
     grafikCiz() {
       const t = this.tuvalHazirla(this.$refs.grafik);
       if (!t) return;
@@ -1554,30 +1664,40 @@ createApp({
 
       // Her seri kendi ölçeğinde çizilir (birimleri farklı).
       for (const s of seriler) {
-        let enb = 0;
-        for (const d of veri) enb = Math.max(enb, Math.abs(d[s.al]));
+        /* B27 A2: NaN = o pencerede kanal yanıt vermedi. Ölçeğe girmez,
+           çizgiyi koparır; hiç geçerli nokta yoksa "veri yok" yazılır. */
+        let enb = 0, gecerli = 0;
+        for (const d of veri) {
+          if (Number.isNaN(d[s.al])) continue;
+          gecerli++;
+          enb = Math.max(enb, Math.abs(d[s.al]));
+        }
         if (enb <= 0) enb = 1;
 
         c.strokeStyle = s.renk;
         c.lineWidth = 1.8;
         c.lineJoin = 'round';
         c.beginPath();
-        veri.forEach((d, i) => {
+        let kopuk = true;
+        for (const d of veri) {
+          const deger = d[s.al];
+          if (Number.isNaN(deger)) { kopuk = true; continue; }
           const x = sol + en * (d.t - basT) / Math.max(this.pencere, 1e-6);
-          const yy = ust + boy * (1 - d[s.al] / enb);
-          i ? c.lineTo(x, yy) : c.moveTo(x, yy);
-        });
+          const yy = ust + boy * (1 - deger / enb);
+          kopuk ? c.moveTo(x, yy) : c.lineTo(x, yy);
+          kopuk = false;
+        }
         c.stroke();
 
         // tepe değeri sağ üstte
         c.fillStyle = s.renk;
         c.font = '600 11px ui-monospace, monospace';
         c.textAlign = 'right';
-        const etiket = s.al === 'v' ? enb.toFixed(2) + ' V'
-                     : s.al === 'i' ? (enb * 1e3).toFixed(1) + ' mA'
-                     : (enb * 1e3).toFixed(1) + ' mW';
-        c.fillText('tepe ' + etiket, g - sag,
-                   ust + 12 + seriler.indexOf(s) * 14);
+        const etiket = !gecerli ? 'veri yok'
+                     : s.al === 'v' ? 'tepe ' + enb.toFixed(2) + ' V'
+                     : s.al === 'i' ? 'tepe ' + (enb * 1e3).toFixed(1) + ' mA'
+                     : 'tepe ' + (enb * 1e3).toFixed(1) + ' mW';
+        c.fillText(etiket, g - sag, ust + 12 + seriler.indexOf(s) * 14);
       }
 
       // zaman ekseni

@@ -77,7 +77,14 @@ def py_sabit(ad, kaynak):
 
 
 def ino_sayi(ad):
-    return float(re.search(rf"{ad}\s*=\s*([0-9.]+)", INO).group(1))
+    # B27 A2: `rapor_ms` artik `= RAPOR_MS_VARSAYILAN;` — sag taraf bir
+    # tanimlayiciysa #define'a BIR seviye inilir. Sayi bulamayip import
+    # aninda patlamak yerine (zinciri B9'da kirdi) makroyu cozuyoruz.
+    m = re.search(rf"{ad}\s*=\s*([A-Za-z_][A-Za-z0-9_]*|[0-9.]+)\s*;", INO)
+    deger = m.group(1)
+    if not re.fullmatch(r"[0-9.]+", deger):
+        deger = re.search(rf"#define\s+{deger}\s+([0-9.]+)", INO).group(1)
+    return float(deger)
 
 
 # ── kartin gercek hizi (sim3_bant.py bolum 1 ile AYNI butce)

@@ -139,7 +139,9 @@
     <div class="kutu">
       <div class="ad">Örnekleme</div>
       <div class="deger">{{ orneklemeHizi }}</div>
-      <div class="ad" style="margin:2px 0 0">{{ gurultuBastirma }}</div>
+      <!-- B27 A2: kartın içindeki ADC hızı ile ekrana düşen satır hızı
+           AYRI şeyler; ikisi de ölçülüyor. "463 /sn" tek başına yanıltıcıydı. -->
+      <div class="ad" style="margin:2px 0 0">{{ guncellemeHizi }}<template v-if="guncellemeHizi && gurultuBastirma"> · </template>{{ gurultuBastirma }}</div>
     </div>
   </div>
 
@@ -154,6 +156,12 @@
       <label><input type="checkbox" v-model="gosterW">
         <span class="cizgi" style="background:var(--watt)"></span> Güç</label>
       <div class="bosluk"></div>
+      <label title="Kart bu aralıkta bir D satırı yollar; her nokta o aralığın ortalaması. Sadece sürücü değiştirebilir.">Yenileme:
+        <select v-model.number="raporMs" style="width:auto"
+                :disabled="bagli && !surucuyum">
+          <option v-for="s in raporSecenekleri" :key="s.ms" :value="s.ms">{{ s.ad }}</option>
+        </select>
+      </label>
       <label>Pencere:
         <select v-model.number="pencere" style="width:auto">
           <option :value="30">30 sn</option>

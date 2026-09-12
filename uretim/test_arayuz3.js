@@ -909,6 +909,289 @@ console.log('\n--- 10. Gorunumler: hash yonlendirme, v-show, yeniden cizim ---')
        !!pilBlok && !pilBlok[1].includes('Sıra önemli'));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   11. RAPOR ARALIGI + GRAFIK BOSLUKLARI (B27 A2)
+
+   Kullanicinin ekran goruntusu (2026-09-12) iki sey gosterdi:
+   (a) KPI kartlari "veri yok" derken grafik sahte 1.72 V'u DUZ CIZGI
+       olarak cizmeye ve "tepe 1.72 V" yazmaya devam ediyordu — K1'in
+       grafik yarisi eksikti.
+   (b) "463 /sn" etiketi ADC hizini soyluyor, ekran 5/s guncelleniyordu;
+       kullanici farki fark etti. Artik iki hiz ayri ve ikisi de OLCULUYOR.
+   Ayrica rapor araligi (D satiri sikligi) `r<ms>` ile secilebilir oldu.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 11. Rapor araligi + grafik bosluklari (B27 A2) ---');
+{
+  const u = ornek();
+  u.grafikCiz = secenekler.methods.grafikCiz;      // ornek() bunu susturuyor
+  u.grafikPlanla = secenekler.methods.grafikPlanla;
+
+  // (a) gecersiz kanal NaN olarak gecmise giriyor
+  u.satirIsle('D 1.7160 0.000003 0.00001 0.0 0.0 1000 93 0 1');
+  const s1 = u.gecmis[u.gecmis.length - 1];
+  ok('durum=1 (V yok): gecmiste V ve W NaN, I sayi',
+     Number.isNaN(s1.v) && Number.isNaN(s1.w) && s1.i === 0.000003,
+     JSON.stringify(s1));
+  u.satirIsle('D 12.0 0.5 6.0 0.0 0.0 1200 93 0 2');
+  const s2 = u.gecmis[u.gecmis.length - 1];
+  ok('durum=2 (I yok): I ve W NaN, V sayi',
+     Number.isNaN(s2.i) && Number.isNaN(s2.w) && s2.v === 12);
+  u.satirIsle('D 12.0 0.5 6.0 0.0 0.0 1400 93 0 0');
+  const s3 = u.gecmis[u.gecmis.length - 1];
+  ok('durum=0: uc kanal da sayi', [s3.v, s3.i, s3.w].every(Number.isFinite));
+
+  // (b) iki hiz, ikisi de olculen araliktan
+  ok('guncellemeHizi 200 ms araliktan "5 güncelleme/s"',
+     u.guncellemeHizi === '5 güncelleme/s', u.guncellemeHizi);
+  ok('orneklemeHizi 93 ornek / 200 ms = "465 örnek/s"',
+     u.orneklemeHizi === '465 örnek/s', u.orneklemeHizi);
+
+  // grafik: sahte tuval, cagrilari kaydeden baglam
+  const cagri = [];
+  const ctx = new Proxy({}, {
+    get: (_, ad) => (...args) => { cagri.push([ad, args]); },
+    set: () => true,
+  });
+  u.$refs.grafik = {
+    getBoundingClientRect: () => ({ width: 800 }), dataset: {},
+    height: 300, width: 0, style: {}, getContext: () => ctx,
+  };
+  u.pencere = 60; u.gosterV = true; u.gosterI = true; u.gosterW = false;
+  const say = (ad) => cagri.filter((c) => c[0] === ad).length;
+  const metinler = () => cagri.filter((c) => c[0] === 'fillText').map((c) => c[1][0]);
+
+  // V tamamen NaN, I gecerli
+  u.gecmis = [{ t: 0, v: NaN, i: 1, w: NaN }, { t: 1, v: NaN, i: 2, w: NaN },
+              { t: 2, v: NaN, i: 3, w: NaN }];
+  u.grafikCiz();
+  ok('V tamamen NaN: "veri yok" etiketi var, "tepe … V" YOK',
+     metinler().includes('veri yok') && !metinler().some((m) => /tepe .* V$/.test(m)),
+     metinler().join(' | '));
+  ok('I gecerli: "tepe … mA" etiketi var',
+     metinler().some((m) => /^tepe .* mA$/.test(m)));
+
+  // ortada NaN: cizgi KOPMALI (bir moveTo fazla, bir lineTo eksik)
+  u.gosterV = false;
+  cagri.length = 0;
+  u.gecmis = [{ t: 0, v: 1, i: 1, w: 1 }, { t: 1, v: 1, i: 2, w: 1 },
+              { t: 2, v: 1, i: 3, w: 1 }, { t: 3, v: 1, i: 4, w: 1 }];
+  u.grafikCiz();
+  const duzMove = say('moveTo'), duzLine = say('lineTo');
+  cagri.length = 0;
+  u.gecmis[1].i = NaN;
+  u.grafikCiz();
+  /* Kopan nokta iki lineTo goturur: kendi lineTo'su ve ardindaki noktanin
+     lineTo'su (o artik moveTo). Ilk yazimda -1 beklenmisti, yanlisti. */
+  ok('ortadaki NaN cizgiyi KOPARIYOR (moveTo +1, lineTo -2)',
+     say('moveTo') === duzMove + 1 && say('lineTo') === duzLine - 2,
+     `moveTo ${duzMove}->${say('moveTo')} lineTo ${duzLine}->${say('lineTo')}`);
+
+  // CSV: NaN bos hucre (Blob/URL sanalikta yok; govde denetimi)
+  ok('csvIndir NaN hucreyi BOS birakiyor',
+     govdeIcinde(appKaynak, 'csvIndir', "Number.isNaN(x) ? ''"));
+
+  // cizim birlestirme: rAF varsa bir kareye toplaniyor
+  {
+    let cizim = 0, raf = 0;
+    const v = ornek();
+    v.grafikPlanla = secenekler.methods.grafikPlanla;
+    v.grafikCiz = () => { cizim++; };
+    sandbox.requestAnimationFrame = (fn) => { raf++; setTimeout(fn, 0); return raf; };
+    v.grafikPlanla(); v.grafikPlanla(); v.grafikPlanla();
+    ok('uc grafikPlanla() tek requestAnimationFrame\'e birlesiyor',
+       raf === 1 && cizim === 0, `raf=${raf} cizim=${cizim}`);
+    delete sandbox.requestAnimationFrame;
+    v.grafikPlanla();
+  }
+
+  // rapor araligi: A satiri -> tercih farkliysa surucu r<ms> yollar
+  const gidenler = [];
+  u.gonder = async (k) => { gidenler.push(k); };
+  u.raporMs = 100; u.surucuyum = true; u.bagli = true;
+  const A = 'A menzil=NORMAL oto=1 n_kazanc=1.000000 n_sifir=0 y_kazanc=1.000000 '
+          + 'y_sifir=0 sont=0.100000 i_duz=1.000000 i_ofset=0 rapor=200';
+  u.satirIsle(A);
+  ok('A rapor=200, tercih 100, surucu -> r100 gonderildi',
+     u.kartRapor === 200 && gidenler.includes('r100'), gidenler.join(' '));
+  gidenler.length = 0; u.surucuyum = false;
+  u.satirIsle(A);
+  ok('izleyici hicbir sey gondermez', gidenler.length === 0);
+  u.surucuyum = true; u.raporMs = 200; gidenler.length = 0;
+  u.satirIsle(A);
+  ok('A rapor=200, tercih 200 -> gereksiz r yok', gidenler.length === 0);
+  u.kartRapor = null;
+  u.satirIsle(A.replace(' rapor=200', ''));
+  ok('eski firmware (rapor= yok) -> kartRapor dokunulmaz', u.kartRapor === null);
+
+  // kartin yaniti: KIRPILMIS deger tercihi ezer (r5 -> 20)
+  u.raporMs = 5;
+  u.satirIsle('* rapor araligi 20 ms');
+  ok('"* rapor araligi 20 ms" -> kartRapor 20 VE raporMs 20 (kirpma gorunur)',
+     u.kartRapor === 20 && u.raporMs === 20);
+
+  // watch: tercih degisince bagli surucu r<ms> yollar
+  const w = secenekler.watch && secenekler.watch.raporMs;
+  ok('watch.raporMs tanimli', typeof w === 'function');
+  if (typeof w === 'function') {
+    const g2 = []; const saklanan = [];
+    const sahte = { ayarYaz: (k, v) => saklanan.push(k + '=' + v), bagli: true,
+                    surucuyum: true, kartRapor: 200, gonder: async (k) => { g2.push(k); } };
+    w.call(sahte, 500);
+    ok('raporMs 500 -> localStorage + r500', saklanan.includes('raporMs=500') && g2.includes('r500'));
+    const g3 = [];
+    w.call({ ayarYaz() {}, bagli: false, surucuyum: true, kartRapor: 200,
+             gonder: async (k) => { g3.push(k); } }, 500);
+    ok('bagli degilken r gonderilmez (baglaninca A ile uydurulur)', g3.length === 0);
+  }
+
+  // firmware tarafi.
+  // govdeIcinde() JS metotlari icin (girintili tanim); C'de tanim satir
+  // basinda `void ad(` ve ilk girintili eslesme bir CAGRI oluyor — yanlis
+  // govde. Tanimi tip sozcugu + ad + parametre + `{` ile ariyoruz.
+  const cGovde = (kaynak, ad, aranan) => {
+    const m = new RegExp('\\n[A-Za-z_][\\w\\s*]*\\b' + ad + '\\([^;{)]*\\)\\s*\\{').exec(kaynak);
+    if (!m) return false;
+    const j = kaynak.indexOf('{', m.index + m[0].length - 1);
+    let d = 0;
+    for (let k = j; k < kaynak.length; k++) {
+      if (kaynak[k] === '{') d++;
+      else if (kaynak[k] === '}') { d--; if (d === 0) return kaynak.slice(j, k + 1).includes(aranan); }
+    }
+    return false;
+  };
+  ok('firmware `r<ms>` 20..5000 arasina KIRPIYOR',
+     /#define RAPOR_MS_EN_AZ\s+20\b/.test(ino) && /#define RAPOR_MS_EN_COK\s+5000\b/.test(ino)
+       && /case 'r':[\s\S]{0,500}if \(v < RAPOR_MS_EN_AZ\)[\s\S]{0,120}if \(v > RAPOR_MS_EN_COK\)/.test(ino));
+  ok('firmware A satirinda rapor= var (K5 deseni: kart soyler)',
+     cGovde(ino, 'ayar_yaz_seri', '" rapor="'));
+  ok('SSE olayi istemci basina TEK write() (dort print degil)',
+     cGovde(ino, 'akis_yolla', '.write(') && !cGovde(ino, 'akis_yolla', '.print('));
+
+  // sahte kart ayni davranis
+  const SK = require(path.join(ARAYUZ, 'sahte-kart.js'));
+  ok('sahte kart `r5` -> "* rapor araligi 20 ms" (kirpma firmware ile ayni)',
+     SK.komut('r5')[0] === '* rapor araligi 20 ms' && SK.raporAralik() === 20);
+  ok('sahte kart `r9999` -> 5000', SK.komut('r9999')[0] === '* rapor araligi 5000 ms');
+  SK.komut('r200');
+  ok('sahte kart A satirinda rapor=', /\brapor=200\b/.test(SK.komut('?')[0]));
+  ok('sahte kart ornek sayisi aralikla olcekleniyor (200 ms -> 172)',
+     SK.dSatiri(1000, 0).satir.split(' ')[7] === '172');
+  SK.komut('r100');
+  ok('… 100 ms -> 86', SK.dSatiri(1100, 0).satir.split(' ')[7] === '86');
+  SK.komut('r200');
+
+  // arayuz: secici GORUNUMDE ve secenekler tek listeden
+  ok('Yenileme secicisi zaman grafigi arac cubugunda, RAPOR_SECENEKLERI\'nden',
+     /v-model\.number="raporMs"[\s\S]{0,200}v-for="s in raporSecenekleri"/.test(yorumsuz(htmlKaynak))
+       && /raporSecenekleri:\s*RAPOR_SECENEKLERI/.test(appKaynak));
+  ok('Ornekleme kartinda guncellemeHizi gosteriliyor',
+     yorumsuz(htmlKaynak).includes('{{ guncellemeHizi }}'));
+
+  // otomatik baglanma: sayfayi kart/kopru sunduysa EVET, yerel/demo/file HAYIR
+  {
+    const v = ornek();
+    const karar = (loc, tasiyici = 'akis', bagli = false) => {
+      sandbox.location = loc; v.tasiyiciAdi = tasiyici; v.bagli = bagli;
+      const r = v.otomatikBaglanmali(); delete sandbox.location; return r;
+    };
+    const kart = { protocol: 'http:', hostname: 'olcum.local', search: '' };
+    ok('kart sunuyor (olcum.local, akis) -> otomatik baglan', karar(kart) === true);
+    ok('localhost -> baglanma (gelistirme sunucusu, USB kipi)',
+       karar({ protocol: 'http:', hostname: 'localhost', search: '' }) === false);
+    ok('file:// -> baglanma',
+       karar({ protocol: 'file:', hostname: '', search: '' }) === false);
+    ok('?demo -> baglanma (sahte kart)',
+       karar({ protocol: 'http:', hostname: 'olcum.local', search: '?demo' }) === false);
+    ok('tasiyici seri ise baglanma', karar(kart, 'seri') === false);
+    ok('zaten bagliysa tekrar baglanma', karar(kart, 'akis', true) === false);
+    ok('mounted() kopruyuAlgila SONRASINDA otomatikBaglanmali ile baglan() cagiriyor',
+       /kopruyuAlgila\(\)\.then\([\s\S]{0,80}?otomatikBaglanmali\(\)\) this\.baglan\(\)/.test(yorumsuz(appKaynak)));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   12. AKIS TASIYICISI: `?` KIMLIKTEN SONRA (B27 A2)
+
+   Gercek kartta CDP ile olculdu: sayfa acilir acilmaz gonderilen `?`
+   HER SEFERINDE 403 aliyordu ("gecersiz oturum jetonu") cunku `ac()`
+   EventSource'u kurup hemen donuyor, jeton ise `kimlik` olayiyla
+   sonradan geliyordu. Sonuc: WiFi yolunda K5 esitlemesi hic calismiyor,
+   her acilis bir hata bildirimiyle basliyor.
+
+   Bu bolum ASENKRON ve DAVRANISSAL: sahte EventSource ile `ac()`
+   cagriliyor; `kimlik` gelmeden cozulmemeli, gelince cozulmeli, ve
+   baglan() akisinda `?` jetonla gitmeli.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 12. Akis tasiyicisi: `?` kimlikten sonra ---');
+{
+  /* Asenkron bolumde yakalanmayan bir hata surecin SESSIZCE 0 ile
+     cikmasina yol acar — 'dogrulama gecti' satiri basilmaz ama kimse
+     kirmizi gormez. Acikca kirmizi yap. */
+  process.on('unhandledRejection', (e) => {
+    console.log('[!!] asenkron bolum COKTU: ' + (e && e.stack || e));
+    process.exit(1);
+  });
+  const T = vm.runInContext('TASIYICILAR', sandbox);
+  /* Sahte EventSource: olaylari elle tetikliyoruz. Global olarak sandbox'a
+     konuyor cunku `ac()` `new EventSource(...)` diyor. */
+  class SahteES {
+    constructor(url) { this.url = url; this.dinleyici = {}; SahteES.son = this; }
+    addEventListener(ad, fn) { (this.dinleyici[ad] = this.dinleyici[ad] || []).push(fn); }
+    tetikle(ad, data) {
+      for (const fn of (this.dinleyici[ad] || []).slice()) fn({ data });
+    }
+    close() {}
+  }
+  sandbox.EventSource = SahteES;
+  const gercekSetTimeout = sandbox.setTimeout;
+  sandbox.setTimeout = () => 0;          // 3 s tavan bu testte HIC dolmasin
+  sandbox.clearTimeout = () => {};
+
+  const u = ornek();
+  u.kartAdres = (yol) => yol;
+  u.kaydet = () => {};
+  let cozuldu = false;
+  const soz = T.akis.ac(u).then(() => { cozuldu = true; });
+
+  (async () => {
+    await new Promise((r) => setImmediate(r));
+    ok('kimlik gelmeden ac() COZULMUYOR', cozuldu === false);
+    ok('EventSource /akis ile acildi', SahteES.son && SahteES.son.url === '/akis');
+    SahteES.son.tetikle('kimlik', JSON.stringify({ jeton: 'abc123', surucu: true }));
+    await soz;
+    ok('kimlik gelince ac() cozuluyor ve jeton alinmis', cozuldu && u.jeton === 'abc123', u.jeton);
+
+    /* baglan() akisi: ac() -> `?`. Gonderilen `?` jetonlu gitmeli. */
+    const v = ornek();
+    v.kartAdres = (yol) => yol; v.kaydet = () => {};
+    v.tasiyiciAdi = 'akis';
+    const gidenler = [];
+    v.gonder = async (metin) => { gidenler.push({ metin, jeton: v.jeton }); };
+    const b = v.baglan();
+    await new Promise((r) => setImmediate(r));
+    ok('baglan(): kimlik gelmeden `?` GONDERILMEDI', gidenler.length === 0);
+    SahteES.son.tetikle('kimlik', JSON.stringify({ jeton: 'xyz789', surucu: true }));
+    await b;
+    ok('baglan(): kimlikten sonra `?` JETONLA gitti',
+       gidenler.length === 1 && gidenler[0].metin === '?' && gidenler[0].jeton === 'xyz789',
+       JSON.stringify(gidenler));
+
+    /* hata olayi da cozmeli — yoksa baglan() sonsuza kadar askida */
+    const w = ornek(); w.kartAdres = (yol) => yol; w.kaydet = () => {};
+    let hataCozdu = false;
+    const s2 = T.akis.ac(w).then(() => { hataCozdu = true; });
+    await new Promise((r) => setImmediate(r));
+    SahteES.son.tetikle('error', '');
+    await s2;
+    ok('akis hatasi ac()\'i cozuyor (askida kalmaz)', hataCozdu);
+
+    sandbox.setTimeout = gercekSetTimeout;
+    delete sandbox.EventSource; delete sandbox.clearTimeout;
+    bolum12Bitti();
+  })();
+}
+
+function bolum12Bitti() {
 console.log(`\n${gecti}/${gecti + kaldi} dogrulama gecti`);
 
 /* ── TEZGAH KALEMLERI (B23.1) ──────────────────────────────────────────
@@ -946,3 +1229,5 @@ tezgah('B7 Arayuz', [
 ]);
 
 process.exit(kaldi ? 1 : 0);
+}
+

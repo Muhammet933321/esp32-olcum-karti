@@ -268,6 +268,10 @@ const SahteKart = (() => {
   /* Seri komut işleyici — firmware'deki komut_calistir()'in karşılığı */
   let menzil = 0;         // 0 NORMAL, 1 YUKSEK
   let otoMenzil = true;
+  /* B27 A2: rapor araligi — firmware ile AYNI sinirlar (20..5000) ve
+     ayni kirpma davranisi; demo kipinde `r5` yazan 20 ms aldigini gormeli. */
+  let raporMs = 200;
+  const RAPOR_EN_AZ = 20, RAPOR_EN_COK = 5000;
 
   function komut(k) {
     k = String(k).trim();
@@ -302,7 +306,7 @@ const SahteKart = (() => {
               ' oto=' + (otoMenzil ? 1 : 0) +
               ' n_kazanc=1.000000 n_sifir=-1646' +
               ' y_kazanc=1.000000 y_sifir=-91' +
-              ' sont=0.100000 i_duz=1.000000 i_ofset=0',
+              ' sont=0.100000 i_duz=1.000000 i_ofset=0 rapor=' + raporMs,
               'R normal=+-32.44 V/1.0424 mV  yuksek=+-613.71 V/18.781 mV',
               'L normal -32.44 .. 35.87 V  yuksek -613.71 .. 617.14 V'];
     }
@@ -323,6 +327,14 @@ const SahteKart = (() => {
               '(1 cevrimin altinda yanlilik BUYUK)'];
     }
     if (c === 'e') return ['* enerji sifirlandi'];
+    if (c === 'r') {
+      if (k.length > 1) {
+        let v = parseInt(k.slice(1), 10);
+        if (!Number.isFinite(v)) v = raporMs;
+        raporMs = Math.max(RAPOR_EN_AZ, Math.min(RAPOR_EN_COK, v));
+      }
+      return ['* rapor araligi ' + raporMs + ' ms'];
+    }
     if (c === 'z') return ['* gerilim sifiri (' +
                            (menzil ? 'YUKSEK' : 'NORMAL') + ') ham=-1646'];
     if (c === 'Z') return ['* akim sifiri ham=-2'];
@@ -362,6 +374,7 @@ const SahteKart = (() => {
 
   return {
     komut,
+    raporAralik() { return raporMs; },   // B27 A2: demo dongusu bunu okur
     sinyaller: SINYALLER,
     sinyalSec(ad) { if (SINYALLER[ad]) secili = ad; },
     seciliSinyal() { return secili; },
@@ -381,7 +394,7 @@ const SahteKart = (() => {
       return {
         satir: `D ${v.toFixed(4)} ${a.toFixed(6)} ${w.toFixed(5)} ` +
                `${enerjiJ.toFixed(4)} ${(enerjiJ / 3600).toFixed(7)} ` +
-               `${ms} 172 ${menzil} 0`,   // B27/K1: durum=0, iki ADC de yanit veriyor
+               `${ms} ${Math.round(0.86 * raporMs)} ${menzil} 0`,   // B27/K1: durum=0; B27 A2: ornek = 860/s x aralik
         w,
       };
     },

@@ -86,7 +86,16 @@ def _tanim(ad: str, kaynak: str) -> str:
     return m.group(1) if m else ""
 
 
-RAPOR_MS = _ino_sayi("rapor_ms")
+def _define_sayi(ad: str, kaynak: str = INO) -> int:
+    return int(re.search(rf"#define {ad}\s+(\d+)", kaynak).group(1))
+
+
+# B27 A2: `rapor_ms` artik sabit degil, `r<ms>` ile degisiyor; VARSAYILAN
+# ve sinirlar #define. Eski `_ino_sayi("rapor_ms")` sayi bulamayip
+# import aninda patlardi — kosucu daha acilmadan.
+RAPOR_MS = float(_define_sayi("RAPOR_MS_VARSAYILAN"))
+RAPOR_MS_EN_AZ = _define_sayi("RAPOR_MS_EN_AZ")
+RAPOR_MS_EN_COK = _define_sayi("RAPOR_MS_EN_COK")
 MDNS_AD = _tanim("AG_MDNS", AG_H)
 AP_ONEK = re.search(r'"(OLCUM-KARTI-)%02X%02X"', AG_H).group(1)
 AKIS_AZAMI = int(re.search(r"#define AKIS_AZAMI\s+(\d+)", INO).group(1))
@@ -845,6 +854,38 @@ def d_olcum_hizi(c):
            f"{hiz:.1f}/s, beklenen {beklenen:.1f}/s")
 
 
+def d_rapor_araligi(c):
+    """B27 A2 — `r<ms>`: rapor araligi GERCEKTEN degisiyor mu.
+
+    Dort ayri sey sinaniyor, cunku dordu ayri ayri bozulabilir:
+      1. `r100` yaniti "* rapor araligi 100 ms" (komut taniniyor)
+      2. ardindan `D` satir hizi ~10/s (yalnizca yanit degil, DAVRANIS)
+      3. `r5` alt sinira kirpiliyor ve kirpilmis deger BASILIYOR
+      4. varsayilana geri alinabiliyor (sonraki denetimler bozulmasin)
+    Sadece (1)'e bakan bir denetim, `rapor_ms` atamasi silinse de yesil
+    kalirdi — B25'in "yanit var ama davranis yok" dersi.
+    """
+    def yanit(komut, sure):
+        y = c.k.satirlar(komut, sure=sure)
+        return next((x for x in y if x.startswith("* rapor araligi")), "")
+
+    yan = yanit("r100", 0.8)
+    if not c.s.ok("`r100` yaniti geldi", yan.endswith(" 100 ms"), yan or "yanit yok"):
+        return
+    t0 = time.monotonic()
+    d = [x for x in c.k.topla(1.5) if x.startswith("D ")]
+    gecen = time.monotonic() - t0
+    hiz = len(d) / gecen if gecen > 0 else 0.0
+    c.s.ok("`r100` sonrasi `D` hizi ~10/s (davranis degisti)",
+           abs(hiz - 10.0) / 10.0 < 0.3, f"{hiz:.1f}/s, {len(d)} satir")
+    yan = yanit("r5", 0.5)
+    c.s.ok(f"`r5` alt sinira KIRPILIYOR ({RAPOR_MS_EN_AZ} ms) ve kirpilmis deger basiliyor",
+           yan.endswith(f" {RAPOR_MS_EN_AZ} ms"), yan or "yanit yok")
+    yan = yanit(f"r{int(RAPOR_MS)}", 0.5)
+    c.s.ok("rapor araligi varsayilana geri alindi",
+           yan.endswith(f" {int(RAPOR_MS)} ms"), yan or "yanit yok")
+
+
 # ── Web katmani (HTTP) ───────────────────────────────────────────────
 
 def d_web_kok(c):
@@ -896,6 +937,21 @@ def d_web_p0_serbest(c):
            f"yolu kapali demektir; bu bir EMNIYET kusuru")
 
 
+def d_web_soru_serbest(c):
+    """B27 A2: `?` (ayar dokumu) jetonsuz/parolasiz gecmeli; `N` GECMEMELI."""
+    if not c.http:
+        c.s.atla("`?` serbest, `N` degil", "--http verilmedi")
+        return
+    durum, _b, _g = http(c.http, "/komut", basliklar={"X-Olcum": "1"},
+                         govde=b"?", metod="POST")
+    c.s.ok("`?` (ayar dokumu) jetonsuz GECIYOR", durum == 204,
+           f"durum {durum} — sayfa acilinca K5 esitlemesi parola sorusu acmadan calismali")
+    durum, _b, _g = http(c.http, "/komut", basliklar={"X-Olcum": "1"},
+                         govde=b"N", metod="POST")
+    c.s.ok("`N` (parolalari basar) jetonsuz REDDEDILIYOR", durum == 403,
+           f"durum {durum} — 204 ise AP/web parolasi herkese acik demektir")
+
+
 def d_web_host(c):
     """DNS rebinding: yabanci Host reddedilmeli."""
     if not c.http:
@@ -934,6 +990,7 @@ DENETIMLER = [
     ("Web: CSRF",               0, "yok", d_web_csrf),
     ("Web: jeton",              0, "yok", d_web_jeton),
     ("Web: p0 serbest",         0, "yok", d_web_p0_serbest),
+    ("Web: ? serbest, N degil",  0, "yok", d_web_soru_serbest),
     ("Web: Host beyaz listesi", 0, "yok", d_web_host),
 
     ("I2C adresleri",           1, "yok", d_i2c_adresler),
@@ -941,6 +998,7 @@ DENETIMLER = [
     ("Ornek sayisi",            1, "yok", d_ornek_sayisi),
     ("Olcum hizi",              1, "yok", d_olcum_hizi),
     ("ADC yanit durumu",        1, "yok", d_ads_durum),
+    ("Rapor araligi (r<ms>)",   1, "yok", d_rapor_araligi),
 
     # ⚠ EN SONDA DURMALI: karti SIFIRLIYOR. Daha yukari alinirsa blokaj
     #   sayaci (45 sn kararli hal) ve telemetri olcumleri bozulur.

@@ -248,7 +248,19 @@ static PilNokta *pil_ic_tampon = nullptr;
 
 static int64_t  enerji_pJ = 0;
 static uint32_t son_us = 0;
-static uint32_t rapor_ms = 200;
+/* B27 A2 — RAPOR ARALIGI kullanici tarafindan secilebilir (`r<ms>`).
+   ADC ~465 ornek/s aliyor; D satiri bu araligin ORTALAMASI. Sinirlar:
+   EN_AZ 20 ms = 50 satir/s. Her satir, bagli SSE istemcisi basina bir
+   TCP yazma demek ve bu yazma OLCUM DONGUSUNUN ICINDE kosuyor (web
+   sunucusu loop()'ta, cift cekirdek henuz yok). 20 ms altinda dongu
+   satir basmaktan olcum alamaz hale gelir. EN_COK 5000 ms: daha
+   seyrek rapor icin bir gerekce yok, arayuz "koptu" sanir.
+   NVS'e YAZILMIYOR — oturumluk tercih; arayuz baglaninca kendi
+   tercihini yolluyor (K5 deseni: kart soyler, arayuz uyar). */
+#define RAPOR_MS_EN_AZ   20
+#define RAPOR_MS_EN_COK  5000
+#define RAPOR_MS_VARSAYILAN 200
+static uint32_t rapor_ms = RAPOR_MS_VARSAYILAN;
 static uint32_t son_rapor = 0;
 
 /* ── B22.1: BLOKAJ GORUNURLUGU ─────────────────────────────────────
@@ -1704,15 +1716,20 @@ static void akis_yolla(const char *satir) {
   // ⚠ BURADA `Serial` KULLANILAMAZ: ayna bu fonksiyonu cagiriyor, yani
   //   sonsuz ozyineleme olurdu. Zincir bunu denetliyor.
   akis_sira++;
+  /* B27 A2: olay TEK tamponda kuruluyor ve TEK write() ile gidiyor.
+     Onceden istemci basina DORT ayri print() vardi — her biri lwIP'de
+     ayri bir gonderim, hepsi olcum dongusunun icinde. Rapor araligi
+     20 ms'ye inince (50 satir/s) bu fark dogrudan olcum kaybina donuyor.
+     Tampon: "id: " + 10 hane + "\ndata: " + satir + "\n\n". */
+  char olay[WEB_SATIR_AZAMI + 32];
+  int n = snprintf(olay, sizeof(olay), "id: %lu\ndata: %s\n\n",
+                   (unsigned long)akis_sira, satir);
+  if (n < 0 || n >= (int)sizeof(olay)) n = (int)sizeof(olay) - 1;
   bool giden = false;
   for (int8_t i = 0; i < AKIS_AZAMI; i++) {
     if (!akis[i]) continue;
     if (!akis[i].connected()) { akis[i].stop(); continue; }
-    akis[i].print(F("id: "));
-    akis[i].print(akis_sira);
-    akis[i].print(F("\ndata: "));
-    akis[i].print(satir);
-    akis[i].print(F("\n\n"));
+    akis[i].write((const uint8_t *)olay, (size_t)n);
     giden = true;
   }
   if (!giden) akis_dusen++;
@@ -1768,8 +1785,17 @@ static void komut_kuyrugu_bosalt() {
 // 🔴 `p0` (pil desarjini DURDUR) HER ZAMAN serbest: jetonsuz, parolasiz.
 //    Baslatmak yetki ister; durdurmayi hicbir sey geciktiremez. Bu bir
 //    kolaylik degil EMNIYET karari — koprude de ayni kural var.
+/* Serbest komutlar — jeton da parola da ISTEMEYEN ikisi:
+     p0  durdur. Emniyet; hicbir sey geciktiremez.
+     ?   ayar dokumu (B27 A2). Salt okunur, sir icermez (menzil, kazanc,
+         sont, rapor araligi). Sayfa acilinca K5 esitlemesi icin
+         gonderiliyor; izleyiciyi daha ilk saniyede parola sorusu
+         karsilamasin. `N?` SERBEST DEGIL — o parolalari basar.
+   Tam eslesme: `?x` ya da `p0!` gecmez. */
 static bool komut_serbest(const char *k) {
-  return k[0] == 'p' && k[1] == '0' && k[2] == 0;
+  if (k[0] == 'p' && k[1] == '0' && k[2] == 0) return true;
+  if (k[0] == '?' && k[1] == 0) return true;
+  return false;
 }
 
 // Host beyaz listesi. DNS rebinding'i kiriyor: saldirganin alan adi kisa
@@ -1811,7 +1837,7 @@ void komut_sayfa() {
   if (!komut_serbest(k.c_str())) {
     if (sunucu.header("X-Jeton") != String(oturum_jetonu)) {
       sunucu.send(403, "text/plain",
-                  "gecersiz oturum jetonu. `p0` (durdur) her zaman acik.");
+                  "gecersiz oturum jetonu. `p0` (durdur) ve `?` serbest.");
       return;
     }
     if (!web_yetkili()) {
@@ -1922,7 +1948,8 @@ void ayar_yaz_seri() {
   Serial.print(F(" y_sifir="));   Serial.print(ayar.yuksek.sifir_ham);
   Serial.print(F(" sont="));      Serial.print(ayar.sont_ohm, 6);
   Serial.print(F(" i_duz="));     Serial.print(ayar.i_duzeltme, 6);
-  Serial.print(F(" i_ofset="));   Serial.println(ayar.i_ofset);
+  Serial.print(F(" i_ofset="));   Serial.print(ayar.i_ofset);
+  Serial.print(F(" rapor="));     Serial.println(rapor_ms);   /* B27 A2 */
 
   Serial.print(F("R normal=+-")); Serial.print(tam_olcek_simetrik(&ayar.normal), 2);
   Serial.print(F(" V/"));         Serial.print(adim3(&ayar.normal) * 1e3f, 4);
@@ -1974,6 +2001,7 @@ void yardim() {
   Serial.println(F("  F<us> faz kalibrasyonu us (direncli yukle), F goster"));
   Serial.println(F("  P<volt> pil kesme   p1/p0 pil testi baslat/durdur   p durum"));
   Serial.println(F("  K blokaj sayaclarini sifirla (eski degeri basar)"));
+  Serial.println(F("  r<ms> rapor araligi 20..5000 ms (D satiri sikligi), r goster"));
   Serial.println(F("  R! fabrika ayarlari (kalibrasyonu SIFIRLAR)"));
   Serial.println(F("  t yakala  ta otomatik  tb<0-11> zaman tabani  t+ t-"));
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  t?"));
@@ -1989,6 +2017,22 @@ void komut_calistir(const char *s) {
       enerji_pJ = 0;
       Serial.println(F("* enerji sifirlandi"));
       break;
+
+    /* B27 A2 — rapor araligi. Sinir DISI deger reddedilmiyor, KIRPILIYOR
+       ve kirpilmis deger basiliyor: kullanici `r5` yazip 20 ms aldigini
+       gormeli, sessiz bir "olmadi" degil. Bos `r` yalnizca gosterir. */
+    case 'r': {
+      if (s[1]) {
+        long v = atol(s + 1);
+        if (v < RAPOR_MS_EN_AZ)  v = RAPOR_MS_EN_AZ;
+        if (v > RAPOR_MS_EN_COK) v = RAPOR_MS_EN_COK;
+        rapor_ms = (uint32_t)v;
+      }
+      Serial.print(F("* rapor araligi "));
+      Serial.print(rapor_ms);
+      Serial.println(F(" ms"));
+      break;
+    }
 
     /* 🔴 B26 — BLOKAJ SAYAÇLARINI SIFIRLA.
 

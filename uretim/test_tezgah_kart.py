@@ -165,7 +165,7 @@ def yanitlar_saglikli(loop_us=8500, i2c="I2C: 0x48 0x49",
 
 
 def kart_kur(afis=None, yanit=None, telemetri_adet=40, ornek=None,
-             gecikme=0.0, kalici=None):
+             gecikme=0.0, kalici=None, rapor_davranis=True):
     """Saglikli bir kart benzetimi. Afis + surekli `D` akisi + yanitlar.
 
     ⚠ `KayitKart` SONLU: gercek kart sonsuza kadar `D` basiyor, kayit
@@ -177,15 +177,18 @@ def kart_kur(afis=None, yanit=None, telemetri_adet=40, ornek=None,
     satirlar = list(afis if afis is not None else afis_satirlari())
     satirlar += [d_satiri(ornek) for _ in range(telemetri_adet)]
     y = yanit if yanit is not None else yanitlar_saglikli()
-    if kalici is None:
-        return KayitKart(satirlar, y, gecikme=gecikme)
-    # B26: NVS kalicilik denetimi DURUM istiyor — bkz. AyarliKart
-    return AyarliKart(satirlar, y, gecikme=gecikme, kalici=kalici)
+    # B26: NVS kalicilik denetimi DURUM istiyor — bkz. AyarliKart.
+    # B27 A2: `r<ms>` de durum istiyor (gecikme degisiyor); artik hep
+    # AyarliKart. `kalici=None` = NVS'e dokunulmuyor, True gibi davranir.
+    return AyarliKart(satirlar, y, gecikme=gecikme,
+                      kalici=True if kalici is None else kalici,
+                      rapor_davranis=rapor_davranis)
 
 
 def kart_kur_telemetrili(**kw):
     """`D` denetimleri icin: gercek tempo + bol satir."""
-    kw.setdefault("telemetri_adet", 120)
+    # B27 A2: rapor araligi denetimi 20 ms'ye inip ~50 satir tuketiyor
+    kw.setdefault("telemetri_adet", 220)
     kw.setdefault("gecikme", RAPOR_S)
     return kart_kur(**kw)
 
@@ -204,9 +207,12 @@ class AyarliKart(KayitKart):
     yani `ayar_kaydet()` hic cagrilmamis gibi davranir.
     """
 
-    def __init__(self, *a, kalici=True, varsayilan=0.015, **kw):
+    def __init__(self, *a, kalici=True, varsayilan=0.015,
+                 rapor_davranis=True, **kw):
         super().__init__(*a, **kw)
         self.kalici = kalici
+        # B27 A2 senaryosu: `r` YANIT verir ama hiz DEGISMEZ (atama silinmis)
+        self.rapor_davranis = rapor_davranis
         self.varsayilan = varsayilan
         self._yazilan = None
 
@@ -217,6 +223,17 @@ class AyarliKart(KayitKart):
                 re.sub(r"sont=[\d.]+", f"sont={deger:.6f}", x) for x in y]
 
     def yaz(self, metin):
+        # B27 A2: `r<ms>` — firmware ile ayni kirpma, ve GECIKME gercekten
+        # degisiyor ki kosucunun "hiz degisti mi" olcumu anlamli olsun.
+        if metin.startswith("r"):
+            try:
+                v = int(metin[1:]) if len(metin) > 1 else int(self.gecikme * 1000)
+            except ValueError:
+                v = int(self.gecikme * 1000)
+            v = max(TK.RAPOR_MS_EN_AZ, min(TK.RAPOR_MS_EN_COK, v))
+            if self.rapor_davranis:
+                self.gecikme = v / 1000.0
+            self.yanitlar[metin] = [f"* rapor araligi {v} ms"]
         if metin.startswith("s") and len(metin) > 1:
             try:
                 v = float(metin[1:])
@@ -333,6 +350,11 @@ def bolum2_mutasyonlar():
         ("`D` satiri hic gelmiyor",
          dict(telemetri_adet=0, gecikme=0.0),
          "`D` olcum satiri geliyor", 1),
+        # B27 A2: `r100` "tamam" der ama hiz 5/s kalir — yanit var,
+        # davranis yok. Yalnizca yanita bakan denetim bunu KACIRIRDI.
+        ("`r<ms>` yanit veriyor ama hiz degismiyor",
+         dict(rapor_davranis=False),
+         "davranis degisti", 1),
     ]
 
     for ad, kw, beklenen_kirmizi, asama in senaryolar:

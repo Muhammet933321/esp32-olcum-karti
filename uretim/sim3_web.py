@@ -237,6 +237,15 @@ def bolum3(r):
     g_kom = kod(govde(INO, "void komut_sayfa()"))
     r.kosul("  3e: serbest komut jeton denetimini ATLIYOR",
             "komut_serbest" in g_kom and "!komut_serbest" in g_kom)
+    # B27 A2: `?` (ayar dokumu) da serbest — sayfa acilinca K5 esitlemesi
+    # parola sorusu acmadan calissin. Ama YALNIZCA tam `?`: `N` (parolalari
+    # basar) ve baska hicbir harf serbest OLMAMALI.
+    r.kosul("  3e: `?` (ayar dokumu, salt okunur) serbest",
+            "'?'" in g_ser and "k[1] == 0" in g_ser,
+            "tam eslesme sart: `?x` gecmemeli")
+    r.kosul("  3e: [!] `N` (parolalari basar) serbest DEGIL",
+            "'N'" not in g_ser and "'p'" in g_ser and g_ser.count("return true") == 2,
+            "serbest liste tam olarak iki komut: p0 ve ?")
 
     r.kosul("  3f: komutlar KUYRUGA giriyor, dogrudan calismiyor",
             "komut_kuyruga" in g_kom and "komut_calistir" not in g_kom,

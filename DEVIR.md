@@ -7248,7 +7248,40 @@ Tek kaydırmalı 569 satırlık sayfa **hash yönlendirmeli beş görünüme** b
 
 **Doğrulama:** `test_arayuz3.js` 142 → **156** (bölüm 10: liste↔HTML birebir, v-show, hash çözümü 4 durum, `watch.gorunum` davranışı sahte `this` ile, bildirim sarmalı, paragraf yeri). `mutasyon.py` B7 **6/6** — v-if'e çevirme, skop çizimini düşürme, hash doğrulamasını kaldırma, `hashchange` dinleyicisini silme: hepsi yakalanıyor. Headless Edge: 5 görünüm dev sunucudan (demo) + 5 görünüm **gerçek karttan** (kartın ev ağı adresinden, LittleFS `_fs.bin` 98.3 KB, %10.7) render edildi; geçiş testi iframe'de yalnızca hash değiştirerek (yeniden yükleme yok) yapıldı.
 
-**Aşama 2'ye devredilen gözlemler:** üst şeritte taşıyıcı seçici + adres kutusu dar alanda alt satıra sarıyor (tasarım işi); demo kipinde seçici boş görünüyor (`demo` seçeneği menüde yok); sayfa karttan geldiğinde "Karta bağlan"a basmak gerekiyor — **otomatik bağlanma** değerlendirilecek (kart sunuyorsa taşıyıcı zaten belli).
+**Aşama 2'ye devredilen gözlemler:** üst şeritte taşıyıcı seçici + adres kutusu dar alanda alt satıra sarıyor (tasarım işi); demo kipinde seçici boş görünüyor (`demo` seçeneği menüde yok); ~~sayfa karttan geldiğinde "Karta bağlan"a basmak gerekiyor~~ (A2-a'da yapıldı).
+
+##### ✅ Aşama 2-a (2026-09-12) — kullanıcının ekran görüntüsünden çıkan dört kusur + rapor aralığı
+
+Kullanıcı canlı paneli gösterip üç şey sordu: *görünüm nasıl · "463 /sn" yazıyor ama ekran o hızda değil · grafik hangi hıza göre?* Cevap ararken **dört kusur** çıktı, ikisi yalnızca gerçek kartta görülebilirdi.
+
+| # | Kusur | Nasıl bulundu | Düzeltme |
+|---|---|---|---|
+| **G1** | Kartlar "veri yok" derken **grafik sahte 1.72 V'u düz çizgi** çiziyor, "tepe 1.72 V" yazıyordu — K1'in grafik yarısı eksikti | ekran görüntüsü | geçersiz kanal `NaN` → çizgi kopar, etiket "veri yok", CSV'de hücre boş |
+| **G2** | "463 /sn" tek sayı: ADC hızı ile ekran hızı karışıyordu | kullanıcının sorusu | iki ölçülen sayı: **"480 örnek/s"** + **"5 güncelleme/s"** (`1000/ölçülen aralık`) |
+| **G3** | Sayfa açılınca gönderilen `?` **her seferinde 403** alıyordu: `ac()` EventSource'u kurup hemen dönüyor, jeton `kimlik` olayıyla sonra geliyordu. K5 eşitlemesi WiFi yolunda **hiç çalışmamıştı**, her açılış bir hata bildirimiyle başlıyordu | **CDP ile kartta** (`tarayici.py`) | `ac()` `kimlik`i (ya da hata / 3 s tavan) bekliyor; `?` jetonla gidiyor |
+| **G4** | `?` için parola sorulması: izleyici daha ilk saniyede parola penceresiyle karşılanıyordu | CDP | `?` (salt okunur ayar dökümü) `p0` gibi **serbest**; `N` (parolaları basar) serbest **değil** — kartta 204/403 doğrulandı |
+
+**Rapor aralığı kullanıcı seçimine açıldı** (`r<ms>`, 20..5000, sınır dışı **kırpılır ve kırpılmış değer basılır**; NVS'e yazılmaz — görüntüleme tercihi, tarayıcı localStorage'da tutup bağlanınca uydurur; şönt'ün tersi yön: orada kart haklı, burada tarayıcı). Menü: 20 · 10 · 5 · 2 · 1 /s. `A` satırına `rapor=` eklendi. Demo kartı aynı kırpma ile aynı davranıyor.
+
+**Kartta ölçülen maliyet** (tek ADS, 465 örnek/s taban):
+
+| aralık | seri, istemcisiz | WiFi'de 1 SSE istemcisi | en uzun döngü |
+|---|---|---|---|
+| 200 ms | 483 örnek/s | 444 örnek/s | 2.8 / 18 ms |
+| 50 ms | 478 | 460 | 3.2 / 5.0 ms |
+| 20 ms | 469 | **425** (−%9) | 2.9 / 5.3 ms |
+
+"Yorar" somutlaştı: her satır istemci başına bir TCP yazma ve bu yazma ölçüm döngüsünün **içinde**; 20 ms'de tek istemci ~%9 örnek götürüyor. Osiloskop farklı: tek yakalama, tek blok, sonra sessiz — sürekli akış değil. SSE olayı artık istemci başına **tek `write()`** (önce dört `print()`); bunun tek başına etkisi ölçülmedi (eski firmware'e dönülmedi).
+
+**Otomatik bağlanma:** sayfa kart/köprüden geldiyse (`localhost`/`file://`/`?demo` değilse) `kopruyuAlgila()` sonrası kendiliğinden bağlanıyor. Yan ürün: headless doğrulama artık **canlı veriyle** yapılabiliyor.
+
+**Yeni araç — `uretim/tarayici.py`:** headless Edge'i CDP ile süren, yalnızca stdlib (asgari WebSocket istemcisi). `--screenshot`'un yapamadığı üç şey: JS değerlendirme, Basic Auth isteğini iptal etme (askıda kalınca sayfa "bağlı ama veri yok" görünüyordu — **ölçüm aracı bozuktu, sayfa değil**), sayfada etkileşim. G3 ve G4 onunla bulundu.
+
+**Doğrulama:** `test_arayuz3.js` 156 → **197** (bölüm 11: NaN/çizim sahte tuval bağlamıyla, iki hız, `A rapor=`/`* rapor araligi` akışı, watch, firmware sınırları, demo kartı; bölüm 12: **asenkron** — sahte EventSource ile `ac()` kimlik gelmeden çözülmüyor, `?` jetonla gidiyor). Bölüm 12 için yakalanmayan asenkron hata artık açıkça kırmızı (`unhandledRejection` → exit 1) — ilk yazımda sessizce 0 ile çıkıyordu. `mutasyon.py` B7 **17/17**, B22b **8/8**. `tezgah_kart.py`: `d_rapor_araligi` (yanıt + **davranış** + kırpma + geri alma; kartta 10.0/s ölçüldü), `d_web_soru_serbest`; öz-test 46/46 ("yanıt var, davranış yok" senaryosu yakalanıyor). `sim3_web.py` 82/82.
+
+**Bu aşamada yakalanan kendi hatalarım:** `belge-uret.py` ve `yetenek_tablosu.py` de `rapor_ms = <sayı>` arıyordu — zincir B9'da **çöktü** (`--sayim-kilidi-yaz` yine de taban yazdı — çökmüş adımın yarım sayısı kilide girdi; `sayim_kilidi()` artık **kırık koşuda yazmayı reddediyor**, doğrudan çağrıyla doğrulandı: dosya değişmedi); `ino_sayi`/`ino_sabit` artık `#define`'a bir seviye iniyor. `govdeIcinde()` C fonksiyonlarında ilk girintili *çağrıyı* tanım sanıyordu (iki iddia yanlış kırmızı) → `cGovde()`; NaN kopma testinde `lineTo −1` beklemiştim, doğrusu −2 (kopan nokta iki lineTo götürür); `tezgah_kart.py` `rapor_ms` sayısını `=` ile arıyordu, `#define`'a taşınınca import anında patlayacaktı; CDP betiğinde `select[title]` taşıyıcı seçicisini yakaladı (yanlış seçici, sayfa kusuru değil).
+
+**Aşama 2'ye kalan:** kart yeniden başlarken sayfa açılırsa `app.js` gelmeyip ham `{{ }}` kalıyor — yeniden yükleme ipucu/`v-cloak` dışı bir hata durumu gerek (Aşama 4 dayanıklılık kalemi). `K` sayaçları sayfa her yüklendiğinde 200+ ms sıçrıyor: 100 KB gzip'i LittleFS'ten loop() içinde sunmak — çift çekirdek kalemi, yeni değil.
 
 ---
 

@@ -218,6 +218,14 @@ TABAN_YOLU = BURASI / "beklenen_sayim.json"
 
 
 def sayim_kilidi(sonuclar, yaz: bool = False) -> list[str]:
+    """Adim basina iddia sayisi kilidi. Bkz. asagidaki uzun aciklama.
+
+    🔴 B27 A2: KIRIK KOSUDA TABAN YAZILMAZ. B9 cokmusken `--sayim-kilidi-yaz`
+    ile kosuldu ve cokmus adimin YARIM sayisi kilide yazildi — sonraki
+    temiz kosu "sapma" diye kirmizi olacak, ya da daha kotusu yarim sayi
+    beklenti olarak kalacakti. Basarisiz adim varsa yazma istegi
+    reddedilir ve nedeni basilir.
+    """
     """Her adimin iddia sayisini kilitli tabanla karsilastirir.
 
     🔴 NEDEN SAPMA IKI YONDE DE KIRMIZI. DEVIR'in kendi uyarisi: bir
@@ -232,6 +240,10 @@ def sayim_kilidi(sonuclar, yaz: bool = False) -> list[str]:
     """
     su_an = {baslik: sayim.sayimlar(cikti)
              for baslik, _t, _s, cikti in sonuclar}
+    kirik = [b for b, tamam, _s, _c in sonuclar if not tamam]
+    if yaz and kirik:
+        print(f"  ⚠ kilit YAZILMADI: kirik kosuda taban yazilmaz ({', '.join(kirik)})")
+        yaz = False
     if yaz or not TABAN_YOLU.exists():
         TABAN_YOLU.write_text(json.dumps(
             {b: [list(x) for x in v] for b, v in su_an.items()},
