@@ -36,6 +36,7 @@ KOK = BURASI.parent
 sys.path.insert(0, str(BURASI))
 sys.path.insert(0, str(KOK / "kopru"))
 
+import tasarim3_sabit as T3                             # noqa: E402
 import tezgah_kart as TK                                # noqa: E402
 from kart_baglanti import KayitKart                     # noqa: E402
 from tezgah import tezgah                               # noqa: E402
@@ -131,15 +132,26 @@ def d_satiri(ornek=None, menzil=0, durum=0):
     return f"D 12.3456 0.123456 1.52345 0.1234 0.0001234 200 {n} {menzil} {durum}"
 
 
+def faz_satiri(yaz=324, bek=1227, oku=508, kayma=152):
+    """B29 — `F` cevrim faz satiri. Fazlar PARAMETRE cunku kosucunun iki
+    ayri iddiasi bunlara bakiyor: tik kilidi (bek 1000'in kati mi) ve
+    baslatma kaymasi bandi."""
+    toplam = yaz + bek + oku
+    return (f"F yaz_us={yaz} bek_us={bek} oku_us={oku} toplam_us={toplam} "
+            f"kayma_us={kayma} kayma_ornek={kayma / toplam:.4f} cevrim=200")
+
+
 def yanitlar_saglikli(loop_us=8500, i2c="I2C: 0x48 0x49",
-                      g_reddi=True, r_onayi=True, bilinmeyen=True):
+                      g_reddi=True, r_onayi=True, bilinmeyen=True,
+                      faz=None):
     y = {
         "?": ["A menzil=NORMAL oto=1 n_kazanc=1.000000 n_sifir=0 "
               "y_kazanc=1.000000 y_sifir=0 sont=0.015 i_duz=1.000 i_ofset=0",
               "R normal=+-32.4 V/0.99 mV  yuksek=+-613.7 V/18.7 mV",
               "L normal -32.4 .. 32.4 V  yuksek -613.7 .. 613.7 V",
               f"K 0 {loop_us} 0",
-              "  (K = atlanan enerji ms · en uzun dongu us · >20ms tur)"],
+              "  (K = atlanan enerji ms · en uzun dongu us · >20ms tur)",
+              faz if faz is not None else faz_satiri()],
         "N": ["* ag: AP  SSID=OLCUM-KARTI-A1B2  IP=192.168.4.1  mDNS=olcum.local",
               "* ev agi: (tanimli degil)",
               "   AP parolasi: kj7mn2pq4xrt",
@@ -341,9 +353,22 @@ def bolum2_mutasyonlar():
         ("Yalniz 0x48 var (ADS #2'nin ADDR pini bosta)",
          dict(yanit=yanitlar_saglikli(i2c="I2C: 0x48")),
          "0x49 adresinde gorunuyor", 1),
-        ("Ornek sayisi ~100 (enableDelay ise yaramamis)",
-         dict(ornek=100),
-         "Ornek sayisi beklenen bantta", 1),
+        # 🔴 B29 — BU SENARYO DEGISTI. Periyot modeli gercek I2C islem
+        #    yukunu icerince beklenti 133 -> 104'e indi; enableDelay
+        #    kusurunun urettigi 100 ornek artik BANDIN ICINDE. Yani
+        #    ornek sayisi o kusuru ARTIK AYIRT EDEMIYOR. Ayirt eden sey
+        #    fazin 1 ms tik sinirina oturmasi — denetim oraya tasindi.
+        ("enableDelay kusuru: periyot 2000 us tikine kilitli",
+         dict(yanit=yanitlar_saglikli(faz=faz_satiri(yaz=324, bek=1000,
+                                                     oku=676, kayma=152)),
+              ornek=100),
+         "tik sinirina KILITLENMEMIS", 1),
+        ("Baslatma kaymasi buyumus (iki baslatma arasina is girmis)",
+         dict(yanit=yanitlar_saglikli(faz=faz_satiri(kayma=900))),
+         "baslatma kaymasi makul bantta", 1),
+        ("`F` faz satiri hic gelmiyor (telemetri onegi cakismasi)",
+         dict(yanit=yanitlar_saglikli(faz="")),
+         "cevrim faz satiri geliyor", 1),
         ("Ornek sayisi ~19 (B20 duzeltmeleri gitmis)",
          dict(ornek=19),
          "Ornek sayisi beklenen bantta", 1),
@@ -519,9 +544,23 @@ def bolum6_beklentiler_kaynaktan():
     ok("mDNS adi ag.h'den", TK.MDNS_AD == "olcum", TK.MDNS_AD)
     ok("AP oneki ag.h'den", TK.AP_ONEK == "OLCUM-KARTI-", TK.AP_ONEK)
     ok("AKIS_AZAMI .ino'dan", TK.AKIS_AZAMI == 4, str(TK.AKIS_AZAMI))
+    # B29: beklenti artik I2C islem yukunu de iceriyor (kartta olculdu).
+    # Sayiyi ELLE dogrulamak yerine, TURETILDIGINI sinuyoruz: sabit
+    # degisince beklenti de degismeli.
     ok("Beklenen ornek sayisi HESAPLANIYOR (elle yazilmiyor)",
-       120 < TK.ORNEK_BEKLENEN < 145,
-       f"{TK.ORNEK_BEKLENEN:.1f} — sim3_bant.py ile ayni butce")
+       90 < TK.ORNEK_BEKLENEN < 120,
+       f"{TK.ORNEK_BEKLENEN:.1f} — bit suresi + I2C islem yuku")
+    _eski_ek = T3.I2C_ISLEM_EK_US
+    try:
+        T3.I2C_ISLEM_EK_US = 0.0
+        import importlib as _il
+        _il.reload(TK)
+        ok("I2C islem yuku beklentiye GERCEKTEN giriyor",
+           TK.ORNEK_BEKLENEN > 125,
+           f"yuk sifirlaninca {TK.ORNEK_BEKLENEN:.1f} (ideal butce ~133)")
+    finally:
+        T3.I2C_ISLEM_EK_US = _eski_ek
+        _il.reload(TK)
 
     # Bicim degisirse beklenti de degismeli: kaynagi bozup yeniden okuyalim.
     import importlib

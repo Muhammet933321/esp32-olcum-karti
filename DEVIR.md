@@ -7410,6 +7410,45 @@ Kalibrasyon, NVS ve osiloskop yazımı **yalnızca çekirdek 1'de** — komutlar
 
 ---
 
+#### 5.12.45 ✅ B29 — İKİNCİ ADS TAKILDI (2026-09-12)
+
+Kullanıcı ikinci ADS1115'i (0x49, gerilim) bağladı: VDD/GND, SDA/SCL paralel, **ADDR → 3V3**, ALERT boşta (tasarımda U7'nin ALERT ucu bilerek `unconnected`), dört analog giriş de GND'de.
+
+**İlk kontrol:** `#` → `I2C: 0x48 0x49` · `durum` alanı **0** · gerilim **1.7157 V**. O 1.7156 V, aylardır ekranda hayalet olarak duran sayının ta kendisi ve **beklenen** değer: ön uç yokken AIN0−AIN1 = 0, firmware ise girişin VREF ofsetli gelmesini bekliyor (`sifir_ham = −1646`). Yani okuma yolu uçtan uca doğru çalışıyor.
+
+**Koşucu bir kırmızı verdi: "ornek 96, beklenen 133".** Kusur **kartta değil modeldeydi.**
+
+##### Çevrim süresi nereye gidiyor — ölçüldü, tahmin edilmedi
+
+Firmware'e faz sayacı konup `?` çıktısına `F` satırı eklendi (256 çevrimlik kayan ortalama). Üç ayrı koşuda aynı sonuç:
+
+| faz | ölçülen | ideal I²C bütçesi |
+|---|---|---|
+| iki ayar yazması | **324 µs** | 90 µs |
+| RDY beklemesi (dönüşüm) | **1227 µs** | 1163 µs (±%10 osilatör) |
+| iki dönüşüm okuması | **504 µs** | 224 µs |
+| **toplam** | **2053 µs → 487 çevrim/s** | 1490 µs → 671/s |
+
+Fark **işlem sayısıyla orantılı**: çevrimde 6 `Wire` işlemi var (2 yazma + 2×[işaretçi yazması + okuma]) ve fazlalık işlem başına **~69 µs**. Bu, ESP32 Arduino `Wire` sürücüsünün işlem başına sabit maliyeti — bit hızından bağımsız, yani 400 kHz'i yükseltmek bu kısmı kısaltmaz. Model bu terimi hiç saymıyordu; `tasarim3_sabit.I2C_ISLEM_EK_US = 69` olarak girdi ve koşucunun beklentisi 133 → **104** oldu (ölçülen 95–96, bant 94–115 ✓).
+
+⚠ **Tik yuvarlaması değil:** ölçülen fazların hiçbiri 1000 µs'in katı değil — B22.1'deki `enableDelay` kusuru (periyodu 2000 µs'e kilitler) geri gelmemiş. Bunu artık **ayrı bir denetim** söylüyor, çünkü…
+
+##### Düzeltilmiş model bir denetimi körleştirdi — yerine ölçülebilir olanı kondu
+
+Beklenti 133'ten 104'e inince, `enableDelay` kusurunun ürettiği **100 örnek artık bandın içinde** kalıyor: örnek sayısı o kusuru **ayırt edemiyor**. Koşucuya `d_cevrim_fazlari` eklendi; ayırt eden ölçüt artık **fazın 1 ms tik sınırına oturması**. Öz-testteki senaryo da buna taşındı (eski hâli sessizce yeşil kalacaktı — bayat iddia).
+
+##### B17'nin ölçütü: iki çip arasındaki başlatma kayması
+
+Kod kaymayı **ölçüyor** (varsaymıyor) ve Lagrange hizalayıcısına veriyor — ama sayı hiç dışarı basılmıyordu. Artık `F` satırında: **152 µs (0.0740 örnek)**. Koddaki yorum "400 kHz'te ~95 µs, SABİT ve BİLİNEN" diyordu; gerçek bunun **1.6 katı** (aradaki fark yine `Wire` işlem yükü). Düzeltme olmasaydı 50 Hz / PF=0.5 yükte güç hatası **%8.35** olurdu — yani B17 mekanizması iki çip takılınca gerçekten iş yapıyor. Yorum ölçülen değerle düzeltildi; koşucu kaymayı 80–400 µs bandında ve Lagrange'ın düzeltebileceği aralıkta (< 0.5 örnek) denetliyor.
+
+##### Sonuç
+
+`tezgah_kart.py --sifirla --asama 1`: **50 geçti · 0 kaldı** (ilk kez hiç kırmızı yok). Öz-test 46 → **49** (üç yeni senaryo: tik kilidi, büyümüş kayma, `F` satırının hiç gelmemesi). Mutasyon B25 +3. `F` öneki seçilirken `T ` ile çakışma yakalandı — `T ` zaten osiloskop ayar satırının öneki ve koşucu onu telemetri sayıp süzüyordu; aynı öneği ikinci bir anlamla kullanmak bu projenin defalarca cezalandırdığı şey.
+
+**Kalan:** analog ön uç (bölücü + VREF tamponu) kurulana kadar gerilim kanalı sabit 1.7157 V okuyor; gerçek gerilim ölçümü ön uçla gelecek. Örnekleme 487/s, Nyquist 244 Hz — tasarımın 100 Hz sınırı rahat.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

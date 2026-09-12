@@ -360,6 +360,22 @@ MUTASYONLAR = [
      "begin()'den SONRA cagrilan setTxBufferSize ise yaramaz; `?` "
      "ciktisi yine 27 ms bloklar"),
 
+    # ── B29 · cevrim faz olcumu (iki ADS takilinca kartta olculdu)
+    ("B25", "test_tezgah_kart.py", "uretim/tasarim3_sabit.py",
+     "I2C_ISLEM_EK_US = 69.0", "I2C_ISLEM_EK_US = 0.0",
+     "I2C islem yuku modelden cikarsa beklenti 104 -> 133'e ziplar ve "
+     "saglikli kart 'ornek sayisi bantta degil' diye kirmizi yanar"),
+    ("B25", "test_tezgah_kart.py", "uretim/tezgah_kart.py",
+     "           80.0 <= kayma <= 400.0,",
+     "           0.0 <= kayma <= 100000.0,",
+     "kayma bandi genisleyince iki baslatma arasina is girmesi (faz "
+     "hatasi) gorunmez olur — B17'nin en pahali kusuru"),
+    ("B25", "test_tezgah_kart.py", "uretim/tezgah_kart.py",
+     '    tik = [ad for ad in ("yaz_us", "bek_us", "oku_us")',
+     '    tik = [ad for ad in ()',
+     "tik kilidi denetimi bosalir: B22.1'in enableDelay kusuru geri "
+     "gelse ornek sayisi bandin ICINDE kalacagi icin hic yakalanmaz"),
+
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",

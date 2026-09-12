@@ -117,7 +117,11 @@ D_ALAN = len(_D_BICIM.group(1).split()) if _D_BICIM else 0
 _T_YAZ = T.I2C_YAZMA_BIT / T.I2C_HIZ * 1e6
 _T_OKU = (20 + 29) / T.I2C_HIZ * 1e6
 _T_DON = 1e6 / T.ADS_SPS
-_PERIYOT_US = 2 * _T_YAZ + (_T_DON - _T_YAZ) + 2 * _T_OKU
+# B29: bit suresi TEK BASINA yetmiyor — `Wire`in islem basina sabit
+# maliyeti var ve kartta olculdu (bkz. tasarim3_sabit.I2C_ISLEM_EK_US).
+# Bu terim olmadan beklenti 133 ornek cikiyordu, gercek 96.
+_PERIYOT_US = (2 * _T_YAZ + (_T_DON - _T_YAZ) + 2 * _T_OKU
+               + T.I2C_ISLEM_ADET * T.I2C_ISLEM_EK_US)
 ORNEK_BEKLENEN = RAPOR_MS * 1000.0 / _PERIYOT_US
 ORNEK_PAY = 0.10                     # %10 — tik kuantalanmasi ve WiFi payi
 
@@ -854,6 +858,56 @@ def d_olcum_hizi(c):
            f"{hiz:.1f}/s, beklenen {beklenen:.1f}/s")
 
 
+def d_cevrim_fazlari(c):
+    """B29 — `F` satiri: cevrim suresi nereye gidiyor ve iki cip arasindaki
+    baslatma kaymasi ne kadar.
+
+    🔴 NEDEN DENETLENIYOR: kayma, gucun dogrulugunu DOGRUDAN belirliyor
+    (P = V x I; kayma = faz hatasi). Firmware onu olcup Lagrange
+    hizalayicisina veriyor, ama iki sey ters gidebilir:
+      * kayma buyurse (iki baslatma arasina bir sey girerse) duzeltme
+        Lagrange'in makul araligindan cikar,
+      * `bek` fazi 1000 us'in katina oturursa B22.1'in tik kilidi
+        (enableDelay) geri gelmis demektir.
+    Ikisi de yalnizca GERCEK KARTTA gorulur.
+    """
+    sat = c.k.satirlar("?", sure=1.5)
+    t = next((x for x in sat if x.startswith("F ")), "")
+    if not c.s.ok("`F` cevrim faz satiri geliyor", bool(t), t or "F satiri yok"):
+        return
+    a = {}
+    for p in t[2:].split():
+        if "=" in p:
+            k, v = p.split("=", 1)
+            try:
+                a[k] = float(v)
+            except ValueError:
+                pass
+    toplam = a.get("toplam_us", 0)
+    c.s.bilgi(f"yaz {a.get('yaz_us', 0):.0f} us · bek {a.get('bek_us', 0):.0f} us · "
+              f"oku {a.get('oku_us', 0):.0f} us · toplam {toplam:.0f} us "
+              f"({1e6 / toplam if toplam else 0:.0f} cevrim/s)")
+    c.s.ok("Cevrim fazlarinin toplami periyodu aciklıyor",
+           toplam > 0 and abs((a.get("yaz_us", 0) + a.get("bek_us", 0)
+                               + a.get("oku_us", 0)) - toplam) < 5,
+           "aciklamiyorsa dongude olculmeyen bir faz var")
+    # Tik kilidi kontrolu: hicbir faz 1000 us'in katina oturmamali.
+    tik = [ad for ad in ("yaz_us", "bek_us", "oku_us")
+           if a.get(ad, 1) and abs(a[ad] % 1000.0) < 12.0]
+    c.s.ok("[!] Hicbir faz 1 ms tik sinirina KILITLENMEMIS", not tik,
+           f"{', '.join(tik) or 'temiz'} — kilitliyse B22.1'in enableDelay "
+           f"kusuru geri gelmis demektir (periyot 2000 us'e oturur)")
+    kayma = a.get("kayma_us", 0)
+    c.s.ok("Iki cip arasindaki baslatma kaymasi makul bantta",
+           80.0 <= kayma <= 400.0,
+           f"{kayma:.0f} us — bir I2C yazmasi kadar olmali; buyukse iki "
+           f"baslatma arasina bir sey girmis (B17: kayma = faz hatasi)")
+    c.s.ok("Kayma Lagrange'in duzeltebilecegi araliktan KUCUK",
+           0.0 < a.get("kayma_ornek", 1.0) < 0.5,
+           f"{a.get('kayma_ornek', 0):.4f} ornek — 1 ornegi asarsa "
+           f"hizalayici kirpar ve faz hatasi kalir")
+
+
 def d_rapor_araligi(c):
     """B27 A2 — `r<ms>`: rapor araligi GERCEKTEN degisiyor mu.
 
@@ -999,6 +1053,7 @@ DENETIMLER = [
     ("Olcum hizi",              1, "yok", d_olcum_hizi),
     ("ADC yanit durumu",        1, "yok", d_ads_durum),
     ("Rapor araligi (r<ms>)",   1, "yok", d_rapor_araligi),
+    ("Cevrim fazlari (F)",      1, "yok", d_cevrim_fazlari),
 
     # ⚠ EN SONDA DURMALI: karti SIFIRLIYOR. Daha yukari alinirsa blokaj
     #   sayaci (45 sn kararli hal) ve telemetri olcumleri bozulur.

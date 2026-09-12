@@ -554,20 +554,56 @@ static float ornek_periyot_us = 1000000.0f / 860.0f;
 // menzil_uygula onlara dokunuyor.
 
 
+/* 🔴 B29 — CEVRIM SURESI NEREYE GIDIYOR: OLCULUYOR, TAHMIN EDILMIYOR.
+   Iki ADS takilinca koşucu "ornek 96, beklenen 133" dedi. Tasarim
+   butcesi (sim3_bant) 1.49 ms/cevrim diyor, gercek 2.0 ms. Farki
+   tahmin etmek yerine cevrimin ucu de ayri sayiliyor:
+     t_yaz  iki tek-atis yazmasi
+     t_bek  RDY bekleme (donusum suresi)
+     t_oku  iki okuma
+   `?` ciktisindaki `T` satiri bu uc sayiyi (son 256 cevrimin ortalamasi)
+   basar. Sayaclar `K` ile sifirlanir. */
+static uint32_t faz_yaz_top = 0, faz_bek_top = 0, faz_oku_top = 0;
+/* B17'nin dersi: iki cip ARASINDAKI baslatma kaymasi, gucun dogrulugunu
+   dogrudan belirliyor (P = V x I; kayma faz hatasi demek). Kod bunu
+   zaten olcup Lagrange hizalayicisina veriyor — ama SAYI hic disari
+   basilmiyordu. Artik `T` satirinda: kayma_us ve ornek periyoduna orani. */
+static uint32_t faz_kayma_top = 0;
+static uint32_t faz_adet = 0;
+
 Okuma3 olcum_al() {
-  // 1) GERILIM once, AKIM sonra baslatiliyor. Aradaki fark iki I2C
-  //    yazmasinin suresi: 400 kHz'te ~95 us. SABIT ve BILINEN.
+  uint32_t t0 = micros();
+  // 1) GERILIM once, AKIM sonra baslatiliyor. Aradaki fark bir I2C
+  //    yazmasinin suresi.
+  //    🔴 B29: burada "400 kHz'te ~95 us" yaziyordu — BIT SURESI. Iki
+  //    cip de takilinca kartta OLCULDU: 152 us. Fark `Wire`in islem
+  //    basina sabit maliyeti (bkz. tasarim3_sabit.I2C_ISLEM_EK_US).
+  //    Kod zaten VARSAYMIYOR, OLCUYOR — o yuzden guc dogru kaldi. Ama
+  //    duzeltme olmasaydi 50 Hz / PF=0.5 yukte hata %8.35 olurdu
+  //    (95 us varsayilsaydi bile artik %2.5 kalirdi).
   ads_tek_atis_baslat(ADS_GERILIM, etkin_mux(), etkin_kanal()->pga);
   uint32_t t_yaz_bas = micros();
   ads_tek_atis_baslat(ADS_AKIM, MUX_01, ayar.i_pga);
   uint32_t t_kayma_us = micros() - t_yaz_bas;   // OLCULUYOR, varsayilmiyor
+  faz_kayma_top += t_kayma_us;                 /* B29: `T` satirinda */
+  uint32_t t1 = micros();
 
   // 2) Donusumun bitmesini bekle. ALERT/RDY akim cipinde kurulu; o
   //    bittiyse gerilim de bitmistir (once baslatildi, ayni sure).
   if (!yeni_donusum_bekle(4000)) delayMicroseconds(1300);
+  uint32_t t2 = micros();
 
   int16_t ham_v = ads_oku(ADS_GERILIM);
   int16_t ham_i = ads_oku(ADS_AKIM);
+  uint32_t t3 = micros();
+
+  if (faz_adet >= 256u) {      /* kayan pencere: son 256 cevrim */
+    faz_yaz_top = faz_bek_top = faz_oku_top = faz_kayma_top = 0; faz_adet = 0;
+  }
+  faz_yaz_top += t1 - t0;
+  faz_bek_top += t2 - t1;
+  faz_oku_top += t3 - t2;
+  faz_adet++;
 
   Okuma3 ham = olc3(ham_v, ham_i, etkin_kanal(),
                     ayar.i_ofset, ayar.i_pga, ayar.sont_ohm,
@@ -2058,6 +2094,23 @@ void ayar_yaz_seri() {
      burada gorunur. */
   Serial.print(F(" bos_dram="));
   Serial.println((unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+  /* B29: cevrim suresinin dagilimi — hangi faz yiyor. */
+  if (faz_adet) {
+    /* ⚠ Onek `F`: `T ` ZATEN osiloskop ayar satirinin onegi
+       (`T tdiv=... hz=...`) ve tezgah kosucusu onu TELEMETRI sayip
+       suzuyor. Ayni onegi ikinci bir anlamla kullanmak, bu projenin
+       defalarca cezalandirdigi sey. */
+    Serial.print(F("F yaz_us="));  Serial.print(faz_yaz_top / faz_adet);
+    Serial.print(F(" bek_us="));   Serial.print(faz_bek_top / faz_adet);
+    Serial.print(F(" oku_us="));   Serial.print(faz_oku_top / faz_adet);
+    Serial.print(F(" toplam_us="));
+    Serial.print((faz_yaz_top + faz_bek_top + faz_oku_top) / faz_adet);
+    Serial.print(F(" kayma_us=")); Serial.print(faz_kayma_top / faz_adet);
+    Serial.print(F(" kayma_ornek="));
+    Serial.print((float)faz_kayma_top / faz_adet
+                 / ((float)(faz_yaz_top + faz_bek_top + faz_oku_top) / faz_adet), 4);
+    Serial.print(F(" cevrim="));   Serial.println(faz_adet);
+  }
 }
 
 // Bir ADS1115 cevap vermiyorsa sebep genelde uctan bire indirgenir:

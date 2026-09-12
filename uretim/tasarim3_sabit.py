@@ -13,6 +13,33 @@ import math
 VDD = 3.3
 ADS_SAYIM = 32768
 ADS_SPS = 860
+
+# 🔴 B29 (2026-09-12) — I2C ISLEM BASINA YAZILIM YUKU, KARTTA OLCULDU.
+#
+# Dongu periyodu butcesi yalnizca BIT SURESINI sayiyordu ve gercegin
+# %27 altinda kaliyordu: model 1.49 ms, kart 2.05 ms. Iki ADS takilinca
+# bringup kosucusu "ornek 96, beklenen 133" diye kirmizi yandi — kusur
+# kartta degil MODELDE idi.
+#
+# Firmware'e faz sayaci konup olculdu (`?` -> `T` satiri, 256 cevrimlik
+# kayan ortalama, uc ayri kosuda ayni cikti):
+#     iki ayar yazmasi        320 us   (bit suresi  90 us)
+#     RDY bekleme (donusum)  1227 us   (nominal   1163 us, ±%10 osilator)
+#     iki donusum okumasi     500 us   (bit suresi 224 us)
+#     ----------------------------------------------------------------
+#     toplam                 2047 us  ->  489 cevrim/s
+#
+# Fark islem SAYISIYLA orantili: cevrimde 6 Wire islemi var (2 yazma +
+# 2x[isaretci yazmasi + okuma]) ve fazlalik islem basina ~69 us. Bu,
+# ESP32 Arduino `Wire` surucusunun islem basina sabit maliyeti (komut
+# kuyrugu kurulumu + semafor bekleme) — bit hizindan BAGIMSIZ, yani
+# 400 kHz'i yukseltmek bu kismi kisaltmaz.
+#
+# ⚠ Tik yuvarlamasi DEGIL: olculen fazlarin hicbiri 1000 us'in kati
+#   degil. B22.1'deki `enableDelay` kusuru (periyodu 2000 us'e kilitler)
+#   geri gelmedi — o kusurda `bek` fazi tikta biterdi.
+I2C_ISLEM_EK_US = 69.0        # olculen, B29; cevrimde 6 islem
+I2C_ISLEM_ADET = 6            # 2 ayar yazmasi + 2 x (isaretci + okuma)
 # ADS1115 IC OSILATOR TOLERANSI — TI veri sayfasi (SBAS444).
 # 860 SPS nominal, gercekte 774..946 SPS. B17'nin ana bulgusunun
 # kaynagi bu: iki ADS surekli kipte kosarsa aralarindaki ornekleme
@@ -818,7 +845,9 @@ ESP_DRAM_TOPLAM = 327680                  # bayt, arduino-cli'nin bildirdigi
 # ⚠ Bu BAG ANI degeri; kuyruklarin kendisi (48 x 224 B) ve ag gorevinin
 #   8 KB yigini CALISMA ANINDA ayriliyor — kartta `?` ciktisindaki
 #   `bos_dram=` alanina bak.
-_ESP_DRAM_SON_OLCUM = 71284               # bayt, B6 derlemesi 2026-09-12
+# B29: 71284 -> 71308 (+24 B). Cevrim faz sayaclari (faz_yaz/bek/oku/
+# kayma toplamlari + adet) — `F` satirinin kaynagi.
+_ESP_DRAM_SON_OLCUM = 71308               # bayt, B6 derlemesi 2026-09-12
 
 
 def _dram_kullanilan() -> int:
