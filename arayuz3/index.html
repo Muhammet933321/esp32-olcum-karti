@@ -361,6 +361,23 @@
       pencere {{ skopPencere }} ·
       {{ osilo.tetiklendi ? 'tetiklendi' : 'serbest koşu' }}
       <span v-if="surekli"> · {{ surekliHiz.toFixed(1) }} yakalama/sn</span>
+      <!-- 🔴 GERİLİM EKSENİ KALİBRE Mİ — SUSMUYORUZ. Düzeltme yokken
+           eksen yine çizilir ve "ölçülmüş" görünür; B34 o varsayımın
+           girişte 9 V'a varan hata verdiğini ölçtü. Hangi eksende
+           olduğun yazmazsa sayılar sessizce yanlış okunur. -->
+      · <span v-if="skopKal" class="kal-rozet"
+              title="Gerilim ekseni çipin kendi eFuse eğrisiyle düzeltiliyor">
+          eksen kalibre</span>
+        <span v-else class="kal-rozet yok"
+              title="Kart kalibrasyon tablosu vermedi — eksen sabit çarpanla çiziliyor">
+          eksen HAM</span>
+    </p>
+    <p v-if="!skopKal" class="ipucu">
+      ⚠ Gerilim ekseni <strong>düzeltmesiz</strong>: ham ADC kodu sabit
+      bir çarpanla çevriliyor. Kartta ölçüldü — bu varsayım girişte
+      <strong>9 V'a varan</strong> sapma veriyor (tam ölçeğin %8'i).
+      Kart <code>CT</code> komutuna yanıt verirse düzeltme kendiliğinden
+      devreye girer.
     </p>
     <p v-if="esikMenzilDisi" class="skop-uyari">
       ⚠ Tetik seviyesi ({{ esikVolt.toFixed(2) }} V) sinyalin dışında —

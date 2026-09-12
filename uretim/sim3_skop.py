@@ -580,6 +580,58 @@ def bolum6(r):
             f"{HAM_INL_KOD*T.SKOP_ADIM:.2f} V (skop girisinde)")
     r.bilgi(f"                  kalibre {KAL_INL_MV:.1f} mV (pinde) -> "
             f"{KAL_INL_MV/kod_mv*T.SKOP_ADIM:.2f} V (skop girisinde)")
+    # ── B36: duzeltme artik ARAYUZE GIDIYOR ─────────────────────────
+    # B34 olcumu bitirdi ama duzeltme uygulanmiyordu. `CT` komutu cipin
+    # KENDI eFuse egrisini arayuze veriyor; duzeltme CIZIM ANINDA
+    # yapiliyor ve kayitlar ham kod tuttugu icin (B35) ESKI yakalamalara
+    # da uygulaniyor.
+    r.kosul("  6c: `CT` kalibrasyon tablosu komutu VAR",
+            "case 'C': {" in ino and 'F("CT ")' in ino,
+            "tablo olmadan arayuz ekseni duzeltemez")
+    # 🔴 `oran` ve `ofset` TABLOYLA BIRLIKTE gitmeli: arayuz bunlari
+    #    kendi sabitlerinden turetseydi VREF bir gun kalibre edilince
+    #    ceviri SESSIZCE kayardi.
+    r.kosul("  6c: [!] tablo `oran` ve `ofset`i de tasiyor",
+            'F(" oran=")' in ino and 'F(" ofset=")' in ino,
+            "arayuz V = (mv/1000)*oran - ofset hesabini bunlarla yapiyor; "
+            "kendi sabitinden turetseydi VREF kalibre edilince kayardi")
+    r.kosul("  6c: kalibrasyon YOKKEN tablo SESSIZ kalmiyor",
+            'F("CT 0 kaynak=YOK")' in ino,
+            "duzeltmesiz bir eksen 'kalibre' sanilirdi")
+    # Tablo, kartin KENDI dogrusal varsayimini da bildiriyor ki kazanc
+    # hatasi gorunur olsun (B34: varsayilan 3100, olculen 3160).
+    r.kosul("  6c: tablo kartin dogrusal varsayimini (tavan_mv) bildiriyor",
+            'F(" tavan_mv=")' in ino)
+
+    # 🔴 GPIO5 (hizli AKIM kanali) icin ham kod yolu. B34 yalnizca
+    #    GPIO4'u olcebildi cunku ham kodu disari veren TEK yol skop
+    #    yakalamasiydi ve skop yalnizca SKOP_KANAL'i okuyor.
+    r.kosul("  6d: [!] hizli kanallarin HAM kodu okunabiliyor (`wR`)",
+            # ⚠ TAM IMZA ve TAM CAGRI araniyor. Once yalniz
+            #   "hizli_ham_yolla" araniyordu ve MUTASYON KACTI: yeniden
+            #   adlandirma (`..._`) alt dizge olarak hala esleşiyordu.
+            "static void hizli_ham_yolla(void) {" in ino
+            and "hizli_ham_yolla();" in ino
+            and 'F("WR v_ort=")' in ino,
+            "GPIO5 hic karakterize edilmedi ve guc faktorunun BASKA "
+            "kaynagi yok (ADS yolu 487 SPS ile PF veremez)")
+    # `w`nin "giris RAYDA" korumasi `wR`de BILEREK yok: dogrusallik
+    # supurmesi tam da rayin yakinini olcmek zorunda. Ama `wR` WATT
+    # basmiyor, yani "olculmus guc" gibi gorunen bir sey uretmiyor.
+    # `wR` govdesi: tanimdan `W ` basan `hizli_yolla`ya kadar olan parca.
+    _wr_govde = ino.split("static void hizli_ham_yolla")[1].split(
+        "// `w` komutu")[0]
+    r.kosul("  6d: `wR` WATT basmiyor (yalnizca ham kod)",
+            # ⚠ CAGRI bicimine bakiliyor, bare kelimeye DEGIL: govdedeki
+            #   yorum zaten "`hizli_olcekle` CAGRILMIYOR" diyor ve duz
+            #   kelime aramasi o yorumla eslesip iddiayi kirmiziya
+            #   dondurmustu. Metin tabanli iddianin kendi aciklamasini
+            #   yakalamasi — bu projede kacinci.
+            "hizli_olcekle(" not in _wr_govde and 'F("W ")' not in _wr_govde,
+            "ray korumasi BILEREK yok (supurme rayin yakinini olcmeli); "
+            "ama guc de raporlanmiyor, yani 'olculmus guc' gibi gorunen "
+            "bir sey uretmiyor")
+
     r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
             HAM_INL_KOD * T.SKOP_ADIM
             < 0.05 * (T.SKOP_MENZIL_ARTI - T.SKOP_MENZIL_EKSI),

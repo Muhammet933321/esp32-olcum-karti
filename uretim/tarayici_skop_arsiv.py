@@ -57,6 +57,25 @@ def u(ifade: str) -> str:
 
 
 
+def _kal_volt(kod: int) -> float:
+    """Beklenen kalibre gerilimi — arayuzden BAGIMSIZ hesap.
+
+    `CT_SATIR`in ciftlerini dogrusal aradeğerleyip
+    `V = (mv/1000)*oran - ofset` uyguluyor. Arayuzun `kodVolt`u
+    cagrilsaydi test kendi kendini dogrulardi.
+    """
+    parcalar = [x for x in CT_SATIR.split() if ":" in x]
+    tab = [tuple(float(y) for y in x.split(":")) for x in parcalar]
+    ORAN, OFSET = 38.037037, 63.530090
+    mv = tab[-1][1]
+    for i in range(len(tab) - 1):
+        (k0, v0), (k1, v1) = tab[i], tab[i + 1]
+        if k0 <= kod <= k1:
+            mv = v0 + (v1 - v0) * (kod - k0) / (k1 - k0)
+            break
+    return mv / 1000.0 * ORAN - OFSET
+
+
 def ok(ad: str, kosul: bool, ek: str = "") -> None:
     global gecti, kaldi
     if kosul:
@@ -88,6 +107,18 @@ KAYITLAR = {
         "ornek": _dalga(137, 40), "olcum": "", "tam": False, "atlanan": 3,
     },
 }
+
+
+# Arayuzun `/komut` ile istedigi satirlar buraya dusuyor, SSE onlari
+# yayiyor.
+KUYRUK = []
+
+# GERCEK KARTTAN alinan tablo (2026-09-12, ESP32-S3 N16R8 eFuse egrisi).
+# Uydurulsaydi test kendi uydurmasini dogrulardi.
+CT_SATIR = ("CT 17 oran=38.037037 ofset=63.530090 tavan_mv=3100.0"
+            " 0:0 256:229 512:452 768:667 1024:883 1280:1095 1536:1309"
+            " 1792:1524 2048:1739 2304:1954 2560:2165 2816:2372 3072:2568"
+            " 3328:2750 3584:2914 3840:3053 4095:3160")
 
 
 class SahteKopru(http.server.SimpleHTTPRequestHandler):
@@ -142,7 +173,18 @@ class SahteKopru(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b'event: kimlik\ndata: {"jeton":"x","surucu":true}\n\n')
                 self.wfile.flush()
                 import time
-                time.sleep(30)
+                # `/komut`a gelen istekler KUYRUK'a dusuyor, buradan
+                # yayiliyor. GERCEK yol bu: komut POST edilir, yanit
+                # AKISTAN gelir. Yaniti POST govdesinde dondurmek gercek
+                # koprunun yaptigi sey DEGIL ve testi gercek yolundan
+                # kacirirdi.
+                son = time.monotonic() + 30
+                while time.monotonic() < son:
+                    while KUYRUK:
+                        sat = KUYRUK.pop(0)
+                        self.wfile.write(b"data: " + sat.encode() + b"\n\n")
+                        self.wfile.flush()
+                    time.sleep(0.05)
             except OSError:
                 pass
             return
@@ -150,7 +192,12 @@ class SahteKopru(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
-        self.rfile.read(n)
+        metin = self.rfile.read(n).decode("utf-8", "replace").strip()
+        # Kalibrasyon tablosu AKISTAN gidiyor — gercek kartta da oyle.
+        # POST govdesinde dondurmek gercek koprunun yaptigi sey DEGIL ve
+        # testi gercek yolundan kacirirdi.
+        if metin == "CT":
+            KUYRUK.append(CT_SATIR)
         self._gonder(204, b"", "text/plain")
 
 
@@ -247,6 +294,22 @@ def main() -> int:
             t.js("document.querySelectorAll('.kayit')[1].click()")
             t.bekle(2.0)
 
+            # ── Gerilim ekseni kalibrasyonu (B36) ────────────────────
+            # 🔴 Bu, `test_arayuz3.js` bolum 17'nin TARAYICIDAKI
+            #    karsiligi. Orada kaynak metni ve saf fonksiyonlar
+            #    sinaniyor; burada GERCEK Vue, GERCEK DOM ve GERCEK
+            #    komut -> SSE yolu var: arayuz `CT` POST ediyor, sahte
+            #    kopru satiri AKISTAN yayiyor, `satirIsle` ayristiriyor.
+            ok("[!] Kalibrasyon tablosu AKISTAN gelip kuruldu",
+               t.js(u("skopKal ? g.skopKal.kod.length : 0")) == 17,
+               str(t.js(u("skopKal ? g.skopKal.kod.length : 0"))))
+            # ⚠ ROZET YAKALAMA SATIRININ ICINDE (`v-if="osilo"`), yani
+            #   ilk yakalamadan ONCE gorunmuyor — iddiasi asagida, kayit
+            #   acildiktan sonra. Buradaki "eksen HAM" uyarisi ise
+            #   `osilo`dan BAGIMSIZ: asil susmama guvencesi o.
+            ok("Duzeltmesiz uyarisi ARTIK YOK",
+               "eksen HAM" not in (t.js("document.body.innerText") or ""))
+
             ok("[!] Arsiv kaydi COZULDU ve cizildi",
                t.js(u("osilo ? g.osilo.veri.length : -1")) == 400,
                str(t.js(u("osilo ? g.osilo.veri.length : -1"))))
@@ -262,6 +325,43 @@ def main() -> int:
             ok("[!] Tuvalde ARSIV seridi belirdi (canli sanilmasin)",
                t.js("!!document.querySelector('.arsiv-serit')") is True
                and t.js("document.body.innerText.includes('canlı değil')") is True)
+            # ⚠ `innerText` DEGIL `textContent`. Rozette
+            #   `text-transform: uppercase` var ve sayfa `lang="tr"`;
+            #   Chrome Turkce buyuk harf uyguluyor, yani "kalibre"
+            #   ekrana "KALİBRE" (noktali I) olarak dusuyor ve ASCII
+            #   karsilastirmasi TUTMUYOR. `textContent` donusumu
+            #   uygulamaz. (Ayni tuzak `kırpık` rozetinde de yasandi.)
+            rozet = t.js("(() => { const e ="
+                         " document.querySelector('.kal-rozet');"
+                         " return e ? e.textContent.trim() + '|'"
+                         " + e.className : 'YOK'; })()")
+            ok("[!] Ekranda 'eksen kalibre' yaziyor",
+               rozet.startswith("eksen kalibre") and "yok" not in rozet,
+               str(rozet))
+            # 🔴 ARSIV kaydi da KALIBRE eksende ciziliyor. Kayitlar ham
+            #    kod tuttugu icin (B35) duzeltme GERIYE DONUK uygulaniyor
+            #    — B36'nin siralamayi belirleyen gerekcesi tam buydu.
+            #    Beklenen deger BAGIMSIZ hesaplaniyor (arayuzun kendi
+            #    fonksiyonu cagrilmiyor), yoksa test kendini dogrularadi.
+            tepe_kod = max(KAYITLAR[("2026-09-12", 1200)]["ornek"])
+            bekleniyor = _kal_volt(tepe_kod)
+            olculen = t.js(u("osiloTepe"))
+            ok("[!] Arsiv kaydinin tepe degeri KALIBRE eksende",
+               abs(olculen - bekleniyor) < 0.02,
+               f"kod {tepe_kod} -> {olculen:.3f} V "
+               f"(bagimsiz hesap {bekleniyor:.3f} V)")
+            # Duzeltmesiz deger BASKA olmali; aksi halde "kalibre" bos
+            # bir etiket olurdu.
+            # ⚠ SKOP_VOLT_ADIM = TAVAN(V) / 4096 * ORAN. Ilk yazimda
+            #   mV kullanmistim (3100.0) ve `ham` 1000 kat buyuk cikti;
+            #   iddia YINE GECIYORDU cunku "fark > 1 V" bakiyordu —
+            #   yanlis sebeple gecen bir iddia.
+            ham = tepe_kod * (3.10 / 4096 * 38.037037) - 63.530090
+            ok("Kalibre deger HAM degerden belirgin FARKLI",
+               1.0 < abs(olculen - ham) < 20.0,
+               f"{olculen:.3f} V vs ham {ham:.3f} V "
+               f"(fark {olculen - ham:+.3f} V)")
+
             ok("Acik kayit listede isaretli",
                t.js("document.querySelectorAll('.kayit.acik').length") == 1,
                str(t.js("document.querySelectorAll('.kayit.acik').length")))

@@ -1294,6 +1294,70 @@ static void hizli_olcekle(uint16_t adet) {
     }
 }
 
+/* 🔴 B36 — HIZLI KANALLARIN HAM KODU (`wR`).
+   Neden gerekiyor: B34'te ADC dogrusalsizligi OLCULDU ama yalnizca
+   GPIO4'te, cunku ham kodu disari veren TEK yol skop yakalamasi ve
+   skop yalnizca SKOP_KANAL'i okuyor. GPIO5 (hizli AKIM kanali, ADC1_CH4)
+   bugune kadar HIC karakterize edilmedi — ve guc faktorunun BASKA
+   KAYNAGI YOK (ADS yolu 487 SPS ile PF veremez).
+
+   ⚠ `w`nin "giris RAYDA" korumasi burada BILEREK YOK. O koruma bos
+     girisin 223 W basmasini engelliyor (B27/K3) ve dogru; ama
+     dogrusallik supurmesi tam da rayin yakinini olcmek zorunda.
+     Bu komut WATT BASMIYOR, yalnizca HAM KOD basiyor — yani "olculmus
+     guc" gibi gorunen bir sey uretmiyor.
+
+   Ayrica GPIO4'u de basiyor: B34'un skop yoluyla yaptigi supurme ile
+   BAGIMSIZ bir yoldan karsilastirilabilsin. Ayni pin, iki farkli okuma
+   zinciri; ayrisirlarsa biri yanlistir. */
+static void hizli_ham_yolla(void) {
+    if (!skop_kulp) { Serial.println(F("! hizli ham: ADC kulpu yok")); return; }
+    adc_continuous_stop(skop_kulp);
+    if (!hizli_kur()) {
+        Serial.println(F("! hizli ham: 2 kanalli yapilandirma basarisiz"));
+        skop_hiz_ayarla(skop_hz ? skop_hz : SKOP_HZ_AZAMI);
+        return;
+    }
+    if (adc_continuous_start(skop_kulp) != ESP_OK) {
+        Serial.println(F("! hizli ham: baslatilamadi"));
+        skop_hiz_ayarla(skop_hz ? skop_hz : SKOP_HZ_AZAMI);
+        return;
+    }
+    uint16_t nv = 0, ni = 0;
+    bool tamam = hizli_yakala(&nv, &ni);
+    adc_continuous_stop(skop_kulp);
+    if (!tamam) {
+        Serial.print(F("! hizli ham: yeterli ornek yok  V="));
+        Serial.print(nv); Serial.print(F(" I=")); Serial.println(ni);
+        skop_hiz_ayarla(skop_hz ? skop_hz : SKOP_HZ_AZAMI);
+        return;
+    }
+    /* `hizli_olcekle` CAGRILMIYOR — diziler ham kod olarak kaliyor. */
+    float v_top = 0, i_top = 0;
+    uint16_t v_min = 0xFFFF, v_max = 0, i_min = 0xFFFF, i_max = 0;
+    for (uint16_t n = 0; n < nv; n++) {
+        uint16_t k = (uint16_t)hizli_v[n];
+        v_top += hizli_v[n];
+        if (k < v_min) v_min = k;
+        if (k > v_max) v_max = k;
+    }
+    for (uint16_t n = 0; n < ni; n++) {
+        uint16_t k = (uint16_t)hizli_i[n];
+        i_top += hizli_i[n];
+        if (k < i_min) i_min = k;
+        if (k > i_max) i_max = k;
+    }
+    Serial.print(F("WR v_ort="));  Serial.print(v_top / nv, 3);
+    Serial.print(F(" v_min="));    Serial.print(v_min);
+    Serial.print(F(" v_max="));    Serial.print(v_max);
+    Serial.print(F(" v_n="));      Serial.print(nv);
+    Serial.print(F(" i_ort="));    Serial.print(i_top / ni, 3);
+    Serial.print(F(" i_min="));    Serial.print(i_min);
+    Serial.print(F(" i_max="));    Serial.print(i_max);
+    Serial.print(F(" i_n="));      Serial.println(ni);
+    skop_hiz_ayarla(skop_hz ? skop_hz : SKOP_HZ_AZAMI);
+}
+
 // `w` komutu — bir pencere yakalayip gucu raporlar.
 //
 // PROTOKOL:
@@ -2284,6 +2348,8 @@ void yardim() {
   Serial.println(F("  X<hz> kalibrasyon cikisi (GPIO10, %50 kare), X0 kapatir"));
   Serial.println(F("  x<promil> CAL gorev orani 0..1000 (PWM+RC = DC kaynagi)"));
   Serial.println(F("  c<ham> ham ADC kodunun fabrika kalibrasyonlu mV karsiligi"));
+  Serial.println(F("  CT kalibrasyon tablosu (17 nokta) — arayuz skop eksenini duzeltir"));
+  Serial.println(F("  wR hizli kanallarin HAM kodu (GPIO4 + GPIO5 dogrusallik supurmesi)"));
   Serial.println(F("  R! fabrika ayarlari (kalibrasyonu SIFIRLAR)"));
   Serial.println(F("  t yakala  ta otomatik  tb<0-11> zaman tabani  t+ t-"));
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  t?"));
@@ -2343,6 +2409,58 @@ void komut_calistir(const char *s) {
        `c<ham>` -> `c ham=2048 mv=1571 kaynak=egri`. Olculmus bir supurmeyi
        KAYNAGI DEGISTIRMEDEN kalibrasyondan gecirmeye yariyor: egri ADC'nin
        mi yoksa PWM+RC kaynaginin mi, ayrimi boyle yapiliyor. */
+    /* 🔴 B36 — KALIBRASYON TABLOSU (`cT`).
+       Skopun gerilim ekseni bugun ham kodu SABIT bir carpanla ceviriyor;
+       B34 o varsayimin ±76 kod (girisde ±2.2 V) hata verdigini OLCTU.
+       Egri tek bir carpanla ifade edilemez, o yuzden arayuze BILGI olarak
+       gonderiliyor ve duzeltme CIZIM ANINDA yapiliyor.
+
+       ⚠ TABLO KARTTAN GELIYOR, KODA GOMULU DEGIL. Her yonganin eFuse
+         egrisi KENDISINE ait; benim tek bir kartta olctugum egriyi koda
+         gommek baska bir karta YANLIS duzeltme uygulamak olurdu.
+         B34'un 101 noktali olcumu bu tablonun KAYNAGI degil, DENETIMI.
+
+       ⚠ Kayitlar HAM kod tutuyor (B35), yani bu duzeltme eski
+         yakalamalara da uygulanabiliyor — kalibrasyon degisirse kayitlar
+         yeniden yorumlanir, yeniden olcmek gerekmez.
+
+       Cikti tek satir:
+         `CT <n> oran=<f> ofset=<f> tavan_mv=<f> <kod0>:<mv0> ...`
+
+       ⚠ `oran` ve `ofset` BILEREK BURADA. Arayuz duzeltilmis gerilimi
+         `V = (mv/1000)*oran - ofset` ile buluyor. Bunlari gondermeyip
+         arayuzun `voltAdim`/`voltOfset`ten turetmesini isteseydik,
+         turetme VREF'in nominal degerine gomulu bir varsayima dayanirdi
+         ve VREF bir gun kalibre edilince SESSIZCE kayardi.
+
+       `tavan_mv` kartin KENDI dogrusal varsayimi (SKOP_ADC_TAVAN).
+       Tablonun son noktasiyla karsilastirilinca kazanc hatasi gorunur
+       olur — B34 bunu olctu: varsayilan 3100, olculen 3160 (%1.9).
+
+       Kalibrasyon yoksa `CT 0 kaynak=YOK` — SESSIZ kalmiyor, cunku
+       duzeltmesiz cizim "kalibre" sanilirdi. */
+    case 'C': {
+      if (s[1] != 'T') { Serial.println(F("! bilinmeyen komut — `h` yardim")); break; }
+      if (!skop_cali_var) {
+        Serial.println(F("CT 0 kaynak=YOK"));
+        break;
+      }
+      const uint8_t N = 17;              // 0, 256, ..., 4096-1
+      Serial.print(F("CT ")); Serial.print(N);
+      Serial.print(F(" oran="));    Serial.print(SKOP_ORAN, 6);
+      Serial.print(F(" ofset="));   Serial.print(SKOP_VOLT_OFSET, 6);
+      Serial.print(F(" tavan_mv="));Serial.print(SKOP_ADC_TAVAN * 1000.0f, 1);
+      for (uint8_t k = 0; k < N; k++) {
+        int kod = (k == N - 1) ? 4095 : (int)k * 256;
+        int mv = -1;
+        adc_cali_raw_to_voltage(skop_cali, kod, &mv);
+        Serial.print(' '); Serial.print(kod);
+        Serial.print(':');  Serial.print(mv);
+      }
+      Serial.println();
+      break;
+    }
+
     case 'c': {
       long ham = atol(s + 1);
       if (ham < 0) ham = 0;
@@ -2743,7 +2861,12 @@ void komut_calistir(const char *s) {
 
     case 't': skop_komut(s); break;
 
-    case 'w': hizli_yolla(); break;   /* B8 — hizli yol gucu */
+    /* B8 — hizli yol gucu. `wR` HAM KOD basiyor (B36, dogrusallik
+       supurmesi icin); duz `w` eskisi gibi guc raporluyor. */
+    case 'w':
+      if (s[1] == 'R') hizli_ham_yolla();
+      else             hizli_yolla();
+      break;
 
     /* ── B22.4: AG AYARLARI ────────────────────────────────────────
      *   N?          durumu goster (AP parolasi dahil)

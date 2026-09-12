@@ -370,6 +370,18 @@ createApp({
       skopAcikKayit: null,   // {gun, ms} — şu an çizilen arşiv kaydı
       skopArsivtenAciliyor: false,   // osiloBitir() listeyi tazelemesin
 
+      /* ── skop gerilim ekseni kalibrasyonu (B36) ───────────────────
+         🔴 Kart ham ADC kodunu SABİT bir çarpanla volta çeviriyordu;
+            B34 bu varsayımın ölçüldüğünde tutmadığını gösterdi. Kartın
+            `CT` komutu çipin kendi eFuse eğrisini veriyor ve düzeltme
+            ÇİZİM ANINDA uygulanıyor.
+         ⚠ Tablo KARTTAN geliyor, buraya gömülü DEĞİL: her yonganın
+           eğrisi kendisine ait. Gömülseydi başka bir karta yanlış
+           düzeltme uygulanırdı.
+         ⚠ Kayıtlar ham kod tuttuğu için (B35) düzeltme ESKİ
+           yakalamalara da uygulanıyor. */
+      skopKal: null,        // {oran, ofset, tavanMv, kod[], mv[]}
+
       // fare ile kaydırma
       suruk: null,
 
@@ -533,11 +545,7 @@ createApp({
     esikVolt() {
       /* B19: skop çift yönlü — kod → volt çevirisi ofsetli.
          Yedek katsayılar da yeni bölücüye göre (100k + 2.7k)/2.7k. */
-      const va = this.osilo ? this.osilo.voltAdim
-                            : (3.10 / 4096 * 38.03703704);
-      const of = this.osilo ? (this.osilo.voltOfset || 0)
-                            : (1.71531250 * (38.03703704 - 1));
-      return this.skopEsik * va - of;
+      return this.kodVolt(this.skopEsik);
     },
     /* Tetik seviyesi sinyalin dışındaysa hiç tetiklenemez — söyle. */
     esikMenzilDisi() {
@@ -727,8 +735,7 @@ createApp({
 
     osiloTepe() {
       if (!this.osilo) return 0;
-      return Math.max(...this.osilo.veri) * this.osilo.voltAdim
-             - (this.osilo.voltOfset || 0);
+      return this.kodVolt(Math.max(...this.osilo.veri));
     },
   },
 
@@ -1018,6 +1025,11 @@ createApp({
         /* B35: PC kopruşuna bağlıysak skop arşivi var. Yoklama sessizce
            başarısız olabilir — arşiv bir ek özellik, yokluğu ölçümü
            etkilemiyor, o yüzden bağlanmayı BLOKLAMIYOR. */
+        /* B36: skop gerilim ekseninin kalibrasyon tablosu. Kart ham kod
+           yolluyor; düzeltme çizim anında burada uygulanıyor. Tablo
+           gelmezse eksen ESKİ (düzeltmesiz) yolla çiziliyor ve arayüz
+           bunu söylüyor — sessizce "kalibre" görünmüyor. */
+        try { await this.gonder('CT'); } catch (e3) { /* tablosuz devam */ }
         this.kopruYokla();
       } catch (e) {
         // Kullanıcı port seçim kutusunu kapattıysa bu hata değil.
@@ -1088,6 +1100,47 @@ createApp({
           olcum: null,
           veri: [],
         };
+        return;
+      }
+
+      /* CT <n> oran=<f> ofset=<f> tavan_mv=<f> <kod>:<mv> …
+         Kalibrasyon tablosu. `CT 0 kaynak=YOK` gelirse tablo kurulmuyor
+         ve arayüz bunu SÖYLÜYOR — düzeltmesiz bir eksen "kalibre"
+         sanılmamalı. */
+      if (p[0] === 'CT') {
+        const n = parseInt(p[1], 10);
+        if (!n) { this.skopKal = null; return; }
+        const kal = { oran: 0, ofset: 0, tavanMv: 0, kod: [], mv: [] };
+        for (const alan of p.slice(2)) {
+          const e = alan.indexOf('=');
+          if (e > 0) {
+            const ad = alan.slice(0, e), d = parseFloat(alan.slice(e + 1));
+            if (ad === 'oran') kal.oran = d;
+            else if (ad === 'ofset') kal.ofset = d;
+            else if (ad === 'tavan_mv') kal.tavanMv = d;
+            continue;
+          }
+          const i = alan.indexOf(':');
+          if (i > 0) {
+            kal.kod.push(parseInt(alan.slice(0, i), 10));
+            kal.mv.push(parseFloat(alan.slice(i + 1)));
+          }
+        }
+        /* Eksik ya da bozuk tablo SESSİZCE kullanılmıyor: yarım bir
+           tablo düzeltme yapıyormuş gibi görünüp ekseni bozardı. */
+        /* ⚠ NaN DENETIMI DE SART. `256:abc` gibi bozuk bir cift
+             `parseFloat` ile NaN uretiyor; uzunluklar tutuyor, `oran`
+             yerinde, yani onceki denetimlerden GECIYORDU. Sonuc: her
+             gerilim NaN olur ve dalga ekrandan SESSIZCE kaybolur —
+             "kalibre" rozeti yanarken. */
+        const sayiTamam = kal.kod.every(Number.isFinite)
+                       && kal.mv.every(Number.isFinite)
+                       && Number.isFinite(kal.oran);
+        this.skopKal = (kal.oran > 0 && kal.kod.length >= 2
+                        && kal.kod.length === kal.mv.length
+                        && sayiTamam) ? kal : null;
+        if (!this.skopKal) this.hata = 'Kalibrasyon tablosu okunamadı';
+        this.$nextTick(() => this.osiloCiz());
         return;
       }
 
@@ -1633,6 +1686,45 @@ createApp({
       }
     },
 
+    /* 🔴 TEK ÇEVİRİ NOKTASI — kod → giriş volt.
+       `kod * voltAdim - voltOfset` DÖRT ayrı yerde yazılıydı (tetik
+       seviyesi, tepe değeri, dikey ölçek, çizim döngüsü). Kalibrasyon
+       düzeltmesi eklenince dördünün de değişmesi gerekirdi; biri
+       unutulsa ızgara etiketi bir şey, iz başka şey gösterirdi ve hata
+       SESSİZ olurdu. Artık hepsi buradan geçiyor.
+
+       Kalibrasyon varsa: V = (mv(kod)/1000) * oran - ofset
+       Yoksa            : V = kod * voltAdim - voltOfset   (eski yol) */
+    kodVolt(kod) {
+      const o = this.osilo;
+      const of = o ? (o.voltOfset || 0)
+                   : (1.71531250 * (38.03703704 - 1));
+      const k = this.skopKal;
+      if (k) return this.kalMv(kod) / 1000 * k.oran - of;
+      const va = o ? o.voltAdim : (3.10 / 4096 * 38.03703704);
+      return kod * va - of;
+    },
+
+    /* Tabloyu doğrusal aradeğerleyerek ham kodun mV karşılığı.
+       Tablo dışına taşan kod uçtaki eğimle uzatılıyor — kırpılsaydı
+       doyuma giren bir sinyal DÜZ bir çizgi gibi görünür ve kırpıldığı
+       anlaşılmazdı. */
+    kalMv(kod) {
+      const { kod: ks, mv: vs } = this.skopKal;
+      const n = ks.length;
+      if (kod <= ks[0]) {
+        const e = (vs[1] - vs[0]) / (ks[1] - ks[0]);
+        return vs[0] + (kod - ks[0]) * e;
+      }
+      if (kod >= ks[n - 1]) {
+        const e = (vs[n - 1] - vs[n - 2]) / (ks[n - 1] - ks[n - 2]);
+        return vs[n - 1] + (kod - ks[n - 1]) * e;
+      }
+      let i = 0;
+      while (i < n - 2 && ks[i + 1] < kod) i++;
+      return vs[i] + (vs[i + 1] - vs[i]) * (kod - ks[i]) / (ks[i + 1] - ks[i]);
+    },
+
     skopZaman(ms) {
       /* Köprünün damgası AÇILIŞINDAN İTİBAREN geçen ms — duvar saati
          değil. Duvar saati gibi gösterip yanıltmak yerine olduğu gibi
@@ -1987,8 +2079,10 @@ createApp({
         return;
       }
 
-      const { veri, voltAdim, hz, adet } = this.osilo;
-      const voltOfset = this.osilo.voltOfset || 0;
+      /* ⚠ `voltAdim`/`voltOfset` ARTIK BURADA OKUNMUYOR: kod→volt
+         çevirisi tek noktada (`kodVolt`). Burada tutulsalardı ölçek
+         düzeltmesi geldiğinde biri güncellenip diğeri unutulabilirdi. */
+      const { veri, hz, adet } = this.osilo;
       if (!adet || adet < 2) return;
 
       /* Yatay pencere: yakınlaştırma yapılmışsa kaydın bir bölümü.
@@ -2007,8 +2101,8 @@ createApp({
         if (veri[i] < hmin) hmin = veri[i];
         if (veri[i] > hmax) hmax = veri[i];
       }
-      let vmin = hmin * voltAdim - voltOfset,
-          vmax = hmax * voltAdim - voltOfset;
+      let vmin = this.kodVolt(hmin),
+          vmax = this.kodVolt(hmax);
       let pay = (vmax - vmin) * 0.08;
       if (pay < 1e-4) pay = Math.max(Math.abs(vmax) * 0.05, 0.01);
       vmin -= pay; vmax += pay;
@@ -2021,8 +2115,7 @@ createApp({
         vmax = merkez + yari - ote;
       }
       const araliktan = (v) =>
-        ust + boy * (1 - (v * voltAdim - voltOfset - vmin)
-                     / (vmax - vmin));
+        ust + boy * (1 - (this.kodVolt(v) - vmin) / (vmax - vmin));
 
       /* Kırpma: ekranın dışına taşan izi çizme (aksi halde ızgaranın
          üstüne/altına taşar). */

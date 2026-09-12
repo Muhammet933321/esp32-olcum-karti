@@ -277,6 +277,19 @@ const SahteKart = (() => {
     k = String(k).trim();
     const c = k[0], alt = k[1];
 
+    /* B36 — kalibrasyon tablosu. Sahte kart GERÇEK kartın protokolünü
+       konuşmak zorunda: ayrışırsa demo, arayüzü gerçek yolundan
+       sınamayı bırakır (bu projenin tekrarlayan hatası).
+       Değerler GERÇEK KARTTAN alındı (2026-09-12, ESP32-S3 N16R8
+       eFuse eğrisi) — uydurulmadı. */
+    if (c === 'C' && alt === 'T') {
+      return ['CT 17 oran=38.037037 ofset=63.530090 tavan_mv=3100.0'
+            + ' 0:0 256:229 512:452 768:667 1024:883 1280:1095'
+            + ' 1536:1309 1792:1524 2048:1739 2304:1954 2560:2165'
+            + ' 2816:2372 3072:2568 3328:2750 3584:2914 3840:3053'
+            + ' 4095:3160'];
+    }
+
     if (c === 't') {
       if (!alt || (alt >= '0' && alt <= '9')) {
         if (alt) ayar.esik = parseInt(k.slice(1), 10) || ayar.esik;

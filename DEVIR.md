@@ -7678,6 +7678,99 @@ Kayıtlar **ham** tutulduğu için düzeltme ne zaman kararlaştırılırsa geç
 
 ---
 
+#### 5.12.50 ✅ B36 — SKOPUN GERİLİM EKSENİ ARTIK KALİBRE (2026-09-12)
+
+B34 ölçümü çivilemişti ama düzeltme uygulanmıyordu; B35 kayıtları **ham kod** olarak sakladığı için sıra doğal olarak buraya geldi. Karar: **düzeltme çizim anında, arayüzde.**
+
+##### Tablo karttan geliyor, koda gömülü değil
+
+Yeni firmware komutu:
+
+```
+CT  →  CT 17 oran=38.037037 ofset=63.530090 tavan_mv=3100.0
+       0:0 256:229 512:452 … 3840:3053 4095:3160
+```
+
+🔴 **Her yonganın eFuse eğrisi kendisine ait.** Benim tek bir kartta ölçtüğüm eğriyi koda gömmek başka bir karta **yanlış** düzeltme uygulamak olurdu. B34'ün 101 noktalı ölçümü bu tablonun *kaynağı* değil, **denetimi**.
+
+🔴 **`oran` ve `ofset` tabloyla birlikte gidiyor.** Arayüzün bunları kendi sabitlerinden türetmesini isteseydik, türetme VREF'in nominal değerine gömülü bir varsayıma dayanırdı ve VREF bir gün kalibre edilince eksen **sessizce** kayardı. Arayüz `V = (mv/1000)·oran − ofset` hesabını kartın söylediği sayılarla yapıyor.
+
+##### Bağımsız iki kaynak uyuşuyor
+
+| | en büyük sapma | rms |
+|---|---|---|
+| B34 · PWM+RC süpürmesi (ham kod → gerçek gerilim) | ±60.9 mV | **14.7 mV** |
+| B36 · eFuse tablosunun kendi eğriliği (%5–%85 bandı) | −35.8 mV | **13.5 mV** |
+
+Aynı fiziksel eğriliği iki bağımsız yoldan ölçtük ve rms'ler **%10 içinde**. Tablo doğru düzeltme.
+
+##### Düzeltmenin büyüklüğü — beklenenden çok daha fazla
+
+Kartın varsaydığı doğru `mV = 0.7568·kod`; çipin söylediği `mV = 0.7942·kod + 69.6`:
+
+| bileşen | değer | ne yapar |
+|---|---|---|
+| kazanç hatası | **+4.94 %** | genliği bozar, şekli bozmaz |
+| ofset hatası | +69.6 mV → **+2.65 V** girişte | izi kaydırır |
+| gerçek doğrusalsızlık (%5–85) | −35.8 mV → **−1.36 V** girişte | **şekli** bozar |
+
+Toplam düzeltme girişte **9.2 V**'a kadar çıkıyor — tam ölçeğin %8.4'ü.
+
+**Gerçek yakalamada ölçüldü** (CAL 1 kHz, görev %50, 1000 örnek, ham kod 1845–1989):
+
+```
+en düşük  kod 1845:  ham -10.416 V → kalibre  -3.869 V   (+6.55 V)
+en yüksek kod 1989:  ham  -6.271 V → kalibre  +0.732 V   (+7.00 V)
+tepe-tepe            ham   4.145 V → kalibre   4.600 V   (%+11.0)
+```
+
+##### 🔴 Tek çeviri noktası
+
+`kod * voltAdim - voltOfset` arayüzde **dört ayrı yerde** yazılıydı: tetik seviyesi, tepe değeri, dikey ölçek, çizim döngüsü. Düzeltme eklenince dördünün de değişmesi gerekirdi; biri unutulsa **ızgara etiketi bir şey, iz başka şey** gösterirdi ve hata sessiz olurdu. Hepsi artık `kodVolt()`'tan geçiyor. Mutasyon bunu üç ayrı yoldan sınıyor.
+
+##### Susmuyoruz
+
+Eksenin kalibre olup olmadığı **ekranda yazıyor** (`eksen kalibre` / `eksen HAM`), ve tablo yokken sapmanın büyüklüğü de yazıyor. Düzeltmesiz bir eksen "ölçülmüş" görünseydi sayılar sessizce yanlış okunurdu.
+
+##### `wR` — GPIO5 için ham kod yolu
+
+B34 yalnızca GPIO4'ü ölçebilmişti: ham kodu dışarı veren tek yol skop yakalamasıydı ve skop yalnızca `SKOP_KANAL`'ı okuyor. `wR` iki hızlı kanalın da ham kod istatistiğini basıyor.
+
+⚠ `w`nin "giriş RAYDA" koruması `wR`'de **bilerek yok** — doğrusallık süpürmesi tam da rayın yakınını ölçmek zorunda. Ama `wR` **watt basmıyor**, yani "ölçülmüş güç" gibi görünen bir şey üretmiyor.
+
+##### 🔴 YENİ KUSUR: boş girişte `w` yine 7.68 W basıyor
+
+`wR` eklenirken görüldü. B27/K3'ün "giriş rayda" koruması yalnızca **ortalama bir raya yapışmışsa** yakalıyor:
+
+```
+ray eşikleri : <82 ya da >4014
+GPIO4 ort 2039 → rayda değil       yayılım   12 kod (RC ile sürülü)
+GPIO5 ort  787 → rayda değil       yayılım 2400 kod (BOŞTA, %59)
+→ `w` geçiyor: P=7.68 W, PF=0.983
+```
+
+Boştaki GPIO5'in ortalaması tesadüfen orta ölçekte kaldığı için koruma delindi. Ayırt edici işaret **yayılım**: sürülü kanal 12 kod, boşta olan 2400 kod — 200 kat. Ama eşiği şimdi uydurmak, yalnızca "boşta" tarafını sınayabildiğim için tam da bu projenin kaçındığı şey olur. **GPIO5 jumper'ı takılınca iki taraf da ölçülüp eşik veriden seçilecek.**
+
+##### Doğrulama
+
+* Zincir 18/18, **1349 iddia** (1321'den).
+* `test_arayuz3.js` 270 → **292** (bölüm 17) · mutasyon B7 42 → **50/50**
+* `sim3_skop.py` 37 → **43** (bölüm 6c/6d) · mutasyon B19 4 → **8/8**
+* **Gerçek kartta**: `CT` ve `wR` koşuldu; kalibrasyonun gerçek yakalamadaki etkisi ölçüldü (yukarıdaki tablo).
+* **Gerçek tarayıcıda**: `tarayici_skop_arsiv.py` 14 → **19/19** — tablo komut→SSE yolundan geliyor, rozet çiziliyor, ve bir **arşiv kaydı** kalibre eksende çiziliyor (kod 3548 → 46.433 V, ham 38.609 V). Kayıtlar ham tutulduğu için düzeltme **geriye dönük** çalışıyor; B36'nın sıralama gerekçesi buydu.
+
+##### Mutasyonun yakaladığı üç boş iddia
+
+1. "Bozuk tablo reddediliyor" bir **totolojiydi** (`null || uzunluklar eşit`) — denetim silinince de geçiyordu. Yerine dört ayrı bozuk biçim tek tek sınanıyor. Bu arada **gerçek bir delik** bulundu: `256:abc` gibi bir çift `NaN` üretiyor, uzunluk ve `oran` denetimlerinden **geçiyordu**, sonra her gerilim NaN oluyor ve dalga ekrandan sessizce kayboluyordu — "kalibre" rozeti yanarken.
+2. `"hizli_ham_yolla" in ino` — yeniden adlandırma (`…_`) alt dizge olarak hâlâ eşleşiyordu. Tam imza aranıyor.
+3. `"hizli_olcekle" not in govde` — gövdedeki **yorum** "`hizli_olcekle` ÇAĞRILMIYOR" diyordu ve düz kelime araması o yorumla eşleşip iddiayı kırmızıya döndürdü. Çağrı biçimine (`hizli_olcekle(`) bakılıyor.
+
+⚠ Tarayıcı testinde bir iddia daha **yanlış sebeple geçiyordu**: karşılaştırdığım "ham" değeri mV/V karışıklığı yüzünden 1000 kat büyüktü, "fark > 1 V" koşulu yine sağlanıyordu. Üst sınır da eklendi.
+
+⚠ Türkçe büyük harf tuzağı ikinci kez: rozette `text-transform: uppercase` ve sayfa `lang="tr"`, Chrome "kalibre"yi **"KALİBRE"** (noktalı I) yapıyor; ASCII karşılaştırma tutmuyor. `textContent` kullanılıyor.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

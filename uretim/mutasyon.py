@@ -301,6 +301,47 @@ MUTASYONLAR = [
      "bir yenisini ister. Koprude dokum seri porttan geciyor (4000 ornek "
      "~1.8 s), yani kuyruk birikir, bloklar birbirini keser ve arsiv "
      "kirpik kayitlarla dolar"),
+    # ── B36 · skop gerilim ekseni kalibrasyonu
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      if (k) return this.kalMv(kod) / 1000 * k.oran - of;", "",
+     "kalibrasyon tablosu gelse bile KULLANILMIYOR: eksen eski sabit "
+     "carpanla ciziliyor, girisde 9 V'a varan sapma geri geliyor"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      return this.kodVolt(this.skopEsik);",
+     "      return this.skopEsik * (3.10 / 4096 * 38.03703704) - 63.53009;",
+     "tetik seviyesi IKINCI bir ceviri yolundan geciyor: izgara "
+     "kalibre, tetik cizgisi ham — ekranda iki farkli eksen"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        ust + boy * (1 - (this.kodVolt(v) - vmin) / (vmax - vmin));",
+     "        ust + boy * (1 - (v * this.osilo.voltAdim - vmin) / (vmax - vmin));",
+     "iz ham cevirimle cizilirken dikey olcek kalibre kaliyor: etiketler "
+     "bir seyi, dalga baska seyi gosterir ve hata SESSIZ"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        this.skopKal = (kal.oran > 0 && kal.kod.length >= 2",
+     "        this.skopKal = (true || kal.oran > 0 && kal.kod.length >= 2",
+     "bozuk/yarim tablo kabul edilir ve duzeltme yapiyormus gibi gorunup "
+     "ekseni bozar"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "                        && sayiTamam) ? kal : null;",
+     "                        ) ? kal : null;",
+     "`256:abc` gibi bozuk bir cift NaN uretiyor; uzunluk ve `oran` "
+     "denetimlerinden GECIYOR, sonra her gerilim NaN oluyor ve dalga "
+     "ekrandan SESSIZCE kayboluyor — 'kalibre' rozeti yanarken"),
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     '<span v-if="skopKal" class="kal-rozet"',
+     '<span v-if="false" class="kal-rozet"',
+     "eksenin kalibre olup olmadigi EKRANDA yazmaz: duzeltmesiz eksen "
+     "'olculmus' gorunur ve sayilar sessizce yanlis okunur"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        try { await this.gonder('CT'); } catch (e3) { /* tablosuz devam */ }",
+     "",
+     "kalibrasyon tablosu HIC istenmez: eksen her zaman duzeltmesiz kalir"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        return vs[n - 1] + (kod - ks[n - 1]) * e;",
+     "        return vs[n - 1];",
+     "tablo disi kod KIRPILIR: doyuma giren sinyal DUZ bir cizgi gibi "
+     "gorunur ve kirpildigi anlasilmaz"),
+
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
      "        this.kopruYokla();", "        await this.kopruYokla();",
      "arsiv yoklamasi baglanmayi BLOKLAR: yoklama takilirsa olcum de "
@@ -500,6 +541,26 @@ MUTASYONLAR = [
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
     # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    # ── B36 · kalibrasyon tablosu + hizli kanal ham kodu
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     'Serial.print(F(" oran="));    Serial.print(SKOP_ORAN, 6);', "",
+     "tablo `oran`siz gider; arayuz cevrim carpanini kendi sabitinden "
+     "turetmek zorunda kalir ve VREF bir gun kalibre edilince eksen "
+     "SESSIZCE kayar"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     'Serial.println(F("CT 0 kaynak=YOK"));', "Serial.println(F(\"CT 0\"));",
+     "kalibrasyon yokken sebep soylenmez; arayuz duzeltmesiz cizer ve "
+     "kullanici ekseni 'kalibre' sanir"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "static void hizli_ham_yolla", "static void hizli_ham_yolla_",
+     "GPIO5'in ham kodunu disari veren TEK yol kaybolur; hizli AKIM "
+     "kanali olculemez ve guc faktorunun baska kaynagi yok"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    /* `hizli_olcekle` CAGRILMIYOR",
+     "    hizli_olcekle(nv);  /* `hizli_olcekle` CAGRILMIYOR",
+     "`wR` ham kod yerine OLCEKLENMIS deger basar: dogrusallik supurmesi "
+     "kendi duzeltmesini olcmus olur, yani hicbir sey olcmez"),
+
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "    uint32_t taban_ms = (uint32_t)(pencere_ms * 1.2f) + 300u;\n"
      "    if (azami_ms < taban_ms) azami_ms = taban_ms;",

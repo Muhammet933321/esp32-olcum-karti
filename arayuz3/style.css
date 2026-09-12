@@ -527,6 +527,18 @@ button.kosuyor:hover:not(:disabled) { color: #06121f; border-color: var(--amper)
    durdurma. Açıklama metinleri ve ikincil denetimler küçülüyor ama
    KAYBOLMUYOR — "telefonda basit sürüm" ayrı bir arayüz demek olurdu
    ve bu proje arayüz ayrışmasından üç kez yandı (DEVIR 4.1, 4.15, B17). */
+/* Gerilim ekseni kalibre mi (B36). Düzeltmesiz durum ALARM değil ama
+   görünür olmalı — kullanıcı hangi eksende olduğunu bilmeli. */
+.kal-rozet {
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--iyi);
+  font-weight: 600;
+}
+
+.kal-rozet.yok { color: var(--uyari); }
+
 /* ── skop arşivi (B35) — geriye dönük kayıt listesi ─────────────────
    Renkler YALNIZCA değişkenlerden geliyor; iki tema da aynı kurallarla
    çalışıyor. Liste bir ızgara: satır sayısı içeriğe göre büyüsün ama

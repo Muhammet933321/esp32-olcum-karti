@@ -1236,9 +1236,17 @@ console.log('\n--- 12. Akis tasiyicisi: `?` kimlikten sonra ---');
     ok('baglan(): kimlik gelmeden `?` GONDERILMEDI', gidenler.length === 0);
     SahteES.son.tetikle('kimlik', JSON.stringify({ jeton: 'xyz789', surucu: true }));
     await b;
+    /* ⚠ Iddia "TEK komut" demiyor artik: B36 ile baglantida `CT`
+       (kalibrasyon tablosu) da gidiyor. Korunan sey SAYI degil KURAL —
+       ilk komut `?` ve gidenlerin HEPSI jetonlu. Sayiya kilitlemek,
+       her yeni acilis komutunda bu testi anlamsizca kirardi. */
     ok('baglan(): kimlikten sonra `?` JETONLA gitti',
-       gidenler.length === 1 && gidenler[0].metin === '?' && gidenler[0].jeton === 'xyz789',
+       gidenler.length >= 1 && gidenler[0].metin === '?'
+       && gidenler.every((g) => g.jeton === 'xyz789'),
        JSON.stringify(gidenler));
+    ok('baglan(): kalibrasyon tablosu da isteniyor (`CT`)',
+       gidenler.some((g) => g.metin === 'CT'),
+       'tablo gelmezse skop ekseni duzeltmesiz cizilir');
 
     /* hata olayi da cozmeli — yoksa baglan() sonsuza kadar askida */
     const w = ornek(); w.kartAdres = (yol) => yol; w.kaydet = () => {};
@@ -1697,6 +1705,145 @@ console.log('\n--- 16. Skop arsivi (geriye donuk kayit) ---');
   ok('Varsayilan: arsiv KAPALI (kart dogrudan bagliyken)',
      u.skopArsivVar === false && u.skopKayitlar.length === 0
      && u.skopAcikKayit === null);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   17. SKOP GERILIM EKSENI KALIBRASYONU (B36)
+
+   B34 kartta olctu: skopun gerilim ekseni ham kodu SABIT bir carpanla
+   ceviriyordu ve bu varsayim tutmuyordu. Cipin eFuse egrisi `CT` ile
+   geliyor, duzeltme CIZIM ANINDA uygulaniyor.
+
+   🔴 EN ONEMLI IDDIA: ceviri TEK NOKTADAN geciyor. Eskiden
+      `kod * voltAdim - voltOfset` DORT ayri yerde yaziliydi (tetik
+      seviyesi, tepe degeri, dikey olcek, cizim dongusu). Duzeltme
+      eklenince dordunun de degismesi gerekirdi; biri unutulsa izgara
+      etiketi bir sey, iz baska sey gosterirdi ve hata SESSIZ olurdu.
+
+   ⚠ Buradaki tablo GERCEK KARTTAN alindi (2026-09-12). Uydurulsaydi
+     test kendi uydurmasini dogrulardi.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 17. Skop gerilim ekseni kalibrasyonu ---');
+{
+  const html = yorumsuz(htmlKaynak);
+  const CT_SATIR = 'CT 17 oran=38.037037 ofset=63.530090 tavan_mv=3100.0'
+    + ' 0:0 256:229 512:452 768:667 1024:883 1280:1095 1536:1309'
+    + ' 1792:1524 2048:1739 2304:1954 2560:2165 2816:2372 3072:2568'
+    + ' 3328:2750 3584:2914 3840:3053 4095:3160';
+
+  const v = ornek();
+  v.satirIsle(CT_SATIR);
+  ok('CT satiri ayristiriliyor',
+     !!v.skopKal && v.skopKal.kod.length === 17,
+     v.skopKal ? `${v.skopKal.kod.length} nokta` : 'tablo yok');
+  ok('Metaveri (oran/ofset/tavan) okunuyor',
+     v.skopKal && Math.abs(v.skopKal.oran - 38.037037) < 1e-4
+     && Math.abs(v.skopKal.tavanMv - 3100) < 1e-3);
+
+  /* Tablo noktalarinda aradeger TAM deger vermeli. */
+  ok('Tablo noktasinda aradeger tam',
+     Math.abs(v.kalMv(2048) - 1739) < 1e-6
+     && Math.abs(v.kalMv(0) - 0) < 1e-6,
+     `${v.kalMv(2048)} / ${v.kalMv(0)}`);
+  /* Iki nokta ARASINDA dogrusal. */
+  ok('Noktalar arasi dogrusal aradeger',
+     Math.abs(v.kalMv(2176) - (1739 + 1954) / 2) < 1e-6,
+     String(v.kalMv(2176)));
+  /* 🔴 Tablo disi KIRPILMIYOR, uzatiliyor: kirpilsaydi doyuma giren bir
+     sinyal DUZ bir cizgi gibi gorunur ve kirpildigi anlasilmazdi. */
+  ok('[!] Tablo disi kod KIRPILMIYOR (uzatiliyor)',
+     v.kalMv(4500) > v.kalMv(4095),
+     `kod 4500 -> ${v.kalMv(4500).toFixed(1)} mV`);
+
+  /* Kalibreli cevirinin GERCEK sayisi. Kart oran=38.037, ofset=63.530
+     bildiriyor; kod 2048 -> 1739 mV -> 1.739*38.037 - 63.530 V. */
+  {
+    const u = ornek();
+    u.satirIsle(CT_SATIR);
+    u.osilo = { voltAdim: 3.10 / 4096 * 38.03703704, voltOfset: 63.530090,
+                veri: [2048] };
+    const beklenen = 1739 / 1000 * 38.037037 - 63.530090;
+    ok('[!] Kalibreli kod->volt cevirisi DOGRU sayiyi veriyor',
+       Math.abs(u.kodVolt(2048) - beklenen) < 1e-4,
+       `${u.kodVolt(2048).toFixed(4)} V (beklenen ${beklenen.toFixed(4)})`);
+
+    /* Duzeltmesiz deger FARKLI olmali — aksi halde tablo hicbir sey
+       yapmiyor demektir ve "kalibre" etiketi bos bir vaat olurdu. */
+    const w = ornek();
+    w.osilo = u.osilo;                      // ayni yakalama, tablo YOK
+    const fark = Math.abs(u.kodVolt(2048) - w.kodVolt(2048));
+    ok('[!] Duzeltme GERCEKTEN bir sey degistiriyor',
+       fark > 1.0, `${fark.toFixed(3)} V fark (kod 2048)`);
+    /* Kartta olculen buyukluk: kod 2048'de +7.19 V (bkz. DEVIR B36). */
+    ok('Fark kartta olculen buyuklukte (+-%10)',
+       Math.abs(fark - 7.189) < 0.72, `${fark.toFixed(3)} V vs 7.189 V`);
+  }
+
+  /* 🔴 TEK CEVIRI NOKTASI — dort cagri yeri de `kodVolt` kullaniyor. */
+  ok('[!] Tetik seviyesi `kodVolt`tan geciyor',
+     govdeIcinde(appKaynak, 'esikVolt', 'this.kodVolt(this.skopEsik)'));
+  ok('[!] Tepe degeri `kodVolt`tan geciyor',
+     govdeIcinde(appKaynak, 'osiloTepe', 'this.kodVolt('));
+  ok('[!] Cizim dongusu ve dikey olcek `kodVolt`tan geciyor',
+     govdeIcinde(appKaynak, 'osiloCiz', 'this.kodVolt(hmin)')
+     && govdeIcinde(appKaynak, 'osiloCiz', 'this.kodVolt(v)'),
+     'izgara etiketi ile iz AYNI cevirimden gelmeli');
+  ok('Cizimde artik ham `voltAdim` carpimi KALMADI',
+     !/veri\[i\]\s*\*\s*voltAdim/.test(appKaynak)
+     && !govdeIcinde(appKaynak, 'osiloCiz', '* voltAdim'),
+     'ikinci bir ceviri yolu kalsaydi ayrisirdi');
+
+  /* Bozuk / eksik tablo SESSIZCE kullanilmamali. */
+  {
+    const z = ornek();
+    z.satirIsle('CT 0 kaynak=YOK');
+    ok('[!] `CT 0 kaynak=YOK` tabloyu KURMUYOR', z.skopKal === null);
+    /* 🔴 Bozuk tablo SESSIZCE kullanilmamali. Onceki hali
+       `y.skopKal === null || uzunluklar esit` idi ve MUTASYON KACTI:
+       denetim silinince de gecen bir totolojiydi. Simdi her bozuk bicim
+       AYRI AYRI reddediliyor ve eksen ESKI yola dusuyor. */
+    const bozuklar = [
+      ['oran YOK',        'CT 3 0:0 256:229 512:452'],
+      ['tek nokta',       'CT 1 oran=38.0 0:0'],
+      ['sayi degil (NaN)', 'CT 3 oran=38.0 0:0 256:abc 512:452'],
+      ['oran NaN',        'CT 3 oran=elma 0:0 256:229 512:452'],
+    ];
+    for (const [ad, satir] of bozuklar) {
+      const y = ornek();
+      y.satirIsle(satir);
+      ok(`[!] Bozuk tablo REDDEDILIYOR: ${ad}`, y.skopKal === null,
+         JSON.stringify(y.skopKal));
+    }
+    /* Reddedilince eksen duzeltmesiz yola DUSMELI — yarim bir tabloyla
+       cizmek yerine eski, bilinen davranis. */
+    {
+      const y = ornek();
+      y.osilo = { voltAdim: 3.10 / 4096 * 38.03703704, voltOfset: 63.530090,
+                  veri: [2048] };
+      const ham = y.kodVolt(2048);
+      y.satirIsle('CT 3 oran=38.0 0:0 256:abc 512:452');
+      ok('[!] Bozuk tablodan sonra eksen ESKI yola dusuyor',
+         Math.abs(y.kodVolt(2048) - ham) < 1e-9,
+         `${y.kodVolt(2048).toFixed(4)} vs ${ham.toFixed(4)}`);
+    }
+  }
+
+  /* 🔴 SUSMUYORUZ: eksenin kalibre olup olmadigi EKRANDA yaziyor.
+     Yazmasaydi duzeltmesiz bir eksen "olculmus" gorunur ve sayilar
+     sessizce yanlis okunurdu (B34: girisde 9 V'a varan sapma). */
+  ok('[!] Eksenin kalibre olup olmadigi EKRANDA yaziyor',
+     /v-if="skopKal"[\s\S]{0,200}eksen kalibre/.test(html) &&
+     /v-else[\s\S]{0,200}eksen HAM/.test(html),
+     'duzeltmesiz eksen "kalibre" sanilmamali');
+  ok('Tablo yokken SEBEBI ve buyuklugu yaziliyor',
+     /v-if="!skopKal"[\s\S]{0,400}9 V/.test(html),
+     '"ham" demek yetmez — ne kadar saptigi soylenmeli');
+
+  /* Sahte kart GERCEK kartin protokolunu konusmali. */
+  ok('[!] Sahte kart da `CT` cevapliyor (demo gercek yoldan kosuyor)',
+     /CT 17 oran=/.test(fs.readFileSync(
+       path.join(KOK, 'arayuz3', 'sahte-kart.js'), 'utf8')),
+     'ayrisirsa demo arayuzu gercek yolundan sinamaz');
 }
 
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
