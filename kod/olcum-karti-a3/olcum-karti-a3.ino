@@ -100,6 +100,17 @@ static const uint8_t PIN_HAZIR = 7;         // ADS #1 ALERT/RDY
 // GPIO6 strapping pini DEGIL; acilista giris kipinde, yani kapi R42 ile
 // GND'ye cekili ve MOSFET KAPALI. Failsafe daha ilk milisaniyeden gecerli.
 static const uint8_t PIN_PIL_KAPI = 6;
+/* 🔴 B30 — KALIBRASYON CIKISI (CAL). Her gercek osiloskopta var (Rigol'un
+   1 kHz kare dalgasi, prob dengeleme cikisi). Burada iki ise yariyor:
+     1. LEHIMSIZ DOGRULAMA: skop zinciri (12 bit DMA ADC + tetik + zaman
+        tabani + olcum matematigi) bugune kadar hic BILINEN bir sinyalle
+        sinanmadi — yalnizca benzetimde. Tek atlama teliyle sinanir.
+     2. Prob/giris dengeleme: on uc kurulunca RC dengesi buradan bakilir.
+   GPIO10: strapping DEGIL, oktal PSRAM'in (GPIO35-37) ve USB'nin
+   (GPIO19/20) disinda, semada da bos. Acilista KAPALI — bir sinyal
+   kaynagi kendiliginden surmemeli. */
+static const uint8_t PIN_CAL = 10;
+static uint32_t cal_hz = 0;          // 0 = kapali
 static const uint8_t ADS_AKIM = 0x48;       // ADDR -> GND
 static const uint8_t ADS_GERILIM = 0x49;    // ADDR -> VDD
 
@@ -570,6 +581,12 @@ static uint32_t faz_yaz_top = 0, faz_bek_top = 0, faz_oku_top = 0;
    basilmiyordu. Artik `T` satirinda: kayma_us ve ornek periyoduna orani. */
 static uint32_t faz_kayma_top = 0;
 static uint32_t faz_adet = 0;
+/* 🔴 B30 — RDY ZAMAN ASIMI SAYACI. ALERT teli dususe, `yeni_donusum_bekle`
+   HER cevrimde 4000 us zaman asimina dusup 1300 us daha bekliyor: cevrim
+   2.05 ms -> 6.17 ms, ornekleme 487 -> 162/s. Kart calismaya DEVAM ediyor,
+   sayilar dogru, yalnizca 3 KAT YAVAS — yani sessiz. B20'de bu kusur
+   aylarca farkedilmedi. Artik sayiliyor ve `F` satirinda gorunuyor. */
+static uint32_t rdy_zaman_asimi = 0;
 
 Okuma3 olcum_al() {
   uint32_t t0 = micros();
@@ -590,7 +607,10 @@ Okuma3 olcum_al() {
 
   // 2) Donusumun bitmesini bekle. ALERT/RDY akim cipinde kurulu; o
   //    bittiyse gerilim de bitmistir (once baslatildi, ayni sure).
-  if (!yeni_donusum_bekle(4000)) delayMicroseconds(1300);
+  if (!yeni_donusum_bekle(4000)) {
+    delayMicroseconds(1300);
+    rdy_zaman_asimi++;
+  }
   uint32_t t2 = micros();
 
   int16_t ham_v = ads_oku(ADS_GERILIM);
@@ -2088,6 +2108,7 @@ void ayar_yaz_seri() {
   Serial.print(F(" ag_tur="));           Serial.print(ag_tur);
   Serial.print(F(" ag_yigin_dip="));
   Serial.print(ag_gorev_kolu ? (unsigned)uxTaskGetStackHighWaterMark(ag_gorev_kolu) : 0u);
+  Serial.print(F(" cal_hz="));           Serial.print(cal_hz);
   Serial.print(F(" akis_dusen="));       Serial.print(akis_tasma);
   /* B28: kuyruklar ve gorev yigini CALISMA ANINDA ayriliyor (~19 KB);
      zincirin B6 adimi yalnizca BAG ANI DRAM'ini olcuyor. Gercek pay
@@ -2109,12 +2130,73 @@ void ayar_yaz_seri() {
     Serial.print(F(" kayma_ornek="));
     Serial.print((float)faz_kayma_top / faz_adet
                  / ((float)(faz_yaz_top + faz_bek_top + faz_oku_top) / faz_adet), 4);
+    Serial.print(F(" rdy_asim="));  Serial.print(rdy_zaman_asimi);
     Serial.print(F(" cevrim="));   Serial.println(faz_adet);
   }
 }
 
 // Bir ADS1115 cevap vermiyorsa sebep genelde uctan bire indirgenir:
 // ADDR bosta, SDA/SCL ters, ya da pull-up yok.
+/* 🔴 B30 — ALERT/RDY TELI GERCEKTEN BAGLI MI: PINI OLCUYORUZ.
+   `#` donanim akil saglig i komutu; I2C adreslerini gosteriyordu ama
+   ALERT telini HIC sinamiyordu. Oysa o tel dususe kart sessizce 3 kat
+   yavasliyor (B20'nin 91 SPS kusuru ayni aileden).
+   Yontem: 0x48'e tek atis baslat, pini 3 ms boyunca yokla.
+     * baslangicta LOW kalirsa  -> pin GND'ye kisali ya da hep asserted
+     * hic LOW'a inmezse        -> tel TAKILI DEGIL ya da +3V3'e bagli
+     * inerse                   -> gecen sure gercek donusum suresidir */
+/* Tek cip icin: RDY'yi ZORLA ac, donusum baslat, pini yokla. */
+static bool alert_dener(uint8_t adres, float pga, uint32_t *sure_us) {
+  ads_yaz(adres, ADS_UST, 0x8000);       /* RDY kipi icin esikler */
+  ads_yaz(adres, ADS_ALT, 0x0000);
+  ads_yaz(adres, ADS_AYAR, ADS_BASLAT | MUX_01 | pga_bitleri(pga)
+                           | ADS_TEK | ADS_860SPS | ADS_KOMP_TEK);
+  uint32_t t0 = micros();
+  while (micros() - t0 < 3000u) {
+    if (digitalRead(PIN_HAZIR) == LOW) { *sure_us = micros() - t0; return true; }
+  }
+  (void)ads_oku(adres);
+  return false;
+}
+
+static void alert_probu() {
+  int bas = digitalRead(PIN_HAZIR);
+  uint32_t sure = 0;
+  bool bir = alert_dener(ADS_AKIM, ayar.i_pga, &sure);
+  (void)ads_oku(ADS_AKIM);
+
+  /* 🔴 TEL HANGI MODULDE: iki modul BIRBIRINE BENZIYOR ve `ADDR` ile
+     `ALRT` YAN YANA pinler. Tel #2'ye takildiysa GPIO7, COMP_QUE=11b ile
+     yuksek-Z birakilmis bir cikisi goruyor: hep YUKSEK, yani "tel yok"
+     ile AYNI belirti. Ayirt etmek icin #2'nin RDY'sini GECICI acip
+     yokluyoruz — kullaniciya "ara bul" dedirtmek yerine SOYLUYORUZ. */
+  bool iki = false;
+  uint32_t sure2 = 0;
+  if (!bir) {
+    iki = alert_dener(ADS_GERILIM, etkin_kanal()->pga, &sure2);
+    (void)ads_oku(ADS_GERILIM);
+    /* #2'yi ESKI HALINE dondur: ALERT ucu bilerek yuksek-Z. */
+    ads_yaz(ADS_GERILIM, ADS_AYAR, ADS_BASLAT | etkin_mux()
+                                   | pga_bitleri(etkin_kanal()->pga)
+                                   | ADS_TEK | ADS_860SPS | ADS_KOMP_KAPALI);
+  }
+
+  Serial.print(F("! alert: pin=GPIO"));  Serial.print(PIN_HAZIR);
+  Serial.print(F(" baslangic="));        Serial.print(bas ? F("YUKSEK") : F("DUSUK"));
+  if (bir) {
+    Serial.print(F(" 0x48=VAR sure="));  Serial.print(sure);
+    Serial.println(F(" us  (RDY calisiyor — dogru modul)"));
+  } else if (iki) {
+    Serial.print(F(" 0x48=YOK  0x49=VAR sure=")); Serial.print(sure2);
+    Serial.println(F(" us  -> ALERT teli YANLIS MODULDE:"
+                     " #2'den (0x49) cikarip #1'e (0x48) tak"));
+  } else {
+    Serial.println(F(" 0x48=YOK  0x49=YOK"
+                     "  -> ALERT teli hicbir modulde degil:"
+                     " #1'in (0x48) ALRT pini ile GPIO7 arasina tak"));
+  }
+}
+
 void i2c_tara() {
   uint8_t bulunan = 0;
   Serial.print(F("I2C:"));
@@ -2144,6 +2226,7 @@ void yardim() {
   Serial.println(F("  P<volt> pil kesme   p1/p0 pil testi baslat/durdur   p durum"));
   Serial.println(F("  K blokaj sayaclarini sifirla (eski degeri basar)"));
   Serial.println(F("  r<ms> rapor araligi 20..5000 ms (D satiri sikligi), r goster"));
+  Serial.println(F("  X<hz> kalibrasyon cikisi (GPIO10, %50 kare), X0 kapatir"));
   Serial.println(F("  R! fabrika ayarlari (kalibrasyonu SIFIRLAR)"));
   Serial.println(F("  t yakala  ta otomatik  tb<0-11> zaman tabani  t+ t-"));
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  t?"));
@@ -2153,12 +2236,43 @@ void komut_calistir(const char *s) {
   switch (s[0]) {
     case '?': ayar_yaz_seri(); break;
     case 'h': case 'Y': yardim(); break;
-    case '#': i2c_tara(); break;
+    case '#': i2c_tara(); alert_probu(); break;
 
     case 'e':
       enerji_pJ = 0;
       Serial.println(F("* enerji sifirlandi"));
       break;
+
+    /* B30 — kalibrasyon cikisi: `X<hz>` kare dalga, `X0` kapatir.
+       ⚠ BASILAN FREKANS, ISTENEN DEGIL GERCEKLESEN olmali: LEDC 80 MHz
+         APB'yi tam sayi bolerek uretiyor, yani 7 kHz isteyip 6993 Hz
+         alabilirsin. Skopun olcumunu ISTENEN degerle karsilastirmak
+         kendini kandirmak olurdu. */
+    case 'X': {
+      long istek = (s[1]) ? atol(s + 1) : 0;
+      if (istek < 0) istek = 0;
+      if (istek > 200000L) istek = 200000L;
+      if (istek == 0) {
+        if (cal_hz) { ledcDetach(PIN_CAL); pinMode(PIN_CAL, INPUT); }
+        cal_hz = 0;
+        Serial.println(F("X cal=kapali"));
+        break;
+      }
+      if (!cal_hz) {
+        if (!ledcAttach(PIN_CAL, (uint32_t)istek, 10)) {
+          Serial.println(F("! X: LEDC kanali alinamadi"));
+          break;
+        }
+      }
+      uint32_t gercek = ledcChangeFrequency(PIN_CAL, (uint32_t)istek, 10);
+      ledcWrite(PIN_CAL, 512);              /* %50 gorev — 10 bit */
+      cal_hz = gercek ? gercek : (uint32_t)istek;
+      Serial.print(F("X cal_hz="));      Serial.print(cal_hz);
+      Serial.print(F(" istenen="));      Serial.print(istek);
+      Serial.print(F(" gorev=%50 pin=GPIO")); Serial.print(PIN_CAL);
+      Serial.println(F("  (skop girisi GPIO4'e tek tel)"));
+      break;
+    }
 
     /* B27 A2 — rapor araligi. Sinir DISI deger reddedilmiyor, KIRPILIYOR
        ve kirpilmis deger basiliyor: kullanici `r5` yazip 20 ms aldigini

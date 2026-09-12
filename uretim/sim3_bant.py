@@ -242,6 +242,74 @@ def bolum1(r):
             f"sira {kenar[:2]} — ters olursa ikinci dongu HIC bitmez ve "
             f"her tur zaman asimina duser (B26'nin olctugu kusur)")
 
+    # ── 1b-ter · B30: TEL DUSTUGUNDE KART SESSIZ KALMAMALI
+    alt(r, "1b-ter · ALERT teli dususe NE OLUYOR (B30, kartta yasandi)")
+    r.bilgi("     2026-09-12: kullanici ikinci ADS'i takarken ALERT teli")
+    r.bilgi("     cikti. Kart CALISMAYA DEVAM ETTI, sayilar DOGRUYDU —")
+    r.bilgi("     yalnizca her cevrim 4000 us zaman asimina dusup 1300 us")
+    r.bilgi("     daha bekledi: 2.05 -> 6.17 ms, 487 -> 162 ornek/s.")
+    r.bilgi("     Yani UC KAT yavasladi ve HICBIR SEY soylemedi. B20'de")
+    r.bilgi("     ayni aileden bir kusur aylarca farkedilmemisti.")
+    r.bilgi("")
+    g_olc2 = yorumsuz(govde(INO, "Okuma3 olcum_al()"))
+    r.kosul("  1b-ter: RDY zaman asimi SAYILIYOR",
+            "rdy_zaman_asimi++" in g_olc2,
+            "sayilmazsa 3 kat yavaslama sessiz kalir")
+    r.kosul("  1b-ter: sayac disari veriliyor (`F` satiri)",
+            "rdy_asim=" in INO,
+            "sayilan ama gorunmeyen sayac, sayilmamis sayactir")
+    g_prob = yorumsuz(govde(INO, "static void alert_probu()"))
+    r.kosul("  1b-ter: `#` donanim komutu ALERT telini de siniyor",
+            # ⚠ imza IKI KEZ geciyor (ileri bildirim + tanim); gövdeyi
+            # dogru almak icin ACILIS SUSLUSUYLA birlikte aranıyor.
+            "alert_probu()" in yorumsuz(govde(INO, "void komut_calistir(const char *s) {"))
+            and bool(g_prob),
+            "I2C adreslerini gosterip ALERT'i atlamak, kusurun yarisini "
+            "gorup yarisini kacirmak demekti")
+    # 🔴 Prob IKI MODULU de denemeli: `ADDR` ile `ALRT` modulde YAN YANA
+    #    pinler ve iki modul birbirine benziyor. Tel #2'ye takilirsa GPIO7
+    #    yuksek-Z bir cikisi gorur — "tel yok" ile AYNI belirti. Ayirt
+    #    etmeyen bir prob, kullaniciyi "ara bul"a mahkum eder.
+    r.kosul("  1b-ter: prob teli HANGI MODULDE oldugunu ayirt ediyor",
+            # ⚠ "ADS_GERILIM gecıyor mu" YETMEZ: cip #2 gorunuste, probu
+            #   eski haline donduren satirda da geciyor. Mutasyon bu bos
+            #   iddiayi yakaladi (denemeyi `iki = false` yaptik, iddia yine
+            #   yesildi). Olcut CAGRININ KENDISI.
+            "alert_dener(ADS_GERILIM" in g_prob
+            and "alert_dener(ADS_AKIM" in g_prob
+            and "YANLIS MODULDE" in INO,
+            "iki modul de DENENMEZSE yanlis modul ile kopuk tel ayni gorunur")
+    r.kosul("  1b-ter: prob #2'yi ESKI HALINE donduruyor (ALERT yuksek-Z)",
+            "ADS_KOMP_KAPALI" in g_prob,
+            "gecici olarak acilan RDY acik birakilirsa iki cip ayni pini "
+            "surer ve olcum dongusu bozulur")
+
+    # ── 1c-bis · B30: kalibrasyon cikisi
+    alt(r, "1c-bis · Kalibrasyon cikisi (CAL) — skopu lehimsiz sinamak")
+    r.bilgi("     Her gercek osiloskopta var (prob dengeleme cikisi). Burada")
+    r.bilgi("     skop zincirini (12 bit DMA ADC + tetik + zaman tabani +")
+    r.bilgi("     olcum matematigi) BILINEN bir sinyalle sinamaya yariyor;")
+    r.bilgi("     bugune kadar yalnizca benzetimde dogrulanmisti.")
+    g_cal = yorumsuz(govde(INO, "void komut_calistir(const char *s) {"))
+    r.kosul("  1c-bis: `X<hz>` komutu var, `X0` kapatiyor",
+            "case 'X':" in g_cal and "cal=kapali" in INO)
+    r.kosul("  1c-bis: acilista KAPALI",
+            "static uint32_t cal_hz = 0;" in INO,
+            "bir sinyal kaynagi kendiliginden surmemeli")
+    # 🔴 EN ONEMLI IDDIA: basilan frekans ISTENEN degil GERCEKLESEN olmali.
+    #    LEDC 80 MHz APB'yi TAM SAYI bolerek uretiyor: 7000 Hz isteyip
+    #    6998 Hz aliyorsun (kartta olculdu). Skopun olcumunu ISTENEN
+    #    degerle karsilastirmak kendini kandirmak olurdu.
+    r.kosul("  1c-bis: [!] GERCEKLESEN frekans basiliyor (istenen degil)",
+            "ledcChangeFrequency" in INO and "cal_hz=" in INO
+            and "istenen=" in INO,
+            "LEDC frekansi kirpiyor: 7000 istendi, 6998 uretildi (kartta "
+            "olculdu). Referans olarak istenen degeri kullanmak, olcumu "
+            "kendi varsayimiyla dogrulamak olur")
+    r.kosul("  1c-bis: CAL pini olcum yolundaki pinlerle CAKISMIYOR",
+            all(f"PIN_CAL = {n};" not in INO for n in (4, 5, 6, 7, 8, 9)),
+            "GPIO4 skop, 5 hizli akim, 6 pil kapisi, 7 ALERT, 8/9 I2C")
+
     # ALERT/RDY hangi cipte telli? Netlistten oku — elle yazma.
     net = (BURASI / "netlist3.net").read_text(encoding="utf-8", errors="replace")
     m = re.search(r'\(name "/HAZIR"\)(.*?)\n\t\t\)', net, re.S)

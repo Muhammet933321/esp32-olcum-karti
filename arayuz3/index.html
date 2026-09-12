@@ -212,6 +212,29 @@
       <span class="demo-not">karta bağlı değil — sahte kart aynı protokolü konuşuyor</span>
     </div>
 
+    <!-- B30 — KALİBRASYON ÇIKIŞI. Gerçek osiloskopların prob dengeleme
+         çıkışının karşılığı; skop zincirini bilinen bir sinyalle sınar.
+         ⚠ Gösterilen frekans kartın BİLDİRDİĞİ (gerçekleşen) değer:
+           LEDC 7000 isteyince 6998 üretiyor. Ölçümü istenen değerle
+           karşılaştırmak, ölçümü kendi varsayımıyla doğrulamak olurdu. -->
+    <div class="satir" style="margin-bottom:10px;gap:8px;align-items:center">
+      <label style="font-size:12px;color:var(--soluk)">Kalibrasyon çıkışı</label>
+      <select v-model.number="calHz" @change="calGonder" :disabled="!bagli"
+              style="width:auto" title="GPIO10'da %50 kare dalga">
+        <option :value="0">kapalı</option>
+        <option :value="100">100 Hz</option>
+        <option :value="1000">1 kHz</option>
+        <option :value="10000">10 kHz</option>
+        <option :value="50000">50 kHz</option>
+      </select>
+      <span class="ipucu" style="margin:0">
+        <template v-if="calGercek">kart {{ calGercek }} Hz üretiyor —
+          skop ölçümünü <b>bununla</b> karşılaştır</template>
+        <template v-else>GPIO10 → GPIO4 tek tel; skop zincirini bilinen
+          sinyalle sınamak için</template>
+      </span>
+    </div>
+
     <div class="satir" style="margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <button class="birincil" @click="osiloYakala"
               :disabled="!bagli || osiloBekliyor || surekli">

@@ -376,6 +376,27 @@ MUTASYONLAR = [
      "tik kilidi denetimi bosalir: B22.1'in enableDelay kusuru geri "
      "gelse ornek sayisi bandin ICINDE kalacagi icin hic yakalanmaz"),
 
+    # ── B30 · ALERT teli teshisi + CAL cikisi (kartta yasandi)
+    ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    rdy_zaman_asimi++;", "    /* rdy_zaman_asimi++; */",
+     "tel dustugunde kart 3 kat yavaslar ve HICBIR SEY soylemez — "
+     "2026-09-12'de tam olarak bu yasandi"),
+    ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    case '#': i2c_tara(); alert_probu(); break;",
+     "    case '#': i2c_tara(); break;",
+     "donanim akil sagligi komutu I2C adreslerini gosterip ALERT telini "
+     "atlar: kusurun yarisi gorunur, yarisi kacar"),
+    ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    iki = alert_dener(ADS_GERILIM, etkin_kanal()->pga, &sure2);",
+     "    iki = false;",
+     "prob yalnizca #1'i dener: tel YANLIS MODULDE ise 'tel yok' ile "
+     "ayni cikti gelir ve kullanici bosuna arar"),
+    ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "      Serial.print(F(\" istenen=\"));      Serial.print(istek);",
+     "",
+     "CAL ciktisi yalnizca istenen frekansi basar; skop olcumu kendi "
+     "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
+
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",
@@ -425,7 +446,7 @@ MUTASYONLAR = [
 ]
 
 
-def kopyala(hedef: Path) -> None:
+def kopyala(hedef: Path) -> Path:
     def gormezden(dizin, adlar):
         return [a for a in adlar
                 if a in ATLA or a in ATLA_DOSYA
@@ -435,9 +456,24 @@ def kopyala(hedef: Path) -> None:
     #   kalintisi ayni adi alinca `copytree` FileExistsError ile cokuyordu.
     #   Bir oturumda IKI KEZ tetiklendi. Kalinti bizim yazdigimiz gecici bir
     #   kopya, silmek guvenli.
-    if hedef.exists():
+    # ⚠ B30: `ignore_errors=True` SESSIZCE basarisiz olabiliyor — Windows'ta
+    #   Defender/dizinleyici kalintiyi kilitlediginde dizin DURUYOR ve bir
+    #   sonraki `copytree` FileExistsError ile cokuyor (bu oturumda oldu).
+    #   Once birkac kez dene; yine silinemezse BENZERSIZ ada kac. Kalinti
+    #   bizim gecici kopyamiz, birakmak zararsiz — kosuyu bolmek degil.
+    for _ in range(5):
+        if not hedef.exists():
+            break
         shutil.rmtree(hedef, ignore_errors=True)
+        if hedef.exists():
+            time.sleep(0.3)
+    if hedef.exists():
+        n = 1
+        while (KOK.parent / f"{hedef.name}-{n}").exists():
+            n += 1
+        hedef = KOK.parent / f"{hedef.name}-{n}"
     shutil.copytree(KOK, hedef, ignore=gormezden)
+    return hedef
 
 
 def kosut(kopya: Path, betik: str) -> tuple[int, str]:
@@ -508,7 +544,7 @@ def main() -> int:
     try:
         print(f"  kopya: {kopya}")
         t0 = time.time()
-        kopyala(kopya)
+        kopya = kopyala(kopya)
         print(f"  kopyalandi ({time.time() - t0:.1f} s)")
 
         # Once TEMIZ taban: mutasyonsuz kosu gercekten yesil mi?
@@ -536,7 +572,7 @@ def main() -> int:
 
         for i, (adim, betik, dosya, eski, yeni, neden) in enumerate(secili, 1):
             shutil.rmtree(kopya, ignore_errors=True)
-            kopyala(kopya)
+            kopya = kopyala(kopya)
             print()
             print(f"  [{i}/{len(secili)}] {adim} · {dosya}")
             print(f"        {eski}  ->  {yeni}")

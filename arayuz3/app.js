@@ -307,6 +307,12 @@ createApp({
       // anlık ölçüm
       volt: 0, amper: 0, watt: 0, joule: 0, wh: 0, kartMs: 0,
       ornekAdet: 0, sonAralik: 0,
+      /* B30 — kalibrasyon cikisi (CAL). Skopun prob dengeleme
+         karsiligi: GPIO10'da %50 kare dalga. `calGercek` KARTIN
+         bildirdigi frekans — LEDC istenen degeri kirpiyor (7000 -> 6998)
+         ve skop olcumu bununla karsilastirilmali, istenenle DEGIL. */
+      calHz: 0,
+      calGercek: null,
       raporMs: 200,          // B27 A2: tercih (localStorage); kart `r<ms>` ile uyar
       raporSecenekleri: RAPOR_SECENEKLERI,
       kartRapor: null,       // kartin `A rapor=` / `* rapor araligi` dedigi deger
@@ -788,6 +794,7 @@ createApp({
 
   methods: {
     gorunumeGit(id) { this.gorunum = id; },
+    calGonder() { this.gonder('X' + this.calHz); },
     bicim(x, n) {
       if (!isFinite(x)) return '—';
       return x.toFixed(n);
@@ -1103,6 +1110,14 @@ createApp({
             this.gonder('r' + this.raporMs).catch(() => {});
           }
         }
+        return;
+      }
+      /* B30: CAL yaniti — `X cal_hz=6998 istenen=7000 ...` ya da
+         `X cal=kapali`. GERCEKLESEN frekans buradan okunuyor. */
+      if (satir.startsWith('X ')) {
+        const m = satir.match(/cal_hz=(\d+)/);
+        this.calGercek = m ? parseInt(m[1], 10) : null;
+        this.kaydet(satir);
         return;
       }
       /* Kartin `r` yaniti — KIRPILMIS deger buradan geliyor (r5 -> 20). */

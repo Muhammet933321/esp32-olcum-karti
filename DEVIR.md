@@ -7449,6 +7449,69 @@ Kod kaymayı **ölçüyor** (varsaymıyor) ve Lagrange hizalayıcısına veriyor
 
 ---
 
+#### 5.12.46 ✅ B30 — SESSİZ KUSUR: ALERT teli düştü, kart 3 kat yavaşladı (2026-09-12)
+
+Kullanıcı "lehim yapmadan ne ölçebiliriz" diye sordu. İki iş seçildi: (a) girişler GND'deyken gürültü tabanı, (b) osiloskobu bilinen bir sinyalle sınamak. Birincisi koşarken **gerçek bir kusur ortaya çıktı.**
+
+##### Kusur: kart çalışıyordu, sayılar doğruydu, sadece 3 kat yavaştı
+
+Gürültü verisinde örnek sayısı **96 → 32**'ye düşmüştü. `F` faz satırı sebebi anında gösterdi:
+
+```
+F yaz_us=332  bek_us=5305  oku_us=533  toplam_us=6170
+```
+
+`bek_us = 5305` tam olarak `yeni_donusum_bekle(4000)` **zaman aşımı + `delayMicroseconds(1300)`** demek: RDY hiç gelmiyor, her çevrim zaman aşımına düşüyor. Örnekleme **487 → 162/s**. Kart hiçbir şey söylemiyordu — ölçümler doğru, sadece üçte bir hızda. B20'de aynı aileden bir kusur (91 SPS) **aylarca** fark edilmemişti.
+
+Sebep fiziksel: kullanıcı ikinci ADS'i takarken **ADS #1'in ALERT teli çıkmış**. Reset denendi (eşik yazmaçları teorisi) — **düzelmedi**, yani teori yanlıştı; sinyal gerçekten gelmiyordu.
+
+##### Tahmin etmek yerine pini ölçen kalıcı teşhis
+
+`#` (donanım sağlığı) komutu I²C adreslerini gösteriyor ama ALERT telini **hiç sınamıyordu** — kusurun yarısını görüp yarısını kaçırıyordu. Eklenen prob:
+
+```
+! alert: pin=GPIO7 baslangic=YUKSEK 0x48=YOK 0x49=YOK
+   -> ALERT teli hicbir modulde degil
+```
+
+🔴 **Prob iki modülü de deniyor.** Modülde `ADDR` ile `ALRT` **yan yana** pinler ve iki modül birbirine benziyor; tel #2'ye takılırsa GPIO7 yüksek-Z bir çıkış görür — "tel yok" ile **aynı belirti**. Ayırt etmek için #2'nin RDY'si geçici açılıp yoklanıyor, sonra eski hâline (yüksek-Z) döndürülüyor. Kullanıcıya "ara bul" dedirtmek yerine kart **söylüyor**: *"tel yanlış modülde: #2'den çıkarıp #1'e tak"*.
+
+Ayrıca `rdy_zaman_asimi` sayacı eklendi (`F` satırında `rdy_asim=`): sayılan ama görünmeyen sayaç, sayılmamış sayaçtır.
+
+Kullanıcı teli geri taktı, ölçüldü: `0x48=VAR sure=1229 us`, `bek_us=1227`, `rdy_asim=0`, örnekleme **474/s**. Bringup: **58 geçti · 0 kaldı** (`--http` ile).
+
+##### Kalibrasyon çıkışı (CAL) — skopu lehimsiz sınamak için
+
+`X<hz>` komutu GPIO10'da %50 kare dalga üretiyor (`X0` kapatır, açılışta kapalı). Her gerçek osiloskopta olan prob dengeleme çıkışının karşılığı; skop zinciri (12 bit DMA ADC + tetik + zaman tabanı + ölçüm matematiği) bugüne kadar **hiç bilinen bir sinyal görmedi**, yalnızca benzetimde doğrulandı. Tek atlama teliyle (GPIO10 → GPIO4) sınanabilir.
+
+🔴 **Basılan frekans İSTENEN değil GERÇEKLEŞEN.** LEDC 80 MHz APB'yi tam sayı bölerek üretiyor; kartta ölçüldü: **7000 istendi, 6998 üretildi**. Skopun ölçümünü istenen değerle karşılaştırmak, ölçümü kendi varsayımıyla doğrulamak olurdu.
+
+⚠ Sınırı da yazalım: CAL ile ADC örnekleme saati **aynı kristalden** türüyor. Bu test skopun *iç tutarlılığını* (bölücü, tetik indeksi, görev oranı matematiği) doğrular, **mutlak frekans doğruluğunu değil**. Mutlak ölçüm harici bir referans ister.
+
+##### Gürültü tabanı — artık ölçülmüş sayı (10 dk, girişler GND'de)
+
+| | gerilim (0x49) | akım (0x48) |
+|---|---|---|
+| ortalama | 1.7156 V (1646.04 LSB) | 1.14 µA (0.01 LSB) |
+| 200 ms penceresinde σ | 0.0623 LSB | 0.1010 LSB |
+| **tek örnek σ** | **0.607 LSB** | **0.983 LSB** |
+| tepe-tepe | 0.38 LSB | 0.74 LSB |
+| **10 dk kayması** | **0.004 LSB** | **0.004 LSB** |
+
+Yani ADS'ler tek örnekte ~**1 LSB RMS** gürültüyle çalışıyor (veri sayfası tipik değeri) ve 10 dakikada ölçülebilir **hiçbir kayma yok** — hata bütçesindeki (B1) ofset varsayımı gerçekle uyumlu. Gerilim kanalının 1.7156 V'u ön uç yokken beklenen sabit (bkz. 5.12.45).
+
+⚠ İlk ölçüm ALERT kusurluyken alınmıştı ve **sıfır varyans** gösteriyordu — o sayı geçersizdi, tekrarlandı. Ders: bir ölçüm almadan önce *ölçüm koşullarının* sağlıklı olduğunu doğrula (`F` satırı tam bunun için var).
+
+##### Doğrulama
+
+`sim3_bant.py` 60 → **69** (1b-ter: RDY sayacı, `#` probu, iki modül ayrımı, #2'nin geri döndürülmesi; 1c-bis: CAL komutu, açılışta kapalı, gerçekleşen frekans, pin çakışması yok). Mutasyon B20 **10/10**.
+
+🔴 **Mutasyon boş bir iddiamı yakaladı:** "prob hangi modülde olduğunu ayırt ediyor" denetimi `"ADS_GERILIM" in g_prob` diye bakıyordu; o ad probu **eski hâline döndüren** satırda da geçtiği için, denemeyi `iki = false` yapan mutasyon **kaçtı**. Ölçüt çağrının kendisine (`alert_dener(ADS_GERILIM`) çevrildi.
+
+**Araç kusuru (ikinci kez):** `mutasyon.py`'nin `rmtree(..., ignore_errors=True)`'u Windows kilidinde **sessizce** başarısız olup sonraki `copytree`'yi çökertiyordu. Artık beş kez deneniyor, olmazsa benzersiz ada kaçılıyor — koşu bölünmüyor.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

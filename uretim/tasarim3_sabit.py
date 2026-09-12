@@ -845,9 +845,11 @@ ESP_DRAM_TOPLAM = 327680                  # bayt, arduino-cli'nin bildirdigi
 # ⚠ Bu BAG ANI degeri; kuyruklarin kendisi (48 x 224 B) ve ag gorevinin
 #   8 KB yigini CALISMA ANINDA ayriliyor — kartta `?` ciktisindaki
 #   `bos_dram=` alanina bak.
+# B30: 71308 -> 71460 (+152 B). RDY zaman asimi sayaci, CAL durumu
+# ve `alert_probu` (iki modulu deneyen teshis).
 # B29: 71284 -> 71308 (+24 B). Cevrim faz sayaclari (faz_yaz/bek/oku/
 # kayma toplamlari + adet) — `F` satirinin kaynagi.
-_ESP_DRAM_SON_OLCUM = 71308               # bayt, B6 derlemesi 2026-09-12
+_ESP_DRAM_SON_OLCUM = 71460               # bayt, B6 derlemesi 2026-09-12
 
 
 def _dram_kullanilan() -> int:
