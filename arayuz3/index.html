@@ -227,8 +227,17 @@
         <option :value="10000">10 kHz</option>
         <option :value="50000">50 kHz</option>
       </select>
+      <!-- B33: görev oranı. RC süzgeçle CAL bir DC kaynağına dönüşüyor;
+           ADC doğrusallığını ölçmek de bununla yapılıyor. -->
+      <label v-if="calHz" style="font-size:12px;color:var(--soluk);display:flex;
+             align-items:center;gap:6px">Görev
+        <input type="range" min="0" max="1000" step="10" v-model.number="calGorev"
+               @change="calGorevGonder" :disabled="!bagli" style="width:110px">
+        <span class="skop-deger" style="min-width:44px">%{{ (calGorev/10).toFixed(0) }}</span>
+      </label>
       <span class="ipucu" style="margin:0">
-        <template v-if="calGercek">kart {{ calGercek }} Hz üretiyor —
+        <template v-if="calGercek">kart {{ calGercek }} Hz üretiyor<template
+          v-if="calCozunurluk"> ({{ calCozunurluk }} bit görev)</template> —
           skop ölçümünü <b>bununla</b> karşılaştır</template>
         <template v-else>GPIO10 → GPIO4 tek tel; skop zincirini bilinen
           sinyalle sınamak için</template>

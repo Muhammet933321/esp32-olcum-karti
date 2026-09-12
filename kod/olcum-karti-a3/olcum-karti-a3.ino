@@ -111,6 +111,15 @@ static const uint8_t PIN_PIL_KAPI = 6;
    kaynagi kendiliginden surmemeli. */
 static const uint8_t PIN_CAL = 10;
 static uint32_t cal_hz = 0;          // 0 = kapali
+/* 🔴 B33 — COZUNURLUK DONANIMA SORULUYOR, VARSAYILMIYOR.
+   `ledcAttach(pin, 50000, 10)` bu kartta BASARISIZ oluyor ("requested
+   frequency 50000 and duty resolution 10 can not be achieved"), ama
+   dusuk frekansta baglanip sonra `ledcChangeFrequency(50000)` cagirinca
+   50000 DONUYORDU — yani API iki yoldan iki farkli cevap veriyor ve
+   biri yaniltici. Cozum: en yuksek cozunurlukten baslayip TUTANI bul,
+   hangisinin tuttugunu da bildir. Gorev orani o cozunurluge gore
+   olceklenecek — sabit 1023 varsaymak sessizce yanlis duty verirdi. */
+static uint8_t cal_cozunurluk = 0;   // bit; 0 = bagli degil
 static const uint8_t ADS_AKIM = 0x48;       // ADDR -> GND
 static const uint8_t ADS_GERILIM = 0x49;    // ADDR -> VDD
 
@@ -2240,6 +2249,7 @@ void yardim() {
   Serial.println(F("  K blokaj sayaclarini sifirla (eski degeri basar)"));
   Serial.println(F("  r<ms> rapor araligi 20..5000 ms (D satiri sikligi), r goster"));
   Serial.println(F("  X<hz> kalibrasyon cikisi (GPIO10, %50 kare), X0 kapatir"));
+  Serial.println(F("  x<promil> CAL gorev orani 0..1000 (PWM+RC = DC kaynagi)"));
   Serial.println(F("  R! fabrika ayarlari (kalibrasyonu SIFIRLAR)"));
   Serial.println(F("  t yakala  ta otomatik  tb<0-11> zaman tabani  t+ t-"));
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  t?"));
@@ -2266,24 +2276,58 @@ void komut_calistir(const char *s) {
       if (istek < 0) istek = 0;
       if (istek > 200000L) istek = 200000L;
       if (istek == 0) {
-        if (cal_hz) { ledcDetach(PIN_CAL); pinMode(PIN_CAL, INPUT); }
-        cal_hz = 0;
+        if (cal_cozunurluk) { ledcDetach(PIN_CAL); pinMode(PIN_CAL, INPUT); }
+        cal_hz = 0; cal_cozunurluk = 0;
         Serial.println(F("X cal=kapali"));
         break;
       }
-      if (!cal_hz) {
-        if (!ledcAttach(PIN_CAL, (uint32_t)istek, 10)) {
-          Serial.println(F("! X: LEDC kanali alinamadi"));
-          break;
-        }
+      if (cal_cozunurluk) { ledcDetach(PIN_CAL); cal_cozunurluk = 0; }
+      uint8_t coz = 0;
+      for (uint8_t b = 12; b >= 6; b--) {
+        if (ledcAttach(PIN_CAL, (uint32_t)istek, b)) { coz = b; break; }
       }
-      uint32_t gercek = ledcChangeFrequency(PIN_CAL, (uint32_t)istek, 10);
-      ledcWrite(PIN_CAL, 512);              /* %50 gorev — 10 bit */
-      cal_hz = gercek ? gercek : (uint32_t)istek;
+      if (!coz) {
+        Serial.print(F("! X: "));  Serial.print(istek);
+        Serial.println(F(" Hz LEDC ile uretilemiyor (hicbir cozunurlukte)"));
+        cal_hz = 0;
+        break;
+      }
+      cal_cozunurluk = coz;
+      uint32_t gercek = ledcChangeFrequency(PIN_CAL, (uint32_t)istek, coz);
+      if (!gercek) gercek = (uint32_t)istek;
+      ledcWrite(PIN_CAL, (uint32_t)1 << (coz - 1));   /* %50 */
+      cal_hz = gercek;
       Serial.print(F("X cal_hz="));      Serial.print(cal_hz);
       Serial.print(F(" istenen="));      Serial.print(istek);
-      Serial.print(F(" gorev=%50 pin=GPIO")); Serial.print(PIN_CAL);
+      Serial.print(F(" cozunurluk="));   Serial.print(coz);
+      Serial.print(F(" bit gorev=%50 pin=GPIO")); Serial.print(PIN_CAL);
       Serial.println(F("  (skop girisi GPIO4'e tek tel)"));
+      break;
+    }
+
+    /* 🔴 B33 — CAL GOREV ORANI (binde). `X<hz>` kare dalgayi kurar,
+       `x<promil>` gorev oranini degistirir: 0..1000 = %0..%100.
+       NEDEN: PWM + RC = programlanabilir DC kaynagi. ESP32'nin ADC'si
+       dogrusal DEGIL (Espressif'in kendi belgeleri soyluyor) ve skopun
+       gerilim ekseni bugun TAM DOGRUSAL varsayiyor. Gorev oranini
+       supurup okunan kodu olcmek, o egriyi cikarmanin lehimsiz yolu.
+       Referans: gorev orani TAM BILINIYOR (10 bit LEDC, tamsayi), yani
+       olcum kendi varsayimina degil BAGIMSIZ bir sayiya dayaniyor. */
+    case 'x': {
+      if (!cal_hz) { Serial.println(F("! x: once `X<hz>` ile cikisi ac")); break; }
+      long p = atol(s + 1);
+      if (p < 0) p = 0;
+      if (p > 1000) p = 1000;
+      /* Gorev orani GERCEK cozunurluge gore olcekleniyor: 1023 sabiti
+         8 bitlik bir kanalda %400 gorev demek olurdu. */
+      uint32_t azami = ((uint32_t)1 << cal_cozunurluk) - 1u;
+      uint32_t d = (uint32_t)(((uint64_t)p * azami + 500u) / 1000u);
+      ledcWrite(PIN_CAL, d);
+      Serial.print(F("x gorev_promil="));  Serial.print(p);
+      Serial.print(F(" ham_duty="));       Serial.print(d);
+      Serial.print('/');                   Serial.print(azami);
+      Serial.print(F(" ("));                Serial.print(cal_cozunurluk);
+      Serial.print(F(" bit) cal_hz="));     Serial.println(cal_hz);
       break;
     }
 

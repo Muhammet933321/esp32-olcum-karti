@@ -313,6 +313,10 @@ createApp({
          ve skop olcumu bununla karsilastirilmali, istenenle DEGIL. */
       calHz: 0,
       calGercek: null,
+      /* B33: CAL gorev orani (binde). RC suzgecle birlikte panelden
+         ayarlanabilir bir DC kaynagi: %0..%100 -> 0..3.3 V. */
+      calGorev: 500,
+      calCozunurluk: null,
       raporMs: 200,          // B27 A2: tercih (localStorage); kart `r<ms>` ile uyar
       raporSecenekleri: RAPOR_SECENEKLERI,
       kartRapor: null,       // kartin `A rapor=` / `* rapor araligi` dedigi deger
@@ -795,6 +799,7 @@ createApp({
   methods: {
     gorunumeGit(id) { this.gorunum = id; },
     calGonder() { this.gonder('X' + this.calHz); },
+    calGorevGonder() { this.gonder('x' + this.calGorev); },
     bicim(x, n) {
       if (!isFinite(x)) return '—';
       return x.toFixed(n);
@@ -1117,6 +1122,8 @@ createApp({
       if (satir.startsWith('X ')) {
         const m = satir.match(/cal_hz=(\d+)/);
         this.calGercek = m ? parseInt(m[1], 10) : null;
+        const c = satir.match(/cozunurluk=(\d+)/);
+        if (c) this.calCozunurluk = parseInt(c[1], 10);
         this.kaydet(satir);
         return;
       }
