@@ -7825,6 +7825,62 @@ Zaten durmuş sürücüye `adc_continuous_stop` çağırmak IDF'den her `w`'de *
 
 ---
 
+#### 5.12.52 ✅ B38 — GPIO5 KARAKTERİZE EDİLDİ: eğrilik dönüştürücüye ait (2026-09-13)
+
+Kullanıcı GPIO5'i GPIO4'le aynı breadboard satırına bağladı; RC düzeneği (2×10K + 2×100nF) yerinde. Hızlı AKIM kanalı ilk kez ölçüldü — güç faktörünün başka kaynağı olmadığı için bu, B34'ten beri açık en önemli kalemdi.
+
+##### Sonuç (101 nokta, `uretim/olcum-adc-supurme.csv`)
+
+| | %5–%85 bandında en büyük sapma | rms |
+|---|---|---|
+| GPIO4, skop yolu | +75.0 kod | 18.5 kod |
+| GPIO4, `wR` yolu | +77.0 kod | 18.2 kod |
+| **GPIO5, `wR` yolu** | **+77.0 kod** | **18.2 kod** |
+| B34 (dün, GPIO4 skop, GPIO5 bağlı değil) | ±75.6 kod | ~18 |
+
+* **GPIO5 − GPIO4, aynı yakalamada: −0.26 ± 0.75 kod.** İki kanal 1 kodun altında aynı.
+* **Eğrilik kanala değil dönüştürücüye ait** → B36'nın eFuse düzeltmesi GPIO5'e de geçerli. Hızlı yolun (P, PF, Vrms, Irms) kalibrasyonu artık veriyle gerekçelendirilebilir.
+* B34'ün kaydedilmemiş betikle yapılan ölçümü **ilk kez tekrarlandı** (75.0 vs 75.6).
+
+##### Çekme sinamasının iki taraflı kanıtı
+
+* **CAL kapalıyken sinama "BOŞ" dedi, oysa yayılım yalnızca 18 kod.** Kondansatörler şarjlı ama arkalarında kaynak yok (GPIO10 giriş kipinde). Yayılıma bakan bir ölçüt bunu "sürülü" sayardı. B37'de yayılım yerine çekme sinamasını seçmenin somut kanıtı. Süpürme betiğinin kendi "boşta mı" kararı da yayılımdaydı — firmware'in `wB`'sine bağlandı.
+* İki pin aynı düğümde → çekmeler paralel (~12.5K) → RC düğümünde kayma %60 → %71 (öngörü ~%61; üst uçta ADC eğriliği kodu büyütüyor). Eşik %75, **4 puan pay — en zorlu, yapay durumda.** Gerçek ön uçta (≤%10) pay 65 puan.
+
+##### 🔴 Kırmızı bir iddia: yanlış kurulmuştu, eşik gevşetilmedi
+
+"Skop yolu ile `wR` yolu ≤ 8 kod" 101 noktada **12.8 kodla** kırmızı döndü (kaba süpürmede 3'tü). Önce örtüşmeden şüphelendim; değil: tb3 833 örnek = 199.9 PWM periyodu, `wR` 300 örnek = tam 144 periyot. Sonra **dünkü CSV bağımsız referans oldu**: `wR` dünle uyuşuyor (ort +1.6, std 2.9), sapan **bugünkü skop** okuması. Tekrarlı A/B (`--ab`):
+
+| görev | tb3 (83 kSa/s) − wR | tb5 (20 kSa/s) − wR |
+|---|---|---|
+| %30 | +1.1 | +3.4 |
+| %60 | +3.7 | +4.5 |
+| %90 | +4.1 | +6.9 |
+
+Fark **seviyeyle orantılı** ve **örnekleme hızına bağlı** — ADC örnekleme kondansatörünün düğümden çektiği ortalama akımla tutarlı (~4 pF × V × f); 20K kaynak empedansında birkaç mV. Gerçek ön uç bunu en az 8 kat küçültür. Seviyeyle orantılı fark bir **kazanç** terimi ve doğrusallık analizindeki en iyi doğru onu siliyor. 101 noktada ayrıştırıldı:
+
+```
+skop - wR = +0.74 + %0.141 x kod        kazanç terimi
+artık std 2.65 kod                      gürültü (wR yalnızca 300 örnek)
+```
+
+İddia ikiye ayrıldı: **kazanç farkı < %0.5** ve **kazanç silinince artık std ≤ 4 kod**. İkisi de ölçtüğü şeyi söylüyor; eski tek iddia açıklanmış bir terimi gürültüyle topluyordu.
+
+##### Analiz kartsız ve zincirde
+
+`tezgah_adc_supur.py --analiz <csv>` ham veriden bütün iddiaları yeniden koşturuyor (5 dk süpürme tekrarlanmadan). `sim3_skop.py` 6f bunu çağırıyor — **zincir artık kayıtlı ham ölçüm verisini de sınıyor** ve mutasyon koşucusu analizin eşiklerini bozabiliyor. Analiz ikinci kez yazılmadı; betiğin kendisi çağrılıyor.
+
+##### 🔴 Ön uç kurulmadan önce
+
+GPIO4–GPIO5 köprü teli ve RC düzeneği **sökülmeli**. Gerçek devrede GPIO4 skop/GERİLİM, GPIO5 hızlı AKIM: kısa devre kalırsa iki op-amp çıkışı birbirine bağlanır ve güç/PF anlamsız olur. Kartta zaten görüldü: iki kanal aynı sinyali okurken `w` **PF = 1.0000** bastı. Tezgah listesinde en üstte.
+
+##### Doğrulama
+
+* Zincir 18/18, **1356 iddia** · `sim3_skop.py` 48 → **49** (6f) · mutasyon B19 12 → **15/15** (GPIO5≠GPIO4 eğriliği, kazanç eşiği, bozuk CSV).
+* Kartsız analiz **8/8**.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

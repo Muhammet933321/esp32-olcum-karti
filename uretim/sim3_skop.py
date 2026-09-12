@@ -673,6 +673,33 @@ def bolum6(r):
             "zaten durmus surucuye stop cagirmak her `w`de 3 satir ERROR "
             "basiyordu; gercek bir iz o gurultude kaybolurdu")
 
+    # ── B38: GPIO5 KARAKTERIZE EDILDI — kayitli olcum ZINCIRDE ────────
+    # `olcum-adc-supurme.csv` 2026-09-13'te kartta 101 noktada olculdu
+    # (GPIO4 ve GPIO5 ayni RC dugumunde). Analiz betigin KENDISINDEN
+    # geliyor (`--analiz`, kartsiz) — burada ikinci bir analiz yazilsaydi
+    # iki temsil ayrisirdi. Zincir bu sayede HAM OLCUM VERISINI de sinıyor
+    # ve mutasyon kosucusu analizin esiklerini bozabiliyor.
+    import subprocess
+    _supur = BURASI / "olcum-adc-supurme.csv"
+    if _supur.exists():
+        _a = subprocess.run(
+            [sys.executable, str(BURASI / "tezgah_adc_supur.py"),
+             "--analiz", str(_supur)],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", cwd=BURASI, timeout=120)
+        _son = [s for s in _a.stdout.splitlines() if "dogrulama gecti" in s]
+        _kirmizi = [s.strip() for s in _a.stdout.splitlines()
+                    if s.startswith("[!!]")]
+        r.kosul("  6f: [!] kayitli GPIO4+GPIO5 supurmesinin analizi YESIL",
+                _a.returncode == 0 and bool(_son),
+                (_son[0].strip() if _son else "cikti yok")
+                + (" · " + _kirmizi[0][:90] if _kirmizi else "")
+                + " — GPIO5'in egriligi GPIO4'unkiyle ayni ise B36'nin "
+                  "eFuse duzeltmesi hizli AKIM kanalina da gecerli")
+    else:
+        r.kosul("  6f: [!] kayitli GPIO4+GPIO5 supurmesinin analizi YESIL",
+                False, f"{_supur.name} YOK — olcum kaybolmus")
+
     r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
             HAM_INL_KOD * T.SKOP_ADIM
             < 0.05 * (T.SKOP_MENZIL_ARTI - T.SKOP_MENZIL_EKSI),
@@ -696,13 +723,19 @@ def main() -> int:
     # Skop bolucusunun VREF'e baglanmasi YENI bir akim yolu acti;
     # capraz konusma yalnizca simulasyonda olculdu.
     tezgah("B19 Skop kanali", [
-        ("[!] GPIO5 (hizli AKIM kanali) dogrusallik supurmesi — "
-         "`python tezgah_adc_supur.py --adim 10 --csv olcum-adc-supurme.csv`",
-         "GPIO5 HIC karakterize edilmedi; guc faktorunun baska kaynagi yok. "
-         "Duzenek: RC dugumunden (GPIO4'e giden tel) GPIO5'e bir tel. Betik "
-         "GPIO4'u iki yoldan (skop + wR) okuyup 3 kod icinde uyustugunu "
-         "GOSTERDI (2026-09-13); GPIO5 bosta gorunurse betik BOSTA der ve "
-         "sutunu olcum saymaz"),
+        ("🔴 ON UC KURULMADAN ONCE: GPIO4-GPIO5 kopru telini ve RC duzenegini "
+         "(2x10K + 2x100nF, GPIO10'dan) SOK",
+         "B38 supurmesi icin GPIO4 ile GPIO5 AYNI satira baglandi. Gercek "
+         "devrede GPIO4 skop/GERILIM, GPIO5 hizli AKIM kanali: kisa devre "
+         "kalirsa iki op-amp cikisi birbirine baglanir ve guc/PF olcumu "
+         "ANLAMSIZ olur (V ve I ayni sinyal -> PF=1.0000, kartta goruldu). "
+         "RC duzenegi de skop girisini 20K ile yukler"),
+        ("GPIO5 dogrusalligi — OLCULDU (2026-09-13, B38)",
+         "`python tezgah_adc_supur.py --adim 10 --csv olcum-adc-supurme.csv`. "
+         "GPIO5 rms 18.2 kod = GPIO4 rms 18.2 kod: egrilik KANALA degil "
+         "DONUSTURUCUYE ait, B36'nin eFuse duzeltmesi GPIO5'e de gecerli. "
+         "Kanaldan kanala -0.26 +- 0.75 kod. Tekrar gerekirse: ayni "
+         "duzenek, analiz kartsiz `--analiz olcum-adc-supurme.csv`"),
         ("Bos-pin sinamasi GERCEK on ucla — `wB`",
          "B37 esigi %75, bos %100 ve RC duzenegi %41-50 OLCULEREK secildi; "
          "gercek on uc (op-amp cikisi ~%0, skop bolucusu ~%10) HESAPLANDI, "

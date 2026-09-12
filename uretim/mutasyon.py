@@ -555,6 +555,22 @@ MUTASYONLAR = [
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
     # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    # ── B38 · GPIO5 karakterizasyonu — kayitli olcum zincirde
+    ("B19", "sim3_skop.py", "uretim/tezgah_adc_supur.py",
+     '        ok("[!] GPIO5\'in egriligi GPIO4\'unkiyle ayni (rms +-%15)",\n'
+     '           abs(r5 - r4) <= 0.15 * r4,',
+     '        ok("[!] GPIO5\'in egriligi GPIO4\'unkiyle ayni (rms +-%15)",\n'
+     '           abs(r5 - r4) <= 0.15 * r4 - 100,',
+     "GPIO5'in egriligi GPIO4'unkinden farkli cikarsa B36'nin eFuse "
+     "duzeltmesi hizli AKIM kanalina TASINAMAZ; iddia bunu yakalamali"),
+    ("B19", "sim3_skop.py", "uretim/tezgah_adc_supur.py",
+     "           abs(eg) < 0.005,", "           abs(eg) < 0.0005,",
+     "okuma yollari arasi kazanc esigi olculen %0.141'in ALTINA inerse "
+     "iddia kirmiziya donmeli — esik olcumu gercekten sinıyor mu"),
+    ("B19", "sim3_skop.py", "uretim/olcum-adc-supurme.csv",
+     "gorev_promil,", "gorev_promilX,",
+     "kayitli olcum okunamaz hale gelirse zincir SESSIZCE gecmemeli"),
+
     # ── B37 · bos pin kapisi (cekme sinamasi)
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "                return;   /* B37: W BASILMAZ */",
