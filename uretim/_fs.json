@@ -1,15 +1,15 @@
 {
   "kaynak": {
-    "index.html": "b821153f64db3a17c731ad4d997b10824b081a870991858892c8b78747d0d8d1",
+    "index.html": "0e90914c4a54e45439f98804ff2acf68b6c0180947f74c1f7206a448694826a3",
     "app.js": "88127fe5126c59a74abc5cbf998713f75d5523ce567391ee572d56a4c3e8e930",
-    "style.css": "772a09e1b72561c1b1df781bc23eb1f891f64b680d4a33285418d0de5e5c97f4",
+    "style.css": "2f77fa301aa76510804ae4c33f14f358c52b342dd86e4df59023bf1449715fff",
     "vendor/vue.global.prod.js": "220ffd8a70f6161104efbf08802375364d9e4579f2552ba412cf80437f1692fe",
     "manifest.json": "a111bba0f8fb92031091f7a0ba07b058a70a9c3185cf344ad45d4bee3a6b5a51",
     "ikon-180.png": "f6c99da2cadc82d1a6d8959e4b74f617a3730627108c011db6ae700dd053fd00"
   },
   "ofset": "0x310000",
   "bolum_boyut": 917504,
-  "icerik_bayt": 102931,
+  "icerik_bayt": 104060,
   "goruntu_bayt": 917504,
   "blok": 4096,
   "sayfa": 256

@@ -290,6 +290,26 @@ MUTASYONLAR = [
      "      if (this.bagli && TASIYICILAR[eski]) {",
      "watch, demo'nun az once actigi baglantiyi 'eski tasiyici' sanip "
      "kapatir; demo akisi ilk 300 noktadan sonra susar"),
+    # ── B27 A3 · telefon + acil durdurma
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     "  <div v-if=\"pilDurum === 'CALISIYOR'\" class=\"acil\">",
+     '  <div v-if="false" class="acil">',
+     "desarj surerken acil serit HIC gorunmez: durdurmak icin once dogru "
+     "sekmeyi bulmak gerekir"),
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     '    <button class="acil-dur" @click="pilDurdurKomut">DURDUR</button>',
+     '    <button class="acil-dur" :disabled="!surucuyum" @click="pilDurdurKomut">DURDUR</button>',
+     "izleyici oturumda durdurma kilitlenir — oysa `p0` bilerek jetonsuz"),
+    ("B7", "test_arayuz3.js", "arayuz3/style.css",
+     "  .olcum.w { grid-column: 1 / -1; }",
+     "",
+     "telefonda guc karti yarim sutunda kalir: 32 px'lik sayi kutuya "
+     "sigmaz, tasar"),
+    ("B7", "test_arayuz3.js", "arayuz3/style.css",
+     "  .ust .alt { display: none; }        /* alt başlık telefonda yer kaplıyor */",
+     "",
+     "telefonda ust serit bir satir daha buyur, olcumler ilk ekrandan duser"),
+
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",

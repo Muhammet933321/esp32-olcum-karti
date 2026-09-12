@@ -38,32 +38,35 @@
     </div>
     <div class="bosluk"></div>
 
-    <!-- B27 A2: durum + yol + adres + düğme TEK öbek. Önce dördü ayrı
-         esnek öğeydi ve dar ekranda her biri başka satıra düşüyordu. -->
+    <!-- B27 Aşama 3: üst şerit TELEFONDA da tek satır kalsın diye
+         sadeleşti — yalnızca durum ve birincil eylem. Taşıyıcı seçimi ve
+         kart adresi oturumda bir kez dokunulan şeyler; Ayarlar'ın
+         "Bağlantı" kartına taşındı. -->
     <div class="baglanti">
       <span class="rozet" :class="bagli ? 'acik' : 'kapali'">
         <span class="nokta"></span>{{ bagli ? 'bağlı' : 'bağlı değil' }}
       </span>
-
-      <!-- B22.2: TAŞIYICI SEÇİCİ. Modlar arasındaki fark kodda değil
-           burada: aynı arayüz, farklı yol.
-           B27 A2: `demo` seçeneği EKLENDİ — ?demo ile açınca taşıyıcı
-           'demo' oluyordu ama menüde karşılığı yoktu ve seçici BOŞ
-           görünüyordu. -->
-      <select v-model="tasiyiciAdi" :disabled="bagli" title="bağlantı yolu">
-        <option value="seri">USB (Web Serial)</option>
-        <option value="akis">WiFi / köprü (akış)</option>
-        <option value="demo">Demo — sahte kart</option>
-      </select>
-      <input v-if="tasiyiciAdi === 'akis'" v-model="kartTaban" :disabled="bagli"
-             placeholder="http://olcum.local (boş = aynı köken)">
-
       <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">
         Karta bağlan
       </button>
       <button v-else @click="kes">Bağlantıyı kes</button>
     </div>
   </header>
+
+  <!-- ═══════════════════════════════════════════ ACİL DURDURMA
+       Pil testi çalışırken HER görünümde, üstte. Telefonda deşarjı
+       durdurmak için önce doğru sekmeyi bulmak zorunda kalmayasın diye:
+       `p0` jeton ve parola İSTEMEYEN tek komut, emniyet böyle çalışır. -->
+  <div v-if="pilDurum === 'CALISIYOR'" class="acil">
+    <!-- Nokta ve metin TEK öğe: ayrı esnek öğe olduklarında telefonda
+         nokta kendi satırında kalıyordu (390 px render'ı gösterdi). -->
+    <div class="acil-bilgi">
+      <span class="acil-nokta"></span>
+      <span><b>Pil testi çalışıyor</b> — {{ bicim(pilMah, 1) }} mAh ·
+        {{ bicim(volt, 3) }} V, kesme {{ bicim(pilKesme, 2) }} V</span>
+    </div>
+    <button class="acil-dur" @click="pilDurdurKomut">DURDUR</button>
+  </div>
 
   <!-- ───────────────────────────────────────────── gezinme (B27 A1)
        Tek sayfa, beş görünüm. Sekme = adres (#/olcum …); geri tuşu
@@ -379,6 +382,42 @@
 
   <!-- ═════════════════════════════════════════════ #/ayar -->
   <main class="gorunum" v-show="gorunum === 'ayar'">
+
+  <!-- B27 Aşama 3: üst şeritten taşındı -->
+  <section class="kart">
+    <h2>Bağlantı</h2>
+    <div class="satir">
+      <div class="alan">
+        <label>Bağlantı yolu</label>
+        <!-- B22.2: TAŞIYICI SEÇİCİ. Modlar arasındaki fark kodda değil
+             burada: aynı arayüz, farklı yol.
+             B27 A2: `demo` seçeneği EKLENDİ — ?demo ile açınca taşıyıcı
+             'demo' oluyordu ama menüde karşılığı yoktu ve seçici BOŞ
+             görünüyordu. -->
+        <select v-model="tasiyiciAdi" :disabled="bagli" title="bağlantı yolu">
+          <option value="seri">USB (Web Serial)</option>
+          <option value="akis">WiFi / köprü (akış)</option>
+          <option value="demo">Demo — sahte kart</option>
+        </select>
+      </div>
+      <div class="alan" v-if="tasiyiciAdi === 'akis'" style="flex:1">
+        <label>Kart adresi</label>
+        <input type="text" v-model="kartTaban" :disabled="bagli"
+               placeholder="http://olcum.local (boş = aynı köken)">
+      </div>
+      <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">
+        Karta bağlan
+      </button>
+      <button v-else @click="kes">Bağlantıyı kes</button>
+    </div>
+    <p class="ipucu">
+      Sayfayı <b>kart sunuyorsa</b> yol kendiliğinden <em>akış</em> seçilir ve
+      bağlantı otomatik kurulur. <b>USB</b> yalnızca <code>http://localhost</code>
+      üzerinden açıldığında çalışır (Web Serial güvenli bağlam ister).
+      Telefonda <code>.local</code> adı Android'de çözülmez —
+      kartın <b>IP adresini</b> kullan.
+    </p>
+  </section>
 
   <section class="kart">
     <h2>Kalibrasyon ve ayar</h2>

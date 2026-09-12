@@ -7309,6 +7309,23 @@ Kullanıcı A2-a'yı onaylayıp "sıkıntı yoksa sonraki aşamaya geç" dedi. �
 
 **Aşama 3'e kalan:** telefon kırılımı (şu an yalnızca 560 px altı için asgari kural var), `ayar` görünümünde alan genişlikleri düzensiz, grafik tepe etiketleri şeritli ama hâlâ çizgiye yakın.
 
+##### ✅ Aşama 3 bitti (2026-09-12) — PC ↔ telefon
+
+Kullanıcı telefondan karta bağlanamıyordu; sebep **kartta değil adreste**: `olcum.local` bir mDNS adı, Windows ve iPhone çözüyor, **Android çözmüyor** (Chrome `.local`'i arama sorgusuna çeviriyor). IP ile (`http://<kart-ip>`) her şey parolasız açılıyor — 200, 9.6 KB, 115 ms. Bu tuzak artık **Ayarlar → Bağlantı** kartında yazılı ve testle korunuyor; kullanıcı telefondan bağlandığını doğruladı.
+
+| Ne | Neden |
+|---|---|
+| **Acil durdurma şeridi** — pil testi çalışırken **her görünümde**, gezinmenin üstünde, tek düğme (`p0`) | Telefonda deşarj sürerken önce doğru sekmeyi bulmak zorunda kalmak emniyet kusurudur. Şerit görünümlerin **dışında** (yoksa yalnızca açık sekmede görünür) ve düğmede `:disabled` **yok** — `p0` zaten jetonsuz geçen tek komut |
+| **Üst şerit sadeleşti**: yalnızca durum rozeti + birincil eylem | Taşıyıcı seçici ve kart adresi oturumda bir kez dokunulan şeyler; Ayarlar'ın yeni **Bağlantı** kartına taşındı. Telefonda üst şerit 89 px'e indi |
+| **Telefon yerleşimi** (≤620 px): gerilim + akım yan yana, güç tam genişlik, ikincil kutular iki sütun, alt başlık gizli | Tek sütunda güç kartı ilk ekrandan düşüyordu. Gerçek 390 px'te **üç ölçüm de ilk ekranda** |
+| ≤380 px'te tek sütuna dönüş | 26 px'lik mono sayı iki sütunda kutuya sığmıyor |
+
+**Ölçüm aracının kendi kusuru:** `--window-size=390,844` Windows'ta işe yaramıyor — pencere ~500 px'in altına inmiyor, yani "390 px testi" aslında 496 px'te koşuyordu ve **telefon kırılımı hiç sınanmamıştı**. `tarayici.py`'ye `ekran()` eklendi (CDP `Emulation.setDeviceMetricsOverride`); gerçek 390/360 px'te doğrulandı. Acil şeridi görmek için `/pil` ucunu taklit eden tek kullanımlık bir sunucu yazıldı (demo sahte kartı pil testini modellemiyor).
+
+**Doğrulama:** `test_arayuz3.js` 225 → **239** (bölüm 14: şerit görünümlerin dışında mı, yalnızca `CALISIYOR`'da mı, `p0` gönderiyor mu, `:disabled` **yok** mu, telefon ızgarası, çok dar ekran, üst şeritte seçici kalmamış mı, Ayarlar'da var mı, Android `.local` uyarısı yazılı mı). Mutasyon B7 **30/30**. Headless: 390 · 360 · 768 · 1280 px'te yatay taşma yok; **gerçek kartta 390 px** — üç ölçüm ilk ekranda, 0 konsol hatası. LittleFS 104.1 KB (%11.3).
+
+**Kendi hatam:** "sonsuz animasyon en fazla bir yerde" iddiası ikinci **meşru** gösterge (acil nokta) gelince yanlış yere kırmızı döndü. Doğru ölçüt sayı değil **hangi seçici**: nabız yalnızca `.rozet.acik .nokta` ve `.acil-nokta`'da, ölçüm sayılarında animasyon yasak.
+
 ---
 
 #### 5.12.17 Sırada ne var

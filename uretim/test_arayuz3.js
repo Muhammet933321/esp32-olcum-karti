@@ -1318,11 +1318,20 @@ console.log('\n--- 13. Tasarim sistemi: temalar, kanal renkleri, hareket ---');
   ok('prefers-reduced-motion karsiligi var (hareket kapanabiliyor)',
      /@media \(prefers-reduced-motion: reduce\)/.test(css) &&
      /animation-duration:\s*\.01ms\s*!important/.test(css));
-  /* Sonsuz animasyon YALNIZCA baglanti noktasinda olmali — olcum
-     sayilarinin oynamasi okunakligi bozar. */
-  const sonsuz = [...css.matchAll(/animation:[^;]*infinite/g)].length;
-  ok('Sonsuz animasyon en fazla BIR yerde (bagli noktasi)', sonsuz <= 1,
-     `${sonsuz} adet`);
+  /* Sonsuz animasyon YALNIZCA DURUM GOSTERGELERINDE olabilir: canli
+     akis noktasi ve acil durdurma noktasi. Olcum sayisinin oynamasi
+     okunakligi bozar — ilk yazimda "en fazla bir tane" demistim, ama
+     ikinci mesru gosterge gelince o kural yanlis yere kirmiziya dondu.
+     Dogru olcut SAYI degil, HANGI SECICI. */
+  const IZINLI_NABIZ = ['.rozet.acik .nokta', '.acil-nokta'];
+  const nabizli = [...css.matchAll(/([^{}]+)\{[^{}]*animation:[^;]*infinite[^;]*;/g)]
+    .map((m) => m[1].trim().split(/[\n,]/).pop().trim());
+  ok('Sonsuz animasyon yalnizca durum gostergelerinde',
+     nabizli.length > 0 && nabizli.every((s) => IZINLI_NABIZ.includes(s)),
+     nabizli.join(' | '));
+  ok('Olcum sayilarinda animasyon YOK (hane oynamasin)',
+     !nabizli.some((s) => /\.deger|\.kpi-deger|\.skop-olcum-deger/.test(s)),
+     nabizli.join(' | '));
 
   /* Olcum sayilari tabular: hane kaymasin. */
   ok('Olcum ve ikincil sayilar tabular-nums',
@@ -1405,6 +1414,77 @@ console.log('\n--- 13. Tasarim sistemi: temalar, kanal renkleri, hareket ---');
        govdeIcinde(appKaynak, 'betikYukle', "querySelector('script[src=\"' + yol + '\"]')"),
        'const yeniden bildirimi SyntaxError verir');
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   14. TELEFON YERLESIMI + ACIL DURDURMA (B27 Asama 3)
+
+   Iki sey civileniyor:
+   (a) ACIL DURDURMA her gorunumde. Telefonda desarj surerken once dogru
+       sekmeyi bulmak zorunda kalmak EMNIYET kusurudur. `p0` jeton ve
+       parola istemeyen tek komut; serit de gorunumlerin DISINDA durmali,
+       yoksa yalnizca acik sekmede gorunur.
+   (b) Telefon kirilimi CSS'te var ve olcum kartlari orada yeniden
+       diziliyor. "Telefonda basit surum" AYRI bir arayuz demek olurdu —
+       bu proje arayuz ayrismasindan uc kez yandi; tek sablon, farkli
+       yerlesim.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 14. Telefon yerlesimi + acil durdurma ---');
+{
+  const html = yorumsuz(htmlKaynak);
+  const css = cssOku();
+
+  /* (a) Acil serit: gorunumlerin DISINDA (ilk <main>'den once) ve
+         kosulu "test calisiyor". */
+  const acilIndeks = html.indexOf('class="acil"');
+  const ilkMain = html.indexOf('<main ');
+  ok('Acil durdurma seridi gorunumlerin DISINDA (her sekmede gorunur)',
+     acilIndeks > 0 && ilkMain > 0 && acilIndeks < ilkMain,
+     `acil@${acilIndeks} ilkMain@${ilkMain}`);
+  ok('Acil serit YALNIZCA test calisirken gorunuyor',
+     /v-if="pilDurum === 'CALISIYOR'"[\s\S]{0,120}class="acil"/.test(html) ||
+     /class="acil"[\s\S]{0,120}v-if="pilDurum === 'CALISIYOR'"/.test(html));
+  ok('Acil seritteki dugme `p0` gonderiyor (pilDurdurKomut)',
+     /class="acil"[\s\S]{0,600}@click="pilDurdurKomut"/.test(html) &&
+     govdeIcinde(appKaynak, 'pilDurdurKomut', "gonder('p0')"));
+  /* Emniyet dugmesi ENGELLENMEMELI: `:disabled` konursa surucu olmayan
+     oturumda ya da baglanti dalgalanmasinda durdurma kilitlenir. `p0`
+     zaten jetonsuz gecen tek komut. */
+  ok('Acil dugmede :disabled YOK (durdurma hicbir kosula bagli degil)',
+     !/class="acil"[\s\S]{0,600}acil-dur[^>]*:disabled/.test(html));
+  ok('Acil serit gorsel olarak uyari rengiyle ayirt ediliyor',
+     /\.acil\s*\{[^}]*var\(--uyari\)/.test(css) &&
+     /\.acil-dur\s*\{[^}]*var\(--uyari\)/.test(css));
+
+  /* (b) Telefon kirilimi: olcum kartlari yeniden diziliyor ve cok dar
+         ekranda tek sutuna donuyor. */
+  const telefon = css.match(/@media \(max-width: 620px\)\s*\{([\s\S]*?)\n\}/);
+  ok('Telefon kirilimi (<=620px) tanimli', !!telefon);
+  if (telefon) {
+    ok('Telefonda olcum kartlari iki sutun, guc tam genislik',
+       /\.olcumler\s*\{[^}]*grid-template-columns:\s*1fr 1fr/.test(telefon[1]) &&
+       /\.olcum\.w\s*\{[^}]*grid-column:\s*1 \/ -1/.test(telefon[1]));
+    ok('Telefonda ust seridin alt basligi gizleniyor (yer kazanci)',
+       /\.ust \.alt\s*\{[^}]*display:\s*none/.test(telefon[1]));
+  }
+  ok('Cok dar ekranda (<=380px) olcumler tek sutuna donuyor',
+     /@media \(max-width: 380px\)[\s\S]{0,200}grid-template-columns:\s*1fr;/.test(css));
+
+  /* Ust serit sadelesti: tasiyici secici ve adres AYARLAR'da. */
+  const ust = html.match(/<header class="ust">([\s\S]*?)<\/header>/);
+  ok('Ust seritte tasiyici secici ve adres kutusu YOK', !!ust &&
+     !ust[1].includes('v-model="tasiyiciAdi"') && !ust[1].includes('v-model="kartTaban"'));
+  ok('Ust seritte durum rozeti ve birincil eylem VAR', !!ust &&
+     ust[1].includes('class="rozet"') && ust[1].includes('@click="baglan"'));
+  const ayarBlok = html.match(/v-show="gorunum === 'ayar'"([\s\S]*?)<\/main>/);
+  ok('Tasiyici secici ve kart adresi AYARLAR gorunumunde', !!ayarBlok &&
+     ayarBlok[1].includes('v-model="tasiyiciAdi"') &&
+     ayarBlok[1].includes('v-model="kartTaban"'));
+
+  /* Telefonda `.local` tuzagi YAZILI olmali: Android mDNS cozmuyor ve
+     kullanici "telefondan giremiyorum" diye takildi (2026-09-12). */
+  ok('Baglanti karti Android `.local` tuzagini soyluyor',
+     /Android/.test(html) && /\.local/.test(html) && /IP adresini/.test(html));
 }
 
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu

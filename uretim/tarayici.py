@@ -233,6 +233,20 @@ class Tarayici:
         ozellikler = [{"name": "prefers-color-scheme", "value": ad}] if ad else []
         self.cagir("Emulation.setEmulatedMedia", {"features": ozellikler})
 
+    def ekran(self, genislik: int, yukseklik: int, dpr: float = 2.0,
+              mobil: bool = True) -> None:
+        """Gercek bir telefon ekrani taklidi (CDP device metrics).
+
+        🔴 `--window-size=390,844` YETMIYOR: Windows'ta pencere ~500 px'in
+        altina inmiyor, yani "390 px testi" aslinda 496 px'te kosuyordu ve
+        telefon kirilimi HIC sinanmamis oluyordu. Bu cagri viewport'u
+        dogrudan ayarliyor.
+        """
+        self.cagir("Emulation.setDeviceMetricsOverride", {
+            "width": genislik, "height": yukseklik,
+            "deviceScaleFactor": dpr, "mobile": mobil,
+        })
+
     def git(self, url: str) -> None:
         self.cagir("Page.navigate", {"url": url})
         self.bekle(0.5)
