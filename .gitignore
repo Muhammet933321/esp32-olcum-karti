@@ -8,6 +8,11 @@
 __pycache__/
 *.py[cod]
 
+# Tarayıcı kanıt görüntüleri — `python uretim/tarayici_skop_arsiv.py
+# --goruntu` her koşuda yeniden üretiyor. Ham ÖLÇÜM verisi (ör.
+# `olcum-adc-dogrusallik.csv`) kayıtlı kalır; bunlar yeniden üretilebilir.
+uretim/_skop-arsiv-*.png
+
 # LittleFS görüntüsü — 896 KB ikili, `python arayuz-uret.py` üretir.
 # Ölçüleri `_fs.json`'da; o dosya KAYITLI (bayatlık denetimi ona bakıyor).
 uretim/_fs.bin

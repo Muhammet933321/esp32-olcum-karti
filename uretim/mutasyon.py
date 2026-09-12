@@ -133,6 +133,61 @@ MUTASYONLAR = [
      "role BAYT-SEFFAF olmali; arsivin ham okuma yolu kaybolursa "
      "girdi/cikti karsilastirmasi yapilamaz"),
 
+    # ── B35 · skop kopru kipinde + geriye donuk kayit
+    ("B22a", "test_kopru.py", "kopru/kopru.py",
+     'if yol == "/skop.bin":\n            return self._skop_canli()', "",
+     "ESKI CANLI KUSURU geri koyar: kopru kipinde `/skop.bin` yoktu, "
+     "arayuz 404 aliyordu — osiloskop tam da PC'ye bagliyken olu bir "
+     "dugmeydi"),
+    ("B22a", "test_kopru.py", "kopru/kopru.py",
+     'self.kart.yaz("t")', 'self.kart.yaz("tB")',
+     "`tB` dokumu seri porta HIC basmaz (kartin kendi HTTP ucuna "
+     "birakir); kopru USB'den bagli oldugu icin ne yakalama gelir ne de "
+     "arsive bir sey duser — 'kayit aliyorum' sanip hicbir sey kaydetmek"),
+    ("B22a", "test_kopru.py", "kopru/kopru.py",
+     'if not blok["tam"]:', "if False:",
+     "kirpik blok cizilirse eksik dalga 'olculmus' gibi gorunur; "
+     "tekrar denemek ucuzken yanlis sekil gostermek pahali"),
+    ("B22a", "test_kopru.py", "kopru/kopru.py",
+     'if satir.startswith("! tetiklenemedi"):', "if False:",
+     "tetiklenemeyen yakalamada arayuz 20 s bosuna bekler; kullanici "
+     "kartin calistigini sanir"),
+    ("B22a", "test_kopru.py", "kopru/arsiv.py",
+     "        self._gun = None\n", "",
+     "ESKI CANLI KUSURU geri koyar: kapatilmis arsive yazma "
+     "AttributeError atip YUKARI-AKIS IPLIGINI olduruyordu — kopru "
+     "ayakta gorunur, arsiv de SSE de olu, hicbir yerde yazmaz"),
+    ("B22a", "test_kopru.py", "kopru/kopru.py",
+     "            except Exception as e:                        # noqa: BLE001\n"
+     "                ms = 0\n",
+     "            except ZeroDivisionError as e:\n                ms = 0\n",
+     "arsiv hatasi yine roleyi oldurur; role kritik islev, arsiv ikincil"),
+    ("B22a", "test_kopru.py", "kopru/arsiv.py",
+     "        yer = self.baslik[\"adet_bildirilen\"] - len(self.ornek)",
+     "        yer = 1 << 30",
+     "bozuk bir `S2` uzun sayi akisina denk gelirse ornek listesi "
+     "sinirsiz buyur; bildirilen adet tavan olmali"),
+    ("B22a", "test_kopru.py", "kopru/arsiv.py",
+     "            self.atlanan += 1", "            pass",
+     "blok icinde gelen `D` satiri sessizce yutulursa eksik bir dalga "
+     "'tam' gorunur"),
+    ("B22a", "test_kopru.py", "kopru/kopru.py",
+     '            if metin == "tB":\n                metin = "t"',
+     "            pass",
+     "`tB` karta oldugu gibi giderse dokum seri porta HIC basilmaz: "
+     "kopru USB'den bagliyken ne yakalama gelir ne arsive bir sey duser"),
+    ("B22a", "test_kopru.py", "kopru/kopru.py",
+     "        if metin in SKOP_KOMUTLARI:\n            k.skop_hazirla()",
+     "        if False:\n            k.skop_hazirla()",
+     "kopru arayuzun yakalama komutunu tanimazsa `/skop.bin` KENDI `t`sini "
+     "yollar: kart IKI KEZ yakalar ve arayuze donen dalga kullanicinin "
+     "tetikledigi dalga olmaz"),
+    ("B22a", "test_kopru.py", "kopru/kopru.py",
+     "        if metin in SKOP_KOMUTLARI:",
+     '        if metin.startswith("t"):',
+     "onek eslemesi `tb0`/`tl500` gibi AYAR komutlarini da yakalama "
+     "sanar; her ayar degisikligi bosuna yakalama bekler"),
+
     # ── B20 · ornekleme hizi
     ("B20", "sim3_bant.py", "uretim/tasarim3_sabit.py",
      "ADS_SPS = 860", "ADS_SPS = 250",
@@ -203,6 +258,53 @@ MUTASYONLAR = [
      "      if (grafikBekliyor) return;",
      "      if (false) return;",
      "cizim birlestirme kalkar: 20 satir/s'de saniyede 20 tam cizim"),
+
+    # ── B35 · skop arsivi (geriye donuk kayit)
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        if (this.skopIkiliCoz(await y.arrayBuffer())) {",
+     "        if (await this.skopArsivCozKopya(y)) {",
+     "arsiv kaydi AYRI bir cozucuden gecerse eski kayit canlidan BASKA "
+     "cizilir — endian/olcek/ofset ayrisir ve hata SESSIZ olur"),
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     '<section class="kart" v-if="skopArsivVar">',
+     '<section class="kart">',
+     "kart dogrudan bagliyken (kayit YOK) bolum yine cizilir: OLU DUGME, "
+     "DEVIR 4.15'in tam kendisi"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      this.skopAcikKayit = null;     // canli yakalama: artik arsiv kaydi degil",
+     "",
+     "canli dalga 'ARSIV' seridiyle gosterilir; kullanici neye baktigini "
+     "bilemez"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "          if (this.surekli) this.surekliDegis();",
+     "",
+     "surekli kip acikken arsiv kaydi acilinca bir sonraki tur kaydin "
+     "ustune canli dalgayi cizer"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      if (this.skopArsivVar && !this.surekli) this.skopKayitlariYukle(this.skopGun);",
+     "      if (this.skopArsivVar) this.skopKayitlariYukle(this.skopGun);",
+     "surekli kipte her yakalamada liste cekilir: kopru bosuna mesgul"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      if (this.skopArsivVar) {\n        this.gonder('t');\n      } else if",
+     "      if (false) {\n        this.gonder('t');\n      } else if",
+     "koprude de `tB` + `/skop.bin` kullanilir: dokum zaten seri porttan "
+     "geldigi halde ayni dalga IKINCI KEZ tasinir ve IKI KEZ cizilir"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      if (!this.skopArsivtenAciliyor) this.skopListeTazeleGerekirse();",
+     "",
+     "koprudeki ASCII yakalamalari kayit listesine HIC dusmez: "
+     "kullanici 'Yakala'ya basar, kayit diske yazilir ama listede gorunmez"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      if (this.osiloBekliyor) {\n        bekleme = 150;",
+     "      if (false) {\n        bekleme = 150;",
+     "ESKI HALI: surekli kip onceki yakalamayi beklemeden her 500 ms'de "
+     "bir yenisini ister. Koprude dokum seri porttan geciyor (4000 ornek "
+     "~1.8 s), yani kuyruk birikir, bloklar birbirini keser ve arsiv "
+     "kirpik kayitlarla dolar"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        this.kopruYokla();", "        await this.kopruYokla();",
+     "arsiv yoklamasi baglanmayi BLOKLAR: yoklama takilirsa olcum de "
+     "baslamaz — ek ozellik kritik yolu tutamaz"),
     ("B7", "test_arayuz3.js", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "        if (v < RAPOR_MS_EN_AZ)  v = RAPOR_MS_EN_AZ;",
      "        /* alt sinir yok */",

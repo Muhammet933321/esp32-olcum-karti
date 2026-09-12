@@ -299,6 +299,18 @@
       </label>
     </div>
 
+    <!-- 🔴 CANLI MI ARŞİV Mİ. Tuvalde çizilen şey bir kayıt olduğunda
+         bunu söylemek zorunlu: aynı tuval, aynı ölçüm satırı, ama veri
+         geçmişten. Söylenmeseydi kullanıcı eski bir dalgaya bakıp
+         "kart şu anda bunu ölçüyor" sanırdı. -->
+    <div v-if="skopAcikKayit" class="arsiv-serit">
+      <span class="rozet">Arşiv</span>
+      <span>{{ skopAcikKayit.gun }} · köprü açıldıktan
+        {{ skopZaman(skopAcikKayit.ms) }} sonra yakalandı — canlı değil</span>
+      <button @click="osiloYakala" :disabled="!bagli || osiloBekliyor"
+              style="margin-left:auto">Canlıya dön</button>
+    </div>
+
     <div class="tuval-sarmal">
       <canvas ref="osiloTuval" height="360" @wheel="tekerlek"
               @mousedown="surukBasla" class="surukle"></canvas>
@@ -368,6 +380,71 @@
       25 kHz'te kesiyor, Nyquist 41.7 kHz. Bunun üstündeki bileşenler sahte,
       yavaş bir sinyal olarak görünür.
       <strong>Şebekeye bağlanamaz</strong> — kart izole değil.
+    </p>
+  </section>
+
+  <!-- ─────────────────────────────── skop arşivi (B35) -->
+  <!-- 🔴 GERİYE DÖNÜK KAYIT. Yalnızca PC köprüsüne bağlıyken görünür:
+       kayıt köprünün disk günlüğünde duruyor, tarayıcıda değil. Kart
+       doğrudan bağlandığında yakalama hiçbir yere yazılmıyor ve bu
+       bölüm hiç çizilmiyor — olmayan bir özelliği ölü bir düğme olarak
+       göstermek bu projenin daha önce yaptığı hata (DEVIR 4.15). -->
+  <section class="kart" v-if="skopArsivVar">
+    <h2>Kayıtlar — geriye dönük dalga şekilleri</h2>
+    <p class="ipucu">
+      Köprüye bağlıyken <strong>her yakalama diske düşüyor</strong>
+      (<code>kopru/arsiv/&lt;gün&gt;.satir</code>). Liste o günlükten
+      türetiliyor, ayrı bir dosyada tutulmuyor. Örnekler
+      <strong>ham ADC kodu</strong> olarak saklanıyor: ölçüm ekseninin
+      düzeltmesi ileride karara bağlanınca eski kayıtlara da uygulanabilsin.
+    </p>
+
+    <div class="satir" style="margin-bottom:10px;gap:8px;align-items:center">
+      <label v-if="skopGunler.length > 1" style="font-size:12px;color:var(--soluk)">
+        Gün
+        <select v-model="skopGun" @change="skopKayitlariYukle(skopGun)"
+                style="width:auto">
+          <option v-for="g in skopGunler" :key="g" :value="g">{{ g }}</option>
+        </select>
+      </label>
+      <button @click="skopKayitlariYukle(skopGun)" :disabled="skopKayitMesgul">
+        {{ skopKayitMesgul ? 'Yükleniyor…' : 'Yenile' }}
+      </button>
+      <span class="ipucu" style="margin:0">
+        {{ skopKayitlar.length }} kayıt<template v-if="skopGun"> · {{ skopGun }}</template>
+      </span>
+    </div>
+
+    <p v-if="!skopKayitlar.length" class="ipucu">
+      Henüz kayıt yok — <strong>Yakala</strong>'ya bastığında buraya düşecek.
+    </p>
+
+    <div v-else class="kayit-listesi">
+      <button v-for="k in skopKayitlar" :key="k.gun + '/' + k.ms"
+              class="kayit" :class="{ acik: skopAcikKayit
+                && skopAcikKayit.gun === k.gun && skopAcikKayit.ms === k.ms }"
+              :disabled="skopKayitMesgul" @click="skopKayitAc(k)">
+        <span class="kayit-zaman">{{ skopZaman(k.ms) }}</span>
+        <span class="kayit-bilgi">
+          {{ k.adet }} örnek · {{ (k.hz / 1000).toFixed(2) }} kSa/s
+        </span>
+        <!-- ⚠ Değiştirici adı `uyari` DEĞİL: `.uyari` bu projede
+             emniyet uyarısının kırmızı şeritli kutu stili ve rozetler
+             onun içine düşüp buton gibi görünüyordu (tarayıcı
+             görüntüsünde yakalandı). Ayrıca "serbest koşu" bir HATA
+             değil, normal bir tetik kipi — alarm rengi hak etmiyor. -->
+        <span class="kayit-etiket">
+          {{ k.tetiklendi ? 'tetiklendi' : 'serbest koşu' }}
+        </span>
+        <!-- Kırpık kayıt SESSİZ kalmıyor: eksik bir dalga "ölçülmüş"
+             gibi görünmemeli. Listedeki TEK vurgulu işaret bu. -->
+        <span v-if="!k.tam" class="kayit-etiket dikkat">kırpık</span>
+      </button>
+    </div>
+
+    <p class="ipucu">
+      Zaman damgası <strong>köprü açıldıktan sonra</strong> geçen süre —
+      duvar saati değil. Bir kaydı açmak kartı hiç meşgul etmez.
     </p>
   </section>
 

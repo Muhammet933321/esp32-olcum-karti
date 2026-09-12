@@ -527,6 +527,91 @@ button.kosuyor:hover:not(:disabled) { color: #06121f; border-color: var(--amper)
    durdurma. Açıklama metinleri ve ikincil denetimler küçülüyor ama
    KAYBOLMUYOR — "telefonda basit sürüm" ayrı bir arayüz demek olurdu
    ve bu proje arayüz ayrışmasından üç kez yandı (DEVIR 4.1, 4.15, B17). */
+/* ── skop arşivi (B35) — geriye dönük kayıt listesi ─────────────────
+   Renkler YALNIZCA değişkenlerden geliyor; iki tema da aynı kurallarla
+   çalışıyor. Liste bir ızgara: satır sayısı içeriğe göre büyüsün ama
+   kutular aynı hizada kalsın. */
+.kayit-listesi {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.kayit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  width: 100%;
+  padding: 9px 11px;
+  text-align: left;
+  background: var(--zemin-2);
+  border: 1px solid var(--kenar-c);
+  border-radius: var(--yuvarlak-sm);
+  color: var(--yazi);
+  cursor: pointer;
+  transition: border-color var(--gecis), background var(--gecis);
+}
+
+.kayit:hover:not(:disabled) { border-color: var(--kenar-koyu); }
+.kayit:disabled { opacity: .55; cursor: default; }
+
+/* Açık olan kayıt: tuvalde ŞU AN hangi kaydın çizildiği görünsün —
+   yoksa kullanıcı canlı dalgaya mı arşive mi baktığını bilemez. */
+.kayit.acik {
+  border-color: var(--vurgu);
+  background: var(--vurgu-zemin);
+}
+
+.kayit-zaman {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  flex: 1 1 auto;
+}
+
+.kayit-bilgi {
+  font-size: 11px;
+  color: var(--soluk);
+  flex: 1 1 100%;
+}
+
+.kayit-etiket {
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--cok-soluk);
+}
+
+/* ⚠ `.uyari` KULLANILMIYOR: o sinif emniyet uyarisinin kirmizi seritli
+   KUTU stili; rozete uygulayinca rozet butona benziyordu. Vurgu yalnizca
+   renk — kirpik kayit listedeki tek vurgulu isaret. */
+.kayit-etiket.dikkat { color: var(--uyari); font-weight: 600; }
+
+/* Arşiv kaydı çizilirken tuvalin üstündeki şerit. */
+.arsiv-serit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--vurgu-zemin);
+  border: 1px solid var(--vurgu);
+  border-radius: var(--yuvarlak-sm);
+  color: var(--yazi);
+}
+
+.arsiv-serit .rozet {
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--vurgu);
+  font-weight: 600;
+}
+
 @media (max-width: 620px) {
   .sarmal { padding: 12px 12px 44px; }
   .ust { gap: 10px; padding: 4px 0 12px; }

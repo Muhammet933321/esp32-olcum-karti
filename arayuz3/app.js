@@ -352,6 +352,24 @@ createApp({
       surekliHiz: 0,
       surekliT0: 0,
 
+      /* ── skop arşivi (B35) — GERİYE DÖNÜK KAYIT ───────────────────
+         🔴 Kayıt tarayıcıda DEĞİL, PC köprüsünün disk günlüğünde. Pil
+            eğrisi IndexedDB'de duruyor ve dosyanın kendi yorumu bunu
+            dürüstçe söylüyor: "tarayıcı verilerini temizle" denince
+            gider. Bir ölçüm kaydının ömrü tarayıcı tercihine bağlı
+            olamaz. Ayrıca kayıt HAM ADC KODU olarak duruyor: B34'te
+            bulunan doğrusalsızlığın düzeltmesi ileride karara
+            bağlandığında ESKİ kayıtlara da uygulanabilsin.
+         ⚠ Yalnızca köprü kipinde var. Kart `/durum` ucunu hiç açmıyor,
+           yani o ucun yanıtı zaten köprünün imzası. */
+      skopArsivVar: false,
+      skopKayitlar: [],
+      skopGunler: [],
+      skopGun: '',
+      skopKayitMesgul: false,
+      skopAcikKayit: null,   // {gun, ms} — şu an çizilen arşiv kaydı
+      skopArsivtenAciliyor: false,   // osiloBitir() listeyi tazelemesin
+
       // fare ile kaydırma
       suruk: null,
 
@@ -997,6 +1015,10 @@ createApp({
            10R derken kart 0.1R çalışıyordu — akım menzili 100 kat yanlış
            sanılırdı). `?` parola isteyebilir; tarayıcı bir kez sorar. */
         try { await this.gonder('?'); } catch (e2) { /* yetkisiz: kartSont null kalır */ }
+        /* B35: PC kopruşuna bağlıysak skop arşivi var. Yoklama sessizce
+           başarısız olabilir — arşiv bir ek özellik, yokluğu ölçümü
+           etkilemiyor, o yüzden bağlanmayı BLOKLAMIYOR. */
+        this.kopruYokla();
       } catch (e) {
         // Kullanıcı port seçim kutusunu kapattıysa bu hata değil.
         if (e.name !== 'NotFoundError') this.hata = 'Bağlanamadı: ' + e.message;
@@ -1461,7 +1483,22 @@ createApp({
     osiloYakala() {
       this.osiloBekliyor = true;
       this.osiloTopla = null;
-      if (this.yetenek.skop === 'ikili') {
+      this.skopAcikKayit = null;     // canli yakalama: artik arsiv kaydi degil
+      /* 🔴 KÖPRÜDE ASCII YOLU DOĞRU OLAN — sezgiye ters ama ölçülebilir.
+         `tB` + `/skop.bin` WiFi'de doğru: dökümü SSE'den geçirmeyip
+         gövdeyi ayrı çekiyor, aynı veri iki kez taşınmıyor.
+         Köprüde durum TERS: köprü karta USB'den bağlı ve dökümü ZATEN
+         seri porttan almak zorunda (arşive düşmesi için tek yol; kartta
+         ikili-seri dökümü diye bir şey yok). O döküm geldiğine göre
+         ayrıca `/skop.bin` çekmek AYNI dalgayı ikinci kez taşımak ve
+         AYNI dalgayı iki kez çizmek olurdu — B22.5'te tam da bundan
+         kaçınılmıştı.
+         Pahalı bağlantı kart↔köprü (115 200 baud, 4000 örnek ≈ 1.8 s);
+         köprü↔tarayıcı LAN. Bedel her iki durumda da seri portta
+         ödeniyor, yani ASCII yolu burada BEDAVA. */
+      if (this.skopArsivVar) {
+        this.gonder('t');
+      } else if (this.yetenek.skop === 'ikili') {
         this.gonder('tB');
         // Kart yakalamayı bitirsin, sonra gövdeyi çek.
         setTimeout(() => this.skopIkiliAl(), 400);
@@ -1472,14 +1509,28 @@ createApp({
     },
 
     async skopIkiliAl() {
+      /* ⚠ KÖPRÜDE BU İSTEK UZUN SÜREBİLİR. Kartta gövde hazır bekliyor;
+         köprüde ise köprü kartın ASCII dökümünü seri porttan topluyor
+         (4000 örnek ~20 KB, 115 200 baud'da ~1.8 s). Sunucu 503 dönerse
+         SEBEBİ gövdede yazıyor — "alınamadı (503)" tek başına kullanıcıya
+         "tetiklenemedi mi, kırpık mı" sorusunu yanıtlamıyor. */
       const y = await fetch(this.kartAdres('/skop.bin')).catch(() => null);
       if (!y || !y.ok) {
+        const neden = y ? await y.text().catch(() => '') : '';
         this.hata = 'İkili skop dökümü alınamadı'
-                  + (y ? ' (' + y.status + ')' : '');
+                  + (y ? ' (' + y.status + ')' : '')
+                  + (neden ? ': ' + neden : '');
         this.osiloBekliyor = false;
         return false;
       }
-      const b = await y.arrayBuffer();
+      return this.skopIkiliCoz(await y.arrayBuffer());
+    },
+
+    /* 🔴 TEK İKİLİ ÇÖZÜCÜ. Canlı yakalama da arşivden açılan eski kayıt
+       da buradan geçiyor. İki çözücü yazılsaydı biri sessizce başka bir
+       dalga çizerdi — bu projenin defalarca yandığı ayrışma sınıfı
+       (DEVIR 4.1, 4.15, B17). */
+    skopIkiliCoz(b) {
       if (b.byteLength < 32) {
         this.hata = 'skop.bin çok kısa'; this.osiloBekliyor = false; return false;
       }
@@ -1515,9 +1566,87 @@ createApp({
       this.osiloBitir();
       return true;
     },
+    /* ── skop arşivi (B35) ─────────────────────────────────────────
+       Köprü kipinde her yakalama `Serial`den geçtiği için köprünün
+       `.satir` günlüğüne düşüyor; liste o günlükten TÜRETİLİYOR, ayrı
+       bir dosyada tutulmuyor (iki temsil ayrışırdı). */
+    async kopruYokla() {
+      /* Kart `/durum` açmıyor; yanıt gelmesi köprüde olduğumuzun
+         kanıtı. Ayrı bir "köprü müsün" ucu ikinci bir gerçek kaynağı
+         olurdu. Hata durumunda SESSİZCE kapalı kalıyor — arşiv bir ek
+         özellik, yokluğu ölçümü etkilemiyor. */
+      try {
+        const y = await fetch(this.kartAdres('/durum'), { cache: 'no-store' });
+        if (!y.ok) { this.skopArsivVar = false; return; }
+        const d = await y.json();
+        this.skopArsivVar = !!d.skop_arsiv;
+        if (this.skopArsivVar) await this.skopKayitlariYukle();
+      } catch (e) { this.skopArsivVar = false; }
+    },
+
+    async skopKayitlariYukle(gun) {
+      if (!this.skopArsivVar) return;
+      this.skopKayitMesgul = true;
+      try {
+        const s = gun ? ('?gun=' + encodeURIComponent(gun)) : '';
+        const y = await fetch(this.kartAdres('/skop/liste' + s),
+                              { cache: 'no-store' });
+        if (!y.ok) return;
+        const d = await y.json();
+        this.skopGunler = d.gunler || [];
+        this.skopGun = d.gun || '';
+        this.skopKayitlar = d.kayitlar || [];
+      } catch (e) {
+        this.hata = 'Kayıt listesi alınamadı: ' + e.message;
+      } finally {
+        this.skopKayitMesgul = false;
+      }
+    },
+
+    async skopKayitAc(kyt) {
+      this.skopKayitMesgul = true;
+      try {
+        const y = await fetch(this.kartAdres(
+          '/skop/al?gun=' + encodeURIComponent(kyt.gun) + '&ms=' + kyt.ms),
+          { cache: 'no-store' });
+        if (!y.ok) {
+          this.hata = 'Kayıt açılamadı (' + y.status + ')';
+          return;
+        }
+        /* AYNI çözücü — canlı yakalamayla tek satır bile farklı kod
+           çalışmıyor, yoksa eski kayıt başka çizilirdi. */
+        /* Arsivden aciyoruz: liste degismedi, tazelemek bosuna bir
+           HTTP turu olurdu. */
+        this.skopArsivtenAciliyor = true;
+        if (this.skopIkiliCoz(await y.arrayBuffer())) {
+          this.skopAcikKayit = { gun: kyt.gun, ms: kyt.ms };
+          /* Arşiv kaydı açılınca sürekli yakalama DURUYOR: yoksa bir
+             sonraki tur kaydın üstüne canlı dalgayı çizer ve kullanıcı
+             hangisine baktığını bilemez. */
+          if (this.surekli) this.surekliDegis();
+        }
+      } catch (e) {
+        this.hata = 'Kayıt açılamadı: ' + e.message;
+      } finally {
+        this.skopKayitMesgul = false;
+        this.skopArsivtenAciliyor = false;
+      }
+    },
+
+    skopZaman(ms) {
+      /* Köprünün damgası AÇILIŞINDAN İTİBAREN geçen ms — duvar saati
+         değil. Duvar saati gibi gösterip yanıltmak yerine olduğu gibi
+         "köprü açıldıktan sonra" diye yazılıyor. */
+      const s = Math.floor(ms / 1000);
+      const d = Math.floor(s / 60), sn = s % 60;
+      return d ? `${d} dk ${String(sn).padStart(2, '0')} sn`
+               : `${sn} sn`;
+    },
+
     osiloOtomatik() {
       this.osiloBekliyor = true;
       this.osiloTopla = null;
+      this.skopAcikKayit = null;
       this.gonder('ta');
       setTimeout(() => { this.osiloBekliyor = false; }, 30000);
     },
@@ -1557,14 +1686,28 @@ createApp({
     },
     surekliTur() {
       if (!this.surekli) return;
-      this.osiloYakala();
-      this.surekliSayac++;
-      const ge = (Date.now() - this.surekliT0) / 1000;
-      if (ge > 0.5) this.surekliHiz = this.surekliSayac / ge;
-      if (ge > 4) { this.surekliT0 = Date.now(); this.surekliSayac = 0; }
+      /* 🔴 ÖNCEKİ YAKALAMA BİTMEDEN YENİSİNİ İSTEME.
+         Eskiden tur koşulsuzdu: her 500 ms'de bir yeni yakalama. Karta
+         doğrudan (WiFi) bağlıyken bu sorun değildi — `tB` ucuz ve gövde
+         ayrı çekiliyor. Köprüde ise döküm ASCII olarak SERİ PORTTAN
+         geçiyor ve 4000 örnek 115 200 baud'da ~1.8 s sürüyor. Koşulsuz
+         tur her 500 ms'de bir `t` daha yollayıp kuyruk biriktirirdi:
+         seri hat dolar, bloklar birbirini keser (çözücünün `kirpilan`
+         sayacı artar) ve arşiv KIRPIK kayıtlarla dolardı.
+         `osiloBekliyor` hem `osiloBitir()` hem 20 s'lik tavan tarafından
+         temizleniyor, yani kapı kendini kurtarıyor — takılı kalmaz. */
+      let bekleme = this.demo ? 120 : 500;
+      if (this.osiloBekliyor) {
+        bekleme = 150;                 // meşgul: yalnızca yokla
+      } else {
+        this.osiloYakala();
+        this.surekliSayac++;
+        const ge = (Date.now() - this.surekliT0) / 1000;
+        if (ge > 0.5) this.surekliHiz = this.surekliSayac / ge;
+        if (ge > 4) { this.surekliT0 = Date.now(); this.surekliSayac = 0; }
+      }
       /* Bir sonraki turu, aktarım bitsin diye kısa bir gecikmeyle kur. */
-      this.surekliZaman = setTimeout(() => this.surekliTur(),
-                                     this.demo ? 120 : 500);
+      this.surekliZaman = setTimeout(() => this.surekliTur(), bekleme);
     },
 
     /* ── fare ile kaydırma ────────────────────────────────────────── */
@@ -1660,6 +1803,18 @@ createApp({
       this.yatayZoom = 1;
       this.yatayKaydir = 0.5;
       this.$nextTick(() => this.osiloCiz());
+      /* TEK TAMAMLANMA NOKTASI: ASCII yolu da ikili yol da buradan
+         geciyor, yani liste tazeleme tek yerde duruyor. `skopIkiliAl`
+         icinde kalsaydi koprudeki ASCII yakalamalari listeye HIC
+         dusmezdi — kopruda ASCII yolu kullaniliyor. */
+      if (!this.skopArsivtenAciliyor) this.skopListeTazeleGerekirse();
+    },
+
+    /* Canli yakalama bitince arsiv listesini tazele — yeni kayit hemen
+       gorunsun. `surekli` kipte YAPILMIYOR: saniyede birkac yakalamada
+       her turda liste cekmek kopruyu bosuna mesgul eder. */
+    skopListeTazeleGerekirse() {
+      if (this.skopArsivVar && !this.surekli) this.skopKayitlariYukle(this.skopGun);
     },
 
     gecmisiTemizle() {

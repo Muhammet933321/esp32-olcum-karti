@@ -7605,6 +7605,79 @@ Bu adım ölçüyü çiviledi; kararı kullanıcıya bırakıyor.
 
 ---
 
+#### 5.12.49 ✅ B35 — SKOP KÖPRÜ KİPİNDE HİÇ ÇALIŞMIYORMUŞ + geriye dönük kayıt (2026-09-12)
+
+Kullanıcı yönü seçti: *"Ben osiloskopda şekilleri görebilmek istiyorum. Eğer ki bilgisayara bağlı ise hem şekilleri görebilmek hem de geriye dönük kayıtlar alabilmek de isterim."*
+
+Hangi yoldan başlanacağına karar vermeden önce **var olanı ölçtüm** — ve istenen şeyin ikisi de yoktu.
+
+##### 🔴 Bulunan canlı kusur: köprüde osiloskop ölü bir düğmeydi
+
+`arayuz3/app.js`'te `TasiyiciAkis` (kart doğrudan **ve** PC köprüsü aynı taşıyıcıyı kullanıyor) `skop: 'ikili'` ilan ediyor ve yakalama gövdesini `/skop.bin`'den çekiyor. Sayfa köprüden geldiğinde o istek **köprüye** gidiyor; köprü ise `arayuz3/`yi servis eden bir `SimpleHTTPRequestHandler` — yani **404**.
+
+Yani osiloskop, tam da kullanıcının "PC'ye bağlıyken şekil görmek" istediği kipte çalışmıyordu. Zincir 18/18 yeşilken. (B22 → B23 → B31 → B35: aynı sınıf, beşinci kez.)
+
+##### 🔴 İkinci canlı kusur: arşiv hatası röleyi öldürüyordu
+
+`Arsiv.kapat()` `_gun`u sıfırlamıyordu. Kapatılmış arşive gelen **ilk** satır `yaz()` içinde `AttributeError` atıyor, bu da **yukarı-akış ipliğini öldürüyordu**. Köprü ayakta görünmeye devam ediyor, HTTP cevap veriyor, ama ne arşiv ne SSE çalışıyor ve **hiçbir yerde yazmıyordu**.
+
+⚠ **`test_kopru.py`'nin kendisi de bu kusurdan etkilenmişti:** 2. bölümdeki `k.arsiv.kapat()` çağrısından sonraki **bütün bölümler**, yukarı-akış ipliği ölmüş bir köprüye karşı koşuyordu ve hiçbir iddia bunu yakalamıyordu. Kanıt: iplik yaşamaya başlayınca SSE gerçekten yayın yapmaya başladı ve kapanış davranışı değişti.
+
+Röle artık arşiv hatasında **durmuyor**; sebep bir kez akışa basılıyor. Röle kritik işlev, arşiv ikincil.
+
+##### Kayıt: ayrı dosya YOK, günlükten türetiliyor
+
+Köprü zaten her seri satırı `<ms>\t<satır>` olarak `kopru/arsiv/<gün>.satir`'a yazıyor. Skopun `t` komutu ASCII dökümü (`S2 … E`) **`Serial`den geçiriyor** — yani yakalama zaten günlüğe düşüyor. Ölçüm bunu doğruladı: iki günlük arşivde **`grep -c "^S2"` = 0**, çünkü arayüz `tB` kullanıyordu ve `tB` seri porta hiçbir şey basmıyor.
+
+Yani "geriye dönük kayıt" özelliği **yeni bir depolama gerektirmedi**: `Arsiv.skop_bloklari()` aynı günlükten türetiyor, `csv_uret`in `D` satırlarından CSV üretmesiyle aynı desen. Ayrı tutulsaydı iki temsil ayrışırdı.
+
+🔴 **HAM ADC KODU saklanıyor, mV değil.** B34'te ölçülen doğrusalsızlığın düzeltmesi henüz karara bağlanmadı; ham saklandığı için ileride bulunacak her düzeltme **eski kayıtlara da** uygulanabilir. mV saklansaydı her kayıt o günkü kalibrasyona çivilenirdi ve geri dönüşü olmazdı. **Bu, sıralamayı belirleyen argümandı: önce kayıt, sonra kalibrasyon.**
+
+##### Taşıma kararı: köprüde ASCII, kartta ikili (sezgiye ters)
+
+| | kart ↔ tarayıcı | seçilen yol | neden |
+|---|---|---|---|
+| **Kart doğrudan (WiFi)** | tek bağlantı | `tB` + `/skop.bin` | döküm SSE'yi tıkamasın; 20 250 B yerine 8 032 B |
+| **PC köprüsü (USB)** | kart↔köprü **115 200 baud** + köprü↔tarayıcı LAN | düz `t` (ASCII) | döküm **zaten** seri porttan geçmek zorunda (arşive düşmesinin tek yolu; kartta ikili-seri döküm yok). Geldiğine göre ayrıca `/skop.bin` çekmek aynı dalgayı **ikinci kez taşımak ve iki kez çizmek** olurdu |
+
+Pahalı bağlantı kart↔köprü: 4000 örnek ≈ 20 KB ≈ **1.8 s**. Bedel her iki durumda da orada ödeniyor, yani köprüde ASCII yolu bedava.
+
+Köprü yine de `/skop.bin` sunuyor (curl/betikler için, kendi `t`sini tetikliyor) ve arayüzün `tB`sini `t`ye **çeviriyor** — çevirmeseydi kart iki kez yakalar, arayüze dönen dalga kullanıcının tetiklediği dalga **olmazdı**.
+
+##### Tek çözücü kuralı korundu
+
+`skopIkiliAl` ikiye ayrıldı: **`skopIkiliCoz(buffer)`** artık hem canlı yakalamanın hem arşivden açılan eski kaydın tek çözücüsü. İki çözücü yazılsaydı biri sessizce başka bir dalga çizerdi (endian/ölçek/ofset) — bu projenin üç kez yandığı ayrışma sınıfı.
+
+##### Yeni uçlar
+
+| Uç | Ne |
+|---|---|
+| `GET /skop.bin` | canlı yakalama, **kartın biçiminde** (aynı 32 B başlık, aynı `S3B` imzası) |
+| `GET /skop/liste[?gun=]` | arşivdeki yakalamalar — **örnek dizisi taşımıyor** (4000 örnek ≈ 20 KB/satır olurdu) |
+| `GET /skop/al?gun=&ms=` | tek kaydı aynı ikili biçimde |
+| `GET /durum` | `skop_arsiv: true` — arayüz köprüde mi kartta mı olduğunu **bundan** anlıyor (kart `/durum` ucunu hiç açmıyor, yani yanıtın kendisi köprünün imzası) |
+
+##### Arayüz
+
+Skop görünümüne **Kayıtlar** bölümü eklendi — `v-if="skopArsivVar"`, yani kart doğrudan bağlıyken **hiç çizilmiyor**: çalışmayan bir düğme göstermek DEVIR 4.15'in ta kendisiydi. Tuvalin üstünde arşiv kaydı çizilirken ayırt edici şerit + "Canlıya dön"; olmasaydı geçmiş bir dalgaya bakıp "kart şu anda bunu ölçüyor" sanılırdı. Kırpık kayıt listede işaretleniyor. Zaman damgasının **duvar saati olmadığı** yazıyor.
+
+##### Doğrulama
+
+* `test_kopru.py` **24 → 54** iddia (bölüm 7 skop + bölüm 8 arşiv dayanıklılığı). Mutasyon B22a **2 → 13**, hepsi yakalandı.
+* `test_arayuz3.js` **250 → 266** (bölüm 16). Mutasyon B7 **33 → 41**, hepsi yakalandı.
+* Mutasyon koşucusu bir **boş iddia** yakaladı: örnek tavanı (`adet_bildirilen`) sınanmamıştı — `yer = 1 << 30` mutasyonu kaçtı. Tavan sınandı **ve** taşan örnekler artık sessizce atılmıyor, `atlanan`a yazılıyor.
+* **Gerçek kartta** (`uretim/tezgah_skop_arsiv.py`, COM6): **16/16** — 1000 örnek 1.07 s, arşive düştü, geri okunan kayıt canlı gövdeyle bayt-bayt aynı.
+* **Gerçek tarayıcıda** (`uretim/tarayici_skop_arsiv.py`, CDP + Vue + DOM, sahte köprü): **14/14**. Bölüm 16 kaynak metninde arama yapıyor — sayfanın açıldığını kanıtlamıyor (B22.0 dersi).
+* 🔴 **Tarayıcı koşusu bir görsel kusur yakaladı:** rozetlere verdiğim `uyari` sınıfı bu projede emniyet uyarısının **kırmızı şeritli kutu** stili; rozetler buton gibi görünüyordu ve "serbest koşu" (normal bir tetik kipi) alarm rengindeydi. Kendi değiştiricisine (`dikkat`) ayrıldı; listedeki tek vurgulu işaret artık `kırpık`.
+* ⚠ **Bir kez de ölçümün kendisi yanlıştı:** `innerText.includes('kırpık')` başarısız oluyordu ama ürün doğruydu — `text-transform: uppercase` altında Chrome'un `innerText`'i dönüşümü uyguluyor ve "KIRPIK" döndürüyor (Türkçede ı → I). `textContent`'e geçildi.
+* Ürün gürültüsü: tarayıcı SSE sekmesini kapattığında köprü konsoluna 25 satırlık yığın izi basıyordu. Yalnızca kopma ailesi (`BrokenPipe`/`ConnectionReset`/`ConnectionAborted`/`Timeout`) susturuldu — başka her istisna aynen basılıyor.
+
+##### 🔶 B34'ün kalibrasyon kararı hâlâ açık — ama artık acelesi yok
+
+Kayıtlar **ham** tutulduğu için düzeltme ne zaman kararlaştırılırsa geçmişe de uygulanabilir. Ayrıca B34'ün seçeneklerinde bir **düzeltme**: "çipin kalibrasyonundan tek bir volt/adım türetmek" (2a) yalnızca **%1.9 kazanç hatasını** kaldırır; ±76 kodluk **eğriliği** olduğu yerde bırakır. Kullanıcının istediği şey *şekil* olduğuna göre şekli gerçekten düzleştiren tek yol **düzeltme tablosu** (seçenek 2).
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

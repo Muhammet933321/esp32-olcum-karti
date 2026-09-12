@@ -45,6 +45,7 @@ import socketserver
 import sys
 import threading
 import time
+import urllib.parse
 from pathlib import Path
 
 BURASI = Path(__file__).resolve().parent
@@ -52,7 +53,7 @@ KOK = BURASI.parent
 ARAYUZ = KOK / "arayuz3"
 
 sys.path.insert(0, str(BURASI))
-from arsiv import Arsiv                                   # noqa: E402
+from arsiv import Arsiv, SkopCozucu, skop_ikili           # noqa: E402
 import kart_baglanti                                      # noqa: E402
 
 # stok-takip 127.0.0.1:80'i tutuyor (ayarlar.PORT = 80, Windows acilisinda
@@ -62,6 +63,26 @@ YEDEK_PORT = 8770
 
 # Her taşımada, jetonsuz, kimliksiz gecen komutlar.
 SERBEST_KOMUTLAR = {"p0"}
+
+# Karta yakalama YAPTIRAN komutlar (tam eslesme).
+#
+# 🔴 `tb0`/`tl500` gibi AYAR komutlari bu kumede DEGIL — onlar yakalama
+#    uretmiyor, yalnizca `T ...` ayar satiri basiyor. Onek eslemesi
+#    yapilsaydi her ayar degisikligi bosuna bir yakalama beklerdi.
+#
+# ⚠ `tB` -> `t` CEVRILIYOR. Arayuz ikili tasiyicida `tB` yolluyor; `tB`
+#   dokumu seri porta HIC basmiyor, gövdeyi kartin kendi HTTP ucuna
+#   birakiyor. Kopru ise karta USB'den bagli — kartin WiFi'si kapali bile
+#   olabilir. Cevirmeseydik kopru kendi `t`sini yollamak zorunda kalir ve
+#   kart IKI KEZ yakalardi (biri bosa, ustelik ikisi farkli dalga).
+SKOP_KOMUTLARI = {"t", "tB", "ta"}
+
+# Canli yakalamanin tavani. Kartin kendi yakalama zaman asimi
+# `pencere_ms * 1.2 + 300`; ustune ASCII dokumun seri porttan gecisi
+# geliyor: 4000 ornek ~20 250 B, 115 200 baud'da ~1.8 s. 20 s arayuzun
+# `osiloBekliyor` tavaniyla AYNI — arayuz vazgectikten sonra donen bir
+# yanit kullaniciya hicbir sey soylemezdi.
+SKOP_BEKLE_SN = 20.0
 
 
 def lan_ip() -> str:
@@ -89,6 +110,26 @@ class Kopru:
         self.calisiyor = False
         self.son_satir = ""
         self.satir_adedi = 0
+        self.arsiv_hatasi: str | None = None
+        # ── skop yakalama (B35) ──────────────────────────────────────
+        # 🔴 KOPRU KIPINDE SKOP HIC CALISMIYORDU. Arayuz `TasiyiciAkis`
+        #    icin `skop: 'ikili'` ilan ediyor ve `/skop.bin` cekiyor;
+        #    sayfa kopruden geldiginde o istek KOPRUYE gidiyor, kopru de
+        #    `arayuz3/`yi servis ettigi icin 404 donuyordu. Yani tam da
+        #    kullanicinin "sekilleri gormek + kayit almak" istedigi kipte
+        #    osiloskop olu bir dugmeydi.
+        #    Cozum: kopru `t` (ASCII dokum) gonderip blogu seri akistan
+        #    toplar ve KARTIN BICIMINDE ikili dondurur. Firmware
+        #    degismiyor, role bayt-seffaf kaliyor, ve dokum `Serial`den
+        #    gectigi icin AYNI ANDA arsive de duser — kayit ozelligi
+        #    bunun yan urunu.
+        self.skop_cozucu = SkopCozucu()
+        self.skop_son: dict | None = None
+        self.skop_hata: str | None = None
+        self.skop_olay = threading.Event()
+        self.skop_kilit = threading.Lock()      # tek anda tek yakalama
+        self.skop_kurulu = False    # arayuz komutu yolladi, cevap bekleniyor
+        self.skop_adedi = 0
 
     # ── abonelik ─────────────────────────────────────────────────────
     def abone_ol(self) -> queue.Queue:
@@ -159,8 +200,87 @@ class Kopru:
                 continue
             self.son_satir = satir
             self.satir_adedi += 1
-            self.arsiv.yaz(satir)
+            # 🔴 ARSIV HATASI ROLEYI OLDUREMEZ. Onceden `yaz()` bir kez
+            #    atinca bu iplik olup gidiyordu: kopru ayakta gorunur,
+            #    ama ne arsiv ne SSE calisirdi ve HICBIR YERDE yazmazdi.
+            #    Rolenin kendisi kritik islev; arsiv onemli ama ikincil.
+            #    Sebep bir kez akisa basiliyor — sessiz kalmiyor.
+            try:
+                ms = self.arsiv.yaz(satir)
+            except Exception as e:                        # noqa: BLE001
+                ms = 0
+                if not self.arsiv_hatasi:
+                    self.arsiv_hatasi = str(e)
+                    self.yayinla(f"! kopru: arsive yazilamiyor — {e}")
+            self.skop_besle(satir, ms)
             self.yayinla(satir)
+
+    def skop_besle(self, satir: str, ms: int = 0) -> None:
+        """Yukari-akis satirini skop cozucusune ver.
+
+        ⚠ ARSIVDEN SONRA, YAYINDAN ONCE cagriliyor ve satiri
+          DEGISTIRMIYOR — role bayt-seffafligi bozulmuyor.
+        """
+        # Kart tetikleyemediyse bekleyeni hemen serbest birak; 20 s
+        # bosuna beklemek kullaniciya "sanki calisiyor" hissi verirdi.
+        if satir.startswith("! tetiklenemedi"):
+            self.skop_hata = "kart tetikleyemedi"
+            self.skop_olay.set()
+            return
+        blok = self.skop_cozucu.besle(satir, ms)
+        if blok is not None:
+            blok["gun"] = time.strftime("%Y-%m-%d")
+            self.skop_son = blok
+            self.skop_adedi += 1
+            self.skop_olay.set()
+
+    def skop_hazirla(self) -> None:
+        """Yakalama komutu karta RELAY EDILMEDEN once cagriliyor.
+
+        Arayuz once `/komut` ile `tB` yolluyor, 400 ms sonra `/skop.bin`
+        cekiyor. Kopru komutu tanidiginda "bu yakalamanin cevabini
+        bekliyorum" diye isaretleniyor; `/skop.bin` o zaman KENDI `t`sini
+        yollamiyor, gelmekte olani bekliyor. Isaretlenmeseydi kart iki kez
+        yakalar, arayuze DONEN dalga kullanicinin tetikledigi dalga
+        OLMAZDI.
+        """
+        self.skop_olay.clear()
+        self.skop_hata = None
+        self.skop_son = None
+        self.skop_cozucu.sifirla()
+        self.skop_kurulu = True
+
+    def skop_yakala(self, bekle: float = SKOP_BEKLE_SN) -> tuple[dict | None, str]:
+        """Yakalamayi getir. (blok, hata) donduruyor.
+
+        Arayuz komutu zaten yolladiysa (`skop_kurulu`) YALNIZCA bekliyor;
+        yollamadiysa (curl, betik) kendisi `t` tetikliyor. Iki yolda da
+        dokum `Serial`den gectigi icin yakalama ARSIVE de dusuyor —
+        "geriye donuk kayit" ozelligi bunun yan urunu.
+        """
+        with self.skop_kilit:
+            kendi_tetikledi = not self.skop_kurulu
+            if kendi_tetikledi:
+                self.skop_hazirla()
+                try:
+                    self.kart.yaz("t")
+                except Exception as e:                    # noqa: BLE001
+                    self.skop_kurulu = False
+                    return None, f"karta yazilamadi: {e}"
+            self.skop_kurulu = False
+            if not self.skop_olay.wait(bekle):
+                return None, f"kart {bekle:.0f} s icinde yakalama dondurmedi"
+            if self.skop_hata:
+                return None, self.skop_hata
+            blok = self.skop_son
+            if blok is None:
+                return None, "blok toplanamadi"
+            # Kirpik blok CIZILMIYOR: eksik dalga "olculmus" gibi
+            # gorunurdu ve tekrar denemek ucuz.
+            if not blok["tam"]:
+                return None, (f"blok kirpik ({len(blok['ornek'])}/"
+                              f"{blok['adet_bildirilen']} ornek)")
+            return blok, ""
 
     def durdur(self) -> None:
         self.calisiyor = False
@@ -191,11 +311,24 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(govde)
 
     # ── GET ──────────────────────────────────────────────────────────
+    def _sorgu(self) -> dict:
+        parca = self.path.split("?", 1)
+        if len(parca) < 2:
+            return {}
+        return {a: d[0] for a, d in urllib.parse.parse_qs(parca[1]).items()}
+
     def do_GET(self):
-        if self.path.split("?")[0] == "/akis":
+        yol = self.path.split("?")[0]
+        if yol == "/akis":
             return self._akis()
-        if self.path.split("?")[0] == "/durum":
+        if yol == "/durum":
             return self._durum()
+        if yol == "/skop.bin":
+            return self._skop_canli()
+        if yol == "/skop/liste":
+            return self._skop_liste()
+        if yol == "/skop/al":
+            return self._skop_al()
         return super().do_GET()
 
     def _durum(self):
@@ -206,8 +339,69 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             "abone": len(k.aboneler),
             "arsiv_satir": k.arsiv.satir_adedi,
             "surucu_var": k.surucu is not None,
+            # Arayuz KOPRUDE mi KARTTA mi oldugunu bundan anliyor: kart
+            # `/durum` ucunu HIC acmiyor, yani bu alanin varligi zaten
+            # koprunun imzasi. Ayri bir "kopru misin" ucu acmak ikinci
+            # bir gercek kaynagi olurdu.
+            "skop_arsiv": True,
+            "skop_adedi": k.skop_adedi,
         }
         self._yanit(200, json.dumps(d).encode("utf-8"), "application/json")
+
+    # ── skop (B35) ───────────────────────────────────────────────────
+    def _skop_canli(self):
+        """Kartin `/skop.bin` ucunun kopru karsiligi — AYNI BICIM.
+
+        Arayuz hangi tasiyicida oldugunu bilmek zorunda kalmasin diye
+        yol da, bicim de, imza da kartinkiyle ayni. `/komut` ucunde
+        alinan kararin aynisi (bkz. dosya basligi).
+        """
+        k = self.kopru
+        blok, hata = k.skop_yakala()
+        if blok is None:
+            return self._yanit(503, hata.encode("utf-8"))
+        govde = skop_ikili(blok)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(govde)))
+        self.send_header("Cache-Control", "no-store")
+        # Yakalamanin arsivdeki kimligi — arayuz "bu kayit listede hangisi"
+        # sorusunu ek istek atmadan yanitlayabilsin.
+        self.send_header("X-Skop-Gun", str(blok.get("gun", "")))
+        self.send_header("X-Skop-Ms", str(blok.get("ms", 0)))
+        self.end_headers()
+        self.wfile.write(govde)
+
+    def _skop_liste(self):
+        k = self.kopru
+        s = self._sorgu()
+        gunler = k.arsiv.gunler()
+        gun = s.get("gun") or (gunler[-1] if gunler else None)
+        # Gunluge yazilani okuyacagiz; henuz diske inmemis satirlar
+        # listede gorunmezdi ("az once cektim, listede yok").
+        k.arsiv.flush()
+        kayitlar = k.arsiv.skop_ozet(gun) if gun else []
+        kayitlar.reverse()                       # en yenisi basta
+        d = {"gunler": gunler, "gun": gun, "kayitlar": kayitlar}
+        self._yanit(200, json.dumps(d).encode("utf-8"), "application/json")
+
+    def _skop_al(self):
+        k = self.kopru
+        s = self._sorgu()
+        gun, ms = s.get("gun"), s.get("ms")
+        if not gun or ms is None or not ms.lstrip("-").isdigit():
+            return self._yanit(400, "gun ve ms gerekli".encode("utf-8"))
+        k.arsiv.flush()
+        blok = k.arsiv.skop_bul(gun, int(ms))
+        if blok is None:
+            return self._yanit(404, "yakalama bulunamadi".encode("utf-8"))
+        govde = skop_ikili(blok)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(govde)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(govde)
 
     def _akis(self):
         k = self.kopru
@@ -269,6 +463,12 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         izin, neden = k.komut_izinli(metin, self._jeton())
         if not izin:
             return self._yanit(403, neden.encode("utf-8"))
+        # Yakalama komutuysa: cozucuyu hazirla ve `tB`yi `t`ye cevir
+        # (gerekcesi SKOP_KOMUTLARI'nin yaninda).
+        if metin in SKOP_KOMUTLARI:
+            k.skop_hazirla()
+            if metin == "tB":
+                metin = "t"
         try:
             k.kart.yaz(metin)
         except Exception as e:                            # noqa: BLE001
@@ -291,6 +491,23 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
 class Sunucu(socketserver.ThreadingTCPServer):
     daemon_threads = True
     allow_reuse_address = True
+
+    # 🔴 ISTEMCININ BAGLANTIYI KOPARMASI HATA DEGIL, NORMAL. SSE acik bir
+    #    sekme kapaninca / sayfa yenilenince soket koparilir ve
+    #    `handle_one_request` keep-alive okumasinda patlar. Varsayilan
+    #    `handle_error` bunun icin konsola 25 satirlik yigin izi basiyordu:
+    #    kullanici her sekme yenilemesinde "bir sey bozuldu" sanirdi ve
+    #    GERCEK bir iz bu gurultunun icinde kaybolurdu.
+    #    ⚠ YALNIZCA kopma ailesi susturuluyor; baska her istisna aynen
+    #      basiliyor — "hatalari gizle" degil, "hata olmayani hata diye
+    #      gostermeyi birak".
+    SESSIZ = (BrokenPipeError, ConnectionResetError, ConnectionAbortedError,
+              TimeoutError)
+
+    def handle_error(self, istek, istemci_adresi):
+        if isinstance(sys.exc_info()[1], self.SESSIZ):
+            return
+        super().handle_error(istek, istemci_adresi)
     # Windows'ta allow_reuse_address BASKA bir surecin aktif tuttugu portu
     # ele gecirmeye izin verir; yedek porta dusme hic tetiklenmez.
     # (stok-takip'in konsol.py'sinde de ayni not var.)

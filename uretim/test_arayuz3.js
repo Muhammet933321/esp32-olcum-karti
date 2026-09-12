@@ -335,7 +335,7 @@ ok('B22.4: ag uzerinden kurulumda duz metin UYARISI var',
 ok('B22.5: ikili skop cozucusu var',
    govdeIcinde(appKaynak, 'skopIkiliAl', '/skop.bin'));
 ok('B22.5: iki cozucu de AYNI gostericiyi cagiriyor',
-   govdeIcinde(appKaynak, 'skopIkiliAl', 'osiloBitir()') &&
+   govdeIcinde(appKaynak, 'skopIkiliCoz', 'osiloBitir()') &&
    appKaynak.includes("satir.trim() === 'E'"),
    'ikili yol da osiloBitir(), ASCII yol da');
 ok('B22.5: yakalama YETENEGE gore yol seciyor',
@@ -345,17 +345,17 @@ ok('B22.5: yakalama YETENEGE gore yol seciyor',
 /* Kismi ya da yanlis yanit SESSIZCE cizilmemeli — bu, `pilYokla`'nin
    B22.2'de kapatilan sessiz-sifir kusurunun ikili karsiligi. */
 ok('B22.5: ikili yanit IMZASI denetleniyor',
-   govdeIcinde(appKaynak, 'skopIkiliAl', '0x53') &&
-   govdeIcinde(appKaynak, 'skopIkiliAl', 'imzası'),
+   govdeIcinde(appKaynak, 'skopIkiliCoz', '0x53') &&
+   govdeIcinde(appKaynak, 'skopIkiliCoz', 'imzası'),
    'S3B degilse cizme, SEBEBINI soyle');
 ok('B22.5: ikili yanit UZUNLUGU denetleniyor',
-   govdeIcinde(appKaynak, 'skopIkiliAl', '32 + adet * 2'),
+   govdeIcinde(appKaynak, 'skopIkiliCoz', '32 + adet * 2'),
    'kesik govde sessizce yarim grafik cizmesin');
 /* [!] Endian ACIKCA kucuk: `Uint16Array` platformun endian'ini kullanir
    ve bir gun sessizce ters okuyabilirdi. */
 ok('B22.5: endian ACIKCA kucuk-endian',
-   govdeIcinde(appKaynak, 'skopIkiliAl', 'getUint16(32 + i * 2, true)') &&
-   !govdeIcinde(appKaynak, 'skopIkiliAl', 'new Uint16Array'),
+   govdeIcinde(appKaynak, 'skopIkiliCoz', 'getUint16(32 + i * 2, true)') &&
+   !govdeIcinde(appKaynak, 'skopIkiliCoz', 'new Uint16Array'),
    'DataView + true; Uint16Array platforma birakirdi');
 
 ok('B22.1: fabrika sifirlama IKI ASAMALI onay istiyor',
@@ -1556,6 +1556,147 @@ console.log('\n--- 15. Butce ve dayaniklilik ---');
   ok('Test calisirken siklasiyor (2 s)', u.pilYoklamaAralik === 2000);
   u.pilDurum = 'BEKLEMEDE'; u.gorunum = 'pil';
   ok('Pil gorunumu acikken de siklasiyor (2 s)', u.pilYoklamaAralik === 2000);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   16. SKOP ARSIVI — GERIYE DONUK KAYIT (B35)
+
+   🔴 BU BOLUM BIR CANLI KUSURDAN DOGDU. `TasiyiciAkis` (hem kart hem
+      KOPRU bu tasiyiciyi kullaniyor) `skop: 'ikili'` ilan edip
+      `/skop.bin` cekiyordu; sayfa kopruden geldiginde o istek KOPRUYE
+      gidiyor ve kopruda boyle bir uc YOKTU -> 404. Yani osiloskop, tam
+      da kullanicinin "sekilleri gormek + kayit almak" istedigi kipte
+      olu bir dugmeydi. Zincir 18/18 yesilken.
+
+   Buradaki iddialar iki seyi koruyor:
+     1. TEK IKILI COZUCU — canli yakalama ile arsivden acilan kayit AYNI
+        koddan gecmeli; iki cozucu olsaydi biri sessizce baska bir dalga
+        cizerdi (bu projenin uc kez yandigi ayrisma sinifi).
+     2. KULLANICI NEYE BAKTIGINI BILMELI — arsiv kaydi cizilirken tuval
+        bunu SOYLEMELI, yoksa gecmis bir dalgaya bakip "kart su anda
+        bunu olcuyor" sanilir.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 16. Skop arsivi (geriye donuk kayit) ---');
+{
+  const html = yorumsuz(htmlKaynak);
+
+  ok('Arsiv listesi ucu cekiliyor (/skop/liste)',
+     govdeIcinde(appKaynak, 'skopKayitlariYukle', '/skop/liste'));
+  ok('Tek kayit ucu cekiliyor (/skop/al)',
+     govdeIcinde(appKaynak, 'skopKayitAc', '/skop/al'));
+  /* [!] ASIL IDDIA: arsiv kaydi CANLI YOLLA AYNI cozucuden geciyor. */
+  ok('[!] Arsiv kaydi CANLI ile AYNI ikili cozucuden geciyor',
+     govdeIcinde(appKaynak, 'skopKayitAc', 'this.skopIkiliCoz(') &&
+     govdeIcinde(appKaynak, 'skopIkiliAl', 'this.skopIkiliCoz('),
+     'iki cozucu olsaydi eski kayit baska cizilirdi');
+
+  /* Kopru olup olmadigi `/durum` ucundan anlasiliyor — kart o ucu HIC
+     acmiyor, yani yanit gelmesi zaten koprunun imzasi. */
+  ok('Kopru varligi /durum ucundan anlasiliyor',
+     govdeIcinde(appKaynak, 'kopruYokla', '/durum') &&
+     govdeIcinde(appKaynak, 'kopruYokla', 'skop_arsiv'));
+  ok('Kopru yoklamasi baglanmayi BLOKLAMIYOR (arsiv ek ozellik)',
+     govdeIcinde(appKaynak, 'baglan', 'this.kopruYokla();') &&
+     !govdeIcinde(appKaynak, 'baglan', 'await this.kopruYokla()'),
+     'yoklama coksun, olcum yine aksin');
+
+  /* [!] Olu dugme YOK: arsiv bolumu yalnizca kopru kipinde ciziliyor.
+     DEVIR 4.15 tam olarak bunun tersiydi — calismayan bir dugme. */
+  ok('[!] Kayit bolumu YALNIZCA kopru kipinde ciziliyor',
+     /<section class="kart" v-if="skopArsivVar">/.test(html),
+     'kart dogrudan bagliyken kayit yok — olu dugme gosterilmiyor');
+
+  /* [!] Canli mi arsiv mi: tuvalde SOYLENMELI. */
+  ok('[!] Arsiv kaydi cizilirken tuvalde ayirt edici serit var',
+     /v-if="skopAcikKayit"[\s\S]{0,400}arsiv-serit|arsiv-serit[\s\S]{0,200}skopAcikKayit/
+       .test(html) && html.includes('canlı değil'),
+     'yoksa gecmis dalga canli sanilir');
+  ok('Serit CANLIYA DONME yolu sunuyor',
+     /arsiv-serit[\s\S]{0,600}osiloYakala/.test(html));
+
+  /* Canli yakalama arsiv isaretini KALDIRMALI, yoksa serit yeni dalga
+     cizildikten sonra da "arsiv" demeye devam ederdi. */
+  ok('[!] Canli yakalama arsiv isaretini kaldiriyor',
+     govdeIcinde(appKaynak, 'osiloYakala', 'this.skopAcikKayit = null') &&
+     govdeIcinde(appKaynak, 'osiloOtomatik', 'this.skopAcikKayit = null'),
+     'yoksa canli dalga "arsiv" etiketiyle gosterilirdi');
+  /* Arsiv kaydi acilinca SUREKLI kip durmali: yoksa bir sonraki tur
+     kaydin ustune canli dalga ciziyor. */
+  ok('[!] Arsiv kaydi acilinca surekli yakalama duruyor',
+     govdeIcinde(appKaynak, 'skopKayitAc', 'if (this.surekli) this.surekliDegis()'),
+     'yoksa kayit aninda canli dalgayla degisirdi');
+  /* Surekli kipte liste tazelenmiyor: saniyede birkac yakalamada her
+     turda liste cekmek kopruyu bosuna mesgul eder. */
+  ok('Surekli kipte arsiv listesi tazelenmiyor',
+     govdeIcinde(appKaynak, 'skopListeTazeleGerekirse', '!this.surekli'));
+
+  /* Kirpik kayit SESSIZ kalmiyor — eksik dalga "olculmus" gorunmemeli. */
+  ok('[!] Kirpik kayit listede isaretleniyor',
+     /v-if="!k\.tam"[\s\S]{0,120}kırpık/.test(html),
+     'eksik dalga sessizce tam gorunmemeli');
+  /* ⚠ `.uyari` bu projede emniyet uyarisinin KUTU stili; rozete
+     uygulaninca rozet butona benziyor (tarayici goruntusunde yakalandi).
+     Kayit rozetleri kendi degistiricisini kullaniyor. */
+  ok('Kayit rozetleri emniyet-uyarisi sinifini KULLANMIYOR',
+     !/class="kayit-etiket[^"]*uyari/.test(html) &&
+     !/kayit-etiket"[^>]*:class="\{ uyari/.test(html),
+     'emniyet uyarisi stili rozete bulasmamali');
+  /* Zaman damgasi DUVAR SAATI DEGIL; oyle gosterilip yanlis okunmasin. */
+  ok('Zaman damgasinin ne oldugu yaziyor (duvar saati degil)',
+     html.includes('köprü açıldıktan') &&
+     govdeIcinde(appKaynak, 'skopZaman', 'Math.floor(ms / 1000)'));
+
+  /* 🔴 KOPRUDE ASCII, KARTTA IKILI — AYNI VERIYI IKI KEZ TASIMA.
+     Kopru karta USB'den bagli ve dokumu ZATEN seri porttan almak
+     zorunda (arsive dusmesinin tek yolu; kartta ikili-seri dokum yok).
+     O dokum SSE'den tarayiciya da geldigine gore ayrica `/skop.bin`
+     cekmek ayni dalgayi ikinci kez tasimak ve IKI KEZ cizmek olurdu —
+     B22.5 tam da bundan kaciniyordu. */
+  ok('[!] Koprude ASCII yolu, kartta ikili yol seciliyor',
+     govdeIcinde(appKaynak, 'osiloYakala', 'if (this.skopArsivVar) {') &&
+     govdeIcinde(appKaynak, 'osiloYakala', "yetenek.skop === 'ikili'"),
+     'koprude tB + /skop.bin ayni dalgayi ikinci kez tasirdi');
+  /* Liste tazeleme TEK tamamlanma noktasinda: `skopIkiliAl` icinde
+     kalsaydi koprudeki ASCII yakalamalari listeye hic dusmezdi. */
+  ok('[!] Liste tazeleme TEK tamamlanma noktasinda (osiloBitir)',
+     govdeIcinde(appKaynak, 'osiloBitir', 'skopListeTazeleGerekirse()') &&
+     !govdeIcinde(appKaynak, 'skopIkiliAl', 'skopListeTazeleGerekirse'),
+     'yoksa koprudeki ASCII yakalamalari listeye dusmezdi');
+
+  /* 🔴 SUREKLI KIP: onceki yakalama bitmeden yenisi ISTENMEMELI.
+     Eski tur kosulsuzdu (her 500 ms bir yakalama) — kartta dogrudan
+     sorun degildi ama koprude dokum SERI PORTTAN geciyor ve 4000 ornek
+     ~1.8 s suruyor. Kosulsuz tur kuyruk biriktirir, bloklar birbirini
+     keser ve arsiv KIRPIK kayitlarla dolar. */
+  ok('[!] Surekli kip onceki yakalamayi BEKLIYOR',
+     govdeIcinde(appKaynak, 'surekliTur', 'if (this.osiloBekliyor) {'),
+     'yoksa koprude komut kuyrugu birikir, bloklar birbirini keser');
+  {
+    /* Davranis sinamasi: mesgulken `osiloYakala` CAGRILMAMALI. */
+    const v = ornek();
+    let cagri = 0;
+    v.osiloYakala = () => { cagri++; };
+    v.surekli = true;
+    v.osiloBekliyor = true;
+    v.surekliZaman = null;
+    const eskiST = globalThis.setTimeout;
+    globalThis.setTimeout = () => 0;          // tur zincirini kurma
+    try {
+      v.surekliTur();
+      ok('[!] Mesgulken yeni yakalama ISTENMIYOR', cagri === 0, `${cagri} cagri`);
+      v.osiloBekliyor = false;
+      v.surekliTur();
+      ok('Bos kalinca yakalama ISTENIYOR', cagri === 1, `${cagri} cagri`);
+    } finally {
+      globalThis.setTimeout = eskiST;
+    }
+  }
+
+  /* Varsayilan durum: kopru yokken bolum kapali ve liste bos. */
+  const u = ornek();
+  ok('Varsayilan: arsiv KAPALI (kart dogrudan bagliyken)',
+     u.skopArsivVar === false && u.skopKayitlar.length === 0
+     && u.skopAcikKayit === null);
 }
 
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
