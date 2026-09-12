@@ -153,7 +153,12 @@ MUTASYONLAR = [
      "tetiklenemeyen yakalamada arayuz 20 s bosuna bekler; kullanici "
      "kartin calistigini sanir"),
     ("B22a", "test_kopru.py", "kopru/arsiv.py",
-     "        self._gun = None\n", "",
+     # ⚠ Baglamla daraltildi: `self._gun = None` __init__'te de var; kosucu
+     #   HER esleşmeyi degistirdigi icin ikisi de siliniyor ve test yanlis
+     #   sebeple (hic tanimlanmamis nitelik) kirmiziya donuyordu. Hedef
+     #   yalnizca kapat()'taki satir.
+     "        #    aciliyor, yeniden acmak hicbir sey kaybettirmiyor.\n        self._gun = None\n",
+     "        #    aciliyor, yeniden acmak hicbir sey kaybettirmiyor.\n",
      "ESKI CANLI KUSURU geri koyar: kapatilmis arsive yazma "
      "AttributeError atip YUKARI-AKIS IPLIGINI olduruyordu — kopru "
      "ayakta gorunur, arsiv de SSE de olu, hicbir yerde yazmaz"),
@@ -485,7 +490,11 @@ MUTASYONLAR = [
      "tik birakmayan gorev IDLE0'i ac birakir; gorev bekci kopegi karti "
      "yeniden baslatir"),
     ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
-     "  if (xQueueSend(akis_kuyrugu_q, &ak, 0) != pdTRUE) akis_tasma++;",
+     # ⚠ Desen kaynakla AYNI olmali: `akis_tasma++` -> `akis_tasma =
+     #   akis_tasma + 1` olunca bu mutasyon "UYGULANAMADI" diye dusmus
+     #   ve kimse fark etmemisti — uygulanamayan mutasyon, iddiayi
+     #   SINAMAYAN mutasyondur. Kosucu bunu ayri raporluyor, iyi ki.
+     "  if (xQueueSend(akis_kuyrugu_q, &ak, 0) != pdTRUE) akis_tasma = akis_tasma + 1;",
      "  akis_yolla(satir);",
      "olcum cekirdegi sokete yazmaya geri doner: hem akis[] dizisinde "
      "ikinci yazar hem de kaldirilan blokaj geri gelir"),
@@ -498,10 +507,15 @@ MUTASYONLAR = [
      '    snprintf(isaret, sizeof(isaret), "",',
      "dusen satir sessiz kalir: eksik bir skop dokumu TAM sanilir"),
     ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
-     "  Serial.setTxBufferSize(2048);\n  Serial.begin(115200);",
-     "  Serial.begin(115200);\n  Serial.setTxBufferSize(2048);",
+     "  Serial.setTxBufferSize(8192);\n  Serial.begin(115200);",
+     "  Serial.begin(115200);\n  Serial.setTxBufferSize(8192);",
      "begin()'den SONRA cagrilan setTxBufferSize ise yaramaz; `?` "
      "ciktisi yine 27 ms bloklar"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  Serial.setTxBufferSize(8192);", "  Serial.setTxBufferSize(2048);",
+     "ESKI DEGERI geri koyar: halka ogesi ek yuku yuzunden `?` 2048'de "
+     "doluyor, 19.4 ms blokluyor ve bringup 20 ms esigini asiyor "
+     "(kartta olculdu, 2026-09-13)"),
 
     # ── B29 · cevrim faz olcumu (iki ADS takilinca kartta olculdu)
     ("B25", "test_tezgah_kart.py", "uretim/tasarim3_sabit.py",
@@ -541,6 +555,25 @@ MUTASYONLAR = [
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
     # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    # ── B37 · bos pin kapisi (cekme sinamasi)
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "                return;   /* B37: W BASILMAZ */",
+     "                /* return; */",
+     "ESKI KUSURU geri koyar: bos giriste `w` yine 7.68 W / PF 0.98 basar"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "#define BOS_PIN_ESIK_KOD (SKOP_ADC_SAYIM * 0.75f)",
+     "#define BOS_PIN_ESIK_KOD (SKOP_ADC_SAYIM * 0.5f)",
+     "esik %50: surulu RC duzenegi (%90 gorevde 2054 kod) BOS sayilir; "
+     "surulu bir giris reddedilir"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    adc_durdur();\n    gpio_set_pull_mode((gpio_num_t)PIN_SKOP,    kip);",
+     "    gpio_set_pull_mode((gpio_num_t)PIN_SKOP,    kip);",
+     "DMA halkasi sifirlanmaz: cekme degismeden onceki bayat ornekler "
+     "okunur, surulu pinin kaymasi isaret degistirir (kartta olculdu)"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "static bool skop_calisiyor = false;", "static bool skop_calisiyor_ = false;",
+     "surucu durumu izlenmez; her `w`de uc satir 'already stopped' gurultusu"),
+
     # ── B36 · kalibrasyon tablosu + hizli kanal ham kodu
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      'Serial.print(F(" oran="));    Serial.print(SKOP_ORAN, 6);', "",

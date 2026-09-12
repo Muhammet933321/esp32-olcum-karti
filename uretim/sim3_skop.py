@@ -632,6 +632,47 @@ def bolum6(r):
             "ama guc de raporlanmiyor, yani 'olculmus guc' gibi gorunen "
             "bir sey uretmiyor")
 
+    # ── B37: BOS PIN KAPISI ──────────────────────────────────────────
+    # K3'un "ortalama rayda mi" korumasi bostaki GPIO5'in ortalamasi
+    # orta olcekte kalinca deliniyor ve `w` 7.68 W basiyordu (kartta
+    # gorüldu, 2026-09-12). Deterministik sinama: dahili pull-down ile
+    # oku, pull-up ile oku; bos pin cekmeyi izler.
+    r.kosul("  6e: [!] `w` bos-pin sinamasindan GECMEDEN guc basmiyor",
+            "B37: W BASILMAZ" in ino
+            and ino.index("hizli_cekme_kaymasi(&vk, &ik)")
+                < ino.index('Serial.print(F("W "));'),
+            "kartta gorüldu: bos giris 7.68 W / PF 0.98 basiyordu")
+    # 🔴 ESIK IKI TARAF OLCULEREK secildi: bos %100, RC duzenegi (20K)
+    #    %41-50, gercek on uc <=%10. %50'lik ilk esik RC duzenegini
+    #    %90 gorevde "bos" sayiyordu.
+    r.kosul("  6e: [!] esik %75 (iki taraf da olculdu, ortada degil)",
+            "SKOP_ADC_SAYIM * 0.75f" in ino,
+            "%50 idi ve surulu RC duzenegi (2054 kod) esigi asiyordu")
+    # 🔴 DMA HALKASI SIFIRLANIYOR: cekme degisince eski ornekler
+    #    okunmasin. Ilk yazimda okunuyordu ve surulu pinin kaymasi
+    #    -1557..+2728 arasinda ISARET DEGISTIREREK geliyordu.
+    _cek = ino.split("static bool hizli_cekmeli_oku")[1].split(
+        "static bool hizli_cekme_kaymasi")[0]
+    # ⚠ SIRA sinaniyor, varlik degil: govdede zaten olcumden SONRA bir
+    #   `adc_durdur()` var; yalniz "var mi" diye bakan iddia, ONDEKI
+    #   durdurma silinince de geciyordu (mutasyon yakaladi).
+    _durdur_once = "adc_durdur();" in _cek and "gpio_set_pull_mode" in _cek         and _cek.index("adc_durdur();") < _cek.index("gpio_set_pull_mode")
+    r.kosul("  6e: [!] cekme degisince DMA halkasi SIFIRLANIYOR (dur/baslat)",
+            _durdur_once and "adc_baslat()" in _cek
+            and _cek.index("gpio_set_pull_mode") < _cek.index("adc_baslat()"),
+            "bayat DMA verisi surulu pini bos, bos pini surulu gosterirdi")
+    r.kosul("  6e: sinama sonunda cekmeler KAPATILIYOR (GPIO_FLOATING)",
+            ino.count("GPIO_FLOATING") >= 2,
+            "cekme acik kalsa sonraki olcumler 25K ile yuklenirdi")
+    # Surucu durumu sarmalayicida: ham IDF cagrisi yalnizca sarmalayicida.
+    r.kosul("  6e: ADC dur/baslat TEK sarmalayicidan (IDF gurultusu yok)",
+            ino.count("adc_continuous_stop(skop_kulp)") == 1
+            and ino.count("adc_continuous_start(skop_kulp)") == 1
+            # ⚠ `\b` ile: "skop_calisiyor_" alt dizgesi de esleşiyordu.
+            and re.search(r"static bool skop_calisiyor\b\s*=", ino) is not None,
+            "zaten durmus surucuye stop cagirmak her `w`de 3 satir ERROR "
+            "basiyordu; gercek bir iz o gurultude kaybolurdu")
+
     r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
             HAM_INL_KOD * T.SKOP_ADIM
             < 0.05 * (T.SKOP_MENZIL_ARTI - T.SKOP_MENZIL_EKSI),
@@ -655,6 +696,23 @@ def main() -> int:
     # Skop bolucusunun VREF'e baglanmasi YENI bir akim yolu acti;
     # capraz konusma yalnizca simulasyonda olculdu.
     tezgah("B19 Skop kanali", [
+        ("[!] GPIO5 (hizli AKIM kanali) dogrusallik supurmesi — "
+         "`python tezgah_adc_supur.py --adim 10 --csv olcum-adc-supurme.csv`",
+         "GPIO5 HIC karakterize edilmedi; guc faktorunun baska kaynagi yok. "
+         "Duzenek: RC dugumunden (GPIO4'e giden tel) GPIO5'e bir tel. Betik "
+         "GPIO4'u iki yoldan (skop + wR) okuyup 3 kod icinde uyustugunu "
+         "GOSTERDI (2026-09-13); GPIO5 bosta gorunurse betik BOSTA der ve "
+         "sutunu olcum saymaz"),
+        ("Bos-pin sinamasi GERCEK on ucla — `wB`",
+         "B37 esigi %75, bos %100 ve RC duzenegi %41-50 OLCULEREK secildi; "
+         "gercek on uc (op-amp cikisi ~%0, skop bolucusu ~%10) HESAPLANDI, "
+         "olculmedi. On uc lehimlenince `wB` kosun: iki kanal da "
+         "'surulu' ve %25'in altinda olmali"),
+        ("Bosta blokaj — `python tezgah_blokaj.py --sifirla --tekrar 4`",
+         "Tek 45 s penceresi yaniltir: acilis gecisi ~16 ms, kararli hal "
+         "~3 ms. `?` komutunun bedeli 2026-09-13'te 21.9 ms olculdu (TX "
+         "halkasi ogesi ek yuku); 8 KB tamponla 5.8 ms. Firmware'e cikti "
+         "ekleyen her degisiklikten sonra tekrar olcun"),
         ("Skop girisi VREF'i ne kadar kaydiriyor (capraz konusma)",
          "Skop akimi artik GND'ye degil VREF'e gidiyor ve VREF BUTUN "
          "kanallarin referansi. Olcum: skop girisine 40 V ver, "

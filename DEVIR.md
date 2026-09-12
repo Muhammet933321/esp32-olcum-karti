@@ -7771,6 +7771,60 @@ Boştaki GPIO5'in ortalaması tesadüfen orta ölçekte kaldığı için koruma 
 
 ---
 
+#### 5.12.51 ✅ B37 — BOŞ GİRİŞTE `w` ARTIK WATT BASMIYOR + `?` 21.9 → 5.8 ms (2026-09-13)
+
+GPIO5 jumper'ını beklerken B36'da kaydedilen kusura dönüldü ve bir de bringup koşucusu **biriken bir gerileme** yakaladı.
+
+##### 1 · Boş pin sinaması — deterministik, iki taraf da ölçüldü
+
+B27/K3'ün "ortalama bir raya yapışık mı" koruması, boştaki GPIO5'in ortalaması orta ölçekte (787) kalınca deliniyordu; `w` **7.68 W / PF 0.98** basıyordu. Sinyal istatistiğine dayanan bir eşik uydurmak yerine **dahili pull-up/pull-down testi**: pull-down ile oku, pull-up ile oku; boş (yüksek empedanslı) pin çekmeyi izler, sürülü pin izlemez.
+
+**İlk ölçüm yanıltıcıydı.** Çekme değiştirilip 30 ms beklenip okununca GPIO4'ün (RC ile sürülü) kayması −1557 … **+2728** kod arasında, **işaret değiştirerek** geliyordu; beklenen hep ~+740. Sebep: sürekli ADC'nin **DMA halkası çekme değişmeden önceki örnekleri tutuyor**; ilk okuma o bayat veri. GPIO5 (boş) yine de yakalanıyordu — kayma o kadar büyük ki bayat veri gizleyemiyor. Yani kusur yalnızca **sürülü** tarafta görünüyordu; iki tarafı da ölçmeseydik hiç görülmezdi. Her ölçüm öncesi sürücü durdurulup yeniden başlatılınca (`adc_continuous_start` DMA'yı sıfırlar) ±2 kod tekrarlanabilirlik:
+
+| kaynak | kayma |
+|---|---|
+| boşta (GPIO5; CAL kapalıyken GPIO4) | **%100** (4095 kod) |
+| RC düzeneği — Thevenin **20K** (iki kademe seri) | **%41–50** (1666–2054) |
+| skop bölücüsü ~2.6K (hesap) | ~%10 |
+| op-amp çıkışı (hesap) | ~%0 |
+
+Ölçülen kaymadan geri çıkarılan dahili çekme **~25K** (veri sayfasının 45K'sı değil). İlk eşik %50'ydi ve RC düzeneği %90 görevde **2054 kodla eşiği aşıyordu** — sürülü pin "boş" sayılırdı. **%75**: iki tarafa da 25 puan pay.
+
+`w` artık bu sinamadan geçmeden güç basmıyor: `! hizli yol: giris BOSTA — cekme sinamasi: GPIO4 %100 BOS · GPIO5 %100 BOS`. `wB` tanı komutu yüzdeleri veriyor.
+
+##### 2 · Bringup koşucusu kırmızı: `?` komutu 21.9 ms bloklıyor
+
+`tezgah_kart.py --sifirla`: **kararlı halde 21.6 ms** (eşik 20). B28 "boşta 3.0 ms" ölçmüştü. Önce B37'den şüphelendim:
+
+* `tezgah_blokaj.py` (yeni, pasif, tekrarlı): B37 firmware 3×60 s → **0 uzun tur, en uzun 3.4 ms**. Açılış sonrası 4×45 s → ilk pencere 15.8 ms, sonra 3 ms.
+* Önceki firmware (B36, HEAD) aynı betikle: 15.5 / 3.3 ms — **aynı**. B37 değil.
+* Koşucunun kendi `_k_oku`'su `K` satırını okumak için **`?` gönderiyor**; `?`'nin bedeli doğrudan ölçüldü: **+18.8 ms**. (`#` +18.4 ms — I²C taraması, beklenen; `CT` +1.9; `t?` +0.2.)
+
+`?` 548 bayt basıyor, TX tamponu 2048 — taşmamalı. Ölçüm: 1000 baytlık **tek** write 229 µs (tampon çalışıyor), ama 200'lük parçalar **1600 baytta** bloklamaya başlıyor ve sonra her 200 bayt 11–22 ms (hat hızı). Satır satır zamanlama + `availableForWrite`: tampon `?`'nin daha **başında** dolu.
+
+🔴 **Sebep — IDF'nin TX halkası `RINGBUF_TYPE_NOSPLIT`: her `write` çağrısı ayrı bir öğe, ~8 B başlık + 4 B hizalama.** `Print::print(float)` rakam rakam yazıyor → her rakam ~12 B halka yeri. `?`'deki ~15 float ≈ 120 tek-baytlık write ≈ 1.4 KB. B34–B36 boyunca `?` çıktısına alan eklendikçe (`adc_cali=`, `cal_hz=`, `akis_dusen=`, `bos_dram=`) bu sessizce birikti; bringup B29'dan beri koşulmamıştı. Aynı sorun `M` (12 float), `F`, `W`, `S2` satırlarında.
+
+Ucuz önlem: tampon **2048 → 8192** (DRAM'de 71 KB boş). `?`: **21.9 → 5.8 ms.** Bringup **32/0**, kararlı hal 5.8 ms. Yapısal çözüm (`WebAkis`'te satırı tek write'a birleştirmek — `t` dökümünün 16 000 halka öğesini de 4000'e indirir) açık kalem.
+
+##### 3 · Sürücü durumu sarmalayıcıda
+
+Zaten durmuş sürücüye `adc_continuous_stop` çağırmak IDF'den her `w`'de **3 satır ERROR** basıyordu ("already stopped"). Eskiden beri bir satırdı; çekme sinaması üçe çıkarınca düzeltmeye değdi. `adc_baslat()/adc_durdur()` yalnızca durum değişiyorsa IDF'i çağırıyor; `skop_hiz_ayarla`/`hizli_kur` config'den önce durduruyor. Gürültü **0**, skop `w`'den sonra çalışmaya devam ediyor.
+
+##### 4 · Süpürme aracı doğrulandı, GPIO5 bekliyor
+
+`tezgah_adc_supur.py` (B34'ün kaydedilmemiş betiğinin kalıcı hali): GPIO4'ü **iki bağımsız yoldan** (skop yakalaması + `wR`) okuyup **3 kod içinde** uyuştuğunu gösterdi — `wR` GPIO5 için güvenilir. GPIO5'te tel yokken betik "BOŞTA" diyor ve sütunu ölçüm saymıyor. (Boştaki GPIO5'in ortalamasının GPIO4'le birlikte yükselmesi komşu pinden sızıntı.)
+
+##### Doğrulama
+
+* Zincir 18/18, **1355 iddia** · `sim3_skop.py` 43 → **48** (6e) · `sim3_web.py` 97 → **98** (TX tamponu büyüklüğü) · mutasyon B19 8 → **12/12**, B22b **16/16**, B22a **13/13**.
+* **Gerçek kartta**: `wB` iki tarafı ölçüldü; `w` boş girişi reddediyor; komut bedelleri ölçüldü; bringup 32/0.
+* Mutasyon iki boş iddia yakaladı: (1) `"adc_durdur();" in govde` — gövdede ölçümden **sonra** da bir `adc_durdur()` var, öndeki silinince de geçiyordu → **sıra** sınanıyor; (2) `"static bool skop_calisiyor" in ino` — `skop_calisiyor_` alt dizgesi eşleşiyordu → `\b`.
+* Mutasyon taraması: bir eski mutasyonun deseni kaynakta **yoktu** (`akis_tasma++` → `akis_tasma = akis_tasma + 1` olalı) ve koşucu onu "UYGULANAMADI" diye ayrı raporluyordu — kimse bakmamış. Uygulanamayan mutasyon, iddiayı sınamayan mutasyondur. Bir diğeri (`self._gun = None`) iki yerde eşleşip iddiayı **yanlış sebeple** (tanımsız nitelik) kırmızıya döndürüyordu; hedef daraltıldı.
+
+⚠ Bu oturumda heredoc kaçış tuzağına **dört kez** düşüldü; en sinsisi `\b`'nin gerçek backspace (0x08) olarak yazılması — dosya çalıştı, regex sessizce eşleşmedi. Hafıza notu güncellendi.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

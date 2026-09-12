@@ -332,6 +332,18 @@ def bolum4(r):
             and "setTxBufferSize" in INO,
             "`?` ciktisi (9 satir) varsayilan tamponu doldurup print'i "
             "blokluyordu: olculdu, 27 ms")
+    # 🔴 B37 — TAMPONUN BUYUKLUGU de sinaniyor. IDF'nin TX halkasi
+    #    NOSPLIT: her write cagrisi ~12 B baslik+hizalama tasiyor ve
+    #    `Print::print(float)` rakam rakam yaziyor. `?` 548 bayt basip
+    #    ~1.4 KB halka yeri yiyor; 2048'de doluyor ve 19.4 ms blokluyordu
+    #    (kartta olculdu: 1000 baytlik tek write 229 us, ama 200'luk
+    #    parcalar 1600 baytta bloklamaya basliyor). 8 KB ile `?` 5.8 ms.
+    #    B34-B36'da `?` buyudukce birikmis, bringup koşucusu yakaladi.
+    _tx = re.search(r"setTxBufferSize\((\d+)\)", INO)
+    r.kosul("  3b.6: [!] seri TX tamponu >= 8 KB (halka ogesi basina ~12 B ek yuk)",
+            _tx is not None and int(_tx.group(1)) >= 8192,
+            f"{_tx.group(1) if _tx else '?'} B — 2048'de `?` 19.4 ms, "
+            f"bringup esigi 20 ms: kil payi ve buyuyen her cikti asar")
     r.kosul("  3b.7: `C` telemetri satiri cekirdek/yigin/dusen bildiriyor",
             all(x in kod(govde(INO, "void ayar_yaz_seri()"))
                 for x in ("olcum_cekirdek=", "ag_yigin_dip=", "akis_dusen=")),
