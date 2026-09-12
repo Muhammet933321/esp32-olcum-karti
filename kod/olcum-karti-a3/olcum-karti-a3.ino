@@ -861,10 +861,23 @@ static bool skop_yakala()
     uint16_t w = 0, dolu = 0, kalan = 0, tetik_w = 0, onceki = 0;
     bool bulundu = false, hazir = false, ilk = true;
 
-    // Zaman aşımı: pencerenin dört katı, en az 300 ms, en çok 4 s.
+    /* Zaman aşımı: pencerenin dört katı (tetik beklemesi için pay),
+       en az 300 ms, en çok 4 s.
+
+       🔴 B31 — ÜST SINIR PENCEREDEN KÜÇÜK OLAMAZ. 4 s'lik tavan en yavaş
+       zaman tabanında (500 ms/böl → 5 s pencere) yakalamayı ASLA
+       tamamlatmıyordu: OTO kipi kısa kaydı sessizce döndürüyor, kullanıcı
+       "500 ms/böl × 10 böl" seçip 3.77 s'lik bir kayıt alıyordu. Kartta
+       ölçüldü: 3055 örnek beklenirken 2304 geldi. Çizim doğruydu (S2
+       satırı gerçek adet/hızı bildiriyor), YALAN OLAN ETİKETTİ.
+       Tavan artık pencerenin kendisinden küçük olamıyor. Bedeli açık:
+       yakalama süresince ölçüm döngüsü duruyor ve bu boşluk zaten
+       `enerji_kayip_ms` olarak sayılıyor. */
     float pencere_ms = 1000.0f * (float)n / (float)hz;
     uint32_t azami_ms = (uint32_t)(pencere_ms * 4.0f) + 300u;
     if (azami_ms > 4000u) azami_ms = 4000u;
+    uint32_t taban_ms = (uint32_t)(pencere_ms * 1.2f) + 300u;
+    if (azami_ms < taban_ms) azami_ms = taban_ms;
     uint32_t t0 = millis();
 
     uint8_t cerceve[1024];

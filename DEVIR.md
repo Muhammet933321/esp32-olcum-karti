@@ -7512,6 +7512,49 @@ Yani ADS'ler tek örnekte ~**1 LSB RMS** gürültüyle çalışıyor (veri sayfa
 
 ---
 
+#### 5.12.47 ✅ B31 — OSİLOSKOP İLK KEZ GERÇEK SİNYAL GÖRDÜ (2026-09-12)
+
+Kullanıcı GPIO10 (CAL) ile GPIO4 (skop girişi) arasına tek tel taktı. Osiloskop zinciri — 12 bit DMA ADC, tetik, zaman tabanı, ölçüm matematiği — bugüne kadar **yalnızca benzetimde** doğrulanmıştı; ilk kez bilinen bir sinyalle sınandı.
+
+##### Frekans ve periyot: Nyquist'in altında **tam isabet**
+
+| CAL (gerçekleşen) | tdiv | fs | örnek/periyot | skop f | hata | görev |
+|---|---|---|---|---|---|---|
+| 100 Hz | 50 ms | 2 000 | 20.0 | 100.000 | **%0.000** | 49.95% |
+| 200 Hz | 20 ms | 5 000 | 25.0 | 200.000 | **%0.000** | 51.95% |
+| 500 Hz | 10 ms | 10 000 | 20.0 | 500.000 | **%0.000** | 49.95% |
+| 1 kHz | 10 ms | 10 000 | 10.0 | 1000.000 | **%0.000** | 49.95% |
+| 2 kHz | 5 ms | 20 000 | 10.0 | 2000.000 | **%0.000** | 49.95% |
+| 5 kHz | 2 ms | 50 000 | 10.0 | 5000.000 | **%0.000** | 49.95% |
+| 8 kHz | 1 ms | 83 333 | 10.4 | 7995.054 | %−0.062 | 49.63% |
+
+Gerilim eşlemesi de tasarım sabitleriyle **birebir**: 0 V → −63.53 V, 3.3 V → +54.36 V, Vpp 117.886 V = 4096 × 28.788 mV (tam ölçek). Ön uç yokken 0–3.3 V kare dalga ADC'yi raydan raya sürüyor — beklenen davranış.
+
+⚠ **Dürüst sınır:** CAL ile ADC örnekleme saati **aynı kristalden** türüyor. Bu test skopun *iç tutarlılığını* doğrular (bölücü, tetik indeksi, görev matematiği), **mutlak frekans doğruluğunu değil**. Onun için harici referans (multimetrenin Hz kademesi) gerekir.
+
+##### 🔴 Bulunan kusur: en yavaş zaman tabanı asla tamamlanmıyordu
+
+Yakalama zaman aşımı **4 s'e kapatılmıştı**, ama en yavaş kademenin (500 ms/bölme) penceresi **5 s**. OTO kipi tetik bulamayınca eldeki kısa kaydı döndürüyor: kullanıcı "10 bölme × 500 ms" seçip **3.77 s**'lik kayıt alıyordu. Kartta ölçüldü: **3055 örnek beklenirken 2304** geldi.
+
+Çizim yanlış değildi — `S2` satırı gerçek adet/hızı bildiriyor ve eksen ondan hesaplanıyor. **Yalan olan etiketti.** Düzeltme: zaman aşımı tavanı artık pencerenin kendisinden küçük olamıyor (`taban = pencere × 1.2 + 300 ms`). Ölçüldü: tdiv=11 → **3055 örnek / 5.00 s**, on iki kademenin hepsi modelle birebir.
+
+Bedeli açıkça yazıldı: yakalama süresince ölçüm döngüsü duruyor ve bu boşluk zaten `enerji_kayip_ms` olarak sayılıyor.
+
+##### Kendi ölçüm hatalarım (ikisi de rapor edilmeden yakalandı)
+
+* **"tdiv=9'da yakalama yok"** — kusur değil, benim bekleme penceremin kısalığıydı (1 s yakalama + döküm). Uzun beklemeyle sorunsuz. Rapor etmeden önce kontrol ettim.
+* **"tdiv 10 ve 11 modelden farklı"** — ölçümüm kaymıştı: tdiv=9'un geç gelen yakalaması bir sonraki satırın sonucuna karıştı. Tamponu boşaltıp tek tek ölçünce 10 tuttu, **yalnızca 11 gerçekten sapıyordu**.
+* **50 kHz'te %60 hata** — kusur değil, **benim test tasarımım**: tdiv=2'de Nyquist 41.7 kHz, sinyal onun üstünde. Ön uçtaki 25 kHz süzgeç (henüz kurulmadı) tam bunun için var.
+* **Görev oranı sapması** (10 kHz'te %59.94) — örnek nicemlemesi: 5 örnek/periyotta çözünürlük %20. Beklenen davranış.
+
+##### Doğrulama
+
+`sim3_skop.py` 24 → **31** (bölüm 5: on iki kademenin tamamlanabilirliği firmware'in **kendi tablosundan** türetiliyor, alt sınır ifadesinin varlığı, kartta ölçülen üç kademe, 1-2-5 dizisi, artan/tekrarsız). Mutasyon B19 **2/2**.
+
+🔴 **Mutasyon yine boş bir alan gösterdi:** tabloda `5000 → 4000` değişikliği hiçbir denetimi kırmadan geçti — yani tablonun **içeriği** hakkında hiçbir iddiam yoktu, yalnızca zaman aşımı ilişkisi hakkında. Ölçü aletlerinin zaman tabanı **1-2-5 dizisini** izler; bu kural eklendi ve mutasyon artık ısırıyor.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

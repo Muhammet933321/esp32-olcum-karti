@@ -415,6 +415,106 @@ def bolum4(r):
     r.bilgi("    turetiliyor. Hicbiri ofsetten etkilenmiyor.")
 
 
+def bolum5(r):
+    """B31 — ZAMAN TABANI TABLOSU: her kademe GERCEKTEN tamamlanabiliyor mu.
+
+    🔴 KARTTA OLCULDU (2026-09-12, CAL cikisiyla): en yavas kademe
+    (500 ms/bolme -> 5 s pencere) ASLA tamamlanmiyordu. Yakalama zaman
+    asimi 4 s'e kapatilmisti; OTO kipi kisa kaydi SESSIZCE donduruyor,
+    kullanici "10 bolme x 500 ms" secip 3.77 s'lik kayit aliyordu.
+    3055 ornek beklenirken 2304 geldi.
+
+    Cizim YANLIS DEGILDI — `S2` satiri gercek adet/hizi bildiriyor ve
+    eksen ondan hesaplaniyor. YALAN OLAN ETIKETTI: secilen zaman tabani
+    ile alinan pencere ayrisiyordu. Bu, "sessizce yanlis" sinifinin ta
+    kendisi ve bu projede defalarca ciktı.
+
+    Iddia firmware'in KENDI tablosundan turetiliyor: tablo degisirse
+    denetim de degisir, elle guncelleme yok.
+    """
+    bolum(r, "BOLUM 5 — ZAMAN TABANI: her kademe tamamlanabiliyor mu")
+    ino = (BURASI.parent / "kod" / "olcum-karti-a3"
+           / "olcum-karti-a3.ino").read_text(encoding="utf-8", errors="replace")
+
+    tdiv = [int(x) for x in re.search(
+        r"SKOP_TDIV_US\[\]\s*=\s*\{([^}]*)\}", ino).group(1).replace("\n", " ").split(",")
+        if x.strip()]
+    def sabit(ad):
+        m = re.search(rf"{ad}\s*=?\s*([0-9]+)", ino)
+        return int(m.group(1)) if m else None
+    BOLME = sabit("SKOP_BOLME")
+    HZ_AZAMI = sabit("SKOP_HZ_AZAMI")
+    HZ_ASGARI = sabit("SKOP_HZ_ASGARI")
+    AZAMI_ADET = sabit("SKOP_AZAMI_ADET")
+    r.bilgi(f"     tablo: {len(tdiv)} kademe · bolme={BOLME} · "
+            f"hz {HZ_ASGARI}..{HZ_AZAMI} · azami adet {AZAMI_ADET}")
+    r.bilgi("")
+    r.bilgi(f"     {'us/bolme':>9} {'hz':>8} {'adet':>6} {'pencere ms':>11} "
+            f"{'zaman asimi':>12}  durum")
+
+    # Firmware'deki zaman asimi ifadesi — kaynaktan okunuyor.
+    i = ino.find("static bool skop_yakala()")
+    j = ino.find("adc_continuous_stop", i)
+    g = ino[i:j if j > 0 else i + 4000]
+    carpan = float(re.search(r"pencere_ms \* ([0-9.]+)f\) \+ 300u", g).group(1))
+    tavan = int(re.search(r"azami_ms > (\d+)u\) azami_ms = \d+u", g).group(1))
+    taban_m = re.search(r"taban_ms = \(uint32_t\)\(pencere_ms \* ([0-9.]+)f\)", g)
+    taban_carpan = float(taban_m.group(1)) if taban_m else 0.0
+
+    kotu = []
+    for us in tdiv:
+        p_s = us * BOLME * 1e-6
+        hz = min(max((BOLME * 100) / p_s, HZ_ASGARI), HZ_AZAMI)
+        hz = int(hz + 0.5)
+        n = min(p_s * hz, AZAMI_ADET)
+        n = max(n, 100.0)
+        adet = int(n + 0.5)
+        pencere_ms = 1000.0 * adet / hz
+        azami = min(pencere_ms * carpan + 300, tavan)
+        azami = max(azami, pencere_ms * taban_carpan + 300)
+        yeterli = azami >= pencere_ms
+        if not yeterli:
+            kotu.append(us)
+        r.bilgi(f"     {us:>9} {hz:>8} {adet:>6} {pencere_ms:>11.0f} "
+                f"{azami:>12.0f}  {'yeterli' if yeterli else 'YETMIYOR'}")
+
+    r.kosul("  5a: [!] zaman asimi HICBIR kademede pencereden kucuk degil",
+            not kotu,
+            f"yetmeyen kademeler: {kotu} us/bolme — OTO kipi kisa kaydi "
+            f"SESSIZCE dondurur, secilen zaman tabani yalan olur "
+            f"(kartta olculdu: 3055 beklenirken 2304)")
+    # 🔴 Tablonun ICERIGI hakkinda da bir iddia olmali: mutasyon
+    #    (5000 -> 4000) hicbir denetimi kirmadan gecti, yani tablo
+    #    hakkinda HICBIR SEY iddia etmiyordum. Olcu aletlerinin zaman
+    #    tabani 1-2-5 dizisini izler (100, 200, 500, 1k, 2k, 5k, ...);
+    #    dizi bozulursa kullanicinin "bir kademe" beklentisi kayar ve
+    #    ekrandaki bolme suresi alisilmadik bir sayiya duser.
+    bozuk = []
+    for us in tdiv:
+        m = us
+        while m % 10 == 0 and m > 9:
+            m //= 10
+        if m not in (1, 2, 5):
+            bozuk.append(us)
+    r.kosul("  5a: zaman tabani basamaklari 1-2-5 dizisinde",
+            not bozuk, f"dizi disi: {bozuk} us/bolme")
+    r.kosul("  5a: basamaklar ARTAN ve tekrarsiz",
+            tdiv == sorted(set(tdiv)), str(tdiv))
+    r.kosul("  5a: alt sinir ifadesi kaynakta VAR",
+            taban_carpan > 0.0,
+            "tavan tek basina birakilirsa en yavas kademe yine kirpilir")
+    # Olculen degerler (CAL cikisiyla, 2026-09-12) — model bunlari veriyor mu.
+    for us, bek_hz, bek_adet in ((100, 83333, 100), (10000, 10000, 1000),
+                                 (500000, 611, 3055)):
+        p_s = us * BOLME * 1e-6
+        hz = int(min(max((BOLME * 100) / p_s, HZ_ASGARI), HZ_AZAMI) + 0.5)
+        adet = int(max(min(p_s * hz, AZAMI_ADET), 100.0) + 0.5)
+        r.kosul(f"  5b: {us} us/bolme -> {bek_hz} Sa/s, {bek_adet} ornek "
+                f"(KARTTA olculdu)",
+                hz == bek_hz and adet == bek_adet,
+                f"model {hz} Sa/s / {adet} ornek")
+
+
 def main() -> int:
     r = spice.Rapor()
     r.bilgi("")
@@ -426,6 +526,7 @@ def main() -> int:
     bolum2(r)
     bolum3(r)
     bolum4(r)
+    bolum5(r)
     # Skop bolucusunun VREF'e baglanmasi YENI bir akim yolu acti;
     # capraz konusma yalnizca simulasyonda olculdu.
     tezgah("B19 Skop kanali", [

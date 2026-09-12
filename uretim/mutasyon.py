@@ -397,6 +397,20 @@ MUTASYONLAR = [
      "CAL ciktisi yalnizca istenen frekansi basar; skop olcumu kendi "
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
+    # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    uint32_t taban_ms = (uint32_t)(pencere_ms * 1.2f) + 300u;\n"
+     "    if (azami_ms < taban_ms) azami_ms = taban_ms;",
+     "",
+     "4 s tavani geri gelir: en yavas kademe (5 s pencere) ASLA "
+     "tamamlanmaz, OTO kipi kisa kaydi SESSIZCE dondurur ve secilen "
+     "zaman tabani yalan olur (kartta 3055 beklenirken 2304 geldi)"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    100, 200, 500, 1000, 2000, 5000,",
+     "    100, 200, 500, 1000, 2000, 4000,",
+     "tablo degisince model de degismeli — iddia firmware'in KENDI "
+     "tablosundan turetiliyor, elle yazilmiyor"),
+
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",
