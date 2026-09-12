@@ -172,6 +172,15 @@ const gonderilenHarfler = new Set(
    karar olmali. */
 const ARAYUZSUZ = {
   h: 'yardim — seri port icin',
+  /* B34: `c<ham>` ham ADC kodunun fabrika-kalibre mV karsiligini veren
+     bir SORGU. Arayuzun elinde hic ham kod olmuyor — kart `/skop.bin`'de
+     ham kod + TEK olcek carpani yolluyor ve arayuz volta o carpanla
+     ceviriyor. Bu komut olcum betikleri icin var: olculmus bir supurmeyi
+     KAYNAGI DEGISTIRMEDEN kalibrasyondan gecirmeye yariyor (B34'te
+     "egri ADC'nin mi kaynagin mi" sorusu boyle yanitlandi).
+     ⚠ Kalibrasyon skop eksenine uygulanirsa (DEVIR 5.12.48'deki acik
+     karar) bu satir DUSMELI: o zaman arayuzun da bir soyleyecegi olur. */
+  c: 'ham kod -> kalibre mV sorgusu; olcum betikleri icin',
   Y: 'yardim (es anlamli)',
   /* B26: TEZGAH TESHIS komutu — blokaj sayaclarini sifirlar.
      `tezgah_kart.py` bununla acilis isinmasini disarida birakip

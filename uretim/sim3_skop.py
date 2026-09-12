@@ -515,6 +515,78 @@ def bolum5(r):
                 f"model {hz} Sa/s / {adet} ornek")
 
 
+def bolum6(r):
+    """B34 — ADC DOGRUSALSIZLIGI: OLCULDU, artik varsayim degil.
+
+    🔴 KARTTA OLCULDU (2026-09-12). PWM gorev orani (TAM BILINEN, 10 bit
+    tamsayi) + iki kademe RC ile bilinen DC uretildi, ham ADC kodu
+    supuruldu (101 nokta, her nokta 833 ornegin ortalamasi):
+
+        HAM kod        : en buyuk sapma +75.6 kod = +60.9 mV, rms 14.7 mV
+        FABRIKA EGRISI : en buyuk sapma      -15.4 mV, rms  4.9 mV
+
+    Yani sapmanin dortte ucunu Espressif'in eFuse egrisi kaldiriyor —
+    demek ki egri KAYNAGIN degil ADC'NIN. Bu ayrimi kaynagi hic
+    degistirmeden yapabildik: kalibrasyon ham kodun SAF FONKSIYONU.
+
+    Skop ekseninde ne demek: `SKOP_ADIM` = 28.79 mV/kod, yani ±76 kodluk
+    ham sapma girisde **±2.2 V**. Kalibrasyonla ±0.57 V'a iniyor.
+    (Skop menzili -63.5..+46.8 V; yani tam olcegin %2'si -> %0.5'i.)
+
+    Bugun firmware ham kodu SABIT carpanla ceviriyor. Kalibrasyonu
+    uygulamak bir PROTOKOL karari gerektiriyor (kart ham kod + olcek
+    yolluyor; egri tek bir carpanla ifade edilemez) — o yuzden bu adim
+    once OLCUYU civiliyor, kararı DEVIR'e birakiyor.
+    """
+    bolum(r, "BOLUM 6 — ADC dogrusalsizligi ve fabrika kalibrasyonu")
+    ino = (BURASI.parent / "kod" / "olcum-karti-a3"
+           / "olcum-karti-a3.ino").read_text(encoding="utf-8", errors="replace")
+
+    r.kosul("  6a: fabrika kalibrasyonu kuruluyor (egri semasi)",
+            "adc_cali_create_scheme_curve_fitting" in ino,
+            "eFuse egrisi olmadan mV degeri ham kodun sabitle carpimidir")
+    # 🔴 Kalibrasyonun atten'i SUREKLI KIPIN atten'iyle AYNI olmali;
+    #    farkli olursa mV degeri sessizce yanlis cikar (ayni ham kod
+    #    baska bir gerilime karsilik gelir).
+    kal_at = re.search(r"c\.atten\s*=\s*(ADC_ATTEN_DB_\d+)", ino)
+    sur_at = re.findall(r"\.atten\s*=\s*(ADC_ATTEN_DB_\d+)", ino)
+    r.kosul("  6a: [!] kalibrasyon atten'i surekli kipinkiyle AYNI",
+            bool(kal_at) and all(a == kal_at.group(1) for a in sur_at),
+            f"kalibrasyon {kal_at.group(1) if kal_at else '?'} · "
+            f"kullanilanlar {sorted(set(sur_at))} — farkli olursa ayni ham "
+            f"kod baska bir gerilime cevrilir ve hata SESSIZ olur")
+    r.kosul("  6a: kalibrasyon YOKSA sessiz kalmiyor",
+            'kaynak=' in ino and '"YOK"' in ino.replace("F(", "").replace(")", ""),
+            "kalibrasyonsuz bir mV degeri 'olculmus' gibi gorunurdu")
+    r.kosul("  6a: `c<ham>` girdisi 0..4095'e kirpiliyor",
+            "if (ham > 4095) ham = 4095;" in ino)
+
+    # Tasarimin varsaydigi tam olcek, olculenle karsilastiriliyor.
+    OLCULEN_TAM_OLCEK_MV = 3160.0     # kod 4095'in kalibre karsiligi (2026-09-12)
+    sapma = abs(T.SKOP_TAVAN * 1000 - OLCULEN_TAM_OLCEK_MV) / OLCULEN_TAM_OLCEK_MV
+    r.bilgi(f"     tasarim SKOP_TAVAN = {T.SKOP_TAVAN*1000:.0f} mV · "
+            f"kartta olculen (kod 4095) = {OLCULEN_TAM_OLCEK_MV:.0f} mV · "
+            f"sapma %{sapma*100:.1f}")
+    r.kosul("  6b: tasarimin ADC tam olcegi olculenle %5 icinde",
+            sapma < 0.05,
+            "sapma buyukse skopun BUTUN gerilim ekseni o oranda kaymis "
+            "demektir (dogrusalsizliktan AYRI bir kazanc hatasi)")
+    # Olculen dogrusalsizligi skop birimine cevir — sayi ELLE yazilmiyor.
+    HAM_INL_KOD = 75.6
+    KAL_INL_MV = 15.4
+    kod_mv = OLCULEN_TAM_OLCEK_MV / 4095.0
+    r.bilgi(f"     olculen INL: ham {HAM_INL_KOD:.0f} kod = "
+            f"{HAM_INL_KOD*kod_mv:.0f} mV (pinde) -> "
+            f"{HAM_INL_KOD*T.SKOP_ADIM:.2f} V (skop girisinde)")
+    r.bilgi(f"                  kalibre {KAL_INL_MV:.1f} mV (pinde) -> "
+            f"{KAL_INL_MV/kod_mv*T.SKOP_ADIM:.2f} V (skop girisinde)")
+    r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
+            HAM_INL_KOD * T.SKOP_ADIM
+            < 0.05 * (T.SKOP_MENZIL_ARTI - T.SKOP_MENZIL_EKSI),
+            f"{HAM_INL_KOD*T.SKOP_ADIM:.2f} V / "
+            f"{T.SKOP_MENZIL_ARTI-T.SKOP_MENZIL_EKSI:.1f} V")
+
+
 def main() -> int:
     r = spice.Rapor()
     r.bilgi("")
@@ -527,6 +599,7 @@ def main() -> int:
     bolum3(r)
     bolum4(r)
     bolum5(r)
+    bolum6(r)
     # Skop bolucusunun VREF'e baglanmasi YENI bir akim yolu acti;
     # capraz konusma yalnizca simulasyonda olculdu.
     tezgah("B19 Skop kanali", [

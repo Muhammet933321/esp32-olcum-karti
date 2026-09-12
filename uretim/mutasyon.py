@@ -411,6 +411,17 @@ MUTASYONLAR = [
      "tablo degisince model de degismeli — iddia firmware'in KENDI "
      "tablosundan turetiliyor, elle yazilmiyor"),
 
+    # ── B34 · ADC kalibrasyonu (kartta olculdu)
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    c.atten    = ADC_ATTEN_DB_12;", "    c.atten    = ADC_ATTEN_DB_6;",
+     "kalibrasyon atteni surekli kipinkinden farkli olursa AYNI ham kod "
+     "baska bir gerilime cevrilir ve hata SESSIZ olur"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    skop_cali_var = (adc_cali_create_scheme_curve_fitting(&c, &skop_cali) == ESP_OK);",
+     "    skop_cali_var = false;",
+     "kalibrasyon hic kurulmazsa `c` komutu ham kodu sabitle carpip "
+     "'olculmus' gibi gosterir — olculen 4 kat iyilesme kaybolur"),
+
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",

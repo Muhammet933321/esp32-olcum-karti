@@ -71,6 +71,17 @@
 #include "pil_test.h"
 #include "web_satir.h"  // B22.4 — satir bolucu (AVR'de sinaniyor)
 #include "web_akis.h"   // B22.4 — Serial aynasi
+/* 🔴 B34 — ESP32 ADC'si DOGRUSAL DEGIL ve bu OLCULDU (2026-09-12).
+   PWM+RC ile uretilen bilinen DC'ye karsi ham kod supuruldu: en kucuk
+   kareler dogrusundan sapma %5..%85 araliginda ±76 kod (±61 mV), %85
+   ustunde +290 koda kadar cikiyor. Skopun gerilim ekseni bugun TAM
+   DOGRUSAL varsayiyor (`SKOP_ADIM` sabit carpan).
+   Espressif her yongaya eFuse'ta bir egri kalibrasyonu yaziyor; bu
+   basligi kullanip `c<ham>` komutuyla ham kodun kalibre karsiligini
+   sorabiliyoruz. Boylece "egri ADC'nin mi, kaynagin mi" sorusu
+   KAYNAK DEGISTIRMEDEN yanitlanabiliyor. */
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 #include "ag.h"         // B22.4 — WiFi durum makinesi
 
 // 🔴 B22.4 — `Serial` AYNASI. BUTUN #include'lardan SONRA gelmeli.
@@ -804,7 +815,27 @@ static void skop_taban_coz(uint8_t tdiv_idx, uint32_t *hz, uint16_t *adet)
     *adet = (uint16_t)(n + 0.5f);
 }
 
+static adc_cali_handle_t skop_cali = NULL;
+static bool skop_cali_var = false;
+
+/* Egri kalibrasyonu S3'te desteklenen tek sema. Yoksa SESSIZ KALMIYORUZ:
+   `c` komutu bunu soyluyor, cunku kalibrasyonsuz bir mV degeri "olculmus"
+   gibi gorunup aslinda ham kodun sabitle carpimi olurdu. */
+static void skop_cali_kur() {
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+    adc_cali_curve_fitting_config_t c = {};
+    c.unit_id  = ADC_UNIT_1;
+    c.chan     = (adc_channel_t)SKOP_KANAL;
+    c.atten    = ADC_ATTEN_DB_12;
+    c.bitwidth = ADC_BITWIDTH_12;
+    skop_cali_var = (adc_cali_create_scheme_curve_fitting(&c, &skop_cali) == ESP_OK);
+#else
+    skop_cali_var = false;
+#endif
+}
+
 void skop_kur() {
+    skop_cali_kur();
     adc_continuous_handle_cfg_t k = {};
     k.max_store_buf_size = 8192;
     k.conv_frame_size    = 1024;            // 4 bayt/dönüşüm -> 256 örnek
@@ -2130,6 +2161,8 @@ void ayar_yaz_seri() {
   Serial.print(F(" ag_tur="));           Serial.print(ag_tur);
   Serial.print(F(" ag_yigin_dip="));
   Serial.print(ag_gorev_kolu ? (unsigned)uxTaskGetStackHighWaterMark(ag_gorev_kolu) : 0u);
+  Serial.print(F(" adc_cali="));         Serial.print(skop_cali_var ? F("egri")
+                                                                     : F("YOK"));
   Serial.print(F(" cal_hz="));           Serial.print(cal_hz);
   Serial.print(F(" akis_dusen="));       Serial.print(akis_tasma);
   /* B28: kuyruklar ve gorev yigini CALISMA ANINDA ayriliyor (~19 KB);
@@ -2250,6 +2283,7 @@ void yardim() {
   Serial.println(F("  r<ms> rapor araligi 20..5000 ms (D satiri sikligi), r goster"));
   Serial.println(F("  X<hz> kalibrasyon cikisi (GPIO10, %50 kare), X0 kapatir"));
   Serial.println(F("  x<promil> CAL gorev orani 0..1000 (PWM+RC = DC kaynagi)"));
+  Serial.println(F("  c<ham> ham ADC kodunun fabrika kalibrasyonlu mV karsiligi"));
   Serial.println(F("  R! fabrika ayarlari (kalibrasyonu SIFIRLAR)"));
   Serial.println(F("  t yakala  ta otomatik  tb<0-11> zaman tabani  t+ t-"));
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  t?"));
@@ -2302,6 +2336,23 @@ void komut_calistir(const char *s) {
       Serial.print(F(" cozunurluk="));   Serial.print(coz);
       Serial.print(F(" bit gorev=%50 pin=GPIO")); Serial.print(PIN_CAL);
       Serial.println(F("  (skop girisi GPIO4'e tek tel)"));
+      break;
+    }
+
+    /* B34 — ham ADC kodunun FABRIKA KALIBRASYONUNA gore mV karsiligi.
+       `c<ham>` -> `c ham=2048 mv=1571 kaynak=egri`. Olculmus bir supurmeyi
+       KAYNAGI DEGISTIRMEDEN kalibrasyondan gecirmeye yariyor: egri ADC'nin
+       mi yoksa PWM+RC kaynaginin mi, ayrimi boyle yapiliyor. */
+    case 'c': {
+      long ham = atol(s + 1);
+      if (ham < 0) ham = 0;
+      if (ham > 4095) ham = 4095;
+      int mv = -1;
+      if (skop_cali_var) adc_cali_raw_to_voltage(skop_cali, (int)ham, &mv);
+      Serial.print(F("c ham="));   Serial.print(ham);
+      Serial.print(F(" mv="));     Serial.print(mv);
+      Serial.print(F(" kaynak=")); Serial.println(skop_cali_var ? F("egri")
+                                                                : F("YOK"));
       break;
     }
 

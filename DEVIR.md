@@ -7555,6 +7555,56 @@ Bedeli açıkça yazıldı: yakalama süresince ölçüm döngüsü duruyor ve b
 
 ---
 
+#### 5.12.48 ✅ B34 — ESP32 ADC'sinin DOĞRUSALSIZLIĞI ÖLÇÜLDÜ (2026-09-12)
+
+Kullanıcı "lehimsiz ne geliştirebiliriz" deyince seçilen iş. Skopun gerilim ekseni bugüne kadar ADC'yi **tam doğrusal** varsayıyordu (`SKOP_ADIM` sabit çarpan) — bu varsayım hiç sınanmamıştı.
+
+##### Düzenek: kartın kendisi referans üretiyor
+
+CAL çıkışı (GPIO10) PWM, 20 kHz, **10 bit görev oranı** → iki kademe RC (10K + 100nF ×2) → GPIO4. Görev oranı **tam sayı ve tam bilinen**, yani ölçüm kendi varsayımına değil bağımsız bir sayıya dayanıyor. 101 nokta, her nokta 833 örneğin ortalaması (dalgalanma tepe-tepe 15–26 kod, ortalamanın standart hatası 0.06 kod).
+
+##### Sonuç: sapmanın dörtte üçü ADC'nin
+
+| | en büyük sapma | rms |
+|---|---|---|
+| **Ham kod** (bugünkü yol) | **+75.6 kod = +60.9 mV** | 14.7 mV |
+| **Fabrika eğrisi** (eFuse) | **−15.4 mV** | 4.9 mV |
+
+Doğru bölge %5–%85; üstünde ADC doyuma giriyor (kod 4095 = **3160 mV**, kalibrasyonun söylediği).
+
+🔴 **Bu, "eğri ADC'nin mi kaynağın mı" sorusunu kaynağı hiç değiştirmeden yanıtlıyor:** kalibrasyon ham kodun **saf fonksiyonu**; aynı ham veriyi ondan geçirince sapma 4 kat düşüyorsa, sapma ADC'dedir. Kalan 4.9 mV rms kaynağın dalgalanması, PWM seviyesi ve kalibrasyonun kendi hatasının toplamı.
+
+##### Skop ekseninde ne demek
+
+`SKOP_ADIM` = 28.79 mV/kod olduğundan:
+
+| | pinde | **skop girişinde** |
+|---|---|---|
+| ham doğrusalsızlık | 58 mV | **±2.18 V** |
+| fabrika eğrisiyle | 15.4 mV | **±0.57 V** |
+
+Skop menzili −63.5…+46.8 V (110.3 V aralık) — yani tam ölçeğin **%2'si → %0.5'i**. Ayrıca tasarımın varsaydığı ADC tam ölçeği **3100 mV**, ölçülen **3160 mV**: doğrusalsızlıktan **ayrı** bir **%1.9 kazanç hatası**.
+
+##### Yapılanlar
+
+* `adc_cali` eğri şeması firmware'e eklendi; `c<ham>` komutu ham kodun fabrika-kalibre mV karşılığını veriyor. `?` çıktısında `adc_cali=egri|YOK` — kalibrasyon yoksa **sessiz kalmıyor**, çünkü kalibrasyonsuz bir mV değeri "ölçülmüş" gibi görünüp aslında ham kodun sabitle çarpımı olurdu.
+* `x<promil>` ile CAL görev oranı (panelde kaydırıcı) — RC ile birlikte **ayarlanabilir 0–3.3 V DC kaynağı**.
+* 🔴 **Kendi eklediğim kusur:** `ledcAttach(pin, hz, 10)` sabit 10 bit varsayıyordu; 50 kHz bu kartta 10 bitle **üretilemiyor**, ama panelde seçenek duruyordu. Daha sinsisi: düşük frekansta bağlanıp `ledcChangeFrequency(50000)` çağrılınca API **50000 dönüyordu** — aynı soruya iki yoldan iki farklı cevap. Artık çözünürlük **donanıma soruluyor** (12→6 deneyip tutanı bulur) ve bildiriliyor: 1 kHz→12 bit, 10 kHz→11, 20 kHz→10, 50 kHz→9, 200 kHz→7. Bu, B31'deki "50 kHz'te %60 hata = örtüşme" yorumunu da doğruluyor: üreteç 50 kHz'i gerçekten üretiyor.
+* Ham veri depoda: `uretim/olcum-adc-dogrusallik.csv` (101 nokta, düzenek ve yöntem başlıkta).
+* `sim3_skop.py` 31 → **37** (bölüm 6: kalibrasyon kuruluyor mu, **atten'i sürekli kipinkiyle aynı mı** — farklıysa aynı ham kod başka gerilime çevrilir ve hata sessiz olur, kalibrasyon yokken susmuyor mu, `c` girdisi kırpılıyor mu, tasarımın tam ölçeği ölçülenle %5 içinde mi, ham doğrusalsızlık skop tam ölçeğinin %5'inden küçük mü). Mutasyon B19 **4/4**.
+
+##### 🔶 KARAR BEKLEYEN: kalibrasyon skop eksenine uygulanacak mı
+
+Uygulamak ölçümü 4 kat iyileştirir ama bir **protokol** kararı gerektiriyor: kart bugün **ham kod + tek ölçek çarpanı** yolluyor (`/skop.bin`, `S2`), eğri ise tek çarpanla ifade edilemez. Üç yol:
+
+1. **Kart mV yollasın** — protokol değişir, arayüzün ölçek çarpanı 1 olur; en temiz, en çok dokunan.
+2. **Kart ham + küçük düzeltme tablosu yollasın** (ör. 17 nokta), arayüz aradeğerlesin — protokol geriye dönük uyumlu kalır.
+3. **Bırakılsın**, belgede "skop ekseni ±2.2 V doğrusalsızlık taşır" yazsın — skop zaten kaba bir dalga-şekli aracı.
+
+Bu adım ölçüyü çiviledi; kararı kullanıcıya bırakıyor.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |
