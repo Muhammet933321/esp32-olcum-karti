@@ -590,8 +590,16 @@ def main() -> int:
          "`/vendor/vue.global.prod.js` ikinci yuklemede 304/onbellekten "
          "gelmeli — `immutable` calisiyor mu"),
         ("Telefondan ilk yukleme suresi",
-         "93 753 B gzip. 3 s'yi gecerse panel cikarma adimi acilir "
-         "(5.12.38). Ikinci acilista statik trafik 0 B olmali"),
+         "PC'de OLCULDU (B27 A4): 622 ms, 107 KB, 7 istek; ikinci acilista "
+         "statik trafik 0 B (onbellek). 3 s'yi gecerse panel cikarma adimi "
+         "acilir (5.12.38). TELEFONDA ayni olcumu yap — WiFi mesafesi ve "
+         "telefon CPU'su bu sayiyi buyutur"),
+        ("[!] Sayfa sunmanin OLCUME bedeli",
+         "B27 A4'te varlik varlik olculdu: index 33 ms, style 34 ms, "
+         "vue 155 ms, app.js 186 ms blokaj (bosta taban 16-17 ms). Yani bir "
+         "sayfa acilisi ~0.4 s olcum kaybi. Bosta 300 s'de 20 ms'yi asan "
+         "TUR YOK — yani cift cekirdek karari 'kendiliginden blokaj'a degil "
+         "'sayfa sunumu'na dayaniyor. Olcum: `K` sifirla, sayfayi ac, `?` oku"),
         ("arayuz-yaz.py ile karta yazma",
          "esptool yolu ve 0x310000 ofseti HIC denenmedi. "
          "`python arayuz-uret.py && python arayuz-yaz.py`"),

@@ -387,6 +387,7 @@ createApp({
          TOPLAM KAPASİTE doğru kalır. */
       pilDurum: 'BEKLEMEDE',
       pilHata: '-',
+      pilZaman: null,      // B27 A4: uyarlanir yoklama zamanlayicisi
       pilMah: 0, pilWh: 0, pilCoulomb: 0,
       pilOcv: 0, pilVson: 0, pilKesme: 3.0,
       pilDcirAni: 0, pilDcirOtr: 0, pilDcirN: 0,
@@ -634,6 +635,12 @@ createApp({
        OKUNAMAZ; ekrandaki sayı 96 örneğin ortalaması (kartta ölçüldü:
        ham gürültü tam 1 LSB, ortalamanın std'si 7.9 µA).
        Kaynak kart: `A ... sont=`; menü tercihi yalnızca yedek. */
+    /* B27 A4: yoklama aralığı — testi izlerken 2 s, boşta 10 s.
+       Her istek kartta ~15 ms ölçüm kaybı demek. */
+    pilYoklamaAralik() {
+      return (this.pilDurum === 'CALISIYOR' || this.gorunum === 'pil') ? 2000 : 10000;
+    },
+
     akimMenzilAralik() {
       const sont = this.kartSont !== null ? this.kartSont : parseFloat(this.sontSecim);
       if (!isFinite(sont) || sont <= 0) return '';
@@ -761,9 +768,21 @@ createApp({
     /* B21: önce IndexedDB'deki eski testi geri yükle (sekme kapanmış
        olabilir), sonra karttan eksikleri istemeye başla. Yoklama 2 s'de
        bir — kayıt 1 Hz olduğu için her yoklamada ~2 nokta geliyor;
-       daha sık yoklamanın faydası yok, kartı meşgul eder. */
+       daha sık yoklamanın faydası yok, kartı meşgul eder.
+
+       🔴 B27 Aşama 4 — YOKLAMA BOŞTA SEYRELİYOR. Kartta ölçüldü: her
+       HTTP isteği ölçüm döngüsünü bloklar; küçük bir `/pil` isteği bile
+       ~15 ms. Test çalışmıyorken ve pil görünümü kapalıyken 2 s'de bir
+       yoklamanın hiçbir karşılığı yok — 10 s'de bir yeterli (bir testin
+       başka bir istemciden başlatıldığını yine görüyoruz, 10 s gecikmeyle).
+       Test başlarsa ya da kullanıcı pil görünümüne geçerse anında
+       sıklaşıyor. */
     this.pilYukle().then(() => {
-      setInterval(() => { if (this.bagli) this.pilYokla(); }, 2000);
+      const tik = () => {
+        if (this.bagli) this.pilYokla();
+        this.pilZaman = setTimeout(tik, this.pilYoklamaAralik);
+      };
+      this.pilZaman = setTimeout(tik, this.pilYoklamaAralik);
     });
   },
 

@@ -673,9 +673,42 @@
 
 </div>
 
-<script src="vendor/vue.global.prod.js"></script>
+<!-- ═══ B27 Aşama 4 — AÇILMAMA DURUMU GÖRÜNÜR OLMALI ═══════════════
+     Kart yeniden başlarken (yükleme, reset, güç dalgalanması) sayfa
+     açılırsa betiklerden biri gelmiyor ve ekranda ham `{{ }}` kalıyordu:
+     kullanıcıya hiçbir şey söylemeyen bozuk bir sayfa. `v-cloak` bunu
+     GİZLİYOR ama yerine bir şey KOYMUYOR.
+     Çözüm iki katmanlı: (1) betik `onerror` — dosya hiç gelmediyse
+     hemen, (2) 6 sn zaman aşımı — dosya geldi ama Vue mount edemediyse.
+     Vue mount edince `#uyg`ün `v-cloak`u düşüyor; ölçüt bu. -->
+<div id="acilmadi" hidden class="hata" style="margin:20px">
+  <strong>Arayüz yüklenemedi.</strong>
+  Kart yeniden başlıyor olabilir — birkaç saniye sonra sayfayı yenileyin.
+  <button onclick="location.reload()" style="margin-left:8px">Yenile</button>
+  <div id="acilmadi-neden" style="margin-top:6px;font-size:12px;opacity:.8"></div>
+</div>
+<script>
+  (function () {
+    var kutu = document.getElementById('acilmadi');
+    var neden = document.getElementById('acilmadi-neden');
+    window.arayuzHata = function (ne) {
+      neden.textContent = ne + ' yüklenemedi.';
+      kutu.hidden = false;
+    };
+    setTimeout(function () {
+      var u = document.getElementById('uyg');
+      if (u && u.hasAttribute('v-cloak')) {
+        neden.textContent = neden.textContent
+          || 'Betikler indi ama arayüz başlamadı (' +
+             (typeof Vue === 'undefined' ? 'Vue yok' : 'Vue var') + ').';
+        kutu.hidden = false;
+      }
+    }, 6000);
+  })();
+</script>
+<script src="vendor/vue.global.prod.js" onerror="arayuzHata('Vue')"></script>
 <!-- sahte-kart.js BILEREK YOK: yalnizca ?demo kipinde gerekiyor ve
      app.js icindeki betikYukle() ile dinamik iniyor (B22.0). -->
-<script src="app.js"></script>
+<script src="app.js" onerror="arayuzHata('app.js')"></script>
 </body>
 </html>

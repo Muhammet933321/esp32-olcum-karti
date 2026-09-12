@@ -7326,6 +7326,42 @@ Kullanıcı telefondan karta bağlanamıyordu; sebep **kartta değil adreste**: 
 
 **Kendi hatam:** "sonsuz animasyon en fazla bir yerde" iddiası ikinci **meşru** gösterge (acil nokta) gelince yanlış yere kırmızı döndü. Doğru ölçüt sayı değil **hangi seçici**: nabız yalnızca `.rozet.acik .nokta` ve `.acil-nokta`'da, ölçüm sayılarında animasyon yasak.
 
+##### ✅ Aşama 4 bitti (2026-09-12) — bütçe, dayanıklılık ve **sayfa sunmanın ölçüme bedeli**
+
+Plandaki iki sayı (gzip < 250 KB, dosya ≤ 8) **belgede yazıyordu ama hiçbir şey sınamıyordu** — yani bütçe değil temenniydi. Artık `_fs.json` (karta gerçekten yazılan görüntünün künyesi) üzerinden ölçülüyor: **105 060 B, %41 dolu, 6 dosya**. Sayfanın istediği her varlığın görüntüde olduğu da aynı yerde sınanıyor (B22.0'ın kusuru tam buydu).
+
+**İlk yükleme kartta ölçüldü:** 622 ms · 107 KB · 7 istek. **İkinci açılış: statik trafik 0 B** (yalnızca `/pil` yoklaması) — 5.12.38'in ölçütü tutuyor, panel çıkarma adımı **açılmıyor**.
+
+**🔴 Asıl bulgu — her HTTP isteği ölçüm döngüsünü boyutuyla orantılı blokluyor.** Varlık varlık ölçüldü (her ölçümden önce `K` sıfırlandı):
+
+| varlık | boyut | `loop_azami` |
+|---|---|---|
+| boşta referans (istek yok) | — | **16–17 ms** |
+| `/pil` yoklaması | 167 B | 15 ms |
+| `index.html` | 10.1 KB | 33 ms |
+| `style.css` | 6.5 KB | 34 ms |
+| `vue.global.prod.js` | 58.4 KB | 155 ms |
+| `app.js` | 27.8 KB | **186 ms** |
+
+Yani **bir sayfa açılışı ≈ 0.4 s ölçüm kaybı**.
+
+**B26'nın "30 s'de bir 26 ms" bulgusu yeniden ölçüldü** — hiçbir HTTP isteği ve hiçbir istemci yokken, 300 s kesintisiz:
+
+| pencere | 50 s | 100 s | 150 s | 200 s | 250 s | 300 s |
+|---|---|---|---|---|---|---|
+| `loop_azami` | 16.3 ms | 22.3 | 22.3 | 22.3 | 22.5 | **22.5 ms** |
+| >20 ms tur | 0 | 1 | 2 | 3 | 4 | **5** |
+
+Yani kendiliğinden olay **var ama daha küçük ve daha seyrek**: ~50–60 s'de bir, **22.5 ms** (eşik 20 ms). İlk kayıttaki 26.5 ms, bringup koşucusunun **kendi HTTP denetimleriyle birlikte** ölçülmüştü — o sayı ikisinin toplamıydı. 75 s'lik iki ayrı pencerede (istemcisiz ve 1 SSE istemcili) hiç uzun tur görülmedi; olay 50 s'lik pencerede yakalanıyor.
+
+**Çift çekirdek kararının gerekçesi netleşti:** baskın terim **sayfa sunumu** (186 ms), ikincil terim periyodik 22.5 ms. İkisi de aynı çözümle gidiyor (ölçüm döngüsünü çekirdek 1'e al), ama artık "gizemli kilitlenme" değil ölçülmüş iki kalem.
+
+**Boşta yoklama seyreltildi:** `/pil` her 2 s'de bir yoklanıyordu — test çalışmıyorken ve pil görünümü kapalıyken karşılığı yok. Artık boşta **10 s**, test çalışırken veya pil görünümü açıkken 2 s. Ölçüldü: boşta 25 s'de `loop_azami` 18.5 ms, **0 uzun tur**.
+
+**Dayanıklılık — "açılmadı" durumu artık görünür.** Kart yeniden başlarken sayfa açılırsa betiklerden biri gelmiyor ve ekranda ham `{{ }}` kalıyordu; `v-cloak` onu **gizliyor ama yerine bir şey koymuyor**. İki katmanlı kapı eklendi: betik `onerror`'ı (dosya hiç gelmediyse) ve 6 sn zaman aşımı (dosya geldi ama Vue mount edemediyse) → kırmızı kutu + **Yenile** düğmesi + sebep. `app.js`'i 404 döndüren bir sunucuyla doğrulandı: kutu çıkıyor, ham şablon yok.
+
+**Doğrulama:** `test_arayuz3.js` 239 → **250** (bölüm 15: bütçe, dosya sayısı, varlık↔görüntü eşleşmesi, `onerror`, zaman aşımı, kutunun varsayılan gizliliği, Yenile eylemi, uyarlanır yoklama). Mutasyon B7 **33/33**. Gerçek kartta **5 görünüm × 2 tema**: ham şablon yok, açılmadı kutusu çıkmıyor, yatay taşma yok, **0 konsol hatası**. LittleFS 105.1 KB (%11.5).
+
 ---
 
 #### 5.12.17 Sırada ne var

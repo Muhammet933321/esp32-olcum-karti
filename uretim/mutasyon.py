@@ -310,6 +310,21 @@ MUTASYONLAR = [
      "",
      "telefonda ust serit bir satir daha buyur, olcumler ilk ekrandan duser"),
 
+    # ── B27 A4 · butce ve dayaniklilik
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     "<script src=\"app.js\" onerror=\"arayuzHata('app.js')\"></script>",
+     '<script src="app.js"></script>',
+     "app.js gelmezse sayfa sessizce bos kalir; kullanici neden "
+     "acilmadigini ogrenemez"),
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     '<div id="acilmadi" hidden class="hata" style="margin:20px">',
+     '<div id="acilmadi" class="hata" style="margin:20px">',
+     "hata kutusu HER acilista gorunur — saglikli sayfada bile"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      return (this.pilDurum === 'CALISIYOR' || this.gorunum === 'pil') ? 2000 : 10000;",
+     "      return 2000;",
+     "bosta da 2 s'de bir yoklanir: kartta bosuna ~15 ms/2 s olcum kaybi"),
+
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",

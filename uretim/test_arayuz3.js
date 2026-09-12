@@ -1487,6 +1487,68 @@ console.log('\n--- 14. Telefon yerlesimi + acil durdurma ---');
      /Android/.test(html) && /\.local/.test(html) && /IP adresini/.test(html));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   15. BUTCE VE DAYANIKLILIK (B27 Asama 4)
+
+   Plandaki iki sayi (gzip < 250 KB, dosya <= 8) BELGEDE yaziyordu ama
+   hicbir sey onlari sinamiyordu — yani butce degil temenniydi. Artik
+   `_fs.json` (karta GERCEKTEN yazilan goruntunun kunyesi) uzerinden
+   olculuyor.
+
+   Dayaniklilik: kart yeniden baslarken sayfa acilirsa betiklerden biri
+   gelmiyor ve ekranda ham `{{ }}` kaliyordu. `v-cloak` onu GIZLIYOR ama
+   yerine bir sey KOYMUYOR — kullaniciya hicbir sey soylemeyen bos sayfa.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 15. Butce ve dayaniklilik ---');
+{
+  const html = yorumsuz(htmlKaynak);
+  const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
+  ok('LittleFS kunyesi (_fs.json) var', fs.existsSync(kunyeYolu));
+  if (fs.existsSync(kunyeYolu)) {
+    const kunye = JSON.parse(fs.readFileSync(kunyeYolu, 'utf8'));
+    const BUTCE = 250 * 1024;
+    ok(`Arayuz gzip butcesi: ${kunye.icerik_bayt} B < ${BUTCE} B`,
+       kunye.icerik_bayt > 0 && kunye.icerik_bayt < BUTCE,
+       `%${(100 * kunye.icerik_bayt / BUTCE).toFixed(0)} dolu`);
+    /* Dosya sayisi: her dosya karta ayri bir HTTP istegi demek ve her
+       istek olcum dongusunu blokluyor (kartta olculdu: 6.5 KB'lik
+       style.css bile 34 ms). */
+    const varliklar = fs.readFileSync(path.join(KOK, 'uretim', 'arayuz-uret.py'), 'utf8')
+      .match(/VARLIKLAR = \[([\s\S]*?)\]/);
+    const adet = varliklar ? (varliklar[1].match(/"/g) || []).length / 2 : -1;
+    ok('Karta yazilan dosya sayisi <= 8', adet > 0 && adet <= 8, `${adet} dosya`);
+    /* Sayfanin istedigi her yerel varlik goruntude OLMALI: biri eksikse
+       kart 404 doner ve arayuz acilmaz (B22.0'in ta kendisi). */
+    const istenen = [...html.matchAll(/(?:^|\s)(?:href|src)="([^"]+)"/gm)]
+      .map((m) => m[1]).filter((u) => !/^(https?:|data:|#|mailto:)/.test(u));
+    const yazilan = varliklar ? [...varliklar[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]) : [];
+    const eksik = istenen.filter((u) => !yazilan.includes(u));
+    ok('Sayfanin istedigi her varlik LittleFS goruntusunde',
+       eksik.length === 0, eksik.join(' ') || istenen.join(' '));
+  }
+
+  /* Dayaniklilik: acilmama durumu. */
+  ok('Betik `onerror` ile acilmama durumu yakalaniyor',
+     /<script src="vendor\/vue\.global\.prod\.js" onerror="arayuzHata\(/.test(html) &&
+     /<script src="app\.js" onerror="arayuzHata\(/.test(html));
+  ok('Zaman asimi kapisi da var (betik indi ama Vue baslamadi)',
+     /setTimeout\([\s\S]{0,400}hasAttribute\('v-cloak'\)/.test(html));
+  ok('Acilmama kutusu VARSAYILAN OLARAK gizli (hidden)',
+     /<div id="acilmadi" hidden/.test(html));
+  ok('Acilmama kutusunda YENILE eylemi var',
+     /id="acilmadi"[\s\S]{0,400}location\.reload\(\)/.test(html));
+
+  /* Bosta yoklama seyreliyor: her `/pil` istegi kartta ~15 ms olcum
+     kaybi. Test calisirken ya da pil gorunumundeyken siklasiyor. */
+  const u = ornek();
+  u.pilDurum = 'BEKLEMEDE'; u.gorunum = 'olcum';
+  ok('Bosta pil yoklamasi seyrek (10 s)', u.pilYoklamaAralik === 10000, String(u.pilYoklamaAralik));
+  u.pilDurum = 'CALISIYOR';
+  ok('Test calisirken siklasiyor (2 s)', u.pilYoklamaAralik === 2000);
+  u.pilDurum = 'BEKLEMEDE'; u.gorunum = 'pil';
+  ok('Pil gorunumu acikken de siklasiyor (2 s)', u.pilYoklamaAralik === 2000);
+}
+
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
    fonksiyonun govdesinde (bolum 13) dolduruluyor; bosaltma burada,
    ozetin hemen oncesinde. */
