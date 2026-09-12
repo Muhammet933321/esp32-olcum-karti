@@ -1018,30 +1018,47 @@ def main() -> int:
     tamam = r.yazdir()
     # Bu adimin butun iddialari bir ZAMANLAMA MODELINE dayaniyor.
     # Modeli yalanlayacak tek sey gercek karttir.
+    # 🔴 B32 — BU LISTE BAYATLAMISTI. Alti kalemin dordu artik OLCULMUS
+    #    ya da cozulmus bir seyi "bilinmiyor" diye soruyordu ve tezgahta
+    #    kullaniciyi YANLIS yonlendirecekti (bu proje ayni hatayi
+    #    sim3_skop'ta bir kez daha yapmisti). Yenilendi; sayilar
+    #    ELLE YAZILMIYOR, ayni butceden turetiliyor.
+    _t_yaz = i2c_us(BIT_YAZ)
+    _t_oku = i2c_us(BIT_OKU)
+    _periyot = (2 * _t_yaz + (T_DONUSUM_US - _t_yaz) + 2 * _t_oku
+                + T.I2C_ISLEM_ADET * T.I2C_ISLEM_EK_US)
+    _ornek = 200000.0 / _periyot          # 200 ms'lik rapor penceresinde
     tezgah("B20 Ornekleme hizi ve bant", [
         ("[!] `D` satirindaki ORNEK SAYISI — ilk, en ucuz ve en onemli test",
-         "200 ms'de 133 +-3 beklenir. ~100 cikarsa B22.1'in "
-         "enableDelay(false)'u ISE YARAMAMIS; ~19 cikarsa B20'nin kendi "
-         "duzeltmeleri cokmus. IKI AYRI kusur, ikisi de bu tek sayidan "
-         "gorulur — o yuzden once bu olculur"),
+         f"200 ms'de {_ornek:.0f} +-10 beklenir (model {_periyot:.0f} us/cevrim). "
+         f"KARTTA OLCULDU 2026-09-12: 95-96. ~32 cikarsa ALERT teli "
+         f"dusmustur (`#` komutu soyler), ~19 cikarsa B20'nin kendi "
+         f"duzeltmeleri cokmus demektir"),
         ("`Wire` gercekten 400 kHz mi",
-         "Skopla SCL periyodunu olc. 100 kHz'e duserse V/I kaymasi DORT "
-         "KAT buyur ve butun faz butcesi gecersizlesir"),
-        ("[!] ALERT/RDY gercekten DARBE mi, MANDAL mi",
-         "Skopla bak. Tek atista mandal olabilir — veri sayfasi kendisiyle "
-         "CELISIYOR (5.12.30). Mandalsa `yeni_donusum_bekle` mantigi "
-         "degismeli; bugunku kod darbe varsayiyor"),
+         f"Skopla SCL periyodunu olc. Dolayli kanit VAR: cevrim fazlari "
+         f"(`F` satiri) bit sureleriyle tutarli ve islem basina ek yuk "
+         f"{T.I2C_ISLEM_EK_US:.0f} us olculdu. 100 kHz'e duserse V/I "
+         f"kaymasi DORT KAT buyur ve faz butcesi gecersizlesir"),
+        ("ALERT/RDY DARBE mi MANDAL mi — CEVAPLANDI (B26), dogrulamasi kaldi",
+         "Tezgahta olculdu: pin donusum bitince LOW'a cekip OYLE KALIYOR "
+         "(mandal); geri kaldiran sey YENI donusumu baslatan ayar yazmasi, "
+         "donusum yazmacini okumak DEGIL. `yeni_donusum_bekle` bu siraya "
+         "gore yazildi. Skopla teyit etmek yine de iyi olur"),
         ("/HAZIR hattinda harici pull-up gerekiyor mu",
-         "Bugun ESP32'nin dahili ~45 kOhm'una guveniliyor; en kotu yukselme "
-         "11.1 us. Skopta yavas gorunuyorsa stoktaki 10K eklensin"),
-        ("`t_kayma_us` gercekten ~95 us mi",
-         "`?` ciktisinda gorunuyor. I2C yazma suresi hesabina dayaniyor "
-         "(B17); sapma faz duzeltmesini kaydirir"),
-        ("[!] `K` satiri — loop_azami_us",
-         "`K <kayip_ms> <loop_azami_us> <uzun_tur>`. **20 000 us'yi "
-         "gecerse CIFT CEKIRDEK karari tetiklenir** (5.12.34). Bu, o "
-         "kararin TEK olcutu. Ayrica kayip_ms > 0 ise enerji sayaci "
-         "aralik atlamis demektir"),
+         "Dahili ~45 kOhm ile 400 kHz'te CALISIYOR (kartta: RDY dususu "
+         "1229 us'te gorunuyor, rdy_asim=0). En kotu yukselme hesabi "
+         "11.1 us. Skopta kenar yavas gorunuyorsa stoktaki 10K eklensin"),
+        ("`t_kayma_us` — OLCULDU, model duzeltildi (B29)",
+         "Kartta 152 us (kod yorumu '~95 us' diyordu — bit suresi; fark "
+         "`Wire`in islem basina sabit maliyeti). Kod zaten VARSAYMIYOR, "
+         "OLCUYOR ve Lagrange'a veriyor. Duzeltme olmasaydi 50 Hz / "
+         "PF=0.5 yukte hata %8.35 olurdu"),
+        ("[!] `K` ve `F` satirlari — blokaj artik CIFT CEKIRDEKTEN SONRA",
+         "Cift cekirdek B28'de YAPILDI (5.12.44): olcum cekirdek 1'de, web "
+         "cekirdek 0'da. Kartta olculdu: sayfa yuklenirken loop_azami "
+         "186 ms -> 3.8 ms, bosta 3.0 ms. Yeni olcut: `K`'nin ikinci alani "
+         "birkac ms'i asiyorsa ya da `F` satirindaki `rdy_asim` sifirdan "
+         "buyukse bir sey bozulmus demektir"),
     ])
     return 0 if tamam else 1
 

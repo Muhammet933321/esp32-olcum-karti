@@ -607,6 +607,15 @@ def d_blokaj_sayaci(c):
 
     Artik: sayaclari `K` ile SIFIRLA, belirli bir sure olc, KARARLI
     HALDEKI degere bak. Acilis degeri bilgi olarak yine basiliyor.
+
+    🔴 B28 GUNCELLEMESI — KARAR VERILDI VE UYGULANDI (DEVIR 5.12.44).
+    Olcum cekirdek 1'de, WebServer + SSE cekirdek 0'da ayri bir gorevde.
+    Kartta olculdu: sayfa yuklenirken loop_azami 186 ms -> 3.8 ms, bosta
+    16.7 -> 3.0 ms. Bu esik artik bir KARAR olcutu degil, bir GERILEME
+    bekcisi: 20 ms'yi asmasi, ag isinin olcum donguuse geri sizdigi
+    anlamina gelir. Daha ince gerilemeler (RDY zaman asimi, tik kilidi)
+    `d_cevrim_fazlari` tarafindan yakalaniyor — `loop_azami` onlari
+    gormez cunku 6 ms'lik bir cevrim bu esigin altinda kalir.
     """
     ilk = _k_oku(c)
     if not c.s.ok("`K` blokaj sayaci satiri geliyor", ilk is not None,

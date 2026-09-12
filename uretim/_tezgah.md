@@ -6,7 +6,7 @@ yeni bir kalem eklemek icin o adimin `tezgah(...)` cagrisina ekle.
 
 ## Ilk gun
 
-Bu 11 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
+Bu 9 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 
 > Asagidaki sira ZINCIR sirasi, oncelik sirasi DEGIL — kalemler arasinda elle bir siralama tutulsaydi yine bayatlardi. Hepsi ilk gun yapilacak; hangisinin once oldugu kalemin kendi kabul olcutunde yaziyor (orn. *bedava test*, *kart calisir calismaz*).
 
@@ -15,14 +15,12 @@ Bu 11 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 1 | B18 GPIO kelepceleri | +3V3 rayinin GERI BESLENMESI |
 | 2 | B17 ADS es zamanliligi ve faz | Faz kalibrasyonunun TASINABILIRLIGI |
 | 3 | B20 Ornekleme hizi ve bant | `D` satirindaki ORNEK SAYISI — ilk, en ucuz ve en onemli test |
-| 4 | B20 Ornekleme hizi ve bant | ALERT/RDY gercekten DARBE mi, MANDAL mi |
-| 5 | B20 Ornekleme hizi ve bant | `K` satiri — loop_azami_us |
-| 6 | B21 Pil kapasite testi | FAILSAFE — kart calisirken RESET at |
-| 7 | B21 Pil kapasite testi | BAYPAS denetimi — yuku bilerek J3'e bagla |
-| 8 | B22b Kart web katmani | Sayfa sunmanin OLCUME bedeli |
-| 9 | B25 Kart bringup kosucusu | Kosucunun kendisi gercek kartta calisiyor mu |
-| 10 | B7 Arayuz | Arayuz tarayicida GERCEKTEN dogru gorunuyor mu |
-| 11 | B9 Malzeme listesi | Direnc adetleri SAYIM degil goz karari |
+| 4 | B20 Ornekleme hizi ve bant | `K` ve `F` satirlari — blokaj artik CIFT CEKIRDEKTEN SONRA |
+| 5 | B21 Pil kapasite testi | FAILSAFE — kart calisirken RESET at |
+| 6 | B21 Pil kapasite testi | BAYPAS denetimi — yuku bilerek J3'e bagla |
+| 7 | B25 Kart bringup kosucusu | Kosucunun kendisi gercek kartta calisiyor mu |
+| 8 | B7 Arayuz | Arayuz tarayicida GERCEKTEN dogru gorunuyor mu |
+| 9 | B9 Malzeme listesi | Direnc adetleri SAYIM degil goz karari |
 
 
 ## B1 On uc tasarimi
@@ -98,12 +96,12 @@ Bu 11 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 30 | [!] `D` satirindaki ORNEK SAYISI — ilk, en ucuz ve en onemli test | 200 ms'de 133 +-3 beklenir. ~100 cikarsa B22.1'in enableDelay(false)'u ISE YARAMAMIS; ~19 cikarsa B20'nin kendi duzeltmeleri cokmus. IKI AYRI kusur, ikisi de bu tek sayidan gorulur — o yuzden once bu olculur |
-| 31 | `Wire` gercekten 400 kHz mi | Skopla SCL periyodunu olc. 100 kHz'e duserse V/I kaymasi DORT KAT buyur ve butun faz butcesi gecersizlesir |
-| 32 | [!] ALERT/RDY gercekten DARBE mi, MANDAL mi | Skopla bak. Tek atista mandal olabilir — veri sayfasi kendisiyle CELISIYOR (5.12.30). Mandalsa `yeni_donusum_bekle` mantigi degismeli; bugunku kod darbe varsayiyor |
-| 33 | /HAZIR hattinda harici pull-up gerekiyor mu | Bugun ESP32'nin dahili ~45 kOhm'una guveniliyor; en kotu yukselme 11.1 us. Skopta yavas gorunuyorsa stoktaki 10K eklensin |
-| 34 | `t_kayma_us` gercekten ~95 us mi | `?` ciktisinda gorunuyor. I2C yazma suresi hesabina dayaniyor (B17); sapma faz duzeltmesini kaydirir |
-| 35 | [!] `K` satiri — loop_azami_us | `K <kayip_ms> <loop_azami_us> <uzun_tur>`. **20 000 us'yi gecerse CIFT CEKIRDEK karari tetiklenir** (5.12.34). Bu, o kararin TEK olcutu. Ayrica kayip_ms > 0 ise enerji sayaci aralik atlamis demektir |
+| 30 | [!] `D` satirindaki ORNEK SAYISI — ilk, en ucuz ve en onemli test | 200 ms'de 104 +-10 beklenir (model 1917 us/cevrim). KARTTA OLCULDU 2026-09-12: 95-96. ~32 cikarsa ALERT teli dusmustur (`#` komutu soyler), ~19 cikarsa B20'nin kendi duzeltmeleri cokmus demektir |
+| 31 | `Wire` gercekten 400 kHz mi | Skopla SCL periyodunu olc. Dolayli kanit VAR: cevrim fazlari (`F` satiri) bit sureleriyle tutarli ve islem basina ek yuk 69 us olculdu. 100 kHz'e duserse V/I kaymasi DORT KAT buyur ve faz butcesi gecersizlesir |
+| 32 | ALERT/RDY DARBE mi MANDAL mi — CEVAPLANDI (B26), dogrulamasi kaldi | Tezgahta olculdu: pin donusum bitince LOW'a cekip OYLE KALIYOR (mandal); geri kaldiran sey YENI donusumu baslatan ayar yazmasi, donusum yazmacini okumak DEGIL. `yeni_donusum_bekle` bu siraya gore yazildi. Skopla teyit etmek yine de iyi olur |
+| 33 | /HAZIR hattinda harici pull-up gerekiyor mu | Dahili ~45 kOhm ile 400 kHz'te CALISIYOR (kartta: RDY dususu 1229 us'te gorunuyor, rdy_asim=0). En kotu yukselme hesabi 11.1 us. Skopta kenar yavas gorunuyorsa stoktaki 10K eklensin |
+| 34 | `t_kayma_us` — OLCULDU, model duzeltildi (B29) | Kartta 152 us (kod yorumu '~95 us' diyordu — bit suresi; fark `Wire`in islem basina sabit maliyeti). Kod zaten VARSAYMIYOR, OLCUYOR ve Lagrange'a veriyor. Duzeltme olmasaydi 50 Hz / PF=0.5 yukte hata %8.35 olurdu |
+| 35 | [!] `K` ve `F` satirlari — blokaj artik CIFT CEKIRDEKTEN SONRA | Cift cekirdek B28'de YAPILDI (5.12.44): olcum cekirdek 1'de, web cekirdek 0'da. Kartta olculdu: sayfa yuklenirken loop_azami 186 ms -> 3.8 ms, bosta 3.0 ms. Yeni olcut: `K`'nin ikinci alani birkac ms'i asiyorsa ya da `F` satirindaki `rdy_asim` sifirdan buyukse bir sey bozulmus demektir |
 
 ## B21 Pil kapasite testi
 
@@ -136,11 +134,11 @@ Bu 11 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 50 | CSRF savunmasi gercek tarayicida | Baska bir makinede `<img src=http://<kart-ip>/komut?k=p>` iceren sayfa ac. Istek karta ULASMAMALI. Ulasiyorsa POST+X-Olcum savunmasi calismiyor demektir |
 | 51 | collectHeaders gercekten toplaniyor mu | `curl -X POST --data-binary '?' http://<ip>/komut` (basliksiz) -> HTTP 400. 204 donerse baslik denetimi SESSIZCE olmus demektir |
 | 52 | esp_wifi_start() <-> adc_continuous_start() carpismasi | Skop yakalarken WiFi'yi kopar/bagla (DEVIR 7.1 (1), esp-idf#12749). Beklenen kusur: `! tetiklenemedi` ya da sifir dolu DMA tamponu. Bugunku baslatma sirasi TESADUFEN guvenli |
-| 53 | SSE loop()'u ne kadar blokluyor | Iki sekmede /akis acikken `D` satirindaki ornek sayisi ve `K` satirindaki loop_azami_us. `K` > 20 000 us ise cift cekirdek karari TETIKLENIR (5.12.34) |
+| 53 | SSE loop()'u ne kadar blokluyor — CIFT CEKIRDEKTEN SONRA | Iki sekmede /akis acikken `D` satirindaki ornek sayisi ve `K` satirindaki loop_azami_us. B28'den beri SSE yazimi cekirdek 0'da; olculdu: 1 istemciyle bosta 3.0 ms, tam sayfa yuklemesinde 4.1 ms. 20 000 us'yi asmasi artik bir KARAR degil GERILEME isaretidir — ag isi olcum dongusune geri sizmis demektir |
 | 54 | LittleFS gercekten baglaniyor mu | Acilista `Arayuz: LittleFS'te` yazmali. `begin(false)` — otomatik bicimlendirme YOK, yani bos bolum sessiz kalmaz |
 | 55 | serveStatic ve index.htm tuzagi | `http://<ip>/` tam arayuzu vermeli (acik kok isleyicisi). `/vendor/vue.global.prod.js` ikinci yuklemede 304/onbellekten gelmeli — `immutable` calisiyor mu |
 | 56 | Telefondan ilk yukleme suresi | PC'de OLCULDU (B27 A4): 622 ms, 107 KB, 7 istek; ikinci acilista statik trafik 0 B (onbellek). 3 s'yi gecerse panel cikarma adimi acilir (5.12.38). TELEFONDA ayni olcumu yap — WiFi mesafesi ve telefon CPU'su bu sayiyi buyutur |
-| 57 | [!] Sayfa sunmanin OLCUME bedeli | B27 A4'te varlik varlik olculdu: index 33 ms, style 34 ms, vue 155 ms, app.js 186 ms blokaj (bosta taban 16-17 ms). Yani bir sayfa acilisi ~0.4 s olcum kaybi. Bosta 300 s'de 20 ms'yi asan TUR YOK — yani cift cekirdek karari 'kendiliginden blokaj'a degil 'sayfa sunumu'na dayaniyor. Olcum: `K` sifirla, sayfayi ac, `?` oku |
+| 57 | Sayfa sunmanin OLCUME bedeli — CIFT CEKIRDEKTEN SONRA | B27 A4'te (tek cekirdek) varlik varlik olculmustu: index 33 ms, style 34 ms, vue 155 ms, app.js 186 ms blokaj. B28'den sonra AYNI olcum: tam sayfa yuklemesinde 3.8-4.1 ms, bosta 3.0 ms, 0 uzun tur. ⚠ Bu kalemin onceki hali 'bosta 300 s'de 20 ms'yi asan TUR YOK' diyordu — YANLIS: o olcumde 5 tur vardi (22.5 ms, ~50 s'de bir). Metin olcum bitmeden yazilmisti. Olcum: `K` sifirla, sayfayi ac, KOMUT GONDERMEDEN kartin kendi `K` satirlarini dinle (`?` ciktisi tek basina bir turu ~12 ms bloklar) |
 | 58 | arayuz-yaz.py ile karta yazma | esptool yolu ve 0x310000 ofseti HIC denenmedi. `python arayuz-uret.py && python arayuz-yaz.py` |
 
 ## B25 Kart bringup kosucusu
@@ -191,4 +189,4 @@ Bu 11 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 75 | Kayitta gorunmeyen parca GERCEKTEN yok mu | Bobin/cekirdek ve modul alanlari KISMEN girildi. 'kayitta yok' = 'elde yok' DEGIL. Olcum: kutuya bak |
 | 76 | Parcalarin gercek degerleri etiketiyle ayni mi | Ozellikle HV bolucusundeki 4.9 M ohm zinciri. Olcum: lehimlemeden once her direnci ohmmetreyle gec |
 
-**Toplam 76 kalem, 11 tanesi ilk gun.**
+**Toplam 76 kalem, 9 tanesi ilk gun.**

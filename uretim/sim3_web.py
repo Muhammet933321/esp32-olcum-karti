@@ -660,10 +660,12 @@ def main() -> int:
          "Skop yakalarken WiFi'yi kopar/bagla (DEVIR 7.1 (1), esp-idf#12749). "
          "Beklenen kusur: `! tetiklenemedi` ya da sifir dolu DMA tamponu. "
          "Bugunku baslatma sirasi TESADUFEN guvenli"),
-        ("SSE loop()'u ne kadar blokluyor",
-         "Iki sekmede /akis acikken `D` satirindaki ornek sayisi ve "
-         "`K` satirindaki loop_azami_us. `K` > 20 000 us ise cift cekirdek "
-         "karari TETIKLENIR (5.12.34)"),
+        ("SSE loop()'u ne kadar blokluyor — CIFT CEKIRDEKTEN SONRA",
+         "Iki sekmede /akis acikken `D` satirindaki ornek sayisi ve `K` "
+         "satirindaki loop_azami_us. B28'den beri SSE yazimi cekirdek "
+         "0'da; olculdu: 1 istemciyle bosta 3.0 ms, tam sayfa yuklemesinde "
+         "4.1 ms. 20 000 us'yi asmasi artik bir KARAR degil GERILEME "
+         "isaretidir — ag isi olcum dongusune geri sizmis demektir"),
         ("LittleFS gercekten baglaniyor mu",
          "Acilista `Arayuz: LittleFS'te` yazmali. `begin(false)` — otomatik "
          "bicimlendirme YOK, yani bos bolum sessiz kalmaz"),
@@ -676,12 +678,15 @@ def main() -> int:
          "statik trafik 0 B (onbellek). 3 s'yi gecerse panel cikarma adimi "
          "acilir (5.12.38). TELEFONDA ayni olcumu yap — WiFi mesafesi ve "
          "telefon CPU'su bu sayiyi buyutur"),
-        ("[!] Sayfa sunmanin OLCUME bedeli",
-         "B27 A4'te varlik varlik olculdu: index 33 ms, style 34 ms, "
-         "vue 155 ms, app.js 186 ms blokaj (bosta taban 16-17 ms). Yani bir "
-         "sayfa acilisi ~0.4 s olcum kaybi. Bosta 300 s'de 20 ms'yi asan "
-         "TUR YOK — yani cift cekirdek karari 'kendiliginden blokaj'a degil "
-         "'sayfa sunumu'na dayaniyor. Olcum: `K` sifirla, sayfayi ac, `?` oku"),
+        ("Sayfa sunmanin OLCUME bedeli — CIFT CEKIRDEKTEN SONRA",
+         "B27 A4'te (tek cekirdek) varlik varlik olculmustu: index 33 ms, "
+         "style 34 ms, vue 155 ms, app.js 186 ms blokaj. B28'den sonra "
+         "AYNI olcum: tam sayfa yuklemesinde 3.8-4.1 ms, bosta 3.0 ms, "
+         "0 uzun tur. ⚠ Bu kalemin onceki hali 'bosta 300 s'de 20 ms'yi "
+         "asan TUR YOK' diyordu — YANLIS: o olcumde 5 tur vardi (22.5 ms, "
+         "~50 s'de bir). Metin olcum bitmeden yazilmisti. Olcum: `K` "
+         "sifirla, sayfayi ac, KOMUT GONDERMEDEN kartin kendi `K` "
+         "satirlarini dinle (`?` ciktisi tek basina bir turu ~12 ms bloklar)"),
         ("arayuz-yaz.py ile karta yazma",
          "esptool yolu ve 0x310000 ofseti HIC denenmedi. "
          "`python arayuz-uret.py && python arayuz-yaz.py`"),
