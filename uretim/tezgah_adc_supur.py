@@ -6,6 +6,7 @@
     python tezgah_adc_supur.py --port COM6 --csv olcum-adc-supurme.csv
     python tezgah_adc_supur.py --analiz olcum-adc-supurme.csv   # KARTSIZ
     python tezgah_adc_supur.py --ab                # okuma yolu farki A/B
+    python tezgah_adc_supur.py --hizli             # `w` olceklemesi (B39)
 
 🔴 NEDEN BU BETIK VAR: B34'un 101 noktali supurmesi ELLE, gecici bir
    betikle yapildi ve o betik KAYDEDILMEDI — yani olcum tekrarlanabilir
@@ -198,6 +199,12 @@ def main() -> int:
         return 1
     print(f"     kart: {kart.k.ad} · adim {adim} promil "
           f"({1000 // adim + 1} nokta)\n")
+
+    if "--hizli" in arg:
+        hizli_testi(kart)
+        kart.kapat()
+        print(f"\n{gecti}/{gecti + kaldi} dogrulama gecti")
+        return 1 if kaldi else 0
 
     if "--ab" in arg:
         ab_testi(kart)
@@ -494,6 +501,66 @@ def ab_testi(kart, gorevler=(300, 600, 900), tekrar: int = 5) -> None:
            statistics.fmean(hiz_farki) > 0,
            f"ortalama tb5-tb3 {statistics.fmean(hiz_farki):+.2f} kod — "
            f"yavas ornekleme dugumu daha az yukler")
+
+
+def hizli_testi(kart, gorevler=tuple(range(150, 851, 100))) -> None:
+    """B39 — hizli yolun (`w`) olceklemesi GERCEK kartta.
+
+    GPIO4 ve GPIO5 AYNI RC dugumunde. `W` satirindaki Vort ve Iort iki
+    FARKLI olcekleme zincirinden geciyor (skop bolucusu / fark yukselteci
+    + sont). Ikisinden geri cikarilan DUGUM gerilimi ayni olmali — olmazsa
+    formullerden biri yanlis. Ayrica dugum gerilimi PWM fizigine uymali:
+    gorev orani x rail (dogru, egim ~3296 mV — B38 eFuse fiti).
+    """
+    ORAN, KAZ, VREF = 38.03703704, 4.7, 1.7153125
+    kart.yaz("?")
+    a = kart.bekle("A ", 4.0) or ""
+    alan = dict(x.split("=", 1) for x in a.split()[1:] if "=" in x)
+    sont = float(alan.get("sont", "0.1"))
+    i_duz = float(alan.get("i_duz", "1.0"))
+    print(f"\n  HIZLI YOL — sont {sont} ohm, i_duz {i_duz}")
+    print(f"  {'gorev':>5} {'Vort V':>9} {'Iort mA':>9} | {'dugum(V) mV':>11} "
+          f"{'dugum(I) mV':>11} {'fark':>6} | kal")
+    kart.yaz("X20000")
+    kart.bekle("X cal_hz=", 3.0)
+    satir = []
+    for g in gorevler:
+        kart.yaz(f"x{g}")
+        time.sleep(0.4)
+        kart.yaz("w")
+        w = kart.bekle("W ", 6.0)
+        if not w:
+            print(f"  {g:5d}  (W gelmedi)")
+            continue
+        p = w.split()
+        vort, iort = float(p[6]), float(p[7])
+        kal = p[10] if len(p) >= 11 else "?"
+        dv = (VREF + (vort - VREF) / ORAN) * 1000.0
+        di = (VREF + iort * sont * KAZ / i_duz) * 1000.0
+        satir.append((g, dv, di, kal))
+        print(f"  {g:5d} {vort:9.4f} {iort*1000:9.2f} | {dv:11.2f} {di:11.2f} "
+              f"{dv - di:+6.2f} | {kal}")
+    kart.yaz("X0")
+    time.sleep(0.2)
+    if len(satir) < 3:
+        ok("Hizli yol supurmesi tamamlandi", False, f"{len(satir)} nokta")
+        return
+    ok("[!] Butun `W` satirlari KALIBRE olcekleme bildiriyor (kal=1)",
+       all(s[3] == "1" for s in satir),
+       " ".join(s[3] for s in satir))
+    enb = max(abs(s[1] - s[2]) for s in satir)
+    ok("[!] Iki kanal, iki olcekleme, AYNI dugum: <= 2 mV",
+       enb <= 2.0,
+       f"en buyuk |dugum(V) - dugum(I)| = {enb:.2f} mV — ayrisirsa "
+       f"bolucu ya da fark yukselteci formulu yanlis")
+    eg, ke, art = _dogru([(s[0] / 1000.0, s[1]) for s in satir])
+    rms = (sum(x * x for x in art) / len(art)) ** 0.5
+    ok("[!] Dugum gerilimi PWM fizigine uyuyor (egim 3296 mV +-%2)",
+       abs(eg - 3296.0) <= 0.02 * 3296.0,
+       f"dugum = {ke:+.1f} + {eg:.1f} x gorev mV (B38 eFuse fiti: "
+       f"-21.7 + 3296.1 x gorev) — dogrusal model %8.8 dusuk verirdi")
+    ok("Gorev oranina karsi artik <= 10 mV rms",
+       rms <= 10.0, f"rms {rms:.2f} mV")
 
 
 def csv_oku(yol):

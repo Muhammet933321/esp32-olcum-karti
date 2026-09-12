@@ -331,9 +331,12 @@ def bolum3(r):
     r.kosul("  B19-3: skop olcumune ofset uygulaniyor",
             ino.count("skop_ofsetle(&m)") == 2,
             f"skop_olc() cagrisinin ikisinde de ({ino.count('skop_ofsetle(&m)')} yer)")
+    # B39: olcekleme eFuse tablosuna gecti; formul metni degisti ama
+    # OZELLIK ayni — V = VREF + (V_dugum - VREF) * ORAN.
     r.kosul("  B19-3: hizli yol gerilimi de ofsetli",
-            "(hizli_v[n] * lsb - VREF_NOMINAL) * SKOP_ORAN" in ino,
-            "hizli_olcekle()")
+            "const float vref = VREF_NOMINAL;" in ino
+            and "hizli_v[n] = vref + (vd - vref) * SKOP_ORAN;" in ino,
+            "hizli_olcekle(): V = VREF + (V_dugum - VREF) * ORAN")
     app = (KOK / "arayuz3" / "app.js").read_text(encoding="utf-8",
                                                  errors="replace")
     r.kosul("  B19-3: arayuz S2'nin 9. alanini (ofset) okuyor",
@@ -637,10 +640,15 @@ def bolum6(r):
     # orta olcekte kalinca deliniyor ve `w` 7.68 W basiyordu (kartta
     # gorüldu, 2026-09-12). Deterministik sinama: dahili pull-down ile
     # oku, pull-up ile oku; bos pin cekmeyi izler.
+    # ⚠ `in` ONCE sinaniyor: `index` bulamayinca ISTISNA atip betigi
+    #   COKERTIYORDU (B39'da imza `(&vk, &ik, CEKME_BEKLE_MS)` olunca
+    #   oldu) — kirmizi bir iddia yerine yigin izi, ve ardindaki butun
+    #   iddialar hic kosmuyor.
+    _cagri = "hizli_cekme_kaymasi(&vk, &ik, CEKME_BEKLE_MS)"
+    _w_bas = 'Serial.print(F("W "));'
     r.kosul("  6e: [!] `w` bos-pin sinamasindan GECMEDEN guc basmiyor",
-            "B37: W BASILMAZ" in ino
-            and ino.index("hizli_cekme_kaymasi(&vk, &ik)")
-                < ino.index('Serial.print(F("W "));'),
+            "B37: W BASILMAZ" in ino and _cagri in ino and _w_bas in ino
+            and ino.index(_cagri) < ino.index(_w_bas),
             "kartta gorüldu: bos giris 7.68 W / PF 0.98 basiyordu")
     # 🔴 ESIK IKI TARAF OLCULEREK secildi: bos %100, RC duzenegi (20K)
     #    %41-50, gercek on uc <=%10. %50'lik ilk esik RC duzenegini
@@ -700,6 +708,56 @@ def bolum6(r):
         r.kosul("  6f: [!] kayitli GPIO4+GPIO5 supurmesinin analizi YESIL",
                 False, f"{_supur.name} YOK — olcum kaybolmus")
 
+    # ── B39: HIZLI YOL KALIBRE + TEK TABLO ───────────────────────────
+    # `guc_olc` ortalamayi CIKARMIYOR; dogrusal ADC modeli sifir giriste
+    # -6.93 V / -397 mA ofset veriyordu (1 W direncsel yukte P 3.56 W,
+    # PF 0.77). Kartta dogrulandi: CAL %50'de ayni dugum Vort'tan 1.6221 V,
+    # Iort'tan 1.6220 V — iki kanal, iki olcekleme, 0.1 mV fark.
+    def _govde_c(bas, son):
+        if bas not in ino or son not in ino:
+            return ""
+        return ino.split(bas, 1)[1].split(son, 1)[0]
+    _olcek = _govde_c("static void hizli_olcekle(uint16_t adet) {",
+                      "// `w` komutu")
+    r.kosul("  6g: [!] hizli yol V ve I kanallarini eFuse TABLOSUYLA olcekliyor",
+            "kal_mv(hizli_v[n])" in _olcek and "kal_mv(hizli_i[n])" in _olcek
+            and "kal_tab_var ?" in _olcek,
+            "dogrusal model sifir giriste -6.93 V / -397 mA ofset veriyordu")
+    _ct = _govde_c("case 'C': {", "case 'c': {")
+    r.kosul("  6g: [!] `CT` hizli yolun KULLANDIGI diziyi basiyor (eFuse'u yeniden sorgulamiyor)",
+            "kal_mv_tab[k]" in _ct and "adc_cali_raw_to_voltage" not in _ct,
+            "iki kaynak olsaydi arayuzun gordugu tablo ile kartin olcekledigi "
+            "tablo ayrisabilirdi")
+    r.kosul("  6g: [!] `W` satiri kalibre olup olmadigini SOYLUYOR (11. alan)",
+            "Serial.println(kal_tab_var ? 1 : 0);" in ino
+            and "<P_hizalamasiz> <kal>" in ino,
+            "kalibresiz bir PF 'olculmus' gibi gorunmemeli")
+    _bekle = re.search(r"#define CEKME_BEKLE_MS (\d+)u", ino)
+    r.kosul("  6g: [!] cekme bekleme suresi OLCULEN deger (8 ms)",
+            _bekle is not None and int(_bekle.group(1)) == 8,
+            f"{_bekle.group(1) if _bekle else '?'} ms — 3 ms kaynaksiz 100 nF'i "
+            f"'surulu' sayiyordu (%56), 5 ms esige 2 puan (%77), 30 ms `w`yi "
+            f"123 ms bloklatiyordu")
+    _yolla = _govde_c("static void hizli_yolla(void) {",
+                      "// ───────────────────────────────────────────────── enerji")
+    r.kosul("  6g: [!] cekme sinamasi ASIL yakalamadan SONRA",
+            "hizli_yakala(&nv, &ni)" in _yolla and "hizli_cekme_kaymasi(" in _yolla
+            and _yolla.index("hizli_yakala(&nv, &ni)")
+                < _yolla.index("hizli_cekme_kaymasi("),
+            "once yapilsaydi serbest birakma beklemesi gerekirdi (dugumde yuk)")
+    # ⚠ YORUMLAR SOYULUYOR: iki fonksiyon arasindaki blok bir sonrakinin
+    #   yorumunu da iceriyor ve o yorum "`hizli_yakala` once bayat veriyi
+    #   okuyor" diyor — duz arama yorumla eslesip iddiayi kirmiziya
+    #   dondurdu. Desenler ters bolusuz yazildi (heredoc tuzagi).
+    _oku = _govde_c("static bool hizli_kanal_oku_ort(float *v_ort, float *i_ort) {",
+                    "static bool hizli_cekmeli_oku")
+    _oku = re.sub(r"/[*].*?[*]/", "", _oku, flags=re.S)
+    _oku = re.sub(r"//.*", "", _oku)
+    r.kosul("  6g: [!] cekme sinamasi okuyucusu YIKICI DEGIL",
+            bool(_oku) and "hizli_v[" not in _oku and "hizli_i[" not in _oku
+            and "hizli_yakala" not in _oku,
+            "asil yakalamanin dizilerine yazsaydi sinama SONRA yapilamazdi")
+
     r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
             HAM_INL_KOD * T.SKOP_ADIM
             < 0.05 * (T.SKOP_MENZIL_ARTI - T.SKOP_MENZIL_EKSI),
@@ -730,6 +788,19 @@ def main() -> int:
          "kalirsa iki op-amp cikisi birbirine baglanir ve guc/PF olcumu "
          "ANLAMSIZ olur (V ve I ayni sinyal -> PF=1.0000, kartta goruldu). "
          "RC duzenegi de skop girisini 20K ile yukler"),
+        ("[!] ON UC KURULUNCA: hizli yol SIFIR kalibrasyonu",
+         "B39 hizli yolu eFuse tablosuyla olcekliyor (dogrusal model sifir "
+         "giriste -6.93 V / -397 mA veriyordu). Kalan belirsizlik ~22 mV "
+         "kesme (eFuse ofseti mi rail mi, multimetresiz ayrilamadi) = "
+         "girisde ~0.8 V / ~47 mA. Girisleri kisa devre et, `w` Vort/Iort "
+         "oku: sifirdan sapma bu belirsizligin kendisi. Firmware'de hizli "
+         "yol icin sifir kalibrasyonu HENUZ YOK"),
+        ("Hizli yol olceklemesi — `python tezgah_adc_supur.py --hizli`",
+         "GPIO4+GPIO5 ayni RC dugumundeyken: Vort ve Iort'tan geri "
+         "cikarilan dugum gerilimi <= 2 mV uyusmali (2026-09-13: 0.39 mV), "
+         "dugum-gorev egimi ~3296 mV (olculen 3302). Firmware olcekleme "
+         "degisince tekrar kosun. NOT: `w` olcum dongusunu ~34 ms blokluyor "
+         "(cekme sinamasi dahil; B37'de 123 ms idi)"),
         ("GPIO5 dogrusalligi — OLCULDU (2026-09-13, B38)",
          "`python tezgah_adc_supur.py --adim 10 --csv olcum-adc-supurme.csv`. "
          "GPIO5 rms 18.2 kod = GPIO4 rms 18.2 kod: egrilik KANALA degil "

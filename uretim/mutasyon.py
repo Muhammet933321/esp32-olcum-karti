@@ -83,6 +83,21 @@ MUTASYONLAR = [
     ("B22b", "sim3_web.py", "kod/olcum-karti-a3/ag.h",
      '#define AG_MDNS "olcum"', '#define AG_MDNS ""',
      "mDNS adi bosalirsa http://olcum.local cozulmez"),
+    # 🔴 B39 — SIR SIZINTISI DENETIMI ILK YAYINDAN BERI KORDU. Desenin
+    #    basindaki `\b` bir heredoc yamasinda GERCEK backspace (0x08)
+    #    olarak yazilmisti; regex hicbir kaynakla eslesemiyordu ve 5c her
+    #    zaman yesildi. Depo herkese acik, kural "parola depoda olmaz".
+    #    Bu mutasyon o denetimin ISIRDIGINI kanitliyor. (Kacak olmamis:
+    #    bugunku agac ve kod/ git gecmisi dogru desenle 0 esleşme.)
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/ag.h",
+     '#define AG_MDNS "olcum"',
+     # ⚠ Dize `sifre` ile ` =` ARASINDAN bolunuyor: baska yerden bolunse
+     #   bu satirin METNI de desene uyuyor ve bu dosya depoda "gomulu
+     #   parola" gibi gorunuyordu (metin tabanli denetimin kendi test
+     #   verisini yakalamasi — bu projede altinci kez).
+     '#define AG_MDNS "olcum"\nstatic const char *wifi_sifre' + ' = "gizli1234";',
+     "firmware'e GOMULU parola girerse (ikilide duz metin, depo acik) "
+     "5c KIRMIZI donmeli — ilk yayindan beri donmuyordu"),
     # ── B26 · ayna + acik cagri = her satir IKI KEZ (kartta olculdu)
     ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "    Serial.println(son_satir);",
@@ -122,6 +137,13 @@ MUTASYONLAR = [
     ("B26", "gizlilik_dogrula.py", "README.md",
      "# ", "# birisi" + chr(64) + "ornek.com ",
      "e-posta adresi takip edilen dosyaya girerse tarama kirmizi donmeli"),
+    # B39 — kacis dizisi GERCEK karaktere donerse (heredoc tuzagi) tarama
+    # kirmizi donmeli. chr(8) ile kuruluyor: literal yazilsaydi bu dosyanin
+    # KENDISI taramaya takilirdi.
+    ("B26", "gizlilik_dogrula.py", "README.md",
+     "# ", "# x" + chr(8) + "y ",
+     "backspace iceren bir satir, bir regex'in sessizce kor oldugu demek "
+     "(sim3_web.py'nin parola denetimi ilk yayindan beri boyleydi)"),
 
     # ── B22a · PC koprusu
     ("B22a", "test_kopru.py", "kopru/kopru.py",
@@ -347,6 +369,24 @@ MUTASYONLAR = [
      "tablo disi kod KIRPILIR: doyuma giren sinyal DUZ bir cizgi gibi "
      "gorunur ve kirpildigi anlasilmaz"),
 
+    # ── B39 · heredoc `\b` backspace'e donmustu: bu iki iddianin yarisi
+    #    ilk yazildiklari gunden beri KORDU. Artik canli; isirdiklarini
+    #    kanitlayan mutasyonlar:
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     '<span v-if="!k.tam" class="kayit-etiket dikkat">',
+     '<span v-if="!k.tam" class="kayit-etiket uyari">',
+     "rozete emniyet-uyarisi KUTU stili bulasir (B35'te tarayicida "
+     "gorulmustu); iddianin bu yarisi backspace yuzunden kordu"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      const { veri, hz, adet } = this.osilo;",
+     "      const { veri, hz, adet } = this.osilo;  // veri[i] * voltAdim",
+     "cizimde ikinci bir ham ceviri izi; iddianin bu yarisi backspace "
+     "yuzunden kordu"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "          kal: p.length >= 11 ? p[10] === '1' : null,",
+     "          kal: p.length >= 11 ? p[10] === '1' : true,",
+     "eski firmware'in 10 alanli `W` satiri 'kalibre' sanilir"),
+
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
      "        this.kopruYokla();", "        await this.kopruYokla();",
      "arsiv yoklamasi baglanmayi BLOKLAR: yoklama takilirsa olcum de "
@@ -555,6 +595,38 @@ MUTASYONLAR = [
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
     # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    # ── B39 · hizli yol kalibre + cekme sinamasi bedeli
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "        float vd = kal_tab_var ? kal_mv(hizli_v[n]) / 1000.0f : hizli_v[n] * lsb;",
+     "        float vd = hizli_v[n] * lsb;",
+     "gerilim kanali ESKI dogrusal modele doner: sifir giriste -6.93 V "
+     "ofset, P ve PF yanlis"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "        Serial.print(':');  Serial.print(kal_mv_tab[k]);",
+     "        Serial.print(':');  { int mv_ = -1; adc_cali_raw_to_voltage("
+     "skop_cali, kal_dugum_kod(k), &mv_); Serial.print(mv_); }",
+     "`CT` eFuse'u yeniden sorgular: arayuzun tablosu ile kartin olcekledigi "
+     "tablo IKI AYRI temsil olur"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    Serial.println(kal_tab_var ? 1 : 0);", "    Serial.println(1);",
+     "`W` her zaman 'kalibre' der — tablo kurulamasa bile"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "#define CEKME_BEKLE_MS 8u", "#define CEKME_BEKLE_MS 3u",
+     "3 ms'de kaynaksiz 100 nF dugum %56 kayar ve 'surulu' sayilir (olculdu)"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "                if (nv < CEKME_ORNEK) { vt += s->type2.data; nv++; }",
+     "                if (nv < CEKME_ORNEK) { hizli_v[nv] = s->type2.data; "
+     "vt += s->type2.data; nv++; }",
+     "cekme okuyucusu asil yakalamanin dizisine yazar: sinama sonradan "
+     "yapildigi icin olculen dalga CEKILMIS dugumun degerleriyle bozulur"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     '        Serial.println(F("! hizli yol: baslatilamadi"));\n        return;\n    }\n\n    uint16_t nv = 0, ni = 0;',
+     '        Serial.println(F("! hizli yol: baslatilamadi"));\n        return;\n    }\n'
+     '    { float a_ = 0, b_ = 0; hizli_cekme_kaymasi(&a_, &b_, CEKME_BEKLE_MS); }\n'
+     '\n    uint16_t nv = 0, ni = 0;',
+     "cekme sinamasi asil yakalamadan ONCE: dugumde kalan cekme yuku "
+     "olcume girer"),
+
     # ── B38 · GPIO5 karakterizasyonu — kayitli olcum zincirde
     ("B19", "sim3_skop.py", "uretim/tezgah_adc_supur.py",
      '        ok("[!] GPIO5\'in egriligi GPIO4\'unkiyle ayni (rms +-%15)",\n'

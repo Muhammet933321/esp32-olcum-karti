@@ -496,11 +496,27 @@
         <div class="alt-bilgi">{{ bicim(hizli.iRms * 1000, 2) }} mA · {{ hizli.n }} örnek</div>
       </div>
     </div>
+    <!-- 🔴 B39 — ÖLÇEKLEME KALİBRE Mİ, SUSMUYORUZ. Doğrusal ADC modeli
+         sıfır girişte -6.9 V / -397 mA ofset veriyordu ve `guc_olc`
+         ortalamayı çıkarmadığı için bu doğrudan P'ye, Vrms'e, PF'ye
+         giriyordu (1 W dirençsel yükte P 3.56 W, PF 0.77). -->
     <p v-if="hizli" class="ipucu">
-      ⚠️ Bu sayının <strong>mutlak</strong> doğruluğu ESP32 ADC'sinin
-      çözünürlüğü ve pencere yanlılığıyla sınırlı. Mutlak watt değeri için
-      yukarıdaki <strong>D satırı</strong> (ADS1115) geçerli; burası
-      <strong>güç faktörü ve dalga şekli</strong> için.
+      <span v-if="hizli.kal === true" class="kal-rozet"
+            title="Ham kodlar çipin eFuse eğrisiyle mV'a çevrildi">ölçekleme kalibre</span>
+      <span v-else-if="hizli.kal === false" class="kal-rozet yok"
+            title="Kart kalibrasyon tablosu kuramadı">ölçekleme HAM</span>
+      <span v-else class="kal-rozet yok"
+            title="Eski firmware bu bilgiyi göndermiyor">ölçekleme bilinmiyor</span>
+      <template v-if="hizli.kal !== true">
+        — doğrusal ADC modeli sıfır girişte <strong>-6.9 V / -397 mA</strong>
+        ofset veriyor; P, Vrms ve PF buna göre <strong>yanlış</strong>.
+      </template>
+    </p>
+    <p v-if="hizli" class="ipucu">
+      ⚠️ Kalibrasyonla bile ön uç kurulunca bir <strong>sıfır
+      kalibrasyonu</strong> gerekecek: kalan belirsizlik girişte ~0.8 V /
+      ~47 mA. Mutlak watt değeri için yukarıdaki <strong>D satırı</strong>
+      (ADS1115) geçerli; burası <strong>güç faktörü ve dalga şekli</strong> için.
     </p>
   </section>
 

@@ -846,6 +846,36 @@ static bool skop_cali_var = false;
 /* Egri kalibrasyonu S3'te desteklenen tek sema. Yoksa SESSIZ KALMIYORUZ:
    `c` komutu bunu soyluyor, cunku kalibrasyonsuz bir mV degeri "olculmus"
    gibi gorunup aslinda ham kodun sabitle carpimi olurdu. */
+/* 🔴 B39 — TEK KALIBRASYON TABLOSU. Acilista eFuse egrisinden 17 nokta
+   (0, 256, ..., 3840, 4095) cikariliyor. `CT` komutu BU diziyi basiyor,
+   arayuz skop eksenini BU diziyle cizıyor, hizli yol (P/PF/Vrms/Irms)
+   BU diziyle olcekliyor. Uc tuketici, TEK temsil: hizli yol tam eFuse
+   egrisini (`adc_cali_raw_to_voltage`) cagirsaydi, ayni ham kod arayuzde
+   bir gerilime, kartta baska bir gerilime cevrilirdi.
+   Aradegerleme hatasi KARTTA OLCULDU (2026-09-13, orta noktalarda tam
+   egriyle kiyas): kod 0..3000 araliginda +-1 mV, doyum yakininda (3968)
+   -4.3 mV. Hizli yol VREF (kod ~2000) cevresinde calisiyor. */
+#define KAL_N 17u
+static int16_t kal_mv_tab[KAL_N];
+static bool kal_tab_var = false;
+
+static inline uint16_t kal_dugum_kod(uint8_t k) {
+    return (k == KAL_N - 1u) ? 4095u : (uint16_t)(k * 256u);
+}
+
+/* Ham kod -> pin mV, tablo aradegerlemesi. Arayuzun `kalMv`i ile AYNI
+   kural: tablo disi kod KIRPILMIYOR, uctaki egimle UZATILIYOR (kirpilsaydi
+   doyuma giren sinyal duz bir cizgi gibi gorunur, kirpildigi anlasilmazdi). */
+static float kal_mv(float kod) {
+    uint8_t i;
+    if (kod <= 256.0f)        i = 0;
+    else if (kod >= 3840.0f)  i = (uint8_t)(KAL_N - 2u);
+    else                      i = (uint8_t)(kod / 256.0f);
+    float k0 = (float)kal_dugum_kod(i), k1 = (float)kal_dugum_kod((uint8_t)(i + 1u));
+    float v0 = (float)kal_mv_tab[i],   v1 = (float)kal_mv_tab[i + 1u];
+    return v0 + (v1 - v0) * (kod - k0) / (k1 - k0);
+}
+
 static void skop_cali_kur() {
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
     adc_cali_curve_fitting_config_t c = {};
@@ -857,6 +887,17 @@ static void skop_cali_kur() {
 #else
     skop_cali_var = false;
 #endif
+    kal_tab_var = false;
+    if (skop_cali_var) {
+        bool tamam = true;
+        for (uint8_t k = 0; k < KAL_N; k++) {
+            int mv = -1;
+            if (adc_cali_raw_to_voltage(skop_cali, kal_dugum_kod(k), &mv) != ESP_OK
+                || mv < 0) { tamam = false; break; }
+            kal_mv_tab[k] = (int16_t)mv;
+        }
+        kal_tab_var = tamam;
+    }
 }
 
 void skop_kur() {
@@ -1310,13 +1351,29 @@ static bool hizli_yakala(uint16_t *alinan_v, uint16_t *alinan_i) {
 //          (bolucunun alt ucu VREF'te) -> v = (Vadc - VREF) * ORAN
 // Akim   : fark yukselteci G = HIZLI_KAZANC, cikis VREF'e merkezli.
 //          i = (Vcikis - VREF) / G / sont
+/* 🔴 B39 — DOGRUSAL ADC MODELI HIZLI YOLDA BUYUK HATA VERIYORDU.
+   `guc_olc` ORTALAMAYI CIKARMIYOR: P = ort(v*i), Vrms = sqrt(ort(v^2)).
+   Yani ADC modelinin orta olcekteki OFSET hatasi dogrudan guce giriyor.
+   Tasarim degerleriyle, kartin eFuse tablosundan hesap (2026-09-13):
+       sifir giris (dugum 1670 mV):  dogrusal model  -6.93 V   kalibre  0.00 V
+       sifir akim  (dugum 1715 mV):  dogrusal model  -397 mA   kalibre  0 mA
+       10 Vrms / 100 mA direncsel:   P 3.56 W, PF 0.77         P 1.00 W, PF 1.00
+   eFuse olcegi fizikle sinandi: PWM ortalamasi (gorev x rail) karsisinda
+   egim 3296 mV (%0.1), artik rms 4.6 mV; dogrusal model egimi %8.8 dusuk.
+   GPIO5'in egriligi GPIO4'unkiyle AYNI olculdu (B38) — ayni tablo iki
+   kanala da uygulanabiliyor.
+   ⚠ Kalan belirsizlik ~22 mV kesme (eFuse ofseti mi rail mi, multimetresiz
+     ayrilamiyor): girisde ~0.8 V / ~47 mA. On uc kurulunca SIFIR
+     kalibrasyonu yine gerekecek — bu duzeltme onun yerini tutmuyor.
+   Tablo yoksa ESKI dogrusal yol; `W` satirinin son alani bunu soyluyor. */
 static void hizli_olcekle(uint16_t adet) {
     const float lsb = SKOP_ADC_TAVAN / SKOP_ADC_SAYIM;
+    const float vref = VREF_NOMINAL;
     for (uint16_t n = 0; n < adet; n++) {
-        hizli_v[n] = VREF_NOMINAL
-                     + (hizli_v[n] * lsb - VREF_NOMINAL) * SKOP_ORAN;
-        float vc = hizli_i[n] * lsb;
-        hizli_i[n] = (vc - VREF_NOMINAL) / HIZLI_KAZANC / ayar.sont_ohm
+        float vd = kal_tab_var ? kal_mv(hizli_v[n]) / 1000.0f : hizli_v[n] * lsb;
+        float vc = kal_tab_var ? kal_mv(hizli_i[n]) / 1000.0f : hizli_i[n] * lsb;
+        hizli_v[n] = vref + (vd - vref) * SKOP_ORAN;
+        hizli_i[n] = (vc - vref) / HIZLI_KAZANC / ayar.sont_ohm
                      * ayar.i_duzeltme;
     }
 }
@@ -1347,12 +1404,36 @@ static void hizli_olcekle(uint16_t adet) {
    ⚠ Cekme degistirilince RC duzenegi (100 nF) yavas oturur: tau = 45K x
      100nF = 4.5 ms, 30 ms bekleniyor. Islem sonunda cekme KAPATILIYOR
      ve skop yapilandirmasi geri kuruluyor. */
+/* 🔴 B39 — `w` OLCUM DONGUSUNU 123 ms BLOKLUYORDU (kartta olculdu).
+   B37'nin cekme sinamasi 3 x 30 ms bekleme + iki TAM (300 ornek)
+   yakalama ekliyordu ve B37'de bu bedel OLCULMEDI. Duzeltme:
+     * bekleme OLCULEN oturma suresine indirildi (`wB<ms>` ile olculur)
+     * sinama 64 ornek/kanal ile yapiliyor (esik %75'e karsi fazlasiyla)
+     * okuyucu YIKICI DEGIL: hizli_v/hizli_i dizilerine yazmiyor, yani
+       sinama ASIL yakalamadan SONRA yapilabiliyor ve serbest birakma
+       beklemesine gerek kalmiyor.
+   CEKME_BEKLE_MS asagida, olcumle birlikte. */
+#define CEKME_ORNEK 64u
+
 static bool hizli_kanal_oku_ort(float *v_ort, float *i_ort) {
+    static uint8_t ham[512];
+    uint32_t okundu = 0, basla = millis();
     uint16_t nv = 0, ni = 0;
-    if (!hizli_yakala(&nv, &ni)) return false;
     float vt = 0, it = 0;
-    for (uint16_t n = 0; n < nv; n++) vt += hizli_v[n];
-    for (uint16_t n = 0; n < ni; n++) it += hizli_i[n];
+    while ((nv < CEKME_ORNEK || ni < CEKME_ORNEK) && millis() - basla < 100u) {
+        if (adc_continuous_read(skop_kulp, ham, sizeof(ham), &okundu, 20)
+            != ESP_OK) continue;
+        for (uint32_t o = 0; o + SOC_ADC_DIGI_RESULT_BYTES <= okundu;
+             o += SOC_ADC_DIGI_RESULT_BYTES) {
+            adc_digi_output_data_t *s = (adc_digi_output_data_t *)&ham[o];
+            if (s->type2.channel == HIZLI_KANAL_V) {
+                if (nv < CEKME_ORNEK) { vt += s->type2.data; nv++; }
+            } else if (s->type2.channel == HIZLI_KANAL_I) {
+                if (ni < CEKME_ORNEK) { it += s->type2.data; ni++; }
+            }
+        }
+    }
+    if (nv < 8u || ni < 8u) return false;
     *v_ort = vt / nv; *i_ort = it / ni;
     return true;
 }
@@ -1368,11 +1449,12 @@ static bool hizli_kanal_oku_ort(float *v_ort, float *i_ort) {
       cunku kayma o kadar buyuk ki bayat veri bile onu gizleyemiyor —
       yani kusur yalnizca "surulu" tarafta gorunuyordu. Iki tarafi da
       olcmeseydik bu gorulmezdi. `adc_continuous_start` DMA'yi sifirlar. */
-static bool hizli_cekmeli_oku(gpio_pull_mode_t kip, float *v_ort, float *i_ort) {
+static bool hizli_cekmeli_oku(gpio_pull_mode_t kip, uint16_t bekle_ms,
+                              float *v_ort, float *i_ort) {
     adc_durdur();
     gpio_set_pull_mode((gpio_num_t)PIN_SKOP,    kip);
     gpio_set_pull_mode((gpio_num_t)PIN_HIZLI_I, kip);
-    delay(30);                                  /* RC oturma: tau 4.5 ms */
+    delay(bekle_ms);                            /* oturma — CEKME_BEKLE_MS */
     if (adc_baslat() != ESP_OK) return false;
     bool tamam = hizli_kanal_oku_ort(v_ort, i_ort);
     adc_durdur();
@@ -1382,21 +1464,34 @@ static bool hizli_cekmeli_oku(gpio_pull_mode_t kip, float *v_ort, float *i_ort) 
 /* Iki kanalin cekme kaymasini olcer (kod cinsinden, pull-up - pull-down).
    Basarisizsa false. Cagiran taraf ADC'yi cift kanalli KURMUS olmali
    (baslatmis olmasi gerekmiyor; burada baslatilip durduruluyor). */
-static bool hizli_cekme_kaymasi(float *v_kayma, float *i_kayma) {
+static bool hizli_cekme_kaymasi(float *v_kayma, float *i_kayma,
+                                uint16_t bekle_ms) {
     float vd = 0, id = 0, vu = 0, iu = 0;
-    bool a = hizli_cekmeli_oku(GPIO_PULLDOWN_ONLY, &vd, &id);
-    bool b = hizli_cekmeli_oku(GPIO_PULLUP_ONLY,   &vu, &iu);
+    bool a = hizli_cekmeli_oku(GPIO_PULLDOWN_ONLY, bekle_ms, &vd, &id);
+    bool b = hizli_cekmeli_oku(GPIO_PULLUP_ONLY,   bekle_ms, &vu, &iu);
+    /* Serbest birakma BEKLEMESIZ: sinama artik asil yakalamadan SONRA ve
+       bir sonraki okuma seri porttan gelecek bir komutla, onlarca ms
+       sonra. */
     gpio_set_pull_mode((gpio_num_t)PIN_SKOP,    GPIO_FLOATING);
     gpio_set_pull_mode((gpio_num_t)PIN_HIZLI_I, GPIO_FLOATING);
-    delay(30);
     if (!a || !b) return false;
     *v_kayma = vu - vd; *i_kayma = iu - id;
     return true;
 }
 
 #define BOS_PIN_ESIK_KOD (SKOP_ADC_SAYIM * 0.75f)  /* %75 tam olcek — gerekce yukarida */
+/* B39 — bekleme OLCULDU (2026-09-13, `wB<ms>`, 3'er tekrar, +-1 puan):
+       bekle   surulu (RC 20K kaynak)   kaynaksiz 100 nF (CAL kapali)
+         3 ms        %60                    %56   <- YANLIS: surulu sayilir
+         5 ms        %63                    %77   <- esige 2 puan
+         8 ms        %63                    %94
+        12 ms        %63                   %100
+   8 ms: iki tarafta da >= 12 puan pay. Kaynaksiz 100 nF yalnizca bu
+   tezgahta var ve EN ZOR "bos" durumu; ciplak baglantisiz bir pin pF'lik
+   kapasitesiyle mikrosaniyede oturur. 30 ms (B37) gereksiz uzundu. */
+#define CEKME_BEKLE_MS 8u
 
-static void hizli_bos_yolla(void) {
+static void hizli_bos_yolla(uint16_t bekle_ms) {
     if (!skop_kulp) { Serial.println(F("! bos sinama: ADC kulpu yok")); return; }
     adc_durdur();
     if (!hizli_kur()) {
@@ -1405,7 +1500,7 @@ static void hizli_bos_yolla(void) {
         return;
     }
     float vk = 0, ik = 0;
-    bool tamam = hizli_cekme_kaymasi(&vk, &ik);
+    bool tamam = hizli_cekme_kaymasi(&vk, &ik, bekle_ms);
     if (!tamam) {
         Serial.println(F("! bos sinama: ornek alinamadi"));
     } else {
@@ -1415,7 +1510,8 @@ static void hizli_bos_yolla(void) {
         Serial.print(F(" i_kayma="));    Serial.print(ik, 1);
         Serial.print(F(" i_yuzde="));    Serial.print(100.0f * ik / SKOP_ADC_SAYIM, 0);
         Serial.print(F(" i_bos="));      Serial.print(ik > BOS_PIN_ESIK_KOD ? 1 : 0);
-        Serial.print(F(" esik="));       Serial.println(BOS_PIN_ESIK_KOD, 0);
+        Serial.print(F(" esik="));       Serial.print(BOS_PIN_ESIK_KOD, 0);
+        Serial.print(F(" bekle_ms="));   Serial.println(bekle_ms);
     }
     skop_hiz_ayarla(skop_hz ? skop_hz : SKOP_HZ_AZAMI);
 }
@@ -1487,7 +1583,12 @@ static void hizli_ham_yolla(void) {
 // `w` komutu — bir pencere yakalayip gucu raporlar.
 //
 // PROTOKOL:
-//   W <P> <S> <PF> <Vrms> <Irms> <Vort> <Iort> <n> <P_hizalamasiz>
+//   W <P> <S> <PF> <Vrms> <Irms> <Vort> <Iort> <n> <P_hizalamasiz> <kal>
+//
+// B39: 11. alan `kal` = 1 ise olcekleme eFuse tablosuyla, 0 ise ESKI
+// dogrusal modelle yapildi (girisde 7 V'a varan ofset). Susmuyoruz:
+// kalibresiz bir PF "olculmus" gibi gorunmemeli. Eski arayuz 10 alana
+// bakiyor, 11. alan onu bozmuyor.
 //
 // Son alan BILEREK var: hizalamanin ne kadar fark ettigini arayuz
 // gosterebilsin. Dirençsel yukte ikisi ayni cikar, reaktif yukte
@@ -1501,13 +1602,25 @@ static void hizli_yolla(void) {
         Serial.println(F("! hizli yol: 2 kanalli yapilandirma basarisiz"));
         return;
     }
+    if (adc_baslat() != ESP_OK) {
+        Serial.println(F("! hizli yol: baslatilamadi"));
+        return;
+    }
+
+    uint16_t nv = 0, ni = 0;
+    bool tamam = hizli_yakala(&nv, &ni);
+    adc_durdur();
+
     /* 🔴 B37 — BOS PIN KAPISI. K3'un "ortalama rayda mi" korumasi
        bostaki GPIO5'in ortalamasi orta olcekte kalinca deliniyordu ve
        `w` 7.68 W / PF 0.98 basiyordu. Cekme sinamasi deterministik:
-       bos pin cekmeyi izler. Bos girisle GUC BASILMAZ, sebep yazilir. */
-    {
+       bos pin cekmeyi izler. Bos girisle GUC BASILMAZ, sebep yazilir.
+       B39: sinama ASIL yakalamadan SONRA — okuyucu yikici degil, cekmenin
+       dugumde biraktigi yuk olcumu etkilemiyor, serbest birakma beklemesi
+       gerekmiyor. */
+    if (tamam) {
         float vk = 0, ik = 0;
-        if (hizli_cekme_kaymasi(&vk, &ik)) {
+        if (hizli_cekme_kaymasi(&vk, &ik, CEKME_BEKLE_MS)) {
             bool v_bos = vk > BOS_PIN_ESIK_KOD, i_bos = ik > BOS_PIN_ESIK_KOD;
             if (v_bos || i_bos) {
                 Serial.print(F("! hizli yol: giris BOSTA — cekme sinamasi:"));
@@ -1521,14 +1634,6 @@ static void hizli_yolla(void) {
             }
         }
     }
-    if (adc_baslat() != ESP_OK) {
-        Serial.println(F("! hizli yol: baslatilamadi"));
-        return;
-    }
-
-    uint16_t nv = 0, ni = 0;
-    bool tamam = hizli_yakala(&nv, &ni);
-    adc_durdur();
 
     if (!tamam) {
         Serial.print(F("! hizli yol: yeterli ornek yok  V="));
@@ -1593,7 +1698,8 @@ static void hizli_yolla(void) {
     Serial.print(g.v_ort, 4);  Serial.print(' ');
     Serial.print(g.i_ort, 5);  Serial.print(' ');
     Serial.print(g.n);         Serial.print(' ');
-    Serial.println(g0.p, 5);
+    Serial.print(g0.p, 5);     Serial.print(' ');
+    Serial.println(kal_tab_var ? 1 : 0);
 
     // PENCERE YANLILIGI — susmak yerine soyle.
     // 300 ornek @ 41.7 kSa/s = 7.2 ms. 50 Hz'te 0.36 cevrim eder ve
@@ -2588,21 +2694,21 @@ void komut_calistir(const char *s) {
        duzeltmesiz cizim "kalibre" sanilirdi. */
     case 'C': {
       if (s[1] != 'T') { Serial.println(F("! bilinmeyen komut — `h` yardim")); break; }
-      if (!skop_cali_var) {
+      if (!kal_tab_var) {
         Serial.println(F("CT 0 kaynak=YOK"));
         break;
       }
-      const uint8_t N = 17;              // 0, 256, ..., 4096-1
+      const uint8_t N = (uint8_t)KAL_N;  // 0, 256, ..., 4096-1
       Serial.print(F("CT ")); Serial.print(N);
       Serial.print(F(" oran="));    Serial.print(SKOP_ORAN, 6);
       Serial.print(F(" ofset="));   Serial.print(SKOP_VOLT_OFSET, 6);
       Serial.print(F(" tavan_mv="));Serial.print(SKOP_ADC_TAVAN * 1000.0f, 1);
+      /* B39: hizli yolun kullandigi DIZININ KENDISI basiliyor — eFuse
+         burada yeniden sorgulanmiyor; sorgulansaydi arayuzun gordugu
+         tablo ile kartin olcekledigi tablo iki ayri temsil olurdu. */
       for (uint8_t k = 0; k < N; k++) {
-        int kod = (k == N - 1) ? 4095 : (int)k * 256;
-        int mv = -1;
-        adc_cali_raw_to_voltage(skop_cali, kod, &mv);
-        Serial.print(' '); Serial.print(kod);
-        Serial.print(':');  Serial.print(mv);
+        Serial.print(' '); Serial.print(kal_dugum_kod(k));
+        Serial.print(':');  Serial.print(kal_mv_tab[k]);
       }
       Serial.println();
       break;
@@ -3012,7 +3118,8 @@ void komut_calistir(const char *s) {
        supurmesi icin); duz `w` eskisi gibi guc raporluyor. */
     case 'w':
       if      (s[1] == 'R') hizli_ham_yolla();
-      else if (s[1] == 'B') hizli_bos_yolla();      /* B37 — bos pin sinamasi */
+      else if (s[1] == 'B')                         /* B37 — bos pin sinamasi */
+        hizli_bos_yolla(s[2] ? (uint16_t)atoi(s + 2) : (uint16_t)CEKME_BEKLE_MS);
       else                  hizli_yolla();
       break;
 

@@ -1267,6 +1267,12 @@ createApp({
           iRms: parseFloat(p[5]), vOrt: parseFloat(p[6]),
           iOrt: parseFloat(p[7]), n: parseInt(p[8], 10),
           pHam: parseFloat(p[9]),
+          /* B39: 11. alan — olcekleme eFuse tablosuyla mi (1) ESKI
+             dogrusal modelle mi (0) yapildi. Eski firmware bu alani
+             yollamiyor: `null` = BILINMIYOR, "kalibre" DEGIL. Dogrusal
+             model sifir giriste -6.9 V / -397 mA ofset veriyordu; bunu
+             bilmeden okunan bir PF sessizce yanlis olur. */
+          kal: p.length >= 11 ? p[10] === '1' : null,
         };
         return;
       }

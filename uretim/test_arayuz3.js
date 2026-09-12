@@ -579,8 +579,17 @@ console.log('\n--- 6. Demo kart Asama 3 protokolu uretiyor mu ---');
 
   const w = SahteKart.komut('w');
   ok('demo kart `w` ile W satiri uretiyor', w[0].startsWith('W '), w[0]);
-  ok('demo W satiri 10 alanli', w[0].split(/\s+/).length === 10,
-     String(w[0].split(/\s+/).length));
+  /* B39: alan sayisi ELLE YAZILMIYOR, firmware'in protokol yorumundan
+     (`//   W <P> ... <kal>`) TURETILIYOR. Elle 10 yazan onceki hali,
+     firmware 11. alani ekleyince sahte karti geride birakacakti — ya da
+     tersine, sahte kart guncellenip firmware unutulsaydi fark etmezdi. */
+  const inoKaynak = fs.readFileSync(
+    path.join(KOK, 'kod', 'olcum-karti-a3', 'olcum-karti-a3.ino'), 'utf8');
+  const wProto = inoKaynak.match(/^\/\/\s+(W <[^\n]*>)\s*$/m);
+  const wAlan = wProto ? wProto[1].trim().split(/\s+/).length : -1;
+  ok('demo W satirinin alan sayisi FIRMWARE protokoluyle ayni',
+     wAlan > 0 && w[0].split(/\s+/).length === wAlan,
+     `demo ${w[0].split(/\s+/).length} · firmware ${wAlan} (${wProto ? wProto[1] : 'yorum yok'})`);
   ok('demo pencere yanliligini UYARIYOR', /yanlilik BUYUK/.test(w[1]), w[1]);
 }
 
@@ -1646,7 +1655,7 @@ console.log('\n--- 16. Skop arsivi (geriye donuk kayit) ---');
      uygulaninca rozet butona benziyor (tarayici goruntusunde yakalandi).
      Kayit rozetleri kendi degistiricisini kullaniyor. */
   ok('Kayit rozetleri emniyet-uyarisi sinifini KULLANMIYOR',
-     !/class="kayit-etiket[^"]*uyari/.test(html) &&
+     !/class="kayit-etiket[^"]*\buyari\b/.test(html) &&
      !/kayit-etiket"[^>]*:class="\{ uyari/.test(html),
      'emniyet uyarisi stili rozete bulasmamali');
   /* Zaman damgasi DUVAR SAATI DEGIL; oyle gosterilip yanlis okunmasin. */
@@ -1789,7 +1798,7 @@ console.log('\n--- 17. Skop gerilim ekseni kalibrasyonu ---');
      && govdeIcinde(appKaynak, 'osiloCiz', 'this.kodVolt(v)'),
      'izgara etiketi ile iz AYNI cevirimden gelmeli');
   ok('Cizimde artik ham `voltAdim` carpimi KALMADI',
-     !/veri\[i\]\s*\*\s*voltAdim/.test(appKaynak)
+     !/\bveri\[i\]\s*\*\s*voltAdim/.test(appKaynak)
      && !govdeIcinde(appKaynak, 'osiloCiz', '* voltAdim'),
      'ikinci bir ceviri yolu kalsaydi ayrisirdi');
 
@@ -1844,6 +1853,42 @@ console.log('\n--- 17. Skop gerilim ekseni kalibrasyonu ---');
      /CT 17 oran=/.test(fs.readFileSync(
        path.join(KOK, 'arayuz3', 'sahte-kart.js'), 'utf8')),
      'ayrisirsa demo arayuzu gercek yolundan sinamaz');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   18. HIZLI YOL OLCEKLEMESI KALIBRE MI (B39)
+
+   Dogrusal ADC modeli sifir giriste -6.9 V / -397 mA ofset veriyordu ve
+   `guc_olc` ortalamayi CIKARMADIGI icin bu dogrudan P, Vrms ve PF'ye
+   giriyordu (1 W direncsel yukte P 3.56 W, PF 0.77). Firmware artik
+   eFuse tablosuyla olcekliyor ve `W` satirinin 11. alaninda bunu
+   SOYLUYOR. Arayuz susmamali.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 18. Hizli yol olceklemesi kalibre mi ---');
+{
+  const html = yorumsuz(htmlKaynak);
+  const a = ornek();
+  a.satirIsle('W 0.36314 0.36356 0.9988 1.8291 0.19876 -1.8283 -0.19859 297 0.36313 1');
+  ok('[!] `W` 11. alan 1 -> kalibre', a.hizli && a.hizli.kal === true,
+     JSON.stringify(a.hizli && a.hizli.kal));
+  const b = ornek();
+  b.satirIsle('W 0.36314 0.36356 0.9988 1.8291 0.19876 -1.8283 -0.19859 297 0.36313 0');
+  ok('[!] `W` 11. alan 0 -> HAM (kalibre SANILMIYOR)', b.hizli && b.hizli.kal === false);
+  const c = ornek();
+  c.satirIsle('W 0.36314 0.36356 0.9988 1.8291 0.19876 -1.8283 -0.19859 297 0.36313');
+  ok('[!] eski 10 alanli `W` hala ayristiriliyor ama kal=BILINMIYOR (null)',
+     c.hizli && c.hizli.kal === null && Math.abs(c.hizli.p - 0.36314) < 1e-9,
+     'eski firmware bilinmiyor demek; "kalibre" sanmak YANLIS olurdu');
+  ok('[!] Ekranda uc durum da ayri yaziyor (kalibre / HAM / bilinmiyor)',
+     /hizli\.kal === true[\s\S]{0,160}olçekleme kalibre|hizli\.kal === true[\s\S]{0,160}ölçekleme kalibre/.test(html)
+     && /hizli\.kal === false[\s\S]{0,160}ölçekleme HAM/.test(html)
+     && /ölçekleme bilinmiyor/.test(html));
+  ok('Kalibresizken ofsetin BUYUKLUGU yaziyor',
+     /hizli\.kal !== true[\s\S]{0,200}-6\.9 V/.test(html),
+     '"ham" demek yetmez — ne kadar yanlis oldugu soylenmeli');
+  ok('Sifir kalibrasyonunun HALA gerektigi yaziyor',
+     /sıfır[\s\S]{0,20}kalibrasyonu/.test(html),
+     'eFuse duzeltmesi on ucun sifir ofsetini gidermez');
 }
 
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu

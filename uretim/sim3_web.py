@@ -441,7 +441,7 @@ def bolum5(r):
     # ⚠ Desen ONCE `wifi_`/`ap_` oneki istiyordu; `String sifre = "..."`
     #   bicimindeki mutasyon KACTI. Artik adin ICINDE sifre/parola/pass
     #   gecen HER degiskene atanan uzun dize yakalaniyor.
-    sabit = re.search(r'\w*(sifre|parola|pass\w*)\s*=\s*"[^"]{4,}"',
+    sabit = re.search(r'\b\w*(sifre|parola|pass\w*)\s*=\s*"[^"]{4,}"',
                       INO_KOD + AG_KOD, re.I)
     r.kosul("  5c: kaynakta sabit parola YOK", sabit is None,
             sabit.group(0)[:48] if sabit else "kimlik bilgileri NVS'ten")

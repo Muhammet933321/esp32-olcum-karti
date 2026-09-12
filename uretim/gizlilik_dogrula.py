@@ -119,6 +119,48 @@ def takip_edilenler() -> list[str]:
     return cikti
 
 
+# 🔴 B39 — METIN DOSYASINDA KONTROL KARAKTERI = SESSIZCE KOR BIR IDDIA.
+#    Bash aracinin heredoc'u `\b`yi GERCEK backspace (0x08) olarak
+#    yaziyor. Dosya calisiyor, regex hicbir seyle eslesmiyor, iddia HER
+#    ZAMAN geciyor. 2026-09-13'te depoda UC tane bulundu; biri
+#    sim3_web.py'nin GOMULU PAROLA denetimiydi ve ILK YAYINDAN BERI kordu.
+#    Sekme (0x09), LF (0x0A), CR (0x0D) metinde mesru; gerisi degil.
+KONTROL = re.compile("[" + "".join(chr(c) for c in range(0x20)
+                                   if c not in (0x09, 0x0A, 0x0D)) + "]")
+METIN_UZANTI = (".py", ".js", ".ino", ".h", ".c", ".cpp", ".html", ".css",
+                ".md", ".json", ".csv", ".txt", ".net", ".kicad_sch",
+                ".kicad_pro", ".yml", ".yaml", ".toml", ".bat", ".ps1",
+                ".gitignore")
+
+
+def kontrol_karakteri_tara(dosyalar) -> int:
+    bulgu = []
+    for f in dosyalar:
+        if not f.endswith(METIN_UZANTI):
+            continue
+        p = KOK / f
+        if not p.exists():
+            continue
+        try:
+            metin = p.read_bytes().decode("utf-8", "replace")
+        except OSError:
+            continue
+        for i, satir in enumerate(metin.splitlines(), 1):
+            m = KONTROL.search(satir)
+            if m:
+                bulgu.append((f, i, f"0x{ord(m.group(0)):02X}",
+                              satir.strip()[:50].replace(m.group(0), "<?>")))
+    if bulgu:
+        print(f"  [!!] Metin dosyasinda kontrol karakteri: {len(bulgu)} satir — "
+              f"buyuk olasilikla bir kacis dizisi (\\b, \\f...) GERCEK "
+              f"karaktere donmus; o satirdaki regex/iddia SESSIZCE KOR")
+        for f, i, kod, s in bulgu[:8]:
+            print(f"         {f}:{i}  {kod}  {s}")
+    else:
+        print("  [OK] Metin dosyasinda kontrol karakteri: temiz")
+    return len(bulgu)
+
+
 def main() -> int:
     dosyalar = takip_edilenler()
     print("=" * 78)
@@ -152,9 +194,15 @@ def main() -> int:
         else:
             print(f"  [OK] {ad}: temiz")
 
+    kk = kontrol_karakteri_tara(dosyalar)
+
     print()
+    if kk:
+        print(f"  KIRMIZI: {kk} satirda kontrol karakteri — `cat -A` ile bak, "
+              f"karakteri kacis dizisiyle degistir.")
     if toplam:
         print(f"  KIRMIZI: {toplam} kisisel iz — yayinlamadan once temizle.")
+    if toplam or kk:
         return 1
     print("  Temiz.")
     return 0

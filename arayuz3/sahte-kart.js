@@ -335,7 +335,7 @@ const SahteKart = (() => {
       const s_ = vr * ir, p_ = s_ * pf;
       return [`W ${p_.toFixed(5)} ${s_.toFixed(5)} ${pf.toFixed(4)} ` +
               `${vr.toFixed(4)} ${ir.toFixed(5)} 12.0100 0.01820 297 ` +
-              `${(p_ * 1.134).toFixed(5)}`,
+              `${(p_ * 1.134).toFixed(5)} 1`,     // B39: kal=1 (gercek kart gibi)
               '  pencere 7.20 ms — 50 Hz icin 0.36 cevrim ' +
               '(1 cevrimin altinda yanlilik BUYUK)'];
     }

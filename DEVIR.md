@@ -7881,6 +7881,84 @@ GPIO4–GPIO5 köprü teli ve RC düzeneği **sökülmeli**. Gerçek devrede GPI
 
 ---
 
+#### 5.12.53 ✅ B39 — HIZLI YOL KALİBRE: 1 W'lık yük 3.56 W, PF 0.77 okunacaktı + kör parola denetimi (2026-09-13)
+
+##### 1 · Doğrusal ADC modeli hızlı yolda büyük hata veriyordu
+
+`guc_olc` ortalamayı **çıkarmıyor**: P = ort(v·i), Vrms = √ort(v²). Yani ADC modelinin orta ölçekteki **ofset** hatası doğrudan güce giriyor — skopta kazanç hatası yalnızca ölçeği bozuyordu, burada toplam yanlış. Kartın eFuse tablosu ve tasarım değerleriyle:
+
+| | doğrusal model | kalibre |
+|---|---|---|
+| sıfır giriş (düğüm 1670 mV) | **−6.93 V** | 0.00 V |
+| sıfır akım (düğüm 1715 mV) | **−397 mA** | 0 mA |
+| 10 Vrms / 100 mA dirençsel (gerçek P 1.000 W, PF 1) | **P 3.56 W, Vrms 11.37 V, Irms 407 mA, PF 0.77** | P 1.000 W, PF 1.000 |
+
+Ön uç kurulmadığı için hiç görülmemişti.
+
+**eFuse'un mutlak ölçeği fizikle sınandı:** PWM ortalaması = görev × rail zorunlu. Kalibre mV görev oranına karşı: eğim **3296 mV** (3.3 V'un %0.1'i), artık rms 4.6 mV, B34 ve B38 verisinde aynı. Doğrusal model eğimi %8.8 düşük buluyor. Kalan belirsizlik ~22 mV kesme (eFuse ofseti mi, rail mi — multimetresiz ayrılamıyor) = girişte ~0.8 V / ~47 mA → **ön uç kurulunca hızlı yol için sıfır kalibrasyonu yine gerekecek** (tezgah listesinde).
+
+##### 2 · Tek tablo, üç tüketici
+
+Açılışta eFuse'tan 17 nokta çıkarılıyor (`kal_mv_tab`). **`CT` bu diziyi basıyor, arayüz skop eksenini bu diziyle çiziyor, hızlı yol bu diziyle ölçekliyor.** Hızlı yol tam eFuse eğrisini çağırsaydı aynı ham kod arayüzde bir, kartta başka bir gerilime çevrilirdi. Aradeğerleme hatası kartta ölçüldü (orta noktalar, tam eğriyle): kod 0–3000'de **±1 mV**, doyum yakınında −4.3 mV; hızlı yol kod ~2000 çevresinde çalışıyor.
+
+`W` satırına 11. alan `kal` (1/0) eklendi; arayüz **kalibre / HAM / bilinmiyor** ayrı gösteriyor (eski firmware'in 10 alanlı satırı "kalibre" sanılmıyor). Sahte kartın `W` alan sayısı artık elle yazılmıyor, **firmware'in protokol yorumundan türetiliyor**.
+
+##### 3 · Gerçek kartta doğrulama (`tezgah_adc_supur.py --hizli`)
+
+GPIO4 ve GPIO5 aynı RC düğümünde; Vort ve Iort **iki farklı ölçekleme zincirinden** geçiyor (skop bölücüsü / fark yükselteci + şönt). İkisinden geri çıkarılan düğüm gerilimi:
+
+```
+görev  dügüm(V) mV  dügüm(I) mV   fark
+ 150      475.58       475.67    -0.09
+ 550     1789.41      1789.45    -0.04
+ 850     2787.51      2787.60    -0.09
+en büyük |fark| 0.39 mV · düğüm = -28.0 + 3302.3 × görev (eFuse fiti 3296.1) · artık rms 5.4 mV
+```
+
+Önceki doğrusal modelle görev %50'de aynı düğüm Vort −8.42 V / Iort −568 mA okuyordu; şimdi −1.83 V / −199 mA — öngörülen −1.80 V / −196 mA.
+
+##### 4 · B37'nin ölçülmemiş bedeli: `w` döngüyü 123 ms blokluyordu
+
+Çekme sınaması 3 × 30 ms bekleme + iki tam yakalama ekliyordu. Bekleme **ölçülerek** seçildi (`wB<ms>`):
+
+| bekleme | sürülü (RC 20K) | kaynaksız 100 nF |
+|---|---|---|
+| 3 ms | %60 | **%56 ← yanlış: "sürülü"** |
+| 5 ms | %63 | %77 (eşiğe 2 puan) |
+| **8 ms** | **%63** | **%94** |
+
+Okuyucu **yıkıcı olmayan** hale getirildi (asıl yakalamanın dizilerine yazmıyor), sınama asıl yakalamadan **sonraya** alındı (serbest bırakma beklemesi gerekmiyor), 64 örnek/kanal. `w` **123 → 34 ms**, `wB` 23 ms. Hâlâ 20 ms'nin üstünde; `#` 18 ms ile aynı sınıfta, elle komut.
+
+##### 5 · 🔴 Parola sızıntısı denetimi İLK YAYINDAN BERİ KÖRDÜ
+
+B39 test yamasından sonra depoda kontrol karakteri tarandı: **üç** backspace (0x08). Heredoc tuzağı `\b`'yi gerçek karaktere çevirmişti; regex dosyada çalışıyor ama hiçbir şeyle eşleşmiyordu:
+
+* **`sim3_web.py:444` — firmware'e gömülü parola arayan 5c denetimi.** İlk yayından (`076a366`) beri her zaman yeşildi. Depo herkese açık ve kural "parola depoda olmaz". Doğru desenle tarandı: **bugünkü ağaçta ve `kod/`un bütün git geçmişinde 0 eşleşme** — kör kaldı ama kaçak olmamış. Denetimin ısırdığını kanıtlayan mutasyon eklendi (gömülü parola → kırmızı).
+* `test_arayuz3.js` — iki iddianın yarısı (B35 rozet sınıfı, B36 ikinci çeviri izi). `&&`'nin diğer yarısı taşıdığı için mutasyon yakalayamamıştı; iki mutasyon eklendi.
+
+**Kalıcı önlem:** `gizlilik_dogrula.py` artık takip edilen metin dosyalarında kontrol karakteri (sekme/LF/CR hariç) arıyor ve zincirde kırmızı dönüyor; mutasyonla sınandı. Bu tuzak bu projede on altı kez yaşandı; artık sessiz bir iddia körlüğü yerine kırmızı bir zincir.
+
+⚠ B37'nin 6e iddiası çağrı imzası değişince `index()` istisnası atıp **betiği çökertiyordu** (kırmızı yerine yığın izi, ardındaki iddialar koşmuyor). `in` ile önce sınanıyor. 6g'nin "yıkıcı değil" iddiası da yine **bir yoruma** takılmıştı; yorumlar soyuluyor.
+
+##### 🔴 Bulunan, henüz düzeltilmedi: skop yakalaması ölçüm çekirdeğini saniyelerce blokluyor
+
+```
+t @ tb3 (10 ms pencere)   döngü  667 ms   atlanan enerji    0 ms
+t @ tb5 (50 ms)                  897 ms                     0
+t @ tb7 (200 ms)                1524 ms                  1526 ms
+t @ tb9 (1 s)                   4437 ms                  4439 ms
+```
+
+Blokajın çoğu pencere değil, **ASCII dökümün ölçüm çekirdeğinden seri porta basılması**. B35'te "köprüde ASCII yolu bedava, bedel zaten seri portta" demiştim — aktarım için doğru, ama **ölçüm çekirdeği** hesaba katılmamıştı. Köprü kipinde her yakalama ADS ölçümünü durduruyor, tb7 ve üstünde enerji sayacı o aralığı atıyor, "Sürekli" kipte ölçüm neredeyse hiç çalışmaz. **Sıradaki iş (B40).**
+
+##### Doğrulama
+
+* Zincir 18/18, **1368 iddia** · `sim3_skop` 49 → **55** (6g) · `test_arayuz3` 292 → **298** (bölüm 18) · `sim3_web` 98 (5c artık canlı).
+* Mutasyon: B19 **21/21**, B7 **53/53**, B22b **17/17**, B26 **3/3**.
+* Gerçek kartta: `--hizli` 4/4, bringup 32/0.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |
