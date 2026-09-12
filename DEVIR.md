@@ -7283,6 +7283,32 @@ Kullanıcı canlı paneli gösterip üç şey sordu: *görünüm nasıl · "463 
 
 **Aşama 2'ye kalan:** kart yeniden başlarken sayfa açılırsa `app.js` gelmeyip ham `{{ }}` kalıyor — yeniden yükleme ipucu/`v-cloak` dışı bir hata durumu gerek (Aşama 4 dayanıklılık kalemi). `K` sayaçları sayfa her yüklendiğinde 200+ ms sıçrıyor: 100 KB gzip'i LittleFS'ten loop() içinde sunmak — çift çekirdek kalemi, yeni değil.
 
+##### ✅ Aşama 2-b (2026-09-12) — tasarım sistemi
+
+Kullanıcı A2-a'yı onaylayıp "sıkıntı yoksa sonraki aşamaya geç" dedi. Önce onun gözlemi kapatıldı (**akım hep µA'larda**), sonra tasarım sistemi.
+
+**Akım sorusu — kusur değil, eksik bilgi.** Kartta ölçüldü: 0.1 Ω şöntte ham gürültü tam **1 LSB** (78 µA), 200 ms penceresinde 96 örneğin ortalaması ort **10.7 µA** ± 7.9 µA — yani ekrandaki "7 µA" gerçek bir akım değil, **çözünürlük tabanı**. Şönt ADS'in diferansiyel girişine doğrudan bağlı (kademe sabit ±0.256 V), menzili şönt belirliyor: 10 Ω → LSB 0.78 µA, 0.1 Ω → **78 µA**. Gerilim kartı menzilini ve adımını yazıyordu, **akım kartı yazmıyordu** — eklendi (`±2.56 A · 78.1 µA`), kaynağı kartın `sont=` değeri (menü yalnızca yedek).
+
+**Tasarım sistemi:** `ek.css` `style.css`'e katıldı → **tek stil dosyası** (karttan her ek istek `loop()`'u blokluyor). Koyu tema **varsayılan**, açık tema sistem tercihine uyuyor; bütün belirteçler `:root`ta, açık blok yalnızca **değerleri** değiştiriyor. Renk yalnızca ölçülen büyüklükte (kanal renkleri = tuvaldeki çizgi renkleri, `renk('--volt')` aynı kaynaktan) ve tek vurguda (camgöbeği). Sayılar mono + `tabular-nums`; ölçüm kartlarının üstünde 2 px kanal rengi şeridi. Hareket ölçülü: tek sonsuz animasyon bağlı noktasının nabzı, `prefers-reduced-motion` hepsini kapatıyor. Üst şeritteki dört ayrı öğe tek `.baglanti` öbeği oldu (dar ekranda dağılıyordu); taşıyıcı menüsüne **`demo` seçeneği** eklendi — `?demo`'da seçici **boş** görünüyordu.
+
+**Headless render iki canlı kusur buldu** (ikisi de yalnızca tarayıcıda görünür):
+
+| | Kusur | Sebep | Düzeltme |
+|---|---|---|---|
+| **R1** | `sahte-kart.js` **iki kez** iniyor → `Identifier 'SahteKart' has already been declared` → sayfanın o andan sonraki betikleri düşüyor | `?demo` açılışında `demoVeri()` hem `mounted()`'tan hem yeni `watch`'tan çağrılıyor, ikisi de betiği beklerken geçiyordu | `betikYukle` aynı `src`'yi ikinci kez eklemiyor + `demoKurulu` kapısı `await`ten **önce** kapanıyor |
+| **R2** | Demo akışı ilk 300 noktadan sonra **susuyor**, rozet "bağlı değil" | `demoVeri()` önce `tasiyiciAdi`'yi 'demo' yapıp sonra `bagli`'yi açıyor; `watch` ondan sonra koşup **az önce açılan** bağlantıyı "eski taşıyıcı" sanıp kapatıyordu | bağlı taşıyıcı artık açıkça tutuluyor (`bagliTasiyici`), watch yalnızca **onu** kapatıyor |
+
+**Doğrulama:** `test_arayuz3.js` 203 → **225**; bölüm 13 tasarım sistemini sınıyor (her renk belirteci **iki temada da** tanımlı, kanal renkleri üçü de farklı ve vurgudan ayrı, `app.js`'in tuvalde okuduğu her belirteç CSS'te var, reduced-motion karşılığı, sonsuz animasyon ≤ 1, tek stil dosyası, her taşıyıcının menüde seçeneği). Mutasyon B7 **26/26** (yeni 7'si: akım rengini gerilime eşitle, açık temadan belirteç sil, reduced-motion bloğunu boz, demo seçeneğini kaldır, `destekli()`'yi geri al, `demoKurulu` kapısını aç, taşıyıcı sahipliğini eski hâle döndür). Headless: 5 görünüm × 2 tema yerel + karttan `#/olcum` (0 konsol hatası, ham `{{ }}` yok, nabız animasyonu etkin). LittleFS 102.9 KB, %11.2.
+
+**Bu aşamada yakalanan kendi hatalarım:**
+
+* Bölüm 13'ün iki asenkron iddiası **özet satırından sonra** koşuyordu: sayılmıyor, kırmızı olsa bile süreç 0 ile çıkıyordu — iddia değil süsleme. Asenkron iddialar artık `SONRA` kuyruğunda, özetten önce bekleniyor.
+* Sahte 2B bağlam `measureText()` için `undefined` dönüyordu; gerçek tarayıcı her zaman `TextMetrics` döner. Taklit düzeltildi (B17 dersi: taklit **gerçeği** modellemeli, kodu savunmacı yazmak yerine).
+* Yerel `secenekler` değişkeni Vue'nun `secenekler`ini gölgeleyip asenkron bölümü çökertti — `unhandledRejection` kancası sayesinde sessiz kalmadı.
+* `tarayici.py`'nin `bekle()`'si soket zaman aşımını 0.25 s'ye çekip `al()` çağırıyordu; zaman aşımı **çerçeve ortasında** düşünce okunan 2 başlık baytı kayboluyor ve CDP akışı bozuluyordu (açık tema render'ı böyle düştü) → `select` ile önce veri var mı bakılıyor. Ayrıca `Fetch.enable` uzun oturumlarda `captureScreenshot`'ı asıyor: parolasız sunucuda `auth_iptal=False`, her tema **kendi tarayıcı örneğinde**.
+
+**Aşama 3'e kalan:** telefon kırılımı (şu an yalnızca 560 px altı için asgari kural var), `ayar` görünümünde alan genişlikleri düzensiz, grafik tepe etiketleri şeritli ama hâlâ çizgiye yakın.
+
 ---
 
 #### 5.12.17 Sırada ne var

@@ -22,8 +22,9 @@
 <link rel="icon" href="ikon-180.png">
 <link rel="manifest" href="manifest.json">
 
+<!-- B27 A2: tek CSS. `ek.css` style.css'e katildi — karttan her ek
+     istek olcum dongusunu blokluyor (web sunucusu loop() icinde). -->
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="ek.css">
 </head>
 <body>
 
@@ -31,30 +32,37 @@
 
   <!-- ───────────────────────────────────────────── üst şerit -->
   <header class="ust">
-    <div>
+    <div class="marka">
       <h1>Ölçüm Kartı <span class="menzil-rozet">AŞAMA 3 · ÇİFT YÖNLÜ</span></h1>
       <p class="alt">Voltmetre · Ampermetre · Wattmetre · Osiloskop</p>
     </div>
     <div class="bosluk"></div>
 
-    <span class="rozet" :class="bagli ? 'acik' : 'kapali'">
-      <span class="nokta"></span>{{ bagli ? 'bağlı' : 'bağlı değil' }}
-    </span>
+    <!-- B27 A2: durum + yol + adres + düğme TEK öbek. Önce dördü ayrı
+         esnek öğeydi ve dar ekranda her biri başka satıra düşüyordu. -->
+    <div class="baglanti">
+      <span class="rozet" :class="bagli ? 'acik' : 'kapali'">
+        <span class="nokta"></span>{{ bagli ? 'bağlı' : 'bağlı değil' }}
+      </span>
 
-    <!-- B22.2: TAŞIYICI SEÇİCİ. Modlar arasındaki fark kodda değil
-         burada: aynı arayüz, farklı yol. -->
-    <select v-model="tasiyiciAdi" :disabled="bagli" title="bağlantı yolu">
-      <option value="seri">USB (Web Serial)</option>
-      <option value="akis">WiFi / köprü (akış)</option>
-    </select>
-    <input v-if="tasiyiciAdi === 'akis'" v-model="kartTaban" :disabled="bagli"
-           placeholder="http://olcum.local (boş = aynı köken)"
-           style="min-width:220px">
+      <!-- B22.2: TAŞIYICI SEÇİCİ. Modlar arasındaki fark kodda değil
+           burada: aynı arayüz, farklı yol.
+           B27 A2: `demo` seçeneği EKLENDİ — ?demo ile açınca taşıyıcı
+           'demo' oluyordu ama menüde karşılığı yoktu ve seçici BOŞ
+           görünüyordu. -->
+      <select v-model="tasiyiciAdi" :disabled="bagli" title="bağlantı yolu">
+        <option value="seri">USB (Web Serial)</option>
+        <option value="akis">WiFi / köprü (akış)</option>
+        <option value="demo">Demo — sahte kart</option>
+      </select>
+      <input v-if="tasiyiciAdi === 'akis'" v-model="kartTaban" :disabled="bagli"
+             placeholder="http://olcum.local (boş = aynı köken)">
 
-    <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">
-      Karta bağlan
-    </button>
-    <button v-else @click="kes">Bağlantıyı kes</button>
+      <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">
+        Karta bağlan
+      </button>
+      <button v-else @click="kes">Bağlantıyı kes</button>
+    </div>
   </header>
 
   <!-- ───────────────────────────────────────────── gezinme (B27 A1)
@@ -114,6 +122,9 @@
       <div class="deger" v-if="!amperGecersiz">{{ akimGoster }}<span class="birim">{{ akimBirim }}</span></div>
       <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
       <div class="alt-bilgi uyari-metin" v-if="amperGecersiz">veri yok — akım ADC'si (0x48) yanıt vermiyor</div>
+      <!-- B27 A2-b: menzil VE adım. Adım olmadan boştaki girişin
+           gürültüsü (0.1 Ω şöntte 1 LSB = 78 µA) gerçek akım sanılıyor. -->
+      <div class="alt-bilgi" v-else>{{ akimMenzilAralik }}</div>
     </div>
     <div class="olcum w">
       <div class="ad">Güç</div>

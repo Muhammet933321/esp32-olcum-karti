@@ -1,194 +1,398 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   Ölçüm Kartı — arayüz
-   Tasarım belirteçleri stok-takip/web/style.css ile aynı tutuldu.
+   Ölçüm Kartı — TASARIM SİSTEMİ  (B27 Aşama 2, 2026-09-12)
+
+   TEK CSS DOSYASI. Önceden `style.css` (stok-takip'ten kopya) + `ek.css`
+   (Aşama 3 yamaları) vardı; belirteçler iki dosyaya dağılmıştı ve karttan
+   her açılış iki ayrı HTTP isteği demekti — her istek ölçüm döngüsünü
+   blokluyor (web sunucusu hâlâ loop() içinde). Birleştirildi.
+
+   YÖN: laboratuvar cihazı. Gövde nötr ve sessiz; RENK YALNIZCA ÖLÇÜLEN
+   BÜYÜKLÜKTE ve tek bir vurguda (camgöbeği) var. Üç kanal rengi
+   (gerilim · akım · güç) aynı zamanda tuvalde çizgi rengi: `app.js`
+   `renk('--volt')` ile buradan okuyor — ekranla grafik ASLA ayrışmasın.
+
+   Sayılar `--mono` ve `tabular-nums`: değer değişirken hane kaymaz.
+   Ölçü aleti okurken zıplayan rakam okunaksızdır.
+
+   TEMA: koyu VARSAYILAN (tezgah aleti), açık tema sistem tercihine uyar.
+   Bütün belirteçler `:root`ta tanımlı; `@media (prefers-color-scheme:
+   light)` yalnızca DEĞERLERİ değiştiriyor — hiçbir bileşen kuralı tema
+   bloğunun içinde yaşamıyor. Bir rengin tek tanımı medya bloğunda
+   kalırsa öteki temada sessizce kaybolur.
    ═══════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --zemin:       #f6f7f9;
-  --zemin-2:     #eef0f4;
-  --kart:        #ffffff;
-  --kenar-c:     #e3e6ec;
-  --kenar-koyu:  #cdd3dd;
-  --yazi:        #14181e;
-  --soluk:       #69717f;
-  --cok-soluk:   #99a1af;
-  --vurgu:       #2b5cd9;
-  --vurgu-yazi:  #ffffff;
-  --vurgu-zemin: #eaf0ff;
-  --uyari:       #b42318;
-  --uyari-zemin: #fef3f2;
-  --iyi:         #067647;
-  --iyi-zemin:   #ecfdf3;
-  --volt:        #2b5cd9;
-  --amper:       #b54708;
-  --watt:        #067647;
-  --golge-1:     0 1px 2px rgba(16,24,40,.05);
-  --golge-2:     0 2px 4px rgba(16,24,40,.05), 0 8px 20px rgba(16,24,40,.06);
+  /* ── gövde: hafif mavi-yeşil kaçışlı nötrler (kasa) */
+  --zemin:       #0b0f14;
+  --zemin-2:     #101821;
+  --kart:        #131c25;
+  --kenar-c:     #1f2b37;
+  --kenar-koyu:  #31414f;
+  --yazi:        #dee7ef;
+  --soluk:       #94a3b3;
+  --cok-soluk:   #6b7c8b;
+
+  /* ── tek vurgu: etkileşim ve etkin durum. Ölçülen büyüklük DEĞİL. */
+  --vurgu:       #4cc4e0;
+  --vurgu-yazi:  #05131a;
+  --vurgu-zemin: #0d2a34;
+
+  /* ── anlam renkleri (vurgudan ayrı): uyarı ve iyi durum */
+  --uyari:       #ff8f7a;
+  --uyari-zemin: #2a1310;
+  --iyi:         #74d99b;
+  --iyi-zemin:   #0c2a1c;
+
+  /* ── ÖLÇÜLEN BÜYÜKLÜKLER — hem kart hem tuval çizgisi */
+  --volt:        #6ea8fe;
+  --amper:       #f2a33c;
+  --watt:        #35d39a;
+
+  /* ── biçim */
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+  --govde: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+           "Helvetica Neue", Arial, sans-serif;
   --yuvarlak:    10px;
-  --gecis:       .15s ease;
-  color-scheme: light;
+  --yuvarlak-sm: 7px;
+  --gecis:       140ms cubic-bezier(.2, .6, .3, 1);
+  --golge-1:     0 1px 0 rgba(255, 255, 255, .02) inset;
+  --golge-2:     0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .35);
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
-    --zemin:       #0f1216;
-    --zemin-2:     #161b21;
-    --kart:        #171b21;
-    --kenar-c:     #262c35;
-    --kenar-koyu:  #38414e;
-    --yazi:        #e6e9ee;
-    --soluk:       #929bab;
-    --cok-soluk:   #6b7484;
-    --vurgu:       #6690ff;
-    --vurgu-yazi:  #0f1216;
-    --vurgu-zemin: #1a2338;
-    --uyari:       #fda29b;
-    --uyari-zemin: #2e1512;
-    --iyi:         #75e0a7;
-    --iyi-zemin:   #0a2c1c;
-    --volt:        #6690ff;
-    --amper:       #f79009;
-    --watt:        #47cd89;
-    --golge-1:     0 1px 2px rgba(0,0,0,.4);
-    --golge-2:     0 2px 4px rgba(0,0,0,.3), 0 8px 20px rgba(0,0,0,.25);
-    color-scheme: dark;
+    --zemin:       #eceff4;
+    --zemin-2:     #e1e6ed;
+    --kart:        #ffffff;
+    --kenar-c:     #d6dde6;
+    --kenar-koyu:  #b4c0cd;
+    --yazi:        #0e1620;
+    --soluk:       #53616f;
+    --cok-soluk:   #75828f;
+
+    --vurgu:       #0a7e9c;
+    --vurgu-yazi:  #ffffff;
+    --vurgu-zemin: #e0f3f8;
+
+    --uyari:       #b42318;
+    --uyari-zemin: #fdecea;
+    --iyi:         #0a7a4c;
+    --iyi-zemin:   #e6f7ee;
+
+    --volt:        #1f5ed0;
+    --amper:       #b0590a;
+    --watt:        #0b7a58;
+
+    --golge-1:     0 1px 2px rgba(16, 24, 40, .05);
+    --golge-2:     0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .08);
+    color-scheme: light;
   }
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+
+/* ⚠ `display` tanımlayan bir sınıf tarayıcının [hidden] kuralını ezer.
+   Bu satır onu engelliyor — silme (stok-takip'te aynı tuzak). */
 [hidden] { display: none !important; }
 [v-cloak] { display: none; }
+
+/* Hareket ÖLÇÜLÜ: yalnızca durum geçişleri, yalnızca 140 ms. Sistemde
+   "hareketi azalt" seçiliyse hepsi kapanır. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 body {
   margin: 0;
   background: var(--zemin);
   color: var(--yazi);
-  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-        "Helvetica Neue", Arial, sans-serif;
+  font: 14px/1.5 var(--govde);
+  -webkit-font-smoothing: antialiased;
 }
 
-.sarmal { max-width: 1180px; margin: 0 auto; padding: 20px 20px 60px; }
+.sarmal { max-width: 1180px; margin: 0 auto; padding: 18px 20px 60px; }
 
-/* ───────────────────────────────────────────────────── üst şerit */
+/* ═══════════════════════════════════════════════════════ üst şerit */
 .ust {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding: 14px 0 18px;
-  border-bottom: 1px solid var(--kenar-c);
-  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 6px 0 16px;
 }
-.ust h1 { font-size: 17px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
-.ust .alt { color: var(--soluk); font-size: 13px; margin: 2px 0 0; }
+.marka { min-width: 200px; }
+.ust h1 {
+  font-size: 16px; font-weight: 600; margin: 0; letter-spacing: .01em;
+}
+.ust .alt {
+  color: var(--cok-soluk); font-size: 12px; margin: 3px 0 0;
+  letter-spacing: .01em;
+}
 .bosluk { flex: 1; }
 
-.rozet {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border-radius: 999px;
-  font-size: 12px; font-weight: 600;
-  background: var(--zemin-2); color: var(--soluk);
+/* Bağlantı kümesi: durum + yol + adres + düğme TEK öbek. Dar ekranda
+   hepsi birlikte alt satıra iner; önceden tek tek dağılıyordu. */
+.baglanti {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
-.rozet.acik { background: var(--iyi-zemin); color: var(--iyi); }
-.rozet.kapali { background: var(--uyari-zemin); color: var(--uyari); }
-.nokta { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.baglanti select { width: auto; min-width: 168px; }
+.baglanti input[type=text] { width: auto; min-width: 210px; }
 
-/* ───────────────────────────────────────────────────── düğmeler */
-button {
-  font: inherit; font-weight: 550;
-  padding: 8px 14px; border-radius: 8px;
-  border: 1px solid var(--kenar-koyu); background: var(--kart); color: var(--yazi);
-  cursor: pointer; transition: var(--gecis);
+.rozet {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; letter-spacing: .01em;
+  background: var(--zemin-2); color: var(--soluk);
+  border: 1px solid var(--kenar-c);
 }
-button:hover:not(:disabled) { background: var(--zemin-2); border-color: var(--cok-soluk); }
-button:disabled { opacity: .45; cursor: not-allowed; }
+.rozet.acik { background: var(--iyi-zemin); color: var(--iyi); border-color: transparent; }
+.rozet.kapali { background: var(--zemin-2); color: var(--cok-soluk); }
+.nokta { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+/* Canlı akış: nokta yavaşça soluyor. Tek hareket bu — "veri geliyor"
+   bilgisini metin tekrar etmeden veriyor. */
+.rozet.acik .nokta { animation: nabiz 2.4s ease-in-out infinite; }
+@keyframes nabiz {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .35; }
+}
+
+/* ═══════════════════════════════════════════════════════ gezinme */
+.gorunum-nav {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; gap: 2px;
+  margin: 0 0 18px;
+  padding: 4px 0 0;
+  border-bottom: 1px solid var(--kenar-c);
+  background: var(--zemin);
+  overflow-x: auto;            /* dar ekranda yatay kaydır, sayfayı taşırma */
+  scrollbar-width: none;
+}
+.gorunum-nav::-webkit-scrollbar { display: none; }
+
+.gorunum-sekme {
+  flex: 0 0 auto;
+  padding: 9px 15px 11px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--soluk);
+  font-size: 13.5px; font-weight: 500;
+  text-decoration: none; white-space: nowrap;
+  transition: color var(--gecis), border-color var(--gecis);
+}
+.gorunum-sekme:hover { color: var(--yazi); }
+.gorunum-sekme:focus-visible {
+  outline: 2px solid var(--vurgu); outline-offset: -2px;
+  border-radius: var(--yuvarlak-sm);
+}
+.gorunum-sekme.etkin {
+  color: var(--vurgu); border-bottom-color: var(--vurgu); font-weight: 600;
+}
+
+.gorunum { display: block; }
+
+/* Tek bildirim alanı; hiç bildirim yoksa yer kaplamaz. */
+.bildirimler { display: flex; flex-direction: column; gap: 8px; }
+.bildirimler:empty { display: none; }
+.bildirimler > .hata, .bildirimler > .uyari { margin: 0; }
+.bildirimler:not(:empty) { margin-bottom: 18px; }
+
+/* ═══════════════════════════════════════════════════════ denetimler */
+button {
+  font: inherit; font-weight: 500;
+  padding: 8px 14px; border-radius: var(--yuvarlak-sm);
+  border: 1px solid var(--kenar-koyu); background: var(--kart); color: var(--yazi);
+  cursor: pointer;
+  transition: background var(--gecis), border-color var(--gecis), color var(--gecis);
+}
+button:hover:not(:disabled) { border-color: var(--vurgu); color: var(--vurgu); }
+button:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 1px; }
+button:disabled { opacity: .4; cursor: not-allowed; }
 button.birincil {
   background: var(--vurgu); border-color: var(--vurgu); color: var(--vurgu-yazi);
+  font-weight: 600;
 }
-button.birincil:hover:not(:disabled) { filter: brightness(1.08); background: var(--vurgu); }
+button.birincil:hover:not(:disabled) {
+  filter: brightness(1.1); background: var(--vurgu); color: var(--vurgu-yazi);
+}
+/* Seçili/etkin durum — `display`e DOKUNMUYOR ([hidden] tuzağı). */
+button.etkin {
+  border-color: var(--vurgu); color: var(--vurgu);
+  background: var(--vurgu-zemin); font-weight: 600;
+}
+.dugme-grup { display: flex; gap: 6px; flex-wrap: wrap; }
 
 input[type=text], input[type=number], select {
-  font: inherit; padding: 7px 10px; border-radius: 8px;
+  font: inherit; padding: 7px 10px; border-radius: var(--yuvarlak-sm);
   border: 1px solid var(--kenar-koyu); background: var(--kart); color: var(--yazi);
   width: 100%;
+  transition: border-color var(--gecis);
 }
+input[type=text]:hover, input[type=number]:hover, select:hover { border-color: var(--cok-soluk); }
 input:focus, select:focus { outline: 2px solid var(--vurgu); outline-offset: -1px; }
+input::placeholder { color: var(--cok-soluk); }
+input[type=range] { accent-color: var(--vurgu); }
 
-/* ───────────────────────────────────────────────────── kartlar */
+.satir { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.alan { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+.alan label { font-size: 12px; color: var(--soluk); font-weight: 500; }
+
+/* ═══════════════════════════════════════════════════════ kartlar */
 .kart {
   background: var(--kart); border: 1px solid var(--kenar-c);
   border-radius: var(--yuvarlak); box-shadow: var(--golge-1);
-  padding: 16px; margin-bottom: 16px;
+  padding: 16px 18px; margin-bottom: 16px;
 }
 .kart > h2 {
-  font-size: 12px; font-weight: 650; text-transform: uppercase;
-  letter-spacing: .06em; color: var(--soluk);
+  font-size: 11.5px; font-weight: 650; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--cok-soluk);
   margin: 0 0 14px;
 }
 
-/* ───────────────────────────────────────────────────── ölçüm kutuları */
+/* ══════════════════════════════════ anlık ölçüm kartları
+   Üstteki 2 px'lik çizgi kanalın rengi — kartın hangi büyüklük olduğu
+   sayıyı okumadan görünür ve grafikteki çizgiyle AYNI renk. */
 .olcumler {
-  display: grid; gap: 12px; margin-bottom: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  display: grid; gap: 12px; margin-bottom: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 .olcum {
+  position: relative; overflow: hidden;
   background: var(--kart); border: 1px solid var(--kenar-c);
   border-radius: var(--yuvarlak); box-shadow: var(--golge-1);
-  padding: 14px 16px;
+  padding: 15px 16px 14px;
 }
+.olcum::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 2px;
+  background: var(--kenar-koyu);
+}
+.olcum.v::before { background: var(--volt); }
+.olcum.i::before { background: var(--amper); }
+.olcum.w::before { background: var(--watt); }
 .olcum .ad {
   font-size: 11px; font-weight: 650; text-transform: uppercase;
-  letter-spacing: .06em; color: var(--soluk); margin-bottom: 6px;
+  letter-spacing: .07em; color: var(--cok-soluk); margin-bottom: 8px;
 }
 .olcum .deger {
-  font-size: 30px; font-weight: 300; letter-spacing: -.02em;
-  font-variant-numeric: tabular-nums; line-height: 1.1;
+  font-family: var(--mono);
+  font-size: 32px; font-weight: 500; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; line-height: 1.05;
 }
-.olcum .birim { font-size: 15px; color: var(--soluk); margin-left: 3px; }
+.olcum .birim {
+  font-family: var(--govde);
+  font-size: 14px; font-weight: 400; color: var(--soluk); margin-left: 4px;
+}
 .olcum.v .deger { color: var(--volt); }
 .olcum.i .deger { color: var(--amper); }
 .olcum.w .deger { color: var(--watt); }
+/* B27/K1: ADC yanıt vermediyse sayı yerine "—", soluk */
+.olcum .deger.gecersiz { opacity: .3; }
 
+/* Ölçümün altındaki ikincil satır: menzil · adım · güç yönü */
+.alt-bilgi {
+  margin-top: 5px;
+  font-size: 11.5px; color: var(--cok-soluk);
+  min-height: 1.2em;           /* boşken de yer kaplasın, zıplamasın */
+  font-variant-numeric: tabular-nums;
+}
+.alt-bilgi.uyari-metin, .uyari-metin { color: var(--uyari); }
+
+/* Gerilim başlığının yanındaki menzil rozeti — hangi KANAL okunuyor.
+   Çözünürlük iki kanalda 18 kat farklı, bu yüzden görünür olmalı. */
+.menzil-rozet {
+  display: inline-block; vertical-align: middle;
+  margin-left: 8px; padding: 2px 7px;
+  border: 1px solid currentColor; border-radius: 4px;
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .06em; opacity: .65;
+}
+
+/* İkincil ölçüm kutuları (enerji, süre, örnekleme) */
 .ikincil {
   display: grid; gap: 10px; margin-bottom: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 .ikincil .kutu {
-  background: var(--zemin-2); border-radius: 8px; padding: 10px 12px;
+  background: var(--zemin-2); border: 1px solid var(--kenar-c);
+  border-radius: var(--yuvarlak-sm); padding: 11px 13px;
 }
-.ikincil .ad { font-size: 11px; color: var(--soluk); margin-bottom: 2px; }
+.ikincil .ad { font-size: 11px; color: var(--cok-soluk); margin-bottom: 3px; }
 .ikincil .deger {
-  font-size: 17px; font-variant-numeric: tabular-nums; font-weight: 500;
+  font-family: var(--mono); font-size: 17px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ───────────────────────────────────────────────────── grafik */
-.tuval-sarmal { position: relative; width: 100%; }
-canvas { display: block; width: 100%; border-radius: 8px; background: var(--zemin-2); }
+/* KPI döşemesi (pil paneli) — .skop-olcum ile aynı ölçüler */
+.kpi {
+  display: flex; flex-direction: column; gap: 3px;
+  min-width: 132px; padding: 8px 11px;
+  background: var(--zemin-2); border: 1px solid var(--kenar-c);
+  border-radius: var(--yuvarlak-sm);
+}
+.kpi-ad {
+  font-size: 11px; color: var(--cok-soluk);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.kpi-deger {
+  font-family: var(--mono); font-size: 14px; color: var(--yazi);
+  font-variant-numeric: tabular-nums;
+}
 
-.gosterge { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
+/* ═══════════════════════════════════════════════════════ tuvaller */
+.tuval-sarmal { position: relative; width: 100%; }
+canvas {
+  display: block; width: 100%;
+  border-radius: var(--yuvarlak-sm);
+  background: var(--zemin-2);
+  border: 1px solid var(--kenar-c);
+}
+canvas.surukle { cursor: grab; }
+canvas.surukle:active { cursor: grabbing; }
+
+.gosterge { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
 .gosterge label {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: 7px;
   font-size: 13px; color: var(--soluk); cursor: pointer;
 }
-.cizgi { width: 14px; height: 3px; border-radius: 2px; }
+.gosterge input[type=checkbox] { accent-color: var(--vurgu); }
+.cizgi { width: 16px; height: 3px; border-radius: 2px; }
 
-/* ───────────────────────────────────────────────────── denetimler */
-.satir { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-.alan { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
-.alan label { font-size: 12px; color: var(--soluk); font-weight: 550; }
-
+/* ═══════════════════════════════════════════════════════ metin */
 .ipucu {
-  font-size: 12px; color: var(--soluk); margin: 10px 0 0; line-height: 1.5;
+  font-size: 12.5px; color: var(--soluk); margin: 10px 0 0; line-height: 1.55;
 }
+.ipucu code, .kart code {
+  font-family: var(--mono); font-size: .92em;
+  background: var(--zemin-2); border: 1px solid var(--kenar-c);
+  border-radius: 4px; padding: 1px 5px;
+}
+a { color: var(--vurgu); }
 
+/* .hata GEÇİCİ bir olaydır (tam çerçeve), .uyari KALICI bir talimattır
+   (sol şerit). İkisi görsel olarak AYRI olmalı: aynı görünürlerse
+   kullanıcı emniyet uyarısını "geçmiş bir hata" sanıp göz ardı eder. */
 .hata {
   background: var(--uyari-zemin); color: var(--uyari);
-  border: 1px solid currentColor; border-radius: 8px;
-  padding: 10px 12px; margin-bottom: 16px; font-size: 13px;
+  border: 1px solid currentColor; border-radius: var(--yuvarlak-sm);
+  padding: 10px 13px; margin-bottom: 16px; font-size: 13px; line-height: 1.5;
+}
+.uyari {
+  margin: 10px 0 0; padding: 10px 13px;
+  border-radius: var(--yuvarlak-sm);
+  background: color-mix(in srgb, var(--uyari) 9%, transparent);
+  border-left: 3px solid var(--uyari);
+  color: var(--yazi); font-size: 13px; line-height: 1.5;
 }
 
-/* ───────────────────────────────────────────────────── günlük */
+/* ═══════════════════════════════════════════════════════ konsol */
 .gunluk {
-  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  background: var(--zemin-2); border-radius: 8px;
-  padding: 10px 12px; max-height: 220px; overflow-y: auto;
+  font: 12px/1.6 var(--mono);
+  background: var(--zemin-2); border: 1px solid var(--kenar-c);
+  border-radius: var(--yuvarlak-sm);
+  padding: 11px 13px; max-height: 260px; overflow-y: auto;
   white-space: pre-wrap; word-break: break-all; color: var(--soluk);
 }
 .gunluk .giden { color: var(--vurgu); }
@@ -203,148 +407,100 @@ details > summary::before { content: "▸ "; }
 details[open] > summary::before { content: "▾ "; }
 details > summary + * { margin-top: 12px; }
 
-/* ═════════════════════════════════════════════ osiloskop denetimleri */
+/* ═══════════════════════════════════════════════════════ osiloskop */
 .skop-grup {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid var(--kenar-c);
-  border-radius: 6px;
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--kenar-c); border-radius: var(--yuvarlak-sm);
   padding: 2px;
 }
-.skop-grup button {
-  padding: 4px 10px;
-  min-width: 34px;
-}
+.skop-grup button { padding: 4px 10px; min-width: 34px; }
 .skop-deger {
-  font-family: ui-monospace, monospace;
-  font-size: 13px;
-  color: var(--yazi);
-  min-width: 68px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
+  font-family: var(--mono); font-size: 13px; color: var(--yazi);
+  min-width: 68px; text-align: center; font-variant-numeric: tabular-nums;
 }
 .skop-kaydir {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--soluk);
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--soluk);
 }
 .skop-kaydir input[type="range"] { width: 150px; }
 .skop-kaydir .skop-deger { min-width: 48px; }
 
 .skop-uyari {
-  margin: 8px 0 0;
-  padding: 7px 11px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--watt) 12%, transparent);
+  margin: 8px 0 0; padding: 8px 12px;
+  border-radius: var(--yuvarlak-sm);
+  background: color-mix(in srgb, var(--watt) 10%, transparent);
   border-left: 3px solid var(--watt);
-  color: var(--yazi);
-  font-size: 13px;
+  color: var(--yazi); font-size: 13px;
 }
 
 .skop-olcum {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
-  gap: 1px;
-  margin-top: 12px;
-  background: var(--kenar-c);
-  border: 1px solid var(--kenar-c);
-  border-radius: 6px;
-  overflow: hidden;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+  gap: 1px; margin-top: 12px;
+  background: var(--kenar-c); border: 1px solid var(--kenar-c);
+  border-radius: var(--yuvarlak-sm); overflow: hidden;
 }
 .skop-olcum-oge {
-  background: var(--kart);
-  padding: 7px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  background: var(--kart); padding: 8px 11px;
+  display: flex; flex-direction: column; gap: 3px;
 }
 .skop-olcum-ad {
-  font-size: 11px;
-  color: var(--cok-soluk);
-  text-transform: uppercase;
-  letter-spacing: .04em;
+  font-size: 11px; color: var(--cok-soluk);
+  text-transform: uppercase; letter-spacing: .05em;
 }
 .skop-olcum-deger {
-  font-family: ui-monospace, monospace;
-  font-size: 14px;
-  color: var(--yazi);
+  font-family: var(--mono); font-size: 14px; color: var(--yazi);
   font-variant-numeric: tabular-nums;
 }
-.skop-olcum-oge.vurgu .skop-olcum-deger {
-  color: var(--volt);
-  font-weight: 600;
-}
+.skop-olcum-oge.vurgu .skop-olcum-deger { color: var(--volt); font-weight: 600; }
 
-/* ═════════════════════════════════════════════ demo kipi */
+/* yakınlaştırma denetimleri */
+.zoom-satir { margin-top: 10px; flex-wrap: wrap; gap: 10px; align-items: center; }
+.zoom-grup {
+  display: inline-flex; align-items: center; gap: 3px;
+  border: 1px solid var(--kenar-c); border-radius: var(--yuvarlak-sm);
+  padding: 2px 6px 2px 2px;
+}
+.zoom-grup button { padding: 3px 8px; min-width: 28px; font-size: 12px; }
+.zoom-ad {
+  font-size: 11px; color: var(--cok-soluk);
+  text-transform: uppercase; letter-spacing: .05em; padding: 0 6px 0 4px;
+}
+.zoom-grup .skop-deger { min-width: 62px; font-size: 12px; }
+
+/* RUN/STOP — sürekli yakalama açıkken düğme KENDİSİ sinyal rengi */
+button.kosuyor {
+  background: var(--amper); border-color: var(--amper);
+  color: #06121f; font-weight: 600;
+}
+button.kosuyor:hover:not(:disabled) { color: #06121f; border-color: var(--amper); }
+.uyari-renk { color: var(--watt) !important; font-weight: 600; }
+
+/* ═══════════════════════════════════════════════════════ demo kipi */
 .demo-serit {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-  padding: 9px 12px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--amper) 10%, transparent);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 12px; padding: 9px 12px;
+  border-radius: var(--yuvarlak-sm);
+  background: color-mix(in srgb, var(--amper) 9%, transparent);
   border: 1px dashed color-mix(in srgb, var(--amper) 45%, transparent);
   font-size: 13px;
 }
 .demo-rozet {
-  font-family: ui-monospace, monospace;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: var(--amper);
-  color: #06121f;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 700;
+  letter-spacing: .1em; padding: 2px 7px; border-radius: 4px;
+  background: var(--amper); color: #06121f;
 }
-.demo-serit label {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--soluk);
-}
+.demo-serit label { display: inline-flex; align-items: center; gap: 7px; color: var(--soluk); }
 .demo-not { color: var(--cok-soluk); font-size: 12px; }
 
-/* ═════════════════════════════════════════════ yakınlaştırma denetimleri */
-.zoom-satir {
-  margin-top: 10px;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
+/* ═══════════════════════════════════════════════════════ dar ekran
+   Telefon: ölçüm kartları tek sütun, sayı büyük kalsın; üst şerit
+   kümesi tam genişlik. Aşama 3 bunu daha ileri götürecek. */
+@media (max-width: 560px) {
+  .sarmal { padding: 14px 14px 48px; }
+  .ust { gap: 10px; }
+  .baglanti { width: 100%; }
+  .baglanti select, .baglanti input[type=text] { flex: 1 1 160px; min-width: 0; }
+  .olcumler { grid-template-columns: 1fr; }
+  .olcum .deger { font-size: 28px; }
+  .gorunum-sekme { padding: 9px 12px 11px; }
 }
-.zoom-grup {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  border: 1px solid var(--kenar-c);
-  border-radius: 6px;
-  padding: 2px 6px 2px 2px;
-}
-.zoom-grup button {
-  padding: 3px 8px;
-  min-width: 28px;
-  font-size: 12px;
-}
-.zoom-ad {
-  font-size: 11px;
-  color: var(--cok-soluk);
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  padding: 0 6px 0 4px;
-}
-.zoom-grup .skop-deger { min-width: 62px; font-size: 12px; }
-
-/* RUN/STOP ve sürükleme */
-button.kosuyor {
-  background: var(--amper);
-  color: #06121f;
-  border-color: var(--amper);
-  font-weight: 600;
-}
-canvas.surukle { cursor: grab; }
-canvas.surukle:active { cursor: grabbing; }
-.uyari-renk { color: var(--watt) !important; font-weight: 600; }

@@ -30,6 +30,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import select
 import socket
 import struct
 import subprocess
@@ -130,6 +131,14 @@ class _WS:
 
 class Tarayici:
     def __init__(self, genislik=1280, yukseklik=1000, port=9333, auth_iptal=True):
+        """auth_iptal: Basic Auth sorusunu CDP'den iptal et (kart icin sart).
+
+        ⚠ Bunun BEDELI var: `Fetch.enable` HER istegi duraklatiyor ve
+        surdurme isi bizim olay dongumuzde. Uzun oturumlarda (10+ gezinme)
+        `Page.captureScreenshot` yanit vermez oldu — parolasiz bir sunucuda
+        (yerel gelistirme, ?demo) `auth_iptal=False` ver, yakalama hic
+        kurulmasin.
+        """
         self.port = port
         self.profil = tempfile.mkdtemp(prefix="olcum-edge-")
         self.surec = subprocess.Popen(
@@ -195,19 +204,35 @@ class Tarayici:
                                  str(d.get("exception", {}).get("description", ""))})
 
     def bekle(self, sn: float) -> None:
-        """Olaylari islemeye devam ederek `sn` saniye bekle."""
+        """Olaylari islemeye devam ederek `sn` saniye bekle.
+
+        🔴 Once soket zaman asimi 0.25 s'ye cekilip `al()` cagriliyordu.
+        Zaman asimi CERCEVE ORTASINDA dusunce `al()` zaten okudugu 2
+        baslik baytini kaybediyor ve akis KAYIYOR — sonraki her CDP
+        yaniti coz​ulemez oluyordu (acik tema render'i boyle dustu).
+        Artik once `select` ile VERI VAR MI diye bakiliyor; `al()` hep
+        tam cerceve okuyor.
+        """
         son = time.monotonic() + sn
-        self.ws.s.settimeout(0.25)
-        try:
-            while time.monotonic() < son:
-                try:
-                    self._olay(json.loads(self.ws.al()))
-                except (socket.timeout, TimeoutError):
-                    pass
-        finally:
-            self.ws.s.settimeout(30)
+        while True:
+            kalan = son - time.monotonic()
+            if kalan <= 0:
+                return
+            hazir, _, _ = select.select([self.ws.s], [], [], min(0.25, kalan))
+            if hazir:
+                self._olay(json.loads(self.ws.al()))
 
     # ── sayfa ───────────────────────────────────────────────────────
+    def tema(self, ad: str) -> None:
+        """`dark` / `light` / `` (sistem) — prefers-color-scheme'i taklit et.
+
+        B27 A2: acik tema yalnizca belirtec degerlerini degistiriyor;
+        "bir temada guzel, otekinde okunaksiz" halini GORMEDEN iddia
+        edemeyiz. Bu, iki temayi da headless'ta render etmenin yolu.
+        """
+        ozellikler = [{"name": "prefers-color-scheme", "value": ad}] if ad else []
+        self.cagir("Emulation.setEmulatedMedia", {"features": ozellikler})
+
     def git(self, url: str) -> None:
         self.cagir("Page.navigate", {"url": url})
         self.bekle(0.5)

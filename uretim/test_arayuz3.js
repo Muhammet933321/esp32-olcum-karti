@@ -57,6 +57,13 @@ function ornek() {
   return o;
 }
 
+/* [!] ASENKRON IDDIA KUYRUGU (B27 A2).
+   Bir `.then()` icinde yazilan `ok()` OZET SATIRINDAN SONRA kosuyordu:
+   sayilmiyor, kirmizi olsa bile surec 0 ile cikiyordu — yani iddia
+   degil, susleme. Asenkron iddialar buraya birakiliyor ve ozetten ONCE
+   (bolum 12'nin zincirinde) bekleniyor. */
+const SONRA = [];
+
 let gecti = 0, kaldi = 0;
 function ok(ad, kosul, ek = '') {
   if (kosul) { gecti++; console.log(`[OK] ${ad}${ek ? '  ' + ek : ''}`); }
@@ -82,6 +89,16 @@ console.log('     firmware: ' + [...firmwareHarfleri].sort().join(' '));
    komut fark edilmemisti. */
 const appKaynak = fs.readFileSync(APP, 'utf8');
 const htmlKaynak = fs.readFileSync(HTML, 'utf8');
+
+/* Sayfanin BAGLADIGI stil dosyalari — elle liste degil. Bir stil dosyasi
+   eklenir/cikarilirsa butun CSS iddialari kendiliginden onu izler. */
+const CSS_YOLLARI = [...htmlKaynak.matchAll(
+  /<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)]
+  .map((m) => m[1])
+  .filter((u) => !/^https?:/.test(u))
+  .map((u) => path.join(ARAYUZ, u));
+const cssOku = () => CSS_YOLLARI.filter((p) => fs.existsSync(p))
+  .map((p) => fs.readFileSync(p, 'utf8')).join('\n');
 
 /* [!] B22.2: YORUMLAR CIKARILIYOR.
    Bir yorumda ornek olarak `gonder('x')` yazmak, komutu GONDERMEK degildir.
@@ -572,12 +589,9 @@ console.log('\n--- 7. Sablon: menzil ve guc yonu gosteriliyor mu ---');
      yoksa kullanici ADS'in degeri yerine bu sayiya guvenir. */
   ok('mutlak deger uyarisi sablonda',
      htmlKaynak.includes('D satırı') && htmlKaynak.includes('ADS1115'));
-  ok('ek.css bagli', htmlKaynak.includes('ek.css'));
-  /* CSS tuzagi: display tanimlayan sinif [hidden] kuralini ezer.
-     ek.css'te display kullanilmadigindan emin ol. */
-  const ek = fs.readFileSync(path.join(ARAYUZ, 'ek.css'), 'utf8');
-  ok('ek.css `button.etkin` icinde display kullanmiyor ([hidden] tuzagi)',
-     !/button\.etkin\s*\{[^}]*display/.test(ek));
+  /* CSS tuzagi: display tanimlayan sinif [hidden] kuralini ezer. */
+  ok('`button.etkin` icinde display kullanilmiyor ([hidden] tuzagi)',
+     !/button\.etkin\s*\{[^}]*display/.test(cssOku()));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -603,8 +617,15 @@ console.log('\n--- 8. Varlik denetimi: referanslar diskte var mi ---');
 {
   /* Dosyayi KOSULSUZ okumak yanlis: eksikse test cokuyor ve hangi iddianin
      dustugu gorunmuyor (yigin izi basiliyor). Once varligini SINA. */
-  const cssYollari = ['style.css', 'ek.css'].map((d) => path.join(ARAYUZ, d));
-  ok('style.css ve ek.css diskte var',
+  /* [!] B27 A2: CSS listesi ELLE yazilmiyor, index.html'den TURETILIYOR.
+     Once ['style.css','ek.css'] sabitti; ek.css style.css'e katilinca
+     test "diskte yok" diye coktu — ama daha kotusu tersi: sayfaya YENI
+     bir stil dosyasi baglansa test onu hic gormezdi, yani "her sinif
+     tanimli" iddiasi eksik kaynakla calisirdi. */
+  const cssYollari = CSS_YOLLARI;
+  ok('index.html en az bir stil dosyasi bagliyor', cssYollari.length >= 1,
+     cssYollari.map((p) => path.basename(p)).join(' '));
+  ok('bagli her stil dosyasi DISKTE var',
      cssYollari.every((p) => fs.existsSync(p)),
      cssYollari.filter((p) => !fs.existsSync(p)).join(' '));
   const oku = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '');
@@ -887,8 +908,7 @@ console.log('\n--- 10. Gorunumler: hash yonlendirme, v-show, yeniden cizim ---')
 
   // CSS: sekme sinifi ve etkin durumu tanimli (8. bolum genel sinif
   // denetimini yapiyor; burada ETKIN sekmenin ayirt edildigini civiliyoruz)
-  const tumCss = ['style.css', 'ek.css']
-    .map((d) => fs.readFileSync(path.join(ARAYUZ, d), 'utf8')).join('\n');
+  const tumCss = cssOku();
   ok('Etkin sekme gorsel olarak ayirt ediliyor (.gorunum-sekme.etkin)',
      /\.gorunum-sekme\.etkin\s*\{[^}]*(color|border)/.test(tumCss));
 
@@ -948,8 +968,16 @@ console.log('\n--- 11. Rapor araligi + grafik bosluklari (B27 A2) ---');
 
   // grafik: sahte tuval, cagrilari kaydeden baglam
   const cagri = [];
+  /* Sahte 2B baglam: her cagriyi kaydeder. `measureText` GERCEK
+     tarayicida her zaman bir TextMetrics doner; undefined dondurmek
+     sahte baglamin kusuru olurdu (app.js'i savunmaci yazmak yerine
+     taklidi duzeltiyoruz — B17 dersi: taklit GERCEGI modellemeli). */
   const ctx = new Proxy({}, {
-    get: (_, ad) => (...args) => { cagri.push([ad, args]); },
+    get: (_, ad) => (...args) => {
+      cagri.push([ad, args]);
+      if (ad === 'measureText') return { width: String(args[0] || '').length * 6 };
+      return undefined;
+    },
     set: () => true,
   });
   u.$refs.grafik = {
@@ -1087,6 +1115,33 @@ console.log('\n--- 11. Rapor araligi + grafik bosluklari (B27 A2) ---');
   ok('Ornekleme kartinda guncellemeHizi gosteriliyor',
      yorumsuz(htmlKaynak).includes('{{ guncellemeHizi }}'));
 
+  /* B27 A2-b: akim kanalinin menzili VE adimi. Kartta olculdu: 0.1 ohm
+     sontte ham gurultu tam 1 LSB (78 uA); ekrandaki "7 uA" 96 orneklik
+     ortalama. Adim gorunmeden bu sayi gercek akim sanildi. */
+  {
+    const a = ornek();
+    a.kartSont = 0.1;
+    ok('akimMenzilAralik 0.1 ohm -> ±2.56 A · 78.1 µA',
+       a.akimMenzilAralik === '±2.56 A · 78.1 µA', a.akimMenzilAralik);
+    a.kartSont = 10;
+    ok('… 10 ohm -> ±25.6 mA · 0.78 µA',
+       a.akimMenzilAralik === '±25.6 mA · 0.78 µA', a.akimMenzilAralik);
+    /* Kart okunmadiysa menu tercihi YEDEK — ama kart konustuysa KART haklidir
+       (sont fiziksel bir gercek; K5 deseni). */
+    a.kartSont = null; a.sontSecim = '1';
+    ok('kart okunmadan menu tercihi yedek (1 ohm)',
+       a.akimMenzilAralik === '±256.0 mA · 7.81 µA', a.akimMenzilAralik);
+    a.kartSont = 0.1;
+    ok('kart konusunca KART kazaniyor (menu 1 ohm derken kart 0.1)',
+       a.akimMenzilAralik === '±2.56 A · 78.1 µA', a.akimMenzilAralik);
+    ok('Akim kartinda menzil/adim satiri var',
+       yorumsuz(htmlKaynak).includes('{{ akimMenzilAralik }}'));
+    ok('ADS kademesi firmware ile ayni (PGA_0256)',
+       /const ADS_PGA_V = 0\.256;/.test(appKaynak) &&
+       /#define PGA_0256\s+0\.256f/.test(fs.readFileSync(
+         path.join(KOK, 'kod', 'olcum-karti-a3', 'olcum3.h'), 'utf8')));
+  }
+
   // otomatik baglanma: sayfayi kart/kopru sunduysa EVET, yerel/demo/file HAYIR
   {
     const v = ornek();
@@ -1187,11 +1242,176 @@ console.log('\n--- 12. Akis tasiyicisi: `?` kimlikten sonra ---');
 
     sandbox.setTimeout = gercekSetTimeout;
     delete sandbox.EventSource; delete sandbox.clearTimeout;
-    bolum12Bitti();
+    await bolum12Bitti();
   })();
 }
 
-function bolum12Bitti() {
+async function bolum12Bitti() {
+/* ═══════════════════════════════════════════════════════════════════════
+   13. TASARIM SISTEMI (B27 Asama 2)
+
+   Iki sinif kusur civileniyor:
+   (a) TEMA YARIM KALMASI — bir belirtec yalnizca bir temada tanimliysa
+       oteki temada `var()` sessizce gecersize duser: renk hic uygulanmaz,
+       hata da vermez. Sayfa "bir temada guzel, otekinde okunaksiz" olur.
+   (b) ARAYUZ <-> TUVAL AYRISMASI — kanal renkleri hem kartlarda hem
+       `app.js`'in ciziminde kullaniliyor (`renk('--volt')`). Ucu de
+       tanimli ve BIRBIRINDEN FARKLI olmali; ikisi ayni olursa grafikte
+       gerilim ve akim ayirt edilemez.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 13. Tasarim sistemi: temalar, kanal renkleri, hareket ---');
+{
+  const css = cssOku();
+  const blok = (secici) => {
+    const i = css.indexOf(secici);
+    if (i < 0) return null;
+    const a = css.indexOf('{', i), b = css.indexOf('}', a);
+    return a < 0 || b < 0 ? null : css.slice(a, b);
+  };
+  const belirtecler = (govde) => new Set(
+    [...(govde || '').matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+
+  const koyu = belirtecler(blok(':root {'));
+  const acikBlok = css.match(/@media \(prefers-color-scheme: light\)\s*\{\s*:root\s*\{([^}]*)\}/);
+  const acik = belirtecler(acikBlok && acikBlok[1]);
+
+  ok('Koyu tema VARSAYILAN: butun belirtecler bare :root icinde',
+     koyu.size >= 20, `${koyu.size} belirtec`);
+  ok('Acik tema yalnizca DEGERLERI degistiriyor (yeni belirtec uretmiyor)',
+     [...acik].every((b) => koyu.has(b)),
+     [...acik].filter((b) => !koyu.has(b)).join(' '));
+
+  /* Renk belirtecleri IKI temada da tanimli olmali. Olcu/bicim
+     belirtecleri (--mono, --yuvarlak, --gecis, --govde) temaya gore
+     degismez; onlar disarida. */
+  const renkler = [...koyu].filter((b) =>
+    !/^--(mono|govde|yuvarlak|yuvarlak-sm|gecis)$/.test(b));
+  const eksikAcik = renkler.filter((b) => !acik.has(b));
+  ok('Her renk/golge belirteci ACIK temada da yeniden tanimli',
+     eksikAcik.length === 0, eksikAcik.join(' '));
+
+  /* Kanal renkleri: tanimli, birbirinden FARKLI, iki temada da. */
+  for (const [ad, kume] of [['koyu', blok(':root {')], ['acik', acikBlok && acikBlok[1]]]) {
+    const g = kume || '';
+    const oku = (b) => (g.match(new RegExp(b + ':\\s*([^;]+);')) || [])[1];
+    const uc = ['--volt', '--amper', '--watt'].map(oku);
+    ok(`Kanal renkleri ${ad} temada tanimli ve UCU DE FARKLI`,
+       uc.every(Boolean) && new Set(uc.map((x) => x.trim().toLowerCase())).size === 3,
+       uc.join(' '));
+    const vurgu = oku('--vurgu');
+    ok(`Vurgu ${ad} temada kanal renklerinden AYRI`,
+       !!vurgu && !uc.map((x) => (x || '').trim().toLowerCase())
+                     .includes(vurgu.trim().toLowerCase()),
+       `vurgu ${vurgu}`);
+  }
+
+  /* app.js'in tuvalde okudugu her belirtec CSS'te tanimli olmali.
+     Tanimsizsa getPropertyValue bos doner ve cizgi '#888'e duser —
+     grafik sessizce gri cizilir. */
+  const tuvalBelirtecleri = [...new Set(
+    [...yorumsuz(appKaynak).matchAll(/renk\('(--[a-z0-9-]+)'\)/g)].map((m) => m[1]))];
+  ok('app.js`in tuvalde okudugu her belirtec CSS`te TANIMLI',
+     tuvalBelirtecleri.length >= 3 && tuvalBelirtecleri.every((b) => koyu.has(b)),
+     tuvalBelirtecleri.filter((b) => !koyu.has(b)).join(' ') || tuvalBelirtecleri.join(' '));
+
+  /* Hareket olculu: reduced-motion karsiligi VAR. */
+  ok('prefers-reduced-motion karsiligi var (hareket kapanabiliyor)',
+     /@media \(prefers-reduced-motion: reduce\)/.test(css) &&
+     /animation-duration:\s*\.01ms\s*!important/.test(css));
+  /* Sonsuz animasyon YALNIZCA baglanti noktasinda olmali — olcum
+     sayilarinin oynamasi okunakligi bozar. */
+  const sonsuz = [...css.matchAll(/animation:[^;]*infinite/g)].length;
+  ok('Sonsuz animasyon en fazla BIR yerde (bagli noktasi)', sonsuz <= 1,
+     `${sonsuz} adet`);
+
+  /* Olcum sayilari tabular: hane kaymasin. */
+  ok('Olcum ve ikincil sayilar tabular-nums',
+     /\.olcum \.deger\s*\{[^}]*tabular-nums/.test(css) &&
+     /\.ikincil \.deger\s*\{[^}]*tabular-nums/.test(css));
+
+  /* Tek CSS dosyasi: karttan her ek istek loop()`u blokluyor. */
+  ok('Sayfa TEK stil dosyasi bagliyor', CSS_YOLLARI.length === 1,
+     CSS_YOLLARI.map((p) => path.basename(p)).join(' '));
+
+  /* Tasiyici seciciyle TASIYICILAR kaydi ortusmeli: ?demo ile tasiyici
+     'demo' oluyordu ama menude karsiligi yoktu ve secici BOS gorunuyordu. */
+  const menuSecenekleri = [...yorumsuz(htmlKaynak).matchAll(
+    /<option value="(seri|akis|demo)"/g)].map((m) => m[1]);
+  const T13 = vm.runInContext('TASIYICILAR', sandbox);
+  ok('Her tasiyicinin menude bir secenegi var (bos secici yok)',
+     Object.keys(T13).every((k) => menuSecenekleri.includes(k)),
+     `menu: ${menuSecenekleri.join(' ')} | tasiyici: ${Object.keys(T13).join(' ')}`);
+  ok('demo tasiyicisi HER ZAMAN destekli (olu dugme yok)',
+     T13.demo.destekli() === true);
+  ok('Menuden demo secilince sahte kart KURULUYOR',
+     govdeIcinde(appKaynak, 'tasiyiciAdi', "this.demoVeri()"),
+     'yoksa tasiyici degisir ama veri gelmez');
+
+  /* 🔴 Headless render yakaladi: ?demo ile acilista demoVeri() hem
+     mounted()'tan hem watch`tan cagriliyordu; ikisi de betigi beklerken
+     gecti ve `sahte-kart.js` IKI KEZ indi -> "Identifier 'SahteKart' has
+     already been declared" -> sayfanin o andan sonraki betikleri dustu.
+     Kapi `await`ten ONCE kapanmali. */
+  {
+    const d = ornek();
+    let inen = 0, kurulan = 0;
+    d.betikYukle = async () => { inen++; };
+    d.kaydet = () => {}; d.$nextTick = (f) => f && f();
+    d.osiloOtomatik = () => {}; d.satirIsle = () => { kurulan++; };
+    d.pilYokla = () => {};
+    sandbox.SahteKart = {
+      raporAralik: () => 200,
+      dSatiri: () => ({ satir: 'D 1 0 0 0 0 0 96 0 0', w: 0 }),
+      sinyaller: {}, komut: () => [],
+    };
+    SONRA.push(async () => {
+      await Promise.all([d.demoVeri(), d.demoVeri()]);
+      ok('demoVeri() IKI kez cagrilsa da betik BIR kez iniyor', inen === 1, `inen=${inen}`);
+      ok('… ve akis bir kez kuruluyor (300 nokta, cift degil)',
+         kurulan === 300, `satirIsle ${kurulan} kez`);
+      delete sandbox.SahteKart;
+    });
+    /* 🔴 Headless render ikinci kusuru: `demoVeri()` once `tasiyiciAdi`yi
+     'demo' yapip SONRA `bagli`yi aciyor; watch ondan sonra kosuyor ve
+     acilan demo baglantisini "eski tasiyici" sanip KAPATIYORDU. Demo
+     akisi ilk 300 noktadan sonra susuyor, rozet "bagli degil" diyordu.
+     Bagli tasiyici artik acikca tutuluyor. */
+  {
+    const w = secenekler.watch.tasiyiciAdi;
+    let kapanan = null;
+    const T = vm.runInContext('TASIYICILAR', sandbox);
+    const eskiKapat = T.demo.kapat;
+    T.demo.kapat = async () => { kapanan = 'demo'; };
+    const d = { ayarYaz() {}, kaydet() {}, bagli: true, bagliTasiyici: 'demo',
+                demoVeri() { this.demoCagrildi = true; } };
+    SONRA.push(async () => {
+      await w.call(d, 'demo', 'seri');
+      ok('demo kurulduktan sonra watch onu KAPATMIYOR (bagli kalir)',
+         d.bagli === true && kapanan === null, `bagli=${d.bagli} kapanan=${kapanan}`);
+      ok('… ve demoVeri ikinci kez cagrilmiyor', !d.demoCagrildi);
+
+      const e2 = { ayarYaz() {}, kaydet() {}, bagli: true, bagliTasiyici: 'akis' };
+      const eskiAkisKapat = T.akis.kapat;
+      T.akis.kapat = async () => { kapanan = 'akis'; };
+      await w.call(e2, 'seri', 'akis');
+      ok('GERCEK tasiyici degisiminde ACIK olan kapaniyor',
+         kapanan === 'akis' && e2.bagli === false && e2.bagliTasiyici === null);
+      T.akis.kapat = eskiAkisKapat; T.demo.kapat = eskiKapat;
+    });
+  }
+  ok('baglan() acik tasiyiciyi KAYDEDIYOR',
+     govdeIcinde(appKaynak, 'baglan', 'this.bagliTasiyici = this.tasiyiciAdi'));
+  ok('betikYukle ayni src`yi iki kez EKLEMIYOR',
+       govdeIcinde(appKaynak, 'betikYukle', "querySelector('script[src=\"' + yol + '\"]')"),
+       'const yeniden bildirimi SyntaxError verir');
+  }
+}
+
+/* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
+   fonksiyonun govdesinde (bolum 13) dolduruluyor; bosaltma burada,
+   ozetin hemen oncesinde. */
+for (const f of SONRA) await f();
+
 console.log(`\n${gecti}/${gecti + kaldi} dogrulama gecti`);
 
 /* ── TEZGAH KALEMLERI (B23.1) ──────────────────────────────────────────

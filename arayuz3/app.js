@@ -218,11 +218,16 @@ const TasiyiciSahte = {
     ad: 'demo', komut: 'hepsi', skop: 'ascii', skop_azami: 4000,
     gecmis_s: 0, cok_istemci: false, surucu: true,
   },
-  destekli() { return typeof SahteKart !== 'undefined'; },
+  /* B27 A2: HER ZAMAN destekli. Betik aynı kökende ve `demoVeri()`
+     indiriyor; "SahteKart tanımlı mı" diye bakmak, menüden demo seçen
+     kullanıcıya ÖLÜ BİR DÜĞME gösteriyordu (DEVIR 4.15'in tam kendisi).
+     İndirme başarısızsa `demoVeri()` sebebi yazıyor. */
+  destekli() { return true; },
   async ac() { /* kurulum demoVeri() içinde */ },
   async kapat(uyg) {
     if (uyg.demoZaman) clearTimeout(uyg.demoZaman);   // B27 A2: setTimeout zinciri
     uyg.demoZaman = null;
+    uyg.demoKurulu = false;      // demoya geri dönülürse yeniden kurulabilsin
   },
   async gonder(uyg, metin) {
     for (const sat of SahteKart.komut(metin)) uyg.satirIsle(sat);
@@ -248,6 +253,10 @@ const GORUNUMLER = [
   { id: 'konsol', ad: 'Konsol',    alt: 'ham satırlar · komut' },
 ];
 const GORUNUM_VARSAYILAN = 'olcum';
+
+/* Akım kanalının ADS kademesi SABIT: ±0.256 V (firmware `PGA_0256`).
+   Menzili şönt belirliyor — kademe değil. */
+const ADS_PGA_V = 0.256;
 
 /* B27 A2 — RAPOR ARALIGI secenekleri (ms). Kartin `r<ms>` siniri 20..5000;
    menu bilerek daha dar: 50 ms altinda grafik noktasi degil gurultu
@@ -339,6 +348,14 @@ createApp({
       // demo kipi
       demoSinyal: 'sinus50',
       demoZaman: null,
+      demoKurulu: false,   // B27 A2: demo kurulumu tek sefer (bkz. demoVeri)
+      /* 🔴 B27 A2: BAĞLANTIYI HANGİ TAŞIYICI AÇTI. Önce "eski seçim"
+         varsayılıyordu ve bu yanlıştı: `demoVeri()` önce `tasiyiciAdi`yi
+         'demo' yapıp sonra `bagli`yi açıyor, watch ise ondan SONRA
+         koşuyor — yani açılan demo bağlantısını "eski taşıyıcı" sanıp
+         kapatıyordu. Demo akışı ilk 300 noktadan sonra susuyordu
+         (headless render yakaladı). Bağlı taşıyıcı artık AÇIKÇA tutuluyor. */
+      bagliTasiyici: null,
       demoMs: 0,
       demoJ: 0,
 
@@ -608,6 +625,25 @@ createApp({
       if (this.menzil === null) return '';
       return this.menzil === 1 ? '±613.7 V · 18.78 mV' : '±32.44 V · 1.042 mV';
     },
+
+    /* 🔴 B27 A2-b — AKIM KANALININ ÇÖZÜNÜRLÜĞÜ GÖRÜNÜR OLMALI.
+       Gerilim kartı menzilini ve adımını yazıyordu, akım kartı YAZMIYORDU.
+       Sonuç: kullanıcı boştaki girişte "7 µA" görüp gerçek bir akım sandı.
+       Gerçek: şönt ADS'in diferansiyel girişine DOĞRUDAN bağlı, kademe
+       sabit ±0.256 V. 0.1 Ω şöntte 1 LSB = 78 µA — yani 7 µA tek ölçümde
+       OKUNAMAZ; ekrandaki sayı 96 örneğin ortalaması (kartta ölçüldü:
+       ham gürültü tam 1 LSB, ortalamanın std'si 7.9 µA).
+       Kaynak kart: `A ... sont=`; menü tercihi yalnızca yedek. */
+    akimMenzilAralik() {
+      const sont = this.kartSont !== null ? this.kartSont : parseFloat(this.sontSecim);
+      if (!isFinite(sont) || sont <= 0) return '';
+      const fs = ADS_PGA_V / sont;             // tam ölçek, A
+      const adim = ADS_PGA_V / 32768 / sont;   // 1 LSB, A
+      const bicimA = (x) => (x >= 1 ? x.toFixed(2) + ' A'
+                           : x >= 1e-3 ? (x * 1e3).toFixed(x >= 1e-2 ? 1 : 2) + ' mA'
+                           : (x * 1e6).toFixed(x >= 1e-5 ? 1 : 2) + ' µA');
+      return '±' + bicimA(fs) + ' · ' + bicimA(adim);
+    },
     /* Guc isareti: negatif guc, yukun KAYNAK durumuna gectigi anlamina
        gelir (geri besleme, sarj olan pil, ters donen bobin akimi).
        Asama 2 bunu hic gosteremiyordu — akimi sifira kirpiyordu. */
@@ -691,11 +727,17 @@ createApp({
        seriye gecmek iki kaynagin ayni ayristiriciyi beslemesi demek. */
     async tasiyiciAdi(v, eski) {
       this.ayarYaz('tasiyici', v);
-      if (this.bagli && TASIYICILAR[eski]) {
-        await TASIYICILAR[eski].kapat(this);
+      const acik = this.bagliTasiyici;
+      if (this.bagli && acik && acik !== v && TASIYICILAR[acik]) {
+        await TASIYICILAR[acik].kapat(this);
         this.bagli = false;
+        this.bagliTasiyici = null;
         this.kaydet('— taşıyıcı değişti, bağlantı kesildi —');
       }
+      /* B27 A2: demo menüden de seçilebiliyor. Sahte kartın kurulumu
+         `demoVeri()` içinde (betik indirme + ilk 300 nokta + akış), o
+         yüzden burada çağrılıyor; ötekiler "Karta bağlan"ı bekler. */
+      if (v === 'demo' && !this.bagli) this.demoVeri();
     },
   },
 
@@ -822,6 +864,12 @@ createApp({
        gerekiyor; index.html'den kosulsuz yuklenirse 15 936 B her acilista
        bosuna iniyor ve B22.5'te LittleFS goruntusune de girerdi. */
     betikYukle(yol) {
+      /* 🔴 B27 A2: AYNI BETIK IKI KEZ INMEMELI. `sahte-kart.js` en üst
+         düzeyde `const SahteKart` bildiriyor; ikinci kez inince tarayıcı
+         "Identifier 'SahteKart' has already been declared" atıyor ve
+         sayfanın O ANDAN SONRAKI betik değerlendirmesi düşüyordu.
+         Headless render yakaladı (?demo + menü izi aynı anda). */
+      if (document.querySelector('script[src="' + yol + '"]')) return Promise.resolve();
       return new Promise((coz, at) => {
         const v = document.createElement('script');
         v.src = yol;
@@ -839,10 +887,16 @@ createApp({
        `demo` bayragi ANCAK betik indikten sonra aciliyor: gonder()'in demo
        dali ve demo seridi ona bakiyor, erken acilirsa SahteKart tanimsiz. */
     async demoVeri() {
+      /* Kapı `await`ten ÖNCE kapanmalı: ?demo ile açılışta mounted()
+         demoVeri()'yi çağırıyor, o `tasiyiciAdi`yi 'demo' yapınca watch
+         bir kez daha çağırıyor — ikisi de betiği beklerken geçerdi. */
+      if (this.demoKurulu) return;
+      this.demoKurulu = true;
       try {
         await this.betikYukle('sahte-kart.js');
       } catch (e) {
         this.hata = 'demo kipi acilamadi: ' + e.message;
+        this.demoKurulu = false;
         return;
       }
       // B22.2: `demo` artik tasiyicidan TURETILIYOR (computed).
@@ -850,6 +904,7 @@ createApp({
       // kendisi olurdu; gonder() de bu sayede dogru yola gidiyor.
       this.tasiyiciAdi = 'demo';
       this.bagli = true;
+      this.bagliTasiyici = 'demo';
       this.kaydet('— DEMO KIPI: karta bagli degil, sahte kart calisiyor —');
 
       // gecmis grafigi icin birikmis olcum akisi
@@ -905,6 +960,7 @@ createApp({
       try {
         await this.tasiyici.ac(this);
         this.bagli = true;
+        this.bagliTasiyici = this.tasiyiciAdi;
         /* B27/K5: kartın GERÇEK ayarlarını sor. Şönt menüsü daha önce
            yalnızca tarayıcının localStorage tercihini gösteriyordu (menü
            10R derken kart 0.1R çalışıyordu — akım menzili 100 kat yanlış
@@ -919,6 +975,7 @@ createApp({
     async kes() {
       await this.tasiyici.kapat(this);
       this.bagli = false;
+      this.bagliTasiyici = null;
       this.kaydet('— bağlantı kesildi —');
     },
 
@@ -1689,15 +1746,23 @@ createApp({
         }
         c.stroke();
 
-        // tepe değeri sağ üstte
-        c.fillStyle = s.renk;
-        c.font = '600 11px ui-monospace, monospace';
-        c.textAlign = 'right';
+        /* Tepe değeri sağ üstte. B27 A2: etiket çizginin ÜSTÜNE
+           biniyordu ve ikisi de okunmuyordu; arkasına tuval zemini
+           rengiyle bir şerit koyuluyor. */
         const etiket = !gecerli ? 'veri yok'
                      : s.al === 'v' ? 'tepe ' + enb.toFixed(2) + ' V'
                      : s.al === 'i' ? 'tepe ' + (enb * 1e3).toFixed(1) + ' mA'
                      : 'tepe ' + (enb * 1e3).toFixed(1) + ' mW';
-        c.fillText(etiket, g - sag, ust + 12 + seriler.indexOf(s) * 14);
+        c.font = '600 11px ui-monospace, monospace';
+        c.textAlign = 'right';
+        const ey = ust + 12 + seriler.indexOf(s) * 14;
+        const en_ = c.measureText(etiket).width;
+        c.fillStyle = this.renk('--zemin-2');
+        c.globalAlpha = .85;
+        c.fillRect(g - sag - en_ - 4, ey - 10, en_ + 8, 14);
+        c.globalAlpha = 1;
+        c.fillStyle = s.renk;
+        c.fillText(etiket, g - sag, ey);
       }
 
       // zaman ekseni

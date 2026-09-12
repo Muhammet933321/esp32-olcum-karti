@@ -247,6 +247,49 @@ MUTASYONLAR = [
      "  if (k[0] == '?' && k[1] == 0) return true;\n  if (k[0] == 'N') return true;\n  return false;",
      "`N` serbest olursa AP ve web parolasi jetonsuz okunur"),
 
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      const sont = this.kartSont !== null ? this.kartSont : parseFloat(this.sontSecim);",
+     "      const sont = parseFloat(this.sontSecim);",
+     "menu 1 ohm derken kart 0.1 ohm calisiyorsa adim 10 kat KUCUK yazilir — "
+     "gurultu gercek akim sanilir"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "const ADS_PGA_V = 0.256;",
+     "const ADS_PGA_V = 2.048;",
+     "arayuzun kademesi firmware'inkinden (PGA_0256) ayrisir: menzil 8 kat yanlis"),
+
+    # ── B27 A2 · tasarim sistemi
+    ("B7", "test_arayuz3.js", "arayuz3/style.css",
+     "    --amper:       #b0590a;",
+     "    --amper:       #1f5ed0;",
+     "acik temada akim ile gerilim AYNI renk olur; grafikte iki kanal "
+     "ayirt edilemez"),
+    ("B7", "test_arayuz3.js", "arayuz3/style.css",
+     "    --cok-soluk:   #75828f;",
+     "",
+     "belirtec yalnizca koyu temada kalir; acik temada var() sessizce "
+     "gecersize duser ve o renk hic uygulanmaz"),
+    ("B7", "test_arayuz3.js", "arayuz3/style.css",
+     "@media (prefers-reduced-motion: reduce) {",
+     "@media (min-width: 1px) and (prefers-reduced-motion: xyz) {",
+     "hareketi azalt tercihi karsiliksiz kalir"),
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     '        <option value="demo">Demo — sahte kart</option>\n',
+     "",
+     "?demo ile tasiyici 'demo' olur ama menude karsiligi yoktur: "
+     "secici BOS gorunur"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "  destekli() { return true; },",
+     "  destekli() { return typeof SahteKart !== 'undefined'; },",
+     "menuden demo secen kullanici OLU DUGME gorur (betik daha inmedi)"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      if (this.demoKurulu) return;",
+     "      if (false) return;",
+     "sahte-kart.js iki kez iner: 'SahteKart has already been declared'"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      if (this.bagli && acik && acik !== v && TASIYICILAR[acik]) {",
+     "      if (this.bagli && TASIYICILAR[eski]) {",
+     "watch, demo'nun az once actigi baglantiyi 'eski tasiyici' sanip "
+     "kapatir; demo akisi ilk 300 noktadan sonra susar"),
     # ── B26 · RDY kenar yonu (GERCEK KARTTA olculdu)
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "while (digitalRead(PIN_HAZIR) == LOW) {        /* yeni donusum basladi mi */",

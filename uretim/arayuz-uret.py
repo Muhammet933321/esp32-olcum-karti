@@ -47,7 +47,6 @@ BLOK, SAYFA = 4096, 256
 VARLIKLAR = [
     "index.html",
     "app.js",
-    "ek.css",
     "style.css",
     "vendor/vue.global.prod.js",
     "manifest.json",
