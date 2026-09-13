@@ -1094,6 +1094,17 @@ static uint8_t skop_yakala()
         for (uint32_t b = 0;
              b + SOC_ADC_DIGI_RESULT_BYTES <= okunan;
              b += SOC_ADC_DIGI_RESULT_BYTES) {
+            /* 🔴 B42 — ÇERÇEVE KUYRUĞU GEÇMİŞİ EZİYORDU. `break` aşağıda
+               yalnızca ÇERÇEVE bitince çalışıyor; tetikten sonraki sayaç
+               bitse de aynı çerçevenin geri kalanı (256 örneğe kadar)
+               halkaya yazılmaya devam ediyordu. Kartta ölçüldü
+               (2026-09-13, ön-tetik %25): 5 ms/böl'de beklenen 250 yerine
+               3..249; 1 ms/böl'de (833 örnek, %10 → 83) 737..801 ve 6
+               yakalamanın 5'inde tetik örneğinin KENDİSİ ezilmişti — işaret
+               eşiği geçmeyen bir örneği gösteriyor, Sürekli kipte iz
+               kilitlenmiyordu. Zincir yeşildi: hiçbir iddia tetiğin YERİNE
+               bakmıyordu. */
+            if (bulundu && kalan == 0u) break;
             adc_digi_output_data_t *o = (adc_digi_output_data_t *)&cerceve[b];
             if (o->type2.channel != SKOP_KANAL) continue;
             uint16_t v = o->type2.data;
@@ -1103,7 +1114,10 @@ static uint8_t skop_yakala()
             if (dolu < n) dolu++;
 
             if (!bulundu) {
-                if (dolu >= on) {        // yeterli geçmiş biriktikten sonra
+                /* `dolu` bu örneği de sayıyor: `>` tetikten ÖNCE tam `on`
+                   örnek demek (`>=` ile halka bir eksik dolup tetik on-1'e
+                   düşerdi). */
+                if (dolu > on) {         // yeterli geçmiş biriktikten sonra
                     if (skop_ayar.kenar == 0u) {              // yükselen
                         if (!hazir) {
                             if ((uint32_t)v + skop_ayar.histerezis <
@@ -1127,7 +1141,11 @@ static uint8_t skop_yakala()
                 ilk = false;
                 if (bulundu) {
                     tetik_w = (uint16_t)((w + n - 1u) % n);
-                    kalan = sonra;
+                    /* Tetik örneği yazıldı; ARKASINDAN sonra-1 örnek daha:
+                       on + 1 + (sonra-1) = n → halka tam dolu ve tetik
+                       dizide TAM `on` indeksinde. (`sonra >= 2`: yukarıda
+                       on + 2 <= n kırpılıyor.) */
+                    kalan = (uint16_t)(sonra - 1u);
                 }
             } else if (kalan > 0u) {
                 kalan--;

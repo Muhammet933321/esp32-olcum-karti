@@ -610,6 +610,35 @@ MUTASYONLAR = [
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
     # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    # ── B42 · tetik ornegi on-tetik ayarinin yerinde
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "            if (bulundu && kalan == 0u) break;\n"
+     "            adc_digi_output_data_t *o = (adc_digi_output_data_t *)&cerceve[b];",
+     "            adc_digi_output_data_t *o = (adc_digi_output_data_t *)&cerceve[b];",
+     "ESKI KUSURU geri koyar: cerceve kuyrugu on-tetik gecmisini ve tetik "
+     "orneginin kendisini ezer"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "            if (bulundu && kalan == 0u) break;\n"
+     "            adc_digi_output_data_t *o = (adc_digi_output_data_t *)&cerceve[b];\n"
+     "            if (o->type2.channel != SKOP_KANAL) continue;\n"
+     "            uint16_t v = o->type2.data;\n"
+     "\n"
+     "            skop_veri[w] = v;\n",
+     "            adc_digi_output_data_t *o = (adc_digi_output_data_t *)&cerceve[b];\n"
+     "            if (o->type2.channel != SKOP_KANAL) continue;\n"
+     "            uint16_t v = o->type2.data;\n"
+     "\n"
+     "            skop_veri[w] = v;\n"
+     "            if (bulundu && kalan == 0u) break;\n",
+     "bekci YAZMADAN SONRA: sayac bittikten sonra bir ornek daha halkaya "
+     "girer, tetik bir kayar (varlik degil SIRA sinaniyor mu)"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "                if (dolu > on) {", "                if (dolu >= on) {",
+     "tetikten once on-1 ornek: halka bir eksik dolar, tetik on-1'e duser"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "kalan = (uint16_t)(sonra - 1u);", "kalan = sonra;",
+     "tetikten sonra bir fazla ornek: tetik on-1'e kayar"),
+
     # ── B41 · yakalama surerken ADS susuyor (I2C kenarlari ADC'ye hata sokuyor)
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "  if (skop_is != SKOP_IS_YOK) {\n    if (!ads_duraklama_bas_ms)",

@@ -848,6 +848,27 @@ def bolum6(r):
             "if (skop_ayar.kip == SKOP_KIP_OTO) azami_ms = taban_ms;" in ino,
             "200 ms/bol'de tetik yokken 4.08 s -> 2.72 s (kartta olculdu)")
 
+    # ── B42: TETIK ORNEGI ON-TETIK AYARININ YERINDE ────────────────────
+    # Panelden ve tezgahta olculdu (2026-09-13, on-tetik %25): 5 ms/bol'de
+    # beklenen 250 yerine 3..249; 1 ms/bol'de (%10 -> 83) 737..801 ve 6
+    # yakalamanin 5'inde tetik ornegi EZILMIS. Sebep: tetik sonrasi sayac
+    # bitince DMA cercevesinin kalani (256 ornege kadar) halkaya yaziliyordu.
+    # ⚠ Asil kanit tezgahta (`tezgah_blokaj.py --tetik`, idx == on ve gercek
+    #   gecis); asagidakiler duzeltmenin KALDIRILMASINI yakalar.
+    _y = _kod(_yak)
+    _for = _y.find("for (uint32_t b = 0;")
+    _ic_bekci = _y.find("if (bulundu && kalan == 0u) break;", _for) if _for >= 0 else -1
+    _yazma = _y.find("skop_veri[w] = v;")
+    r.kosul("  6j: [!] tetik sonrasi sayac bitince CERCEVE KUYRUGU halkaya yazilmiyor",
+            0 <= _for < _ic_bekci < _yazma,
+            "kuyruk on-tetik gecmisini ve kisa pencerede tetik orneginin kendisini eziyordu")
+    r.kosul("  6j: [!] tetikten ONCE tam `on` ornek (`dolu > on` — sayac bu ornegi de sayiyor)",
+            "if (dolu > on) {" in _y,
+            "`>=` ile halka bir eksik dolar, tetik on-1'e duser")
+    r.kosul("  6j: [!] tetikten SONRA sonra-1 ornek (tetik dizide TAM `on`da)",
+            "kalan = (uint16_t)(sonra - 1u);" in _y,
+            "`kalan = sonra` halkayi bir fazla doldurur, tetik on-1'e kayar")
+
     r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
             HAM_INL_KOD * T.SKOP_ADIM
             < 0.05 * (T.SKOP_MENZIL_ARTI - T.SKOP_MENZIL_EKSI),
@@ -913,11 +934,14 @@ def main() -> int:
          "3 tel + sema + firmware pin sabitleri. Tasindiktan sonra "
          "`tezgah_blokaj.py --skop` ADS SUSTURULMADAN 0 hata vermeli"),
         ("[!] Skop yakalamasi — `python tezgah_blokaj.py --skop`",
-         "Uc sey sinaniyor: (1) surulu dugumde TEK-ORNEK HATASI 0 — B40b bunu "
+         "Dort sey sinaniyor: (1) surulu dugumde TEK-ORNEK HATASI 0 — B40b bunu "
          "bozmustu ve zincir yakalayamamisti; (2) komut dongusu <= 20 ms "
          "(B40 oncesi 4437 ms); (3) ADS susmasi `ads_duraklama_ms` ile "
-         "yakalama suresi kadar SAYILIYOR. 2026-09-13: 5/5. Firmware'de "
-         "skop/ADC/I2C/Serial'e dokunan her degisiklikten sonra tekrar kosun"),
+         "yakalama suresi kadar SAYILIYOR; (4) B42: TETIK ORNEGI on-tetik "
+         "ayarinin TAM yerinde ve gercek bir esik gecisi (CAL 1 kHz + RC "
+         "duzenegi gerekli; `--tetik` yalniz bunu kosar). 2026-09-13: 8/8, "
+         "tetik 30/30 (duzeltmeden once 0/30). Firmware'de skop/ADC/I2C/"
+         "Serial'e dokunan her degisiklikten sonra tekrar kosun"),
         ("WiFi'de `tB` uctan uca (web parolasiyla, tarayicidan)",
          "Parola depoda yok, bu yuzden Claude KOMUT ucunu sinayamadi; yaris "
          "seri tetik + WiFi `/skop.bin` ile yeniden uretildi: eski arayuzun "

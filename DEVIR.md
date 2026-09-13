@@ -8078,6 +8078,47 @@ Bugünkü düzeltme bir **ödünleşim**: skop temiz, ama yakalama süresince en
 
 ---
 
+#### 5.12.56 🔴 B42 — ÖN-TETİK HİÇ UYGULANMIYORMUŞ: çerçeve kuyruğu tetik geçmişini eziyordu (2026-09-13)
+
+**Nasıl bulundu.** Kullanıcı panelin tarayıcıdan kullanılabilmesini istedi; **Claude in Chrome** kuruldu (VS Code'da mesaja `@browser` yazınca araçlar geliyor). Kartın web parolasını kullanıcı kendi Chrome oturumunda girdi — parola ne konuşmaya ne depoya girdi. Panelde `olcum.local` → Osiloskop açıldı, yakalamaların ham kodu sayfanın Vue durumundan okundu (pikselden yorum yapılmadı).
+
+İlk bakış — CAL kapalı, kaynaksız RC düğümü, 5 ms/böl: iz ekranda "gürültülü" görünüyor ama 1000 örnekte kodlar **2462–2477** (15 kod tepe-tepe), std **2.16 kod** (B41'deki 2.2 ile aynı), tek-örnek hatası **0**. Görünüş otomatik dikey ölçeğin 15 kodu tüm ekrana yaymasından.
+
+CAL 100 Hz ile iz temizdi (ölçülen 100.00 Hz) ama **tetik işareti pencerenin 4.6 ms'sindeydi**; ön-tetik %25 → 12.5 ms olmalıydı.
+
+##### Ölçüm — düzeltmeden önce
+
+Panelden, ön-tetik %25:
+
+| taban | adet | beklenen | gelen `tetikIdx` |
+|---|---|---|---|
+| 5 ms/böl | 1000 | 250 | 143 42 3 54 113 249 109 229 105 73 |
+| 200 µs/böl (Otomatik kurulum) | 167 | 41 | 153 12 127 123 2 38 147 4 13 123 — 2/10'da işaretin gösterdiği örnek eşiği **geçmiyor** |
+
+Tezgahta (`tezgah_blokaj.py --tetik`, CAL 1 kHz, NORMAL kip, 6'şar yakalama): **0/30** doğru yer; 1 ms/böl %10'da (833 örnek, beklenen 83) `737x 778x 801x 780 768x 789x` — 6'nın 5'inde tetik örneğinin **kendisi ezilmiş**. 200 µs/böl'de "x" çıkmaması tesadüf: 167 örnek ≈ 2.004 periyot, ezilen yere yine bir geçiş denk geliyor.
+
+##### Sebep
+
+`skop_yakala()`'da `break` yalnızca **çerçeve bitince** çalışıyordu. Tetikten sonraki sayaç (`kalan`) sıfırlansa da aynı DMA çerçevesinin geri kalanı (1024 bayt = **256 örneğe kadar**) halkaya yazılmaya devam ediyor, en eski örnekleri — yani ön-tetik geçmişini, kısa pencerede tetik örneğini — eziyordu. Tetik indeksi `on − kuyruk` (mod n) oluyordu. Sonuç: ön-tetik ayarı fiilen yok; Sürekli kipte iz her yakalamada yatayda zıplıyor, hızlı tabanlarda işaret yanlış örneği gösteriyor.
+
+Zincir 18/18 ve bütün tezgah testleri yeşildi: **hiçbir iddia tetiğin YERİNE bakmıyordu** — yakalamanın "tam" gelmesine ve örnek bütünlüğüne bakıyorlardı.
+
+⚠ Arşivdeki Aşama 2 firmware'inde (`arsiv/asama2/.../olcum-karti-a2.ino`) aynı döngü, aynı kusur. Arşiv etkin değil, dokunulmadı.
+
+##### Düzeltme (firmware)
+
+* İç döngünün başında `if (bulundu && kalan == 0u) break;` — sayaç bitince çerçevenin kalanı **yazılmıyor**.
+* İki bir-eksik hatası birlikte giderildi: `dolu >= on` → `dolu > on` (sayaç o anki örneği de sayıyor) ve `kalan = sonra` → `kalan = sonra - 1` (tetik örneği zaten yazıldı). Böylece `on + 1 + (sonra−1) = n`: halka tam dolu, tetik dizide **tam `on`**'da.
+
+##### Doğrulama
+
+* Tezgah, düzeltmeden sonra: `--tetik` **30/30** doğru yer + gerçek geçiş (öncesi 0/30) · `--skop` **8/8** (B40/B41 denetimleri bozulmadı: tek-örnek hatası 0/3721, döngü ≤ 7.8 ms, susma muhasebesi, OTO 2.73 s).
+* Panelde: Otomatik kurulum + 10 yakalama → `41 ×10`, 10/10 gerçek geçiş; Sürekli kipte iki ardışık görüntüde iz ve tetik işareti yerinde (−492 µs = 41 × 12 µs).
+* Zincir 18/18, **1391 iddia** · `sim3_skop` 69 → **72** (6j: kuyruk bekçisi yazmadan ÖNCE, `dolu > on`, `sonra - 1`) · mutasyon B19 **37/37** (yeni 4: bekçiyi sil, bekçiyi yazmadan SONRAYA taşı, `>=`, `kalan = sonra`).
+* ⚠ Masaüstünde C derleyicisi yok; döngü masaüstünde koşturulamıyor. Zincirdeki iddialar düzeltmenin **kaldırılmasını** yakalıyor, davranışın kanıtı tezgahta.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |
