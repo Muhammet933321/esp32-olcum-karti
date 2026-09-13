@@ -279,6 +279,17 @@
         <option :value="0">↑ Yükselen</option>
         <option :value="1">↓ Düşen</option>
       </select>
+
+      <!-- B47: tetik onayı — gerçek skoplardaki "noise reject". İki örnek:
+           eşiği geçen örneği bir sonraki de doğrulamalı; tek-örnek iğneler
+           (ölçülen ~0.1–0.3/1000) tetikleyemez. Yavaş tabanlarda gerçekten
+           tek örnek süren bir darbe için tek örneğe alınır. -->
+      <select v-model.number="skopOnay" @change="skopKomut('tn' + skopOnay)"
+              :disabled="!bagli"
+              title="Tetik onayı: iki örnek = gürültü reddi (tek-örnek iğne tetiklemez); tek örnek = yavaş tabanda tek örnek süren darbe için">
+        <option :value="2">Gürültü reddi (2 örnek)</option>
+        <option :value="1">Tek örnek</option>
+      </select>
     </div>
 
     <div class="satir" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">

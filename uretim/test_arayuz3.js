@@ -2141,6 +2141,42 @@ console.log('\n--- 21. Tarayici gezisinde bulunanlar (B45) ---');
      govdeIcinde(appKaynak, 'skopKayitAc', 'this.osilo.olcum = this.skopArsivOlcum(kyt.olcum, this.osilo.veri);'));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   22. TETIK ONAYI — gurultu reddi (B47)
+
+   Kart `T` satirinda `onay=1|2` bildiriyor; arayuz menusu `tn1`/`tn2`
+   gonderiyor. Eski firmware `onay=` gondermez -> menu dokunulmaz.
+   Davranisin kendisi (igne tetiklemez) KARTTA sinaniyor:
+   `tezgah_blokaj.py --onay`. Burada protokol ve menu.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 22. Tetik onayi — gurultu reddi (B47) ---');
+{
+  const T = (onay) => 'T tdiv=5/11 (5000 us/bolme) hz=20000 adet=1000 pencere_ms=50.00 esik=2048 kenar=yukselen hist=40 on=25% kip=0'
+                      + (onay === null ? '' : ' onay=' + onay);
+  const u = ornek();
+  ok('Varsayilan onay 2 (gurultu reddi) — kartin varsayilaniyla ayni', u.skopOnay === 2
+     && /SkopAyar skop_ayar = \{ 5, 2048, 0, 40, 25, SKOP_KIP_OTO, 2 \};/.test(fs.readFileSync(INO, 'utf8')));
+  u.satirIsle(T(1));
+  ok('[!] `T ... onay=1` menuyu tek ornege aliyor', u.skopOnay === 1);
+  u.satirIsle(T(2));
+  ok('`T ... onay=2` geri aliyor', u.skopOnay === 2);
+  u.skopOnay = 1;
+  u.satirIsle(T(null));
+  ok('[!] Eski firmware (onay yok) menuye DOKUNMUYOR', u.skopOnay === 1,
+     'yoksa arayuz kartta olmayan bir ayari "2" diye gosterirdi');
+  u.satirIsle(T(7));
+  ok('Gecersiz onay degeri yok sayiliyor', u.skopOnay === 1);
+  ok('[!] Menu `tn<onay>` gonderiyor ve iki secenek var',
+     /v-model\.number="skopOnay" @change="skopKomut\('tn' \+ skopOnay\)"/.test(htmlKaynak)
+     && /<option :value="2">Gürültü reddi \(2 örnek\)<\/option>/.test(htmlKaynak)
+     && /<option :value="1">Tek örnek<\/option>/.test(htmlKaynak));
+  const SK2 = require(path.join(ARAYUZ, 'sahte-kart.js'));
+  ok('Sahte kart `tn1` -> T satirinda onay=1, `tn2` -> onay=2',
+     /\bonay=1\b/.test(SK2.komut('tn1')[0]) && /\bonay=2\b/.test(SK2.komut('tn2')[0]));
+  ok('Sahte kart gecersiz `tn3` reddediyor', SK2.komut('tn3')[0].startsWith('!'));
+  /* Firmware tarafi (tetik_w/kalan, komut, T satiri) sim3_skop.py 6m'de. */
+}
+
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
    fonksiyonun govdesinde (bolum 13) dolduruluyor; bosaltma burada,
    ozetin hemen oncesinde. */

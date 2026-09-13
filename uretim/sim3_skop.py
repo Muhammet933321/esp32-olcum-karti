@@ -940,6 +940,29 @@ def bolum6(r):
             ino.count('"M f=%.3f') == 1 and "skop_m_satiri(b, sizeof(b))" in _dok,
             "iki bicimleyici ayrisirsa arayuz iki yolda farkli ayristirirdi")
 
+    # ── B47: TETIK ONAYI (gurultu reddi), AYARLANABILIR ──────────────
+    # Davranis KARTTA sinaniyor (`tezgah_blokaj.py --onay`: tK igneleriyle
+    # onay=1 tetikler, onay=2 tetiklemez). Burada: iki kipte de tetik ILK
+    # GECIS ornegi (B42'nin `tetik_idx == on` iddiasi korunur) ve ayar
+    # protokolde. Yorumsuz govde, satir sonundan bagimsiz.
+    _y2 = re.sub(r"\s+", " ", _kod(_yak))
+    r.kosul("  6m: [!] onay=2: tetik ONCEKI (gecis) ornegi, sayac sonra-2",
+            "tetik_w = (uint16_t)((w + n - 2u) % n); kalan = (uint16_t)(sonra - 2u);" in _y2
+            and "if (bekleyen) { bekleyen = false;" in _y2,
+            "onay ornegini tetik sayarsa on-tetik konumu 1 kayar")
+    r.kosul("  6m: [!] onay=1: eski davranis aynen (tetik bu ornek, sayac sonra-1)",
+            "if (cift) { bekleyen = true;" in _y2
+            and "} else { bulundu = true; tetik_w = (uint16_t)((w + n - 1u) % n);" in _y2
+            and "kalan = (uint16_t)(sonra - 1u);" in _y2)
+    r.kosul("  6m: [!] dogrulanmayan gecis IGNE sayilir: tetik yok, arama surer",
+            "if (dogru) { bulundu = true;" in _y2 and "gecis = true;" in _y2
+            and "on + 3u > n" in _y2,
+            "gecis + onay + en az 1 ornek sigmali (sonra >= 3)")
+    r.kosul("  6m: varsayilan onay 2 (gurultu reddi); `tn` yalniz 1/2; T satirinda `onay=`",
+            "SKOP_KIP_OTO, 2 };" in ino
+            and "if (v == 1 || v == 2) { skop_ayar.onay = (uint8_t)v;" in ino
+            and 'F(" onay=")' in ino)
+
     r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
             HAM_INL_KOD * T.SKOP_ADIM
             < 0.05 * (T.SKOP_MENZIL_ARTI - T.SKOP_MENZIL_EKSI),
@@ -1016,10 +1039,13 @@ def main() -> int:
          "ayarinin TAM yerinde ve gercek bir esik gecisi (`--tetik`); "
          "(5) B43: OLCUM SATIRI dalganin kendi kodlarindan arayuz kuraliyla "
          "hesaplananla <= 2 mV, ikili yolda M satiri onaydan once ve "
-         "/skop.bin'le ayni (`--olcum`, WiFi erisimi gerekli). (4) ve (5) "
-         "CAL 1 kHz + RC duzenegi istiyor. 2026-09-13: tetik 0/30 -> 30/30, "
-         "olcum 0/4 -> 4/4. Firmware'de skop/ADC/I2C/Serial'e dokunan her "
-         "degisiklikten sonra tekrar kosun"),
+         "/skop.bin'le ayni (`--olcum`, WiFi erisimi gerekli); (6) B47: TETIK "
+         "ONAYI A/B — tK8,9 igneleriyle onay=1 tetikler (>0), onay=2 "
+         "tetiklemez (0); gercek sinyalde iki kipte de tetik idx == on "
+         "(`--onay`). (4)-(6) CAL 1 kHz + RC duzenegi istiyor. 2026-09-13/14: "
+         "tetik 0/30 -> 30/30, olcum 0/4 -> 4/4, onay 17/20 -> 0/20. "
+         "Firmware'de skop/ADC/I2C/Serial'e dokunan her degisiklikten sonra "
+         "tekrar kosun"),
         ("WiFi'de `tB` uctan uca (web parolasiyla, tarayicidan)",
          "Parola depoda yok, bu yuzden Claude KOMUT ucunu sinayamadi; yaris "
          "seri tetik + WiFi `/skop.bin` ile yeniden uretildi: eski arayuzun "

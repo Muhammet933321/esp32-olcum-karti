@@ -6,6 +6,7 @@
     python tezgah_blokaj.py --skop          # B40/B41/B42: butunluk + blokaj + susma + tetik yeri
     python tezgah_blokaj.py --tetik         # B42: yalniz tetik konumu (~1 dk)
     python tezgah_blokaj.py --olcum [--http olcum.local]   # B43: olcum satiri eksenle ayni mi, WiFi'de var mi
+    python tezgah_blokaj.py --onay          # B47: gurultu reddi igneyi eliyor mu (tK8,9 ile A/B)
 
 🔴 NEDEN: bringup kosucusu tek bir 45 s penceresine bakiyor ve kartta
    ~50 s'de bir ~22 ms'lik periyodik bir olay var (B27 A4'te olculdu).
@@ -287,6 +288,110 @@ def skop_olcum_kalibre(k, http_host="olcum.local", tol_v=0.002) -> int:
     return 1 if kaldi else 0
 
 
+def skop_tetik_onayi(k, tekrar=20) -> int:
+    """B47 — tetik onayi (gurultu reddi) IGNEYI GERCEKTEN eliyor mu.
+
+    Ayni firmware, iki kip, ayni igne kaynagi: `tK8,9` (I2C tiklatmasi,
+    B44'te her yakalamada 1-5 igne/1000). OTO kip, CAL kapali, esik =
+    dugumun ortalamasi + 30 kod (RC dugumu yavas bosaliyor, her turda
+    yeniden ortalanir), histerezis 0. Gercek bir gecis YOK; tetik yalniz
+    igneden gelebilir. `tetiklendi` sayiliyor:
+        onay=1 (tek ornek)   -> igneler tetikler  (beklenen > 0)
+        onay=2 (iki ornek)   -> hicbiri tetiklemez (beklenen 0)
+    Ikisi de 0 cikarsa deney BOS (igne yok) — bu ayrica sinaniyor. Ayrica
+    gercek bir sinyalde (CAL 1 kHz) onay=2'nin tetiklemeye devam ettigi ve
+    tetik konumunun ILK gecis ornegi kaldigi (B42) dogrulaniyor.
+    """
+    def komut(kom, sn=0.3):
+        k.yaz(kom)
+        time.sleep(sn)
+
+    def kuplaj_yakala(pinler, sn=12):
+        c = SkopCozucu()
+        k.yaz("tK" + pinler)
+        blok = None
+        red = None
+        son_ = time.monotonic() + sn
+        while time.monotonic() < son_:
+            s = k.satir_oku(0.1)
+            if not s:
+                continue
+            if s.startswith("! tetiklenemedi"):
+                red = "tetiklenemedi"
+            elif s.startswith("! "):
+                red = s
+            # sira: `* kuplaj:` (loop, yakalama bitince) -> S2 ... E (dokum turlari)
+            if s.startswith("* kuplaj:") and red:
+                break
+            b = c.besle(s)
+            if b:
+                blok = b
+                break
+        return blok, red
+
+    komut("X0", 1.0)
+    for c_ in ("tm0", "te0", "th0", "tp25", "tb3"):
+        komut(c_)
+    print(f"  {'onay':>4} {'yakalama':>8} {'tetiklendi':>10} {'esik-ort':>9}  aciklama")
+    sonuc = {}
+    for onay in (1, 2):
+        komut(f"tn{onay}")
+        komut("tl4095")                      # ilk yakalama serbest kosu
+        tetik = 0
+        adet = 0
+        ort = None
+        for _ in range(tekrar):
+            if ort is not None:
+                komut(f"tl{int(ort + 30)}", 0.2)
+            b, _ = kuplaj_yakala("8,9")
+            if b is None or not b["ornek"]:
+                continue
+            adet += 1
+            if ort is not None and b["tetiklendi"]:
+                tetik += 1
+            ort = sum(b["ornek"]) / len(b["ornek"])
+        sonuc[onay] = (tetik, adet)
+        print(f"  {onay:4d} {adet:8d} {tetik:10d} {'+30':>9}  "
+              + ("tek ornek — igne tetikler" if onay == 1 else "iki ornek — igne tetiklemez"))
+    ok("[!] Deney BOS DEGIL: tek-ornek kipte igneler tetikliyor",
+       sonuc[1][1] >= 10 and sonuc[1][0] > 0,
+       f"{sonuc[1][0]}/{sonuc[1][1]} — 0 ise igne kaynagi (tK8,9) calismiyor, sonuc anlamsiz")
+    ok("[!] Gurultu reddi (onay=2) igneleri ELIYOR: 0 sahte tetik",
+       sonuc[2][1] >= 10 and sonuc[2][0] == 0,
+       f"{sonuc[2][0]}/{sonuc[2][1]}")
+
+    # ── gercek sinyal: onay=2 tetiklemeye devam ediyor, konum degismiyor ──
+    komut("X1000", 0.5)
+    komut("x500", 1.0)
+    komut("tm1")                             # NORMAL: tetiksiz sonuc yok
+    b, _ = seri_yakala(k)
+    esik = (min(b["ornek"]) + max(b["ornek"])) // 2 if b and b["ornek"] else 1916
+    komut(f"tl{esik}")
+    komut("th14")
+    konum = []
+    for onay in (2, 1):
+        komut(f"tn{onay}")
+        for _ in range(5):
+            b, _ = seri_yakala(k, 10)
+            if not b or not b["tam"] or not b["tetiklendi"]:
+                konum.append((onay, "YOK"))
+                continue
+            v, i = b["ornek"], b["tetik_idx"]
+            gecis = 0 < i < len(v) and v[i - 1] < esik <= v[i]
+            konum.append((onay, i if gecis else f"{i}x"))
+    beklenen = 833 * 25 // 100
+    print(f"  gercek sinyal (CAL 1 kHz, NORMAL, esik {esik}): beklenen idx {beklenen} → "
+          + " ".join(f"o{o}:{i}" for o, i in konum))
+    ok("[!] onay=2 GERCEK sinyalde tetikliyor ve tetik ILK gecis orneginde (B42 korunuyor)",
+       all(i == beklenen for o, i in konum if o == 2) and any(o == 2 for o, _ in konum),
+       "onay ornegini tetik sayarsa konum 1 kayar; ya da hic tetiklemez")
+    ok("onay=1 de ayni konumda", all(i == beklenen for o, i in konum if o == 1))
+    for c_ in ("tn2", "tm0", "th40", "tl2048", "tb5"):
+        komut(c_)
+    komut("X0", 0.5)
+    return 1 if kaldi else 0
+
+
 def skop_blokaj(k, zaman_tabanlari=(3, 5, 7, 9, 10)) -> int:
     """B40/B41 — skop yakalamasi olcumu nasil etkiliyor.
 
@@ -429,7 +534,7 @@ def main() -> int:
     k.ac()
     time.sleep(1.0)
     http_host = secenek("--http", "olcum.local")
-    if "--tetik" in arg or "--olcum" in arg:
+    if "--tetik" in arg or "--olcum" in arg or "--onay" in arg:
         kod = 0
         if "--tetik" in arg:
             print("SKOP TETIK KONUMU (B42)")
@@ -437,6 +542,9 @@ def main() -> int:
         if "--olcum" in arg:
             print("SKOP OLCUM SATIRI — KALIBRASYON + WiFi (B43)")
             kod = skop_olcum_kalibre(k, http_host) or kod
+        if "--onay" in arg:
+            print("SKOP TETIK ONAYI — GURULTU REDDI (B47)")
+            kod = skop_tetik_onayi(k) or kod
         k.kapat()
         print(f"\n{gecti}/{gecti + kaldi} dogrulama gecti")
         return kod
@@ -447,6 +555,8 @@ def main() -> int:
         kod = skop_tetik_konumu(k) or kod
         print("\nSKOP OLCUM SATIRI — KALIBRASYON + WiFi (B43)")
         kod = skop_olcum_kalibre(k, http_host) or kod
+        print("\nSKOP TETIK ONAYI — GURULTU REDDI (B47)")
+        kod = skop_tetik_onayi(k) or kod
         k.kapat()
         print(f"\n{gecti}/{gecti + kaldi} dogrulama gecti")
         return kod

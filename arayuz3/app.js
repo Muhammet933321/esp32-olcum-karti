@@ -336,6 +336,7 @@ createApp({
       skopAyar: null,        // kartın bildirdiği T satırı
       skopTdiv: 5,           // zaman tabanı indeksi (0..11)
       skopKip: 0,            // 0 oto · 1 normal · 2 tek atış
+      skopOnay: 2,           // B47: 1 tek örnek · 2 iki örnek (gürültü reddi); kart varsayılanı 2
       skopKenar: 0,          // 0 yükselen · 1 düşen
       skopEsik: 2048,        // tetik seviyesi, ADC kodu
       skopOn: 25,            // ön-tetik yüzdesi
@@ -1177,6 +1178,9 @@ createApp({
         const es = sayi(a.esik);   if (es !== null) this.skopEsik = es;
         const on = sayi(a.on);     if (on !== null) this.skopOn = on;
         const kp = sayi(a.kip);    if (kp !== null) this.skopKip = kp;
+        /* B47: eski firmware `onay=` göndermez → menü dokunulmaz, kartın
+           davranışı o sürümde zaten tek örnek. */
+        const on2 = sayi(a.onay);  if (on2 === 1 || on2 === 2) this.skopOnay = on2;
         if (a.kenar) this.skopKenar = a.kenar.startsWith('dus') ? 1 : 0;
         this.kaydet(satir);
         return;

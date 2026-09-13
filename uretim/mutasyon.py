@@ -619,6 +619,39 @@ MUTASYONLAR = [
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
     # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    # ── B47 · tetik onayi (gurultu reddi), ayarlanabilir
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "                        tetik_w = (uint16_t)((w + n - 2u) % n);\n"
+     "                        kalan = (uint16_t)(sonra - 2u);",
+     "                        tetik_w = (uint16_t)((w + n - 1u) % n);\n"
+     "                        kalan = (uint16_t)(sonra - 1u);",
+     "onay ornegi tetik sayilir: on-tetik konumu 1 kayar (B42 bozulur)"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "                    if (cift) {\n                        bekleyen = true;",
+     "                    if (false) {\n                        bekleyen = true;",
+     "ESKI KUSURU geri koyar: onay=2 secilse de tek ornekte tetikler, igne sahte tetik"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (on + 3u > n) on = (uint16_t)(n - 3u);",
+     "    if (on + 2u > n) on = (uint16_t)(n - 2u);",
+     "on=%90 ve kisa halkada onay ornegi sigmaz, kalan tasar"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "static SkopAyar skop_ayar = { 5, 2048, 0, 40, 25, SKOP_KIP_OTO, 2 };",
+     "static SkopAyar skop_ayar = { 5, 2048, 0, 40, 25, SKOP_KIP_OTO, 1 };",
+     "varsayilan tek ornek: kullanici dokunmadan sahte tetik riski"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        const on2 = sayi(a.onay);  if (on2 === 1 || on2 === 2) this.skopOnay = on2;\n", "",
+     "arayuz kartin bildirdigi onayi okumaz: menu yalan soyler"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        const on2 = sayi(a.onay);  if (on2 === 1 || on2 === 2) this.skopOnay = on2;",
+     "        const on2 = sayi(a.onay);  this.skopOnay = on2 === null ? 2 : on2;",
+     "eski firmware'de (onay yok) menu 2 gosterir ama kart tek ornekte tetikler"),
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     "@change=\"skopKomut('tn' + skopOnay)\"", "@change=\"skopKomut('tm' + skopOnay)\"",
+     "menu yanlis komut gonderir: onay yerine KIP degisir"),
+    ("B7", "test_arayuz3.js", "arayuz3/sahte-kart.js",
+     "        if (v !== 1 && v !== 2) return ['! onay 1=tek ornek 2=iki ornek (gurultu reddi)'];\n", "",
+     "sahte kart gecersiz onayi kabul eder — firmware'den ayrisir"),
+
     # ── B45 · tarayici gezisinde bulunanlar (zaman grafigi, birimler, konsol, arsiv)
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
      "        if (d[al] < 0) negatif = true;\n", "",
@@ -737,7 +770,7 @@ MUTASYONLAR = [
      "bekci YAZMADAN SONRA: sayac bittikten sonra bir ornek daha halkaya "
      "girer, tetik bir kayar (varlik degil SIRA sinaniyor mu)"),
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
-     "                if (dolu > on) {", "                if (dolu >= on) {",
+     "                } else if (dolu > on) {", "                } else if (dolu >= on) {",
      "tetikten once on-1 ornek: halka bir eksik dolar, tetik on-1'e duser"),
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "kalan = (uint16_t)(sonra - 1u);", "kalan = sonra;",

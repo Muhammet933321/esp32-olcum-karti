@@ -143,7 +143,7 @@ devre** (jumper) ve **RC düzeneği** (GPIO10 → 10K → 100nF → 10K → 100n
 GPIO4) — skop/tetik/ölçüm tezgah sınamaları bunlara bağlı; ön uçtan önce
 sökülecek. Kart breadboard'da değil, dişi-erkek tellerle taşınıyor.
 
-**Bugün olan (5.12.56–5.12.60):** B42 ön-tetik hiç uygulanmıyordu ·
+**Son yapılanlar (5.12.56–5.12.61):** B47 tetik onayı ayarlanabilir (varsayılan gürültü reddi; A/B 17/20 → 0/20) · B42 ön-tetik hiç uygulanmıyordu ·
 B43 ölçüm satırı WiFi'de yoktu, USB'de eksenle 7 V çelişiyordu · B44 I²C'yi
 taşıma kararı ölçülüp **reddedildi** (sebep pin/kablo değil, yüklü hattın
 **kenar hızı**; yakalamada ADS susturma kalıyor) · B45 panel tarayıcıdan
@@ -160,8 +160,7 @@ Arayüz karta yazıldıktan sonra `location.reload()` şart.
 (bringup). ⚠ Köprü açıkken COM6 onda; hata sayan deneyleri **iç içe** ve
 **CAL kapalı** koş (B44).
 
-**Açık:** B47 önerisi (tetikte iki ardışık örnek — kalıntı 0.1–0.3/1000
-iğne) · PCB'de I²C kuplajı yeniden ölçülecek · WebAkis satır birleştirme ·
+**Açık:** PCB'de I²C kuplajı yeniden ölçülecek · WebAkis satır birleştirme ·
 hızlı yol sıfır kalibrasyonu (ön uç gerekli) · ön uç kurulunca `wB`,
 `tezgah_kart.py --asama 1`.
 
@@ -8246,6 +8245,27 @@ Zayıf sürüş hatayı ~4× azaltıyor ama **sıfırlamıyor**. Karar: yakalama
 
 ---
 
+#### 5.12.61 ✅ B47 — TETİK ONAYI (gürültü reddi), AYARLANABİLİR (2026-09-14)
+
+**Neden.** B44/B46: I²C susturulmuş ve CAL kapalıyken bile ~0.1–0.3/1000 tek-örnek iğne kalıyor (60 kod; histerezis 40). Tek-örnek tetikte 1000 örneklik yakalamada ~%25 olasılıkla bir iğne var; eşiğe yakın düşerse **sahte tetik** — kullanıcının B41'de ekranda gördüğü şeyin nadir hali. Kullanıcı önerisi: sabit değil, **ayarlanabilir** olsun (tek / iki örnek). Gerçek skoplardaki karşılığı "noise reject" tetik bağlantısı.
+
+**Ne yapıldı.** `SkopAyar.onay` (1|2, varsayılan **2**), komut `tn<1|2>`, `T` satırında `onay=`, arayüzde menü ("Gürültü reddi (2 örnek)" / "Tek örnek"), sahte kartta aynı. `skop_yakala`: geçiş örneği `bekleyen` olur; bir sonraki örnek eşiğin doğru tarafındaysa tetik = **geçiş örneği** (`tetik_w = w−2`, `kalan = sonra−2`), değilse geçiş iğne sayılır ve arama sürer. Ön-tetik konumu iki kipte de aynı (B42'nin `tetik_idx == on` iddiası korunuyor); `on + 3 ≤ n` kırpması. Eski firmware `onay=` göndermez → arayüz menüye dokunmaz (kart o sürümde zaten tek örnek). Skop ayarları NVS'te tutulmuyor (önceden de öyle): açılışta varsayılan 2.
+
+**Asıl kazanç ayarlanabilirlikten geldi: kendi kendini kanıtlayan A/B.** Dün "bunu kesin yalanlayan tezgah testi yok" denmişti. Aynı firmware'de iki kip arka arkaya, iğne kaynağı `tK8,9` (B44'ün I²C tıklatması), OTO kip, CAL kapalı, eşik = düğüm ortalaması + 30 kod, histerezis 0, gerçek geçiş yok (`tezgah_blokaj.py --onay`):
+
+| onay | yakalama | tetiklendi |
+|---|---|---|
+| 1 (tek örnek) | 20 | **17** — iğneler tetikliyor |
+| 2 (iki örnek) | 20 | **0** |
+
+Sonra gerçek sinyal (CAL 1 kHz, NORMAL, ön-tetik %25, 833 örnek): onay=2 beş yakalamada da tetikledi ve tetik indeksi **208** (= beklenen), onay=1 de 208. Yani gürültü reddi gerçek sinyali kaçırmıyor ve konumu kaydırmıyor.
+
+**Bedel.** Tetik 1 örnek gecikir (konum düzeltiliyor, görünmez). Yavaş tabanlarda gerçekten tek örnek süren darbe (500 ms/böl'de 1.6 ms) onay=2'de tetiklemez — bunun için menüden "Tek örnek". Bir ayar daha.
+
+**Doğrulama.** Kartta `--onay` **4/4** · `sim3_skop` 83 → **87** (6m: w−2/sonra−2, tek kip aynen, doğrulanmayan geçiş iğne, varsayılan/protokol) · `test_arayuz3` 338 → **346** (bölüm 22) · mutasyon B19 **52/52**, B7 **74/74** (onay örneğini tetik saymak, `cift`'i kapatmak, kırpmayı geri almak, varsayılanı 1 yapmak, arayüzün `onay=`i okumaması / uydurması, menünün yanlış komut göndermesi, sahte kartın geçersizi kabul etmesi). B42 mutasyonunun deseni (`dolu > on`) yeni koda göre güncellendi.
+
+---
+
 #### 5.12.60 🔴 B46 — ALERT PROBU HAT ZATEN DÜŞÜKKEN "VAR" DİYORDU (2026-09-13)
 
 B44b deneylerinden sonra `D` satırı `durum=2` (akım ADS'si okunamıyor, 33 örnek/rapor) verdi. `#` komutu: I²C taramasında **yalnız 0x49**; ama hemen altında *"0x48=VAR sure=3 us (RDY calisiyor — dogru modul)"*. İki satır birbiriyle çelişiyordu ve ikincisi **yanlıştı**: `alert_dener` ayarı yazıp pinin DÜŞÜK olmasını bekliyor, ilk turda düşük bulup dönüyordu — pin **zaten** düşüktü (beslemesiz/bağlantısız modülün ALRT ucu). Kullanıcı bu çıktıya bakıp RDY telini "doğru" sayardı.
@@ -8309,7 +8329,7 @@ Hızlı ölçüm, GPIO4–GPIO5 kısa devreli düzenekte CAL 1 kHz ile **PF 0.95
 | ~~B18~~ | ✅ **GPIO kelepçeleri / +3V3 geri beslemesi** | **BİTTİ (2026-09-09).** Sonuçlar **5.12.27**'de: 46 doğrulama, F6 reddedildi, R26/R33 10K + yeni R41. B1 payı 18 → 1930 mV, TL431'den bağımsız |
 | ~~B16~~ | ✅ **V/I süzgeç eşleştirmesi** | **BİTTİ (2026-09-09).** Sonuçlar **5.12.26**'da: 41 doğrulama, C4 100nF→1nF, yeni C18/C19/C20 = 1.32 µF (stoktan). Reaktif yükte hata %155 → %1.9. 5 açık iş kalemi bıraktı |
 | **B14** | **Hızlı skop (MHz) — harici ADC** | 🔭 **Aşama 4, açık ihtimal.** Kullanıcı ilgileniyor, şimdilik almadı. Tam analiz + kademeli plan **5.12.20**'de. Adım 1 bedava: hazır açık kaynak kodu elde bir ESP32'de dene |
-| **B47** | **Tetik: iki ardışık örnek şartı** | 🔶 **Öneri (2026-09-13, 5.12.60).** I²C susturulmuş ve CAL kapalıyken bile ~0.1–0.3/1000 tek-örnek iğne kalıyor (kaynak bilinmiyor); histerezis 40 kod < iğne 60 kod → nadir sahte tetik mümkün. İki ardışık örnek eşiği geçince tetiklemek iğneyi etkisiz kılar. Engel: deterministik yalanlayıcı tezgah sınaması yok (iğneler aralıklı) |
+| ~~B47~~ | ✅ **Tetik onayı (gürültü reddi), ayarlanabilir** | **BİTTİ (2026-09-14).** Sonuçlar **5.12.61**'de: `tn1/2`, varsayılan 2; kartta A/B 17/20 → 0/20 sahte tetik, gerçek sinyalde konum korunuyor |
 | **PCB** | **I²C kuplajı — PCB'de yeniden ölç** | 🔶 B44: SDA/SCL'ye seri direnç (33–100 Ω), tek pull-up seti, zayıf sürüş; `tezgah_kuplaj --asama 3`. K1 kontrol düzeyine inerse ADS susturması (B41) kaldırılabilir |
 
 🔴 **Değişmeyen uyarı:** kart izole değil.

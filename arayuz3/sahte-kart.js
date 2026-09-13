@@ -31,7 +31,7 @@ const SahteKart = (() => {
 
   /* Skop ayarları — firmware'deki SkopAyar'ın aynısı */
   const ayar = { tdiv: 6, esik: 2048, kenar: 0, histerezis: 40,
-                 on: 25, kip: 0 };
+                 on: 25, kip: 0, onay: 2 };   // B47: onay 1/2 (gürültü reddi)
 
   /* Prob ucundaki test sinyalleri. Kullanıcı üstteki menüden seçiyor. */
   const SINYALLER = {
@@ -236,7 +236,7 @@ const SahteKart = (() => {
            `(${TDIV_US[ayar.tdiv]} us/bolme) hz=${hz} adet=${n} ` +
            `pencere_ms=${(1000 * n / hz).toFixed(2)} esik=${ayar.esik} ` +
            `kenar=${ayar.kenar ? 'dusen' : 'yukselen'} ` +
-           `hist=${ayar.histerezis} on=${ayar.on}% kip=${ayar.kip}`;
+           `hist=${ayar.histerezis} on=${ayar.on}% kip=${ayar.kip} onay=${ayar.onay}`;
   }
 
   /* Otomatik kurulum — firmware'deki skop_otomatik()'in karşılığı */
@@ -309,7 +309,12 @@ const SahteKart = (() => {
       if (alt === 'h') { ayar.histerezis = Math.max(0, parseInt(k.slice(2), 10) || 0); return [ayarSatiri()]; }
       if (alt === 'p') { ayar.on = Math.max(0, Math.min(90, parseInt(k.slice(2), 10) || 0)); return [ayarSatiri()]; }
       if (alt === 'm') { ayar.kip = Math.max(0, Math.min(2, parseInt(k.slice(2), 10) || 0)); return [ayarSatiri()]; }
-      return ['! skop: t ta tb tl te th tp tm t? t+ t-'];
+      if (alt === 'n') {
+        const v = parseInt(k.slice(2), 10);
+        if (v !== 1 && v !== 2) return ['! onay 1=tek ornek 2=iki ornek (gurultu reddi)'];
+        ayar.onay = v; return [ayarSatiri()];
+      }
+      return ['! skop: t ta tb tl te th tp tm tn t? t+ t-'];
     }
     /* ASAMA 3 komut kumesi — firmware'in komut_calistir()'i ile AYNI
        harfler. Yanlis harf gonderilirse burasi da "bilinmeyen komut"

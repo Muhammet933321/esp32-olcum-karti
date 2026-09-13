@@ -765,9 +765,21 @@ struct SkopAyar {
     uint16_t histerezis;  // ADC kodu — sahte tetiklemeyi önler
     uint8_t  on_yuzde;    // ön-tetik yüzdesi 0..90
     uint8_t  kip;         // SKOP_KIP_*
+    /* 🔶 B47 — TETIK ONAYI (gercek skoplardaki "noise reject").
+       1 = esigi gecen ILK ornekte tetikle (eski davranis).
+       2 = gecisi bir SONRAKI ornek de dogrulamali; dogrulamazsa gecis
+           igne sayilir. B44/B46: I2C susturulmus ve CAL kapaliyken bile
+           ~0.1-0.3/1000 tek-ornek igne kaliyor (60 kod, histerezis 40) —
+           tek-ornek kipte nadir SAHTE TETIK mumkun. Tetik noktasi iki
+           kipte de ILK gecis ornegi (on-tetik konumu degismez).
+       Ayarlanabilir, sabit degil: yavas tabanlarda gercekten tek ornek
+       suren bir darbe (500 ms/bol'de 1.6 ms) 2'de tetiklemez; kullanici
+       1'e alir. Ayrica ayni firmware'de iki kip A/B'lenebiliyor
+       (tezgah_blokaj.py --onay). */
+    uint8_t  onay;        // 1 ya da 2
 };
 
-static SkopAyar skop_ayar = { 5, 2048, 0, 40, 25, SKOP_KIP_OTO };
+static SkopAyar skop_ayar = { 5, 2048, 0, 40, 25, SKOP_KIP_OTO, 2 };
 
 static adc_continuous_handle_t skop_kulp = NULL;
 
@@ -1077,11 +1089,15 @@ static uint8_t skop_yakala()
     if (adc_baslat() != ESP_OK) { skop_kilidi_birak(); return SKOP_SONUC_HATA; }
 
     uint16_t on = (uint16_t)((uint32_t)n * skop_ayar.on_yuzde / 100u);
-    if (on + 2u > n) on = (uint16_t)(n - 2u);
+    if (on + 3u > n) on = (uint16_t)(n - 3u);   /* B47: gecis + onay + >=1 */
     uint16_t sonra = (uint16_t)(n - on);
 
     uint16_t w = 0, dolu = 0, kalan = 0, tetik_w = 0, onceki = 0;
     bool bulundu = false, hazir = false, ilk = true;
+    /* B47: iki-ornek onayi. `bekleyen` = onceki ornek esigi gecti, bu
+       ornek dogrulayacak. Dogrulanirsa tetik ornegi ONCEKI (gecis) ornegi. */
+    bool bekleyen = false;
+    const bool cift = (skop_ayar.onay >= 2u);
 
     /* Zaman aşımı: pencerenin dört katı (tetik beklemesi için pay),
        en az 300 ms, en çok 4 s.
@@ -1137,17 +1153,32 @@ static uint8_t skop_yakala()
             if (dolu < n) dolu++;
 
             if (!bulundu) {
-                /* `dolu` bu örneği de sayıyor: `>` tetikten ÖNCE tam `on`
-                   örnek demek (`>=` ile halka bir eksik dolup tetik on-1'e
-                   düşerdi). */
-                if (dolu > on) {         // yeterli geçmiş biriktikten sonra
+                bool gecis = false;
+                /* 🔶 B47 — ONAY: onceki ornek gecisti, bu ornek dogruluyor mu?
+                   Dogruluyorsa tetik ONCEKI ornek (w-2): `sonra` bolgesinden
+                   iki ornek (gecis + onay) zaten yazildi. Dogrulamiyorsa
+                   gecis igneydi: sayilmaz, arama surer (hazir korunur —
+                   sinyal esigin gerisine dondu). */
+                if (bekleyen) {
+                    bekleyen = false;
+                    bool dogru = (skop_ayar.kenar == 0u) ? (v >= skop_ayar.esik)
+                                                          : (v <= skop_ayar.esik);
+                    if (dogru) {
+                        bulundu = true;
+                        tetik_w = (uint16_t)((w + n - 2u) % n);
+                        kalan = (uint16_t)(sonra - 2u);
+                    }
+                } else if (dolu > on) {  // yeterli geçmiş biriktikten sonra
+                    /* `dolu` bu örneği de sayıyor: `>` tetikten ÖNCE tam `on`
+                       örnek demek (`>=` ile halka bir eksik dolup tetik on-1'e
+                       düşerdi). */
                     if (skop_ayar.kenar == 0u) {              // yükselen
                         if (!hazir) {
                             if ((uint32_t)v + skop_ayar.histerezis <
                                 (uint32_t)skop_ayar.esik) hazir = true;
                         } else if (!ilk && onceki < skop_ayar.esik &&
                                    v >= skop_ayar.esik) {
-                            bulundu = true;
+                            gecis = true;
                         }
                     } else {                                  // düşen
                         if (!hazir) {
@@ -1156,19 +1187,24 @@ static uint8_t skop_yakala()
                                 hazir = true;
                         } else if (!ilk && onceki > skop_ayar.esik &&
                                    v <= skop_ayar.esik) {
-                            bulundu = true;
+                            gecis = true;
                         }
                     }
                 }
                 onceki = v;
                 ilk = false;
-                if (bulundu) {
-                    tetik_w = (uint16_t)((w + n - 1u) % n);
-                    /* Tetik örneği yazıldı; ARKASINDAN sonra-1 örnek daha:
-                       on + 1 + (sonra-1) = n → halka tam dolu ve tetik
-                       dizide TAM `on` indeksinde. (`sonra >= 2`: yukarıda
-                       on + 2 <= n kırpılıyor.) */
-                    kalan = (uint16_t)(sonra - 1u);
+                if (gecis) {
+                    if (cift) {
+                        bekleyen = true;             /* B47: bir sonraki ornek karar verir */
+                    } else {
+                        bulundu = true;
+                        tetik_w = (uint16_t)((w + n - 1u) % n);
+                        /* Tetik örneği yazıldı; ARKASINDAN sonra-1 örnek daha:
+                           on + 1 + (sonra-1) = n → halka tam dolu ve tetik
+                           dizide TAM `on` indeksinde. (`sonra >= 3`: yukarıda
+                           on + 3 <= n kırpılıyor.) */
+                        kalan = (uint16_t)(sonra - 1u);
+                    }
                 }
             } else if (kalan > 0u) {
                 kalan--;
@@ -1517,7 +1553,8 @@ void skop_ayar_yaz()
     Serial.print(skop_ayar.kenar ? F("dusen") : F("yukselen"));
     Serial.print(F(" hist="));   Serial.print(skop_ayar.histerezis);
     Serial.print(F(" on="));     Serial.print(skop_ayar.on_yuzde);
-    Serial.print(F("% kip="));   Serial.println(skop_ayar.kip);
+    Serial.print(F("% kip="));   Serial.print(skop_ayar.kip);
+    Serial.print(F(" onay="));   Serial.println(skop_ayar.onay);   /* B47 */
 }
 
 
@@ -1683,8 +1720,12 @@ void skop_komut(const char *s) {
         int v = atoi(s + 2);
         if (v >= 0 && v <= 2) { skop_ayar.kip = (uint8_t)v; skop_ayar_yaz(); }
         else Serial.println(F("! kip 0=oto 1=normal 2=tek"));
+      } else if (alt == 'n') {                    /* B47: tetik onayi */
+        int v = atoi(s + 2);
+        if (v == 1 || v == 2) { skop_ayar.onay = (uint8_t)v; skop_ayar_yaz(); }
+        else Serial.println(F("! onay 1=tek ornek 2=iki ornek (gurultu reddi)"));
       } else {
-        Serial.println(F("! skop: t ta tb tl te th tp tm t? t+ t-"));
+        Serial.println(F("! skop: t ta tb tl te th tp tm tn t? t+ t-"));
       }
 }
 
@@ -3050,7 +3091,7 @@ void yardim() {
   Serial.println(F("  wB hizli kanallar BOSTA mi (dahili cekme sinamasi)"));
   Serial.println(F("  R! fabrika ayarlari (kalibrasyonu SIFIRLAR)"));
   Serial.println(F("  t yakala  ta otomatik  tb<0-11> zaman tabani  t+ t-"));
-  Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  t?"));
+  Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  tn<1/2> onay  t?"));
 }
 
 void komut_calistir(const char *s) {
