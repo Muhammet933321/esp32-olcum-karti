@@ -8119,6 +8119,44 @@ Zincir 18/18 ve bütün tezgah testleri yeşildi: **hiçbir iddia tetiğin YERİ
 
 ---
 
+#### 5.12.57 🔴 B43 — SKOP ÖLÇÜM SATIRI: WiFi'de hiç yokmuş, USB'de eksenle 7 V çelişiyormuş (2026-09-13)
+
+Panelde sırayla sınanırken bulundu (B42'nin devamı, tarayıcıdan).
+
+##### Kusur 1 — WiFi'de ölçüm satırı HİÇ çıkmıyordu
+
+Kullanıcının kullandığı yol (WiFi: `tB` + `/skop.bin`) her yakalamada `olcum: null` veriyordu: frekans, periyot, Vpp, Vmax/Vmin/Vort/Vrms/Vac, duty, yükselme/düşme ve "ekranda bir tam çevrim yok" uyarısı **hiç gösterilmiyordu**. Firmware ikili işte ölçümü atlıyordu (`is != SKOP_IS_IKILI`), `/skop.bin`'in 32 baytlık başlığında da yer yok. Zincir yeşildi: ikili çözücü iddiaları başlığı ve örnekleri sınıyor, ölçümü değil.
+
+##### Kusur 2 — USB'de ölçüm satırı B36'nın kalibre ekseniyle çelişiyordu
+
+B36 ekseni eFuse tablosuyla çiziyor; ekranın altındaki `M` satırı ise hâlâ doğrusal modelden (`kod × volt_adim`) geliyordu. Aynı yakalamanın aynı kodlarından:
+
+| CAL 1 kHz | Vmax | Vmin | Vpp | Vort |
+|---|---|---|---|---|
+| `M` satırı (doğrusal) | −6.30 V | −10.65 V | 4.35 V | −8.49 V |
+| eksen (eFuse, arayüz `kodVolt`) | +0.70 V | −4.12 V | 4.82 V | −1.73 V |
+
+Izgara bir şey, sayılar başka şey: 7.00 V fark, Vpp %10 düşük (100 Hz'de 9 V). Ön uç kurulmadığı için panel voltları henüz fiziksel değil; ama iki gösterimin **birbiriyle** çelişmesi her durumda kusur.
+
+##### Karar — ölçüm kartta kalıyor, dönüşüm B39'un tek tablosundan
+
+Arayüzde yeniden hesaplamak `skop_olc`'un ikinci bir kopyası olurdu (AVR emülatöründe analitik değerlerle sınanan tek uygulama). Bunun yerine `kal_mv_tab` dördüncü tüketici oldu (`skop_olc_kalibre`):
+
+* **Volt büyüklükleri** tablodan, arayüzün `kodVolt` kuralıyla birebir; toplamlar **double** (ofsetsiz değer ~65 V; float32 kare toplamında gürültü düzeyindeki Vac yuvarlamada kaybolurdu).
+* **Zaman büyüklükleri** (f, T, duty, tr, tf, n) `skop_olc`'tan, tablodan doğrusallaştırılmış kodlarla (eşikler eksenin gösterdiği orta seviyede). `skop_olc.h`'e dokunulmadı.
+* Ölçüm artık ikili işte de yapılıyor; `M` satırı **onay satırından hemen önce** basılıyor ve iki yol tek biçimleyiciden geçiyor (`skop_m_satiri`). Arayüz onaydan önce gelen `M`'yi o yakalamaya bağlıyor (`skopIkiliOlcum`, tek kullanımlık; `!` ve yeni `tB` temizliyor). Tek ayrıştırıcı: `skopMCoz`.
+* Arşivden açılan kayda bekleyen ölçüm **bağlanmıyor**. ⚠ Arşiv kayıtlarında ölçüm satırı hâlâ yok (bilinen eksik; ham kod saklandığı için ileride geriye dönük eklenebilir).
+
+##### Doğrulama
+
+* Tezgah `tezgah_blokaj.py --olcum` (yeni; CT tablosu karttan, arayüz kuralının Python karşılığı): düzeltmeden önce **0/4**, sonra **4/4** — ASCII ve ikili yolda `M` ile eksen arasındaki en büyük fark < 0.05 mV (sınır 2 mV); ikili yolda `M` onaydan önce; frekans 999.6 / 999.7 Hz (CAL 1 kHz).
+* Tezgah `--skop` (B40–B43 hepsi) **12/12**. ⚠ Yakalama sırasında döngünün en uzun turu bu koşuda **8.99 ms** (B42 koşusunda 7.79 ms): ölçüm hesabı (double) yakalama görevinde, çekirdek 1'de ek iş. Tek koşu, koşular arası saçılmadan ayrılmadı; sınır 20 ms.
+* Panelde (WiFi, yenilenmiş sayfa): ölçüm satırı 12 değerle görünüyor; Vmax 0.3482 / Vmin −4.0922 / Vort −1.8082 V eksenden hesaplananla aynı.
+* Zincir 18/18, **1406 iddia** · `sim3_skop` 72 → **78** (6k) · `test_arayuz3` 304 → **313** (bölüm 20) · mutasyon B19 **43/43**, B7 **61/61**. İlk koşuda bir mutasyon **kaçtı**: "M onaydan önce" iddiası yalnız biçimleyici çağrısının yerine bakıyordu, `Serial.write` silinince yeşil kalıyordu — iddia yazmanın kendisini de sıraya alacak şekilde düzeltildi.
+* ⚠ Kendi hatam, kayda değer: arayüzü karta yazdıktan sonra tarayıcıda aynı adrese (`#/skop`) `navigate` sayfayı **yenilemedi** (yalnızca hash gezinmesi); eski kod "ölçüm yok" gösterdi. Kart doğruydu (`no-cache`, yeni `app.js` sunuluyordu). Arayüz güncellemesinden sonra `location.reload()` şart.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

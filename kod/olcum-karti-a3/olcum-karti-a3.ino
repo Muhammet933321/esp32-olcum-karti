@@ -1249,6 +1249,58 @@ static bool skop_otomatik()
     return true;
 }
 
+/* 🔴 B43 — SKOP OLCUMLERI EKSENLE AYNI KALIBRASYONDAN.
+   Panelden ve tezgahta olculdu (2026-09-13, CAL 1 kHz, AYNI kodlar):
+       M satiri (kod * volt_adim)   Vmax -6.30  Vmin -10.65  Vpp 4.35 V
+       arayuz ekseni (eFuse, B36)   Vmax +0.70  Vmin  -4.12  Vpp 4.82 V
+   B36 ekseni kalibre etti; ekranin altindaki olcum satiri ise hala
+   dogrusal modelden geliyordu — izgara bir sey, sayilar baska sey
+   (100 Hz'de 9 V). Cozum B39'un TEK TABLOSU (`kal_mv_tab`), dorduncu
+   tuketici olarak:
+     * VOLT buyuklukleri tablodan, arayuzun `kodVolt`u ile AYNI kural.
+       Toplamlar DOUBLE: ofsetsiz deger ~65 V; float32 kare toplaminda
+       4000 ornekte Vac'in karesi (gurultude ~0.003 V^2) yuvarlamada
+       kaybolurdu.
+     * ZAMAN buyuklukleri (f, T, duty, tr, tf, n) `skop_olc`'tan, ama
+       tablodan DOGRUSALLASTIRILMIS kodlarla: esikler eksenin gosterdigi
+       orta seviyede.
+   `skop_olc.h`e DOKUNULMUYOR (Asama 2'den uretilen birebir kopya). Donus
+   degerleri `skop_olc` gibi OFSETSIZ; ofseti cagiran `skop_ofsetle` uygular.
+   Tablo yoksa eski yol (dogrusal) — arayuz de o durumda ekseni dogrusal
+   ciziyor (`CT 0`), yani ikisi yine ayni. */
+static void skop_olc_kalibre(SkopOlcum *m)
+{
+    const uint16_t n = skop_adet;
+    if (!kal_tab_var || n == 0u) {
+        skop_olc(skop_veri, n, skop_volt_adim(), (float)skop_hz, m);
+        return;
+    }
+    const float mv_kod = SKOP_ADC_SAYIM / (SKOP_ADC_TAVAN * 1000.0f);  /* pin mV -> dogrusal kod */
+    const float mv_v   = SKOP_ORAN / 1000.0f;                          /* pin mV -> V, ofsetsiz */
+    uint16_t hmin = skop_veri[0], hmax = skop_veri[0];
+    double top = 0.0, kare = 0.0;
+    for (uint16_t i = 0; i < n; i++) {
+        uint16_t h = skop_veri[i];
+        float mv = kal_mv((float)h);
+        float d = mv * mv_kod + 0.5f;
+        skop_gecici[i] = (d <= 0.0f) ? 0u : ((d >= 65535.0f) ? 65535u : (uint16_t)d);
+        double v = (double)mv * (double)mv_v;
+        top += v;
+        kare += v * v;
+        if (h < hmin) hmin = h;
+        if (h > hmax) hmax = h;
+    }
+    skop_olc(skop_gecici, n, skop_volt_adim(), (float)skop_hz, m);   /* zaman buyuklukleri */
+    double ort = top / (double)n;
+    double ac = kare / (double)n - ort * ort;
+    m->vmax = kal_mv((float)hmax) * mv_v;
+    m->vmin = kal_mv((float)hmin) * mv_v;
+    m->vpp  = m->vmax - m->vmin;
+    m->vort = (float)ort;
+    m->vac  = (ac > 0.0) ? (float)sqrt(ac) : 0.0f;
+    m->vrms = (float)sqrt(kare / (double)n);
+}
+
 // Protokol — yeni `S2` başlığı zaman tabanını, tetik konumunu ve
 // otomatik ölçümleri taşıyor:
 //
@@ -1273,9 +1325,12 @@ static void skop_gorevi(void *)
         } else if (is == SKOP_IS_DOKUM || is == SKOP_IS_IKILI) {
             sonuc = skop_yakala();
         }
-        if (sonuc == SKOP_SONUC_OK && is != SKOP_IS_IKILI) {
+        /* 🔴 B43: ikili yolda da olculuyor — eskiden `is != SKOP_IS_IKILI`
+           vardi ve WiFi'deki (tB + /skop.bin) HICBIR yakalamada olcum
+           satiri (frekans, Vpp, duty…) gosterilemiyordu. */
+        if (sonuc == SKOP_SONUC_OK) {
             SkopOlcum &m = skop_dokum_m;
-            skop_olc(skop_veri, skop_adet, skop_volt_adim(), (float)skop_hz, &m);
+            skop_olc_kalibre(&m);
             skop_ofsetle(&m);
         }
         xQueueSend(skop_sonuc_q, &sonuc, portMAX_DELAY);
@@ -1315,6 +1370,21 @@ void skop_yolla()
     skop_is_ver(SKOP_IS_DOKUM);
 }
 
+/* `M` satiri TEK yerde bicimleniyor: ASCII dokumu ve ikili onay AYNI
+   metni basiyor (iki bicimleyici ayrisirsa arayuz iki yolda farkli
+   ayristirirdi). */
+static int skop_m_satiri(char *b, size_t boy)
+{
+    const SkopOlcum &m = skop_dokum_m;
+    return snprintf(b, boy,
+                    "M f=%.3f T=%.9f Vpp=%.4f Vmax=%.4f Vmin=%.4f Vort=%.4f "
+                    "Vrms=%.4f Vac=%.4f duty=%.2f tr=%.9f tf=%.9f n=%u\r\n",
+                    (double)m.frekans, (double)m.periyot, (double)m.vpp,
+                    (double)m.vmax, (double)m.vmin, (double)m.vort,
+                    (double)m.vrms, (double)m.vac, (double)m.duty,
+                    (double)m.t_yuksel, (double)m.t_dus, (unsigned)m.cevrim);
+}
+
 /* ── Cekirdek 1: sonucu isle (her loop turunda) ──────────────────────
    Eskiden ayni yerde senkron basilan metinler BURADA basiliyor; satir
    bicimleri degismedi. */
@@ -1341,6 +1411,13 @@ static void skop_sonuc_isle()
         return;
     }
     if (is == SKOP_IS_IKILI) {
+        /* 🔴 B43 — OLCUM SATIRI ONAYDAN ONCE. `/skop.bin` basliginda yer
+           yok (32 bayt dolu); arayuz onay satirini gorunce govdeyi cekiyor
+           ve hemen onceki `M`yi o yakalamaya bagliyor. Sira bu fonksiyonda
+           sabit, kilit de govde okunurken yeni yakalamayi engelliyor. */
+        char mb[256];
+        int mn = skop_m_satiri(mb, sizeof(mb));
+        if (mn > 0) Serial.write((const uint8_t *)mb, (size_t)mn);
         Serial.print(F("* skop yakalandi (ikili): "));
         Serial.print(skop_adet);
         Serial.print(F(" ornek @ "));
@@ -1376,14 +1453,7 @@ static void skop_dokum_ilerle()
                          (double)skop_volt_ofset());
             sonraki = 1;
         } else if (skop_dokum.asama == 1) {
-            const SkopOlcum &m = skop_dokum_m;
-            n = snprintf(b, sizeof(b),
-                         "M f=%.3f T=%.9f Vpp=%.4f Vmax=%.4f Vmin=%.4f Vort=%.4f "
-                         "Vrms=%.4f Vac=%.4f duty=%.2f tr=%.9f tf=%.9f n=%u\r\n",
-                         (double)m.frekans, (double)m.periyot, (double)m.vpp,
-                         (double)m.vmax, (double)m.vmin, (double)m.vort,
-                         (double)m.vrms, (double)m.vac, (double)m.duty,
-                         (double)m.t_yuksel, (double)m.t_dus, (unsigned)m.cevrim);
+            n = skop_m_satiri(b, sizeof(b));
             sonraki = (skop_adet > 0u) ? 2 : 3;
         } else if (skop_dokum.asama == 2) {
             uint16_t son = (uint16_t)(skop_dokum.i + 16u);

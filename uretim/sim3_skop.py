@@ -869,6 +869,44 @@ def bolum6(r):
             "kalan = (uint16_t)(sonra - 1u);" in _y,
             "`kalan = sonra` halkayi bir fazla doldurur, tetik on-1'e kayar")
 
+    # ── B43: OLCUM SATIRI EKSENLE AYNI KALIBRASYONDAN, WiFi'DE DE VAR ──
+    # Panelden ve tezgahta olculdu (2026-09-13, CAL 1 kHz, AYNI kodlar):
+    # M satiri Vmax -6.30 / eksen +0.70 V (7.00 V fark, Vpp %10 dusuk);
+    # ikili yolda (WiFi) M satiri HIC yoktu. Asil kanit tezgahta
+    # (`tezgah_blokaj.py --olcum`: M, dalganin kendi kodlarindan arayuz
+    # kuraliyla hesaplananla <= 2 mV); asagidakiler duzeltmenin
+    # KALDIRILMASINI yakalar.
+    _kal = _kod(_govde_c("static void skop_olc_kalibre(SkopOlcum *m)",
+                         "// Protokol"))
+    _gor_k = _kod(_gor)
+    r.kosul("  6k: [!] gorev olcumu IKILI yolda da yapiyor ve KALIBRE fonksiyondan",
+            "skop_olc_kalibre(&m);" in _gor_k and "SKOP_IS_IKILI" not in _gor_k
+            .split("xQueueSend")[0].split("sonuc = skop_yakala();")[-1],
+            "`is != SKOP_IS_IKILI` WiFi'deki her yakalamada olcum satirini siliyordu")
+    r.kosul("  6k: [!] VOLT buyuklukleri eFuse TABLOSUNDAN (eksenle ayni kural)",
+            "m->vmax = kal_mv((float)hmax) * mv_v;" in _kal
+            and "m->vmin = kal_mv((float)hmin) * mv_v;" in _kal
+            and "if (!kal_tab_var" in _kal,
+            "dogrusal model eksenden 7 V saparken ekrandaki sayilar izgarayla celisiyordu")
+    r.kosul("  6k: [!] toplamlar DOUBLE (Vac ~65 V'luk ortalamanin yaninda kaybolmasin)",
+            "double top = 0.0, kare = 0.0;" in _kal)
+    r.kosul("  6k: ZAMAN buyuklukleri skop_olc'tan, dogrusallastirilmis KODLARLA",
+            "skop_olc(skop_gecici, n," in _kal and "skop_gecici[i] =" in _kal,
+            "esikler eksenin gosterdigi orta seviyede")
+    _isle_k = _kod(_isle)
+    # ⚠ Yalniz bicimleyici cagrisinin yerine bakmak BOS iddiaydi: mutasyon
+    #   `Serial.write`i sildi ve iddia yesil kaldi. Satiri BASAN cagri da
+    #   sirada olmali.
+    _m_yer = _isle_k.find("skop_m_satiri(")
+    _yaz_yer = _isle_k.find("Serial.write((const uint8_t *)mb, (size_t)mn);")
+    _onay_yer = _isle_k.find("* skop yakalandi (ikili)")
+    r.kosul("  6k: [!] ikili yolda M satiri BASILIYOR ve ONAY satirindan ONCE",
+            0 <= _m_yer < _yaz_yer < _onay_yer,
+            "arayuz onayi gorunce govdeyi cekiyor ve hemen onceki M'yi baglıyor")
+    r.kosul("  6k: M satiri TEK bicimleyicide (dokum ve ikili onay ayni metin)",
+            ino.count('"M f=%.3f') == 1 and "skop_m_satiri(b, sizeof(b))" in _dok,
+            "iki bicimleyici ayrisirsa arayuz iki yolda farkli ayristirirdi")
+
     r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
             HAM_INL_KOD * T.SKOP_ADIM
             < 0.05 * (T.SKOP_MENZIL_ARTI - T.SKOP_MENZIL_EKSI),
@@ -934,14 +972,17 @@ def main() -> int:
          "3 tel + sema + firmware pin sabitleri. Tasindiktan sonra "
          "`tezgah_blokaj.py --skop` ADS SUSTURULMADAN 0 hata vermeli"),
         ("[!] Skop yakalamasi — `python tezgah_blokaj.py --skop`",
-         "Dort sey sinaniyor: (1) surulu dugumde TEK-ORNEK HATASI 0 — B40b bunu "
+         "Bes sey sinaniyor: (1) surulu dugumde TEK-ORNEK HATASI 0 — B40b bunu "
          "bozmustu ve zincir yakalayamamisti; (2) komut dongusu <= 20 ms "
          "(B40 oncesi 4437 ms); (3) ADS susmasi `ads_duraklama_ms` ile "
          "yakalama suresi kadar SAYILIYOR; (4) B42: TETIK ORNEGI on-tetik "
-         "ayarinin TAM yerinde ve gercek bir esik gecisi (CAL 1 kHz + RC "
-         "duzenegi gerekli; `--tetik` yalniz bunu kosar). 2026-09-13: 8/8, "
-         "tetik 30/30 (duzeltmeden once 0/30). Firmware'de skop/ADC/I2C/"
-         "Serial'e dokunan her degisiklikten sonra tekrar kosun"),
+         "ayarinin TAM yerinde ve gercek bir esik gecisi (`--tetik`); "
+         "(5) B43: OLCUM SATIRI dalganin kendi kodlarindan arayuz kuraliyla "
+         "hesaplananla <= 2 mV, ikili yolda M satiri onaydan once ve "
+         "/skop.bin'le ayni (`--olcum`, WiFi erisimi gerekli). (4) ve (5) "
+         "CAL 1 kHz + RC duzenegi istiyor. 2026-09-13: tetik 0/30 -> 30/30, "
+         "olcum 0/4 -> 4/4. Firmware'de skop/ADC/I2C/Serial'e dokunan her "
+         "degisiklikten sonra tekrar kosun"),
         ("WiFi'de `tB` uctan uca (web parolasiyla, tarayicidan)",
          "Parola depoda yok, bu yuzden Claude KOMUT ucunu sinayamadi; yaris "
          "seri tetik + WiFi `/skop.bin` ile yeniden uretildi: eski arayuzun "

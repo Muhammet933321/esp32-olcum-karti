@@ -1937,6 +1937,94 @@ console.log('\n--- 19. Skop dokumu olcumle ic ice ---');
   ok('`!` satiri bekleyen ikili cekisi IPTAL ediyor', c2 === 0 && y.skopIkiliBekle === false);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   20. IKILI YOLDA OLCUM SATIRI (B43)
+
+   WiFi'deki (tB + /skop.bin) yakalamalarda `olcum` hep null'du: frekans,
+   Vpp, duty satiri HIC cikmiyordu (panelde goruldu). Kart artik `M`yi
+   onay satirindan hemen ONCE basiyor; arayuz onu o yakalamaya bagliyor.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 20. Ikili yolda olcum satiri (B43) ---');
+{
+  const M = 'M f=996.806 T=0.001003204 Vpp=4.6640 Vmax=0.7320 Vmin=-3.9320 '
+          + 'Vort=-1.7390 Vrms=2.3000 Vac=1.5500 duty=45.88 tr=0.000540963 '
+          + 'tf=0.000346482 n=8';
+  const ONAY = '* skop yakalandi (ikili): 833 ornek @ 83333 Hz — /skop.bin';
+  function skopBin(adet) {
+    const b = new ArrayBuffer(32 + adet * 2);
+    const d = new DataView(b);
+    d.setUint8(0, 0x53); d.setUint8(1, 0x33); d.setUint8(2, 0x42); d.setUint8(3, 1);
+    d.setUint16(4, adet, true); d.setUint32(8, 83333, true);
+    d.setFloat32(12, 0.028788, true); d.setFloat32(16, 63.53009, true);
+    d.setUint32(20, 1000, true); d.setUint16(24, 83, true);
+    d.setUint8(26, 0); d.setUint8(27, 1);
+    for (let i = 0; i < adet; i++) d.setUint16(32 + i * 2, 1900 + (i % 10), true);
+    return b;
+  }
+
+  const w = ornek();
+  let cek = 0;
+  w.skopIkiliAl = () => { cek++; };
+  w.skopIkiliBekle = true;
+  w.satirIsle(M);
+  w.satirIsle(ONAY);
+  ok('[!] Onaydan once gelen M satiri TUTULUYOR ve govde cekiliyor',
+     cek === 1 && !!w.skopIkiliOlcum && Math.abs(w.skopIkiliOlcum.Vpp - 4.664) < 1e-9);
+  const cozuldu = w.skopIkiliCoz(skopBin(833));
+  ok('[!] Ikili yakalama OLCUM SATIRINI gosteriyor (WiFi)',
+     cozuldu && !!w.osilo && !!w.osilo.olcum
+     && Math.abs(w.osilo.olcum.f - 996.806) < 1e-9 && w.skopOlcumler.length > 0,
+     w.osilo && w.osilo.olcum ? `${w.skopOlcumler.length} oge` : 'olcum null — WiFi\'de satir cikmaz');
+  ok('Olcum TEK kullanimlik (sonraki kayda yapismiyor)', w.skopIkiliOlcum === null);
+
+  const a = ornek();
+  a.skopIkiliOlcum = { f: 1, Vpp: 1 };
+  a.skopArsivtenAciliyor = true;
+  a.skopIkiliCoz(skopBin(100));
+  ok('[!] Arsivden acilan kayda bekleyen olcum BAGLANMIYOR',
+     !!a.osilo && a.osilo.olcum === null, 'baska bir dalganin olcumu yanlis kayitta gorunurdu');
+
+  const c = ornek();
+  c.skopIkiliAl = () => {};
+  c.skopIkiliBekle = true;
+  c.satirIsle(M);
+  c.satirIsle('! tetiklenemedi');
+  ok('`!` bekleyen olcumu de temizliyor', c.skopIkiliOlcum === null);
+
+  const e = ornek();
+  e.satirIsle(M);
+  ok('Bekleme yokken gelen M satiri tutulmuyor', e.skopIkiliOlcum === null);
+
+  ok('Yeni `tB` oncesi eski olcum temizleniyor',
+     /skopIkiliOlcum = null;[^\n]*\n\s*this\.skopIkiliBekle = true;\s*\n\s*this\.gonder\('tB'\)/.test(appKaynak));
+
+  /* ASCII yolu bozulmadi ve iki yol TEK ayristiricidan geciyor */
+  const s = ornek();
+  s.osiloBitir = function () { this.bitti = this.osiloTopla; this.osiloTopla = null; };
+  s.satirIsle('S2 3 1000 0.028788 0 100 0 1 63.530090');
+  s.satirIsle(M);
+  s.satirIsle('1 2 3');
+  ok('[!] ASCII dokumunde M satiri yine olcume giriyor',
+     !!s.bitti && !!s.bitti.olcum && Math.abs(s.bitti.olcum.duty - 45.88) < 1e-9);
+  /* ⚠ `alan.indexOf('=')` ARANMIYOR: CT ayristiricisi da ayni kalibi
+     kullaniyor, iddia M'yle ilgisiz bir yerde kizariyordu. M'ye OZGU iz:
+     iki yolun ikisi de skopMCoz'u cagiriyor ve eski satir ici atama yok. */
+  const satirIsleGovde = (() => {
+    const i = appKaynak.indexOf('\n    satirIsle(');
+    const j = appKaynak.indexOf('{', i);
+    let d = 0;
+    for (let k = j; k < appKaynak.length; k++) {
+      if (appKaynak[k] === '{') d++;
+      else if (appKaynak[k] === '}' && --d === 0) return appKaynak.slice(j, k + 1);
+    }
+    return '';
+  })();
+  const mCagri = satirIsleGovde.split('this.skopMCoz(satir)').length - 1;
+  ok('M satiri TEK ayristiricida (ASCII ve ikili dal ikisi de skopMCoz)',
+     mCagri === 2 && !satirIsleGovde.includes('this.osiloTopla.olcum = o;'),
+     `${mCagri} cagri`);
+}
+
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
    fonksiyonun govdesinde (bolum 13) dolduruluyor; bosaltma burada,
    ozetin hemen oncesinde. */

@@ -5,6 +5,7 @@
     python tezgah_blokaj.py --sure 45 --tekrar 4 --port COM6
     python tezgah_blokaj.py --skop          # B40/B41/B42: butunluk + blokaj + susma + tetik yeri
     python tezgah_blokaj.py --tetik         # B42: yalniz tetik konumu (~1 dk)
+    python tezgah_blokaj.py --olcum [--http olcum.local]   # B43: olcum satiri eksenle ayni mi, WiFi'de var mi
 
 🔴 NEDEN: bringup kosucusu tek bir 45 s penceresine bakiyor ve kartta
    ~50 s'de bir ~22 ms'lik periyodik bir olay var (B27 A4'te olculdu).
@@ -143,6 +144,149 @@ def skop_tetik_konumu(k, durumlar=((1, 25), (1, 50), (1, 75), (3, 10), (5, 25)),
     return 1 if kaldi else 0
 
 
+def ct_tablosu(k):
+    """`CT` -> (oran, ofset, kodlar, mv) ya da None (tablo yok)."""
+    k.yaz("CT")
+    son_ = time.monotonic() + 4
+    while time.monotonic() < son_:
+        s = k.satir_oku(0.2)
+        if s and s.startswith("CT "):
+            p = s.split()
+            if p[1] == "0":
+                return None
+            alan = dict(x.split("=", 1) for x in p[2:] if "=" in x)
+            dugum = [tuple(int(y) for y in x.split(":")) for x in p[2:] if ":" in x]
+            return (float(alan["oran"]), float(alan["ofset"]),
+                    [d[0] for d in dugum], [d[1] for d in dugum])
+    return None
+
+
+def eksen_volt(kod, ct, ofset):
+    """Arayuzun `kodVolt` + `kalMv` kuralinin BIREBIR karsiligi (app.js):
+    tablo disi kod uctaki egimle uzatiliyor, ic kodlar dogrusal aradeger."""
+    oran, _, ks, vs = ct
+    n = len(ks)
+    if kod <= ks[0]:
+        mv = vs[0] + (kod - ks[0]) * (vs[1] - vs[0]) / (ks[1] - ks[0])
+    elif kod >= ks[-1]:
+        mv = vs[-1] + (kod - ks[-1]) * (vs[-1] - vs[-2]) / (ks[-1] - ks[-2])
+    else:
+        i = 0
+        while i < n - 2 and ks[i + 1] < kod:
+            i += 1
+        mv = vs[i] + (vs[i + 1] - vs[i]) * (kod - ks[i]) / (ks[i + 1] - ks[i])
+    return mv / 1000.0 * oran - ofset
+
+
+def m_coz(satir):
+    return {a.split("=", 1)[0]: float(a.split("=", 1)[1])
+            for a in (satir or "").split()[1:] if "=" in a}
+
+
+def eksenden_olcum(kodlar, ct, ofset):
+    v = [eksen_volt(x, ct, ofset) for x in kodlar]
+    ort = sum(v) / len(v)
+    return {"Vmax": max(v), "Vmin": min(v), "Vpp": max(v) - min(v), "Vort": ort,
+            "Vrms": (sum(x * x for x in v) / len(v)) ** 0.5,
+            "Vac": max(0.0, sum((x - ort) ** 2 for x in v) / len(v)) ** 0.5}
+
+
+def skop_olcum_kalibre(k, http_host="olcum.local", tol_v=0.002) -> int:
+    """B43 — skop OLCUM SATIRI eksenle ayni kalibrasyonda mi, WiFi'de var mi.
+
+    Panelden olculdu (2026-09-13, CAL 1 kHz, ayni kodlar 1843..1989):
+        M satiri   Vmax -6.27  Vmin -10.47  Vpp 4.20 V   (dogrusal model)
+        eksen      Vmax +0.73  Vmin  -3.93  Vpp 4.66 V   (eFuse tablosu, B36)
+    ve WiFi (ikili yol) yakalamalarinda olcum satiri HIC yoktu (`olcum: null`).
+
+    Sinanan:
+      1. ASCII: `M` volt degerleri, dalganin KENDI kodlarindan arayuz
+         kuraliyla hesaplananla <= tol_v
+      2. frekans CAL'e +-%1 (iki yolda)
+      3. ikili: `M` satiri onay satirindan ONCE geliyor (arayuz onu o
+         yakalamaya bagliyor)
+      4. ikili: o `M`, `/skop.bin`'den cekilen dalganin degerleri
+    """
+    import struct
+    import urllib.request
+
+    def komut(kom, sn=0.3):
+        k.yaz(kom)
+        time.sleep(sn)
+
+    ct = ct_tablosu(k)
+    if not ct:
+        ok("[!] Kartta kalibrasyon tablosu var (CT)", False, "CT 0 — eFuse egrisi yok")
+        return 1
+    komut("X1000", 0.5)
+    komut("x500", 1.0)
+    for c in ("tm0", "tp25", "te0", "th14", "tl1916", "tb3"):
+        komut(c)
+
+    def karsilastir(ad, m, beklenen):
+        farklar = {a: m.get(a, float("nan")) - beklenen[a] for a in beklenen}
+        en = max(abs(x) if x == x else float("inf") for x in farklar.values())
+        print(f"  {ad:<7} " + " ".join(
+            f"{a}={m.get(a, float('nan')):+.4f}/{beklenen[a]:+.4f}" for a in ("Vmax", "Vmin", "Vpp", "Vort", "Vac")))
+        return en
+
+    # ── 1+2. ASCII yolu ─────────────────────────────────────────────
+    b, _ = seri_yakala(k, 10)
+    ascii_en = float("inf")
+    f_ascii = None
+    if b and b["tam"] and b["olcum"]:
+        m = m_coz(b["olcum"])
+        f_ascii = m.get("f")
+        ascii_en = karsilastir("ASCII", m, eksenden_olcum(b["ornek"], ct, b["ofset"]))
+    ok("[!] ASCII: olcum satirinin VOLT degerleri eksenle ayni",
+       ascii_en <= tol_v,
+       f"en buyuk fark {ascii_en:.4f} V (sinir {tol_v} V) — B43 oncesi ~7 V, Vpp %10 dusuk")
+
+    # ── 3+4. ikili yol ──────────────────────────────────────────────
+    k.yaz("tB")
+    m_satir = None
+    m_once = False
+    son_ = time.monotonic() + 10
+    onay = False
+    while time.monotonic() < son_:
+        s = k.satir_oku(0.1)
+        if not s:
+            continue
+        if s.startswith("M "):
+            m_satir = s
+        if s.startswith("* skop yakalandi (ikili)"):
+            onay = True
+            m_once = m_satir is not None
+            break
+        if s.startswith("! "):
+            break
+    ok("[!] Ikili: olcum satiri ONAY satirindan once geliyor", onay and m_once,
+       "onay yok" if not onay else ("M satiri var" if m_once else "M satiri YOK — WiFi'de olcum gosterilemez"))
+    ikili_en = float("inf")
+    f_ikili = None
+    try:
+        with urllib.request.urlopen(f"http://{http_host}/skop.bin", timeout=8) as y:
+            g = y.read()
+        adet = struct.unpack_from("<H", g, 4)[0]
+        ofset = struct.unpack_from("<f", g, 16)[0]
+        kodlar = list(struct.unpack_from(f"<{adet}H", g, 32))
+        if m_satir:
+            m = m_coz(m_satir)
+            f_ikili = m.get("f")
+            ikili_en = karsilastir("ikili", m, eksenden_olcum(kodlar, ct, ofset))
+    except OSError as e:
+        print(f"  /skop.bin cekilemedi: {e}")
+    ok("[!] Ikili: olcum satiri /skop.bin'deki dalganin degerleri",
+       ikili_en <= tol_v, f"en buyuk fark {ikili_en:.4f} V")
+    f_tamam = all(f is not None and abs(f - 1000.0) <= 10.0 for f in (f_ascii, f_ikili))
+    ok("Frekans CAL 1 kHz'ye +-%1 (iki yolda)", f_tamam, f"ASCII {f_ascii} · ikili {f_ikili} Hz")
+
+    for c in ("tm0", "tp25", "th40", "tl2048", "tb5"):
+        komut(c)
+    komut("X0", 0.5)
+    return 1 if kaldi else 0
+
+
 def skop_blokaj(k, zaman_tabanlari=(3, 5, 7, 9, 10)) -> int:
     """B40/B41 — skop yakalamasi olcumu nasil etkiliyor.
 
@@ -276,9 +420,15 @@ def main() -> int:
     k = kart_baglanti.SeriKart(port)
     k.ac()
     time.sleep(1.0)
-    if "--tetik" in arg:
-        print("SKOP TETIK KONUMU (B42)")
-        kod = skop_tetik_konumu(k)
+    http_host = secenek("--http", "olcum.local")
+    if "--tetik" in arg or "--olcum" in arg:
+        kod = 0
+        if "--tetik" in arg:
+            print("SKOP TETIK KONUMU (B42)")
+            kod = skop_tetik_konumu(k) or kod
+        if "--olcum" in arg:
+            print("SKOP OLCUM SATIRI — KALIBRASYON + WiFi (B43)")
+            kod = skop_olcum_kalibre(k, http_host) or kod
         k.kapat()
         print(f"\n{gecti}/{gecti + kaldi} dogrulama gecti")
         return kod
@@ -287,6 +437,8 @@ def main() -> int:
         kod = skop_blokaj(k)
         print("\nSKOP TETIK KONUMU (B42)")
         kod = skop_tetik_konumu(k) or kod
+        print("\nSKOP OLCUM SATIRI — KALIBRASYON + WiFi (B43)")
+        kod = skop_olcum_kalibre(k, http_host) or kod
         k.kapat()
         print(f"\n{gecti}/{gecti + kaldi} dogrulama gecti")
         return kod

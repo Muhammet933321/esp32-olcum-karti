@@ -331,6 +331,7 @@ createApp({
       osilo: null,
       osiloBekliyor: false,
       skopIkiliBekle: false,  // B40: `tB` gönderildi, onay satırı bekleniyor
+      skopIkiliOlcum: null,   // B43: ikili yakalamanın `M` satırı (onaydan ÖNCE gelir)
       osiloTopla: null,
       skopAyar: null,        // kartın bildirdiği T satırı
       skopTdiv: 5,           // zaman tabanı indeksi (0..11)
@@ -1060,13 +1061,7 @@ createApp({
       // satırlarını ayır, kalanı ham veri olarak topla.
       if (this.osiloTopla) {
         if (satir[0] === 'M' && satir[1] === ' ') {
-          // M f=<Hz> T=<s> Vpp=<V> ... n=<çevrim>
-          const o = {};
-          for (const alan of satir.slice(2).trim().split(/\s+/)) {
-            const e = alan.indexOf('=');
-            if (e > 0) o[alan.slice(0, e)] = parseFloat(alan.slice(e + 1));
-          }
-          this.osiloTopla.olcum = o;
+          this.osiloTopla.olcum = this.skopMCoz(satir);
           return;
         }
         if (satir.trim() === 'E') {
@@ -1298,7 +1293,18 @@ createApp({
       }
 
       this.kaydet(satir);
-      if (satir.startsWith('!')) { this.osiloBekliyor = false; this.skopIkiliBekle = false; }
+      if (satir.startsWith('!')) {
+        this.osiloBekliyor = false; this.skopIkiliBekle = false; this.skopIkiliOlcum = null;
+      }
+      /* 🔴 B43 — İKİLİ YOLDA ÖLÇÜM SATIRI. Kart `M`yi onay satırından hemen
+         ÖNCE basıyor (`/skop.bin` başlığında yer yok). Eskiden ikili yolda
+         `olcum` hep null'du: WiFi'de frekans/Vpp/duty satırı HİÇ çıkmıyordu.
+         Yalnızca bekleme sürerken tutuluyor — başka bir anda gelen `M`
+         (örneğin başka istemcinin ASCII dökümü) buraya düşmez: o döküm
+         `S2` ile başlar ve yukarıdaki `osiloTopla` dalında tüketilir. */
+      if (this.skopIkiliBekle && satir[0] === 'M' && satir[1] === ' ') {
+        this.skopIkiliOlcum = this.skopMCoz(satir);
+      }
       /* B40: ikili yakalama bitti — gövdeyi ŞİMDİ çek (sabit gecikme yok). */
       if (this.skopIkiliBekle && satir.startsWith('* skop yakalandi (ikili)')) {
         this.skopIkiliBekle = false;
@@ -1580,6 +1586,7 @@ createApp({
            dönüyordu — yavaş zaman tabanlarında WiFi skobu hiç
            çalışmıyordu. Artık kartın "* skop yakalandi (ikili)" satırı
            GELİNCE çekiliyor (`satirIsle`). */
+        this.skopIkiliOlcum = null;   // önceki yakalamanın ölçümü bu kayda yapışmasın
         this.skopIkiliBekle = true;
         this.gonder('tB');
       } else {
@@ -1635,9 +1642,13 @@ createApp({
         tdivUs: d.getUint32(20, true),
         kip: d.getUint8(26),
         tetiklendi: d.getUint8(27) === 1,
-        olcum: null,
+        /* B43: canlı yakalamada onaydan önce gelen `M`. Arşiv kaydına
+           BAĞLANMIYOR — o anki bekleyen ölçüm başka bir dalganındır.
+           (Arşiv kayıtlarında ölçüm satırı yok: bilinen eksik.) */
+        olcum: this.skopArsivtenAciliyor ? null : this.skopIkiliOlcum,
         veri: [],
       };
+      this.skopIkiliOlcum = null;
       /* DataView ile AÇIKÇA küçük-endian — Uint16Array platformun
          endian'ını kullanır ve sessizce yanlış okuyabilirdi. */
       for (let i = 0; i < adet; i++) {
@@ -1711,6 +1722,17 @@ createApp({
         this.skopKayitMesgul = false;
         this.skopArsivtenAciliyor = false;
       }
+    },
+
+    /* `M f=<Hz> T=<s> Vpp=<V> … n=<çevrim>` — TEK ayrıştırıcı: ASCII
+       dökümü ve ikili yol (B43) aynı satırı buradan okuyor. */
+    skopMCoz(satir) {
+      const o = {};
+      for (const alan of satir.slice(2).trim().split(/\s+/)) {
+        const e = alan.indexOf('=');
+        if (e > 0) o[alan.slice(0, e)] = parseFloat(alan.slice(e + 1));
+      }
+      return o;
     },
 
     /* 🔴 TEK ÇEVİRİ NOKTASI — kod → giriş volt.
