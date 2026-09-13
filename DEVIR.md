@@ -8195,7 +8195,68 @@ Arayüzde yeniden hesaplamak `skop_olc`'un ikinci bir kopyası olurdu (AVR emül
 ##### Doğrulama
 
 * `sim3_skop` 78 → **82** (6l: izin listesi çalıştırılarak, pil kapısı dahil yasak pinler, I²C'nin ADS okunmadan önce geri kurulması, tıklatmanın yalnız yakalamada) · mutasyon B19 **47/47**.
-* `tK8,9` sonrası I²C'nin geri kurulduğu kartta doğrulandı (D satırı durum 0). Teller 41/42'deyken ADS'ler beklendiği gibi okunmuyordu (durum 3); geri takıldıktan sonra kartta doğrulandı: durum 0, 93 örnek/rapor, 1.7156 V.
+* `tK8,9` sonrası I²C'nin geri kurulduğu kartta doğrulandı (D satırı durum 0).
+
+##### B44b — Kablo değil, KENAR HIZI (aynı gün, sonra)
+
+Kullanıcı I²C tellerini GPIO4 telinden ayırdı (tam uzak değil, mümkün olduğunca): K1 **3.24**/1000 — değişmedi, yakınlık değil. Kalan aday: yüklü hattan akan kenar akımı ESP32'nin kendi toprak/besleme rayını sarsıyor. Bunu tel oynatmadan sınamanın yolu **kenar hızı**: `tK8,9,d<n>` sürüş gücünü seçiyor (IDF `gpio_set_drive_capability`, d0 zayıf … d3 güçlü); aynı hat, aynı yük, yalnız di/dt farklı.
+
+| sürüş | /1000 (>30 kod) | hatalı yakalama |
+|---|---|---|
+| d0 en zayıf | **1.26** | 7/20 |
+| d2 varsayılan | 4.80 | 15/20 |
+| d3 en güçlü | 4.44 | 16/20 |
+
+⚠ Bu tablo alınırken modül #1'in SCL teli bağlı değildi (B46'da bulundu): SCL'de tek modülün pull-up'ı vardı. Üç satır aynı kablolamada olduğu için **karşılaştırma geçerli**, mutlak değerler B44'ün K1'iyle (2.22, iki modül) kıyaslanamaz.
+
+Zayıf sürüş hatayı ~4× azaltıyor ama **sıfırlamıyor**. Karar: yakalamada ADS susturma **kalıyor** (1.26/1000 hâlâ sahte tetik demek). Firmware'de I²C sürüş gücü **değiştirilmedi**: ADS'ler ADC1 örneklerken zaten hiç çalışmıyor (mute), yani bugünkü düzende ölçülebilir bir kazancı yok — ölçülemeyen bir değişiklik yapılmadı. **PCB notu** (tezgah listesinde): SDA/SCL'ye seri direnç (33–100 Ω, kenarı yavaşlatır), tek pull-up seti (iki modülün paralel 10K'ları değil), zayıf sürüş; nihai kartta `tezgah_kuplaj --asama 3` ile yeniden ölçülmeli — K1 kontrol düzeyine inerse ADS susturması kaldırılabilir.
+
+---
+
+#### 5.12.60 🔴 B46 — ALERT PROBU HAT ZATEN DÜŞÜKKEN "VAR" DİYORDU (2026-09-13)
+
+B44b deneylerinden sonra `D` satırı `durum=2` (akım ADS'si okunamıyor, 33 örnek/rapor) verdi. `#` komutu: I²C taramasında **yalnız 0x49**; ama hemen altında *"0x48=VAR sure=3 us (RDY calisiyor — dogru modul)"*. İki satır birbiriyle çelişiyordu ve ikincisi **yanlıştı**: `alert_dener` ayarı yazıp pinin DÜŞÜK olmasını bekliyor, ilk turda düşük bulup dönüyordu — pin **zaten** düşüktü (beslemesiz/bağlantısız modülün ALRT ucu). Kullanıcı bu çıktıya bakıp RDY telini "doğru" sayardı.
+
+Düzeltme: (1) modül adresi ACK'lamıyorsa sınama yapılmıyor ve söyleniyor (*"0x48=I2C'DE YOK — RDY sinanamadi: modul #1'in VDD/GND/SDA/SCL/ADDR tellerini kontrol et"*); (2) ayar yazılınca hattın önce **yükselmesi** (RDY'nin bırakılması) bekleniyor, yükselmiyorsa *"hat SÜREKLİ DÜŞÜK"* — bir kenar görülmeden "çalışıyor" denmiyor. Kartta: prob artık *"0x48=I2C'DE YOK"* diyor. `sim3_bant` 69 → 71, mutasyon B20 12/12.
+
+Modül #1'in kendisi: kullanıcı I²C tellerini demetten ayırırken (B44b) **modül #1'in SCL teli çıkmış**; kabloları "oturtmak" bulmadı, multimetre istenince kullanıcı boş SCL'yi gördü ve modül #2'nin SCL'sine paralel bağladı. Sonra kartta: I²C'de 0x48 + 0x49, `D` durum 0, 94 örnek/rapor; prob *"0x48=VAR sure=1220 µs"* — 860 SPS'te **gerçek** dönüşüm süresi, yani prob artık gerçek bir kenar ölçüyor (eskisi 3 µs'lik sahte "var"dı).
+
+##### Tezgah sınamasında B44'ün yan bulgusu ısırdı
+Günün sonunda `tezgah_blokaj --skop` **11/12**: örnek bütünlüğü sınaması 11 hata/3721 verdi. Sınama CAL **20 kHz** ile koşuyordu ve B44 CAL PWM'inin kendi kenarının da hata soktuğunu bulmuştu (faz kaydığı için ara sıra; üç temiz koşudan sonra dördüncüsü denk geldi). I²C ile ilgisi yok. Sınama artık **CAL kapalı** koşuyor; ölçüt ≤ 1/3721 (B40b'nin kusuru 3–9/1000, 10× pay). Yeniden: **12/12**, 1 hata/3721 (0.27/1000).
+
+⚠ **Açık gözlem — kalıntı hata tabanı.** I²C susturulmuş ve CAL kapalıyken bile ~0.1–0.3/1000 tek-örnek hata kalıyor (B44 kontrol koşuları 0.06–0.12, bu koşu 0.27). Kaynağı bilinmiyor (WiFi yükü altında 0 ölçüldü; ESP32'nin kendi etkinliği aday). 1000 örneklik yakalamada ~%25 olasılıkla bir yerde 60 kodluk tek bir iğne — histerezis 40 kod olduğu için **nadir sahte tetik hâlâ mümkün.** Ucuz çare (yapılmadı, sırada): tetik için **iki ardışık örneğin** eşiği geçmesini istemek — tek-örnek iğne tetikleyemez; B42'nin `tetik_idx == on` iddiası ilk geçiş örneğiyle korunur. Bunu deterministik yalanlayacak tezgah sınaması bulunamadığı için (iğneler aralıklı) ertelendi.
+
+⚠ **B44b'ye düşen kayıt:** teller ayrıyken yapılan koşularda (K1 3.24; d0/d2/d3 tablosu) modül #1'in SCL'si **bağlı değildi** — SCL hattında yalnız modül #2'nin pull-up'ı vardı. Sürüş gücü karşılaştırması kendi içinde tutarlı (üç durum aynı kablolamada), "yakınlık değil" sonucu da ayakta (daha az yükle bile hata sürdü); ama o koşuların K1 mutlak değerleri önceki 2.22 ile doğrudan kıyaslanamaz.
+
+---
+
+#### 5.12.59 🔴 B45 — PANEL TARAYICIDAN SEKME SEKME GEZİLDİ: dört kusur (2026-09-13)
+
+Kullanıcı isteği: "görsel ya da mantıksal hata olmadığından emin ol". Beş sekme Claude in Chrome ile gezildi; ekran görüntüsü + sayfanın Vue durumu birlikte okundu. Bulunanlar:
+
+##### 1. Zaman grafiği negatif değeri GÖSTEREMİYORDU
+`y = üst + boy·(1 − değer/enb)` sıfırı tuvalin **altına** koyuyordu. Kart çift yönlü (±32 V, ±2.56 A, negatif güç = kaynak) ama negatif her nokta tuvalin dışına çiziliyordu; boştaki akımın ±3 µA gürültüsünün yalnız **pozitif yarısı** görünüyordu. Şimdi pencerede negatif varsa sıfır ortada (`[−enb, +enb]`), yoksa altta; her seri için kesikli sıfır çizgisi.
+
+##### 2. Gürültü tam ekrana yayılıyordu
+Ölçek hep tepe değerdi: giriş boşken 0.05 LSB'lik gürültü ekranı dolduruyor, etiket "tepe 0.0 mA" derken iz dev bir sinyal gibi görünüyordu (ekran görüntüsünde ilk bakışta "büyük bir şey var" izlenimi). **Taban: kanalın 20 LSB'si** — LSB'ler kartın bildirdiği şönt ve menzilden (`akimMenzilAralik` ile aynı kaynak): 0.1 Ω'da 1.56 mA, NORMAL'de 20.8 mV; güç için |V|·i_taban + |I|·v_taban (1.7 V'ta 2.7 mW). 10 mA'lik gerçek yük (128 LSB) tabanın üstünde, eskisi gibi ölçekleniyor. Taban devredeyken etiket ölçeği de yazıyor ("tepe 0.0 mA · ölçek ±1.6 mA"). Ayrıca "−30 sn" etiketi izin altına biniyordu, şerit kondu.
+
+##### 3. Skop ölçüm satırında birimler karışıktı
+`muh()` her değeri kendi önekine çeviriyordu: aynı satırda "Vmax 348.200 mV" ile "Vmin −4.092 V"; mV'deki üç ondalık (1 µV) kanalın 29 mV'lik adımı yanında sahte hassasiyetti. Altı gerilim artık "x.xxx V". Zaman büyüklükleri SI önekli kalıyor (µs/ms anlamlı).
+
+##### 4. "Ayarları göster" ayarları GÖSTERMİYORDU
+Düğme `?` gönderiyor; Konsol'da R/L/K/C/F satırları çıkıyor ama **ayarların kendisi** (`A menzil=… n_kazanc n_sifir sont i_duz i_ofset rapor`) ayrıştırıcıda yutulup günlüğe düşmüyordu. `CT` de öyle. İkisi de artık konsola düşüyor. Konsol açıklaması "karttan gelen her satır burada" diyordu — doğru değildi; hariç tutulanlar (`D` 20/s, `W`, skop dökümü ham örnekleri) artık yazıyor.
+
+##### 5. Arşiv kaydının ölçüm satırı (B43'ün açık kalemi)
+Köprü listede `M` satırını zaten taşıyor (`olcum`); açılan kayıtta kullanılmıyordu. Şimdi: **zaman** büyüklükleri (f, T, duty, tr, tf, n) kaydın `M` satırından; **gerilimler** kaydın ham kodlarından eksenle aynı çeviriyle (`kodVolt`) yeniden — B43 öncesi firmware'in yazdığı `M` gerilimleri doğrusal modeldi, eski kayıt açılınca 7 V'luk çelişki geri gelmesin. Eksik alan uydurulmuyor (kısa `M`de "Duty %0" yazmaz).
+
+Bunu yazarken **yeni bir kusur** çıktı ve CDP testi yakaladı: köprü sahtesinin kısa `M` satırında (`duty` yok) `undefined.toFixed` bütün skop görünümünü çökertiyordu (`$refs.osiloTuval` null). `skopOlcumler` artık eksik alanı atlıyor.
+
+##### Yan gözlem (kusur değil)
+Hızlı ölçüm, GPIO4–GPIO5 kısa devreli düzenekte CAL 1 kHz ile **PF 0.952** veriyor (B39'da DC ile 1.0000 idi): V kanalı VREF'li (DC bileşenli), I kanalı VREF'siz okunuyor; AC sinyalde aynı düğüm iki kanalda farklı DC ile göründüğü için PF < 1. Ön uç olmadan beklenen; ön uç kurulunca sıfır kalibrasyonuyla birlikte yeniden bakılacak.
+
+##### Doğrulama
+* `test_arayuz3` 313 → **338** (bölüm 21): ölçek eşlemi ve taban (`grafikOlcek`/`olcekTabani` çizimden ayrıldı, doğrudan sınanıyor), birimler, konsol satırları, arşiv ölçümü **gerçek kart fikstürüyle** (`uretim/olcum-skop-fikstur.json`, `fikstur_skop_al.py` ile alındı: CT tablosu + 833 kod + `M`): arayüzün JS'i ile kartın C'si aynı kodlardan **0.048 mV** içinde aynı volta varıyor; eski (doğrusal) `M` satırlı kayıtta eksenden hesap; kısa `M` çökertmiyor.
+* Mutasyon B7 **70/70** (9 yeni). CDP arşiv testi 19/19. Panelde (WiFi, yenilenmiş sayfa): grafik sıfır çizgili ve gürültü düz, ölçüm satırı tek birimde, konsolda `A` ve `CT` görünüyor; konsol hatası yok. Teller 41/42'deyken ADS'ler beklendiği gibi okunmuyordu (durum 3); geri takıldıktan sonra kartta doğrulandı: durum 0, 93 örnek/rapor, 1.7156 V.
 
 ---
 
@@ -8216,6 +8277,8 @@ Arayüzde yeniden hesaplamak `skop_olc`'un ikinci bir kopyası olurdu (AVR emül
 | ~~B16~~ | ✅ **V/I süzgeç eşleştirmesi** | **BİTTİ (2026-09-09).** Sonuçlar **5.12.26**'da: 41 doğrulama, C4 100nF→1nF, yeni C18/C19/C20 = 1.32 µF (stoktan). Reaktif yükte hata %155 → %1.9. 5 açık iş kalemi bıraktı |
 | **B17** | 🔬 **Firmware: faz kalibrasyonu + PGA oturması + ölçek düzeltmesi** | **YENİ, B16'dan çıktı.** 5.12.26'nın 1–3 numaralı kalemleri. Faz kalibrasyonu **referans cihaz istemiyor** — dirençli yük yeter. Tolerans artığının tek çözümü bu |
 | **B14** | **Hızlı skop (MHz) — harici ADC** | 🔭 **Aşama 4, açık ihtimal.** Kullanıcı ilgileniyor, şimdilik almadı. Tam analiz + kademeli plan **5.12.20**'de. Adım 1 bedava: hazır açık kaynak kodu elde bir ESP32'de dene |
+| **B47** | **Tetik: iki ardışık örnek şartı** | 🔶 **Öneri (2026-09-13, 5.12.60).** I²C susturulmuş ve CAL kapalıyken bile ~0.1–0.3/1000 tek-örnek iğne kalıyor (kaynak bilinmiyor); histerezis 40 kod < iğne 60 kod → nadir sahte tetik mümkün. İki ardışık örnek eşiği geçince tetiklemek iğneyi etkisiz kılar. Engel: deterministik yalanlayıcı tezgah sınaması yok (iğneler aralıklı) |
+| **PCB** | **I²C kuplajı — PCB'de yeniden ölç** | 🔶 B44: SDA/SCL'ye seri direnç (33–100 Ω), tek pull-up seti, zayıf sürüş; `tezgah_kuplaj --asama 3`. K1 kontrol düzeyine inerse ADS susturması (B41) kaldırılabilir |
 
 🔴 **Değişmeyen uyarı:** kart izole değil.
 

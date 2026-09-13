@@ -599,10 +599,19 @@ MUTASYONLAR = [
      "donanim akil sagligi komutu I2C adreslerini gosterip ALERT telini "
      "atlar: kusurun yarisi gorunur, yarisi kacar"),
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
-     "    iki = alert_dener(ADS_GERILIM, etkin_kanal()->pga, &sure2);",
+     "    iki = (alert_dener(ADS_GERILIM, etkin_kanal()->pga, &sure2) == ALERT_VAR);",
      "    iki = false;",
      "prob yalnizca #1'i dener: tel YANLIS MODULDE ise 'tel yok' ile "
      "ayni cikti gelir ve kullanici bosuna arar"),
+    # ── B46 · prob hat zaten dusukken VAR demesin
+    ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (!yukseldi) { if (p == HIGH) yukseldi = true; continue; }\n", "",
+     "ESKI KUSURU geri koyar: hat zaten dusukken ilk turda 'VAR' — modul "
+     "I2C'de yokken 'RDY calisiyor' basiyordu (2026-09-13)"),
+    ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (Wire.endTransmission() != 0) return ALERT_ACK_YOK;",
+     "  Wire.endTransmission();",
+     "ACK'lamayan modulde RDY sinamasi yapilir ve sonuc anlamsizdir"),
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "      Serial.print(F(\" istenen=\"));      Serial.print(istek);",
      "",
@@ -610,6 +619,40 @@ MUTASYONLAR = [
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
     # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    # ── B45 · tarayici gezisinde bulunanlar (zaman grafigi, birimler, konsol, arsiv)
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        if (d[al] < 0) negatif = true;\n", "",
+     "ESKI KUSURU geri koyar: negatif deger tuvalin disina cizilir"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        const yOl = (deger) => negatif ? ust + boy * (1 - deger / enb) / 2\n"
+     "                                      : ust + boy * (1 - deger / enb);",
+     "        const yOl = (deger) => ust + boy * (1 - deger / enb);",
+     "eslem sifiri hep alta koyar: negatif yari kaybolur"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      const tabanda = enb < taban;", "      const tabanda = false;",
+     "ESKI KUSURU geri koyar: 0.05 LSB gurultu ekrani doldurur"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      const v = 20 * vLsb, i = 20 * iLsb;", "      const v = 0, i = 0;",
+     "taban sifir: gurultu yine tam ekran"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      const V = (x) => (isFinite(x) ? x.toFixed(3) : '—') + ' V';",
+     "      const V = (x) => muh(x, 'V', 3);",
+     "ESKI KUSURU geri koyar: 'Vmax 348.200 mV' yaninda 'Vmin -4.092 V'"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "           (tarayıcıda görüldü). */\n        this.kaydet(satir);\n",
+     "           (tarayıcıda görüldü). */\n",
+     "ESKI KUSURU geri koyar: `A` satiri konsola dusmez, 'Ayarlari goster' bos"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      o.Vmax = this.kodVolt(hmax);", "      if (!('Vmax' in o)) o.Vmax = this.kodVolt(hmax);",
+     "eski kaydin dogrusal-model Vmax'i eksenle 7 V celisir"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "          this.osilo.olcum = this.skopArsivOlcum(kyt.olcum, this.osilo.veri);\n", "",
+     "ESKI KUSURU geri koyar: arsiv kaydinda olcum satiri yok"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "      if (o.f > 0 && Number.isFinite(o.duty)) l.push({ ad: 'Duty'",
+     "      if (o.f > 0) l.push({ ad: 'Duty'",
+     "kisa M satirinda undefined.toFixed: skop gorunumu komple kaybolur"),
+
     # ── B44 · kuplaj deneyi komutu (`tK`) guvenli
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "  return p == 1 || p == 2 || p == PIN_SDA",
@@ -624,6 +667,9 @@ MUTASYONLAR = [
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "    if (kuplaj_aktif) kuplaj_patlat();       /* B44 deneyi — yalnizca `tK` */\n", "",
      "tiklatma yakalama sirasinda yapilmaz: deney bos sonuc verir"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "      gpio_set_drive_capability((gpio_num_t)p, GPIO_DRIVE_CAP_DEFAULT);\n", "",
+     "zayif surus deneyden sonra I2C pinlerinde kalir"),
 
     # ── B43 · olcum satiri eksenle ayni kalibrasyonda, WiFi'de de var
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",

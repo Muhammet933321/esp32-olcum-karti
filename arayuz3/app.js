@@ -574,17 +574,26 @@ createApp({
       const l = [];
       if (o.f > 0) {
         l.push({ ad: 'Frekans', d: muh(o.f, 'Hz', 3), vurgu: true });
-        l.push({ ad: 'Periyot', d: muh(o.T, 's', 3) });
+        if (Number.isFinite(o.T)) l.push({ ad: 'Periyot', d: muh(o.T, 's', 3) });
       } else {
         l.push({ ad: 'Frekans', d: 'periyodik değil', vurgu: false });
       }
-      l.push({ ad: 'Vpp', d: muh(o.Vpp, 'V', 3), vurgu: true });
-      l.push({ ad: 'Vmax', d: muh(o.Vmax, 'V', 3) });
-      l.push({ ad: 'Vmin', d: muh(o.Vmin, 'V', 3) });
-      l.push({ ad: 'Vort', d: muh(o.Vort, 'V', 3) });
-      l.push({ ad: 'Vrms', d: muh(o.Vrms, 'V', 3) });
-      l.push({ ad: 'Vac (RMS)', d: muh(o.Vac, 'V', 3) });
-      if (o.f > 0) l.push({ ad: 'Duty', d: o.duty.toFixed(1) + ' %' });
+      /* B45: gerilimler TEK birimde. `muh` her değeri kendi önekine
+         çeviriyordu — aynı satırda "Vmax 348.200 mV" ile "Vmin -4.092 V"
+         yan yana duruyordu ve mV'deki üç ondalık (1 µV) kanalın 29 mV'lik
+         adımı yanında sahte hassasiyetti. Skop adımı 29 mV: V ve 3 ondalık
+         zaten adımın altında. */
+      const V = (x) => (isFinite(x) ? x.toFixed(3) : '—') + ' V';
+      l.push({ ad: 'Vpp', d: V(o.Vpp), vurgu: true });
+      l.push({ ad: 'Vmax', d: V(o.Vmax) });
+      l.push({ ad: 'Vmin', d: V(o.Vmin) });
+      l.push({ ad: 'Vort', d: V(o.Vort) });
+      l.push({ ad: 'Vrms', d: V(o.Vrms) });
+      l.push({ ad: 'Vac (RMS)', d: V(o.Vac) });
+      /* B45: eksik alan render'ı düşürmesin — arşivdeki kısa bir `M`
+         satırında `duty` yoksa `undefined.toFixed` bütün skop görünümünü
+         çökertiyordu (tarayıcı testinde yakalandı). */
+      if (o.f > 0 && Number.isFinite(o.duty)) l.push({ ad: 'Duty', d: o.duty.toFixed(1) + ' %' });
       if (o.tr > 0) l.push({ ad: 'Yükselme', d: muh(o.tr, 's', 2) });
       if (o.tf > 0) l.push({ ad: 'Düşme', d: muh(o.tf, 's', 2) });
       if (o.n) l.push({ ad: 'Çevrim', d: String(o.n) });
@@ -1146,6 +1155,7 @@ createApp({
                         && sayiTamam) ? kal : null;
         if (!this.skopKal) this.hata = 'Kalibrasyon tablosu okunamadı';
         this.$nextTick(() => this.osiloCiz());
+        this.kaydet(satir);          // B45: konsol "her satır" diyor
         return;
       }
 
@@ -1195,6 +1205,12 @@ createApp({
             this.gonder('r' + this.raporMs).catch(() => {});
           }
         }
+        /* 🔴 B45 — `A` SATIRI KONSOLA DÜŞMÜYORDU. "Ayarları göster"
+           düğmesi `?` gönderiyor ve kullanıcı Konsol'da R/L/K/C/F
+           satırlarını görüyordu ama AYARLARIN KENDİSİ (kazanç, sıfır,
+           şönt, i_ofset, rapor) olan `A` satırı burada yutuluyordu
+           (tarayıcıda görüldü). */
+        this.kaydet(satir);
         return;
       }
       /* B30: CAL yaniti — `X cal_hz=6998 istenen=7000 ...` ya da
@@ -1711,6 +1727,14 @@ createApp({
         this.skopArsivtenAciliyor = true;
         if (this.skopIkiliCoz(await y.arrayBuffer())) {
           this.skopAcikKayit = { gun: kyt.gun, ms: kyt.ms };
+          /* 🔴 B45 — ARŞİV KAYDININ ÖLÇÜM SATIRI. Köprü listede `M`
+             satırını zaten taşıyor (`olcum`); açılan kayıtta hiç
+             kullanılmıyordu. ZAMAN büyüklükleri (f, T, duty, tr, tf, n)
+             o satırdan. GERİLİMLER ise kaydın HAM kodlarından, eksenle
+             AYNI çeviriyle (`kodVolt`) yeniden: B43 öncesi firmware'in
+             yazdığı `M` gerilimleri doğrusal modeldi ve eksenle 7 V
+             çelişiyordu — eski kayıt açılınca o çelişki geri gelmesin. */
+          this.osilo.olcum = this.skopArsivOlcum(kyt.olcum, this.osilo.veri);
           /* Arşiv kaydı açılınca sürekli yakalama DURUYOR: yoksa bir
              sonraki tur kaydın üstüne canlı dalgayı çizer ve kullanıcı
              hangisine baktığını bilemez. */
@@ -1722,6 +1746,32 @@ createApp({
         this.skopKayitMesgul = false;
         this.skopArsivtenAciliyor = false;
       }
+    },
+
+    /* B45 — arşiv kaydı için ölçüm: zaman büyüklükleri kaydın `M`
+       satırından, gerilimler ham kodlardan `kodVolt` ile. `M` yoksa
+       yalnızca gerilimler. Kayıt boşsa null. */
+    skopArsivOlcum(mSatir, veri) {
+      if (!veri || !veri.length) return null;
+      const o = (mSatir && mSatir.startsWith('M ')) ? this.skopMCoz(mSatir) : {};
+      let top = 0, kare = 0, hmin = veri[0], hmax = veri[0];
+      for (const k of veri) {
+        const v = this.kodVolt(k);
+        top += v; kare += v * v;
+        if (k < hmin) hmin = k;
+        if (k > hmax) hmax = k;
+      }
+      const n = veri.length, ort = top / n;
+      const ac = kare / n - ort * ort;
+      o.Vmax = this.kodVolt(hmax);
+      o.Vmin = this.kodVolt(hmin);
+      o.Vpp = o.Vmax - o.Vmin;
+      o.Vort = ort;
+      o.Vrms = Math.sqrt(kare / n);
+      o.Vac = ac > 0 ? Math.sqrt(ac) : 0;
+      /* Zaman alanları `M`de yoksa UYDURULMUYOR (0 yazmak "duty %0"
+         gösterirdi); `skopOlcumler` eksik alanı atlıyor. */
+      return o;
     },
 
     /* `M f=<Hz> T=<s> Vpp=<V> … n=<çevrim>` — TEK ayrıştırıcı: ASCII
@@ -2056,17 +2106,36 @@ createApp({
         { ac: this.gosterW, al: 'w', renk: this.renk('--watt'),  ad: 'W' },
       ].filter(s => s.ac);
 
-      // Her seri kendi ölçeğinde çizilir (birimleri farklı).
+      /* 🔴 B45 — GRAFİK NEGATİFİ GÖSTEREMİYORDU. Ölçek `1 - deger/enb`
+         ile sıfırı tuvalin ALTINA koyuyordu; kart çift yönlü (±32 V,
+         ±2.56 A, negatif güç = kaynak) ama negatif her nokta tuvalin
+         dışına çiziliyordu — boştaki akımın ±3 µA gürültüsünün yalnız
+         pozitif yarısı görünüyordu (tarayıcıda görüldü). Pencerede
+         negatif varsa sıfır ORTADA, yoksa altta; sıfır çizgisi çiziliyor.
+
+         🔴 B45 — GÜRÜLTÜ TAM EKRANA YAYILIYORDU. Ölçek her zaman tepe
+         değerdi: giriş boşken 0.05 LSB'lik gürültü ekranı dolduruyor ve
+         etiket "tepe 0.0 mA" derken iz dev bir sinyal gibi görünüyordu.
+         Taban: kanalın 20 LSB'si (`olcekTabani`). Gerçek bir sinyal
+         (10 mA = 128 LSB) tabanın üstünde, eskisi gibi ölçekleniyor. */
+      const taban = this.olcekTabani(veri);
       for (const s of seriler) {
-        /* B27 A2: NaN = o pencerede kanal yanıt vermedi. Ölçeğe girmez,
-           çizgiyi koparır; hiç geçerli nokta yoksa "veri yok" yazılır. */
-        let enb = 0, gecerli = 0;
-        for (const d of veri) {
-          if (Number.isNaN(d[s.al])) continue;
-          gecerli++;
-          enb = Math.max(enb, Math.abs(d[s.al]));
-        }
-        if (enb <= 0) enb = 1;
+        const { enb, tepe, negatif, tabanda, gecerli } = this.grafikOlcek(veri, s.al, taban[s.al]);
+        /* negatif varsa [-enb, +enb] -> [alt, üst]; yoksa [0, enb] */
+        const yOl = (deger) => negatif ? ust + boy * (1 - deger / enb) / 2
+                                      : ust + boy * (1 - deger / enb);
+
+        // sıfır çizgisi — serinin renginde, soluk ve kesikli
+        c.save();
+        c.strokeStyle = s.renk;
+        c.globalAlpha = .35;
+        c.setLineDash([4, 4]);
+        c.lineWidth = 1;
+        c.beginPath();
+        const y0 = Math.round(yOl(0)) + .5;
+        c.moveTo(sol, y0); c.lineTo(sol + en, y0);
+        c.stroke();
+        c.restore();
 
         c.strokeStyle = s.renk;
         c.lineWidth = 1.8;
@@ -2077,7 +2146,7 @@ createApp({
           const deger = d[s.al];
           if (Number.isNaN(deger)) { kopuk = true; continue; }
           const x = sol + en * (d.t - basT) / Math.max(this.pencere, 1e-6);
-          const yy = ust + boy * (1 - deger / enb);
+          const yy = yOl(deger);
           kopuk ? c.moveTo(x, yy) : c.lineTo(x, yy);
           kopuk = false;
         }
@@ -2085,11 +2154,14 @@ createApp({
 
         /* Tepe değeri sağ üstte. B27 A2: etiket çizginin ÜSTÜNE
            biniyordu ve ikisi de okunmuyordu; arkasına tuval zemini
-           rengiyle bir şerit koyuluyor. */
+           rengiyle bir şerit koyuluyor. B45: taban devredeyse ölçek de
+           yazılıyor — "tepe 0.0 mA" tek başına ekrandaki izi açıklamaz. */
+        const bicimle = (x) => s.al === 'v' ? x.toFixed(2) + ' V'
+                             : s.al === 'i' ? (x * 1e3).toFixed(1) + ' mA'
+                             : (x * 1e3).toFixed(1) + ' mW';
         const etiket = !gecerli ? 'veri yok'
-                     : s.al === 'v' ? 'tepe ' + enb.toFixed(2) + ' V'
-                     : s.al === 'i' ? 'tepe ' + (enb * 1e3).toFixed(1) + ' mA'
-                     : 'tepe ' + (enb * 1e3).toFixed(1) + ' mW';
+                     : 'tepe ' + bicimle(tepe)
+                       + (tabanda ? ' · ölçek ' + (negatif ? '±' : '') + bicimle(enb) : '');
         c.font = '600 11px ui-monospace, monospace';
         c.textAlign = 'right';
         const ey = ust + 12 + seriler.indexOf(s) * 14;
@@ -2102,13 +2174,54 @@ createApp({
         c.fillText(etiket, g - sag, ey);
       }
 
-      // zaman ekseni
-      c.fillStyle = this.renk('--cok-soluk');
+      // zaman ekseni — B45: sol etiket izin altına biniyordu, şerit kondu
       c.font = '11px ui-monospace, monospace';
+      const solMetin = `-${this.pencere} sn`;
+      c.fillStyle = this.renk('--zemin-2');
+      c.globalAlpha = .85;
+      c.fillRect(sol - 2, y - 17, c.measureText(solMetin).width + 4, 14);
+      c.globalAlpha = 1;
+      c.fillStyle = this.renk('--cok-soluk');
       c.textAlign = 'left';
-      c.fillText(`-${this.pencere} sn`, sol, y - 6);
+      c.fillText(solMetin, sol, y - 6);
       c.textAlign = 'right';
       c.fillText('şimdi', g - sag, y - 6);
+    },
+
+    /* B45 — bir serinin ölçeği. B27 A2: NaN = o pencerede kanal yanıt
+       vermedi; ölçeğe girmez, çizgiyi koparır. `negatif` sıfırın yerini
+       (ortada / altta), `tabanda` ölçeğin gürültü tabanından geldiğini
+       söyler. Ayrı metot: çizimden bağımsız sınanabilsin. */
+    grafikOlcek(veri, al, taban) {
+      let enb = 0, gecerli = 0, negatif = false;
+      for (const d of veri) {
+        if (Number.isNaN(d[al])) continue;
+        gecerli++;
+        enb = Math.max(enb, Math.abs(d[al]));
+        if (d[al] < 0) negatif = true;
+      }
+      const tepe = enb;
+      const tabanda = enb < taban;
+      if (tabanda) enb = taban;
+      if (enb <= 0) enb = 1;
+      return { enb, tepe, negatif, tabanda, gecerli };
+    },
+
+    /* B45 — zaman grafiği ölçek tabanı: kanal başına 20 LSB (A ve V);
+       güç için pencerede görülen |V| ve |I| ile çarpılmış hali.
+       LSB'ler kartın bildirdiği menzil ve şönt'ten (`akimMenzilAralik`
+       ile aynı kaynak) — sabit sayı değil. */
+    olcekTabani(veri) {
+      const sont = this.kartSont !== null ? this.kartSont : parseFloat(this.sontSecim);
+      const iLsb = (isFinite(sont) && sont > 0) ? ADS_PGA_V / 32768 / sont : 78.1e-6;
+      const vLsb = this.menzil === 1 ? 18.78e-3 : 1.042e-3;
+      let vEnb = 0, iEnb = 0;
+      for (const d of veri) {
+        if (!Number.isNaN(d.v)) vEnb = Math.max(vEnb, Math.abs(d.v));
+        if (!Number.isNaN(d.i)) iEnb = Math.max(iEnb, Math.abs(d.i));
+      }
+      const v = 20 * vLsb, i = 20 * iLsb;
+      return { v, i, w: vEnb * i + iEnb * v };
     },
 
     osiloCiz() {

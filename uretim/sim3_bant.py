@@ -283,6 +283,18 @@ def bolum1(r):
             "ADS_KOMP_KAPALI" in g_prob,
             "gecici olarak acilan RDY acik birakilirsa iki cip ayni pini "
             "surer ve olcum dongusu bozulur")
+    # 🔴 B46 (2026-09-13): modul #1 I2C taramasinda YOKKEN prob "0x48=VAR
+    #    sure=3 us (RDY calisiyor)" basti — hat zaten dusuktu ve dongu ilk
+    #    turda donuyordu. Bir KENAR gorulmeden "calisiyor" denemez.
+    g_dener = yorumsuz(govde(INO, "static uint8_t alert_dener(uint8_t adres, float pga, uint32_t *sure_us)"))
+    r.kosul("  1b-ter: [!] prob once hattin YUKSELMESINI (RDY'nin birakilmasini) bekliyor",
+            "if (!yukseldi) { if (p == HIGH) yukseldi = true; continue; }" in g_dener
+            and "return yukseldi ? ALERT_YOK : ALERT_SUREKLI_DUSUK;" in g_dener,
+            "hat zaten dusukken 'VAR' — beslemesiz modulde 'RDY calisiyor' yaziyordu")
+    r.kosul("  1b-ter: [!] modul adresi ACK'lamiyorsa RDY sinanmiyor, SOYLENIYOR",
+            "if (Wire.endTransmission() != 0) return ALERT_ACK_YOK;" in g_dener
+            and "I2C'DE YOK" in g_prob,
+            "yok modulde 'VAR' demek kullaniciyi yanlis yere yollar")
 
     # ── 1c-bis · B30: kalibrasyon cikisi
     alt(r, "1c-bis · Kalibrasyon cikisi (CAL) — skopu lehimsiz sinamak")

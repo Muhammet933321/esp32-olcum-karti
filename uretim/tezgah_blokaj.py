@@ -342,9 +342,17 @@ def skop_blokaj(k, zaman_tabanlari=(3, 5, 7, 9, 10)) -> int:
         return sum(1 for i in range(2, len(v) - 2)
                    if abs(v[i] - st.median(v[i - 2:i] + v[i + 1:i + 3])) > esik)
 
-    # ── 1. ORNEK BUTUNLUGU (surulu dugum) ───────────────────────────
-    komut("X20000", 0.5)
-    komut("x500", 1.0)
+    # ── 1. ORNEK BUTUNLUGU ──────────────────────────────────────────
+    # 🔴 B44 duzeltmesi: bu sinama CAL 20 kHz ile kosuyordu ve B44 CAL
+    #    PWM'inin KENDI kenarinin da tek-ornek hata soktugunu buldu (kenar
+    #    ornekleme anina denk gelince ~60 kod, 25 ornekte bir, faz kaydigi
+    #    icin ara sira). Uc temiz kosudan sonra dorduncusu 11/3721 verdi —
+    #    I2C ile ilgisi yok. Artik CAL KAPALI: dugum kondansatorlerde
+    #    yavas bosaliyor (-25 kod/s, gurultu 2.2 kod), >60 kodluk bir
+    #    sicrama yine ayirt edilir. Kalan taban ~0.06/1000 (B44 kontrol
+    #    kosulari, kaynagi bilinmiyor) -> olcut 1 hata/3721'e kadar (0.27/1000);
+    #    B40b'nin kusuru 3-9/1000 idi, 10x pay var.
+    komut("X0", 1.0)
     for c in ("tm0", "tl0", "th0"):
         komut(c, 0.3)
     hata = ornek = 0
@@ -355,10 +363,10 @@ def skop_blokaj(k, zaman_tabanlari=(3, 5, 7, 9, 10)) -> int:
             if b:
                 hata += hata_say(b["ornek"])
                 ornek += len(b["ornek"])
-    ok("[!] Surulu dugumde TEK-ORNEK HATASI YOK (> 60 kod)",
-       ornek > 0 and hata == 0,
-       f"{hata} hata / {ornek} ornek — B40b'de ADS eszamanliyken 3-9/1000 idi")
-    komut("X0", 0.5)
+    ok("[!] TEK-ORNEK HATASI yok (> 60 kod, CAL kapali, <= 1/3721)",
+       ornek > 0 and hata <= 1,
+       f"{hata} hata / {ornek} ornek ({1000.0 * hata / max(ornek, 1):.2f}/1000) — "
+       f"B40b'de ADS eszamanliyken 3-9/1000 idi")
 
     # ── 2+3. donguler ve susma muhasebesi (en kotu: tetik yok) ──────
     for c in ("tm0", "tl4095", "th4"):

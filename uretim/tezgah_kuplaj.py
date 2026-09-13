@@ -28,6 +28,18 @@ Okuma:
     K5 ~ K1                   -> tasimak ISE YARAMAZ; sebep hat/tel, pin degil
     K2 > 0, K3 = 0            -> ADC1 pedi kendi basina hassas
     K4 = 0, K1 > 0            -> yuk (hat akimi) sart
+
+SONUC (2026-09-13, icice, CAL kapali, >30 kod, 16 660 ornek/durum):
+    K1 2.22 · K4 0 · K2 0.06 · K3 0.18 · K5 1.26          -> pin degil, YUKLU HAT
+    I2C telleri GPIO4 telinden ayrilinca K1 3.24            -> yakinlik degil
+    ayni hat, surus d0 1.26 · d2 4.80 · d3 4.44 (asama 3)   -> KENAR HIZI (di/dt)
+    (⚠ son iki satirda modul #1'in SCL'si BAGLI DEGILDI — B46'da bulundu;
+     karsilastirma gecerli, mutlak degerler ilk satirla kiyaslanamaz)
+Mekanizma: yuklu hattin (modul pull-up'lari, ~0.7 mA) kenar akimi ESP32'nin
+kendi toprak/besleme rayini sarsiyor; ADC o anda ornek aliyorsa hata.
+Zayif surus 4x azaltiyor ama SIFIRLAMIYOR -> yakalamada ADS susturma
+KALIYOR. PCB notu: SDA/SCL'ye seri direnc (kenari yavaslatir) + zayif
+surus + tek pull-up seti; nihai kartta tK ile yeniden olculmeli.
 """
 from __future__ import annotations
 
@@ -84,6 +96,14 @@ ASAMA = {
     # /1000. Hatayi YUKLU hat uretiyor; bos pinlerde ADC1/ADC'siz farki
     # anlamli degil. Asama 2 bunu TASINMIS halde dogrudan sinar.
     # Kosum: --asama 2 --karisik --cal-kapali --tekrar 20
+    # Teller AYRILINCA da K1 3.24/1000 (2026-09-13): yakinlik degil. Kalan
+    # aday: pinden akan akimin (modul pull-up'lari) kenari ESP32'nin kendi
+    # toprak/besleme rayinda sicrama yapiyor. Sinama: AYNI hat, AYNI yuk,
+    # yalniz kenar HIZI degisiyor (surus gucu d0 zayif .. d3 guclu).
+    "3": [("K0", "", "kontrol (tiklatma yok)"),
+          ("K1", "8,9", "I2C hatlari, varsayilan surus (d2)"),
+          ("K1d0", "8,9,d0", "I2C hatlari, EN ZAYIF surus"),
+          ("K1d3", "8,9,d3", "I2C hatlari, EN GUCLU surus")],
     "2": [("K0", "", "kontrol (tiklatma yok)"),
           ("K4", "8,9", "GPIO8/9 BOS (teller sokuk)"),
           ("K5", "41,42", "hat ADC'siz pinde, teller BAGLI = tasinmis hal"),

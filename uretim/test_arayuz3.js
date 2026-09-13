@@ -2025,6 +2025,122 @@ console.log('\n--- 20. Ikili yolda olcum satiri (B43) ---');
      `${mCagri} cagri`);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   21. TARAYICI GEZISINDE BULUNANLAR (B45)
+
+   Panel Claude in Chrome ile sekme sekme gezildi (2026-09-13). Dort
+   mantik/gorunum hatasi: zaman grafigi negatifi cizemiyor ve gurultuyu
+   tam ekrana yayiyor; skop olcum satirinda birimler karisik; `A`/`CT`
+   satirlari konsola dusmuyor; arsiv kaydinin olcum satiri kullanilmiyor.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 21. Tarayici gezisinde bulunanlar (B45) ---');
+{
+  /* (a) negatif deger: sifir ORTADA, pozitif-yalniz: sifir ALTTA */
+  const g = ornek();
+  g.kartSont = 0.1; g.menzil = 0;
+  const pencere = [{ t: 0, v: 1.7, i: -0.5, w: 0.2 }, { t: 1, v: 1.7, i: 0.4, w: 0.1 }];
+  const taban = g.olcekTabani(pencere);
+  const oi = g.grafikOlcek(pencere, 'i', taban.i);
+  const ov = g.grafikOlcek(pencere, 'v', taban.v);
+  ok('[!] Negatif akim penceresinde sifir ORTADA (negatif=true), pozitif gerilimde altta',
+     oi.negatif === true && ov.negatif === false && oi.enb === 0.5,
+     `i: ${JSON.stringify(oi)} v: ${JSON.stringify(ov)}`);
+  ok('[!] Cizim eslemi negatifte [-enb,+enb], pozitifte [0,enb] (kaynak)',
+     govdeIcinde(appKaynak, 'grafikCiz', 'negatif ? ust + boy * (1 - deger / enb) / 2')
+     && govdeIcinde(appKaynak, 'grafikCiz', ': ust + boy * (1 - deger / enb)'),
+     'eski eslem negatif her noktayi tuvalin DISINA koyuyordu');
+
+  /* (b) gurultu tabani: 20 LSB, kartin sont'undan */
+  const iLsb = 0.256 / 32768 / 0.1;           // 78.125 uA
+  ok('Akim tabani = 20 LSB (kartin sont\'undan)', Math.abs(taban.i - 20 * iLsb) < 1e-12,
+     `${(taban.i * 1e3).toFixed(4)} mA`);
+  ok('Gerilim tabani = 20 x 1.042 mV (NORMAL)', Math.abs(taban.v - 20 * 1.042e-3) < 1e-12);
+  g.menzil = 1;
+  ok('YUKSEK menzilde gerilim tabani 20 x 18.78 mV', Math.abs(g.olcekTabani(pencere).v - 20 * 18.78e-3) < 1e-12);
+  g.menzil = 0;
+  const gurultu = Array.from({ length: 40 }, (_, k) => ({ t: k, v: 1.7156, i: (k % 2 ? 3e-6 : -3e-6), w: (k % 2 ? 5e-6 : -5e-6) }));
+  const tg = g.olcekTabani(gurultu);
+  const gi = g.grafikOlcek(gurultu, 'i', tg.i);
+  const gw = g.grafikOlcek(gurultu, 'w', tg.w);
+  ok('[!] Bostaki +-3 uA gurultusu TABANDA kaliyor (ekrani doldurmuyor)',
+     gi.tabanda === true && Math.abs(gi.enb - tg.i) < 1e-12 && gi.tepe === 3e-6,
+     `enb ${(gi.enb * 1e3).toFixed(3)} mA, tepe ${(gi.tepe * 1e6).toFixed(1)} uA`);
+  ok('[!] Guc tabani |V|max x akim tabani (1.7 V x 1.56 mA ~ 2.7 mW), gurultu altinda',
+     gw.tabanda === true && Math.abs(tg.w - (1.7156 * tg.i + 3e-6 * tg.v)) < 1e-12,
+     `${(tg.w * 1e3).toFixed(3)} mW`);
+  const yuk = Array.from({ length: 40 }, (_, k) => ({ t: k, v: 12, i: 0.01, w: 0.12 }));
+  const ty = g.olcekTabani(yuk);
+  ok('10 mA\'lik gercek yuk tabanin USTUNDE, eskisi gibi tepeye olcekleniyor',
+     g.grafikOlcek(yuk, 'i', ty.i).tabanda === false && g.grafikOlcek(yuk, 'w', ty.w).tabanda === false);
+  ok('Taban devredeyken etiket olcegi de yaziyor (kaynak)',
+     govdeIcinde(appKaynak, 'grafikCiz', "' · ölçek '") && govdeIcinde(appKaynak, 'grafikCiz', "'tepe ' + bicimle(tepe)"),
+     '"tepe 0.0 mA" tek basina ekrandaki izi aciklamaz');
+  ok('Sifir cizgisi ciziliyor (kaynak)',
+     govdeIcinde(appKaynak, 'grafikCiz', 'const y0 = Math.round(yOl(0)) + .5;'));
+
+  /* (c) skop olcum satirinda gerilimler TEK birimde */
+  const s = ornek();
+  s.osilo = { adet: 4, hz: 1000, veri: [1, 2, 3, 4], tetiklendi: true,
+              olcum: { f: 1000, T: 1e-3, Vpp: 4.4404, Vmax: 0.3482, Vmin: -4.0922, Vort: -1.8082, Vrms: 2.3756, Vac: 1.5408, duty: 50, tr: 3e-4, tf: 3e-4, n: 1 } };
+  const gerilimler = s.skopOlcumler.filter((m) => /^V/.test(m.ad));
+  ok('[!] Skop olcum satirinda alti gerilim de "x.xxx V" biciminde',
+     gerilimler.length === 6 && gerilimler.every((m) => /^-?\d+\.\d{3} V$/.test(m.d)),
+     gerilimler.map((m) => m.d).join(' | '));
+  ok('Vmax 0.3482 -> "0.348 V" (348.200 mV DEGIL)',
+     gerilimler.find((m) => m.ad === 'Vmax').d === '0.348 V');
+  ok('Zaman buyuklukleri hala SI onekli (999.861 us gibi)',
+     s.skopOlcumler.find((m) => m.ad === 'Periyot').d === '1.000 ms');
+
+  /* (d) `A` ve `CT` konsola dusuyor */
+  const c = ornek();
+  c.satirIsle('A menzil=NORMAL oto=1 n_kazanc=1.000000 n_sifir=0 y_kazanc=1.000000 y_sifir=0 sont=0.100000 i_duz=1.000000 i_ofset=0 rapor=200');
+  ok('[!] `A` (ayarlar) satiri KONSOLA dusuyor — "Ayarlari goster" bunu gostermiyordu',
+     c.gunluk.some((x) => x.metin.startsWith('A menzil=')) && c.kartSont === 0.1);
+  c.satirIsle('CT 3 oran=38.037037 ofset=63.530090 tavan_mv=3100.0 0:0 2048:1790 4095:3100');
+  ok('`CT` satiri konsola dusuyor ve tablo yine kuruluyor',
+     c.gunluk.some((x) => x.metin.startsWith('CT 3')) && !!c.skopKal && c.skopKal.kod.length === 3);
+  c.satirIsle('D 1.7156 0.000001 0.00000 0.0022 0.0000006 55167 93 0 0');
+  ok('`D` satiri konsola DUSMUYOR (saniyede 20 kez, panelde)',
+     !c.gunluk.some((x) => x.metin.startsWith('D ')));
+  ok('Konsol aciklamasi disarida kalanlari SOYLUYOR',
+     /her satır burada[\s\S]{0,200}<code>D<\/code>[\s\S]{0,120}hariç/.test(htmlKaynak),
+     '"her satir burada" iddiasi D/W/skop dokumu icin dogru degildi');
+
+  /* (e) arsiv kaydinin olcum satiri — GERCEK KART FIKSTURU ile */
+  const fk = JSON.parse(fs.readFileSync(path.join(__dirname, 'olcum-skop-fikstur.json'), 'utf8'));
+  const a = ornek();
+  a.satirIsle(fk.ct);
+  ok('Fikstur: CT tablosu gercek karttan, 17 dugum', !!a.skopKal && a.skopKal.kod.length === 17);
+  a.osilo = { adet: fk.kodlar.length, hz: 83333, veri: fk.kodlar, voltOfset: 63.530090, voltAdim: 0.028788, tetiklendi: true, olcum: null };
+  const kart = a.skopMCoz(fk.m);
+  const ars = a.skopArsivOlcum(fk.m, fk.kodlar);
+  const fark = Math.max(...['Vmax', 'Vmin', 'Vpp', 'Vort', 'Vrms', 'Vac'].map((k) => Math.abs(ars[k] - kart[k])));
+  ok('[!] Arsiv gerilimleri (arayuz, kodVolt) == kartin M satiri (C, kal_mv) — GERCEK kayitta <= 1 mV',
+     fark <= 1e-3, `en buyuk fark ${(fark * 1e3).toFixed(3)} mV (${fk.kodlar.length} kod)`);
+  ok('[!] Zaman buyuklukleri kaydin M satirindan (f, duty, n)',
+     ars.f === kart.f && ars.duty === kart.duty && ars.n === kart.n && ars.tr === kart.tr);
+  const eski = 'M f=999.996 T=0.001000004 Vpp=4.3470 Vmax=-6.3000 Vmin=-10.6469 Vort=-8.4892 Vrms=8.6 Vac=1.39 duty=51.13 tr=0.000483203 tf=0.000320116 n=9';
+  const ars2 = a.skopArsivOlcum(eski, fk.kodlar);
+  ok('[!] B43 ONCESI (dogrusal) M satiri olan eski kayitta gerilimler EKSENDEN (7 V celiski geri gelmiyor)',
+     Math.abs(ars2.Vmax - kart.Vmax) <= 1e-3 && ars2.f === 999.996,
+     `Vmax ${ars2.Vmax.toFixed(4)} (M satiri -6.3000 diyordu)`);
+  ok('M satiri olmayan kayitta gerilimler var, zaman buyuklukleri UYDURULMUYOR',
+     (() => { const o = a.skopArsivOlcum('', fk.kodlar); return o && !('f' in o) && !('duty' in o) && Math.abs(o.Vpp - kart.Vpp) <= 1e-3; })());
+  ok('Bos kayitta null', a.skopArsivOlcum(fk.m, []) === null);
+  /* Kisa M satiri (kopru sahtesi 'M f=250.000 Vpp=24.0000 n=5' gonderiyor):
+     eksik `duty` render'i dusurmemeli — tarayici testinde skop gorunumu
+     komple kayboluyordu. */
+  a.osilo.olcum = a.skopArsivOlcum('M f=250.000 Vpp=24.0000 n=5', fk.kodlar);
+  let satirlar = null, patladi = null;
+  try { satirlar = a.skopOlcumler; } catch (e) { patladi = e.message; }
+  ok('[!] Kisa M satiri (duty/tr/tf yok) skop olcum satirini COKERTMIYOR, eksik alan UYDURULMUYOR',
+     patladi === null && Array.isArray(satirlar) && satirlar.some((m) => m.ad === 'Frekans' && m.d === '250.000 Hz')
+     && !satirlar.some((m) => m.ad === 'Duty' || m.ad === 'Periyot'),
+     patladi || (satirlar && satirlar.map((m) => m.ad).join(',')));
+  ok('skopKayitAc arsiv olcumunu BAGLIYOR (kaynak)',
+     govdeIcinde(appKaynak, 'skopKayitAc', 'this.osilo.olcum = this.skopArsivOlcum(kyt.olcum, this.osilo.veri);'));
+}
+
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
    fonksiyonun govdesinde (bolum 13) dolduruluyor; bosaltma burada,
    ozetin hemen oncesinde. */

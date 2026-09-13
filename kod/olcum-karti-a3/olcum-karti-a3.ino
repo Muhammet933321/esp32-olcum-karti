@@ -1057,6 +1057,9 @@ static uint8_t  kuplaj_pin[2] = { 0xFFu, 0xFFu };
 static bool     kuplaj_aktif = false;
 static bool     kuplaj_hazir = false;
 static uint32_t kuplaj_patlama = 0;
+/* B44b: surus gucu (0 zayif … 3 guclu, IDF gpio_drive_cap_t). `tK8,9,d0`.
+   Hata kenarin di/dt'sinden geliyorsa zayif surus onu kucultmeli. */
+static int8_t   kuplaj_surus = -1;
 
 /* B40b/B41: `skop_gorevi` (cekirdek 1, oncelik 2) cagiriyor. YAZDIRMAZ — sonucu
    dondurur, metni cekirdek 1 basar. Dokum/is cakismasini cagiran taraf
@@ -1538,6 +1541,8 @@ static void kuplaj_patlat() {
     for (uint8_t k = 0; k < 2u; k++)
       if (kuplaj_pin[k] != 0xFFu) {
         pinMode(kuplaj_pin[k], OUTPUT_OPEN_DRAIN | PULLUP);
+        if (kuplaj_surus >= 0)
+          gpio_set_drive_capability((gpio_num_t)kuplaj_pin[k], (gpio_drive_cap_t)kuplaj_surus);
         digitalWrite(kuplaj_pin[k], HIGH);
       }
     kuplaj_hazir = true;
@@ -1561,6 +1566,8 @@ static void kuplaj_bitir() {
     if (p == 0xFFu) continue;
     if (p == PIN_SDA || p == PIN_SCL) i2c = true;
     else pinMode(p, INPUT);
+    if (kuplaj_surus >= 0)            /* deney bitti: varsayilan surus geri */
+      gpio_set_drive_capability((gpio_num_t)p, GPIO_DRIVE_CAP_DEFAULT);
   }
   if (i2c && kuplaj_hazir) Wire.begin(PIN_SDA, PIN_SCL, 400000);
   Serial.print(F("* kuplaj: pinler="));
@@ -1569,6 +1576,8 @@ static void kuplaj_bitir() {
     Serial.print(kuplaj_pin[0]);
     if (kuplaj_pin[1] != 0xFFu) { Serial.print(','); Serial.print(kuplaj_pin[1]); }
   }
+  Serial.print(F(" surus="));
+  if (kuplaj_surus < 0) Serial.print(F("varsayilan")); else Serial.print(kuplaj_surus);
   Serial.print(F(" patlama="));
   Serial.println(kuplaj_patlama);
   kuplaj_aktif = false;
@@ -1604,8 +1613,17 @@ void skop_komut(const char *s) {
       } else if (alt == 'K') {                    /* B44 kuplaj deneyi */
         uint8_t p[2] = { 0xFFu, 0xFFu };
         uint8_t adet = 0;
+        int8_t surus = -1;
         const char *q = s + 2;
         while (*q) {
+          if (*q == 'd') {                        /* surus gucu: d0..d3 */
+            int d = atoi(q + 1);
+            if (d < 0 || d > 3) { Serial.println(F("! kuplaj: surus d0..d3")); return; }
+            surus = (int8_t)d;
+            while (*q && *q != ',') q++;
+            if (*q == ',') q++;
+            continue;
+          }
           int v = atoi(q);
           if (adet >= 2u || !kuplaj_pin_serbest(v)) {
             Serial.print(F("! kuplaj: pin "));
@@ -1619,6 +1637,7 @@ void skop_komut(const char *s) {
         }
         kuplaj_pin[0] = p[0];
         kuplaj_pin[1] = p[1];
+        kuplaj_surus = surus;
         kuplaj_patlama = 0;
         kuplaj_hazir = false;
         kuplaj_aktif = true;
@@ -2918,24 +2937,49 @@ void ayar_yaz_seri() {
      * hic LOW'a inmezse        -> tel TAKILI DEGIL ya da +3V3'e bagli
      * inerse                   -> gecen sure gercek donusum suresidir */
 /* Tek cip icin: RDY'yi ZORLA ac, donusum baslat, pini yokla. */
-static bool alert_dener(uint8_t adres, float pga, uint32_t *sure_us) {
+/* 🔴 B46 — PROB HATTI ZATEN DUSUKKEN "VAR" DIYORDU. Kartta goruldu
+   (2026-09-13): modul #1 (0x48) I2C taramasinda YOKKEN prob
+   "0x48=VAR sure=3 us (RDY calisiyor — dogru modul)" basiyordu, cunku
+   dongu ilk turda pini DUSUK bulup donuyordu — pin zaten dusuktu
+   (beslemesiz modulun ALRT ucu). Simdi: (1) modul adresini ACK'lamiyorsa
+   sinama YAPILMIYOR, soyleniyor; (2) ayar yazilinca hattin once YUKSELMESI
+   (RDY'nin BIRAKILMASI) bekleniyor — yukselmiyorsa "surekli DUSUK",
+   VAR degil. Bir kenar gorulmeden "calisiyor" denmiyor. */
+enum : uint8_t { ALERT_VAR = 0, ALERT_YOK, ALERT_SUREKLI_DUSUK, ALERT_ACK_YOK };
+
+static uint8_t alert_dener(uint8_t adres, float pga, uint32_t *sure_us) {
+  Wire.beginTransmission(adres);
+  if (Wire.endTransmission() != 0) return ALERT_ACK_YOK;
   ads_yaz(adres, ADS_UST, 0x8000);       /* RDY kipi icin esikler */
   ads_yaz(adres, ADS_ALT, 0x0000);
   ads_yaz(adres, ADS_AYAR, ADS_BASLAT | MUX_01 | pga_bitleri(pga)
                            | ADS_TEK | ADS_860SPS | ADS_KOMP_TEK);
   uint32_t t0 = micros();
+  bool yukseldi = false;
   while (micros() - t0 < 3000u) {
-    if (digitalRead(PIN_HAZIR) == LOW) { *sure_us = micros() - t0; return true; }
+    int p = digitalRead(PIN_HAZIR);
+    if (!yukseldi) { if (p == HIGH) yukseldi = true; continue; }
+    if (p == LOW) { *sure_us = micros() - t0; return ALERT_VAR; }
   }
   (void)ads_oku(adres);
-  return false;
+  return yukseldi ? ALERT_YOK : ALERT_SUREKLI_DUSUK;
 }
 
 static void alert_probu() {
   int bas = digitalRead(PIN_HAZIR);
   uint32_t sure = 0;
-  bool bir = alert_dener(ADS_AKIM, ayar.i_pga, &sure);
+  uint8_t bir_s = alert_dener(ADS_AKIM, ayar.i_pga, &sure);
+  bool bir = (bir_s == ALERT_VAR);
   (void)ads_oku(ADS_AKIM);
+  if (bir_s == ALERT_ACK_YOK || bir_s == ALERT_SUREKLI_DUSUK) {
+    Serial.print(F("! alert: pin=GPIO"));  Serial.print(PIN_HAZIR);
+    Serial.print(F(" baslangic="));        Serial.print(bas ? F("YUKSEK") : F("DUSUK"));
+    if (bir_s == ALERT_ACK_YOK)
+      Serial.println(F(" 0x48=I2C'DE YOK — RDY sinanamadi: modul #1'in VDD/GND/SDA/SCL/ADDR tellerini kontrol et"));
+    else
+      Serial.println(F(" hat SUREKLI DUSUK (ayar yazilinca birakilmadi) — modul #1 beslemesiz ya da tel kisa devre"));
+    return;
+  }
 
   /* 🔴 TEL HANGI MODULDE: iki modul BIRBIRINE BENZIYOR ve `ADDR` ile
      `ALRT` YAN YANA pinler. Tel #2'ye takildiysa GPIO7, COMP_QUE=11b ile
@@ -2945,7 +2989,7 @@ static void alert_probu() {
   bool iki = false;
   uint32_t sure2 = 0;
   if (!bir) {
-    iki = alert_dener(ADS_GERILIM, etkin_kanal()->pga, &sure2);
+    iki = (alert_dener(ADS_GERILIM, etkin_kanal()->pga, &sure2) == ALERT_VAR);
     (void)ads_oku(ADS_GERILIM);
     /* #2'yi ESKI HALINE dondur: ALERT ucu bilerek yuksek-Z. */
     ads_yaz(ADS_GERILIM, ADS_AYAR, ADS_BASLAT | etkin_mux()
