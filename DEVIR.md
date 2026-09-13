@@ -8187,7 +8187,7 @@ Arayüzde yeniden hesaplamak `skop_olc`'un ikinci bir kopyası olurdu (AVR emül
 ##### Sonuç
 
 * Hatayı **yüklü hat** üretiyor; pinin ADC1'de olması belirleyici değil (boş ADC1 ve boş ADC'siz pin arasında anlamlı fark yok, teller sökülünce aynı pinler 0).
-* **I²C'yi ADC'siz pinlere taşımak çözmüyor**: K5 1.26/1000. K1'den (2.22) düşük görünüyor ama hatalar yakalamalarda kümelendiği için anlamlı değil (9/20'ye karşı 4/20 yakalama). Tellerin 8/9'a **geri takılması** kararlaştırıldı; şema ve belgeler değişmedi.
+* **I²C'yi ADC'siz pinlere taşımak çözmüyor**: K5 1.26/1000. K1'den (2.22) düşük görünüyor ama hatalar yakalamalarda kümelendiği için anlamlı değil (9/20'ye karşı 4/20 yakalama). Teller 8/9'a **geri takıldı**; şema ve belgeler değişmedi.
 * B41'in çözümü (yakalama sürerken ADS susuyor) **kalıyor**; tanısı firmware yorumunda ve 6i iddiasında düzeltildi.
 * **Açık aday: kablo.** Dişi-erkek tel demetinde I²C tellerinden GPIO4 teline sızma ya da ortak GND telinde sıçrama. Sınama tezgah listesinde (telleri ayır → `--asama 1d` yeniden). Nihai PCB (toprak planı, kısa iz) breadboard'dan farklı davranır; orada yeniden ölçülmeli.
 * Yan bulgu: skop girişini süren **PWM de** aynı yolla hata sokuyor (kenar örnekleme anına denk gelince). CAL ile yapılan bütünlük sınamalarında (B41, `tezgah_blokaj --skop`) bu bir karışma kaynağı — hata sayımı yapan yeni deneyler `--cal-kapali` ile koşulmalı.
@@ -8195,7 +8195,7 @@ Arayüzde yeniden hesaplamak `skop_olc`'un ikinci bir kopyası olurdu (AVR emül
 ##### Doğrulama
 
 * `sim3_skop` 78 → **82** (6l: izin listesi çalıştırılarak, pil kapısı dahil yasak pinler, I²C'nin ADS okunmadan önce geri kurulması, tıklatmanın yalnız yakalamada) · mutasyon B19 **47/47**.
-* `tK8,9` sonrası I²C'nin geri kurulduğu kartta doğrulandı (D satırı durum 0). Teller 41/42'deyken ADS'ler beklendiği gibi okunmuyor (durum 3); ⚠ **geri takıldıktan sonra durum 0 doğrulaması BEKLİYOR.**
+* `tK8,9` sonrası I²C'nin geri kurulduğu kartta doğrulandı (D satırı durum 0). Teller 41/42'deyken ADS'ler beklendiği gibi okunmuyordu (durum 3); geri takıldıktan sonra kartta doğrulandı: durum 0, 93 örnek/rapor, 1.7156 V.
 
 ---
 
