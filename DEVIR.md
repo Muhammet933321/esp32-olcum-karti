@@ -133,11 +133,12 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
 
 8. **Sonra kullanıcıya ne yapacağını anlat, onay al, öyle başla.**
 
-### 📌 GÜNCEL DURUM (2026-09-13 gece, commit `7ab3970`) — buradan devam et
+### 📌 GÜNCEL DURUM (2026-09-14, commit `606c4a5`) — buradan devam et
 
 **Kart:** ESP32-S3 N16R8, COM6 (CH343), iki ADS1115 takılı (0x48 akım,
 0x49 gerilim), WiFi'de `olcum.local`, **web parolası tanımlı** (depoda YOK,
-Chrome hatırlıyor). Zincir 18/18 (1441 iddia). Firmware + arayüz kartta
+Chrome hatırlıyor). Zincir 18/18 (1453 iddia). **Yazılımda planlanıp
+bekleyen iş yok** — sıradaki gerçek adım analog ön uç (B10). Firmware + arayüz kartta
 güncel. **Analog ön uç kurulmadı.** Tezgahta hâlâ takılı: **GPIO4–GPIO5 kısa
 devre** (jumper) ve **RC düzeneği** (GPIO10 → 10K → 100nF → 10K → 100nF →
 GPIO4) — skop/tetik/ölçüm tezgah sınamaları bunlara bağlı; ön uçtan önce
