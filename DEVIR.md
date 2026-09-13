@@ -43,8 +43,9 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
    >
    > Bu blok daha önce elle yazılıydı ve bir kez **12/12**'de donmuştu.
 
-   ⚠️ Zincir **tasarımı** doğruluyor, kurulmuş bir kartı değil. Donanım
-   henüz kurulmadı.
+   ⚠️ Zincir **tasarımı ve kodu** doğruluyor, kartı değil. Kart var
+   (B26'dan beri) ama **analog ön uç yok**; karttaki davranışı tezgah
+   betikleri ölçüyor (aşağıdaki "📌 GÜNCEL DURUM").
 
 2. **Depo GitHub'da — değişikliği göndermeyi unutma.**
 
@@ -131,6 +132,38 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
 7. **Kendi hata avını yap.** Bu belgeye güvenme.
 
 8. **Sonra kullanıcıya ne yapacağını anlat, onay al, öyle başla.**
+
+### 📌 GÜNCEL DURUM (2026-09-13 gece, commit `7ab3970`) — buradan devam et
+
+**Kart:** ESP32-S3 N16R8, COM6 (CH343), iki ADS1115 takılı (0x48 akım,
+0x49 gerilim), WiFi'de `olcum.local`, **web parolası tanımlı** (depoda YOK,
+Chrome hatırlıyor). Zincir 18/18 (1441 iddia). Firmware + arayüz kartta
+güncel. **Analog ön uç kurulmadı.** Tezgahta hâlâ takılı: **GPIO4–GPIO5 kısa
+devre** (jumper) ve **RC düzeneği** (GPIO10 → 10K → 100nF → 10K → 100nF →
+GPIO4) — skop/tetik/ölçüm tezgah sınamaları bunlara bağlı; ön uçtan önce
+sökülecek. Kart breadboard'da değil, dişi-erkek tellerle taşınıyor.
+
+**Bugün olan (5.12.56–5.12.60):** B42 ön-tetik hiç uygulanmıyordu ·
+B43 ölçüm satırı WiFi'de yoktu, USB'de eksenle 7 V çelişiyordu · B44 I²C'yi
+taşıma kararı ölçülüp **reddedildi** (sebep pin/kablo değil, yüklü hattın
+**kenar hızı**; yakalamada ADS susturma kalıyor) · B45 panel tarayıcıdan
+gezildi, 4 arayüz kusuru · B46 `#` probu sahte "var" diyordu.
+
+**Tarayıcı:** Claude in Chrome kurulu; VS Code'da mesaja `@browser` yazınca
+araçlar geliyor. Panelde ham veri pikselden değil Vue durumundan okunuyor
+(`kodVolt`, `osilo`). Yakala düğmesi parola ister → kullanıcı bir kez girer.
+Arayüz karta yazıldıktan sonra `location.reload()` şart.
+
+**Kartta ölçüm araçları (uretim/):** `tezgah_blokaj.py --skop` (B40–B43,
+12/12) · `--tetik` · `--olcum` · `tezgah_kuplaj.py` (B44, `tK` komutu) ·
+`tezgah_adc_supur.py` · `fikstur_skop_al.py` · `tezgah_kart.py --sifirla`
+(bringup). ⚠ Köprü açıkken COM6 onda; hata sayan deneyleri **iç içe** ve
+**CAL kapalı** koş (B44).
+
+**Açık:** B47 önerisi (tetikte iki ardışık örnek — kalıntı 0.1–0.3/1000
+iğne) · PCB'de I²C kuplajı yeniden ölçülecek · WebAkis satır birleştirme ·
+hızlı yol sıfır kalibrasyonu (ön uç gerekli) · ön uç kurulunca `wB`,
+`tezgah_kart.py --asama 1`.
 
 ### ✅ B15 bitti (2026-09-09) — sonuçlar **5.12.24**'te
 
