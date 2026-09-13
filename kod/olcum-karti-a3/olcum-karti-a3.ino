@@ -987,7 +987,33 @@ static SkopOlcum skop_dokum_m;
    kurulum) esigi 0'a cekip 12 zaman tabanini sirayla yakaliyor;
    periyodik sinyal yoksa ONLARCA saniye.
 
-   Yakalama artik cekirdek 0'da ayri bir gorevde. KURAL: bu gorev HIC
+   Yakalama artik ayri bir gorevde — CEKIRDEK 1, OLCUMDEN YUKSEK ONCELIK.
+
+   🔴 B41 — ESZAMANLI I2C TRAFIGI ADC VERISINE TEK-ORNEK HATA SOKUYOR.
+      Kullanicinin ekraninda 200 ms/bol yakalamada uc dik igne ve o
+      ignelerden birine dusen SAHTE TETIK vardi. Kartta olculdu
+      (2026-09-13), CAL %50 = 20K + 100 nF ile surulu dugum (1.6 ms'de
+      600 kod atlayamaz), tek-ornek hatasi (> 60 kod) / 1000 ornek:
+          yakalama olcum dongusunu blokluyor (B40a)       tb3 0     tb10 0
+          ayri gorev, ADS ESZAMANLI calisiyor (B40b)      tb3 3.9   tb10 2.1
+          ayri gorev CEKIRDEK 1'de, ADS eszamanli          tb3 5.7   tb10 2.9
+          ayri gorev, yakalamada ADS SUSUYOR               tb3 0     tb10 0
+          yakalamada YALNIZ I2C okuma (donusum/RDY yok)    tb3 5.1   tb10 3.3
+          yakalamada I2C YOK, CPU mesgul                   tb3 0     tb10 0
+          I2C surucusu KAPALI, SDA/SCL elle tiklatiliyor   tb3 2.4   tb10 1.2
+      Ilk tanim ("cekirdek 0 / WiFi") YANLISTI. Sebep ELEKTRIKSEL:
+      GPIO8/9 (I2C) kenarlari — surucu kapaliyken bile — GPIO4'un ayni
+      ADC1 birimindeki donusumune hata sokuyor. B40a'da yakalama donguyu
+      bloklarken bu yalitim KAZARA saglaniyordu; B40b onu bozdu. Zincir
+      ve bringup yesildi: hicbir iddia ORNEK BUTUNLUGUNE bakmiyordu.
+      Donanim cozumu: I2C (ve RDY) ADC1 DISI pinlere — KULLANICI KARARI.
+      O zamana kadar: yakalama surerken ADS SUSUYOR (loop()'ta bekci),
+      susma suresi `ads_duraklama_ms` olarak SAYILIYOR, >1 s araliklar
+      enerji sayacinda eskisi gibi `enerji_kayip_ms`e yaziliyor.
+      Gorev yine de ayri: komutlar (ozellikle `p0` pil DURDUR) uzun bir
+      yakalama sirasinda da ANINDA isleniyor.
+
+   KURAL: bu gorev HIC
    YAZDIRMIYOR. `Serial`in satir birlestirmesi (WebAkis) tek yazarli;
    iki cekirdekten yazilirsa satirlar KARAKTER duzeyinde karisir ve
    hem D hem skop satirlari bozulur. Gorev sonucu bir kuyruga birakiyor,
@@ -1007,8 +1033,12 @@ static QueueHandle_t skop_sonuc_q = nullptr;
    kullaniliyor: yakalamadan sonra `tb` degistirilirse eski kayit YENI
    zaman tabaniyla etiketlenmesin (onceden boyle oluyordu). */
 static uint8_t skop_son_tdiv = 5, skop_son_kip = 0;
+/* B41: yakalama surerken ADS'nin sustugu toplam sure (C satirinda). */
+static uint32_t ads_duraklama_top_ms = 0;
+static uint32_t ads_duraklama_bas_ms = 0;
+static bool pil_testi_suruyor();   /* tanimi pil durumundan sonra */
 
-/* B40b: cekirdek 0'daki `skop_gorevi` cagiriyor. YAZDIRMAZ — sonucu
+/* B40b/B41: `skop_gorevi` (cekirdek 1, oncelik 2) cagiriyor. YAZDIRMAZ — sonucu
    dondurur, metni cekirdek 1 basar. Dokum/is cakismasini cagiran taraf
    (`skop_is_ver`) onceden eliyor. */
 static uint8_t skop_yakala()
@@ -1047,6 +1077,12 @@ static uint8_t skop_yakala()
     if (azami_ms > 4000u) azami_ms = 4000u;
     uint32_t taban_ms = (uint32_t)(pencere_ms * 1.2f) + 300u;
     if (azami_ms < taban_ms) azami_ms = taban_ms;
+    /* B41 — OTO KIPTE TETIK YOKSA TABAN KADAR BEKLE. Kullanici 200 ms/bol'de
+       yakalamanin uzun surdugunu soyledi: tetik yokken 4 s bekleniyordu
+       (pencere 2 s). OTO'da tetik beklemek anlamsiz — serbest kosu zaten
+       gelecek; taban (1.2 x pencere + 300 ms) pencerenin TAMAMINI hala
+       garanti ediyor (B31). NORMAL ve TEK kip tetigi beklemeye devam. */
+    if (skop_ayar.kip == SKOP_KIP_OTO) azami_ms = taban_ms;
     uint32_t t0 = millis();
 
     uint8_t cerceve[1024];
@@ -1244,6 +1280,13 @@ static bool skop_is_ver(uint8_t is)
         Serial.println(F("! skop: dokum suruyor, yakalama atlandi — tekrar dene"));
         return false;
     }
+    /* 🔴 B41 — EMNIYET: yakalama ADS'yi susturuyor; pil testi surerken
+       bu KESME GERILIMI denetiminin durmasi demek (ve `pil_isle` 1 s'den
+       uzun araligi atliyor). Pil testi bitmeden skop yakalanmaz. */
+    if (pil_testi_suruyor()) {
+        Serial.println(F("! skop: pil testi suruyor — yakalama ADS'yi susturur, kesme denetimi durur"));
+        return false;
+    }
     skop_is = is;
     xTaskNotifyGive(skop_gorev_kolu);
     return true;
@@ -1390,13 +1433,13 @@ void skop_komut(const char *s) {
            basiyor — arayuz sonra `/skop.bin`'i cekiyor.
            ⚠ Onay satiri `!` ile BASLAMIYOR: arayuz `!` gorunce skop
              beklemesini iptal ediyor (app.js). */
-        /* B40b: yakalama cekirdek 0'da; onay satiri sonuc gelince
+        /* B40b: yakalama ayri gorevde; onay satiri sonuc gelince
            `skop_sonuc_isle()`den basiliyor. */
         skop_is_ver(SKOP_IS_IKILI);
       } else if (alt == '?') {
         skop_ayar_yaz();
       } else if (alt == 'a') {                    /* otomatik kurulum */
-        /* B40b: tamami cekirdek 0'da (12 zaman tabanini tarayabilir,
+        /* B40b: tamami ayri gorevde (12 zaman tabanini tarayabilir,
            periyodik sinyal yoksa onlarca saniye). T satiri ve dokum
            sonuc gelince cekirdek 1'den. */
         skop_is_ver(SKOP_IS_OTOMATIK);
@@ -2645,6 +2688,7 @@ void ayar_yaz_seri() {
   Serial.print(F(" ag_tur="));           Serial.print(ag_tur);
   Serial.print(F(" ag_yigin_dip="));
   Serial.print(ag_gorev_kolu ? (unsigned)uxTaskGetStackHighWaterMark(ag_gorev_kolu) : 0u);
+  Serial.print(F(" ads_duraklama_ms="));  Serial.print(ads_duraklama_top_ms);
   Serial.print(F(" skop_yigin_dip="));
   Serial.print(skop_gorev_kolu ? (unsigned)uxTaskGetStackHighWaterMark(skop_gorev_kolu) : 0u);
   Serial.print(F(" adc_cali="));         Serial.print(skop_cali_var ? F("egri")
@@ -3241,7 +3285,16 @@ void komut_calistir(const char *s) {
     }
 
     case 'p': {
-      if (s[1] == '1') { pil_baslat(); break; }
+      if (s[1] == '1') {
+        /* B41: yakalama surerken ADS susuyor — pil testi baslayamaz.
+           `p0` (DURDUR) bu kontrolden GECMIYOR, her zaman serbest. */
+        if (skop_is != SKOP_IS_YOK) {
+          Serial.println(F("! pil: skop yakalamasi suruyor (ADS susuyor) — tekrar dene"));
+          break;
+        }
+        pil_baslat();
+        break;
+      }
       if (s[1] == '0') {
         if (pil.durum == PIL_CALISIYOR) {
           pil_durdur(PIL_DURDURULDU, PILH_YOK);
@@ -3515,8 +3568,10 @@ void setup() {
      calisiyor. Yigin: yakalama dongusundeki 1 KB cerceve + skop_olc;
      olculen dip deger `?` -> C satirinda `skop_yigin_dip`. */
   skop_sonuc_q = xQueueCreate(2, sizeof(uint8_t));
-  xTaskCreatePinnedToCore(skop_gorevi, "skop", 6144, nullptr, 1,
-                          &skop_gorev_kolu, 0);
+  /* 🔴 B41: CEKIRDEK 1, ONCELIK 2 — cekirdek 0'da ADC verisine tek-ornek
+     hata giriyordu (kartta A/B ile olculdu, gerekce SKOP_IS tanimlarinda). */
+  xTaskCreatePinnedToCore(skop_gorevi, "skop", 6144, nullptr, 2,
+                          &skop_gorev_kolu, 1);
 
   sunucu.on("/", kok_sayfa);
   sunucu.on("/akis", akis_sayfa);
@@ -3661,6 +3716,8 @@ void setup() {
   }
 }
 
+static bool pil_testi_suruyor() { return pil.durum == PIL_CALISIYOR; }
+
 void loop() {
   // B22.1: tur suresini OLC. Blokaj iddiasi olculmeden dogrulanamaz.
   {
@@ -3680,7 +3737,7 @@ void loop() {
      disiplini korunuyor (kalibrasyon, NVS, skop hep cekirdek 1'de). */
   komut_isle();              // seri porttan gelen komutlar
   komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
-  skop_sonuc_isle();         // B40b: cekirdek 0'daki yakalamanin sonucu
+  skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu
   skop_dokum_ilerle();       // B40: skop dokumu, TX'te yer oldugu kadar
 
   // 🔴 B20 (2026-09-10) — BURADA OLU BIR BEKLEME VARDI:
@@ -3702,6 +3759,19 @@ void loop() {
   //   Bu yuzden yerine yield() konuyor — o, gorev degistirmeyi birakir
   //   ama bir tik beklemez.
   yield();
+
+  /* 🔴 B41 — YAKALAMA SURERKEN ADS SUSUYOR. I2C kenarlari (GPIO8/9)
+     ayni ADC1 birimindeki skop donusumune tek-ornek hata sokuyor
+     (gerekce ve olcum: SKOP_IS tanimlarinin yaninda). Susma sayiliyor;
+     enerji araligi >1 s ise `enerji_biriktir` eskisi gibi kayip yaziyor. */
+  if (skop_is != SKOP_IS_YOK) {
+    if (!ads_duraklama_bas_ms) ads_duraklama_bas_ms = millis() | 1u;
+    return;
+  }
+  if (ads_duraklama_bas_ms) {
+    ads_duraklama_top_ms += millis() - ads_duraklama_bas_ms;
+    ads_duraklama_bas_ms = 0;
+  }
 
   Okuma3 o = olcum_al();
   // Guc ORNEK BASINA carpilir: ort(VxI) != ort(V) x ort(I).

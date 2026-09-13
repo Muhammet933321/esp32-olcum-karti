@@ -773,10 +773,13 @@ def bolum6(r):
     _gor = _govde_c("static void skop_gorevi(void *)", "static bool skop_is_ver")
     _isle = _govde_c("static void skop_sonuc_isle()", "static void skop_dokum_ilerle()")
     _dok = _govde_c("static void skop_dokum_ilerle()", "void skop_ayar_yaz()")
-    r.kosul("  6h: [!] yakalama cekirdek 0'da ayri gorevde",
-            'xTaskCreatePinnedToCore(skop_gorevi, "skop"' in ino
-            and "&skop_gorev_kolu, 0);" in ino,
-            "olcum cekirdeginde kalsaydi OTO zaman asimi 4 s blokluyordu")
+    # ⚠ CEKIRDEK IDDIA EDILMIYOR. B40b'de "cekirdek 0 / WiFi" sanildi;
+    #   B41'in A/B tanisi sebebin I2C kenarlari oldugunu gosterdi —
+    #   cekirdek 1'e almak hatalari GIDERMEDI. Yanlis bir gerekceyi iddiaya
+    #   cakmak onu kalici yapardi.
+    r.kosul("  6h: [!] yakalama AYRI gorevde (komutlar, ozellikle p0, beklemiyor)",
+            'xTaskCreatePinnedToCore(skop_gorevi, "skop"' in ino,
+            "olcum dongusunde kalsaydi 4 s'lik yakalamada p0 (pil DURDUR) de 4 s beklerdi")
     # 🔴 GOREV YAZDIRMAMALI: WebAkis satir birlestirmesi tek yazarli; iki
     #    cekirdekten yazilirsa satirlar KARAKTER duzeyinde karisir.
     r.kosul("  6h: [!] yakalama gorevi ve skop_yakala HIC yazdirmiyor",
@@ -811,6 +814,39 @@ def bolum6(r):
             "SKOP_TDIV_US[skop_son_tdiv]" in _dok
             and "uint32_t tdiv = SKOP_TDIV_US[skop_son_tdiv];" in ino,
             "yakalamadan sonra `tb` degisirse eski kayit YENI zaman tabaniyla etiketlenirdi")
+
+    # ── B41: YAKALAMA SURERKEN ADS SUSUYOR ────────────────────────────
+    # Kartta A/B tanisi (2026-09-13), surulu dugumde tek-ornek hatasi /1000:
+    #   ADS eszamanli 3-9 · ADS susuyor 0 · yalniz I2C okuma 5.1 ·
+    #   I2C yok CPU mesgul 0 · I2C surucusu KAPALI hatlar elle 2.4
+    # -> GPIO8/9 kenarlari ELEKTRIKSEL olarak ADC1 donusumune giriyor.
+    _loop = _govde_c("void loop() {", "\n}\n")
+    _bekci = "  if (skop_is != SKOP_IS_YOK) {"
+    _olc = "  Okuma3 o = olcum_al();"
+    r.kosul("  6i: [!] yakalama surerken ADS (I2C) SUSUYOR — loop()'ta bekci",
+            _bekci in _loop and _olc in _loop
+            and _loop.index(_bekci) < _loop.index(_olc),
+            "I2C kenarlari (GPIO8/9) ayni ADC1 birimindeki skop donusumune "
+            "tek-ornek hata sokuyor — kullanicinin ekranindaki igneler ve sahte tetik")
+    r.kosul("  6i: [!] ADS susmasi SAYILIYOR (`ads_duraklama_ms`)",
+            "ads_duraklama_top_ms += millis() - ads_duraklama_bas_ms;" in ino
+            and 'F(" ads_duraklama_ms=")' in ino,
+            "sayilmasaydi enerji ve pil araligi SESSIZCE kayardi")
+    _isver = _govde_c("static bool skop_is_ver(uint8_t is)", "void skop_yolla()")
+    r.kosul("  6i: [!] EMNIYET: pil testi surerken skop yakalanmiyor",
+            "if (pil_testi_suruyor()) {" in _isver,
+            "yakalama ADS'yi susturur = kesme gerilimi denetimi durur")
+    _p = _govde_c("    case 'p': {", "      /* durum raporu */")
+    _p1 = _p.split("if (s[1] == '0')")[0] if "if (s[1] == '0')" in _p else ""
+    _p0 = _p.split("if (s[1] == '0')")[1] if "if (s[1] == '0')" in _p else ""
+    r.kosul("  6i: [!] yakalama surerken pil testi BASLATILMIYOR (p1)",
+            "if (skop_is != SKOP_IS_YOK) {" in _p1 and "pil_baslat();" in _p1)
+    r.kosul("  6i: [!] EMNIYET: `p0` (DURDUR) skop durumuna BAKMIYOR",
+            bool(_p0) and "skop_is" not in _p0 and "pil_durdur(" in _p0,
+            "durdurmayi hicbir sey geciktiremez (B22.3 karari)")
+    r.kosul("  6i: OTO kipte tetik yoksa TABAN kadar bekleniyor",
+            "if (skop_ayar.kip == SKOP_KIP_OTO) azami_ms = taban_ms;" in ino,
+            "200 ms/bol'de tetik yokken 4.08 s -> 2.72 s (kartta olculdu)")
 
     r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
             HAM_INL_KOD * T.SKOP_ADIM
@@ -866,12 +902,22 @@ def main() -> int:
          "gercek on uc (op-amp cikisi ~%0, skop bolucusu ~%10) HESAPLANDI, "
          "olculmedi. On uc lehimlenince `wB` kosun: iki kanal da "
          "'surulu' ve %25'in altinda olmali"),
-        ("[!] Skop yakalamasi sirasinda blokaj — `python tezgah_blokaj.py --skop`",
-         "B40 oncesi `t` olcum dongusunu tb3'te 667 ms, tb9'da 4437 ms "
-         "blokluyor ve tb7 ustunde enerji araligini ATIYORDU. 2026-09-13 "
-         "sonrasi en kotu durumda (tetik yok) en uzun tur 5.2 ms, atlanan 0, "
-         "yakalamalar tam. Firmware'de skop/ADC/Serial'e dokunan her "
-         "degisiklikten sonra tekrar kosun"),
+        ("🔶 KULLANICI KARARI: I2C'yi (ve RDY'yi) ADC1 DISI pinlere tasimak",
+         "B41 tanisi: GPIO8/9 (I2C) kenarlari — surucu kapaliyken bile — "
+         "GPIO4'un ADC1 donusumune tek-ornek hata sokuyor (3-9/1000). Bugun "
+         "yakalama surerken ADS SUSTURULUYOR: skop temiz ama o sure enerji ve "
+         "pil olcumu yok (200 ms/bol'de 2.7 s; >1 s araliklar enerji kaybi "
+         "olarak sayiliyor, pil testi surerken skop hic yakalanmiyor). "
+         "ESP32-S3'te ADC1 = GPIO1-10; I2C ve RDY GPIO11+ (tercihen ADC'siz "
+         "38-42) pinlere alinirsa ikisi ayni anda calisabilir. Breadboard'da "
+         "3 tel + sema + firmware pin sabitleri. Tasindiktan sonra "
+         "`tezgah_blokaj.py --skop` ADS SUSTURULMADAN 0 hata vermeli"),
+        ("[!] Skop yakalamasi — `python tezgah_blokaj.py --skop`",
+         "Uc sey sinaniyor: (1) surulu dugumde TEK-ORNEK HATASI 0 — B40b bunu "
+         "bozmustu ve zincir yakalayamamisti; (2) komut dongusu <= 20 ms "
+         "(B40 oncesi 4437 ms); (3) ADS susmasi `ads_duraklama_ms` ile "
+         "yakalama suresi kadar SAYILIYOR. 2026-09-13: 5/5. Firmware'de "
+         "skop/ADC/I2C/Serial'e dokunan her degisiklikten sonra tekrar kosun"),
         ("WiFi'de `tB` uctan uca (web parolasiyla, tarayicidan)",
          "Parola depoda yok, bu yuzden Claude KOMUT ucunu sinayamadi; yaris "
          "seri tetik + WiFi `/skop.bin` ile yeniden uretildi: eski arayuzun "

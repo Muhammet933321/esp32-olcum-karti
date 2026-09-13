@@ -14,7 +14,7 @@ Bu 13 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 |---|---|---|
 | 1 | B18 GPIO kelepceleri | +3V3 rayinin GERI BESLENMESI |
 | 2 | B19 Skop kanali | ON UC KURULUNCA: hizli yol SIFIR kalibrasyonu |
-| 3 | B19 Skop kanali | Skop yakalamasi sirasinda blokaj — `python tezgah_blokaj.py --skop` |
+| 3 | B19 Skop kanali | Skop yakalamasi — `python tezgah_blokaj.py --skop` |
 | 4 | B17 ADS es zamanliligi ve faz | Faz kalibrasyonunun TASINABILIRLIGI |
 | 5 | B20 Ornekleme hizi ve bant | `D` satirindaki ORNEK SAYISI — ilk, en ucuz ve en onemli test |
 | 6 | B20 Ornekleme hizi ve bant | `K` ve `F` satirlari — blokaj artik CIFT CEKIRDEKTEN SONRA |
@@ -88,120 +88,121 @@ Bu 13 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 25 | Hizli yol olceklemesi — `python tezgah_adc_supur.py --hizli` | GPIO4+GPIO5 ayni RC dugumundeyken: Vort ve Iort'tan geri cikarilan dugum gerilimi <= 2 mV uyusmali (2026-09-13: 0.39 mV), dugum-gorev egimi ~3296 mV (olculen 3302). Firmware olcekleme degisince tekrar kosun. NOT: `w` olcum dongusunu ~34 ms blokluyor (cekme sinamasi dahil; B37'de 123 ms idi) |
 | 26 | GPIO5 dogrusalligi — OLCULDU (2026-09-13, B38) | `python tezgah_adc_supur.py --adim 10 --csv olcum-adc-supurme.csv`. GPIO5 rms 18.2 kod = GPIO4 rms 18.2 kod: egrilik KANALA degil DONUSTURUCUYE ait, B36'nin eFuse duzeltmesi GPIO5'e de gecerli. Kanaldan kanala -0.26 +- 0.75 kod. Tekrar gerekirse: ayni duzenek, analiz kartsiz `--analiz olcum-adc-supurme.csv` |
 | 27 | Bos-pin sinamasi GERCEK on ucla — `wB` | B37 esigi %75, bos %100 ve RC duzenegi %41-50 OLCULEREK secildi; gercek on uc (op-amp cikisi ~%0, skop bolucusu ~%10) HESAPLANDI, olculmedi. On uc lehimlenince `wB` kosun: iki kanal da 'surulu' ve %25'in altinda olmali |
-| 28 | [!] Skop yakalamasi sirasinda blokaj — `python tezgah_blokaj.py --skop` | B40 oncesi `t` olcum dongusunu tb3'te 667 ms, tb9'da 4437 ms blokluyor ve tb7 ustunde enerji araligini ATIYORDU. 2026-09-13 sonrasi en kotu durumda (tetik yok) en uzun tur 5.2 ms, atlanan 0, yakalamalar tam. Firmware'de skop/ADC/Serial'e dokunan her degisiklikten sonra tekrar kosun |
-| 29 | WiFi'de `tB` uctan uca (web parolasiyla, tarayicidan) | Parola depoda yok, bu yuzden Claude KOMUT ucunu sinayamadi; yaris seri tetik + WiFi `/skop.bin` ile yeniden uretildi: eski arayuzun 400 ms beklemesi tb7'de 503 aldi, onay satiri beklenince 200/1000. Elle: tarayicida karta dogrudan baglan, zaman tabani 200 ms/bol, `Yakala` -> dalga cizilmeli, hata bildirimi CIKMAMALI |
-| 30 | Bosta blokaj — `python tezgah_blokaj.py --sifirla --tekrar 4` | Tek 45 s penceresi yaniltir: acilis gecisi ~16 ms, kararli hal ~3 ms. `?` komutunun bedeli 2026-09-13'te 21.9 ms olculdu (TX halkasi ogesi ek yuku); 8 KB tamponla 5.8 ms. Firmware'e cikti ekleyen her degisiklikten sonra tekrar olcun |
-| 31 | Skop girisi VREF'i ne kadar kaydiriyor (capraz konusma) | Skop akimi artik GND'ye degil VREF'e gidiyor ve VREF BUTUN kanallarin referansi. Olcum: skop girisine 40 V ver, GERILIM kanalinin okumasi degisiyor mu bak — degisiyorsa VREF tamponu yetersiz |
-| 32 | Gercek menzil -63.5 .. +46.8 V mi | R23 2.7K'ya dusuruldu. Olcum: her iki uctan da sinira yakin DC ver, kirpma noktalarini oku |
-| 33 | Cozunurluk kaybi kabul edilebilir mi | Adim 28.8 mV (tek yonluyken 11.9 mV idi; ikisi de NOMINAL tam olcekten). Olcum: kucuk genlikli (1 V tepe) bir dalga sekli cizdir, basamaklanma goze batiyorsa karar yeniden gorusulecek |
+| 28 | 🔶 KULLANICI KARARI: I2C'yi (ve RDY'yi) ADC1 DISI pinlere tasimak | B41 tanisi: GPIO8/9 (I2C) kenarlari — surucu kapaliyken bile — GPIO4'un ADC1 donusumune tek-ornek hata sokuyor (3-9/1000). Bugun yakalama surerken ADS SUSTURULUYOR: skop temiz ama o sure enerji ve pil olcumu yok (200 ms/bol'de 2.7 s; >1 s araliklar enerji kaybi olarak sayiliyor, pil testi surerken skop hic yakalanmiyor). ESP32-S3'te ADC1 = GPIO1-10; I2C ve RDY GPIO11+ (tercihen ADC'siz 38-42) pinlere alinirsa ikisi ayni anda calisabilir. Breadboard'da 3 tel + sema + firmware pin sabitleri. Tasindiktan sonra `tezgah_blokaj.py --skop` ADS SUSTURULMADAN 0 hata vermeli |
+| 29 | [!] Skop yakalamasi — `python tezgah_blokaj.py --skop` | Uc sey sinaniyor: (1) surulu dugumde TEK-ORNEK HATASI 0 — B40b bunu bozmustu ve zincir yakalayamamisti; (2) komut dongusu <= 20 ms (B40 oncesi 4437 ms); (3) ADS susmasi `ads_duraklama_ms` ile yakalama suresi kadar SAYILIYOR. 2026-09-13: 5/5. Firmware'de skop/ADC/I2C/Serial'e dokunan her degisiklikten sonra tekrar kosun |
+| 30 | WiFi'de `tB` uctan uca (web parolasiyla, tarayicidan) | Parola depoda yok, bu yuzden Claude KOMUT ucunu sinayamadi; yaris seri tetik + WiFi `/skop.bin` ile yeniden uretildi: eski arayuzun 400 ms beklemesi tb7'de 503 aldi, onay satiri beklenince 200/1000. Elle: tarayicida karta dogrudan baglan, zaman tabani 200 ms/bol, `Yakala` -> dalga cizilmeli, hata bildirimi CIKMAMALI |
+| 31 | Bosta blokaj — `python tezgah_blokaj.py --sifirla --tekrar 4` | Tek 45 s penceresi yaniltir: acilis gecisi ~16 ms, kararli hal ~3 ms. `?` komutunun bedeli 2026-09-13'te 21.9 ms olculdu (TX halkasi ogesi ek yuku); 8 KB tamponla 5.8 ms. Firmware'e cikti ekleyen her degisiklikten sonra tekrar olcun |
+| 32 | Skop girisi VREF'i ne kadar kaydiriyor (capraz konusma) | Skop akimi artik GND'ye degil VREF'e gidiyor ve VREF BUTUN kanallarin referansi. Olcum: skop girisine 40 V ver, GERILIM kanalinin okumasi degisiyor mu bak — degisiyorsa VREF tamponu yetersiz |
+| 33 | Gercek menzil -63.5 .. +46.8 V mi | R23 2.7K'ya dusuruldu. Olcum: her iki uctan da sinira yakin DC ver, kirpma noktalarini oku |
+| 34 | Cozunurluk kaybi kabul edilebilir mi | Adim 28.8 mV (tek yonluyken 11.9 mV idi; ikisi de NOMINAL tam olcekten). Olcum: kucuk genlikli (1 V tepe) bir dalga sekli cizdir, basamaklanma goze batiyorsa karar yeniden gorusulecek |
 
 ## B17 ADS es zamanliligi ve faz
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 34 | [!] Faz kalibrasyonunun TASINABILIRLIGI | Direncli yukte USB'den `F` ile kalibre et, sonra AYNI yuke WiFi ile bak. PF farki > %0.5 ise B22.1'in us duzeltmesi eksik ve faz hala periyoda bagli demektir |
-| 35 | Kondansator tolerans harfi (J=%5, K=%10) | Gucun gecerlilik bandini bu belirliyor. Kutudaki harfi oku; K ise en kotu tau eslesmezligi 292.8 us |
-| 36 | Sontun guc degeri | +-11.5 A rakami 2 W CIKARIMINDAN geliyor. Uzerindeki degeri oku; dusukse akim tavani duser |
-| 37 | Direncli yukte PF gercekten 1'e yakin mi | `w` komutu. PF < 0.99 ise suzgec eslesmezligi kalibre edilmemis demektir — once `F` ile duzelt |
+| 35 | [!] Faz kalibrasyonunun TASINABILIRLIGI | Direncli yukte USB'den `F` ile kalibre et, sonra AYNI yuke WiFi ile bak. PF farki > %0.5 ise B22.1'in us duzeltmesi eksik ve faz hala periyoda bagli demektir |
+| 36 | Kondansator tolerans harfi (J=%5, K=%10) | Gucun gecerlilik bandini bu belirliyor. Kutudaki harfi oku; K ise en kotu tau eslesmezligi 292.8 us |
+| 37 | Sontun guc degeri | +-11.5 A rakami 2 W CIKARIMINDAN geliyor. Uzerindeki degeri oku; dusukse akim tavani duser |
+| 38 | Direncli yukte PF gercekten 1'e yakin mi | `w` komutu. PF < 0.99 ise suzgec eslesmezligi kalibre edilmemis demektir — once `F` ile duzelt |
 
 ## B20 Ornekleme hizi ve bant
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 38 | [!] `D` satirindaki ORNEK SAYISI — ilk, en ucuz ve en onemli test | 200 ms'de 104 +-10 beklenir (model 1917 us/cevrim). KARTTA OLCULDU 2026-09-12: 95-96. ~32 cikarsa ALERT teli dusmustur (`#` komutu soyler), ~19 cikarsa B20'nin kendi duzeltmeleri cokmus demektir |
-| 39 | `Wire` gercekten 400 kHz mi | Skopla SCL periyodunu olc. Dolayli kanit VAR: cevrim fazlari (`F` satiri) bit sureleriyle tutarli ve islem basina ek yuk 69 us olculdu. 100 kHz'e duserse V/I kaymasi DORT KAT buyur ve faz butcesi gecersizlesir |
-| 40 | ALERT/RDY DARBE mi MANDAL mi — CEVAPLANDI (B26), dogrulamasi kaldi | Tezgahta olculdu: pin donusum bitince LOW'a cekip OYLE KALIYOR (mandal); geri kaldiran sey YENI donusumu baslatan ayar yazmasi, donusum yazmacini okumak DEGIL. `yeni_donusum_bekle` bu siraya gore yazildi. Skopla teyit etmek yine de iyi olur |
-| 41 | /HAZIR hattinda harici pull-up gerekiyor mu | Dahili ~45 kOhm ile 400 kHz'te CALISIYOR (kartta: RDY dususu 1229 us'te gorunuyor, rdy_asim=0). En kotu yukselme hesabi 11.1 us. Skopta kenar yavas gorunuyorsa stoktaki 10K eklensin |
-| 42 | `t_kayma_us` — OLCULDU, model duzeltildi (B29) | Kartta 152 us (kod yorumu '~95 us' diyordu — bit suresi; fark `Wire`in islem basina sabit maliyeti). Kod zaten VARSAYMIYOR, OLCUYOR ve Lagrange'a veriyor. Duzeltme olmasaydi 50 Hz / PF=0.5 yukte hata %8.35 olurdu |
-| 43 | [!] `K` ve `F` satirlari — blokaj artik CIFT CEKIRDEKTEN SONRA | Cift cekirdek B28'de YAPILDI (5.12.44): olcum cekirdek 1'de, web cekirdek 0'da. Kartta olculdu: sayfa yuklenirken loop_azami 186 ms -> 3.8 ms, bosta 3.0 ms. Yeni olcut: `K`'nin ikinci alani birkac ms'i asiyorsa ya da `F` satirindaki `rdy_asim` sifirdan buyukse bir sey bozulmus demektir |
+| 39 | [!] `D` satirindaki ORNEK SAYISI — ilk, en ucuz ve en onemli test | 200 ms'de 104 +-10 beklenir (model 1917 us/cevrim). KARTTA OLCULDU 2026-09-12: 95-96. ~32 cikarsa ALERT teli dusmustur (`#` komutu soyler), ~19 cikarsa B20'nin kendi duzeltmeleri cokmus demektir |
+| 40 | `Wire` gercekten 400 kHz mi | Skopla SCL periyodunu olc. Dolayli kanit VAR: cevrim fazlari (`F` satiri) bit sureleriyle tutarli ve islem basina ek yuk 69 us olculdu. 100 kHz'e duserse V/I kaymasi DORT KAT buyur ve faz butcesi gecersizlesir |
+| 41 | ALERT/RDY DARBE mi MANDAL mi — CEVAPLANDI (B26), dogrulamasi kaldi | Tezgahta olculdu: pin donusum bitince LOW'a cekip OYLE KALIYOR (mandal); geri kaldiran sey YENI donusumu baslatan ayar yazmasi, donusum yazmacini okumak DEGIL. `yeni_donusum_bekle` bu siraya gore yazildi. Skopla teyit etmek yine de iyi olur |
+| 42 | /HAZIR hattinda harici pull-up gerekiyor mu | Dahili ~45 kOhm ile 400 kHz'te CALISIYOR (kartta: RDY dususu 1229 us'te gorunuyor, rdy_asim=0). En kotu yukselme hesabi 11.1 us. Skopta kenar yavas gorunuyorsa stoktaki 10K eklensin |
+| 43 | `t_kayma_us` — OLCULDU, model duzeltildi (B29) | Kartta 152 us (kod yorumu '~95 us' diyordu — bit suresi; fark `Wire`in islem basina sabit maliyeti). Kod zaten VARSAYMIYOR, OLCUYOR ve Lagrange'a veriyor. Duzeltme olmasaydi 50 Hz / PF=0.5 yukte hata %8.35 olurdu |
+| 44 | [!] `K` ve `F` satirlari — blokaj artik CIFT CEKIRDEKTEN SONRA | Cift cekirdek B28'de YAPILDI (5.12.44): olcum cekirdek 1'de, web cekirdek 0'da. Kartta olculdu: sayfa yuklenirken loop_azami 186 ms -> 3.8 ms, bosta 3.0 ms. Yeni olcut: `K`'nin ikinci alani birkac ms'i asiyorsa ya da `F` satirindaki `rdy_asim` sifirdan buyukse bir sey bozulmus demektir |
 
 ## B21 Pil kapasite testi
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 44 | [!] FAILSAFE — kart calisirken RESET at | Yuk KESILMELI. Kapi R42 ile GND'ye cekili, ESP32 olurse MOSFET kapanmali. B21'in EN ONEMLI tezgah testi; gecmezse pil testi hic kullanilmamali |
-| 45 | [!] BAYPAS denetimi — yuku bilerek J3'e bagla | Test REDDEDILMELI. J3 dogrudan sonte gidiyor; oraya baglanirsa MOSFET baypas olur ve kesme CALISMAZ. Sessiz hatayi yakalayan tek sey bu |
-| 46 | Kesme gecikmesi | `p1` kosarken bir istemciyi askiya al ve kesme gerilimine in. Fazla desarj < 0.5 mAh olmali — yani kesme loop() blokajina BAGLI OLMAMALI |
-| 47 | MOSFET'in uzerindeki logo | Veri sayfasi ikincil kaynak (INCHANGE). Farkli bir uretici cikarsa Vdss ve Rds(on) yeniden denetlenmeli |
-| 48 | Kapi gerilimi — yuk acikken Vgs | ~11.8 V beklenir. Dususe Rds(on) buyur, MOSFET isinir |
-| 49 | Tas direncin gercek degeri ve isinmasi | 4.7-7.5 ohm / 10 W. Elle olc; 30 dk desarjda sicakligina bak |
-| 50 | Sarj yonunde test | Sayac ISARETLI ama sarj kaynagi yok — mAh geri saymali. Kaynak bulununca denenecek |
+| 45 | [!] FAILSAFE — kart calisirken RESET at | Yuk KESILMELI. Kapi R42 ile GND'ye cekili, ESP32 olurse MOSFET kapanmali. B21'in EN ONEMLI tezgah testi; gecmezse pil testi hic kullanilmamali |
+| 46 | [!] BAYPAS denetimi — yuku bilerek J3'e bagla | Test REDDEDILMELI. J3 dogrudan sonte gidiyor; oraya baglanirsa MOSFET baypas olur ve kesme CALISMAZ. Sessiz hatayi yakalayan tek sey bu |
+| 47 | Kesme gecikmesi | `p1` kosarken bir istemciyi askiya al ve kesme gerilimine in. Fazla desarj < 0.5 mAh olmali — yani kesme loop() blokajina BAGLI OLMAMALI |
+| 48 | MOSFET'in uzerindeki logo | Veri sayfasi ikincil kaynak (INCHANGE). Farkli bir uretici cikarsa Vdss ve Rds(on) yeniden denetlenmeli |
+| 49 | Kapi gerilimi — yuk acikken Vgs | ~11.8 V beklenir. Dususe Rds(on) buyur, MOSFET isinir |
+| 50 | Tas direncin gercek degeri ve isinmasi | 4.7-7.5 ohm / 10 W. Elle olc; 30 dk desarjda sicakligina bak |
+| 51 | Sarj yonunde test | Sayac ISARETLI ama sarj kaynagi yok — mAh geri saymali. Kaynak bulununca denenecek |
 
 ## B22a PC koprusu
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 51 | SeriKart gercek baud'da calisiyor mu | `python kopru/kopru.py --port COMx` -> `D` satirlari akmali. Bozuk karakter gelirse DCB alan duzeni ya da baud yanlis |
-| 52 | DTR/RTS kart RESET atmiyor mu | Kopru acilinca kart yeniden BASLAMAMALI (acilis banneri gorunmemeli). Iki hat da bilerek DISABLE; reset atiyorsa devre otomatik-reset'e bagli ve pil testi kopru acilisinda OLUR |
-| 53 | Windows 0.0.0.0:80 / stok-takip cakismasi | stok-takip 127.0.0.1:80'i tutuyor. Kopru `http://<LAN-IP>` yazmali; `127.0.0.1` yazarsa kullaniciyi STOK arayuzune yollar (bu makinede gercekten oldu, 5.12.36) |
-| 54 | Telefon koprude uctan uca | Telefondan http://<PC-IP> -> tam arayuz, canli olcum. Iki tarayici ayni anda izlerken YALNIZCA biri surucu olmali |
-| 55 | p0 (DURDUR) izleyiciden de geciyor mu | Surucu OLMAYAN sekmeden pil testini durdur. Gecmeli — bu bir kolaylik degil EMNIYET karari |
-| 56 | [!] SKOP ARSIVI gercek kartta — `python tezgah_skop_arsiv.py` | Bu betikteki skop iddialari `KayitKart` ile kosuyor, yani kartin `t` yanitini BEN yaziyorum: protokol sinaniyor, KART sinanmiyor. Gercek kartta 2026-09-12'de kosuldu ve 16/16 gecti (1000 ornek 1.07 s, arsive dustu, geri okunan kayit bayt-bayt ayni). Firmware ya da kopru degisince TEKRAR kosun |
-| 57 | [!] TARAYICIDA — `python tarayici_skop_arsiv.py --goruntu` | Bolum 16'daki iddialar KAYNAK METNINDE arama yapiyor; sayfanin acildigini kanitlamiyor (B22.0'da zincir 15/15 yesilken arayuz tarayicida HIC acilmiyordu). Bu betik gercek tarayici + gercek Vue + sahte kopru ile 14/14 kosuyor ve iki ekran goruntusu birakiyor. Arayuz ya da kopru ucu degisince TEKRAR kosun |
-| 58 | Tarayicida: kayit listesi + arsiv seridi (elle) | Kopruye bagli tarayicida Osiloskop gorunumu -> `Yakala` -> kayit **Kayitlar** bolumunde belirmeli. Bir kaydi acinca tuvalin ustunde ARSIV seridi cikmali ve `Canliya don` calismali. Karta DOGRUDAN bagliyken bu bolum HIC gorunmemeli (olu dugme) |
+| 52 | SeriKart gercek baud'da calisiyor mu | `python kopru/kopru.py --port COMx` -> `D` satirlari akmali. Bozuk karakter gelirse DCB alan duzeni ya da baud yanlis |
+| 53 | DTR/RTS kart RESET atmiyor mu | Kopru acilinca kart yeniden BASLAMAMALI (acilis banneri gorunmemeli). Iki hat da bilerek DISABLE; reset atiyorsa devre otomatik-reset'e bagli ve pil testi kopru acilisinda OLUR |
+| 54 | Windows 0.0.0.0:80 / stok-takip cakismasi | stok-takip 127.0.0.1:80'i tutuyor. Kopru `http://<LAN-IP>` yazmali; `127.0.0.1` yazarsa kullaniciyi STOK arayuzune yollar (bu makinede gercekten oldu, 5.12.36) |
+| 55 | Telefon koprude uctan uca | Telefondan http://<PC-IP> -> tam arayuz, canli olcum. Iki tarayici ayni anda izlerken YALNIZCA biri surucu olmali |
+| 56 | p0 (DURDUR) izleyiciden de geciyor mu | Surucu OLMAYAN sekmeden pil testini durdur. Gecmeli — bu bir kolaylik degil EMNIYET karari |
+| 57 | [!] SKOP ARSIVI gercek kartta — `python tezgah_skop_arsiv.py` | Bu betikteki skop iddialari `KayitKart` ile kosuyor, yani kartin `t` yanitini BEN yaziyorum: protokol sinaniyor, KART sinanmiyor. Gercek kartta 2026-09-12'de kosuldu ve 16/16 gecti (1000 ornek 1.07 s, arsive dustu, geri okunan kayit bayt-bayt ayni). Firmware ya da kopru degisince TEKRAR kosun |
+| 58 | [!] TARAYICIDA — `python tarayici_skop_arsiv.py --goruntu` | Bolum 16'daki iddialar KAYNAK METNINDE arama yapiyor; sayfanin acildigini kanitlamiyor (B22.0'da zincir 15/15 yesilken arayuz tarayicida HIC acilmiyordu). Bu betik gercek tarayici + gercek Vue + sahte kopru ile 14/14 kosuyor ve iki ekran goruntusu birakiyor. Arayuz ya da kopru ucu degisince TEKRAR kosun |
+| 59 | Tarayicida: kayit listesi + arsiv seridi (elle) | Kopruye bagli tarayicida Osiloskop gorunumu -> `Yakala` -> kayit **Kayitlar** bolumunde belirmeli. Bir kaydi acinca tuvalin ustunde ARSIV seridi cikmali ve `Canliya don` calismali. Karta DOGRUDAN bagliyken bu bolum HIC gorunmemeli (olu dugme) |
 
 ## B22b Kart web katmani
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 59 | Kart gercekten WiFi'ya baglaniyor mu (STA -> AP dusmesi) | Acilista `Ag: STA (ev agi)` ya da `Ag: AP (kendi agi)` yazmali. 10 s'de STA olmazsa AP'ye dusmeli; AP parolasi seri konsola basilir |
-| 60 | mDNS telefonda cozuluyor mu | http://olcum.local acilmali. Android'de Chrome `.local`'i guvenilir cozmuyor (12+ ve degisken) — cozulmezse AP'nin SABIT 192.168.4.1'i kullanilacak, bu bir kusur DEGIL |
-| 61 | CSRF savunmasi gercek tarayicida | Baska bir makinede `<img src=http://<kart-ip>/komut?k=p>` iceren sayfa ac. Istek karta ULASMAMALI. Ulasiyorsa POST+X-Olcum savunmasi calismiyor demektir |
-| 62 | collectHeaders gercekten toplaniyor mu | `curl -X POST --data-binary '?' http://<ip>/komut` (basliksiz) -> HTTP 400. 204 donerse baslik denetimi SESSIZCE olmus demektir |
-| 63 | esp_wifi_start() <-> adc_continuous_start() carpismasi | Skop yakalarken WiFi'yi kopar/bagla (DEVIR 7.1 (1), esp-idf#12749). Beklenen kusur: `! tetiklenemedi` ya da sifir dolu DMA tamponu. Bugunku baslatma sirasi TESADUFEN guvenli |
-| 64 | SSE loop()'u ne kadar blokluyor — CIFT CEKIRDEKTEN SONRA | Iki sekmede /akis acikken `D` satirindaki ornek sayisi ve `K` satirindaki loop_azami_us. B28'den beri SSE yazimi cekirdek 0'da; olculdu: 1 istemciyle bosta 3.0 ms, tam sayfa yuklemesinde 4.1 ms. 20 000 us'yi asmasi artik bir KARAR degil GERILEME isaretidir — ag isi olcum dongusune geri sizmis demektir |
-| 65 | LittleFS gercekten baglaniyor mu | Acilista `Arayuz: LittleFS'te` yazmali. `begin(false)` — otomatik bicimlendirme YOK, yani bos bolum sessiz kalmaz |
-| 66 | serveStatic ve index.htm tuzagi | `http://<ip>/` tam arayuzu vermeli (acik kok isleyicisi). `/vendor/vue.global.prod.js` ikinci yuklemede 304/onbellekten gelmeli — `immutable` calisiyor mu |
-| 67 | Telefondan ilk yukleme suresi | PC'de OLCULDU (B27 A4): 622 ms, 107 KB, 7 istek; ikinci acilista statik trafik 0 B (onbellek). 3 s'yi gecerse panel cikarma adimi acilir (5.12.38). TELEFONDA ayni olcumu yap — WiFi mesafesi ve telefon CPU'su bu sayiyi buyutur |
-| 68 | Sayfa sunmanin OLCUME bedeli — CIFT CEKIRDEKTEN SONRA | B27 A4'te (tek cekirdek) varlik varlik olculmustu: index 33 ms, style 34 ms, vue 155 ms, app.js 186 ms blokaj. B28'den sonra AYNI olcum: tam sayfa yuklemesinde 3.8-4.1 ms, bosta 3.0 ms, 0 uzun tur. ⚠ Bu kalemin onceki hali 'bosta 300 s'de 20 ms'yi asan TUR YOK' diyordu — YANLIS: o olcumde 5 tur vardi (22.5 ms, ~50 s'de bir). Metin olcum bitmeden yazilmisti. Olcum: `K` sifirla, sayfayi ac, KOMUT GONDERMEDEN kartin kendi `K` satirlarini dinle (`?` ciktisi tek basina bir turu ~12 ms bloklar) |
-| 69 | arayuz-yaz.py ile karta yazma | esptool yolu ve 0x310000 ofseti HIC denenmedi. `python arayuz-uret.py && python arayuz-yaz.py` |
+| 60 | Kart gercekten WiFi'ya baglaniyor mu (STA -> AP dusmesi) | Acilista `Ag: STA (ev agi)` ya da `Ag: AP (kendi agi)` yazmali. 10 s'de STA olmazsa AP'ye dusmeli; AP parolasi seri konsola basilir |
+| 61 | mDNS telefonda cozuluyor mu | http://olcum.local acilmali. Android'de Chrome `.local`'i guvenilir cozmuyor (12+ ve degisken) — cozulmezse AP'nin SABIT 192.168.4.1'i kullanilacak, bu bir kusur DEGIL |
+| 62 | CSRF savunmasi gercek tarayicida | Baska bir makinede `<img src=http://<kart-ip>/komut?k=p>` iceren sayfa ac. Istek karta ULASMAMALI. Ulasiyorsa POST+X-Olcum savunmasi calismiyor demektir |
+| 63 | collectHeaders gercekten toplaniyor mu | `curl -X POST --data-binary '?' http://<ip>/komut` (basliksiz) -> HTTP 400. 204 donerse baslik denetimi SESSIZCE olmus demektir |
+| 64 | esp_wifi_start() <-> adc_continuous_start() carpismasi | Skop yakalarken WiFi'yi kopar/bagla (DEVIR 7.1 (1), esp-idf#12749). Beklenen kusur: `! tetiklenemedi` ya da sifir dolu DMA tamponu. Bugunku baslatma sirasi TESADUFEN guvenli |
+| 65 | SSE loop()'u ne kadar blokluyor — CIFT CEKIRDEKTEN SONRA | Iki sekmede /akis acikken `D` satirindaki ornek sayisi ve `K` satirindaki loop_azami_us. B28'den beri SSE yazimi cekirdek 0'da; olculdu: 1 istemciyle bosta 3.0 ms, tam sayfa yuklemesinde 4.1 ms. 20 000 us'yi asmasi artik bir KARAR degil GERILEME isaretidir — ag isi olcum dongusune geri sizmis demektir |
+| 66 | LittleFS gercekten baglaniyor mu | Acilista `Arayuz: LittleFS'te` yazmali. `begin(false)` — otomatik bicimlendirme YOK, yani bos bolum sessiz kalmaz |
+| 67 | serveStatic ve index.htm tuzagi | `http://<ip>/` tam arayuzu vermeli (acik kok isleyicisi). `/vendor/vue.global.prod.js` ikinci yuklemede 304/onbellekten gelmeli — `immutable` calisiyor mu |
+| 68 | Telefondan ilk yukleme suresi | PC'de OLCULDU (B27 A4): 622 ms, 107 KB, 7 istek; ikinci acilista statik trafik 0 B (onbellek). 3 s'yi gecerse panel cikarma adimi acilir (5.12.38). TELEFONDA ayni olcumu yap — WiFi mesafesi ve telefon CPU'su bu sayiyi buyutur |
+| 69 | Sayfa sunmanin OLCUME bedeli — CIFT CEKIRDEKTEN SONRA | B27 A4'te (tek cekirdek) varlik varlik olculmustu: index 33 ms, style 34 ms, vue 155 ms, app.js 186 ms blokaj. B28'den sonra AYNI olcum: tam sayfa yuklemesinde 3.8-4.1 ms, bosta 3.0 ms, 0 uzun tur. ⚠ Bu kalemin onceki hali 'bosta 300 s'de 20 ms'yi asan TUR YOK' diyordu — YANLIS: o olcumde 5 tur vardi (22.5 ms, ~50 s'de bir). Metin olcum bitmeden yazilmisti. Olcum: `K` sifirla, sayfayi ac, KOMUT GONDERMEDEN kartin kendi `K` satirlarini dinle (`?` ciktisi tek basina bir turu ~12 ms bloklar) |
+| 70 | arayuz-yaz.py ile karta yazma | esptool yolu ve 0x310000 ofseti HIC denenmedi. `python arayuz-uret.py && python arayuz-yaz.py` |
 
 ## B25 Kart bringup kosucusu
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 70 | [!] Kosucunun kendisi gercek kartta calisiyor mu | Bu adim kosucuyu KAYITLI bir kart uzerinde siniyor. Gercek seri port, gercek zamanlama ve gercek USB CDC davranisi yalnizca kart takilinca gorulur: `python tezgah_kart.py --sifirla` |
-| 71 | Acilis afisi yakalanabiliyor mu | DTR/RTS ile reset YALNIZCA UART kopruli kartlarda calisiyor. Yerel USB CDC'de EN dugmesine elle basmak gerekir — afis alinamazsa PSRAM/LittleFS denetimleri ATLANIR, kirmizi olmaz |
-| 72 | Denetimler yeterli mi | Kosucu 33 denetim yapiyor; `_tezgah.md` bundan COK DAHA fazla kalem sayiyor (toplam dosyanin sonunda). Fark, multimetre isteyen kalemler. Kart calisir calismaz ikisini birlikte kullan |
+| 71 | [!] Kosucunun kendisi gercek kartta calisiyor mu | Bu adim kosucuyu KAYITLI bir kart uzerinde siniyor. Gercek seri port, gercek zamanlama ve gercek USB CDC davranisi yalnizca kart takilinca gorulur: `python tezgah_kart.py --sifirla` |
+| 72 | Acilis afisi yakalanabiliyor mu | DTR/RTS ile reset YALNIZCA UART kopruli kartlarda calisiyor. Yerel USB CDC'de EN dugmesine elle basmak gerekir — afis alinamazsa PSRAM/LittleFS denetimleri ATLANIR, kirmizi olmaz |
+| 73 | Denetimler yeterli mi | Kosucu 33 denetim yapiyor; `_tezgah.md` bundan COK DAHA fazla kalem sayiyor (toplam dosyanin sonunda). Fark, multimetre isteyen kalemler. Kart calisir calismaz ikisini birlikte kullan |
 
 ## B3 Sema
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 73 | Kurulan kart SEMAYLA ayni mi | Netlist yalnizca semayi dogruluyor; lehimlenen kart baska olabilir. Olcum: her dugumu ohmmetrenin sureklilik kipiyle netliste karsi tek tek gec |
-| 74 | Polarite: elektrolitik ve diyot yonleri | ERC yon hatasi YAKALAMAZ. Olcum: montajdan ONCE her kutuplu parcayi gozle dogrula — enerji verdikten sonra elektrolitik geri donusu yok |
+| 74 | Kurulan kart SEMAYLA ayni mi | Netlist yalnizca semayi dogruluyor; lehimlenen kart baska olabilir. Olcum: her dugumu ohmmetrenin sureklilik kipiyle netliste karsi tek tek gec |
+| 75 | Polarite: elektrolitik ve diyot yonleri | ERC yon hatasi YAKALAMAZ. Olcum: montajdan ONCE her kutuplu parcayi gozle dogrula — enerji verdikten sonra elektrolitik geri donusu yok |
 
 ## B4/B5 Olcum matematigi
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 75 | ESP32'nin gercek ADC gurultusu ve INL'i | Sabit gerilimde 1000 ornek al, standart sapmayi olc. Skop cozunurlugu (28.8 mV) bu gurultunun altinda kalmali |
-| 76 | Gercek ADS1115 ofset (+-3 LSB) ve kazanc (%0.15) hatasi | Kalibrasyon SONRASI bilinen iki noktada olc. Kalan hata veri sayfasi sinirlarinin icinde mi |
-| 77 | ESP32 ADC'sinin gercek TAM OLCEGI | 3.1 V nominal ama yongaya gore degisiyor; skop volt/adim dogrudan buna bagli |
+| 76 | ESP32'nin gercek ADC gurultusu ve INL'i | Sabit gerilimde 1000 ornek al, standart sapmayi olc. Skop cozunurlugu (28.8 mV) bu gurultunun altinda kalmali |
+| 77 | Gercek ADS1115 ofset (+-3 LSB) ve kazanc (%0.15) hatasi | Kalibrasyon SONRASI bilinen iki noktada olc. Kalan hata veri sayfasi sinirlarinin icinde mi |
+| 78 | ESP32 ADC'sinin gercek TAM OLCEGI | 3.1 V nominal ama yongaya gore degisiyor; skop volt/adim dogrudan buna bagli |
 
 ## B6 Firmware derleme + ikili
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 78 | I2C gercekten calisiyor mu | `#` komutu -> `I2C: 0x48 0x49`. Ikisi de gorunmuyorsa adres pinleri ya da cekme direncleri yanlis |
-| 79 | Menzil gecisi gercek gerilimde puruzsuz mu | Yavas artan bir gerilimde NORMAL->YUKSEK gecisini izle. Sicrama varsa histerezis yetersiz |
-| 80 | PSRAM kartta gercekten var mi | Acilista `PSRAM: 8192 KB` yazmali. `YOK` yazarsa hedef2.py'de PSRAM=opi yerine PSRAM=enabled (quad) denenecek |
+| 79 | I2C gercekten calisiyor mu | `#` komutu -> `I2C: 0x48 0x49`. Ikisi de gorunmuyorsa adres pinleri ya da cekme direncleri yanlis |
+| 80 | Menzil gecisi gercek gerilimde puruzsuz mu | Yavas artan bir gerilimde NORMAL->YUKSEK gecisini izle. Sicrama varsa histerezis yetersiz |
+| 81 | PSRAM kartta gercekten var mi | Acilista `PSRAM: 8192 KB` yazmali. `YOK` yazarsa hedef2.py'de PSRAM=opi yerine PSRAM=enabled (quad) denenecek |
 
 ## B7 Arayuz
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 81 | [!] Arayuz tarayicida GERCEKTEN dogru gorunuyor mu | Bu adim Vue`yu TAKLIT ediyor; sayfa hic render edilmiyor. B22.0`da arayuz zincir 15/15 yesilken tarayicida HIC acilmiyordu. `python arayuz3/sunucu.py` -> konsolda 0 hata, ham {{ }} yok |
-| 82 | J7/J3 baypas uyarisi KIRMIZI seritli gorunuyor mu | Emniyet uyarisi govde metninden ayirt edilebilmeli. B22.0 oncesi `.uyari` sinifi hic tanimli degildi ve duz paragraf olarak cikiyordu |
-| 83 | Osiloskop iki yoldan da AYNI cizimi veriyor mu | USB`de ASCII, WiFi`de ikili (/skop.bin) yol kullaniliyor. Ayni sinyalde iki kip AYNI dalgayi cizmeli; farkliysa cozuculerden biri yanlis (endian, olcek ya da ofset) |
-| 84 | Telefonda Ana Ekrana Ekle | iPhone: adres cubugu OLMADAN, kendi ikonuyla acilmali. Android: kisayol Chrome sekmesinde acilir — bu beklenen davranis, gercek PWA kurulumu HTTPS istiyor |
+| 82 | [!] Arayuz tarayicida GERCEKTEN dogru gorunuyor mu | Bu adim Vue`yu TAKLIT ediyor; sayfa hic render edilmiyor. B22.0`da arayuz zincir 15/15 yesilken tarayicida HIC acilmiyordu. `python arayuz3/sunucu.py` -> konsolda 0 hata, ham {{ }} yok |
+| 83 | J7/J3 baypas uyarisi KIRMIZI seritli gorunuyor mu | Emniyet uyarisi govde metninden ayirt edilebilmeli. B22.0 oncesi `.uyari` sinifi hic tanimli degildi ve duz paragraf olarak cikiyordu |
+| 84 | Osiloskop iki yoldan da AYNI cizimi veriyor mu | USB`de ASCII, WiFi`de ikili (/skop.bin) yol kullaniliyor. Ayni sinyalde iki kip AYNI dalgayi cizmeli; farkliysa cozuculerden biri yanlis (endian, olcek ya da ofset) |
+| 85 | Telefonda Ana Ekrana Ekle | iPhone: adres cubugu OLMADAN, kendi ikonuyla acilmali. Android: kisayol Chrome sekmesinde acilir — bu beklenen davranis, gercek PWA kurulumu HTTPS istiyor |
 
 ## B9 Malzeme listesi
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 85 | [!] Direnc adetleri SAYIM degil goz karari | envanter.csv'nin direnc adetleri yaklasik (CLAUDE.md). Listede yeter gorunen bir deger tezgahta bitebilir. Olcum: montajdan ONCE kritik degerleri say |
-| 86 | Kayitta gorunmeyen parca GERCEKTEN yok mu | Bobin/cekirdek ve modul alanlari KISMEN girildi. 'kayitta yok' = 'elde yok' DEGIL. Olcum: kutuya bak |
-| 87 | Parcalarin gercek degerleri etiketiyle ayni mi | Ozellikle HV bolucusundeki 4.9 M ohm zinciri. Olcum: lehimlemeden once her direnci ohmmetreyle gec |
+| 86 | [!] Direnc adetleri SAYIM degil goz karari | envanter.csv'nin direnc adetleri yaklasik (CLAUDE.md). Listede yeter gorunen bir deger tezgahta bitebilir. Olcum: montajdan ONCE kritik degerleri say |
+| 87 | Kayitta gorunmeyen parca GERCEKTEN yok mu | Bobin/cekirdek ve modul alanlari KISMEN girildi. 'kayitta yok' = 'elde yok' DEGIL. Olcum: kutuya bak |
+| 88 | Parcalarin gercek degerleri etiketiyle ayni mi | Ozellikle HV bolucusundeki 4.9 M ohm zinciri. Olcum: lehimlemeden once her direnci ohmmetreyle gec |
 
-**Toplam 87 kalem, 13 tanesi ilk gun.**
+**Toplam 88 kalem, 13 tanesi ilk gun.**

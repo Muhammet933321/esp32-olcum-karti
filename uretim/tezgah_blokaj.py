@@ -3,7 +3,7 @@
 
     python tezgah_blokaj.py                 # 3 x 60 s
     python tezgah_blokaj.py --sure 45 --tekrar 4 --port COM6
-    python tezgah_blokaj.py --skop          # B40: yakalama sirasinda blokaj
+    python tezgah_blokaj.py --skop          # B40/B41: butunluk + blokaj + susma
 
 🔴 NEDEN: bringup kosucusu tek bir 45 s penceresine bakiyor ve kartta
    ~50 s'de bir ~22 ms'lik periyodik bir olay var (B27 A4'te olculdu).
@@ -45,20 +45,27 @@ def ok(ad: str, kosul: bool, ek: str = "") -> None:
         print(f"[!!] {ad}" + (f"  {ek}" if ek else ""))
 
 
-def skop_blokaj(k, zaman_tabanlari=(3, 5, 7, 9)) -> int:
-    """B40 — skop yakalamasi olcum dongusunu blokluyor mu.
+def skop_blokaj(k, zaman_tabanlari=(3, 5, 7, 9, 10)) -> int:
+    """B40/B41 — skop yakalamasi olcumu nasil etkiliyor.
 
-    Kartta B40 oncesi olculen (2026-09-13), `t` sirasinda en uzun tur:
-        tb3 667 ms · tb5 897 ms · tb7 1524 ms · tb9 4437 ms
-    tb7 ve ustunde enerji sayaci o araligi ATIYORDU. En kotu durum icin
-    tetik ULASILAMAZ yapiliyor (tl4095, OTO): yakalama zaman asimini
-    bekler, tb9'da 4 s. Blokaj bu surenin hicbir parcasini gormemeli.
-    Yakalamanin kendisi de TAM gelmeli — hizli ama bozuk yakalama basari
-    degildir.
+    B40 oncesi (2026-09-13) `t` olcum dongusunu tb3'te 667 ms, tb9'da
+    4437 ms blokluyordu. B40b yakalamayi ayri goreve alip bunu 1-5 ms'ye
+    indirdi AMA ADS'yi eszamanli calistirdi ve I2C kenarlari ADC'ye
+    tek-ornek hata soktu (kullanicinin ekraninda igneler + sahte tetik).
+    B41: yakalama surerken ADS SUSUYOR ve bu SAYILIYOR.
+
+    Sinanan uc sey:
+      1. ORNEK BUTUNLUGU — surulu dugumde tek-ornek hatasi SIFIR. B40b'yi
+         yakalayamayan eksik iddia tam olarak buydu.
+      2. Komut dongusu yakalama sirasinda cevap veriyor (<= 20 ms).
+      3. ADS susmasi GIZLENMIYOR: `ads_duraklama_ms` yakalama suresi kadar
+         artiyor; >1 s araliklar enerji sayacinda kayip olarak gorunuyor.
     """
+    import statistics as st
+
     def k_oku(sn=20.0):
-        son = time.monotonic() + sn
-        while time.monotonic() < son:
+        son_ = time.monotonic() + sn
+        while time.monotonic() < son_:
             s = k.satir_oku(0.2)
             if s and K_DESEN.match(s):
                 return tuple(int(x) for x in K_DESEN.match(s).groups())
@@ -68,48 +75,108 @@ def skop_blokaj(k, zaman_tabanlari=(3, 5, 7, 9)) -> int:
         k.yaz(kom)
         time.sleep(sn)
 
-    for c in ("tm0", "tl4095", "th4"):
-        komut(c, 0.3)
-    print(f"  {'taban':>5} {'dongu azami':>12} {'atlanan':>8} | yakalama")
-    en_kotu = 0
-    atlanan_top = 0
-    tam_hepsi = True
-    for tb in zaman_tabanlari:
-        komut(f"tb{tb}", 0.4)
-        k.yaz("K")
-        time.sleep(0.3)
-        k_oku()                                   # sifirlama anini at
-        once = k_oku()
-        c = SkopCozucu()
-        k.yaz("t")
-        blok = None
-        son = time.monotonic() + 30
-        while time.monotonic() < son and blok is None:
+    def durum():
+        """`?` ciktisindan K (kayip, azami, uzun) ve C (ads_duraklama_ms).
+        Kartin kendiliginden bastigi K satirini beklemek YANILTIYORDU: o
+        satir yalnizca degisince basiliyor ve yakalama okuyucusu onu
+        yutabiliyordu (tb10 satirinda -1 goruldu)."""
+        k.yaz("?")
+        kk, cc = None, None
+        son_ = time.monotonic() + 4
+        while time.monotonic() < son_ and (kk is None or cc is None):
             s = k.satir_oku(0.2)
+            if not s:
+                continue
+            if K_DESEN.match(s):
+                kk = tuple(int(x) for x in K_DESEN.match(s).groups())
+            elif s.startswith("C ") and "ads_duraklama_ms=" in s:
+                cc = int(s.split("ads_duraklama_ms=")[1].split()[0])
+        return kk, cc
+
+    def yakala(sn=30):
+        c = SkopCozucu()
+        t0 = time.monotonic()
+        k.yaz("t")
+        ts2 = None
+        son_ = t0 + sn
+        while time.monotonic() < son_:
+            s = k.satir_oku(0.1)
             if s is None:
                 continue
+            if s.startswith("S2") and ts2 is None:
+                ts2 = time.monotonic() - t0
             if s.startswith("! "):
-                break
-            blok = c.besle(s)
-        s1, s2 = k_oku(), k_oku()
-        azami = max(x[1] for x in (s1, s2) if x) if (s1 or s2) else -1
-        atlanan = max(x[0] for x in (s1, s2) if x) if (s1 or s2) else -1
+                return None, None
+            b = c.besle(s)
+            if b:
+                return b, ts2
+        return None, ts2
+
+    def hata_say(v, esik=60):
+        return sum(1 for i in range(2, len(v) - 2)
+                   if abs(v[i] - st.median(v[i - 2:i] + v[i + 1:i + 3])) > esik)
+
+    # ── 1. ORNEK BUTUNLUGU (surulu dugum) ───────────────────────────
+    komut("X20000", 0.5)
+    komut("x500", 1.0)
+    for c in ("tm0", "tl0", "th0"):
+        komut(c, 0.3)
+    hata = ornek = 0
+    for tb, tekrar in ((3, 3), (10, 1)):
+        komut(f"tb{tb}", 0.4)
+        for _ in range(tekrar):
+            b, _ = yakala()
+            if b:
+                hata += hata_say(b["ornek"])
+                ornek += len(b["ornek"])
+    ok("[!] Surulu dugumde TEK-ORNEK HATASI YOK (> 60 kod)",
+       ornek > 0 and hata == 0,
+       f"{hata} hata / {ornek} ornek — B40b'de ADS eszamanliyken 3-9/1000 idi")
+    komut("X0", 0.5)
+
+    # ── 2+3. donguler ve susma muhasebesi (en kotu: tetik yok) ──────
+    for c in ("tm0", "tl4095", "th4"):
+        komut(c, 0.3)
+    print(f"  {'taban':>5} {'yakalama':>9} {'dongu azami':>12} {'atlanan':>8} "
+          f"{'ADS susma':>10} | yakalama")
+    en_kotu = 0
+    tam_hepsi = True
+    muhasebe_tamam = True
+    tb10_sure = None
+    for tb in zaman_tabanlari:
+        komut(f"tb{tb}", 0.4)
+        k.yaz("K")                                   # sayaclari sifirla
+        time.sleep(0.5)
+        _, d0 = durum()
+        b, sure = yakala()
+        time.sleep(0.3)
+        kk, d1 = durum()
+        azami = kk[1] if kk else -1
+        atlanan = kk[0] if kk else -1
+        susma = (d1 - d0) if (d0 is not None and d1 is not None) else -1
         en_kotu = max(en_kotu, azami)
-        atlanan_top += max(atlanan, 0)
-        tam = bool(blok and blok["tam"])
-        tam_hepsi = tam_hepsi and tam
-        print(f"  tb{tb:<3} {azami:10d} us {atlanan:6d} ms | "
-              + (f"{len(blok['ornek'])}/{blok['adet_bildirilen']} tam, "
-                 f"arada {blok['atlanan']} satir" if blok else "BLOK YOK"))
+        tam_hepsi = tam_hepsi and bool(b and b["tam"])
+        if sure and susma >= 0 and susma < 0.8 * sure * 1000:
+            muhasebe_tamam = False
+        if tb == 10:
+            tb10_sure = sure
+        print(f"  tb{tb:<3} {sure if sure else -1:8.2f}s {azami:10d} us {atlanan:6d} ms "
+              f"{susma:8d} ms | "
+              + (f"{len(b['ornek'])}/{b['adet_bildirilen']} tam" if b else "BLOK YOK"))
     komut("tl2048", 0.3)
     komut("tb5", 0.3)
-    ok("[!] Yakalama sirasinda olcum dongusu <= 20 ms (en kotu: tetik yok)",
-       0 < en_kotu <= 20000, f"en uzun tur {en_kotu} us — B40 oncesi tb9'da 4437 ms")
-    ok("[!] Yakalama sirasinda enerji penceresi ATLANMIYOR",
-       atlanan_top == 0, f"{atlanan_top} ms — B40 oncesi tb9'da 4439 ms")
+    ok("[!] Yakalama sirasinda KOMUT dongusu cevap veriyor (<= 20 ms)",
+       0 < en_kotu <= 20000,
+       f"en uzun tur {en_kotu} us — B40 oncesi tb9'da 4437 ms")
+    ok("[!] ADS susmasi GIZLENMIYOR (ads_duraklama_ms ~ yakalama suresi)",
+       muhasebe_tamam, "susma sayilmasaydi enerji/pil araligi sessizce kayardi")
     ok("Butun yakalamalar TAM geldi", tam_hepsi,
        "hizli ama bozuk yakalama basari degil")
+    ok("OTO kipte tetik yokken 200 ms/bol yakalamasi <= 3.0 s (onceden 4.08)",
+       tb10_sure is not None and tb10_sure <= 3.0,
+       f"{tb10_sure:.2f} s — pencere 2 s, taban 2.7 s" if tb10_sure else "olculemedi")
     return 1 if kaldi else 0
+
 
 K_DESEN = re.compile(r"^K (\d+) (\d+) (\d+)")
 

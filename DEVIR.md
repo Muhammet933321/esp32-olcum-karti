@@ -8024,6 +8024,60 @@ Bir denemede eski yol 200 aldı **ama yakalama henüz bitmemişti** (onay 3.25 s
 
 ---
 
+#### 5.12.55 🔴 B41 — B40b SKOP ÖRNEKLERİNE HATA SOKMUŞ: I²C kenarları ADC1'e giriyor (2026-09-13)
+
+**Kullanıcı bulgusu.** WiFi'den 200 ms/böl yakalamada ekran görüntüsü: CAL kapalı, düz bir iz üzerinde **üç dik aşağı iğne** (−3 V civarından −17 V'a) ve tetik işareti **tam ilk iğnenin üstünde**. "Doğru mu? Yakalama biraz uzun sürüyor."
+
+##### B40'ın iddiası geri çekiliyor
+
+B40b'nin "yakalama sırasında atlanan enerji 0, döngü ~1–5 ms" sonucu **ADC örneklerini bozma karşılığında** elde edilmişti. Zincir 18/18, bringup 32/0, `tezgah_blokaj --skop` 3/3 yeşildi — **hiçbir iddia örnek bütünlüğüne bakmıyordu**, yalnızca yakalamanın "tam" gelmesine.
+
+##### Ölçüm: iğneler gerçek sinyal değil
+
+CAL %50 = düğüm 20K + 100 nF ile sürülü; 1.6 ms'lik tek bir örnekte 600 kod (~0.5 V) atlayıp geri dönemez. Yine de orada da, iki yönde. Tek-örnek hatası (> 60 kod, komşu 4 örneğin medyanına göre) örnekleme hızından bağımsız: 83 kSa/s'de 6.8, 611 Sa/s'de 9.4 / 1000. B34 ve B38 süpürmelerinde tb3 std 1.5–6.8 kod idi — bu sıklıkta hata olsaydı ~30 kod olurdu, yani **hatalar yeni**.
+
+##### Tanı — ilk tahmin yanlıştı
+
+Hepsi aynı oturumda, sürülü düğüm, tek-örnek hatası / 1000:
+
+| yapılandırma | tb3 | tb10 |
+|---|---|---|
+| yakalama döngüyü blokluyor (B40a) | **0** | **0** |
+| ayrı görev, çekirdek 0, ADS eşzamanlı (B40b) | 3.9 | 2.1 |
+| ayrı görev **çekirdek 1**, ADS eşzamanlı | 5.7 | 2.9 |
+| ayrı görev, yakalamada **ADS susuyor** | **0** | **0** |
+| yakalamada **yalnızca I²C okuma** (dönüşüm yok, RDY sabit) | 5.1 | 3.3 |
+| yakalamada I²C yok, **CPU meşgul** | **0** | **0** |
+| **I²C sürücüsü KAPALI**, SDA/SCL açık-drenaj elle tıklatılıyor | 2.4 | 1.2 |
+
+İlk tanım "çekirdek 0 / WiFi" idi ve firmware'e yorum olarak bile yazılmıştı — **yanlıştı**, çekirdek 1'e almak hatayı gidermedi. Sebep **elektriksel**: GPIO8/9 (I²C) kenarları — sürücü kapalıyken bile — GPIO4'ün **aynı ADC1 birimindeki** dönüşümüne hata sokuyor. B40a'da yakalama döngüyü bloklarken bu yalıtım **kazara** sağlanıyordu; B34, B38 ve hızlı yol (`w`) de hep böyle kazara yalıtılmış çalışmıştı.
+
+##### Düzeltme (firmware)
+
+* **Yakalama sürerken ADS susuyor** (`loop()`'ta bekçi). Hata **0** (tb3 0/3332, tb10 0/2444; `tezgah_blokaj --skop` 0/3721).
+* **Susma gizlenmiyor:** `ads_duraklama_ms` (C satırı). Kartta yakalama süresiyle birebir: tb3 312 · tb5 373 · tb7 566 · tb9 1539 · tb10 2717 ms. >1 s aralıklar enerji sayacında eskisi gibi kayıp olarak görünüyor (tb9'da 1542 ms).
+* **Emniyet:** pil testi sürerken skop yakalanmıyor (susma = kesme gerilimi denetiminin durması); yakalama sürerken pil testi başlatılmıyor; **`p0` (DURDUR) hiçbir şeye bakmıyor** — kartta doğrulandı.
+* Yakalama yine **ayrı görevde** kalıyor: 4 s'lik yakalamada da `p0` ve diğer komutlar anında işleniyor. Döngü en uzun tur ≤ 7.8 ms.
+* **OTO kipte tetik yoksa taban kadar bekleniyor** (1.2 × pencere + 300 ms, pencerenin tamamını hâlâ garanti ediyor — B31). Kullanıcının "uzun sürüyor" şikâyeti: 200 ms/böl'de **4.08 → 2.72 s**. Pencere 2 s olduğu için bundan kısası fiziksel olarak mümkün değil. NORMAL/TEK kip tetiği beklemeye devam ediyor.
+
+##### Ekran görüntüsünün kendisi
+
+İz, CAL kapalıyken **kaynaksız RC düğümü**: kondansatörler şarjlı, GPIO10 giriş kipinde. Kartta ölçüldü: yavaş deşarj −25 kod/s, eğilim çıkarılınca gürültü 2.2 kod, 50 Hz bileşeni 0.3 kod (girişte ~0.01 V) — şebeke paraziti yok. İğneler bu kusurdu; tetik ilk iğnenin geri dönüşünde (yükselen kenar) **sahte** tetiklenmişti.
+
+WiFi'de 200 ms/böl yakalamanın **hata bildirimi olmadan** çizilmesi, B40'ın tezgah kalemini (satır tetiklemeli `/skop.bin`) doğruluyor.
+
+##### 🔶 Kullanıcı kararı: I²C'yi ADC1 dışına taşımak
+
+Bugünkü düzeltme bir **ödünleşim**: skop temiz, ama yakalama süresince enerji ve pil ölçümü yok. ESP32-S3'te ADC1 = GPIO1–10. I²C (ve RDY) GPIO11+ pinlere — tercihen ADC'siz 38–42 — alınırsa ikisi aynı anda çalışabilir. Breadboard'da 3 tel + şema + firmware pin sabitleri; ön uç henüz kurulmadığı için şimdi ucuz. Taşındıktan sonra ADS susturulmadan `tezgah_blokaj --skop` 0 hata vermeli. Tezgah listesinde.
+
+##### Doğrulama
+
+* Zincir 18/18, **1388 iddia** · `sim3_skop` 63 → **69** (6i; 6h'de çekirdek artık iddia edilmiyor — yanlış gerekçeyi kalıcı yapmamak için).
+* Mutasyon B19 **33/33** (bekçi, susma sayacı, pil emniyeti, `p1` reddi, `p0` serbestliği, OTO tabanı).
+* Gerçek kartta: `tezgah_blokaj --skop` **5/5** (yeni: tek-örnek hatası 0, susma muhasebesi, OTO süresi) · köprü 16/16 · tarayıcı 19/19 · bringup 32/0 · `p1`/`p0` elle.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

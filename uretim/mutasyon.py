@@ -610,6 +610,30 @@ MUTASYONLAR = [
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
     # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    # ── B41 · yakalama surerken ADS susuyor (I2C kenarlari ADC'ye hata sokuyor)
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (skop_is != SKOP_IS_YOK) {\n    if (!ads_duraklama_bas_ms)",
+     "  if (false) {\n    if (!ads_duraklama_bas_ms)",
+     "ESKI KUSURU geri koyar (B40b): ADS yakalamayla eszamanli calisir, I2C "
+     "kenarlari skop orneklerine igne ve sahte tetik sokar"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    ads_duraklama_top_ms += millis() - ads_duraklama_bas_ms;", "",
+     "ADS susmasi sayilmaz: enerji/pil araligi sessizce kayar"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (pil_testi_suruyor()) {", "    if (false) {",
+     "EMNIYET: pil testi surerken yakalama ADS'yi susturur, kesme denetimi durur"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "        if (skop_is != SKOP_IS_YOK) {\n          Serial.println(F(\"! pil: skop",
+     "        if (false) {\n          Serial.println(F(\"! pil: skop",
+     "yakalama surerken pil testi baslar ve ilk araligi ADS'siz gecirir"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "        if (pil.durum == PIL_CALISIYOR) {\n          pil_durdur(PIL_DURDURULDU, PILH_YOK);",
+     "        if (skop_is != SKOP_IS_YOK) break;\n        if (pil.durum == PIL_CALISIYOR) {\n          pil_durdur(PIL_DURDURULDU, PILH_YOK);",
+     "EMNIYET: p0 (DURDUR) skop yakalamasi bitene kadar gecikir"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (skop_ayar.kip == SKOP_KIP_OTO) azami_ms = taban_ms;", "",
+     "OTO kipte tetik yokken 4 s beklenir (200 ms/bol'de 4.08 s)"),
+
     # ── B40 · skop olcum cekirdegini bloklamiyor
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "        if (skop_ayar.kip != SKOP_KIP_OTO) { skop_kilidi_birak(); return SKOP_SONUC_TETIK_YOK; }",
@@ -623,7 +647,7 @@ MUTASYONLAR = [
      "yakalama (cekirdek 0) yazdirirsa WebAkis satir birlestirmesi iki "
      "cekirdekten beslenir ve D/skop satirlari karakter duzeyinde karisir"),
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
-     "  skop_sonuc_isle();         // B40b: cekirdek 0'daki yakalamanin sonucu",
+     "  skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu",
      "",
      "sonuc hic islenmez: `t` sessizce hicbir sey dondurmez, skop_is hep dolu kalir"),
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
