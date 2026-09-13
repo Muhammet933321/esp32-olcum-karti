@@ -330,6 +330,7 @@ createApp({
       // osiloskop
       osilo: null,
       osiloBekliyor: false,
+      skopIkiliBekle: false,  // B40: `tB` gönderildi, onay satırı bekleniyor
       osiloTopla: null,
       skopAyar: null,        // kartın bildirdiği T satırı
       skopTdiv: 5,           // zaman tabanı indeksi (0..11)
@@ -1072,14 +1073,23 @@ createApp({
           this.osiloBitir();
           return;
         }
-        for (const p of satir.split(/\s+/)) {
-          const v = parseInt(p, 10);
-          if (!isNaN(v)) this.osiloTopla.veri.push(v);
+        /* 🔴 B40 — DOKUM ARTIK OLCUMLE IC ICE GELEBILIR. Kart dokumu
+           olcum dongusunu bloklamamak icin turlara boluyor; aradaki `D`
+           ve `K` satirlari dokumun ICINE dusuyor (kartta goruldu).
+           Eskiden BUTUN satirlar ornek sayiliyordu: `D 1.7156 0.00..`
+           -> parseInt ile 1, 0, 0 ... dalgaya CÖP ornek olarak giriyor
+           ve D satirinin kendisi olcum gostergesine hic ulasmiyordu.
+           Artik yalnizca TAMAMI tam sayi olan satir ornek; digerleri
+           asagidaki normal ayristirmaya dusuyor. */
+        if (/^\d+(\s+\d+)*$/.test(satir.trim())) {
+          for (const p of satir.trim().split(/\s+/)) {
+            this.osiloTopla.veri.push(parseInt(p, 10));
+          }
+          if (this.osiloTopla.veri.length >= this.osiloTopla.adet) {
+            this.osiloBitir();
+          }
+          return;
         }
-        if (this.osiloTopla.veri.length >= this.osiloTopla.adet) {
-          this.osiloBitir();
-        }
-        return;
       }
 
       const p = satir.split(/\s+/);
@@ -1288,7 +1298,12 @@ createApp({
       }
 
       this.kaydet(satir);
-      if (satir.startsWith('!')) this.osiloBekliyor = false;
+      if (satir.startsWith('!')) { this.osiloBekliyor = false; this.skopIkiliBekle = false; }
+      /* B40: ikili yakalama bitti — gövdeyi ŞİMDİ çek (sabit gecikme yok). */
+      if (this.skopIkiliBekle && satir.startsWith('* skop yakalandi (ikili)')) {
+        this.skopIkiliBekle = false;
+        this.skopIkiliAl();
+      }
       /* B27/K3: kart "giris rayda — sinyal yok" derse eski sonucu ekranda
          BIRAKMA. Bos giristen hesaplanan 223 W, kart artik basmiyor; ama
          bir onceki gecerli sonuc panelde kalsaydi kullanici onu yeni
@@ -1558,9 +1573,15 @@ createApp({
       if (this.skopArsivVar) {
         this.gonder('t');
       } else if (this.yetenek.skop === 'ikili') {
+        /* 🔴 B40 — SABİT 400 ms BEKLEME KALDIRILDI. Yakalama süresi zaman
+           tabanına ve tetiğe bağlı: OTO kipte tetik yoksa zaman aşımı
+           `pencere × 4 + 300 ms`, tb7'de ~1.1 s. 400 ms sonra çekilen
+           `/skop.bin` kilidi yakalamada bulup 200 ms bekliyor ve 503
+           dönüyordu — yavaş zaman tabanlarında WiFi skobu hiç
+           çalışmıyordu. Artık kartın "* skop yakalandi (ikili)" satırı
+           GELİNCE çekiliyor (`satirIsle`). */
+        this.skopIkiliBekle = true;
         this.gonder('tB');
-        // Kart yakalamayı bitirsin, sonra gövdeyi çek.
-        setTimeout(() => this.skopIkiliAl(), 400);
       } else {
         this.gonder('t');
       }

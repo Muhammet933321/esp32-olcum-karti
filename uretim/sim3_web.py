@@ -278,7 +278,8 @@ def bolum4(r):
     g_loop = kod(govde(INO, "void loop()"))
     g_gorev = kod(govde(INO, "static void ag_gorevi(void *)"))
     g_hazir = kod(govde(INO, "void web_satir_hazir(const char *satir)"))
-    g_yakala = kod(govde(INO, "static bool skop_yakala()"))
+    # B40b: imza `static uint8_t skop_yakala()` (sonuc kodu dondurur)
+    g_yakala = kod(govde(INO, "static uint8_t skop_yakala()"))
     g_bin = kod(govde(INO, "void skop_bin_sayfa()"))
 
     r.kosul("  3b.1: [!] loop() ARTIK handleClient cagirmiyor",
@@ -565,8 +566,9 @@ def bolum6(r):
     r.kosul("  6f: Host denetimi ikili ucta da var", "host_gecerli()" in g_bin)
     # [!] Tuketicisi olmayan bir uc yarim istir (B17'nin f/F kusuru).
     g_skop = kod(govde(INO, "void skop_komut(const char *s)"))
+    # B40b: `tB` yakalamayi cekirdek 0'daki goreve veriyor.
     r.kosul("  6g: `tB` — ASCII DOKMEDEN yakalama komutu var",
-            "'B'" in g_skop and "skop_yakala()" in g_skop,
+            "'B'" in g_skop and "skop_is_ver(SKOP_IS_IKILI)" in g_skop,
             "yoksa WiFi'de ayni veri IKI KEZ tasinirdi (ASCII + ikili)")
     r.kosul("  6g: `tB` onayi `!` ile BASLAMIYOR",
             "* skop yakalandi (ikili)" in INO,

@@ -1891,6 +1891,52 @@ console.log('\n--- 18. Hizli yol olceklemesi kalibre mi ---');
      'eFuse duzeltmesi on ucun sifir ofsetini gidermez');
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   19. SKOP DOKUMU OLCUMLE IC ICE (B40)
+
+   Kart dokumu olcum dongusunu bloklamamak icin turlara boluyor; aradaki
+   `D`/`K` satirlari dokumun ICINE dusuyor (kartta goruldu). Eskiden
+   ayristirici BUTUN satirlari ornek sayiyordu.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 19. Skop dokumu olcumle ic ice ---');
+{
+  const u = ornek();
+  u.osiloBitir = function () { this.bitti = this.osiloTopla; this.osiloTopla = null; };
+  u.satirIsle('S2 20 1000 0.028788 0 100 0 1 63.530090');
+  u.satirIsle('M f=0.000 T=0.000000000 Vpp=1.0000 Vmax=1.0 Vmin=0.0 Vort=0.5 Vrms=0.5 Vac=0.1 duty=0.00 tr=0 tf=0 n=0');
+  u.satirIsle('1 2 3 4 5 6 7 8 9 10');
+  u.satirIsle('D 12.3456 0.891234 10.99881 1234.5678 0.3429355 3600000 133 0');
+  u.satirIsle('K 0 2603 0');
+  u.satirIsle('11 12 13 14 15 16 17 18 19 20');
+  const beklenen = Array.from({ length: 20 }, (_, i) => i + 1);
+  const veri = u.bitti ? u.bitti.veri : (u.osiloTopla ? u.osiloTopla.veri : []);
+  ok('[!] Araya giren D/K satiri dalgaya ORNEK olarak girmiyor',
+     JSON.stringify(veri) === JSON.stringify(beklenen),
+     JSON.stringify(veri));
+  ok('[!] Araya giren D satiri olcum gostergesine YINE ulasiyor',
+     Math.abs(u.volt - 12.3456) < 1e-6, String(u.volt));
+
+  /* WiFi: sabit 400 ms bekleme kaldirildi, onay satiri tetikliyor. */
+  ok('[!] `tB` sonrasi sabit gecikmeli cekis YOK',
+     !govdeIcinde(appKaynak, 'osiloYakala', 'setTimeout(() => this.skopIkiliAl()'),
+     'tb7 ve ustunde yakalama 400 ms\'den uzun -> /skop.bin 503');
+  const v = ornek();
+  let cekildi = 0;
+  v.skopIkiliAl = () => { cekildi++; };
+  v.skopIkiliBekle = true;
+  v.satirIsle('* skop yakalandi (ikili): 833 ornek @ 83333 Hz — /skop.bin');
+  ok('[!] Onay satiri GELINCE govde cekiliyor', cekildi === 1, String(cekildi));
+  v.satirIsle('* skop yakalandi (ikili): 833 ornek @ 83333 Hz — /skop.bin');
+  ok('Beklenmeyen ikinci onay IKINCI cekis yapmiyor', cekildi === 1, String(cekildi));
+  const y = ornek();
+  let c2 = 0;
+  y.skopIkiliAl = () => { c2++; };
+  y.skopIkiliBekle = true;
+  y.satirIsle('! tetiklenemedi');
+  y.satirIsle('* skop yakalandi (ikili): 1 ornek @ 1 Hz — /skop.bin');
+  ok('`!` satiri bekleyen ikili cekisi IPTAL ediyor', c2 === 0 && y.skopIkiliBekle === false);
+}
+
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
    fonksiyonun govdesinde (bolum 13) dolduruluyor; bosaltma burada,
    ozetin hemen oncesinde. */

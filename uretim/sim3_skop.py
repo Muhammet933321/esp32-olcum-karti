@@ -456,7 +456,7 @@ def bolum5(r):
             f"{'zaman asimi':>12}  durum")
 
     # Firmware'deki zaman asimi ifadesi — kaynaktan okunuyor.
-    i = ino.find("static bool skop_yakala()")
+    i = ino.find("static uint8_t skop_yakala()")        # B40b imzasi
     j = ino.find("adc_continuous_stop", i)
     g = ino[i:j if j > 0 else i + 4000]
     carpan = float(re.search(r"pencere_ms \* ([0-9.]+)f\) \+ 300u", g).group(1))
@@ -758,6 +758,60 @@ def bolum6(r):
             and "hizli_yakala" not in _oku,
             "asil yakalamanin dizilerine yazsaydi sinama SONRA yapilamazdi")
 
+    # ── B40: SKOP OLCUM CEKIRDEGINI BLOKLAMIYOR ──────────────────────
+    # Kartta olculdu (2026-09-13), `t` sirasinda olcum dongusunun en uzun
+    # turu:        once     B40a (dokum turlu)   B40b (yakalama gorevde)
+    #   tb3       667 ms       344 ms               1.1 ms
+    #   tb7      1524 ms      1131 ms               1.6 ms
+    #   tb9      4437 ms      4048 ms               1.5 ms
+    # tb7 ve ustunde enerji sayaci o araligi ATIYORDU (1526 / 4439 ms).
+    def _kod(s):
+        # yorum soyucu — desenler ters bolusuz (heredoc tuzagi)
+        s = re.sub(r"/[*].*?[*]/", "", s, flags=re.S)
+        return re.sub(r"//.*", "", s)
+    _yak = _govde_c("static uint8_t skop_yakala()", "// OTOMATİK KURULUM")
+    _gor = _govde_c("static void skop_gorevi(void *)", "static bool skop_is_ver")
+    _isle = _govde_c("static void skop_sonuc_isle()", "static void skop_dokum_ilerle()")
+    _dok = _govde_c("static void skop_dokum_ilerle()", "void skop_ayar_yaz()")
+    r.kosul("  6h: [!] yakalama cekirdek 0'da ayri gorevde",
+            'xTaskCreatePinnedToCore(skop_gorevi, "skop"' in ino
+            and "&skop_gorev_kolu, 0);" in ino,
+            "olcum cekirdeginde kalsaydi OTO zaman asimi 4 s blokluyordu")
+    # 🔴 GOREV YAZDIRMAMALI: WebAkis satir birlestirmesi tek yazarli; iki
+    #    cekirdekten yazilirsa satirlar KARAKTER duzeyinde karisir.
+    r.kosul("  6h: [!] yakalama gorevi ve skop_yakala HIC yazdirmiyor",
+            bool(_yak) and bool(_gor)
+            and "Serial." not in _kod(_yak) and "Serial." not in _kod(_gor),
+            "iki cekirdekten Serial = D ve skop satirlari karakter duzeyinde bozulur")
+    r.kosul("  6h: sonuc ve dokum olcum dongusunde isleniyor",
+            "  skop_sonuc_isle();" in ino and "  skop_dokum_ilerle();" in ino)
+    r.kosul("  6h: [!] dokum satiri TEK write ve TX payi gozetiliyor",
+            "Serial.write((const uint8_t *)b, (size_t)n);" in _dok
+            and "availableForWrite() < n + SKOP_DOKUM_PAY" in _dok,
+            "her print ayri halka ogesi (~12 B) ve TX dolunca D satiri bloklardi")
+    # 🔴 KILIT SIZINTISI: tetiklenmeyen dallar kilidi birakmadan donuyordu;
+    #    Normal kipte bir kez tetiklenmeyince skop yeniden baslatmaya kadar
+    #    oluyordu (kartta goruldu).
+    _satir = [s for s in _kod(_yak).splitlines() if s.strip()]
+    _donus = [i for i, s in enumerate(_satir) if "return SKOP_SONUC_TETIK_YOK;" in s]
+    _birakan = [i for i in _donus
+                if "skop_kilidi_birak()" in _satir[i]
+                or (i > 0 and "skop_kilidi_birak()" in _satir[i - 1])]
+    r.kosul("  6h: [!] tetiklenmeyen HER dal kilidi birakiyor",
+            len(_donus) >= 3 and len(_birakan) == len(_donus),
+            f"{len(_birakan)}/{len(_donus)} donus kilidi birakiyor — Normal "
+            f"kipte tetiklenmeyince skop OLUYORDU")
+    r.kosul("  6h: [!] is surerken ADC'yi kullanan `w*` REDDEDILIYOR",
+            "hizli yol ADC'yi kullanamaz" in ino,
+            "gorev ile ayni anda surekli ADC'yi yeniden yapilandirmak iki yakalamayi da bozar")
+    r.kosul("  6h: [!] is surerken skop AYARI degistirilemiyor (`t?` haric)",
+            "if (alt != '?' && skop_is != SKOP_IS_YOK)" in ino,
+            "gorev `skop_ayar`i okuyor; `ta` onu yaziyor")
+    r.kosul("  6h: dokum ve /skop.bin YAKALAMANIN ayarlariyla etiketleniyor",
+            "SKOP_TDIV_US[skop_son_tdiv]" in _dok
+            and "uint32_t tdiv = SKOP_TDIV_US[skop_son_tdiv];" in ino,
+            "yakalamadan sonra `tb` degisirse eski kayit YENI zaman tabaniyla etiketlenirdi")
+
     r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
             HAM_INL_KOD * T.SKOP_ADIM
             < 0.05 * (T.SKOP_MENZIL_ARTI - T.SKOP_MENZIL_EKSI),
@@ -812,6 +866,18 @@ def main() -> int:
          "gercek on uc (op-amp cikisi ~%0, skop bolucusu ~%10) HESAPLANDI, "
          "olculmedi. On uc lehimlenince `wB` kosun: iki kanal da "
          "'surulu' ve %25'in altinda olmali"),
+        ("[!] Skop yakalamasi sirasinda blokaj — `python tezgah_blokaj.py --skop`",
+         "B40 oncesi `t` olcum dongusunu tb3'te 667 ms, tb9'da 4437 ms "
+         "blokluyor ve tb7 ustunde enerji araligini ATIYORDU. 2026-09-13 "
+         "sonrasi en kotu durumda (tetik yok) en uzun tur 5.2 ms, atlanan 0, "
+         "yakalamalar tam. Firmware'de skop/ADC/Serial'e dokunan her "
+         "degisiklikten sonra tekrar kosun"),
+        ("WiFi'de `tB` uctan uca (web parolasiyla, tarayicidan)",
+         "Parola depoda yok, bu yuzden Claude KOMUT ucunu sinayamadi; yaris "
+         "seri tetik + WiFi `/skop.bin` ile yeniden uretildi: eski arayuzun "
+         "400 ms beklemesi tb7'de 503 aldi, onay satiri beklenince 200/1000. "
+         "Elle: tarayicida karta dogrudan baglan, zaman tabani 200 ms/bol, "
+         "`Yakala` -> dalga cizilmeli, hata bildirimi CIKMAMALI"),
         ("Bosta blokaj — `python tezgah_blokaj.py --sifirla --tekrar 4`",
          "Tek 45 s penceresi yaniltir: acilis gecisi ~16 ms, kararli hal "
          "~3 ms. `?` komutunun bedeli 2026-09-13'te 21.9 ms olculdu (TX "

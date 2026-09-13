@@ -46,6 +46,9 @@ public:
     /* B28: TX tamponu — `Serial` bu aynayla gölgelendiği için delege
        edilmeli, yoksa `Serial.setTxBufferSize` derlenmez. */
     void setTxBufferSize(size_t n) { _s.setTxBufferSize(n); }
+    /* B40: skop dokumu TX halkasinda yer varken basiliyor — dolunca
+       olcum dongusunu bloklamak yerine bir sonraki tura birakiyor. */
+    int availableForWrite() { return _s.availableForWrite(); }
     int available() { return _s.available(); }
     int read() { return _s.read(); }
     void flush() { _s.flush(); }

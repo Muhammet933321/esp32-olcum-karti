@@ -7959,6 +7959,71 @@ Blokajın çoğu pencere değil, **ASCII dökümün ölçüm çekirdeğinden ser
 
 ---
 
+#### 5.12.54 ✅ B40 — SKOP ÖLÇÜM ÇEKİRDEĞİNİ ARTIK BLOKLAMIYOR (667 ms → 1 ms) + skopu öldüren kilit sızıntısı (2026-09-13)
+
+B39'da bulunmuştu: skop yakalaması ölçüm döngüsünü saniyelerce durduruyordu. **B35'teki bir iddiamı düzeltiyor:** "köprüde ASCII yolu bedava, bedel zaten seri portta ödeniyor" demiştim — aktarım için doğruydu, **ölçüm çekirdeğini** hesaba katmamıştım.
+
+##### Ölçüm (kartta, `t` sırasında ölçüm döngüsünün en uzun turu, tetik yok = en kötü durum)
+
+| taban | B40 öncesi | B40a (döküm turlara bölündü) | **B40b (yakalama çekirdek 0'da)** | atlanan enerji |
+|---|---|---|---|---|
+| tb3 (10 ms pencere) | 667 ms | 344 ms | **~1–5 ms** | 0 |
+| tb5 (50 ms) | 897 ms | 515 ms | **~1–5 ms** | 0 |
+| tb7 (200 ms) | 1524 ms | 1131 ms | **~1–5 ms** | 0 (önce **1526 ms**) |
+| tb9 (1 s) | 4437 ms | 4048 ms | **~1–5 ms** | 0 (önce **4439 ms**) |
+
+Tekrarlanabilir: `python tezgah_blokaj.py --skop` (3/3). `ta` (otomatik kurulum; eşiği 0'a çekip 12 zaman tabanını tarayabiliyor, periyodik sinyal yoksa onlarca saniye) artık döngüyü 4.8 ms blokluyor.
+
+##### B40a — döküm bir durum makinesi
+
+Blokajın çoğu pencere değil, **ASCII dökümün ölçüm çekirdeğinden seri porta basılmasıydı** (tb3: 10 ms pencereye karşı ~650 ms). Döküm artık yakalama bitince başlatılıyor ve her `loop()` turunda TX halkasında yer olduğu kadar satır basılıyor. Her satır **tek `write`** — halka öğesi ek yükü satır başına bire iniyor ve bir satırın ortasına başka satır giremiyor. Düzenli çıktıya 1.5 KB TX payı bırakılıyor; bırakılmasaydı `D` satırının kendisi bloklardı. Satır biçimleri eskisiyle aynı.
+
+Sonuç: **`D` satırları dökümün içine düşebiliyor** (kartta görüldü). Köprünün `SkopCozucu`su onları atlayıp sayıyordu (B35 bunu öngörmüştü). **Arayüzün ayrıştırıcısı ise her satırı örnek sayıyordu**: `D 1.7156 …` → `parseInt` ile 1, 0, 0 … dalgaya çöp örnek; D satırının kendisi de göstergeye ulaşmıyordu. Artık yalnızca tamamı tam sayı olan satır örnek, diğerleri normal ayrıştırmaya düşüyor.
+
+##### B40b — yakalama çekirdek 0'daki ayrı görevde
+
+Kalan blokaj yakalamanın kendisiydi: OTO kipte tetik gelmezse zaman aşımı `pencere × 4 + 300 ms` (en çok 4 s).
+
+🔴 **KURAL: yakalama görevi HİÇ yazdırmıyor.** `Serial`'in satır birleştirmesi (WebAkis) tek yazarlı; iki çekirdekten yazılırsa satırlar **karakter düzeyinde** karışır ve hem D hem skop satırları bozulur. Görev sonucu bir kuyruğa bırakıyor, bütün çıktı çekirdek 1'den. Ölçümler (`skop_olc`) görevde hesaplanıyor.
+
+**Sahiplik:** `skop_is` yalnızca çekirdek 1'de yazılıyor (işe başlarken kurulur, sonuç alınınca silinir). İş sürerken:
+* ADC'yi kullanan `w`, `wR`, `wB` → `! skop: yakalama suruyor — hizli yol ADC'yi kullanamaz`
+* `skop_ayar`ı değiştiren `tb`, `tl`, `te`, `th`, `tp`, `tm`, `t+`, `t-`, `tB`, `ta` → `! skop: yakalama suruyor — tekrar dene` (`t?` okuyor, serbest)
+
+Kartta 4 s'lik yakalama sırasında hepsi sebebiyle reddedildi, bittikten sonra hepsi kabul edildi. Dökümün `S2` başlığı ve `/skop.bin` artık **yakalamanın yapıldığı** zaman tabanı/kiple etiketleniyor — önceden yakalamadan sonra `tb` değiştirilirse eski kayıt yeni zaman tabanıyla etiketleniyordu. Görev yığını 6144 B, ölçülen dip pay 3952 B (`C` satırında `skop_yigin_dip`).
+
+##### 🔴 Kilit sızıntısı: Normal/Tek kipte skop yeniden başlatmaya kadar ölüyordu
+
+`skop_yakala()` `skop_kilidi`ni alıyor, ama tetiklenmeyen iki başarısızlık dalı kilidi **bırakmadan** dönüyordu. Kartta:
+
+```
+NORMAL kip, ulaşılamaz eşik → ! tetiklenemedi
+OTO kipe dön, yakala       → ! skop: dokum suruyor, yakalama atlandi — tekrar dene
+bir kez daha               → ! skop: dokum suruyor, yakalama atlandi — tekrar dene
+```
+
+Arayüzdeki "Normal" ve "Tek atış" seçeneklerinin ikisi de bunu tetikliyordu; WiFi'de `/skop.bin` sonsuza dek 503 dönerdi; mesaj da yanlıştı (döküm sürmüyordu). Düzeltildi; iddia her `return SKOP_SONUC_TETIK_YOK`'un kilidi bıraktığını satır satır sınıyor, mutasyon eski hali geri koyunca kırmızı.
+
+##### WiFi'de `tB`: sabit 400 ms bekleme kaldırıldı
+
+Arayüz `tB`'den 400 ms sonra `/skop.bin` çekiyordu. Yakalama bundan uzun sürerse (tb7'de ~1.1 s) kilit tutuluyor → 200 ms bekleme → 503. Web parolası depoda olmadığı için komut ucu sınanamadı; yarış **seri tetik + WiFi `/skop.bin`** ile yeniden üretildi:
+
+```
+eski davranış (400 ms sonra çek)  → HTTP 503 "yakalama suruyor, tekrar dene"
+yeni davranış (onay satırıyla çek) → HTTP 200, 1000 örnek
+```
+
+Bir denemede eski yol 200 aldı **ama yakalama henüz bitmemişti** (onay 3.25 s'de) — yani **bir önceki yakalamanın bayat verisini** yeni dalga diye çizebilirdi. Artık `* skop yakalandi (ikili)` satırı gelince çekiliyor; `!` satırı bekleyişi iptal ediyor. Bu kusur B40'tan önce de vardı.
+
+##### Doğrulama
+
+* Zincir 18/18, **1382 iddia** · `sim3_skop` 55 → **63** (6h) · `test_arayuz3` 298 → **304** (bölüm 19) · firmware derlemesi uyarısız (`-Wextra`'nın enum/uint8_t uyarısı düzeltildi).
+* Mutasyon B19 **27/27**, B7 **56/56**.
+* Gerçek kartta: `tezgah_blokaj.py --skop` 3/3 · köprü `tezgah_skop_arsiv.py` 16/16 · tarayıcı `tarayici_skop_arsiv.py` 19/19 · bringup 32/0.
+* ⚠ WiFi'de komut ucundan uçtan uca `tB` parolasız sınanamadı — tezgah listesinde elle kalem.
+
+---
+
 #### 5.12.17 Sırada ne var
 
 | Adım | İş | Not |

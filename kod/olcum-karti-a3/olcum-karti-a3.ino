@@ -947,19 +947,81 @@ static inline void skop_kilidi_birak() {
     if (skop_kilidi) xSemaphoreGive(skop_kilidi);
 }
 
-static bool skop_yakala()
+/* 🔴 B40 — SKOP DOKUMU OLCUM DONGUSUNU BLOKLUYORDU.
+   Kartta olculdu (2026-09-13), `t` sirasinda olcum dongusunun en uzun
+   turu:  tb3 667 ms · tb5 897 ms · tb7 1524 ms · tb9 4437 ms; tb7 ve
+   ustunde `enerji_biriktir` o araligi TAMAMEN atiyordu. Blokajin cogu
+   pencere degil, ASCII dokumun seri porta basilmasiydi: 833 ornek
+   ~4.2 KB, 115 200 baud'da ~365 ms, ustune her `print` ayri bir TX
+   halka ogesi (B37: ~12 B ek yuk) oldugu icin halka hemen doluyor.
+   PC koprusu (B35) tam bu yolu kullaniyor; "Surekli" kipte olcum
+   neredeyse hic calismazdi.
+
+   Simdi dokum bir DURUM MAKINESI: yakalama bitince baslatiliyor, her
+   `loop()` turunda TX halkasinda yer oldugu kadar satir basiliyor.
+   Her satir TEK `write` — hem halka ogesi ek yukunu satir basina bire
+   indiriyor hem de satirin yarisinda baska bir satir araya giremiyor.
+   Aradaki `D` satirlari dokumun ICINE dusebilir: kopru cozucusu
+   (SkopCozucu) bunlari atlayip SAYIYOR, arayuz ayristiricisi B40'ta
+   buna gore duzeltildi.
+
+   ⚠ Dokum surerken skop_veri OKUNUYOR — yeni bir yakalama onu yarida
+     degistirirse basilan dalga yari eski yari yeni olur. Yakalama bu
+     yuzden dokum bitene kadar REDDEDILIYOR ve bu kez mesaj DOGRU. */
+static struct {
+    bool     aktif;
+    uint8_t  asama;        /* 0 S2 · 1 M · 2 ornekler · 3 E */
+    uint16_t i;            /* siradaki ornek */
+} skop_dokum = { false, 0, 0 };
+static SkopOlcum skop_dokum_m;
+/* Duzenli ciktiya (D, K, komut yanitlari) birakilan TX payi. Dokum bu
+   kadarini hic doldurmuyor; dolduraydi `D` satirinin kendisi bloklardi. */
+#define SKOP_DOKUM_PAY 1536
+#define SKOP_DOKUM_TUR_SATIR 6u   /* bir loop turunda en fazla */
+
+/* 🔴 B40b — YAKALAMA OLCUM CEKIRDEGINDEN CIKTI.
+   Dokum turlara bolununce (B40a) kalan blokaj yakalamanin KENDISIYDI:
+   pencere + tetik beklemesi. OTO kipte tetik gelmezse zaman asimi
+   (`pencere x 4 + 300 ms`, en cok 4 s) bekleniyor — kartta olculdu:
+   tb3 344 ms, tb5 515 ms, tb7 1131 ms, tb9 4048 ms. `ta` (otomatik
+   kurulum) esigi 0'a cekip 12 zaman tabanini sirayla yakaliyor;
+   periyodik sinyal yoksa ONLARCA saniye.
+
+   Yakalama artik cekirdek 0'da ayri bir gorevde. KURAL: bu gorev HIC
+   YAZDIRMIYOR. `Serial`in satir birlestirmesi (WebAkis) tek yazarli;
+   iki cekirdekten yazilirsa satirlar KARAKTER duzeyinde karisir ve
+   hem D hem skop satirlari bozulur. Gorev sonucu bir kuyruga birakiyor,
+   butun cikti cekirdek 1'den basiliyor.
+
+   SAHIPLIK: `skop_is` YALNIZCA cekirdek 1'de yaziliyor (ise baslarken
+   kurulur, sonuc alininca silinir). Is surerken ADC'ye dokunan `w*`
+   komutlari ve `skop_ayar`i degistiren ayar komutlari REDDEDILIYOR —
+   gorev ikisini de kullaniyor. */
+enum : uint8_t { SKOP_IS_YOK = 0, SKOP_IS_DOKUM, SKOP_IS_IKILI, SKOP_IS_OTOMATIK };
+enum : uint8_t { SKOP_SONUC_OK = 0, SKOP_SONUC_TETIK_YOK, SKOP_SONUC_KILIT,
+                 SKOP_SONUC_HATA, SKOP_SONUC_OTO_YOK };
+static volatile uint8_t skop_is = SKOP_IS_YOK;
+static TaskHandle_t  skop_gorev_kolu = nullptr;
+static QueueHandle_t skop_sonuc_q = nullptr;
+/* Yakalamanin YAPILDIGI ayarlar. Dokum ve /skop.bin basliginda bunlar
+   kullaniliyor: yakalamadan sonra `tb` degistirilirse eski kayit YENI
+   zaman tabaniyla etiketlenmesin (onceden boyle oluyordu). */
+static uint8_t skop_son_tdiv = 5, skop_son_kip = 0;
+
+/* B40b: cekirdek 0'daki `skop_gorevi` cagiriyor. YAZDIRMAZ — sonucu
+   dondurur, metni cekirdek 1 basar. Dokum/is cakismasini cagiran taraf
+   (`skop_is_ver`) onceden eliyor. */
+static uint8_t skop_yakala()
 {
     uint32_t hz;
     uint16_t n;
     skop_taban_coz(skop_ayar.tdiv, &hz, &n);
 
-    if (!skop_kulp) return false;
-    if (skop_kilidi && xSemaphoreTake(skop_kilidi, 0) != pdTRUE) {
-        Serial.println(F("! skop: dokum suruyor, yakalama atlandi — tekrar dene"));
-        return false;
-    }
-    if (!skop_hiz_ayarla(hz)) { skop_kilidi_birak(); return false; }
-    if (adc_baslat() != ESP_OK) { skop_kilidi_birak(); return false; }
+    if (!skop_kulp) return SKOP_SONUC_HATA;
+    if (skop_kilidi && xSemaphoreTake(skop_kilidi, 0) != pdTRUE)
+        return SKOP_SONUC_KILIT;          /* /skop.bin okunuyor */
+    if (!skop_hiz_ayarla(hz)) { skop_kilidi_birak(); return SKOP_SONUC_HATA; }
+    if (adc_baslat() != ESP_OK) { skop_kilidi_birak(); return SKOP_SONUC_HATA; }
 
     uint16_t on = (uint16_t)((uint32_t)n * skop_ayar.on_yuzde / 100u);
     if (on + 2u > n) on = (uint16_t)(n - 2u);
@@ -1042,11 +1104,18 @@ static bool skop_yakala()
     if (!bulundu) {
         // OTO kipinde tetik bulunamazsa serbest koşu olarak göster.
         // NORMAL ve TEK kipinde göstermek YALAN olur — başarısız dön.
-        if (skop_ayar.kip != SKOP_KIP_OTO) return false;
-        if (dolu < 2u) return false;
+        /* 🔴 B40 — KİLİT SIZINTISI. Bu iki dal `skop_kilidi`ni BIRAKMADAN
+           dönüyordu. Kartta ölçüldü (2026-09-13): Normal kipte bir kez
+           tetiklenmeyen yakalamadan sonra OTO kipe dönülse bile her `t`
+           "! skop: dokum suruyor" diyor ve skop YENİDEN BAŞLATMAYA KADAR
+           ölü kalıyordu; WiFi'de `/skop.bin` sonsuza dek 503 dönerdi.
+           Arayüzdeki "Normal" ve "Tek atış" seçeneklerinin ikisi de bunu
+           tetikliyordu. */
+        if (skop_ayar.kip != SKOP_KIP_OTO) { skop_kilidi_birak(); return SKOP_SONUC_TETIK_YOK; }
+        if (dolu < 2u)                     { skop_kilidi_birak(); return SKOP_SONUC_TETIK_YOK; }
     } else if (kalan > 0u) {
         skop_kilidi_birak();
-        return false;                    // zaman aşımı, pencere dolmadı
+        return SKOP_SONUC_TETIK_YOK;     // zaman aşımı, pencere dolmadı
     }
 
     // Halkayı düz diziye aç: en eskiden en yeniye.
@@ -1060,8 +1129,10 @@ static bool skop_yakala()
     skop_tetiklendi = bulundu;
     skop_tetik_idx = bulundu ? (uint16_t)((tetik_w + n - bas) % n) : 0u;
     if (skop_tetik_idx >= dolu) skop_tetik_idx = 0u;
+    skop_son_tdiv = skop_ayar.tdiv;
+    skop_son_kip = skop_ayar.kip;
     skop_kilidi_birak();
-    return true;
+    return SKOP_SONUC_OK;
 }
 
 // OTOMATİK KURULUM ("auto-set") — gerçek osiloskoplardaki AUTO tuşu.
@@ -1086,7 +1157,7 @@ static bool skop_otomatik()
 
     for (uint8_t i = 0; i < SKOP_TDIV_SAYI; i++) {
         skop_ayar.tdiv = i;
-        if (!skop_yakala()) continue;
+        if (skop_yakala() != SKOP_SONUC_OK) continue;
 
         SkopOlcum m;
         skop_olc(skop_veri, skop_adet, skop_volt_adim(), (float)skop_hz, &m);
@@ -1132,49 +1203,148 @@ static bool skop_otomatik()
 //     duty=<%> tr=<s> tf=<s> n=<çevrim>
 //   <ham ADC kodları, 16'şar satır>
 //   E
+/* ── Cekirdek 0: yakalama gorevi ─────────────────────────────────────
+   Bildirim bekler, `skop_is`e gore yakalar, sonucu kuyruga birakir.
+   ⚠ YAZDIRMAZ (bkz. SKOP_IS tanimlari). Olcumler (`skop_olc`) burada
+     hesaplaniyor: skop_veri artik degismeyecek ve float isi olcum
+     cekirdeginden de cikmis oluyor. */
+static void skop_gorevi(void *)
+{
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        uint8_t is = skop_is;
+        uint8_t sonuc = SKOP_SONUC_HATA;
+        if (is == SKOP_IS_OTOMATIK) {
+            sonuc = skop_otomatik() ? skop_yakala() : (uint8_t)SKOP_SONUC_OTO_YOK;
+        } else if (is == SKOP_IS_DOKUM || is == SKOP_IS_IKILI) {
+            sonuc = skop_yakala();
+        }
+        if (sonuc == SKOP_SONUC_OK && is != SKOP_IS_IKILI) {
+            SkopOlcum &m = skop_dokum_m;
+            skop_olc(skop_veri, skop_adet, skop_volt_adim(), (float)skop_hz, &m);
+            skop_ofsetle(&m);
+        }
+        xQueueSend(skop_sonuc_q, &sonuc, portMAX_DELAY);
+    }
+}
+
+/* ── Cekirdek 1: is ver ──────────────────────────────────────────────
+   Cakisan her durumu SEBEBIYLE reddeder. */
+static bool skop_is_ver(uint8_t is)
+{
+    if (!skop_gorev_kolu || !skop_sonuc_q) {
+        Serial.println(F("! skop: yakalama gorevi yok"));
+        return false;
+    }
+    if (skop_is != SKOP_IS_YOK) {
+        Serial.println(F("! skop: yakalama suruyor — tekrar dene"));
+        return false;
+    }
+    if (skop_dokum.aktif) {
+        Serial.println(F("! skop: dokum suruyor, yakalama atlandi — tekrar dene"));
+        return false;
+    }
+    skop_is = is;
+    xTaskNotifyGive(skop_gorev_kolu);
+    return true;
+}
+
 void skop_yolla()
 {
-    if (!skop_yakala()) {
+    skop_is_ver(SKOP_IS_DOKUM);
+}
+
+/* ── Cekirdek 1: sonucu isle (her loop turunda) ──────────────────────
+   Eskiden ayni yerde senkron basilan metinler BURADA basiliyor; satir
+   bicimleri degismedi. */
+static void skop_sonuc_isle()
+{
+    uint8_t sonuc;
+    if (!skop_sonuc_q || xQueueReceive(skop_sonuc_q, &sonuc, 0) != pdTRUE) return;
+    uint8_t is = skop_is;
+    skop_is = SKOP_IS_YOK;
+
+    if (is == SKOP_IS_OTOMATIK) {
+        if (sonuc == SKOP_SONUC_OTO_YOK) {
+            Serial.println(F("! otomatik kurulum: periyodik sinyal yok"));
+            return;
+        }
+        skop_ayar_yaz();
+    }
+    if (sonuc == SKOP_SONUC_KILIT) {
+        Serial.println(F("! skop: /skop.bin okunuyor, yakalama atlandi — tekrar dene"));
+        return;
+    }
+    if (sonuc != SKOP_SONUC_OK) {
         Serial.println(F("! tetiklenemedi"));
         return;
     }
-
-    SkopOlcum m;
-    skop_olc(skop_veri, skop_adet, skop_volt_adim(), (float)skop_hz, &m);
-    skop_ofsetle(&m);
-
-    Serial.print(F("S2 "));
-    Serial.print(skop_adet);                    Serial.print(' ');
-    Serial.print(skop_hz);                      Serial.print(' ');
-    Serial.print(skop_volt_adim(), 6);          Serial.print(' ');
-    Serial.print(skop_tetik_idx);               Serial.print(' ');
-    Serial.print(SKOP_TDIV_US[skop_ayar.tdiv]); Serial.print(' ');
-    Serial.print(skop_ayar.kip);                Serial.print(' ');
-    Serial.print(skop_tetiklendi ? 1 : 0);      Serial.print(' ');
-    /* B19: 9. alan — volt ofseti. Arayuz p.length >= 8 baktigi icin
-     * eski surumler bu alani gormezden gelir (geriye uyumlu). */
-    Serial.println(skop_volt_ofset(), 6);
-
-    Serial.print(F("M f="));   Serial.print(m.frekans, 3);
-    Serial.print(F(" T="));    Serial.print(m.periyot, 9);
-    Serial.print(F(" Vpp="));  Serial.print(m.vpp, 4);
-    Serial.print(F(" Vmax=")); Serial.print(m.vmax, 4);
-    Serial.print(F(" Vmin=")); Serial.print(m.vmin, 4);
-    Serial.print(F(" Vort=")); Serial.print(m.vort, 4);
-    Serial.print(F(" Vrms=")); Serial.print(m.vrms, 4);
-    Serial.print(F(" Vac="));  Serial.print(m.vac, 4);
-    Serial.print(F(" duty=")); Serial.print(m.duty, 2);
-    Serial.print(F(" tr="));   Serial.print(m.t_yuksel, 9);
-    Serial.print(F(" tf="));   Serial.print(m.t_dus, 9);
-    Serial.print(F(" n="));    Serial.println(m.cevrim);
-
-    for (uint16_t i = 0; i < skop_adet; i++) {
-        Serial.print(skop_veri[i]);
-        if (i % 16 == 15) Serial.println();
-        else Serial.print(' ');
+    if (is == SKOP_IS_IKILI) {
+        Serial.print(F("* skop yakalandi (ikili): "));
+        Serial.print(skop_adet);
+        Serial.print(F(" ornek @ "));
+        Serial.print(skop_hz);
+        Serial.println(F(" Hz — /skop.bin"));
+        return;
     }
-    if (skop_adet % 16) Serial.println();
-    Serial.println(F("E"));
+    skop_dokum.aktif = true;
+    skop_dokum.asama = 0;
+    skop_dokum.i = 0;
+}
+
+/* Bir loop turunda TX halkasinda yer oldugu kadar dokum satiri basar.
+   Bitince `skop_dokum.aktif = false`. Satir bicimi ESKI dokumle AYNI:
+     S2 <adet> <Hz> <volt/adim> <tetik_idx> <tdiv_us> <kip> <tetiklendi> <ofset>
+     M f=.. T=.. Vpp=.. Vmax=.. Vmin=.. Vort=.. Vrms=.. Vac=.. duty=.. tr=.. tf=.. n=..
+     <ham ADC kodlari, 16'sar>
+     E */
+static void skop_dokum_ilerle()
+{
+    if (!skop_dokum.aktif) return;
+    char b[256];
+    for (uint8_t tur = 0; tur < SKOP_DOKUM_TUR_SATIR; tur++) {
+        int n = 0;
+        uint8_t sonraki = skop_dokum.asama;
+        uint16_t sonraki_i = skop_dokum.i;
+        if (skop_dokum.asama == 0) {
+            n = snprintf(b, sizeof(b), "S2 %u %lu %.6f %u %lu %u %u %.6f\r\n",
+                         (unsigned)skop_adet, (unsigned long)skop_hz,
+                         (double)skop_volt_adim(), (unsigned)skop_tetik_idx,
+                         (unsigned long)SKOP_TDIV_US[skop_son_tdiv],
+                         (unsigned)skop_son_kip, skop_tetiklendi ? 1u : 0u,
+                         (double)skop_volt_ofset());
+            sonraki = 1;
+        } else if (skop_dokum.asama == 1) {
+            const SkopOlcum &m = skop_dokum_m;
+            n = snprintf(b, sizeof(b),
+                         "M f=%.3f T=%.9f Vpp=%.4f Vmax=%.4f Vmin=%.4f Vort=%.4f "
+                         "Vrms=%.4f Vac=%.4f duty=%.2f tr=%.9f tf=%.9f n=%u\r\n",
+                         (double)m.frekans, (double)m.periyot, (double)m.vpp,
+                         (double)m.vmax, (double)m.vmin, (double)m.vort,
+                         (double)m.vrms, (double)m.vac, (double)m.duty,
+                         (double)m.t_yuksel, (double)m.t_dus, (unsigned)m.cevrim);
+            sonraki = (skop_adet > 0u) ? 2 : 3;
+        } else if (skop_dokum.asama == 2) {
+            uint16_t son = (uint16_t)(skop_dokum.i + 16u);
+            if (son > skop_adet) son = skop_adet;
+            for (uint16_t k = skop_dokum.i; k < son; k++) {
+                n += snprintf(b + n, sizeof(b) - (size_t)n, (k + 1u < son) ? "%u " : "%u",
+                              (unsigned)skop_veri[k]);
+            }
+            n += snprintf(b + n, sizeof(b) - (size_t)n, "\r\n");
+            sonraki_i = son;
+            sonraki = (son >= skop_adet) ? 3 : 2;
+        } else {
+            n = snprintf(b, sizeof(b), "E\r\n");
+            sonraki = 4;
+        }
+        if (n <= 0) { skop_dokum.aktif = false; return; }
+        if (Serial.availableForWrite() < n + SKOP_DOKUM_PAY) return;  /* sonraki tura */
+        Serial.write((const uint8_t *)b, (size_t)n);                  /* TEK write */
+        skop_dokum.asama = sonraki;
+        skop_dokum.i = sonraki_i;
+        if (sonraki == 4) { skop_dokum.aktif = false; return; }
+    }
 }
 
 void skop_ayar_yaz()
@@ -1202,6 +1372,12 @@ void skop_ayar_yaz()
 // GOVDE ASAMA 2 ILE AYNI — davranis degismedi.
 void skop_komut(const char *s) {
       char alt = s[1];
+      /* B40b: yakalama gorevi `skop_ayar`i kullaniyor; is surerken
+         ayari degistiren her alt komut REDDEDILIYOR (`t?` yalnizca okur). */
+      if (alt != '?' && skop_is != SKOP_IS_YOK) {
+        Serial.println(F("! skop: yakalama suruyor — tekrar dene"));
+        return;
+      }
       if (alt == 0 || (alt >= '0' && alt <= '9')) {
         if (alt) skop_ayar.esik = (uint16_t)atoi(s + 1);
         skop_yolla();
@@ -1214,24 +1390,16 @@ void skop_komut(const char *s) {
            basiyor — arayuz sonra `/skop.bin`'i cekiyor.
            ⚠ Onay satiri `!` ile BASLAMIYOR: arayuz `!` gorunce skop
              beklemesini iptal ediyor (app.js). */
-        if (skop_yakala()) {
-          Serial.print(F("* skop yakalandi (ikili): "));
-          Serial.print(skop_adet);
-          Serial.print(F(" ornek @ "));
-          Serial.print(skop_hz);
-          Serial.println(F(" Hz — /skop.bin"));
-        } else {
-          Serial.println(F("! tetiklenemedi"));
-        }
+        /* B40b: yakalama cekirdek 0'da; onay satiri sonuc gelince
+           `skop_sonuc_isle()`den basiliyor. */
+        skop_is_ver(SKOP_IS_IKILI);
       } else if (alt == '?') {
         skop_ayar_yaz();
       } else if (alt == 'a') {                    /* otomatik kurulum */
-        if (skop_otomatik()) {
-          skop_ayar_yaz();
-          skop_yolla();
-        } else {
-          Serial.println(F("! otomatik kurulum: periyodik sinyal yok"));
-        }
+        /* B40b: tamami cekirdek 0'da (12 zaman tabanini tarayabilir,
+           periyodik sinyal yoksa onlarca saniye). T satiri ve dokum
+           sonuc gelince cekirdek 1'den. */
+        skop_is_ver(SKOP_IS_OTOMATIK);
       } else if (alt == 'b') {                    /* zaman tabanı */
         int v = atoi(s + 2);
         if (v >= 0 && v < SKOP_TDIV_SAYI) {
@@ -2050,7 +2218,7 @@ void skop_bin_sayfa() {
   uint32_t hz = skop_hz;
   float adim = skop_volt_adim();
   float ofset = skop_volt_ofset();
-  uint32_t tdiv = SKOP_TDIV_US[skop_ayar.tdiv];
+  uint32_t tdiv = SKOP_TDIV_US[skop_son_tdiv];     /* B40b: yakalamanin ayari */
   uint16_t tidx = skop_tetik_idx;
   memcpy(b + 4,  &adet,  2);
   memcpy(b + 8,  &hz,    4);
@@ -2058,7 +2226,7 @@ void skop_bin_sayfa() {
   memcpy(b + 16, &ofset, 4);
   memcpy(b + 20, &tdiv,  4);
   memcpy(b + 24, &tidx,  2);
-  b[26] = (uint8_t)skop_ayar.kip;
+  b[26] = (uint8_t)skop_son_kip;
   b[27] = skop_tetiklendi ? 1u : 0u;
   uint32_t sira = akis_sira;
   memcpy(b + 28, &sira, 4);
@@ -2477,6 +2645,8 @@ void ayar_yaz_seri() {
   Serial.print(F(" ag_tur="));           Serial.print(ag_tur);
   Serial.print(F(" ag_yigin_dip="));
   Serial.print(ag_gorev_kolu ? (unsigned)uxTaskGetStackHighWaterMark(ag_gorev_kolu) : 0u);
+  Serial.print(F(" skop_yigin_dip="));
+  Serial.print(skop_gorev_kolu ? (unsigned)uxTaskGetStackHighWaterMark(skop_gorev_kolu) : 0u);
   Serial.print(F(" adc_cali="));         Serial.print(skop_cali_var ? F("egri")
                                                                      : F("YOK"));
   Serial.print(F(" cal_hz="));           Serial.print(cal_hz);
@@ -3117,6 +3287,11 @@ void komut_calistir(const char *s) {
     /* B8 — hizli yol gucu. `wR` HAM KOD basiyor (B36, dogrusallik
        supurmesi icin); duz `w` eskisi gibi guc raporluyor. */
     case 'w':
+      /* B40b: yakalama gorevi surekli ADC'yi kullaniyor. */
+      if (skop_is != SKOP_IS_YOK) {
+        Serial.println(F("! skop: yakalama suruyor — hizli yol ADC'yi kullanamaz, tekrar dene"));
+        break;
+      }
       if      (s[1] == 'R') hizli_ham_yolla();
       else if (s[1] == 'B')                         /* B37 — bos pin sinamasi */
         hizli_bos_yolla(s[2] ? (uint16_t)atoi(s + 2) : (uint16_t)CEKME_BEKLE_MS);
@@ -3336,6 +3511,12 @@ void setup() {
   komut_kuyrugu_q = xQueueCreate(KOMUT_KUYRUK, sizeof(KomutKalem));
   akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));
   skop_kilidi = xSemaphoreCreateMutex();
+  /* B40b: yakalama gorevi. WiFi kapali olsa da kuruluyor — skop USB'de de
+     calisiyor. Yigin: yakalama dongusundeki 1 KB cerceve + skop_olc;
+     olculen dip deger `?` -> C satirinda `skop_yigin_dip`. */
+  skop_sonuc_q = xQueueCreate(2, sizeof(uint8_t));
+  xTaskCreatePinnedToCore(skop_gorevi, "skop", 6144, nullptr, 1,
+                          &skop_gorev_kolu, 0);
 
   sunucu.on("/", kok_sayfa);
   sunucu.on("/akis", akis_sayfa);
@@ -3499,6 +3680,8 @@ void loop() {
      disiplini korunuyor (kalibrasyon, NVS, skop hep cekirdek 1'de). */
   komut_isle();              // seri porttan gelen komutlar
   komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
+  skop_sonuc_isle();         // B40b: cekirdek 0'daki yakalamanin sonucu
+  skop_dokum_ilerle();       // B40: skop dokumu, TX'te yer oldugu kadar
 
   // 🔴 B20 (2026-09-10) — BURADA OLU BIR BEKLEME VARDI:
   //     if (!yeni_donusum_bekle(4000)) delay(2);

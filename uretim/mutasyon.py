@@ -369,6 +369,21 @@ MUTASYONLAR = [
      "tablo disi kod KIRPILIR: doyuma giren sinyal DUZ bir cizgi gibi "
      "gorunur ve kirpildigi anlasilmaz"),
 
+    # ── B40 · arayuz: dokum olcumle ic ice, ikili cekis satir tetikli
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        if (/^\\d+(\\s+\\d+)*$/.test(satir.trim())) {",
+     "        if (true) {",
+     "araya giren D satiri dalgaya COP ornek olarak girer (parseInt('1.7156')=1) "
+     "ve olcum gostergesine ulasmaz"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        this.skopIkiliBekle = true;\n        this.gonder('tB');",
+     "        this.gonder('tB');\n        setTimeout(() => this.skopIkiliAl(), 400);",
+     "ESKI HALI: sabit 400 ms sonra cekis — yakalama uzunsa /skop.bin 503"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "        this.skopIkiliBekle = false;\n        this.skopIkiliAl();",
+     "        this.skopIkiliAl();",
+     "bayrak silinmez: sonraki her onay satiri govdeyi IKINCI kez ceker"),
+
     # ── B39 · heredoc `\b` backspace'e donmustu: bu iki iddianin yarisi
     #    ilk yazildiklari gunden beri KORDU. Artik canli; isirdiklarini
     #    kanitlayan mutasyonlar:
@@ -595,6 +610,37 @@ MUTASYONLAR = [
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
     # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    # ── B40 · skop olcum cekirdegini bloklamiyor
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "        if (skop_ayar.kip != SKOP_KIP_OTO) { skop_kilidi_birak(); return SKOP_SONUC_TETIK_YOK; }",
+     "        if (skop_ayar.kip != SKOP_KIP_OTO) { return SKOP_SONUC_TETIK_YOK; }",
+     "ESKI KUSURU geri koyar: Normal kipte tetiklenmeyince kilit birakilmaz, "
+     "skop yeniden baslatmaya kadar olu (kartta goruldu)"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (!skop_hiz_ayarla(hz)) { skop_kilidi_birak(); return SKOP_SONUC_HATA; }",
+     "    if (!skop_hiz_ayarla(hz)) { skop_kilidi_birak(); return SKOP_SONUC_HATA; }\n"
+     "    Serial.println(F(\"skop basladi\"));",
+     "yakalama (cekirdek 0) yazdirirsa WebAkis satir birlestirmesi iki "
+     "cekirdekten beslenir ve D/skop satirlari karakter duzeyinde karisir"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  skop_sonuc_isle();         // B40b: cekirdek 0'daki yakalamanin sonucu",
+     "",
+     "sonuc hic islenmez: `t` sessizce hicbir sey dondurmez, skop_is hep dolu kalir"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "        if (Serial.availableForWrite() < n + SKOP_DOKUM_PAY) return;  /* sonraki tura */",
+     "",
+     "dokum TX payini gozetmez: halka dolunca D satirlari ve dokumun kendisi "
+     "yine olcum dongusunu bloklar"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "      if (alt != '?' && skop_is != SKOP_IS_YOK) {",
+     "      if (false) {",
+     "is surerken `tb`/`tl`/`ta` skop_ayar'i degistirir; gorev yari eski yari "
+     "yeni ayarla yakalar"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  uint32_t tdiv = SKOP_TDIV_US[skop_son_tdiv];     /* B40b: yakalamanin ayari */",
+     "  uint32_t tdiv = SKOP_TDIV_US[skop_ayar.tdiv];",
+     "/skop.bin yakalamadan sonra degisen zaman tabaniyla etiketlenir"),
+
     # ── B39 · hizli yol kalibre + cekme sinamasi bedeli
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "        float vd = kal_tab_var ? kal_mv(hizli_v[n]) / 1000.0f : hizli_v[n] * lsb;",
