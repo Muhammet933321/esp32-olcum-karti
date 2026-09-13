@@ -1001,13 +1001,20 @@ static SkopOlcum skop_dokum_m;
           yakalamada YALNIZ I2C okuma (donusum/RDY yok)    tb3 5.1   tb10 3.3
           yakalamada I2C YOK, CPU mesgul                   tb3 0     tb10 0
           I2C surucusu KAPALI, SDA/SCL elle tiklatiliyor   tb3 2.4   tb10 1.2
-      Ilk tanim ("cekirdek 0 / WiFi") YANLISTI. Sebep ELEKTRIKSEL:
-      GPIO8/9 (I2C) kenarlari — surucu kapaliyken bile — GPIO4'un ayni
-      ADC1 birimindeki donusumune hata sokuyor. B40a'da yakalama donguyu
-      bloklarken bu yalitim KAZARA saglaniyordu; B40b onu bozdu. Zincir
-      ve bringup yesildi: hicbir iddia ORNEK BUTUNLUGUNE bakmiyordu.
-      Donanim cozumu: I2C (ve RDY) ADC1 DISI pinlere — KULLANICI KARARI.
-      O zamana kadar: yakalama surerken ADS SUSUYOR (loop()'ta bekci),
+      Ilk tanim ("cekirdek 0 / WiFi") YANLISTI. Sebep ELEKTRIKSEL: I2C
+      kenarlari — surucu kapaliyken bile — skop donusumune hata sokuyor.
+      B40a'da yakalama donguyu bloklarken bu yalitim KAZARA saglaniyordu;
+      B40b onu bozdu. Zincir ve bringup yesildi: hicbir iddia ORNEK
+      BUTUNLUGUNE bakmiyordu.
+      🔶 B44 DUZELTMESI (kuplaj deneyi, `tK` + tezgah_kuplaj.py): yukaridaki
+      tablo SIRALI kosuldu ve CAL PWM'inin ara sira gelen hata patlamalariyla
+      karisabiliyordu. Icice, CAL kapali, >30 kod, 16 660 ornek/durum:
+          GPIO8/9 teller BAGLI 2.22 · teller SOKUK 0 · bos GPIO2 0.06 ·
+          bos GPIO40 0.18 · AYNI teller GPIO41/42'de (ADC'siz) 1.26 /1000
+      Hatayi pinin ADC1'de olmasi degil YUKLU HAT uretiyor; I2C'yi ADC1
+      disina TASIMAK COZMUYOR (olculdu, geri alindi). Aday: kablo demeti
+      icinde I2C tellerinden GPIO4 teline sizma.
+      Bugunku cozum: yakalama surerken ADS SUSUYOR (loop()'ta bekci),
       susma suresi `ads_duraklama_ms` olarak SAYILIYOR, >1 s araliklar
       enerji sayacinda eskisi gibi `enerji_kayip_ms`e yaziliyor.
       Gorev yine de ayri: komutlar (ozellikle `p0` pil DURDUR) uzun bir
@@ -1037,6 +1044,19 @@ static uint8_t skop_son_tdiv = 5, skop_son_kip = 0;
 static uint32_t ads_duraklama_top_ms = 0;
 static uint32_t ads_duraklama_bas_ms = 0;
 static bool pil_testi_suruyor();   /* tanimi pil durumundan sonra */
+
+/* 🔶 B44 — KUPLAJ DENEYI (`tK[<pin>[,<pin>]]`). Soru: B41'deki tek-ornek
+   hatalari PINDEN mi (GPIO8/9 ADC1 pedi) yoksa HATTAN mi (modullere giden
+   teller, pull-up akimi) geliyor? Cevap I2C'yi baska pine TASIMANIN ise
+   yarayip yaramayacagini soyluyor. Komut normal bir skop yakalamasi
+   yapiyor (ADS B41'deki gibi susuyor) ve yakalama BOYUNCA secilen pinleri
+   I2C benzeri kenar patlamalariyla tiklatiyor; bos liste = kontrol.
+   ⚠ IZIN LISTESI DISINDA HICBIR PINE DOKUNULMAZ — ozellikle GPIO6 PIL
+     KAPISI (MOSFET). Bkz. `kuplaj_pin_serbest`. */
+static uint8_t  kuplaj_pin[2] = { 0xFFu, 0xFFu };
+static bool     kuplaj_aktif = false;
+static bool     kuplaj_hazir = false;
+static uint32_t kuplaj_patlama = 0;
 
 /* B40b/B41: `skop_gorevi` (cekirdek 1, oncelik 2) cagiriyor. YAZDIRMAZ — sonucu
    dondurur, metni cekirdek 1 basar. Dokum/is cakismasini cagiran taraf
@@ -1498,6 +1518,63 @@ void skop_ayar_yaz()
 }
 
 
+/* B44 — kuplaj deneyinde tiklatilabilecek pinler. Yalnizca I2C hatlari
+   ve bu kartta BOS olan pinler. DISARIDA (bilerek): 4/5 skop ve hizli
+   kanal, 6 PIL KAPISI, 7 RDY, 10 CAL, 0/3/45/46 acilis baglama pinleri,
+   19/20 USB, 26-37 flas + oktal PSRAM, 43/44 UART0 (seri konsol). */
+static bool kuplaj_pin_serbest(int p) {
+  return p == 1 || p == 2 || p == PIN_SDA || p == PIN_SCL || (p >= 39 && p <= 42);
+}
+
+/* Yakalama surerken loop()'tan cagriliyor (ADS susuyor, I2C serbest).
+   Kenarlar bus'a ZARARSIZ: pinler SIRAYLA tiklatiliyor — SDA inip
+   kalkarken SCL bosta (yalnizca baslat/dur kosulu, saat yok), SCL darbe
+   yaparken SDA bosta (saat var, baslat yok). Ayni surus her durumda:
+   acik-drenaj + dahili pull-up; tek degisken pinin YERI ve YUKU. */
+static void kuplaj_patlat() {
+  if (!kuplaj_hazir) {
+    if (kuplaj_pin[0] == PIN_SDA || kuplaj_pin[0] == PIN_SCL
+        || kuplaj_pin[1] == PIN_SDA || kuplaj_pin[1] == PIN_SCL) Wire.end();
+    for (uint8_t k = 0; k < 2u; k++)
+      if (kuplaj_pin[k] != 0xFFu) {
+        pinMode(kuplaj_pin[k], OUTPUT_OPEN_DRAIN | PULLUP);
+        digitalWrite(kuplaj_pin[k], HIGH);
+      }
+    kuplaj_hazir = true;
+  }
+  for (uint8_t k = 0; k < 2u; k++) {
+    uint8_t p = kuplaj_pin[k];
+    if (p == 0xFFu) continue;
+    for (uint8_t i = 0; i < 18u; i++) {        /* ~iki I2C baytinin kenari */
+      digitalWrite(p, LOW);  delayMicroseconds(1);
+      digitalWrite(p, HIGH); delayMicroseconds(1);
+    }
+  }
+  kuplaj_patlama++;
+  delay(1);                                    /* ADS okuma temposu (~1 ms) */
+}
+
+static void kuplaj_bitir() {
+  bool i2c = false;
+  for (uint8_t k = 0; k < 2u; k++) {
+    uint8_t p = kuplaj_pin[k];
+    if (p == 0xFFu) continue;
+    if (p == PIN_SDA || p == PIN_SCL) i2c = true;
+    else pinMode(p, INPUT);
+  }
+  if (i2c && kuplaj_hazir) Wire.begin(PIN_SDA, PIN_SCL, 400000);
+  Serial.print(F("* kuplaj: pinler="));
+  if (kuplaj_pin[0] == 0xFFu) Serial.print(F("yok"));
+  else {
+    Serial.print(kuplaj_pin[0]);
+    if (kuplaj_pin[1] != 0xFFu) { Serial.print(','); Serial.print(kuplaj_pin[1]); }
+  }
+  Serial.print(F(" patlama="));
+  Serial.println(kuplaj_patlama);
+  kuplaj_aktif = false;
+  kuplaj_hazir = false;
+}
+
 // Osiloskop komutlari. Asama 2'de `komut_calistir` icinde satir ici
 // idi; Asama 3'te fonksiyona cikarildi ki komut isleyici sadeleşsin.
 // GOVDE ASAMA 2 ILE AYNI — davranis degismedi.
@@ -1524,6 +1601,28 @@ void skop_komut(const char *s) {
         /* B40b: yakalama ayri gorevde; onay satiri sonuc gelince
            `skop_sonuc_isle()`den basiliyor. */
         skop_is_ver(SKOP_IS_IKILI);
+      } else if (alt == 'K') {                    /* B44 kuplaj deneyi */
+        uint8_t p[2] = { 0xFFu, 0xFFu };
+        uint8_t adet = 0;
+        const char *q = s + 2;
+        while (*q) {
+          int v = atoi(q);
+          if (adet >= 2u || !kuplaj_pin_serbest(v)) {
+            Serial.print(F("! kuplaj: pin "));
+            Serial.print(v);
+            Serial.println(F(" izinli degil (en cok 2 pin: 1 2 SDA SCL 39 40 41 42)"));
+            return;
+          }
+          p[adet++] = (uint8_t)v;
+          while (*q && *q != ',') q++;
+          if (*q == ',') q++;
+        }
+        kuplaj_pin[0] = p[0];
+        kuplaj_pin[1] = p[1];
+        kuplaj_patlama = 0;
+        kuplaj_hazir = false;
+        kuplaj_aktif = true;
+        if (!skop_is_ver(SKOP_IS_DOKUM)) kuplaj_aktif = false;
       } else if (alt == '?') {
         skop_ayar_yaz();
       } else if (alt == 'a') {                    /* otomatik kurulum */
@@ -3848,14 +3947,16 @@ void loop() {
   //   ama bir tik beklemez.
   yield();
 
-  /* 🔴 B41 — YAKALAMA SURERKEN ADS SUSUYOR. I2C kenarlari (GPIO8/9)
-     ayni ADC1 birimindeki skop donusumune tek-ornek hata sokuyor
+  /* 🔴 B41 — YAKALAMA SURERKEN ADS SUSUYOR. Yuklu I2C hattinin kenarlari
+     skop donusumune tek-ornek hata sokuyor; pini tasimak cozmuyor (B44)
      (gerekce ve olcum: SKOP_IS tanimlarinin yaninda). Susma sayiliyor;
      enerji araligi >1 s ise `enerji_biriktir` eskisi gibi kayip yaziyor. */
   if (skop_is != SKOP_IS_YOK) {
     if (!ads_duraklama_bas_ms) ads_duraklama_bas_ms = millis() | 1u;
+    if (kuplaj_aktif) kuplaj_patlat();       /* B44 deneyi — yalnizca `tK` */
     return;
   }
+  if (kuplaj_aktif) kuplaj_bitir();          /* Wire, ADS okunmadan ONCE geri */
   if (ads_duraklama_bas_ms) {
     ads_duraklama_top_ms += millis() - ads_duraklama_bas_ms;
     ads_duraklama_bas_ms = 0;

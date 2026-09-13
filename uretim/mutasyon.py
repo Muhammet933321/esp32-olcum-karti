@@ -610,6 +610,21 @@ MUTASYONLAR = [
      "varsayimiyla dogrulanir (LEDC 7000 -> 6998 kirpiyor)"),
 
     # ── B31 · skop zaman tabani (CAL cikisiyla kartta olculdu)
+    # ── B44 · kuplaj deneyi komutu (`tK`) guvenli
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  return p == 1 || p == 2 || p == PIN_SDA",
+     "  return p == 1 || p == 6 || p == PIN_SDA",
+     "EMNIYET: PIL KAPISI MOSFET'i (GPIO6) tiklatilabilir"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "(p >= 39 && p <= 42);", "(p >= 33 && p <= 42);",
+     "oktal PSRAM pinleri (33-37) tiklatilabilir — kart coker"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (i2c && kuplaj_hazir) Wire.begin(PIN_SDA, PIN_SCL, 400000);\n", "",
+     "deneyden sonra I2C geri kurulmaz: ADS'ler kalici okunamaz"),
+    ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (kuplaj_aktif) kuplaj_patlat();       /* B44 deneyi — yalnizca `tK` */\n", "",
+     "tiklatma yakalama sirasinda yapilmaz: deney bos sonuc verir"),
+
     # ── B43 · olcum satiri eksenle ayni kalibrasyonda, WiFi'de de var
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "        if (sonuc == SKOP_SONUC_OK) {\n            SkopOlcum &m = skop_dokum_m;",

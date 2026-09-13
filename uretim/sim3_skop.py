@@ -826,8 +826,38 @@ def bolum6(r):
     r.kosul("  6i: [!] yakalama surerken ADS (I2C) SUSUYOR — loop()'ta bekci",
             _bekci in _loop and _olc in _loop
             and _loop.index(_bekci) < _loop.index(_olc),
-            "I2C kenarlari (GPIO8/9) ayni ADC1 birimindeki skop donusumune "
-            "tek-ornek hata sokuyor — kullanicinin ekranindaki igneler ve sahte tetik")
+            "yuklu I2C hattinin kenarlari skop donusumune tek-ornek hata "
+            "sokuyor (pini tasimak cozmuyor, B44) — kullanicinin ekranindaki "
+            "igneler ve sahte tetik")
+
+    # ── B44: KUPLAJ DENEYI KOMUTU (`tK`) GUVENLI ───────────────────────
+    # Komut pinleri acik-drenaj tiklatiyor. Izin listesi CALISTIRILARAK
+    # sinaniyor: C ifadesi 0..48 her pin icin degerlendiriliyor. Metin
+    # aramasi `p == 6` gibi bir eklemeyi kacirabilirdi.
+    _serbest = _kod(_govde_c("static bool kuplaj_pin_serbest(int p) {", "\n}\n"))
+    _ifade = re.search(r"return\s+(.*?);", _serbest, re.S)
+    _izinli = set()
+    if _ifade:
+        _py = (_ifade.group(1).replace("||", " or ").replace("&&", " and ")
+               .replace("PIN_SDA", "8").replace("PIN_SCL", "9"))
+        if re.fullmatch(r"[\sp0-9=<>()orand]+", _py):
+            _izinli = {p for p in range(49) if eval(_py, {}, {"p": p})}
+    _yasak = {0, 3, 4, 5, 6, 7, 10, 19, 20, 43, 44, 45, 46} | set(range(26, 38))
+    r.kosul("  6l: [!] `tK` izin listesi CALISTIRILDI: yalniz I2C + bos pinler",
+            _izinli == {1, 2, 8, 9, 39, 40, 41, 42},
+            f"izinli {sorted(_izinli)}")
+    r.kosul("  6l: [!] EMNIYET: PIL KAPISI (6), skop/hizli (4/5), RDY (7), CAL (10), "
+            "UART, flas/PSRAM tiklatilamaz",
+            bool(_izinli) and not (_izinli & _yasak),
+            f"cakisan: {sorted(_izinli & _yasak)} — GPIO6 MOSFET kapisini surer")
+    _bitir = _kod(_govde_c("static void kuplaj_bitir() {", "\n}\n"))
+    r.kosul("  6l: [!] deney bitince I2C geri kuruluyor (ADS okunmadan ONCE)",
+            "Wire.begin(PIN_SDA, PIN_SCL, 400000);" in _bitir
+            and "  if (kuplaj_aktif) kuplaj_bitir();" in _loop
+            and _loop.index("  if (kuplaj_aktif) kuplaj_bitir();") < _loop.index(_olc),
+            "Wire.end() sonrasi geri kurulmasa ADS'ler kalici okunamaz")
+    r.kosul("  6l: tiklatma YALNIZ yakalama surerken (ADS susarken)",
+            "    if (kuplaj_aktif) kuplaj_patlat();" in _loop.split(_bekci, 1)[-1].split("return;", 1)[0])
     r.kosul("  6i: [!] ADS susmasi SAYILIYOR (`ads_duraklama_ms`)",
             "ads_duraklama_top_ms += millis() - ads_duraklama_bas_ms;" in ino
             and 'F(" ads_duraklama_ms=")' in ino,
@@ -961,16 +991,16 @@ def main() -> int:
          "gercek on uc (op-amp cikisi ~%0, skop bolucusu ~%10) HESAPLANDI, "
          "olculmedi. On uc lehimlenince `wB` kosun: iki kanal da "
          "'surulu' ve %25'in altinda olmali"),
-        ("🔶 KULLANICI KARARI: I2C'yi (ve RDY'yi) ADC1 DISI pinlere tasimak",
-         "B41 tanisi: GPIO8/9 (I2C) kenarlari — surucu kapaliyken bile — "
-         "GPIO4'un ADC1 donusumune tek-ornek hata sokuyor (3-9/1000). Bugun "
-         "yakalama surerken ADS SUSTURULUYOR: skop temiz ama o sure enerji ve "
-         "pil olcumu yok (200 ms/bol'de 2.7 s; >1 s araliklar enerji kaybi "
-         "olarak sayiliyor, pil testi surerken skop hic yakalanmiyor). "
-         "ESP32-S3'te ADC1 = GPIO1-10; I2C ve RDY GPIO11+ (tercihen ADC'siz "
-         "38-42) pinlere alinirsa ikisi ayni anda calisabilir. Breadboard'da "
-         "3 tel + sema + firmware pin sabitleri. Tasindiktan sonra "
-         "`tezgah_blokaj.py --skop` ADS SUSTURULMADAN 0 hata vermeli"),
+        ("I2C kenarlarinin skop orneklerine sizmasi — KABLODA mi (B44 acik soru)",
+         "B44 kuplaj deneyi (2026-09-13): hata YUKLU HATTAN geliyor, pinden "
+         "degil; I2C'yi ADC'siz GPIO41/42'ye tasimak COZMEDI (1.26/1000, "
+         "8/9'da 2.22). Bu yuzden yakalama surerken ADS susmaya devam ediyor. "
+         "Kalan aday: disi-erkek tel demetinde I2C tellerinden GPIO4 teline "
+         "sizma ya da ortak GND telinde sicrama. Sinama: I2C tellerini GPIO4 "
+         "telinden AYIR (ya da GND'ye burgulu cift yap), sonra "
+         "`python tezgah_kuplaj.py --asama 1d --karisik --cal-kapali --tekrar 20` "
+         "— K1 K0 duzeyine inerse sebep kablo. Nihai kart (PCB, toprak "
+         "plani) breadboard'dan FARKLI davranir: orada tekrar olculmeli"),
         ("[!] Skop yakalamasi — `python tezgah_blokaj.py --skop`",
          "Bes sey sinaniyor: (1) surulu dugumde TEK-ORNEK HATASI 0 — B40b bunu "
          "bozmustu ve zincir yakalayamamisti; (2) komut dongusu <= 20 ms "

@@ -8068,6 +8068,8 @@ WiFi'de 200 ms/böl yakalamanın **hata bildirimi olmadan** çizilmesi, B40'ın 
 
 ##### 🔶 Kullanıcı kararı: I²C'yi ADC1 dışına taşımak
 
+> ⚠ **B44'te (5.12.58) ölçüldü ve REDDEDİLDİ:** taşımak çözmüyor; yukarıdaki A/B tablosu sıralı koşulmuştu ve CAL PWM'inin ara sıra gelen hata patlamalarıyla karışabiliyordu. Aşağıdaki öneri tarihsel kayıt olarak duruyor.
+
 Bugünkü düzeltme bir **ödünleşim**: skop temiz, ama yakalama süresince enerji ve pil ölçümü yok. ESP32-S3'te ADC1 = GPIO1–10. I²C (ve RDY) GPIO11+ pinlere — tercihen ADC'siz 38–42 — alınırsa ikisi aynı anda çalışabilir. Breadboard'da 3 tel + şema + firmware pin sabitleri; ön uç henüz kurulmadığı için şimdi ucuz. Taşındıktan sonra ADS susturulmadan `tezgah_blokaj --skop` 0 hata vermeli. Tezgah listesinde.
 
 ##### Doğrulama
@@ -8154,6 +8156,46 @@ Arayüzde yeniden hesaplamak `skop_olc`'un ikinci bir kopyası olurdu (AVR emül
 * Panelde (WiFi, yenilenmiş sayfa): ölçüm satırı 12 değerle görünüyor; Vmax 0.3482 / Vmin −4.0922 / Vort −1.8082 V eksenden hesaplananla aynı.
 * Zincir 18/18, **1406 iddia** · `sim3_skop` 72 → **78** (6k) · `test_arayuz3` 304 → **313** (bölüm 20) · mutasyon B19 **43/43**, B7 **61/61**. İlk koşuda bir mutasyon **kaçtı**: "M onaydan önce" iddiası yalnız biçimleyici çağrısının yerine bakıyordu, `Serial.write` silinince yeşil kalıyordu — iddia yazmanın kendisini de sıraya alacak şekilde düzeltildi.
 * ⚠ Kendi hatam, kayda değer: arayüzü karta yazdıktan sonra tarayıcıda aynı adrese (`#/skop`) `navigate` sayfayı **yenilemedi** (yalnızca hash gezinmesi); eski kod "ölçüm yok" gösterdi. Kart doğruydu (`no-cache`, yeni `app.js` sunuluyordu). Arayüz güncellemesinden sonra `location.reload()` şart.
+
+---
+
+#### 5.12.58 🔶 B44 — KUPLAJ DENEYİ: I²C'yi taşımak ÇÖZMÜYOR, B41'in tanısı düzeltildi (2026-09-13)
+
+**Soru.** B41 skop örneklerindeki tek-örnek hataları I²C kenarlarına bağlamış ve "I²C'yi (GPIO8/9, ADC1 pinleri) ADC1 dışına taşı" önermişti — kullanıcı kararı olarak bekliyordu. Gerekçe kanıtlanmamıştı ve karşı bir işaret vardı: GPIO10 da ADC1 pini, 20 kHz CAL basarken hata sıfırdı. Tel oynatmadan önce ölçüldü.
+
+**Araç.** Firmware `tK[<pin>[,<pin>]]`: normal skop yakalaması (ADS susuyor) + yakalama boyunca seçilen pinlerde I²C benzeri kenar patlaması (sürüş hep aynı: açık-drenaj + dahili pull-up; bus'a zararsız sıra). İzin listesi `1 2 SDA SCL 39–42` — pil kapısı (6), skop/hızlı (4/5), RDY (7), CAL (10), UART, flaş/PSRAM **dışarıda**; zincir listeyi C ifadesini çalıştırarak sınıyor. Tezgah `uretim/tezgah_kuplaj.py` (yakalama başına hata + gerçekleşen patlama sayısı; boş sonuç elenir).
+
+##### Sıralı koşu YANILTTI
+
+İlk koşu (durum başına 10 yakalama, arka arkaya, CAL 20 kHz): K1 GPIO8/9 1.68 (bir önceki koşuda 6.72) · boş GPIO2 **0** · boş GPIO40 **4.08** /1000 — "ADC'siz pin hata sokuyor, ADC1 pini sokmuyor". Durumlar **iç içe** koşulunca (her turda her durum bir yakalama) GPIO40 **0**, kontrol ise iki yakalamada **tam 33'er hata** verdi.
+
+150 kontrol yakalamasının ham kaydı olayı çözdü: bozuk yakalamalarda hatalar **tam 25 örnekte bir, aynı fazda, 60–70 kod**. 20 kHz CAL'in 4. harmoniği 80 kHz, 83 333 Sa/s'de 3333 Hz'e = 25 örneğe katlanıyor; 833/25 = 33. **CAL PWM kenarı ADC örnekleme anına denk gelince** örneğe ~60 kod giriyor; faz yavaş kaydığı için ara sıra. Sıralı koşuda bir durumun 10 yakalamasına bu dönem denk gelince o durum "kirli" görünüyordu — **B41'in A/B tablosu da sıralıydı**.
+
+##### Temiz ölçüm (CAL KAPALI, iç içe 20 tur, 16 660 örnek/durum, eşik > 30 kod)
+
+| durum | tıklatılan | yük | /1000 | hatalı yakalama |
+|---|---|---|---|---|
+| K0 kontrol | — | — | 0 · 0.12 | 0/20 · 2/20 |
+| K1 | GPIO8/9 | I²C telleri **bağlı** | **2.22** | 9/20 |
+| K4 | GPIO8/9 | teller **sökük** | **0** | 0/20 |
+| K2 | boş GPIO2 (ADC1) | — | 0.06 | 1/20 |
+| K3 | boş GPIO40 (ADC'siz) | — | 0.18 · 0 | 3/20 · 0/20 |
+| **K5** | **GPIO41/42 (ADC'siz)** | **aynı teller bağlı** (kullanıcı taşıdı) | **1.26** | 4/20 |
+
+(İki değerli satırlar iki oturumdan: aşama 1d ve aşama 2.)
+
+##### Sonuç
+
+* Hatayı **yüklü hat** üretiyor; pinin ADC1'de olması belirleyici değil (boş ADC1 ve boş ADC'siz pin arasında anlamlı fark yok, teller sökülünce aynı pinler 0).
+* **I²C'yi ADC'siz pinlere taşımak çözmüyor**: K5 1.26/1000. K1'den (2.22) düşük görünüyor ama hatalar yakalamalarda kümelendiği için anlamlı değil (9/20'ye karşı 4/20 yakalama). Tellerin 8/9'a **geri takılması** kararlaştırıldı; şema ve belgeler değişmedi.
+* B41'in çözümü (yakalama sürerken ADS susuyor) **kalıyor**; tanısı firmware yorumunda ve 6i iddiasında düzeltildi.
+* **Açık aday: kablo.** Dişi-erkek tel demetinde I²C tellerinden GPIO4 teline sızma ya da ortak GND telinde sıçrama. Sınama tezgah listesinde (telleri ayır → `--asama 1d` yeniden). Nihai PCB (toprak planı, kısa iz) breadboard'dan farklı davranır; orada yeniden ölçülmeli.
+* Yan bulgu: skop girişini süren **PWM de** aynı yolla hata sokuyor (kenar örnekleme anına denk gelince). CAL ile yapılan bütünlük sınamalarında (B41, `tezgah_blokaj --skop`) bu bir karışma kaynağı — hata sayımı yapan yeni deneyler `--cal-kapali` ile koşulmalı.
+
+##### Doğrulama
+
+* `sim3_skop` 78 → **82** (6l: izin listesi çalıştırılarak, pil kapısı dahil yasak pinler, I²C'nin ADS okunmadan önce geri kurulması, tıklatmanın yalnız yakalamada) · mutasyon B19 **47/47**.
+* `tK8,9` sonrası I²C'nin geri kurulduğu kartta doğrulandı (D satırı durum 0). Teller 41/42'deyken ADS'ler beklendiği gibi okunmuyor (durum 3); ⚠ **geri takıldıktan sonra durum 0 doğrulaması BEKLİYOR.**
 
 ---
 
