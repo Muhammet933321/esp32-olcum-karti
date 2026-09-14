@@ -754,6 +754,20 @@ IPC2221_KACAK_615V = 3.08                 # mm, kaplamasiz dis katman (B2)
 IEC60664_CREEPAGE_TEMEL = 6.3             # mm, 630 V basamagi, PD2, grup IIIa
 IEC60664_CREEPAGE_TAKVIYELI = 12.6        # mm, temelin 2 kati
 DELIKLI_ADIM = 2.54                       # mm
+# 🔴 B48 (2026-09-14): kacak yolu BAKIRDAN BAKIRA olculur, delik merkezinden
+#   merkeze DEGIL. Delikli plaket pedi 1.0-1.2 mm, lehim tepecigiyle komsu
+#   pedler arasi ~1.0 mm kalir (b15-arastirma.md:470) -> etkin iletken capi
+#   2.54 - 1.0 = 1.54 mm. "5 delik atla" (12.70 mm merkez) bakirdan bakira
+#   11.16 mm eder ve 12.6 mm'yi SAGLAMAZ; 6 delik (13.70 mm) saglar.
+#   ⚠ Kullanicinin plaketinde kumpasla olculmedi — olcunce guncelle.
+DELIKLI_PAD_ETKIN_MM = 1.54
+# IEC 60664-1 Tablo F.4 — PD2, malzeme grubu III (V, mm). Kaynaklar:
+#   63/400/800/1000 satirlari b15-arastirma.md:468 (TI SLUP421 sl.17),
+#   400/500/630 basamaklari yukaridaki DUZELTME notu. Aradeger dogrusal
+#   (standart izin veriyor). 50 V altinda satir yok -> kural uygulanmiyor.
+IEC60664_F4_PD2_MG3 = [(63, 1.25), (400, 4.0), (500, 5.0), (630, 6.3),
+                       (800, 8.0), (1000, 10.0)]
+IEC60664_ESIK_V = 50.0
 # Hava kirilma dayanimi ve eksenel direnc govde boyu — C2 senaryosunda
 # "acik kalan direnc uzerinden ark atlar mi" sorusu icin.
 HAVA_KIRILMA_V_MM = 3000.0                # 1 atm, kuru hava

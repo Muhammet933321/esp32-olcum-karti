@@ -339,8 +339,9 @@ if not _BICIM_KAYNAGI.exists():
 # Emniyet uyarisinin sayilari da kaynaktan (B15/D2 ile AYNI hesap).
 import math as _math
 creepage = T.IEC60664_CREEPAGE_TAKVIYELI
-n_delik = _math.ceil(creepage / T.DELIKLI_ADIM)
-mesafe = n_delik * T.DELIKLI_ADIM
+# B48: bakirdan bakira — merkez araligindan ped capi dusuluyor
+n_delik = _math.ceil((creepage + T.DELIKLI_PAD_ETKIN_MM) / T.DELIKLI_ADIM)
+mesafe = n_delik * T.DELIKLI_ADIM - T.DELIKLI_PAD_ETKIN_MM
 
 CSS = _BICIM_KAYNAGI.read_text(encoding="utf-8")
 CSS = CSS[CSS.index("<style>"):CSS.index("</style>") + 8]
@@ -391,8 +392,9 @@ sayfa = f"""<!doctype html>
       <li><b>Yalıtımlı kutu ŞART</b> — kartın hiçbir noktasına elle
           erişilememeli, prob uçları dahil</li>
       <li>Delikli plakette takviyeli yalıtım için <b>{n_delik} delik
-          atla</b> ({mesafe:.2f} mm, IEC 60664 creepage
-          {creepage:.1f} mm)</li>
+          atla</b> ({mesafe:.2f} mm <b>bakırdan bakıra</b> — ped çapı
+          düşülmüş; IEC 60664 creepage {creepage:.1f} mm). Yerleşim planı:
+          <a href="7-yerlesim.html">Yerleşim</a></li>
       <li>Enerji verilmişken karta <b>dokunma</b>; ölçüm bitince önce
           devreyi kes, sonra probu al</li>
     </ul>

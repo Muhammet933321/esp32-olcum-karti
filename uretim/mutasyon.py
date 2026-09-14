@@ -988,6 +988,38 @@ MUTASYONLAR = [
      'tezgah("B3 Sema"', 'if False: tezgah("B3 Sema"',
      "bir adim tezgah kalemi basmayi birakirsa toplayici KIRMIZI "
      "donmeli — adim kendi basina yesil kalsa bile"),
+
+    # ── B48 · delikli plaket yerlesimi (bakir ↔ netlist, geometriden)
+    # Denetim tel etiketlerini DEGIL geometriyi okuyor; bu mutasyonlar
+    # VERIYI bozuyor ve geometrik denetimin isirdigini olcuyor. Bacak
+    # sirasi tablosunun (BACAK) fiziksel dogrulugu ise burada SINANAMAZ —
+    # o, tezgah kalemi (multimetre).
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_veri.py",
+     '"C15":   ("A", "C1", 26, 14, 180, 2),', '"C15":   ("A", "C1", 26, 14, 0, 2),',
+     "parca 180 derece ters takilirsa (+3V3 ve GND bacaklari yer degisir) "
+     "bakir netlistle ayrisir: kisa devre ya da baska bacakla ayni delik"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_veri.py",
+     '"R41":   ("A", "R4", 29, 25, 0, 1),', '"R41":   ("A", "R4", 29, 25, 0, 0),',
+     "parca kendi aglarinin izlerinden ONCEKI adimda takilirsa o adimda "
+     "kart ACIK kalir — 'her kurulum adiminda tam bagli' iddiasi"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_veri.py",
+     'KELVIN = [("R18.1", "T_SP.1"), ("R19.1", "T_SN.1")]',
+     'KELVIN = [("R18.1", "T_SN.1"), ("R19.1", "T_SP.1")]',
+     "Kelvin uclari capraz baglanirsa (S+ alt, S- ust) sont algilamasi ters "
+     "isaretli ve GND'ye kisa olur"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_veri.py",
+     '("X:RS.2", "A:T_YILDIZ", "yildiz", 3,', '("X:RS.2", "A:T_YILDIZ", "kelvin", 3,',
+     "kart topragi guc yoluna 'yildiz' diye isaretli TEK kablodan gitmeli; "
+     "ikinci bir toprak yolu sont dususunu olcume sokar"),
+    ("B48", "yerlesim3.py", "uretim/tasarim3_sabit.py",
+     "DELIKLI_PAD_ETKIN_MM = 1.54", "DELIKLI_PAD_ETKIN_MM = 4.0",
+     "ped capi buyudukce bakirdan bakira aralik kuculur; HV kartinda "
+     "411 V'luk cift 4.11 mm'nin altina dusunce kacak yolu KIRMIZI olmali"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_teller.json",
+     '{"tur": "iz", "adim": 5, "ag": "Net-(R11-Pad2)", "yol": [[13, 10], [13, 9], [13, 8], [13, 7]]}',
+     '{"tur": "iz", "adim": 5, "ag": "Net-(R11-Pad2)", "yol": [[13, 10], [13, 9], [13, 8]]}',
+     "HV zincirinde bir iz bir delik kisa kalirsa R11-R12 dugumu ACIK: "
+     "etiket hala dogru, geometri yalan soylemiyor"),
 ]
 
 

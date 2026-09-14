@@ -11,6 +11,7 @@ Bu, projenin defalarca yandigi AYRISMA SINIFI: ayni seyin iki temsili.
 Yeni sayfa eklerken YALNIZCA buraya satir eklenecek.
 
 ⚠ `4-kurulum.html`'i bu paket URETMIYOR — `kurulum3-uret.py` uretiyor.
+  `7-yerlesim.html`'i de `yerlesim3.py` uretiyor (denetim gecerse).
   Menude durmasi onu buranin sorumluluguna sokmuyor; yalnizca seridi
   paylasiyorlar.
 """
@@ -23,6 +24,7 @@ MENU = [("index.html", "Başla"),
         ("6-ag.html", "Bağlanma"),
         ("2-malzemeler.html", "Malzemeler"),
         ("4-kurulum.html", "Kurulum"),
+        ("7-yerlesim.html", "Yerleşim"),
         ("5-muhendislik.html", "Mühendislik")]
 
 # Bagimsiz belgeler icin (kendi CSS'i olan sayfalar) satir ici bicim.

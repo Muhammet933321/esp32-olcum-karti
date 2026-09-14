@@ -455,9 +455,19 @@ def main() -> int:
     print(bl.stdout.rstrip())
     if bl.returncode != 0:
         print(bl.stderr[-1500:])
+    # B48: delikli plaket yerlesimi — bakir netlistle birebir mi (her kurulum
+    # adiminda), kacak yolu, Kelvin, ayirma. B3'un urettigi netlist3.net'i
+    # okur, o yuzden B3'ten SONRA kosmali. Denetim gecerse 7-yerlesim.html.
+    y = subprocess.run([sys.executable, "yerlesim3.py"], cwd=BURASI,
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=300)
+    print(y.stdout.rstrip())
+    if y.returncode != 0:
+        print(y.stderr[-1500:])
     sonuclar.append(("B9  Malzeme + kurulum kilavuzu",
-                     b.returncode == 0 and k.returncode == 0 and bl.returncode == 0,
-                     time.time() - t0, b.stdout + k.stdout + bl.stdout))
+                     b.returncode == 0 and k.returncode == 0 and bl.returncode == 0
+                     and y.returncode == 0,
+                     time.time() - t0, b.stdout + k.stdout + bl.stdout + y.stdout))
 
     print("\n" + "=" * 78)
     print("  OZET")

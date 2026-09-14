@@ -49,6 +49,9 @@ USB ile bağlayıp oradan — <a href="6-ag.html">Bağlanma</a>.</p>
     <td>Gereken her parça, elinizde olan ve alınacak olanlar</td></tr>
 <tr><td><a href="4-kurulum.html"><b>Kurulum</b></a></td>
     <td>Adım adım montaj kılavuzu</td></tr>
+<tr><td><a href="7-yerlesim.html"><b>Yerleşim</b></a></td>
+    <td>Delikli plakette hangi parça hangi deliğe, hangi tel nereye —
+        kurulum adımlarıyla aynı sırada, çizimli</td></tr>
 <tr><td><a href="sema.pdf"><b>Şema (PDF)</b></a></td>
     <td>Devrenin tam şeması</td></tr>
 <tr><td><a href="5-muhendislik.html"><b>Mühendislik</b></a></td>

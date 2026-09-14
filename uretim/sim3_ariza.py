@@ -2240,17 +2240,23 @@ def bolum5(r):
     r.bilgi(f"        · IPC-2221B hava araligi 615 V icin "
             f"{T.IPC2221_KACAK_615V:.2f} mm")
     r.bilgi("")
-    n_delik_temel = math.ceil(T.IEC60664_CREEPAGE_TEMEL / T.DELIKLI_ADIM)
-    n_delik_takv = math.ceil(T.IEC60664_CREEPAGE_TAKVIYELI / T.DELIKLI_ADIM)
-    r.bilgi(f"      Delikli plakette ({T.DELIKLI_ADIM:.2f} mm adim) bu ne demek:")
+    # B48: kacak yolu BAKIRDAN BAKIRA — merkez araligindan ped capi dusuluyor.
+    # Onceki hesap ceil(12.6 / 2.54) = 5 delik diyordu; 5 delik bakirdan
+    # bakira 11.16 mm eder, 12.6'yi saglamaz.
+    n_delik_temel = math.ceil((T.IEC60664_CREEPAGE_TEMEL + T.DELIKLI_PAD_ETKIN_MM)
+                              / T.DELIKLI_ADIM)
+    n_delik_takv = math.ceil((T.IEC60664_CREEPAGE_TAKVIYELI + T.DELIKLI_PAD_ETKIN_MM)
+                             / T.DELIKLI_ADIM)
+    r.bilgi(f"      Delikli plakette ({T.DELIKLI_ADIM:.2f} mm adim, ped "
+            f"{T.DELIKLI_PAD_ETKIN_MM:.2f} mm) bu ne demek:")
     r.bilgi(f"        temel yalitim    : {n_delik_temel} delik atla "
-            f"({n_delik_temel*T.DELIKLI_ADIM:.2f} mm)")
+            f"({n_delik_temel*T.DELIKLI_ADIM - T.DELIKLI_PAD_ETKIN_MM:.2f} mm bakirdan bakira)")
     r.bilgi(f"        takviyeli yalitim: {n_delik_takv} delik atla "
-            f"({n_delik_takv*T.DELIKLI_ADIM:.2f} mm)")
+            f"({n_delik_takv*T.DELIKLI_ADIM - T.DELIKLI_PAD_ETKIN_MM:.2f} mm bakirdan bakira)")
     r.kosul("      D2: semadaki 'delik atlayarak' notu SAYIYA baglandi",
             n_delik_takv >= 4,
             f"kullanici ile HV arasinda {n_delik_takv} delik "
-            f"({n_delik_takv*T.DELIKLI_ADIM:.2f} mm)")
+            f"({n_delik_takv*T.DELIKLI_ADIM - T.DELIKLI_PAD_ETKIN_MM:.2f} mm bakirdan bakira)")
     r.bilgi("")
     r.bilgi("      ⚠ Direnc govdesinin CEVRESINE karsi SUREKLI yalitimi")
     r.bilgi(f"        yalnizca {T.DIRENC_YALITIM_SUREKLI:.0f} V (Vishay MRS25). 500 V rakami")
@@ -2680,10 +2686,13 @@ def bolum7(r):
 
     # ── F9: yerlesim
     alt(r, "F9 · Delikli plaket yerlesimi — 615 V icin SAYI")
-    n = math.ceil(T.IEC60664_CREEPAGE_TAKVIYELI / T.DELIKLI_ADIM)
+    n = math.ceil((T.IEC60664_CREEPAGE_TAKVIYELI + T.DELIKLI_PAD_ETKIN_MM)
+                  / T.DELIKLI_ADIM)
     r.bilgi(f"      Sema bugun 'delik atlayarak' diyor ama SAYI vermiyor.")
     r.bilgi(f"      IEC 60664-1 takviyeli kacak yolu {T.IEC60664_CREEPAGE_TAKVIYELI:.1f} mm")
-    r.bilgi(f"      -> {T.DELIKLI_ADIM:.2f} mm adimda {n} delik = {n*T.DELIKLI_ADIM:.2f} mm.")
+    r.bilgi(f"      -> {T.DELIKLI_ADIM:.2f} mm adimda, ped {T.DELIKLI_PAD_ETKIN_MM:.2f} mm "
+            f"dusulunce {n} delik = {n*T.DELIKLI_ADIM - T.DELIKLI_PAD_ETKIN_MM:.2f} mm "
+            f"bakirdan bakira (B48: merkezden merkeze sayilan 5 delik yetmiyordu).")
     r.bilgi(f"      IPC-2221B hava araligi (615 V, kaplamasiz) "
             f"{T.IPC2221_KACAK_615V:.2f} mm -> "
             f"{math.ceil(T.IPC2221_KACAK_615V/T.DELIKLI_ADIM)} delik.")
@@ -2693,7 +2702,9 @@ def bolum7(r):
     r.bilgi(f"      {615.0/T.DIRENC_YALITIM_SUREKLI:.0f} katinda -> HV zinciri toprak duzleminden ve")
     r.bilgi("      komsu izlerden UZAK, tercihen havada askida kurulmali.")
     r.kosul("      F9: 615 V icin gereken aralik sayiya baglandi",
-            n >= 4, f"{n} delik ({n*T.DELIKLI_ADIM:.2f} mm) — takviyeli yalitim")
+            n >= 4 and n * T.DELIKLI_ADIM - T.DELIKLI_PAD_ETKIN_MM >= T.IEC60664_CREEPAGE_TAKVIYELI,
+            f"{n} delik ({n*T.DELIKLI_ADIM - T.DELIKLI_PAD_ETKIN_MM:.2f} mm bakirdan bakira) "
+            f"— takviyeli yalitim")
 
     # ── F10: prosedur
     alt(r, "F10 · Prosedur — donanimla cozulemeyen tek sey")
@@ -2758,8 +2769,8 @@ def bolum7(r):
          [], "ACIK — B11 isi, ray henuz kurulmadi"),
         ("F8", "+-12 V girisi mekanik anahtarlama + sigorta",
          [], "ACIK — B11 isi"),
-        ("F9", "Delikli plaket 615 V araligi (5 delik)",
-         [], "ACIK — montaj isi, kurulumda uygulanacak"),
+        ("F9", f"Delikli plaket 615 V araligi ({n} delik)",
+         [], "yerlesim3.py planda sayisal olarak siniyor (B48)"),
         ("F10", "Prosedur — 7 kural (kutu etiketi)",
          [], "ACIK — kutu yapilinca yazilacak"),
     ]

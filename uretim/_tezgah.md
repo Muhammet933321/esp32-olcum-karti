@@ -6,7 +6,7 @@ yeni bir kalem eklemek icin o adimin `tezgah(...)` cagrisina ekle.
 
 ## Ilk gun
 
-Bu 13 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
+Bu 14 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 
 > Asagidaki sira ZINCIR sirasi, oncelik sirasi DEGIL — kalemler arasinda elle bir siralama tutulsaydi yine bayatlardi. Hepsi ilk gun yapilacak; hangisinin once oldugu kalemin kendi kabul olcutunde yaziyor (orn. *bedava test*, *kart calisir calismaz*).
 
@@ -25,6 +25,7 @@ Bu 13 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 11 | B25 Kart bringup kosucusu | Kosucunun kendisi gercek kartta calisiyor mu |
 | 12 | B7 Arayuz | Arayuz tarayicida GERCEKTEN dogru gorunuyor mu |
 | 13 | B9 Malzeme listesi | Direnc adetleri SAYIM degil goz karari |
+| 14 | B48 Yerlesim plani | BJT/TL431/7912 bacak sirasi multimetrenin diyot kademesiyle |
 
 
 ## B1 On uc tasarimi
@@ -205,4 +206,13 @@ Bu 13 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 87 | Kayitta gorunmeyen parca GERCEKTEN yok mu | Bobin/cekirdek ve modul alanlari KISMEN girildi. 'kayitta yok' = 'elde yok' DEGIL. Olcum: kutuya bak |
 | 88 | Parcalarin gercek degerleri etiketiyle ayni mi | Ozellikle HV bolucusundeki 4.9 M ohm zinciri. Olcum: lehimlemeden once her direnci ohmmetreyle gec |
 
-**Toplam 88 kalem, 13 tanesi ilk gun.**
+## B48 Yerlesim plani
+
+| # | Olcum | Kabul olcutu |
+|---|---|---|
+| 89 | [!] BJT/TL431/7912 bacak sirasi multimetrenin diyot kademesiyle | Plan E-B-C (2N2222-331), C-B-E (BC557), REF-A-K (TL431), GND-VI-VO (7912) varsayiyor. Semadaki Q2 sembolu BC547 (C-B-E); yanlis sira transistoru YARI calistirir, sessiz kusur |
+| 90 | Plaket ped capi kumpasla | Kacak yolu hesabi lehimli iletken capini 1.54 mm aliyor. Olculen buyukse yerlesim3_veri/tasarim3_sabit guncellenip denetim yeniden kosulacak (HV kartinda pay +1.97 mm) |
+| 91 | Sigorta klipsi, 68uF ve C18 bacak araliklari | Ayak izleri tahmin: klips cifti 6 adim, 68uF 1 adim / 8 mm govde, C18 film 6 adim. Parcayi plakete oturt, delikleri say; uymayan varsa plan yeniden uretilecek (--yol-uret) |
+| 92 | Her adimin sonunda bakir sureklilik (ohmmetre) | Plan acik/kisa devre olmadigini GEOMETRIDEN kanitliyor; soguk lehim ve lehim koprusunu kanitlayamaz. Her adimda kilavuzun KAPI olcumunden once komsu pedler arasi kisa, ag iclerinde sureklilik |
+
+**Toplam 92 kalem, 14 tanesi ilk gun.**

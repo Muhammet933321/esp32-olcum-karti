@@ -163,7 +163,23 @@ Arayüz karta yazıldıktan sonra `location.reload()` şart.
 
 **Açık:** PCB'de I²C kuplajı yeniden ölçülecek · WebAkis satır birleştirme ·
 hızlı yol sıfır kalibrasyonu (ön uç gerekli) · ön uç kurulunca `wB`,
-`tezgah_kart.py --asama 1`.
+`tezgah_kart.py --asama 1` · **B11 iddiası ters** (5.12.25 "−12 V regüle,
++12 ham" diyor; bağlantıya göre 7912 GND pini +12 V'ta olduğundan kart
+GND'si 24V+'ın 12 V altında → **+12 regüle, −12 ham**; `sim3_besleme.py`
+B11-3 iddiası `neg = T.LM7912_VO` sabitiyle boş — düzeltilip mutasyon
+eklenecek; pratik etki yok, toplam besleme aynı).
+
+**🧩 B48 (2026-09-14) — DELİKLİ PLAKET YERLEŞİM PLANI HAZIR, kullanıcı
+lehime geçiyor.** Bkz. **5.12.62**. `BELGELER/7-yerlesim.html` kullanıcının
+okuduğu plan; `uretim/yerlesim3.py` denetim (40/40, B9'a bağlı), veri
+`yerlesim3_veri.py`, teller `yerlesim3_teller.json`. Üç parça: **A** ana
+analog kart (13×23 plaketten kesilmiş 38×38 delik — 10×10 plaket 32×32
+çıktı, **sığmadı**), **B** HV zinciri (5×5, 18×18), **güç yolu kutuda**
+(şönt, J3, J7, Q1 plakette değil). Kullanıcının sayımı: 13×23 = 45×90,
+10×10 = 32×32, 5×5 = 18×18; her delikte ayrı ped. Sırada: kullanıcı
+yerleşimi gözden geçirir → plaket kesilir → adım 0 (besleme) lehimlenir.
+50 mA sigorta gelmedi: yuvaya geçici **400 mA (FUS001)**, ilk enerji akım
+sınırlı; 24 V girişi XT30 (anahtarlı).
 
 ### ✅ B15 bitti (2026-09-09) — sonuçlar **5.12.24**'te
 
@@ -8246,6 +8262,28 @@ Zayıf sürüş hatayı ~4× azaltıyor ama **sıfırlamıyor**. Karar: yakalama
 
 ---
 
+#### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
+
+**Neden.** Malzemenin tamamı geldi (50 mA sigorta hariç); kullanıcı "lehimsiz test mi, plakete mi" diye sordu. Karar: **plakete, blok blok** — lehimsiz tahta bu kartta ölçüm üretmez (15 mΩ şönt + Kelvin tahta temasından küçük; 4.9 MΩ zincirde tahta kaçağı oranı bozar; B30/B44'te iki sessiz kusur gevşek telden geldi). Ama plakete geçmek için elde **yerleşim planı yoktu** — F9 ("delik atla") sayı veriyordu, yer vermiyordu.
+
+**Ne yapıldı.** `uretim/yerlesim3.py` (+ `yerlesim3_veri.py`, `yerlesim3_teller.json`, `yerlesim3_belge.py`) → `BELGELER/7-yerlesim.html`.
+
+* **Üç parça mimari.** A: ana analog kart (38×38 delik). B: HV zinciri 6×820K ayrı 5×5 plakette — 615 V bakırı ana kartın hiçbir yerine yaklaşmıyor, A'ya tek sinyal (alt düğüm ~1.7 V). Güç yolu (RS, J3, J7, Q1) **plakette değil**: 11.5 A / 6.55 A plaket bakırını aşıyor; plakete yalnız Kelvin S+/S−, tek yıldız GND teli ve kapı teli giriyor.
+* **Ayak izleri** delik biriminde (1/4W yatay 4 adım, dik 1 adım, DIP-8, TO-92/TO-220 **işlevle** eşleşen bacak, ADS modülü 1×10 dişi başlıkta, sigorta klipsi, radyal 68 µF, film C18, kart dışı tel lehim noktası + gerginlik deliği).
+* **Yol üretici** (`--yol-uret`): A* tabanlı, ağ ağ, ağaç büyütme; kaçak eşiği üstündeki komşuluğu **yasak** sayıyor, aynı ağın henüz takılmamış parçasının deliğine iz akıtmıyor. 44 ağ sırası deniyor, en az "el zahmeti" (yalıtımlı tel pahalı) seçiliyor. **Deterministik** — ilk sürüm değildi: ağ adları `set`'ten sıralanınca eşit anahtarlarda dize hash'i sırayı değiştiriyordu, iki ardışık koşu farklı JSON yazdı; önce ada göre sıralanarak düzeltildi (PYTHONHASHSEED=7 ile aynı çıktı).
+* **Denetim yol üreticiye güvenmiyor.** Tel etiketlerini okumuyor; bağlantıyı geometriden (hangi delik hangi delikle bakırla bağlı + kart dışı kablolar) yeniden kurup `netlist3.net` ile birebir karşılaştırıyor: 56 ağ, açık yok, kısa yok, **her kurulum adımında** (0..8) yarım kart da tam bağlı. Ayrıca gövde çakışması, bacak-gövde altı, Kelvin adaları yalnız, GND güç yoluna tek noktadan, kaçak yolu bakırdan bakıra (Tablo F.4 aradeğer), ayırma kondansatörü bakır yolu ≤3 delik. **40/40**, B9'a bağlı.
+* **Kullanıcı belgesi:** parça/lehim yüzü SVG (lehim yüzü aynalı), adım seçici (o adım koyu, öncekiler yarı saydam), her adımda parça→delik tablosu, izler (köşe noktaları), yalıtımlı teller, kart dışı kablolar, kılavuzun KAPI ölçümü.
+
+**🔴 Bulgu — F9'un "5 delik" sayısı bakırdan bakıra yetmiyordu.** B15/D2 ve F9 `ceil(12.6 / 2.54) = 5` diyordu; bu **merkezden merkeze** 12.70 mm. Kaçak yolu iletkenden iletkene ölçülür; ped + lehim tepeciğiyle etkin iletken çapı ~1.54 mm (b15-arastirma.md:470) düşülünce 5 delik **11.16 mm** eder, 12.6 mm'yi sağlamaz. Tek kaynağa `DELIKLI_PAD_ETKIN_MM = 1.54` ve `IEC60664_F4_PD2_MG3` tablosu kondu; B15/D2, F9, kurulum kılavuzu ve yerleşim aynı sabiti okuyor → **6 delik (13.70 mm)**. F9 koşulu artık `n·2.54 − ped ≥ 12.6` diye sınıyor. Kullanıcının plaketinde ped **ölçülmedi** — tezgah kalemi.
+
+**Sayılar.** Kart A: 81 parça, 130 iz (495 adım), 27–28 yalıtımlı tel; kullanılan alan 37×35. Kart B: 8 parça, 7 iz, 0 tel; en dar çift E8–E11 6.08 mm / gereken 4.11 mm @411 V (pay +1.97 mm; ilk sürümde sıralar 4 adımdı, pay 0.39 mm — lehim tepeciği biraz büyüse yetmezdi, 5 adıma açıldı). 10×10 plaket **32×32** delik çıktı (kullanıcı saydı), plan sığmadı → 13×23'ten (45×90) 38×38 kesilecek.
+
+**Mutasyon (6/6 yakalandı):** parça 180° ters (C15) → kısa/çift bacak · parça kendi izlerinden önceki adımda (R41 adım 1→0) → adım denetimi · Kelvin çapraz · yıldız teli "kelvin" etiketli · ped 1.54→4.0 → kaçak yolu · HV zincirinde iz bir delik kısa → açık. **Sınanamayan:** `BACAK` tablosunun fiziksel doğruluğu (2N2222-331 E-B-C, BC557 C-B-E, TL431 REF-A-K, 7912 GND-VI-VO) — yalnızca multimetreyle; tezgah listesine `[!]` ile girdi.
+
+**Tezgah kalemleri (B48):** bacak sırası diyot kademesiyle · ped çapı kumpasla · klips/68 µF/C18 bacak aralıkları · her adımda ohmmetreyle süreklilik (plan soğuk lehimi kanıtlayamaz).
+
+---
+
 #### 5.12.61 ✅ B47 — TETİK ONAYI (gürültü reddi), AYARLANABİLİR (2026-09-14)
 
 **Neden.** B44/B46: I²C susturulmuş ve CAL kapalıyken bile ~0.1–0.3/1000 tek-örnek iğne kalıyor (60 kod; histerezis 40). Tek-örnek tetikte 1000 örneklik yakalamada ~%25 olasılıkla bir iğne var; eşiğe yakın düşerse **sahte tetik** — kullanıcının B41'de ekranda gördüğü şeyin nadir hali. Kullanıcı önerisi: sabit değil, **ayarlanabilir** olsun (tek / iki örnek). Gerçek skoplardaki karşılığı "noise reject" tetik bağlantısı.
@@ -8331,6 +8369,7 @@ Hızlı ölçüm, GPIO4–GPIO5 kısa devreli düzenekte CAL 1 kHz ile **PF 0.95
 | ~~B16~~ | ✅ **V/I süzgeç eşleştirmesi** | **BİTTİ (2026-09-09).** Sonuçlar **5.12.26**'da: 41 doğrulama, C4 100nF→1nF, yeni C18/C19/C20 = 1.32 µF (stoktan). Reaktif yükte hata %155 → %1.9. 5 açık iş kalemi bıraktı |
 | **B14** | **Hızlı skop (MHz) — harici ADC** | 🔭 **Aşama 4, açık ihtimal.** Kullanıcı ilgileniyor, şimdilik almadı. Tam analiz + kademeli plan **5.12.20**'de. Adım 1 bedava: hazır açık kaynak kodu elde bir ESP32'de dene |
 | ~~B47~~ | ✅ **Tetik onayı (gürültü reddi), ayarlanabilir** | **BİTTİ (2026-09-14).** Sonuçlar **5.12.61**'de: `tn1/2`, varsayılan 2; kartta A/B 17/20 → 0/20 sahte tetik, gerçek sinyalde konum korunuyor |
+| ~~B48~~ | 🧩 **Delikli plaket yerleşim planı** | **HAZIR (2026-09-14).** Sonuçlar **5.12.62**'de: `BELGELER/7-yerlesim.html`, denetim 40/40 (B9), mutasyon 6/6. F9'un "5 delik"i bakırdan bakıra yetmiyordu → 6. Kullanıcı gözden geçirip lehime başlayacak |
 | **PCB** | **I²C kuplajı — PCB'de yeniden ölç** | 🔶 B44: SDA/SCL'ye seri direnç (33–100 Ω), tek pull-up seti, zayıf sürüş; `tezgah_kuplaj --asama 3`. K1 kontrol düzeyine inerse ADS susturması (B41) kaldırılabilir |
 
 🔴 **Değişmeyen uyarı:** kart izole değil.
