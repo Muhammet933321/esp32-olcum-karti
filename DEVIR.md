@@ -181,6 +181,16 @@ yerleşimi gözden geçirir → plaket kesilir → adım 0 (besleme) lehimlenir.
 50 mA sigorta gelmedi: yuvaya geçici **400 mA (FUS001)**, ilk enerji akım
 sınırlı; 24 V girişi XT30 (anahtarlı).
 
+**Kullanım kararı (2026-09-14, kullanıcı):** **şebeke referanslı ölçüm
+YOK** — yalnız pil/DC-DC beslemeli devreler, en fazla ~400 V, hepsi
+toprağa göre yüzer. Bu yüzden panel **açık born jak + yalıtımlı timsah**
+kablo; kılıflı (shrouded) güvenlik soketi **alınmıyor**. Kutu plastik.
+Şebeke barası ölçülecekse bu karar açılır (panelde açık metal kalmamalı).
+Üç kural: ölçülen devre kartın 24 V kaynağından beslenmez (−12 rayı
+GND'ye kısa olur) · COM devrenin en düşük potansiyeline · 60 V üstü
+kırmızı uca enerjiliyken dokunulmaz. Alınacak: plastik kutu (~20×15×7),
+50 mA sigorta, isteğe bağlı yedek ESP32-S3.
+
 ### ✅ B15 bitti (2026-09-09) — sonuçlar **5.12.24**'te
 
 `uretim/sim3_ariza.py` · 111 doğrulama · 27 senaryo · `dogrula3.py`'de B15.
