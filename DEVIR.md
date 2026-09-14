@@ -133,7 +133,7 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
 
 8. **Sonra kullanıcıya ne yapacağını anlat, onay al, öyle başla.**
 
-### 📌 GÜNCEL DURUM (2026-09-14, commit `606c4a5`) — buradan devam et
+### 📌 GÜNCEL DURUM (2026-09-14, commit `882a05f`) — buradan devam et
 
 **Kart:** ESP32-S3 N16R8, COM6 (CH343), iki ADS1115 takılı (0x48 akım,
 0x49 gerilim), WiFi'de `olcum.local`, **web parolası tanımlı** (depoda YOK,
