@@ -45,8 +45,9 @@ def malzemeler(d):
         n = len(refler)
         eslesme = B.ESLEME.get(deger)
         if eslesme:
-            env_ad, kat, notu = eslesme
-            adet, _kayitlar, _sayilmamis = B.stok_bul(kayit, env_ad, kat)
+            env_ad, kat, notu, *paket = eslesme
+            adet, _kayitlar, _sayilmamis = B.stok_bul(kayit, env_ad, kat,
+                                                       paket[0] if paket else "")
             grup = GRUP.get(kat, kat)
             if adet is not None and adet >= n:
                 stokta.append((deger, n, refler, adet, grup, notu or ""))

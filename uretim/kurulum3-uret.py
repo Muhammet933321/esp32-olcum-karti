@@ -424,19 +424,22 @@ sayfa = f"""<!doctype html>
     <p>Ayırt etme: metal film genelde <b>mavi/yeşil gövde, 5 halka</b> (%1);
        karbon film <b>bej, 4 halka</b> (%5).</p>
   </div>
+  <p><b>Güncel alışveriş listesi <a href="2-malzemeler.html">Malzemeler</a>
+     sayfasında</b> — şemadan ve envanterden üretiliyor, burada ikinci bir
+     kopya tutulmuyor. (Bu tabloda önceden elle yazılı BAT85 / 820K / 8.2K /
+     DIP-8 soket / silikon kablo kalemleri vardı; hepsi 11 Eylül'de geldi ve
+     tablo üç gün "alınacak" demeye devam etti — B48'de kaldırıldı.)</p>
   <table>
     <thead><tr><th>Parça</th><th>Adet</th><th>Neden</th></tr></thead>
     <tbody>
-      <tr><td class="mono">BAT85</td><td>{BAT85_ADET + 2}</td><td>Kelepçe — şemada <b>{BAT85_ADET} adet</b> (skop yolu 2, hızlı akım yolu 2) + 2 yedek. 1N4148 arıza akımının %25'ini iç ESD diyoduna bırakıyor</td></tr>
-      <tr><td class="mono">1N4148</td><td>0</td><td><b>Bu kartta kullanılmıyor</b> — kelepçelerin hepsi BAT85. Stoktaki 8 adet Aşama 1/2 kartları için; 1N4148 ×20 kalemi <i>elektronik yük</i> projesinin (donanım watchdog) listesinde</td></tr>
-      <tr><td><b>Metal film %1, hepsi 1/4W</b></td><td>—</td><td><b>820K ×8</b> (6 kullanılıyor + 2 yedek), <b>8.2K ×5</b>, 10K ×10, 22K ×10, 220K ×5, 6.8K ×10, 47K ×10, 2.7K ×10, 100K ×5. HV zincirinde direnç başına 102 V = sınırın %51'i; en yüksek güç yükü %20.<br><b>220R ve 100R metal film listesinde yok</b> — onlar oranı kurmuyor (TL431 ön gerilimi ve şönt RC'si), stoktaki karbon film yeterli</td></tr>
-      <tr><td class="mono">DIP-8 IC soketi</td><td>{DIP8_ADET + 2}</td><td>Şemada <b>{DIP8_ADET} adet</b> DIP-8 gövde (LM358 ×2, TL072 ×2) + 2 yedek. TL431 TO-92, ADS1115'ler modül — onlar soket almaz.<br><b>Tedarikçide adı:</b> "8 pin dip soket" / "entegre soketi" / "ic soket" — <b>direnç kategorisinde değil</b>, bağlantı/soket tarafında. Aranan: 8 pin, 2.54 mm adım, 7.62 mm sıra aralığı (300 mil)<br>Zorunlu değil ama delikli plakette 8 bacaklı bir DIP'i sökmek eziyet; ayrıca lehim ısısı op-amp'e hiç gitmez</td></tr>
-      <tr><td>Yedek ESP32-S3</td><td>1</td><td><i>önerilen</i> — 615 V ile çalışılacak, elde tek kart var</td></tr>
-      <tr><td>Silikon test kablosu</td><td>1 çift</td><td>600 V için jumper kablo <b>kullanılmaz</b></td></tr>
+      <tr><td class="mono">BAT85</td><td>{BAT85_ADET}</td><td>Kelepçe (skop yolu 2, hızlı akım yolu 2). 1N4148 <b>olmaz</b>: arıza akımının %25'ini ADS'in iç ESD diyoduna bırakıyor. Stoktaki 1N4148'ler Aşama 1/2 kartları için</td></tr>
+      <tr><td class="mono">DIP-8 IC soketi</td><td>{DIP8_ADET}</td><td>LM358 ×2, TL072 ×2. TL431 TO-92, ADS1115'ler modül — onlar soket almaz. Zorunlu değil ama delikli plakette 8 bacaklı bir DIP'i sökmek eziyet; ayrıca lehim ısısı op-amp'e hiç gitmez</td></tr>
+      <tr><td>Yedek ESP32-S3</td><td>1</td><td><i>önerilen</i> — 615 V ile çalışılacak, elde tek kart var. Tek gerçek "alınsa iyi olur" kalemi</td></tr>
     </tbody>
   </table>
-  <p><b>10K dikkat:</b> 1/4W'lık R019 tükenmiş. R032 (1/2W) ya da R033 (1W)
-     var — bu tasarımda dördü de düşük güçte, sorun değil.</p>
+  <p><b>10K dikkat:</b> karbon film R019 tükenmiş; bu kartta zaten metal film
+     R060 kullanılacak. 220R ve 100R metal film olmak zorunda değil — onlar
+     oranı kurmuyor (TL431 ön gerilimi ve şönt RC'si).</p>
 
   <h3>Gereken aletler</h3>
   <ul>

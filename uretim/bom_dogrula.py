@@ -81,6 +81,15 @@ ESLEME = {
     #    etiketi, parca elde oldugu halde onu alisveris listesinde
     #    gosteriyordu — ESP32/ADS1115 ile ayni bayatlama sinifi.
     "TL072": ("TL072CP", "Entegre", "IC — B16/B17 tamponlari"),
+    # 2026-09-11 teslimati, envantere 2026-09-14'te baglandi (B48):
+    "BAT85": ("BAT85", "Diyot", "D012 — kelepceler; DO-34"),
+    # ⚠ 820K'da IKI kayit var: R038 2W (Marx jeneratoru) ve R055 1/4W metal
+    #   film. HV bolucusu %1 metal film ister -> yalnizca "1/4W" paketli
+    #   sayilir; 2W'lik gorunmez.
+    "820K": ("820K", "Direnç", "R055 1/4W metal film — HV zinciri; 2W'lik R038 SAYILMAZ",
+             "1/4W"),
+    "8.2K": ("8.2K", "Direnç", "R061 1/4W metal film — HV bolucusunun alt bacagi",
+             "1/4W"),
     # RS semada TEK konum; dort deger SECILEBILIR kademe. 15mR Type-C
     # tasarimin birincil secimi (DEVIR 3.2), otekiler de stokta:
     # 5mR Type-C, 0.1R tas, 1R tas.
@@ -103,10 +112,12 @@ ESLEME = {
 # `yolda`  : siparis edildi, DEVIR 3.2'de belgelendi
 # `alinacak`: satin alma listesinde (DEVIR 5.12.9)
 BILINEN_DIS = {
-    "BAT85":  ("alinacak", "DO-34 eksenel Schottky — 1N5711 de olur"),
-    "820K":   ("alinacak", "metal film %1, 1/4W — tedarikcinin metal film hatti 820K'da bitiyor; 6 adet + 2 yedek"),
-    "8.2K":   ("alinacak", "metal film %1, 1/4W — HV bolucusunun alt bacagi; stokta yok"),
-    "50mA": ("alinacak", "cam sigorta + yuva; +-12 V yuku 30 mA, 1.7x pay — B15/F8"),
+    # 2026-09-14 (B48): BAT85 / 820K / 8.2K buradan ESLEME'ye tasindi —
+    # 11 Eylul'de gelip envantere girmislerdi (D012, R055, R061) ama bu
+    # liste hala "alinacak" diyordu. Ayni bayatlama sinifi (ESP32/ADS/TL072
+    # ile ucuncu kez). Kalan tek kalem sigorta.
+    "50mA": ("alinacak", "cam sigorta + yuva; +-12 V yuku 30 mA, 1.7x pay — B15/F8. "
+                         "Gelene kadar yuvaya gecici 400 mA (FUS001), ilk enerji akim sinirli"),
 }
 
 gecti = kaldi = uyari = 0
@@ -153,14 +164,17 @@ def envanteri_oku():
     return kayit
 
 
-def stok_bul(kayit, ad, kategori):
+def stok_bul(kayit, ad, kategori, paket=""):
     """Ada gore toplam adet ve kayit dokumu. Potansiyometreler HARIC —
-    `POT` onekli kayitlar direnc degil."""
+    `POT` onekli kayitlar direnc degil. `paket` verilirse yalnizca o
+    dizgeyi iceren paketler sayilir (820K: 2W'lik R038 HV bolucusune
+    girmez, yalnizca 1/4W metal film R055 sayilmali)."""
     bulunan = [r for r in kayit
                if not r["id"].startswith("POT")
                and r["kategori"].strip() == kategori
                and (r["ad"].strip().upper() == ad.upper()
-                    or r["ad"].strip().upper().startswith(ad.upper() + " "))]
+                    or r["ad"].strip().upper().startswith(ad.upper() + " "))
+               and (not paket or paket.lower() in (r["paket"] or "").lower())]
     toplam = sum(int(r["adet"]) for r in bulunan
                  if r["adet"].strip().isdigit())
     sayilmamis = [r["id"] for r in bulunan if not r["adet"].strip()]
@@ -211,8 +225,9 @@ def main() -> int:
         ihtiyac = adet * carpan
 
         if val in ESLEME:
-            env_ad, kat, notu = ESLEME[val]
-            toplam, bulunan, sayilmamis = stok_bul(kayit, env_ad, kat)
+            env_ad, kat, notu, *paket = ESLEME[val]
+            toplam, bulunan, sayilmamis = stok_bul(kayit, env_ad, kat,
+                                                   paket[0] if paket else "")
             yeterli = toplam >= ihtiyac
             durum = "yeterli" if yeterli else "YETERSIZ"
             ek = f" ({notu})" if notu else ""
