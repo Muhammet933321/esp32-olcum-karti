@@ -189,7 +189,27 @@ kablo; kılıflı (shrouded) güvenlik soketi **alınmıyor**. Kutu plastik.
 Üç kural: ölçülen devre kartın 24 V kaynağından beslenmez (−12 rayı
 GND'ye kısa olur) · COM devrenin en düşük potansiyeline · 60 V üstü
 kırmızı uca enerjiliyken dokunulmaz. Alınacak: plastik kutu (~20×15×7),
-50 mA sigorta, isteğe bağlı yedek ESP32-S3.
+50 mA sigorta, isteğe bağlı yedek ESP32-S3. Krokodil ×3+3 stokta
+(CON065/066; PVC kılıf yalnız sapı örter, çene çıplak — kalabalık pede
+değil kabloya kıstır).
+
+**🔍 Kurulum öncesi şema + kablo gözden geçirmesi (2026-09-14 gece):**
+`BELGELER/sema.pdf` 9 Eylül'de donmuştu (şema 11 Eylül'de değişti) →
+artık B3 üretiyor. Yerleşim belgesine **J5 → ESP32 tablosu** eklendi
+(GPIO numaraları firmware `PIN_*` sabitlerinden: SDA 8, SCL 9, SKOP 4,
+HAZIR 7, I_HIZLI 5, PIL_KAPI 6). İki kablo notu düzeltildi: yıldız GND
+klemens vidasına değil **S− ile aynı noktaya, şönt bacağına** (vida–bacak
+temas direnci COM'u S−'den I·R kadar kaydırırdı); B→A alt düğüm teli
+"GND ile burulu" değil (B'de GND yok) **kısa (<10 cm)**. 🔴 **Açık iş
+B49 (firmware):** şönt alçak tarafta ve gerilim kanalı kart GND'sine
+(= RS.2) referanslı → voltmetre **kaynak** gerilimini okuyor, yük
+gerilimi bundan I·R_şönt kadar düşük (ADS akım kanalının tam ölçeği
+256 mV'a kadar; 12 V/tam akımda %2, 3.3 V'ta %7.7). Pil testi
+etkilenmiyor (pil − = RS.2). Düzeltme tek satır: `V_yük = V − V_şönt`
+(B17 iki ADS'i eş zamanlı okuyor, ikisi aynı örnekte elde); menzil/faz
+kalibrasyonundan sonra, sıfır akımda etkisi yok. `olcum3.h`'ye bir
+iddia + mutasyonla girecek; donanımı değiştirmiyor, kurulumu
+bekletmiyor.
 
 ### ✅ B15 bitti (2026-09-09) — sonuçlar **5.12.24**'te
 
@@ -8380,6 +8400,8 @@ Hızlı ölçüm, GPIO4–GPIO5 kısa devreli düzenekte CAL 1 kHz ile **PF 0.95
 | **B14** | **Hızlı skop (MHz) — harici ADC** | 🔭 **Aşama 4, açık ihtimal.** Kullanıcı ilgileniyor, şimdilik almadı. Tam analiz + kademeli plan **5.12.20**'de. Adım 1 bedava: hazır açık kaynak kodu elde bir ESP32'de dene |
 | ~~B47~~ | ✅ **Tetik onayı (gürültü reddi), ayarlanabilir** | **BİTTİ (2026-09-14).** Sonuçlar **5.12.61**'de: `tn1/2`, varsayılan 2; kartta A/B 17/20 → 0/20 sahte tetik, gerçek sinyalde konum korunuyor |
 | ~~B48~~ | 🧩 **Delikli plaket yerleşim planı** | **HAZIR (2026-09-14).** Sonuçlar **5.12.62**'de: `BELGELER/7-yerlesim.html`, denetim 40/40 (B9), mutasyon 6/6. F9'un "5 delik"i bakırdan bakıra yetmiyordu → 6. Kullanıcı gözden geçirip lehime başlayacak |
+| **B49** | 🔴 **Voltmetre şönt düşümünü içeriyor** | **AÇIK (firmware).** Şönt alçak tarafta, V kanalı RS.2'ye referanslı → okunan = kaynak gerilimi = V_yük + I·R_şönt (≤ 256 mV). Düzeltme `V_yük = V − V_şönt` (iki ADS eş zamanlı, B17). Pil testi etkilenmiyor. GÜNCEL DURUM bloğunda ayrıntı |
+| **B11-düz** | 🔶 **Hangi ray regüle** | **AÇIK.** 5.12.25 "−12 regüle" diyor, bağlantıya göre +12 regüle, −12 ham; `sim3_besleme.py` B11-3 iddiası sabitle boş. Pratik etki yok; düzeltilip mutasyon eklenecek |
 | **PCB** | **I²C kuplajı — PCB'de yeniden ölç** | 🔶 B44: SDA/SCL'ye seri direnç (33–100 Ω), tek pull-up seti, zayıf sürüş; `tezgah_kuplaj --asama 3`. K1 kontrol düzeyine inerse ADS susturması (B41) kaldırılabilir |
 
 🔴 **Değişmeyen uyarı:** kart izole değil.

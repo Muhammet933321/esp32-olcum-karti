@@ -399,8 +399,18 @@ def main() -> int:
                        capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=300)
     print(n.stdout.rstrip())
+    # B48: kullanicinin okudugu `BELGELER/sema.pdf` ELLE uretiliyordu ve
+    # 9 Eylul'de donmustu — sema 11 Eylul'de degisti (emniyet baglantisi),
+    # PDF degismedi. Artik semayla ayni adimda uretiliyor.
+    pdf = subprocess.run(
+        [KICAD_CLI, "sch", "export", "pdf", "--output",
+         str(BURASI.parent / "BELGELER" / "sema.pdf"), str(SEMA3)],
+        cwd=BURASI, capture_output=True, text=True, encoding="utf-8",
+        errors="replace", timeout=300)
+    print(f"  sema.pdf: {'yazildi' if pdf.returncode == 0 else 'KIRMIZI — uretilemedi'}")
     sonuclar.append(("B3  Sema (ERC + netlist)",
-                     u.returncode == 0 and erc_temiz and n.returncode == 0,
+                     u.returncode == 0 and erc_temiz and n.returncode == 0
+                     and pdf.returncode == 0,
                      time.time() - t0, u.stdout + n.stdout))
 
     # --- B4/B5: firmware matematigi, GERCEK KOD AVR emulatorunde

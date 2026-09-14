@@ -410,6 +410,8 @@ yarı saydam, sonrakiler silik görünür. İmleci bir bacağın ya da telin
         g.append(f'<figure class="cizim">{kart_svg(kart, "alt", nl, parcalar, teller, kok_ag)}</figure>')
 
     # adim adim tablolar
+    g.append(j5_tablosu(nl))
+
     g.append("<h2>Adım adım</h2>")
     g.append("<p>Her adımın sonunda kılavuzdaki <b>KAPI</b> ölçümünü yap; geçmeden "
              "sonrakine geçme. Denetim, her adımın sonunda yarım kurulmuş kartın o "
@@ -522,6 +524,44 @@ geliyor, elle yazılmıyor.</p>
 </div>{js}</body></html>"""
     hedef.parent.mkdir(parents=True, exist_ok=True)
     hedef.write_text(sayfa, encoding="utf-8")
+
+
+# J5 pini -> ESP32 GPIO. Ag adi netlist'ten, GPIO numarasi FIRMWARE'den
+# (`PIN_*` sabitleri) — iki kaynak; ikisi de elle yazilmiyor. Ag adi ile
+# sabit adi eslesmezse tablo "?" basar, sessizce uydurmaz.
+J5_AG_PIN = {"/SDA": "PIN_SDA", "/SCL": "PIN_SCL", "/SKOP": "PIN_SKOP",
+             "/I_HIZLI": "PIN_HIZLI_I", "/HAZIR": "PIN_HAZIR",
+             "/PIL_KAPI": "PIN_PIL_KAPI"}
+J5_GUC = {"+3V3": "3V3", "+5V": "5V (VIN)", "GND": "GND"}
+
+
+def firmware_pinleri() -> dict[str, int]:
+    ino = (BURASI.parent / "kod" / "olcum-karti-a3" / "olcum-karti-a3.ino"
+           ).read_text(encoding="utf-8", errors="replace")
+    return {ad: int(no) for ad, no in
+            re.findall(r"static const uint8_t (PIN_\w+)\s*=\s*(\d+);", ino)}
+
+
+def j5_tablosu(nl) -> str:
+    pinler = firmware_pinleri()
+    satir = []
+    for no in range(1, 11):
+        ag = nl.pin_agi.get(f"J5.{no}", "?")
+        if ag in J5_GUC:
+            hedef = J5_GUC[ag]
+        elif ag in J5_AG_PIN and J5_AG_PIN[ag] in pinler:
+            hedef = f"GPIO{pinler[J5_AG_PIN[ag]]}"
+        else:
+            hedef = "?"
+        satir.append(f"<tr><td class='s'>{no}</td><td>{e(kisa_ag(ag))}</td>"
+                     f"<td><b>{e(hedef)}</b></td></tr>")
+    return ("<h2>J5 → ESP32-S3 kablosu</h2>"
+            "<p>10 telli dişi-dişi kablo; J5 pin sırası şemadan, GPIO numaraları "
+            "firmware'deki <code>PIN_*</code> sabitlerinden. <b>Devkit'in 5V pini "
+            "USB'den beslenir</b>; kart USB'siz çalışmaz (analog +5 V buradan). "
+            "İki Type-C soketinden <b>COM yazan</b> doğru olan (CH343 köprüsü).</p>"
+            "<table><tr><th class='s'>J5</th><th>Ağ</th><th>ESP32-S3 devkit pini</th></tr>"
+            + "".join(satir) + "</table>")
 
 
 def _uc_adi(uc: str) -> str:

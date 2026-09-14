@@ -225,7 +225,9 @@ KABLOLAR = [
      "S+ : sont BACAGINA, sikistirma izinin ustunden — klemensten degil"),
     ("X:RS.2", "A:T_SN", "kelvin", 3, "S- : ayni sekilde; S+ ile BURULU cift"),
     ("X:RS.2", "A:T_YILDIZ", "yildiz", 3,
-     "kart topraginin guc yoluna TEK baglantisi — klemens vidasina"),
+     "kart topraginin guc yoluna TEK baglantisi — S- ile AYNI noktaya, sont "
+     "bacagina (klemens vidasina DEGIL: vida-bacak temas direnci COM'u S-'den "
+     "I x R kadar kaydirir)"),
     ("X:Q1.S", "X:RS.1", "yuk", 8, "Q1 kaynagi -> sont ust bacagi"),
     ("X:J7.1", "X:Q1.D", "yuk", 8, "pil testi yuku -> Q1 savagi"),
     ("X:J7.2", "X:RS.2", "yuk", 8, "pil eksisi -> sont alt bacagi"),
@@ -236,7 +238,9 @@ KABLOLAR = [
     ("X:J2.2", "X:J1.2", "panel", 5, "HV COM = ortak COM jaki"),
     ("X:J4.2", "X:J1.2", "panel", 6, "skop COM = ortak COM jaki"),
     ("X:J2.1", "B:T_HV", "hv", 5, "HV jak -> B karti. 600 V silikon test kablosu"),
-    ("B:T_N6", "A:T_HVALT", "sinyal", 5, "zincir alt dugumu; bir GND teliyle burulu"),
+    ("B:T_N6", "A:T_HVALT", "sinyal", 5,
+     "zincir alt dugumu (~1.7 V, Thevenin 8.2K). KISA tut (<10 cm), HV "
+     "kablosundan ve 24 V hattindan uzak; B kartini A'nin yanina monte et"),
     ("X:J4.1", "A:T_SKOP", "sinyal", 6, "skop girisi"),
 ]
 
