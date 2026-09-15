@@ -127,6 +127,7 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
     o = [f'<svg viewBox="0 0 {gen} {yuk}" xmlns="http://www.w3.org/2000/svg" '
          f'font-family="ui-monospace,Consolas,monospace" role="img" '
          f'data-w="{W}" data-h="{H}" data-p="{P}" data-k="{K}" data-alt="{int(alt)}" '
+         f'data-cizgi="{kb.get("cizgi") or 0}" '
          f'aria-label="Kart {kart} {"lehim" if alt else "parça"} yüzü">']
     pid = f"d{kart}{yuz}"
     o.append(f'<defs><pattern id="{pid}" x="{K}" y="{K}" width="{P}" height="{P}" '
@@ -136,6 +137,23 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
     o.append(f'<rect x="{K - 6}" y="{K - 6}" width="{W * P + 12}" height="{H * P + 12}" '
              f'rx="6" fill="{"#c7a06a" if alt else "#dcc195"}"/>')
     o.append(f'<rect x="{K}" y="{K}" width="{W * P}" height="{H * P}" fill="url(#{pid})"/>')
+    # 5'lik izgara: kullanicinin plaketinde her 5 delikte bir boydan boya cizgi
+    # var. Cizgi FIZIKSEL delik araligina (5|6, 10|11, ...) konuyor; X()
+    # aynaladigi icin lehim yuzu ciziminde de gercek cizginin ustune duser.
+    n5 = kb.get("cizgi") or 0
+    if n5:
+        o.append('<g class="izgara" stroke="#ffffff" stroke-opacity=".85" stroke-width="1.4">')
+        for b in range(n5, W, n5):
+            xx = (X(b - 1) + X(b)) / 2
+            o.append(f'<line x1="{xx:.1f}" y1="{K}" x2="{xx:.1f}" y2="{K + H * P}"/>')
+        for b in range(n5, H, n5):
+            yy = (Yp(b - 1) + Yp(b)) / 2
+            o.append(f'<line x1="{K}" y1="{yy:.1f}" x2="{K + W * P}" y2="{yy:.1f}"/>')
+        o.append('</g>')
+
+    def bes(i):
+        return bool(n5) and (i + 1) % n5 == 0
+
     for cx, cy in Y.vida_merkezleri(kart):
         o.append(f'<circle cx="{X(cx)}" cy="{Yp(cy)}" r="{P * 0.95:.1f}" fill="#8a8a85" '
                  f'stroke="#555" stroke-width="1"><title>vida (M3)</title></circle>')
@@ -143,12 +161,14 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
     o.append('<g class="eksen">')
     for x in range(W):
         for yy in (K - 12, K + H * P + 20):
-            o.append(f'<text x="{X(x)}" y="{yy}" font-size="8" text-anchor="middle" '
-                     f'fill="#6b665c">{Y.sutun_adi(x)}</text>')
+            o.append(f'<text x="{X(x)}" y="{yy}" font-size="{9 if bes(x) else 8}" text-anchor="middle" '
+                     f'fill="{"#2a1f12" if bes(x) else "#6b665c"}"'
+                     f'{" font-weight=\"700\"" if bes(x) else ""}>{Y.sutun_adi(x)}</text>')
     for y in range(H):
         for xx, an in ((K - 9, "end"), (K + W * P + 9, "start")):
-            o.append(f'<text x="{xx}" y="{Yp(y) + 3}" font-size="8" text-anchor="{an}" '
-                     f'fill="#6b665c">{y + 1}</text>')
+            o.append(f'<text x="{xx}" y="{Yp(y) + 3}" font-size="{9 if bes(y) else 8}" text-anchor="{an}" '
+                     f'fill="{"#2a1f12" if bes(y) else "#6b665c"}"'
+                     f'{" font-weight=\"700\"" if bes(y) else ""}>{y + 1}</text>')
     o.append('</g>')
 
     if alt:
@@ -549,6 +569,11 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
         ic.append(_madde([
             kesim_talimati(kb),
             f"Köşelere M3 delik aç (her köşede {V.VIDA_KOSE}×{V.VIDA_KOSE} delik boş).",
+            *([f"Çizimdeki beyaz çizgiler plaketindeki {kb['cizgi']}'lik çizgilerin yerinde: "
+               f"A1'den sayınca ilk dikey çizgi <b>{Y.sutun_adi(kb['cizgi'] - 1)} ile "
+               f"{Y.sutun_adi(kb['cizgi'])}</b> sütunları, ilk yatay çizgi <b>{kb['cizgi']}. ile "
+               f"{kb['cizgi'] + 1}.</b> sıra arasında. Plaketinde öyle değilse dur, söyle."]
+              if kb.get("cizgi") else []),
             f"Ped çapını kumpasla ölç: plan <b>{V.PAD_ETKIN_MM:.2f} mm</b> varsayıyor; "
             "büyük çıkarsa dur, söyle — denetim yeniden koşsun.",
             "Plaketi <b>parça yüzü</b> sana bakacak koy; <b>A1</b> sol üst köşe"
@@ -940,25 +965,33 @@ Bakırın <b>kalitesi</b> (soğuk lehim, köprü) ancak multimetreyle sınanır.
    var olcek = svg.getBoundingClientRect().width / vb[2];
    var fs = 11 / olcek;
    var gg = document.createElementNS(NS, 'g'); gg.setAttribute('class', 'eksen-dyn');
-   function yazi(x, y, t, an){
+   var BES = +svg.dataset.cizgi || 0;
+   function yazi(x, y, t, an, koyu){
      var el = document.createElementNS(NS, 'text');
-     el.setAttribute('x', x); el.setAttribute('y', y); el.setAttribute('font-size', fs);
-     el.setAttribute('text-anchor', an); el.setAttribute('font-weight', '700');
-     el.setAttribute('fill', '#2a1f12'); el.setAttribute('paint-order', 'stroke');
+     el.setAttribute('x', x); el.setAttribute('y', y); el.setAttribute('font-size', koyu ? fs * 1.1 : fs);
+     el.setAttribute('text-anchor', an); el.setAttribute('font-weight', koyu ? '800' : '500');
+     el.setAttribute('fill', koyu ? '#1a1208' : '#5d4e3a'); el.setAttribute('paint-order', 'stroke');
      el.setAttribute('stroke', '#f3e6cc'); el.setAttribute('stroke-width', fs * 0.35);
      el.textContent = t; gg.appendChild(el);
    }
    function harf(i){ var s = '', n = i + 1; while (n) { var r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; }
-   var aralik = P * olcek, adimX = Math.max(1, Math.ceil(18 / aralik)), adimY = Math.max(1, Math.ceil(13 / aralik));
+   var aralik = P * olcek;
+   // seyreltirken 5'lik izgaraya uy: 1, 5, 10, ... (izgara yoksa en kucuk uyan adim)
+   function adimSec(enAz){
+     if (aralik >= enAz) return 1;
+     if (BES) { var k = BES; while (aralik * k < enAz) k += BES; return k; }
+     return Math.ceil(enAz / aralik);
+   }
+   var adimX = adimSec(18), adimY = adimSec(13);
    for (var i = 0; i < W; i++) {
-     if (i % adimX) continue;
+     if (adimX > 1 && (i + 1) % adimX) continue;
      var cx = K + (alt ? (W - 1 - i) : i) * P + P / 2;
-     if (cx > vb[0] + fs && cx < vb[0] + vb[2] - fs) yazi(cx, vb[1] + fs * 1.05, harf(i), 'middle');
+     if (cx > vb[0] + fs && cx < vb[0] + vb[2] - fs) yazi(cx, vb[1] + fs * 1.05, harf(i), 'middle', BES && (i + 1) % BES === 0);
    }
    for (var j = 0; j < H; j++) {
-     if ((j + 1) % adimY && adimY > 1) continue;
+     if (adimY > 1 && (j + 1) % adimY) continue;
      var cy = K + j * P + P / 2;
-     if (cy > vb[1] + fs * 2 && cy < vb[1] + vb[3] - fs * 0.5) yazi(vb[0] + fs * 0.3, cy + fs * 0.35, String(j + 1), 'start');
+     if (cy > vb[1] + fs * 2 && cy < vb[1] + vb[3] - fs * 0.5) yazi(vb[0] + fs * 0.3, cy + fs * 0.35, String(j + 1), 'start', BES && (j + 1) % BES === 0);
    }
    svg.appendChild(gg);
  }

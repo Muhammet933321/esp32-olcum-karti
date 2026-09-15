@@ -35,11 +35,14 @@ import tasarim3_sabit as T
 # delik, tek kesim yetiyor; uc kenar fabrika kenari. Plan sol ust (A1)
 # koseye bagli kaldigi icin delik adlari DEGISMEDI, fazlasi sagda ve altta
 # bos. Denetim 38/40/45'te ayni (47/47, A'da en dar pay +4.78 mm).
+# `cizgi`: plaketin uzerindeki boydan boya cizgilerin araligi (kullanicinin
+# 13x23 plaketinde her 5 delikte bir; 2026-09-15). Cizim ayni yere ciziyor;
+# B plaketinde cizgi olup olmadigi ve nereden basladigi DOGRULANMADI.
 KARTLAR = {
     "A": {"ad": "Ana analog kart", "plaket": "13x23 cm (SRF023) plaketten kesilmis 45x45 delik",
-          "sutun": 45, "satir": 45, "kaynak": (45, 90)},
+          "sutun": 45, "satir": 45, "kaynak": (45, 90), "cizgi": 5},
     "B": {"ad": "HV zinciri", "plaket": "5x5 cm (SRF020)",
-          "sutun": 18, "satir": 18, "kaynak": (18, 18)},
+          "sutun": 18, "satir": 18, "kaynak": (18, 18), "cizgi": 5},
 }
 VIDA_KOSE = 2              # her kosede 2x2 delik vida icin bos
 VIDA_YARICAP_MM = 3.0      # M3 vida basi + pul (kacak yolu hesabinda iletken)
