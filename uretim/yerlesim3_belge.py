@@ -331,6 +331,8 @@ def parca_satiri(p, nl) -> str:
         notlar.append("dişi başlık; modül sağa uzanır")
     elif p.ayak == "C1x2":
         notlar.append("iki ayrı 1nF, yan yana")
+    if p.ref in V.PARCA_NOTU:
+        notlar.append(e(V.PARCA_NOTU[p.ref]))
     return (f"<tr><td><b>{e(p.ref)}</b></td><td>{e(nl.deger.get(p.ref, ''))}</td>"
             f"<td>{' · '.join(parcalar_)}</td><td class='kucuk'>{' · '.join(notlar)}</td></tr>")
 
@@ -590,7 +592,8 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
                      "diğer bacak kıvrılıp 2'ye iner.")
         if "SIG" in ayaklar:
             m.append("Klipsleri <b>sigorta takılıyken</b> oturt (aralık kendiliğinden doğru "
-                     "olur), sonra lehimle. Bacak delikleri tabloyla uymazsa dur, söyle.")
+                     "olur), her bacağı kısa lehimle (2–3 sn — cam sigorta ısınmasın). Bacak "
+                     "delikleri tabloyla uymazsa dur, söyle.")
         if "HDR10" in ayaklar:
             m.append("1×40 erkek header'dan 10 pin kes; kısa uçlar plakete.")
         if "ADS" in ayaklar:

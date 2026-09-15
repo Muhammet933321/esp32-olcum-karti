@@ -255,6 +255,16 @@ KABLOLAR = [
     ("X:J4.1", "A:T_SKOP", "sinyal", 6, "skop girisi"),
 ]
 
+# ── belgede parca satirina eklenen aciklama ────────────────────────────
+# Kullanici sordu (2026-09-15): "F1 50mA diyor — sigorta mi yuvasi mi?",
+# "R40 metal film mi olmali?". Semanin deger alani bunu soylemiyor.
+PARCA_NOTU = {
+    "F1": "Plakete lehimlenen: 5×20 sigorta YUVASI (2 klips). 50mA, içine takılan cam "
+          "sigortanın değeri — gelene kadar 400 mA (FUS001) tak.",
+    "R40": "7912'nin asgari yükü: 12 V / 1K = 12 mA, 144 mW → 1/2 W (R030). Değer kritik "
+           "değil; metal film GEREKMEZ.",
+}
+
 # ── kart disi tel lehim noktalarinin belgede gorunen adi ───────────────
 TEL_ETIKET = {
     "T_HV": "HV jak", "T_N6": "→ A:HV alt",
