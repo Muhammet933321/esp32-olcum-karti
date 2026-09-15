@@ -173,8 +173,8 @@ eklenecek; pratik etki yok, toplam besleme aynı).
 lehime geçiyor.** Bkz. **5.12.62**. `BELGELER/7-yerlesim.html` kullanıcının
 okuduğu plan; `uretim/yerlesim3.py` denetim (40/40, B9'a bağlı), veri
 `yerlesim3_veri.py`, teller `yerlesim3_teller.json`. Üç parça: **A** ana
-analog kart (13×23 plaketten kesilmiş 38×38 delik — 10×10 plaket 32×32
-çıktı, **sığmadı**), **B** HV zinciri (5×5, 18×18), **güç yolu kutuda**
+analog kart (13×23 plaketten **45×45** delik — 2026-09-15'te 38×38'den
+büyütüldü: kısa kenar zaten 45, tek kesim; 10×10 plaket 32×32 çıktı, **sığmadı**), **B** HV zinciri (5×5, 18×18), **güç yolu kutuda**
 (şönt, J3, J7, Q1 plakette değil). Kullanıcının sayımı: 13×23 = 45×90,
 10×10 = 32×32, 5×5 = 18×18; her delikte ayrı ped. Sırada: kullanıcı
 yerleşimi gözden geçirir → plaket kesilir → adım 0 (besleme) lehimlenir.
@@ -8315,6 +8315,10 @@ Zayıf sürüş hatayı ~4× azaltıyor ama **sıfırlamıyor**. Karar: yakalama
 * ⚠ **Elle mutasyon düzeneğinde bayat `.pyc`:** aynı uzunlukta iki değişiklik aynı saniyede yazılınca Python önceki mutasyonun modülünü çalıştırdı (9c, 9b'nin çıktısını verdi). `mutasyon.py` her mutasyonda kopyayı sıfırdan kurduğu için ETKİLENMİYOR; elle düzenekte `__pycache__` silinmeli.
 
 **Doğrulama.** `yerlesim3.py` **47/47** · mutasyon B48 6 → **13/13**, ve her yeni mutasyonun **hedef** iddiayı düşürdüğü ayrıca döküldü (9f "boş alt adım"ı da tetikliyor) · `dogrula3.py` **18/18**, sayım kilidi B9 [[3,3],[47,47]], toplam 1497 · başsız Chrome: 1280 px ve 400 px, açık/koyu, konsol hatası yok, yatay taşma yok, yaptım/ilerleme/ileri/hash çalışıyor · `bom_dogrula` 3/3.
+
+**Kart A 38×38 → 45×45 (aynı gün, kullanıcı).** Kullanıcı "38×38 mecburi mi, 40 ya da 45 olmaz mı" diye sordu. 38, planın sığdığı en küçük boyuttu (kullanılan alan 37×35 + köşe vidaları). Denetim 38/40/45'te birebir aynı (47/47, A'da en dar pay +4.78 mm; vidalar köşeye kaçınca yüksek gerilimli bakırdan yalnızca uzaklaşıyor). 45×45 seçildi: 13×23 plaketin kısa kenarı zaten 45 delik → **tek kesim** (46. sıra), üç fabrika kenarı. Plan A1'e (sol üst) bağlı kaldığı için **delik adları değişmedi**; fazlası sağda/altta 7'şer sıra. `KARTLAR[..]["kaynak"]` (kesilmemiş delik sayısı) eklendi, kesim talimatı artık bundan türüyor (önceden "39. sütun ve 39. sıra" elle yazılıydı). Mutasyon B48 yeniden 13/13.
+
+Aynı soruda kullanıcı "buradan yüksek akım/gerilim geçecek mi" diye sordu; denetimin gerilim modelinden: **A kartında** ağların GND'ye göre en yükseği skop girişi ~64 V (−63.5…+46.8), V girişi ~36 V, raylar ~17 V; iki ağ arası en büyük fark ~99 V (zarf). **B kartında** 617 V. Akım: kartın kendi beslemesi ~30 mA (F1); yük akımı (≤11.5 A / pil testi ≤6.55 A) plakete girmiyor. ⚠ Skop girişi 60 V'u geçebildiği için T_SKOP bölgesi enerjiliyken dokunulmamalı — belgeye "615 V A'ya girmez" cümlesi eklendi.
 
 **Açık.** Parça yükseklikleri yaklaşık (yalnız sıralama). KAPI 0 "kaynakta CC varsa ~60 mA": WCT-200-24'te CC yok; MOD011 buck'ta CC var mı kullanıcıya soruldu, cevap yok — yoksa seri dirençli ilk enerji yöntemi hesaplanıp belgeye girmeli. `4-kurulum.html` besleme adımını hâlâ içermiyor ve "12 V adaptör başlangıç için yeter" diyor; ana sayfa artık "kurulum Yerleşim'den başlar" diyor ama kılavuzun kendisi düzeltilmedi.
 

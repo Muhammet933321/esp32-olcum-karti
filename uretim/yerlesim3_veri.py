@@ -29,11 +29,17 @@ import tasarim3_sabit as T
 # ── plaketler ──────────────────────────────────────────────────────────
 # Delik sayilari kullanici tarafindan SAYILDI (2026-09-14): 13x23 = 45x90,
 # 10x10 = 32x32 (ana kart SIGMIYOR), 5x5 = 18x18.
+# `kaynak`: plaketin kesilmeden onceki delik sayisi (sutun, satir) — kesim
+# talimati bundan TURETILIYOR (hangi kenar kesilecek).
+# A 2026-09-15'te 38x38 -> 45x45 (kullanici): plaketin kisa kenari zaten 45
+# delik, tek kesim yetiyor; uc kenar fabrika kenari. Plan sol ust (A1)
+# koseye bagli kaldigi icin delik adlari DEGISMEDI, fazlasi sagda ve altta
+# bos. Denetim 38/40/45'te ayni (47/47, A'da en dar pay +4.78 mm).
 KARTLAR = {
-    "A": {"ad": "Ana analog kart", "plaket": "13x23 cm (SRF023) plaketten kesilmis 38x38 delik",
-          "sutun": 38, "satir": 38},
+    "A": {"ad": "Ana analog kart", "plaket": "13x23 cm (SRF023) plaketten kesilmis 45x45 delik",
+          "sutun": 45, "satir": 45, "kaynak": (45, 90)},
     "B": {"ad": "HV zinciri", "plaket": "5x5 cm (SRF020)",
-          "sutun": 18, "satir": 18},
+          "sutun": 18, "satir": 18, "kaynak": (18, 18)},
 }
 VIDA_KOSE = 2              # her kosede 2x2 delik vida icin bos
 VIDA_YARICAP_MM = 3.0      # M3 vida basi + pul (kacak yolu hesabinda iletken)

@@ -523,24 +523,37 @@ def _madde(xs) -> str:
     return "<ul class='is'>" + "".join(f"<li>{x}</li>" for x in xs) + "</ul>"
 
 
+def kesim_talimati(kb) -> str:
+    """Plaketin kaynak boyutundan hedef boyuta: hangi sutun/sira kesilecek."""
+    ks, kr = kb["kaynak"]
+    W, H = kb["sutun"], kb["satir"]
+    kes = ([f"{W + 1}. sütun"] if W < ks else []) + ([f"{H + 1}. sıra"] if H < kr else [])
+    if not kes:
+        return f"Plaketi ({W}×{H} delik) <b>kesmeden</b> kullan."
+    return (f"{ks}×{kr} deliklik plaketten <b>{W}×{H} delik</b> kes: {' ve '.join(kes)} "
+            "deliklerinin üstünden maket bıçağıyla iki yüzden çiz, kır; kenarı zımparala."
+            + (" <b>Tek kesim</b> — üç kenar fabrika kenarı kalır." if len(kes) == 1 else ""))
+
+
 def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
     kb = V.KARTLAR.get(s.kart or "A")
     ic = []
     if s.tur == "hazirlik" and s.kart == "A":
+        ks, kr = kb["kaynak"]
+        kesik = " ve ".join((["sağda"] if kb["sutun"] < ks else [])
+                            + (["altta"] if kb["satir"] < kr else []))
         ic.append(_madde([
-            f"{e(kb['plaket'])}: 45×90 deliklik plaketten <b>{kb['sutun']}×{kb['satir']} delik</b> "
-            f"kes — {kb['sutun'] + 1}. sütun ve {kb['satir'] + 1}. sıra deliklerinin üstünden "
-            "maket bıçağıyla iki yüzden çiz, kır; kenarı zımparala.",
+            kesim_talimati(kb),
             f"Köşelere M3 delik aç (her köşede {V.VIDA_KOSE}×{V.VIDA_KOSE} delik boş).",
             f"Ped çapını kumpasla ölç: plan <b>{V.PAD_ETKIN_MM:.2f} mm</b> varsayıyor; "
             "büyük çıkarsa dur, söyle — denetim yeniden koşsun.",
-            "Plaketi <b>parça yüzü</b> sana bakacak koy: A1 sol üst. Köşeye kalemle "
-            "<b>A1</b> yaz — bundan sonraki her delik adı buna göre.",
+            "Plaketi <b>parça yüzü</b> sana bakacak koy; <b>A1</b> sol üst köşe"
+            + (f" (kesilen kenar {kesik} kalsın)" if kesik else "")
+            + ". Köşeye kalemle A1 yaz — bundan sonraki her delik adı buna göre.",
         ]))
     elif s.tur == "hazirlik":
         ic.append(_madde([
-            f"{e(kb['plaket'])} plaketi ({kb['sutun']}×{kb['satir']} delik) kesmeden kullan; "
-            "köşelere M3 delik aç.",
+            kesim_talimati(kb) + " Köşelere M3 delik aç.",
             "Bu kart <b>615 V</b> taşır: parçaları takmadan önce plaketi temizle, "
             "sonunda flux'ı IPA ile sil — lehim kalıntısı kaçak yoludur.",
             "Parça yüzünden bakınca sol üst köşeye kalemle <b>B1</b> yaz.",
@@ -770,11 +783,12 @@ geçilmiyor. Sıra: <b>önce alçak parçalar, sonra yüksekler</b>; ters takıl
 parçalardan, kablolar izlerden sonra.</p>
 
 <p>Plaketler <b>her delikte ayrı pedli</b>. Ana kart (A), 13×23 cm plaketten
-(45×90 delik) <b>{kb_a['sutun']}×{kb_a['satir']} delik</b> kesilerek yapılıyor;
+({kb_a['kaynak'][0]}×{kb_a['kaynak'][1]} delik) <b>{kb_a['sutun']}×{kb_a['satir']} delik</b> kesilerek yapılıyor;
 HV zinciri (B) ayrı bir 5×5 cm plakette ({kb_b['sutun']}×{kb_b['satir']}). Şönt,
 J3, J7 ve Q1 <b>plakette değil</b>: 11.5 A'e varan yük akımını plaket bakırı
 taşımaz. Onlar kutuda, bariyer klemenslerde duruyor; plakete yalnızca Kelvin
-uçları, tek yıldız toprak teli ve kapı teli geliyor.</p>
+uçları, tek yıldız toprak teli ve kapı teli geliyor. <b>615 V'luk giriş A kartına
+hiç girmez</b>: B kartındaki zincirden A'ya yalnızca ~1.7 V'luk alt düğüm gelir.</p>
 
 <div class="uy"><b>Koordinat:</b> sütun harf, satır sayı; <b>A1 parça yüzünden bakınca
 sol üst</b>. Lehim yüzü çizimi <b>aynalı</b> — plaketi ters çevirince aynı harf
