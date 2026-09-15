@@ -308,6 +308,55 @@ DIRENC_GOREV = {
     "R44": "kapı sürücü Q2 baz direnci (ESP32'den)", "R45": "Q1 kapı seri direnci",
 }
 
+# ── kondansator TIPI ─────────────────────────────────────────────────
+# Kullanici sordu (2026-09-16, adim 1.3): "multilayer mi, mercimek mi?
+# Elektrolitikse belirt." Stokta iki seramik var: DISK (mercimek —
+# yassi turuncu disk, C049 1nF) ve MULTILAYER (yumru bicimli acik sari,
+# C051/C008 100nF, C052 220nF). Ayrim gorevden geliyor (B16 bolum 4:
+# suzgec kondansatorlerinde TOLERANS baskin artik, ayirmada tip fark
+# etmez). Denetim: her C tek tipte; tip ayak iziyle tutarli (CE ->
+# elektrolitik, C6 -> film, C1/C2/C1x2 -> seramik); kanal RC suzgec
+# kondansatorleri (op-amp giris agi + VREF) AYNI tip ve multilayer.
+KOND_TIPI = {
+    "seramik disk (mercimek)": {"C1", "C4", "C5", "C6", "C7", "C8"},
+    "multilayer seramik": {"C2", "C3", "C9", "C10", "C11", "C12", "C13", "C14",
+                           "C15", "C19", "C20"},
+    "film (polyester)": {"C18"},
+    "elektrolitik (KUTUPLU)": {"C16", "C17"},
+}
+# tip -> ayak izleri (denetim) ve envanter etiket anahtari (belge, stok)
+KOND_TIPI_AYAK = {
+    "seramik disk (mercimek)": {"C1", "C2", "C1x2"},
+    "multilayer seramik": {"C1", "C2", "C1x2"},
+    "film (polyester)": {"C6"},
+    "elektrolitik (KUTUPLU)": {"CE"},
+}
+KOND_TIPI_ETIKET = {
+    "seramik disk (mercimek)": "mercimek",
+    "multilayer seramik": "multilayer",
+    "film (polyester)": "polyester",
+    "elektrolitik (KUTUPLU)": "elektrolitik",
+}
+KOND_GOREV = {
+    "C1": "TL431 kararlılık kondansatörü (B15: 100nF osilasyon yapıyordu → 1nF); tip fark etmez",
+    "C2": "NORMAL kanal RC süzgeci — C3 ile AYNI tip; toleransı V/I eşleşmesine giriyor (B16)",
+    "C3": "HV kanal RC süzgeci — C2 ile AYNI tip; toleransı V/I eşleşmesine giriyor (B16)",
+    "C4": "şönt Kelvin hattı RC süzgeci; tip fark etmez",
+    "C5": "Sallen-Key süzgeç (2×1nF paralel); C0G olsa daha iyi, stokta yok — disk olur",
+    "C6": "Sallen-Key süzgeç; disk olur",
+    "C7": "Sallen-Key süzgeç (2×1nF paralel); disk olur",
+    "C8": "Sallen-Key süzgeç; disk olur",
+    "C9": "U3 (+5V) ayırma — pine yakın", "C10": "U4 (+5V) ayırma — pine yakın",
+    "C11": "U5 (+12V) ayırma", "C12": "U5 (−12V) ayırma",
+    "C13": "U8 (+12V) ayırma", "C14": "U8 (−12V) ayırma",
+    "C15": "ADS rayı (+3V3) ayırma",
+    "C16": "7912 giriş kondansatörü — + ucu +12V, − ucu −12V (uzun bacak +)",
+    "C17": "7912 çıkış kondansatörü — + ucu +12V, − ucu GND (uzun bacak +)",
+    "C18": "akım kanalı örtüşme süzgeci (B16), 1 µF film 15 mm bacak — C022; 22.5 mm'likler (C021/C023) plana sığmaz",
+    "C19": "akım kanalı örtüşme süzgeci (B16) — C18/C20 ile paralel, toplam 1.32 µF",
+    "C20": "akım kanalı örtüşme süzgeci (B16) — ADS pinine en yakın olan",
+}
+
 # ── belgede parca satirina eklenen aciklama ────────────────────────────
 # Kullanici sordu (2026-09-15): "F1 50mA diyor — sigorta mi yuvasi mi?",
 # "R40 metal film mi olmali?". Semanin deger alani bunu soylemiyor.

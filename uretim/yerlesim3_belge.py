@@ -353,6 +353,9 @@ def parca_satiri(p, nl) -> str:
         notlar.append("iki ayrı 1nF, yan yana")
     if p.ref in V.PARCA_NOTU:
         notlar.append(e(V.PARCA_NOTU[p.ref]))
+    if p.ref in V.KOND_GOREV:
+        tip = kond_tipi(p.ref)
+        notlar.insert(0, f"<b>{e(tip)}</b> — {e(V.KOND_GOREV[p.ref])}")
     if p.ayak in GUC_SINIFI and p.ref in V.DIRENC_GOREV:
         tur = direnc_turu(p.ref)
         notlar.insert(0, f"<b>{GUC_SINIFI[p.ayak]}</b> · "
@@ -436,11 +439,22 @@ class Stok:
         _t, bulunan, _s = self.B.stok_bul(self.kayit, ad, kat, paket)
         return self._yaz(bulunan)
 
-    def deger_ile(self, deger: str, guc: str = "", tercih: str = "") -> str:
+    def deger_ile(self, deger: str, guc: str = "", tercih: str = "",
+                  etiket: str = "", paket: str = "") -> str:
         if deger in self.B.ESLEME:
-            ad, kat, _not, *paket = self.B.ESLEME[deger]
-            if paket:
-                return self.ad_ile(ad, kat, paket[0])
+            ad, kat, _not, *pkt = self.B.ESLEME[deger]
+            if etiket or paket:
+                # kondansator: tip envanterde ETIKET alaninda (mercimek /
+                # multilayer / polyester / elektrolitik); film icin bacak
+                # araligi PAKET alaninda (15mm)
+                _t, bulunan, _s = self.B.stok_bul(self.kayit, ad, kat, paket)
+                bulunan = [r for r in bulunan
+                           if etiket.lower() in (r.get("etiket") or "").lower()]
+                if bulunan:
+                    return self._yaz(bulunan)
+                return "<span class='kotu'>bu tipte kayıtta yok</span>"
+            if pkt:
+                return self.ad_ile(ad, kat, pkt[0])
             if tercih:
                 # oran direnci: stokta metal film paketi varsa YALNIZ onu goster
                 _t, bulunan, _s = self.B.stok_bul(self.kayit, ad, kat, tercih)
@@ -469,14 +483,24 @@ def gerekenler(k: int, nl, parcalar, aa, stok: Stok) -> str:
                 key=lambda p: Y_dogal(p.ref))
     degerler: dict[tuple, list] = {}
     for p in ps:
-        tur = direnc_turu(p.ref) if p.ayak in GUC_SINIFI else ""
+        tur = (direnc_turu(p.ref) if p.ayak in GUC_SINIFI
+               else kond_tipi(p.ref) if p.ref in V.KOND_GOREV else "")
         degerler.setdefault((nl.deger.get(p.ref, "?"), GUC_SINIFI.get(p.ayak, ""), tur),
                             []).append(p.ref)
     for (deg, guc, tur), refs in degerler.items():
-        etiket = {"zorunlu": " metal film %1", "onerilir": " metal film (önerilir)"}.get(tur, "")
-        satir.append((f"{deg} {guc}{etiket}".strip(), str(len(refs)), ", ".join(refs),
-                      stok.deger_ile(deg, guc, "metal film" if tur in ("zorunlu", "onerilir") else "")
-                      if stok.var else ""))
+        if tur in V.KOND_TIPI:
+            ad = f"{deg} {tur}"
+            bul = (stok.deger_ile(deg, "", etiket=V.KOND_TIPI_ETIKET[tur],
+                                  paket="15mm" if tur.startswith("film") else "")
+                   if stok.var else "")
+        else:
+            etiket = {"zorunlu": " metal film %1", "onerilir": " metal film (önerilir)"}.get(tur, "")
+            ad = f"{deg} {guc}{etiket}".strip()
+            bul = (stok.deger_ile(deg, guc, "metal film" if tur in ("zorunlu", "onerilir") else "")
+                   if stok.var else "")
+        # "2nF (2x1nF)": bir ref = IKI parca
+        adet = sum(2 if parcalar[r].ayak == "C1x2" else 1 for r in refs)
+        satir.append((ad, str(adet), ", ".join(refs), bul))
     aks: dict[str, list] = {}
     for p in ps:
         if p.ayak in AKSESUAR:
@@ -515,6 +539,45 @@ def direnc_turu(ref: str) -> str:
     if ref in V.DIRENC_TURU["onerilir"]:
         return "onerilir"
     return "serbest"
+
+
+def kond_tipi(ref: str) -> str:
+    for tip, refs in V.KOND_TIPI.items():
+        if ref in refs:
+            return tip
+    return ""
+
+
+def kondansator_tablosu(nl, parcalar, aa) -> str:
+    adim_no = {r: s.no for s in aa for r in s.parcalar}
+    cs = sorted((p for p in parcalar.values() if p.ref in V.KOND_GOREV), key=lambda p: Y_dogal(p.ref))
+    sinif = {"seramik disk (mercimek)": "iyi", "multilayer seramik": "uyari",
+             "film (polyester)": "uyari", "elektrolitik (KUTUPLU)": "kotu"}
+    satir = []
+    for p in cs:
+        t = kond_tipi(p.ref)
+        satir.append(f"<tr><td><b>{e(p.ref)}</b></td><td>{e(nl.deger.get(p.ref, ''))}</td>"
+                     f"<td><span class='tur {sinif[t]}'>{e(t)}</span></td>"
+                     f"<td class='kucuk'>{e(V.KOND_GOREV[p.ref])}</td>"
+                     f"<td class='s'><a href='#s{adim_no.get(p.ref, '')}'>{adim_no.get(p.ref, '')}</a></td></tr>")
+    return f"""
+<h2 id="kondansatorler">Kondansatörler — tip</h2>
+<p>Stokta iki çeşit küçük seramik var, ikisi aynı işi görmez:</p>
+<ul class="is">
+<li><b>Seramik disk ("mercimek")</b> — yassı, yuvarlak, koyu turuncu/kahverengi disk; bacakları dümdüz aşağı iner
+(stokta <b>C049 1nF</b>, 10 adet). Tolerans geniş, değeri sıcaklıkla oynar. Yalnızca <b>değerinin kritik
+olmadığı</b> yerlerde: TL431 kararlılık (C1), Kelvin RC (C4), Sallen-Key (C5–C8).</li>
+<li><b>Multilayer seramik (MLCC)</b> — yumru biçimli, açık sarı/hardal gövde; bacaklar gövdenin altından
+birbirine yakın çıkar (stokta <b>C051 100nF 2.5 mm</b>, C008 100nF 5 mm, C052 220nF). Ayırma
+kondansatörleri ve <b>süzgeçler</b> için: C2/C3'ün ve C19/C20'nin toleransı V/I eşleşmesine giriyor (B16).</li>
+<li><b>Film (polyester)</b> — dikdörtgen kutu ya da damla; C18 için 15 mm bacaklı <b>C022</b>.</li>
+<li><b>Elektrolitik</b> — silindir, <b>kutuplu</b>: uzun bacak +, gövdedeki şerit − (C16/C17, C035).</li>
+</ul>
+<p class="kucuk">Ayırt etme: diskin iki bacağı gövdenin kenarından çıkar ve gövde ince bir yassı tablettir;
+multilayer'ın gövdesi kalın bir yumrudur ve bacaklar altından çıkar. Renk kutudan kutuya değişebilir —
+biçime bak. Disk 1nF'lerin bacak aralığı 5 mm olabilir; plan 2.5 mm istiyor, bacakları bükerek yaklaştır.</p>
+<table><tr><th>Kondansatör</th><th>Değer</th><th>Tip</th><th>Görevi</th><th class='s'>Adım</th></tr>
+{''.join(satir)}</table>"""
 
 
 def direnc_tablosu(nl, parcalar, aa) -> str:
@@ -679,6 +742,15 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
                      "Modülleri KAPI ölçümünden önce tak.")
         if "C1x2" in ayaklar:
             m.append("İki ayrı 1nF yan yana; paralel bağlantıyı lehim izi yapacak.")
+        tipler = {kond_tipi(p.ref) for p in ps if p.ref in V.KOND_GOREV}
+        if "seramik disk (mercimek)" in tipler and "multilayer seramik" in tipler:
+            m.append("<b>İki çeşit seramik var:</b> tabloda hangisi disk (mercimek), hangisi "
+                     "multilayer yazıyor — karıştırma (bkz. <a href='#kondansatorler'>Kondansatörler</a>).")
+        elif "seramik disk (mercimek)" in tipler:
+            m.append("<b>Disk (mercimek) seramik</b> — yassı turuncu disk; multilayer değil. Bacak "
+                     "aralığı 5 mm ise 2.5 mm'ye bük.")
+        elif "multilayer seramik" in tipler:
+            m.append("<b>Multilayer seramik</b> — yumru biçimli açık sarı gövde; disk (mercimek) değil.")
         if s.kart == "B":
             m.append("<b>HV zinciri:</b> gövdeler plakete yaslı; bacak artığını lehimin üstünden "
                      "kısa kes — keskin uç ve lehim sivrisi kaçak yolunu kısaltır.")
@@ -915,6 +987,7 @@ düğüm zaten karşı köşelerde; en dar çift:
 </table>
 """)
     g.append(direnc_tablosu(nl, parcalar, aa))
+    g.append(kondansator_tablosu(nl, parcalar, aa))
     g.append(j5_tablosu(nl))
 
     # ── gorus penceresi + alt adim listesi

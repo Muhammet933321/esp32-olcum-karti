@@ -1114,10 +1114,12 @@ def denetle(nl: Netlist, parcalar: dict[str, Parca], teller: dict,
                    for ag in aglar_r(r))}
     # fark yukselteci: iki girisinde de >= 2 direnc olan op-amp
     girisler: dict[str, dict[str, set]] = {}
+    girisler_agi: set[str] = set()
     for ag, rs in ag_direncleri.items():
         m = re.fullmatch(r"Net-\((U\d+[A-Z])-([+-])\)", ag)
         if m:
             girisler.setdefault(m.group(1), {})[m.group(2)] = rs
+            girisler_agi.add(ag)
     fark = set()
     for _u, g in girisler.items():
         if len(g) == 2 and all(len(rs) >= 2 for rs in g.values()):
@@ -1137,6 +1139,34 @@ def denetle(nl: Netlist, parcalar: dict[str, Parca], teller: dict,
                                                      else f"{len(direncler)} direnc"))
     bilgi["direnc_turu"] = {r: ("zorunlu" if r in beyan else "onerilir" if r in onerilir
                                 else "serbest") for r in direncler}
+
+    # ── 10b · kondansator tipi — her C tek tipte, tip ayak iziyle tutarli;
+    #          kanal RC suzgec kondansatorleri (op-amp giris agi + VREF) ayni tip
+    konds = sorted(r for r in nl.ref_pinleri if r.startswith("C") and r in parcalar)
+    tip_of: dict[str, list] = {}
+    for tip, refs in V.KOND_TIPI.items():
+        for r in refs:
+            tip_of.setdefault(r, []).append(tip)
+    k_hata = [f"{r}: {tip_of.get(r, [])}" for r in konds if len(tip_of.get(r, [])) != 1]
+    k_hata += [f"{r} tanimsiz" for r in tip_of if r not in konds]
+    for r in konds:
+        if len(tip_of.get(r, [])) == 1 and parcalar[r].ayak not in V.KOND_TIPI_AYAK[tip_of[r][0]]:
+            k_hata.append(f"{r}: '{tip_of[r][0]}' ayak {parcalar[r].ayak} ile uyumsuz")
+    gorev_eksik_c = sorted(set(konds) - set(V.KOND_GOREV))
+    D.kosul("her kondansator TEK tipte, tip ayak iziyle tutarli, gorevi yazili",
+            not k_hata and not gorev_eksik_c,
+            "; ".join(k_hata[:3]) if k_hata else (f"gorevsiz: {gorev_eksik_c}" if gorev_eksik_c
+                                                  else f"{len(konds)} kondansator"))
+    rc_kond = []
+    for r in konds:
+        aglar = {nl.pin_agi[f"{r}.{no}"] for no in nl.ref_pinleri[r]}
+        if "/VREF" in aglar and any(a in girisler_agi for a in aglar):
+            rc_kond.append(r)
+    rc_tipler = {tip_of[r][0] for r in rc_kond if r in tip_of and tip_of[r]}
+    D.kosul("kanal RC suzgec kondansatorleri (op-amp girisi + VREF) AYNI tip ve multilayer",
+            len(rc_kond) >= 2 and rc_tipler == {"multilayer seramik"},
+            f"{rc_kond} -> {sorted(rc_tipler)}")
+    bilgi["kond_tipi"] = {r: tip_of[r][0] for r in konds if tip_of.get(r)}
 
     # belge icin: delik -> ag (bakir + bacaklar, geometriden)
     bilgi["delik_agi"] = {(kart, h): ag for kart, hucre in bakir.items()

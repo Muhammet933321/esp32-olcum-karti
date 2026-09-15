@@ -1065,6 +1065,14 @@ MUTASYONLAR = [
     ("B48", "yerlesim3.py", "uretim/yerlesim3_veri.py",
      '"onerilir": {"R2", "R3",', '"onerilir": {"R4", "R2", "R3",',
      "10: bir direnc iki turde birden olursa belge celisir — 'her direnc TEK turde'"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_veri.py",
+     '"multilayer seramik": {"C2", "C3", "C9",', '"multilayer seramik": {"C3", "C9",',
+     "10b: C2 tipsiz kalirsa belge onu gostermez; ayrica C2/C3 RC suzgec cifti "
+     "artik ayni tipte degil — 'her kondansator TEK tipte' + 'RC cifti ayni tip'"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_veri.py",
+     '"seramik disk (mercimek)": {"C1", "C4",', '"seramik disk (mercimek)": {"C1", "C2", "C4",',
+     "10b: C2 hem disk hem multilayer yazilirsa kullanici disk takabilir — "
+     "V/I eslesmesi toleransa bagli (B16)"),
 ]
 
 
