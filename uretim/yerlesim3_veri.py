@@ -365,6 +365,12 @@ PARCA_NOTU = {
           "sigortanın değeri — gelene kadar 400 mA (FUS001) tak.",
     "R40": "7912'nin asgari yükü: 12 V / 1K = 12 mA, 144 mW → 1/2 W (R030). Değer kritik "
            "değil; metal film GEREKMEZ.",
+    # Kullanici sordu (2026-09-16): "TL431LP diyor, elimdeki TL431A — ayni mi?"
+    "U1": "Şemadaki 'LP' kılıf kodu (TO-92), parça adı değil. Gövdede TL431A / TL431 / "
+          "TL431B yazan hepsi olur — harf başlangıç toleransı (A %1, B %0.5, harfsiz %2); "
+          "sıfır kalibrasyonu (z/Z) onu zaten siliyor. ⚠ Bacak sırası üreticiye göre "
+          "değişir: gövdedeki yazıya göre veri sayfasından doğrula; lehimlemeden önce "
+          "5 V→1K→K, REF=K bağla, K'da 2.5 V okunmalı.",
 }
 
 # ── kart disi tel lehim noktalarinin belgede gorunen adi ───────────────
