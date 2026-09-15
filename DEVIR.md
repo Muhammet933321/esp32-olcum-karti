@@ -179,7 +179,10 @@ analog kart (13×23 plaketten kesilmiş 38×38 delik — 10×10 plaket 32×32
 10×10 = 32×32, 5×5 = 18×18; her delikte ayrı ped. Sırada: kullanıcı
 yerleşimi gözden geçirir → plaket kesilir → adım 0 (besleme) lehimlenir.
 50 mA sigorta gelmedi: yuvaya geçici **400 mA (FUS001)**, ilk enerji akım
-sınırlı; 24 V girişi XT30 (anahtarlı).
+sınırlı; 24 V girişi XT30 (kodlu — ters takılamaz; açma-kapama anahtarı değil).
+**B48b (2026-09-15, 5.12.63):** plan LEGO sırasında — 91 alt adım, sabit
+görüş penceresi, her adımda gerekenler (stok kaydı + kutu), denetim 47/47.
+Kullanıcı kuruluma **7-yerlesim.html'den** başlıyor.
 
 **Kullanım kararı (2026-09-14, kullanıcı):** **şebeke referanslı ölçüm
 YOK** — yalnız pil/DC-DC beslemeli devreler, en fazla ~400 V, hepsi
@@ -8292,6 +8295,31 @@ Zayıf sürüş hatayı ~4× azaltıyor ama **sıfırlamıyor**. Karar: yakalama
 
 ---
 
+#### 5.12.63 🧱 B48b — YERLEŞİM PLANI LEGO SIRASINDA: 91 ALT ADIM (2026-09-15)
+
+**Neden.** Kullanıcı kuruluma başlarken planı "adım adım, LEGO kılavuzu gibi — bir adımda birkaç şey olabilir ama her şey bir adımda olmasın" istedi. B48'in 9 büyük adımı her adımda bütün parçaları, izleri ve telleri tek tabloda veriyordu (adım 7: 14 parça + 29 iz + 2 tel).
+
+**Ne yapıldı.**
+* `uretim/yerlesim3_adim.py` (yeni) her büyük adımı sıralı alt adımlara bölüyor: **hazırlık** (kart ilk kullanıldığında: kes, M3, ped çapı, A1 işareti) · **parça** (alçaktan yükseğe, ≤4; yönlü parça — elektrolitik, diyot, DIP, TO-92/220, başlık — kendi alt adımında) · **iz** (ağ ağ, raylar önce; ≤6 iz, ≤40 delik) · **tel** (≤4) · **kablo** (lehim noktası + kablolar, ≤4) · **kontrol** (ohmmetre + KAPI). Sıra veriden; elle yazılmıyor.
+* `yerlesim3_belge.py` yeniden: yapışkan görüş penceresi seçili alt adıma yakınlaşıyor (o adım parlak, öncekiler soluk, sonrakiler görünmez; parça → parça yüzü, iz/tel → lehim yüzü; yakınlaşınca kenar etiketleri JS'le görünen alana, dar ekranda seyreltilerek) · ◀ ▶ / klavye / `#s0.3` bağlantısı · "yaptım" işaretleri + ilerleme (localStorage, yalnız o tarayıcı) · her büyük adımın başında **gerekenler**: değer · adet · nereye · stok kaydı · kutu — envanterden (`bom_dogrula.ESLEME` + `stok_bul`; yenisi varsa söküm kayıtları gizli; direnç güç sınıfı ayak izinden: R40 R5 → R030 1/2 W; soket/klips/başlık/plaket/kablo aksesuarları). Envanter yoksa stok sütunu çıkmıyor.
+* Ağ adları okunur: `Net-(U3A-+)` → "U3A + girişi", zincir düğümleri "HV düğüm 1..5", `Net-(J6-Pin_1)` → "24V+ (sigorta öncesi)".
+
+**Denetim bölüm 9 — 7 iddia, ölçüt üreticiden BAĞIMSIZ** (`yerlesim3.py` 40 → **47**): 9a her parça/iz/tel/kablo TAM BİR alt adımda ve kendi büyük adımında, kart dışı parçalar kendi adımının kablo alt adımında · 9b sınırlar `V.ALT_ADIM_SINIR`'dan (üretici kendi grup boylarını ayrı tutuyor), boş alt adım yok · 9c hiçbir iz/tel, SONRAKİ alt adımda takılacak parçanın deliğine lehim akıtmıyor (TEL pedleri hariç — kablo lehimli pede lehimlenir) · 9d aynı adım+kartta alçak parça önce (`AYAKLAR[..]["yukseklik_mm"]`, katalogdan yaklaşık; üreticinin `SIRA` listesi buna karşı sınanıyor) · 9e `"yonlu"` parça başka türle karışık değil · 9f kablo, ucundaki lehim noktasıyla aynı ya da sonraki alt adımda · 9g büyük adım sırası korunuyor, her adım KONTROL ile bitiyor, kart parçalarından önce hazırlanıyor.
+
+**Bulgular.**
+* 🔴 **9c'nin koruması yalnız üreticideydi.** B48'in yol üreticisi "henüz takılmamış parçanın deliğine iz akıtma" kuralını `gecilir()` içinde uyguluyor, denetim hiç sınamıyordu — `--yol-uret` değişse sessizce bozulurdu. Bugünkü planda ölçüldü: 0 ihlal (büyük adım düzeyinde de). Artık iddia.
+* 🔴 **J6 stok eşlemesi eskiydi.** `ESLEME["24V girisi"]` bariyer klemense bakıyordu; B48 kararı XT30. Gerekenler tablosu kullanıcıya yanlış parçayı gösterecekti → CON058. Malzemeler sayfasındaki L7912 notu da "REG004 ×2" diyordu (söküm, test edilmemiş) → "REG009 yeni; REG004 söküm".
+* ⚠ **"XT30 (anahtarlı)"** açma-kapama anahtarı gibi okunuyor (bu oturumda asistan da öyle okudu) → "kodlu: ters takılamaz; açma-kapama anahtarı DEĞİL".
+* 🔴 **Belge üretimi çöktü, eski belge yerinde kaldı.** JS `%`-biçimlendirmeyle gömülüyordu; eksen seyreltmesi için `i % adimX` eklenince `TypeError` — ama `7-yerlesim.html` bir önceki sürümle duruyordu ve ekran görüntüleri o eski sayfadan alınmıştı. "Belge: yazıldı" satırının yokluğundan yakalandı. Veri artık `str.replace` ile.
+* Aynı sayfada adres `#s…` değişince görünüm güncellenmiyordu → `hashchange`.
+* ⚠ **Elle mutasyon düzeneğinde bayat `.pyc`:** aynı uzunlukta iki değişiklik aynı saniyede yazılınca Python önceki mutasyonun modülünü çalıştırdı (9c, 9b'nin çıktısını verdi). `mutasyon.py` her mutasyonda kopyayı sıfırdan kurduğu için ETKİLENMİYOR; elle düzenekte `__pycache__` silinmeli.
+
+**Doğrulama.** `yerlesim3.py` **47/47** · mutasyon B48 6 → **13/13**, ve her yeni mutasyonun **hedef** iddiayı düşürdüğü ayrıca döküldü (9f "boş alt adım"ı da tetikliyor) · `dogrula3.py` **18/18**, sayım kilidi B9 [[3,3],[47,47]], toplam 1497 · başsız Chrome: 1280 px ve 400 px, açık/koyu, konsol hatası yok, yatay taşma yok, yaptım/ilerleme/ileri/hash çalışıyor · `bom_dogrula` 3/3.
+
+**Açık.** Parça yükseklikleri yaklaşık (yalnız sıralama). KAPI 0 "kaynakta CC varsa ~60 mA": WCT-200-24'te CC yok; MOD011 buck'ta CC var mı kullanıcıya soruldu, cevap yok — yoksa seri dirençli ilk enerji yöntemi hesaplanıp belgeye girmeli. `4-kurulum.html` besleme adımını hâlâ içermiyor ve "12 V adaptör başlangıç için yeter" diyor; ana sayfa artık "kurulum Yerleşim'den başlar" diyor ama kılavuzun kendisi düzeltilmedi.
+
+---
+
 #### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
 
 **Neden.** Malzemenin tamamı geldi (50 mA sigorta hariç); kullanıcı "lehimsiz test mi, plakete mi" diye sordu. Karar: **plakete, blok blok** — lehimsiz tahta bu kartta ölçüm üretmez (15 mΩ şönt + Kelvin tahta temasından küçük; 4.9 MΩ zincirde tahta kaçağı oranı bozar; B30/B44'te iki sessiz kusur gevşek telden geldi). Ama plakete geçmek için elde **yerleşim planı yoktu** — F9 ("delik atla") sayı veriyordu, yer vermiyordu.
@@ -8399,7 +8427,7 @@ Hızlı ölçüm, GPIO4–GPIO5 kısa devreli düzenekte CAL 1 kHz ile **PF 0.95
 | ~~B16~~ | ✅ **V/I süzgeç eşleştirmesi** | **BİTTİ (2026-09-09).** Sonuçlar **5.12.26**'da: 41 doğrulama, C4 100nF→1nF, yeni C18/C19/C20 = 1.32 µF (stoktan). Reaktif yükte hata %155 → %1.9. 5 açık iş kalemi bıraktı |
 | **B14** | **Hızlı skop (MHz) — harici ADC** | 🔭 **Aşama 4, açık ihtimal.** Kullanıcı ilgileniyor, şimdilik almadı. Tam analiz + kademeli plan **5.12.20**'de. Adım 1 bedava: hazır açık kaynak kodu elde bir ESP32'de dene |
 | ~~B47~~ | ✅ **Tetik onayı (gürültü reddi), ayarlanabilir** | **BİTTİ (2026-09-14).** Sonuçlar **5.12.61**'de: `tn1/2`, varsayılan 2; kartta A/B 17/20 → 0/20 sahte tetik, gerçek sinyalde konum korunuyor |
-| ~~B48~~ | 🧩 **Delikli plaket yerleşim planı** | **HAZIR (2026-09-14).** Sonuçlar **5.12.62**'de: `BELGELER/7-yerlesim.html`, denetim 40/40 (B9), mutasyon 6/6. F9'un "5 delik"i bakırdan bakıra yetmiyordu → 6. Kullanıcı gözden geçirip lehime başlayacak |
+| ~~B48~~ | 🧩 **Delikli plaket yerleşim planı** | **HAZIR (2026-09-14).** Sonuçlar **5.12.62**'de: `BELGELER/7-yerlesim.html`, denetim 40/40 (B9), mutasyon 6/6. F9'un "5 delik"i bakırdan bakıra yetmiyordu → 6. **B48b (5.12.63):** LEGO sırası, 91 alt adım, denetim 47/47, mutasyon 13/13. Kullanıcı lehime başlıyor |
 | **B49** | 🔴 **Voltmetre şönt düşümünü içeriyor** | **AÇIK (firmware).** Şönt alçak tarafta, V kanalı RS.2'ye referanslı → okunan = kaynak gerilimi = V_yük + I·R_şönt (≤ 256 mV). Düzeltme `V_yük = V − V_şönt` (iki ADS eş zamanlı, B17). Pil testi etkilenmiyor. GÜNCEL DURUM bloğunda ayrıntı |
 | **B11-düz** | 🔶 **Hangi ray regüle** | **AÇIK.** 5.12.25 "−12 regüle" diyor, bağlantıya göre +12 regüle, −12 ham; `sim3_besleme.py` B11-3 iddiası sabitle boş. Pratik etki yok; düzeltilip mutasyon eklenecek |
 | **PCB** | **I²C kuplajı — PCB'de yeniden ölç** | 🔶 B44: SDA/SCL'ye seri direnç (33–100 Ω), tek pull-up seti, zayıf sürüş; `tezgah_kuplaj --asama 3`. K1 kontrol düzeyine inerse ADS susturması (B41) kaldırılabilir |

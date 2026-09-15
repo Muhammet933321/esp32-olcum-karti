@@ -80,6 +80,10 @@ ADIM_ADLARI = [
     "Pil testi: kapi surucusu Q2/Q3",
 ]
 
+# Alt adim (LEGO) SINIRLARI — denetimin olcutu. Uretici (`yerlesim3_adim`)
+# kendi grup buyukluklerini ayri tutuyor; biri kayarsa denetim kirmizi.
+ALT_ADIM_SINIR = {"parca": 4, "iz": 6, "tel": 4, "kablo": 4}
+
 # ── yerlesim ───────────────────────────────────────────────────────────
 # ref: (kart, ayak[:kod], x, y, aci, adim[, TEL icin ag])
 YER = {
@@ -216,7 +220,8 @@ KART_DISI = {
 #   uc: "A:<TEL>" / "B:<TEL>" (lehim noktasi) · "X:<REF.PIN>" (kart disi pin)
 #   tur: yuk (yuk akimi) · kelvin · yildiz · sinyal · hv · besleme · panel
 KABLOLAR = [
-    ("X:J6.1", "A:T_24P", "besleme", 0, "24 V arti — XT30 (anahtarli)"),
+    ("X:J6.1", "A:T_24P", "besleme", 0,
+     "24 V arti — XT30 (kodlu: ters takilamaz; acma-kapama anahtari DEGIL)"),
     ("X:J6.2", "A:T_24N", "besleme", 0, "24 V eksi = -12 V rayi"),
     # guc yolu
     ("X:J3.1", "X:RS.1", "yuk", 3, "yuk donusu -> sont ust bacagi"),

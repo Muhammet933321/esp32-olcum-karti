@@ -1020,6 +1020,40 @@ MUTASYONLAR = [
      '{"tur": "iz", "adim": 5, "ag": "Net-(R11-Pad2)", "yol": [[13, 10], [13, 9], [13, 8]]}',
      "HV zincirinde bir iz bir delik kisa kalirsa R11-R12 dugumu ACIK: "
      "etiket hala dogru, geometri yalan soylemiyor"),
+    # ── B48b · alt adimlar (LEGO sirasi) — her mutasyon bolum 9'daki BIR
+    #    iddiayi yalanliyor. Uretici bozuluyor; denetimin olcutu (yukseklik_mm,
+    #    yonlu, delik sahipligi, V.ALT_ADIM_SINIR) ureticiden bagimsiz.
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_adim.py",
+     "        for i in range(0, len(tp), GRUP_PARCA):",
+     "        for i in range(0, len(tp) - 1, GRUP_PARCA):",
+     "9a: tek parcali turler (U9, J5, R30...) hicbir alt adima girmezse "
+     "kullanici o parcayi hic takmaz — 'her parca TAM BIR alt adimda'"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_adim.py",
+     "GRUP_PARCA = 4", "GRUP_PARCA = 9",
+     "9b: uretici 6 direnci tek alt adima yigarsa 'her sey bir adimda "
+     "olmasin' ilkesi bozulur — sinir V.ALT_ADIM_SINIR'dan, ureticiden degil"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_adim.py",
+     'KART_TURLERI = ("parca", "iz", "tel")', 'KART_TURLERI = ("iz", "parca", "tel")',
+     "9c: izler parcalardan once cekilirse lehim henuz takilmamis parcanin "
+     "deligini doldurur ve bacak girmez"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_adim.py",
+     'SIRA = ["D3", "R4", "R5",', 'SIRA = ["D3", "CE", "R4", "R5",',
+     "9d: elektrolitik dirençten once takilirsa alcak parcanin bacaklarina "
+     "erisim kapanir — yukseklik ayak izinin yukseklik_mm'sinden"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_adim.py",
+     "    return not (_yonlu(a[0]) or _yonlu(b[0])) and len(a) + len(b) <= GRUP_PARCA",
+     "    return len(a) + len(b) <= GRUP_PARCA",
+     "9e: kutuplu parca (C16/C17) baska turle ayni alt adima karisirsa "
+     "yon uyarisi kaybolur — ters takma riski"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_adim.py",
+     "ped = [p.ref for p in pedler if p.ref in uclar and p.ref not in atanan]",
+     "ped = [p.ref for p in pedler if p.ref not in uclar and p.ref not in atanan]",
+     "9f: kablo, ucundaki lehim noktasi yokken baglanmaya kalkilirsa "
+     "(ped sonraki alt adimda) sira fiziksel olarak imkansiz"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_adim.py",
+     'SON_TURLER = ("kablo", "kontrol")', 'SON_TURLER = ("kontrol", "kablo")',
+     "9g: KAPI kontrolunden SONRA kablo takiliyorsa kapi yarim karti olcer "
+     "— 'her adim KAPI ile biter'"),
 ]
 
 

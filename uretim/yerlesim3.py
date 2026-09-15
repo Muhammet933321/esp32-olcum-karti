@@ -71,60 +71,80 @@ ADIM_MM = T.DELIKLI_ADIM
 # bos   : bacak girmeyen ama DOLU sayilan delikler (tel gerginlik deligi)
 # ic_bag: bir pinin delikleri parcanin KENDI metaliyle bagli mi (sigorta
 #         klipsi evet; iki paralel kondansator HAYIR — bakirla baglanmali)
+# yukseklik_mm: plaketten yukseklik, YAKLASIK (katalog olculerinden) —
+#         yalnizca alt adim sirasinin denetimi icin: alcak parca once takilir
+# yonlu : ters takilabilir (kutup / bacak sirasi / centik) — LEGO sirasinda
+#         kendi alt adiminda, baska turle karisik degil
 AYAKLAR: dict[str, dict] = {
     # 1/4 W metal film: govde 6.3 x 2.4 mm, bacak 4 adim (10.16 mm)
     "R4": {"pin": {"1": [(0, 0)], "2": [(4, 0)]},
-           "govde": (0.76, -0.47, 3.24, 0.47)},
+           "govde": (0.76, -0.47, 3.24, 0.47),
+           "yukseklik_mm": 2.4},
     # 1/4 W DIK montaj: govde pin 1'in ustunde, bacak kivrilip pin 2'ye
     # iner. Yalnizca DUSUK GERILIMDE (HV zincirinde yatay kalir).
     "R1D": {"pin": {"1": [(0, 0)], "2": [(1, 0)]},
-            "govde": (-0.48, -0.48, 1.3, 0.48)},
+            "govde": (-0.48, -0.48, 1.3, 0.48),
+            "yukseklik_mm": 9.0},
     # 1/2 W (R40, R030): govde ~9 x 3.2 mm, bacak 5 adim
     "R5": {"pin": {"1": [(0, 0)], "2": [(5, 0)]},
-           "govde": (0.73, -0.63, 4.27, 0.63)},
+           "govde": (0.73, -0.63, 4.27, 0.63),
+           "yukseklik_mm": 3.2},
     # seramik, 2.5 mm bacak (C051)
     "C1": {"pin": {"1": [(0, 0)], "2": [(1, 0)]},
-           "govde": (-0.45, -0.5, 1.45, 0.5)},
+           "govde": (-0.45, -0.5, 1.45, 0.5),
+           "yukseklik_mm": 5.0},
     # seramik, 5 mm bacak (C008, C049, C052)
     "C2": {"pin": {"1": [(0, 0)], "2": [(2, 0)]},
-           "govde": (-0.4, -0.6, 2.4, 0.6)},
+           "govde": (-0.4, -0.6, 2.4, 0.6),
+           "yukseklik_mm": 6.0},
     # "2nF (2x1nF)": IKI ayri disk kondansator, yan yana — bakirla paralel
     "C1x2": {"pin": {"1": [(0, 0), (0, 1)], "2": [(1, 0), (1, 1)]},
-             "govde": (-0.45, -0.5, 1.45, 1.5)},
+             "govde": (-0.45, -0.5, 1.45, 1.5),
+             "yukseklik_mm": 5.0},
     # film kutu, 15 mm bacak (C022 1uF 400V)
     "C6": {"pin": {"1": [(0, 0)], "2": [(6, 0)]},
-           "govde": (-0.55, -1.2, 6.55, 1.2)},
+           "govde": (-0.55, -1.2, 6.55, 1.2),
+           "yukseklik_mm": 12.0},
     # radyal elektrolitik 68uF 50V: 8 mm govde varsayildi, bacak 1 adim.
     # pin 1 = ARTI
     "CE": {"pin": {"1": [(0, 0)], "2": [(1, 0)]},
-           "govde": (-1.08, -1.58, 2.08, 1.58)},
+           "govde": (-1.08, -1.58, 2.08, 1.58),
+           "yukseklik_mm": 12.5, "yonlu": True},
     # BAT85 DO-34: govde 3 mm; pin 1 = KATOT (bant)
     "D3": {"pin": {"1": [(0, 0)], "2": [(3, 0)]},
-           "govde": (0.85, -0.4, 2.15, 0.4)},
+           "govde": (0.85, -0.4, 2.15, 0.4),
+           "yukseklik_mm": 1.8, "yonlu": True},
     # DIP-8 soket; pin 1 sol ust, 1-4 asagi, 5-8 yukari (standart)
     "DIP8": {"pin": {**{str(i + 1): [(0, i)] for i in range(4)},
                      **{str(8 - i): [(3, i)] for i in range(4)}},
-             "govde": (-0.47, -0.47, 3.47, 3.47)},
+             "govde": (-0.47, -0.47, 3.47, 3.47),
+             "yukseklik_mm": 4.5, "yonlu": True},
     # TO-92 / TO-220: L-M-R bacak, islevleri `V.BACAK[kod]`'dan
     "TO92": {"pin": {"L": [(0, 0)], "M": [(1, 0)], "R": [(2, 0)]},
-             "govde": (-0.45, -0.8, 2.45, 0.8)},
+             "govde": (-0.45, -0.8, 2.45, 0.8),
+             "yukseklik_mm": 7.0, "yonlu": True},
     "TO220": {"pin": {"L": [(0, 0)], "M": [(1, 0)], "R": [(2, 0)]},
-              "govde": (-1.0, -1.4, 3.0, 0.45)},
+              "govde": (-1.0, -1.4, 3.0, 0.45),
+              "yukseklik_mm": 18.0, "yonlu": True},
     # 5x20 sigorta klipsi cifti: klips basina 2 bacak, klips merkezleri
     # 6 adim (15.24 mm). ⚠ Bacak araligi URUNE bagli — yuvayi plakete
     # oturtup dogrula; plan 9 x 3 delik alan ayiriyor.
     "SIG": {"pin": {"1": [(0, 0), (2, 0)], "2": [(6, 0), (8, 0)]},
-            "govde": (-0.6, -1.2, 8.6, 1.2), "ic_bag": True},
+            "govde": (-0.6, -1.2, 8.6, 1.2), "ic_bag": True,
+            "yukseklik_mm": 10.0},
     # 1x10 erkek pin basligi (J5 -> ESP32)
     "HDR10": {"pin": {str(i + 1): [(i, 0)] for i in range(10)},
-              "govde": (-0.5, -0.5, 9.5, 0.5)},
+              "govde": (-0.5, -0.5, 9.5, 0.5),
+              "yukseklik_mm": 8.5, "yonlu": True},
     # ADS1115 modulu, 1x10 disi baslikta; govde basligin SAGINA uzanir
     # (modul ~28 x 18 mm). Bacak islevleri `V.ADS_MODUL` sirasiyla.
     "ADS": {"pin": {f"h{i + 1}": [(0, i)] for i in range(10)},
-            "govde": (-0.5, -1.0, 6.5, 10.0)},
+            "govde": (-0.5, -1.0, 6.5, 10.0),
+            "yukseklik_mm": 8.5, "yonlu": True},
     # kart disina giden tel: lehim noktasi + gerginlik deligi
     "TEL": {"pin": {"1": [(0, 0)]}, "bos": [(1, 0)],
-            "govde": (-0.5, -0.5, 1.5, 0.5)},
+            "govde": (-0.5, -0.5, 1.5, 0.5),
+            "yukseklik_mm": 0.0},
 }
 
 
@@ -931,6 +951,127 @@ def denetle(nl: Netlist, parcalar: dict[str, Parca], teller: dict,
         m = mesafe(pin_dugum(c_pin), pin_dugum(ic_pin))
         D.kosul(f"{c_pin} -> {ic_pin} bakir yolu <= {sinir} delik ({neden})",
                 m is not None and m <= sinir, f"{m}" if m is not None else "BAGLI DEGIL")
+
+    # ── 9 · alt adimlar — LEGO sirasi
+    # Uretici (`yerlesim3_adim`) sirayi kurar; buradaki olcutler ondan
+    # BAGIMSIZ: ayak izinin yukseklik_mm/yonlu alani, delik sahipligi,
+    # V.ALT_ADIM_SINIR.
+    print("\n  9 · ALT ADIMLAR — kurulum sirasi (LEGO)")
+    import yerlesim3_adim as AA
+    aa = AA.alt_adimlar(nl, parcalar, teller)
+    bilgi["alt_adimlar"] = aa
+
+    # 9a · eksiksiz ve tekil: her oge TAM BIR alt adimda, kendi buyuk adiminda
+    goruldu: dict[tuple, list] = {}
+    for s in aa:
+        for r in s.parcalar:
+            goruldu.setdefault(("parca", r), []).append(s)
+        for kart, i in s.izler:
+            goruldu.setdefault(("iz", kart, i), []).append(s)
+        for kart, i in s.teller:
+            goruldu.setdefault(("tel", kart, i), []).append(s)
+        for j in s.kablolar:
+            goruldu.setdefault(("kablo", j), []).append(s)
+    beklenen = {("parca", r): p.adim for r, p in parcalar.items()}
+    for kart, liste_t in teller.items():
+        for i, t in enumerate(liste_t):
+            beklenen[(t["tur"], kart, i)] = t["adim"]
+    for j, c in enumerate(V.KABLOLAR):
+        beklenen[("kablo", j)] = c[3]
+    eksik_aa = [k for k in beklenen if k not in goruldu]
+    cift_aa = [k for k, v in goruldu.items() if len(v) > 1]
+    yanlis_aa = [f"{k} {v[0].no}" for k, v in goruldu.items()
+                 if k in beklenen and v[0].adim != beklenen[k]]
+    disi_eksik = [r for r, (_g, a) in V.KART_DISI.items()
+                  if not any(r in s.kart_disi and s.adim == a for s in aa)]
+    D.kosul(f"her parca/iz/tel/kablo TAM BIR alt adimda, kendi adiminda ({len(aa)} alt adim)",
+            not (eksik_aa or cift_aa or yanlis_aa or disi_eksik),
+            "; ".join(str(x) for x in (eksik_aa[:2] + cift_aa[:2] + yanlis_aa[:2]
+                                        + disi_eksik[:2])))
+
+    # 9b · hicbir alt adim cok kalabalik ya da bos degil
+    sinir = V.ALT_ADIM_SINIR
+    kalabalik = []
+    for s in aa:
+        n = {"parca": len(s.parcalar), "iz": len(s.izler), "tel": len(s.teller),
+             "kablo": len(s.kablolar)}.get(s.tur)
+        if n is not None and not (1 <= n <= sinir[s.tur]):
+            kalabalik.append(f"{s.no} {s.tur}={n}")
+    D.kosul(f"alt adim basina en cok {sinir['parca']} parca / {sinir['iz']} iz / "
+            f"{sinir['tel']} tel / {sinir['kablo']} kablo, bos alt adim yok",
+            not kalabalik, "; ".join(kalabalik[:4]))
+
+    # 9c · lehim, henuz takilmamis parcanin deligini DOLDURMUYOR. Kart disi
+    #      tel lehim noktalari (TEL) haric: kablo lehimli pede de lehimlenir.
+    takilma = {}
+    for s in aa:
+        if s.tur == "parca":
+            for r in s.parcalar:
+                p = parcalar[r]
+                for dl in p.delikler(nl).values():
+                    for d in dl:
+                        takilma[(p.kart, d)] = (s.sira, r)
+    dolan = []
+    for s in aa:
+        for tur, oge in (("iz", s.izler), ("tel", s.teller)):
+            for kart, i in oge:
+                t = teller[kart][i]
+                for h in (t["yol"] if tur == "iz" else t["uclar"]):
+                    tk = takilma.get((kart, tuple(h)))
+                    if tk and tk[0] > s.sira:
+                        dolan.append(f"{s.no} {tur} {kart}:{delik_adi(*h)} -> {tk[1]}")
+    D.kosul("hicbir iz/tel, SONRAKI alt adimda takilacak parcanin deligine lehim akitmiyor",
+            not dolan, "; ".join(dolan[:3]))
+
+    # 9d · ayni buyuk adim + kartta alcak parca yuksekten ONCE
+    yuksek_hata = []
+    onceki: dict[tuple, tuple] = {}
+    for s in aa:
+        if s.tur != "parca":
+            continue
+        hs = [parcalar[r].a["yukseklik_mm"] for r in s.parcalar]
+        anahtar = (s.adim, s.kart)
+        if anahtar in onceki and onceki[anahtar][0] > min(hs):
+            yuksek_hata.append(f"{s.no} ({min(hs)} mm) < {onceki[anahtar][1]} "
+                               f"({onceki[anahtar][0]} mm)")
+        en = max(hs + [onceki.get(anahtar, (0, ""))[0]])
+        onceki[anahtar] = (en, s.no if en == max(hs) else onceki[anahtar][1])
+    D.kosul("her adimda alcak parcalar yuksek parcalardan once takiliyor",
+            not yuksek_hata, "; ".join(yuksek_hata[:3]))
+
+    # 9e · yonlu parca (kutup/bacak sirasi/centik) baska turle karisik degil
+    karisik = [f"{s.no} {sorted({parcalar[r].ayak for r in s.parcalar})}" for s in aa
+               if s.tur == "parca" and len({parcalar[r].ayak for r in s.parcalar}) > 1
+               and any(parcalar[r].a.get("yonlu") for r in s.parcalar)]
+    D.kosul("yonlu parcalar (elektrolitik, diyot, DIP, TO-92/220, baslik) kendi alt adiminda",
+            not karisik, "; ".join(karisik[:3]))
+
+    # 9f · kart disi kablo, ucundaki lehim noktasi hazir olmadan baglanmiyor
+    ped_sira = {r: s.sira for s in aa for r in s.parcalar if parcalar[r].ayak == "TEL"}
+    erken_kablo = []
+    for s in aa:
+        for j in s.kablolar:
+            for u in V.KABLOLAR[j][:2]:
+                if u[:2] in ("A:", "B:") and ped_sira.get(u[2:], 1e9) > s.sira:
+                    erken_kablo.append(f"{s.no} {u}")
+    D.kosul("her kart disi kablo, lehim noktasiyla ayni ya da sonraki alt adimda",
+            not erken_kablo, "; ".join(erken_kablo[:3]))
+
+    # 9g · buyuk adim sirasi korunuyor; her adim KONTROL ile biter; kart,
+    #      parcalarindan once hazirlaniyor
+    sira_hata = [f"{a.no}->{b.no}" for a, b in zip(aa, aa[1:]) if b.adim < a.adim]
+    for k in sorted({s.adim for s in aa}):
+        ks = [s for s in aa if s.adim == k]
+        if ks[-1].tur != "kontrol" or sum(s.tur == "kontrol" for s in ks) != 1:
+            sira_hata.append(f"adim {k} kontrol ile bitmiyor")
+    hazir = {}
+    for s in aa:
+        if s.tur == "hazirlik":
+            hazir.setdefault(s.kart, s.sira)
+        elif s.tur == "parca" and hazir.get(s.kart, 1e9) > s.sira:
+            sira_hata.append(f"{s.no} kart {s.kart} hazirlanmadan")
+    D.kosul("alt adimlar buyuk adim sirasinda, her adim KAPI kontroluyle bitiyor, "
+            "kart once hazirlaniyor", not sira_hata, "; ".join(sira_hata[:3]))
 
     # belge icin: delik -> ag (bakir + bacaklar, geometriden)
     bilgi["delik_agi"] = {(kart, h): ag for kart, hucre in bakir.items()

@@ -63,8 +63,8 @@ ESLEME = {
     "TL431LP": ("TL431", "Entegre", None),
     # B11 — +-12 V rayi (7912 orta nokta regulatoru)
     "L7912":   ("7912", "Regülatör",
-                "REG004 x2 — DEVIR 5.12.21 'besleyecek sey yok' demisti; "
-                "24 V kaynak ortaya cikinca kullanilabilir oldu"),
+                "REG009 yeni (L7912CV); REG004 x2 SOKUM, test edilmemis — "
+                "kartta yenisini kullan"),
     "68uF 50V": ("68µF 50V", "Kondansatör",
                  "C035 — 7912'nin giris ve cikis kondansatoru"),
     "LM358":  ("LM358", "Entegre", None),
@@ -95,7 +95,11 @@ ESLEME = {
     # 5mR Type-C, 0.1R tas, 1R tas.
     "10R/1R/0R1/15mR": ("15mR Type-C Şönt Direnç", "Direnç",
                         "RS tek konum; 5mR/0.1R/1R de stokta — kademe secimi"),
-    "24V girisi": ("2 Pin Bariyer Klemens", "Konnektör", "B11, 24 V kaynak girisi"),
+    # B48: 24 V girisi klemens DEGIL, XT30 (kodlu, ters takilamaz — B15/F8
+    #   ters polariteyi TVS ile korunamaz dedi). Semadaki J6 sembolu hala
+    #   KLEMENS; eslemesi 2026-09-15'e kadar bariyer klemense bakiyordu.
+    "24V girisi": ("XT30 Lipo Pil Konnektör Takımı", "Konnektör",
+                   "CON058 — B48: 24 V girisi XT30 (kodlu)"),
     "Yuk donusu": ("2 Pin Bariyer Klemens", "Konnektör", "ayni stok"),
     "Pil testi yuk donusu": ("2 Pin Bariyer Klemens", "Konnektör",
                              "B21. J3'ten AYRI olmali: J3 dogrudan sonte gider, "
