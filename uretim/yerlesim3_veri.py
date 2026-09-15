@@ -258,6 +258,56 @@ KABLOLAR = [
     ("X:J4.1", "A:T_SKOP", "sinyal", 6, "skop girisi"),
 ]
 
+# ── direnc TURU ve GUCU ─────────────────────────────────────────────────
+# Kullanici sordu (2026-09-15): "hangi direnc metal film, kac watt?"
+# GUC ayak izinden gelir: R4/R1D = 1/4 W, R5 = 1/2 W. tasarim3 §12: en
+# yuksek yuk 1/4 W'in %15'i (R20), en yuksek gerilim 200 V'un %51'i
+# (820K, 102 V) -> tek govde 1/4 W her yerde yeter; R40 144 mW -> 1/2 W.
+# TUR (tasarim3 §11): bolme ORANINI KURAN direncler metal film %1 olmak
+# ZORUNDA — karbon filmin gerilim katsayisi ve 1000 saatlik %1-3
+# suruklenmesi kalibrasyonla silinmez. Denetim (bolum 10) bu kumeyi
+# NETLIST TOPOLOJISINDEN yeniden kurup buradaki listeyle karsilastirir:
+# giris agina/zincire dokunan direnc (bolucu ust), VREF ile bolucu
+# dugumu arasindaki direnc (alt bacak), iki girisinde de >=2 direnc
+# olan op-amp'in direncleri (fark yukselteci).
+DIRENC_TURU = {
+    "zorunlu": {"R4", "R6", "R10", "R11", "R12", "R13", "R14", "R15", "R16",
+                "R20", "R23", "R27", "R28", "R29", "R30"},
+    # oran kurmuyor ama kararliligi olcume giriyor — stokta metal film
+    # zaten var (R059/R060/R062), kullan; karbon da CALISIR
+    "onerilir": {"R2", "R3", "R7", "R17", "R21", "R22", "R31", "R32"},
+}
+DIRENC_TURU_AD = {
+    "zorunlu": "metal film %1 ZORUNLU",
+    "onerilir": "metal film önerilir (standart da çalışır)",
+    "serbest": "standart (karbon) olur",
+}
+# Her direncin gorevi — belge icin. Denetim: her R eksiksiz.
+DIRENC_GOREV = {
+    "R1": "TL431 ön gerilim direnci", "R2": "Vref bölücü üst — sıfır noktasının kararlılığı",
+    "R3": "Vref bölücü alt — sıfır noktasının kararlılığı",
+    "R4": "NORMAL kanal bölücü üst (oran)", "R6": "NORMAL kanal bölücü alt (oran)",
+    "R7": "NORMAL kanal RC süzgeci — HV kanalıyla (R17) eşleşmeli",
+    **{f"R1{i}": "HV zinciri (oran) — 615 V'u 6'ya bölüyor" for i in range(0, 6)},
+    "R16": "HV bölücü alt bacak (oran)",
+    "R17": "HV kanal RC süzgeci — NORMAL kanalla (R7) eşleşmeli",
+    "R18": "şönt S+ Kelvin ucu RC direnci", "R19": "şönt S− Kelvin ucu RC direnci",
+    "R20": "skop bölücü üst (oran)", "R21": "Sallen-Key süzgeç (f0/Q)",
+    "R22": "Sallen-Key süzgeç (f0/Q)", "R23": "skop bölücü alt (oran)",
+    "R24": "I²C SCL pull-up", "R25": "I²C SDA pull-up",
+    "R26": "skop kelepçe seri direnci (ESP32 girişi koruma)",
+    "R27": "fark yükselteci giriş (oran: kazanç)", "R28": "fark yükselteci geri besleme (oran: kazanç)",
+    "R29": "fark yükselteci giriş (oran: kazanç)", "R30": "fark yükselteci geri besleme (oran: kazanç)",
+    "R31": "Sallen-Key süzgeç (f0/Q)", "R32": "Sallen-Key süzgeç (f0/Q)",
+    "R33": "hızlı akım kelepçe seri direnci (ESP32 girişi koruma)",
+    "R34": "ADS giriş koruma seri direnci (V)", "R35": "ADS giriş koruma seri direnci (HV)",
+    "R36": "ADS giriş koruma seri direnci (VREF)",
+    "R38": "ADS giriş koruma seri direnci (şönt +)", "R39": "ADS giriş koruma seri direnci (şönt −)",
+    "R40": "7912 asgari yükü (12 mA, 144 mW → 1/2 W)", "R41": "+3V3 boşaltma direnci",
+    "R42": "Q1 kapı pull-down (failsafe)", "R43": "kapı sürücü Q2→Q3 baz direnci",
+    "R44": "kapı sürücü Q2 baz direnci (ESP32'den)", "R45": "Q1 kapı seri direnci",
+}
+
 # ── belgede parca satirina eklenen aciklama ────────────────────────────
 # Kullanici sordu (2026-09-15): "F1 50mA diyor — sigorta mi yuvasi mi?",
 # "R40 metal film mi olmali?". Semanin deger alani bunu soylemiyor.

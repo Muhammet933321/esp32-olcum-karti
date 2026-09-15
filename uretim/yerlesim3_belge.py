@@ -353,6 +353,11 @@ def parca_satiri(p, nl) -> str:
         notlar.append("iki ayrı 1nF, yan yana")
     if p.ref in V.PARCA_NOTU:
         notlar.append(e(V.PARCA_NOTU[p.ref]))
+    if p.ayak in GUC_SINIFI and p.ref in V.DIRENC_GOREV:
+        tur = direnc_turu(p.ref)
+        notlar.insert(0, f"<b>{GUC_SINIFI[p.ayak]}</b> · "
+                         f"{'<b>' if tur == 'zorunlu' else ''}{e(V.DIRENC_TURU_AD[tur])}"
+                         f"{'</b>' if tur == 'zorunlu' else ''} — {e(V.DIRENC_GOREV[p.ref])}")
     return (f"<tr><td><b>{e(p.ref)}</b></td><td>{e(nl.deger.get(p.ref, ''))}</td>"
             f"<td>{' · '.join(parcalar_)}</td><td class='kucuk'>{' · '.join(notlar)}</td></tr>")
 
@@ -431,11 +436,16 @@ class Stok:
         _t, bulunan, _s = self.B.stok_bul(self.kayit, ad, kat, paket)
         return self._yaz(bulunan)
 
-    def deger_ile(self, deger: str, guc: str = "") -> str:
+    def deger_ile(self, deger: str, guc: str = "", tercih: str = "") -> str:
         if deger in self.B.ESLEME:
             ad, kat, _not, *paket = self.B.ESLEME[deger]
             if paket:
                 return self.ad_ile(ad, kat, paket[0])
+            if tercih:
+                # oran direnci: stokta metal film paketi varsa YALNIZ onu goster
+                _t, bulunan, _s = self.B.stok_bul(self.kayit, ad, kat, tercih)
+                if [r for r in bulunan if (r["adet"] or "").strip() != "0"]:
+                    return self._yaz(bulunan)
             if guc:
                 # ayak izi guc sinifini belirliyor (R40 1/2 W); o paketten yoksa hepsi
                 _t, bulunan, _s = self.B.stok_bul(self.kayit, ad, kat, guc)
@@ -459,10 +469,14 @@ def gerekenler(k: int, nl, parcalar, aa, stok: Stok) -> str:
                 key=lambda p: Y_dogal(p.ref))
     degerler: dict[tuple, list] = {}
     for p in ps:
-        degerler.setdefault((nl.deger.get(p.ref, "?"), GUC_SINIFI.get(p.ayak, "")), []).append(p.ref)
-    for (deg, guc), refs in degerler.items():
-        satir.append((f"{deg} {guc}".strip(), str(len(refs)), ", ".join(refs),
-                      stok.deger_ile(deg, guc) if stok.var else ""))
+        tur = direnc_turu(p.ref) if p.ayak in GUC_SINIFI else ""
+        degerler.setdefault((nl.deger.get(p.ref, "?"), GUC_SINIFI.get(p.ayak, ""), tur),
+                            []).append(p.ref)
+    for (deg, guc, tur), refs in degerler.items():
+        etiket = {"zorunlu": " metal film %1", "onerilir": " metal film (önerilir)"}.get(tur, "")
+        satir.append((f"{deg} {guc}{etiket}".strip(), str(len(refs)), ", ".join(refs),
+                      stok.deger_ile(deg, guc, "metal film" if tur in ("zorunlu", "onerilir") else "")
+                      if stok.var else ""))
     aks: dict[str, list] = {}
     for p in ps:
         if p.ayak in AKSESUAR:
@@ -493,6 +507,44 @@ def gerekenler(k: int, nl, parcalar, aa, stok: Stok) -> str:
 
 def Y_dogal(ref: str) -> str:
     return re.sub(r"\d+", lambda m: m.group(0).zfill(3), ref)
+
+
+def direnc_turu(ref: str) -> str:
+    if ref in V.DIRENC_TURU["zorunlu"]:
+        return "zorunlu"
+    if ref in V.DIRENC_TURU["onerilir"]:
+        return "onerilir"
+    return "serbest"
+
+
+def direnc_tablosu(nl, parcalar, aa) -> str:
+    """Butun direncler: deger, guc (ayak izinden), tur, gorev, adim."""
+    adim_no = {r: s.no for s in aa for r in s.parcalar}
+    rs = sorted((p for p in parcalar.values() if p.ayak in GUC_SINIFI and p.ref in V.DIRENC_GOREV),
+                key=lambda p: Y_dogal(p.ref))
+    sinif = {"zorunlu": "kotu", "onerilir": "uyari", "serbest": "iyi"}
+    satir = []
+    for p in rs:
+        t = direnc_turu(p.ref)
+        satir.append(f"<tr><td><b>{e(p.ref)}</b></td><td>{e(nl.deger.get(p.ref, ''))}</td>"
+                     f"<td>{GUC_SINIFI[p.ayak]}</td>"
+                     f"<td><span class='tur {sinif[t]}'>{e(V.DIRENC_TURU_AD[t])}</span></td>"
+                     f"<td class='kucuk'>{e(V.DIRENC_GOREV[p.ref])}</td>"
+                     f"<td class='s'><a href='#s{adim_no.get(p.ref, '')}'>{adim_no.get(p.ref, '')}</a></td></tr>")
+    n_z = sum(1 for p in rs if direnc_turu(p.ref) == "zorunlu")
+    n_o = sum(1 for p in rs if direnc_turu(p.ref) == "onerilir")
+    return (f"""
+<h2 id="direncler">Dirençler — tür ve güç</h2>
+<p><b>Güç:</b> hepsi <b>1/4 W</b>, yalnız R40 <b>1/2 W</b>. Tasarım hesabı (tasarim3 §12): en çok
+yüklenen direnç R20, 1/4 W'ın %15'i; en yüksek gerilim 820K zincirinde 102 V (1/4 W'ın 200 V
+sınırının %51'i). Daha büyük gövde <b>alma</b>: parazitik kapasite skop bandını keser.</p>
+<p><b>Tür:</b> ölçüm <b>oranını kuran</b> {n_z} direnç <b>metal film %1</b> olmak zorunda — karbon
+filmin gerilime bağlı değeri ve 1000 saatte %1–3 sürüklenmesi kalibrasyonla silinmez (§11).
+{n_o} direnç için metal film önerilir (sıfır noktası ve süzgeç kararlılığı), geri kalanı standart
+karbon olabilir. Stoktaki direnc.net paketleri (mavi gövde, 5 halka) metal film; motorobit
+paketleri ve dökme dirençler bej gövde, 4 halka = karbon.</p>
+<table><tr><th>Direnç</th><th>Değer</th><th>Güç</th><th>Tür</th><th>Görevi</th><th class='s'>Adım</th></tr>
+{''.join(satir)}</table>""")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -862,6 +914,7 @@ düğüm zaten karşı köşelerde; en dar çift:
 {e(bilgi['en_dar'].get('B', ''))}.</td></tr>
 </table>
 """)
+    g.append(direnc_tablosu(nl, parcalar, aa))
     g.append(j5_tablosu(nl))
 
     # ── gorus penceresi + alt adim listesi
@@ -1078,6 +1131,10 @@ details{margin:8px 0}
 summary{cursor:pointer;color:var(--m2);font-size:15px}
 td{vertical-align:top}
 .kotu{color:var(--kotu);font-weight:600}
+.tur{display:inline-block;font-size:13px;padding:1px 8px;border-radius:99px;border:1px solid var(--cizgi);white-space:nowrap}
+.tur.kotu{color:var(--kotu);border-color:var(--kotu);font-weight:600}
+.tur.uyari{color:var(--uyari);border-color:var(--uyari)}
+.tur.iyi{color:var(--iyi);border-color:var(--iyi)}
 .gorus{position:sticky;top:0;z-index:5;background:var(--yz);border:1px solid var(--cizgi);
   border-radius:12px;padding:8px 10px 6px;margin:14px 0 18px;box-shadow:0 6px 18px rgba(0,0,0,.08)}
 .gorus-ust{display:flex;align-items:center;gap:8px}

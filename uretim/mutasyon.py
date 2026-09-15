@@ -1058,6 +1058,13 @@ MUTASYONLAR = [
      "                if j5:", "                if False:",
      "9h: 'ESP32'yi J5'e bagla' alt adimi yoksa kullanici Adim 1 KAPI'sinda "
      "beslemesiz karti olcer (B48b'ye kadar boyleydi)"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_veri.py",
+     '"R20", "R23", "R27", "R28", "R29", "R30"},', '"R23", "R27", "R28", "R29", "R30"},',
+     "10: skop bolucusunun ust direnci (R20) 'metal film zorunlu' listesinden "
+     "duserse belge onu karbon diye gosterir — topolojiden turetilen kume yakalar"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_veri.py",
+     '"onerilir": {"R2", "R3",', '"onerilir": {"R4", "R2", "R3",',
+     "10: bir direnc iki turde birden olursa belge celisir — 'her direnc TEK turde'"),
 ]
 
 

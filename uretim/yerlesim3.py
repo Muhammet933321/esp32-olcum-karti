@@ -1091,6 +1091,53 @@ def denetle(nl: Netlist, parcalar: dict[str, Parca], teller: dict,
             not j5_hata and any(p.ayak == "HDR10" for p in parcalar.values()),
             "; ".join(j5_hata[:2]))
 
+    # ── 10 · direnc turu — oran kuran kume NETLIST TOPOLOJISINDEN
+    print("\n  10 · DIRENC TURU — oran kuran direncler metal film mi (netlist topolojisi)")
+    direncler = sorted(r for r in nl.ref_pinleri
+                       if r.startswith("R") and r != "RS" and r in parcalar)
+    # zincirin ALT dugumu haric: oraya RC suzgeci (R17) de dokunuyor, o
+    # bolucu degil — alt bacak kurali (VREF'e giden) R16'yi zaten yakalar
+    giris_aglari = {"/V_GIRIS", "/HV_GIRIS", "/SKOP_GIRIS"} | set(V.ZINCIR[:-1])
+
+    def aglar_r(ref):
+        return {nl.pin_agi[f"{ref}.{no}"] for no in nl.ref_pinleri[ref]}
+
+    ag_direncleri: dict[str, set] = {}
+    for r in direncler:
+        for ag in aglar_r(r):
+            ag_direncleri.setdefault(ag, set()).add(r)
+    # bolucu ust: giris agina ya da zincire dokunuyor
+    ust = {r for r in direncler if aglar_r(r) & giris_aglari}
+    # alt bacak: bir ucu VREF, oteki ucu bir bolucu-ust direncinin dugumunde
+    alt = {r for r in direncler if "/VREF" in aglar_r(r)
+           and any(ag != "/VREF" and (ag_direncleri.get(ag, set()) & ust)
+                   for ag in aglar_r(r))}
+    # fark yukselteci: iki girisinde de >= 2 direnc olan op-amp
+    girisler: dict[str, dict[str, set]] = {}
+    for ag, rs in ag_direncleri.items():
+        m = re.fullmatch(r"Net-\((U\d+[A-Z])-([+-])\)", ag)
+        if m:
+            girisler.setdefault(m.group(1), {})[m.group(2)] = rs
+    fark = set()
+    for _u, g in girisler.items():
+        if len(g) == 2 and all(len(rs) >= 2 for rs in g.values()):
+            fark |= g["+"] | g["-"]
+    turetilen = ust | alt | fark
+    beyan = set(V.DIRENC_TURU["zorunlu"])
+    D.kosul("oran kuran direnc kumesi (metal film ZORUNLU) netlist topolojisiyle ayni",
+            turetilen == beyan,
+            f"{len(turetilen)} direnc" if turetilen == beyan else
+            f"topoloji-beyan: {sorted(turetilen - beyan)} · beyan-topoloji: {sorted(beyan - turetilen)}")
+    onerilir = set(V.DIRENC_TURU["onerilir"])
+    tur_hata = sorted(beyan & onerilir) + sorted((beyan | onerilir) - set(direncler))
+    gorev_eksik = sorted(set(direncler) - set(V.DIRENC_GOREV))
+    D.kosul("her direnc TEK turde ve her direncin gorevi yazili",
+            not tur_hata and not gorev_eksik,
+            f"cift/yok: {tur_hata}" if tur_hata else (f"gorevsiz: {gorev_eksik}" if gorev_eksik
+                                                     else f"{len(direncler)} direnc"))
+    bilgi["direnc_turu"] = {r: ("zorunlu" if r in beyan else "onerilir" if r in onerilir
+                                else "serbest") for r in direncler}
+
     # belge icin: delik -> ag (bakir + bacaklar, geometriden)
     bilgi["delik_agi"] = {(kart, h): ag for kart, hucre in bakir.items()
                           for h, ag in hucre.items()}
