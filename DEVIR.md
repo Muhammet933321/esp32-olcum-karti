@@ -180,8 +180,9 @@ büyütüldü: kısa kenar zaten 45, tek kesim; 10×10 plaket 32×32 çıktı, *
 yerleşimi gözden geçirir → plaket kesilir → adım 0 (besleme) lehimlenir.
 50 mA sigorta gelmedi: yuvaya geçici **400 mA (FUS001)**, ilk enerji akım
 sınırlı; 24 V girişi XT30 (kodlu — ters takılamaz; açma-kapama anahtarı değil).
-**B48b (2026-09-15, 5.12.63):** plan LEGO sırasında — 91 alt adım, sabit
-görüş penceresi, her adımda gerekenler (stok kaydı + kutu), denetim 47/47.
+**B48b (2026-09-15, 5.12.63):** plan LEGO sırasında — 92 alt adım, sabit
+görüş penceresi, her adımda gerekenler (stok kaydı + kutu), denetim 48/48.
+ESP32 karta lehimlenmez — J5'e kabloyla, alt adım 1.12.
 Kullanıcı kuruluma **7-yerlesim.html'den** başlıyor.
 
 **Kullanım kararı (2026-09-14, kullanıcı):** **şebeke referanslı ölçüm
@@ -8319,6 +8320,8 @@ Zayıf sürüş hatayı ~4× azaltıyor ama **sıfırlamıyor**. Karar: yakalama
 **Kart A 38×38 → 45×45 (aynı gün, kullanıcı).** Kullanıcı "38×38 mecburi mi, 40 ya da 45 olmaz mı" diye sordu. 38, planın sığdığı en küçük boyuttu (kullanılan alan 37×35 + köşe vidaları). Denetim 38/40/45'te birebir aynı (47/47, A'da en dar pay +4.78 mm; vidalar köşeye kaçınca yüksek gerilimli bakırdan yalnızca uzaklaşıyor). 45×45 seçildi: 13×23 plaketin kısa kenarı zaten 45 delik → **tek kesim** (46. sıra), üç fabrika kenarı. Plan A1'e (sol üst) bağlı kaldığı için **delik adları değişmedi**; fazlası sağda/altta 7'şer sıra. `KARTLAR[..]["kaynak"]` (kesilmemiş delik sayısı) eklendi, kesim talimatı artık bundan türüyor (önceden "39. sütun ve 39. sıra" elle yazılıydı). Mutasyon B48 yeniden 13/13.
 
 Aynı soruda kullanıcı "buradan yüksek akım/gerilim geçecek mi" diye sordu; denetimin gerilim modelinden: **A kartında** ağların GND'ye göre en yükseği skop girişi ~64 V (−63.5…+46.8), V girişi ~36 V, raylar ~17 V; iki ağ arası en büyük fark ~99 V (zarf). **B kartında** 617 V. Akım: kartın kendi beslemesi ~30 mA (F1); yük akımı (≤11.5 A / pil testi ≤6.55 A) plakete girmiyor. ⚠ Skop girişi 60 V'u geçebildiği için T_SKOP bölgesi enerjiliyken dokunulmamalı — belgeye "615 V A'ya girmez" cümlesi eklendi.
+
+**ESP32 bağlantı alt adımı (aynı gün, 9h).** Kullanıcı "ESP32 bu kartta mı olacak" diye sordu. Hayır: kartta yalnız J5 (1×10 erkek başlık, AJ15–AJ24), devkit kutuda, 10 telli dişi-dişi kabloyla. Sorunun cevabını ararken 🔴 **boşluk** çıktı: hiçbir alt adım "ESP32'yi bağla" demiyordu, oysa Adım 1 KAPI'sı (TL431/Vref) +3V3/+5V'u J5'ten alıyor; tezgâhtaki GPIO4–GPIO5 kısa devresi ve RC düzeneğinin sökülmesi de hiçbir adımda yoktu. Yeni `esp32` alt adımı (1.12, KAPI'dan hemen önce): eski teller sökülür, pin eşleme tablosu, 3V3/5V uyarısı, kısa kablo (I²C + SKOP + I_HIZLI aynı demette), COM soketi. J5 çizimde vurgulanıyor (`ilgili` — sayılmayan alan, 9a'yı bozmaz). **9h:** J5 kablosu J5 takıldıktan SONRA, o adımın KAPI'sından ÖNCE tam bir alt adım. `yerlesim3.py` 47 → **48**, mutasyon B48 **14/14** (alt adımı kaldırmak), zincir 18/18, kilit 1498.
 
 **Açık.** Parça yükseklikleri yaklaşık (yalnız sıralama). KAPI 0 "kaynakta CC varsa ~60 mA": WCT-200-24'te CC yok; MOD011 buck'ta CC var mı kullanıcıya soruldu, cevap yok — yoksa seri dirençli ilk enerji yöntemi hesaplanıp belgeye girmeli. `4-kurulum.html` besleme adımını hâlâ içermiyor ve "12 V adaptör başlangıç için yeter" diyor; ana sayfa artık "kurulum Yerleşim'den başlar" diyor ama kılavuzun kendisi düzeltilmedi.
 

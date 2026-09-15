@@ -1054,6 +1054,10 @@ MUTASYONLAR = [
      'SON_TURLER = ("kablo", "kontrol")', 'SON_TURLER = ("kontrol", "kablo")',
      "9g: KAPI kontrolunden SONRA kablo takiliyorsa kapi yarim karti olcer "
      "— 'her adim KAPI ile biter'"),
+    ("B48", "yerlesim3.py", "uretim/yerlesim3_adim.py",
+     "                if j5:", "                if False:",
+     "9h: 'ESP32'yi J5'e bagla' alt adimi yoksa kullanici Adim 1 KAPI'sinda "
+     "beslemesiz karti olcer (B48b'ye kadar boyleydi)"),
 ]
 
 

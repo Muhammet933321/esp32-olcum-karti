@@ -10,6 +10,7 @@ kurulmasin diye her biri kucuk, sirali alt adimlara bolunuyor:
   iz        lehim yuzu izleri, ag ag (once raylar)
   tel       yalitimli teller
   kablo     kart disi lehim noktalari + kablolar
+  esp32     J5 basligi -> ESP32-S3 devkit kablosu (ESP32 karta lehimlenmez)
   kontrol   enerji vermeden once ohmmetre, sonra KAPI
 
 Sira VERIDEN uretiliyor, elle yazilmiyor. Denetim (`yerlesim3.py`,
@@ -56,6 +57,7 @@ class AltAdim:
     teller: list[tuple[str, int]] = field(default_factory=list)
     kablolar: list[int] = field(default_factory=list)                # V.KABLOLAR sirasi
     kart_disi: list[str] = field(default_factory=list)
+    ilgili: list[str] = field(default_factory=list)   # yalniz vurgu/yakinlik; SAYILMAZ
     no: str = ""
     sira: int = 0
 
@@ -161,6 +163,12 @@ def alt_adimlar(nl, parcalar: dict, teller: dict) -> list[AltAdim]:
                 kalan = [p.ref for p in pedler if p.ref not in atanan]
                 if kalan:
                     bu.append(AltAdim(k, "kablo", parcalar[kalan[0]].kart, parcalar=kalan))
+                # ESP32 karta LEHIMLENMEZ: J5 basligina 10 telli kabloyla baglanir.
+                # KAPI olcumu +3V3/+5V'u J5'ten aldigi icin baglanti o adimin
+                # KAPI'sindan ONCE bir alt adim olmali (denetim 9h).
+                j5 = sorted(p.ref for p in parcalar.values() if p.adim == k and p.ayak == "HDR10")
+                if j5:
+                    bu.append(AltAdim(k, "esp32", "A", ilgili=j5))
             elif tur == "kontrol":
                 bu.append(AltAdim(k, "kontrol", None))
         for n, s in enumerate(bu, 1):

@@ -191,7 +191,7 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
     for p in sorted(parcalar.values(), key=lambda q: q.ayak == "ADS"):
         if p.kart != kart:
             continue
-        g = [f'<g {ds("parca", p.ref, p.adim)}>']
+        g = [f'<g {ds("parca", p.ref, p.adim)} data-r="{e(p.ref)}">']
         deger = nl.deger.get(p.ref, "")
         if not alt and p.ayak != "TEL":
             x0, y0, x1, y1 = p.govde()
@@ -516,6 +516,8 @@ def _baslik(s, parcalar, teller) -> str:
         bas = ", ".join(s.kart_disi) if s.kart_disi else ", ".join(
             V.TEL_ETIKET.get(r, r) for r in s.parcalar)
         return f"Kart dışı bağlantılar — {bas}"
+    if s.tur == "esp32":
+        return f"{', '.join(s.ilgili)} → ESP32-S3 kablosu"
     return "Kontrol ve KAPI"
 
 
@@ -656,6 +658,20 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
                           f"<td>{'<b>YÜK AKIMI</b>' if V.KABLOLAR[j][2] == 'yuk' else e(V.KABLOLAR[j][2])}</td>"
                           f"<td class='kucuk'>{e(V.KABLOLAR[j][4])}</td></tr>" for j in s.kablolar)
                       + "</table>")
+    elif s.tur == "esp32":
+        ic.append(_madde([
+            "<b>ESP32 bu karta lehimlenmez.</b> Kutuda kartın yanında durur; J5 başlığına "
+            "10 telli <b>dişi-dişi</b> kabloyla bağlanır. Bu adımın KAPI ölçümü +3V3 ve +5V'u "
+            "ESP32'den, bu kablo üzerinden alıyor.",
+            "Bağlamadan önce ESP32'nin pinlerinde başka tel kalmasın — tezgâh denemelerinden "
+            "kalan GPIO4–GPIO5 kısa devre teli ve RC düzeneği dahil.",
+            "Kabloyu tablodaki pin pin eşlemeyle tak; <b>3V3 ile 5V'u karıştırma</b>. "
+            "Kabloyu kısa tut: I²C ile iki analog sinyal (skop, hızlı akım) aynı demette gidiyor.",
+            "USB kablosunu devkit'in <b>COM yazan</b> Type-C soketine tak (CH343 köprüsü). "
+            "Öteki soket de port açar ama firmware orada sessiz kalır.",
+        ]))
+        ic.append("<table><tr><th class='s'>J5</th><th>Ağ</th><th>ESP32-S3 devkit pini</th></tr>"
+                  + "".join(j5_satirlari(nl)) + "</table>")
     else:
         aglar = sorted({teller[kart][j]["ag"] for x in aa if x.adim == s.adim
                         for kart, j in x.izler + x.teller} & RAYLAR, key=kisa_ag)
@@ -681,8 +697,8 @@ def _kutu(s, nl, parcalar, teller):
         xs.append(x)
         ys.append(y)
 
-    if s.tur in ("parca", "kablo"):
-        for r in s.parcalar:
+    if s.tur in ("parca", "kablo", "esp32"):
+        for r in s.parcalar + s.ilgili:
             p = parcalar[r]
             if p.ayak != "TEL":
                 g = p.govde()
@@ -826,7 +842,8 @@ düğüm zaten karşı köşelerde; en dar çift:
         gr = gorus(s, nl, parcalar, teller, aa)
         anahtar = f"{s.no}|{','.join(s.parcalar)}|{len(s.izler)}|{len(s.teller)}|{','.join(map(str, s.kablolar))}"
         S.append({"no": s.no, "a": s.adim, "tur": s.tur, "kart": gr["kart"], "yuz": gr["yuz"],
-                  "vb": gr["vb"], "baslik": _baslik(s, parcalar, teller), "anahtar": anahtar})
+                  "vb": gr["vb"], "baslik": _baslik(s, parcalar, teller), "anahtar": anahtar,
+                  "vurgu": list(s.ilgili)})
 
     dugmeler = "".join(f'<button data-git="{k}" title="{e(V.ADIM_ADLARI[k])}">{k}</button>'
                        for k in range(son + 1))
@@ -951,7 +968,10 @@ Bakırın <b>kalitesi</b> (soğuk lehim, köprü) ancak multimetreyle sınanır.
      var n = +el.dataset.s, a = +el.dataset.a, op, parlak;
      if (tum) { op = n <= cur ? 1 : .12; parlak = n === cur; }
      else if (s.tur === 'kontrol') { parlak = a === s.a && n < cur; op = parlak ? 1 : (n < cur ? .25 : 0); }
-     else { parlak = n === cur; op = parlak ? 1 : (n < cur ? (s.yuz === 'alt' ? .6 : .25) : 0); }
+     else {
+       parlak = n === cur || (s.vurgu.length > 0 && s.vurgu.indexOf(el.dataset.r) >= 0);
+       op = parlak ? 1 : (n < cur ? (s.yuz === 'alt' ? .6 : .25) : 0);
+     }
      el.style.opacity = op;
      el.style.pointerEvents = op === 0 ? 'none' : '';
      el.classList.toggle('bu', parlak);
@@ -1099,6 +1119,17 @@ def firmware_pinleri() -> dict[str, int]:
 
 
 def j5_tablosu(nl) -> str:
+    return ("<h2>J5 → ESP32-S3 kablosu</h2>"
+            "<p><b>ESP32 karta lehimlenmez</b>: kutuda kartın yanında durur, J5 başlığına "
+            "10 telli dişi-dişi kabloyla bağlanır (Adım 1'de, KAPI'dan önce). J5 pin sırası "
+            "şemadan, GPIO numaraları firmware'deki <code>PIN_*</code> sabitlerinden. <b>Devkit'in "
+            "5V pini USB'den beslenir</b>; kart USB'siz çalışmaz (analog +5 V buradan). "
+            "İki Type-C soketinden <b>COM yazan</b> doğru olan (CH343 köprüsü).</p>"
+            "<table><tr><th class='s'>J5</th><th>Ağ</th><th>ESP32-S3 devkit pini</th></tr>"
+            + "".join(j5_satirlari(nl)) + "</table>")
+
+
+def j5_satirlari(nl) -> list[str]:
     pinler = firmware_pinleri()
     satir = []
     for no in range(1, 11):
@@ -1111,13 +1142,7 @@ def j5_tablosu(nl) -> str:
             hedef = "?"
         satir.append(f"<tr><td class='s'>{no}</td><td>{e(kisa_ag(ag))}</td>"
                      f"<td><b>{e(hedef)}</b></td></tr>")
-    return ("<h2>J5 → ESP32-S3 kablosu</h2>"
-            "<p>10 telli dişi-dişi kablo; J5 pin sırası şemadan, GPIO numaraları "
-            "firmware'deki <code>PIN_*</code> sabitlerinden. <b>Devkit'in 5V pini "
-            "USB'den beslenir</b>; kart USB'siz çalışmaz (analog +5 V buradan). "
-            "İki Type-C soketinden <b>COM yazan</b> doğru olan (CH343 köprüsü).</p>"
-            "<table><tr><th class='s'>J5</th><th>Ağ</th><th>ESP32-S3 devkit pini</th></tr>"
-            + "".join(satir) + "</table>")
+    return satir
 
 
 def _uc_adi(uc: str) -> str:

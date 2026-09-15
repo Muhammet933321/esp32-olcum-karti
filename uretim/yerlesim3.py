@@ -1073,6 +1073,24 @@ def denetle(nl: Netlist, parcalar: dict[str, Parca], teller: dict,
     D.kosul("alt adimlar buyuk adim sirasinda, her adim KAPI kontroluyle bitiyor, "
             "kart once hazirlaniyor", not sira_hata, "; ".join(sira_hata[:3]))
 
+    # 9h · ESP32 karta LEHIMLENMEZ; J5 basligina kabloyla baglanir. KAPI
+    #      olcumu +3V3/+5V'u J5'ten aldigi icin baglanti J5 takildiktan SONRA,
+    #      o adimin KAPI'sindan ONCE tam bir alt adim olmali. (B48b'ye kadar
+    #      hicbir alt adim "ESP32'yi bagla" demiyordu.)
+    j5_hata = []
+    for p in parcalar.values():
+        if p.ayak != "HDR10":
+            continue
+        tak = next((s for s in aa if s.tur == "parca" and p.ref in s.parcalar), None)
+        bag = [s for s in aa if s.tur == "esp32" and p.ref in s.ilgili]
+        kap = next((s for s in aa if s.tur == "kontrol" and s.adim == p.adim), None)
+        if len(bag) != 1 or not tak or not kap or not (tak.sira < bag[0].sira < kap.sira):
+            j5_hata.append(f"{p.ref}: takma {tak.no if tak else '-'} · baglama "
+                           f"{[s.no for s in bag]} · KAPI {kap.no if kap else '-'}")
+    D.kosul("J5 -> ESP32 kablosu J5 takildiktan sonra, o adimin KAPI'sindan once baglaniyor",
+            not j5_hata and any(p.ayak == "HDR10" for p in parcalar.values()),
+            "; ".join(j5_hata[:2]))
+
     # belge icin: delik -> ag (bakir + bacaklar, geometriden)
     bilgi["delik_agi"] = {(kart, h): ag for kart, hucre in bakir.items()
                           for h, ag in hucre.items()}
