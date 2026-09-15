@@ -8331,6 +8331,8 @@ Aynı soruda kullanıcı "buradan yüksek akım/gerilim geçecek mi" diye sordu;
 
 **U1 bacak sırası doğrulandı (2026-09-16).** Stoktaki TL431 gövdesinde "WS TL431A 819SB": Wing Shing, A sınıfı (±%1). Wing Shing TL431I veri sayfası (TO-92 ön yüz çizimi, alttan görünüş ve bonding diyagramı birbirini tutuyor): **R–A–K**, TI LP ile aynı → `V.BACAK["TL431"]` doğru. PDF `Elekronic/datasheet/TL431A_WingShing_TO-92.pdf` (depo dışı), envanter IC002 `parca_no` = WS TL431A. Tezgah kalemi (`[!]` diyot kademesi) yine de duruyor: 5 V→1K→K, REF=K → 2.5 V.
 
+🔴 **J5 erkek değil DİŞİ (2026-09-16, kullanıcı sordu).** B48 planı J5'i 1×10 erkek başlık, kabloyu "dişi-dişi" yazmıştı. Devkit'in pinleri erkek, kullanıcının jumper kabloları dişi-erkek (kart ADS modüllerine bugün onlarla bağlı; envanterde dişi-dişi kablo yok) ve 3.2'deki sipariş notu J5 için zaten "dişi header" diyordu — planın iki varsayımı da elindekilerle uyuşmuyordu, üstelik B48b'nin 1.12 alt adımı bunu belgeye de geçirmişti. Düzeltme: J5 **dişi** (CON018 1×40'tan 10'luk; ADS'lerle birlikte 30 pin, bir şerit yeter), kablo dişi-erkek: dişi uç devkit'e, erkek uç J5'e. Ayak izi/yerleşim değişmedi (aynı 1×10, 2.54 mm); yalnız metin ve gerekenler. Denetim 52/52.
+
 **Açık.** Parça yükseklikleri yaklaşık (yalnız sıralama). KAPI 0 "kaynakta CC varsa ~60 mA": WCT-200-24'te CC yok; MOD011 buck'ta CC var mı kullanıcıya soruldu, cevap yok — yoksa seri dirençli ilk enerji yöntemi hesaplanıp belgeye girmeli. `4-kurulum.html` besleme adımını hâlâ içermiyor ve "12 V adaptör başlangıç için yeter" diyor; ana sayfa artık "kurulum Yerleşim'den başlar" diyor ama kılavuzun kendisi düzeltilmedi.
 
 ---

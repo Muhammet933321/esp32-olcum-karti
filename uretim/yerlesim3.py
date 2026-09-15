@@ -132,7 +132,11 @@ AYAKLAR: dict[str, dict] = {
     "SIG": {"pin": {"1": [(0, 0), (2, 0)], "2": [(6, 0), (8, 0)]},
             "govde": (-0.6, -1.2, 8.6, 1.2), "ic_bag": True,
             "yukseklik_mm": 10.0},
-    # 1x10 erkek pin basligi (J5 -> ESP32)
+    # 1x10 DISI baslik (J5 -> ESP32). 2026-09-16'ya kadar "erkek" yaziliydi;
+    # kullanici sordu: devkit'in pinleri ERKEK, elindeki jumper kablolar
+    # DISI-ERKEK (kart su an ADS modullerine onlarla bagli; envanterde
+    # disi-disi kablo yok) ve DEVIR 3.2'nin siparis notu J5 icin zaten
+    # "disi header" diyordu. Disi uc devkit'e, erkek uc J5'e.
     "HDR10": {"pin": {str(i + 1): [(i, 0)] for i in range(10)},
               "govde": (-0.5, -0.5, 9.5, 0.5),
               "yukseklik_mm": 8.5, "yonlu": True},

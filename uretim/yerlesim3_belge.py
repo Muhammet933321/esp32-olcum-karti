@@ -348,7 +348,9 @@ def parca_satiri(p, nl) -> str:
     elif p.ayak == "R1D":
         notlar.append("dik: gövde 1'in üstünde")
     elif p.ayak == "ADS":
-        notlar.append("dişi başlık; modül sağa uzanır")
+        notlar.append("dişi başlık; modülün erkek pinleri buraya oturur, modül sağa uzanır")
+    elif p.ayak == "HDR10":
+        notlar.append("DİŞİ başlık; jumper kablonun erkek ucu buraya girer")
     elif p.ayak == "C1x2":
         notlar.append("iki ayrı 1nF, yan yana")
     if p.ref in V.PARCA_NOTU:
@@ -400,7 +402,7 @@ KAPI = {
 AKSESUAR = {
     "DIP8": ("DIP-8 entegre soketi", "8 Pin Entegre Soketi", "Konnektör"),
     "SIG": ("5×20 PCB sigorta klipsi (çift)", "5x20mm PCB Klipsli Sigorta Yuvası", "Sigorta"),
-    "HDR10": ("1×40 erkek header — 10 pin kes", "1x40 Erkek Header", "Konnektör"),
+    "HDR10": ("1×40 dişi header — 10 pin kes (J5)", "1x40 Dişi Header", "Konnektör"),
     "ADS": ("1×40 dişi header — 10 pin kes", "1x40 Dişi Header", "Konnektör"),
 }
 # Direnc ayak izinin guc sinifi (envanterde paket alaninda yazar)
@@ -735,7 +737,9 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
                      "olur), her bacağı kısa lehimle (2–3 sn — cam sigorta ısınmasın). Bacak "
                      "delikleri tabloyla uymazsa dur, söyle.")
         if "HDR10" in ayaklar:
-            m.append("1×40 erkek header'dan 10 pin kes; kısa uçlar plakete.")
+            m.append("<b>J5 dişi başlık</b> (erkek DEĞİL): 1×40 dişi header'dan 10'luk parça kes, "
+                     "plakete lehimle. ESP32'nin pinleri erkek olduğu için kablonun dişi ucu "
+                     "devkit'e, erkek ucu buraya girer — elindeki dişi-erkek jumper kablolar.")
         if "ADS" in ayaklar:
             m.append("1×40 dişi header'dan 10'luk parçalar kes, plakete lehimle. Pin sırasını "
                      f"modülün üstündeki yazıyla karşılaştır: {e(', '.join(V.ADS_MODUL))}. "
@@ -812,9 +816,10 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
                       + "</table>")
     elif s.tur == "esp32":
         ic.append(_madde([
-            "<b>ESP32 bu karta lehimlenmez.</b> Kutuda kartın yanında durur; J5 başlığına "
-            "10 telli <b>dişi-dişi</b> kabloyla bağlanır. Bu adımın KAPI ölçümü +3V3 ve +5V'u "
-            "ESP32'den, bu kablo üzerinden alıyor.",
+            "<b>ESP32 bu karta lehimlenmez.</b> Kutuda kartın yanında durur; J5 (dişi) "
+            "başlığına 10 adet <b>dişi-erkek</b> jumper kabloyla bağlanır: dişi uç devkit'in "
+            "erkek pinine, erkek uç J5'e. Bu adımın KAPI ölçümü +3V3 ve +5V'u ESP32'den, bu "
+            "kablo üzerinden alıyor.",
             "Bağlamadan önce ESP32'nin pinlerinde başka tel kalmasın — tezgâh denemelerinden "
             "kalan GPIO4–GPIO5 kısa devre teli ve RC düzeneği dahil.",
             "Kabloyu tablodaki pin pin eşlemeyle tak; <b>3V3 ile 5V'u karıştırma</b>. "
@@ -1286,8 +1291,9 @@ def firmware_pinleri() -> dict[str, int]:
 
 def j5_tablosu(nl) -> str:
     return ("<h2>J5 → ESP32-S3 kablosu</h2>"
-            "<p><b>ESP32 karta lehimlenmez</b>: kutuda kartın yanında durur, J5 başlığına "
-            "10 telli dişi-dişi kabloyla bağlanır (Adım 1'de, KAPI'dan önce). J5 pin sırası "
+            "<p><b>ESP32 karta lehimlenmez</b>: kutuda kartın yanında durur, J5 <b>dişi</b> "
+            "başlığına 10 adet dişi-erkek jumper kabloyla bağlanır — dişi uç devkit'in erkek "
+            "pinine, erkek uç J5'e (Adım 1'de, KAPI'dan önce). J5 pin sırası "
             "şemadan, GPIO numaraları firmware'deki <code>PIN_*</code> sabitlerinden. <b>Devkit'in "
             "5V pini USB'den beslenir</b>; kart USB'siz çalışmaz (analog +5 V buradan). "
             "İki Type-C soketinden <b>COM yazan</b> doğru olan (CH343 köprüsü).</p>"
