@@ -224,6 +224,26 @@ KART_DISI = {
     "J7": ("guc", 8),
     "Q1": ("guc", 8),
 }
+# Kart disi parcalar icin belgeye giren aciklama — kullanici 3.7'de "buraya
+# ne gelecek, parca var mi" diye sordu (2026-09-17): kablo alt adiminda
+# plakete parca takilmadigi belgede yazmiyordu.
+KART_DISI_NOTU = {
+    "RS": "15 mΩ Type-C şönt (R044): U biçimli kalın tel, iki bacak, bacaklarda sıkıştırma "
+          "izi. Kutuda durur, plakete GİRMEZ. Kelvin telleri bacaklara, sıkıştırma izinin "
+          "ÜST tarafına (gövdeye yakın) lehimlenir; 'RS.2' saydığın bacağa S−, yıldız GND "
+          "ve J3.2 gider — tutarlı ol.",
+    "J3": "2 kutuplu bariyer klemens (CON012), yük dönüşü: 1 → yük eksisi, 2 → kaynak "
+          "eksisi. Şöntün bacakları ya vidaların altına ya kısa kalın kabloyla; akım "
+          "J3.1 → şönt → J3.2 yolunu izler.",
+    "J6": "24 V girişi: XT30 (CON058). Kablo yalıtımlı, kırmızı = +, siyah = −.",
+    "J1": "V girişi born jak çifti (panel): kırmızı = V girişi, siyah = COM (kart GND).",
+    "J2": "HV girişi born jakı (panel): AYRI ve işaretli; COM, J1'in COM'uyla ortak.",
+    "J4": "Skop girişi born jakı (panel); COM ortak.",
+    "J7": "Pil testi yük klemensi (CON012'den ikinci): 1 → yük, 2 → pil eksisi; J3'ten "
+          "AYRI — karıştırılırsa kesme çalışmaz.",
+    "Q1": "IRFZ44N (Q006), kutuda: kaynağı şönt üst bacağına, savağı J7.1'e, kapısı "
+          "karta tek telle (T_KAPI). Soğutucusuz 6.55 A'e kadar.",
+}
 
 # (uc1, uc2, tur, adim, not)
 #   uc: "A:<TEL>" / "B:<TEL>" (lehim noktasi) · "X:<REF.PIN>" (kart disi pin)

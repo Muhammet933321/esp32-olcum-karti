@@ -803,11 +803,24 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
         ic.append("<table><tr><th>Ağ</th><th>Uç 1</th><th>Uç 2</th><th class='s'>Delik</th></tr>"
                   + "".join(satir) + "</table>")
     elif s.tur == "kablo":
-        m = ["Teli önce yanındaki <b>gerginlik deliğinden</b> (boş halka) geçir, sonra lehim "
-             "noktasına lehimle — çekilince lehim kopmasın."]
+        m = []
+        if s.kart_disi:
+            m.append("<b>Bu alt adımda plakete parça takılmıyor.</b> Kart dışı parçalar "
+                     f"({', '.join(s.kart_disi)}) kutuda / panelde durur; plakete yalnızca "
+                     "aşağıdaki lehim noktalarına gelen teller lehimlenir. Kutu henüz yoksa "
+                     "takımı kartın yanında serbest bırak, telleri 15–20 cm tut.")
+            for r in s.kart_disi:
+                if r in V.KART_DISI_NOTU:
+                    m.append(f"<b>{e(r)}</b> — {e(V.KART_DISI_NOTU[r])}")
+        m.append("Teli önce yanındaki <b>gerginlik deliğinden</b> (boş halka) geçir, sonra lehim "
+                 "noktasına lehimle — çekilince lehim kopmasın.")
         if any(V.KABLOLAR[j][2] == "yuk" for j in s.kablolar):
             m.append("<b>YÜK AKIMI</b> taşıyan kablolar plakete girmez: kutuda, klemensler "
-                     "arasında; kalın kablo kullan.")
+                     "arasında; kalın kablo (≥1.5 mm²) kullan.")
+        if any(V.KABLOLAR[j][2] == "kelvin" for j in s.kablolar):
+            m.append("<b>Kelvin telleri</b> ince olabilir (akım taşımaz); S+ ve S− birbirine "
+                     "burulu; şönt BACAĞINA lehimle, klemens vidasına değil — 15 mΩ'da vida "
+                     "temas direnci bile ölçüme girer.")
         if any(V.KABLOLAR[j][2] == "hv" for j in s.kablolar):
             m.append("<b>HV kablosu</b>: yalıtımı sağlam, diğer kablolardan ayrı ve uzak geçir.")
         ic.append(_madde(m))
