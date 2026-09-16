@@ -803,40 +803,101 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
         ic.append("<table><tr><th>Ağ</th><th>Uç 1</th><th>Uç 2</th><th class='s'>Delik</th></tr>"
                   + "".join(satir) + "</table>")
     elif s.tur == "kablo":
-        m = []
-        if s.kart_disi:
-            m.append("<b>Bu alt adımda plakete parça takılmıyor.</b> Kart dışı parçalar "
-                     f"({', '.join(s.kart_disi)}) kutuda / panelde durur; plakete yalnızca "
-                     "aşağıdaki lehim noktalarına gelen teller lehimlenir. Kutu henüz yoksa "
-                     "takımı kartın yanında serbest bırak, telleri 15–20 cm tut.")
+        # Kullanici (2026-09-17): "burada ne yapacagimi anlamadim, sanki hicbir
+        # sey yapmayacak gibiyim" -> once SIMDI yapilacak is (karta tel
+        # lehimlemek), kart disi parcalarin hikayesi katlanir bolumde.
+        pedler = [parcalar[r] for r in s.parcalar]
+        kab = [V.KABLOLAR[j] for j in s.kablolar]
+
+        def ped_kablo(r):
+            return [c for c in kab if any(u.endswith(":" + r) for u in c[:2])]
+
+        def obur_uc(r):
+            for c in ped_kablo(r):
+                for u in c[:2]:
+                    if not u.endswith(":" + r):
+                        return u
+            return ""
+
+        simdi_bagla = [c for c in kab if c[2] == "besleme"]
+        kart_kart = [c for c in kab if c[0][:2] in ("A:", "B:") and c[1][:2] in ("A:", "B:")]
+        satir = []
+        islenen: set[str] = set()
+
+        def gecir_lehimle(pp):
+            (d,) = pp.delikler(nl)[pp.ref + ".1"]
+            bos = pp.bos_delikler()
+            return (f"{pp.kart}:{Y.delik_adi(*bos[0]) if bos else '—'}",
+                    f"{pp.kart}:{Y.delik_adi(*d)}")
+
+        for pp in pedler:
+            if pp.ref in islenen:
+                continue
+            islenen.add(pp.ref)
+            kablar = ped_kablo(pp.ref)
+            tur = kablar[0][2] if kablar else ""
+            uc = obur_uc(pp.ref)
+            g1, l1 = gecir_lehimle(pp)
+            if tur == "besleme":
+                nasil = "öbür ucu XT30'a (" + ("kırmızı, +" if "24P" in pp.ref else "siyah, −") + ")"
+            elif uc[:2] in ("A:", "B:") and uc[2:] in parcalar:
+                # iki ucu da kartta olan TEK tel: iki lehim noktasini bir satirda goster
+                q = parcalar[uc[2:]]
+                islenen.add(q.ref)
+                g2, l2 = gecir_lehimle(q)
+                satir.append(f"<tr><td><b>{e(V.TEL_ETIKET.get(pp.ref, pp.ref))}</b> ↔ "
+                             f"<b>{e(V.TEL_ETIKET.get(q.ref, q.ref))}</b></td>"
+                             f"<td>{g1} · {g2}</td><td>{l1} · {l2}</td>"
+                             f"<td class='kucuk'>tek tel, iki ucu da lehimlenir — kısa tut (&lt;10 cm)</td></tr>")
+                continue
+            else:
+                nasil = "öbür ucu <b>şimdilik boş</b>"
+            satir.append(f"<tr><td><b>{e(V.TEL_ETIKET.get(pp.ref, pp.ref))}</b></td>"
+                         f"<td>{g1}</td><td>{l1}</td><td class='kucuk'>{nasil}</td></tr>")
+        n = len(satir)
+        if n:
+            m = [f"<b>Şimdi yap:</b> karta <b>{n} tel</b> lehimle. Teli önce gerginlik deliğinden "
+                 "(boş halka) geçir, sonra lehim noktasına lehimle; 15–20 cm bırak."]
+            if any(c[2] == "kelvin" for c in kab):
+                m.append("S+ ve S− tellerini birbirine bur (ince tel yeter).")
+            if simdi_bagla:
+                m.append("Bu teller <b>hemen bağlanır</b>: öbür uçları XT30 konnektörüne — "
+                         "bu adımın KAPI ölçümü 24 V'u buradan alıyor.")
+            elif kart_kart:
+                m.append("Kart B'den kart A'ya giden tel <b>şimdi</b> lehimlenir (kısa, &lt;10 cm).")
+            else:
+                m.append("Tellerin öbür uçları <b>boş kalır</b>; kutu/panel kurulunca aşağıdaki "
+                         "parçalara bağlanacak.")
+            ic.append(_madde(m))
+            ic.append("<table><tr><th>Tel</th><th>Geçir</th><th>Lehimle</th><th>Öbür ucu</th></tr>"
+                      + "".join(satir) + "</table>")
+        else:
+            ic.append(_madde(["<b>Şimdi karta lehimlenecek bir şey yok</b>; aşağısı kutu "
+                              "kurulunca yapılacak bağlantılar."]))
+        sonra = [c for c in kab if c[2] != "besleme" and not (c in kart_kart)]
+        if sonra or s.kart_disi:
+            d = ["<details><summary>Sonra — kutu/panel kurulunca bu teller nereye gidiyor</summary>"]
+            notlar = []
             for r in s.kart_disi:
                 if r in V.KART_DISI_NOTU:
-                    m.append(f"<b>{e(r)}</b> — {e(V.KART_DISI_NOTU[r])}")
-        m.append("Teli önce yanındaki <b>gerginlik deliğinden</b> (boş halka) geçir, sonra lehim "
-                 "noktasına lehimle — çekilince lehim kopmasın.")
-        if any(V.KABLOLAR[j][2] == "yuk" for j in s.kablolar):
-            m.append("<b>YÜK AKIMI</b> taşıyan kablolar plakete girmez: kutuda, klemensler "
-                     "arasında; kalın kablo (≥1.5 mm²) kullan.")
-        if any(V.KABLOLAR[j][2] == "kelvin" for j in s.kablolar):
-            m.append("<b>Kelvin telleri</b> ince olabilir (akım taşımaz); S+ ve S− birbirine "
-                     "burulu; şönt BACAĞINA lehimle, klemens vidasına değil — 15 mΩ'da vida "
-                     "temas direnci bile ölçüme girer.")
-        if any(V.KABLOLAR[j][2] == "hv" for j in s.kablolar):
-            m.append("<b>HV kablosu</b>: yalıtımı sağlam, diğer kablolardan ayrı ve uzak geçir.")
-        ic.append(_madde(m))
-        if s.parcalar:
-            ic.append("<table><tr><th>Lehim noktası</th><th>Delik</th></tr>" + "".join(
-                f"<tr><td>{e(V.TEL_ETIKET.get(r, r))}</td><td>{parcalar[r].kart}:"
-                f"{Y.delik_adi(*parcalar[r].delikler(nl)[r + '.1'][0])}</td></tr>"
-                for r in s.parcalar) + "</table>")
-        if s.kablolar:
-            ic.append("<table><tr><th>Nereden</th><th>Nereye</th><th>Tür</th><th>Not</th></tr>"
-                      + "".join(
-                          f"<tr><td>{e(_uc_adi(V.KABLOLAR[j][0]))}</td>"
-                          f"<td>{e(_uc_adi(V.KABLOLAR[j][1]))}</td>"
-                          f"<td>{'<b>YÜK AKIMI</b>' if V.KABLOLAR[j][2] == 'yuk' else e(V.KABLOLAR[j][2])}</td>"
-                          f"<td class='kucuk'>{e(V.KABLOLAR[j][4])}</td></tr>" for j in s.kablolar)
-                      + "</table>")
+                    notlar.append(f"<b>{e(r)}</b> — {e(V.KART_DISI_NOTU[r])}")
+            if any(c[2] == "yuk" for c in kab):
+                notlar.append("<b>YÜK AKIMI</b> taşıyan kablolar plakete girmez: kutuda, klemensler "
+                              "arasında; kalın kablo (≥1.5 mm²).")
+            if any(c[2] == "kelvin" for c in kab):
+                notlar.append("Kelvin telleri (S+, S−) şönt BACAĞINA lehimlenir, klemens vidasına "
+                              "değil — 15 mΩ'da vida temas direnci bile ölçüme girer.")
+            if any(c[2] == "hv" for c in kab):
+                notlar.append("<b>HV kablosu</b>: yalıtımı sağlam, diğer kablolardan ayrı ve uzak.")
+            if notlar:
+                d.append(_madde(notlar))
+            d.append("<table><tr><th>Nereden</th><th>Nereye</th><th>Tür</th><th>Not</th></tr>"
+                     + "".join(
+                         f"<tr><td>{e(_uc_adi(c[0]))}</td><td>{e(_uc_adi(c[1]))}</td>"
+                         f"<td>{'<b>YÜK AKIMI</b>' if c[2] == 'yuk' else e(c[2])}</td>"
+                         f"<td class='kucuk'>{e(c[4])}</td></tr>" for c in sonra)
+                     + "</table></details>")
+            ic.append("".join(d))
     elif s.tur == "esp32":
         ic.append(_madde([
             "<b>ESP32 bu karta lehimlenmez.</b> Kutuda kartın yanında durur; J5 (dişi) "
@@ -861,6 +922,13 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
             m.append("Bu adımda dokunulan rayların hiçbiri GND'ye kısa değil: "
                      + ", ".join(f"<b>{e(kisa_ag(a))}</b>" for a in aglar) + ".")
         ic.append(_madde(m))
+        disi = sorted({r for x in aa if x.adim == s.adim and x.tur == "kablo" for r in x.kart_disi
+                       if not any(V.KABLOLAR[j][2] == "besleme" for j in x.kablolar)})
+        if disi:
+            ic.append(f"<div class='uy'><b>KAPI için {', '.join(disi)} gerekiyor</b> (kutu/panel "
+                      "parçası). Kutu kurulunca yap; o zamana kadar bu adımı yalnız ohmmetre "
+                      "kontrolüyle geç. (İstersen parçayı tel uçlarına krokodille geçici "
+                      "bağlayıp KAPI'yı şimdi de yapabilirsin.)</div>")
         ic.append(f"<div class='ok'><b>KAPI — geçmeden ilerleme:</b> {KAPI.get(s.adim, '')}</div>")
     return "".join(ic)
 
