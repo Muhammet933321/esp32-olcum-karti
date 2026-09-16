@@ -140,8 +140,13 @@ AYAKLAR: dict[str, dict] = {
     "HDR10": {"pin": {str(i + 1): [(i, 0)] for i in range(10)},
               "govde": (-0.5, -0.5, 9.5, 0.5),
               "yukseklik_mm": 8.5, "yonlu": True},
-    # ADS1115 modulu, 1x10 disi baslikta; govde basligin SAGINA uzanir
-    # (modul ~28 x 18 mm). Bacak islevleri `V.ADS_MODUL` sirasiyla.
+    # ADS1115 modulu, 1x10 DISI baslikta — plakete yalniz yuva lehimlenir,
+    # modul KAPI'dan once takilir (kullanici sordu, 2026-09-16). Modulun
+    # pinleri duz + yuva duz => modul plakete DIK durur; "govde" alani
+    # basligin sagindaki 28x18 mm'lik bolge, yatik takilma ihtimaline karsi
+    # BOS birakildi (baska parca girmiyor). yukseklik_mm YUVANIN yuksekligi
+    # (modul takilinca ~37 mm; 9d sirasi yuvaya gore). Bacak islevleri
+    # `V.ADS_MODUL` sirasiyla — yuva simetrik, modul TERS takilabilir.
     "ADS": {"pin": {f"h{i + 1}": [(0, i)] for i in range(10)},
             "govde": (-0.5, -1.0, 6.5, 10.0),
             "yukseklik_mm": 8.5, "yonlu": True},

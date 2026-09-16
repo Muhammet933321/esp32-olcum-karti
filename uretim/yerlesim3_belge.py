@@ -348,7 +348,8 @@ def parca_satiri(p, nl) -> str:
     elif p.ayak == "R1D":
         notlar.append("dik: gövde 1'in üstünde")
     elif p.ayak == "ADS":
-        notlar.append("dişi başlık; modülün erkek pinleri buraya oturur, modül sağa uzanır")
+        notlar.append("dişi başlık — modül LEHİMLENMEZ, sonra takılır; VDD yazan pini "
+                      "tabloda VDD yazan deliğe (yuva simetrik, ters takılabilir)")
     elif p.ayak == "HDR10":
         notlar.append("DİŞİ başlık; jumper kablonun erkek ucu buraya girer")
     elif p.ayak == "C1x2":
@@ -741,9 +742,14 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
                      "plakete lehimle. ESP32'nin pinleri erkek olduğu için kablonun dişi ucu "
                      "devkit'e, erkek ucu buraya girer — elindeki dişi-erkek jumper kablolar.")
         if "ADS" in ayaklar:
-            m.append("1×40 dişi header'dan 10'luk parçalar kes, plakete lehimle. Pin sırasını "
-                     f"modülün üstündeki yazıyla karşılaştır: {e(', '.join(V.ADS_MODUL))}. "
-                     "Modülleri KAPI ölçümünden önce tak.")
+            m.append("<b>Bu adımda yalnız dişi yuvalar lehimlenir; ADS modülleri lehimlenmez.</b> "
+                     "1×40 dişi header'dan 10'luk parçalar kes, plakete lehimle (lehimlerken "
+                     "yuvayı dik tutmak için modülü ya da bir erkek header'ı geçici takabilirsin).")
+            m.append("Modülleri bu adımın KAPI ölçümünden hemen önce yuvaya tak. Modülün pinleri "
+                     "düz olduğu için modül plakete <b>dik</b> durur; sağındaki alan boş bırakıldı. "
+                     f"Pin sırası: {e(', '.join(V.ADS_MODUL))} — modülün üstündeki yazıyla "
+                     "karşılaştır. <b>Yuva simetrik, modül ters de girer:</b> VDD yazan pin "
+                     "tabloda VDD yazan deliğe gelsin.")
         if "C1x2" in ayaklar:
             m.append("İki ayrı 1nF yan yana; paralel bağlantıyı lehim izi yapacak.")
         tipler = {kond_tipi(p.ref) for p in ps if p.ref in V.KOND_GOREV}
