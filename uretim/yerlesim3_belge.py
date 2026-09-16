@@ -745,11 +745,15 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
             m.append("<b>Bu adımda yalnız dişi yuvalar lehimlenir; ADS modülleri lehimlenmez.</b> "
                      "1×40 dişi header'dan 10'luk parçalar kes, plakete lehimle (lehimlerken "
                      "yuvayı dik tutmak için modülü ya da bir erkek header'ı geçici takabilirsin).")
-            m.append("Modülleri bu adımın KAPI ölçümünden hemen önce yuvaya tak. Modülün pinleri "
-                     "düz olduğu için modül plakete <b>dik</b> durur; sağındaki alan boş bırakıldı. "
-                     f"Pin sırası: {e(', '.join(V.ADS_MODUL))} — modülün üstündeki yazıyla "
-                     "karşılaştır. <b>Yuva simetrik, modül ters de girer:</b> VDD yazan pin "
-                     "tabloda VDD yazan deliğe gelsin.")
+            m.append("Modülleri bu adımın KAPI ölçümünden hemen önce yuvaya tak. Modül plakete "
+                     "<b>paralel (yatık)</b> durur, gövdesi yuvanın <b>sağına</b> uzanır — plan bu "
+                     "alanı boş bıraktı. Plan, pinleri modülün <b>lehim yüzünden</b> çıkan (bileşen "
+                     "yüzü yukarı, yazılar okunur) modül varsayıyor: o zaman üstten alta "
+                     f"{e(', '.join(V.ADS_MODUL))} sırası tablodaki deliklerle çakışır. "
+                     "<b>Pinler bileşen yüzüne lehimlenmişse</b> modül gövde-sağda ancak ters "
+                     "(bileşen yüzü aşağı) takılabilir ve sıra A3…VDD'ye döner — o zaman ya "
+                     "başlık öbür yüze taşınır ya da plan ters sıraya göre yeniden üretilir; "
+                     "yuvaya öylece takma.")
         if "C1x2" in ayaklar:
             m.append("İki ayrı 1nF yan yana; paralel bağlantıyı lehim izi yapacak.")
         tipler = {kond_tipi(p.ref) for p in ps if p.ref in V.KOND_GOREV}

@@ -141,12 +141,15 @@ AYAKLAR: dict[str, dict] = {
               "govde": (-0.5, -0.5, 9.5, 0.5),
               "yukseklik_mm": 8.5, "yonlu": True},
     # ADS1115 modulu, 1x10 DISI baslikta — plakete yalniz yuva lehimlenir,
-    # modul KAPI'dan once takilir (kullanici sordu, 2026-09-16). Modulun
-    # pinleri duz + yuva duz => modul plakete DIK durur; "govde" alani
-    # basligin sagindaki 28x18 mm'lik bolge, yatik takilma ihtimaline karsi
-    # BOS birakildi (baska parca girmiyor). yukseklik_mm YUVANIN yuksekligi
-    # (modul takilinca ~37 mm; 9d sirasi yuvaya gore). Bacak islevleri
-    # `V.ADS_MODUL` sirasiyla — yuva simetrik, modul TERS takilabilir.
+    # modul KAPI'dan once takilir (kullanici sordu, 2026-09-16). Pinler
+    # modul duzlemine DIK oldugu icin duz yuvaya takilan modul plakete
+    # PARALEL (yatik) durur ve govdesi yuvanin SAGINA uzanir — "govde"
+    # alani o (28x18 mm; 2026-09-16'da bir ara "dik durur" yazildi,
+    # YANLISTI). Plan, pinleri LEHIM yuzunden cikan (bilesen yuzu yukari)
+    # modul varsayar: o zaman etiketler okunur ve h1=VDD ustte. Pinler
+    # BILESEN yuzune lehimlenmisse govde-sagda takilinca modul ters doner
+    # ve sira A3..VDD olur (kullanicinin modulleri boyle, 2026-09-16).
+    # yukseklik_mm YUVANIN yuksekligi. Yuva simetrik, modul TERS takilabilir.
     "ADS": {"pin": {f"h{i + 1}": [(0, i)] for i in range(10)},
             "govde": (-0.5, -1.0, 6.5, 10.0),
             "yukseklik_mm": 8.5, "yonlu": True},
