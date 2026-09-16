@@ -352,7 +352,7 @@ KOND_GOREV = {
     "C15": "ADS rayı (+3V3) ayırma",
     "C16": "7912 giriş kondansatörü — + ucu +12V, − ucu −12V (uzun bacak +)",
     "C17": "7912 çıkış kondansatörü — + ucu +12V, − ucu GND (uzun bacak +)",
-    "C18": "akım kanalı örtüşme süzgeci (B16), 1 µF film 15 mm bacak — C022; 22.5 mm'likler (C021/C023) plana sığmaz",
+    "C18": "akım kanalı örtüşme süzgeci (B16), 1 µF film 15 mm bacak — C023 (CBB22 105J400V, polipropilen ±%5; ölçüldü 15 mm, 4 adet) ya da C022 (damla, ±%10, 1 adet); C021 22.5 mm sığmaz",
     "C19": "akım kanalı örtüşme süzgeci (B16) — C18/C20 ile paralel, toplam 1.32 µF",
     "C20": "akım kanalı örtüşme süzgeci (B16) — ADS pinine en yakın olan",
 }
