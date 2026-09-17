@@ -68,6 +68,11 @@ ESLEME = {
     "68uF 50V": ("68µF 50V", "Kondansatör",
                  "C035 — 7912'nin giris ve cikis kondansatoru"),
     "LM358":  ("LM358", "Entegre", None),
+    # 2026-09-17: 50 mA cam sigorta GELDI (robotistan, FUS010 x5) — BILINEN_DIS'te
+    # "alinacak" olan son kalem de envantere baglandi. Yuva FUS009 (klips) zaten
+    # stoktaydi; F1 semada tek parca oldugu icin yalniz sigortayi esliyoruz.
+    "50mA":   ("50mA", "Sigorta", "FUS010 — B15/F8: +-12 V yuku 30 mA, 1.7x pay; "
+                                  "yuvadaki gecici 400 mA (FUS001) ile DEGISTIRILECEK"),
     # B26 (2026-09-11): ikisi de GELDI ve envantere girdi. Once
     # BILINEN_DIS'te "yolda" diye ELLE yaziliydi; parca elde oldugu halde
     # alisveris listesinde gorunuyordu. Artik envanterden cozuluyorlar,
@@ -119,9 +124,8 @@ BILINEN_DIS = {
     # 2026-09-14 (B48): BAT85 / 820K / 8.2K buradan ESLEME'ye tasindi —
     # 11 Eylul'de gelip envantere girmislerdi (D012, R055, R061) ama bu
     # liste hala "alinacak" diyordu. Ayni bayatlama sinifi (ESP32/ADS/TL072
-    # ile ucuncu kez). Kalan tek kalem sigorta.
-    "50mA": ("alinacak", "cam sigorta + yuva; +-12 V yuku 30 mA, 1.7x pay — B15/F8. "
-                         "Gelene kadar yuvaya gecici 400 mA (FUS001), ilk enerji akim sinirli"),
+    # ile ucuncu kez). 2026-09-17: son kalem 50 mA sigorta da geldi (FUS010)
+    # -> liste BOS. Yeni bir "alinacak" girerse buraya, gelince ESLEME'ye.
 }
 
 gecti = kaldi = uyari = 0

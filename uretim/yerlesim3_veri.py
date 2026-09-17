@@ -381,8 +381,9 @@ KOND_GOREV = {
 # Kullanici sordu (2026-09-15): "F1 50mA diyor — sigorta mi yuvasi mi?",
 # "R40 metal film mi olmali?". Semanin deger alani bunu soylemiyor.
 PARCA_NOTU = {
-    "F1": "Plakete lehimlenen: 5×20 sigorta YUVASI (2 klips). 50mA, içine takılan cam "
-          "sigortanın değeri — gelene kadar 400 mA (FUS001) tak.",
+    "F1": "Plakete lehimlenen: 5×20 sigorta YUVASI (2 klips, FUS009). 50mA, içine takılan "
+          "cam sigortanın değeri — 50 mA geldi (FUS010, 2026-09-17); yuvada geçici 400 mA "
+          "(FUS001) duruyorsa onunla DEĞİŞTİR.",
     "R40": "7912'nin asgari yükü: 12 V / 1K = 12 mA, 144 mW → 1/2 W (R030). Değer kritik "
            "değil; metal film GEREKMEZ.",
     # Kullanici sordu (2026-09-16): "TL431LP diyor, elimdeki TL431A — ayni mi?"
