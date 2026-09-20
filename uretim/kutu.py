@@ -936,6 +936,13 @@ def denetle(nl, parcalar) -> Y.Denetim:
     for no, _ne in K.ON_KOSUL:
         D.kosul(f"On kosul Yerlesim {no} yerlesim planinda var", no in yerlesim_nolar)
     D.kosul("Firmware komutlari kalibrasyon tablosunda", {"Z", "n", "z", "y", "?"} <= {x[0] for x in K.KALIBRASYON})
+    for o in oge:
+        D.kosul(f"{o['ref']} icin 'neden' gerekcesi var (>= 40 karakter)", len(o.get("neden", "")) >= 40)
+    D.kosul("PİL jaklari (buyuk boy) YÜK jaklariyla ayni delik/metal olcusunde",
+            all(ref_oge[r]["delik_mm"] == ref_oge["J3.1"]["delik_mm"] and ref_oge[r]["metal_mm"] == ref_oge["J3.1"]["metal_mm"]
+                for r in ("J7.1", "J7.2")))
+    D.kosul("Buyuk boy jaklarin deligi kucuk vidali jaklardan buyuk (8 > 6.5)",
+            ref_oge["J3.1"]["delik_mm"] > ref_oge["J1.1"]["delik_mm"])
     m31 = _kucuk(" ".join(hepsi["3.1"]["yap"]))
     D.kosul("3.1 metni olculerin delik MERKEZI oldugunu ve yuvarlak/oval ayrimini soyluyor",
             "merkezi" in m31 and "yuvarlak" in m31 and "oval" in m31)
@@ -1721,6 +1728,33 @@ def malzeme_ayir(stok) -> tuple[list, list]:
     return stokta, alinacak
 
 
+def delik_parca_html(stok) -> str:
+    """Her delik: parca (stok kaydiyla), cap, konum, gerekce — panel verisinden + M3 delikleri."""
+    kb, h = K.KUTU, hesap()
+    sat = []
+    for o in sorted(panel_ogeleri(), key=lambda q: (q["panel"] != "ön", q["z"], q["x"])):
+        cap = f"{o['yuva_en_mm']:.0f} × {o['delik_mm']:.0f} oval" if o["tip"] == "yuva" else f"Ø{o['delik_mm']:.1f}"
+        kayit = stok.ad_ile(*o["parca"]) if (o["parca"] and stok.var) else "—"
+        parca = E(o["parca"][0]) if o["parca"] else "(kendi parçası yok)"
+        sat.append((f"<b>{E(o['etiket'])}</b><br><span class='kucuk'>{E(o['panel'])} · x {o['x']:.0f} · z {o['z']:.0f}</span>",
+                    cap, f"{parca}<br><span class='kucuk'>{kayit}</span>", E(o.get("neden", ""))))
+    m3 = [("Kapak cıvataları ×4", "Ø3.2", f"{kb['kapak_civata']} + somun + pul (MEK034/035)",
+           f"Yan duvarlardan (y {kb['kapak_civata_y'][0]:.0f} / {kb['kapak_civata_y'][1]:.0f}, z {kb['kapak_civata_z']:.0f}) "
+           "kapak rayına; tahtaya diş açılmaz, somun tutar → kapak tak-çıkar."),
+          ("Kart ayak blokları ×6 (A ×4, B ×2)", "Ø3.2 (1–2. kat) + Ø6 (3. kat)", "M3×10 vida + gömme somun",
+           "Somun 3. katın Ø6 yuvasında hapis: kartlar vidayla söküleblir, tahtaya diş yok. Merkezler kartın "
+           "2×2 boş köşe deliklerinden."),
+          ("Duvara asılı parçalar (yuva ×2, MT3608 ×2, TP4056 blokları ×2)", "Ø3.2, ikişer", "M3 cıvata dıştan + somun içeride",
+           "Pil bloğu parçaları duvara cıvatalı — 'kutuya giren hiçbir parça yapıştırılmaz' kuralı; ileride 3D "
+           "baskı kutuya aynı parçalar geçer.")]
+    for a, b, c2, d in m3:
+        sat.append((f"<b>{E(a)}</b>", E(b), E(c2), E(d)))
+    return (_tablo(("Delik", "Çap / yuva", "Gelen parça · stok", "Neden bu parça / bu delik"), sat)
+            + "<p class='kucuk'>Konumlar iç koordinat (önden bakınca soldan); 3.1/3.2'deki parça-parça tablo aynı "
+              "delikleri parçanın kendi ucundan ölçer. Renk kuralı: kırmızı = ölçüm artısı, siyah = COM/dönüş, mavi = "
+              "pil deşarj yolu; büyük boy jak = akım taşıyan ya da yüksek gerilim.</p>")
+
+
 def on_kosul_html(nl, parcalar) -> str:
     """Yerlesim planinda bitmis olmasi gerekenler (kutu_veri.ON_KOSUL) + kart-kart kablolar."""
     sat = [(f"<a href='7-yerlesim.html#s{no}'>Yerleşim {no}</a>", ne) for no, ne in K.ON_KOSUL]
@@ -1792,6 +1826,7 @@ def yaz(nl, parcalar, hedef: Path) -> None:
     ])))
     g.append(ref("ref-yapistirici", "Hangi yapıştırıcı nerede",
                  _tablo(("İş", "Yapıştırıcı", "Nasıl"), [(E(a), f"<b>{E(b)}</b>", E(c2)) for a, b, c2 in kb["yapistirici"]])))
+    g.append(ref("ref-delik-parca", "Hangi deliğe ne geliyor — ve neden", delik_parca_html(stok)))
     g.append(ref("ref-delme", "Delikleri nasıl açarım (matkapsız)",
                  _tablo(("Aşama", "Nasıl"), [(f"<b>{E(a)}</b>", E(b)) for a, b in K.DELME])
                  + "<p class='kucuk'>Bütün delik ölçüleri deliğin <b>merkezi</b>. Çap sütunu Ø = yuvarlak delik; "

@@ -137,59 +137,70 @@ KUTU_EK_PARCA = [
 # vidalanamiyordu (PCB tipi); buyuk boy jaklar 15 A tasir.
 PANEL_ON = [
     {"ref": "J3.1", "ad": "YÜK 1 — devrenin eksisi", "tip": "jak", "x": 33.0, "z": 9.0,
-     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 22.0, "renk": "siyah",
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 21.0, "renk": "siyah",
      "parca": ("4mm Born Jak Şeffaf Siyah (Büyük Boy)", "Konnektör"),
-     "etiket": "YÜK 1", "alt_etiket": "devre −", "not": "Akım buradan girer; büyük boy jak."},
+     "etiket": "YÜK 1", "alt_etiket": "devre −", "not": "Akım buradan girer; büyük boy jak.",
+     "neden": "Yük akımının GİRDİĞİ uç (11.5 A'e kadar): büyük boy jak 15 A taşır, küçük vidalı jak taşımaz. Siyah = dönüş (eksi) hattı — kart akımı hep devrenin eksi/dönüş tarafından ölçer. Bariyer klemens (CON012) PCB tipiydi, panele vidalanamadı."},
     {"ref": "J3.2", "ad": "YÜK 2 — kaynağın eksisi", "tip": "jak", "x": 69.0, "z": 9.0,
-     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 22.0, "renk": "siyah",
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 21.0, "renk": "siyah",
      "parca": ("4mm Born Jak Şeffaf Siyah (Büyük Boy)", "Konnektör"),
-     "etiket": "YÜK 2", "alt_etiket": "kaynak −", "not": "Şöntün alt bacağı = kart GND = COM."},
+     "etiket": "YÜK 2", "alt_etiket": "kaynak −", "not": "Şöntün alt bacağı = kart GND = COM.",
+     "neden": "Yük akımının ÇIKTIĞI uç; şöntün alt bacağı = kart GND = COM. İki jak olması şart: akım şöntten SERİ geçmeli."},
     {"ref": "J7.1", "ad": "PİL 1 — yük direncinin ucu", "tip": "jak", "x": 123.0, "z": 9.0,
-     "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 20.0, "renk": "mavi",
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 21.0, "renk": "mavi",
      "parca": ("4mm Born Jak Şeffaf Mavi (Büyük Boy)", "Konnektör"),
-     "etiket": "PİL 1", "alt_etiket": "yük direnci", "not": "Q1'in savağı."},
+     "etiket": "PİL 1", "alt_etiket": "yük direnci", "not": "Q1'in savağı.",
+     "neden": "Pil deşarj yolu (Q1 savağı, 6.5 A'e kadar): büyük boy jak. MAVİ, YÜK'ten ayırt edilsin diye — karıştırılırsa pil kesmesi çalışmaz."},
     {"ref": "J7.2", "ad": "PİL 2 — pilin eksisi", "tip": "jak", "x": 159.0, "z": 9.0,
-     "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 20.0, "renk": "mavi",
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 21.0, "renk": "mavi",
      "parca": ("4mm Born Jak Şeffaf Mavi (Büyük Boy)", "Konnektör"),
-     "etiket": "PİL 2", "alt_etiket": "pil −", "not": "YÜK 2 ile aynı düğüm (şönt altı)."},
+     "etiket": "PİL 2", "alt_etiket": "pil −", "not": "YÜK 2 ile aynı düğüm (şönt altı).",
+     "neden": "Pil eksisi = şönt altı = COM ile aynı düğüm; mavi çiftin ikinci ucu."},
     {"ref": "J1.1", "ad": "V girişi", "tip": "jak", "x": 87.0, "z": 45.0,
      "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 20.0, "renk": "kirmizi",
      "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),
-     "etiket": "V", "menzil": "normal", "not": "NORMAL gerilim kanalı."},
+     "etiket": "V", "menzil": "normal", "not": "NORMAL gerilim kanalı.",
+     "neden": "Gerilim girişi: yüksek empedans (227 kΩ, akım yok) → küçük vidalı jak yeter. KIRMIZI = ölçüm artısı."},
     {"ref": "J1.2", "ad": "COM (ortak)", "tip": "jak", "x": 123.0, "z": 45.0,
      "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 20.0, "renk": "siyah",
      "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (siyah)", "Konnektör"),
      "etiket": "COM", "alt_etiket": "= YÜK 2 = PİL 2",
-     "not": "TEK COM: V, HV ve SKOP'un ortak ucu; içeride YÜK 2 ve PİL 2 ile aynı düğüm."},
+     "not": "TEK COM: V, HV ve SKOP'un ortak ucu; içeride YÜK 2 ve PİL 2 ile aynı düğüm.",
+     "neden": "TEK COM: V, HV ve SKOP'un ortak eksisi; içeride YÜK 2 / PİL 2 ile aynı düğüm. Tek jak olması bilerek — ikinci bir COM olsaydı şönt baypas edilebilirdi."},
     {"ref": "J4.1", "ad": "Osiloskop girişi", "tip": "jak", "x": 159.0, "z": 45.0,
      "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 20.0, "renk": "kirmizi",
      "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),
-     "etiket": "SKOP", "menzil": "skop", "not": "Dalga şekli kanalı."},
+     "etiket": "SKOP", "menzil": "skop", "not": "Dalga şekli kanalı.",
+     "neden": "Osiloskop girişi: 103 kΩ, akım yok → küçük kırmızı jak."},
     {"ref": "SW", "ad": "Güç anahtarı (AÇ/KAPA toggle)", "tip": "anahtar", "x": 33.0, "z": 63.0,
      "delik_mm": 6.0, "metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri",
      "parca": ("KTS102 On/Off 3 Ayak Toggle Anahtar", "Anahtar/Buton"),
      "etiket": "AÇ/KAPA", "alt_etiket": "24 V + hattı",
      "not": "KTS102 toggle (orta + bir uç ayak; ON-OFF), 24 V'un ARTI koluna seri, kaynak seçicinin "
             "ARDINDAN (pil kipinde de bu açar/kapar). YÜK 1 jakının üstünde (aynı iç çubuk). Kilit "
-            "anahtarı (SW045) kullanılmadı — kullanıcı toggle istedi (2026-09-20)."},
+            "anahtarı (SW045) kullanılmadı — kullanıcı toggle istedi (2026-09-20).",
+     "neden": "24 V'un artı kolunu keser (kaynak seçicinin ardından; pil kipinde de bu açar). Toggle: kullanıcı tercihi (kilit anahtarı gerekmiyor), Ø6 delik yeter."},
     {"ref": "SWP1", "ad": "Hücre 1 anahtarı (ESP32 pili)", "tip": "anahtar", "x": 69.0, "z": 63.0,
      "delik_mm": 6.0, "metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri",
      "parca": ("KTS102 On/Off 3 Ayak Toggle Anahtar", "Anahtar/Buton"),
      "etiket": "PİL ESP32", "alt_etiket": "hücre 1 → MT1",
      "not": "KTS102 toggle (ikinci adet): hücre 1'i MT1'e bağlar. USB takılıyken KAPALI tut (MT3608 boşta "
-            "1–4 mA çeker). YÜK 2 jakının üstünde."},
+            "1–4 mA çeker). YÜK 2 jakının üstünde.",
+     "neden": "Hücre 1'i (ESP32) MT3608'e bağlar; hücre tarafında olmalı — MT3608 boşta 1–4 mA çekip pili haftalarda bitirir. KTS102 tek kutup yeter."},
     {"ref": "SWP2", "ad": "24 V kaynak seçici (PİL / HARİCİ)", "tip": "anahtar", "x": 87.0, "z": 63.0,
      "delik_mm": 6.0, "metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri",
      "parca": ("KTS202 On/Off 6 Ayak Toggle Anahtar", "Anahtar/Buton"),
      "etiket": "PİL / HARİCİ", "alt_etiket": "24 V kaynağı",
      "not": "KTS202 çift kutup (DPDT, ON-ON): iki hattı birden seçer — pil eksisi ile XT30 eksisi hiçbir "
             "konumda birleşmez. Stoktaki 3 konumlu KTS103 tek kutup, seçici olamaz (eksi hattı açıkta "
-            "kalır). Ortak uçlar AÇ/KAPA anahtarına, oradan klemense. V jakının üstünde."},
+            "kalır). Ortak uçlar AÇ/KAPA anahtarına, oradan klemense. V jakının üstünde.",
+     "neden": "24 V kaynağını seçer: PİL (MT2) / HARİCİ (XT30). ÇİFT kutup şart (KTS202): iki hattı birden değiştirmezse pil eksisi ile XT30 eksisi birleşir. 3 konumlu KTS103 tek kutup, olmaz."},
     {"ref": "J2.1", "ad": "YÜKSEK gerilim girişi", "tip": "jak", "x": 187.0, "z": 63.0,
-     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 22.0, "renk": "kirmizi",
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 21.0, "renk": "kirmizi",
      "parca": ("4mm Born Jak Şeffaf Kırmızı (Büyük Boy)", "Konnektör"),
      "etiket": "HV ⚡", "menzil": "yuksek",
-     "not": "AYRI sırada ve işaretli; arka ucu makaronla kaplanır. Yerini değiştirme."},
+     "not": "AYRI sırada ve işaretli; arka ucu makaronla kaplanır. Yerini değiştirme.",
+     "neden": "614 V'a kadar giriş: büyük boy jakın gövdesi/yalıtımı daha uzun, ayrı sırada ve öbür metalden ≥ 12.6 mm kaçak yolu (IEC 60664 takviyeli). Kutudaki TEK büyük kırmızı jak → şaşırılmaz. İç ucu makaronla."},
 ]
 
 PANEL_ARKA = [
@@ -199,7 +210,8 @@ PANEL_ARKA = [
      "etiket": "24 V", "alt_etiket": "XT30 kuyruk",
      "not": "8–10 cm kalın kablo kuyruğu: dışarıda XT30'un PİMLİ (erkek) ucu — kutu "
             "enerjisiz taraf. Kaynak kablosuna KILIFLI (dişi) uç. İçeride düğüm/"
-            "kablo bağı gerilim tahliyesi."},
+            "kablo bağı gerilim tahliyesi.",
+     "neden": "24 V girişi: XT30 KODLU konnektör ters takılamaz — ters polarite iki TL072'yi öldürür ve TVS ile korunamaz (sim3_ariza F8). XT30 panele vidalanmaz → kısa kuyruk; kutu tarafı erkek (enerjisiz), kaynak tarafı kılıflı dişi."},
     # B52 pil blogu (2026-09-20, kullanici: iki hucre, sifir alim, arka duvara asili).
     # Kilit anahtari ve toggle'lar ON panelde (4. sira, HV'nin solunda): arka duvarin
     # 3. sirasinda iki sarj yuvasi + kilit anahtari dis kat ek yerine yer birakmiyordu.
@@ -207,17 +219,20 @@ PANEL_ARKA = [
      "delik_mm": 9.0, "yuva_en_mm": 14.0, "metal_mm": 0.0, "derin_mm": 0.0, "renk": "gri",
      "parca": None, "etiket": "ŞARJ 1", "alt_etiket": "ESP32 pili",
      "not": "TP1 rafının Type-C soketi bu yuvadan bakar. Hücre 1'in eksisi = kart GND: PC'ye takılıyken "
-            "de güvenli."},
+            "de güvenli.",
+     "neden": "TP4056 rafının Type-C soketi; hücre 1'in şarjı. Hücre 1 eksisi = kart GND → PC'ye takılıyken de güvenli."},
     {"ref": "SARJ2", "ad": "Hücre 2 (24 V) şarj — TP4056 Type-C", "tip": "yuva", "x": 187.0, "z": 45.0,
      "delik_mm": 9.0, "yuva_en_mm": 14.0, "metal_mm": 0.0, "derin_mm": 0.0, "renk": "gri",
      "parca": None, "etiket": "ŞARJ 2", "alt_etiket": "⚠ yalnız HARİCİ konumda",
      "not": "TP2 rafı. Hücre 2'nin eksisi pil kipinde kartın −12 rayıdır: kaynak seçici PİL'deyken şarj "
-            "kablosu takılıp PC/ortak adaptöre giderse −12 GND'ye kısa olur. Şarj = seçici HARİCİ."},
+            "kablosu takılıp PC/ortak adaptöre giderse −12 GND'ye kısa olur. Şarj = seçici HARİCİ.",
+     "neden": "TP4056 rafının Type-C soketi; hücre 2'nin şarjı. AYRI şarj girişi çünkü hücre 2 eksisi pil kipinde −12 rayı: ortak toprakla birleşemez. Şarj yalnız seçici HARİCİ'deyken."},
 
     {"ref": "USB", "ad": "ESP32 USB yuvası", "tip": "yuva", "x": 152.0, "z": 8.0,
      "delik_mm": 9.0, "yuva_en_mm": 14.0, "metal_mm": 0.0, "derin_mm": 0.0, "renk": "gri",
      "parca": None, "etiket": "USB", "alt_etiket": "⚡ HV ölçerken çıkar",
-     "not": "14 × 9 mm oval yuva; devkit'in COM yazan Type-C soketi buraya bakar."},
+     "not": "14 × 9 mm oval yuva; devkit'in COM yazan Type-C soketi buraya bakar.",
+     "neden": "Kendi parçası yok: ESP32 devkit'in COM yazan Type-C soketi duvarın 2 mm içinde; fiş bu yuvadan geçer. Oval 14 × 9: Type-C fişin plastik gövdesi ~12 × 6.5."},
 ]
 
 # ── duvara asili parcalar: pil blogu (B52) ────────────────────────────
@@ -319,7 +334,9 @@ ADIMLAR = [
                  "<b>{ue:.0f} mm</b> yuvarlak bölüm (2026-09-20'de doğrulandı); ortada "
                  "<b>{duz:.0f} mm düz</b> bölüm kalıyor.",
                  "Kumpasla ölç ve tutmuyorsa söyle: born jak gövde dişi (küçük ≈ 6, büyük "
-                 "≈ 8 mm), USB-C fiş gövdesi (≈ 12 × 6.5), anahtar dişi (12).",
+                 "≈ 8 mm) ve jakın duvarın içine uzanan boyu (büyük boy için 21 mm varsayıldı — "
+                 "A kartının ayağına 0.2 mm kalıyor, fazlaysa söyle), USB-C fiş gövdesi (≈ 12 × 6.5), "
+                 "toggle dişi (6).",
                  "Tutmayan bir sayı varsa bana söyle — kesim listesi, delik tabloları ve "
                  "çizimler bu sayılardan üretiliyor, yeniden üretirim."],
          "kontrol": ["Çubuklar düz mü, çatlak var mı? Eğri olanları kapak için ayır."]},
