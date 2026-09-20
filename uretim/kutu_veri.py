@@ -59,7 +59,7 @@ KUTU = {
 # listesine girer).  nasil: sokulebilir tutturma (denetim olcuyor).
 IC_PARCA = [
     {"ref": "A", "ad": "Ana kart (45×45 delikli plaket)", "x": 13.0, "y": 12.0,
-     "en": 114.3, "boy": 114.3, "yuk": 24.0,
+     "en": 114.3, "boy": 114.3, "yuk": 24.0, "sutun_yonu": "arka", "bos_yuk": 2.0,
      "tasiyici": {"tip": "ayak", "adet": 4, "kat": 4, "adim": "6.1"},
      "nasil": "Dört köşede ahşap ayak bloğu (gömme M3 somunlu); plaket M3x10 vidayla "
               "ayaklara. YAPIŞTIRILMAZ — vidayı sök, kart çıkar. Telli kenarı "
@@ -141,6 +141,24 @@ PANEL_ON = [
      "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 20.0, "renk": "kirmizi",
      "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),
      "etiket": "SKOP", "menzil": "skop", "not": "Dalga şekli kanalı."},
+    {"ref": "SW", "ad": "Güç anahtarı", "tip": "anahtar", "x": 33.0, "z": 63.0,
+     "delik_mm": 12.0, "metal_mm": 16.0, "derin_mm": 22.0, "renk": "gri",
+     "parca": ("12mm Kilit Anahtarı 2 Konum ON-OFF", "Anahtar/Buton"),
+     "etiket": "AÇ/KAPA", "alt_etiket": "24 V + hattı",
+     "not": "24 V'un ARTI koluna seri, kaynak seçicinin ARDINDAN (pil kipinde de bu açar/kapar). "
+            "Kilitli anahtar: anahtarı (key) kutuya iple as. YÜK 1 jakının üstünde (aynı iç çubuk)."},
+    {"ref": "SWP1", "ad": "Hücre 1 anahtarı (ESP32 pili)", "tip": "anahtar", "x": 69.0, "z": 63.0,
+     "delik_mm": 6.0, "metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri",
+     "parca": ("KTS202 On/Off 6 Ayak Toggle Anahtar", "Anahtar/Buton"),
+     "etiket": "PİL ESP32", "alt_etiket": "hücre 1 → MT1",
+     "not": "KTS202 tek kutup kullanılır: hücre 1'i MT1'e bağlar. USB takılıyken KAPALI tut (MT3608 boşta "
+            "1–4 mA çeker). YÜK 2 jakının üstünde."},
+    {"ref": "SWP2", "ad": "24 V kaynak seçici (PİL / HARİCİ)", "tip": "anahtar", "x": 87.0, "z": 63.0,
+     "delik_mm": 6.0, "metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri",
+     "parca": ("KTS202 On/Off 6 Ayak Toggle Anahtar", "Anahtar/Buton"),
+     "etiket": "PİL / HARİCİ", "alt_etiket": "24 V kaynağı",
+     "not": "KTS202 çift kutup (DPDT): iki hattı birden seçer — pil eksisi ile XT30 eksisi hiçbir "
+            "konumda birleşmez. Ortak uçlar kilit anahtarına, oradan klemense. V jakının üstünde."},
     {"ref": "J2.1", "ad": "YÜKSEK gerilim girişi", "tip": "jak", "x": 187.0, "z": 63.0,
      "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 22.0, "renk": "kirmizi",
      "parca": ("4mm Born Jak Şeffaf Kırmızı (Büyük Boy)", "Konnektör"),
@@ -149,23 +167,118 @@ PANEL_ON = [
 ]
 
 PANEL_ARKA = [
-    {"ref": "J6", "ad": "24 V girişi — XT30 kuyruğu", "tip": "kuyruk", "x": 33.0, "z": 9.0,
+    {"ref": "J6", "ad": "24 V girişi — XT30 kuyruğu", "tip": "kuyruk", "x": 45.0, "z": 9.0,
      "delik_mm": 6.0, "metal_mm": 0.0, "derin_mm": 0.0, "renk": "sari",
      "parca": ("XT30 Lipo Pil Konnektör Takımı", "Konnektör"),
      "etiket": "24 V", "alt_etiket": "XT30 kuyruk",
      "not": "8–10 cm kalın kablo kuyruğu: dışarıda XT30'un PİMLİ (erkek) ucu — kutu "
             "enerjisiz taraf. Kaynak kablosuna KILIFLI (dişi) uç. İçeride düğüm/"
             "kablo bağı gerilim tahliyesi."},
-    {"ref": "SW", "ad": "Güç anahtarı", "tip": "anahtar", "x": 87.0, "z": 45.0,
-     "delik_mm": 12.0, "metal_mm": 16.0, "derin_mm": 22.0, "renk": "gri",
-     "parca": ("12mm Kilit Anahtarı 2 Konum ON-OFF", "Anahtar/Buton"),
-     "etiket": "AÇ/KAPA", "alt_etiket": "24 V + hattı",
-     "not": "24 V'un ARTI koluna seri. Kilitli anahtar: anahtarı (key) kutuya iple as."},
+    # B52 pil blogu (2026-09-20, kullanici: iki hucre, sifir alim, arka duvara asili).
+    # Kilit anahtari ve toggle'lar ON panelde (4. sira, HV'nin solunda): arka duvarin
+    # 3. sirasinda iki sarj yuvasi + kilit anahtari dis kat ek yerine yer birakmiyordu.
+    {"ref": "SARJ1", "ad": "Hücre 1 (ESP32) şarj — TP4056 Type-C", "tip": "yuva", "x": 27.0, "z": 45.0,
+     "delik_mm": 9.0, "yuva_en_mm": 14.0, "metal_mm": 0.0, "derin_mm": 0.0, "renk": "gri",
+     "parca": None, "etiket": "ŞARJ 1", "alt_etiket": "ESP32 pili",
+     "not": "TP1 rafının Type-C soketi bu yuvadan bakar. Hücre 1'in eksisi = kart GND: PC'ye takılıyken "
+            "de güvenli."},
+    {"ref": "SARJ2", "ad": "Hücre 2 (24 V) şarj — TP4056 Type-C", "tip": "yuva", "x": 187.0, "z": 45.0,
+     "delik_mm": 9.0, "yuva_en_mm": 14.0, "metal_mm": 0.0, "derin_mm": 0.0, "renk": "gri",
+     "parca": None, "etiket": "ŞARJ 2", "alt_etiket": "⚠ yalnız HARİCİ konumda",
+     "not": "TP2 rafı. Hücre 2'nin eksisi pil kipinde kartın −12 rayıdır: kaynak seçici PİL'deyken şarj "
+            "kablosu takılıp PC/ortak adaptöre giderse −12 GND'ye kısa olur. Şarj = seçici HARİCİ."},
+
     {"ref": "USB", "ad": "ESP32 USB yuvası", "tip": "yuva", "x": 152.0, "z": 8.0,
      "delik_mm": 9.0, "yuva_en_mm": 14.0, "metal_mm": 0.0, "derin_mm": 0.0, "renk": "gri",
      "parca": None, "etiket": "USB", "alt_etiket": "⚡ HV ölçerken çıkar",
      "not": "14 × 9 mm oval yuva; devkit'in COM yazan Type-C soketi buraya bakar."},
 ]
+
+# ── duvara asili parcalar: pil blogu (B52) ────────────────────────────
+# duvar: "arka" (y=0 yuzu) ya da "ön" (y=ic_boy).  x/z: sol-alt kose (ic
+# koordinat, onden bakinca; arka duvar cizimi aynalanir).  derin: kutunun
+# icine uzanan derinlik.  Neden burasi: zeminde 77x21 yuvaya yer yok; sol
+# duvarda A'nin ustu (32) + pay + yuva (21) kapak rayina (54) sigmiyor;
+# arka duvarin ESP32/sont bolgesi (x>127, z>16) ve A'nin ustu (z>38, ince
+# parcalar A'nin arka kenari y=12'den once) uyuyor.
+DUVAR_PARCA = [
+    {"ref": "YUVA1", "ad": "18650 yuvası — hücre 1 (ESP32)", "duvar": "arka", "x": 94.0, "z": 22.0,
+     "en": 77.0, "yuk": 21.0, "derin": 21.0, "stok": ("18650 Tekli Pil Yuvası", "Güç Kaynağı/Pil"),
+     "nasil": "İki M3 cıvata duvardan (dıştan) geçer, içeride somun; yuva sökülür, hücre yuvadan çıkar. "
+              "Hücre başlı (PWR005) — yaylı yuvada başlık temas eder; yalıtım contası MEK025."},
+    {"ref": "YUVA2", "ad": "18650 yuvası — hücre 2 (24 V)", "duvar": "arka", "x": 94.0, "z": 49.0,
+     "en": 77.0, "yuk": 21.0, "derin": 21.0, "stok": ("18650 Tekli Pil Yuvası", "Güç Kaynağı/Pil"),
+     "nasil": "İki M3 cıvata dıştan, somun içeride; sökülebilir. Kapağa 2 mm kalır (yuva 21 mm "
+              "ölçüldü mü — 1.1'de kumpasla)."},
+    {"ref": "TP1", "ad": "TP4056 şarj modülü — hücre 1 (raf)", "duvar": "arka", "x": 18.5, "z": 42.0,
+     "en": 17.0, "yuk": 6.0, "derin": 27.0, "stok": ("TP4056 Li-ion Şarj Devresi", "Modül"),
+     "nasil": "Kart RAF gibi yatay, Type-C soketi ŞARJ 1 yuvasına dayalı; iki M2.5/M3 cıvata + duvara "
+              "yapıştırılmış 3 katlı çubuk bloğu (somun gömme). Sökülebilir."},
+    {"ref": "TP2", "ad": "TP4056 şarj modülü — hücre 2 (raf)", "duvar": "arka", "x": 178.5, "z": 42.0,
+     "en": 17.0, "yuk": 6.0, "derin": 27.0, "stok": ("TP4056 Li-ion Şarj Devresi", "Modül"),
+     "nasil": "Raf gibi yatay, soketi ŞARJ 2 yuvasına dayalı; çubuk bloğuna cıvata. Sökülebilir."},
+    {"ref": "MT1", "ad": "MT3608 — 5.0 V (ESP32)", "duvar": "arka", "x": 42.0, "z": 24.0,
+     "en": 36.0, "yuk": 17.0, "derin": 14.0, "stok": ("MT3608 DC-DC Yükseltici", "Modül"),
+     "nasil": "Arka duvarın iç yüzüne düz (A'nın boş arka şeridinin üstü); iki M3 cıvata dıştan, somun "
+              "içeride (ya da yapışık çubuk bloğu + vida). Trimpot içe bakar, ayar kapak açıkken. Sökülebilir."},
+    {"ref": "MT2", "ad": "MT3608 — 24.0 V (analog ray)", "duvar": "arka", "x": 42.0, "z": 47.0,
+     "en": 36.0, "yuk": 17.0, "derin": 14.0, "stok": ("MT3608 DC-DC Yükseltici", "Modül"),
+     "nasil": "MT1'in üstüne, aynı yöntemle iki M3 cıvata; sökülebilir. Çıkışı kaynak seçiciye (SWP2), "
+              "oradan kilit anahtarına."},
+]
+
+# Kutuya giren, kartla ilgisi olmayan parcalarin kurallari (KART_DISI_NOTU'nun kutu esi)
+KUTU_NOTU = {
+    "YUVA1": "18650 yuvası; hücre 1'in EKSİSİ = kart GND (ESP32 ile ortak). Şarj her zaman güvenli.",
+    "YUVA2": "18650 yuvası; hücre 2'nin EKSİSİ pil kipinde −12 rayı. Hücre 2 hiçbir yerde kart GND'ye "
+             "değmez — kablo listesi ve denetim bunu ölçüyor.",
+    "TP1": "TP4056 korumalı (DW01+FS8205): B± hücreye, OUT± yüke. Rprog 1.5–1.6 kΩ (~0.5 C). Yük "
+           "altında şarj etme: SWP1 KAPALI.",
+    "TP2": "Aynı; şarj yalnız SWP2 HARİCİ konumdayken.",
+    "MT1": "MT3608 yüksüz 5.0 V'a ayarlanır (fabrika ayarı 28 V'a kadar çıkabilir — önce ayar, sonra ESP32). "
+           "Çıkış ESP32'nin 5V (VIN) pinine; devkit USB'yle diyot-OR yapar.",
+    "MT2": "MT3608 yüksüz 24.0 V'a ayarlanır. 24 V yükü 19–25 mA → hücreden ~150–200 mA. Anahtarlama "
+           "dalgalanması −12 rayında skopla ölçülecek (5.12.23 bu yolu gürültülü diye reddetmişti).",
+    "SWP1": "KTS202 (tek kutup yeter): hücre 1 → MT1.",
+    "SWP2": "KTS202 DPDT kaynak seçici: PİL (MT2 çıkışı) / HARİCİ (XT30). Ortak uçlar → kilit anahtarı → "
+            "klemens. Şarj kuralı: hücre 2 şarjdayken HARİCİ.",
+}
+
+# Pil blogu kablolari — kart kablolari degil (yerlesim3_veri.KABLOLAR'a girmez):
+# (nereden, nereye, tur, not).  Dugum adlari: H1±/H2± hucre uclari, TPn.B±/OUT±,
+# MTn.IN±/OUT±, SWP1.1/2, SWP2.P1/P2 (ortak), .A1/.A2 (PIL), .B1/.B2 (HARICI),
+# SW.1/2 kilit, KL.+/- klemens, J6.1/J6.2 XT30 kuyruk, ESP32.5V / ESP32.GND.
+# Denetim bu listeden graf kuruyor: PIL konumunda H2- yalniz -12 rayina, asla
+# kart GND'ye; H1- kart GND'ye; HARICI konumda H2- hicbir kart dugumune bagli
+# degil (sarj guvenli).
+PIL_KABLOLAR = [
+    ("H1+", "TP1.B+", "pil", "hücre 1 artı — yuva ucundan, kırmızı"),
+    ("H1-", "TP1.B-", "pil", "hücre 1 eksi — siyah"),
+    ("TP1.OUT+", "SWP1.1", "pil", "korumalı çıkış (B+ değil!)"),
+    ("SWP1.2", "MT1.IN+", "pil", "anahtar hücre tarafında: kapalıyken MT1 hiç çekmez"),
+    ("TP1.OUT-", "MT1.IN-", "pil", "eksi doğrudan"),
+    ("MT1.OUT+", "ESP32.5V", "sinyal", "5.0 V → devkit 5V/VIN pini (J5 kablosuna eklenmez, ayrı dişi jumper)"),
+    ("MT1.OUT-", "ESP32.GND", "sinyal", "= kart GND (ESP32 üzerinden). Hücre 1 eksisi bu düğümde."),
+    ("H2+", "TP2.B+", "pil", "hücre 2 artı"),
+    ("H2-", "TP2.B-", "pil", "hücre 2 eksi"),
+    ("TP2.OUT+", "MT2.IN+", "pil", "korumalı çıkış"),
+    ("TP2.OUT-", "MT2.IN-", "pil", ""),
+    ("MT2.OUT+", "SWP2.A1", "pil", "24.0 V → seçicinin PİL ucu (kutup 1)"),
+    ("MT2.OUT-", "SWP2.A2", "pil", "24 V eksisi → seçicinin PİL ucu (kutup 2) — bu uç −12 rayı olur"),
+    ("J6.1", "SWP2.B1", "besleme", "XT30 kuyruk kırmızı → seçicinin HARİCİ ucu (kutup 1)"),
+    ("J6.2", "SWP2.B2", "besleme", "XT30 kuyruk siyah → seçicinin HARİCİ ucu (kutup 2)"),
+    ("SWP2.P1", "SW.1", "besleme", "seçici ortak (kutup 1) → kilit anahtarı"),
+    ("SW.2", "KL.+", "besleme", "kilit anahtarı → klemens + (kart C34)"),
+    ("SWP2.P2", "KL.-", "besleme", "seçici ortak (kutup 2) → klemens − (kart C36 = −12 rayı)"),
+]
+# Asama (kutu.py pil_asama): ucu H1/TP1/MT1/SWP1/ESP32 olan kablolar 2. asama
+# (ESP32 hucresi, istege bagli), digerleri 1. asama (24 V hucresi).
+# Modullerin ic baglantilari (grafta kisa devre sayilir): korumali TP4056'da
+# OUT- ile B- koruma FET'i uzerinden ayni dugum; MT3608'de IN- = OUT-.
+PIL_IC_BAG = [("TP1.B-", "TP1.OUT-"), ("TP2.B-", "TP2.OUT-"), ("MT1.IN-", "MT1.OUT-"),
+              ("MT2.IN-", "MT2.OUT-"), ("KL.-", "-12"), ("ESP32.GND", "KART_GND")]
+PIL_SECICI = {"PİL": [("SWP2.P1", "SWP2.A1"), ("SWP2.P2", "SWP2.A2")],
+              "HARİCİ": [("SWP2.P1", "SWP2.B1"), ("SWP2.P2", "SWP2.B2")]}
 
 # ── adimlar ve alt adimlar ─────────────────────────────────────────────
 # tur: cizim/gorunum secer.  kablo: yerlesim3_veri.KABLOLAR indeksleri.
@@ -278,9 +391,10 @@ ADIMLAR = [
                  "Etiketleri hemen yapıştır: YÜK 1/2, PİL 1/2, V, COM, SKOP, HV ⚡."],
          "kontrol": ["Jakların içerideki uçları birbirine değmiyor.",
                      "Somunlar sıkı; jak elle dönmüyor."]},
-        {"no": "5.3", "baslik": "XT30 kuyruğu ve anahtar", "tur": "delik", "panel": "arka",
+        {"no": "5.3", "baslik": "XT30 kuyruğu ve kilit anahtarı", "tur": "delik", "panel": "arka",
          "monte": ["J6", "SW"], "vurgu": ["J6", "SW"],
-         "yap": ["Anahtarı somunuyla arka duvara tak; anahtarını (key) kutuya iple bağla.",
+         "yap": ["Kilit anahtarını somunuyla ÖN duvara (4. sıra, YÜK 1'in üstü) tak; anahtarını (key) "
+                 "kutuya iple bağla.",
                  "XT30 kuyruğu: 8–10 cm kalın kabloya XT30'un <b>pimli (erkek)</b> ucunu "
                  "lehimle — kutu tarafı enerjisiz, pimler açıkta olabilir. Kabloyu Ø6 "
                  "delikten geçir, içeride düğüm at ya da kablo bağıyla durdur "
@@ -410,8 +524,10 @@ ADIMLAR = [
                  "arka duvara paralel dik duran tek çubuğa (plandaki yer) vidala/yapıştır; "
                  "kartın 24 V telleri (C34 kırmızı, C36 siyah) buraya vidalanır — kart "
                  "lehim sökmeden çıkar.",
-                 "Kuyruğun kırmızı teli → <b>anahtar</b> → klemensin kırmızı vidası; siyah tel "
-                 "→ doğrudan klemensin siyah vidası.",
+                 "Kuyruğun kırmızı ve siyah telleri <b>kaynak seçicinin (SWP2) HARİCİ uçlarına</b>; "
+                 "seçicinin ortak uçları: kutup 1 → <b>kilit anahtarı</b> → klemensin kırmızı vidası, "
+                 "kutup 2 → doğrudan klemensin siyah vidası. Seçici HARİCİ'de, PİL uçları şimdilik boş "
+                 "(Adım 14).",
                  "Sigorta: kartta F1. Anahtar her açmada dolu 24 V'u 136 µF'ye bir anda uygular; "
                  "gerçek bir 50 mA <b>hızlı</b> (F) sigortayı bu darbe <b>atar</b> (darbe I²t erime "
                  "değerinin 3–5 katı — Littelfuse 217/218 veri sayfaları, denetim hesaplıyor). "
@@ -497,6 +613,87 @@ ADIMLAR = [
                  "V ve I okuması multimetreyle ±%1 / ±%2 içinde; osiloskopta CAL kare "
                  "dalgası; 5 dk sonra kutu içinde ısınan yok."]},
     ]},
+    {"no": 14, "baslik": "Pil bloğu I — 24 V hücresi (kart pilden çalışır; tek hücre + tek modül)", "alt": [
+        {"no": "14.1", "baslik": "MT2'yi yüksüz 24.0 V'a ayarla", "tur": "montaj", "vurgu": ["MT2"],
+         "yap": ["MT3608'i tezgahta, <b>yük takmadan</b> ayarla: girişe 3.7–4.2 V (hücre ya da tezgah "
+                 "kaynağı), çıkışı multimetreyle izle, trimpotu saat yönü tersine çevirerek <b>24.0 V</b>. "
+                 "Fabrika ayarı 28 V'a kadar çıkabilir: ayarlanmamış modülü karta bağlama.",
+                 "Modülü etiketle: MT2 (24 V)."],
+         "kontrol": ["MT2 çıkışı 23.8–24.2 V (giriş 3.7 V'ta da).",
+                     "Girişi 3.0 V'a düşür: çıkış hâlâ ayarında (boost payı var)."]},
+        {"no": "14.2", "baslik": "Yuva 2, TP2 rafı, MT2 ve seçiciyi tak", "tur": "duvar_parca",
+         "monte": ["YUVA2", "TP2", "MT2", "SWP2"], "vurgu": ["YUVA2", "TP2", "MT2", "SWP2"],
+         "yap": ["Arka duvar (içeriden): 18650 yuvası YUVA2 üst sıraya (konum tabloda; alttaki YUVA1 yeri "
+                 "hücre 1 için boş kalır); iki M3 cıvata dıştan, somun içeriden. Üstü kapağa 2 mm.",
+                 "TP4056 (TP2) <b>raf</b> gibi yatay, arka duvarın sağ ucunda: Type-C soketi ŞARJ 2 "
+                 "yuvasına dayanır; kartı 3 katlı bir çubuk bloğuna (duvara yapışık, somun gömme) vidala.",
+                 "MT2 arka duvarın solunda üst konuma (x 42–78, z 47); cıvata dıştan somun içeriden, trimpot "
+                 "içe baksın.",
+                 "Kaynak seçici SWP2 (KTS202, DPDT) ÖN duvarın 4. sırasında V jakının üstüne, somun dıştan.",
+                 "Cıvata deliklerini iç kat çubuğunun olduğu yerden geçir (4.5 tablosu; şarj yuvasının altı "
+                 "tek kat). Denk gelmiyorsa o noktaya içeriden 18 mm'lik çubuk parçası yapıştırıp öyle del."],
+         "kontrol": ["Hücreyi tak-çıkar: yuva yerinden oynamıyor.",
+                     "Kapak kapanıyor: YUVA2'nin üstü kapağa değmiyor.",
+                     "Type-C fişi ŞARJ 2 yuvasından TP2'ye rahat giriyor."]},
+        {"no": "14.3", "baslik": "24 V hücresini kablola", "tur": "pil_kablo", "asama": 1,
+         "vurgu": ["YUVA2", "TP2", "MT2", "SWP2", "J6", "SW"],
+         "yap": ["Aşağıdaki tabloya göre; hücre TAKILI DEĞİLKEN. TP4056'da hücre <b>B±</b>'ye, yük "
+                 "<b>OUT±</b>'ye (koruma FET'i OUT− kolunda). Kalın kablo gerekmez (≤ 0.5 A); 0.5 mm² yeter.",
+                 "<b>Kural (denetimli):</b> hücre 2'nin eksisi yalnız TP2/MT2/seçiciye gider — kart GND'ye, "
+                 "ESP32'ye ASLA değmez (pil kipinde bu uç kartın −12 rayıdır).",
+                 "10.1'de takılan XT30 kuyruğu seçicinin HARİCİ uçlarına, MT2 çıkışı PİL uçlarına; ortak uçlar "
+                 "kilit anahtarına ve klemense."],
+         "kontrol": ["Hücre takılı değilken: <b>H2− (TP2.B−) ↔ kart GND (C29): ÖTMEMELİ</b> — seçici "
+                     "her iki konumda da.",
+                     "Seçici HARİCİ: XT30 kırmızı ↔ kilit anahtarı girişi ötmeli; MT2.OUT+ ↔ klemens +: ötmemeli.",
+                     "Seçici PİL: MT2.OUT+ ↔ kilit anahtarı girişi ötmeli; XT30 kırmızı ↔ klemens +: ötmemeli."]},
+        {"no": "14.4", "baslik": "Pil kipinde ilk enerji", "tur": "kontrol",
+         "yap": ["Hücreyi tak (kutuplara dikkat). SWP2 → <b>PİL</b>, kilit anahtarı AÇ: klemenste 24.0 V, "
+                 "kartta +12 / −12 (V35 / R33, GND V36). ESP32 bu aşamada USB'den (PC ya da güç bankası).",
+                 "Skopla −12 rayına bak (MT3608 dalgalanması, ~1 MHz): 50 mV üstü görürsen MT2 çıkışına "
+                 "100 µF + 100 nF ekle (5.12.23'ün gürültü endişesi burada ölçülür)."],
+         "kontrol": ["+12: +11.5…+12.5 V · −12: −11…−13 V (pilde de).",
+                     "Hücre 2 eksisi ↔ kart GND arasında gerilim: <b>≈ −12 V</b> (yani ayrı düğüm — 0 V "
+                     "okursan kısa var, hemen kapat).",
+                     "10 dk sonra MT2 ve 7912 ılık, sıcak değil."]},
+        {"no": "14.5", "baslik": "Şarj kuralı ve etiket", "tur": "kontrol",
+         "yap": ["Şarj: <b>SWP2 → HARİCİ</b>, sonra Type-C tak (TP4056 yük altında şarjı bitiremez). ŞARJ 2'nin "
+                 "kablosu ile ESP32'nin USB'si <b>aynı PC'ye/adaptöre takılıyken seçici PİL'e alınmaz</b> — "
+                 "hücre 2 eksisi −12 rayıdır, ortak toprak −12'yi GND'ye kısa eder (parça ölmez, ölçüm "
+                 "sessizce bozulur).",
+                 "Etiket (arka panele): \"ŞARJ: seçici HARİCİ\". HV ölçümü pil kipinde de USB'siz: kutu "
+                 "tamamen yüzer, en güvenli hal."],
+         "kontrol": ["TP4056 LED'i şarjda kırmızı, bitince mavi (yuvadan görünüyor).",
+                     "Pil kipinde 1 saat ölçüm: kalibrasyon değerleri harici kaynakla aynı (±%0.5)."]},
+    ]},
+    {"no": 15, "baslik": "Pil bloğu II — ESP32 hücresi (isteğe bağlı: kutu tamamen kablosuz)", "alt": [
+        {"no": "15.1", "baslik": "MT1'i yüksüz 5.0 V'a ayarla", "tur": "montaj", "vurgu": ["MT1"],
+         "yap": ["İkinci MT3608'i aynı yöntemle <b>5.0 V</b>'a ayarla; etiketle: MT1 (5 V). Ayarlanmamış "
+                 "modülü ESP32'ye bağlama (28 V ESP32'yi öldürür)."],
+         "kontrol": ["MT1 çıkışı 4.95–5.05 V (giriş 3.0–4.2 V'ta)."]},
+        {"no": "15.2", "baslik": "Yuva 1, TP1 rafı, MT1 ve SWP1'i tak", "tur": "duvar_parca",
+         "monte": ["YUVA1", "TP1", "MT1", "SWP1"], "vurgu": ["YUVA1", "TP1", "MT1", "SWP1"],
+         "yap": ["Arka duvar: YUVA1 alt sıraya (ESP32'nin 6 mm üstü), TP1 rafı sol uca (ŞARJ 1 yuvası), MT1 "
+                 "MT2'nin altına (x 42–78, z 24) — hepsi cıvata dıştan somun içeriden.",
+                 "SWP1 toggle ÖN duvarın 4. sırasında YÜK 2 jakının üstüne."],
+         "kontrol": ["Hücreyi tak-çıkar: yuva yerinden oynamıyor.", "Type-C fişi ŞARJ 1'den TP1'e giriyor."]},
+        {"no": "15.3", "baslik": "ESP32 hücresini kablola", "tur": "pil_kablo", "asama": 2,
+         "vurgu": ["YUVA1", "TP1", "MT1", "SWP1"],
+         "yap": ["Tabloya göre; hücre takılı değilken. Hücre 1'in eksisi ESP32 GND = kart GND'ye gider (hücre "
+                 "2'den farklı: bu hücre kartla ortak topraklı, şarjı her zaman güvenli).",
+                 "MT1 çıkışını ESP32'nin 5V/VIN ve GND pinlerine ayrı iki dişi jumper ile tak (J5 "
+                 "kablosunun 5V teline paralel olur; devkit USB ile diyot-OR yapar).",
+                 "SWP1 hücre tarafında: kapalıyken MT1 hiç çekmez. USB takılıyken SWP1 KAPALI."],
+         "kontrol": ["H1− (TP1.B−) ↔ kart GND (C29): ötmeli.",
+                     "H1− ↔ H2− (TP2.B−): <b>ötmemeli</b> (iki hücrenin eksisi ayrı).",
+                     "SWP1 kapalı: TP1.OUT+ ↔ MT1.IN+ ötmemeli; açık: ötmeli."]},
+        {"no": "15.4", "baslik": "Tamamen kablosuz test", "tur": "kontrol",
+         "yap": ["USB çıkar, SWP1 AÇ: ESP32 açılıyor, WiFi paneli geliyor. SWP2 PİL + kilit AÇ: ölçüm "
+                 "pilden. Şarj için iki kural: SWP2 HARİCİ ve SWP1 KAPALI iken Type-C tak.",
+                 "Etiketi güncelle: \"ŞARJ: seçici HARİCİ + PİL ESP32 kapalı\"."],
+         "kontrol": ["ESP32 pilden 30 dk çalışıyor, MT1 ılık.",
+                     "Hücre 1 eksisi ↔ kart GND: 0 V (aynı düğüm); hücre 2 eksisi ↔ kart GND: ≈ −12 V."]},
+    ]},
 ]
 
 # ── on kosullar: yerlesim planinda bitmis olmasi gerekenler ────────────
@@ -544,6 +741,10 @@ KULLANIM = [
     ("Osiloskop, {skop}", "SKOP (kırmızı) + COM",
      "Dalga şeklini görmek için. Zaman tabanı 100 µs – 500 ms/bölme. Asimetrik menzil: "
      "eksi tarafı daha geniş.", "83 kSa/s'e kadar"),
+    ("Pil kipi (kutunun kendi pili)", "SWP2 → PİL, kilit AÇ; SWP1 → ESP32",
+     "Kutu tamamen yüzer: HV ölçümü için en güvenli hal. Süre ≈ analog 6–9 sa, ESP32 ~3 sa (1500 mAh). "
+     "<b>Şarj:</b> SWP2 HARİCİ + SWP1 KAPALI iken Type-C tak; ŞARJ 2 kablosu ile ESP32 USB'si aynı "
+     "PC'deyken seçici PİL'e ALINMAZ (hücre 2 eksisi = −12 rayı).", "2 × 18650"),
     ("Pil kapasitesi (mAh)", "PİL 1 – PİL 2 + yük direnci + V jakı",
      "<b>Zorunlu:</b> V jakı → pil + (COM zaten pil −, ayrıca tel takma). Pil + → yük "
      "direnci → <b>PİL 1</b>; pil − → <b>PİL 2</b>. <b>YÜK boş kalsın.</b> Pil ≤ 31 V ise "
@@ -576,4 +777,14 @@ MALZEME = [
      "not": "Kartın 24 V telleri buraya; kart lehim sökmeden çıkar"},
     {"ad": "Dişi header (3'lü + 1'li konnektör uçları)", "stok": ("1x40 Dişi Header 180°", "Konnektör"),
      "not": "Şönt demeti ve Q1 kapı teli için kesilir"},
+    {"ad": "18650 hücre ×2 (pil bloğu)", "stok": ("18650 Li-ion Şarjlı Pil 3.7V 1500mAh", "Güç Kaynağı/Pil"),
+     "not": "Başlı hücre: yaylı yuvada başlık temas eder; MEK025 yalıtım contası tak"},
+    {"ad": "18650 tekli yuva ×2", "stok": ("18650 Tekli Pil Yuvası", "Güç Kaynağı/Pil"),
+     "not": "PWR004 (motorobit) ya da PWR007 (direnc.net); 1.1'de ölç: 77×21×21 varsayıldı"},
+    {"ad": "TP4056 korumalı Type-C ×2", "stok": ("TP4056 Li-ion Şarj Devresi", "Modül"),
+     "not": "Rprog 1.2 kΩ fabrika (1 A) → 1.5–1.6 kΩ ile ~0.75 A daha rahat (isteğe bağlı)"},
+    {"ad": "MT3608 yükseltici ×2", "stok": ("MT3608 DC-DC Yükseltici", "Modül"),
+     "not": "Biri 5.0 V (ESP32), biri 24.0 V (analog); 14.1'de yüksüz ayarlanır"},
+    {"ad": "KTS202 toggle ×2 (hücre 1 anahtarı + kaynak seçici)", "stok": ("KTS202 On/Off 6 Ayak Toggle Anahtar", "Anahtar/Buton"),
+     "not": "SWP2 DPDT olarak (6 ayak), SWP1 tek kutup; ohmmetreyle ON-ON mı ON-OFF mu ölç"},
 ]

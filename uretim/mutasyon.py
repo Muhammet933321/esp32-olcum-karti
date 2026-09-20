@@ -150,6 +150,24 @@ MUTASYONLAR = [
      '"not": "Bir tanesini ölç: gerçek 50 mA telin soğuk direnci', '"not": "Yenisini al. Bir tanesini ölç: gerçek 50 mA telin soğuk direnci',
      "stokta olan kalemin notuna 'al' girerse iddia kirmizi (B39 tuzagi: regex'te gercek 0x08 vardi, "
      "iddia oluydu — bu mutasyon onu kanitliyor)"),
+    # B52 pil blogu — toprak tuzagi ve yerlesim
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '("MT1.OUT-", "ESP32.GND", "sinyal",', '("MT2.OUT-", "ESP32.GND", "sinyal",',
+     "hucre 2'nin eksisi (=-12 rayi) ESP32 GND'ye baglanirsa -12 GND'ye kisa olur: graf iddiasi kirmizi "
+     "(kart GND = 24V- + 12 V; sessiz ariza)"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     'PIL_SECICI = {"PİL": [("SWP2.P1", "SWP2.A1"), ("SWP2.P2", "SWP2.A2")],',
+     'PIL_SECICI = {"PİL": [("SWP2.P1", "SWP2.A1"), ("SWP2.P2", "SWP2.A2"), ("SWP2.P2", "SWP2.B2")],',
+     "secici tek kutuplu olsaydi (eksiler ortak) PIL konumunda XT30 eksisi -12'ye baglanir: iddia kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"duvar": "arka", "x": 94.0, "z": 22.0,', '"duvar": "arka", "x": 94.0, "z": 12.0,',
+     "yuva ESP32'nin ustune 6 mm'den yakin inerse 3B pay iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "PC'deyken seçici PİL'e ALINMAZ (hücre 2 eksisi = −12 rayı).", "PC'deyken seçici PİL'e alınabilir (hücre 2 eksisi = −12 rayı).",
+     "kullanim tablosu sarj kuralini kaybederse iddia kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '("TP1.OUT+", "SWP1.1", "pil", "korumalı çıkış (B+ değil!)"),', '("TP1.B+", "SWP1.1", "pil", "korumalı çıkış (B+ değil!)"),',
+     "yuk TP4056'nin B+ ucundan alinirsa koruma devre disi kalir: SWP1 zinciri iddiasi kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      '("0.9", "İlk elektrik', '("0.99", "İlk elektrik',
      "on kosul yerlesim planinda olmayan bir alt adima isaret ederse iddia kirmizi "

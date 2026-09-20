@@ -368,6 +368,77 @@ def kapak_raylari() -> list[dict]:
             {"ref": "KR2", "x": k["ic_en"] - t, "y": g + 1, "z": o["ic_yuk"] - g, "en": t, "boy": o["kapak_ray"], "yuk": g}]
 
 
+def duvar_parcalari() -> list[dict]:
+    """Duvara asili parcalar (pil blogu) — ic koordinat 3B kutu (x, y, z, en, boy, yuk)."""
+    kb = K.KUTU
+    out = []
+    for d in K.DUVAR_PARCA:
+        if d["duvar"] == "arka":
+            y0 = 0.0
+        elif d["duvar"] == "ön":
+            y0 = kb["ic_boy"] - d["derin"]
+        else:
+            raise ValueError(d["duvar"])
+        out.append({"ref": d["ref"], "x": d["x"], "y": y0, "z": d["z"], "en": d["en"], "boy": d["derin"],
+                    "yuk": d["yuk"], "duvar": d["duvar"], "stok": d.get("stok"), "nasil": d["nasil"]})
+    return out
+
+
+def pil_grafi(konum: str, asama: int | None = None) -> dict[str, set[str]]:
+    """PIL_KABLOLAR + modul ic baglantilari + secici konumu -> dugum bilesenleri (union-find)."""
+    ebeveyn: dict[str, str] = {}
+
+    def bul(a):
+        ebeveyn.setdefault(a, a)
+        while ebeveyn[a] != a:
+            ebeveyn[a] = ebeveyn[ebeveyn[a]]
+            a = ebeveyn[a]
+        return a
+
+    def birles(a, b):
+        ra, rb = bul(a), bul(b)
+        if ra != rb:
+            ebeveyn[ra] = rb
+    for kablo in K.PIL_KABLOLAR:
+        if asama is None or pil_asama(kablo) <= asama:
+            birles(kablo[0], kablo[1])
+    for a, b in K.PIL_IC_BAG + K.PIL_SECICI[konum]:
+        birles(a, b)
+    out: dict[str, set[str]] = {}
+    for d in list(ebeveyn):
+        out.setdefault(bul(d), set()).add(d)
+    return {d: out[bul(d)] for d in ebeveyn}
+
+
+def kart_hacimleri(q: dict, z0: float, nl, parcalar) -> list[dict]:
+    """Ic parcanin 3B hacimleri. Plaket icin iki kutu: yerlesimin KULLANDIGI bolge
+    tam yukseklikte, kullanilmayan kenar seridi yalniz plaket kalinliginda —
+    sutun indeksi 'sutun_yonu' yonunde artar (A: telli kenar one bakar)."""
+    tam = dict(q, z=z0)
+    if q.get("sutun_yonu") != "arka" or q["ref"] not in V.KARTLAR:
+        return [tam]
+    en_buyuk = max(d[0] for p in parcalar.values() if p.kart == q["ref"]
+                   for dl in p.delikler(nl).values() for d in dl)
+    adim = V.KARTLAR[q["ref"]].get("adim_mm", 2.54)
+    bos = (V.KARTLAR[q["ref"]]["sutun"] - (en_buyuk + 1)) * adim      # arka kenardaki bos serit
+    return [dict(q, ref=f"{q['ref']} (dolu)", y=q["y"] + bos, boy=q["boy"] - bos, z=z0),
+            dict(q, ref=f"{q['ref']} (boş kenar)", boy=bos, yuk=q.get("bos_yuk", 2.0), z=z0)]
+
+
+def pil_asama(kablo) -> int:
+    """1 = 24 V hucresi (Adim 14), 2 = ESP32 hucresi (Adim 15, istege bagli)."""
+    return 2 if any(u.startswith(("H1", "TP1", "MT1", "SWP1", "ESP32")) for u in kablo[:2]) else 1
+
+
+def aralik3(a: dict, b: dict) -> float:
+    """Iki 3B kutu arasindaki en buyuk eksen boslugu (cakisiyorsa negatif)."""
+    dx = max(b["x"] - (a["x"] + a["en"]), a["x"] - (b["x"] + b["en"]))
+    dy = max(b["y"] - (a["y"] + a["boy"]), a["y"] - (b["y"] + b["boy"]))
+    dz = max(b["z"] - (a["z"] + a["yuk"]), a["z"] - (b["z"] + b["yuk"]))
+    m = max(dx, dy, dz)
+    return m if m >= 0 else -1.0
+
+
 def panel_hacim(o: dict) -> dict | None:
     """Panel ogesinin kutu ICINE uzanan govdesi (ic koordinat kutusu)."""
     if not o.get("derin_mm"):
@@ -449,6 +520,12 @@ def kablo_delikleri(i: int, nl, parcalar) -> list[str]:
             k = Y.kablo_ucu(uc, parcalar, nl)
             out.append(Y.delik_adi(k[1], k[2]))
     return out
+
+
+def _stokta(html: str) -> bool:
+    """Stok().ad_ile ciktisi kayit buldu mu? 'yeri kayitta yok' (konum bos) kayit VAR demektir;
+    yalnizca <span class='kotu'> isareti yok demektir."""
+    return "class='kotu'" not in html
 
 
 def _kucuk(s: str) -> str:
@@ -575,6 +652,81 @@ def denetle(nl, parcalar) -> Y.Denetim:
     en_yuksek = max(p["yuk"] for p in K.IC_PARCA)
     D.kosul("Duvar yuksekligi en yuksek parca + pay", h["ic_yuk"] >= en_yuksek + 10,
             f"{h['ic_yuk']:.0f} >= {en_yuksek + 10:.0f}")
+    for i, v in enumerate(hacimler):                       # panel govdeleri birbirine girmiyor
+        for w2 in hacimler[i + 1:]:
+            D.kosul(f"{v['ref']} ve {w2['ref']} govdeleri cakismiyor", not cakisma3(v, w2))
+
+    print("\n  2b · DUVARA ASILI PARCALAR (pil blogu)")
+    dp = duvar_parcalari()
+    ic3 = []
+    for q in K.IC_PARCA:
+        z0 = next((a["yuk"] for a in tasiyicilar if a["sahip"] == q["ref"]), 0.0)
+        ic3 += kart_hacimleri(q, z0, nl, parcalar)
+    a_dolu = next(q for q in ic3 if q["ref"] == "A (dolu)")
+    D.kosul("A'nin kullanilmayan arka seridi yerlesimden turetiliyor (sutunlar arkaya artar)",
+            a_dolu["y"] > next(q["y"] for q in K.IC_PARCA if q["ref"] == "A") + 10,
+            f"dolu bolge y >= {a_dolu['y']:.1f} (bos serit {a_dolu['y'] - 12:.1f} mm)")
+    for d in dp:
+        n = _kucuk(d["nasil"])
+        D.kosul(f"{d['ref']} sokulebilir (civata/vida)", ("cıvata" in n or "vida" in n) and "sökül" in n, d["nasil"][:40])
+        D.kosul(f"{d['ref']} duvar icinde ve direklerden uzak",
+                h["direk_t"] <= d["x"] and d["x"] + d["en"] <= kb["ic_en"] - h["direk_t"] and d["z"] >= 0,
+                f"x {d['x']:.0f}..{d['x'] + d['en']:.0f}")
+        D.kosul(f"{d['ref']} kapaga >= 2 mm", d["z"] + d["yuk"] <= h["ic_yuk"] - 2.0, f"ust {d['z'] + d['yuk']:.0f}")
+        for q in ic3:
+            ar = aralik3(d, q)
+            D.kosul(f"{d['ref']} – {q['ref']} arasi >= parca payi (3B)", ar >= kb["parca_payi"], f"{ar:.1f} mm")
+        for q in sabitler + tasiyicilar + hacimler:
+            D.kosul(f"{d['ref']} ile {q['ref']} cakismiyor", not cakisma3(d, dict(q, z=q.get("z", 0.0))))
+    for i, d in enumerate(dp):
+        for d2 in dp[i + 1:]:
+            ar = aralik3(d, d2)
+            D.kosul(f"{d['ref']} – {d2['ref']} arasi >= parca payi", ar >= kb["parca_payi"], f"{ar:.1f} mm")
+    yuva = [d for d in dp if d["ref"].startswith("YUVA")]
+    D.kosul("Iki hucre yuvasi var, ikisi de ayni duvarda (kablolar kisa)", len(yuva) == 2 and len({d["duvar"] for d in yuva}) == 1)
+    for sarj, tp in (("SARJ1", "TP1"), ("SARJ2", "TP2")):
+        o, t = ref_oge[sarj], next(d for d in dp if d["ref"] == tp)
+        D.kosul(f"{sarj} yuvasi {tp} rafinin soket kenarina hizali (x ±3, z raf seviyesinde)",
+                abs(o["x"] - (t["x"] + t["en"] / 2)) <= 3.0 and t["z"] <= o["z"] <= t["z"] + t["yuk"] + 3.0,
+                f"yuva x {o['x']:.0f} z {o['z']:.0f} · raf x {t['x'] + t['en'] / 2:.1f} z {t['z']:.0f}")
+    # pil kablolari: graf — hucre 2 eksisi kart GND'ye ASLA, hucre 1 eksisi = kart GND
+    dugum = {d for c in K.PIL_KABLOLAR for d in c[:2]}
+    for a, b in K.PIL_IC_BAG:
+        D.kosul(f"Pil ic baglantisi {a}–{b} kablo listesindeki dugumlere oturuyor", a in dugum or b in dugum or a in ("-12", "KART_GND"))
+    for konum in ("PİL", "HARİCİ"):
+        gr = pil_grafi(konum)
+        D.kosul(f"[{konum}] hucre 2 eksisi kart GND'ye BAGLI DEGIL", "KART_GND" not in gr["H2-"], str(sorted(gr["H2-"]))[:80])
+        D.kosul(f"[{konum}] hucre 1 eksisi kart GND'de (ESP32 ile ortak)", "KART_GND" in gr["H1-"])
+        D.kosul(f"[{konum}] hucre 1 ve hucre 2 eksileri AYRI dugum", "H1-" not in gr["H2-"])
+        D.kosul(f"[{konum}] hucre 2 artisi (24 V) kart GND'ye bagli degil", "KART_GND" not in gr["MT2.OUT+"])
+    gp, gh = pil_grafi("PİL"), pil_grafi("HARİCİ")
+    g1 = pil_grafi("PİL", asama=1)                        # yalniz Adim 14 kurulmusken
+    D.kosul("Yalniz 24 V hucresi kuruluyken (Adim 14) sistem tam: H2- = -12, kart GND'ye degil",
+            "-12" in g1["H2-"] and "KART_GND" not in g1["H2-"] and "SW.1" in g1["MT2.OUT+"])
+    D.kosul("Adim 14 kablolari ESP32/hucre 1'e dokunmuyor (tek hucre + tek modul yeter)",
+            all(not u.startswith(("H1", "TP1", "MT1", "SWP1", "ESP32")) for c in K.PIL_KABLOLAR if pil_asama(c) == 1 for u in c[:2]))
+    D.kosul("14.3 tablosu yalniz 1. asama, 15.3 yalniz 2. asama kablolarini listeliyor",
+            hepsi["14.3"].get("asama") == 1 and hepsi["15.3"].get("asama") == 2)
+    D.kosul("PİL konumunda hucre 2 eksisi = -12 rayi (7912 topolojisi)", "-12" in gp["H2-"])
+    D.kosul("HARİCİ konumunda hucre 2 eksisi -12 rayindan AYRILIYOR (sarj guvenli)", "-12" not in gh["H2-"])
+    D.kosul("HARİCİ konumunda XT30 eksisi -12 rayina, PİL konumunda degil",
+            "-12" in gh["J6.2"] and "-12" not in gp["J6.2"])
+    D.kosul("PİL konumunda MT2 artisi kilit anahtarina, XT30 artisi degil",
+            "SW.1" in gp["MT2.OUT+"] and "SW.1" not in gp["J6.1"])
+    D.kosul("Kilit anahtari klemens artisinda (her iki konumda da kutuyu o acar)", ("SW.2", "KL.+") in
+            {(a, b) for a, b, *_ in K.PIL_KABLOLAR} | {(b, a) for a, b, *_ in K.PIL_KABLOLAR})
+    D.kosul("TP4056 yuku OUT'tan aliyor (B- degil)", all(not (a.startswith("TP") and a.endswith("B-") and b.startswith("MT"))
+                                                       for a, b, *_ in K.PIL_KABLOLAR))
+    D.kosul("SWP1 hucre tarafinda (TP1.OUT+ -> SWP1 -> MT1.IN+)", ("TP1.OUT+", "SWP1.1") in {(a, b) for a, b, *_ in K.PIL_KABLOLAR}
+            and ("SWP1.2", "MT1.IN+") in {(a, b) for a, b, *_ in K.PIL_KABLOLAR})
+    m143 = _kucuk(" ".join(hepsi["14.3"]["yap"] + hepsi["14.3"]["kontrol"]))
+    D.kosul("14.3 kontrolu H2- ↔ kart GND 'otmemeli' diyor", "h2−" in m143 and "ötmemeli" in m143)
+    m153 = _kucuk(" ".join(hepsi["15.3"]["kontrol"]))
+    D.kosul("15.3 kontrolu H1- ↔ H2- 'otmemeli' diyor (iki hucrenin eksisi ayri)", "h1− ↔ h2−" in m153 and "ötmemeli" in m153)
+    m145 = _kucuk(" ".join(hepsi["14.5"]["yap"]))
+    D.kosul("14.5 sarj kurali: HARİCİ + SWP1 kapali; ayni PC uyarisi", "harici" in m145 and "aynı pc" in m145)
+    kul2 = _kucuk(" ".join(x[2] for x in K.KULLANIM))
+    D.kosul("Kullanim tablosunda pil kipi sarj kurali", "şarj 2 kablosu" in kul2 and "alınmaz" in kul2)
     esp = next(p for p in K.IC_PARCA if p["ref"] == "ESP32")
     usb = ref_oge["USB"]
     D.kosul("ESP32 USB soketi arka duvara <= 3 mm", esp["y"] <= 3.0, f"y = {esp['y']:.0f}")
@@ -718,12 +870,19 @@ def denetle(nl, parcalar) -> Y.Denetim:
     D.kosul("Kullanim metni HV'de USB/PC topragini yasakliyor", "usb'yi pc'ye takma" in kul)
     D.kosul("Pil testinde V jaki zorunlu ve YUK bos", "zorunlu" in kul and "yük boş" in kul)
     D.kosul("Kullanim menzilleri yer tutucudan (elle yazilmiyor)",
-            all("{" in x[0] for x in K.KULLANIM[:3]) and "{pil_akim}" in K.KULLANIM[5][2])
+            all("{" in x[0] for x in K.KULLANIM[:3]) and any("{pil_akim}" in x[2] for x in K.KULLANIM))
 
     print("\n  5 · PARCALAR VE SIRA")
     m = monte_adim()
     for r in sorted(V.KART_DISI_NOTU):
         D.kosul(f"{r} bir alt adimda kutuya giriyor", r in m, m.get(r, "YOK"))
+    for r in sorted(K.KUTU_NOTU):
+        D.kosul(f"{r} (kutu parcasi) bir alt adimda monte ediliyor ve notu var", r in m, m.get(r, "YOK"))
+    D.kosul("Pil blogu adimlari kapali kutu testinden SONRA (istege bagli ek)", sira["13.4"] < sira["14.1"])
+    D.kosul("MT3608 ayari montajdan ve kablodan once (14 ve 15)",
+            sira["14.1"] < sira["14.2"] < sira["14.3"] < sira["14.4"] and sira["15.1"] < sira["15.2"] < sira["15.3"] < sira["15.4"])
+    D.kosul("ESP32 hucresi (Adim 15) 24 V hucresinden (Adim 14) sonra ve istege bagli",
+            sira["14.5"] < sira["15.1"] and "isteğe bağlı" in _kucuk(next(a["baslik"] for a in K.ADIMLAR if a["no"] == 15)))
     sayim = [r for s in aa for r in s.get("monte", [])]
     D.kosul("Hicbir parca iki kez monte edilmiyor", len(sayim) == len(set(sayim)))
     D.kosul("Alt adim numaralari tekil", len(numaralar) == len(set(numaralar)))
@@ -743,7 +902,8 @@ def denetle(nl, parcalar) -> Y.Denetim:
         for r in s.get("vurgu", []) + s.get("monte", []):
             kok = r.split(".")[0]
             D.kosul(f"{s['no']} vurgusu {r} tanimli",
-                    r in ref_oge or any(p["ref"] == r for p in K.IC_PARCA) or kok in m)
+                    r in ref_oge or any(p["ref"] == r for p in K.IC_PARCA)
+                    or any(d["ref"] == r for d in K.DUVAR_PARCA) or kok in m)
     D.kosul("Delme adimi duvar dikilmeden once (duz zeminde)", sira["3.1"] < sira["4.1"])
     D.kosul("Ic kat delikleri duvar bittikten sonra, jaklardan once", sira["4.5"] < sira["5.1"] < sira["5.2"])
     D.kosul("Ikinci kesim (4.4) duvarlar bitince, ic kattan once", sira["4.3"] < sira["4.4"] < sira["4.5"])
@@ -811,21 +971,24 @@ def denetle(nl, parcalar) -> Y.Denetim:
         for o in oge:
             if o["parca"]:
                 s2 = stok.ad_ile(*o["parca"])
-                D.kosul(f"{o['ref']} envanterde", "kayıtta yok" not in s2, o["parca"][0][:40])
+                D.kosul(f"{o['ref']} envanterde", _stokta(s2), o["parca"][0][:40])
         for p in K.IC_PARCA:
             if p.get("stok"):
-                D.kosul(f"{p['ref']} envanterde", "kayıtta yok" not in stok.ad_ile(*p["stok"]))
+                D.kosul(f"{p['ref']} envanterde", _stokta(stok.ad_ile(*p["stok"])))
+        for d in K.DUVAR_PARCA:
+            if d.get("stok"):
+                D.kosul(f"{d['ref']} envanterde", _stokta(stok.ad_ile(*d["stok"])), d["stok"][0][:30])
         for ad, kat in (("M3 Somun", "Mekanik"), ("M3 Pul", "Mekanik"), ("2 Pin Klemens 5.00mm", "Konnektör"),
                         ("1x40 Dişi Header 180°", "Konnektör")):
-            D.kosul(f"'{ad}' envanterde", "kayıtta yok" not in stok.ad_ile(ad, kat))
+            D.kosul(f"'{ad}' envanterde", _stokta(stok.ad_ile(ad, kat)))
         stokta, alinacak = malzeme_ayir(stok)
         for m, _k in stokta:
             D.kosul(f"Stokta olan '{m['ad'][:30]}' alinacak listesinde DEGIL", 
                     # "\b" bir heredoc yamasinda GERCEK 0x08 olmustu (B39 ile ayni tuzak) — Write ile yazildi
                     not re.search(r"\b(al|alın|alınacak|satın al)\b", _kucuk(m["not"])))
         D.kosul("Malzeme listesindeki stok sorgulari envanterde karsilik buluyor",
-                all(m["stok"] is None or "kayıtta yok" not in stok.ad_ile(*m["stok"]) for m in K.MALZEME),
-                str([m["ad"] for m in K.MALZEME if m["stok"] and "kayıtta yok" in stok.ad_ile(*m["stok"])]))
+                all(m["stok"] is None or _stokta(stok.ad_ile(*m["stok"])) for m in K.MALZEME),
+                str([m["ad"] for m in K.MALZEME if m["stok"] and not _stokta(stok.ad_ile(*m["stok"]))]))
         D.kosul("F 50 mA sigorta ve TO-220 yalitimi stoktan (alinacak degil)",
                 {m["ad"] for m, _k in stokta} >= {"50 mA 5×20 cam sigorta (hızlı, F — stoktaki)",
                                                   "TO-220 yalıtım (mika/plastik izolatör + burç)"})
@@ -978,7 +1141,7 @@ def ciz_duvar(sira: int) -> str:
     return _svg("".join(o), gen, yuk, f"{sira}. sıra")
 
 
-def ciz_panel(hangi: str, vurgu: set[str], ic_kat: bool = True) -> str:
+def ciz_panel(hangi: str, vurgu: set[str], ic_kat: bool = True, duvar_parca: bool = False) -> str:
     """Duvar gorunusu DISARIDAN: dis kat siralari, ek yerleri, ic kat cubuklari, delikler.
     Arka duvar aynali: kullanici arkaya gecince x'i kendi solundan sayar."""
     kb, h = K.KUTU, hesap()
@@ -1008,6 +1171,13 @@ def ciz_panel(hangi: str, vurgu: set[str], ic_kat: bool = True) -> str:
                      f'height="{(h["ic_yuk"] - z0) * olc - 2:.1f}" rx="2" fill="rgba(255,255,255,.10)" '
                      f'stroke="var(--m1)" stroke-width="1.2" stroke-dasharray="4 3"/>')
             o.append(_yazi((xa + xb) / 2, ust - 2, f"{x0:.0f}", 8, "var(--m3)"))
+    if duvar_parca:                            # ic yuze asili parcalar (disaridan bakinca konumu)
+        for d in [q for q in duvar_parcalari() if q["duvar"] == hangi]:
+            xa, xb = X(d["x"]), X(d["x"] + d["en"])
+            v = d["ref"] in vurgu
+            o.append(_dikdortgen(min(xa, xb), taban_y - (d["z"] + d["yuk"]) * olc, abs(xb - xa), d["yuk"] * olc,
+                                 "#3c6e71", "#f2c14e" if v else "#1f3f41", 0.75))
+            o.append(_yazi((xa + xb) / 2, taban_y - (d["z"] + d["yuk"] / 2) * olc + 4, d["ref"], 10, "#fff", "middle", v))
     for i, x in enumerate(sorted(panel_ogeleri(hangi), key=lambda q: -q["x"] if ayna else q["x"])):
         cx, cy = X(x["x"]), taban_y - x["z"] * olc
         v = x["ref"] in vurgu
@@ -1059,6 +1229,12 @@ def ciz_yerlesim(vurgu: set[str], direk_vurgu: bool = False) -> str:
     for hac in (v2 for v2 in (panel_hacim(q) for q in panel_ogeleri()) if v2):
         o.append(_dikdortgen(sol + hac["x"] * olc, ust + hac["y"] * olc, hac["en"] * olc, hac["boy"] * olc,
                              "none", "var(--m3)", 0.7))
+    for d in duvar_parcalari():                             # duvara asili: taban izi + etiket
+        v = d["ref"] in vurgu
+        o.append(_dikdortgen(sol + d["x"] * olc, ust + d["y"] * olc, d["en"] * olc, d["boy"] * olc,
+                             "#3c6e71" if v else "none", "#f2c14e" if v else "#3c6e71", 0.85 if v else 1.0))
+        o.append(_yazi(sol + (d["x"] + d["en"] / 2) * olc, ust + (d["y"] + d["boy"] / 2) * olc + 4,
+                       f"{d['ref']} z{d['z']:.0f}", 8, "#fff" if v else "var(--m2)"))
     for i, x in enumerate(sorted(panel_ogeleri("ön"), key=lambda q: q["x"])):
         cx = sol + x["x"] * olc
         v = x["ref"] in vurgu
@@ -1266,6 +1442,10 @@ def sahne() -> list[dict]:
         z0 = next((a["yuk"] for a in ayaklar() if a["sahip"] == pp["ref"]), 0.0)
         blok(pp["ref"], pp["x"], cev(pp["y"], pp["boy"]), z0, pp["en"], pp["boy"], max(pp["yuk"] * 0.55, 6),
              PARCA_RENK.get(pp["ref"], "#666"), "parca", gor, vur_ix(pp["ref"]))
+    for d in duvar_parcalari():                             # pil blogu: duvara asili
+        gor = ix.get(monte.get(d["ref"], ""), ix["14.2"])       # YUVA2/TP2/MT2/SWP2 14.2, hucre 1 15.2
+        renk = {"YUVA1": "#3c6e71", "YUVA2": "#3c6e71", "TP1": "#284b63", "TP2": "#284b63"}.get(d["ref"], "#5a7d9a")
+        blok(d["ref"], d["x"], cev(d["y"], d["boy"]), d["z"], d["en"], d["boy"], d["yuk"], renk, "parca", gor, vur_ix(d["ref"]))
     gk = ix["13.1"]
     for i in range(h["taban_sira"]):                        # kapak: siralar x yonunde
         y = -dt + i * g
@@ -1331,6 +1511,13 @@ def cizimler(s: dict) -> str:
     elif tur == "montaj":
         c.append(("Kuşbakışı", ciz_yerlesim(vurgu)))
         c.append(("İzometrik", ciz_izo(vurgu)))
+    elif tur == "duvar_parca":
+        c.append(("Arka duvar — iç yüzdeki parçalar (arkadan bakış; delikler dıştan)", ciz_panel("arka", vurgu, ic_kat=False, duvar_parca=True)))
+        c.append(("Ön duvar — iç yüzdeki parçalar", ciz_panel("ön", vurgu, ic_kat=False, duvar_parca=True)))
+        c.append(("Kuşbakışı", ciz_yerlesim(vurgu)))
+    elif tur == "pil_kablo":
+        c.append(("Kuşbakışı", ciz_yerlesim(vurgu)))
+        c.append(("Arka duvar — iç yüz", ciz_panel("arka", vurgu, ic_kat=False, duvar_parca=True)))
     elif tur == "kablo":
         c.append(("Kuşbakışı", ciz_yerlesim(vurgu)))
         if any(r in {o["ref"] for o in panel_ogeleri("ön")} for r in vurgu):
@@ -1394,10 +1581,11 @@ def alt_kart(s: dict, nl, parcalar, stok, h) -> str:
     if s.get("monte"):
         def _stok(r):
             kayit = next((o["parca"] for o in panel_ogeleri() if o["ref"].split(".")[0] == r and o["parca"]), None) \
-                or next((p.get("stok") for p in K.IC_PARCA if p["ref"] == r), None)
+                or next((p.get("stok") for p in K.IC_PARCA if p["ref"] == r), None) \
+                or next((d.get("stok") for d in K.DUVAR_PARCA if d["ref"] == r), None)
             return stok.ad_ile(*kayit) if (kayit and stok.var) else ""
         ic.append(_tablo(("Kutuya giren", "Kural", "Stokta"),
-                         [(f"<b>{E(r)}</b>", E(V.KART_DISI_NOTU.get(r, "")), _stok(r)) for r in s["monte"]]))
+                         [(f"<b>{E(r)}</b>", E(V.KART_DISI_NOTU.get(r) or K.KUTU_NOTU.get(r, "")), _stok(r)) for r in s["monte"]]))
     if s.get("yap"):
         ic.append(_liste(x.format(**bicim) for x in s["yap"]))
     ic.append(cizimler(s))
@@ -1427,6 +1615,21 @@ def alt_kart(s: dict, nl, parcalar, stok, h) -> str:
     if s.get("kablo"):
         ic.append("<h4>Bağlanacak kablolar</h4>")
         ic.append(kablo_tablosu(s["kablo"], nl, parcalar))
+    if s["tur"] == "duvar_parca":
+        ic.append("<h4>Duvara asılı parçalar — konumlar (iç koordinat, önden bakınca soldan; arka duvar için "
+                  "arkadan bakınca sağdan)</h4>")
+        ic.append(_tablo(("Parça", "Duvar", "x (sol kenar)", "z (alt kenar)", "en × yük × derin", "Nasıl"),
+                         [(f"<b>{E(d['ref'])}</b>", E(d["duvar"]), f"{d['x']:.0f} mm", f"{d['z']:.0f} mm",
+                           f"{d['en']:.0f} × {d['yuk']:.0f} × {d['derin']:.0f}", E(d["nasil"])) for d in K.DUVAR_PARCA]))
+    if s["tur"] == "pil_kablo":
+        ic.append(f"<h4>Pil bloğu kabloları — {'24 V hücresi' if s.get('asama') == 1 else 'ESP32 hücresi'}</h4>")
+        ic.append(_tablo(("Nereden", "Nereye", "Tür", "Not"),
+                         [(f"<b>{E(a)}</b>", f"<b>{E(b)}</b>", E(t), f"<span class='kucuk'>{E(n)}</span>")
+                          for a, b, t, n in K.PIL_KABLOLAR if pil_asama((a, b)) == s.get("asama")]))
+        ic.append("<p class='kucuk'>Seçici (SWP2) KTS202 DPDT: ortak uçlar P1/P2, PİL konumu A1/A2, HARİCİ konumu "
+                  "B1/B2 — hangi ayak hangisi, ohmmetreyle bul: ortak uç her iki konumda bir tarafla öter. "
+                  "Denetim bu listeden düğüm grafını kurup hücre 2 eksisinin hiçbir konumda kart GND'ye "
+                  "değmediğini ölçüyor.</p>")
     if s["no"] in ("9.1", "9.2", "9.3"):
         ic.append("<h4>Yol kontrolü — jaktan karta</h4>")
         ic.append("<p class='kucuk'>Bölücüler GND'ye değil VREF'e iniyor; jak ile COM arası enerji yokken sonsuz "
@@ -1458,7 +1661,7 @@ def malzeme_ayir(stok) -> tuple[list, list]:
     stokta, alinacak = [], []
     for m in K.MALZEME:
         k = stok.ad_ile(*m["stok"]) if (m["stok"] and stok.var) else ""
-        if k and "kayıtta yok" not in k:
+        if k and _stokta(k):
             stokta.append((m, k))
         else:
             alinacak.append(m)
