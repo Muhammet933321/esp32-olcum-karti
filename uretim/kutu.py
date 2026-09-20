@@ -936,6 +936,13 @@ def denetle(nl, parcalar) -> Y.Denetim:
     for no, _ne in K.ON_KOSUL:
         D.kosul(f"On kosul Yerlesim {no} yerlesim planinda var", no in yerlesim_nolar)
     D.kosul("Firmware komutlari kalibrasyon tablosunda", {"Z", "n", "z", "y", "?"} <= {x[0] for x in K.KALIBRASYON})
+    m31 = _kucuk(" ".join(hepsi["3.1"]["yap"]))
+    D.kosul("3.1 metni olculerin delik MERKEZI oldugunu ve yuvarlak/oval ayrimini soyluyor",
+            "merkezi" in m31 and "yuvarlak" in m31 and "oval" in m31)
+    D.kosul("Delme rehberi matkapsiz yol veriyor (havya) ve oval yuva tarifi iceriyor",
+            any("havya" in _kucuk(b) for _a, b in K.DELME) and any("oval" in _kucuk(a) for a, _b in K.DELME))
+    D.kosul("Delik tablosunda her cap ya Ø ya oval olarak yaziliyor",
+            all(d["cap"].startswith("Ø") or "oval" in d["cap"] for pnl in ("ön", "arka") for d in delik_tablosu(pnl)))
     yap_tab = {a[:12]: b for a, b, _c in kb["yapistirici"]}
     D.kosul("Yapistirici tablosu: ic kat japon, raylar sicak silikon, mastik KULLANMA",
             "Japon" in yap_tab.get("İç kat dikey", "") and "silikon" in _kucuk(yap_tab.get("Raylar (taba", ""))
@@ -1568,7 +1575,8 @@ def delik_tablosu_html(panel: str) -> str:
                     f"<b>{d['ofset']:.0f} mm</b>", f"{d['z_ic']:.0f} mm", E(d["cap"])))
     ekler = ek_yerleri(panel)
     ek_metin = ", ".join(f"{r + 1}. sıra {(arka_ayna(x) if ayna else x):.0f}" for r, x in enumerate(ekler))
-    return (_tablo(("Delik", "Sıra", "Parça", "Parçanın sol ucundan", "Çubuğun alt kenarından", "Çap"), sat)
+    return (_tablo(("Delik", "Sıra", "Parça", "Merkez: parçanın sol ucundan", "Merkez: çubuğun alt kenarından",
+                    "Çap / yuva"), sat)
             + f"<p class='kucuk'>Ölçüler <b>{'arkaya geçip arkadan' if ayna else 'önden'} bakan kişinin solundan</b>. "
               f"Sıra {h['dis_en']:.0f} mm, iki parça; ek yerleri (soldan): {E(ek_metin)}. "
               "Sol parça sıfırdan ek yerine, sağ parça ek yerinden sona. Deliksiz sıralar da aynı ek yerleriyle.</p>")
@@ -1784,6 +1792,11 @@ def yaz(nl, parcalar, hedef: Path) -> None:
     ])))
     g.append(ref("ref-yapistirici", "Hangi yapıştırıcı nerede",
                  _tablo(("İş", "Yapıştırıcı", "Nasıl"), [(E(a), f"<b>{E(b)}</b>", E(c2)) for a, b, c2 in kb["yapistirici"]])))
+    g.append(ref("ref-delme", "Delikleri nasıl açarım (matkapsız)",
+                 _tablo(("Aşama", "Nasıl"), [(f"<b>{E(a)}</b>", E(b)) for a, b in K.DELME])
+                 + "<p class='kucuk'>Bütün delik ölçüleri deliğin <b>merkezi</b>. Çap sütunu Ø = yuvarlak delik; "
+                   "\"14 × 9 oval\" = genişlik × yükseklik dikdörtgen yuva (USB, ŞARJ 1, ŞARJ 2). Yuvarlak: born "
+                   "jaklar Ø6.5 / Ø8, toggle'lar ve XT30 kuyruğu Ø6, M3 cıvatalar Ø3.2.</p>"))
     g.append(ref("ref-onkosul", "Başlamadan önce — Yerleşim planında bitmiş olmalı", on_kosul_html(nl, parcalar)))
     bicim_al = dict(kb, cubuk=h["cubuk_sayisi"], elde=kb["elde_cubuk"], eksik=h["eksik"], eksik_pay=h["eksik_pay"])
     stokta, alinacak = malzeme_ayir(stok)

@@ -354,15 +354,19 @@ ADIMLAR = [
         {"no": "3.1", "baslik": "Ön duvar parçalarını del", "tur": "delik_parca", "panel": "ön",
          "yap": ["Delikler duvar dikilmeden, parça <b>düz zeminde</b> delinir: 18 mm'lik "
                  "çubukta Ø8 delik 5 mm et bırakır, yerinde delmek çatlatır.",
-                 "Aşağıdaki tabloda her delik hangi sıranın hangi parçasına, parçanın "
-                 "<b>sol ucundan</b> kaç mm'ye ve çubuğun <b>alt kenarından</b> kaç mm'ye "
-                 "geliyor. Parçanın altına fire çubuk koy, önce 2 mm kılavuz aç, sonra büyüt.",
+                 "Aşağıdaki tabloda her delik hangi sıranın hangi parçasına geliyor; <b>ölçüler deliğin "
+                 "MERKEZİ</b>: parçanın <b>sol ucundan</b> x, çubuğun <b>alt kenarından</b> z. Çap "
+                 "sütunu Ø yazıyorsa <b>yuvarlak</b> delik, \"14 × 9 oval\" yazıyorsa dikdörtgen yuva.",
+                 "Matkap yoksa: \"Delikleri nasıl açarım\" bölümü (sayfanın başında) — havya ucuyla "
+                 "kılavuz, bıçak/zımparayla büyütme. Parçanın altına fire çubuk koy.",
                  "Delinen parçayı sıra ve konumuyla etiketle (örn. \"ön 3 sol\")."],
          "kontrol": ["Jakı deliğe sok: gövde geçiyor, somun yüzeye oturuyor.",
                      "Delik çevresinde çatlak yok."]},
         {"no": "3.2", "baslik": "Arka duvar parçalarını del", "tur": "delik_parca", "panel": "arka",
-         "yap": ["Aynı yöntem. Tablodaki ölçüler <b>dışarıdan bakınca soldan</b>.",
-                 "USB yuvası oval: iki Ø9 delik açıp arasını maket bıçağıyla al."],
+         "yap": ["Aynı yöntem; ölçüler yine deliğin MERKEZİ, ama <b>arkadan bakınca soldan</b> "
+                 "(parçalar da o çerçevede adlandı: \"sol (arkadan)\").",
+                 "USB ve ŞARJ yuvaları oval (14 × 9): merkezin 2.5 mm sağına ve soluna iki Ø9 daire, arası "
+                 "maket bıçağıyla."],
          "kontrol": ["Anahtarın somunu oturuyor.", "USB-C fişi yuvadan rahat geçiyor."]},
     ]},
     {"no": 4, "baslik": "Duvarlar", "alt": [
@@ -408,8 +412,9 @@ ADIMLAR = [
     ]},
     {"no": 5, "baslik": "Panel parçalarını tak", "alt": [
         {"no": "5.1", "baslik": "İç katı deliklerden geçerek del", "tur": "delik", "panel": "ön",
-         "yap": ["Dış kattaki her delikten matkabı geçir, iç kat çubuğunu <b>dıştan içe</b> del "
-                 "(aynı çap). İçeriden çıkarken kıymık verirse fire çubukla destekle.",
+         "yap": ["Dış kattaki her delik kılavuz: havya ucunu / matkabı ondan geçir, iç kat çubuğunu "
+                 "<b>dıştan içe</b> del, aynı çapa büyüt. İçeriden çıkarken kıymık verirse fire çubukla "
+                 "destekle.",
                  "Arka duvar için de aynı. <b>USB yuvasında delme yok:</b> arkasındaki iç kat "
                  "çubuğu kısa, yuvanın üstünden başlıyor (4.5 tablosu)."],
          "kontrol": ["Her delik iki kattan düz geçiyor; jak gövdesi rahat giriyor."]},
@@ -726,6 +731,36 @@ ADIMLAR = [
          "kontrol": ["ESP32 pilden 30 dk çalışıyor, MT1 ılık.",
                      "Hücre 1 eksisi ↔ kart GND: 0 V (aynı düğüm); hücre 2 eksisi ↔ kart GND: ≈ −12 V."]},
     ]},
+]
+
+# ── delik acma: matkapsiz yontem (B52h, kullanici: "elimde matkap yok") ─
+# Dil basacagi 2 mm huş; lif boyuna, kenara yakin delikte yarilir. Butun
+# olculer DELIGIN MERKEZI (parcanin sol ucundan x, cubugun alt kenarindan z);
+# oval yuvada da merkez, 14 x 9 = genislik x yukseklik.
+DELME = [
+    ("İşaretle", "Cetvelle parçanın sol ucundan x'i, alt kenarından z'yi ölç, iki çizgi çek; kesişme deliğin "
+                 "MERKEZİ. Pergel yoksa çapı/2'yi işaretleyip küçük bir daire çiz (Ø6.5 için 3.25 mm)."),
+    ("Kılavuz", "Merkeze biz / kalın iğne / çivi ucuyla hafifçe bastırıp döndürerek 1–2 mm çukur aç. "
+                "ÇAKMA yok — çakılan çivi 2 mm çubuğu lif boyunca yarar."),
+    ("Delme (havya)", "Havyanın eski konik ucunu (350 °C) merkeze dik bastır; 5–10 s'de 2 mm tahtayı geçer, "
+                      "~3 mm yanık delik açar. Altına fire çubuk koy, pencereyi aç (duman). Yarmaz, en güvenli "
+                      "matkapsız yol. Yanık kenar jakın flanşı/somunu altında kalır."),
+    ("Delme (matkap ucu elle)", "Matkap ucun varsa 3 mm'lik ucu penseyle tutup elle döndürerek de geçer "
+                                "(2 mm tahta, ~1 dk). El matkabı / pin vise (100–200 ₺) M3 deliklerini "
+                                "dakikaya indirir — Ø6–8 için yine büyütme gerekir."),
+    ("Büyütme", "3 mm'lik deliği maket bıçağının ucunu döndürerek ya da kalem/marker üstüne sarılı 120'lik "
+                "zımparayla çapa getir: Ø6 için kalem, Ø8 için kalın marker. Sık sık jakla dene: gövde "
+                "sürtünerek geçmeli, boşluk kalmamalı (somun sıkınca jak dönmez)."),
+    ("Oval yuva (14 × 9)", "Merkezden ±2.5 mm'de iki Ø9 daire çiz (merkezler 5 mm aralıklı), ikisini de "
+                           "havya + büyütme ile aç, arasını maket bıçağıyla düz kes, köşeleri yuvarla. "
+                           "USB-C / Type-C fişin metal gövdesi 8.5 × 2.6, plastik kılıfı ~12 × 6.5: 14 × 9 "
+                           "rahat geçirir."),
+    ("M3 delikleri (Ø3.2)", "Havya ucuyla tek geçiş yeter; cıvata sürtünerek geçmeli. Ayak bloğunun 3. "
+                            "katındaki Ø6 somun yuvası: havya + büyütme, somunu deneyerek."),
+    ("İç kat (5.1)", "Dış kattaki delik kılavuz olur: havya ucunu ondan geçirip iç çubuğu del, sonra büyüt. "
+                     "Oval yuvaların arkasında iç çubuk kısa, delme yok."),
+    ("Kontrol", "Parça düz zeminde: çatlak var mı (ışığa tut)? Jak somunu düz oturuyor mu? Çatlak varsa "
+                "japonla doldur, kurumadan bastır; büyükse parçayı yeniden kes (fire var)."),
 ]
 
 # ── on kosullar: yerlesim planinda bitmis olmasi gerekenler ────────────
