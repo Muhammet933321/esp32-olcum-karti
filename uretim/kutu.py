@@ -897,6 +897,11 @@ def yaz(nl, parcalar, hedef: Path) -> None:
         f"duvar {kb['duvar_sira']} sıra çubuk.",
         "Aşağıda <b>ileri / geri</b> ile tek tek ilerle. Her alt adımın çizimi "
         "var; “yaptım” işaretleri bu tarayıcıda saklanır.",
+        "<b>3B görünüm</b> adım şeridinin hemen altında: sürükleyip döndür, "
+        "tekerlekle yakınlaştır. Soluk çizilenler <b>henüz yapmadıkların</b> — "
+        "yani hedef. Tezgâhta <b>telefondan</b> bakmak için bilgisayarda "
+        "<code>python uretim/belge_sun.py</code> çalıştır; yazdığı adresi "
+        "telefonda aç (aynı Wi-Fi).",
         "İleride 3D baskı kutuya geçersen yalnız 1–5. adımlar değişir; elektrik "
         "adımları (6–13) aynı kalır.",
     ]))
@@ -932,11 +937,13 @@ def yaz(nl, parcalar, hedef: Path) -> None:
       <button data-gorus="ust">üst</button>
       <button data-gorus="on">ön</button>
       <button data-gorus="sag">sağ</button>
+      <label class="kucuk"><input type="checkbox" id="uc-hedef" checked> hedefi göster</label>
       <label class="kucuk"><input type="checkbox" id="uc-saydam"> duvarlar saydam</label>
       <label class="kucuk"><input type="checkbox" id="uc-hepsi"> hepsini göster</label>
     </span>
   </div>
   <canvas id="uc-tuval" height="420"></canvas>
+  <div class="kucuk" id="uc-bilgi" style="margin-top:6px"></div>
 </div>
 <ol class="aalist" id="aalist">{kartlar}</ol>""")
 
@@ -986,7 +993,7 @@ def yaz(nl, parcalar, hedef: Path) -> None:
 .cubuk{height:4px;background:var(--cizgi);border-radius:2px;margin-top:8px}
 .cubuk div{height:100%;background:var(--s3);border-radius:2px;width:0}
 .uc-boyut{border:1px solid var(--cizgi);border-radius:14px;padding:10px 12px;margin:14px 0;
-          background:var(--yz2)}
+          background:var(--yz2);scroll-margin-top:104px}
 .uc-ust{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .uc-dugmeler{margin-left:auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .uc-dugmeler button{font:inherit;font-size:12px;padding:3px 10px;border-radius:99px;
@@ -1007,6 +1014,12 @@ figure{margin:14px 0;padding:10px;border:1px solid var(--cizgi);border-radius:10
        background:var(--yz2);overflow-x:auto}
 figure figcaption{font-size:12px;color:var(--m3);margin-bottom:6px}
 figure svg{width:100%;min-width:460px;height:auto;display:block}
+@media (max-width:640px){
+  figure svg{min-width:340px}
+  .uc-ust{font-size:13px}
+  .uc-dugmeler{margin-left:0}
+  .gorus-ust button{padding:8px 12px}
+}
 h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
    letter-spacing:.04em}
 """
@@ -1053,7 +1066,7 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
  }
  function ciz(){
    var op = window.devicePixelRatio || 1;
-   var w = tuval.clientWidth, h = 420;
+   var w = tuval.clientWidth, h = w < 620 ? 300 : 420;
    if (tuval.width !== w * op) { tuval.width = w * op; tuval.height = h * op; }
    ctx.setTransform(op, 0, 0, op, 0, 0);
    ctx.clearRect(0, 0, w, h);
@@ -1061,12 +1074,20 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
    var ox = w / 2, oy = h / 2 + 30;
    var hepsi = document.getElementById('uc-hepsi').checked;
    var saydam = document.getElementById('uc-saydam').checked;
+   var hedef = document.getElementById('uc-hedef').checked;
+   var kuruldu = SAHNE.filter(function(b){ return b.gor <= cur; }).length;
+   document.getElementById('uc-bilgi').textContent = kuruldu
+     ? kuruldu + ' parça kuruldu · soluk olanlar sırada'
+     : 'henüz parça yok — soluk çizgiler yapacağın kutuyu gösteriyor';
    var yuzler = [];
    SAHNE.forEach(function(b){
-     if (b.g === 'kapak' ? b.gor > cur : (!hepsi && b.gor > cur)) return;
+     var ileride = b.gor > cur;
+     if (ileride && !hepsi && !hedef) return;
+     if (b.g === 'kapak' && ileride && !hepsi) return;
      var vur = b.vur.indexOf(cur) >= 0;
      var alfa = (b.g === 'duvar' || b.g === 'kapak') ? (saydam ? 0.18 : 0.92) : 0.97;
      if (!vur && b.g === 'parca') alfa = 0.85;
+     if (ileride) alfa = 0.10;              // hedef onizlemesi: soluk hayalet
      var ks = koseler(b).map(function(p){ return izdusum(p[0], p[1], p[2]); });
      YUZLER.forEach(function(y, i){
        var n = NORMAL[i];
@@ -1076,7 +1097,7 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
                     renk: renkle(b.r, vur ? isik * 1.25 : isik, alfa),
                     kenar: vur ? '#f2c14e' : 'rgba(0,0,0,.35)', kalin: vur ? 2 : 0.6});
      });
-     if ((b.g === 'parca' && b.ad.length <= 6) || (vur && b.g !== 'duvar')) {
+     if (!ileride && ((b.g === 'parca' && b.ad.length <= 6) || (vur && b.g !== 'duvar'))) {
        var m = izdusum(b.x + b.dx / 2, b.y + b.dy / 2, b.z + b.dz + 3);
        yuzler.push({d: m.d + 0.01, yazi: b.ad, x: m.x, y: m.y, vur: vur});
      }
@@ -1122,9 +1143,18 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
    });
  });
  document.getElementById('uc-saydam').addEventListener('change', ciz);
+ document.getElementById('uc-hedef').addEventListener('change', ciz);
  document.getElementById('uc-hepsi').addEventListener('change', ciz);
  window.addEventListener('resize', ciz);
 
+ function kaydirGor(el){
+   // serit telefonda 3 satira sariyor: sabit scroll-margin yetmiyordu,
+   // yuksekligi CALISMA ANINDA olcuyoruz.
+   var g = document.querySelector('.gorus');
+   var pay = (g ? g.getBoundingClientRect().height : 96) + 10;
+   var y = el.getBoundingClientRect().top + window.pageYOffset - pay;
+   window.scrollTo({top: Math.max(0, y), behavior: 'smooth'});
+ }
  function goster(i, kaydir){
    cur = Math.max(0, Math.min(S.length - 1, i));
    kartlar.forEach(function(k, j){ k.hidden = j !== cur; });
@@ -1139,10 +1169,9 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
      b.classList.toggle('sec', String(s.a) === b.dataset.git); });
    try { history.replaceState(null, '', '#a' + s.no); } catch(e) {}
    ciz();
-   if (kaydir) {
-     // kartin ustu serit yuksekligi kadar asagida dursun (scroll-margin-top)
-     kartlar[cur].scrollIntoView({block: 'start', behavior: 'smooth'});
-   }
+   // 3B panel kartin USTUNDE: ona kaydiriyoruz ki adim degisince hem kutuyu
+   // hem metni goresin (kullanici 'kutuyu hazirlarken 3B'ye bakamiyorum' dedi).
+   if (kaydir) kaydirGor(document.querySelector('.uc-boyut') || kartlar[cur]);
  }
  kartlar.forEach(function(k, j){
    var kutucuk = k.querySelector('.yaptim input');
