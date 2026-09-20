@@ -412,10 +412,16 @@ ADIMLAR = [
                  "lehim sökmeden çıkar.",
                  "Kuyruğun kırmızı teli → <b>anahtar</b> → klemensin kırmızı vidası; siyah tel "
                  "→ doğrudan klemensin siyah vidası.",
-                 "Sigorta: kartta F1 (50 mA). Not: anahtar her açmada 136 µF'yi bir anda "
-                 "doldurur; gerçek bir 50 mA <b>hızlı</b> sigortayı bu darbe atar. Takılı "
-                 "'50 mA' etiketli sigorta ölçüldü (0.4 Ω, fiilen ~0.5 A sınıfı) → atmaz. "
-                 "Markalı alırken <b>T (gecikmeli) 50 mA</b> al."],
+                 "Sigorta: kartta F1. Anahtar her açmada dolu 24 V'u 136 µF'ye bir anda uygular; "
+                 "gerçek bir 50 mA <b>hızlı</b> (F) sigortayı bu darbe <b>atar</b> (darbe I²t erime "
+                 "değerinin 3–5 katı — Littelfuse 217/218 veri sayfaları, denetim hesaplıyor). "
+                 "Yuvada ölçtüğün 0.4 Ω, 50 mA olamaz (50 mA'lık tel 15–21 Ω okur): 0.4 Ω = "
+                 "<b>400 mA</b> sınıfı, yani geçici taktığın FUS001 hâlâ yuvada. Stoktaki FUS010 "
+                 "F tipi → <b>T (gecikmeli) 50 mA cam</b> al (Littelfuse 218.050 ya da ESKA/Schurter "
+                 "eşdeğeri, pay ≥ 10×); gelene kadar <b>yuvadaki 400 mA (FUS001) kalsın</b> — kısa "
+                 "devrede açar; stoktaki 315 mA F de darbeye pay vermiyor, değiştirmeye değmez. TL072 "
+                 "kısmi arızasını hiçbir sigorta açmaz. T takılınca 20 kez aç-kapa: her açılışta "
+                 "+12/−12 gelmeli."],
          "kontrol": ["Anahtar KAPALI: kuyruk ↔ kart C34 süreklilik yok; AÇIK: var.",
                      "Kuyruk siyah ↔ kart C36: ötmeli."]},
         {"no": "10.2", "baslik": "Kutuda ilk enerji + toprak kontrolü", "tur": "kontrol",
@@ -546,14 +552,28 @@ KULLANIM = [
      "<code>P&lt;kesme&gt;</code>, <code>p1</code>.", "≤ 38 V pil"),
 ]
 
-# ── alinacaklar / kontrol edilecekler ──────────────────────────────────
-ALINACAK = [
-    ("Dil basacağı çubuk",
-     "Gereken {cubuk}, elde ~{elde}; en az {eksik} al, fire payıyla {eksik_pay}"),
-    ("Yük yolu için kalın kablo (≥1.5 mm²) + halka pabuç",
-     "KBL003 karışık montaj kablosunda kalın damar varsa oradan; pabuç yoksa kalaylı kanca"),
-    ("50 mA T (gecikmeli) sigorta",
-     "Anahtar açılırken kondansatör darbesi hızlı 50 mA'yı atar; takılı olan fiilen ~0.5 A"),
-    ("TO-220 yalıtım seti (mika/silikon + burç)",
-     "Q1'i soğutucudan yalıtmak için — 'Soğutucu izolatörü' kutusuna bak"),
+# ── malzeme: stoktan cikacaklar / alinacaklar ──────────────────────────
+# stok: envanter sorgusu (ad, kategori) — uretec kaydi bulursa "stoktan",
+# bulamazsa "alinacak" tablosuna koyar; elle "al" yazilmaz (B50h: TO-220
+# izolatoru ve 50 mA sigorta zaten stoktaydi, liste "al" diyordu).
+MALZEME = [
+    {"ad": "Dil basacağı çubuk", "stok": None,
+     "not": "Gereken {cubuk}, elde ~{elde}; en az {eksik} al, fire payıyla {eksik_pay}"},
+    {"ad": "Yük yolu için kalın kablo (≥1.5 mm²) + halka pabuç", "stok": None,
+     "not": "KBL003 karışık montaj kablosunda kalın damar varsa oradan; pabuç yoksa kalaylı kanca"},
+    {"ad": "50 mA 5×20 cam sigorta (hızlı, F — stoktaki)", "stok": ("50mA 5x20mm Cam Sigorta", "Sigorta"),
+     "not": "Bir tanesini ölç: gerçek 50 mA telin soğuk direnci 15–21 Ω (Littelfuse 217/218); yuvadaki "
+            "0.4 Ω = 400 mA (FUS001). F 50 mA anahtar darbesinde atar → aşağıdaki T tipi gelene kadar "
+            "yuvadaki 400 mA kalsın (stoktaki F'lerin hiçbiri darbeye ≥3× pay vermiyor)."},
+    {"ad": "50 mA T (gecikmeli) 5×20 cam sigorta, markalı", "stok": None,
+     "not": "Littelfuse 218.050 / ESKA 522.5xx / Schurter; cam gövde (seramik 50 mA çok dirençli). "
+            "Anahtar açılış darbesine (136 µF) ≥ 10× pay; T 63 mA da olur (daha bol pay)."},
+    {"ad": "TO-220 yalıtım (mika/plastik izolatör + burç)", "stok": ("TO-220 Mika İzolatör", "Mekanik"),
+     "not": "Q1'i soğutucudan yalıtmak için; plastik delikli/deliksiz izolatörler de var (MEK037–040)"},
+    {"ad": "M3×10 / M3×12 vida, somun, pul", "stok": ("M3 Somun", "Mekanik"),
+     "not": "Kart ayakları ×6, kapak ×4, Q1 köşebent ×1; gömme somun ×6"},
+    {"ad": "2'li vidalı klemens 5 mm (24 V iç bağlantı)", "stok": ("2 Pin Klemens 5.00mm", "Konnektör"),
+     "not": "Kartın 24 V telleri buraya; kart lehim sökmeden çıkar"},
+    {"ad": "Dişi header (3'lü + 1'li konnektör uçları)", "stok": ("1x40 Dişi Header 180°", "Konnektör"),
+     "not": "Şönt demeti ve Q1 kapı teli için kesilir"},
 ]

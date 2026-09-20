@@ -443,6 +443,23 @@ LM7912_PIN_SIRASI = ("GND", "IN", "OUT")
 KAYNAK_24V = 24.0
 KAYNAK_24V_TOLERANS = 0.10                # tipik anahtarlamali adaptor +-%10
 
+# ── F1 sigortasi (B52, 2026-09-20): 5x20 cam, Littelfuse veri sayfalari
+# 217 (hizli, F) rev 2019 ve 218 (gecikmeli, T) rev 2020 — "Nominal Cold
+# Resistance" ve "Nominal Melting I2t". Panel kilit anahtari dolu 24 V'u
+# C16'ya (ve 7912 uzerinden C17'ye) SICAK uygular: darbe I2t = V^2 C / 2R.
+# Gercek 50 mA'lik tel 15-21 ohm; kullanicinin 0.4 ohm olctugu sigorta
+# 400 mA sinifi (217.400: 0.277, 218.400: 0.535 ohm) — yuvadaki gecici FUS001.
+SIGORTA = {                               # anma A: (soguk R ohm, erime I2t A^2 s, tip)
+    "F 50 mA":  (15.20, 0.49e-3, "F"),    # 217.050 (eski rev 0.19e-3 — daha kotu)
+    "F 63 mA":  (10.45, 0.71e-3, "F"),    # 217.063
+    "F 315 mA": (0.88, 24.6e-3, "F"),     # 217.315
+    "F 400 mA": (0.277, 40e-3, "F"),      # 217.400 (yuvadaki gecici FUS001)
+    "T 50 mA":  (21.29, 27e-3, "T"),      # 218.050 (2009 tablosu 6.9e-3 — pay yine >= 3)
+    "T 63 mA":  (14.27, 46e-3, "T"),      # 218.063
+}
+SIGORTA_KABLO_R = 0.3                     # ohm — kaynak ESR + kablo + anahtar (tahmin, kotu yon: kucuk)
+SIGORTA_DARBE_PAYI = 3.0                  # erime I2t / darbe I2t en az (tekrarli darbede yorulma)
+
 # Orta noktaya minimum yuku garantileyen bosaltma direnci (+12 -> GND).
 # 7912'nin spekleri 5 mA'in ustunde gecerli; normal calismada dengesizlik
 # neredeyse SIFIR olabiliyor (+5 V USB'den gelirse 7805 kolu yok).

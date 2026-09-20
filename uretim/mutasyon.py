@@ -135,6 +135,21 @@ MUTASYONLAR = [
      "<b>COM'a krokodil TAKMA</b> — COM zaten YÜK 2'dir.",
      "<b>COM'a krokodil TAK</b> — COM zaten YÜK 2'dir.",
      "kullanim metni COM baypas uyarisini kaybederse iddia kirmizi (sont baypas, yanlis akim)"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     '"T 50 mA":  (21.29, 27e-3, "T"),', '"T 50 mA":  (21.29, 2.7e-3, "T"),',
+     "T sigortanin erime I2t'si 10 kat dusuk olsaydi darbe payi 3x'in altina iner: iddia kirmizi "
+     "(veri sayfasi sayisi degisirse karar yeniden verilir)"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "F tipi → <b>T (gecikmeli) 50 mA cam</b> al", "F tipi → <b>50 mA cam</b> al",
+     "10.1 metni 'gecikmeli' demeyi birakirsa kullanici yine F alir: iddia kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '{"ad": "50 mA T (gecikmeli) 5×20 cam sigorta, markalı", "stok": None,',
+     '{"ad": "50 mA T (gecikmeli) 5×20 cam sigorta, markalı", "stok": ("50mA 5x20mm Cam Sigorta", "Sigorta"),',
+     "T sigorta stoktaki F ile eslestirilirse 'alinacak' listesinden duser: iddia kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"not": "Bir tanesini ölç: gerçek 50 mA telin soğuk direnci', '"not": "Yenisini al. Bir tanesini ölç: gerçek 50 mA telin soğuk direnci',
+     "stokta olan kalemin notuna 'al' girerse iddia kirmizi (B39 tuzagi: regex'te gercek 0x08 vardi, "
+     "iddia oluydu — bu mutasyon onu kanitliyor)"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      '("0.9", "İlk elektrik', '("0.99", "İlk elektrik',
      "on kosul yerlesim planinda olmayan bir alt adima isaret ederse iddia kirmizi "

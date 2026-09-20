@@ -112,6 +112,10 @@ JS_3B = r"""
  var GORUSLER = {izo: [-0.66, 0.55], ust: [0, 1.5], on: [0, 0.04], arka: [3.14159, 0.04],
                  sol: [1.5708, 0.04], sag: [-1.5708, 0.04]};
  var yaw = GORUSLER.izo[0], pitch = GORUSLER.izo[1], zoom = 1, pan = {x: 0, y: 0};
+ // sigdirma olcegi YALNIZ hazir gorus secilince (ve pencere boyutuyla) hesaplanir.
+ // Dondururken her karede yeniden sigdirmak kutuyu buyutup kucultuyordu —
+ // kullanici "kamera ileri geri gidiyor" dedi (B50h).
+ var sigdirYaw = yaw, sigdirPitch = pitch;
  var merkez = (function(){
    var x0 = 1e9, y0 = 1e9, z0 = 1e9, x1 = -1e9, y1 = -1e9, z1 = -1e9;
    SAHNE.forEach(function(b){
@@ -207,18 +211,21 @@ JS_3B = r"""
    if (etuval.width !== Math.round(w * op)) { etuval.width = Math.round(w * op); etuval.height = Math.round(h * op); }
    return {w: w, h: h, op: op};
  }
- function kamera(w, h){
-   // olcek: sahnenin sinir kutusunu BU donusle izdusurup sigdir — on/yan
-   // gorunumlerde kutu kucuk kalmasin (eskiden sabit en/boy orani vardi)
-   var R = m4mul(m4Rx(pitch - Math.PI / 2), m4mul(m4Rz(yaw), m4T(-merkez.x, -merkez.y, -merkez.z)));
+ function donus(y, p){ return m4mul(m4Rx(p - Math.PI / 2), m4mul(m4Rz(y), m4T(-merkez.x, -merkez.y, -merkez.z))); }
+ function sigdir(w, h){
+   // hazir gorusun donusuyle sinir kutusunu izdusur, sigdir (px/mm)
+   var R = donus(sigdirYaw, sigdirPitch);
    var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
    for (var i = 0; i < 8; i++) {
      var c = v4(R, merkez.x + (i & 1 ? 1 : -1) * merkez.en / 2, merkez.y + (i & 2 ? 1 : -1) * merkez.boy / 2,
                 merkez.z + (i & 4 ? 1 : -1) * merkez.yuk / 2);
      x0 = Math.min(x0, c[0]); x1 = Math.max(x1, c[0]); y0 = Math.min(y0, c[1]); y1 = Math.max(y1, c[1]);
    }
-   olcek = Math.min(w / ((x1 - x0) * 1.25 + 40), h / ((y1 - y0) * 1.25 + 40)) * zoom;   // px / mm
-   V = m4mul(m4T(pan.x, pan.y, 0), R);
+   return Math.min(w / ((x1 - x0) * 1.25 + 40), h / ((y1 - y0) * 1.25 + 40));
+ }
+ function kamera(w, h){
+   olcek = sigdir(w, h) * zoom;                    // dondururken SABIT: yalniz zoom degistirir
+   V = m4mul(m4T(pan.x, pan.y, 0), donus(yaw, pitch));
    var hw = w / 2 / olcek, hh = h / 2 / olcek;
    PV = m4mul(m4Orto(-hw, hw, -hh, hh, -2000, 2000), V);
  }
@@ -238,12 +245,14 @@ JS_3B = r"""
    gl.uniformMatrix4fv(loc.uV, false, V);
    var hepsi = document.getElementById('uc-hepsi').checked;
    var koyu = koyuTema();
-   var opak = [], saydam = [], etiketler = [], gruplar = {}, kuruldu = 0, sayim = {};
+   var opak = [], saydam = [], etiketler = [], gruplar = {}, kuruldu = 0, sayim = {}, onizlemeVar = false;
    SAHNE.forEach(function(bl){
      var ileride = bl.gor > cur && !hepsi;             // "hepsini goster" = bitmis kutu, opak
+     var onizleme = ileride && bl.on && bl.on.indexOf(cur) >= 0;   // bu adimda hazirlanan ama henuz takilmamis
      if (!ileride) { kuruldu++; sayim[bl.g] = (sayim[bl.g] || 0) + 1; }
+     if (onizleme) onizlemeVar = true;
      var kapak = bl.g === 'kapak';
-     if (ileride && !ayar.hedef) return;
+     if (ileride && !ayar.hedef && !onizleme) return;
      if (kapak && ileride) return;
      var vur = bl.vur.indexOf(cur) >= 0;
      var duvar = bl.g === 'duvar' || bl.g === 'duvar_ic' || bl.g === 'delik' || kapak;
@@ -258,12 +267,12 @@ JS_3B = r"""
          if (nz > 0.12) alfa = 0.22;
        }
      }
-     if (ileride) alfa = 0.10;
+     if (ileride) alfa = onizleme ? (bl.g === 'delik' ? 1.0 : 0.38) : 0.10;
      var rgb = hexRgb(bl.r);
      if (vur) rgb = rgb.map(function(c){ return Math.min(1, c * 1.25 + 0.05); });
-     var kayit = {bl: bl, rgb: rgb, alfa: alfa, vur: vur, ileride: ileride, zg: zg};
+     var kayit = {bl: bl, rgb: rgb, alfa: alfa, vur: vur, ileride: ileride && !onizleme, zg: zg};
      (alfa >= 0.99 ? opak : saydam).push(kayit);
-     if (!ileride) {
+     if (!ileride || onizleme) {
        if (bl.g === 'parca') etiketler.push({ad: bl.ad, x: bl.x + bl.dx / 2, y: bl.y + bl.dy / 2, z: bl.z + bl.dz, vur: vur});
        else if (vur) {
          var ga = grupAdi(bl.ad);
@@ -358,7 +367,7 @@ JS_3B = r"""
    var ozet = Object.keys(GRUP).filter(function(g){ return sayim[g]; })
      .map(function(g){ return GRUP[g] + ' ' + sayim[g]; }).join(' · ');
    bilgi.textContent = (hepsi ? 'bitmiş kutu: ' + ozet
-     : kuruldu ? 'bu adıma kadar: ' + ozet + (ayar.hedef ? ' · soluk olanlar sırada' : '')
+     : kuruldu ? 'bu adıma kadar: ' + ozet + (onizlemeVar ? ' · soluk: bu adımda hazırlanan, henüz takılmamış parçalar' : ayar.hedef ? ' · soluk olanlar sırada' : '')
      : 'henüz parça yok' + (ayar.hedef ? ' — soluk çizgiler yapacağın kutuyu gösteriyor' : ' — "hedefi göster" ile hedef kutuyu görebilirsin'))
      + (gizliVurgu && ayar.duvar === 'opak' ? ' · bu adımın parçası duvarın arkasında: "yakın olanlar saydam" seç ya da üstten bak' : '');
  }
@@ -426,6 +435,7 @@ JS_3B = r"""
  });
  function gorus(ad){
    var g = GORUSLER[ad]; yaw = g[0]; pitch = g[1]; pan = {x: 0, y: 0}; zoom = 1;
+   sigdirYaw = yaw; sigdirPitch = pitch;
    [].forEach.call(document.querySelectorAll('[data-gorus]'), function(b){
      b.setAttribute('aria-pressed', b.dataset.gorus === ad ? 'true' : 'false'); });
    ciz();

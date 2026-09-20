@@ -456,6 +456,24 @@ def _kucuk(s: str) -> str:
     return s.replace("İ", "i").replace("I", "ı").lower()
 
 
+def _uf(deger: str) -> float:
+    """'68uF 50V' -> 68e-6 (netlist degeri)."""
+    m = re.match(r"\s*([\d.]+)\s*([munp]?)F", deger)
+    assert m, deger
+    return float(m.group(1)) * {"": 1.0, "m": 1e-3, "u": 1e-6, "n": 1e-9, "p": 1e-12}[m.group(2)]
+
+
+def darbe_i2t(c_farad: float, r_sigorta: float) -> float:
+    """Anahtar kapaninca dolu 24 V'un C'yi sigorta + kablo uzerinden doldurmasi: V^2 C / 2R."""
+    return T.KAYNAK_24V ** 2 * c_farad / (2 * (r_sigorta + T.SIGORTA_KABLO_R))
+
+
+def sigorta_paylari(nl) -> dict[str, float]:
+    """Her sigorta icin erime I2t / darbe I2t (kotu hal: C16 + C17 birlikte)."""
+    c = _uf(nl.deger["C16"]) + _uf(nl.deger["C17"])
+    return {ad: i2t / darbe_i2t(c, r) for ad, (r, i2t, _tip) in T.SIGORTA.items()}
+
+
 def cakisma(a: dict, b: dict) -> bool:
     return (a["x"] < b["x"] + b["en"] and b["x"] < a["x"] + a["en"]
             and a["y"] < b["y"] + b["boy"] and b["y"] < a["y"] + a["boy"])
@@ -760,6 +778,32 @@ def denetle(nl, parcalar) -> Y.Denetim:
             ke["g_yuksek"] > 24 and f"{ke['g_yuksek']:.0f} V" in " ".join(hepsi["12.4"]["yap"]), f"{ke['g_yuksek']:.1f} V")
     D.kosul("NORMAL kazanc esigi 12 V kaynakla saglaniyor", ke["g_normal"] < 12, f"{ke['g_normal']:.2f} V")
     D.kosul("Akim kazanc esigi 12.2'deki 1.2 A ile saglaniyor", ke["i"] < 1.2, f"{ke['i']:.2f} A")
+    # ── F1 sigortasi ve anahtar darbesi (B52): sayilar veri sayfasindan, C netlistten
+    pay = sigorta_paylari(nl)
+    c_toplam = _uf(nl.deger["C16"]) + _uf(nl.deger["C17"])
+    D.kosul("Giris elektrolitikleri netlistten okunuyor (C16 + C17)", 100e-6 <= c_toplam <= 200e-6, f"{c_toplam * 1e6:.0f} uF")
+    D.kosul("Gercek 50 mA HIZLI sigorta anahtar darbesini TASIMAZ (her acmada erir)", pay["F 50 mA"] < 1.0,
+            f"erime/darbe = {pay['F 50 mA']:.2f} (darbe {darbe_i2t(c_toplam, T.SIGORTA['F 50 mA'][0]) * 1e3:.2f} mA²s)")
+    D.kosul("50 mA GECIKMELI (T) sigorta darbeyi >= 3x payla tasiyor", pay["T 50 mA"] >= T.SIGORTA_DARBE_PAYI,
+            f"pay {pay['T 50 mA']:.1f}x (2009 tablosu 6.9 mA²s ile {6.9e-3 / darbe_i2t(c_toplam, T.SIGORTA['T 50 mA'][0]):.1f}x)")
+    # Dusuk direncli F sigortalarda darbeyi yalniz kablo/ESR sinirlar: stoktaki 315/400 mA
+    # bile 3x pay vermiyor (kullanicinin 400'u birkac acmada sag kaldi — ESR modelde yok,
+    # kotu yon). Ara cozum olarak 315'e GECILMEZ; yuvadaki 400 T gelene kadar kalir.
+    D.kosul("Stoktaki hizli 315/400 mA da darbeye >= 3x pay vermiyor -> ara cozum 'yuvadaki 400 kalsin'",
+            pay["F 315 mA"] < T.SIGORTA_DARBE_PAYI and pay["F 400 mA"] < T.SIGORTA_DARBE_PAYI
+            and "400 ma (fus001) kalsın" in _kucuk(" ".join(hepsi["10.1"]["yap"])),
+            f"315: {pay['F 315 mA']:.1f}x · 400: {pay['F 400 mA']:.1f}x")
+    D.kosul("Kullanicinin olctugu 0.4 ohm 50 mA'lik tel olamaz (>= 15 ohm)", T.SIGORTA["F 50 mA"][0] >= 15
+            and abs(0.4 - T.SIGORTA["F 400 mA"][0]) < abs(0.4 - T.SIGORTA["F 50 mA"][0]),
+            f"50 mA soguk {T.SIGORTA['F 50 mA'][0]:.1f} ohm · 400 mA {T.SIGORTA['F 400 mA'][0]:.3f} ohm")
+    m101 = _kucuk(" ".join(hepsi["10.1"]["yap"]))
+    D.kosul("10.1 metni T (gecikmeli) 50 mA diyor ve F'nin darbede attigini soyluyor",
+            "gecikmeli" in m101 and "darbe" in m101 and "atar" in m101)
+    D.kosul("10.1 metni 0.4 ohm = 400 mA (FUS001) diyor, '50 mA etiketli' demiyor",
+            "400 ma" in m101 and "fus001" in m101 and "etiketli" not in m101)
+    D.kosul("Malzeme listesinde T 50 mA sigorta ALINACAK, F 50 mA STOKTAN",
+            any(m["stok"] is None and "gecikmeli" in _kucuk(m["ad"]) for m in K.MALZEME)
+            and any(m["stok"] and "50mA" in m["stok"][0] for m in K.MALZEME))
 
     print("\n  7 · STOK")
     stok = B.Stok()
@@ -774,6 +818,17 @@ def denetle(nl, parcalar) -> Y.Denetim:
         for ad, kat in (("M3 Somun", "Mekanik"), ("M3 Pul", "Mekanik"), ("2 Pin Klemens 5.00mm", "Konnektör"),
                         ("1x40 Dişi Header 180°", "Konnektör")):
             D.kosul(f"'{ad}' envanterde", "kayıtta yok" not in stok.ad_ile(ad, kat))
+        stokta, alinacak = malzeme_ayir(stok)
+        for m, _k in stokta:
+            D.kosul(f"Stokta olan '{m['ad'][:30]}' alinacak listesinde DEGIL", 
+                    # "\b" bir heredoc yamasinda GERCEK 0x08 olmustu (B39 ile ayni tuzak) — Write ile yazildi
+                    not re.search(r"\b(al|alın|alınacak|satın al)\b", _kucuk(m["not"])))
+        D.kosul("Malzeme listesindeki stok sorgulari envanterde karsilik buluyor",
+                all(m["stok"] is None or "kayıtta yok" not in stok.ad_ile(*m["stok"]) for m in K.MALZEME),
+                str([m["ad"] for m in K.MALZEME if m["stok"] and "kayıtta yok" in stok.ad_ile(*m["stok"])]))
+        D.kosul("F 50 mA sigorta ve TO-220 yalitimi stoktan (alinacak degil)",
+                {m["ad"] for m, _k in stokta} >= {"50 mA 5×20 cam sigorta (hızlı, F — stoktaki)",
+                                                  "TO-220 yalıtım (mika/plastik izolatör + burç)"})
     else:
         print("      (envanter okunamadi — atlandi)")
     return D
@@ -1125,12 +1180,14 @@ def sahne() -> list[dict]:
         return [ix[s["no"]] for s in aa
                 if ref in s.get("vurgu", []) or kok in s.get("vurgu", []) or kok in s.get("monte", [])]
 
-    def blok(ad, x, y, z, dx, dy, dz, renk, grup, gor, vur=None, n=None):
+    def blok(ad, x, y, z, dx, dy, dz, renk, grup, gor, vur=None, n=None, on=None):
         b = {"ad": ad, "x": round(x, 2), "y": round(y, 2), "z": round(z, 2),
              "dx": round(dx, 2), "dy": round(dy, 2), "dz": round(dz, 2),
              "r": renk, "g": grup, "gor": gor, "vur": sorted({v for v in (vur or []) if v is not None})}
         if n:
             b["n"] = n
+        if on:                                   # bu adimlarda hayalet onizleme (tezgahta hazirlanan parca)
+            b["on"] = sorted(set(on))
         bloklar.append(b)
 
     t, g = h["t"], h["g"]
@@ -1154,10 +1211,11 @@ def sahne() -> list[dict]:
         z = r * g
         gor = ix["4.1"] if r == 0 else ix["4.3"]
         gor_yan = ix["4.2"] if r == 0 else ix["4.3"]
-        for panel, y0, nrm in (("ön", -dt, ON), ("arka", boy + dt - t, ARKA)):
+        for panel, y0, nrm, delme in (("ön", -dt, ON, ix["3.1"]), ("arka", boy + dt - t, ARKA, ix["3.2"])):
             ek = ek_yerleri(panel)[r]
             for bas, b2 in ((0.0, ek), (ek, h["dis_en"] - ek)):
-                blok(f"Dış kat {panel} {r + 1}", -dt + bas, y0, z, b2 - 0.4, t, g, "#c3a173", "duvar", gor, [gor], nrm)
+                blok(f"Dış kat {panel} {r + 1}", -dt + bas, y0, z, b2 - 0.4, t, g, "#c3a173", "duvar", gor, [gor], nrm,
+                     on=[delme])
         ek = yan_ek(r)
         for bas, b2 in ((0.0, ek), (ek, h["yan_dis"] - ek)):
             blok(f"Dış kat sol {r + 1}", -dt, -dt + t + bas, z, t, b2 - 0.4, g, "#b0915f", "duvar", gor_yan, [gor_yan], SOL)
@@ -1177,8 +1235,11 @@ def sahne() -> list[dict]:
         on = x["panel"] == "ön"
         w, hh = delik_genislik(x), x["delik_mm"]
         y0 = -dt - 0.3 if on else boy + dt - 0.3
-        gor = ix["3.1"] if on else ix["3.2"]
-        blok(f"delik {x['etiket']}", x["x"] - w / 2, y0, x["z"] - hh / 2, w, 0.6, hh, "#151515", "delik", gor, [gor, ix["5.1"]], ON if on else ARKA)
+        delme = ix["3.1"] if on else ix["3.2"]
+        r = int(x["z"] // g)                                # delik, duvar sirasiyla birlikte gorunur
+        gor = ix["4.1"] if r == 0 else ix["4.3"]
+        blok(f"delik {x['etiket']}", x["x"] - w / 2, y0, x["z"] - hh / 2, w, 0.6, hh, "#151515", "delik", gor,
+             [delme, ix["5.1"]], ON if on else ARKA, on=[delme])
     for x in panel_ogeleri():                               # panel ogeleri: govde
         on = x["panel"] == "ön"
         if x["tip"] in ("yuva", "kuyruk"):
@@ -1392,6 +1453,18 @@ def alt_kart(s: dict, nl, parcalar, stok, h) -> str:
     return f"<li class='aa' data-no='{E(s['no'])}'>" + "".join(ic) + "</li>"
 
 
+def malzeme_ayir(stok) -> tuple[list, list]:
+    """MALZEME'yi envantere gore boler: (stokta [(kayit, html)], alinacak [kayit])."""
+    stokta, alinacak = [], []
+    for m in K.MALZEME:
+        k = stok.ad_ile(*m["stok"]) if (m["stok"] and stok.var) else ""
+        if k and "kayıtta yok" not in k:
+            stokta.append((m, k))
+        else:
+            alinacak.append(m)
+    return stokta, alinacak
+
+
 def on_kosul_html(nl, parcalar) -> str:
     """Yerlesim planinda bitmis olmasi gerekenler (kutu_veri.ON_KOSUL) + kart-kart kablolar."""
     sat = [(f"<a href='7-yerlesim.html#s{no}'>Yerleşim {no}</a>", ne) for no, ne in K.ON_KOSUL]
@@ -1456,9 +1529,14 @@ def yaz(nl, parcalar, hedef: Path) -> None:
     ]))
     g.append("<h3>Başlamadan önce — Yerleşim planında bitmiş olmalı</h3>")
     g.append(on_kosul_html(nl, parcalar))
-    g.append("<h3>Alınacak / kontrol edilecek</h3>")
     bicim_al = dict(kb, cubuk=h["cubuk_sayisi"], elde=kb["elde_cubuk"], eksik=h["eksik"], eksik_pay=h["eksik_pay"])
-    g.append(_tablo(("Ne", "Açıklama"), [(f"<b>{E(a)}</b>", E(b.format(**bicim_al))) for a, b in K.ALINACAK]))
+    stokta, alinacak = malzeme_ayir(stok)
+    g.append("<h3>Stoktan çıkar</h3>")
+    g.append(_tablo(("Ne", "Kayıt", "Not"), [(f"<b>{E(m['ad'])}</b>", k, E(m["not"].format(**bicim_al)))
+                                             for m, k in stokta]) if stokta else "<p class='kucuk'>—</p>")
+    g.append("<h3>Alınacak</h3>")
+    g.append(_tablo(("Ne", "Not"), [(f"<b>{E(m['ad'])}</b>", E(m["not"].format(**bicim_al))) for m in alinacak])
+             if alinacak else "<p class='kucuk'>Alınacak bir şey yok.</p>")
 
     kartlar = "".join(alt_kart(s, nl, parcalar, stok, h) for s in aa)
     basliklar = json.dumps([{"no": s["no"], "b": s["baslik"], "a": s["adim"], "ab": s["adim_baslik"]} for s in aa], ensure_ascii=False)
