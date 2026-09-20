@@ -1170,7 +1170,7 @@ def ciz_panel(hangi: str, vurgu: set[str], ic_kat: bool = True, duvar_parca: boo
     g, dt = h["g"], h["duvar_t"]
     olc, sol, ust = 2.0, 40.0, 34.0
     satirlar = sorted({int(q["z"] // g) for q in panel_ogeleri(hangi)})   # etiket satiri = delik sirasi
-    gen, yuk = sol * 2 + h["dis_en"] * olc, ust + h["ic_yuk"] * olc + 74 + 26 * len(satirlar)
+    gen, yuk = sol * 2 + h["dis_en"] * olc, ust + h["ic_yuk"] * olc + 74 + 50 * len(satirlar)
     taban_y = ust + h["ic_yuk"] * olc
     ayna = hangi == "arka"
 
@@ -1200,8 +1200,11 @@ def ciz_panel(hangi: str, vurgu: set[str], ic_kat: bool = True, duvar_parca: boo
             o.append(_dikdortgen(min(xa, xb), taban_y - (d["z"] + d["yuk"]) * olc, abs(xb - xa), d["yuk"] * olc,
                                  "#3c6e71", "#f2c14e" if v else "#1f3f41", 0.75))
             o.append(_yazi((xa + xb) / 2, taban_y - (d["z"] + d["yuk"] / 2) * olc + 4, d["ref"], 10, "#fff", "middle", v))
+    sira_sayac: dict[int, int] = {}                # ayni siradaki komsu etiketler bir asagi bir yukari
     for i, x in enumerate(sorted(panel_ogeleri(hangi), key=lambda q: -q["x"] if ayna else q["x"])):
         cx, cy = X(x["x"]), taban_y - x["z"] * olc
+        r_ = int(x["z"] // g)
+        sira_sayac[r_] = sira_sayac.get(r_, 0) + 1
         v = x["ref"] in vurgu
         renk = JAK_RENK.get(x["renk"], "#8a8a85")
         if x["tip"] == "yuva":
@@ -1211,12 +1214,12 @@ def ciz_panel(hangi: str, vurgu: set[str], ic_kat: bool = True, duvar_parca: boo
             r = max(x["metal_mm"], x["delik_mm"]) / 2 * olc
             o.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="{renk}" stroke="{"#f2c14e" if v else "var(--m3)"}" stroke-width="{3 if v else 1.2}" opacity=".95"/>')
             o.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{x["delik_mm"] / 2 * olc:.1f}" fill="var(--yz)" opacity=".6"/>')
-        kay = 26 * satirlar.index(int(x["z"] // g))     # her delik sirasi kendi etiket satirinda
+        kay = 50 * satirlar.index(r_) + (24 if sira_sayac[r_] % 2 == 0 else 0)   # sira basina satir, komsular kaydirmali
         o.append(_yazi(cx, taban_y + 16 + kay, x["etiket"], 10, "var(--m1)", "middle", v))
         xo = x["x"] + dt
         o.append(_yazi(cx, taban_y + 28 + kay, f"x {(arka_ayna(xo) if ayna else xo):.0f} · z {x['z']:.0f}", 9, "var(--m3)"))
     o.append(_dikdortgen(sol, taban_y, h["dis_en"] * olc, 5, AHSAP["yan"], AHSAP["cizgi"]))
-    alt_y = taban_y + 22 + 26 * len(satirlar)
+    alt_y = taban_y + 22 + 50 * len(satirlar)
     o.append(_yazi(sol + h["dis_en"] * olc / 2, alt_y,
                    f"{'Arka' if ayna else 'Ön'} duvar — DIŞARIDAN bakış · x dış sol kenardan"
                    + (" (arkaya geçince kendi solun)" if ayna else ""), 10, "var(--m3)"))
@@ -1546,7 +1549,14 @@ def cizimler(s: dict) -> str:
             c.append(("Ön duvar", ciz_panel("ön", vurgu, ic_kat=False)))
         if any(r in {o["ref"] for o in panel_ogeleri("arka")} for r in vurgu):
             c.append(("Arka duvar (arkadan bakış)", ciz_panel("arka", vurgu, ic_kat=False)))
-    return "".join(f"<figure><figcaption>{E(b)}</figcaption>{sv}</figure>" for b, sv in c)
+    if not c:
+        return ""
+    fig = [f"<figure><figcaption>{E(b)}</figcaption>{sv}</figure>" for b, sv in c]
+    ana, kalan = fig[0], fig[1:]
+    if not kalan:
+        return ana
+    return ana + (f"<details class='ayrinti'><summary>Diğer çizimler ({len(kalan)})</summary>"
+                  + "".join(kalan) + "</details>")
 
 
 def delik_tablosu_html(panel: str) -> str:
@@ -1608,10 +1618,20 @@ def alt_kart(s: dict, nl, parcalar, stok, h) -> str:
             return stok.ad_ile(*kayit) if (kayit and stok.var) else ""
         ic.append(_tablo(("Kutuya giren", "Kural", "Stokta"),
                          [(f"<b>{E(r)}</b>", E(V.KART_DISI_NOTU.get(r) or K.KUTU_NOTU.get(r, "")), _stok(r)) for r in s["monte"]]))
+    KAYNAK_AD = {"duz": "düz bölümden", "yarim": "çubuk ortadan ikiye"}
     if s.get("yap"):
         ic.append(_liste(x.format(**bicim) for x in s["yap"]))
+    bu_adim = [x for x in h["parcalar"] if x["adim"] == s["no"]]
+    if bu_adim:                                   # kullanici: "o adimda hangi uzunlukta kac tane lazim?"
+        toplam = sum(x["adet"] for x in bu_adim)
+        ic.append(f"<h4>Bu adımda gereken çubuk parçaları — toplam {toplam}</h4>")
+        ic.append(_tablo(("Parça", "Uzunluk", "Adet", "Nereden"),
+                         [(E(x["ad"]), f"<b>{x['u']:.0f} mm</b>", f"<b>× {x['adet']}</b>", KAYNAK_AD[x["kaynak"]])
+                          for x in bu_adim]))
+        ic.append("<details class='ayrinti'><summary>Parçaları çubuk üstünde gör</summary>"
+                  "<figure><figcaption>Bu adımın parçaları çubuk üstünde</figcaption>" + ciz_kesim(bu_adim)
+                  + "</figure></details>")
     ic.append(cizimler(s))
-    KAYNAK_AD = {"duz": "düz bölümden", "yarim": "çubuk ortadan ikiye"}
     if s["no"] == "1.2":
         ic.append(_tablo(("Parça", "Uzunluk", "Adet", "Nereden", "Hangi adımda"),
                          [(E(x["ad"]), f"{x['u']:.0f} mm", f"<b>{x['adet']}</b>", KAYNAK_AD[x["kaynak"]], x["adim"])
@@ -1623,20 +1643,13 @@ def alt_kart(s: dict, nl, parcalar, stok, h) -> str:
         ic.append(_tablo(("Parça", "Uzunluk (nominal)", "Adet", "Nereden", "Hangi adımda"),
                          [(E(x["ad"]), f"{x['u']:.0f} mm", f"<b>{x['adet']}</b>", KAYNAK_AD[x["kaynak"]], x["adim"])
                           for x in h["kesim2"]]))
-    bu_adim = [x for x in h["parcalar"] if x["adim"] == s["no"]]
-    if bu_adim:                                   # kullanici: "o adimda hangi uzunlukta kac tane lazim?"
-        toplam = sum(x["adet"] for x in bu_adim)
-        ic.append(f"<h4>Bu adımda gereken çubuk parçaları — toplam {toplam}</h4>")
-        ic.append(_tablo(("Parça", "Uzunluk", "Adet", "Nereden"),
-                         [(E(x["ad"]), f"<b>{x['u']:.0f} mm</b>", f"<b>× {x['adet']}</b>", KAYNAK_AD[x["kaynak"]])
-                          for x in bu_adim]))
-        ic.append("<figure><figcaption>Bu adımın parçaları çubuk üstünde</figcaption>" + ciz_kesim(bu_adim) + "</figure>")
+
     if s["tur"] == "delik_parca":
         ic.append("<h4>Delik tablosu — parça parça</h4>")
         ic.append(delik_tablosu_html(s["panel"]))
     if s["no"] in ("4.1", "4.3"):
-        ic.append("<h4>Parça boyları ve ek yerleri</h4>")
-        ic.append(ek_tablosu_html())
+        ic.append("<details class='ayrinti'><summary>Bütün sıraların parça boyları ve ek yerleri</summary>"
+                  + ek_tablosu_html() + "</details>")
     if s["no"] == "4.5":
         ic.append("<h4>İç kat çubuk konumları</h4>")
         ic.append(ic_kat_tablosu_html())
@@ -1664,10 +1677,10 @@ def alt_kart(s: dict, nl, parcalar, stok, h) -> str:
                   "değmediğini ölçüyor.</p>")
     if s["no"] in ("9.1", "9.2", "9.3"):
         ic.append("<h4>Yol kontrolü — jaktan karta</h4>")
-        ic.append("<p class='kucuk'>Bölücüler GND'ye değil VREF'e iniyor; jak ile COM arası enerji yokken sonsuz "
-                  "okur. Anlamlı ölçüm jak ile VREF arası: kartta U3'ün 1. bacağı, delik <b>A:R8</b>.</p>")
         ic.append(_tablo(("Uç 1", "Uç 2", "Beklenen"),
                          [(E(ad), "A:R8 (VREF)", f"<b>≈ {B._oku(r)}</b> (±%2)") for ad, _ag, r in giris_direncleri(nl, parcalar)]))
+        ic.append("<p class='kucuk'>Bölücüler GND'ye değil VREF'e iniyor; jak ile COM arası enerji yokken sonsuz "
+                  "okur. Anlamlı ölçüm jak ile VREF arası: kartta U3'ün 1. bacağı, delik <b>A:R8</b>.</p>")
     if s["tur"] == "kalibrasyon":
         ke = kalib_esikleri()
         ic.append("<p class='kucuk'>Seri konsoldan (USB). Her komut ayarı NVS'e yazar. Kazanç kalibrasyonu "
@@ -1746,8 +1759,12 @@ def yaz(nl, parcalar, hedef: Path) -> None:
     aa = alt_adimlar()
     mz = menziller()
     g = []
-    g.append("<h2>Bu belge ne</h2>")
-    g.append(_liste([
+
+    def ref(kimlik, baslik, icerik):
+        """Adim gorunumunu bogmasin diye referans bolumleri katlanir (durum tarayicida kalir)."""
+        return (f"<details class='ref' id='{kimlik}'><summary><h2>{E(baslik)}</h2></summary>"
+                f"<div class='ref-ic'>{icerik}</div></details>")
+    g.append(ref("ref-belge", "Bu belge ne — kurallar", _liste([
         "Kartlar bitti. Bundan sonrası: <b>çubuktan kutu</b>, panel delikleri, şönt ve Q1, jaklar, kablolar, testler.",
         f"Kutu <b>{c['ad']}</b> ({c['uzunluk']:.0f} × {c['genislik']:.0f} × {c['kalinlik']:.0f} mm) çubuklardan. "
         f"İç ölçü <b>{kb['ic_en']:.0f} × {kb['ic_boy']:.0f} × {h['ic_yuk']:.0f} mm</b>, dış "
@@ -1764,20 +1781,19 @@ def yaz(nl, parcalar, hedef: Path) -> None:
         "Çubuk kullanan her adımda <b>\"Bu adımda gereken çubuk parçaları\"</b> tablosu var: hangi uzunluktan "
         "kaç tane, çubuk üstünde çizili. 1.2 ve 4.4 toplu kesim listeleri; oradaki \"hangi adımda\" sütunu "
         "aynı bilgiyi verir.",
-    ]))
-    g.append("<h3>Hangi yapıştırıcı nerede</h3>")
-    g.append(_tablo(("İş", "Yapıştırıcı", "Nasıl"),
-                    [(E(a), f"<b>{E(b)}</b>", E(c2)) for a, b, c2 in kb["yapistirici"]]))
-    g.append("<h3>Başlamadan önce — Yerleşim planında bitmiş olmalı</h3>")
-    g.append(on_kosul_html(nl, parcalar))
+    ])))
+    g.append(ref("ref-yapistirici", "Hangi yapıştırıcı nerede",
+                 _tablo(("İş", "Yapıştırıcı", "Nasıl"), [(E(a), f"<b>{E(b)}</b>", E(c2)) for a, b, c2 in kb["yapistirici"]])))
+    g.append(ref("ref-onkosul", "Başlamadan önce — Yerleşim planında bitmiş olmalı", on_kosul_html(nl, parcalar)))
     bicim_al = dict(kb, cubuk=h["cubuk_sayisi"], elde=kb["elde_cubuk"], eksik=h["eksik"], eksik_pay=h["eksik_pay"])
     stokta, alinacak = malzeme_ayir(stok)
-    g.append("<h3>Stoktan çıkar</h3>")
-    g.append(_tablo(("Ne", "Kayıt", "Not"), [(f"<b>{E(m['ad'])}</b>", k, E(m["not"].format(**bicim_al)))
-                                             for m, k in stokta]) if stokta else "<p class='kucuk'>—</p>")
-    g.append("<h3>Alınacak</h3>")
-    g.append(_tablo(("Ne", "Not"), [(f"<b>{E(m['ad'])}</b>", E(m["not"].format(**bicim_al))) for m in alinacak])
-             if alinacak else "<p class='kucuk'>Alınacak bir şey yok.</p>")
+    malzeme_html = ("<h3>Stoktan çıkar</h3>"
+                    + (_tablo(("Ne", "Kayıt", "Not"), [(f"<b>{E(m['ad'])}</b>", k, E(m["not"].format(**bicim_al)))
+                                                        for m, k in stokta]) if stokta else "<p class='kucuk'>—</p>")
+                    + "<h3>Alınacak</h3>"
+                    + (_tablo(("Ne", "Not"), [(f"<b>{E(m['ad'])}</b>", E(m["not"].format(**bicim_al))) for m in alinacak])
+                       if alinacak else "<p class='kucuk'>Alınacak bir şey yok.</p>"))
+    g.append(ref("ref-malzeme", f"Malzeme — stoktan {len(stokta)}, alınacak {len(alinacak)}", malzeme_html))
 
     kartlar = "".join(alt_kart(s, nl, parcalar, stok, h) for s in aa)
     basliklar = json.dumps([{"no": s["no"], "b": s["baslik"], "a": s["adim"], "ab": s["adim_baslik"]} for s in aa], ensure_ascii=False)
@@ -1795,17 +1811,16 @@ def yaz(nl, parcalar, hedef: Path) -> None:
 {U.PANEL_HTML}
 <ol class="aalist" id="aalist">{kartlar}</ol>""")
 
-    g.append("<section class='buyuk'><h2>Bitince: neyi nereden ölçerim</h2>")
-    g.append(_tablo(("Ölçüm", "Hangi uç", "Nasıl bağlanır", "Çözünürlük"),
-                    [(f"<b>{E(a.format(**mz))}</b>", f"<b>{E(b)}</b>", c2.format(**mz), f"<span class='kucuk'>{E(d)}</span>")
-                     for a, b, c2, d in K.KULLANIM]))
-    g.append("<h3>Akım ve gerilim ölçümü — bağlantı</h3>")
-    g.append("<figure><figcaption>YÜK jakları devreye SERİ girer; COM içeride YÜK 2'dir</figcaption>" + ciz_kullanim("akim") + "</figure>")
-    g.append("<h3>Pil kapasite testi — bağlantı</h3>")
-    g.append("<figure><figcaption>PİL jakları deşarj yolu; V jakı zorunlu</figcaption>" + ciz_kullanim("pil") + "</figure>")
-    g.append("</section>")
+    kullanim_html = (_tablo(("Ölçüm", "Hangi uç", "Nasıl bağlanır", "Çözünürlük"),
+                            [(f"<b>{E(a.format(**mz))}</b>", f"<b>{E(b)}</b>", c2.format(**mz), f"<span class='kucuk'>{E(d)}</span>")
+                             for a, b, c2, d in K.KULLANIM])
+                     + "<h3>Akım ve gerilim ölçümü — bağlantı</h3>"
+                     + "<figure><figcaption>YÜK jakları devreye SERİ girer; COM içeride YÜK 2'dir</figcaption>" + ciz_kullanim("akim") + "</figure>"
+                     + "<h3>Pil kapasite testi — bağlantı</h3>"
+                     + "<figure><figcaption>PİL jakları deşarj yolu; V jakı zorunlu</figcaption>" + ciz_kullanim("pil") + "</figure>")
+    g.append(ref("ref-kullanim", "Bitince: neyi nereden ölçerim", kullanim_html))
     ara_html, ara_veri = arayuz_html()
-    g.append("<section class='buyuk'><h2>Kutu arayüzü — 3D baskı / başka kap için</h2>" + ara_html + "</section>")
+    g.append(ref("ref-arayuz", "Kutu arayüzü — 3D baskı / başka kap için", ara_html))
     g.append(f"<script id='kutu-arayuz' type='application/json'>{json.dumps(ara_veri, ensure_ascii=False)}</script>")
 
     ek_stil = U.PANEL_CSS + """
@@ -1825,11 +1840,20 @@ def yaz(nl, parcalar, hedef: Path) -> None:
 .ano{font:600 13px ui-monospace,Consolas,monospace;background:var(--s1);color:#fff;border-radius:99px;padding:2px 10px}
 .yaptim{margin-left:auto;font-size:13px;color:var(--m2);cursor:pointer}
 .buyuk{border:1px solid var(--cizgi);border-radius:14px;padding:18px 20px;margin:26px 0}
+details.ref{border:1px solid var(--cizgi);border-radius:14px;margin:10px 0;background:var(--yz2)}
+details.ref>summary{cursor:pointer;padding:10px 16px;list-style:none;display:flex;align-items:center;gap:10px}
+details.ref>summary::before{content:"▸";color:var(--m3);font-size:14px}
+details.ref[open]>summary::before{content:"▾"}
+details.ref>summary h2{margin:0;padding:0;border:0;font-size:16px;font-weight:600}
+details.ref .ref-ic{padding:4px 18px 16px}
+details.ayrinti{margin:8px 0 12px;border-left:3px solid var(--cizgi);padding-left:12px}
+details.ayrinti>summary{cursor:pointer;color:var(--m2);font-size:13px;padding:4px 0}
+.aa>.aa-ic>h4:first-of-type{margin-top:6px}
 ul.is{margin:8px 0 14px;padding-left:20px}
 ul.is li{margin:6px 0}
 figure{margin:14px 0;padding:10px;border:1px solid var(--cizgi);border-radius:10px;background:var(--yz2);overflow-x:auto}
 figure figcaption{font-size:12px;color:var(--m3);margin-bottom:6px}
-figure svg{width:100%;min-width:460px;height:auto;display:block}
+figure svg{width:100%;min-width:460px;max-height:540px;height:auto;display:block;margin:0 auto}
 h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;letter-spacing:.04em}
 @media (max-width:640px){ figure svg{min-width:340px} .gorus-ust button{padding:8px 12px} }
 """
@@ -1887,6 +1911,10 @@ __JS_3B__
    return -1;
  }
  window.addEventListener('hashchange', function(){ var i = adresten(); if (i >= 0) goster(i, true); });
+ [].forEach.call(document.querySelectorAll('details.ref'), function(d){
+   try { if (localStorage.getItem('kutu-ref-' + d.id) === '1') d.open = true; } catch(e) {}
+   d.addEventListener('toggle', function(){ try { localStorage.setItem('kutu-ref-' + d.id, d.open ? '1' : ''); } catch(e) {} });
+ });
  var bas = adresten();
  goster(bas >= 0 ? bas : 0, false);
 })();
