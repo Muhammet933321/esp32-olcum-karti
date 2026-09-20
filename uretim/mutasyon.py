@@ -168,6 +168,10 @@ MUTASYONLAR = [
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      '("TP1.OUT+", "SWP1.1", "pil", "korumalı çıkış (B+ değil!)"),', '("TP1.B+", "SWP1.1", "pil", "korumalı çıkış (B+ değil!)"),',
      "yuk TP4056'nin B+ ucundan alinirsa koruma devre disi kalir: SWP1 zinciri iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'ekle(k1, "Taban rayı — kısa parça", D * TABAN_EK[0], 2, "2.2")', 'ekle(k1, "Taban rayı — kısa parça", D * TABAN_EK[0], 2, "2.9")',
+     "kesim listesindeki bir parca olmayan bir alt adima baglanirsa 'bir alt adimda kullaniliyor' kirmizi — "
+     "kullanici o parcayi hicbir adimda gormezdi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      '("0.9", "İlk elektrik', '("0.99", "İlk elektrik',
      "on kosul yerlesim planinda olmayan bir alt adima isaret ederse iddia kirmizi "

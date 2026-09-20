@@ -290,51 +290,59 @@ def hesap() -> dict:
     o, k = olcu(), K.KUTU
     g, t, duz = o["g"], o["t"], o["duz"]
     L, D = o["dis_en"], o["dis_boy"]
-    k1: list[tuple[str, float, int, str]] = []
-    k2: list[tuple[str, float, int, str]] = []
+    k1: list[dict] = []
+    k2: list[dict] = []
 
-    def ekle(lst, ad, u, adet, kaynak="duz"):
-        lst.append((ad, round(u, 1), int(adet), kaynak))
+    def ekle(lst, ad, u, adet, adim, kaynak="duz"):
+        """Kesim listesi kaydi: ad, uzunluk, adet, kaynak ve KULLANILDIGI alt adim —
+        her alt adim kendi 'bu adimda gereken parcalar' tablosunu buradan cikarir."""
+        lst.append({"ad": ad, "u": round(u, 1), "adet": int(adet), "kaynak": kaynak, "adim": adim})
     n_sira = o["taban_sira"]
-    ekle(k1, "Taban sırası — kısa parça", L * TABAN_EK[0], n_sira)
-    ekle(k1, "Taban sırası — uzun parça", L * TABAN_EK[1], n_sira)
-    ekle(k1, "Taban rayı — kısa parça", D * TABAN_EK[0], 2)
-    ekle(k1, "Taban rayı — uzun parça", D * TABAN_EK[1], 2)
+    ekle(k1, "Taban sırası — kısa parça", L * TABAN_EK[0], n_sira, "2.1")
+    ekle(k1, "Taban sırası — uzun parça", L * TABAN_EK[1], n_sira, "2.1")
+    ekle(k1, "Taban rayı — kısa parça", D * TABAN_EK[0], 2, "2.2")
+    ekle(k1, "Taban rayı — uzun parça", D * TABAN_EK[1], 2, "2.2")
     for panel in ("ön", "arka"):
         for r, ek in enumerate(ek_yerleri(panel)):
             # arka duvar parcalari ARKADAN bakan kisinin solundan adlanir —
             # delik tablosu ve ek yeri tablosuyla ayni cerceve
             sol, sag = (L - ek, ek) if panel == "arka" else (ek, L - ek)
             ek_ad = " (arkadan)" if panel == "arka" else ""
-            ekle(k1, f"Dış kat {panel} sıra {r + 1} — sol{ek_ad}", sol, 1)
-            ekle(k1, f"Dış kat {panel} sıra {r + 1} — sağ{ek_ad}", sag, 1)
-    ekle(k1, "Dış kat yan — kısa parça", o["yan_dis"] * TABAN_EK[0], 2 * k["duvar_sira"])
-    ekle(k1, "Dış kat yan — uzun parça", o["yan_dis"] * TABAN_EK[1], 2 * k["duvar_sira"])
+            adim = "4.1" if r == 0 else "4.3"
+            ekle(k1, f"Dış kat {panel} sıra {r + 1} — sol{ek_ad}", sol, 1, adim)
+            ekle(k1, f"Dış kat {panel} sıra {r + 1} — sağ{ek_ad}", sag, 1, adim)
+    ekle(k1, "Dış kat yan sıra 1 — kısa parça", o["yan_dis"] * TABAN_EK[0], 2, "4.2")
+    ekle(k1, "Dış kat yan sıra 1 — uzun parça", o["yan_dis"] * TABAN_EK[1], 2, "4.2")
+    ekle(k1, "Dış kat yan sıra 2–4 — kısa parça", o["yan_dis"] * TABAN_EK[0], 2 * (k["duvar_sira"] - 1), "4.3")
+    ekle(k1, "Dış kat yan sıra 2–4 — uzun parça", o["yan_dis"] * TABAN_EK[1], 2 * (k["duvar_sira"] - 1), "4.3")
     ic_on, ic_arka, ic_yan = ic_kat_cubuklari("ön"), ic_kat_cubuklari("arka"), ic_kat_yan()
     tam = [s for s in ic_on + ic_arka if s[2] == 0]
     kisa = [s for s in ic_on + ic_arka if s[2] > 0]
-    ekle(k2, "İç kat dikey çubuk (yuvarlak uç aşağı)", o["ic_yuk"], len(tam) + 2 * len(ic_yan), "yarim")
+    ekle(k2, "İç kat dikey çubuk (yuvarlak uç aşağı)", o["ic_yuk"], len(tam) + 2 * len(ic_yan), "4.5", "yarim")
     for s in kisa:
-        ekle(k2, "İç kat kısa çubuk — USB yuvasının üstü", o["ic_yuk"] - s[2], 1, "yarim")
-    ekle(k2, "Köşe direği parçası (yuvarlak uç aşağı)", o["ic_yuk"], 4 * k["direk_kat"], "yarim")
-    ekle(k2, "Kapak sırası — kısa parça", L * TABAN_EK[0], n_sira)
-    ekle(k2, "Kapak sırası — uzun parça", L * TABAN_EK[1], n_sira)
-    ekle(k2, "Kapak rayı (yan duvara yaslı, tek parça)", o["kapak_ray"], 2)
+        ekle(k2, f"İç kat kısa çubuk — x {s[0]:.0f}, yuvanın üstü (z {s[2]:.0f}'dan)", o["ic_yuk"] - s[2], 1, "4.5", "yarim")
+    ekle(k2, "Köşe direği parçası (yuvarlak uç aşağı)", o["ic_yuk"], 4 * k["direk_kat"], "4.6", "yarim")
+    ekle(k2, "Kapak sırası — kısa parça", L * TABAN_EK[0], n_sira, "13.1")
+    ekle(k2, "Kapak sırası — uzun parça", L * TABAN_EK[1], n_sira, "13.1")
+    ekle(k2, "Kapak rayı (yan duvara yaslı, tek parça)", o["kapak_ray"], 2, "13.1")
     for p in K.IC_PARCA:
         ts = p.get("tasiyici")
         if not ts:
             continue
         if ts["tip"] == "ayak":
-            ekle(k2, f"Ayak bloğu parçası — {p['ref']} ({ts['adet']} blok × {ts['kat']} kat)", g, ts["adet"] * ts["kat"])
+            ekle(k2, f"Ayak bloğu parçası — {p['ref']} ({ts['adet']} blok × {ts['kat']} kat)", g, ts["adet"] * ts["kat"], ts["adim"])
         elif ts["tip"] == "altlik":
-            ekle(k2, f"Altlık — {p['ref']}", ts["uzunluk"], ts["adet"])
+            ekle(k2, f"Altlık — {p['ref']}", ts["uzunluk"], ts["adet"], ts["adim"])
         elif ts["tip"] == "kosebent":
-            ekle(k2, f"Köşebent parçası — {p['ref']} ({ts['adet']} kat)", ts["uzunluk"], ts["adet"])
+            ekle(k2, f"Köşebent parçası — {p['ref']} ({ts['adet']} kat)", ts["uzunluk"], ts["adet"], ts["adim"])
     for p in kutu_ek_parcalari():
-        ekle(k2, f"{p['ref']} ({p['kat']} kat)", max(p["en"], p["boy"]), p["kat"])
+        ekle(k2, f"{p['ref']} ({p['kat']} kat)", max(p["en"], p["boy"]), p["kat"], p["adim"])
+    for d in K.DUVAR_PARCA:                    # TP4056 raflarinin duvara yapisik somun bloklari
+        if d["ref"].startswith("TP"):
+            ekle(k2, f"{d['ref']} raf bloğu (3 kat)", g, 3, monte_adim().get(d["ref"], "14.2"))
     parcalar = k1 + k2
-    yarim_adet = sum(a for _ad, _u, a, kk in parcalar if kk == "yarim")
-    boylar = sorted((u for _ad, u, a, kk in parcalar if kk == "duz" for _ in range(a)), reverse=True)
+    yarim_adet = sum(x["adet"] for x in parcalar if x["kaynak"] == "yarim")
+    boylar = sorted((x["u"] for x in parcalar if x["kaynak"] == "duz" for _ in range(x["adet"])), reverse=True)
     cubuklar: list[float] = []                # her cubugun kalan duz bolumu
     for u in boylar:
         for i, kalan in enumerate(cubuklar):
@@ -588,12 +596,17 @@ def denetle(nl, parcalar) -> Y.Denetim:
     print("\n  1 · MALZEME VE KESIM")
     D.kosul("Cubugun yuvarlak uclari veride", c.get("uc_egim", 0) > 0,
             f"uc egim {c['uc_egim']:.0f} -> duz {h['duz']:.0f} mm")
-    for ad, u, adet, kaynak in h["parcalar"]:
-        sinir = {"duz": h["duz"], "yarim": h["yarim"]}[kaynak]
-        D.kosul(f"'{ad}' {kaynak.upper()} kaynaga sigiyor", u <= sinir + 1e-6,
-                f"{u:.1f} <= {sinir:.0f} mm · {adet} adet")
+    for x in h["parcalar"]:
+        sinir = {"duz": h["duz"], "yarim": h["yarim"]}[x["kaynak"]]
+        D.kosul(f"'{x['ad']}' {x['kaynak'].upper()} kaynaga sigiyor", x["u"] <= sinir + 1e-6,
+                f"{x['u']:.1f} <= {sinir:.0f} mm · {x['adet']} adet")
+        D.kosul(f"'{x['ad'][:34]}' bir alt adimda kullaniliyor ({x['adim']})", x["adim"] in sira)
     D.kosul("Hicbir parca TAM cubuk degil (yuvarlak uc duvar altina gelmez)",
-            all(kk in ("duz", "yarim") for _a, _u, _n, kk in h["parcalar"]))
+            all(x["kaynak"] in ("duz", "yarim") for x in h["parcalar"]))
+    D.kosul("Ilk kesimdeki (1.2) parcalar ikinci kesimden (4.4) once kullaniliyor",
+            all(sira[x["adim"]] < sira["4.4"] for x in h["kesim1"]) and all(sira[x["adim"]] > sira["4.4"] for x in h["kesim2"]))
+    D.kosul("Her montaj adimi (taban, duvar, ic kat, direk, kapak, ayak) parca tablosu aliyor",
+            {"2.1", "2.2", "4.1", "4.2", "4.3", "4.5", "4.6", "6.1", "13.1"} <= {x["adim"] for x in h["parcalar"]})
     D.kosul("Dis derinlik tam sira sayisi (taban/kapak kirpma yok)",
             abs(h["taban_sira"] * g - h["dis_boy"]) < 1e-6, f"{h['dis_boy']:.0f} = {h['taban_sira']} x {g:.0f}")
     D.kosul("Ic kat yarim cubuk duvar yuksekligini karsiliyor", h["yarim"] >= h["ic_yuk"],
@@ -604,7 +617,7 @@ def denetle(nl, parcalar) -> Y.Denetim:
     D.kosul("Gereken cubuk sayisi hesaplandi", h["cubuk_sayisi"] > 0,
             f"{h['cubuk_sayisi']} cubuk, elde {kb['elde_cubuk']}, eksik {h['eksik']}")
     D.kosul("Ilk kesim listesi (1.2) yalniz taban/ray/dis kat", all(
-        ad.startswith(("Taban", "Dış kat")) for ad, *_ in h["kesim1"]))
+        x["ad"].startswith(("Taban", "Dış kat")) for x in h["kesim1"]))
     for panel in ("ön", "arka"):
         ekler = ek_yerleri(panel)
         for r in range(1, len(ekler)):
@@ -1064,7 +1077,8 @@ def ciz_kesim(parcalar) -> str:
     yuk = ust + satir * len(parcalar) + 20
     o = [_yazi(sol, 18, f"bir çubuk {c['uzunluk']:.0f} mm · gri uçlar yuvarlak "
                         f"({c['uc_egim']:.0f} mm) · düz bölüm {h['duz']:.0f} mm", 11, "var(--m3)", "start")]
-    for i, (ad, u, adet, kaynak) in enumerate(parcalar):
+    for i, x in enumerate(parcalar):
+        ad, u, adet, kaynak = x["ad"], x["u"], x["adet"], x["kaynak"]
         y = ust + i * satir
         o.append(_dikdortgen(sol, y, c["uzunluk"] * olc, 20, "var(--yz2)", "var(--cizgi)"))
         for ux in (sol, sol + (c["uzunluk"] - c["uc_egim"]) * olc):
@@ -1591,14 +1605,24 @@ def alt_kart(s: dict, nl, parcalar, stok, h) -> str:
     ic.append(cizimler(s))
     KAYNAK_AD = {"duz": "düz bölümden", "yarim": "çubuk ortadan ikiye"}
     if s["no"] == "1.2":
-        ic.append(_tablo(("Parça", "Uzunluk", "Adet", "Nereden"),
-                         [(E(ad), f"{u:.0f} mm", f"<b>{adet}</b>", KAYNAK_AD[kk]) for ad, u, adet, kk in h["kesim1"]]))
+        ic.append(_tablo(("Parça", "Uzunluk", "Adet", "Nereden", "Hangi adımda"),
+                         [(E(x["ad"]), f"{x['u']:.0f} mm", f"<b>{x['adet']}</b>", KAYNAK_AD[x["kaynak"]], x["adim"])
+                          for x in h["kesim1"]]))
         ic.append(f"<div class='uy'>Bütün plan için <b>{h['cubuk_sayisi']} çubuk</b> gerekiyor "
                   f"({KERF:.0f} mm testere payıyla, {h['artik']:.0f} mm artık). Elde ~{kb['elde_cubuk']}: en az "
                   f"<b>{h['eksik']}</b> daha, fire payıyla {h['eksik_pay']}.</div>")
     if s["no"] == "4.4":
-        ic.append(_tablo(("Parça", "Uzunluk (nominal)", "Adet", "Nereden"),
-                         [(E(ad), f"{u:.0f} mm", f"<b>{adet}</b>", KAYNAK_AD[kk]) for ad, u, adet, kk in h["kesim2"]]))
+        ic.append(_tablo(("Parça", "Uzunluk (nominal)", "Adet", "Nereden", "Hangi adımda"),
+                         [(E(x["ad"]), f"{x['u']:.0f} mm", f"<b>{x['adet']}</b>", KAYNAK_AD[x["kaynak"]], x["adim"])
+                          for x in h["kesim2"]]))
+    bu_adim = [x for x in h["parcalar"] if x["adim"] == s["no"]]
+    if bu_adim:                                   # kullanici: "o adimda hangi uzunlukta kac tane lazim?"
+        toplam = sum(x["adet"] for x in bu_adim)
+        ic.append(f"<h4>Bu adımda gereken çubuk parçaları — toplam {toplam}</h4>")
+        ic.append(_tablo(("Parça", "Uzunluk", "Adet", "Nereden"),
+                         [(E(x["ad"]), f"<b>{x['u']:.0f} mm</b>", f"<b>× {x['adet']}</b>", KAYNAK_AD[x["kaynak"]])
+                          for x in bu_adim]))
+        ic.append("<figure><figcaption>Bu adımın parçaları çubuk üstünde</figcaption>" + ciz_kesim(bu_adim) + "</figure>")
     if s["tur"] == "delik_parca":
         ic.append("<h4>Delik tablosu — parça parça</h4>")
         ic.append(delik_tablosu_html(s["panel"]))
@@ -1729,6 +1753,9 @@ def yaz(nl, parcalar, hedef: Path) -> None:
         "<b>Kullanım sınırı:</b> yalnız pil / DC-DC beslemeli, toprağa göre yüzen devreler. HV ölçerken USB takılı olmaz.",
         "Aşağıda <b>ileri / geri</b> ile tek tek ilerle; 3B görünüm adım şeridinin altında (sürükle: döndür, "
         "Ctrl+tekerlek: yakınlaştır). Tezgahta telefondan: <code>python uretim/belge_sun.py</code>.",
+        "Çubuk kullanan her adımda <b>\"Bu adımda gereken çubuk parçaları\"</b> tablosu var: hangi uzunluktan "
+        "kaç tane, çubuk üstünde çizili. 1.2 ve 4.4 toplu kesim listeleri; oradaki \"hangi adımda\" sütunu "
+        "aynı bilgiyi verir.",
     ]))
     g.append("<h3>Başlamadan önce — Yerleşim planında bitmiş olmalı</h3>")
     g.append(on_kosul_html(nl, parcalar))
