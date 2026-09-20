@@ -936,6 +936,14 @@ def denetle(nl, parcalar) -> Y.Denetim:
     for no, _ne in K.ON_KOSUL:
         D.kosul(f"On kosul Yerlesim {no} yerlesim planinda var", no in yerlesim_nolar)
     D.kosul("Firmware komutlari kalibrasyon tablosunda", {"Z", "n", "z", "y", "?"} <= {x[0] for x in K.KALIBRASYON})
+    yap_tab = {a[:12]: b for a, b, _c in kb["yapistirici"]}
+    D.kosul("Yapistirici tablosu: ic kat japon, raylar sicak silikon, mastik KULLANMA",
+            "Japon" in yap_tab.get("İç kat dikey", "") and "silikon" in _kucuk(yap_tab.get("Raylar (taba", ""))
+            and yap_tab.get("Silikon mast", "") == "KULLANMA")
+    m45 = _kucuk(" ".join(hepsi["4.5"]["yap"]))
+    D.kosul("4.5 (ic kat) metni japon diyor, sicak silikonu yasakliyor", "japon" in m45 and "silikon kullanma" in m45)
+    m22 = _kucuk(" ".join(hepsi["2.2"]["yap"]))
+    D.kosul("2.2 (raylar) metni sicak silikon diyor", "sıcak silikon" in m22)
 
     print("\n  6 · OLCUM DEGERLERI (netlist ve sabitlerden)")
     for ad, _ag, r in giris_direncleri(nl, parcalar):
@@ -1757,6 +1765,9 @@ def yaz(nl, parcalar, hedef: Path) -> None:
         "kaç tane, çubuk üstünde çizili. 1.2 ve 4.4 toplu kesim listeleri; oradaki \"hangi adımda\" sütunu "
         "aynı bilgiyi verir.",
     ]))
+    g.append("<h3>Hangi yapıştırıcı nerede</h3>")
+    g.append(_tablo(("İş", "Yapıştırıcı", "Nasıl"),
+                    [(E(a), f"<b>{E(b)}</b>", E(c2)) for a, b, c2 in kb["yapistirici"]]))
     g.append("<h3>Başlamadan önce — Yerleşim planında bitmiş olmalı</h3>")
     g.append(on_kosul_html(nl, parcalar))
     bicim_al = dict(kb, cubuk=h["cubuk_sayisi"], elde=kb["elde_cubuk"], eksik=h["eksik"], eksik_pay=h["eksik_pay"])

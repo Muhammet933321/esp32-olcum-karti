@@ -49,8 +49,32 @@ KUTU = {
     "kenar_payi": 10.0,         # panel deligi ile kose arasi en az
     "parca_payi": 6.0,          # ic parcalar arasi en az bosluk
     "elde_cubuk": 50,           # kullanicida su an olan (yaklasik)
-    "yapistirici": "sıcak silikon (tabanca) — tahtada hızlı tutar; "
-                   "istersen ahşap tutkalı daha sağlam ama beklemek gerekir",
+    # Yapistirici secimi (B52f, kullanici: elinde japon (CA), sicak silikon, hizli yapistirici var):
+    # is turune gore — uretec 'Bu belge ne' altinda tablo yapiyor, denetim adim metinlerinin
+    # bu tabloyla celismedigini olcuyor.
+    "yapistirici": [
+        ("Lamine (üst üste) parçalar: ayak blokları, direkler, köşebent, ankraj, TP4056 rafı blokları",
+         "Japon (CA, sıvı)", "Yüze ince çizgi, 30 s bastır; kelepçe gerekmez. Gömme somunun dişine "
+         "damlatma — somunu kuru geçir."),
+        ("Taban / kapak sıraları (uç uca ve yan yana)",
+         "Maskeleme bandı + japon", "Parçaları düz zeminde dizip üstünden maskeleme bandıyla tut, derzlere "
+         "ince japon süz (altına kapton/pişirme kâğıdı: masaya yapışır)."),
+        ("Raylar (taban altı, kapak altı)", "Sıcak silikon",
+         "Ray boyunca sürekli, ince bir çizgi; 10 s içinde bastır. Yerinde oynatma payı veren tek yapıştırıcı."),
+        ("Dış kat sıraları (tabana ve birbirine)", "Japon + içeriden sıcak silikon",
+         "Uçları ve ortayı japonla tuttur (hizala, 30 s bastır), sonra iç köşeye sıcak silikonla "
+         "fileto çek: japon hizayı, silikon dayanımı verir."),
+        ("İç kat dikey çubuklar", "Japon (üst-orta-alt üç çizgi)",
+         "Sıcak silikon kalınlık yapar (iç kat 2 mm olmalı, delikler hizasız kalır); japon ince "
+         "kalır. Çubuğu tek seferde doğru yere koy — kayma payı yok."),
+        ("Şönt / ESP32 altlıkları, klemens çubuğu (tabana)", "Sıcak silikon",
+         "Kutu parçaları; sökmek gerekirse maket bıçağıyla altından kesilir."),
+        ("Silikon mastik (tüp, kürlenen)", "KULLANMA",
+         "Yapısal değil, 24 saat kürlenir, üstüne hiçbir şey tutmaz. Yalnız ileride su/toz sızdırmazlık "
+         "istersen jak somunlarının çevresine."),
+        ("Soğutucu çevresi (Q1 köşebendi, kapı teli)", "Kablo bağı, yapıştırıcı yok",
+         "Sıcak silikon soğutucunun yanında yumuşar; CA ısıda gevrekleşir."),
+    ],
 }
 
 # ── kutunun icindeki parcalar (taban yerlesimi) ────────────────────────
@@ -321,7 +345,8 @@ ADIMLAR = [
         {"no": "2.2", "baslik": "Alttan raylarla bağla", "tur": "taban",
          "yap": ["Rayları tabanın <b>altına</b>, sıralara dik (derinlik yönünde), "
                  "uçlardan içeride yapıştır. Ray bütün sıraları birbirine bağlar.",
-                 "Silikonu ray boyunca sürekli çek, nokta nokta değil."],
+                 "Sıcak silikonu ray boyunca sürekli çek, nokta nokta değil; 10 s içinde bastır. Sıralar "
+                 "arası derzleri isteğe bağlı ince japonla süz (maskeleme bandı üstten tutar)."],
          "kontrol": ["Taban tek parça gibi kalkıyor mu? Ortadan tutup kaldır.",
                      "Taban düz mü, beşik gibi kamburlaşmamış mı?"]},
     ]},
@@ -348,7 +373,8 @@ ADIMLAR = [
          "kontrol": ["Gönye ya da kitap kenarıyla bak: duvar tabana dik mi?"]},
         {"no": "4.2", "baslik": "1. sıra — yanlar", "tur": "duvar", "sira": 1,
          "yap": ["Yan duvarların ilk sırasını ön ve arka duvarın <b>arasına</b> sıkıştır.",
-                 "Köşeleri içeriden bir damla silikonla güçlendir."],
+                 "Parçayı uçlarından ve ortadan japonla tuttur (hizala, 30 s bastır); sonra iç köşeye sıcak "
+                 "silikonla fileto çek."],
          "kontrol": ["Dört köşe de kapalı mı?"]},
         {"no": "4.3", "baslik": "2., 3. ve 4. sıralar", "tur": "duvar", "sira": 4,
          "yap": ["Üstteki sıraları aynı şekilde ekle; ek yerleri tabloda — sıradan sıraya "
@@ -367,11 +393,12 @@ ADIMLAR = [
                  "çapraz kat). <b>Yuvarlak uç aşağı.</b>",
                  "Konum önemli: her yuvarlak deliğin tam arkasına bir çubuk <b>ortalanır</b> "
                  "(tablo). Aradaki dar boşluklar boş kalabilir, dış kat kapatıyor.",
-                 "Silikonu üst-orta-alt üç noktaya sür; bastırınca yayılır."],
+                 "Japonu üst-orta-alt üç ince çizgi sür, tek seferde doğru yere koy, 30 s bastır. Sıcak "
+                 "silikon KULLANMA: kalınlık yapar, iç kat 2 mm kalmalı."],
          "kontrol": ["Duvara parmakla bastır: artık esnememeli.",
                      "Deliklerin arkasında çubuk ortası var, ek yeri yok."]},
         {"no": "4.6", "baslik": "Köşe direkleri", "tur": "direk", "sira": 4,
-         "yap": ["Her köşe için {direk_kat} parçayı üst üste yapıştırıp "
+         "yap": ["Her köşe için {direk_kat} parçayı üst üste japonla yapıştırıp "
                  "<b>{direk_t:.0f} × {direk_g:.0f} × {h:.0f} mm</b> direk yap (4 adet), "
                  "yuvarlak uçlar aşağı.",
                  "Dört iç köşeye, iki duvara da yaslanacak şekilde yapıştır; üstü duvarla "
@@ -417,7 +444,8 @@ ADIMLAR = [
                  "Ayak bloğu: 4 parça çubuk üst üste. 1. ve 2. kata Ø3.2 delik, 3. kata "
                  "<b>Ø6 delik + M3 somun gömülü</b>, 4. kat deliksiz. Somun 2. ve 4. kat "
                  "arasında hapis kalır — tahtaya diş açılmaz.",
-                 "Blokları işaretler merkezde kalacak şekilde tabana yapıştır. Kart B için "
+                 "Katları japonla lamine et (somunun dişine damlatma). Blokları işaretler merkezde "
+                 "kalacak şekilde tabana sıcak silikonla yapıştır. Kart B için "
                  "iki blok aynı yöntemle."],
          "kontrol": ["Kartı koy, M3 vida dört delikten de somuna giriyor.",
                      "Kart sallanmıyor, altı hiçbir yere değmiyor."]},

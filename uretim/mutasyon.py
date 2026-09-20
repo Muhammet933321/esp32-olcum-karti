@@ -173,6 +173,10 @@ MUTASYONLAR = [
      "kesim listesindeki bir parca olmayan bir alt adima baglanirsa 'bir alt adimda kullaniliyor' kirmizi — "
      "kullanici o parcayi hicbir adimda gormezdi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"Japonu üst-orta-alt üç ince çizgi sür, tek seferde doğru yere koy, 30 s bastır. Sıcak "',
+     '"Sıcak silikonu üst-orta-alt üç noktaya sür, tek seferde doğru yere koy, 30 s bastır. Sıcak "',
+     "ic kat adimi yeniden sicak silikon derse (2 mm kat kalinlasir, delikler hizasiz) metin iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
      '("0.9", "İlk elektrik', '("0.99", "İlk elektrik',
      "on kosul yerlesim planinda olmayan bir alt adima isaret ederse iddia kirmizi "
      "(HTML'den degil yerlesim3_adim'dan olculur — kopyada BELGELER yok)"),
