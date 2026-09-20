@@ -1377,7 +1377,7 @@ parçalardan, kablolar izlerden sonra.</p>
 ({kb_a['kaynak'][0]}×{kb_a['kaynak'][1]} delik) <b>{kb_a['sutun']}×{kb_a['satir']} delik</b> kesilerek yapılıyor;
 HV zinciri (B) ayrı bir 5×5 cm plakette ({kb_b['sutun']}×{kb_b['satir']}). Şönt,
 J3, J7 ve Q1 <b>plakette değil</b>: 11.5 A'e varan yük akımını plaket bakırı
-taşımaz. Onlar kutuda, bariyer klemenslerde duruyor; plakete yalnızca Kelvin
+taşımaz. Onlar kutuda (panel jakları, şönt altlığı, soğutucu); plakete yalnızca Kelvin
 uçları, tek yıldız toprak teli ve kapı teli geliyor. <b>615 V'luk giriş A kartına
 hiç girmez</b>: B kartındaki zincirden A'ya yalnızca ~1.7 V'luk alt düğüm gelir.</p>
 

@@ -232,17 +232,17 @@ KART_DISI_NOTU = {
           "izi. Kutuda durur, plakete GİRMEZ. Kelvin telleri bacaklara, sıkıştırma izinin "
           "ÜST tarafına (gövdeye yakın) lehimlenir; 'RS.2' saydığın bacağa S−, yıldız GND "
           "ve J3.2 gider — tutarlı ol.",
-    "J3": "2 kutuplu bariyer klemens (CON012), yük dönüşü: 1 → yük eksisi, 2 → kaynak "
-          "eksisi. Şöntün bacakları ya vidaların altına ya kısa kalın kabloyla; akım "
-          "J3.1 → şönt → J3.2 yolunu izler.",
+    "J3": "YÜK born jak çifti (büyük boy, siyah ×2, panel): J3.1 → yük eksisi, J3.2 → kaynak "
+          "eksisi. Jakların iç ucundan şönt bacaklarına kısa kalın kablo + halka pabuç; akım "
+          "J3.1 → şönt → J3.2 yolunu izler. (Bariyer klemens panele vidalanamıyordu — PCB tipi.)",
     "J6": "24 V girişi: XT30 (CON058). Kart tarafı ERKEK uç (pimli), güç kaynağı "
           "tarafı DİŞİ uç — gerilim taşıyan taraf kapalı soketli olsun. Kablo yalıtımlı, "
           "kırmızı = +, siyah = −.",
     "J1": "V girişi born jak çifti (panel): kırmızı = V girişi, siyah = COM (kart GND).",
     "J2": "HV girişi born jakı (panel): AYRI ve işaretli; COM, J1'in COM'uyla ortak.",
     "J4": "Skop girişi born jakı (panel); COM ortak.",
-    "J7": "Pil testi yük klemensi (CON012'den ikinci): 1 → yük, 2 → pil eksisi; J3'ten "
-          "AYRI — karıştırılırsa kesme çalışmaz.",
+    "J7": "PİL born jak çifti (büyük boy, mavi ×2, panel): J7.1 → yük direnci, J7.2 → pil "
+          "eksisi; J3'ten AYRI — karıştırılırsa kesme çalışmaz.",
     "Q1": "IRFZ44N (Q006), kutuda: kaynağı şönt üst bacağına, savağı J7.1'e, kapısı "
           "karta tek telle (T_KAPI). Soğutucusuz 6.55 A'e kadar.",
 }
@@ -274,8 +274,11 @@ KABLOLAR = [
     # alanini kucultur, zarari yok. Kelvin cifti gibi ZORUNLU degil.
     ("X:J1.1", "A:T_VGIR", "sinyal", 4, "V girisi (KIRMIZI uc). COM teliyle burulabilir"),
     ("X:J1.2", "A:T_COM", "sinyal", 4, "COM jak -> kart GND (SIYAH uc)"),
-    ("X:J2.2", "X:J1.2", "panel", 5, "HV COM = ortak COM jaki"),
-    ("X:J4.2", "X:J1.2", "panel", 6, "skop COM = ortak COM jaki"),
+    # 2026-09-20 (B50g): J2.2 ve J4.2 netlistte ayri pin ama panelde TEK COM
+    # jaki var — fiziksel kablo yok. 'sanal' turu: kutu plani bunlari kablo
+    # listesine koymaz (kullanici var olmayan tellere ne yapacagini soruyordu).
+    ("X:J2.2", "X:J1.2", "sanal", 5, "HV COM = ortak COM jaki (ayni fiziksel jak, tel yok)"),
+    ("X:J4.2", "X:J1.2", "sanal", 6, "skop COM = ortak COM jaki (ayni fiziksel jak, tel yok)"),
     ("X:J2.1", "B:T_HV", "hv", 5, "HV jak -> B karti. 600 V silikon test kablosu"),
     ("B:T_N6", "A:T_HVALT", "sinyal", 5,
      "zincir alt dugumu (~1.7 V, Thevenin 8.2K). KISA tut (<10 cm), HV "
@@ -404,7 +407,7 @@ TEL_ETIKET = {
     "T_HV": "HV jak", "T_N6": "→ A:HV alt",
     "T_VGIR": "V girişi (J1)", "T_COM": "COM jak", "T_HVALT": "HV alt (B'den)",
     "T_SKOP": "Skop jak (J4)", "T_SP": "S+ (şönt üst)", "T_SN": "S− (şönt alt)",
-    "T_YILDIZ": "GND yıldız (şönt alt klemens)", "T_KAPI": "Q1 kapı",
+    "T_YILDIZ": "GND yıldız (şönt alt BACAĞI, S− ile aynı nokta)", "T_KAPI": "Q1 kapı",
     "T_24P": "24 V +", "T_24N": "24 V −",
 }
 

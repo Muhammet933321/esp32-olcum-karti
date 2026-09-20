@@ -71,31 +71,74 @@ ATLA_DOSYA = {"DEVIR.md"}
 AGIR = {"B3", "B23"}
 
 MUTASYONLAR = [
-    # ── B50 · kutu / panel plani (kutu.py)
-    ("B50", "kutu.py", "uretim/kutu_veri.py", '"x": 166.0, "z": 63.0',
-     '"x": 148.0, "z": 63.0',
-     "HV jaki komsusuna yaklasirsa hem kacak yolu (IEC takviyeli 12.6 mm) hem "
-     "fis araligi iddiasi kirmiziya donmeli"),
+    # ── B50 · kutu / panel plani (kutu.py) — B50g'de yeniden yazildi
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"tip": "jak", "x": 187.0, "z": 63.0',
+     '"tip": "jak", "x": 170.0, "z": 63.0',
+     "HV jaki komsusuna yaklasirsa kacak yolu (IEC takviyeli 12.6 mm) iddiasi "
+     "kirmiziya donmeli"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '"kablo": [17, 14],', '"kablo": [17],',
-     "COM koprusu alt adimdan dusunce 'kart disi kablolarin hepsi bir alt adimda' "
+     '"kablo": [11, 12],', '"kablo": [11],',
+     "COM kablosu alt adimdan dusunce 'kart disi kablolarin hepsi bir alt adimda' "
      "iddiasi kirmizi olmali — eksik kalan kablo sessizce kaybolmasin"),
     ("B50", "kutu.py", "uretim/kutu_veri.py", '"monte": ["RS", "Q1"],',
      '"monte": ["RS"],',
      "Q1 hic monte edilmezse hem parca iddiasi hem KAPI 8 / kablo sirasi kirmizi"),
-    ("B50", "kutu.py", "uretim/kutu_veri.py", '"ic_boy": 146.0,', '"ic_boy": 120.0,',
-     "kutu kisalirsa kart A + on serit sigmaz: 'ic alana sigiyor' ve cakisma "
-     "iddialari kirmizi olmali"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"ic_boy": 154.0,', '"ic_boy": 120.0,',
+     "kutu kisalirsa kart A on jak govdeleriyle cakisir ve dis derinlik tam sira "
+     "olmaz: cakisma / sira iddialari kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"duvar_kat": 2,', '"duvar_kat": 1,',
+     "duvar tek kata inerse 'duvar iki kat' iddiasi kirmizi — 2 mm tek kat esner, "
+     "somun tutmaz"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"direk_kat": 3,', '"direk_kat": 2,',
+     "kose diregi 4 mm'ye inerse M3 civatayi tasiyamaz: et kalinligi iddiasi kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py", '("s0.015"', '("s0.15"',
      "kalibrasyon komutundaki sont degeri tasarim sabitinden kayarsa iddia kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py", '"uc_egim": 10.0', '"uc_egim": 0.0',
      "cubugun yuvarlak uclari unutulursa (duz bolum = tam boy) kesim iddiasi "
      "kirmizi olmali — parcalar yuvarlak bolgeye tasar"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '"nasil": "Ahşap altlığa kablo bağıyla; bacakları serbest kalsın, Kelvin "',
-     '"nasil": "Tabana sıcak silikonla yapıştırılır; bacakları serbest kalsın, Kelvin "',
+     '"nasil": "Tek çubuk altlığa kablo bağıyla; bacakları serbest, hava alsın. "',
+     '"nasil": "Tabana sıcak silikonla yapıştırılır; bacakları serbest, hava alsın. "',
      "bir ic parca YAPISTIRILARAK tutturulursa sokulebilirlik iddiasi kirmizi "
      "olmali (kullanici ileride baska kaba gececek)"),
+    # B50g — yeni iddialar
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"tip": "yuva", "x": 152.0, "z": 8.0', '"tip": "yuva", "x": 152.0, "z": 30.0',
+     "USB yuvasi ESP32 soket yuksekliginden kayarsa (eski kusur: z=45) hizalama "
+     "iddiasi kirmizi — fis sokete girmez"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"ref": "ESP32", "ad": "ESP32-S3 devkit", "x": 139.0,',
+     '"ref": "ESP32", "ad": "ESP32-S3 devkit", "x": 120.0,',
+     "ESP32 kayarsa USB yuvasi soketle hizasiz kalir ve A'nin ayagiyla cakisir: "
+     "iki iddia da kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"kapak_civata_y": (45.0, 117.0),', '"kapak_civata_y": (10.0, 117.0),',
+     "kapak civatasi direge/rayin disina kayarsa ray ve ic kat cubugu iddialari kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"tip": "jak", "x": 69.0, "z": 9.0', '"tip": "jak", "x": 45.0, "z": 9.0',
+     "iki jak yaklasirsa (36 -> 12 mm) fis araligi ve ic kat cubuklari ust uste "
+     "binme iddialari kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"renk": "kirmizi",\n     "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),\n     "etiket": "V"',
+     '"renk": "siyah",\n     "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),\n     "etiket": "V"',
+     "V jakinin rengi stok kaydiyla celisirse (siyah jak, kirmizi kayit) renk iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/yerlesim3_veri.py",
+     '"T_SP":     ("A", "TEL", 2, 24, 180, 3, "/YUK_EKSI"),',
+     '"T_SP":     ("A", "TEL", 2, 23, 180, 3, "/YUK_EKSI"),',
+     "S+ teli yerlesimde bir satir kayarsa (C25 -> C24) kutu metnindeki delik adi eskir: "
+     "'metni kart deligini adiyla veriyor' iddiasi kirmizi — kullanici yanlis delige takardi"),
+    ("B50", "kutu.py", "uretim/yerlesim3_veri.py",
+     '("X:J2.2", "X:J1.2", "sanal", 5,', '("X:J2.2", "X:J1.2", "sinyal", 5,',
+     "sanal COM baglantisi gercek kablo sanilirsa 'kart disi kablolarin hepsi bir alt "
+     "adimda' kirmizi — kullanici olmayan tel arardi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "<b>COM'a krokodil TAKMA</b> — COM zaten YÜK 2'dir.",
+     "<b>COM'a krokodil TAK</b> — COM zaten YÜK 2'dir.",
+     "kullanim metni COM baypas uyarisini kaybederse iddia kirmizi (sont baypas, yanlis akim)"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '("0.9", "İlk elektrik', '("0.99", "İlk elektrik',
+     "on kosul yerlesim planinda olmayan bir alt adima isaret ederse iddia kirmizi "
+     "(HTML'den degil yerlesim3_adim'dan olculur — kopyada BELGELER yok)"),
     # ── B22b · kart web katmani
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "sunucu.enableDelay(false);", "/* sunucu.enableDelay(false); */",
