@@ -930,20 +930,26 @@ def yaz(nl, parcalar, hedef: Path) -> None:
 </div>
 <div class="uc-boyut">
   <div class="uc-ust">
+    <button id="uc-katla" aria-expanded="true">▾</button>
     <b>3B görünüm</b>
-    <span class="kucuk">sürükle: döndür · tekerlek: yakınlaştır</span>
+    <span class="kucuk">sol tuş: döndür · orta/sağ tuş ya da Shift: kaydır ·
+      tekerlek: yakınlaştır · çift tık: sıfırla</span>
     <span class="uc-dugmeler">
       <button data-gorus="izo">izometrik</button>
       <button data-gorus="ust">üst</button>
       <button data-gorus="on">ön</button>
+      <button data-gorus="arka">arka</button>
+      <button data-gorus="sol">sol</button>
       <button data-gorus="sag">sağ</button>
       <label class="kucuk"><input type="checkbox" id="uc-hedef" checked> hedefi göster</label>
       <label class="kucuk"><input type="checkbox" id="uc-saydam"> duvarlar saydam</label>
       <label class="kucuk"><input type="checkbox" id="uc-hepsi"> hepsini göster</label>
     </span>
   </div>
-  <canvas id="uc-tuval" height="420"></canvas>
-  <div class="kucuk" id="uc-bilgi" style="margin-top:6px"></div>
+  <div id="uc-govde">
+    <canvas id="uc-tuval" height="420"></canvas>
+    <div class="kucuk" id="uc-bilgi" style="margin-top:6px"></div>
+  </div>
 </div>
 <ol class="aalist" id="aalist">{kartlar}</ol>""")
 
@@ -995,6 +1001,9 @@ def yaz(nl, parcalar, hedef: Path) -> None:
 .uc-boyut{border:1px solid var(--cizgi);border-radius:14px;padding:10px 12px;margin:14px 0;
           background:var(--yz2);scroll-margin-top:104px}
 .uc-ust{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+#uc-katla{font:inherit;width:28px;height:28px;border-radius:8px;cursor:pointer;
+          border:1px solid var(--cizgi);background:var(--yz);color:var(--m1)}
+#uc-govde[hidden]{display:none}
 .uc-dugmeler{margin-left:auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .uc-dugmeler button{font:inherit;font-size:12px;padding:3px 10px;border-radius:99px;
           border:1px solid var(--cizgi);background:var(--yz);color:var(--m1);cursor:pointer}
@@ -1034,7 +1043,7 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
  // ── 3B: dis kutuphane yok. Ortografik izdusum + ressam algoritmasi.
  var SAHNE = __SAHNE__;
  var tuval = document.getElementById('uc-tuval'), ctx = tuval.getContext('2d');
- var yaw = -0.62, pitch = 0.52, zoom = 1, surukle = null;
+ var yaw = -0.62, pitch = 0.52, zoom = 1, surukle = null, pan = {x: 0, y: 0};
  var merkez = (function(){
    var x0 = 1e9, y0 = 1e9, z0 = 1e9, x1 = -1e9, y1 = -1e9, z1 = -1e9;
    SAHNE.forEach(function(b){
@@ -1050,8 +1059,19 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
    var cp = Math.cos(pitch), sp = Math.sin(pitch);
    return {x: X, y: -(z * cp - Y * sp), d: Y * cp + z * sp};
  }
- var YUZLER = [[0,1,2,3],[4,5,6,7],[0,1,5,4],[3,2,6,7],[0,3,7,4],[1,2,6,5]];
+ // Yuzler DISA donuk sarimla: arka yuzler izdusumde ters isaretli alan
+ // verir, ayiklaniyor. Onceki surumde sarim tutarsizdi ve ince kutular
+ // birbirinin onune geciyordu ("bir kismi yukarida bir kismi asagida").
+ var YUZLER = [[0,3,2,1],[4,5,6,7],[0,1,5,4],[3,7,6,2],[0,4,7,3],[1,2,6,5]];
  var NORMAL = [[0,0,-1],[0,0,1],[0,-1,0],[0,1,0],[-1,0,0],[1,0,0]];
+ function alan(p){                       // izdusum coklugeninin isaretli alani
+   var t = 0;
+   for (var i = 0; i < p.length; i++) {
+     var q = p[(i + 1) % p.length];
+     t += p[i].x * q.y - q.x * p[i].y;
+   }
+   return t / 2;
+ }
  function koseler(b){
    return [[b.x,b.y,b.z],[b.x+b.dx,b.y,b.z],[b.x+b.dx,b.y+b.dy,b.z],[b.x,b.y+b.dy,b.z],
            [b.x,b.y,b.z+b.dz],[b.x+b.dx,b.y,b.z+b.dz],[b.x+b.dx,b.y+b.dy,b.z+b.dz],
@@ -1065,13 +1085,15 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
    return 'rgba(' + r + ',' + g + ',' + b + ',' + alfa + ')';
  }
  function ciz(){
+   var gv = document.getElementById('uc-govde');
+   if (gv && gv.hidden) return;
    var op = window.devicePixelRatio || 1;
    var w = tuval.clientWidth, h = w < 620 ? 300 : 420;
    if (tuval.width !== w * op) { tuval.width = w * op; tuval.height = h * op; }
    ctx.setTransform(op, 0, 0, op, 0, 0);
    ctx.clearRect(0, 0, w, h);
    var s = Math.min(w / (merkez.en * 1.9), h / (merkez.boy * 1.25)) * zoom;
-   var ox = w / 2, oy = h / 2 + 30;
+   var ox = w / 2 + pan.x, oy = h / 2 + 30 + pan.y;
    var hepsi = document.getElementById('uc-hepsi').checked;
    var saydam = document.getElementById('uc-saydam').checked;
    var hedef = document.getElementById('uc-hedef').checked;
@@ -1079,7 +1101,7 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
    document.getElementById('uc-bilgi').textContent = kuruldu
      ? kuruldu + ' parça kuruldu · soluk olanlar sırada'
      : 'henüz parça yok — soluk çizgiler yapacağın kutuyu gösteriyor';
-   var yuzler = [];
+   var kutular = [];          // ressam sirasi BLOK duzeyinde
    SAHNE.forEach(function(b){
      var ileride = b.gor > cur;
      if (ileride && !hepsi && !hedef) return;
@@ -1088,22 +1110,40 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
      var alfa = (b.g === 'duvar' || b.g === 'kapak') ? (saydam ? 0.18 : 0.92) : 0.97;
      if (!vur && b.g === 'parca') alfa = 0.85;
      if (ileride) alfa = 0.10;              // hedef onizlemesi: soluk hayalet
+     var om = izdusum(b.x + b.dx / 2, b.y + b.dy / 2, b.z + b.dz / 2);
+     // OTOMATIK KESIT: kameraya kutu merkezinden DAHA YAKIN duvarlar
+     // soluklasir, yoksa on duvar icerideki parcalari kapatiyor.
+     if (!ileride && (b.g === 'duvar' || b.g === 'kapak') && om.d > 0)
+       alfa = Math.min(alfa, 0.22);
      var ks = koseler(b).map(function(p){ return izdusum(p[0], p[1], p[2]); });
+     var yuzler = [];
      YUZLER.forEach(function(y, i){
+       var pts = y.map(function(j){ return ks[j]; });
+       if (alan(pts) <= 0) return;        // arka yuz: cizme
        var n = NORMAL[i];
        var isik = 0.62 + 0.38 * Math.abs(n[0] * 0.4 + n[1] * 0.25 + n[2] * 0.88);
-       var d = (ks[y[0]].d + ks[y[1]].d + ks[y[2]].d + ks[y[3]].d) / 4;
-       yuzler.push({d: d, p: y.map(function(j){ return ks[j]; }),
+       var d = (pts[0].d + pts[1].d + pts[2].d + pts[3].d) / 4;
+       yuzler.push({d: d, p: pts,
                     renk: renkle(b.r, vur ? isik * 1.25 : isik, alfa),
                     kenar: vur ? '#f2c14e' : 'rgba(0,0,0,.35)', kalin: vur ? 2 : 0.6});
      });
+     yuzler.sort(function(x, y){ return x.d - y.d; });
      if (!ileride && ((b.g === 'parca' && b.ad.length <= 6) || (vur && b.g !== 'duvar'))) {
        var m = izdusum(b.x + b.dx / 2, b.y + b.dy / 2, b.z + b.dz + 3);
-       yuzler.push({d: m.d + 0.01, yazi: b.ad, x: m.x, y: m.y, vur: vur});
+       yuzler.push({yazi: b.ad, x: m.x, y: m.y, vur: vur});
      }
+     // Blok derinligi = merkez + kucuk bir "yukseklik" payi: zeminde duran
+     // parcalar (z=0..13) zemin cubugunun (z=-2..0) ARDINDAN cizilsin.
+     // Taban/kapak cubuklari kutunun ALTINDA: derinlikleri parcalarla
+     // yarisinca uzun zemin cubuklari uzerindeki parcayi ortuyordu -> zemini
+     // her zaman once ciz.
+     kutular.push({d: om.d + (b.g === 'kutu' ? -1e3 : 0) + (b.z + b.dz) * 0.02,
+                   yuzler: yuzler});
    });
-   yuzler.sort(function(a, b){ return a.d - b.d; });
-   yuzler.forEach(function(f){
+   kutular.sort(function(x, y){ return x.d - y.d; });
+   var cizilecek = [];
+   kutular.forEach(function(k){ cizilecek = cizilecek.concat(k.yuzler); });
+   cizilecek.forEach(function(f){
      if (f.yazi) {
        ctx.font = (f.vur ? '600 ' : '') + '12px ui-monospace,Consolas,monospace';
        ctx.textAlign = 'center';
@@ -1123,27 +1163,58 @@ h4{margin:16px 0 6px;font-size:14px;color:var(--m2);text-transform:uppercase;
      ctx.lineWidth = f.kalin; ctx.strokeStyle = f.kenar; ctx.stroke();
    });
  }
+ tuval.addEventListener('contextmenu', function(e){ e.preventDefault(); });
  tuval.addEventListener('pointerdown', function(e){
-   surukle = {x: e.clientX, y: e.clientY}; tuval.setPointerCapture(e.pointerId);
+   // sol tus: dondur · orta/sag tus ya da Shift: kaydir (Blender gibi)
+   surukle = {x: e.clientX, y: e.clientY,
+              kaydir: e.button === 1 || e.button === 2 || e.shiftKey};
+   tuval.setPointerCapture(e.pointerId);
+   e.preventDefault();
  });
  tuval.addEventListener('pointermove', function(e){
    if (!surukle) return;
-   yaw += (e.clientX - surukle.x) * 0.01;
-   pitch = Math.max(-0.2, Math.min(1.45, pitch + (e.clientY - surukle.y) * 0.008));
-   surukle = {x: e.clientX, y: e.clientY}; ciz();
+   var dx = e.clientX - surukle.x, dy = e.clientY - surukle.y;
+   if (surukle.kaydir) { pan.x += dx; pan.y += dy; }
+   else {
+     yaw += dx * 0.01;
+     pitch = Math.max(-0.2, Math.min(1.45, pitch + dy * 0.008));
+   }
+   surukle = {x: e.clientX, y: e.clientY, kaydir: surukle.kaydir}; ciz();
  });
  tuval.addEventListener('pointerup', function(){ surukle = null; });
+ tuval.addEventListener('dblclick', function(){       // cift tikla: sifirla
+   pan = {x: 0, y: 0}; zoom = 1; yaw = -0.62; pitch = 0.52; ciz();
+ });
  tuval.addEventListener('wheel', function(e){
    e.preventDefault(); zoom = Math.max(0.4, Math.min(4, zoom * (e.deltaY < 0 ? 1.12 : 0.9))); ciz();
  }, {passive: false});
- var GORUSLER = {izo: [-0.62, 0.52], ust: [-0.0001, 1.45], on: [0, 0.02], sag: [-1.5708, 0.02]};
+ // Ekseni: +x saga, +y ARKAYA, +z yukari. "on" = on duvara bakmak (y ekseni
+ // bize dogru), "sag" = sag duvar (x = ic_en) karsimizda. Onceki surumde
+ // sag/sol terstiydi.
+ var GORUSLER = {izo: [-0.62, 0.52], ust: [-0.0001, 1.45], on: [0, 0.02],
+                 arka: [3.1416, 0.02], sag: [1.5708, 0.02], sol: [-1.5708, 0.02]};
  [].forEach.call(document.querySelectorAll('[data-gorus]'), function(b){
    b.addEventListener('click', function(){
-     var g = GORUSLER[b.dataset.gorus]; yaw = g[0]; pitch = g[1]; ciz();
+     var g = GORUSLER[b.dataset.gorus];
+     yaw = g[0]; pitch = g[1]; pan = {x: 0, y: 0}; zoom = 1; ciz();
    });
  });
  document.getElementById('uc-saydam').addEventListener('change', ciz);
  document.getElementById('uc-hedef').addEventListener('change', ciz);
+ // panel acilir-kapanir; tercih tarayicida saklanir
+ var katla = document.getElementById('uc-katla');
+ var govde = document.getElementById('uc-govde');
+ function katlaUygula(kapali){
+   govde.hidden = kapali;
+   katla.textContent = kapali ? '▸' : '▾';
+   katla.setAttribute('aria-expanded', kapali ? 'false' : 'true');
+   try { localStorage.setItem('kutu-3b-kapali', kapali ? '1' : ''); } catch(e) {}
+   if (!kapali) ciz();
+ }
+ katla.addEventListener('click', function(){ katlaUygula(!govde.hidden); });
+ var kapaliBas = false;
+ try { kapaliBas = localStorage.getItem('kutu-3b-kapali') === '1'; } catch(e) {}
+ katlaUygula(kapaliBas);
  document.getElementById('uc-hepsi').addEventListener('change', ciz);
  window.addEventListener('resize', ciz);
 
