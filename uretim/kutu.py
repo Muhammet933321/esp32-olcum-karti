@@ -713,7 +713,7 @@ def denetle(nl, parcalar) -> Y.Denetim:
             "-12" in gh["J6.2"] and "-12" not in gp["J6.2"])
     D.kosul("PİL konumunda MT2 artisi kilit anahtarina, XT30 artisi degil",
             "SW.1" in gp["MT2.OUT+"] and "SW.1" not in gp["J6.1"])
-    D.kosul("Kilit anahtari klemens artisinda (her iki konumda da kutuyu o acar)", ("SW.2", "KL.+") in
+    D.kosul("AC/KAPA anahtari klemens artisinda (her iki konumda da kutuyu o acar)", ("SW.2", "KL.+") in
             {(a, b) for a, b, *_ in K.PIL_KABLOLAR} | {(b, a) for a, b, *_ in K.PIL_KABLOLAR})
     D.kosul("TP4056 yuku OUT'tan aliyor (B- degil)", all(not (a.startswith("TP") and a.endswith("B-") and b.startswith("MT"))
                                                        for a, b, *_ in K.PIL_KABLOLAR))

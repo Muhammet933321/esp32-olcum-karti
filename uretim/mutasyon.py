@@ -160,7 +160,7 @@ MUTASYONLAR = [
      'PIL_SECICI = {"PİL": [("SWP2.P1", "SWP2.A1"), ("SWP2.P2", "SWP2.A2"), ("SWP2.P2", "SWP2.B2")],',
      "secici tek kutuplu olsaydi (eksiler ortak) PIL konumunda XT30 eksisi -12'ye baglanir: iddia kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '"duvar": "arka", "x": 94.0, "z": 22.0,', '"duvar": "arka", "x": 94.0, "z": 12.0,',
+     '"duvar": "arka", "x": 92.0, "z": 22.0,', '"duvar": "arka", "x": 92.0, "z": 12.0,',
      "yuva ESP32'nin ustune 6 mm'den yakin inerse 3B pay iddiasi kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      "PC'deyken seçici PİL'e ALINMAZ (hücre 2 eksisi = −12 rayı).", "PC'deyken seçici PİL'e alınabilir (hücre 2 eksisi = −12 rayı).",

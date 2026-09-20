@@ -141,24 +141,26 @@ PANEL_ON = [
      "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 20.0, "renk": "kirmizi",
      "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),
      "etiket": "SKOP", "menzil": "skop", "not": "Dalga şekli kanalı."},
-    {"ref": "SW", "ad": "Güç anahtarı", "tip": "anahtar", "x": 33.0, "z": 63.0,
-     "delik_mm": 12.0, "metal_mm": 16.0, "derin_mm": 22.0, "renk": "gri",
-     "parca": ("12mm Kilit Anahtarı 2 Konum ON-OFF", "Anahtar/Buton"),
+    {"ref": "SW", "ad": "Güç anahtarı (AÇ/KAPA toggle)", "tip": "anahtar", "x": 33.0, "z": 63.0,
+     "delik_mm": 6.0, "metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri",
+     "parca": ("KTS102 On/Off 3 Ayak Toggle Anahtar", "Anahtar/Buton"),
      "etiket": "AÇ/KAPA", "alt_etiket": "24 V + hattı",
-     "not": "24 V'un ARTI koluna seri, kaynak seçicinin ARDINDAN (pil kipinde de bu açar/kapar). "
-            "Kilitli anahtar: anahtarı (key) kutuya iple as. YÜK 1 jakının üstünde (aynı iç çubuk)."},
+     "not": "KTS102 toggle (orta + bir uç ayak; ON-OFF), 24 V'un ARTI koluna seri, kaynak seçicinin "
+            "ARDINDAN (pil kipinde de bu açar/kapar). YÜK 1 jakının üstünde (aynı iç çubuk). Kilit "
+            "anahtarı (SW045) kullanılmadı — kullanıcı toggle istedi (2026-09-20)."},
     {"ref": "SWP1", "ad": "Hücre 1 anahtarı (ESP32 pili)", "tip": "anahtar", "x": 69.0, "z": 63.0,
      "delik_mm": 6.0, "metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri",
-     "parca": ("KTS202 On/Off 6 Ayak Toggle Anahtar", "Anahtar/Buton"),
+     "parca": ("KTS102 On/Off 3 Ayak Toggle Anahtar", "Anahtar/Buton"),
      "etiket": "PİL ESP32", "alt_etiket": "hücre 1 → MT1",
-     "not": "KTS202 tek kutup kullanılır: hücre 1'i MT1'e bağlar. USB takılıyken KAPALI tut (MT3608 boşta "
+     "not": "KTS102 toggle (ikinci adet): hücre 1'i MT1'e bağlar. USB takılıyken KAPALI tut (MT3608 boşta "
             "1–4 mA çeker). YÜK 2 jakının üstünde."},
     {"ref": "SWP2", "ad": "24 V kaynak seçici (PİL / HARİCİ)", "tip": "anahtar", "x": 87.0, "z": 63.0,
      "delik_mm": 6.0, "metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri",
      "parca": ("KTS202 On/Off 6 Ayak Toggle Anahtar", "Anahtar/Buton"),
      "etiket": "PİL / HARİCİ", "alt_etiket": "24 V kaynağı",
-     "not": "KTS202 çift kutup (DPDT): iki hattı birden seçer — pil eksisi ile XT30 eksisi hiçbir "
-            "konumda birleşmez. Ortak uçlar kilit anahtarına, oradan klemense. V jakının üstünde."},
+     "not": "KTS202 çift kutup (DPDT, ON-ON): iki hattı birden seçer — pil eksisi ile XT30 eksisi hiçbir "
+            "konumda birleşmez. Stoktaki 3 konumlu KTS103 tek kutup, seçici olamaz (eksi hattı açıkta "
+            "kalır). Ortak uçlar AÇ/KAPA anahtarına, oradan klemense. V jakının üstünde."},
     {"ref": "J2.1", "ad": "YÜKSEK gerilim girişi", "tip": "jak", "x": 187.0, "z": 63.0,
      "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 22.0, "renk": "kirmizi",
      "parca": ("4mm Born Jak Şeffaf Kırmızı (Büyük Boy)", "Konnektör"),
@@ -202,20 +204,22 @@ PANEL_ARKA = [
 # arka duvarin ESP32/sont bolgesi (x>127, z>16) ve A'nin ustu (z>38, ince
 # parcalar A'nin arka kenari y=12'den once) uyuyor.
 DUVAR_PARCA = [
-    {"ref": "YUVA1", "ad": "18650 yuvası — hücre 1 (ESP32)", "duvar": "arka", "x": 94.0, "z": 22.0,
-     "en": 77.0, "yuk": 21.0, "derin": 21.0, "stok": ("18650 Tekli Pil Yuvası", "Güç Kaynağı/Pil"),
-     "nasil": "İki M3 cıvata duvardan (dıştan) geçer, içeride somun; yuva sökülür, hücre yuvadan çıkar. "
-              "Hücre başlı (PWR005) — yaylı yuvada başlık temas eder; yalıtım contası MEK025."},
-    {"ref": "YUVA2", "ad": "18650 yuvası — hücre 2 (24 V)", "duvar": "arka", "x": 94.0, "z": 49.0,
-     "en": 77.0, "yuk": 21.0, "derin": 21.0, "stok": ("18650 Tekli Pil Yuvası", "Güç Kaynağı/Pil"),
+    {"ref": "YUVA1", "ad": "18650 yuvası — hücre 1 (ESP32)", "duvar": "arka", "x": 92.0, "z": 22.0,
+     "en": 80.0, "yuk": 21.0, "derin": 21.0, "stok": ("18650 Tekli Pil Yuvası", "Güç Kaynağı/Pil"),
+     "nasil": "80 × 21 × 21 (ölçüldü). İki M3 cıvata duvardan (dıştan) geçer, içeride somun; yuva sökülür, "
+              "hücre yuvadan çıkar. Hücre başlı (PWR005) — yaylı yuvada başlık temas eder; yalıtım contası "
+              "MEK025."},
+    {"ref": "YUVA2", "ad": "18650 yuvası — hücre 2 (24 V)", "duvar": "arka", "x": 92.0, "z": 49.0,
+     "en": 80.0, "yuk": 21.0, "derin": 21.0, "stok": ("18650 Tekli Pil Yuvası", "Güç Kaynağı/Pil"),
      "nasil": "İki M3 cıvata dıştan, somun içeride; sökülebilir. Kapağa 2 mm kalır (yuva 21 mm "
               "ölçüldü mü — 1.1'de kumpasla)."},
     {"ref": "TP1", "ad": "TP4056 şarj modülü — hücre 1 (raf)", "duvar": "arka", "x": 18.5, "z": 42.0,
-     "en": 17.0, "yuk": 6.0, "derin": 27.0, "stok": ("TP4056 Li-ion Şarj Devresi", "Modül"),
-     "nasil": "Kart RAF gibi yatay, Type-C soketi ŞARJ 1 yuvasına dayalı; iki M2.5/M3 cıvata + duvara "
+     "en": 17.0, "yuk": 5.0, "derin": 25.0, "stok": ("TP4056 Li-ion Şarj Devresi", "Modül"),
+     "nasil": "Kart RAF gibi yatay (27 × 17 × 5 ölçüldü, soket kart kenarından 2 mm dışarı): soket "
+              "ŞARJ 1 yuvasının içine 2 mm girer, kart kenarı duvara dayanır; iki M2.5/M3 cıvata + duvara "
               "yapıştırılmış 3 katlı çubuk bloğu (somun gömme). Sökülebilir."},
     {"ref": "TP2", "ad": "TP4056 şarj modülü — hücre 2 (raf)", "duvar": "arka", "x": 178.5, "z": 42.0,
-     "en": 17.0, "yuk": 6.0, "derin": 27.0, "stok": ("TP4056 Li-ion Şarj Devresi", "Modül"),
+     "en": 17.0, "yuk": 5.0, "derin": 25.0, "stok": ("TP4056 Li-ion Şarj Devresi", "Modül"),
      "nasil": "Raf gibi yatay, soketi ŞARJ 2 yuvasına dayalı; çubuk bloğuna cıvata. Sökülebilir."},
     {"ref": "MT1", "ad": "MT3608 — 5.0 V (ESP32)", "duvar": "arka", "x": 42.0, "z": 24.0,
      "en": 36.0, "yuk": 17.0, "derin": 14.0, "stok": ("MT3608 DC-DC Yükseltici", "Modül"),
@@ -224,7 +228,7 @@ DUVAR_PARCA = [
     {"ref": "MT2", "ad": "MT3608 — 24.0 V (analog ray)", "duvar": "arka", "x": 42.0, "z": 47.0,
      "en": 36.0, "yuk": 17.0, "derin": 14.0, "stok": ("MT3608 DC-DC Yükseltici", "Modül"),
      "nasil": "MT1'in üstüne, aynı yöntemle iki M3 cıvata; sökülebilir. Çıkışı kaynak seçiciye (SWP2), "
-              "oradan kilit anahtarına."},
+              "oradan AÇ/KAPA anahtarına."},
 ]
 
 # Kutuya giren, kartla ilgisi olmayan parcalarin kurallari (KART_DISI_NOTU'nun kutu esi)
@@ -239,15 +243,15 @@ KUTU_NOTU = {
            "Çıkış ESP32'nin 5V (VIN) pinine; devkit USB'yle diyot-OR yapar.",
     "MT2": "MT3608 yüksüz 24.0 V'a ayarlanır. 24 V yükü 19–25 mA → hücreden ~150–200 mA. Anahtarlama "
            "dalgalanması −12 rayında skopla ölçülecek (5.12.23 bu yolu gürültülü diye reddetmişti).",
-    "SWP1": "KTS202 (tek kutup yeter): hücre 1 → MT1.",
-    "SWP2": "KTS202 DPDT kaynak seçici: PİL (MT2 çıkışı) / HARİCİ (XT30). Ortak uçlar → kilit anahtarı → "
+    "SWP1": "KTS102 toggle: hücre 1 → MT1.",
+    "SWP2": "KTS202 DPDT kaynak seçici: PİL (MT2 çıkışı) / HARİCİ (XT30). Ortak uçlar → AÇ/KAPA anahtarı → "
             "klemens. Şarj kuralı: hücre 2 şarjdayken HARİCİ.",
 }
 
 # Pil blogu kablolari — kart kablolari degil (yerlesim3_veri.KABLOLAR'a girmez):
 # (nereden, nereye, tur, not).  Dugum adlari: H1±/H2± hucre uclari, TPn.B±/OUT±,
 # MTn.IN±/OUT±, SWP1.1/2, SWP2.P1/P2 (ortak), .A1/.A2 (PIL), .B1/.B2 (HARICI),
-# SW.1/2 kilit, KL.+/- klemens, J6.1/J6.2 XT30 kuyruk, ESP32.5V / ESP32.GND.
+# SW.1/2 AC/KAPA toggle, KL.+/- klemens, J6.1/J6.2 XT30 kuyruk, ESP32.5V / ESP32.GND.
 # Denetim bu listeden graf kuruyor: PIL konumunda H2- yalniz -12 rayina, asla
 # kart GND'ye; H1- kart GND'ye; HARICI konumda H2- hicbir kart dugumune bagli
 # degil (sarj guvenli).
@@ -267,8 +271,8 @@ PIL_KABLOLAR = [
     ("MT2.OUT-", "SWP2.A2", "pil", "24 V eksisi → seçicinin PİL ucu (kutup 2) — bu uç −12 rayı olur"),
     ("J6.1", "SWP2.B1", "besleme", "XT30 kuyruk kırmızı → seçicinin HARİCİ ucu (kutup 1)"),
     ("J6.2", "SWP2.B2", "besleme", "XT30 kuyruk siyah → seçicinin HARİCİ ucu (kutup 2)"),
-    ("SWP2.P1", "SW.1", "besleme", "seçici ortak (kutup 1) → kilit anahtarı"),
-    ("SW.2", "KL.+", "besleme", "kilit anahtarı → klemens + (kart C34)"),
+    ("SWP2.P1", "SW.1", "besleme", "seçici ortak (kutup 1) → AÇ/KAPA anahtarı"),
+    ("SW.2", "KL.+", "besleme", "AÇ/KAPA anahtarı → klemens + (kart C34)"),
     ("SWP2.P2", "KL.-", "besleme", "seçici ortak (kutup 2) → klemens − (kart C36 = −12 rayı)"),
 ]
 # Asama (kutu.py pil_asama): ucu H1/TP1/MT1/SWP1/ESP32 olan kablolar 2. asama
@@ -391,10 +395,9 @@ ADIMLAR = [
                  "Etiketleri hemen yapıştır: YÜK 1/2, PİL 1/2, V, COM, SKOP, HV ⚡."],
          "kontrol": ["Jakların içerideki uçları birbirine değmiyor.",
                      "Somunlar sıkı; jak elle dönmüyor."]},
-        {"no": "5.3", "baslik": "XT30 kuyruğu ve kilit anahtarı", "tur": "delik", "panel": "arka",
+        {"no": "5.3", "baslik": "XT30 kuyruğu ve AÇ/KAPA anahtarı", "tur": "delik", "panel": "arka",
          "monte": ["J6", "SW"], "vurgu": ["J6", "SW"],
-         "yap": ["Kilit anahtarını somunuyla ÖN duvara (4. sıra, YÜK 1'in üstü) tak; anahtarını (key) "
-                 "kutuya iple bağla.",
+         "yap": ["AÇ/KAPA toggle'ını (KTS102) somunuyla ÖN duvara (4. sıra, YÜK 1'in üstü) tak.",
                  "XT30 kuyruğu: 8–10 cm kalın kabloya XT30'un <b>pimli (erkek)</b> ucunu "
                  "lehimle — kutu tarafı enerjisiz, pimler açıkta olabilir. Kabloyu Ø6 "
                  "delikten geçir, içeride düğüm at ya da kablo bağıyla durdur "
@@ -525,7 +528,7 @@ ADIMLAR = [
                  "kartın 24 V telleri (C34 kırmızı, C36 siyah) buraya vidalanır — kart "
                  "lehim sökmeden çıkar.",
                  "Kuyruğun kırmızı ve siyah telleri <b>kaynak seçicinin (SWP2) HARİCİ uçlarına</b>; "
-                 "seçicinin ortak uçları: kutup 1 → <b>kilit anahtarı</b> → klemensin kırmızı vidası, "
+                 "seçicinin ortak uçları: kutup 1 → <b>AÇ/KAPA anahtarı</b> → klemensin kırmızı vidası, "
                  "kutup 2 → doğrudan klemensin siyah vidası. Seçici HARİCİ'de, PİL uçları şimdilik boş "
                  "(Adım 14).",
                  "Sigorta: kartta F1. Anahtar her açmada dolu 24 V'u 136 µF'ye bir anda uygular; "
@@ -629,7 +632,8 @@ ADIMLAR = [
                  "yuvasına dayanır; kartı 3 katlı bir çubuk bloğuna (duvara yapışık, somun gömme) vidala.",
                  "MT2 arka duvarın solunda üst konuma (x 42–78, z 47); cıvata dıştan somun içeriden, trimpot "
                  "içe baksın.",
-                 "Kaynak seçici SWP2 (KTS202, DPDT) ÖN duvarın 4. sırasında V jakının üstüne, somun dıştan.",
+                 "Kaynak seçici SWP2 (KTS202, DPDT) ÖN duvarın 4. sırasında V jakının üstüne, somun dıştan "
+                 "(AÇ/KAPA ve SWP1 toggle'larıyla aynı sıra).",
                  "Cıvata deliklerini iç kat çubuğunun olduğu yerden geçir (4.5 tablosu; şarj yuvasının altı "
                  "tek kat). Denk gelmiyorsa o noktaya içeriden 18 mm'lik çubuk parçası yapıştırıp öyle del."],
          "kontrol": ["Hücreyi tak-çıkar: yuva yerinden oynamıyor.",
@@ -642,13 +646,13 @@ ADIMLAR = [
                  "<b>Kural (denetimli):</b> hücre 2'nin eksisi yalnız TP2/MT2/seçiciye gider — kart GND'ye, "
                  "ESP32'ye ASLA değmez (pil kipinde bu uç kartın −12 rayıdır).",
                  "10.1'de takılan XT30 kuyruğu seçicinin HARİCİ uçlarına, MT2 çıkışı PİL uçlarına; ortak uçlar "
-                 "kilit anahtarına ve klemense."],
+                 "AÇ/KAPA anahtarına ve klemense."],
          "kontrol": ["Hücre takılı değilken: <b>H2− (TP2.B−) ↔ kart GND (C29): ÖTMEMELİ</b> — seçici "
                      "her iki konumda da.",
-                     "Seçici HARİCİ: XT30 kırmızı ↔ kilit anahtarı girişi ötmeli; MT2.OUT+ ↔ klemens +: ötmemeli.",
-                     "Seçici PİL: MT2.OUT+ ↔ kilit anahtarı girişi ötmeli; XT30 kırmızı ↔ klemens +: ötmemeli."]},
+                     "Seçici HARİCİ: XT30 kırmızı ↔ AÇ/KAPA anahtarı girişi ötmeli; MT2.OUT+ ↔ klemens +: ötmemeli.",
+                     "Seçici PİL: MT2.OUT+ ↔ AÇ/KAPA anahtarı girişi ötmeli; XT30 kırmızı ↔ klemens +: ötmemeli."]},
         {"no": "14.4", "baslik": "Pil kipinde ilk enerji", "tur": "kontrol",
-         "yap": ["Hücreyi tak (kutuplara dikkat). SWP2 → <b>PİL</b>, kilit anahtarı AÇ: klemenste 24.0 V, "
+         "yap": ["Hücreyi tak (kutuplara dikkat). SWP2 → <b>PİL</b>, AÇ/KAPA anahtarı AÇ: klemenste 24.0 V, "
                  "kartta +12 / −12 (V35 / R33, GND V36). ESP32 bu aşamada USB'den (PC ya da güç bankası).",
                  "Skopla −12 rayına bak (MT3608 dalgalanması, ~1 MHz): 50 mV üstü görürsen MT2 çıkışına "
                  "100 µF + 100 nF ekle (5.12.23'ün gürültü endişesi burada ölçülür)."],
@@ -688,7 +692,7 @@ ADIMLAR = [
                      "H1− ↔ H2− (TP2.B−): <b>ötmemeli</b> (iki hücrenin eksisi ayrı).",
                      "SWP1 kapalı: TP1.OUT+ ↔ MT1.IN+ ötmemeli; açık: ötmeli."]},
         {"no": "15.4", "baslik": "Tamamen kablosuz test", "tur": "kontrol",
-         "yap": ["USB çıkar, SWP1 AÇ: ESP32 açılıyor, WiFi paneli geliyor. SWP2 PİL + kilit AÇ: ölçüm "
+         "yap": ["USB çıkar, SWP1 AÇ: ESP32 açılıyor, WiFi paneli geliyor. SWP2 PİL + AÇ/KAPA AÇ: ölçüm "
                  "pilden. Şarj için iki kural: SWP2 HARİCİ ve SWP1 KAPALI iken Type-C tak.",
                  "Etiketi güncelle: \"ŞARJ: seçici HARİCİ + PİL ESP32 kapalı\"."],
          "kontrol": ["ESP32 pilden 30 dk çalışıyor, MT1 ılık.",
@@ -741,7 +745,7 @@ KULLANIM = [
     ("Osiloskop, {skop}", "SKOP (kırmızı) + COM",
      "Dalga şeklini görmek için. Zaman tabanı 100 µs – 500 ms/bölme. Asimetrik menzil: "
      "eksi tarafı daha geniş.", "83 kSa/s'e kadar"),
-    ("Pil kipi (kutunun kendi pili)", "SWP2 → PİL, kilit AÇ; SWP1 → ESP32",
+    ("Pil kipi (kutunun kendi pili)", "SWP2 → PİL, AÇ/KAPA AÇ; SWP1 → ESP32",
      "Kutu tamamen yüzer: HV ölçümü için en güvenli hal. Süre ≈ analog 6–9 sa, ESP32 ~3 sa (1500 mAh). "
      "<b>Şarj:</b> SWP2 HARİCİ + SWP1 KAPALI iken Type-C tak; ŞARJ 2 kablosu ile ESP32 USB'si aynı "
      "PC'deyken seçici PİL'e ALINMAZ (hücre 2 eksisi = −12 rayı).", "2 × 18650"),
@@ -785,6 +789,8 @@ MALZEME = [
      "not": "Rprog 1.2 kΩ fabrika (1 A) → 1.5–1.6 kΩ ile ~0.75 A daha rahat (isteğe bağlı)"},
     {"ad": "MT3608 yükseltici ×2", "stok": ("MT3608 DC-DC Yükseltici", "Modül"),
      "not": "Biri 5.0 V (ESP32), biri 24.0 V (analog); 14.1'de yüksüz ayarlanır"},
-    {"ad": "KTS202 toggle ×2 (hücre 1 anahtarı + kaynak seçici)", "stok": ("KTS202 On/Off 6 Ayak Toggle Anahtar", "Anahtar/Buton"),
-     "not": "SWP2 DPDT olarak (6 ayak), SWP1 tek kutup; ohmmetreyle ON-ON mı ON-OFF mu ölç"},
+    {"ad": "KTS202 DPDT toggle ×1 (kaynak seçici)", "stok": ("KTS202 On/Off 6 Ayak Toggle Anahtar", "Anahtar/Buton"),
+     "not": "6 ayak, ON-ON; ohmmetreyle ortak ayakları bul. Toggle kılıfı MEK054 isteğe bağlı"},
+    {"ad": "KTS102 toggle ×2 (AÇ/KAPA + hücre 1 anahtarı)", "stok": ("KTS102 On/Off 3 Ayak Toggle Anahtar", "Anahtar/Buton"),
+     "not": "3 ayak: orta + bir uç kullanılır (ON-OFF). AÇ/KAPA anahtarı yerine (kullanıcı tercihi)"},
 ]
