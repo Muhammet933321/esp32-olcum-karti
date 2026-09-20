@@ -474,10 +474,20 @@ def main() -> int:
     print(y.stdout.rstrip())
     if y.returncode != 0:
         print(y.stderr[-1500:])
+    # B50: kart disi kurulum (kutu, panel, sont, Q1, jaklar). yerlesim3'un
+    # KABLOLAR'ini ve netlisti okur, o yuzden ondan SONRA. Denetim gecerse
+    # 8-kutu.html.
+    ku = subprocess.run([sys.executable, "kutu.py"], cwd=BURASI,
+                        capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", timeout=300)
+    print(ku.stdout.rstrip())
+    if ku.returncode != 0:
+        print(ku.stderr[-1500:])
     sonuclar.append(("B9  Malzeme + kurulum kilavuzu",
                      b.returncode == 0 and k.returncode == 0 and bl.returncode == 0
-                     and y.returncode == 0,
-                     time.time() - t0, b.stdout + k.stdout + bl.stdout + y.stdout))
+                     and y.returncode == 0 and ku.returncode == 0,
+                     time.time() - t0,
+                     b.stdout + k.stdout + bl.stdout + y.stdout + ku.stdout))
 
     print("\n" + "=" * 78)
     print("  OZET")

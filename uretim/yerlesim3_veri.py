@@ -235,7 +235,9 @@ KART_DISI_NOTU = {
     "J3": "2 kutuplu bariyer klemens (CON012), yük dönüşü: 1 → yük eksisi, 2 → kaynak "
           "eksisi. Şöntün bacakları ya vidaların altına ya kısa kalın kabloyla; akım "
           "J3.1 → şönt → J3.2 yolunu izler.",
-    "J6": "24 V girişi: XT30 (CON058). Kablo yalıtımlı, kırmızı = +, siyah = −.",
+    "J6": "24 V girişi: XT30 (CON058). Kart tarafı ERKEK uç (pimli), güç kaynağı "
+          "tarafı DİŞİ uç — gerilim taşıyan taraf kapalı soketli olsun. Kablo yalıtımlı, "
+          "kırmızı = +, siyah = −.",
     "J1": "V girişi born jak çifti (panel): kırmızı = V girişi, siyah = COM (kart GND).",
     "J2": "HV girişi born jakı (panel): AYRI ve işaretli; COM, J1'in COM'uyla ortak.",
     "J4": "Skop girişi born jakı (panel); COM ortak.",
@@ -267,8 +269,11 @@ KABLOLAR = [
     ("X:J7.2", "X:RS.2", "yuk", 8, "pil eksisi -> sont alt bacagi"),
     ("X:Q1.G", "A:T_KAPI", "sinyal", 8, "kapi teli"),
     # panel
-    ("X:J1.1", "A:T_VGIR", "sinyal", 4, "V girisi"),
-    ("X:J1.2", "A:T_COM", "sinyal", 4, "COM jak -> kart GND"),
+    # 2026-09-17 (4.7): kullanici sordu "bu ikisini de burayim mi?". J1 +-32 V,
+    # kanal girisi yuksek empedansli (R4+R6 = 227K) -> ikisini burmak dongu
+    # alanini kucultur, zarari yok. Kelvin cifti gibi ZORUNLU degil.
+    ("X:J1.1", "A:T_VGIR", "sinyal", 4, "V girisi (KIRMIZI uc). COM teliyle burulabilir"),
+    ("X:J1.2", "A:T_COM", "sinyal", 4, "COM jak -> kart GND (SIYAH uc)"),
     ("X:J2.2", "X:J1.2", "panel", 5, "HV COM = ortak COM jaki"),
     ("X:J4.2", "X:J1.2", "panel", 6, "skop COM = ortak COM jaki"),
     ("X:J2.1", "B:T_HV", "hv", 5, "HV jak -> B karti. 600 V silikon test kablosu"),

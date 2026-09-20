@@ -25,6 +25,7 @@ MENU = [("index.html", "Başla"),
         ("2-malzemeler.html", "Malzemeler"),
         ("4-kurulum.html", "Kurulum"),
         ("7-yerlesim.html", "Yerleşim"),
+        ("8-kutu.html", "Kutu"),
         ("5-muhendislik.html", "Mühendislik")]
 
 # Bagimsiz belgeler icin (kendi CSS'i olan sayfalar) satir ici bicim.

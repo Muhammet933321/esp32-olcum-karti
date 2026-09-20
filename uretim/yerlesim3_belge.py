@@ -381,8 +381,7 @@ def yol_ozeti(yol) -> str:
 
 
 KAPI = {
-    0: "24 V'u <b>akım sınırlı</b> ver (kaynakta CC varsa ~60 mA). ±12 V raylarını "
-       "GND'ye göre ölç; 7912 ve C16/C17 ısınmamalı. ADS/op-amp henüz yok.",
+    0: "İlk elektrik — aşağıdaki sırayla.",
     1: "Kılavuz <b>01 Vref</b> kapısı: TL431 katodu ve U3A çıkışı (U3 soketine LM358 tak).",
     2: "Kılavuz <b>02</b>: firmware'de <code>#</code> — 0x48 ve 0x49 ikisi de görünmeli.",
     3: "Kılavuz <b>03 Akım kanalı</b>: <code>Z</code> sıfırı, bilinen akım, ters akım.",
@@ -860,9 +859,26 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
                  "(boş halka) geçir, sonra lehim noktasına lehimle; 15–20 cm bırak."]
             if any(c[2] == "kelvin" for c in kab):
                 m.append("S+ ve S− tellerini birbirine bur (ince tel yeter).")
+            # 2026-09-17: kullanici 4.7'de sordu — sinyal teli + kendi COM'u
+            # varsa burmak serbest (dongu alani kuculur), kelvin gibi zorunlu degil.
+            sinyal_ag = {pp.ag for pp in pedler
+                         if any(c[2] == "sinyal" for c in ped_kablo(pp.ref))}
+            if "GND" in sinyal_ag and len(sinyal_ag) > 1:
+                m.append("Sinyal telini kendi COM/GND teliyle <b>burabilirsin</b> — "
+                         "zorunlu değil, gürültüye iyi.")
+            m.append("Lehimden sonra telleri, girdikleri deliğin <b>yanından sıcak "
+                     "silikonla</b> plakete sabitle: sallanan tel lehimi çatlatır. "
+                     "Silikonu komşu delikleri kapatacak kadar yayma.")
+            if any(c[2] == "hv" for c in kab):
+                # 2026-09-19 (5.12): silikon teli oldugu yerde dondurur -> HV
+                # kablosu ile "HV kablosundan uzak" denen tel once ayrilmali.
+                m.append("HV kablosunu silikondan <b>önce</b> öbür telden uzağa yatır — "
+                         "silikon konumu sabitler. HV kablosunu sağlam yapıştır: en çok "
+                         "çekilecek kablo o.")
             if simdi_bagla:
-                m.append("Bu teller <b>hemen bağlanır</b>: öbür uçları XT30 konnektörüne — "
-                         "bu adımın KAPI ölçümü 24 V'u buradan alıyor.")
+                m.append("Bu teller <b>hemen bağlanır</b>: öbür uçları XT30'un <b>erkek</b> "
+                         "ucuna (dişi uç güç kaynağının kablosuna) — bu adımın KAPI ölçümü "
+                         "24 V'u buradan alıyor.")
             elif kart_kart:
                 m.append("Kart B'den kart A'ya giden tel <b>şimdi</b> lehimlenir (kısa, &lt;10 cm).")
             else:
@@ -914,23 +930,334 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
         ic.append("<table><tr><th class='s'>J5</th><th>Ağ</th><th>ESP32-S3 devkit pini</th></tr>"
                   + "".join(j5_satirlari(nl)) + "</table>")
     else:
+        # Kullanici (2026-09-19, 5.13): "gene kablo mu baglayacagim? tam
+        # anlayamadim" -> genel "izlerde sureklilik var" yetmiyordu. Simdi:
+        # lehim/kablo YOK dendigi ilk satir + hangi iki delige degecegi ve ne
+        # okuyacagi tablosu + KAPI simdi mi sonra mi, tek kutuda.
         aglar = sorted({teller[kart][j]["ag"] for x in aa if x.adim == s.adim
                         for kart, j in x.izler + x.teller} & RAYLAR, key=kisa_ag)
-        m = ["<b>Enerji vermeden</b>, ohmmetreyle: bu adımda çektiğin her izin iki ucu arasında "
-             "süreklilik var; komşu pedler arasında kısa yok."]
-        if aglar:
-            m.append("Bu adımda dokunulan rayların hiçbiri GND'ye kısa değil: "
-                     + ", ".join(f"<b>{e(kisa_ag(a))}</b>" for a in aglar) + ".")
-        ic.append(_madde(m))
+        ic.append(_madde([
+            "<b>Bu adımda lehim de kablo da yok</b> — yalnız multimetreyle kontrol. "
+            "Önce enerjiyi kes: 24 V bağlıysa çıkar, ESP32'nin USB'sini çıkar."]))
+        kart_s = _kontrol_karti(s.adim, parcalar)
+        # 2026-09-19 (6.12): C36-C29 (-12V-GND) kisa devresi. Eskiden yalniz bu
+        # adimin IZLERININ dokundugu raylar olculuyordu -> adim 3 GND izini
+        # 37. satirdaki -12V izinin dibine cekti ama 3.9 "-12V" satiri
+        # gostermedi. Simdi: o ana kadar kartta VAR OLAN her ray, her kontrolde.
+        aglar = sorted({nl.pin_agi.get(k) for p in parcalar.values()
+                        if p.kart == kart_s and p.adim <= s.adim
+                        for k in p.delikler(nl)} & RAYLAR, key=kisa_ag)
+        satirlar = []
+        zc = zincir_olcumu(s.adim, nl, parcalar)
+        if zc:
+            satirlar.append(zc)
+        for a in aglar:
+            uc = ray_uclari(a, s.adim, kart_s, nl, parcalar)
+            if uc:
+                (r1, d1), (r2, d2) = uc
+                satirlar.append((f"<b>{e(kisa_ag(a))}</b> GND'ye kısa değil",
+                                 f"{r1} bacağı · {kart_s}:{Y.delik_adi(*d1)}",
+                                 f"{r2} bacağı · {kart_s}:{Y.delik_adi(*d2)} (GND)",
+                                 "bip <b>ötmemeli</b> (ilk anda kısa bir “cik” olabilir: "
+                                 "kondansatör doluyor). Emin değilsen ohm kademesine al: "
+                                 "kısa devre 0–1 Ω'da <b>sabit</b> kalır, kondansatörde "
+                                 "sayı hızla yükselir"))
+        if satirlar:
+            ic.append("<table><tr><th>Ne</th><th>Uç 1</th><th>Uç 2</th><th>Doğru sonuç</th></tr>"
+                      + "".join(f"<tr><td>{a}</td><td>{b}</td><td>{c}</td><td class='kucuk'>{d}</td></tr>"
+                                for a, b, c, d in satirlar) + "</table>")
+        kc = kopru_ciftleri(s.adim, nl, parcalar, teller, kart_s)
+        if kc:
+            ic.append(
+                f"<details><summary>Köprü kontrolü — bu adımda lehimlediğin deliklerin "
+                f"<b>farklı ağa</b> ait komşuları ({len(kc)} çift)</summary>"
+                "<p class='kucuk'>Lehim köprüsü en çok buralarda olur. Bip kademesinde her çifti "
+                "ölç; “ötmemeli” yazan öterse aralarında lehim köprüsü var. Parantezdeki değer, "
+                "ohm kademesinde aradaki dirençlerden beklenen okuma (takılı entegre/modül "
+                "varsa biraz düşük çıkabilir). Ray–ray çiftlerinde ilk anda kısa bir “cik” normal: "
+                "kondansatör doluyor; sürekli öterse köprü.</p>"
+                "<table><tr><th>Delik</th><th>Komşu</th><th>Doğru sonuç</th></tr>"
+                + "".join(f"<tr><td>{kart_s}:{Y.delik_adi(*h)} <span class='kucuk'>({e(kisa_ag(a1))})</span></td>"
+                          f"<td>{kart_s}:{Y.delik_adi(*q)} <span class='kucuk'>({e(kisa_ag(a2))})</span></td>"
+                          f"<td class='kucuk'>{_kopru_sonuc(r)}</td></tr>"
+                          for h, a1, q, a2, r in kc)
+                + "</table></details>")
+        ic.append(_madde([
+            "Bu adımda çektiğin her izin iki ucu arasında bip <b>ötmeli</b>; yan yana iki "
+            "farklı iz/ped arasında <b>ötmemeli</b>.",
+            "Ölçerken iki metal uca birden parmakla dokunma — vücudun yüksek direnç "
+            "ölçümünü düşürür."]))
         disi = sorted({r for x in aa if x.adim == s.adim and x.tur == "kablo" for r in x.kart_disi
                        if not any(V.KABLOLAR[j][2] == "besleme" for j in x.kablolar)})
+        hv = any(V.KABLOLAR[j][2] == "hv" for x in aa if x.adim == s.adim for j in x.kablolar)
         if disi:
-            ic.append(f"<div class='uy'><b>KAPI için {', '.join(disi)} gerekiyor</b> (kutu/panel "
-                      "parçası). Kutu kurulunca yap; o zamana kadar bu adımı yalnız ohmmetre "
-                      "kontrolüyle geç. (İstersen parçayı tel uçlarına krokodille geçici "
-                      "bağlayıp KAPI'yı şimdi de yapabilirsin.)</div>")
-        ic.append(f"<div class='ok'><b>KAPI — geçmeden ilerleme:</b> {KAPI.get(s.adim, '')}</div>")
+            ic.append(f"<div class='uy'><b>Enerjili test (KAPI) şimdi değil:</b> {', '.join(disi)} "
+                      f"(kutu/panel parçası) gerekiyor, kutu kurulunca yapılacak — {KAPI.get(s.adim, '')} "
+                      "Yukarıdaki ölçümler tamamsa <b>sonraki adıma geç</b>."
+                      + ("" if hv else " (İstersen jak yerine tel ucuna krokodille geçici "
+                                       "bağlayıp şimdi de yapabilirsin.)") + "</div>")
+        else:
+            ic.append(f"<div class='ok'><b>KAPI — geçmeden ilerleme:</b> {KAPI.get(s.adim, '')}</div>")
+            if s.adim == 0:
+                ic.append(ilk_enerji(nl, parcalar))
     return "".join(ic)
+
+
+def ilk_enerji(nl, parcalar) -> str:
+    """Adim 0 KAPI'si: ilk kez 24 V vermek.
+
+    2026-09-19: kullanici 5. adimdayken "24 V'u nereye verecegimi bile
+    bilmiyorum" dedi — 0.8 atlanmis, hicbir KAPI enerjili yapilmamis. Eski
+    metin "kaynakta CC varsa ~60 mA" diyordu; WCT-200-24'te CC yok, MOD011'de
+    bilinmiyor. Akim siniri = F1 (50 mA, hizli): adim 0'da +-12 V raylarinin
+    TEK tuketicisi R40 (12 V / 1K = 12 mA) + 7912 bosta akimi -> ~15 mA, 3x
+    pay. U3/U4 (LM358) +5V'tan (ESP32) beslenir, +-12 V'u ilk kullananlar
+    adim 6-8'de (U5, U8, Q3) — netlistten bakildi. Yani 5. adima kadar kurulu
+    bir kartta da 24 V yalniz besleme blogunu enerjilendirir.
+    """
+    arti = ray_uclari("+12V", 0, "A", nl, parcalar)
+    eksi = ray_uclari("-12V", 0, "A", nl, parcalar)
+    satir = [
+        "Sigorta yuvasında <b>50 mA</b> sigorta olsun (FUS010) — geçici 400 mA değil.",
+        "ESP32 bağlı olmasın, ADS modülleri takılı olmasın.",
+        "Kaynak: 24 V güç kaynağının çıkışı <b>doğrudan</b> (düşürücü modül gerekmez). "
+        "Akım sınırı yok; korumayı 50 mA sigorta yapıyor — kartın çekeceği ~15 mA.",
+        "Takmadan önce XT30'un <b>dişi</b> ucunu ölç: kırmızı prob kırmızı tele, "
+        "<b>+24 V</b> görmelisin. Eksi çıkarsa kaynaktaki kabloları yer değiştir.",
+        # 2026-09-20: kullanici krokodille sicak takti, kivilcim gordu. C16+C17
+        # = 136 uF bos kondansator ilk anda kisa devre gibi: darbe 50 mA hizli
+        # sigortayi attirabilir. Kaynagin yumusak kalkisi bunu onler.
+        "Kaynak <b>kapalıyken</b> XT30'u tak, sonra kaynağı aç; sökerken önce kaynağı "
+        "kapat. Enerjili kaynağa takmak (kıvılcım) 136 µF'yi bir anda doldurur ve "
+        "50 mA'lik hızlı sigortayı attırabilir.",
+        "Tak, 5 saniye bekle, çek. 7912, C16, C17 ve R40'a dokun: ısınmamış olmalı "
+        "(24 V'a dokunmak tehlikesiz).",
+    ]
+    # 2026-09-19: fotograftan elektrolitik yonu gorulemedi; ters elektrolitik
+    # ilk enerjide isinir/patlar -> eksi (serit) bacagin deligi veriden.
+    elek = sorted(r for tip, refler in V.KOND_TIPI.items() if "elektrolitik" in tip
+                  for r in refler if r in parcalar and parcalar[r].adim == 0)
+    # 2026-09-20: kullanici ilk elektrigi 6. adimi bitirdikten sonra veriyor;
+    # U5 (TL072) +-12 V'tan beslenir -> ilk enerjide yalniz besleme blogu
+    # calissin diye soketli entegreler cikarilir (adim 0'da soket yok, zararsiz).
+    soketli = sorted((r for r, pp in parcalar.items() if pp.ayak == "DIP8"),
+                     key=lambda r: (len(r), r))
+    if soketli:
+        satir.insert(2, "Soketlerde entegre takılıysa <b>çıkar</b> (" + ", ".join(soketli)
+                     + ") — ilk elektrikte yalnız besleme bloğu çalışsın.")
+    if elek:
+        satir.insert(2, "Elektrolitiklerin <b>şeritli (−) bacağı</b> doğru delikte mi: "
+                     + ", ".join(f"{r} → <b>A:{Y.delik_adi(*parcalar[r].delikler(nl)[r + '.2'][0])}</b>"
+                                 for r in elek)
+                     + ". Ters takılı elektrolitik ilk elektrikte ısınır, patlayabilir.")
+    if arti and eksi:
+        (_, g), (_, a) = arti[1], arti[0]
+        (_, e_) = eksi[0]
+        gnd = f"A:{Y.delik_adi(*g)}"
+        satir.append(
+            f"Tekrar tak ve ölç — siyah prob <b>{gnd}</b> (GND): kırmızı prob "
+            f"<b>A:{Y.delik_adi(*a)}</b> → <b>+11.5 … +12.5 V</b>; kırmızı prob "
+            f"<b>A:{Y.delik_adi(*e_)}</b> → <b>yaklaşık −12 V</b> (−11 … −13).")
+    # 2026-09-20: kullanici sigorta uzerinde 5 mV oktu (13 mA -> 0.4 ohm).
+    # Gercek 50 mA'lik telin capi ~7 um mertebesinde, direnci onlarca ohm
+    # (Preece: bakirda 0.4 ohm'luk tel ~0.5 A'de erir) -> etiket guvenilmez.
+    f1 = next((pp for pp in parcalar.values() if pp.ayak == "SIG"), None)
+    if f1:
+        d = sorted({h for v in f1.delikler(nl).values() for h in v})
+        satir.append(f"Sigortanın iki ucu arasındaki düşümü ölç (A:{Y.delik_adi(*d[0])} ↔ "
+                     f"A:{Y.delik_adi(*d[-1])}): <b>0.1 V'un üzerinde</b> olmalı — gerçek 50 mA "
+                     "sigortanın direnci onlarca ohm, kart ~13 mA çekiyor. Birkaç mV okuyorsan "
+                     "sigortanın teli etiketinden çok kalın (ucuz sigortalarda olur): kart "
+                     "çalışır ama <b>koruma zayıf</b>, markalı sigorta al.")
+    satir.append("Sigorta atarsa, gerilim tutmazsa ya da bir şey ısınırsa: çek, "
+                 "devam etme, ölçtüğünü yaz.")
+    return "<ol class='is'>" + "".join(f"<li>{x}</li>" for x in satir) + "</ol>"
+
+
+# ── kontrol adimi olcumleri ─────────────────────────────────────────────
+CARPAN = {"": 1.0, "R": 1.0, "K": 1e3, "M": 1e6}
+
+
+def _ohm(d) -> float | None:
+    """'820K' -> 820e3, '8.2K' -> 8200, '2K2' -> 2200, '220R' -> 220."""
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)([RKM]?)(\d*)", str(d).strip().upper())
+    if not m:
+        return None
+    tam, harf, kesir = m.groups()
+    return float(f"{tam}.{kesir}" if kesir else tam) * CARPAN[harf]
+
+
+def _oku(ohm: float) -> str:
+    for b, ad in ((1e6, "MΩ"), (1e3, "kΩ"), (1.0, "Ω")):
+        if ohm >= b * 0.9995:          # 999.9999 -> "1 kΩ", "1e+03 Ω" degil
+            return f"{ohm / b:.3g} {ad}"
+    return f"{ohm:.3g} Ω"
+
+
+def _kontrol_karti(adim: int, parcalar) -> str:
+    """Ray olcumleri kart A'da yapilir; adimda A'ya parca yoksa B."""
+    kartlar = {p.kart for p in parcalar.values() if p.adim == adim}
+    return "A" if "A" in kartlar or not kartlar else sorted(kartlar)[0]
+
+
+def zincir_olcumu(adim, nl, parcalar):
+    """HV zinciri bu adimda kuruluyorsa: giris ucu <-> alt dugum satiri.
+
+    Beklenen deger ancak zincir dugumlerinde seri direncten (girisde de
+    jaktan) baska bir sey YOKSA duz toplamdir — netlistten bakilir; paralel
+    bir yol varsa satir hic cikmaz (yanlis sayi vermektense).
+    """
+    zr = sorted((r for r in nl.ref_pinleri
+                 if r.startswith("R") and {nl.pin_agi.get(f"{r}.1"), nl.pin_agi.get(f"{r}.2")}
+                 <= set(V.ZINCIR)), key=lambda r: int(r[1:]))
+    if not zr or not any(r in parcalar and parcalar[r].adim == adim for r in zr):
+        return None
+    zpin = {f"{r}.{n}" for r in zr for n in ("1", "2")}
+    for k, ag in enumerate(V.ZINCIR[:-1]):
+        fazla = set(nl.ag_pinleri.get(ag, ())) - zpin
+        if any(not (k == 0 and x.startswith("J")) for x in fazla):
+            return None
+    degerler = [_ohm(nl.deger.get(r)) for r in zr]
+    if None in degerler:
+        return None
+    toplam = sum(degerler)
+    bas = next((p for p in parcalar.values() if p.ayak == "TEL" and p.ag == V.ZINCIR[0]), None)
+    son = next((p for p in sorted(parcalar.values(), key=lambda p: p.kart)
+                if p.ayak == "TEL" and p.ag == V.ZINCIR[-1]), None)
+    if not bas or not son:
+        return None
+    (d_son,) = son.delikler(nl)[son.ref + ".1"]
+    iki_kart = {parcalar[r].kart for r in zr if r in parcalar} != {son.kart}
+    return (f"HV zinciri: {zr[0]}–{zr[-1]} ({len(zr)} direnç)"
+            + (" + kartlar arası tel" if iki_kart else ""),
+            f"{e(V.TEL_ETIKET.get(bas.ref, bas.ref))} kablosunun boş (soyulmuş) ucu",
+            f"{e(V.TEL_ETIKET.get(son.ref, son.ref))} lehimi · {son.kart}:{Y.delik_adi(*d_son)}",
+            f"<b>≈ {_oku(toplam)}</b> ({_oku(toplam * 0.98)} – {_oku(toplam * 1.02)}); "
+            "20 MΩ kademesi. Çok büyük / OL = bir lehim kopuk")
+
+
+def ray_uclari(ag, adim, kart, nl, parcalar):
+    """Rayin GND'ye kisa olmadigini olcmek icin iki ped: ((ref, delik), (ref, delik)).
+
+    Once iki bacagi ray+GND olan parca (dekuplaj kondansatoru — iki bacagina
+    degmek en kolayi), bu adimdakiler once; yoksa bu adimdan bir ray pedi ve
+    ona en yakin GND pedi (bu adima kadar takilmis parcalardan)."""
+    adaylar = sorted((p for p in parcalar.values()
+                      if p.kart == kart and p.adim <= adim and p.ayak != "TEL"),
+                     key=lambda p: (p.adim != adim, p.ref))
+    for p in adaylar:
+        d = p.delikler(nl)
+        # dusuk degerli direnc "otmemeli" olcumunu yanlis cikarir (bip esigi ~50 ohm)
+        if len(d) == 2 and not (p.ref.startswith("R") and (_ohm(nl.deger.get(p.ref)) or 0) < 1e3):
+            ag_delik = {nl.pin_agi.get(k): (p.ref, v[0]) for k, v in d.items()}
+            if ag in ag_delik and "GND" in ag_delik:
+                return ag_delik[ag], ag_delik["GND"]
+    # once bu adimin pedi (adaylar sirali), yoksa onceki adimlardan
+    ray = [(p.ref, v[0]) for p in adaylar
+           for k, v in p.delikler(nl).items() if nl.pin_agi.get(k) == ag]
+    gnd = [(p.ref, v[0]) for p in adaylar
+           for k, v in p.delikler(nl).items() if nl.pin_agi.get(k) == "GND"]
+    if not ray or not gnd:
+        return None
+    r = ray[0]
+    return r, min(gnd, key=lambda q: (q[1][0] - r[1][0]) ** 2 + (q[1][1] - r[1][1]) ** 2)
+
+
+# Kullanici (2026-09-19, 6.12): "AJ18 ile AJ19 arasi otuyor, boyle mi olmali?"
+# -> genel "yan yana farkli pedler otmemeli" yetmiyordu: hangi komsular
+# farkli ag, hangisinin arasinda direnc var (o zaman okuma normal) bilinmiyordu.
+# 50 mA sigortanin soguk direnci ~10 ohm mertebesi -> sigorta "kisa" sayilir.
+SIGORTA_OHM = 10.0
+BIP_ESIGI_OHM = 100.0       # ucuz multimetrelerde bip esigi 30–100 ohm
+
+
+def _kopru_sonuc(r: float) -> str:
+    if r == float("inf"):
+        return "bip <b>ötmemeli</b>"
+    if r < BIP_ESIGI_OHM:
+        return f"<b>öter — normal</b> (aralarında ≈ {_oku(r)})"
+    return f"bip <b>ötmemeli</b> (ohm kademesinde ≈ {_oku(r)})"
+
+
+def _dc_direnc(adim, nl, parcalar):
+    """ag -> ag etkin DC direnc fonksiyonu: yalniz bu adima kadar takilan
+    direncler (+ sigorta). Kondansator acik, yari iletken ve entegre yok."""
+    import numpy as np
+    kenar = []
+    for r, p in parcalar.items():
+        if p.adim > adim or p.ayak == "TEL":
+            continue
+        d = p.delikler(nl)
+        if len(d) != 2:
+            continue
+        if r.startswith("R"):
+            ohm = _ohm(nl.deger.get(r))
+        elif r.startswith("F"):
+            ohm = SIGORTA_OHM
+        else:
+            continue
+        a1, a2 = (nl.pin_agi.get(k) for k in d)
+        if ohm and a1 and a2 and a1 != a2:
+            kenar.append((a1, a2, ohm))
+    aglar = sorted({x for a1, a2, _ in kenar for x in (a1, a2)})
+    ix = {a: i for i, a in enumerate(aglar)}
+    L = np.zeros((len(aglar), len(aglar)))
+    for a1, a2, ohm in kenar:
+        i, j, g = ix[a1], ix[a2], 1.0 / ohm
+        L[i, i] += g; L[j, j] += g; L[i, j] -= g; L[j, i] -= g
+    Lp = np.linalg.pinv(L) if len(aglar) else L
+    # bilesenler: pinv farkli bilesenler arasi sonlu bir sayi verir -> ayri bak
+    ebeveyn = {a: a for a in aglar}
+
+    def kok(a):
+        while ebeveyn[a] != a:
+            ebeveyn[a] = ebeveyn[ebeveyn[a]]
+            a = ebeveyn[a]
+        return a
+    for a1, a2, _ in kenar:
+        ebeveyn[kok(a1)] = kok(a2)
+
+    def direnc(a, b):
+        if a not in ix or b not in ix or kok(a) != kok(b):
+            return float("inf")
+        i, j = ix[a], ix[b]
+        return float(Lp[i, i] + Lp[j, j] - 2 * Lp[i, j])
+    return direnc
+
+
+def kopru_ciftleri(adim, nl, parcalar, teller, kart="A"):
+    """Bu adimda lehimlenen her delik ile FARKLI aga ait bitisik (4 yon)
+    bakir: [(delik, ag, komsu, komsu_agi, beklenen_ohm)]. Bakir = parca
+    pinleri + iz yollari + tel uclari (bu adima kadar); gerginlik delikleri
+    lehimsiz, sayilmaz."""
+    bakir: dict = {}
+    bu: set = set()
+
+    def ekle(h, ag, a):
+        h = tuple(h)
+        bakir.setdefault(h, ag)
+        if a == adim:
+            bu.add(h)
+    for p in parcalar.values():
+        if p.kart != kart or p.adim > adim:
+            continue
+        for k, v in p.delikler(nl).items():
+            for h in v:
+                ekle(h, nl.pin_agi.get(k) or p.ag, p.adim)
+    for t in teller.get(kart, []):
+        if t["adim"] > adim:
+            continue
+        for h in (t["yol"] if t["tur"] == "iz" else t["uclar"]):
+            ekle(h, t["ag"], t["adim"])
+    direnc = _dc_direnc(adim, nl, parcalar)
+    ciftler = set()
+    for h in bu:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            q = (h[0] + dx, h[1] + dy)
+            if q in bakir and bakir[q] and bakir[h] and bakir[q] != bakir[h]:
+                ciftler.add(tuple(sorted((h, q), key=lambda z: (z[1], z[0]))))
+    return [(h, bakir[h], q, bakir[q], direnc(bakir[h], bakir[q]))
+            for h, q in sorted(ciftler, key=lambda c: (c[0][1], c[0][0]))]
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -972,8 +1299,8 @@ def gorus(s, nl, parcalar, teller, aa) -> dict:
     kart = s.kart or ("B" if any(r in parcalar and parcalar[r].kart == "B" for r in s.parcalar)
                       else "A")
     if s.tur == "kontrol":
-        kartlar = [p.kart for p in parcalar.values() if p.adim == s.adim]
-        kart = max(set(kartlar), key=kartlar.count) if kartlar else "A"
+        # olcum tablosunun uclari (ray pedleri, zincirin alt ucu) kart A'da
+        kart = _kontrol_karti(s.adim, parcalar)
     yuz = "alt" if s.tur in ("iz", "tel") else "ust"
     kb = V.KARTLAR[kart]
     W, H = kb["sutun"], kb["satir"]

@@ -71,6 +71,31 @@ ATLA_DOSYA = {"DEVIR.md"}
 AGIR = {"B3", "B23"}
 
 MUTASYONLAR = [
+    # ── B50 · kutu / panel plani (kutu.py)
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"x": 166.0, "z": 63.0',
+     '"x": 148.0, "z": 63.0',
+     "HV jaki komsusuna yaklasirsa hem kacak yolu (IEC takviyeli 12.6 mm) hem "
+     "fis araligi iddiasi kirmiziya donmeli"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"kablo": [17, 14],', '"kablo": [17],',
+     "COM koprusu alt adimdan dusunce 'kart disi kablolarin hepsi bir alt adimda' "
+     "iddiasi kirmizi olmali — eksik kalan kablo sessizce kaybolmasin"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"monte": ["RS", "Q1"],',
+     '"monte": ["RS"],',
+     "Q1 hic monte edilmezse hem parca iddiasi hem KAPI 8 / kablo sirasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"ic_boy": 146.0,', '"ic_boy": 120.0,',
+     "kutu kisalirsa kart A + on serit sigmaz: 'ic alana sigiyor' ve cakisma "
+     "iddialari kirmizi olmali"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '("s0.015"', '("s0.15"',
+     "kalibrasyon komutundaki sont degeri tasarim sabitinden kayarsa iddia kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"uc_egim": 10.0', '"uc_egim": 0.0',
+     "cubugun yuvarlak uclari unutulursa (duz bolum = tam boy) kesim iddiasi "
+     "kirmizi olmali — parcalar yuvarlak bolgeye tasar"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"nasil": "Ahşap altlığa kablo bağıyla; bacakları serbest kalsın, Kelvin "',
+     '"nasil": "Tabana sıcak silikonla yapıştırılır; bacakları serbest kalsın, Kelvin "',
+     "bir ic parca YAPISTIRILARAK tutturulursa sokulebilirlik iddiasi kirmizi "
+     "olmali (kullanici ileride baska kaba gececek)"),
     # ── B22b · kart web katmani
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "sunucu.enableDelay(false);", "/* sunucu.enableDelay(false); */",

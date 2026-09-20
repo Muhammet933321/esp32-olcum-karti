@@ -53,6 +53,10 @@ USB ile bağlayıp oradan — <a href="6-ag.html">Bağlanma</a>.</p>
     <td><b>Kurulum buradan başlar.</b> LEGO kılavuzu gibi alt adım alt adım:
         hangi parça hangi deliğe, hangi iz ve tel nereye, her adımda gerekenler
         ve KAPI ölçümü — çizimli</td></tr>
+<tr><td><a href="8-kutu.html"><b>Kutu</b></a></td>
+    <td><b>Kartlar bittikten sonrası.</b> Panel delikleri, şönt ve yük yolu, Q1,
+        jaklar, kablolar — adım adım, kontrolleriyle; sonunda hangi ölçümü
+        nereden yapacağın</td></tr>
 <tr><td><a href="sema.pdf"><b>Şema (PDF)</b></a></td>
     <td>Devrenin tam şeması</td></tr>
 <tr><td><a href="5-muhendislik.html"><b>Mühendislik</b></a></td>
