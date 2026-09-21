@@ -88,7 +88,8 @@ def panel_ogeleri(hangi: str | None = None) -> list[dict]:
 
 
 def yuvarlak_mi(o: dict) -> bool:
-    """Arkasina ic kat cubugu ortalanan ogeler (her delik/yuva)."""
+    """Arkasina ic kat cubugu ortalanan ogeler (her delik/yuva). Civata delikleri
+    sabit cubuk istemez: var olan bir cubugun icine denk getirilir (denetim)."""
     return o["tip"] in ("jak", "anahtar", "yuva", "kuyruk")
 
 
@@ -114,19 +115,23 @@ def olcu() -> dict:
 
 def menziller() -> dict:
     """Kullanici belgesindeki her menzil sayisi tasarim sabitinden."""
-    rs = min(T.SONT_SECENEK)
+    rs = T.SONT_TAKILI
     i_maks = min(T.ADS_AKIM_KIRPMA / rs, T.SONT_AKIM_ISIL[rs])
     normal, hv = T.KANALLAR[0], T.KANALLAR[1]
     return {"normal": f"±{normal['fs_sim']:.0f} V", "yuksek": f"±{hv['fs_sim']:.0f} V",
             "skop": f"{T.SKOP_MENZIL_EKSI:.0f} … +{T.SKOP_MENZIL_ARTI:.0f} V",
-            "akim": f"{i_maks:.1f} A", "pil_akim": f"{T.PIL_AKIM_SOGUTUCUSUZ:.1f}",
+            "akim": f"{i_maks:.1f} A", "pil_akim": f"{min(T.PIL_AKIM_SOGUTUCUSUZ, i_maks):.1f}",
+            "akim_15m": f"{min(T.ADS_AKIM_KIRPMA / 0.015, T.SONT_AKIM_ISIL[0.015]):.1f} A",
+            "adim_uA": f"{T.ADS_AKIM_KIRPMA / T.ADS_SAYIM / rs * 1e3:.2f}",
+            "adim_15m_uA": f"{T.ADS_AKIM_KIRPMA / T.ADS_SAYIM / 0.015 * 1e3:.2f}",
             "i_maks": i_maks, "fs_normal": normal["fs_sim"], "fs_hv": hv["fs_sim"]}
 
 
 def kalib_esikleri() -> dict:
     """Firmware kazanc kalibrasyonunu tam skalanin %5'inin altinda reddeder."""
     mz = menziller()
-    return {"i": KALIB_ESIK_ORANI * T.ADS_AKIM_KIRPMA / min(T.SONT_SECENEK),
+    return {"i": KALIB_ESIK_ORANI * T.ADS_AKIM_KIRPMA / T.SONT_TAKILI,
+            "i_15m": KALIB_ESIK_ORANI * T.ADS_AKIM_KIRPMA / 0.015,
             "g_normal": KALIB_ESIK_ORANI * mz["fs_normal"],
             "g_yuksek": KALIB_ESIK_ORANI * mz["fs_hv"]}
 
@@ -148,6 +153,8 @@ def ic_kat_cubuklari(panel: str) -> tuple[tuple[float, float, float], ...]:
     def carpisan(x0):
         return next((s for s in yer if not (x0 + g <= s[0] + 1e-6 or x0 >= s[0] + s[1] - 1e-6)), None)
     for oge in panel_ogeleri(panel):
+        if not yuvarlak_mi(oge):                        # civata delikleri var olan cubuga denk getirilir
+            continue
         z0 = 0.0
         if oge["tip"] == "yuva":
             z0 = float(math.ceil(oge["z"] + oge["delik_mm"] / 2 + DELIK_KENAR_PAYI))
@@ -318,10 +325,12 @@ def hesap() -> dict:
     ic_on, ic_arka, ic_yan = ic_kat_cubuklari("ön"), ic_kat_cubuklari("arka"), ic_kat_yan()
     tam = [s for s in ic_on + ic_arka if s[2] == 0]
     kisa = [s for s in ic_on + ic_arka if s[2] > 0]
-    ekle(k2, "İç kat dikey çubuk (yuvarlak uç aşağı)", o["ic_yuk"], len(tam) + 2 * len(ic_yan), "4.5", "yarim")
+    dikey_kaynak = "yarim" if o["ic_yuk"] <= o["yarim"] else "tek_uc"     # 90 mm > yarim 75: tam cubuktan
+    ekle(k2, "İç kat dikey çubuk (yuvarlak uç aşağı)", o["ic_yuk"], len(tam) + 2 * len(ic_yan), "4.5", dikey_kaynak)
     for s in kisa:
-        ekle(k2, f"İç kat kısa çubuk — x {s[0]:.0f}, yuvanın üstü (z {s[2]:.0f}'dan)", o["ic_yuk"] - s[2], 1, "4.5", "yarim")
-    ekle(k2, "Köşe direği parçası (yuvarlak uç aşağı)", o["ic_yuk"], 4 * k["direk_kat"], "4.6", "yarim")
+        ekle(k2, f"İç kat kısa çubuk — x {s[0]:.0f}, yuvanın üstü (z {s[2]:.0f}'dan)", o["ic_yuk"] - s[2], 1, "4.5",
+             "yarim" if o["ic_yuk"] - s[2] <= o["yarim"] else "tek_uc")
+    ekle(k2, "Köşe direği parçası (yuvarlak uç aşağı)", o["ic_yuk"], 4 * k["direk_kat"], "4.6", dikey_kaynak)
     ekle(k2, "Kapak sırası — kısa parça", L * TABAN_EK[0], n_sira, "13.1")
     ekle(k2, "Kapak sırası — uzun parça", L * TABAN_EK[1], n_sira, "13.1")
     ekle(k2, "Kapak rayı (yan duvara yaslı, tek parça)", o["kapak_ray"], 2, "13.1")
@@ -342,8 +351,13 @@ def hesap() -> dict:
             ekle(k2, f"{d['ref']} raf bloğu (3 kat)", g, 3, monte_adim().get(d["ref"], "14.2"))
     parcalar = k1 + k2
     yarim_adet = sum(x["adet"] for x in parcalar if x["kaynak"] == "yarim")
+    tek_uc = [x for x in parcalar if x["kaynak"] == "tek_uc"]
+    tek_uc_adet = sum(x["adet"] for x in tek_uc)
     boylar = sorted((x["u"] for x in parcalar if x["kaynak"] == "duz" for _ in range(x["adet"])), reverse=True)
-    cubuklar: list[float] = []                # her cubugun kalan duz bolumu
+    # tek_uc: her parca bir tam cubuktan (bir yuvarlak uc parcada kalir); artan kisim (obur yuvarlak
+    # uc dusulunce) duz havuza girer
+    cubuklar: list[float] = [K.CUBUK["uzunluk"] - K.CUBUK["uc_egim"] - x["u"] - KERF
+                             for x in tek_uc for _ in range(x["adet"])]
     for u in boylar:
         for i, kalan in enumerate(cubuklar):
             if kalan >= u + KERF:
@@ -351,7 +365,7 @@ def hesap() -> dict:
                 break
         else:
             cubuklar.append(duz - u)
-    cubuk = len(cubuklar) + math.ceil(yarim_adet / 2)
+    cubuk = len(cubuklar) + math.ceil(yarim_adet / 2)      # cubuklar: tek_uc'ler + duz icin acilanlar
     return dict(o, kesim1=k1, kesim2=k2, parcalar=parcalar, ic_on=ic_on, ic_arka=ic_arka, ic_yan=ic_yan,
                 cubuk_sayisi=cubuk, eksik=max(0, cubuk - k["elde_cubuk"]),
                 eksik_pay=max(0, math.ceil(cubuk * 1.15) - k["elde_cubuk"]),
@@ -597,20 +611,23 @@ def denetle(nl, parcalar) -> Y.Denetim:
     D.kosul("Cubugun yuvarlak uclari veride", c.get("uc_egim", 0) > 0,
             f"uc egim {c['uc_egim']:.0f} -> duz {h['duz']:.0f} mm")
     for x in h["parcalar"]:
-        sinir = {"duz": h["duz"], "yarim": h["yarim"]}[x["kaynak"]]
+        sinir = {"duz": h["duz"], "yarim": h["yarim"], "tek_uc": c["uzunluk"] - c["uc_egim"]}[x["kaynak"]]
         D.kosul(f"'{x['ad']}' {x['kaynak'].upper()} kaynaga sigiyor", x["u"] <= sinir + 1e-6,
                 f"{x['u']:.1f} <= {sinir:.0f} mm · {x['adet']} adet")
         D.kosul(f"'{x['ad'][:34]}' bir alt adimda kullaniliyor ({x['adim']})", x["adim"] in sira)
     D.kosul("Hicbir parca TAM cubuk degil (yuvarlak uc duvar altina gelmez)",
-            all(x["kaynak"] in ("duz", "yarim") for x in h["parcalar"]))
+            all(x["kaynak"] in ("duz", "yarim", "tek_uc") for x in h["parcalar"]))
+    D.kosul("Dikey parcalar (ic kat, direk) tek yuvarlak uclu kaynaktan ve o uc asagida",
+            all(x["kaynak"] == ("yarim" if h["ic_yuk"] <= h["yarim"] else "tek_uc")
+                for x in h["parcalar"] if x["ad"].startswith(("İç kat dikey", "Köşe direği"))))
     D.kosul("Ilk kesimdeki (1.2) parcalar ikinci kesimden (4.4) once kullaniliyor",
             all(sira[x["adim"]] < sira["4.4"] for x in h["kesim1"]) and all(sira[x["adim"]] > sira["4.4"] for x in h["kesim2"]))
     D.kosul("Her montaj adimi (taban, duvar, ic kat, direk, kapak, ayak) parca tablosu aliyor",
             {"2.1", "2.2", "4.1", "4.2", "4.3", "4.5", "4.6", "6.1", "13.1"} <= {x["adim"] for x in h["parcalar"]})
     D.kosul("Dis derinlik tam sira sayisi (taban/kapak kirpma yok)",
             abs(h["taban_sira"] * g - h["dis_boy"]) < 1e-6, f"{h['dis_boy']:.0f} = {h['taban_sira']} x {g:.0f}")
-    D.kosul("Ic kat yarim cubuk duvar yuksekligini karsiliyor", h["yarim"] >= h["ic_yuk"],
-            f"{h['yarim']:.0f} >= {h['ic_yuk']:.0f}")
+    D.kosul("Ic kat kaynagi duvar yuksekligini karsiliyor (yarim 75 ya da tek uclu 140)",
+            max(h["yarim"], c["uzunluk"] - c["uc_egim"]) >= h["ic_yuk"], f"{h['ic_yuk']:.0f} mm")
     D.kosul("Kapak rayi tek parca (ek yok)", h["kapak_ray"] <= h["duz"], f"{h['kapak_ray']:.0f} <= {h['duz']:.0f}")
     D.kosul("Duvar iki kat (capraz lamine)", kb["duvar_kat"] >= 2, f"{kb['duvar_kat']} kat = {h['duvar_t']:.0f} mm")
     D.kosul("Kose diregi M3 icin >= 6 mm et", h["direk_t"] >= 6.0, f"{h['direk_t']:.0f} mm")
@@ -681,7 +698,8 @@ def denetle(nl, parcalar) -> Y.Denetim:
             f"dolu bolge y >= {a_dolu['y']:.1f} (bos serit {a_dolu['y'] - 12:.1f} mm)")
     for d in dp:
         n = _kucuk(d["nasil"])
-        D.kosul(f"{d['ref']} sokulebilir (civata/vida)", ("cıvata" in n or "vida" in n) and "sökül" in n, d["nasil"][:40])
+        D.kosul(f"{d['ref']} sokulebilir (civata/vida/kablo bagi)",
+                ("cıvata" in n or "vida" in n or "kablo bağ" in n) and "sökül" in n, d["nasil"][:40])
         D.kosul(f"{d['ref']} duvar icinde ve direklerden uzak",
                 h["direk_t"] <= d["x"] and d["x"] + d["en"] <= kb["ic_en"] - h["direk_t"] and d["z"] >= 0,
                 f"x {d['x']:.0f}..{d['x'] + d['en']:.0f}")
@@ -767,7 +785,11 @@ def denetle(nl, parcalar) -> Y.Denetim:
                 f"sira {r + 1}, z={o['z']:.0f}, Ø{o['delik_mm']:.1f}")
         cub = ic_kat_cubuklari(o["panel"])
         w = delik_genislik(o)
-        if o["tip"] == "yuva":
+        if o["tip"] == "civata":
+            D.kosul(f"{o['ref']} civata deligi bir ic-kat cubugunun icinde (kenara >= 3 mm, cubuk o yukseklikte var)",
+                    any(x0 + DELIK_KENAR_PAYI <= o["x"] - w / 2 and o["x"] + w / 2 <= x0 + cw - DELIK_KENAR_PAYI
+                        and z0 <= o["z"] - w / 2 for x0, cw, z0 in cub), f"x={o['x']:.0f} z={o['z']:.0f}")
+        elif o["tip"] == "yuva":
             arka = next((s for s in cub if abs(s[0] + s[1] / 2 - o["x"]) <= 0.5), None)
             D.kosul(f"{o['ref']} arkasindaki ic-kat cubugu yuvanin USTUNDEN basliyor (kisa)",
                     arka is not None and arka[2] >= o["z"] + o["delik_mm"] / 2 + DELIK_KENAR_PAYI,
@@ -837,7 +859,7 @@ def denetle(nl, parcalar) -> Y.Denetim:
                 for y in kb["kapak_civata_y"]))
     for o in oge:
         if o["parca"] and o["tip"] == "jak":
-            D.kosul(f"{o['ref']} rengi stok adinda", o["renk"].replace("kirmizi", "kırmızı") in _kucuk(o["parca"][0]),
+            D.kosul(f"{o['ref']} rengi stok adinda", o["renk"].replace("kirmizi", "kırmızı").replace("sari", "sarı") in _kucuk(o["parca"][0]),
                     o["parca"][0][:36])
 
     print("\n  4 · KABLOLAR")
@@ -964,15 +986,51 @@ def denetle(nl, parcalar) -> Y.Denetim:
         D.kosul(f"{ad} -> VREF direnci hesaplanabiliyor", r != float("inf") and r > 1e3,
                 B._oku(r) if r != float("inf") else "sonsuz")
     D.kosul("Sont degeri kalibrasyon komutunda dogru",
-            any(f"s{min(T.SONT_SECENEK)}" in x[0] for x in K.KALIBRASYON), f"s{min(T.SONT_SECENEK)}")
+            any(f"s{T.SONT_TAKILI}" in x[0] for x in K.KALIBRASYON), f"s{T.SONT_TAKILI}")
     D.kosul("Q1 akim siniri notu tasarim sabitiyle ayni", f"{T.PIL_AKIM_SOGUTUCUSUZ:.2f}" in V.KART_DISI_NOTU["Q1"])
     mz, ke = menziller(), kalib_esikleri()
-    D.kosul("Akim siniri sont isil sinirindan (ADC degil)", mz["i_maks"] == T.SONT_AKIM_ISIL[min(T.SONT_SECENEK)],
+    D.kosul("Akim siniri sont isil sinirindan (ADC degil)", mz["i_maks"] == T.SONT_AKIM_ISIL[T.SONT_TAKILI],
             f"{mz['i_maks']:.2f} A")
+    D.kosul("Takili sont 5 mOhm: surekli >= 9 A (kullanici >= 10 A istedi; 15 mOhm 3.4 A'di)",
+            T.SONT_TAKILI == 0.005 and T.SONT_AKIM_ISIL[0.005] >= 9.0, f"{T.SONT_AKIM_ISIL[0.005]:.1f} A")
+    D.kosul("Buyuk jak / kablo yolu takili sontun sinirini tasiyor (15 A jak, 1.5 mm2)", T.SONT_AKIM_ISIL[T.SONT_TAKILI] <= 15.0)
+    # B53: isil sinir tel capindan (olculen Ø1 mm) — 2 W varsayimi (11.5 A) parcayi eritirdi
+    D.kosul("15 mOhm Ø1 mm sontun surekli siniri 5 A'in ALTINDA (2 W varsayimi kalkti)",
+            T.SONT_AKIM_ISIL[0.015] < 5.0, f"{T.SONT_AKIM_ISIL[0.015]:.2f} A (Ø{T.SONT_TEL_CAP_MM[0.015]} mm)")
+    D.kosul("Isil model ureticinin 5 mOhm/9.5 A degerini geri veriyor (±%2)",
+            abs(T.SONT_AKIM_ISIL[0.005] - T.SONT_REF[2]) / T.SONT_REF[2] < 0.02, f"{T.SONT_AKIM_ISIL[0.005]:.2f} A")
+    D.kosul("Isil sinir yalniz tel capina bagli: I(15m)/I(5m) = (1/2)^1.5",
+            abs(T.SONT_AKIM_ISIL[0.015] / T.SONT_AKIM_ISIL[0.005] - 0.5 ** 1.5) < 1e-6)
+    D.kosul("Pil testi akim tavani takili sontun sinirini asmiyor (kullanim tablosu min alir)",
+            min(T.PIL_AKIM_SOGUTUCUSUZ, mz["i_maks"]) <= T.SONT_AKIM_ISIL[T.SONT_TAKILI] + 1e-9, mz["pil_akim"])
+    D.kosul("Kullanim tablosu sontun surekli sinirini ve 15 mOhm secenegini soyluyor",
+            "{akim}" in K.KULLANIM[2][0] and "{akim_15m}" in K.KULLANIM[2][2] and "sürekli" in _kucuk(K.KULLANIM[2][2]))
+    # Kazanc kalibrasyonu: firmware esigi tam skalanin %5'i = 1638 kod; 5 mOhm'da 2.56 A ister.
+    # Kullanicinin kaynagi (12 V + 10 ohm = 1.2 A) yetmez -> kazanc 15 mOhm takiliyken (esik 0.85 A)
+    # alinir, i_duzeltme sonttan bagimsiz (olc_akim3: ham -> ofset -> /sont_ohm x duzeltme), sonra 5 mOhm + s0.005.
+    D.kosul("5 mOhm ile dogrudan kazanc kalibrasyonu 1.2 A'lik kaynakla YAPILAMAZ (esik > 1.2 A)", ke["i"] > 1.2, f"{ke['i']:.2f} A")
+    D.kosul("15 mOhm ile kazanc kalibrasyonu 1.2 A'lik kaynakla yapilabilir", ke["i_15m"] < 1.2 < T.SONT_AKIM_ISIL[0.015], f"{ke['i_15m']:.2f} A")
+    m122 = _kucuk(" ".join(hepsi["12.2"]["yap"]))
+    D.kosul("12.2 iki asamali: kazanc 15 mOhm ile, sonra 5 mOhm + s0.005 + Z", "s0.015" in m122 and "s0.005" in m122 and "1.1" in m122)
+    D.kosul("12.2 kurali: kutuyu besleyen kaynak test kaynagi olamaz (WCT eksisi = -12 rayi)",
+            "wct" in m122 and "olamaz" in m122 and "3.3 ω" in m122)
+    # B54: hucre 2 kesme AC/KAPA'nin 2. kutbundan; F0 secici ile AC/KAPA arasinda
+    ks = {(a, b) for a, b, *_ in K.PIL_KABLOLAR}
+    D.kosul("Hucre 2 MT2'ye dogrudan degil, AC/KAPA'nin 2. kutbu uzerinden (bosta cekim yok)",
+            ("TP2.OUT+", "MT2.IN+") not in ks and ("TP2.OUT+", "SW.2a") in ks and ("SW.2b", "MT2.IN+") in ks)
+    D.kosul("Kutu sigortasi F0 secici ortak ucu ile AC/KAPA arasinda (her iki kaynakta devrede)",
+            ("SWP2.P1", "F0.1") in ks and ("F0.2", "SW.1") in ks and ("SWP2.P1", "SW.1") not in ks)
+    D.kosul("F0 ve CAL panelde; 13.4 ve 12.5 CAL'i GPIO'dan degil jaktan aliyor",
+            "F0" in ref_oge and "CAL" in ref_oge
+            and "gpio" not in _kucuk(" ".join(hepsi["13.4"]["yap"])) and "cal jakı" in _kucuk(" ".join(hepsi["12.5"]["yap"])))
+    D.kosul("AC/KAPA cift kutup (KTS202) — hucre 2 kesmesi icin", "KTS202" in ref_oge["SW"]["parca"][0])
+    D.kosul("ESP32 yuksekligi disi dupont + tel bukumunu iceriyor (>= 26 mm; ciplak pin 14 degil)",
+            esp["yuk"] >= 26.0, f"{esp['yuk']:.0f} mm")
+    D.kosul("Kapak civatasi 5. sirada, rayin icinde (90 mm duvar)", h["ic_yuk"] == 90 and 72 < kb["kapak_civata_z"] < 90)
     D.kosul("HV kazanc esigi 24 V kaynagi asiyor -> 12.4 uyariyor",
             ke["g_yuksek"] > 24 and f"{ke['g_yuksek']:.0f} V" in " ".join(hepsi["12.4"]["yap"]), f"{ke['g_yuksek']:.1f} V")
     D.kosul("NORMAL kazanc esigi 12 V kaynakla saglaniyor", ke["g_normal"] < 12, f"{ke['g_normal']:.2f} V")
-    D.kosul("Akim kazanc esigi 12.2'deki 1.2 A ile saglaniyor", ke["i"] < 1.2, f"{ke['i']:.2f} A")
+
     # ── F1 sigortasi ve anahtar darbesi (B52): sayilar veri sayfasindan, C netlistten
     pay = sigorta_paylari(nl)
     c_toplam = _uf(nl.deger["C16"]) + _uf(nl.deger["C17"])
@@ -1107,6 +1165,8 @@ def ciz_kesim(parcalar) -> str:
             o.append(_dikdortgen(ux, y, c["uc_egim"] * olc, 20, "#8a8a85", "var(--cizgi)", 0.45))
         bas = sol + (c["uc_egim"] * olc if kaynak == "duz" else 0)
         o.append(_dikdortgen(bas, y, u * olc, 20, AHSAP["on"], AHSAP["cizgi"]))
+        if kaynak == "tek_uc":
+            o.append(_yazi(sol + (u + (c["uzunluk"] - u) / 2) * olc, y + 14, "artan (düz)", 9, "var(--m3)"))
         if kaynak == "yarim":
             o.append(_dikdortgen(bas + h["yarim"] * olc, y, u * olc, 20, AHSAP["ust"], AHSAP["cizgi"]))
             o.append(_yazi(bas + h["yarim"] * olc + u * olc / 2, y + 14, "2. yarım", 9, "#2b2b2b"))
@@ -1114,6 +1174,8 @@ def ciz_kesim(parcalar) -> str:
         o.append(_yazi(bas + u * olc / 2, y + 14, f"{u:.0f}", 10, "#2b2b2b"))
         o.append(_yazi(sol + c["uzunluk"] * olc + 10, y + 14, f"× {adet}", 11, "var(--m1)", "start", True))
         kalan = h["duz"] - u if kaynak == "duz" else 0.0
+        if kaynak == "tek_uc":
+            kalan = 0.0
         if kalan > 14:
             o.append(_yazi(bas + (u + kalan / 2) * olc, y + 14, f"artan {kalan:.0f}", 9, "var(--m3)"))
     return _svg("".join(o), gen, yuk, "Kesim listesi")
@@ -1338,7 +1400,7 @@ def ciz_kullanim(hangi: str) -> str:
         o.append(_dikdortgen(420, 30, 150, 80, "var(--yz2)"))
         o.append(_yazi(495, 62, "ÖLÇÜLEN DEVRE", 12, "var(--m1)", "middle", True))
         o.append(_yazi(495, 82, "motor, kart, lamba…", 10, "var(--m3)"))
-        o.append(kutu_govde(150, 470, "ÖLÇÜM KUTUSU", "içeride: 15 mΩ şönt · COM = YÜK 2"))
+        o.append(kutu_govde(150, 470, "ÖLÇÜM KUTUSU", f"içeride: {T.SONT_TAKILI * 1e3:.0f} mΩ şönt · COM = YÜK 2"))
         o.append(_cizgi(150, UST, 420, UST, KIR))
         o.append(_yazi(285, UST - 12, "+ hattı — buna dokunmuyoruz", 10, "var(--m3)"))
         o.append(_cizgi(495, 110, 495, 170, SIY)); o.append(_cizgi(495, 170, 430, 170, SIY)); o.append(_cizgi(430, 170, 430, KUTU_Y, SIY))
@@ -1633,7 +1695,7 @@ def alt_kart(s: dict, nl, parcalar, stok, h) -> str:
             return stok.ad_ile(*kayit) if (kayit and stok.var) else ""
         ic.append(_tablo(("Kutuya giren", "Kural", "Stokta"),
                          [(f"<b>{E(r)}</b>", E(V.KART_DISI_NOTU.get(r) or K.KUTU_NOTU.get(r, "")), _stok(r)) for r in s["monte"]]))
-    KAYNAK_AD = {"duz": "düz bölümden", "yarim": "çubuk ortadan ikiye"}
+    KAYNAK_AD = {"duz": "düz bölümden", "yarim": "çubuk ortadan ikiye", "tek_uc": "tam çubuktan, bir yuvarlak uç kalır"}
     if s.get("yap"):
         ic.append(_liste(x.format(**bicim) for x in s["yap"]))
     bu_adim = [x for x in h["parcalar"] if x["adim"] == s["no"]]
@@ -1701,7 +1763,7 @@ def alt_kart(s: dict, nl, parcalar, stok, h) -> str:
         ic.append("<p class='kucuk'>Seri konsoldan (USB). Her komut ayarı NVS'e yazar. Kazanç kalibrasyonu "
                   f"(<code>i</code>, <code>g</code>) tam skalanın %{KALIB_ESIK_ORANI * 100:.0f}'inin altındaki "
                   "değeri reddeder — 'en az' sütunu.</p>")
-        enaz = {"i&lt;amper&gt;": f"{ke['i']:.2f} A",
+        enaz = {"i&lt;amper&gt;": f"{ke['i_15m']:.2f} A (15 mΩ takılıyken) · {ke['i']:.2f} A (5 mΩ)",
                 "g&lt;volt&gt;": f"{ke['g_normal']:.1f} V (NORMAL) · {ke['g_yuksek']:.0f} V (YÜKSEK)"}
         ic.append(_tablo(("Komut", "Ne yapar", "Ne zaman", "En az"),
                          [(f"<code>{k}</code>", E(n), E(z), enaz.get(k, "—")) for k, n, z in K.KALIBRASYON]))

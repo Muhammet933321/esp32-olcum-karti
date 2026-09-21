@@ -40,12 +40,13 @@ CUBUK = {"uzunluk": 150.0, "genislik": 18.0, "kalinlik": 2.0, "uc_egim": 10.0,
 KUTU = {
     "ic_en": 214.0,             # net ic (ic katin icinden icine)
     "ic_boy": 154.0,            # dis derinlik 162 = 9 taban sirasi x 18
-    "duvar_sira": 4,            # dis kat: 4 x 18 = 72 mm
+    "duvar_sira": 5,            # dis kat: 5 x 18 = 90 mm (B54: 4 sira 72 mm'de ESP32 dupont'lari
+                                #  (28 mm) + iki 18650 yuvasi ust uste sigmiyordu)
     "duvar_kat": 2,             # dis yatay + ic dikey
     "direk_kat": 3,             # kose diregi 3 cubuk = 6 mm
     "kapak_civata": "M3x12",    # yan duvardan kapak rayina, somunlu
     "kapak_civata_y": (45.0, 117.0),   # her yan duvarda iki civata (y) — yan ic kat cubugu ortasi
-    "kapak_civata_z": 63.0,     # 4. siranin ortasi
+    "kapak_civata_z": 81.0,     # 5. siranin ortasi (kapak rayi z 72-90)
     "kenar_payi": 10.0,         # panel deligi ile kose arasi en az
     "parca_payi": 6.0,          # ic parcalar arasi en az bosluk
     "elde_cubuk": 50,           # kullanicida su an olan (yaklasik)
@@ -89,17 +90,22 @@ IC_PARCA = [
               "ayaklara. YAPIŞTIRILMAZ — vidayı sök, kart çıkar. Telli kenarı "
               "(A–C sütunları) ÖN panele baksın."},
     {"ref": "ESP32", "ad": "ESP32-S3 devkit", "x": 139.0, "y": 2.0,
-     "en": 26.0, "boy": 63.0, "yuk": 14.0, "soket_x_ofset": 13.0, "soket_z": 7.0,
+     "en": 26.0, "boy": 63.0, "yuk": 28.0, "soket_x_ofset": 13.0, "soket_z": 7.0,
+     # yuk 28: pin (9) + disi dupont govdesi (14) + tel bukumu (B54; eskiden 14 = ciplak pin ucu)
      "tasiyici": {"tip": "altlik", "adet": 2, "uzunluk": 63.0, "adim": "6.3"},
      "nasil": "Pinler yukarı, USB soketi ARKA duvara 2 mm; iki çubuk altlığa kablo "
               "bağıyla (altlıkta iki delik). Kablo bağını kes, çıkar."},
-    {"ref": "RS", "ad": "15 mΩ şönt (R044)", "x": 176.0, "y": 2.0,
-     "en": 12.0, "boy": 30.0, "yuk": 10.0,
-     "stok": ("15mR Type-C Şönt Direnç", "Direnç"),
+    {"ref": "RS", "ad": "5 mΩ Ø2 şönt (R042, 9.5 A) — 15 mΩ yedek", "x": 196.0, "y": 96.0,
+     "en": 12.0, "boy": 30.0, "yuk": 14.0,
+     # B54: Q1'in onunde, YUK jaklarinin (x 123/159, on duvar) 40-60 mm arkasinda. Eskiden arka-sag
+     # kosedeydi (y 2): yuk kablosu 190-250 mm, 9.5 A'de ~30 mV dusum V okumasina giriyordu.
+     "stok": ("5mR Type-C Şönt Direnç 9.5A", "Direnç"),
      "tasiyici": {"tip": "altlik", "adet": 1, "uzunluk": 30.0, "adim": "6.6"},
-     "nasil": "Tek çubuk altlığa kablo bağıyla; bacakları serbest, hava alsın. "
-              "Kelvin/yıldız demeti tezgahta lehimlenir, karta KONNEKTÖRLE gelir. "
-              "Sökülebilir."},
+     "nasil": "Bacakları (5 mΩ'da 11 mm aralık — 10.16'ya hafif bük) <b>XP128 10 mm klemense</b> "
+              "(CON064) vidalanır — klemens tek çubuk altlığa yapışık; kalın yük kabloları aynı vidaların "
+              "altına. Manganin U havada, altlığa değmez. Kelvin/yıldız telleri bacağa lehim (vidaya değil), "
+              "demet karta KONNEKTÖRLE gelir. Vidayı gevşet, şönt çıkar: 15 mΩ (R044) ile değiştirilebilir "
+              "(<code>s0.015</code>, <code>Z</code>)."},
     {"ref": "B", "ad": "HV zinciri kartı (5×5 cm)", "x": 140.0, "y": 72.0,
      "en": 45.7, "boy": 45.7, "yuk": 16.0,
      "tasiyici": {"tip": "ayak", "adet": 2, "kat": 4, "adim": "6.1"},
@@ -136,49 +142,49 @@ KUTU_EK_PARCA = [
 # J3 (YUK) ve J7 (PIL) born jak CIFTI: bariyer klemens panele
 # vidalanamiyordu (PCB tipi); buyuk boy jaklar 15 A tasir.
 PANEL_ON = [
-    {"ref": "J3.1", "ad": "YÜK 1 — devrenin eksisi", "tip": "jak", "x": 33.0, "z": 9.0,
-     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 21.0, "renk": "siyah",
+    {"ref": "J3.1", "ad": "YÜK 1 — devrenin eksisi", "tip": "jak", "x": 123.0, "z": 9.0,
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 15.0, "renk": "siyah",
      "parca": ("4mm Born Jak Şeffaf Siyah (Büyük Boy)", "Konnektör"),
      "etiket": "YÜK 1", "alt_etiket": "devre −", "not": "Akım buradan girer; büyük boy jak.",
      "neden": "Yük akımının GİRDİĞİ uç (11.5 A'e kadar): büyük boy jak 15 A taşır, küçük vidalı jak taşımaz. Siyah = dönüş (eksi) hattı — kart akımı hep devrenin eksi/dönüş tarafından ölçer. Bariyer klemens (CON012) PCB tipiydi, panele vidalanamadı."},
-    {"ref": "J3.2", "ad": "YÜK 2 — kaynağın eksisi", "tip": "jak", "x": 69.0, "z": 9.0,
-     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 21.0, "renk": "siyah",
+    {"ref": "J3.2", "ad": "YÜK 2 — kaynağın eksisi", "tip": "jak", "x": 159.0, "z": 9.0,
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 15.0, "renk": "siyah",
      "parca": ("4mm Born Jak Şeffaf Siyah (Büyük Boy)", "Konnektör"),
      "etiket": "YÜK 2", "alt_etiket": "kaynak −", "not": "Şöntün alt bacağı = kart GND = COM.",
      "neden": "Yük akımının ÇIKTIĞI uç; şöntün alt bacağı = kart GND = COM. İki jak olması şart: akım şöntten SERİ geçmeli."},
-    {"ref": "J7.1", "ad": "PİL 1 — yük direncinin ucu", "tip": "jak", "x": 123.0, "z": 9.0,
-     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 21.0, "renk": "mavi",
+    {"ref": "J7.1", "ad": "PİL 1 — yük direncinin ucu", "tip": "jak", "x": 33.0, "z": 9.0,
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 15.0, "renk": "mavi",
      "parca": ("4mm Born Jak Şeffaf Mavi (Büyük Boy)", "Konnektör"),
      "etiket": "PİL 1", "alt_etiket": "yük direnci", "not": "Q1'in savağı.",
      "neden": "Pil deşarj yolu (Q1 savağı, 6.5 A'e kadar): büyük boy jak. MAVİ, YÜK'ten ayırt edilsin diye — karıştırılırsa pil kesmesi çalışmaz."},
-    {"ref": "J7.2", "ad": "PİL 2 — pilin eksisi", "tip": "jak", "x": 159.0, "z": 9.0,
-     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 21.0, "renk": "mavi",
+    {"ref": "J7.2", "ad": "PİL 2 — pilin eksisi", "tip": "jak", "x": 69.0, "z": 9.0,
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 15.0, "renk": "mavi",
      "parca": ("4mm Born Jak Şeffaf Mavi (Büyük Boy)", "Konnektör"),
      "etiket": "PİL 2", "alt_etiket": "pil −", "not": "YÜK 2 ile aynı düğüm (şönt altı).",
      "neden": "Pil eksisi = şönt altı = COM ile aynı düğüm; mavi çiftin ikinci ucu."},
     {"ref": "J1.1", "ad": "V girişi", "tip": "jak", "x": 87.0, "z": 45.0,
-     "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 20.0, "renk": "kirmizi",
+     "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 21.0, "renk": "kirmizi",
      "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),
      "etiket": "V", "menzil": "normal", "not": "NORMAL gerilim kanalı.",
      "neden": "Gerilim girişi: yüksek empedans (227 kΩ, akım yok) → küçük vidalı jak yeter. KIRMIZI = ölçüm artısı."},
     {"ref": "J1.2", "ad": "COM (ortak)", "tip": "jak", "x": 123.0, "z": 45.0,
-     "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 20.0, "renk": "siyah",
+     "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 21.0, "renk": "siyah",
      "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (siyah)", "Konnektör"),
      "etiket": "COM", "alt_etiket": "= YÜK 2 = PİL 2",
      "not": "TEK COM: V, HV ve SKOP'un ortak ucu; içeride YÜK 2 ve PİL 2 ile aynı düğüm.",
      "neden": "TEK COM: V, HV ve SKOP'un ortak eksisi; içeride YÜK 2 / PİL 2 ile aynı düğüm. Tek jak olması bilerek — ikinci bir COM olsaydı şönt baypas edilebilirdi."},
     {"ref": "J4.1", "ad": "Osiloskop girişi", "tip": "jak", "x": 159.0, "z": 45.0,
-     "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 20.0, "renk": "kirmizi",
+     "delik_mm": 6.5, "metal_mm": 12.0, "derin_mm": 21.0, "renk": "kirmizi",
      "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),
      "etiket": "SKOP", "menzil": "skop", "not": "Dalga şekli kanalı.",
      "neden": "Osiloskop girişi: 103 kΩ, akım yok → küçük kırmızı jak."},
-    {"ref": "SW", "ad": "Güç anahtarı (AÇ/KAPA toggle)", "tip": "anahtar", "x": 33.0, "z": 63.0,
+    {"ref": "SW", "ad": "Güç anahtarı (AÇ/KAPA, çift kutup)", "tip": "anahtar", "x": 33.0, "z": 63.0,
      "delik_mm": 6.0, "metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri",
-     "parca": ("KTS102 On/Off 3 Ayak Toggle Anahtar", "Anahtar/Buton"),
-     "etiket": "AÇ/KAPA", "alt_etiket": "24 V + hattı",
-     "not": "KTS102 toggle (orta + bir uç ayak; ON-OFF), 24 V'un ARTI koluna seri, kaynak seçicinin "
-            "ARDINDAN (pil kipinde de bu açar/kapar). YÜK 1 jakının üstünde (aynı iç çubuk). Kilit "
-            "anahtarı (SW045) kullanılmadı — kullanıcı toggle istedi (2026-09-20).",
+     "parca": ("KTS202 On/Off 6 Ayak Toggle Anahtar", "Anahtar/Buton"),
+     "etiket": "AÇ/KAPA", "alt_etiket": "24 V + hattı · hücre 2",
+     "not": "KTS202 çift kutup: kutup 1 = 24 V artı kolu (sigorta ve seçicinin ardından), kutup 2 = hücre 2 → "
+            "MT2 girişi (kapalıyken MT3608 boşta 1–4 mA çekmesin; B54). PİL 1 jakının üstünde (aynı iç "
+            "çubuk). Kilit anahtarı (SW045) kullanılmadı — kullanıcı toggle istedi.",
      "neden": "24 V'un artı kolunu keser (kaynak seçicinin ardından; pil kipinde de bu açar). Toggle: kullanıcı tercihi (kilit anahtarı gerekmiyor), Ø6 delik yeter."},
     {"ref": "SWP1", "ad": "Hücre 1 anahtarı (ESP32 pili)", "tip": "anahtar", "x": 69.0, "z": 63.0,
      "delik_mm": 6.0, "metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri",
@@ -195,8 +201,26 @@ PANEL_ON = [
             "konumda birleşmez. Stoktaki 3 konumlu KTS103 tek kutup, seçici olamaz (eksi hattı açıkta "
             "kalır). Ortak uçlar AÇ/KAPA anahtarına, oradan klemense. V jakının üstünde.",
      "neden": "24 V kaynağını seçer: PİL (MT2) / HARİCİ (XT30). ÇİFT kutup şart (KTS202): iki hattı birden değiştirmezse pil eksisi ile XT30 eksisi birleşir. 3 konumlu KTS103 tek kutup, olmaz."},
+    {"ref": "CAL", "ad": "CAL kare dalga çıkışı (ESP32 GPIO10, 1 kΩ seri)", "tip": "jak", "x": 51.0, "z": 27.0,
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 15.0, "renk": "sari",
+     "parca": ("4mm Born Jak Şeffaf Sarı (Büyük Boy)", "Konnektör"),
+     "etiket": "CAL", "alt_etiket": "→ SKOP'a kısa kablo",
+     "not": "Kartın test sinyali (X<hz> ile açılır) kapak KAPALIYKEN de dışarıdan alınsın diye: skop kapısı "
+            "(12.5) ve kapalı-kutu testi (13.4) CAL → SKOP kısa patch kablosuyla yapılır. GPIO10 J5'te "
+            "yok; devkit'ten tek dişi jumper + 1 kΩ seri (panel ucu COM'a kısa devre olsa GPIO korunur; "
+            "SKOP girişi 103 kΩ, genlik etkisi ≤ %1).",
+     "neden": "Sarı büyük jak: renk kuralında yalnız CAL sarı (kırmızı = giriş, siyah = COM, mavi = pil). "
+              "2. sıra boştu; komşu jaklara ≥ 20 mm."},
+    {"ref": "F0", "ad": "Kutu sigortası — pano yuvası 5×20, F 1 A", "tip": "anahtar", "x": 105.0, "z": 27.0,
+     "delik_mm": 12.0, "metal_mm": 15.0, "derin_mm": 26.0, "renk": "gri",
+     "parca": ("5x20mm Pano Tipi Sigorta Yuvası", "Sigorta"),
+     "etiket": "F0 1A", "alt_etiket": "seçici çıkışı",
+     "not": "Kaynak seçicinin ortak ucu ile AÇ/KAPA arasında: kutu içi kablolama (seçici, toggle, klemens) "
+            "kartın F1'inden ÖNCE ve 8.3 A'lik kaynağa çıplak bağlıydı (B54). 1 A hızlı (FUS003): anahtar "
+            "darbesine (136 µF) bol pay, 0.5 mm² kabloyu korur; pil kipinde de devrede.",
+     "neden": "Pano tipi yuva (FUS027) dışarıdan değişir; ön 2. sıra boş, A kartının önüne 26 mm sığıyor."},
     {"ref": "J2.1", "ad": "YÜKSEK gerilim girişi", "tip": "jak", "x": 187.0, "z": 63.0,
-     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 21.0, "renk": "kirmizi",
+     "delik_mm": 8.0, "metal_mm": 14.0, "derin_mm": 15.0, "renk": "kirmizi",
      "parca": ("4mm Born Jak Şeffaf Kırmızı (Büyük Boy)", "Konnektör"),
      "etiket": "HV ⚡", "menzil": "yuksek",
      "not": "AYRI sırada ve işaretli; arka ucu makaronla kaplanır. Yerini değiştirme.",
@@ -228,6 +252,24 @@ PANEL_ARKA = [
             "kablosu takılıp PC/ortak adaptöre giderse −12 GND'ye kısa olur. Şarj = seçici HARİCİ.",
      "neden": "TP4056 rafının Type-C soketi; hücre 2'nin şarjı. AYRI şarj girişi çünkü hücre 2 eksisi pil kipinde −12 rayı: ortak toprakla birleşemez. Şarj yalnız seçici HARİCİ'deyken."},
 
+    {"ref": "C1a", "ad": "YUVA1 cıvatası (sol)", "tip": "civata", "x": 99.0, "z": 46.5,
+     "delik_mm": 3.2, "metal_mm": 6.0, "derin_mm": 0.0, "renk": "gri", "parca": None,
+     "etiket": "M3 YUVA1 sol", "alt_etiket": "YUVA1", "not": "YUVA1'in sol montaj deliği (x 99, iç çubuk 90–108'in ortası).",
+     "neden": "Cıvata iki katı da geçmeli: delik iç kat çubuğunun ortasına konuldu (90–108); plastik yuvada "
+              "bu aralıkta delik yoksa yuvayı 53 mm aralıkla del (plastik, kolay). Ø3.2, M3 sürtünerek geçer."},
+    {"ref": "C1b", "ad": "YUVA1 cıvatası (sağ)", "tip": "civata", "x": 152.0, "z": 46.5,
+     "delik_mm": 3.2, "metal_mm": 6.0, "derin_mm": 0.0, "renk": "gri", "parca": None,
+     "etiket": "M3 YUVA1 sağ", "alt_etiket": "YUVA1", "not": "YUVA1'in sağ montaj deliği (USB yuvasının üstündeki kısa çubuk 143–161).",
+     "neden": "USB yuvasının kısa iç çubuğu (z 16'dan yukarı) bu yükseklikte tam kat: delik onun ortasında. "
+              "C1a ile 53 mm aralık — yuvayı buna göre del."},
+    {"ref": "C2a", "ad": "YUVA2 cıvatası (sol)", "tip": "civata", "x": 99.0, "z": 77.0,
+     "delik_mm": 3.2, "metal_mm": 6.0, "derin_mm": 0.0, "renk": "gri", "parca": None,
+     "etiket": "M3 YUVA2 sol", "alt_etiket": "YUVA2", "not": "YUVA2'nin sol montaj deliği (5. sıra, iç çubuk 90–108).",
+     "neden": "C1a ile aynı çubuk, 5. sırada (z 77: yuva 63–84 içinde, sıra sınırından ≥ 3 mm). Aynı 53 mm aralık."},
+    {"ref": "C2b", "ad": "YUVA2 cıvatası (sağ)", "tip": "civata", "x": 152.0, "z": 77.0,
+     "delik_mm": 3.2, "metal_mm": 6.0, "derin_mm": 0.0, "renk": "gri", "parca": None,
+     "etiket": "M3 YUVA2 sağ", "alt_etiket": "YUVA2", "not": "YUVA2'nin sağ montaj deliği (kısa çubuk 143–161, 5. sıra).",
+     "neden": "C1b ile aynı çubuk, 5. sırada; iki yuvanın delikleri alt alta — tek şablonla delinir."},
     {"ref": "USB", "ad": "ESP32 USB yuvası", "tip": "yuva", "x": 152.0, "z": 8.0,
      "delik_mm": 9.0, "yuva_en_mm": 14.0, "metal_mm": 0.0, "derin_mm": 0.0, "renk": "gri",
      "parca": None, "etiket": "USB", "alt_etiket": "⚡ HV ölçerken çıkar",
@@ -243,36 +285,46 @@ PANEL_ARKA = [
 # arka duvarin ESP32/sont bolgesi (x>127, z>16) ve A'nin ustu (z>38, ince
 # parcalar A'nin arka kenari y=12'den once) uyuyor.
 DUVAR_PARCA = [
-    {"ref": "YUVA1", "ad": "18650 yuvası — hücre 1 (ESP32)", "duvar": "arka", "x": 92.0, "z": 22.0,
+    {"ref": "YUVA1", "ad": "18650 yuvası — hücre 1 (ESP32)", "duvar": "arka", "x": 92.0, "z": 36.0,
      "en": 80.0, "yuk": 21.0, "derin": 21.0, "stok": ("18650 Tekli Pil Yuvası", "Güç Kaynağı/Pil"),
      "nasil": "80 × 21 × 21 (ölçüldü). İki M3 cıvata duvardan (dıştan) geçer, içeride somun; yuva sökülür, "
               "hücre yuvadan çıkar. Hücre başlı (PWR005) — yaylı yuvada başlık temas eder; yalıtım contası "
               "MEK025."},
-    {"ref": "YUVA2", "ad": "18650 yuvası — hücre 2 (24 V)", "duvar": "arka", "x": 92.0, "z": 49.0,
+    {"ref": "YUVA2", "ad": "18650 yuvası — hücre 2 (24 V)", "duvar": "arka", "x": 92.0, "z": 63.0,
      "en": 80.0, "yuk": 21.0, "derin": 21.0, "stok": ("18650 Tekli Pil Yuvası", "Güç Kaynağı/Pil"),
      "nasil": "İki M3 cıvata dıştan, somun içeride; sökülebilir. Kapağa 2 mm kalır (yuva 21 mm "
               "ölçüldü mü — 1.1'de kumpasla)."},
     {"ref": "TP1", "ad": "TP4056 şarj modülü — hücre 1 (raf)", "duvar": "arka", "x": 18.5, "z": 42.0,
      "en": 17.0, "yuk": 5.0, "derin": 25.0, "stok": ("TP4056 Li-ion Şarj Devresi", "Modül"),
      "nasil": "Kart RAF gibi yatay (27 × 17 × 5 ölçüldü, soket kart kenarından 2 mm dışarı): soket "
-              "ŞARJ 1 yuvasının içine 2 mm girer, kart kenarı duvara dayanır; iki M2.5/M3 cıvata + duvara "
-              "yapıştırılmış 3 katlı çubuk bloğu (somun gömme). Sökülebilir."},
+              "ŞARJ 1 yuvasının içine 2 mm girer, kart kenarı duvara dayanır. Modülde montaj deliği yok: "
+              "duvara yapıştırılmış 3 katlı çubuk bloğunun üstüne oturur, iki <b>kablo bağıyla</b> bloğa "
+              "(blokta iki delik). Bağı kes, çıkar: sökülebilir; vida yok."},
     {"ref": "TP2", "ad": "TP4056 şarj modülü — hücre 2 (raf)", "duvar": "arka", "x": 178.5, "z": 42.0,
      "en": 17.0, "yuk": 5.0, "derin": 25.0, "stok": ("TP4056 Li-ion Şarj Devresi", "Modül"),
-     "nasil": "Raf gibi yatay, soketi ŞARJ 2 yuvasına dayalı; çubuk bloğuna cıvata. Sökülebilir."},
+     "nasil": "Raf gibi yatay, soketi ŞARJ 2 yuvasına dayalı; TP1 gibi çubuk bloğuna iki kablo bağıyla. "
+              "Sökülebilir."},
     {"ref": "MT1", "ad": "MT3608 — 5.0 V (ESP32)", "duvar": "arka", "x": 42.0, "z": 24.0,
      "en": 36.0, "yuk": 17.0, "derin": 14.0, "stok": ("MT3608 DC-DC Yükseltici", "Modül"),
-     "nasil": "Arka duvarın iç yüzüne düz (A'nın boş arka şeridinin üstü); iki M3 cıvata dıştan, somun "
-              "içeride (ya da yapışık çubuk bloğu + vida). Trimpot içe bakar, ayar kapak açıkken. Sökülebilir."},
+     "nasil": "Arka duvarın iç yüzüne düz (A'nın boş arka şeridinin üstü). Modülde delik yok: duvara "
+              "yapışık iki çubuk parçasının arasına oturur, üstünden bir <b>kablo bağı</b> (çubuklardaki "
+              "deliklerden). Trimpot içe bakar, ayar kapak açıkken. Bağı kes, çıkar: sökülebilir."},
     {"ref": "MT2", "ad": "MT3608 — 24.0 V (analog ray)", "duvar": "arka", "x": 42.0, "z": 47.0,
      "en": 36.0, "yuk": 17.0, "derin": 14.0, "stok": ("MT3608 DC-DC Yükseltici", "Modül"),
-     "nasil": "MT1'in üstüne, aynı yöntemle iki M3 cıvata; sökülebilir. Çıkışı kaynak seçiciye (SWP2), "
-              "oradan AÇ/KAPA anahtarına."},
+     "nasil": "MT1'in üstüne, aynı yöntemle çubuk parçaları + kablo bağı; sökülebilir. Çıkışı kaynak "
+              "seçiciye (SWP2), oradan sigorta ve AÇ/KAPA'ya."},
 ]
 
 # Kutuya giren, kartla ilgisi olmayan parcalarin kurallari (KART_DISI_NOTU'nun kutu esi)
 KUTU_NOTU = {
-    "YUVA1": "18650 yuvası; hücre 1'in EKSİSİ = kart GND (ESP32 ile ortak). Şarj her zaman güvenli.",
+    "YUVA1": "18650 yuvası; hücre 1'in EKSİSİ = kart GND (ESP32 ile ortak). Şarj her zaman güvenli. "
+             "Cıvata delikleri C1a/C1b 3.2'de delinir (iç kat çubuğunun ortası).",
+    "KL": "24 V iç klemens (CON007, 2'li 5 mm): kartın C34 (+) / C36 (−) telleri buraya; kart lehim sökmeden "
+          "çıkar. Çubuğa yapışık (kutu parçası).",
+    "F0": "Pano tipi 5×20 sigorta yuvası (FUS027) + 1 A hızlı (FUS003): seçici ortak ucu → F0 → AÇ/KAPA. "
+          "Kartın F1'i (50 mA sınıfı) kart içi; F0 kutu kablolamasını 8.3 A'lik kaynaktan korur.",
+    "CAL": "CAL jakı: devkit GPIO10 → 1 kΩ (R001 10R DEĞİL; 1K R029) → jak. Skop kapısı ve kapalı kutu "
+           "testinde CAL → SKOP kısa kablo.",
     "YUVA2": "18650 yuvası; hücre 2'nin EKSİSİ pil kipinde −12 rayı. Hücre 2 hiçbir yerde kart GND'ye "
              "değmez — kablo listesi ve denetim bunu ölçüyor.",
     "TP1": "TP4056 korumalı (DW01+FS8205): B± hücreye, OUT± yüke. Rprog 1.5–1.6 kΩ (~0.5 C). Yük "
@@ -304,14 +356,18 @@ PIL_KABLOLAR = [
     ("MT1.OUT-", "ESP32.GND", "sinyal", "= kart GND (ESP32 üzerinden). Hücre 1 eksisi bu düğümde."),
     ("H2+", "TP2.B+", "pil", "hücre 2 artı"),
     ("H2-", "TP2.B-", "pil", "hücre 2 eksi"),
-    ("TP2.OUT+", "MT2.IN+", "pil", "korumalı çıkış"),
+    ("TP2.OUT+", "SW.2a", "pil", "korumalı çıkış → AÇ/KAPA'nın 2. kutbu (hücre 2 kesme; B54)"),
+    ("SW.2b", "MT2.IN+", "pil", "AÇ/KAPA kapalıyken MT2 hiç çekmez"),
     ("TP2.OUT-", "MT2.IN-", "pil", ""),
     ("MT2.OUT+", "SWP2.A1", "pil", "24.0 V → seçicinin PİL ucu (kutup 1)"),
     ("MT2.OUT-", "SWP2.A2", "pil", "24 V eksisi → seçicinin PİL ucu (kutup 2) — bu uç −12 rayı olur"),
     ("J6.1", "SWP2.B1", "besleme", "XT30 kuyruk kırmızı → seçicinin HARİCİ ucu (kutup 1)"),
     ("J6.2", "SWP2.B2", "besleme", "XT30 kuyruk siyah → seçicinin HARİCİ ucu (kutup 2)"),
-    ("SWP2.P1", "SW.1", "besleme", "seçici ortak (kutup 1) → AÇ/KAPA anahtarı"),
-    ("SW.2", "KL.+", "besleme", "AÇ/KAPA anahtarı → klemens + (kart C34)"),
+    ("SWP2.P1", "F0.1", "besleme", "seçici ortak (kutup 1) → kutu sigortası F0 (1 A)"),
+    ("F0.2", "SW.1", "besleme", "F0 → AÇ/KAPA (kutup 1)"),
+    ("SW.2", "KL.+", "besleme", "AÇ/KAPA (kutup 1) → klemens + (kart C34)"),
+    ("KL.+", "A.C34", "besleme", "klemens → kart 24 V + (T_24P)"),
+    ("KL.-", "A.C36", "besleme", "klemens → kart 24 V − (T_24N = −12 rayı)"),
     ("SWP2.P2", "KL.-", "besleme", "seçici ortak (kutup 2) → klemens − (kart C36 = −12 rayı)"),
 ]
 # Asama (kutu.py pil_asama): ucu H1/TP1/MT1/SWP1/ESP32 olan kablolar 2. asama
@@ -319,7 +375,9 @@ PIL_KABLOLAR = [
 # Modullerin ic baglantilari (grafta kisa devre sayilir): korumali TP4056'da
 # OUT- ile B- koruma FET'i uzerinden ayni dugum; MT3608'de IN- = OUT-.
 PIL_IC_BAG = [("TP1.B-", "TP1.OUT-"), ("TP2.B-", "TP2.OUT-"), ("MT1.IN-", "MT1.OUT-"),
-              ("MT2.IN-", "MT2.OUT-"), ("KL.-", "-12"), ("ESP32.GND", "KART_GND")]
+              ("MT2.IN-", "MT2.OUT-"), ("KL.-", "-12"), ("ESP32.GND", "KART_GND"),
+              ("F0.1", "F0.2"),                    # sigorta (takili)
+              ("SW.2a", "SW.2b"), ("SW.1", "SW.2")]  # AC/KAPA ACIK konumu (iki kutup)
 PIL_SECICI = {"PİL": [("SWP2.P1", "SWP2.A1"), ("SWP2.P2", "SWP2.A2")],
               "HARİCİ": [("SWP2.P1", "SWP2.B1"), ("SWP2.P2", "SWP2.B2")]}
 
@@ -334,12 +392,17 @@ ADIMLAR = [
                  "<b>{ue:.0f} mm</b> yuvarlak bölüm (2026-09-20'de doğrulandı); ortada "
                  "<b>{duz:.0f} mm düz</b> bölüm kalıyor.",
                  "Kumpasla ölç ve tutmuyorsa söyle: born jak gövde dişi (küçük ≈ 6, büyük "
-                 "≈ 8 mm) ve jakın duvarın içine uzanan boyu (büyük boy için 21 mm varsayıldı — "
-                 "A kartının ayağına 0.2 mm kalıyor, fazlaysa söyle), USB-C fiş gövdesi (≈ 12 × 6.5), "
-                 "toggle dişi (6).",
+                 "≈ 8 mm); jakların duvarın içine uzanan boyu ölçüldü (2026-09-21): büyük boy 15 mm, "
+                 "küçük vidalı 21 mm. USB-C fiş gövdesi (≈ 12 × 6.5), toggle dişi (6).",
+                 "<b>Kartları da ölç (plan 45×45 delik = 114.3 mm varsayıyor):</b> A ve B'nin dış ölçüleri (mm), "
+                 "A1 deliğinin sol ve üst kenara uzaklığı; devkit'in dış ölçüsü (26 × 63 varsayıldı), COM soketinin "
+                 "sol kenara uzaklığı (13) ve tabandan yüksekliği (7); B:O16 → A:C11 sarı telin boyu (kutuda "
+                 "7–13 cm gerekiyor, kart yönüne göre; kısa kaldıysa ek yap, GND ile bur).",
                  "Tutmayan bir sayı varsa bana söyle — kesim listesi, delik tabloları ve "
                  "çizimler bu sayılardan üretiliyor, yeniden üretirim."],
-         "kontrol": ["Çubuklar düz mü, çatlak var mı? Eğri olanları kapak için ayır."]},
+         "kontrol": ["Çubuklar düz mü, çatlak var mı? Eğri olanları kapak için ayır.",
+                     "A'nın dış ölçüsü 114.3 × 114.3'ten büyükse (13 cm'lik kenar kesilmediyse 130!) söyle: "
+                     "ön jak gövdeleri ve klemens çubuğuna pay 5 mm'den az kalıyor."]},
         {"no": "1.2", "baslik": "Kesim listesi — önce taban ve dış kat", "tur": "kesim",
          "yap": ["Çubuğun <b>iki ucu yuvarlak</b>: düz birleşme isteyen her parça ortadaki "
                  "<b>düz bölümden</b> ({duz:.0f} mm) kesilir. İç kat ve direk parçaları "
@@ -390,7 +453,9 @@ ADIMLAR = [
         {"no": "4.1", "baslik": "1. sıra — ön ve arka", "tur": "duvar", "sira": 1,
          "yap": ["Ön ve arka duvarın ilk sırasını tabanın kenarına, <b>dik</b> yapıştır. "
                  "Geniş yüz dışa, delikli parçalar tablodaki yerde.",
-                 "Her sıra iki parça; ek yeri tabloda yazan x'te."],
+                 "Her sıra iki parça; ek yeri tabloda yazan x'te. <b>Arka duvar parçaları \"arkadan bakınca\" "
+                 "adlandı:</b> önde durup yerleştiriyorsan \"sol (arkadan)\" parça senin SAĞINA gelir — "
+                 "şaşırmamak için arka sırayı kutunun arkasına geçip diz."],
          "kontrol": ["Gönye ya da kitap kenarıyla bak: duvar tabana dik mi?"]},
         {"no": "4.2", "baslik": "1. sıra — yanlar", "tur": "duvar", "sira": 1,
          "yap": ["Yan duvarların ilk sırasını ön ve arka duvarın <b>arasına</b> sıkıştır.",
@@ -444,9 +509,11 @@ ADIMLAR = [
                  "Etiketleri hemen yapıştır: YÜK 1/2, PİL 1/2, V, COM, SKOP, HV ⚡."],
          "kontrol": ["Jakların içerideki uçları birbirine değmiyor.",
                      "Somunlar sıkı; jak elle dönmüyor."]},
-        {"no": "5.3", "baslik": "XT30 kuyruğu ve AÇ/KAPA anahtarı", "tur": "delik", "panel": "arka",
-         "monte": ["J6", "SW"], "vurgu": ["J6", "SW"],
-         "yap": ["AÇ/KAPA toggle'ını (KTS102) somunuyla ÖN duvara (4. sıra, YÜK 1'in üstü) tak.",
+        {"no": "5.3", "baslik": "XT30 kuyruğu, toggle'lar, sigorta yuvası ve CAL jakı", "tur": "delik", "panel": "arka",
+         "monte": ["J6", "SW", "SWP1", "SWP2", "F0", "CAL"], "vurgu": ["J6", "SW", "SWP1", "SWP2", "F0", "CAL"],
+         "yap": ["ÖN duvara: üç toggle 4. sıraya (AÇ/KAPA = KTS202, PİL ESP32 = KTS102, PİL/HARİCİ = KTS202), "
+                 "somun dıştan; F0 pano sigorta yuvası ve sarı CAL jakı 2. sıraya. Toggle'ların ayak "
+                 "yönü: ayaklar yere doğru (kablolar aşağı iner).",
                  "XT30 kuyruğu: 8–10 cm kalın kabloya XT30'un <b>pimli (erkek)</b> ucunu "
                  "lehimle — kutu tarafı enerjisiz, pimler açıkta olabilir. Kabloyu Ø6 "
                  "delikten geçir, içeride düğüm at ya da kablo bağıyla durdur "
@@ -484,11 +551,17 @@ ADIMLAR = [
          "kontrol": ["USB-C fişi yuvadan girip sokete oturuyor.",
                      "Kart B ile kart A arasındaki tel gergin değil."]},
         {"no": "6.4", "baslik": "Şönt demetini tezgahta lehimle", "tur": "montaj", "vurgu": ["RS"],
-         "yap": ["Şönt kutuya girmeden ÖNCE: iki bacağına kalın yük kabloları için "
-                 "<b>halka pabuç/lehim kulağı</b> ve Kelvin tellerini lehimle. Şöntün "
-                 "hangi bacağı RS.1 (YÜK 1 tarafı) hangisi RS.2 (YÜK 2) — işaretle.",
-                 "Kelvin çifti S+ (RS.1) ve S− (RS.2) burgulu, yıldız GND RS.2'ye S− ile "
-                 "<b>aynı noktaya</b>. Üç telin ucuna 3'lü <b>dişi header</b> (CON018'den kes).",
+         "yap": ["Kutuya <b>5 mΩ Ø2 mm şönt (R042, 4 adetlik 9.5 A sürümü, U boyu ~11 mm)</b> takılır: "
+                 "9.5 A sürekli. 15 mΩ (R044, Ø1 mm) 3.4 A'de kalıyor ama 3 kat ince okur — mA işleri için "
+                 "yedek; klemens vidasıyla değişir. Şönt: U biçimli manganin tel, iki bakır bacak, "
+                 "bacakların üstünde birer <b>sıkıştırma boncuğu</b> (manganin–bakır eki). Kalın yük "
+                 "kabloları bacağa LEHİMLENMEZ: bacaklar (11 mm aralık, 10 mm'e hafif bük) XP128 10 mm "
+                 "klemensin (CON064) iki kutbuna, kablolar aynı vidaların altına (7.1). Şöntün hangi bacağı "
+                 "RS.1 (YÜK 1 tarafı) hangisi RS.2 (YÜK 2) — işaretle.",
+                 "Kelvin tellerini bacağa, <b>boncuğun hemen altına, bakıra</b> lehimle (klemens vidası "
+                 "daha aşağıda kalır: ölçüm elemanla vida arasında olmalı; vidaya lehim/temas YOK). "
+                 "Kelvin çifti S+ (RS.1) ve S− (RS.2) burgulu, yıldız GND RS.2'ye S− ile <b>aynı "
+                 "noktaya</b>. Üç telin ucuna 3'lü <b>dişi header</b> (CON018'den kes).",
                  "Kart A'daki T_SP / T_SN / T_YILDIZ tellerinin uçlarına <b>erkek pin</b>: "
                  "demet konnektörle takılır, kart sökülebilir kalır."],
          "kontrol": ["S+ ↔ RS.1 bacağı, S− ↔ RS.2 bacağı: bip ötmeli.",
@@ -511,10 +584,12 @@ ADIMLAR = [
     {"no": 7, "baslik": "Güç yolu — YÜK jakları, şönt, Kelvin", "alt": [
         {"no": "7.1", "baslik": "Yük yolunu bağla", "tur": "kablo", "kablo": [2, 3],
          "vurgu": ["RS", "J3.1", "J3.2"],
-         "yap": ["YÜK 1 jakının içerideki ucu → şöntün RS.1 bacağı; şöntün RS.2 bacağı → "
-                 "YÜK 2. <b>Kalın kablo (≥1.5 mm²)</b>, halka pabuçla jak somununun altına.",
-                 "Kısa tut: ölçülen bütün akım bu yoldan geçecek."],
-         "kontrol": ["YÜK 1 ↔ YÜK 2: 0.0–0.5 Ω (şönt 15 mΩ + prob).",
+         "yap": ["YÜK 1 jakının içerideki ucu → klemensin RS.1 kutbu (şönt bacağıyla aynı vida); "
+                 "klemensin RS.2 kutbu → YÜK 2. <b>Kalın kablo (≥1.5 mm²)</b>: jak tarafında halka "
+                 "pabuç somunun altına, klemens tarafında kalaylı uç vidanın altına.",
+                 "Kısa tut: ölçülen bütün akım bu yoldan geçecek (sürekli ≤ 9.5 A, 5 mΩ şöntün ısıl "
+                 "sınırı; 15 mΩ takılıysa 3.4 A)."],
+         "kontrol": ["YÜK 1 ↔ YÜK 2: 0.0–0.5 Ω (şönt 5 mΩ + prob).",
                      "YÜK 1 ↔ V, SKOP, HV jakları: OL (sonsuz)."]},
         {"no": "7.2", "baslik": "Kelvin ve yıldız konnektörünü tak", "tur": "kablo",
          "kablo": [4, 5, 6], "vurgu": ["RS"],
@@ -524,7 +599,8 @@ ADIMLAR = [
                  "Burgulu çifti kablo bağıyla şönt altlığına tuttur."],
          "kontrol": ["Kart C25 ↔ YÜK 1 jakı: ötmeli. Kart C27 ↔ YÜK 2: ötmeli.",
                      "Kart C29 ↔ COM jakı: ötmeli (yıldız = kart GND).",
-                     "YÜK 1 ↔ COM: <b>ötmemeli</b> (şönt ile ayrılır; 15 mΩ ötmeyi tetiklemez)."]},
+                     "YÜK 1 ↔ COM: <b>öter</b> (arada yalnız 5 mΩ şönt var) — ohm kademesinde ≤ 0.5 Ω oku; "
+                     "asıl kontrol yukarıdaki C25/C27 ayrımı."]},
     ]},
     {"no": 8, "baslik": "Pil testi yolu — Q1 ve PİL jakları", "alt": [
         {"no": "8.1", "baslik": "Q1'i yük yoluna bağla", "tur": "kablo", "kablo": [7, 8, 9],
@@ -534,7 +610,9 @@ ADIMLAR = [
                  "Üçü de kalın kablo, halka pabuç."],
          "kontrol": ["PİL 2 ↔ YÜK 2: ötmeli (ikisi de RS.2).",
                      "PİL 1 ↔ YÜK 1: <b>kırmızı prob PİL 1'de</b> ölç — ötmemeli. (Ters "
-                     "probda MOSFET'in gövde diyotu öter, o normal.)"]},
+                     "probda MOSFET'in gövde diyotu öter, o normal.) Kapı teli henüz takılı değil: "
+                     "ölçerken Q1'in kapısını kaynağına ince telle kısa devre et (yüzen kapı MOSFET'i "
+                     "yarı açabilir, yanlış 'öter' verir)."]},
         {"no": "8.2", "baslik": "Kapı telini tak", "tur": "kablo", "kablo": [10], "vurgu": ["Q1"],
          "yap": ["Kartın T_KAPI telinin (Z36) ucuna erkek pin; Q1 demetinin dişi ucunu tak.",
                  "Teli Q1 bacağından ~15 mm sonra köşebende <b>kablo bağıyla</b> tut — "
@@ -571,16 +649,18 @@ ADIMLAR = [
                      "Kabloyu elle çek: kart B ve D8 lehimi oynamıyor."]},
     ]},
     {"no": 10, "baslik": "Besleme", "alt": [
-        {"no": "10.1", "baslik": "XT30 kuyruğu → anahtar → iç klemens → kart", "tur": "kablo",
-         "kablo": [0, 1], "vurgu": ["J6", "SW"],
+        {"no": "10.1", "baslik": "XT30 kuyruğu → seçici → sigorta → anahtar → iç klemens → kart", "tur": "kablo",
+         "kablo": [0, 1], "vurgu": ["J6", "SW", "SWP2", "F0", "KL"], "monte": ["KL"],
          "yap": ["İçeride küçük bir <b>2'li vidalı klemens</b> (CON007): XT30 kuyruğunun yanında, "
                  "arka duvara paralel dik duran tek çubuğa (plandaki yer) vidala/yapıştır; "
                  "kartın 24 V telleri (C34 kırmızı, C36 siyah) buraya vidalanır — kart "
-                 "lehim sökmeden çıkar.",
+                 "lehim sökmeden çıkar. <b>Kart tellerinin ucunda XT30 erkek varsa</b> (Yerleşim 0.8 öyle "
+                 "demişti) kes: o erkek ucu kuyruğa kullan (stokta tek takım), telleri klemense.",
                  "Kuyruğun kırmızı ve siyah telleri <b>kaynak seçicinin (SWP2) HARİCİ uçlarına</b>; "
-                 "seçicinin ortak uçları: kutup 1 → <b>AÇ/KAPA anahtarı</b> → klemensin kırmızı vidası, "
-                 "kutup 2 → doğrudan klemensin siyah vidası. Seçici HARİCİ'de, PİL uçları şimdilik boş "
-                 "(Adım 14).",
+                 "seçicinin ortak uçları: kutup 1 → <b>F0 sigorta yuvası</b> (1 A hızlı, FUS003) → "
+                 "<b>AÇ/KAPA (kutup 1)</b> → klemensin kırmızı vidası; kutup 2 → doğrudan klemensin siyah "
+                 "vidası. Seçici HARİCİ'de, PİL uçları şimdilik boş (Adım 14). AÇ/KAPA'nın 2. kutbu da boş "
+                 "(hücre 2 kesme, 14.3).",
                  "Sigorta: kartta F1. Anahtar her açmada dolu 24 V'u 136 µF'ye bir anda uygular; "
                  "gerçek bir 50 mA <b>hızlı</b> (F) sigortayı bu darbe <b>atar</b> (darbe I²t erime "
                  "değerinin 3–5 katı — Littelfuse 217/218 veri sayfaları, denetim hesaplıyor). "
@@ -591,8 +671,9 @@ ADIMLAR = [
                  "devrede açar; stoktaki 315 mA F de darbeye pay vermiyor, değiştirmeye değmez. TL072 "
                  "kısmi arızasını hiçbir sigorta açmaz. T takılınca 20 kez aç-kapa: her açılışta "
                  "+12/−12 gelmeli."],
-         "kontrol": ["Anahtar KAPALI: kuyruk ↔ kart C34 süreklilik yok; AÇIK: var.",
-                     "Kuyruk siyah ↔ kart C36: ötmeli."]},
+         "kontrol": ["Anahtar KAPALI: kuyruk ↔ kart C34 süreklilik yok; AÇIK ve sigorta takılı: var.",
+                     "Kuyruk siyah ↔ kart C36: ötmeli.",
+                     "F0 çıkarılınca: kuyruk ↔ C34 kesik (sigorta gerçekten yolda)."]},
         {"no": "10.2", "baslik": "Kutuda ilk enerji + toprak kontrolü", "tur": "kontrol",
          "yap": ["Soketlerdeki entegreleri çıkar, ESP32'yi ayır, anahtar KAPALI.",
                  "Ohmmetre: kaynağın (WCT-200-24) <b>V− çıkışı ↔ fişin toprak ucu</b>: "
@@ -610,6 +691,8 @@ ADIMLAR = [
                  "ADS modüllerini yuvalarına tak.",
                  "J5 başlığına 10 telli kabloyu tak (eşleme Yerleşim 1.12). "
                  "<b>3V3 ile 5V'u karıştırma.</b>",
+                 "CAL jakı: devkit GPIO10 pinine tek dişi jumper, ucuna 1 kΩ (R029) seri, jakın iç ucuna "
+                 "lehim; jumper'ı SCL (GPIO9) pininin yanından dikkatle ayır.",
                  "USB'yi devkit'in COM yazan soketine, arka yuvadan tak."],
          "kontrol": ["Entegre çentikleri doğru yönde.", "10 tel doğru pinde."]},
         {"no": "11.2", "baslik": "Vref ve I²C kapıları", "tur": "kapi", "kapi": [1, 2],
@@ -618,23 +701,33 @@ ADIMLAR = [
     ]},
     {"no": 12, "baslik": "Kalibrasyon ve kalan kapılar", "alt": [
         {"no": "12.1", "baslik": "Kalibrasyon", "tur": "kalibrasyon"},
-        {"no": "12.2", "baslik": "Kapı 3 — akım", "tur": "kapi", "kapi": [3],
-         "yap": ["Kaynak: 12 V + 10 Ω/20 W taş direnç (≈1.2 A) YÜK 1–2'den seri; "
-                 "multimetre 10 A kademesi seriye. <code>Z</code> yüksüzken, sonra "
-                 "<code>i&lt;ölçülen&gt;</code>. Kabloları ters çevir: işaret değişmeli."]},
+        {"no": "12.2", "baslik": "Kapı 3 — akım (iki aşamalı)", "tur": "kapi", "kapi": [3],
+         "yap": ["<b>Kural:</b> kutuyu besleyen kaynak (WCT-200-24 ve ondan türetilen her şey) test kaynağı "
+                 "OLAMAZ — WCT eksisi kartın −12 rayıdır, COM'a bağlanınca −12 GND'ye kısa olur. Test kaynağı: "
+                 "<b>18650 + 3.3 Ω 11 W (R049)</b> ≈ 1.1–1.25 A (tam dolu hücreyle), ya da ayrı yalıtılmış "
+                 "adaptör. Kutu pil kipindeyken (Adım 14) WCT + buck test kaynağı olabilir.",
+                 "Firmware kazanç kalibrasyonunu tam skalanın %5'inin (1638 kod) altında reddeder: 5 mΩ ile "
+                 "bu 2.6 A demek, 1.1 A yetmez. Kazanç düzeltmesi (<code>i</code>) şöntten bağımsızdır → "
+                 "<b>önce 15 mΩ (R044) tak</b>, <code>s0.015</code>, <code>Z</code> yüksüzken; 18650 + 3.3 Ω "
+                 "YÜK 1–2'den seri, multimetre 10 A kademesi seriye, <code>i&lt;ölçülen&gt;</code>.",
+                 "Sonra <b>5 mΩ'u tak</b>, <code>s0.005</code>, <code>Z</code>; aynı ~1.1 A'i ölç: multimetreyle "
+                 "±%2 tutmalı (kalan fark 5 mΩ'un toleransı). ≥2.6 A için: tam dolu 18650 + üç 3.3 Ω paralel "
+                 "(1.1 Ω, ≈3.5 A, 30 s) ile <code>i</code>. Kabloları ters çevir: işaret değişmeli."]},
         {"no": "12.3", "baslik": "Kapı 4 — NORMAL gerilim", "tur": "kapi", "kapi": [4],
-         "yap": ["<code>n</code>; V boşta <code>z</code>; 12 V'u V–COM'a ver, multimetreyle "
-                 "kıyasla, <code>g&lt;ölçülen&gt;</code>; ters bağla: işaret değişmeli."]},
+         "yap": ["<code>n</code>; V boşta <code>z</code>; bilinen gerilimi (18650 3.7–4.2 V ya da yalıtılmış "
+                 "12 V adaptör — WCT DEĞİL, 12.2 kuralı) V–COM'a ver, multimetreyle kıyasla, "
+                 "<code>g&lt;ölçülen&gt;</code>; ters bağla: işaret değişmeli."]},
         {"no": "12.4", "baslik": "Kapı 5 — YÜKSEK gerilim", "tur": "kapi", "kapi": [5],
          "yap": ["<code>y</code>; önce 12 V, sonra 24 V. Kazanç kalibrasyonu ≥31 V ister: "
                  "iki kaynağı seri bağla ya da HV kazancını fabrika 1.0'da bırak (bölücü "
                  "%1 metal film, hata ≤ %1). <b>Tek el kuralı.</b>"]},
         {"no": "12.5", "baslik": "Kapı 6 — osiloskop", "tur": "kapi", "kapi": [6],
          "yap": ["Sinyal kaynağı: kartın CAL çıkışı — seri konsolda <code>X&lt;hz&gt;</code> "
-                 "ile aç, <code>x</code> ile kapat; GPIO'dan SKOP–COM'a krokodille bağla. "
-                 "<code>t</code> komutlarıyla yakala; kare dalga ve frekans görünmeli."]},
+                 "ile aç, <code>x</code> ile kapat; panelde <b>CAL jakı → SKOP jakı</b> kısa kablo (COM zaten "
+                 "ortak). <code>t</code> komutlarıyla yakala; kare dalga ve frekans görünmeli (genlik ≈3.3 V, "
+                 "1 kΩ seri ile ≤ %1 düşük)."]},
         {"no": "12.6", "baslik": "Kapı 7 — hızlı akım yolu", "tur": "kapi", "kapi": [7],
-         "yap": ["Dirençsel yük (12 V + 10 Ω) YÜK'ten; <code>w</code> → PF ≈ 1."]},
+         "yap": ["Dirençsel yük (18650 + 3.3 Ω, 12.2 kuralı) YÜK'ten; <code>w</code> → PF ≈ 1."]},
         {"no": "12.7", "baslik": "Kapı 8 — pil testi", "tur": "kapi", "kapi": [8],
          "yap": ["Failsafe: kart kapalıyken ve RESET'te Q1 kapısı 0 V (PİL 1 ↔ PİL 2 "
                  "ötmemeli). Sonra 18650 + 3.3 Ω 11 W: <code>P2.8</code>, <code>p1</code>."]},
@@ -644,13 +737,16 @@ ADIMLAR = [
          "yap": ["Kapak sıralarını taban gibi diz (ek yerleri kaydırmalı), altına iki rayı "
                  "<b>yan duvarların iç yüzüne yaslanacak</b> şekilde, direklerin arasına "
                  "yapıştır. Raylar 18 mm yüzü dik (aşağı sarkar).",
+                 "Her rayın iç yüzüne, cıvata konumlarına (tablo 13.2) <b>gömme somunlu 3 katlı blok</b> "
+                 "(ayak bloğu gibi: 1. kat Ø3.2, 2. kat Ø6 + somun, 3. kat deliksiz) yapıştır — kapak "
+                 "kapalıyken içeride somun tutulamaz (B54).",
                  "Kapağı yapıştırma."],
          "kontrol": ["Kapak oturuyor, raylar yan duvarlara sürtmeden giriyor."]},
         {"no": "13.2", "baslik": "Kapağı yan duvarlardan cıvatala", "tur": "taban", "kapak": True,
          "yap": ["Kapak yerindeyken her yan duvarda iki nokta işaretle (tablo: y ve z), "
-                 "Ø3.2 del — delik duvar (4 mm) + ray (2 mm) boyunca geçer.",
-                 "Dört <b>{kapak_civata}</b> cıvata dıştan, pul + somun içeriden rayın "
-                 "arkasına. Tak-çıkar: somunu gevşet, kapak kalkar. Tahtada diş yok."],
+                 "Ø3.2 del — delik duvar (4 mm) + ray (2 mm) + somun bloğu boyunca geçer.",
+                 "Dört <b>{kapak_civata}</b> cıvata dıştan, pul ile, raydaki gömme somuna. Tak-çıkar: "
+                 "cıvatayı sök, kapak kalkar. Tahtada diş yok, içeriye el girmez."],
          "kontrol": ["Kapak elle çekince kalkmıyor; cıvatalar sökülünce tek parça çıkıyor."]},
         {"no": "13.3", "baslik": "Etiketle ve topla", "tur": "kontrol",
          "yap": ["Etiketler: YÜK 1/2, PİL 1/2, V, COM, SKOP, HV ⚡, 24 V, USB (⚡ HV varken "
@@ -662,9 +758,9 @@ ADIMLAR = [
                  "bağlarını sök, konnektörleri ayır."],
          "kontrol": ["Kutuyu salla: içeride oynayan bir şey yok."]},
         {"no": "13.4", "baslik": "Kapalı kutuda uçtan uca", "tur": "kapi", "kapi": [4, 3],
-         "yap": ["Kapak kapalı, panelden: 12 V + 10 Ω yük YÜK'ten, V–COM 12 V'ta. Kartın "
-                 "V ve I okuması multimetreyle ±%1 / ±%2 içinde; osiloskopta CAL kare "
-                 "dalgası; 5 dk sonra kutu içinde ısınan yok."]},
+         "yap": ["Kapak kapalı, panelden: 18650 + 3.3 Ω yük YÜK'ten, V–COM hücre geriliminde. Kartın "
+                 "V ve I okuması multimetreyle ±%1 / ±%2 içinde; CAL → SKOP kısa kabloyla osiloskopta "
+                 "kare dalga; 5 dk sonra kutu içinde ısınan yok."]},
     ]},
     {"no": 14, "baslik": "Pil bloğu I — 24 V hücresi (kart pilden çalışır; tek hücre + tek modül)", "alt": [
         {"no": "14.1", "baslik": "MT2'yi yüksüz 24.0 V'a ayarla", "tur": "montaj", "vurgu": ["MT2"],
@@ -675,15 +771,16 @@ ADIMLAR = [
          "kontrol": ["MT2 çıkışı 23.8–24.2 V (giriş 3.7 V'ta da).",
                      "Girişi 3.0 V'a düşür: çıkış hâlâ ayarında (boost payı var)."]},
         {"no": "14.2", "baslik": "Yuva 2, TP2 rafı, MT2 ve seçiciyi tak", "tur": "duvar_parca",
-         "monte": ["YUVA2", "TP2", "MT2", "SWP2"], "vurgu": ["YUVA2", "TP2", "MT2", "SWP2"],
+         "monte": ["YUVA2", "TP2", "MT2"], "vurgu": ["YUVA2", "TP2", "MT2", "SWP2"],
          "yap": ["Arka duvar (içeriden): 18650 yuvası YUVA2 üst sıraya (konum tabloda; alttaki YUVA1 yeri "
-                 "hücre 1 için boş kalır); iki M3 cıvata dıştan, somun içeriden. Üstü kapağa 2 mm.",
+                 "hücre 1 için boş kalır); iki M3 cıvata dıştan (C2a/C2b delikleri 3.2'de açıldı), somun "
+                 "içeriden. Üstü kapağa 6 mm.",
                  "TP4056 (TP2) <b>raf</b> gibi yatay, arka duvarın sağ ucunda: Type-C soketi ŞARJ 2 "
                  "yuvasına dayanır; kartı 3 katlı bir çubuk bloğuna (duvara yapışık, somun gömme) vidala.",
                  "MT2 arka duvarın solunda üst konuma (x 42–78, z 47); cıvata dıştan somun içeriden, trimpot "
                  "içe baksın.",
-                 "Kaynak seçici SWP2 (KTS202, DPDT) ÖN duvarın 4. sırasında V jakının üstüne, somun dıştan "
-                 "(AÇ/KAPA ve SWP1 toggle'larıyla aynı sıra).",
+                 "Kaynak seçici SWP2 zaten 5.3'te ön duvara takıldı (V jakının üstü); burada yalnız "
+                 "kablo hazırlığı.",
                  "Cıvata deliklerini iç kat çubuğunun olduğu yerden geçir (4.5 tablosu; şarj yuvasının altı "
                  "tek kat). Denk gelmiyorsa o noktaya içeriden 18 mm'lik çubuk parçası yapıştırıp öyle del."],
          "kontrol": ["Hücreyi tak-çıkar: yuva yerinden oynamıyor.",
@@ -715,8 +812,9 @@ ADIMLAR = [
                  "kablosu ile ESP32'nin USB'si <b>aynı PC'ye/adaptöre takılıyken seçici PİL'e alınmaz</b> — "
                  "hücre 2 eksisi −12 rayıdır, ortak toprak −12'yi GND'ye kısa eder (parça ölmez, ölçüm "
                  "sessizce bozulur).",
-                 "Etiket (arka panele): \"ŞARJ: seçici HARİCİ\". HV ölçümü pil kipinde de USB'siz: kutu "
-                 "tamamen yüzer, en güvenli hal."],
+                 "Etiket (arka panele): \"ŞARJ: seçici HARİCİ\". HV ölçümü pil kipinde USB'siz "
+                 "yapılırsa kutu tamamen yüzer (en güvenli hal) — ama ESP32 olmadan +5/+3V3/VREF yok: "
+                 "ESP32'yi güç bankasından ya da Adım 15'teki hücre 1'den besle."],
          "kontrol": ["TP4056 LED'i şarjda kırmızı, bitince mavi (yuvadan görünüyor).",
                      "Pil kipinde 1 saat ölçüm: kalibrasyon değerleri harici kaynakla aynı (±%0.5)."]},
     ]},
@@ -726,17 +824,20 @@ ADIMLAR = [
                  "modülü ESP32'ye bağlama (28 V ESP32'yi öldürür)."],
          "kontrol": ["MT1 çıkışı 4.95–5.05 V (giriş 3.0–4.2 V'ta)."]},
         {"no": "15.2", "baslik": "Yuva 1, TP1 rafı, MT1 ve SWP1'i tak", "tur": "duvar_parca",
-         "monte": ["YUVA1", "TP1", "MT1", "SWP1"], "vurgu": ["YUVA1", "TP1", "MT1", "SWP1"],
+         "monte": ["YUVA1", "TP1", "MT1"], "vurgu": ["YUVA1", "TP1", "MT1", "SWP1"],
          "yap": ["Arka duvar: YUVA1 alt sıraya (ESP32'nin 6 mm üstü), TP1 rafı sol uca (ŞARJ 1 yuvası), MT1 "
                  "MT2'nin altına (x 42–78, z 24) — hepsi cıvata dıştan somun içeriden.",
-                 "SWP1 toggle ÖN duvarın 4. sırasında YÜK 2 jakının üstüne."],
+                 "SWP1 toggle 5.3'te takıldı (PİL 2 jakının üstü)."],
          "kontrol": ["Hücreyi tak-çıkar: yuva yerinden oynamıyor.", "Type-C fişi ŞARJ 1'den TP1'e giriyor."]},
         {"no": "15.3", "baslik": "ESP32 hücresini kablola", "tur": "pil_kablo", "asama": 2,
          "vurgu": ["YUVA1", "TP1", "MT1", "SWP1"],
          "yap": ["Tabloya göre; hücre takılı değilken. Hücre 1'in eksisi ESP32 GND = kart GND'ye gider (hücre "
                  "2'den farklı: bu hücre kartla ortak topraklı, şarjı her zaman güvenli).",
-                 "MT1 çıkışını ESP32'nin 5V/VIN ve GND pinlerine ayrı iki dişi jumper ile tak (J5 "
-                 "kablosunun 5V teline paralel olur; devkit USB ile diyot-OR yapar).",
+                 "Devkit'te tek 5V pini var ve J5 kablosunun 5V teli oradadır: MT1.OUT+ için J5 kablosunun "
+                 "5V teline <b>çatal</b> yap (1×2 erkek header parçası: bir ucu devkit 5V pinine, öbürüne iki "
+                 "dişi). GND için devkit'in ikinci GND pini.",
+                 "Klon devkit'te VBUS diyotu olmayabilir: USB takılı DEĞİLKEN SWP1'i aç, USB soketinin VBUS "
+                 "ucunda 0 V oku (5 V okursan MT1 USB'ye geri besliyor → MT1.OUT+ hattına 1N5819 seri).",
                  "SWP1 hücre tarafında: kapalıyken MT1 hiç çekmez. USB takılıyken SWP1 KAPALI."],
          "kontrol": ["H1− (TP1.B−) ↔ kart GND (C29): ötmeli.",
                      "H1− ↔ H2− (TP2.B−): <b>ötmemeli</b> (iki hücrenin eksisi ayrı).",
@@ -792,7 +893,7 @@ ON_KOSUL = [
 # ── kalibrasyon (seri konsol komutlari firmware'den) ───────────────────
 # 'en az' esikleri kutu.py firmware/tasarim sabitlerinden hesaplar.
 KALIBRASYON = [
-    ("s0.015", "Şönt değerini gir (15 mΩ)", "Bir kez. Şöntü değiştirirsen tekrar."),
+    ("s0.005", "Şönt değerini gir (5 mΩ takılı)", "Bir kez. 15 mΩ'a geçince s0.015 + Z."),
     ("Z", "Akım sıfırı", "YÜK'e hiçbir şey bağlı değilken."),
     ("i&lt;amper&gt;", "Akım kazancı", "Bilinen akım geçirirken; multimetrenin okuduğunu yaz."),
     ("n", "NORMAL menzile geç", "V kanalı ±32 V."),
@@ -814,11 +915,14 @@ KULLANIM = [
      "(COM = kart GND = USB toprağı). Ölçülen devre toprağa bağlıysa (şebekeli kaynak, "
      "PC'li devre) HV'yi KULLANMA: bu kart yüzen (pil / DC-DC) devreler için.",
      "18.8 mV adım"),
-    ("Akım, ≤ {akim}", "YÜK 1 – YÜK 2",
+    ("Akım, ≤ {akim} sürekli", "YÜK 1 – YÜK 2",
      "Devrenin dönüş hattını kes: devreden gelen uç <b>YÜK 1</b>, kaynağa giden uç "
      "<b>YÜK 2</b>. Aynı anda gerilim için yalnız <b>V jakını</b> devrenin artısına bağla; "
      "<b>COM'a krokodil TAKMA</b> — COM zaten YÜK 2'dir. COM'u devrenin eksisine (YÜK 1 "
-     "tarafı) takarsan şönt baypas olur: okuma düşer, ince kablo ısınır.", "0.52 mA adım"),
+     "tarafı) takarsan şönt baypas olur: okuma düşer, ince kablo ısınır. Sınır 5 mΩ şöntün "
+     "<b>ısınması</b> (Ø2 mm tel, üretici 9.5 A; sürekli {akim}, 13 A birkaç dakika). mA "
+     "hassasiyeti gerekirse 15 mΩ (R044) tak, <code>s0.015</code> + <code>Z</code>: {akim_15m} "
+     "sürekli, adım {adim_15m_uA} mA.", "{adim_uA} mA adım"),
     ("Güç ve enerji (W, Wh)", "V + COM ve YÜK birlikte",
      "Gerilim ve akım aynı anda bağlıysa kart gücü kendi hesaplar; reaktif yükte de doğru.",
      "işaretli, gerçek güç"),
@@ -861,6 +965,10 @@ MALZEME = [
      "not": "Kartın 24 V telleri buraya; kart lehim sökmeden çıkar"},
     {"ad": "Dişi header (3'lü + 1'li konnektör uçları)", "stok": ("1x40 Dişi Header 180°", "Konnektör"),
      "not": "Şönt demeti ve Q1 kapı teli için kesilir"},
+    {"ad": "XP128 10 mm klemens (şönt bacakları + yük kabloları)", "stok": ("XP128 2 Pin Terminal Klemens 10mm", "Konnektör"),
+     "not": "Şönt bacakları (10–11 mm) kutuplara; altlık çubuğuna yapıştırılır, şönt vidayla değişir"},
+    {"ad": "5 mΩ Ø2 şönt (takılı) + 15 mΩ Ø1 (yedek, mA işleri)", "stok": ("5mR Type-C Şönt Direnç 9.5A", "Direnç"),
+     "not": "5 mΩ: 9.5 A sürekli, 1.56 mA adım. 15 mΩ (R044): 3.4 A, 0.52 mA adım; kalibrasyon 12.2'de ikisi de kullanılır"},
     {"ad": "18650 hücre ×2 (pil bloğu)", "stok": ("18650 Li-ion Şarjlı Pil 3.7V 1500mAh", "Güç Kaynağı/Pil"),
      "not": "Başlı hücre: yaylı yuvada başlık temas eder; MEK025 yalıtım contası tak"},
     {"ad": "18650 tekli yuva ×2", "stok": ("18650 Tekli Pil Yuvası", "Güç Kaynağı/Pil"),

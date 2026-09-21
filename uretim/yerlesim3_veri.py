@@ -228,13 +228,15 @@ KART_DISI = {
 # ne gelecek, parca var mi" diye sordu (2026-09-17): kablo alt adiminda
 # plakete parca takilmadigi belgede yazmiyordu.
 KART_DISI_NOTU = {
-    "RS": "15 mΩ Type-C şönt (R044): U biçimli kalın tel, iki bacak, bacaklarda sıkıştırma "
-          "izi. Kutuda durur, plakete GİRMEZ. Kelvin telleri bacaklara, sıkıştırma izinin "
-          "ÜST tarafına (gövdeye yakın) lehimlenir; 'RS.2' saydığın bacağa S−, yıldız GND "
-          "ve J3.2 gider — tutarlı ol.",
+    "RS": "Type-C şönt, kutuda 5 mΩ Ø2 mm (R042, 9.5 A sürekli) takılı; 15 mΩ Ø1 mm (R044, 3.4 A, "
+          "0.52 mA adım) yedek. U biçimli manganin, iki bakır bacak (10–11 mm aralık), bacaklarda sıkıştırma "
+          "boncuğu. Plakete GİRMEZ; bacaklar XP128 10 mm klemense (CON064), yük kabloları aynı vidalara. "
+          "Kelvin telleri bacağa, boncuğun HEMEN ALTINA (bakıra) lehimlenir — vida daha aşağıda; 'RS.2' "
+          "saydığın bacağa S−, yıldız GND ve J3.2 gider — tutarlı ol. Isıl sınır tel çapından (B53).",
     "J3": "YÜK born jak çifti (büyük boy, siyah ×2, panel): J3.1 → yük eksisi, J3.2 → kaynak "
-          "eksisi. Jakların iç ucundan şönt bacaklarına kısa kalın kablo + halka pabuç; akım "
-          "J3.1 → şönt → J3.2 yolunu izler. (Bariyer klemens panele vidalanamıyordu — PCB tipi.)",
+          "eksisi. Jakların iç ucundan şönt klemensine (XP128) kısa kalın kablo — jak tarafı halka pabuç, "
+          "klemens tarafı kalaylı uç; akım J3.1 → şönt → J3.2 yolunu izler. (Bariyer klemens panele "
+          "vidalanamıyordu — PCB tipi.)",
     "J6": "24 V girişi: XT30 (CON058). Kart tarafı ERKEK uç (pimli), güç kaynağı "
           "tarafı DİŞİ uç — gerilim taşıyan taraf kapalı soketli olsun. Kablo yalıtımlı, "
           "kırmızı = +, siyah = −.",
@@ -281,7 +283,7 @@ KABLOLAR = [
     ("X:J4.2", "X:J1.2", "sanal", 6, "skop COM = ortak COM jaki (ayni fiziksel jak, tel yok)"),
     ("X:J2.1", "B:T_HV", "hv", 5, "HV jak -> B karti. 600 V silikon test kablosu"),
     ("B:T_N6", "A:T_HVALT", "sinyal", 5,
-     "zincir alt dugumu (~1.7 V, Thevenin 8.2K). KISA tut (<10 cm), HV "
+     "zincir alt dugumu (~1.7 V, Thevenin 8.2K). KISA tut (kutu planinda B–A arasi 7–13 cm; 15 cm kes, GND ile bur), HV "
      "kablosundan ve 24 V hattindan uzak; B kartini A'nin yanina monte et"),
     ("X:J4.1", "A:T_SKOP", "sinyal", 6, "skop girisi"),
 ]

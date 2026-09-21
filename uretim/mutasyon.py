@@ -91,14 +91,14 @@ MUTASYONLAR = [
      "somun tutmaz"),
     ("B50", "kutu.py", "uretim/kutu_veri.py", '"direk_kat": 3,', '"direk_kat": 2,',
      "kose diregi 4 mm'ye inerse M3 civatayi tasiyamaz: et kalinligi iddiasi kirmizi"),
-    ("B50", "kutu.py", "uretim/kutu_veri.py", '("s0.015"', '("s0.15"',
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '("s0.005"', '("s0.05"',
      "kalibrasyon komutundaki sont degeri tasarim sabitinden kayarsa iddia kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py", '"uc_egim": 10.0', '"uc_egim": 0.0',
      "cubugun yuvarlak uclari unutulursa (duz bolum = tam boy) kesim iddiasi "
      "kirmizi olmali — parcalar yuvarlak bolgeye tasar"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '"nasil": "Tek çubuk altlığa kablo bağıyla; bacakları serbest, hava alsın. "',
-     '"nasil": "Tabana sıcak silikonla yapıştırılır; bacakları serbest, hava alsın. "',
+     '"nasil": "Bacakları (5 mΩ\'da 11 mm aralık — 10.16\'ya hafif bük) <b>XP128 10 mm klemense</b> "',
+     '"nasil": "Bacakları tabana sıcak silikonla yapıştırılır <b>XP128 10 mm klemense</b> "',
      "bir ic parca YAPISTIRILARAK tutturulursa sokulebilirlik iddiasi kirmizi "
      "olmali (kullanici ileride baska kaba gececek)"),
     # B50g — yeni iddialar
@@ -160,7 +160,7 @@ MUTASYONLAR = [
      'PIL_SECICI = {"PİL": [("SWP2.P1", "SWP2.A1"), ("SWP2.P2", "SWP2.A2"), ("SWP2.P2", "SWP2.B2")],',
      "secici tek kutuplu olsaydi (eksiler ortak) PIL konumunda XT30 eksisi -12'ye baglanir: iddia kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '"duvar": "arka", "x": 92.0, "z": 22.0,', '"duvar": "arka", "x": 92.0, "z": 12.0,',
+     '"duvar": "arka", "x": 92.0, "z": 36.0,', '"duvar": "arka", "x": 92.0, "z": 32.0,',
      "yuva ESP32'nin ustune 6 mm'den yakin inerse 3B pay iddiasi kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      "PC'deyken seçici PİL'e ALINMAZ (hücre 2 eksisi = −12 rayı).", "PC'deyken seçici PİL'e alınabilir (hücre 2 eksisi = −12 rayı).",
@@ -176,6 +176,27 @@ MUTASYONLAR = [
      '"Japonu üst-orta-alt üç ince çizgi sür, tek seferde doğru yere koy, 30 s bastır. Sıcak "',
      '"Sıcak silikonu üst-orta-alt üç noktaya sür, tek seferde doğru yere koy, 30 s bastır. Sıcak "',
      "ic kat adimi yeniden sicak silikon derse (2 mm kat kalinlasir, delikler hizasiz) metin iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "SONT_TAKILI = 0.005", "SONT_TAKILI = 0.015",
+     "takili sont yanlislikla 15 mOhm kalirsa (3.4 A) '>= 10 A istegi' iddiasi ve kalibrasyon komutu kirmizi"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "SONT_TEL_CAP_MM = {0.015: 1.0, 0.005: 2.0}", "SONT_TEL_CAP_MM = {0.015: 2.0, 0.005: 2.0}",
+     "15 mOhm sontun teli olculen 1 mm yerine 2 mm sanilirsa isil sinir 9.5 A'e cikar: '5 A'in altinda' "
+     "iddiasi kirmizi — 2 W varsayimi (11.5 A) parcayi eritirdi (B53)"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "    (\"TP2.OUT+\", \"SW.2a\", \"pil\", \"korumalı çıkış → AÇ/KAPA'nın 2. kutbu (hücre 2 kesme; B54)\"),\n"
+     "    (\"SW.2b\", \"MT2.IN+\", \"pil\", \"AÇ/KAPA kapalıyken MT2 hiç çekmez\"),",
+     "    (\"TP2.OUT+\", \"MT2.IN+\", \"pil\", \"korumalı çıkış\"),",
+     "hucre 2 dogrudan MT2'ye baglanirsa (kesme yok) bosta 1-4 mA pili haftalarda bitirir: iddia kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "    (\"SWP2.P1\", \"F0.1\", \"besleme\", \"seçici ortak (kutup 1) → kutu sigortası F0 (1 A)\"),\n"
+     "    (\"F0.2\", \"SW.1\", \"besleme\", \"F0 → AÇ/KAPA (kutup 1)\"),",
+     "    (\"SWP2.P1\", \"SW.1\", \"besleme\", \"seçici ortak → AÇ/KAPA\"),",
+     "kutu sigortasi F0 yoldan cikarsa kutu ici kablolama 8.3 A'lik kaynaga ciplak kalir: iddia kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"en": 26.0, "boy": 63.0, "yuk": 28.0, "soket_x_ofset": 13.0,', '"en": 26.0, "boy": 63.0, "yuk": 14.0, "soket_x_ofset": 13.0,',
+     "ESP32 yuksekligi yine ciplak pin ucu (14) sanilirsa yuva dupont'larin ustune biner — ama iddia YESIL kalir: "
+     "bu mutasyon 'dupont payi' iddiasinin OLMADIGINI gosterir; kutu.py'ye ESP32.yuk >= 26 iddiasi eklendi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      '("0.9", "İlk elektrik', '("0.99", "İlk elektrik',
      "on kosul yerlesim planinda olmayan bir alt adima isaret ederse iddia kirmizi "

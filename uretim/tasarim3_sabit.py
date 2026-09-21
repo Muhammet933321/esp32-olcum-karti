@@ -714,7 +714,11 @@ _RV_B16 = (KANALLAR[0]["rust"] * KANALLAR[0]["ralt"]
            / (KANALLAR[0]["rust"] + KANALLAR[0]["ralt"])) + RC_R
 _RI_B16 = 2 * SONT_KELVIN_R + 2 * ADS_SERI_R
 ADS_AKIM_C_IDEAL = _RV_B16 * RC_C / _RI_B16
-SONT_SECENEK = (10.0, 1.0, 0.1, 0.015)    # takilabilen sont degerleri
+SONT_SECENEK = (10.0, 1.0, 0.1, 0.015, 0.005)   # takilabilen sont degerleri
+# B53b (2026-09-21): kullanici ">= 10 A olcmek istiyorum" -> kutuda TAKILI sont
+# 5 mOhm Ø2 mm (R042, uretici 9.5 A surekli); 15 mOhm (R044) yedek — mA
+# hassasiyeti gerekince klemens vidasiyla degistirilir (`s0.015`, `Z`).
+SONT_TAKILI = 0.005
 
 # 🔴 B20 (2026-09-10) — SONTUN ISIL SINIRI, ADC'NIN DEGIL.
 # "±11.5 A" rakami UC dosyada elle yaziliydi (arayuz3/index.html,
@@ -727,8 +731,34 @@ SONT_SECENEK = (10.0, 1.0, 0.1, 0.015)    # takilabilen sont degerleri
 # ⚠ 2 W bir CIKARIM: 11.547 rakamindan geri turetildi (DEVIR 2.3).
 #   Sont HENUZ GELMEDI. Parca elde olunca uzerindeki/veri sayfasindaki
 #   guc degeri okunup BURASI duzeltilmeli — tezgah listesinde var.
-SONT_GUC_W = 2.0                          # cikarim, parca gelince teyit et
-SONT_AKIM_ISIL = {r: math.sqrt(SONT_GUC_W / r) for r in SONT_SECENEK}
+# 🔴 B53 (2026-09-21) — PARCA GELDI, 2 W YANLISTI. Kullanici olctu:
+#   15 mOhm (R044): tel capi ~1 mm, bacak araligi 10 mm, U boyu ~16 mm
+#   5 mOhm  (R042 "9.5 A" surumu, R043): tel capi ~2 mm, aralik 11 mm
+# Uretici yalnizca 5 mOhm/Ø2 icin akim veriyor (9.5 A). Isil sinir yuzey
+# yogunlugundan turetilir: manganin uzunlugu L = R*A/rho, yuzey S = pi*d*L,
+# izin verilen guc P = q*S; q, 9.5 A'lik referanstan (0.45 W / 2.3 cm^2 =
+# 0.20 W/cm^2, ~40-50 K isinma) kalibre edilir. Sonuc: I_isil = I_ref *
+# (d/d_ref)^1.5 — R'den BAGIMSIZ, yalniz tel capina bagli:
+#   Ø1 mm -> 9.5 * 0.354 = 3.4 A surekli.  2 W varsayimi (11.5 A) Ø1 mm
+#   telde ~250-400 K isinma demekti — lehim erir. Kisa darbeler ayri: 0.18 g
+#   manganin, 0.07 J/K -> 11.5 A'de 27 K/s (1 s'lik darbe zararsiz).
+MANGANIN_RHO = 4.3e-7                     # ohm*m (43 uOhm*cm; 43-48 araligi)
+SONT_TEL_CAP_MM = {0.015: 1.0, 0.005: 2.0}            # olculen (2026-09-21)
+SONT_REF = (0.005, 2.0, 9.5)              # (R, tel capi mm, uretici surekli akim A) — R042
+SONT_GUC_W = 2.0                          # ELDE OLMAYAN buyuk sontlar (10/1/0.1 ohm) icin eski varsayim
+
+
+def _sont_yuzey_cm2(r: float, d_mm: float) -> float:
+    a = math.pi * (d_mm * 1e-3) ** 2 / 4
+    L = r * a / MANGANIN_RHO
+    return math.pi * (d_mm * 1e-3) * L * 1e4
+
+
+SONT_GUC_YOGUNLUK = (SONT_REF[2] ** 2 * SONT_REF[0]) / _sont_yuzey_cm2(SONT_REF[0], SONT_REF[1])   # W/cm^2
+SONT_GUC = {r: (SONT_GUC_YOGUNLUK * _sont_yuzey_cm2(r, SONT_TEL_CAP_MM[r]) if r in SONT_TEL_CAP_MM else SONT_GUC_W)
+            for r in SONT_SECENEK}
+SONT_AKIM_ISIL = {r: math.sqrt(SONT_GUC[r] / r) for r in SONT_GUC}
+SONT_ISIL_KAPASITE_J_K = 0.07             # Ø1 mm x 27 mm manganin, 8.4 g/cm3, 0.41 J/gK (darbe hesabi)
 
 # ── Hizli akim yolu (BLOK 8)
 HIZLI_RG = 10e3                           # R27 / R29
