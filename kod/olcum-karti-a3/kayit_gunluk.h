@@ -69,6 +69,7 @@ typedef struct KayitGunluk_ {
     uint32_t     bozuk;                /* son kg_ac'ta atilan cop/yarim */
     uint32_t     silinen_sektor;       /* son kg_ac'tan beri temizlik */
     uint8_t      dolu;
+    uint8_t      oku_hata;            /* son kg_ac'ta flas OKUNAMADI */
 } KayitGunluk;
 
 typedef void (*KgBesle)(KayitGunluk *g, const KayitBaslik *h, uint32_t adres);
@@ -90,7 +91,9 @@ static inline int kg_kur(KayitGunluk *g, const KayitFlas *f, uint32_t sektor_ade
     return KG_TAMAM;
 }
 
-/* `adres`teki kaydi dogrula. 1 gecerli, 0 bos, -1 cop/yarim. */
+/* `adres`teki kaydi dogrula. 1 gecerli, 0 bos, -1 cop/yarim, -2 OKUMA HATASI.
+   Okunamayan veri cop DEGILDIR: cop sayilsaydi sektor bos isaretlenir ve
+   onaysiz veri silinirdi (son inceleme bulgu 4). */
 static inline int8_t kg__kayit_dogrula(KayitGunluk *g, uint32_t adres,
                                        uint32_t sektor_sonu, KayitBaslik *h)
 {
@@ -98,7 +101,7 @@ static inline int8_t kg__kayit_dogrula(KayitGunluk *g, uint32_t adres,
     uint32_t c, kalan, a;
     int8_t d;
     if (adres + KAYIT_BASLIK_BAYT > sektor_sonu) return 0;
-    if (g->f.oku(g->f.baglam, adres, b, KAYIT_BASLIK_BAYT)) return -1;
+    if (g->f.oku(g->f.baglam, adres, b, KAYIT_BASLIK_BAYT)) return -2;
     d = kayit_baslik_coz(b, h);
     if (d <= 0) return d;
     if (adres + kayit_toplam_bayt(h->yuk_bayt) > sektor_sonu) return -1;
@@ -107,7 +110,7 @@ static inline int8_t kg__kayit_dogrula(KayitGunluk *g, uint32_t adres,
     kalan = h->yuk_bayt;
     while (kalan) {
         uint32_t n = kalan < KG__PARCA ? kalan : KG__PARCA;
-        if (g->f.oku(g->f.baglam, a, parca, n)) return -1;
+        if (g->f.oku(g->f.baglam, a, parca, n)) return -2;
         c = kayit_crc_ekle(c, parca, n);
         a += n;
         kalan -= n;
@@ -122,7 +125,7 @@ static inline uint8_t kg__ff_mi(KayitGunluk *g, uint32_t a, uint32_t son)
         uint32_t n = son - a;
         uint8_t i;
         if (n > KG__PARCA) n = KG__PARCA;
-        if (g->f.oku(g->f.baglam, a, parca, n)) return 0u;
+        if (g->f.oku(g->f.baglam, a, parca, n)) { g->oku_hata = 1u; return 0u; }
         for (i = 0; i < (uint8_t)n; i++) {
             if (parca[i] != 0xFFu) return 0u;
         }
@@ -141,8 +144,7 @@ static inline KayitOzet *kg__ozet(KayitGunluk *g, uint32_t id)
     }
     if (!g->dizin_kap) return 0;
     if (g->dizin_adet == g->dizin_kap) {        /* en eskiyi dusur */
-        memmove(&g->dizin[0], &g->dizin[1],
-                (size_t)(g->dizin_kap - 1u) * sizeof(KayitOzet));
+        memmove(&g->dizin[0], &g->dizin[1], (size_t)(g->dizin_kap - 1u) * sizeof(KayitOzet));
         g->dizin_adet--;
     }
     o = &g->dizin[g->dizin_adet++];
@@ -201,7 +203,7 @@ static inline void kg__besle(KayitGunluk *g, const KayitBaslik *h, uint32_t adre
 {
     uint8_t y[20];
     uint16_t n = (uint16_t)(h->yuk_bayt < 20u ? h->yuk_bayt : 20u);
-    if (n && g->f.oku(g->f.baglam, adres + KAYIT_BASLIK_BAYT, y, n)) return;
+    if (n && g->f.oku(g->f.baglam, adres + KAYIT_BASLIK_BAYT, y, n)) { g->oku_hata = 1u; return; }
     kg__dizin_isle(g, h, adres, y, n);
 }
 
@@ -224,7 +226,10 @@ static inline uint32_t kg__sektor_tara(KayitGunluk *g, uint32_t s, KgBesle besle
         if (besle) besle(g, &h, a);
         a += kayit_toplam_bayt(h.yuk_bayt);
     }
-    if (d < 0) {
+    if (d == -2) {
+        g->oku_hata = 1u;          /* okunamayan veri COP DEGIL */
+        *temiz = 0u;
+    } else if (d < 0) {
         g->bozuk++;
         *temiz = 0u;
     } else {
@@ -233,9 +238,15 @@ static inline uint32_t kg__sektor_tara(KayitGunluk *g, uint32_t s, KgBesle besle
     return a - bas;
 }
 
-/* KURTARMA. `sira_taban`: bu siranin altinda numara verilmez (bicimleme
-   sonrasi NVS'ten gelir; 1A-2). */
-static inline int kg_ac(KayitGunluk *g, uint32_t sira_taban)
+/* KURTARMA.
+   `sira_taban`: bu siranin altinda numara verilmez (bicimleme sonrasi;
+   1A-2'de NVS'ten gelir).
+   `onay_taban`: kalici saklanan onay (1A-2'de NVS). Verilmezse (0) halka
+   bir kez dolduktan sonra her yeniden baslamada eşitlenmis veri de
+   "onaysiz" sayilir ve kayit ~bir sektor sonra DOLU'ya duser (son inceleme
+   bulgu 1). Guvenilir kaynak oldugu icin sonraki_sira-1'e KIRPILIR.
+   Donus KG_HATA: flas okunamadi — gunluk KULLANILMAZ, tekrar denenir. */
+static inline int kg_ac(KayitGunluk *g, uint32_t sira_taban, uint32_t onay_taban)
 {
     uint32_t s, i, en_ilk = 0u, en_son = 0u, bas = 0u, ofset;
     uint8_t temiz, bos = 1u;
@@ -245,10 +256,12 @@ static inline int kg_ac(KayitGunluk *g, uint32_t sira_taban)
     g->bozuk = 0u;
     g->silinen_sektor = 0u;
     g->dolu = 0u;
+    g->oku_hata = 0u;
     /* 1. gecis: en yeni sektor = ilk kaydinin sirasi en buyuk olan */
     for (s = 0; s < g->sektor_adet; s++) {
-        if (kg__kayit_dogrula(g, s * KAYIT_SEKTOR, (s + 1u) * KAYIT_SEKTOR, &h) == 1
-            && h.sira > en_ilk) {
+        int8_t d = kg__kayit_dogrula(g, s * KAYIT_SEKTOR, (s + 1u) * KAYIT_SEKTOR, &h);
+        if (d == -2) return KG_HATA;
+        if (d == 1 && h.sira > en_ilk) {
             en_ilk = h.sira;
             bas = s;
             bos = 0u;
@@ -263,9 +276,11 @@ static inline int kg_ac(KayitGunluk *g, uint32_t sira_taban)
         if (g->sektor[s].son > en_son) en_son = g->sektor[s].son;
         if (s == bas && temiz) g->bas_ofset = ofset;
     }
+    if (g->oku_hata) return KG_HATA;     /* okunamayan sektor bos SANILMASIN: silinirdi */
     if (bos) { g->bas = g->sektor_adet - 1u; g->bas_ofset = KAYIT_SEKTOR; }
     g->sonraki_sira = en_son + 1u;
     if (g->sonraki_sira < sira_taban) g->sonraki_sira = sira_taban;
+    g->onay = (onay_taban < g->sonraki_sira) ? onay_taban : g->sonraki_sira - 1u;
     return KG_TAMAM;
 }
 
@@ -329,26 +344,32 @@ static inline int32_t kg_ekle(KayitGunluk *g, uint8_t tur, uint32_t oturum,
     h.crc = kayit_o32(b + 12);
     adres = g->bas * KAYIT_SEKTOR + g->bas_ofset;
     dolgu = toplam - KAYIT_BASLIK_BAYT - yuk_bayt;
+    /* Sira yazmadan ONCE harcanir: yazma yarida kalsa bile flasta gecerli
+       bir kayit kalmis olabilir; numara tekrar verilmesin (bulgu 4). */
+    g->sonraki_sira = h.sira + 1u;
     if (g->f.yaz(g->f.baglam, adres, b, KAYIT_BASLIK_BAYT)
         || (yuk_bayt && g->f.yaz(g->f.baglam, adres + KAYIT_BASLIK_BAYT, yuk, yuk_bayt))
         || (dolgu && g->f.yaz(g->f.baglam, adres + KAYIT_BASLIK_BAYT + yuk_bayt,
                               sifir, dolgu))) {
-        g->bas_ofset = KAYIT_SEKTOR;   /* sektorun durumu belirsiz: bir daha yazma */
-        return KG_HATA;
+        g->bas_ofset = KAYIT_SEKTOR; return KG_HATA;   /* sektor belirsiz; sira HARCANDI */
     }
     if (!g->sektor[g->bas].ilk) g->sektor[g->bas].ilk = h.sira;
     g->sektor[g->bas].son = h.sira;
     g->bas_ofset += toplam;
-    g->sonraki_sira = h.sira + 1u;
     kg__dizin_isle(g, &h, adres, yuk, (uint16_t)(yuk_bayt < 20u ? yuk_bayt : 20u));
     return (int32_t)h.sira;
 }
 
-/* Bir cihaz `sira`ya kadar KALICI aldigini bildirdi. */
-static inline void kg_onayla(KayitGunluk *g, uint32_t sira)
+/* Bir cihaz `sira`ya kadar KALICI aldigini bildirdi.
+   Hic verilmemis bir sira (>= sonraki_sira) REDDEDILIR (KG_HATA): boyle bir
+   onay bozuk ya da ESKI bir istemciden gelir (ornegin bicimlemeden once
+   esitlenmis bir cihaz). Kirpilsaydi hic gonderilmemis veriyi onaylar ve
+   silinmesine izin verirdi (son inceleme bulgu 3). */
+static inline int kg_onayla(KayitGunluk *g, uint32_t sira)
 {
-    if (g->sonraki_sira && sira >= g->sonraki_sira) sira = g->sonraki_sira - 1u;
+    if (sira >= g->sonraki_sira) return KG_HATA;
     if (sira > g->onay) g->onay = sira;
+    return KG_TAMAM;
 }
 
 /* Esitleme: `sira` ve sonrasini, flasta nasilsa oyle, `kap` bayta kadar
@@ -430,8 +451,11 @@ static inline uint16_t kg_binde(const KayitGunluk *g, uint32_t bayt)
                       / ((uint64_t)g->sektor_adet * KAYIT_SEKTOR));
 }
 
-/* Dizindeki `basla_adres`ten oturumun BASLA/TEKRAR bilgisini oku. */
-static inline int kg_basla_oku(KayitGunluk *g, uint32_t adres, KayitBasla *b)
+/* Dizindeki `basla_adres`ten oturumun BASLA/TEKRAR bilgisini oku. Kayit
+   BASKA bir oturuma aitse (bayat adres) KG_HATA: yoksa baska oturumun
+   kalibrasyonuyla surdurulurdu (son inceleme bulgu 5). */
+static inline int kg_basla_oku(KayitGunluk *g, uint32_t adres, uint32_t oturum,
+                               KayitBasla *b)
 {
     uint8_t p[KAYIT_BASLA_BAYT];
     KayitBaslik h;
@@ -442,10 +466,25 @@ static inline int kg_basla_oku(KayitGunluk *g, uint32_t adres, KayitBasla *b)
     if (kg__kayit_dogrula(g, adres, (s + 1u) * KAYIT_SEKTOR, &h) != 1) return KG_HATA;
     if ((h.tur != KAYIT_T_BASLA && h.tur != KAYIT_T_TEKRAR)
         || h.yuk_bayt != KAYIT_BASLA_BAYT) return KG_HATA;
+    if (h.oturum != oturum) return KG_HATA;
     if (g->f.oku(g->f.baglam, adres + KAYIT_BASLIK_BAYT, p, KAYIT_BASLA_BAYT))
         return KG_HATA;
     kayit_basla_coz(p, b);
     return KG_TAMAM;
+}
+
+/* Surdurulecek ACIK oturum = dizindeki EN YENI ACIK oturum. Daha eski ACIK
+   oturumlar yetimdir (BITIR'leri yazilamamis; ornegin bellek doluyken kafa
+   sektoru yarim kaldi) ve SURDURULMEZ — surdurulseydi yeni veri eski
+   oturuma yazilirdi (son inceleme bulgu 2). */
+static inline const KayitOzet *kg_acik_oturum(const KayitGunluk *g)
+{
+    const KayitOzet *o = 0;
+    uint16_t i;
+    for (i = 0; i < g->dizin_adet; i++) {
+        if (g->dizin[i].durum == KD_ACIK) o = &g->dizin[i];
+    }
+    return o;
 }
 
 #endif /* KAYIT_GUNLUK_H */

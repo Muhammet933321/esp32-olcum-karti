@@ -8518,6 +8518,38 @@ fiş çekme (Ö2: kayıp ≤ ~5 s) · emüle NOR modelinin gerçek ESP32 flaşı
 temsil edip etmediği (RTS sıfırlamasıyla 100 kesme) · Python çözücünün
 volt/amper çevriminin kartın D satırıyla aynı olması.
 
+**Son bağımsız inceleme (tek inceleyici, taze bağlam) — "düzeltmelerle":
+Kritik 0, Önemli 6.** Hepsi planın tasarım boşluğuydu (uygulama planla
+birebirdi); tek düzeltme turunda, her biri önce kırmızıyı gösteren testle:
+
+| # | Bulgu | Etkisi | Düzeltme · test |
+|---|---|---|---|
+| 1 | Onay yalnız RAM'de, `kg_ac` sıfırlıyordu | Halka bir kez dolduktan sonra her yeniden başlamada eşitlenmiş veri "onaysız" sayılır, kayıt ~1 sektör sonra DOLU'ya düşerdi | `kg_ac(g, sira_taban, onay_taban)` · G6b |
+| 2 | Kafa sektörü yarımken + bellek onaysız veriyle doluyken BITIR(DOLU) yazılamıyor | Oturum ACIK kalır; iki ACIK oturumda yanlışı sürdürülebilirdi | **Kısmen:** `kg_acik_oturum()` EN YENİ ACIK'ı seçer (D4). Yedek-sektör garantisi 1A-2'ye |
+| 3 | Olmayan bir sıraya gelen onay kırpılıyordu | Eski bir cihaz (ör. biçimlemeden önce eşitlenmiş) hiç gönderilmemiş veriyi sildirebilirdi | `kg_onayla` reddeder (KG_HATA) · G6 |
+| 4 | G/Ç hata yolları | Okuma hatası çöp sayılıp onaysız veri silinebilirdi; yarım yazma sırayı tekrar veriyordu | `kg_ac` okuma hatasında açmayı reddeder (G17, iki geçiş) · sıra yazmadan ÖNCE harcanır (G18) · emüle NOR'a arıza enjeksiyonu (0xE5/0xE6, N8/N9) |
+| 5 | Dizin bakımı testsizdi (iki mutasyon 74/74 geçiyordu) | 1A-2'nin oturum listesi ve DEVAM'ı buna dayanacak | DIZIN senaryosu: tahliye (D1), canlı dizin = flaştan kurulan (D2), `kg_basla_oku` oturum kimliğini doğrular (D3) |
+| 6 | Biçim sürümü yazılmıyor, bilinmeyen tür bozuk sayılıyordu | 1C yeni tür ekleyince eski uygulamanın eşitlemesi kırılırdı | BASLA bayt 2–3 = biçim sürümü (B12) · bilinmeyen tür CRC doğruysa geçerli (B13, G16) |
+
+**Güncel sayılar:** `test_kayit.py` **88/88** · mutasyon B71 **24/24**
+(1230 s) · zincir **20/20** (657 s) · `--kesinti 1000` **88/88** (348 s;
+92 kesik silme, 195 yarım kayıt, 560 DEVAM, veride bozulma yok).
+Ertelenen 12 küçük bulgu ve inceleyicinin kapsam dışı bıraktığı 10 madde,
+çalışma defterinde karar satırı olarak duruyor.
+
+**1A-2 devir notları (inceleme):**
+- NVS'te iki değer: `onay` (hız sınırlı yazım) ve `sira_taban`; `sira_taban`
+  **biçimlemeden ÖNCE** yazılmalı (yoksa yarıda kesilen biçimleme numarayı
+  başa döndürebilir).
+- Bütün `kg_*` / `ky_*` çağrıları tek kilidin arkasından (kayıt görevi +
+  web eşitleme uçları).
+- `kg_ac` süresi dolu 2912 sektörde ölçülecek (tahmin birkaç saniye; büyük
+  okuma parçası ya da `esp_partition_mmap`).
+- B10'u gerçek ESP32 derleyicisiyle tekrarla (`-ffp-contract=off`; FMA
+  mikrowatt yuvarlamasını değiştirebilir).
+- Bulgu 2'nin kalanı: bir yedek sektör ayrılıp ayrılmayacağı (kafa yarımken
+  BITIR(DOLU)/DEVAM her zaman yazılabilsin).
+
 **Sırada: 1A-2** — bölüm tablosu (`partitions.csv`; nvs 0x9000/0x5000
 yerinde), çekirdek 0 kayıt görevi, `G` komutu ve durum satırı, `/kayit/*`
 uçları, NTP, eşitleme istemcisi, tezgah ölçümleri (flaş durmasının ölçüme

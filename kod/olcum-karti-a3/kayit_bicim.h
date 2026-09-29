@@ -11,7 +11,9 @@
  *
  * KAYIT = 16 bayt baslik + yuk + 0..3 bayt SIFIR dolgu (4'un katina):
  *    0  u8   imza 0xA5  (silinmis flas 0xFF: bos yer boyle taninir)
- *    1  u8   tur        KAYIT_T_*
+ *    1  u8   tur        KAYIT_T_*. BILINMEYEN tur de GECERLI (CRC karar
+ *                       verir): 1C yeni turler ekleyecek, eski cozucu
+ *                       onlari tasiyip atlamali, kaydi bozuk saymamali.
  *    2  u16  yuk_bayt
  *    4  u32  sira       kartin BUTUN kayitlari icin artan sira (>= 1),
  *                       asla tekrar verilmez
@@ -52,7 +54,7 @@
 #define KAYIT_T_BITIR   4u   /* oturum bitti */
 #define KAYIT_T_SAAT    5u   /* kart ms <-> unix eslemesi */
 #define KAYIT_T_TEKRAR  6u   /* BASLA'nin sektor basi kopyasi (ayni yuk) */
-#define KAYIT_T_AZAMI   6u
+#define KAYIT_T_AZAMI   6u   /* bilinen en buyuk tur (gecerlilik siniri DEGIL) */
 
 /* nokta bayraklari */
 #define KN_YUKSEK      0x01u  /* nokta YUKSEK gerilim menzilinde */
@@ -174,7 +176,7 @@ static inline int8_t kayit_baslik_coz(const uint8_t *b, KayitBaslik *h)
     }
     if (hepsi_ff) return 0;
     if (b[0] != KAYIT_IMZA) return -1;
-    if (b[1] < 1u || b[1] > KAYIT_T_AZAMI) return -1;
+    if (b[1] == 0u || b[1] == 0xFFu) return -1;   /* bilinmeyen tur gecerli; CRC karar verir */
     h->tur = b[1];
     h->yuk_bayt = kayit_o16(b + 2);
     h->sira = kayit_o32(b + 4);
@@ -230,7 +232,8 @@ static inline void kayit_nokta_coz(const uint8_t *p, KayitNokta *k)
 }
 
 /* ─────────────────────────────── BASLA (98 bayt)
- *    0 u8 oturum_turu · 1 u8 kal_bicim · 2 u16 0 · 4 u32 hiz_ms ·
+ *    0 u8 oturum_turu · 1 u8 kal_bicim · 2 u16 bicim surumu (KAYIT_SURUM) ·
+ *    4 u32 hiz_ms ·
  *    8 u32 unix_s (0 = bilinmiyor) · 12 u32 kart_ms · 16 u32 acilis ·
  *   20 char[16] surum · 36 kalibrasyon v1 (62 bayt):
  *   36 kanal normal (n f32, pga f32, kazanc f32, sifir_ham i16, tau f32)
@@ -254,6 +257,7 @@ typedef struct {
 
 typedef struct {
     uint8_t  oturum_turu, kal_bicim;
+    uint16_t bicim_surum;          /* cozulen kayitta: yazildigi bicim (KAYIT_SURUM) */
     uint32_t hiz_ms, unix_s, kart_ms, acilis;
     char     surum[16];
     KayitKalibrasyon kal;
@@ -281,8 +285,7 @@ static inline void kayit_basla_paketle(const KayitBasla *b, uint8_t *p)
 {
     p[0] = b->oturum_turu;
     p[1] = b->kal_bicim;
-    p[2] = 0u;
-    p[3] = 0u;
+    kayit_y16(p + 2, (uint16_t)KAYIT_SURUM);   /* kayit hangi bicimde yazildigini soyler */
     kayit_y32(p + 4, b->hiz_ms);
     kayit_y32(p + 8, b->unix_s);
     kayit_y32(p + 12, b->kart_ms);
@@ -303,6 +306,7 @@ static inline void kayit_basla_coz(const uint8_t *p, KayitBasla *b)
 {
     b->oturum_turu = p[0];
     b->kal_bicim = p[1];
+    b->bicim_surum = kayit_o16(p + 2);
     b->hiz_ms = kayit_o32(p + 4);
     b->unix_s = kayit_o32(p + 8);
     b->kart_ms = kayit_o32(p + 12);

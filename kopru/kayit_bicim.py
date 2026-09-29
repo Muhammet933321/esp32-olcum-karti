@@ -80,7 +80,8 @@ def _kayit_oku(veri: bytes, a: int, son: int) -> tuple[int, Kayit | None]:
     if b == b"\xff" * BASLIK_BAYT:
         return 0, None
     imza, tur, n, sira, oturum, c = struct.unpack("<BBHIII", b)
-    if imza != IMZA or not T_BASLA <= tur <= T_TEKRAR or sira in (0, 0xFFFFFFFF):
+    # bilinmeyen tur GECERLI (C ile ayni): ileride eklenen turler esitlemeyi kirmasin
+    if imza != IMZA or tur in (0, 0xFF) or sira in (0, 0xFFFFFFFF):
         return -1, None
     if a + toplam_bayt(n) > son:
         return -1, None
@@ -182,6 +183,7 @@ class Basla:
     acilis: int
     surum: str
     kal: Kalibrasyon
+    bicim_surum: int = SURUM       # cozulen kayitta: yazildigi bicim
 
 
 def _kanal_paketle(k: Kanal) -> bytes:
@@ -190,7 +192,7 @@ def _kanal_paketle(k: Kanal) -> bytes:
 
 def basla_paketle(b: Basla) -> bytes:
     k = b.kal
-    return (_BASLA_BAS.pack(b.oturum_turu, b.kal_bicim, 0, b.hiz_ms,
+    return (_BASLA_BAS.pack(b.oturum_turu, b.kal_bicim, SURUM, b.hiz_ms,
                             b.unix_s, b.kart_ms, b.acilis,
                             b.surum.encode("ascii")[:16].ljust(16, b"\0"))
             + _kanal_paketle(k.normal) + _kanal_paketle(k.yuksek)
@@ -199,14 +201,14 @@ def basla_paketle(b: Basla) -> bytes:
 
 
 def basla_coz(y: bytes) -> Basla:
-    tur, kb, _, hiz, unix, kms, acilis, surum = _BASLA_BAS.unpack_from(y, 0)
+    tur, kb, bs, hiz, unix, kms, acilis, surum = _BASLA_BAS.unpack_from(y, 0)
     a = _BASLA_BAS.size
     normal = Kanal(*_KANAL.unpack_from(y, a))
     yuksek = Kanal(*_KANAL.unpack_from(y, a + _KANAL.size))
     io, ip, so, idz, sh, f0, f1 = _AKIM.unpack_from(y, a + 2 * _KANAL.size)
     return Basla(tur, kb, hiz, unix, kms, acilis,
                  surum.rstrip(b"\0").decode("ascii", "replace"),
-                 Kalibrasyon(normal, yuksek, io, ip, so, idz, sh, (f0, f1)))
+                 Kalibrasyon(normal, yuksek, io, ip, so, idz, sh, (f0, f1)), bs)
 
 
 def devam_coz(y: bytes) -> dict:

@@ -32,7 +32,8 @@ sys.path.insert(0, str(BURASI))
 sys.path.insert(0, str(KOK / "kopru"))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from avr.nor_flas import NorFlas, A0, A1, A2, VERI, KOMUT, SIL   # noqa: E402
+from avr.nor_flas import (NorFlas, A0, A1, A2, VERI, KOMUT, SIL,  # noqa: E402
+                          ARIZA_OKU, ARIZA_YAZ)
 from avr import mega328                          # noqa: E402
 from avr.cekirdek import Cekirdek                # noqa: E402
 from avr.elf import flash_goruntusu              # noqa: E402
@@ -121,6 +122,25 @@ def bolum_nor() -> None:
         ok("B71.N7 alan disi okuma sessiz gecmez", False)
     except IndexError:
         ok("B71.N7 alan disi okuma sessiz gecmez", True)
+    # Son inceleme (bulgu 4): hata yollari sinanabilsin diye ariza enjeksiyonu.
+    f = NorFlas(1024, sektor=512)
+    f.tak(k)
+    f.bellek[0:4] = b"\x11\x22\x33\x44"
+    y[ARIZA_OKU](2)
+    adres(0)
+    ilk, ikinci = o[VERI](), o[VERI]()
+    d1, d2 = o[KOMUT](), o[KOMUT]()
+    ok("B71.N8 okuma arizasi: n. bayt bozulur, durum biti 1 bir kez okunur",
+       ilk == 0x11 and ikinci == 0xFF and d1 & 2 and not d2 & 2,
+       f"{ilk:#x} {ikinci:#x} durum {d1} {d2}")
+    y[ARIZA_YAZ](1)
+    adres(0x100)
+    y[VERI](0x00)
+    y[VERI](0x00)
+    d1 = o[KOMUT]()
+    ok("B71.N9 yazma arizasi: bayt ve ardindakiler PROGRAMLANMAZ, durum biti 1",
+       f.bellek[0x100] == 0xFF and f.bellek[0x101] == 0xFF and d1 & 2,
+       f"{f.bellek[0x100]:#x} {f.bellek[0x101]:#x} durum {d1}")
 
 
 # ── ortak yardimcilar ─────────────────────────────────────────────────
@@ -261,6 +281,20 @@ def bolum_bicim() -> None:
     ok("B71.B11 volt(): sifir kodunda 0 V; +16384 kod = pga/2 x n x kazanc",
        KB.volt(-12, kn) == 0.0
        and abs(KB.volt(-12 + 16384, kn) - 1.0 * 16.5 * 1.0078125) < 1e-12)
+    # Son inceleme bulgu 6: bicim surumu yaziliyor, bilinmeyen tur reddedilmiyor.
+    basla_c = bytes.fromhex(s["BASLA"][0])
+    ok("B71.B12 BASLA bayt 2-3 = bicim surumu (1): kayit hangi bicimde yazildigini soyler",
+       basla_c[2:4] == bytes([KB.SURUM, 0]), basla_c[2:4].hex())
+    akis = (KB.kayit_paketle(KB.T_SAAT, 4, 0, bytes(12))
+            + KB.kayit_paketle(9, 5, 0, b"\x01\x02")
+            + KB.kayit_paketle(KB.T_SAAT, 6, 0, bytes(12)))
+    kay: list = []
+    try:
+        kay = KB.akis_coz(akis)
+    except ValueError:
+        pass
+    ok("B71.B13 bilinmeyen kayit turu (9) CRC'si dogruysa akis cozucu REDDETMEZ, dondurur",
+       [k.tur for k in kay] == [KB.T_SAAT, 9, KB.T_SAAT], str([k.tur for k in kay]))
 
 
 # ── B71.P · noktaci ───────────────────────────────────────────────────
@@ -346,9 +380,11 @@ def bolum_gunluk() -> None:
     flas = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
     sat = kos(derle("GUNLUK"), flas)
     ek = [int(p[0]) for p in alanlar(sat, "EK")]
+    tek = {p[0]: p[1:] for p in (x.split() for x in sat)
+           if p and p[0] in ("RED", "ONAY", "EK9", "ACHATA", "ACHATA2", "YAZHATA")}
     oku = alanlar(sat, "OKU")
     veri = [bytes.fromhex(p[0]) if p else b"" for p in alanlar(sat, "VERI")]
-    d = {a: _durum(sat, a) for a in [f"G{i}" for i in range(1, 12)]}
+    d = {a: _durum(sat, a) for a in [f"G{i}" for i in range(1, 15)] + ["G5b"]}
     ok("B71.G1 bos flas: sira 1'den, ilk yazma sektor 0'i SILIP kullanacak",
        d["G1"] == _g(1, 7, 512), str(d["G1"]))
     ok("B71.G2 uc kayit 1,2,3; 4 bayt dolgu dogru (28+32+116 = 176)",
@@ -365,9 +401,13 @@ def bolum_gunluk() -> None:
        alanlar(sat, "DOLU")[0] == ["31", "1"], str(alanlar(sat, "DOLU")))
     ok("B71.G5 dolulukta HICBIR sektor silinmedi (onaysiz veri korunur)",
        d["G4"] == _g(34, 7, 464, dolu=1, kull=4048, onaysiz=4048), str(d["G4"]))
-    ok("B71.G6 sahte buyuk onay kirpildi: onay = son yazilan sira (33)",
-       d["G5"] == _g(34, 7, 464, onay=33, dolu=1, kull=4048, onaysiz=0),
-       str(d["G5"]))
+    ok("B71.G6 sahte buyuk onay (sonraki siradan buyuk) REDDEDILDI: onay 0, bellek hala dolu",
+       tek.get("RED") == ["-2"]
+       and d["G5"] == _g(34, 7, 464, dolu=1, kull=4048, onaysiz=4048),
+       f"{tek.get('RED')} {d['G5']}")
+    ok("B71.G6b gecerli onay kabul; yeniden acilista onay_taban ile KORUNUR (dolu sayilmaz)",
+       tek.get("ONAY") == ["0"]
+       and d["G5b"] == _g(34, 7, 464, onay=33, kull=4048, onaysiz=0), str(d["G5b"]))
     ok("B71.G7 onaydan sonra en eski sektor silinip yeniden kullanildi",
        ek[3] == 34 and d["G6"] == _g(35, 0, 116, onay=33, silinen=1, kull=3700,
                                      onaysiz=116), str(d["G6"]))
@@ -390,6 +430,23 @@ def bolum_gunluk() -> None:
     ok("B71.G15 esitleme okumasi yarim kaydi ATLAR: yalniz gecerli 35 ve 36",
        oku[3:4] == [["56", "35", "36"]] and [k.sira for k in kay] == [35, 36],
        str(oku[3:4]))
+    kay9 = KB.akis_coz(veri[4]) if len(veri) > 4 else []
+    ok("B71.G16 bilinmeyen kayit turu (9) gecerli: tarama durmaz, esitleme onu tasir",
+       tek.get("EK9") == ["37"]
+       and d["G12"] == _g(38, 1, 56, bozuk=2, kull=568, onaysiz=568)
+       and [k.tur for k in kay9] == [9], f"{d['G12']} {[k.tur for k in kay9]}")
+    ok("B71.G17 okuma hatasinda kg_ac acmayi REDDEDER (KG_HATA); tekrar denemede durum ayni",
+       tek.get("ACHATA") == ["-2"] and tek.get("ACHATA2") == ["-2"]
+       and d["G13"] == d["G12"],
+       f"1.gecis={tek.get('ACHATA')} 2.gecis={tek.get('ACHATA2')} {d['G13']}")
+    tum, _ = KB.flas_coz(bytes(flas.bellek), SEKTOR)
+    siralar = [k.sira for k in tum]
+    ok("B71.G18 yarim kalan yazmada sira HARCANIR: hata sonrasi yeni sira, flasta tekrar yok",
+       tek.get("YAZHATA") == ["-2"] and ek[6:7] == [39]
+       and len(siralar) == len(set(siralar))
+       and d["G14"] == _g(40, 2, 28, bozuk=2, kull=1052, onaysiz=1052),
+       f"YAZHATA={tek.get('YAZHATA')} EK={ek[6:7]} "
+       f"tekrar={len(siralar) - len(set(siralar))} {d['G14']}")
 
 
 # ── B71.Y · oturum yazici ─────────────────────────────────────────────
@@ -512,6 +569,38 @@ def bolum_yazici() -> None:
        bitir_payi_korunur(bellek))
 
 
+# ── B71.D · oturum dizini ─────────────────────────────────────────────
+DIZIN_KAP = 6        # ornek_kayit.c DIZIN_KAP ile ayni
+
+
+def bolum_dizin() -> None:
+    """Son inceleme bulgu 5: dizin bakimi (tahliye, temizlikte dusurme) hic
+    sinanmiyordu; kg__sektor_dusur'u bos yapan mutasyon 74/74 geciyordu."""
+    print("\n── B71.D  oturum dizini: tahliye · temizlik · kimlik denetimi")
+    flas = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    sat = kos(derle("DIZIN"), flas)
+    idler = [int(p[0]) for p in alanlar(sat, "ID")]
+    tek = {p[0]: p[1:] for p in (x.split() for x in sat)
+           if p and p[0] in ("ID9", "ID10", "SILINEN", "YANLIS", "DOGRU", "ACIK", "HATA")}
+    dz, dc, dr = _oz(sat, "DZ"), _oz(sat, "DC"), _oz(sat, "DR")
+    ok("B71.D1 dizin kapasitesi asilinca EN ESKI duser: 8 oturumdan son 6'si, sirayla",
+       len(idler) == 8 and [x[0] for x in dz] == idler[2:8],
+       f"dizin={[x[0] for x in dz]} idler={idler}")
+    ayni = len(dc) == len(dr) and all(
+        a[:3] == b[:3] and a[4:] == b[4:] and a[3] <= b[3] for a, b in zip(dc, dr))
+    ok("B71.D2 temizlikten sonra CANLI dizin flastan kurulanla ayni; silinen oturum "
+       "dustu, yarim kalanin basi silindi",
+       ayni and "HATA" not in tek and int(tek.get("SILINEN", ["0"])[0]) >= 2
+       and any(x[7] == 1 for x in dc) and 0 < len(dc) < DIZIN_KAP,
+       f"canli={dc} kurulan={dr} silinen={tek.get('SILINEN')} hata={tek.get('HATA')}")
+    ok("B71.D3 kg_basla_oku baska oturumun adresini REDDEDER",
+       tek.get("YANLIS") == ["-2"] and tek.get("DOGRU") == ["0"],
+       f"{tek.get('YANLIS')} {tek.get('DOGRU')}")
+    ok("B71.D4 iki ACIK oturum varsa surdurulecek olan EN YENISI",
+       tek.get("ACIK") is not None and tek.get("ACIK") == tek.get("ID10"),
+       f"ACIK={tek.get('ACIK')} ID10={tek.get('ID10')}")
+
+
 # ── B71.K · elektrik kesme ────────────────────────────────────────────
 def bolum_kesinti(n_deneme: int) -> None:
     """Ayni is yuku rastgele cevrimlerde kesilir, kart yeniden acilir.
@@ -569,7 +658,7 @@ def bolum_kesinti(n_deneme: int) -> None:
 
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
-            bolum_kesinti]
+            bolum_dizin, bolum_kesinti]
 
 
 def main() -> int:

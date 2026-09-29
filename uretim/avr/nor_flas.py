@@ -16,12 +16,19 @@ emulatorde `gc_oku`/`gc_yaz` kancalari 0x20-0xFF arasinda calisiyor):
   0xE0 KOMUT   yaz 0x5E: adresin sektorunu sil · oku bit0: silme suruyor
   0xE1..0xE3   adres bayt 0/1/2 (kucuk uclu)
   0xE4 VERI    oku: bayt, adres++ · yaz: bayt &= v, adres++
+  0xE5 ARIZA_OKU  yaz n: sonraki n. okuma baytinda islem BASARISIZ olur
+  0xE6 ARIZA_YAZ  yaz n: sonraki n. yazma baytinda islem BASARISIZ olur
+       Basarisiz islem, durum (KOMUT) okunana kadar surer: okumalar 0xFF
+       dondurur, yazmalar PROGRAMLANMAZ. Durum bit1 = "son islem hatali",
+       okununca temizlenir. Yalniz TEST icin (son inceleme bulgu 4: flas
+       G/C hata yollari hic sinanmiyordu).
 """
 from __future__ import annotations
 
 import random
 
 KOMUT, A0, A1, A2, VERI = 0xE0, 0xE1, 0xE2, 0xE3, 0xE4
+ARIZA_OKU, ARIZA_YAZ = 0xE5, 0xE6
 SIL = 0x5E
 
 
@@ -39,6 +46,9 @@ class NorFlas:
         self.yazilan_bayt = 0
         self.silme_adet = 0
         self.kesilen_silme = 0
+        self._ariza_oku = 0       # n > 0: n. okuma baytinda hata
+        self._ariza_yaz = 0
+        self._hata = False        # durum okunana kadar islem basarisiz
 
     # ------------------------------------------------------------ baglanti
     def tak(self, kart) -> None:
@@ -52,6 +62,8 @@ class NorFlas:
         y[VERI] = self._veri_yaz
         o[KOMUT] = self._durum
         y[KOMUT] = self._komut
+        y[ARIZA_OKU] = lambda v: setattr(self, "_ariza_oku", v & 0xFF)
+        y[ARIZA_YAZ] = lambda v: setattr(self, "_ariza_yaz", v & 0xFF)
 
     def _adres_bayt(self, i: int, v: int) -> None:
         self.adres = (self.adres & ~(0xFF << (8 * i))) | ((v & 0xFF) << (8 * i))
@@ -78,6 +90,12 @@ class NorFlas:
         a = self.adres
         self._alan(a)
         self.adres = a + 1
+        if self._ariza_oku:
+            self._ariza_oku -= 1
+            if not self._ariza_oku:
+                self._hata = True
+        if self._hata:
+            return 0xFF
         return 0xFF if self._mesgul(a) else self.bellek[a]
 
     def _veri_yaz(self, v: int) -> None:
@@ -86,6 +104,13 @@ class NorFlas:
         self._alan(a)
         if self._mesgul(a):
             raise RuntimeError(f"silme surerken yazma: {a:#x}")
+        if self._ariza_yaz:
+            self._ariza_yaz -= 1
+            if not self._ariza_yaz:
+                self._hata = True
+        if self._hata:
+            self.adres = a + 1
+            return
         self.bellek[a] &= v & 0xFF
         self.adres = a + 1
         self.yazilan_bayt += 1
@@ -105,7 +130,9 @@ class NorFlas:
 
     def _durum(self) -> int:
         self._silme_bitti_mi()
-        return 1 if self._silinen is not None else 0
+        v = (1 if self._silinen is not None else 0) | (2 if self._hata else 0)
+        self._hata = False
+        return v
 
     # ------------------------------------------------------------ ariza
     def kes(self, rng: random.Random) -> None:

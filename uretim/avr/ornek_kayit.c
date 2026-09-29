@@ -9,7 +9,7 @@
  * kosacak kodun ta kendisi.
  *
  * Tek senaryo derlenir: -DSENARYO_BICIM | _NOKTACI | _GUNLUK | _YAZICI |
- * _KESINTI. Testte -DKAYIT_SEKTOR=512UL -DKAYIT_AZAMI_YUK=256u.
+ * _DIZIN | _KESINTI. Testte -DKAYIT_SEKTOR=512UL -DKAYIT_AZAMI_YUK=256u.
  * Surucu: uretim/test_kayit.py.
  */
 #include <avr/io.h>
@@ -129,12 +129,15 @@ static KULLANILMAYABILIR void basla_uret(KayitBasla *b, uint32_t hiz_ms)
 }
 
 /* ─────────────────────────────── emule NOR (uretim/avr/nor_flas.py) */
-#if defined(SENARYO_GUNLUK) || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI)
+#if defined(SENARYO_GUNLUK) || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) \
+    || defined(SENARYO_DIZIN)
 #define NOR_KOMUT (*(volatile uint8_t *)0xE0)
 #define NOR_A0    (*(volatile uint8_t *)0xE1)
 #define NOR_A1    (*(volatile uint8_t *)0xE2)
 #define NOR_A2    (*(volatile uint8_t *)0xE3)
 #define NOR_VERI  (*(volatile uint8_t *)0xE4)
+#define NOR_ARIZA_OKU (*(volatile uint8_t *)0xE5)   /* yalniz test: n. okuma baytinda hata */
+#define NOR_ARIZA_YAZ (*(volatile uint8_t *)0xE6)   /* yalniz test: n. yazma baytinda hata */
 #ifndef NOR_SEKTOR_ADET
 #define NOR_SEKTOR_ADET 8u      /* test_kayit.py derle() -D ile gecirir */
 #endif
@@ -153,7 +156,7 @@ static int f_oku(void *b, uint32_t a, void *h, uint32_t n)
     (void)b;
     nor_adres(a);
     while (n--) *p++ = NOR_VERI;
-    return 0;
+    return (NOR_KOMUT & 2u) ? -1 : 0;     /* bit1: islem basarisiz */
 }
 
 static int f_yaz(void *b, uint32_t a, const void *k, uint32_t n)
@@ -162,16 +165,17 @@ static int f_yaz(void *b, uint32_t a, const void *k, uint32_t n)
     (void)b;
     nor_adres(a);
     while (n--) NOR_VERI = *p++;
-    return 0;
+    return (NOR_KOMUT & 2u) ? -1 : 0;
 }
 
 static int f_sil(void *b, uint32_t a)
 {
+    uint8_t d;
     (void)b;
     nor_adres(a);
     NOR_KOMUT = 0x5E;
-    while (NOR_KOMUT & 1u) {}
-    return 0;
+    do { d = NOR_KOMUT; } while (d & 1u);
+    return (d & 2u) ? -1 : 0;
 }
 
 static const KayitFlas FLAS = { f_oku, f_yaz, f_sil, 0 };
@@ -300,30 +304,45 @@ static void senaryo(void)
     uint16_t i;
     for (i = 0; i < sizeof(yuk); i++) yuk[i] = (uint8_t)i;
     kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
-    kg_ac(&g, 0u); durum("G1");
+    kg_ac(&g, 0u, 0u); durum("G1");
     sayi("EK", kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 12u));
     sayi("EK", kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 13u));
     sayi("EK", kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 100u));
     durum("G2");
     oku(2u, sizeof(tampon));
-    kg_ac(&g, 0u); durum("G3");
+    kg_ac(&g, 0u, 0u); durum("G3");
     i = 0;
     do { s = kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 100u); i++; } while (s > 0 && i < 1000u);
     metin("DOLU "); ondalik(i); yaz(' '); ondalik((uint32_t)(-s)); satir();
     durum("G4");
-    kg_onayla(&g, 0xFFFFFFF0UL); durum("G5");
+    sayi("RED", kg_onayla(&g, 0xFFFFFFF0UL)); durum("G5");
+    sayi("ONAY", kg_onayla(&g, 33u));
+    kg_ac(&g, 0u, g.onay); durum("G5b");      /* yeniden acilis: onay korunmali */
     sayi("EK", kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 100u)); durum("G6");
     oku(1u, 200u);
     oku(6u, 100u);
     kg_bicimle(&g); durum("G7");
-    kg_ac(&g, g.sonraki_sira); durum("G8");
+    kg_ac(&g, g.sonraki_sira, 0u); durum("G8");
     sayi("EK", kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 12u));
     f_yaz(0, 3u * KAYIT_SEKTOR, COP, sizeof(COP));
-    kg_ac(&g, 0u); durum("G9");
+    kg_ac(&g, 0u, 0u); durum("G9");
     f_yaz(0, 28u, YARIM, sizeof(YARIM));
-    kg_ac(&g, 0u); durum("G10");
+    kg_ac(&g, 0u, 0u); durum("G10");
     sayi("EK", kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 12u)); durum("G11");
     oku(35u, sizeof(tampon));
+    /* son inceleme: bilinmeyen tur (6), okuma hatasi ve yarim yazma (4) */
+    sayi("EK9", kg_ekle(&g, 9u, 0u, yuk, 12u));
+    kg_ac(&g, 0u, 0u); durum("G12");
+    oku(37u, sizeof(tampon));
+    NOR_ARIZA_OKU = 40u;
+    sayi("ACHATA", kg_ac(&g, 0u, 0u));      /* 1. gecis (~40. bayt) */
+    NOR_ARIZA_OKU = 200u;
+    sayi("ACHATA2", kg_ac(&g, 0u, 0u));     /* 2. gecis: 1. gecis ~162 bayt okur */
+    kg_ac(&g, 0u, 0u); durum("G13");
+    NOR_ARIZA_YAZ = 30u;                      /* 16 baslik + 13 yuk, 30. bayt = dolgu */
+    sayi("YAZHATA", kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 13u));
+    sayi("EK", kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 12u));
+    kg_ac(&g, 0u, 0u); durum("G14");
     metin("BITTI\n");
 }
 #endif
@@ -352,11 +371,10 @@ static void senaryo(void)
     KayitSaat z;
     KayitDevam d;
     uint32_t k, t = 0u, id, ns;
-    uint16_t i;
     int r = 0;
 
     kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
-    kg_ac(&g, 0u);
+    kg_ac(&g, 0u, 0u);
     ky_kur(&y, &g);
 
     /* O1: 40 nokta, 200 ms; tampon dolunca ve 5 s'de bir bosaltilir */
@@ -392,23 +410,25 @@ static void senaryo(void)
     sayi("O3", ky_baslat(&y, &b));
     for (k = 200; k < 210u; k++) { nokta_uret(k, &p); t += 500u; ky_nokta(&y, &p, t); }
     sayi("BO", ky_bosalt(&y));
-    kg_ac(&g, 0u);                      /* RAM'deki her sey unutuldu */
+    kg_ac(&g, 0u, 0u);                  /* RAM'deki her sey unutuldu */
     ky_kur(&y, &g);
     oz("OZ");
     r = -9;
-    for (i = 0; i < g.dizin_adet; i++) {
-        if (g.dizin[i].durum != KD_ACIK) continue;
-        id = g.dizin[i].id;
-        ns = g.dizin[i].nokta_sonraki;
-        if (kg_basla_oku(&g, g.dizin[i].basla_adres, &bb)) break;
-        d.acilis = 4u; d.unix_s = 0u; d.kart_ms = 50u; d.nokta_sira = 0u;
-        r = ky_devam(&y, id, &bb, ns, &d);
-        break;
+    {
+        const KayitOzet *o = kg_acik_oturum(&g);
+        if (o) {
+            id = o->id;
+            ns = o->nokta_sonraki;
+            if (!kg_basla_oku(&g, o->basla_adres, id, &bb)) {
+                d.acilis = 4u; d.unix_s = 0u; d.kart_ms = 50u; d.nokta_sira = 0u;
+                r = ky_devam(&y, id, &bb, ns, &d);
+            }
+        }
     }
     sayi("DV", r);
     for (k = 210; k < 215u; k++) { nokta_uret(k, &p); t += 500u; ky_nokta(&y, &p, t); }
     sayi("B3", ky_bitir(&y, KB_SEBEP_KULLANICI));
-    kg_ac(&g, 0u);
+    kg_ac(&g, 0u, 0u);
     oz("OZS");
 
     /* O4: onay YOK -> bellek dolar; BITIR(DOLU) yazilmali */
@@ -435,25 +455,22 @@ static void senaryo(void)
 {
     KayitNokta p;
     KayitBasla b;
-    uint32_t k = 0u, t = 0u, id = 0u;
-    uint16_t i;
+    uint32_t k = 0u, t = 0u, id = 0u, adres = KG_ADRES_YOK;
+    const KayitOzet *acik;
     int32_t r;
 
     kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
-    kg_ac(&g, 0u);
+    kg_ac(&g, 0u, 0u);
     ky_kur(&y, &g);
     kg_onayla(&g, g.sonraki_sira - 1u);    /* cihaz her seyi aldi: halka donsun */
     metin("AC "); ondalik(g.sonraki_sira); yaz(' '); ondalik(g.bozuk); satir();
-    for (i = 0; i < g.dizin_adet; i++) {
-        if (g.dizin[i].durum == KD_ACIK) { id = g.dizin[i].id; k = g.dizin[i].nokta_sonraki; }
-    }
+    acik = kg_acik_oturum(&g);
+    if (acik) { id = acik->id; k = acik->nokta_sonraki; adres = acik->basla_adres; }
     if (id) {
         KayitDevam d;
-        uint32_t adres = KG_ADRES_YOK;
-        for (i = 0; i < g.dizin_adet; i++) if (g.dizin[i].id == id) adres = g.dizin[i].basla_adres;
         memset(&d, 0, sizeof(d));
         d.acilis = 1u;
-        r = kg_basla_oku(&g, adres, &b);
+        r = kg_basla_oku(&g, adres, id, &b);
         if (!r) r = ky_devam(&y, id, &b, k, &d);
         metin("DEVAM "); ondalik(id); yaz(' '); ondalik(k); satir();
     } else {
@@ -477,9 +494,74 @@ static void senaryo(void)
 }
 #endif
 
+#if defined(SENARYO_DIZIN)
+static KayitYazici y;
+
+static void dz(const char *ad)
+{
+    uint16_t i;
+    for (i = 0; i < g.dizin_adet; i++) {
+        const KayitOzet *o = &g.dizin[i];
+        metin(ad);
+        yaz(' '); ondalik(o->id); yaz(' '); ondalik(o->tur);
+        yaz(' '); ondalik(o->hiz_ms); yaz(' '); ondalik(o->ilk_sira);
+        yaz(' '); ondalik(o->son_sira); yaz(' '); ondalik(o->nokta_sonraki);
+        yaz(' '); ondalik(o->durum); yaz(' '); ondalik(o->basi_silindi);
+        satir();
+    }
+}
+
+/* Son inceleme bulgu 5: dizin bakimi. 8 kisa oturum (kapasite 6) ->
+   tahliye; sonra her sey onaylanip yeni oturum halkayi dondurur ->
+   temizlik (kg__sektor_dusur). Canli dizin flastan yeniden kurulanla
+   karsilastirilir. */
+static void senaryo(void)
+{
+    KayitBasla b, bb;
+    KayitNokta p;
+    const KayitOzet *o;
+    uint32_t k, s, t = 0u;
+    int r;
+
+    kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    kg_ac(&g, 0u, 0u);
+    ky_kur(&y, &g);
+    for (s = 0; s < 8u; s++) {
+        basla_uret(&b, 100u + s);
+        sayi("ID", ky_baslat(&y, &b));
+        for (k = 0; k < 3u; k++) { nokta_uret(s * 10u + k, &p); t += 100u; ky_nokta(&y, &p, t); }
+        ky_bitir(&y, KB_SEBEP_KULLANICI);
+    }
+    dz("DZ");
+    kg_onayla(&g, g.sonraki_sira - 1u);
+    basla_uret(&b, 999u);
+    sayi("ID9", ky_baslat(&y, &b));
+    r = 0;
+    for (k = 0; k < 45u && !r; k++) { nokta_uret(1000u + k, &p); t += 100u; r = ky_nokta(&y, &p, t); }
+    if (!r) r = ky_bosalt(&y);
+    if (r) sayi("HATA", r);
+    sayi("SILINEN", (int32_t)g.silinen_sektor);
+    dz("DC");                            /* canli dizin */
+    kg_ac(&g, 0u, g.onay);
+    dz("DR");                            /* flastan yeniden kurulan */
+    o = kg_acik_oturum(&g);
+    if (o) {
+        sayi("YANLIS", kg_basla_oku(&g, o->basla_adres, o->id + 1u, &bb));
+        sayi("DOGRU", kg_basla_oku(&g, o->basla_adres, o->id, &bb));
+    }
+    /* RAM kaybi: yeni oturum eskisini kapatmadan baslar -> iki ACIK */
+    ky_kur(&y, &g);
+    basla_uret(&b, 777u);
+    sayi("ID10", ky_baslat(&y, &b));
+    o = kg_acik_oturum(&g);
+    sayi("ACIK", o ? (int32_t)o->id : 0);
+    metin("BITTI\n");
+}
+#endif
+
 /* ── giris ── */
 #if !(defined(SENARYO_BICIM) || defined(SENARYO_NOKTACI) || defined(SENARYO_GUNLUK) \
-      || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI))
+      || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN))
 #error "SENARYO_* tanimli degil"
 #endif
 
