@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include "kayit_bicim.h"
+#include "kayit_nokta.h"
 
 #define KULLANILMAYABILIR __attribute__((unused))
 
@@ -148,6 +149,61 @@ static void senaryo(void)
     kayit_baslik_yaz(h, KAYIT_T_NOKTA, 7u, 42u, p, 20u);
     metin("BASLIK "); hexdizi(h, KAYIT_BASLIK_BAYT); satir();
     metin("BITTI\n");
+}
+#endif
+
+#if defined(SENARYO_NOKTACI)
+static void p_yaz(const KayitNokta *p)
+{
+    uint8_t b[KAYIT_NOKTA_BAYT];
+    kayit_nokta_paketle(p, b);
+    metin("P ");
+    hexdizi(b, KAYIT_NOKTA_BAYT);
+    satir();
+}
+
+static void senaryo(void)
+{
+    KayitNoktaci k;
+    KayitNokta c;
+    uint32_t t;
+    int16_t i;
+
+    /* S1: 100 ms aralik, 10 ms'de bir ornek v=100+i, i_kod=-i, w=i/2 */
+    kn_baslat(&k, 100u, 0u, 0u);
+    for (i = 0; i < 30; i++) {
+        t = (uint32_t)i * 10u;
+        if (kn_ornek(&k, t, 0u, (int16_t)(100 + i), (int16_t)(-i),
+                     (float)i * 0.5f, 0u, 0u, &c)) p_yaz(&c);
+    }
+    if (kn_zaman(&k, 300u, &c)) p_yaz(&c);
+    metin("S1\n");
+
+    /* S2: t=0..40 NORMAL (1000), t=45..85 YUKSEK (2000) */
+    kn_baslat(&k, 100u, 0u, 0u);
+    for (i = 0; i < 5; i++)
+        if (kn_ornek(&k, (uint32_t)i * 10u, 0u, 1000, 10, 1.0f, 0u, 0u, &c)) p_yaz(&c);
+    for (i = 0; i < 5; i++)
+        if (kn_ornek(&k, 45u + (uint32_t)i * 10u, 1u, 2000, 20, 2.0f, 0u, 0u, &c)) p_yaz(&c);
+    if (kn_zaman(&k, 145u, &c)) p_yaz(&c);
+    metin("S2\n");
+
+    /* S3: hatali ornek, doyma, kuyruk kaybi, uzun duraklama */
+    kn_baslat(&k, 50u, 0u, 0u);
+    kn_ornek(&k, 0u, 0u, 5, 1, 0.25f, 0u, 0u, &c);
+    kn_ornek(&k, 10u, 0u, 9999, 1, 99.0f, KN_HATA_V, 0u, &c);
+    kn_ornek(&k, 20u, 0u, 7, 3, 0.75f, 0u, 1u, &c);
+    kn_kayip(&k);
+    if (kn_ornek(&k, 260u, 0u, 1, 1, 1.0f, 0u, 0u, &c)) p_yaz(&c);
+    if (kn_zaman(&k, 310u, &c)) p_yaz(&c);
+    metin("S3\n");
+
+    /* S4: 40 000 uc deger ornek tek noktada — int32/int64 tasmaz */
+    kn_baslat(&k, 1000000UL, 0u, 0u);
+    for (t = 0; t < 40000UL; t++)
+        kn_ornek(&k, t, 0u, 32767, -32768, 7000.0f, 0u, 0u, &c);
+    if (kn_zaman(&k, 1000000UL, &c)) p_yaz(&c);
+    metin("S4\nBITTI\n");
 }
 #endif
 

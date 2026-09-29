@@ -47,7 +47,7 @@ HARNESS = BURASI / "avr" / "ornek_kayit.c"
 SEKTOR = 512          # testte kucuk sektor: halka cok doner, emulatorde ucuz
 SEKTOR_ADET = 8       # varsayilan; derle() -DNOR_SEKTOR_ADET ile gecirir
 AZAMI_YUK = 256       # 4 + 7 nokta
-CPP_BASLIKLAR = ["kayit_bicim.h"]
+CPP_BASLIKLAR = ["kayit_bicim.h", "kayit_nokta.h"]
 _ELF: dict[str, Path] = {}
 
 gecti = kaldi = 0
@@ -262,7 +262,64 @@ def bolum_bicim() -> None:
        and abs(KB.volt(-12 + 16384, kn) - 1.0 * 16.5 * 1.0078125) < 1e-12)
 
 
-BOLUMLER = [bolum_nor, bolum_bicim]
+# ── B71.P · noktaci ───────────────────────────────────────────────────
+def beklenen(kart_ms: int, ornekler: list[tuple[int, int, float]],
+             bayrak: int = 0, yuksek: bool = False) -> KB.Nokta:
+    """Gecerli ornekler [(ham_v, ham_i, watt)] -> noktacinin uretmesi GEREKEN
+    nokta. Toplamlar tam sayi (C'de int32/int64, tasma yok); ortalamalar
+    C'nin float32 islem sirasiyla: (float)top / (float)n; W icin
+    toplam mikrowatt tam sayisi ve * 1e-6f."""
+    b = bayrak | (KB.KN_YUKSEK if yuksek else 0)
+    n = len(ornekler)
+    if n == 0:
+        return KB.Nokta(kart_ms, 0, b, 0.0, 0, 0, 0.0, 0, 0, 0.0, 0.0, 0.0)
+
+    def uw(w: float) -> int:                    # (int64_t)(w*1e6f +- 0.5f)
+        m = f32(f32(w) * f32(1e6))
+        return int(f32(m + (0.5 if f32(w) >= 0 else -0.5)))
+
+    v = [o[0] for o in ornekler]
+    i = [o[1] for o in ornekler]
+    w = [f32(o[2]) for o in ornekler]
+    return KB.Nokta(
+        kart_ms, n, b,
+        f32(f32(sum(v)) / f32(n)), min(v), max(v),
+        f32(f32(sum(i)) / f32(n)), min(i), max(i),
+        f32(f32(f32(sum(uw(x) for x in w)) / f32(n)) * f32(1e-6)),
+        min(w), max(w))
+
+
+def bolum_noktaci() -> None:
+    print("\n── B71.P  noktaci: ham ornek -> ort + min + maks")
+    gruplar, simdiki = {}, []
+    for s in kos(derle("NOKTACI")):
+        p = s.split()
+        if p[:1] == ["P"]:
+            simdiki.append(KB.nokta_coz(bytes.fromhex(p[1])))
+        elif p[:1] and p[0] in ("S1", "S2", "S3", "S4"):
+            gruplar[p[0]], simdiki = simdiki, []
+    s1 = [beklenen(100 * (m + 1),
+                   [(100 + j, -j, j * 0.5) for j in range(10 * m, 10 * m + 10)])
+          for m in range(3)]
+    ok("B71.P1 aralik sinirlari: 10 ms'lik 30 ornek -> 100/200/300 ms'de 3 nokta, birebir",
+       gruplar.get("S1") == s1, str(gruplar.get("S1"))[:200])
+    s2 = [beklenen(45, [(1000, 10, 1.0)] * 5),
+          beklenen(145, [(2000, 20, 2.0)] * 5, yuksek=True)]
+    ok("B71.P2 menzil degisince nokta ORADA kapanir (45 ms), kodlar karismaz",
+       gruplar.get("S2") == s2, str(gruplar.get("S2"))[:200])
+    ok("B71.P3 YUKSEK bayragi yalniz yuksek menzildeki noktada",
+       [p.bayrak & KB.KN_YUKSEK for p in gruplar.get("S2", [])] == [0, KB.KN_YUKSEK])
+    s3 = [beklenen(50, [(5, 1, 0.25), (7, 3, 0.75)],
+                   bayrak=KB.KN_V_HATA | KB.KN_V_DOYDU | KB.KN_KAYIP_ONCE),
+          beklenen(310, [(1, 1, 1.0)], bayrak=KB.KN_DURAKLAMA)]
+    ok("B71.P4 hatali ornek istatistige girmez; hata/doyma/kayip/duraklama dogru noktada",
+       gruplar.get("S3") == s3, str(gruplar.get("S3"))[:200])
+    s4 = [beklenen(1000000, [(32767, -32768, 7000.0)] * 40000)]
+    ok("B71.P5 40 000 uc deger ornek tasmadan toplanir (int32/int64)",
+       gruplar.get("S4") == s4, str(gruplar.get("S4"))[:200])
+
+
+BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci]
 
 
 def main() -> int:
