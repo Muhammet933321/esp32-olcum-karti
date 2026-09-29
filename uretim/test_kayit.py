@@ -33,6 +33,22 @@ sys.path.insert(0, str(KOK / "kopru"))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from avr.nor_flas import NorFlas, A0, A1, A2, VERI, KOMUT, SIL   # noqa: E402
+from avr import mega328                          # noqa: E402
+from avr.cekirdek import Cekirdek                # noqa: E402
+from avr.elf import flash_goruntusu              # noqa: E402
+import gecici                                    # noqa: E402
+import kayit_bicim as KB                         # noqa: E402
+
+AVR_BIN = (Path.home() / "AppData/Local/Arduino15/packages/arduino/tools"
+           / "avr-gcc/7.3.0-atmel3.6.1-arduino7/bin")
+AVR_GCC = AVR_BIN / "avr-gcc.exe"
+AVR_GXX = AVR_BIN / "avr-g++.exe"
+HARNESS = BURASI / "avr" / "ornek_kayit.c"
+SEKTOR = 512          # testte kucuk sektor: halka cok doner, emulatorde ucuz
+SEKTOR_ADET = 8       # varsayilan; derle() -DNOR_SEKTOR_ADET ile gecirir
+AZAMI_YUK = 256       # 4 + 7 nokta
+CPP_BASLIKLAR = ["kayit_bicim.h"]
+_ELF: dict[str, Path] = {}
 
 gecti = kaldi = 0
 
@@ -106,7 +122,147 @@ def bolum_nor() -> None:
         ok("B71.N7 alan disi okuma sessiz gecmez", True)
 
 
-BOLUMLER = [bolum_nor]
+# ── ortak yardimcilar ─────────────────────────────────────────────────
+def f32(x: float) -> float:
+    """float32'ye yuvarla — C'nin float islemini taklit etmek icin."""
+    return struct.unpack("<f", struct.pack("<f", x))[0]
+
+
+def derle(senaryo: str, sektor_adet: int = SEKTOR_ADET) -> Path:
+    """ornek_kayit.c'yi TEK senaryo icin derle; UYARISIZ olmali.
+    `sektor_adet` emule flasin sektor sayisi (NOR_SEKTOR_ADET)."""
+    anahtar = f"{senaryo}_{sektor_adet}"
+    if anahtar in _ELF:
+        return _ELF[anahtar]
+    elf = gecici.dizin("kayit_") / f"ornek_kayit_{anahtar}.elf"
+    d = subprocess.run(
+        [str(AVR_GCC), "-mmcu=atmega328p", "-DF_CPU=16000000UL", "-Os",
+         "-std=gnu11", "-Wall", "-Wextra", f"-DSENARYO_{senaryo}",
+         f"-DKAYIT_SEKTOR={SEKTOR}UL", f"-DKAYIT_AZAMI_YUK={AZAMI_YUK}u",
+         f"-DNOR_SEKTOR_ADET={sektor_adet}u",
+         f"-I{KOD}", "-o", str(elf), str(HARNESS), "-lm"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if d.returncode != 0:
+        print(d.stderr[-3000:])
+        raise SystemExit(f"avr-gcc derleyemedi (SENARYO_{senaryo})")
+    uyari = [x for x in d.stderr.splitlines() if "warning:" in x]
+    ok(f"B71.0 SENARYO_{senaryo} AVR'de UYARISIZ derlendi (-Wall -Wextra)",
+       not uyari, f"{len(uyari)} uyari")
+    for u in uyari[:6]:
+        print("       " + u)
+    _ELF[anahtar] = elf
+    return elf
+
+
+def kart_kur(elf: Path, flas: NorFlas | None = None) -> mega328.Kart:
+    flash, _ = flash_goruntusu(elf)
+    kart = mega328.Kart(flash, Cekirdek)
+    if flas is not None:
+        flas.tak(kart)
+    return kart
+
+
+def kos(elf: Path, flas: NorFlas | None = None,
+        azami: int = 300_000_000) -> list[str]:
+    """Senaryoyu `BITTI` satirina kadar kostur; cikti satirlarini dondur."""
+    kart = kart_kur(elf, flas)
+    hedef = kart.cpu.cevrim + azami
+    while kart.cpu.cevrim < hedef and b"BITTI\n" not in kart.tx:
+        kart.cevrim_kadar_kos(2_000_000)
+    satirlar = kart.satirlar()
+    ok(f"B71.0 {elf.stem} tamamlandi (BITTI)", "BITTI" in satirlar,
+       f"{kart.cpu.cevrim:,} cevrim".replace(",", " "))
+    return satirlar
+
+
+def alanlar(satirlar: list[str], onek: str) -> list[list[str]]:
+    """`onek` ile baslayan satirlarin kelimeleri (onek haric), sirayla."""
+    return [s.split()[1:] for s in satirlar if s.split()[:1] == [onek]]
+
+
+def nokta_uret(k: int) -> KB.Nokta:
+    """ornek_kayit.c nokta_uret() ile AYNI deterministik nokta."""
+    return KB.Nokta(
+        kart_ms=(k * 37 + 5) & 0xFFFFFFFF, n=k % 50 + 1, bayrak=k & 0x3F,
+        v_ort_kod=f32((k % 30000) + 0.25), v_min_kod=(k % 30000) - 7,
+        v_maks_kod=(k % 30000) + 7,
+        i_ort_kod=f32(-(k % 20000) - 0.5), i_min_kod=-(k % 20000) - 3,
+        i_maks_kod=-(k % 20000) + 3,
+        w_ort=f32(k * 0.5), w_min=f32(k * 0.25), w_maks=f32(k * 0.75))
+
+
+def basla_uret(hiz_ms: int) -> KB.Basla:
+    """ornek_kayit.c basla_uret() ile AYNI. Butun kesirler ikili (tam temsil)."""
+    return KB.Basla(
+        oturum_turu=KB.OTURUM_OLCUM, kal_bicim=KB.KAL_BICIM, hiz_ms=hiz_ms,
+        unix_s=0, kart_ms=1000, acilis=3, surum="B71-test",
+        kal=KB.Kalibrasyon(
+            normal=KB.Kanal(16.5, 2.0, 1.0078125, -12, 0.0029296875),
+            yuksek=KB.Kanal(312.5, 2.0, 0.9921875, 5, 0.0030517578125),
+            i_ofset=-3, i_pga=0.25, sont_ohm=0.0048828125, i_duzeltme=1.0,
+            sebeke_hz=50.0, faz_kal_us=(12.5, -3.25)))
+
+
+def _hata_verir(f) -> bool:
+    try:
+        f()
+    except ValueError:
+        return True
+    return False
+
+
+def _cpp_denetim() -> str:
+    """Basliklari avr-g++ ile -fsyntax-only derle. Sorun yoksa bos metin."""
+    kaynak = ("".join(f'#include "{h}"\n' for h in CPP_BASLIKLAR)
+              + "int main() { return 0; }\n")
+    d = subprocess.run(
+        [str(AVR_GXX), "-mmcu=atmega328p", "-std=gnu++11", "-fsyntax-only",
+         "-Wall", "-Wextra", f"-I{KOD}", "-x", "c++", "-"],
+        input=kaynak, capture_output=True, text=True,
+        encoding="utf-8", errors="replace")
+    metin = d.stderr or ""
+    return metin if (d.returncode or "warning:" in metin) else ""
+
+
+# ── B71.B · kayit bicimi ──────────────────────────────────────────────
+def bolum_bicim() -> None:
+    print("\n── B71.B  kayit bicimi: C == Python")
+    s = {p[0]: p[1:] for p in (x.split() for x in kos(derle("BICIM"))) if p}
+    ok("B71.B1 CRC-32 bilinen vektor ('123456789' -> cbf43926)",
+       s.get("CRC") == ["cbf43926"], str(s.get("CRC")))
+    ok("B71.B1 C'nin CRC'si zlib.crc32 ile ayni",
+       s.get("CRC") == [f"{zlib.crc32(b'123456789'):08x}"])
+    ok("B71.B2 nokta paketi C == Python (36 bayt)",
+       bytes.fromhex(s["NOKTA"][0]) == KB.nokta_paketle(nokta_uret(12345)))
+    b = basla_uret(200)
+    ok("B71.B3 BASLA paketi C == Python (98 bayt, kalibrasyon kopyasi dahil)",
+       bytes.fromhex(s["BASLA"][0]) == KB.basla_paketle(b))
+    yuk20 = KB.basla_paketle(b)[:20]
+    ok("B71.B4 kayit basligi + CRC C == Python",
+       bytes.fromhex(s["BASLIK"][0])
+       == KB.kayit_paketle(KB.T_NOKTA, 7, 42, yuk20)[:16])
+    ok("B71.B5 C'de paketle -> coz -> paketle birebir",
+       s.get("GIDISDONUS") == ["1"])
+    ok("B71.B6 Python'da BASLA coz -> paketle birebir",
+       KB.basla_paketle(KB.basla_coz(KB.basla_paketle(b))) == KB.basla_paketle(b))
+    ok("B71.B7 unix 0 = 'bilinmiyor' (1970 tarihi uretilmez)",
+       KB.unix_zaman(0) is None and KB.unix_zaman(1790000000).year == 2026)
+    ham = KB.kayit_paketle(KB.T_SAAT, 9, 0, b"\x01\x02\x03")
+    bozuk = ham[:17] + bytes([ham[17] ^ 1]) + ham[18:]
+    ok("B71.B8 akis cozucu tek bitlik bozulmayi REDDEDER",
+       _hata_verir(lambda: KB.akis_coz(bozuk)) and len(KB.akis_coz(ham)) == 1)
+    ok("B71.B9 kayit 4 baytin katina dolgulanir, dolgu CRC'ye girmez",
+       len(ham) == 20 and ham[19:] == b"\x00")
+    kh = _cpp_denetim()
+    ok("B71.B10 kayit_*.h C++ olarak da UYARISIZ (ESP32 .ino'yu C++ derler)",
+       not kh, kh[:300])
+    kn = KB.Kanal(16.5, 2.0, 1.0078125, -12, 0.0029296875)
+    ok("B71.B11 volt(): sifir kodunda 0 V; +16384 kod = pga/2 x n x kazanc",
+       KB.volt(-12, kn) == 0.0
+       and abs(KB.volt(-12 + 16384, kn) - 1.0 * 16.5 * 1.0078125) < 1e-12)
+
+
+BOLUMLER = [bolum_nor, bolum_bicim]
 
 
 def main() -> int:

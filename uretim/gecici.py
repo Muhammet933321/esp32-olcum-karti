@@ -31,7 +31,7 @@ from pathlib import Path
 
 # Bu projenin urettigi gecici dizin onekleri — `dogrula3.py`'nin cop
 # toplayicisi ESKI kalintilari da bu listeye gore suepuruyor.
-ONEKLER = ("spice-", "olcum3_", "skopolc_", "kopru_", "fw3_", "skop_")
+ONEKLER = ("spice-", "olcum3_", "skopolc_", "kopru_", "fw3_", "skop_", "kayit_")
 
 KAL = os.environ.get("OLCUM_GECICI_KAL") == "1"
 
