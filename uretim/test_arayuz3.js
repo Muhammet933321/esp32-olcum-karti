@@ -195,6 +195,15 @@ const ARAYUZSUZ = {
      ⚠ Arayuze bir gun blokaj/tani paneli eklenirse bu harf listeden
      CIKARILACAK. */
   K: 'blokaj sayaci sifirlama — tezgah teshisi, olcumu etkilemiyor',
+  /* B72 (1A-2): KAYIT komutu (Gb<ms> baslat · Gd durdur · G? durum ·
+     Go<sira> esitleme onayi · GF! bicimle). Kayit ekranlari ALT PROJE 3'te
+     (web paneli yenilemesi, tasarim/2026-09-29-yazilim-sistemi.md) —
+     kullanicinin onayladigi sira 1 kart -> 2 ortak/ -> 3 panel. Bugun
+     kaydi seri konsol ve PC esitleme istemcisi (kopru/kayit_esitle.py)
+     kullaniyor; bugunku panel kayit gostermiyor, yani eksik bir dugme
+     kullaniciya YANLIS bir deger okutmuyor (B20'nin f/F durumundan farki).
+     ⚠ Alt proje 3 kayit ekranini ekleyince bu satir CIKARILACAK. */
+  G: 'kayit komutu — ekranlari alt proje 3 (web paneli); simdilik seri + PC esitleme',
 };
 const arayuzdeYok = [...firmwareHarfleri]
   .filter((h) => !gonderilenHarfler.has(h) && !(h in ARAYUZSUZ));

@@ -79,8 +79,14 @@
   ],
   "B71 Kayit motoru (bicim + gunluk + elektrik kesme)": [
     [
-      88,
-      88
+      95,
+      95
+    ]
+  ],
+  "B72 Kayit firmware + esitleme (tablo + kaynak + sahte kart)": [
+    [
+      28,
+      28
     ]
   ],
   "B3  Sema (ERC + netlist)": [

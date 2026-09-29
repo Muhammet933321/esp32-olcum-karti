@@ -117,6 +117,10 @@
       Kartin kayit bicimi, noktacisi, flas gunlugu ve oturum yazicisi
       AVR emulatorunde EMULE NOR flas ustunde, rastgele elektrik
       kesmeleri dahil. Python cozucu ayni baytlari bagimsiz cozuyor.
+  B72 Kayit firmware + esitleme              (kaynak + sahte kart)
+      Bolum tablosu nvs'i yerinde tutuyor mu, kayit gorevi cekirdek 0'da
+      ve kilit altinda mi, PC istemcisi ancak diske yazdiktan sonra mi
+      onayliyor. Gercek kart olcumleri tezgah_kayit.py'de.
   B7  Arayuz + KOMUT DENETIMI                (node)
       Arayuzun gonderebilecegi her komut harfi, firmware'in gercekten
       tanidigi `case` harfleriyle karsilastiriliyor — HEM app.js HEM
@@ -203,6 +207,10 @@ ADIMLAR = [
     # uzerinde, rastgele elektrik kesmeleri dahil. Python cozucu ayni
     # baytlari bagimsiz cozuyor. Donanim GEREKMIYOR.
     ("B71 Kayit motoru (bicim + gunluk + elektrik kesme)", "test_kayit.py"),
+    # B72 — KAYIT FIRMWARE ENTEGRASYONU (alt proje 1A-2): bolum tablosu,
+    # firmware KAYNAGI (yorumsuz), PC esitleme istemcisi sahte karta karsi.
+    # Gercek kart olcumleri tezgah_kayit.py'de (tezgah kalemi basiliyor).
+    ("B72 Kayit firmware + esitleme (tablo + kaynak + sahte kart)", "test_kayit_esp.py"),
 ]
 
 

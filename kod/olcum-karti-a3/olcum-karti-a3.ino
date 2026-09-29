@@ -2855,33 +2855,36 @@ static void kayit_komut(const char *s) {
     return;
   }
   memset(&m, 0, sizeof(m));
-  switch (s[1]) {
-    case 0:
-    case '?':
-      kayit_durum_bas(true);
+  /* Alt komut `alt == 'x'` ile (projenin deseni), ic `switch` DEGIL:
+     test_arayuz3.js ve test_firmware3.py komut harflerini `.ino`'daki
+     butun `case 'x':` satirlarindan topluyor; ic switch b/d/o'yu sahte
+     ust duzey komut yapiyordu (B72, zincir B7 yakaladi). */
+  const char alt = s[1];
+  if (alt == 0 || alt == '?') {
+    kayit_durum_bas(true);
+    return;
+  } else if (alt == 'b') {
+    long h = atol(s + 2);
+    if (!kayit__hiz_gecerli(h)) {
+      Serial.println(F("! G: hiz 20/100/200/1000/10000/60000 ms olmali"));
       return;
-    case 'b': {
-      long h = atol(s + 2);
-      if (!kayit__hiz_gecerli(h)) {
-        Serial.println(F("! G: hiz 20/100/200/1000/10000/60000 ms olmali"));
-        return;
-      }
-      m.tur = KM_BASLAT;
-      kayit_basla_doldur(&m.basla, (uint32_t)h);
-      break;
     }
-    case 'd': m.tur = KM_DURDUR; break;
-    case 'o': m.tur = KM_ONAY; m.deger = strtoul(s + 2, nullptr, 10); break;
-    case 'F':
-      if (s[2] != '!') {
-        Serial.println(F("! G: butun kayitlari silmek icin `GF!` yaz"));
-        return;
-      }
-      m.tur = KM_BICIMLE;
-      break;
-    default:
-      Serial.println(F("! G: alt komut b<ms> d ? o<sira> F!"));
+    m.tur = KM_BASLAT;
+    kayit_basla_doldur(&m.basla, (uint32_t)h);
+  } else if (alt == 'd') {
+    m.tur = KM_DURDUR;
+  } else if (alt == 'o') {
+    m.tur = KM_ONAY;
+    m.deger = strtoul(s + 2, nullptr, 10);
+  } else if (alt == 'F') {
+    if (s[2] != '!') {
+      Serial.println(F("! G: butun kayitlari silmek icin `GF!` yaz"));
       return;
+    }
+    m.tur = KM_BICIMLE;
+  } else {
+    Serial.println(F("! G: alt komut b<ms> d ? o<sira> F!"));
+    return;
   }
   if (xQueueSend(kayit_mesaj_q, &m, 0) == pdTRUE)
     Serial.println(F("* G istek kuyrukta — sonuc G satirinda"));
