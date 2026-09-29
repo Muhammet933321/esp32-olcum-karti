@@ -2889,6 +2889,80 @@ static void kayit_komut(const char *s) {
     Serial.println(F("! G: istek kuyrugu dolu"));
 }
 
+// /kayit/liste — oturum dizini (JSON). /kayit/veri — ham kayitlar (esitleme).
+// Ikisi de ag gorevinde (cekirdek 0). Okuma bugunku /pil gibi acik; onay
+// komut yolundan gider (jeton + parola ya da USB). Eslestirme 1D'de.
+void kayit_liste_sayfa() {
+  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!kayit_bolum) { sunucu.send(503, "text/plain", "kayit bolumu yok"); return; }
+  /* dizin kopyasi PSRAM'de (statik 2.5 KB DRAM payindan yemesin);
+     yalniz ag gorevi kullanir, istekler sirali */
+  static KayitOzet *oz = nullptr;
+  if (!oz) oz = (KayitOzet *)heap_caps_malloc(KAYIT_DIZIN_KAP * sizeof(KayitOzet),
+                                              MALLOC_CAP_SPIRAM);
+  if (!oz) { sunucu.send(503, "text/plain", "bellek yok"); return; }
+  uint16_t n;
+  xSemaphoreTake(kayit_kilit, portMAX_DELAY);
+  n = kayit_g.dizin_adet;
+  if (n > KAYIT_DIZIN_KAP) n = KAYIT_DIZIN_KAP;
+  if (n) memcpy(oz, kayit_dizin, (size_t)n * sizeof(KayitOzet));
+  xSemaphoreGive(kayit_kilit);
+  KayitDurum d = kayit_durum_al();
+  char t[240];
+  sunucu.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  sunucu.send(200, "application/json", "");
+  snprintf(t, sizeof(t),
+           "{\"surum\":%u,\"durum\":%u,\"sektor\":%lu,\"sektor_bayt\":%lu,"
+           "\"sonraki\":%lu,\"onay\":%lu,\"doluluk_binde\":%u,\"onaysiz_binde\":%u,"
+           "\"aktif\":%lu,\"acilis\":%lu,\"unix\":%lu,\"oturumlar\":[",
+           (unsigned)KAYIT_SURUM, (unsigned)d.durum,
+           (unsigned long)(kayit_bolum->size / KAYIT_SEKTOR), (unsigned long)KAYIT_SEKTOR,
+           (unsigned long)d.sonraki_sira, (unsigned long)d.onay,
+           (unsigned)d.doluluk_binde, (unsigned)d.onaysiz_binde,
+           (unsigned long)d.oturum, (unsigned long)d.acilis, (unsigned long)kayit__unix());
+  sunucu.sendContent(t);
+  for (uint16_t i = 0; i < n; i++) {
+    const KayitOzet *o = &oz[i];
+    snprintf(t, sizeof(t),
+             "%s{\"id\":%lu,\"tur\":%u,\"hiz_ms\":%lu,\"unix_s\":%lu,\"kart_ms\":%lu,"
+             "\"acilis\":%lu,\"ilk\":%lu,\"son\":%lu,\"nokta\":%lu,\"durum\":%u,"
+             "\"basi_silindi\":%u}",
+             i ? "," : "", (unsigned long)o->id, (unsigned)o->tur, (unsigned long)o->hiz_ms,
+             (unsigned long)o->unix_s, (unsigned long)o->kart_ms, (unsigned long)o->acilis,
+             (unsigned long)o->ilk_sira, (unsigned long)o->son_sira,
+             (unsigned long)o->nokta_sonraki, (unsigned)o->durum, (unsigned)o->basi_silindi);
+    sunucu.sendContent(t);
+  }
+  sunucu.sendContent("]}");
+  sunucu.sendContent("");
+}
+
+void kayit_veri_sayfa() {
+  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!kayit_bolum) { sunucu.send(503, "text/plain", "kayit bolumu yok"); return; }
+  KayitDurum d = kayit_durum_al();
+  if (d.durum == KDR_TARIYOR || d.durum == KDR_HATA) {
+    sunucu.send(503, "text/plain", "kayit hazir degil (G durumu)");
+    return;
+  }
+  uint32_t sira = sunucu.hasArg("sira") ? strtoul(sunucu.arg("sira").c_str(), nullptr, 10) : 1u;
+  uint32_t kap = sunucu.hasArg("bayt") ? strtoul(sunucu.arg("bayt").c_str(), nullptr, 10)
+                                       : KAYIT_VERI_AZAMI;
+  if (kap > KAYIT_VERI_AZAMI) kap = KAYIT_VERI_AZAMI;
+  uint32_t ilk = 0, son = 0, n, sonraki;
+  xSemaphoreTake(kayit_kilit, portMAX_DELAY);
+  n = kg_oku(&kayit_g, sira, kayit_veri_tampon, kap, &ilk, &son);
+  sonraki = kayit_g.sonraki_sira;
+  xSemaphoreGive(kayit_kilit);
+  sunucu.sendHeader("X-Ilk-Sira", String(ilk));
+  sunucu.sendHeader("X-Son-Sira", String(son));
+  sunucu.sendHeader("X-Sonraki-Sira", String(sonraki));
+  sunucu.sendHeader("X-Onay", String(d.onay));
+  sunucu.setContentLength(n);
+  sunucu.send(200, "application/octet-stream", "");
+  if (n) sunucu.sendContent((const char *)kayit_veri_tampon, n);
+}
+
 void komut_sayfa() {
   if (!host_gecerli()) {
     sunucu.send(403, "text/plain", "Host reddedildi (DNS rebinding korumasi)");
@@ -3964,6 +4038,8 @@ void setup() {
   sunucu.on("/", kok_sayfa);
   sunucu.on("/akis", akis_sayfa);
   sunucu.on("/pil", pil_sayfa);   // B21
+  sunucu.on("/kayit/liste", kayit_liste_sayfa);   // B72
+  sunucu.on("/kayit/veri", kayit_veri_sayfa);     // B72 — esitleme (ham kayitlar)
   sunucu.on("/skop.bin", skop_bin_sayfa);   // B22.5 — ikili dokum
   // ⚠ YONTEM ACIKCA yaziliyor: HTTP_ANY olsaydi `GET /komut?k=p1` de
   //   calisirdi ve <img> etiketiyle uzaktan pil desarji baslatilabilirdi.

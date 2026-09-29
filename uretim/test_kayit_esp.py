@@ -162,6 +162,15 @@ def bolum_kaynak() -> None:
     ok("B72.F10 `G` komutu tanimli ve yardimda; hiz listesi dar",
        "case 'G': kayit_komut(s)" in ino_k and "Gb<ms>" in ino
        and "h == 60000" in ino_k)
+    vs = govde(ino_k, "void kayit_veri_sayfa(")
+    ls = govde(ino_k, "void kayit_liste_sayfa(")
+    ok("B72.F11 /kayit/liste ve /kayit/veri kayitli; ikisi de Host denetimli",
+       'sunucu.on("/kayit/liste"' in ino_k and 'sunucu.on("/kayit/veri"' in ino_k
+       and "host_gecerli()" in vs and "host_gecerli()" in ls)
+    ok("B72.F12 /kayit/veri kg_oku'yu KILIT altinda, tavanla (8192) cagiriyor",
+       0 <= vs.find("xSemaphoreTake(kayit_kilit") < vs.find("kg_oku(")
+       < vs.find("xSemaphoreGive(kayit_kilit") and "KAYIT_VERI_AZAMI" in vs
+       and "X-Ilk-Sira" in ino)
 
 
 BOLUMLER = [bolum_tablo, bolum_kaynak]
