@@ -10,9 +10,14 @@ Plan: tasarim/2026-09-29-plan-1a2-kayit-firmware.md
 """
 from __future__ import annotations
 
+import http.server
 import os
 import re
+import struct
 import sys
+import tempfile
+import threading
+import urllib.parse
 from pathlib import Path
 
 BURASI = Path(__file__).parent
@@ -23,6 +28,8 @@ sys.path.insert(0, str(KOK / "kopru"))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from tezgah import tezgah                          # noqa: E402
+import kayit_bicim as KB                             # noqa: E402
+import kayit_esitle as KE                            # noqa: E402
 
 gecti = kaldi = 0
 
@@ -173,7 +180,170 @@ def bolum_kaynak() -> None:
        and "X-Ilk-Sira" in ino)
 
 
-BOLUMLER = [bolum_tablo, bolum_kaynak]
+# ── B72.E · esitleme istemcisi (sahte kart) ───────────────────────────
+class _SahteKart:
+    """Kartin /kayit/veri ucunun sahtesi — kg_oku ile ayni anlam: `sira` ve
+    sonrasi, kayit bolunmeden `bayt`a kadar."""
+
+    def __init__(self, kayitlar: list[bytes]):
+        self.kayitlar = kayitlar
+        self.bozuk = False
+        self.sirayi_yok_say = False     # numarasi basa donmus kart
+        self.komutlar: list[str] = []
+
+    def veri(self, sira: int, bayt: int) -> tuple[bytes, int, int]:
+        govde, ilk, son = b"", 0, 0
+        for ham in self.kayitlar:
+            s = struct.unpack_from("<I", ham, 4)[0]
+            if s < sira and not self.sirayi_yok_say:
+                continue
+            if len(govde) + len(ham) > bayt:
+                break
+            govde += ham
+            ilk, son = ilk or s, s
+        if self.bozuk and len(govde) > 20:
+            govde = govde[:20] + bytes([govde[20] ^ 1]) + govde[21:]
+        return govde, ilk, son
+
+
+def _sunucu(kart: _SahteKart):
+    class Isleyici(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            u = urllib.parse.urlparse(self.path)
+            q = urllib.parse.parse_qs(u.query)
+            if u.path == "/akis":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.end_headers()
+                self.wfile.write(b'retry: 3000\n\nevent: kimlik\n'
+                                 b'data: {"jeton":"abc123","surucu":true}\n\n')
+                return
+            if u.path != "/kayit/veri":
+                self.send_error(404)
+                return
+            govde, ilk, son = kart.veri(int(q.get("sira", ["1"])[0]),
+                                        int(q.get("bayt", ["8192"])[0]))
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(govde)))
+            self.send_header("X-Ilk-Sira", str(ilk))
+            self.send_header("X-Son-Sira", str(son))
+            self.end_headers()
+            self.wfile.write(govde)
+
+        def do_POST(self):
+            n = int(self.headers.get("Content-Length", "0"))
+            govde = self.rfile.read(n).decode()
+            if self.headers.get("X-Olcum") == "1" and self.headers.get("X-Jeton") == "abc123":
+                kart.komutlar.append(govde)
+                self.send_response(204)
+            else:
+                self.send_response(403)
+            self.end_headers()
+
+    s = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Isleyici)
+    threading.Thread(target=s.serve_forever, daemon=True).start()
+    return s, f"http://127.0.0.1:{s.server_address[1]}"
+
+
+def _kayitlar(n: int, bas: int = 1) -> list[bytes]:
+    return [KB.kayit_paketle(KB.T_NOKTA if i % 3 else KB.T_SAAT, i, 7,
+                             bytes((i + j) & 0xFF for j in range(4 + (i % 5) * 36)))
+            for i in range(bas, bas + n)]
+
+
+def _hatali(islev) -> bool:
+    try:
+        islev()
+    except ValueError:
+        return True
+    return False
+
+
+def bolum_esitle() -> None:
+    print("\n── B72.E  esitleme istemcisi (sahte kart)")
+    kay = _kayitlar(50)
+    tum = b"".join(kay)
+    kart = _SahteKart(kay)
+    sunucu, taban = _sunucu(kart)
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            onaylar: list[tuple[int, int]] = []
+
+            def onay(s):   # onay aninda dosyada kac bayt var
+                onaylar.append((s, (Path(d) / KE.DOSYA).stat().st_size))
+
+            e = KE.Esitleyici(taban, d, onay, bayt=1024)
+            e.esitle(azami_tur=2)
+            r = e.esitle()
+            dosya = (Path(d) / KE.DOSYA).read_bytes()
+            ok("B72.E1 karttaki butun kayitlar diske AYNEN (bayt bayt) geldi",
+               dosya == tum and e.son_sira() == 50, f"{r}")
+            ok("B72.E2 kesilen esitleme kaldigi yerden surdu, tekrar yok",
+               len(KB.akis_coz(dosya)) == 50)
+            yazili = [len(b"".join(k for k in kay if struct.unpack_from("<I", k, 4)[0] <= s))
+                      for s, _ in onaylar]
+            ok("B72.E4 onay YALNIZ diske yazildiktan sonra ve yazilanin sonuna kadar",
+               bool(onaylar) and all(b == y for (_, b), y in zip(onaylar, yazili))
+               and onaylar[-1][0] == 50, f"{onaylar[:3]}...")
+            n_onay = len(onaylar)
+            r2 = e.esitle()
+            ok("B72.E5 yeni kayit yokken tekrar kosmak hicbir sey cekmez, onaylamaz",
+               r2["yeni_kayit"] == 0 and len(onaylar) == n_onay)
+        with tempfile.TemporaryDirectory() as d:
+            kart.bozuk = True
+            onaylar2: list[int] = []
+            hata = _hatali(lambda: KE.Esitleyici(taban, d, onaylar2.append).esitle())
+            kart.bozuk = False
+            ok("B72.E3 bozuk yanit REDDEDILIR: diske yazilmaz, onaylanmaz",
+               hata and not onaylar2 and not (Path(d) / KE.DOSYA).exists())
+        with tempfile.TemporaryDirectory() as d:
+            kart.kayitlar = kay[10:]            # 1..10 temizlikte silinmis
+            r = KE.Esitleyici(taban, d).esitle()
+            kart.kayitlar = kay
+            ok("B72.E6 temizlikte silinmis aralik BOSLUK olarak bildirilir",
+               r["bosluk"] == [(1, 11)] and r["son_sira"] == 50, f"{r['bosluk']}")
+        with tempfile.TemporaryDirectory() as d:
+            e = KE.Esitleyici(taban, d)
+            e.esitle()
+            kart.kayitlar = kay + _kayitlar(3, 51)
+            kart.sirayi_yok_say = True          # kart numarayi basa dondurmus gibi
+            hata = _hatali(e.esitle)
+            kart.sirayi_yok_say = False
+            kart.kayitlar = kay
+            ok("B72.E7 kartin sirasi geri giderse esitleme DURUR, dosyaya yazmaz",
+               hata and (Path(d) / KE.DOSYA).read_bytes() == tum and e.son_sira() == 50)
+        with tempfile.TemporaryDirectory() as d:
+            e = KE.Esitleyici(taban, d, bayt=1024)
+            e.esitle(azami_tur=1)
+            with open(Path(d) / KE.DOSYA, "ab") as f:
+                f.write(kay[-1][:30])           # durum yazilmadan kesilen ekleme
+            e.esitle()
+            ok("B72.E9 durum yazilmadan kesilen ekleme temizlenir: dosya tam, tekrarsiz",
+               (Path(d) / KE.DOSYA).read_bytes() == tum)
+        with tempfile.TemporaryDirectory() as d:
+            def patlayan(s):
+                raise OSError("ag koptu")
+            try:
+                KE.Esitleyici(taban, d, patlayan).esitle()
+            except OSError:
+                pass
+            onaylar3: list[int] = []
+            r = KE.Esitleyici(taban, d, onaylar3.append).esitle()
+            ok("B72.E10 onay yollanamadiysa sonraki kosu yeniden yollar (veri tekrar "
+               "cekilmez)", onaylar3 == [50] and r["yeni_kayit"] == 0,
+               f"{onaylar3} {r}")
+        KE.http_onay(taban)(42)
+        ok("B72.E8 HTTP onayi jetonu /akis'ten alip X-Olcum + X-Jeton ile Go<sira> yollar",
+           kart.komutlar == ["Go42"], str(kart.komutlar))
+    finally:
+        sunucu.shutdown()
+
+
+BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle]
 
 
 def main() -> int:
