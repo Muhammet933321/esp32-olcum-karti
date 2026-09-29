@@ -426,6 +426,57 @@ static void senaryo(void)
 }
 #endif
 
+#if defined(SENARYO_KESINTI)
+static KayitYazici y;
+
+/* Sonsuz is yuku: test_kayit.py rastgele bir cevrimde KESER, karti
+   yeniden acar. Her acilis: kurtar -> acik oturum varsa DEVAM, yoksa YENI. */
+static void senaryo(void)
+{
+    KayitNokta p;
+    KayitBasla b;
+    uint32_t k = 0u, t = 0u, id = 0u;
+    uint16_t i;
+    int32_t r;
+
+    kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    kg_ac(&g, 0u);
+    ky_kur(&y, &g);
+    kg_onayla(&g, g.sonraki_sira - 1u);    /* cihaz her seyi aldi: halka donsun */
+    metin("AC "); ondalik(g.sonraki_sira); yaz(' '); ondalik(g.bozuk); satir();
+    for (i = 0; i < g.dizin_adet; i++) {
+        if (g.dizin[i].durum == KD_ACIK) { id = g.dizin[i].id; k = g.dizin[i].nokta_sonraki; }
+    }
+    if (id) {
+        KayitDevam d;
+        uint32_t adres = KG_ADRES_YOK;
+        for (i = 0; i < g.dizin_adet; i++) if (g.dizin[i].id == id) adres = g.dizin[i].basla_adres;
+        memset(&d, 0, sizeof(d));
+        d.acilis = 1u;
+        r = kg_basla_oku(&g, adres, &b);
+        if (!r) r = ky_devam(&y, id, &b, k, &d);
+        metin("DEVAM "); ondalik(id); yaz(' '); ondalik(k); satir();
+    } else {
+        basla_uret(&b, 100u);
+        r = ky_baslat(&y, &b);
+        metin("YENI "); ondalik(r > 0 ? (uint32_t)r : 0u); satir();
+        r = (r > 0) ? 0 : r;
+    }
+    if (r) { metin("HATA "); ondalik((uint32_t)(-r)); satir(); metin("BITTI\n"); return; }
+    for (;;) {
+        nokta_uret(k, &p);
+        k++;
+        t += 100u;
+        r = ky_nokta(&y, &p, t);
+        if (!r && (k & 3u) == 0u) {
+            r = ky_bosalt(&y);
+            kg_onayla(&g, g.sonraki_sira - 1u);
+        }
+        if (r) { metin("HATA "); ondalik((uint32_t)(-r)); satir(); metin("BITTI\n"); return; }
+    }
+}
+#endif
+
 /* ── giris ── */
 #if !(defined(SENARYO_BICIM) || defined(SENARYO_NOKTACI) || defined(SENARYO_GUNLUK) \
       || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI))

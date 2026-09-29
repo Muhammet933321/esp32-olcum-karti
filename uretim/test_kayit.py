@@ -495,7 +495,62 @@ def bolum_yazici() -> None:
        o4 is not None and _noktalar_mi(o4, range(ucta), lambda j: 1000 + j))
 
 
-BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici]
+# ── B71.K · elektrik kesme ────────────────────────────────────────────
+def bolum_kesinti(n_deneme: int) -> None:
+    """Ayni is yuku rastgele cevrimlerde kesilir, kart yeniden acilir.
+    Kesme yazmanin, silmenin ya da kurtarmanin tam ortasina denk gelebilir.
+    Tohum sabit: sonuc tekrarlanabilir."""
+    print(f"\n── B71.K  elektrik kesme: {n_deneme} rastgele kesinti")
+    elf = derle("KESINTI")
+    rng = random.Random(71)
+    flas = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR, sil_cevrim=20_000)
+    ac_sira: list[int] = []
+    yeni = devam = hata = bozuk_top = 0
+    for _ in range(n_deneme):
+        kart = kart_kur(elf, flas)
+        kart.cevrim_kadar_kos(rng.randrange(100_000, 1_500_000))
+        flas.kes(rng)
+        for s in kart.satirlar():
+            p = s.split()
+            if p[:1] == ["AC"] and len(p) == 3 and p[1].isdigit() and p[2].isdigit():
+                ac_sira.append(int(p[1]))
+                bozuk_top += int(p[2])
+            elif p[:1] == ["YENI"]:
+                yeni += 1
+            elif p[:1] == ["DEVAM"]:
+                devam += 1
+            elif p[:1] == ["HATA"]:
+                hata += 1
+    bellek = bytes(flas.bellek)
+    kayitlar, _ = KB.flas_coz(bellek, SEKTOR)
+    ot = [o for o in KB.oturumlari_kur(kayitlar).values() if o.noktalar]
+    o = ot[0] if len(ot) == 1 else None
+    idx = [j for j, _ in o.noktalar] if o else []
+    ok("B71.K1 hicbir acilista kurtarma/surdurme hatasi yok", hata == 0,
+       f"HATA={hata}")
+    ok("B71.K2 en az bir SILME ortasinda kesildi (yarim sektor modeli sinandi)",
+       flas.kesilen_silme >= 1, f"{flas.kesilen_silme} kesik silme")
+    ok("B71.K3 en az bir YARIM kayit kurtarmada atildi", bozuk_top >= 1,
+       f"toplam {bozuk_top}")
+    ok("B71.K4 kesintiler oturumu bolmedi: flasta tek oturum, DEVAM ile surdu",
+       o is not None and devam >= 10,
+       f"oturum={len(ot)} DEVAM={devam} YENI={yeni}")
+    ok("B71.K5 nokta siralari bosluksuz ve tekrarsiz",
+       bool(idx) and idx == list(range(idx[0], idx[0] + len(idx))),
+       f"{len(idx)} nokta {idx[:1]}..{idx[-1:]}")
+    ok("B71.K6 her nokta deterministik degerine BIREBIR esit (bozuk veri yok)",
+       o is not None and all(p == nokta_uret(j) for j, p in o.noktalar))
+    ok("B71.K7 her DEVAM ardindaki noktanin sirasini dogru biliyor",
+       devam_tutarli(kayitlar))
+    ok("B71.K8 her sektorde oturumun ilk kaydi BASLA ya da TEKRAR",
+       tekrar_kurali(bellek))
+    ok("B71.K9 sira numarasi acilislar boyunca hic geri gitmedi",
+       len(ac_sira) >= 10 and all(a <= b for a, b in zip(ac_sira, ac_sira[1:])),
+       f"{len(ac_sira)} acilis")
+
+
+BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
+            bolum_kesinti]
 
 
 def main() -> int:
