@@ -19,6 +19,7 @@
 #include "kayit_bicim.h"
 #include "kayit_nokta.h"
 #include "kayit_gunluk.h"
+#include "kayit_oturum.h"
 
 #define KULLANILMAYABILIR __attribute__((unused))
 
@@ -323,6 +324,104 @@ static void senaryo(void)
     kg_ac(&g, 0u); durum("G10");
     sayi("EK", kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 12u)); durum("G11");
     oku(35u, sizeof(tampon));
+    metin("BITTI\n");
+}
+#endif
+
+#if defined(SENARYO_YAZICI)
+static KayitYazici y;
+
+static void oz(const char *ad)
+{
+    uint16_t i;
+    for (i = 0; i < g.dizin_adet; i++) {
+        const KayitOzet *o = &g.dizin[i];
+        metin(ad);
+        yaz(' '); ondalik(o->id); yaz(' '); ondalik(o->tur);
+        yaz(' '); ondalik(o->hiz_ms); yaz(' '); ondalik(o->ilk_sira);
+        yaz(' '); ondalik(o->son_sira); yaz(' '); ondalik(o->nokta_sonraki);
+        yaz(' '); ondalik(o->durum); yaz(' '); ondalik(o->basi_silindi);
+        satir();
+    }
+}
+
+static void senaryo(void)
+{
+    KayitBasla b, bb;
+    KayitNokta p;
+    KayitSaat z;
+    KayitDevam d;
+    uint32_t k, t = 0u, id, ns;
+    uint16_t i;
+    int r = 0;
+
+    kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    kg_ac(&g, 0u);
+    ky_kur(&y, &g);
+
+    /* O1: 40 nokta, 200 ms; tampon dolunca ve 5 s'de bir bosaltilir */
+    basla_uret(&b, 200u);
+    sayi("O1", ky_baslat(&y, &b));
+    for (k = 0; k < 40u && !r; k++) {
+        nokta_uret(k, &p);
+        t += 200u;
+        r = ky_nokta(&y, &p, t);
+        if (!r) r = ky_zaman(&y, t);
+    }
+    sayi("R1", r);
+    sayi("B1", ky_bitir(&y, KB_SEBEP_KULLANICI));
+
+    /* O2: ortada saat kaydi */
+    basla_uret(&b, 1000u);
+    sayi("O2", ky_baslat(&y, &b));
+    for (k = 100; k < 110u; k++) {
+        nokta_uret(k, &p);
+        t += 1000u;
+        ky_nokta(&y, &p, t);
+        if (k == 104u) {
+            z.unix_s = 1790000000UL;
+            z.kart_ms = t;
+            z.acilis = 3u;
+            ky_saat(&y, &z);
+        }
+    }
+    sayi("B2", ky_bitir(&y, KB_SEBEP_KULLANICI));
+
+    /* O3: acik birakilir, "yeniden baslama" sonrasi surdurulur */
+    basla_uret(&b, 500u);
+    sayi("O3", ky_baslat(&y, &b));
+    for (k = 200; k < 210u; k++) { nokta_uret(k, &p); t += 500u; ky_nokta(&y, &p, t); }
+    sayi("BO", ky_bosalt(&y));
+    kg_ac(&g, 0u);                      /* RAM'deki her sey unutuldu */
+    ky_kur(&y, &g);
+    oz("OZ");
+    r = -9;
+    for (i = 0; i < g.dizin_adet; i++) {
+        if (g.dizin[i].durum != KD_ACIK) continue;
+        id = g.dizin[i].id;
+        ns = g.dizin[i].nokta_sonraki;
+        if (kg_basla_oku(&g, g.dizin[i].basla_adres, &bb)) break;
+        d.acilis = 4u; d.unix_s = 0u; d.kart_ms = 50u; d.nokta_sira = 0u;
+        r = ky_devam(&y, id, &bb, ns, &d);
+        break;
+    }
+    sayi("DV", r);
+    for (k = 210; k < 215u; k++) { nokta_uret(k, &p); t += 500u; ky_nokta(&y, &p, t); }
+    sayi("B3", ky_bitir(&y, KB_SEBEP_KULLANICI));
+    kg_ac(&g, 0u);
+    oz("OZS");
+
+    /* O4: onay YOK -> bellek dolar; BITIR(DOLU) yazilmali */
+    ky_kur(&y, &g);
+    basla_uret(&b, 100u);
+    sayi("O4", ky_baslat(&y, &b));
+    k = 1000u;
+    r = 0;
+    while (!r && k < 20000u) { nokta_uret(k, &p); k++; t += 100u; r = ky_nokta(&y, &p, t); }
+    sayi("DOLU", r);
+    sayi("BESLENEN", (int32_t)(k - 1000u));
+    sayi("AKTIF", (int32_t)y.oturum);
+    sayi("DUSEN", (int32_t)y.dusen);
     metin("BITTI\n");
 }
 #endif

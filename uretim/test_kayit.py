@@ -47,7 +47,7 @@ HARNESS = BURASI / "avr" / "ornek_kayit.c"
 SEKTOR = 512          # testte kucuk sektor: halka cok doner, emulatorde ucuz
 SEKTOR_ADET = 8       # varsayilan; derle() -DNOR_SEKTOR_ADET ile gecirir
 AZAMI_YUK = 256       # 4 + 7 nokta
-CPP_BASLIKLAR = ["kayit_bicim.h", "kayit_nokta.h", "kayit_gunluk.h"]
+CPP_BASLIKLAR = ["kayit_bicim.h", "kayit_nokta.h", "kayit_gunluk.h", "kayit_oturum.h"]
 _ELF: dict[str, Path] = {}
 
 gecti = kaldi = 0
@@ -391,7 +391,111 @@ def bolum_gunluk() -> None:
        str(oku[3:4]))
 
 
-BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk]
+# ── B71.Y · oturum yazici ─────────────────────────────────────────────
+def _noktalar_mi(o, siralar, k_fn) -> bool:
+    """Oturumun noktalari tam `siralar` ve her biri nokta_uret(k_fn(j))."""
+    return (o is not None and [j for j, _ in o.noktalar] == list(siralar)
+            and all(p == nokta_uret(k_fn(j)) for j, p in o.noktalar))
+
+
+def devam_tutarli(kayitlar) -> bool:
+    """Her oturumda NOKTA'nin ilk_nokta'si ve DEVAM'in nokta_sira'si
+    beklenen siraya esit: nokta ne kayboldu ne ikilendi."""
+    beklenen: dict[int, int] = {}
+    for k in kayitlar:
+        if k.tur == KB.T_BASLA:
+            beklenen[k.oturum] = 0
+        elif k.tur == KB.T_NOKTA:
+            ilk = struct.unpack_from("<I", k.yuk)[0]
+            if beklenen.get(k.oturum, ilk) != ilk:
+                return False
+            beklenen[k.oturum] = ilk + (len(k.yuk) - 4) // KB.NOKTA_BAYT
+        elif k.tur == KB.T_DEVAM:
+            ns = KB.devam_coz(k.yuk)["nokta_sira"]
+            if beklenen.get(k.oturum, ns) != ns:
+                return False
+            beklenen[k.oturum] = ns
+    return True
+
+
+def tekrar_kurali(bellek: bytes) -> bool:
+    """Her sektorde, bir oturumun o sektordeki ILK kaydi BASLA ya da TEKRAR:
+    her sektor kendi oturumunu anlatir (temizlikten sonra da cozulebilir)."""
+    for s in range(0, len(bellek), SEKTOR):
+        kayitlar, _ = KB.flas_coz(bellek[s:s + SEKTOR], SEKTOR)
+        gorulen: set[int] = set()
+        for k in kayitlar:
+            if k.oturum and k.oturum not in gorulen:
+                if k.tur not in (KB.T_BASLA, KB.T_TEKRAR):
+                    return False
+                gorulen.add(k.oturum)
+    return True
+
+
+def _oz(satirlar: list[str], onek: str) -> list[tuple[int, ...]]:
+    """OZ/OZS: id tur hiz ilk son nokta durum basi_silindi."""
+    return [tuple(int(x) for x in p) for p in alanlar(satirlar, onek)]
+
+
+YAZICI_SEKTOR = 16   # O1..O3 ~10 sektor tutar; 8 sektorde O3 DEVAM'dan
+                     # sonra yanlis sebeple (DOLU) kapanirdi. O4 kalanini doldurur.
+
+
+def bolum_yazici() -> None:
+    print("\n── B71.Y  oturum yazici: BASLA/TEKRAR/NOKTA/DEVAM/BITIR/SAAT")
+    flas = NorFlas(SEKTOR * YAZICI_SEKTOR, sektor=SEKTOR)
+    sat = kos(derle("YAZICI", YAZICI_SEKTOR), flas)
+    d = {p[0]: p[1:] for p in (s.split() for s in sat)
+         if p and p[0] not in ("OZ", "OZS")}
+    bellek = bytes(flas.bellek)
+    kayitlar, bozuk = KB.flas_coz(bellek, SEKTOR)
+    ot = KB.oturumlari_kur(kayitlar)
+    id1, id2, id3, id4 = (int(d[x][0]) for x in ("O1", "O2", "O3", "O4"))
+    o1, o2, o3, o4 = (ot.get(i) for i in (id1, id2, id3, id4))
+    ok("B71.Y1 oturum kimligi = BASLA kaydinin sirasi (bos flasta ilk oturum 1)",
+       id1 == 1, str(d["O1"]))
+    ok("B71.Y2 flasta cozulemeyen kayit yok", bozuk == 0, f"bozuk={bozuk}")
+    ok("B71.Y3 O1: 40 nokta, sira 0..39, degerler birebir, hata yok",
+       d["R1"] == ["0"] and _noktalar_mi(o1, range(40), lambda j: j))
+    ok("B71.Y4 O1: BITIR 40 nokta, sebep kullanici",
+       o1 is not None and o1.bitir == {"nokta_adedi": 40, "sebep": 1})
+    ok("B71.Y5 O2: 10 nokta + ortadaki SAAT kaydi (unix 1790000000)",
+       _noktalar_mi(o2, range(10), lambda j: 100 + j)
+       and [s["unix_s"] for s in o2.saatler] == [1790000000])
+    ok("B71.Y6 O3: yeniden baslama sonrasi DEVAM (10), 15 nokta bosluksuz",
+       _noktalar_mi(o3, range(15), lambda j: 200 + j)
+       and [x["nokta_sira"] for x in o3.devamlar] == [10]
+       and o3.bitir == {"nokta_adedi": 15, "sebep": 1})
+    ok("B71.Y7 her DEVAM ardindaki noktanin sirasini dogru biliyor",
+       devam_tutarli(kayitlar))
+    ok("B71.Y8 her sektorde bir oturumun ILK kaydi BASLA ya da TEKRAR",
+       tekrar_kurali(bellek))
+    ok("B71.Y9 kg_basla_oku + ky_devam basarili", d["DV"] == ["0"], str(d["DV"]))
+    oz = [(t[0], t[1], t[2], t[5], t[6], t[7]) for t in _oz(sat, "OZ")]
+    ok("B71.Y10 yeniden acilista dizin: O1/O2 bitti, O3 ACIK ve 10. noktada",
+       oz == [(id1, 1, 200, 40, 2, 0), (id2, 1, 1000, 10, 2, 0),
+              (id3, 1, 500, 10, 1, 0)], str(oz))
+    ozs = _oz(sat, "OZS")
+    sira = {i: [k.sira for k in kayitlar if k.oturum == i] for i in (id1, id2, id3)}
+    ok("B71.Y11 son dizin: O3 bitti (15 nokta); ilk/son sira flasla ayni",
+       [(t[0], t[1], t[2], t[5], t[6], t[7]) for t in ozs]
+       == [(id1, 1, 200, 40, 2, 0), (id2, 1, 1000, 10, 2, 0),
+           (id3, 1, 500, 15, 2, 0)]
+       and all((t[3], t[4]) == (min(sira[t[0]]), max(sira[t[0]])) for t in ozs),
+       str(ozs))
+    besl, dus = int(d["BESLENEN"][0]), int(d["DUSEN"][0])
+    ucta = len(o4.noktalar) if o4 else -1
+    ok("B71.Y12 bellek dolunca: KG_DOLU, oturum kapandi, BITIR(DOLU) flasta, "
+       "noktalar hesapta",
+       d["DOLU"] == ["-1"] and d["AKTIF"] == ["0"] and o4 is not None
+       and o4.bitir == {"nokta_adedi": ucta, "sebep": 2}
+       and 0 <= besl - ucta - dus <= 1,
+       f"beslenen={besl} flasta={ucta} dusen={dus} bitir={o4.bitir if o4 else None}")
+    ok("B71.Y13 O4'un flasa giden noktalari birebir",
+       o4 is not None and _noktalar_mi(o4, range(ucta), lambda j: 1000 + j))
+
+
+BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici]
 
 
 def main() -> int:
