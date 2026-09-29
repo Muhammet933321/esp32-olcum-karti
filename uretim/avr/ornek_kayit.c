@@ -130,7 +130,8 @@ static KULLANILMAYABILIR void basla_uret(KayitBasla *b, uint32_t hiz_ms)
 
 /* ─────────────────────────────── emule NOR (uretim/avr/nor_flas.py) */
 #if defined(SENARYO_GUNLUK) || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) \
-    || defined(SENARYO_DIZIN) || defined(SENARYO_TARAMA)
+    || defined(SENARYO_DIZIN) || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) \
+    || defined(SENARYO_YONET)
 #define NOR_KOMUT (*(volatile uint8_t *)0xE0)
 #define NOR_A0    (*(volatile uint8_t *)0xE1)
 #define NOR_A1    (*(volatile uint8_t *)0xE2)
@@ -559,6 +560,263 @@ static void senaryo(void)
 }
 #endif
 
+#if defined(SENARYO_MANTIKSAL)
+/* B72 (son inceleme O4): MANTIKSAL bicimleme. Bicimleme = NVS'e taban
+   yazmak; tabanin altindaki kayitlar yok sayilir, fiziksel silme arka
+   planda (kg_temizle_adim) ya da sil-sonra-kullan ile. Dolu bolumde 2912 x
+   25 ms = ~73 s surup web sunucusunu donduran fiziksel bicimlemenin yerine. */
+static uint8_t tampon[600];
+
+static void dm(const char *ad)
+{
+    metin(ad);
+    metin(" sonraki="); ondalik(g.sonraki_sira);
+    metin(" bas="); ondalik(g.bas);
+    metin(" ofset="); ondalik(g.bas_ofset);
+    metin(" onay="); ondalik(g.onay);
+    metin(" kull="); ondalik(kg_kullanilan(&g));
+    metin(" dizin="); ondalik(g.dizin_adet);
+    metin(" taban="); ondalik(g.taban);
+    metin(" eski="); ondalik(g.eski);
+    satir();
+}
+
+static void oku(const char *ad, uint32_t sira)
+{
+    uint32_t ilk, son, n = kg_oku(&g, sira, tampon, sizeof(tampon), &ilk, &son);
+    metin(ad); yaz(' '); ondalik(n); yaz(' '); ondalik(ilk); yaz(' '); ondalik(son); satir();
+}
+
+static void basliklar(const char *ad)
+{
+    uint8_t b;
+    uint32_t s;
+    metin(ad);
+    for (s = 0; s < NOR_SEKTOR_ADET; s++) {
+        f_oku(0, s * KAYIT_SEKTOR, &b, 1u);
+        yaz(' '); hex8(b);
+    }
+    satir();
+}
+
+static void senaryo(void)
+{
+    uint8_t yuk[100];
+    uint32_t i, s, taban, taban2, n = 0u;
+    int r;
+    for (i = 0; i < sizeof(yuk); i++) yuk[i] = (uint8_t)i;
+    kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    kg_ac(&g, 0u, 0u);
+    for (i = 0; i < 12u; i++) kg_ekle(&g, KAYIT_T_SAAT, 1u, yuk, 100u);   /* eski: 3 sektor */
+    dm("M1");
+    taban = g.sonraki_sira;                  /* cagiran NVS'e ONCE bunu yazar */
+    kg_bicimle_mantiksal(&g); dm("M2");
+    oku("OK2", 1u);
+    for (i = 0; i < 3u; i++) kg_ekle(&g, KAYIT_T_SAAT, taban, yuk, 100u);
+    dm("M3");
+    oku("OK3", 1u);
+    kg_ac(&g, taban, g.onay); dm("M4");     /* elektrik kesildi, yeniden acilis */
+    oku("OK4", 1u);
+    s = 0u;
+    while (s < NOR_SEKTOR_ADET) {
+        r = kg_temizle_adim(&g, &s);
+        if (r < 0) { sayi("THATA", r); break; }
+        n += (uint32_t)r;
+    }
+    sayi("TEMIZ", (int32_t)n); dm("M5");
+    basliklar("BAS5");
+    oku("OK5", 1u);
+    taban2 = g.sonraki_sira;                 /* taban NVS'e yazildi, RAM'e GECMEDEN kesildi */
+    kg_ac(&g, taban2, g.onay); dm("M6");
+    oku("OK6", 1u);
+    kg_ekle(&g, KAYIT_T_SAAT, taban2, yuk, 12u); dm("M7");
+    oku("OK7", 1u);
+    metin("BITTI\n");
+}
+#endif
+
+#if defined(SENARYO_YONET)
+/* B72 (son inceleme O1-O5): kayit YONETICISI (kayit_yonet.h) — kartin
+   durum makinesi, platformsuz. Her ACILIS bir asama: `t_adim` NVS'ten okunur,
+   NVS (emule, nor_flas.py) ve flas acilistan acilisa KALICI. Asama bitince
+   program "BITTI" der: elektrik kesilmis gibi (BITIR yazilmaz). */
+#include "kayit_yonet.h"
+#define NVS_ANAHTAR (*(volatile uint8_t *)0xE7)
+#define NVS_V(i)    (*(volatile uint8_t *)(0xE8 + (i)))
+#define NVS_KOMUT   (*(volatile uint8_t *)0xEC)
+
+static const char *const NVS_ADLAR[] = {"acilis", "kimlik", "taban", "onay", "kapat",
+                                        "t_adim", "t_rast"};
+
+static uint8_t nvs_sira(const char *ad)
+{
+    uint8_t i;
+    for (i = 0; i < sizeof(NVS_ADLAR) / sizeof(NVS_ADLAR[0]); i++)
+        if (!strcmp(ad, NVS_ADLAR[i])) return i;
+    return 0xFFu;
+}
+
+static uint32_t nvs_oku(void *b, const char *ad, uint32_t varsayilan)
+{
+    (void)b;
+    NVS_ANAHTAR = nvs_sira(ad);
+    NVS_KOMUT = 1u;
+    if (!(NVS_KOMUT & 1u)) return varsayilan;
+    return (uint32_t)NVS_V(0) | ((uint32_t)NVS_V(1) << 8)
+         | ((uint32_t)NVS_V(2) << 16) | ((uint32_t)NVS_V(3) << 24);
+}
+
+static int nvs_yaz(void *b, const char *ad, uint32_t v)
+{
+    (void)b;
+    NVS_ANAHTAR = nvs_sira(ad);
+    NVS_V(0) = (uint8_t)v; NVS_V(1) = (uint8_t)(v >> 8);
+    NVS_V(2) = (uint8_t)(v >> 16); NVS_V(3) = (uint8_t)(v >> 24);
+    NVS_KOMUT = 2u;
+    return (NVS_KOMUT & 2u) ? -1 : 0;
+}
+
+static const KayitNvs NVS = { nvs_oku, nvs_yaz, 0 };
+static KayitYazici y;
+static KayitYonetici m;
+static uint32_t k_nokta, t_ms;
+
+static void dr(const char *ad)
+{
+    metin(ad);
+    yaz(' '); ondalik(kyn_durum(&m));
+    yaz(' '); ondalik(kyn_oturum(&m));
+    yaz(' '); ondalik(g.sonraki_sira);
+    yaz(' '); ondalik(g.onay);
+    yaz(' '); ondalik(kg_kullanilan(&g));
+    yaz(' '); ondalik((uint32_t)(-m.son_hata));
+    yaz(' '); ondalik(m.kapat_id);
+    yaz(' '); ondalik(m.kimlik);
+    yaz(' '); ondalik(g.taban);
+    satir();
+}
+
+static int noktalar(uint32_t n)
+{
+    KayitNokta p;
+    int r = 0;
+    while (n-- && !r) {
+        nokta_uret(k_nokta++, &p);
+        t_ms += 100u;
+        r = ky_nokta(&y, &p, t_ms);
+    }
+    return r;
+}
+
+static void senaryo(void)
+{
+    KayitBasla b;
+    KayitSaat z;
+    uint32_t adim, i, s, n;
+    kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    ky_kur(&y, &g);
+    kyn_kur(&m, &g, &y, &NVS);
+    adim = nvs_oku(0, "t_adim", 0u);
+    t_ms = 1000u;
+    sayi("AC", kyn_ac(&m, t_ms, 0u, nvs_oku(0, "t_rast", 7u)));
+    dr("D0");
+    k_nokta = y.nokta_sira;
+    switch (adim) {
+    case 1:                                   /* kayit basla, 30 nokta, elektrik gider */
+        basla_uret(&b, 100u);
+        sayi("BAS", kyn_baslat(&m, &b, t_ms, 0u));
+        noktalar(30u);
+        ky_bosalt(&y);
+        dr("D1");
+        break;
+    case 2:                                   /* DEVAM; halka ONAYSIZ dolar; kafada yarim yazma */
+        i = 0u;
+        while (!g.sektor[(g.bas + 1u) % NOR_SEKTOR_ADET].ilk && i++ < 5000u)
+            if (noktalar(1u)) break;
+        z.unix_s = 0u; z.kart_ms = t_ms; z.acilis = m.acilis;
+        NOR_ARIZA_YAZ = 10u;                  /* SAAT kaydinin basligi yarida */
+        sayi("YARIM", ky_saat(&y, &z));
+        (void)NOR_KOMUT;
+        dr("D2");
+        break;
+    case 3:                                   /* durum 4: kullanici DURDURUR */
+        sayi("DUR", kyn_durdur(&m));
+        dr("D3");
+        break;
+    case 4:                                   /* niyet NVS'ten; esitleme onaylar -> KAPANIR */
+        kyn_adim(&m, g.sonraki_sira - 1u, t_ms, 0u);
+        dr("D4");
+        break;
+    case 6:                                   /* durdurma YOK: onayla -> SURER (DEVAM) */
+        kyn_adim(&m, g.sonraki_sira - 1u, t_ms, 0u);
+        dr("D6");
+        break;
+    case 7:                                   /* kayit, bicimle, yeni kayit, elektrik gider */
+        basla_uret(&b, 100u);
+        kyn_baslat(&m, &b, t_ms, 0u);
+        noktalar(40u);
+        sayi("BIC", kyn_bicimle(&m, t_ms));
+        dr("D7a");
+        basla_uret(&b, 200u);
+        sayi("BAS", kyn_baslat(&m, &b, t_ms, 0u));
+        noktalar(10u);
+        ky_bosalt(&y);
+        dr("D7b");
+        break;
+    case 8:                                   /* yeniden acilis: eski gorunmez, temizlik */
+        n = 0u;
+        for (i = 0; i < 400u && m.temiz_s < NOR_SEKTOR_ADET; i++) {
+            s = m.temiz_s;
+            t_ms += 50u;
+            kyn_adim(&m, 0u, t_ms, 0u);
+            if (m.temiz_s != s) n++;
+        }
+        sayi("TUR", (int32_t)i);
+        sayi("ILERLEME", (int32_t)n);
+        dr("D8");
+        for (s = 0; s < NOR_SEKTOR_ADET; s++) {
+            uint8_t bb;
+            f_oku(0, s * KAYIT_SEKTOR, &bb, 1u);
+            metin("SB "); ondalik(s); yaz(' '); ondalik(bb);
+            yaz(' '); ondalik(g.sektor[s].ilk ? 1u : 0u); satir();
+        }
+        break;
+    case 9:                                   /* taban NVS'e YAZILAMAZSA bicimleme IPTAL */
+        basla_uret(&b, 100u);
+        kyn_baslat(&m, &b, t_ms, 0u);
+        noktalar(20u);
+        kyn_durdur(&m);
+        dr("D9a");
+        sayi("BIC", kyn_bicimle(&m, t_ms));
+        dr("D9b");
+        break;
+    case 12:                                  /* onay: son gelen kazanir, sahte reddedilir */
+        basla_uret(&b, 100u);
+        kyn_baslat(&m, &b, t_ms, 0u);
+        noktalar(20u);
+        kyn_durdur(&m);
+        kyn_adim(&m, 5u, t_ms, 0u);  dr("D12a");
+        kyn_adim(&m, 3u, t_ms, 0u);  dr("D12b");
+        kyn_adim(&m, 0xFFFFFF00UL, t_ms, 0u); dr("D12c");
+        break;
+    case 14:                                  /* onay NVS'ten: onaylanmis eski veri yer acar */
+        basla_uret(&b, 100u);
+        sayi("BAS", kyn_baslat(&m, &b, t_ms, 0u));
+        sayi("YAZ", noktalar(60u));
+        dr("D14");
+        break;
+    case 13:                                  /* durum 4'te YENI kayit: eskisi kapatilacak */
+        basla_uret(&b, 300u);
+        sayi("BAS", kyn_baslat(&m, &b, t_ms, 0u));
+        dr("D13");
+        break;
+    default:
+        break;
+    }
+    metin("BITTI\n");
+}
+#endif
+
 #if defined(SENARYO_TARAMA)
 /* B72: bos flasta kurtarma yalniz sektor BASLIKLARINI okumali; baslik
    disindaki 0xFF denetimi yalniz yazilan (bas) sektorde gerekli.
@@ -577,7 +835,7 @@ static void senaryo(void)
 /* ── giris ── */
 #if !(defined(SENARYO_BICIM) || defined(SENARYO_NOKTACI) || defined(SENARYO_GUNLUK) \
       || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN) \
-      || defined(SENARYO_TARAMA))
+      || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) || defined(SENARYO_YONET))
 #error "SENARYO_* tanimli degil"
 #endif
 

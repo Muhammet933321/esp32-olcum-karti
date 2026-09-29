@@ -10,12 +10,23 @@ ekler, fsync eder ve ANCAK ONDAN SONRA "N'e kadar aldim" onayi yollar. Kartin
 akilli temizligi yalniz bu onaylara bakar: onay erken gitseydi kartta
 silinen veri diskte olmayabilirdi.
 
-Diskte iki dosya:
+Diskte:
   kayitlar.kyt   kartin ham kayit akisi (kayit_bicim.akis_coz ile okunur)
-  durum.json     {son_sira, bayt, onaylanan} — atomik yazilir
-Ekleme ile durum arasinda kesilirse (cokme) sonraki kosu dosyayi `bayt`a
-kirpar: tekrar ya da yarim kayit kalmaz. Onay yollanamadan kesilirse
-sonraki kosu onu yeniden yollar.
+  durum.json     {son_sira, bayt, onaylanan, kimlik} — atomik yazilir
+  esitle.kilit   ayni dizine iki esitleme yazmasin (isletim sistemi kilidi)
+
+Dayaniklilik (1A-2 son inceleme O1/O2 + minor):
+  * Kartin AKIS KIMLIGI (X-Kayit-Kimlik) degisirse DUR: NVS/flas kaybinda
+    kart numarayi yeniden baslatir; eski akisa eklemek eslitlenmemis veriyi
+    sessizce kaybettirirdi. Yeni kart/akis -> yeni dizin.
+  * Kartin sirasi (X-Sonraki-Sira) bizim son siramizin GERISINDEYSE DUR.
+  * Bos yanit ama kartta daha yeni sira varsa (bicimlenmis ya da yarim
+    yazilmis sira) HATA degil ama 'bitti' de degil: uyari + bekleyen sayisi.
+  * Onay yalniz diske yazildiktan sonra; "onaylandi" ise yalniz kart X-Onay
+    ile DOGRULAYINCA yazilir, dogrulanmazsa yeniden yollanir (kartta onay
+    kaybolabilir; kaybolursa dolu kart takili kalirdi).
+  * Cokme: durum.json'dan uzun dosyanin GECERLI kayitlari ileri sarilir
+    (fsync'li veri + kaybolan yeniden adlandirma), yarim kuyruk kirpilir.
 
 Onay yollari:
   * seri (`Go<sira>`, USB — parola gerekmez)
@@ -30,6 +41,7 @@ import base64
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -39,22 +51,64 @@ import kayit_bicim as KB                                   # noqa: E402
 
 DOSYA = "kayitlar.kyt"
 DURUM = "durum.json"
+KILIT = "esitle.kilit"
+EN_AZ_BAYT = 1100      # en buyuk kayit 16 + 1012 = 1028 B; kucuk parca hic veri getiremez
+
+
+class Kilit:
+    """Ayni dizine iki esitleme ayni anda yazmasin. Isletim sistemi kilidi:
+    surec olurse (cokme) kilit KENDILIGINDEN kalkar — elle silinecek kalinti
+    birakmaz."""
+
+    def __init__(self, dizin: Path):
+        self.yol = Path(dizin) / KILIT
+        self.f = None
+
+    def __enter__(self):
+        self.yol.parent.mkdir(parents=True, exist_ok=True)
+        self.f = open(self.yol, "a+b")
+        try:
+            if os.name == "nt":
+                import msvcrt
+                self.f.seek(0)
+                msvcrt.locking(self.f.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            self.f.close()
+            self.f = None
+            raise RuntimeError(f"{self.yol.parent}: baska bir esitleme suruyor")
+        return self
+
+    def __exit__(self, *a):
+        if not self.f:
+            return
+        try:
+            if os.name == "nt":
+                import msvcrt
+                self.f.seek(0)
+                msvcrt.locking(self.f.fileno(), msvcrt.LK_UNLCK, 1)
+        finally:
+            self.f.close()
+            self.f = None
 
 
 class Esitleyici:
     def __init__(self, taban_url: str, dizin, onay=None, bayt: int = 8192,
-                 zaman_asimi: float = 10.0):
+                 zaman_asimi: float = 10.0, onay_bekle: float = 0.3):
         self.taban = taban_url.rstrip("/")
         self.dizin = Path(dizin)
         self.dizin.mkdir(parents=True, exist_ok=True)
         self.onay = onay
-        self.bayt = bayt
+        self.bayt = max(bayt, EN_AZ_BAYT)
         self.zaman_asimi = zaman_asimi
+        self.onay_bekle = onay_bekle
 
     # ── durum ──
     def _durum(self) -> dict:
         p = self.dizin / DURUM
-        d = {"son_sira": 0, "bayt": 0, "onaylanan": 0}
+        d = {"son_sira": 0, "bayt": 0, "onaylanan": 0, "kimlik": None}
         if p.exists():
             d.update(json.loads(p.read_text(encoding="utf-8")))
         return d
@@ -72,22 +126,55 @@ class Esitleyici:
         os.replace(g, p)
 
     def _hazirla(self, d: dict) -> None:
-        """Durumdan uzun dosya = durum yazilmadan kesilen ekleme: kirp."""
+        """Durumdan UZUN dosya: durum yazilmadan kesilmis ekleme. GECERLI ve
+        artan kayitlari ileri sar (fsync'li veri kaybolmasin), gerisini kirp."""
         p = self.dizin / DOSYA
         boy = p.stat().st_size if p.exists() else 0
         if boy < d["bayt"]:
             raise ValueError(f"{p} durumdan kisa ({boy} < {d['bayt']} B) — elle incele")
-        if boy > d["bayt"]:
-            with open(p, "r+b") as f:
-                f.truncate(d["bayt"])
-                f.flush()
-                os.fsync(f.fileno())
+        if boy == d["bayt"]:
+            return
+        kuyruk = p.read_bytes()[d["bayt"]:]
+        kayitlar, _ = KB.akis_onek(kuyruk)
+        son, gecerli = d["son_sira"], 0
+        for k in kayitlar:
+            # YALNIZ kesintisiz dizi: arada atlanan sira varsa (tuhaf kuyruk)
+            # ileri sarma durur, kalan yeniden CEKILIR — atlanan hic kaybolmaz
+            if k.sira != son + 1:
+                break
+            son = k.sira
+            gecerli += KB.toplam_bayt(len(k.yuk))
+        with open(p, "r+b") as f:
+            f.truncate(d["bayt"] + gecerli)
+            f.flush()
+            os.fsync(f.fileno())
+        if gecerli:
+            d["son_sira"] = son
+            d["bayt"] += gecerli
+            self._durum_yaz(d)
 
     # ── ag ──
-    def _getir(self, sira: int) -> bytes:
+    def _getir(self, sira: int):
         url = f"{self.taban}/kayit/veri?sira={sira}&bayt={self.bayt}"
         with urllib.request.urlopen(url, timeout=self.zaman_asimi) as y:
-            return y.read()
+            return y.read(), y.headers
+
+    @staticmethod
+    def _sayi(basliklar, ad: str):
+        v = basliklar.get(ad)
+        return int(v) if v not in (None, "") else None
+
+    def _kimlik_denetle(self, d: dict, basliklar) -> None:
+        k = self._sayi(basliklar, "X-Kayit-Kimlik")
+        if k is None:
+            return                                  # eski firmware: baslik yok
+        if d.get("kimlik") is None:
+            d["kimlik"] = k
+            self._durum_yaz(d)
+        elif d["kimlik"] != k:
+            raise ValueError(f"kartin kayit AKISI degismis (kimlik {d['kimlik']} -> {k}): "
+                             "kart sifirlanmis ya da baska kart. Bu dizine EKLENMEZ — "
+                             "yeni bir dizine esitle")
 
     def _ekle(self, govde: bytes) -> None:
         with open(self.dizin / DOSYA, "ab") as f:
@@ -95,27 +182,52 @@ class Esitleyici:
             f.flush()
             os.fsync(f.fileno())
 
-    def _onayla(self, d: dict) -> None:
-        if self.onay and d["onaylanan"] < d["son_sira"]:
-            self.onay(d["son_sira"])           # ancak diske yazildiktan SONRA
-            d["onaylanan"] = d["son_sira"]
-            self._durum_yaz(d)
+    def _onay_dogrula(self, d: dict, onay_x) -> bool:
+        """Kart onayi ALDI MI (X-Onay)? Almadiysa yeniden yolla, birkac kez."""
+        if d["onaylanan"] >= d["son_sira"]:
+            return True
+        if not self.onay:
+            return False
+        for _ in range(4):
+            if onay_x is not None and onay_x >= d["son_sira"]:
+                d["onaylanan"] = d["son_sira"]
+                self._durum_yaz(d)
+                return True
+            self.onay(d["son_sira"])
+            time.sleep(self.onay_bekle)             # kart onayi bir sonraki turda uygular
+            _, bas = self._getir(d["son_sira"] + 1)
+            onay_x = self._sayi(bas, "X-Onay")
+        return False
 
     def esitle(self, azami_tur: int = 100000) -> dict:
+        with Kilit(self.dizin):
+            return self._esitle(azami_tur)
+
+    def _esitle(self, azami_tur: int) -> dict:
         d = self._durum()
         self._hazirla(d)
-        self._onayla(d)                        # onceki kosu onaydan once kesildiyse
-        yeni, bosluk = 0, []
+        yeni, bosluk, sonuc = 0, [], {}
+        onay_x = None
         for _ in range(azami_tur):
             son = d["son_sira"]
-            govde = self._getir(son + 1)
+            govde, bas = self._getir(son + 1)
+            self._kimlik_denetle(d, bas)
+            onay_x = self._sayi(bas, "X-Onay")
+            sonraki = self._sayi(bas, "X-Sonraki-Sira")
+            if sonraki is not None and sonraki - 1 < son:
+                raise ValueError(f"kartin sirasi GERI gitti (kartta son {sonraki - 1}, "
+                                 f"bizde {son}): kart sifirlanmis. Bu dizine EKLENMEZ")
             if not govde:
+                if sonraki is not None and sonraki - 1 > son:
+                    sonuc = {"bekleyen": sonraki - 1 - son,
+                             "uyari": "kartta daha yeni sira var ama veri gelmedi "
+                                      "(bicimlenmis ya da yarim yazilmis olabilir); "
+                                      "yeni kayit gelince bosluk olarak gecilir"}
                 break
             kayitlar = KB.akis_coz(govde)      # CRC: bozuk yanit diske YAZILMAZ, onaylanmaz
             siralar = [k.sira for k in kayitlar]
             if siralar[0] <= son or siralar != sorted(set(siralar)):
-                raise ValueError(f"kart sirasi geri gitti ya da tekrar etti: "
-                                 f"{siralar[:3]} (son {son})")
+                raise ValueError(f"kart sirasi geri gitti ya da tekrar etti: {siralar[:3]} (son {son})")
             if siralar[0] > son + 1:
                 bosluk.append((son + 1, siralar[0]))
             self._ekle(govde)                  # once KALICI yaz (fsync)
@@ -123,8 +235,11 @@ class Esitleyici:
             d["bayt"] += len(govde)
             self._durum_yaz(d)
             yeni += len(kayitlar)
-            self._onayla(d)
-        return {"yeni_kayit": yeni, "son_sira": d["son_sira"], "bosluk": bosluk}
+            if self.onay:
+                self.onay(d["son_sira"])       # ancak diske yazildiktan SONRA (yer acilsin)
+        dogru = self._onay_dogrula(d, onay_x)
+        return {"yeni_kayit": yeni, "son_sira": d["son_sira"], "bosluk": bosluk,
+                "onay_dogrulandi": dogru, **sonuc}
 
 
 def seri_onay(kart):
@@ -193,7 +308,9 @@ def main() -> int:
     finally:
         if kart:
             kart.kapat()
-    print(f"yeni {r['yeni_kayit']} kayit, son sira {r['son_sira']}, bosluk {r['bosluk']}")
+    print(f"yeni {r['yeni_kayit']} kayit, son sira {r['son_sira']}, bosluk {r['bosluk']}, "
+          f"onay {'dogrulandi' if r['onay_dogrulandi'] else 'DOGRULANAMADI'}"
+          + (f", UYARI: {r['uyari']}" if r.get("uyari") else ""))
     return 0
 
 

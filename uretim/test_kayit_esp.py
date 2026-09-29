@@ -135,9 +135,12 @@ def bolum_kaynak() -> None:
        bool(esp_k) and "Serial" not in esp_k)
     i_dahil = ino_k.find('#include "kayit_esp.h"')
     i_makro = ino_k.find("#define Serial CIKIS")
+    # "KAPALI" .ino'da zaten 16 kez geciyordu: afisin KENDI dalina bak (son inceleme O5)
     ok("B72.F2 kayit_esp.h `#define Serial`'dan ONCE dahil; kayit bolumu yoksa "
        "afis KAPALI der",
-       0 <= i_dahil < i_makro and "KAPALI" in ino and "kayit_kur()" in ino_k)
+       0 <= i_dahil < i_makro and re.search(
+           r'if \(kayit_kur\(\)\) \{.*?\} else \{\s*Serial\.println\(F\("KAPALI',
+           ino_k, re.S) is not None)
     ok("B72.F3 kayit gorevi CEKIRDEK 0'da (olcum cekirdegi flas beklemesin)",
        re.search(r"xTaskCreatePinnedToCore\(\s*kayit_gorevi[^;]*,\s*0\s*\)", esp_k)
        is not None)
@@ -145,12 +148,15 @@ def bolum_kaynak() -> None:
     ok("B72.F4 gorev butun ky_/kg_ islerini kilit ALTINDA yapiyor",
        "xSemaphoreTake(kayit_kilit" in g and "xSemaphoreGive(kayit_kilit" in g
        and 0 <= g.find("xSemaphoreTake(kayit_kilit") < g.find("ky_nokta("))
-    a = govde(esp_k, "static void kayit__ac(")
-    ok("B72.F5 acilista onay ve sira tabani NVS'ten; kg_ac(g, taban, onay)",
-       re.search(r"kg_ac\(\s*&kayit_g\s*,\s*taban\s*,\s*onay\s*\)", a) is not None
-       and 'getUInt("onay"' in a and 'getUInt("taban"' in a)
+    # Durum makinesi kayit_yonet.h'de ve B71.V'de CALISTIRILARAK sinaniyor;
+    # burada yalniz yapistirici: acilis + NVS'in Preferences'a baglanmasi.
+    ny = govde(esp_k, "static int kayit_nvs_yaz(")
+    ok("B72.F5 gorev acilista kyn_ac'i (esp_random ile) cagiriyor; NVS yazma hatasi "
+       "YUTULMUYOR (bicimleme iptal edebilsin)",
+       "kyn_ac(&kayit_m" in g and "esp_random()" in g
+       and "putUInt(ad, deger) == sizeof(uint32_t)" in ny and "return -1" in ny)
     i_parca = esp_k.find("#define KG__PARCA")
-    i_motor = esp_k.find('#include "kayit_oturum.h"')
+    i_motor = esp_k.find('#include "kayit_yonet.h"')
     ok("B72.F6 ESP32 okuma parcasi (256) motordan ONCE tanimli",
        0 <= i_parca < i_motor and "256u" in esp_k[i_parca:i_parca + 40])
     oa = govde(ino_k, "Okuma3 olcum_al(")
@@ -163,9 +169,9 @@ def bolum_kaynak() -> None:
        "G satiri yalniz loop'ta (cekirdek 1)",
        "kayit_ornek(o.watt" in lp and "kayit_duraklama(" in skop[:skop.find("return;")]
        and "kayit_durum_bas(false)" in lp and '"G %u' in ino_k)
-    km = govde(esp_k, "static void kayit__mesaj(")
-    ok("B72.F9 bicimlemede sira tabani NVS'e kg_bicimle'den ONCE",
-       0 <= km.find('putUInt("taban"') < km.find("kg_bicimle("))
+    kk = govde(ino_k, "static void kayit_komut(")
+    ok("B72.F9 pil testi surerken GF! REDDEDILIR (bicimleme istegi kuyruga girmez)",
+       0 <= kk.find("pil_testi_suruyor()") < kk.find("m.tur = KM_BICIMLE"))
     ok("B72.F10 `G` komutu tanimli ve yardimda; hiz listesi dar",
        "case 'G': kayit_komut(s)" in ino_k and "Gb<ms>" in ino
        and "h == 60000" in ino_k)
@@ -174,25 +180,54 @@ def bolum_kaynak() -> None:
     ok("B72.F11 /kayit/liste ve /kayit/veri kayitli; ikisi de Host denetimli",
        'sunucu.on("/kayit/liste"' in ino_k and 'sunucu.on("/kayit/veri"' in ino_k
        and "host_gecerli()" in vs and "host_gecerli()" in ls)
-    ok("B72.F12 /kayit/veri kg_oku'yu KILIT altinda, tavanla (8192) cagiriyor",
-       0 <= vs.find("xSemaphoreTake(kayit_kilit") < vs.find("kg_oku(")
+    ok("B72.F12 /kayit/veri kg_oku'yu SURELI kilit altinda, tavanla (8192) cagiriyor; "
+       "web uclarinda sonsuz bekleme YOK (p0 donmasin)",
+       0 <= vs.find("kayit_kilit_al_web()") < vs.find("kg_oku(")
        < vs.find("xSemaphoreGive(kayit_kilit") and "KAYIT_VERI_AZAMI" in vs
-       and "X-Ilk-Sira" in ino)
+       and "kayit_kilit_al_web()" in ls and "portMAX_DELAY" not in vs + ls
+       and "pdMS_TO_TICKS(KAYIT_WEB_BEKLE_MS)" in esp_k)
+    ok("B72.F13 onay KUYRUGA girmez (son gelen kazanir); gorev her turda kyn_adim'e verir",
+       "kayit_onay_iste(v)" in kk and "KM_ONAY" not in ino_k + esp_k
+       and "kyn_adim(&kayit_m, kayit_onay_istek" in g)
+    ok("B72.F14 /kayit/veri akis kimligini ve X-Onay'i basliyor; /kayit/liste kimlik veriyor",
+       'sendHeader("X-Kayit-Kimlik"' in vs and 'sendHeader("X-Onay"' in vs
+       and '\\"kimlik\\"' in ls)
+    gd = govde(esp_k, "static void kayit__gonder(")
+    ok("B72.F15 kuyruk dolarsa kayip SESSIZ degil: sonraki nokta KAYIP_ONCE, sayac artar",
+       "kn_kayip(&kayit_kn)" in gd and "kayit_kuyruk_dusen = kayit_kuyruk_dusen + 1u" in gd)
 
 
 # ── B72.E · esitleme istemcisi (sahte kart) ───────────────────────────
 class _SahteKart:
     """Kartin /kayit/veri ucunun sahtesi — kg_oku ile ayni anlam: `sira` ve
-    sonrasi, kayit bolunmeden `bayt`a kadar."""
+    sonrasi, kayit bolunmeden `bayt`a kadar. Basliklar da gercek kart gibi:
+    X-Kayit-Kimlik, X-Sonraki-Sira, X-Onay."""
 
     def __init__(self, kayitlar: list[bytes]):
         self.kayitlar = kayitlar
         self.bozuk = False
-        self.sirayi_yok_say = False     # numarasi basa donmus kart
+        self.sirayi_yok_say = False     # yanitta istenenden ESKI kayit (savunma)
+        self.bos_don = False            # veri var ama bos govde (parca boyu vb.)
+        self.kimlik = 7
+        self.onay = 0
+        self.onay_dusur = 0             # sonraki N onay karta ULASMAZ
         self.komutlar: list[str] = []
+
+    def sonraki(self) -> int:
+        return max((struct.unpack_from("<I", k, 4)[0] for k in self.kayitlar), default=0) + 1
+
+    def onayla(self, sira: int) -> None:
+        """Kartin onayi uygulamasi (seri ya da HTTP yolu)."""
+        if self.onay_dusur:
+            self.onay_dusur -= 1
+            return
+        if sira < self.sonraki() and sira > self.onay:
+            self.onay = sira
 
     def veri(self, sira: int, bayt: int) -> tuple[bytes, int, int]:
         govde, ilk, son = b"", 0, 0
+        if self.bos_don:
+            return govde, ilk, son
         for ham in self.kayitlar:
             s = struct.unpack_from("<I", ham, 4)[0]
             if s < sira and not self.sirayi_yok_say:
@@ -229,8 +264,11 @@ def _sunucu(kart: _SahteKart):
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
             self.send_header("Content-Length", str(len(govde)))
+            self.send_header("X-Kayit-Kimlik", str(kart.kimlik))
             self.send_header("X-Ilk-Sira", str(ilk))
             self.send_header("X-Son-Sira", str(son))
+            self.send_header("X-Sonraki-Sira", str(kart.sonraki()))
+            self.send_header("X-Onay", str(kart.onay))
             self.end_headers()
             self.wfile.write(govde)
 
@@ -239,6 +277,8 @@ def _sunucu(kart: _SahteKart):
             govde = self.rfile.read(n).decode()
             if self.headers.get("X-Olcum") == "1" and self.headers.get("X-Jeton") == "abc123":
                 kart.komutlar.append(govde)
+                if govde.startswith("Go"):
+                    kart.onayla(int(govde[2:]))
                 self.send_response(204)
             else:
                 self.send_response(403)
@@ -263,20 +303,28 @@ def _hatali(islev) -> bool:
     return False
 
 
+def _es(taban: str, d, onay=None, **kw):
+    return KE.Esitleyici(taban, d, onay, onay_bekle=0.01, **kw)
+
+
 def bolum_esitle() -> None:
     print("\n── B72.E  esitleme istemcisi (sahte kart)")
     kay = _kayitlar(50)
     tum = b"".join(kay)
     kart = _SahteKart(kay)
     sunucu, taban = _sunucu(kart)
+
+    def sifirla(kayitlar=None):
+        kart.__init__(kay if kayitlar is None else kayitlar)
     try:
         with tempfile.TemporaryDirectory() as d:
             onaylar: list[tuple[int, int]] = []
 
             def onay(s):   # onay aninda dosyada kac bayt var
                 onaylar.append((s, (Path(d) / KE.DOSYA).stat().st_size))
+                kart.onayla(s)
 
-            e = KE.Esitleyici(taban, d, onay, bayt=1024)
+            e = _es(taban, d, onay, bayt=1100)
             e.esitle(azami_tur=2)
             r = e.esitle()
             dosya = (Path(d) / KE.DOSYA).read_bytes()
@@ -288,54 +336,142 @@ def bolum_esitle() -> None:
                       for s, _ in onaylar]
             ok("B72.E4 onay YALNIZ diske yazildiktan sonra ve yazilanin sonuna kadar",
                bool(onaylar) and all(b == y for (_, b), y in zip(onaylar, yazili))
-               and onaylar[-1][0] == 50, f"{onaylar[:3]}...")
+               and onaylar[-1][0] == 50 and kart.onay == 50, f"{onaylar[:3]}...")
             n_onay = len(onaylar)
             r2 = e.esitle()
             ok("B72.E5 yeni kayit yokken tekrar kosmak hicbir sey cekmez, onaylamaz",
                r2["yeni_kayit"] == 0 and len(onaylar) == n_onay)
+        sifirla()
         with tempfile.TemporaryDirectory() as d:
             kart.bozuk = True
             onaylar2: list[int] = []
-            hata = _hatali(lambda: KE.Esitleyici(taban, d, onaylar2.append).esitle())
-            kart.bozuk = False
+            hata = _hatali(lambda: _es(taban, d, onaylar2.append).esitle())
             ok("B72.E3 bozuk yanit REDDEDILIR: diske yazilmaz, onaylanmaz",
                hata and not onaylar2 and not (Path(d) / KE.DOSYA).exists())
+        sifirla(kay[10:])                       # 1..10 temizlikte silinmis
         with tempfile.TemporaryDirectory() as d:
-            kart.kayitlar = kay[10:]            # 1..10 temizlikte silinmis
-            r = KE.Esitleyici(taban, d).esitle()
-            kart.kayitlar = kay
+            r = _es(taban, d).esitle()
             ok("B72.E6 temizlikte silinmis aralik BOSLUK olarak bildirilir",
                r["bosluk"] == [(1, 11)] and r["son_sira"] == 50, f"{r['bosluk']}")
+        sifirla()
         with tempfile.TemporaryDirectory() as d:
-            e = KE.Esitleyici(taban, d)
+            e = _es(taban, d)
             e.esitle()
             kart.kayitlar = kay + _kayitlar(3, 51)
-            kart.sirayi_yok_say = True          # kart numarayi basa dondurmus gibi
+            kart.sirayi_yok_say = True          # yanitta istenenden ESKI kayit
             hata = _hatali(e.esitle)
-            kart.sirayi_yok_say = False
-            kart.kayitlar = kay
-            ok("B72.E7 kartin sirasi geri giderse esitleme DURUR, dosyaya yazmaz",
+            ok("B72.E7 yanitta istenenden eski/tekrar sira gelirse esitleme DURUR",
                hata and (Path(d) / KE.DOSYA).read_bytes() == tum and e.son_sira() == 50)
+        sifirla()
         with tempfile.TemporaryDirectory() as d:
-            e = KE.Esitleyici(taban, d, bayt=1024)
+            e = _es(taban, d, bayt=1100)
             e.esitle(azami_tur=1)
+            yarim = kay[e.son_sira()]           # sira son+1 (> 100 B)
             with open(Path(d) / KE.DOSYA, "ab") as f:
-                f.write(kay[-1][:30])           # durum yazilmadan kesilen ekleme
+                f.write(yarim[:len(yarim) // 2])   # durum yazilmadan kesilen YARIM ekleme
             e.esitle()
-            ok("B72.E9 durum yazilmadan kesilen ekleme temizlenir: dosya tam, tekrarsiz",
+            ok("B72.E9 durum yazilmadan kesilen YARIM ekleme kirpilir: dosya tam, tekrarsiz",
                (Path(d) / KE.DOSYA).read_bytes() == tum)
+        sifirla()
         with tempfile.TemporaryDirectory() as d:
             def patlayan(s):
                 raise OSError("ag koptu")
             try:
-                KE.Esitleyici(taban, d, patlayan).esitle()
+                _es(taban, d, patlayan).esitle()
             except OSError:
                 pass
             onaylar3: list[int] = []
-            r = KE.Esitleyici(taban, d, onaylar3.append).esitle()
+
+            def onay3(s):
+                onaylar3.append(s)
+                kart.onayla(s)
+            r = _es(taban, d, onay3).esitle()
             ok("B72.E10 onay yollanamadiysa sonraki kosu yeniden yollar (veri tekrar "
-               "cekilmez)", onaylar3 == [50] and r["yeni_kayit"] == 0,
+               "cekilmez)", onaylar3 == [50] and r["yeni_kayit"] == 0 and kart.onay == 50,
                f"{onaylar3} {r}")
+        sifirla()
+        with tempfile.TemporaryDirectory() as d:
+            e = _es(taban, d, kart.onayla)
+            e.esitle()
+            kart.kimlik = 99                    # NVS kayboldu: kart YENI akis basladi
+            kart.kayitlar = kay + _kayitlar(5, 51)
+            n0 = kart.onay
+            hata = _hatali(e.esitle)
+            ok("B72.E11 kartin akis KIMLIGI degisirse esitleme DURUR: yazmaz, onaylamaz",
+               hata and (Path(d) / KE.DOSYA).read_bytes() == tum and kart.onay == n0)
+        sifirla()
+        with tempfile.TemporaryDirectory() as d:
+            e = _es(taban, d, kart.onayla)
+            e.esitle()
+            kart.kayitlar = _kayitlar(3)        # numara 1'den yeniden (kimlik AYNI)
+            hata = _hatali(e.esitle)
+            ok("B72.E12 kartin sirasi istemcinin gerisine duserse (bos yanit + "
+               "X-Sonraki-Sira) esitleme DURUR — sessiz 'yeni 0 kayit' YOK",
+               hata and e.son_sira() == 50)
+        sifirla()
+        with tempfile.TemporaryDirectory() as d:
+            kart.bos_don = True                 # kartta kayit var ama govde bos
+            r = _es(taban, d).esitle()
+            # HATA degil: bicimlenmis araligi ya da harcanmis (yarim yazilmis)
+            # sirayi da ayni sekilde gorur. ATLAMAZ da: veri gelince okunur.
+            ok("B72.E13 kartta daha yeni kayit varken bos yanit: sessizce 'bitti' YOK — "
+               "uyari + bekleyen sayisi, son_sira ilerlemez, yazilmaz",
+               r.get("bekleyen") == 50 and r["son_sira"] == 0 and bool(r.get("uyari"))
+               and not (Path(d) / KE.DOSYA).exists(), f"{r}")
+        sifirla()
+        with tempfile.TemporaryDirectory() as d:
+            kart.onay_dusur = 1                 # ilk onay kuyrukta dustu
+            e = _es(taban, d, kart.onayla)
+            r = e.esitle()
+            durum = e._durum()
+            ok("B72.E14 onay karta ulasmazsa X-Onay'dan anlasilir ve YENIDEN yollanir; "
+               "'onaylandi' yalniz kart dogrulayinca yazilir",
+               kart.onay == 50 and durum["onaylanan"] == 50 and r.get("onay_dogrulandi"),
+               f"kart.onay={kart.onay} durum={durum} r={r}")
+            kart.onay_dusur = 99                # kart onaylari hic almiyor
+            kart.onay = 0
+            e2 = _es(taban, d, kart.onayla)
+            d2 = e2._durum()
+            d2["onaylanan"] = 0
+            e2._durum_yaz(d2)
+            r2 = e2.esitle()
+            ok("B72.E14b kart onayi hic almazsa 'onaylandi' YAZILMAZ, sonraki kosu yeniden dener",
+               not r2.get("onay_dogrulandi") and e2._durum()["onaylanan"] == 0, f"{r2}")
+        sifirla()
+        with tempfile.TemporaryDirectory() as d:
+            e = _es(taban, d, kart.onayla, bayt=1100)
+            e.esitle(azami_tur=1)
+            d1 = e._durum()
+            ek = b"".join(k for k in kay if struct.unpack_from("<I", k, 4)[0] > d1["son_sira"])[:2000]
+            gecerli = KB.akis_onek(ek)[1]
+            with open(Path(d) / KE.DOSYA, "ab") as f:
+                f.write(ek)                     # fsync'li veri + yeniden adlandirma KAYBOLDU
+            e.esitle()
+            ok("B72.E15 durum.json geride kalmissa (rename kayboldu) dosyadaki GECERLI "
+               "kayitlar korunur, ileri sarilir; tekrar yok, dosya tam",
+               gecerli > 0 and (Path(d) / KE.DOSYA).read_bytes() == tum and e.son_sira() == 50,
+               f"ileri sarilan {gecerli} B")
+        sifirla()
+        with tempfile.TemporaryDirectory() as d:
+            e = _es(taban, d, bayt=1100)
+            e.esitle(azami_tur=1)
+            with open(Path(d) / KE.DOSYA, "ab") as f:
+                f.write(kay[-1])                # GECERLI ama sirasi ATLAYAN kuyruk
+            e.esitle()
+            ok("B72.E17 ileri sarma yalniz kesintisiz diziyi kabul eder: atlayan kuyruk "
+               "kirpilir, aradaki kayitlar yeniden cekilir (kayip yok)",
+               (Path(d) / KE.DOSYA).read_bytes() == tum and e.son_sira() == 50)
+        sifirla()
+        with tempfile.TemporaryDirectory() as d:
+            with KE.Kilit(Path(d)):
+                try:
+                    _es(taban, d).esitle()
+                    ikinci = False
+                except RuntimeError:
+                    ikinci = True
+            ok("B72.E16 ayni dizinde ikinci esitleme kilit yuzunden BASLAMAZ",
+               ikinci and not (Path(d) / KE.DOSYA).exists())
+        sifirla()
         KE.http_onay(taban)(42)
         ok("B72.E8 HTTP onayi jetonu /akis'ten alip X-Olcum + X-Jeton ile Go<sira> yollar",
            kart.komutlar == ["Go42"], str(kart.komutlar))

@@ -91,6 +91,20 @@ def _kayit_oku(veri: bytes, a: int, son: int) -> tuple[int, Kayit | None]:
     return 1, Kayit(tur, sira, oturum, yuk, a)
 
 
+def akis_onek(veri: bytes) -> tuple[list[Kayit], int]:
+    """Akisin GECERLI on eki: ilk gecersiz/yarim kayitta durur. Donus:
+    (kayitlar, gecerli bayt). B72: esitleme istemcisinin cokme sonrasi ileri
+    sarmasi (fsync'lenmis ama durum dosyasina gecmemis kayitlar korunur)."""
+    kayitlar, a = [], 0
+    while a < len(veri):
+        d, k = _kayit_oku(veri, a, len(veri))
+        if d != 1:
+            break
+        kayitlar.append(k)
+        a += toplam_bayt(len(k.yuk))
+    return kayitlar, a
+
+
 def akis_coz(veri: bytes) -> list[Kayit]:
     """Esitleme yaniti: art arda kayitlar. Tek bozuk kayit -> ValueError."""
     kayitlar, a = [], 0

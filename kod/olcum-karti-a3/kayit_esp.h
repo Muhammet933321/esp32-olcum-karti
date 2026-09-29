@@ -4,8 +4,10 @@
  * B72 — KAYIT MOTORUNUN KARTA BAGLANMASI (alt proje 1A-2).
  *
  * Motor kayit_*.h'de (B71; AVR emulatorunde emule NOR + elektrik kesme ile
- * sinaniyor). Bu dosya YALNIZ ESP32 yapistiricisi: flas bolumu
- * (esp_partition), NVS, cekirdek 0'daki kayit gorevi, kuyruklar, kilit.
+ * sinaniyor), DURUM MAKINESI kayit_yonet.h'de (platformsuz; AVR'de emule NVS
+ * ile acilistan acilisa sinaniyor, B71.V). Bu dosya YALNIZ ESP32
+ * yapistiricisi: flas bolumu (esp_partition), NVS (Preferences), cekirdek
+ * 0'daki kayit gorevi, kuyruklar, kilit.
  * Tasarim: tasarim/2026-09-29-yazilim-sistemi.md §5.
  * Plan: tasarim/2026-09-29-plan-1a2-kayit-firmware.md.
  *
@@ -16,9 +18,10 @@
  *
  * CEKIRDEKLER:
  *   cekirdek 1 (loop)   kayit_ornek / kayit_duraklama: noktaci, nokta KUYRUGA
- *   cekirdek 0 (kayit)  kayit_gorevi: kuyruk -> ky_nokta, istekler, NTP, NVS
- *   cekirdek 0 (ag)     /kayit/liste ve /kayit/veri uclari: kg_oku
- * Butun kg_* / ky_* cagrilari `kayit_kilit` ALTINDA (1A-1 son inceleme).
+ *                       kayit_onay_iste: onay "son gelen kazanir" (kuyruk DEGIL)
+ *   cekirdek 0 (kayit)  kayit_gorevi: kuyruk -> ky_nokta, istekler, kyn_adim, NTP
+ *   cekirdek 0 (ag)     /kayit/liste ve /kayit/veri uclari: kg_oku (SURELI kilit)
+ * Butun kg_* / ky_* / kyn_* cagrilari `kayit_kilit` ALTINDA.
  */
 #include <Arduino.h>
 #include <Preferences.h>
@@ -27,48 +30,42 @@
 #include <time.h>
 #include "esp_partition.h"
 #include "esp_heap_caps.h"
+#include "esp_random.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "ag.h"
 
 #define KG__PARCA 256u            /* flasi 256'lik parcalarla oku (AVR testinde 32) */
+/* Arka plan temizligi (GF! sonrasi eski sektorler): DOLU sektor silme ~25 ms
+   IKI cekirdegi de durdurur (AUTO_SUSPEND kapali, tezgahta olculdu). 500 ms
+   aralik: dolu bolumde ~24 dk surer, olcum dongusunun duraklama payi ~%5. */
+#define KYN_TEMIZ_MS 500UL
 #include "kayit_nokta.h"
-#include "kayit_oturum.h"
+#include "kayit_yonet.h"
 
 #define KAYIT_FW_SURUM    "A3-B72"
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
 #define KAYIT_VERI_AZAMI  8192u     /* /kayit/veri tek yanit tavani (dahili RAM) */
-#define KAYIT_ONAY_ARALIK 16u       /* NVS'e onay: en az bu kadar sira ilerleyince */
-#define KAYIT_ONAY_MS     30000u    /* ... ya da bu kadar sure gecince */
+#define KAYIT_WEB_BEKLE_MS 200u     /* web ucu kilidi en fazla bu kadar bekler, sonra 503 */
 
-/* G satirindaki durum kodlari */
-#define KDR_TARIYOR  0u
-#define KDR_BOS      1u
-#define KDR_KAYIT    2u
-#define KDR_DOLU     3u
-#define KDR_BEKLIYOR 4u   /* acik oturum var, yer yok: gecerli onay gelince DEVAM */
-#define KDR_HATA     5u
-
-/* cekirdek 1 -> 0 istekleri */
+/* cekirdek 1 -> 0 istekleri (onay BURADA DEGIL: kayit_onay_istek) */
 #define KM_BASLAT  1u
 #define KM_DURDUR  2u
-#define KM_ONAY    3u
-#define KM_BICIMLE 4u
+#define KM_BICIMLE 3u
 
 typedef struct {
     uint8_t    tur;
-    uint32_t   deger;
     KayitBasla basla;
 } KayitMesaj;
 
 typedef struct {
     uint8_t  durum;
-    uint32_t oturum, nokta_sira, sonraki_sira, onay;
+    uint32_t oturum, nokta_sira, sonraki_sira, onay, kimlik;
     uint16_t doluluk_binde, onaysiz_binde;
-    uint32_t dusen, bozuk, silinen, sil_adet;
+    uint32_t dusen, bozuk, silinen, sil_adet, temiz_kalan;
     uint32_t yaz_azami_us, sil_azami_us, tarama_ms;
     uint32_t acilis, hiz_ms, nesil;
     int32_t  son_hata;
@@ -87,6 +84,7 @@ static KayitOzet   *kayit_dizin = nullptr;
 static uint8_t     *kayit_veri_tampon = nullptr;
 static KayitGunluk  kayit_g;
 static KayitYazici  kayit_y;
+static KayitYonetici kayit_m;
 static SemaphoreHandle_t kayit_kilit = nullptr;
 static QueueHandle_t kayit_nokta_q = nullptr;
 static QueueHandle_t kayit_mesaj_q = nullptr;
@@ -96,15 +94,13 @@ static KayitDurum    kayit_durum = {};
 static portMUX_TYPE  kayit_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static volatile uint32_t kayit_kuyruk_dusen = 0;   /* cekirdek 1 yazar */
+static volatile uint32_t kayit_onay_istek = 0;     /* cekirdek 1 yazar: SON gelen kazanir */
 static volatile uint32_t kayit_yaz_azami_us = 0;
 static volatile uint32_t kayit_sil_azami_us = 0;
 static volatile uint32_t kayit_sil_adet = 0;
 
-static uint8_t  kayit_hazir = 0, kayit_hata = 0;
-static uint32_t kayit_acilis = 0, kayit_tarama_ms = 0;
-static int32_t  kayit_son_hata = 0;
-static uint8_t  kayit_devam_bekliyor = 0;
-static uint32_t kayit_onay_nvs = 0, kayit_onay_nvs_ms = 0;
+static uint32_t kayit_tarama_ms = 0;
+static uint8_t  kayit_nvs_acik = 0;
 static uint8_t  kayit_saat_ntp = 0, kayit_saat_gecerli = 0;
 
 /* ─────────────────────────────── flas: esp_partition */
@@ -137,6 +133,20 @@ static int kayit_f_sil(void *b, uint32_t a)
     return e == ESP_OK ? 0 : -1;
 }
 
+/* ─────────────────────────────── NVS: Preferences (kayit_yonet.h tablosu) */
+static uint32_t kayit_nvs_oku(void *b, const char *ad, uint32_t varsayilan)
+{
+    (void)b;
+    return kayit_nvs_acik ? kayit_nvs.getUInt(ad, varsayilan) : varsayilan;
+}
+
+static int kayit_nvs_yaz(void *b, const char *ad, uint32_t deger)
+{
+    (void)b;
+    if (!kayit_nvs_acik) return -1;
+    return kayit_nvs.putUInt(ad, deger) == sizeof(uint32_t) ? 0 : -1;
+}
+
 /* ─────────────────────────────── zaman */
 static uint32_t kayit__unix(void)
 {
@@ -159,18 +169,16 @@ static void kayit__durum_guncelle(void)
 {
     KayitDurum t;
     memset(&t, 0, sizeof(t));
-    if (!kayit_hazir) t.durum = kayit_hata ? KDR_HATA : KDR_TARIYOR;
-    else if (kayit_y.oturum) t.durum = KDR_KAYIT;
-    else if (kayit_devam_bekliyor) t.durum = KDR_BEKLIYOR;
-    else if (kayit_g.dolu) t.durum = KDR_DOLU;
-    else t.durum = KDR_BOS;
-    t.oturum = kayit_y.oturum;
+    t.durum = kyn_durum(&kayit_m);
+    t.oturum = kyn_oturum(&kayit_m);
     t.nokta_sira = kayit_y.nokta_sira + kayit_y.yuk_nokta;
     t.sonraki_sira = kayit_g.sonraki_sira;
     t.onay = kayit_g.onay;
-    if (kayit_hazir) {
+    t.kimlik = kayit_m.kimlik;
+    if (kayit_m.hazir) {
         t.doluluk_binde = kg_binde(&kayit_g, kg_kullanilan(&kayit_g));
         t.onaysiz_binde = kg_binde(&kayit_g, kg_onaysiz(&kayit_g));
+        t.temiz_kalan = kayit_g.sektor_adet - kayit_m.temiz_s;
     }
     t.dusen = kayit_y.dusen + kayit_kuyruk_dusen;
     t.bozuk = kayit_g.bozuk;
@@ -179,9 +187,9 @@ static void kayit__durum_guncelle(void)
     t.yaz_azami_us = kayit_yaz_azami_us;
     t.sil_azami_us = kayit_sil_azami_us;
     t.tarama_ms = kayit_tarama_ms;
-    t.acilis = kayit_acilis;
+    t.acilis = kayit_m.acilis;
     t.hiz_ms = kayit_y.oturum ? kayit_y.basla.hiz_ms : 0u;
-    t.son_hata = kayit_son_hata;
+    t.son_hata = kayit_m.son_hata;
     portENTER_CRITICAL(&kayit_mux);
     t.nesil = kayit_durum.nesil
             + ((t.durum != kayit_durum.durum || t.oturum != kayit_durum.oturum) ? 1u : 0u);
@@ -189,104 +197,28 @@ static void kayit__durum_guncelle(void)
     portEXIT_CRITICAL(&kayit_mux);
 }
 
-/* ─────────────────────────────── NVS'e onay (kisitli yazim) */
-static void kayit__onay_kaydet(uint8_t zorla)
-{
-    uint32_t o = kayit_g.onay;
-    if (o == kayit_onay_nvs) return;
-    if (zorla || o - kayit_onay_nvs >= KAYIT_ONAY_ARALIK
-        || millis() - kayit_onay_nvs_ms >= KAYIT_ONAY_MS) {
-        kayit_nvs.putUInt("onay", o);
-        kayit_onay_nvs = o;
-        kayit_onay_nvs_ms = millis();
-    }
-}
-
-/* ─────────────────────────────── acik oturumu surdur (KILIT ALTINDA) */
-static void kayit__devam_dene(void)
-{
-    const KayitOzet *o = kg_acik_oturum(&kayit_g);
-    const KayitOzet *h;
-    KayitBasla b;
-    KayitDevam d;
-    uint32_t id;
-    int r;
-    if (!o || o->tur != KAYIT_OTURUM_OLCUM) return;
-    id = o->id;
-    if (kg_basla_oku(&kayit_g, o->basla_adres, id, &b)) return;
-    d.acilis = kayit_acilis;
-    d.unix_s = kayit__unix();
-    d.kart_ms = millis();
-    d.nokta_sira = 0u;
-    r = ky_devam(&kayit_y, id, &b, o->nokta_sonraki, &d);
-    /* DOLU: kafa sektoru temizse ky__dolu BITIR(DOLU) yazip oturumu kapatti.
-       Kapatamadiysa (kafa yarim — 1A-1 bulgu 2) oturum hala ACIK: onay
-       gelince yeniden denenecek. */
-    h = kg_acik_oturum(&kayit_g);
-    kayit_devam_bekliyor = (r == KG_DOLU && h && h->id == id) ? 1u : 0u;
-    if (r) kayit_son_hata = r;
-}
-
-/* ─────────────────────────────── acilis (gorevde, KILIT ALTINDA) */
-static void kayit__ac(void)
-{
-    static const KayitFlas f = { kayit_f_oku, kayit_f_yaz, kayit_f_sil, nullptr };
-    uint32_t taban, onay, t0;
-    uint8_t deneme;
-    int r = KG_HATA;
-    kayit_nvs.begin("kayit", false);
-    kayit_acilis = kayit_nvs.getUInt("acilis", 0u) + 1u;
-    kayit_nvs.putUInt("acilis", kayit_acilis);
-    taban = kayit_nvs.getUInt("taban", 0u);
-    onay = kayit_nvs.getUInt("onay", 0u);
-    kayit_onay_nvs = onay;
-    kayit_onay_nvs_ms = millis();
-    kg_kur(&kayit_g, &f, kayit_bolum->size / KAYIT_SEKTOR,
-           kayit_sektor, kayit_dizin, (uint16_t)KAYIT_DIZIN_KAP);
-    ky_kur(&kayit_y, &kayit_g);
-    t0 = millis();
-    for (deneme = 0; deneme < 3u && r != KG_TAMAM; deneme++) r = kg_ac(&kayit_g, taban, onay);
-    kayit_tarama_ms = millis() - t0;
-    if (r != KG_TAMAM) {
-        kayit_hata = 1u;
-        kayit_son_hata = r;
-        return;
-    }
-    kayit_hazir = 1u;
-    kayit__devam_dene();
-}
-
 /* ─────────────────────────────── istekler (KILIT ALTINDA) */
 static void kayit__mesaj(const KayitMesaj *m)
 {
-    int32_t r = 0;
+    uint32_t simdi = millis();
     switch (m->tur) {
     case KM_BASLAT: {
         KayitBasla b = m->basla;
         if (!b.unix_s) b.unix_s = kayit__unix();
-        kayit_devam_bekliyor = 0u;
-        r = ky_baslat(&kayit_y, &b);
+        (void)kyn_baslat(&kayit_m, &b, simdi, kayit__unix());
         break;
     }
     case KM_DURDUR:
-        r = ky_bitir(&kayit_y, KB_SEBEP_KULLANICI);
-        break;
-    case KM_ONAY:
-        r = kg_onayla(&kayit_g, m->deger);
-        if (r == KG_TAMAM && kayit_devam_bekliyor) kayit__devam_dene();
+        (void)kyn_durdur(&kayit_m);
         break;
     case KM_BICIMLE:
-        if (kayit_y.oturum) (void)ky_bitir(&kayit_y, KB_SEBEP_KULLANICI);
-        /* ONCE taban: bicimleme yarida kesilse de numara tekrar verilmez */
-        kayit_nvs.putUInt("taban", kayit_g.sonraki_sira);
-        r = kg_bicimle(&kayit_g);
-        kayit__onay_kaydet(1u);
-        kayit_devam_bekliyor = 0u;
+        (void)kyn_bicimle(&kayit_m, simdi);
         break;
     default:
         break;
     }
-    kayit_son_hata = (r < 0 && r != KG_YOK) ? r : 0;   /* oturumsuz Gd hata degil */
+    /* noktaci HEMEN dursun/baslasin: sonraki mesaj/tur beklenmez */
+    kayit__durum_guncelle();
 }
 
 /* ─────────────────────────────── NTP (gorevde) */
@@ -302,7 +234,7 @@ static void kayit__saat(void)
             KayitSaat z;
             z.unix_s = kayit__unix();
             z.kart_ms = millis();
-            z.acilis = kayit_acilis;
+            z.acilis = kayit_m.acilis;
             (void)ky_saat(&kayit_y, &z);
         }
     }
@@ -311,25 +243,35 @@ static void kayit__saat(void)
 /* ─────────────────────────────── gorev (cekirdek 0) */
 static void kayit_gorevi(void *)
 {
+    static const KayitFlas f = { kayit_f_oku, kayit_f_yaz, kayit_f_sil, nullptr };
+    static const KayitNvs nvs = { kayit_nvs_oku, kayit_nvs_yaz, nullptr };
     KayitNokta p;
     KayitMesaj m;
+    uint32_t t0;
     xSemaphoreTake(kayit_kilit, portMAX_DELAY);
-    kayit__ac();
+    kayit_nvs_acik = kayit_nvs.begin("kayit", false) ? 1u : 0u;
+    kg_kur(&kayit_g, &f, kayit_bolum->size / KAYIT_SEKTOR,
+           kayit_sektor, kayit_dizin, (uint16_t)KAYIT_DIZIN_KAP);
+    ky_kur(&kayit_y, &kayit_g);
+    kyn_kur(&kayit_m, &kayit_g, &kayit_y, &nvs);
+    t0 = millis();
+    (void)kyn_ac(&kayit_m, millis(), kayit__unix(), esp_random());
+    kayit_tarama_ms = millis() - t0;
+    if (!kayit_nvs_acik && !kayit_m.son_hata) kayit_m.son_hata = KG_HATA;   /* NVS yok: gorunsun */
     kayit__durum_guncelle();
     xSemaphoreGive(kayit_kilit);
     for (;;) {
         bool var = xQueueReceive(kayit_nokta_q, &p, pdMS_TO_TICKS(100)) == pdTRUE;
         xSemaphoreTake(kayit_kilit, portMAX_DELAY);
-        if (kayit_hazir) {
+        if (kayit_m.hazir) {
             while (var) {
                 int r = ky_nokta(&kayit_y, &p, millis());
-                if (r && r != KG_YOK) kayit_son_hata = r;
+                if (r && r != KG_YOK) kayit_m.son_hata = r;
                 var = xQueueReceive(kayit_nokta_q, &p, 0) == pdTRUE;
             }
             while (xQueueReceive(kayit_mesaj_q, &m, 0) == pdTRUE) kayit__mesaj(&m);
-            (void)ky_zaman(&kayit_y, millis());
+            kyn_adim(&kayit_m, kayit_onay_istek, millis(), kayit__unix());
             kayit__saat();
-            kayit__onay_kaydet(0u);
         }
         kayit__durum_guncelle();
         xSemaphoreGive(kayit_kilit);
@@ -359,6 +301,19 @@ static bool kayit_kur(void)
     }
     xTaskCreatePinnedToCore(kayit_gorevi, "kayit", 8192, nullptr, 1, &kayit_gorev_kolu, 0);
     return true;
+}
+
+/* Web ucu icin: kilidi SURELI al (dolu bolumde arka plan temizligi ya da
+   uzun acilis taramasi web sunucusunu — p0 dahil — dondurmasin). */
+static bool kayit_kilit_al_web(void)
+{
+    return kayit_kilit && xSemaphoreTake(kayit_kilit, pdMS_TO_TICKS(KAYIT_WEB_BEKLE_MS)) == pdTRUE;
+}
+
+/* ─────────────────────────────── onay (cekirdek 1) */
+static void kayit_onay_iste(uint32_t sira)
+{
+    kayit_onay_istek = sira;         /* son gelen kazanir; gorev bir sonraki turda uygular */
 }
 
 /* ─────────────────────────────── noktaci (cekirdek 1) */

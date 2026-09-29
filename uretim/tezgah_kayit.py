@@ -6,6 +6,9 @@
     python tezgah_kayit.py --durma                 flas yazmasinin olcume etkisi
     python tezgah_kayit.py --kesinti 20            kayit surerken 20 RTS sifirlamasi
     python tezgah_kayit.py --esit                  esitlenen dosya == flastaki bolum
+    python tezgah_kayit.py --dolu                  (once `Gb20` ile ~1.6 sa ONAYSIZ doldur)
+                                                   DOLU · tarama · 11 MB esitleme · halka donusu
+    python tezgah_kayit.py --bicim                 (dolu bolumde) GF!: anlik mi, web doner mi
     secenekler: --port COM6  --http olcum.local  (ya da kartin IP'si)
 
 🔴 --yedek NVS'i (WiFi ve web parolalarini) icerir: DEPO DISINA yazilir
@@ -228,6 +231,103 @@ def kesinti(k, host: str, n: int) -> None:
        f"{len(idx)} nokta, en uzun tarama {max(taramalar)} ms")
 
 
+def dolu(k, host: str) -> None:
+    """Bolum 50/s ile ONAYSIZ doldurulduktan sonra (Gb20, ~1.6 sa):
+    DOLU davranisi · dolu bolumde acilis taramasi · 11 MB esitleme hizi ·
+    onaydan sonra halka doner ve DOLU sektor silinirken olcum dongusu
+    (spec §11'in gercek en kotu hali)."""
+    print("\n── dolu: bellek dolu -> tarama -> esitleme -> halka donusu")
+    g = durum_iste(k)
+    if g and g["durum"] != 3:
+        # DOLU bayragi acilista sifirlanir (yalniz yer bulamayan yazmada kurulur):
+        # yeni kayit iste, kart yer bulamayinca DOLU'ya gecmeli
+        _, g = komut(k, "Gb20", 30, lambda x: x["durum"] == 3)
+        g = durum_iste(k)
+    ok("bellek onaysiz veriyle dolu: yeni kayit yer bulamaz, durum 3 (DOLU), oturum kapali",
+       bool(g) and g["durum"] == 3 and g["oturum"] == 0, f"{g}")
+    ok("DOLU'da onaysiz veri silinmedi (onaysiz >= %99)",
+       bool(g) and g["onaysiz"] >= 990, f"onaysiz {g and g['onaysiz']} binde")
+    k.sifirla()
+    _, g = dinle(k, 30, lambda x: x["durum"] != 0) if yeni_acilis(k) else ([], None)
+    # DOLU bayragi yalniz yer bulamayan YAZMADA kurulur; acilista kg_ac
+    # sifirlar -> durum 1. Onaysiz veri (NVS'teki onayla) yerinde kalmali.
+    ok("dolu bolumde acilis taramasi < 5 s; onaysiz veri acilistan sonra da korunuyor",
+       bool(g) and g["durum"] in (1, 3) and 0 < g["tarama_ms"] < 5000
+       and g["onaysiz"] >= 990, f"tarama {g and g['tarama_ms']} ms, {g}")
+    with tempfile.TemporaryDirectory() as d:
+        t0 = time.time()
+        r = KE.Esitleyici(f"http://{host}", Path(d), KE.seri_onay(k)).esitle()
+        sure = time.time() - t0
+        boy = (Path(d) / KE.DOSYA).stat().st_size
+        kay = KB.akis_coz((Path(d) / KE.DOSYA).read_bytes())
+    print(f"  esitleme: {r['yeni_kayit']} kayit, {boy / 1e6:.2f} MB, {sure:.0f} s "
+          f"= {boy / 1024 / max(sure, 1e-3):.0f} KB/s, bosluk {r['bosluk']}")
+    time.sleep(1)
+    k.yaz(f"Go{r['son_sira']}\n")               # son onay kesin gitsin
+    g = durum_iste(k)
+    ok("esitleme sonrasi: onay = sonraki-1, onaysiz 0, siralar tekrarsiz",
+       bool(g) and g["onay"] == g["sonraki"] - 1 and g["onaysiz"] == 0
+       and len({x.sira for x in kay}) == len(kay), f"{g}")
+    komut(k, "Gb20", 5, lambda x: x["durum"] == 2)
+    g0 = durum_iste(k)
+    k.yaz("K\n")
+    satirlar, _ = dinle(k, 120)
+    g = durum_iste(k)
+    komut(k, "Gd", 5, lambda x: x["durum"] == 1)
+    kk = [s.split() for s in satirlar if s.startswith("K ")]
+    kk = [x for x in kk if len(x) == 4 and all(y.isdigit() for y in x[1:])]
+    sil = g["sil_adet"] - g0["sil_adet"] if g and g0 else -1
+    print(f"  halka donusu 120 s @ 50/s: silme +{sil}, sil_azami {g and g['sil_azami_us']} us, "
+          f"K(kayip_ms loop_azami_us >20ms)={kk[-1][1:] if kk else '-'}")
+    ok("halka dondu (dolu sektorler silinerek) ve kuyrukta dusen nokta yok",
+       sil > 20 and bool(g and g0) and g["dusen"] == g0["dusen"],
+       f"silme +{sil}, dusen {g0 and g0['dusen']} -> {g and g['dusen']}")
+
+
+def bicim(k, host: str, sn: float = 90.0) -> None:
+    """DOLU bolumde GF! (son inceleme O4): mantiksal bicimleme ANINDA biter,
+    web (p0 dahil) donmaz, eski sektorler arka planda aralikla silinir."""
+    import json
+    import urllib.request
+    print(f"\n── bicim: GF! sonrasi {sn:.0f} s web yaniti + dongu + temizlik")
+    t0 = time.time()
+    k.yaz("GF!\n")
+    time.sleep(1.0)
+    g = durum_iste(k)          # durum degismedigi icin G kendiliginden BASILMAZ
+    anlik = time.time() - t0
+    ok("GF! aninda biter: doluluk 0, onaysiz 0 (fiziksel silme beklenmez)",
+       bool(g) and g["doluluk"] == 0 and g["onaysiz"] == 0 and anlik < 5,
+       f"{anlik:.1f} s {g}")
+    k.yaz("K\n")
+    en_uzun, hata, n, kalan = 0.0, 0, 0, []
+    son = time.time() + sn
+    satirlar = []
+    while time.time() < son:
+        t = time.time()
+        try:
+            with urllib.request.urlopen(f"http://{host}/kayit/liste", timeout=5) as y:
+                kalan.append(json.loads(y.read()).get("temiz_kalan"))
+        except Exception:
+            hata += 1
+        en_uzun = max(en_uzun, time.time() - t)
+        n += 1
+        while True:
+            s = k.satir_oku(0.05)
+            if s is None:
+                break
+            satirlar.append(s)
+    kk = [s.split() for s in satirlar if s.startswith("K ")]
+    kk = [x for x in kk if len(x) == 4 and all(y.isdigit() for y in x[1:])]
+    g = durum_iste(k)
+    print(f"  {n} istek, en uzun {en_uzun * 1000:.0f} ms, hata/503 {hata}; temiz_kalan "
+          f"{kalan[:1]} -> {kalan[-1:]}; K(kayip_ms loop_azami_us >20ms)="
+          f"{kk[-1][1:] if kk else '-'}; sil_azami {g and g['sil_azami_us']} us")
+    ok("temizlik surerken web DONMUYOR: her istek < 1 s (p0 ayni sunucuda)",
+       n > 10 and en_uzun < 1.0, f"en uzun {en_uzun:.2f} s")
+    ok("arka plan temizligi ilerliyor (temiz_kalan azaliyor)",
+       len([x for x in kalan if x is not None]) >= 2 and kalan[-1] < kalan[0], f"{kalan[:1]}->{kalan[-1:]}")
+
+
 def esit(k, host: str, port: str) -> None:
     print("\n── esit: esitlenen dosya == flastaki bolum")
     with tempfile.TemporaryDirectory() as d:
@@ -268,6 +368,10 @@ def main() -> int:
             durma(k)
         if "--kesinti" in a:
             kesinti(k, host, int(sec("--kesinti", "20")))
+        if "--dolu" in a:
+            dolu(k, host)
+        if "--bicim" in a:
+            bicim(k, host)
         if "--esit" in a:
             esit(k, host, port)
     finally:

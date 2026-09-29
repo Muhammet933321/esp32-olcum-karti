@@ -602,6 +602,188 @@ def bolum_tarama() -> None:
        and sonuc[True] == ([["3"]], [[str(SEKTOR)]]), f"{sonuc}")
 
 
+# ── B71.M · mantiksal bicimleme ───────────────────────────────────────
+def _dm(sat: list[str], ad: str) -> dict:
+    for s in sat:
+        p = s.split()
+        if p and p[0] == ad:
+            return {k: int(v) for k, v in (x.split("=") for x in p[1:])}
+    return {}
+
+
+def bolum_mantiksal() -> None:
+    """B72 son inceleme O4: dolu bolumde fiziksel bicimleme 2912 x ~25 ms =
+    ~73 s surup kayit kilidini tutuyor, web sunucusunu (p0 dahil) donduruyordu.
+    Bicimleme artik NVS'e TABAN yazmak: tabanin altindaki her kayit yok
+    sayilir; silme arka planda ya da sil-sonra-kullan ile."""
+    print("\n── B71.M  mantiksal bicimleme (taban) + arka plan temizligi")
+    flas = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    sat = kos(derle("MANTIKSAL"), flas)
+    m = {a: _dm(sat, a) for a in ("M1", "M2", "M3", "M4", "M5", "M6", "M7")}
+    ok_ = {a: alanlar(sat, a) for a in ("OK2", "OK3", "OK4", "OK5", "OK6", "OK7")}
+    kay = 3 * KB.toplam_bayt(100)
+    ok("B71.M1 bicimleme aninda: tablo/dizin bos, onay = taban-1, kafa kapali, okuma bos",
+       m["M2"].get("kull") == 0 and m["M2"].get("dizin") == 0
+       and m["M2"].get("onay") == m["M1"].get("sonraki", 0) - 1
+       and m["M2"].get("ofset") == SEKTOR and ok_["OK2"] == [["0", "0", "0"]],
+       f"{m['M2']} {ok_['OK2']}")
+    ok("B71.M2 bicimlemeden sonraki kayit TAZE sektore gider, sira tabandan surer",
+       m["M3"].get("bas") != m["M1"].get("bas") and m["M3"].get("ofset") == kay
+       and ok_["OK3"] == [[str(kay), "13", "15"]], f"{m['M3']} {ok_['OK3']}")
+    ok("B71.M3 yeniden acilista tabanin alti BOS sayilir, oturum listesine girmez",
+       m["M4"].get("eski") == 3 and m["M4"].get("dizin") == 1
+       and ok_["OK4"] == ok_["OK3"], f"{m['M4']} {ok_['OK4']}")
+    bas5 = alanlar(sat, "BAS5")
+    ok("B71.M4 arka plan temizligi yalniz eski sektorleri siler, canliya dokunmaz",
+       alanlar(sat, "TEMIZ") == [["3"]]
+       and bas5 == [["ff", "ff", "ff", "a5", "ff", "ff", "ff", "ff"]]
+       and ok_["OK5"] == ok_["OK3"], f"TEMIZ={alanlar(sat, 'TEMIZ')} {bas5}")
+    ok("B71.M5 taban yazilip RAM'e gecmeden kesilen bicimleme de tutarli: eski "
+       "gorunmez, sira tabandan, yeni kayit eski kafanin ARKASINA yazilmaz",
+       m["M6"].get("kull") == 0 and m["M6"].get("dizin") == 0
+       and m["M6"].get("sonraki") == 16 and m["M6"].get("ofset") == SEKTOR
+       and ok_["OK6"] == [["0", "0", "0"]]
+       and m["M7"].get("bas") == 4 and ok_["OK7"] == [["28", "16", "16"]],
+       f"{m['M6']} {m['M7']} {ok_['OK6']} {ok_['OK7']}")
+
+
+# ── B71.V · kayit yoneticisi (kayit_yonet.h) ─────────────────────────
+_DR = ["durum", "oturum", "sonraki", "onay", "kull", "hata", "kapat", "kimlik", "taban"]
+
+
+def _dr(sat: list[str], ad: str) -> dict:
+    for s in sat:
+        p = s.split()
+        if p and p[0] == ad and len(p) == len(_DR) + 1:
+            return dict(zip(_DR, (int(x) for x in p[1:])))
+    return {}
+
+
+def _yonet(flas: NorFlas, elf: Path, adimlar: list[int]) -> list[list[str]]:
+    """Her adim bir ACILIS: NVS ve flas kalici, program BITTI deyince
+    elektrik kesilmis gibi biter."""
+    cikti = []
+    for a in adimlar:
+        flas.nvs["t_adim"] = a
+        cikti.append(kos(elf, flas))
+    return cikti
+
+
+def bolum_yonet() -> None:
+    """B72 son inceleme O1-O5: kartin kayit durum makinesi ESP32'ye ozgu
+    yapistiricidaydi ve HIC calistirilarak sinanmiyordu. Artik platformsuz
+    (kayit_yonet.h, NVS islev tablosu) ve burada emule NVS + NOR ile
+    acilistan acilisa sinaniyor."""
+    print("\n── B71.V  kayit yoneticisi: DEVAM · durum 4 · durdurma niyeti · "
+          "bicimleme · onay · kimlik")
+    elf = derle("YONET")
+    # A: kayit -> kesinti -> halka dolar + kafada yarim yazma -> Gd -> onay
+    fa = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    fa.nvs["t_rast"] = 7
+    a1, a2, a3 = _yonet(fa, elf, [1, 2, 3])
+    nvs_kapat_3 = fa.nvs.get("kapat")        # 3. acilistan HEMEN sonra
+    a4, a5 = _yonet(fa, elf, [4, 5])
+    oid = _dr(a1, "D1").get("oturum")
+    ok("B71.V1 kayit surerken elektrik kesilirse acilista AYNI oturum surer (DEVAM)",
+       bool(oid) and _dr(a2, "D0").get("durum") == 2 and _dr(a2, "D0").get("oturum") == oid,
+       f"{_dr(a1, 'D1')} -> {_dr(a2, 'D0')}")
+    d30 = _dr(a3, "D0")
+    ok("B71.V2 halka onaysiz dolu + kafa yarim: durum 4 (BEKLIYOR), bekleyen oturum gorunur",
+       d30.get("durum") == 4 and d30.get("oturum") == oid, f"{d30}")
+    ok("B71.V3 durum 4'te durdurma KAYBOLMAZ: niyet RAM'de ve NVS'te",
+       _dr(a3, "D3").get("kapat") == oid and nvs_kapat_3 == oid,
+       f"{_dr(a3, 'D3')} nvs={nvs_kapat_3}")
+    ot = KB.oturumlari_kur(KB.flas_coz(bytes(fa.bellek), SEKTOR)[0]).get(oid)
+    ok("B71.V4 niyet acilistan sonra da durur; onay yer acinca oturum BITIR(kullanici) "
+       "ile KAPANIR, SURMEZ (tek DEVAM), sonraki acilis surdurmez",
+       _dr(a4, "D0").get("durum") == 4 and _dr(a4, "D4").get("durum") == 1
+       and _dr(a4, "D4").get("kapat") == 0 and fa.nvs.get("kapat") == 0
+       and bool(ot) and bool(ot.bitir) and ot.bitir["sebep"] == 1 and len(ot.devamlar) == 1
+       and _dr(a5, "D0").get("durum") == 1,
+       f"D4={_dr(a4, 'D4')} bitir={ot and ot.bitir} devam={ot and len(ot.devamlar)} "
+       f"D5={_dr(a5, 'D0')}")
+    kim = {_dr(c, "D0").get("kimlik") for c in (a1, a2, a3, a4, a5)}
+    (a14,) = _yonet(fa, elf, [14])
+    ok("B71.V12 acilista onay NVS'ten gelir: onaylanmis eski veri silinip YENI kayda "
+       "yer acar (onay RAM'de kalsaydi kart ~1 sektor sonra DOLU derdi)",
+       alanlar(a14, "YAZ") == [["0"]] and _dr(a14, "D14").get("durum") == 2
+       and fa.nvs.get("onay", 0) > 0, f"YAZ={alanlar(a14, 'YAZ')} D14={_dr(a14, 'D14')}")
+    # B: ayni, durdurma YOK -> onay gelince SURER
+    fb = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    b1, b2, b6 = _yonet(fb, elf, [1, 2, 6])
+    bid = _dr(b1, "D1").get("oturum")
+    otb = KB.oturumlari_kur(KB.flas_coz(bytes(fb.bellek), SEKTOR)[0]).get(bid)
+    ok("B71.V5 durdurma yoksa onay yer acinca oturum SURER (ikinci DEVAM), kapanmaz",
+       _dr(b6, "D6").get("durum") == 2 and _dr(b6, "D6").get("oturum") == bid
+       and bool(otb) and len(otb.devamlar) == 2 and not otb.bitir,
+       f"D6={_dr(b6, 'D6')} devam={otb and len(otb.devamlar)} bitir={otb and otb.bitir}")
+    # C: durum 4'te YENI kayit istenirse eski oturum kapatilacak, surdurulmeyecek
+    fc = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    c1, c2, c13, c4 = _yonet(fc, elf, [1, 2, 13, 4])
+    cid = _dr(c1, "D1").get("oturum")
+    otc = KB.oturumlari_kur(KB.flas_coz(bytes(fc.bellek), SEKTOR)[0]).get(cid)
+    ok("B71.V6 durum 4'te yeni kayit: yer yoksa reddedilir ve ESKI oturum kapatma "
+       "niyetine alinir; onayda eski BITIR(kullanici), surmez",
+       alanlar(c13, "BAS") == [["-1"]] and _dr(c13, "D13").get("kapat") == cid
+       and bool(otc) and bool(otc.bitir) and otc.bitir["sebep"] == 1
+       and len(otc.devamlar) == 1,
+       f"BAS={alanlar(c13, 'BAS')} D13={_dr(c13, 'D13')} bitir={otc and otc.bitir}")
+    # F: bicimleme mantiksal + atomik + arka planda temizlik
+    ff = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    f7, f8 = _yonet(ff, elf, [7, 8])
+    d7a, d7b, d80 = _dr(f7, "D7a"), _dr(f7, "D7b"), _dr(f8, "D0")
+    ok("B71.V7 bicimleme: taban NVS'e yazilir, kayit durur, tablo bos; ardindan yeni kayit",
+       alanlar(f7, "BIC") == [["0"]] and d7a.get("durum") == 1 and d7a.get("kull") == 0
+       and ff.nvs.get("taban") == d7a.get("taban") and d7b.get("durum") == 2,
+       f"D7a={d7a} D7b={d7b} nvs.taban={ff.nvs.get('taban')}")
+    sb = [x for x in (s.split() for s in f8) if x[:1] == ["SB"]]
+    temiz = all(int(x[2]) == 255 for x in sb if x[3] == "0")
+    # 🔴 mutasyon: ilk surum yalniz "eskiler 0xFF mi" diyordu; CANLI sektor
+    # korumasi kaldirilsa da yesildi (kafa ikinci bir korumayla guvende)
+    canli = [x for x in sb if x[3] == "1"]
+    canli_saglam = len(canli) >= 2 and all(int(x[2]) == 0xA5 for x in canli)
+    ok("B71.V8 yeniden acilis: eski oturum gorunmez, yeni oturum surer; arka plan "
+       "temizligi bitince canli olmayan her sektor 0xFF, CANLI sektorler (kafa "
+       "disindakiler dahil) saglam",
+       d80.get("durum") == 2 and d80.get("oturum") == d7b.get("oturum")
+       and d80.get("taban") == d7a.get("taban") and len(sb) == SEKTOR_ADET and temiz
+       and canli_saglam and _dr(f8, "D8").get("kull", 0) > 0,
+       f"D0={d80} SB={[(x[1], x[2], x[3]) for x in sb]}")
+    tur = int((alanlar(f8, "TUR") or [["0"]])[0][0])
+    ilerleme = int((alanlar(f8, "ILERLEME") or [["0"]])[0][0])
+    ok("B71.V13 arka plan silmeleri ARALIKLI (KYN_TEMIZ_MS): dolu sektor silme ~25 ms "
+       "iki cekirdegi durdurur, art arda silme olcumu bogmasin",
+       ilerleme >= 2 and tur >= 3 * ilerleme, f"tur={tur} ilerleme={ilerleme}")
+    # H: taban NVS'e yazilamazsa bicimleme IPTAL
+    fh = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    fh.nvs_hata = {"taban"}
+    (h9,) = _yonet(fh, elf, [9])
+    ok("B71.V9 taban NVS'e yazilamazsa bicimleme IPTAL: veri yerinde, hata raporlu",
+       alanlar(h9, "BIC") == [["-2"]] and _dr(h9, "D9b").get("kull") == _dr(h9, "D9a").get("kull")
+       and _dr(h9, "D9a").get("kull", 0) > 0 and _dr(h9, "D9b").get("hata") == 2,
+       f"{alanlar(h9, 'BIC')} {_dr(h9, 'D9a')} {_dr(h9, 'D9b')}")
+    # L: onay son gelen kazanir, sahte onay reddedilir
+    fl = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    (l12,) = _yonet(fl, elf, [12])
+    ok("B71.V10 onay: son gelen kazanir, geriye onay yok sayilir, sahte onay reddedilir",
+       [_dr(l12, a).get("onay") for a in ("D12a", "D12b", "D12c")] == [5, 5, 5]
+       and _dr(l12, "D12c").get("hata") == 2, str([_dr(l12, a) for a in ("D12a", "D12b", "D12c")]))
+    # K: kimlik (akis kimligi) — NVS ya da flas kaybolunca DEGISIR
+    fa.nvs = {"t_rast": 99}                  # NVS kayboldu (tam silme / eski yedek)
+    (k0,) = _yonet(fa, elf, [0])
+    kim_nvs = _dr(k0, "D0").get("kimlik")
+    kim_b = _dr(b6, "D0").get("kimlik")      # B: onay NVS'e yazildi (b6)
+    fb.nvs["t_rast"] = 1234
+    fb.bellek[:] = b"\xff" * len(fb.bellek)  # flas bolumu kayboldu, NVS duruyor
+    (k1,) = _yonet(fb, elf, [0])
+    ok("B71.V11 akis kimligi acilislar boyunca SABIT; NVS kaybolunca da, flas "
+       "kaybolup NVS kalinca da DEGISIR (PC eski akisa eklemesin)",
+       len(kim) == 1 and None not in kim and kim_nvs not in kim
+       and fb.nvs.get("onay", 0) > 0 and _dr(k1, "D0").get("kimlik") not in (kim_b, None),
+       f"A={kim} nvs_kaybi={kim_nvs} B={kim_b} flas_kaybi={_dr(k1, 'D0').get('kimlik')} "
+       f"B.nvs.onay={fb.nvs.get('onay')}")
+
+
 # ── B71.D · oturum dizini ─────────────────────────────────────────────
 DIZIN_KAP = 6        # ornek_kayit.c DIZIN_KAP ile ayni
 
@@ -691,7 +873,7 @@ def bolum_kesinti(n_deneme: int) -> None:
 
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
-            bolum_tarama, bolum_dizin, bolum_kesinti]
+            bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_dizin, bolum_kesinti]
 
 
 def main() -> int:

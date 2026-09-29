@@ -2874,11 +2874,20 @@ static void kayit_komut(const char *s) {
   } else if (alt == 'd') {
     m.tur = KM_DURDUR;
   } else if (alt == 'o') {
-    m.tur = KM_ONAY;
-    m.deger = strtoul(s + 2, nullptr, 10);
+    /* Onay KUYRUGA girmez: son gelen kazanir (kuyrukta dusup DOLU kartı
+       takili birakamaz — 1A-2 son inceleme O2). Istemci X-Onay ile dogrular. */
+    uint32_t v = strtoul(s + 2, nullptr, 10);
+    kayit_onay_iste(v);
+    Serial.print(F("* G onay istegi "));
+    Serial.println(v);
+    return;
   } else if (alt == 'F') {
     if (s[2] != '!') {
       Serial.println(F("! G: butun kayitlari silmek icin `GF!` yaz"));
+      return;
+    }
+    if (pil_testi_suruyor()) {   /* pil testi kaydini silme — once testi bitir */
+      Serial.println(F("! G: pil testi suruyor — once `p0`, sonra GF!"));
       return;
     }
     m.tur = KM_BICIMLE;
@@ -2905,24 +2914,28 @@ void kayit_liste_sayfa() {
                                               MALLOC_CAP_SPIRAM);
   if (!oz) { sunucu.send(503, "text/plain", "bellek yok"); return; }
   uint16_t n;
-  xSemaphoreTake(kayit_kilit, portMAX_DELAY);
+  /* SURELI kilit: acilis taramasi ya da temizlik surerken web (p0 dahil)
+     DONMASIN — 1A-2 son inceleme O4 */
+  if (!kayit_kilit_al_web()) { sunucu.send(503, "text/plain", "kayit mesgul, tekrar dene"); return; }
   n = kayit_g.dizin_adet;
   if (n > KAYIT_DIZIN_KAP) n = KAYIT_DIZIN_KAP;
   if (n) memcpy(oz, kayit_dizin, (size_t)n * sizeof(KayitOzet));
   xSemaphoreGive(kayit_kilit);
   KayitDurum d = kayit_durum_al();
-  char t[240];
+  char t[300];
   sunucu.setContentLength(CONTENT_LENGTH_UNKNOWN);
   sunucu.send(200, "application/json", "");
   snprintf(t, sizeof(t),
            "{\"surum\":%u,\"durum\":%u,\"sektor\":%lu,\"sektor_bayt\":%lu,"
            "\"sonraki\":%lu,\"onay\":%lu,\"doluluk_binde\":%u,\"onaysiz_binde\":%u,"
-           "\"aktif\":%lu,\"acilis\":%lu,\"unix\":%lu,\"oturumlar\":[",
+           "\"aktif\":%lu,\"acilis\":%lu,\"unix\":%lu,\"kimlik\":%lu,\"temiz_kalan\":%lu,"
+           "\"oturumlar\":[",
            (unsigned)KAYIT_SURUM, (unsigned)d.durum,
            (unsigned long)(kayit_bolum->size / KAYIT_SEKTOR), (unsigned long)KAYIT_SEKTOR,
            (unsigned long)d.sonraki_sira, (unsigned long)d.onay,
            (unsigned)d.doluluk_binde, (unsigned)d.onaysiz_binde,
-           (unsigned long)d.oturum, (unsigned long)d.acilis, (unsigned long)kayit__unix());
+           (unsigned long)d.oturum, (unsigned long)d.acilis, (unsigned long)kayit__unix(),
+           (unsigned long)d.kimlik, (unsigned long)d.temiz_kalan);
   sunucu.sendContent(t);
   for (uint16_t i = 0; i < n; i++) {
     const KayitOzet *o = &oz[i];
@@ -2952,15 +2965,20 @@ void kayit_veri_sayfa() {
   uint32_t kap = sunucu.hasArg("bayt") ? strtoul(sunucu.arg("bayt").c_str(), nullptr, 10)
                                        : KAYIT_VERI_AZAMI;
   if (kap > KAYIT_VERI_AZAMI) kap = KAYIT_VERI_AZAMI;
-  uint32_t ilk = 0, son = 0, n, sonraki;
-  xSemaphoreTake(kayit_kilit, portMAX_DELAY);
+  uint32_t ilk = 0, son = 0, n, sonraki, onay, kimlik;
+  if (!kayit_kilit_al_web()) { sunucu.send(503, "text/plain", "kayit mesgul, tekrar dene"); return; }
   n = kg_oku(&kayit_g, sira, kayit_veri_tampon, kap, &ilk, &son);
   sonraki = kayit_g.sonraki_sira;
+  onay = kayit_g.onay;
+  kimlik = kayit_m.kimlik;
   xSemaphoreGive(kayit_kilit);
+  /* Istemci icin: kimlik degisirse (NVS/flas kaybi) ESKI akisa ekleme yok;
+     X-Onay ile onayinin karta ulastigini dogrular (O1/O2). */
+  sunucu.sendHeader("X-Kayit-Kimlik", String(kimlik));
   sunucu.sendHeader("X-Ilk-Sira", String(ilk));
   sunucu.sendHeader("X-Son-Sira", String(son));
   sunucu.sendHeader("X-Sonraki-Sira", String(sonraki));
-  sunucu.sendHeader("X-Onay", String(d.onay));
+  sunucu.sendHeader("X-Onay", String(onay));
   sunucu.setContentLength(n);
   sunucu.send(200, "application/octet-stream", "");
   if (n) sunucu.sendContent((const char *)kayit_veri_tampon, n);

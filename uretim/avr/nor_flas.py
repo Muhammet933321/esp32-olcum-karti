@@ -30,6 +30,10 @@ import random
 KOMUT, A0, A1, A2, VERI = 0xE0, 0xE1, 0xE2, 0xE3, 0xE4
 ARIZA_OKU, ARIZA_YAZ = 0xE5, 0xE6
 SIL = 0x5E
+# B72: emule NVS (ESP32 Preferences yerine). Anahtar SIRA ile; deger u32.
+# Degerler NorFlas nesnesinde kalir -> acilistan acilisa KALICI.
+NVS_ANAHTAR, NVS_V0, NVS_KOMUT = 0xE7, 0xE8, 0xEC     # V0..V3 = 0xE8..0xEB
+NVS_ADLAR = ["acilis", "kimlik", "taban", "onay", "kapat", "t_adim", "t_rast"]
 
 
 class NorFlas:
@@ -47,6 +51,12 @@ class NorFlas:
         self.silme_adet = 0
         self.kesilen_silme = 0
         self.okunan_bayt = 0      # kurtarma maliyeti olculsun (B72)
+        self.nvs: dict[str, int] = {}          # B72: kalici NVS
+        self.nvs_hata: set[str] = set()        # bu anahtarlara YAZMA basarisiz
+        self.nvs_gunluk: list[tuple] = []      # (ad, deger, silme_adet, yazilan_bayt)
+        self._nvs_i = 0
+        self._nvs_v = [0, 0, 0, 0]
+        self._nvs_d = 0
         self._ariza_oku = 0       # n > 0: n. okuma baytinda hata
         self._ariza_yaz = 0
         self._hata = False        # durum okunana kadar islem basarisiz
@@ -65,6 +75,31 @@ class NorFlas:
         y[KOMUT] = self._komut
         y[ARIZA_OKU] = lambda v: setattr(self, "_ariza_oku", v & 0xFF)
         y[ARIZA_YAZ] = lambda v: setattr(self, "_ariza_yaz", v & 0xFF)
+        y[NVS_ANAHTAR] = lambda v: setattr(self, "_nvs_i", v & 0xFF)
+        for j in range(4):
+            y[NVS_V0 + j] = (lambda j: lambda v: self._nvs_v.__setitem__(j, v & 0xFF))(j)
+            o[NVS_V0 + j] = (lambda j: lambda: self._nvs_v[j])(j)
+        y[NVS_KOMUT] = self._nvs_komut
+        o[NVS_KOMUT] = lambda: self._nvs_d
+
+    # ------------------------------------------------------------ NVS
+    def _nvs_komut(self, v: int) -> None:
+        """1 = oku (durum bit0: anahtar var) · 2 = yaz (durum bit1: HATA)."""
+        ad = NVS_ADLAR[self._nvs_i] if self._nvs_i < len(NVS_ADLAR) else f"?{self._nvs_i}"
+        if v == 1:
+            d = self.nvs.get(ad)
+            self._nvs_v = list((d or 0).to_bytes(4, "little"))
+            self._nvs_d = 1 if d is not None else 0
+        elif v == 2:
+            if ad in self.nvs_hata:
+                self._nvs_d = 2
+                return
+            deger = int.from_bytes(bytes(self._nvs_v), "little")
+            self.nvs[ad] = deger
+            self.nvs_gunluk.append((ad, deger, self.silme_adet, self.yazilan_bayt))
+            self._nvs_d = 0
+        else:
+            raise RuntimeError(f"bilinmeyen NVS komutu {v}")
 
     def _adres_bayt(self, i: int, v: int) -> None:
         self.adres = (self.adres & ~(0xFF << (8 * i))) | ((v & 0xFF) << (8 * i))

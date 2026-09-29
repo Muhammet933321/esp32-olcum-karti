@@ -72,6 +72,8 @@ typedef struct KayitGunluk_ {
     uint32_t     silinen_sektor;       /* son kg_ac'tan beri temizlik */
     uint8_t      dolu;
     uint8_t      oku_hata;            /* son kg_ac'ta flas OKUNAMADI */
+    uint32_t     taban;               /* bu siranin ALTI bicimlenmis: yok sayilir (B72) */
+    uint32_t     eski;                /* son kg_ac'ta taban yuzunden bos sayilan sektor */
 } KayitGunluk;
 
 typedef void (*KgBesle)(KayitGunluk *g, const KayitBaslik *h, uint32_t adres);
@@ -205,6 +207,7 @@ static inline void kg__besle(KayitGunluk *g, const KayitBaslik *h, uint32_t adre
 {
     uint8_t y[20];
     uint16_t n = (uint16_t)(h->yuk_bayt < 20u ? h->yuk_bayt : 20u);
+    if (h->sira < g->taban) return;           /* bicimlenmis: oturum listesine girmez */
     if (n && g->f.oku(g->f.baglam, adres + KAYIT_BASLIK_BAYT, y, n)) { g->oku_hata = 1u; return; }
     kg__dizin_isle(g, h, adres, y, n);
 }
@@ -261,6 +264,8 @@ static inline int kg_ac(KayitGunluk *g, uint32_t sira_taban, uint32_t onay_taban
     g->silinen_sektor = 0u;
     g->dolu = 0u;
     g->oku_hata = 0u;
+    g->taban = sira_taban;
+    g->eski = 0u;
     /* 1. gecis: en yeni sektor = ilk kaydinin sirasi en buyuk olan */
     for (s = 0; s < g->sektor_adet; s++) {
         int8_t d = kg__kayit_dogrula(g, s * KAYIT_SEKTOR, (s + 1u) * KAYIT_SEKTOR, &h);
@@ -277,6 +282,15 @@ static inline int kg_ac(KayitGunluk *g, uint32_t sira_taban, uint32_t onay_taban
     for (i = 1; i <= g->sektor_adet; i++) {
         s = (bas + i) % g->sektor_adet;
         ofset = kg__sektor_tara(g, s, kg__besle, (s == bas) ? &temiz : 0);
+        /* B72: bicimlenmis (tabanin altinda) sektor BOS sayilir. Bicimleme
+           yalniz NVS'e taban yazmak oldugu icin elektrik kesilmesine karsi
+           atomik; fiziksel silme sonra (kg_temizle_adim / sil-sonra-kullan). */
+        if (g->sektor[s].son && g->sektor[s].son < g->taban) {
+            g->sektor[s].ilk = 0u;
+            g->sektor[s].son = 0u;
+            g->eski++;
+            if (s == bas) temiz = 0u;          /* eski kafanin arkasina YAZILMAZ */
+        }
         if (g->sektor[s].son > en_son) en_son = g->sektor[s].son;
         if (s == bas && temiz) g->bas_ofset = ofset;
     }
@@ -426,7 +440,50 @@ static inline int kg_bicimle(KayitGunluk *g)
     g->bas_ofset = KAYIT_SEKTOR;
     g->onay = g->sonraki_sira - 1u;
     g->dolu = 0u;
+    g->taban = g->sonraki_sira;
     return KG_TAMAM;
+}
+
+/* B72 (son inceleme O4): MANTIKSAL bicimleme — flasa DOKUNMAZ.
+   ⚠ CAGIRAN once `sonraki_sira`yi kalici TABAN olarak yazar (NVS); bundan
+   sonra kg_ac tabanin altini yok saydigi icin bicimleme elektrik kesilmesine
+   karsi ATOMIK: ya hic olmadi ya tamam. Fiziksel silme kg_temizle_adim ya da
+   sil-sonra-kullan (kg_ilerle) ile. Fiziksel kg_bicimle dolu bolumde
+   2912 x ~25 ms = ~73 s kilidi tutuyordu. */
+static inline void kg_bicimle_mantiksal(KayitGunluk *g)
+{
+    uint32_t s;
+    for (s = 0; s < g->sektor_adet; s++) {
+        g->sektor[s].ilk = 0u;
+        g->sektor[s].son = 0u;
+    }
+    g->taban = g->sonraki_sira;
+    g->dizin_adet = 0u;
+    g->bas_ofset = KAYIT_SEKTOR;     /* sonraki kayit TAZE (silinen) sektore */
+    g->onay = g->sonraki_sira - 1u;
+    g->dolu = 0u;
+    g->eski = g->sektor_adet;        /* hangileri eski bilinmiyor: temizlik hepsine bakar */
+}
+
+/* Arka plan temizligi: `*s` sektorune bak, eskiyse sil, `*s` ilerler.
+   CANLI sektore (tabloda kaydi olan) dokunmaz; basligi 0xFF olan sektor
+   zaten bos. Donus: 1 = bir sektor silindi (cagiran silmeleri aralikla
+   yaysin: dolu sektor ~25 ms iki cekirdegi de durdurur), 0 = atlandi,
+   KG_HATA. `*s == sektor_adet`: bitti. */
+static inline int kg_temizle_adim(KayitGunluk *g, uint32_t *s)
+{
+    uint8_t b[KAYIT_BASLIK_BAYT];
+    uint32_t i = *s;
+    uint8_t j;
+    if (i >= g->sektor_adet) return 0;
+    *s = i + 1u;
+    if (g->sektor[i].ilk) return 0;
+    if (i == g->bas && g->bas_ofset < KAYIT_SEKTOR) return 0;   /* yazilmakta */
+    if (g->f.oku(g->f.baglam, i * KAYIT_SEKTOR, b, KAYIT_BASLIK_BAYT)) return KG_HATA;
+    for (j = 0; j < KAYIT_BASLIK_BAYT && b[j] == 0xFFu; j++) {}
+    if (j == KAYIT_BASLIK_BAYT) return 0;
+    if (g->f.sil(g->f.baglam, i * KAYIT_SEKTOR)) return KG_HATA;
+    return 1;
 }
 
 static inline uint32_t kg_kullanilan(const KayitGunluk *g)
