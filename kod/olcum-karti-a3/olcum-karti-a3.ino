@@ -84,6 +84,7 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "ag.h"         // B22.4 — WiFi durum makinesi
+#include "kayit_esp.h"  // B72 — kayit motorunun ESP32 yapistiricisi (Serial KULLANMAZ)
 
 // 🔴 B22.4 — `Serial` AYNASI. BUTUN #include'lardan SONRA gelmeli.
 //
@@ -638,6 +639,14 @@ Okuma3 olcum_al() {
   int16_t ham_v = ads_oku(ADS_GERILIM);
   int16_t ham_i = ads_oku(ADS_AKIM);
   uint32_t t3 = micros();
+
+  /* B72: kayit noktacisi HAM kodu istiyor (tasarim §7: yeniden kalibrasyon).
+     Menzil BU ornegin menzili — menzil_gozet asagida degistirebilir. */
+  kayit_ham.ham_v = ham_v;
+  kayit_ham.ham_i = ham_i;
+  kayit_ham.hata = ads_hata;
+  kayit_ham.v_doydu = gerilim_doydu(ham_v, etkin_kanal()) ? 1u : 0u;
+  kayit_ham.menzil = ayar.menzil;
 
   if (faz_adet >= 256u) {      /* kayan pencere: son 256 cevrim */
     faz_yaz_top = faz_bek_top = faz_oku_top = faz_kayma_top = 0; faz_adet = 0;
@@ -2776,6 +2785,110 @@ static bool web_yetkili() {
   return sunucu.authenticate("olcum", s.c_str());
 }
 
+// ═════════════════════════════════════════════════ B72 — KAYIT ════════
+// Basma ve komut burada (cekirdek 1, `Serial` aynasi); gorev kayit_esp.h'de.
+static_assert(ADS_HATA_V == KN_HATA_V && ADS_HATA_I == KN_HATA_I,
+              "kayit_ham.hata = ads_hata: bit anlamlari ayni olmali");
+
+static bool kayit__hiz_gecerli(long h) {
+  return h == 20 || h == 100 || h == 200 || h == 1000 || h == 10000 || h == 60000;
+}
+
+static void kayit_basla_doldur(KayitBasla *b, uint32_t hiz) {
+  memset(b, 0, sizeof(*b));
+  b->oturum_turu = KAYIT_OTURUM_OLCUM;
+  b->kal_bicim = KAYIT_KAL_BICIM;
+  b->hiz_ms = hiz;
+  b->unix_s = kayit__unix();
+  b->kart_ms = millis();
+  b->acilis = kayit_durum_al().acilis;
+  memcpy(b->surum, KAYIT_FW_SURUM, sizeof(KAYIT_FW_SURUM) - 1u);
+  b->kal.normal.n = ayar.normal.n;
+  b->kal.normal.pga = ayar.normal.pga;
+  b->kal.normal.kazanc = ayar.normal.kazanc;
+  b->kal.normal.sifir_ham = ayar.normal.sifir_ham;
+  b->kal.normal.tau = ayar.normal.tau;
+  b->kal.yuksek.n = ayar.yuksek.n;
+  b->kal.yuksek.pga = ayar.yuksek.pga;
+  b->kal.yuksek.kazanc = ayar.yuksek.kazanc;
+  b->kal.yuksek.sifir_ham = ayar.yuksek.sifir_ham;
+  b->kal.yuksek.tau = ayar.yuksek.tau;
+  b->kal.i_ofset = ayar.i_ofset;
+  b->kal.i_pga = ayar.i_pga;
+  b->kal.sont_ohm = ayar.sont_ohm;
+  b->kal.i_duzeltme = ayar.i_duzeltme;
+  b->kal.sebeke_hz = ayar.sebeke_hz;
+  b->kal.faz_kal_us[0] = ayar.faz_kal_us[0];
+  b->kal.faz_kal_us[1] = ayar.faz_kal_us[1];
+}
+
+/* G <durum> <oturum> <nokta> <sonraki> <onay> <doluluk%o> <onaysiz%o> <dusen>
+     <yaz_azami_us> <sil_azami_us> <sil_adet> <tarama_ms> <son_hata>
+   Kayit surerken saniyede bir, durum degisince HEMEN; `G?` ile istenince. */
+static void kayit_durum_bas(bool zorla) {
+  static uint32_t son_ms = 0, son_nesil = 0xFFFFFFFFu;
+  if (!kayit_bolum) {
+    if (zorla) Serial.println(F("! G: kayit bolumu yok (partitions.csv ile tam yukleme)"));
+    return;
+  }
+  uint32_t ms = millis();
+  KayitDurum d = kayit_durum_al();
+  bool periyot = d.durum == KDR_KAYIT && (ms - son_ms) >= 1000u;
+  if (!zorla && d.nesil == son_nesil && !periyot) return;
+  son_ms = ms;
+  son_nesil = d.nesil;
+  char t[176];
+  snprintf(t, sizeof(t), "G %u %lu %lu %lu %lu %u %u %lu %lu %lu %lu %lu %ld",
+           (unsigned)d.durum, (unsigned long)d.oturum, (unsigned long)d.nokta_sira,
+           (unsigned long)d.sonraki_sira, (unsigned long)d.onay,
+           (unsigned)d.doluluk_binde, (unsigned)d.onaysiz_binde,
+           (unsigned long)d.dusen, (unsigned long)d.yaz_azami_us,
+           (unsigned long)d.sil_azami_us, (unsigned long)d.sil_adet,
+           (unsigned long)d.tarama_ms, (long)d.son_hata);
+  Serial.println(t);
+}
+
+static void kayit_komut(const char *s) {
+  KayitMesaj m;
+  if (!kayit_bolum) {
+    Serial.println(F("! G: kayit bolumu yok (partitions.csv ile tam yukleme)"));
+    return;
+  }
+  memset(&m, 0, sizeof(m));
+  switch (s[1]) {
+    case 0:
+    case '?':
+      kayit_durum_bas(true);
+      return;
+    case 'b': {
+      long h = atol(s + 2);
+      if (!kayit__hiz_gecerli(h)) {
+        Serial.println(F("! G: hiz 20/100/200/1000/10000/60000 ms olmali"));
+        return;
+      }
+      m.tur = KM_BASLAT;
+      kayit_basla_doldur(&m.basla, (uint32_t)h);
+      break;
+    }
+    case 'd': m.tur = KM_DURDUR; break;
+    case 'o': m.tur = KM_ONAY; m.deger = strtoul(s + 2, nullptr, 10); break;
+    case 'F':
+      if (s[2] != '!') {
+        Serial.println(F("! G: butun kayitlari silmek icin `GF!` yaz"));
+        return;
+      }
+      m.tur = KM_BICIMLE;
+      break;
+    default:
+      Serial.println(F("! G: alt komut b<ms> d ? o<sira> F!"));
+      return;
+  }
+  if (xQueueSend(kayit_mesaj_q, &m, 0) == pdTRUE)
+    Serial.println(F("* G istek kuyrukta — sonuc G satirinda"));
+  else
+    Serial.println(F("! G: istek kuyrugu dolu"));
+}
+
 void komut_sayfa() {
   if (!host_gecerli()) {
     sunucu.send(403, "text/plain", "Host reddedildi (DNS rebinding korumasi)");
@@ -3092,6 +3205,8 @@ void yardim() {
   Serial.println(F("  R! fabrika ayarlari (kalibrasyonu SIFIRLAR)"));
   Serial.println(F("  t yakala  ta otomatik  tb<0-11> zaman tabani  t+ t-"));
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  tn<1/2> onay  t?"));
+  Serial.println(F("  Gb<ms> kayit baslat (20/100/200/1000/10000/60000)  Gd durdur  G? durum"));
+  Serial.println(F("  Go<sira> esitlenen kayitlari onayla   GF! BUTUN kayitlari sil"));
 }
 
 void komut_calistir(const char *s) {
@@ -3099,6 +3214,7 @@ void komut_calistir(const char *s) {
     case '?': ayar_yaz_seri(); break;
     case 'h': case 'Y': yardim(); break;
     case '#': i2c_tara(); alert_probu(); break;
+    case 'G': kayit_komut(s); break;   // B72 — kayit
 
     case 'e':
       enerji_pJ = 0;
@@ -3936,6 +4052,18 @@ void setup() {
     Serial.println(F("AYRILAMADI — mAh/Wh sayaclari calisir, EGRI KAYDI YOK"));
   }
 
+  // ── B72: KAYIT — bolum ve bellek burada; flas TARAMASI cekirdek 0'daki
+  //    gorevde (acilisi bloklamasin). Durum `G?` ile.
+  Serial.print(F("Kayit: "));
+  if (kayit_kur()) {
+    Serial.print((uint32_t)(kayit_bolum->size / 1024u));
+    Serial.print(F(" KB, "));
+    Serial.print((uint32_t)(kayit_bolum->size / KAYIT_SEKTOR));
+    Serial.println(F(" sektor — tarama gorevde, `G?` durum"));
+  } else {
+    Serial.println(F("KAPALI — 'kayit' bolumu ya da bellek yok (partitions.csv ile tam yukleme)"));
+  }
+
   Serial.println(F("Cikis: D <volt> <amper> <watt> <joule> <wh> <ms> "
                    "<ornek> <menzil> <durum>"));
   Serial.println(F("`h` yardim"));
@@ -4011,6 +4139,7 @@ void loop() {
   komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
   skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu
   skop_dokum_ilerle();       // B40: skop dokumu, TX'te yer oldugu kadar
+  kayit_durum_bas(false);    // B72: G satiri — yalniz cekirdek 1 basar
 
   // 🔴 B20 (2026-09-10) — BURADA OLU BIR BEKLEME VARDI:
   //     if (!yeni_donusum_bekle(4000)) delay(2);
@@ -4039,6 +4168,7 @@ void loop() {
   if (skop_is != SKOP_IS_YOK) {
     if (!ads_duraklama_bas_ms) ads_duraklama_bas_ms = millis() | 1u;
     if (kuplaj_aktif) kuplaj_patlat();       /* B44 deneyi — yalnizca `tK` */
+    kayit_duraklama(millis());   /* B72: ornek gelmeyen aralik noktayi kapatir */
     return;
   }
   if (kuplaj_aktif) kuplaj_bitir();          /* Wire, ADS okunmadan ONCE geri */
@@ -4048,6 +4178,7 @@ void loop() {
   }
 
   Okuma3 o = olcum_al();
+  kayit_ornek(o.watt, millis());   // B72: noktaci (cekirdek 1)
   // Guc ORNEK BASINA carpilir: ort(VxI) != ort(V) x ort(I).
   // B27/K1: iki ciften biri okunamadiysa watt COP — enerjiye katma.
   // (Ornek yine sayiliyor ve D basiliyor; arayuz `durum` alanindan

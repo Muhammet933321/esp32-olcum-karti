@@ -113,7 +113,58 @@ def bolum_tablo() -> None:
        "olcum-karti-a3\" / \"partitions.csv\"" in au and "huge_app.csv\"), reverse" not in au)
 
 
-BOLUMLER = [bolum_tablo]
+# ── B72.F · firmware kaynagi ──────────────────────────────────────────
+def _oku(ad: str) -> str:
+    y = KOD / ad
+    return y.read_text(encoding="utf-8", errors="replace") if y.exists() else ""
+
+
+def bolum_kaynak() -> None:
+    print("\n── B72.F  firmware kaynagi (yorumlar cikarilarak)")
+    esp_h, ino = _oku("kayit_esp.h"), _oku("olcum-karti-a3.ino")
+    esp_k, ino_k = kod(esp_h), kod(ino)
+    ok("B72.F1 kayit_esp.h Serial KULLANMIYOR (cekirdek 0'dan basmak aynayi "
+       "yarisa sokar; baslik makrodan ONCE dahil)",
+       bool(esp_k) and "Serial" not in esp_k)
+    i_dahil = ino_k.find('#include "kayit_esp.h"')
+    i_makro = ino_k.find("#define Serial CIKIS")
+    ok("B72.F2 kayit_esp.h `#define Serial`'dan ONCE dahil; kayit bolumu yoksa "
+       "afis KAPALI der",
+       0 <= i_dahil < i_makro and "KAPALI" in ino and "kayit_kur()" in ino_k)
+    ok("B72.F3 kayit gorevi CEKIRDEK 0'da (olcum cekirdegi flas beklemesin)",
+       re.search(r"xTaskCreatePinnedToCore\(\s*kayit_gorevi[^;]*,\s*0\s*\)", esp_k)
+       is not None)
+    g = govde(esp_k, "static void kayit_gorevi(")
+    ok("B72.F4 gorev butun ky_/kg_ islerini kilit ALTINDA yapiyor",
+       "xSemaphoreTake(kayit_kilit" in g and "xSemaphoreGive(kayit_kilit" in g
+       and 0 <= g.find("xSemaphoreTake(kayit_kilit") < g.find("ky_nokta("))
+    a = govde(esp_k, "static void kayit__ac(")
+    ok("B72.F5 acilista onay ve sira tabani NVS'ten; kg_ac(g, taban, onay)",
+       re.search(r"kg_ac\(\s*&kayit_g\s*,\s*taban\s*,\s*onay\s*\)", a) is not None
+       and 'getUInt("onay"' in a and 'getUInt("taban"' in a)
+    i_parca = esp_k.find("#define KG__PARCA")
+    i_motor = esp_k.find('#include "kayit_oturum.h"')
+    ok("B72.F6 ESP32 okuma parcasi (256) motordan ONCE tanimli",
+       0 <= i_parca < i_motor and "256u" in esp_k[i_parca:i_parca + 40])
+    oa = govde(ino_k, "Okuma3 olcum_al(")
+    lp = govde(ino_k, "void loop(")
+    ok("B72.F7 olcum_al HAM kodu, hata bitlerini ve menzili kayit_ham'a veriyor",
+       all(x in oa for x in ("kayit_ham.ham_v = ham_v", "kayit_ham.ham_i = ham_i",
+                             "kayit_ham.hata = ads_hata", "kayit_ham.menzil")))
+    skop = lp[lp.find("if (skop_is != SKOP_IS_YOK)"):]
+    ok("B72.F8 loop noktaciyi besliyor; skop duraklamasinda kayit_duraklama; "
+       "G satiri yalniz loop'ta (cekirdek 1)",
+       "kayit_ornek(o.watt" in lp and "kayit_duraklama(" in skop[:skop.find("return;")]
+       and "kayit_durum_bas(false)" in lp and '"G %u' in ino_k)
+    km = govde(esp_k, "static void kayit__mesaj(")
+    ok("B72.F9 bicimlemede sira tabani NVS'e kg_bicimle'den ONCE",
+       0 <= km.find('putUInt("taban"') < km.find("kg_bicimle("))
+    ok("B72.F10 `G` komutu tanimli ve yardimda; hiz listesi dar",
+       "case 'G': kayit_komut(s)" in ino_k and "Gb<ms>" in ino
+       and "h == 60000" in ino_k)
+
+
+BOLUMLER = [bolum_tablo, bolum_kaynak]
 
 
 def main() -> int:

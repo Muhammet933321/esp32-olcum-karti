@@ -911,7 +911,7 @@ ESP_DRAM_TOPLAM = 327680                  # bayt, arduino-cli'nin bildirdigi
 # ve `alert_probu` (iki modulu deneyen teshis).
 # B29: 71284 -> 71308 (+24 B). Cevrim faz sayaclari (faz_yaz/bek/oku/
 # kayma toplamlari + adet) — `F` satirinin kaynagi.
-_ESP_DRAM_SON_OLCUM = 72108               # bayt, B6 derlemesi 2026-09-13 (B39 +546; B40 +72; B41 +8 ads_duraklama sayaclari; B44 +8 kuplaj deneyi durumu)
+_ESP_DRAM_SON_OLCUM = 73708               # bayt, B6 derlemesi 2026-09-29 (B39 +546; B40 +72; B41 +8 ads_duraklama sayaclari; B44 +8 kuplaj deneyi durumu; B72 +1600 kayit_esp: yazici tamponu, gunluk, durum, noktaci)
 
 
 def _dram_kullanilan() -> int:
