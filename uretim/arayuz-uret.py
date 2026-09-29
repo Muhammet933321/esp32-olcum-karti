@@ -6,7 +6,8 @@
 `arayuz3/` -> gzip -> `uretim/_fs/` -> mklittlefs -> `uretim/_fs.bin`
 
 ⚠ HICBIR ADRES ELLE YAZILMIYOR. Bolum ofseti ve boyutu, derlemede
-  kullanilan `huge_app.csv`'den OKUNUYOR. Elle yazilsaydi bolum semasi
+  cizim klasorundeki `kod/olcum-karti-a3/partitions.csv`'den OKUNUYOR
+  (B72; derleme de onu kullaniyor). Elle yazilsaydi bolum semasi
   degistiginde goruntu yanlis adrese yazilir ve kart sessizce bos bir
   dosya sistemi gorurdu.
 
@@ -58,7 +59,9 @@ GZIPLENMEYEN = {".png", ".jpg", ".gz", ".woff2"}
 
 
 def araclar() -> tuple[Path, Path, Path]:
-    """mklittlefs, esptool ve huge_app.csv — makineye ozgu, ARANIYOR."""
+    """mklittlefs ve esptool makineye ozgu, ARANIYOR. Bolum tablosu TEK
+    kaynaktan: cizim klasorundeki partitions.csv (B72; cekirdegin
+    huge_app.csv'sini gecersiz kilan dosya)."""
     kok = os.environ.get("LOCALAPPDATA")
     if not kok:
         raise SystemExit("LOCALAPPDATA yok — Windows disi ortam")
@@ -67,21 +70,21 @@ def araclar() -> tuple[Path, Path, Path]:
                           reverse=True)), None)
     esp = next(iter(sorted((taban / "tools" / "esptool_py").glob("*/esptool.exe"),
                            reverse=True)), None)
-    csv = next(iter(sorted((taban / "hardware" / "esp32").glob(
-        "*/tools/partitions/huge_app.csv"), reverse=True)), None)
-    for ad, y in (("mklittlefs", mk), ("esptool", esp), ("huge_app.csv", csv)):
-        if y is None:
+    csv = KOK / "kod" / "olcum-karti-a3" / "partitions.csv"
+    for ad, y in (("mklittlefs", mk), ("esptool", esp), ("partitions.csv", csv)):
+        if y is None or not Path(y).exists():
             raise SystemExit(f"{ad} bulunamadi — ESP32 cekirdegi kurulu mu?")
     return mk, esp, csv
 
 
 def bolum(csv: Path) -> tuple[int, int]:
-    """huge_app.csv'den spiffs bolumunun (ofset, boyut) degerleri."""
+    """partitions.csv'den spiffs bolumunun (ofset, boyut) degerleri."""
     for sat in csv.read_text(encoding="utf-8").splitlines():
+        sat = sat.split("#", 1)[0]
         p = [x.strip() for x in sat.split(",")]
         if len(p) >= 5 and p[0] == "spiffs":
             return int(p[3], 0), int(p[4], 0)
-    raise SystemExit("huge_app.csv icinde spiffs bolumu yok")
+    raise SystemExit("partitions.csv icinde spiffs bolumu yok")
 
 
 def kaynak_ozeti() -> dict:
@@ -151,7 +154,7 @@ def main() -> int:
     print()
     print(f"  goruntu : {GORUNTU.name}  {n} B  (bolum {boyut} B, "
           f"%{100.0 * toplam / boyut:.1f} dolu)")
-    print(f"  ofset   : {hex(ofset)}   (huge_app.csv'den OKUNDU)")
+    print(f"  ofset   : {hex(ofset)}   (partitions.csv'den OKUNDU)")
     print(f"  kunye   : {KUNYE.name}")
     print()
     print("  Karta yazmak icin:  python arayuz-yaz.py")

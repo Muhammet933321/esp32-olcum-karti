@@ -27,6 +27,9 @@ KART = "esp32:esp32:esp32s3"
 #   PSRAM=opi              8 MB oktal PSRAM (N16R8) — 4.9'un asil duzeltmesi
 #   FlashSize=16M          N16R8'in gercek flash boyutu (varsayilan 4M idi)
 #   PartitionScheme=huge_app   3 MB uygulama — 473 KB'lik firmware buyuyecek
+#                              B72: YERLESIM cizim klasorundeki
+#                              kod/olcum-karti-a3/partitions.csv'den gelir
+#                              (kayit bolumu); huge_app yalniz 3 MB ust siniri.
 #
 # BILEREK EKLENMEDI: CDCOnBoot=cdc / USBMode=hwcdc. Bunlar `Serial`i UART
 # koprusunden yerel USB CDC'ye tasir; 4.11 (ikili aktarim) icin gerekli ama

@@ -1,0 +1,14 @@
+# B72 — olcum karti bolum tablosu (16 MB flas, N16R8).
+# Cizim klasorundeki bu dosya Arduino cekirdeginin semasini (FQBN'deki
+# huge_app) GECERSIZ KILAR (platform.txt prebuild.3). huge_app FQBN'de
+# kalir: 3 MB uygulama ust sinirini o veriyor.
+# nvs / otadata / app0 huge_app ile BIREBIR: NVS'teki WiFi parolalari
+# ve kalibrasyon (Ayar3) yuklemeden sonra yerinde kalsin.
+# kayit: 0xB60000 = 2912 sektor (tasarim §5 kapasite tablosu).
+# Name,   Type, SubType,  Offset,   Size
+nvs,      data, nvs,      0x9000,   0x5000
+otadata,  data, ota,      0xe000,   0x2000
+app0,     app,  ota_0,    0x10000,  0x300000
+spiffs,   data, spiffs,   0x310000, 0x180000
+kayit,    data, 0x40,     0x490000, 0xB60000
+coredump, data, coredump, 0xFF0000, 0x10000
