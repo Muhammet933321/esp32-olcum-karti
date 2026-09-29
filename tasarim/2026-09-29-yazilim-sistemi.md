@@ -139,17 +139,23 @@ saat + kart ms) · hız · menzil · şönt · firmware sürümü · **kalibrasy
 tam kopyası + numarası**. Ad, etiket, notlar sonradan eklenir — oturuma
 **ek kayıt** olarak, yine kartta (bütün cihazlar aynı görür).
 
-### Kapasite (tahmini — biçim alt proje 1'de kesinleşir)
+### Kapasite (1A-1'de kesinleşen biçimle)
 
-~10 MB kayıt bölümü, nokta başına ~24–32 bayt:
+Nokta 36 bayt · kayıt başlığı 16 bayt · her sektör başında 116 baytlık
+TEKRAR · 5 saniyelik boşaltma · sektör başına 24 baytlık BITIR payı.
+~11.4 MB'lık kayıt bölümü (2912 sektör; bölüm tablosu 1A-2'de) için:
 
-| Hız | Süre |
-|---|---|
-| Ayrıntılı (~500/s, ~8 B/örnek) | ~45 dk |
-| 10/s | ~9–12 saat |
-| 5/s | ~18–24 saat |
-| 1/s | ~4–5 gün |
-| 10 s'de 1 | ~40–50 gün |
+| Hız | Nokta/sektör | Süre |
+|---|---|---|
+| 50/s | ~107 | ~1.7 saat |
+| 10/s | ~107 | ~8.7 saat |
+| 5/s | ~107 | ~17 saat |
+| 1/s | ~100 | ~3.4 gün |
+| 10 s'de 1 | ~70 | ~24 gün |
+| dakikada 1 | ~70 | ~140 gün |
+
+Yavaş hızlarda verim düşük: nokta 5 s içinde tek başına yazılıyor (Ö2'nin
+bedeli). Ayrıntılı kip (her örnek) 1C'de tasarlanacak.
 
 ### Kartta saklama
 
@@ -246,13 +252,14 @@ Köprünün `kopru/arsiv/*.satir` dosyaları (11–12 Eylül) çevrilmez, kalır
   döneme ait kalibrasyon uygulanırken **açık uyarı**.
 - B34 ADC doğrusalsızlık düzeltmesi karara bağlanırsa kalibrasyon
   kümesinin parçası olur ve eski kayıtlara da uygulanabilir.
-- **Yeniden kalibrasyonun kesinliği (dürüst sınır):** doğrusal
-  kalibrasyonda V ve A'nın ort/min/maks'ı **tam** yeniden hesaplanır
-  (min/maks tekdüze dönüşümde korunur). W ortalaması, nokta başına ham
-  çarpım toplamı saklanırsa yine **tam** hesaplanır. Ama W'nin min/maks'ı
-  ve doğrusal olmayan düzeltmede ortalamalar örnek başına veri ister;
-  bunlar başka kalibrasyonla **yaklaşık** olur ve ekranda öyle yazılır.
-  Kayıt biçimi (alt proje 1) bu yaklaşıklığı en aza indirecek alanları seçer.
+- **Yeniden kalibrasyonun kesinliği (1A-1'de kesinleşti):** V ve A ham kod
+  olarak saklanıyor; başka kalibrasyonla ort/min/maks **tam** yeniden
+  hesaplanır (min/maks tekdüze dönüşümde korunur). **W** ise kayıt anındaki
+  kalibrasyonla **watt** olarak (ort/min/maks) saklanıyor; ham çarpım toplamı
+  saklanmıyor. Sebep: firmware gücü hizalanmış volt × amper ve süzgeç
+  düzeltmesiyle hesaplıyor; aynı hesabı kod biriminde yeniden kurmak menzil
+  geçişlerinde kesintili ikinci bir hat olurdu. Sonuç: başka kalibrasyon
+  uygulanınca W (ort dahil) **yaklaşık** olur ve ekranda öyle yazar.
 
 ---
 

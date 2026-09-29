@@ -8451,6 +8451,80 @@ Ayrıca ileri/geri artık sayfanın tepesine değil **alt adım kartına** kayd�
 
 ---
 
+#### 5.12.65 ✅ B71 — KAYIT MOTORU (alt proje 1A-1, 2026-09-29)
+
+Tasarım: `tasarim/2026-09-29-yazilim-sistemi.md` (onaylı) · Plan:
+`tasarim/2026-09-29-plan-1a1-kayit-motoru.md`. **Karta dokunulmadı**;
+firmware (`.ino`) değişmedi. Kullanıcının istediği "kartın kaydetmesi"
+sisteminin (her mod, güvenilir, bildirimli) ilk dilimi: baytların tanımı ve
+flaştaki günlük, bilgisayarda doğrulanmış halde.
+
+**Ne yapıldı**
+
+| Dosya | Ne |
+|---|---|
+| `kod/olcum-karti-a3/kayit_bicim.h` | Baytların TEK tanımı: kayıt = 16 B başlık (imza, tür, yük, sıra, oturum, CRC-32 = zlib) + yük + dolgu. Nokta 36 B: V/A **ham kod** ort + min + maks, W watt. BASLA kalibrasyonun tam kopyasını taşır |
+| `kayit_nokta.h` | Noktacı: ham örnek → ort + min + maks. Menzil değişince nokta O ANDA kapanır; hatalı örnek istatistiğe girmez; kayıp/duraklama bayrakları |
+| `kayit_gunluk.h` | NOR flaşta halka: sektör kullanılmadan önce HEP silinir · kurtarma yarım kaydı ve çöp sektörü atar · akıllı temizlik (onaysız veri ASLA silinmez) · sıra tabanı (biçimlemeden sonra numara tekrar verilmez) · eşitleme okuması yarım kaydı atlar, boşluğu bildirir |
+| `kayit_oturum.h` | Oturum yazıcı: TEKRAR (her sektör kendi oturumunu anlatır) · DEVAM (yeniden başlamada sürer) · BITIR(DOLU) için sektör başına 24 B ayrılmış pay |
+| `kopru/kayit_bicim.py` | Bağımsız Python çözücü (stdlib) — C ile ortak test vektörleriyle sınanıyor |
+| `uretim/avr/nor_flas.py` | Emüle NOR: yazma yalnız 1→0, silme zaman alır; arıza modeli yarım yazma + yarım silme |
+| `uretim/avr/ornek_kayit.c`, `uretim/test_kayit.py` | AVR harness (senaryo başına ayrı ELF) + zincir adımı B71 |
+
+**Test yolu neden AVR:** bu makinede masaüstü C derleyicisi yok. `kayit_*.h`
+platform çağrısı içermiyor, flaş işlev işaretçileriyle geliyor; B4/B5'in
+yöntemiyle (`olcum3.h`) aynı kod AVR emülatöründe koşuyor. Başlıklar ayrıca
+`avr-g++ -fsyntax-only -Wall -Wextra` ile C++ olarak da uyarısız (ESP32
+`.ino`'yu C++ derliyor).
+
+**Doğrulama**
+- `test_kayit.py` **74/74** (tek başına ~1 dk, zincirde 85 s). Plan 72
+  diyordu; +2 = Y14 / K10 (aşağıda).
+- `--kesinti 1000` **74/74**, 424 s: 98 kesik silme, 219 yarım kayıt, 571
+  DEVAM, 608 açılış; veride tek bozulma yok, sıra hiç geri gitmedi.
+  Varsayılan 120 kesmede: 9 kesik silme, 32 yarım kayıt, 68 DEVAM.
+- Mutasyon B71 **13/13** (620 s). 🔴 **İlk turda 12/13:** `KY_BITIR_PAY 0u`
+  KAÇTI. Y12 sonuca bakıyordu ("BITIR(DOLU) flaşta mı"); pay kaldırılınca
+  BITIR çoğu zaman tesadüfen sektör kuyruğuna sığıyordu. Test **yerleşimi**
+  ölçecek şekilde düzeltildi — `bitir_payi_korunur()`: BITIR dışında hiçbir
+  kayıt sektörün son 24 baytına girmez (Y14; kesme altında K10). Mutasyonlu
+  koşu tam Y14 + K10'u kırmızı yaptı. Ders yine aynı: sonucu ölçen iddia,
+  sonucu tesadüfen doğru çıkaran bozukluğu yakalamaz.
+- Zincir **20/20** (`ADIM_SAYISI` 19 → 20; 738 s). İlk koşuda iki kırmızı:
+  adım **tezgah kalemi basmıyordu** (proje kuralı; 4 kalem eklendi) ve
+  `gizlilik_dogrula.py` plan belgesinde **3 mutlak Windows yolu** buldu
+  (kullanıcı hesap adı + proje kökü). Belge temizlendi; push edilmemiş 7
+  commit yalnız plan blobu değişecek şekilde yeniden yazıldı (yedek:
+  `refs/yedek/1a1-gizlilik-oncesi`) — yoksa yollar herkese açık geçmişe
+  girecekti.
+- Sayım kilidi `--sayim-kilidi-yaz` ile DEĞİL elle eklendi (B71 = 74):
+  kullanıcının commit'lenmemiş B55–B70 işi aynı dosyada; kilidi baştan yazmak
+  olası bir kaymayı sessizce onaylayabilirdi.
+
+**Kilitlenen kararlar:** oturum kimliği = BASLA kaydının sırası · W kayıt
+anındaki kalibrasyonla watt olarak saklanıyor → başka kalibrasyonda W
+yaklaşık (spec §7 güncellendi) · her yeni sektör TEKRAR ile başlar · BITIR
+payı 24 B · boşaltma en fazla 28 nokta / 5 s · kapasite kesinleşti (spec §5:
+5/s ~17 saat, 1/s ~3.4 gün, 10 s'de 1 ~24 gün — önceki tahminden düşük;
+yavaş hızda nokta 5 s içinde tek başına yazılıyor).
+
+**Commit düzeni:** `dogrula3.py`, `mutasyon.py`, `beklenen_sayim.json` ve bu
+dosyada kullanıcının commit'lenmemiş B55–B70 işi var. B71 bu dosyalara
+**yalnız HEAD + B71** sürümüyle (index'e `update-index --cacheinfo`)
+commit'lendi; bekleyen iş çalışma dizininde dokunulmadan duruyor.
+
+**Tezgahta (1A-2'de) ölçülecek:** flaş yazma/silmenin ölçüme etkisi · gerçek
+fiş çekme (Ö2: kayıp ≤ ~5 s) · emüle NOR modelinin gerçek ESP32 flaşını
+temsil edip etmediği (RTS sıfırlamasıyla 100 kesme) · Python çözücünün
+volt/amper çevriminin kartın D satırıyla aynı olması.
+
+**Sırada: 1A-2** — bölüm tablosu (`partitions.csv`; nvs 0x9000/0x5000
+yerinde), çekirdek 0 kayıt görevi, `G` komutu ve durum satırı, `/kayit/*`
+uçları, NTP, eşitleme istemcisi, tezgah ölçümleri (flaş durmasının ölçüme
+etkisi = spec §11'in ilk riski). Hazır bilgi plan belgesinin sonunda.
+
+---
+
 #### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
 
 **Neden.** Malzemenin tamamı geldi (50 mA sigorta hariç); kullanıcı "lehimsiz test mi, plakete mi" diye sordu. Karar: **plakete, blok blok** — lehimsiz tahta bu kartta ölçüm üretmez (15 mΩ şönt + Kelvin tahta temasından küçük; 4.9 MΩ zincirde tahta kaçağı oranı bozar; B30/B44'te iki sessiz kusur gevşek telden geldi). Ama plakete geçmek için elde **yerleşim planı yoktu** — F9 ("delik atla") sayı veriyordu, yer vermiyordu.
