@@ -38,7 +38,9 @@
 #define KD_ACIK   1u
 #define KD_BITTI  2u
 #define KG_ADRES_YOK 0xFFFFFFFFUL
-#define KG__PARCA 32u
+#ifndef KG__PARCA
+#define KG__PARCA 32u   /* okuma parcasi (yigin); ESP32'de 256 (kayit_esp.h) */
+#endif
 
 typedef struct {
     int (*oku)(void *baglam, uint32_t adres, void *hedef, uint32_t n);
@@ -123,10 +125,10 @@ static inline uint8_t kg__ff_mi(KayitGunluk *g, uint32_t a, uint32_t son)
     uint8_t parca[KG__PARCA];
     while (a < son) {
         uint32_t n = son - a;
-        uint8_t i;
+        uint32_t i;                 /* uint8_t DEGIL: (uint8_t)256 == 0 (B72) */
         if (n > KG__PARCA) n = KG__PARCA;
         if (g->f.oku(g->f.baglam, a, parca, n)) { g->oku_hata = 1u; return 0u; }
-        for (i = 0; i < (uint8_t)n; i++) {
+        for (i = 0; i < n; i++) {
             if (parca[i] != 0xFFu) return 0u;
         }
         a += n;
@@ -208,7 +210,9 @@ static inline void kg__besle(KayitGunluk *g, const KayitBaslik *h, uint32_t adre
 }
 
 /* Sektoru bastan tara. Donus: son gecerli kaydin bittigi ofset.
-   *temiz = 1: o ofsetten sektor sonuna kadar her bayt 0xFF. */
+   `temiz` NULL degilse: o ofsetten sektor sonuna kadar her bayt 0xFF mi.
+   NULL: denetleme (yalniz BAS sektorde gerekli — bos sektorun 4 KB'ini
+   okumak 2912 sektorde her acilista 11.4 MB demekti; B72). */
 static inline uint32_t kg__sektor_tara(KayitGunluk *g, uint32_t s, KgBesle besle,
                                        uint8_t *temiz)
 {
@@ -228,11 +232,11 @@ static inline uint32_t kg__sektor_tara(KayitGunluk *g, uint32_t s, KgBesle besle
     }
     if (d == -2) {
         g->oku_hata = 1u;          /* okunamayan veri COP DEGIL */
-        *temiz = 0u;
+        if (temiz) *temiz = 0u;
     } else if (d < 0) {
         g->bozuk++;
-        *temiz = 0u;
-    } else {
+        if (temiz) *temiz = 0u;
+    } else if (temiz) {
         *temiz = kg__ff_mi(g, a, son);
     }
     return a - bas;
@@ -249,7 +253,7 @@ static inline uint32_t kg__sektor_tara(KayitGunluk *g, uint32_t s, KgBesle besle
 static inline int kg_ac(KayitGunluk *g, uint32_t sira_taban, uint32_t onay_taban)
 {
     uint32_t s, i, en_ilk = 0u, en_son = 0u, bas = 0u, ofset;
-    uint8_t temiz, bos = 1u;
+    uint8_t temiz = 0u, bos = 1u;
     KayitBaslik h;
     g->dizin_adet = 0u;
     g->onay = 0u;
@@ -272,7 +276,7 @@ static inline int kg_ac(KayitGunluk *g, uint32_t sira_taban, uint32_t onay_taban
     g->bas_ofset = KAYIT_SEKTOR;
     for (i = 1; i <= g->sektor_adet; i++) {
         s = (bas + i) % g->sektor_adet;
-        ofset = kg__sektor_tara(g, s, kg__besle, &temiz);
+        ofset = kg__sektor_tara(g, s, kg__besle, (s == bas) ? &temiz : 0);
         if (g->sektor[s].son > en_son) en_son = g->sektor[s].son;
         if (s == bas && temiz) g->bas_ofset = ofset;
     }

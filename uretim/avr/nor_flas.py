@@ -46,6 +46,7 @@ class NorFlas:
         self.yazilan_bayt = 0
         self.silme_adet = 0
         self.kesilen_silme = 0
+        self.okunan_bayt = 0      # kurtarma maliyeti olculsun (B72)
         self._ariza_oku = 0       # n > 0: n. okuma baytinda hata
         self._ariza_yaz = 0
         self._hata = False        # durum okunana kadar islem basarisiz
@@ -90,6 +91,7 @@ class NorFlas:
         a = self.adres
         self._alan(a)
         self.adres = a + 1
+        self.okunan_bayt += 1
         if self._ariza_oku:
             self._ariza_oku -= 1
             if not self._ariza_oku:

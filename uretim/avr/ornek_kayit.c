@@ -130,7 +130,7 @@ static KULLANILMAYABILIR void basla_uret(KayitBasla *b, uint32_t hiz_ms)
 
 /* ─────────────────────────────── emule NOR (uretim/avr/nor_flas.py) */
 #if defined(SENARYO_GUNLUK) || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) \
-    || defined(SENARYO_DIZIN)
+    || defined(SENARYO_DIZIN) || defined(SENARYO_TARAMA)
 #define NOR_KOMUT (*(volatile uint8_t *)0xE0)
 #define NOR_A0    (*(volatile uint8_t *)0xE1)
 #define NOR_A1    (*(volatile uint8_t *)0xE2)
@@ -559,9 +559,25 @@ static void senaryo(void)
 }
 #endif
 
+#if defined(SENARYO_TARAMA)
+/* B72: bos flasta kurtarma yalniz sektor BASLIKLARINI okumali; baslik
+   disindaki 0xFF denetimi yalniz yazilan (bas) sektorde gerekli.
+   BAS/OFSET: bas sektorun kuyrugu kirliyse yeni kayit oraya YAZILMAMALI
+   (OFSET = KAYIT_SEKTOR). */
+static void senaryo(void)
+{
+    kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    sayi("AC", kg_ac(&g, 0u, 0u));
+    sayi("BAS", (int32_t)g.bas);
+    sayi("OFSET", (int32_t)g.bas_ofset);
+    metin("BITTI\n");
+}
+#endif
+
 /* ── giris ── */
 #if !(defined(SENARYO_BICIM) || defined(SENARYO_NOKTACI) || defined(SENARYO_GUNLUK) \
-      || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN))
+      || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN) \
+      || defined(SENARYO_TARAMA))
 #error "SENARYO_* tanimli degil"
 #endif
 

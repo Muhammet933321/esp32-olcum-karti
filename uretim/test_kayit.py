@@ -149,18 +149,21 @@ def f32(x: float) -> float:
     return struct.unpack("<f", struct.pack("<f", x))[0]
 
 
-def derle(senaryo: str, sektor_adet: int = SEKTOR_ADET) -> Path:
+def derle(senaryo: str, sektor_adet: int = SEKTOR_ADET,
+          ek: tuple[str, ...] = ()) -> Path:
     """ornek_kayit.c'yi TEK senaryo icin derle; UYARISIZ olmali.
-    `sektor_adet` emule flasin sektor sayisi (NOR_SEKTOR_ADET)."""
-    anahtar = f"{senaryo}_{sektor_adet}"
+    `sektor_adet` emule flasin sektor sayisi (NOR_SEKTOR_ADET); `ek` ek -D
+    bayraklari (B72: -DKG__PARCA=256u, ESP32'deki okuma parcasi)."""
+    anahtar = f"{senaryo}_{sektor_adet}" + "".join(ek)
     if anahtar in _ELF:
         return _ELF[anahtar]
-    elf = gecici.dizin("kayit_") / f"ornek_kayit_{anahtar}.elf"
+    dosya = "".join(c if c.isalnum() or c == "_" else "_" for c in anahtar)
+    elf = gecici.dizin("kayit_") / f"ornek_kayit_{dosya}.elf"
     d = subprocess.run(
         [str(AVR_GCC), "-mmcu=atmega328p", "-DF_CPU=16000000UL", "-Os",
          "-std=gnu11", "-Wall", "-Wextra", f"-DSENARYO_{senaryo}",
          f"-DKAYIT_SEKTOR={SEKTOR}UL", f"-DKAYIT_AZAMI_YUK={AZAMI_YUK}u",
-         f"-DNOR_SEKTOR_ADET={sektor_adet}u",
+         f"-DNOR_SEKTOR_ADET={sektor_adet}u", *ek,
          f"-I{KOD}", "-o", str(elf), str(HARNESS), "-lm"],
         capture_output=True, text=True, encoding="utf-8", errors="replace")
     if d.returncode != 0:
@@ -569,6 +572,36 @@ def bolum_yazici() -> None:
        bitir_payi_korunur(bellek))
 
 
+# ── B71.T · kurtarma maliyeti ve kirli kuyruk ─────────────────────────
+def bolum_tarama() -> None:
+    """B72 (1A-2): gercek bolum 2912 sektor; bos sektorun tamamini okumak
+    her acilista 11.4 MB demekti. ESP32'de okuma parcasi 256: `kg__ff_mi`
+    uint8_t sayaci (uint8_t)256 == 0 yuzunden parcayi HIC denetlemiyordu."""
+    print("\n── B71.T  kurtarma maliyeti · 256'lik parcada kirli kuyruk")
+    flas = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    sat = kos(derle("TARAMA"), flas)
+    sinir = SEKTOR_ADET * 2 * KB.BASLIK_BAYT + SEKTOR
+    ok("B71.T1 bos flasta kurtarma yalniz sektor basliklarini (+ bas sektoru) okur",
+       alanlar(sat, "AC") == [["0"]] and flas.okunan_bayt <= sinir,
+       f"okunan {flas.okunan_bayt} B (sinir {sinir}, tam tarama "
+       f"{SEKTOR_ADET * (SEKTOR + 2 * KB.BASLIK_BAYT)})")
+    elf = derle("TARAMA", ek=("-DKG__PARCA=256u",))
+    kay = KB.kayit_paketle(KB.T_SAAT, 1, 0, bytes(12))
+    sonuc = {}
+    for kirli in (False, True):
+        flas = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+        a = 3 * SEKTOR
+        flas.bellek[a:a + len(kay)] = kay
+        if kirli:
+            flas.bellek[a + 100] = 0x00      # ilk 256'lik parcanin icinde
+        s = kos(elf, flas)
+        sonuc[kirli] = (alanlar(s, "BAS"), alanlar(s, "OFSET"))
+    ok("B71.T2 KG__PARCA=256: kirli kuyruk algilanir (yeni kayit sonraki sektore), "
+       "temiz kuyrukta kayit arkasina yazilir",
+       sonuc[False] == ([["3"]], [[str(len(kay))]])
+       and sonuc[True] == ([["3"]], [[str(SEKTOR)]]), f"{sonuc}")
+
+
 # ── B71.D · oturum dizini ─────────────────────────────────────────────
 DIZIN_KAP = 6        # ornek_kayit.c DIZIN_KAP ile ayni
 
@@ -658,7 +691,7 @@ def bolum_kesinti(n_deneme: int) -> None:
 
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
-            bolum_dizin, bolum_kesinti]
+            bolum_tarama, bolum_dizin, bolum_kesinti]
 
 
 def main() -> int:
