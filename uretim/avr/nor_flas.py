@@ -1,0 +1,125 @@
+# -*- coding: utf-8 -*-
+"""Emule NOR flas — AVR testlerinde kayit gunlugunun altindaki 'disk' (B71).
+
+Kayit gunlugu (kod/olcum-karti-a3/kayit_gunluk.h) kartta ESP32'nin
+esp_partition_* cagrilariyla GERCEK NOR flasa yazar. AVR emulatorunde ayni
+C kodu bu cevre birimine yazar. NOR'un iki kurali birebir:
+  * yazma yalniz 1 -> 0 yapar (eski & yeni); 0'i 1'e ancak silme dondurur
+  * silme bir SEKTORU 0xFF yapar ve ZAMAN alir (`sil_cevrim`)
+Iki ariza modeli:
+  * yazma bayt bayt ilerler: elektrik kesilirse kaydin bir kismi kalir
+  * suren bir silme kesilirse sektor YARI SILINMIS kalir: baytlarin bir
+    kismi 0xFF, bir kismi eski, bir kismi rastgele (`kes()`)
+
+Yazmaclar (ATmega328P veri uzayinda REZERV adresler; gercek cipte bos,
+emulatorde `gc_oku`/`gc_yaz` kancalari 0x20-0xFF arasinda calisiyor):
+  0xE0 KOMUT   yaz 0x5E: adresin sektorunu sil · oku bit0: silme suruyor
+  0xE1..0xE3   adres bayt 0/1/2 (kucuk uclu)
+  0xE4 VERI    oku: bayt, adres++ · yaz: bayt &= v, adres++
+"""
+from __future__ import annotations
+
+import random
+
+KOMUT, A0, A1, A2, VERI = 0xE0, 0xE1, 0xE2, 0xE3, 0xE4
+SIL = 0x5E
+
+
+class NorFlas:
+    def __init__(self, boyut: int, sektor: int = 4096, sil_cevrim: int = 0):
+        if boyut % sektor:
+            raise ValueError("boyut sektorun kati olmali")
+        self.bellek = bytearray(b"\xff" * boyut)
+        self.sektor = sektor
+        self.sil_cevrim = sil_cevrim
+        self.adres = 0
+        self.cpu = None
+        self._silinen: int | None = None    # suren silmenin sektor adresi
+        self._sil_bitis = 0
+        self.yazilan_bayt = 0
+        self.silme_adet = 0
+        self.kesilen_silme = 0
+
+    # ------------------------------------------------------------ baglanti
+    def tak(self, kart) -> None:
+        """Yazmaclari bir emulator kartina bagla (her acilista yeniden)."""
+        self.cpu = kart.cpu
+        o, y = kart.cpu.gc_oku, kart.cpu.gc_yaz
+        y[A0] = lambda v: self._adres_bayt(0, v)
+        y[A1] = lambda v: self._adres_bayt(1, v)
+        y[A2] = lambda v: self._adres_bayt(2, v)
+        o[VERI] = self._veri_oku
+        y[VERI] = self._veri_yaz
+        o[KOMUT] = self._durum
+        y[KOMUT] = self._komut
+
+    def _adres_bayt(self, i: int, v: int) -> None:
+        self.adres = (self.adres & ~(0xFF << (8 * i))) | ((v & 0xFF) << (8 * i))
+
+    # ------------------------------------------------------------ silme
+    def _silme_bitti_mi(self) -> None:
+        if (self._silinen is not None and self.cpu is not None
+                and self.cpu.cevrim >= self._sil_bitis):
+            s = self._silinen
+            self.bellek[s:s + self.sektor] = b"\xff" * self.sektor
+            self._silinen = None
+
+    def _mesgul(self, a: int) -> bool:
+        return (self._silinen is not None
+                and self._silinen <= a < self._silinen + self.sektor)
+
+    def _alan(self, a: int) -> None:
+        if not 0 <= a < len(self.bellek):
+            raise IndexError(f"NOR erisimi alan disi: {a:#x}")
+
+    # ------------------------------------------------------------ yazmaclar
+    def _veri_oku(self) -> int:
+        self._silme_bitti_mi()
+        a = self.adres
+        self._alan(a)
+        self.adres = a + 1
+        return 0xFF if self._mesgul(a) else self.bellek[a]
+
+    def _veri_yaz(self, v: int) -> None:
+        self._silme_bitti_mi()
+        a = self.adres
+        self._alan(a)
+        if self._mesgul(a):
+            raise RuntimeError(f"silme surerken yazma: {a:#x}")
+        self.bellek[a] &= v & 0xFF
+        self.adres = a + 1
+        self.yazilan_bayt += 1
+
+    def _komut(self, v: int) -> None:
+        self._silme_bitti_mi()
+        if v != SIL:
+            raise RuntimeError(f"bilinmeyen NOR komutu {v:#x}")
+        s = (self.adres // self.sektor) * self.sektor
+        self._alan(s)
+        self.silme_adet += 1
+        if self.sil_cevrim <= 0 or self.cpu is None:
+            self.bellek[s:s + self.sektor] = b"\xff" * self.sektor
+        else:
+            self._silinen = s
+            self._sil_bitis = self.cpu.cevrim + self.sil_cevrim
+
+    def _durum(self) -> int:
+        self._silme_bitti_mi()
+        return 1 if self._silinen is not None else 0
+
+    # ------------------------------------------------------------ ariza
+    def kes(self, rng: random.Random) -> None:
+        """Elektrik kesildi. Suren bir silme YARIM kalir."""
+        self._silme_bitti_mi()
+        if self._silinen is not None:
+            s = self._silinen
+            for a in range(s, s + self.sektor):
+                r = rng.random()
+                if r < 0.45:
+                    self.bellek[a] = 0xFF
+                elif r < 0.55:
+                    self.bellek[a] = rng.randrange(256)
+                # kalan %45: eski bayt oldugu gibi
+            self._silinen = None
+            self.kesilen_silme += 1
+        self.cpu = None
