@@ -47,7 +47,7 @@ HARNESS = BURASI / "avr" / "ornek_kayit.c"
 SEKTOR = 512          # testte kucuk sektor: halka cok doner, emulatorde ucuz
 SEKTOR_ADET = 8       # varsayilan; derle() -DNOR_SEKTOR_ADET ile gecirir
 AZAMI_YUK = 256       # 4 + 7 nokta
-CPP_BASLIKLAR = ["kayit_bicim.h", "kayit_nokta.h"]
+CPP_BASLIKLAR = ["kayit_bicim.h", "kayit_nokta.h", "kayit_gunluk.h"]
 _ELF: dict[str, Path] = {}
 
 gecti = kaldi = 0
@@ -319,7 +319,79 @@ def bolum_noktaci() -> None:
        gruplar.get("S4") == s4, str(gruplar.get("S4"))[:200])
 
 
-BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci]
+# ── B71.G · gunluk ────────────────────────────────────────────────────
+def _durum(satirlar: list[str], ad: str) -> dict | None:
+    for s in satirlar:
+        p = s.split()
+        if p[:1] == [ad]:
+            return {k: int(v) for k, v in (x.split("=") for x in p[1:])}
+    return None
+
+
+def _g(sonraki, bas, ofset, onay=0, bozuk=0, dolu=0, silinen=0, kull=0,
+       onaysiz=0, dizin=0) -> dict:
+    return dict(sonraki=sonraki, bas=bas, ofset=ofset, onay=onay, bozuk=bozuk,
+                dolu=dolu, silinen=silinen, kull=kull, onaysiz=onaysiz,
+                dizin=dizin)
+
+
+def bolum_gunluk() -> None:
+    """Beklenen sayilar elle: kayit 12 B -> 28, 13 B -> 32, 100 B -> 116
+    bayt; 512'lik sektore 4 x 116 = 464 sigar. `kull`/`onaysiz`: yazilan
+    (bas) sektor dolu kismiyla, OTEKILER TAM sektor sayilir — kuyruktaki
+    bos yer sektor silinene kadar kullanilamaz. Ornek G4: sektor 0..6
+    7 x 512 + sektor 7'de 464 = 4048."""
+    print("\n── B71.G  gunluk: yazma · okuma · kurtarma · temizlik")
+    flas = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    sat = kos(derle("GUNLUK"), flas)
+    ek = [int(p[0]) for p in alanlar(sat, "EK")]
+    oku = alanlar(sat, "OKU")
+    veri = [bytes.fromhex(p[0]) if p else b"" for p in alanlar(sat, "VERI")]
+    d = {a: _durum(sat, a) for a in [f"G{i}" for i in range(1, 12)]}
+    ok("B71.G1 bos flas: sira 1'den, ilk yazma sektor 0'i SILIP kullanacak",
+       d["G1"] == _g(1, 7, 512), str(d["G1"]))
+    ok("B71.G2 uc kayit 1,2,3; 4 bayt dolgu dogru (28+32+116 = 176)",
+       ek[:3] == [1, 2, 3] and d["G2"] == _g(4, 0, 176, kull=176, onaysiz=176),
+       str(d["G2"]))
+    ok("B71.G3 sira 2'den okuma: iki kayit, 148 bayt", oku[0] == ["148", "2", "3"],
+       str(oku[0]))
+    kay = KB.akis_coz(veri[0])
+    ok("B71.G3 okunan baytlar Python'da cozuluyor (sira 2,3; yuk birebir)",
+       [k.sira for k in kay] == [2, 3] and kay[0].yuk == bytes(range(13))
+       and kay[1].yuk == bytes(range(100)))
+    ok("B71.G4 yeniden acilis ayni durumu kuruyor", d["G3"] == d["G2"], str(d["G3"]))
+    ok("B71.G5 onay yokken bellek DOLAR: 30 kayit sigdi, 31. KG_DOLU",
+       alanlar(sat, "DOLU")[0] == ["31", "1"], str(alanlar(sat, "DOLU")))
+    ok("B71.G5 dolulukta HICBIR sektor silinmedi (onaysiz veri korunur)",
+       d["G4"] == _g(34, 7, 464, dolu=1, kull=4048, onaysiz=4048), str(d["G4"]))
+    ok("B71.G6 sahte buyuk onay kirpildi: onay = son yazilan sira (33)",
+       d["G5"] == _g(34, 7, 464, onay=33, dolu=1, kull=4048, onaysiz=0),
+       str(d["G5"]))
+    ok("B71.G7 onaydan sonra en eski sektor silinip yeniden kullanildi",
+       ek[3] == 34 and d["G6"] == _g(35, 0, 116, onay=33, silinen=1, kull=3700,
+                                     onaysiz=116), str(d["G6"]))
+    ok("B71.G8 silinmis araliktan okuma BOSLUGU soyler (ilk 6 > istenen 1)",
+       oku[1] == ["116", "6", "6"], str(oku[1]))
+    ok("B71.G9 okuma kapasitesi kaydi bolmez (116 > 100 -> 0 bayt)",
+       oku[2] == ["0", "0", "0"], str(oku[2]))
+    ok("B71.G10 bicimleme sirayi korur (35)",
+       d["G7"] == _g(35, 7, 512, onay=34, silinen=1), str(d["G7"]))
+    ok("B71.G11 bos flasta taban sira: numara TEKRAR VERILMEZ (35)",
+       d["G8"] == _g(35, 7, 512) and ek[4:5] == [35], f"{d['G8']} EK={ek[4:5]}")
+    ok("B71.G12 cop sektor veri sanilmaz (bozuk=1), yazma kaldigi yerden",
+       d["G9"] == _g(36, 0, 28, bozuk=1, kull=28, onaysiz=28), str(d["G9"]))
+    ok("B71.G13 yarim kayitli sektore bir daha yazilmaz (ofset 512)",
+       d["G10"] == _g(36, 0, 512, bozuk=2, kull=512, onaysiz=512), str(d["G10"]))
+    ok("B71.G14 sonraki kayit yeni sektore (sektor 1)",
+       ek[5:6] == [36] and d["G11"] == _g(37, 1, 28, bozuk=2, kull=540,
+                                          onaysiz=540), str(d["G11"]))
+    kay = KB.akis_coz(veri[3]) if len(veri) > 3 else []
+    ok("B71.G15 esitleme okumasi yarim kaydi ATLAR: yalniz gecerli 35 ve 36",
+       oku[3:4] == [["56", "35", "36"]] and [k.sira for k in kay] == [35, 36],
+       str(oku[3:4]))
+
+
+BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk]
 
 
 def main() -> int:
