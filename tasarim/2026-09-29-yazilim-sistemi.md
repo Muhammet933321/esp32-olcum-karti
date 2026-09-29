@@ -1,6 +1,6 @@
 # Ölçüm kartı — yazılım sistemi tasarımı (kayıt · analiz · PC · Android)
 
-**Tarih:** 2026-09-29 · **Durum:** tasarım — kullanıcı onayı bekliyor, kod yok
+**Tarih:** 2026-09-29 · **Durum:** ✅ kullanıcı onayladı (2026-09-29) — kod yok; sırada alt proje 1 planı
 **Kapsam:** kartın yazılım tarafının tamamı. Donanım (kutu, kart A/B) bu belgenin dışında.
 
 Bu belge 2026-09-29 beyin fırtınasında kullanıcıyla bölüm bölüm onaylanan
