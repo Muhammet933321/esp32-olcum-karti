@@ -38,6 +38,7 @@ from avr.cekirdek import Cekirdek                # noqa: E402
 from avr.elf import flash_goruntusu              # noqa: E402
 import gecici                                    # noqa: E402
 import kayit_bicim as KB                         # noqa: E402
+from tezgah import tezgah                         # noqa: E402
 
 AVR_BIN = (Path.home() / "AppData/Local/Arduino15/packages/arduino/tools"
            / "avr-gcc/7.3.0-atmel3.6.1-arduino7/bin")
@@ -432,6 +433,20 @@ def tekrar_kurali(bellek: bytes) -> bool:
     return True
 
 
+def bitir_payi_korunur(bellek: bytes) -> bool:
+    """BITIR disinda hicbir kayit sektorun son 24 baytina (KY_BITIR_PAY)
+    tasmaz: bellek onaysiz veriyle dolunca BITIR(DOLU) HER ZAMAN yazilabilir.
+    (Mutasyon B71 bunu ilk kosuda KACIRMISTI: pay kaldirilinca BITIR cogu
+    zaman tesadufen kuyruga sigiyordu; kural sonuctan degil yerlesimden
+    olculmeli.)"""
+    pay = KB.BASLIK_BAYT + 8
+    kayitlar, _ = KB.flas_coz(bellek, SEKTOR)
+    return bool(kayitlar) and all(
+        k.tur == KB.T_BITIR
+        or (k.adres % SEKTOR) + KB.toplam_bayt(len(k.yuk)) + pay <= SEKTOR
+        for k in kayitlar)
+
+
 def _oz(satirlar: list[str], onek: str) -> list[tuple[int, ...]]:
     """OZ/OZS: id tur hiz ilk son nokta durum basi_silindi."""
     return [tuple(int(x) for x in p) for p in alanlar(satirlar, onek)]
@@ -493,6 +508,8 @@ def bolum_yazici() -> None:
        f"beslenen={besl} flasta={ucta} dusen={dus} bitir={o4.bitir if o4 else None}")
     ok("B71.Y13 O4'un flasa giden noktalari birebir",
        o4 is not None and _noktalar_mi(o4, range(ucta), lambda j: 1000 + j))
+    ok("B71.Y14 BITIR payi: BITIR disinda hicbir kayit sektorun son 24 baytina girmez",
+       bitir_payi_korunur(bellek))
 
 
 # ── B71.K · elektrik kesme ────────────────────────────────────────────
@@ -547,6 +564,8 @@ def bolum_kesinti(n_deneme: int) -> None:
     ok("B71.K9 sira numarasi acilislar boyunca hic geri gitmedi",
        len(ac_sira) >= 10 and all(a <= b for a, b in zip(ac_sira, ac_sira[1:])),
        f"{len(ac_sira)} acilis")
+    ok("B71.K10 kesintiler altinda da BITIR payi korunuyor",
+       bitir_payi_korunur(bellek))
 
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
@@ -563,6 +582,20 @@ def main() -> int:
             b(arg.kesinti)
         else:
             b()
+    tezgah("B71 Kayit motoru", [
+        ("Flas yazma/silmenin olcume etkisi (gercek kart, 1A-2)",
+         "kayit 50/s ve 5/s surerken K satirinda loop_azami ve uzun tur "
+         "kayitsiz tabanla ayni sinifta; kuyrukta dusen nokta 0"),
+        ("Gercek elektrik kesme: fis cekme, PIL anahtari kapali",
+         "20 tekrar: kurtarma hatasiz, oturum DEVAM ile suruyor, kayip en "
+         "fazla son ~5 s (spec O2)"),
+        ("Emule NOR ariza modeli gercek ESP32 flasini temsil ediyor mu",
+         "kartta RTS sifirlamasiyla rastgele 100 kesme: K5-K10'un "
+         "karsiliklari yesil"),
+        ("Python cozucunun volt/amper cevrimi kartin kendi hesabiyla ayni mi",
+         "karttan alinan kayit kayit_bicim.volt()/amper() ile cozulunce ayni "
+         "anin D satiriyla bagil fark <= 1e-6"),
+    ])
     print(f"\nB71: {gecti}/{gecti + kaldi} kosul gecti")
     return 0 if kaldi == 0 else 1
 

@@ -113,6 +113,10 @@
       benzetiminde her denetim yesil, 13 kasitli bozuk senaryoda DOGRU
       denetim kirmizi olmali. Yanlis bir bringup testi, testsizlikten
       kotudur — gecmeyen bir karta "gecti" der.
+  B71 Kayit motoru                           (AVR + emule NOR)
+      Kartin kayit bicimi, noktacisi, flas gunlugu ve oturum yazicisi
+      AVR emulatorunde EMULE NOR flas ustunde, rastgele elektrik
+      kesmeleri dahil. Python cozucu ayni baytlari bagimsiz cozuyor.
   B7  Arayuz + KOMUT DENETIMI                (node)
       Arayuzun gonderebilecegi her komut harfi, firmware'in gercekten
       tanidigi `case` harfleriyle karsilastiriliyor — HEM app.js HEM
@@ -194,6 +198,11 @@ ADIMLAR = [
     # cevaba baktigini siniyor (KayitKart uzerinde, 13 bozuk senaryo).
     # Yanlis bir bringup testi testsizlikten kotudur.
     ("B25 Kart bringup kosucusu (kayitli kart)", "test_tezgah_kart.py"),
+    # B71 — KAYIT MOTORU (alt proje 1A-1). Kartin kayit bicimi, noktacisi,
+    # NOR flas gunlugu ve oturum yazicisi AVR emulatorunde EMULE NOR flas
+    # uzerinde, rastgele elektrik kesmeleri dahil. Python cozucu ayni
+    # baytlari bagimsiz cozuyor. Donanim GEREKMIYOR.
+    ("B71 Kayit motoru (bicim + gunluk + elektrik kesme)", "test_kayit.py"),
 ]
 
 
