@@ -1,5 +1,12 @@
 # Alt proje 1A-2 — Kayıt motorunun karta bağlanması Uygulama Planı
 
+> **Durum (2026-09-30): UYGULANDI.** Son bağımsız incelemeden sonra yapı
+> değişti: durum makinesi `kayit_yonet.h`'ye taşındı (AVR'de sınanıyor),
+> biçimleme mantıksal, onay "son gelen kazanır", bölüm belleğe eşli okunuyor
+> (dolu bölümde Task WDT sonsuz yeniden başlamasının düzeltmesi). Sapmalar,
+> ölçümler ve kararlar: **DEVIR 5.12.66**. Aşağıdaki kod blokları planın
+> ilk hali — güncel kod depoda.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 1A-1'de doğrulanan kayıt motorunu (B71) ESP32 firmware'ine bağlamak, kartı gerçekten kaydeder hale getirmek, PC'nin bu kayıtları eşitleyebilmesini sağlamak ve bunu gerçek kartta ölçmek.

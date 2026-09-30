@@ -164,6 +164,10 @@ bedeli). Ayrıntılı kip (her örnek) 1C'de tasarlanacak.
 - RAM/PSRAM'de birikir, en geç **~5 s**'de bir flaşa yazılır (Ö2).
 - Aktif oturum ve zamanlanmış kayıtlar flaşta işaretli → yeniden başlamada
   ölçüm kaydı sürer (işaretli boşluk), pil testi sürmez (yük kapalı kalır).
+  *(1A-2'de ölçüldü: 20 sıfırlamanın 20'sinde sürdü; açılıştan kaydın
+  yeniden başlamasına 4.8–6.3 s — büyüğü `setup()`'taki WiFi beklemesi. Bu
+  kayıp veri değil, ölçülmeyen süre; ağ kurulumunu görev içine taşımak açık
+  iş, DEVIR 5.12.66.)*
 - Mevcut `Ayar3` kalibrasyonu ilk açılışta geçmişin **1 numaralı kaydı** olur
   — bugünkü kalibrasyon kaybolmaz.
 - ⚠ **Bölüm tablosu değişikliği** tek seferlik USB tam yüklemesi ister;
@@ -405,6 +409,7 @@ Mevcut iddialar kırmızıya dönmez; eskiyenler **gerekçesiyle** güncellenir
 | Risk | Nerede ölçülür | Ölçüm kötü çıkarsa |
 |---|---|---|
 | Flaş silme/yazma işlemciyi on ms'ler durdurur → ölçüm boşluğu | Alt proje 1, gerçek kart | PSRAM'de biriktirip toplu yazma; silmeyi boş zamana kaydırma; ayrıntılı kipte süre sınırı |
+| ↳ **Ölçüldü (1A-2, DEVIR 5.12.66):** boş sektör silme 0.3–1.35 ms, yazma ≤ 2.9 ms → 50/s'de döngü 7.6 → 8.2 ms, >20 ms tur 0, düşen nokta 0. **Dolu** sektör silme **24.9 ms** ve iki çekirdeği de durdurur (`AUTO_SUSPEND` kapalı) → halka döndükten sonra 4 KB'da bir ~25 ms boşluk | 1A-2 tezgah | **Önlem alınmadı:** boşluk `K` satırında sayılıyor, nokta `DURAKLAMA` bayrağı alıyor, enerji (dt < 1 s) etkilenmiyor. Ayrıntılı kip (1C) bu sınırla tasarlanacak |
 | Sürekli TLS bağlantısı RAM bütçesini (< %40) aşar | Alt proje 1 | Tampon küçültme; TLS'i yalnız kayıt sürerken açma |
 | Ücretsiz MQTT katmanı koşulları (bağlantı süresi, trafik, keepalive alt sınırı) | Alt proje 1 | Başka aracı; kendi Mosquitto sunucusu |
 | Android Doze uzun bağlantıyı keser → Ö4 tutmaz | Alt proje 5 | Pil optimizasyonu muafiyeti; olmazsa kullanıcıya dürüst süre |

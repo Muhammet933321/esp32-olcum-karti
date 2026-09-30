@@ -8557,6 +8557,181 @@ etkisi = spec §11'in ilk riski). Hazır bilgi plan belgesinin sonunda.
 
 ---
 
+#### 5.12.66 ✅ B72 — KAYIT MOTORU KARTTA (alt proje 1A-2, 2026-09-30)
+
+Tasarım: `tasarim/2026-09-29-yazilim-sistemi.md` · Plan:
+`tasarim/2026-09-29-plan-1a2-kayit-firmware.md`. B71'in (5.12.65) kayıt
+motoru artık **gerçek kartta kaydediyor**: bölüm tablosu, çekirdek 0'da kayıt
+görevi, `G` komutu, `/kayit/*` uçları ve PC eşitleme istemcisi. Kullanıcı
+gece "soru sorma, benim adıma karar ver" dedi; bu bölümdeki kararlar o
+yetkiyle verildi, her biri gerekçesiyle aşağıda.
+
+**Ne yapıldı**
+
+| Dosya | Ne |
+|---|---|
+| `kod/olcum-karti-a3/partitions.csv` | Çizim klasöründe → çekirdeğin `huge_app` yerleşimini geçersiz kılar (platform.txt `prebuild.3`). **nvs / otadata / app0 huge_app ile birebir** (WiFi parolaları ve `Ayar3` yüklemeden sonra yerinde — kartta doğrulandı). spiffs 896 KB → 1.5 MB (aynı ofset). **`kayit`** data/0x40, 0x490000, 0xB60000 = **2912 sektör**. coredump en sonda |
+| `kod/olcum-karti-a3/kayit_yonet.h` | **Kayıt durum makinesi, platformsuz** (son incelemeden sonra yapıştırıcıdan ayrıldı): açılış (NVS `acilis`, `kimlik`, `taban`, `onay`, `kapat`) · DEVAM ya da kapatma niyeti · durum 4 · son gelen kazanır onay · mantıksal biçimleme · aralıklı arka plan temizliği · NVS'e kısıtlı onay (16 sıra / 30 s). NVS bir işlev tablosu → AVR'de emüle NVS ile sınanıyor |
+| `kod/olcum-karti-a3/kayit_esp.h` | ESP32 yapıştırıcısı. `esp_partition` flaşı (yaz/sil süreleri ölçülüyor), `Preferences` NVS tablosu (yazma hatası yutulmaz), çekirdek 0'da kayıt görevi (açılış taraması `setup()`'ı BEKLETMEZ), **tek kilit**, nokta kuyruğu 256, istek kuyruğu 4 (onay kuyrukta DEĞİL), web uçları için 200 ms süreli kilit, NTP. **`Serial` yok** (makrodan önce dahil; çekirdek 0'dan basmak aynayı yarışa sokardı) |
+| `olcum-karti-a3.ino` | `olcum_al` ham kodu + hata bitlerini + menzili `kayit_ham`'a verir (`static_assert`: ADS_HATA_* = KN_HATA_*) · `loop` noktacıyı besler, skop duraklamasında noktayı kapatır · `G` komutu + `G` durum satırı (yalnız çekirdek 1) · `/kayit/liste` (JSON) + `/kayit/veri` (ham kayıtlar, kilit altında, 8 KB tavan) · afiş `Kayit: … KB, … sektor` ya da `KAPALI` |
+| `kayit_gunluk.h` (2) | **Mantıksal biçimleme:** `taban` (NVS) altındaki kayıtlar yok sayılır — `kg_ac` o sektörleri boş sayar, oturum listesine almaz, eski kafanın arkasına yazmaz · `kg_bicimle_mantiksal` flaşa dokunmaz · `kg_temizle_adim` canlı olmayan eski sektörü siler (canlıya dokunmaz) |
+| `kayit_gunluk.h` | Kurtarma yalnız BAŞ sektörün kuyruğunu 0xFF diye okur (boş flaşta 4352 → 768 B; gerçek bölümde 11.4 MB → ~97 KB) · `KG__PARCA` dışarıdan (ESP32 256) · **gizli kusur:** `kg__ff_mi` sayacı `uint8_t` idi, `(uint8_t)256 == 0` → 256'lık parçada kirli kuyruk "temiz" sayılır, yeni kayıt 0xFF olmayan baytların üstüne yazılırdı. AVR testi 32 ile koştuğu için hiç görünmedi; plan kodla karşılaştırılırken bulundu (T2) |
+| `kopru/kayit_esitle.py` | Eşitleme: `/kayit/veri` → CRC (`akis_coz`) → kartın baytları **aynen** diske + fsync → `durum.json` atomik `{son_sira, bayt, onaylanan, kimlik}` → **ancak sonra** onay (seri `Go<sıra>` ya da HTTP jeton + parola ortam değişkeninden); "onaylandı" yalnız kart `X-Onay` ile doğrulayınca. Akış kimliği değişirse ya da kartın sırası geri giderse DUR. Çökme: geçerli kesintisiz kuyruk ileri sarılır, yarım kısım kırpılır. İşletim sistemi kilidi |
+| `uretim/test_kayit_esp.py` | Zincir adımı **B72**: bölüm tablosu (6) · firmware KAYNAĞI yorumsuz (12) · eşitleme istemcisi sahte kart HTTP sunucusuna karşı (10) |
+| `uretim/tezgah_kayit.py` | Gerçek kart: `--yedek` (16 MB, depo DIŞINA) · `--duman` · `--durma` · `--kesinti N` · `--esit` · `--dolu` (DOLU → tarama → 11 MB eşitleme → halka dönüşü) · `--bicim` (dolu bölümde `GF!`) |
+
+**Doğrulama**
+- `test_kayit.py` **135/135** (B71: +T1/T2 tarama, +M1–M5 mantıksal
+  biçimleme, +V1–V13 yönetici); `--kesinti 1000` 95/95 (yönetici öncesi;
+  103 kesik silme, 224 yarım kayıt, 588 DEVAM).
+- `test_kayit_esp.py` **40/40** (B72: tablo 6 · kaynak F1–F16 · istemci
+  E1–E17 + E14b). Plan 26 diyordu: E7 planda BOŞTU (sahte kart sırayı zaten
+  süzüyordu, kırmızıya dönemezdi); gerisi inceleme düzeltmeleri.
+- Mutasyon **B72 26/26**, **B71 38/38**. İlk turda B71'de **1 KAÇTI**:
+  arka plan temizliğinin "canlı sektöre dokunma" koruması kaldırılınca da
+  yeşildi — V8 yalnız eski sektörlerin 0xFF olduğuna bakıyordu (kafa ikinci
+  bir korumayla güvendeydi). V8 artık kafa dışı canlı sektörlerin de sağlam
+  olduğunu ölçüyor; mutasyonla elle kırmızı görüldü. Bazı B72 mutasyonları
+  iddiayla değil çökmeyle yakalanıyor (rc≠0, kabul).
+- Zincir: ilk koşuda **B7 kırmızı** (345/346) — `kayit_komut`'taki iç `switch`
+  `b/d/o`'yu sahte üst düzey komut yapıyordu (harfler `.ino`'daki BÜTÜN
+  `case 'x':` satırlarından toplanıyor). Projenin `alt == 'x'` desenine
+  çevrildi (31 → 28 harf); `G` arayüzsüz listesinde, gerekçesiyle (kayıt
+  ekranları alt proje 3 — ⚠ o zaman satır düşecek). Son koşu (bütün düzeltmelerden sonra): **21/21**, gizlilik temiz.
+- `gizlilik_dogrula.py` plan belgesinde **mutlak Windows yolu** buldu (yedek
+  klasörü). Push edilmemiş 6 commit yalnız plan blobu değişecek şekilde
+  yeniden yazıldı (yedek ref `refs/yedek/1a2-gizlilik-oncesi`, push edilmez).
+
+**Gerçek kart (COM6, ADS1115'ler TAKILI DEĞİL — döngü I²C zaman aşımıyla
+~5–8 ms)**
+
+| Ölçüm | Sonuç |
+|---|---|
+| Tam flaş yedeği (yüklemeden önce) | 16 MB, 224 s, depo dışı `<çalışma alanı>/.yedek/olcum-karti/` |
+| Yeni tabloyla açılış | NVS/parolalar/kalibrasyon yerinde · eski panel imajı büyüyen bölümde de bağlandı, yine de 1.5 MB imaj yazıldı |
+| Kayıt bölgesinde eski çöp | 2 sektör (236–237, eski bir metin dosyası kalıntısı) → çöp sayıldı, kullanılmadan silindi |
+| Açılış taraması | boş 299–304 ms · birkaç yüz kayıtla 358 ms · **DOLU: ilk sürümde >20 s + Task WDT → SONSUZ yeniden başlama (aşağıda); düzeltmeden sonra 1999 ms** |
+| Duman | 5/5 — BASLA (kalibrasyon kopyası, sürüm `A3-B72`) + 40 nokta + BITIR, eşitlendi, onay karta döndü |
+| Flaşın ölçüme etkisi (boş sektör) | döngü en uzun: kayıtsız 7.6 ms · 5/s 9.1 ms · 50/s 8.2 ms; >20 ms tur 0; silme 0.3–1.35 ms; yazma ≤ 2.9 ms; kuyrukta düşen 0 |
+| **Dolu sektör silme** | **24.9 ms** (`GF!` ile ölçüldü). `CONFIG_SPI_FLASH_AUTO_SUSPEND` kapalı → silme boyunca İKİ çekirdek de durur |
+| Tam biçimleme `GF!` | 2912 sektör ~1.8 s; bu sırada döngü en fazla 59 ms (art arda silme) |
+| 20 RTS sıfırlaması | 20/20 aynı oturum, flaşta 20 DEVAM, 1599 nokta boşluksuz/tekrarsız |
+| Açılıştan DEVAM'a | **4.8–6.3 s** (WiFi bağlantısı `setup()`'ta bekleniyor) |
+| Bayt eşitliği | eşitlenen 196 kaydın 196'sı esptool dökümüyle bayt bayt aynı |
+| Doldurma (50/s, onaysız) | 1 sa 44 dk'da 311 505 nokta; DOLU'da oturum `BITIR(DOLU)` ile kapandı, onaysız veri silinmedi (%99.9), akıllı temizlik yalnız onaylı eski sektörleri kullandı; `dusen` 23 = dolma anındaki tampon (sayılıyor, sessiz değil) |
+| 11 MB eşitleme | 16 856 kayıt, 11.83 MB, 62 s = **185 KB/s** (WiFi, 8 KB parça); temizlenmiş 1–383 boşluk olarak raporlandı; onay kart tarafından doğrulandı |
+| **Halka dönüşü** (onaydan sonra 50/s, 120 s) | 55 DOLU sektör silindi, en uzun silme 25.2 ms, döngü en uzun **30.5 ms**, 52 tur >20 ms (≈ silme başına bir), düşen 0 — spec §11 riskinin gerçek en kötü hali |
+| **Dolu bölümde `GF!`** (düzeltmeden sonra) | **1.0 s**'de biter; arka plan temizliği sürerken 90 s'de 714 web isteği, en uzun **264 ms**, 503 yok; temizlik ~1.9 sektör/s (~25 dk); döngü en uzun 39.9 ms |
+| Düzeltilmiş firmware tekrarı | duman 5/5 · kesinti 5/5 (tarama ~1.8 s, açılış→DEVAM 2.5–5.7 s) · bayt eşitliği 39/39 (belleğe eşli okuma yazmadan sonra tutarlı) |
+
+🔴🔴 **GECENİN EN ÖNEMLİ BULGUSU — dolu bölümde SONSUZ yeniden başlama.**
+Bölüm onaysız veriyle dolduktan sonra yeni firmware yüklendi ve kart hiç
+açılamadı: açılış taraması 11.4 MB'ın her kaydının CRC'sini
+`esp_partition_read` ile 256 B'lık ~46 000 okumayla yapıyordu. Her okuma
+flaş önbelleğini kapatıp iki çekirdeği de durdurduğu için tarama >20 s
+sürüyor, kayıt görevi çekirdek 0'ı hiç bırakmıyordu → **Task WDT (IDLE0)
+kartı ~11 s'de sıfırlıyordu**, her açılış yeniden aynı taramaya giriyordu.
+Yani bölüm dolunca kayıtlara hiçbir yoldan ulaşılamazdı. Ne AVR testi (WDT
+yok) ne son inceleme ne de boş bölümle yapılan tezgah bunu görebilirdi;
+bölümü gerçekten doldurmak gerekti (5.12.65'in "dolu 2912 sektörde
+ölçülecek" notu tam buydu, tahmin "birkaç saniye"ydi). Düzeltme:
+**(1)** kayıt görevi uzun işlerde 50 ms'de bir tick bırakır (`kayit__nefes`),
+**(2)** bölüm `esp_partition_mmap` ile belleğe eşli okunur (önbellek
+kapanmaz, öbür çekirdek durmaz) → dolu bölüm taraması **1999 ms**, döngü
+yok. Tripwire F16 + mutasyon. Afiş eşlemenin tutup tutmadığını söylüyor.
+
+🔴 **İlk kesinti koşusu tezgah betiğinin kusurunu gösterdi:** sıfırlamadan
+hemen sonra tamponda kalmış ESKİ `G … durum=2` satırını "kayıt sürdü" sayıyordu,
+kart WiFi'ye bağlanırken yeniden sıfırlanıyordu (18/20 DEVAM). Motor
+doğruydu (flaştaki dizi kusursuz); betik artık yeni açılışın afişini bekliyor.
+
+**Kararlar (kullanıcı adına, gerekçeli)**
+1. **Flaş duraklaması: önlem yok, belgelendi.** Halka dönene kadar (~11 MB;
+   50/s'de ~1.6 sa, 5/s'de ~16 sa) yalnız BOŞ sektör silinir (≤1.35 ms).
+   Döndükten sonra her 4 KB'da bir dolu sektör silinir: ~25 ms duraklama, 50/s'de
+   ~2.3 s'de bir. `K` satırı sayar, o aralıktaki nokta `DURAKLAMA` bayrağı alır,
+   enerji hesabı (dt < 1 s) etkilenmez. Tek gerçek çözüm (`AUTO_SUSPEND` ya da
+   PSRAM'den XIP) çekirdeğin önceden derlenmiş IDF'ini değiştirmeyi ister.
+2. **Ö2 tuttu, ama bir ayrım belgelendi.** Kaydedilmiş veriden kaybolan
+   yalnız flaşa yazılmamış tampon (≤ 28 nokta / 5 s) — flaştaki dizi 20
+   sıfırlamada da kusursuz. AYRICA açılıştan kaydın yeniden başlamasına
+   **4.8–6.3 s** geçiyor; bu kayıp veri değil, kartın ölçmediği süre (DEVAM
+   kaydı işaretliyor, zaman ekseninde boşluk görünür). Büyüğü `setup()`'taki
+   WiFi beklemesi; ağ kurulumunu ağ görevine taşımak 1A-2'nin kapsamı dışı →
+   **açık iş** (1E/MQTT ile birlikte).
+3. **`G` arayüzde yok** — kayıt ekranları alt proje 3 (kullanıcının sırası).
+4. **Onay NVS'e kısıtlı yazılıyor** (16 sıra ya da 30 s). Elektrik kesilirse
+   kartın onayı en fazla o kadar geri gider: o kayıtlar kartta "onaysız"
+   kalır, istemci ise kendi `son_sira`'sından devam eder (tekrar çekmez) ve
+   bir sonraki eşitlemede yeni son sırayı onaylayınca eskiler de kapanır.
+   Kayıp yok, tekrar yok; en kötü etki, arada bellek biraz erken dolabilir.
+5. Bulgu 2'nin kalanı (yedek sektör) **ayrılmadı**: bellek doluyken açık
+   oturum sürdürülemezse durum **4 (BEKLİYOR)**; ilk geçerli onayda DEVAM
+   yeniden denenir — kullanıcı durdurduysa (niyet NVS'te) DEVAM değil BITIR.
+8. **Biçimleme mantıksal** (fiziksel silme 73 s + web donması yerine). Bedeli:
+   silinen veri eski sektörler arka planda silinene kadar (dolu bölümde ~24 dk)
+   esptool ile flaştan okunabilir; kartın hiçbir ucu onu vermez.
+9. Arka plan silme aralığı **500 ms** (AVR testinde 200 ms): dolu sektör başına
+   ~25 ms iki çekirdek durur → ölçüm döngüsünün duraklama payı ~%5.
+10. Bölüm **belleğe eşli okunuyor** (`esp_partition_mmap`, 11.4 MB): okuma
+    önbelleği kapatmıyor, IDF yazma/silmeden sonra eşli aralığın önbelleğini
+    tazeliyor — tezgahta aynı açılışta yazılıp eşitlenen kayıtlar esptool
+    dökümüyle bayt bayt aynı çıktı. Eşleme tutmazsa eski okuma yoluna düşer ve
+    afiş bunu söyler.
+6. B10 (FMA) ESP32 derleyicisiyle **tekrarlanmadı**: `watt*1e6f+0.5f` Xtensa'da
+   `madd.s` olabilir; etkisi örnek başına ≤ 1 µW, PC çözücü W'yi yeniden
+   hesaplamıyor (kartın toplamını okuyor) → kabul.
+7. `_tezgah.md` commit'lenmedi (kullanıcının bekleyen işiyle aynı dosya;
+   zincir üretiyor).
+
+**Son bağımsız inceleme (Opus, taze bağlam) — "düzeltmelerle": Kritik 0,
+Önemli 5.** Tek düzeltme turunda, her biri önce kırmızıyı gösteren testle.
+Yapısal karar: yapıştırıcıdaki durum makinesi **`kayit_yonet.h`'ye taşındı**
+(platformsuz, NVS işlev tablosu) ve AVR'de emüle NVS + NOR ile **açılıştan
+açılışa** sınanıyor (B71.V, 13 iddia) — ESP32'ye özgü kod artık yalnız flaş,
+Preferences, görev ve kuyruk.
+
+| # | Bulgu | Etkisi | Düzeltme · test |
+|---|---|---|---|
+| O1 | NVS kaybolursa (tam silme, eski yedeği geri yükleme) kart numarayı 1'den başlatır; istemci "yeni 0 kayıt" der, sonra 5001+ kayıtları boşluksuz ekleyip onaylar | Eşitlenmemiş 1..5000 kartta sessizce silinir | Kartta **akış kimliği** (NVS `kimlik`; NVS yoksa ya da flaş NVS'in onayladığı yerin gerisindeyse yenilenir) · `X-Kayit-Kimlik` · istemci kimlik değişince ve kartın sırası geri gidince DURUR · V11, E11, E12 |
+| O2 | Onay 4'lük istek kuyruğunda düşebiliyordu; istemci "onaylandı" yazıp bir daha yollamıyordu | Dolu kart, her şey diskte olduğu halde takılı kalır | Onay kuyruk değil **son gelen kazanır** · istemci "onaylandı"yı yalnız kart `X-Onay` ile doğrulayınca yazar, değilse yeniden yollar · V10, F13, E14, E14b |
+| O3 | Durum 4'te (açık oturum, yer yok) `Gd` hiçbir şey yapmıyordu; sonraki eşitlemede kayıt kendiliğinden sürüyordu | Kullanıcının durdurduğu kayıt geri gelir | **Durdurma niyeti** NVS'te (`kapat`): yer açılınca DEVAM değil `BITIR(kullanıcı)` (yeni sektörde TEKRAR ile); durum 4'te `Gb` eskisini de niyete alır · V3, V4, V5, V6 |
+| O4 | Dolu bölümde `GF!` 2912 × ~25 ms ≈ 73 s kilidi tutuyordu; web uçları `portMAX_DELAY` bekliyordu | Tek iş parçacıklı web sunucusu — pil testinin acil durdurması `p0` dahil — donar | **Mantıksal biçimleme:** NVS'e taban yazmak (atomik); `kg_ac` tabanın altını yok sayar; eski sektörler arka planda **500 ms aralıkla** silinir · web uçları 200 ms süreli kilit → 503 · pil testi sürerken `GF!` reddedilir · M1–M5, V7–V9, V13, F9, F12 |
+| O5 | Durum makinesi hiç çalıştırılarak sınanmıyordu; F2'nin "KAPALI" denetimi boştu (kelime .ino'da zaten 16 kez geçiyordu); kuyruk taşmasının işaretlenmesi testsizdi | Yeşil test bir şey kanıtlamıyordu | Yönetici AVR'de (B71.V) · F2 artık afişin kendi dalına bakıyor · F15 (`kn_kayip`) |
+
+Ucuz minor'lar da kapandı: istemci çökmede **ileri sarar** (fsync'li ama
+duruma geçmemiş kayıtlar korunur; yalnız kesintisiz dizi — E15, E17) · aynı
+dizine iki eşitleme **işletim sistemi kilidiyle** engelli (E16) · parça en
+az 1100 B · boş yanıt ama kartta yeni sıra varsa sessizce "bitti" yok (E13) ·
+durum 4'te `G` bekleyen oturumu gösteriyor · yeniden deneme hataları
+maskelenmiyor. Test edilmeyen iki savunma kodu (**`kg_oku` taban kırpması**,
+**`onay_red`**) mutasyon hazırlanırken ölü bulundu ve **silindi**.
+
+Ertelenen minor'lar: `Gb` kayıt sürerken yeniden verilirse kuyruktaki 1–2
+eski nokta yeni oturuma girebilir · `--esit` yalnız eşitlenen ⊆ flaş
+denetliyor (tamlık yok) · yedek ref'ler (`refs/yedek/*`) mutlak yol içeriyor —
+**yalnız `main` push edilir**.
+
+**Açık (tezgah/sonraki):**
+- Gerçek fiş çekme (USB + PİL kapalı, 5 kez) — elle.
+- ADS takılınca `--durma` tekrarı ve Python çözücünün volt/amper çevriminin
+  `D` satırıyla karşılaştırılması (B71 tezgah kalemi).
+- Açılıştan kaydın sürmesine 2.5–6.3 s: büyüğü `setup()`'taki WiFi beklemesi
+  (ağ kurulumunu görev içine taşımak — 1E/MQTT ile birlikte).
+- `/kayit/veri` okuması 1D'ye kadar parolasız (bugünkü `/pil` gibi); onay
+  parolalı/USB.
+- esptool 921600 baud'da gece iki kez `Corrupt data` verdi (geçici, USB):
+  `tezgah_kayit.flas_oku` 460800'e düşüyor.
+- Kart şu an dolu bölümün **arka plan temizliğinde** (~25 dk'da biter,
+  kendiliğinden); flaşta yalnız test kayıtları var.
+
+**Sırada:** spec'teki sıra 1 kart → 2 `ortak/` → 3 panel → 4 PC → 5 Android.
+Kartın kalan dilimleri: 1C (pil testi/skop oturum türleri, zamanlanmış kayıt,
+ayrıntılı kip — 25 ms flaş duraklamasıyla tasarlanacak), 1D (eşleştirme +
+imzalı istekler), 1E (MQTT + bildirim + ağ kurulumunun görev içine alınması).
+
+---
+
 #### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
 
 **Neden.** Malzemenin tamamı geldi (50 mA sigorta hariç); kullanıcı "lehimsiz test mi, plakete mi" diye sordu. Karar: **plakete, blok blok** — lehimsiz tahta bu kartta ölçüm üretmez (15 mΩ şönt + Kelvin tahta temasından küçük; 4.9 MΩ zincirde tahta kaçağı oranı bozar; B30/B44'te iki sessiz kusur gevşek telden geldi). Ama plakete geçmek için elde **yerleşim planı yoktu** — F9 ("delik atla") sayı veriyordu, yer vermiyordu.
