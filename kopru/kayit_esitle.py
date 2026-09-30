@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import http.client
 import json
 import os
 import sys
@@ -240,28 +241,71 @@ class Esitleyici:
                 self.onay(d["son_sira"])       # ancak diske yazildiktan SONRA (yer acilsin)
         dogru = self._onay_dogrula(d, onay_x)
         return {"yeni_kayit": yeni, "son_sira": d["son_sira"], "bosluk": bosluk,
-                "onay_dogrulandi": dogru, "kalibrasyon": self._kal_esitle(), **sonuc}
+                "onay_dogrulandi": dogru, **self._kal_esitle(), **sonuc}
 
-    def _kal_esitle(self):
+    def _kal_esitle(self) -> dict:
         """1B: kalibrasyon gecmisini kalibrasyon.json'a ATOMIK yaz. Kayitlar
         kalibrasyon NUMARASINI tasiyor (BASLA surum 2); degerler burada.
-        Eski firmware (404) veri esitlemesini durdurmaz. Donus: kayit adedi."""
+        Veri esitlemesinden SONRA calisir ve onu HICBIR hatayla bozmaz: eski
+        firmware (404) sessiz; bozuk/yarim yanit, zaman asimi -> hata metni,
+        eski dosya yerinde. Donus: {"kalibrasyon": adet | None,
+        ["kalibrasyon_hata"], ["kalibrasyon_arsiv"]}."""
         try:
             with urllib.request.urlopen(f"{self.taban}/kal/liste",
                                         timeout=self.zaman_asimi) as y:
-                veri = json.loads(y.read().decode("utf-8"))
+                # eski firmware notta gecersiz UTF-8 birakabiliyordu (cp1254 'ş')
+                veri = json.loads(y.read().decode("utf-8", errors="replace"))
+            if not isinstance(veri, dict) or not isinstance(veri.get("kayitlar"), list):
+                raise ValueError("beklenmeyen bicim")
         except urllib.error.HTTPError as h:
             if h.code in (404, 503):
-                return None
-            raise
+                return {"kalibrasyon": None}
+            return {"kalibrasyon": None, "kalibrasyon_hata": f"HTTP {h.code}"}
+        except (OSError, http.client.HTTPException, ValueError) as h:
+            return {"kalibrasyon": None, "kalibrasyon_hata": f"{type(h).__name__}: {h}"}
         p = self.dizin / KAL_DOSYA
+        sonuc = {"kalibrasyon": veri.get("adet")}
+        if p.exists():
+            try:
+                degisti = self._kal_cakisir(json.loads(p.read_text(encoding="utf-8")), veri)
+            except ValueError:
+                degisti = True                     # okunamayan dosya da korunur
+            if degisti:
+                sonuc["kalibrasyon_arsiv"] = self._kal_arsivle(p)
         g = p.with_suffix(".tmp")
         with open(g, "w", encoding="utf-8") as f:
             json.dump(veri, f, ensure_ascii=False, indent=1)
             f.flush()
             os.fsync(f.fileno())
         os.replace(g, p)
-        return veri.get("adet")
+        return sonuc
+
+    @staticmethod
+    def _kal_cakisir(eski, yeni: dict) -> bool:
+        """Kartin gecmisi PC'dekinden bir kaydi SILIYOR ya da DEGISTIRIYOR mu
+        (NVS silindi, `adet` kayboldu, baska kart)? Not ve tur duzeltmesi
+        olagan (`kn`/`kt`); numara, tarih, acilis ve degerler degismez."""
+        def kimlik(k: dict) -> dict:
+            return {a: v for a, v in k.items() if a not in ("not", "tur")}
+        try:
+            e = {k["no"]: kimlik(k) for k in eski.get("kayitlar", [])}
+            y = {k["no"]: kimlik(k) for k in yeni["kayitlar"]}
+        except (AttributeError, KeyError, TypeError):
+            return True
+        return any(no not in y or y[no] != v for no, v in e.items())
+
+    def _kal_arsivle(self, p: Path) -> str:
+        """Eski dosyanin zaman damgali KOPYASI (fsync'li) — asil dosya ancak
+        bundan sonra ezilir."""
+        ad = time.strftime("kalibrasyon-%Y%m%d-%H%M%S")
+        hedef, n = self.dizin / f"{ad}.json", 1
+        while hedef.exists():
+            hedef, n = self.dizin / f"{ad}-{n}.json", n + 1
+        with open(hedef, "wb") as f:
+            f.write(p.read_bytes())
+            f.flush()
+            os.fsync(f.fileno())
+        return hedef.name
 
 
 def seri_onay(kart):
@@ -332,7 +376,11 @@ def main() -> int:
             kart.kapat()
     print(f"yeni {r['yeni_kayit']} kayit, son sira {r['son_sira']}, bosluk {r['bosluk']}, "
           f"onay {'dogrulandi' if r['onay_dogrulandi'] else 'DOGRULANAMADI'}, "
-          f"kalibrasyon {r['kalibrasyon'] if r['kalibrasyon'] is not None else 'yok (eski firmware)'}"
+          + (f"kalibrasyon ALINAMADI ({r['kalibrasyon_hata']}) — eski {KAL_DOSYA} yerinde"
+             if r.get("kalibrasyon_hata") else
+             f"kalibrasyon {r['kalibrasyon'] if r['kalibrasyon'] is not None else 'yok (eski firmware)'}")
+          + (f", kartin kalibrasyon gecmisi DEGISMIS: eskisi {r['kalibrasyon_arsiv']}"
+             if r.get("kalibrasyon_arsiv") else "")
           + (f", UYARI: {r['uyari']}" if r.get("uyari") else ""))
     return 0
 

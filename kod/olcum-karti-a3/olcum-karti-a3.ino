@@ -335,6 +335,7 @@ void ayar_yukle() {
 }
 
 static void kalgec_taslak_guncelle();   /* 1B: tanimi kalibrasyon gecmisi blogunda */
+static void kalgec_oturum_bildir(uint32_t no, uint32_t once);
 
 void ayar_kaydet() {
   ayar.imza = AYAR3_IMZA;
@@ -2831,8 +2832,10 @@ static void kayit_basla_doldur(KayitBasla *b, uint32_t hiz) {
   kayit_kal_doldur(&b->kal);
   /* 1B: gecmisteki numara; taslak varsa OTOMATIK kaydedilir (numarasiz
      oturum olmasin). Kaydedilemezse 0 — baslik yine tam kopyayi tasir. */
+  const uint32_t once = kalgec.adet;
   b->kal_no = kgc_oturum_no(&kalgec, &b->kal, b->unix_s, b->acilis);
   kalgec_taslak_guncelle();
+  kalgec_oturum_bildir(b->kal_no, once);
 }
 
 /* G <durum> <oturum> <nokta> <sonraki> <onay> <doluluk%o> <onaysiz%o> <dusen>
@@ -2999,13 +3002,18 @@ void kayit_veri_sayfa() {
 
 // ═════════════════════════════════════ 1B — KALIBRASYON GECMISI ═══════
 // Durum makinesi kalgec.h (B71.C). Yazan yalniz cekirdek 1: `k` komutu ve
-// kayit baslangici. Taslak bayragi cekirdek 0'daki /kal/liste icin.
-static volatile uint8_t kalgec_taslak_bayrak = 0;
+// kayit baslangici. Taslak bayragi ve etkin numara cekirdek 0'daki
+// /kal/liste icin.
+static volatile uint8_t  kalgec_taslak_bayrak = 0;
+static volatile uint32_t kalgec_etkin = 0;    /* degerlerin gecmisteki numarasi; 0 = taslak */
 
+/* Tek tarama (kgc_esle): sifirlar haric ayni degerli EN YENI kayit. Son
+   kayit bellekte; digerleri NVS'ten, yalniz degerler degisince. */
 static void kalgec_taslak_guncelle() {
   KayitKalibrasyon k;
   kayit_kal_doldur(&k);
-  kalgec_taslak_bayrak = (uint8_t)kgc_taslak(&kalgec, &k);
+  kalgec_etkin = kgc_esle(&kalgec, &k);
+  kalgec_taslak_bayrak = kalgec_etkin ? 0u : 1u;
 }
 
 static const __FlashStringHelper *kalgec_hata_adi(int r) {
@@ -3019,17 +3027,47 @@ static const __FlashStringHelper *kalgec_hata_adi(int r) {
   }
 }
 
+/* Dolunca yeni degerler numara alamaz, silme yok: 35/40'tan itibaren. */
+static void kalgec_uyari_bas() {
+  if (!kgc_dolmak_uzere(&kalgec)) return;
+  Serial.print(F("! k: kalibrasyon gecmisi dolmak uzere: "));
+  Serial.print(kalgec.adet);
+  Serial.print('/');
+  Serial.print(KALGEC_AZAMI);
+  Serial.println(F(" — dolunca YENI degerler numara alamaz (eski kayit silinmez)"));
+}
+
+/* Kayit baslarken (1B son inceleme I1: ikisi de SESSIZDI). */
+static void kalgec_oturum_bildir(uint32_t no, uint32_t once) {
+  if (!no) {
+    Serial.print(F("! k: oturum kalibrasyon NUMARASIZ (0) — "));
+    Serial.print(kalgec_hata_adi(kalgec.son_hata));
+    Serial.println(F("; baslik degerlerin tam kopyasini yine tasiyor"));
+    kalgec_uyari_bas();
+    return;
+  }
+  if (kalgec.adet == once) return;
+  Serial.print(F("* k: kalibrasyon #"));
+  Serial.print(no);
+  Serial.print(F(" otomatik kaydedildi — not: kn"));
+  Serial.print(no);
+  Serial.print(F(" <not> · tur: kt"));
+  Serial.print(no);
+  Serial.println(F("<d|i>"));
+  kalgec_uyari_bas();
+}
+
 static int kalgec_tur_harfi(char c) {
   return c == 'd' ? (int)KGT_DONANIM : c == 'i' ? (int)KGT_INCE : c == '-' ? (int)KGT_BELIRSIZ : -1;
 }
 
-/* KG <adet> <son_no> <taslak> <nvs_bos> <azami> <son_hata> */
+/* KG <adet> <son_no> <taslak> <nvs_bos> <azami> <son_hata> <etkin> */
 static void kalgec_durum_bas() {
   char t[96];
-  snprintf(t, sizeof(t), "KG %lu %lu %u %lu %u %d",
+  snprintf(t, sizeof(t), "KG %lu %lu %u %lu %u %d %lu",
            (unsigned long)kalgec.adet, (unsigned long)(kalgec.son_var ? kalgec.son.no : 0u),
            (unsigned)kalgec_taslak_bayrak, (unsigned long)kalgec_nvs_bos(nullptr),
-           (unsigned)KALGEC_AZAMI, kalgec.son_hata);
+           (unsigned)KALGEC_AZAMI, kalgec.son_hata, (unsigned long)kalgec_etkin);
   Serial.println(t);
 }
 
@@ -3077,10 +3115,27 @@ static void kalgec_komut(const char *s) {
     if (tur < 0) { Serial.println(F("! k: kk<t><not> — t: d donanim degisti, i ince ayar, - belirtilmemis")); return; }
     int32_t no = kgc_kaydet(&kalgec, &k, (uint8_t)tur, s + 3, kayit__unix(), kayit_durum_al().acilis);
     kalgec_taslak_guncelle();
-    if (no < 0) { Serial.print(F("! k: kaydedilmedi — ")); Serial.println(kalgec_hata_adi((int)no)); return; }
+    if (no == KGC_YOK) {
+      const uint32_t e = kalgec_etkin;
+      Serial.print(F("* k: degerler zaten kayitli: #"));
+      Serial.print(e);
+      Serial.print(F(" (sifir ofsetleri gecmise girmez, oturum basligi tasir) — not: kn"));
+      Serial.print(e);
+      Serial.print(F(" <not> · tur: kt"));
+      Serial.print(e);
+      Serial.println(F("<d|i>"));
+      return;
+    }
+    if (no < 0) {
+      Serial.print(F("! k: kaydedilmedi — "));
+      Serial.println(kalgec_hata_adi((int)no));
+      kalgec_uyari_bas();
+      return;
+    }
     Serial.print(F("* k: kalibrasyon #"));
     Serial.print((uint32_t)no);
     Serial.println(F(" kaydedildi"));
+    kalgec_uyari_bas();
     return;
   } else if (alt == 'n' || alt == 't') {
     uint32_t no = strtoul(s + 2, &son, 10);
@@ -3121,9 +3176,9 @@ void kal_liste_sayfa() {
   char t[160];
   sunucu.setContentLength(CONTENT_LENGTH_UNKNOWN);
   sunucu.send(200, "application/json", "");
-  snprintf(t, sizeof(t), "{\"surum\":%u,\"adet\":%lu,\"taslak\":%u,\"azami\":%u,\"kayitlar\":[",
-           (unsigned)KALGEC_SURUM, (unsigned long)adet, (unsigned)kalgec_taslak_bayrak,
-           (unsigned)KALGEC_AZAMI);
+  snprintf(t, sizeof(t), "{\"surum\":%u,\"adet\":%lu,\"taslak\":%u,\"etkin\":%lu,\"azami\":%u,"
+           "\"kayitlar\":[", (unsigned)KALGEC_SURUM, (unsigned long)adet,
+           (unsigned)kalgec_taslak_bayrak, (unsigned long)kalgec_etkin, (unsigned)KALGEC_AZAMI);
   sunucu.sendContent(t);
   bool ilk = true;
   for (uint32_t no = 1; no <= adet; no++) {
@@ -4339,7 +4394,7 @@ void setup() {
 
   // ── 1B: kalibrasyon gecmisi ozeti (ayrinti `k?` / `kl`)
   Serial.print(F("Kalibrasyon: #"));
-  Serial.print(kalgec.son_var ? kalgec.son.no : 0u);
+  Serial.print((uint32_t)kalgec_etkin);   /* 0 = kaydedilmemis degerler */
   Serial.print(F(" ("));
   Serial.print(kalgec.adet);
   Serial.print(F("/"));
@@ -4348,6 +4403,7 @@ void setup() {
   if (kalgec_taslak_bayrak) Serial.print(F(" — KAYDEDILMEMIS degisiklik var (`kk`)"));
   if (kalgec.son_hata) { Serial.print(F(" — ! ")); Serial.print(kalgec_hata_adi(kalgec.son_hata)); }
   Serial.println();
+  kalgec_uyari_bas();
   // ── B72: KAYIT — bolum ve bellek burada; flas TARAMASI cekirdek 0'daki
   //    gorevde (acilisi bloklamasin). Durum `G?` ile.
   Serial.print(F("Kayit: "));

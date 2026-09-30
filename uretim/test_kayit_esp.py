@@ -218,6 +218,29 @@ def bolum_kaynak() -> None:
        "nvs_get_stats(" in nb and "available_entries" in nb)
     ok("B72.F21 `k` komutu tanimli ve yardimda",
        "case 'k': kalgec_komut(s)" in ino_k and "kk<t><not>" in ino)
+    # 1B son inceleme I1: otomatik kayit ve basarisizligi SESSIZDI
+    ob = govde(ino_k, "static void kalgec_oturum_bildir(uint32_t no, uint32_t once) {")   # ileri bildirim degil
+    ok("B72.F22 kayit baslarken kalibrasyon OTOMATIK kaydedilirse ya da oturum "
+       "numarasiz kalirsa kart SOYLER (numara + not/tur komutu · hata adi)",
+       "kalgec_oturum_bildir(" in bd and 0 <= bd.find("kgc_oturum_no(") < bd.find("kalgec_oturum_bildir(")
+       and "otomatik kaydedildi" in ob and "NUMARASIZ" in ob and "kalgec_hata_adi(" in ob
+       and "kalgec_uyari_bas()" in ob)
+    kk = govde(ino_k, "static void kalgec_komut(")
+    kk = kk[kk.find("alt == 'k'"):kk.find("alt == 'n'")]
+    ok("B72.F23 `kk` degerler zaten kayitliyken HANGI numara oldugunu ve not/tur "
+       "komutunu soyler (sifirlar gecmise girmez)",
+       "KGC_YOK" in kk and "kalgec_etkin" in kk and "zaten" in kk and "sifir" in kk
+       and "kalgec_uyari_bas()" in kk)
+    ub = govde(ino_k, "static void kalgec_uyari_bas(")
+    ok("B72.F24 gecmis dolmak uzereyken (35/40) afiste, `kk`'da ve otomatik kayitta uyari",
+       "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
+    ok("B72.F25 firmware surum adi bicim 2 ile DEGISTI (PC/tezgah 1A-2 firmware'inden ayirt eder)",
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1B"', esp_k) is not None)
+    tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
+    ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
+       "`k?`, afis ve /kal/liste onu gosterir",
+       "kalgec_etkin = kgc_esle(&kalgec, &k)" in tg and "kalgec_etkin" in govde(ino_k, "static void kalgec_durum_bas(")
+       and '\\"etkin\\"' in kl and "kalgec_etkin" in st)
     gd = govde(esp_k, "static void kayit__gonder(")
     ok("B72.F15 kuyruk dolarsa kayip SESSIZ degil: sonraki nokta KAYIP_ONCE, sayac artar",
        "kn_kayip(&kayit_kn)" in gd and "kayit_kuyruk_dusen = kayit_kuyruk_dusen + 1u" in gd)
@@ -239,6 +262,7 @@ class _SahteKart:
         self.onay_dusur = 0             # sonraki N onay karta ULASMAZ
         self.komutlar: list[str] = []
         self.kal_liste = None           # 1B: /kal/liste (None = eski firmware, 404)
+        self.kal_yanit = None           # ("ham", bayt) · ("kod", 500) · ("kes", bayt): bozuk yanit
 
     def sonraki(self) -> int:
         return max((struct.unpack_from("<I", k, 4)[0] for k in self.kayitlar), default=0) + 1
@@ -282,6 +306,18 @@ def _sunucu(kart: _SahteKart):
                 self.end_headers()
                 self.wfile.write(b'retry: 3000\n\nevent: kimlik\n'
                                  b'data: {"jeton":"abc123","surucu":true}\n\n')
+                return
+            if u.path == "/kal/liste" and kart.kal_yanit is not None:
+                tur, deger = kart.kal_yanit
+                if tur == "kod":
+                    self.send_error(deger)
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                # "kes": gövdenin yarisi gelir, baglanti kopar (IncompleteRead)
+                self.send_header("Content-Length", str(len(deger) * (2 if tur == "kes" else 1)))
+                self.end_headers()
+                self.wfile.write(deger)
                 return
             if u.path == "/kal/liste" and kart.kal_liste is not None:
                 govde = json.dumps(kart.kal_liste, ensure_ascii=False).encode("utf-8")
@@ -530,7 +566,67 @@ def bolum_esitle() -> None:
             r = _es(taban, d, kart.onayla).esitle()
             ok("B72.E19 eski firmware (/kal/liste 404) veri esitlemesini DURDURMAZ",
                r["son_sira"] == 50 and r.get("kalibrasyon") is None
+               and r.get("kalibrasyon_hata") is None               # 404 hata DEGIL
                and not (Path(d) / KE.KAL_DOSYA).exists(), f"{r}")
+        # 1B son inceleme I3: PC dosyayi korlemesine eziyordu
+        with tempfile.TemporaryDirectory() as d:
+            sifirla()
+            kart.kal_liste = json.loads(json.dumps(kal))
+            _es(taban, d, kart.onayla).esitle()
+            p = Path(d) / KE.KAL_DOSYA
+            kart.kal_liste["kayitlar"][1]["not"] = "not duzeltildi"      # kn: olagan
+            kart.kal_liste["kayitlar"][1]["tur"] = 2                     # kt: olagan
+            r1 = _es(taban, d, kart.onayla).esitle()
+            arsiv1 = sorted(x.name for x in Path(d).glob("kalibrasyon-*.json"))
+            duzeltme_yazildi = json.loads(p.read_text(encoding="utf-8")) == kart.kal_liste
+            onceki = p.read_bytes()
+            # ayni numara, BASKA tarih (NVS silinip gecmis yeniden kuruldu)
+            kart.kal_liste["kayitlar"][0] = {**kal["kayitlar"][0], "unix": 1791000000}
+            r2 = _es(taban, d, kart.onayla).esitle()
+            arsiv2 = sorted(Path(d).glob("kalibrasyon-*.json"))
+            ikinci = p.read_bytes()
+            # bir kayit KAYBOLDU (`adet` kayboldu, baska kart)
+            kart.kal_liste = {**kart.kal_liste, "adet": 1, "kayitlar": kart.kal_liste["kayitlar"][:1]}
+            r3 = _es(taban, d, kart.onayla).esitle()
+            arsiv3 = sorted(Path(d).glob("kalibrasyon-*.json"))
+            ok("B72.E20 not/tur duzeltmesi dosyaya yazilir (yedek yok); kartin gecmisi "
+               "DEGISIRSE (ayni numara baska deger/tarih · kayit kayboldu) eski dosya "
+               "zaman damgali YEDEKLENIR, sonra kartinki yazilir — PC hicbir kaydi kaybetmez",
+               duzeltme_yazildi and not arsiv1 and r1.get("kalibrasyon_arsiv") is None
+               and len(arsiv2) == 1 and arsiv2[0].read_bytes() == onceki
+               and r2.get("kalibrasyon_arsiv") == arsiv2[0].name
+               and len(arsiv3) == 2 and r3.get("kalibrasyon_arsiv") in {x.name for x in arsiv3}
+               and (Path(d) / r3["kalibrasyon_arsiv"]).read_bytes() == ikinci
+               and json.loads(p.read_text(encoding="utf-8")) == kart.kal_liste,
+               f"arsiv1={arsiv1} arsiv2={[x.name for x in arsiv2]} arsiv3={[x.name for x in arsiv3]}")
+        # 1B son inceleme I4: /kal/liste hatasi veri esitlemesinden SONRA cokuyordu
+        durumlar = {"bozuk JSON": ("ham", b"{bozuk"), "500": ("kod", 500),
+                    "yarida kopan": ("kes", b'{"surum":1,"adet":'),
+                    "gecersiz UTF-8 (cp1254)": ("ham", b'{"surum":1,"adet":1,"kayitlar":'
+                                                       b'[{"no":1,"not":"\xfe\xf0nt"}]}')}
+        sonuc = {}
+        for ad, yanit in durumlar.items():
+            with tempfile.TemporaryDirectory() as d:
+                sifirla()
+                p = Path(d) / KE.KAL_DOSYA
+                p.write_text('{"eski": 1}', encoding="utf-8")
+                kart.kal_yanit = yanit
+                try:
+                    r = _es(taban, d, kart.onayla).esitle()
+                except Exception as h:                       # noqa: BLE001
+                    r = {"istisna": repr(h)}
+                sonuc[ad] = (r.get("son_sira"), r.get("kalibrasyon"), r.get("kalibrasyon_hata"),
+                             p.read_text(encoding="utf-8"), r.get("istisna"))
+        ok("B72.E21 /kal/liste bozuk/yarim/500 ise veri esitlemesi TAMAMLANIR, hata "
+           "raporlanir, eski kalibrasyon.json yerinde; gecersiz UTF-8 (eski firmware'in "
+           "cp1254 notu) degistirilerek yazilir",
+           all(v[0] == 50 and v[4] is None for v in sonuc.values())
+           and all(v[1] is None and v[2] and v[3] == '{"eski": 1}'
+                   for a, v in sonuc.items() if a != "gecersiz UTF-8 (cp1254)")
+           and sonuc["gecersiz UTF-8 (cp1254)"][1] == 1
+           and "�" in sonuc["gecersiz UTF-8 (cp1254)"][3],
+           str({a: (v[0], v[1], v[2], v[4]) for a, v in sonuc.items()}))
+        kart.kal_yanit = None
         sifirla()
         KE.http_onay(taban)(42)
         ok("B72.E8 HTTP onayi jetonu /akis'ten alip X-Olcum + X-Jeton ile Go<sira> yollar",

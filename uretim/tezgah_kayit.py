@@ -356,8 +356,9 @@ def kal(k, host: str) -> None:
     satir, _ = komut(k, "k?", 2)
     kg = [s.split() for s in satir if s.startswith("KG ")]
     kg = kg[-1] if kg else []
-    ok("gecmis var (#1 = 1B oncesi Ayar3), NVS'te yer olculdu",
-       len(kg) == 7 and int(kg[1]) >= 1 and int(kg[4]) >= 6 * 40, f"KG {kg[1:]}")
+    ok("gecmis var (#1 = 1B oncesi Ayar3), NVS'te yer olculdu, etkin = son kayit",
+       len(kg) == 8 and int(kg[1]) >= 1 and int(kg[4]) >= 6 * 40
+       and kg[3] == "0" and kg[7] == kg[2], f"KG {kg[1:]}")
     son_no, taslak = int(kg[2]), kg[3]
     satir, _ = komut(k, f"kv{son_no}", 2)
     kv = next((s.split() for s in satir if s.startswith("KV ")), [])
@@ -389,8 +390,18 @@ def kal(k, host: str) -> None:
         komut(k, f"kt{son_no}{'-di'[int(once[4])]}", 2)
     geri = {r[1]: r for r in _kl(k)}.get(str(son_no))
     ok("deneme notu/turu eski haline geri yazildi", geri == once, f"{geri} vs {once}")
+    if taslak == "0":                         # taslak yokken `kk` HICBIR sey yazmaz
+        satir, _ = komut(k, "kk-tezgah", 2)
+        satir2, _ = komut(k, "k?", 2)
+        kg2 = next((s.split() for s in satir2 if s.startswith("KG ")), [])
+        ok("taslak yokken `kk` kayit ACMAZ, degerlerin numarasini soyler",
+           any(s.startswith(f"* k: degerler zaten kayitli: #{son_no} ") for s in satir)
+           and kg2[1:3] == kg[1:3], f"{[s for s in satir if 'k:' in s]} KG {kg2[1:3]}")
     komut(k, "Gd", 2)
-    komut(k, "Gb200", 5, lambda x: x["durum"] == 2)
+    satir, _ = komut(k, "Gb200", 5, lambda x: x["durum"] == 2)
+    ok("taslak yokken kayit baslangici kalibrasyon icin SESSIZ (otomatik kayit yok)",
+       not any("otomatik kaydedildi" in s or "NUMARASIZ" in s for s in satir),
+       str([s for s in satir if "k:" in s]))
     time.sleep(3)
     komut(k, "Gd", 5, lambda x: x["durum"] == 1)
     with tempfile.TemporaryDirectory() as d:
@@ -410,6 +421,8 @@ def kal(k, host: str) -> None:
        and all(liste[n]["not"] == (v[6].strip() if len(v) > 6 else "")
                and str(liste[n]["tur"]) == v[4] for n, v in kl_son.items()),
        f"json adet {js.get('adet')} kl {len(kl_son)}")
+    ok("/kal/liste etkin kalibrasyonu soyluyor (== k?)", js.get("etkin") == son_no,
+       f"etkin {js.get('etkin')}")
 
 
 def esit(k, host: str, port: str) -> None:

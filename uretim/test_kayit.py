@@ -18,6 +18,7 @@ float32 YUVARLAMASINI taklit ediyor.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import random
 import struct
 import subprocess
@@ -822,14 +823,34 @@ def _kalgec_coz(b: bytes) -> dict:
             "kal": KB.kal_coz(b, 48)}
 
 
-def _not_bekle(s: str) -> bytes:
-    b = bytes(c for c in s.encode("utf-8") if c >= 0x20 and c != 0x7F and c not in (0x22, 0x5C))[:31]
-    while True:
-        try:
-            b.decode("utf-8")
-            return b
-        except UnicodeDecodeError:
-            b = b[:-1]
+def _not_bekle(ham: bytes) -> bytes:
+    """kgc_not_kopyala'nin C'den BAGIMSIZ esi: gecersiz UTF-8 atilir (Python'un
+    katı cozucusu: asiri uzun, vekil, 10FFFF ustu), kontrol karakteri / \" / \\
+    atilir, 31 bayti asmayan en uzun KARAKTER oneki."""
+    s = "".join(c for c in ham.decode("utf-8", errors="ignore")
+                if ord(c) >= 0x20 and c not in '\x7f"\\')
+    b = b""
+    for c in s:
+        if len(b) + len(c.encode("utf-8")) > 31:
+            break
+        b += c.encode("utf-8")
+    return b
+
+
+def _kalgec_paketle(no: int, kal: KB.Kalibrasyon, not_: bytes = b"") -> bytes:
+    """Blob — _kalgec_coz'un tersi (C'den bagimsiz; yalniz NVS'i onceden
+    doldurmak icin)."""
+    b = (struct.pack("<IIIBBH", no, 0, 0, 0, 0, 1) + not_[:31].ljust(32, b"\0")
+         + KB.kal_paketle(kal) + b"\0\0")
+    return b + struct.pack("<I", zlib.crc32(b))
+
+
+def _nt(sat: list[str], ad: str) -> bytes | None:
+    for s in sat:
+        p = s.split()
+        if p[:1] == [ad]:
+            return bytes.fromhex(p[1]) if len(p) > 1 else b""
+    return None
 
 
 def _kd_al(sat: list[str], ad: str) -> dict:
@@ -902,6 +923,8 @@ def bolum_kalgec() -> None:
        alanlar(c6, "ADET") == [["40"]] and alanlar(c6, "DOLU") == [["-3"]]
        and alanlar(c6, "OTNO") == [["0"]] and alanlar(c6, "HATA") == [["-3"]]
        and "k1" in f.nvs and "k41" not in f.nvs, f"{[alanlar(c6, a) for a in ('ADET', 'DOLU', 'OTNO', 'HATA')]}")
+    ok("B71.C13 gecmis DOLMAK UZERE uyarisi 35. kayitta baslar (dolmadan 5 kayit once)",
+       alanlar(c6, "UY") == [["35"]], str(alanlar(c6, "UY")))
     f9 = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
     f9.nvs_bos = 10
     (c7,) = _yonet(f9, elf, [7])
@@ -911,12 +934,55 @@ def bolum_kalgec() -> None:
        f"{alanlar(c7, 'AC')} {_kd_al(c7, 'C9')}")
     f10 = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
     (c8,) = _yonet(f10, elf, [8])
-    beklenen = _not_bekle('Türkçe "not" \\ şönt değişti ğü').decode("utf-8")
+    beklenen = _not_bekle('Türkçe "not" \\ şönt değişti ğü'.encode("utf-8")).decode("utf-8")
     kay = int((alanlar(c8, "KAY") or [["0"]])[0][0])
     ok("B71.C10 Turkce not 31 baytta KARAKTER sinirinda kesilir; \" ve \\ atilir (JSON'a "
        "kacissiz girer)",
        kay == 2 and _ke(c8, 2) is not None and _ke(c8, 2)[3] == beklenen
        and len(beklenen.encode()) <= 31, f"{_ke(c8, 2)} beklenen={beklenen!r}")
+    # ornek_kayit.c case 8 ile AYNI girdiler
+    girdi = {"N1": b"a" * 30 + "ş".encode(), "N2": b"a" * 29 + "ş".encode(),
+             "N3": b"a" * 29 + "€".encode(), "N4": b"a" * 28 + "€".encode(),
+             "N5": b"a" * 28 + "🔋".encode(), "N6": b"a" * 27 + "🔋".encode(),
+             "N7": (b"a\xfe" b"b\x80" b"c\xc5" b"d\xc0\xaf" b"e\xed\xa0\x80" b"f\xe2\x82"
+                    b"g\xf5\x80\x80\x80" b"h\xe0\x80\x80" b"i\xf4\x90\x80\x80" b"j\xc5"),
+             "N8": b"\xfe\xf0\xfd\xe7x"}
+    gelen = {a: _nt(c8, a) for a in girdi}
+    ayni = {a: gelen[a] == _not_bekle(g) for a, g in girdi.items()}
+    ok("B71.C10b 31 bayt siniri 2/3/4 baytlik karakterin ORTASINA duserse karakter "
+       "butun atilir; gecersiz UTF-8 (cp1254 'ş'=FE, kopuk dizi, asiri uzun, vekil, "
+       "10FFFF ustu) atilir — /kal/liste JSON'u PC'de hep cozulur",
+       all(ayni.values()) and all(g is not None and g.decode("utf-8") is not None
+                                  for g in gelen.values())
+       and gelen["N7"] == b"abcdefghij" and gelen["N8"] == b"x",
+       f"{[a for a, v in ayni.items() if not v]} N1={gelen['N1']!r} N7={gelen['N7']!r}")
+    # C11-C12: sifir ofsetleri gecmise girmez; ayni degerlere donunce ESKI numara
+    f11 = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    (c9,) = _yonet(f11, elf, [9])
+    ok("B71.C11 yalniz SIFIR ofsetleri degisince (gerilim iki kanal + akim) taslak YOK: "
+       "`kk` reddeder, oturum eski numarayi alir, yeni kayit acilmaz (kullanici karari "
+       "2026-09-30; gercek sifir oturum basliginda)",
+       _kd_al(c9, "C11a").get("taslak") == 0 and alanlar(c9, "S_KAY") == [["-1"]]
+       and alanlar(c9, "S_OTNO") == [["1"]] and _kd_al(c9, "C11b").get("adet") == 1,
+       f"{_kd_al(c9, 'C11a')} {alanlar(c9, 'S_KAY')} {alanlar(c9, 'S_OTNO')} {_kd_al(c9, 'C11b')}")
+    ok("B71.C12 sont/sebeke A->B->C->A->B: yeni kayit yalniz ILK kez gorulen degerlere "
+       "(#2, #3); A'ya donunce #1, B'ye donunce #2 — gecmis ancak gercekten farkli "
+       "kalibrasyonlarla dolar",
+       alanlar(c9, "B_OTNO") == [["2"]] and alanlar(c9, "C_OTNO") == [["3"]]
+       and _kd_al(c9, "C12a").get("taslak") == 0 and alanlar(c9, "A_OTNO") == [["1"]]
+       and alanlar(c9, "A_KAY") == [["-1"]] and alanlar(c9, "B2_OTNO") == [["2"]]
+       and _kd_al(c9, "C12b").get("adet") == 3,
+       f"B={alanlar(c9, 'B_OTNO')} C={alanlar(c9, 'C_OTNO')} A={alanlar(c9, 'A_OTNO')} "
+       f"B2={alanlar(c9, 'B2_OTNO')} {_kd_al(c9, 'C12b')}")
+    # C12c: ayni degerli iki kayit (duzeltmeden once acilmis gecmis) -> EN YENISI
+    f12 = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    b_kal = dataclasses.replace(_kal_uret(0), sont_ohm=0.015625)
+    f12.nvs.update({"k1": _kalgec_paketle(1, _kal_uret(0)), "k2": _kalgec_paketle(2, _kal_uret(0)),
+                    "k3": _kalgec_paketle(3, b_kal), "adet": (3).to_bytes(4, "little")})
+    (c10,) = _yonet(f12, elf, [10])
+    ok("B71.C12c ayni degerli iki kayit varsa oturum EN YENISINI alir (#2, #1 degil)",
+       alanlar(c10, "YENI") == [["2"]] and _kd_al(c10, "C12c").get("adet") == 3,
+       f"{alanlar(c10, 'YENI')} {_kd_al(c10, 'C12c')}")
 
 
 # ── B71.D · oturum dizini ─────────────────────────────────────────────

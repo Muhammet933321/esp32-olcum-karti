@@ -928,10 +928,34 @@ static void ke(uint32_t no)
     satir();
 }
 
+/* n tane 'a' + kuyruk; calisma aninda kurulur (AVR'de dizgeler RAM'de) */
+static char nb[48];
+static const char *dolgu(uint8_t n, const char *kuyruk)
+{
+    uint8_t i = 0u;
+    while (i < n) nb[i++] = 'a';
+    while (*kuyruk && i < sizeof(nb) - 1u) nb[i++] = *kuyruk++;
+    nb[i] = 0;
+    return nb;
+}
+
+/* <ad> <not(hex)>: #2'nin notunu duzelt, geri oku */
+static void nt(const char *ad, const char *s)
+{
+    KalKayit e;
+    memset(&e, 0, sizeof(e));
+    kgc_duzenle(&m, 2u, -1, s);
+    kgc_oku(&m, 2u, &e);
+    metin(ad);
+    yaz(' '); hexdizi((const uint8_t *)e.not_, (uint16_t)strlen(e.not_));
+    satir();
+}
+
 static void senaryo(void)
 {
     uint32_t adim = t_adim_oku(), t;
     int32_t r;
+    uint8_t uy = 0u;
     kal_uret(&simdiki, 0u);
     switch (adim) {
     case 1:                                   /* C1: ilk acilis -> #1 (ilk) */
@@ -976,6 +1000,7 @@ static void senaryo(void)
         kal_uret(&simdiki, 3u);
         kgc_ac(&m, &KNVS, &simdiki, 600u, 6u);
         for (t = 10u; m.adet < KALGEC_AZAMI && t < 200u; t++) {
+            if (!uy && kgc_dolmak_uzere(&m)) { uy = 1u; sayi("UY", (int32_t)m.adet); }
             kal_uret(&simdiki, t);
             if (kgc_kaydet(&m, &simdiki, KGT_INCE, "dolgu", 600u + t, 6u) < 0) break;
         }
@@ -999,6 +1024,44 @@ static void senaryo(void)
                        801u, 8u);
         sayi("KAY", r);
         if (r > 0) ke((uint32_t)r);
+        /* C10b: 31 bayt siniri 2/3/4 baytlik karakterin ORTASINA duser;
+           gecersiz UTF-8 (cp1254 terminal, kopuk dizi, asiri uzun, vekil) atilir */
+        nt("N1", dolgu(30u, "\xc5\x9f"));
+        nt("N2", dolgu(29u, "\xc5\x9f"));
+        nt("N3", dolgu(29u, "\xe2\x82\xac"));
+        nt("N4", dolgu(28u, "\xe2\x82\xac"));
+        nt("N5", dolgu(28u, "\xf0\x9f\x94\x8b"));
+        nt("N6", dolgu(27u, "\xf0\x9f\x94\x8b"));
+        nt("N7", dolgu(0u, "a\xfe" "b\x80" "c\xc5" "d\xc0\xaf" "e\xed\xa0\x80" "f\xe2\x82"
+                           "g\xf5\x80\x80\x80" "h\xe0\x80\x80" "i\xf4\x90\x80\x80" "j\xc5"));
+        nt("N8", dolgu(0u, "\xfe\xf0\xfd\xe7x"));
+        break;
+    case 9:                                   /* C11-C12: sifir ofseti gecmise girmez; A->B->A */
+        kgc_ac(&m, &KNVS, &simdiki, 900u, 9u);          /* #1 = kal_uret(0) = A */
+        simdiki.normal.sifir_ham = 77;
+        simdiki.yuksek.sifir_ham = -40;
+        simdiki.i_ofset = 9;
+        kd("C11a");
+        sayi("S_KAY", kgc_kaydet(&m, &simdiki, KGT_INCE, "sifir", 901u, 9u));
+        sayi("S_OTNO", (int32_t)kgc_oturum_no(&m, &simdiki, 902u, 9u));
+        kd("C11b");
+        simdiki.sont_ohm = 0.015625f;                    /* B: sont degisti */
+        sayi("B_OTNO", (int32_t)kgc_oturum_no(&m, &simdiki, 903u, 9u));
+        simdiki.sebeke_hz = 60.0f;                       /* C: sebeke de */
+        sayi("C_OTNO", (int32_t)kgc_oturum_no(&m, &simdiki, 904u, 9u));
+        kal_uret(&simdiki, 0u);                          /* A'ya don (sifirlar yine farkli) */
+        simdiki.i_ofset = -8;
+        kd("C12a");
+        sayi("A_OTNO", (int32_t)kgc_oturum_no(&m, &simdiki, 905u, 9u));
+        sayi("A_KAY", kgc_kaydet(&m, &simdiki, KGT_INCE, "A", 906u, 9u));
+        simdiki.sont_ohm = 0.015625f;                    /* B'ye don */
+        sayi("B2_OTNO", (int32_t)kgc_oturum_no(&m, &simdiki, 907u, 9u));
+        kd("C12b");
+        break;
+    case 10:                                  /* C12c: ayni degerli iki kayit -> EN YENISI */
+        kgc_ac(&m, &KNVS, &simdiki, 1000u, 10u);
+        sayi("YENI", (int32_t)kgc_oturum_no(&m, &simdiki, 1001u, 10u));
+        kd("C12c");
         break;
     default:
         break;

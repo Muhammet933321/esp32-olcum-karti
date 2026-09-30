@@ -8,10 +8,15 @@
  * kopyasi. Oturum basligi (BASLA surum 2) numarayi tasir.
  *
  * TASLAK modeli (kullanici karari, 2026-09-30): kalibrasyon komutlari yalniz
- * Ayar3'u degistirir; degerler son kayittan FARKLIYSA ortada taslak var.
+ * Ayar3'u degistirir; degerlerin gecmiste KARSILIGI yoksa ortada taslak var.
  * `kgc_kaydet` taslagi not + turle kayda cevirir; unutulursa kayit baslarken
  * `kgc_oturum_no` OTOMATIK kaydeder — hicbir oturum numarasiz kalmaz.
  * Not ve tur sonradan duzeltilir; DEGERLER degismez.
+ * Karsilik (ayni gun, son inceleme C1 uzerine kullanici karari): SIFIR
+ * OFSETLERI karsilastirmaya girmez (panelden sik sifirlanir; oturum basligi
+ * gercek sifiri tasir) ve daha once kayitli degerlere donulurse (sont,
+ * sebeke A->B->A) o kaydin numarasi kullanilir — 40 kayit ancak 40 gercekten
+ * farkli kalibrasyonla dolar; KALGEC_UYARI'dan itibaren kart uyarir.
  *
  * Saklama NVS (kullanici karari): `adet` + `k1`…`k40`. 40: yedekteki NVS
  * olculdu (179 dolu giris; 116 B'lik blob 6 giris tutar). Dolunca ACIK hata,
@@ -30,6 +35,7 @@
 #define KALGEC_AZAMI   40u
 #define KALGEC_NOT     32u         /* 31 bayt + NUL */
 #define KALGEC_BAYT    116u
+#define KALGEC_UYARI   35u         /* bu kadar kayittan sonra "dolmak uzere" */
 #ifndef KALGEC_NVS_PAY
 #define KALGEC_NVS_PAY 24u         /* kaydetmeden once NVS'te en az bu kadar bos giris */
 #endif
@@ -70,26 +76,53 @@ typedef struct {
     int      son_hata;
 } KalGecmis;
 
-/* Notu kopyala: kontrol karakterleri, `"` ve `\` atilir (JSON'a kacissiz
-   girer); en fazla 31 bayt, UTF-8 karakter SINIRINDA kesilir. */
+/* `s`'deki UTF-8 karakterinin bayt sayisi; gecersizse 0. RFC 3629 tablosu:
+   asiri uzun kodlama, vekil (D800-DFFF) ve 10FFFF ustu GECERSIZ (Python'un
+   cozucusu da reddeder). NUL'dan otesini okumaz: her devam bayti okunmadan
+   once oncekinin NUL olmadigi dogrulanmis. */
+static inline uint8_t kgc__utf8(const uint8_t *s)
+{
+    uint8_t c = s[0], uz, i, alt = 0x80u, ust = 0xBFu;
+    if (c < 0x80u) return 1u;
+    if (c >= 0xC2u && c <= 0xDFu) {
+        uz = 2u;
+    } else if (c >= 0xE0u && c <= 0xEFu) {
+        uz = 3u;
+        if (c == 0xE0u) alt = 0xA0u;
+        else if (c == 0xEDu) ust = 0x9Fu;
+    } else if (c >= 0xF0u && c <= 0xF4u) {
+        uz = 4u;
+        if (c == 0xF0u) alt = 0x90u;
+        else if (c == 0xF4u) ust = 0x8Fu;
+    } else {
+        return 0u;
+    }
+    if (s[1] < alt || s[1] > ust) return 0u;
+    for (i = 2u; i < uz; i++)
+        if ((s[i] & 0xC0u) != 0x80u) return 0u;
+    return uz;
+}
+
+/* Notu kopyala: gecersiz UTF-8 bayti (orn. cp1254 terminalden 'ş' = FE),
+   kontrol karakterleri, `"` ve `\` atilir — JSON'a kacissiz ve PC'de hep
+   cozulur; en fazla 31 bayt, sigmayan karakterde (karakter SINIRINDA) kesilir. */
 static inline void kgc_not_kopyala(char *d, const char *s)
 {
-    uint8_t n = 0u, i, uz, bas;
-    uint8_t c;
-    if (s) {
-        while ((c = (uint8_t)*s++) != 0u && n < KALGEC_NOT - 1u) {
-            if (c < 0x20u || c == 0x7Fu || c == (uint8_t)'"' || c == (uint8_t)'\\') continue;
-            d[n++] = (char)c;
+    const uint8_t *p = (const uint8_t *)s;
+    uint8_t n = 0u, uz, c;
+    if (p) {
+        while ((c = *p) != 0u) {
+            uz = kgc__utf8(p);
+            if (!uz || (uz == 1u && (c < 0x20u || c == 0x7Fu || c == (uint8_t)'"'
+                                     || c == (uint8_t)'\\'))) {
+                p++;
+                continue;
+            }
+            if ((uint8_t)(n + uz) > KALGEC_NOT - 1u) break;
+            memcpy(d + n, p, uz);
+            n = (uint8_t)(n + uz);
+            p += uz;
         }
-    }
-    i = n;
-    while (i && ((uint8_t)d[i - 1u] & 0xC0u) == 0x80u) i--;      /* devam baytlari */
-    if (i) {
-        bas = (uint8_t)d[i - 1u];
-        uz = (bas >= 0xF0u) ? 4u : (bas >= 0xE0u) ? 3u : (bas >= 0xC0u) ? 2u : 1u;
-        if ((uint8_t)(n - (i - 1u)) < uz) n = (uint8_t)(i - 1u);     /* yarim karakter */
-    } else {
-        n = 0u;
     }
     memset(d + n, 0, KALGEC_NOT - n);
 }
@@ -153,14 +186,42 @@ static inline int kgc__yaz(KalGecmis *m, const KalKayit *e)
     return m->nvs.yaz(m->nvs.baglam, ad, p, KALGEC_BAYT) ? KGC_HATA : KGC_TAMAM;
 }
 
-/* Simdiki degerler son kayittan farkli mi (paket karsilastirmasi). */
-static inline int kgc_taslak(const KalGecmis *m, const KayitKalibrasyon *simdiki)
+/* Karsilastirma paketi: SIFIR OFSETLERI (gerilim iki kanal + akim) haric.
+   Kullanici karari (2026-09-30): panelden sik sifirlanir ve her seferinde
+   biraz farkli cikar — gecmise girseydi 40 kayit olagan kullanimla dolardi.
+   Oturum basligi gercek sifir degerlerini zaten tasiyor (tam kopya). */
+static inline void kgc__iz(const KayitKalibrasyon *k, uint8_t *p)
+{
+    KayitKalibrasyon t = *k;
+    t.normal.sifir_ham = 0;
+    t.yuksek.sifir_ham = 0;
+    t.i_ofset = 0;
+    kayit_kal_paketle(&t, p);
+}
+
+/* Simdiki degerlere (sifirlar haric) esit EN YENI kayit; yoksa 0 = TASLAK.
+   Sont / sebeke A->B->A eski numarayi kullanir: gecmis ancak gercekten
+   farkli kalibrasyonlarla dolar. Son kayit bellekte; digerleri icin en
+   fazla KALGEC_AZAMI - 1 NVS okumasi (yalniz degerler degisince). */
+static inline uint32_t kgc_esle(KalGecmis *m, const KayitKalibrasyon *simdiki)
 {
     uint8_t a[KAYIT_KAL_BAYT], b[KAYIT_KAL_BAYT];
-    if (!m->son_var) return 1;
-    kayit_kal_paketle(simdiki, a);
-    kayit_kal_paketle(&m->son.kal, b);
-    return memcmp(a, b, KAYIT_KAL_BAYT) ? 1 : 0;
+    KalKayit e;
+    uint32_t no;
+    kgc__iz(simdiki, a);
+    for (no = m->adet; no; no--) {
+        if (m->son_var && m->son.no == no) e.kal = m->son.kal;
+        else if (kgc_oku(m, no, &e)) continue;
+        kgc__iz(&e.kal, b);
+        if (!memcmp(a, b, KAYIT_KAL_BAYT)) return no;
+    }
+    return 0u;
+}
+
+/* Gecmiste karsiligi olmayan degerler var mi. */
+static inline int kgc_taslak(KalGecmis *m, const KayitKalibrasyon *simdiki)
+{
+    return kgc_esle(m, simdiki) ? 0 : 1;
 }
 
 /* Yeni kayit. Once k<no>, SONRA adet. Donus: numara (> 0) ya da KGC_*. */
@@ -214,24 +275,33 @@ static inline int kgc_ac(KalGecmis *m, const KalNvs *nvs, const KayitKalibrasyon
     return r < 0 ? r : KGC_TAMAM;
 }
 
-/* Elle kaydet (`kk`). Taslak yoksa KGC_YOK. */
+/* Elle kaydet (`kk`). Degerler zaten kayitliysa KGC_YOK (numarasi:
+   kgc_esle — not/tur o kayitta duzeltilir). */
 static inline int32_t kgc_kaydet(KalGecmis *m, const KayitKalibrasyon *simdiki, uint8_t tur,
                                  const char *not_, uint32_t unix_s, uint32_t acilis)
 {
-    if (!kgc_taslak(m, simdiki)) return KGC_YOK;
+    if (kgc_esle(m, simdiki)) return KGC_YOK;
     return kgc__ekle(m, simdiki, tur, KGK_ELLE, not_, unix_s, acilis);
 }
 
-/* Kayit baslarken: taslak varsa OTOMATIK kaydet; numarayi dondur.
+/* Kayit baslarken: degerlerin kayitli numarasi; yoksa OTOMATIK kaydet.
    Kaydedilemezse 0 (oturum yine tam kopyayi tasir; hata son_hata'da). */
 static inline uint32_t kgc_oturum_no(KalGecmis *m, const KayitKalibrasyon *simdiki,
                                      uint32_t unix_s, uint32_t acilis)
 {
     int32_t r;
-    if (!kgc_taslak(m, simdiki)) return m->son.no;
+    uint32_t no = kgc_esle(m, simdiki);
+    if (no) return no;
     r = kgc__ekle(m, simdiki, KGT_BELIRSIZ, KGK_OTOMATIK, "otomatik: kayit baslarken",
                   unix_s, acilis);
     return r > 0 ? (uint32_t)r : 0u;
+}
+
+/* Dolunca yeni kalibrasyon numara alamaz (silme yok): KALGEC_UYARI'dan
+   itibaren kart her kayitta uyarir. */
+static inline int kgc_dolmak_uzere(const KalGecmis *m)
+{
+    return m->adet >= KALGEC_UYARI ? 1 : 0;
 }
 
 /* Not ya da turu duzelt (tur < 0 / not_ NULL: degismez). Degerler DEGISMEZ. */
