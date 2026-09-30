@@ -243,6 +243,19 @@ static void bicim_1c1(void)
     satir();
 }
 
+/* 1C-2: AYRINTI kaydi (C == Python, test_kayit.py B71.B22-B23) */
+static void bicim_1c2(void)
+{
+    uint8_t p[KAYIT_AYRINTI_BAS + 3u * KAYIT_AYRINTI_ORNEK];
+    kayit_ayrinti_bas_paketle(p, 1000u, 123456UL, 4000000000UL, 3u,
+                              (uint8_t)(KA_KAYIP_ONCE | KA_SILME));
+    kayit_ayrinti_ornek_paketle(p + 16, 1234, -567, 0u, KAO_YUKSEK);
+    kayit_ayrinti_ornek_paketle(p + 22, -32768, 32767, 500u, (uint8_t)(KAO_V_HATA | KAO_V_DOYDU));
+    kayit_ayrinti_ornek_paketle(p + 28, 0, 0, 4095u, KAO_I_HATA);
+    metin("AY "); hexdizi(p, (uint16_t)sizeof(p)); satir();
+    metin("TUR2 "); ondalik(KAYIT_T_AYRINTI); yaz(' '); ondalik(KAYIT_T_AZAMI); satir();
+}
+
 static void senaryo(void)
 {
     static const uint8_t dokuz[9] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
@@ -263,6 +276,7 @@ static void senaryo(void)
     kayit_baslik_yaz(h, KAYIT_T_NOKTA, 7u, 42u, p, 20u);
     metin("BASLIK "); hexdizi(h, KAYIT_BASLIK_BAYT); satir();
     bicim_1c1();
+    bicim_1c2();
     metin("BITTI\n");
 }
 #endif

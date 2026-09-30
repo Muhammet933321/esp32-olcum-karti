@@ -58,7 +58,8 @@
 #define KAYIT_T_TEKRAR  6u   /* BASLA'nin sektor basi kopyasi (ayni yuk) */
 #define KAYIT_T_OLAY    7u   /* 1C-1: oturum olayi (pil ayari, DCIR, pil sonucu) */
 #define KAYIT_T_NOT     8u   /* 1C-1: oturuma ad/etiket/not (baslikta oturum 0) */
-#define KAYIT_T_AZAMI   8u   /* bilinen en buyuk tur (gecerlilik siniri DEGIL) */
+#define KAYIT_T_AYRINTI 9u   /* 1C-2: ayrintili kip — her ornek (hiz_ms 0) */
+#define KAYIT_T_AZAMI   9u   /* bilinen en buyuk tur (gecerlilik siniri DEGIL) */
 
 /* nokta bayraklari */
 #define KN_YUKSEK      0x01u  /* nokta YUKSEK gerilim menzilinde */
@@ -650,6 +651,42 @@ static inline uint8_t kayit_not_ayir(const char *s, KayitNotKomut *k)
     if (a == 'n' && !*p) return KNK_METIN;
     k->metin = p;
     return KNK_TAMAM;
+}
+
+/* ─────────────────────────────── AYRINTI (1C-2): her ornek
+ *    0 u32 ilk_ornek (oturumdaki sirasi) · 4 u32 t0_ms · 8 u32 t0_us (micros,
+ *    alt 32 bit) · 12 u16 adet · 14 u8 bayrak (KA_*) · 15 u8 0 ·
+ *   16 + 6k: i16 v_kod · i16 i_kod · u16 (dt4 << 4 | KAO_*)
+ * dt4: onceki ornekten bu yana 4 us birimi, 12 bit (<= 16.38 ms; ilk ornekte 0).
+ * Daha buyuk bosluk YENI kayit acar: bosluk t0'dan okunur, gizlenmez. Ornegin
+ * zamani t0_us + 4 x (dt4 toplami); t0_ms micros sarmasini (71.6 dk) cozer. */
+#define KAYIT_AYRINTI_BAS      16u
+#define KAYIT_AYRINTI_ORNEK    6u
+#define KAYIT_AYRINTI_DT_AZAMI 4095u
+#define KA_KAYIP_ONCE 0x01u   /* onceki kayittan beri ornek DUSTU (halka tasti) */
+#define KA_SILME      0x02u   /* bu kayittan hemen once dolu sektor silindi (~25 ms) */
+#define KAO_YUKSEK    0x1u    /* ornek: yuksek gerilim menzili */
+#define KAO_V_HATA    0x2u
+#define KAO_I_HATA    0x4u
+#define KAO_V_DOYDU   0x8u
+
+static inline void kayit_ayrinti_bas_paketle(uint8_t *p, uint32_t ilk, uint32_t t0_ms,
+                                             uint32_t t0_us, uint16_t adet, uint8_t bayrak)
+{
+    kayit_y32(p, ilk);
+    kayit_y32(p + 4, t0_ms);
+    kayit_y32(p + 8, t0_us);
+    kayit_y16(p + 12, adet);
+    p[14] = bayrak;
+    p[15] = 0u;
+}
+
+static inline void kayit_ayrinti_ornek_paketle(uint8_t *p, int16_t v, int16_t i, uint16_t dt4,
+                                               uint8_t bayrak)
+{
+    kayit_y16(p, (uint16_t)v);
+    kayit_y16(p + 2, (uint16_t)i);
+    kayit_y16(p + 4, (uint16_t)((uint16_t)(dt4 << 4) | (uint16_t)(bayrak & 0x0Fu)));
 }
 
 #endif /* KAYIT_BICIM_H */

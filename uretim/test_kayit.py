@@ -314,6 +314,37 @@ def bolum_bicim() -> None:
     ok("B71.B13 bilinmeyen kayit turu (9) CRC'si dogruysa akis cozucu REDDETMEZ, dondurur",
        [k.tur for k in kay] == [KB.T_SAAT, 9, KB.T_SAAT], str([k.tur for k in kay]))
     _bicim_1c1(s)
+    _bicim_1c2(s)
+
+
+def _bicim_1c2(s: dict) -> None:
+    """1C-2: AYRINTI kaydi (ornek_kayit.c bicim_1c2 ile AYNI girdiler)."""
+    ay = {"ilk": 1000, "t0_ms": 123456, "t0_us": 4000000000,
+          "bayrak": KB.KA_KAYIP_ONCE | KB.KA_SILME,
+          "ornekler": [(1234, -567, 0, KB.KAO_YUKSEK),
+                       (-32768, 32767, 500, KB.KAO_V_HATA | KB.KAO_V_DOYDU),
+                       (0, 0, 4095, KB.KAO_I_HATA)]}
+    c_ay = bytes.fromhex(s["AY"][0]) if s.get("AY") else b""
+    ok("B71.B22 AYRINTI (16 B bas + 3 x 6 B; dt4 4095 ve butun ornek bayraklari) C == "
+       "Python; coz -> ayni alanlar",
+       len(c_ay) == 34 and c_ay == KB.ayrinti_paketle(ay) and KB.ayrinti_coz(c_ay) == ay,
+       c_ay.hex())
+    t2 = [int(x) for x in (s.get("TUR2") or [])]
+    ok("B71.B23 AYRINTI turu 9 (AZAMI 9) C == Python; bicim surumu 2 KALDI",
+       t2 == [9, 9] and KB.T_AYRINTI == 9 and KB.SURUM == 2, str(t2))
+    # ayrinti_ornekler: mutlak zaman micros() sarmasinda da dogru (t0_ms'den)
+    gercek = 2**32 - 3000                       # micros sarmadan 3 ms once
+    o = KB.Oturum(7)
+    o.ayrinti = [
+        {"ilk": 0, "t0_ms": gercek // 1000, "t0_us": gercek % 2**32, "bayrak": 0, "sira": 5,
+         "ornekler": [(1, 2, 0, 0), (3, 4, 500, 1), (5, 6, 500, 0)]},
+        {"ilk": 3, "t0_ms": (gercek + 30000) // 1000, "t0_us": (gercek + 30000) % 2**32,
+         "bayrak": KB.KA_SILME, "sira": 6, "ornekler": [(7, 8, 0, 8)]}]
+    beklenen = [(0, gercek, 1, 2, 0), (1, gercek + 2000, 3, 4, 1), (2, gercek + 4000, 5, 6, 0),
+                (3, gercek + 30000, 7, 8, 8)]
+    ok("B71.B24 ayrinti_ornekler: sira, mutlak mikrosaniye (t0_ms ile 32 bit sarmasi "
+       "cozulur), kod ve bayrak; boslukta yeni kaydin t0'i",
+       KB.ayrinti_ornekler(o) == beklenen, str(KB.ayrinti_ornekler(o)))
 
 
 def _bicim_1c1(s: dict) -> None:
@@ -395,9 +426,10 @@ def _bicim_1c1(s: dict) -> None:
     ok("B71.B19 KN_DCIR (0x40) diger nokta bayraklariyla CAKISMAZ; Python'da ayni",
        int(kn[0]) == 0x40 == KB.KN_DCIR and not (int(kn[0]) & int(kn[1])), str(kn))
     tur = [int(x) for x in (s.get("TUR") or [])]
-    ok("B71.B20 yeni turler C == Python: OLAY 7, NOT 8 (AZAMI 8), PIL oturumu 2, sebepler "
+    ok("B71.B20 yeni turler C == Python: OLAY 7, NOT 8 (AZAMI >= 8), PIL oturumu 2, sebepler "
        "4/5/6; bicim surumu 2 KALDI (BASLA baytlari degismedi)",
-       tur == [7, 8, 8, 2, 4, 5, 6] and [KB.T_OLAY, KB.T_NOT, KB.OTURUM_PIL] == [7, 8, 2]
+       len(tur) == 7 and tur[:2] == [7, 8] and tur[2] >= 8 and tur[3:] == [2, 4, 5, 6]
+       and [KB.T_OLAY, KB.T_NOT, KB.OTURUM_PIL] == [7, 8, 2]
        and all(k in KB.SEBEP for k in (4, 5, 6)) and KB.SURUM == 2, str(tur))
 
 

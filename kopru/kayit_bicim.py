@@ -30,6 +30,9 @@ KAL_BAYT = 62          # kalibrasyon kopyasi (BASLA 36..97 ve kalibrasyon gecmis
 
 T_BASLA, T_NOKTA, T_DEVAM, T_BITIR, T_SAAT, T_TEKRAR = 1, 2, 3, 4, 5, 6
 T_OLAY, T_NOT = 7, 8   # 1C-1
+T_AYRINTI = 9          # 1C-2: her ornek (hiz_ms 0)
+KA_KAYIP_ONCE, KA_SILME = 0x01, 0x02                 # AYRINTI kayit bayraklari
+KAO_YUKSEK, KAO_V_HATA, KAO_I_HATA, KAO_V_DOYDU = 0x1, 0x2, 0x4, 0x8   # ornek bayraklari
 KN_YUKSEK, KN_V_HATA, KN_I_HATA = 0x01, 0x02, 0x04
 KN_V_DOYDU, KN_DURAKLAMA, KN_KAYIP_ONCE = 0x08, 0x10, 0x20
 KN_DCIR = 0x40         # 1C-1: en az bir ornek DCIR darbesinde (yuk KAPALI)
@@ -62,9 +65,12 @@ _OLAY = {                                          # tur -> (yapi, alan adlari)
                    ("durum", "hata", "mah", "wh", "ocv", "v_son", "sure_ms", "dcir_sayisi")),
 }
 _NOT_BAS = struct.Struct("<IB3xII")                # hedef, alan, nokta_ms, degistirir
+_AYRINTI_BAS = struct.Struct("<IIIHBx")            # ilk, t0_ms, t0_us, adet, bayrak
+_AYRINTI_ORNEK = struct.Struct("<hhH")             # v, i, (dt4 << 4 | bayrak)
 assert _NOKTA.size == NOKTA_BAYT
 assert [_OLAY_BAS.size + y.size for y, _ in _OLAY.values()] == [32, 44, 36]
 assert _NOT_BAS.size == 16
+assert _AYRINTI_BAS.size == 16 and _AYRINTI_ORNEK.size == 6
 assert 2 * _KANAL.size + _AKIM.size == KAL_BAYT
 assert _BASLA_BAS.size + KAL_BAYT == BASLA_V1_BAYT and BASLA_V1_BAYT + 4 == BASLA_BAYT
 
@@ -298,6 +304,37 @@ def not_paketle(hedef: int, alan: int, nokta_ms: int, degistirir: int,
     return _NOT_BAS.pack(hedef, alan, nokta_ms, degistirir) + bytes(metin)
 
 
+def ayrinti_paketle(d: dict) -> bytes:
+    """AYRINTI yuku (kayit_bicim.h ile ayni). ornekler: [(v, i, dt4, bayrak)]."""
+    return (_AYRINTI_BAS.pack(d["ilk"], d["t0_ms"], d["t0_us"], len(d["ornekler"]), d["bayrak"])
+            + b"".join(_AYRINTI_ORNEK.pack(v, i, (dt4 << 4) | (b & 0xF))
+                       for v, i, dt4, b in d["ornekler"]))
+
+
+def ayrinti_coz(y: bytes) -> dict:
+    ilk, ms, us, adet, bayrak = _AYRINTI_BAS.unpack_from(y)
+    adet = min(adet, (len(y) - _AYRINTI_BAS.size) // _AYRINTI_ORNEK.size)
+    orn = []
+    for k in range(adet):
+        v, i, w = _AYRINTI_ORNEK.unpack_from(y, _AYRINTI_BAS.size + k * _AYRINTI_ORNEK.size)
+        orn.append((v, i, w >> 4, w & 0xF))
+    return {"ilk": ilk, "t0_ms": ms, "t0_us": us, "bayrak": bayrak, "ornekler": orn}
+
+
+def ayrinti_ornekler(o) -> list[tuple[int, int, int, int, int]]:
+    """Oturumun ayrintili ornekleri: (sira, mutlak_us, v_kod, i_kod, bayrak).
+    mutlak_us = t0_us + 4 x (dt4 toplami); micros()'un 32 bit sarmasi t0_ms'den
+    cozulur (ikisi ayni zamanlayicidan: t0_ms x 1000 ~ gercek us)."""
+    cikti = []
+    for r in sorted(o.ayrinti, key=lambda x: x["sira"]):
+        k = round((r["t0_ms"] * 1000 - r["t0_us"]) / 2**32)
+        t = r["t0_us"] + k * 2**32
+        for j, (v, i, dt4, b) in enumerate(r["ornekler"]):
+            t += 4 * dt4
+            cikti.append((r["ilk"] + j, t, v, i, b))
+    return cikti
+
+
 def not_coz(y: bytes) -> dict:
     h, a, ms, dg = _NOT_BAS.unpack_from(y)
     return {"hedef": h, "alan": a, "nokta_ms": ms, "degistirir": dg,
@@ -346,6 +383,7 @@ class Oturum:
     ad: str | None = None                                 # 1C-1: en son NOT(ad)
     etiketler: list[str] = field(default_factory=list)    # en son NOT(etiket), virgulden
     notlar: dict[int, dict] = field(default_factory=dict)  # NOT kaydinin sirasi -> not
+    ayrinti: list[dict] = field(default_factory=list)     # 1C-2: ayrinti_coz + "sira"
 
 
 def _not_uygula(o: Oturum, k: Kayit) -> None:
@@ -383,6 +421,9 @@ def oturumlari_kur(kayitlar: list[Kayit]) -> dict[int, Oturum]:
         o = ot.setdefault(k.oturum, Oturum(k.oturum))
         if k.tur == T_OLAY and len(k.yuk) >= _OLAY_BAS.size:
             o.olaylar.append({**olay_coz(k.yuk), "sira": k.sira})
+            continue
+        if k.tur == T_AYRINTI and len(k.yuk) >= _AYRINTI_BAS.size:
+            o.ayrinti.append({**ayrinti_coz(k.yuk), "sira": k.sira})
             continue
         if k.tur == T_BASLA:
             o.basla = basla_coz(k.yuk)
