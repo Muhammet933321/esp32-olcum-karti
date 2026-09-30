@@ -1402,6 +1402,10 @@ MUTASYONLAR = [
     ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/kayit_esp.h",
      "        kn_kayip(&kayit_kn);", "        (void)0;",
      "kuyruk tasmasi noktada isaretlenmezse kayip sessiz: F15 kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/kayit_esp.h",
+     "        vTaskDelay(1);\n        son = millis();", "        son = millis();",
+     "tarama cekirdek 0'i birakmazsa Task WDT dolu bolumde karti SONSUZ sifirlar "
+     "(tezgahta goruldu): F16 kirmizi"),
     ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "if (pil_testi_suruyor()) {   /* pil testi kaydini silme", "if (0) {   /* pil testi kaydini silme",
      "pil testi surerken bicimleme kabul edilirse F9 kirmizi"),

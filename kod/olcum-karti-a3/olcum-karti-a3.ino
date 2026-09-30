@@ -4156,7 +4156,9 @@ void setup() {
     Serial.print((uint32_t)(kayit_bolum->size / 1024u));
     Serial.print(F(" KB, "));
     Serial.print((uint32_t)(kayit_bolum->size / KAYIT_SEKTOR));
-    Serial.println(F(" sektor — tarama gorevde, `G?` durum"));
+    Serial.print(F(" sektor, "));
+    Serial.print(kayit_esle_ptr ? F("bellege esli") : F("ESLENEMEDI (yavas okuma)"));
+    Serial.println(F(" — tarama gorevde, `G?` durum"));
   } else {
     Serial.println(F("KAPALI — 'kayit' bolumu ya da bellek yok (partitions.csv ile tam yukleme)"));
   }

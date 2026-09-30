@@ -192,6 +192,13 @@ def bolum_kaynak() -> None:
     ok("B72.F14 /kayit/veri akis kimligini ve X-Onay'i basliyor; /kayit/liste kimlik veriyor",
        'sendHeader("X-Kayit-Kimlik"' in vs and 'sendHeader("X-Onay"' in vs
        and '\\"kimlik\\"' in ls)
+    fo = govde(esp_k, "static int kayit_f_oku(")
+    nf = govde(esp_k, "static void kayit__nefes(")
+    ok("B72.F16 uzun tarama cekirdek 0'i BIRAKIR (Task WDT dolu bolumde karti "
+       "sonsuz yeniden baslatiyordu) ve okuma bellege esli bolumden",
+       "vTaskDelay(1)" in nf and "kayit__nefes()" in fo
+       and "memcpy(h, kayit_esle_ptr + a, n)" in fo
+       and "esp_partition_mmap(" in esp_k)
     gd = govde(esp_k, "static void kayit__gonder(")
     ok("B72.F15 kuyruk dolarsa kayip SESSIZ degil: sonraki nokta KAYIP_ONCE, sayac artar",
        "kn_kayip(&kayit_kn)" in gd and "kayit_kuyruk_dusen = kayit_kuyruk_dusen + 1u" in gd)
@@ -495,6 +502,13 @@ def main() -> int:
         ("Esitlenen dosya == karttaki flas bolumu (bayt bayt)",
          "tezgah_kayit.py --esit: esptool ile okunan bolumdeki her kayit "
          "esitlenen dosyadakiyle ayni"),
+        ("DOLU bolumde acilis (bolumu 50/s ONAYSIZ ~1.7 sa doldur)",
+         "tezgah_kayit.py --dolu: tarama < 5 s ve Task WDT sifirlamasi YOK "
+         "(2026-09-30'da sonsuz yeniden baslama bulundu), 11 MB esitlenir, "
+         "onay dogrulanir, halka doner, dusen 0"),
+        ("DOLU bolumde GF!",
+         "tezgah_kayit.py --bicim: anlik biter, temizlik surerken /kayit/liste "
+         "her istekte < 1 s (p0 ayni web sunucusunda), temiz_kalan azalir"),
         ("Gercek fis cekme (USB + PIL kapali)",
          "elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla "
          "son ~5 s"),

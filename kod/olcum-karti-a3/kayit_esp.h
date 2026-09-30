@@ -104,9 +104,36 @@ static uint8_t  kayit_nvs_acik = 0;
 static uint8_t  kayit_saat_ntp = 0, kayit_saat_gecerli = 0;
 
 /* ─────────────────────────────── flas: esp_partition */
+static const uint8_t *kayit_esle_ptr = nullptr;       /* bolum bellege esli (mmap) */
+static esp_partition_mmap_handle_t kayit_esle_kolu;
+
+/* 🔴 Tezgah 2026-09-30 (dolu bolum): acilis taramasi 11.4 MB'in her kaydinin
+   CRC'sini okuyor ve cekirdek 0'i saniyelerce birakmiyordu -> Task WDT (IDLE0)
+   karti 5 s'de SIFIRLIYORDU; her acilis ayni taramaya girdigi icin SONSUZ
+   yeniden baslama: bolum dolunca kayitlara hic ulasilamiyordu. Kayit gorevi
+   uzun islerde 50 ms'de bir tick birakir (kilit tutulurken de guvenli: web
+   uclari sureli bekler). */
+static void kayit__nefes(void)
+{
+    static uint32_t son = 0;
+    if (xTaskGetCurrentTaskHandle() != kayit_gorev_kolu) return;
+    if (millis() - son >= 50u) {
+        vTaskDelay(1);
+        son = millis();
+    }
+}
+
+/* Okuma bellege esli bolumden (onbellek uzerinden): esp_partition_read her
+   cagrida onbellegi KAPATIP iki cekirdegi de durduruyordu (256 B'lik ~46 000
+   okuma). Yazma/silme sonrasi IDF esli araligin onbellegini tazeliyor. */
 static int kayit_f_oku(void *b, uint32_t a, void *h, uint32_t n)
 {
     (void)b;
+    kayit__nefes();
+    if (kayit_esle_ptr) {
+        memcpy(h, kayit_esle_ptr + a, n);
+        return 0;
+    }
     return esp_partition_read(kayit_bolum, a, h, n) == ESP_OK ? 0 : -1;
 }
 
@@ -115,6 +142,7 @@ static int kayit_f_yaz(void *b, uint32_t a, const void *k, uint32_t n)
     uint32_t t = micros();
     esp_err_t e;
     (void)b;
+    kayit__nefes();
     e = esp_partition_write(kayit_bolum, a, k, n);
     t = micros() - t;
     if (t > kayit_yaz_azami_us) kayit_yaz_azami_us = t;
@@ -126,6 +154,7 @@ static int kayit_f_sil(void *b, uint32_t a)
     uint32_t t = micros();
     esp_err_t e;
     (void)b;
+    kayit__nefes();
     e = esp_partition_erase_range(kayit_bolum, a, KAYIT_SEKTOR);
     t = micros() - t;
     if (t > kayit_sil_azami_us) kayit_sil_azami_us = t;
@@ -286,6 +315,12 @@ static bool kayit_kur(void)
                                            (esp_partition_subtype_t)KAYIT_ALT_TUR, "kayit");
     if (!kayit_bolum) return false;
     adet = kayit_bolum->size / KAYIT_SEKTOR;
+    {
+        const void *p = nullptr;
+        if (esp_partition_mmap(kayit_bolum, 0, kayit_bolum->size, ESP_PARTITION_MMAP_DATA,
+                               &p, &kayit_esle_kolu) == ESP_OK)
+            kayit_esle_ptr = (const uint8_t *)p;       /* olmazsa esp_partition_read */
+    }
     kayit_sektor = (KayitSektor *)heap_caps_malloc(adet * sizeof(KayitSektor), MALLOC_CAP_SPIRAM);
     kayit_dizin = (KayitOzet *)heap_caps_malloc(KAYIT_DIZIN_KAP * sizeof(KayitOzet),
                                                  MALLOC_CAP_SPIRAM);

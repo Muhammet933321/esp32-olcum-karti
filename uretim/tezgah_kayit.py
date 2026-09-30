@@ -55,6 +55,19 @@ def esptool() -> Path:
     return sorted(taban.glob("esptool_py/*/esptool.exe"))[-1]
 
 
+def flas_oku(port: str, ofset: int, boyut: int, hedef: Path) -> int:
+    """esptool read-flash; 921600 baud'da ara sira 'Corrupt data' (2026-09-30,
+    gecici) -> bir kez daha, sonra 460800 ile dene."""
+    rc = 1
+    for baud in ("921600", "921600", "460800"):
+        rc = subprocess.run([str(esptool()), "--port", port, "-b", baud, "read-flash",
+                             hex(ofset), hex(boyut), str(hedef)]).returncode
+        if rc == 0:
+            break
+        time.sleep(1.0)
+    return rc
+
+
 def kayit_bolumu() -> tuple[int, int]:
     for s in (KOK / "kod" / "olcum-karti-a3" / "partitions.csv").read_text().splitlines():
         p = [x.strip() for x in s.split("#", 1)[0].split(",")]
@@ -104,8 +117,7 @@ def yedek(port: str) -> int:
     YEDEK.mkdir(parents=True, exist_ok=True)
     hedef = YEDEK / f"tam-{datetime.datetime.now():%Y%m%d-%H%M%S}.bin"
     print(f"tam flas yedegi -> {hedef} (16 MB, ~3 dk)")
-    rc = subprocess.run([str(esptool()), "--port", port, "-b", "921600", "read-flash",
-                         "0x0", "0x1000000", str(hedef)]).returncode
+    rc = flas_oku(port, 0, 0x1000000, hedef)
     ok("tam flas yedegi alindi (16 MB)",
        rc == 0 and hedef.exists() and hedef.stat().st_size == 16 * 1024 * 1024, str(hedef))
     return 0 if kaldi == 0 else 1
@@ -336,8 +348,9 @@ def esit(k, host: str, port: str) -> None:
         k.kapat()
         ofset, boyut = kayit_bolumu()
         dokum = Path(d) / "kayit.bin"
-        subprocess.run([str(esptool()), "--port", port, "-b", "921600", "read-flash",
-                        hex(ofset), hex(boyut), str(dokum)], check=True)
+        time.sleep(1.0)                        # port birakilsin
+        if flas_oku(port, ofset, boyut, dokum):
+            raise SystemExit("esptool bolumu okuyamadi")
         flas, bozuk = KB.flas_coz(dokum.read_bytes(), 4096)
 
     def ozu(x):
