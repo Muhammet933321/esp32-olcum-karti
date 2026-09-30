@@ -548,10 +548,15 @@ static inline uint16_t kayit_olay_sonuc_paketle(uint32_t kart_ms, const KayitPil
 /* ─────────────────────────────── NOT (1C-1): oturuma ad / etiket / not
  *    0 u32 hedef_oturum · 4 u8 alan (KNT_*) · 5 u8 0 · 6 u16 0 ·
  *    8 u32 nokta_ms (not: grafikteki kart_ms; 0 = oturumun geneli) ·
- *   12 u32 degistirir (0 = yeni; > 0 = o siradaki NOT kaydinin yerine gecer,
- *                      metin bossa onu SILER) · 16 metin (UTF-8, <= 120 B, NUL'suz)
+ *   12 u32 degistirir (0 = yeni; > 0 = ASIL notun (ilk yazilan NOT kaydinin)
+ *                      sirasi: onun yerine gecer, metin bossa onu SILER) ·
+ *   16 metin (UTF-8, <= 120 B, NUL'suz)
  * Baslikta oturum 0: baska oturum surerken de yazilir. Kart YORUMLAMAZ; son
- * hali PC kurar (ad/etiket: en son kayit; notlar: degistir/sil). */
+ * hali PC kurar (kopru/kayit_bicim.py _not_uygula, ortak/ ayni kurali tasir):
+ *   ad/etiket: en son kayit gecerli · not: `degistirir` ASIL sirayi gosterir
+ *   (duzeltilmis bir not yine asil sirasiyla hedeflenir); duzeltmede nokta_ms 0
+ *   = notun grafik yeri KORUNUR; bilinmeyen/silinmis sira YOK SAYILIR (hayalet
+ *   not uretmez). */
 #define KNT_AD     1u
 #define KNT_ETIKET 2u
 #define KNT_NOT    3u
@@ -573,6 +578,78 @@ static inline uint16_t kayit_not_paketle(uint32_t hedef, uint8_t alan, uint32_t 
     n = kayit_metin_kopyala((char *)(p + KAYIT_NOT_BAS), metin,
                             (uint8_t)(KAYIT_NOT_METIN + 1u));
     return (uint16_t)(KAYIT_NOT_BAS + n);
+}
+
+/* ─────────────────────────────── NOT KOMUTU (1C-1 son inceleme)
+ * Kartin seri/web komutu Ga/Ge/Gn/Gx — platformsuz ki bozuk argumanlar AVR'de
+ * sinansin (B71.B21). Sayilar YALNIZ rakam: isaret, bosluk, bos sayi, 32 bit
+ * tasmasi ve 0 oturum/sira REDDEDILIR (strtoul hepsini sessizce kabul edip
+ * kayit yazdiriyordu). Bozuk argumanda kayit YAZILMAZ.
+ *   Ga<oturum>[ <ad>]                         ad (bos: adi siler)
+ *   Ge<oturum>[ <etiket, ...>]                etiketler (bos: siler)
+ *   Gn<oturum>[@<kart_ms>] <not>              yeni not, metin ZORUNLU
+ *   Gx<oturum>:<sira>[@<kart_ms>][ <metin>]   ASIL <sira>'daki notu degistir
+ *                                             (@ yoksa grafik yeri korunur);
+ *                                             metin bossa SIL */
+#define KNK_TAMAM  0u
+#define KNK_OTURUM 1u   /* oturum numarasi yok / 0 / rakam disi / tasma */
+#define KNK_SIRA   2u   /* Gx: ':' + sira yok / 0 / rakam disi */
+#define KNK_ZAMAN  3u   /* '@' sonrasi rakam yok */
+#define KNK_METIN  4u   /* numaradan sonra bosluk yok ya da Gn metni bos */
+#define KNK_ALT    5u   /* a/e/n/x degil */
+
+typedef struct {
+    uint8_t     alan;
+    uint32_t    hedef, nokta_ms, degistirir;
+    const char *metin;
+} KayitNotKomut;
+
+/* Yalniz rakam; en az bir rakam, 32 bit tasmasi yok. Basarida *p ilerler. */
+static inline uint8_t kayit__rakam(const char **p, uint32_t *v)
+{
+    const char *s = *p;
+    uint32_t x = 0u, d;
+    uint8_t n = 0u;
+    while (*s >= '0' && *s <= '9') {
+        d = (uint32_t)(*s - '0');
+        if (x > (0xFFFFFFFFUL - d) / 10u) return 0u;
+        x = x * 10u + d;
+        s++;
+        n++;
+    }
+    if (!n) return 0u;
+    *p = s;
+    *v = x;
+    return 1u;
+}
+
+static inline uint8_t kayit_not_ayir(const char *s, KayitNotKomut *k)
+{
+    const char *p;
+    char a;
+    memset(k, 0, sizeof(*k));
+    if (s[0] != 'G') return KNK_ALT;
+    a = s[1];
+    if (a == 'a') k->alan = KNT_AD;
+    else if (a == 'e') k->alan = KNT_ETIKET;
+    else if (a == 'n' || a == 'x') k->alan = KNT_NOT;
+    else return KNK_ALT;
+    p = s + 2;
+    if (!kayit__rakam(&p, &k->hedef) || !k->hedef) return KNK_OTURUM;
+    if (a == 'x') {
+        if (*p != ':') return KNK_SIRA;
+        p++;
+        if (!kayit__rakam(&p, &k->degistirir) || !k->degistirir) return KNK_SIRA;
+    }
+    if ((a == 'n' || a == 'x') && *p == '@') {
+        p++;
+        if (!kayit__rakam(&p, &k->nokta_ms)) return KNK_ZAMAN;
+    }
+    if (*p == ' ') p++;
+    else if (*p) return KNK_METIN;
+    if (a == 'n' && !*p) return KNK_METIN;
+    k->metin = p;
+    return KNK_TAMAM;
 }
 
 #endif /* KAYIT_BICIM_H */

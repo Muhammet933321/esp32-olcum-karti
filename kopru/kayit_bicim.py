@@ -356,11 +356,16 @@ def _not_uygula(o: Oturum, k: Kayit) -> None:
     elif n["alan"] == KNT_ETIKET:
         o.etiketler = [e.strip() for e in n["metin"].split(",") if e.strip()]
     elif n["alan"] == KNT_NOT:
-        if n["degistirir"] in o.notlar:
-            if n["metin"]:
-                o.notlar[n["degistirir"]] = {"nokta_ms": n["nokta_ms"], "metin": n["metin"]}
-            else:
-                del o.notlar[n["degistirir"]]
+        dg = n["degistirir"]
+        if dg:
+            # ASIL notun sirasi (kayit_bicim.h); bilinmeyen/silinmis ya da bir
+            # duzeltme kaydinin sirasi YOK SAYILIR — hayalet not uretmez
+            if dg in o.notlar:
+                if n["metin"]:
+                    o.notlar[dg] = {"nokta_ms": n["nokta_ms"] or o.notlar[dg]["nokta_ms"],
+                                    "metin": n["metin"]}    # nokta_ms 0: yer KORUNUR
+                else:
+                    del o.notlar[dg]
         elif n["metin"]:
             o.notlar[k.sira] = {"nokta_ms": n["nokta_ms"], "metin": n["metin"]}
 

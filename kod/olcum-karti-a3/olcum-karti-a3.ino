@@ -2299,8 +2299,10 @@ static void pil_isle(const Okuma3 &o, uint32_t dt_us) {
   // --- DCIR darbesi icindeysek
   if (pil.dcir_icinde) {
     if (ms - pil.dcir_bas_ms == 0) return;      // ilk tur, henuz olcum yok
-    if (pil.dcir_sayisi == 0 || pil.dcir_ani == 0.0f) {
-      // darbeden SONRAKI ILK ornek — "ani" deger
+    if (pil.dcir_ani == 0.0f) {
+      // darbeden SONRAKI ILK ornek — "ani" deger. dcir_ani darbe basinda 0'a
+      // cekiliyor. (Eskiden `dcir_sayisi == 0 ||` de vardi: ILK darbede her
+      // ornekte dogruydu, ani deger darbenin SON orneginden geliyordu.)
       pil.dcir_ani = pil_dcir(pil.dcir_v_once, o.volt, pil.dcir_i_once);
       pil_dcir_v_ani = o.volt;
     }
@@ -2740,7 +2742,10 @@ void komut_calistir(const char *s);   // asagida tanimli (imza birebir)
    ya da ayni komutun iki kez calismasi). FreeRTOS kuyrugu bunu kendi
    kritik bolgesiyle cozuyor; `false` donusu (kuyruk dolu -> HTTP 503)
    ve 48 baytlik kalem sinirlari AYNI kaldi. */
-typedef struct { char m[48]; } KomutKalem;
+/* 1C-1 son inceleme 3: 48 idi — 120 baytlik not (Gn/Gx) sessizce kesiliyordu.
+   Uzun komut artik REDDEDILIR (seri + web), kesilmez. */
+#define KOMUT_AZAMI 176u
+typedef struct { char m[KOMUT_AZAMI]; } KomutKalem;
 static QueueHandle_t komut_kuyrugu_q = nullptr;
 
 static bool komut_kuyruga(const char *k) {
@@ -2875,8 +2880,6 @@ static void kayit_durum_bas(bool zorla) {
 // ═════════════════════════════════════ 1C-1 — PIL TESTI KENDI OTURUMUNDA ═══
 // Durum makinesi kayit_yonet.h'de (B71.PL). Buradan yalniz TEK mesajlar gider;
 // hicbiri beklemez: p0 yolu (pil_durdur) kuyruga ya da kayit kilidine TAKILMAZ.
-static uint8_t    kayit_pil_bekleyen = 0;      /* pil bitir mesaji kuyruga giremedi */
-static KayitMesaj kayit_pil_bekleyen_m;
 
 static uint32_t pil_kayit_hiz_ms() {
   float hz = ayar.pil_kayit_hz > 0.01f ? ayar.pil_kayit_hz : 1.0f;
@@ -2914,7 +2917,7 @@ static void kayit_pil_baslat() {
   a.kayit_hz = ayar.pil_kayit_hz;
   m.n = kayit_olay_ayar_paketle(millis(), &a, m.yuk);
   if (kayit_mesaj_gonder(&m))
-    Serial.println(F("* pil testi KAYITTA (oturum turu PIL; olcum kaydi aciksa kapandi)"));
+    Serial.println(F("* pil testi kaydi istendi (oturum turu PIL; olcum kaydi aciksa kapanir) — sonuc G satirinda"));
   else
     Serial.println(F("! pil testi KAYDEDILMIYOR — kayit istek kuyrugu dolu"));
 }
@@ -2939,11 +2942,12 @@ static void kayit_pil_dcir(float v_oturmus) {
   if (!kayit_mesaj_gonder(&m)) Serial.println(F("! G: DCIR olayi kuyrukta DUSTU (istek kuyrugu dolu)"));
 }
 
-/* pil_durdur'dan, yuk KESILDIKTEN sonra. Bu mesaj DUSMEZ (F32): kuyruk doluysa
-   bekletilir, loop her turda yeniden dener — dusseydi pil oturumu acik kalip
-   test bittigi halde nokta yazmayi surdururdu. */
+/* pil_durdur'dan, yuk KESILDIKTEN sonra. Bu mesaj DUSMEZ ve GECILMEZ (F32):
+   kuyruk doluysa bekler, loop her turda yeniden dener, bekleyen varken baska
+   istek onun onune gecemez (kayit_esp.h kayit_mesaj_birak). */
 static void kayit_pil_bitir(uint8_t sebep) {
-  KayitMesaj *m = &kayit_pil_bekleyen_m;
+  KayitMesaj mm;
+  KayitMesaj *m = &mm;
   if (!kayit_bolum) return;
   memset(m, 0, sizeof(*m));
   m->tur = KM_PIL_BITIR;
@@ -2958,7 +2962,7 @@ static void kayit_pil_bitir(uint8_t sebep) {
   s.sure_ms = pil.bitis_ms - pil.baslama_ms;
   s.dcir_sayisi = pil.dcir_sayisi;
   m->n = kayit_olay_sonuc_paketle(millis(), &s, m->yuk);
-  kayit_pil_bekleyen = kayit__kuyruga(m) ? 0u : 1u;
+  kayit_mesaj_birak(m);
 }
 
 /* Ga<oturum> <ad> · Ge<oturum> <etiket, etiket> · Gn<oturum>[@<kart_ms>] <not> ·
@@ -2966,42 +2970,22 @@ static void kayit_pil_bitir(uint8_t sebep) {
    PC kurar (kayit_bicim.py). Bozuk argumanda kayit YAZILMAZ. */
 static void kayit_not_komut(const char *s) {
   KayitMesaj m;
-  const char alt = s[1];
-  char *son;
-  char *son2;
-  uint32_t hedef = strtoul(s + 2, &son, 10), ms = 0, deg = 0;
-  uint8_t alan = alt == 'a' ? KNT_AD : alt == 'e' ? KNT_ETIKET : KNT_NOT;
-  if (!hedef || son == s + 2) {
-    Serial.println(F("! G: oturum numarasi gerekli (G? ya da /kayit/liste)"));
-    return;
-  }
-  if (alt == 'n' && *son == '@') ms = strtoul(son + 1, &son, 10);
-  if (alt == 'x') {
-    if (*son != ':') {
-      Serial.println(F("! G: Gx<oturum>:<sira> <metin> — metin bossa not silinir"));
-      return;
-    }
-    deg = strtoul(son + 1, &son2, 10);
-    if (!deg || son2 == son + 1) {
-      Serial.println(F("! G: Gx<oturum>:<sira> — sira numarasi gerekli"));
-      return;
-    }
-    son = son2;
-  }
-  if (*son == ' ') son++;
-  else if (*son) {
-    Serial.println(F("! G: numaradan sonra bosluk ve metin"));
-    return;
-  }
-  if (alt == 'n' && !*son) {
-    Serial.println(F("! G: not bos (silmek icin Gx<oturum>:<sira>)"));
+  KayitNotKomut k;
+  const uint8_t r = kayit_not_ayir(s, &k);   /* platformsuz, B71.B21 */
+  if (r) {
+    Serial.print(F("! G: "));
+    Serial.println(r == KNK_OTURUM ? F("oturum numarasi gerekli (yalniz rakam, 0 degil)")
+                 : r == KNK_SIRA   ? F("Gx<oturum>:<sira> — sira gerekli (yalniz rakam, 0 degil)")
+                 : r == KNK_ZAMAN  ? F("@ sonrasi kart_ms gerekli (yalniz rakam)")
+                 : r == KNK_METIN  ? F("numaradan sonra bosluk ve metin (Gn'de metin zorunlu)")
+                 : F("alt komut a / e / n / x"));
     return;
   }
   memset(&m, 0, sizeof(m));
   m.tur = KM_NOT;
-  m.n = kayit_not_paketle(hedef, alan, ms, deg, son, m.yuk);
+  m.n = kayit_not_paketle(k.hedef, k.alan, k.nokta_ms, k.degistirir, k.metin, m.yuk);
   if (kayit_mesaj_gonder(&m))
-    Serial.println(F("* G not kuyrukta — sonuc G satirinda (gecersiz oturum: hata 4)"));
+    Serial.println(F("* G not kuyrukta (verilmemis oturuma yazilmaz; sonuc esitlenen dosyada)"));
   else
     Serial.println(F("! G: istek kuyrugu dolu"));
 }
@@ -3064,7 +3048,7 @@ static void kayit_komut(const char *s) {
     Serial.println(F("! G: alt komut b<ms> d ? o<sira> F!  a<id> e<id> n<id> x<id>:<sira>"));
     return;
   }
-  if (xQueueSend(kayit_mesaj_q, &m, 0) == pdTRUE)
+  if (kayit_mesaj_gonder(&m))    /* bekleyen pil bitir ONCE (F32) */
     Serial.println(F("* G istek kuyrukta — sonuc G satirinda"));
   else
     Serial.println(F("! G: istek kuyrugu dolu"));
@@ -3384,6 +3368,10 @@ void komut_sayfa() {
   String k = sunucu.arg("plain");
   k.trim();
   if (!k.length()) { sunucu.send(400, "text/plain", "bos komut"); return; }
+  if (k.length() >= sizeof(KomutKalem::m)) {   /* kesmek yerine REDDET */
+    sunucu.send(413, "text/plain", "komut cok uzun (en fazla 175 karakter)");
+    return;
+  }
 
   if (!komut_serbest(k.c_str())) {
     if (sunucu.header("X-Jeton") != String(oturum_jetonu)) {
@@ -3689,7 +3677,7 @@ void yardim() {
   Serial.println(F("  Gb<ms> kayit baslat (20/100/200/1000/10000/60000)  Gd durdur  G? durum"));
   Serial.println(F("  Go<sira> esitlenen kayitlari onayla   GF! BUTUN kayitlari sil"));
   Serial.println(F("  Ga<oturum> <ad>  Ge<oturum> <etiket, ...>  Gn<oturum>[@<ms>] <not>"));
-  Serial.println(F("  Gx<oturum>:<sira> <metin> notu degistir (metin bos: sil)"));
+  Serial.println(F("  Gx<oturum>:<sira>[@<ms>] <metin> notu degistir (metin bos: sil) · komut <= 175 karakter"));
   Serial.println(F("  k? kalibrasyon gecmisi  kl liste  kv<no> degerler  kk<t><not> taslagi kaydet"));
   Serial.println(F("  kn<no> <not>  kt<no><t>   (t: d donanim degisti, i ince ayar, - belirtilmemis)"));
 }
@@ -4166,6 +4154,10 @@ void komut_calistir(const char *s) {
           Serial.println(F("! pil: skop yakalamasi suruyor (ADS susuyor) — tekrar dene"));
           break;
         }
+        if (pil.durum == PIL_CALISIYOR) {   /* son inceleme: yeniden baslatma YOK */
+          Serial.println(F("! pil testi zaten suruyor — yeniden baslatmak icin once p0"));
+          break;
+        }
         pil_baslat();
         break;
       }
@@ -4310,18 +4302,23 @@ void komut_calistir(const char *s) {
 }
 
 void komut_isle() {
-  static char tampon[48];
-  static uint8_t n = 0;
+  static char tampon[KOMUT_AZAMI];
+  static uint8_t n = 0, tasti = 0;
   while (Serial.available()) {
     char c = (char)Serial.read();
     if (c == '\n' || c == '\r') {
-      if (n) {
+      if (tasti) {                 /* kesik komut CALISTIRILMAZ */
+        Serial.println(F("! komut cok uzun (en fazla 175 karakter) — calistirilmadi"));
+      } else if (n) {
         tampon[n] = 0;
         komut_calistir(tampon);
-        n = 0;
       }
+      n = 0;
+      tasti = 0;
     } else if (n < sizeof(tampon) - 1) {
       tampon[n++] = c;
+    } else {
+      tasti = 1;
     }
   }
 }
@@ -4670,8 +4667,8 @@ void loop() {
   //   ama bir tik beklemez.
   yield();
 
-  /* 1C-1: pil bitir mesaji kuyruga girememisse her turda yeniden (F32) */
-  if (kayit_pil_bekleyen && kayit__kuyruga(&kayit_pil_bekleyen_m)) kayit_pil_bekleyen = 0;
+  /* 1C-1: kuyruga girememis pil bitir mesaji her turda yeniden (F32) */
+  (void)kayit__bekleyeni_gonder();
 
   /* 🔴 B41 — YAKALAMA SURERKEN ADS SUSUYOR. Yuklu I2C hattinin kenarlari
      skop donusumune tek-ornek hata sokuyor; pini tasimak cozmuyor (B44)

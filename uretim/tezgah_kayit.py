@@ -437,9 +437,10 @@ def pil(k, host: str) -> None:
     g0 = durum_iste(k)
     satir, _ = komut(k, "p1", 3)
     g1 = durum_iste(k)
-    ok("p1 (ADS yok) REDDEDILDI; kayit oturumu ACILMADI, KAYITTA/KAYDEDILMIYOR basilmadi",
+    ok("p1 (ADS yok) REDDEDILDI; kayit oturumu ACILMADI, 'kaydi istendi'/KAYDEDILMIYOR "
+       "basilmadi",
        any("REDDEDILDI" in s for s in satir)
-       and not any("KAYITTA" in s or "KAYDEDILMIYOR" in s for s in satir)
+       and not any("kaydi istendi" in s or "KAYDEDILMIYOR" in s for s in satir)
        and bool(g0) and bool(g1) and g1["sonraki"] == g0["sonraki"]
        and g1["durum"] == g0["durum"],
        f"{[s for s in satir if 'pil' in s]} sonraki {g0 and g0['sonraki']} -> "

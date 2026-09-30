@@ -385,11 +385,39 @@ static bool kayit__kuyruga(const KayitMesaj *m)
     return kayit_mesaj_q && xQueueSend(kayit_mesaj_q, m, 0) == pdTRUE;
 }
 
+/* 1C-1 son inceleme 1: kuyruga giremeyen pil bitir mesaji BEKLER ve SIRA
+   ONUNDUR. Sonraki hicbir istek (p1'in PIL_BASLAT'i, Gb, olay, not) onu
+   gecemez: gecseydi bir sonraki testin oturumu, oncekinin SONUC'uyla
+   kapanirdi. */
+static uint8_t    kayit_bekleyen = 0;
+static KayitMesaj kayit_bekleyen_m;
+
+/* Bekleyen yoksa ya da simdi gittiyse true. loop her turda cagirir. */
+static bool kayit__bekleyeni_gonder(void)
+{
+    if (!kayit_bekleyen) return true;
+    if (!kayit__kuyruga(&kayit_bekleyen_m)) return false;
+    kayit_bekleyen = 0u;
+    return true;
+}
+
+/* Siradan istek: bekleyen once; o gidemezse bu istek REDDEDILIR (sayilir). */
 static bool kayit_mesaj_gonder(const KayitMesaj *m)
 {
-    if (kayit__kuyruga(m)) return true;
+    if (kayit__bekleyeni_gonder() && kayit__kuyruga(m)) return true;
     kayit_mesaj_dusen = kayit_mesaj_dusen + 1u;
     return false;
+}
+
+/* DUSMEYECEK istek (pil bitir): gidemezse bekler. Bekleyen varken ikincisi
+   gelirse ESKISI korunur: o kaydedilen testindir; sonraki test, bekleyen varken
+   kayit alamadigi (PIL_BASLAT reddedildi) icin bitisi de yazilmaz. */
+static void kayit_mesaj_birak(const KayitMesaj *m)
+{
+    if (!kayit__bekleyeni_gonder()) return;
+    if (kayit__kuyruga(m)) return;
+    kayit_bekleyen_m = *m;
+    kayit_bekleyen = 1u;
 }
 
 /* ─────────────────────────────── noktaci (cekirdek 1) */

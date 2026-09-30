@@ -271,10 +271,16 @@ def bolum_kaynak() -> None:
        and "pil_testi_suruyor()" in kk2[kk2.find("alt == 'd'"):kk2.find("alt == 'o'")]
        and "k[0] == 'p' && k[1] == '0'" in govde(ino_k, "static bool komut_serbest("))
     bt = govde(ino_k, "static void kayit_pil_bitir(uint8_t sebep) {")   # ileri bildirim degil
-    ok("B72.F32 pil bitir mesaji DUSMEZ: kuyruk doluysa bekletilir, loop her turda yeniden "
-       "gonderir (dusseydi pil oturumu acik kalip nokta yazmayi surdururdu)",
-       "kayit_pil_bekleyen" in bt and "kayit_pil_bekleyen" in lp
-       and "kayit__kuyruga(&kayit_pil_bekleyen_m)" in lp)
+    mg = govde(esp_k, "static bool kayit_mesaj_gonder(")
+    mb = govde(esp_k, "static void kayit_mesaj_birak(")
+    ok("B72.F32 pil bitir mesaji DUSMEZ ve GECILMEZ: kuyruga giremezse bekler, loop her "
+       "turda yeniden dener; bekleyen varken hicbir istek (p1, Gb, olay, not) onun ONUNE "
+       "gecemez — once o gider, gidemezse yeni istek reddedilir (son inceleme 1-2)",
+       "kayit_mesaj_birak(m)" in bt and "kayit__bekleyeni_gonder()" in lp
+       and re.search(r"if \(kayit__bekleyeni_gonder\(\) && kayit__kuyruga\(m\)\) return true;", mg)
+       is not None
+       and re.search(r"kayit_bekleyen_m = \*m;\s*kayit_bekleyen = 1u;", mb) is not None
+       and "xQueueSend(kayit_mesaj_q" not in ino_k)
     km = govde(esp_k, "static void kayit__mesaj(")
     ok("B72.F33 kayit gorevi yeni istekleri yoneticiye verir: PIL_BASLAT (baslat + AYAR "
        "olayi) · OLAY · PIL_BITIR · NOT",
@@ -285,8 +291,25 @@ def bolum_kaynak() -> None:
     nk = govde(ino_k, "static void kayit_not_komut(")
     ok("B72.F34 Ga/Ge/Gn/Gx: yardimda; oturum numarasi zorunlu; Gx ':' + sira ister "
        "(bozuk argumanda kayit YAZILMAZ); Gn bos metni reddeder",
-       "Ga<oturum>" in ino and "kayit_not_komut(s)" in kk2 and "!hedef" in nk
-       and "!= ':'" in nk and "!deg" in nk and "KM_NOT" in nk)
+       "Ga<oturum>" in ino and "kayit_not_komut(s)" in kk2
+       and "kayit_not_ayir(s, &k)" in nk and "KM_NOT" in nk and "strtoul" not in nk
+       and 0 <= nk.find("if (r)") < nk.find("kayit_mesaj_gonder("))
+    ka = re.search(r"#define KOMUT_AZAMI\s+(\d+)u", ino_k)
+    ki = govde(ino_k, "void komut_isle() {")
+    ks = govde(ino_k, "void komut_sayfa() {")
+    ok("B72.F37 komut satiri 120 baytlik notu tasir (KOMUT_AZAMI >= 160) ve uzun komut "
+       "SESSIZCE KESILMEZ: seri ve web REDDEDER (son inceleme 3)",
+       ka is not None and int(ka.group(1)) >= 160
+       and "char m[KOMUT_AZAMI]" in ino_k and "tampon[KOMUT_AZAMI]" in ki
+       and "cok uzun" in ki and "tasti = 1" in ki and "sizeof(KomutKalem::m)" in ks
+       and "cok uzun" in ks)
+    pk = ino_k[ino_k.find("case 'p': {"):ino_k.find("pil_baslat();", ino_k.find("case 'p': {"))]
+    ok("B72.F38 test SURERKEN p1 REDDEDILIR (eskisi yeniden baslatiyordu: pil oturumu SONUC'suz "
+       "kapaniyor ya da ret halinde acik kalip nokta yaziyordu)",
+       "pil.durum == PIL_CALISIYOR" in pk and "zaten suruyor" in pk)
+    ok("B72.F39 DCIR 'ani' degeri darbenin ILK orneginden (ilk darbede de): kosul "
+       "dcir_sayisi'na bakmaz (B21'den kalma hata; 1C-1 bunu flasa yaziyordu)",
+       "pil.dcir_sayisi == 0 ||" not in pi and "if (pil.dcir_ani == 0.0f) {" in pi)
     kp = govde(ino_k, "static void kayit_pil_baslat() {")
     ok("B72.F36 kayit acilamazsa pil testi YINE baslar ve kart 'KAYDEDILMIYOR' der "
        "(bolum yok / tarama / hata / dolu / bekliyor / kuyruk dolu)",

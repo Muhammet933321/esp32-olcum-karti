@@ -359,17 +359,38 @@ def _bicim_1c1(s: dict) -> None:
             KB.kayit_paketle(KB.T_NOT, 10, 0, nt(KB.KNT_NOT, "n1", 0, 1500)),
             KB.kayit_paketle(KB.T_NOT, 11, 0, nt(KB.KNT_NOT, "n2")),
             KB.kayit_paketle(KB.T_NOT, 12, 0, nt(KB.KNT_ETIKET, "18650, samsung ,")),
-            KB.kayit_paketle(KB.T_NOT, 13, 0, nt(KB.KNT_NOT, "n1 duzeltildi", 10, 1500)),
+            KB.kayit_paketle(KB.T_NOT, 13, 0, nt(KB.KNT_NOT, "n1 duzeltildi", 10, 0)),
             KB.kayit_paketle(KB.T_NOT, 14, 0, nt(KB.KNT_NOT, "", 11)),
+            KB.kayit_paketle(KB.T_NOT, 16, 0, nt(KB.KNT_NOT, "hayalet", 99)),
+            KB.kayit_paketle(KB.T_NOT, 17, 0, nt(KB.KNT_NOT, "yine hayalet", 13)),
             KB.kayit_paketle(KB.T_OLAY, 15, 5, KB.olay_paketle(sonuc))]
     ot = KB.oturumlari_kur(KB.akis_coz(b"".join(akis)))
     o = ot.get(5)
     ok("B71.B18 oturumlari_kur: olaylar sirayla; ad = SON ad; etiketler virgulden; not "
-       "degistirilir ve bos metinle SILINIR; oturum 0 baslikli NOT hedefe baglanir",
+       "degistirilir (nokta_ms 0: grafik yeri KORUNUR) ve bos metinle SILINIR; bilinmeyen "
+       "ya da duzeltme kaydinin sirasi hayalet not URETMEZ; oturum 0 baslikli NOT hedefe "
+       "baglanir",
        o is not None and [x["tur"] for x in o.olaylar] == [1, 2, 3]
        and o.ad == "son ad" and o.etiketler == ["18650", "samsung"]
        and o.notlar == {10: {"nokta_ms": 1500, "metin": "n1 duzeltildi"}} and 0 not in ot,
        f"{o and (o.ad, o.etiketler, o.notlar, [x['tur'] for x in o.olaylar])}")
+    nk = {int(a[2:]): v for a, v in s.items() if a.startswith("NK") and a[2:].isdigit()}
+    h = lambda t: t.encode("utf-8").hex()
+    beklenen_nk = {   # kod hedef ms degistirir alan metin(hex)  (kod: 0 tamam, 1 oturum,
+        0: ["0", "12", "0", "0", "1", h("ad")],   #  2 sira, 3 zaman, 4 metin, 5 alt)
+        1: ["0", "12", "0", "0", "1"], 2: ["1", "0", "0", "0", "1"], 3: ["1", "0", "0", "0", "1"],
+        4: ["1", "0", "0", "0", "1"], 5: ["4", "12", "0", "0", "1"],
+        6: ["0", "7", "0", "0", "2", h("a, b")], 7: ["0", "5", "0", "0", "3", h("not")],
+        8: ["4", "5", "0", "0", "3"], 9: ["0", "5", "1500", "0", "3", h("not")],
+        10: ["3", "5", "0", "0", "3"], 11: ["3", "5", "0", "0", "3"],
+        12: ["0", "5", "0", "7", "3"], 13: ["0", "5", "1500", "7", "3", h("yeni")],
+        14: ["2", "5", "0", "0", "3"], 15: ["2", "5", "0", "0", "3"], 16: ["2", "5", "0", "0", "3"],
+        17: ["1", "0", "0", "0", "3"], 18: ["5", "0", "0", "0", "0"],
+        19: ["0", "4294967295", "4294967295", "0", "3", h("son")]}
+    ok("B71.B21 Ga/Ge/Gn/Gx ayristirici: sayilar YALNIZ rakam (isaret, bosluk, bos, 32 bit "
+       "tasmasi, 0 oturum/sira REDDEDILIR — strtoul hepsini kabul ediyordu); Gn metni "
+       "zorunlu; Gx ':' + sira; '@' sonrasi rakam",
+       nk == beklenen_nk, str({j: v for j, v in nk.items() if beklenen_nk.get(j) != v}))
     kn = (s.get("KN") or ["0", "0"])
     ok("B71.B19 KN_DCIR (0x40) diger nokta bayraklariyla CAKISMAZ; Python'da ayni",
        int(kn[0]) == 0x40 == KB.KN_DCIR and not (int(kn[0]) & int(kn[1])), str(kn))

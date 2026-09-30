@@ -221,6 +221,23 @@ static void bicim_1c1(void)
     yaz(' '); ondalik(KAYIT_T_AZAMI); yaz(' '); ondalik(KAYIT_OTURUM_PIL);
     yaz(' '); ondalik(KB_SEBEP_PIL); yaz(' '); ondalik(KB_SEBEP_YENIDEN);
     yaz(' '); ondalik(KB_SEBEP_OTURUM); satir();
+    {                          /* son inceleme: Ga/Ge/Gn/Gx ayristirici (B71.B21) */
+        static const char *const nk[] = {
+            "Ga12 ad", "Ga12", "Ga ad", "Ga0 ad", "Ga-5 ad", "Ga12x", "Ge7 a, b",
+            "Gn5 not", "Gn5", "Gn5@1500 not", "Gn5@ not", "Gn5@-5 not", "Gx5:7",
+            "Gx5:7@1500 yeni", "Gx5:-1 x", "Gx5 x", "Gx5:0 x", "Gn4294967297 x", "Gz5 x",
+            "Gn4294967295@4294967295 son"};
+        KayitNotKomut k;
+        uint8_t j, r;
+        for (j = 0; j < (uint8_t)(sizeof(nk) / sizeof(nk[0])); j++) {
+            r = kayit_not_ayir(nk[j], &k);
+            metin("NK"); ondalik(j); yaz(' '); ondalik(r); yaz(' '); ondalik(k.hedef);
+            yaz(' '); ondalik(k.nokta_ms); yaz(' '); ondalik(k.degistirir); yaz(' ');
+            ondalik(k.alan); yaz(' ');
+            if (!r && k.metin) hexdizi((const uint8_t *)k.metin, (uint16_t)strlen(k.metin));
+            satir();
+        }
+    }
     metin("KN "); ondalik(KN_DCIR); yaz(' ');
     ondalik(KN_YUKSEK | KN_V_HATA | KN_I_HATA | KN_V_DOYDU | KN_DURAKLAMA | KN_KAYIP_ONCE);
     satir();
@@ -949,7 +966,7 @@ static void senaryo(void)
         n2 = not_yaz((uint32_t)pil, KNT_NOT, 0u, 0u, "n2");
         sayi("N1", n1);
         sayi("N2", n2);
-        sayi("NX1", not_yaz((uint32_t)pil, KNT_NOT, 1500u, (uint32_t)n1, "n1b"));
+        sayi("NX1", not_yaz((uint32_t)pil, KNT_NOT, 0u, (uint32_t)n1, "n1b"));   /* @ yok: yer KORUNUR */
         sayi("NX2", not_yaz((uint32_t)pil, KNT_NOT, 0u, (uint32_t)n2, ""));
         sayi("NG0", not_yaz(0u, KNT_AD, 0u, 0u, "yok"));
         sayi("NGB", not_yaz(g.sonraki_sira, KNT_AD, 0u, 0u, "gelecek"));
