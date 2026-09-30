@@ -136,7 +136,7 @@ static KULLANILMAYABILIR void basla_uret(KayitBasla *b, uint32_t hiz_ms)
 #if defined(SENARYO_GUNLUK) || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) \
     || defined(SENARYO_DIZIN) || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) \
     || defined(SENARYO_YONET) || defined(SENARYO_SURUM) || defined(SENARYO_PIL) \
-    || defined(SENARYO_AYRINTI)
+    || defined(SENARYO_AYRINTI) || defined(SENARYO_HAZIR)
 #define NOR_KOMUT (*(volatile uint8_t *)0xE0)
 #define NOR_A0    (*(volatile uint8_t *)0xE1)
 #define NOR_A1    (*(volatile uint8_t *)0xE2)
@@ -184,7 +184,7 @@ static int f_sil(void *b, uint32_t a)
     return (d & 2u) ? -1 : 0;
 }
 
-static const KayitFlas FLAS = { f_oku, f_yaz, f_sil, 0 };
+static KULLANILMAYABILIR const KayitFlas FLAS = { f_oku, f_yaz, f_sil, 0 };
 static KayitSektor sektor[NOR_SEKTOR_ADET];
 static KayitOzet dizin[DIZIN_KAP];
 static KayitGunluk g;
@@ -721,7 +721,8 @@ static void senaryo(void)
 }
 #endif
 
-#if defined(SENARYO_YONET) || defined(SENARYO_PIL) || defined(SENARYO_AYRINTI)
+#if defined(SENARYO_YONET) || defined(SENARYO_PIL) || defined(SENARYO_AYRINTI) \
+    || defined(SENARYO_HAZIR)
 /* B72 (son inceleme O1-O5): kayit YONETICISI (kayit_yonet.h) — kartin
    durum makinesi, platformsuz. Her ACILIS bir asama: `t_adim` NVS'ten okunur,
    NVS (emule, nor_flas.py) ve flas acilistan acilisa KALICI. Asama bitince
@@ -977,6 +978,129 @@ static void senaryo(void)
         sayi("AO", ky_ayrinti_ornek(&y, &o, o.ms));
         sayi("DUR2", kyn_durdur(&m));
         dr("R2");
+        break;
+    default:
+        break;
+    }
+    metin("BITTI\n");
+}
+#endif
+
+#if defined(SENARYO_HAZIR)
+/* 1C-2: HAZIR ALAN (kayit_gunluk.h kg_on_sil_adim, kayit_yonet.h kyn_adim).
+   Silmeler SAYILIR (FLAS_SAY sarmalayicisi). Hedef derleme basina:
+   -DKYN_HAZIR_HEDEF (A: 5, B: 100). Asama 1 doldur + onayla (arka sektor
+   HARIC) · 2 (A) on silme + ayrintili kayit · 3 (A) izin/oturum/aralik +
+   bicimleme · 4 (B) onaysizda dur, hepsi onayli iken bile bas sektor korunur. */
+static uint32_t sil_say = 0u;
+static int say_sil(void *b, uint32_t a)
+{
+    sil_say++;
+    return f_sil(b, a);
+}
+static const KayitFlas FLAS_SAY = { f_oku, f_yaz, say_sil, 0 };
+
+static void doldur(void)          /* halka ONAYSIZ dolar ama DOLU'ya dusmez */
+{
+    uint32_t i = 0u;
+    while (!g.sektor[(g.bas + 1u) % NOR_SEKTOR_ADET].ilk && i++ < 20000u)
+        if (noktalar(1u)) break;
+}
+
+static void adim_n(uint32_t n)    /* n x 100 ms gorev turu */
+{
+    while (n--) {
+        t_ms += 100u;
+        kyn_adim(&m, 0u, t_ms, 0u);
+    }
+}
+
+static void orn(uint32_t k, KayitOrnek *o)
+{
+    o->us = 5000000UL + 2000UL * k;
+    o->ms = o->us / 1000u;
+    o->v = (int16_t)k;
+    o->i = (int16_t)(-(int16_t)(k & 0x3FFFu));
+    o->bayrak = 0u;
+}
+
+static void senaryo(void)
+{
+    KayitBasla b;
+    KayitOrnek o;
+    uint32_t adim, s0, k, j, onay;
+    kg_kur(&g, &FLAS_SAY, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    ky_kur(&y, &g);
+    kyn_kur(&m, &g, &y, &NVS);
+    adim = nvs_oku(0, "t_adim", 0u);
+    t_ms = 1000u;
+    sayi("AC", kyn_ac(&m, t_ms, 0u, nvs_oku(0, "t_rast", 7u)));
+    sayi("HZ0", (int32_t)g.hazir);
+    k_nokta = y.nokta_sira;
+    switch (adim) {
+    case 1:
+        basla_uret(&b, 100u);
+        kyn_baslat(&m, &b, t_ms, 0u);
+        doldur();
+        kyn_durdur(&m);
+        s0 = sil_say;
+        adim_n(20u);                              /* izin KAPALI (varsayilan) */
+        sayi("KAPALI", (int32_t)(sil_say - s0));
+        onay = g.sektor[(g.bas + NOR_SEKTOR_ADET - 1u) % NOR_SEKTOR_ADET].ilk - 1u;
+        kyn_adim(&m, onay, t_ms, 0u);
+        sayi("ONAY", (int32_t)onay);
+        sayi("BAS", (int32_t)g.bas);
+        dr("Z1");
+        break;
+    case 2:
+        m.on_sil_izin = 1u;
+        s0 = sil_say;
+        adim_n(1u);                               /* izin acildiktan 100 ms (< KYN_TEMIZ_MS): HENUZ yok */
+        sayi("HZ4", (int32_t)g.hazir);
+        adim_n(200u);
+        sayi("HZ", (int32_t)g.hazir);
+        sayi("SIL2", (int32_t)(sil_say - s0));
+        basla_uret(&b, 0u);                       /* ayrintili */
+        kyn_baslat(&m, &b, t_ms, 0u);
+        s0 = sil_say;
+        for (k = 0; g.hazir && k < 20000u; k++) { orn(k, &o); ky_ayrinti_ornek(&y, &o, o.ms); }
+        sayi("HAZIRDA", (int32_t)(sil_say - s0));
+        for (j = 0; j < 200u; j++, k++) { orn(k, &o); ky_ayrinti_ornek(&y, &o, o.ms); }
+        sayi("SONRA", (int32_t)(sil_say - s0));
+        sayi("DUR", kyn_durdur(&m));
+        dr("Z2");
+        break;
+    case 3:
+        m.on_sil_izin = 1u;
+        adim_n(10u);                              /* ilk tur izin gecisi; sonra silebilir */
+        basla_uret(&b, 100u);
+        kyn_baslat(&m, &b, t_ms, 0u);
+        s0 = sil_say;
+        adim_n(20u);
+        sayi("OTURUMDA", (int32_t)(sil_say - s0));
+        kyn_durdur(&m);
+        m.on_sil_izin = 0u;
+        s0 = sil_say;
+        adim_n(20u);
+        sayi("IZINSIZ", (int32_t)(sil_say - s0));
+        m.on_sil_izin = 1u;
+        s0 = sil_say;
+        adim_n(1u);                               /* < KYN_TEMIZ_MS */
+        sayi("HEMEN", (int32_t)(sil_say - s0));
+        adim_n(20u);
+        sayi("SONRA3", (int32_t)(sil_say - s0));
+        sayi("HZ3", (int32_t)g.hazir);
+        sayi("BIC", kyn_bicimle(&m, t_ms));
+        sayi("BICHZ", (int32_t)g.hazir);
+        break;
+    case 4:                                       /* B: onaysizda durur; hepsi onayli: bas korunur */
+        m.on_sil_izin = 1u;
+        adim_n(300u);
+        sayi("HZB1", (int32_t)g.hazir);
+        sayi("BAS", (int32_t)g.bas);
+        kyn_adim(&m, g.sonraki_sira - 1u, t_ms, 0u);
+        adim_n(100u);
+        sayi("HZB2", (int32_t)g.hazir);
         break;
     default:
         break;
@@ -1467,7 +1591,7 @@ static void senaryo(void)
       || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN) \
       || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) || defined(SENARYO_YONET) \
       || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC) || defined(SENARYO_PIL) \
-      || defined(SENARYO_HALKA) || defined(SENARYO_AYRINTI))
+      || defined(SENARYO_HALKA) || defined(SENARYO_AYRINTI) || defined(SENARYO_HAZIR))
 #error "SENARYO_* tanimli degil"
 #endif
 

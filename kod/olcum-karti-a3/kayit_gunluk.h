@@ -74,6 +74,7 @@ typedef struct KayitGunluk_ {
     uint8_t      oku_hata;            /* son kg_ac'ta flas OKUNAMADI */
     uint32_t     taban;               /* bu siranin ALTI bicimlenmis: yok sayilir (B72) */
     uint32_t     eski;                /* son kg_ac'ta taban yuzunden bos sayilan sektor */
+    uint32_t     hazir;               /* 1C-2: basin ONUNDE bu acilista silinmis bos sektor */
 } KayitGunluk;
 
 typedef void (*KgBesle)(KayitGunluk *g, const KayitBaslik *h, uint32_t adres);
@@ -269,6 +270,7 @@ static inline int kg_ac(KayitGunluk *g, uint32_t sira_taban, uint32_t onay_taban
     g->oku_hata = 0u;
     g->taban = sira_taban;
     g->eski = 0u;
+    g->hazir = 0u;                  /* yalniz BU acilista silinen guvenilir */
     /* 1. gecis: en yeni sektor = ilk kaydinin sirasi en buyuk olan */
     for (s = 0; s < g->sektor_adet; s++) {
         int8_t d = kg__kayit_dogrula(g, s * KAYIT_SEKTOR, (s + 1u) * KAYIT_SEKTOR, &h);
@@ -329,12 +331,16 @@ static inline void kg__sektor_dusur(KayitGunluk *g, uint32_t s)
 static inline int kg_ilerle(KayitGunluk *g)
 {
     uint32_t s = (g->bas + 1u) % g->sektor_adet;
-    if (g->sektor[s].ilk) {
-        if (g->sektor[s].son > g->onay) { g->dolu = 1u; return KG_DOLU; }
-        kg__sektor_dusur(g, s);
-        g->silinen_sektor++;
+    if (g->hazir) {
+        g->hazir--;                 /* 1C-2: bu acilista ONCEDEN silindi, bos: silme YOK */
+    } else {
+        if (g->sektor[s].ilk) {
+            if (g->sektor[s].son > g->onay) { g->dolu = 1u; return KG_DOLU; }
+            kg__sektor_dusur(g, s);
+            g->silinen_sektor++;
+        }
+        if (g->f.sil(g->f.baglam, s * KAYIT_SEKTOR)) return KG_HATA;
     }
-    if (g->f.sil(g->f.baglam, s * KAYIT_SEKTOR)) return KG_HATA;
     g->sektor[s].ilk = 0u;
     g->sektor[s].son = 0u;
     g->bas = s;
@@ -466,6 +472,29 @@ static inline void kg_bicimle_mantiksal(KayitGunluk *g)
     g->onay = g->sonraki_sira - 1u;
     g->dolu = 0u;
     g->eski = g->sektor_adet;        /* hangileri eski bilinmiyor: temizlik hepsine bakar */
+    g->hazir = 0u;
+}
+
+/* 1C-2 HAZIR ALAN: basin onundeki bir sonraki sektoru ONCEDEN sil (kayit
+   yokken, arka planda). Onayli (ya da bos) degilse DOKUNMAZ; basa ve halka
+   sarmasina dokunmaz (hazir en fazla sektor_adet - 1). Sayac RAM'de: yeniden
+   baslamada 0 — kesik bir silmeden sonra sektor "hazir" sanilmaz.
+   Donus: 1 silindi · 0 yapilacak yok · KG_HATA. */
+static inline int kg_on_sil_adim(KayitGunluk *g)
+{
+    uint32_t s;
+    if (g->hazir + 1u >= g->sektor_adet) return 0;
+    s = (g->bas + 1u + g->hazir) % g->sektor_adet;
+    if (g->sektor[s].ilk) {
+        if (g->sektor[s].son > g->onay) return 0;     /* onaysiz: eslesmemis veri */
+        kg__sektor_dusur(g, s);
+        g->silinen_sektor++;
+    }
+    if (g->f.sil(g->f.baglam, s * KAYIT_SEKTOR)) return KG_HATA;
+    g->sektor[s].ilk = 0u;
+    g->sektor[s].son = 0u;
+    g->hazir++;
+    return 1;
 }
 
 /* Arka plan temizligi: `*s` sektorune bak, eskiyse sil, `*s` ilerler.

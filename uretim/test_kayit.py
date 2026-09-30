@@ -1018,6 +1018,71 @@ def bolum_ayrinti() -> None:
        f"bozuk={bozuk}")
 
 
+# ── B71.Z · hazir alan: onayli sektorlerin onceden silinmesi (1C-2) ───
+HZ_SEKTOR = 16
+
+
+def _sektor_kayitlari(bellek: bytes, s: int) -> list:
+    kay, _ = KB.flas_coz(bellek[s * SEKTOR:(s + 1) * SEKTOR], SEKTOR)
+    return kay
+
+
+def bolum_hazir() -> None:
+    """1C-2: bosta (kayit yok, izin acik) onayli eski sektorler basin onunde
+    sirayla ONCEDEN silinir (500 ms arayla); kafa bu sektorlere SILMEDEN gecer
+    (dolu sektor silmesi iki cekirdegi ~25 ms durduruyor). Onaysiza, basa ve
+    halka sarmasina dokunulmaz; acilista ve bicimlemede sayac sifir."""
+    print("\n── B71.Z  hazir alan: on silme · kafa silmeden gecer · sinirlar")
+    elf_a = derle("HAZIR", HZ_SEKTOR, ek=("-DKYN_HAZIR_HEDEF=5u",))
+    fa = NorFlas(SEKTOR * HZ_SEKTOR, sektor=SEKTOR)
+    fa.nvs["t_rast"] = 13
+    z1, z2, z3 = _yonet(fa, elf_a, [1, 2, 3])
+    kay, bozuk = KB.flas_coz(bytes(fa.bellek), SEKTOR)
+    ok("B71.Z1 izin KAPALIYKEN on silme yok; izin acilinca KYN_TEMIZ_MS (kartta 500, testte 200 "
+       "ms) dolmadan yok, sonra onayli "
+       "sektorler sirayla hedefe (5) kadar silinir — her silme bir hazir sektor",
+       _say(z1, "KAPALI") == 0 and _say(z2, "HZ4") == 0 and _say(z2, "HZ") == 5
+       and _say(z2, "SIL2") == 5,
+       f"KAPALI={_say(z1, 'KAPALI')} HZ4={_say(z2, 'HZ4')} HZ={_say(z2, 'HZ')} SIL2={_say(z2, 'SIL2')}")
+    ayr = [o for o in KB.oturumlari_kur(kay).values() if o.basla and o.basla.hiz_ms == 0]
+    kl = sorted(ayr[0].ayrinti, key=lambda r: r["sira"]) if ayr else []
+    ilk_silme = next((j for j, r in enumerate(kl) if r["bayrak"] & KB.KA_SILME), None)
+    ok("B71.Z2 kafa HAZIR sektorlere gecerken SILME YOK (0); hazir bitince onayli dolu "
+       "sektorler yeniden silinir ve o silmeden sonraki kayit KA_SILME tasir",
+       _say(z2, "HAZIRDA") == 0 and (_say(z2, "SONRA") or 0) > 0
+       and ilk_silme is not None and ilk_silme > 0,
+       f"HAZIRDA={_say(z2, 'HAZIRDA')} SONRA={_say(z2, 'SONRA')} ilk_KA_SILME={ilk_silme}/{len(kl)}")
+    ok("B71.Z3 oturum surerken ve izin kapaliyken silme yok; izin yeniden acilinca KYN_TEMIZ_MS "
+       "BEKLER (hemen silmeye kosmaz), sonra surer",
+       _say(z3, "OTURUMDA") == 0 and _say(z3, "IZINSIZ") == 0 and _say(z3, "HEMEN") == 0
+       and (_say(z3, "SONRA3") or 0) >= 1,
+       f"OTURUMDA={_say(z3, 'OTURUMDA')} IZINSIZ={_say(z3, 'IZINSIZ')} HEMEN={_say(z3, 'HEMEN')} "
+       f"SONRA3={_say(z3, 'SONRA3')}")
+    ok("B71.Z4 hazir sayaci her ACILISTA 0 (yalniz bu acilista silinen guvenilir) ve "
+       "mantiksal bicimlemede 0",
+       [_say(z, "HZ0") for z in (z1, z2, z3)] == [0, 0, 0] and (_say(z3, "HZ3") or 0) > 0
+       and _say(z3, "BIC") == 0 and _say(z3, "BICHZ") == 0,
+       f"HZ0={[_say(z, 'HZ0') for z in (z1, z2, z3)]} HZ3={_say(z3, 'HZ3')} BICHZ={_say(z3, 'BICHZ')}")
+    elf_b = derle("HAZIR", HZ_SEKTOR, ek=("-DKYN_HAZIR_HEDEF=100u",))
+    fb = NorFlas(SEKTOR * HZ_SEKTOR, sektor=SEKTOR)
+    fb.nvs["t_rast"] = 17
+    b1, b4 = _yonet(fb, elf_b, [1, 4])
+    bas = _say(b4, "BAS")
+    arka = (bas - 1) % HZ_SEKTOR if bas is not None else -1
+    bellek = bytes(fb.bellek)
+    ok("B71.Z5 on silme ONAYSIZ sektorde durur (arka sektor kalir: 16 - 2 = 14 hazir); hepsi "
+       "onaylaninca bile BAS sektore dokunulmaz (en fazla 15); ikisinin kayitlari yerinde",
+       _say(b4, "HZB1") == HZ_SEKTOR - 2 and _say(b4, "HZB2") == HZ_SEKTOR - 1
+       and bool(_sektor_kayitlari(bellek, bas)) and _say(b1, "KAPALI") == 0,
+       f"HZB1={_say(b4, 'HZB1')} HZB2={_say(b4, 'HZB2')} bas={bas} "
+       f"bas_kayit={len(_sektor_kayitlari(bellek, bas))} arka={arka}")
+    ok("B71.Z6 on silmeden sonra acilis temiz (AC 0), flasta bozuk kayit yok, BITIR payi ve "
+       "sektor kurali korunuyor",
+       _say(z2, "AC") == 0 and _say(z3, "AC") == 0 and bozuk == 0
+       and bitir_payi_korunur(bytes(fa.bellek)) and tekrar_kurali(bytes(fa.bellek)),
+       f"AC={_say(z2, 'AC')},{_say(z3, 'AC')} bozuk={bozuk}")
+
+
 # ── B71.H · ornek halkasi (1C-2) ─────────────────────────────────────
 def bolum_halka() -> None:
     """1C-2: cekirdek 1 -> 0 ornek halkasi (kayit_halka.h), kilitsiz tek
@@ -1421,7 +1486,7 @@ def bolum_kesinti(n_deneme: int) -> None:
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
             bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_halka, bolum_ayrinti,
-            bolum_kalgec, bolum_dizin,
+            bolum_hazir, bolum_kalgec, bolum_dizin,
             bolum_kesinti]
 
 

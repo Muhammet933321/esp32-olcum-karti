@@ -41,6 +41,9 @@
 #define KYN_TEMIZ_MS 200UL         /* arka plan silmeleri arasi en az */
 #endif
 #define KYN_TEMIZ_BAKIS 64u        /* bir adimda en fazla bu kadar sektore bakilir */
+#ifndef KYN_HAZIR_HEDEF
+#define KYN_HAZIR_HEDEF 480u       /* 1C-2: ~1.9 MB = ~10 dk ayrintili kayit */
+#endif
 
 typedef struct {
     uint32_t (*oku)(void *baglam, const char *ad, uint32_t varsayilan);
@@ -57,6 +60,8 @@ typedef struct {
     uint32_t onay_nvs, onay_nvs_ms;
     uint32_t temiz_s, temiz_ms;      /* arka plan temizligi imleci (== sektor_adet: yok) */
     int32_t  son_hata;
+    uint8_t  on_sil_izin;            /* 1C-2: DISARIDAN (kart: kayit/skop/pil yok) */
+    uint8_t  on_sil_onceki;
 } KayitYonetici;
 
 static inline void kyn_kur(KayitYonetici *m, KayitGunluk *g, KayitYazici *y,
@@ -321,6 +326,18 @@ static inline void kyn_adim(KayitYonetici *m, uint32_t onay_istek, uint32_t simd
                 break;
             }
         }
+    }
+    /* 1C-2 HAZIR ALAN: bosta onayli sektorler onceden silinir (dolu sektor
+       ~25 ms iki cekirdegi durdurur; ayrintili kayit sirasinda olmasin).
+       Temizlikle AYNI aralik; izin yeni acildiysa once KYN_TEMIZ_MS bekle. */
+    if (m->on_sil_izin && !m->on_sil_onceki) m->temiz_ms = simdi_ms;
+    m->on_sil_onceki = m->on_sil_izin;
+    if (m->on_sil_izin && !m->y->oturum && !m->devam_bekliyor
+        && m->temiz_s >= g->sektor_adet && g->hazir < KYN_HAZIR_HEDEF
+        && simdi_ms - m->temiz_ms >= KYN_TEMIZ_MS) {
+        r = kg_on_sil_adim(g);
+        if (r < 0) m->son_hata = r;
+        else if (r) m->temiz_ms = simdi_ms;
     }
     kyn__onay_kaydet(m, 0u, simdi_ms);
 }
