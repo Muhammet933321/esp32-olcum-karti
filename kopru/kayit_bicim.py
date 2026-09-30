@@ -321,17 +321,22 @@ def ayrinti_coz(y: bytes) -> dict:
     return {"ilk": ilk, "t0_ms": ms, "t0_us": us, "bayrak": bayrak, "ornekler": orn}
 
 
-def ayrinti_ornekler(o) -> list[tuple[int, int, int, int, int]]:
-    """Oturumun ayrintili ornekleri: (sira, mutlak_us, v_kod, i_kod, bayrak).
-    mutlak_us = t0_us + 4 x (dt4 toplami); micros()'un 32 bit sarmasi t0_ms'den
-    cozulur (ikisi ayni zamanlayicidan: t0_ms x 1000 ~ gercek us)."""
+def ayrinti_ornekler(o) -> list[tuple[int, int, int, int, int, int]]:
+    """Oturumun ayrintili ornekleri: (sira, us, v_kod, i_kod, bayrak, acilis).
+    us = t0_us + 4 x (dt4 toplami), KARTIN O ACILISINDAKI micros()'u; 32 bit
+    sarmasi t0_ms'den cozulur (ikisi ayni zamanlayicidan). `acilis`: 0 = BASLA'nin
+    acilisi, n = n. DEVAM'dan sonrasi. Kart yeniden baslayinca micros/millis
+    SIFIRLANIR: farkli acilislarin zamanlari birbirine gore anlamsizdir, tek
+    zaman ekseninde birlestirmek icin DEVAM/BASLA kart_ms/unix_s kullanilmali."""
+    devam = sorted(d["nokta_sira"] for d in o.devamlar)
     cikti = []
     for r in sorted(o.ayrinti, key=lambda x: x["sira"]):
         k = round((r["t0_ms"] * 1000 - r["t0_us"]) / 2**32)
         t = r["t0_us"] + k * 2**32
+        ac = sum(1 for d in devam if d <= r["ilk"])
         for j, (v, i, dt4, b) in enumerate(r["ornekler"]):
             t += 4 * dt4
-            cikti.append((r["ilk"] + j, t, v, i, b))
+            cikti.append((r["ilk"] + j, t, v, i, b, ac))
     return cikti
 
 

@@ -418,7 +418,7 @@ static void senaryo(void)
     sayi("EK", kg_ekle(&g, KAYIT_T_SAAT, 0u, yuk, 12u)); durum("G11");
     oku(35u, sizeof(tampon));
     /* son inceleme: bilinmeyen tur (6), okuma hatasi ve yarim yazma (4) */
-    sayi("EK9", kg_ekle(&g, 9u, 0u, yuk, 12u));
+    sayi("EK9", kg_ekle(&g, 200u, 0u, yuk, 12u));   /* 1C-2: 9 artik AYRINTI */
     kg_ac(&g, 0u, 0u); durum("G12");
     oku(37u, sizeof(tampon));
     NOR_ARIZA_OKU = 40u;
@@ -912,11 +912,14 @@ static void senaryo(void)
    dizisi test_kayit.py _ayr_uret ile AYNI: 2000 us periyot +-200 us titresim,
    k=100'de +30 ms ve k=250'de +20 ms bosluk, k=299 DUSER (k=300 KO_KAYIP_ONCE),
    bayrak her 50 ornekte degisir. Asama 1: 0..399, elektrik gider. Asama 2:
-   DEVAM, 400..600, 5 s bosaltma, durdur; noktali oturumda ornek reddi. */
+   DEVAM, 400..639 YENI ACILISIN saatiyle (micros sifirdan: 500 ms + ...),
+   5 s bosaltma, tamponda ornek varken durdur; noktali oturumda ornek reddi.
+   Asama 3 (ayri flas): bolmeden sonra yazma HATASI, kalan tamponda. */
 static void ayr_uret(uint32_t k, KayitOrnek *o)
 {
-    uint32_t us = 1000000UL + 2000UL * k + (k >= 100u ? 30000UL : 0u)
-                + (k >= 250u ? 20000UL : 0u);
+    uint32_t us = k >= 400u ? 500000UL + 2000UL * (k - 400u)
+                : 1000000UL + 2000UL * k + (k >= 100u ? 30000UL : 0u)
+                  + (k >= 250u ? 20000UL : 0u);
     us = us + (k * 37u) % 401u - 200u;
     o->us = us;
     o->ms = us / 1000u;
@@ -937,6 +940,49 @@ static void ayr_besle(uint32_t bas, uint32_t son)
         r = ky_ayrinti_ornek(&y, &o, o.ms);
         if (r) { sayi("AYHATA", r); return; }
     }
+}
+
+/* Asama 3: sektoru R (8..36) ornek kalana dek doldur; A = R + 20 ornek
+   biriktir (tampon siniri: AVR'de kucuk);
+   16.38 ms'yi asan ornek bosaltmayi tetikler: R ornek bu sektore, KALAN yeni
+   sektore giderken TEKRAR yazimi HATA verir (kalan tamponda, t0'i kaydirilmis).
+   Sonraki ornek son ornekten R x 2 ms + 5 ms sonra: dogru nicem > 4095 ->
+   yeni kayit; eski origine gore (a_q duzeltilmemis) 5 ms gorunur -> 2R ms hata.
+   v = 3000 + k (test_kayit.py zamani k'den kurar). */
+static void a3_ver(uint32_t k, uint32_t us, KayitOrnek *o)
+{
+    o->us = us;
+    o->ms = us / 1000u;
+    o->v = (int16_t)(3000u + k);
+    o->i = (int16_t)(-(int32_t)k);
+    o->bayrak = 0u;
+    (void)ky_ayrinti_ornek(&y, o, o->ms);
+}
+
+static void ayr3_hata(void)
+{
+    const uint32_t sabit = KAYIT_BASLIK_BAYT + KAYIT_AYRINTI_BAS + KY_BITIR_PAY;
+    KayitOrnek o;
+    uint32_t k = 0u, R = 0u, A, j, n, us = 2000000UL, t_son;
+    for (j = 0u; j < 300u; j++) {
+        uint32_t kalan = KAYIT_SEKTOR - g.bas_ofset;
+        R = kalan >= sabit + KAYIT_AYRINTI_ORNEK ? (kalan - sabit) / KAYIT_AYRINTI_ORNEK : 0u;
+        if (R >= 8u && R <= 36u && R + 4u <= KAYIT_AYRINTI_TAMPON) break;
+        for (n = 0u; n < 20u; n++, k++, us += 2000u) a3_ver(k, us, &o);
+        ky_zaman(&y, o.ms + 5000u);
+    }
+    sayi("R3", (int32_t)R);
+    sayi("K0", (int32_t)k);
+    A = R + 20u;
+    if (A > KAYIT_AYRINTI_TAMPON) A = KAYIT_AYRINTI_TAMPON;
+    sayi("A3", (int32_t)A);
+    for (n = 0u; n < A; n++, k++, us += 2000u) a3_ver(k, us, &o);
+    t_son = us - 2000u;
+    NOR_ARIZA_YAZ = (uint8_t)(kayit_toplam_bayt(KAYIT_AYRINTI_BAS + R * KAYIT_AYRINTI_ORNEK) + 5u);
+    a3_ver(k, t_son + 17000u, &o); k++;           /* tetik: bolme, TEKRAR yarida */
+    sayi("KALAN3", y.a_adet);
+    a3_ver(k, t_son + R * 2000u + 5000u, &o); k++;
+    for (n = 0u; n < 4u; n++, k++) a3_ver(k, t_son + R * 2000u + 7000u + 2000u * n, &o);
 }
 
 static void senaryo(void)
@@ -971,6 +1017,8 @@ static void senaryo(void)
         sayi("TAMP2", y.a_adet);
         ky_zaman(&y, t + 5000u);
         sayi("TAMP3", y.a_adet);
+        ayr_besle(601u, 640u);                    /* son inceleme: Gd kuyrugu */
+        sayi("TAMP4", y.a_adet);
         sayi("DUR", kyn_durdur(&m));
         basla_uret(&b, 100u);                     /* noktali oturum: ornek YOK */
         kyn_baslat(&m, &b, t_ms, 0u);
@@ -978,6 +1026,12 @@ static void senaryo(void)
         sayi("AO", ky_ayrinti_ornek(&y, &o, o.ms));
         sayi("DUR2", kyn_durdur(&m));
         dr("R2");
+        break;
+    case 3:                                       /* son inceleme: bolme + yazma hatasi */
+        basla_uret(&b, 0u);
+        sayi("BAS3", kyn_baslat(&m, &b, t_ms, 0u));
+        ayr3_hata();
+        sayi("DUR3", kyn_durdur(&m));
         break;
     default:
         break;

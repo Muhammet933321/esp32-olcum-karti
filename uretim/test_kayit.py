@@ -339,11 +339,16 @@ def _bicim_1c2(s: dict) -> None:
         {"ilk": 0, "t0_ms": gercek // 1000, "t0_us": gercek % 2**32, "bayrak": 0, "sira": 5,
          "ornekler": [(1, 2, 0, 0), (3, 4, 500, 1), (5, 6, 500, 0)]},
         {"ilk": 3, "t0_ms": (gercek + 30000) // 1000, "t0_us": (gercek + 30000) % 2**32,
-         "bayrak": KB.KA_SILME, "sira": 6, "ornekler": [(7, 8, 0, 8)]}]
-    beklenen = [(0, gercek, 1, 2, 0), (1, gercek + 2000, 3, 4, 1), (2, gercek + 4000, 5, 6, 0),
-                (3, gercek + 30000, 7, 8, 8)]
+         "bayrak": KB.KA_SILME, "sira": 6, "ornekler": [(7, 8, 0, 8)]},
+        {"ilk": 4, "t0_ms": 700, "t0_us": 700_123, "bayrak": 0, "sira": 9,
+         "ornekler": [(9, 10, 0, 0), (11, 12, 500, 0)]}]
+    o.devamlar = [{"nokta_sira": 4, "kart_ms": 650}]     # ornek 4'ten itibaren YENI acilis
+    beklenen = [(0, gercek, 1, 2, 0, 0), (1, gercek + 2000, 3, 4, 1, 0),
+                (2, gercek + 4000, 5, 6, 0, 0), (3, gercek + 30000, 7, 8, 8, 0),
+                (4, 700_123, 9, 10, 0, 1), (5, 702_123, 11, 12, 0, 1)]
     ok("B71.B24 ayrinti_ornekler: sira, mutlak mikrosaniye (t0_ms ile 32 bit sarmasi "
-       "cozulur), kod ve bayrak; boslukta yeni kaydin t0'i",
+       "cozulur), kod, bayrak ve ACILIS (DEVAM'dan sonra saat yeni acilisin); boslukta "
+       "yeni kaydin t0'i",
        KB.ayrinti_ornekler(o) == beklenen, str(KB.ayrinti_ornekler(o)))
 
 
@@ -574,10 +579,12 @@ def bolum_gunluk() -> None:
        oku[3:4] == [["56", "35", "36"]] and [k.sira for k in kay] == [35, 36],
        str(oku[3:4]))
     kay9 = KB.akis_coz(veri[4]) if len(veri) > 4 else []
-    ok("B71.G16 bilinmeyen kayit turu (9) gecerli: tarama durmaz, esitleme onu tasir",
+    # 🔴 1C-2: tur 9 AYRINTI oldu; bu iddia 9 ile BOS kaliyordu (tam mutasyon
+    # kosusu yakaladi: `> KAYIT_T_AZAMI` reddi yesildi). Bilinmeyen tur 200.
+    ok("B71.G16 bilinmeyen kayit turu (200) gecerli: tarama durmaz, esitleme onu tasir",
        tek.get("EK9") == ["37"]
        and d["G12"] == _g(38, 1, 56, bozuk=2, kull=568, onaysiz=568)
-       and [k.tur for k in kay9] == [9], f"{d['G12']} {[k.tur for k in kay9]}")
+       and [k.tur for k in kay9] == [200], f"{d['G12']} {[k.tur for k in kay9]}")
     ok("B71.G17 okuma hatasinda kg_ac acmayi REDDEDER (KG_HATA); tekrar denemede durum ayni",
        tek.get("ACHATA") == ["-2"] and tek.get("ACHATA2") == ["-2"]
        and d["G13"] == d["G12"],
@@ -929,8 +936,12 @@ AYR_SEKTOR = 16
 
 
 def _ayr_uret(k: int) -> tuple[int, int, int, int, int]:
-    """ornek_kayit.c ayr_uret ile AYNI: (us, ms, v, i, bayrak)."""
-    us = 1_000_000 + 2000 * k + (30000 if k >= 100 else 0) + (20000 if k >= 250 else 0)
+    """ornek_kayit.c ayr_uret ile AYNI: (us, ms, v, i, bayrak). k >= 400: DEVAM'dan
+    sonraki YENI acilisin saati."""
+    if k >= 400:
+        us = 500_000 + 2000 * (k - 400)
+    else:
+        us = 1_000_000 + 2000 * k + (30000 if k >= 100 else 0) + (20000 if k >= 250 else 0)
     us = us + (k * 37) % 401 - 200
     b = (k // 50) & 0xF
     return us, us // 1000, k * 13 - 500, -(k * 7), b
@@ -952,24 +963,33 @@ def bolum_ayrinti() -> None:
     orn = KB.ayrinti_ornekler(o) if o else []
     # beslenen (k=299 dustu) ve kartta kalan ornekler: asama 1'in bosaltilmamis
     # kuyrugu (elektrik kesildi) gider, sira KESINTISIZ surer
-    beslenen = [k for k in range(601) if k != 299]
+    beslenen = [k for k in range(640) if k != 299]
     kalan1 = sum(len(r["ornekler"]) for r in o.ayrinti if r["sira"] < min(
         (d_s for d_s in [x.sira for x in kay if x.oturum == oid and x.tur == KB.T_DEVAM]),
         default=10**9)) if o else 0
     eslesen = beslenen[:kalan1] + beslenen[beslenen.index(400):] if o else []
-    hata_kod, hata_t = [], []
-    for (sira, t, v, i, b), k in zip(orn, eslesen):
+    hata_kod, hata_t, hata_ac = [], [], []
+    for (sira, t, v, i, b, ac), k in zip(orn, eslesen):
         us, ms, vv, ii, bb = _ayr_uret(k)
         if (v, i, b) != (vv, ii, bb):
             hata_kod.append((sira, k))
         if abs(t - us) > 2:
             hata_t.append((sira, k, t - us))
-    ok("B71.A1 her ornek sirasi, ham V/I kodu ve bayragi BIREBIR (PC'de kurulan)",
+        if ac != (1 if k >= 400 else 0):
+            hata_ac.append((sira, k, ac))
+    artan = all(a[1] < b[1] for a, b in zip(orn, orn[1:]) if a[5] == b[5])
+    ok("B71.A1 her ornek sirasi, ham V/I kodu ve bayragi BIREBIR (PC'de kurulan); durdurulurken "
+       "tamponda kalan kuyruk da flasta",
        bool(orn) and len(orn) == len(eslesen) and [s for s, *_ in orn] == list(range(len(orn)))
        and not hata_kod, f"{len(orn)}/{len(eslesen)} hata={hata_kod[:3]}")
-    ok("B71.A2 her ornegin kurulan zamani gercek micros'tan <= 2 us (4 us nicem, bolmelerde "
-       "ve DEVAM'da birikmez)",
-       bool(orn) and not hata_t, f"{hata_t[:3]} en buyuk {max((abs(x[2]) for x in hata_t), default=0)}")
+    # 🔴 son inceleme: uretec DEVAM'da saati SURDURUYORDU (gercekte micros sifirlanir)
+    # ve PC iki acilisin saatini tek listede karistiriyordu. Asama 2 artik yeni
+    # acilisin saatiyle; her ornek hangi ACILIS'ta oldugunu tasir.
+    ok("B71.A2 her ornegin kurulan zamani KENDI ACILISININ micros'undan <= 2 us (4 us nicem, "
+       "bolmelerde birikmez); DEVAM'dan sonraki ornekler acilis 1, zaman her acilista artan",
+       bool(orn) and not hata_t and not hata_ac and artan,
+       f"{hata_t[:3]} en buyuk {max((abs(x[2]) for x in hata_t), default=0)} acilis={hata_ac[:3]} "
+       f"artan={artan}")
     bas_k = {r["ilk"]: r for r in o.ayrinti} if o else {}
     def kayit_basi(k):
         j = eslesen.index(k) if k in eslesen else -1
@@ -1011,11 +1031,36 @@ def bolum_ayrinti() -> None:
        f"AYR={_say(a1, 'AYR')} NK={_say(a1, 'NK')} AO={_say(a2, 'AO')}")
     ok("B71.A8 5 s bosaltma kurali ornek tamponunu da kapsar (4999 ms'de bekler, 5000'de yazar)",
        (_say(a2, "TAMP1") or 0) > 0 and _say(a2, "TAMP2") == _say(a2, "TAMP1")
-       and _say(a2, "TAMP3") == 0,
+       and _say(a2, "TAMP3") == 0 and (_say(a2, "TAMP4") or 0) > 0,
        f"{[_say(a2, a) for a in ('TAMP1', 'TAMP2', 'TAMP3')]}")
     ok("B71.A9 flas temiz: bozuk kayit yok, BITIR payi korunuyor, sektor kurali (TEKRAR)",
        bozuk == 0 and bitir_payi_korunur(bytes(fl.bellek)) and tekrar_kurali(bytes(fl.bellek)),
        f"bozuk={bozuk}")
+    # son inceleme: bolunen kaydin kalani yazilamazsa tamponda kalir; sonraki
+    # ornegin zaman farki YENI origine gore hesaplanmali (a_q -= top). Once bu
+    # satir "olu kod" diye silinmisti — basari yolunda oyle, hata yolunda degil.
+    fl3 = NorFlas(SEKTOR * AYR_SEKTOR, sektor=SEKTOR)
+    fl3.nvs["t_rast"] = 13
+    (a3,) = _yonet(fl3, elf, [3])
+    kay3, _ = KB.flas_coz(bytes(fl3.bellek), SEKTOR)
+    o3 = KB.oturumlari_kur(kay3).get(_say(a3, "BAS3"))
+    R, k0, A = _say(a3, "R3") or 0, _say(a3, "K0") or 0, _say(a3, "A3") or 0
+    t_son = 2_000_000 + 2000 * (k0 + A - 1)
+
+    def a3_zaman(k: int) -> int | None:
+        if k < k0 + A:
+            return 2_000_000 + 2000 * k
+        if k == k0 + A:
+            return None                               # tetik: bosaltma hatasi, duser
+        return t_son + R * 2000 + 5000 + 2000 * (k - (k0 + A + 1))
+    o3_orn = KB.ayrinti_ornekler(o3) if o3 else []
+    h3 = [(v - 3000, t - a3_zaman(v - 3000)) for _s, t, v, *_r in o3_orn
+          if v - 3000 >= k0 and a3_zaman(v - 3000) is not None and abs(t - a3_zaman(v - 3000)) > 2]
+    sonraki = k0 + A + 1 in {v - 3000 for _s, _t, v, *_r in o3_orn}
+    ok("B71.A10 bolmeden sonra yazma HATASI: kalan tamponda kalir, sonraki ornegin zamani "
+       "yine <= 2 us (a_q yeni origine tasinir)",
+       8 <= R <= 36 and A > R and (_say(a3, "KALAN3") or 0) == A - R and sonraki and o3 is not None
+       and not h3, f"R={R} A={A} KALAN={_say(a3, 'KALAN3')} sonraki={sonraki} hata={h3[:3]}")
 
 
 # ── B71.Z · hazir alan: onayli sektorlerin onceden silinmesi (1C-2) ───
