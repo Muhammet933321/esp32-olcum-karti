@@ -578,22 +578,23 @@ def main() -> int:
                 return tuple(int(x) for x in m.groups())
         return None
 
-    # 1C-2 son inceleme: bosta on silme (500 ms'de bir ~25 ms) olcumu kirletir.
-    # Varsayilan: hazir alan durana dek bekle; `--on-silmeli` ile bekleme.
+    # 1C-2 son inceleme: bosta sektor silme (hazir alan / GF! temizligi, 500 ms'de
+    # bir ~25 ms) olcumu kirletir. Varsayilan: `G` satirinin silme sayaci 3 s
+    # artmayana dek bekle; `--on-silmeli` ile bekleme.
     if "--on-silmeli" not in arg:
         onceki, t0 = None, time.monotonic()
-        while time.monotonic() - t0 < 300:
+        while time.monotonic() - t0 < 1800:
             k.yaz("G?")
-            son_ga, bitis = None, time.monotonic() + 3
+            sil, bitis = None, time.monotonic() + 3
             while time.monotonic() < bitis:
                 s = k.satir_oku(0.3)
-                if s and re.match(r"^GA \d+ \d+ \d+ \d+", s):
-                    son_ga = int(s.split()[1])
+                if s and re.match(r"^G( -?\d+){13}\s*$", s):
+                    sil = int(s.split()[11])
                     break
-            if son_ga is None or son_ga >= 480 or son_ga == onceki:
-                print(f"on silme durdu (hazir alan {son_ga}) — olcum simdi")
+            if sil is None or sil == onceki:
+                print(f"bosta silme durdu ({time.monotonic() - t0:.0f} s) — olcum simdi")
                 break
-            onceki = son_ga
+            onceki = sil
             time.sleep(3.0)
 
     print(f"kart {k.k.ad if hasattr(k, 'k') else port} · {tekrar} x {sure:.0f} s")
