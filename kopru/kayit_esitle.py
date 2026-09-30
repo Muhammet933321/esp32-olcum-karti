@@ -52,6 +52,7 @@ import kayit_bicim as KB                                   # noqa: E402
 DOSYA = "kayitlar.kyt"
 DURUM = "durum.json"
 KILIT = "esitle.kilit"
+KAL_DOSYA = "kalibrasyon.json"   # 1B: kartin kalibrasyon gecmisi (/kal/liste)
 EN_AZ_BAYT = 1100      # en buyuk kayit 16 + 1012 = 1028 B; kucuk parca hic veri getiremez
 
 
@@ -239,7 +240,28 @@ class Esitleyici:
                 self.onay(d["son_sira"])       # ancak diske yazildiktan SONRA (yer acilsin)
         dogru = self._onay_dogrula(d, onay_x)
         return {"yeni_kayit": yeni, "son_sira": d["son_sira"], "bosluk": bosluk,
-                "onay_dogrulandi": dogru, **sonuc}
+                "onay_dogrulandi": dogru, "kalibrasyon": self._kal_esitle(), **sonuc}
+
+    def _kal_esitle(self):
+        """1B: kalibrasyon gecmisini kalibrasyon.json'a ATOMIK yaz. Kayitlar
+        kalibrasyon NUMARASINI tasiyor (BASLA surum 2); degerler burada.
+        Eski firmware (404) veri esitlemesini durdurmaz. Donus: kayit adedi."""
+        try:
+            with urllib.request.urlopen(f"{self.taban}/kal/liste",
+                                        timeout=self.zaman_asimi) as y:
+                veri = json.loads(y.read().decode("utf-8"))
+        except urllib.error.HTTPError as h:
+            if h.code in (404, 503):
+                return None
+            raise
+        p = self.dizin / KAL_DOSYA
+        g = p.with_suffix(".tmp")
+        with open(g, "w", encoding="utf-8") as f:
+            json.dump(veri, f, ensure_ascii=False, indent=1)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(g, p)
+        return veri.get("adet")
 
 
 def seri_onay(kart):
@@ -309,7 +331,8 @@ def main() -> int:
         if kart:
             kart.kapat()
     print(f"yeni {r['yeni_kayit']} kayit, son sira {r['son_sira']}, bosluk {r['bosluk']}, "
-          f"onay {'dogrulandi' if r['onay_dogrulandi'] else 'DOGRULANAMADI'}"
+          f"onay {'dogrulandi' if r['onay_dogrulandi'] else 'DOGRULANAMADI'}, "
+          f"kalibrasyon {r['kalibrasyon'] if r['kalibrasyon'] is not None else 'yok (eski firmware)'}"
           + (f", UYARI: {r['uyari']}" if r.get("uyari") else ""))
     return 0
 

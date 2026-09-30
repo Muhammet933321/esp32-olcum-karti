@@ -11,6 +11,7 @@ Plan: tasarim/2026-09-29-plan-1a2-kayit-firmware.md
 from __future__ import annotations
 
 import http.server
+import json
 import os
 import re
 import struct
@@ -237,6 +238,7 @@ class _SahteKart:
         self.onay = 0
         self.onay_dusur = 0             # sonraki N onay karta ULASMAZ
         self.komutlar: list[str] = []
+        self.kal_liste = None           # 1B: /kal/liste (None = eski firmware, 404)
 
     def sonraki(self) -> int:
         return max((struct.unpack_from("<I", k, 4)[0] for k in self.kayitlar), default=0) + 1
@@ -280,6 +282,14 @@ def _sunucu(kart: _SahteKart):
                 self.end_headers()
                 self.wfile.write(b'retry: 3000\n\nevent: kimlik\n'
                                  b'data: {"jeton":"abc123","surucu":true}\n\n')
+                return
+            if u.path == "/kal/liste" and kart.kal_liste is not None:
+                govde = json.dumps(kart.kal_liste, ensure_ascii=False).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(govde)))
+                self.end_headers()
+                self.wfile.write(govde)
                 return
             if u.path != "/kayit/veri":
                 self.send_error(404)
@@ -496,6 +506,31 @@ def bolum_esitle() -> None:
                     ikinci = True
             ok("B72.E16 ayni dizinde ikinci esitleme kilit yuzunden BASLAMAZ",
                ikinci and not (Path(d) / KE.DOSYA).exists())
+        sifirla()
+        kal = {"surum": 1, "adet": 2, "taslak": 0, "azami": 40, "kayitlar": [
+            {"no": 1, "unix": 0, "acilis": 0, "tur": 0, "kaynak": 2,
+             "not": "1B oncesi kalibrasyon (Ayar3)",
+             "kal": {"normal": {"n": 16.5, "pga": 2.0, "kazanc": 1.0, "sifir_ham": -12, "tau": 0.0029},
+                     "yuksek": {"n": 312.5, "pga": 2.0, "kazanc": 0.99, "sifir_ham": 5, "tau": 0.0031},
+                     "i_ofset": -3, "i_pga": 0.25, "sont_ohm": 0.005, "i_duzeltme": 1.0,
+                     "sebeke_hz": 50.0, "faz0": 12.5, "faz1": -3.25}},
+            {"no": 2, "unix": 1790000000, "acilis": 5, "tur": 1, "kaynak": 0,
+             "not": "şönt değişti ğü", "kal": {}}]}
+        kart.kal_liste = kal
+        with tempfile.TemporaryDirectory() as d:
+            r = _es(taban, d, kart.onayla).esitle()
+            p = Path(d) / KE.KAL_DOSYA
+            yuklu = json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+            ok("B72.E18 kalibrasyon gecmisi kalibrasyon.json'a ATOMIK yazilir, Turkce not "
+               "bozulmadan (karttaki listeyle ayni)",
+               yuklu == kal and r.get("kalibrasyon") == 2
+               and not p.with_suffix(".tmp").exists(), f"{r.get('kalibrasyon')}")
+        kart.kal_liste = None
+        with tempfile.TemporaryDirectory() as d:
+            r = _es(taban, d, kart.onayla).esitle()
+            ok("B72.E19 eski firmware (/kal/liste 404) veri esitlemesini DURDURMAZ",
+               r["son_sira"] == 50 and r.get("kalibrasyon") is None
+               and not (Path(d) / KE.KAL_DOSYA).exists(), f"{r}")
         sifirla()
         KE.http_onay(taban)(42)
         ok("B72.E8 HTTP onayi jetonu /akis'ten alip X-Olcum + X-Jeton ile Go<sira> yollar",
