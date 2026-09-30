@@ -525,12 +525,15 @@ static inline int kg_basla_oku(KayitGunluk *g, uint32_t adres, uint32_t oturum,
     s = adres / KAYIT_SEKTOR;
     if (s >= g->sektor_adet) return KG_HATA;
     if (kg__kayit_dogrula(g, adres, (s + 1u) * KAYIT_SEKTOR, &h) != 1) return KG_HATA;
+    /* 1B: surum 2 (102 B, kal_no) ya da surum 1 (98 B, 1A-2 firmware'i):
+       yukseltmeden once acilmis oturum da DEVAM edebilsin. */
     if ((h.tur != KAYIT_T_BASLA && h.tur != KAYIT_T_TEKRAR)
-        || h.yuk_bayt != KAYIT_BASLA_BAYT) return KG_HATA;
-    if (h.oturum != oturum) return KG_HATA;
-    if (g->f.oku(g->f.baglam, adres + KAYIT_BASLIK_BAYT, p, KAYIT_BASLA_BAYT))
+        || (h.yuk_bayt != KAYIT_BASLA_BAYT && h.yuk_bayt != KAYIT_BASLA_V1_BAYT))
         return KG_HATA;
-    kayit_basla_coz(p, b);
+    if (h.oturum != oturum) return KG_HATA;
+    if (g->f.oku(g->f.baglam, adres + KAYIT_BASLIK_BAYT, p, h.yuk_bayt))
+        return KG_HATA;
+    kayit_basla_coz(p, h.yuk_bayt, b);
     return KG_TAMAM;
 }
 

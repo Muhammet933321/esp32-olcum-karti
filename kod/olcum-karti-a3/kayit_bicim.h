@@ -38,11 +38,13 @@
 #include <stdint.h>
 #include <string.h>
 
-#define KAYIT_SURUM        1u
+#define KAYIT_SURUM        2u   /* 1B: BASLA'da kal_no (surum 1 = 98 B, okunur) */
 #define KAYIT_IMZA         0xA5u
 #define KAYIT_BASLIK_BAYT  16u
 #define KAYIT_NOKTA_BAYT   36u
-#define KAYIT_BASLA_BAYT   98u
+#define KAYIT_BASLA_BAYT   102u
+#define KAYIT_BASLA_V1_BAYT 98u  /* surum 1 (1A-2): kal_no yok */
+#define KAYIT_KAL_BAYT     62u   /* kalibrasyon kopyasi (BASLA 36..97, kalgec) */
 #define KAYIT_DEVAM_BAYT   16u
 #define KAYIT_BITIR_BAYT   8u
 #define KAYIT_SAAT_BAYT    12u
@@ -231,7 +233,7 @@ static inline void kayit_nokta_coz(const uint8_t *p, KayitNokta *k)
     k->w_maks = kayit_of(p + 32);
 }
 
-/* ─────────────────────────────── BASLA (98 bayt)
+/* ─────────────────────────────── BASLA (102 bayt; surum 1 = 98)
  *    0 u8 oturum_turu · 1 u8 kal_bicim · 2 u16 bicim surumu (KAYIT_SURUM) ·
  *    4 u32 hiz_ms ·
  *    8 u32 unix_s (0 = bilinmiyor) · 12 u32 kart_ms · 16 u32 acilis ·
@@ -239,6 +241,8 @@ static inline void kayit_nokta_coz(const uint8_t *p, KayitNokta *k)
  *   36 kanal normal (n f32, pga f32, kazanc f32, sifir_ham i16, tau f32)
  *   54 kanal yuksek · 72 i_ofset i16 · 74 i_pga · 78 sont_ohm ·
  *   82 i_duzeltme · 86 sebeke_hz · 90 faz_kal_us[0] · 94 faz_kal_us[1]
+ *   98 u32 kal_no — kalibrasyon GECMISINDEKI numara (1B; 0 = bilinmiyor:
+ *      surum 1 ya da gecmis dolu). Surum 1 (98 B) okunur, kal_no 0.
  * Kalibrasyon kopyasi olc_gerilim3/olc_akim3'un (olcum3.h) girdilerinin
  * TAMAMI: kayit hangi cihaza giderse gitsin kendi ham kodunu volta
  * cevirebilir (tasarim §7). */
@@ -261,6 +265,7 @@ typedef struct {
     uint32_t hiz_ms, unix_s, kart_ms, acilis;
     char     surum[16];
     KayitKalibrasyon kal;
+    uint32_t kal_no;               /* 1B: kalibrasyon gecmisindeki numara (0 = bilinmiyor) */
 } KayitBasla;
 
 static inline void kayit__kanal_yaz(uint8_t *p, const KayitKanal *k)
@@ -281,6 +286,34 @@ static inline void kayit__kanal_oku(const uint8_t *p, KayitKanal *k)
     k->tau = kayit_of(p + 14);
 }
 
+/* Kalibrasyon kopyasi (62 bayt) — BASLA 36..97 ve kalibrasyon gecmisi
+   (kalgec.h) AYNI paketi kullanir. */
+static inline void kayit_kal_paketle(const KayitKalibrasyon *k, uint8_t *p)
+{
+    kayit__kanal_yaz(p, &k->normal);
+    kayit__kanal_yaz(p + 18, &k->yuksek);
+    kayit_y16(p + 36, (uint16_t)k->i_ofset);
+    kayit_yf(p + 38, k->i_pga);
+    kayit_yf(p + 42, k->sont_ohm);
+    kayit_yf(p + 46, k->i_duzeltme);
+    kayit_yf(p + 50, k->sebeke_hz);
+    kayit_yf(p + 54, k->faz_kal_us[0]);
+    kayit_yf(p + 58, k->faz_kal_us[1]);
+}
+
+static inline void kayit_kal_coz(const uint8_t *p, KayitKalibrasyon *k)
+{
+    kayit__kanal_oku(p, &k->normal);
+    kayit__kanal_oku(p + 18, &k->yuksek);
+    k->i_ofset = (int16_t)kayit_o16(p + 36);
+    k->i_pga = kayit_of(p + 38);
+    k->sont_ohm = kayit_of(p + 42);
+    k->i_duzeltme = kayit_of(p + 46);
+    k->sebeke_hz = kayit_of(p + 50);
+    k->faz_kal_us[0] = kayit_of(p + 54);
+    k->faz_kal_us[1] = kayit_of(p + 58);
+}
+
 static inline void kayit_basla_paketle(const KayitBasla *b, uint8_t *p)
 {
     p[0] = b->oturum_turu;
@@ -291,18 +324,12 @@ static inline void kayit_basla_paketle(const KayitBasla *b, uint8_t *p)
     kayit_y32(p + 12, b->kart_ms);
     kayit_y32(p + 16, b->acilis);
     memcpy(p + 20, b->surum, 16);
-    kayit__kanal_yaz(p + 36, &b->kal.normal);
-    kayit__kanal_yaz(p + 54, &b->kal.yuksek);
-    kayit_y16(p + 72, (uint16_t)b->kal.i_ofset);
-    kayit_yf(p + 74, b->kal.i_pga);
-    kayit_yf(p + 78, b->kal.sont_ohm);
-    kayit_yf(p + 82, b->kal.i_duzeltme);
-    kayit_yf(p + 86, b->kal.sebeke_hz);
-    kayit_yf(p + 90, b->kal.faz_kal_us[0]);
-    kayit_yf(p + 94, b->kal.faz_kal_us[1]);
+    kayit_kal_paketle(&b->kal, p + 36);
+    kayit_y32(p + 98, b->kal_no);
 }
 
-static inline void kayit_basla_coz(const uint8_t *p, KayitBasla *b)
+/* `n`: yuk uzunlugu — 102 (surum 2) ya da 98 (surum 1: kal_no yok -> 0). */
+static inline void kayit_basla_coz(const uint8_t *p, uint16_t n, KayitBasla *b)
 {
     b->oturum_turu = p[0];
     b->kal_bicim = p[1];
@@ -312,15 +339,8 @@ static inline void kayit_basla_coz(const uint8_t *p, KayitBasla *b)
     b->kart_ms = kayit_o32(p + 12);
     b->acilis = kayit_o32(p + 16);
     memcpy(b->surum, p + 20, 16);
-    kayit__kanal_oku(p + 36, &b->kal.normal);
-    kayit__kanal_oku(p + 54, &b->kal.yuksek);
-    b->kal.i_ofset = (int16_t)kayit_o16(p + 72);
-    b->kal.i_pga = kayit_of(p + 74);
-    b->kal.sont_ohm = kayit_of(p + 78);
-    b->kal.i_duzeltme = kayit_of(p + 82);
-    b->kal.sebeke_hz = kayit_of(p + 86);
-    b->kal.faz_kal_us[0] = kayit_of(p + 90);
-    b->kal.faz_kal_us[1] = kayit_of(p + 94);
+    kayit_kal_coz(p + 36, &b->kal);
+    b->kal_no = (n >= KAYIT_BASLA_BAYT) ? kayit_o32(p + 98) : 0u;
 }
 
 /* ─────────────────────────────── DEVAM (16) · BITIR (8) · SAAT (12) */

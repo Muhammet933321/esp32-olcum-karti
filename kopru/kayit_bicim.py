@@ -20,11 +20,13 @@ import zlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-SURUM = 1
+SURUM = 2              # 1B: BASLA'da kal_no; surum 1 (98 B) okunur
 IMZA = 0xA5
 BASLIK_BAYT = 16
 NOKTA_BAYT = 36
-BASLA_BAYT = 98
+BASLA_BAYT = 102
+BASLA_V1_BAYT = 98
+KAL_BAYT = 62          # kalibrasyon kopyasi (BASLA 36..97 ve kalibrasyon gecmisi)
 
 T_BASLA, T_NOKTA, T_DEVAM, T_BITIR, T_SAAT, T_TEKRAR = 1, 2, 3, 4, 5, 6
 KN_YUKSEK, KN_V_HATA, KN_I_HATA = 0x01, 0x02, 0x04
@@ -43,7 +45,8 @@ _DEVAM = struct.Struct("<IIII")
 _BITIR = struct.Struct("<IB3x")
 _SAAT = struct.Struct("<III")
 assert _NOKTA.size == NOKTA_BAYT
-assert _BASLA_BAS.size + 2 * _KANAL.size + _AKIM.size == BASLA_BAYT
+assert 2 * _KANAL.size + _AKIM.size == KAL_BAYT
+assert _BASLA_BAS.size + KAL_BAYT == BASLA_V1_BAYT and BASLA_V1_BAYT + 4 == BASLA_BAYT
 
 
 def toplam_bayt(yuk_bayt: int) -> int:
@@ -198,31 +201,41 @@ class Basla:
     surum: str
     kal: Kalibrasyon
     bicim_surum: int = SURUM       # cozulen kayitta: yazildigi bicim
+    kal_no: int = 0                # 1B: kalibrasyon gecmisindeki numara (0 = bilinmiyor)
 
 
 def _kanal_paketle(k: Kanal) -> bytes:
     return _KANAL.pack(k.n, k.pga, k.kazanc, k.sifir_ham, k.tau)
 
 
-def basla_paketle(b: Basla) -> bytes:
-    k = b.kal
-    return (_BASLA_BAS.pack(b.oturum_turu, b.kal_bicim, SURUM, b.hiz_ms,
-                            b.unix_s, b.kart_ms, b.acilis,
-                            b.surum.encode("ascii")[:16].ljust(16, b"\0"))
-            + _kanal_paketle(k.normal) + _kanal_paketle(k.yuksek)
+def kal_paketle(k: Kalibrasyon) -> bytes:
+    """Kalibrasyon kopyasi (62 B) — C'deki kayit_kal_paketle ile ayni."""
+    return (_kanal_paketle(k.normal) + _kanal_paketle(k.yuksek)
             + _AKIM.pack(k.i_ofset, k.i_pga, k.sont_ohm, k.i_duzeltme,
                          k.sebeke_hz, *k.faz_kal_us))
 
 
-def basla_coz(y: bytes) -> Basla:
-    tur, kb, bs, hiz, unix, kms, acilis, surum = _BASLA_BAS.unpack_from(y, 0)
-    a = _BASLA_BAS.size
+def kal_coz(y: bytes, a: int = 0) -> Kalibrasyon:
     normal = Kanal(*_KANAL.unpack_from(y, a))
     yuksek = Kanal(*_KANAL.unpack_from(y, a + _KANAL.size))
     io, ip, so, idz, sh, f0, f1 = _AKIM.unpack_from(y, a + 2 * _KANAL.size)
+    return Kalibrasyon(normal, yuksek, io, ip, so, idz, sh, (f0, f1))
+
+
+def basla_paketle(b: Basla) -> bytes:
+    return (_BASLA_BAS.pack(b.oturum_turu, b.kal_bicim, SURUM, b.hiz_ms,
+                            b.unix_s, b.kart_ms, b.acilis,
+                            b.surum.encode("ascii")[:16].ljust(16, b"\0"))
+            + kal_paketle(b.kal) + struct.pack("<I", b.kal_no))
+
+
+def basla_coz(y: bytes) -> Basla:
+    """Surum 2 (102 B) ya da surum 1 (98 B; kal_no yok -> 0)."""
+    tur, kb, bs, hiz, unix, kms, acilis, surum = _BASLA_BAS.unpack_from(y, 0)
+    kal_no = struct.unpack_from("<I", y, BASLA_V1_BAYT)[0] if len(y) >= BASLA_BAYT else 0
     return Basla(tur, kb, hiz, unix, kms, acilis,
                  surum.rstrip(b"\0").decode("ascii", "replace"),
-                 Kalibrasyon(normal, yuksek, io, ip, so, idz, sh, (f0, f1)), bs)
+                 kal_coz(y, _BASLA_BAS.size), bs, kal_no)
 
 
 def devam_coz(y: bytes) -> dict:

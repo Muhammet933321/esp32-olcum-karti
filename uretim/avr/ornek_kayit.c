@@ -109,6 +109,7 @@ static KULLANILMAYABILIR void basla_uret(KayitBasla *b, uint32_t hiz_ms)
     b->kart_ms = 1000u;
     b->acilis = 3u;
     memcpy(b->surum, "B71-test", 8);
+    b->kal_no = 7u;
     b->kal.normal.n = 16.5f;
     b->kal.normal.pga = 2.0f;
     b->kal.normal.kazanc = 1.0078125f;
@@ -131,7 +132,7 @@ static KULLANILMAYABILIR void basla_uret(KayitBasla *b, uint32_t hiz_ms)
 /* ─────────────────────────────── emule NOR (uretim/avr/nor_flas.py) */
 #if defined(SENARYO_GUNLUK) || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) \
     || defined(SENARYO_DIZIN) || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) \
-    || defined(SENARYO_YONET)
+    || defined(SENARYO_YONET) || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC)
 #define NOR_KOMUT (*(volatile uint8_t *)0xE0)
 #define NOR_A0    (*(volatile uint8_t *)0xE1)
 #define NOR_A1    (*(volatile uint8_t *)0xE2)
@@ -817,6 +818,42 @@ static void senaryo(void)
 }
 #endif
 
+#if defined(SENARYO_SURUM)
+/* 1B: BASLA surum 2 (102 B, kal_no) ve surum 1 (98 B, 1A-2 firmware'i) —
+   kg_basla_oku ikisini de okumali: yukseltmeden once acilmis oturum
+   DEVAM edebilsin. */
+static void senaryo(void)
+{
+    uint8_t p[KAYIT_BASLA_BAYT], p1[KAYIT_BASLA_V1_BAYT];
+    KayitBasla b, bb;
+    int32_t id[2];
+    uint16_t i, j;
+    kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    kg_ac(&g, 0u, 0u);
+    basla_uret(&b, 250u);
+    kayit_basla_paketle(&b, p);
+    id[0] = kg_ekle(&g, KAYIT_T_BASLA, g.sonraki_sira, p, KAYIT_BASLA_BAYT);
+    memcpy(p1, p, KAYIT_BASLA_V1_BAYT);
+    p1[2] = 1u;
+    p1[3] = 0u;
+    id[1] = kg_ekle(&g, KAYIT_T_BASLA, g.sonraki_sira, p1, KAYIT_BASLA_V1_BAYT);
+    kg_ac(&g, 0u, 0u);
+    for (j = 0; j < 2u; j++) {
+        for (i = 0; i < g.dizin_adet; i++) {
+            if (g.dizin[i].id != (uint32_t)id[j]) continue;
+            memset(&bb, 0, sizeof(bb));
+            metin("BV ");
+            ondalik((uint32_t)(-kg_basla_oku(&g, g.dizin[i].basla_adres, (uint32_t)id[j], &bb)));
+            yaz(' '); ondalik(bb.bicim_surum);
+            yaz(' '); ondalik(bb.kal_no);
+            yaz(' '); ondalik(bb.hiz_ms);
+            satir();
+        }
+    }
+    metin("BITTI\n");
+}
+#endif
+
 #if defined(SENARYO_TARAMA)
 /* B72: bos flasta kurtarma yalniz sektor BASLIKLARINI okumali; baslik
    disindaki 0xFF denetimi yalniz yazilan (bas) sektorde gerekli.
@@ -835,7 +872,8 @@ static void senaryo(void)
 /* ── giris ── */
 #if !(defined(SENARYO_BICIM) || defined(SENARYO_NOKTACI) || defined(SENARYO_GUNLUK) \
       || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN) \
-      || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) || defined(SENARYO_YONET))
+      || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) || defined(SENARYO_YONET) \
+      || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC))
 #error "SENARYO_* tanimli degil"
 #endif
 

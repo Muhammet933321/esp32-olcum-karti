@@ -219,7 +219,7 @@ def basla_uret(hiz_ms: int) -> KB.Basla:
     """ornek_kayit.c basla_uret() ile AYNI. Butun kesirler ikili (tam temsil)."""
     return KB.Basla(
         oturum_turu=KB.OTURUM_OLCUM, kal_bicim=KB.KAL_BICIM, hiz_ms=hiz_ms,
-        unix_s=0, kart_ms=1000, acilis=3, surum="B71-test",
+        unix_s=0, kart_ms=1000, acilis=3, surum="B71-test", kal_no=7,
         kal=KB.Kalibrasyon(
             normal=KB.Kanal(16.5, 2.0, 1.0078125, -12, 0.0029296875),
             yuksek=KB.Kanal(312.5, 2.0, 0.9921875, 5, 0.0030517578125),
@@ -259,7 +259,7 @@ def bolum_bicim() -> None:
     ok("B71.B2 nokta paketi C == Python (36 bayt)",
        bytes.fromhex(s["NOKTA"][0]) == KB.nokta_paketle(nokta_uret(12345)))
     b = basla_uret(200)
-    ok("B71.B3 BASLA paketi C == Python (98 bayt, kalibrasyon kopyasi dahil)",
+    ok("B71.B3 BASLA paketi C == Python (102 bayt: kalibrasyon kopyasi + numarasi)",
        bytes.fromhex(s["BASLA"][0]) == KB.basla_paketle(b))
     yuk20 = KB.basla_paketle(b)[:20]
     ok("B71.B4 kayit basligi + CRC C == Python",
@@ -286,8 +286,21 @@ def bolum_bicim() -> None:
        and abs(KB.volt(-12 + 16384, kn) - 1.0 * 16.5 * 1.0078125) < 1e-12)
     # Son inceleme bulgu 6: bicim surumu yaziliyor, bilinmeyen tur reddedilmiyor.
     basla_c = bytes.fromhex(s["BASLA"][0])
-    ok("B71.B12 BASLA bayt 2-3 = bicim surumu (1): kayit hangi bicimde yazildigini soyler",
-       basla_c[2:4] == bytes([KB.SURUM, 0]), basla_c[2:4].hex())
+    ok("B71.B12 BASLA bayt 2-3 = bicim surumu (2): kayit hangi bicimde yazildigini soyler",
+       KB.SURUM == 2 and basla_c[2:4] == bytes([2, 0]) and len(basla_c) == 102,
+       basla_c[2:4].hex())
+    # 1B: surum 1 (98 B, kal_no yok) 1A-2 firmware'inin yazdiklari — okunmali
+    v1 = bytearray(KB.basla_paketle(b)[:98])
+    v1[2] = 1
+    v1[3] = 0
+    b1 = KB.basla_coz(bytes(v1))
+    ok("B71.B14 surum 1 BASLA (98 B) Python'da cozulur: kal_no 0, kalibrasyon ayni",
+       b1.bicim_surum == 1 and b1.kal_no == 0 and b1.kal == b.kal and b1.hiz_ms == b.hiz_ms,
+       f"surum={b1.bicim_surum} kal_no={b1.kal_no}")
+    bv = alanlar(kos(derle("SURUM"), NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)), "BV")
+    ok("B71.B15 C'nin kg_basla_oku'su surum 2 VE surum 1 BASLA'yi okur (1A-2'de "
+       "acilmis oturum yukseltmeden sonra DEVAM edebilsin)",
+       bv == [["0", "2", "7", "250"], ["0", "1", "0", "250"]], str(bv))
     akis = (KB.kayit_paketle(KB.T_SAAT, 4, 0, bytes(12))
             + KB.kayit_paketle(9, 5, 0, b"\x01\x02")
             + KB.kayit_paketle(KB.T_SAAT, 6, 0, bytes(12)))
