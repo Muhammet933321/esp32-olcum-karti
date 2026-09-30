@@ -19,6 +19,8 @@
 #endif
 
 #define KO_KAYIP_ONCE 0x10u    /* yalniz bellekte: bundan ONCE ornek dustu */
+#define KO_SILME_ONCE 0x20u    /* yalniz bellekte: bu ornekten ONCE kirli sektor silindi
+                                  (~25 ms iki cekirdek durdu); uretici isaretler */
 
 typedef struct {
     uint32_t us, ms;           /* micros() ve millis() — ayni zamanlayici */

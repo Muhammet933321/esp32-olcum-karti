@@ -146,7 +146,6 @@ static inline int ky_bosalt(KayitYazici *y)
 static inline int ky_ayrinti_bosalt(KayitYazici *y)
 {
     KayitGunluk *g = y->g;
-    const uint32_t sil_bas = g->silinen_sektor;
     while (y->oturum && y->a_adet) {
         uint32_t kalan = KAYIT_SEKTOR - g->bas_ofset;
         uint32_t sabit = KAYIT_BASLIK_BAYT + KAYIT_AYRINTI_BAS + KY_BITIR_PAY;
@@ -183,9 +182,10 @@ static inline int ky_ayrinti_bosalt(KayitYazici *y)
             y->a_adet = 0u;
         }
     }
-    /* bu bosaltmada DOLU sektor silindiyse (~25 ms iki cekirdek durdu) o
-       sirada ornek gelmedi: SONRAKI kaydin basi bunu soylesin */
-    if (g->silinen_sektor != sil_bas) y->a_bayrak = (uint8_t)(y->a_bayrak | KA_SILME);
+    /* 🔴 son inceleme: KA_SILME burada (silmeyi yapan bosaltmadan sonra) konunca
+       halkada bekleyen, silmeden ONCE uretilmis orneklerle dolan kayda dusuyordu;
+       bosluk ondan SONRA geliyordu. Artik uretici (cekirdek 1) durustan sonraki
+       ilk ornegi KO_SILME_ONCE ile isaretliyor (ky_ayrinti_ornek). */
     return KG_TAMAM;
 }
 
@@ -201,6 +201,7 @@ static inline int ky_ayrinti_ornek(KayitYazici *y, const KayitOrnek *o, uint32_t
         q = (uint32_t)(o->us - y->a_ilk_us + 2u) / 4u;
         dt4 = q - y->a_q;
         if ((o->bayrak & KO_KAYIP_ONCE) || dt4 > KAYIT_AYRINTI_DT_AZAMI
+            || (o->bayrak & KO_SILME_ONCE)
             || y->a_adet >= KAYIT_AYRINTI_TAMPON) {
             r = ky_ayrinti_bosalt(y);
             if (r) return r;
@@ -208,6 +209,7 @@ static inline int ky_ayrinti_ornek(KayitYazici *y, const KayitOrnek *o, uint32_t
         }
     }
     if (o->bayrak & KO_KAYIP_ONCE) y->a_bayrak = (uint8_t)(y->a_bayrak | KA_KAYIP_ONCE);
+    if (o->bayrak & KO_SILME_ONCE) y->a_bayrak = (uint8_t)(y->a_bayrak | KA_SILME);
     if (!y->a_adet) {
         y->a_ilk_ms = o->ms;
         y->a_ilk_us = o->us;

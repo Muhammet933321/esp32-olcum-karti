@@ -317,7 +317,11 @@ static inline void kyn_adim(KayitYonetici *m, uint32_t onay_istek, uint32_t simd
     }
     r = ky_zaman(m->y, simdi_ms);
     if (r && r != KG_YOK) m->son_hata = r;
-    if (m->temiz_s < g->sektor_adet && simdi_ms - m->temiz_ms >= KYN_TEMIZ_MS) {
+    /* 1C-2 son inceleme: ayrintili kayitta arka plan temizligi YOK — her dolu
+       sektor ~25 ms iki cekirdegi durdurur (500 ms'de bir delik). Kafa eski
+       sektoru kendisi siler, o silme sayilir ve isaretlenir (kg_ilerle). */
+    if (m->temiz_s < g->sektor_adet && simdi_ms - m->temiz_ms >= KYN_TEMIZ_MS
+        && !(m->y->oturum && m->y->ayrinti)) {
         for (n = 0; n < KYN_TEMIZ_BAKIS && m->temiz_s < g->sektor_adet; n++) {
             r = kg_temizle_adim(g, &m->temiz_s);
             if (r) {

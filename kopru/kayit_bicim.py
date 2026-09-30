@@ -31,7 +31,9 @@ KAL_BAYT = 62          # kalibrasyon kopyasi (BASLA 36..97 ve kalibrasyon gecmis
 T_BASLA, T_NOKTA, T_DEVAM, T_BITIR, T_SAAT, T_TEKRAR = 1, 2, 3, 4, 5, 6
 T_OLAY, T_NOT = 7, 8   # 1C-1
 T_AYRINTI = 9          # 1C-2: her ornek (hiz_ms 0)
-KA_KAYIP_ONCE, KA_SILME = 0x01, 0x02                 # AYRINTI kayit bayraklari
+# AYRINTI kayit bayraklari. KA_SILME: kaydin ILK ornegi kirli sektor silmesinden
+# (~25 ms, iki cekirdek durur) SONRA uretildi — ilk ornegin onundeki bosluk silmedir.
+KA_KAYIP_ONCE, KA_SILME = 0x01, 0x02
 KAO_YUKSEK, KAO_V_HATA, KAO_I_HATA, KAO_V_DOYDU = 0x1, 0x2, 0x4, 0x8   # ornek bayraklari
 KN_YUKSEK, KN_V_HATA, KN_I_HATA = 0x01, 0x02, 0x04
 KN_V_DOYDU, KN_DURAKLAMA, KN_KAYIP_ONCE = 0x08, 0x10, 0x20

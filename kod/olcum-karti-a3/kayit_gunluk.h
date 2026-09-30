@@ -75,6 +75,9 @@ typedef struct KayitGunluk_ {
     uint32_t     taban;               /* bu siranin ALTI bicimlenmis: yok sayilir (B72) */
     uint32_t     eski;                /* son kg_ac'ta taban yuzunden bos sayilan sektor */
     uint32_t     hazir;               /* 1C-2: basin ONUNDE bu acilista silinmis bos sektor */
+    uint32_t     kirli_sil;           /* 1C-2: kafanin BOS OLMAYAN sektor silmesi (~25 ms iki
+                                         cekirdek durur). SILMEDEN ONCE artar: cekirdek 1
+                                         durustan sonra urettigi ilk ornegi isaretler */
 } KayitGunluk;
 
 typedef void (*KgBesle)(KayitGunluk *g, const KayitBaslik *h, uint32_t adres);
@@ -327,6 +330,22 @@ static inline void kg__sektor_dusur(KayitGunluk *g, uint32_t s)
     g->dizin_adet = j;
 }
 
+/* 1C-2 son inceleme: sektor flasta TAMAMEN bos mu (1 bos, 0 dolu, -1 okuma
+   hatasi). Tabloda kaydi olmayan sektor de kirli olabilir: GF! ve acilistaki
+   ESKI sektorler, ilk kaydi cop olan sektor. Kartta bolum bellege esli: 4 KB
+   okumak ~100 us, silmenin 25 ms'sine gore bedava. */
+static inline int kg__bos_mu(KayitGunluk *g, uint32_t s)
+{
+    uint8_t b[KG__PARCA];
+    uint32_t a, j;
+    for (a = 0u; a < KAYIT_SEKTOR; a += KG__PARCA) {
+        if (g->f.oku(g->f.baglam, s * KAYIT_SEKTOR + a, b, KG__PARCA)) return -1;
+        for (j = 0u; j < KG__PARCA; j++)
+            if (b[j] != 0xFFu) return 0;
+    }
+    return 1;
+}
+
 /* Sonraki sektore gec: gerekirse AKILLI TEMIZLIK, her durumda SIL. */
 static inline int kg_ilerle(KayitGunluk *g)
 {
@@ -334,11 +353,17 @@ static inline int kg_ilerle(KayitGunluk *g)
     if (g->hazir) {
         g->hazir--;                 /* 1C-2: bu acilista ONCEDEN silindi, bos: silme YOK */
     } else {
+        int kirli = 1;
         if (g->sektor[s].ilk) {
             if (g->sektor[s].son > g->onay) { g->dolu = 1u; return KG_DOLU; }
             kg__sektor_dusur(g, s);
             g->silinen_sektor++;
+        } else {
+            kirli = kg__bos_mu(g, s);
+            if (kirli < 0) return KG_HATA;
+            kirli = !kirli;
         }
+        if (kirli) g->kirli_sil++;  /* ONCE: durus bitince cekirdek 1 degisimi gorsun */
         if (g->f.sil(g->f.baglam, s * KAYIT_SEKTOR)) return KG_HATA;
     }
     g->sektor[s].ilk = 0u;

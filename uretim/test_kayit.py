@@ -1072,6 +1072,17 @@ def _sektor_kayitlari(bellek: bytes, s: int) -> list:
     return kay
 
 
+def _silme_bosluk(o) -> tuple[list, dict]:
+    """(KA_SILME kayitlari, {ilk_sira: onceki ornekten bosluk_us}) — her kaydin
+    ilk orneginin onundeki zaman farki (ilk kayit haric)."""
+    if o is None:
+        return [], {}
+    kl = sorted(o.ayrinti, key=lambda r: r["sira"])
+    t = {s: us for s, us, *_ in KB.ayrinti_ornekler(o)}
+    return ([r for r in kl if r["bayrak"] & KB.KA_SILME],
+            {r["ilk"]: t[r["ilk"]] - t[r["ilk"] - 1] for r in kl if r["ilk"] - 1 in t})
+
+
 def bolum_hazir() -> None:
     """1C-2: bosta (kayit yok, izin acik) onayli eski sektorler basin onunde
     sirayla ONCEDEN silinir (500 ms arayla); kafa bu sektorlere SILMEDEN gecer
@@ -1090,13 +1101,21 @@ def bolum_hazir() -> None:
        and _say(z2, "SIL2") == 5,
        f"KAPALI={_say(z1, 'KAPALI')} HZ4={_say(z2, 'HZ4')} HZ={_say(z2, 'HZ')} SIL2={_say(z2, 'SIL2')}")
     ayr = [o for o in KB.oturumlari_kur(kay).values() if o.basla and o.basla.hiz_ms == 0]
-    kl = sorted(ayr[0].ayrinti, key=lambda r: r["sira"]) if ayr else []
-    ilk_silme = next((j for j, r in enumerate(kl) if r["bayrak"] & KB.KA_SILME), None)
+    ka2, bosluk2 = _silme_bosluk(ayr[0] if ayr else None)
+    # 🔴 son inceleme: KA_SILME eskiden silmeyi YAPAN bosaltmadan sonraki kayda
+    # konuyordu; o kayit halkada bekleyen (silmeden ONCE uretilmis) orneklerle
+    # doluyordu ve bosluk ONDAN SONRA geliyordu. Artik cekirdek 1 silmeden sonra
+    # urettigi ilk ornegi isaretler: bayrakli kayit bosluktan HEMEN sonra baslar.
     ok("B71.Z2 kafa HAZIR sektorlere gecerken SILME YOK (0); hazir bitince onayli dolu "
-       "sektorler yeniden silinir ve o silmeden sonraki kayit KA_SILME tasir",
+       "sektorler yeniden silinir; her kirli silme bir KA_SILME kaydi ve o kayit silme "
+       "boslugundan (>= 25 ms) HEMEN SONRA baslar; bayraksiz kayit boslukla baslamaz",
        _say(z2, "HAZIRDA") == 0 and (_say(z2, "SONRA") or 0) > 0
-       and ilk_silme is not None and ilk_silme > 0,
-       f"HAZIRDA={_say(z2, 'HAZIRDA')} SONRA={_say(z2, 'SONRA')} ilk_KA_SILME={ilk_silme}/{len(kl)}")
+       and (_say(z2, "KIRLI2") or 0) > 0 and len(ka2) == _say(z2, "KIRLI2")
+       and all(bosluk2.get(r["ilk"], 0) >= 25000 for r in ka2)
+       and not [s for s, b in bosluk2.items() if b >= 25000 and s not in {r["ilk"] for r in ka2}],
+       f"HAZIRDA={_say(z2, 'HAZIRDA')} SONRA={_say(z2, 'SONRA')} KIRLI={_say(z2, 'KIRLI2')} "
+       f"KA_SILME {len(ka2)}={[(r['ilk'], bosluk2.get(r['ilk'])) for r in ka2][:4]} "
+       f"bayraksiz_bosluk={[s for s, b in bosluk2.items() if b >= 25000 and s not in {r['ilk'] for r in ka2}][:4]}")
     ok("B71.Z3 oturum surerken ve izin kapaliyken silme yok; izin yeniden acilinca KYN_TEMIZ_MS "
        "BEKLER (hemen silmeye kosmaz), sonra surer",
        _say(z3, "OTURUMDA") == 0 and _say(z3, "IZINSIZ") == 0 and _say(z3, "HEMEN") == 0
@@ -1113,6 +1132,25 @@ def bolum_hazir() -> None:
        and (_say(z3, "HZ5") or 0) > 0 and _say(z3, "YAC") == 0 and _say(z3, "YACHZ") == 0,
        f"HZ0={[_say(z, 'HZ0') for z in (z1, z2, z3)]} HZ3={_say(z3, 'HZ3')} BICHZ={_say(z3, 'BICHZ')} "
        f"HZ5={_say(z3, 'HZ5')} YAC={_say(z3, 'YAC')} YACHZ={_say(z3, 'YACHZ')}")
+    # son inceleme (Important 1): GF! sonrasi sektor tablosu bos ama flas KIRLI;
+    # kafanin bu silmeleri sayilmiyordu ve arka plan temizligi kayit SURERKEN
+    # 500 ms'de bir ~25 ms durduruyordu. Artik temizlik ayrintili kayitta durur,
+    # kafa bos olmayan her sektoru kirli sayar.
+    fc = NorFlas(SEKTOR * HZ_SEKTOR, sektor=SEKTOR)
+    fc.nvs["t_rast"] = 19
+    _c1, c5 = _yonet(fc, elf_a, [1, 5])
+    kay_c, _ = KB.flas_coz(bytes(fc.bellek), SEKTOR)
+    o5 = KB.oturumlari_kur(kay_c).get(_say(c5, "BAS5"))
+    ka5, bosluk5 = _silme_bosluk(o5)
+    ok("B71.Z7 GF! sonrasi hemen ayrintili kayit: arka plan temizligi kayitta SILMEZ (silme "
+       "sayisi = sektor ilerlemesi); kirli (tabloda olmayan) her sektor sayilir ve bir "
+       "KA_SILME kaydi birakir; 16.38 ms'den KISA durusta da (10 ms) isaretli ornek yeni kayit "
+       "acar, bayrak bosluktan hemen sonraki kayitta",
+       _say(c5, "BIC5") == 0 and (_say(c5, "ILERLE5") or 0) >= 3
+       and _say(c5, "SIL5") == _say(c5, "ILERLE5") and _say(c5, "KIRLI5") == _say(c5, "ILERLE5")
+       and len(ka5) == _say(c5, "KIRLI5") and all(bosluk5.get(r["ilk"], 0) >= 10000 for r in ka5),
+       f"ILERLE={_say(c5, 'ILERLE5')} SIL={_say(c5, 'SIL5')} KIRLI={_say(c5, 'KIRLI5')} "
+       f"KA_SILME={len(ka5)}")
     elf_b = derle("HAZIR", HZ_SEKTOR, ek=("-DKYN_HAZIR_HEDEF=100u",))
     fb = NorFlas(SEKTOR * HZ_SEKTOR, sektor=SEKTOR)
     fb.nvs["t_rast"] = 17

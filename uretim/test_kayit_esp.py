@@ -343,6 +343,24 @@ def bolum_kaynak() -> None:
        "ayrintili silme",
        "t.hazir = kayit_g.hazir" in dg and "t.ornek_dusen = kayit_halka.dusen" in dg
        and "t.ayr_silme = kayit_ayr_silme" in dg)
+    # son inceleme (Important 1-2): KA_SILME silmeyi YAPAN bosaltmadan sonraki
+    # kayda dusuyordu (halkadaki silme ONCESI ornekler); GA yalniz tabloda kaydi
+    # olan sektorleri sayiyordu (GF! sonrasi eski sektorler 0).
+    ok("B72.F47 kirli silmeden sonra uretilen ILK ornek KO_SILME_ONCE tasir: cekirdek 1 "
+       "kayit_g.kirli_sil'i itme aninda okur, gordugunu YALNIZ itme basarirsa gunceller; "
+       "ayrintili degilken esitler (isaret birikmez)",
+       "const uint32_t ks = kayit_g.kirli_sil;" in ko
+       and "if (ks != kayit_ks_gordum) o.bayrak = (uint8_t)(o.bayrak | KO_SILME_ONCE);" in ko
+       and "if (kh_it(&kayit_halka, &o)) kayit_ks_gordum = ks;" in ko
+       and ko.find("KO_SILME_ONCE") < ko.find("kayit_ks_gordum = kayit_g.kirli_sil;")
+       < ko.find("if (!kayit_kn_aktif) return;"))
+    ok("B72.F48 GA kayit ici silme = kirli silme sayaci (kayit_g.kirli_sil), gorev turunda "
+       "ayrintili oturum surduyse — Gd'nin son bosaltmasi dahil; temizlik kayitta durur "
+       "(kayit_yonet.h, B71.Z7)",
+       kg2.find("const uint32_t ks0 = kayit_g.kirli_sil;") < kg2.find("kh_al(&kayit_halka, &o)")
+       and kg2.find("kyn_adim(") < kg2.find("kayit_ayr_silme += kayit_g.kirli_sil - ks0;")
+       and "if (ayr0 || (kayit_y.oturum && kayit_y.ayrinti))" in kg2
+       and "kayit_g.silinen_sektor" not in kg2)
     kp = govde(ino_k, "static void kayit_pil_baslat() {")
     ok("B72.F36 kayit acilamazsa pil testi YINE baslar ve kart 'KAYDEDILMIYOR' der "
        "(bolum yok / tarama / hata / dolu / bekliyor / kuyruk dolu)",

@@ -109,7 +109,8 @@ static volatile uint32_t kayit_mesaj_dusen = 0;    /* 1C-1: istek kuyrugunda dus
 static KayitHalka   kayit_halka;
 static KayitOrnek  *kayit_halka_t = nullptr;
 static volatile uint8_t kayit_on_sil_izin = 0;     /* cekirdek 1 yazar: kayit/skop/pil yok */
-static uint32_t     kayit_ayr_silme = 0;           /* ayrintili oturumda DOLU sektor silmesi */
+static uint32_t     kayit_ayr_silme = 0;           /* ayrintili oturumda KIRLI sektor silmesi */
+static uint32_t     kayit_ks_gordum = 0;           /* cekirdek 1: son gordugu kayit_g.kirli_sil */
 static volatile uint32_t kayit_onay_istek = 0;     /* cekirdek 1 yazar: SON gelen kazanir */
 static volatile uint32_t kayit_yaz_azami_us = 0;
 static volatile uint32_t kayit_sil_azami_us = 0;
@@ -333,19 +334,22 @@ static void kayit_gorevi(void *)
                 if (r && r != KG_YOK) kayit_m.son_hata = r;
                 var = xQueueReceive(kayit_nokta_q, &p, 0) == pdTRUE;
             }
+            const uint8_t ayr0 = (uint8_t)(kayit_y.oturum && kayit_y.ayrinti);
+            const uint32_t ks0 = kayit_g.kirli_sil;
             {                          /* 1C-2: ayrintili ornekler (100 ms'de ~50) */
                 KayitOrnek o;
-                const uint32_t sil0 = kayit_g.silinen_sektor;
                 while (kh_al(&kayit_halka, &o)) {
                     int r = ky_ayrinti_ornek(&kayit_y, &o, millis());
                     if (r && r != KG_YOK) kayit_m.son_hata = r;
                 }
-                if (kayit_y.oturum && kayit_y.ayrinti)
-                    kayit_ayr_silme += kayit_g.silinen_sektor - sil0;
             }
             while (xQueueReceive(kayit_mesaj_q, &m, 0) == pdTRUE) kayit__mesaj(&m);
             kayit_m.on_sil_izin = kayit_on_sil_izin;   /* 1C-2 hazir alan */
             kyn_adim(&kayit_m, kayit_onay_istek, millis(), kayit__unix());
+            /* kayit ici kirli silme: bu turda ayrintili oturum surduyse (Gd'nin
+               son bosaltmasi dahil) */
+            if (ayr0 || (kayit_y.oturum && kayit_y.ayrinti))
+                kayit_ayr_silme += kayit_g.kirli_sil - ks0;
             kayit__saat();
         }
         kayit__durum_guncelle();
@@ -486,9 +490,14 @@ static void kayit_ornek(float watt, uint32_t simdi, uint8_t ek)
                              | ((hata & KN_HATA_V) ? KAO_V_HATA : 0u)
                              | ((hata & KN_HATA_I) ? KAO_I_HATA : 0u)
                              | (kayit_ham.v_doydu ? KAO_V_DOYDU : 0u));
-        (void)kh_it(&kayit_halka, &o);         /* doluysa sayilir + sonraki KO_KAYIP_ONCE */
-        return;
+        /* kirli sektor silmesi iki cekirdegi durdurdu: durustan sonra uretilen
+           ILK ornek isaretlenir (sayac silmeden ONCE artar, kayit_gunluk.h) */
+        const uint32_t ks = kayit_g.kirli_sil;
+        if (ks != kayit_ks_gordum) o.bayrak = (uint8_t)(o.bayrak | KO_SILME_ONCE);
+        if (kh_it(&kayit_halka, &o)) kayit_ks_gordum = ks;   /* dustuyse isaret sonrakine */
+        return;                                /* doluysa sayilir + sonraki KO_KAYIP_ONCE */
     }
+    kayit_ks_gordum = kayit_g.kirli_sil;       /* ayrintili degil: isaret birikmesin */
     if (!kayit_kn_aktif) return;
     if (kn_ornek(&kayit_kn, simdi, kayit_ham.menzil, kayit_ham.ham_v, kayit_ham.ham_i,
                  watt, hata, kayit_ham.v_doydu, ek, &c))

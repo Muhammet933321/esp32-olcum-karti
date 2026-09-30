@@ -1045,7 +1045,9 @@ static void senaryo(void)
    Silmeler SAYILIR (FLAS_SAY sarmalayicisi). Hedef derleme basina:
    -DKYN_HAZIR_HEDEF (A: 5, B: 100). Asama 1 doldur + onayla (arka sektor
    HARIC) · 2 (A) on silme + ayrintili kayit · 3 (A) izin/oturum/aralik +
-   bicimleme · 4 (B) onaysizda dur, hepsi onayli iken bile bas sektor korunur. */
+   bicimleme · 4 (B) onaysizda dur, hepsi onayli iken bile bas sektor korunur ·
+   5 (A, ayri flas) GF! sonrasi hemen ayrintili kayit: temizlik durur, kirli
+   silme sayilir ve isaretlenir. */
 static uint32_t sil_say = 0u;
 static int say_sil(void *b, uint32_t a)
 {
@@ -1069,20 +1071,45 @@ static void adim_n(uint32_t n)    /* n x 100 ms gorev turu */
     }
 }
 
-static void orn(uint32_t k, KayitOrnek *o)
+/* Son inceleme: CEKIRDEK 1'i taklit eder (kayit_esp.h kayit_ornek). Ornekler
+   16'lik partiler halinde "itilir" (zaman o anda), gorev partiyi sonra bosaltir
+   — halkada bekleyen ornekler silmeden ONCE uretilmistir. Kirli sektor silmesi
+   iki cekirdegi ~25 ms durdurur: itme aninda `kirli_sil` degistiyse saat 25 ms
+   atlar ve ornek KO_SILME_ONCE tasir (kart da boyle isaretler). */
+#define Z_PARTI 16u
+static KayitOrnek z_parti[Z_PARTI];
+static uint32_t z_us = 5000000UL, z_k = 0u, z_gordum = 0u;
+static uint32_t z_durus = 25000UL;           /* kirli silme durusu; asama 5: 10 ms */
+
+static void z_besle(uint32_t n, uint8_t adim)
 {
-    o->us = 5000000UL + 2000UL * k;
-    o->ms = o->us / 1000u;
-    o->v = (int16_t)k;
-    o->i = (int16_t)(-(int16_t)(k & 0x3FFFu));
-    o->bayrak = 0u;
+    uint32_t j, a;
+    while (n) {
+        for (a = 0u; a < Z_PARTI && n; a++, n--) {
+            KayitOrnek *o = &z_parti[a];
+            o->bayrak = 0u;
+            if (g.kirli_sil != z_gordum) {
+                z_us += z_durus * (g.kirli_sil - z_gordum);
+                o->bayrak = KO_SILME_ONCE;
+                z_gordum = g.kirli_sil;
+            }
+            o->us = z_us;
+            o->ms = z_us / 1000u;
+            o->v = (int16_t)(z_k & 0x7FFFu);
+            o->i = (int16_t)(-(int16_t)(z_k & 0x3FFFu));
+            z_us += 2000UL;
+            z_k++;
+        }
+        for (j = 0u; j < a; j++) ky_ayrinti_ornek(&y, &z_parti[j], t_ms);
+        t_ms += 2u * a;
+        if (adim) kyn_adim(&m, 0u, t_ms, 0u);
+    }
 }
 
 static void senaryo(void)
 {
     KayitBasla b;
-    KayitOrnek o;
-    uint32_t adim, s0, k, j, onay;
+    uint32_t adim, s0, k, j, onay, kk;
     kg_kur(&g, &FLAS_SAY, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
     ky_kur(&y, &g);
     kyn_kur(&m, &g, &y, &NVS);
@@ -1117,10 +1144,14 @@ static void senaryo(void)
         basla_uret(&b, 0u);                       /* ayrintili */
         kyn_baslat(&m, &b, t_ms, 0u);
         s0 = sil_say;
-        for (k = 0; g.hazir && k < 20000u; k++) { orn(k, &o); ky_ayrinti_ornek(&y, &o, o.ms); }
+        z_gordum = g.kirli_sil;
+        onay = g.kirli_sil;
+        while (g.hazir && z_k < 20000u) z_besle(Z_PARTI, 0u);
         sayi("HAZIRDA", (int32_t)(sil_say - s0));
-        for (j = 0; j < 200u; j++, k++) { orn(k, &o); ky_ayrinti_ornek(&y, &o, o.ms); }
+        z_besle(150u, 0u);                        /* ~2 kirli sektor; halka 3. asamaya yetsin */
+        do { k = g.kirli_sil; z_besle(Z_PARTI, 0u); } while (g.kirli_sil != k);
         sayi("SONRA", (int32_t)(sil_say - s0));
+        sayi("KIRLI2", (int32_t)(g.kirli_sil - onay));
         sayi("DUR", kyn_durdur(&m));
         dr("Z2");
         break;
@@ -1159,6 +1190,29 @@ static void senaryo(void)
         kyn_adim(&m, g.sonraki_sira - 1u, t_ms, 0u);
         adim_n(100u);
         sayi("HZB2", (int32_t)g.hazir);
+        break;
+    case 5:                                     /* son inceleme: GF! sonrasi hemen Gb0 */
+        sayi("BIC5", kyn_bicimle(&m, t_ms));     /* butun sektorler ESKI, flas kirli */
+        z_durus = 10000UL;                        /* < 16.38 ms: bosluk KAYIT ICINDE kalirdi */
+        m.on_sil_izin = 1u;
+        basla_uret(&b, 0u);
+        sayi("BAS5", kyn_baslat(&m, &b, t_ms, 0u));
+        s0 = sil_say;
+        onay = g.kirli_sil;
+        z_gordum = g.kirli_sil;
+        k = g.bas;
+        j = 0u;
+        while (j < 3u && z_k < 20000u) {          /* uc sektor ilerle; gorev turu her partide */
+            z_besle(Z_PARTI, 1u);
+            j += (g.bas + NOR_SEKTOR_ADET - k) % NOR_SEKTOR_ADET;
+            k = g.bas;
+        }
+        do { kk = g.kirli_sil; z_besle(Z_PARTI, 1u); } while (g.kirli_sil != kk);
+        j += (g.bas + NOR_SEKTOR_ADET - k) % NOR_SEKTOR_ADET;
+        sayi("ILERLE5", (int32_t)j);
+        sayi("SIL5", (int32_t)(sil_say - s0));
+        sayi("KIRLI5", (int32_t)(g.kirli_sil - onay));
+        sayi("DUR5", kyn_durdur(&m));
         break;
     default:
         break;

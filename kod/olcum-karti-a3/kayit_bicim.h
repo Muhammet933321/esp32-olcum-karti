@@ -664,7 +664,9 @@ static inline uint8_t kayit_not_ayir(const char *s, KayitNotKomut *k)
 #define KAYIT_AYRINTI_ORNEK    6u
 #define KAYIT_AYRINTI_DT_AZAMI 4095u
 #define KA_KAYIP_ONCE 0x01u   /* onceki kayittan beri ornek DUSTU (halka tasti) */
-#define KA_SILME      0x02u   /* bu kayittan hemen once dolu sektor silindi (~25 ms) */
+#define KA_SILME      0x02u   /* bu kaydin ILK ornegi, kafanin kirli sektor silmesinden
+                                 (~25 ms, iki cekirdek durur) SONRA uretildi: ilk ornegin
+                                 onundeki bosluk o silmedir */
 #define KAO_YUKSEK    0x1u    /* ornek: yuksek gerilim menzili */
 #define KAO_V_HATA    0x2u
 #define KAO_I_HATA    0x4u
