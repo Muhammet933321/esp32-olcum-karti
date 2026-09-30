@@ -277,6 +277,7 @@ def bolum_kaynak() -> None:
        "olayi) · OLAY · PIL_BITIR · NOT",
        all(x in km for x in ("case KM_PIL_BASLAT", "case KM_OLAY", "case KM_PIL_BITIR",
                              "case KM_NOT", "kyn_pil_bitir(", "kyn_not(", "kyn_olay("))
+       and "kyn_olay(" in km[km.find("case KM_PIL_BASLAT"):km.find("case KM_OLAY")]
        and 0 <= km.find("case KM_PIL_BASLAT") < km.find("kyn_baslat(", km.find("case KM_PIL_BASLAT")))
     nk = govde(ino_k, "static void kayit_not_komut(")
     ok("B72.F34 Ga/Ge/Gn/Gx: yardimda; oturum numarasi zorunlu; Gx ':' + sira ister "

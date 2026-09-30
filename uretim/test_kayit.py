@@ -940,7 +940,9 @@ def bolum_pil() -> None:
        "olcum surerken cagri hicbir sey yazmaz (KG_YOK), olcum acik kalir",
        p3 is not None and bool(p3.bitir) and p3.bitir["sebep"] == 4 and len(p3k) >= 2
        and p3k[-1].tur == KB.T_BITIR and p3k[-2].tur == KB.T_OLAY
-       and KB.olay_coz(p3k[-2].yuk)["tur"] == KB.KO_PIL_SONUC and pb == [0, -4, -4]
+       and KB.olay_coz(p3k[-2].yuk)["tur"] == KB.KO_PIL_SONUC
+       and {a: KB.olay_coz(p3k[-2].yuk).get(a) for a in ("durum", "mah", "sure_ms", "dcir_sayisi")}
+       == {"durum": 2, "mah": 12.5, "sure_ms": 5000, "dcir_sayisi": 1} and pb == [0, -4, -4]
        and l3a.get("durum") == 2 and l3a.get("oturum") == olc3
        and o3 is not None and not o3.olaylar and bool(o3.bitir) and o3.bitir["sebep"] == 1,
        f"PB={pb} pil={p3 and p3.bitir} L3a={l3a}")
