@@ -562,6 +562,12 @@ def main() -> int:
         ("DOLU bolumde GF!",
          "tezgah_kayit.py --bicim: anlik biter, temizlik surerken /kayit/liste "
          "her istekte < 1 s (p0 ayni web sunucusunda), temiz_kalan azalir"),
+        ("1B kalibrasyon gecmisi kartta",
+         "tezgah_kayit.py --kal: #1 = Ayar3, not/tur kalici, oturum basliginda "
+         "kal_no, /kal/liste == kl (kalibrasyon komutu CALISTIRMAZ)"),
+        ("[!] ADS takilinca: GERCEK bir kalibrasyon adimi",
+         "z ya da g sonrasi `k?` taslak=1; `kk<t><not>` yeni numara; ardindan "
+         "baslayan kaydin kal_no'su o numara; unutulursa kayit baslarken otomatik"),
         ("Gercek fis cekme (USB + PIL kapali)",
          "elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla "
          "son ~5 s"),

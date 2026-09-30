@@ -9,6 +9,7 @@
     python tezgah_kayit.py --dolu                  (once `Gb20` ile ~1.6 sa ONAYSIZ doldur)
                                                    DOLU · tarama · 11 MB esitleme · halka donusu
     python tezgah_kayit.py --bicim                 (dolu bolumde) GF!: anlik mi, web doner mi
+    python tezgah_kayit.py --kal                   1B kalibrasyon gecmisi (kalibrasyon komutu CALISTIRMAZ)
     secenekler: --port COM6  --http olcum.local  (ya da kartin IP'si)
 
 🔴 --yedek NVS'i (WiFi ve web parolalarini) icerir: DEPO DISINA yazilir
@@ -340,6 +341,77 @@ def bicim(k, host: str, sn: float = 90.0) -> None:
        len([x for x in kalan if x is not None]) >= 2 and kalan[-1] < kalan[0], f"{kalan[:1]}->{kalan[-1:]}")
 
 
+def _kl(k) -> list[list[str]]:
+    satir, _ = komut(k, "kl", 3)
+    return [s.split(" ", 6) for s in satir if s.startswith("KL ") and not s.startswith("KL.")]
+
+
+def kal(k, host: str) -> None:
+    """1B kalibrasyon gecmisi kartta. ⚠ Kalibrasyon komutu (z g Z i s f F R)
+    CALISTIRILMAZ: ADS takili degilse cop olcum gercek kalibrasyonun yerine
+    yazilirdi. Not/tur duzeltmesi denenir ve ESKI haline geri yazilir."""
+    import json
+    import urllib.request
+    print("\n── kal: kalibrasyon gecmisi (1B) — kalibrasyon komutu calistirilmaz")
+    satir, _ = komut(k, "k?", 2)
+    kg = [s.split() for s in satir if s.startswith("KG ")]
+    kg = kg[-1] if kg else []
+    ok("gecmis var (#1 = 1B oncesi Ayar3), NVS'te yer olculdu",
+       len(kg) == 7 and int(kg[1]) >= 1 and int(kg[4]) >= 6 * 40, f"KG {kg[1:]}")
+    son_no, taslak = int(kg[2]), kg[3]
+    satir, _ = komut(k, f"kv{son_no}", 2)
+    kv = next((s.split() for s in satir if s.startswith("KV ")), [])
+    satir, _ = komut(k, "?", 2)
+    a = next((s for s in satir if s.startswith("A menzil")), "")
+    alan = dict(x.split("=", 1) for x in a.split()[1:] if "=" in x)
+    esit_mi = (len(kv) == 19 and taslak == "0"
+               and abs(float(kv[4]) - float(alan.get("n_kazanc", "nan"))) < 1e-5
+               and int(kv[5]) == int(alan.get("n_sifir", "0"))
+               and abs(float(kv[9]) - float(alan.get("y_kazanc", "nan"))) < 1e-5
+               and int(kv[10]) == int(alan.get("y_sifir", "0"))
+               and int(kv[12]) == int(alan.get("i_ofset", "0"))
+               and abs(float(kv[14]) - float(alan.get("sont", "nan"))) < 1e-7
+               and abs(float(kv[15]) - float(alan.get("i_duz", "nan"))) < 1e-5)
+    ok(f"son kayit (#{son_no}) degerleri kartin guncel Ayar3'u ile ayni (taslak yok)",
+       esit_mi, f"KV {kv[1:6]}… A {a[:80]}")
+    once = {r[1]: r for r in _kl(k)}.get(str(son_no))
+    komut(k, f"kn{son_no} tezgah denemesi ğ", 2)
+    komut(k, f"kt{son_no}i", 2)
+    k.sifirla()
+    yeni_acilis(k)
+    dinle(k, 8, lambda x: x["durum"] != 0)
+    sonra = {r[1]: r for r in _kl(k)}.get(str(son_no))
+    ok("not ve tur duzeltmesi yeniden acilista KALICI (Turkce karakter dahil)",
+       bool(sonra) and sonra[4] == "2" and sonra[6].strip() == "tezgah denemesi ğ",
+       f"{sonra}")
+    if once:                                   # kullanicinin notunu/turunu GERI yaz
+        komut(k, f"kn{son_no} {once[6].strip() if len(once) > 6 else ''}", 2)
+        komut(k, f"kt{son_no}{'-di'[int(once[4])]}", 2)
+    geri = {r[1]: r for r in _kl(k)}.get(str(son_no))
+    ok("deneme notu/turu eski haline geri yazildi", geri == once, f"{geri} vs {once}")
+    komut(k, "Gd", 2)
+    komut(k, "Gb200", 5, lambda x: x["durum"] == 2)
+    time.sleep(3)
+    komut(k, "Gd", 5, lambda x: x["durum"] == 1)
+    with tempfile.TemporaryDirectory() as d:
+        r = esitle(k, host, Path(d))
+        kay = KB.akis_coz((Path(d) / KE.DOSYA).read_bytes())
+        js = json.loads((Path(d) / KE.KAL_DOSYA).read_text(encoding="utf-8"))
+    ot = KB.oturumlari_kur(kay)
+    sono = max(ot.values(), key=lambda o: o.id) if ot else None
+    ok("yeni oturum basligi surum 2 ve kalibrasyon NUMARASINI tasiyor",
+       bool(sono) and sono.basla is not None and sono.basla.bicim_surum == 2
+       and sono.basla.kal_no == son_no,
+       f"surum={sono and sono.basla and sono.basla.bicim_surum} kal_no={sono and sono.basla and sono.basla.kal_no}")
+    liste = {str(x["no"]): x for x in js.get("kayitlar", [])}
+    kl_son = {r[1]: r for r in _kl(k)}
+    ok("/kal/liste (kalibrasyon.json) == kl: ayni numaralar, notlar, turler",
+       r.get("kalibrasyon") == len(kl_son) == js.get("adet")
+       and all(liste[n]["not"] == (v[6].strip() if len(v) > 6 else "")
+               and str(liste[n]["tur"]) == v[4] for n, v in kl_son.items()),
+       f"json adet {js.get('adet')} kl {len(kl_son)}")
+
+
 def esit(k, host: str, port: str) -> None:
     print("\n── esit: esitlenen dosya == flastaki bolum")
     with tempfile.TemporaryDirectory() as d:
@@ -385,6 +457,8 @@ def main() -> int:
             dolu(k, host)
         if "--bicim" in a:
             bicim(k, host)
+        if "--kal" in a:
+            kal(k, host)
         if "--esit" in a:
             esit(k, host, port)
     finally:
