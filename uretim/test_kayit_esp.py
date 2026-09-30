@@ -171,8 +171,11 @@ def bolum_kaynak() -> None:
        "kayit_ornek(o.watt" in lp and "kayit_duraklama(" in skop[:skop.find("return;")]
        and "kayit_durum_bas(false)" in lp and '"G %u' in ino_k)
     kk = govde(ino_k, "static void kayit_komut(")
+    # 1C-1: pil_testi_suruyor() artik Gb/Gd dallarinda da var — iddia F DALINA bakmali
+    #   (butun islevde arayinca 1C-1'den sonra BOS kaldi; mutasyon yakaladi)
+    fd = kk[kk.find("alt == 'F'"):kk.find("m.tur = KM_BICIMLE")]
     ok("B72.F9 pil testi surerken GF! REDDEDILIR (bicimleme istegi kuyruga girmez)",
-       0 <= kk.find("pil_testi_suruyor()") < kk.find("m.tur = KM_BICIMLE"))
+       "pil_testi_suruyor()" in fd)
     ok("B72.F10 `G` komutu tanimli ve yardimda; hiz listesi dar",
        "case 'G': kayit_komut(s)" in ino_k and "Gb<ms>" in ino
        and "h == 60000" in ino_k)
