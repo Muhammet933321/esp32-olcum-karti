@@ -246,6 +246,13 @@ Köprünün `kopru/arsiv/*.satir` dosyaları (11–12 Eylül) çevrilmez, kalır
 
 - Her kalibrasyon ayrı, kalıcı kayıt: numara · tarih · not ·
   **"donanım değişti" / "ince ayar"** işareti. Geçmiş kartta; cihazlara eşitlenir.
+  *(1B'de uygulandı, DEVIR 5.12.67: kartın NVS'inde en fazla **40** kayıt —
+  ölçülen yer; "taslak + kaydet": değişiklik `kk` ile kaydedilir, unutulursa
+  kayıt başlarken otomatik; oturum başlığı biçim v2 ile numarayı taşır.
+  Kullanıcı kararı aynı gün: **sıfır ofsetleri geçmişe girmez** (panelden sık
+  sıfırlanır; gerçek sıfır oturum başlığında) ve daha önce kaydedilmiş
+  değerlere dönülürse (şönt, şebeke A→B→A) **o kaydın numarası** kullanılır —
+  40 kayıt ancak 40 gerçekten farklı kalibrasyonla dolar, 35'ten itibaren uyarı.)*
 - Her oturum başlığında kalibrasyonun **tam kopyası** → kayıt nereye
   giderse kalibrasyonu yanında.
 - Açılışta varsayılan: **kaydın kendi kalibrasyonu**. İstenirse geçmişten

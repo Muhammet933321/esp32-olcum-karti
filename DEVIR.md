@@ -8735,6 +8735,106 @@ bildirim + ağ kurulumunun görev içine alınması); ardından alt proje 2
 
 ---
 
+#### 5.12.67 ✅ 1B — KALİBRASYON GEÇMİŞİ (alt proje 1B, 2026-09-30)
+
+Tasarım: spec §7 + §5 · Plan: `tasarim/2026-09-30-plan-1b-kalibrasyon-gecmisi.md`.
+Kart artık her kalibrasyonu **numaralı, kalıcı** bir geçmiş kaydı olarak
+tutuyor. Her oturum başlığı hangi kalibrasyonla ölçüldüğünü (numara + tam
+kopya) taşıyor. PC geçmişi `kalibrasyon.json`'a eşitliyor. Eski bir kayda
+başka kalibrasyon **uygulama** ve "aynı dönemde daha yeni ince ayar öner"
+alt proje 2/3'te.
+
+**Kullanıcı kararları (2026-09-30):**
+1. **Taslak + kaydet.** Kalibrasyon komutları (`z g Z i s f F`) yalnız
+   `Ayar3`'ü değiştirir. Değerlerin geçmişte karşılığı yoksa ortada TASLAK
+   var. `kk<t><not>` numaralı kayda çevirir. Unutulursa kayıt başlarken
+   otomatik kaydedilir (kart bunu söyler), yani hiçbir oturum numarasız
+   kalmaz. Not ve tür sonradan düzeltilir; değerler değişmez.
+2. **NVS'te sakla** (ad alanı `kalgec`: `adet` + `k1…k40`); bölüm tablosu
+   değişmedi.
+3. **Sıfırlar hariç + tekrar kullan** (son inceleme C1 üzerine, aynı gün).
+   Sıfır ofsetleri (gerilim iki kanal + akım) karşılaştırmaya girmez:
+   panelden sık sıfırlanır ve her seferinde biraz farklı çıkar. Oturum
+   başlığı gerçek sıfırı zaten taşıyor. Daha önce kaydedilmiş değerlere
+   dönülürse (şönt, şebeke A→B→A) o kaydın numarası kullanılır (aynı
+   değerli iki kayıt varsa en yenisi). 40 kayıt ancak 40 gerçekten farklı
+   kalibrasyonla dolar; 35'ten itibaren kart uyarır. Silme yok.
+
+**Ölçülen kapasite (kullanıcıya "64" denmişti):** yedekteki NVS'te 179 dolu
+giriş vardı; 116 baytlık kayıt NVS'te 6 giriş tutuyor → **40 kayıt**. Kartta
+`available_entries` (GC sayfası hariç) = **310** → 40 × 6 = 240 sığıyor, pay
+kalıyor. Dolunca açık hata (`KGC_DOLU`), sessiz silme yok. Kaydetmeden önce
+24 giriş pay denetleniyor (`KGC_NVS_DOLU`).
+
+**Ne yapıldı**
+
+| Dosya | Ne |
+|---|---|
+| `kayit_bicim.h` / `kopru/kayit_bicim.py` | **Biçim v2:** BASLA 98 → 102 B, sona `u32 kal_no`. Kalibrasyon paketi `kayit_kal_paketle/coz` (62 B, geçmiş aynı paketi kullanıyor). `kg_basla_oku` ve Python çözücü **sürüm 1'i (98 B) de okuyor**: 1A-2 firmware'iyle açılmış oturum yükseltmeden sonra DEVAM edebiliyor |
+| `kalgec.h` (yeni, platformsuz) | Geçmiş yöneticisi: ilk açılışta bugünkü `Ayar3` #1 olur (kaynak "ilk") · `kgc_esle` (sıfırlar hariç eşit EN YENİ kayıt; 0 = taslak) · `kgc_kaydet` (elle) · `kgc_oturum_no` (kayıt başlarken; karşılık yoksa otomatik) · `kgc_duzenle` (not/tür) · `kgc_dolmak_uzere` · paket 116 B + CRC-32. Yazım sırası önce `k<no>`, sonra `adet`: arada elektrik giderse numara ne tekrarlanır ne atlanır. Not: geçersiz UTF-8 (RFC 3629; cp1254 'ş' = FE, kopuk dizi, aşırı uzun, vekil), `"`, `\` ve kontrol karakterleri atılır; 31 baytta KARAKTER sınırında kesilir. JSON'a kaçışsız girer, PC'de her zaman çözülür |
+| `kayit_esp.h` | `Preferences` tablosu (ad alanı `kalgec`; `isKey` ile, eksik anahtar günlüğü kirletmez) · `nvs_get_stats().available_entries` · `kalgec_kur` · firmware sürümü **A3-1B** |
+| `olcum-karti-a3.ino` | `setup`: `ayar_yukle`'den sonra geçmiş kurulur; açılış mesajı `Kalibrasyon: #<etkin> (adet/40)` · `kayit_basla_doldur` → `kal_no`, ardından `kalgec_oturum_bildir` (otomatik kayıt: numara + `kn`/`kt` · numarasız: hata adı) · `k` komutu (`k?` → `KG … <etkin>`, `kl`, `kv<no>`, `kk<t><not>` (değerler kayıtlıysa "zaten kayıtlı: #N"), `kn<no> <not>`, `kt<no><t>`) · `/kal/liste` JSON (`etkin` dahil; önce `adet`, sonra bloblar) · `ayar_kaydet` etkin numarayı tazeliyor |
+| `kopru/kayit_esitle.py` | Veri eşitlemesinden sonra `/kal/liste` → `kalibrasyon.json` (atomik). Kartın geçmişi PC'dekinden bir kaydı **siliyor ya da değiştiriyorsa** (aynı numara başka değer/tarih; NVS silindi, başka kart) eski dosya önce `kalibrasyon-<zaman>.json` olarak yedeklenir; not/tür düzeltmesi olağan sayılır. `/kal/liste` hatası (bozuk/yarım JSON, 500, zaman aşımı) eşitlemeyi DURDURMAZ: hata raporlanır, eski dosya yerinde kalır. Eski firmware (404) sessiz |
+| `uretim/avr/nor_flas.py` | Emüle NVS'e **ada göre blob** (ad portu, veri portu, boş giriş yazmacı, yazma arızası) |
+
+**Doğrulama**
+- `test_kayit.py` **165/165**:
+  - B14/B15: sürüm 1 okunur.
+  - B71.C1–C13 + C10b + C12c: açılıştan açılışa kalibrasyon geçmişi; blob Python'da C'den bağımsız çözülüyor. C11: sıfır değişikliği taslak açmıyor. C12: A→B→C→A→B yalnız 3 kayıt açıyor. C12c: aynı değerli iki kayıttan en yenisi seçiliyor. C10b: 2/3/4 baytlık karakterin ortasına düşen sınır ve 12 geçersiz UTF-8 biçimi, Python'un katı çözücüsüyle karşılaştırılıyor.
+  - B10: C++ denetimine **`kayit_yonet.h`** (1A-2'den beri eksikti) ve `kalgec.h` eklendi.
+- `test_kayit_esp.py` **54/54** (F17–F26, E18–E21). Zincir **21/21**.
+- Mutasyon: B72 **43/43**. 1B'nin B71 mutasyonları **23/23**; bunlar yalnız ilgili bölümlerle
+  (biçim + kalibrasyon geçmişi) koşuldu, çünkü tam `test_kayit.py` (120 elektrik kesmesi)
+  mutasyon başına ~1 dk sürüyor. Tam B71 koşusu (61) ayrıca.
+- **Kart (tezgah `--kal` 9/9, düzeltmelerden sonra):**
+  - #1 gerçek `Ayar3` (`kv1` == `?` satırı); `etkin` = 1.
+  - Not/tür düzeltmesi yeniden açılışta kalıcı (Türkçe dahil); deneme notu eski haline geri yazıldı.
+  - Taslak yokken `kk` kayıt açmıyor ("zaten kayıtlı: #1").
+  - `Gb` kalibrasyon için sessiz.
+  - Yeni oturum başlığı sürüm 2 + `kal_no` 1.
+  - `/kal/liste` == `kl`.
+  - ⚠ **Kalibrasyon komutu çalıştırılmadı:** ADS takılı değil; çöp ölçüm gerçek kalibrasyonun yerine yazılırdı. Taslak/kaydet/tekrar kullanım yolu AVR'de sınanıyor. Gerçek kalibrasyon adımı ADS takılınca tezgah kalemi.
+- Karta her yüklemeden önce NVS yedeği depo dışına alındı.
+
+**Bağımsız son inceleme (opus): "düzeltmelerle"**
+
+| # | Bulgu | Neden önemli | Ne yapıldı |
+|---|---|---|---|
+| C1 | Olağan panel işleri (Akımı/Gerilimi sıfırla, şönt seçimi, DC/50/60) taslak açıyor, `Gb` her birini kalıcı kayda çeviriyordu. A→B→A kopya kayıt üretiyordu. | ~39 oturumda 40 dolar, sonra sonsuza kadar `KGC_DOLU`: gerçek bir kalibrasyon bir daha kaydedilemez. | Kullanıcı kararı 3 (`kgc_esle`), 35'ten uyarı. C11, C12, C12c, C13 |
+| I1 | Kayıt başlarken otomatik kayıt da, başarısızlığı da sessizdi. | Kullanıcı hangi numaraya not/tür vereceğini bilemiyordu. Numarasız oturum fark edilmiyordu. | `kalgec_oturum_bildir`; `kk` "zaten kayıtlı: #N"; F22–F24; tezgahta sınandı |
+| I2 | C10 girdisi UTF-8 sınırını hiç sınamıyordu (31. bayt boşluktu, `(void)uz` mutasyonu yaşıyordu). Geçersiz UTF-8 nota giriyordu. | cp1254 terminalden yazılan 'ş' (FE) `/kal/liste` JSON'unu PC'de çözülemez yapıyordu. | Not kopyalama UTF-8 doğruluyor; C10b (8 girdi, bağımsız Python referansı) |
+| I3 | PC `kalibrasyon.json`'u körlemesine eziyordu. | NVS silinirse ya da başka kart takılırsa PC'deki geçmiş kaybolurdu. | Geçmiş değişirse zaman damgalı yedek; E20 (değer değişti / kayıt kayboldu ayrı adımlar) |
+| I4 | `/kal/liste` hatası veri eşitlemesinden SONRA istisnayla çıkıyordu. | Veri diskteydi ama çağıran sonucu alamıyordu; eski firmware notu (cp1254) eşitlemeyi her seferinde düşürürdü. | Hata raporlanır, eski dosya yerinde; `errors="replace"`; E21 |
+
+Düzeltirken bulunanlar:
+- **E19** 404'ün hata sayılmadığını iddia etmiyordu. 404'ü hata sayan kod yeşil kalırdı; iddia eklendi.
+- **`govde()` ileri bildirimi tanım sanıyor:** F22/F26'nın ilk sürümü yanlış işlevin gövdesine bakıyordu. Test kusuruydu, kod değil. İmza artık ` {` ile tanıma bağlanıyor.
+- **Tezgah kalemi eskimişti:** "z sonrası taslak=1" diyordu, sıfırlama artık taslak açmıyor.
+- **E7 mutasyonu ~20 dk dönüyordu** (1A-2'den kalma): "sıra geri gitti" denetimi
+  kalkınca eşitleme `azami_tur` = 100 000 turu fsync'le dönüyor ve koşucunun 30 dk
+  zaman aşımına yaklaşıyordu. Test artık `azami_tur=100` veriyor; mutant 4 s'de kırmızı.
+
+**Ertelenen küçükler (inceleme M):**
+- M1: `adet` anahtarı kaybolursa `kgc_ac` #1'in üzerine yazar. Doğrusu `k1…k40`'ı tarayıp sayıyı yeniden kurmak.
+- M2: bozuk kayıt `/kal/liste`'de sessizce atlanıyor. Doğrusu `{"no":n,"bozuk":true}`; PC yedeği bunu artık kısmen karşılıyor.
+- M3: `/kal/liste` kayıt başına ~20 `sendContent` yapıyor.
+- M5: bayat yorumlar (`kayit_oturum.h` ve spec §5 "116 baytlık TEKRAR" → 118).
+- M6: `kn<no>` boş metinle notu siliyor (bilinçli sayılabilir); `R!` sonrası varsayılanlar da otomatik kaydedilir (tekrar kullanım artık kopyayı önler).
+- M7: çevrimdışıyken unix = 0.
+- M8: kuyruk doluysa oturumsuz kayıt kalabilir.
+- M9: `Gb`'de NVS yazma duraklaması.
+- M10: sürüm 1'den uçtan uca devam sınanmıyor; ESP yapıştırıcısı yalnız kaynak iddiasıyla sınanıyor.
+- M11: okuyucular tam blob boyu istiyor (B34 büyütmesi için).
+
+**Açık / sonraki:** eski kayda başka kalibrasyon uygulama, dönem uyarısı ve
+"daha yeni ince ayar öner" → alt proje 2 (`ortak/`) + 3 (Ayarlar >
+kalibrasyon geçmişi ekranı; o gelince `k` arayüzsüz listesinden çıkar).
+B34 doğrusalsızlık düzeltmesi hâlâ karar bekliyor. Tezgah: dolu geçmişte
+tarama süresi (`kgc_esle` en fazla 39 NVS okuması). **Sırada 1C** (pil
+testi/skop oturum türleri, zamanlanmış kayıt, ayrıntılı kip).
+
+---
+
 #### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
 
 **Neden.** Malzemenin tamamı geldi (50 mA sigorta hariç); kullanıcı "lehimsiz test mi, plakete mi" diye sordu. Karar: **plakete, blok blok** — lehimsiz tahta bu kartta ölçüm üretmez (15 mΩ şönt + Kelvin tahta temasından küçük; 4.9 MΩ zincirde tahta kaçağı oranı bozar; B30/B44'te iki sessiz kusur gevşek telden geldi). Ama plakete geçmek için elde **yerleşim planı yoktu** — F9 ("delik atla") sayı veriyordu, yer vermiyordu.

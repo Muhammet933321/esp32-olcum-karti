@@ -430,7 +430,8 @@ def bolum_esitle() -> None:
             e.esitle()
             kart.kayitlar = kay + _kayitlar(3, 51)
             kart.sirayi_yok_say = True          # yanitta istenenden ESKI kayit
-            hata = _hatali(e.esitle)
+            # azami_tur: denetim yoksa (mutasyon) 100 000 tur fsync'le ~20 dk donuyordu
+            hata = _hatali(lambda: e.esitle(azami_tur=100))
             ok("B72.E7 yanitta istenenden eski/tekrar sira gelirse esitleme DURUR",
                hata and (Path(d) / KE.DOSYA).read_bytes() == tum and e.son_sira() == 50)
         sifirla()
@@ -660,10 +661,16 @@ def main() -> int:
          "her istekte < 1 s (p0 ayni web sunucusunda), temiz_kalan azalir"),
         ("1B kalibrasyon gecmisi kartta",
          "tezgah_kayit.py --kal: #1 = Ayar3, not/tur kalici, oturum basliginda "
-         "kal_no, /kal/liste == kl (kalibrasyon komutu CALISTIRMAZ)"),
+         "kal_no, /kal/liste == kl, etkin, `kk` taslaksiz kayit acmaz, Gb sessiz "
+         "(kalibrasyon komutu CALISTIRMAZ)"),
         ("[!] ADS takilinca: GERCEK bir kalibrasyon adimi",
-         "z ya da g sonrasi `k?` taslak=1; `kk<t><not>` yeni numara; ardindan "
-         "baslayan kaydin kal_no'su o numara; unutulursa kayit baslarken otomatik"),
+         "g sonrasi `k?` taslak=1; `kk<t><not>` yeni numara; ardindan baslayan "
+         "kaydin kal_no'su o numara; unutulursa kayit baslarken otomatik ve kart "
+         "'otomatik kaydedildi' der. z (sifirlama) sonrasi taslak=0 (sifirlar "
+         "gecmise girmez); sont degistirip geri alinca eski numara"),
+        ("[!] Gecmis doluyken tarama suresi",
+         "30+ kayitli gecmiste degerler degisince kgc_esle en fazla 39 NVS "
+         "okumasi: ayar komutu ve Gb'de loop_azami < 20 ms (tahmin ~4-8 ms)"),
         ("Gercek fis cekme (USB + PIL kapali)",
          "elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla "
          "son ~5 s"),

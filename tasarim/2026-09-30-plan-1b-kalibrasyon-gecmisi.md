@@ -1,5 +1,11 @@
 # Alt proje 1B — Kalibrasyon geçmişi Uygulama Planı
 
+> **Durum (2026-09-30): UYGULANDI** (DEVIR 5.12.67). Son bağımsız incelemede
+> kullanıcı bir karar daha verdi: sıfır ofsetleri taslak karşılaştırmasına
+> girmez, önceki değerlere dönülünce eski numara kullanılır (`kgc_esle`). Aşağıdaki
+> "son kayıttan farklıysa taslak" tanımı bu yüzden eskidi: taslak = değerlerin
+> geçmişte karşılığı yok.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Kart her kalibrasyonu numaralı, kalıcı bir geçmiş kaydı olarak tutsun. Her kayıt oturumu hangi kalibrasyonla ölçüldüğünü (numara + tam kopya) taşısın. PC geçmişi eşitlesin.
