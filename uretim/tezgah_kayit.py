@@ -12,6 +12,8 @@
     python tezgah_kayit.py --kal                   1B kalibrasyon gecmisi (kalibrasyon komutu CALISTIRMAZ)
     python tezgah_kayit.py --pil                   1C-1 p1 reddi (ADS yok), ad/etiket/not, DEVAM regresyonu
     python tezgah_kayit.py --ayrinti               1C-2 Gb0: ornek hizi, zaman farki, hazir alan, DEVAM
+    python tezgah_kayit.py --hazirsiz [--doldur]   1C-2 GF! + Gb0: kirli silme sayilir, KA_SILME bosluktan sonra
+                                                    (--doldur: once bolumu Gb20 ile doldur, ~1.6 sa)
     secenekler: --port COM6  --http olcum.local  (ya da kartin IP'si)
 
 🔴 --yedek NVS'i (WiFi ve web parolalarini) icerir: DEPO DISINA yazilir
@@ -555,7 +557,7 @@ def ayrinti(k, host: str, sn: float = 60.0) -> None:
        f"{len(orn)} ornek, {hiz:.0f}/s, bitir={o and o.bitir}")
     ok("KA_SILME kayit sayisi == GA'nin kayit ici silme artisi; hazir alan oturumu "
        "karsiladiysa ikisi de 0; halkadan ornek dusmedi (GA dusen 0, KA_KAYIP 0)",
-       bool(ga2) and silme == ga2[3] - sil0 and (sektor + 2 > hazir0 or silme == 0)
+       bool(ga2) and 0 <= (ga2[3] - sil0) - silme <= 1 and (sektor + 2 > hazir0 or silme == 0)
        and ga2[2] == 0 and kayip == 0,
        f"KA_SILME={silme} GA={ga2} sil0={sil0} hazir0={hazir0} ~{sektor:.0f} sektor")
     # DEVAM: ayrintili oturum surerken yeniden baslatma
@@ -569,12 +571,81 @@ def ayrinti(k, host: str, sn: float = 60.0) -> None:
     komut(k, "Gd", 5, lambda x: x["durum"] == 1)
     kay2, o2 = _ayr_esitle(k, host, oid2)
     orn2 = KB.ayrinti_ornekler(o2) if o2 else []
+    # son inceleme: yeniden baslamada micros SIFIRLANIR; zaman her ACILIS icinde
+    # artmali ve DEVAM'dan sonra da ayrintili ornek yazilmis olmali
+    artan = all(a[1] < b[1] for a, b in zip(orn2, orn2[1:]) if a[5] == b[5])
+    sonra = sum(1 for x in orn2 if x[5] == 1)
     ok("ayrintili oturum surerken yeniden baslatma: AYNI oturum DEVAM ile ayrintili surer, "
-       "ornek sirasi kesintisiz",
+       "ornek sirasi kesintisiz; DEVAM'dan sonra da ornek var, zaman her acilista artan",
        bool(g2) and g2["oturum"] == oid2 and o2 is not None and len(o2.devamlar) == 1
        and [s for s, *_ in orn2] == list(range(len(orn2))) and len(orn2) > 0
-       and o2.basla is not None and o2.basla.hiz_ms == 0,
-       f"g2={g2 and (g2['durum'], g2['oturum'])} devam={o2 and len(o2.devamlar)} n={len(orn2)}")
+       and o2.basla is not None and o2.basla.hiz_ms == 0 and artan and sonra > 0,
+       f"g2={g2 and (g2['durum'], g2['oturum'])} devam={o2 and len(o2.devamlar)} n={len(orn2)} "
+       f"acilis1={sonra} artan={artan}")
+
+
+def hazirsiz(k, host: str, sn: float = 60.0, doldur: bool = False) -> None:
+    """1C-2 spec: kayit ici silme duraklamasi hazir alanLA (`--ayrinti`) ve
+    hazir alanSIZ sayilir. GF! (mantiksal bicimleme) sonrasi butun sektorler
+    ESKI ve flas KIRLI; hemen Gb0: arka plan temizligi kayitta DURUR, kafa her
+    eski sektoru kendisi siler (~25 ms iki cekirdek durur). Her kirli silme GA'da
+    sayilir ve durustan sonra uretilen ilk ornek KA_SILME'li kaydi baslatir.
+    ⚠ GF! karttaki kayitlari siler (bu kartta yalniz tezgah oturumlari var).
+    🔴 Ilk surum acilistan hemen sonra kaydediyordu: onceki `--ayrinti` kafanin
+    onundeki ~480 sektoru zaten silmisti, sonuc 0 == 0 (bos) cikti; son
+    inceleme ayrica GF! sonrasi bu silmelerin HIC sayilmadigini buldu."""
+    print(f"\n── hazirsiz: GF! ve hemen Gb0 {sn:.0f} s (butun sektorler kirli)")
+    komut(k, "Gd", 3)
+    if doldur:
+        # Kafanin ONUNDEKI sektorler de kirli olsun: 1A-2'nin GF! temizligi
+        # butun bolumu silmisti ve o gunden beri ~1000 sektor kullanildi —
+        # 40 dk'lik ilk deneme (eski firmware) kirli sektore HIC ulasmadi.
+        print("  bolum Gb20 ile DOLU'ya dek dolduruluyor (~1.6 sa)...")
+        komut(k, "Gb20", 5, lambda x: x["durum"] == 2)
+        son = time.time() + 4 * 3600
+        g = None
+        while time.time() < son:
+            _, g = dinle(k, 60, lambda x: x["durum"] == 3)
+            if g and g["durum"] == 3:
+                break
+            g = durum_iste(k)
+            if g and g["durum"] == 3:
+                break
+        ok("bolum doldu (DOLU, durum 3)", bool(g) and g["durum"] == 3, f"{g}")
+        with tempfile.TemporaryDirectory() as d:
+            r = esitle(k, host, Path(d))
+        time.sleep(1)
+        k.yaz(f"Go{r['son_sira']}\n")
+        time.sleep(1)
+    k.yaz("GF!\n")
+    time.sleep(1.5)
+    g0 = durum_iste(k)
+    ga0 = _ga(k)
+    _, g = komut(k, "Gb0", 8, lambda x: x["durum"] == 2)
+    oid = g["oturum"] if g else 0
+    time.sleep(sn)
+    komut(k, "Gd", 5, lambda x: x["durum"] == 1)
+    ga1 = _ga(k)
+    kay, o = _ayr_esitle(k, host, oid)
+    orn = KB.ayrinti_ornekler(o) if o else []
+    kayitlar = sorted(o.ayrinti, key=lambda r: r["sira"]) if o else []
+    silme = [r for r in kayitlar if r["bayrak"] & KB.KA_SILME]
+    t = {s: us for s, us, *_ in orn}
+    bosluk = {r["ilk"]: t[r["ilk"]] - t[r["ilk"] - 1] for r in kayitlar if r["ilk"] - 1 in t}
+    sb = sorted(bosluk.get(r["ilk"], 0) for r in silme)
+    diger = sorted(b for s, b in bosluk.items() if b > 16380 and s not in {r["ilk"] for r in silme})
+    fark = (ga1[3] - ga0[3]) if ga0 and ga1 else None
+    print(f"  GA {ga0} -> {ga1} · {len(orn)} ornek · {len(kayitlar)} kayit · KA_SILME {len(silme)} "
+          f"· onundeki bosluk ortanca {sb[len(sb) // 2] if sb else '-'} us, en kucuk "
+          f"{sb[0] if sb else '-'}, en buyuk {sb[-1] if sb else '-'} · bayraksiz > 16.38 ms: {diger[:5]}")
+    ok("GF! sonrasi hemen ayrintili kayit: kirli silme GERCEKTEN oldu ve sayildi; her biri bir "
+       "KA_SILME kaydi (GA'dan en fazla 1 eksik: Gd'nin son bosaltmasi); sira kesintisiz, dusen yok",
+       bool(g0) and g0["doluluk"] == 0 and bool(orn) and len(silme) > 0 and fark is not None
+       and 0 <= fark - len(silme) <= 1 and ga1[2] == 0
+       and [s for s, *_ in orn] == list(range(len(orn))),
+       f"KA_SILME={len(silme)} GA silme +{fark} n={len(orn)}")
+    ok("KA_SILME'li her kayit silme DURUSUNDAN hemen sonra baslar (ilk orneginin onunde "
+       ">= 15 ms bosluk)", bool(sb) and sb[0] >= 15000, f"bosluklar {sb[:8]}")
 
 
 def esit(k, host: str, port: str) -> None:
@@ -628,6 +699,8 @@ def main() -> int:
             pil(k, host)
         if "--ayrinti" in a:
             ayrinti(k, host)
+        if "--hazirsiz" in a:
+            hazirsiz(k, host, float(sec("--sure", "60")), "--doldur" in a)
         if "--esit" in a:
             esit(k, host, port)
     finally:

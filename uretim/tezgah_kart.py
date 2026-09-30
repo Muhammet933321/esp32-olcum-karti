@@ -107,6 +107,7 @@ AG_STA_BEKLE_S = int(re.search(r"#define AG_STA_BEKLE_MS\s+(\d+)",
 # sonraki KARARLI HAL olcumune dayaniyor. Sure kisa olursa seyrek olay
 # (kartta ~40-60 sn'de bir ~30 ms) hic gorunmez; uzun olursa bringup yavaslar.
 BLOKAJ_OLCUM_SN = 45.0
+HAZIR_HEDEF = 480                   # kayit_yonet.h KYN_HAZIR_HEDEF (1C-2 on silme)
 
 # `D` satirinin alan sayisi, firmware'in KENDI bicim dizesinden.
 _D_BICIM = re.search(r'"D (%[^"]*)"', INO)
@@ -624,6 +625,10 @@ def d_blokaj_sayaci(c):
     c.s.bilgi(f"acilistan beri: azami {ilk[1]} us, >20ms tur {ilk[2]} "
               f"(ISINMA DAHIL — karar olcutu DEGIL)")
 
+    if _canli_port(c):
+        hz = _on_silme_bekle(c)
+        c.s.bilgi(f"hazir alan {hz} sektor — on silme durdu, olcum simdi (1C-2)")
+
     sifir = c.k.sor("K", r"^\* blokaj sayaclari sifirlandi", zaman_asimi=3.0)
     if not c.s.ok("`K` sayaclari sifirliyor (eski degeri basarak)",
                   bool(sifir), sifir[0].strip()[:80] if sifir else "yanit yok"):
@@ -660,6 +665,25 @@ def d_blokaj_sayaci(c):
            f"tasinacak (DEVIR 5.12.34)")
     c.s.ok("Atlanan enerji penceresi yok", atlanan == 0,
            f"atlanan {atlanan} ms — enerji sayaci icin ASIL onemli olan bu")
+
+
+def _on_silme_bekle(c, azami_sn: float = 300.0):
+    """1C-2 son inceleme: acilistan/esitlemeden sonra kart BOSTA onayli
+    sektorleri onceden siler (500 ms'de bir; dolu sektor ~25 ms iki cekirdegi
+    durdurur; en fazla 480). Kararli hal bu surerken olculurse azami ~25 ms
+    cikar ve esik kirmizi doner — kusur degil, olcum zamani. `GA` hazir alani
+    hedefe ulasana ya da 3 s artmayana dek bekler (eski firmware: GA yok)."""
+    onceki, t0 = None, time.time()
+    while time.time() - t0 < azami_sn:
+        s = c.k.sor("G?", r"^GA \d+ \d+ \d+ \d+", zaman_asimi=3.0)
+        if not s:
+            return None
+        hz = int(s[0].split()[1])
+        if hz >= HAZIR_HEDEF or hz == onceki:
+            return hz
+        onceki = hz
+        time.sleep(3.0)
+    return onceki
 
 
 def d_ciplak_g_reddi(c):

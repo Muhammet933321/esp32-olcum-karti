@@ -3,6 +3,7 @@
 
     python tezgah_blokaj.py                 # 3 x 60 s
     python tezgah_blokaj.py --sure 45 --tekrar 4 --port COM6
+    python tezgah_blokaj.py --on-silmeli    # 1C-2: bosta on silme DURMADAN olc (varsayilan: bekler)
     python tezgah_blokaj.py --skop          # B40/B41/B42: butunluk + blokaj + susma + tetik yeri
     python tezgah_blokaj.py --tetik         # B42: yalniz tetik konumu (~1 dk)
     python tezgah_blokaj.py --olcum [--http olcum.local]   # B43: olcum satiri eksenle ayni mi, WiFi'de var mi
@@ -576,6 +577,24 @@ def main() -> int:
                 m = K_DESEN.match(s)
                 return tuple(int(x) for x in m.groups())
         return None
+
+    # 1C-2 son inceleme: bosta on silme (500 ms'de bir ~25 ms) olcumu kirletir.
+    # Varsayilan: hazir alan durana dek bekle; `--on-silmeli` ile bekleme.
+    if "--on-silmeli" not in arg:
+        onceki, t0 = None, time.monotonic()
+        while time.monotonic() - t0 < 300:
+            k.yaz("G?")
+            son_ga, bitis = None, time.monotonic() + 3
+            while time.monotonic() < bitis:
+                s = k.satir_oku(0.3)
+                if s and re.match(r"^GA \d+ \d+ \d+ \d+", s):
+                    son_ga = int(s.split()[1])
+                    break
+            if son_ga is None or son_ga >= 480 or son_ga == onceki:
+                print(f"on silme durdu (hazir alan {son_ga}) — olcum simdi")
+                break
+            onceki = son_ga
+            time.sleep(3.0)
 
     print(f"kart {k.k.ad if hasattr(k, 'k') else port} · {tekrar} x {sure:.0f} s")
     print(f"  {'pencere':>7} {'azami us':>9} {'>20ms tur':>9} {'atlanan ms':>10}")
