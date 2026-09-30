@@ -132,7 +132,8 @@ static KULLANILMAYABILIR void basla_uret(KayitBasla *b, uint32_t hiz_ms)
 /* ─────────────────────────────── emule NOR (uretim/avr/nor_flas.py) */
 #if defined(SENARYO_GUNLUK) || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) \
     || defined(SENARYO_DIZIN) || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) \
-    || defined(SENARYO_YONET) || defined(SENARYO_SURUM) || defined(SENARYO_PIL)
+    || defined(SENARYO_YONET) || defined(SENARYO_SURUM) || defined(SENARYO_PIL) \
+    || defined(SENARYO_AYRINTI)
 #define NOR_KOMUT (*(volatile uint8_t *)0xE0)
 #define NOR_A0    (*(volatile uint8_t *)0xE1)
 #define NOR_A1    (*(volatile uint8_t *)0xE2)
@@ -717,7 +718,7 @@ static void senaryo(void)
 }
 #endif
 
-#if defined(SENARYO_YONET) || defined(SENARYO_PIL)
+#if defined(SENARYO_YONET) || defined(SENARYO_PIL) || defined(SENARYO_AYRINTI)
 /* B72 (son inceleme O1-O5): kayit YONETICISI (kayit_yonet.h) — kartin
    durum makinesi, platformsuz. Her ACILIS bir asama: `t_adim` NVS'ten okunur,
    NVS (emule, nor_flas.py) ve flas acilistan acilisa KALICI. Asama bitince
@@ -778,7 +779,7 @@ static void dr(const char *ad)
     satir();
 }
 
-static int noktalar(uint32_t n)
+static KULLANILMAYABILIR int noktalar(uint32_t n)
 {
     KayitNokta p;
     int r = 0;
@@ -894,6 +895,85 @@ static void senaryo(void)
         basla_uret(&b, 300u);
         sayi("BAS", kyn_baslat(&m, &b, t_ms, 0u));
         dr("D13");
+        break;
+    default:
+        break;
+    }
+    metin("BITTI\n");
+}
+#endif
+
+#if defined(SENARYO_AYRINTI)
+/* 1C-2: AYRINTILI KIP YAZICISI (kayit_oturum.h ky_ayrinti_*). Sentetik ornek
+   dizisi test_kayit.py _ayr_uret ile AYNI: 2000 us periyot +-200 us titresim,
+   k=100'de +30 ms ve k=250'de +20 ms bosluk, k=299 DUSER (k=300 KO_KAYIP_ONCE),
+   bayrak her 50 ornekte degisir. Asama 1: 0..399, elektrik gider. Asama 2:
+   DEVAM, 400..600, 5 s bosaltma, durdur; noktali oturumda ornek reddi. */
+static void ayr_uret(uint32_t k, KayitOrnek *o)
+{
+    uint32_t us = 1000000UL + 2000UL * k + (k >= 100u ? 30000UL : 0u)
+                + (k >= 250u ? 20000UL : 0u);
+    us = us + (k * 37u) % 401u - 200u;
+    o->us = us;
+    o->ms = us / 1000u;
+    o->v = (int16_t)((int32_t)(k * 13u) - 500);
+    o->i = (int16_t)(-(int32_t)(k * 7u));
+    o->bayrak = (uint8_t)((k / 50u) & 0x0Fu);
+    if (k == 300u) o->bayrak = (uint8_t)(o->bayrak | KO_KAYIP_ONCE);
+}
+
+static void ayr_besle(uint32_t bas, uint32_t son)
+{
+    KayitOrnek o;
+    uint32_t k;
+    int r;
+    for (k = bas; k < son; k++) {
+        if (k == 299u) continue;
+        ayr_uret(k, &o);
+        r = ky_ayrinti_ornek(&y, &o, o.ms);
+        if (r) { sayi("AYHATA", r); return; }
+    }
+}
+
+static void senaryo(void)
+{
+    KayitBasla b;
+    KayitNokta p;
+    KayitOrnek o;
+    uint32_t adim, t;
+    kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    ky_kur(&y, &g);
+    kyn_kur(&m, &g, &y, &NVS);
+    adim = nvs_oku(0, "t_adim", 0u);
+    t_ms = 1000u;
+    sayi("AC", kyn_ac(&m, t_ms, 0u, nvs_oku(0, "t_rast", 7u)));
+    dr("R0");
+    switch (adim) {
+    case 1:
+        basla_uret(&b, 0u);                       /* hiz_ms 0 = AYRINTILI */
+        sayi("BAS", kyn_baslat(&m, &b, t_ms, 0u));
+        sayi("AYR", y.ayrinti);
+        nokta_uret(0u, &p);
+        sayi("NK", ky_nokta(&y, &p, t_ms));       /* ayrintili oturumda nokta YOK */
+        ayr_besle(0u, 400u);
+        dr("R1");
+        break;
+    case 2:                                       /* DEVAM: ayrintili surer */
+        sayi("AYR", y.ayrinti);
+        ayr_besle(400u, 601u);
+        sayi("TAMP1", y.a_adet);
+        t = y.yuk_ilk_ms;
+        ky_zaman(&y, t + 4999u);
+        sayi("TAMP2", y.a_adet);
+        ky_zaman(&y, t + 5000u);
+        sayi("TAMP3", y.a_adet);
+        sayi("DUR", kyn_durdur(&m));
+        basla_uret(&b, 100u);                     /* noktali oturum: ornek YOK */
+        kyn_baslat(&m, &b, t_ms, 0u);
+        ayr_uret(700u, &o);
+        sayi("AO", ky_ayrinti_ornek(&y, &o, o.ms));
+        sayi("DUR2", kyn_durdur(&m));
+        dr("R2");
         break;
     default:
         break;
@@ -1385,7 +1465,7 @@ static void senaryo(void)
       || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN) \
       || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) || defined(SENARYO_YONET) \
       || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC) || defined(SENARYO_PIL) \
-      || defined(SENARYO_HALKA))
+      || defined(SENARYO_HALKA) || defined(SENARYO_AYRINTI))
 #error "SENARYO_* tanimli degil"
 #endif
 

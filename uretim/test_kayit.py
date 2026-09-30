@@ -924,6 +924,100 @@ def bolum_yonet() -> None:
        f"B.nvs.onay={fb.nvs.get('onay')}")
 
 
+# ── B71.A · ayrintili kip yazicisi (1C-2) ────────────────────────────
+AYR_SEKTOR = 16
+
+
+def _ayr_uret(k: int) -> tuple[int, int, int, int, int]:
+    """ornek_kayit.c ayr_uret ile AYNI: (us, ms, v, i, bayrak)."""
+    us = 1_000_000 + 2000 * k + (30000 if k >= 100 else 0) + (20000 if k >= 250 else 0)
+    us = us + (k * 37) % 401 - 200
+    b = (k // 50) & 0xF
+    return us, us // 1000, k * 13 - 500, -(k * 7), b
+
+
+def bolum_ayrinti() -> None:
+    """1C-2: ayrintili kip (hiz_ms 0) — her ornek AYRINTI kayitlarinda. Zaman
+    4 us nicemli, <= 2 us sapma, bolmede birikmez; bosluk ve kayip yeni kayit;
+    sektor sonu bosa gitmez; elektrik kesilince DEVAM, sira kesintisiz."""
+    print("\n── B71.A  ayrintili kip: ornek · zaman · bosluk · bolme · DEVAM")
+    elf = derle("AYRINTI", AYR_SEKTOR)
+    fl = NorFlas(SEKTOR * AYR_SEKTOR, sektor=SEKTOR)
+    fl.nvs["t_rast"] = 11
+    a1, a2 = _yonet(fl, elf, [1, 2])
+    kay, bozuk = KB.flas_coz(bytes(fl.bellek), SEKTOR)
+    ot = KB.oturumlari_kur(kay)
+    oid = _say(a1, "BAS")
+    o = ot.get(oid)
+    orn = KB.ayrinti_ornekler(o) if o else []
+    # beslenen (k=299 dustu) ve kartta kalan ornekler: asama 1'in bosaltilmamis
+    # kuyrugu (elektrik kesildi) gider, sira KESINTISIZ surer
+    beslenen = [k for k in range(601) if k != 299]
+    kalan1 = sum(len(r["ornekler"]) for r in o.ayrinti if r["sira"] < min(
+        (d_s for d_s in [x.sira for x in kay if x.oturum == oid and x.tur == KB.T_DEVAM]),
+        default=10**9)) if o else 0
+    eslesen = beslenen[:kalan1] + beslenen[beslenen.index(400):] if o else []
+    hata_kod, hata_t = [], []
+    for (sira, t, v, i, b), k in zip(orn, eslesen):
+        us, ms, vv, ii, bb = _ayr_uret(k)
+        if (v, i, b) != (vv, ii, bb):
+            hata_kod.append((sira, k))
+        if abs(t - us) > 2:
+            hata_t.append((sira, k, t - us))
+    ok("B71.A1 her ornek sirasi, ham V/I kodu ve bayragi BIREBIR (PC'de kurulan)",
+       bool(orn) and len(orn) == len(eslesen) and [s for s, *_ in orn] == list(range(len(orn)))
+       and not hata_kod, f"{len(orn)}/{len(eslesen)} hata={hata_kod[:3]}")
+    ok("B71.A2 her ornegin kurulan zamani gercek micros'tan <= 2 us (4 us nicem, bolmelerde "
+       "ve DEVAM'da birikmez)",
+       bool(orn) and not hata_t, f"{hata_t[:3]} en buyuk {max((abs(x[2]) for x in hata_t), default=0)}")
+    bas_k = {r["ilk"]: r for r in o.ayrinti} if o else {}
+    def kayit_basi(k):
+        j = eslesen.index(k) if k in eslesen else -1
+        return bas_k.get(j)
+    r100, r250 = kayit_basi(100), kayit_basi(250)
+    ok("B71.A3 16.38 ms'yi asan bosluk YENI kayit acar; kaydin t0_us'u o ornegin zamani",
+       r100 is not None and r250 is not None
+       and abs(r100["t0_us"] - _ayr_uret(100)[0]) <= 2 and abs(r250["t0_us"] - _ayr_uret(250)[0]) <= 2
+       and r100["ornekler"][0][2] == 0,
+       f"r100={r100 and r100['t0_us']} r250={r250 and r250['t0_us']}")
+    r300 = kayit_basi(300)
+    ok("B71.A4 dusen ornekten (halka tasti) sonraki ornek YENI kayit acar, kayit KA_KAYIP_ONCE",
+       r300 is not None and r300["bayrak"] & KB.KA_KAYIP_ONCE
+       and all(not r["bayrak"] & KB.KA_KAYIP_ONCE for r in o.ayrinti if r is not r300),
+       f"{r300 and r300['bayrak']}")
+    en_az = KB.BASLIK_BAYT + 16 + 8 * 6 + KB.BASLIK_BAYT + 8
+    sektorler: dict[int, int] = {}
+    for x in kay:
+        s = x.adres // SEKTOR
+        sektorler[s] = max(sektorler.get(s, 0), x.adres % SEKTOR + KB.toplam_bayt(len(x.yuk)))
+    ayr_sek = {x.adres // SEKTOR for x in kay if x.tur == KB.T_AYRINTI}
+    bas_sek = max(ayr_sek, key=lambda s: max(x.sira for x in kay if x.adres // SEKTOR == s)) if ayr_sek else -1
+    bosa = {s: SEKTOR - u for s, u in sektorler.items() if s in ayr_sek and s != bas_sek}
+    ok("B71.A5 sektor sonu bosa gitmez: sigmayan kayit BOLUNUR (en fazla bir asgari kayit "
+       "kadar bos kalir)",
+       bool(bosa) and all(v < en_az for v in bosa.values()), str(bosa))
+    devam = [x for x in kay if x.oturum == oid and x.tur == KB.T_DEVAM]
+    ilk_kay = sorted(o.ayrinti, key=lambda r: r["sira"]) if o else []
+    zincir = all(a["ilk"] + len(a["ornekler"]) == b["ilk"] for a, b in zip(ilk_kay, ilk_kay[1:]))
+    ok("B71.A6 elektrik kesilince DEVAM: ayrintili surer (hiz_ms 0), ornek sirasi KESINTISIZ; "
+       "BITIR nokta_adedi = ornek sayisi",
+       len(devam) == 1 and _say(a2, "AYR") == 1 and zincir and o.bitir is not None
+       and o.bitir["nokta_adedi"] == len(orn) and o.bitir["sebep"] == 1,
+       f"devam={len(devam)} zincir={zincir} bitir={o and o.bitir} n={len(orn)}")
+    olcum = [x for x in ot.values() if x.id != oid and x.basla and x.basla.hiz_ms == 100]
+    ok("B71.A7 ayrintili oturumda NOKTA yazilmaz, noktali oturumda ORNEK yazilmaz (KG_YOK)",
+       _say(a1, "AYR") == 1 and _say(a1, "NK") == -4 and _say(a2, "AO") == -4
+       and o is not None and not o.noktalar and len(olcum) == 1 and not olcum[0].ayrinti,
+       f"AYR={_say(a1, 'AYR')} NK={_say(a1, 'NK')} AO={_say(a2, 'AO')}")
+    ok("B71.A8 5 s bosaltma kurali ornek tamponunu da kapsar (4999 ms'de bekler, 5000'de yazar)",
+       (_say(a2, "TAMP1") or 0) > 0 and _say(a2, "TAMP2") == _say(a2, "TAMP1")
+       and _say(a2, "TAMP3") == 0,
+       f"{[_say(a2, a) for a in ('TAMP1', 'TAMP2', 'TAMP3')]}")
+    ok("B71.A9 flas temiz: bozuk kayit yok, BITIR payi korunuyor, sektor kurali (TEKRAR)",
+       bozuk == 0 and bitir_payi_korunur(bytes(fl.bellek)) and tekrar_kurali(bytes(fl.bellek)),
+       f"bozuk={bozuk}")
+
+
 # ── B71.H · ornek halkasi (1C-2) ─────────────────────────────────────
 def bolum_halka() -> None:
     """1C-2: cekirdek 1 -> 0 ornek halkasi (kayit_halka.h), kilitsiz tek
@@ -1326,7 +1420,8 @@ def bolum_kesinti(n_deneme: int) -> None:
 
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
-            bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_halka, bolum_kalgec, bolum_dizin,
+            bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_halka, bolum_ayrinti,
+            bolum_kalgec, bolum_dizin,
             bolum_kesinti]
 
 

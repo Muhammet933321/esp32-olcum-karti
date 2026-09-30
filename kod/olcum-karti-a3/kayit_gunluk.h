@@ -191,6 +191,9 @@ static inline void kg__dizin_isle(KayitGunluk *g, const KayitBaslik *h,
             o->nokta_sonraki = kayit_o32(y)
                              + (uint32_t)(h->yuk_bayt - 4u) / KAYIT_NOKTA_BAYT;
         break;
+    case KAYIT_T_AYRINTI:                  /* 1C-2: ornek sirasi DEVAM'da surer */
+        if (n >= 14u) o->nokta_sonraki = kayit_o32(y) + kayit_o16(y + 12);
+        break;
     case KAYIT_T_DEVAM:
         if (n >= 16u) o->nokta_sonraki = kayit_o32(y + 12);
         o->durum = KD_ACIK;
