@@ -204,6 +204,13 @@ const ARAYUZSUZ = {
      kullaniciya YANLIS bir deger okutmuyor (B20'nin f/F durumundan farki).
      ⚠ Alt proje 3 kayit ekranini ekleyince bu satir CIKARILACAK. */
   G: 'kayit komutu — ekranlari alt proje 3 (web paneli); simdilik seri + PC esitleme',
+  /* 1B: KALIBRASYON GECMISI (k? durum · kl liste · kv<no> degerler ·
+     kk<t><not> taslagi kaydet · kn<no> not · kt<no><t> tur). Kalibrasyonu
+     DEGISTIREN komutlar (z g Z i s f F) panelde zaten var; `k` yalniz
+     gecmise not/tur yazar ve listeler — okunan degeri degistirmez (B20'nin
+     f/F durumundan farki). Ekrani alt proje 3 (Ayarlar > kalibrasyon
+     gecmisi). ⚠ O ekran gelince bu satir CIKARILACAK. */
+  k: 'kalibrasyon gecmisi — ekrani alt proje 3; okunan degeri degistirmez',
 };
 const arayuzdeYok = [...firmwareHarfleri]
   .filter((h) => !gonderilenHarfler.has(h) && !(h in ARAYUZSUZ));

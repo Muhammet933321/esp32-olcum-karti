@@ -199,6 +199,24 @@ def bolum_kaynak() -> None:
        "vTaskDelay(1)" in nf and "kayit__nefes()" in fo
        and "memcpy(h, kayit_esle_ptr + a, n)" in fo
        and "esp_partition_mmap(" in esp_k)
+    # ── 1B: kalibrasyon gecmisi (davranis B71.C'de, burada yapistirici) ──
+    st = govde(ino_k, "void setup(")
+    ok("B72.F17 setup kalibrasyon gecmisini ayar_yukle'den SONRA kuruyor (#1 = gercek Ayar3)",
+       0 <= st.find("ayar_yukle()") < st.find("kalgec_kur(&"))
+    bd = govde(ino_k, "static void kayit_basla_doldur(")
+    ok("B72.F18 her oturum basliginda kalibrasyon NUMARASI (kgc_oturum_no: taslak varsa "
+       "otomatik kaydeder)",
+       "b->kal_no = kgc_oturum_no(&kalgec, &b->kal" in bd and "kayit_kal_doldur(&b->kal)" in bd)
+    kl = govde(ino_k, "void kal_liste_sayfa(")
+    ok("B72.F19 /kal/liste kayitli, Host denetimli; once `adet`, sonra bloblar (cekirdek 1 "
+       "kaydederken tutarli)",
+       'sunucu.on("/kal/liste"' in ino_k and "host_gecerli()" in kl
+       and 0 <= kl.find('"adet"') < kl.find("kgc_coz("))
+    nb = govde(esp_k, "static uint32_t kalgec_nvs_bos(")
+    ok("B72.F20 NVS'te yer: nvs_get_stats'in available_entries'i (GC sayfasi haric)",
+       "nvs_get_stats(" in nb and "available_entries" in nb)
+    ok("B72.F21 `k` komutu tanimli ve yardimda",
+       "case 'k': kalgec_komut(s)" in ino_k and "kk<t><not>" in ino)
     gd = govde(esp_k, "static void kayit__gonder(")
     ok("B72.F15 kuyruk dolarsa kayip SESSIZ degil: sonraki nokta KAYIP_ONCE, sayac artar",
        "kn_kayip(&kayit_kn)" in gd and "kayit_kuyruk_dusen = kayit_kuyruk_dusen + 1u" in gd)

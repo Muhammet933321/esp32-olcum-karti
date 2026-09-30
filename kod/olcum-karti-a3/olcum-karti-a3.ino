@@ -334,9 +334,12 @@ void ayar_yukle() {
   if (ayar.imza != AYAR3_IMZA) varsayilan_ayar3(&ayar);
 }
 
+static void kalgec_taslak_guncelle();   /* 1B: tanimi kalibrasyon gecmisi blogunda */
+
 void ayar_kaydet() {
   ayar.imza = AYAR3_IMZA;
   kalici.putBytes("ayar", &ayar, sizeof(Ayar3));
+  kalgec_taslak_guncelle();   /* 1B: kalibrasyon degistiyse gecmiste TASLAK var */
 }
 
 // ───────────────────────────────────────────────── ölçüm
@@ -2794,6 +2797,28 @@ static bool kayit__hiz_gecerli(long h) {
   return h == 20 || h == 100 || h == 200 || h == 1000 || h == 10000 || h == 60000;
 }
 
+/* Ayar3 -> kalibrasyon kopyasi (oturum basligi + kalibrasyon gecmisi). */
+static void kayit_kal_doldur(KayitKalibrasyon *k) {
+  memset(k, 0, sizeof(*k));
+  k->normal.n = ayar.normal.n;
+  k->normal.pga = ayar.normal.pga;
+  k->normal.kazanc = ayar.normal.kazanc;
+  k->normal.sifir_ham = ayar.normal.sifir_ham;
+  k->normal.tau = ayar.normal.tau;
+  k->yuksek.n = ayar.yuksek.n;
+  k->yuksek.pga = ayar.yuksek.pga;
+  k->yuksek.kazanc = ayar.yuksek.kazanc;
+  k->yuksek.sifir_ham = ayar.yuksek.sifir_ham;
+  k->yuksek.tau = ayar.yuksek.tau;
+  k->i_ofset = ayar.i_ofset;
+  k->i_pga = ayar.i_pga;
+  k->sont_ohm = ayar.sont_ohm;
+  k->i_duzeltme = ayar.i_duzeltme;
+  k->sebeke_hz = ayar.sebeke_hz;
+  k->faz_kal_us[0] = ayar.faz_kal_us[0];
+  k->faz_kal_us[1] = ayar.faz_kal_us[1];
+}
+
 static void kayit_basla_doldur(KayitBasla *b, uint32_t hiz) {
   memset(b, 0, sizeof(*b));
   b->oturum_turu = KAYIT_OTURUM_OLCUM;
@@ -2803,23 +2828,11 @@ static void kayit_basla_doldur(KayitBasla *b, uint32_t hiz) {
   b->kart_ms = millis();
   b->acilis = kayit_durum_al().acilis;
   memcpy(b->surum, KAYIT_FW_SURUM, sizeof(KAYIT_FW_SURUM) - 1u);
-  b->kal.normal.n = ayar.normal.n;
-  b->kal.normal.pga = ayar.normal.pga;
-  b->kal.normal.kazanc = ayar.normal.kazanc;
-  b->kal.normal.sifir_ham = ayar.normal.sifir_ham;
-  b->kal.normal.tau = ayar.normal.tau;
-  b->kal.yuksek.n = ayar.yuksek.n;
-  b->kal.yuksek.pga = ayar.yuksek.pga;
-  b->kal.yuksek.kazanc = ayar.yuksek.kazanc;
-  b->kal.yuksek.sifir_ham = ayar.yuksek.sifir_ham;
-  b->kal.yuksek.tau = ayar.yuksek.tau;
-  b->kal.i_ofset = ayar.i_ofset;
-  b->kal.i_pga = ayar.i_pga;
-  b->kal.sont_ohm = ayar.sont_ohm;
-  b->kal.i_duzeltme = ayar.i_duzeltme;
-  b->kal.sebeke_hz = ayar.sebeke_hz;
-  b->kal.faz_kal_us[0] = ayar.faz_kal_us[0];
-  b->kal.faz_kal_us[1] = ayar.faz_kal_us[1];
+  kayit_kal_doldur(&b->kal);
+  /* 1B: gecmisteki numara; taslak varsa OTOMATIK kaydedilir (numarasiz
+     oturum olmasin). Kaydedilemezse 0 — baslik yine tam kopyayi tasir. */
+  b->kal_no = kgc_oturum_no(&kalgec, &b->kal, b->unix_s, b->acilis);
+  kalgec_taslak_guncelle();
 }
 
 /* G <durum> <oturum> <nokta> <sonraki> <onay> <doluluk%o> <onaysiz%o> <dusen>
@@ -2982,6 +2995,171 @@ void kayit_veri_sayfa() {
   sunucu.setContentLength(n);
   sunucu.send(200, "application/octet-stream", "");
   if (n) sunucu.sendContent((const char *)kayit_veri_tampon, n);
+}
+
+// ═════════════════════════════════════ 1B — KALIBRASYON GECMISI ═══════
+// Durum makinesi kalgec.h (B71.C). Yazan yalniz cekirdek 1: `k` komutu ve
+// kayit baslangici. Taslak bayragi cekirdek 0'daki /kal/liste icin.
+static volatile uint8_t kalgec_taslak_bayrak = 0;
+
+static void kalgec_taslak_guncelle() {
+  KayitKalibrasyon k;
+  kayit_kal_doldur(&k);
+  kalgec_taslak_bayrak = (uint8_t)kgc_taslak(&kalgec, &k);
+}
+
+static const __FlashStringHelper *kalgec_hata_adi(int r) {
+  switch (r) {
+    case KGC_YOK:      return F("yok (taslak yok ya da boyle kayit yok)");
+    case KGC_HATA:     return F("NVS okuma/yazma hatasi");
+    case KGC_DOLU:     return F("gecmis DOLU (40) — eski kayit silinmez");
+    case KGC_NVS_DOLU: return F("NVS'te yer yok");
+    case KGC_BOZUK:    return F("kayit bozuk (CRC)");
+    default:           return F("?");
+  }
+}
+
+static int kalgec_tur_harfi(char c) {
+  return c == 'd' ? (int)KGT_DONANIM : c == 'i' ? (int)KGT_INCE : c == '-' ? (int)KGT_BELIRSIZ : -1;
+}
+
+/* KG <adet> <son_no> <taslak> <nvs_bos> <azami> <son_hata> */
+static void kalgec_durum_bas() {
+  char t[96];
+  snprintf(t, sizeof(t), "KG %lu %lu %u %lu %u %d",
+           (unsigned long)kalgec.adet, (unsigned long)(kalgec.son_var ? kalgec.son.no : 0u),
+           (unsigned)kalgec_taslak_bayrak, (unsigned long)kalgec_nvs_bos(nullptr),
+           (unsigned)KALGEC_AZAMI, kalgec.son_hata);
+  Serial.println(t);
+}
+
+static void kalgec_komut(const char *s) {
+  KayitKalibrasyon k;
+  KalKayit e;
+  char t[420];      /* KV: 17 sayi x en fazla 16 karakter */
+  char *son;
+  int r;
+  kayit_kal_doldur(&k);
+  const char alt = s[1];
+  if (alt == 0 || alt == '?') {
+    kalgec_durum_bas();
+    return;
+  } else if (alt == 'l') {
+    for (uint32_t no = 1; no <= kalgec.adet; no++) {
+      r = kgc_oku(&kalgec, no, &e);
+      if (r) {
+        snprintf(t, sizeof(t), "KL %lu ! %d", (unsigned long)no, r);
+      } else {
+        snprintf(t, sizeof(t), "KL %lu %lu %lu %u %u %s", (unsigned long)e.no,
+                 (unsigned long)e.unix_s, (unsigned long)e.acilis, (unsigned)e.tur,
+                 (unsigned)e.kaynak, e.not_);
+      }
+      Serial.println(t);
+    }
+    Serial.println(F("KL."));
+    return;
+  } else if (alt == 'v') {
+    uint32_t no = strtoul(s + 2, nullptr, 10);
+    r = kgc_oku(&kalgec, no, &e);
+    if (r) { Serial.print(F("! k: ")); Serial.println(kalgec_hata_adi(r)); return; }
+    snprintf(t, sizeof(t),
+             "KV %lu %.9g %.9g %.9g %d %.9g %.9g %.9g %.9g %d %.9g %d %.9g %.9g %.9g %.9g %.9g %.9g",
+             (unsigned long)e.no, (double)e.kal.normal.n, (double)e.kal.normal.pga,
+             (double)e.kal.normal.kazanc, (int)e.kal.normal.sifir_ham, (double)e.kal.normal.tau,
+             (double)e.kal.yuksek.n, (double)e.kal.yuksek.pga, (double)e.kal.yuksek.kazanc,
+             (int)e.kal.yuksek.sifir_ham, (double)e.kal.yuksek.tau, (int)e.kal.i_ofset,
+             (double)e.kal.i_pga, (double)e.kal.sont_ohm, (double)e.kal.i_duzeltme,
+             (double)e.kal.sebeke_hz, (double)e.kal.faz_kal_us[0], (double)e.kal.faz_kal_us[1]);
+    Serial.println(t);
+    return;
+  } else if (alt == 'k') {
+    int tur = kalgec_tur_harfi(s[2]);
+    if (tur < 0) { Serial.println(F("! k: kk<t><not> — t: d donanim degisti, i ince ayar, - belirtilmemis")); return; }
+    int32_t no = kgc_kaydet(&kalgec, &k, (uint8_t)tur, s + 3, kayit__unix(), kayit_durum_al().acilis);
+    kalgec_taslak_guncelle();
+    if (no < 0) { Serial.print(F("! k: kaydedilmedi — ")); Serial.println(kalgec_hata_adi((int)no)); return; }
+    Serial.print(F("* k: kalibrasyon #"));
+    Serial.print((uint32_t)no);
+    Serial.println(F(" kaydedildi"));
+    return;
+  } else if (alt == 'n' || alt == 't') {
+    uint32_t no = strtoul(s + 2, &son, 10);
+    if (alt == 'n') {
+      while (*son == ' ') son++;
+      r = kgc_duzenle(&kalgec, no, -1, son);
+    } else {
+      int tur = kalgec_tur_harfi(*son);
+      if (tur < 0) { Serial.println(F("! k: kt<no><t> — t: d / i / -")); return; }
+      r = kgc_duzenle(&kalgec, no, tur, nullptr);
+    }
+    if (r) { Serial.print(F("! k: ")); Serial.println(kalgec_hata_adi(r)); return; }
+    Serial.print(F("* k: #"));
+    Serial.print(no);
+    Serial.println(F(" duzeltildi"));
+    return;
+  }
+  Serial.println(F("! k: alt komut ? l v<no> k<t><not> n<no> <not> t<no><t>"));
+}
+
+static void kal_json_f(char *t, size_t n, const char *ad, float v, bool virgul) {
+  if (isfinite(v)) snprintf(t, n, "%s\"%s\":%.9g", virgul ? "," : "", ad, (double)v);
+  else snprintf(t, n, "%s\"%s\":null", virgul ? "," : "", ad);
+}
+
+/* GET /kal/liste — butun gecmis (PC eslitler: kalibrasyon.json). Kendi
+   salt-okunur Preferences ornegi; ONCE `adet` okunur, sonra bloblar:
+   cekirdek 1 tam o sirada kaydederse yeni kayit bu yanita girmez, yarim
+   kayit da girmez (blob `adet`ten ONCE yaziliyor). */
+void kal_liste_sayfa() {
+  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  Preferences p;
+  if (!p.begin("kalgec", true)) { sunucu.send(503, "text/plain", "kalibrasyon gecmisi yok"); return; }
+  uint8_t a[4], blob[KALGEC_BAYT];
+  uint32_t adet = 0;
+  if (p.isKey("adet") && p.getBytes("adet", a, 4) == 4) adet = kayit_o32(a);
+  if (adet > KALGEC_AZAMI) adet = KALGEC_AZAMI;
+  char t[160];
+  sunucu.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  sunucu.send(200, "application/json", "");
+  snprintf(t, sizeof(t), "{\"surum\":%u,\"adet\":%lu,\"taslak\":%u,\"azami\":%u,\"kayitlar\":[",
+           (unsigned)KALGEC_SURUM, (unsigned long)adet, (unsigned)kalgec_taslak_bayrak,
+           (unsigned)KALGEC_AZAMI);
+  sunucu.sendContent(t);
+  bool ilk = true;
+  for (uint32_t no = 1; no <= adet; no++) {
+    char ad[13];
+    KalKayit e;
+    kgc__ad(ad, no);
+    if (!p.isKey(ad) || p.getBytes(ad, blob, KALGEC_BAYT) != KALGEC_BAYT || kgc_coz(blob, &e)) continue;
+    snprintf(t, sizeof(t), "%s{\"no\":%lu,\"unix\":%lu,\"acilis\":%lu,\"tur\":%u,\"kaynak\":%u,"
+             "\"not\":\"%s\",\"kal\":{", ilk ? "" : ",", (unsigned long)e.no,
+             (unsigned long)e.unix_s, (unsigned long)e.acilis, (unsigned)e.tur,
+             (unsigned)e.kaynak, e.not_);
+    sunucu.sendContent(t);
+    ilk = false;
+    const KayitKanal *kn[2] = { &e.kal.normal, &e.kal.yuksek };
+    for (int i = 0; i < 2; i++) {
+      snprintf(t, sizeof(t), "%s\"%s\":{", i ? "," : "", i ? "yuksek" : "normal");
+      sunucu.sendContent(t);
+      kal_json_f(t, sizeof(t), "n", kn[i]->n, false);            sunucu.sendContent(t);
+      kal_json_f(t, sizeof(t), "pga", kn[i]->pga, true);         sunucu.sendContent(t);
+      kal_json_f(t, sizeof(t), "kazanc", kn[i]->kazanc, true);   sunucu.sendContent(t);
+      snprintf(t, sizeof(t), ",\"sifir_ham\":%d", (int)kn[i]->sifir_ham); sunucu.sendContent(t);
+      kal_json_f(t, sizeof(t), "tau", kn[i]->tau, true);         sunucu.sendContent(t);
+      sunucu.sendContent("}");
+    }
+    snprintf(t, sizeof(t), ",\"i_ofset\":%d", (int)e.kal.i_ofset); sunucu.sendContent(t);
+    kal_json_f(t, sizeof(t), "i_pga", e.kal.i_pga, true);           sunucu.sendContent(t);
+    kal_json_f(t, sizeof(t), "sont_ohm", e.kal.sont_ohm, true);     sunucu.sendContent(t);
+    kal_json_f(t, sizeof(t), "i_duzeltme", e.kal.i_duzeltme, true); sunucu.sendContent(t);
+    kal_json_f(t, sizeof(t), "sebeke_hz", e.kal.sebeke_hz, true);   sunucu.sendContent(t);
+    kal_json_f(t, sizeof(t), "faz0", e.kal.faz_kal_us[0], true);    sunucu.sendContent(t);
+    kal_json_f(t, sizeof(t), "faz1", e.kal.faz_kal_us[1], true);    sunucu.sendContent(t);
+    sunucu.sendContent("}}");
+  }
+  sunucu.sendContent("]}");
+  sunucu.sendContent("");
+  p.end();
 }
 
 void komut_sayfa() {
@@ -3302,6 +3480,8 @@ void yardim() {
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  tn<1/2> onay  t?"));
   Serial.println(F("  Gb<ms> kayit baslat (20/100/200/1000/10000/60000)  Gd durdur  G? durum"));
   Serial.println(F("  Go<sira> esitlenen kayitlari onayla   GF! BUTUN kayitlari sil"));
+  Serial.println(F("  k? kalibrasyon gecmisi  kl liste  kv<no> degerler  kk<t><not> taslagi kaydet"));
+  Serial.println(F("  kn<no> <not>  kt<no><t>   (t: d donanim degisti, i ince ayar, - belirtilmemis)"));
 }
 
 void komut_calistir(const char *s) {
@@ -3310,6 +3490,7 @@ void komut_calistir(const char *s) {
     case 'h': case 'Y': yardim(); break;
     case '#': i2c_tara(); alert_probu(); break;
     case 'G': kayit_komut(s); break;   // B72 — kayit
+    case 'k': kalgec_komut(s); break;  // 1B — kalibrasyon gecmisi
 
     case 'e':
       enerji_pJ = 0;
@@ -3996,6 +4177,12 @@ void setup() {
   Serial.setTxBufferSize(8192);
   Serial.begin(115200);
   ayar_yukle();
+  {   /* 1B: kalibrasyon gecmisi — bossa bugunku Ayar3 #1 olur */
+    KayitKalibrasyon k;
+    kayit_kal_doldur(&k);
+    kalgec_kur(&k, 0u);
+    kalgec_taslak_guncelle();
+  }
 
   Wire.begin(PIN_SDA, PIN_SCL, 400000);
   // B17: iki cip de TEK ATIS kipinde. SUREKLI kip birakildi cunku iki
@@ -4061,6 +4248,7 @@ void setup() {
   sunucu.on("/pil", pil_sayfa);   // B21
   sunucu.on("/kayit/liste", kayit_liste_sayfa);   // B72
   sunucu.on("/kayit/veri", kayit_veri_sayfa);     // B72 — esitleme (ham kayitlar)
+  sunucu.on("/kal/liste", kal_liste_sayfa);       // 1B — kalibrasyon gecmisi
   sunucu.on("/skop.bin", skop_bin_sayfa);   // B22.5 — ikili dokum
   // ⚠ YONTEM ACIKCA yaziliyor: HTTP_ANY olsaydi `GET /komut?k=p1` de
   //   calisirdi ve <img> etiketiyle uzaktan pil desarji baslatilabilirdi.
@@ -4149,6 +4337,17 @@ void setup() {
     Serial.println(F("AYRILAMADI — mAh/Wh sayaclari calisir, EGRI KAYDI YOK"));
   }
 
+  // ── 1B: kalibrasyon gecmisi ozeti (ayrinti `k?` / `kl`)
+  Serial.print(F("Kalibrasyon: #"));
+  Serial.print(kalgec.son_var ? kalgec.son.no : 0u);
+  Serial.print(F(" ("));
+  Serial.print(kalgec.adet);
+  Serial.print(F("/"));
+  Serial.print(KALGEC_AZAMI);
+  Serial.print(F(")"));
+  if (kalgec_taslak_bayrak) Serial.print(F(" — KAYDEDILMEMIS degisiklik var (`kk`)"));
+  if (kalgec.son_hata) { Serial.print(F(" — ! ")); Serial.print(kalgec_hata_adi(kalgec.son_hata)); }
+  Serial.println();
   // ── B72: KAYIT — bolum ve bellek burada; flas TARAMASI cekirdek 0'daki
   //    gorevde (acilisi bloklamasin). Durum `G?` ile.
   Serial.print(F("Kayit: "));

@@ -43,6 +43,8 @@
 #define KYN_TEMIZ_MS 500UL
 #include "kayit_nokta.h"
 #include "kayit_yonet.h"
+#include "kalgec.h"               /* 1B: kalibrasyon gecmisi (platformsuz) */
+#include "nvs.h"                  /* nvs_get_stats */
 
 #define KAYIT_FW_SURUM    "A3-B72"
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
@@ -392,6 +394,44 @@ static void kayit_duraklama(uint32_t simdi)
     KayitNokta c;
     kayit__nesil(simdi, kayit_ham.menzil);
     if (kayit_kn_aktif && kn_zaman(&kayit_kn, simdi, &c)) kayit__gonder(&c);
+}
+
+/* ─────────────────────────────── 1B: kalibrasyon gecmisi (cekirdek 1)
+   Durum makinesi kalgec.h'de (B71.C'de sinaniyor). Burada NVS: ad alani
+   `kalgec`, `adet` + `k1…k40`. Yazan yalniz cekirdek 1 (komut + kayit
+   baslangici); /kal/liste kendi salt-okunur ornegini acar. */
+static Preferences kalgec_nvs;
+static KalGecmis   kalgec;
+static uint8_t     kalgec_acik = 0;
+
+static int kalgec_nvs_oku(void *b, const char *ad, void *h, uint32_t n)
+{
+    (void)b;
+    if (!kalgec_acik || !kalgec_nvs.isKey(ad) || kalgec_nvs.getBytesLength(ad) != n) return -1;
+    return kalgec_nvs.getBytes(ad, h, n) == n ? 0 : -1;
+}
+
+static int kalgec_nvs_yaz(void *b, const char *ad, const void *k, uint32_t n)
+{
+    (void)b;
+    if (!kalgec_acik) return -1;
+    return kalgec_nvs.putBytes(ad, k, n) == n ? 0 : -1;
+}
+
+/* NVS'te veri icin KALAN giris: available_entries GC'ye ayrilan sayfayi
+   saymaz (free_entries sayar). 116 B'lik kayit 6 giris tutar. */
+static uint32_t kalgec_nvs_bos(void *b)
+{
+    nvs_stats_t s;
+    (void)b;
+    return nvs_get_stats(NULL, &s) == ESP_OK ? (uint32_t)s.available_entries : 0u;
+}
+
+static int kalgec_kur(const KayitKalibrasyon *simdiki, uint32_t unix_s)
+{
+    static const KalNvs t = { kalgec_nvs_oku, kalgec_nvs_yaz, kalgec_nvs_bos, nullptr };
+    kalgec_acik = kalgec_nvs.begin("kalgec", false) ? 1u : 0u;
+    return kgc_ac(&kalgec, &t, simdiki, unix_s, 0u);
 }
 
 #endif /* KAYIT_ESP_H */
