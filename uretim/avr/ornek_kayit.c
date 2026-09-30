@@ -16,6 +16,9 @@
 #include <stdint.h>
 #include <string.h>
 
+/* AVR tek cekirdek: bariyer yalniz derleyici bariyeri (__sync_synchronize
+   AVR'de baglanmaz). kayit_oturum.h kayit_halka.h'yi dahil ediyor: EN BASTA. */
+#define KAYIT_BARIYER() __asm__ __volatile__("" ::: "memory")
 #include "kayit_bicim.h"
 #include "kayit_nokta.h"
 #include "kayit_gunluk.h"
@@ -983,9 +986,8 @@ static void senaryo(void)
 #endif
 
 #if defined(SENARYO_HALKA)
-/* 1C-2: ORNEK HALKASI (kayit_halka.h) — tek uretici / tek tuketici. AVR tek
-   cekirdek: bariyer yalniz derleyici bariyeri (__sync_synchronize baglanmaz). */
-#define KAYIT_BARIYER() __asm__ __volatile__("" ::: "memory")
+/* 1C-2: ORNEK HALKASI (kayit_halka.h) — tek uretici / tek tuketici. Bariyer
+   dosyanin basinda tanimli. */
 #include "kayit_halka.h"
 static KayitOrnek hb[8];
 static KayitHalka h;
