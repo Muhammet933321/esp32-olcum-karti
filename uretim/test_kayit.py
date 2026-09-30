@@ -51,7 +51,7 @@ SEKTOR = 512          # testte kucuk sektor: halka cok doner, emulatorde ucuz
 SEKTOR_ADET = 8       # varsayilan; derle() -DNOR_SEKTOR_ADET ile gecirir
 AZAMI_YUK = 256       # 4 + 7 nokta
 CPP_BASLIKLAR = ["kayit_bicim.h", "kayit_nokta.h", "kayit_gunluk.h", "kayit_oturum.h",
-                 "kayit_yonet.h", "kalgec.h"]
+                 "kayit_yonet.h", "kalgec.h", "kayit_halka.h"]
 _ELF: dict[str, Path] = {}
 
 gecti = kaldi = 0
@@ -924,6 +924,32 @@ def bolum_yonet() -> None:
        f"B.nvs.onay={fb.nvs.get('onay')}")
 
 
+# ── B71.H · ornek halkasi (1C-2) ─────────────────────────────────────
+def bolum_halka() -> None:
+    """1C-2: cekirdek 1 -> 0 ornek halkasi (kayit_halka.h), kilitsiz tek
+    uretici / tek tuketici. Dolu halkada ornek DUSER, sayilir ve bir sonraki
+    itilene KO_KAYIP_ONCE konur; sayac sarmasi (32 bit) dogru."""
+    print("\n── B71.H  ornek halkasi: sira · tasma · sarma")
+    sat = kos(derle("HALKA"))
+    tek = {p[0]: p[1:] for p in (x.split() for x in sat) if p and p[0] not in ("H1", "H2")}
+    h1 = [[int(x) for x in p] for p in alanlar(sat, "H1")]
+    beklenen1 = [[100 + k, k, (k - 4) & 0xFFFF, (-k) & 0xFFFF, k & 0xF] for k in range(8)]
+    ok("B71.H1 8'lik halka: 8 it / 8 al — sira, zaman, kodlar, bayrak birebir",
+       tek.get("IT1") == ["8"] and tek.get("AD1") == ["8"] and h1 == beklenen1, str(h1[:2]))
+    h2 = [[int(x) for x in p] for p in alanlar(sat, "H2")]
+    ko = 0x10
+    ok("B71.H2 dolu halkada itme REDDEDILIR ve sayilir; ilk basarili itmede KO_KAYIP_ONCE, "
+       "sonrakinde yok (yazici yeni kayit acsin)",
+       tek.get("RED") == ["0"] and tek.get("DUSEN") == ["3"] and tek.get("IT2") == ["1"]
+       and tek.get("IT3") == ["1"] and len(h2) == 8
+       and h2[-2][0] == 150 and h2[-2][4] & ko and h2[-1][0] == 151 and not h2[-1][4] & ko
+       and all(not r[4] & ko for r in h2[:-2]),
+       f"RED={tek.get('RED')} DUSEN={tek.get('DUSEN')} son={h2[-2:]}")
+    ok("B71.H3 32 bit sayac sarmasinda (0xFFFFFFF0'dan) 40 ornek sirayla, eksiksiz",
+       tek.get("H3N") == ["40"] and tek.get("H3HATA") == ["0"] and tek.get("H3ADET") == ["0"],
+       f"{tek.get('H3N')} {tek.get('H3HATA')}")
+
+
 # ── B71.PL · pil testi oturumu (1C-1) ────────────────────────────────
 PIL_SEKTOR = 16      # 1-3. asamalar ~8 sektor tutar; halka 4. asamada dolar
 
@@ -1300,7 +1326,7 @@ def bolum_kesinti(n_deneme: int) -> None:
 
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
-            bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_kalgec, bolum_dizin,
+            bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_halka, bolum_kalgec, bolum_dizin,
             bolum_kesinti]
 
 

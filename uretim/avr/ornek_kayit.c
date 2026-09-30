@@ -902,6 +902,71 @@ static void senaryo(void)
 }
 #endif
 
+#if defined(SENARYO_HALKA)
+/* 1C-2: ORNEK HALKASI (kayit_halka.h) — tek uretici / tek tuketici. AVR tek
+   cekirdek: bariyer yalniz derleyici bariyeri (__sync_synchronize baglanmaz). */
+#define KAYIT_BARIYER() __asm__ __volatile__("" ::: "memory")
+#include "kayit_halka.h"
+static KayitOrnek hb[8];
+static KayitHalka h;
+
+static void ornek(KayitOrnek *o, uint32_t k)
+{
+    o->us = 100u + k;
+    o->ms = k;
+    o->v = (int16_t)((int32_t)k - 4);
+    o->i = (int16_t)(-(int32_t)k);
+    o->bayrak = (uint8_t)(k & 0x0Fu);
+}
+
+static void ho(const char *ad, const KayitOrnek *o)
+{
+    metin(ad);
+    yaz(' '); ondalik(o->us);
+    yaz(' '); ondalik(o->ms);
+    yaz(' '); ondalik((uint16_t)o->v);
+    yaz(' '); ondalik((uint16_t)o->i);
+    yaz(' '); ondalik(o->bayrak);
+    satir();
+}
+
+static void senaryo(void)
+{
+    KayitOrnek o;
+    uint32_t k, n, hata;
+    kh_kur(&h, hb, 8u);
+    for (k = 0, n = 0; k < 8u; k++) { ornek(&o, k); n += kh_it(&h, &o); }
+    sayi("IT1", (int32_t)n);
+    sayi("AD1", (int32_t)kh_adet(&h));
+    while (kh_al(&h, &o)) ho("H1", &o);
+    for (k = 0; k < 8u; k++) { ornek(&o, 20u + k); kh_it(&h, &o); }
+    for (k = 0, n = 0; k < 3u; k++) { ornek(&o, 40u + k); n += kh_it(&h, &o); }
+    sayi("RED", (int32_t)n);
+    sayi("DUSEN", (int32_t)h.dusen);
+    kh_al(&h, &o);
+    ornek(&o, 50u); sayi("IT2", kh_it(&h, &o));
+    kh_al(&h, &o);
+    ornek(&o, 51u); sayi("IT3", kh_it(&h, &o));
+    while (kh_al(&h, &o)) ho("H2", &o);
+    /* sayac sarmasi */
+    kh_kur(&h, hb, 8u);
+    h.yaz = 0xFFFFFFF0UL;
+    h.oku = 0xFFFFFFF0UL;
+    for (k = 0, n = 0, hata = 0; k < 40u; k++) {
+        ornek(&o, k);
+        kh_it(&h, &o);
+        if (k % 3u == 2u) {
+            while (kh_al(&h, &o)) { if (o.us != 100u + n) hata++; n++; }
+        }
+    }
+    while (kh_al(&h, &o)) { if (o.us != 100u + n) hata++; n++; }
+    sayi("H3N", (int32_t)n);
+    sayi("H3HATA", (int32_t)hata);
+    sayi("H3ADET", (int32_t)kh_adet(&h));
+    metin("BITTI\n");
+}
+#endif
+
 #if defined(SENARYO_PIL)
 /* 1C-1: PIL TESTI OTURUMU (kayit_yonet.h). Olcum -> pil gecisi (sebep 6),
    olaylar, pil bitir, not kayitlari (baslikta oturum 0), acilista acik pil
@@ -1319,7 +1384,8 @@ static void senaryo(void)
 #if !(defined(SENARYO_BICIM) || defined(SENARYO_NOKTACI) || defined(SENARYO_GUNLUK) \
       || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN) \
       || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) || defined(SENARYO_YONET) \
-      || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC) || defined(SENARYO_PIL))
+      || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC) || defined(SENARYO_PIL) \
+      || defined(SENARYO_HALKA))
 #error "SENARYO_* tanimli degil"
 #endif
 
