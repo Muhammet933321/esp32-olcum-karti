@@ -76,9 +76,9 @@ static inline void kyn__kapat_niyeti(KayitYonetici *m, uint32_t id)
 
 /* Acik ama yazilmayan oturumu KAPAT (surdurmeden): yazici o oturuma
    hazirlanir, gerekirse yeni sektor + TEKRAR (her sektor kendini anlatsin),
-   sonra BITIR(kullanici) ayrilmis paya. */
+   sonra BITIR(sebep) ayrilmis paya. */
 static inline int kyn__kapat(KayitYonetici *m, uint32_t id, const KayitBasla *b,
-                             uint32_t nokta_sonraki)
+                             uint32_t nokta_sonraki, uint8_t sebep)
 {
     KayitYazici *y = m->y;
     int r;
@@ -89,11 +89,13 @@ static inline int kyn__kapat(KayitYonetici *m, uint32_t id, const KayitBasla *b,
     y->son_hata = 0;
     r = ky__yer(y, 0u);
     if (r) { y->oturum = 0u; return r; }
-    return ky_bitir(y, KB_SEBEP_KULLANICI);
+    return ky_bitir(y, sebep);
 }
 
 /* Acik olcum oturumunu surdur (DEVAM) — ya da kullanici durdurmussa KAPAT.
-   Yazilamazsa (yer yok) oturum acik kalir: durum 4, onay gelince yeniden. */
+   Olcum DISI acik oturum (1C-1: pil testi) ASLA surdurulmez: "kart yeniden
+   basladi" ile kapanir (emniyet, spec O7). Yazilamazsa (yer yok) oturum acik
+   kalir: durum 4, onay gelince yeniden denenir. */
 static inline void kyn__devam_dene(KayitYonetici *m, uint32_t simdi_ms, uint32_t unix_s)
 {
     KayitGunluk *g = m->g;
@@ -103,14 +105,16 @@ static inline void kyn__devam_dene(KayitYonetici *m, uint32_t simdi_ms, uint32_t
     uint32_t id;
     int r;
     m->devam_bekliyor = 0u;
-    if (!o || o->tur != KAYIT_OTURUM_OLCUM) {
+    if (!o) {
         if (m->kapat_id) kyn__kapat_niyeti(m, 0u);     /* kapatilacak oturum kalmadi */
         return;
     }
     id = o->id;
     if (kg_basla_oku(g, o->basla_adres, id, &b)) { m->son_hata = KG_HATA; return; }
-    if (id == m->kapat_id) {
-        r = kyn__kapat(m, id, &b, o->nokta_sonraki);
+    if (o->tur != KAYIT_OTURUM_OLCUM) {
+        r = kyn__kapat(m, id, &b, o->nokta_sonraki, KB_SEBEP_YENIDEN);
+    } else if (id == m->kapat_id) {
+        r = kyn__kapat(m, id, &b, o->nokta_sonraki, KB_SEBEP_KULLANICI);
     } else {
         d.acilis = m->acilis;
         d.unix_s = unix_s;
@@ -211,6 +215,61 @@ static inline int kyn_durdur(KayitYonetici *m)
         return KG_TAMAM;
     }
     return KG_YOK;
+}
+
+/* 1C-1: etkin oturuma OLAY. Oturum yoksa KG_YOK (sessiz: pil testi kayitsiz
+   da calisir, K5). */
+static inline int kyn_olay(KayitYonetici *m, const uint8_t *yuk, uint16_t n)
+{
+    int r;
+    if (!m->hazir) return KG_HATA;
+    r = ky_olay(m->y, yuk, n);
+    if (r && r != KG_YOK) m->son_hata = r;
+    return r;
+}
+
+/* 1C-1: pil testi bitti — SONUC olayi, hemen ardindan BITIR(sebep). Yalniz
+   etkin oturum PIL ise: test bittiginde baska bir oturum (olcum) aciksa ona
+   dokunulmaz (KG_YOK). */
+static inline int kyn_pil_bitir(KayitYonetici *m, const uint8_t *sonuc, uint16_t n,
+                                uint8_t sebep)
+{
+    int r;
+    if (!m->hazir) return KG_HATA;
+    if (!m->y->oturum || m->y->basla.oturum_turu != KAYIT_OTURUM_PIL) return KG_YOK;
+    r = ky_olay(m->y, sonuc, n);
+    if (r) {                   /* DOLU: ky__dolu oturumu BITIR(DOLU) ile kapatti */
+        m->son_hata = r;
+        return r;
+    }
+    r = ky_bitir(m->y, sebep);
+    m->son_hata = r;
+    return r;
+}
+
+/* 1C-1: oturuma ad / etiket / not (NOT kaydi). Baslikta oturum 0, hedef
+   yukun ilk 4 baytinda; 1 <= hedef < sonraki_sira olmali (verilmemis bir
+   oturuma not yazilmaz). Yer acmak gerekirse etkin oturumun TEKRAR'i yazilir.
+   Dolu ise KG_DOLU doner ama etkin oturum KAPATILMAZ: not onun verisi degil.
+   Donus: kaydin sirasi (> 0; sonraki not onu `degistirir` ile hedefler) ya
+   da KG_*. */
+static inline int32_t kyn_not(KayitYonetici *m, const uint8_t *yuk, uint16_t n)
+{
+    uint32_t h;
+    int32_t s;
+    int r;
+    if (!m->hazir) return KG_HATA;
+    if (n < KAYIT_NOT_BAS) return KG_YOK;
+    h = kayit_o32(yuk);
+    if (!h || h >= m->g->sonraki_sira) return KG_YOK;
+    r = ky__yer(m->y, kayit_toplam_bayt(n));
+    if (r) {
+        m->son_hata = r;
+        return r;
+    }
+    s = kg_ekle(m->g, KAYIT_T_NOT, 0u, yuk, n);
+    if (s < 0) m->son_hata = (int)s;
+    return s;
 }
 
 /* Butun kayitlari sil — MANTIKSAL (O4). ONCE taban NVS'e: yazilamazsa hicbir

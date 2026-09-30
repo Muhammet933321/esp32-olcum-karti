@@ -132,7 +132,7 @@ static KULLANILMAYABILIR void basla_uret(KayitBasla *b, uint32_t hiz_ms)
 /* ─────────────────────────────── emule NOR (uretim/avr/nor_flas.py) */
 #if defined(SENARYO_GUNLUK) || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) \
     || defined(SENARYO_DIZIN) || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) \
-    || defined(SENARYO_YONET) || defined(SENARYO_SURUM)
+    || defined(SENARYO_YONET) || defined(SENARYO_SURUM) || defined(SENARYO_PIL)
 #define NOR_KOMUT (*(volatile uint8_t *)0xE0)
 #define NOR_A0    (*(volatile uint8_t *)0xE1)
 #define NOR_A1    (*(volatile uint8_t *)0xE2)
@@ -686,7 +686,7 @@ static void senaryo(void)
 }
 #endif
 
-#if defined(SENARYO_YONET)
+#if defined(SENARYO_YONET) || defined(SENARYO_PIL)
 /* B72 (son inceleme O1-O5): kayit YONETICISI (kayit_yonet.h) — kartin
    durum makinesi, platformsuz. Her ACILIS bir asama: `t_adim` NVS'ten okunur,
    NVS (emule, nor_flas.py) ve flas acilistan acilisa KALICI. Asama bitince
@@ -759,6 +759,9 @@ static int noktalar(uint32_t n)
     return r;
 }
 
+#endif
+
+#if defined(SENARYO_YONET)
 static void senaryo(void)
 {
     KayitBasla b;
@@ -860,6 +863,116 @@ static void senaryo(void)
         basla_uret(&b, 300u);
         sayi("BAS", kyn_baslat(&m, &b, t_ms, 0u));
         dr("D13");
+        break;
+    default:
+        break;
+    }
+    metin("BITTI\n");
+}
+#endif
+
+#if defined(SENARYO_PIL)
+/* 1C-1: PIL TESTI OTURUMU (kayit_yonet.h). Olcum -> pil gecisi (sebep 6),
+   olaylar, pil bitir, not kayitlari (baslikta oturum 0), acilista acik pil
+   oturumunun KAPATILMASI (DEVAM yok), yer yokken durum 4 -> onayla kapanis.
+   Her ACILIS bir asama (`t_adim`); NVS ve flas acilistan acilisa KALICI. */
+static uint8_t ly[KAYIT_NOT_BAS + KAYIT_NOT_METIN + 1u];
+
+static void basla_tur(KayitBasla *b, uint32_t hiz, uint8_t tur)
+{
+    basla_uret(b, hiz);
+    b->oturum_turu = tur;
+}
+
+static int32_t not_yaz(uint32_t hedef, uint8_t alan, uint32_t ms, uint32_t deg,
+                       const char *s)
+{
+    uint16_t n = kayit_not_paketle(hedef, alan, ms, deg, s, ly);
+    return kyn_not(&m, ly, n);
+}
+
+static void senaryo(void)
+{
+    static const KayitPilAyar a = { 3.0f, 4.1875f, 86400UL, 300000UL, 200u, 1.0f };
+    static const KayitDcir d = { 1u, 3.875f, 1.25f, 3.75f, 3.6875f, 0.09375f, 0.15625f,
+                                 104.5f, 0.40625f };
+    static const KayitPilSonuc s = { 2u, 0u, 12.5f, 0.046875f, 4.1875f, 3.0f, 5000UL, 1u };
+    KayitBasla b;
+    KayitSaat z;
+    uint32_t adim, i;
+    int32_t pil, n1, n2;
+    uint16_t n;
+    kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    ky_kur(&y, &g);
+    kyn_kur(&m, &g, &y, &NVS);
+    adim = nvs_oku(0, "t_adim", 0u);
+    t_ms = 1000u;
+    sayi("AC", kyn_ac(&m, t_ms, 0u, nvs_oku(0, "t_rast", 7u)));
+    dr("L0");
+    k_nokta = y.nokta_sira;
+    switch (adim) {
+    case 1:                  /* olcum -> pil; olaylar noktalar arasinda; elektrik gider */
+        basla_tur(&b, 100u, KAYIT_OTURUM_OLCUM);
+        sayi("OLC", kyn_baslat(&m, &b, t_ms, 0u));
+        noktalar(20u);
+        basla_tur(&b, 1000u, KAYIT_OTURUM_PIL);
+        sayi("PIL", kyn_baslat(&m, &b, t_ms, 0u));
+        n = kayit_olay_ayar_paketle(t_ms, &a, ly);
+        sayi("OA", kyn_olay(&m, ly, n));
+        noktalar(15u);
+        n = kayit_olay_dcir_paketle(t_ms, &d, ly);
+        sayi("OD", kyn_olay(&m, ly, n));
+        noktalar(10u);
+        dr("L1");
+        break;
+    case 2:                  /* acilis (kyn_ac) acik PIL'i KAPATTI; etkin oturum yok */
+        dr("L2");
+        n = kayit_olay_dcir_paketle(t_ms, &d, ly);
+        sayi("OY", kyn_olay(&m, ly, n));
+        break;
+    case 3:                  /* pil bitir; olcum surerken pil bitir; not kayitlari */
+        basla_tur(&b, 1000u, KAYIT_OTURUM_PIL);
+        pil = kyn_baslat(&m, &b, t_ms, 0u);
+        sayi("PIL", pil);
+        noktalar(12u);
+        n = kayit_olay_sonuc_paketle(t_ms, &s, ly);
+        sayi("PB", kyn_pil_bitir(&m, ly, n, KB_SEBEP_PIL));
+        sayi("PB2", kyn_pil_bitir(&m, ly, n, KB_SEBEP_PIL));
+        basla_tur(&b, 100u, KAYIT_OTURUM_OLCUM);
+        sayi("OLC", kyn_baslat(&m, &b, t_ms, 0u));
+        noktalar(5u);
+        sayi("PB3", kyn_pil_bitir(&m, ly, n, KB_SEBEP_PIL));
+        dr("L3a");
+        sayi("NA1", not_yaz((uint32_t)pil, KNT_AD, 0u, 0u, "ilk ad"));
+        sayi("NA2", not_yaz((uint32_t)pil, KNT_AD, 0u, 0u, "son ad"));
+        n1 = not_yaz((uint32_t)pil, KNT_NOT, 1500u, 0u, "n1");
+        n2 = not_yaz((uint32_t)pil, KNT_NOT, 0u, 0u, "n2");
+        sayi("N1", n1);
+        sayi("N2", n2);
+        sayi("NX1", not_yaz((uint32_t)pil, KNT_NOT, 1500u, (uint32_t)n1, "n1b"));
+        sayi("NX2", not_yaz((uint32_t)pil, KNT_NOT, 0u, (uint32_t)n2, ""));
+        sayi("NG0", not_yaz(0u, KNT_AD, 0u, 0u, "yok"));
+        sayi("NGB", not_yaz(g.sonraki_sira, KNT_AD, 0u, 0u, "gelecek"));
+        noktalar(5u);
+        sayi("DUR", kyn_durdur(&m));
+        dr("L3b");
+        break;
+    case 4:                  /* PIL basla, halka ONAYSIZ dolar; kafada yarim yazma */
+        basla_tur(&b, 1000u, KAYIT_OTURUM_PIL);
+        sayi("PIL", kyn_baslat(&m, &b, t_ms, 0u));
+        i = 0u;
+        while (!g.sektor[(g.bas + 1u) % NOR_SEKTOR_ADET].ilk && i++ < 5000u)
+            if (noktalar(1u)) break;
+        z.unix_s = 0u; z.kart_ms = t_ms; z.acilis = m.acilis;
+        NOR_ARIZA_YAZ = 10u;                  /* SAAT kaydinin basligi yarida */
+        sayi("YARIM", ky_saat(&y, &z));
+        (void)NOR_KOMUT;
+        dr("L4");
+        break;
+    case 5:                  /* yer yok: PIL acik bekler (durum 4); onay -> KAPANIR */
+        dr("L5a");
+        kyn_adim(&m, g.sonraki_sira - 1u, t_ms, 0u);
+        dr("L5b");
         break;
     default:
         break;
@@ -1175,7 +1288,7 @@ static void senaryo(void)
 #if !(defined(SENARYO_BICIM) || defined(SENARYO_NOKTACI) || defined(SENARYO_GUNLUK) \
       || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN) \
       || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) || defined(SENARYO_YONET) \
-      || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC))
+      || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC) || defined(SENARYO_PIL))
 #error "SENARYO_* tanimli degil"
 #endif
 

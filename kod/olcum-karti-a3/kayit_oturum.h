@@ -170,8 +170,8 @@ static inline int32_t ky_baslat(KayitYazici *y, const KayitBasla *b)
     uint8_t p[KAYIT_BASLA_BAYT];
     int32_t s;
     int r;
-    if (y->oturum) {
-        r = ky_bitir(y, KB_SEBEP_KULLANICI);
+    if (y->oturum) {           /* 1C-1: surmekte olan "baska oturum basladi" ile kapanir */
+        r = ky_bitir(y, KB_SEBEP_OTURUM);
         if (r && r != KG_DOLU) return r;
     }
     y->basla = *b;
@@ -187,8 +187,21 @@ static inline int32_t ky_baslat(KayitYazici *y, const KayitBasla *b)
     return s;
 }
 
-/* Kart yeniden basladi: acik oturumu surdur (pil testi ICIN CAGRILMAZ —
-   emniyet: yuk kapali kalir; 1C). */
+/* 1C-1: oturum OLAYI (pil ayari, DCIR, pil sonucu). Once tamponda bekleyen
+   noktalar yazilir: kayit sirasi zaman sirasiyla ayni kalir. */
+static inline int ky_olay(KayitYazici *y, const uint8_t *yuk, uint16_t n)
+{
+    int r;
+    if (!y->oturum) return KG_YOK;
+    r = ky_bosalt(y);
+    if (r) return r;           /* DOLU ise ky__dolu BITIR'i zaten yazdi */
+    r = ky__kayit(y, KAYIT_T_OLAY, yuk, n);
+    return r ? ky__dolu(y, r) : KG_TAMAM;
+}
+
+/* Kart yeniden basladi: acik OLCUM oturumunu surdur. Pil testi (ve olcum
+   disi her tur) ICIN CAGRILMAZ — emniyet: yuk kapali kalir; yonetici o
+   oturumu "yeniden basladi" ile kapatir (1C-1, kyn__devam_dene). */
 static inline int ky_devam(KayitYazici *y, uint32_t oturum, const KayitBasla *b,
                            uint32_t nokta_sira, const KayitDevam *d)
 {

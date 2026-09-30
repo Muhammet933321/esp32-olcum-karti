@@ -871,6 +871,105 @@ def bolum_yonet() -> None:
        f"B.nvs.onay={fb.nvs.get('onay')}")
 
 
+# ── B71.PL · pil testi oturumu (1C-1) ────────────────────────────────
+PIL_SEKTOR = 16      # 1-3. asamalar ~8 sektor tutar; halka 4. asamada dolar
+
+
+def _say(sat: list[str], ad: str) -> int | None:
+    a = alanlar(sat, ad)
+    return int(a[0][0]) if a and a[0] else None
+
+
+def _oturum_kayitlari(kay: list, oid) -> list:
+    return sorted((k for k in kay if k.oturum == oid), key=lambda k: k.sira)
+
+
+def bolum_pil() -> None:
+    """1C-1: pil testi kendi oturumunda (kayit_yonet.h, AVR + emule NOR/NVS).
+    Olcum -> pil gecisi, olaylar, pil bitir, not kayitlari (oturum 0),
+    acilista acik pil oturumunun KAPANMASI (DEVAM yok: emniyet), yer yokken
+    durum 4 -> onayla kapanis."""
+    print("\n── B71.PL  pil testi oturumu: gecis · olay · bitir · not · acilista kapanis")
+    elf = derle("PIL", PIL_SEKTOR)
+    fl = NorFlas(SEKTOR * PIL_SEKTOR, sektor=SEKTOR)
+    fl.nvs["t_rast"] = 9
+    c1, c2, c3 = _yonet(fl, elf, [1, 2, 3])
+    kay, bozuk = KB.flas_coz(bytes(fl.bellek), SEKTOR)
+    ot = KB.oturumlari_kur(kay)
+    olc1, pil1 = _say(c1, "OLC"), _say(c1, "PIL")
+    o1, p1 = ot.get(olc1), ot.get(pil1)
+    ok("B71.PL1 olcum kaydi surerken pil oturumu acilinca olcum 'baska oturum basladi' "
+       "(6) ile kapanir, noktalari eksiksiz; pil oturumunun turu PIL (2); olaylar yazildi",
+       o1 is not None and p1 is not None and bool(o1.bitir) and o1.bitir["sebep"] == 6
+       and [j for j, _ in o1.noktalar] == list(range(20)) and pil1 > olc1
+       and p1.basla is not None and p1.basla.oturum_turu == KB.OTURUM_PIL
+       and _say(c1, "OA") == 0 and _say(c1, "OD") == 0,
+       f"olcum={o1 and o1.bitir} pil_tur={p1 and p1.basla and p1.basla.oturum_turu}")
+    pk = _oturum_kayitlari(kay, pil1)
+    sn = [(k.sira, struct.unpack_from("<I", k.yuk)[0], (len(k.yuk) - 4) // KB.NOKTA_BAYT)
+          for k in pk if k.tur == KB.T_NOKTA]
+    olay = [(k.sira, KB.olay_coz(k.yuk)["tur"]) for k in pk if k.tur == KB.T_OLAY]
+    ayar = next((s for s, t in olay if t == KB.KO_PIL_AYAR), None)
+    dcir = next((s for s, t in olay if t == KB.KO_DCIR), None)
+    once = [s for s, ilk, n in sn if ilk + n <= 15]
+    sonra = [s for s, ilk, n in sn if ilk >= 15]
+    ok("B71.PL2 pil oturumu ZAMAN sirasinda: BASLA, PIL_AYAR, noktalar 0-14, DCIR, "
+       "noktalar 15+ — olaydan once bekleyen noktalar BOSALTILDI (hicbir NOKTA kaydi "
+       "DCIR'i ortadan bolmez)",
+       bool(pk) and pk[0].tur == KB.T_BASLA and ayar is not None and dcir is not None
+       and bool(sn) and ayar < min(s for s, _, _ in sn)
+       and all(s < dcir for s in once) and all(s > dcir for s in sonra)
+       and len(once) + len(sonra) == len(sn),
+       f"olay={olay} nokta={[(i, n) for _, i, n in sn]}")
+    l2 = _dr(c2, "L2")
+    ok("B71.PL3 acilista acik PIL oturumu 'kart yeniden basladi' (5) ile KAPANIR, DEVAM "
+       "YAZILMAZ (emniyet: pil testi surmez); nokta sayisi BITIR ile tutarli; etkin "
+       "oturum kalmaz",
+       p1 is not None and bool(p1.bitir) and p1.bitir["sebep"] == 5 and not p1.devamlar
+       and not any(k.tur == KB.T_DEVAM for k in pk)
+       and p1.bitir["nokta_adedi"] >= 15
+       and [j for j, _ in p1.noktalar] == list(range(p1.bitir["nokta_adedi"]))
+       and l2.get("durum") == 1 and l2.get("oturum") == 0 and _say(c2, "OY") == -4,
+       f"bitir={p1 and p1.bitir} devam={p1 and p1.devamlar} L2={l2} OY={_say(c2, 'OY')}")
+    pil3, olc3 = _say(c3, "PIL"), _say(c3, "OLC")
+    p3, o3 = ot.get(pil3), ot.get(olc3)
+    p3k = _oturum_kayitlari(kay, pil3)
+    pb = [_say(c3, a) for a in ("PB", "PB2", "PB3")]
+    l3a = _dr(c3, "L3a")
+    ok("B71.PL4 pil bitir: SONUC olayi BITIR'dan HEMEN once, sebep 4; ikinci cagri ve "
+       "olcum surerken cagri hicbir sey yazmaz (KG_YOK), olcum acik kalir",
+       p3 is not None and bool(p3.bitir) and p3.bitir["sebep"] == 4 and len(p3k) >= 2
+       and p3k[-1].tur == KB.T_BITIR and p3k[-2].tur == KB.T_OLAY
+       and KB.olay_coz(p3k[-2].yuk)["tur"] == KB.KO_PIL_SONUC and pb == [0, -4, -4]
+       and l3a.get("durum") == 2 and l3a.get("oturum") == olc3
+       and o3 is not None and not o3.olaylar and bool(o3.bitir) and o3.bitir["sebep"] == 1,
+       f"PB={pb} pil={p3 and p3.bitir} L3a={l3a}")
+    nk = [k for k in kay if k.tur == KB.T_NOT]
+    n1 = _say(c3, "N1")
+    ng = [_say(c3, a) for a in ("NG0", "NGB")]
+    ok("B71.PL5 not kayitlari baslikta oturum 0 (olcum surerken yazildi, sektor kurali "
+       "bozulmadi); pil oturumu: ad = son ad, n1 degisti, n2 silindi; gecersiz hedef "
+       "YAZILMAZ; olcum noktalari eksiksiz",
+       len(nk) == 6 and all(k.oturum == 0 for k in nk) and tekrar_kurali(bytes(fl.bellek))
+       and p3 is not None and p3.ad == "son ad"
+       and p3.notlar == {n1: {"nokta_ms": 1500, "metin": "n1b"}} and ng == [-4, -4]
+       and o3 is not None and [j for j, _ in o3.noktalar] == list(range(10)),
+       f"not={len(nk)} ad={p3 and p3.ad} notlar={p3 and p3.notlar} NG={ng}")
+    ok("B71.PL6 1-3. asamalarin flasi temiz: bozuk kayit yok, BITIR payi korunuyor",
+       bozuk == 0 and bitir_payi_korunur(bytes(fl.bellek)), f"bozuk={bozuk}")
+    c4, c5 = _yonet(fl, elf, [4, 5])
+    kay5, _ = KB.flas_coz(bytes(fl.bellek), SEKTOR)
+    pil4 = _say(c4, "PIL")
+    p4 = KB.oturumlari_kur(kay5).get(pil4)
+    l5a, l5b = _dr(c5, "L5a"), _dr(c5, "L5b")
+    ok("B71.PL7 yer yokken acilis: PIL oturumu acik BEKLER (durum 4, surdurulmez); onay "
+       "yer acinca 'yeniden basladi' (5) ile KAPANIR, DEVAM yok",
+       l5a.get("durum") == 4 and l5a.get("oturum") == pil4 and l5b.get("durum") != 4
+       and l5b.get("oturum") == 0 and p4 is not None and bool(p4.bitir)
+       and p4.bitir["sebep"] == 5 and not p4.devamlar,
+       f"L5a={l5a} L5b={l5b} bitir={p4 and p4.bitir} devam={p4 and p4.devamlar}")
+
+
 # ── B71.C · kalibrasyon gecmisi (kalgec.h) ───────────────────────────
 KALGEC_BAYT = 116
 _KD = ["adet", "son_no", "taslak", "hata", "tur", "kaynak"]
@@ -1146,7 +1245,7 @@ def bolum_kesinti(n_deneme: int) -> None:
 
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
-            bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_kalgec, bolum_dizin,
+            bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_kalgec, bolum_dizin,
             bolum_kesinti]
 
 
