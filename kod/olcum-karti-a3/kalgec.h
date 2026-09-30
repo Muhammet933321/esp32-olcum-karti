@@ -76,55 +76,12 @@ typedef struct {
     int      son_hata;
 } KalGecmis;
 
-/* `s`'deki UTF-8 karakterinin bayt sayisi; gecersizse 0. RFC 3629 tablosu:
-   asiri uzun kodlama, vekil (D800-DFFF) ve 10FFFF ustu GECERSIZ (Python'un
-   cozucusu da reddeder). NUL'dan otesini okumaz: her devam bayti okunmadan
-   once oncekinin NUL olmadigi dogrulanmis. */
-static inline uint8_t kgc__utf8(const uint8_t *s)
-{
-    uint8_t c = s[0], uz, i, alt = 0x80u, ust = 0xBFu;
-    if (c < 0x80u) return 1u;
-    if (c >= 0xC2u && c <= 0xDFu) {
-        uz = 2u;
-    } else if (c >= 0xE0u && c <= 0xEFu) {
-        uz = 3u;
-        if (c == 0xE0u) alt = 0xA0u;
-        else if (c == 0xEDu) ust = 0x9Fu;
-    } else if (c >= 0xF0u && c <= 0xF4u) {
-        uz = 4u;
-        if (c == 0xF0u) alt = 0x90u;
-        else if (c == 0xF4u) ust = 0x8Fu;
-    } else {
-        return 0u;
-    }
-    if (s[1] < alt || s[1] > ust) return 0u;
-    for (i = 2u; i < uz; i++)
-        if ((s[i] & 0xC0u) != 0x80u) return 0u;
-    return uz;
-}
-
-/* Notu kopyala: gecersiz UTF-8 bayti (orn. cp1254 terminalden 'ş' = FE),
-   kontrol karakterleri, `"` ve `\` atilir — JSON'a kacissiz ve PC'de hep
-   cozulur; en fazla 31 bayt, sigmayan karakterde (karakter SINIRINDA) kesilir. */
+/* Notu kopyala: kayit_bicim.h'deki ortak temizleyici (1C-1'de genellestirildi;
+   kurallar ayni: gecersiz UTF-8, kontrol, cift tirnak ve ters bolu atilir,
+   31 baytta KARAKTER sinirinda kesilir). */
 static inline void kgc_not_kopyala(char *d, const char *s)
 {
-    const uint8_t *p = (const uint8_t *)s;
-    uint8_t n = 0u, uz, c;
-    if (p) {
-        while ((c = *p) != 0u) {
-            uz = kgc__utf8(p);
-            if (!uz || (uz == 1u && (c < 0x20u || c == 0x7Fu || c == (uint8_t)'"'
-                                     || c == (uint8_t)'\\'))) {
-                p++;
-                continue;
-            }
-            if ((uint8_t)(n + uz) > KALGEC_NOT - 1u) break;
-            memcpy(d + n, p, uz);
-            n = (uint8_t)(n + uz);
-            p += uz;
-        }
-    }
-    memset(d + n, 0, KALGEC_NOT - n);
+    (void)kayit_metin_kopyala(d, s, (uint8_t)KALGEC_NOT);
 }
 
 static inline void kgc_paketle(const KalKayit *e, uint8_t *p)

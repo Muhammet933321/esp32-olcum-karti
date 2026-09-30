@@ -56,7 +56,9 @@
 #define KAYIT_T_BITIR   4u   /* oturum bitti */
 #define KAYIT_T_SAAT    5u   /* kart ms <-> unix eslemesi */
 #define KAYIT_T_TEKRAR  6u   /* BASLA'nin sektor basi kopyasi (ayni yuk) */
-#define KAYIT_T_AZAMI   6u   /* bilinen en buyuk tur (gecerlilik siniri DEGIL) */
+#define KAYIT_T_OLAY    7u   /* 1C-1: oturum olayi (pil ayari, DCIR, pil sonucu) */
+#define KAYIT_T_NOT     8u   /* 1C-1: oturuma ad/etiket/not (baslikta oturum 0) */
+#define KAYIT_T_AZAMI   8u   /* bilinen en buyuk tur (gecerlilik siniri DEGIL) */
 
 /* nokta bayraklari */
 #define KN_YUKSEK      0x01u  /* nokta YUKSEK gerilim menzilinde */
@@ -65,13 +67,18 @@
 #define KN_V_DOYDU     0x08u  /* en az bir gerilim ornegi doydu */
 #define KN_DURAKLAMA   0x10u  /* bu noktadan once/icinde olcum durdu */
 #define KN_KAYIP_ONCE  0x20u  /* bundan ONCEKI noktalar kuyrukta dustu */
+#define KN_DCIR        0x40u  /* 1C-1: en az bir ornek DCIR darbesinde (yuk KAPALI) */
 
 /* BITIR sebepleri */
 #define KB_SEBEP_KULLANICI 1u
 #define KB_SEBEP_DOLU      2u
 #define KB_SEBEP_HATA      3u
+#define KB_SEBEP_PIL       4u   /* pil testi kendi bitti (kesme/emniyet; ayrinti SONUC'ta) */
+#define KB_SEBEP_YENIDEN   5u   /* kart yeniden basladi: surdurulmeyen oturum acilista kapandi */
+#define KB_SEBEP_OTURUM    6u   /* baska bir oturum basladi */
 
 #define KAYIT_OTURUM_OLCUM 1u   /* BASLA.oturum_turu: V/A/W olcum kaydi */
+#define KAYIT_OTURUM_PIL   2u   /* 1C-1: pil testi (noktalar + OLAY'lar); yeniden baslamada SURMEZ */
 #define KAYIT_KAL_BICIM    1u   /* BASLA.kal_bicim: KayitKalibrasyon v1 */
 
 /* ─────────────────────────────── kucuk uclu elle paketleme */
@@ -391,6 +398,181 @@ static inline void kayit_saat_coz(const uint8_t *p, KayitSaat *s)
     s->unix_s = kayit_o32(p);
     s->kart_ms = kayit_o32(p + 4);
     s->acilis = kayit_o32(p + 8);
+}
+
+/* ─────────────────────────────── METIN (1B'nin not temizleyicisi, genel)
+ * `s`'deki UTF-8 karakterinin bayt sayisi; gecersizse 0. RFC 3629 tablosu:
+ * asiri uzun kodlama, vekil (D800-DFFF) ve 10FFFF ustu GECERSIZ (Python'un
+ * cozucusu da reddeder). NUL'dan otesini okumaz: her devam bayti okunmadan
+ * once oncekinin NUL olmadigi dogrulanmis. */
+static inline uint8_t kayit__utf8(const uint8_t *s)
+{
+    uint8_t c = s[0], uz, i, alt = 0x80u, ust = 0xBFu;
+    if (c < 0x80u) return 1u;
+    if (c >= 0xC2u && c <= 0xDFu) {
+        uz = 2u;
+    } else if (c >= 0xE0u && c <= 0xEFu) {
+        uz = 3u;
+        if (c == 0xE0u) alt = 0xA0u;
+        else if (c == 0xEDu) ust = 0x9Fu;
+    } else if (c >= 0xF0u && c <= 0xF4u) {
+        uz = 4u;
+        if (c == 0xF0u) alt = 0x90u;
+        else if (c == 0xF4u) ust = 0x8Fu;
+    } else {
+        return 0u;
+    }
+    if (s[1] < alt || s[1] > ust) return 0u;
+    for (i = 2u; i < uz; i++)
+        if ((s[i] & 0xC0u) != 0x80u) return 0u;
+    return uz;
+}
+
+/* Metni kopyala: gecersiz UTF-8 bayti (orn. cp1254 terminalden 'ş' = FE),
+   kontrol karakterleri, `"` ve `\` atilir — JSON'a kacissiz ve PC'de hep
+   cozulur. `d`'de `azami` bayt var: en fazla azami-1 bayt metin, sigmayan
+   karakterde (karakter SINIRINDA) kesilir; geri kalani sifir. Donus: uzunluk. */
+static inline uint8_t kayit_metin_kopyala(char *d, const char *s, uint8_t azami)
+{
+    const uint8_t *p = (const uint8_t *)s;
+    uint8_t n = 0u, uz, c;
+    if (p) {
+        while ((c = *p) != 0u) {
+            uz = kayit__utf8(p);
+            if (!uz || (uz == 1u && (c < 0x20u || c == 0x7Fu || c == (uint8_t)'"'
+                                     || c == (uint8_t)'\\'))) {
+                p++;
+                continue;
+            }
+            if ((uint16_t)(n + uz) > (uint16_t)(azami - 1u)) break;
+            memcpy(d + n, p, uz);
+            n = (uint8_t)(n + uz);
+            p += uz;
+        }
+    }
+    memset(d + n, 0, (size_t)(azami - n));
+    return n;
+}
+
+/* ─────────────────────────────── OLAY (1C-1)
+ *    0 u8 olay_tur · 1 u8 0 · 2 u16 0 · 4 u32 kart_ms · 8.. ture ozel
+ *    KO_PIL_AYAR  (32 B) 8 f32 kesme_v · 12 f32 ocv · 16 u32 azami_s ·
+ *                 20 u32 dcir_aralik_ms · 24 u32 dcir_ms · 28 f32 kayit_hz
+ *    KO_DCIR      (44 B) 8 u32 no · 12 f32 v_once · 16 f32 i_once · 20 f32 v_ani ·
+ *                 24 f32 v_oturmus · 28 f32 r_ani · 32 f32 r_oturmus ·
+ *                 36 f32 mah · 40 f32 wh   (mah/wh: o ana kadarki)
+ *    KO_PIL_SONUC (36 B) 8 u8 durum · 9 u8 hata · 10 u16 0 · 12 f32 mah ·
+ *                 16 f32 wh · 20 f32 ocv · 24 f32 v_son · 28 u32 sure_ms ·
+ *                 32 u32 dcir_sayisi
+ * Volt/amper KALIBRE (kartin o anki hesabi); ham kod noktalarda. */
+#define KO_PIL_AYAR  1u
+#define KO_DCIR      2u
+#define KO_PIL_SONUC 3u
+#define KAYIT_OLAY_AYAR_BAYT  32u
+#define KAYIT_OLAY_DCIR_BAYT  44u
+#define KAYIT_OLAY_SONUC_BAYT 36u
+#define KAYIT_OLAY_AZAMI      44u
+
+typedef struct {
+    float    kesme_v, ocv;
+    uint32_t azami_s, dcir_aralik_ms, dcir_ms;
+    float    kayit_hz;
+} KayitPilAyar;
+
+typedef struct {
+    uint32_t no;
+    float    v_once, i_once, v_ani, v_oturmus, r_ani, r_oturmus, mah, wh;
+} KayitDcir;
+
+typedef struct {
+    uint8_t  durum, hata;
+    float    mah, wh, ocv, v_son;
+    uint32_t sure_ms, dcir_sayisi;
+} KayitPilSonuc;
+
+static inline void kayit__olay_bas(uint8_t *p, uint8_t tur, uint32_t kart_ms)
+{
+    p[0] = tur;
+    p[1] = 0u;
+    p[2] = 0u;
+    p[3] = 0u;
+    kayit_y32(p + 4, kart_ms);
+}
+
+static inline uint16_t kayit_olay_ayar_paketle(uint32_t kart_ms, const KayitPilAyar *a,
+                                               uint8_t *p)
+{
+    kayit__olay_bas(p, (uint8_t)KO_PIL_AYAR, kart_ms);
+    kayit_yf(p + 8, a->kesme_v);
+    kayit_yf(p + 12, a->ocv);
+    kayit_y32(p + 16, a->azami_s);
+    kayit_y32(p + 20, a->dcir_aralik_ms);
+    kayit_y32(p + 24, a->dcir_ms);
+    kayit_yf(p + 28, a->kayit_hz);
+    return (uint16_t)KAYIT_OLAY_AYAR_BAYT;
+}
+
+static inline uint16_t kayit_olay_dcir_paketle(uint32_t kart_ms, const KayitDcir *d,
+                                               uint8_t *p)
+{
+    kayit__olay_bas(p, (uint8_t)KO_DCIR, kart_ms);
+    kayit_y32(p + 8, d->no);
+    kayit_yf(p + 12, d->v_once);
+    kayit_yf(p + 16, d->i_once);
+    kayit_yf(p + 20, d->v_ani);
+    kayit_yf(p + 24, d->v_oturmus);
+    kayit_yf(p + 28, d->r_ani);
+    kayit_yf(p + 32, d->r_oturmus);
+    kayit_yf(p + 36, d->mah);
+    kayit_yf(p + 40, d->wh);
+    return (uint16_t)KAYIT_OLAY_DCIR_BAYT;
+}
+
+static inline uint16_t kayit_olay_sonuc_paketle(uint32_t kart_ms, const KayitPilSonuc *s,
+                                                uint8_t *p)
+{
+    kayit__olay_bas(p, (uint8_t)KO_PIL_SONUC, kart_ms);
+    p[8] = s->durum;
+    p[9] = s->hata;
+    p[10] = 0u;
+    p[11] = 0u;
+    kayit_yf(p + 12, s->mah);
+    kayit_yf(p + 16, s->wh);
+    kayit_yf(p + 20, s->ocv);
+    kayit_yf(p + 24, s->v_son);
+    kayit_y32(p + 28, s->sure_ms);
+    kayit_y32(p + 32, s->dcir_sayisi);
+    return (uint16_t)KAYIT_OLAY_SONUC_BAYT;
+}
+
+/* ─────────────────────────────── NOT (1C-1): oturuma ad / etiket / not
+ *    0 u32 hedef_oturum · 4 u8 alan (KNT_*) · 5 u8 0 · 6 u16 0 ·
+ *    8 u32 nokta_ms (not: grafikteki kart_ms; 0 = oturumun geneli) ·
+ *   12 u32 degistirir (0 = yeni; > 0 = o siradaki NOT kaydinin yerine gecer,
+ *                      metin bossa onu SILER) · 16 metin (UTF-8, <= 120 B, NUL'suz)
+ * Baslikta oturum 0: baska oturum surerken de yazilir. Kart YORUMLAMAZ; son
+ * hali PC kurar (ad/etiket: en son kayit; notlar: degistir/sil). */
+#define KNT_AD     1u
+#define KNT_ETIKET 2u
+#define KNT_NOT    3u
+#define KAYIT_NOT_BAS   16u
+#define KAYIT_NOT_METIN 120u
+
+/* `p` en az KAYIT_NOT_BAS + KAYIT_NOT_METIN + 1 bayt. Donus: yuk uzunlugu. */
+static inline uint16_t kayit_not_paketle(uint32_t hedef, uint8_t alan, uint32_t nokta_ms,
+                                         uint32_t degistirir, const char *metin, uint8_t *p)
+{
+    uint8_t n;
+    kayit_y32(p, hedef);
+    p[4] = alan;
+    p[5] = 0u;
+    p[6] = 0u;
+    p[7] = 0u;
+    kayit_y32(p + 8, nokta_ms);
+    kayit_y32(p + 12, degistirir);
+    n = kayit_metin_kopyala((char *)(p + KAYIT_NOT_BAS), metin,
+                            (uint8_t)(KAYIT_NOT_METIN + 1u));
+    return (uint16_t)(KAYIT_NOT_BAS + n);
 }
 
 #endif /* KAYIT_BICIM_H */

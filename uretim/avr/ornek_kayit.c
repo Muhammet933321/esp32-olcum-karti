@@ -189,6 +189,43 @@ static KayitGunluk g;
 /* ── senaryolar ── */
 
 #if defined(SENARYO_BICIM)
+/* 1C-1: OLAY ve NOT paketleri (C == Python, test_kayit.py B71.B16-B20) */
+static void bicim_1c1(void)
+{
+    static const KayitPilAyar a = { 3.0f, 4.1875f, 86400UL, 300000UL, 200u, 1.0f };
+    static const KayitDcir d = { 1u, 3.875f, 1.25f, 3.75f, 3.6875f, 0.09375f, 0.15625f,
+                                 104.5f, 0.40625f };
+    static const KayitPilSonuc s = { 2u, 0u, 2512.25f, 9.125f, 4.1875f, 2.9921875f,
+                                     3599000UL, 12u };
+    uint8_t p[KAYIT_NOT_BAS + KAYIT_NOT_METIN + 1u];
+    char m[KAYIT_NOT_METIN + 4u];
+    uint16_t n;
+    uint8_t i;
+    n = kayit_olay_ayar_paketle(1234u, &a, p);
+    metin("OA "); hexdizi(p, n); satir();
+    n = kayit_olay_dcir_paketle(300123UL, &d, p);
+    metin("OD "); hexdizi(p, n); satir();
+    n = kayit_olay_sonuc_paketle(3600000UL, &s, p);
+    metin("OS "); hexdizi(p, n); satir();
+    n = kayit_not_paketle(42u, KNT_NOT, 5000u, 0u,
+                          "\xc5\x9f\xc3\xb6nt \"de\xc4\x9fi\xc5\x9fti\" \\ \x01" "a\xfe", p);
+    metin("NT "); hexdizi(p, n); satir();
+    for (i = 0; i < 118u; i++) m[i] = 'a';                 /* 118 + 2 = 120: sigar */
+    m[118] = (char)0xc5; m[119] = (char)0x9f; m[120] = 0;
+    n = kayit_not_paketle(7u, KNT_AD, 0u, 0u, m, p);
+    metin("NT2 "); ondalik(n); satir();
+    m[118] = 'a'; m[119] = (char)0xc5; m[120] = (char)0x9f; m[121] = 0;   /* 119 + 2: sigmaz */
+    n = kayit_not_paketle(7u, KNT_AD, 0u, 0u, m, p);
+    metin("NT3 "); ondalik(n); yaz(' '); ondalik(p[KAYIT_NOT_BAS + 118u]); satir();
+    metin("TUR "); ondalik(KAYIT_T_OLAY); yaz(' '); ondalik(KAYIT_T_NOT);
+    yaz(' '); ondalik(KAYIT_T_AZAMI); yaz(' '); ondalik(KAYIT_OTURUM_PIL);
+    yaz(' '); ondalik(KB_SEBEP_PIL); yaz(' '); ondalik(KB_SEBEP_YENIDEN);
+    yaz(' '); ondalik(KB_SEBEP_OTURUM); satir();
+    metin("KN "); ondalik(KN_DCIR); yaz(' ');
+    ondalik(KN_YUKSEK | KN_V_HATA | KN_I_HATA | KN_V_DOYDU | KN_DURAKLAMA | KN_KAYIP_ONCE);
+    satir();
+}
+
 static void senaryo(void)
 {
     static const uint8_t dokuz[9] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
@@ -208,6 +245,7 @@ static void senaryo(void)
     metin("BASLA "); hexdizi(p, KAYIT_BASLA_BAYT); satir();
     kayit_baslik_yaz(h, KAYIT_T_NOKTA, 7u, 42u, p, 20u);
     metin("BASLIK "); hexdizi(h, KAYIT_BASLIK_BAYT); satir();
+    bicim_1c1();
     metin("BITTI\n");
 }
 #endif

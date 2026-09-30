@@ -313,6 +313,71 @@ def bolum_bicim() -> None:
         pass
     ok("B71.B13 bilinmeyen kayit turu (9) CRC'si dogruysa akis cozucu REDDETMEZ, dondurur",
        [k.tur for k in kay] == [KB.T_SAAT, 9, KB.T_SAAT], str([k.tur for k in kay]))
+    _bicim_1c1(s)
+
+
+def _bicim_1c1(s: dict) -> None:
+    """1C-1: OLAY ve NOT kayitlari (ornek_kayit.c bicim_1c1 ile AYNI girdiler)."""
+    ayar = {"tur": KB.KO_PIL_AYAR, "kart_ms": 1234, "kesme_v": 3.0, "ocv": 4.1875,
+            "azami_s": 86400, "dcir_aralik_ms": 300000, "dcir_ms": 200, "kayit_hz": 1.0}
+    dcir = {"tur": KB.KO_DCIR, "kart_ms": 300123, "no": 1, "v_once": 3.875, "i_once": 1.25,
+            "v_ani": 3.75, "v_oturmus": 3.6875, "r_ani": 0.09375, "r_oturmus": 0.15625,
+            "mah": 104.5, "wh": 0.40625}
+    sonuc = {"tur": KB.KO_PIL_SONUC, "kart_ms": 3600000, "durum": 2, "hata": 0,
+             "mah": 2512.25, "wh": 9.125, "ocv": 4.1875, "v_son": 2.9921875,
+             "sure_ms": 3599000, "dcir_sayisi": 12}
+    c = {a: bytes.fromhex(s[a][0]) if a in s and s[a] else b"" for a in ("OA", "OD", "OS", "NT")}
+    ok("B71.B16 OLAY paketleri (PIL_AYAR 32 B, DCIR 44 B, PIL_SONUC 36 B) C == Python; "
+       "Python coz -> ayni alanlar",
+       c["OA"] == KB.olay_paketle(ayar) and c["OD"] == KB.olay_paketle(dcir)
+       and c["OS"] == KB.olay_paketle(sonuc) and [len(c[a]) for a in ("OA", "OD", "OS")] == [32, 44, 36]
+       and KB.olay_coz(c["OA"]) == ayar and KB.olay_coz(c["OD"]) == dcir
+       and KB.olay_coz(c["OS"]) == sonuc, f"{[len(c[a]) for a in ('OA', 'OD', 'OS')]}")
+    ham = b'\xc5\x9f\xc3\xb6nt "de\xc4\x9fi\xc5\x9fti" \\ \x01a\xfe'
+    temiz = _not_bekle(ham, 121)
+    ok("B71.B16b NOT paketi C == Python: hedef, alan, nokta_ms, degistirir + TEMIZLENMIS "
+       "metin (gecersiz UTF-8, cift tirnak, ters bolu, kontrol karakteri atilir)",
+       c["NT"] == KB.not_paketle(42, KB.KNT_NOT, 5000, 0, temiz)
+       and KB.not_coz(c["NT"]) == {"hedef": 42, "alan": KB.KNT_NOT, "nokta_ms": 5000,
+                                   "degistirir": 0, "metin": temiz.decode("utf-8")},
+       f"{c['NT'][16:]!r} beklenen {temiz!r}")
+    nt2 = int((s.get("NT2") or ["0"])[0])
+    nt3 = (s.get("NT3") or ["0", "0"])
+    ok("B71.B17 not metni en fazla 120 bayt, KARAKTER sinirinda: 118 a + 'ş' sigar (136 B), "
+       "119 a + 'ş' sigmaz -> 119 a (135 B)",
+       nt2 == 16 + 120 and int(nt3[0]) == 16 + 119 and int(nt3[1]) == ord("a")
+       and len(_not_bekle(b"a" * 118 + "ş".encode(), 121)) == 120
+       and len(_not_bekle(b"a" * 119 + "ş".encode(), 121)) == 119, f"NT2={nt2} NT3={nt3}")
+    # sentetik akis: oturum 5 + olaylar + ad/etiket/not (oturum 0 basligiyla)
+    b = basla_uret(100)
+    nt = lambda alan, metin, deg=0, ms=0: KB.not_paketle(5, alan, ms, deg, metin.encode())
+    akis = [KB.kayit_paketle(KB.T_BASLA, 5, 5, KB.basla_paketle(b)),
+            KB.kayit_paketle(KB.T_OLAY, 6, 5, KB.olay_paketle(ayar)),
+            KB.kayit_paketle(KB.T_NOT, 7, 0, nt(KB.KNT_AD, "ilk ad")),
+            KB.kayit_paketle(KB.T_OLAY, 8, 5, KB.olay_paketle(dcir)),
+            KB.kayit_paketle(KB.T_NOT, 9, 0, nt(KB.KNT_AD, "son ad")),
+            KB.kayit_paketle(KB.T_NOT, 10, 0, nt(KB.KNT_NOT, "n1", 0, 1500)),
+            KB.kayit_paketle(KB.T_NOT, 11, 0, nt(KB.KNT_NOT, "n2")),
+            KB.kayit_paketle(KB.T_NOT, 12, 0, nt(KB.KNT_ETIKET, "18650, samsung ,")),
+            KB.kayit_paketle(KB.T_NOT, 13, 0, nt(KB.KNT_NOT, "n1 duzeltildi", 10, 1500)),
+            KB.kayit_paketle(KB.T_NOT, 14, 0, nt(KB.KNT_NOT, "", 11)),
+            KB.kayit_paketle(KB.T_OLAY, 15, 5, KB.olay_paketle(sonuc))]
+    ot = KB.oturumlari_kur(KB.akis_coz(b"".join(akis)))
+    o = ot.get(5)
+    ok("B71.B18 oturumlari_kur: olaylar sirayla; ad = SON ad; etiketler virgulden; not "
+       "degistirilir ve bos metinle SILINIR; oturum 0 baslikli NOT hedefe baglanir",
+       o is not None and [x["tur"] for x in o.olaylar] == [1, 2, 3]
+       and o.ad == "son ad" and o.etiketler == ["18650", "samsung"]
+       and o.notlar == {10: {"nokta_ms": 1500, "metin": "n1 duzeltildi"}} and 0 not in ot,
+       f"{o and (o.ad, o.etiketler, o.notlar, [x['tur'] for x in o.olaylar])}")
+    kn = (s.get("KN") or ["0", "0"])
+    ok("B71.B19 KN_DCIR (0x40) diger nokta bayraklariyla CAKISMAZ; Python'da ayni",
+       int(kn[0]) == 0x40 == KB.KN_DCIR and not (int(kn[0]) & int(kn[1])), str(kn))
+    tur = [int(x) for x in (s.get("TUR") or [])]
+    ok("B71.B20 yeni turler C == Python: OLAY 7, NOT 8 (AZAMI 8), PIL oturumu 2, sebepler "
+       "4/5/6; bicim surumu 2 KALDI (BASLA baytlari degismedi)",
+       tur == [7, 8, 8, 2, 4, 5, 6] and [KB.T_OLAY, KB.T_NOT, KB.OTURUM_PIL] == [7, 8, 2]
+       and all(k in KB.SEBEP for k in (4, 5, 6)) and KB.SURUM == 2, str(tur))
 
 
 # ── B71.P · noktaci ───────────────────────────────────────────────────
@@ -823,7 +888,7 @@ def _kalgec_coz(b: bytes) -> dict:
             "kal": KB.kal_coz(b, 48)}
 
 
-def _not_bekle(ham: bytes) -> bytes:
+def _not_bekle(ham: bytes, azami: int = 32) -> bytes:
     """kgc_not_kopyala'nin C'den BAGIMSIZ esi: gecersiz UTF-8 atilir (Python'un
     katı cozucusu: asiri uzun, vekil, 10FFFF ustu), kontrol karakteri / \" / \\
     atilir, 31 bayti asmayan en uzun KARAKTER oneki."""
@@ -831,7 +896,7 @@ def _not_bekle(ham: bytes) -> bytes:
                 if ord(c) >= 0x20 and c not in '\x7f"\\')
     b = b""
     for c in s:
-        if len(b) + len(c.encode("utf-8")) > 31:
+        if len(b) + len(c.encode("utf-8")) > azami - 1:
             break
         b += c.encode("utf-8")
     return b

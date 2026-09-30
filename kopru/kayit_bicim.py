@@ -29,10 +29,17 @@ BASLA_V1_BAYT = 98
 KAL_BAYT = 62          # kalibrasyon kopyasi (BASLA 36..97 ve kalibrasyon gecmisi)
 
 T_BASLA, T_NOKTA, T_DEVAM, T_BITIR, T_SAAT, T_TEKRAR = 1, 2, 3, 4, 5, 6
+T_OLAY, T_NOT = 7, 8   # 1C-1
 KN_YUKSEK, KN_V_HATA, KN_I_HATA = 0x01, 0x02, 0x04
 KN_V_DOYDU, KN_DURAKLAMA, KN_KAYIP_ONCE = 0x08, 0x10, 0x20
-SEBEP = {1: "kullanici", 2: "bellek doldu", 3: "hata"}
+KN_DCIR = 0x40         # 1C-1: en az bir ornek DCIR darbesinde (yuk KAPALI)
+SEBEP = {1: "kullanici", 2: "bellek doldu", 3: "hata", 4: "pil testi bitti",
+         5: "kart yeniden basladi", 6: "baska oturum basladi"}
 OTURUM_OLCUM = 1
+OTURUM_PIL = 2         # 1C-1: yeniden baslamada SURMEZ
+KO_PIL_AYAR, KO_DCIR, KO_PIL_SONUC = 1, 2, 3
+KNT_AD, KNT_ETIKET, KNT_NOT = 1, 2, 3
+NOT_METIN = 120
 KAL_BICIM = 1
 ADS_SAYIM = 32768.0
 
@@ -44,7 +51,20 @@ _BASLA_BAS = struct.Struct("<BBHIIII16s")
 _DEVAM = struct.Struct("<IIII")
 _BITIR = struct.Struct("<IB3x")
 _SAAT = struct.Struct("<III")
+_OLAY_BAS = struct.Struct("<B3xI")                 # olay_tur, kart_ms
+_OLAY = {                                          # tur -> (yapi, alan adlari)
+    KO_PIL_AYAR: (struct.Struct("<ffIIIf"),
+                  ("kesme_v", "ocv", "azami_s", "dcir_aralik_ms", "dcir_ms", "kayit_hz")),
+    KO_DCIR: (struct.Struct("<Iffffffff"),
+              ("no", "v_once", "i_once", "v_ani", "v_oturmus", "r_ani", "r_oturmus",
+               "mah", "wh")),
+    KO_PIL_SONUC: (struct.Struct("<BBxxffffII"),
+                   ("durum", "hata", "mah", "wh", "ocv", "v_son", "sure_ms", "dcir_sayisi")),
+}
+_NOT_BAS = struct.Struct("<IB3xII")                # hedef, alan, nokta_ms, degistirir
 assert _NOKTA.size == NOKTA_BAYT
+assert [_OLAY_BAS.size + y.size for y, _ in _OLAY.values()] == [32, 44, 36]
+assert _NOT_BAS.size == 16
 assert 2 * _KANAL.size + _AKIM.size == KAL_BAYT
 assert _BASLA_BAS.size + KAL_BAYT == BASLA_V1_BAYT and BASLA_V1_BAYT + 4 == BASLA_BAYT
 
@@ -253,6 +273,37 @@ def saat_coz(y: bytes) -> dict:
     return {"unix_s": u, "kart_ms": k, "acilis": a}
 
 
+def olay_paketle(d: dict) -> bytes:
+    """OLAY yuku (kayit_bicim.h kayit_olay_*_paketle ile ayni)."""
+    yapi, adlar = _OLAY[d["tur"]]
+    return _OLAY_BAS.pack(d["tur"], d["kart_ms"]) + yapi.pack(*(d[a] for a in adlar))
+
+
+def olay_coz(y: bytes) -> dict:
+    """OLAY yuku -> {"tur", "kart_ms", ...alanlar}. Bilinmeyen olay turu
+    atilmaz: {"tur", "kart_ms", "ham"} (1C-2… yeni olaylar ekleyecek)."""
+    t, ms = _OLAY_BAS.unpack_from(y)
+    d = {"tur": t, "kart_ms": ms}
+    if t in _OLAY and len(y) >= _OLAY_BAS.size + _OLAY[t][0].size:
+        yapi, adlar = _OLAY[t]
+        d.update(zip(adlar, yapi.unpack_from(y, _OLAY_BAS.size)))
+    else:
+        d["ham"] = bytes(y[_OLAY_BAS.size:])
+    return d
+
+
+def not_paketle(hedef: int, alan: int, nokta_ms: int, degistirir: int,
+                metin: bytes) -> bytes:
+    """NOT yuku. `metin` kartin TEMIZLEDIGI bayt dizisi (Python temizlemez)."""
+    return _NOT_BAS.pack(hedef, alan, nokta_ms, degistirir) + bytes(metin)
+
+
+def not_coz(y: bytes) -> dict:
+    h, a, ms, dg = _NOT_BAS.unpack_from(y)
+    return {"hedef": h, "alan": a, "nokta_ms": ms, "degistirir": dg,
+            "metin": bytes(y[_NOT_BAS.size:]).decode("utf-8", errors="replace")}
+
+
 # ── birimler ─────────────────────────────────────────────────────────
 def _kirp(d: int) -> int:
     return max(-32768, min(32767, d))
@@ -291,14 +342,43 @@ class Oturum:
     devamlar: list[dict] = field(default_factory=list)
     saatler: list[dict] = field(default_factory=list)
     bitir: dict | None = None
+    olaylar: list[dict] = field(default_factory=list)     # 1C-1: olay_coz + "sira"
+    ad: str | None = None                                 # 1C-1: en son NOT(ad)
+    etiketler: list[str] = field(default_factory=list)    # en son NOT(etiket), virgulden
+    notlar: dict[int, dict] = field(default_factory=dict)  # NOT kaydinin sirasi -> not
+
+
+def _not_uygula(o: Oturum, k: Kayit) -> None:
+    """NOT kaydini oturumun son haline isle (kayit_bicim.h NOT aciklamasi)."""
+    n = not_coz(k.yuk)
+    if n["alan"] == KNT_AD:
+        o.ad = n["metin"]
+    elif n["alan"] == KNT_ETIKET:
+        o.etiketler = [e.strip() for e in n["metin"].split(",") if e.strip()]
+    elif n["alan"] == KNT_NOT:
+        if n["degistirir"] in o.notlar:
+            if n["metin"]:
+                o.notlar[n["degistirir"]] = {"nokta_ms": n["nokta_ms"], "metin": n["metin"]}
+            else:
+                del o.notlar[n["degistirir"]]
+        elif n["metin"]:
+            o.notlar[k.sira] = {"nokta_ms": n["nokta_ms"], "metin": n["metin"]}
 
 
 def oturumlari_kur(kayitlar: list[Kayit]) -> dict[int, Oturum]:
     ot: dict[int, Oturum] = {}
     for k in sorted(kayitlar, key=lambda x: x.sira):
+        if k.tur == T_NOT and len(k.yuk) >= _NOT_BAS.size:
+            h = struct.unpack_from("<I", k.yuk)[0]     # baslikta oturum 0; hedef yukte
+            if h:
+                _not_uygula(ot.setdefault(h, Oturum(h)), k)
+            continue
         if not k.oturum:
             continue
         o = ot.setdefault(k.oturum, Oturum(k.oturum))
+        if k.tur == T_OLAY and len(k.yuk) >= _OLAY_BAS.size:
+            o.olaylar.append({**olay_coz(k.yuk), "sira": k.sira})
+            continue
         if k.tur == T_BASLA:
             o.basla = basla_coz(k.yuk)
             o.basi_eksik = False
