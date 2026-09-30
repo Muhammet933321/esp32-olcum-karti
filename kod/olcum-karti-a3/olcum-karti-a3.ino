@@ -4532,7 +4532,7 @@ void loop() {
   }
 
   Okuma3 o = olcum_al();
-  kayit_ornek(o.watt, millis());   // B72: noktaci (cekirdek 1)
+  kayit_ornek(o.watt, millis(), 0u);   // B72: noktaci (cekirdek 1); ek bayrak 1C-1 Gorev 4
   // Guc ORNEK BASINA carpilir: ort(VxI) != ort(V) x ort(I).
   // B27/K1: iki ciften biri okunamadiysa watt COP — enerjiye katma.
   // (Ornek yine sayiliyor ve D basiliyor; arayuz `durum` alanindan

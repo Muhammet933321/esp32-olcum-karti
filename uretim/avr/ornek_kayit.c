@@ -272,7 +272,7 @@ static void senaryo(void)
     for (i = 0; i < 30; i++) {
         t = (uint32_t)i * 10u;
         if (kn_ornek(&k, t, 0u, (int16_t)(100 + i), (int16_t)(-i),
-                     (float)i * 0.5f, 0u, 0u, &c)) p_yaz(&c);
+                     (float)i * 0.5f, 0u, 0u, 0u, &c)) p_yaz(&c);
     }
     if (kn_zaman(&k, 300u, &c)) p_yaz(&c);
     metin("S1\n");
@@ -280,28 +280,40 @@ static void senaryo(void)
     /* S2: t=0..40 NORMAL (1000), t=45..85 YUKSEK (2000) */
     kn_baslat(&k, 100u, 0u, 0u);
     for (i = 0; i < 5; i++)
-        if (kn_ornek(&k, (uint32_t)i * 10u, 0u, 1000, 10, 1.0f, 0u, 0u, &c)) p_yaz(&c);
+        if (kn_ornek(&k, (uint32_t)i * 10u, 0u, 1000, 10, 1.0f, 0u, 0u, 0u, &c)) p_yaz(&c);
     for (i = 0; i < 5; i++)
-        if (kn_ornek(&k, 45u + (uint32_t)i * 10u, 1u, 2000, 20, 2.0f, 0u, 0u, &c)) p_yaz(&c);
+        if (kn_ornek(&k, 45u + (uint32_t)i * 10u, 1u, 2000, 20, 2.0f, 0u, 0u, 0u, &c)) p_yaz(&c);
     if (kn_zaman(&k, 145u, &c)) p_yaz(&c);
     metin("S2\n");
 
     /* S3: hatali ornek, doyma, kuyruk kaybi, uzun duraklama */
     kn_baslat(&k, 50u, 0u, 0u);
-    kn_ornek(&k, 0u, 0u, 5, 1, 0.25f, 0u, 0u, &c);
-    kn_ornek(&k, 10u, 0u, 9999, 1, 99.0f, KN_HATA_V, 0u, &c);
-    kn_ornek(&k, 20u, 0u, 7, 3, 0.75f, 0u, 1u, &c);
+    kn_ornek(&k, 0u, 0u, 5, 1, 0.25f, 0u, 0u, 0u, &c);
+    kn_ornek(&k, 10u, 0u, 9999, 1, 99.0f, KN_HATA_V, 0u, 0u, &c);
+    kn_ornek(&k, 20u, 0u, 7, 3, 0.75f, 0u, 1u, 0u, &c);
     kn_kayip(&k);
-    if (kn_ornek(&k, 260u, 0u, 1, 1, 1.0f, 0u, 0u, &c)) p_yaz(&c);
+    if (kn_ornek(&k, 260u, 0u, 1, 1, 1.0f, 0u, 0u, 0u, &c)) p_yaz(&c);
     if (kn_zaman(&k, 310u, &c)) p_yaz(&c);
     metin("S3\n");
 
     /* S4: 40 000 uc deger ornek tek noktada — int32/int64 tasmaz */
     kn_baslat(&k, 1000000UL, 0u, 0u);
     for (t = 0; t < 40000UL; t++)
-        kn_ornek(&k, t, 0u, 32767, -32768, 7000.0f, 0u, 0u, &c);
+        kn_ornek(&k, t, 0u, 32767, -32768, 7000.0f, 0u, 0u, 0u, &c);
     if (kn_zaman(&k, 1000000UL, &c)) p_yaz(&c);
-    metin("S4\nBITTI\n");
+    metin("S4\n");
+
+    /* S5 (1C-1): ek bayrak (KN_DCIR) ornegin AIT OLDUGU noktaya. 100 ms'deki
+       ornek onceki noktayi KAPATIR ve bayragi YENI noktaya verir; 200 ms'deki
+       ornek 3. noktanin tek DCIR ornegi. */
+    kn_baslat(&k, 100u, 0u, 0u);
+    for (i = 0; i < 30; i++) {
+        t = (uint32_t)i * 10u;
+        if (kn_ornek(&k, t, 0u, (int16_t)(100 + i), (int16_t)(-i), (float)i * 0.5f, 0u, 0u,
+                     (t == 100u || t == 110u || t == 200u) ? KN_DCIR : 0u, &c)) p_yaz(&c);
+    }
+    if (kn_zaman(&k, 300u, &c)) p_yaz(&c);
+    metin("S5\nBITTI\n");
 }
 #endif
 

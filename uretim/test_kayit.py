@@ -414,7 +414,7 @@ def bolum_noktaci() -> None:
         p = s.split()
         if p[:1] == ["P"]:
             simdiki.append(KB.nokta_coz(bytes.fromhex(p[1])))
-        elif p[:1] and p[0] in ("S1", "S2", "S3", "S4"):
+        elif p[:1] and p[0] in ("S1", "S2", "S3", "S4", "S5"):
             gruplar[p[0]], simdiki = simdiki, []
     s1 = [beklenen(100 * (m + 1),
                    [(100 + j, -j, j * 0.5) for j in range(10 * m, 10 * m + 10)])
@@ -435,6 +435,13 @@ def bolum_noktaci() -> None:
     s4 = [beklenen(1000000, [(32767, -32768, 7000.0)] * 40000)]
     ok("B71.P5 40 000 uc deger ornek tasmadan toplanir (int32/int64)",
        gruplar.get("S4") == s4, str(gruplar.get("S4"))[:200])
+    s5 = [beklenen(100 * (m + 1),
+                   [(100 + j, -j, j * 0.5) for j in range(10 * m, 10 * m + 10)],
+                   bayrak=(0, KB.KN_DCIR, KB.KN_DCIR)[m])
+          for m in range(3)]
+    ok("B71.P6 (1C-1) DCIR bayragi ornegin AIT OLDUGU noktada: sinirdaki ornek onceki "
+       "noktayi kapatir, bayragi YENISINE verir (1. nokta temiz)",
+       gruplar.get("S5") == s5, str([p.bayrak for p in gruplar.get("S5", [])]))
 
 
 # ── B71.G · gunluk ────────────────────────────────────────────────────

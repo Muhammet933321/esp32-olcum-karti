@@ -92,10 +92,13 @@ static inline void kn__kapat(KayitNoktaci *k, uint32_t bitis_ms, KayitNokta *c)
 }
 
 /* Bir ornek ekle. Once sinir: menzil degistiyse ya da aralik dolduysa
-   ELDEKI nokta `cikan`a yazilir ve 1 doner; ornek YENI noktaya girer. */
+   ELDEKI nokta `cikan`a yazilir ve 1 doner; ornek YENI noktaya girer.
+   `ek`: bu ORNEGE ait ek bayrak (1C-1: KN_DCIR) — sinirdan SONRA, ornegin
+   girdigi noktaya islenir (once islense kapanan eski noktaya duserdi). */
 static inline uint8_t kn_ornek(KayitNoktaci *k, uint32_t simdi_ms, uint8_t menzil,
                                int16_t ham_v, int16_t ham_i, float watt,
-                               uint8_t hata, uint8_t v_doydu, KayitNokta *cikan)
+                               uint8_t hata, uint8_t v_doydu, uint8_t ek,
+                               KayitNokta *cikan)
 {
     uint8_t cikti = 0u;
     menzil = menzil ? 1u : 0u;
@@ -120,6 +123,7 @@ static inline uint8_t kn_ornek(KayitNoktaci *k, uint32_t simdi_ms, uint8_t menzi
     }
     k->menzil = menzil;
     k->ornek_var = 1u;
+    k->bayrak |= ek;
     if (hata & KN_HATA_V) k->bayrak |= KN_V_HATA;
     if (hata & KN_HATA_I) k->bayrak |= KN_I_HATA;
     if (v_doydu) k->bayrak |= KN_V_DOYDU;

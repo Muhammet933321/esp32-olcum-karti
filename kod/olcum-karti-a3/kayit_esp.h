@@ -375,8 +375,8 @@ static void kayit__nesil(uint32_t simdi, uint8_t menzil)
     if (kayit_kn_aktif) kn_baslat(&kayit_kn, d.hiz_ms, simdi, menzil);
 }
 
-/* Her ornekte (loop, olcum_al'dan sonra). */
-static void kayit_ornek(float watt, uint32_t simdi)
+/* Her ornekte (loop, olcum_al'dan sonra). `ek`: ornege ait bayrak (KN_DCIR). */
+static void kayit_ornek(float watt, uint32_t simdi, uint8_t ek)
 {
     KayitNokta c;
     uint8_t hata = kayit_ham.hata;
@@ -384,7 +384,7 @@ static void kayit_ornek(float watt, uint32_t simdi)
     if (!kayit_kn_aktif) return;
     if (!isfinite(watt)) hata |= (uint8_t)(KN_HATA_V | KN_HATA_I);   /* NaN int64'e cevrilemez */
     if (kn_ornek(&kayit_kn, simdi, kayit_ham.menzil, kayit_ham.ham_v, kayit_ham.ham_i,
-                 watt, hata, kayit_ham.v_doydu, &c))
+                 watt, hata, kayit_ham.v_doydu, ek, &c))
         kayit__gonder(&c);
 }
 
