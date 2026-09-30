@@ -8725,10 +8725,13 @@ denetliyor (tamlık yok) · yedek ref'ler (`refs/yedek/*`) mutlak yol içeriyor 
 - Kart şu an dolu bölümün **arka plan temizliğinde** (~25 dk'da biter,
   kendiliğinden); flaşta yalnız test kayıtları var.
 
-**Sırada:** spec'teki sıra 1 kart → 2 `ortak/` → 3 panel → 4 PC → 5 Android.
-Kartın kalan dilimleri: 1C (pil testi/skop oturum türleri, zamanlanmış kayıt,
-ayrıntılı kip — 25 ms flaş duraklamasıyla tasarlanacak), 1D (eşleştirme +
-imzalı istekler), 1E (MQTT + bildirim + ağ kurulumunun görev içine alınması).
+**Sırada: 1B — kalibrasyon geçmişi** (alt proje 1'in bir sonraki dilimi;
+kayıtlar BASLA'da kalibrasyon kopyasını zaten taşıyor, 1B geçmişi ve
+"eski kayıtları yeni kalibrasyonla göster" seçimini kuracak). Sonra 1C (pil
+testi/skop oturum türleri, zamanlanmış kayıt, ayrıntılı kip — 25 ms flaş
+duraklamasıyla tasarlanacak), 1D (eşleştirme + imzalı istekler), 1E (MQTT +
+bildirim + ağ kurulumunun görev içine alınması); ardından alt proje 2
+(`ortak/`) → 3 panel → 4 PC → 5 Android.
 
 ---
 
