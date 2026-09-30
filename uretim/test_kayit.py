@@ -49,7 +49,8 @@ HARNESS = BURASI / "avr" / "ornek_kayit.c"
 SEKTOR = 512          # testte kucuk sektor: halka cok doner, emulatorde ucuz
 SEKTOR_ADET = 8       # varsayilan; derle() -DNOR_SEKTOR_ADET ile gecirir
 AZAMI_YUK = 256       # 4 + 7 nokta
-CPP_BASLIKLAR = ["kayit_bicim.h", "kayit_nokta.h", "kayit_gunluk.h", "kayit_oturum.h"]
+CPP_BASLIKLAR = ["kayit_bicim.h", "kayit_nokta.h", "kayit_gunluk.h", "kayit_oturum.h",
+                 "kayit_yonet.h", "kalgec.h"]
 _ELF: dict[str, Path] = {}
 
 gecti = kaldi = 0
@@ -797,6 +798,127 @@ def bolum_yonet() -> None:
        f"B.nvs.onay={fb.nvs.get('onay')}")
 
 
+# ── B71.C · kalibrasyon gecmisi (kalgec.h) ───────────────────────────
+KALGEC_BAYT = 116
+_KD = ["adet", "son_no", "taslak", "hata", "tur", "kaynak"]
+
+
+def _kal_uret(t: int) -> KB.Kalibrasyon:
+    """ornek_kayit.c kal_uret() ile AYNI."""
+    return KB.Kalibrasyon(
+        normal=KB.Kanal(16.5, 2.0, f32(1.0 + t / 1024.0), -12 + t, 0.0029296875),
+        yuksek=KB.Kanal(312.5, 2.0, 0.9921875, 5, 0.0030517578125),
+        i_ofset=-3, i_pga=0.25, sont_ohm=0.0048828125, i_duzeltme=1.0,
+        sebeke_hz=50.0, faz_kal_us=(12.5, -3.25))
+
+
+def _kalgec_coz(b: bytes) -> dict:
+    """Blobu C'den BAGIMSIZ coz (paket: plan 1B)."""
+    if len(b) != KALGEC_BAYT or zlib.crc32(b[:112]) != struct.unpack_from("<I", b, 112)[0]:
+        raise ValueError("kalgec blobu bozuk")
+    no, unix, acilis, tur, kaynak, surum = struct.unpack_from("<IIIBBH", b, 0)
+    return {"no": no, "unix_s": unix, "acilis": acilis, "tur": tur, "kaynak": kaynak,
+            "surum": surum, "not": b[16:48].split(b"\0", 1)[0].decode("utf-8"),
+            "kal": KB.kal_coz(b, 48)}
+
+
+def _not_bekle(s: str) -> bytes:
+    b = bytes(c for c in s.encode("utf-8") if c >= 0x20 and c != 0x7F and c not in (0x22, 0x5C))[:31]
+    while True:
+        try:
+            b.decode("utf-8")
+            return b
+        except UnicodeDecodeError:
+            b = b[:-1]
+
+
+def _kd_al(sat: list[str], ad: str) -> dict:
+    for s in sat:
+        p = s.split()
+        if p and p[0] == ad and len(p) == len(_KD) + 1:
+            return dict(zip(_KD, (int(x) for x in p[1:])))
+    return {}
+
+
+def _ke(sat: list[str], no: int) -> list | None:
+    for s in sat:
+        p = s.split()
+        if p[:2] == ["KE", str(no)]:
+            return p[2:5] + [bytes.fromhex(p[5]).decode("utf-8") if len(p) > 5 else ""]
+    return None
+
+
+def bolum_kalgec() -> None:
+    """1B: kalibrasyon gecmisi — taslak, elle kaydet, kayit baslarken
+    otomatik, not/tur duzenleme, elektrik kesilmesi, 40 siniri, NVS dolu,
+    Turkce not. NVS emule (ADA gore blob) ve acilistan acilisa kalici."""
+    print("\n── B71.C  kalibrasyon gecmisi: taslak · kaydet · otomatik · sinirlar")
+    elf = derle("KALGEC")
+    f = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    c1, c2 = _yonet(f, elf, [1, 2])
+    k2_blob = f.nvs.get("k2", b"")           # 3. acilis notu duzeltmeden ONCE
+    (c3,) = _yonet(f, elf, [3])
+    d1 = _kd_al(c1, "C1")
+    k1 = _kalgec_coz(f.nvs.get("k1", b""))
+    ok("B71.C1 ilk acilista bugunku kalibrasyon gecmisin #1'i olur (kaynak 'ilk'), taslak yok",
+       alanlar(c1, "AC") == [["0"]] and d1 == {"adet": 1, "son_no": 1, "taslak": 0, "hata": 0,
+                                               "tur": 0, "kaynak": 2}
+       and k1["no"] == 1 and k1["kal"] == _kal_uret(0) and k1["unix_s"] == 100,
+       f"{d1} {k1['not']!r}")
+    ok("B71.C2 degisen alan TASLAK olur; 'kaydet' not + turle #2 yapar, taslak kalkar",
+       _kd_al(c2, "C2a").get("taslak") == 1 and alanlar(c2, "KAY") == [["2"]]
+       and _kd_al(c2, "C2b") == {"adet": 2, "son_no": 2, "taslak": 0, "hata": 0,
+                                 "tur": 1, "kaynak": 0},
+       f"{_kd_al(c2, 'C2a')} {alanlar(c2, 'KAY')} {_kd_al(c2, 'C2b')}")
+    ok("B71.C3 taslak YOKKEN oturum numarasi = son kayit (yeni kayit acilmaz)",
+       alanlar(c2, "OTNO") == [["2"]], str(alanlar(c2, "OTNO")))
+    ok("B71.C4 taslak VARKEN kayit baslarken OTOMATIK kaydedilir (#3, kaynak 'otomatik'): "
+       "hicbir oturum numarasiz kalmaz",
+       alanlar(c2, "OTNO2") == [["3"]] and _kd_al(c2, "C4").get("kaynak") == 1
+       and _kd_al(c2, "C4").get("adet") == 3, f"{alanlar(c2, 'OTNO2')} {_kd_al(c2, 'C4')}")
+    k2 = _kalgec_coz(k2_blob)
+    ok("B71.C5 yeniden acilista gecmis kalici; blob C'den bagimsiz cozulur (CRC, alanlar, "
+       "kalibrasyon)",
+       _kd_al(c3, "C5") == {"adet": 3, "son_no": 3, "taslak": 0, "hata": 0, "tur": 0, "kaynak": 1}
+       and _ke(c3, 3)[:3] == ["0", "0", "1"] and k2["kal"] == _kal_uret(1)
+       and k2["not"] == "sont 5 mohm" and k2["tur"] == 1 and k2["surum"] == 1,
+       f"{_kd_al(c3, 'C5')} KE3={_ke(c3, 3)} k2={k2['not']!r}")
+    f.nvs_hata = {"adet"}
+    (c4,) = _yonet(f, elf, [4])
+    f.nvs_hata = set()
+    ok("B71.C6 not ve tur sonradan duzeltilir; acilistan sonra kalici, degerler degismez",
+       alanlar(c3, "DUZ") == [["0"]] and _ke(c4, 2) == ["0", "2", "0", "ince ayar notu"]
+       and _kalgec_coz(f.nvs["k2"])["kal"] == _kal_uret(1), str(_ke(c4, 2)))
+    (c5,) = _yonet(f, elf, [5])
+    ok("B71.C7 `adet` yazilamazsa kaydet HATA verir; acilista adet eski kalir, yetim blobun "
+       "uzerine siradaki numara yazilir (numara tekrar/atlama yok)",
+       alanlar(c4, "YETIM") == [["-2"]] and _kd_al(c4, "C7a").get("adet") == 3
+       and _kd_al(c5, "C7b").get("adet") == 3 and alanlar(c5, "KAY4") == [["4"]]
+       and _ke(c5, 4)[3] == "dorduncu" and f.nvs.get("adet") == (4).to_bytes(4, "little"),
+       f"{alanlar(c4, 'YETIM')} {_kd_al(c5, 'C7b')} {alanlar(c5, 'KAY4')} {_ke(c5, 4)}")
+    (c6,) = _yonet(f, elf, [6])
+    ok("B71.C8 40 dolunca kaydet ACIK hata (KGC_DOLU), eski kayit silinmez; kayit "
+       "baslarken numara 0 + hata (oturum yine tam kopyayla)",
+       alanlar(c6, "ADET") == [["40"]] and alanlar(c6, "DOLU") == [["-3"]]
+       and alanlar(c6, "OTNO") == [["0"]] and alanlar(c6, "HATA") == [["-3"]]
+       and "k1" in f.nvs and "k41" not in f.nvs, f"{[alanlar(c6, a) for a in ('ADET', 'DOLU', 'OTNO', 'HATA')]}")
+    f9 = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    f9.nvs_bos = 10
+    (c7,) = _yonet(f9, elf, [7])
+    ok("B71.C9 NVS'te yer yoksa #1 bile yazilmaz: acik hata (KGC_NVS_DOLU), numara 0",
+       alanlar(c7, "AC") == [["-4"]] and _kd_al(c7, "C9").get("adet") == 0
+       and alanlar(c7, "OTNO") == [["0"]] and not any(k.startswith("k") for k in f9.nvs),
+       f"{alanlar(c7, 'AC')} {_kd_al(c7, 'C9')}")
+    f10 = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    (c8,) = _yonet(f10, elf, [8])
+    beklenen = _not_bekle('Türkçe "not" \\ şönt değişti ğü').decode("utf-8")
+    kay = int((alanlar(c8, "KAY") or [["0"]])[0][0])
+    ok("B71.C10 Turkce not 31 baytta KARAKTER sinirinda kesilir; \" ve \\ atilir (JSON'a "
+       "kacissiz girer)",
+       kay == 2 and _ke(c8, 2) is not None and _ke(c8, 2)[3] == beklenen
+       and len(beklenen.encode()) <= 31, f"{_ke(c8, 2)} beklenen={beklenen!r}")
+
+
 # ── B71.D · oturum dizini ─────────────────────────────────────────────
 DIZIN_KAP = 6        # ornek_kayit.c DIZIN_KAP ile ayni
 
@@ -886,7 +1008,8 @@ def bolum_kesinti(n_deneme: int) -> None:
 
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
-            bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_dizin, bolum_kesinti]
+            bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_kalgec, bolum_dizin,
+            bolum_kesinti]
 
 
 def main() -> int:

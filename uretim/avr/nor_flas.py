@@ -34,6 +34,11 @@ SIL = 0x5E
 # Degerler NorFlas nesnesinde kalir -> acilistan acilisa KALICI.
 NVS_ANAHTAR, NVS_V0, NVS_KOMUT = 0xE7, 0xE8, 0xEC     # V0..V3 = 0xE8..0xEB
 NVS_ADLAR = ["acilis", "kimlik", "taban", "onay", "kapat", "t_adim", "t_rast"]
+# 1B: ADA gore blob (kalibrasyon gecmisi). 0xED ad portu (karakter karakter,
+# komut adi tuketir) · 0xEE veri portu (yaz: tampona ekle, oku: siradaki
+# bayt) · 0xEF NVS'te bos giris (Python `nvs_bos` ile ayarlar).
+# Komut 3 = blob oku (durum bit0: var; V0..V1 = uzunluk) · 4 = blob yaz.
+NVS_AD, NVS_BLOB, NVS_BOS = 0xED, 0xEE, 0xEF
 
 
 class NorFlas:
@@ -57,6 +62,11 @@ class NorFlas:
         self._nvs_i = 0
         self._nvs_v = [0, 0, 0, 0]
         self._nvs_d = 0
+        self.nvs_bos = 200                     # 1B: emule "bos giris" (nvs_get_stats)
+        self._nvs_ad = bytearray()
+        self._nvs_yaz_tampon = bytearray()
+        self._nvs_oku_tampon = b""
+        self._nvs_oku_i = 0
         self._ariza_oku = 0       # n > 0: n. okuma baytinda hata
         self._ariza_yaz = 0
         self._hata = False        # durum okunana kadar islem basarisiz
@@ -81,6 +91,17 @@ class NorFlas:
             o[NVS_V0 + j] = (lambda j: lambda: self._nvs_v[j])(j)
         y[NVS_KOMUT] = self._nvs_komut
         o[NVS_KOMUT] = lambda: self._nvs_d
+        y[NVS_AD] = lambda v: self._nvs_ad.append(v & 0xFF)
+        y[NVS_BLOB] = lambda v: self._nvs_yaz_tampon.append(v & 0xFF)
+        o[NVS_BLOB] = self._nvs_blob_oku
+        o[NVS_BOS] = lambda: max(0, min(255, self.nvs_bos))
+
+    def _nvs_blob_oku(self) -> int:
+        if self._nvs_oku_i >= len(self._nvs_oku_tampon):
+            return 0xFF
+        v = self._nvs_oku_tampon[self._nvs_oku_i]
+        self._nvs_oku_i += 1
+        return v
 
     # ------------------------------------------------------------ NVS
     def _nvs_komut(self, v: int) -> None:
@@ -98,6 +119,25 @@ class NorFlas:
             self.nvs[ad] = deger
             self.nvs_gunluk.append((ad, deger, self.silme_adet, self.yazilan_bayt))
             self._nvs_d = 0
+        elif v in (3, 4):                     # 1B: ADA gore blob
+            ad = self._nvs_ad.decode("ascii", "replace")
+            self._nvs_ad = bytearray()
+            if v == 3:
+                d = self.nvs.get(ad)
+                self._nvs_oku_tampon = d if isinstance(d, bytes) else b""
+                self._nvs_oku_i = 0
+                n = len(self._nvs_oku_tampon)
+                self._nvs_v = [n & 0xFF, (n >> 8) & 0xFF, 0, 0]
+                self._nvs_d = 1 if isinstance(d, bytes) else 0
+            else:
+                veri = bytes(self._nvs_yaz_tampon)
+                self._nvs_yaz_tampon = bytearray()
+                if ad in self.nvs_hata:
+                    self._nvs_d = 2
+                    return
+                self.nvs[ad] = veri
+                self.nvs_gunluk.append((ad, veri, self.silme_adet, self.yazilan_bayt))
+                self._nvs_d = 0
         else:
             raise RuntimeError(f"bilinmeyen NVS komutu {v}")
 

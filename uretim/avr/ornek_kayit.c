@@ -132,7 +132,7 @@ static KULLANILMAYABILIR void basla_uret(KayitBasla *b, uint32_t hiz_ms)
 /* ─────────────────────────────── emule NOR (uretim/avr/nor_flas.py) */
 #if defined(SENARYO_GUNLUK) || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) \
     || defined(SENARYO_DIZIN) || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) \
-    || defined(SENARYO_YONET) || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC)
+    || defined(SENARYO_YONET) || defined(SENARYO_SURUM)
 #define NOR_KOMUT (*(volatile uint8_t *)0xE0)
 #define NOR_A0    (*(volatile uint8_t *)0xE1)
 #define NOR_A1    (*(volatile uint8_t *)0xE2)
@@ -810,6 +810,195 @@ static void senaryo(void)
         basla_uret(&b, 300u);
         sayi("BAS", kyn_baslat(&m, &b, t_ms, 0u));
         dr("D13");
+        break;
+    default:
+        break;
+    }
+    metin("BITTI\n");
+}
+#endif
+
+#if defined(SENARYO_KALGEC)
+/* 1B: KALIBRASYON GECMISI (kalgec.h). Her ACILIS bir asama (`t_adim`);
+   NVS (emule, ADA gore blob) acilistan acilisa KALICI. */
+#include "kalgec.h"
+#define NVS_ANAHTAR (*(volatile uint8_t *)0xE7)
+#define NVS_V(i)    (*(volatile uint8_t *)(0xE8 + (i)))
+#define NVS_KOMUT   (*(volatile uint8_t *)0xEC)
+#define NVS_AD      (*(volatile uint8_t *)0xED)
+#define NVS_BLOB    (*(volatile uint8_t *)0xEE)
+#define NVS_BOS     (*(volatile uint8_t *)0xEF)
+
+static uint32_t t_adim_oku(void)
+{
+    NVS_ANAHTAR = 5u;                          /* nor_flas.NVS_ADLAR: t_adim */
+    NVS_KOMUT = 1u;
+    if (!(NVS_KOMUT & 1u)) return 0u;
+    return (uint32_t)NVS_V(0) | ((uint32_t)NVS_V(1) << 8);
+}
+
+static void kn_ad(const char *ad)
+{
+    while (*ad) NVS_AD = (uint8_t)*ad++;
+}
+
+static int kn_oku(void *b, const char *ad, void *h, uint32_t n)
+{
+    uint8_t *p = (uint8_t *)h;
+    uint32_t i, uz;
+    (void)b;
+    kn_ad(ad);
+    NVS_KOMUT = 3u;
+    if (!(NVS_KOMUT & 1u)) return -1;
+    uz = (uint32_t)NVS_V(0) | ((uint32_t)NVS_V(1) << 8);
+    if (uz != n) return -1;
+    for (i = 0; i < n; i++) p[i] = NVS_BLOB;
+    return 0;
+}
+
+static int kn_yaz(void *b, const char *ad, const void *k, uint32_t n)
+{
+    const uint8_t *p = (const uint8_t *)k;
+    uint32_t i;
+    (void)b;
+    for (i = 0; i < n; i++) NVS_BLOB = p[i];
+    kn_ad(ad);
+    NVS_KOMUT = 4u;
+    return (NVS_KOMUT & 2u) ? -1 : 0;
+}
+
+static uint32_t kn_bos(void *b)
+{
+    (void)b;
+    return NVS_BOS;
+}
+
+static const KalNvs KNVS = { kn_oku, kn_yaz, kn_bos, 0 };
+static KalGecmis m;
+static KayitKalibrasyon simdiki;
+
+/* test_kayit.py _kal_uret() ile AYNI (butun kesirler ikili) */
+static void kal_uret(KayitKalibrasyon *k, uint32_t t)
+{
+    memset(k, 0, sizeof(*k));
+    k->normal.n = 16.5f;
+    k->normal.pga = 2.0f;
+    k->normal.kazanc = 1.0f + (float)t / 1024.0f;
+    k->normal.sifir_ham = (int16_t)(-12 + (int16_t)t);
+    k->normal.tau = 0.0029296875f;
+    k->yuksek.n = 312.5f;
+    k->yuksek.pga = 2.0f;
+    k->yuksek.kazanc = 0.9921875f;
+    k->yuksek.sifir_ham = 5;
+    k->yuksek.tau = 0.0030517578125f;
+    k->i_ofset = -3;
+    k->i_pga = 0.25f;
+    k->sont_ohm = 0.0048828125f;
+    k->i_duzeltme = 1.0f;
+    k->sebeke_hz = 50.0f;
+    k->faz_kal_us[0] = 12.5f;
+    k->faz_kal_us[1] = -3.25f;
+}
+
+/* <ad> adet son_no taslak son_hata son_tur son_kaynak */
+static void kd(const char *ad)
+{
+    metin(ad);
+    yaz(' '); ondalik(m.adet);
+    yaz(' '); ondalik(m.son_var ? m.son.no : 0u);
+    yaz(' '); ondalik((uint32_t)kgc_taslak(&m, &simdiki));
+    yaz(' '); ondalik((uint32_t)(-m.son_hata));
+    yaz(' '); ondalik(m.son.tur);
+    yaz(' '); ondalik(m.son.kaynak);
+    satir();
+}
+
+/* KE no donus tur kaynak not(hex) */
+static void ke(uint32_t no)
+{
+    KalKayit e;
+    int r;
+    memset(&e, 0, sizeof(e));
+    r = kgc_oku(&m, no, &e);
+    metin("KE "); ondalik(no);
+    yaz(' '); ondalik((uint32_t)(-r));
+    yaz(' '); ondalik(e.tur);
+    yaz(' '); ondalik(e.kaynak);
+    yaz(' '); hexdizi((const uint8_t *)e.not_, (uint16_t)strlen(e.not_));
+    satir();
+}
+
+static void senaryo(void)
+{
+    uint32_t adim = t_adim_oku(), t;
+    int32_t r;
+    kal_uret(&simdiki, 0u);
+    switch (adim) {
+    case 1:                                   /* C1: ilk acilis -> #1 (ilk) */
+        sayi("AC", kgc_ac(&m, &KNVS, &simdiki, 100u, 1u));
+        kd("C1");
+        break;
+    case 2:                                   /* C2-C4 */
+        kgc_ac(&m, &KNVS, &simdiki, 150u, 2u);
+        kal_uret(&simdiki, 1u);
+        kd("C2a");
+        sayi("KAY", kgc_kaydet(&m, &simdiki, KGT_DONANIM, "sont 5 mohm", 200u, 2u));
+        kd("C2b");
+        sayi("OTNO", (int32_t)kgc_oturum_no(&m, &simdiki, 201u, 2u));
+        kal_uret(&simdiki, 2u);
+        sayi("OTNO2", (int32_t)kgc_oturum_no(&m, &simdiki, 202u, 2u));
+        kd("C4");
+        break;
+    case 3:                                   /* C5-C6: acilis + duzenleme */
+        kal_uret(&simdiki, 2u);
+        kgc_ac(&m, &KNVS, &simdiki, 300u, 3u);
+        kd("C5");
+        ke(3u);
+        ke(2u);
+        sayi("DUZ", kgc_duzenle(&m, 2u, KGT_INCE, "ince ayar notu"));
+        break;
+    case 4:                                   /* C6 kalici mi · C7: `adet` yazilamaz */
+        kal_uret(&simdiki, 2u);
+        kgc_ac(&m, &KNVS, &simdiki, 400u, 4u);
+        ke(2u);
+        kal_uret(&simdiki, 3u);
+        sayi("YETIM", kgc_kaydet(&m, &simdiki, KGT_BELIRSIZ, "yetim", 401u, 4u));
+        kd("C7a");
+        break;
+    case 5:                                   /* C7: acilis sonrasi yetim uzerine */
+        kal_uret(&simdiki, 3u);
+        kgc_ac(&m, &KNVS, &simdiki, 500u, 5u);
+        kd("C7b");
+        sayi("KAY4", kgc_kaydet(&m, &simdiki, KGT_INCE, "dorduncu", 501u, 5u));
+        ke(4u);
+        break;
+    case 6:                                   /* C8: 40 dolar -> acik hata */
+        kal_uret(&simdiki, 3u);
+        kgc_ac(&m, &KNVS, &simdiki, 600u, 6u);
+        for (t = 10u; m.adet < KALGEC_AZAMI && t < 200u; t++) {
+            kal_uret(&simdiki, t);
+            if (kgc_kaydet(&m, &simdiki, KGT_INCE, "dolgu", 600u + t, 6u) < 0) break;
+        }
+        sayi("ADET", (int32_t)m.adet);
+        kal_uret(&simdiki, 999u);
+        sayi("DOLU", kgc_kaydet(&m, &simdiki, KGT_INCE, "fazla", 900u, 6u));
+        sayi("OTNO", (int32_t)kgc_oturum_no(&m, &simdiki, 901u, 6u));
+        sayi("HATA", m.son_hata);
+        break;
+    case 7:                                   /* C9: NVS'te yer yok */
+        r = kgc_ac(&m, &KNVS, &simdiki, 700u, 7u);
+        sayi("AC", r);
+        kd("C9");
+        sayi("OTNO", (int32_t)kgc_oturum_no(&m, &simdiki, 701u, 7u));
+        break;
+    case 8:                                   /* C10: Turkce not, JSON'u bozan karakterler */
+        kgc_ac(&m, &KNVS, &simdiki, 800u, 8u);
+        kal_uret(&simdiki, 5u);
+        r = kgc_kaydet(&m, &simdiki, KGT_DONANIM,
+                       "T\xc3\xbcrk\xc3\xa7" "e \"not\" \\ \xc5\x9f\xc3\xb6nt de\xc4\x9fi\xc5\x9fti \xc4\x9f\xc3\xbc",
+                       801u, 8u);
+        sayi("KAY", r);
+        if (r > 0) ke((uint32_t)r);
         break;
     default:
         break;
