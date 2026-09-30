@@ -239,7 +239,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C1"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C2"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -310,6 +310,39 @@ def bolum_kaynak() -> None:
     ok("B72.F39 DCIR 'ani' degeri darbenin ILK orneginden (ilk darbede de): kosul "
        "dcir_sayisi'na bakmaz (B21'den kalma hata; 1C-1 bunu flasa yaziyordu)",
        "pil.dcir_sayisi == 0 ||" not in pi and "if (pil.dcir_ani == 0.0f) {" in pi)
+    # ── 1C-2: ayrintili kip (davranis B71.A/H/Z'de, burada yapistirici) ──
+    hg = govde(ino_k, "static bool kayit__hiz_gecerli(")
+    ok("B72.F40 Gb0 = ayrintili kip (her ornek) kabul edilir ve yardimda yaziyor",
+       "h == 0" in hg and "0 = her ornek" in ino)
+    ko = govde(esp_k, "static void kayit_ornek(")
+    ok("B72.F41 ayrintili oturumda loop her ornegi zamaniyla (micros) halkaya iter; noktaci "
+       "o zaman calismaz",
+       "kayit_ayr_aktif" in ko and "kh_it(&kayit_halka, &o)" in ko and "o.us = micros()" in ko
+       and 0 <= ko.find("kayit_ayr_aktif") < ko.find("kayit_kn_aktif) return"))
+    kg2 = govde(esp_k, "static void kayit_gorevi(")
+    kk3 = govde(esp_k, "static bool kayit_kur(")
+    ok("B72.F42 kayit gorevi halkayi bosaltip yaziciya verir (kilit altinda); halka PSRAM'de, "
+       "KAYIT_HALKA_ORNEK ornek",
+       "kh_al(&kayit_halka, &o)" in kg2 and "ky_ayrinti_ornek(&kayit_y, &o" in kg2
+       and "KAYIT_HALKA_ORNEK" in kk3 and "kh_kur(&kayit_halka" in kk3
+       and re.search(r"heap_caps_malloc\(KAYIT_HALKA_ORNEK[^;]*MALLOC_CAP_SPIRAM", kk3) is not None)
+    iv = govde(esp_k, "static void kayit_on_sil_izin_ver(")
+    sk = lp[:lp.find("if (skop_is != SKOP_IS_YOK) {")]
+    ok("B72.F43 on silme izni: kayit yok + skop yok + pil testi yok; loop skop erken "
+       "donusunden ONCE gunceller, gorev kyn_adim'dan once yoneticiye yazar",
+       "KDR_KAYIT" in iv
+       and "kayit_on_sil_izin_ver(skop_is == SKOP_IS_YOK && !pil_testi_suruyor())" in sk
+       and 0 <= kg2.find("kayit_m.on_sil_izin = kayit_on_sil_izin") < kg2.find("kyn_adim("))
+    gb = govde(ino_k, "static void kayit_ga_bas(")
+    ok("B72.F44 G? ardindan GA satiri: hazir sektor, ayrintili ornek, dusen ornek, kayit ici "
+       "silme duraklamasi (G satiri DEGISMEDI)",
+       '"GA %lu %lu %lu %lu"' in gb
+       and "kayit_ga_bas()" in kk2[kk2.find("alt == '?'"):kk2.find("alt == 'b'")])
+    dg = govde(esp_k, "static void kayit__durum_guncelle(")
+    ok("B72.F46 durum yeni alanlari cekirdek 0'da (kilit altinda) doldurur: hazir, dusen ornek, "
+       "ayrintili silme",
+       "t.hazir = kayit_g.hazir" in dg and "t.ornek_dusen = kayit_halka.dusen" in dg
+       and "t.ayr_silme = kayit_ayr_silme" in dg)
     kp = govde(ino_k, "static void kayit_pil_baslat() {")
     ok("B72.F36 kayit acilamazsa pil testi YINE baslar ve kart 'KAYDEDILMIYOR' der "
        "(bolum yok / tarama / hata / dolu / bekliyor / kuyruk dolu)",

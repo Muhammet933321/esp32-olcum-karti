@@ -2808,7 +2808,8 @@ static_assert(ADS_HATA_V == KN_HATA_V && ADS_HATA_I == KN_HATA_I,
               "kayit_ham.hata = ads_hata: bit anlamlari ayni olmali");
 
 static bool kayit__hiz_gecerli(long h) {
-  return h == 20 || h == 100 || h == 200 || h == 1000 || h == 10000 || h == 60000;
+  /* 1C-2: 0 = AYRINTILI kip, her ornek (~500/s, 3.1 KB/s ~ 60 dk) */
+  return h == 0 || h == 20 || h == 100 || h == 200 || h == 1000 || h == 10000 || h == 60000;
 }
 
 /* Ayar3 -> kalibrasyon kopyasi (oturum basligi + kalibrasyon gecmisi). */
@@ -2990,6 +2991,17 @@ static void kayit_not_komut(const char *s) {
     Serial.println(F("! G: istek kuyrugu dolu"));
 }
 
+/* 1C-2: GA <hazir_sektor> <ayrintili_ornek> <dusen_ornek> <kayit_ici_silme>
+   (G satiri DEGISMEZ; ayrinti yeni satirda) */
+static void kayit_ga_bas() {
+  const KayitDurum d = kayit_durum_al();
+  char t[64];
+  snprintf(t, sizeof(t), "GA %lu %lu %lu %lu", (unsigned long)d.hazir,
+           (unsigned long)((d.durum == KDR_KAYIT && !d.hiz_ms) ? d.nokta_sira : 0u),
+           (unsigned long)d.ornek_dusen, (unsigned long)d.ayr_silme);
+  Serial.println(t);
+}
+
 static void kayit_komut(const char *s) {
   KayitMesaj m;
   if (!kayit_bolum) {
@@ -3004,6 +3016,7 @@ static void kayit_komut(const char *s) {
   const char alt = s[1];
   if (alt == 0 || alt == '?') {
     kayit_durum_bas(true);
+    kayit_ga_bas();
     return;
   } else if (alt == 'b') {
     if (pil_testi_suruyor()) {   /* 1C-1: kayit testle birlikte baslar/biter */
@@ -3012,7 +3025,7 @@ static void kayit_komut(const char *s) {
     }
     long h = atol(s + 2);
     if (!kayit__hiz_gecerli(h)) {
-      Serial.println(F("! G: hiz 20/100/200/1000/10000/60000 ms olmali"));
+      Serial.println(F("! G: hiz 0 (her ornek) / 20/100/200/1000/10000/60000 ms olmali"));
       return;
     }
     m.tur = KM_BASLAT;
@@ -3674,7 +3687,7 @@ void yardim() {
   Serial.println(F("  R! fabrika ayarlari (kalibrasyonu SIFIRLAR)"));
   Serial.println(F("  t yakala  ta otomatik  tb<0-11> zaman tabani  t+ t-"));
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  tn<1/2> onay  t?"));
-  Serial.println(F("  Gb<ms> kayit baslat (20/100/200/1000/10000/60000)  Gd durdur  G? durum"));
+  Serial.println(F("  Gb<ms> kayit baslat (0 = her ornek; 20/100/200/1000/10000/60000)  Gd durdur  G? durum"));
   Serial.println(F("  Go<sira> esitlenen kayitlari onayla   GF! BUTUN kayitlari sil"));
   Serial.println(F("  Ga<oturum> <ad>  Ge<oturum> <etiket, ...>  Gn<oturum>[@<ms>] <not>"));
   Serial.println(F("  Gx<oturum>:<sira>[@<ms>] <metin> notu degistir (metin bos: sil) · komut <= 175 karakter"));
@@ -4669,6 +4682,8 @@ void loop() {
 
   /* 1C-1: kuyruga girememis pil bitir mesaji her turda yeniden (F32) */
   (void)kayit__bekleyeni_gonder();
+  /* 1C-2: hazir alan (on silme) yalniz kayit/skop/pil YOKKEN */
+  kayit_on_sil_izin_ver(skop_is == SKOP_IS_YOK && !pil_testi_suruyor());
 
   /* 🔴 B41 — YAKALAMA SURERKEN ADS SUSUYOR. Yuklu I2C hattinin kenarlari
      skop donusumune tek-ornek hata sokuyor; pini tasimak cozmuyor (B44)

@@ -46,10 +46,11 @@
 #include "kalgec.h"               /* 1B: kalibrasyon gecmisi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-1C1"    /* 1C-1: OLAY/NOT kayitlari, PIL oturumu */
+#define KAYIT_FW_SURUM    "A3-1C2"    /* 1C-2: AYRINTI kaydi (her ornek), hazir alan */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
+#define KAYIT_HALKA_ORNEK 4096u     /* 1C-2 ayrintili kip: ~8 s @500/s, PSRAM (64 KB) */
 #define KAYIT_VERI_AZAMI  8192u     /* /kayit/veri tek yanit tavani (dahili RAM) */
 #define KAYIT_WEB_BEKLE_MS 200u     /* web ucu kilidi en fazla bu kadar bekler, sonra 503 */
 
@@ -77,6 +78,7 @@ typedef struct {
     uint32_t yaz_azami_us, sil_azami_us, tarama_ms;
     uint32_t acilis, hiz_ms, nesil;
     int32_t  son_hata;
+    uint32_t hazir, ornek_dusen, ayr_silme;   /* 1C-2: GA satiri */
 } KayitDurum;
 
 /* olcum_al'in son HAM ornegi — ikisi de cekirdek 1: olcum_al yazar, loop okur */
@@ -103,6 +105,11 @@ static portMUX_TYPE  kayit_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static volatile uint32_t kayit_kuyruk_dusen = 0;   /* cekirdek 1 yazar */
 static volatile uint32_t kayit_mesaj_dusen = 0;    /* 1C-1: istek kuyrugunda dusen (cekirdek 1) */
+/* 1C-2 ayrintili kip: cekirdek 1 -> 0 ornek halkasi (kayit_halka.h, kilitsiz) */
+static KayitHalka   kayit_halka;
+static KayitOrnek  *kayit_halka_t = nullptr;
+static volatile uint8_t kayit_on_sil_izin = 0;     /* cekirdek 1 yazar: kayit/skop/pil yok */
+static uint32_t     kayit_ayr_silme = 0;           /* ayrintili oturumda DOLU sektor silmesi */
 static volatile uint32_t kayit_onay_istek = 0;     /* cekirdek 1 yazar: SON gelen kazanir */
 static volatile uint32_t kayit_yaz_azami_us = 0;
 static volatile uint32_t kayit_sil_azami_us = 0;
@@ -209,7 +216,7 @@ static void kayit__durum_guncelle(void)
     memset(&t, 0, sizeof(t));
     t.durum = kyn_durum(&kayit_m);
     t.oturum = kyn_oturum(&kayit_m);
-    t.nokta_sira = kayit_y.nokta_sira + kayit_y.yuk_nokta;
+    t.nokta_sira = kayit_y.nokta_sira + kayit_y.yuk_nokta + kayit_y.a_adet;
     t.sonraki_sira = kayit_g.sonraki_sira;
     t.onay = kayit_g.onay;
     t.kimlik = kayit_m.kimlik;
@@ -219,6 +226,9 @@ static void kayit__durum_guncelle(void)
         t.temiz_kalan = kayit_g.sektor_adet - kayit_m.temiz_s;
     }
     t.dusen = kayit_y.dusen + kayit_kuyruk_dusen;
+    t.hazir = kayit_g.hazir;
+    t.ornek_dusen = kayit_halka.dusen;
+    t.ayr_silme = kayit_ayr_silme;
     t.bozuk = kayit_g.bozuk;
     t.silinen = kayit_g.silinen_sektor;
     t.sil_adet = kayit_sil_adet;
@@ -323,7 +333,18 @@ static void kayit_gorevi(void *)
                 if (r && r != KG_YOK) kayit_m.son_hata = r;
                 var = xQueueReceive(kayit_nokta_q, &p, 0) == pdTRUE;
             }
+            {                          /* 1C-2: ayrintili ornekler (100 ms'de ~50) */
+                KayitOrnek o;
+                const uint32_t sil0 = kayit_g.silinen_sektor;
+                while (kh_al(&kayit_halka, &o)) {
+                    int r = ky_ayrinti_ornek(&kayit_y, &o, millis());
+                    if (r && r != KG_YOK) kayit_m.son_hata = r;
+                }
+                if (kayit_y.oturum && kayit_y.ayrinti)
+                    kayit_ayr_silme += kayit_g.silinen_sektor - sil0;
+            }
             while (xQueueReceive(kayit_mesaj_q, &m, 0) == pdTRUE) kayit__mesaj(&m);
+            kayit_m.on_sil_izin = kayit_on_sil_izin;   /* 1C-2 hazir alan */
             kyn_adim(&kayit_m, kayit_onay_istek, millis(), kayit__unix());
             kayit__saat();
         }
@@ -354,6 +375,10 @@ static bool kayit_kur(void)
     kayit_kilit = xSemaphoreCreateMutex();
     kayit_nokta_q = xQueueCreate(KAYIT_KUYRUK, sizeof(KayitNokta));
     kayit_mesaj_q = xQueueCreate(4, sizeof(KayitMesaj));
+    /* 1C-2: ayrilamazsa (PSRAM yok) her itme DUSER ve sayilir — gorunur */
+    kayit_halka_t = (KayitOrnek *)heap_caps_malloc(KAYIT_HALKA_ORNEK * sizeof(KayitOrnek),
+                                                   MALLOC_CAP_SPIRAM);
+    kh_kur(&kayit_halka, kayit_halka_t, KAYIT_HALKA_ORNEK);
     if (!kayit_sektor || !kayit_dizin || !kayit_veri_tampon || !kayit_kilit
         || !kayit_nokta_q || !kayit_mesaj_q) {
         kayit_bolum = nullptr;
@@ -424,6 +449,7 @@ static void kayit_mesaj_birak(const KayitMesaj *m)
 static KayitNoktaci kayit_kn;
 static uint32_t kayit_kn_nesil = 0xFFFFFFFFu;
 static uint8_t  kayit_kn_aktif = 0;
+static uint8_t  kayit_ayr_aktif = 0;           /* 1C-2: oturum hiz_ms 0 = her ornek */
 
 static void kayit__gonder(const KayitNokta *c)
 {
@@ -439,6 +465,7 @@ static void kayit__nesil(uint32_t simdi, uint8_t menzil)
     if (d.nesil == kayit_kn_nesil) return;
     kayit_kn_nesil = d.nesil;
     kayit_kn_aktif = (d.durum == KDR_KAYIT && d.hiz_ms) ? 1u : 0u;
+    kayit_ayr_aktif = (d.durum == KDR_KAYIT && !d.hiz_ms) ? 1u : 0u;
     if (kayit_kn_aktif) kn_baslat(&kayit_kn, d.hiz_ms, simdi, menzil);
 }
 
@@ -448,11 +475,31 @@ static void kayit_ornek(float watt, uint32_t simdi, uint8_t ek)
     KayitNokta c;
     uint8_t hata = kayit_ham.hata;
     kayit__nesil(simdi, kayit_ham.menzil);
-    if (!kayit_kn_aktif) return;
     if (!isfinite(watt)) hata |= (uint8_t)(KN_HATA_V | KN_HATA_I);   /* NaN int64'e cevrilemez */
+    if (kayit_ayr_aktif) {                     /* 1C-2: her ornek, zamaniyla, halkaya */
+        KayitOrnek o;
+        o.us = micros();
+        o.ms = simdi;
+        o.v = kayit_ham.ham_v;
+        o.i = kayit_ham.ham_i;
+        o.bayrak = (uint8_t)((kayit_ham.menzil ? KAO_YUKSEK : 0u)
+                             | ((hata & KN_HATA_V) ? KAO_V_HATA : 0u)
+                             | ((hata & KN_HATA_I) ? KAO_I_HATA : 0u)
+                             | (kayit_ham.v_doydu ? KAO_V_DOYDU : 0u));
+        (void)kh_it(&kayit_halka, &o);         /* doluysa sayilir + sonraki KO_KAYIP_ONCE */
+        return;
+    }
+    if (!kayit_kn_aktif) return;
     if (kn_ornek(&kayit_kn, simdi, kayit_ham.menzil, kayit_ham.ham_v, kayit_ham.ham_i,
                  watt, hata, kayit_ham.v_doydu, ek, &c))
         kayit__gonder(&c);
+}
+
+/* 1C-2 hazir alan izni (loop, her tur; skop erken donusunden ONCE). Kayit
+   surerken, skop yakalarken ya da pil testinde on silme YOK (~25 ms durus). */
+static void kayit_on_sil_izin_ver(uint8_t diger)
+{
+    kayit_on_sil_izin = (diger && kayit_durum.durum != KDR_KAYIT) ? 1u : 0u;
 }
 
 /* Skop ADS'i sustururken (loop'un erken donusu). */
