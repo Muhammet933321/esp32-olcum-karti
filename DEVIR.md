@@ -8835,6 +8835,113 @@ testi/skop oturum türleri, zamanlanmış kayıt, ayrıntılı kip).
 
 ---
 
+#### 5.12.68 ✅ 1C-1 — PİL TESTİ KENDİ OTURUMUNDA + OTURUMA AD/NOT (2026-10-01)
+
+Tasarım: `tasarim/2026-09-30-1c1-pil-oturumu.md` (kararlar K1–K15) · Plan:
+`tasarim/2026-09-30-plan-1c1-pil-oturumu.md`.
+
+Pil testi artık RAM'de değil, kartın flaşında **kendi oturumunda** yaşıyor:
+noktalar (ham kod, ölçüm kaydıyla aynı biçim), her DCIR darbesi ve sonuç.
+PC eşitlemesi bunları öbür kayıtlarla birlikte alıyor. Her oturuma ad, etiket
+ve not eklenebiliyor.
+
+**Karar yetkisi:** kullanıcı üç karar verdi, sonra "ben şu an inceleyemiyorum,
+sen ver kararları, en son ben kontrol edeceğim" dedi. Kullanıcının kararları:
+1. 1C dört dilim: **önce pil testi** → ayrıntılı kip → osiloskop günlüğü →
+   zamanlanmış kayıt.
+2. Ölçüm kaydı sürerken `p1` gelirse ölçüm kaydı "başka oturum başladı" ile
+   kapanır, pil kaydı açılır.
+3. Yaklaşım A: pil oturumu ölçüm noktası biçimini aynen kullanır, yalnız OLAY
+   kaydı eklenir.
+
+Geri kalan 12 karar tasarım belgesinde, gerekçesiyle. Özetle:
+- Her pil testi otomatik kaydedilir.
+- Kayıt açılamazsa test yine başlar ve kart "KAYDEDİLMİYOR" der.
+- Test sürerken `Gb`/`Gd` reddedilir.
+- Açılışta ölçüm dışı açık oturum kapatılır.
+- `/pil` panel yenilenene kadar kalır.
+- DCIR örnekleri atılmaz, işaretlenir.
+- Biçim sürümü 2 kalır.
+- Not kayıtlarının başlığında oturum 0 yazar.
+- Kart adları ve notları yorumlamaz.
+- Tek metin temizleyici kullanılır.
+- Firmware `A3-1C1`.
+
+**Ne yapıldı**
+
+| Dosya | Ne |
+|---|---|
+| `kayit_bicim.h` / `kopru/kayit_bicim.py` | **OLAY (7):** `PIL_AYAR` 32 B, `DCIR` 44 B, `PIL_SONUC` 36 B. **NOT (8):** başlıkta oturum 0, hedef yükte, `degistirir` ile düzelt/sil, metin ≤ 120 B. `KN_DCIR` (0x40) · sebepler 4 pil / 5 yeniden başladı / 6 başka oturum · `KAYIT_OTURUM_PIL` (2). Ortak metin temizleyici `kayit_metin_kopyala` (1B'nin not temizleyicisinin genellemesi; kalibrasyon notu da onu kullanıyor). Python: `olay_coz/paketle`, `not_coz/paketle`, `Oturum.olaylar/ad/etiketler/notlar` |
+| `kayit_nokta.h` | `kn_ornek`'e `ek` bayrak: sınırdan **sonra**, örneğin girdiği noktaya işlenir (önce işlense kapanan eski noktaya düşerdi) |
+| `kayit_oturum.h` | `ky_olay`: önce bekleyen noktalar boşaltılır, kayıt sırası zaman sırasıyla aynı · `ky_baslat` sürmekte olanı "başka oturum" (6) ile kapatır |
+| `kayit_yonet.h` | `kyn_olay` · `kyn_pil_bitir` (yalnız etkin oturum PİL ise: SONUÇ, hemen ardından BITIR) · `kyn_not` (hedef doğrulanır; dolu ise etkin oturumu **kapatmaz**) · `kyn__devam_dene`: ölçüm dışı açık oturum **"kart yeniden başladı" ile kapanır, DEVAM asla**; yer yoksa durum 4'te bekler |
+| `kayit_esp.h` | `KM_PIL_BASLAT` (BASLA + AYAR tek mesaj) · `KM_OLAY` · `KM_PIL_BITIR` · `KM_NOT` · `kayit__kuyruga` / `kayit_mesaj_gonder` (beklemez, düşeni sayar) · `A3-1C1` |
+| `olcum-karti-a3.ino` | `pil_baslat` kabulünde `kayit_pil_baslat` (kayıt açılamazsa "KAYDEDİLMİYOR — sebep", test sürer) · DCIR bitince `kayit_pil_dcir` · `pil_durdur` **yükü önce keser**, sonra `kayit_pil_bitir` (bu mesaj düşmez: kuyruk doluysa `loop` her turda yeniden dener) · noktacıya `KN_DCIR` · pil sürerken `Gb`/`Gd` reddi · `Ga/Ge/Gn/Gx` (+ yardım) · DRAM 74204 (+264) |
+
+**Doğrulama**
+- `test_kayit.py` **186/186**:
+  - B71.B16–B21: OLAY/NOT C == Python; metin 120 B sınırı; `oturumlari_kur` ad/etiket/not son hali; B21 not komutu ayrıştırıcısı (20 girdi).
+  - B71.P6: `KN_DCIR` sınırdaki örnekte doğru noktaya düşüyor.
+  - B71.PL1–PL7: yeni `SENARYO_PIL`, açılıştan açılışa:
+    - ölçüm → pil geçişinde sebep 6;
+    - olaylar zaman sırasında;
+    - açılışta açık pil oturumu sebep 5 ile kapanıyor, DEVAM yok;
+    - pil bitir yalnız pil oturumunu kapatıyor, SONUÇ BITIR'dan hemen önce ve alanları doğru;
+    - not kayıtları oturum 0 başlıklı, değiştir/sil ve geçersiz hedef;
+    - yer yokken durum 4, onayla kapanış.
+- `test_kayit_esp.py` **66/66** (F27–F34, F36–F39; F25 yeni sürüm; F9 onarıldı). Arayüz 346/346. Zincir **21/21**.
+- Mutasyon: B72 **61/61** (tam). B71'in 1B + 1C-1 girdileri **45/45**, yalnız ilgili bölümlerle koşuldu
+  (tam `test_kayit.py` mutasyon başına ~1.3 dk; B71 82 girdi). İlk B72 koşusunda **1 KAÇTI**: 1A-2'nin F9'u
+  (pil sürerken `GF!` reddi) `pil_testi_suruyor()` çağrısını bütün işlevde arıyordu; 1C-1'in `Gb`/`Gd`
+  retleri aynı çağrıyı başka dallara koyunca iddia boş kaldı. Artık yalnız `F` dalına bakıyor.
+- **Kart (tezgah `--pil` 5/5, ADS takılı değil):**
+  - `p1` reddedildi ve oturum açmadı.
+  - `Ga/Ge/Gn` gerçek bir ölçüm oturumuna yazıldı; `Gn0` ve `:` olmayan `Gx` reddedildi.
+  - Yeniden başlatmada ölçüm oturumu DEVAM aldı.
+  - PC adı, etiketleri ve iki notu Türkçe karakterle okudu; `Gx` notu sildi.
+  - Regresyon: `--duman --kal` 14/14.
+  - İnceleme düzeltmelerinden sonra yeniden yüklendi: `--pil --kal` 14/14.
+- Karta yüklemeden önce NVS yedeği depo dışına alındı.
+- ⚠ **Gerçek pil testi koşulmadı:** ADS takılı değil. Pil oturumunun kendisi (olaylar, sonuç, açılışta kapanış) AVR'de sınanıyor. ADS takılınca yapılacak tezgah kalemi:
+  - Tam test.
+  - SONUÇ olayı `B` raporuyla aynı olmalı.
+  - Fiş çekilince oturum BITIR(5) ile kapanmalı.
+
+**Bağımsız son inceleme (opus): "düzeltmelerle", kritik yok**
+
+| # | Bulgu | Neden önemli | Ne yapıldı |
+|---|---|---|---|
+| 1–2 | Kuyruğa giremeyen pil bitiş mesajını sonraki istekler (`p1`'in PIL_BASLAT'ı, `Gb`) geçebiliyordu. F32 bunu yakalamıyordu (yalnız adları arıyordu) | Sonraki testin oturumu öncekinin SONUÇ'uyla kapanır; kart "KAYITTA" der, test kayıtsız sürer | **Sıra kuralı** (`kayit_esp.h`): bekleyen bitiş her istekten önce gider, gidemezse yeni istek reddedilir; `Gb/Gd/GF!` de bu yoldan. F32 kesin metne bakıyor + üç mutasyon |
+| 3 | Seri ve web komut tamponları 48 B: not ~34 bayttan sonra **sessizce** kesiliyordu | Spec'in 120 baytı ulaşılamazdı; web 204 dönüyordu | `KOMUT_AZAMI` 176; uzun komut seri ve webde **reddedilir** (413). F37 |
+| 4 | `Gx` notun grafik yerini siliyordu; not kimliği tanımsızdı (düzeltme kaydının sırası hayalet not üretiyordu) | Kullanıcı yalnız metni düzeltir, not grafikten kaybolur | `degistirir` = ASIL notun sırası; düzeltmede `nokta_ms 0` = yer korunur (`Gx<id>:<sıra>[@ms]`); bilinmeyen sıra yok sayılır. B18 (önce kırmızı görüldü: yer 0, iki hayalet), PL5 |
+| 6 → önemli | `strtoul` işaretli/boş sayıyı, 0'ı, taşmayı kabul edip kayıt yazdırıyordu | Planın kendi odak maddesi #5'i | Ayrıştırıcı **platformsuz** (`kayit_not_ayir`), AVR'de 20 girdiyle (B71.B21) |
+| 10 → önemli | İlk DCIR darbesinin "anlık" değeri darbenin SON örneğinden geliyordu (`dcir_sayisi == 0 ||`; B21'den kalma) | 1C-1 bunu flaşa yazıyordu; `B` raporu da yanlıştı | Koşul yalnız `dcir_ani == 0`. F39 |
+| 11 → önemli | Test sürerken `p1` testi yeniden başlatıyordu | Oturum SONUÇ'suz kapanır; ret hâlinde pil oturumu açık kalıp sonsuz nokta yazar | Test sürerken `p1` reddedilir. F38 |
+
+Değişen fonksiyonlarda iki yanlış mesaj da düzeltildi: "KAYITTA" (kayıt henüz açılmamıştı) → "kaydı istendi — sonuç G satırında"; not mesajı gelmeyecek bir hata vaat ediyordu.
+
+**Ertelenen küçükler:**
+- Kayıtsız bir pil testinin DCIR olayları ve `KN_DCIR` noktaları, o sırada açık bir ölçüm oturumuna düşebilir (`p1` tarama sırasında ya da kuyruk doluyken).
+- `kayit_mesaj_dusen` sayacı okunmuyor.
+- `ky_olay`, `kyn_pil_bitir` ve `kyn_not`'un DOLU yolları testsiz.
+- İki kuyruk arasında en fazla bir nokta olaydan sonra yazılabilir.
+
+**Uygularken bulunanlar**
+- **Plan varsayımı yanlıştı.** "Halka dolarsa pil oturumu açılışta kapatılamaz" sanılmıştı. Oysa her sektörde BITIR için yer ayrıldığından kapatma normalde her zaman sığıyor. Durum 4 ancak baş sektörde yarım yazma varken oluşuyor; test YÖNET aşama 2'nin desenini kullanıyor.
+- **İki test zayıflığı güçlendirildi.** PL4 sonuç olayının yalnız türüne bakıyordu, alanlarına bakmıyordu: 8 baytlık boş bir sonuç geçerdi. F33 `PIL_BASLAT` dalında AYAR olayını aramıyordu.
+- **`govde()` tuzağı yine yakaladı** (1B'de de olmuştu). İmza ileri bildirimde bulunuyor, test yanlış gövdeye bakıyordu. İmzalar artık ` {` ile tanıma bağlı.
+- **Önceki dilimlerden iki mutasyon eskidi.** F8 ve V4, bu dilimde değişen koda artık uymuyordu (ATLANDI olurdu). Desenleri güncellendi. 1B'nin altı temizleyici mutasyonu kodla birlikte `kayit_bicim.h`'ye taşındı.
+
+**Açık / sonraki:**
+- `/pil` ve `PilHalka` panel oturumdan okuyunca kalkar (alt proje 3).
+- Ad/not için web ucu (alt proje 3).
+- "Pil testi kesildi" bildirimi (1E).
+- `Gn` ile yazılan notun sıra numarası kartta basılmıyor; eşitlenen dosyadan okunuyor (`Gx` için).
+
+**Sırada 1C-2 (ayrıntılı kip).**
+
+---
+
 #### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
 
 **Neden.** Malzemenin tamamı geldi (50 mA sigorta hariç); kullanıcı "lehimsiz test mi, plakete mi" diye sordu. Karar: **plakete, blok blok** — lehimsiz tahta bu kartta ölçüm üretmez (15 mΩ şönt + Kelvin tahta temasından küçük; 4.9 MΩ zincirde tahta kaçağı oranı bozar; B30/B44'te iki sessiz kusur gevşek telden geldi). Ama plakete geçmek için elde **yerleşim planı yoktu** — F9 ("delik atla") sayı veriyordu, yer vermiyordu.

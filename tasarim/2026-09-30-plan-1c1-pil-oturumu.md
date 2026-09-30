@@ -1,5 +1,10 @@
 # Alt proje 1C-1 — Pil testi oturumu + oturuma ad/not Uygulama Planı
 
+> **Durum (2026-10-01): UYGULANDI** (DEVIR 5.12.68). Bağımsız son incelemeden
+> sonra altı düzeltme yapıldı. Bunlardan ikisi aşağıdaki görev metinlerinin
+> ötesine geçiyor: bekleyen pil bitiş mesajı için sıra kuralı ve platformsuz
+> not ayrıştırıcısı.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Her pil testi kartın flaşında kendi oturumu olarak saklansın: noktalar, DCIR olayları, sonuç. Kayıtlara ad, etiket ve not eklenebilsin. PC bunları kaybetmeden eşitlesin.

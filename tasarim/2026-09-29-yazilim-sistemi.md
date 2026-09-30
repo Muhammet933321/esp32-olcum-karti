@@ -132,7 +132,7 @@ Aynı anda **tek** oturum.
 |---|---|
 | Ölçüm kaydı | V/A/W; her nokta ort + min + maks. Hız: ayrıntılı (her örnek) · 50/s · 10/s · 5/s · 1/s · 10 s'de 1 · dakikada 1 |
 | Osiloskop günlüğü | Her tetikte ya da her N saniyede bir yakalama (≤ 4000 örnek, 8 KB). İsteğe bağlı olarak bir ölçüm kaydıyla aynı oturumda; yakalama anı ölçüm kaydında işaretli boşluk |
-| Pil testi | Ölçüm kaydı + mAh · Wh · DCIR olayları · kesme olayı. `PilHalka` ve `/pil` bunun yerine geçer; emniyet kuralları aynen |
+| Pil testi | Ölçüm kaydı + mAh · Wh · DCIR olayları · kesme olayı. `PilHalka` ve `/pil` bunun yerine geçer; emniyet kuralları aynen. *(1C-1'de uygulandı, DEVIR 5.12.68: oturum türü PİL, OLAY kaydı `PIL_AYAR`/`DCIR`/`PIL_SONUC`, açılışta açık pil oturumu "kart yeniden başladı" ile kapanır. `/pil` panel oturumdan okuyana kadar — alt proje 3 — kalır.)* |
 
 **Başlık** (oturum açılırken yazılır): kimlik · tür · başlangıç (gerçek
 saat + kart ms) · hız · menzil · şönt · firmware sürümü · **kalibrasyonun

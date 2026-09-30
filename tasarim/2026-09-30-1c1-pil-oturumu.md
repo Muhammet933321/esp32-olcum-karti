@@ -94,6 +94,12 @@ Son halin kurulması:
 - Ad ve etiketler için **en son** gelen kayıt geçerlidir. Etiketler virgülle ayrılır.
 - Notlar sırayla birikir. `degistirir` alanı doluysa ilgili notu değiştirir,
   metin boşsa siler.
+- *(Son inceleme, 2026-10-01)* `degistirir` her zaman **asıl** notun (ilk
+  yazılan NOT kaydının) sırasını gösterir; düzeltilmiş bir not yine asıl
+  sırasıyla hedeflenir.
+- Düzeltmede `nokta_ms = 0` ise notun grafik yeri **korunur**.
+- Bilinmeyen ya da silinmiş bir sıra **yok sayılır**, hayalet not doğmaz.
+  `ortak/` aynı kuralı taşır.
 
 ## Akış
 
@@ -133,9 +139,14 @@ Son halin kurulması:
 - `Ge<oturum> <etiket, etiket>` etiket koyar.
 - `Gn<oturum> <not>` oturumun geneline not ekler; `Gn<oturum>@<kart_ms> <not>`
   grafikteki bir ana not ekler.
-- `Gx<oturum>:<sıra> <metin>` o notu değiştirir; metin boşsa siler.
+- `Gx<oturum>:<sıra>[@<kart_ms>] <metin>` o notu değiştirir; `@` yoksa grafik
+  yeri korunur, metin boşsa siler.
 - Hedef oturum `1 ≤ id < sonraki_sira` olmalıdır. Kartta artık bulunmayan eski
   bir oturuma da not eklenebilir; PC'de o oturum durur.
+- *(Son inceleme)* Ayrıştırıcı platformsuzdur (`kayit_not_ayir`, B71.B21).
+  Sayılar yalnız rakamdan oluşur: işaret, boşluk, boş sayı, 0 ve 32 bit
+  taşması reddedilir. Bozuk argümanda kayıt yazılmaz.
+- Komut satırı en fazla 175 karakterdir; uzun komut **reddedilir**, kesilmez.
 
 **PC:** `kayit_bicim.py` OLAY ve NOT kayıtlarını çözer. `oturumlari_kur`
 olayları oturumlarına bağlar, adları ve notları K13'e göre kurar.
