@@ -786,6 +786,12 @@ def main() -> int:
          "p1 -> G satirinda PIL oturumu; 5 dk'da bir DCIR olayi; kesmede PIL_SONUC == `B` "
          "raporu (mAh, Wh, sure, dcir sayisi); test ortasinda fis cekilirse acilista oturum "
          "BITIR(5), DEVAM yok; olcum kaydi surerken p1 -> olcum BITIR(6)"),
+        ("1C-2 ayrintili kip kartta (ADS yok)",
+         "tezgah_kayit.py --ayrinti: hazir alan bosta buyur; Gb0 60 s: sira kesintisiz, "
+         "zaman farki dagilimi, kayit ici silme 0, dusen 0; yeniden baslatmada DEVAM"),
+        ("[!] ADS takilinca: gercek 500/s ayrintili kayit",
+         "Gb0 60 s: ~30 000 ornek, dt ortancasi ~2000 us; PC'de V/I (ve hizalamali W) kartin D "
+         "satiriyla ayni anda karsilastirilir; hazir alan bitince KA_SILME kayitlari gorulur"),
         ("Gercek fis cekme (USB + PIL kapali)",
          "elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla "
          "son ~5 s"),

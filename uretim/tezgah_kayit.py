@@ -11,6 +11,7 @@
     python tezgah_kayit.py --bicim                 (dolu bolumde) GF!: anlik mi, web doner mi
     python tezgah_kayit.py --kal                   1B kalibrasyon gecmisi (kalibrasyon komutu CALISTIRMAZ)
     python tezgah_kayit.py --pil                   1C-1 p1 reddi (ADS yok), ad/etiket/not, DEVAM regresyonu
+    python tezgah_kayit.py --ayrinti               1C-2 Gb0: ornek hizi, zaman farki, hazir alan, DEVAM
     secenekler: --port COM6  --http olcum.local  (ya da kartin IP'si)
 
 🔴 --yedek NVS'i (WiFi ve web parolalarini) icerir: DEPO DISINA yazilir
@@ -487,6 +488,95 @@ def pil(k, host: str) -> None:
            f"{[x for x in s if 'G' in x]} {ot2 and ot2.notlar}")
 
 
+HAZIR_HEDEF = 480                              # kayit_yonet.h KYN_HAZIR_HEDEF
+
+
+def _ga(k) -> list[int] | None:
+    s, _ = komut(k, "G?", 2)
+    ga = next((x.split() for x in s if x.startswith("GA ")), None)
+    return [int(v) for v in ga[1:]] if ga and len(ga) == 5 and all(
+        v.isdigit() for v in ga[1:]) else None
+
+
+def _ayr_esitle(k, host: str, oid: int):
+    with tempfile.TemporaryDirectory() as d:
+        esitle(k, host, Path(d))
+        kay = KB.akis_coz((Path(d) / KE.DOSYA).read_bytes())
+    return kay, KB.oturumlari_kur(kay).get(oid)
+
+
+def ayrinti(k, host: str, sn: float = 60.0) -> None:
+    """1C-2 ayrintili kip (Gb0) kartta. ADS takili degil: ornek kodlari hata
+    bayrakli ama ZAMAN gercek — olculen: ornek hizi, zaman farki dagilimi,
+    bosluklar, hazir alan, kayit ici silme, DEVAM. Gercek 500/s ADS gelince."""
+    print("\n── ayrinti: Gb0 (her ornek) — ADS yok, zaman/bosluk/hazir alan olculur")
+    komut(k, "Gd", 3)
+    with tempfile.TemporaryDirectory() as d:
+        esitle(k, host, Path(d))                   # her sey onayli: on silme yapabilsin
+    ga0 = _ga(k)
+    time.sleep(12)
+    ga1 = _ga(k)
+    ok("GA satiri geliyor; esitleme + onaydan sonra BOSTA hazir alan buyuyor (on silme)",
+       bool(ga0) and bool(ga1) and (ga1[0] > ga0[0] or ga0[0] >= HAZIR_HEDEF),
+       f"GA {ga0} -> {ga1}")
+    son = time.time() + 300                    # 480 sektor x 500 ms = 4 dk
+    while ga1 and ga1[0] < HAZIR_HEDEF and time.time() < son:
+        time.sleep(15)
+        ga1 = _ga(k) or ga1
+    print(f"  hazir alan {ga1 and ga1[0]} sektor (hedef {HAZIR_HEDEF})")
+    hazir0 = ga1[0] if ga1 else 0
+    sil0 = ga1[3] if ga1 else 0
+    _, g = komut(k, "Gb0", 5, lambda x: x["durum"] == 2)
+    oid = g["oturum"] if g else 0
+    time.sleep(sn)
+    ga2 = _ga(k)
+    komut(k, "Gd", 5, lambda x: x["durum"] == 1)
+    kay, o = _ayr_esitle(k, host, oid)
+    orn = KB.ayrinti_ornekler(o) if o else []
+    dt = [b[1] - a[1] for a, b in zip(orn, orn[1:])]
+    dts = sorted(dt)
+    orta = dts[len(dts) // 2] if dts else 0
+    hiz = len(orn) / sn if sn else 0
+    kayitlar = sorted(o.ayrinti, key=lambda r: r["sira"]) if o else []
+    silme = sum(1 for r in kayitlar if r["bayrak"] & KB.KA_SILME)
+    kayip = sum(1 for r in kayitlar if r["bayrak"] & KB.KA_KAYIP_ONCE)
+    bosluk = sum(1 for x in dt if x > 16380)
+    # oturumun kapladigi sektor ~ kayit baytlari / sektor (baslik + ek kayitlar kucuk)
+    bayt = sum(KB.BASLIK_BAYT + len(x.yuk) for x in kay if x.oturum == oid)
+    sektor = bayt / 4096
+    print(f"  {len(orn)} ornek / {sn:.0f} s = {hiz:.0f}/s · dt ortanca {orta} us, en buyuk "
+          f"{max(dt) if dt else 0} us, > 16.38 ms bosluk {bosluk} · {len(kayitlar)} kayit · "
+          f"KA_SILME {silme} · KA_KAYIP {kayip} · hazir {hazir0} -> {ga2 and ga2[0]} · "
+          f"~{sektor:.0f} sektor")
+    ok("Gb0 her ornegi kaydetti: sira kesintisiz, sayi ~ sure x dongu hizi; GA ornek sayisi == "
+       "flastaki", bool(orn) and [s for s, *_ in orn] == list(range(len(orn)))
+       and hiz > 20 and o.bitir is not None and o.bitir["nokta_adedi"] == len(orn)
+       and bool(ga2) and ga2[1] <= len(orn),
+       f"{len(orn)} ornek, {hiz:.0f}/s, bitir={o and o.bitir}")
+    ok("KA_SILME kayit sayisi == GA'nin kayit ici silme artisi; hazir alan oturumu "
+       "karsiladiysa ikisi de 0; halkadan ornek dusmedi (GA dusen 0, KA_KAYIP 0)",
+       bool(ga2) and silme == ga2[3] - sil0 and (sektor + 2 > hazir0 or silme == 0)
+       and ga2[2] == 0 and kayip == 0,
+       f"KA_SILME={silme} GA={ga2} sil0={sil0} hazir0={hazir0} ~{sektor:.0f} sektor")
+    # DEVAM: ayrintili oturum surerken yeniden baslatma
+    _, g = komut(k, "Gb0", 5, lambda x: x["durum"] == 2)
+    oid2 = g["oturum"] if g else 0
+    time.sleep(5)
+    k.sifirla()
+    acildi = yeni_acilis(k)
+    _, g2 = dinle(k, 20, lambda x: x["durum"] == 2) if acildi else ([], None)
+    time.sleep(5)
+    komut(k, "Gd", 5, lambda x: x["durum"] == 1)
+    kay2, o2 = _ayr_esitle(k, host, oid2)
+    orn2 = KB.ayrinti_ornekler(o2) if o2 else []
+    ok("ayrintili oturum surerken yeniden baslatma: AYNI oturum DEVAM ile ayrintili surer, "
+       "ornek sirasi kesintisiz",
+       bool(g2) and g2["oturum"] == oid2 and o2 is not None and len(o2.devamlar) == 1
+       and [s for s, *_ in orn2] == list(range(len(orn2))) and len(orn2) > 0
+       and o2.basla is not None and o2.basla.hiz_ms == 0,
+       f"g2={g2 and (g2['durum'], g2['oturum'])} devam={o2 and len(o2.devamlar)} n={len(orn2)}")
+
+
 def esit(k, host: str, port: str) -> None:
     print("\n── esit: esitlenen dosya == flastaki bolum")
     with tempfile.TemporaryDirectory() as d:
@@ -536,6 +626,8 @@ def main() -> int:
             kal(k, host)
         if "--pil" in a:
             pil(k, host)
+        if "--ayrinti" in a:
+            ayrinti(k, host)
         if "--esit" in a:
             esit(k, host, port)
     finally:
