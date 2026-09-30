@@ -336,6 +336,10 @@ void ayar_yukle() {
 
 static void kalgec_taslak_guncelle();   /* 1B: tanimi kalibrasyon gecmisi blogunda */
 static void kalgec_oturum_bildir(uint32_t no, uint32_t once);
+static void kayit_pil_baslat();                 /* 1C-1: tanimlari kayit blogunda */
+static void kayit_pil_dcir(float v_oturmus);
+static void kayit_pil_bitir(uint8_t sebep);
+static float pil_dcir_v_ani = 0.0f;             /* 1C-1: darbenin ilk ornegindeki V (DCIR olayi) */
 
 void ayar_kaydet() {
   ayar.imza = AYAR3_IMZA;
@@ -2246,6 +2250,7 @@ static void pil_durdur(uint8_t yeni_durum, uint8_t hata) {
   pil.hata = hata;
   pil.bitis_ms = millis();
   pil.dcir_icinde = 0;
+  kayit_pil_bitir(yeni_durum == PIL_DURDURULDU ? KB_SEBEP_KULLANICI : KB_SEBEP_PIL);
 }
 
 // Testi baslat. Once MOSFET'i KAPALI tutup olcuyoruz: bu hem OCV'yi
@@ -2276,6 +2281,7 @@ static void pil_baslat() {
   Serial.print(F(" V, kesme "));
   Serial.print(ayar.pil_kesme_v, 3);
   Serial.println(F(" V"));
+  kayit_pil_baslat();              /* 1C-1: her kabul edilen test kendi oturumunda */
 }
 
 // Her olcumden sonra cagriliyor. Durum makinesi + kayit + DCIR.
@@ -2296,6 +2302,7 @@ static void pil_isle(const Okuma3 &o, uint32_t dt_us) {
     if (pil.dcir_sayisi == 0 || pil.dcir_ani == 0.0f) {
       // darbeden SONRAKI ILK ornek — "ani" deger
       pil.dcir_ani = pil_dcir(pil.dcir_v_once, o.volt, pil.dcir_i_once);
+      pil_dcir_v_ani = o.volt;
     }
     if (ms - pil.dcir_bas_ms >= (uint32_t)(PIL_DCIR_MS)) {
       pil.dcir_oturmus = pil_dcir(pil.dcir_v_once, o.volt, pil.dcir_i_once);
@@ -2303,6 +2310,7 @@ static void pil_isle(const Okuma3 &o, uint32_t dt_us) {
       pil.dcir_icinde = 0;
       pil.son_dcir_ms = ms;
       pil_yuk(true);
+      kayit_pil_dcir(o.volt);                    /* 1C-1: yuk geri acildiktan SONRA */
     }
     return;                                      // darbe boyunca BIRIKTIRME
   }
@@ -2864,6 +2872,140 @@ static void kayit_durum_bas(bool zorla) {
   Serial.println(t);
 }
 
+// ═════════════════════════════════════ 1C-1 — PIL TESTI KENDI OTURUMUNDA ═══
+// Durum makinesi kayit_yonet.h'de (B71.PL). Buradan yalniz TEK mesajlar gider;
+// hicbiri beklemez: p0 yolu (pil_durdur) kuyruga ya da kayit kilidine TAKILMAZ.
+static uint8_t    kayit_pil_bekleyen = 0;      /* pil bitir mesaji kuyruga giremedi */
+static KayitMesaj kayit_pil_bekleyen_m;
+
+static uint32_t pil_kayit_hiz_ms() {
+  float hz = ayar.pil_kayit_hz > 0.01f ? ayar.pil_kayit_hz : 1.0f;
+  float ms = 1000.0f / hz + 0.5f;
+  if (ms < 100.0f) ms = 100.0f;
+  if (ms > 60000.0f) ms = 60000.0f;
+  return (uint32_t)ms;
+}
+
+/* p1 KABUL edildi: pil oturumu (K4). Kayit acilamazsa test YINE surer (K5). */
+static void kayit_pil_baslat() {
+  KayitMesaj m;
+  const KayitDurum d = kayit_durum_al();
+  const __FlashStringHelper *neden = nullptr;
+  if (!kayit_bolum) neden = F("kayit bolumu yok");
+  else if (d.durum == KDR_TARIYOR) neden = F("kayit taramasi suruyor");
+  else if (d.durum == KDR_HATA) neden = F("kayit hatasi (G?)");
+  else if (d.durum == KDR_DOLU) neden = F("kayit bellegi dolu (esitle + onayla)");
+  else if (d.durum == KDR_BEKLIYOR) neden = F("onceki oturum kapanmayi bekliyor (yer yok)");
+  if (neden) {
+    Serial.print(F("! pil testi KAYDEDILMIYOR — "));
+    Serial.println(neden);
+    return;
+  }
+  memset(&m, 0, sizeof(m));
+  m.tur = KM_PIL_BASLAT;
+  kayit_basla_doldur(&m.basla, pil_kayit_hiz_ms());
+  m.basla.oturum_turu = KAYIT_OTURUM_PIL;
+  KayitPilAyar a;
+  a.kesme_v = ayar.pil_kesme_v;
+  a.ocv = pil.v_bas;
+  a.azami_s = ayar.pil_azami_s;
+  a.dcir_aralik_ms = PIL_DCIR_ARALIK_MS;
+  a.dcir_ms = PIL_DCIR_MS;
+  a.kayit_hz = ayar.pil_kayit_hz;
+  m.n = kayit_olay_ayar_paketle(millis(), &a, m.yuk);
+  if (kayit_mesaj_gonder(&m))
+    Serial.println(F("* pil testi KAYITTA (oturum turu PIL; olcum kaydi aciksa kapandi)"));
+  else
+    Serial.println(F("! pil testi KAYDEDILMIYOR — kayit istek kuyrugu dolu"));
+}
+
+/* DCIR darbesi bitti (pil_isle). Olay seyrek (5 dk); duserse sayilir, basilir. */
+static void kayit_pil_dcir(float v_oturmus) {
+  KayitMesaj m;
+  if (!kayit_bolum) return;
+  memset(&m, 0, sizeof(m));
+  m.tur = KM_OLAY;
+  KayitDcir d;
+  d.no = pil.dcir_sayisi;
+  d.v_once = pil.dcir_v_once;
+  d.i_once = pil.dcir_i_once;
+  d.v_ani = pil_dcir_v_ani;
+  d.v_oturmus = v_oturmus;
+  d.r_ani = pil.dcir_ani;
+  d.r_oturmus = pil.dcir_oturmus;
+  d.mah = yuk_mAh3(pil.yuk_pC);
+  d.wh = enerji_wh3(pil.enerji_pJ);
+  m.n = kayit_olay_dcir_paketle(millis(), &d, m.yuk);
+  if (!kayit_mesaj_gonder(&m)) Serial.println(F("! G: DCIR olayi kuyrukta DUSTU (istek kuyrugu dolu)"));
+}
+
+/* pil_durdur'dan, yuk KESILDIKTEN sonra. Bu mesaj DUSMEZ (F32): kuyruk doluysa
+   bekletilir, loop her turda yeniden dener — dusseydi pil oturumu acik kalip
+   test bittigi halde nokta yazmayi surdururdu. */
+static void kayit_pil_bitir(uint8_t sebep) {
+  KayitMesaj *m = &kayit_pil_bekleyen_m;
+  if (!kayit_bolum) return;
+  memset(m, 0, sizeof(*m));
+  m->tur = KM_PIL_BITIR;
+  m->sebep = sebep;
+  KayitPilSonuc s;
+  s.durum = pil.durum;
+  s.hata = pil.hata;
+  s.mah = yuk_mAh3(pil.yuk_pC);
+  s.wh = enerji_wh3(pil.enerji_pJ);
+  s.ocv = pil.v_bas;
+  s.v_son = pil.v_son;
+  s.sure_ms = pil.bitis_ms - pil.baslama_ms;
+  s.dcir_sayisi = pil.dcir_sayisi;
+  m->n = kayit_olay_sonuc_paketle(millis(), &s, m->yuk);
+  kayit_pil_bekleyen = kayit__kuyruga(m) ? 0u : 1u;
+}
+
+/* Ga<oturum> <ad> · Ge<oturum> <etiket, etiket> · Gn<oturum>[@<kart_ms>] <not> ·
+   Gx<oturum>:<sira> <metin> (metin bos: o notu SIL). Kart yorumlamaz; son hali
+   PC kurar (kayit_bicim.py). Bozuk argumanda kayit YAZILMAZ. */
+static void kayit_not_komut(const char *s) {
+  KayitMesaj m;
+  const char alt = s[1];
+  char *son;
+  char *son2;
+  uint32_t hedef = strtoul(s + 2, &son, 10), ms = 0, deg = 0;
+  uint8_t alan = alt == 'a' ? KNT_AD : alt == 'e' ? KNT_ETIKET : KNT_NOT;
+  if (!hedef || son == s + 2) {
+    Serial.println(F("! G: oturum numarasi gerekli (G? ya da /kayit/liste)"));
+    return;
+  }
+  if (alt == 'n' && *son == '@') ms = strtoul(son + 1, &son, 10);
+  if (alt == 'x') {
+    if (*son != ':') {
+      Serial.println(F("! G: Gx<oturum>:<sira> <metin> — metin bossa not silinir"));
+      return;
+    }
+    deg = strtoul(son + 1, &son2, 10);
+    if (!deg || son2 == son + 1) {
+      Serial.println(F("! G: Gx<oturum>:<sira> — sira numarasi gerekli"));
+      return;
+    }
+    son = son2;
+  }
+  if (*son == ' ') son++;
+  else if (*son) {
+    Serial.println(F("! G: numaradan sonra bosluk ve metin"));
+    return;
+  }
+  if (alt == 'n' && !*son) {
+    Serial.println(F("! G: not bos (silmek icin Gx<oturum>:<sira>)"));
+    return;
+  }
+  memset(&m, 0, sizeof(m));
+  m.tur = KM_NOT;
+  m.n = kayit_not_paketle(hedef, alan, ms, deg, son, m.yuk);
+  if (kayit_mesaj_gonder(&m))
+    Serial.println(F("* G not kuyrukta — sonuc G satirinda (gecersiz oturum: hata 4)"));
+  else
+    Serial.println(F("! G: istek kuyrugu dolu"));
+}
+
 static void kayit_komut(const char *s) {
   KayitMesaj m;
   if (!kayit_bolum) {
@@ -2880,6 +3022,10 @@ static void kayit_komut(const char *s) {
     kayit_durum_bas(true);
     return;
   } else if (alt == 'b') {
+    if (pil_testi_suruyor()) {   /* 1C-1: kayit testle birlikte baslar/biter */
+      Serial.println(F("! G: pil testi suruyor — kaydi zaten acik; durdurmak icin p0"));
+      return;
+    }
     long h = atol(s + 2);
     if (!kayit__hiz_gecerli(h)) {
       Serial.println(F("! G: hiz 20/100/200/1000/10000/60000 ms olmali"));
@@ -2888,6 +3034,10 @@ static void kayit_komut(const char *s) {
     m.tur = KM_BASLAT;
     kayit_basla_doldur(&m.basla, (uint32_t)h);
   } else if (alt == 'd') {
+    if (pil_testi_suruyor()) {
+      Serial.println(F("! G: pil testi suruyor — testi p0 ile durdur (kayit onunla kapanir)"));
+      return;
+    }
     m.tur = KM_DURDUR;
   } else if (alt == 'o') {
     /* Onay KUYRUGA girmez: son gelen kazanir (kuyrukta dusup DOLU kartı
@@ -2907,8 +3057,11 @@ static void kayit_komut(const char *s) {
       return;
     }
     m.tur = KM_BICIMLE;
+  } else if (alt == 'a' || alt == 'e' || alt == 'n' || alt == 'x') {
+    kayit_not_komut(s);          /* 1C-1: oturuma ad / etiket / not */
+    return;
   } else {
-    Serial.println(F("! G: alt komut b<ms> d ? o<sira> F!"));
+    Serial.println(F("! G: alt komut b<ms> d ? o<sira> F!  a<id> e<id> n<id> x<id>:<sira>"));
     return;
   }
   if (xQueueSend(kayit_mesaj_q, &m, 0) == pdTRUE)
@@ -3535,6 +3688,8 @@ void yardim() {
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  tn<1/2> onay  t?"));
   Serial.println(F("  Gb<ms> kayit baslat (20/100/200/1000/10000/60000)  Gd durdur  G? durum"));
   Serial.println(F("  Go<sira> esitlenen kayitlari onayla   GF! BUTUN kayitlari sil"));
+  Serial.println(F("  Ga<oturum> <ad>  Ge<oturum> <etiket, ...>  Gn<oturum>[@<ms>] <not>"));
+  Serial.println(F("  Gx<oturum>:<sira> <metin> notu degistir (metin bos: sil)"));
   Serial.println(F("  k? kalibrasyon gecmisi  kl liste  kv<no> degerler  kk<t><not> taslagi kaydet"));
   Serial.println(F("  kn<no> <not>  kt<no><t>   (t: d donanim degisti, i ince ayar, - belirtilmemis)"));
 }
@@ -4515,6 +4670,9 @@ void loop() {
   //   ama bir tik beklemez.
   yield();
 
+  /* 1C-1: pil bitir mesaji kuyruga girememisse her turda yeniden (F32) */
+  if (kayit_pil_bekleyen && kayit__kuyruga(&kayit_pil_bekleyen_m)) kayit_pil_bekleyen = 0;
+
   /* 🔴 B41 — YAKALAMA SURERKEN ADS SUSUYOR. Yuklu I2C hattinin kenarlari
      skop donusumune tek-ornek hata sokuyor; pini tasimak cozmuyor (B44)
      (gerekce ve olcum: SKOP_IS tanimlarinin yaninda). Susma sayiliyor;
@@ -4532,7 +4690,7 @@ void loop() {
   }
 
   Okuma3 o = olcum_al();
-  kayit_ornek(o.watt, millis(), 0u);   // B72: noktaci (cekirdek 1); ek bayrak 1C-1 Gorev 4
+  kayit_ornek(o.watt, millis(), pil.dcir_icinde ? KN_DCIR : 0u);   // B72 noktaci; 1C-1 DCIR bayragi
   // Guc ORNEK BASINA carpilir: ort(VxI) != ort(V) x ort(I).
   // B27/K1: iki ciften biri okunamadiysa watt COP — enerjiye katma.
   // (Ornek yine sayiliyor ve D basiliyor; arayuz `durum` alanindan

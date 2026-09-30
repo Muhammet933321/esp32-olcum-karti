@@ -46,7 +46,7 @@
 #include "kalgec.h"               /* 1B: kalibrasyon gecmisi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-1B"     /* BASLA bicim 2 (kal_no) */
+#define KAYIT_FW_SURUM    "A3-1C1"    /* 1C-1: OLAY/NOT kayitlari, PIL oturumu */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
@@ -57,10 +57,16 @@
 #define KM_BASLAT  1u
 #define KM_DURDUR  2u
 #define KM_BICIMLE 3u
+#define KM_PIL_BASLAT 4u   /* 1C-1: BASLA (tur PIL) + yukte PIL_AYAR olayi, TEK mesaj */
+#define KM_OLAY       5u   /* 1C-1: yukte olay (DCIR) */
+#define KM_PIL_BITIR  6u   /* 1C-1: yukte PIL_SONUC + sebep; yalniz etkin oturum PIL ise */
+#define KM_NOT        7u   /* 1C-1: yukte NOT kaydi (ad/etiket/not) */
 
 typedef struct {
-    uint8_t    tur;
+    uint8_t    tur, sebep;
+    uint16_t   n;                                        /* yuk uzunlugu */
     KayitBasla basla;
+    uint8_t    yuk[KAYIT_NOT_BAS + KAYIT_NOT_METIN + 1u];  /* olay ya da NOT */
 } KayitMesaj;
 
 typedef struct {
@@ -96,6 +102,7 @@ static KayitDurum    kayit_durum = {};
 static portMUX_TYPE  kayit_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static volatile uint32_t kayit_kuyruk_dusen = 0;   /* cekirdek 1 yazar */
+static volatile uint32_t kayit_mesaj_dusen = 0;    /* 1C-1: istek kuyrugunda dusen (cekirdek 1) */
 static volatile uint32_t kayit_onay_istek = 0;     /* cekirdek 1 yazar: SON gelen kazanir */
 static volatile uint32_t kayit_yaz_azami_us = 0;
 static volatile uint32_t kayit_sil_azami_us = 0;
@@ -245,6 +252,22 @@ static void kayit__mesaj(const KayitMesaj *m)
     case KM_BICIMLE:
         (void)kyn_bicimle(&kayit_m, simdi);
         break;
+    case KM_PIL_BASLAT: {      /* 1C-1: surmekte olan oturum "baska oturum" ile kapanir */
+        KayitBasla b = m->basla;
+        if (!b.unix_s) b.unix_s = kayit__unix();
+        if (kyn_baslat(&kayit_m, &b, simdi, kayit__unix()) > 0)
+            (void)kyn_olay(&kayit_m, m->yuk, m->n);
+        break;
+    }
+    case KM_OLAY:
+        (void)kyn_olay(&kayit_m, m->yuk, m->n);
+        break;
+    case KM_PIL_BITIR:
+        (void)kyn_pil_bitir(&kayit_m, m->yuk, m->n, m->sebep);
+        break;
+    case KM_NOT:
+        (void)kyn_not(&kayit_m, m->yuk, m->n);
+        break;
     default:
         break;
     }
@@ -351,6 +374,22 @@ static bool kayit_kilit_al_web(void)
 static void kayit_onay_iste(uint32_t sira)
 {
     kayit_onay_istek = sira;         /* son gelen kazanir; gorev bir sonraki turda uygular */
+}
+
+/* ─────────────────────────────── istek kuyrugu (cekirdek 1)
+   Beklemeden gonderir: p0 yolu (pil_durdur) kuyruga TAKILMAZ. `kayit__kuyruga`
+   saymaz (yeniden deneme icin); `kayit_mesaj_gonder` dusen istegi sayar.
+   Uyari basmak cagiranin isi: bu dosya Serial kullanmaz (B72.F1). */
+static bool kayit__kuyruga(const KayitMesaj *m)
+{
+    return kayit_mesaj_q && xQueueSend(kayit_mesaj_q, m, 0) == pdTRUE;
+}
+
+static bool kayit_mesaj_gonder(const KayitMesaj *m)
+{
+    if (kayit__kuyruga(m)) return true;
+    kayit_mesaj_dusen = kayit_mesaj_dusen + 1u;
+    return false;
 }
 
 /* ─────────────────────────────── noktaci (cekirdek 1) */

@@ -234,13 +234,61 @@ def bolum_kaynak() -> None:
     ub = govde(ino_k, "static void kalgec_uyari_bas(")
     ok("B72.F24 gecmis dolmak uzereyken (35/40) afiste, `kk`'da ve otomatik kayitta uyari",
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
-    ok("B72.F25 firmware surum adi bicim 2 ile DEGISTI (PC/tezgah 1A-2 firmware'inden ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1B"', esp_k) is not None)
+    ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
+       "PC/tezgah eski firmware'den ayirt eder)",
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C1"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
        "kalgec_etkin = kgc_esle(&kalgec, &k)" in tg and "kalgec_etkin" in govde(ino_k, "static void kalgec_durum_bas(")
        and '\\"etkin\\"' in kl and "kalgec_etkin" in st)
+    # ── 1C-1: pil testi kendi oturumunda (davranis B71.PL'de, burada yapistirici) ──
+    pb = govde(ino_k, "static void pil_baslat() {")
+    red = pb[pb.find("if (h != PILH_YOK)"):pb.find("return;") + 1]
+    ok("B72.F27 kabul edilen p1 pil kaydini acar (kayit_pil_baslat, test CALISIYOR'a "
+       "gectikten sonra); reddedilen p1 ACMAZ",
+       bool(red) and "kayit_pil_baslat" not in red
+       and 0 <= pb.find("pil.durum = PIL_CALISIYOR") < pb.find("kayit_pil_baslat()"))
+    pd = govde(ino_k, "static void pil_durdur(")
+    ok("B72.F28 pil_durdur YUKU HER SEYDEN ONCE keser; kayit mesaji ondan SONRA "
+       "(p0 kayit kuyruguna/kilidine takilmaz)",
+       pd.lstrip("{ \r\n\t").startswith("pil_yuk(false)")
+       and 0 <= pd.find("pil_yuk(false)") < pd.find("kayit_pil_bitir("))
+    pi = govde(ino_k, "static void pil_isle(")
+    a = pi.find("pil.dcir_sayisi++")
+    ok("B72.F29 her DCIR darbesi bitince olay kaydi (kayit_pil_dcir) — darbe sonu blogunda",
+       a >= 0 and "kayit_pil_dcir(" in pi[a:pi.find("}", a)])
+    lp = govde(ino_k, "void loop() {")
+    ok("B72.F30 noktaci DCIR darbesindeki ornekleri KN_DCIR ile isaretler",
+       "kayit_ornek(o.watt, millis(), pil.dcir_icinde ? KN_DCIR : 0u)" in lp)
+    kk2 = govde(ino_k, "static void kayit_komut(")
+    ok("B72.F31 pil testi surerken Gb ve Gd REDDEDILIR (kayit testle baslar/biter); p0 "
+       "hala jetonsuz serbest",
+       "pil_testi_suruyor()" in kk2[kk2.find("alt == 'b'"):kk2.find("alt == 'd'")]
+       and "pil_testi_suruyor()" in kk2[kk2.find("alt == 'd'"):kk2.find("alt == 'o'")]
+       and "k[0] == 'p' && k[1] == '0'" in govde(ino_k, "static bool komut_serbest("))
+    bt = govde(ino_k, "static void kayit_pil_bitir(uint8_t sebep) {")   # ileri bildirim degil
+    ok("B72.F32 pil bitir mesaji DUSMEZ: kuyruk doluysa bekletilir, loop her turda yeniden "
+       "gonderir (dusseydi pil oturumu acik kalip nokta yazmayi surdururdu)",
+       "kayit_pil_bekleyen" in bt and "kayit_pil_bekleyen" in lp
+       and "kayit__kuyruga(&kayit_pil_bekleyen_m)" in lp)
+    km = govde(esp_k, "static void kayit__mesaj(")
+    ok("B72.F33 kayit gorevi yeni istekleri yoneticiye verir: PIL_BASLAT (baslat + AYAR "
+       "olayi) · OLAY · PIL_BITIR · NOT",
+       all(x in km for x in ("case KM_PIL_BASLAT", "case KM_OLAY", "case KM_PIL_BITIR",
+                             "case KM_NOT", "kyn_pil_bitir(", "kyn_not(", "kyn_olay("))
+       and 0 <= km.find("case KM_PIL_BASLAT") < km.find("kyn_baslat(", km.find("case KM_PIL_BASLAT")))
+    nk = govde(ino_k, "static void kayit_not_komut(")
+    ok("B72.F34 Ga/Ge/Gn/Gx: yardimda; oturum numarasi zorunlu; Gx ':' + sira ister "
+       "(bozuk argumanda kayit YAZILMAZ); Gn bos metni reddeder",
+       "Ga<oturum>" in ino and "kayit_not_komut(s)" in kk2 and "!hedef" in nk
+       and "!= ':'" in nk and "!deg" in nk and "KM_NOT" in nk)
+    kp = govde(ino_k, "static void kayit_pil_baslat() {")
+    ok("B72.F36 kayit acilamazsa pil testi YINE baslar ve kart 'KAYDEDILMIYOR' der "
+       "(bolum yok / tarama / hata / dolu / bekliyor / kuyruk dolu)",
+       "KAYDEDILMIYOR" in kp and "!kayit_bolum" in kp
+       and all(x in kp for x in ("KDR_TARIYOR", "KDR_HATA", "KDR_DOLU", "KDR_BEKLIYOR"))
+       and "m.basla.oturum_turu = KAYIT_OTURUM_PIL" in kp)
     gd = govde(esp_k, "static void kayit__gonder(")
     ok("B72.F15 kuyruk dolarsa kayip SESSIZ degil: sonraki nokta KAYIP_ONCE, sayac artar",
        "kn_kayip(&kayit_kn)" in gd and "kayit_kuyruk_dusen = kayit_kuyruk_dusen + 1u" in gd)
