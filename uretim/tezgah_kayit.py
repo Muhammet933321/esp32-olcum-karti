@@ -10,6 +10,7 @@
                                                    DOLU · tarama · 11 MB esitleme · halka donusu
     python tezgah_kayit.py --bicim                 (dolu bolumde) GF!: anlik mi, web doner mi
     python tezgah_kayit.py --kal                   1B kalibrasyon gecmisi (kalibrasyon komutu CALISTIRMAZ)
+    python tezgah_kayit.py --pil                   1C-1 p1 reddi (ADS yok), ad/etiket/not, DEVAM regresyonu
     secenekler: --port COM6  --http olcum.local  (ya da kartin IP'si)
 
 🔴 --yedek NVS'i (WiFi ve web parolalarini) icerir: DEPO DISINA yazilir
@@ -425,6 +426,66 @@ def kal(k, host: str) -> None:
        f"etkin {js.get('etkin')}")
 
 
+def pil(k, host: str) -> None:
+    """1C-1 pil testi oturumu kartta. ADS takili degil: p1 REDDEDILMELI ve
+    oturum ACMAMALI (test hic baslamadi). Ad/etiket/not gercek bir olcum
+    oturumuna yazilir, PC esitlenen dosyadan okur; Gx notu siler. Pil surerken
+    Gb/Gd reddi ve pil oturumunun kendisi ADS olmadan sinanamaz: AVR (B71.PL)
+    + kaynak iddialari (B72.F27-F36); gercek pil testi tezgah kalemi."""
+    print("\n── pil: pil testi oturumu (1C-1) — ADS yok, p1 reddedilmeli")
+    komut(k, "Gd", 2)
+    g0 = durum_iste(k)
+    satir, _ = komut(k, "p1", 3)
+    g1 = durum_iste(k)
+    ok("p1 (ADS yok) REDDEDILDI; kayit oturumu ACILMADI, KAYITTA/KAYDEDILMIYOR basilmadi",
+       any("REDDEDILDI" in s for s in satir)
+       and not any("KAYITTA" in s or "KAYDEDILMIYOR" in s for s in satir)
+       and bool(g0) and bool(g1) and g1["sonraki"] == g0["sonraki"]
+       and g1["durum"] == g0["durum"],
+       f"{[s for s in satir if 'pil' in s]} sonraki {g0 and g0['sonraki']} -> "
+       f"{g1 and g1['sonraki']}")
+    _, g = komut(k, "Gb200", 5, lambda x: x["durum"] == 2)
+    oid = g["oturum"] if g else 0
+    time.sleep(2)
+    cevap = []
+    for c in (f"Ga{oid} tezgah adı ğ", f"Ge{oid} tezgah, 1C-1", f"Gn{oid} not bir",
+              f"Gn{oid}@1500 not iki", "Gn0 gecersiz", f"Gx{oid} iki nokta yok"):
+        s, _ = komut(k, c, 1.5)
+        cevap.append((c, [x for x in s if x.startswith(("* G", "! G"))]))
+    ok("Ga/Ge/Gn kuyruga girdi; Gn0 ve ':' siz Gx REDDEDILDI (kayit yazilmadi)",
+       all(any(x.startswith("* G not") for x in r) for _, r in cevap[:4])
+       and all(any(x.startswith("! G") for x in r) for _, r in cevap[4:]), str(cevap))
+    k.sifirla()
+    acildi = yeni_acilis(k)
+    _, g2 = dinle(k, 20, lambda x: x["durum"] == 2) if acildi else ([], None)
+    ok("kayit surerken yeniden baslatma: OLCUM oturumu yine DEVAM aldi (regresyon)",
+       bool(g2) and g2["durum"] == 2 and g2["oturum"] == oid, f"{g2}")
+    time.sleep(2)
+    komut(k, "Gd", 5, lambda x: x["durum"] == 1)
+    with tempfile.TemporaryDirectory() as d:
+        esitle(k, host, Path(d))
+        kay = KB.akis_coz((Path(d) / KE.DOSYA).read_bytes())
+    ot = KB.oturumlari_kur(kay).get(oid)
+    notlar = sorted(n["metin"] for n in ot.notlar.values()) if ot else []
+    ok("esitlenen dosyada PC oturumun adini, etiketlerini ve iki notunu okuyor (Turkce "
+       "dahil); not kayitlari baslikta oturum 0",
+       bool(ot) and ot.ad == "tezgah adı ğ" and ot.etiketler == ["tezgah", "1C-1"]
+       and notlar == ["not bir", "not iki"]
+       and all(x.oturum == 0 for x in kay if x.tur == KB.T_NOT),
+       f"ad={ot and ot.ad} etiket={ot and ot.etiketler} notlar={notlar}")
+    if ot and ot.notlar:
+        sira = min(ot.notlar)
+        s, _ = komut(k, f"Gx{oid}:{sira} ", 1.5)
+        time.sleep(1)
+        with tempfile.TemporaryDirectory() as d:
+            esitle(k, host, Path(d))
+            kay2 = KB.akis_coz((Path(d) / KE.DOSYA).read_bytes())
+        ot2 = KB.oturumlari_kur(kay2).get(oid)
+        ok("Gx<oturum>:<sira> (bos metin) notu SILER: esitlenen son halde tek not kaldi",
+           bool(ot2) and len(ot2.notlar) == 1 and sira not in ot2.notlar,
+           f"{[x for x in s if 'G' in x]} {ot2 and ot2.notlar}")
+
+
 def esit(k, host: str, port: str) -> None:
     print("\n── esit: esitlenen dosya == flastaki bolum")
     with tempfile.TemporaryDirectory() as d:
@@ -472,6 +533,8 @@ def main() -> int:
             bicim(k, host)
         if "--kal" in a:
             kal(k, host)
+        if "--pil" in a:
+            pil(k, host)
         if "--esit" in a:
             esit(k, host, port)
     finally:

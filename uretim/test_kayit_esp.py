@@ -719,6 +719,13 @@ def main() -> int:
         ("[!] Gecmis doluyken tarama suresi",
          "30+ kayitli gecmiste degerler degisince kgc_esle en fazla 39 NVS "
          "okumasi: ayar komutu ve Gb'de loop_azami < 20 ms (tahmin ~4-8 ms)"),
+        ("1C-1 pil oturumu kartta (ADS yok)",
+         "tezgah_kayit.py --pil: p1 reddedilir ve oturum acmaz; Ga/Ge/Gn gercek oturuma, "
+         "PC adi/etiketi/notlari okur, Gx siler; olcum oturumu yeniden baslatmada DEVAM"),
+        ("[!] ADS takilinca: GERCEK pil testi kaydi",
+         "p1 -> G satirinda PIL oturumu; 5 dk'da bir DCIR olayi; kesmede PIL_SONUC == `B` "
+         "raporu (mAh, Wh, sure, dcir sayisi); test ortasinda fis cekilirse acilista oturum "
+         "BITIR(5), DEVAM yok; olcum kaydi surerken p1 -> olcum BITIR(6)"),
         ("Gercek fis cekme (USB + PIL kapali)",
          "elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla "
          "son ~5 s"),
