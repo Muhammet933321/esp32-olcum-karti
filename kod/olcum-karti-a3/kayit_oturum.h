@@ -174,7 +174,6 @@ static inline int ky_ayrinti_bosalt(KayitYazici *y)
                 top += (uint32_t)(kayit_o16(p + j * KAYIT_AYRINTI_ORNEK + 4u) >> 4);
             y->a_ilk_us += 4u * top;
             y->a_ilk_ms += (4u * top + 500u) / 1000u;
-            y->a_q -= top;
             memmove(p, p + n * KAYIT_AYRINTI_ORNEK,
                     (size_t)(y->a_adet - n) * KAYIT_AYRINTI_ORNEK);
             kayit_y16(p + 4, (uint16_t)(kayit_o16(p + 4) & 0x0Fu));   /* ilk: dt4 0 */

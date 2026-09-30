@@ -1090,7 +1090,11 @@ static void senaryo(void)
         adim_n(20u);
         sayi("SONRA3", (int32_t)(sil_say - s0));
         sayi("HZ3", (int32_t)g.hazir);
-        sayi("BIC", kyn_bicimle(&m, t_ms));
+        sayi("YAC", kg_ac(&g, 0u, g.onay));       /* AYNI surecte yeniden acilis (RAM dolu) */
+        sayi("YACHZ", (int32_t)g.hazir);
+        adim_n(20u);                              /* ayni sektorler yeniden hazir: bicim sinansin */
+        sayi("HZ5", (int32_t)g.hazir);
+        sayi("BIC", kyn_bicimle(&m, t_ms));       /* bicimden sonra silme YOK: Z2/Z6 flasi okur */
         sayi("BICHZ", (int32_t)g.hazir);
         break;
     case 4:                                       /* B: onaysizda durur; hepsi onayli: bas korunur */

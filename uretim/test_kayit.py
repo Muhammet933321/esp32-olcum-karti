@@ -1058,11 +1058,16 @@ def bolum_hazir() -> None:
        and (_say(z3, "SONRA3") or 0) >= 1,
        f"OTURUMDA={_say(z3, 'OTURUMDA')} IZINSIZ={_say(z3, 'IZINSIZ')} HEMEN={_say(z3, 'HEMEN')} "
        f"SONRA3={_say(z3, 'SONRA3')}")
-    ok("B71.Z4 hazir sayaci her ACILISTA 0 (yalniz bu acilista silinen guvenilir) ve "
-       "mantiksal bicimlemede 0",
+    # 🔴 ilk surum yalniz yeni SURECTE acilisa bakiyordu: RAM zaten sifir,
+    # kg_ac'in sifirlamasi silinse de yesildi (mutasyon kacti). Artik hazir > 0
+    # iken AYNI surecte kg_ac (YAC) de 0 vermeli.
+    ok("B71.Z4 hazir sayaci her ACILISTA 0 (yalniz bu acilista silinen guvenilir): yeni "
+       "surecte ve hazir > 0 iken ayni surecte kg_ac'ta; mantiksal bicimlemede 0",
        [_say(z, "HZ0") for z in (z1, z2, z3)] == [0, 0, 0] and (_say(z3, "HZ3") or 0) > 0
-       and _say(z3, "BIC") == 0 and _say(z3, "BICHZ") == 0,
-       f"HZ0={[_say(z, 'HZ0') for z in (z1, z2, z3)]} HZ3={_say(z3, 'HZ3')} BICHZ={_say(z3, 'BICHZ')}")
+       and _say(z3, "BIC") == 0 and _say(z3, "BICHZ") == 0
+       and (_say(z3, "HZ5") or 0) > 0 and _say(z3, "YAC") == 0 and _say(z3, "YACHZ") == 0,
+       f"HZ0={[_say(z, 'HZ0') for z in (z1, z2, z3)]} HZ3={_say(z3, 'HZ3')} BICHZ={_say(z3, 'BICHZ')} "
+       f"HZ5={_say(z3, 'HZ5')} YAC={_say(z3, 'YAC')} YACHZ={_say(z3, 'YACHZ')}")
     elf_b = derle("HAZIR", HZ_SEKTOR, ek=("-DKYN_HAZIR_HEDEF=100u",))
     fb = NorFlas(SEKTOR * HZ_SEKTOR, sektor=SEKTOR)
     fb.nvs["t_rast"] = 17
