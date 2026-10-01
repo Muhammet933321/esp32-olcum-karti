@@ -115,6 +115,13 @@ __attribute__((noinline)) static int ss_sha_bit(void *ctx, uint8_t c[32])
     return 0;
 }
 
+/* guv_pbkdf2'nin ipad/opad durum kopyasi: hedef kaynagin durumunu alir (yigin yok, duz kopya) */
+__attribute__((noinline)) static int ss_sha_kopya(void *hedef, const void *kaynak)
+{
+    memcpy(hedef, kaynak, sizeof(SsSha));
+    return 0;
+}
+
 __attribute__((noinline)) static int ss_hmac_bas(void *ctx, const uint8_t *anahtar, uint16_t n)
 {
     SsHmac *m = (SsHmac *)ctx;

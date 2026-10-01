@@ -2028,10 +2028,12 @@ static void senaryo(void)
 #define GUV_SINAMA 1
 #define GUV_ISLEV static __attribute__((noinline, unused))
 #define GUV_CTX_BOYU 176u          /* sinama HMAC'i 169 B; kartta 224 */
+#define GUV_SHA_BOYU 104u          /* sinama SHA'si 101 B (guv_pbkdf2 yiginda 3 tane) */
 #define GUV_NEFES_ARALIK 2u        /* sinamada her 2 turda bir nefes (kartta 1000) */
 #include "sha256_sinama.h"
 #include "guvenlik.h"
 _Static_assert(sizeof(SsHmac) <= GUV_CTX_BOYU, "GUV_CTX_BOYU sinama HMAC'ina yetmiyor");
+_Static_assert(sizeof(SsSha) <= GUV_SHA_BOYU, "GUV_SHA_BOYU sinama SHA'sina yetmiyor");
 #define NVS_ANAHTAR (*(volatile uint8_t *)0xE7)
 #define NVS_V(i)    (*(volatile uint8_t *)(0xE8 + (i)))
 #define NVS_KOMUT   (*(volatile uint8_t *)0xEC)
@@ -2100,6 +2102,12 @@ static const GuvNvs GNVS = { gv_oku, gv_yaz, 0 };
 static uint8_t gv_bit_hata = 0;               /* U17: kriptografi hatasi enjeksiyonu */
 static uint8_t gv_bit_tek = 0;                /* U17H: yalniz SONRAKI cagri hata */
 static uint16_t gv_nefes_say = 0;
+static uint16_t gv_kopya_say = 0, gv_hbas_say = 0;   /* U19: guv_pbkdf2'nin tur basina isi */
+static int gv_hmac_bas(void *ctx, const uint8_t *k, uint16_t n)
+{
+    gv_hbas_say++;
+    return ss_hmac_bas(ctx, k, n);
+}
 static int gv_hmac_bit(void *ctx, uint8_t c[32])
 {
     int r = ss_hmac_bit(ctx, c);
@@ -2109,9 +2117,19 @@ static int gv_hmac_bit(void *ctx, uint8_t c[32])
     }
     return gv_bit_hata ? -1 : r;
 }
+static int gv_sha_bit(void *ctx, uint8_t c[32])
+{
+    int r = ss_sha_bit(ctx, c);
+    return gv_bit_hata ? -1 : r;
+}
+static int gv_sha_kopya(void *h, const void *k)
+{
+    gv_kopya_say++;
+    return ss_sha_kopya(h, k);
+}
 static void gv_nefes(void) { gv_nefes_say++; }
-static const GuvKripto GK = { ss_hmac_bas, ss_hmac_ekle, gv_hmac_bit, ss_sha_bas,
-                              ss_sha_ekle, ss_sha_bit, gv_rastgele, gv_nefes };
+static const GuvKripto GK = { gv_hmac_bas, ss_hmac_ekle, gv_hmac_bit, ss_sha_bas,
+                              ss_sha_ekle, gv_sha_bit, gv_sha_kopya, gv_rastgele, gv_nefes };
 static GuvDurum g;
 static uint8_t K4[32];                         /* cihaz 4'un K'si (test tarafi hesaplar) */
 static const char PAROLA[] = "dogru-parola-12";
@@ -2253,6 +2271,22 @@ static NI void a1_kripto(void)
       for (i = 0; i < 16u; i++) tuz[i] = (uint8_t)(0xA0u + i);
       KOD("PB3R", guv_pbkdf2(&GK, PAROLA, tuz, 16, 3, c)); HEXS("PB3", c);
       KOD("NEF", (int)(gv_nefes_say - n0)); }
+}
+
+/* U19 (kart tezgahi 2026-10-01: 50 000 tur 4.76 s, her turda HMAC kurulumu + bellek
+   ayirma): guv_pbkdf2 HMAC'in ipad/opad durumunu BIR KEZ kurar, her turda 2 SHA kopyasi,
+   HMAC kurulumu YOK; 64 bayttan uzun parola once SHA-256'lanir (RFC 2104) */
+static NI void a1_pbkdf2(void)
+{
+    char uzun[71];
+    uint8_t c[32];
+    uint16_t k0 = gv_kopya_say, h0 = gv_hbas_say;
+    memset(uzun, 'u', 70);
+    uzun[70] = 0;
+    KOD("U19R", guv_pbkdf2(&GK, uzun, (const uint8_t *)"salt", 4, 3, c));
+    HEXS("U19", c);
+    KOD("U19K", (int)(gv_kopya_say - k0));
+    KOD("U19H", (int)(gv_hbas_say - h0));
 }
 
 static NI void a1_vektor(void)
@@ -2504,6 +2538,7 @@ static void senaryo(void)
     switch (adim) {
     case 1:
         a1_kripto();
+        a1_pbkdf2();
         a1_vektor();
         a1_imza_vektor();
         a1_eslesme();

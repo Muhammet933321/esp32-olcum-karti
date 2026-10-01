@@ -1299,13 +1299,33 @@ def bolum_guvenlik_kart() -> None:
     ok("B72.F97 rastgele sayilar RF acikken: guv_esp_ac ag kurulduktan SONRA; Ep WiFi kapaliyken "
        "REDDEDILIR (RF'siz RNG yalanci-rastgele)",
        0 <= i_ag < i_guv and "WiFi.getMode()" in pg)
-    toplanan = re.search(r"toplanacak\[\]\s*=\s*\{([^}]*)\}", ino_k)
+    # ── 1D kart tezgahi (2026-10-01) bulgulari ──
+    zg = sk[sk.find("case 'z':"):sk.find("case 't':")]
+    ok("B72.F98 (kart tezgahi: her Ez/Em cekirdek 1'i P hesabiyla 4.7 s donduruyordu, ardindan "
+       "gelen seri komutlar bekliyordu) Ez/Em P'yi YALNIZ ayar bozukken (tuz yeniden uretildi) "
+       "yeniden hesaplatir",
+       "ayar_bozuk" in zg and re.search(r"if \(\w+\)\s*guv_p_eski = 1;", zg) is not None
+       and zg.count("guv_p_eski = 1") == 1)
+    ok("B72.F99 (kart tezgahi: 85 us/tur, her turda HMAC kurulumu + bellek ayirma) kartin SHA'si "
+       "mbedtls_sha256 (bellek ayirmasiz, KOPYALANABILIR), tabloda sha_kopya; varsayilan tur "
+       "20 000 (kartta < 1 s, tezgah olcer: 25 000 = 956 ms, pay yetersiz)",
+       "mbedtls_sha256_clone(" in govde(esp_k, "static int gm_sha_kopya(")
+       and "gm_sha_kopya" in esp_k[esp_k.find("static const GuvKripto guv_kripto"):]
+       and "mbedtls_md_" not in govde(esp_k, "static int gm_sha_bas(")
+       and re.search(r"#define GUV_TUR_VARSAYILAN\s+20000UL", gh_k) is not None)
+    ok("B72.F100 Et SABIT sinama parolasiyla olcer (gercek parola DEGIL) ve P'nin ilk 8 baytini "
+       "basar: tezgah kartin PBKDF2'sini Python hashlib ile karsilastirir",
+       '"olcum-tur-olcumu-1D"' in tg and "web_sifre" not in tg and '"ET %lu %lu %s"' in tg)
+    toplanan =re.search(r"toplanacak\[\]\s*=\s*\{([^}]*)\}", ino_k)
     tz = _oku_tezgah = (BURASI / "tezgah_kayit.py").read_text(encoding="utf-8")
     tg2 = tz[tz.find("def guvenlik("):tz.find("\ndef esit(")]
     fin = tg2[tg2.rfind("finally:"):]
     ok("B72.F94 tezgah --guvenlik yarida kalsa da karti GERI ALIR: Em0, Ez0 ve test cihazinin "
        "silinmesi finally blogunda",
        "finally:" in tg2 and all(x in fin for x in ('"Em0"', '"Ez0"', '"Ex')))
+    ok("B72.F101 (kart tezgahi: olcum.local cozumu ~3 s) tezgah Ep'yi SSE dinleyicisi BAGLANDIKTAN "
+       "sonra gonderir; baglanmamissa 'anahtar SSE'de yok' denetimi KIRMIZI (bos yere gecmez)",
+       0 <= tg2.find("bagli = ") < tg2.find("IM.esles_usb(") and "bagli and c.n" in tg2)
     ok("B72.F88 imza basliklari toplaniyor (X-Cihaz, X-Sayac, X-Imza, Content-Type) ve CORS "
        "on ucu izin veriyor",
        toplanan is not None and all(f'"{b}"' in toplanan.group(1)

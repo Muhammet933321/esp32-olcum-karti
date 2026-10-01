@@ -14,6 +14,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include <mbedtls/md.h>
+#include <mbedtls/sha256.h>
 #include <esp_random.h>
 #include <esp_sntp.h>
 #include <sys/time.h>
@@ -70,12 +71,22 @@ static int gm_hmac_bit(void *ctx, uint8_t o[32])
     return r;
 }
 
+/* SHA baglami mbedtls_sha256 (md katmani DEGIL): bellek ayirmaz ve KOPYALANABILIR —
+   guv_pbkdf2 ipad/opad durumunu her turda kopyalar. Kart tezgahi 2026-10-01: md
+   katmaniyla her turda HMAC kurulumu 85 us/tur, sha256 kopyasiyla 30.5 us/tur. */
+typedef struct {
+    mbedtls_sha256_context s;
+    int hata;
+} GuvMbedSha;
+static_assert(sizeof(GuvMbedSha) <= GUV_SHA_BOYU, "mbedtls_sha256 baglami GUV_SHA_BOYU'na sigmali");
+
 static int gm_sha_bas(void *ctx)
 {
-    GuvMbedCtx *c = (GuvMbedCtx *)ctx;
-    if (gm__kur(c, 0) != 0) return -1;
-    if (mbedtls_md_starts(&c->md) != 0) {
-        mbedtls_md_free(&c->md);
+    GuvMbedSha *c = (GuvMbedSha *)ctx;
+    mbedtls_sha256_init(&c->s);
+    c->hata = 0;
+    if (mbedtls_sha256_starts(&c->s, 0) != 0) {
+        mbedtls_sha256_free(&c->s);
         return -1;
     }
     return 0;
@@ -83,16 +94,26 @@ static int gm_sha_bas(void *ctx)
 
 static void gm_sha_ekle(void *ctx, const void *v, uint16_t n)
 {
-    GuvMbedCtx *c = (GuvMbedCtx *)ctx;
-    if (!c->hata && mbedtls_md_update(&c->md, (const unsigned char *)v, n) != 0) c->hata = 1;
+    GuvMbedSha *c = (GuvMbedSha *)ctx;
+    if (!c->hata && mbedtls_sha256_update(&c->s, (const unsigned char *)v, n) != 0) c->hata = 1;
 }
 
 static int gm_sha_bit(void *ctx, uint8_t o[32])
 {
-    GuvMbedCtx *c = (GuvMbedCtx *)ctx;
-    const int r = (c->hata || mbedtls_md_finish(&c->md, o) != 0) ? -1 : 0;
-    mbedtls_md_free(&c->md);
+    GuvMbedSha *c = (GuvMbedSha *)ctx;
+    const int r = (c->hata || mbedtls_sha256_finish(&c->s, o) != 0) ? -1 : 0;
+    mbedtls_sha256_free(&c->s);
     return r;
+}
+
+static int gm_sha_kopya(void *hedef, const void *kaynak)
+{
+    GuvMbedSha *h = (GuvMbedSha *)hedef;
+    const GuvMbedSha *k = (const GuvMbedSha *)kaynak;
+    mbedtls_sha256_init(&h->s);
+    mbedtls_sha256_clone(&h->s, &k->s);
+    h->hata = k->hata;
+    return 0;
 }
 
 static void gm_rastgele(uint8_t *h, uint16_t n)
@@ -108,7 +129,8 @@ static void gm_nefes(void)
 }
 
 static const GuvKripto guv_kripto = { gm_hmac_bas, gm_hmac_ekle, gm_hmac_bit, gm_sha_bas,
-                                      gm_sha_ekle, gm_sha_bit, gm_rastgele, gm_nefes };
+                                      gm_sha_ekle, gm_sha_bit, gm_sha_kopya, gm_rastgele,
+                                      gm_nefes };
 
 /* ── NVS: `guv` ad alani (ayar), `cihaz` ad alani (c1..c8) ── */
 static Preferences guv_nvs_ayar;

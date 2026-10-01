@@ -1886,6 +1886,13 @@ def bolum_guvenlik() -> None:
        k(a1, "PB1R") == 0 and h(a1, "PB1") == V["pbkdf2"][0]["dk"][:64] and k(a1, "PB3R") == 0
        and h(a1, "PB3") == pr["pbkdf2_uc"]["P"] and (k(a1, "NEF") or 0) >= 1,
        f"{h(a1, 'PB1')} {h(a1, 'PB3')} nefes={k(a1, 'NEF')}")
+    import hashlib as _hl
+    u19 = _hl.pbkdf2_hmac("sha256", b"u" * 70, b"salt", 3, 32).hex()
+    ok("B71.U19 (kart tezgahi: 50 000 tur 4.76 s) guv_pbkdf2 HMAC'in ipad/opad durumunu BIR KEZ "
+       "kurar: tur basina 2 SHA kopyasi, HMAC kurulumu YOK; 70 baytlik parola (once SHA-256) "
+       "Python hashlib ile ayni",
+       k(a1, "U19R") == 0 and h(a1, "U19") == u19 and k(a1, "U19K") == 6 and k(a1, "U19H") == 0,
+       f"{h(a1, 'U19')} kopya={k(a1, 'U19K')} hmac_bas={k(a1, 'U19H')}")
     ok("B71.U3 VEKTOR eslestirmesi: kart Python'un istemci kanitini KABUL eder (P = PBKDF2 tur 2), "
        "numara 3, kart kaniti ve K Python ile AYNI",
        k(a1, "UP") == 0 and k(a1, "USB1") == 1 and k(a1, "USB2") == 2 and k(a1, "U3") == 0

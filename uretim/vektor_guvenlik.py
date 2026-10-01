@@ -52,7 +52,7 @@ def uret() -> dict:
     kim = "a1b2c3d4e5f60718"
     nk = bytes(range(0x10, 0x20))
     nc = bytes(range(0x40, 0x50))
-    # AVR'de PBKDF2 hizli olsun: tur 2 (kartta tur ayardan, varsayilan >= 50 000)
+    # AVR'de PBKDF2 hizli olsun: tur 2 (kartta tur ayardan, varsayilan 20 000 — kartta olculdu)
     kisa = {"parola": "dogru-parola-12", "tuz": bytes(range(0xA0, 0xB0)).hex(), "tur": 2}
     P = IM.pbkdf2(kisa["parola"], bytes.fromhex(kisa["tuz"]), kisa["tur"])
     ad, n = "PC ğ", 3

@@ -19,6 +19,7 @@
  *  - PBKDF2 cekirdekte (guv_pbkdf2), GUV_NEFES_ARALIK turda bir `nefes` (kartta
  *    zamanlayiciya pay; bekci/WDT); P YALNIZ guv_p_hesapla ile hesaplanir — kartta
  *    cekirdek 1, web yolunda HIC PBKDF2 yok;
+ *  - (kart tezgahi) PBKDF2 ipad/opad SHA durumunu kopyalar (`sha_kopya`): 85 -> 30 us/tur;
  *  - ayar kaydi VAR ama okunamiyorsa (boy/surum) fail-CLOSED: imza zorunlu.
  * AVR'de sinaniyor: test_kayit.py B71.U (SENARYO_GUV). */
 #ifndef GUVENLIK_H
@@ -35,8 +36,11 @@
 #define GUV_BEKLE_AZAMI_K 8u          /* 2^8 s ~ 4 dk */
 #define GUV_SON_YAZ_S     3600UL      /* "son gorulme" NVS'e saatte en fazla bir kez */
 #define GUV_AYAR_SURUM    1u
+/* Varsayilan tur kartta < 1 s (spec K4). Kart tezgahi 2026-10-01: ESP32-S3'te en hizli
+   PBKDF2 (ipad/opad kopyasi) 30.5 us/tur, firmware icinde ~38 us/tur — 25 000 tur 956 ms
+   (yuzde 4 pay, WiFi yukunde asar); 20 000 ~ 0.77 s. */
 #ifndef GUV_TUR_VARSAYILAN
-#define GUV_TUR_VARSAYILAN 50000UL
+#define GUV_TUR_VARSAYILAN 20000UL
 #endif
 #define GUV_TUR_EN_AZ     10000UL     /* istemci de bunun altini REDDEDER (sahte kart) */
 #define GUV_TUR_EN_COK    200000UL
@@ -50,6 +54,9 @@
 #endif
 #ifndef GUV_CTX_BOYU
 #define GUV_CTX_BOYU      224u
+#endif
+#ifndef GUV_SHA_BOYU
+#define GUV_SHA_BOYU      GUV_CTX_BOYU  /* yalniz SHA baglami (guv_pbkdf2 yiginda 3 tane) */
 #endif
 
 #define GUV_E_YOK    (-1)
@@ -73,6 +80,9 @@ typedef struct {
     int  (*sha_bas)(void *ctx);
     void (*sha_ekle)(void *ctx, const void *v, uint16_t n);
     int  (*sha_bit)(void *ctx, uint8_t c[32]);
+    /* hedef (baslatilmamis ya da bitmis) kaynagin SHA durumunu alir; guv_pbkdf2 ipad/opad
+       durumunu bir kez kurup her turda kopyalar */
+    int  (*sha_kopya)(void *hedef, const void *kaynak);
     void (*rastgele)(uint8_t *h, uint16_t n);
     void (*nefes)(void);                    /* NULL olabilir */
 } GuvKripto;
@@ -110,6 +120,12 @@ typedef union {
     uint64_t _hiza;
     void    *_isaret;
 } GuvCtx;
+
+typedef union {
+    uint8_t  b[GUV_SHA_BOYU];
+    uint64_t _hiza;
+    void    *_isaret;
+} GuvShaCtx;
 
 typedef struct {
     const GuvKripto *k;
@@ -220,26 +236,63 @@ GUV_ISLEV void guv__ekle(const GuvDurum *g, void *ctx, const char *s)
 GUV_ISLEV int guv_pbkdf2(const GuvKripto *k, const char *parola, const uint8_t *tuz,
                          uint16_t tn, uint32_t tur, uint8_t c[32])
 {
+    /* HMAC'in ipad/opad durumu BIR KEZ kurulur, her turda KOPYALANIR: tur basina 2 SHA
+       sikistirmasi. Kart tezgahi 2026-10-01: her turda HMAC kurulumu (+ bellek ayirma)
+       85 us/tur, 50 000 tur 4.76 s; kopya ile 30.5 us/tur (B71.U19, B72.F99). */
     static const uint8_t bir[4] = {0u, 0u, 0u, 1u};
-    GuvCtx ctx;
-    uint8_t u[32], i;
+    GuvShaCtx ic, dis, is;
+    uint8_t ped[64], u[32], i;
+    const uint8_t *a = (const uint8_t *)parola;
     uint16_t pn = (uint16_t)strlen(parola);
     uint32_t t;
+    int r = 0;
     if (!tur) return GUV_E_KRIPTO;
-    if (k->hmac_bas(ctx.b, (const uint8_t *)parola, pn)) return GUV_E_KRIPTO;
-    k->hmac_ekle(ctx.b, tuz, tn);
-    k->hmac_ekle(ctx.b, bir, 4);
-    if (k->hmac_bit(ctx.b, u)) return GUV_E_KRIPTO;
-    memcpy(c, u, 32);
-    for (t = 1; t < tur; t++) {
-        if (k->hmac_bas(ctx.b, (const uint8_t *)parola, pn)) return GUV_E_KRIPTO;
-        k->hmac_ekle(ctx.b, u, 32);
-        if (k->hmac_bit(ctx.b, u)) return GUV_E_KRIPTO;
-        for (i = 0; i < 32u; i++) c[i] ^= u[i];
+    if (pn > 64u) {                               /* RFC 2104: uzun anahtar once ozetlenir */
+        if (k->sha_bas(is.b)) return GUV_E_KRIPTO;
+        k->sha_ekle(is.b, parola, pn);
+        if (k->sha_bit(is.b, u)) return GUV_E_KRIPTO;
+        a = u;
+        pn = 32u;
+    }
+    memset(ped, 0x36, sizeof(ped));
+    for (i = 0; i < pn; i++) ped[i] ^= a[i];
+    if (k->sha_bas(ic.b)) {
+        r = GUV_E_KRIPTO;
+    } else {
+        k->sha_ekle(ic.b, ped, 64);
+        for (i = 0; i < 64u; i++) ped[i] ^= (uint8_t)(0x36u ^ 0x5cu);
+        if (k->sha_bas(dis.b)) {
+            (void)k->sha_bit(ic.b, u);
+            r = GUV_E_KRIPTO;
+        }
+    }
+    if (r) {
+        memset(ped, 0, sizeof(ped));
+        memset(u, 0, sizeof(u));
+        return r;
+    }
+    k->sha_ekle(dis.b, ped, 64);
+    memset(ped, 0, sizeof(ped));
+    for (t = 0; t < tur; t++) {
+        if (k->sha_kopya(is.b, ic.b)) { r = GUV_E_KRIPTO; break; }
+        if (t == 0) {
+            k->sha_ekle(is.b, tuz, tn);
+            k->sha_ekle(is.b, bir, 4);
+        } else {
+            k->sha_ekle(is.b, u, 32);
+        }
+        if (k->sha_bit(is.b, u) || k->sha_kopya(is.b, dis.b)) { r = GUV_E_KRIPTO; break; }
+        k->sha_ekle(is.b, u, 32);
+        if (k->sha_bit(is.b, u)) { r = GUV_E_KRIPTO; break; }
+        if (t == 0) memcpy(c, u, 32);
+        else for (i = 0; i < 32u; i++) c[i] ^= u[i];
         if (k->nefes && (t % GUV_NEFES_ARALIK) == 0u) k->nefes();
     }
+    (void)k->sha_bit(ic.b, u);                    /* ipad/opad durumlari serbest */
+    (void)k->sha_bit(dis.b, u);
     memset(u, 0, sizeof(u));
-    return 0;
+    if (r) memset(c, 0, 32);
+    return r;
 }
 
 /* HMAC(P, etiket \n kimlik \n nk \n nc \n son); 0 tamam, GUV_E_KRIPTO hata */

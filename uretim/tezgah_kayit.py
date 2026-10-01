@@ -943,14 +943,33 @@ def guvenlik(k, host: str) -> None:
     adet0 = int(e0.split("cihaz=")[1]) if "cihaz=" in e0 else -1
     ok("E? durum satiri; imza zorunlu DEGIL (varsayilan = gecis, bugunku kurallar)",
        "zorunlu=0" in e0 and "misafir=0" in e0, e0)
-    olc = {}
-    for tur in (50000, 100000):
+    import hashlib
+    tuz = bytes.fromhex(IM.bilgi(taban)["tuz"])
+    olc, oz = {}, {}
+    for tur in (20000, 50000):
         s, _ = komut(k, f"Et{tur}", 10, None)
         et = next((x.split() for x in s if x.startswith("ET ")), None)
-        olc[tur] = int(et[2]) if et and len(et) == 3 else None
+        olc[tur] = int(et[2]) if et and len(et) == 4 else None
+        oz[tur] = et[3] if et and len(et) == 4 else None
+    bek = hashlib.pbkdf2_hmac("sha256", b"olcum-tur-olcumu-1D", tuz, 20000, 32)[:8].hex()
     print(f"  PBKDF2-HMAC-SHA256 kartta (ms): {olc}")
-    ok("PBKDF2 50 000 tur kartta < 1 s (spec §13; tur ayardan, sonradan degisebilir)",
-       olc.get(50000) is not None and olc[50000] < 1000, str(olc))
+    ok("PBKDF2 varsayilan 20 000 tur kartta < 1 s (spec K4) ve sonucu Python hashlib ile AYNI "
+       "(Et sabit sinama parolasi + kartin acik tuzu)",
+       olc.get(20000) is not None and olc[20000] < 1000 and oz.get(20000) == bek,
+       f"{olc} oz={oz.get(20000)} bek={bek}")
+
+    # kart tezgahi 2026-10-01: her Ez/Em P'yi yeniden hesaplatip cekirdek 1'i 4.7 s donduruyordu
+    k.yaz("Em0\n")
+    dinle(k, 0.3)
+    k.yaz("E?\n")
+    t0, gec = time.time(), None
+    while time.time() - t0 < 8.0:
+        x = k.satir_oku(0.1)
+        if x and x.startswith("E zorunlu="):
+            gec = time.time() - t0
+            break
+    ok("Em0'dan hemen sonra E? < 1 s icinde yanit (Ez/Em P'yi yeniden HESAPLATMAZ; cekirdek 1 "
+       "olcum ve seri icin serbest)", gec is not None and gec < 1.0, f"{gec}")
 
     sse: list[str] = []
     dur = threading.Event()
@@ -967,16 +986,21 @@ def guvenlik(k, host: str) -> None:
             sse.append(f"!hata {e}")
     t = threading.Thread(target=dinleyici, daemon=True)
     t.start()
-    time.sleep(2.5)
+    # kart tezgahi 2026-10-01: olcum.local cozumu ~3 s; dinleyici BAGLANMADAN Ep gonderilirse
+    # "anahtar SSE'de yok" bos yere gecer. Once akisin ilk olayini bekle.
+    son = time.time() + 15
+    while time.time() < son and not any(x.startswith("data:") for x in sse):
+        time.sleep(0.1)
+    bagli = any(x.startswith("data:") for x in sse)
     with tempfile.TemporaryDirectory() as d:
         c = IM.esles_usb(k, "tezgah-1D", dizin=Path(d))
         time.sleep(2.5)
         dur.set()
         sm = "".join(sse)
-        ok("USB eslestirmesi (Ep): EK satirindan cihaz + 32 B anahtar; AYNI ANDA /akis (SSE) dinleyen "
-           "anahtari ve EK satirini GORMEDI, '* E: USB'den cihaz' bildirimini gordu",
-           c.n >= 1 and len(c.K) == 32 and c.K.hex() not in sm and "EK " not in sm
-           and "USB'den cihaz" in sm, f"n={c.n} sse={len(sse)} satir")
+        ok("USB eslestirmesi (Ep): EK satirindan cihaz + 32 B anahtar; ONCEDEN BAGLANMIS /akis (SSE) "
+           "dinleyicisi anahtari ve EK satirini GORMEDI, '* E: USB'den cihaz' bildirimini gordu",
+           bagli and c.n >= 1 and len(c.K) == 32 and c.K.hex() not in sm and "EK " not in sm
+           and "USB'den cihaz" in sm, f"bagli={bagli} n={c.n} sse={len(sse)} satir")
 
         try:
             with IM.ac(c, taban, "GET", "/kayit/liste") as y:

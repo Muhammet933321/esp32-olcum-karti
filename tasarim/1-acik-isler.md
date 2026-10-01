@@ -115,8 +115,8 @@
 | # | Ne | Durum |
 |---|---|---|
 | D0 | ⚠ **`main`'deki firmware'de ön-cesi sızıntı:** `N?` AP WiFi parolasını `Serial` aynası üzerinden açık `/akis` SSE'sine (ağa) basıyor. Düzeltme yalnız 1D dalında (`Serial.ham`). | **Öncelikli** — 1D onaylanmasa da bu tek satır `main`'e alınmalı |
-| D1 | Kart tezgahı (`tezgah_kayit.py --guvenlik`) hiç koşulmadı: kart 2026-10-01 13:20'de bağlı değildi | Kart takılınca: NVS yedeği → yükle → `--duman --guvenlik` → `main` firmware'ine geri dön |
-| D2 | PBKDF2 varsayılan turu (50 000) kartta ÖLÇÜLMEDİ (`Et50000`); hedef < 1 s | Tezgahta `Et`; uzunsa `Er` ile düşür (alt sınır 10 000) |
+| ~~D1~~ | ~~Kart tezgahı hiç koşulmadı~~ → **2026-10-01 akşam koşuldu: ilk koşu 15/18**, üç gerçek bulgu: (a) PBKDF2 50 000 tur 4.76 s; (b) her `Ez`/`Em` P'yi yeniden hesaplatıp çekirdek 1'i 4.7 s donduruyordu, sonraki seri komutlar bekliyordu; (c) tezgahın SSE dinleyicisi `olcum.local` çözümü (~3 s) bitmeden `Ep` gönderiyordu, "anahtar SSE'de yok" denetimi BOŞ yere geçebilirdi. Tanı koşusunda anahtar SSE'ye DÜŞMÜYOR (doğrulandı). Üçü de düzeltildi (B71.U19, B72.F98–F101), **son koşu 19/19**. Kart ardından tam yedekten `main` firmware'ine (A3-1C4) döndürüldü | Kapandı |
+| ~~D2~~ | ~~Varsayılan tur ölçülmedi~~ → kartta ayrı bir ölçüm eskiziyle beş PBKDF2 yolu karşılaştırıldı (hepsi `hashlib` ile aynı sonuç): her turda HMAC kurulumu 85 µs/tur · mbedTLS PBKDF2 56.7 · `hmac_reset` 56.3 · yazılım SHA 43.3 · **ipad/opad kopyası 30.5** (seçildi). Firmware içinde ~38 µs/tur: 25 000 tur 956 ms (pay %4), **varsayılan 20 000 = 764 ms**. 50 000 bu çipte < 1 s OLAMAZ (en iyi yol 1.9 s) | Kapandı (karar spec K4'te; kullanıcı onayına açık) |
 | D3 | Parolalı eşleştirmenin BAŞARI yolu kartta sınanmadı (web parolası bilinmiyor) | Kullanıcı: `python kopru/imza.py esles --host olcum.local --ad PC` |
 | D4 | Onay bekleyen kritik kararlar (spec "⚠ Onay bekleyen" 1–7): geçiş kipi, PAKE değil, 10 karakter, deneme sınırı, cihazdan saat, USB eşleştirme, Basic-Auth ile parola zaten açık gitti | Kullanıcı kararı |
 | D5 | Ertelenen küçükler (son inceleme #8, #10–#12, #14–#19) | Aşağıdaki liste |

@@ -3250,10 +3250,13 @@ static void guv_seri_komut(const char *s) {
       if (s[2] != '0' && s[2] != '1') { Serial.println(F("! E: Ez0|Ez1 · Em0|Em1")); break; }
       const int d = s[2] == '1';
       guv_kilit();
+      const uint8_t bozuktu = guv.ayar_bozuk;
       const int r = (s[1] == 'z') ? guv_ayar_yaz(&guv, d, -1, 0) : guv_ayar_yaz(&guv, -1, d, 0);
       guv_birak();
       if (r) { Serial.println(F("! E: ayar yazilamadi")); break; }
-      guv_p_eski = 1;                   /* ayar bozuktuysa tuz yeniden uretildi */
+      /* P YALNIZ tuz degistiyse (ayar bozuktu, yeniden uretildi). Kart tezgahi 2026-10-01:
+         her Ez/Em'de P hesabi cekirdek 1'i (olcum + seri) 4.7 s donduruyordu */
+      if (bozuktu) guv_p_eski = 1;
       if (s[1] == 'z')
         Serial.println(d ? F("* E: imza ZORUNLU — imzasiz okuma/komut 401 (p0 ve ? serbest)")
                          : F("* E: imza zorunlu DEGIL — bugunku kurallar (gecis)"));
@@ -3268,12 +3271,16 @@ static void guv_seri_komut(const char *s) {
       uint32_t tur = strtoul(s + 2, nullptr, 10);
       if (!tur) tur = guv.ayar.tur;
       if (tur < 1000UL || tur > GUV_TUR_EN_COK) { Serial.println(F("! E: Et<1000..200000>")); break; }
+      /* SABIT sinama parolasi (gercek parola DEGIL) + acik tuz: sonuc gizli degil. Ilk 8
+         bayti basilir, tezgah Python hashlib ile karsilastirir (kartin PBKDF2'si dogru mu) */
       uint8_t P[32];
+      char oz[17];
       const uint32_t t0 = millis();
       guv_pbkdf2(&guv_kripto, "olcum-tur-olcumu-1D", guv.ayar.tuz, 16, tur, P);
       const uint32_t ms = millis() - t0;
+      guv__hex(P, 8, oz);
       memset(P, 0, sizeof(P));
-      snprintf(t, sizeof(t), "ET %lu %lu", (unsigned long)tur, (unsigned long)ms);
+      snprintf(t, sizeof(t), "ET %lu %lu %s", (unsigned long)tur, (unsigned long)ms, oz);
       Serial.println(t);
       break;
     }
