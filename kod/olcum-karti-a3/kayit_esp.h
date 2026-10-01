@@ -44,9 +44,10 @@
 #include "kayit_nokta.h"
 #include "kayit_yonet.h"
 #include "kalgec.h"               /* 1B: kalibrasyon gecmisi (platformsuz) */
+#include "kayit_plan.h"           /* 1C-4: zamanlanmis kayit karar mantigi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-1C3"    /* 1C-3: SKOP kaydi + SKOP oturumu (osiloskop gunlugu) */
+#define KAYIT_FW_SURUM    "A3-1C4"    /* 1C-4: zamanlanmis kayit (OLAY PLAN, sebep 7) */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
@@ -64,6 +65,8 @@
 #define KM_NOT        7u   /* 1C-1: yukte NOT kaydi (ad/etiket/not) */
 #define KM_SKOP       8u   /* 1C-3: yuvadaki yakalama (yuk yok; yuva PSRAM'de) */
 #define KM_SKOP_BASLAT 9u  /* 1C-3: BASLA (tur SKOP) + yukte SKOP_KAL olayi, TEK mesaj */
+#define KM_PLAN_BITIR 10u  /* 1C-4: yukte u32 oturum; YALNIZ etkin oturum oysa BITIR(7) */
+#define KM_PLAN_BASLAT 11u /* 1C-4: BASLA + yukte PLAN olayi, TEK mesaj */
 
 typedef struct {
     uint8_t    tur, sebep;
@@ -284,6 +287,7 @@ static void kayit__mesaj(const KayitMesaj *m)
     case KM_BICIMLE:
         (void)kyn_bicimle(&kayit_m, simdi);
         break;
+    case KM_PLAN_BASLAT:       /* 1C-4: ayni yol — BASLA + PLAN olayi */
     case KM_SKOP_BASLAT:       /* 1C-3: ayni yol — BASLA (tur SKOP) + SKOP_KAL olayi */
     case KM_PIL_BASLAT: {      /* 1C-1: surmekte olan oturum "baska oturum" ile kapanir */
         KayitBasla b = m->basla;
@@ -301,6 +305,16 @@ static void kayit__mesaj(const KayitMesaj *m)
     case KM_NOT:
         (void)kyn_not(&kayit_m, m->yuk, m->n);
         break;
+    case KM_PLAN_BITIR: {      /* 1C-4: YALNIZ planin oturumu etkinse (arada Gd + Gb olduysa
+                                  yeni oturuma dokunma) */
+        uint32_t id;
+        memcpy(&id, m->yuk, sizeof(id));
+        if (kayit_y.oturum && kayit_y.oturum == id) {
+            int r = ky_bitir(&kayit_y, KB_SEBEP_PLAN);
+            if (r && r != KG_YOK) kayit_m.son_hata = r;
+        }
+        break;
+    }
     case KM_SKOP:              /* 1C-3: yuva ANCAK yazildiktan sonra bosalir */
         /* 1C-3 son inceleme: ucustaki yakalama Gb/oturum degisiminden sonra YENI
            oturuma yazilmaz — yuva bagli oldugu oturumu tasir */
@@ -600,6 +614,33 @@ static int kalgec_kur(const KayitKalibrasyon *simdiki, uint32_t unix_s)
     static const KalNvs t = { kalgec_nvs_oku, kalgec_nvs_yaz, kalgec_nvs_bos, nullptr };
     kalgec_acik = kalgec_nvs.begin("kalgec", false) ? 1u : 0u;
     return kgc_ac(&kalgec, &t, simdiki, unix_s, 0u);
+}
+
+/* ─────────────────────────────── 1C-4: zamanlanmis kayit (cekirdek 1)
+   Plan kendi NVS ad alaninda (`plan`); okuyan ve yazan yalniz cekirdek 1
+   (komut + saniyelik karar). Karar mantigi kayit_plan.h'de (B71.R). */
+static Preferences plan_nvs;
+static uint8_t     plan_nvs_acik = 0;
+static KayitPlan   kayit_plan;
+
+static uint32_t plan_nvs_oku(void *b, const char *ad, uint32_t varsayilan)
+{
+    (void)b;
+    return plan_nvs_acik ? plan_nvs.getUInt(ad, varsayilan) : varsayilan;
+}
+
+static int plan_nvs_yaz(void *b, const char *ad, uint32_t deger)
+{
+    (void)b;
+    if (!plan_nvs_acik) return -1;
+    return plan_nvs.putUInt(ad, deger) == sizeof(uint32_t) ? 0 : -1;
+}
+
+static void kayit_plan_ac(void)
+{
+    static const KayitNvs t = { plan_nvs_oku, plan_nvs_yaz, nullptr };
+    plan_nvs_acik = plan_nvs.begin("plan", false) ? 1u : 0u;
+    plan_ac(&kayit_plan, &t);
 }
 
 #endif /* KAYIT_ESP_H */

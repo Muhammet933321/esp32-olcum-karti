@@ -3134,6 +3134,110 @@ static void kayit_gt_bas() {
   Serial.println(t);
 }
 
+/* ── 1C-4: ZAMANLANMIS KAYIT (cekirdek 1) ───────────────────────────
+   GP <durum> <bas_unix> <sure_s> <hiz_ms> <oturum>; durum 6 = saat bekleniyor. */
+static void kayit_gp_bas() {
+  const uint8_t d = (kayit_plan.durum == PLAN_BEKLIYOR && !kayit__unix())
+                    ? (uint8_t)PLAN_SAAT_YOK : kayit_plan.durum;
+  char t[80];
+  snprintf(t, sizeof(t), "GP %u %lu %lu %lu %lu", (unsigned)d, (unsigned long)kayit_plan.bas,
+           (unsigned long)kayit_plan.sure, (unsigned long)kayit_plan.hiz,
+           (unsigned long)kayit_plan.oturum);
+  Serial.println(t);
+}
+
+/* Yalniz rakam, en fazla 10 hane, 32 bit tasmasiz. */
+static bool kayit__u32_al(const char **p, uint32_t *v) {
+  uint64_t x = 0;
+  uint8_t n = 0;
+  while (**p >= '0' && **p <= '9') {
+    x = x * 10u + (uint64_t)(**p - '0');
+    if (x > 0xFFFFFFFFULL || ++n > 10u) return false;
+    (*p)++;
+  }
+  if (!n) return false;
+  *v = (uint32_t)x;
+  return true;
+}
+
+/* `Gp<unix>,<sure_s>,<hiz_ms>` · `Gp+<saniye>,<sure_s>,<hiz_ms>` · `Gp-` · `Gp?` */
+static void kayit_plan_komut(const char *s) {
+  const char *p = s + 2;
+  uint32_t bas = 0, sure = 0, hiz = 0;
+  if (*p == '-' && !p[1]) {
+    plan_iptal(&kayit_plan);
+    Serial.println(F("* G plan iptal (suren kayit varsa Gd ile durur)"));
+    return;
+  }
+  if (!*p || (*p == '?' && !p[1])) { kayit_gp_bas(); return; }
+  const bool goreli = (*p == '+');
+  if (goreli) p++;
+  if (!kayit__u32_al(&p, &bas) || *p++ != ',' || !kayit__u32_al(&p, &sure)
+      || *p++ != ',' || !kayit__u32_al(&p, &hiz) || *p) {
+    Serial.println(F("! G: Gp<unix>,<sure_s>,<hiz_ms> ya da Gp+<saniye>,<sure_s>,<hiz_ms>; Gp- iptal"));
+    return;
+  }
+  if (!kayit__hiz_gecerli((long)hiz)) {
+    Serial.println(F("! G: hiz 0 (her ornek) / 20/100/200/1000/10000/60000 ms olmali"));
+    return;
+  }
+  const uint32_t simdi = kayit__unix();
+  if (!simdi) {
+    Serial.println(F("! G: saat yok (NTP bekleniyor) — plan kurulamaz"));
+    return;
+  }
+  if (goreli) bas = simdi + bas;
+  const int r = plan_kur(&kayit_plan, bas, sure, hiz, simdi);
+  if (r == KP_SURE) { Serial.println(F("! G: sure en fazla 30 gun")); return; }
+  if (r == KP_GECMIS) { Serial.println(F("! G: planin penceresi gecmis")); return; }
+  if (r == KP_SURUYOR) { Serial.println(F("! G: plan suruyor — once Gd ya da Gp-")); return; }
+  if (r) { Serial.println(F("! G: plan kurulamadi")); return; }
+  Serial.print(F("* G plan kuruldu: "));
+  Serial.print(bas);
+  Serial.print(F(" (+"));
+  Serial.print((long)(bas - simdi));
+  Serial.print(F(" s), "));
+  Serial.print(sure);
+  Serial.print(F(" s, "));
+  Serial.print(hiz);
+  Serial.println(F(" ms — GP durum"));
+}
+
+/* Saniyede bir (loop). Karar kayit_plan.h'de; burada mesaja cevrilir. */
+static void kayit_plan_isle() {
+  static uint32_t son = 0;
+  if (millis() - son < 1000u) return;
+  son = millis();
+  if (!kayit_bolum) return;
+  const KayitDurum d = kayit_durum_al();
+  if (d.durum == KDR_TARIYOR) return;          /* acilis taramasi: DEVAM henuz belli degil */
+  const uint32_t simdi = kayit__unix();
+  const uint8_t e = plan_adim(&kayit_plan, simdi, d.oturum ? 1u : 0u, d.oturum);
+  if (e == PE_BASLAT) {
+    KayitMesaj m;
+    KayitPlanOlay po;
+    memset(&m, 0, sizeof(m));
+    po.bas_unix = kayit_plan.bas;
+    po.sure_s = kayit_plan.sure;
+    po.hiz_ms = kayit_plan.hiz;
+    po.plan_no = kayit_plan.no;
+    m.tur = KM_PLAN_BASLAT;
+    kayit_basla_doldur(&m.basla, kayit_plan.hiz);
+    m.n = kayit_olay_plan_paketle(millis(), &po, m.yuk);
+    if (kayit_mesaj_gonder(&m)) {
+      plan_basliyor(&kayit_plan, simdi);
+      Serial.println(F("* G plan basladi"));
+    }
+  } else if (e == PE_BITIR) {
+    KayitMesaj m;
+    memset(&m, 0, sizeof(m));
+    m.tur = KM_PLAN_BITIR;
+    memcpy(m.yuk, &kayit_plan.oturum, sizeof(uint32_t));
+    m.n = sizeof(uint32_t);
+    if (kayit_mesaj_gonder(&m)) Serial.println(F("* G plan suresi doldu — kayit kapaniyor"));
+  }
+}
+
 /* `Gt<ms>`: yalniz rakam; 0 (her tetik) ya da 1000..3600000. */
 static bool kayit__skop_aralik(const char *p, uint32_t *v) {
   if (!*p || strlen(p) > 7u) return false;
@@ -3219,6 +3323,7 @@ static void kayit_komut(const char *s) {
     kayit_durum_bas(true);
     kayit_ga_bas();
     kayit_gt_bas();
+    kayit_gp_bas();
     return;
   } else if (alt == 'b') {
     if (pil_testi_suruyor()) {   /* 1C-1: kayit testle birlikte baslar/biter */
@@ -3263,8 +3368,11 @@ static void kayit_komut(const char *s) {
   } else if (alt == 't') {
     kayit_skop_komut(s);         /* 1C-3: osiloskop gunlugu */
     return;
+  } else if (alt == 'p') {
+    kayit_plan_komut(s);         /* 1C-4: zamanlanmis kayit */
+    return;
   } else {
-    Serial.println(F("! G: alt komut b<ms> d ? o<sira> F!  a<id> e<id> n<id> x<id>:<sira>  t<ms> td"));
+    Serial.println(F("! G: alt komut b<ms> d ? o<sira> F!  a<id> e<id> n<id> x<id>:<sira>  t<ms> td  p<plan>"));
     return;
   }
   if (kayit_mesaj_gonder(&m))    /* bekleyen pil bitir ONCE (F32) */
@@ -3895,6 +4003,7 @@ void yardim() {
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  tn<1/2> onay  t?"));
   Serial.println(F("  Gb<ms> kayit baslat (0 = her ornek; 20/100/200/1000/10000/60000)  Gd durdur  G? durum"));
   Serial.println(F("  Gt<ms> osiloskop gunlugu (0 = her tetik; 1000..3600000 ms'de bir)  Gtd durdur"));
+  Serial.println(F("  Gp<unix>,<sure_s>,<hiz_ms> | Gp+<s>,<sure_s>,<hiz_ms> zamanlanmis kayit  Gp- iptal  Gp? durum"));
   Serial.println(F("  Go<sira> esitlenen kayitlari onayla   GF! BUTUN kayitlari sil"));
   Serial.println(F("  Ga<oturum> <ad>  Ge<oturum> <etiket, ...>  Gn<oturum>[@<ms>] <not>"));
   Serial.println(F("  Gx<oturum>:<sira>[@<ms>] <metin> notu degistir (metin bos: sil) · komut <= 175 karakter"));
@@ -4790,6 +4899,7 @@ void setup() {
     Serial.print(F(" sektor, "));
     Serial.print(kayit_esle_ptr ? F("bellege esli") : F("ESLENEMEDI (yavas okuma)"));
     Serial.println(F(" — tarama gorevde, `G?` durum"));
+    kayit_plan_ac();                     // 1C-4: bekleyen/suren plan NVS'ten
   } else {
     Serial.println(F("KAPALI — 'kayit' bolumu ya da bellek yok (partitions.csv ile tam yukleme)"));
   }
@@ -4869,6 +4979,7 @@ void loop() {
   komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
   skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu
   skop_gunluk_isle();        // 1C-3: osiloskop gunlugu yeniden kurar (yuva bosken)
+  kayit_plan_isle();         // 1C-4: zamanlanmis kayit (saniyede bir)
   skop_dokum_ilerle();       // B40: skop dokumu, TX'te yer oldugu kadar
   kayit_durum_bas(false);    // B72: G satiri — yalniz cekirdek 1 basar
 

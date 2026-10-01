@@ -239,7 +239,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C3"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C4"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -451,6 +451,48 @@ def bolum_kaynak() -> None:
        "yuklenir ve panel bilgilendirilir",
        "skop_gunluk.eski_kip = skop_ayar.kip;" in skk
        and "skop_ayar.kip = skop_gunluk.eski_kip;" in gd and "skop_ayar_yaz();" in gd)
+    # ── 1C-4: zamanlanmis kayit (karar mantigi B71.R'de; burada yapistirici) ──
+    pk = govde(ino_k, "static void kayit_plan_komut(")
+    ua = govde(ino_k, "static bool kayit__u32_al(")
+    ok("B72.F63 Gp<unix>,<sure>,<hiz> / Gp+<s>,... / Gp- / Gp?: yalniz rakam (10 hane, 32 bit "
+       "tasmasiz), virgul ayrac, artik karakter RED; hiz Gb kumesinden",
+       "x > 0xFFFFFFFFULL" in ua and "++n > 10u" in ua
+       and "kayit__hiz_gecerli((long)hiz)" in pk and "plan_iptal(&kayit_plan)" in pk
+       and "goreli" in pk and "*p++ != ','" in pk)
+    ok("B72.F64 saat yoksa (NTP gelmedi) plan KURULMAZ ve kart bunu soyler; goreli bicim kartin "
+       "saatine cevrilir",
+       0 <= pk.find("if (!simdi)") < pk.find("plan_kur(&kayit_plan")
+       and "saat yok" in pk and "bas = simdi + bas;" in pk)
+    pa = govde(esp_k, "static void kayit_plan_ac(")
+    ok("B72.F65 plan kendi NVS ad alaninda (`plan`), acilista plan_ac ile okunur (kurulumda, "
+       "kayit_kur'dan sonra)",
+       'plan_nvs.begin("plan", false)' in pa and "plan_ac(&kayit_plan, &t)" in pa
+       and 0 <= ino_k.find("if (kayit_kur()) {") < ino_k.find("kayit_plan_ac();"))
+    pi = govde(ino_k, "static void kayit_plan_isle(")
+    ok("B72.F66 saniyede bir plan_adim: tarama bitmeden karar YOK (DEVAM belli degil); oturum "
+       "durumu ve gercek saat (NTP) ile; loop'ta",
+       "millis() - son < 1000u" in pi and 0 <= pi.find("KDR_TARIYOR") < pi.find("plan_adim(")
+       and "plan_adim(&kayit_plan, simdi, d.oturum ? 1u : 0u, d.oturum)" in pi
+       and "kayit_plan_isle();" in lp)
+    ok("B72.F67 BASLAT: BASLA (kalibrasyon kopyasi, Gb gibi) + PLAN olayi TEK mesajda; plan "
+       "YALNIZ istek kuyruga girdiyse 'basliyor' olur (girmezse sonraki saniye yeniden)",
+       "kayit_basla_doldur(&m.basla, kayit_plan.hiz)" in pi and "m.tur = KM_PLAN_BASLAT" in pi
+       and "kayit_olay_plan_paketle(" in pi
+       and "if (kayit_mesaj_gonder(&m)) {\n      plan_basliyor(&kayit_plan, simdi);" in pi.replace("\r", ""))
+    ms4 = govde(esp_k, "static void kayit__mesaj(")
+    kb4 = ms4[ms4.find("case KM_PLAN_BITIR:"):]
+    ok("B72.F68 KM_PLAN_BITIR yalniz etkin oturum PLANIN oturumuysa kapatir (sebep 7); arada "
+       "Gd + Gb olduysa yeni oturuma DOKUNMAZ; KM_PLAN_BASLAT pil yolunu paylasir",
+       0 <= kb4.find("kayit_y.oturum == id") < kb4.find("ky_bitir(&kayit_y, KB_SEBEP_PLAN)")
+       and re.search(r"case KM_PLAN_BASLAT:\s*case KM_SKOP_BASLAT:\s*case KM_PIL_BASLAT: \{", ms4)
+       is not None)
+    gp = govde(ino_k, "static void kayit_gp_bas(")
+    ok("B72.F69 G? ardindan GP satiri: durum (saat yoksa 6), baslangic, sure, hiz, oturum",
+       '"GP %u %lu %lu %lu %lu"' in gp and "PLAN_SAAT_YOK" in gp
+       and 0 <= kk2.find("kayit_gt_bas()") < kk2.find("kayit_gp_bas()") < kk2.find("alt == 'b'"))
+    ok("B72.F70 plan baslangicta oturum varsa (pil testi, skop gunlugu, elle) ATLAR: oturum_var "
+       "kayit durumundan (d.oturum) — pil ve skop oturumlari da sayilir",
+       "d.oturum ? 1u : 0u" in pi and "pil_testi_suruyor()" not in pi)
     kp = govde(ino_k, "static void kayit_pil_baslat() {")
     ok("B72.F36 kayit acilamazsa pil testi YINE baslar ve kart 'KAYDEDILMIYOR' der "
        "(bolum yok / tarama / hata / dolu / bekliyor / kuyruk dolu)",
