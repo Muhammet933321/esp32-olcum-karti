@@ -897,6 +897,9 @@ def main() -> int:
         ("1C-2 ayrintili kip kartta (ADS yok)",
          "tezgah_kayit.py --ayrinti: hazir alan bosta buyur; Gb0 60 s: sira kesintisiz, "
          "zaman farki dagilimi, kayit ici silme 0, dusen 0; yeniden baslatmada DEVAM"),
+        ("[!] Skop girisine CAL bagliyken osiloskop gunlugu (1C-3)",
+         "X1000 + tek tel GPIO10 -> GPIO4 (ya da RC duzenegi): tezgah_kayit.py --skop sinyalli dalda "
+         "Gt0 her yakalama tetikli ve ~1 kHz; 2026-10-01'de giriste sinyal yoktu (kodlar 0)"),
         ("[!] ADS takilinca: gercek 500/s ayrintili kayit",
          "Gb0 60 s: ~30 000 ornek, dt ortancasi ~2000 us; PC'de V/I (ve hizalamali W) kartin D "
          "satiriyla ayni anda karsilastirilir; hazir alan bitince KA_SILME kayitlari gorulur"),

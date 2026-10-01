@@ -52,6 +52,9 @@ kart başında durmadan toplamak.
 | K12 | Kart yeniden başlarsa **günlük sürmez**: SKOP oturumu "kart yeniden başladı" (5) ile kapanır (mevcut kural: ölçüm dışı açık oturum DEVAM almaz). ÖLÇÜM oturumu DEVAM ile sürer ama günlük olmadan | Günlük durumu ve `SkopAyar` RAM'de; sürdürmek için NVS'e yazmak gerekir — 1C-4 (zamanlanmış kayıt) ile birlikte ele alınacak |
 | K13 | Durum: `G?`'nin ardından yeni **`GT`** satırı: etkin · aralık · yakalama sayısı · yazılamayan. `G`, `GA` değişmez | Mevcut ayrıştırıcılar bozulmaz |
 | K14 | Biçim sürümü **2 kalır**; firmware `A3-1C3` | Yeni kayıt türü, eski okuyucu atlar (B13) |
+| K15 | *(Son inceleme)* PC yakalamayı **kayıt sırasıyla** kurar: 0. parça yeni yakalama açar, sonraki parça yalnız hemen önceki açık yakalamaya (aynı `no`/`toplam`, `ilk` kesintisiz) eklenir; `skoplar` anahtarı 0. parçanın sırası. Kartta `no` açılış boyunca tekdüze | `no` bir oturumda tekrarlanabiliyor (Gtd + Gt, DEVAM sonrası Gt) ve `no`'ya göre gruplama iki yakalamayı sessizce birleştiriyordu |
+| K16 | *(Son inceleme)* Yuva bağlı olduğu oturumu taşır; görev yalnız o oturum etkinse yazar, değilse sayar | Uçuştaki yakalama `Gb`'den sonra kullanıcının yeni oturumuna yazılıyordu |
+| K17 | *(Son inceleme)* Her yakalama sonucundan (tetik yok dahil) sonra en az bekleyiş kadar (≥ 100 ms) **ölçüm**: tetik ve ölçüm zamanı yarı yarıya. `Gt0`'ın NORMAL'e aldığı kip günlük durunca geri yüklenir | `Gt0` tetik beklerken ADS hiç okunmuyordu (kartta `D` 5.0 → 0.1/s): voltmetre, otomatik menzil ve enerji donuyordu |
 
 ## Kayıt biçimi
 
@@ -81,9 +84,10 @@ kart başında durmadan toplamak.
 **OLAY `SKOP_KAL`** (`KO_SKOP_KAL = 4`, ortak 8 B olay başı + 34 B):
 `i16 mv[17]` — `kal_mv_tab`, eşit aralıklı 17 kod noktasında mV.
 
-PC: `Oturum.skoplar` = `{no: {"meta", "kodlar", "tam"}}`. `tam` yalnız bütün
-parçalar varsa doğrudur; eksik parça sessizce doldurulmaz. `skop_ikili(y)`
-yakalamayı bugünkü 32 B başlıklı `S3B` biçimine çevirir.
+PC: `Oturum.skoplar` = `{0. parçanın sırası: {"no", "meta", "kodlar", "tam", "t_sira"}}`
+(K15: kayıt sırasıyla kurulur). `tam` yalnız bütün parçalar varsa doğrudur; eksik
+parça sessizce doldurulmaz. `skop_ikili(y)` yakalamayı bugünkü 32 B başlıklı `S3B`
+biçimine çevirir.
 
 ## Akış
 

@@ -1,5 +1,10 @@
 # Alt proje 1C-2 — Ayrıntılı kip (her örnek) Uygulama Planı
 
+> **Durum (2026-10-01): UYGULANDI** (DEVIR 5.12.69). Bağımsız son incelemeden
+> sonra altı düzeltme yapıldı; üçü görev metinlerinin ötesine geçiyor: kirli
+> silme sayımı ve `KA_SILME`'nin durustan sonraki ilk örneğe taşınması (K8a–K8c),
+> PC'de açılış numarası, tezgah ölçümlerinin boşta silmeyi beklemesi.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** `Gb0` ile ölçüm oturumu her ADS örneğini (~500/s) ham koduyla ve 4 µs çözünürlüklü zamanıyla kaydetsin. Hazır alan (önceden silinmiş sektörler) yeterliyse kayıt boyunca 25 ms'lik silme duraklaması olmasın.

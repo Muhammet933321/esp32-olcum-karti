@@ -8942,6 +8942,208 @@ Değişen fonksiyonlarda iki yanlış mesaj da düzeltildi: "KAYITTA" (kayıt he
 
 ---
 
+#### 5.12.69 ✅ 1C-2 — AYRINTILI KİP (HER ÖRNEK) + HAZIR ALAN (2026-10-01)
+
+Tasarım: `tasarim/2026-10-01-1c2-ayrintili-kip.md` (kararlar K1–K11, son
+incelemeden sonra K8a–K8c) · Plan: `tasarim/2026-10-01-plan-1c2-ayrintili-kip.md`.
+
+`Gb0` artık her ölçüm örneğini zamanıyla birlikte flaşa yazıyor (ADS'le
+~500/s, 3.1 KB/s, dolu bölüm ~60 dk). Flaşın 25 ms'lik dolu sektör silmesi,
+kart boştayken önceden yapılarak kayıttan çıkarılıyor. Kalan duraklamalar
+işaretli ve sayılı.
+
+**Karar yetkisi:** kullanıcı 2026-10-01 gecesi "sen devam et ben yatıyorum,
+adım adım devam et" dedi; 1C-1'deki "sen ver kararları, en son ben kontrol
+edeceğim" yetkisi sürüyor. Spec ve plan onay kapıları dahil bütün kararlar
+benim, gerekçeleri tasarım belgesinde ve aşağıda.
+
+Kararların özeti:
+- Ayrıntılı kip ayrı bir oturum türü değil. Bir **ÖLÇÜM oturumu, `hiz_ms = 0`**.
+- Örnek **6 bayt**: ham V, ham I, 4 µs'lik zaman farkı + 4 bayrak. Watt saklanmaz; PC hesaplar (alt proje 2).
+- Yeni kayıt türü **AYRINTI (9)**. Biçim sürümü **2 kalır**.
+- Boşlukta yeni kayıt açılır, sessiz birleştirme yoktur. Halka taşarsa bayrak konur, kirli sektör silinirse de bayrak konur.
+- Çekirdek 1 → 0 yolu kilitsiz halka, PSRAM'de 4096 örnek.
+- **Hazır alan:** kart boştayken onaylı sektörler önceden silinir (en fazla 480 ≈ 10 dk ayrıntılı kayıt).
+- Hazır alan biterse kayıt **sürer**.
+- Süre sınırı yok.
+- `G?`'nin ardından **`GA`** satırı gelir; `G` satırı değişmedi.
+- Firmware `A3-1C2`.
+
+**Ne yapıldı**
+
+| Dosya | Ne |
+|---|---|
+| `kayit_bicim.h` / `kopru/kayit_bicim.py` | `KAYIT_T_AYRINTI` 9, baş 16 B (`ilk`, `t0_ms`, `t0_us`, `adet`, `bayrak`) + örnek 6 B (`dt4<<4 \| bayrak`). `KA_KAYIP_ONCE` / `KA_SILME`, `KAO_*`. Python `ayrinti_paketle/coz`, `Oturum.ayrinti`. `ayrinti_ornekler` → `(sıra, µs, v, i, bayrak, açılış)`: µs o açılışın `micros()`'u (32 bit sarması `t0_ms`'den çözülür), açılış = kaçıncı DEVAM'dan sonra |
+| `kayit_halka.h` (yeni) | Tek üretici / tek tüketici halka, bariyerli (`KAYIT_BARIYER`, varsayılan `__sync_synchronize`). Doluysa örnek **düşer, sayılır**, sonraki başarılı itme `KO_KAYIP_ONCE` taşır. `KO_SILME_ONCE`: üretici, kirli silme duruşundan sonraki ilk örneği işaretler. `tampon == NULL` (PSRAM yok) → her itme düşer, görünür |
+| `kayit_oturum.h` | `ky_ayrinti_ornek`: zaman **tampondaki ilk örneğe göre** 4 µs nicemli (hata ≤ 2 µs, birikmez). Fark > 16.38 ms, kayıp, silme işareti ya da dolu tampon → önce boşalt. `ky_ayrinti_bosalt`: sektöre sığdığı kadar yazar (≥ 8 örnek, yoksa yeni sektör); bölünen kaydın kalanı `t0`'ını dt toplamından alır. `ky_nokta` ayrıntılı oturumda `KG_YOK`; 5 s kuralı ve `ky_bitir` örnek tamponunu da kapsar; DOLU'da tampondakiler `dusen`'e |
+| `kayit_gunluk.h` | Açılış dizini AYRINTI'yı sayar (DEVAM sırası sürer). **`hazir`** (RAM): `kg_on_sil_adim` başın önündeki sektörü siler — onaysızda durur, başa dokunmaz; `kg_ilerle` hazır sektöre silmeden geçer; `kg_ac` ve mantıksal biçimlemede 0. **`kirli_sil`**: kafa sileceği sektör tabloda yoksa flaşa bakar (`kg__bos_mu`), boş değilse silmeden ÖNCE sayar |
+| `kayit_yonet.h` | `on_sil_izin`. Kayıt yok, DEVAM beklemiyor, temizlik bitmiş ve hedef < 480 ise `KYN_TEMIZ_MS` arayla bir ön silme. İzin yeni açıldıysa önce bir aralık beklenir. Ayrıntılı kayıt sürerken GF! temizliği **durur** |
+| `kayit_esp.h` | Halka PSRAM'de. `kayit_ornek` ayrıntılı oturumda `micros()` + KAO bayraklarıyla halkaya iter; `kirli_sil` değiştiyse `KO_SILME_ONCE` (görülen değer yalnız itme başarırsa güncellenir). Görev halkayı kilit altında boşaltır. GA "kayıt içi silme" = ayrıntılı oturum süren turlarda `kirli_sil` artışı. `A3-1C2` |
+| `olcum-karti-a3.ino` | `Gb0` kabul (yardım + hata metni). `G?` ardından `GA <hazır> <ayrıntılı örnek> <düşen> <kayıt içi silme>`. `loop` izni skop erken dönüşünden ÖNCE günceller. DRAM 74412 (+80) |
+| `tezgah_kayit.py` / `tezgah_kart.py` / `tezgah_blokaj.py` | `--ayrinti`, `--hazirsiz [--doldur]`. Kararlı hal ve blokaj ölçümleri önce boşta silmenin durmasını bekler (`G` satırının silme sayacı 3 s artmayana dek; blokajda `--on-silmeli` beklemez) |
+
+**Doğrulama**
+- `test_kayit.py` **224/224**:
+  - B71.B22–B24: AYRINTI C == Python; tür 9, sürüm 2; sarmada zaman; DEVAM'dan sonra açılış 1.
+  - B71.H1–H3: halka; taşmada sayma ve bayrak; 32 bit sayaç sarması.
+  - B71.A1–A10: `SENARYO_AYRINTI`, sentetik örnek dizisi PC'de **birebir**:
+    - zaman ≤ 2 µs, bölmelerde birikmiyor;
+    - DEVAM'da yeni açılışın saati;
+    - boşlukta ve kayıpta yeni kayıt;
+    - sektör sonu boşa gitmiyor;
+    - `Gd`'de tampondaki kuyruk da flaşta;
+    - 5 s kuralı;
+    - bölmeden sonra yazma hatası (A10).
+  - B71.Z1–Z7: `SENARYO_HAZIR`, silmeler NOR'da sayılıyor:
+    - izin ve aralık;
+    - hazır sektöre silmeden geçiş;
+    - Z2: çekirdek 1 partili itme + 25 ms duruşla taklit ediliyor, her kirli silme = bir `KA_SILME`, boşluktan hemen sonra;
+    - açılışta ve biçimlemede 0 (aynı süreçte `kg_ac` dahil);
+    - onaysızda durur, başa dokunmaz;
+    - Z7: GF! sonrası hemen ayrıntılı kayıt — temizlik kayıtta silmiyor, eski sektörler sayılıyor, 10 ms'lik duruşta da işaret doğru kayıtta.
+- `test_kayit_esp.py` **74/74** (F40–F48; F25 `A3-1C2`). Arayüz 346/346. Kayıtlı kart bringup 49/49. Zincir **21/21**, gizlilik temiz.
+- **Mutasyon:** ilk odaklı koşuda 1C-2'nin 42 yalanlayıcısından **40/42**. Tam B71 koşusu da 1A'dan bir boş iddia buldu:
+  - **Z4 boştu:** AVR'de her açılış yeni süreç, RAM zaten sıfır. Senaryo artık hazır > 0 iken aynı süreçte `kg_ac` çağırıyor.
+  - **`a_q -= top`'ı "ölü kod" diye sildim — YANLIŞTI.** Başarı yolunda ölü, ama bölmeden sonra yazma hatası olursa kalan tamponda kalır ve sonraki örneğin zamanı 2R ms kayar. İnceleme gösterdi; satır geri kondu ve A10 NOR yazma arızasıyla bunu sınıyor.
+  - **G16 (1A) boş kaldı:** "bilinmeyen kayıt türü" olarak 9 kullanıyordu, 9 artık AYRINTI. Bilinmeyen tür artık 200.
+
+  Son hâl (paralel koşucu, 6 işçi): **B71 123/123, B72 73/73**.
+- **Kart (tezgah, ADS takılı değil; her yüklemeden önce NVS yedeği depo dışında):**
+  - İlk yazılım, `--duman --pil --ayrinti` **14/14**:
+    - boşta hazır alan büyüyor, 480'e doluyor;
+    - `Gb0` 60 s: **10 133 örnek, 169/s** (ADS yokken I²C zaman aşımı döngüsü), zaman farkı ortancası 6064 µs, en büyüğü 8440 µs, düşen 0, kayıt içi silme 0;
+    - yeniden başlatmada DEVAM, sıra kesintisiz.
+  - **40 dk dayanıklılık** (ilk yazılım): **391 969 örnek**, 2943 kayıt, 615 sektör, düşen 0, sıra kesintisiz, en büyük fark 9.6 ms. Kirli silmeye hiç ulaşmadı: 1A-2'nin GF! temizliği bütün bölümü silmişti, o günden beri ~1000 sektör kullanıldı. "0 == 0" iddiası bu yüzden boştu; artık silme > 0 isteniyor.
+- **Hazır alansız (kirli silme), gerçek kartta üç deneme:**
+    1. **Açılıştan hemen sonra, 40 dk:** 391 969 örnek, 615 sektör, düşen 0. Kirli silmeye **hiç ulaşmadı**: 1A-2'nin GF! temizliği bütün bölümü silmişti, "0 == 0" iddiası boştu. İddia artık silme > 0 istiyor.
+    2. **Bölümü `Gb20` ile DOLU'ya kadar doldurup eşitleyip onaylayınca:** onaylar gelirken kart boştaydı, ön silme kafanın önünü temizledi. Yine 0. `--doldur` artık eşitlemeden `GF!` yapıyor.
+    3. **`GF!` ve hemen 20 dk `Gb0`:** **196 093 örnek, 204 kirli silme = 204 `KA_SILME` = GA 204**, işaretten önceki boşluğun ortancası 27.8 ms. Ama **3/204 işaret bir örnek erken** düştü. Sayaç silmeden önce artıyor, `kayit_f_sil` ise silmeye girmeden `kayit__nefes` ile 1 tik bırakıyordu; o arada itilen örnek işaretleniyordu.
+       - Düzeltme: işaret artık duruş kanıtıyla konuyor (≥ 15 ms boşluk, yoksa 100 ms) ve `nefes` silmeden sonra.
+       - Bu düzeltmenin `fark = simdi | 1` hatası 1C-3 incelemesinde bulundu. Kural platformsuz `ksi_*` oldu (B71.H4); ayrıntı 5.12.70.
+       - Düzeltilmiş yazılımla son kart doğrulaması 5.12.70'te.
+- **Tezgah kalemi (ADS takılınca):** gerçek 500/s; PC'de W kartın `D` satırıyla karşılaştırılacak.
+
+**Bağımsız son inceleme (opus): "düzeltmelerle", kritik yok, 5 önemli**
+
+| # | Bulgu | Neden önemli | Ne yapıldı |
+|---|---|---|---|
+| 1 | `KA_SILME` ve GA silme yalnız **tabloda kaydı olan** sektörleri sayıyordu; GF! sonrası eski sektörlerin (ve çöp ilk kayıtlı sektörlerin) 25 ms'lik silmeleri sayılmıyordu. GF! temizliği ayrıntılı kayıt sürerken 500 ms'de bir siliyordu | K8 "görünür ve sayılır" diyordu; GF! + `Gb0` senaryosunda 25 ms'lik delikler bayraksız ve sayısızdı (0 == 0) | Kafa boş olmayan her sektörü kirli sayar (flaşa bakar, 4 KB ~100 µs); ayrıntılı kayıtta temizlik yok. Z7 (GF! + hemen ayrıntılı), 5 mutasyon |
+| 2 | `KA_SILME` silmeyi yapan boşaltmaya bağlıydı: bayrak, halkada bekleyen (silmeden önce üretilmiş) örneklerle dolan kayda düşüyor, boşluk ondan SONRA geliyordu | PC boşluğu yanlış kayıtta arar | Çekirdek 1 durustan sonraki ilk örneği `KO_SILME_ONCE` ile işaretler; işaretli örnek yeni kayıt açar. Z2 artık partili itme + 25 ms duruşla ölçüyor, F47 |
+| 3 | `ayrinti_ornekler` iki açılışın saatini tek listede karıştırıyordu; AVR üreteci DEVAM'da saati sürdürdüğü için A2'nin "DEVAM'da birikmez" iddiası boştu | Yeniden başlamadan sonra zaman ekseni geri gider ya da sahte bir boşluk gibi görünür | Her örnek açılış numarası taşır; üreteç DEVAM'da yeni açılışın saatiyle; tezgah DEVAM'dan sonra örnek ve açılış içinde artan zaman istiyor |
+| 4 | `ky_bitir`'in örnek tamponu boşaltması silinse de hiçbir iddia kırmızı olmuyordu | Her `Gd` son ~0.33 s'yi sessizce kaybederdi | Aşama 2 tamponda örnek varken durduruyor (A1/A8), mutasyon |
+| 5 | Açılıştan/eşitlemeden sonra boşta ön silme (ve GF! temizliği) 500 ms'de bir 25 ms durdurur; bringup'ın 45 s kararlı hal ölçümü ve `tezgah_blokaj` kirlenirdi | Mevcut tezgah denetimi sebepsiz kırmızı | İkisi de önce `G` satırının silme sayacının durmasını bekliyor |
+| küçük 1 | Bölmeden sonra yazma hatası yolunda `a_q` (benim "ölü kod" kararım) | Sessiz 2R ms zaman hatası | Kendi gerilemem olduğu için düzeltildi (A10) |
+
+**Ertelenen küçükler** (kayıt dışı kalmasın diye):
+- Yazma hatasında tetikleyen örnek sayılmadan düşüyor.
+- 16.38 ms'den kısa skop duraklaması işaretlenmiyor (zaman doğru, sebep kayboluyor).
+- İzin yarışı: skop yakalaması başladığı turda izin ancak turun sonunda kapanıyor. ⚠ Ön silme sürerken bir yakalama ~%5 ihtimalle 25 ms'lik bir duruşa denk gelebilir; hazır alan dolunca (≤ ~4 dk) biter.
+- Ön silme hatasında geri çekilme yok; sektör tablosu silmeden önce düşürülüyor.
+- 4095/4096 dt sınırı ve `kg__sektor_dusur` doğrudan sınanmıyor.
+- PSRAM ayrılamazsa `Gb0` yine kabul ediliyor (yalnız GA düşen gösterir).
+- NaN watt, geçerli ham kodlu örneğe V/I hata bayrağı koyuyor.
+- Örnek zamanı `olcum_al` dönüşünde; V–I başlangıç kayması saklanmıyor (PC W hesabı için alt proje 2'de).
+- Oturum sınırında halkada kalan örnekler yeni oturuma geçebiliyor.
+
+**Açık / sonraki:** PC'de W'nin hizalamalı hesabı ve grafik (alt proje 2/3) ·
+ayrıntılı kipte süre sınırı ve zamanlanmış başlatma (1C-4) · skop günlüğü
+(1C-3, sıradaki dilim).
+
+---
+
+#### 5.12.70 ✅ 1C-3 — OSİLOSKOP GÜNLÜĞÜ (2026-10-01)
+
+Tasarım: `tasarim/2026-10-01-1c3-skop-gunlugu.md` (K1–K14) · Plan:
+`tasarim/2026-10-01-plan-1c3-skop-gunlugu.md`.
+
+`Gt` ile osiloskop yakalamaları artık kartın kayıt günlüğüne yazılıyor:
+- `Gt0` her tetikte bir yakalama alır.
+- `Gt<ms>` N ms'de bir yakalama alır.
+
+Kayıtlar ölçüm kaydı gibi eşitleniyor; PC her yakalamayı bugünkü `/skop.bin` biçimine birebir çeviriyor.
+
+**Karar yetkisi:** kullanıcı 2026-10-01 gecesi "sen devam et ben yatıyorum,
+adım adım devam et sisteme" dedi. Spec ve plan onayları dahil bütün kararlar
+benim, gerekçeleri tasarım belgesinde.
+
+Kararların özeti:
+- **SKOP kaydı (10).** Parça parça yazılır, ilk parça META taşır: istek anı, ADS'in sustuğu süre, hız, zaman tabanı, ölçek, tetik ve bütün ayarları. Örnekler u16 ham kod.
+- **Kalibrasyon:** eFuse eğrisi günlük başlarken tek bir `SKOP_KAL` olayıyla yazılır.
+- **Oturum:** ÖLÇÜM oturumu varsa yakalamalar ona eklenir ("işaretli boşluk"). Yoksa SKOP oturumu (3) açılır. SKOP oturumunda nokta ve ayrıntılı örnek olmaz; `hiz_ms 0` orada "her tetik" anlamına gelir, ayrıntılı kip değildir.
+- **Çekirdekler arası:** tek PSRAM yuvası kullanılır. Günlük yeniden ancak yuva boşalınca kurulur, yani yakalama düşmez.
+- **Retler:**
+  - PSRAM yoksa `Gt` reddedilir.
+  - Pil testinde `Gt` reddedilir.
+  - Günlük sürerken `p1` ve elle yakalama reddedilir; ayar komutları serbest.
+- **Yeniden başlama:** günlük sürmez. SKOP oturumu "kart yeniden başladı" ile kapanır.
+- **Durum:** yeni `GT` satırı. Firmware `A3-1C3`.
+
+**Ne yapıldı**
+
+| Dosya | Ne |
+|---|---|
+| `kayit_bicim.h` / `kopru/kayit_bicim.py` | `KAYIT_T_SKOP` 10, `KAYIT_OTURUM_SKOP` 3, `KO_SKOP_KAL` 4, `KayitSkopMeta` (36 B; histerezis u16 — `SkopAyar`'da u16), parça başı 12 B. Python `skop_paketle/coz`, `Oturum.skoplar`: parçaları `ilk`'e göre birleştirir, tekrarı atar, eksik parçayı **doldurmaz** (`tam=False`, kodlar yok). `skop_ikili` → `S3B`, `arsiv.skop_ikili` ile tek kodlama |
+| `kayit_oturum.h` / `kayit_yonet.h` | `ky_skop`: önce bekleyen noktalar ve ayrıntılı örnekler; parçalar sektöre ve yazıcı tamponuna sığdığı kadar (32 örnekten azı sığıyorsa yeni sektör); DOLU'da BITIR(DOLU). `kyn_skop`. Ayrıntılı kip yalnız ÖLÇÜM'de; SKOP oturumunda nokta `KG_YOK` |
+| `kayit_esp.h` | `KM_SKOP`, `KM_SKOP_BASLAT`. `KayitSkopYuva` PSRAM'de. Görev yuvadan yazar, SONRA boşaltır, yazamazsa sayar. Noktacı SKOP'ta kapalı, ayrıntılı yalnız ÖLÇÜM'de. Durum oturum türünü taşır. `A3-1C3` |
+| `olcum-karti-a3.ino` | `SKOP_IS_GUNLUK` (döküm yok). `skop_gunluk_isle`: skop boş, döküm yok, yuva boş, aralık dolmuş olmalı. `skop_gunluk_sonuc`: META yakalamanın ayarıyla. `Gt<ms>`, `Gtd`. `Gd` ve bağlı oturumun kapanması günlüğü durdurur. `p1` ve `t/tB/ta/tK` günlükte reddedilir. `GT` satırı. DRAM 74468 (+56) |
+| `tezgah_kayit.py` | `--skop`; `--hazirsiz --doldur` artık eşitlemeden `GF!` (1C-2'den kalan iş, aşağıda) |
+
+**Doğrulama**
+- `test_kayit.py` **242/242**:
+  - B71.B25–B29: biçim C == Python; kayıt sırasıyla birleştirme, aynı `no`'lu iki yakalama, eksik parça; `S3B`.
+  - B71.H4: kirli silme işareti (1C-2 izi).
+  - B71.S1–S8 (`SENARYO_SKOP`):
+    - 240 örnek birden çok sektöre bölünür ve birebir birleşir;
+    - sektör sonu boşa gitmez;
+    - SKOP oturumu kuralları;
+    - ÖLÇÜM'e ekleme sırası;
+    - açılışta sebep 5;
+    - DOLU;
+    - ayrıntılı örnek tamponu yakalamadan önce boşalır;
+    - flaş temiz.
+- `test_kayit_esp.py` **88/88** (F25, F49–F62). Arayüz 346/346. Zincir **21/21**, gizlilik temiz.
+- **Mutasyon:** 29 yalanlayıcının hepsi yakalanıyor (B71 11, B72 18). İki bulgu:
+  - DOLU yolundaki ilk mutasyon eşdeğerdi; mutasyon yeni sektör dalına taşındı.
+  - B27'deki parçalar aslında sıra dışı değildi; test artık gerçekten sıra dışı.
+  - Tam koşu (paralel koşucu): **B71 137/137, B72 99/99** (A7'nin deseni `ky_nokta`'ya eklenen SKOP satırı yüzünden eskimişti; güncellendi). Düzeltme turunun 15 yalanlayıcısından biri eşdeğerdi, çıkarıldı.
+- **Kart (A3-1C3, tezgah; her yüklemeden önce NVS yedeği depo dışında):**
+  - ⚠ Skop girişinde **sinyal yok** (RC düzeneği sökülmüş, kodlar 0). Bu yüzden yakalamalar düz, 1 kHz frekans denetimi yapılamadı; denetim tezgah kalemi.
+  - İlk koşu: `--skop` 0 yakalama gördü. Sebebi `Gt0`'ın NORMAL'e aldığı kipin geri alınmamasıydı: sonraki `Gt2000` de tetik bekledi. Bunun üzerine F62 eklendi.
+  - Düzeltilmiş yazılımla `--duman --pil --ayrinti` yeşil.
+  - `--skop` **4/4**:
+    - `Gt0` sırasında `D` **5.0 → 2.9/s** (önce 0.1), durunca kip geri, tetiksiz kayıt yok.
+    - `Gt2000` 30 s: **16 yakalama**, aralık ortancası **2000 ms**, hepsi tam ve `S3B`, numaralar tekrarsız.
+    - `Gb200` + `Gt2000`: ölçüm oturumuna eklendi; `p1` ve `t` reddedildi; **`Gtd`'den sonra ölçüm sürdü** (K11).
+    - Yeniden başlatmada SKOP oturumu sebep 5, DEVAM yok.
+  - Kirli silmenin düzeltilmiş işaretle son doğrulaması (`--hazirsiz --doldur`, bölüm dolduruluyor): sonuç sonraki girdide.
+
+**Bağımsız son inceleme (opus): "düzeltmelerle" — 1 kritik, 4 önemli**
+
+| # | Bulgu | Neden önemli | Ne yapıldı |
+|---|---|---|---|
+| K1 | Yakalama numarası `no` bir oturumda tekrarlanabiliyordu (`Gtd` + yeniden `Gt`, DEVAM'dan sonra `Gt`); PC `no`'ya göre gruplayıp iki yakalamayı **sessizce birleştiriyordu** (kodlar birinden, META öbüründen, `tam=True`) | Kullanıcı yanlış dalgayı doğru sanır; ikinci yakalama görünmez | PC yakalamayı **kayıt sırasıyla** kurar (0. parça açar, parça yalnız hemen önceki açık yakalamaya); `skoplar` anahtarı sıra; kartta `no` açılış boyunca tekdüze. B27/B29, 2 mutasyon |
+| Ö2 | Uçuştaki yakalama `Gb`'den sonra yeni oturuma yazılıyordu | Kullanıcının ölçüm kaydına yabancı, SKOP_KAL'sız yakalama | Yuva bağlı oturumu taşır; görev yalnız o oturum etkinse yazar. F59 |
+| Ö3 | `Gt0` tetik beklerken ADS hiç okunmuyordu | **Kartta ölçüldü: `D` 5.0 → 0.1/s** — voltmetre, otomatik menzil, enerji donuyor | Her sonuçtan sonra en az bekleyiş kadar (≥ 100 ms) ölçüm. F60; kartta yeniden: **5.0 → 2.9/s** |
+| Ö4 | 1C-2'nin işaret düzeltmesinde `fark = simdi \| 1`: çift ms'de kanıt atlanıyordu; düşen işaretli örnekte işaret 100 ms kayıyordu | Düzeltme yarı yarıya çalışmıyordu; F47 metni ifadeyi kopyaladığı için yakalayamazdı | Kural platformsuz `ksi_*` (`kayit_halka.h`), B71.H4 **davranış** testi (çift ms, düşen işaret, kısa silme) |
+| Ö5 | `Gtd`'nin ölçümü kapatmaması (K11), SKOP oturum türü ve `KM_SKOP_BASLAT` hiçbir iddiayla sınanmıyordu | Mutasyonla yeşil kalıyordu | F61 + 3 mutasyon; tezgahta `Gtd` sonrası ölçüm sürüyor mu |
+| küçük 7 | `Gt0`'ın NORMAL'e aldığı kip geri alınmıyordu | **Tezgahta ısırdı:** sonraki `Gt2000` tetik bekleyip hiç yakalayamadı | Durunca geri + panel bilgilendirilir. F62 |
+
+**Ertelenen küçükler:**
+- `Gtd` oturum öğrenilmeden gelirse yetim SKOP oturumu açılabiliyor.
+- Ayar komutları pratikte uçuştaki yakalamaya takılıyor.
+- `GT` sayaç anlamları karışık.
+- Ekli oturumda kayıt sırası tam zaman sırası değil (PC META `t_ms` kullanmalı).
+- Yakalama boşluğu AYRINTI'da bayraksız.
+- SKOP_KAL tablonun geçerliliğini taşımıyor.
+- Küçük kod düzeltmeleri.
+- Tezgah `Gb` sırasında günlüğü kartta sınamıyor.
+
+**Açık / sonraki:** yakalamaların panelde/telefonda gösterimi (alt proje 3/5) ·
+günlüğün yeniden başlamada sürmesi ve zamanlanmış başlatma (1C-4) · 12 bit
+paketleme.
+
+---
+
 #### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
 
 **Neden.** Malzemenin tamamı geldi (50 mA sigorta hariç); kullanıcı "lehimsiz test mi, plakete mi" diye sordu. Karar: **plakete, blok blok** — lehimsiz tahta bu kartta ölçüm üretmez (15 mΩ şönt + Kelvin tahta temasından küçük; 4.9 MΩ zincirde tahta kaçağı oranı bozar; B30/B44'te iki sessiz kusur gevşek telden geldi). Ama plakete geçmek için elde **yerleşim planı yoktu** — F9 ("delik atla") sayı veriyordu, yer vermiyordu.

@@ -38,7 +38,10 @@ kalkışı) dalga şeklini dakikalarca, boşluk bırakmadan kaydetmek.
 | K5 | Zaman farkı 16.38 ms'yi aşarsa, halka taşıp örnek düşerse ya da menzil dışında bir kesinti olursa (skop yakalaması) **yeni kayıt** başlar. Kaydın `t0_ms`/`t0_us`'u mutlak zamandır, boşluk oradan okunur | Boşluk ayrı bir alan gerektirmeden görünür; sessiz birleştirme yok (Ö1) |
 | K6 | Çekirdek 1 → 0 örnek yolu: **kilitsiz tek üretici / tek tüketici halka**, PSRAM'de 4096 örnek (~8 s). Doluysa örnek düşer, sayılır; sonraki kaydın başlığı "önce örnek düştü" der | Mevcut 256'lık nokta kuyruğu 500/s'de ~0.5 s ederdi; FreeRTOS kuyruğu örnek başına maliyetli |
 | K7 | **Hazır alan (ön silme):** kayıt yok, skop yakalaması yok ve pil testi yokken, kayıt görevi **onaylanmış** eski sektörleri başın önünde sırayla önceden siler (500 ms arayla, en fazla 480 sektör ≈ 1.9 MB ≈ 10 dk ayrıntılı). Kafa bu sektörlere geçince **silme yapılmaz**, çünkü bu açılışta silindikleri biliniyor (sayaç RAM'de; yeniden başlamada sıfırlanır, yani güvenli) | Dolu sektör silmesi iki çekirdeği 25 ms durduruyor (1A-2'de ölçüldü). Maliyet: onaylanmış eski kayıtlar kartta daha erken silinir; PC'de zaten var (spec §5: bir cihaza kopyalanmış veri silinebilir). Boşta ön silme sürerken canlı ölçüm %5 duraklar (500 ms'de 25 ms), ancak hazır alan dolana kadar (en fazla ~4 dk) |
-| K8 | Hazır alan biterse kayıt **sürer**; o andan sonraki 25 ms'lik silme boşlukları kayıtta görünür (yeni kayıt + "silme duraklaması" bayrağı) ve sayılır | Olayın geri kalanını kaybetmek, boşluklu kayıttan kötü |
+| K8 | Hazır alan biterse kayıt **sürer**; o andan sonraki 25 ms'lik silme boşlukları kayıtta görünür (yeni kayıt + "silme duraklaması" bayrağı) ve sayılır. *(Son inceleme: "sayılır" yalnız tabloda kaydı olan sektörler için doğruydu — GF! sonrası eski sektörler sayılmıyordu; bayrak da boşluktan ÖNCEKİ kayda düşüyordu. Aşağıda K8a–K8c.)* | Olayın geri kalanını kaybetmek, boşluklu kayıttan kötü |
+| K8a | Kafa, sileceği sektör tabloda yoksa flaşa bakar (bölüm belleğe eşli, 4 KB ~100 µs): boş değilse **kirli** sayar (`kirli_sil`, silmeden ÖNCE artar) | GF!/açılış eski sektörü ve ilk kaydı çöp olan sektör de 25 ms durdurur. Boş sektör yine silinir (kesik silme "boş" okunabilir) |
+| K8b | `KA_SILME`, duruştan **sonra üretilen ilk örnekle başlayan** kayıtta: çekirdek 1 itme anında `kirli_sil`'i görür, örneği `KO_SILME_ONCE` ile işaretler; işaretli örnek (16.38 ms'den kısa duruşta da) yeni kayıt açar. GA "kayıt içi silme" = `kirli_sil` artışı | Halkada bekleyen örnekler silmeden önce üretilmişti; bayrak silmeyi yapan boşaltmaya bağlıyken onlarla dolan kayda düşüyordu |
+| K8c | Ayrıntılı kayıt sürerken GF! sonrası **arka plan temizliği çalışmaz**; kafa eski sektörü kendisi siler (K8a ile sayılır, işaretlenir) | Temizlik 500 ms'de bir 25 ms'lik delik açıyordu |
 | K9 | Süre sınırı yok: `Gd` ya da bellek dolunca `BITIR(DOLU)` | YAGNI; zamanlanmış kayıt 1C-4'te |
 | K10 | Durum: `G?`'nin ardından yeni **`GA`** satırı: hazır sektör · ayrıntılı örnek · düşen örnek · kayıt içi silme duraklaması. `G` satırı **değişmez** | Mevcut `G` ayrıştırıcıları (tezgah, köprü) bozulmaz |
 | K11 | Biçim sürümü **2 kalır**; firmware `A3-1C2` | Yeni kayıt türü, eski okuyucu atlar (B13) |
@@ -53,7 +56,8 @@ kalkışı) dalga şeklini dakikalarca, boşluk bırakmadan kaydetmek.
  8 u32 t0_us       (ilk örneğin micros()'u, alt 32 bit)
 12 u16 adet        (N)
 14 u8  bayrak      (KA_KAYIP_ONCE 0x01: önceki kayıttan beri örnek düştü ·
-                    KA_SILME 0x02: bu kayıttan hemen önce dolu sektör silindi)
+                    KA_SILME 0x02: bu kaydın İLK örneği kirli sektör silmesinden
+                    (~25 ms, iki çekirdek) SONRA üretildi; önündeki boşluk silmedir)
 15 u8  0
 16 + 6·k: i16 v_kod · i16 i_kod · u16 (dt4 << 4 | ornek_bayrak)
       dt4: bir önceki örnekten bu yana 4 µs birimi (12 bit; ilk örnekte 0)
@@ -62,6 +66,10 @@ kalkışı) dalga şeklini dakikalarca, boşluk bırakmadan kaydetmek.
 
 Bir örneğin zamanı: `t0_us + 4 × Σ dt4`, kart_ms karşılığı `t0_ms`'den. Hatalı
 örneğin kodu yine yazılır; bayrak onu işaretler, analiz dışarıda bırakabilir.
+*(Son inceleme:)* zaman **o açılışın** `micros()`'udur; kart yeniden başlayınca
+sıfırlanır. PC `ayrinti_ornekler` her örneği **açılış numarasıyla** verir (0 =
+BASLA'nın açılışı, n = n. DEVAM'dan sonrası); açılışlar tek eksende
+birleştirilecekse DEVAM/BASLA `kart_ms`/`unix_s` kullanılır (alt proje 2).
 
 ## Akış
 
@@ -81,8 +89,9 @@ turda günceller: kayıt yok, skop yok, pil testi yok.
 - `kg_ilerle`, bir sonraki sektör hazır sayılıyorsa silmez ve sayacı azaltır.
 - `kg_on_sil_adim`: başın önündeki bir sonraki sektör onaylıysa (ya da boşsa)
   onu düşürür, siler ve sayacı artırır; onaysız veriye asla dokunmaz.
-- Sayaç şu durumlarda sıfırlanır: açılışta (`kg_ac`), mantıksal biçimlemede,
-  bir yazma hatasında.
+- Sayaç şu durumlarda sıfırlanır: açılışta (`kg_ac`) ve mantıksal biçimlemede.
+  *(Son inceleme: yazma hatasında sıfırlamaya gerek yok — yazma yalnız `bas`
+  sektörüne gider, hazır sektörlere hiç dokunmaz.)*
 
 ## Doğrulama
 

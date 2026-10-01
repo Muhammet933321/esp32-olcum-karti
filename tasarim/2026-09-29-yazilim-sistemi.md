@@ -130,8 +130,8 @@ Aynı anda **tek** oturum.
 
 | Tür | İçerik |
 |---|---|
-| Ölçüm kaydı | V/A/W; her nokta ort + min + maks. Hız: ayrıntılı (her örnek) · 50/s · 10/s · 5/s · 1/s · 10 s'de 1 · dakikada 1 |
-| Osiloskop günlüğü | Her tetikte ya da her N saniyede bir yakalama (≤ 4000 örnek, 8 KB). İsteğe bağlı olarak bir ölçüm kaydıyla aynı oturumda; yakalama anı ölçüm kaydında işaretli boşluk |
+| Ölçüm kaydı | V/A/W; her nokta ort + min + maks. Hız: ayrıntılı (her örnek) · 50/s · 10/s · 5/s · 1/s · 10 s'de 1 · dakikada 1. *(Ayrıntılı kip 1C-2'de uygulandı, DEVIR 5.12.69: `Gb0`, AYRINTI kaydı (9) örnek başına 6 B — ham V/I + 4 µs zaman; W PC'de. Hazır alan: boşta onaylı sektörler önceden silinir, kayıt 25 ms'lik silme duraklaması olmadan ~10 dk; biterse duraklama `KA_SILME` ile işaretlenir ve `GA`'da sayılır.)* |
+| Osiloskop günlüğü | Her tetikte ya da her N saniyede bir yakalama (≤ 4000 örnek, 8 KB). İsteğe bağlı olarak bir ölçüm kaydıyla aynı oturumda; yakalama anı ölçüm kaydında işaretli boşluk. *(1C-3'te uygulandı, DEVIR 5.12.70: `Gt0`/`Gt<ms>`/`Gtd`; SKOP kaydı (10) parça parça, 0. parça META (istek anı + ADS susma süresi = işaretli boşluk); SKOP oturumu (3) ya da ölçüme ekleme; PC `/skop.bin` biçimine çevirir. Günlük yeniden başlamada sürmez.)* |
 | Pil testi | Ölçüm kaydı + mAh · Wh · DCIR olayları · kesme olayı. `PilHalka` ve `/pil` bunun yerine geçer; emniyet kuralları aynen. *(1C-1'de uygulandı, DEVIR 5.12.68: oturum türü PİL, OLAY kaydı `PIL_AYAR`/`DCIR`/`PIL_SONUC`, açılışta açık pil oturumu "kart yeniden başladı" ile kapanır. `/pil` panel oturumdan okuyana kadar — alt proje 3 — kalır.)* |
 
 **Başlık** (oturum açılırken yazılır): kimlik · tür · başlangıç (gerçek
@@ -416,7 +416,7 @@ Mevcut iddialar kırmızıya dönmez; eskiyenler **gerekçesiyle** güncellenir
 | Risk | Nerede ölçülür | Ölçüm kötü çıkarsa |
 |---|---|---|
 | Flaş silme/yazma işlemciyi on ms'ler durdurur → ölçüm boşluğu | Alt proje 1, gerçek kart | PSRAM'de biriktirip toplu yazma; silmeyi boş zamana kaydırma; ayrıntılı kipte süre sınırı |
-| ↳ **Ölçüldü (1A-2, DEVIR 5.12.66):** boş sektör silme 0.3–1.35 ms, yazma ≤ 2.9 ms → 50/s'de döngü 7.6 → 8.2 ms, >20 ms tur 0, düşen nokta 0. **Dolu** sektör silme **24.9 ms** ve iki çekirdeği de durdurur (`AUTO_SUSPEND` kapalı) → halka döndükten sonra 4 KB'da bir ~25 ms boşluk | 1A-2 tezgah | **Önlem alınmadı:** boşluk `K` satırında sayılıyor, nokta `DURAKLAMA` bayrağı alıyor, enerji (dt < 1 s) etkilenmiyor. Ayrıntılı kip (1C) bu sınırla tasarlanacak |
+| ↳ **Ölçüldü (1A-2, DEVIR 5.12.66):** boş sektör silme 0.3–1.35 ms, yazma ≤ 2.9 ms → 50/s'de döngü 7.6 → 8.2 ms, >20 ms tur 0, düşen nokta 0. **Dolu** sektör silme **24.9 ms** ve iki çekirdeği de durdurur (`AUTO_SUSPEND` kapalı) → halka döndükten sonra 4 KB'da bir ~25 ms boşluk | 1A-2 tezgah | **Önlem alınmadı:** boşluk `K` satırında sayılıyor, nokta `DURAKLAMA` bayrağı alıyor, enerji (dt < 1 s) etkilenmiyor. **1C-2 (DEVIR 5.12.69):** ayrıntılı kip için hazır alan (boşta önceden silme) + kayıtta temizlik yok; kalan duraklamalar `KA_SILME` ile işaretli ve sayılı. Bedeli: boşta ön silme sürerken canlı ölçüm 500 ms'de bir 25 ms durur (tezgah ölçümleri bunu bekler) |
 | Sürekli TLS bağlantısı RAM bütçesini (< %40) aşar | Alt proje 1 | Tampon küçültme; TLS'i yalnız kayıt sürerken açma |
 | Ücretsiz MQTT katmanı koşulları (bağlantı süresi, trafik, keepalive alt sınırı) | Alt proje 1 | Başka aracı; kendi Mosquitto sunucusu |
 | Android Doze uzun bağlantıyı keser → Ö4 tutmaz | Alt proje 5 | Pil optimizasyonu muafiyeti; olmazsa kullanıcıya dürüst süre |

@@ -1,5 +1,10 @@
 # Alt proje 1C-3 — Osiloskop günlüğü Uygulama Planı
 
+> **Durum (2026-10-01): UYGULANDI** (DEVIR 5.12.70). Bağımsız son incelemeden
+> sonra altı düzeltme yapıldı; görev metinlerinin ötesine geçenler: yakalamanın
+> kayıt sırasıyla kurulması (K15), yuvanın oturuma bağlanması (K16), her yakalamadan
+> sonra ölçüm (K17), kirli silme işaretinin platformsuz `ksi_*`'ye taşınması.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** `Gt` ile osiloskop yakalamaları kartın kayıt günlüğüne yazılsın (her tetikte ya da N ms'de bir), PC eşitlenen dosyadan onları `/skop.bin` biçimine birebir çevirebilsin.
