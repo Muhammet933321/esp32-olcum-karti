@@ -115,6 +115,8 @@ static KayitOrnek  *kayit_halka_t = nullptr;
 static volatile uint8_t kayit_on_sil_izin = 0;     /* cekirdek 1 yazar: kayit/skop/pil yok */
 static uint32_t     kayit_ayr_silme = 0;           /* ayrintili oturumda KIRLI sektor silmesi */
 static uint32_t     kayit_ks_gordum = 0;           /* cekirdek 1: son gordugu kayit_g.kirli_sil */
+static uint32_t     kayit_ks_fark_ms = 0;          /* cekirdek 1: degisimi ilk gordugu an (0 yok) */
+static uint32_t     kayit_onceki_us = 0;           /* cekirdek 1: onceki ayrintili ornegin micros'u */
 /* 1C-3 osiloskop gunlugu: TEK yuva (PSRAM, ~8 KB). Cekirdek 1 yakalamayi
    kopyalar, kayit_skop_dolu = 1 yapar, KM_SKOP gonderir; gorev yazar, SONRA
    0 yapar. Dolu yuvaya kopya yok: gunluk bos yuvayi bekler (yakalama dusmez). */
@@ -187,11 +189,13 @@ static int kayit_f_sil(void *b, uint32_t a)
     uint32_t t = micros();
     esp_err_t e;
     (void)b;
-    kayit__nefes();
+    /* 1C-2: nefes SILMEDEN SONRA — kirli_sil silmeden once artiyor; arada tik
+       birakmak cekirdek 1'e durustan ONCE ornek ittirirdi (kayit_ornek) */
     e = esp_partition_erase_range(kayit_bolum, a, KAYIT_SEKTOR);
     t = micros() - t;
     if (t > kayit_sil_azami_us) kayit_sil_azami_us = t;
     kayit_sil_adet = kayit_sil_adet + 1u;
+    kayit__nefes();
     return e == ESP_OK ? 0 : -1;
 }
 
@@ -523,14 +527,26 @@ static void kayit_ornek(float watt, uint32_t simdi, uint8_t ek)
                              | ((hata & KN_HATA_V) ? KAO_V_HATA : 0u)
                              | ((hata & KN_HATA_I) ? KAO_I_HATA : 0u)
                              | (kayit_ham.v_doydu ? KAO_V_DOYDU : 0u));
-        /* kirli sektor silmesi iki cekirdegi durdurdu: durustan sonra uretilen
-           ILK ornek isaretlenir (sayac silmeden ONCE artar, kayit_gunluk.h) */
+        /* kirli sektor silmesi iki cekirdegi ~25 ms durdurdu: DURUSTAN SONRA
+           uretilen ILK ornek isaretlenir. Sayac silmeden ONCE artar (kayit_gunluk.h)
+           ve silme baslamadan bir ornek itilebilir — kanit bosluk: onceki ornekten
+           >= 15 ms (aralik 2 ms, ADS'siz <= 10 ms). 100 ms'de durus yoksa (kisa
+           silme) yine isaretlenir. Kartta 204 silmenin 3'u bir ornek erken dusuyordu. */
         const uint32_t ks = kayit_g.kirli_sil;
-        if (ks != kayit_ks_gordum) o.bayrak = (uint8_t)(o.bayrak | KO_SILME_ONCE);
-        if (kh_it(&kayit_halka, &o)) kayit_ks_gordum = ks;   /* dustuyse isaret sonrakine */
+        if (ks != kayit_ks_gordum) {
+            if (!kayit_ks_fark_ms) kayit_ks_fark_ms = simdi | 1u;
+            if (o.us - kayit_onceki_us >= 15000u || simdi - kayit_ks_fark_ms >= 100u)
+                o.bayrak = (uint8_t)(o.bayrak | KO_SILME_ONCE);
+        }
+        kayit_onceki_us = o.us;
+        if (kh_it(&kayit_halka, &o) && (o.bayrak & KO_SILME_ONCE)) {
+            kayit_ks_gordum = ks;              /* dustuyse isaret sonrakine */
+            kayit_ks_fark_ms = 0u;
+        }
         return;                                /* doluysa sayilir + sonraki KO_KAYIP_ONCE */
     }
     kayit_ks_gordum = kayit_g.kirli_sil;       /* ayrintili degil: isaret birikmesin */
+    kayit_ks_fark_ms = 0u;
     if (!kayit_kn_aktif) return;
     if (kn_ornek(&kayit_kn, simdi, kayit_ham.menzil, kayit_ham.ham_v, kayit_ham.ham_i,
                  watt, hata, kayit_ham.v_doydu, ek, &c))

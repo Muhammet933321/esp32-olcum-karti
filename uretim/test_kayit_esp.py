@@ -346,14 +346,22 @@ def bolum_kaynak() -> None:
     # son inceleme (Important 1-2): KA_SILME silmeyi YAPAN bosaltmadan sonraki
     # kayda dusuyordu (halkadaki silme ONCESI ornekler); GA yalniz tabloda kaydi
     # olan sektorleri sayiyordu (GF! sonrasi eski sektorler 0).
-    ok("B72.F47 kirli silmeden sonra uretilen ILK ornek KO_SILME_ONCE tasir: cekirdek 1 "
-       "kayit_g.kirli_sil'i itme aninda okur, gordugunu YALNIZ itme basarirsa gunceller; "
-       "ayrintili degilken esitler (isaret birikmez)",
+    # 🔴 kartta (2026-10-01, 204 kirli silme): 3'unde isaret DURUSTAN ONCEKI
+    # ornege dustu — sayac silmeden once artiyor, kayit_f_sil silmeye girmeden
+    # kayit__nefes ile 1 tik birakiyordu; o arada itilen ornek isaretleniyordu.
+    # Kural artik kanita dayali: sayac degistikten sonra onceki ornekten >= 15 ms
+    # sonra gelen ILK ornek (silme ~25 ms durdurur; aralik 2 ms, ADS'siz <= 10 ms);
+    # 100 ms icinde durus yoksa (kisa silme) yine isaretlenir.
+    fs = govde(esp_k, "static int kayit_f_sil(")
+    ok("B72.F47 kirli silmeden sonra uretilen ILK ornek KO_SILME_ONCE tasir: sayac degistikten "
+       "sonra >= 15 ms bosluktan sonra gelen ornek (ya da 100 ms); gorulen yalniz ISARETLI "
+       "ornek itilince guncellenir; ayrintili degilken esitlenir; nefes silmeden SONRA",
        "const uint32_t ks = kayit_g.kirli_sil;" in ko
-       and "if (ks != kayit_ks_gordum) o.bayrak = (uint8_t)(o.bayrak | KO_SILME_ONCE);" in ko
-       and "if (kh_it(&kayit_halka, &o)) kayit_ks_gordum = ks;" in ko
+       and "o.us - kayit_onceki_us >= 15000u" in ko and "simdi - kayit_ks_fark_ms >= 100u" in ko
+       and "if (kh_it(&kayit_halka, &o) && (o.bayrak & KO_SILME_ONCE))" in ko
        and ko.find("KO_SILME_ONCE") < ko.find("kayit_ks_gordum = kayit_g.kirli_sil;")
-       < ko.find("if (!kayit_kn_aktif) return;"))
+       < ko.find("if (!kayit_kn_aktif) return;")
+       and 0 <= fs.find("esp_partition_erase_range(") < fs.find("kayit__nefes()"))
     ok("B72.F48 GA kayit ici silme = kirli silme sayaci (kayit_g.kirli_sil), gorev turunda "
        "ayrintili oturum surduyse — Gd'nin son bosaltmasi dahil; temizlik kayitta durur "
        "(kayit_yonet.h, B71.Z7)",
