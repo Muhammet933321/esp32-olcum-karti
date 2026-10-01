@@ -33,7 +33,8 @@ SIL = 0x5E
 # B72: emule NVS (ESP32 Preferences yerine). Anahtar SIRA ile; deger u32.
 # Degerler NorFlas nesnesinde kalir -> acilistan acilisa KALICI.
 NVS_ANAHTAR, NVS_V0, NVS_KOMUT = 0xE7, 0xE8, 0xEC     # V0..V3 = 0xE8..0xEB
-NVS_ADLAR = ["acilis", "kimlik", "taban", "onay", "kapat", "t_adim", "t_rast"]
+NVS_ADLAR = ["acilis", "kimlik", "taban", "onay", "kapat", "t_adim", "t_rast",
+             "pl_bas", "pl_sure", "pl_hiz", "pl_no", "pl_dur", "pl_ot", "pl_bu"]   # 1C-4
 # 1B: ADA gore blob (kalibrasyon gecmisi). 0xED ad portu (karakter karakter,
 # komut adi tuketir) · 0xEE veri portu (yaz: tampona ekle, oku: siradaki
 # bayt) · 0xEF NVS'te bos giris (Python `nvs_bos` ile ayarlar).

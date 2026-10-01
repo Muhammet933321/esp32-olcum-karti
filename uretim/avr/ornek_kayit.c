@@ -1871,13 +1871,129 @@ static void senaryo(void)
 }
 #endif
 
+#if defined(SENARYO_PLAN)
+/* 1C-4: ZAMANLANMIS KAYIT KARAR MANTIGI (kayit_plan.h). NVS emule (nor_flas.py,
+   acilistan acilisa KALICI); saat ve oturum taklit. Her asama bir acilis:
+   1 R1/R2/R4/R5/R7/R8/R9 + R3 hazirligi · 2 R3 gec baslama · 3 R6 DEVAM'li
+   oturumda bitis, saat geri, suren planda kur reddi · 4 R6 DEVAM alamadi. */
+#include "kayit_plan.h"
+#define NVS_ANAHTAR (*(volatile uint8_t *)0xE7)
+#define NVS_V(i)    (*(volatile uint8_t *)(0xE8 + (i)))
+#define NVS_KOMUT   (*(volatile uint8_t *)0xEC)
+
+static const char *const NVS_ADLAR[] = {"acilis", "kimlik", "taban", "onay", "kapat",
+                                        "t_adim", "t_rast", "pl_bas", "pl_sure", "pl_hiz",
+                                        "pl_no", "pl_dur", "pl_ot", "pl_bu"};
+
+static uint8_t nvs_sira(const char *ad)
+{
+    uint8_t i;
+    for (i = 0; i < sizeof(NVS_ADLAR) / sizeof(NVS_ADLAR[0]); i++)
+        if (!strcmp(ad, NVS_ADLAR[i])) return i;
+    return 0xFFu;
+}
+
+static uint32_t nvs_oku(void *b, const char *ad, uint32_t varsayilan)
+{
+    (void)b;
+    NVS_ANAHTAR = nvs_sira(ad);
+    NVS_KOMUT = 1u;
+    if (!(NVS_KOMUT & 1u)) return varsayilan;
+    return (uint32_t)NVS_V(0) | ((uint32_t)NVS_V(1) << 8)
+         | ((uint32_t)NVS_V(2) << 16) | ((uint32_t)NVS_V(3) << 24);
+}
+
+static int nvs_yaz(void *b, const char *ad, uint32_t v)
+{
+    (void)b;
+    NVS_ANAHTAR = nvs_sira(ad);
+    NVS_V(0) = (uint8_t)v; NVS_V(1) = (uint8_t)(v >> 8);
+    NVS_V(2) = (uint8_t)(v >> 16); NVS_V(3) = (uint8_t)(v >> 24);
+    NVS_KOMUT = 2u;
+    return (NVS_KOMUT & 2u) ? -1 : 0;
+}
+
+static const KayitNvs NVS = { nvs_oku, nvs_yaz, 0 };
+static KayitPlan p;
+
+static void pd(const char *ad, uint8_t e)
+{
+    metin(ad);
+    yaz(' '); ondalik(e);
+    yaz(' '); ondalik(p.durum);
+    yaz(' '); ondalik(p.oturum);
+    satir();
+}
+
+static uint8_t adim_bas(const char *ad, uint32_t t, uint8_t var, uint32_t id)
+{
+    uint8_t e = plan_adim(&p, t, var, id);
+    pd(ad, e);
+    if (e == PE_BASLAT) plan_basliyor(&p, t);
+    return e;
+}
+
+static void senaryo(void)
+{
+    uint32_t adim = nvs_oku(0, "t_adim", 0u);
+    plan_ac(&p, &NVS);
+    pd("AC", 0u);
+    switch (adim) {
+    case 1:
+        sayi("K1", plan_kur(&p, 1000u, 60u, 200u, 900u));
+        adim_bas("R1a", 950u, 0u, 0u);
+        adim_bas("R1b", 1000u, 0u, 0u);
+        adim_bas("R1c", 1001u, 1u, 77u);
+        adim_bas("R1d", 1059u, 1u, 77u);
+        adim_bas("R1e", 1060u, 1u, 77u);
+        adim_bas("R1f", 1061u, 0u, 0u);
+        adim_bas("R7", 1070u, 0u, 0u);
+        sayi("K2", plan_kur(&p, 2000u, 60u, 200u, 1900u));
+        adim_bas("R2a", 2000u, 1u, 55u);
+        adim_bas("R2b", 2001u, 0u, 0u);
+        sayi("K4", plan_kur(&p, 4000u, 100u, 200u, 3900u));
+        adim_bas("R4", 4200u, 0u, 0u);
+        sayi("K5a", plan_kur(&p, 5000u, 100u, 200u, 0u));
+        sayi("K5b", plan_kur(&p, 5000u, 100u, 200u, 4900u));
+        adim_bas("R5a", 0u, 0u, 0u);
+        adim_bas("R5b", 5000u, 0u, 0u);
+        adim_bas("R9a", 5005u, 0u, 0u);
+        adim_bas("R9b", 5011u, 0u, 0u);
+        sayi("K8", plan_kur(&p, 6000u, 100u, 200u, 5900u));
+        plan_iptal(&p);
+        adim_bas("R8a", 6000u, 0u, 0u);
+        sayi("KS", plan_kur(&p, 6500u, PLAN_SURE_AZAMI + 1u, 200u, 6400u));
+        sayi("KG", plan_kur(&p, 6000u, 100u, 200u, 6400u));
+        sayi("K3", plan_kur(&p, 7000u, 100u, 200u, 6900u));
+        break;
+    case 2:                                   /* kart 7000'de kapaliydi: GEC basla */
+        adim_bas("R3a", 7050u, 0u, 0u);
+        adim_bas("R3b", 7051u, 1u, 90u);
+        break;                                /* elektrik gider: SURUYOR, oturum 90 */
+    case 3:                                   /* oturum DEVAM aldi */
+        adim_bas("R6a", 7060u, 1u, 90u);
+        adim_bas("R6b", 6990u, 1u, 90u);      /* saat GERI: yeniden baslama yok */
+        adim_bas("R6c", 7100u, 1u, 90u);
+        sayi("K6", plan_kur(&p, 8000u, 100u, 200u, 7100u));
+        break;
+    case 4:                                   /* DEVAM alamadi: oturum yok */
+        adim_bas("R6d", 7101u, 0u, 0u);
+        adim_bas("R6e", 7102u, 0u, 0u);
+        break;
+    default:
+        break;
+    }
+    metin("BITTI\n");
+}
+#endif
+
 /* ── giris ── */
 #if !(defined(SENARYO_BICIM) || defined(SENARYO_NOKTACI) || defined(SENARYO_GUNLUK) \
       || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN) \
       || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) || defined(SENARYO_YONET) \
       || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC) || defined(SENARYO_PIL) \
       || defined(SENARYO_HALKA) || defined(SENARYO_AYRINTI) || defined(SENARYO_HAZIR) \
-      || defined(SENARYO_SKOP))
+      || defined(SENARYO_SKOP) || defined(SENARYO_PLAN))
 #error "SENARYO_* tanimli degil"
 #endif
 

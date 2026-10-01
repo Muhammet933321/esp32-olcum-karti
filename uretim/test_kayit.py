@@ -51,7 +51,7 @@ SEKTOR = 512          # testte kucuk sektor: halka cok doner, emulatorde ucuz
 SEKTOR_ADET = 8       # varsayilan; derle() -DNOR_SEKTOR_ADET ile gecirir
 AZAMI_YUK = 256       # 4 + 7 nokta
 CPP_BASLIKLAR = ["kayit_bicim.h", "kayit_nokta.h", "kayit_gunluk.h", "kayit_oturum.h",
-                 "kayit_yonet.h", "kalgec.h", "kayit_halka.h"]
+                 "kayit_yonet.h", "kalgec.h", "kayit_halka.h", "kayit_plan.h"]
 _ELF: dict[str, Path] = {}
 
 gecti = kaldi = 0
@@ -1363,6 +1363,59 @@ def bolum_skop() -> None:
        f"SKR={_say(s3, 'SKR')} n={n} tam={tamlar} bitir={o6 and o6.bitir}")
 
 
+# ── B71.R · zamanlanmis kayit karar mantigi (1C-4) ─────────────────────
+def bolum_plan() -> None:
+    """1C-4: plan_adim gercek saate gore BASLAT/BITIR der; mesgulse atlar,
+    kacirilan baslangici pencere icinde gec baslatir; NVS'te kalici, yeniden
+    baslamada DEVAM'li oturumun bitisini korur; saat yokken bekler."""
+    print("\n── B71.R  zamanlanmis kayit: baslat · bitir · atla · gec · kacirildi · acilis")
+    elf = derle("PLAN")
+    fl = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    a1, a2, a3, a4 = _yonet(fl, elf, [1, 2, 3, 4])
+
+    def r(c, ad):
+        x = alanlar(c, ad)
+        return [int(v) for v in x[0]] if x else None
+    YOK, BASLAT, BITIR = 0, 1, 2
+    D_YOK, BEK, SUR, BIT, ATL, KAC = 0, 1, 2, 3, 4, 5
+    ok("B71.R1 baslangicta BASLAT, oturum gorulunce baglanir (SURUYOR), sure dolunca BITIR, "
+       "oturum kapaninca BITTI",
+       _say(a1, "K1") == 0 and r(a1, "R1a") == [YOK, BEK, 0] and r(a1, "R1b") == [BASLAT, BEK, 0]
+       and r(a1, "R1c") == [YOK, SUR, 77] and r(a1, "R1d") == [YOK, SUR, 77]
+       and r(a1, "R1e") == [BITIR, SUR, 77] and r(a1, "R1f") == [YOK, BIT, 77],
+       str([r(a1, x) for x in ("R1a", "R1b", "R1c", "R1d", "R1e", "R1f")]))
+    ok("B71.R2 baslangicta oturum (elle/pil/skop) varsa ATLANDI, sonra kendiliginden BASLAMAZ",
+       _say(a1, "K2") == 0 and r(a1, "R2a") == [YOK, ATL, 0] and r(a1, "R2b") == [YOK, ATL, 0],
+       str([r(a1, "R2a"), r(a1, "R2b")]))
+    ok("B71.R3 kart baslangicta kapaliydi, pencere icinde acildi: GEC baslar (kalan sure)",
+       _say(a1, "K3") == 0 and r(a2, "AC") == [0, BEK, 0] and r(a2, "R3a") == [BASLAT, BEK, 0]
+       and r(a2, "R3b") == [YOK, SUR, 90], str([r(a2, "AC"), r(a2, "R3a"), r(a2, "R3b")]))
+    ok("B71.R4 pencere gecmisse KACIRILDI, baslamaz",
+       _say(a1, "K4") == 0 and r(a1, "R4") == [YOK, KAC, 0], str(r(a1, "R4")))
+    ok("B71.R5 saat yokken kur REDDEDILIR; bekleyen plan saat yokken BEKLER, saat gelince karar",
+       _say(a1, "K5a") == -1 and _say(a1, "K5b") == 0 and r(a1, "R5a") == [YOK, BEK, 0]
+       and r(a1, "R5b") == [BASLAT, BEK, 0], str([_say(a1, "K5a"), r(a1, "R5a"), r(a1, "R5b")]))
+    ok("B71.R6 yeniden baslama: plan NVS'ten SURUYOR + oturum; DEVAM'li oturumda bitis zamaninda, "
+       "saat geri gitse de yeniden baslama yok, surerken kur RED; DEVAM alamadiysa BITTI ve "
+       "yeni oturum ACILMAZ",
+       r(a3, "AC") == [0, SUR, 90] and r(a3, "R6a") == [YOK, SUR, 90] and r(a3, "R6b") == [YOK, SUR, 90]
+       and r(a3, "R6c") == [BITIR, SUR, 90] and _say(a3, "K6") == -4
+       and r(a4, "AC") == [0, SUR, 90] and r(a4, "R6d") == [YOK, BIT, 90]
+       and r(a4, "R6e") == [YOK, BIT, 90],
+       str([r(a3, x) for x in ("AC", "R6a", "R6b", "R6c")] + [_say(a3, "K6")]
+           + [r(a4, x) for x in ("AC", "R6d", "R6e")]))
+    ok("B71.R7 kullanici Gd ile kapattiysa (oturum yok) plan BITTI, ikinci BITIR yok",
+       r(a1, "R7") == [YOK, BIT, 77], str(r(a1, "R7")))
+    ok("B71.R8 iptal: plan YOK, baslangicta bir sey olmaz; 30 gunden uzun sure ve gecmis pencere "
+       "REDDEDILIR",
+       _say(a1, "K8") == 0 and r(a1, "R8a") == [YOK, D_YOK, 0] and _say(a1, "KS") == -2
+       and _say(a1, "KG") == -3, str([r(a1, "R8a"), _say(a1, "KS"), _say(a1, "KG")]))
+    ok("B71.R9 BASLAT'tan sonra oturum 10 s icinde gorunmezse plan BITTI (baslatilamadi, takili "
+       "kalmaz)",
+       r(a1, "R9a") == [YOK, SUR, 0] and r(a1, "R9b") == [YOK, BIT, 0],
+       str([r(a1, "R9a"), r(a1, "R9b")]))
+
+
 # ── B71.H · ornek halkasi (1C-2) ─────────────────────────────────────
 def bolum_halka() -> None:
     """1C-2: cekirdek 1 -> 0 ornek halkasi (kayit_halka.h), kilitsiz tek
@@ -1776,7 +1829,7 @@ def bolum_kesinti(n_deneme: int) -> None:
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
             bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_halka, bolum_ayrinti,
-            bolum_hazir, bolum_skop, bolum_kalgec, bolum_dizin,
+            bolum_hazir, bolum_skop, bolum_plan, bolum_kalgec, bolum_dizin,
             bolum_kesinti]
 
 
