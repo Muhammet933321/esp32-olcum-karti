@@ -9144,6 +9144,107 @@ paketleme.
 
 ---
 
+#### 5.12.71 ✅ 1C-4 — ZAMANLANMIŞ KAYIT (2026-10-01)
+
+Tasarım: `tasarim/2026-10-01-1c4-zamanlanmis-kayit.md` (K1–K12) · Plan:
+`tasarim/2026-10-01-plan-1c4-zamanlanmis-kayit.md`.
+
+`Gp` ile kart bir ölçüm kaydını **gerçek saatte** (NTP) kendisi başlatıp
+bitiriyor:
+- `Gp<unix>,<süre_s>,<hız_ms>` mutlak başlangıç alır.
+- `Gp+<saniye>,…` göreli başlangıç alır.
+- `Gp-` planı iptal eder; `Gp?` ya da `G?` ardından **`GP`** satırı.
+
+Süre 0 "`Gd`'ye dek" demektir; en fazla 30 gün.
+
+**Karar yetkisi:** 1C-2/1C-3 ile aynı ("sen devam et ben yatıyorum"); kararlar
+tasarım belgesinde, inceleme sonrası kararlar `.superpowers` defterinde ve aşağıda.
+
+Kararların özeti:
+- **Tek plan, tekrarsız.** NVS'te kendi ad alanı `plan` (7 anahtar, durum en son yazılır).
+- **Saat:** yalnız NTP; saat yoksa `Gp` reddedilir. Bekleyen plan saat gelene dek bekler.
+- **Başlangıç:**
+  - Meşgulse plan **atlanır**. Meşgul = oturum, oturumsuz pil testi ya da skop günlüğü.
+  - Kart başlangıçta kapalıydı ve pencere bitmediyse **geç başlar**; pencere geçmişse "kaçırıldı".
+- **Kayıt:** ÖLÇÜM oturumu + OLAY `PLAN` (5: başlangıç, süre, hız, plan no) tek mesajda.
+- **Bitiş:** süre dolunca BITIR **sebep 7 "planlı süre doldu"**. `Gd` (sebep 1) ve `Gp-` (sebep 1, kaydı da durdurur) planı bitirir.
+- **Yeniden başlama:** planın oturumu DEVAM aldıysa bitiş yine plandan; DEVAM yoksa plan "bitti", yeni oturum açılmaz.
+- **Biçim:** sürüm 2 kalır. Firmware `A3-1C4`.
+
+**Ne yapıldı**
+
+| Dosya | Ne |
+|---|---|
+| `kayit_bicim.h` / `kopru/kayit_bicim.py` | `KB_SEBEP_PLAN` 7, `KO_PLAN` 5, `KayitPlanOlay` (C == Python, B71.B30/B31) |
+| `kayit_plan.h` (yeni, platformsuz) | `plan_kur` (saat / süre / pencere / anlamsız başlangıç `KP_ZAMAN` / sürüyor retleri), `plan_adim(p, simdi, mesgul, oturum_id)` → `PE_YOK/BASLAT/BITIR`, `plan_sonuc` (çekirdek 0'ın bildirdiği oturuma bağlar; 0 meşgul → ATLANDI, hata → BAŞLATILAMADI; plan beklemiyorsa 0 döner), `plan_basliyor`, `plan_iptal`, `plan_ac` (açılışta oturumu bilinmeyen SÜRÜYOR → BİTTİ). Durumlar 0 yok · 1 bekliyor · 2 sürüyor · 3 bitti · 4 atlandı · 5 kaçırıldı · (6 saat yok, yalnız GP) · 7 başlatılamadı |
+| `kayit_esp.h` | `KM_PLAN_BASLAT` (11): çekirdek 0 oturum ya da DEVAM bekleyişi varken AÇMAZ, sonucu `kayit_plan_sonuc` + istek numarasıyla yayınlar. `KM_PLAN_BITIR` (10): yalnız etkin oturum planınkiyse, sebep mesajdan. `plan` NVS yapıştırıcısı. `A3-1C4` |
+| `olcum-karti-a3.ino` | `Gp` ayrıştırıcı (yalnız rakam, ≤ 10 hane, 32 bit taşmasız; göreli ≤ 1 yıl), `kayit_plan_isle` saniyede bir (tarama bitmeden karar yok), sonucu istek numarasıyla alır, plan artık beklemiyorken geç açılan oturumu kapatır, `GP` satırı. DRAM **74548** (+64) |
+| `uretim/avr/ornek_kayit.c` | `SENARYO_PLAN`: emüle NVS + sahte saat, 5 açılış |
+| `tezgah_kayit.py` | `--plan` |
+
+**Doğrulama**
+- `test_kayit.py` **263/263** — B71.R1–R13 (`SENARYO_PLAN`, açılıştan açılışa):
+  - başlat/bitir;
+  - başka oturum **benimsenmez**;
+  - NTP geri adımı zaman aşımı sayılmaz;
+  - meşgulse atla, geç başla, kaçırıldı;
+  - saat yokken bekle;
+  - DEVAM'lı yeniden başlama, saat geri gitse de yeniden başlama yok;
+  - `Gd`; iptal ve retler (`Gp20`, 1 yıl ileri, 30 gün, geçmiş pencere);
+  - sonuç gelmezse / hata → başlatılamadı; meşgul → atlandı; geç sonuç alınmaz;
+  - süre 0 hiç BITIR demez;
+  - açılışta oturumu bilinmeyen plan bitti.
+- `test_kayit_esp.py` **99/99** (F63–F73).
+- **Mutasyon:** 1C-4'ün **38** yalanlayıcısının hepsi yakalanıyor.
+  - Tam koşu (paralel koşucu): **B72 115/115**, **B71 158/158**.
+    - B71: koşu listenin bir önceki halini okudu (156/157); uygulanamayan tek giriş, işaretli fark düzeltmesiyle eskiyen zaman aşımı kalıbıydı. Yeni hali ve işaret mutasyonu ayrıca koşuldu: 2/2.
+  - 1C-3'ün sürüm adı girişi (`A3-1C3` → `A3-1C2`) artık uygulanamıyordu (F25'i 1C-4'ünkü örtüyor) → çıkarıldı.
+- **Kart (A3-1C4, NVS yedeği depo dışında, NTP'li STA):**
+  - `--plan` **6/6**:
+    - Geçersiz argümanların hepsi reddedildi: eksik alan, hız 7, taşan sayı, harf, > 30 gün, `Gp20,…`, 1 yıldan ileri. Plan kurulmadı.
+    - `Gp+20,30,200`: **+20.3 s**'de ÖLÇÜM oturumu açıldı, **+50.4 s**'de sebep 7 ile kapandı (GP 1 → 3). PLAN olayı süre 30 / hız 200.
+    - Plan sürerken yeniden başlatma: DEVAM aldı, planlanan anda (**52.8 s**, plan 53) sebep 7 ile kapandı.
+    - Elle kayıt sürerken plan: ATLANDI (GP 4), elle kayıt bölünmedi.
+    - `Gp-` bekleyeni iptal etti.
+    - Süre 0: oturuma bağlandı, kendiliğinden bitmedi; `Gp-` kaydı sebep 1 ile kapattı.
+  - Regresyon `--duman --pil --ayrinti --skop` yeşil.
+  - ⚠ İlk `--ayrinti` koşusunda "boşta hazır alan büyüyor" kırmızıydı. Sebep: hemen önceki `--hazirsiz --doldur` bütün bölümü kirli bırakmıştı. Hazır alan GF! temizliği bitince başlar (`temiz_s >= sektor_adet`), her yeniden başlama temizliği baştan alır; o an kartta `temiz_kalan` 1040'tı. Temizlik bitince yeniden koşuldu: hazır alan 39 → 67, oturum başında 480, `KA_SILME` 0 → **4/4**. Tasarım gereği; kusur değil.
+  - Tezgahın kendi iki yarışı düzeltildi: plan saniyede bir karar verdiği için GP, G değiştikten ≤ 1 s sonra izler; `Gp-`'nin G satırı komut çıktısında kalıyordu.
+
+**Bağımsız son inceleme (opus): "düzeltmelerle" — 5 önemli**
+
+| # | Bulgu | Neden önemli | Ne yapıldı |
+|---|---|---|---|
+| Ö1 | Plan BASLAT'tan sonra beliren **herhangi** bir oturumu benimsiyordu; "meşgul" kararı çekirdek 0 ile atomik değildi | Kuyrukta önde bir `Gb`/`p1` varsa plan kullanıcının kaydını kendi sanıp sonunda sebep 7 ile **kapatırdı** | Çekirdek 0 meşgulken açmaz, sonucu istek numarasıyla yayınlar; plan yalnız o oturuma bağlanır. B71.R1/R12/R13, F67/F68/F72 |
+| Ö2 | Oturumsuz pil testi (DOLU'da) ve skop günlüğü meşgul sayılmıyordu | Plan pil testini bölerdi (emniyet, Ö7) | `mesgul` tam. F70 (ters çevrildi) |
+| Ö3 | Başlatılamayan plana "bitti" deniyordu | Kullanıcı kaydın alındığını sanır | Yeni durum 7 "başlatılamadı", kart sebebi yazar. R9/R11 |
+| Ö4 | `Gp-` sürmekte olan planın otomatik bitişini sessizce kaldırıyordu | Kayıt `Gd`'ye dek (30 güne kadar) sürerdi | `Gp-` kaydı da durdurur (sebep 1). F71 |
+| Ö5 | Süre 0 hiç sınanmıyordu | — | R10 + mutasyon |
+| k2 (yükseltildi) | Zaman girdileri denetlenmiyordu: `+` unutulmuş `Gp20,…` 1970 sayılıp plan **hemen** başlıyordu; işaretsiz fark NTP geri adımında planı düşürüyordu | Bitmeyen beklenmedik kayıt | `KP_ZAMAN`, göreli ofset ≤ 1 yıl, işaretli fark. R8, R1 |
+
+**Ertelenen küçükler:**
+- Planın oturumu DEVAM yeri beklerken her saniye etkisiz bir bitiş isteği ve mesajı gidiyor; yer açılınca oturum ~1 s fazla sürüyor.
+- NVS yazım sırası: `plan_basliyor` mesajdan sonra yazılıyor (pencerede elektrik → atlandı + bitişsiz oturum; pencere kısaldı, kapanmadı), `plan_kur` alan alan yazıyor.
+- Plan NVS'e yazılamazsa da "kuruldu" deniyor.
+- `GP`: saatsiz SÜRÜYOR düz 2; atlandı/kaçırıldı geçişleri o an yazılmıyor; bekleyen planın üzerine yazmak sessiz.
+- Çekirdek 0 tarafı hâlâ kaynak metin iddiası (platformsuz `kyn_plan_bitir` yok); tezgahta "`Gd` + `Gb` arada" ve oturumsuz pil durumu yok.
+
+**1C-2'den kalan iş — kirli silme işaretinin son kart doğrulaması (A3-1C3 son
+inceleme yazılımı, `--duman --pil --ayrinti --skop --hazirsiz --doldur --sure 600`,
+21/21):**
+- Bölüm `Gb20` ile DOLU'ya dek dolduruldu (311 495 nokta, 2911 silme, en uzun silme 30.7 ms).
+- Ardından `GF!` ve hemen `Gb0` ile 600 s kaydedildi; bütün sektörler kirliydi.
+- Sonuç: 96 446 örnek, 874 kayıt, **GA silme +154 → KA_SILME 153**. Eksik olan bir tanesi `Gd`'nin son boşaltması.
+- Sıra kesintisiz, düşen yok.
+- **Her** `KA_SILME`'li kaydın ilk örneğinin önünde ≥ 15 ms boşluk var: en küçük **23.96 ms**, ortanca 29.0 ms, en büyük 37.2 ms.
+- 16.38 ms'yi aşıp bayraksız kalan boşluk yok.
+- Sonuç: 1C-3'teki `ksi_*` düzeltmesi kartta doğrulandı (önceki koşuda 204 silmenin 3'ü bir örnek erken işaretleniyordu).
+
+**Açık / sonraki:** 1D (eşleştirme; cihazdan saat alma burada) · 1E (MQTT) ·
+plan gösterimi panel/PC/telefonda (alt proje 3–5) · tekrarlı plan (kapsam dışı).
+
+---
+
 #### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
 
 **Neden.** Malzemenin tamamı geldi (50 mA sigorta hariç); kullanıcı "lehimsiz test mi, plakete mi" diye sordu. Karar: **plakete, blok blok** — lehimsiz tahta bu kartta ölçüm üretmez (15 mΩ şönt + Kelvin tahta temasından küçük; 4.9 MΩ zincirde tahta kaçağı oranı bozar; B30/B44'te iki sessiz kusur gevşek telden geldi). Ama plakete geçmek için elde **yerleşim planı yoktu** — F9 ("delik atla") sayı veriyordu, yer vermiyordu.

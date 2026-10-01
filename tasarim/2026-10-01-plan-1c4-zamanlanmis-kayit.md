@@ -1,5 +1,15 @@
 # Alt proje 1C-4 — Zamanlanmış kayıt Uygulama Planı
 
+> **Durum (2026-10-01): UYGULANDI** (DEVIR 5.12.71). Bağımsız son incelemeden
+> sonra yapılan düzeltmeler görev metinlerinin ötesine geçiyor:
+> - Plan BASLAT'ı `KM_BASLAT` + `KM_OLAY` değil, tek `KM_PLAN_BASLAT` mesajıdır. Çekirdek 0 meşgulken açmaz ve sonucu istek numarasıyla geri verir; plan yalnız o oturuma bağlanır (`plan_sonuc`).
+> - `plan_adim`'ın üçüncü parametresi artık "meşgul" (oturum, oturumsuz pil testi ya da skop günlüğü).
+> - Yeni durum 7 "başlatılamadı".
+> - `Gp-` sürmekte olan planın kaydını da durdurur.
+> - `KP_ZAMAN` ile başlangıç denetlenir.
+>
+> Aşağıdaki görev metinleri ilk sürümü anlatır; güncel kurallar için spec K5–K12'ye bakın.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** `Gp` ile tek bir kayıt gerçek saate göre başlasın ve bitsin. Plan NVS'te kalıcı olsun, yeniden başlamada korunsun, başka bir işi bölmesin.
