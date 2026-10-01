@@ -321,8 +321,8 @@ def bolum_bicim() -> None:
 def _bicim_1c3(s: dict) -> None:
     """1C-3: SKOP kaydi + SKOP_KAL olayi (ornek_kayit.c bicim_1c3 ile AYNI girdiler)."""
     meta = {"t_ms": 123456, "sure_ms": 250, "hz": 83333, "tdiv_us": 200, "adim": 0.03125,
-            "ofset": -1.25, "tetik": 1234, "esik": 2048, "kip": 1, "tetiklendi": 1,
-            "kenar": 0, "histerezis": 40, "on_yuzde": 25, "onay": 2}
+            "ofset": -1.25, "tetik": 1234, "esik": 2048, "histerezis": 300, "kip": 1,
+            "tetiklendi": 1, "kenar": 0, "on_yuzde": 25, "onay": 2}   # histerezis > 255
     p0 = {"no": 7, "ilk": 0, "adet": 3, "toplam": 5, "parca": 0, "meta": meta,
           "kodlar": [0, 4095, 2048]}
     p1 = {"no": 7, "ilk": 3, "adet": 2, "toplam": 5, "parca": 1, "meta": None, "kodlar": [1, 4094]}

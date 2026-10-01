@@ -714,7 +714,8 @@ static inline void kayit_ayrinti_ornek_paketle(uint8_t *p, int16_t v, int16_t i,
  *    12 [yalniz 0. parca] META 36 B:
  *       u32 t_ms (istek ani, kart_ms — ADS burada susar) · u32 sure_ms (istekten
  *       sonuca) · u32 hz · u32 tdiv_us · f32 adim · f32 ofset · u16 tetik ·
- *       u16 esik · u8 kip · tetiklendi · kenar · histerezis · on_yuzde · onay · 0 · 0
+ *       u16 esik · u16 histerezis · u8 kip · tetiklendi · kenar · on_yuzde · onay · 0
+ *       (histerezis u16: SkopAyar'da u16 — kirpilmasin)
  *    + u16 kod x adet
  * `adim`/`ofset` `/skop.bin` ile ayni (nominal); egri OLAY KO_SKOP_KAL'da. PC
  * eksik parcayi doldurmaz: yakalama "tam" degil (kopru/kayit_bicim.py). */
@@ -725,8 +726,8 @@ static inline void kayit_ayrinti_ornek_paketle(uint8_t *p, int16_t v, int16_t i,
 typedef struct {
     uint32_t t_ms, sure_ms, hz, tdiv_us;
     float    adim, ofset;
-    uint16_t tetik, esik;
-    uint8_t  kip, tetiklendi, kenar, histerezis, on_yuzde, onay;
+    uint16_t tetik, esik, histerezis;
+    uint8_t  kip, tetiklendi, kenar, on_yuzde, onay;
 } KayitSkopMeta;
 
 static inline void kayit_skop_parca_paketle(uint8_t *p, uint32_t no, uint16_t ilk, uint16_t adet,
@@ -750,13 +751,12 @@ static inline void kayit_skop_meta_paketle(uint8_t *p, const KayitSkopMeta *m)
     kayit_yf(p + 20, m->ofset);
     kayit_y16(p + 24, m->tetik);
     kayit_y16(p + 26, m->esik);
-    p[28] = m->kip;
-    p[29] = m->tetiklendi;
-    p[30] = m->kenar;
-    p[31] = m->histerezis;
-    p[32] = m->on_yuzde;
-    p[33] = m->onay;
-    p[34] = 0u;
+    kayit_y16(p + 28, m->histerezis);
+    p[30] = m->kip;
+    p[31] = m->tetiklendi;
+    p[32] = m->kenar;
+    p[33] = m->on_yuzde;
+    p[34] = m->onay;
     p[35] = 0u;
 }
 

@@ -74,9 +74,9 @@ _NOT_BAS = struct.Struct("<IB3xII")                # hedef, alan, nokta_ms, degi
 _AYRINTI_BAS = struct.Struct("<IIIHBx")            # ilk, t0_ms, t0_us, adet, bayrak
 _AYRINTI_ORNEK = struct.Struct("<hhH")             # v, i, (dt4 << 4 | bayrak)
 _SKOP_BAS = struct.Struct("<IHHHBx")               # no, ilk, adet, toplam, parca
-_SKOP_META = struct.Struct("<IIIIffHH6Bxx")        # t_ms, sure_ms, hz, tdiv_us, adim, ofset,
+_SKOP_META = struct.Struct("<IIIIffHHH5Bx")
 _SKOP_META_AD = ("t_ms", "sure_ms", "hz", "tdiv_us", "adim", "ofset", "tetik", "esik",
-                 "kip", "tetiklendi", "kenar", "histerezis", "on_yuzde", "onay")
+                 "histerezis", "kip", "tetiklendi", "kenar", "on_yuzde", "onay")
 assert _NOKTA.size == NOKTA_BAYT
 assert [_OLAY_BAS.size + y.size for y, _ in _OLAY.values()] == [32, 44, 36, 42]
 assert _SKOP_BAS.size == 12 and _SKOP_META.size == 36

@@ -272,7 +272,7 @@ static void bicim_1c3(void)
     uint16_t n;
     m.t_ms = 123456UL; m.sure_ms = 250UL; m.hz = 83333UL; m.tdiv_us = 200UL;
     m.adim = 0.03125f; m.ofset = -1.25f; m.tetik = 1234u; m.esik = 2048u;
-    m.kip = 1u; m.tetiklendi = 1u; m.kenar = 0u; m.histerezis = 40u; m.on_yuzde = 25u; m.onay = 2u;
+    m.kip = 1u; m.tetiklendi = 1u; m.kenar = 0u; m.histerezis = 300u; m.on_yuzde = 25u; m.onay = 2u;
     kayit_skop_parca_paketle(p, 7u, 0u, 3u, 5u, 0u);
     kayit_skop_meta_paketle(p + KAYIT_SKOP_PARCA_BAS, &m);
     kayit_y16(p + 48, 0u); kayit_y16(p + 50, 4095u); kayit_y16(p + 52, 2048u);
