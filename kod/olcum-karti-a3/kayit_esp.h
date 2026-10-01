@@ -46,7 +46,7 @@
 #include "kalgec.h"               /* 1B: kalibrasyon gecmisi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-1C2"    /* 1C-2: AYRINTI kaydi (her ornek), hazir alan */
+#define KAYIT_FW_SURUM    "A3-1C3"    /* 1C-3: SKOP kaydi + SKOP oturumu (osiloskop gunlugu) */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
@@ -62,6 +62,8 @@
 #define KM_OLAY       5u   /* 1C-1: yukte olay (DCIR) */
 #define KM_PIL_BITIR  6u   /* 1C-1: yukte PIL_SONUC + sebep; yalniz etkin oturum PIL ise */
 #define KM_NOT        7u   /* 1C-1: yukte NOT kaydi (ad/etiket/not) */
+#define KM_SKOP       8u   /* 1C-3: yuvadaki yakalama (yuk yok; yuva PSRAM'de) */
+#define KM_SKOP_BASLAT 9u  /* 1C-3: BASLA (tur SKOP) + yukte SKOP_KAL olayi, TEK mesaj */
 
 typedef struct {
     uint8_t    tur, sebep;
@@ -79,6 +81,8 @@ typedef struct {
     uint32_t acilis, hiz_ms, nesil;
     int32_t  son_hata;
     uint32_t hazir, ornek_dusen, ayr_silme;   /* 1C-2: GA satiri */
+    uint8_t  tur;                             /* 1C-3: etkin oturumun turu (0 = yok) */
+    uint32_t skop_hata;                       /* 1C-3: gorevin yazamadigi yakalama */
 } KayitDurum;
 
 /* olcum_al'in son HAM ornegi — ikisi de cekirdek 1: olcum_al yazar, loop okur */
@@ -111,6 +115,18 @@ static KayitOrnek  *kayit_halka_t = nullptr;
 static volatile uint8_t kayit_on_sil_izin = 0;     /* cekirdek 1 yazar: kayit/skop/pil yok */
 static uint32_t     kayit_ayr_silme = 0;           /* ayrintili oturumda KIRLI sektor silmesi */
 static uint32_t     kayit_ks_gordum = 0;           /* cekirdek 1: son gordugu kayit_g.kirli_sil */
+/* 1C-3 osiloskop gunlugu: TEK yuva (PSRAM, ~8 KB). Cekirdek 1 yakalamayi
+   kopyalar, kayit_skop_dolu = 1 yapar, KM_SKOP gonderir; gorev yazar, SONRA
+   0 yapar. Dolu yuvaya kopya yok: gunluk bos yuvayi bekler (yakalama dusmez). */
+typedef struct {
+    KayitSkopMeta meta;
+    uint32_t      no;
+    uint16_t      toplam;
+    uint16_t      kod[KAYIT_SKOP_AZAMI];
+} KayitSkopYuva;
+static KayitSkopYuva   *kayit_skop_yuva = nullptr;   /* yoksa Gt REDDEDILIR */
+static volatile uint8_t kayit_skop_dolu = 0;
+static uint32_t         kayit_skop_hata = 0;         /* gorev yazamadi (DOLU/hata) */
 static volatile uint32_t kayit_onay_istek = 0;     /* cekirdek 1 yazar: SON gelen kazanir */
 static volatile uint32_t kayit_yaz_azami_us = 0;
 static volatile uint32_t kayit_sil_azami_us = 0;
@@ -230,6 +246,8 @@ static void kayit__durum_guncelle(void)
     t.hazir = kayit_g.hazir;
     t.ornek_dusen = kayit_halka.dusen;
     t.ayr_silme = kayit_ayr_silme;
+    t.tur = kayit_y.oturum ? kayit_y.basla.oturum_turu : 0u;
+    t.skop_hata = kayit_skop_hata;
     t.bozuk = kayit_g.bozuk;
     t.silinen = kayit_g.silinen_sektor;
     t.sil_adet = kayit_sil_adet;
@@ -263,6 +281,7 @@ static void kayit__mesaj(const KayitMesaj *m)
     case KM_BICIMLE:
         (void)kyn_bicimle(&kayit_m, simdi);
         break;
+    case KM_SKOP_BASLAT:       /* 1C-3: ayni yol — BASLA (tur SKOP) + SKOP_KAL olayi */
     case KM_PIL_BASLAT: {      /* 1C-1: surmekte olan oturum "baska oturum" ile kapanir */
         KayitBasla b = m->basla;
         if (!b.unix_s) b.unix_s = kayit__unix();
@@ -278,6 +297,15 @@ static void kayit__mesaj(const KayitMesaj *m)
         break;
     case KM_NOT:
         (void)kyn_not(&kayit_m, m->yuk, m->n);
+        break;
+    case KM_SKOP:              /* 1C-3: yuva ANCAK yazildiktan sonra bosalir */
+        if (kayit_skop_yuva && kayit_skop_dolu) {
+            int r = kyn_skop(&kayit_m, &kayit_skop_yuva->meta, kayit_skop_yuva->kod,
+                             kayit_skop_yuva->toplam, kayit_skop_yuva->no);
+            if (r) kayit_skop_hata = kayit_skop_hata + 1u;
+        }
+        KAYIT_BARIYER();
+        kayit_skop_dolu = 0u;
         break;
     default:
         break;
@@ -383,6 +411,9 @@ static bool kayit_kur(void)
     kayit_halka_t = (KayitOrnek *)heap_caps_malloc(KAYIT_HALKA_ORNEK * sizeof(KayitOrnek),
                                                    MALLOC_CAP_SPIRAM);
     kh_kur(&kayit_halka, kayit_halka_t, KAYIT_HALKA_ORNEK);
+    /* 1C-3: ayrilamazsa (PSRAM yok) Gt reddedilir */
+    kayit_skop_yuva = (KayitSkopYuva *)heap_caps_malloc(sizeof(KayitSkopYuva),
+                                                        MALLOC_CAP_SPIRAM);
     if (!kayit_sektor || !kayit_dizin || !kayit_veri_tampon || !kayit_kilit
         || !kayit_nokta_q || !kayit_mesaj_q) {
         kayit_bolum = nullptr;
@@ -470,6 +501,8 @@ static void kayit__nesil(uint32_t simdi, uint8_t menzil)
     kayit_kn_nesil = d.nesil;
     kayit_kn_aktif = (d.durum == KDR_KAYIT && d.hiz_ms) ? 1u : 0u;
     kayit_ayr_aktif = (d.durum == KDR_KAYIT && !d.hiz_ms) ? 1u : 0u;
+    if (d.tur == KAYIT_OTURUM_SKOP) kayit_kn_aktif = 0u;    /* 1C-3: yalniz yakalama */
+    if (d.tur != KAYIT_OTURUM_OLCUM) kayit_ayr_aktif = 0u;  /* 1C-3: SKOP hiz 0 = her tetik */
     if (kayit_kn_aktif) kn_baslat(&kayit_kn, d.hiz_ms, simdi, menzil);
 }
 

@@ -239,7 +239,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C2"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C3"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -361,6 +361,66 @@ def bolum_kaynak() -> None:
        and kg2.find("kyn_adim(") < kg2.find("kayit_ayr_silme += kayit_g.kirli_sil - ks0;")
        and "if (ayr0 || (kayit_y.oturum && kayit_y.ayrinti))" in kg2
        and "kayit_g.silinen_sektor" not in kg2)
+    # ── 1C-3: osiloskop gunlugu (davranis B71.B25-B28, S1-S8'de; burada yapistirici) ──
+    sa = govde(ino_k, "static bool kayit__skop_aralik(")
+    ok("B72.F49 Gt<ms>: yalniz rakam, 0 (her tetik) ya da 1000..3600000; disi REDDEDILIR",
+       "x < 1000UL" in sa and "x > 3600000UL" in sa and "*q < '0' || *q > '9'" in sa
+       and "x != 0" in sa)
+    skk = govde(ino_k, "static void kayit_skop_komut(")
+    ok("B72.F50 PSRAM yuvasi yoksa Gt REDDEDILIR (sessiz bos gunluk yok); yuva PSRAM'de",
+       0 <= skk.find("!kayit_skop_yuva") < skk.find("kayit_mesaj_gonder(&m)")
+       and re.search(r"kayit_skop_yuva = \(KayitSkopYuva \*\)heap_caps_malloc\(sizeof\(KayitSkopYuva\),"
+                     r"\s*MALLOC_CAP_SPIRAM\)", govde(esp_k, "static bool kayit_kur(")) is not None)
+    p1 = ino_k.find("if (s[1] == '1') {")
+    pc = ino_k[p1:ino_k.find("pil_baslat();", p1)]
+    ok("B72.F51 pil testinde Gt reddi; gunluk surerken p1 reddi (once Gtd) — Oe7",
+       0 <= skk.find("pil_testi_suruyor()") < skk.find("kayit_mesaj_gonder(&m)")
+       and "skop_gunluk.aktif" in pc)
+    sk = govde(ino_k, "void skop_komut(")
+    ok("B72.F52 gunlukte elle yakalama (t, t<esik>, tB, ta, tK) REDDEDILIR; ayar komutlari serbest",
+       0 <= sk.find("skop_gunluk.aktif") < sk.find("skop_yolla()")
+       and all(x in sk[:sk.find("skop_yolla()")] for x in ("alt == 'B'", "alt == 'a'", "alt == 'K'")))
+    gi = govde(ino_k, "static void skop_gunluk_isle(")
+    ok("B72.F53 gunluk yeniden kurmadan once: skop bos, dokum yok, YUVA BOS, aralik doldu",
+       0 <= gi.find("kayit_skop_dolu") < gi.find("skop_is_ver(SKOP_IS_GUNLUK)")
+       and gi.find("skop_dokum.aktif") < gi.find("skop_is_ver(SKOP_IS_GUNLUK)")
+       and gi.find("aralik_ms") < gi.find("skop_is_ver(SKOP_IS_GUNLUK)")
+       and "skop_gunluk_isle();" in lp)
+    si = govde(ino_k, "static void skop_sonuc_isle(")
+    sg = govde(ino_k, "static void skop_gorevi(")
+    gs = govde(ino_k, "static void skop_gunluk_sonuc(")
+    ok("B72.F54 gunluk yakalamasi DOKUMSUZ (M/S2 basilmaz) yuvaya gider; gorev GUNLUK'te de yakalar; "
+       "META yakalamanin AYARIYLA (son tdiv/kip, adim, tetik, hz)",
+       0 <= si.find("is == SKOP_IS_GUNLUK") < si.find("skop_dokum.aktif = true")
+       and "is == SKOP_IS_DOKUM || is == SKOP_IS_IKILI || is == SKOP_IS_GUNLUK" in sg
+       and "SKOP_TDIV_US[skop_son_tdiv]" in gs and "skop_son_kip" in gs
+       and "skop_volt_adim()" in gs and "skop_tetik_idx" in gs and "skop_hz" in gs
+       and "memcpy(y->kod, (const void *)skop_veri" in gs
+       and gs.find("kayit_skop_dolu = 1u") < gs.find("kayit_mesaj_gonder(&m)"))
+    ms = govde(esp_k, "static void kayit__mesaj(")
+    ksk = ms[ms.find("case KM_SKOP:"):]
+    ok("B72.F55 KM_SKOP: gorev yuvadan kyn_skop ile yazar, SONRA yuvayi bosaltir; yazamazsa sayar",
+       "kyn_skop(&kayit_m, &kayit_skop_yuva->meta, kayit_skop_yuva->kod" in ksk
+       and 0 <= ksk.find("kyn_skop(") < ksk.find("kayit_skop_dolu = 0u")
+       and "kayit_skop_hata" in ksk)
+    ns = govde(esp_k, "static void kayit__nesil(")
+    dg2 = govde(esp_k, "static void kayit__durum_guncelle(")
+    ok("B72.F56 SKOP oturumunda noktaci KAPALI, ayrintili yalniz OLCUM'de (hiz 0 = her tetik); "
+       "durum oturum turunu tasir",
+       "if (d.tur == KAYIT_OTURUM_SKOP) kayit_kn_aktif = 0u;" in ns
+       and "if (d.tur != KAYIT_OTURUM_OLCUM) kayit_ayr_aktif = 0u;" in ns
+       and ns.find("kayit_ayr_aktif = 0u") < ns.find("kn_baslat(")
+       and "t.tur = kayit_y.oturum ? kayit_y.basla.oturum_turu : 0u;" in dg2)
+    gt = govde(ino_k, "static void kayit_gt_bas(")
+    ok("B72.F57 G? ardindan GT satiri: etkin, aralik, yakalama, yazilamayan (G/GA degismedi)",
+       '"GT %lu %lu %lu %lu"' in gt
+       and 0 <= kk2.find("kayit_ga_bas()") < kk2.find("kayit_gt_bas()") < kk2.find("alt == 'b'"))
+    kd = kk2[kk2.find("alt == 'd'"):kk2.find("alt == 'o'")]
+    ok("B72.F58 Gd gunlugu de durdurur; baglandigi oturum kapaninca (Gd/DOLU/baska oturum) "
+       "gunluk kendiliginden durur; SKOP_KAL olayi gunluk baslarken gider",
+       "skop_gunluk.aktif = 0u" in kd
+       and "d.oturum != skop_gunluk.oturum" in gi
+       and "kayit_olay_skop_kal_paketle(" in skk and "kal_mv_tab" in skk)
     kp = govde(ino_k, "static void kayit_pil_baslat() {")
     ok("B72.F36 kayit acilamazsa pil testi YINE baslar ve kart 'KAYDEDILMIYOR' der "
        "(bolum yok / tarama / hata / dolu / bekliyor / kuyruk dolu)",
