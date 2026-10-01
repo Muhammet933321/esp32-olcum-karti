@@ -229,6 +229,7 @@ static inline int ky_ayrinti_ornek(KayitYazici *y, const KayitOrnek *o, uint32_t
 static inline int ky_nokta(KayitYazici *y, const KayitNokta *p, uint32_t simdi_ms)
 {
     if (!y->oturum || y->ayrinti) return KG_YOK;
+    if (y->basla.oturum_turu == KAYIT_OTURUM_SKOP) return KG_YOK;   /* 1C-3: yalniz yakalama */
     if (y->yuk_nokta >= KAYIT_TAMPON_NOKTA) {
         int r = ky_bosalt(y);
         if (r) return r;
@@ -284,6 +285,7 @@ static inline int32_t ky_baslat(KayitYazici *y, const KayitBasla *b)
     y->yuk_nokta = 0u;
     y->son_hata = 0;
     y->ayrinti = (uint8_t)(b->hiz_ms == 0u);   /* 1C-2: hiz 0 = her ornek */
+    if (b->oturum_turu != KAYIT_OTURUM_OLCUM) y->ayrinti = 0u;   /* 1C-3: SKOP hiz 0 = her tetik */
     y->a_adet = 0u;
     y->a_bayrak = 0u;
     kayit_basla_paketle(b, p);
@@ -293,6 +295,52 @@ static inline int32_t ky_baslat(KayitYazici *y, const KayitBasla *b)
     s = kg_ekle(y->g, KAYIT_T_BASLA, y->oturum, p, KAYIT_BASLA_BAYT);
     if (s < 0) { y->oturum = 0u; y->son_hata = (int)s; }
     return s;
+}
+
+/* ─────────────────────────────── 1C-3: OSILOSKOP YAKALAMASI
+ * Parca parca SKOP kayitlari (kayit_bicim.h). Once bekleyen noktalar ve
+ * ayrintili ornekler yazilir: kayit sirasi zaman sirasi (yakalama ADS'i
+ * susturdu, ondan once gelenler once). Parca sektore sigdigi kadar ve
+ * yazicinin tamponu kadar; KAYIT_SKOP_EN_AZ ornekten azi sigiyorsa yeni sektor.
+ * Hata ya da DOLU'da kalan parcalar YAZILMAZ: PC yakalamayi "tam" saymaz. */
+#define KAYIT_SKOP_EN_AZ 32u
+static inline int ky_skop(KayitYazici *y, const KayitSkopMeta *m, const uint16_t *kod,
+                          uint16_t toplam, uint32_t no)
+{
+    KayitGunluk *g = y->g;
+    uint32_t ilk = 0u;
+    uint8_t parca = 0u;
+    int r;
+    if (!y->oturum) return KG_YOK;
+    if (toplam > KAYIT_SKOP_AZAMI) toplam = KAYIT_SKOP_AZAMI;
+    r = ky_bosalt(y);
+    if (!r) r = ky_ayrinti_bosalt(y);
+    if (r) return r;           /* DOLU ise ky__dolu BITIR'i zaten yazdi */
+    for (;;) {                 /* en az bir parca: 0. parca META'yi tasir */
+        const uint32_t bas = KAYIT_SKOP_PARCA_BAS + (parca ? 0u : KAYIT_SKOP_META);
+        const uint32_t kalan = KAYIT_SEKTOR - g->bas_ofset;
+        const uint32_t sabit = KAYIT_BASLIK_BAYT + bas + KY_BITIR_PAY;
+        const uint32_t kalan_ornek = (uint32_t)toplam - ilk;
+        uint32_t n = 0u, j;
+        int32_t s;
+        if (kalan >= sabit + 2u) n = (kalan - sabit) / 2u;
+        if (n > (KAYIT_AZAMI_YUK - bas) / 2u) n = (KAYIT_AZAMI_YUK - bas) / 2u;
+        if (n > kalan_ornek) n = kalan_ornek;
+        if (n < kalan_ornek && n < KAYIT_SKOP_EN_AZ) n = 0u;
+        if (!n && (kalan_ornek || kalan < sabit)) {
+            r = ky__yeni_sektor(y);
+            if (r) return ky__dolu(y, r);
+            continue;
+        }
+        kayit_skop_parca_paketle(y->yuk, no, (uint16_t)ilk, (uint16_t)n, toplam, parca);
+        if (!parca) kayit_skop_meta_paketle(y->yuk + KAYIT_SKOP_PARCA_BAS, m);
+        for (j = 0u; j < n; j++) kayit_y16(y->yuk + bas + 2u * j, kod[ilk + j]);
+        s = kg_ekle(g, KAYIT_T_SKOP, y->oturum, y->yuk, (uint16_t)(bas + 2u * n));
+        if (s < 0) return ky__dolu(y, (int)s);
+        ilk += n;
+        parca++;
+        if (ilk >= toplam) return KG_TAMAM;
+    }
 }
 
 /* 1C-1: oturum OLAYI (pil ayari, DCIR, pil sonucu). Once tamponda bekleyen

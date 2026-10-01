@@ -344,11 +344,13 @@ def _bicim_1c3(s: dict) -> None:
     ok("B71.B26 SKOP turu 10 (AZAMI 10), SKOP oturumu 3 C == Python; bicim surumu 2 KALDI",
        t3 == [10, 10, 3] and getattr(KB, "T_SKOP", 0) == 10 and getattr(KB, "OTURUM_SKOP", 0) == 3
        and KB.SURUM == 2, str(t3))
-    kur = [KB.Kayit(getattr(KB, "T_SKOP", 10), 20, 5, c1), KB.Kayit(getattr(KB, "T_SKOP", 10), 19, 5, c0),
-           KB.Kayit(getattr(KB, "T_SKOP", 10), 21, 5, c1)]          # sira disi + tekrar
+    # 1. parca 0. parcadan ONCE (yeniden eslenmis dosya) + tekrar; mutasyon:
+    # sorted(ilk) kalkarsa bu sirada kirmizi olmali
+    kur = [KB.Kayit(getattr(KB, "T_SKOP", 10), 18, 5, c1), KB.Kayit(getattr(KB, "T_SKOP", 10), 19, 5, c0),
+           KB.Kayit(getattr(KB, "T_SKOP", 10), 21, 5, c1)]
     o = KB.oturumlari_kur(kur).get(5)
     y = getattr(o, "skoplar", {}).get(7) if o else None
-    eksik = KB.oturumlari_kur(kur[:1]).get(5)
+    eksik = KB.oturumlari_kur(kur[1:2]).get(5)
     ye = getattr(eksik, "skoplar", {}).get(7) if eksik else None
     ok("B71.B27 parcalar ilk'e gore birlesir (sira disi, tekrarli): tam, 5 kod, META 0. "
        "parcadan; eksik parcada tam=False ve kodlar YOK (sessiz doldurma yok)",
@@ -1224,6 +1226,101 @@ def bolum_hazir() -> None:
        f"AC={_say(z2, 'AC')},{_say(z3, 'AC')} bozuk={bozuk}")
 
 
+# ── B71.S · osiloskop gunlugu yazicisi (1C-3) ─────────────────────────
+SK_SEKTOR = 16
+
+
+def _skop_kod(k: int, no: int) -> int:
+    return (37 * k + 101 * no + 11) & 0xFFF
+
+
+def _skop_meta(no: int) -> dict:
+    return {"t_ms": 1000 + no, "sure_ms": 50 + no, "hz": 83333, "tdiv_us": 200, "adim": 0.03125,
+            "ofset": -1.25, "tetik": 3 * no, "esik": 2048, "kip": 1, "tetiklendi": 1, "kenar": 0,
+            "histerezis": 40, "on_yuzde": 25, "onay": 2}
+
+
+def bolum_skop() -> None:
+    """1C-3: yakalama SKOP kayitlarina parca parca (0. parca META); sektore
+    sigdigi kadar, gerisi yeni sektorde. SKOP oturumunda nokta/ornek yok, hiz 0
+    ayrintili kip DEGIL; OLCUM'e eklenen yakalama bekleyen nokta ve orneklerden
+    SONRA; acik SKOP oturumu acilista sebep 5; DOLU'da BITIR."""
+    print("\n── B71.S  osiloskop gunlugu: parcalama · oturum turu · ekleme · acilis · DOLU")
+    elf = derle("SKOP", SK_SEKTOR)
+    fl = NorFlas(SEKTOR * SK_SEKTOR, sektor=SEKTOR)
+    fl.nvs["t_rast"] = 23
+    s1, s2 = _yonet(fl, elf, [1, 2])
+    kay, bozuk = KB.flas_coz(bytes(fl.bellek), SEKTOR)
+    ot = KB.oturumlari_kur(kay)
+    o1 = ot.get(_say(s1, "OT1"))
+    y1 = getattr(o1, "skoplar", {}).get(1) if o1 else None
+    y2 = getattr(o1, "skoplar", {}).get(2) if o1 else None
+    p1 = [x for x in kay if x.tur == getattr(KB, "T_SKOP", 10) and x.oturum == _say(s1, "OT1")
+          and struct.unpack_from("<I", x.yuk)[0] == 1]
+    sek1 = {x.adres // SEKTOR for x in p1}
+    ok("B71.S1 sektorden buyuk yakalama (240 ornek) parca parca yazilir, birden cok sektore "
+       "yayilir; PC birebir birlestirir (kodlar + META); ikinci yakalama da",
+       _say(s1, "SK1") == 0 and _say(s1, "SK2") == 0 and y1 is not None and y1["tam"]
+       and y1["kodlar"] == [_skop_kod(k, 1) for k in range(240)] and y1["meta"] == _skop_meta(1)
+       and y2 is not None and y2["tam"] and y2["kodlar"] == [_skop_kod(k, 2) for k in range(100)]
+       and len(sek1) >= 2,
+       f"SK1={_say(s1, 'SK1')} parca={len(p1)} sektor={sorted(sek1)} tam={y1 and y1['tam']}")
+    en_az = KB.BASLIK_BAYT + 12 + 2 * 32 + KB.BASLIK_BAYT + 8
+    p1s = sorted(p1, key=lambda x: x.sira)
+    bosa = [SEKTOR - (a.adres % SEKTOR + KB.toplam_bayt(len(a.yuk)))
+            for a, b in zip(p1s, p1s[1:]) if a.adres // SEKTOR != b.adres // SEKTOR]
+    ok("B71.S2 parca sektor sonunu bosa harcamaz: sigmayan yakalama BOLUNUR (sektor sonunda en "
+       "fazla bir asgari parca kadar bos)", bool(bosa) and all(v < en_az for v in bosa), str(bosa))
+    ok("B71.S3 SKOP oturumu (hiz_ms 0 = her tetik) AYRINTILI KIP DEGIL; nokta ve ayrintili ornek "
+       "KG_YOK; oturumda yalniz yakalama",
+       _say(s1, "AYR3") == 0 and _say(s1, "NK3") == -4 and _say(s1, "AO3") == -4
+       and o1 is not None and o1.basla is not None and o1.basla.oturum_turu == 3
+       and o1.basla.hiz_ms == 0 and not o1.noktalar and not o1.ayrinti,
+       f"AYR={_say(s1, 'AYR3')} NK={_say(s1, 'NK3')} AO={_say(s1, 'AO3')}")
+    o4 = ot.get(_say(s1, "OT4"))
+    sk4 = [x.sira for x in kay if x.tur == getattr(KB, "T_SKOP", 10) and x.oturum == _say(s1, "OT4")]
+    nk4 = {struct.unpack_from("<I", x.yuk)[0]: x.sira for x in kay
+           if x.tur == KB.T_NOKTA and x.oturum == _say(s1, "OT4")}
+    once = [s for ilk, s in nk4.items() if ilk <= 4]
+    sonra = [s for ilk, s in nk4.items() if ilk >= 5]
+    ok("B71.S4 OLCUM oturumuna eklenen yakalama AYNI oturumda; ondan once beslenen noktalar "
+       "ONCE yazilir (kayit sirasi zaman sirasi), sonrakiler sonra; noktalar surer (10)",
+       _say(s1, "SK4") == 0 and o4 is not None and len(o4.noktalar) == 10
+       and o4.skoplar.get(1, {}).get("tam") and bool(sk4) and bool(once) and bool(sonra)
+       and max(once) < min(sk4) and max(sk4) < min(sonra),
+       f"nokta={o4 and len(o4.noktalar)} once={once} skop={sk4} sonra={sonra}")
+    o5 = ot.get(_say(s1, "OT5"))
+    ok("B71.S5 kart yeniden basladi: acik SKOP oturumu sebep 5 ile KAPANIR, DEVAM almaz; "
+       "yakalamasi yerinde",
+       o5 is not None and o5.bitir is not None and o5.bitir["sebep"] == 5 and not o5.devamlar
+       and o5.skoplar.get(1, {}).get("tam"),
+       f"bitir={o5 and o5.bitir} devam={o5 and len(o5.devamlar)}")
+    o8 = ot.get(_say(s1, "OT8"))
+    ay8 = [x.sira for x in kay if x.tur == KB.T_AYRINTI and x.oturum == _say(s1, "OT8")]
+    sk8 = [x.sira for x in kay if x.tur == getattr(KB, "T_SKOP", 10) and x.oturum == _say(s1, "OT8")]
+    ok("B71.S8 ayrintili OLCUM'e eklenen yakalamadan ONCE ornek tamponu bosaltilir (10 ornek "
+       "flasta, yakalamadan once)",
+       _say(s1, "ATAMP0") == 10 and _say(s1, "ATAMP") == 0 and o8 is not None
+       and len(KB.ayrinti_ornekler(o8)) == 10 and bool(ay8) and bool(sk8) and max(ay8) < min(sk8),
+       f"ATAMP0={_say(s1, 'ATAMP0')} ATAMP={_say(s1, 'ATAMP')} ayr={ay8} skop={sk8}")
+    ok("B71.S7 flas temiz: bozuk kayit yok, BITIR payi korunuyor, sektor kurali (TEKRAR)",
+       bozuk == 0 and bitir_payi_korunur(bytes(fl.bellek)) and tekrar_kurali(bytes(fl.bellek)),
+       f"bozuk={bozuk}")
+    fd = NorFlas(SEKTOR * SK_SEKTOR, sektor=SEKTOR)
+    fd.nvs["t_rast"] = 29
+    (s3,) = _yonet(fd, elf, [3])
+    kay3, _ = KB.flas_coz(bytes(fd.bellek), SEKTOR)
+    o6 = KB.oturumlari_kur(kay3).get(_say(s3, "OT6"))
+    n = _say(s3, "SKN") or 0
+    tamlar = [o6.skoplar[j]["tam"] for j in sorted(o6.skoplar)] if o6 else []
+    ok("B71.S6 onaysiz bellek dolunca DOLU: oturum BITIR(DOLU) ile kapanir; onceki yakalamalar "
+       "tam, yarida kalan yakalama tam DEGIL (sessiz doldurma yok)",
+       _say(s3, "SKR") == -1 and _say(s3, "OTUR6") == 0 and o6 is not None
+       and o6.bitir is not None and o6.bitir["sebep"] == 2 and n >= 3
+       and all(tamlar[:-1]) and len(tamlar) == n and not tamlar[-1],
+       f"SKR={_say(s3, 'SKR')} n={n} tam={tamlar} bitir={o6 and o6.bitir}")
+
+
 # ── B71.H · ornek halkasi (1C-2) ─────────────────────────────────────
 def bolum_halka() -> None:
     """1C-2: cekirdek 1 -> 0 ornek halkasi (kayit_halka.h), kilitsiz tek
@@ -1627,7 +1724,7 @@ def bolum_kesinti(n_deneme: int) -> None:
 
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
             bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_halka, bolum_ayrinti,
-            bolum_hazir, bolum_kalgec, bolum_dizin,
+            bolum_hazir, bolum_skop, bolum_kalgec, bolum_dizin,
             bolum_kesinti]
 
 

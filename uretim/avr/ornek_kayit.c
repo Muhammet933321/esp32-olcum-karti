@@ -136,7 +136,7 @@ static KULLANILMAYABILIR void basla_uret(KayitBasla *b, uint32_t hiz_ms)
 #if defined(SENARYO_GUNLUK) || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) \
     || defined(SENARYO_DIZIN) || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) \
     || defined(SENARYO_YONET) || defined(SENARYO_SURUM) || defined(SENARYO_PIL) \
-    || defined(SENARYO_AYRINTI) || defined(SENARYO_HAZIR)
+    || defined(SENARYO_AYRINTI) || defined(SENARYO_HAZIR) || defined(SENARYO_SKOP)
 #define NOR_KOMUT (*(volatile uint8_t *)0xE0)
 #define NOR_A0    (*(volatile uint8_t *)0xE1)
 #define NOR_A1    (*(volatile uint8_t *)0xE2)
@@ -749,7 +749,7 @@ static void senaryo(void)
 #endif
 
 #if defined(SENARYO_YONET) || defined(SENARYO_PIL) || defined(SENARYO_AYRINTI) \
-    || defined(SENARYO_HAZIR)
+    || defined(SENARYO_HAZIR) || defined(SENARYO_SKOP)
 /* B72 (son inceleme O1-O5): kayit YONETICISI (kayit_yonet.h) — kartin
    durum makinesi, platformsuz. Her ACILIS bir asama: `t_adim` NVS'ten okunur,
    NVS (emule, nor_flas.py) ve flas acilistan acilisa KALICI. Asama bitince
@@ -1725,12 +1725,113 @@ static void senaryo(void)
 }
 #endif
 
+#if defined(SENARYO_SKOP)
+/* 1C-3: OSILOSKOP GUNLUGU YAZICISI (kayit_oturum.h ky_skop, kayit_yonet.h
+   kyn_skop). Yakalama kodu kod(k, no) = (37k + 101no + 11) & 0xFFF (test_kayit.py
+   _skop_kod ile AYNI); AVR'de 2 KB RAM: en fazla 240 ornek. Asama 1: SKOP
+   oturumu (hiz 0) iki yakalama; OLCUM'e eklenen yakalama noktalarin arasinda;
+   ayrintili OLCUM'e eklenen yakalama ornek tamponundan sonra; acik SKOP oturumu,
+   elektrik gider. Asama 2: acilis (SKOP sebep 5). Asama 3 (ayri flas): DOLU. */
+#define SK_AZAMI 240u
+static uint16_t sk_kod[SK_AZAMI];
+
+static void sk_meta(uint32_t no, KayitSkopMeta *mt)
+{
+    mt->t_ms = 1000u + no; mt->sure_ms = 50u + no; mt->hz = 83333UL; mt->tdiv_us = 200u;
+    mt->adim = 0.03125f; mt->ofset = -1.25f; mt->tetik = (uint16_t)(3u * no); mt->esik = 2048u;
+    mt->kip = 1u; mt->tetiklendi = 1u; mt->kenar = 0u; mt->histerezis = 40u;
+    mt->on_yuzde = 25u; mt->onay = 2u;
+}
+
+static int sk_yaz(uint32_t no, uint16_t n)
+{
+    KayitSkopMeta mt;
+    uint16_t k;
+    for (k = 0u; k < n; k++) sk_kod[k] = (uint16_t)((37u * k + 101u * no + 11u) & 0xFFFu);
+    sk_meta(no, &mt);
+    return kyn_skop(&m, &mt, sk_kod, n, no);
+}
+
+static void senaryo(void)
+{
+    KayitBasla b;
+    KayitNokta p;
+    KayitOrnek o;
+    uint32_t adim, j;
+    int r = 0;
+    kg_kur(&g, &FLAS, NOR_SEKTOR_ADET, sektor, dizin, DIZIN_KAP);
+    ky_kur(&y, &g);
+    kyn_kur(&m, &g, &y, &NVS);
+    adim = nvs_oku(0, "t_adim", 0u);
+    t_ms = 1000u;
+    sayi("AC", kyn_ac(&m, t_ms, 0u, nvs_oku(0, "t_rast", 7u)));
+    switch (adim) {
+    case 1:
+        basla_uret(&b, 0u);                       /* SKOP oturumu: hiz 0 = her tetik */
+        b.oturum_turu = KAYIT_OTURUM_SKOP;
+        kyn_baslat(&m, &b, t_ms, 0u);
+        sayi("OT1", kyn_oturum(&m));
+        sayi("AYR3", y.ayrinti);
+        nokta_uret(0u, &p);
+        sayi("NK3", ky_nokta(&y, &p, t_ms));
+        o.us = 5000u; o.ms = 5u; o.v = 1; o.i = 2; o.bayrak = 0u;
+        sayi("AO3", ky_ayrinti_ornek(&y, &o, t_ms));
+        sayi("SK1", sk_yaz(1u, SK_AZAMI));
+        sayi("SK2", sk_yaz(2u, 100u));
+        sayi("DUR1", kyn_durdur(&m));
+        basla_uret(&b, 100u);                     /* OLCUM'e eklenen yakalama */
+        kyn_baslat(&m, &b, t_ms, 0u);
+        sayi("OT4", kyn_oturum(&m));
+        noktalar(5u);
+        sayi("SK4", sk_yaz(1u, 50u));
+        noktalar(5u);
+        sayi("DUR4", kyn_durdur(&m));
+        basla_uret(&b, 0u);                       /* ayrintili OLCUM'e eklenen yakalama */
+        kyn_baslat(&m, &b, t_ms, 0u);
+        sayi("OT8", kyn_oturum(&m));
+        for (j = 0u; j < 10u; j++) {
+            o.us = 9000000UL + 2000UL * j; o.ms = o.us / 1000u;
+            o.v = (int16_t)j; o.i = (int16_t)(-(int16_t)j); o.bayrak = 0u;
+            ky_ayrinti_ornek(&y, &o, t_ms);
+        }
+        sayi("ATAMP0", y.a_adet);
+        sayi("SK8", sk_yaz(1u, 30u));
+        sayi("ATAMP", y.a_adet);
+        sayi("DUR8", kyn_durdur(&m));
+        basla_uret(&b, 2000u);                    /* acik SKOP oturumu: elektrik gider */
+        b.oturum_turu = KAYIT_OTURUM_SKOP;
+        kyn_baslat(&m, &b, t_ms, 0u);
+        sayi("OT5", kyn_oturum(&m));
+        sayi("SK5", sk_yaz(1u, 20u));
+        dr("S1");
+        break;
+    case 2:                                       /* acilis: SKOP oturumu sebep 5, DEVAM yok */
+        dr("S2");
+        break;
+    case 3:                                       /* ayri flas: onaysiz doldur -> DOLU */
+        basla_uret(&b, 0u);
+        b.oturum_turu = KAYIT_OTURUM_SKOP;
+        kyn_baslat(&m, &b, t_ms, 0u);
+        sayi("OT6", kyn_oturum(&m));
+        for (j = 1u; j < 100u && !r; j++) r = sk_yaz(j, SK_AZAMI);
+        sayi("SKN", (int32_t)(j - 1u));
+        sayi("SKR", r);
+        sayi("OTUR6", kyn_oturum(&m));
+        break;
+    default:
+        break;
+    }
+    metin("BITTI\n");
+}
+#endif
+
 /* ── giris ── */
 #if !(defined(SENARYO_BICIM) || defined(SENARYO_NOKTACI) || defined(SENARYO_GUNLUK) \
       || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN) \
       || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) || defined(SENARYO_YONET) \
       || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC) || defined(SENARYO_PIL) \
-      || defined(SENARYO_HALKA) || defined(SENARYO_AYRINTI) || defined(SENARYO_HAZIR))
+      || defined(SENARYO_HALKA) || defined(SENARYO_AYRINTI) || defined(SENARYO_HAZIR) \
+      || defined(SENARYO_SKOP))
 #error "SENARYO_* tanimli degil"
 #endif
 

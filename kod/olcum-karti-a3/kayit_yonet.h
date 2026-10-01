@@ -236,6 +236,18 @@ static inline int kyn_olay(KayitYonetici *m, const uint8_t *yuk, uint16_t n)
 /* 1C-1: pil testi bitti — SONUC olayi, hemen ardindan BITIR(sebep). Yalniz
    etkin oturum PIL ise: test bittiginde baska bir oturum (olcum) aciksa ona
    dokunulmaz (KG_YOK). */
+/* 1C-3: osiloskop yakalamasi etkin oturuma (OLCUM ya da SKOP). DOLU'da
+   ky__dolu oturumu BITIR(DOLU) ile kapatir. */
+static inline int kyn_skop(KayitYonetici *m, const KayitSkopMeta *mt, const uint16_t *kod,
+                           uint16_t toplam, uint32_t no)
+{
+    int r;
+    if (!m->hazir) return KG_HATA;
+    r = ky_skop(m->y, mt, kod, toplam, no);
+    if (r && r != KG_YOK) m->son_hata = r;
+    return r;
+}
+
 static inline int kyn_pil_bitir(KayitYonetici *m, const uint8_t *sonuc, uint16_t n,
                                 uint8_t sebep)
 {
