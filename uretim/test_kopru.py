@@ -476,6 +476,34 @@ def main() -> int:
     #   kapanmakta olan sunucuya SSE yazmasi denk gelip stderr'e teardown
     #   izi dusuyordu — cikis kodunu bozmuyor ama GERCEK bir izi
     #   maskeleyebilir, o yuzden gurultu birakilmiyor.
+
+    # ── 1D: E komutlari yalniz USB; EK satiri (cihaz anahtari) ASLA yayinlanmaz ──
+    # Kopru kartin USB satirlarini agdaki istemcilere tasiyor: kart `Ep` ile
+    # anahtari YALNIZ seri porta basar (ham UART), ama kopru o portu okuyorsa
+    # anahtari aga cikarirdi. Ikinci savunma katmani burada.
+    print("\n--- 1D. Kopru: E komutu reddi, EK satiri suzgeci ---")
+    izin, neden = k.komut_izinli("Ep telefon", None)
+    ok("E komutu (USB eslestirme / zorunluluk) koprude REDDEDILIR, surucu yokken bile",
+       not izin and "USB" in neden, neden)
+    kart2 = kart_baglanti.KayitKart(["D 1.0", "EK 3 " + "ab" * 32, "E 12.5 enerji", "D 2.0"])
+    kart2.ac()
+    k2 = kopru_mod.Kopru(kart2, gec_dizin / "arsiv2")
+    yayilan = []
+    k2.yayinla = yayilan.append
+    threading.Thread(target=k2.dongu, daemon=True).start()
+    son = time.monotonic() + 3.0
+    while len(yayilan) < 3 and time.monotonic() < son:
+        time.sleep(0.02)
+    time.sleep(0.3)
+    k2.calisiyor = False
+    time.sleep(0.6)
+    k2.arsiv.kapat()
+    arsiv2 = list(k2.arsiv.ham_satirlar())
+    ok("EK satiri (cihaz anahtari) YAYINLANMAZ ve ARSIVLENMEZ; 'E ' onekli baska satir tasinir",
+       yayilan == ["D 1.0", "E 12.5 enerji", "D 2.0"] and not any("EK " in s for s in arsiv2),
+       f"{yayilan} | arsiv {arsiv2}")
+    k2.durdur()
+
     k.calisiyor = False
     time.sleep(0.25)
     sunucu.shutdown()

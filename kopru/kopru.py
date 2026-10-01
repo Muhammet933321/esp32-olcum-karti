@@ -177,6 +177,11 @@ class Kopru:
         return True
 
     def komut_izinli(self, komut: str, jeton: str | None) -> tuple[bool, str]:
+        # 1D: E komutlari (USB eslestirme, zorunluluk, cihaz silme) karta YALNIZ
+        # dogrudan USB'den verilir; kopru agdan gelen istegi seriye tasimaz.
+        if komut.startswith("E"):
+            return False, ("E komutlari yalniz USB seri konsoldan (kopru uzerinden "
+                           "verilemez) — eslestirme icin kopru/imza.py esles-usb")
         if komut in SERBEST_KOMUTLAR:
             return True, ""
         if self.surucu is None:
@@ -197,6 +202,10 @@ class Kopru:
                 time.sleep(1.0)
                 continue
             if satir is None:
+                continue
+            if satir.startswith("EK "):
+                # 1D: cihaz anahtari (kart `Ep` yanitini YALNIZ seriye basar) —
+                # agdaki istemcilere de arsive de GITMEZ
                 continue
             self.son_satir = satir
             self.satir_adedi += 1

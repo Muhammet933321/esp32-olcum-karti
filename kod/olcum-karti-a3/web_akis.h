@@ -52,6 +52,9 @@ public:
     int available() { return _s.available(); }
     int read() { return _s.read(); }
     void flush() { _s.flush(); }
+    /* 1D: YALNIZ gercek porta — aynaya (SSE) GITMEZ. Cihaz anahtari (`EK`) ve
+       AP parolasi gibi sirlar icin; satir tamponuna dokunmaz. */
+    void ham(const char *s) { _s.print(s); }
     operator bool() const { return true; }
 
     size_t write(uint8_t c) override {

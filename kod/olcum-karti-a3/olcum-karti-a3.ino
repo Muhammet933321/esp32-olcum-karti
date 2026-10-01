@@ -85,6 +85,7 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "ag.h"         // B22.4 — WiFi durum makinesi
 #include "kayit_esp.h"  // B72 — kayit motorunun ESP32 yapistiricisi (Serial KULLANMAZ)
+#include "guvenlik_esp.h"  // 1D — eslestirme + imza yapistiricisi (Serial KULLANMAZ)
 
 // 🔴 B22.4 — `Serial` AYNASI. BUTUN #include'lardan SONRA gelmeli.
 //
@@ -2478,7 +2479,83 @@ static void pil_isle(const Okuma3 &o, uint32_t dt_us) {
 // B22.5'te burasi LittleFS'ten gercek arayuzu servis edecek. Su an ne
 // yapilacagini YAZIYOR — bos bir sayfa birakmak, kullaniciyi "calismiyor"
 // sanisina iter.
+// ═════════════════════════════════════════════ 1D — WEB KAPISI ═══════
+// Her uc ONCE buradan gecer (tasarim/2026-10-01-1d-eslestirme.md K2, K9-K11).
+//  - Imza basligi (ya da /akis icin _i) VARSA sonuc DOGRULAMADIR: basarisizsa
+//    401 + X-Acilis; imzasiz dala DUSMEZ — zorunlu 0'da da (B72.F78).
+//  - Imzasiz: zorunlu 0 → BUGUNKU kurallar aynen (gecis, K2); zorunlu 1 →
+//    401, istisnalar: ACIK sinif, misafir izleme, komut ucunda p0 ve ?.
+//  - CIHAZ sinifi (/cihaz/..., /saat) her zaman imza ister.
+// Host denetimi KAPIDA DEGIL: bugun Host denetimi olmayan uclar (/, /akis,
+// /pil) zorunlu 0'da aynen kalsin diye isleyicilerin kendi denetimi duruyor.
+static void guv__red(int kod, const char *metin) {
+  char a[33];
+  guv_acilis_hex(&guv, a);
+  sunucu.sendHeader(F("X-Acilis"), a);
+  sunucu.send(kod, "text/plain", metin);
+}
+
+static bool guv__imza_var() {
+  return sunucu.hasHeader("X-Imza") || sunucu.hasArg("_i");
+}
+
+static bool guv__dogrula(uint8_t sinif) {
+  (void)sinif;
+  if (!guv_hazir) { sunucu.send(503, "text/plain", "guvenlik hazir degil (NVS)"); return false; }
+  const bool basliktan = sunucu.hasHeader("X-Imza");
+  const String cs = basliktan ? sunucu.header("X-Cihaz") : sunucu.arg("_c");
+  const String ss = basliktan ? sunucu.header("X-Sayac") : sunucu.arg("_s");
+  const String is = basliktan ? sunucu.header("X-Imza") : sunucu.arg("_i");
+  const bool post = sunucu.method() == HTTP_POST;
+  if (post && sunucu.header("Content-Type").indexOf("x-www-form-urlencoded") >= 0) {
+    sunucu.send(400, "text/plain", "imzali istek form kodlamali olamaz (text/plain gonder)");
+    return false;
+  }
+  uint8_t oz[32];
+  {
+    const String govde = post ? sunucu.arg("plain") : String();
+    guv_esp_sha(govde.c_str(), govde.length(), oz);
+  }
+  const uint8_t n = (uint8_t)cs.toInt();
+  const uint64_t sayac = strtoull(ss.c_str(), nullptr, 10);
+  const String yol = sunucu.uri();
+  GuvImza im;
+  int r;
+  guv_kilit();
+  r = guv_imza_bas(&guv, &im, n, post ? "POST" : "GET", yol.c_str());
+  if (!r) {
+    for (int i = 0; i < sunucu.args(); i++) {
+      const String a = sunucu.argName(i);
+      if (a == "plain" || a == "_c" || a == "_s" || a == "_i") continue;
+      guv_imza_arg(&guv, &im, a.c_str(), sunucu.arg(i).c_str());
+    }
+    r = guv_imza_bit(&guv, &im, sayac, oz, is.c_str(), kayit__unix());
+  }
+  guv_birak();
+  if (r) {
+    guv__red(401, r == GUV_E_CIHAZ ? "imza: cihaz kayitli degil"
+               : r == GUV_E_TEKRAR ? "imza: sayac tekrar ya da cok eski"
+               : "imza gecersiz (acilis degistiyse /eslestir/bilgi)");
+    return false;
+  }
+  guv_imzali = n;
+  return true;
+}
+
+static bool guv_kapi(uint8_t sinif) {
+  guv_imzali = 0;
+  if (guv__imza_var()) return guv__dogrula(sinif);
+  if (sinif == GUV_ACIK) return true;
+  if (sinif == GUV_CIHAZ) { guv__red(401, "imza gerekli"); return false; }
+  if (!guv.ayar.zorunlu) return true;                  /* 1D gecis: bugunku kurallar */
+  if (sinif == GUV_IZLEME && guv.ayar.misafir) return true;
+  if (sinif == GUV_KOMUT) return true;                 /* isleyici: p0 ve ? serbest */
+  guv__red(401, "imza gerekli (zorunluluk yalniz USB'den Ez0 ile kapanir)");
+  return false;
+}
+
 void kok_sayfa() {
+  if (!guv_kapi(GUV_ACIK)) return;   // 1D
   // 🔴 `index.htm` TUZAGI: `serveStatic` dizin istegini
   //    `requestUri + "index.htm"` ile karsiliyor
   //    (RequestHandlersImpl.h:198) — `index.html` DEGIL. Dosyayi
@@ -2572,6 +2649,7 @@ void kok_sayfa() {
 #define PIL_PARCA_BAYT 1024u
 
 void pil_sayfa() {
+  if (!guv_kapi(GUV_IZLEME)) return;   // 1D
   uint32_t istenen = 0;
   if (sunucu.hasArg("sira")) istenen = (uint32_t)sunucu.arg("sira").toInt();
 
@@ -2638,6 +2716,7 @@ void pil_sayfa() {
 
 void skop_bin_sayfa() {
   if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_OKUMA)) return;   // 1D
   /* B28: yakalama surerken dokum almak yari eski yari yeni dalga verir.
      Okuyucu BEKLER (200 ms) — yakalama kisa; olmazsa 503, arayuz tekrar
      dener. Bekleyen taraf HEP cekirdek 0: olcum asla beklemiyor. */
@@ -2720,6 +2799,7 @@ static void jeton_uret() {
 }
 
 void akis_sayfa() {
+  if (!guv_kapi(GUV_IZLEME)) return;   // 1D: imza _c _s _i sorgusunda (EventSource baslik tasiyamaz)
   WiFiClient c = sunucu.client();
   c.println(F("HTTP/1.1 200 OK"));
   c.println(F("Content-Type: text/event-stream"));
@@ -2922,6 +3002,281 @@ static bool web_yetkili() {
   String s = ag_nvs.getString("web_sifre", "");
   if (!s.length()) return true;
   return sunucu.authenticate("olcum", s.c_str());
+}
+
+// ═════════════════════════════════ 1D — ESLESTIRME + CIHAZ UCLARI ═══
+// /eslestir/... ACIK (parolali kanitla korunur; deneme siniri guvenlik.h'de),
+// /cihaz/... ve /saat HER ZAMAN imzali. Parola NVS'ten okunur, AGA CIKMAZ.
+static void guv__esles_hata(int r) {
+  switch (r) {
+    case GUV_E_PAROLA:
+      sunucu.send(403, "text/plain", "web parolasi yok ya da 10 karakterden kisa — USB'den Ns<parola> ile uzat");
+      break;
+    case GUV_E_BEKLE: {
+      char t[12];
+      guv_kilit();
+      const int32_t kalan = (int32_t)(guv.d_serbest_ms - millis());
+      guv_birak();
+      snprintf(t, sizeof(t), "%ld", (long)(kalan > 0 ? (kalan + 999) / 1000 : 1));
+      sunucu.sendHeader(F("Retry-After"), t);
+      sunucu.send(429, "text/plain", "cok fazla yanlis deneme — Retry-After kadar bekle");
+      break;
+    }
+    case GUV_E_DOLU:
+      sunucu.send(409, "text/plain", "cihaz listesi dolu (8) — USB'den Ex<n> ile sil");
+      break;
+    case GUV_E_AD:
+      sunucu.send(400, "text/plain", "ad 1-24 bayt olmali, kontrol karakteri yok");
+      break;
+    case GUV_E_YOK:
+      sunucu.send(410, "text/plain", "bekleyen eslestirme yok ya da 60 s gecti — bastan basla");
+      break;
+    case GUV_E_KANIT:
+      guv_ret_sayac = guv_ret_sayac + 1u;
+      sunucu.send(403, "text/plain", "kanit yanlis (parola?)");
+      break;
+    default:
+      sunucu.send(500, "text/plain", "guvenlik: NVS hatasi");
+      break;
+  }
+}
+
+void eslestir_bilgi_sayfa() {
+  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_ACIK)) return;
+  if (!guv_hazir) { sunucu.send(503, "text/plain", "guvenlik hazir degil (NVS)"); return; }
+  char t[280], a[33], k[17], z[33];
+  guv_kilit();
+  guv_acilis_hex(&guv, a);
+  guv_kimlik_hex(&guv, k);
+  guv_tuz_hex(&guv, z);
+  const uint32_t tur = guv.ayar.tur;
+  const uint8_t zr = guv.ayar.zorunlu, mi = guv.ayar.misafir;
+  guv_birak();
+  snprintf(t, sizeof(t),
+           "{\"surum\":\"OK1\",\"kimlik\":\"%s\",\"acilis\":\"%s\",\"tuz\":\"%s\",\"tur\":%lu,"
+           "\"zorunlu\":%u,\"misafir\":%u,\"saat\":%u,\"cihaz_azami\":%u}",
+           k, a, z, (unsigned long)tur, (unsigned)zr, (unsigned)mi, (unsigned)guv_saat_kaynak,
+           (unsigned)GUV_CIHAZ_AZAMI);
+  sunucu.send(200, "application/json", t);
+}
+
+void eslestir_baslat_sayfa() {
+  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_ACIK)) return;
+  if (!guv_hazir) { sunucu.send(503, "text/plain", "guvenlik hazir degil (NVS)"); return; }
+  if (sunucu.header("X-Olcum") != "1") { sunucu.send(400, "text/plain", "X-Olcum basligi gerekli"); return; }
+  uint8_t nc[16], nk[16], eno = 0;
+  if (guv__hexten(sunucu.arg("nc").c_str(), nc, 16)) {
+    sunucu.send(400, "text/plain", "nc: 32 hex karakter");
+    return;
+  }
+  const String ad = sunucu.arg("ad");
+  String p = ag_nvs.getString("web_sifre", "");
+  guv_kilit();
+  const int r = guv_esles_baslat(&guv, ad.c_str(), nc, p.c_str(), millis(), &eno, nk);
+  guv_birak();
+  p = String();
+  if (r) { guv__esles_hata(r); return; }
+  char t[96], h[33];
+  guv__hex(nk, 16, h);
+  snprintf(t, sizeof(t), "{\"eno\":%u,\"nk\":\"%s\"}", (unsigned)eno, h);
+  sunucu.send(200, "application/json", t);
+}
+
+void eslestir_kanit_sayfa() {
+  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_ACIK)) return;
+  if (!guv_hazir) { sunucu.send(503, "text/plain", "guvenlik hazir degil (NVS)"); return; }
+  if (sunucu.header("X-Olcum") != "1") { sunucu.send(400, "text/plain", "X-Olcum basligi gerekli"); return; }
+  uint8_t kanit[32], kk[32], n = 0;
+  if (guv__hexten(sunucu.arg("kanit").c_str(), kanit, 32)) {
+    sunucu.send(400, "text/plain", "kanit: 64 hex karakter");
+    return;
+  }
+  const uint8_t eno = (uint8_t)sunucu.arg("eno").toInt();
+  String p = ag_nvs.getString("web_sifre", "");
+  guv_kilit();
+  const int r = guv_esles_kanit(&guv, eno, kanit, p.c_str(), millis(), kayit__unix(), &n, kk);
+  guv_birak();
+  p = String();
+  if (r) { guv__esles_hata(r); return; }
+  char t[110], h[65];
+  guv__hex(kk, 32, h);
+  snprintf(t, sizeof(t), "{\"n\":%u,\"kart_kanit\":\"%s\"}", (unsigned)n, h);
+  sunucu.send(200, "application/json", t);
+}
+
+void cihaz_liste_sayfa() {
+  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_CIHAZ)) return;
+  String j = "{\"cihazlar\":[";
+  bool ilk = true;
+  for (uint8_t i = 1; i <= GUV_CIHAZ_AZAMI; i++) {
+    GuvCihaz c;
+    guv_kilit();
+    const int r = guv_cihaz_oku(&guv, i, &c);
+    guv_birak();
+    if (r) continue;
+    memset(c.K, 0, sizeof(c.K));                  /* anahtar ASLA yanita girmez */
+    char t[140], ad[2 * GUV_AD_AZAMI + 1];
+    uint8_t o = 0;
+    for (const char *q = c.ad; *q && o < sizeof(ad) - 2; q++) {
+      if (*q == '"' || *q == '\\') ad[o++] = '\\';
+      ad[o++] = *q;
+    }
+    ad[o] = 0;
+    snprintf(t, sizeof(t), "%s{\"n\":%u,\"ad\":\"%s\",\"eklenme\":%lu,\"son\":%lu}",
+             ilk ? "" : ",", (unsigned)i, ad, (unsigned long)c.eklenme, (unsigned long)c.son);
+    j += t;
+    ilk = false;
+  }
+  j += "]}";
+  sunucu.send(200, "application/json", j);
+}
+
+void cihaz_sil_sayfa() {
+  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_CIHAZ)) return;
+  if (sunucu.header("X-Olcum") != "1") { sunucu.send(400, "text/plain", "X-Olcum basligi gerekli"); return; }
+  const long n = sunucu.arg("n").toInt();
+  if (n < 1 || n > (long)GUV_CIHAZ_AZAMI) { sunucu.send(400, "text/plain", "n: 1..8"); return; }
+  guv_kilit();
+  const int r = guv_cihaz_sil(&guv, (uint8_t)n);
+  guv_birak();
+  if (r) { sunucu.send(r == GUV_E_YOK ? 404 : 500, "text/plain", "silinemedi"); return; }
+  sunucu.send(204, "text/plain", "");
+}
+
+void saat_sayfa() {
+  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_CIHAZ)) return;
+  if (sunucu.header("X-Olcum") != "1") { sunucu.send(400, "text/plain", "X-Olcum basligi gerekli"); return; }
+  if (guv_saat_ntp) { sunucu.send(409, "text/plain", "kartin NTP saati var — cihaz saati kullanilmaz"); return; }
+  const uint32_t u = strtoul(sunucu.arg("unix").c_str(), nullptr, 10);
+  if (u < 1700000000UL) { sunucu.send(400, "text/plain", "unix >= 1700000000 olmali"); return; }
+  struct timeval tv;
+  tv.tv_sec = (time_t)u;
+  tv.tv_usec = 0;
+  settimeofday(&tv, nullptr);
+  guv_saat_kaynak = 2u;
+  sunucu.send(204, "text/plain", "");
+}
+
+// Seri `E` komutlari — YALNIZ USB (cekirdek 1). /komut 'E'yi reddeder (B72.F76),
+// kopru.py de reddeder. `Ep` anahtari YALNIZ ham UART'a basar: Serial aynasi
+// her satiri /akis SSE'sine tasir (B72.F77).
+static void guv_seri_komut(const char *s) {
+  char t[96];
+  if (!guv_hazir) { Serial.println(F("! E: guvenlik hazir degil (NVS acilamadi)")); return; }
+  switch (s[1]) {
+    case '?': {
+      char k[17];
+      guv_kimlik_hex(&guv, k);
+      snprintf(t, sizeof(t), "E zorunlu=%u misafir=%u tur=%lu kimlik=%s saat=%u cihaz=%u",
+               (unsigned)guv.ayar.zorunlu, (unsigned)guv.ayar.misafir,
+               (unsigned long)guv.ayar.tur, k, (unsigned)guv_saat_kaynak,
+               (unsigned)guv_cihaz_adet());
+      Serial.println(t);
+      for (uint8_t i = 1; i <= GUV_CIHAZ_AZAMI; i++) {
+        GuvCihaz c;
+        guv_kilit();
+        const int r = guv_cihaz_oku(&guv, i, &c);
+        guv_birak();
+        if (r) continue;
+        memset(c.K, 0, sizeof(c.K));
+        snprintf(t, sizeof(t), "E %u %s eklenme=%lu son=%lu", (unsigned)i, c.ad,
+                 (unsigned long)c.eklenme, (unsigned long)c.son);
+        Serial.println(t);
+      }
+      break;
+    }
+    case 'x': {
+      const uint8_t n = (s[2] == '!') ? 0u : (uint8_t)atoi(s + 2);
+      if (s[2] != '!' && (n < 1 || n > GUV_CIHAZ_AZAMI)) {
+        Serial.println(F("! E: Ex<1..8> ya da Ex! (hepsi)"));
+        break;
+      }
+      guv_kilit();
+      const int r = guv_cihaz_sil(&guv, n);
+      guv_birak();
+      Serial.println(r ? F("! E: silinemedi (yok?)") : (n ? F("* E: cihaz silindi") : F("* E: BUTUN cihazlar silindi")));
+      break;
+    }
+    case 'p': {
+      uint8_t K[32], n = 0;
+      guv_kilit();
+      const int r = guv_esles_usb(&guv, s + 2, kayit__unix(), &n, K);
+      guv_birak();
+      if (r) {
+        Serial.println(r == GUV_E_DOLU ? F("! E: liste dolu (8) — once Ex<n>")
+                                       : F("! E: Ep<ad> — ad 1-24 bayt"));
+        break;
+      }
+      char khex[65];
+      guv__hex(K, 32, khex);
+      memset(K, 0, sizeof(K));
+      snprintf(t, sizeof(t), "EK %u ", (unsigned)n);
+      Serial.ham(t);
+      Serial.ham(khex);
+      Serial.ham("\r\n");
+      memset(khex, 0, sizeof(khex));
+      snprintf(t, sizeof(t), "* E: USB'den cihaz %u eklendi — anahtar YALNIZ seri porta yazildi", (unsigned)n);
+      Serial.println(t);
+      break;
+    }
+    case 'z':
+    case 'm': {
+      if (s[2] != '0' && s[2] != '1') { Serial.println(F("! E: Ez0|Ez1 · Em0|Em1")); break; }
+      const int d = s[2] == '1';
+      guv_kilit();
+      const int r = (s[1] == 'z') ? guv_ayar_yaz(&guv, d, -1, 0) : guv_ayar_yaz(&guv, -1, d, 0);
+      guv_birak();
+      if (r) { Serial.println(F("! E: ayar yazilamadi")); break; }
+      if (s[1] == 'z')
+        Serial.println(d ? F("* E: imza ZORUNLU — imzasiz okuma/komut 401 (p0 ve ? serbest)")
+                         : F("* E: imza zorunlu DEGIL — bugunku kurallar (gecis)"));
+      else
+        Serial.println(d ? F("* E: misafir izleme ACIK (zorunlulukta /akis ve /pil imzasiz)")
+                         : F("* E: misafir izleme KAPALI"));
+      break;
+    }
+    case 't': {
+      uint32_t tur = strtoul(s + 2, nullptr, 10);
+      if (!tur) tur = guv.ayar.tur;
+      uint8_t P[32];
+      const uint32_t t0 = millis();
+      gm_pbkdf2("olcum-tur-olcumu-1D", guv.ayar.tuz, 16, tur, P);
+      const uint32_t ms = millis() - t0;
+      memset(P, 0, sizeof(P));
+      snprintf(t, sizeof(t), "ET %lu %lu", (unsigned long)tur, (unsigned long)ms);
+      Serial.println(t);
+      break;
+    }
+    case 'r': {
+      const uint32_t tur = strtoul(s + 2, nullptr, 10);
+      if (tur < 1000UL || tur > 10000000UL) { Serial.println(F("! E: Er<1000..10000000>")); break; }
+      guv_kilit();
+      const int r = guv_ayar_yaz(&guv, -1, -1, tur);
+      guv_birak();
+      Serial.println(r ? F("! E: ayar yazilamadi") : F("* E: PBKDF2 turu yazildi (yalniz YENI eslestirmeler)"));
+      break;
+    }
+    default:
+      Serial.println(F("! E: E? liste · Ex<n>|Ex! sil · Ep<ad> USB eslestirme · Ez0|1 zorunlu · Em0|1 misafir · Et<tur> sure olc · Er<tur> tur yaz"));
+      break;
+  }
+}
+
+// Cekirdek 0'in reddettigi eslestirmeleri cekirdek 1 basar (K7: her ret seride).
+static void guv_isle() {
+  static uint32_t son = 0;
+  const uint32_t r = guv_ret_sayac;
+  if (r != son) {
+    son = r;
+    Serial.print(F("! E: eslestirme REDDEDILDI (yanlis kanit) — toplam "));
+    Serial.println(r);
+  }
 }
 
 // ═════════════════════════════════════════════════ B72 — KAYIT ════════
@@ -3436,6 +3791,7 @@ static void kayit_komut(const char *s) {
 // komut yolundan gider (jeton + parola ya da USB). Eslestirme 1D'de.
 void kayit_liste_sayfa() {
   if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_OKUMA)) return;   // 1D
   if (!kayit_bolum) { sunucu.send(503, "text/plain", "kayit bolumu yok"); return; }
   /* dizin kopyasi PSRAM'de (statik 2.5 KB DRAM payindan yemesin);
      yalniz ag gorevi kullanir, istekler sirali */
@@ -3485,6 +3841,7 @@ void kayit_liste_sayfa() {
 
 void kayit_veri_sayfa() {
   if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_OKUMA)) return;   // 1D
   if (!kayit_bolum) { sunucu.send(503, "text/plain", "kayit bolumu yok"); return; }
   KayitDurum d = kayit_durum_al();
   if (d.durum == KDR_TARIYOR || d.durum == KDR_HATA) {
@@ -3681,6 +4038,7 @@ static void kal_json_f(char *t, size_t n, const char *ad, float v, bool virgul) 
    kayit da girmez (blob `adet`ten ONCE yaziliyor). */
 void kal_liste_sayfa() {
   if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_OKUMA)) return;   // 1D
   Preferences p;
   if (!p.begin("kalgec", true)) { sunucu.send(503, "text/plain", "kalibrasyon gecmisi yok"); return; }
   uint8_t a[4], blob[KALGEC_BAYT];
@@ -3736,6 +4094,7 @@ void komut_sayfa() {
     sunucu.send(403, "text/plain", "Host reddedildi (DNS rebinding korumasi)");
     return;
   }
+  if (!guv_kapi(GUV_KOMUT)) return;   // 1D: imzaliysa jeton + parola ARANMAZ
   // Ozel baslik SART: capraz kokende preflight'a zorluyor ve
   // <img>/<form> ozel baslik EKLEYEMEZ.
   if (sunucu.header("X-Olcum") != "1") {
@@ -3750,7 +4109,13 @@ void komut_sayfa() {
     return;
   }
 
-  if (!komut_serbest(k.c_str())) {
+  // 1D: E komutlari (USB eslestirme, zorunluluk, cihaz silme) YALNIZ USB'den
+  if (k[0] == 'E') {
+    sunucu.send(403, "text/plain", "E komutlari yalniz USB seri konsoldan");
+    return;
+  }
+  if (!guv_imzali && !komut_serbest(k.c_str())) {
+    if (guv.ayar.zorunlu) { guv__red(401, "imza gerekli (zorunlu) — p0 ve ? serbest"); return; }
     if (sunucu.header("X-Jeton") != String(oturum_jetonu)) {
       sunucu.send(403, "text/plain",
                   "gecersiz oturum jetonu. `p0` (durdur) ve `?` serbest.");
@@ -3774,6 +4139,8 @@ void komut_sayfa() {
 // ikinci bir /akis REDDEDILIYOR: kart TEK surucuye hizmet ediyor.
 void kopru_sayfa() {
   if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_KOMUT)) return;   // 1D
+  if (!guv_imzali && guv.ayar.zorunlu) { guv__red(401, "imza gerekli (zorunlu)"); return; }
   if (sunucu.header("X-Olcum") != "1") {
     sunucu.send(400, "text/plain", "X-Olcum basligi gerekli");
     return;
@@ -3793,10 +4160,11 @@ void kopru_sayfa() {
 // hicbir kokene izin verilmiyor ve preflight basarisiz oluyor — yani
 // tarayici istegi HIC gondermiyor.
 void onuc_sayfa() {
+  if (!guv_kapi(GUV_ACIK)) return;   // 1D
   if (kopru_adres[0]) {
     sunucu.sendHeader(F("Access-Control-Allow-Origin"), kopru_adres);
     sunucu.sendHeader(F("Access-Control-Allow-Methods"), F("POST"));
-    sunucu.sendHeader(F("Access-Control-Allow-Headers"), F("X-Olcum, X-Jeton, Content-Type"));
+    sunucu.sendHeader(F("Access-Control-Allow-Headers"), F("X-Olcum, X-Jeton, Content-Type, X-Cihaz, X-Sayac, X-Imza"));
   }
   sunucu.send(204, "text/plain", "");
 }
@@ -4068,6 +4436,7 @@ void komut_calistir(const char *s) {
     case '#': i2c_tara(); alert_probu(); break;
     case 'G': kayit_komut(s); break;   // B72 — kayit
     case 'k': kalgec_komut(s); break;  // 1B — kalibrasyon gecmisi
+    case 'E': guv_seri_komut(s); break;   // 1D — eslestirme (YALNIZ USB)
 
     case 'e':
       enerji_pJ = 0;
@@ -4624,8 +4993,12 @@ void komut_calistir(const char *s) {
         Serial.println(ag_durum.mdns ? F(AG_MDNS ".local") : F("yok"));
         Serial.print(F("* ev agi: "));
         Serial.print(ag_nvs.getString("wifi_ad", "(kurulmadi)"));
-        Serial.print(F("   AP parolasi: "));
-        Serial.println(ag_nvs.getString("ap_sifre", ""));
+        /* 1D: AP parolasi YALNIZ ham UART'a — Serial aynasi her satiri /akis
+           SSE'sine tasiyor, parola aga cikiyordu (spec O5) */
+        Serial.println();
+        Serial.ham("   AP parolasi (yalniz USB): ");
+        Serial.ham(ag_nvs.getString("ap_sifre", "").c_str());
+        Serial.ham("\r\n");
         Serial.print(F("* web parolasi: "));
         Serial.println(ag_nvs.getString("web_sifre", "").length()
                        ? F("KURULU") : F("YOK — komut ucu parolasiz"));
@@ -4645,10 +5018,14 @@ void komut_calistir(const char *s) {
          gecerli" diyordu ve `Ns` (bos) ile korumayi KALDIRAN kullaniciya
          korumanin surdugunu dusundurtuyordu. Mesaj artik alt komuta gore. */
       else if (alt == 's') { ag_nvs.putString("web_sifre", deg);
+                        guv_kilit(); guv_parola_degisti(&guv); guv_birak();   // 1D: P onbellegi
                         Serial.println(strlen(deg)
                             ? F("* web parolasi kuruldu — HEMEN gecerli")
                             : F("! web parolasi KALDIRILDI — komut ucu SU AN"
-                                " korumasiz")); break; }
+                                " korumasiz"));
+                        if (guv_cihaz_adet())
+                          Serial.println(F("  eslesmis cihazlar KALDI — cikarmak icin Ex! (USB)"));
+                        break; }
       else if (alt == '1' || alt == '0') {
         ag_nvs.putUChar("acik", alt == '1');
         Serial.println(alt == '1' ? F("* ag ACIK") : F("* ag KAPALI"));
@@ -4804,6 +5181,13 @@ void setup() {
   // ── B22.4: AG ─────────────────────────────────────────────────────
   ag_yukle();
   jeton_uret();
+  guv_esp_ac();                        // 1D: eslestirme + imza (NVS `guv`, `cihaz`)
+  Serial.print(F("Guvenlik (1D): "));
+  if (!guv_hazir) Serial.println(F("KAPALI — NVS acilamadi (imzali istek 503)"));
+  else {
+    Serial.print(guv.ayar.zorunlu ? F("imza ZORUNLU") : F("imza zorunlu DEGIL (gecis; Ez1 ile ac)"));
+    Serial.print(F(" · ")); Serial.print(guv_cihaz_adet()); Serial.println(F(" cihaz · `E?`"));
+  }
   if (ag_nvs.getUChar("acik", 1)) {
     // STA dene -> olmazsa KENDI AGINI kur. "Bilgisayar yoksa" senaryosu
     // var olan bir altyapiya bagimli olamaz.
@@ -4813,8 +5197,9 @@ void setup() {
   // Ozel basliklar VARSAYILAN OLARAK TOPLANMIYOR — istenmezse
   // sunucu.header("X-Olcum") her zaman bos doner ve butun CSRF
   // savunmasi SESSIZCE devre disi kalirdi.
-  const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin"};
-  sunucu.collectHeaders(toplanacak, 3);
+  const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin", "X-Cihaz", "X-Sayac", "X-Imza",
+                              "Content-Type"};   // 1D: imza basliklari
+  sunucu.collectHeaders(toplanacak, 7);
 
   /* B28: kuyruklar SUNUCUDAN ONCE kurulmali — ilk istek gorev
      baslamadan once gelebilir ve `komut_kuyruga` null kuyrukta 503
@@ -4839,6 +5224,12 @@ void setup() {
   sunucu.on("/kayit/liste", kayit_liste_sayfa);   // B72
   sunucu.on("/kayit/veri", kayit_veri_sayfa);     // B72 — esitleme (ham kayitlar)
   sunucu.on("/kal/liste", kal_liste_sayfa);       // 1B — kalibrasyon gecmisi
+  sunucu.on("/eslestir/bilgi", HTTP_GET, eslestir_bilgi_sayfa);    // 1D
+  sunucu.on("/eslestir/baslat", HTTP_POST, eslestir_baslat_sayfa);
+  sunucu.on("/eslestir/kanit", HTTP_POST, eslestir_kanit_sayfa);
+  sunucu.on("/cihaz/liste", HTTP_GET, cihaz_liste_sayfa);
+  sunucu.on("/cihaz/sil", HTTP_POST, cihaz_sil_sayfa);
+  sunucu.on("/saat", HTTP_POST, saat_sayfa);
   sunucu.on("/skop.bin", skop_bin_sayfa);   // B22.5 — ikili dokum
   // ⚠ YONTEM ACIKCA yaziliyor: HTTP_ANY olsaydi `GET /komut?k=p1` de
   //   calisirdi ve <img> etiketiyle uzaktan pil desarji baslatilabilirdi.
@@ -5030,6 +5421,7 @@ void loop() {
   skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu
   skop_gunluk_isle();        // 1C-3: osiloskop gunlugu yeniden kurar (yuva bosken)
   kayit_plan_isle();         // 1C-4: zamanlanmis kayit (saniyede bir)
+  guv_isle();                // 1D: reddedilen eslestirmeleri bas
   skop_dokum_ilerle();       // B40: skop dokumu, TX'te yer oldugu kadar
   kayit_durum_bas(false);    // B72: G satiri — yalniz cekirdek 1 basar
 

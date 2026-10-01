@@ -239,7 +239,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C4"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1D"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -1054,7 +1054,110 @@ def bolum_guvenlik_py() -> None:
        and not IM.ad_gecerli("ğ" * 13) and IM.ad_gecerli("ğ" * 12))
 
 
-BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py]
+def bolum_guvenlik_kart() -> None:
+    """1D T3: kartin web kapisi, uclar, imzali komut, USB'ye ozel E komutlari,
+    K'nin YALNIZ ham UART'a basilmasi (Serial aynasi SSE'ye tasir)."""
+    print("\n── B72.F74+  1D kart: kapi · uclar · imzali komut · E komutlari · ham UART")
+    esp, ino, gh, wa = (_oku("guvenlik_esp.h"), _oku("olcum-karti-a3.ino"), _oku("guvenlik.h"),
+                        _oku("web_akis.h"))
+    esp_k, ino_k, gh_k, wa_k = kod(esp), kod(ino), kod(gh), kod(wa)
+    SINIF = {"/": "GUV_ACIK", "/akis": "GUV_IZLEME", "/pil": "GUV_IZLEME",
+             "/kayit/liste": "GUV_OKUMA", "/kayit/veri": "GUV_OKUMA", "/kal/liste": "GUV_OKUMA",
+             "/skop.bin": "GUV_OKUMA", "/komut": "GUV_KOMUT", "/kopru": "GUV_KOMUT",
+             "/eslestir/bilgi": "GUV_ACIK", "/eslestir/baslat": "GUV_ACIK",
+             "/eslestir/kanit": "GUV_ACIK", "/cihaz/liste": "GUV_CIHAZ",
+             "/cihaz/sil": "GUV_CIHAZ", "/saat": "GUV_CIHAZ"}
+    kayitlar = re.findall(r'sunucu\.on\("([^"]+)"\s*,\s*(?:(HTTP_\w+)\s*,\s*)?(\w+)\s*\)', ino_k)
+    eksik, yanlis = [], []
+    for yol, yontem, isl in kayitlar:
+        bek = "GUV_ACIK" if yontem == "HTTP_OPTIONS" else SINIF.get(yol)
+        if bek is None:
+            eksik.append(yol)
+            continue
+        if f"guv_kapi({bek})" not in govde(ino_k, f"void {isl}(")[:700]:
+            yanlis.append((yol, isl))
+    ok("B72.F74 HER web ucu kapidan gecer, sinifi tabloya uyar; tabloda olmayan uc YOK; "
+       "spec'teki 6 yeni uc kayitli",
+       bool(kayitlar) and not eksik and not yanlis
+       and set(SINIF) <= {y for y, _, _ in kayitlar}, f"eksik={eksik} yanlis={yanlis}")
+
+    kg = govde(ino_k, "void komut_sayfa(")
+    i_blok = kg.find("if (!guv_imzali && !komut_serbest(k.c_str())) {")
+    ok("B72.F75 imzali komut jeton + parola ARAMAZ; imzasiz dal bugunku jeton + Basic yolu",
+       0 <= i_blok < kg.find('sunucu.header("X-Jeton")') < kg.find("web_yetkili()"))
+    i_e = kg.find("k[0] == 'E'")
+    ok("B72.F76 /komut 'E' ile baslayan komutu 403 ile REDDEDER (USB'ye ozel), kuyruga koymadan",
+       0 <= i_e < kg.find("komut_kuyruga(") and "403" in kg[i_e:i_e + 200])
+    ok("B72.F81 zorunlu 1'de imzasiz komut reddi komut_serbest'ten SONRA (p0 ve ? serbest kalir)",
+       0 <= i_blok < kg.find("guv.ayar.zorunlu") < kg.find('sunucu.header("X-Jeton")'))
+
+    sk = govde(ino_k, "static void guv_seri_komut(")
+    khex = [s for s in sk.splitlines() if "khex" in s]
+    ok("B72.F77 K hex'i YALNIZ ham UART'a: EK satiri Serial.ham ile; khex hicbir aynali "
+       "baskida yok; WebAkis::ham yalniz gercek porta yazar",
+       '"EK ' in sk and any("Serial.ham(" in s for s in khex)
+       and not any(("Serial.print" in s or "printf" in s) and "ham(" not in s for s in khex)
+       and "void ham(const char *s)" in wa_k
+       and "_besle" not in govde(wa_k, "void ham(const char *s)"))
+    ok("B72.F82 E komutlari (z zorunlu, m misafir, p USB eslestirme, x sil, t tur olcumu, r tur "
+       "yaz, ? liste) seri dagiticida", all(f"case '{c}':" in sk for c in "zmpxtr?"))
+
+    kp = govde(ino_k, "static bool guv_kapi(")
+    dg = govde(ino_k, "static bool guv__dogrula(")
+    ok("B72.F78 imza basligi VARSA sonuc dogrulamadir: basarisizsa 401 + X-Acilis, imzasiz dala "
+       "DUSMEZ (zorunlu 0'da da)",
+       "if (guv__imza_var()) return guv__dogrula(sinif);" in kp and "guv__red(401" in dg
+       and "X-Acilis" in govde(ino_k, "static void guv__red("))
+    ok("B72.F79 form kodlamali imzali POST 400 (WebServer govdeyi sorguya karistirir)",
+       "x-www-form-urlencoded" in dg and "400" in dg)
+    kpg = govde(ino_k, "void kopru_sayfa(")
+    ok("B72.F81c /kopru (CORS kokeni kaydi) zorunlulukta imzasiz REDDEDILIR",
+       0 <= kpg.find("guv_kapi(GUV_KOMUT)") < kpg.find("if (!guv_imzali && guv.ayar.zorunlu)")
+       < kpg.find("kopru_adres"))
+    i_n = ino_k.find("if (alt == 0 || alt == '?') {")
+    ns = ino_k[i_n:ino_k.find("if (alt == 'a')", i_n)] if i_n >= 0 else ""
+    ok("B72.F91 N? AP parolasini YALNIZ ham UART'a basar (Serial aynasi /akis'e tasiyordu: "
+       "ag dinleyen AP parolasini goruyordu)",
+       bool(ns) and 'Serial.ham(ag_nvs.getString("ap_sifre"' in ns
+       and not re.search(r'Serial\.print(ln)?\(ag_nvs\.getString\("ap_sifre"', ns))
+    ok("B72.F81b misafir izleme yalniz IZLEME sinifini acar",
+       "sinif == GUV_IZLEME && guv.ayar.misafir" in kp and kp.count("misafir") == 1)
+    atla = [s for s in dg.splitlines() if "continue" in s]
+    ok("B72.F86 /akis imzasi _c _s _i sorgu argumanlarindan okunur; bu uc ve ham govde (plain) "
+       "kanonik dongude ATLANIR (atlama satirinin kendisi denetlenir)",
+       len(atla) == 1 and all(f'a == "{a}"' in atla[0] for a in ("_c", "_s", "_i", "plain"))
+       and all(f'sunucu.arg("{a}")' in dg for a in ("_c", "_s", "_i")))
+    i_bas, i_bit = dg.find("guv_imza_bas("), dg.find("guv_imza_bit(")
+    ok("B72.F89 guv_imza_bas basariliysa guv_imza_bit HER ZAMAN cagrilir (mbedTLS baglami "
+       "serbest kalir; arada return yok)",
+       0 <= i_bas < i_bit and "return" not in dg[dg.find("if (!r) {", i_bas):i_bit])
+
+    st = govde(ino_k, "void saat_sayfa(")
+    ok("B72.F80 /saat yalniz NTP saati YOKKEN ayarlar; 1 700 000 000 alti ret",
+       0 <= st.find("guv_saat_ntp") < st.find("settimeofday") and "1700000000" in st)
+    ok("B72.F83 mbedTLS baglami GUV_CTX_BOYU'na sigar (derleme denetimi); PBKDF2 SHA-256",
+       "static_assert(sizeof(GuvMbedCtx) <= GUV_CTX_BOYU" in esp_k
+       and "mbedtls_pkcs5_pbkdf2_hmac_ext(MBEDTLS_MD_SHA256" in esp_k)
+    eg = govde(gh_k, "guv__esit(")
+    ok("B72.F84 sabit zamanli karsilastirma: dongude erken cikis yok (XOR birikimi, tek return)",
+       "f |=" in eg and eg.count("return") == 1)
+    i_ns = ino_k.find('ag_nvs.putString("web_sifre"')
+    ok("B72.F85 Ns (parola degisti) P onbellegini siler ve eski cihazlar icin Ex! der",
+       i_ns >= 0 and "guv_parola_degisti(" in ino_k[i_ns:i_ns + 600]
+       and "Ex!" in ino_k[i_ns:i_ns + 600])
+    ok("B72.F87 uretim kodunda GUV_SINAMA YOK; guvenlik_esp.h Serial aynasindan ONCE dahil ve "
+       "Serial kullanmiyor (cekirdek 0)",
+       "GUV_SINAMA" not in esp_k + ino_k and "Serial" not in esp_k
+       and 0 <= ino_k.find('#include "guvenlik_esp.h"') < ino_k.find("#define Serial CIKIS"))
+    toplanan = re.search(r"toplanacak\[\]\s*=\s*\{([^}]*)\}", ino_k)
+    ok("B72.F88 imza basliklari toplaniyor (X-Cihaz, X-Sayac, X-Imza, Content-Type) ve CORS "
+       "on ucu izin veriyor",
+       toplanan is not None and all(f'"{b}"' in toplanan.group(1)
+                                    for b in ("X-Cihaz", "X-Sayac", "X-Imza", "Content-Type"))
+       and "X-Cihaz" in govde(ino_k, "void onuc_sayfa("))
+
+
+BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart]
 
 
 def main() -> int:
