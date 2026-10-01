@@ -1761,8 +1761,8 @@ def main() -> int:
          "cozulur (f A3-1E); Qt olayi `n` artarak; RTS sifirlamasinda vasiyet <= 15 s; araci "
          "kesintisinde olay kuyrukta bekler, yeniden baglaninca gider; QY dahili_bos >= 60 KB; "
          "/komut Q'yu 403 ile reddeder; Q?/akis hicbir parolayi gostermez"),
-        ("[!] HiveMQ hesabi acilinca: gercek TLS + O4",
-         "Qu mqtts://<kume>.hivemq.cloud:8883, Qk/Qp kart, Qc/Qd cihaz, Q1: Q? bagli ve "
+        ("Gercek araci (EMQX Serverless): TLS + O4 (2026-10-02: 16/16 vasiyet 4.0-7.9 s)",
+         "Qu mqtts://<adres>.emqxsl.com:8883, Qk/Qp kart, Qc/Qd cihaz, Q1: Q? bagli ve "
          "el_sikisma_ms; TLS el sikismasi sirasinda K satirinda loop_azami degismez (K11); "
          "fis cekme -> vasiyet <= 15 s (hedef 10), 10 tekrar (O4)"),
         ("Gercek fis cekme (USB + PIL kapali)",

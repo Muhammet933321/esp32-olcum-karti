@@ -6,7 +6,7 @@ yeni bir kalem eklemek icin o adimin `tezgah(...)` cagrisina ekle.
 
 ## Ilk gun
 
-Bu 20 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
+Bu 19 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 
 > Asagidaki sira ZINCIR sirasi, oncelik sirasi DEGIL — kalemler arasinda elle bir siralama tutulsaydi yine bayatlardi. Hepsi ilk gun yapilacak; hangisinin once oldugu kalemin kendi kabul olcutunde yaziyor (orn. *bedava test*, *kart calisir calismaz*).
 
@@ -28,10 +28,9 @@ Bu 20 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 14 | B72 Kayit firmware + esitleme | ADS takilinca: GERCEK pil testi kaydi |
 | 15 | B72 Kayit firmware + esitleme | Skop girisine CAL bagliyken osiloskop gunlugu (1C-3) |
 | 16 | B72 Kayit firmware + esitleme | ADS takilinca: gercek 500/s ayrintili kayit |
-| 17 | B72 Kayit firmware + esitleme | HiveMQ hesabi acilinca: gercek TLS + O4 |
-| 18 | B7 Arayuz | Arayuz tarayicida GERCEKTEN dogru gorunuyor mu |
-| 19 | B9 Malzeme listesi | Direnc adetleri SAYIM degil goz karari |
-| 20 | B48 Yerlesim plani | BJT/TL431/7912 bacak sirasi multimetrenin diyot kademesiyle |
+| 17 | B7 Arayuz | Arayuz tarayicida GERCEKTEN dogru gorunuyor mu |
+| 18 | B9 Malzeme listesi | Direnc adetleri SAYIM degil goz karari |
+| 19 | B48 Yerlesim plani | BJT/TL431/7912 bacak sirasi multimetrenin diyot kademesiyle |
 
 
 ## B1 On uc tasarimi
@@ -199,7 +198,7 @@ Bu 20 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 89 | [!] Skop girisine CAL bagliyken osiloskop gunlugu (1C-3) | X1000 + tek tel GPIO10 -> GPIO4 (ya da RC duzenegi): tezgah_kayit.py --skop sinyalli dalda Gt0 her yakalama tetikli ve ~1 kHz; 2026-10-01'de giriste sinyal yoktu (kodlar 0) |
 | 90 | [!] ADS takilinca: gercek 500/s ayrintili kayit | Gb0 60 s: ~30 000 ornek, dt ortancasi ~2000 us; PC'de V/I (ve hizalamali W) kartin D satiriyla ayni anda karsilastirilir; hazir alan bitince KA_SILME kayitlari gorulur |
 | 91 | 1E bildirimler kartta (PC'de sahte araci, hesap gerekmez) | tezgah_bildirim.py: Qv gecti; CONNECT keepalive 5 + vasiyet QoS 1 retained; durum c:1 cozulur (f A3-1E); Qt olayi `n` artarak; RTS sifirlamasinda vasiyet <= 15 s; araci kesintisinde olay kuyrukta bekler, yeniden baglaninca gider; QY dahili_bos >= 60 KB; /komut Q'yu 403 ile reddeder; Q?/akis hicbir parolayi gostermez |
-| 92 | [!] HiveMQ hesabi acilinca: gercek TLS + O4 | Qu mqtts://<kume>.hivemq.cloud:8883, Qk/Qp kart, Qc/Qd cihaz, Q1: Q? bagli ve el_sikisma_ms; TLS el sikismasi sirasinda K satirinda loop_azami degismez (K11); fis cekme -> vasiyet <= 15 s (hedef 10), 10 tekrar (O4) |
+| 92 | Gercek araci (EMQX Serverless): TLS + O4 (2026-10-02: 16/16 vasiyet 4.0-7.9 s) | Qu mqtts://<adres>.emqxsl.com:8883, Qk/Qp kart, Qc/Qd cihaz, Q1: Q? bagli ve el_sikisma_ms; TLS el sikismasi sirasinda K satirinda loop_azami degismez (K11); fis cekme -> vasiyet <= 15 s (hedef 10), 10 tekrar (O4) |
 | 93 | Gercek fis cekme (USB + PIL kapali) | elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla son ~5 s |
 
 ## B3 Sema
@@ -251,4 +250,4 @@ Bu 20 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 111 | Sigorta klipsi, 68uF ve C18 bacak araliklari | Ayak izleri tahmin: klips cifti 6 adim, 68uF 1 adim / 8 mm govde, C18 film 6 adim. Parcayi plakete oturt, delikleri say; uymayan varsa plan yeniden uretilecek (--yol-uret) |
 | 112 | Her adimin sonunda bakir sureklilik (ohmmetre) | Plan acik/kisa devre olmadigini GEOMETRIDEN kanitliyor; soguk lehim ve lehim koprusunu kanitlayamaz. Her adimda kilavuzun KAPI olcumunden once komsu pedler arasi kisa, ag iclerinde sureklilik |
 
-**Toplam 112 kalem, 20 tanesi ilk gun.**
+**Toplam 112 kalem, 19 tanesi ilk gun.**

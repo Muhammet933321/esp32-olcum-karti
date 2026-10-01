@@ -145,8 +145,10 @@ Tasarım `tasarim/2026-10-01-1e-mqtt-bildirim.md` (K1–K12 + "Uygulama sırası
 
 | # | Ne | Durum |
 |---|---|---|
-| E1 | Gerçek TLS (HiveMQ Cloud Serverless) hiç denenmedi: CA demetinin HiveMQ zincirini doğrulaması, el sıkışma süresi, K11'in TLS kısmı (el sıkışma sırasında `loop_azami`) | **Kullanıcının hesap açmasını bekliyor** (`_tezgah.md` "[!] HiveMQ") |
-| E2 | Ö4 (fiş çekme → vasiyet ≤ 15 s) gerçek ağda, 10 tekrar | E1 ile birlikte |
+| ~~E1~~ | ~~Gerçek TLS hiç denenmedi~~ | **Kapandı (2026-10-02):** EMQX Serverless'a TLS ile bağlandı (CA demeti zinciri doğruladı), el sıkışma 0.9–2.0 s, el sıkışma sırasında `loop_azami` değişmedi (7.1–7.6 ms vs taban 7.2–7.4 ms), 120 s kopmasız. HiveMQ ücretsiz Serverless'ı kaldırdığı için aracı EMQX (K2) |
+| ~~E2~~ | ~~Ö4 gerçek ağda, 10 tekrar~~ | **Kapandı (RTS sıfırlamasıyla):** 16/16 vasiyet 4.0–7.9 s (ortanca ~7 s, hepsi ≤ 10 s). Gerçek fiş çekme (USB + PİL kapalı) elle yapılmadı; RTS ile aynı yol (TCP kapanmadan kopuş) |
+| E6 | Dahili yığının en düşük değeri açılış + el sıkışma anında 54–60 KB (bağlıyken 82–83 KB; K11 ≥ 60 KB bağlıyken tutuyor). Ağır web yükü + el sıkışma çakışırsa TLS ayırması başarısız olabilir (kart yeniden dener) | İzle; gerekirse 3 KB olay kuyruğu ve paket tamponu PSRAM'e |
+| E7 | İlk gerçek aracı koşusunda 16 sıfırlamadan birinin `basladi` olayı aboneye ULAŞMADI; hedefli tekrar 6/6 geldi. Kartın `olay` sayacı o an kaydedilmedi → kayıp kartta mı (uçuştaki olay + sıfırlama) aracıda mı ayırt edilemiyor | Bir sonraki tezgahta her sıfırlamadan önce `Q?` olay sayacını kaydet |
 | E3 | Eşik (`esik`) 500 binde sabit; kullanıcı ayarı yok | Gerekirse `Qe<binde>` (küçük) |
 | E4 | Olay kuyruğu RAM'de (16); kart yeniden başlarsa gönderilmemiş olaylar kaybolur (spec kapsam dışı: kalıcı kuyruk) | Bilinçli |
 | E5 | Telefon/PC bildirim arayüzü yok; PC'de yalnız `kopru/bildirim.py dinle` | Alt proje 4/5 |

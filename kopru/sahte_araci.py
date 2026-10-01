@@ -3,7 +3,7 @@
 
     python sahte_araci.py --port 1883 --kullanici kart:pw:rw --kullanici cihaz:pw2:r
 
-Gercek aracı (HiveMQ) yerine yerel sinama: kartin vasiyet (LWT), keepalive ve yeniden
+Gercek araci (EMQX Serverless) yerine yerel sinama: kartin vasiyet (LWT), keepalive ve yeniden
 baglanma davranisi bu aracıya karsi OLCULUR. Kod olarak:
 
     a = SahteAraci(host="0.0.0.0", port=0, kullanicilar={"kart": ("pw", "rw"), "cihaz": ("pw2", "r")})

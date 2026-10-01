@@ -7,7 +7,7 @@
     secenekler: --port COM6  --http olcum.local  --ip <PC'nin LAN IP'si>  --ustune-yaz
 
 Hicbir kullanici sirri GEREKMEZ: araci kimlik bilgileri her kosuda RASTGELE uretilir, kartin
-NVS'ine yazilir, ASLA ekrana basilmaz ve temizlikte silinir. Araci gercek HiveMQ degil, bu
+NVS'ine yazilir, ASLA ekrana basilmaz ve temizlikte silinir. Araci gercek bulut aracisi (EMQX) degil, bu
 bilgisayarda calisan `kopru/sahte_araci.py` (duz TCP; kart `mqtt://` ile baglanir — Q? bunu
 "yalniz yerel sinama" diye uyarir). Kartin yazilimi A3-1E, `COM6`, web `olcum.local` olmali.
 

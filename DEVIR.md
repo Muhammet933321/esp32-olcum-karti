@@ -9449,11 +9449,28 @@ bağlantı kodu; kazanç: tezgah HiveMQ'suz, PC'deki sahte aracıya karşı koş
 buldu: `find("#define KY_BITIR_KANCA")` yanlış adlı `KY_BITIR_KANCA_ESKI`'yi de kabul
 ediyordu (o zaman boş varsayılan sessizce devreye girer) → tam imza.
 
-**Yapılmayan / açık** (`tasarim/1-acik-isler.md` "1E" E1–E5): gerçek TLS (HiveMQ hesabı)
-hiç denenmedi — CA demetinin zinciri doğrulaması, el sıkışma sırasında `loop_azami` (K11),
-gerçek ağda Ö4 10 tekrar. Ağ kurulumunu görev içine taşıma (açılış 2.5–6.3 s) 1E'de YAPILMADI.
-Kullanıcı hesabı açınca: depo dışı `.yedek/olcum-karti/bildirim_ayarla.py` (getpass) ile
-`Qu/Qk/Qp/Qc/Qd/Q1`.
+**Gerçek aracı (2026-10-02 gecesi) — HiveMQ değil EMQX.** HiveMQ ücretsiz Serverless planı
+kaldırmış (yeni küme 2026-09-30'dan beri açılamıyor, var olanlar 2026-12-31'de duruyor; kalan
+Starter ücretli, 15 gün deneme). Spec'in yedeği **EMQX Cloud Serverless** (ayda 1 M oturum-dakikası
++ 1 GB, kredi kartı yok, harcama sınırı 0, Frankfurt). Kurulumu kullanıcı Chrome'daki Claude
+eklentisine verdiğim istemle yaptı (bu oturumun tarayıcı bağlantısı uzantının görünmeyen bir
+penceresine düştü, kullanıcı göremedi); parolaları kendisi yazdı, karta depo dışı
+`bildirim_ayarla.py` (getpass) ile girdi — ben görmedim. İki kullanıcı + **beyaz liste**
+(`olcum-kart` `ok/#` yayın+abone, `olcum-cihaz` `ok/#` yalnız abone, cihaz yayın Deny, "All Users
+`#` Deny" — Serverless'ta mod anahtarı yok, EMQX belgesi böyle diyor).
+- TLS el sıkışması 0.9–2.0 s; **el sıkışma sırasında `loop_azami` 7.1–7.6 ms, taban 7.2–7.4 ms
+  → etkisiz** (çekirdek 0'a sabitlemenin karşılığı; `K` sayaçları `Q1`'den 150 ms SONRA sıfırlanıp
+  NVS yazması dışarıda tutuldu). 120 s kopmasız, durum 60 s'de bir.
+- **Ö4: RTS sıfırlamasında 16/16 vasiyet 4.0–7.9 s** (hepsi ≤ 10 s; abone `olcum-cihaz` ile, aracı
+  bilgisi kartın şifreli `/bildirim/bilgi`'sinden geçici eşleşmiş cihazla, sonra `Ex` ile silindi).
+- Dahili yığın bağlıyken 82–83 KB; en düşük 54–60 KB (açılış + el sıkışma anı) → E6.
+- İlk koşuda 16 sıfırlamadan birinin `basladi`'si aboneye ulaşmadı; hedefli tekrar 6/6. Kart
+  sayacı kaydedilmediği için yer belirlenemedi → E7.
+- Tuzak: gördüğüm `baglanti=3 hata=-6` sahte aracı tezgahından kalmaydı (sayaçlar yeniden
+  başlamaya dek sürer), EMQX'e tek temiz bağlantı vardı.
+
+**Yapılmayan / açık** (`tasarim/1-acik-isler.md` "1E" E3–E7): ağ kurulumunu görev içine taşıma
+(açılış 2.5–6.3 s) 1E'de YAPILMADI; gerçek fiş çekme (USB + PİL kapalı) elle yapılmadı.
 
 Yedekler: `tam-20261001-232725.bin` (A3-1D, 1E öncesi) · `tam-20261001-235107.bin`.
 

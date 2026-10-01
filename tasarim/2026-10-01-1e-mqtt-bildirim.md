@@ -15,7 +15,7 @@ haber gitsin. Kart düşmesi: hedef ≤ 10 s, kabul ≤ 15 s (Ö4).
 | # | Karar | Gerekçe |
 |---|---|---|
 | K1 | **İstemci:** çekirdekteki ESP-IDF **esp-mqtt** (Arduino-ESP32 3.3.11'de hazır, MQTT 3.1.1, TLS). Kendi görevinde, **çekirdek 0**. TLS doğrulaması `esp_crt_bundle_attach` (CA demeti; sertifika depoda tutulmaz) | Ek kütüphane yok; yeniden bağlanma ve giden kutusu hazır; ölçüm çekirdeği (1) etkilenmez |
-| K2 | **Aracı:** HiveMQ Cloud Serverless (ücretsiz: 100 bağlantı, 10 GB/ay, TLS 8883, WebSocket 8884). Kart aracıdan bağımsız: yalnız URI + kullanıcı + parola. EMQX Serverless ya da kendi Mosquitto'ya geçiş = ayar değişikliği | Trafik payı en geniş; tahmini kullanım ≤ 100 MB/ay |
+| K2 | **Aracı:** ~~HiveMQ Cloud Serverless~~ → **EMQX Cloud Serverless** (2026-10-02): HiveMQ ücretsiz Serverless planı kaldırdı (yeni küme 2026-09-30'dan beri açılamıyor, var olanlar 2026-12-31'de duruyor; kalan Starter ücretli). EMQX: ayda 1 M oturum-dakikası + 1 GB ücretsiz, kredi kartı yok, harcama sınırı **0** (kota bitince durur, ödeme yok), Frankfurt, TLS 8883. Kart aracıdan bağımsız: yalnız URI + kullanıcı + parola | Tek kart ayda ~43 200 dk; trafik ≤ 100 MB/ay |
 | K3 | **İki aracı kullanıcısı:** `kart` (yayın + abone, `ok/<önek>/#`) ve `cihaz` (yalnız abone, `ok/<önek>/#`). Kart ikisini de NVS'te tutar (`mqtt` ad alanı), cihaz bilgisini yalnız eşleşmiş cihazlara verir (K10). **Depoya asla** | Cihaz parolası sızsa bile sahte yayın yapılamaz |
 | K4 | **Konular:** `ok/<önek>/durum` (retained), `ok/<önek>/olay` (QoS 1). `<önek>` = 16 B rastgele → 32 küçük hex; ilk kurulumda üretilir (NVS) | Tahmin edilemez konu; aracıda başka kullanıcıların konularıyla karışmaz |
 | K5 | ⚠ **Uçtan uca şifreleme:** her yük **ChaCha20-Poly1305 IETF** (RFC 8439) ile, kartın ürettiği 32 B **bildirim anahtarı** (`mqtt/anahtar`) ile şifrelenir; AAD = konu adı. Zarf biçimi aşağıda | Aracı içerik okuyamaz, sahte olay üretemez (etiket tutmaz). §6 sırlar için ChaCha20-Poly1305 zaten gerekiyor |
@@ -89,15 +89,24 @@ Olay düz metni: `{"n":<no>,"a":<açılış>,"t":<unix|0>,"o":"<olay adı>", …
 - **Q komutları (son hali):** `Q?` (3 satır: `Q`, `QA`, `QY` — sır yok) · `Qu` `Qk` `Qp` `Qc` `Qd`
   (boş değer = sil) · `Q1` (önek + anahtar yoksa üretir; RF açık olmalı) · `Q0` · `Qt` · `Qv` ·
   `QR!` (yeni önek + anahtar; cihazlar `/bildirim/bilgi`'yi yeniden almalı).
-- **Tezgah HiveMQ'suz koşar:** `uretim/tezgah_bildirim.py` PC'de sahte aracı (`kopru/sahte_araci.py`,
+- **Tezgah aracı hesabı olmadan koşar:** `uretim/tezgah_bildirim.py` PC'de sahte aracı (`kopru/sahte_araci.py`,
   keepalive + vasiyet uygular) açar, kartı `mqtt://<PC>:<port>`'a yönlendirir. Gerçek TLS, K11'in
-  el sıkışma kısmı ve Ö4'ün gerçek ağ ölçümü HiveMQ hesabıyla ayrıca.
+  el sıkışma kısmı ve Ö4'ün gerçek ağ ölçümü gerçek aracıyla ayrıca (aşağıda).
+- **Gerçek aracı (EMQX Serverless, 2026-10-02):** iki kullanıcı (`olcum-kart` yayın+abone,
+  `olcum-cihaz` yalnız abone) + **beyaz liste**: ikisi de yalnız `ok/#`, cihaz hiçbir yere yayınlayamaz,
+  geri kalan her şey "All Users / # / Deny" kuralıyla reddedilir (Serverless'ta mod anahtarı yok).
+  Kurulumu kullanıcı Chrome'daki Claude eklentisiyle yaptı; parolaları kendisi yazdı, karta depo dışı
+  `bildirim_ayarla.py` (getpass) ile girdi. Ölçülen: TLS el sıkışması 0.9–2.0 s; el sıkışma sırasında
+  `loop_azami` 7.1–7.6 ms (taban 7.2–7.4 ms: **etkisiz**); 120 s kopmasız; **Ö4 RTS sıfırlamasında
+  16/16 vasiyet 4.0–7.9 s** (hepsi ≤ 10 s); bağlıyken dahili yığın 82–83 KB, en düşük 54–60 KB
+  (açılış + el sıkışma anı).
 
 ## ⚠ Onay bekleyen kritik kararlar
 
 1. **K5 uçtan uca şifreleme** — önerim evet (aracı içerik görmez, sahte olay yok).
 2. **K8 sürekli bağlantı** — önerim evet; RAM ölçütü (K11) tutmazsa yalnız kayıt sürerken.
-3. **K2 HiveMQ** — hesabı kullanıcı açar (kart tezgahından önce); iki kullanıcı (K3).
+3. **K2 EMQX Serverless** (HiveMQ ücretsiz planı kaldırdı) — hesap açıldı, kart bağlı; iki kullanıcı (K3)
+   + beyaz liste.
 4. **K6 60 s'de bir durum** — "son görülme" için; ~6 MB/ay.
 
 ## Kapsam dışı
