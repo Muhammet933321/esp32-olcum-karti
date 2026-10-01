@@ -1470,16 +1470,28 @@ static int skop_m_satiri(char *b, size_t boy)
    yeniden baslamada SURMEZ (SKOP oturumu sebep 5 ile kapanir). */
 static struct {
   uint8_t  aktif, eklendi;       /* eklendi: OLCUM oturumuna (Gtd onu KAPATMAZ) */
-  uint32_t aralik_ms, oturum, no, son_ms, t_istek, bas_ms, yakalama, atlanan;
+  uint8_t  kip_degisti, eski_kip;   /* Gt0 kipi NORMAL'e aldiysa durunca GERI */
+  uint32_t aralik_ms, oturum, son_ms, t_istek, bas_ms, yakalama, atlanan;
+  uint32_t serbest_ms;           /* bu andan once yeniden kurulmaz: arada OLCUM */
 } skop_gunluk = {};
+/* Yakalama numarasi ACILIS boyunca tekduze (Gt sifirlamaz): ayni oturuma yeniden
+   Gt ya da DEVAM'dan sonra Gt numara tekrari yapmasin (PC yine de kayit sirasiyla
+   kurar — 1C-3 son inceleme kritik 1). */
+static uint32_t skop_gunluk_no = 0;
 
 static void skop_gunluk_sonuc(uint8_t sonuc) {
+  /* 🔴 1C-3 son inceleme: tetik yokken (Gt0) kurma hemen yenileniyor ve ADS
+     hic okunmuyordu — kartta D satiri 5.0 -> 0.1/s. Her sonuctan sonra en az
+     bekleyis kadar (>= 100 ms) olcum: tetik ve olcum zamani yari yariya. */
+  const uint32_t sure = millis() - skop_gunluk.t_istek;
+  skop_gunluk.serbest_ms = millis() + (sure > 100u ? sure : 100u);
   if (sonuc == SKOP_SONUC_KILIT) { skop_gunluk.atlanan++; return; }
   if (sonuc != SKOP_SONUC_OK) return;          /* tetik yok: kayit yok, yeniden kurulur */
   if (!skop_gunluk.aktif || !kayit_skop_yuva || kayit_skop_dolu) { skop_gunluk.atlanan++; return; }
   KayitSkopYuva *y = kayit_skop_yuva;
   KayitMesaj m;
-  y->no = ++skop_gunluk.no;
+  y->no = ++skop_gunluk_no;
+  y->oturum = skop_gunluk.oturum;
   y->toplam = (uint16_t)(skop_adet > KAYIT_SKOP_AZAMI ? KAYIT_SKOP_AZAMI : skop_adet);
   memcpy(y->kod, (const void *)skop_veri, (size_t)y->toplam * sizeof(uint16_t));
   y->meta.t_ms = skop_gunluk.t_istek;
@@ -1512,6 +1524,11 @@ static void skop_gunluk_durdur(bool kullanici) {
   if (!skop_gunluk.aktif) return;
   const KayitDurum d = kayit_durum_al();
   skop_gunluk.aktif = 0u;
+  if (skop_gunluk.kip_degisti) {               /* Gt0'in degistirdigi kip GERI */
+    skop_ayar.kip = skop_gunluk.eski_kip;
+    skop_gunluk.kip_degisti = 0u;
+    skop_ayar_yaz();
+  }
   if (kullanici && !skop_gunluk.eklendi && d.durum == KDR_KAYIT && d.tur == KAYIT_OTURUM_SKOP) {
     KayitMesaj m;                              /* SKOP oturumu kapanir; OLCUM surer */
     memset(&m, 0, sizeof(m));
@@ -1548,6 +1565,7 @@ static void skop_gunluk_isle() {
   if (skop_is != SKOP_IS_YOK || skop_dokum.aktif || kayit_skop_dolu) return;
   if (skop_gunluk.aralik_ms && skop_gunluk.son_ms
       && simdi - skop_gunluk.son_ms < skop_gunluk.aralik_ms) return;
+  if ((int32_t)(simdi - skop_gunluk.serbest_ms) < 0) return;   /* arada olcum */
   if (pil_testi_suruyor()) return;             /* p1 zaten reddediliyor; savunma */
   skop_gunluk.t_istek = simdi;
   skop_gunluk.son_ms = simdi;
@@ -3165,11 +3183,13 @@ static void kayit_skop_komut(const char *s) {
     m.basla.oturum_turu = KAYIT_OTURUM_SKOP;
   }
   if (!kayit_mesaj_gonder(&m)) { Serial.println(F("! G: istek kuyrugu dolu")); return; }
-  if (!aralik && skop_ayar.kip != SKOP_KIP_NORMAL) {
-    skop_ayar.kip = SKOP_KIP_NORMAL;           /* her tetik: tetiksiz yakalama kaydedilmez */
-    Serial.println(F("* skop kipi NORMAL (her tetik)"));
-  }
   memset(&skop_gunluk, 0, sizeof(skop_gunluk));
+  if (!aralik && skop_ayar.kip != SKOP_KIP_NORMAL) {
+    skop_gunluk.eski_kip = skop_ayar.kip;
+    skop_gunluk.kip_degisti = 1u;
+    skop_ayar.kip = SKOP_KIP_NORMAL;           /* her tetik: tetiksiz yakalama kaydedilmez */
+    Serial.println(F("* skop kipi NORMAL (her tetik) — gunluk durunca geri"));
+  }
   skop_gunluk.aktif = 1u;
   skop_gunluk.eklendi = ekle ? 1u : 0u;
   skop_gunluk.oturum = ekle ? d.oturum : 0u;
@@ -3217,10 +3237,7 @@ static void kayit_komut(const char *s) {
       Serial.println(F("! G: pil testi suruyor — testi p0 ile durdur (kayit onunla kapanir)"));
       return;
     }
-    if (skop_gunluk.aktif) {             /* 1C-3: oturumla birlikte gunluk de durur */
-      skop_gunluk.aktif = 0u;
-      Serial.println(F("* G osiloskop gunlugu durdu"));
-    }
+    skop_gunluk_durdur(false);           /* 1C-3: oturumla birlikte gunluk de durur */
     m.tur = KM_DURDUR;
   } else if (alt == 'o') {
     /* Onay KUYRUGA girmez: son gelen kazanir (kuyrukta dusup DOLU kartı

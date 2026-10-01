@@ -344,19 +344,39 @@ def _bicim_1c3(s: dict) -> None:
     ok("B71.B26 SKOP turu 10 (AZAMI 10), SKOP oturumu 3 C == Python; bicim surumu 2 KALDI",
        t3 == [10, 10, 3] and getattr(KB, "T_SKOP", 0) == 10 and getattr(KB, "OTURUM_SKOP", 0) == 3
        and KB.SURUM == 2, str(t3))
-    # 1. parca 0. parcadan ONCE (yeniden eslenmis dosya) + tekrar; mutasyon:
-    # sorted(ilk) kalkarsa bu sirada kirmizi olmali
-    kur = [KB.Kayit(getattr(KB, "T_SKOP", 10), 18, 5, c1), KB.Kayit(getattr(KB, "T_SKOP", 10), 19, 5, c0),
-           KB.Kayit(getattr(KB, "T_SKOP", 10), 21, 5, c1)]
+    # 🔴 1C-3 incelemesi: `no` bir oturumda TEKRARLANABILIR (Gtd + yeniden Gt,
+    # DEVAM'dan sonra Gt) ve no'ya gore gruplama iki yakalamayi sessizce
+    # birlestiriyordu. Yakalama artik KAYIT SIRASIYLA kurulur: 0. parca acar,
+    # sonraki parca ancak hemen onceki acik yakalamaya (ayni no/toplam, ilk
+    # kesintisiz) eklenir; skoplar anahtari 0. parcanin (ya da yetim parcanin) sirasi.
+    T10 = getattr(KB, "T_SKOP", 10)
+    kur = [KB.Kayit(T10, 18, 5, c1), KB.Kayit(T10, 19, 5, c0), KB.Kayit(T10, 21, 5, c1)]
     o = KB.oturumlari_kur(kur).get(5)
-    y = getattr(o, "skoplar", {}).get(7) if o else None
+    sk = getattr(o, "skoplar", {}) if o else {}
+    y, yetim = sk.get(19), sk.get(18)
     eksik = KB.oturumlari_kur(kur[1:2]).get(5)
-    ye = getattr(eksik, "skoplar", {}).get(7) if eksik else None
-    ok("B71.B27 parcalar ilk'e gore birlesir (sira disi, tekrarli): tam, 5 kod, META 0. "
-       "parcadan; eksik parcada tam=False ve kodlar YOK (sessiz doldurma yok)",
-       y is not None and y["tam"] and y["kodlar"] == [0, 4095, 2048, 1, 4094]
-       and y["meta"] == meta and ye is not None and not ye["tam"] and ye["kodlar"] is None,
-       f"{y and (y['tam'], y['kodlar'])} eksik={ye and (ye['tam'], ye['kodlar'])}")
+    ye = getattr(eksik, "skoplar", {}).get(19) if eksik else None
+    ok("B71.B27 yakalama KAYIT SIRASIYLA kurulur: 0. parca (19) + hemen sonraki 1. parca (21) "
+       "tam, 5 kod, META; 0. parcadan ONCEKI 1. parca (18) yetim: tam degil, kodlar YOK; yalniz "
+       "0. parca: tam=False",
+       y is not None and y["tam"] and y["kodlar"] == [0, 4095, 2048, 1, 4094] and y["no"] == 7
+       and y["meta"] == meta and yetim is not None and not yetim["tam"] and yetim["kodlar"] is None
+       and ye is not None and not ye["tam"] and ye["kodlar"] is None,
+       f"{sorted(sk)} {y and (y['tam'], y['kodlar'])} yetim={yetim and yetim['tam']} "
+       f"eksik={ye and (ye['tam'], ye['kodlar'])}")
+    m2 = dict(meta, t_ms=999)
+    a = pk({"no": 7, "ilk": 0, "adet": 2, "toplam": 2, "parca": 0, "meta": meta, "kodlar": [10, 11]})
+    b = pk({"no": 7, "ilk": 0, "adet": 2, "toplam": 2, "parca": 0, "meta": m2, "kodlar": [20, 21]})
+    nk = KB.Kayit(KB.T_NOKTA, 42, 5, bytes(4 + KB.NOKTA_BAYT))
+    o2 = KB.oturumlari_kur([KB.Kayit(T10, 30, 5, a), KB.Kayit(T10, 31, 5, b),
+                            KB.Kayit(T10, 41, 5, c0), nk, KB.Kayit(T10, 43, 5, c1)]).get(5)
+    s2 = getattr(o2, "skoplar", {}) if o2 else {}
+    ok("B71.B29 ayni `no` ile IKI yakalama ayri kalir (kodlar ve META kendi); arada baska "
+       "kayit giren parca bagli sayilmaz (yarim yakalama tam DEGIL)",
+       sorted(s2) == [30, 31, 41, 43] and s2[30]["kodlar"] == [10, 11] and s2[31]["kodlar"] == [20, 21]
+       and s2[30]["meta"]["t_ms"] == 123456 and s2[31]["meta"]["t_ms"] == 999
+       and not s2[41]["tam"] and not s2[43]["tam"],
+       f"{sorted(s2)} {[(k, v['tam'], v['kodlar']) for k, v in s2.items()]}")
     ikili = KB.skop_ikili(y) if y is not None and hasattr(KB, "skop_ikili") else b""
     ok("B71.B28 skop_ikili: /skop.bin bicimi (S3B, surum 1, adet, hz, adim, ofset, tdiv, tetik, "
        "kip, tetiklendi, sira) + u16 kodlar; eksik yakalama icin None",
@@ -1230,6 +1250,14 @@ def bolum_hazir() -> None:
 SK_SEKTOR = 16
 
 
+def _skop_no(o, no: int) -> dict | None:
+    """Oturumdaki `no` numarali ILK yakalama (skoplar anahtari kayit sirasi)."""
+    for s in sorted(getattr(o, "skoplar", {}) if o else {}):
+        if o.skoplar[s]["no"] == no:
+            return o.skoplar[s]
+    return None
+
+
 def _skop_kod(k: int, no: int) -> int:
     return (37 * k + 101 * no + 11) & 0xFFF
 
@@ -1253,8 +1281,8 @@ def bolum_skop() -> None:
     kay, bozuk = KB.flas_coz(bytes(fl.bellek), SEKTOR)
     ot = KB.oturumlari_kur(kay)
     o1 = ot.get(_say(s1, "OT1"))
-    y1 = getattr(o1, "skoplar", {}).get(1) if o1 else None
-    y2 = getattr(o1, "skoplar", {}).get(2) if o1 else None
+    y1 = _skop_no(o1, 1)
+    y2 = _skop_no(o1, 2)
     p1 = [x for x in kay if x.tur == getattr(KB, "T_SKOP", 10) and x.oturum == _say(s1, "OT1")
           and struct.unpack_from("<I", x.yuk)[0] == 1]
     sek1 = {x.adres // SEKTOR for x in p1}
@@ -1286,14 +1314,14 @@ def bolum_skop() -> None:
     ok("B71.S4 OLCUM oturumuna eklenen yakalama AYNI oturumda; ondan once beslenen noktalar "
        "ONCE yazilir (kayit sirasi zaman sirasi), sonrakiler sonra; noktalar surer (10)",
        _say(s1, "SK4") == 0 and o4 is not None and len(o4.noktalar) == 10
-       and o4.skoplar.get(1, {}).get("tam") and bool(sk4) and bool(once) and bool(sonra)
+       and (_skop_no(o4, 1) or {}).get("tam") and bool(sk4) and bool(once) and bool(sonra)
        and max(once) < min(sk4) and max(sk4) < min(sonra),
        f"nokta={o4 and len(o4.noktalar)} once={once} skop={sk4} sonra={sonra}")
     o5 = ot.get(_say(s1, "OT5"))
     ok("B71.S5 kart yeniden basladi: acik SKOP oturumu sebep 5 ile KAPANIR, DEVAM almaz; "
        "yakalamasi yerinde",
        o5 is not None and o5.bitir is not None and o5.bitir["sebep"] == 5 and not o5.devamlar
-       and o5.skoplar.get(1, {}).get("tam"),
+       and (_skop_no(o5, 1) or {}).get("tam"),
        f"bitir={o5 and o5.bitir} devam={o5 and len(o5.devamlar)}")
     o8 = ot.get(_say(s1, "OT8"))
     ay8 = [x.sira for x in kay if x.tur == KB.T_AYRINTI and x.oturum == _say(s1, "OT8")]
@@ -1342,6 +1370,16 @@ def bolum_halka() -> None:
        and h2[-2][0] == 150 and h2[-2][4] & ko and h2[-1][0] == 151 and not h2[-1][4] & ko
        and all(not r[4] & ko for r in h2[:-2]),
        f"RED={tek.get('RED')} DUSEN={tek.get('DUSEN')} son={h2[-2:]}")
+    h4 = {a: (tek.get(a) or ["?"])[0] for a in ("A0", "A1", "A2", "A3", "B1", "B2", "CMS", "D1")}
+    # 🔴 kartta 204 kirli silmenin 3'unde isaret durustan ONCEKI ornege dustu;
+    # ilk duzeltme (1C-3 incelemesi) `fark = simdi | 1` ile cift ms'de kaniti
+    # atliyordu. Kural artik platformsuz (ksi_*) ve burada davranisla sinaniyor.
+    ok("B71.H4 kirli silme isareti: sayac degisince bosluk (>= 15 ms) olmadan ISARET YOK (cift "
+       "ms dahil); durustan sonraki ornek isaretli; isaretli ornek DUSERSE kanit surer, sonraki "
+       "isaretlenir; bosluk yoksa 100 ms sonra; ayrintili degilken esitleme isareti siler",
+       h4 == {"A0": "0", "A1": "0", "A2": "1", "A3": "0", "B1": "1", "B2": "1", "CMS": h4["CMS"],
+              "D1": "0"} and h4["CMS"].isdigit() and 2106 <= int(h4["CMS"]) < 2112, str(h4))
+    # CMS: degisim ilk 2006'daki ornekte gorulur; 100 ms sonraki ilk ornek 2108
     ok("B71.H3 32 bit sayac sarmasinda (0xFFFFFFF0'dan) 40 ornek sirayla, eksiksiz",
        tek.get("H3N") == ["40"] and tek.get("H3HATA") == ["0"] and tek.get("H3ADET") == ["0"],
        f"{tek.get('H3N')} {tek.get('H3HATA')}")

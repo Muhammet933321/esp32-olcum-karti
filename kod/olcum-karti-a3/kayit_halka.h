@@ -71,6 +71,55 @@ static inline uint8_t kh_it(KayitHalka *h, const KayitOrnek *o)
     return 1u;
 }
 
+/* ─────────────────────────────── kirli silme isareti (uretici tarafi)
+ * Kafa kirli sektor silerken (~25 ms) iki cekirdek durur; sayac (kayit_gunluk.h
+ * kirli_sil) silmeden ONCE artar. Uretici, sayac degistikten sonra DURUS KANITI
+ * goren (onceki ornekten >= KSI_BOSLUK_US) ilk ornegi isaretler: silme baslamadan
+ * itilen ornek isaretlenmez. Kanit bir kez gorulunce, isaretli ornek halkadan
+ * duserse SONRAKI isaretlenir. Bosluk yoksa (kisa silme) KSI_YEDEK_MS sonra yine.
+ * 🔴 Kartta 204 silmenin 3'u bir ornek erken dusuyordu; ilk duzeltme `simdi | 1`
+ * ile cift ms'de kaniti atliyordu. Platformsuz: B71.H4. */
+#ifndef KSI_BOSLUK_US
+#define KSI_BOSLUK_US 15000u   /* ornek araligi 2 ms (ADS'siz <= 10 ms), durus ~25 ms */
+#endif
+#ifndef KSI_YEDEK_MS
+#define KSI_YEDEK_MS  100u
+#endif
+
+typedef struct {
+    uint32_t gordum, fark_ms, onceki_us;
+    uint8_t  fark_var, kanit;
+} KayitSilmeIsaret;
+
+static inline void ksi_esitle(KayitSilmeIsaret *s, uint32_t ks)
+{
+    s->gordum = ks;
+    s->fark_var = 0u;
+    s->kanit = 0u;
+}
+
+/* Her ornekte. Donus: 1 = bu ornek KO_SILME_ONCE tasimali. */
+static inline uint8_t ksi_ornek(KayitSilmeIsaret *s, uint32_t ks, uint32_t us, uint32_t ms)
+{
+    uint8_t isaret = 0u;
+    if (ks != s->gordum) {
+        if (!s->fark_var) {
+            s->fark_var = 1u;
+            s->fark_ms = ms;
+        }
+        if ((uint32_t)(us - s->onceki_us) >= KSI_BOSLUK_US) s->kanit = 1u;
+        if (s->kanit || (uint32_t)(ms - s->fark_ms) >= KSI_YEDEK_MS) isaret = 1u;
+    }
+    s->onceki_us = us;
+    return isaret;
+}
+
+/* Itmeden sonra: isaretli ornek halkaya GIRDIYSE isaret tuketildi. */
+static inline void ksi_itildi(KayitSilmeIsaret *s, uint32_t ks, uint8_t isaretli_girdi)
+{
+    if (isaretli_girdi) ksi_esitle(s, ks);
+}
+
 /* Tuketici. Donus: 1 alindi, 0 bos. */
 static inline uint8_t kh_al(KayitHalka *h, KayitOrnek *o)
 {

@@ -13,6 +13,7 @@
     python tezgah_kayit.py --pil                   1C-1 p1 reddi (ADS yok), ad/etiket/not, DEVAM regresyonu
     python tezgah_kayit.py --ayrinti               1C-2 Gb0: ornek hizi, zaman farki, hazir alan, DEVAM
     python tezgah_kayit.py --hazirsiz [--doldur]   1C-2 GF! + Gb0: kirli silme sayilir, KA_SILME bosluktan sonra
+    python tezgah_kayit.py --skop                  1C-3 Gt0/Gt2000 (CAL 1 kHz), OLCUM'e ekleme, retler, acilis
                                                     (--doldur: once bolumu Gb20 ile doldur, ~1.6 sa)
     secenekler: --port COM6  --http olcum.local  (ya da kartin IP'si)
 
@@ -612,11 +613,10 @@ def hazirsiz(k, host: str, sn: float = 60.0, doldur: bool = False) -> None:
             if g and g["durum"] == 3:
                 break
         ok("bolum doldu (DOLU, durum 3)", bool(g) and g["durum"] == 3, f"{g}")
-        with tempfile.TemporaryDirectory() as d:
-            r = esitle(k, host, Path(d))
-        time.sleep(1)
-        k.yaz(f"Go{r['son_sira']}\n")
-        time.sleep(1)
+        # 🔴 ilk surum burada esitleyip onayliyordu: onaylar gelirken kart BOSTA
+        # oldugu icin on silme kafanin onunu temizledi ve 60 s'lik kayit o temiz
+        # bolgede kaldi (yine 0 == 0). Esitleme YOK: GF! onaysiz tezgah verisini
+        # mantiksal siler, flas kirli kalir.
     k.yaz("GF!\n")
     time.sleep(1.5)
     g0 = durum_iste(k)
@@ -646,6 +646,144 @@ def hazirsiz(k, host: str, sn: float = 60.0, doldur: bool = False) -> None:
        f"KA_SILME={len(silme)} GA silme +{fark} n={len(orn)}")
     ok("KA_SILME'li her kayit silme DURUSUNDAN hemen sonra baslar (ilk orneginin onunde "
        ">= 15 ms bosluk)", bool(sb) and sb[0] >= 15000, f"bosluklar {sb[:8]}")
+
+
+def _gt(k) -> list[int] | None:
+    s, _ = komut(k, "G?", 2)
+    gt = next((x.split() for x in s if x.startswith("GT ")), None)
+    return [int(v) for v in gt[1:]] if gt and len(gt) == 5 and all(
+        v.isdigit() for v in gt[1:]) else None
+
+
+def _skop_frekans(y: dict) -> float:
+    """Kodlardan frekans: esigin (tepe-tepe ortasi) yukselen gecisleri arasi."""
+    v = y["kodlar"]
+    if not v:
+        return 0.0
+    mn, mx = min(v), max(v)
+    orta, h = (mn + mx) / 2, max(2.0, (mx - mn) / 8)
+    gec, alt = [], v[0] < orta
+    for j, x in enumerate(v):
+        if alt and x > orta + h:
+            gec.append(j)
+            alt = False
+        elif not alt and x < orta - h:
+            alt = True
+    if len(gec) < 2:
+        return 0.0
+    return y["meta"]["hz"] / ((gec[-1] - gec[0]) / (len(gec) - 1))
+
+
+def skop(k, host: str) -> None:
+    """1C-3 osiloskop gunlugu kartta. Skop ADS'e bagli DEGIL (ADC1, GPIO4). CAL
+    (GPIO10, X1000) girise RC duzenegiyle ya da tek telle bagliysa 1 kHz olculur;
+    bagli degilse (kart kutuda, 2026-10-01) yakalamalar duz gelir ve frekans
+    sinanmaz — boru hatti, retler, olcumun surmesi ve acilis yine sinanir."""
+    from tezgah_blokaj import seri_yakala
+    print("\n── skop: osiloskop gunlugu (1C-3)")
+    komut(k, "Gd", 3)
+    for c in ("X1000", "x500", "tm0", "tp25", "te0", "th14", "tl4095", "tb3"):
+        komut(k, c, 0.4)
+    b, _ = seri_yakala(k)
+    mn, mx = (min(b["ornek"]), max(b["ornek"])) if b and b.get("ornek") else (0, 0)
+    sinyal = mx - mn > 60
+    print(f"  skop girisi: {mn}..{mx} kod — {'CAL 1 kHz VAR' if sinyal else 'SINYAL YOK (frekans sinanmaz)'}")
+    komut(k, f"tl{(mn + mx) // 2 if sinyal else 2048}", 0.4)
+
+    def d_say(sn: float) -> float:
+        satir, _ = dinle(k, sn)
+        return sum(1 for x in satir if x.startswith("D ")) / sn
+
+    def bitir_esitle(oid: int):
+        komut(k, "Gd", 6, lambda x: x["durum"] == 1)
+        return _ayr_esitle(k, host, oid)[1]
+
+    # Gt0: her tetik (kip NORMAL'e alinir, durunca GERI)
+    d0 = d_say(8)
+    _, g = komut(k, "Gt0", 8, lambda x: x["durum"] == 2)
+    oid = g["oturum"] if g else 0
+    d1 = d_say(20)
+    gt = _gt(k)
+    st, _ = komut(k, "Gtd", 4)
+    sq, _ = komut(k, "t?", 1.5)
+    o = bitir_esitle(oid)
+    yk = sorted(o.skoplar.values(), key=lambda y: y["t_sira"]) if o else []
+    fr = [_skop_frekans(y) for y in yk if y["tam"]]
+    kip0 = any("kip=0" in x for x in sq if x.startswith("T "))
+    print(f"  Gt0 20 s: {len(yk)} yakalama · D/s {d0:.1f} -> {d1:.1f} · GT {gt} · frekans "
+          f"{[round(f) for f in fr[:5]]} · kip geri: {kip0}")
+    ok("Gt0: SKOP oturumu; tetik beklerken OLCUM SURER (D/s en az yari — once 5.0 -> 0.1 idi); "
+       "durunca kip GERI (OTO); SKOP_KAL olayi" + (" ; her yakalama tam ve ~1 kHz" if sinyal
+                                                    else "; sinyal yok: tetiksiz yakalama KAYDEDILMEZ"),
+       o is not None and o.basla is not None and o.basla.oturum_turu == KB.OTURUM_SKOP
+       and d1 >= 0.4 * d0 and kip0 and bool(gt) and gt[0] == 1
+       and any(x.get("tur") == KB.KO_SKOP_KAL and len(x.get("mv", [])) == 17 for x in o.olaylar)
+       and ((len(yk) >= 5 and all(y["tam"] for y in yk) and all(950 < f < 1050 for f in fr)
+             and len(fr) == len(yk)) if sinyal else not yk),
+       f"n={len(yk)} D/s {d0:.1f}->{d1:.1f} kip0={kip0} GT={gt} Gtd={[x for x in st if 'G' in x][:2]}")
+    # Gt2000 (OTO: tetiksiz da yakalar)
+    komut(k, "tm0", 0.4)
+    _, g = komut(k, "Gt2000", 8, lambda x: x["durum"] == 2)
+    oid = g["oturum"] if g else 0
+    time.sleep(30)
+    gt = _gt(k)
+    komut(k, "Gtd", 4)
+    o = bitir_esitle(oid)
+    yk = sorted(o.skoplar.values(), key=lambda y: y["t_sira"]) if o else []
+    ara = sorted(b2["meta"]["t_ms"] - a2["meta"]["t_ms"] for a2, b2 in zip(yk, yk[1:]))
+    ikili = [KB.skop_ikili(y) for y in yk]
+    print(f"  Gt2000 30 s: {len(yk)} yakalama · aralik ortanca {ara[len(ara) // 2] if ara else '-'} ms "
+          f"· GT {gt}")
+    ok("Gt2000: ~15 yakalama, aralik ortancasi ~2000 ms, hepsi TAM ve /skop.bin (S3B) bicimine "
+       "cevrilir; GT yakalama == flastaki; numaralar tekrarsiz",
+       12 <= len(yk) <= 17 and bool(ara) and 1900 <= ara[len(ara) // 2] <= 2600
+       and all(y["tam"] for y in yk) and all(x is not None and x[:3] == b"S3B" for x in ikili)
+       and bool(gt) and abs(gt[2] - len(yk)) <= 1 and len({y["no"] for y in yk}) == len(yk),
+       f"n={len(yk)} ara={ara[:5]} GT={gt}")
+    # OLCUM oturumuna ekleme + emniyet retleri + Gtd olcumu KAPATMAZ (K11)
+    komut(k, "Gd", 3)
+    _, g = komut(k, "Gb200", 8, lambda x: x["durum"] == 2)
+    oid = g["oturum"] if g else 0
+    komut(k, "Gt2000", 3)
+    time.sleep(6)
+    sp = []
+    for _ in range(4):                         # yakalama ucustaysa once o ret gelir
+        sp, _ = komut(k, "p1", 1.5)
+        if any("osiloskop gunlugu suruyor" in x for x in sp):
+            break
+        time.sleep(1.0)
+    st, _ = komut(k, "t", 2)
+    time.sleep(4)
+    komut(k, "Gtd", 4)
+    g2 = durum_iste(k)
+    time.sleep(3)
+    o = bitir_esitle(oid)
+    ok("Gb200 + Gt2000: yakalamalar OLCUM oturumuna (noktalar da var); gunlukte p1 ve elle `t` "
+       "REDDEDILDI; Gtd yalniz gunlugu durdurdu, OLCUM SURDU (K11)",
+       o is not None and o.basla is not None and o.basla.oturum_turu == KB.OTURUM_OLCUM
+       and len(o.noktalar) > 0 and len(o.skoplar) >= 2 and all(y["tam"] for y in o.skoplar.values())
+       and any("osiloskop gunlugu suruyor" in x for x in sp)
+       and any("osiloskop gunlugu suruyor" in x for x in st)
+       and bool(g2) and g2["durum"] == 2 and g2["oturum"] == oid,
+       f"nokta={o and len(o.noktalar)} skop={o and len(o.skoplar)} Gtd sonrasi={g2 and (g2['durum'], g2['oturum'])} "
+       f"p1={[x for x in sp if '!' in x][:1]} t={[x for x in st if '!' in x][:1]}")
+    # yeniden baslama: SKOP oturumu sebep 5, gunluk surmez
+    _, g = komut(k, "Gt2000", 8, lambda x: x["durum"] == 2)
+    oid = g["oturum"] if g else 0
+    time.sleep(5)
+    k.sifirla()
+    acildi = yeni_acilis(k)
+    time.sleep(8)
+    gt = _gt(k)
+    o = _ayr_esitle(k, host, oid)[1]
+    ok("gunluk surerken yeniden baslatma: SKOP oturumu sebep 5 ile kapandi, DEVAM yok, gunluk "
+       "surmuyor (GT etkin 0); onceki yakalamalar tam",
+       acildi and o is not None and o.bitir is not None and o.bitir["sebep"] == 5
+       and not o.devamlar and bool(gt) and gt[0] == 0
+       and len(o.skoplar) >= 1 and all(y["tam"] for y in o.skoplar.values()),
+       f"bitir={o and o.bitir} devam={o and len(o.devamlar)} GT={gt}")
+    komut(k, "X0", 0.5)
+    komut(k, "tm0", 0.4)
 
 
 def esit(k, host: str, port: str) -> None:
@@ -699,6 +837,8 @@ def main() -> int:
             pil(k, host)
         if "--ayrinti" in a:
             ayrinti(k, host)
+        if "--skop" in a:
+            skop(k, host)
         if "--hazirsiz" in a:
             hazirsiz(k, host, float(sec("--sure", "60")), "--doldur" in a)
         if "--esit" in a:

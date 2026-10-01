@@ -357,9 +357,9 @@ def bolum_kaynak() -> None:
        "sonra >= 15 ms bosluktan sonra gelen ornek (ya da 100 ms); gorulen yalniz ISARETLI "
        "ornek itilince guncellenir; ayrintili degilken esitlenir; nefes silmeden SONRA",
        "const uint32_t ks = kayit_g.kirli_sil;" in ko
-       and "o.us - kayit_onceki_us >= 15000u" in ko and "simdi - kayit_ks_fark_ms >= 100u" in ko
-       and "if (kh_it(&kayit_halka, &o) && (o.bayrak & KO_SILME_ONCE))" in ko
-       and ko.find("KO_SILME_ONCE") < ko.find("kayit_ks_gordum = kayit_g.kirli_sil;")
+       and "if (ksi_ornek(&kayit_ksi, ks, o.us, simdi))" in ko
+       and "ksi_itildi(&kayit_ksi, ks, (uint8_t)(kh_it(&kayit_halka, &o) && (o.bayrak & KO_SILME_ONCE)));" in ko
+       and ko.find("ksi_itildi(") < ko.find("ksi_esitle(&kayit_ksi, kayit_g.kirli_sil);")
        < ko.find("if (!kayit_kn_aktif) return;")
        and 0 <= fs.find("esp_partition_erase_range(") < fs.find("kayit__nefes()"))
     ok("B72.F48 GA kayit ici silme = kirli silme sayaci (kayit_g.kirli_sil), gorev turunda "
@@ -426,9 +426,31 @@ def bolum_kaynak() -> None:
     kd = kk2[kk2.find("alt == 'd'"):kk2.find("alt == 'o'")]
     ok("B72.F58 Gd gunlugu de durdurur; baglandigi oturum kapaninca (Gd/DOLU/baska oturum) "
        "gunluk kendiliginden durur; SKOP_KAL olayi gunluk baslarken gider",
-       "skop_gunluk.aktif = 0u" in kd
+       "skop_gunluk_durdur(false);" in kd
        and "d.oturum != skop_gunluk.oturum" in gi
        and "kayit_olay_skop_kal_paketle(" in skk and "kal_mv_tab" in skk)
+    gd = govde(ino_k, "static void skop_gunluk_durdur(")
+    ok("B72.F59 yakalama numarasi acilis boyunca TEKDUZE (Gt sifirlamaz) ve yuva BAGLI oturumu "
+       "tasir; gorev yalniz o oturum etkinse yazar, degilse sayar (ucustaki yakalama yeni "
+       "oturuma girmez)",
+       "y->no = ++skop_gunluk_no;" in gs and "y->oturum = skop_gunluk.oturum;" in gs
+       and ino_k.count("skop_gunluk_no = 0") == 1 and "static uint32_t skop_gunluk_no = 0;" in ino_k
+       and "kayit_y.oturum == kayit_skop_yuva->oturum" in ksk
+       and ksk.find("kayit_y.oturum == kayit_skop_yuva->oturum") < ksk.find("kyn_skop("))
+    ok("B72.F60 her yakalama sonucundan (tetik yok dahil) sonra en az o kadar (>= 100 ms) OLCUM: "
+       "Gt0 tetik beklerken olcumu durdurmaz (kartta 5.0 -> 0.1 D/s olculdu)",
+       "skop_gunluk.serbest_ms = millis() + (sure > 100u ? sure : 100u);" in gs
+       and gs.find("skop_gunluk.serbest_ms") < gs.find("if (sonuc != SKOP_SONUC_OK) return;")
+       and 0 <= gi.find("(int32_t)(simdi - skop_gunluk.serbest_ms) < 0") < gi.find("skop_is_ver(SKOP_IS_GUNLUK)"))
+    ok("B72.F61 Gtd yalniz SKOP oturumunu kapatir (OLCUM'e eklenmisse olcum SURER, K11); yeni "
+       "oturum TUR SKOP ile acilir; KM_SKOP_BASLAT pil yolunu paylasir (BASLA + olay)",
+       "if (kullanici && !skop_gunluk.eklendi && d.durum == KDR_KAYIT && d.tur == KAYIT_OTURUM_SKOP)" in gd
+       and "m.basla.oturum_turu = KAYIT_OTURUM_SKOP;" in skk
+       and re.search(r"case KM_SKOP_BASLAT:\s*case KM_PIL_BASLAT: \{", ms) is not None)
+    ok("B72.F62 Gt0'in NORMAL'e aldigi skop kipi gunluk durunca (Gtd, Gd, oturum kapanmasi) GERI "
+       "yuklenir ve panel bilgilendirilir",
+       "skop_gunluk.eski_kip = skop_ayar.kip;" in skk
+       and "skop_ayar.kip = skop_gunluk.eski_kip;" in gd and "skop_ayar_yaz();" in gd)
     kp = govde(ino_k, "static void kayit_pil_baslat() {")
     ok("B72.F36 kayit acilamazsa pil testi YINE baslar ve kart 'KAYDEDILMIYOR' der "
        "(bolum yok / tarama / hata / dolu / bekliyor / kuyruk dolu)",

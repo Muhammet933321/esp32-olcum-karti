@@ -357,9 +357,10 @@ def skop_coz(y: bytes) -> dict:
 
 
 def _skop_birlestir(o) -> None:
-    """Parcalari yakalamalara birlestir. Ayni `ilk` iki kez gelirse (yazma
-    hatasinda tekrar) BIRI alinir. Eksik parca DOLDURULMAZ: tam=False, kodlar None."""
+    """Yakalamalarin parcalarini birlestir. Eksik parca DOLDURULMAZ: tam=False,
+    kodlar None."""
     for y in o.skoplar.values():
+        y.pop("_sonraki", None)
         p = y.pop("_parca")
         kodlar, beklenen = [], 0
         for ilk in sorted(p):
@@ -451,8 +452,9 @@ class Oturum:
     etiketler: list[str] = field(default_factory=list)    # en son NOT(etiket), virgulden
     notlar: dict[int, dict] = field(default_factory=dict)  # NOT kaydinin sirasi -> not
     ayrinti: list[dict] = field(default_factory=list)     # 1C-2: ayrinti_coz + "sira"
-    skoplar: dict[int, dict] = field(default_factory=dict)  # 1C-3: no -> {no, meta, toplam,
-                                                            # kodlar, tam, t_sira}
+    skoplar: dict[int, dict] = field(default_factory=dict)  # 1C-3: 0. parcanin (ya da yetim
+                                                            # parcanin) SIRASI -> {no, meta,
+                                                            # toplam, kodlar, tam, t_sira}
 
 
 def _not_uygula(o: Oturum, k: Kayit) -> None:
@@ -479,7 +481,14 @@ def _not_uygula(o: Oturum, k: Kayit) -> None:
 
 def oturumlari_kur(kayitlar: list[Kayit]) -> dict[int, Oturum]:
     ot: dict[int, Oturum] = {}
+    # 1C-3: yakalama KAYIT SIRASIYLA kurulur. `no` bir oturumda tekrarlanabilir
+    # (Gtd + yeniden Gt, DEVAM'dan sonra Gt): 0. parca yeni yakalama acar; sonraki
+    # parca yalniz HEMEN onceki acik yakalamaya (ayni no/toplam, ilk kesintisiz)
+    # eklenir — ky_skop parcalari art arda yazar, arada yalniz TEKRAR olabilir.
+    acik: dict[int, dict] = {}
     for k in sorted(kayitlar, key=lambda x: x.sira):
+        if k.oturum and k.tur not in (T_SKOP, T_TEKRAR):
+            acik.pop(k.oturum, None)
         if k.tur == T_NOT and len(k.yuk) >= _NOT_BAS.size:
             h = struct.unpack_from("<I", k.yuk)[0]     # baslikta oturum 0; hedef yukte
             if h:
@@ -496,11 +505,17 @@ def oturumlari_kur(kayitlar: list[Kayit]) -> dict[int, Oturum]:
             continue
         if k.tur == T_SKOP and len(k.yuk) >= _SKOP_BAS.size:
             p = skop_coz(k.yuk)
-            y = o.skoplar.setdefault(p["no"], {"no": p["no"], "meta": None, "toplam": p["toplam"],
-                                               "t_sira": k.sira, "_parca": {}})
-            if p["meta"] is not None:
+            y = acik.get(k.oturum)
+            if (p["parca"] == 0 or y is None or y["no"] != p["no"]
+                    or y["toplam"] != p["toplam"] or p["ilk"] != y["_sonraki"]):
+                y = {"no": p["no"], "meta": None, "toplam": p["toplam"], "t_sira": k.sira,
+                     "_parca": {}, "_sonraki": 0}
+                o.skoplar[k.sira] = y
+                acik[k.oturum] = y
+            if p["parca"] == 0:
                 y["meta"] = p["meta"]
             y["_parca"].setdefault(p["ilk"], p["kodlar"])
+            y["_sonraki"] = p["ilk"] + len(p["kodlar"])
             continue
         if k.tur == T_BASLA:
             o.basla = basla_coz(k.yuk)

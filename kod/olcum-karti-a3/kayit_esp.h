@@ -114,15 +114,14 @@ static KayitHalka   kayit_halka;
 static KayitOrnek  *kayit_halka_t = nullptr;
 static volatile uint8_t kayit_on_sil_izin = 0;     /* cekirdek 1 yazar: kayit/skop/pil yok */
 static uint32_t     kayit_ayr_silme = 0;           /* ayrintili oturumda KIRLI sektor silmesi */
-static uint32_t     kayit_ks_gordum = 0;           /* cekirdek 1: son gordugu kayit_g.kirli_sil */
-static uint32_t     kayit_ks_fark_ms = 0;          /* cekirdek 1: degisimi ilk gordugu an (0 yok) */
-static uint32_t     kayit_onceki_us = 0;           /* cekirdek 1: onceki ayrintili ornegin micros'u */
+static KayitSilmeIsaret kayit_ksi;                 /* cekirdek 1: kirli silme isareti (ksi_*) */
 /* 1C-3 osiloskop gunlugu: TEK yuva (PSRAM, ~8 KB). Cekirdek 1 yakalamayi
    kopyalar, kayit_skop_dolu = 1 yapar, KM_SKOP gonderir; gorev yazar, SONRA
    0 yapar. Dolu yuvaya kopya yok: gunluk bos yuvayi bekler (yakalama dusmez). */
 typedef struct {
     KayitSkopMeta meta;
     uint32_t      no;
+    uint32_t      oturum;                       /* BAGLI oturum: degistiyse yazilmaz */
     uint16_t      toplam;
     uint16_t      kod[KAYIT_SKOP_AZAMI];
 } KayitSkopYuva;
@@ -303,10 +302,15 @@ static void kayit__mesaj(const KayitMesaj *m)
         (void)kyn_not(&kayit_m, m->yuk, m->n);
         break;
     case KM_SKOP:              /* 1C-3: yuva ANCAK yazildiktan sonra bosalir */
-        if (kayit_skop_yuva && kayit_skop_dolu) {
+        /* 1C-3 son inceleme: ucustaki yakalama Gb/oturum degisiminden sonra YENI
+           oturuma yazilmaz — yuva bagli oldugu oturumu tasir */
+        if (kayit_skop_yuva && kayit_skop_dolu && kayit_y.oturum
+            && kayit_y.oturum == kayit_skop_yuva->oturum) {
             int r = kyn_skop(&kayit_m, &kayit_skop_yuva->meta, kayit_skop_yuva->kod,
                              kayit_skop_yuva->toplam, kayit_skop_yuva->no);
             if (r) kayit_skop_hata = kayit_skop_hata + 1u;
+        } else if (kayit_skop_dolu) {
+            kayit_skop_hata = kayit_skop_hata + 1u;
         }
         KAYIT_BARIYER();
         kayit_skop_dolu = 0u;
@@ -533,20 +537,12 @@ static void kayit_ornek(float watt, uint32_t simdi, uint8_t ek)
            >= 15 ms (aralik 2 ms, ADS'siz <= 10 ms). 100 ms'de durus yoksa (kisa
            silme) yine isaretlenir. Kartta 204 silmenin 3'u bir ornek erken dusuyordu. */
         const uint32_t ks = kayit_g.kirli_sil;
-        if (ks != kayit_ks_gordum) {
-            if (!kayit_ks_fark_ms) kayit_ks_fark_ms = simdi | 1u;
-            if (o.us - kayit_onceki_us >= 15000u || simdi - kayit_ks_fark_ms >= 100u)
-                o.bayrak = (uint8_t)(o.bayrak | KO_SILME_ONCE);
-        }
-        kayit_onceki_us = o.us;
-        if (kh_it(&kayit_halka, &o) && (o.bayrak & KO_SILME_ONCE)) {
-            kayit_ks_gordum = ks;              /* dustuyse isaret sonrakine */
-            kayit_ks_fark_ms = 0u;
-        }
+        if (ksi_ornek(&kayit_ksi, ks, o.us, simdi))       /* kural: kayit_halka.h, B71.H4 */
+            o.bayrak = (uint8_t)(o.bayrak | KO_SILME_ONCE);
+        ksi_itildi(&kayit_ksi, ks, (uint8_t)(kh_it(&kayit_halka, &o) && (o.bayrak & KO_SILME_ONCE)));
         return;                                /* doluysa sayilir + sonraki KO_KAYIP_ONCE */
     }
-    kayit_ks_gordum = kayit_g.kirli_sil;       /* ayrintili degil: isaret birikmesin */
-    kayit_ks_fark_ms = 0u;
+    ksi_esitle(&kayit_ksi, kayit_g.kirli_sil);   /* ayrintili degil: isaret birikmesin */
     if (!kayit_kn_aktif) return;
     if (kn_ornek(&kayit_kn, simdi, kayit_ham.menzil, kayit_ham.ham_v, kayit_ham.ham_i,
                  watt, hata, kayit_ham.v_doydu, ek, &c))

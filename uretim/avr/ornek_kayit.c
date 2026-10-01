@@ -1308,6 +1308,39 @@ static void senaryo(void)
     sayi("H3N", (int32_t)n);
     sayi("H3HATA", (int32_t)hata);
     sayi("H3ADET", (int32_t)kh_adet(&h));
+    {   /* H4: kirli silme isareti (ksi_*): kanit bosluk, dusen isaret korunur */
+        KayitSilmeIsaret s;
+        uint32_t us = 1000000UL, ms = 1000u, i;
+        ksi_esitle(&s, 0u);
+        sayi("A0", ksi_ornek(&s, 0u, us, ms));                 /* degisim yok */
+        us += 6000u; ms += 6u;                                 /* ms CIFT: 1006 */
+        sayi("A1", ksi_ornek(&s, 1u, us, ms));                 /* sayac artti, durus YOK */
+        ksi_itildi(&s, 1u, 0u);
+        us += 27000u; ms += 27u;
+        n = ksi_ornek(&s, 1u, us, ms);                         /* durustan sonra */
+        sayi("A2", (int32_t)n);
+        ksi_itildi(&s, 1u, (uint8_t)n);
+        us += 6000u; ms += 6u;
+        sayi("A3", ksi_ornek(&s, 1u, us, ms));                 /* isaret tuketildi */
+        us += 27000u; ms += 27u;
+        sayi("B1", ksi_ornek(&s, 2u, us, ms));                 /* durus, ama itme DUSER */
+        ksi_itildi(&s, 2u, 0u);
+        us += 6000u; ms += 6u;
+        n = ksi_ornek(&s, 2u, us, ms);                         /* kanit SURER */
+        sayi("B2", (int32_t)n);
+        ksi_itildi(&s, 2u, (uint8_t)n);
+        us = 5000000UL; ms = 2000u;                            /* kisa silme: bosluk yok */
+        (void)ksi_ornek(&s, 2u, us, ms);                       /* zaman tabani (sayac ayni) */
+        for (i = 0u, n = 0u; i < 40u && !n; i++) {
+            us += 6000u; ms += 6u;
+            n = ksi_ornek(&s, 3u, us, ms);
+        }
+        sayi("CMS", (int32_t)ms);
+        ksi_itildi(&s, 3u, (uint8_t)n);
+        ksi_esitle(&s, 5u);                                    /* ayrintili degilken */
+        us += 60000u; ms += 60u;
+        sayi("D1", ksi_ornek(&s, 5u, us, ms));
+    }
     metin("BITTI\n");
 }
 #endif
