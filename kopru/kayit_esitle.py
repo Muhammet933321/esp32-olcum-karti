@@ -49,6 +49,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import kayit_bicim as KB                                   # noqa: E402
+import imza as IM                                          # noqa: E402  (1D)
 
 DOSYA = "kayitlar.kyt"
 DURUM = "durum.json"
@@ -98,7 +99,8 @@ class Kilit:
 
 class Esitleyici:
     def __init__(self, taban_url: str, dizin, onay=None, bayt: int = 8192,
-                 zaman_asimi: float = 10.0, onay_bekle: float = 0.3):
+                 zaman_asimi: float = 10.0, onay_bekle: float = 0.3, cihaz=None):
+        self.cihaz = cihaz              # 1D: imza.Cihaz -> butun istekler imzali
         self.taban = taban_url.rstrip("/")
         self.dizin = Path(dizin)
         self.dizin.mkdir(parents=True, exist_ok=True)
@@ -156,9 +158,17 @@ class Esitleyici:
             self._durum_yaz(d)
 
     # ── ag ──
+    def _ac(self, yol: str, argumanlar=()):
+        """GET: eslesmisse imzali (1D, kopru/imza.py), degilse bugunku acik yol."""
+        if self.cihaz is not None:
+            return IM.ac(self.cihaz, self.taban, "GET", yol, list(argumanlar),
+                         zaman_asimi=self.zaman_asimi)
+        q = "&".join(f"{a}={d}" for a, d in argumanlar)
+        return urllib.request.urlopen(self.taban + yol + (f"?{q}" if q else ""),
+                                      timeout=self.zaman_asimi)
+
     def _getir(self, sira: int):
-        url = f"{self.taban}/kayit/veri?sira={sira}&bayt={self.bayt}"
-        with urllib.request.urlopen(url, timeout=self.zaman_asimi) as y:
+        with self._ac("/kayit/veri", [("sira", str(sira)), ("bayt", str(self.bayt))]) as y:
             return y.read(), y.headers
 
     @staticmethod
@@ -251,8 +261,7 @@ class Esitleyici:
         eski dosya yerinde. Donus: {"kalibrasyon": adet | None,
         ["kalibrasyon_hata"], ["kalibrasyon_arsiv"]}."""
         try:
-            with urllib.request.urlopen(f"{self.taban}/kal/liste",
-                                        timeout=self.zaman_asimi) as y:
+            with self._ac("/kal/liste") as y:
                 # eski firmware notta gecersiz UTF-8 birakabiliyordu (cp1254 'ş')
                 veri = json.loads(y.read().decode("utf-8", errors="replace"))
             if not isinstance(veri, dict) or not isinstance(veri.get("kayitlar"), list):
@@ -312,6 +321,17 @@ def seri_onay(kart):
     """USB seri uzerinden `Go<sira>` (kart_baglanti.SeriKart)."""
     def onayla(sira: int) -> None:
         kart.yaz(f"Go{sira}\n")
+    return onayla
+
+
+def imzali_onay(cihaz, taban_url: str, zaman_asimi: float = 5.0):
+    """1D: `/komut` uzerinden imzali `Go<sira>` — jeton ve parola GEREKMEZ."""
+    taban = taban_url.rstrip("/")
+
+    def onayla(sira: int) -> None:
+        with IM.ac(cihaz, taban, "POST", "/komut", [], f"Go{sira}".encode("ascii"),
+                   zaman_asimi=zaman_asimi) as y:
+            y.read()
     return onayla
 
 

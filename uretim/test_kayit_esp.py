@@ -542,6 +542,20 @@ class _SahteKart:
         self.komutlar: list[str] = []
         self.kal_liste = None           # 1B: /kal/liste (None = eski firmware, 404)
         self.kal_yanit = None           # ("ham", bayt) · ("kod", 500) · ("kes", bayt): bozuk yanit
+        # 1D: imza (BAGIMSIZ dogrulayici, imza.py KULLANILMAZ) + eslestirme uclari
+        self.cihazlar: dict[int, bytes] = {}
+        self.acilis = "11" * 16
+        self.imza_zorunlu = False
+        self.gorulen: dict[int, set] = {}
+        self.istekler: list[str] = []   # yontem yol basliklar govde (sizinti denetimi)
+        self.ret_401 = 0
+        self.imzali = 0
+        self.parola = "dogru-parola-12"
+        self.tuz = bytes(range(16))
+        self.tur = 1000
+        self.gkimlik = "0011223344556677"
+        self.bekleyen = None
+        self.kart_kanit_boz = False
 
     def sonraki(self) -> int:
         return max((struct.unpack_from("<I", k, 4)[0] for k in self.kayitlar), default=0) + 1
@@ -571,14 +585,85 @@ class _SahteKart:
         return govde, ilk, son
 
 
+
+def _kanonik_bgmz(yontem: str, yol: str, args, acilis: str, sayac: int, govde: bytes) -> bytes:
+    """1D spec K9'un BAGIMSIZ yeniden yazimi (imza.py'yi kullanmaz)."""
+    import hashlib as _hs
+    q = "&".join(urllib.parse.quote(a, safe="-._~") + "=" + urllib.parse.quote(d, safe="-._~")
+                 for a, d in args)
+    return ("OK1\n" + yontem + "\n" + yol + ("?" + q if q else "") + "\n" + acilis + "\n"
+            + str(sayac) + "\n" + _hs.sha256(govde).hexdigest()).encode()
+
+
+def _es_hmac(P: bytes, etiket: str, kimlik: str, nk: bytes, nc: bytes, son: str) -> bytes:
+    import hashlib as _hs
+    import hmac as _hm
+    return _hm.new(P, f"{etiket}\n{kimlik}\n{nk.hex()}\n{nc.hex()}\n{son}".encode(),
+                   _hs.sha256).digest()
+
 def _sunucu(kart: _SahteKart):
     class Isleyici(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
             pass
 
+        def _imza(self, yontem: str, govde: bytes):
+            """None = imzasiz; True = gecerli; False = 401 gonderildi."""
+            import hashlib as _hs
+            import hmac as _hm
+            u = urllib.parse.urlparse(self.path)
+            q = urllib.parse.parse_qsl(u.query, keep_blank_values=True)
+            kart.istekler.append(f"{yontem} {self.path} {dict(self.headers)} {govde!r}")
+            qd = dict(q)
+            if self.headers.get("X-Imza"):
+                n, s, im = self.headers["X-Cihaz"], self.headers["X-Sayac"], self.headers["X-Imza"]
+            elif "_i" in qd:
+                n, s, im = qd.get("_c", "0"), qd.get("_s", "0"), qd["_i"]
+            else:
+                if kart.imza_zorunlu and u.path not in ("/eslestir/bilgi", "/eslestir/baslat",
+                                                        "/eslestir/kanit"):
+                    self._red()
+                    return False
+                return None
+            K = kart.cihazlar.get(int(n))
+            args = [(a, d) for a, d in q if a not in ("_c", "_s", "_i")]
+            if K is None or not _hm.compare_digest(
+                    _hm.new(K, _kanonik_bgmz(yontem, u.path, args, kart.acilis, int(s), govde),
+                            _hs.sha256).hexdigest(), im):
+                self._red()
+                return False
+            g = kart.gorulen.setdefault(int(n), set())
+            if int(s) in g or int(s) < 1 or (g and int(s) <= max(g) - 64):
+                self._red()
+                return False
+            g.add(int(s))
+            kart.imzali += 1
+            return True
+
+        def _red(self):
+            kart.ret_401 += 1
+            self.send_response(401)
+            self.send_header("X-Acilis", kart.acilis)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def _json(self, d):
+            g = json.dumps(d).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(g)))
+            self.end_headers()
+            self.wfile.write(g)
+
         def do_GET(self):
             u = urllib.parse.urlparse(self.path)
             q = urllib.parse.parse_qs(u.query)
+            if self._imza("GET", b"") is False:
+                return
+            if u.path == "/eslestir/bilgi":
+                self._json({"surum": "OK1", "kimlik": kart.gkimlik, "acilis": kart.acilis,
+                            "tuz": kart.tuz.hex(), "tur": kart.tur, "zorunlu": int(kart.imza_zorunlu),
+                            "misafir": 0, "saat": 0, "cihaz_azami": 8})
+                return
             if u.path == "/akis":
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
@@ -623,9 +708,38 @@ def _sunucu(kart: _SahteKart):
             self.wfile.write(govde)
 
         def do_POST(self):
+            import hashlib as _hs
+            import hmac as _hm
             n = int(self.headers.get("Content-Length", "0"))
-            govde = self.rfile.read(n).decode()
-            if self.headers.get("X-Olcum") == "1" and self.headers.get("X-Jeton") == "abc123":
+            ham = self.rfile.read(n)
+            govde = ham.decode()
+            u = urllib.parse.urlparse(self.path)
+            qd = dict(urllib.parse.parse_qsl(u.query, keep_blank_values=True))
+            imzali = self._imza("POST", ham)
+            if imzali is False:
+                return
+            if u.path == "/eslestir/baslat":
+                kart.bekleyen = (1, bytes(range(0x20, 0x30)), bytes.fromhex(qd["nc"]), qd["ad"])
+                self._json({"eno": 1, "nk": bytes(range(0x20, 0x30)).hex()})
+                return
+            if u.path == "/eslestir/kanit":
+                eno, nk, nc, ad = kart.bekleyen
+                kart.bekleyen = None
+                P = _hs.pbkdf2_hmac("sha256", kart.parola.encode(), kart.tuz, kart.tur, 32)
+                if not _hm.compare_digest(_es_hmac(P, "OK1-istemci", kart.gkimlik, nk, nc, ad).hex(),
+                                          qd["kanit"]):
+                    self.send_response(403)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                yeni = min(i for i in range(1, 9) if i not in kart.cihazlar)
+                kart.cihazlar[yeni] = _es_hmac(P, "OK1-anahtar", kart.gkimlik, nk, nc, str(yeni))
+                kk = _es_hmac(P, "OK1-kart", kart.gkimlik, nk, nc, str(yeni))
+                if kart.kart_kanit_boz:
+                    kk = bytes(32)
+                self._json({"n": yeni, "kart_kanit": kk.hex()})
+                return
+            if imzali or (self.headers.get("X-Olcum") == "1" and self.headers.get("X-Jeton") == "abc123"):
                 kart.komutlar.append(govde)
                 if govde.startswith("Go"):
                     kart.onayla(int(govde[2:]))
@@ -1157,7 +1271,159 @@ def bolum_guvenlik_kart() -> None:
        and "X-Cihaz" in govde(ino_k, "void onuc_sayfa("))
 
 
-BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart]
+class _SahteSeri:
+    """1D esles_usb icin USB seri sahtesi: E? ve Ep<ad> yanitlari."""
+
+    def __init__(self, K: bytes, n: int = 3, kimlik: str = "0011223344556677"):
+        self.K, self.n, self.kimlik = K, n, kimlik
+        self.yazilan: list[str] = []
+        self.kuyruk: list[str] = ["D 1.7 0 0 0 0 1 2 0 3"]
+
+    def yaz(self, s: str) -> None:
+        self.yazilan.append(s)
+        if s.startswith("E?"):
+            self.kuyruk.append(f"E zorunlu=0 misafir=0 tur=50000 kimlik={self.kimlik} saat=0 cihaz=2")
+        elif s.startswith("Ep"):
+            self.kuyruk += ["D 1.7 0 0 0 0 1 2 0 3", f"EK {self.n} {self.K.hex()}",
+                            f"* E: USB'den cihaz {self.n} eklendi"]
+
+    def satir_oku(self, zaman_asimi: float = 0.5):
+        return self.kuyruk.pop(0) if self.kuyruk else None
+
+
+def bolum_guvenlik_istemci() -> None:
+    """1D T4: PC istemcisi (kopru/imza.py) sahte karta karsi; sahte kartin imza
+    dogrulayicisi BAGIMSIZ (spec bicimi hmac ile yeniden yazilmis)."""
+    print("\n── B72.I  1D PC istemcisi: eslestirme · imzali esitleme · yeniden esitleme · saklama")
+    import imza as IM
+    kay = _kayitlar(30)
+    kart = _SahteKart(kay)
+    sunucu, taban = _sunucu(kart)
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            # E25 parolali eslestirme: parola, P ve K agda YOK; yanlis parola ve sahte kart kaniti kaydetmez
+            kart.kart_kanit_boz = True
+            try:
+                IM.esles(taban, "PC ğ", kart.parola, dizin=d / "c")
+                sahte = False
+            except Exception as e:                       # noqa: BLE001
+                sahte = "kart" in str(e).lower()
+            dosyasiz_1 = not list((d / "c").glob("*.json")) if (d / "c").exists() else True
+            kart.kart_kanit_boz = False
+            try:
+                IM.esles(taban, "PC", "yanlis-parola-99", dizin=d / "c")
+                yanlis = False
+            except Exception:                            # noqa: BLE001
+                yanlis = True
+            dosyasiz_2 = not list((d / "c").glob("*.json")) if (d / "c").exists() else True
+            # sahte kanitli deneme SAHTE KARTTA cihaz birakti (gercek sahte kart parolayi
+            # bilmez, birakamaz); istemci HICBIR SEY kaydetmedi (dosyasiz_1) — listeyi temizle
+            kart.cihazlar.clear()
+            kart.istekler.clear()
+            c = IM.esles(taban, "PC ğ", kart.parola, dizin=d / "c")
+            trafik = "\n".join(kart.istekler)
+            import hashlib as _hs
+            P = _hs.pbkdf2_hmac("sha256", kart.parola.encode(), kart.tuz, kart.tur, 32)
+            ok("B72.I5 parolali eslestirme: dogru parola -> cihaz; trafikte parola, P ve K YOK; "
+               "yanlis parola ve SAHTE kart kaniti (karsilikli dogrulama) cihaz KAYDETMEZ",
+               c.n == 1 and c.K == kart.cihazlar[1] and kart.parola not in trafik
+               and P.hex() not in trafik and c.K.hex() not in trafik and sahte and yanlis
+               and dosyasiz_1 and dosyasiz_2,
+               f"n={c.n} sahte={sahte} yanlis={yanlis}")
+
+            # E20 imzali esitleme: zorunlu kartta imzali gecer, imzasiz 401
+            kart.imza_zorunlu = True
+            kart.imzali = 0
+            es = _es(taban, d / "e", onay=KE.imzali_onay(c, taban), cihaz=c)
+            r = es.esitle()
+            imzasiz_red = False
+            try:
+                _es(taban, d / "e2").esitle()
+            except Exception:                            # noqa: BLE001
+                imzasiz_red = True
+            ok("B72.I0 eslesmis Esitleyici /kayit/veri ve Go onayini IMZALAR (zorunlu sahte kart "
+               "kabul eder); eslesmemis olan 401 alir",
+               (d / "e" / KE.DOSYA).read_bytes() == b"".join(kay) and kart.onay == 30
+               and kart.imzali >= 2 and imzasiz_red, f"{r} imzali={kart.imzali} onay={kart.onay}")
+
+            # E21 kart yeniden basladi (acilis degisti): BIR KEZ esitlenir, dongu yok
+            kart.acilis = "22" * 16
+            kart.ret_401 = 0
+            kart.kayitlar = kay + _kayitlar(5, 31)
+            r2 = es.esitle()
+            bir_kez = kart.ret_401 == 1
+            kart.cihazlar.pop(c.n)                       # cihaz silindi: 401, acilis AYNI
+            kart.ret_401 = 0
+            kart.kayitlar = kart.kayitlar + _kayitlar(2, 36)
+            sonsuz_yok = False
+            try:
+                es.esitle()
+            except Exception:                            # noqa: BLE001
+                sonsuz_yok = kart.ret_401 <= 2
+            kart.cihazlar[c.n] = c.K
+            ok("B72.I1 (Review Focus 2) yeni acilis: istemci 401 + X-Acilis ile BIR KEZ esitlenir ve "
+               "basarir; acilis ayniyken 401 (cihaz silindi) dongu yapmaz, hata verir",
+               bir_kez and r2.get("yeni_kayit", 0) == 5 and c.acilis == "22" * 16 and sonsuz_yok,
+               f"ret={kart.ret_401} r2={r2} acilis={c.acilis[:4]}")
+
+            # E22 sayac diskte kalici ve tekdüze
+            s1 = c.sayac
+            c2 = IM.Cihaz.yukle(c.dosya)
+            import time as _t
+            gercek = _t.time
+            try:
+                _t.time = lambda: 1.0                    # saat geri gitti
+                s2 = c2.sonraki_sayac()
+            finally:
+                _t.time = gercek
+            ok("B72.I2 sayac diskte kalici: yeni nesne eskisinin altina inmez, saat geri gitse de artar",
+               s1 > 0 and s2 > s1, f"{s1} -> {s2}")
+
+            # E23 eslesmemis Esitleyici bugunku yolu kullanir (imza basligi YOK)
+            kart.imza_zorunlu = False
+            kart.istekler.clear()
+            kart.kayitlar = kay
+            _es(taban, d / "e3", onay=KE.http_onay(taban)).esitle()
+            ok("B72.I3 (regresyon) eslesmemis Esitleyici imza basligi YOLLAMAZ; jetonlu onay calisir",
+               kart.istekler and not any("X-Imza" in s for s in kart.istekler)
+               and any("X-Jeton" in s for s in kart.istekler), str(len(kart.istekler)))
+
+            # E24 anahtar diskte duz durmaz (Windows: DPAPI)
+            metin = c.dosya.read_text(encoding="utf-8")
+            if sys.platform == "win32":
+                ok("B72.I4 anahtar dosyada DUZ DEGIL (DPAPI); geri yuklenen K ayni",
+                   c.K.hex() not in metin and '"K_dpapi"' in metin
+                   and IM.Cihaz.yukle(c.dosya).K == c.K)
+            else:
+                ok("B72.I4 (Windows disi: DPAPI yok) dosya izni 600 ve uyari alani",
+                   (c.dosya.stat().st_mode & 0o077) == 0 and '"K_duz"' in metin)
+
+            # E26 USB eslestirmesi: E? ile kimlik, Ep ile EK satiri
+            Ku = bytes(range(100, 132))
+            seri = _SahteSeri(Ku, n=3)
+            cu = IM.esles_usb(seri, "Laptop", dizin=d / "u")
+            ok("B72.I6 USB eslestirmesi: E? kimligi + Ep<ad> -> EK satirindan K ve numara; "
+               "diske kaydedilir",
+               cu.n == 3 and cu.K == Ku and cu.kimlik == "0011223344556677"
+               and any(s.startswith("Ep") and "Laptop" in s for s in seri.yazilan)
+               and IM.Cihaz.yukle(cu.dosya).K == Ku, str(seri.yazilan))
+
+            # E27 EventSource adresi: _c _s _i, kanonik bagimsiz hesapla dogrulanir
+            u = IM.akis_url(c, taban)
+            kart.imza_zorunlu = True
+            import urllib.request as _ur
+            with _ur.urlopen(u, timeout=5) as y:
+                akis_ok = y.status == 200
+            ok("B72.I7 /akis imzali adresi (_c _s _i sorguda) zorunlu kartta kabul edilir",
+               akis_ok and "_i=" in u and f"_c={c.n}" in u)
+            kart.imza_zorunlu = False
+    finally:
+        sunucu.shutdown()
+
+
+BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
+            bolum_guvenlik_istemci]
 
 
 def main() -> int:

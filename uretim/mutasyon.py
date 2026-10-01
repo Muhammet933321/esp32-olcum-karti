@@ -2179,6 +2179,18 @@ MUTASYONLAR = [
     ("B22a", "test_kopru.py", "kopru/kopru.py",
      '        if komut.startswith("E"):\n', '        if False:\n',
      '1D: kopru E komutunu karta tasirsa agdan USB eslestirme: test_kopru kirmizi'),
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     '            if deneme == 0 and yeni and yeni != cihaz.acilis:', '            if False:',
+     '1D: istemci yeni acilisla yeniden esitlenmezse kart her yeniden baslamada istemciyi kilitler: I1 kirmizi'),
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     '        self.sayac = s\n        self.kaydet()\n        return s', '        self.sayac = s\n        return s',
+     '1D: sayac diske yazilmazsa yeni surec eski sayaca iner, kart tekrar sanir: I2 kirmizi'),
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     '            d["K_dpapi"] = base64.b64encode(_dpapi(self.K, True)).decode("ascii")', '            d["K_dpapi"] = ""\n            d["K_duz"] = self.K.hex()',
+     '1D: anahtar diske duz yazilirsa: I4 kirmizi'),
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     '    if not hmac.compare_digest(bytes.fromhex(y["kart_kanit"]), kanit_kart(P, kimlik, nk, nc, n)):', '    if False:',
+     '1D: kart kaniti denetlenmezse sahte karta anahtar kaydedilir (karsilikli dogrulama yok): I5 kirmizi'),
 ]
 
 
