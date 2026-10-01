@@ -14,6 +14,7 @@
     python tezgah_kayit.py --ayrinti               1C-2 Gb0: ornek hizi, zaman farki, hazir alan, DEVAM
     python tezgah_kayit.py --hazirsiz [--doldur]   1C-2 GF! + Gb0: kirli silme sayilir, KA_SILME bosluktan sonra
     python tezgah_kayit.py --skop                  1C-3 Gt0/Gt2000 (CAL 1 kHz), OLCUM'e ekleme, retler, acilis
+    python tezgah_kayit.py --plan                  1C-4 Gp: baslar/biter (sebep 7), yeniden baslama, atlama, iptal
                                                     (--doldur: once bolumu Gb20 ile doldur, ~1.6 sa)
     secenekler: --port COM6  --http olcum.local  (ya da kartin IP'si)
 
@@ -786,6 +787,90 @@ def skop(k, host: str) -> None:
     komut(k, "tm0", 0.4)
 
 
+def _gp(k) -> list[int] | None:
+    s, _ = komut(k, "G?", 2)
+    gp = next((x.split() for x in s if x.startswith("GP ")), None)
+    return [int(v) for v in gp[1:]] if gp and len(gp) == 6 and all(
+        v.isdigit() for v in gp[1:]) else None
+
+
+def _durum_bekle(k, durum: int, sn: float) -> tuple[dict | None, float]:
+    t0 = time.time()
+    _, g = dinle(k, sn, lambda x: x["durum"] == durum)
+    return g, time.time() - t0
+
+
+def plan(k, host: str) -> None:
+    """1C-4 zamanlanmis kayit kartta (NTP saati gerekir: kart ev aginda STA)."""
+    print("\n── plan: zamanlanmis kayit (1C-4)")
+    komut(k, "Gd", 3)
+    komut(k, "Gp-", 1.5)
+    red = []
+    for c in ("Gp+5,10", "Gp+5,10,7", "Gp+99999999999,10,200", "Gpx", "Gp+5,9999999,200"):
+        s, _ = komut(k, c, 1.2)
+        red.append(any(x.startswith("! G") for x in s))
+    ok("Gp gecersiz argumanlar REDDEDILDI (eksik alan, gecersiz hiz, tasan sayi, harf, > 30 gun)",
+       all(red), str(red))
+    # A: baslar, sebep 7 ile biter
+    t_kom = time.time()
+    s, _ = komut(k, "Gp+20,30,200", 1.5)
+    if any("saat yok" in x for x in s):
+        ok("NTP saati var (plan kurulabilir)", False, "kart 'saat yok' dedi — STA/NTP yok")
+        return
+    gp1 = _gp(k)
+    g, _ = _durum_bekle(k, 2, 40)
+    t_bas = time.time() - t_kom
+    oid = g["oturum"] if g else 0
+    g2, _ = _durum_bekle(k, 1, 45)
+    t_bit = time.time() - t_kom
+    gp2 = _gp(k)
+    kay, o = _ayr_esitle(k, host, oid)
+    pl = [x for x in (o.olaylar if o else []) if x.get("tur") == getattr(KB, "KO_PLAN", -1)]
+    print(f"  Gp+20,30,200: basladi +{t_bas:.1f} s, bitti +{t_bit:.1f} s · GP {gp1} -> {gp2} · PLAN {pl[:1]}")
+    ok("Gp+20,30,200: ~20 s sonra OLCUM oturumu acildi, ~50 s'de sebep 7 'planli sure doldu' ile "
+       "kapandi (GP 1 -> 3); PLAN olayi sure 30 / hiz 200; noktalar var",
+       bool(gp1) and gp1[0] == 1 and 18 <= t_bas <= 24 and bool(g2) and 48 <= t_bit <= 55
+       and o is not None and o.bitir is not None and o.bitir["sebep"] == 7
+       and bool(pl) and pl[0]["sure_s"] == 30 and pl[0]["hiz_ms"] == 200 and len(o.noktalar) > 0
+       and bool(gp2) and gp2[0] == 3,
+       f"bas={t_bas:.1f} bit={t_bit:.1f} GP={gp1}->{gp2} bitir={o and o.bitir}")
+    # B: plan surerken yeniden baslatma -> DEVAM, bitis planlanan anda
+    t_kom = time.time()
+    komut(k, "Gp+8,45,200", 1.5)
+    g, _ = _durum_bekle(k, 2, 30)
+    oid = g["oturum"] if g else 0
+    time.sleep(5)
+    k.sifirla()
+    acildi = yeni_acilis(k)
+    g2, _ = _durum_bekle(k, 1, 70)
+    t_bit = time.time() - t_kom
+    kay, o = _ayr_esitle(k, host, oid)
+    print(f"  plan + yeniden baslatma: bitti +{t_bit:.1f} s (plan 53) · devam {o and len(o.devamlar)}")
+    ok("plan surerken yeniden baslatma: oturum DEVAM aldi, plan NVS'ten SURUYOR, planlanan anda "
+       "(~53 s) sebep 7 ile kapandi",
+       acildi and o is not None and len(o.devamlar) == 1 and o.bitir is not None
+       and o.bitir["sebep"] == 7 and 50 <= t_bit <= 60,
+       f"bit={t_bit:.1f} devam={o and len(o.devamlar)} bitir={o and o.bitir}")
+    # C: elle kayit surerken plan ATLANIR, elle kayit surer
+    _, g = komut(k, "Gb200", 6, lambda x: x["durum"] == 2)
+    oid = g["oturum"] if g else 0
+    komut(k, "Gp+3,20,1000", 1.5)
+    time.sleep(7)
+    gp = _gp(k)
+    gd = durum_iste(k)
+    komut(k, "Gd", 5, lambda x: x["durum"] == 1)
+    ok("elle kayit surerken plan ATLANDI (GP 4), elle kayit BOLUNMEDI",
+       bool(gp) and gp[0] == 4 and bool(gd) and gd["durum"] == 2 and gd["oturum"] == oid,
+       f"GP={gp} durum={gd and (gd['durum'], gd['oturum'])}")
+    # D: iptal
+    komut(k, "Gp+30,10,200", 1.5)
+    gp_a = _gp(k)
+    komut(k, "Gp-", 1.5)
+    gp_b = _gp(k)
+    ok("Gp- bekleyen plani iptal eder (GP 1 -> 0)",
+       bool(gp_a) and gp_a[0] == 1 and bool(gp_b) and gp_b[0] == 0, f"{gp_a} -> {gp_b}")
+
+
 def esit(k, host: str, port: str) -> None:
     print("\n── esit: esitlenen dosya == flastaki bolum")
     with tempfile.TemporaryDirectory() as d:
@@ -839,6 +924,8 @@ def main() -> int:
             ayrinti(k, host)
         if "--skop" in a:
             skop(k, host)
+        if "--plan" in a:
+            plan(k, host)
         if "--hazirsiz" in a:
             hazirsiz(k, host, float(sec("--sure", "60")), "--doldur" in a)
         if "--esit" in a:
