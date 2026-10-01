@@ -160,6 +160,9 @@ def derle(senaryo: str, sektor_adet: int = SEKTOR_ADET,
     if anahtar in _ELF:
         return _ELF[anahtar]
     dosya = "".join(c if c.isalnum() or c == "_" else "_" for c in anahtar)
+    if len(dosya) > 60:      # 1D: -D ile gelen vektorler adi Windows yol sinirina tasirir
+        import hashlib as _hl
+        dosya = f"{senaryo}_{_hl.sha256(anahtar.encode()).hexdigest()[:16]}"
     elf = gecici.dizin("kayit_") / f"ornek_kayit_{dosya}.elf"
     d = subprocess.run(
         [str(AVR_GCC), "-mmcu=atmega328p", "-DF_CPU=16000000UL", "-Os",
@@ -1848,9 +1851,95 @@ def bolum_kesinti(n_deneme: int) -> None:
        bitir_payi_korunur(bellek))
 
 
+def bolum_guvenlik() -> None:
+    """1D: eslestirme + imzali istek (guvenlik.h) AVR'de, sinama SHA-256'siyla;
+    vektorler uretim/vektor_guvenlik.json'dan (Python ile AYNI sonuc)."""
+    import json as _json
+    print("\n── B71.U  1D guvenlik: vektorler · eslestirme · deneme siniri · imza · "
+          "tekrar penceresi · kalicilik")
+    V = _json.loads((BURASI / "vektor_guvenlik.json").read_text(encoding="utf-8"))
+    im = {o["ad"]: o for o in V["imza"]}
+    pr = V["protokol"]
+    ek = (f"-DGUV_V_KANIT={pr['kanit_istemci']}", f"-DGUV_V_IMZA_GET={im['get']['imza']}",
+          f"-DGUV_V_IMZA_POST={im['post']['imza']}", f"-DGUV_V_IMZA_AKIS={im['akis']['imza']}",
+          f"-DGUV_V_IMZA_GET_SORGU={im['get_sorgu']['imza']}")
+    elf = derle("GUV", ek=ek)
+    fl = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    a1, a2, a3 = _yonet(fl, elf, [1, 2, 3])
+
+    def k(c, ad):
+        x = alanlar(c, ad)
+        return int(x[0][0]) if x and x[0] else None
+
+    def h(c, ad):
+        x = alanlar(c, ad)
+        return x[0][0] if x and x[0] else None
+    YOK, IMZA, TEKRAR, CIHAZ, BEKLE, DOLU, PAROLA, KANIT, AD = -1, -2, -3, -4, -5, -6, -7, -8, -9
+    rfc = {x["veri"]: x["hmac"] for x in V["hmac"]}
+    ok("B71.U1 sinama SHA-256/HMAC RFC 4231 durum 1 ve 2 ile ayni (C'nin kriptografisi dogru)",
+       h(a1, "H1") == rfc[b"Hi There".hex()]
+       and h(a1, "H2") == rfc[b"what do ya want for nothing?".hex()],
+       f"{h(a1, 'H1')} {h(a1, 'H2')}")
+    ok("B71.U2 sinama PBKDF2 RFC 7914 passwd/salt/1 ile ayni (ilk 32 B)",
+       h(a1, "PB1") == V["pbkdf2"][0]["dk"][:64], str(h(a1, "PB1")))
+    ok("B71.U3 VEKTOR eslestirmesi: kart Python'un istemci kanitini KABUL eder (P = PBKDF2 tur 2), "
+       "numara 3, kart kaniti ve K Python ile AYNI",
+       k(a1, "USB1") == 1 and k(a1, "USB2") == 2 and k(a1, "U3") == 0 and k(a1, "U3N") == 3
+       and h(a1, "U3KK") == pr["kanit_kart"] and h(a1, "U3K") == pr["K"],
+       f"{k(a1, 'U3')} n={k(a1, 'U3N')} kk={str(h(a1, 'U3KK'))[:12]} K={str(h(a1, 'U3K'))[:12]}")
+    ok("B71.U4 imza VEKTORLERI kartta dogrulanir: GET, POST govdeli, akis, yuzde kodlu sorgu",
+       [k(a1, x) for x in ("U4A", "U4B", "U4C", "U4D")] == [0, 0, 0, 0],
+       str([k(a1, x) for x in ("U4A", "U4B", "U4C", "U4D")]))
+    ok("B71.U10a (Review Focus 1) not='a&b=c' ile imzalanmis istek not=a & b=c olarak "
+       "sunulunca IMZA reddi (tekrar degil)", k(a1, "U10A") == IMZA, str(k(a1, "U10A")))
+    ok("B71.U5 parola 9 karakter ya da bos -> PAROLA reddi; bos ad -> AD reddi",
+       [k(a1, x) for x in ("U5A", "U5B", "U5C")] == [PAROLA, PAROLA, AD],
+       str([k(a1, x) for x in ("U5A", "U5B", "U5C")]))
+    ok("B71.U6 tam eslestirme: rastgele nk ile bagimsiz istemci kaniti kabul, numara 4; kartin "
+       "kaniti ve sakladigi K, test tarafinin spec bicimiyle hesapladigiyla ayni",
+       [k(a1, x) for x in ("U6A", "U6B", "U6N", "U6KART", "U6K")] == [0, 0, 4, 1, 1],
+       str([k(a1, x) for x in ("U6A", "U6B", "U6N", "U6KART", "U6K")]))
+    u7 = [k(a1, "U7" + x) for x in "ABCDEFGHIJKLMN"]
+    ok("B71.U7 deneme siniri: yanlis kanit -> 1 s bekle, ikinci -> 2 s; basarida sifirlanir (tekrar 1 s); "
+       "her bekleyen TEK deneme (yanlistan sonra dogru kanit da YOK)",
+       u7 == [0, KANIT, BEKLE, 0, KANIT, BEKLE, 0, 0, 0, KANIT, BEKLE, 0, KANIT, YOK], str(u7))
+    ok("B71.U8 60 s'den eski bekleyen eslestirme dogru kanitla bile YOK",
+       [k(a1, "U8A"), k(a1, "U8B")] == [0, YOK], str([k(a1, "U8A"), k(a1, "U8B")]))
+    u9 = [k(a1, "U9" + x) for x in "ABCDEFGHIJKLM"]
+    ok("B71.U9 tekrar penceresi (64): ayni sayac ret, sirasiz s+1 kabul, pencere gerisi ret; "
+       "SAHTE imzali buyuk sayac pencereyi ilerletemez; sayac 0 ret; son karakteri degismis "
+       "imza ret (tam karsilastirma), duzgunu kabul",
+       u9 == [0, TEKRAR, 0, 0, TEKRAR, 0, TEKRAR, 0, IMZA, 0, TEKRAR, IMZA, 0], str(u9))
+    u10 = [k(a1, "U10" + x) for x in "BCDEFGH"]
+    ok("B71.U10 tek degisiklik = ret: yontem, yol, ek arguman, govde, acilis; degismemis kabul; "
+       "olmayan cihaz CIHAZ", u10 == [IMZA, IMZA, IMZA, IMZA, IMZA, 0, CIHAZ], str(u10))
+    u11 = [int(x[0]) for x in alanlar(a1, "U11")]
+    ok("B71.U11 liste en fazla 8: 6, 7, 8 eklenir, 9. DOLU; doluyken parolali baslat da DOLU",
+       u11 == [6, 7, 8, DOLU] and k(a1, "U11B") == DOLU and k(a1, "U11N") == 8,
+       f"{u11} {k(a1, 'U11B')} {k(a1, 'U11N')}")
+    ok("B71.U12 yeniden baslama: 8 cihaz kalici; acilis nonce'u YENI; eski acilisli imza ret, "
+       "yeni acilisla sayac 1 kabul",
+       k(a2, "U12N") == 8 and h(a1, "ACILIS") != h(a2, "ACILIS") and k(a2, "U12A") == IMZA
+       and k(a2, "U12Z") == TEKRAR and k(a2, "U12B") == 0, f"{h(a1, 'ACILIS')} -> {h(a2, 'ACILIS')} {k(a2, 'U12A')} {k(a2, 'U12B')}")
+    u13 = [k(a2, "U13" + x) for x in "ABCDEF"]
+    ok("B71.U13 (Review Focus 4) sil -> CIHAZ; ayni numaraya yeniden eslesme; ESKI K ile imza ret; "
+       "olmayan numara YOK; tek silme NVS'e yazilir (asama 3'te 7 cihaz)",
+       u13 == [0, CIHAZ, 1, IMZA, YOK, 0] and k(a3, "U15P") == 7, f"{u13} {k(a3, 'U15P')}")
+    ok("B71.U14 ayar (zorunlu, misafir, tur) ve tuz/kimlik acilistan acilisa kalici",
+       k(a2, "U14Y") == 0 and alanlar(a3, "U14") == [["1", "1", "3"]]
+       and h(a2, "TUZ") == h(a3, "TUZ") == bytes(range(0xA0, 0xB0)).hex()
+       and h(a2, "KIMLIK") == h(a3, "KIMLIK") == pr["kimlik"],
+       f"{alanlar(a3, 'U14')} {h(a3, 'TUZ')} {h(a3, 'KIMLIK')}")
+    ok("B71.U15 hepsini sil (Ex!) -> 0 cihaz", [k(a3, "U15A"), k(a3, "U15N")] == [0, 0],
+       str([k(a3, "U15A"), k(a3, "U15N")]))
+    ok("B71.U16 acilis: her acilista AC 0, kimlik ve tuz uretildi (bos degil)",
+       all(k(a, "AC") == 0 for a in (a1, a2, a3)) and h(a1, "TUZ") not in (None, "0" * 32),
+       str([k(a, "AC") for a in (a1, a2, a3)]))
+
+
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
             bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_halka, bolum_ayrinti,
-            bolum_hazir, bolum_skop, bolum_plan, bolum_kalgec, bolum_dizin,
+            bolum_hazir, bolum_skop, bolum_plan, bolum_guvenlik, bolum_kalgec, bolum_dizin,
             bolum_kesinti]
 
 
