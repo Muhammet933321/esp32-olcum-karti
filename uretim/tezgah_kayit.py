@@ -15,6 +15,7 @@
     python tezgah_kayit.py --hazirsiz [--doldur]   1C-2 GF! + Gb0: kirli silme sayilir, KA_SILME bosluktan sonra
     python tezgah_kayit.py --skop                  1C-3 Gt0/Gt2000 (CAL 1 kHz), OLCUM'e ekleme, retler, acilis
     python tezgah_kayit.py --plan                  1C-4 Gp: baslar/biter (sebep 7), yeniden baslama, atlama, iptal
+    python tezgah_kayit.py --guvenlik              1D: USB eslestirme, imzali istek, tekrar/bozuk ret, Ez1/Em1, temizlik
                                                     (--doldur: once bolumu Gb20 ile doldur, ~1.6 sa)
     secenekler: --port COM6  --http olcum.local  (ya da kartin IP'si)
 
@@ -903,6 +904,175 @@ def plan(k, host: str) -> None:
        f"GP={gp_c}->{gp_d} durum={gd and (gd['durum'], gd['oturum'])} bitir={o and o.bitir}")
 
 
+def _ham_istek(taban: str, yol: str, basliklar: dict, yontem: str = "GET", govde=None,
+               sn: float = 10.0) -> tuple[int, dict, str]:
+    import urllib.error
+    import urllib.request
+    r = urllib.request.Request(taban + yol, data=govde, method=yontem, headers=basliklar)
+    try:
+        with urllib.request.urlopen(r, timeout=sn) as y:
+            return y.status, dict(y.headers), ""
+    except urllib.error.HTTPError as h:
+        return h.code, dict(h.headers), h.read().decode("utf-8", "replace")
+
+
+def _http_bekle(taban: str, sn: float = 40.0) -> bool:
+    import urllib.request
+    son = time.time() + sn
+    while time.time() < son:
+        try:
+            with urllib.request.urlopen(taban + "/eslestir/bilgi", timeout=3) as y:
+                if y.status == 200:
+                    return True
+        except Exception:                                 # noqa: BLE001
+            time.sleep(1.0)
+    return False
+
+
+def guvenlik(k, host: str) -> None:
+    """1D eslestirme + imza kartta. Kullanicinin web parolasi BILINMEZ ve okunmaz:
+    parolali eslestirmenin yalniz RET yolu sinanir; basari yolu AVR (B71.U) +
+    vektorler (B72.G) + sahte kart (B72.I). Sonunda test cihazi silinir, Ez0/Em0."""
+    import threading
+    import urllib.request
+    import imza as IM
+    print("\n── guvenlik: 1D eslestirme + imzali istek")
+    taban = f"http://{host}"
+    s, _ = komut(k, "E?", 2)
+    e0 = next((x for x in s if x.startswith("E zorunlu=")), "")
+    adet0 = int(e0.split("cihaz=")[1]) if "cihaz=" in e0 else -1
+    ok("E? durum satiri; imza zorunlu DEGIL (varsayilan = gecis, bugunku kurallar)",
+       "zorunlu=0" in e0 and "misafir=0" in e0, e0)
+    olc = {}
+    for tur in (50000, 100000):
+        s, _ = komut(k, f"Et{tur}", 10, None)
+        et = next((x.split() for x in s if x.startswith("ET ")), None)
+        olc[tur] = int(et[2]) if et and len(et) == 3 else None
+    print(f"  PBKDF2-HMAC-SHA256 kartta (ms): {olc}")
+    ok("PBKDF2 50 000 tur kartta < 1 s (spec §13; tur ayardan, sonradan degisebilir)",
+       olc.get(50000) is not None and olc[50000] < 1000, str(olc))
+
+    sse: list[str] = []
+    dur = threading.Event()
+
+    def dinleyici():
+        try:
+            with urllib.request.urlopen(taban + "/akis", timeout=40) as y:
+                while not dur.is_set():
+                    sat = y.readline()
+                    if not sat:
+                        break
+                    sse.append(sat.decode("utf-8", "replace"))
+        except Exception as e:                            # noqa: BLE001
+            sse.append(f"!hata {e}")
+    t = threading.Thread(target=dinleyici, daemon=True)
+    t.start()
+    time.sleep(2.5)
+    with tempfile.TemporaryDirectory() as d:
+        c = IM.esles_usb(k, "tezgah-1D", dizin=Path(d))
+        time.sleep(2.5)
+        dur.set()
+        sm = "".join(sse)
+        ok("USB eslestirmesi (Ep): EK satirindan cihaz + 32 B anahtar; AYNI ANDA /akis (SSE) dinleyen "
+           "anahtari ve EK satirini GORMEDI, '* E: USB'den cihaz' bildirimini gordu",
+           c.n >= 1 and len(c.K) == 32 and c.K.hex() not in sm and "EK " not in sm
+           and "USB'den cihaz" in sm, f"n={c.n} sse={len(sse)} satir")
+
+        with IM.ac(c, taban, "GET", "/kayit/liste") as y:
+            liste = y.status
+        b = {"X-Olcum": "1", **c.basliklar("GET", "/kayit/liste", [], b"")}
+        k1, k2 = _ham_istek(taban, "/kayit/liste", b), _ham_istek(taban, "/kayit/liste", b)
+        ok("imzali /kayit/liste 200; AYNI istek ikinci kez 401 (tekrar) + X-Acilis",
+           liste == 200 and k1[0] == 200 and k2[0] == 401 and "X-Acilis" in k2[1],
+           f"{liste} {k1[0]} {k2[0]} {k2[2][:40]}")
+        b2 = {"X-Olcum": "1", **c.basliklar("GET", "/kayit/liste", [], b"")}
+        b2["X-Imza"] = b2["X-Imza"][:-1] + ("0" if b2["X-Imza"][-1] != "0" else "1")
+        b3 = {"X-Olcum": "1", **c.basliklar("GET", "/kayit/liste", [], b"")}
+        k3, k4 = _ham_istek(taban, "/kayit/liste", b2), _ham_istek(taban, "/kal/liste", b3)
+        ok("son karakteri bozuk imza 401; baska yola tasinan imza 401 — zorunlu 0'da bile imzasiz "
+           "dala DUSMEZ", k3[0] == 401 and k4[0] == 401, f"{k3[0]} {k4[0]}")
+        g = durum_iste(k)
+        with IM.ac(c, taban, "GET", "/kayit/veri", [("sira", str(max(1, (g or {}).get("onay", 0) + 1))),
+                                                   ("bayt", "2048")]) as y:
+            veri = (y.status, y.headers.get("X-Kayit-Kimlik"))
+        onay_ok = False
+        try:
+            KE.imzali_onay(c, taban)(g["sonraki"] - 1)
+            onay_ok = True
+        except Exception as e:                            # noqa: BLE001
+            print(f"  onay hatasi: {e}")
+        time.sleep(1.5)
+        g2 = durum_iste(k)
+        ok("imzali /kayit/veri 200 (kimlik basligi var); imzali Go onayi JETONSUZ ve PAROLASIZ kabul "
+           "edildi, kartta onay ilerledi",
+           veri[0] == 200 and veri[1] is not None and onay_ok and bool(g2)
+           and g2["onay"] == g["sonraki"] - 1, f"{veri} onay={g2 and g2['onay']} bek={g and g['sonraki'] - 1}")
+        k5 = _ham_istek(taban, "/komut", {"X-Olcum": "1", "Content-Type": "text/plain"}, "POST", b"E?")
+        ok("/komut uzerinden E komutu 403 (yalniz USB)", k5[0] == 403 and "USB" in k5[2], f"{k5[0]} {k5[2]}")
+        with IM.ac(c, taban, "GET", "/cihaz/liste") as y:
+            cl = y.read().decode("utf-8")
+        ok("imzali /cihaz/liste test cihazini gosterir, anahtari GOSTERMEZ",
+           "tezgah-1D" in cl and c.K.hex() not in cl, cl[:120])
+        try:
+            with IM.ac(c, taban, "POST", "/saat", [("unix", str(int(time.time())))]) as y:
+                saat = y.status
+        except Exception as e:                            # noqa: BLE001
+            saat = getattr(e, "code", str(e))
+        ok("/saat: kartin NTP saati var -> 409 (cihaz saati kullanilmaz)", saat == 409, str(saat))
+
+        red1 = red2 = None
+        try:
+            IM.esles(taban, "yanlis", "bu-parola-yanlis-123", dizin=Path(d) / "y")
+        except RuntimeError as e:
+            red1 = str(e)
+        try:
+            IM.esles(taban, "yanlis", "bu-parola-yanlis-123", dizin=Path(d) / "y")
+        except RuntimeError as e:
+            red2 = str(e)
+        s, _ = dinle(k, 2)
+        parola_kisa = bool(red1) and "kisa" in red1
+        print(f"  yanlis parola: 1) {red1}  2) {red2}  seri: {[x for x in s if 'REDDEDILDI' in x]}")
+        ok("yanlis parolali eslestirme REDDEDILDI ve kaydedilmedi; hemen ikinci deneme 429 (deneme "
+           "siniri) ve seri konsolda ret bildirimi — kartin parolasi kisa/yoksa yalniz PAROLA reddi",
+           bool(red1) and "403" in red1 and not (Path(d) / "y").exists()
+           and (parola_kisa or (bool(red2) and "429" in red2
+                                and any("REDDEDILDI" in x for x in s))),
+           f"kisa={parola_kisa}")
+
+        eski = c.acilis
+        k.sifirla()
+        acildi = yeni_acilis(k) and _http_bekle(taban)
+        with IM.ac(c, taban, "GET", "/kayit/liste") as y:
+            yeniden = y.status
+        ok("yeniden baslatma: cihaz NVS'te kaldi; eski acilisli imza 401 -> istemci BIR KEZ "
+           "eslesip basardi", acildi and yeniden == 200 and c.acilis != eski,
+           f"{eski[:6]} -> {c.acilis[:6]}")
+
+        komut(k, "Ez1", 1.5)
+        z1 = _ham_istek(taban, "/kayit/liste", {"X-Olcum": "1"})[0]
+        z2 = _ham_istek(taban, "/komut", {"X-Olcum": "1", "Content-Type": "text/plain"}, "POST", b"p0")[0]
+        with IM.ac(c, taban, "GET", "/kayit/liste") as y:
+            z3 = y.status
+        z4 = _ham_istek(taban, "/akis", {}, sn=5)[0]
+        with urllib.request.urlopen(IM.akis_url(c, taban), timeout=5) as y:
+            z5 = y.status
+        komut(k, "Em1", 1.5)
+        z6 = _ham_istek(taban, "/akis", {}, sn=5)[0]
+        komut(k, "Em0", 1.5)
+        komut(k, "Ez0", 1.5)
+        z7 = _ham_istek(taban, "/kayit/liste", {"X-Olcum": "1"})[0]
+        ok("Ez1: imzasiz okuma 401, p0 serbest (204), imzali 200, imzasiz /akis 401 / imzali /akis 200, "
+           "Em1 ile imzasiz /akis 200; Ez0 ile imzasiz okuma geri 200",
+           [z1, z2, z3, z4, z5, z6, z7] == [401, 204, 200, 401, 200, 200, 200],
+           str([z1, z2, z3, z4, z5, z6, z7]))
+
+        komut(k, f"Ex{c.n}", 1.5)
+        s, _ = komut(k, "E?", 2)
+        e1 = next((x for x in s if x.startswith("E zorunlu=")), "")
+        ok("temizlik: test cihazi silindi, zorunlu 0, misafir 0 (kart baslangic durumunda)",
+           "zorunlu=0" in e1 and "misafir=0" in e1 and f"cihaz={adet0}" in e1, e1)
+
+
 def esit(k, host: str, port: str) -> None:
     print("\n── esit: esitlenen dosya == flastaki bolum")
     with tempfile.TemporaryDirectory() as d:
@@ -958,6 +1128,8 @@ def main() -> int:
             skop(k, host)
         if "--plan" in a:
             plan(k, host)
+        if "--guvenlik" in a:
+            guvenlik(k, host)
         if "--hazirsiz" in a:
             hazirsiz(k, host, float(sec("--sure", "60")), "--doldur" in a)
         if "--esit" in a:
