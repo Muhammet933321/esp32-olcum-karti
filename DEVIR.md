@@ -9397,6 +9397,66 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.73 🟢 1E — MQTT BİLDİRİMLERİ (dal `1e-mqtt`, 2026-10-01 gece → 10-02)
+
+Tasarım: `tasarim/2026-10-01-1e-mqtt-bildirim.md` (K1–K12 + "Uygulama sırasında verilen
+kararlar"). Kullanıcı "devam edelim", ardından "yavaş çalışıyorsun, alt ajan kullan" dedi →
+platformsuz çekirdek, PC tarafı ve tezgah üç paralel ajana, ESP yapıştırıcısı bende.
+**Dal `1e-mqtt` (`main` `1965d81`'den), `main`'e girmedi, push yok — onay bekliyor** (spec'in
+"⚠ Onay bekleyen kritik kararlar" 1–4).
+
+**Ne yapıldı**
+- `bildirim.h` (platformsuz): olay üreticisi `basladi` (tarama bitince, her zaman n=1, `devam`)
+  · `kayit_bitti{sebep,oturum,nokta}` · `pil_bitti` · `dolu` (geçiş) · `esik` (500 binde,
+  100 binde histerezis) · `deneme`; 16'lık RAM kuyruğu (taşarsa EN ESKİSİ düşer, `dusen`);
+  durum/vasiyet JSON; `"OKB1"|nonce|şifreli|etiket` zarfı, AAD = konu. B71.Q 23 iddia.
+- `mqtt_paket.h` (platformsuz): MQTT 3.1.1 istemci paketleri + parça parça okuyucu + URI
+  çözücü. AVR baytları `kopru/mqtt_istemci.py` ve elle yazılmış ayrı bir CONNECT çözücüsüyle
+  çapraz denetleniyor. B71.MQ 22 iddia. Ajanın 3.1.1'e karşı okuması iki gerçek kusur buldu:
+  vasiyet konusunda `+`/`#` geçiyordu (aracı CONNECT'i düşürürdü) · boş istemci kimliği
+  temiz oturumsuz kabul ediliyordu (MQTT-3.1.3-7).
+- `bildirim_esp.h`: çekirdek 0'a SABİT `bld` görevi, esp-tls (`esp_crt_bundle_attach`),
+  libsodium ChaCha20-Poly1305, NVS `mqtt`; keepalive 5, vasiyet QoS 1 retained (her
+  bağlanışta yeni nonce), durum QoS 0 retained (bağlanınca / değişince / 60 s), olay QoS 1
+  tek uçuşta, PING 4 s / PINGRESP 5 s, geri çekilme 2→60 s, Q0'da önce `c:0`.
+  İmzalı `GET /bildirim/bilgi` (CİHAZ, yanıt K_cihaz ile şifreli).
+- `.ino`: USB'ye özel `Q` komutları (`/komut` ve köprü 403/ret; hiçbir satır sır basmaz),
+  `pil_durdur` kancası, `kayit_oturum.h` `KY_BITIR_KANCA` (AVR'de boş; `kayit_esp.h`
+  include'lardan ÖNCE tanımlar). Firmware `A3-1E`, 1.41 MB (%44), uyarısız.
+- PC: `kopru/chacha.py` (saf Python, RFC 8439 vektörleri), `mqtt_istemci.py`,
+  `bildirim.py dinle`, `sahte_araci.py` (keepalive + vasiyet + devralma uygular).
+  `test_bildirim.py` 220/220 (B72.Q16 alt süreç, girdi özetiyle önbellekli).
+
+**Neden esp-mqtt değil (K1 değişti):** çekirdekteki esp-mqtt görevi `xTaskCreate` ile
+SABİTLENMEDEN açılıyor (`CONFIG_MQTT_TASK_CORE_SELECTION_ENABLED` yok, öncelik ≥ 1; IDF
+FreeRTOS'ta sonradan yakınlık atanamıyor). P-256 el sıkışması yazılımda yüzlerce ms; görev
+çekirdek 1'e kayarsa ölçüm döngüsü bloklanırdı (B28'in bütün kazancı). Bedel ~250 satır
+bağlantı kodu; kazanç: tezgah HiveMQ'suz, PC'deki sahte aracıya karşı koşuyor.
+
+**Kart tezgahı (`tezgah_bildirim.py`, sahte aracı PC'de, kullanıcı sırrı gerekmez)**
+- İlk koşu **47/49**: arka arkaya iki `Qt` TEK olaya birleşiyordu (görev tek bayrağı
+  tüketmeden ikinci istek geliyordu). Düzeltme: tek yazarlı sayaç çifti
+  (`bld_deneme_istek` çekirdek 1, `bld_deneme_islenen` görev) — B72.Q17.
+- Düzeltmeyle **51/51**: CONNECT alanları, vasiyet zarfı, durum + yanlış AAD/anahtar reddi,
+  `Qt` ×2, **RTS sıfırlamasında vasiyet 3.6–6.8 s (5/5; hedef 10 s)** — hızlı açılışta aracı
+  vasiyeti "devralma" ile yayınlıyor (aynı istemci kimliği), yavaşta keepalive ile; aracı
+  kesintisinde kart 1.2 s'de fark ediyor, olay kuyrukta bekleyip dönüşte gidiyor; bağlıyken
+  dahili yığın 122 KB (K11 ≥ 60 KB); seri + `/akis` metninde hiçbir parola/anahtar yok.
+- `Qv` (RFC 8439 §2.8.2) gerçek donanımda geçti.
+
+**Mutasyon:** 1E'nin 69 kaydı, hepsi öldü (B71 48 — odaklı giriş `test_kayit_1e.py`,
+~3 s; tam B71 her mutasyonda ~4 dk sürüyordu · B72 20 · B22a 1). Koşu bir iddiamı zayıf
+buldu: `find("#define KY_BITIR_KANCA")` yanlış adlı `KY_BITIR_KANCA_ESKI`'yi de kabul
+ediyordu (o zaman boş varsayılan sessizce devreye girer) → tam imza.
+
+**Yapılmayan / açık** (`tasarim/1-acik-isler.md` "1E" E1–E5): gerçek TLS (HiveMQ hesabı)
+hiç denenmedi — CA demetinin zinciri doğrulaması, el sıkışma sırasında `loop_azami` (K11),
+gerçek ağda Ö4 10 tekrar. Ağ kurulumunu görev içine taşıma (açılış 2.5–6.3 s) 1E'de YAPILMADI.
+Kullanıcı hesabı açınca: depo dışı `.yedek/olcum-karti/bildirim_ayarla.py` (getpass) ile
+`Qu/Qk/Qp/Qc/Qd/Q1`.
+
+Yedekler: `tam-20261001-232725.bin` (A3-1D, 1E öncesi) · `tam-20261001-235107.bin`.
+
 #### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
 
 **Neden.** Malzemenin tamamı geldi (50 mA sigorta hariç); kullanıcı "lehimsiz test mi, plakete mi" diye sordu. Karar: **plakete, blok blok** — lehimsiz tahta bu kartta ölçüm üretmez (15 mΩ şönt + Kelvin tahta temasından küçük; 4.9 MΩ zincirde tahta kaçağı oranı bozar; B30/B44'te iki sessiz kusur gevşek telden geldi). Ama plakete geçmek için elde **yerleşim planı yoktu** — F9 ("delik atla") sayı veriyordu, yer vermiyordu.

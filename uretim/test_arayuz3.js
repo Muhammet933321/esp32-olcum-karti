@@ -83,7 +83,9 @@ const ino = fs.readFileSync(INO, 'utf8');
    `case` etiketleri ust duzey komut harfi DEGIL; sayilsaydi 'm' gibi olmayan bir
    komut "arayuzde yok" diye kirmizi yanardi. Govde cikarilip taraniyor; govde
    bulunamazsa (ad degisti) hic cikarilmaz ve iddia yine kirmiziya doner. */
-const inoUst = ino.replace(/static void guv_seri_komut\([\s\S]*?\n}\n/, '');
+const inoUst = ino.replace(/static void guv_seri_komut\([\s\S]*?\n}\n/, '')
+  /* 1E: `bld_seri_komut` Q'nun alt dagiticisi (Q? Qu Qk Qp Qc Qd Q1 Q0 Qt Qv QR!) — ayni sebep */
+  .replace(/static void bld_seri_komut\([\s\S]*?\n}\n/, '');
 const firmwareHarfleri = new Set(
   [...inoUst.matchAll(/case '(.)':/g)].map((m) => m[1])
 );
@@ -221,6 +223,11 @@ const ARAYUZSUZ = {
      ile reddeder (B72.F76), kopru.py de reddeder. Ep'nin yaniti cihaz anahtari
      ve yalniz ham UART'a basilir — panele KONULMAZ, alt proje 3'te de. */
   E: 'eslestirme/zorunluluk — YALNIZ USB seri konsol (web /komut 403 verir)',
+  /* 1E: MQTT bildirim ayari (Qu adres, Qk/Qp kart, Qc/Qd cihaz kullanici/parola, Q1/Q0,
+     Qt deneme, Qv sinama, QR! yeni anahtar). BILEREK yalniz USB: araci parolalari aga
+     cikmaz; firmware /komut ucunda 'Q'yu 403 ile reddeder (B72.Q8), kopru.py de reddeder.
+     Panele KONULMAZ; alt proje 3'te en fazla salt-okur durum (Q? sirsiz). */
+  Q: 'MQTT bildirim ayari — YALNIZ USB seri konsol (araci parolalari; web /komut 403 verir)',
 };
 const arayuzdeYok = [...firmwareHarfleri]
   .filter((h) => !gonderilenHarfler.has(h) && !(h in ARAYUZSUZ));
