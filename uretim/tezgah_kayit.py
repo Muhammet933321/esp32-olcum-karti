@@ -794,6 +794,16 @@ def _gp(k) -> list[int] | None:
         v.isdigit() for v in gp[1:]) else None
 
 
+def _gp_bekle(k, kosul, sn: float = 4.0) -> list[int] | None:
+    """Plan saniyede bir karar verir: G degisince GP en gec ~1 s sonra izler."""
+    son, gp = time.time() + sn, None
+    while time.time() < son:
+        gp = _gp(k)
+        if gp and kosul(gp):
+            break
+    return gp
+
+
 def _durum_bekle(k, durum: int, sn: float) -> tuple[dict | None, float]:
     t0 = time.time()
     _, g = dinle(k, sn, lambda x: x["durum"] == durum)
@@ -826,7 +836,7 @@ def plan(k, host: str) -> None:
     oid = g["oturum"] if g else 0
     g2, _ = _durum_bekle(k, 1, 45)
     t_bit = time.time() - t_kom
-    gp2 = _gp(k)
+    gp2 = _gp_bekle(k, lambda x: x[0] == 3)
     kay, o = _ayr_esitle(k, host, oid)
     pl = [x for x in (o.olaylar if o else []) if x.get("tur") == getattr(KB, "KO_PLAN", -1)]
     print(f"  Gp+20,30,200: basladi +{t_bas:.1f} s, bitti +{t_bit:.1f} s · GP {gp1} -> {gp2} · PLAN {pl[:1]}")
@@ -876,18 +886,18 @@ def plan(k, host: str) -> None:
     komut(k, "Gp+5,0,200", 1.5)
     g, _ = _durum_bekle(k, 2, 20)
     oid = g["oturum"] if g else 0
-    gp_c = _gp(k)
     time.sleep(8)
+    gp_c = _gp(k)
     gd = durum_iste(k)
-    s, _ = komut(k, "Gp-", 1.5)
-    g2, _ = _durum_bekle(k, 1, 8)
+    s, _ = komut(k, "Gp-", 1.5)          # G 1 satiri komutun ciktisinda kalabilir: sor
+    g2 = durum_iste(k)
     gp_d = _gp(k)
     kay, o = _ayr_esitle(k, host, oid)
     print(f"  Gp+5,0,200 + Gp-: GP {gp_c} -> {gp_d} · {s} · bitir {o and o.bitir}")
     ok("sure 0: plan baslar ve KENDILIGINDEN bitmez (GP 2, oturum bagli); Gp- KAYDI DA durdurur "
        "(sebep 1 kullanici), GP 0",
        bool(gp_c) and gp_c[0] == 2 and gp_c[4] == oid and oid > 0 and bool(gd) and gd["durum"] == 2
-       and gd["oturum"] == oid and bool(g2) and o is not None and o.bitir is not None
+       and gd["oturum"] == oid and bool(g2) and g2["durum"] == 1 and o is not None and o.bitir is not None
        and o.bitir["sebep"] == 1 and bool(gp_d) and gp_d[0] == 0
        and any("kaydi da durduruldu" in x for x in s),
        f"GP={gp_c}->{gp_d} durum={gd and (gd['durum'], gd['oturum'])} bitir={o and o.bitir}")
