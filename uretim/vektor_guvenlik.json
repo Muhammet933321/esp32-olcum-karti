@@ -1,0 +1,132 @@
+{
+ "aciklama": "1D test vektorleri — uretim/vektor_guvenlik.py uretir; elle duzenleme",
+ "hmac": [
+  {
+   "anahtar": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+   "veri": "4869205468657265",
+   "hmac": "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+  },
+  {
+   "anahtar": "4a656665",
+   "veri": "7768617420646f2079612077616e7420666f72206e6f7468696e673f",
+   "hmac": "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+  },
+  {
+   "anahtar": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "veri": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "hmac": "773ea91e36800e46854db8ebd09181a72959098b3ef8c122d9635514ced565fe"
+  },
+  {
+   "anahtar": "0102030405060708090a0b0c0d0e0f10111213141516171819",
+   "veri": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+   "hmac": "82558a389a443c0ea4cc819899f2083a85f0faa3e578f8077a2e3ff46729665b"
+  },
+  {
+   "anahtar": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "veri": "54657374205573696e67204c6172676572205468616e20426c6f636b2d53697a65204b6579202d2048617368204b6579204669727374",
+   "hmac": "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"
+  },
+  {
+   "anahtar": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "veri": "5468697320697320612074657374207573696e672061206c6172676572207468616e20626c6f636b2d73697a65206b657920616e642061206c6172676572207468616e20626c6f636b2d73697a6520646174612e20546865206b6579206e6565647320746f20626520686173686564206265666f7265206265696e6720757365642062792074686520484d414320616c676f726974686d2e",
+   "hmac": "9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2"
+  }
+ ],
+ "pbkdf2": [
+  {
+   "parola": "passwd",
+   "tuz": "73616c74",
+   "tur": 1,
+   "dk": "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783"
+  },
+  {
+   "parola": "Password",
+   "tuz": "4e61436c",
+   "tur": 80000,
+   "dk": "4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56a1d425a1225833549adb841b51c9b3176a272bdebba1d078478f62b397f33c8d"
+  }
+ ],
+ "protokol": {
+  "pbkdf2_kisa": {
+   "parola": "dogru-parola-12",
+   "tuz": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+   "tur": 2,
+   "P": "abaa1525a01cd06698c0b40b326ac308b21a9e6dee4c931db833ef36fd34529c"
+  },
+  "pbkdf2_uc": {
+   "parola": "dogru-parola-12",
+   "tuz": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+   "tur": 3,
+   "P": "e86a3eaacff9511c147ecbc12485794f65b72f416f1e4d059dc216294b48e7c9"
+  },
+  "P": "abaa1525a01cd06698c0b40b326ac308b21a9e6dee4c931db833ef36fd34529c",
+  "kimlik": "a1b2c3d4e5f60718",
+  "nk": "101112131415161718191a1b1c1d1e1f",
+  "nc": "404142434445464748494a4b4c4d4e4f",
+  "ad": "PC ğ",
+  "n": 3,
+  "kanit_istemci": "7fa637dda61e3a9945eb1de2fee424204fdfe26de22502afdcb0488ee52c947a",
+  "kanit_kart": "7d9fcaab5d2e58e8ee643748895fc9f841219929f95c55d0c974bd8b1caa9148",
+  "K": "19a1362d68993cbecb74691ec534a25c96fc3aebf0c86ce3d9da9ef1d59620ef"
+ },
+ "imza": [
+  {
+   "ad": "get",
+   "K": "19a1362d68993cbecb74691ec534a25c96fc3aebf0c86ce3d9da9ef1d59620ef",
+   "yontem": "GET",
+   "yol": "/kayit/liste",
+   "argumanlar": [],
+   "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+   "sayac": 1,
+   "govde": "",
+   "kanonik": "4f4b310a4745540a2f6b617969742f6c697374650a30663165326433633462356136393738383739366135623463336432653166300a310a65336230633434323938666331633134396166626634633839393666623932343237616534316534363439623933346361343935393931623738353262383535",
+   "imza": "14d81f434d76f57dbb957a86ba5f22a80e98dc040c7287c29c0127e11e754811"
+  },
+  {
+   "ad": "get_sorgu",
+   "K": "19a1362d68993cbecb74691ec534a25c96fc3aebf0c86ce3d9da9ef1d59620ef",
+   "yontem": "GET",
+   "yol": "/kayit/veri",
+   "argumanlar": [
+    [
+     "sira",
+     "12"
+    ],
+    [
+     "not",
+     "a&b=c ğ"
+    ]
+   ],
+   "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+   "sayac": 1759000000123,
+   "govde": "",
+   "kanonik": "4f4b310a4745540a2f6b617969742f766572693f736972613d3132266e6f743d6125323662253344632532302543342539460a30663165326433633462356136393738383739366135623463336432653166300a313735393030303030303132330a65336230633434323938666331633134396166626634633839393666623932343237616534316534363439623933346361343935393931623738353262383535",
+   "imza": "6046c5fd0e7ef0c759b7af6de91b8b372e16cdc3eb10dfed4f4bf1b6ca525501"
+  },
+  {
+   "ad": "post",
+   "K": "19a1362d68993cbecb74691ec534a25c96fc3aebf0c86ce3d9da9ef1d59620ef",
+   "yontem": "POST",
+   "yol": "/komut",
+   "argumanlar": [],
+   "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+   "sayac": 2,
+   "govde": "476f31323334",
+   "kanonik": "4f4b310a504f53540a2f6b6f6d75740a30663165326433633462356136393738383739366135623463336432653166300a320a65336438333161666130663165303031306664656166663739386130616635636632666634323633396235633937633464623438343638343064386366613665",
+   "imza": "4785a5581e46c2fdb7d117eff7a0b5288be51282e3f79e5de8359d7fbaa4af75"
+  },
+  {
+   "ad": "akis",
+   "K": "19a1362d68993cbecb74691ec534a25c96fc3aebf0c86ce3d9da9ef1d59620ef",
+   "yontem": "GET",
+   "yol": "/akis",
+   "argumanlar": [],
+   "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+   "sayac": 7,
+   "govde": "",
+   "kanonik": "4f4b310a4745540a2f616b69730a30663165326433633462356136393738383739366135623463336432653166300a370a65336230633434323938666331633134396166626634633839393666623932343237616534316534363439623933346361343935393931623738353262383535",
+   "imza": "6500046fbd6db11c8a12d31b980c0b55267f9ce2ab3dc60a24f690b58e7b51d1",
+   "tam_sorgu": "_c=3&_s=7&_i=6500046fbd6db11c8a12d31b980c0b55267f9ce2ab3dc60a24f690b58e7b51d1"
+  }
+ ]
+}

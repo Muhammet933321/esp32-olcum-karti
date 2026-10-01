@@ -67,3 +67,5 @@ desktop.ini
 .DS_Store
 .vscode/
 .idea/
+# 1D: eslesmis cihaz anahtarlari (DPAPI ile sifreli ama yine de depo DISI)
+kopru/.cihaz/

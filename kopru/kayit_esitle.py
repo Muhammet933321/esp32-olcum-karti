@@ -49,6 +49,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import kayit_bicim as KB                                   # noqa: E402
+import imza as IM                                          # noqa: E402  (1D)
 
 DOSYA = "kayitlar.kyt"
 DURUM = "durum.json"
@@ -98,7 +99,8 @@ class Kilit:
 
 class Esitleyici:
     def __init__(self, taban_url: str, dizin, onay=None, bayt: int = 8192,
-                 zaman_asimi: float = 10.0, onay_bekle: float = 0.3):
+                 zaman_asimi: float = 10.0, onay_bekle: float = 0.3, cihaz=None):
+        self.cihaz = cihaz              # 1D: imza.Cihaz -> butun istekler imzali
         self.taban = taban_url.rstrip("/")
         self.dizin = Path(dizin)
         self.dizin.mkdir(parents=True, exist_ok=True)
@@ -156,9 +158,17 @@ class Esitleyici:
             self._durum_yaz(d)
 
     # ── ag ──
+    def _ac(self, yol: str, argumanlar=()):
+        """GET: eslesmisse imzali (1D, kopru/imza.py), degilse bugunku acik yol."""
+        if self.cihaz is not None:
+            return IM.ac(self.cihaz, self.taban, "GET", yol, list(argumanlar),
+                         zaman_asimi=self.zaman_asimi)
+        q = "&".join(f"{a}={d}" for a, d in argumanlar)
+        return urllib.request.urlopen(self.taban + yol + (f"?{q}" if q else ""),
+                                      timeout=self.zaman_asimi)
+
     def _getir(self, sira: int):
-        url = f"{self.taban}/kayit/veri?sira={sira}&bayt={self.bayt}"
-        with urllib.request.urlopen(url, timeout=self.zaman_asimi) as y:
+        with self._ac("/kayit/veri", [("sira", str(sira)), ("bayt", str(self.bayt))]) as y:
             return y.read(), y.headers
 
     @staticmethod
@@ -251,8 +261,7 @@ class Esitleyici:
         eski dosya yerinde. Donus: {"kalibrasyon": adet | None,
         ["kalibrasyon_hata"], ["kalibrasyon_arsiv"]}."""
         try:
-            with urllib.request.urlopen(f"{self.taban}/kal/liste",
-                                        timeout=self.zaman_asimi) as y:
+            with self._ac("/kal/liste") as y:
                 # eski firmware notta gecersiz UTF-8 birakabiliyordu (cp1254 'ş')
                 veri = json.loads(y.read().decode("utf-8", errors="replace"))
             if not isinstance(veri, dict) or not isinstance(veri.get("kayitlar"), list):
@@ -338,6 +347,17 @@ def seri_onay(kart):
     return onayla
 
 
+def imzali_onay(cihaz, taban_url: str, zaman_asimi: float = 5.0):
+    """1D: `/komut` uzerinden imzali `Go<sira>` — jeton ve parola GEREKMEZ."""
+    taban = taban_url.rstrip("/")
+
+    def onayla(sira: int) -> None:
+        with IM.ac(cihaz, taban, "POST", "/komut", [], f"Go{sira}".encode("ascii"),
+                   zaman_asimi=zaman_asimi) as y:
+            y.read()
+    return onayla
+
+
 def http_onay(taban_url: str, parola: str | None = None, zaman_asimi: float = 5.0):
     """`/komut` uzerinden `Go<sira>`: jeton /akis'in `kimlik` olayindan (bir
     kez alinir; kart yeniden baslayip 403 derse yenilenir)."""
@@ -375,25 +395,46 @@ def http_onay(taban_url: str, parola: str | None = None, zaman_asimi: float = 5.
     return onayla
 
 
-def main() -> int:
+def _cihaz_sec(taban: str, dosya, dizin):
+    """1D: --cihaz verilmisse o; yoksa --cihaz-dizin'de KARTIN kimligine uyan dosya.
+    Eski firmware (eslestirme ucu yok) ya da eslesmemis: None (bugunku yol)."""
+    if dosya:
+        return IM.Cihaz.yukle(dosya)
+    try:
+        kimlik = IM.bilgi(taban, 5.0)["kimlik"]
+    except Exception:                                    # noqa: BLE001
+        return None
+    p = Path(dizin) / f"{kimlik}.json"
+    return IM.Cihaz.yukle(p) if p.exists() else None
+
+
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Kartin kayitlarini esitle")
     ap.add_argument("--http", default="olcum.local")
     ap.add_argument("--dizin", required=True)
     ap.add_argument("--port", help="USB seri onay (orn. COM6)")
     ap.add_argument("--parola-ortam", default="OLCUM_WEB_PAROLA",
                     help="HTTP onayi icin web parolasini tutan ortam degiskeni")
-    a = ap.parse_args()
+    ap.add_argument("--cihaz", help="1D: eslesmis cihaz dosyasi (imza.py esles)")
+    ap.add_argument("--cihaz-dizin", default=str(IM.VARSAYILAN_DIZIN),
+                    help="1D: --cihaz yoksa kartin kimligine uyan dosya burada aranir")
+    a = ap.parse_args(argv)
     taban = a.http if a.http.startswith("http") else f"http://{a.http}"
+    cihaz = _cihaz_sec(taban, a.cihaz, a.cihaz_dizin)
     kart = None
     if a.port:
         import kart_baglanti
         kart = kart_baglanti.SeriKart(a.port)
         kart.ac()
         onay = seri_onay(kart)
+    elif cihaz is not None:
+        onay = imzali_onay(cihaz, taban)
     else:
         onay = http_onay(taban, os.environ.get(a.parola_ortam))
+    if cihaz is not None:
+        print(f"imzali (cihaz {cihaz.n}, {cihaz.ad})")
     try:
-        r = Esitleyici(taban, a.dizin, onay).esitle()
+        r = Esitleyici(taban, a.dizin, onay, cihaz=cihaz).esitle()
     finally:
         if kart:
             kart.kapat()

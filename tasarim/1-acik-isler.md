@@ -113,3 +113,28 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 - [1C-2] Her açılışta en fazla 480 boş sektör yeniden silinir. NOR ömrü için ihmal edilebilir.
 - [1C-4] İstek numarası 8 bit; 255 plandan sonra sarmada eski geç bir sonuç karışabilir (pratikte yok).
 - [1A-1] Zayıf silinmiş/programlanmış NOR hücresi davranışı emülatörde modellenmiyor; tezgah kesme denemeleri kapsıyor.
+
+## 1D — eşleştirme + imzalı istekler (kararlar ONAYLANDI 2026-10-01; dal `1-birlesik`)
+
+| # | Ne | Durum |
+|---|---|---|
+| D0 | ⚠ **`main`'deki firmware'de ön-cesi sızıntı:** `N?` AP WiFi parolasını `Serial` aynası üzerinden açık `/akis` SSE'sine (ağa) basıyor. Düzeltme yalnız 1D dalında (`Serial.ham`). | **Öncelikli** — 1D onaylanmasa da bu tek satır `main`'e alınmalı |
+| ~~D1~~ | ~~Kart tezgahı hiç koşulmadı~~ → **2026-10-01 akşam koşuldu: ilk koşu 15/18**, üç gerçek bulgu: (a) PBKDF2 50 000 tur 4.76 s; (b) her `Ez`/`Em` P'yi yeniden hesaplatıp çekirdek 1'i 4.7 s donduruyordu, sonraki seri komutlar bekliyordu; (c) tezgahın SSE dinleyicisi `olcum.local` çözümü (~3 s) bitmeden `Ep` gönderiyordu, "anahtar SSE'de yok" denetimi BOŞ yere geçebilirdi. Tanı koşusunda anahtar SSE'ye DÜŞMÜYOR (doğrulandı). Üçü de düzeltildi (B71.U19, B72.F98–F101), **son koşu 19/19**. Kart ardından tam yedekten `main` firmware'ine (A3-1C4) döndürüldü | Kapandı |
+| ~~D2~~ | ~~Varsayılan tur ölçülmedi~~ → kartta ayrı bir ölçüm eskiziyle beş PBKDF2 yolu karşılaştırıldı (hepsi `hashlib` ile aynı sonuç): her turda HMAC kurulumu 85 µs/tur · mbedTLS PBKDF2 56.7 · `hmac_reset` 56.3 · yazılım SHA 43.3 · **ipad/opad kopyası 30.5** (seçildi). Firmware içinde ~38 µs/tur: 25 000 tur 956 ms (pay %4), **varsayılan 20 000 = 764 ms**. 50 000 bu çipte < 1 s OLAMAZ (en iyi yol 1.9 s) | Kapandı (karar spec K4'te; kullanıcı onayına açık) |
+| D3 | Parolalı eşleştirmenin BAŞARI yolu kartta sınanmadı (web parolası bilinmiyor) | Kullanıcı: `python kopru/imza.py esles --host olcum.local --ad PC` |
+| ~~D4~~ | ~~Onay bekleyen kritik kararlar (spec 1–7)~~ | **Kapandı:** kullanıcı önerilerin hepsini onayladı (2026-10-01); en kısa parola 10 → **12** (B71.U5, B72.I8) |
+| D5 | Ertelenen küçükler (son inceleme #8, #10–#12, #14–#19) | Aşağıdaki liste |
+
+**D5 — son incelemenin ertelenen küçükleri** (hiçbiri bugün sömürülebilir değil; birleştirmeden önce ya da 1E'de):
+
+- [1D #8] GET dışındaki her yöntem "GET" diye imzalanıyor; PUT/PATCH/DELETE gövdesi özetlenmiyor (kartta böyle bir uç yok).
+- [1D #10] `/saat`'in üst sınırı yok; `strtoul` bitişi denetlenmiyor (`"-1"` → 2106).
+- [1D #11] `Ex<n>` önce kesiyor, sonra denetliyor (`Ex257`, `Ex-255` cihaz 1'i siler; yalnız USB).
+- [1D #12] `EK` satırı üç `ham()` çağrısında basılıyor; araya IDF günlüğü girerse hex ayrı satıra düşer ve köprü süzgeci yakalamaz. Çözüm: tek çağrı + köprüye 64-hex satır süzgeci.
+- [1D #14] Eşleştirme numarası (`eno`) ardışık `uint8`: üçüncü kişi bekleyen eşleştirmeyi tüketip ortak geri çekilmeyi büyütebilir. Çözüm: rastgele `eno`.
+- [1D #15] 401 metni "cihaz kayıtlı değil" ile "imza geçersiz"i ayırıyor (cihaz numarası taranabilir).
+- [1D #16] İstemci dosyası `fsync`'siz `os.replace` ediliyor; `.tmp` adı süreçler arası ortak; POSIX'te `chmod`'dan önce K'li geçici dosya oluşuyor.
+- [1D #17] İmza her uçta sorgu dizgisinde kabul ediliyor (K9 yalnız EventSource diyor). İmzalı `/akis` adresi tek kullanımlık: tarayıcının otomatik yeniden bağlanması 401 alır (alt proje 3).
+- [1D #18] `N?` zorunlu/misafir/saat kaynağını göstermiyor · `/eslestir/bilgi` `X-Olcum` istemiyor · `yardim()` E'yi listelemiyor · kapı kodu `kok_sayfa`'nın eski yorumuyla işlevin arasında · `ac()` kartın kimliğini cihaz dosyasıyla karşılaştırmıyor · `ac()`'taki `HTTPError` kapatılmıyor · spec "çekirdek 1 E'yi kuyrukla yollar" diyor, kod muteks kullanıyor.
+- [1D #19] F80 üst sınırı sınamıyor; boş `X-Imza` başlığının kartta imzasız sayılması ölçülmedi (zararsız: imzasız yol daha serbest değil).
+- [1D karar] Kartın `/komut` ucu gömülü satır sonuna karşı düzeltilmedi: kuyruk komutu bölmeden çalıştırıyor, yalnız seri girişi bölüyor. Kuyruk ileride bölmeye başlarsa aynı açık doğar.

@@ -9245,6 +9245,124 @@ plan gösterimi panel/PC/telefonda (alt proje 3–5) · tekrarlı plan (kapsam d
 
 ---
 
+#### 5.12.72 ✅ 1D — EŞLEŞTİRME + İMZALI İSTEKLER (2026-10-01; kararlar ONAYLANDI)
+
+Tasarım: `tasarim/2026-10-01-1d-eslestirme.md` (K1–K18 + "⚠ Onay bekleyen kritik kararlar" 1–7) ·
+Plan: `tasarim/2026-10-01-plan-1d-eslestirme.md`.
+
+> **Onay (2026-10-01 gece):** kullanıcı "önerilerinin hepsi olur" dedi. Spec'teki yedi karar
+> önerildiği gibi; en kısa parola 10 → **12**. Düzeltme dalıyla (`1-duzeltme`, 5.12.72a) `1-birlesik`
+> dalında birleştirildi.
+>
+> **Durum (onaydan önce):** yerel dal `1d-eslestirme`; `main`'e girmedi, push yok. Kullanıcı:
+> "ben hâlâ inceleyemiyorum, sen devam et, ancak kritik bir şey varsa hemen commit atma".
+> 1D bir güvenlik dilimi, onay bekleyen kararları var. Kart akşam yeniden takıldı
+> ("lazım olursa kullanabilirsin"): tezgah koşuldu (aşağıda), kart sonra tam yedekten
+> `main` firmware'ine (A3-1C4) döndürüldü.
+
+**Ne yapıldı**
+- **Platformsuz çekirdek `guvenlik.h`:**
+  - PBKDF2 + HMAC-SHA256 eşleştirme. Önce istemci kanıtı, sonra kart kanıtı (karşılıklı).
+  - Cihaz anahtarı `K` NVS'te durur, RAM'de tutulmaz.
+  - 8 cihaz.
+  - Deneme sınırı `2^k` s.
+  - Yüzde kodlu kanonik metin ve 64'lük tekrar penceresi (önce HMAC, sonra pencere).
+  - USB eşleştirmesi.
+  - Kriptografi bir işlev tablosundan gelir (hata döndürür). PBKDF2 çekirdekte, 1000 turda bir nefes alır.
+  - Ayar bozuksa fail-closed.
+- **Kart:**
+  - `guvenlik_esp.h` (mbedTLS, Preferences, kilit, SNTP saat kaynağı).
+  - Her web ucu `guv_kapi`'dan geçer.
+  - Yeni uçlar `/eslestir/bilgi|baslat|kanit`, `/cihaz/liste|sil`, `/saat`.
+  - Yalnız USB'den `E` komutları: `E?` `Ex` `Ep` `Ez` `Em` `Et` `Er`.
+  - `Ep`'nin anahtarı yalnız ham UART'a basılır. `Serial` aynası SSE'ye taşıdığı için `WebAkis::ham` eklendi.
+  - Zorunluluk **varsayılan kapalı:** bugünkü panel ve araçlar aynen çalışır.
+  - `A3-1D`, DRAM 75044.
+- **PC:**
+  - `kopru/imza.py`: parolalı ve USB eşleştirme, DPAPI ile saklama, sayaç `max(son+1, unix_ms)`, 401 + `X-Acilis` ile bir kez eşitleme.
+  - `kayit_esitle.py`: `--cihaz` ile imzalı eşitleme.
+  - `kopru.py`: `E` komutunu ve gömülü satır sonunu reddeder, `EK` satırını yaymaz.
+- **Ön-cesi sızıntı bulundu:** `N?` AP WiFi parolasını `Serial` aynasıyla açık `/akis`'e basıyordu. Dalda düzeltildi; **`main`'de hâlâ var** (1-acik-isler D0).
+
+**Doğrulama**
+- B71 289/289 (U1–U19, 5 açılış). Ayrıca:
+  - C, Python'un vektörlerini kabul eder.
+  - Sınama SHA-256'sı RFC 4231/7914 ile ölçülür.
+- B72 148/148:
+  - G: vektörler, RFC sabitleri `hmac`/`hashlib` ile de karşılaştırılır.
+  - F74–F101: kaynak.
+  - I0–I9: istemci, bağımsız doğrulayıcılı sahte karta karşı.
+- B22a 58/58, B7 346/346.
+- Mutasyon: 1D'nin bütün yalanlayıcıları yakalanıyor (son: B72 152/152, B71'in 1D'si 21/21, B22a 16/16; zincir 21/21). Mutasyon **7 boş iddia** buldu ve hepsi kapatıldı:
+  - tek silmenin kalıcılığı;
+  - taze pencerede sayaç 0;
+  - tek deneme;
+  - F86;
+  - köprü testinin sürücü kayıtlı nesneyle boş kalması;
+  - B7'de `m`;
+  - U17: hata enjeksiyonu her HMAC'i bozuyordu, kanıt HMAC'inin hatası yok sayılsa da sonraki adım yakalıyordu. Artık yalnız sonraki çağrı bozuluyor (U17G/H).
+- **AVR'de 2 KB RAM yığını taşıyordu** (kart sürekli yeniden başlıyordu). Etiketler flaşa alındı, adımlar `noinline`, `GUV_ISLEV` eklendi.
+
+**Bağımsız son inceleme (Opus): "düzeltmelerle" — 1 kritik, 6 önemli (+2 yükseltilen küçük)**
+
+| # | Bulgu | Ne yapıldı |
+|---|---|---|
+| K | İstemci, kartın verdiği PBKDF2 turunu ve tuzunu doğrulamıyordu; sahte kart `tur=1` dayatıp parolayı HMAC hızında tahmin edebilirdi | İstemci 10 000…1 000 000 dışını, biçimsiz kimlik/tuzu ve kısa parolayı istek atmadan reddeder (I8) |
+| Ö | Köprüde `?\nEz0` E süzgecini atlatıyordu | Kontrol karakterli komut reddi |
+| Ö | mbedTLS hataları yok sayılıyordu (karar yığındaki eski MAC'e dayanabilirdi) | Tablo hata döndürür; HMAC hatası = ret (U17, F92) |
+| Ö | Sınırsız PBKDF2 (`Et` günlerce; `Er` 10M ile web görevinde WDT) | P yalnız çekirdek 1'de, nefesli; `Et`/`Er` sınırlı, pil testinde ret (F93, F96) |
+| Ö | `kayit_esitle` komut satırı imzalı yolu kullanmıyordu | `--cihaz` / `--cihaz-dizin` (I9) |
+| Ö | Tezgah yarıda kalırsa kart `Ez1`'de kalırdı | `try/finally` (F94) |
+| Ö | Basic-Auth sınırsız parola denemesi K7'yi boşa çıkarıyordu | `web_yetki` deneme sınırı (F95) |
+| k→Ö | Ayar okunamazsa zorunluluk sessizce kapanıyordu | fail-closed (U18) |
+| k→Ö | RF'siz RNG: açılış değeri her açılışta aynı olabilirdi | `guv_esp_ac` ağdan sonra; `Ep` WiFi kapalıyken ret (F97) |
+
+**Kart tezgahı (2026-10-01 akşam): ilk koşu 15/18 — üç kusur yeşil zincirin arkasındaydı**
+
+Tam flaş yedeği alındı (`.yedek/olcum-karti/tam-20261001-172953.bin`, depo dışı). Ardından 1D yüklendi,
+`--duman --guvenlik` koşuldu. Kırmızılar:
+
+1. **PBKDF2 50 000 tur kartta 4.76 s** (spec ölçütü < 1 s). Sebep: `guv_pbkdf2` her turda HMAC'i baştan
+   kuruyordu; ESP'de bu `mbedtls_md_setup` (bellek ayırma) + ipad/opad sıkıştırması demek. Ayrı bir ölçüm
+   eskiziyle (depo dışı) beş yol kartta karşılaştırıldı, hepsi `hashlib` ile aynı sonucu verdi:
+
+   | Yol | µs/tur |
+   |---|---|
+   | her turda HMAC kurulumu (eski) | 85.5 |
+   | `mbedtls_pkcs5_pbkdf2_hmac_ext` | 56.7 |
+   | tek kurulum + `hmac_reset` | 56.3 |
+   | yazılım SHA, ipad/opad önceden | 43.3 |
+   | **`mbedtls_sha256` ipad/opad durumu bir kez, her turda `clone`** | **30.5** |
+
+   Seçilen son yol çekirdekte platformsuz: `GuvKripto.sha_kopya` eklendi, ESP'nin SHA'sı md katmanından
+   `mbedtls_sha256`'ya geçti (bellek ayırmaz, kopyalanır). Firmware içinde ~38 µs/tur: 25 000 tur 956 ms
+   (pay %4), **varsayılan 20 000 = 764 ms**. 50 000 bu çipte < 1 s olamaz (1.9 s). Spec K4 ve onay
+   maddesi 2 güncellendi: çevrimdışı tahmin planlanandan 2.5 kat ucuz → PAKE ve parola uzunluğu sorusu
+   ağırlaştı.
+2. **Her `Ez`/`Em` P'yi yeniden hesaplatıyordu:** çekirdek 1 (ölçüm + seri) 4.7 s donuyor, sonraki seri
+   komutlar bekliyordu; tezgahın `Ez0`'ı henüz işlenmeden HTTP isteği 401 alıyordu. Artık yalnız ayar
+   bozukken (tuz yeniden üretildi).
+3. **Tezgahın kendi kusuru:** SSE dinleyicisi `olcum.local` çözümü (~3 s) bitmeden `Ep` gönderiliyordu.
+   Bildirim kaçtığı için kırmızıydı, ama aynı sebeple **"anahtar SSE'de yok" denetimi boş yere
+   geçebilirdi**. Ayrı tanı koşusunda anahtar, `EK` satırı ve 64-hex dizi SSE'de YOK (doğrulandı).
+   Tezgah artık akışın ilk olayını bekliyor (B72.F101).
+
+`Et` artık P'nin ilk 8 baytını basıyor (sabit sınama parolası + açık tuz, gizli değil). Tezgah kartın
+PBKDF2'sini `hashlib` ile karşılaştırıyor. **Son koşu 19/19.** Testler: B71.U19 (tur başına 2 kopya, HMAC
+kurulumu yok, 70 baytlık parola `hashlib` ile aynı), B72.F98–F101. Yalanlayıcılar 1D-TZ 7/7. Kart
+`esptool write-flash 0x0 <yedek>` ile eski haline döndü (hash doğrulandı, `E?` → "bilinmeyen komut").
+
+⚠ **Süreç dersi:** bağlantı koptuğunda bilgisayar uyudu. Git Bash `ps` Windows süreçlerini göstermediği
+için ilk koşu "ölü" sanıldı ve ikinci koşu başlatıldı. İkisi üst üste bindi: zincirin `%TEMP%` temizliği
+mutasyon koşusunun altından kesti. Yarıda öldürülen ikinci zincir `_tezgah.md`'yi yarım yazdı (sonraki tam
+zincir yeniden üretti). Kural: süreç denetimi `Get-CimInstance Win32_Process` ile; yeniden başlatmadan önce
+eski koşunun gerçekten bittiğini doğrula.
+
+**Ertelenen küçükler:** `tasarim/1-acik-isler.md` D5 (#8, #10–#12, #14–#19).
+
+**Açık / sonraki:** D3 parolalı eşleştirmenin başarı yolu (kullanıcının web parolasıyla; kart 1D'ye
+yeniden yüklenmeli) · kullanıcı onayı (D4) · onaydan sonra `main`'e birleştirme ve push · 1E (MQTT;
+ChaCha20-Poly1305 orada).
 #### 5.12.72a 🟢 ALT PROJE 1 DÜZELTMELERİ — Y1–Y6 + D0 (dal `1-duzeltme`, 2026-10-01 akşam)
 
 Kullanıcı "sırada ne var" diye sordu. Öneri onaylandı ("tamamdır devam et"): `tasarim/1-acik-isler.md`'nin

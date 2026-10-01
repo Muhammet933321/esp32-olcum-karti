@@ -79,8 +79,13 @@ console.log('B7 — Asama 3 arayuzu (arayuz3/)\n');
 console.log('--- 1. Arayuzun gonderdigi her komut firmwarece taniniyor mu ---');
 
 const ino = fs.readFileSync(INO, 'utf8');
+/* 1D: `guv_seri_komut` E komutunun ALT dagiticisi (E? Ex Ep Ez Em Et Er) — oradaki
+   `case` etiketleri ust duzey komut harfi DEGIL; sayilsaydi 'm' gibi olmayan bir
+   komut "arayuzde yok" diye kirmizi yanardi. Govde cikarilip taraniyor; govde
+   bulunamazsa (ad degisti) hic cikarilmaz ve iddia yine kirmiziya doner. */
+const inoUst = ino.replace(/static void guv_seri_komut\([\s\S]*?\n}\n/, '');
 const firmwareHarfleri = new Set(
-  [...ino.matchAll(/case '(.)':/g)].map((m) => m[1])
+  [...inoUst.matchAll(/case '(.)':/g)].map((m) => m[1])
 );
 console.log('     firmware: ' + [...firmwareHarfleri].sort().join(' '));
 
@@ -211,6 +216,11 @@ const ARAYUZSUZ = {
      f/F durumundan farki). Ekrani alt proje 3 (Ayarlar > kalibrasyon
      gecmisi). ⚠ O ekran gelince bu satir CIKARILACAK. */
   k: 'kalibrasyon gecmisi — ekrani alt proje 3; okunan degeri degistirmez',
+  /* 1D: eslestirme (Ep), cihaz silme (Ex), imza zorunlulugu (Ez), misafir (Em),
+     PBKDF2 turu (Et/Er). BILEREK yalniz USB: firmware /komut ucunda 'E'yi 403
+     ile reddeder (B72.F76), kopru.py de reddeder. Ep'nin yaniti cihaz anahtari
+     ve yalniz ham UART'a basilir — panele KONULMAZ, alt proje 3'te de. */
+  E: 'eslestirme/zorunluluk — YALNIZ USB seri konsol (web /komut 403 verir)',
 };
 const arayuzdeYok = [...firmwareHarfleri]
   .filter((h) => !gonderilenHarfler.has(h) && !(h in ARAYUZSUZ));

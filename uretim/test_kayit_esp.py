@@ -244,7 +244,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C4d"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1D"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -578,6 +578,20 @@ class _SahteKart:
         self.komutlar: list[str] = []
         self.kal_liste = None           # 1B: /kal/liste (None = eski firmware, 404)
         self.kal_yanit = None           # ("ham", bayt) · ("kod", 500) · ("kes", bayt): bozuk yanit
+        # 1D: imza (BAGIMSIZ dogrulayici, imza.py KULLANILMAZ) + eslestirme uclari
+        self.cihazlar: dict[int, bytes] = {}
+        self.acilis = "11" * 16
+        self.imza_zorunlu = False
+        self.gorulen: dict[int, set] = {}
+        self.istekler: list[str] = []   # yontem yol basliklar govde (sizinti denetimi)
+        self.ret_401 = 0
+        self.imzali = 0
+        self.parola = "dogru-parola-12"
+        self.tuz = bytes(range(16))
+        self.tur = 10000                # istemcinin alt siniri (TUR_EN_AZ)
+        self.gkimlik = "0011223344556677"
+        self.bekleyen = None
+        self.kart_kanit_boz = False
 
     def sonraki(self) -> int:
         return max((struct.unpack_from("<I", k, 4)[0] for k in self.kayitlar), default=0) + 1
@@ -607,14 +621,85 @@ class _SahteKart:
         return govde, ilk, son
 
 
+
+def _kanonik_bgmz(yontem: str, yol: str, args, acilis: str, sayac: int, govde: bytes) -> bytes:
+    """1D spec K9'un BAGIMSIZ yeniden yazimi (imza.py'yi kullanmaz)."""
+    import hashlib as _hs
+    q = "&".join(urllib.parse.quote(a, safe="-._~") + "=" + urllib.parse.quote(d, safe="-._~")
+                 for a, d in args)
+    return ("OK1\n" + yontem + "\n" + yol + ("?" + q if q else "") + "\n" + acilis + "\n"
+            + str(sayac) + "\n" + _hs.sha256(govde).hexdigest()).encode()
+
+
+def _es_hmac(P: bytes, etiket: str, kimlik: str, nk: bytes, nc: bytes, son: str) -> bytes:
+    import hashlib as _hs
+    import hmac as _hm
+    return _hm.new(P, f"{etiket}\n{kimlik}\n{nk.hex()}\n{nc.hex()}\n{son}".encode(),
+                   _hs.sha256).digest()
+
 def _sunucu(kart: _SahteKart):
     class Isleyici(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
             pass
 
+        def _imza(self, yontem: str, govde: bytes):
+            """None = imzasiz; True = gecerli; False = 401 gonderildi."""
+            import hashlib as _hs
+            import hmac as _hm
+            u = urllib.parse.urlparse(self.path)
+            q = urllib.parse.parse_qsl(u.query, keep_blank_values=True)
+            kart.istekler.append(f"{yontem} {self.path} {dict(self.headers)} {govde!r}")
+            qd = dict(q)
+            if self.headers.get("X-Imza"):
+                n, s, im = self.headers["X-Cihaz"], self.headers["X-Sayac"], self.headers["X-Imza"]
+            elif "_i" in qd:
+                n, s, im = qd.get("_c", "0"), qd.get("_s", "0"), qd["_i"]
+            else:
+                if kart.imza_zorunlu and u.path not in ("/eslestir/bilgi", "/eslestir/baslat",
+                                                        "/eslestir/kanit"):
+                    self._red()
+                    return False
+                return None
+            K = kart.cihazlar.get(int(n))
+            args = [(a, d) for a, d in q if a not in ("_c", "_s", "_i")]
+            if K is None or not _hm.compare_digest(
+                    _hm.new(K, _kanonik_bgmz(yontem, u.path, args, kart.acilis, int(s), govde),
+                            _hs.sha256).hexdigest(), im):
+                self._red()
+                return False
+            g = kart.gorulen.setdefault(int(n), set())
+            if int(s) in g or int(s) < 1 or (g and int(s) <= max(g) - 64):
+                self._red()
+                return False
+            g.add(int(s))
+            kart.imzali += 1
+            return True
+
+        def _red(self):
+            kart.ret_401 += 1
+            self.send_response(401)
+            self.send_header("X-Acilis", kart.acilis)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def _json(self, d):
+            g = json.dumps(d).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(g)))
+            self.end_headers()
+            self.wfile.write(g)
+
         def do_GET(self):
             u = urllib.parse.urlparse(self.path)
             q = urllib.parse.parse_qs(u.query)
+            if self._imza("GET", b"") is False:
+                return
+            if u.path == "/eslestir/bilgi":
+                self._json({"surum": "OK1", "kimlik": kart.gkimlik, "acilis": kart.acilis,
+                            "tuz": kart.tuz.hex(), "tur": kart.tur, "zorunlu": int(kart.imza_zorunlu),
+                            "misafir": 0, "saat": 0, "cihaz_azami": 8})
+                return
             if u.path == "/akis":
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
@@ -659,9 +744,38 @@ def _sunucu(kart: _SahteKart):
             self.wfile.write(govde)
 
         def do_POST(self):
+            import hashlib as _hs
+            import hmac as _hm
             n = int(self.headers.get("Content-Length", "0"))
-            govde = self.rfile.read(n).decode()
-            if self.headers.get("X-Olcum") == "1" and self.headers.get("X-Jeton") == "abc123":
+            ham = self.rfile.read(n)
+            govde = ham.decode()
+            u = urllib.parse.urlparse(self.path)
+            qd = dict(urllib.parse.parse_qsl(u.query, keep_blank_values=True))
+            imzali = self._imza("POST", ham)
+            if imzali is False:
+                return
+            if u.path == "/eslestir/baslat":
+                kart.bekleyen = (1, bytes(range(0x20, 0x30)), bytes.fromhex(qd["nc"]), qd["ad"])
+                self._json({"eno": 1, "nk": bytes(range(0x20, 0x30)).hex()})
+                return
+            if u.path == "/eslestir/kanit":
+                eno, nk, nc, ad = kart.bekleyen
+                kart.bekleyen = None
+                P = _hs.pbkdf2_hmac("sha256", kart.parola.encode(), kart.tuz, kart.tur, 32)
+                if not _hm.compare_digest(_es_hmac(P, "OK1-istemci", kart.gkimlik, nk, nc, ad).hex(),
+                                          qd["kanit"]):
+                    self.send_response(403)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                yeni = min(i for i in range(1, 9) if i not in kart.cihazlar)
+                kart.cihazlar[yeni] = _es_hmac(P, "OK1-anahtar", kart.gkimlik, nk, nc, str(yeni))
+                kk = _es_hmac(P, "OK1-kart", kart.gkimlik, nk, nc, str(yeni))
+                if kart.kart_kanit_boz:
+                    kk = bytes(32)
+                self._json({"n": yeni, "kart_kanit": kk.hex()})
+                return
+            if imzali or (self.headers.get("X-Olcum") == "1" and self.headers.get("X-Jeton") == "abc123"):
                 kart.komutlar.append(govde)
                 if govde.startswith("Go"):
                     kart.onayla(int(govde[2:]))
@@ -974,8 +1088,506 @@ def bolum_esitle() -> None:
     finally:
         sunucu.shutdown()
 
+# ── B72.G · 1D guvenlik: Python basvuru cekirdegi + test vektorleri ──────────
+# RFC 4231 (HMAC-SHA256) ve RFC 7914 §11 (PBKDF2-HMAC-SHA256). Sabitler RFC'den;
+# Python'un kendi hmac/hashlib'i ile de karsilastirilir (yanlis kopyalanmis
+# sabit YESIL gecemez).
+RFC4231 = [
+    (bytes([0x0b]) * 20, b"Hi There",
+     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"),
+    (b"Jefe", b"what do ya want for nothing?",
+     "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"),
+    (bytes([0xaa]) * 20, bytes([0xdd]) * 50,
+     "773ea91e36800e46854db8ebd09181a72959098b3ef8c122d9635514ced565fe"),
+    (bytes(range(1, 26)), bytes([0xcd]) * 50,
+     "82558a389a443c0ea4cc819899f2083a85f0faa3e578f8077a2e3ff46729665b"),
+    (bytes([0xaa]) * 131, b"Test Using Larger Than Block-Size Key - Hash Key First",
+     "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"),
+    (bytes([0xaa]) * 131,
+     b"This is a test using a larger than block-size key and a larger than "
+     b"block-size data. The key needs to be hashed before being used by the "
+     b"HMAC algorithm.",
+     "9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2"),
+]
+RFC7914 = [
+    ("passwd", b"salt", 1,
+     "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"
+     "49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783"),
+    ("Password", b"NaCl", 80000,
+     "4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56"
+     "a1d425a1225833549adb841b51c9b3176a272bdebba1d078478f62b397f33c8d"),
+]
 
-BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle]
+
+def _ham_hmac(k: bytes, m: bytes) -> bytes:
+    import hmac as _h
+    import hashlib as _s
+    return _h.new(k, m, _s.sha256).digest()
+
+
+def bolum_guvenlik_py() -> None:
+    """1D T1: kopru/imza.py saf islevleri + uretim/vektor_guvenlik.json.
+    Protokol ornekleri BURADA spec'teki bicim yeniden yazilarak bagimsiz
+    hesaplanir (imza.py'nin dizgi kurulusunu kopyalamaz)."""
+    import hashlib
+    print("\n── B72.G  1D guvenlik: Python cekirdegi · RFC vektorleri · kanonik bicim")
+    try:
+        import imza as IM
+    except ImportError as e:
+        ok("B72.G0 kopru/imza.py yuklenir", False, str(e))
+        return
+    vj = BURASI / "vektor_guvenlik.json"
+    V = json.loads(vj.read_text(encoding="utf-8")) if vj.exists() else {}
+    ok("B72.G0 uretim/vektor_guvenlik.json var ve RFC + protokol bolumleri iceriyor",
+       all(k in V for k in ("hmac", "pbkdf2", "protokol", "imza")), str(sorted(V)))
+
+    # G1 HMAC: RFC sabiti == Python hmac == JSON
+    g1 = all(_ham_hmac(k, m).hex() == h for k, m, h in RFC4231)
+    g1j = [(x["anahtar"], x["veri"], x["hmac"]) for x in V.get("hmac", [])] == \
+          [(k.hex(), m.hex(), h) for k, m, h in RFC4231]
+    ok("B72.G1 RFC 4231 HMAC-SHA256 (1,2,3,4,6,7): RFC sabiti == Python hmac == JSON",
+       g1 and g1j, f"hmac={g1} json={g1j}")
+
+    # G2 PBKDF2: RFC 7914 == hashlib == imza.pbkdf2 (32 B onek)
+    g2 = all(hashlib.pbkdf2_hmac("sha256", p.encode(), s, c, 64).hex() == h
+             for p, s, c, h in RFC7914)
+    g2i = all(IM.pbkdf2(p, s, c).hex() == h[:64] for p, s, c, h in RFC7914[:1])
+    g2j = [(x["parola"], x["tuz"], x["tur"], x["dk"]) for x in V.get("pbkdf2", [])] == \
+          [(p, s.hex(), c, h) for p, s, c, h in RFC7914]
+    ok("B72.G2 RFC 7914 PBKDF2-HMAC-SHA256: RFC == hashlib == imza.pbkdf2 (32 B) == JSON",
+       g2 and g2i and g2j, f"hashlib={g2} imza={g2i} json={g2j}")
+
+    # G3 yuzde kodlama
+    g3 = (IM.yuzde_kodla("a&b=c") == "a%26b%3Dc" and IM.yuzde_kodla("ğ") == "%C4%9F"
+          and IM.yuzde_kodla("a b") == "a%20b" and IM.yuzde_kodla("Az09-._~") == "Az09-._~")
+    ok("B72.G3 yuzde kodlama: & = bosluk ve UTF-8 kodlanir; A-Z a-z 0-9 - . _ ~ aynen", g3)
+
+    # G4 kanonik belirsizlik (Review Focus 1)
+    k1 = IM.kanonik("GET", "/kayit/veri", [("a", "1&b=2")], "00" * 16, 5, b"")
+    k2 = IM.kanonik("GET", "/kayit/veri", [("a", "1"), ("b", "2")], "00" * 16, 5, b"")
+    ok("B72.G4 kanonik BELIRSIZ DEGIL: a='1&b=2' ile a=1&b=2 farkli metin", k1 != k2,
+       f"{k1!r} | {k2!r}")
+
+    # G5 protokol: spec bicimiyle bagimsiz hesap == imza.py == JSON
+    p = V.get("protokol", {})
+    try:
+        P, kim, nk, nc, ad, n = (bytes.fromhex(p["P"]), p["kimlik"], bytes.fromhex(p["nk"]),
+                                 bytes.fromhex(p["nc"]), p["ad"], p["n"])
+        govde = f"\n{kim}\n{nk.hex()}\n{nc.hex()}\n"
+        bek_i = _ham_hmac(P, ("OK1-istemci" + govde + ad).encode()).hex()
+        bek_k = _ham_hmac(P, ("OK1-kart" + govde + str(n)).encode()).hex()
+        bek_a = _ham_hmac(P, ("OK1-anahtar" + govde + str(n)).encode()).hex()
+        g5 = (IM.kanit_istemci(P, kim, nk, nc, ad).hex() == bek_i == p["kanit_istemci"]
+              and IM.kanit_kart(P, kim, nk, nc, n).hex() == bek_k == p["kanit_kart"]
+              and IM.cihaz_anahtari(P, kim, nk, nc, n).hex() == bek_a == p["K"])
+    except (KeyError, ValueError) as e:
+        g5 = False
+        bek_i = str(e)
+    ok("B72.G5 eslestirme: istemci kaniti, kart kaniti ve K spec bicimiyle (OK1-*, \\n "
+       "ayirici, ad sonda) bagimsiz hesapla == imza.py == JSON; ad UTF-8 ('PC ğ')",
+       g5 and "ğ" in p.get("ad", ""), bek_i[:40])
+
+    # G6 imza ornekleri: spec bicimi bagimsiz yeniden yazim
+    def _kanonik_bagimsiz(y, yol, args, ac, s, gv):
+        import urllib.parse as up
+        q = "&".join(up.quote(a, safe="-._~") + "=" + up.quote(d, safe="-._~") for a, d in args)
+        return ("OK1\n" + y + "\n" + yol + ("?" + q if q else "") + "\n" + ac + "\n"
+                + str(s) + "\n" + hashlib.sha256(gv).hexdigest()).encode()
+    g6, notlar = True, []
+    for o in V.get("imza", []):
+        args = [tuple(x) for x in o["argumanlar"]]
+        kb = _kanonik_bagimsiz(o["yontem"], o["yol"], args, o["acilis"], o["sayac"],
+                               bytes.fromhex(o["govde"]))
+        ki = IM.kanonik(o["yontem"], o["yol"], args, o["acilis"], o["sayac"],
+                        bytes.fromhex(o["govde"]))
+        im = IM.imzala(bytes.fromhex(o["K"]), o["yontem"], o["yol"], args, o["acilis"],
+                       o["sayac"], bytes.fromhex(o["govde"]))
+        if not (kb == ki and kb.hex() == o["kanonik"] and im == o["imza"]
+                == _ham_hmac(bytes.fromhex(o["K"]), kb).hex()):
+            g6 = False
+            notlar.append(o["ad"])
+    turler = {o["ad"] for o in V.get("imza", [])}
+    ok("B72.G6 imza ornekleri (GET sorgusuz, GET sorgulu+yuzde kodlu, POST govdeli, "
+       "akis _c/_s/_i HARIC): bagimsiz kanonik == imza.py == JSON",
+       g6 and {"get", "get_sorgu", "post", "akis"} <= turler, f"{notlar} {sorted(turler)}")
+    ak = [o for o in V.get("imza", []) if o["ad"] == "akis"]
+    ok("B72.G6b EventSource imza argumanlari (_c _s _i) kanonige GIRMEZ",
+       bool(ak) and "_c" not in bytes.fromhex(ak[0]["kanonik"]).decode()
+       and "_i" not in bytes.fromhex(ak[0]["kanonik"]).decode())
+
+    # G8 JSON guncel: imza.py degisip vektorler yeniden uretilmezse C (B71.U) eski
+    # vektorlerle sinanirdi
+    import vektor_guvenlik as VG
+    ok("B72.G8 vektor_guvenlik.json GUNCEL (vektor_guvenlik.uret() ile ayni)",
+       vj.exists() and json.loads(vj.read_text(encoding="utf-8")) == VG.uret())
+
+    # G7 ad
+    ok("B72.G7 ad_gecerli: 1-24 bayt UTF-8, kontrol karakteri yok",
+       IM.ad_gecerli("Telefon ğ") and not IM.ad_gecerli("x" * 25)
+       and not IM.ad_gecerli("a\nb") and not IM.ad_gecerli("")
+       and not IM.ad_gecerli("ğ" * 13) and IM.ad_gecerli("ğ" * 12))
+
+
+def bolum_guvenlik_kart() -> None:
+    """1D T3: kartin web kapisi, uclar, imzali komut, USB'ye ozel E komutlari,
+    K'nin YALNIZ ham UART'a basilmasi (Serial aynasi SSE'ye tasir)."""
+    print("\n── B72.F74+  1D kart: kapi · uclar · imzali komut · E komutlari · ham UART")
+    esp, ino, gh, wa = (_oku("guvenlik_esp.h"), _oku("olcum-karti-a3.ino"), _oku("guvenlik.h"),
+                        _oku("web_akis.h"))
+    esp_k, ino_k, gh_k, wa_k = kod(esp), kod(ino), kod(gh), kod(wa)
+    SINIF = {"/": "GUV_ACIK", "/akis": "GUV_IZLEME", "/pil": "GUV_IZLEME",
+             "/kayit/liste": "GUV_OKUMA", "/kayit/veri": "GUV_OKUMA", "/kal/liste": "GUV_OKUMA",
+             "/skop.bin": "GUV_OKUMA", "/komut": "GUV_KOMUT", "/kopru": "GUV_KOMUT",
+             "/eslestir/bilgi": "GUV_ACIK", "/eslestir/baslat": "GUV_ACIK",
+             "/eslestir/kanit": "GUV_ACIK", "/cihaz/liste": "GUV_CIHAZ",
+             "/cihaz/sil": "GUV_CIHAZ", "/saat": "GUV_CIHAZ"}
+    kayitlar = re.findall(r'sunucu\.on\("([^"]+)"\s*,\s*(?:(HTTP_\w+)\s*,\s*)?(\w+)\s*\)', ino_k)
+    eksik, yanlis = [], []
+    for yol, yontem, isl in kayitlar:
+        bek = "GUV_ACIK" if yontem == "HTTP_OPTIONS" else SINIF.get(yol)
+        if bek is None:
+            eksik.append(yol)
+            continue
+        if f"guv_kapi({bek})" not in govde(ino_k, f"void {isl}(")[:700]:
+            yanlis.append((yol, isl))
+    ok("B72.F74 HER web ucu kapidan gecer, sinifi tabloya uyar; tabloda olmayan uc YOK; "
+       "spec'teki 6 yeni uc kayitli",
+       bool(kayitlar) and not eksik and not yanlis
+       and set(SINIF) <= {y for y, _, _ in kayitlar}, f"eksik={eksik} yanlis={yanlis}")
+
+    kg = govde(ino_k, "void komut_sayfa(")
+    i_blok = kg.find("if (!guv_imzali && !komut_serbest(k.c_str())) {")
+    ok("B72.F75 imzali komut jeton + parola ARAMAZ; imzasiz dal bugunku jeton + Basic yolu",
+       0 <= i_blok < kg.find('sunucu.header("X-Jeton")') < kg.find("web_yetki()"))
+    i_e = kg.find("k[0] == 'E'")
+    ok("B72.F76 /komut 'E' ile baslayan komutu 403 ile REDDEDER (USB'ye ozel), kuyruga koymadan",
+       0 <= i_e < kg.find("komut_kuyruga(") and "403" in kg[i_e:i_e + 200])
+    ok("B72.F81 zorunlu 1'de imzasiz komut reddi komut_serbest'ten SONRA (p0 ve ? serbest kalir)",
+       0 <= i_blok < kg.find("guv.ayar.zorunlu") < kg.find('sunucu.header("X-Jeton")'))
+
+    sk = govde(ino_k, "static void guv_seri_komut(")
+    khex = [s for s in sk.splitlines() if "khex" in s]
+    ok("B72.F77 K hex'i YALNIZ ham UART'a: EK satiri Serial.ham ile; khex hicbir aynali "
+       "baskida yok; WebAkis::ham yalniz gercek porta yazar",
+       '"EK ' in sk and any("Serial.ham(" in s for s in khex)
+       and not any(("Serial.print" in s or "printf" in s) and "ham(" not in s for s in khex)
+       and "void ham(const char *s)" in wa_k
+       and "_besle" not in govde(wa_k, "void ham(const char *s)"))
+    ok("B72.F82 E komutlari (z zorunlu, m misafir, p USB eslestirme, x sil, t tur olcumu, r tur "
+       "yaz, ? liste) seri dagiticida", all(f"case '{c}':" in sk for c in "zmpxtr?"))
+
+    kp = govde(ino_k, "static bool guv_kapi(")
+    dg = govde(ino_k, "static bool guv__dogrula(")
+    ok("B72.F78 imza basligi VARSA sonuc dogrulamadir: basarisizsa 401 + X-Acilis, imzasiz dala "
+       "DUSMEZ (zorunlu 0'da da)",
+       "if (guv__imza_var()) return guv__dogrula(sinif);" in kp and "guv__red(401" in dg
+       and "X-Acilis" in govde(ino_k, "static void guv__red("))
+    ok("B72.F79 form kodlamali imzali POST 400 (WebServer govdeyi sorguya karistirir)",
+       "x-www-form-urlencoded" in dg and "400" in dg)
+    kpg = govde(ino_k, "void kopru_sayfa(")
+    ok("B72.F81c /kopru (CORS kokeni kaydi) zorunlulukta imzasiz REDDEDILIR",
+       0 <= kpg.find("guv_kapi(GUV_KOMUT)") < kpg.find("if (!guv_imzali && guv.ayar.zorunlu)")
+       < kpg.find("kopru_adres"))
+    i_n = ino_k.find("if (alt == 0 || alt == '?') {")
+    ns = ino_k[i_n:ino_k.find("if (alt == 'a')", i_n)] if i_n >= 0 else ""
+    ok("B72.F91 N? AP parolasini YALNIZ ham UART'a basar (Serial aynasi /akis'e tasiyordu: "
+       "ag dinleyen AP parolasini goruyordu)",
+       bool(ns) and 'Serial.ham(ag_nvs.getString("ap_sifre"' in ns
+       and not re.search(r'Serial\.print(ln)?\(ag_nvs\.getString\("ap_sifre"', ns))
+    ok("B72.F81b misafir izleme yalniz IZLEME sinifini acar",
+       "sinif == GUV_IZLEME && guv.ayar.misafir" in kp and kp.count("misafir") == 1)
+    atla = [s for s in dg.splitlines() if "continue" in s]
+    ok("B72.F86 /akis imzasi _c _s _i sorgu argumanlarindan okunur; bu uc ve ham govde (plain) "
+       "kanonik dongude ATLANIR (atlama satirinin kendisi denetlenir)",
+       len(atla) == 1 and all(f'a == "{a}"' in atla[0] for a in ("_c", "_s", "_i", "plain"))
+       and all(f'sunucu.arg("{a}")' in dg for a in ("_c", "_s", "_i")))
+    i_bas, i_bit = dg.find("guv_imza_bas("), dg.find("guv_imza_bit(")
+    ok("B72.F89 guv_imza_bas basariliysa guv_imza_bit HER ZAMAN cagrilir (mbedTLS baglami "
+       "serbest kalir; arada return yok)",
+       0 <= i_bas < i_bit and "return" not in dg[dg.find("if (!r) {", i_bas):i_bit])
+
+    st = govde(ino_k, "void saat_sayfa(")
+    ok("B72.F80 /saat yalniz NTP saati YOKKEN ayarlar; 1 700 000 000 alti ret",
+       0 <= st.find("guv_saat_ntp") < st.find("settimeofday") and "1700000000" in st)
+    ok("B72.F83 mbedTLS baglami GUV_CTX_BOYU'na sigar (derleme denetimi); SHA-256; PBKDF2 "
+       "cekirdekte (guv_pbkdf2) ve tablonun nefesi zamanlayiciya pay verir",
+       "static_assert(sizeof(GuvMbedCtx) <= GUV_CTX_BOYU" in esp_k
+       and "MBEDTLS_MD_SHA256" in govde(esp_k, "static int gm__kur(")
+       and "gm_nefes" in esp_k[esp_k.find("static const GuvKripto guv_kripto"):]
+       and "vTaskDelay(" in govde(esp_k, "static void gm_nefes("))
+    eg = govde(gh_k, "guv__esit(")
+    ok("B72.F84 sabit zamanli karsilastirma: dongude erken cikis yok (XOR birikimi, tek return)",
+       "f |=" in eg and eg.count("return") == 1)
+    i_ns = ino_k.find('ag_nvs.putString("web_sifre"')
+    ok("B72.F85 Ns (parola degisti) P onbellegini siler ve eski cihazlar icin Ex! der",
+       i_ns >= 0 and "guv_parola_degisti(" in ino_k[i_ns:i_ns + 600]
+       and "Ex!" in ino_k[i_ns:i_ns + 600])
+    ok("B72.F87 uretim kodunda GUV_SINAMA YOK; guvenlik_esp.h Serial aynasindan ONCE dahil ve "
+       "Serial kullanmiyor (cekirdek 0)",
+       "GUV_SINAMA" not in esp_k + ino_k and "Serial" not in esp_k
+       and 0 <= ino_k.find('#include "guvenlik_esp.h"') < ino_k.find("#define Serial CIKIS"))
+    # ── 1D son inceleme duzeltmeleri ──
+    ok("B72.F92 mbedTLS donus kodlari DENETLENIR: md_setup/hmac_starts hatasi bas'tan -1, ekle "
+       "hatasi baglamda saklanir ve bit -1 doner (karar yigindaki eski MAC'e dayanmaz)",
+       "int hata;" in esp_k and "mbedtls_md_setup(" in govde(esp_k, "static int gm__kur(")
+       and "!= 0" in govde(esp_k, "static int gm__kur(")
+       and "if (gm__kur(c, 1) != 0) return -1;" in govde(esp_k, "static int gm_hmac_bas(")
+       and esp_k.count("mbedtls_md_setup(") == 1
+       and "c->hata" in govde(esp_k, "static void gm_hmac_ekle(")
+       and "c->hata" in govde(esp_k, "static int gm_hmac_bit(")
+       and "mbedtls_pkcs5" not in esp_k)
+    tg = sk[sk.find("case 't':"):sk.find("case 'r':")]
+    rg = sk[sk.find("case 'r':"):sk.find("default:")]
+    ok("B72.F93 Et/Er SINIRLI (Et 1000..GUV_TUR_EN_COK, Er GUV_TUR_EN_AZ..GUV_TUR_EN_COK) ve pil "
+       "testi surerken REDDEDILIR (cekirdek 1 = olcum dongusu)",
+       "GUV_TUR_EN_COK" in tg and "pil_testi_suruyor()" in tg
+       and "GUV_TUR_EN_AZ" in rg and "GUV_TUR_EN_COK" in rg and "pil_testi_suruyor()" in rg)
+    gi = govde(ino_k, "static void guv_isle(")
+    ok("B72.F96 P cekirdek 1'de (guv_isle) hesaplanir; eslestirme uclari PBKDF2 YAPMAZ ve web "
+       "parolasini OKUMAZ; Ns/Er sonrasi P yeniden",
+       "guv_p_hesapla(" in gi and "pil_testi_suruyor()" in gi
+       and all("web_sifre" not in govde(ino_k, f"void {u}(") and "pbkdf2" not in govde(ino_k, f"void {u}(")
+               for u in ("eslestir_baslat_sayfa", "eslestir_kanit_sayfa"))
+       and ino_k.count("guv_p_eski = 1") >= 3)
+    yw = govde(ino_k, "static int web_yetki(")
+    ok("B72.F95 eski Basic-Auth yolu da deneme sinirli: yanlis parola 2^k s bekletir (429), dogru "
+       "sifirlar; YALNIZ Authorization basligi varken sayilir",
+       "web_serbest_ms" in yw and 'hasHeader("Authorization")' in yw and "429" in kg
+       and "web_yetki()" in kg and "web_yetkili()" not in ino_k)
+    i_ag, i_guv = ino_k.find("ag_baslat();"), ino_k.find("guv_esp_ac();")
+    pg = sk[sk.find("case 'p':"):sk.find("case 'z':")]
+    ok("B72.F97 rastgele sayilar RF acikken: guv_esp_ac ag kurulduktan SONRA; Ep WiFi kapaliyken "
+       "REDDEDILIR (RF'siz RNG yalanci-rastgele)",
+       0 <= i_ag < i_guv and "WiFi.getMode()" in pg)
+    # ── 1D kart tezgahi (2026-10-01) bulgulari ──
+    zg = sk[sk.find("case 'z':"):sk.find("case 't':")]
+    ok("B72.F98 (kart tezgahi: her Ez/Em cekirdek 1'i P hesabiyla 4.7 s donduruyordu, ardindan "
+       "gelen seri komutlar bekliyordu) Ez/Em P'yi YALNIZ ayar bozukken (tuz yeniden uretildi) "
+       "yeniden hesaplatir",
+       "ayar_bozuk" in zg and re.search(r"if \(\w+\)\s*guv_p_eski = 1;", zg) is not None
+       and zg.count("guv_p_eski = 1") == 1)
+    ok("B72.F99 (kart tezgahi: 85 us/tur, her turda HMAC kurulumu + bellek ayirma) kartin SHA'si "
+       "mbedtls_sha256 (bellek ayirmasiz, KOPYALANABILIR), tabloda sha_kopya; varsayilan tur "
+       "20 000 (kartta < 1 s, tezgah olcer: 25 000 = 956 ms, pay yetersiz)",
+       "mbedtls_sha256_clone(" in govde(esp_k, "static int gm_sha_kopya(")
+       and "gm_sha_kopya" in esp_k[esp_k.find("static const GuvKripto guv_kripto"):]
+       and "mbedtls_md_" not in govde(esp_k, "static int gm_sha_bas(")
+       and re.search(r"#define GUV_TUR_VARSAYILAN\s+20000UL", gh_k) is not None)
+    ok("B72.F100 Et SABIT sinama parolasiyla olcer (gercek parola DEGIL) ve P'nin ilk 8 baytini "
+       "basar: tezgah kartin PBKDF2'sini Python hashlib ile karsilastirir",
+       '"olcum-tur-olcumu-1D"' in tg and "web_sifre" not in tg and '"ET %lu %lu %s"' in tg)
+    toplanan =re.search(r"toplanacak\[\]\s*=\s*\{([^}]*)\}", ino_k)
+    tz = _oku_tezgah = (BURASI / "tezgah_kayit.py").read_text(encoding="utf-8")
+    tg2 = tz[tz.find("def guvenlik("):tz.find("\ndef esit(")]
+    fin = tg2[tg2.rfind("finally:"):]
+    ok("B72.F94 tezgah --guvenlik yarida kalsa da karti GERI ALIR: Em0, Ez0 ve test cihazinin "
+       "silinmesi finally blogunda",
+       "finally:" in tg2 and all(x in fin for x in ('"Em0"', '"Ez0"', '"Ex')))
+    ok("B72.F101 (kart tezgahi: olcum.local cozumu ~3 s) tezgah Ep'yi SSE dinleyicisi BAGLANDIKTAN "
+       "sonra gonderir; baglanmamissa 'anahtar SSE'de yok' denetimi KIRMIZI (bos yere gecmez)",
+       0 <= tg2.find("bagli = ") < tg2.find("IM.esles_usb(") and "bagli and c.n" in tg2)
+    ok("B72.F88 imza basliklari toplaniyor (X-Cihaz, X-Sayac, X-Imza, Content-Type) ve CORS "
+       "on ucu izin veriyor",
+       toplanan is not None and all(f'"{b}"' in toplanan.group(1)
+                                    for b in ("X-Cihaz", "X-Sayac", "X-Imza", "Content-Type"))
+       and "X-Cihaz" in govde(ino_k, "void onuc_sayfa("))
+
+
+class _SahteSeri:
+    """1D esles_usb icin USB seri sahtesi: E? ve Ep<ad> yanitlari."""
+
+    def __init__(self, K: bytes, n: int = 3, kimlik: str = "0011223344556677"):
+        self.K, self.n, self.kimlik = K, n, kimlik
+        self.yazilan: list[str] = []
+        self.kuyruk: list[str] = ["D 1.7 0 0 0 0 1 2 0 3"]
+
+    def yaz(self, s: str) -> None:
+        self.yazilan.append(s)
+        if s.startswith("E?"):
+            self.kuyruk.append(f"E zorunlu=0 misafir=0 tur=50000 kimlik={self.kimlik} saat=0 cihaz=2")
+        elif s.startswith("Ep"):
+            self.kuyruk += ["D 1.7 0 0 0 0 1 2 0 3", f"EK {self.n} {self.K.hex()}",
+                            f"* E: USB'den cihaz {self.n} eklendi"]
+
+    def satir_oku(self, zaman_asimi: float = 0.5):
+        return self.kuyruk.pop(0) if self.kuyruk else None
+
+
+def bolum_guvenlik_istemci() -> None:
+    """1D T4: PC istemcisi (kopru/imza.py) sahte karta karsi; sahte kartin imza
+    dogrulayicisi BAGIMSIZ (spec bicimi hmac ile yeniden yazilmis)."""
+    print("\n── B72.I  1D PC istemcisi: eslestirme · imzali esitleme · yeniden esitleme · saklama")
+    import imza as IM
+    kay = _kayitlar(30)
+    kart = _SahteKart(kay)
+    sunucu, taban = _sunucu(kart)
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            # E25 parolali eslestirme: parola, P ve K agda YOK; yanlis parola ve sahte kart kaniti kaydetmez
+            kart.kart_kanit_boz = True
+            try:
+                IM.esles(taban, "PC ğ", kart.parola, dizin=d / "c")
+                sahte = False
+            except Exception as e:                       # noqa: BLE001
+                sahte = "kart" in str(e).lower()
+            dosyasiz_1 = not list((d / "c").glob("*.json")) if (d / "c").exists() else True
+            kart.kart_kanit_boz = False
+            try:
+                IM.esles(taban, "PC", "yanlis-parola-99", dizin=d / "c")
+                yanlis = False
+            except Exception:                            # noqa: BLE001
+                yanlis = True
+            dosyasiz_2 = not list((d / "c").glob("*.json")) if (d / "c").exists() else True
+            # sahte kanitli deneme SAHTE KARTTA cihaz birakti (gercek sahte kart parolayi
+            # bilmez, birakamaz); istemci HICBIR SEY kaydetmedi (dosyasiz_1) — listeyi temizle
+            kart.cihazlar.clear()
+            kart.istekler.clear()
+            c = IM.esles(taban, "PC ğ", kart.parola, dizin=d / "c")
+            trafik = "\n".join(kart.istekler)
+            import hashlib as _hs
+            P = _hs.pbkdf2_hmac("sha256", kart.parola.encode(), kart.tuz, kart.tur, 32)
+            ok("B72.I5 parolali eslestirme: dogru parola -> cihaz; trafikte parola, P ve K YOK; "
+               "yanlis parola ve SAHTE kart kaniti (karsilikli dogrulama) cihaz KAYDETMEZ",
+               c.n == 1 and c.K == kart.cihazlar[1] and kart.parola not in trafik
+               and P.hex() not in trafik and c.K.hex() not in trafik and sahte and yanlis
+               and dosyasiz_1 and dosyasiz_2,
+               f"n={c.n} sahte={sahte} yanlis={yanlis}")
+
+            # E20 imzali esitleme: zorunlu kartta imzali gecer, imzasiz 401
+            kart.imza_zorunlu = True
+            kart.imzali = 0
+            es = _es(taban, d / "e", onay=KE.imzali_onay(c, taban), cihaz=c)
+            r = es.esitle()
+            imzasiz_red = False
+            try:
+                _es(taban, d / "e2").esitle()
+            except Exception:                            # noqa: BLE001
+                imzasiz_red = True
+            ok("B72.I0 eslesmis Esitleyici /kayit/veri ve Go onayini IMZALAR (zorunlu sahte kart "
+               "kabul eder); eslesmemis olan 401 alir",
+               (d / "e" / KE.DOSYA).read_bytes() == b"".join(kay) and kart.onay == 30
+               and kart.imzali >= 2 and imzasiz_red, f"{r} imzali={kart.imzali} onay={kart.onay}")
+
+            # E21 kart yeniden basladi (acilis degisti): BIR KEZ esitlenir, dongu yok
+            kart.acilis = "22" * 16
+            kart.ret_401 = 0
+            kart.kayitlar = kay + _kayitlar(5, 31)
+            r2 = es.esitle()
+            bir_kez = kart.ret_401 == 1
+            kart.cihazlar.pop(c.n)                       # cihaz silindi: 401, acilis AYNI
+            kart.ret_401 = 0
+            kart.kayitlar = kart.kayitlar + _kayitlar(2, 36)
+            sonsuz_yok = False
+            try:
+                es.esitle()
+            except Exception:                            # noqa: BLE001
+                sonsuz_yok = kart.ret_401 <= 2
+            kart.cihazlar[c.n] = c.K
+            ok("B72.I1 (Review Focus 2) yeni acilis: istemci 401 + X-Acilis ile BIR KEZ esitlenir ve "
+               "basarir; acilis ayniyken 401 (cihaz silindi) dongu yapmaz, hata verir",
+               bir_kez and r2.get("yeni_kayit", 0) == 5 and c.acilis == "22" * 16 and sonsuz_yok,
+               f"ret={kart.ret_401} r2={r2} acilis={c.acilis[:4]}")
+
+            # E22 sayac diskte kalici ve tekdüze
+            s1 = c.sayac
+            c2 = IM.Cihaz.yukle(c.dosya)
+            import time as _t
+            gercek = _t.time
+            try:
+                _t.time = lambda: 1.0                    # saat geri gitti
+                s2 = c2.sonraki_sayac()
+            finally:
+                _t.time = gercek
+            ok("B72.I2 sayac diskte kalici: yeni nesne eskisinin altina inmez, saat geri gitse de artar",
+               s1 > 0 and s2 > s1, f"{s1} -> {s2}")
+
+            # E23 eslesmemis Esitleyici bugunku yolu kullanir (imza basligi YOK)
+            kart.imza_zorunlu = False
+            kart.istekler.clear()
+            kart.kayitlar = kay
+            _es(taban, d / "e3", onay=KE.http_onay(taban)).esitle()
+            ok("B72.I3 (regresyon) eslesmemis Esitleyici imza basligi YOLLAMAZ; jetonlu onay calisir",
+               kart.istekler and not any("X-Imza" in s for s in kart.istekler)
+               and any("X-Jeton" in s for s in kart.istekler), str(len(kart.istekler)))
+
+            # E24 anahtar diskte duz durmaz (Windows: DPAPI)
+            metin = c.dosya.read_text(encoding="utf-8")
+            if sys.platform == "win32":
+                ok("B72.I4 anahtar dosyada DUZ DEGIL (DPAPI); geri yuklenen K ayni",
+                   c.K.hex() not in metin and '"K_dpapi"' in metin
+                   and IM.Cihaz.yukle(c.dosya).K == c.K)
+            else:
+                ok("B72.I4 (Windows disi: DPAPI yok) dosya izni 600 ve uyari alani",
+                   (c.dosya.stat().st_mode & 0o077) == 0 and '"K_duz"' in metin)
+
+            # E26 USB eslestirmesi: E? ile kimlik, Ep ile EK satiri
+            Ku = bytes(range(100, 132))
+            seri = _SahteSeri(Ku, n=3)
+            cu = IM.esles_usb(seri, "Laptop", dizin=d / "u")
+            ok("B72.I6 USB eslestirmesi: E? kimligi + Ep<ad> -> EK satirindan K ve numara; "
+               "diske kaydedilir",
+               cu.n == 3 and cu.K == Ku and cu.kimlik == "0011223344556677"
+               and any(s.startswith("Ep") and "Laptop" in s for s in seri.yazilan)
+               and IM.Cihaz.yukle(cu.dosya).K == Ku, str(seri.yazilan))
+
+            # E27 EventSource adresi: _c _s _i, kanonik bagimsiz hesapla dogrulanir
+            u = IM.akis_url(c, taban)
+            kart.imza_zorunlu = True
+            import urllib.request as _ur
+            with _ur.urlopen(u, timeout=5) as y:
+                akis_ok = y.status == 200
+            ok("B72.I7 /akis imzali adresi (_c _s _i sorguda) zorunlu kartta kabul edilir",
+               akis_ok and "_i=" in u and f"_c={c.n}" in u)
+            kart.imza_zorunlu = False
+            # I8 (son inceleme KRITIK): sahte kart PBKDF2 maliyetini ve tuzu dayatamaz;
+            # kimlik dosya adina gider; kisa parola HICBIR istek atmadan reddedilir
+            kart.istekler.clear()
+            sonuclar = {}
+            for ad, ayar in (("tur1", {"tur": 1}), ("tur_cok", {"tur": 5_000_000}),
+                             ("kimlik", {"gkimlik": "../../x"}), ("tuz", {"tuz": b"\x01"})):
+                eski = (kart.tur, kart.gkimlik, kart.tuz)
+                for a, v in ayar.items():
+                    setattr(kart, a, v)
+                try:
+                    IM.esles(taban, "PC", kart.parola, dizin=d / "i8")
+                    sonuclar[ad] = "KABUL"
+                except (ValueError, RuntimeError) as e:
+                    sonuclar[ad] = "ret"
+                kart.tur, kart.gkimlik, kart.tuz = eski
+            kanitsiz = not any("/eslestir/kanit" in s for s in kart.istekler)
+            kart.istekler.clear()
+            kisa = "ret"
+            for kp in ("kisa9chr!", "onbir-krkt1"):          # K3 (kullanici onayi): en az 12
+                try:
+                    IM.esles(taban, "PC", kp, dizin=d / "i8")
+                    kisa = "KABUL"
+                except ValueError:
+                    pass                                      # istek atilmadan ret
+                except RuntimeError:
+                    kisa = "KABUL"                            # karta GITTI (kart reddetti)
+            ok("B72.I8 (son inceleme KRITIK) istemci sahte kartin dayattigi tur < 10 000 ya da asiri turu, "
+               "bicimsiz kimligi (dosya adi) ve tuzu REDDEDER, kanit YOLLAMADAN; 12 karakterden kisa "
+               "(9 ve 11) parola HICBIR istek atmadan reddedilir",
+               all(v == "ret" for v in sonuclar.values()) and kanitsiz and kisa == "ret"
+               and not kart.istekler and not (d / "i8").exists(), f"{sonuclar} kanitsiz={kanitsiz} kisa={kisa}")
+
+            # I9 (son inceleme): kayit_esitle komut satiri imzali yolu kullanir
+            kart.imza_zorunlu = True
+            kart.kayitlar = kay
+            rc = KE.main(["--http", taban, "--dizin", str(d / "cli"), "--cihaz", str(c.dosya)])
+            rc2 = KE.main(["--http", taban, "--dizin", str(d / "cli2"), "--cihaz-dizin", str(c.dosya.parent)])
+            kart.imza_zorunlu = False
+            ok("B72.I9 kayit_esitle komut satiri eslesmis cihazla IMZALI esitler (--cihaz ya da "
+               "--cihaz-dizin'de kart kimligine uyan dosya); zorunlu sahte kart kabul eder",
+               rc == 0 and rc2 == 0 and (d / "cli" / KE.DOSYA).exists()
+               and (d / "cli2" / KE.DOSYA).exists(), f"rc={rc} rc2={rc2}")
+    finally:
+        sunucu.shutdown()
+
+
+BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
+            bolum_guvenlik_istemci]
 
 
 def main() -> int:

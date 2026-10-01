@@ -47,7 +47,7 @@
 #include "kayit_plan.h"           /* 1C-4: zamanlanmis kayit karar mantigi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-1C4d"   /* 1C-4 + alt proje 1 duzeltmeleri (Y1-Y6, D0) */
+#define KAYIT_FW_SURUM    "A3-1D"     /* 1D: eslestirme + imzali istek + alt proje 1 duzeltmeleri (Y1-Y6, D0) */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
