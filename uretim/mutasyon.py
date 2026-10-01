@@ -2086,6 +2086,18 @@ MUTASYONLAR = [
     ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/kayit_esp.h",
      'ky_bitir(&kayit_y, m->sebep)', 'ky_bitir(&kayit_y, KB_SEBEP_PLAN)',
      '1C-4 incelemesi I4: Gp- kapanisi sebep 7 (planli sure doldu) yazarsa F68 kirmizi'),
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     '"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"', '"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._"',
+     "1D: yuzde kodlama ~'yi kodlarsa kart ile istemci farkli kanonik kurar: G3 kirmizi"),
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     '+ f"\\n{acilis}\\n{sayac}\\n{hashlib.sha256(govde).hexdigest()}"', '+ f"\\n{acilis}\\n{sayac}\\n{govde.hex()}"',
+     '1D: kanonikte govde ozeti yerine govde: spec K9 bozulur: G6 kirmizi'),
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     'return _h(P, f"{SURUM}-kart" + _ortak(kimlik, nk, nc) + str(n))', 'return _h(P, f"{SURUM}-istemci" + _ortak(kimlik, nk, nc) + str(n))',
+     '1D: kart kaniti istemci etiketiyle: karsilikli dogrulama ayrimi kalkar: G5 kirmizi'),
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     'AD_AZAMI = 24 ', 'AD_AZAMI = 25 ',
+     '1D: ad siniri 25 bayt: kartin 24+NUL alanina sigmaz: G7 kirmizi'),
 ]
 
 

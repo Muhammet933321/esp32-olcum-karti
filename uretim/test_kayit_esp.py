@@ -914,8 +914,147 @@ def bolum_esitle() -> None:
     finally:
         sunucu.shutdown()
 
+# ── B72.G · 1D guvenlik: Python basvuru cekirdegi + test vektorleri ──────────
+# RFC 4231 (HMAC-SHA256) ve RFC 7914 §11 (PBKDF2-HMAC-SHA256). Sabitler RFC'den;
+# Python'un kendi hmac/hashlib'i ile de karsilastirilir (yanlis kopyalanmis
+# sabit YESIL gecemez).
+RFC4231 = [
+    (bytes([0x0b]) * 20, b"Hi There",
+     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"),
+    (b"Jefe", b"what do ya want for nothing?",
+     "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"),
+    (bytes([0xaa]) * 20, bytes([0xdd]) * 50,
+     "773ea91e36800e46854db8ebd09181a72959098b3ef8c122d9635514ced565fe"),
+    (bytes(range(1, 26)), bytes([0xcd]) * 50,
+     "82558a389a443c0ea4cc819899f2083a85f0faa3e578f8077a2e3ff46729665b"),
+    (bytes([0xaa]) * 131, b"Test Using Larger Than Block-Size Key - Hash Key First",
+     "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"),
+    (bytes([0xaa]) * 131,
+     b"This is a test using a larger than block-size key and a larger than "
+     b"block-size data. The key needs to be hashed before being used by the "
+     b"HMAC algorithm.",
+     "9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2"),
+]
+RFC7914 = [
+    ("passwd", b"salt", 1,
+     "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"
+     "49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783"),
+    ("Password", b"NaCl", 80000,
+     "4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56"
+     "a1d425a1225833549adb841b51c9b3176a272bdebba1d078478f62b397f33c8d"),
+]
 
-BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle]
+
+def _ham_hmac(k: bytes, m: bytes) -> bytes:
+    import hmac as _h
+    import hashlib as _s
+    return _h.new(k, m, _s.sha256).digest()
+
+
+def bolum_guvenlik_py() -> None:
+    """1D T1: kopru/imza.py saf islevleri + uretim/vektor_guvenlik.json.
+    Protokol ornekleri BURADA spec'teki bicim yeniden yazilarak bagimsiz
+    hesaplanir (imza.py'nin dizgi kurulusunu kopyalamaz)."""
+    import hashlib
+    print("\n── B72.G  1D guvenlik: Python cekirdegi · RFC vektorleri · kanonik bicim")
+    try:
+        import imza as IM
+    except ImportError as e:
+        ok("B72.G0 kopru/imza.py yuklenir", False, str(e))
+        return
+    vj = BURASI / "vektor_guvenlik.json"
+    V = json.loads(vj.read_text(encoding="utf-8")) if vj.exists() else {}
+    ok("B72.G0 uretim/vektor_guvenlik.json var ve RFC + protokol bolumleri iceriyor",
+       all(k in V for k in ("hmac", "pbkdf2", "protokol", "imza")), str(sorted(V)))
+
+    # G1 HMAC: RFC sabiti == Python hmac == JSON
+    g1 = all(_ham_hmac(k, m).hex() == h for k, m, h in RFC4231)
+    g1j = [(x["anahtar"], x["veri"], x["hmac"]) for x in V.get("hmac", [])] == \
+          [(k.hex(), m.hex(), h) for k, m, h in RFC4231]
+    ok("B72.G1 RFC 4231 HMAC-SHA256 (1,2,3,4,6,7): RFC sabiti == Python hmac == JSON",
+       g1 and g1j, f"hmac={g1} json={g1j}")
+
+    # G2 PBKDF2: RFC 7914 == hashlib == imza.pbkdf2 (32 B onek)
+    g2 = all(hashlib.pbkdf2_hmac("sha256", p.encode(), s, c, 64).hex() == h
+             for p, s, c, h in RFC7914)
+    g2i = all(IM.pbkdf2(p, s, c).hex() == h[:64] for p, s, c, h in RFC7914[:1])
+    g2j = [(x["parola"], x["tuz"], x["tur"], x["dk"]) for x in V.get("pbkdf2", [])] == \
+          [(p, s.hex(), c, h) for p, s, c, h in RFC7914]
+    ok("B72.G2 RFC 7914 PBKDF2-HMAC-SHA256: RFC == hashlib == imza.pbkdf2 (32 B) == JSON",
+       g2 and g2i and g2j, f"hashlib={g2} imza={g2i} json={g2j}")
+
+    # G3 yuzde kodlama
+    g3 = (IM.yuzde_kodla("a&b=c") == "a%26b%3Dc" and IM.yuzde_kodla("ğ") == "%C4%9F"
+          and IM.yuzde_kodla("a b") == "a%20b" and IM.yuzde_kodla("Az09-._~") == "Az09-._~")
+    ok("B72.G3 yuzde kodlama: & = bosluk ve UTF-8 kodlanir; A-Z a-z 0-9 - . _ ~ aynen", g3)
+
+    # G4 kanonik belirsizlik (Review Focus 1)
+    k1 = IM.kanonik("GET", "/kayit/veri", [("a", "1&b=2")], "00" * 16, 5, b"")
+    k2 = IM.kanonik("GET", "/kayit/veri", [("a", "1"), ("b", "2")], "00" * 16, 5, b"")
+    ok("B72.G4 kanonik BELIRSIZ DEGIL: a='1&b=2' ile a=1&b=2 farkli metin", k1 != k2,
+       f"{k1!r} | {k2!r}")
+
+    # G5 protokol: spec bicimiyle bagimsiz hesap == imza.py == JSON
+    p = V.get("protokol", {})
+    try:
+        P, kim, nk, nc, ad, n = (bytes.fromhex(p["P"]), p["kimlik"], bytes.fromhex(p["nk"]),
+                                 bytes.fromhex(p["nc"]), p["ad"], p["n"])
+        govde = f"\n{kim}\n{nk.hex()}\n{nc.hex()}\n"
+        bek_i = _ham_hmac(P, ("OK1-istemci" + govde + ad).encode()).hex()
+        bek_k = _ham_hmac(P, ("OK1-kart" + govde + str(n)).encode()).hex()
+        bek_a = _ham_hmac(P, ("OK1-anahtar" + govde + str(n)).encode()).hex()
+        g5 = (IM.kanit_istemci(P, kim, nk, nc, ad).hex() == bek_i == p["kanit_istemci"]
+              and IM.kanit_kart(P, kim, nk, nc, n).hex() == bek_k == p["kanit_kart"]
+              and IM.cihaz_anahtari(P, kim, nk, nc, n).hex() == bek_a == p["K"])
+    except (KeyError, ValueError) as e:
+        g5 = False
+        bek_i = str(e)
+    ok("B72.G5 eslestirme: istemci kaniti, kart kaniti ve K spec bicimiyle (OK1-*, \\n "
+       "ayirici, ad sonda) bagimsiz hesapla == imza.py == JSON; ad UTF-8 ('PC ğ')",
+       g5 and "ğ" in p.get("ad", ""), bek_i[:40])
+
+    # G6 imza ornekleri: spec bicimi bagimsiz yeniden yazim
+    def _kanonik_bagimsiz(y, yol, args, ac, s, gv):
+        import urllib.parse as up
+        q = "&".join(up.quote(a, safe="-._~") + "=" + up.quote(d, safe="-._~") for a, d in args)
+        return ("OK1\n" + y + "\n" + yol + ("?" + q if q else "") + "\n" + ac + "\n"
+                + str(s) + "\n" + hashlib.sha256(gv).hexdigest()).encode()
+    g6, notlar = True, []
+    for o in V.get("imza", []):
+        args = [tuple(x) for x in o["argumanlar"]]
+        kb = _kanonik_bagimsiz(o["yontem"], o["yol"], args, o["acilis"], o["sayac"],
+                               bytes.fromhex(o["govde"]))
+        ki = IM.kanonik(o["yontem"], o["yol"], args, o["acilis"], o["sayac"],
+                        bytes.fromhex(o["govde"]))
+        im = IM.imzala(bytes.fromhex(o["K"]), o["yontem"], o["yol"], args, o["acilis"],
+                       o["sayac"], bytes.fromhex(o["govde"]))
+        if not (kb == ki and kb.hex() == o["kanonik"] and im == o["imza"]
+                == _ham_hmac(bytes.fromhex(o["K"]), kb).hex()):
+            g6 = False
+            notlar.append(o["ad"])
+    turler = {o["ad"] for o in V.get("imza", [])}
+    ok("B72.G6 imza ornekleri (GET sorgusuz, GET sorgulu+yuzde kodlu, POST govdeli, "
+       "akis _c/_s/_i HARIC): bagimsiz kanonik == imza.py == JSON",
+       g6 and {"get", "get_sorgu", "post", "akis"} <= turler, f"{notlar} {sorted(turler)}")
+    ak = [o for o in V.get("imza", []) if o["ad"] == "akis"]
+    ok("B72.G6b EventSource imza argumanlari (_c _s _i) kanonige GIRMEZ",
+       bool(ak) and "_c" not in bytes.fromhex(ak[0]["kanonik"]).decode()
+       and "_i" not in bytes.fromhex(ak[0]["kanonik"]).decode())
+
+    # G8 JSON guncel: imza.py degisip vektorler yeniden uretilmezse C (B71.U) eski
+    # vektorlerle sinanirdi
+    import vektor_guvenlik as VG
+    ok("B72.G8 vektor_guvenlik.json GUNCEL (vektor_guvenlik.uret() ile ayni)",
+       vj.exists() and json.loads(vj.read_text(encoding="utf-8")) == VG.uret())
+
+    # G7 ad
+    ok("B72.G7 ad_gecerli: 1-24 bayt UTF-8, kontrol karakteri yok",
+       IM.ad_gecerli("Telefon ğ") and not IM.ad_gecerli("x" * 25)
+       and not IM.ad_gecerli("a\nb") and not IM.ad_gecerli("")
+       and not IM.ad_gecerli("ğ" * 13) and IM.ad_gecerli("ğ" * 12))
+
+
+BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py]
 
 
 def main() -> int:
