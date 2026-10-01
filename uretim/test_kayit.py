@@ -1150,6 +1150,40 @@ def bolum_ayrinti() -> None:
        "yine <= 2 us (a_q yeni origine tasinir)",
        8 <= R <= 36 and A > R and (_say(a3, "KALAN3") or 0) == A - R and sonraki and o3 is not None
        and not h3, f"R={R} A={A} KALAN={_say(a3, 'KALAN3')} sonraki={sonraki} hata={h3[:3]}")
+    r_son = next((r for r in (o3.ayrinti if o3 else []) if r["ornekler"]
+                  and r["ornekler"][0][0] - 3000 == k0 + A + 1), None)
+    ok("B71.A11 (Y5, 1C-2 inceleme) bosaltma hatasinda dusen ornek SAYILIR (dusen 1) ve "
+       "bosluktan SONRAKI kayit KA_KAYIP_ONCE tasir (PC eksigi gorur)",
+       _say(a3, "DUS3") == 1 and r_son is not None and bool(r_son["bayrak"] & KB.KA_KAYIP_ONCE),
+       f"dusen={_say(a3, 'DUS3')} bayrak={r_son and r_son['bayrak']}")
+    fl4 = NorFlas(SEKTOR * AYR_SEKTOR, sektor=SEKTOR)
+    fl4.nvs["t_rast"] = 17
+    (a4,) = _yonet(fl4, elf, [4])
+    kay4, bozuk4 = KB.flas_coz(bytes(fl4.bellek), SEKTOR)
+    o4 = KB.oturumlari_kur(kay4).get(_say(a4, "BAS4"))
+    ilk0 = [r for r in (o4.ayrinti if o4 else []) if r["ilk"] == 0]
+    orn4 = KB.ayrinti_ornekler(o4) if o4 else []
+    ok("B71.A12 (Y5) kayit flasa TAM yazildi ama yazma HATA dondu: tampon kalir (7), yeniden deneme "
+       "ayni ornekleri tekrar yazar (flasta ilk=0 olan IKI kayit); PC her ornegi BIR kez verir "
+       "(0..9, sira ve deger birebir), kayip sayilmaz",
+       (_say(a4, "Z4") or 0) < 0 and _say(a4, "KAL4") == 7 and len(ilk0) == 2 and bozuk4 == 0
+       and [s for s, *_r in orn4] == list(range(10))
+       and [v - 3000 for _s, _t, v, *_r in orn4] == list(range(10)) and _say(a4, "DUS4") == 0,
+       f"Z4={_say(a4, 'Z4')} KAL4={_say(a4, 'KAL4')} ilk0={len(ilk0)} bozuk={bozuk4} "
+       f"sira={[s for s, *_r in orn4]} dusen={_say(a4, 'DUS4')}")
+    # NOKTA kayitlari ayni yeniden deneme yolundan gecer (ky_bosalt); kartin flasi yazdigi
+    # kaydi dogrulama hatasiyla da dondurebilir — PC her noktayi BIR kez vermeli
+    def _nk(j: int) -> bytes:
+        return KB.nokta_paketle(KB.Nokta(1000 + j, 1, 0, float(j), j, j, 0.0, 0, 0, 0.0, 0.0, 0.0))
+    yk = [KB.Kayit(KB.T_NOKTA, 2, 1, struct.pack("<I", 0) + b"".join(_nk(j) for j in range(3))),
+          KB.Kayit(KB.T_NOKTA, 4, 1, struct.pack("<I", 0) + b"".join(_nk(j) for j in range(5))),
+          KB.Kayit(KB.T_NOKTA, 5, 1, struct.pack("<I", 5) + b"".join(_nk(j) for j in range(5, 7)))]
+    o5 = KB.oturumlari_kur(yk).get(1)
+    ok("B71.A13 (Y5) ayni noktalari tasiyan iki NOKTA kaydi (yeniden deneme): PC her noktayi BIR "
+       "kez, ILK kopyasiyla verir (0..6)",
+       o5 is not None and [j for j, _ in o5.noktalar] == list(range(7))
+       and [n.v_min_kod for _, n in o5.noktalar] == list(range(7)),
+       str(o5 and [j for j, _ in o5.noktalar]))
 
 
 # ── B71.Z · hazir alan: onayli sektorlerin onceden silinmesi (1C-2) ───
@@ -1372,7 +1406,7 @@ def bolum_plan() -> None:
     print("\n── B71.R  zamanlanmis kayit: baslat · bitir · atla · gec · kacirildi · acilis")
     elf = derle("PLAN")
     fl = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
-    a1, a2, a3, a4, a5 = _yonet(fl, elf, [1, 2, 3, 4, 5])
+    a1, a2, a3, a4, a5, a6, a7, a8, a9 = _yonet(fl, elf, [1, 2, 3, 4, 5, 6, 7, 8, 9])
 
     def r(c, ad):
         x = alanlar(c, ad)
@@ -1431,11 +1465,44 @@ def bolum_plan() -> None:
        "DEGIL",
        _say(a1, "K11") == 0 and r(a1, "R11a") == [BASLAT, BEK, 0] and r(a1, "R11b") == [0, BAS_YOK, 0],
        str([r(a1, "R11a"), r(a1, "R11b")]))
-    ok("B71.R13 BASLAT'tan sonra sonuc gelmeden elektrik gitti: acilista plan oturumu BILINMIYOR "
-       "-> BITTI; o an etkin olan oturumu BENIMSEMEZ",
+    ok("B71.R13 BASLAT'tan sonra sonuc gelmeden elektrik gitti, cekirdek 0'dan KANIT yok: acilista "
+       "plan oturumu BILINMIYOR -> BITTI; o an etkin olan oturumu BENIMSEMEZ (karar tarama "
+       "bittikten sonra plan_acilis'te, plan_ac'ta degil)",
        _say(a4, "K13") == 0 and r(a4, "R13a") == [BASLAT, BEK, 0]
-       and r(a5, "AC") == [0, BIT, 0] and r(a5, "R13b") == [YOK, BIT, 0],
-       str([r(a4, "R13a"), r(a5, "AC"), r(a5, "R13b")]))
+       and r(a5, "AC") == [0, SUR, 0] and _say(a5, "KA") == 0 and r(a5, "AK") == [0, BIT, 0]
+       and r(a5, "R13b") == [YOK, BIT, 0],
+       str([r(a4, "R13a"), r(a5, "AC"), r(a5, "AK"), r(a5, "R13b")]))
+    ok("B71.R14 (Y2, 1C-4 inceleme M3) BASLAT gitti ama plan NVS'i yazilmadan elektrik gitti "
+       "(plan BEKLIYOR kaldi): acilista cekirdek 0'in KANITI bu planin numarasiysa plan o "
+       "oturumu BENIMSER, sure dolunca BITIR (kayit bitissiz SURMEZ, ATLANDI demez)",
+       _say(a6, "K14") == 0 and r(a6, "R14a") == [BASLAT, BEK, 0] and r(a7, "AC") == [0, BEK, 0]
+       and _say(a7, "KA") == 1 and r(a7, "AK") == [0, SUR, 44] and r(a7, "R14b") == [YOK, SUR, 44]
+       and r(a7, "R14c") == [BITIR, SUR, 44] and r(a7, "R14d") == [YOK, BIT, 44],
+       str([r(a6, "R14a"), r(a7, "AC"), _say(a7, "KA"), r(a7, "AK"), r(a7, "R14b"), r(a7, "R14c")]))
+    ok("B71.R15 (Y2) plan SURUYOR ama oturumu bilinmiyorken elektrik gitti: KANIT varsa BITTI "
+       "DEGIL, oturumu benimser ve zamaninda BITIR",
+       _say(a7, "K15") == 0 and r(a7, "R15a") == [BASLAT, BEK, 0] and r(a8, "AC") == [0, SUR, 0]
+       and _say(a8, "KA") == 1 and r(a8, "AK") == [0, SUR, 46] and r(a8, "R15b") == [BITIR, SUR, 46]
+       and r(a8, "R15c") == [YOK, BIT, 46],
+       str([r(a7, "R15a"), r(a8, "AC"), _say(a8, "KA"), r(a8, "AK"), r(a8, "R15b")]))
+    ok("B71.R16 (Y2) kanit BASKA bir planin (numara tutmuyor): BENIMSENMEZ; BEKLIYOR plan "
+       "pencere icinde yeniden BASLAT der",
+       _say(a8, "K16") == 0 and r(a8, "R16a") == [BASLAT, BEK, 0] and _say(a9, "KA") == 0
+       and r(a9, "AK") == [0, BEK, 0] and r(a9, "R16b") == [BASLAT, BEK, 0],
+       str([r(a8, "R16a"), _say(a9, "KA"), r(a9, "AK"), r(a9, "R16b")]))
+    (a10,) = _yonet(fl, elf, [10])
+    fl.nvs_hata = {"pl_bas"}
+    (a11,) = _yonet(fl, elf, [11])
+    fl.nvs_hata = set()
+    (a12,) = _yonet(fl, elf, [12])
+    ok("B71.R17 (Y3, 1C-4 inceleme M4) plan NVS'e YAZILAMAZSA (kismi hata: yalniz pl_bas) KURULMAZ "
+       "(KP_NVS -6, kart 'kuruldu' demez); ONCEKI plan RAM'de ve NVS'te bozulmadan kalir, "
+       "acilista geri gelir ve zamaninda BASLAT der",
+       _say(a10, "K17") == 0 and _say(a11, "K18") == -6 and r(a11, "R18") == [0, BEK, 0]
+       and _say(a11, "PBAS") == 800000 and r(a12, "AC") == [0, BEK, 0]
+       and _say(a12, "PBAS") == 800000 and r(a12, "R17") == [BASLAT, BEK, 0],
+       str([_say(a11, "K18"), r(a11, "R18"), _say(a11, "PBAS"), r(a12, "AC"), _say(a12, "PBAS"),
+            r(a12, "R17")]))
 
 # ── B71.H · ornek halkasi (1C-2) ─────────────────────────────────────
 def bolum_halka() -> None:
@@ -1572,6 +1639,13 @@ def bolum_pil() -> None:
        and l5b.get("oturum") == 0 and p4 is not None and bool(p4.bitir)
        and p4.bitir["sebep"] == 5 and not p4.devamlar,
        f"L5a={l5a} L5b={l5b} bitir={p4 and p4.bitir} devam={p4 and p4.devamlar}")
+    ok("B71.PL8 (Y1, 1C-1 inceleme M7: kayitsiz pil testi) olcum oturumu acikken hedefi PIL "
+       "olan olay YAZILMAZ (KG_YOK), olcum oturumunda olay yok; KN_DCIR noktada YALNIZ PIL "
+       "oturumunda kalir (baska bitler korunur)",
+       _say(c3, "OYO") == -4 and o3 is not None and not o3.olaylar
+       and _say(c3, "EKO") == 0x01 and _say(c3, "EKP") == 0x41 and _say(c3, "EKY") == 0x01,
+       f"OYO={_say(c3, 'OYO')} olay={o3 and o3.olaylar} EKO={_say(c3, 'EKO')} "
+       f"EKP={_say(c3, 'EKP')} EKY={_say(c3, 'EKY')}")
 
 
 # ── B71.C · kalibrasyon gecmisi (kalgec.h) ───────────────────────────
@@ -1692,6 +1766,24 @@ def bolum_kalgec() -> None:
        and _kd_al(c5, "C7b").get("adet") == 3 and alanlar(c5, "KAY4") == [["4"]]
        and _ke(c5, 4)[3] == "dorduncu" and f.nvs.get("adet") == (4).to_bytes(4, "little"),
        f"{alanlar(c4, 'YETIM')} {_kd_al(c5, 'C7b')} {alanlar(c5, 'KAY4')} {_ke(c5, 4)}")
+    # Y4 (1B inceleme M1): `adet` kaybolursa #1 EZILMEZ — k1..k40 taranip sayi yeniden kurulur;
+    # ortadaki bozuk kayit (k3) taramayi durdurmaz (yoksa k4 ezilirdi)
+    oncesi = {a: f.nvs[a] for a in ("k1", "k2", "k3", "k4")}
+    del f.nvs["adet"]
+    k3b = bytearray(f.nvs["k3"])
+    k3b[20] ^= 0xFF
+    f.nvs["k3"] = bytes(k3b)
+    (c14,) = _yonet(f, elf, [11])
+    sonrasi = {a: f.nvs.get(a) for a in ("k1", "k2", "k4")}
+    f.nvs["k3"] = oncesi["k3"]
+    ok("B71.C14 (Y4, 1B inceleme M1) `adet` KAYBOLURSA #1 ezilmez: k1..k40 taranir, adet = en buyuk "
+       "gecerli numara (4; ortadaki bozuk k3 taramayi durdurmaz), NVS'e geri yazilir, kayitlar "
+       "degismez",
+       alanlar(c14, "AC") == [["0"]] and _kd_al(c14, "C14").get("adet") == 4
+       and _kd_al(c14, "C14").get("son_no") == 4 and f.nvs.get("adet") == (4).to_bytes(4, "little")
+       and all(sonrasi[a] == oncesi[a] for a in ("k1", "k2", "k4")),
+       f"{alanlar(c14, 'AC')} {_kd_al(c14, 'C14')} adet={f.nvs.get('adet')!r} "
+       f"degisen={[a for a in ('k1', 'k2', 'k4') if sonrasi[a] != oncesi[a]]}")
     (c6,) = _yonet(f, elf, [6])
     ok("B71.C8 40 dolunca kaydet ACIK hata (KGC_DOLU), eski kayit silinmez; kayit "
        "baslarken numara 0 + hata (oturum yine tam kopyayla)",
@@ -1848,9 +1940,41 @@ def bolum_kesinti(n_deneme: int) -> None:
        bitir_payi_korunur(bellek))
 
 
+def bolum_plan_kanit() -> None:
+    """Y2 (1C-4 inceleme M3): cekirdek 0 planin oturumunu KANITLA baglar. Oturumu
+    acmadan ONCE NVS'e plan no + sonraki sira, actiktan sonra oturum; acilista
+    (kyn_ac) bu kanit devam eden oturumla karsilastirilip yayinlanir. Elektrik
+    hangi anda giderse gitsin planin oturumu taninir, baska oturum benimsenmez."""
+    print("\n── B71.PK  plan oturumu kaniti (Y2): kyn_plan_baslat · kyn_ac")
+    elf = derle("YONET")
+    fl = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
+    c15, c16, c17, c18, c19 = _yonet(fl, elf, [15, 16, 17, 18, 19])
+
+    def kn(c, ad):
+        x = alanlar(c, ad)
+        return [int(v) for v in x[0]] if x else None
+    pk1, pk2, el = _say(c15, "PK1"), _say(c16, "PK2"), _say(c17, "EL")
+    ok("B71.PK1 tam yol (KM_PLAN_BASLAT): plan 5'in oturumu acildi; acilista cekirdek 0 kaniti "
+       "(plan 5, o oturum) yayinlar, oturum DEVAM'li",
+       bool(pk1) and pk1 > 0 and _say(c15, "PKOT") == pk1 and kn(c16, "KN16") == [5, pk1, pk1],
+       f"PK1={pk1} pk_ot={_say(c15, 'PKOT')} KN16={kn(c16, 'KN16')}")
+    ok("B71.PK2 TEHLIKELI pencere: oturum acildi ama pk_ot yazilmadan elektrik gitti — acilista "
+       "kanit, pk_alt'tan YENI devam eden oturumdan (plan 6); pk_ot onarilir",
+       bool(pk2) and pk2 > pk1 and kn(c17, "KN17") == [6, pk2, pk2] and _say(c17, "PKO") == pk2,
+       f"PK2={pk2} KN17={kn(c17, 'KN17')} pk_ot={_say(c17, 'PKO')}")
+    ok("B71.PK3 oturum surerken planin oturumu ACILMAZ (0 = mesgul), kanit degismez",
+       _say(c17, "PB0") == 0 and _say(c17, "PKN") == 6, f"{_say(c17, 'PB0')} {_say(c17, 'PKN')}")
+    ok("B71.PK4 kullanicinin ELLE kaydi DEVAM alsa da plan kanitina UYMAZ (benimseme yok, I1)",
+       bool(el) and el > pk2 and kn(c18, "KN18") == [0, 0, el], f"EL={el} KN18={kn(c18, 'KN18')}")
+    ok("B71.PK5 plan oturumu acilmadan elektrik gitti (pk_ot 0): devam eden oturum pk_alt'tan "
+       "ESKI (o anda acik olan elle kayit) -> kanit YOK ve pk_no TEMIZLENIR (bayat kanit sonraki "
+       "bir kayda uymaz)",
+       kn(c19, "KN19") == [0, 0, el] and _say(c19, "PKN") == 0, f"{kn(c19, 'KN19')} {_say(c19, 'PKN')}")
+
+
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
             bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_halka, bolum_ayrinti,
-            bolum_hazir, bolum_skop, bolum_plan, bolum_kalgec, bolum_dizin,
+            bolum_hazir, bolum_skop, bolum_plan, bolum_plan_kanit, bolum_kalgec, bolum_dizin,
             bolum_kesinti]
 
 

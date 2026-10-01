@@ -3050,7 +3050,7 @@ static void kayit_pil_dcir(float v_oturmus) {
   KayitMesaj m;
   if (!kayit_bolum) return;
   memset(&m, 0, sizeof(m));
-  m.tur = KM_OLAY;
+  m.tur = KM_PIL_OLAY;     /* Y1: yalniz PIL oturumuna (kayitsiz testte olcume dusmez) */
   KayitDcir d;
   d.no = pil.dcir_sayisi;
   d.v_once = pil.dcir_v_once;
@@ -3223,6 +3223,10 @@ static void kayit_plan_komut(const char *s) {
     Serial.println(F("! G: baslangic anlamsiz (unix saniye, en fazla 1 yil ileri; goreli icin Gp+<saniye>)"));
     return;
   }
+  if (r == KP_NVS) {           /* Y3: yalniz RAM'de kalip yeniden baslamada kaybolmasin */
+    Serial.println(F("! G: plan NVS'e yazilamadi (NVS dolu?) — KURULMADI, onceki plan gecerli"));
+    return;
+  }
   if (r) { Serial.println(F("! G: plan kurulamadi")); return; }
   Serial.print(F("* G plan kuruldu: "));
   Serial.print(bas);
@@ -3243,6 +3247,14 @@ static void kayit_plan_isle() {
   if (!kayit_bolum) return;
   const KayitDurum d = kayit_durum_al();
   if (d.durum == KDR_TARIYOR) return;          /* acilis taramasi: DEVAM henuz belli degil */
+  /* Y2 (1C-4 inceleme M3): tarama bitti — BIR KEZ, plan_adim'dan ONCE: cekirdek 0'in kaniti
+     bu planinsa devam eden oturumu benimse (BEKLIYOR ya da SURUYOR/oturumsuz kalmis plan) */
+  static bool kayit_plan_acildi = false;
+  if (!kayit_plan_acildi) {
+    kayit_plan_acildi = true;
+    if (plan_acilis(&kayit_plan, d.plan_no, d.plan_ot))
+      Serial.println(F("* G plan: elektrik kesintisinden sonra kendi kaydini buldu (kanitli)"));
+  }
   /* cekirdek 0'in KM_PLAN_BASLAT sonucu (I1/I3): plan YALNIZ bu oturuma baglanir */
   if (kayit_plan_beklenen && kayit_plan_sonuc_no == kayit_plan_beklenen) {
     KAYIT_BARIYER();
@@ -3699,7 +3711,14 @@ void kal_liste_sayfa() {
     char ad[13];
     KalKayit e;
     kgc__ad(ad, no);
-    if (!p.isKey(ad) || p.getBytes(ad, blob, KALGEC_BAYT) != KALGEC_BAYT || kgc_coz(blob, &e)) continue;
+    const bool okundu = p.isKey(ad) && p.getBytes(ad, blob, KALGEC_BAYT) == KALGEC_BAYT;
+    if (!okundu || kgc_coz(blob, &e) || e.no != no) {
+      /* Y6 (1B inceleme M2): bozuk kayit SESSIZCE atlanmaz — PC eksik gecmisi tam sanmasin */
+      snprintf(t, sizeof(t), "%s{\"no\":%lu,\"bozuk\":true}", ilk ? "" : ",", (unsigned long)no);
+      sunucu.sendContent(t);
+      ilk = false;
+      continue;
+    }
     snprintf(t, sizeof(t), "%s{\"no\":%lu,\"unix\":%lu,\"acilis\":%lu,\"tur\":%u,\"kaynak\":%u,"
              "\"not\":\"%s\",\"kal\":{", ilk ? "" : ",", (unsigned long)e.no,
              (unsigned long)e.unix_s, (unsigned long)e.acilis, (unsigned)e.tur,
@@ -4624,8 +4643,12 @@ void komut_calistir(const char *s) {
         Serial.println(ag_durum.mdns ? F(AG_MDNS ".local") : F("yok"));
         Serial.print(F("* ev agi: "));
         Serial.print(ag_nvs.getString("wifi_ad", "(kurulmadi)"));
-        Serial.print(F("   AP parolasi: "));
-        Serial.println(ag_nvs.getString("ap_sifre", ""));
+        /* AP parolasi YALNIZ ham UART'a — Serial aynasi her satiri /akis SSE'sine
+           tasiyor, parola aga cikiyordu (B72.D0) */
+        Serial.println();
+        Serial.ham("   AP parolasi (yalniz USB): ");
+        Serial.ham(ag_nvs.getString("ap_sifre", "").c_str());
+        Serial.ham("\r\n");
         Serial.print(F("* web parolasi: "));
         Serial.println(ag_nvs.getString("web_sifre", "").length()
                        ? F("KURULU") : F("YOK — komut ucu parolasiz"));
@@ -4984,8 +5007,10 @@ void setup() {
     // AP parolasi RASTGELE uretildi ve NVS'te; kullanici bir kez buradan
     // okuyup telefonuna yaziyor. MAC'ten turetseydik hicbir sey korumazdi
     // (SSID zaten MAC son ekini yayinliyor).
-    Serial.print(F("  AP parolasi: "));
-    Serial.println(ag_nvs.getString("ap_sifre", ""));
+    /* yalniz ham UART'a: afis satirlari da akis kuyruguna girer (B72.D0) */
+    Serial.ham("  AP parolasi (yalniz USB): ");
+    Serial.ham(ag_nvs.getString("ap_sifre", "").c_str());
+    Serial.ham("\r\n");
   }
   /* B28: ag gorevi EN SONDA baslatiliyor — sunucu, kuyruklar ve afis
      hazir olduktan sonra. Onceden baslatilsaydi ilk istek yarim kurulmus

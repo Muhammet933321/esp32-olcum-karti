@@ -17,7 +17,10 @@
  *    PLAN_BASLAT_S icinde gelmediyse BASLATILAMADI;
  *  - planin oturumu kapandiysa (Gd, DOLU, DEVAM alamadi) BITTI — yeni oturum ACMAZ;
  *  - acilista SURUYOR ama oturumu bilinmiyorsa (sonuc gelmeden elektrik
- *    gitti) BITTI: hangi oturum oldugu bilinemez, tahmin edilmez.
+ *    gitti) BITTI: hangi oturum oldugu bilinemez, tahmin edilmez —
+ *    Y2 (1C-4 inceleme M3): cekirdek 0'in KANITI varsa (plan_acilis) o oturum
+ *    benimsenir; BEKLIYOR kalmis plan da (BASLAT gitti, NVS yazilmadan elektrik)
+ *    ayni kanitla. Kanit tahmin degildir: o pencerede cekirdek 0 baska oturum acmaz.
  * AVR'de sinaniyor: test_kayit.py B71.R1-R13 (SENARYO_PLAN). */
 #ifndef KAYIT_PLAN_H
 #define KAYIT_PLAN_H
@@ -43,6 +46,7 @@
 #define KP_GECMIS  (-3)           /* pencere tamamen gecmis */
 #define KP_SURUYOR (-4)           /* plan suruyor: once Gp- */
 #define KP_ZAMAN   (-5)           /* baslangic anlamsiz: 2023'ten once ya da 1 yildan ileri */
+#define KP_NVS     (-6)           /* Y3: NVS'e yazilamadi — KURULMADI, onceki plan gecerli */
 
 #define PLAN_SURE_AZAMI (30UL * 86400UL)
 #define PLAN_UNIX_ALT   1700000000UL      /* 2023-11: bundan kucuk 'unix' bir yazim hatasidir */
@@ -57,17 +61,20 @@ typedef struct {
     uint8_t  durum;
 } KayitPlan;
 
-static inline void plan__yaz(KayitPlan *p)
+/* 0 tamam, -1 bir alan yazilamadi. Y3: o zaman durum YAZILMAZ (gecerlilik isareti EN SON). */
+static inline int plan__yaz(KayitPlan *p)
 {
     const KayitNvs *n = p->nvs;
-    if (!n) return;
-    (void)n->yaz(n->baglam, "pl_bas", p->bas);
-    (void)n->yaz(n->baglam, "pl_sure", p->sure);
-    (void)n->yaz(n->baglam, "pl_hiz", p->hiz);
-    (void)n->yaz(n->baglam, "pl_no", p->no);
-    (void)n->yaz(n->baglam, "pl_ot", p->oturum);
-    (void)n->yaz(n->baglam, "pl_bu", p->baslat_unix);
-    (void)n->yaz(n->baglam, "pl_dur", p->durum);     /* EN SON: durum gecerliligi isaretler */
+    int h = 0;
+    if (!n) return 0;
+    h |= n->yaz(n->baglam, "pl_bas", p->bas);
+    h |= n->yaz(n->baglam, "pl_sure", p->sure);
+    h |= n->yaz(n->baglam, "pl_hiz", p->hiz);
+    h |= n->yaz(n->baglam, "pl_no", p->no);
+    h |= n->yaz(n->baglam, "pl_ot", p->oturum);
+    h |= n->yaz(n->baglam, "pl_bu", p->baslat_unix);
+    if (h) return -1;
+    return n->yaz(n->baglam, "pl_dur", p->durum) ? -1 : 0;   /* EN SON: durum gecerliligi */
 }
 
 static inline void plan_ac(KayitPlan *p, const KayitNvs *n)
@@ -81,22 +88,48 @@ static inline void plan_ac(KayitPlan *p, const KayitNvs *n)
     p->baslat_unix = n->oku(n->baglam, "pl_bu", 0u);
     p->durum = (uint8_t)n->oku(n->baglam, "pl_dur", PLAN_YOK);
     if (p->durum == PLAN_SAAT_YOK || p->durum > PLAN_BASLATILAMADI) p->durum = PLAN_YOK;
-    if (p->durum == PLAN_SURUYOR && !p->oturum) {   /* sonuc gelmeden elektrik gitti */
+    /* SURUYOR + oturumsuz (sonuc gelmeden elektrik gitti) karari plan_acilis'te: cekirdek
+       0'in kaniti tarama bitince belli olur */
+}
+
+/* Y2 (1C-4 inceleme M3): acilista BIR KEZ, tarama bittikten sonra ve plan_adim'dan ONCE.
+   `kanit_no`/`kanit_ot`: cekirdek 0'in kaniti (kyn_ac) — plan `kanit_no` icin acilan
+   oturum `kanit_ot` su an devam ediyor. Plan BEKLIYOR (BASLAT gitti, plan NVS'i
+   yazilmadan elektrik) ya da SURUYOR/oturumsuz kalmissa ve kanit BU planin ise o oturum
+   benimsenir (sure dolunca BITIR). Kanit yoksa SURUYOR/oturumsuz -> BITTI (tahmin yok);
+   BEKLIYOR beklemeye devam eder. Donus 1 = benimsendi. */
+static inline uint8_t plan_acilis(KayitPlan *p, uint32_t kanit_no, uint32_t kanit_ot)
+{
+    const uint8_t belirsiz = (uint8_t)(p->durum == PLAN_BEKLIYOR
+                                       || (p->durum == PLAN_SURUYOR && !p->oturum));
+    if (belirsiz && kanit_no && kanit_ot && kanit_no == p->no) {
+        if (p->durum == PLAN_BEKLIYOR) p->baslat_unix = p->bas;
+        p->durum = PLAN_SURUYOR;
+        p->oturum = kanit_ot;
+        plan__yaz(p);
+        return 1u;
+    }
+    if (p->durum == PLAN_SURUYOR && !p->oturum) {       /* kanit yok: tahmin edilmez */
         p->durum = PLAN_BITTI;
         plan__yaz(p);
     }
+    return 0u;
 }
 
-/* Donus 0 ya da KP_*. Suren plan degistirilemez (once Gd ya da Gp-). */
+/* Donus 0 ya da KP_*. Suren plan degistirilemez (once Gd ya da Gp-). Y3 (1C-4 inceleme
+   M4): NVS'e yazilamazsa (NVS dolu) KP_NVS — plan yalniz RAM'de kalip yeniden baslamada
+   sessizce kaybolmasin; onceki plan RAM'de geri gelir, NVS'e geri yazilir (en iyi caba). */
 static inline int plan_kur(KayitPlan *p, uint32_t bas, uint32_t sure, uint32_t hiz,
                            uint32_t simdi_unix)
 {
+    KayitPlan eski;
     if (!simdi_unix) return KP_SAAT;
     if (bas < PLAN_UNIX_ALT || (int32_t)(bas - simdi_unix) > (int32_t)PLAN_ILERI_AZAMI)
         return KP_ZAMAN;
     if (sure > PLAN_SURE_AZAMI) return KP_SURE;
     if (sure && (uint32_t)(bas + sure) <= simdi_unix) return KP_GECMIS;
     if (p->durum == PLAN_SURUYOR) return KP_SURUYOR;
+    eski = *p;
     p->bas = bas;
     p->sure = sure;
     p->hiz = hiz;
@@ -104,7 +137,11 @@ static inline int plan_kur(KayitPlan *p, uint32_t bas, uint32_t sure, uint32_t h
     p->oturum = 0u;
     p->baslat_unix = 0u;
     p->durum = PLAN_BEKLIYOR;
-    plan__yaz(p);
+    if (plan__yaz(p)) {
+        *p = eski;
+        (void)plan__yaz(p);
+        return KP_NVS;
+    }
     return 0;
 }
 

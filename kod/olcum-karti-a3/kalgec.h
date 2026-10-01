@@ -211,6 +211,21 @@ static inline int32_t kgc__ekle(KalGecmis *m, const KayitKalibrasyon *simdiki, u
     return (int32_t)e.no;
 }
 
+/* Y4 (1B inceleme M1): `adet` okunamazsa (kayip/bozuk) gecmis BOS sayilmaz — yoksa #1
+   ezilirdi. k1..k40 taranir: adet = numarasi kendine esit, CRC'si tutan EN BUYUK kayit.
+   Ortadaki bozuk bir kayit taramayi DURDURMAZ (yoksa sonrakiler ezilirdi). En fazla
+   KALGEC_AZAMI NVS okumasi, yalniz `adet` yokken (ilk acilis dahil). */
+static inline uint32_t kgc__adet_tara(KalGecmis *m)
+{
+    KalKayit e;
+    uint32_t no, en = 0u;
+    m->adet = KALGEC_AZAMI;                      /* kgc_oku'nun sinir denetimi icin */
+    for (no = 1u; no <= KALGEC_AZAMI; no++)
+        if (kgc_oku(m, no, &e) == KGC_TAMAM && e.no == no) en = no;
+    m->adet = en;
+    return en;
+}
+
 /* ACILIS. Gecmis bossa bugunku kalibrasyon #1 olur (kaynak 'ilk'). */
 static inline int kgc_ac(KalGecmis *m, const KalNvs *nvs, const KayitKalibrasyon *simdiki,
                          uint32_t unix_s, uint32_t acilis)
@@ -220,6 +235,10 @@ static inline int kgc_ac(KalGecmis *m, const KalNvs *nvs, const KayitKalibrasyon
     memset(m, 0, sizeof(*m));
     m->nvs = *nvs;
     if (!m->nvs.oku(m->nvs.baglam, "adet", a, 4u)) m->adet = kayit_o32(a);
+    if (!m->adet && kgc__adet_tara(m)) {         /* Y4: `adet` kayipti, kayitlar duruyor */
+        kayit_y32(a, m->adet);
+        (void)m->nvs.yaz(m->nvs.baglam, "adet", a, 4u);
+    }
     if (m->adet > KALGEC_AZAMI) m->adet = KALGEC_AZAMI;
     if (m->adet) {
         r = kgc_oku(m, m->adet, &m->son);

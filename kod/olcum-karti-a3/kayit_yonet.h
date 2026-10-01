@@ -62,6 +62,7 @@ typedef struct {
     int32_t  son_hata;
     uint8_t  on_sil_izin;            /* 1C-2: DISARIDAN (kart: kayit/skop/pil yok) */
     uint8_t  on_sil_onceki;
+    uint32_t plan_kanit_no, plan_kanit_ot;   /* Y2: acilista devam eden oturum o planin */
 } KayitYonetici;
 
 static inline void kyn_kur(KayitYonetici *m, KayitGunluk *g, KayitYazici *y,
@@ -146,6 +147,39 @@ static inline void kyn__onay_kaydet(KayitYonetici *m, uint8_t zorla, uint32_t si
     }
 }
 
+/* Y2 (1C-4 inceleme M3): acilista (DEVAM'dan sonra) planin oturum KANITI. kyn_plan_baslat
+   oturumu acmadan ONCE pk_alt (sonraki sira) + pk_ot 0 + pk_no (plan no), actiktan sonra
+   pk_ot = id yazar. Devam eden oturum pk_ot'sa ya da pk_ot 0 iken pk_alt'tan yeniyse o
+   oturum o planindir: o pencerede cekirdek 0 baska oturum acmaz (mesgulken plan ACMAZ).
+   pk_ot 0 kalmis kanit onarilir (uyan oturum) ya da silinir (uyan yok): bayat kanit
+   sonraki bir kayda uymaz. */
+static inline uint32_t kyn_oturum(const KayitYonetici *m);
+
+/* Ayri islev (satir ici DEGIL): yerelleri kyn_ac'in cercevesine girmesin — AVR sinamasinda
+   (2 KB RAM) acilis taramasi (kg_ac) sirasinda yigin SKOP senaryosunu tasiyordu. */
+#if defined(__GNUC__)
+#define KYN__AYRI __attribute__((noinline, unused))
+#else
+#define KYN__AYRI
+#endif
+static KYN__AYRI void kyn__plan_kanit(KayitYonetici *m)
+{
+    const uint32_t no = m->nvs.oku(m->nvs.baglam, "pk_no", 0u);
+    const uint32_t ot = m->nvs.oku(m->nvs.baglam, "pk_ot", 0u);
+    const uint32_t alt = m->nvs.oku(m->nvs.baglam, "pk_alt", 0u);
+    const uint32_t id = kyn_oturum(m);
+    m->plan_kanit_no = 0u;
+    m->plan_kanit_ot = 0u;
+    if (!no) return;
+    if (id && (id == ot || (!ot && id >= alt))) {
+        m->plan_kanit_no = no;
+        m->plan_kanit_ot = id;
+        if (!ot) (void)m->nvs.yaz(m->nvs.baglam, "pk_ot", id);
+    } else if (!ot) {
+        (void)m->nvs.yaz(m->nvs.baglam, "pk_no", 0u);
+    }
+}
+
 /* ACILIS. `rastgele`: yeni akis kimligi gerekirse (kartta esp_random). */
 static inline int kyn_ac(KayitYonetici *m, uint32_t simdi_ms, uint32_t unix_s,
                          uint32_t rastgele)
@@ -185,6 +219,7 @@ static inline int kyn_ac(KayitYonetici *m, uint32_t simdi_ms, uint32_t unix_s,
     m->temiz_s = g->eski ? 0u : g->sektor_adet;
     m->temiz_ms = simdi_ms;
     kyn__devam_dene(m, simdi_ms, unix_s);
+    kyn__plan_kanit(m);
     return KG_TAMAM;
 }
 
@@ -223,14 +258,42 @@ static inline int kyn_durdur(KayitYonetici *m)
 }
 
 /* 1C-1: etkin oturuma OLAY. Oturum yoksa KG_YOK (sessiz: pil testi kayitsiz
-   da calisir, K5). */
-static inline int kyn_olay(KayitYonetici *m, const uint8_t *yuk, uint16_t n)
+   da calisir, K5). Y1 (1C-1 inceleme M7): `tur` 0 degilse YALNIZ o turdeki
+   oturuma — kayitsiz kalan pil testinin (tarama sirasinda p1, kuyruk dolu)
+   DCIR olayi acik ya da DEVAM almis bir OLCUM oturumuna DUSMEZ. */
+static inline int kyn_olay(KayitYonetici *m, uint8_t tur, const uint8_t *yuk, uint16_t n)
 {
     int r;
     if (!m->hazir) return KG_HATA;
+    if (tur && (!m->y->oturum || m->y->basla.oturum_turu != tur)) return KG_YOK;
     r = ky_olay(m->y, yuk, n);
     if (r && r != KG_YOK) m->son_hata = r;
     return r;
+}
+
+/* 1C-4 + Y2 (1C-4 inceleme M3): planin oturumu = BASLA + PLAN olayi + NVS KANITI.
+   Mesgulse (etkin oturum ya da DEVAM bekleyisi) ACMAZ: 0. Acmadan ONCE pk_alt + pk_ot 0 +
+   pk_no (EN SON: ucunun gecerliligi), actiktan sonra pk_ot = id, acamazsa pk_no 0
+   (kyn__plan_kanit acilista okur). Donus: oturum id (> 0), 0 mesgul, KG_* hata. */
+static inline int32_t kyn_plan_baslat(KayitYonetici *m, const KayitBasla *b,
+                                      const uint8_t *olay, uint16_t n,
+                                      uint32_t simdi_ms, uint32_t unix_s)
+{
+    int32_t s;
+    if (!m->hazir) return KG_HATA;
+    if (m->y->oturum || m->devam_bekliyor) return 0;
+    (void)m->nvs.yaz(m->nvs.baglam, "pk_alt", m->g->sonraki_sira);
+    (void)m->nvs.yaz(m->nvs.baglam, "pk_ot", 0u);
+    (void)m->nvs.yaz(m->nvs.baglam, "pk_no", kayit_olay_plan_no(olay));
+    s = kyn_baslat(m, b, simdi_ms, unix_s);
+    if (s > 0) {
+        (void)kyn_olay(m, b->oturum_turu, olay, n);
+        (void)m->nvs.yaz(m->nvs.baglam, "pk_ot", (uint32_t)s);
+    } else {
+        (void)m->nvs.yaz(m->nvs.baglam, "pk_no", 0u);
+        if (!s) s = KG_HATA;                       /* 0 'mesgul' demek; acilamadi = hata */
+    }
+    return s;
 }
 
 /* 1C-1: pil testi bitti — SONUC olayi, hemen ardindan BITIR(sebep). Yalniz

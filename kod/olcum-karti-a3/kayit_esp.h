@@ -47,7 +47,7 @@
 #include "kayit_plan.h"           /* 1C-4: zamanlanmis kayit karar mantigi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-1C4"    /* 1C-4: zamanlanmis kayit (OLAY PLAN, sebep 7) */
+#define KAYIT_FW_SURUM    "A3-1C4d"   /* 1C-4 + alt proje 1 duzeltmeleri (Y1-Y6, D0) */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
@@ -60,13 +60,14 @@
 #define KM_DURDUR  2u
 #define KM_BICIMLE 3u
 #define KM_PIL_BASLAT 4u   /* 1C-1: BASLA (tur PIL) + yukte PIL_AYAR olayi, TEK mesaj */
-#define KM_OLAY       5u   /* 1C-1: yukte olay (DCIR) */
+#define KM_OLAY       5u   /* 1C-3: yukte SKOP_KAL olayi; YALNIZ etkin OLCUM oturumuna (Y1) */
 #define KM_PIL_BITIR  6u   /* 1C-1: yukte PIL_SONUC + sebep; yalniz etkin oturum PIL ise */
 #define KM_NOT        7u   /* 1C-1: yukte NOT kaydi (ad/etiket/not) */
 #define KM_SKOP       8u   /* 1C-3: yuvadaki yakalama (yuk yok; yuva PSRAM'de) */
 #define KM_SKOP_BASLAT 9u  /* 1C-3: BASLA (tur SKOP) + yukte SKOP_KAL olayi, TEK mesaj */
 #define KM_PLAN_BITIR 10u  /* 1C-4: yukte u32 oturum; YALNIZ etkin oturum oysa BITIR(7) */
 #define KM_PLAN_BASLAT 11u /* 1C-4: BASLA + yukte PLAN olayi, TEK mesaj */
+#define KM_PIL_OLAY   12u  /* Y1: yukte DCIR olayi; YALNIZ etkin PIL oturumuna */
 
 typedef struct {
     uint8_t    tur, sebep;
@@ -86,6 +87,7 @@ typedef struct {
     uint32_t hazir, ornek_dusen, ayr_silme;   /* 1C-2: GA satiri */
     uint8_t  tur;                             /* 1C-3: etkin oturumun turu (0 = yok) */
     uint32_t skop_hata;                       /* 1C-3: gorevin yazamadigi yakalama */
+    uint32_t plan_no, plan_ot;                /* Y2: acilis kaniti (kyn__plan_kanit) */
 } KayitDurum;
 
 /* olcum_al'in son HAM ornegi — ikisi de cekirdek 1: olcum_al yazar, loop okur */
@@ -267,6 +269,8 @@ static void kayit__durum_guncelle(void)
     t.acilis = kayit_m.acilis;
     t.hiz_ms = kayit_y.oturum ? kayit_y.basla.hiz_ms : 0u;
     t.son_hata = kayit_m.son_hata;
+    t.plan_no = kayit_m.plan_kanit_no;
+    t.plan_ot = kayit_m.plan_kanit_ot;
     portENTER_CRITICAL(&kayit_mux);
     t.nesil = kayit_durum.nesil
             + ((t.durum != kayit_durum.durum || t.oturum != kayit_durum.oturum) ? 1u : 0u);
@@ -295,14 +299,10 @@ static void kayit__mesaj(const KayitMesaj *m)
                                   karari bu ana dek eskimis olabilir (kuyrukta onde Gb):
                                   oturum ya da DEVAM bekleyisi varsa ACMAZ. Sonuc istek
                                   numarasiyla (m->sebep) cekirdek 1'e. */
-        int32_t s = 0;
-        if (!kayit_y.oturum && !kayit_m.devam_bekliyor) {
-            KayitBasla b = m->basla;
-            if (!b.unix_s) b.unix_s = kayit__unix();
-            s = kyn_baslat(&kayit_m, &b, simdi, kayit__unix());
-            if (s > 0) (void)kyn_olay(&kayit_m, m->yuk, m->n);
-            else if (!s) s = KG_HATA;          /* 0 "mesgul" demek; acilamadi = hata */
-        }
+        /* Y2: mesgul denetimi + NVS kaniti platformsuz (kyn_plan_baslat, B71.PK) */
+        KayitBasla b = m->basla;
+        if (!b.unix_s) b.unix_s = kayit__unix();
+        const int32_t s = kyn_plan_baslat(&kayit_m, &b, m->yuk, m->n, simdi, kayit__unix());
         kayit_plan_sonuc = s;
         KAYIT_BARIYER();
         kayit_plan_sonuc_no = m->sebep;
@@ -313,11 +313,14 @@ static void kayit__mesaj(const KayitMesaj *m)
         KayitBasla b = m->basla;
         if (!b.unix_s) b.unix_s = kayit__unix();
         if (kyn_baslat(&kayit_m, &b, simdi, kayit__unix()) > 0)
-            (void)kyn_olay(&kayit_m, m->yuk, m->n);
+            (void)kyn_olay(&kayit_m, b.oturum_turu, m->yuk, m->n);
         break;
     }
-    case KM_OLAY:
-        (void)kyn_olay(&kayit_m, m->yuk, m->n);
+    case KM_OLAY:              /* Y1: hedef tur mesajda — baska turdeki oturuma DUSMEZ */
+        (void)kyn_olay(&kayit_m, KAYIT_OTURUM_OLCUM, m->yuk, m->n);
+        break;
+    case KM_PIL_OLAY:
+        (void)kyn_olay(&kayit_m, KAYIT_OTURUM_PIL, m->yuk, m->n);
         break;
     case KM_PIL_BITIR:
         (void)kyn_pil_bitir(&kayit_m, m->yuk, m->n, m->sebep);
@@ -527,6 +530,7 @@ static KayitNoktaci kayit_kn;
 static uint32_t kayit_kn_nesil = 0xFFFFFFFFu;
 static uint8_t  kayit_kn_aktif = 0;
 static uint8_t  kayit_ayr_aktif = 0;           /* 1C-2: oturum hiz_ms 0 = her ornek */
+static uint8_t  kayit_kn_tur = 0;              /* Y1: etkin oturumun turu (KN_DCIR suzgeci) */
 
 static void kayit__gonder(const KayitNokta *c)
 {
@@ -543,6 +547,7 @@ static void kayit__nesil(uint32_t simdi, uint8_t menzil)
     kayit_kn_nesil = d.nesil;
     kayit_kn_aktif = (d.durum == KDR_KAYIT && d.hiz_ms) ? 1u : 0u;
     kayit_ayr_aktif = (d.durum == KDR_KAYIT && !d.hiz_ms) ? 1u : 0u;
+    kayit_kn_tur = (d.durum == KDR_KAYIT) ? d.tur : 0u;
     if (d.tur == KAYIT_OTURUM_SKOP) kayit_kn_aktif = 0u;    /* 1C-3: yalniz yakalama */
     if (d.tur != KAYIT_OTURUM_OLCUM) kayit_ayr_aktif = 0u;  /* 1C-3: SKOP hiz 0 = her tetik */
     if (kayit_kn_aktif) kn_baslat(&kayit_kn, d.hiz_ms, simdi, menzil);
@@ -579,7 +584,7 @@ static void kayit_ornek(float watt, uint32_t simdi, uint8_t ek)
     ksi_esitle(&kayit_ksi, kayit_g.kirli_sil);   /* ayrintili degil: isaret birikmesin */
     if (!kayit_kn_aktif) return;
     if (kn_ornek(&kayit_kn, simdi, kayit_ham.menzil, kayit_ham.ham_v, kayit_ham.ham_i,
-                 watt, hata, kayit_ham.v_doydu, ek, &c))
+                 watt, hata, kayit_ham.v_doydu, kn_ek_suz(kayit_kn_tur, ek), &c))
         kayit__gonder(&c);
 }
 

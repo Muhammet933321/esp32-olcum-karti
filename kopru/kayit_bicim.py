@@ -392,15 +392,20 @@ def ayrinti_ornekler(o) -> list[tuple[int, int, int, int, int, int]]:
     sarmasi t0_ms'den cozulur (ikisi ayni zamanlayicidan). `acilis`: 0 = BASLA'nin
     acilisi, n = n. DEVAM'dan sonrasi. Kart yeniden baslayinca micros/millis
     SIFIRLANIR: farkli acilislarin zamanlari birbirine gore anlamsizdir, tek
-    zaman ekseninde birlestirmek icin DEVAM/BASLA kart_ms/unix_s kullanilmali."""
+    zaman ekseninde birlestirmek icin DEVAM/BASLA kart_ms/unix_s kullanilmali.
+    Y5: ayni sirali ornek iki kayitta olabilir (kart yazdigi kaydi HATA diye
+    donup tamponu yeniden yazar) — her sira BIR kez, ilk kopyasiyla."""
     devam = sorted(d["nokta_sira"] for d in o.devamlar)
-    cikti = []
+    cikti, gorulen = [], set()
     for r in sorted(o.ayrinti, key=lambda x: x["sira"]):
         k = round((r["t0_ms"] * 1000 - r["t0_us"]) / 2**32)
         t = r["t0_us"] + k * 2**32
         ac = sum(1 for d in devam if d <= r["ilk"])
         for j, (v, i, dt4, b) in enumerate(r["ornekler"]):
             t += 4 * dt4
+            if r["ilk"] + j in gorulen:
+                continue
+            gorulen.add(r["ilk"] + j)
             cikti.append((r["ilk"] + j, t, v, i, b, ac))
     return cikti
 
@@ -488,6 +493,7 @@ def oturumlari_kur(kayitlar: list[Kayit]) -> dict[int, Oturum]:
     # parca yalniz HEMEN onceki acik yakalamaya (ayni no/toplam, ilk kesintisiz)
     # eklenir — ky_skop parcalari art arda yazar, arada yalniz TEKRAR olabilir.
     acik: dict[int, dict] = {}
+    nokta_gorulen: dict[int, set] = {}
     for k in sorted(kayitlar, key=lambda x: x.sira):
         if k.oturum and k.tur not in (T_SKOP, T_TEKRAR):
             acik.pop(k.oturum, None)
@@ -528,7 +534,11 @@ def oturumlari_kur(kayitlar: list[Kayit]) -> dict[int, Oturum]:
                 o.basla = basla_coz(k.yuk)
         elif k.tur == T_NOKTA:
             ilk = struct.unpack_from("<I", k.yuk)[0]
+            gorulen = nokta_gorulen.setdefault(k.oturum, set())
             for j in range((len(k.yuk) - 4) // NOKTA_BAYT):
+                if ilk + j in gorulen:      # Y5: yeniden deneme kopyasi — ilki kalir
+                    continue
+                gorulen.add(ilk + j)
                 a = 4 + j * NOKTA_BAYT
                 o.noktalar.append((ilk + j, nokta_coz(k.yuk[a:a + NOKTA_BAYT])))
         elif k.tur == T_DEVAM:

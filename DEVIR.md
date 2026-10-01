@@ -9245,6 +9245,40 @@ plan gösterimi panel/PC/telefonda (alt proje 3–5) · tekrarlı plan (kapsam d
 
 ---
 
+#### 5.12.72a 🟢 ALT PROJE 1 DÜZELTMELERİ — Y1–Y6 + D0 (dal `1-duzeltme`, 2026-10-01 akşam)
+
+Kullanıcı "sırada ne var" diye sordu. Öneri onaylandı ("tamamdır devam et"): `tasarim/1-acik-isler.md`'nin
+"önce bakılacaklar" bölümündeki veri doğruluğu hataları ve 1D'de bulunan D0 sızıntısı.
+`main`'den ayrı bir çalışma ağacında yapıldı (`projeler/olcum-karti-duzeltme`). Kullanıcının
+commit'lenmemiş B55–B70 işine ve 1D dalına dokunulmadı. Push yok.
+
+| # | Kusur | Düzeltme | Test |
+|---|---|---|---|
+| Y1 | Kayıtsız kalan pil testinin DCIR olayı ve `KN_DCIR` noktaları açık/DEVAM almış ÖLÇÜM oturumuna düşüyordu | Olay hedef türü taşır: `KM_PIL_OLAY` → yalnız PİL, `KM_OLAY` (skop KAL eki) → yalnız ÖLÇÜM, başlatma mesajları kendi BASLA türüne (`kyn_olay(m, tür, …)`). `KN_DCIR` yalnız PİL oturumunda kalır (`kn_ek_suz`). Mesaja alan eklenmedi: DRAM değişmesin, niyet açık | B71.PL8, B72.Y1 |
+| Y2 | Plan BAŞLAT'tan sonra, plan NVS'i yazılmadan elektrik gidince plan kendi oturumunu tanımıyor, kayıt bitişsiz sürüyordu | İncelemenin önerisi ("isteği göndermeden önce yaz") yalnız ATLANDI'yı BİTTİ'ye çeviriyordu: kayıt yine bitişsiz, üstelik oturum açılmadan kesilirse yeniden deneme de kayboluyordu. Yerine **kanıtlı bağlantı**: çekirdek 0 (`kyn_plan_baslat`, platformsuz) oturumu açmadan ÖNCE NVS'e `pk_alt` (sonraki sıra) + `pk_ot 0` + `pk_no` (plan no), açınca `pk_ot = id`, açamazsa `pk_no 0` yazar. Açılışta `kyn__plan_kanit` devam eden oturumla karşılaştırıp yayınlar (eksik kanıtı onarır, bayatı siler). Çekirdek 1 tarama bitince **bir kez**, `plan_adim`'dan önce `plan_acilis` ile benimser. Kanıt tahmin değil: o pencerede çekirdek 0 başka oturum açmaz (meşgulken plan açmaz). `plan_ac` artık SÜRÜYOR/oturumsuz → BİTTİ dönüşümünü yapmaz; karar kanıt belli olunca | B71.R13 (güncellendi), R14–R16, PK1–PK5, B72.Y2, F68 |
+| Y3 | Plan NVS'e yazılamasa da `plan_kur` başarı dönüyor, kart "plan kuruldu" diyordu | `plan__yaz` hata döner; bir alan yazılamazsa geçerlilik işareti (`pl_dur`) yazılmaz. `plan_kur` `KP_NVS` (-6) döner, önceki plan RAM'e ve NVS'e geri yazılır; kart "KURULMADI, önceki plan geçerli" der | B71.R17 (kısmi hata: yalnız `pl_bas`), B72.Y3 |
+| Y4 | Kalibrasyon geçmişinin `adet` anahtarı kaybolursa #1 eziliyordu | `adet` okunamazsa k1…k40 taranır: numarası kendine eşit, CRC'si tutan en büyük kayıt. Ortadaki bozuk kayıt taramayı durdurmaz; bulunan değer geri yazılır | B71.C14 |
+| Y5 | Ayrıntılı kipte boşaltma hatasında örnek sayılmadan düşüyordu; yeniden deneme aynı kaydı iki kez yazabiliyordu | Kart: yazılamayan örnek `dusen`'e sayılır, boşluğu açan kayıt `KA_KAYIP_ONCE` taşır. PC: ayrıntı örnekleri VE noktalar sıra başına bir kez (ilk kopya). Emülatörde gerçek kopya üretildi: yalnız son dolgu baytı yazılamıyor → kayıt flaşta geçerli, `kg_ekle` hata döner | B71.A11, A12, A13 |
+| Y6 | Bozuk kalibrasyon kaydı `/kal/liste`'de sessizce atlanıyordu | Kart `{"no":n,"bozuk":true}` yazar (numarası tutmayan blob da bozuk). PC'de sağlam kopyası varsa o kalır (`kartta_bozuk`, yedek açılmaz); yoksa bozuk işaretiyle yazılır. Eşitleme bozuk numaraları bildirir | B72.Y6a, Y6b |
+| D0 | `N?` ve AP afişi AP parolasını `Serial` aynasıyla `/akis`'e (ağa) basıyordu | `WebAkis::ham` + yalnız ham UART | B72.D0 |
+
+**Doğrulama:** B71 291/291, B72 105/105; yeni ve taşınan yalanlayıcılar B71 21/21, B72 15/15 (Y6a ilk koşuda boştu: mutasyon bozuk dalını ölü kod yapıp metni bırakıyordu, test yapıya bağlandı);
+değişen satırlara dayanan 7 eski girdi yeni koda taşındı. Zincir 20/21 + B22b: tek kırmızı "6j LittleFS görüntüsü güncel" ORTAMDAN (yeni çalışma ağacında `arayuz3` LF, `_fs.json` özetleri CRLF dosyalardan; dosyalar CRLF yapılınca `sim3_web` 98/98). Bu denetim satır sonuna bağlı: kırılgan, ayrıca not edildi. Firmware uyarısız, DRAM 74548 →
+74572 (+24). Sürüm `A3-1C4d`. Kart tezgahı (tam yedekten sonra): `--duman --plan --kal --pil --ayrinti` **29/29**. Kart `A3-1C4d`'de bırakıldı: D0 sızıntısı kapalı. Geri dönüş: `esptool write-flash 0x0 .yedek/olcum-karti/tam-20261001-203242.bin`.
+
+⚠ **AVR test donanımı:** osiloskop senaryosu (2 KB RAM, 480 B yakalama tamponu) `main`'de de yığının sınırındaydı. Bu dalın +15 B'ı S5/S6/S8'i sessizce bozdu; tampon 16 B küçültülünce geçtiği görülerek doğrulandı. Çözüm test donanımında: NVS ad tablosu `PROGMEM`, `sayi()` etiketi `PSTR`. Osiloskop senaryosu artık 1532 B statik RAM (`main`'den 83 B az). `kyn__plan_kanit` satır içine açılmıyor; açılış taramasının çerçevesini büyütmesin.
+
+⚠ **Süreç:** heredoc'a kaçış dizisi içeren test kodu yazılırken yine bozuldu; Write aracına geçildi.
+`govde(ino, "static void f(")` yine ileri bildirime takıldı (B72.Y1'in ilk RED'i kısmen bu yüzden),
+imza `) {` ile bitirildi ve RED mutasyonla doğrulandı.
+
+**Birleştirme notu:** dal `mutasyon.py`, `beklenen_sayim.json`, `tasarim3_sabit.py`, `DEVIR.md`'yi
+değiştiriyor. Kullanıcının çalışma kopyasında bu dosyalarda commit'lenmemiş iş var; `main`'e alınırken
+cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `web_akis.h` (iki dal da aynı
+`ham()`'ı ekliyor), `tasarim3_sabit.py` DRAM satırı, `kayit_esp.h` KM_* tanımları.
+
+---
+
 #### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
 
 **Neden.** Malzemenin tamamı geldi (50 mA sigorta hariç); kullanıcı "lehimsiz test mi, plakete mi" diye sordu. Karar: **plakete, blok blok** — lehimsiz tahta bu kartta ölçüm üretmez (15 mΩ şönt + Kelvin tahta temasından küçük; 4.9 MΩ zincirde tahta kaçağı oranı bozar; B30/B44'te iki sessiz kusur gevşek telden geldi). Ama plakete geçmek için elde **yerleşim planı yoktu** — F9 ("delik atla") sayı veriyordu, yer vermiyordu.

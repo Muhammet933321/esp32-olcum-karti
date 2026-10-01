@@ -553,6 +553,12 @@ static inline uint16_t kayit_olay_plan_paketle(uint32_t kart_ms, const KayitPlan
     return (uint16_t)KAYIT_OLAY_PLAN_BAYT;
 }
 
+/* Y2: PLAN olayinin plan numarasi (kayit_olay_plan_paketle'nin tersi, tek alan) */
+static inline uint32_t kayit_olay_plan_no(const uint8_t *p)
+{
+    return kayit_o32(p + 20);
+}
+
 static inline uint16_t kayit_olay_skop_kal_paketle(uint32_t kart_ms, const int16_t *mv,
                                                    uint8_t *p)
 {

@@ -265,13 +265,17 @@ class Esitleyici:
             return {"kalibrasyon": None, "kalibrasyon_hata": f"{type(h).__name__}: {h}"}
         p = self.dizin / KAL_DOSYA
         sonuc = {"kalibrasyon": veri.get("adet")}
+        eski, okunamadi = None, False
         if p.exists():
             try:
-                degisti = self._kal_cakisir(json.loads(p.read_text(encoding="utf-8")), veri)
+                eski = json.loads(p.read_text(encoding="utf-8"))
             except ValueError:
-                degisti = True                     # okunamayan dosya da korunur
-            if degisti:
-                sonuc["kalibrasyon_arsiv"] = self._kal_arsivle(p)
+                okunamadi = True                   # okunamayan dosya da korunur
+        bozuk = self._kal_bozuk_birlestir(veri, eski)
+        if bozuk:
+            sonuc["kalibrasyon_bozuk"] = bozuk
+        if p.exists() and (okunamadi or self._kal_cakisir(eski, veri)):
+            sonuc["kalibrasyon_arsiv"] = self._kal_arsivle(p)
         g = p.with_suffix(".tmp")
         with open(g, "w", encoding="utf-8") as f:
             json.dump(veri, f, ensure_ascii=False, indent=1)
@@ -281,12 +285,31 @@ class Esitleyici:
         return sonuc
 
     @staticmethod
+    def _kal_bozuk_birlestir(veri: dict, eski) -> list:
+        """Y6 (1B inceleme M2): kartin OKUYAMADIGI kayit {"no", "bozuk": true} gelir.
+        PC'de saglam kopyasi varsa o KALIR ("kartta_bozuk": true) — kart bozdu diye PC
+        iyi kopyayi kaybetmez; yoksa bozuk isaretiyle yazilir, eksik gecmis TAM sanilmaz.
+        Donus: kartta bozuk numaralar."""
+        try:
+            saglam = {k["no"]: k for k in eski.get("kayitlar", []) if not k.get("bozuk")}
+        except (AttributeError, KeyError, TypeError):
+            saglam = {}
+        bozuk = []
+        for i, k in enumerate(veri["kayitlar"]):
+            if isinstance(k, dict) and k.get("bozuk"):
+                bozuk.append(k.get("no"))
+                if k.get("no") in saglam:
+                    iyi = {a: v for a, v in saglam[k["no"]].items() if a != "kartta_bozuk"}
+                    veri["kayitlar"][i] = {**iyi, "kartta_bozuk": True}
+        return bozuk
+
+    @staticmethod
     def _kal_cakisir(eski, yeni: dict) -> bool:
         """Kartin gecmisi PC'dekinden bir kaydi SILIYOR ya da DEGISTIRIYOR mu
         (NVS silindi, `adet` kayboldu, baska kart)? Not ve tur duzeltmesi
         olagan (`kn`/`kt`); numara, tarih, acilis ve degerler degismez."""
         def kimlik(k: dict) -> dict:
-            return {a: v for a, v in k.items() if a not in ("not", "tur")}
+            return {a: v for a, v in k.items() if a not in ("not", "tur", "kartta_bozuk")}
         try:
             e = {k["no"]: kimlik(k) for k in eski.get("kayitlar", [])}
             y = {k["no"]: kimlik(k) for k in yeni["kayitlar"]}

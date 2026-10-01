@@ -54,6 +54,7 @@ typedef struct {
     uint32_t     a_ilk_ms, a_ilk_us;   /* tampondaki ilk ornegin zamani */
     uint32_t     a_q;             /* son ornegin 4 us nicemi (a_ilk_us'e gore) */
     uint8_t      a_bayrak;        /* SONRAKI AYRINTI kaydinin KA_* bayragi */
+    uint8_t      a_kayip;         /* Y5: ornek dustu — boslugu ACAN kayit KA_KAYIP_ONCE */
 } KayitYazici;
 
 static inline void ky_kur(KayitYazici *y, KayitGunluk *g)
@@ -204,11 +205,20 @@ static inline int ky_ayrinti_ornek(KayitYazici *y, const KayitOrnek *o, uint32_t
             || (o->bayrak & KO_SILME_ONCE)
             || y->a_adet >= KAYIT_AYRINTI_TAMPON) {
             r = ky_ayrinti_bosalt(y);
-            if (r) return r;
+            if (r) {
+                /* Y5 (1C-2 inceleme): bu ornek YAZILAMADI — sayilir; bekleyenler tamponda
+                   kalir, boslugu acan (bu ornekten sonraki) kayit KA_KAYIP_ONCE tasir */
+                y->dusen++;
+                if (y->oturum) y->a_kayip = 1u;
+                return r;
+            }
             if (!y->oturum) return KG_YOK;
         }
     }
-    if (o->bayrak & KO_KAYIP_ONCE) y->a_bayrak = (uint8_t)(y->a_bayrak | KA_KAYIP_ONCE);
+    if ((o->bayrak & KO_KAYIP_ONCE) || y->a_kayip) {
+        y->a_bayrak = (uint8_t)(y->a_bayrak | KA_KAYIP_ONCE);
+        y->a_kayip = 0u;
+    }
     if (o->bayrak & KO_SILME_ONCE) y->a_bayrak = (uint8_t)(y->a_bayrak | KA_SILME);
     if (!y->a_adet) {
         y->a_ilk_ms = o->ms;
@@ -288,6 +298,7 @@ static inline int32_t ky_baslat(KayitYazici *y, const KayitBasla *b)
     if (b->oturum_turu != KAYIT_OTURUM_OLCUM) y->ayrinti = 0u;   /* 1C-3: SKOP hiz 0 = her tetik */
     y->a_adet = 0u;
     y->a_bayrak = 0u;
+    y->a_kayip = 0u;
     kayit_basla_paketle(b, p);
     r = ky__yer(y, kayit_toplam_bayt(KAYIT_BASLA_BAYT));   /* oturum 0: TEKRAR yok */
     if (r) { y->son_hata = r; return r; }

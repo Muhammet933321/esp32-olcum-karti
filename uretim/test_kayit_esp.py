@@ -212,6 +212,11 @@ def bolum_kaynak() -> None:
        "otomatik kaydeder)",
        "b->kal_no = kgc_oturum_no(&kalgec, &b->kal" in bd and "kayit_kal_doldur(&b->kal)" in bd)
     kl = govde(ino_k, "void kal_liste_sayfa(")
+    ok("B72.Y6a (1B inceleme M2) /kal/liste okunamayan/bozuk kaydi SESSIZCE atlamaz: "
+       '{"no":n,"bozuk":true} yazar (numarasi tutmayan blob da bozuk)',
+       0 <= kl.find("|| e.no != no) {")
+       and '\\"bozuk\\":true' in kl[kl.find("|| e.no != no) {"):kl.find("continue;", kl.find("|| e.no != no) {"))]
+       and "kgc_coz(blob, &e)) continue;" not in kl)
     ok("B72.F19 /kal/liste kayitli, Host denetimli; once `adet`, sonra bloblar (cekirdek 1 "
        "kaydederken tutarli)",
        'sunucu.on("/kal/liste"' in ino_k and "host_gecerli()" in kl
@@ -239,7 +244,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C4"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1C4d"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -490,11 +495,18 @@ def bolum_kaynak() -> None:
     # ACMAZ ve sonucu (oturum ya da hata) istek numarasiyla yayinlar.
     ok("B72.F68 KM_PLAN_BITIR yalniz etkin oturum PLANIN oturumuysa kapatir (mesajdaki sebep: "
        "7 ya da Gp- ile 1); KM_PLAN_BASLAT cekirdek 0'da oturum ya da DEVAM bekleyisi varsa "
-       "ACMAZ, sonucu istek numarasiyla yayinlar",
+       "ACMAZ (Y2: platformsuz kyn_plan_baslat, B71.PK3), sonucu istek numarasiyla yayinlar",
        0 <= kb4.find("kayit_y.oturum == id") < kb4.find("ky_bitir(&kayit_y, m->sebep)")
-       and "if (!kayit_y.oturum && !kayit_m.devam_bekliyor)" in kb5
-       and kb5.find("kyn_baslat(") < kb5.find("kayit_plan_sonuc = s;")
+       and 0 <= kb5.find("kyn_plan_baslat(") < kb5.find("kayit_plan_sonuc = s;")
        < kb5.find("kayit_plan_sonuc_no = m->sebep;"))
+    du = govde(esp_k, "static void kayit__durum_guncelle(")
+    pi2 = govde(ino_k, "static void kayit_plan_isle() {")
+    ok("B72.Y2 (1C-4 inceleme M3) planin oturumu KANITLA: KM_PLAN_BASLAT kyn_plan_baslat ile "
+       "(acmadan once NVS kaniti); cekirdek 0 acilis kanitini yayinlar; cekirdek 1 tarama "
+       "bitince BIR KEZ plan_acilis ile benimser — plan_adim'dan ONCE",
+       "t.plan_no = kayit_m.plan_kanit_no;" in du and "t.plan_ot = kayit_m.plan_kanit_ot;" in du
+       and 0 <= pi2.find("KDR_TARIYOR") < pi2.find("plan_acilis(&kayit_plan, d.plan_no, d.plan_ot)")
+       < pi2.find("plan_adim(") and "kayit_plan_acildi" in pi2)
     gp = govde(ino_k, "static void kayit_gp_bas(")
     ok("B72.F69 G? ardindan GP satiri: durum (saat yoksa 6), baslangic, sure, hiz, oturum",
        '"GP %u %lu %lu %lu %lu"' in gp and "PLAN_SAAT_YOK" in gp
@@ -514,6 +526,30 @@ def bolum_kaynak() -> None:
        "kayit kalmaz",
        0 <= pi.find("if (!plan_sonuc(&kayit_plan, s))") < pi.find("if (s > 0)")
        < pi.find("kayit__plan_bitir((uint32_t)s, KB_SEBEP_PLAN)"))
+    km = govde(esp_k, "static void kayit__mesaj(")
+    wa = _oku("web_akis.h")
+    ap = [m.start() for m in re.finditer(r'getString\("ap_sifre"', ino_k)]
+    ok("B72.D0 (1D on-cesi sizinti) AP parolasi YALNIZ ham UART'a (Serial.ham): N? ve AP afisi "
+       "Serial aynasini kullanmaz — ayna her satiri /akis SSE'siyle AGA tasir",
+       "void ham(const char *s)" in wa and len(ap) >= 2
+       and all(ino_k.rfind("Serial.ham(", 0, i) > ino_k.rfind(";", 0, i) for i in ap),
+       f"{len(ap)} okuma")
+    pd = govde(ino_k, "static void kayit_pil_dcir(float v_oturmus) {")
+    ko = govde(esp_k, "static void kayit_ornek(")
+    ok("B72.Y1 (1C-1 inceleme M7) pil olayi KENDI mesaj turuyle (KM_PIL_OLAY) yalniz PIL "
+       "oturumuna; skop KAL eki (KM_OLAY) yalniz OLCUM oturumuna; baslatma mesajlari olayi "
+       "kendi BASLA turune; kayit_ornek KN_DCIR'i oturum turuyle suzer (kn_ek_suz)",
+       "m.tur = KM_PIL_OLAY;" in pd
+       and "kyn_olay(&kayit_m, KAYIT_OTURUM_PIL, m->yuk, m->n)" in km
+       and "kyn_olay(&kayit_m, KAYIT_OTURUM_OLCUM, m->yuk, m->n)" in km
+       and km.count("kyn_olay(&kayit_m, b.oturum_turu, m->yuk, m->n)") == 1
+       and "kyn_plan_baslat(" in km
+       and "kn_ek_suz(kayit_kn_tur, ek)" in ko)
+    gk = govde(ino_k, "static void kayit_plan_komut(")
+    ok("B72.Y3 (1C-4 inceleme M4) plan NVS'e yazilamazsa (KP_NVS) kart 'kuruldu' DEMEZ, sebebini "
+       "ve onceki planin gecerli oldugunu soyler",
+       "r == KP_NVS" in gk and gk.find("r == KP_NVS") < gk.find("plan kuruldu")
+       and "onceki plan gecerli" in gk)
     kp = govde(ino_k, "static void kayit_pil_baslat() {")
     ok("B72.F36 kayit acilamazsa pil testi YINE baslar ve kart 'KAYDEDILMIYOR' der "
        "(bolum yok / tarama / hata / dolu / bekliyor / kuyruk dolu)",
@@ -907,6 +943,30 @@ def bolum_esitle() -> None:
            and "�" in sonuc["gecersiz UTF-8 (cp1254)"][3],
            str({a: (v[0], v[1], v[2], v[4]) for a, v in sonuc.items()}))
         kart.kal_yanit = None
+        # Y6 (1B inceleme M2): kartin okuyamadigi kayit {"no", "bozuk": true} gelir
+        with tempfile.TemporaryDirectory() as d:
+            sifirla()
+            kart.kal_liste = json.loads(json.dumps(kal))
+            _es(taban, d, kart.onayla).esitle()
+            p = Path(d) / KE.KAL_DOSYA
+            kart.kal_liste["kayitlar"][1] = {"no": 2, "bozuk": True}
+            r6 = _es(taban, d, kart.onayla).esitle()
+            y6 = json.loads(p.read_text(encoding="utf-8"))
+            arsiv6 = sorted(x.name for x in Path(d).glob("kalibrasyon-*.json"))
+        with tempfile.TemporaryDirectory() as d:
+            sifirla()
+            kart.kal_liste = json.loads(json.dumps(kal))
+            kart.kal_liste["kayitlar"][1] = {"no": 2, "bozuk": True}
+            r7 = _es(taban, d, kart.onayla).esitle()
+            y7 = json.loads((Path(d) / KE.KAL_DOSYA).read_text(encoding="utf-8"))
+        ok("B72.Y6b (1B inceleme M2) kartta BOZUK kayit: PC'de saglam kopyasi varsa O KALIR "
+           "('kartta_bozuk' isaretiyle, yedek ACILMAZ); yoksa bozuk isaretiyle yazilir — eksik "
+           "gecmis TAM sanilmaz; esitleme bozuk numaralari bildirir",
+           y6["kayitlar"][1] == {**kal["kayitlar"][1], "kartta_bozuk": True} and not arsiv6
+           and r6.get("kalibrasyon_bozuk") == [2]
+           and y7["kayitlar"][1] == {"no": 2, "bozuk": True} and r7.get("kalibrasyon_bozuk") == [2],
+           f"y6={y6['kayitlar'][1]} arsiv={arsiv6} r6={r6.get('kalibrasyon_bozuk')} "
+           f"y7={y7['kayitlar'][1]} r7={r7.get('kalibrasyon_bozuk')}")
         sifirla()
         KE.http_onay(taban)(42)
         ok("B72.E8 HTTP onayi jetonu /akis'ten alip X-Olcum + X-Jeton ile Go<sira> yollar",

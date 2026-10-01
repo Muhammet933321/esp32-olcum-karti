@@ -75,14 +75,25 @@ static KULLANILMAYABILIR void ondalik(uint32_t v)
     while (i) yaz(b[--i]);
 }
 
-static KULLANILMAYABILIR void sayi(const char *ad, int32_t v)
+/* Etiket FLASTA (PSTR): AVR'de dize sabitleri RAM'de durur ve senaryolarda yuzlerce etiket
+   var. SKOP senaryosu (2 KB, 480 B yakalama tamponu) yiginin sinirindaydi: alt proje 1
+   duzeltmelerinin +15 B'i onu tasirdi (S5/S6/S8 sessiz bozulma). `sayi` HEP dize sabitiyle. */
+#include <avr/pgmspace.h>
+static KULLANILMAYABILIR void metin_P(const char *s)
 {
-    metin(ad);
+    char c;
+    while ((c = (char)pgm_read_byte(s++))) yaz(c);
+}
+
+static KULLANILMAYABILIR void sayi_P(const char *ad_P, int32_t v)
+{
+    metin_P(ad_P);
     yaz(' ');
     if (v < 0) { yaz('-'); ondalik((uint32_t)(-v)); }
     else ondalik((uint32_t)v);
     satir();
 }
+#define sayi(ad, v) sayi_P(PSTR(ad), (v))
 
 /* ─────────────────────────────── deterministik veri (test_kayit.py ile AYNI) */
 static KULLANILMAYABILIR void nokta_uret(uint32_t k, KayitNokta *p)
@@ -772,14 +783,36 @@ static void senaryo(void)
 #define NVS_V(i)    (*(volatile uint8_t *)(0xE8 + (i)))
 #define NVS_KOMUT   (*(volatile uint8_t *)0xEC)
 
-static const char *const NVS_ADLAR[] = {"acilis", "kimlik", "taban", "onay", "kapat",
-                                        "t_adim", "t_rast"};
+/* Ad tablosu FLASTA (PROGMEM): AVR'de dize sabitleri RAM'de durur. Y2 tabloyu 17 ada
+   cikarinca SKOP senaryosunda (2 KB RAM, buyuk yakalama tamponu) yigin tasiyordu.
+   Sira = nor_flas.NVS_ADLAR. */
+#include <avr/pgmspace.h>
+static const char NA_00[] PROGMEM = "acilis";
+static const char NA_01[] PROGMEM = "kimlik";
+static const char NA_02[] PROGMEM = "taban";
+static const char NA_03[] PROGMEM = "onay";
+static const char NA_04[] PROGMEM = "kapat";
+static const char NA_05[] PROGMEM = "t_adim";
+static const char NA_06[] PROGMEM = "t_rast";
+static const char NA_07[] PROGMEM = "pl_bas";
+static const char NA_08[] PROGMEM = "pl_sure";
+static const char NA_09[] PROGMEM = "pl_hiz";
+static const char NA_10[] PROGMEM = "pl_no";
+static const char NA_11[] PROGMEM = "pl_dur";
+static const char NA_12[] PROGMEM = "pl_ot";
+static const char NA_13[] PROGMEM = "pl_bu";
+static const char NA_14[] PROGMEM = "pk_no";
+static const char NA_15[] PROGMEM = "pk_alt";
+static const char NA_16[] PROGMEM = "pk_ot";
+static const char *const NVS_ADLAR[] PROGMEM = {
+    NA_00, NA_01, NA_02, NA_03, NA_04, NA_05, NA_06, NA_07, NA_08,
+    NA_09, NA_10, NA_11, NA_12, NA_13, NA_14, NA_15, NA_16};
 
 static uint8_t nvs_sira(const char *ad)
 {
     uint8_t i;
     for (i = 0; i < sizeof(NVS_ADLAR) / sizeof(NVS_ADLAR[0]); i++)
-        if (!strcmp(ad, NVS_ADLAR[i])) return i;
+        if (!strcmp_P(ad, (const char *)pgm_read_word(&NVS_ADLAR[i]))) return i;
     return 0xFFu;
 }
 
@@ -838,6 +871,29 @@ static KULLANILMAYABILIR int noktalar(uint32_t n)
 #endif
 
 #if defined(SENARYO_YONET)
+/* Y2: KM_PLAN_BASLAT'in platformsuz yolu (BASLA + PLAN olayi + NVS kaniti) */
+static int32_t plan_ac_tam(const KayitBasla *b, uint32_t no)
+{
+    static uint8_t ly[KAYIT_OLAY_PLAN_BAYT];
+    KayitPlanOlay po;
+    uint16_t n;
+    po.bas_unix = 1800000000UL;
+    po.sure_s = 60u;
+    po.hiz_ms = b->hiz_ms;
+    po.plan_no = no;
+    n = kayit_olay_plan_paketle(t_ms, &po, ly);
+    return kyn_plan_baslat(&m, b, ly, n, t_ms, 0u);
+}
+
+static void kanit_bas(const char *ad)
+{
+    metin(ad);
+    yaz(' '); ondalik(m.plan_kanit_no);
+    yaz(' '); ondalik(m.plan_kanit_ot);
+    yaz(' '); ondalik(kyn_oturum(&m));
+    satir();
+}
+
 static void senaryo(void)
 {
     KayitBasla b;
@@ -939,6 +995,47 @@ static void senaryo(void)
         basla_uret(&b, 300u);
         sayi("BAS", kyn_baslat(&m, &b, t_ms, 0u));
         dr("D13");
+        break;
+    /* Y2 (1C-4 inceleme M3): planin oturumu KANITLA baglanir (kyn_plan_baslat + kyn_ac) */
+    case 15:                                  /* tam yol: plan 5'in oturumu; elektrik gider */
+        basla_uret(&b, 200u);
+        sayi("PK1", plan_ac_tam(&b, 5u));
+        sayi("PKOT", (int32_t)nvs_oku(0, "pk_ot", 0u));      /* KESIN baglanti yazildi */
+        noktalar(10u);
+        ky_bosalt(&y);
+        break;
+    case 16:                                  /* kanit (5, PK1); sonra TEHLIKELI pencere */
+        kanit_bas("KN16");
+        kyn_durdur(&m);
+        basla_uret(&b, 200u);
+        (void)nvs_yaz(0, "pk_alt", g.sonraki_sira);   /* kyn_plan_baslat'in ACMADAN ONCESI */
+        (void)nvs_yaz(0, "pk_ot", 0u);
+        (void)nvs_yaz(0, "pk_no", 6u);
+        sayi("PK2", kyn_baslat(&m, &b, t_ms, 0u));   /* acti; pk_ot yazilmadan elektrik */
+        noktalar(5u);
+        ky_bosalt(&y);
+        break;
+    case 17:                                  /* kanit (6, PK2) pk_ot 0'dan; onarilir; MESGUL */
+        kanit_bas("KN17");
+        sayi("PKO", (int32_t)nvs_oku(0, "pk_ot", 0u));
+        basla_uret(&b, 200u);
+        sayi("PB0", plan_ac_tam(&b, 9u));            /* oturum surerken: ACMAZ, kanit degismez */
+        sayi("PKN", (int32_t)nvs_oku(0, "pk_no", 0u));
+        kyn_durdur(&m);
+        basla_uret(&b, 100u);
+        sayi("EL", kyn_baslat(&m, &b, t_ms, 0u));    /* kullanicinin ELLE kaydi */
+        noktalar(5u);
+        ky_bosalt(&y);
+        break;
+    case 18:                                  /* elle kayit DEVAM: plan kaniti ONA uymaz */
+        kanit_bas("KN18");
+        (void)nvs_yaz(0, "pk_alt", g.sonraki_sira);  /* elle kayit ACIK kalir */
+        (void)nvs_yaz(0, "pk_ot", 0u);
+        (void)nvs_yaz(0, "pk_no", 7u);               /* acmadan ONCE elektrik */
+        break;
+    case 19:                                  /* pk_ot 0, devam eden oturum pk_alt'tan ESKI */
+        kanit_bas("KN19");
+        sayi("PKN", (int32_t)nvs_oku(0, "pk_no", 0u));
         break;
     default:
         break;
@@ -1071,7 +1168,20 @@ static void senaryo(void)
         basla_uret(&b, 0u);
         sayi("BAS3", kyn_baslat(&m, &b, t_ms, 0u));
         ayr3_hata();
+        sayi("DUS3", (int32_t)y.dusen);           /* Y5: tetik ornegi SAYILIR */
         sayi("DUR3", kyn_durdur(&m));
+        break;
+    case 4:                                       /* Y5: kayit flasa TAM yazildi, yalniz dolgu
+                                                     yazilamadi (KG_HATA) -> yeniden deneme CIFT */
+        basla_uret(&b, 0u);
+        sayi("BAS4", kyn_baslat(&m, &b, t_ms, 0u));
+        for (t = 0u; t < 7u; t++) a3_ver(t, 3000000UL + 2000u * t, &o);   /* tek sayi: 2 B dolgu */
+        NOR_ARIZA_YAZ = (uint8_t)kayit_toplam_bayt(KAYIT_AYRINTI_BAS + 7u * KAYIT_AYRINTI_ORNEK);
+        sayi("Z4", ky_zaman(&y, o.ms + 5000u));
+        sayi("KAL4", y.a_adet);
+        for (t = 7u; t < 10u; t++) a3_ver(t, 3000000UL + 2000u * t, &o);
+        sayi("DUR4", kyn_durdur(&m));
+        sayi("DUS4", (int32_t)y.dusen);
         break;
     default:
         break;
@@ -1405,17 +1515,17 @@ static void senaryo(void)
         basla_tur(&b, 1000u, KAYIT_OTURUM_PIL);
         sayi("PIL", kyn_baslat(&m, &b, t_ms, 0u));
         n = kayit_olay_ayar_paketle(t_ms, &a, ly);
-        sayi("OA", kyn_olay(&m, ly, n));
+        sayi("OA", kyn_olay(&m, KAYIT_OTURUM_PIL, ly, n));
         noktalar(15u);
         n = kayit_olay_dcir_paketle(t_ms, &d, ly);
-        sayi("OD", kyn_olay(&m, ly, n));
+        sayi("OD", kyn_olay(&m, KAYIT_OTURUM_PIL, ly, n));
         noktalar(10u);
         dr("L1");
         break;
     case 2:                  /* acilis (kyn_ac) acik PIL'i KAPATTI; etkin oturum yok */
         dr("L2");
         n = kayit_olay_dcir_paketle(t_ms, &d, ly);
-        sayi("OY", kyn_olay(&m, ly, n));
+        sayi("OY", kyn_olay(&m, KAYIT_OTURUM_PIL, ly, n));
         break;
     case 3:                  /* pil bitir; olcum surerken pil bitir; not kayitlari */
         basla_tur(&b, 1000u, KAYIT_OTURUM_PIL);
@@ -1429,6 +1539,12 @@ static void senaryo(void)
         sayi("OLC", kyn_baslat(&m, &b, t_ms, 0u));
         noktalar(5u);
         sayi("PB3", kyn_pil_bitir(&m, ly, n, KB_SEBEP_PIL));
+        /* Y1: kayitsiz pil testinin DCIR olayi / KN_DCIR noktasi olcum oturumuna DUSMEZ */
+        n = kayit_olay_dcir_paketle(t_ms, &d, ly);
+        sayi("OYO", kyn_olay(&m, KAYIT_OTURUM_PIL, ly, n));
+        sayi("EKO", kn_ek_suz(KAYIT_OTURUM_OLCUM, (uint8_t)(KN_DCIR | 0x01u)));
+        sayi("EKP", kn_ek_suz(KAYIT_OTURUM_PIL, (uint8_t)(KN_DCIR | 0x01u)));
+        sayi("EKY", kn_ek_suz(0u, (uint8_t)(KN_DCIR | 0x01u)));
         dr("L3a");
         sayi("NA1", not_yaz((uint32_t)pil, KNT_AD, 0u, 0u, "ilk ad"));
         sayi("NA2", not_yaz((uint32_t)pil, KNT_AD, 0u, 0u, "son ad"));
@@ -1645,6 +1761,11 @@ static void senaryo(void)
         kd("C7b");
         sayi("KAY4", kgc_kaydet(&m, &simdiki, KGT_INCE, "dorduncu", 501u, 5u));
         ke(4u);
+        break;
+    case 11:                                  /* Y4: `adet` KAYIP (k3 bozuk): k1..k40 taranir */
+        kal_uret(&simdiki, 3u);
+        sayi("AC", kgc_ac(&m, &KNVS, &simdiki, 600u, 6u));
+        kd("C14");
         break;
     case 6:                                   /* C8: 40 dolar -> acik hata */
         kal_uret(&simdiki, 3u);
@@ -1940,6 +2061,12 @@ static void senaryo(void)
     uint32_t adim = nvs_oku(0, "t_adim", 0u);
     plan_ac(&p, &NVS);
     pd("AC", 0u);
+    /* Y2: cekirdek 0'in acilis KANITI (kyn_ac'in yayinladigi plan no + oturum) — taklit */
+    if (adim == 7u) sayi("KA", plan_acilis(&p, p.no, 44u));
+    else if (adim == 8u) sayi("KA", plan_acilis(&p, p.no, 46u));
+    else if (adim == 9u) sayi("KA", plan_acilis(&p, p.no + 1u, 47u));   /* BASKA planin kaniti */
+    else sayi("KA", plan_acilis(&p, 0u, 0u));
+    pd("AK", 0u);
     switch (adim) {
     case 1:
         sayi("K1", plan_kur(&p, T0 + 1000u, 60u, 200u, T0 + 900u));
@@ -2008,6 +2135,39 @@ static void senaryo(void)
         break;
     case 5:                                   /* acilis: SURUYOR ama oturum bilinmiyor */
         adim_bas("R13b", T0 + 400010u, 1u, 33u);
+        break;
+    case 6:                                   /* Y2: BASLAT gitti, plan NVS'i yazilmadan elektrik */
+        sayi("K14", plan_kur(&p, T0 + 500000u, 60u, 200u, T0 + 499900u));
+        pd("R14a", plan_adim(&p, T0 + 500000u, 0u, 0u));    /* plan_basliyor YOK */
+        break;
+    case 7:                                   /* kanit (44): plan BEKLIYOR'du, oturumunu benimser */
+        adim_bas("R14b", T0 + 500030u, 1u, 44u);
+        adim_bas("R14c", T0 + 500060u, 1u, 44u);
+        adim_bas("R14d", T0 + 500061u, 0u, 0u);
+        sayi("K15", plan_kur(&p, T0 + 600000u, 60u, 200u, T0 + 599900u));
+        adim_bas("R15a", T0 + 600000u, 0u, 0u);  /* SURUYOR, sonuc gelmeden elektrik */
+        break;
+    case 8:                                   /* kanit (46): SURUYOR/oturumsuz -> benimser */
+        adim_bas("R15b", T0 + 600060u, 1u, 46u);
+        adim_bas("R15c", T0 + 600061u, 0u, 0u);
+        sayi("K16", plan_kur(&p, T0 + 700000u, 60u, 200u, T0 + 699900u));
+        pd("R16a", plan_adim(&p, T0 + 700000u, 0u, 0u));    /* plan_basliyor YOK */
+        break;
+    case 9:                                   /* kanit BASKA planin: benimsemez, BEKLIYOR yeniden dener */
+        adim_bas("R16b", T0 + 700010u, 0u, 0u);
+        break;
+    /* Y3 (1C-4 inceleme M4): plan NVS'e yazilamazsa KURULMAZ, onceki plan gecerli kalir */
+    case 10:                                  /* saglam plan (BEKLIYOR, T0 + 800000) */
+        sayi("K17", plan_kur(&p, T0 + 800000u, 60u, 200u, T0 + 799000u));
+        break;
+    case 11:                                  /* pl_bas YAZILAMIYOR (Python nvs_hata): yeni plan */
+        sayi("K18", plan_kur(&p, T0 + 900000u, 60u, 200u, T0 + 799100u));
+        pd("R18", 0u);
+        sayi("PBAS", (int32_t)(p.bas - T0));
+        break;
+    case 12:                                  /* NVS duzeldi: ONCEKI plan bozulmadan geri geldi */
+        sayi("PBAS", (int32_t)(p.bas - T0));
+        adim_bas("R17", T0 + 800000u, 0u, 0u);
         break;
     default:
         break;
