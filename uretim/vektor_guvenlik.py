@@ -57,7 +57,9 @@ def uret() -> dict:
     P = IM.pbkdf2(kisa["parola"], bytes.fromhex(kisa["tuz"]), kisa["tur"])
     ad, n = "PC ğ", 3
     K = IM.cihaz_anahtari(P, kim, nk, nc, n)
+    uc = {**kisa, "tur": 3}
     proto = {"pbkdf2_kisa": {**kisa, "P": P.hex()},
+             "pbkdf2_uc": {**uc, "P": IM.pbkdf2(uc["parola"], bytes.fromhex(uc["tuz"]), 3).hex()},
              "P": P.hex(), "kimlik": kim, "nk": nk.hex(), "nc": nc.hex(), "ad": ad, "n": n,
              "kanit_istemci": IM.kanit_istemci(P, kim, nk, nc, ad).hex(),
              "kanit_kart": IM.kanit_kart(P, kim, nk, nc, n).hex(),

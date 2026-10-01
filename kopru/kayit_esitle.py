@@ -372,25 +372,46 @@ def http_onay(taban_url: str, parola: str | None = None, zaman_asimi: float = 5.
     return onayla
 
 
-def main() -> int:
+def _cihaz_sec(taban: str, dosya, dizin):
+    """1D: --cihaz verilmisse o; yoksa --cihaz-dizin'de KARTIN kimligine uyan dosya.
+    Eski firmware (eslestirme ucu yok) ya da eslesmemis: None (bugunku yol)."""
+    if dosya:
+        return IM.Cihaz.yukle(dosya)
+    try:
+        kimlik = IM.bilgi(taban, 5.0)["kimlik"]
+    except Exception:                                    # noqa: BLE001
+        return None
+    p = Path(dizin) / f"{kimlik}.json"
+    return IM.Cihaz.yukle(p) if p.exists() else None
+
+
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Kartin kayitlarini esitle")
     ap.add_argument("--http", default="olcum.local")
     ap.add_argument("--dizin", required=True)
     ap.add_argument("--port", help="USB seri onay (orn. COM6)")
     ap.add_argument("--parola-ortam", default="OLCUM_WEB_PAROLA",
                     help="HTTP onayi icin web parolasini tutan ortam degiskeni")
-    a = ap.parse_args()
+    ap.add_argument("--cihaz", help="1D: eslesmis cihaz dosyasi (imza.py esles)")
+    ap.add_argument("--cihaz-dizin", default=str(IM.VARSAYILAN_DIZIN),
+                    help="1D: --cihaz yoksa kartin kimligine uyan dosya burada aranir")
+    a = ap.parse_args(argv)
     taban = a.http if a.http.startswith("http") else f"http://{a.http}"
+    cihaz = _cihaz_sec(taban, a.cihaz, a.cihaz_dizin)
     kart = None
     if a.port:
         import kart_baglanti
         kart = kart_baglanti.SeriKart(a.port)
         kart.ac()
         onay = seri_onay(kart)
+    elif cihaz is not None:
+        onay = imzali_onay(cihaz, taban)
     else:
         onay = http_onay(taban, os.environ.get(a.parola_ortam))
+    if cihaz is not None:
+        print(f"imzali (cihaz {cihaz.n}, {cihaz.ad})")
     try:
-        r = Esitleyici(taban, a.dizin, onay).esitle()
+        r = Esitleyici(taban, a.dizin, onay, cihaz=cihaz).esitle()
     finally:
         if kart:
             kart.kapat()

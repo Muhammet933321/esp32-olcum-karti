@@ -552,7 +552,7 @@ class _SahteKart:
         self.imzali = 0
         self.parola = "dogru-parola-12"
         self.tuz = bytes(range(16))
-        self.tur = 1000
+        self.tur = 10000                # istemcinin alt siniri (TUR_EN_AZ)
         self.gkimlik = "0011223344556677"
         self.bekleyen = None
         self.kart_kanit_boz = False
@@ -1198,7 +1198,7 @@ def bolum_guvenlik_kart() -> None:
     kg = govde(ino_k, "void komut_sayfa(")
     i_blok = kg.find("if (!guv_imzali && !komut_serbest(k.c_str())) {")
     ok("B72.F75 imzali komut jeton + parola ARAMAZ; imzasiz dal bugunku jeton + Basic yolu",
-       0 <= i_blok < kg.find('sunucu.header("X-Jeton")') < kg.find("web_yetkili()"))
+       0 <= i_blok < kg.find('sunucu.header("X-Jeton")') < kg.find("web_yetki()"))
     i_e = kg.find("k[0] == 'E'")
     ok("B72.F76 /komut 'E' ile baslayan komutu 403 ile REDDEDER (USB'ye ozel), kuyruga koymadan",
        0 <= i_e < kg.find("komut_kuyruga(") and "403" in kg[i_e:i_e + 200])
@@ -1249,9 +1249,12 @@ def bolum_guvenlik_kart() -> None:
     st = govde(ino_k, "void saat_sayfa(")
     ok("B72.F80 /saat yalniz NTP saati YOKKEN ayarlar; 1 700 000 000 alti ret",
        0 <= st.find("guv_saat_ntp") < st.find("settimeofday") and "1700000000" in st)
-    ok("B72.F83 mbedTLS baglami GUV_CTX_BOYU'na sigar (derleme denetimi); PBKDF2 SHA-256",
+    ok("B72.F83 mbedTLS baglami GUV_CTX_BOYU'na sigar (derleme denetimi); SHA-256; PBKDF2 "
+       "cekirdekte (guv_pbkdf2) ve tablonun nefesi zamanlayiciya pay verir",
        "static_assert(sizeof(GuvMbedCtx) <= GUV_CTX_BOYU" in esp_k
-       and "mbedtls_pkcs5_pbkdf2_hmac_ext(MBEDTLS_MD_SHA256" in esp_k)
+       and "MBEDTLS_MD_SHA256" in govde(esp_k, "static int gm__kur(")
+       and "gm_nefes" in esp_k[esp_k.find("static const GuvKripto guv_kripto"):]
+       and "vTaskDelay(" in govde(esp_k, "static void gm_nefes("))
     eg = govde(gh_k, "guv__esit(")
     ok("B72.F84 sabit zamanli karsilastirma: dongude erken cikis yok (XOR birikimi, tek return)",
        "f |=" in eg and eg.count("return") == 1)
@@ -1263,7 +1266,46 @@ def bolum_guvenlik_kart() -> None:
        "Serial kullanmiyor (cekirdek 0)",
        "GUV_SINAMA" not in esp_k + ino_k and "Serial" not in esp_k
        and 0 <= ino_k.find('#include "guvenlik_esp.h"') < ino_k.find("#define Serial CIKIS"))
+    # ── 1D son inceleme duzeltmeleri ──
+    ok("B72.F92 mbedTLS donus kodlari DENETLENIR: md_setup/hmac_starts hatasi bas'tan -1, ekle "
+       "hatasi baglamda saklanir ve bit -1 doner (karar yigindaki eski MAC'e dayanmaz)",
+       "int hata;" in esp_k and "mbedtls_md_setup(" in govde(esp_k, "static int gm__kur(")
+       and "!= 0" in govde(esp_k, "static int gm__kur(")
+       and "if (gm__kur(c, 1) != 0) return -1;" in govde(esp_k, "static int gm_hmac_bas(")
+       and esp_k.count("mbedtls_md_setup(") == 1
+       and "c->hata" in govde(esp_k, "static void gm_hmac_ekle(")
+       and "c->hata" in govde(esp_k, "static int gm_hmac_bit(")
+       and "mbedtls_pkcs5" not in esp_k)
+    tg = sk[sk.find("case 't':"):sk.find("case 'r':")]
+    rg = sk[sk.find("case 'r':"):sk.find("default:")]
+    ok("B72.F93 Et/Er SINIRLI (Et 1000..GUV_TUR_EN_COK, Er GUV_TUR_EN_AZ..GUV_TUR_EN_COK) ve pil "
+       "testi surerken REDDEDILIR (cekirdek 1 = olcum dongusu)",
+       "GUV_TUR_EN_COK" in tg and "pil_testi_suruyor()" in tg
+       and "GUV_TUR_EN_AZ" in rg and "GUV_TUR_EN_COK" in rg and "pil_testi_suruyor()" in rg)
+    gi = govde(ino_k, "static void guv_isle(")
+    ok("B72.F96 P cekirdek 1'de (guv_isle) hesaplanir; eslestirme uclari PBKDF2 YAPMAZ ve web "
+       "parolasini OKUMAZ; Ns/Er sonrasi P yeniden",
+       "guv_p_hesapla(" in gi and "pil_testi_suruyor()" in gi
+       and all("web_sifre" not in govde(ino_k, f"void {u}(") and "pbkdf2" not in govde(ino_k, f"void {u}(")
+               for u in ("eslestir_baslat_sayfa", "eslestir_kanit_sayfa"))
+       and ino_k.count("guv_p_eski = 1") >= 3)
+    yw = govde(ino_k, "static int web_yetki(")
+    ok("B72.F95 eski Basic-Auth yolu da deneme sinirli: yanlis parola 2^k s bekletir (429), dogru "
+       "sifirlar; YALNIZ Authorization basligi varken sayilir",
+       "web_serbest_ms" in yw and 'hasHeader("Authorization")' in yw and "429" in kg
+       and "web_yetki()" in kg and "web_yetkili()" not in ino_k)
+    i_ag, i_guv = ino_k.find("ag_baslat();"), ino_k.find("guv_esp_ac();")
+    pg = sk[sk.find("case 'p':"):sk.find("case 'z':")]
+    ok("B72.F97 rastgele sayilar RF acikken: guv_esp_ac ag kurulduktan SONRA; Ep WiFi kapaliyken "
+       "REDDEDILIR (RF'siz RNG yalanci-rastgele)",
+       0 <= i_ag < i_guv and "WiFi.getMode()" in pg)
     toplanan = re.search(r"toplanacak\[\]\s*=\s*\{([^}]*)\}", ino_k)
+    tz = _oku_tezgah = (BURASI / "tezgah_kayit.py").read_text(encoding="utf-8")
+    tg2 = tz[tz.find("def guvenlik("):tz.find("\ndef esit(")]
+    fin = tg2[tg2.rfind("finally:"):]
+    ok("B72.F94 tezgah --guvenlik yarida kalsa da karti GERI ALIR: Em0, Ez0 ve test cihazinin "
+       "silinmesi finally blogunda",
+       "finally:" in tg2 and all(x in fin for x in ('"Em0"', '"Ez0"', '"Ex')))
     ok("B72.F88 imza basliklari toplaniyor (X-Cihaz, X-Sayac, X-Imza, Content-Type) ve CORS "
        "on ucu izin veriyor",
        toplanan is not None and all(f'"{b}"' in toplanan.group(1)
@@ -1418,6 +1460,44 @@ def bolum_guvenlik_istemci() -> None:
             ok("B72.I7 /akis imzali adresi (_c _s _i sorguda) zorunlu kartta kabul edilir",
                akis_ok and "_i=" in u and f"_c={c.n}" in u)
             kart.imza_zorunlu = False
+            # I8 (son inceleme KRITIK): sahte kart PBKDF2 maliyetini ve tuzu dayatamaz;
+            # kimlik dosya adina gider; kisa parola HICBIR istek atmadan reddedilir
+            kart.istekler.clear()
+            sonuclar = {}
+            for ad, ayar in (("tur1", {"tur": 1}), ("tur_cok", {"tur": 5_000_000}),
+                             ("kimlik", {"gkimlik": "../../x"}), ("tuz", {"tuz": b"\x01"})):
+                eski = (kart.tur, kart.gkimlik, kart.tuz)
+                for a, v in ayar.items():
+                    setattr(kart, a, v)
+                try:
+                    IM.esles(taban, "PC", kart.parola, dizin=d / "i8")
+                    sonuclar[ad] = "KABUL"
+                except (ValueError, RuntimeError) as e:
+                    sonuclar[ad] = "ret"
+                kart.tur, kart.gkimlik, kart.tuz = eski
+            kanitsiz = not any("/eslestir/kanit" in s for s in kart.istekler)
+            kart.istekler.clear()
+            try:
+                IM.esles(taban, "PC", "kisa9chr!", dizin=d / "i8")
+                kisa = "KABUL"
+            except ValueError:
+                kisa = "ret"
+            ok("B72.I8 (son inceleme KRITIK) istemci sahte kartin dayattigi tur < 10 000 ya da asiri turu, "
+               "bicimsiz kimligi (dosya adi) ve tuzu REDDEDER, kanit YOLLAMADAN; 10 karakterden kisa "
+               "parola HICBIR istek atmadan reddedilir",
+               all(v == "ret" for v in sonuclar.values()) and kanitsiz and kisa == "ret"
+               and not kart.istekler and not (d / "i8").exists(), f"{sonuclar} kanitsiz={kanitsiz} kisa={kisa}")
+
+            # I9 (son inceleme): kayit_esitle komut satiri imzali yolu kullanir
+            kart.imza_zorunlu = True
+            kart.kayitlar = kay
+            rc = KE.main(["--http", taban, "--dizin", str(d / "cli"), "--cihaz", str(c.dosya)])
+            rc2 = KE.main(["--http", taban, "--dizin", str(d / "cli2"), "--cihaz-dizin", str(c.dosya.parent)])
+            kart.imza_zorunlu = False
+            ok("B72.I9 kayit_esitle komut satiri eslesmis cihazla IMZALI esitler (--cihaz ya da "
+               "--cihaz-dizin'de kart kimligine uyan dosya); zorunlu sahte kart kabul eder",
+               rc == 0 and rc2 == 0 and (d / "cli" / KE.DOSYA).exists()
+               and (d / "cli2" / KE.DOSYA).exists(), f"rc={rc} rc2={rc2}")
     finally:
         sunucu.shutdown()
 

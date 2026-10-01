@@ -13,6 +13,13 @@
  * okunur. RAM'de cihaz basina yalniz tekrar penceresi.
  * Karsilastirmalar sabit zamanli (guv__esit); dogrulamada ONCE HMAC, SONRA pencere
  * (sahte imzali buyuk sayac pencereyi ilerletemez).
+ * Son inceleme (1D) duzeltmeleri:
+ *  - kriptografi HATASI karar degildir: HMAC/SHA hata dondururse imza REDDEDILIR
+ *    (yigindaki eski MAC'e guvenilmez), eslestirme GUV_E_KRIPTO;
+ *  - PBKDF2 cekirdekte (guv_pbkdf2), GUV_NEFES_ARALIK turda bir `nefes` (kartta
+ *    zamanlayiciya pay; bekci/WDT); P YALNIZ guv_p_hesapla ile hesaplanir — kartta
+ *    cekirdek 1, web yolunda HIC PBKDF2 yok;
+ *  - ayar kaydi VAR ama okunamiyorsa (boy/surum) fail-CLOSED: imza zorunlu.
  * AVR'de sinaniyor: test_kayit.py B71.U (SENARYO_GUV). */
 #ifndef GUVENLIK_H
 #define GUVENLIK_H
@@ -30,6 +37,11 @@
 #define GUV_AYAR_SURUM    1u
 #ifndef GUV_TUR_VARSAYILAN
 #define GUV_TUR_VARSAYILAN 50000UL
+#endif
+#define GUV_TUR_EN_AZ     10000UL     /* istemci de bunun altini REDDEDER (sahte kart) */
+#define GUV_TUR_EN_COK    200000UL
+#ifndef GUV_NEFES_ARALIK
+#define GUV_NEFES_ARALIK  1000UL
 #endif
 /* Islev niteligi: kartta `static inline`. AVR sinamasi (2 KB RAM) `noinline`
    verir; yoksa derleyici her seyi tek cerceveye gomup yigini tasirir. */
@@ -50,21 +62,24 @@
 #define GUV_E_KANIT  (-8)
 #define GUV_E_AD     (-9)
 #define GUV_E_NVS    (-10)
+#define GUV_E_KRIPTO (-11)
+#define GUV_E_AYAR   (-12)            /* ayar kaydi bozuk: fail-closed (zorunlu 1) */
 
+/* `bas` ve `bit` 0 = tamam. `ekle` hatasi baglamda SAKLANIR, `bit` onu dondurur. */
 typedef struct {
-    void (*hmac_bas)(void *ctx, const uint8_t *anahtar, uint16_t n);
+    int  (*hmac_bas)(void *ctx, const uint8_t *anahtar, uint16_t n);
     void (*hmac_ekle)(void *ctx, const void *v, uint16_t n);
-    void (*hmac_bit)(void *ctx, uint8_t c[32]);
-    void (*sha_bas)(void *ctx);
+    int  (*hmac_bit)(void *ctx, uint8_t c[32]);
+    int  (*sha_bas)(void *ctx);
     void (*sha_ekle)(void *ctx, const void *v, uint16_t n);
-    void (*sha_bit)(void *ctx, uint8_t c[32]);
-    int  (*pbkdf2)(const char *parola, const uint8_t *tuz, uint16_t tn, uint32_t tur,
-                   uint8_t c[32]);
+    int  (*sha_bit)(void *ctx, uint8_t c[32]);
     void (*rastgele)(uint8_t *h, uint16_t n);
+    void (*nefes)(void);                    /* NULL olabilir */
 } GuvKripto;
 
+/* oku: 0 tamam, -1 YOK (hic yazilmamis), -2 BOZUK (boy/okuma hatasi). yaz: 0 tamam. */
 typedef struct {
-    int (*oku)(void *b, const char *ad, void *h, uint16_t n);       /* 0 = tamam */
+    int (*oku)(void *b, const char *ad, void *h, uint16_t n);
     int (*yaz)(void *b, const char *ad, const void *k, uint16_t n);
     void *baglam;
 } GuvNvs;
@@ -100,6 +115,7 @@ typedef struct {
     const GuvKripto *k;
     const GuvNvs    *nvs;
     GuvAyar  ayar;
+    uint8_t  ayar_bozuk;        /* fail-closed: kayit var ama okunamadi */
     GuvCanli c[GUV_CIHAZ_AZAMI];
     uint8_t  acilis[16];
     uint8_t  P[32];
@@ -199,13 +215,40 @@ GUV_ISLEV void guv__ekle(const GuvDurum *g, void *ctx, const char *s)
     g->k->hmac_ekle(ctx, s, (uint16_t)strlen(s));
 }
 
-/* HMAC(P, etiket \n kimlik \n nk \n nc \n son) */
-GUV_ISLEV void guv__es_hmac(const GuvDurum *g, const char *etiket, const uint8_t nk[16],
-                                const uint8_t nc[16], const char *son, uint8_t c[32])
+/* PBKDF2-HMAC-SHA256, tek blok (32 B). Tablo HMAC'i; GUV_NEFES_ARALIK turda bir
+   `nefes` (kartta zamanlayiciya pay). 0 tamam, GUV_E_KRIPTO hata. */
+GUV_ISLEV int guv_pbkdf2(const GuvKripto *k, const char *parola, const uint8_t *tuz,
+                         uint16_t tn, uint32_t tur, uint8_t c[32])
+{
+    static const uint8_t bir[4] = {0u, 0u, 0u, 1u};
+    GuvCtx ctx;
+    uint8_t u[32], i;
+    uint16_t pn = (uint16_t)strlen(parola);
+    uint32_t t;
+    if (!tur) return GUV_E_KRIPTO;
+    if (k->hmac_bas(ctx.b, (const uint8_t *)parola, pn)) return GUV_E_KRIPTO;
+    k->hmac_ekle(ctx.b, tuz, tn);
+    k->hmac_ekle(ctx.b, bir, 4);
+    if (k->hmac_bit(ctx.b, u)) return GUV_E_KRIPTO;
+    memcpy(c, u, 32);
+    for (t = 1; t < tur; t++) {
+        if (k->hmac_bas(ctx.b, (const uint8_t *)parola, pn)) return GUV_E_KRIPTO;
+        k->hmac_ekle(ctx.b, u, 32);
+        if (k->hmac_bit(ctx.b, u)) return GUV_E_KRIPTO;
+        for (i = 0; i < 32u; i++) c[i] ^= u[i];
+        if (k->nefes && (t % GUV_NEFES_ARALIK) == 0u) k->nefes();
+    }
+    memset(u, 0, sizeof(u));
+    return 0;
+}
+
+/* HMAC(P, etiket \n kimlik \n nk \n nc \n son); 0 tamam, GUV_E_KRIPTO hata */
+GUV_ISLEV int guv__es_hmac(const GuvDurum *g, const char *etiket, const uint8_t nk[16],
+                           const uint8_t nc[16], const char *son, uint8_t c[32])
 {
     GuvCtx ctx;
     char h[33];
-    g->k->hmac_bas(ctx.b, g->P, 32);
+    if (g->k->hmac_bas(ctx.b, g->P, 32)) return GUV_E_KRIPTO;
     guv__ekle(g, ctx.b, etiket);
     guv__ekle(g, ctx.b, "\n");
     guv__hex(g->ayar.kimlik, 8, h);
@@ -218,7 +261,16 @@ GUV_ISLEV void guv__es_hmac(const GuvDurum *g, const char *etiket, const uint8_t
     guv__ekle(g, ctx.b, h);
     guv__ekle(g, ctx.b, "\n");
     guv__ekle(g, ctx.b, son);
-    g->k->hmac_bit(ctx.b, c);
+    return g->k->hmac_bit(ctx.b, c) ? GUV_E_KRIPTO : 0;
+}
+
+GUV_ISLEV void guv__ayar_uret(GuvDurum *g)
+{
+    memset(&g->ayar, 0, sizeof(g->ayar));
+    g->ayar.surum = GUV_AYAR_SURUM;
+    g->ayar.tur = GUV_TUR_VARSAYILAN;
+    g->k->rastgele(g->ayar.tuz, 16);
+    g->k->rastgele(g->ayar.kimlik, 8);
 }
 
 GUV_ISLEV int guv__ayar_yaz(GuvDurum *g)
@@ -242,16 +294,8 @@ GUV_ISLEV int guv__cihaz_yaz(GuvDurum *g, uint8_t n, const GuvCihaz *c)
     return g->nvs->yaz(g->nvs->baglam, ad, c, (uint16_t)sizeof(*c)) ? GUV_E_NVS : 0;
 }
 
-GUV_ISLEV int guv__p_hazirla(GuvDurum *g, const char *parola)
-{
-    if (g->p_var) return 0;
-    if (g->k->pbkdf2(parola, g->ayar.tuz, 16, g->ayar.tur, g->P)) return GUV_E_NVS;
-    g->p_var = 1u;
-    return 0;
-}
-
 GUV_ISLEV int guv__ekle_cihaz(GuvDurum *g, uint8_t n, const char *ad, const uint8_t K[32],
-                                  uint32_t unix)
+                              uint32_t unix)
 {
     GuvCihaz c;
     int r;
@@ -271,22 +315,28 @@ GUV_ISLEV int guv__ekle_cihaz(GuvDurum *g, uint8_t n, const char *ad, const uint
 }
 
 /* ── genel arayuz ─────────────────────────────────────────────────────── */
+/* 0 tamam; GUV_E_AYAR: ayar kaydi VAR ama okunamadi — durum KULLANILABILIR, imza
+   ZORUNLU (fail-closed), kimlik/tuz bilinmiyor (eslestirme yok) ve diske YAZILMAZ;
+   guv_ayar_yaz yeniden uretip yazar. GUV_E_NVS: ilk ayar yazilamadi. */
 GUV_ISLEV int guv_ac(GuvDurum *g, const GuvKripto *k, const GuvNvs *nvs)
 {
     GuvCihaz c;
     char ad[4];
     uint8_t i;
+    int r, sonuc = 0;
     memset(g, 0, sizeof(*g));
     g->k = k;
     g->nvs = nvs;
-    if (nvs->oku(nvs->baglam, "ayar", &g->ayar, (uint16_t)sizeof(g->ayar))
-        || g->ayar.surum != GUV_AYAR_SURUM) {
+    r = nvs->oku(nvs->baglam, "ayar", &g->ayar, (uint16_t)sizeof(g->ayar));
+    if (r == -1) {                                       /* hic yazilmamis */
+        guv__ayar_uret(g);
+        if (guv__ayar_yaz(g)) sonuc = GUV_E_NVS;
+    } else if (r || g->ayar.surum != GUV_AYAR_SURUM) {   /* bozuk: fail-CLOSED */
         memset(&g->ayar, 0, sizeof(g->ayar));
-        g->ayar.surum = GUV_AYAR_SURUM;
+        g->ayar.zorunlu = 1u;
         g->ayar.tur = GUV_TUR_VARSAYILAN;
-        k->rastgele(g->ayar.tuz, 16);
-        k->rastgele(g->ayar.kimlik, 8);
-        if (guv__ayar_yaz(g)) return GUV_E_NVS;
+        g->ayar_bozuk = 1u;
+        sonuc = GUV_E_AYAR;
     }
     for (i = 1; i <= GUV_CIHAZ_AZAMI; i++) {
         guv__cihaz_adi(i, ad);
@@ -297,7 +347,7 @@ GUV_ISLEV int guv_ac(GuvDurum *g, const GuvKripto *k, const GuvNvs *nvs)
     }
     memset(&c, 0, sizeof(c));
     k->rastgele(g->acilis, 16);
-    return 0;
+    return sonuc;
 }
 
 GUV_ISLEV void guv_parola_degisti(GuvDurum *g)
@@ -306,12 +356,26 @@ GUV_ISLEV void guv_parola_degisti(GuvDurum *g)
     memset(g->P, 0, sizeof(g->P));
 }
 
+/* P'yi hesapla (kartta CEKIRDEK 1; web yolunda PBKDF2 YOK). Parola uygun degilse P
+   silinir ve eslestirme PAROLA reddi verir. */
+GUV_ISLEV int guv_p_hesapla(GuvDurum *g, const char *parola)
+{
+    guv_parola_degisti(g);
+    if (g->ayar_bozuk) return GUV_E_AYAR;
+    if (!guv__parola_uygun(parola)) return GUV_E_PAROLA;
+    if (guv_pbkdf2(g->k, parola, g->ayar.tuz, 16, g->ayar.tur, g->P)) {
+        memset(g->P, 0, sizeof(g->P));
+        return GUV_E_KRIPTO;
+    }
+    g->p_var = 1u;
+    return 0;
+}
+
 GUV_ISLEV int guv_esles_baslat(GuvDurum *g, const char *ad, const uint8_t nc[16],
-                                   const char *parola, uint32_t simdi_ms, uint8_t *eno,
-                                   uint8_t nk[16])
+                               uint32_t simdi_ms, uint8_t *eno, uint8_t nk[16])
 {
     int n;
-    if (!guv__parola_uygun(parola)) return GUV_E_PAROLA;
+    if (!g->p_var) return GUV_E_PAROLA;
     if (!guv__ad_gecerli(ad)) return GUV_E_AD;
     if (g->d_var && (int32_t)(simdi_ms - g->d_serbest_ms) < 0) return GUV_E_BEKLE;
     n = guv__bos_numara(g);
@@ -330,8 +394,8 @@ GUV_ISLEV int guv_esles_baslat(GuvDurum *g, const char *ad, const uint8_t nc[16]
 }
 
 GUV_ISLEV int guv_esles_kanit(GuvDurum *g, uint8_t eno, const uint8_t kanit[32],
-                                  const char *parola, uint32_t simdi_ms, uint32_t unix,
-                                  uint8_t *n_cikis, uint8_t kart_kanit[32])
+                              uint32_t simdi_ms, uint32_t unix, uint8_t *n_cikis,
+                              uint8_t kart_kanit[32])
 {
     uint8_t bek[32], K[32];
     char son[4];
@@ -341,11 +405,9 @@ GUV_ISLEV int guv_esles_kanit(GuvDurum *g, uint8_t eno, const uint8_t kanit[32],
         g->e_var = 0;
         return GUV_E_YOK;
     }
-    if (!guv__parola_uygun(parola)) return GUV_E_PAROLA;
-    r = guv__p_hazirla(g, parola);
-    if (r) return r;
+    if (!g->p_var) return GUV_E_PAROLA;
     g->e_var = 0;                                  /* her bekleyen icin TEK deneme */
-    guv__es_hmac(g, "OK1-istemci", g->e_nk, g->e_nc, g->e_ad, bek);
+    if (guv__es_hmac(g, "OK1-istemci", g->e_nk, g->e_nc, g->e_ad, bek)) return GUV_E_KRIPTO;
     if (!guv__esit(bek, kanit, 32)) {
         g->d_var = 1u;
         g->d_serbest_ms = simdi_ms + (1000UL << g->d_k);
@@ -358,18 +420,21 @@ GUV_ISLEV int guv_esles_kanit(GuvDurum *g, uint8_t eno, const uint8_t kanit[32],
     if (n < 0) return n;
     son[0] = (char)('0' + n);
     son[1] = 0;
-    guv__es_hmac(g, "OK1-anahtar", g->e_nk, g->e_nc, son, K);
+    if (guv__es_hmac(g, "OK1-anahtar", g->e_nk, g->e_nc, son, K)
+        || guv__es_hmac(g, "OK1-kart", g->e_nk, g->e_nc, son, kart_kanit)) {
+        memset(K, 0, sizeof(K));
+        return GUV_E_KRIPTO;
+    }
     r = guv__ekle_cihaz(g, (uint8_t)n, g->e_ad, K, unix);
     memset(K, 0, sizeof(K));
     if (r) return r;
-    guv__es_hmac(g, "OK1-kart", g->e_nk, g->e_nc, son, kart_kanit);
     *n_cikis = (uint8_t)n;
     return 0;
 }
 
 /* USB (seri) eslestirmesi: parola yok, K rastgele; cagiran K'yi YALNIZ seri porta basar */
 GUV_ISLEV int guv_esles_usb(GuvDurum *g, const char *ad, uint32_t unix, uint8_t *n_cikis,
-                                uint8_t K[32])
+                            uint8_t K[32])
 {
     int n, r;
     if (!guv__ad_gecerli(ad)) return GUV_E_AD;
@@ -412,14 +477,16 @@ GUV_ISLEV int guv_cihaz_oku(const GuvDurum *g, uint8_t n, GuvCihaz *c)
 }
 
 /* ── imza dogrulama: bas → arg* → bit ─────────────────────────────────── */
+/* bas basariliysa (0) cagiran bit'i HER ZAMAN cagirir (baglam serbest kalsin) */
 GUV_ISLEV int guv_imza_bas(GuvDurum *g, GuvImza *im, uint8_t n, const char *yontem,
-                               const char *yol)
+                           const char *yol)
 {
     GuvCihaz c;
     int r = guv_cihaz_oku(g, n, &c);
     if (r) return r == GUV_E_YOK ? GUV_E_CIHAZ : r;
-    g->k->hmac_bas(im->ctx.b, c.K, 32);
+    r = g->k->hmac_bas(im->ctx.b, c.K, 32);
     memset(&c, 0, sizeof(c));
+    if (r) return GUV_E_IMZA;
     guv__ekle(g, im->ctx.b, "OK1\n");
     guv__ekle(g, im->ctx.b, yontem);
     guv__ekle(g, im->ctx.b, "\n");
@@ -458,7 +525,7 @@ GUV_ISLEV void guv_imza_arg(GuvDurum *g, GuvImza *im, const char *ad, const char
 }
 
 GUV_ISLEV int guv_imza_bit(GuvDurum *g, GuvImza *im, uint64_t sayac,
-                               const uint8_t govde_ozet[32], const char *imza_hex, uint32_t unix)
+                           const uint8_t govde_ozet[32], const char *imza_hex, uint32_t unix)
 {
     GuvCanli *cv;
     uint8_t mac[32], gel[32];
@@ -472,7 +539,8 @@ GUV_ISLEV int guv_imza_bit(GuvDurum *g, GuvImza *im, uint64_t sayac,
     guv__ekle(g, im->ctx.b, "\n");
     guv__hex(govde_ozet, 32, t);
     guv__ekle(g, im->ctx.b, t);
-    g->k->hmac_bit(im->ctx.b, mac);
+    /* kriptografi hatasi: mac guvenilmez (yigindaki eski deger) — RED */
+    if (g->k->hmac_bit(im->ctx.b, mac)) return GUV_E_IMZA;
     if (!imza_hex || guv__hexten(imza_hex, gel, 32)) return GUV_E_IMZA;
     if (!guv__esit(mac, gel, 32)) return GUV_E_IMZA;
     /* ancak imza dogruysa pencere (sahte sayac ilerletemez) */
@@ -502,9 +570,17 @@ GUV_ISLEV int guv_imza_bit(GuvDurum *g, GuvImza *im, uint64_t sayac,
     return 0;
 }
 
-/* zorunlu / misafir: -1 = degistirme; tur: 0 = degistirme */
+/* zorunlu / misafir: -1 = degistirme; tur: 0 = degistirme. Ayar bozuksa once
+   kimlik/tuz YENIDEN uretilir (eski kimlik bilinemez). */
 GUV_ISLEV int guv_ayar_yaz(GuvDurum *g, int zorunlu, int misafir, uint32_t tur)
 {
+    if (g->ayar_bozuk) {
+        const uint8_t z = g->ayar.zorunlu;
+        guv__ayar_uret(g);
+        g->ayar.zorunlu = z;
+        g->ayar_bozuk = 0;
+        guv_parola_degisti(g);
+    }
     if (zorunlu >= 0) g->ayar.zorunlu = (uint8_t)(zorunlu ? 1u : 0u);
     if (misafir >= 0) g->ayar.misafir = (uint8_t)(misafir ? 1u : 0u);
     if (tur && tur != g->ayar.tur) {
@@ -525,7 +601,7 @@ GUV_ISLEV uint8_t guv_cihaz_var(const GuvDurum *g, uint8_t n)
 #ifdef GUV_SINAMA
 /* YALNIZ AVR sinamasi: vektorler sabit kimlik/tuz/acilis/bekleyen ister */
 GUV_ISLEV void guv__sinama_ayar(GuvDurum *g, const uint8_t kimlik[8], const uint8_t tuz[16],
-                                    uint32_t tur)
+                                uint32_t tur)
 {
     memcpy(g->ayar.kimlik, kimlik, 8);
     memcpy(g->ayar.tuz, tuz, 16);
@@ -537,7 +613,7 @@ GUV_ISLEV void guv__sinama_ayar(GuvDurum *g, const uint8_t kimlik[8], const uint
 GUV_ISLEV void guv__sinama_acilis(GuvDurum *g, const uint8_t a[16]) { memcpy(g->acilis, a, 16); }
 
 GUV_ISLEV void guv__sinama_bekleyen(GuvDurum *g, uint8_t eno, const uint8_t nk[16],
-                                        const uint8_t nc[16], const char *ad, uint32_t simdi_ms)
+                                    const uint8_t nc[16], const char *ad, uint32_t simdi_ms)
 {
     g->e_var = 1u;
     g->e_no = eno;

@@ -179,6 +179,10 @@ class Kopru:
     def komut_izinli(self, komut: str, jeton: str | None) -> tuple[bool, str]:
         # 1D: E komutlari (USB eslestirme, zorunluluk, cihaz silme) karta YALNIZ
         # dogrudan USB'den verilir; kopru agdan gelen istegi seriye tasimaz.
+        # Son inceleme: kart seriyi \r ve \n'de BOLER; "?\nEz0" bas harfi denetimini
+        # atlatip E komutunu karta ulastiriyordu. Kontrol karakterli komut hic gecmez.
+        if any(ord(c) < 0x20 or ord(c) == 0x7F for c in komut):
+            return False, "komutta satir sonu / kontrol karakteri olamaz"
         if komut.startswith("E"):
             return False, ("E komutlari yalniz USB seri konsoldan (kopru uzerinden "
                            "verilemez) — eslestirme icin kopru/imza.py esles-usb")

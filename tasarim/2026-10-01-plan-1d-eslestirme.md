@@ -4,6 +4,13 @@
 
 > **Durum:** TASLAK, yerel `1d-eslestirme` dalında. Kullanıcı onaylayana dek `main`'e
 > girmez, push edilmez (kullanıcı 2026-10-01: "kritik bir şey varsa hemen commit atma").
+> **Uygulama:** T1–T4 bitti; T5'in kart kısmı kart bağlı olmadığı için **koşulmadı**.
+> Bağımsız son inceleme (Opus) 1 kritik ve 6 önemli bulgu verdi; hepsi tek düzeltme
+> turunda test-önce düzeltildi. API sapmaları:
+> - `GuvKripto` hata döndürür ve `pbkdf2` alanı yerine `nefes` taşır;
+> - `guv_esles_baslat`/`kanit` parola almaz, P önceden `guv_p_hesapla` ile hesaplanır.
+>
+> Güncel kurallar spec K4, K7, K18'de.
 
 **Goal:** Kart, şu iki yoldan eşleşen cihazların imzalı isteklerini kabul etsin:
 - parolayla eşleştirme (parola ağa çıkmaz);

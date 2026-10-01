@@ -488,6 +488,16 @@ def main() -> int:
     kart2 = kart_baglanti.KayitKart(["D 1.0", "EK 3 " + "ab" * 32, "E 12.5 enerji", "D 2.0"])
     kart2.ac()
     k2 = kopru_mod.Kopru(kart2, gec_dizin / "arsiv2")
+    # ⚠ k2 TAZE (surucu YOK): k'de surucu kayitli oldugu icin anonim her komut zaten
+    #   reddediliyordu ve bu iddia bos kaliyordu (ilk yazilisi oyleydi)
+    izin2 = [k2.komut_izinli(x, None)[0] for x in ("?\nEz0", "x\rEx!", "p0\nEp evil", "?\x00Ez1")]
+    ok("Satir sonu / kontrol karakteri gomulu komut REDDEDILIR (kart seriyi \\r\\n'de boler: "
+       "'?\\nEz0' E suzgecini atlatirdi); surucusuz koprude duz p0 ve ? serbest kalir",
+       k2.surucu is None and not any(izin2) and k2.komut_izinli("p0", None)[0]
+       and k2.komut_izinli("?", None)[0], str(izin2))
+    izin_e, neden_e = k2.komut_izinli("Ep telefon", None)
+    ok("E komutu surucusuz (anonim kabul eden) koprude de REDDEDILIR",
+       not izin_e and "USB" in neden_e, neden_e)
     yayilan = []
     k2.yayinla = yayilan.append
     threading.Thread(target=k2.dongu, daemon=True).start()

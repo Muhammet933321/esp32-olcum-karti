@@ -61,8 +61,8 @@
   ],
   "B22a PC koprusu (role + arsiv + surucu hakemi)": [
     [
-      56,
-      56
+      58,
+      58
     ]
   ],
   "B22b Kart web katmani (ayna + SSE + komut ucu)": [
@@ -79,14 +79,14 @@
   ],
   "B71 Kayit motoru (bicim + gunluk + elektrik kesme)": [
     [
-      284,
-      284
+      288,
+      288
     ]
   ],
   "B72 Kayit firmware + esitleme (tablo + kaynak + sahte kart)": [
     [
-      136,
-      136
+      144,
+      144
     ]
   ],
   "B3  Sema (ERC + netlist)": [

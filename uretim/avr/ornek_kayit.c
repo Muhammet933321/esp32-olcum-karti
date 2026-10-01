@@ -2028,6 +2028,7 @@ static void senaryo(void)
 #define GUV_SINAMA 1
 #define GUV_ISLEV static __attribute__((noinline, unused))
 #define GUV_CTX_BOYU 176u          /* sinama HMAC'i 169 B; kartta 224 */
+#define GUV_NEFES_ARALIK 2u        /* sinamada her 2 turda bir nefes (kartta 1000) */
 #include "sha256_sinama.h"
 #include "guvenlik.h"
 _Static_assert(sizeof(SsHmac) <= GUV_CTX_BOYU, "GUV_CTX_BOYU sinama HMAC'ina yetmiyor");
@@ -2067,9 +2068,9 @@ static int gv_oku(void *b, const char *ad, void *h, uint16_t n)
     (void)b;
     gv_ad(ad);
     NVS_KOMUT = 3u;
-    if (!(NVS_KOMUT & 1u)) return -1;
+    if (!(NVS_KOMUT & 1u)) return -1;                      /* YOK */
     uz = (uint16_t)(NVS_V(0) | ((uint16_t)NVS_V(1) << 8));
-    if (uz != n) return -1;
+    if (uz != n) return -2;                                /* BOZUK (boy) */
     for (i = 0; i < n; i++) p[i] = NVS_BLOB;
     return 0;
 }
@@ -2096,8 +2097,21 @@ static void gv_rastgele(uint8_t *h, uint16_t n)
 }
 
 static const GuvNvs GNVS = { gv_oku, gv_yaz, 0 };
-static const GuvKripto GK = { ss_hmac_bas, ss_hmac_ekle, ss_hmac_bit, ss_sha_bas,
-                              ss_sha_ekle, ss_sha_bit, ss_pbkdf2, gv_rastgele };
+static uint8_t gv_bit_hata = 0;               /* U17: kriptografi hatasi enjeksiyonu */
+static uint8_t gv_bit_tek = 0;                /* U17H: yalniz SONRAKI cagri hata */
+static uint16_t gv_nefes_say = 0;
+static int gv_hmac_bit(void *ctx, uint8_t c[32])
+{
+    int r = ss_hmac_bit(ctx, c);
+    if (gv_bit_tek) {
+        gv_bit_tek = 0;
+        return -1;
+    }
+    return gv_bit_hata ? -1 : r;
+}
+static void gv_nefes(void) { gv_nefes_say++; }
+static const GuvKripto GK = { ss_hmac_bas, ss_hmac_ekle, gv_hmac_bit, ss_sha_bas,
+                              ss_sha_ekle, ss_sha_bit, gv_rastgele, gv_nefes };
 static GuvDurum g;
 static uint8_t K4[32];                         /* cihaz 4'un K'si (test tarafi hesaplar) */
 static const char PAROLA[] = "dogru-parola-12";
@@ -2233,7 +2247,12 @@ static NI void a1_kripto(void)
     ss_hmac_bas(&m, k1, 20); ss_hmac_ekle(&m, "Hi There", 8); ss_hmac_bit(&m, c); HEXS("H1", c);
     ss_hmac_bas(&m, (const uint8_t *)"Jefe", 4);
     ss_hmac_ekle(&m, "what do ya want for nothing?", 28); ss_hmac_bit(&m, c); HEXS("H2", c);
-    ss_pbkdf2("passwd", (const uint8_t *)"salt", 4, 1, c); HEXS("PB1", c);
+    /* U2: PBKDF2 artik CEKIRDEGIN (guv_pbkdf2, tablo HMAC'i + nefes) — RFC 7914 ve tur 3 */
+    KOD("PB1R", guv_pbkdf2(&GK, "passwd", (const uint8_t *)"salt", 4, 1, c)); HEXS("PB1", c);
+    { uint8_t tuz[16], i; uint16_t n0 = gv_nefes_say;
+      for (i = 0; i < 16u; i++) tuz[i] = (uint8_t)(0xA0u + i);
+      KOD("PB3R", guv_pbkdf2(&GK, PAROLA, tuz, 16, 3, c)); HEXS("PB3", c);
+      KOD("NEF", (int)(gv_nefes_say - n0)); }
 }
 
 static NI void a1_vektor(void)
@@ -2244,12 +2263,13 @@ static NI void a1_vektor(void)
     hexten("a1b2c3d4e5f60718", kim, 8);
     for (i = 0; i < 16u; i++) tuz[i] = (uint8_t)(0xA0u + i);
     guv__sinama_ayar(&g, kim, tuz, 2u);
+    KOD("UP", guv_p_hesapla(&g, PAROLA));      /* kartta cekirdek 1 (guv_isle) hesaplar */
     r = guv_esles_usb(&g, "usb1", 1800000000UL, &n, kk); KOD("USB1", r ? r : n);
     r = guv_esles_usb(&g, "usb2", 1800000000UL, &n, kk); KOD("USB2", r ? r : n);
     for (i = 0; i < 16u; i++) { nk[i] = (uint8_t)(0x10u + i); nc[i] = (uint8_t)(0x40u + i); }
     guv__sinama_bekleyen(&g, 7u, nk, nc, "PC \xc4\x9f", 1000UL);
     { char t[65]; VK(V_KANIT, t); hexten(t, kk, 32); }
-    r = guv_esles_kanit(&g, 7u, kk, PAROLA, 1500UL, 1800000000UL, &n, kart);
+    r = guv_esles_kanit(&g, 7u, kk, 1500UL, 1800000000UL, &n, kart);
     KOD("U3", r); KOD("U3N", n); HEXS("U3KK", kart);
     if (!guv_cihaz_oku(&g, 3u, &c)) HEXS("U3K", c.K);
 }
@@ -2278,15 +2298,17 @@ static NI void a1_eslesme(void)
     int r;
     for (i = 0; i < 16u; i++) nc[i] = (uint8_t)(0x60u + i);
     /* U5 parola: 9 karakter ve bos; bos ad */
-    KOD("U5A", guv_esles_baslat(&g, "tel", nc, "kisa-9chr", 2000UL, &eno, nk));
-    KOD("U5B", guv_esles_baslat(&g, "tel", nc, "", 2000UL, &eno, nk));
-    KOD("U5C", guv_esles_baslat(&g, "", nc, PAROLA, 2000UL, &eno, nk));
+    KOD("U5A", guv_p_hesapla(&g, "kisa-9chr"));
+    KOD("U5D", guv_esles_baslat(&g, "tel", nc, 2000UL, &eno, nk));   /* P yok: PAROLA */
+    KOD("U5B", guv_p_hesapla(&g, ""));
+    KOD("U5E", guv_p_hesapla(&g, PAROLA));
+    KOD("U5C", guv_esles_baslat(&g, "", nc, 2000UL, &eno, nk));
     /* U6 tam eslestirme (kartin nk'si rastgele; istemci kaniti TEST TARAFINDA bagimsiz) */
-    r = guv_esles_baslat(&g, "telefon", nc, PAROLA, 10000UL, &eno, nk);
+    r = guv_esles_baslat(&g, "telefon", nc, 10000UL, &eno, nk);
     KOD("U6A", r);
     ss_pbkdf2(PAROLA, g.ayar.tuz, 16, g.ayar.tur, P);
     t_hmac_es(P, "OK1-istemci", nk, nc, "telefon", kk);
-    r = guv_esles_kanit(&g, eno, kk, PAROLA, 11000UL, 1800000000UL, &n, K4);
+    r = guv_esles_kanit(&g, eno, kk, 11000UL, 1800000000UL, &n, K4);
     KOD("U6B", r); KOD("U6N", n);
     t_hmac_es(P, "OK1-kart", nk, nc, "4", kk);
     KOD("U6KART", !memcmp(kk, K4, 32));
@@ -2300,31 +2322,31 @@ static NI void a1_deneme(void)
     for (i = 0; i < 16u; i++) nc[i] = (uint8_t)(0x60u + i);
     /* U7 deneme siniri: 1 s, sonra 2 s; basarida sifirlanir */
     memset(kk, 0, sizeof(kk));
-    KOD("U7A", guv_esles_baslat(&g, "x", nc, PAROLA, 20000UL, &eno, nk));
-    KOD("U7B", guv_esles_kanit(&g, eno, kk, PAROLA, 20100UL, 1800000000UL, &n, P));
-    KOD("U7C", guv_esles_baslat(&g, "x", nc, PAROLA, 20200UL, &eno, nk));
-    KOD("U7D", guv_esles_baslat(&g, "x", nc, PAROLA, 21100UL, &eno, nk));
-    KOD("U7E", guv_esles_kanit(&g, eno, kk, PAROLA, 21200UL, 1800000000UL, &n, P));
-    KOD("U7F", guv_esles_baslat(&g, "x", nc, PAROLA, 23100UL, &eno, nk));
-    KOD("U7G", guv_esles_baslat(&g, "x", nc, PAROLA, 23200UL, &eno, nk));
+    KOD("U7A", guv_esles_baslat(&g, "x", nc, 20000UL, &eno, nk));
+    KOD("U7B", guv_esles_kanit(&g, eno, kk, 20100UL, 1800000000UL, &n, P));
+    KOD("U7C", guv_esles_baslat(&g, "x", nc, 20200UL, &eno, nk));
+    KOD("U7D", guv_esles_baslat(&g, "x", nc, 21100UL, &eno, nk));
+    KOD("U7E", guv_esles_kanit(&g, eno, kk, 21200UL, 1800000000UL, &n, P));
+    KOD("U7F", guv_esles_baslat(&g, "x", nc, 23100UL, &eno, nk));
+    KOD("U7G", guv_esles_baslat(&g, "x", nc, 23200UL, &eno, nk));
     ss_pbkdf2(PAROLA, g.ayar.tuz, 16, g.ayar.tur, P);
     t_hmac_es(P, "OK1-istemci", nk, nc, "x", kk);
-    KOD("U7H", guv_esles_kanit(&g, eno, kk, PAROLA, 23300UL, 1800000000UL, &n, P));
+    KOD("U7H", guv_esles_kanit(&g, eno, kk, 23300UL, 1800000000UL, &n, P));
     memset(kk, 0, sizeof(kk));
-    KOD("U7I", guv_esles_baslat(&g, "y", nc, PAROLA, 23400UL, &eno, nk));
-    KOD("U7J", guv_esles_kanit(&g, eno, kk, PAROLA, 23500UL, 1800000000UL, &n, P));
-    KOD("U7K", guv_esles_baslat(&g, "y", nc, PAROLA, 24400UL, &eno, nk));
-    KOD("U7L", guv_esles_baslat(&g, "y", nc, PAROLA, 24500UL, &eno, nk));
+    KOD("U7I", guv_esles_baslat(&g, "y", nc, 23400UL, &eno, nk));
+    KOD("U7J", guv_esles_kanit(&g, eno, kk, 23500UL, 1800000000UL, &n, P));
+    KOD("U7K", guv_esles_baslat(&g, "y", nc, 24400UL, &eno, nk));
+    KOD("U7L", guv_esles_baslat(&g, "y", nc, 24500UL, &eno, nk));
     /* U7M/N her bekleyen eslestirme TEK deneme: yanlistan sonra dogru kanit da YOK */
-    KOD("U7M", guv_esles_kanit(&g, eno, kk, PAROLA, 24600UL, 1800000000UL, &n, P));
+    KOD("U7M", guv_esles_kanit(&g, eno, kk, 24600UL, 1800000000UL, &n, P));
     ss_pbkdf2(PAROLA, g.ayar.tuz, 16, g.ayar.tur, P);
     t_hmac_es(P, "OK1-istemci", nk, nc, "y", kk);
-    KOD("U7N", guv_esles_kanit(&g, eno, kk, PAROLA, 24700UL, 1800000000UL, &n, P));
+    KOD("U7N", guv_esles_kanit(&g, eno, kk, 24700UL, 1800000000UL, &n, P));
     /* U8 60 s zaman asimi (dogru kanitla bile) */
-    KOD("U8A", guv_esles_baslat(&g, "z", nc, PAROLA, 30000UL, &eno, nk));
+    KOD("U8A", guv_esles_baslat(&g, "z", nc, 30000UL, &eno, nk));
     ss_pbkdf2(PAROLA, g.ayar.tuz, 16, g.ayar.tur, P);
     t_hmac_es(P, "OK1-istemci", nk, nc, "z", kk);
-    KOD("U8B", guv_esles_kanit(&g, eno, kk, PAROLA, 90001UL, 1800000000UL, &n, P));
+    KOD("U8B", guv_esles_kanit(&g, eno, kk, 90001UL, 1800000000UL, &n, P));
 }
 
 static NI void a1_pencere(void)
@@ -2372,6 +2394,37 @@ static NI void a1_degisiklik(void)
     KOD("U10H", dogrula(9u, "GET", "/kayit/liste", 0, 601u, "", s));
 }
 
+/* U17 kriptografi hatasi (mbedTLS ayirma vb.): dogru imza bile REDDEDILIR (yigindaki
+   eski MAC'e guvenilmez), eslestirme ve P hesabi hata dondurur; hata gecince ayni
+   istek kabul (pencere ilerlememisti) */
+static NI void a1_hata(void)
+{
+    char s[65];
+    uint8_t eno = 0, n = 0, nk[16], nc[16], kk[32], P[32];
+    memset(nc, 0x33, sizeof(nc));
+    t_imzala(K4, "GET", "/pil", 700u, "", s);
+    gv_bit_hata = 1u;
+    KOD("U17A", dogrula(4u, "GET", "/pil", 0, 700u, "", s));
+    gv_bit_hata = 0u;
+    KOD("U17B", dogrula(4u, "GET", "/pil", 0, 700u, "", s));
+    KOD("U17C", guv_esles_baslat(&g, "h", nc, 50000UL, &eno, nk));
+    ss_pbkdf2(PAROLA, g.ayar.tuz, 16, g.ayar.tur, P);
+    t_hmac_es(P, "OK1-istemci", nk, nc, "h", kk);
+    gv_bit_hata = 1u;
+    KOD("U17D", guv_esles_kanit(&g, eno, kk, 50100UL, 1800000000UL, &n, P));
+    KOD("U17E", guv_p_hesapla(&g, PAROLA));
+    gv_bit_hata = 0u;
+    KOD("U17F", guv_p_hesapla(&g, PAROLA));
+    /* U17H: YALNIZ istemci kanitinin HMAC'i hata verir (cikti dogru MAC olsa bile);
+       sonraki anahtar/kart HMAC'leri saglam — hata yok sayilsaydi eslestirme acilirdi */
+    KOD("U17G", guv_esles_baslat(&g, "h", nc, 51000UL, &eno, nk));
+    ss_pbkdf2(PAROLA, g.ayar.tuz, 16, g.ayar.tur, P);
+    t_hmac_es(P, "OK1-istemci", nk, nc, "h", kk);
+    gv_bit_tek = 1u;
+    KOD("U17H", guv_esles_kanit(&g, eno, kk, 51100UL, 1800000000UL, &n, P));
+    gv_bit_tek = 0u;
+}
+
 static NI void a1_dolu(void)
 {
     uint8_t eno = 0, n = 0, nk[16], nc[16], kk[32], i;
@@ -2383,7 +2436,7 @@ static NI void a1_dolu(void)
         r = guv_esles_usb(&g, ad, 1800000000UL, &n, kk);
         KOD("U11", r < 0 ? r : n);
     }
-    KOD("U11B", guv_esles_baslat(&g, "dolu", nc, PAROLA, 40000UL, &eno, nk));
+    KOD("U11B", guv_esles_baslat(&g, "dolu", nc, 40000UL, &eno, nk));
     KOD("U11N", say_var());
 }
 
@@ -2412,6 +2465,19 @@ static NI void a2(void)
     KOD("U14Y", guv_ayar_yaz(&g, 1, 1, 3u));
 }
 
+/* ── asama 4/5: AYAR BOZUK -> fail-closed (zorunlu 1), ayar yazilinca duzelir ── */
+static NI void a4(void)
+{
+    metin_P(PSTR("U18Z ")); ondalik(g.ayar.zorunlu); satir();
+    KOD("U18Y", guv_ayar_yaz(&g, 0, -1, 0u));
+    hexsatir_kisa(PSTR("U18K"), g.ayar.kimlik, 8);
+}
+
+static NI void a5(void)
+{
+    metin_P(PSTR("U18S ")); ondalik(g.ayar.zorunlu); satir();
+}
+
 /* ── asama 3 ── */
 static NI void a3(void)
 {
@@ -2427,6 +2493,10 @@ static void senaryo(void)
     uint32_t adim = t_adim_oku();
     char h[33];
     rs = 0x9E3779B9UL ^ (adim * 0x01000193UL);
+    if (adim == 4u) {                           /* U18: boyu yanlis (bozuk) ayar kaydi */
+        static const uint8_t bozuk[5] = {1u, 2u, 3u, 4u, 5u};
+        (void)gv_yaz(0, "ayar", bozuk, 5u);
+    }
     KOD("AC", guv_ac(&g, &GK, &GNVS));
     guv_acilis_hex(&g, h); metin_P(PSTR("ACILIS ")); metin(h); satir();
     hexsatir_kisa(PSTR("KIMLIK"), g.ayar.kimlik, 8);
@@ -2440,6 +2510,7 @@ static void senaryo(void)
         a1_deneme();
         a1_pencere();
         a1_degisiklik();
+        a1_hata();
         a1_dolu();
         break;
     case 2:
@@ -2447,6 +2518,12 @@ static void senaryo(void)
         break;
     case 3:
         a3();
+        break;
+    case 4:
+        a4();
+        break;
+    case 5:
+        a5();
         break;
     default:
         break;

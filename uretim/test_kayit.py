@@ -1865,7 +1865,7 @@ def bolum_guvenlik() -> None:
           f"-DGUV_V_IMZA_GET_SORGU={im['get_sorgu']['imza']}")
     elf = derle("GUV", ek=ek)
     fl = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
-    a1, a2, a3 = _yonet(fl, elf, [1, 2, 3])
+    a1, a2, a3, a4, a5 = _yonet(fl, elf, [1, 2, 3, 4, 5])
 
     def k(c, ad):
         x = alanlar(c, ad)
@@ -1875,16 +1875,21 @@ def bolum_guvenlik() -> None:
         x = alanlar(c, ad)
         return x[0][0] if x and x[0] else None
     YOK, IMZA, TEKRAR, CIHAZ, BEKLE, DOLU, PAROLA, KANIT, AD = -1, -2, -3, -4, -5, -6, -7, -8, -9
+    KRIPTO, AYAR = -11, -12
     rfc = {x["veri"]: x["hmac"] for x in V["hmac"]}
     ok("B71.U1 sinama SHA-256/HMAC RFC 4231 durum 1 ve 2 ile ayni (C'nin kriptografisi dogru)",
        h(a1, "H1") == rfc[b"Hi There".hex()]
        and h(a1, "H2") == rfc[b"what do ya want for nothing?".hex()],
        f"{h(a1, 'H1')} {h(a1, 'H2')}")
-    ok("B71.U2 sinama PBKDF2 RFC 7914 passwd/salt/1 ile ayni (ilk 32 B)",
-       h(a1, "PB1") == V["pbkdf2"][0]["dk"][:64], str(h(a1, "PB1")))
+    ok("B71.U2 PBKDF2 CEKIRDEKTE (guv_pbkdf2): RFC 7914 passwd/salt/1 ve tur 3 vektoru Python ile "
+       "ayni; uzun dongude nefes cagriliyor (kartta bekci/WDT)",
+       k(a1, "PB1R") == 0 and h(a1, "PB1") == V["pbkdf2"][0]["dk"][:64] and k(a1, "PB3R") == 0
+       and h(a1, "PB3") == pr["pbkdf2_uc"]["P"] and (k(a1, "NEF") or 0) >= 1,
+       f"{h(a1, 'PB1')} {h(a1, 'PB3')} nefes={k(a1, 'NEF')}")
     ok("B71.U3 VEKTOR eslestirmesi: kart Python'un istemci kanitini KABUL eder (P = PBKDF2 tur 2), "
        "numara 3, kart kaniti ve K Python ile AYNI",
-       k(a1, "USB1") == 1 and k(a1, "USB2") == 2 and k(a1, "U3") == 0 and k(a1, "U3N") == 3
+       k(a1, "UP") == 0 and k(a1, "USB1") == 1 and k(a1, "USB2") == 2 and k(a1, "U3") == 0
+       and k(a1, "U3N") == 3
        and h(a1, "U3KK") == pr["kanit_kart"] and h(a1, "U3K") == pr["K"],
        f"{k(a1, 'U3')} n={k(a1, 'U3N')} kk={str(h(a1, 'U3KK'))[:12]} K={str(h(a1, 'U3K'))[:12]}")
     ok("B71.U4 imza VEKTORLERI kartta dogrulanir: GET, POST govdeli, akis, yuzde kodlu sorgu",
@@ -1892,9 +1897,21 @@ def bolum_guvenlik() -> None:
        str([k(a1, x) for x in ("U4A", "U4B", "U4C", "U4D")]))
     ok("B71.U10a (Review Focus 1) not='a&b=c' ile imzalanmis istek not=a & b=c olarak "
        "sunulunca IMZA reddi (tekrar degil)", k(a1, "U10A") == IMZA, str(k(a1, "U10A")))
-    ok("B71.U5 parola 9 karakter ya da bos -> PAROLA reddi; bos ad -> AD reddi",
-       [k(a1, x) for x in ("U5A", "U5B", "U5C")] == [PAROLA, PAROLA, AD],
-       str([k(a1, x) for x in ("U5A", "U5B", "U5C")]))
+    ok("B71.U5 P yalniz uygun parolayla hesaplanir (9 karakter / bos -> PAROLA); P yokken "
+       "eslestirme PAROLA reddi; bos ad -> AD reddi",
+       [k(a1, x) for x in ("U5A", "U5D", "U5B", "U5E", "U5C")] == [PAROLA, PAROLA, PAROLA, 0, AD],
+       str([k(a1, x) for x in ("U5A", "U5D", "U5B", "U5E", "U5C")]))
+    u17 = [k(a1, "U17" + x) for x in "ABCDEFGH"]
+    ok("B71.U17 kriptografi hatasi: DOGRU imza bile REDDEDILIR, hata gecince ayni istek kabul; "
+       "eslestirme kaniti ve P hesabi KRIPTO hatasi doner; YALNIZ istemci kanitinin HMAC'i "
+       "hata verince de (cikti dogru MAC olsa bile) KRIPTO",
+       u17 == [IMZA, 0, 0, KRIPTO, KRIPTO, 0, 0, KRIPTO], str(u17))
+    ok("B71.U18 ayar kaydi BOZUK (boy yanlis): ac AYAR doner, imza ZORUNLU (fail-closed), kimlik "
+       "bilinmiyor; ayar yazilinca kimlik/tuz yeniden uretilir, sonraki acilis normal ve zorunlu 0",
+       k(a4, "AC") == AYAR and alanlar(a4, "U18Z") == [["1"]] and h(a4, "KIMLIK") == "0" * 16
+       and k(a4, "U18Y") == 0 and h(a4, "U18K") not in (None, "0" * 16) and k(a5, "AC") == 0
+       and h(a5, "KIMLIK") == h(a4, "U18K") and alanlar(a5, "U18S") == [["0"]],
+       f"{k(a4, 'AC')} {alanlar(a4, 'U18Z')} {h(a4, 'U18K')} {k(a5, 'AC')} {alanlar(a5, 'U18S')}")
     ok("B71.U6 tam eslestirme: rastgele nk ile bagimsiz istemci kaniti kabul, numara 4; kartin "
        "kaniti ve sakladigi K, test tarafinin spec bicimiyle hesapladigiyla ayni",
        [k(a1, x) for x in ("U6A", "U6B", "U6N", "U6KART", "U6K")] == [0, 0, 4, 1, 1],

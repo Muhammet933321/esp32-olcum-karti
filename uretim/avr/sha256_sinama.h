@@ -67,7 +67,7 @@ __attribute__((noinline)) static void ss__blok(SsSha *s, const uint8_t *b)
     s->h[4] += e; s->h[5] += f; s->h[6] += g; s->h[7] += h;
 }
 
-__attribute__((noinline)) static void ss_sha_bas(void *ctx)
+__attribute__((noinline)) static int ss_sha_bas(void *ctx)
 {
     static const uint32_t ilk[8] PROGMEM = {
         0x6a09e667UL, 0xbb67ae85UL, 0x3c6ef372UL, 0xa54ff53aUL,
@@ -77,6 +77,7 @@ __attribute__((noinline)) static void ss_sha_bas(void *ctx)
     for (i = 0; i < 8; i++) s->h[i] = pgm_read_dword(&ilk[i]);
     s->uz = 0;
     s->n = 0;
+    return 0;
 }
 
 __attribute__((noinline)) static void ss_sha_ekle(void *ctx, const void *v, uint16_t n)
@@ -90,7 +91,7 @@ __attribute__((noinline)) static void ss_sha_ekle(void *ctx, const void *v, uint
     }
 }
 
-__attribute__((noinline)) static void ss_sha_bit(void *ctx, uint8_t c[32])
+__attribute__((noinline)) static int ss_sha_bit(void *ctx, uint8_t c[32])
 {
     SsSha *s = (SsSha *)ctx;
     uint32_t bit = s->uz << 3;
@@ -111,9 +112,10 @@ __attribute__((noinline)) static void ss_sha_bit(void *ctx, uint8_t c[32])
         c[4 * i] = (uint8_t)(s->h[i] >> 24); c[4 * i + 1] = (uint8_t)(s->h[i] >> 16);
         c[4 * i + 2] = (uint8_t)(s->h[i] >> 8); c[4 * i + 3] = (uint8_t)s->h[i];
     }
+    return 0;
 }
 
-__attribute__((noinline)) static void ss_hmac_bas(void *ctx, const uint8_t *anahtar, uint16_t n)
+__attribute__((noinline)) static int ss_hmac_bas(void *ctx, const uint8_t *anahtar, uint16_t n)
 {
     SsHmac *m = (SsHmac *)ctx;
     uint8_t k0[64], i;
@@ -132,6 +134,7 @@ __attribute__((noinline)) static void ss_hmac_bas(void *ctx, const uint8_t *anah
     ss_sha_bas(&m->ic);
     ss_sha_ekle(&m->ic, k0, 64);
     memset(k0, 0, sizeof(k0));
+    return 0;
 }
 
 __attribute__((noinline)) static void ss_hmac_ekle(void *ctx, const void *v, uint16_t n)
@@ -139,7 +142,7 @@ __attribute__((noinline)) static void ss_hmac_ekle(void *ctx, const void *v, uin
     ss_sha_ekle(&((SsHmac *)ctx)->ic, v, n);
 }
 
-__attribute__((noinline)) static void ss_hmac_bit(void *ctx, uint8_t c[32])
+__attribute__((noinline)) static int ss_hmac_bit(void *ctx, uint8_t c[32])
 {
     SsHmac *m = (SsHmac *)ctx;
     uint8_t ic[32];
@@ -147,7 +150,7 @@ __attribute__((noinline)) static void ss_hmac_bit(void *ctx, uint8_t c[32])
     ss_sha_bas(&m->ic);
     ss_sha_ekle(&m->ic, m->dis, 64);
     ss_sha_ekle(&m->ic, ic, 32);
-    ss_sha_bit(&m->ic, c);
+    return ss_sha_bit(&m->ic, c);
 }
 
 /* PBKDF2-HMAC-SHA256, tek blok (dkLen 32). 0 = tamam. */

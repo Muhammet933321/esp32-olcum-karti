@@ -2514,7 +2514,10 @@ static bool guv__dogrula(uint8_t sinif) {
   uint8_t oz[32];
   {
     const String govde = post ? sunucu.arg("plain") : String();
-    guv_esp_sha(govde.c_str(), govde.length(), oz);
+    if (guv_esp_sha(govde.c_str(), govde.length(), oz) != 0) {
+      sunucu.send(500, "text/plain", "kriptografi hatasi (bellek?) — tekrar dene");
+      return false;
+    }
   }
   const uint8_t n = (uint8_t)cs.toInt();
   const uint64_t sayac = strtoull(ss.c_str(), nullptr, 10);
@@ -2998,10 +3001,22 @@ static bool host_gecerli() {
 // Parola KURULMAMISSA yetkilendirme kapali — ama acilista bu yuksek
 // sesle soyleniyor. Sessiz "guvenlik yok" durumu birakmak, guvenlik
 // olmamasindan daha kotudur.
-static bool web_yetkili() {
+// 1D son inceleme: eslestirmenin deneme siniri (K7) eski Basic-Auth yolunda HIZ
+// sinirsiz parola denemesiyle bosa cikiyordu. Yanlis parola 2^k s bekletir (k <= 8),
+// dogru parola sifirlar; YALNIZ Authorization basligi varken sayilir (tarayicinin
+// ilk basliksiz istegi deneme degil). 1: yetkili, 0: parola iste, -1: bekle (429).
+static uint32_t web_serbest_ms = 0;
+static uint8_t web_k = 0;
+static int web_yetki() {
   String s = ag_nvs.getString("web_sifre", "");
-  if (!s.length()) return true;
-  return sunucu.authenticate("olcum", s.c_str());
+  if (!s.length()) return 1;
+  if (web_k && (int32_t)(millis() - web_serbest_ms) < 0) return -1;
+  if (sunucu.authenticate("olcum", s.c_str())) { web_k = 0; return 1; }
+  if (sunucu.hasHeader("Authorization")) {
+    web_serbest_ms = millis() + (1000UL << web_k);
+    if (web_k < 8u) web_k++;
+  }
+  return 0;
 }
 
 // ═════════════════════════════════ 1D — ESLESTIRME + CIHAZ UCLARI ═══
@@ -3010,7 +3025,11 @@ static bool web_yetkili() {
 static void guv__esles_hata(int r) {
   switch (r) {
     case GUV_E_PAROLA:
-      sunucu.send(403, "text/plain", "web parolasi yok ya da 10 karakterden kisa — USB'den Ns<parola> ile uzat");
+      sunucu.send(403, "text/plain", "web parolasi yok ya da 10 karakterden kisa (USB'den Ns<parola> ile uzat) "
+                                     "ya da eslestirme anahtari hazirlaniyor (birkac saniye sonra tekrar)");
+      break;
+    case GUV_E_KRIPTO:
+      sunucu.send(500, "text/plain", "kriptografi hatasi (bellek?) — tekrar dene");
       break;
     case GUV_E_BEKLE: {
       char t[12];
@@ -3072,11 +3091,9 @@ void eslestir_baslat_sayfa() {
     return;
   }
   const String ad = sunucu.arg("ad");
-  String p = ag_nvs.getString("web_sifre", "");
   guv_kilit();
-  const int r = guv_esles_baslat(&guv, ad.c_str(), nc, p.c_str(), millis(), &eno, nk);
+  const int r = guv_esles_baslat(&guv, ad.c_str(), nc, millis(), &eno, nk);
   guv_birak();
-  p = String();
   if (r) { guv__esles_hata(r); return; }
   char t[96], h[33];
   guv__hex(nk, 16, h);
@@ -3095,11 +3112,9 @@ void eslestir_kanit_sayfa() {
     return;
   }
   const uint8_t eno = (uint8_t)sunucu.arg("eno").toInt();
-  String p = ag_nvs.getString("web_sifre", "");
   guv_kilit();
-  const int r = guv_esles_kanit(&guv, eno, kanit, p.c_str(), millis(), kayit__unix(), &n, kk);
+  const int r = guv_esles_kanit(&guv, eno, kanit, millis(), kayit__unix(), &n, kk);
   guv_birak();
-  p = String();
   if (r) { guv__esles_hata(r); return; }
   char t[110], h[65];
   guv__hex(kk, 32, h);
@@ -3204,6 +3219,11 @@ static void guv_seri_komut(const char *s) {
       break;
     }
     case 'p': {
+      /* son inceleme: RF (WiFi) kapaliyken ESP32 RNG'si yalanci-rastgele — anahtar uretme */
+      if (WiFi.getMode() == WIFI_MODE_NULL) {
+        Serial.println(F("! E: WiFi KAPALI — RF'siz rastgele sayi zayif; once N1 + yeniden baslat"));
+        break;
+      }
       uint8_t K[32], n = 0;
       guv_kilit();
       const int r = guv_esles_usb(&guv, s + 2, kayit__unix(), &n, K);
@@ -3233,6 +3253,7 @@ static void guv_seri_komut(const char *s) {
       const int r = (s[1] == 'z') ? guv_ayar_yaz(&guv, d, -1, 0) : guv_ayar_yaz(&guv, -1, d, 0);
       guv_birak();
       if (r) { Serial.println(F("! E: ayar yazilamadi")); break; }
+      guv_p_eski = 1;                   /* ayar bozuktuysa tuz yeniden uretildi */
       if (s[1] == 'z')
         Serial.println(d ? F("* E: imza ZORUNLU — imzasiz okuma/komut 401 (p0 ve ? serbest)")
                          : F("* E: imza zorunlu DEGIL — bugunku kurallar (gecis)"));
@@ -3242,11 +3263,14 @@ static void guv_seri_komut(const char *s) {
       break;
     }
     case 't': {
+      /* son inceleme: sinirsiz Et cekirdek 1'i (olcum, pil kesmesi) gunlerce dondururdu */
+      if (pil_testi_suruyor()) { Serial.println(F("! E: pil testi suruyor — Et yok")); break; }
       uint32_t tur = strtoul(s + 2, nullptr, 10);
       if (!tur) tur = guv.ayar.tur;
+      if (tur < 1000UL || tur > GUV_TUR_EN_COK) { Serial.println(F("! E: Et<1000..200000>")); break; }
       uint8_t P[32];
       const uint32_t t0 = millis();
-      gm_pbkdf2("olcum-tur-olcumu-1D", guv.ayar.tuz, 16, tur, P);
+      guv_pbkdf2(&guv_kripto, "olcum-tur-olcumu-1D", guv.ayar.tuz, 16, tur, P);
       const uint32_t ms = millis() - t0;
       memset(P, 0, sizeof(P));
       snprintf(t, sizeof(t), "ET %lu %lu", (unsigned long)tur, (unsigned long)ms);
@@ -3254,11 +3278,16 @@ static void guv_seri_komut(const char *s) {
       break;
     }
     case 'r': {
+      if (pil_testi_suruyor()) { Serial.println(F("! E: pil testi suruyor — Er yok")); break; }
       const uint32_t tur = strtoul(s + 2, nullptr, 10);
-      if (tur < 1000UL || tur > 10000000UL) { Serial.println(F("! E: Er<1000..10000000>")); break; }
+      if (tur < GUV_TUR_EN_AZ || tur > GUV_TUR_EN_COK) {
+        Serial.println(F("! E: Er<10000..200000> (istemci 10000'in altini reddeder)"));
+        break;
+      }
       guv_kilit();
       const int r = guv_ayar_yaz(&guv, -1, -1, tur);
       guv_birak();
+      guv_p_eski = 1;
       Serial.println(r ? F("! E: ayar yazilamadi") : F("* E: PBKDF2 turu yazildi (yalniz YENI eslestirmeler)"));
       break;
     }
@@ -3270,6 +3299,29 @@ static void guv_seri_komut(const char *s) {
 
 // Cekirdek 0'in reddettigi eslestirmeleri cekirdek 1 basar (K7: her ret seride).
 static void guv_isle() {
+  /* P (PBKDF2) YALNIZ burada, cekirdek 1'de: web yolunda PBKDF2 yok (son inceleme:
+     yuksek turda web gorevi bekciyi tetikleyip karti yeniden baslatabilirdi). Pil testi
+     surerken ertelenir (olcum dongusu durmasin). */
+  if (guv_p_eski && guv_hazir && !pil_testi_suruyor()) {
+    guv_p_eski = 0;
+    String p = ag_nvs.getString("web_sifre", "");
+    const uint32_t t0 = millis();
+    guv_kilit();
+    const int rp = guv_p_hesapla(&guv, p.c_str());
+    guv_birak();
+    p = String();
+    if (!rp) {
+      Serial.print(F("* E: parolali eslestirme hazir (P "));
+      Serial.print(millis() - t0);
+      Serial.println(F(" ms)"));
+    } else if (rp == GUV_E_PAROLA) {
+      Serial.println(F("* E: web parolasi yok/kisa (<10) — parolali eslestirme KAPALI (USB: Ep)"));
+    } else if (rp == GUV_E_AYAR) {
+      Serial.println(F("! E: guvenlik ayari BOZUK — imza ZORUNLU (fail-closed); Ez0/Ez1 ayari yeniden yazar"));
+    } else {
+      Serial.println(F("! E: eslestirme anahtari hesaplanamadi (kriptografi)"));
+    }
+  }
   static uint32_t son = 0;
   const uint32_t r = guv_ret_sayac;
   if (r != son) {
@@ -4121,7 +4173,12 @@ void komut_sayfa() {
                   "gecersiz oturum jetonu. `p0` (durdur) ve `?` serbest.");
       return;
     }
-    if (!web_yetkili()) {
+    const int yetki = web_yetki();
+    if (yetki < 0) {
+      sunucu.send(429, "text/plain", "cok fazla yanlis parola — biraz bekle");
+      return;
+    }
+    if (!yetki) {
       sunucu.requestAuthentication();
       return;
     }
@@ -5013,12 +5070,13 @@ void komut_calistir(const char *s) {
         ag_nvs.putString("ap_sifre", deg);
         Serial.println(F("* AP parolasi kaydedildi"));
       }
-      /* 🔴 Web parolasi ANINDA gecerli: web_yetkili() her istekte NVS'ten
+      /* 🔴 Web parolasi ANINDA gecerli: web_yetki() her istekte NVS'ten
          okuyor. Eskiden buradaki tek ortak satir "bir sonraki acilista
          gecerli" diyordu ve `Ns` (bos) ile korumayi KALDIRAN kullaniciya
          korumanin surdugunu dusundurtuyordu. Mesaj artik alt komuta gore. */
       else if (alt == 's') { ag_nvs.putString("web_sifre", deg);
                         guv_kilit(); guv_parola_degisti(&guv); guv_birak();   // 1D: P onbellegi
+                        guv_p_eski = 1;                                        // cekirdek 1 yeniden hesaplar
                         Serial.println(strlen(deg)
                             ? F("* web parolasi kuruldu — HEMEN gecerli")
                             : F("! web parolasi KALDIRILDI — komut ucu SU AN"
@@ -5181,17 +5239,21 @@ void setup() {
   // ── B22.4: AG ─────────────────────────────────────────────────────
   ag_yukle();
   jeton_uret();
-  guv_esp_ac();                        // 1D: eslestirme + imza (NVS `guv`, `cihaz`)
-  Serial.print(F("Guvenlik (1D): "));
-  if (!guv_hazir) Serial.println(F("KAPALI — NVS acilamadi (imzali istek 503)"));
-  else {
-    Serial.print(guv.ayar.zorunlu ? F("imza ZORUNLU") : F("imza zorunlu DEGIL (gecis; Ez1 ile ac)"));
-    Serial.print(F(" · ")); Serial.print(guv_cihaz_adet()); Serial.println(F(" cihaz · `E?`"));
-  }
   if (ag_nvs.getUChar("acik", 1)) {
     // STA dene -> olmazsa KENDI AGINI kur. "Bilgisayar yoksa" senaryosu
     // var olan bir altyapiya bagimli olamaz.
     ag_baslat();
+  }
+  // 1D: AG'DAN SONRA — acilis nonce'u, tuz, kimlik RF acikken uretilsin (RF'siz ESP32
+  // RNG'si yalanci-rastgele; acilis her acilista ayni olsaydi tekrar korumasi coker)
+  guv_esp_ac();                        // 1D: eslestirme + imza (NVS `guv`, `cihaz`)
+  Serial.print(F("Guvenlik (1D): "));
+  if (!guv_hazir) Serial.println(F("KAPALI — NVS acilamadi (imzali istek 503)"));
+  else {
+    if (guv_ac_sonuc == GUV_E_AYAR)
+      Serial.print(F("AYAR BOZUK -> "));
+    Serial.print(guv.ayar.zorunlu ? F("imza ZORUNLU") : F("imza zorunlu DEGIL (gecis; Ez1 ile ac)"));
+    Serial.print(F(" · ")); Serial.print(guv_cihaz_adet()); Serial.println(F(" cihaz · `E?`"));
   }
 
   // Ozel basliklar VARSAYILAN OLARAK TOPLANMIYOR — istenmezse

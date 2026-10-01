@@ -36,6 +36,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import sys
 import time
@@ -45,6 +46,12 @@ from pathlib import Path
 
 SURUM = "OK1"
 AD_AZAMI = 24                      # bayt (UTF-8); kartta GUV_AD_AZAMI
+PAROLA_EN_AZ = 10                  # kartta GUV_PAROLA_EN_AZ — istemci de AYNI sinir (K3)
+# Son inceleme (KRITIK): tur ve tuz KARTTAN gelir; sahte kart (mDNS taklidi) tur=1
+# dayatip kaniti toplasaydi parola HMAC hizinda tahmin edilirdi. Istemci alt/ust
+# siniri kendisi uygular (kartta GUV_TUR_EN_AZ 10 000; ust sinir istemcide genis).
+TUR_EN_AZ = 10_000
+TUR_EN_COK = 1_000_000
 _AYRILMAMIS = frozenset(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 VARSAYILAN_DIZIN = Path(__file__).parent / ".cihaz"
 
@@ -228,13 +235,32 @@ def _post_acik(taban: str, yol: str, argumanlar, zaman_asimi: float) -> dict:
         raise RuntimeError(f"{yol}: {h.code} {metin}") from None
 
 
+def _bilgi_denetle(b: dict) -> tuple[str, bytes, int, str]:
+    """Kartin (ya da kart taklidinin) verdigini dogrula: kimlik dosya adina gider,
+    tur ve tuz parolanin cevrimdisi tahmin maliyetini belirler."""
+    kimlik, tuz, acilis = str(b.get("kimlik", "")), str(b.get("tuz", "")), str(b.get("acilis", ""))
+    if not re.fullmatch(r"[0-9a-f]{16}", kimlik):
+        raise ValueError(f"kart kimligi bicimsiz: {kimlik[:40]!r}")
+    if not re.fullmatch(r"[0-9a-f]{32}", tuz):
+        raise ValueError("kartin tuzu 16 bayt (32 hex) degil")
+    if not re.fullmatch(r"[0-9a-f]{32}", acilis):
+        raise ValueError("kartin acilis degeri bicimsiz")
+    tur = int(b.get("tur", 0))
+    if not TUR_EN_AZ <= tur <= TUR_EN_COK:
+        raise ValueError(f"PBKDF2 turu {tur} kabul edilmez ({TUR_EN_AZ}..{TUR_EN_COK}) — "
+                         "sahte kart olabilir; eslestirme YAPILMADI")
+    return kimlik, bytes.fromhex(tuz), tur, acilis
+
+
 def esles(taban: str, ad: str, parola: str, dizin=None, zaman_asimi: float = 30.0) -> Cihaz:
     """Parolali eslestirme (K5). Parola ve P aga CIKMAZ. Kartin kaniti dogrulanmadan
-    anahtar KAYDEDILMEZ (karsilikli: sahte kart parolayi bilmez)."""
+    anahtar KAYDEDILMEZ (karsilikli: sahte kart parolayi bilmez). Kisa parola, bicimsiz
+    kimlik/tuz ve sinir disi tur HICBIR kanit yollanmadan reddedilir."""
     if not ad_gecerli(ad):
         raise ValueError("ad 1-24 bayt olmali, kontrol karakteri yok")
-    b = bilgi(taban, zaman_asimi)
-    kimlik, tuz, tur, acilis = b["kimlik"], bytes.fromhex(b["tuz"]), int(b["tur"]), b["acilis"]
+    if len(parola) < PAROLA_EN_AZ:
+        raise ValueError(f"parola en az {PAROLA_EN_AZ} karakter olmali (kart da reddeder)")
+    kimlik, tuz, tur, acilis = _bilgi_denetle(bilgi(taban, zaman_asimi))
     nc = secrets.token_bytes(16)
     y = _post_acik(taban, "/eslestir/baslat", [("ad", ad), ("nc", nc.hex())], zaman_asimi)
     eno, nk = int(y["eno"]), bytes.fromhex(y["nk"])
@@ -271,6 +297,8 @@ def esles_usb(kart, ad: str, dizin=None, zaman_asimi: float = 5.0) -> Cihaz:
     if durum.startswith("! E"):
         raise RuntimeError(durum)
     kimlik = next(t.split("=", 1)[1] for t in durum.split() if t.startswith("kimlik="))
+    if not re.fullmatch(r"[0-9a-f]{16}", kimlik):
+        raise ValueError(f"kart kimligi bicimsiz: {kimlik[:40]!r}")
     kart.yaz(f"Ep{ad}")
     satir = _bekle(kart, lambda s: s.startswith("EK ") or s.startswith("! E"), zaman_asimi)
     if satir.startswith("! E"):
