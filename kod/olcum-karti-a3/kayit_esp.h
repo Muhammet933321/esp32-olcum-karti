@@ -132,6 +132,10 @@ static KayitSkopYuva   *kayit_skop_yuva = nullptr;   /* yoksa Gt REDDEDILIR */
 static volatile uint8_t kayit_skop_dolu = 0;
 static uint32_t         kayit_skop_hata = 0;         /* gorev yazamadi (DOLU/hata) */
 static volatile uint32_t kayit_onay_istek = 0;     /* cekirdek 1 yazar: SON gelen kazanir */
+/* 1C-4 incelemesi I1/I3: KM_PLAN_BASLAT'in sonucu (cekirdek 0 yazar; ONCE sonuc,
+   bariyer, SONRA istek numarasi). > 0 oturum, 0 mesgul, < 0 KG_* hata. */
+static volatile int32_t  kayit_plan_sonuc = 0;
+static volatile uint8_t  kayit_plan_sonuc_no = 0;
 static volatile uint32_t kayit_yaz_azami_us = 0;
 static volatile uint32_t kayit_sil_azami_us = 0;
 static volatile uint32_t kayit_sil_adet = 0;
@@ -287,7 +291,23 @@ static void kayit__mesaj(const KayitMesaj *m)
     case KM_BICIMLE:
         (void)kyn_bicimle(&kayit_m, simdi);
         break;
-    case KM_PLAN_BASLAT:       /* 1C-4: ayni yol — BASLA + PLAN olayi */
+    case KM_PLAN_BASLAT: {     /* 1C-4: BASLA + PLAN olayi. Cekirdek 1'in "mesgul degil"
+                                  karari bu ana dek eskimis olabilir (kuyrukta onde Gb):
+                                  oturum ya da DEVAM bekleyisi varsa ACMAZ. Sonuc istek
+                                  numarasiyla (m->sebep) cekirdek 1'e. */
+        int32_t s = 0;
+        if (!kayit_y.oturum && !kayit_m.devam_bekliyor) {
+            KayitBasla b = m->basla;
+            if (!b.unix_s) b.unix_s = kayit__unix();
+            s = kyn_baslat(&kayit_m, &b, simdi, kayit__unix());
+            if (s > 0) (void)kyn_olay(&kayit_m, m->yuk, m->n);
+            else if (!s) s = KG_HATA;          /* 0 "mesgul" demek; acilamadi = hata */
+        }
+        kayit_plan_sonuc = s;
+        KAYIT_BARIYER();
+        kayit_plan_sonuc_no = m->sebep;
+        break;
+    }
     case KM_SKOP_BASLAT:       /* 1C-3: ayni yol — BASLA (tur SKOP) + SKOP_KAL olayi */
     case KM_PIL_BASLAT: {      /* 1C-1: surmekte olan oturum "baska oturum" ile kapanir */
         KayitBasla b = m->basla;
@@ -306,11 +326,11 @@ static void kayit__mesaj(const KayitMesaj *m)
         (void)kyn_not(&kayit_m, m->yuk, m->n);
         break;
     case KM_PLAN_BITIR: {      /* 1C-4: YALNIZ planin oturumu etkinse (arada Gd + Gb olduysa
-                                  yeni oturuma dokunma) */
+                                  yeni oturuma dokunma). Sebep mesajda: 7 sure doldu, 1 Gp- */
         uint32_t id;
         memcpy(&id, m->yuk, sizeof(id));
         if (kayit_y.oturum && kayit_y.oturum == id) {
-            int r = ky_bitir(&kayit_y, KB_SEBEP_PLAN);
+            int r = ky_bitir(&kayit_y, m->sebep);
             if (r && r != KG_YOK) kayit_m.son_hata = r;
         }
         break;

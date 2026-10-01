@@ -1365,26 +1365,30 @@ def bolum_skop() -> None:
 
 # ── B71.R · zamanlanmis kayit karar mantigi (1C-4) ─────────────────────
 def bolum_plan() -> None:
-    """1C-4: plan_adim gercek saate gore BASLAT/BITIR der; mesgulse atlar,
-    kacirilan baslangici pencere icinde gec baslatir; NVS'te kalici, yeniden
-    baslamada DEVAM'li oturumun bitisini korur; saat yokken bekler."""
+    """1C-4: plan_adim gercek saate gore BASLAT/BITIR der; mesgulse (oturum, pil
+    testi, skop gunlugu) atlar, kacirilan baslangici pencere icinde gec baslatir;
+    plan YALNIZ cekirdek 0'in bildirdigi oturuma baglanir (benimseme yok);
+    baslatilamazsa BASLATILAMADI; NVS'te kalici."""
     print("\n── B71.R  zamanlanmis kayit: baslat · bitir · atla · gec · kacirildi · acilis")
     elf = derle("PLAN")
     fl = NorFlas(SEKTOR * SEKTOR_ADET, sektor=SEKTOR)
-    a1, a2, a3, a4 = _yonet(fl, elf, [1, 2, 3, 4])
+    a1, a2, a3, a4, a5 = _yonet(fl, elf, [1, 2, 3, 4, 5])
 
     def r(c, ad):
         x = alanlar(c, ad)
         return [int(v) for v in x[0]] if x else None
     YOK, BASLAT, BITIR = 0, 1, 2
-    D_YOK, BEK, SUR, BIT, ATL, KAC = 0, 1, 2, 3, 4, 5
-    ok("B71.R1 baslangicta BASLAT, oturum gorulunce baglanir (SURUYOR), sure dolunca BITIR, "
+    D_YOK, BEK, SUR, BIT, ATL, KAC, BAS_YOK = 0, 1, 2, 3, 4, 5, 7
+    ok("B71.R1 baslangicta BASLAT; arada beliren BASKA oturum BENIMSENMEZ, saat geri gitse de "
+       "zaman asimi sayilmaz; plan cekirdek 0'in bildirdigi oturuma baglanir, sure dolunca BITIR, "
        "oturum kapaninca BITTI",
        _say(a1, "K1") == 0 and r(a1, "R1a") == [YOK, BEK, 0] and r(a1, "R1b") == [BASLAT, BEK, 0]
-       and r(a1, "R1c") == [YOK, SUR, 77] and r(a1, "R1d") == [YOK, SUR, 77]
-       and r(a1, "R1e") == [BITIR, SUR, 77] and r(a1, "R1f") == [YOK, BIT, 77],
-       str([r(a1, x) for x in ("R1a", "R1b", "R1c", "R1d", "R1e", "R1f")]))
-    ok("B71.R2 baslangicta oturum (elle/pil/skop) varsa ATLANDI, sonra kendiliginden BASLAMAZ",
+       and r(a1, "R1x") == [YOK, SUR, 0] and r(a1, "R1y") == [YOK, SUR, 0] and _say(a1, "S1") == 1 and r(a1, "R1c") == [YOK, SUR, 77]
+       and _say(a1, "S1b") == 0 and r(a1, "R1d") == [YOK, SUR, 77] and r(a1, "R1e") == [BITIR, SUR, 77]
+       and r(a1, "R1f") == [YOK, BIT, 77],
+       str([r(a1, x) for x in ("R1a", "R1b", "R1x", "R1y", "R1c", "R1d", "R1e", "R1f")]))
+    ok("B71.R2 baslangicta mesgulse (oturum, oturumsuz pil testi, skop gunlugu) ATLANDI, sonra "
+       "kendiliginden BASLAMAZ",
        _say(a1, "K2") == 0 and r(a1, "R2a") == [YOK, ATL, 0] and r(a1, "R2b") == [YOK, ATL, 0],
        str([r(a1, "R2a"), r(a1, "R2b")]))
     ok("B71.R3 kart baslangicta kapaliydi, pencere icinde acildi: GEC baslar (kalan sure)",
@@ -1406,15 +1410,32 @@ def bolum_plan() -> None:
            + [r(a4, x) for x in ("AC", "R6d", "R6e")]))
     ok("B71.R7 kullanici Gd ile kapattiysa (oturum yok) plan BITTI, ikinci BITIR yok",
        r(a1, "R7") == [YOK, BIT, 77], str(r(a1, "R7")))
-    ok("B71.R8 iptal: plan YOK, baslangicta bir sey olmaz; 30 gunden uzun sure ve gecmis pencere "
-       "REDDEDILIR",
+    ok("B71.R8 iptal: plan YOK; 30 gunden uzun sure, gecmis pencere, anlamsiz baslangic ('+' "
+       "unutulmus Gp20, 1 yildan ileri) REDDEDILIR",
        _say(a1, "K8") == 0 and r(a1, "R8a") == [YOK, D_YOK, 0] and _say(a1, "KS") == -2
-       and _say(a1, "KG") == -3, str([r(a1, "R8a"), _say(a1, "KS"), _say(a1, "KG")]))
-    ok("B71.R9 BASLAT'tan sonra oturum 10 s icinde gorunmezse plan BITTI (baslatilamadi, takili "
-       "kalmaz)",
-       r(a1, "R9a") == [YOK, SUR, 0] and r(a1, "R9b") == [YOK, BIT, 0],
-       str([r(a1, "R9a"), r(a1, "R9b")]))
-
+       and _say(a1, "KG") == -3 and _say(a1, "KZa") == -5 and _say(a1, "KZb") == -5,
+       str([r(a1, "R8a"), _say(a1, "KS"), _say(a1, "KG"), _say(a1, "KZa"), _say(a1, "KZb")]))
+    ok("B71.R9 BASLAT'tan sonra cekirdek 0'dan sonuc 10 s icinde gelmezse BASLATILAMADI "
+       "(takili kalmaz, 'bitti' denmez)",
+       r(a1, "R9a") == [YOK, SUR, 0] and r(a1, "R9b") == [YOK, BAS_YOK, 0]
+       and _say(a1, "S9") == 0 and r(a1, "R9c") == [YOK, BAS_YOK, 0],
+       str([r(a1, "R9a"), r(a1, "R9b"), _say(a1, "S9"), r(a1, "R9c")]))
+    ok("B71.R12 cekirdek 0 MESGUL dediyse (kuyrukta onde Gb vardi) plan ATLANDI — isi bolmez",
+       _say(a1, "K12") == 0 and r(a1, "R12a") == [BASLAT, BEK, 0] and r(a1, "R12b") == [0, ATL, 0],
+       str([r(a1, "R12a"), r(a1, "R12b")]))
+    ok("B71.R10 sure 0 = Gd'ye dek: baslar, BITIR HIC demez; oturum kapaninca BITTI",
+       _say(a1, "K10") == 0 and r(a1, "R10a") == [BASLAT, BEK, 0]
+       and r(a1, "R10b") == [YOK, SUR, 91] and r(a1, "R10c") == [YOK, BIT, 91],
+       str([r(a1, x) for x in ("R10a", "R10b", "R10c")]))
+    ok("B71.R11 cekirdek 0 oturumu acamadiysa (DOLU/hata/mesgul) plan BASLATILAMADI — 'bitti' "
+       "DEGIL",
+       _say(a1, "K11") == 0 and r(a1, "R11a") == [BASLAT, BEK, 0] and r(a1, "R11b") == [0, BAS_YOK, 0],
+       str([r(a1, "R11a"), r(a1, "R11b")]))
+    ok("B71.R13 BASLAT'tan sonra sonuc gelmeden elektrik gitti: acilista plan oturumu BILINMIYOR "
+       "-> BITTI; o an etkin olan oturumu BENIMSEMEZ",
+       _say(a4, "K13") == 0 and r(a4, "R13a") == [BASLAT, BEK, 0]
+       and r(a5, "AC") == [0, BIT, 0] and r(a5, "R13b") == [YOK, BIT, 0],
+       str([r(a4, "R13a"), r(a5, "AC"), r(a5, "R13b")]))
 
 # ── B71.H · ornek halkasi (1C-2) ─────────────────────────────────────
 def bolum_halka() -> None:

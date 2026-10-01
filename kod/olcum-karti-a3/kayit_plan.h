@@ -7,13 +7,18 @@
  * baslamis planin oturumu DEVAM aldiysa bitis korunur.
  *
  * Kurallar (tasarim/2026-10-01-1c4-zamanlanmis-kayit.md K2-K9):
- *  - baslangicta oturum (elle, pil, skop gunlugu) VARSA plan ATLANIR;
+ *  - baslangicta MESGULSE (oturum, oturumsuz pil testi, skop gunlugu) plan ATLANIR;
  *  - kart baslangicta kapaliydiysa pencere (bas + sure) icinde GEC baslar,
  *    pencere gecmisse KACIRILDI;
  *  - saat yoksa (simdi_unix == 0) bekler; kurulamaz;
- *  - BASLAT'tan sonra oturum PLAN_BASLAT_S icinde gorunmezse BITTI;
- *  - planin oturumu kapandiysa (Gd, DOLU, DEVAM alamadi) BITTI — yeni oturum ACMAZ.
- * AVR'de sinaniyor: test_kayit.py B71.R1-R9 (SENARYO_PLAN). */
+ *  - plan YALNIZ cekirdek 0'in bildirdigi oturuma baglanir (`plan_sonuc`):
+ *    o an etkin olan baska bir oturumu BENIMSEMEZ (1C-4 incelemesi I1);
+ *    cekirdek 0 mesgul dediyse ATLANDI, hata dediyse ya da sonuc
+ *    PLAN_BASLAT_S icinde gelmediyse BASLATILAMADI;
+ *  - planin oturumu kapandiysa (Gd, DOLU, DEVAM alamadi) BITTI — yeni oturum ACMAZ;
+ *  - acilista SURUYOR ama oturumu bilinmiyorsa (sonuc gelmeden elektrik
+ *    gitti) BITTI: hangi oturum oldugu bilinemez, tahmin edilmez.
+ * AVR'de sinaniyor: test_kayit.py B71.R1-R13 (SENARYO_PLAN). */
 #ifndef KAYIT_PLAN_H
 #define KAYIT_PLAN_H
 
@@ -27,6 +32,7 @@
 #define PLAN_ATLANDI   4u
 #define PLAN_KACIRILDI 5u
 #define PLAN_SAAT_YOK  6u         /* yalniz GP satirinda: BEKLIYOR + saat yok */
+#define PLAN_BASLATILAMADI 7u     /* cekirdek 0 oturumu acamadi (DOLU/hata) ya da cevap yok */
 
 #define PE_YOK    0u
 #define PE_BASLAT 1u
@@ -35,9 +41,12 @@
 #define KP_SAAT    (-1)           /* saat yok: kurulamaz */
 #define KP_SURE    (-2)           /* sure > 30 gun */
 #define KP_GECMIS  (-3)           /* pencere tamamen gecmis */
-#define KP_SURUYOR (-4)           /* plan suruyor: once Gd ya da Gp- */
+#define KP_SURUYOR (-4)           /* plan suruyor: once Gp- */
+#define KP_ZAMAN   (-5)           /* baslangic anlamsiz: 2023'ten once ya da 1 yildan ileri */
 
 #define PLAN_SURE_AZAMI (30UL * 86400UL)
+#define PLAN_UNIX_ALT   1700000000UL      /* 2023-11: bundan kucuk 'unix' bir yazim hatasidir */
+#define PLAN_ILERI_AZAMI (366UL * 86400UL)
 #ifndef PLAN_BASLAT_S
 #define PLAN_BASLAT_S 10u         /* BASLAT'tan sonra oturumun gorunmesi icin en fazla */
 #endif
@@ -71,7 +80,11 @@ static inline void plan_ac(KayitPlan *p, const KayitNvs *n)
     p->oturum = n->oku(n->baglam, "pl_ot", 0u);
     p->baslat_unix = n->oku(n->baglam, "pl_bu", 0u);
     p->durum = (uint8_t)n->oku(n->baglam, "pl_dur", PLAN_YOK);
-    if (p->durum > PLAN_KACIRILDI) p->durum = PLAN_YOK;
+    if (p->durum == PLAN_SAAT_YOK || p->durum > PLAN_BASLATILAMADI) p->durum = PLAN_YOK;
+    if (p->durum == PLAN_SURUYOR && !p->oturum) {   /* sonuc gelmeden elektrik gitti */
+        p->durum = PLAN_BITTI;
+        plan__yaz(p);
+    }
 }
 
 /* Donus 0 ya da KP_*. Suren plan degistirilemez (once Gd ya da Gp-). */
@@ -79,6 +92,8 @@ static inline int plan_kur(KayitPlan *p, uint32_t bas, uint32_t sure, uint32_t h
                            uint32_t simdi_unix)
 {
     if (!simdi_unix) return KP_SAAT;
+    if (bas < PLAN_UNIX_ALT || (int32_t)(bas - simdi_unix) > (int32_t)PLAN_ILERI_AZAMI)
+        return KP_ZAMAN;
     if (sure > PLAN_SURE_AZAMI) return KP_SURE;
     if (sure && (uint32_t)(bas + sure) <= simdi_unix) return KP_GECMIS;
     if (p->durum == PLAN_SURUYOR) return KP_SURUYOR;
@@ -93,7 +108,8 @@ static inline int plan_kur(KayitPlan *p, uint32_t bas, uint32_t sure, uint32_t h
     return 0;
 }
 
-/* Plani unut. Suren planda kayit SURER (otomatik bitis kalkar; Gd ile durur). */
+/* Plani unut. Suren planin kaydini kapatmak cagiranin isi (kart: Gp- KM_PLAN_BITIR
+   sebep kullanici gonderir, ONCE). */
 static inline void plan_iptal(KayitPlan *p)
 {
     p->durum = PLAN_YOK;
@@ -115,9 +131,25 @@ static inline void plan__durum(KayitPlan *p, uint8_t d)
     plan__yaz(p);
 }
 
-/* Saniyede bir. `oturum_var`/`oturum_id`: kayit motorunun ETKIN oturumu (tarama
-   bitmeden cagrilmamali). Donus PE_*. */
-static inline uint8_t plan_adim(KayitPlan *p, uint32_t simdi_unix, uint8_t oturum_var,
+/* Cekirdek 0'in KM_PLAN_BASLAT sonucu: > 0 oturum id, 0 mesgul (o an oturum ya
+   da DEVAM bekleyisi vardi), < 0 KG_* hata. Donus 1 = alindi; 0 = plan bu sonucu
+   BEKLEMIYOR (zaman asimi, Gp-, yinelenen) — sonuc bir oturumsa cagiran kapatir. */
+static inline uint8_t plan_sonuc(KayitPlan *p, int32_t sonuc)
+{
+    if (p->durum != PLAN_SURUYOR || p->oturum) return 0u;
+    if (sonuc > 0) {
+        p->oturum = (uint32_t)sonuc;
+        plan__yaz(p);
+    } else {
+        plan__durum(p, sonuc == 0 ? PLAN_ATLANDI : PLAN_BASLATILAMADI);
+    }
+    return 1u;
+}
+
+/* Saniyede bir. `mesgul`: etkin oturum, oturumsuz pil testi ya da skop gunlugu;
+   `oturum_id`: kayit motorunun ETKIN oturumu (0 = yok; tarama bitmeden
+   cagrilmamali). Donus PE_*. */
+static inline uint8_t plan_adim(KayitPlan *p, uint32_t simdi_unix, uint8_t mesgul,
                                 uint32_t oturum_id)
 {
     if (p->durum == PLAN_BEKLIYOR) {
@@ -127,23 +159,20 @@ static inline uint8_t plan_adim(KayitPlan *p, uint32_t simdi_unix, uint8_t oturu
             plan__durum(p, PLAN_KACIRILDI);
             return PE_YOK;
         }
-        if (oturum_var) {                                         /* isi BOLMEZ */
+        if (mesgul) {                                             /* isi BOLMEZ */
             plan__durum(p, PLAN_ATLANDI);
             return PE_YOK;
         }
         return PE_BASLAT;
     }
     if (p->durum != PLAN_SURUYOR) return PE_YOK;
-    if (!p->oturum) {                                             /* acilmasini bekle */
-        if (oturum_var) {
-            p->oturum = oturum_id;
-            plan__yaz(p);
-        } else if (simdi_unix && (uint32_t)(simdi_unix - p->baslat_unix) > PLAN_BASLAT_S) {
-            plan__durum(p, PLAN_BITTI);
-        }
+    if (!p->oturum) {                     /* cekirdek 0'in sonucunu bekle: BENIMSEME YOK */
+        /* isaretli fark: NTP saati geri adim atarsa zaman asimi sayilmaz (M2) */
+        if (simdi_unix && (int32_t)(simdi_unix - p->baslat_unix) > (int32_t)PLAN_BASLAT_S)
+            plan__durum(p, PLAN_BASLATILAMADI);
         return PE_YOK;
     }
-    if (!oturum_var || oturum_id != p->oturum) {                  /* Gd, DOLU, DEVAM yok */
+    if (!oturum_id || oturum_id != p->oturum) {                   /* Gd, DOLU, DEVAM yok */
         plan__durum(p, PLAN_BITTI);
         return PE_YOK;
     }

@@ -806,11 +806,14 @@ def plan(k, host: str) -> None:
     komut(k, "Gd", 3)
     komut(k, "Gp-", 1.5)
     red = []
-    for c in ("Gp+5,10", "Gp+5,10,7", "Gp+99999999999,10,200", "Gpx", "Gp+5,9999999,200"):
+    for c in ("Gp+5,10", "Gp+5,10,7", "Gp+99999999999,10,200", "Gpx", "Gp+5,9999999,200",
+              "Gp20,10,200", "Gp+40000000,10,200"):
         s, _ = komut(k, c, 1.2)
         red.append(any(x.startswith("! G") for x in s))
-    ok("Gp gecersiz argumanlar REDDEDILDI (eksik alan, gecersiz hiz, tasan sayi, harf, > 30 gun)",
-       all(red), str(red))
+    gp0 = _gp(k)
+    ok("Gp gecersiz argumanlar REDDEDILDI (eksik alan, gecersiz hiz, tasan sayi, harf, > 30 gun, "
+       "'+' unutulmus Gp20, 1 yildan ileri) ve plan KURULMADI",
+       all(red) and bool(gp0) and gp0[0] == 0, f"{red} GP={gp0}")
     # A: baslar, sebep 7 ile biter
     t_kom = time.time()
     s, _ = komut(k, "Gp+20,30,200", 1.5)
@@ -869,6 +872,25 @@ def plan(k, host: str) -> None:
     gp_b = _gp(k)
     ok("Gp- bekleyen plani iptal eder (GP 1 -> 0)",
        bool(gp_a) and gp_a[0] == 1 and bool(gp_b) and gp_b[0] == 0, f"{gp_a} -> {gp_b}")
+    # E: sure 0 (Gd'ye dek) baslar, kendiliginden bitmez; Gp- KAYDI DA durdurur (sebep 1)
+    komut(k, "Gp+5,0,200", 1.5)
+    g, _ = _durum_bekle(k, 2, 20)
+    oid = g["oturum"] if g else 0
+    gp_c = _gp(k)
+    time.sleep(8)
+    gd = durum_iste(k)
+    s, _ = komut(k, "Gp-", 1.5)
+    g2, _ = _durum_bekle(k, 1, 8)
+    gp_d = _gp(k)
+    kay, o = _ayr_esitle(k, host, oid)
+    print(f"  Gp+5,0,200 + Gp-: GP {gp_c} -> {gp_d} · {s} · bitir {o and o.bitir}")
+    ok("sure 0: plan baslar ve KENDILIGINDEN bitmez (GP 2, oturum bagli); Gp- KAYDI DA durdurur "
+       "(sebep 1 kullanici), GP 0",
+       bool(gp_c) and gp_c[0] == 2 and gp_c[4] == oid and oid > 0 and bool(gd) and gd["durum"] == 2
+       and gd["oturum"] == oid and bool(g2) and o is not None and o.bitir is not None
+       and o.bitir["sebep"] == 1 and bool(gp_d) and gp_d[0] == 0
+       and any("kaydi da durduruldu" in x for x in s),
+       f"GP={gp_c}->{gp_d} durum={gd and (gd['durum'], gd['oturum'])} bitir={o and o.bitir}")
 
 
 def esit(k, host: str, port: str) -> None:

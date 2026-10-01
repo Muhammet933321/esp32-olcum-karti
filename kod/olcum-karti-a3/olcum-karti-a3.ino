@@ -3160,13 +3160,38 @@ static bool kayit__u32_al(const char **p, uint32_t *v) {
   return true;
 }
 
+static uint8_t kayit_plan_istek = 0;     /* cekirdek 1: son KM_PLAN_BASLAT numarasi */
+static uint8_t kayit_plan_beklenen = 0;  /* sonucu beklenen istek (0 = yok) */
+
+/* Planin oturumunu kapat (KM_PLAN_BITIR; cekirdek 0 yalniz o oturum etkinse kapatir). */
+static bool kayit__plan_bitir(uint32_t oturum, uint8_t sebep) {
+  KayitMesaj m;
+  memset(&m, 0, sizeof(m));
+  m.tur = KM_PLAN_BITIR;
+  m.sebep = sebep;
+  memcpy(m.yuk, &oturum, sizeof(uint32_t));
+  m.n = sizeof(uint32_t);
+  return kayit_mesaj_gonder(&m);
+}
+
 /* `Gp<unix>,<sure_s>,<hiz_ms>` · `Gp+<saniye>,<sure_s>,<hiz_ms>` · `Gp-` · `Gp?` */
 static void kayit_plan_komut(const char *s) {
   const char *p = s + 2;
   uint32_t bas = 0, sure = 0, hiz = 0;
   if (*p == '-' && !p[1]) {
-    plan_iptal(&kayit_plan);
-    Serial.println(F("* G plan iptal (suren kayit varsa Gd ile durur)"));
+    /* 1C-4 incelemesi I4: suren planin kaydi da durur — otomatik bitis sessizce
+       kalkip kayit 30 gune dek surmesin */
+    if (kayit_plan.durum == PLAN_SURUYOR && kayit_plan.oturum) {
+      (void)kayit__plan_bitir(kayit_plan.oturum, KB_SEBEP_KULLANICI);
+      plan_iptal(&kayit_plan);
+      Serial.println(F("* G plan iptal — planin kaydi da durduruldu"));
+    } else if (kayit_plan.durum == PLAN_BEKLIYOR || kayit_plan.durum == PLAN_SURUYOR) {
+      plan_iptal(&kayit_plan);
+      Serial.println(F("* G plan iptal"));
+    } else {
+      plan_iptal(&kayit_plan);
+      Serial.println(F("* G plan yok (bekleyen ya da suren plan yoktu)"));
+    }
     return;
   }
   if (!*p || (*p == '?' && !p[1])) { kayit_gp_bas(); return; }
@@ -3186,11 +3211,18 @@ static void kayit_plan_komut(const char *s) {
     Serial.println(F("! G: saat yok (NTP bekleniyor) — plan kurulamaz"));
     return;
   }
-  if (goreli) bas = simdi + bas;
+  if (goreli) {
+    if (bas > PLAN_ILERI_AZAMI) { Serial.println(F("! G: en fazla 1 yil ileri")); return; }
+    bas = simdi + bas;
+  }
   const int r = plan_kur(&kayit_plan, bas, sure, hiz, simdi);
   if (r == KP_SURE) { Serial.println(F("! G: sure en fazla 30 gun")); return; }
   if (r == KP_GECMIS) { Serial.println(F("! G: planin penceresi gecmis")); return; }
-  if (r == KP_SURUYOR) { Serial.println(F("! G: plan suruyor — once Gd ya da Gp-")); return; }
+  if (r == KP_SURUYOR) { Serial.println(F("! G: plan suruyor — once Gp- (kaydini da durdurur)")); return; }
+  if (r == KP_ZAMAN) {
+    Serial.println(F("! G: baslangic anlamsiz (unix saniye, en fazla 1 yil ileri; goreli icin Gp+<saniye>)"));
+    return;
+  }
   if (r) { Serial.println(F("! G: plan kurulamadi")); return; }
   Serial.print(F("* G plan kuruldu: "));
   Serial.print(bas);
@@ -3211,8 +3243,26 @@ static void kayit_plan_isle() {
   if (!kayit_bolum) return;
   const KayitDurum d = kayit_durum_al();
   if (d.durum == KDR_TARIYOR) return;          /* acilis taramasi: DEVAM henuz belli degil */
+  /* cekirdek 0'in KM_PLAN_BASLAT sonucu (I1/I3): plan YALNIZ bu oturuma baglanir */
+  if (kayit_plan_beklenen && kayit_plan_sonuc_no == kayit_plan_beklenen) {
+    KAYIT_BARIYER();
+    const int32_t s = kayit_plan_sonuc;
+    kayit_plan_beklenen = 0;
+    if (!plan_sonuc(&kayit_plan, s)) {
+      if (s > 0) {                             /* zaman asimi / Gp- sonrasi gec acildi */
+        (void)kayit__plan_bitir((uint32_t)s, KB_SEBEP_PLAN);
+        Serial.println(F("* G plan artik beklemiyordu — gec acilan kaydi kapatiyor"));
+      }
+    } else if (s == 0) {
+      Serial.println(F("! G plan atlandi: o an baska kayit vardi"));
+    } else if (s < 0) {
+      Serial.print(F("! G plan baslatilamadi: "));
+      Serial.println(s == KG_DOLU ? F("bolum dolu (GF! ya da esitleme)") : F("kayit hatasi"));
+    }
+  }
   const uint32_t simdi = kayit__unix();
-  const uint8_t e = plan_adim(&kayit_plan, simdi, d.oturum ? 1u : 0u, d.oturum);
+  const uint8_t mesgul = (uint8_t)(d.oturum || pil_testi_suruyor() || skop_gunluk.aktif);
+  const uint8_t e = plan_adim(&kayit_plan, simdi, mesgul, d.oturum);
   if (e == PE_BASLAT) {
     KayitMesaj m;
     KayitPlanOlay po;
@@ -3224,17 +3274,17 @@ static void kayit_plan_isle() {
     m.tur = KM_PLAN_BASLAT;
     kayit_basla_doldur(&m.basla, kayit_plan.hiz);
     m.n = kayit_olay_plan_paketle(millis(), &po, m.yuk);
+    kayit_plan_istek = (uint8_t)(kayit_plan_istek + 1u);
+    if (!kayit_plan_istek) kayit_plan_istek = 1u;      /* 0 = istek yok */
+    m.sebep = kayit_plan_istek;
     if (kayit_mesaj_gonder(&m)) {
+      kayit_plan_beklenen = kayit_plan_istek;
       plan_basliyor(&kayit_plan, simdi);
       Serial.println(F("* G plan basladi"));
     }
   } else if (e == PE_BITIR) {
-    KayitMesaj m;
-    memset(&m, 0, sizeof(m));
-    m.tur = KM_PLAN_BITIR;
-    memcpy(m.yuk, &kayit_plan.oturum, sizeof(uint32_t));
-    m.n = sizeof(uint32_t);
-    if (kayit_mesaj_gonder(&m)) Serial.println(F("* G plan suresi doldu — kayit kapaniyor"));
+    if (kayit__plan_bitir(kayit_plan.oturum, KB_SEBEP_PLAN))
+      Serial.println(F("* G plan suresi doldu — kayit kapaniyor"));
   }
 }
 

@@ -1925,13 +1925,15 @@ static void pd(const char *ad, uint8_t e)
     satir();
 }
 
-static uint8_t adim_bas(const char *ad, uint32_t t, uint8_t var, uint32_t id)
+static uint8_t adim_bas(const char *ad, uint32_t t, uint8_t mesgul, uint32_t id)
 {
-    uint8_t e = plan_adim(&p, t, var, id);
+    uint8_t e = plan_adim(&p, t, mesgul, id);
     pd(ad, e);
     if (e == PE_BASLAT) plan_basliyor(&p, t);
     return e;
 }
+
+#define T0 1800000000UL                       /* gercekci unix (KP_ZAMAN alt siniri 1.7e9) */
 
 static void senaryo(void)
 {
@@ -1940,45 +1942,72 @@ static void senaryo(void)
     pd("AC", 0u);
     switch (adim) {
     case 1:
-        sayi("K1", plan_kur(&p, 1000u, 60u, 200u, 900u));
-        adim_bas("R1a", 950u, 0u, 0u);
-        adim_bas("R1b", 1000u, 0u, 0u);
-        adim_bas("R1c", 1001u, 1u, 77u);
-        adim_bas("R1d", 1059u, 1u, 77u);
-        adim_bas("R1e", 1060u, 1u, 77u);
-        adim_bas("R1f", 1061u, 0u, 0u);
-        adim_bas("R7", 1070u, 0u, 0u);
-        sayi("K2", plan_kur(&p, 2000u, 60u, 200u, 1900u));
-        adim_bas("R2a", 2000u, 1u, 55u);
-        adim_bas("R2b", 2001u, 0u, 0u);
-        sayi("K4", plan_kur(&p, 4000u, 100u, 200u, 3900u));
-        adim_bas("R4", 4200u, 0u, 0u);
-        sayi("K5a", plan_kur(&p, 5000u, 100u, 200u, 0u));
-        sayi("K5b", plan_kur(&p, 5000u, 100u, 200u, 4900u));
+        sayi("K1", plan_kur(&p, T0 + 1000u, 60u, 200u, T0 + 900u));
+        adim_bas("R1a", T0 + 950u, 0u, 0u);
+        adim_bas("R1b", T0 + 1000u, 0u, 0u);
+        adim_bas("R1x", T0 + 1001u, 1u, 55u);     /* baska oturum belirdi: BENIMSENMEZ */
+        adim_bas("R1y", T0 + 999u, 0u, 0u);       /* NTP saati 1 s GERI aldi: zaman asimi DEGIL */
+        sayi("S1", plan_sonuc(&p, 77));           /* cekirdek 0: planin oturumu 77 */
+        pd("R1c", 0u);
+        sayi("S1b", plan_sonuc(&p, 78));          /* ikinci (yinelenen) sonuc ALINMAZ */
+        adim_bas("R1d", T0 + 1059u, 1u, 77u);
+        adim_bas("R1e", T0 + 1060u, 1u, 77u);
+        adim_bas("R1f", T0 + 1061u, 0u, 0u);
+        adim_bas("R7", T0 + 1070u, 0u, 0u);
+        sayi("K2", plan_kur(&p, T0 + 2000u, 60u, 200u, T0 + 1900u));
+        adim_bas("R2a", T0 + 2000u, 1u, 0u);      /* mesgul (oturumsuz pil testi dahil) */
+        adim_bas("R2b", T0 + 2001u, 0u, 0u);
+        sayi("K4", plan_kur(&p, T0 + 4000u, 100u, 200u, T0 + 3900u));
+        adim_bas("R4", T0 + 4200u, 0u, 0u);
+        sayi("K5a", plan_kur(&p, T0 + 5000u, 100u, 200u, 0u));
+        sayi("K5b", plan_kur(&p, T0 + 5000u, 100u, 200u, T0 + 4900u));
         adim_bas("R5a", 0u, 0u, 0u);
-        adim_bas("R5b", 5000u, 0u, 0u);
-        adim_bas("R9a", 5005u, 0u, 0u);
-        adim_bas("R9b", 5011u, 0u, 0u);
-        sayi("K8", plan_kur(&p, 6000u, 100u, 200u, 5900u));
+        adim_bas("R5b", T0 + 5000u, 0u, 0u);
+        adim_bas("R9a", T0 + 5005u, 0u, 0u);
+        adim_bas("R9b", T0 + 5011u, 0u, 0u);      /* sonuc gelmedi: BASLATILAMADI */
+        sayi("S9", plan_sonuc(&p, 66));           /* GEC sonuc: alinmaz (yapistirici kapatir) */
+        pd("R9c", 0u);
+        sayi("K8", plan_kur(&p, T0 + 6000u, 100u, 200u, T0 + 5900u));
         plan_iptal(&p);
-        adim_bas("R8a", 6000u, 0u, 0u);
-        sayi("KS", plan_kur(&p, 6500u, PLAN_SURE_AZAMI + 1u, 200u, 6400u));
-        sayi("KG", plan_kur(&p, 6000u, 100u, 200u, 6400u));
-        sayi("K3", plan_kur(&p, 7000u, 100u, 200u, 6900u));
+        adim_bas("R8a", T0 + 6000u, 0u, 0u);
+        sayi("KS", plan_kur(&p, T0 + 6500u, PLAN_SURE_AZAMI + 1u, 200u, T0 + 6400u));
+        sayi("KG", plan_kur(&p, T0 + 6000u, 100u, 200u, T0 + 6400u));
+        sayi("KZa", plan_kur(&p, 20u, 0u, 200u, T0 + 6400u));            /* '+' unutuldu */
+        sayi("KZb", plan_kur(&p, T0 + 6400u + 400u * 86400u, 10u, 200u, T0 + 6400u));
+        sayi("K10", plan_kur(&p, T0 + 6500u, 0u, 200u, T0 + 6400u));     /* sure 0 = Gd'ye dek */
+        adim_bas("R10a", T0 + 6500u, 0u, 0u);
+        plan_sonuc(&p, 91);
+        adim_bas("R10b", T0 + 99999u, 1u, 91u);
+        adim_bas("R10c", T0 + 100000u, 0u, 0u);
+        sayi("K11", plan_kur(&p, T0 + 200000u, 60u, 200u, T0 + 199000u));
+        adim_bas("R11a", T0 + 200000u, 0u, 0u);
+        plan_sonuc(&p, -1);                       /* cekirdek 0: DOLU */
+        pd("R11b", 0u);
+        sayi("K12", plan_kur(&p, T0 + 250000u, 60u, 200u, T0 + 249000u));
+        adim_bas("R12a", T0 + 250000u, 0u, 0u);
+        plan_sonuc(&p, 0);                        /* cekirdek 0: kuyrukta onde Gb vardi: MESGUL */
+        pd("R12b", 0u);
+        sayi("K3", plan_kur(&p, T0 + 300000u, 100u, 200u, T0 + 299900u));
         break;
-    case 2:                                   /* kart 7000'de kapaliydi: GEC basla */
-        adim_bas("R3a", 7050u, 0u, 0u);
-        adim_bas("R3b", 7051u, 1u, 90u);
+    case 2:                                   /* kart 300000'de kapaliydi: GEC basla */
+        adim_bas("R3a", T0 + 300050u, 0u, 0u);
+        plan_sonuc(&p, 90);
+        adim_bas("R3b", T0 + 300051u, 1u, 90u);
         break;                                /* elektrik gider: SURUYOR, oturum 90 */
     case 3:                                   /* oturum DEVAM aldi */
-        adim_bas("R6a", 7060u, 1u, 90u);
-        adim_bas("R6b", 6990u, 1u, 90u);      /* saat GERI: yeniden baslama yok */
-        adim_bas("R6c", 7100u, 1u, 90u);
-        sayi("K6", plan_kur(&p, 8000u, 100u, 200u, 7100u));
+        adim_bas("R6a", T0 + 300060u, 1u, 90u);
+        adim_bas("R6b", T0 + 299990u, 1u, 90u);  /* saat GERI: yeniden baslama yok */
+        adim_bas("R6c", T0 + 300100u, 1u, 90u);
+        sayi("K6", plan_kur(&p, T0 + 400000u, 100u, 200u, T0 + 300100u));
         break;
     case 4:                                   /* DEVAM alamadi: oturum yok */
-        adim_bas("R6d", 7101u, 0u, 0u);
-        adim_bas("R6e", 7102u, 0u, 0u);
+        adim_bas("R6d", T0 + 300101u, 0u, 0u);
+        adim_bas("R6e", T0 + 300102u, 0u, 0u);
+        sayi("K13", plan_kur(&p, T0 + 400000u, 50u, 200u, T0 + 399900u));
+        adim_bas("R13a", T0 + 400000u, 0u, 0u);  /* BASLAT, sonuc gelmeden elektrik gider */
+        break;
+    case 5:                                   /* acilis: SURUYOR ama oturum bilinmiyor */
+        adim_bas("R13b", T0 + 400010u, 1u, 33u);
         break;
     default:
         break;

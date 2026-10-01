@@ -469,30 +469,51 @@ def bolum_kaynak() -> None:
        'plan_nvs.begin("plan", false)' in pa and "plan_ac(&kayit_plan, &t)" in pa
        and 0 <= ino_k.find("if (kayit_kur()) {") < ino_k.find("kayit_plan_ac();"))
     pi = govde(ino_k, "static void kayit_plan_isle(")
-    ok("B72.F66 saniyede bir plan_adim: tarama bitmeden karar YOK (DEVAM belli degil); oturum "
+    ok("B72.F66 saniyede bir plan_adim: tarama bitmeden karar YOK (DEVAM belli degil); mesgul "
        "durumu ve gercek saat (NTP) ile; loop'ta",
        "millis() - son < 1000u" in pi and 0 <= pi.find("KDR_TARIYOR") < pi.find("plan_adim(")
-       and "plan_adim(&kayit_plan, simdi, d.oturum ? 1u : 0u, d.oturum)" in pi
+       and "plan_adim(&kayit_plan, simdi, mesgul, d.oturum)" in pi
        and "kayit_plan_isle();" in lp)
     ok("B72.F67 BASLAT: BASLA (kalibrasyon kopyasi, Gb gibi) + PLAN olayi TEK mesajda; plan "
        "YALNIZ istek kuyruga girdiyse 'basliyor' olur (girmezse sonraki saniye yeniden)",
        "kayit_basla_doldur(&m.basla, kayit_plan.hiz)" in pi and "m.tur = KM_PLAN_BASLAT" in pi
-       and "kayit_olay_plan_paketle(" in pi
-       and "if (kayit_mesaj_gonder(&m)) {\n      plan_basliyor(&kayit_plan, simdi);" in pi.replace("\r", ""))
+       and "kayit_olay_plan_paketle(" in pi and "m.sebep = kayit_plan_istek;" in pi
+       and "kayit_plan_beklenen = kayit_plan_istek;" in pi
+       and "if (kayit_mesaj_gonder(&m)) {\n      kayit_plan_beklenen = kayit_plan_istek;\n"
+           "      plan_basliyor(&kayit_plan, simdi);" in pi.replace("\r", ""))
     ms4 = govde(esp_k, "static void kayit__mesaj(")
     kb4 = ms4[ms4.find("case KM_PLAN_BITIR:"):]
-    ok("B72.F68 KM_PLAN_BITIR yalniz etkin oturum PLANIN oturumuysa kapatir (sebep 7); arada "
-       "Gd + Gb olduysa yeni oturuma DOKUNMAZ; KM_PLAN_BASLAT pil yolunu paylasir",
-       0 <= kb4.find("kayit_y.oturum == id") < kb4.find("ky_bitir(&kayit_y, KB_SEBEP_PLAN)")
-       and re.search(r"case KM_PLAN_BASLAT:\s*case KM_SKOP_BASLAT:\s*case KM_PIL_BASLAT: \{", ms4)
-       is not None)
+    kb5 = ms4[ms4.find("case KM_PLAN_BASLAT:"):ms4.find("case KM_PLAN_BITIR:")]
+    # 🔴 1C-4 incelemesi: plan BASLAT'tan sonra beliren HERHANGI bir oturumu
+    # benimsiyordu (kullanicinin Gb/p1'ini sonunda sebep 7 ile kapatabilirdi) ve
+    # mesgul denetimi cekirdek 0 ile atomik degildi. Artik cekirdek 0 mesgulse
+    # ACMAZ ve sonucu (oturum ya da hata) istek numarasiyla yayinlar.
+    ok("B72.F68 KM_PLAN_BITIR yalniz etkin oturum PLANIN oturumuysa kapatir (mesajdaki sebep: "
+       "7 ya da Gp- ile 1); KM_PLAN_BASLAT cekirdek 0'da oturum ya da DEVAM bekleyisi varsa "
+       "ACMAZ, sonucu istek numarasiyla yayinlar",
+       0 <= kb4.find("kayit_y.oturum == id") < kb4.find("ky_bitir(&kayit_y, m->sebep)")
+       and "if (!kayit_y.oturum && !kayit_m.devam_bekliyor)" in kb5
+       and kb5.find("kyn_baslat(") < kb5.find("kayit_plan_sonuc = s;")
+       < kb5.find("kayit_plan_sonuc_no = m->sebep;"))
     gp = govde(ino_k, "static void kayit_gp_bas(")
     ok("B72.F69 G? ardindan GP satiri: durum (saat yoksa 6), baslangic, sure, hiz, oturum",
        '"GP %u %lu %lu %lu %lu"' in gp and "PLAN_SAAT_YOK" in gp
        and 0 <= kk2.find("kayit_gt_bas()") < kk2.find("kayit_gp_bas()") < kk2.find("alt == 'b'"))
-    ok("B72.F70 plan baslangicta oturum varsa (pil testi, skop gunlugu, elle) ATLAR: oturum_var "
-       "kayit durumundan (d.oturum) — pil ve skop oturumlari da sayilir",
-       "d.oturum ? 1u : 0u" in pi and "pil_testi_suruyor()" not in pi)
+    ok("B72.F70 plan baslangicta MESGULSE ATLAR: oturum VEYA oturumsuz pil testi VEYA skop "
+       "gunlugu (Oe7: pil testi DOLU'da oturumsuz surebilir)",
+       "const uint8_t mesgul = (uint8_t)(d.oturum || pil_testi_suruyor() || skop_gunluk.aktif);" in pi)
+    ok("B72.F71 Gp- suren planda KAYDI DA durdurur (sebep 1, otomatik bitis sessizce kalkmaz); "
+       "plan yoksa 'iptal' demez",
+       pk.find("kayit_plan.durum == PLAN_SURUYOR && kayit_plan.oturum") < pk.find("plan_iptal(&kayit_plan)")
+       and "kayit__plan_bitir(kayit_plan.oturum, KB_SEBEP_KULLANICI)" in pk and "plan yok" in pk)
+    ok("B72.F72 plan cekirdek 0'in sonucunu ALIR: istek numarasi eslesirse plan_sonuc (oturuma "
+       "bagla ya da BASLATILAMADI) ve kart sebebi soyler",
+       "kayit_plan_sonuc_no == kayit_plan_beklenen" in pi and "plan_sonuc(&kayit_plan, s)" in pi
+       and "baslatilamadi" in pi and "atlandi" in pi)
+    ok("B72.F73 plan ARTIK beklemedigi gec bir oturumu (zaman asimi / Gp-) KAPATIR — sahipsiz "
+       "kayit kalmaz",
+       0 <= pi.find("if (!plan_sonuc(&kayit_plan, s))") < pi.find("if (s > 0)")
+       < pi.find("kayit__plan_bitir((uint32_t)s, KB_SEBEP_PLAN)"))
     kp = govde(ino_k, "static void kayit_pil_baslat() {")
     ok("B72.F36 kayit acilamazsa pil testi YINE baslar ve kart 'KAYDEDILMIYOR' der "
        "(bolum yok / tarama / hata / dolu / bekliyor / kuyruk dolu)",
