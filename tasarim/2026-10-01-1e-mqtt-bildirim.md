@@ -101,7 +101,13 @@ Olay düz metni: `{"n":<no>,"a":<açılış>,"t":<unix|0>,"o":"<olay adı>", …
   16/16 vasiyet 4.0–7.9 s** (hepsi ≤ 10 s); bağlıyken dahili yığın 82–83 KB, en düşük 54–60 KB
   (açılış + el sıkışma anı).
 
-## ⚠ Onay bekleyen kritik kararlar
+## Kritik kararlar — ONAYLANDI (2026-10-02 gecesi, devredilmiş yetkiyle)
+
+> Kullanıcı yatmadan önce: "yapılması gereken şeyleri hallet … bana soru sorma, sen kendin en
+> mantıklısına karar ver". Aşağıdaki dört karar önerildiği gibi uygulandı; kart ve gerçek aracıda
+> doğrulandıktan sonra `main`'e alındı. Kullanıcı sabah geri çevirebilir (hepsi ayar/dal düzeyinde).
+
+### (Önceki başlık) ⚠ Onay bekleyen kritik kararlar
 
 1. **K5 uçtan uca şifreleme** — önerim evet (aracı içerik görmez, sahte olay yok).
 2. **K8 sürekli bağlantı** — önerim evet; RAM ölçütü (K11) tutmazsa yalnız kayıt sürerken.
