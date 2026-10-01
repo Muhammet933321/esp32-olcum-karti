@@ -260,6 +260,32 @@ static void bicim_1c2(void)
     metin("TUR2 "); ondalik(KAYIT_T_AYRINTI); yaz(' '); ondalik(KAYIT_T_AZAMI); satir();
 }
 
+/* 1C-3: SKOP kaydi (iki parca, 0. parca META) ve SKOP_KAL olayi */
+static void bicim_1c3(void)
+{
+    static const int16_t mv[17] = { -12, 120, 330, 541, 752, 963, 1174, 1385, 1596,
+                                    1807, 2018, 2229, 2440, 2651, 2862, 3073, 3184 };
+    KayitSkopMeta m;
+    uint8_t p[KAYIT_SKOP_PARCA_BAS + KAYIT_SKOP_META + 3u * 2u];
+    uint8_t q[KAYIT_SKOP_PARCA_BAS + 2u * 2u];
+    uint8_t o[KAYIT_OLAY_AZAMI];
+    uint16_t n;
+    m.t_ms = 123456UL; m.sure_ms = 250UL; m.hz = 83333UL; m.tdiv_us = 200UL;
+    m.adim = 0.03125f; m.ofset = -1.25f; m.tetik = 1234u; m.esik = 2048u;
+    m.kip = 1u; m.tetiklendi = 1u; m.kenar = 0u; m.histerezis = 40u; m.on_yuzde = 25u; m.onay = 2u;
+    kayit_skop_parca_paketle(p, 7u, 0u, 3u, 5u, 0u);
+    kayit_skop_meta_paketle(p + KAYIT_SKOP_PARCA_BAS, &m);
+    kayit_y16(p + 48, 0u); kayit_y16(p + 50, 4095u); kayit_y16(p + 52, 2048u);
+    kayit_skop_parca_paketle(q, 7u, 3u, 2u, 5u, 1u);
+    kayit_y16(q + 12, 1u); kayit_y16(q + 14, 4094u);
+    metin("SK0 "); hexdizi(p, (uint16_t)sizeof(p)); satir();
+    metin("SK1 "); hexdizi(q, (uint16_t)sizeof(q)); satir();
+    n = kayit_olay_skop_kal_paketle(98765UL, mv, o);
+    metin("SKAL "); hexdizi(o, n); satir();
+    metin("TUR3 "); ondalik(KAYIT_T_SKOP); yaz(' '); ondalik(KAYIT_T_AZAMI); yaz(' ');
+    ondalik(KAYIT_OTURUM_SKOP); satir();
+}
+
 static void senaryo(void)
 {
     static const uint8_t dokuz[9] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
@@ -281,6 +307,7 @@ static void senaryo(void)
     metin("BASLIK "); hexdizi(h, KAYIT_BASLIK_BAYT); satir();
     bicim_1c1();
     bicim_1c2();
+    bicim_1c3();
     metin("BITTI\n");
 }
 #endif

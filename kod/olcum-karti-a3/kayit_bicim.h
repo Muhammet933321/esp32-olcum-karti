@@ -59,7 +59,8 @@
 #define KAYIT_T_OLAY    7u   /* 1C-1: oturum olayi (pil ayari, DCIR, pil sonucu) */
 #define KAYIT_T_NOT     8u   /* 1C-1: oturuma ad/etiket/not (baslikta oturum 0) */
 #define KAYIT_T_AYRINTI 9u   /* 1C-2: ayrintili kip — her ornek (hiz_ms 0) */
-#define KAYIT_T_AZAMI   9u   /* bilinen en buyuk tur (gecerlilik siniri DEGIL) */
+#define KAYIT_T_SKOP   10u   /* 1C-3: osiloskop yakalamasi, parca parca (0. parca META) */
+#define KAYIT_T_AZAMI  10u   /* bilinen en buyuk tur (gecerlilik siniri DEGIL) */
 
 /* nokta bayraklari */
 #define KN_YUKSEK      0x01u  /* nokta YUKSEK gerilim menzilinde */
@@ -80,6 +81,8 @@
 
 #define KAYIT_OTURUM_OLCUM 1u   /* BASLA.oturum_turu: V/A/W olcum kaydi */
 #define KAYIT_OTURUM_PIL   2u   /* 1C-1: pil testi (noktalar + OLAY'lar); yeniden baslamada SURMEZ */
+#define KAYIT_OTURUM_SKOP  3u   /* 1C-3: osiloskop gunlugu (yalniz SKOP kayitlari); hiz_ms =
+                                   aralik (0 = her tetik); yeniden baslamada SURMEZ */
 #define KAYIT_KAL_BICIM    1u   /* BASLA.kal_bicim: KayitKalibrasyon v1 */
 
 /* ─────────────────────────────── kucuk uclu elle paketleme */
@@ -469,9 +472,12 @@ static inline uint8_t kayit_metin_kopyala(char *d, const char *s, uint8_t azami)
 #define KO_PIL_AYAR  1u
 #define KO_DCIR      2u
 #define KO_PIL_SONUC 3u
+#define KO_SKOP_KAL  4u   /* 1C-3: 8 i16 mv[17] — skop ADC'nin eFuse egrisi (kal_mv_tab) */
 #define KAYIT_OLAY_AYAR_BAYT  32u
 #define KAYIT_OLAY_DCIR_BAYT  44u
 #define KAYIT_OLAY_SONUC_BAYT 36u
+#define KAYIT_OLAY_SKOP_KAL_BAYT 42u
+#define KAYIT_SKOP_KAL_N      17u
 #define KAYIT_OLAY_AZAMI      44u
 
 typedef struct {
@@ -527,6 +533,15 @@ static inline uint16_t kayit_olay_dcir_paketle(uint32_t kart_ms, const KayitDcir
     kayit_yf(p + 36, d->mah);
     kayit_yf(p + 40, d->wh);
     return (uint16_t)KAYIT_OLAY_DCIR_BAYT;
+}
+
+static inline uint16_t kayit_olay_skop_kal_paketle(uint32_t kart_ms, const int16_t *mv,
+                                                   uint8_t *p)
+{
+    uint32_t j;
+    kayit__olay_bas(p, (uint8_t)KO_SKOP_KAL, kart_ms);
+    for (j = 0u; j < KAYIT_SKOP_KAL_N; j++) kayit_y16(p + 8u + 2u * j, (uint16_t)mv[j]);
+    return (uint16_t)KAYIT_OLAY_SKOP_KAL_BAYT;
 }
 
 static inline uint16_t kayit_olay_sonuc_paketle(uint32_t kart_ms, const KayitPilSonuc *s,
@@ -689,6 +704,60 @@ static inline void kayit_ayrinti_ornek_paketle(uint8_t *p, int16_t v, int16_t i,
     kayit_y16(p, (uint16_t)v);
     kayit_y16(p + 2, (uint16_t)i);
     kayit_y16(p + 4, (uint16_t)((uint16_t)(dt4 << 4) | (uint16_t)(bayrak & 0x0Fu)));
+}
+
+/* ─────────────────────────────── SKOP (1C-3): osiloskop yakalamasi
+ * Bir yakalama (<= 4000 ham kod, u16) PARCA PARCA yazilir; kayit siniri
+ * 4096 B ve yazicinin tamponu 1012 B. Her parca:
+ *    0 u32 no (oturumdaki yakalama sirasi, 1'den) · 4 u16 ilk (parcanin ilk
+ *    orneginin indeksi) · 6 u16 adet · 8 u16 toplam · 10 u8 parca · 11 u8 0
+ *    12 [yalniz 0. parca] META 36 B:
+ *       u32 t_ms (istek ani, kart_ms — ADS burada susar) · u32 sure_ms (istekten
+ *       sonuca) · u32 hz · u32 tdiv_us · f32 adim · f32 ofset · u16 tetik ·
+ *       u16 esik · u8 kip · tetiklendi · kenar · histerezis · on_yuzde · onay · 0 · 0
+ *    + u16 kod x adet
+ * `adim`/`ofset` `/skop.bin` ile ayni (nominal); egri OLAY KO_SKOP_KAL'da. PC
+ * eksik parcayi doldurmaz: yakalama "tam" degil (kopru/kayit_bicim.py). */
+#define KAYIT_SKOP_PARCA_BAS 12u
+#define KAYIT_SKOP_META      36u
+#define KAYIT_SKOP_AZAMI     4000u
+
+typedef struct {
+    uint32_t t_ms, sure_ms, hz, tdiv_us;
+    float    adim, ofset;
+    uint16_t tetik, esik;
+    uint8_t  kip, tetiklendi, kenar, histerezis, on_yuzde, onay;
+} KayitSkopMeta;
+
+static inline void kayit_skop_parca_paketle(uint8_t *p, uint32_t no, uint16_t ilk, uint16_t adet,
+                                            uint16_t toplam, uint8_t parca)
+{
+    kayit_y32(p, no);
+    kayit_y16(p + 4, ilk);
+    kayit_y16(p + 6, adet);
+    kayit_y16(p + 8, toplam);
+    p[10] = parca;
+    p[11] = 0u;
+}
+
+static inline void kayit_skop_meta_paketle(uint8_t *p, const KayitSkopMeta *m)
+{
+    kayit_y32(p, m->t_ms);
+    kayit_y32(p + 4, m->sure_ms);
+    kayit_y32(p + 8, m->hz);
+    kayit_y32(p + 12, m->tdiv_us);
+    kayit_yf(p + 16, m->adim);
+    kayit_yf(p + 20, m->ofset);
+    kayit_y16(p + 24, m->tetik);
+    kayit_y16(p + 26, m->esik);
+    p[28] = m->kip;
+    p[29] = m->tetiklendi;
+    p[30] = m->kenar;
+    p[31] = m->histerezis;
+    p[32] = m->on_yuzde;
+    p[33] = m->onay;
+    p[34] = 0u;
+    p[35] = 0u;
 }
 
 #endif /* KAYIT_BICIM_H */

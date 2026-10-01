@@ -315,6 +315,58 @@ def bolum_bicim() -> None:
        [k.tur for k in kay] == [KB.T_SAAT, 9, KB.T_SAAT], str([k.tur for k in kay]))
     _bicim_1c1(s)
     _bicim_1c2(s)
+    _bicim_1c3(s)
+
+
+def _bicim_1c3(s: dict) -> None:
+    """1C-3: SKOP kaydi + SKOP_KAL olayi (ornek_kayit.c bicim_1c3 ile AYNI girdiler)."""
+    meta = {"t_ms": 123456, "sure_ms": 250, "hz": 83333, "tdiv_us": 200, "adim": 0.03125,
+            "ofset": -1.25, "tetik": 1234, "esik": 2048, "kip": 1, "tetiklendi": 1,
+            "kenar": 0, "histerezis": 40, "on_yuzde": 25, "onay": 2}
+    p0 = {"no": 7, "ilk": 0, "adet": 3, "toplam": 5, "parca": 0, "meta": meta,
+          "kodlar": [0, 4095, 2048]}
+    p1 = {"no": 7, "ilk": 3, "adet": 2, "toplam": 5, "parca": 1, "meta": None, "kodlar": [1, 4094]}
+    mv = [-12, 120, 330, 541, 752, 963, 1174, 1385, 1596, 1807, 2018, 2229, 2440, 2651,
+          2862, 3073, 3184]
+    c0 = bytes.fromhex(s["SK0"][0]) if s.get("SK0") else b""
+    c1 = bytes.fromhex(s["SK1"][0]) if s.get("SK1") else b""
+    ck = bytes.fromhex(s["SKAL"][0]) if s.get("SKAL") else b""
+    pk = getattr(KB, "skop_paketle", None)
+    cz = getattr(KB, "skop_coz", None)
+    ok("B71.B25 SKOP parcasi (12 B bas + 0. parcada 36 B META + u16 kodlar) ve SKOP_KAL olayi "
+       "(17 x i16 mV) C == Python; coz -> ayni alanlar",
+       len(c0) == 12 + 36 + 6 and len(c1) == 12 + 4 and pk is not None and cz is not None
+       and c0 == pk(p0) and c1 == pk(p1) and cz(c0) == p0 and cz(c1) == p1
+       and ck == KB.olay_paketle({"tur": getattr(KB, "KO_SKOP_KAL", -1), "kart_ms": 98765,
+                                  "mv": mv})
+       and KB.olay_coz(ck).get("mv") == mv, f"{c0.hex()} {c1.hex()} {ck.hex()}")
+    t3 = [int(x) for x in (s.get("TUR3") or [])]
+    ok("B71.B26 SKOP turu 10 (AZAMI 10), SKOP oturumu 3 C == Python; bicim surumu 2 KALDI",
+       t3 == [10, 10, 3] and getattr(KB, "T_SKOP", 0) == 10 and getattr(KB, "OTURUM_SKOP", 0) == 3
+       and KB.SURUM == 2, str(t3))
+    kur = [KB.Kayit(getattr(KB, "T_SKOP", 10), 20, 5, c1), KB.Kayit(getattr(KB, "T_SKOP", 10), 19, 5, c0),
+           KB.Kayit(getattr(KB, "T_SKOP", 10), 21, 5, c1)]          # sira disi + tekrar
+    o = KB.oturumlari_kur(kur).get(5)
+    y = getattr(o, "skoplar", {}).get(7) if o else None
+    eksik = KB.oturumlari_kur(kur[:1]).get(5)
+    ye = getattr(eksik, "skoplar", {}).get(7) if eksik else None
+    ok("B71.B27 parcalar ilk'e gore birlesir (sira disi, tekrarli): tam, 5 kod, META 0. "
+       "parcadan; eksik parcada tam=False ve kodlar YOK (sessiz doldurma yok)",
+       y is not None and y["tam"] and y["kodlar"] == [0, 4095, 2048, 1, 4094]
+       and y["meta"] == meta and ye is not None and not ye["tam"] and ye["kodlar"] is None,
+       f"{y and (y['tam'], y['kodlar'])} eksik={ye and (ye['tam'], ye['kodlar'])}")
+    ikili = KB.skop_ikili(y) if y is not None and hasattr(KB, "skop_ikili") else b""
+    ok("B71.B28 skop_ikili: /skop.bin bicimi (S3B, surum 1, adet, hz, adim, ofset, tdiv, tetik, "
+       "kip, tetiklendi, sira) + u16 kodlar; eksik yakalama icin None",
+       len(ikili) == 32 + 10 and ikili[0:4] == b"S3B\x01"
+       and struct.unpack_from("<H", ikili, 4)[0] == 5
+       and struct.unpack_from("<I", ikili, 8)[0] == 83333
+       and struct.unpack_from("<ff", ikili, 12) == (0.03125, -1.25)
+       and struct.unpack_from("<I", ikili, 20)[0] == 200
+       and struct.unpack_from("<H", ikili, 24)[0] == 1234 and ikili[26] == 1 and ikili[27] == 1
+       and struct.unpack_from("<I", ikili, 28)[0] == 7
+       and list(struct.unpack_from("<5H", ikili, 32)) == [0, 4095, 2048, 1, 4094]
+       and (ye is None or KB.skop_ikili(ye) is None), ikili[:32].hex())
 
 
 def _bicim_1c2(s: dict) -> None:
@@ -330,8 +382,9 @@ def _bicim_1c2(s: dict) -> None:
        len(c_ay) == 34 and c_ay == KB.ayrinti_paketle(ay) and KB.ayrinti_coz(c_ay) == ay,
        c_ay.hex())
     t2 = [int(x) for x in (s.get("TUR2") or [])]
-    ok("B71.B23 AYRINTI turu 9 (AZAMI 9) C == Python; bicim surumu 2 KALDI",
-       t2 == [9, 9] and KB.T_AYRINTI == 9 and KB.SURUM == 2, str(t2))
+    ok("B71.B23 AYRINTI turu 9 (AZAMI >= 9; 1C-3'te 10) C == Python; bicim surumu 2 KALDI",
+       len(t2) == 2 and t2[0] == 9 and t2[1] >= 9 and KB.T_AYRINTI == 9 and KB.SURUM == 2,
+       str(t2))
     # ayrinti_ornekler: mutlak zaman micros() sarmasinda da dogru (t0_ms'den)
     gercek = 2**32 - 3000                       # micros sarmadan 3 ms once
     o = KB.Oturum(7)

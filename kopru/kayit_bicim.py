@@ -31,6 +31,7 @@ KAL_BAYT = 62          # kalibrasyon kopyasi (BASLA 36..97 ve kalibrasyon gecmis
 T_BASLA, T_NOKTA, T_DEVAM, T_BITIR, T_SAAT, T_TEKRAR = 1, 2, 3, 4, 5, 6
 T_OLAY, T_NOT = 7, 8   # 1C-1
 T_AYRINTI = 9          # 1C-2: her ornek (hiz_ms 0)
+T_SKOP = 10            # 1C-3: osiloskop yakalamasi, parca parca (0. parca META)
 # AYRINTI kayit bayraklari. KA_SILME: kaydin ILK ornegi kirli sektor silmesinden
 # (~25 ms, iki cekirdek durur) SONRA uretildi — ilk ornegin onundeki bosluk silmedir.
 KA_KAYIP_ONCE, KA_SILME = 0x01, 0x02
@@ -42,7 +43,9 @@ SEBEP = {1: "kullanici", 2: "bellek doldu", 3: "hata", 4: "pil testi bitti",
          5: "kart yeniden basladi", 6: "baska oturum basladi"}
 OTURUM_OLCUM = 1
 OTURUM_PIL = 2         # 1C-1: yeniden baslamada SURMEZ
+OTURUM_SKOP = 3        # 1C-3: osiloskop gunlugu; hiz_ms = aralik (0 = her tetik); SURMEZ
 KO_PIL_AYAR, KO_DCIR, KO_PIL_SONUC = 1, 2, 3
+KO_SKOP_KAL = 4        # 1C-3: skop ADC'nin eFuse egrisi, 17 x i16 mV
 KNT_AD, KNT_ETIKET, KNT_NOT = 1, 2, 3
 NOT_METIN = 120
 KAL_BICIM = 1
@@ -65,12 +68,18 @@ _OLAY = {                                          # tur -> (yapi, alan adlari)
                "mah", "wh")),
     KO_PIL_SONUC: (struct.Struct("<BBxxffffII"),
                    ("durum", "hata", "mah", "wh", "ocv", "v_son", "sure_ms", "dcir_sayisi")),
+    KO_SKOP_KAL: (struct.Struct("<17h"), ("mv",)),   # tek alan: 17 elemanli liste
 }
 _NOT_BAS = struct.Struct("<IB3xII")                # hedef, alan, nokta_ms, degistirir
 _AYRINTI_BAS = struct.Struct("<IIIHBx")            # ilk, t0_ms, t0_us, adet, bayrak
 _AYRINTI_ORNEK = struct.Struct("<hhH")             # v, i, (dt4 << 4 | bayrak)
+_SKOP_BAS = struct.Struct("<IHHHBx")               # no, ilk, adet, toplam, parca
+_SKOP_META = struct.Struct("<IIIIffHH6Bxx")        # t_ms, sure_ms, hz, tdiv_us, adim, ofset,
+_SKOP_META_AD = ("t_ms", "sure_ms", "hz", "tdiv_us", "adim", "ofset", "tetik", "esik",
+                 "kip", "tetiklendi", "kenar", "histerezis", "on_yuzde", "onay")
 assert _NOKTA.size == NOKTA_BAYT
-assert [_OLAY_BAS.size + y.size for y, _ in _OLAY.values()] == [32, 44, 36]
+assert [_OLAY_BAS.size + y.size for y, _ in _OLAY.values()] == [32, 44, 36, 42]
+assert _SKOP_BAS.size == 12 and _SKOP_META.size == 36
 assert _NOT_BAS.size == 16
 assert _AYRINTI_BAS.size == 16 and _AYRINTI_ORNEK.size == 6
 assert 2 * _KANAL.size + _AKIM.size == KAL_BAYT
@@ -284,6 +293,8 @@ def saat_coz(y: bytes) -> dict:
 def olay_paketle(d: dict) -> bytes:
     """OLAY yuku (kayit_bicim.h kayit_olay_*_paketle ile ayni)."""
     yapi, adlar = _OLAY[d["tur"]]
+    if adlar == ("mv",):                               # liste alanli olay (KO_SKOP_KAL)
+        return _OLAY_BAS.pack(d["tur"], d["kart_ms"]) + yapi.pack(*d["mv"])
     return _OLAY_BAS.pack(d["tur"], d["kart_ms"]) + yapi.pack(*(d[a] for a in adlar))
 
 
@@ -294,7 +305,10 @@ def olay_coz(y: bytes) -> dict:
     d = {"tur": t, "kart_ms": ms}
     if t in _OLAY and len(y) >= _OLAY_BAS.size + _OLAY[t][0].size:
         yapi, adlar = _OLAY[t]
-        d.update(zip(adlar, yapi.unpack_from(y, _OLAY_BAS.size)))
+        if adlar == ("mv",):
+            d["mv"] = list(yapi.unpack_from(y, _OLAY_BAS.size))
+        else:
+            d.update(zip(adlar, yapi.unpack_from(y, _OLAY_BAS.size)))
     else:
         d["ham"] = bytes(y[_OLAY_BAS.size:])
     return d
@@ -321,6 +335,52 @@ def ayrinti_coz(y: bytes) -> dict:
         v, i, w = _AYRINTI_ORNEK.unpack_from(y, _AYRINTI_BAS.size + k * _AYRINTI_ORNEK.size)
         orn.append((v, i, w >> 4, w & 0xF))
     return {"ilk": ilk, "t0_ms": ms, "t0_us": us, "bayrak": bayrak, "ornekler": orn}
+
+
+def skop_paketle(d: dict) -> bytes:
+    """SKOP parcasi (kayit_bicim.h kayit_skop_*_paketle ile ayni). 0. parca META'li."""
+    b = _SKOP_BAS.pack(d["no"], d["ilk"], len(d["kodlar"]), d["toplam"], d["parca"])
+    if d["parca"] == 0:
+        b += _SKOP_META.pack(*(d["meta"][a] for a in _SKOP_META_AD))
+    return b + struct.pack(f"<{len(d['kodlar'])}H", *d["kodlar"])
+
+
+def skop_coz(y: bytes) -> dict:
+    no, ilk, adet, toplam, parca = _SKOP_BAS.unpack_from(y)
+    a, meta = _SKOP_BAS.size, None
+    if parca == 0 and len(y) >= a + _SKOP_META.size:
+        meta = dict(zip(_SKOP_META_AD, _SKOP_META.unpack_from(y, a)))
+        a += _SKOP_META.size
+    adet = min(adet, (len(y) - a) // 2)
+    return {"no": no, "ilk": ilk, "adet": adet, "toplam": toplam, "parca": parca,
+            "meta": meta, "kodlar": list(struct.unpack_from(f"<{adet}H", y, a))}
+
+
+def _skop_birlestir(o) -> None:
+    """Parcalari yakalamalara birlestir. Ayni `ilk` iki kez gelirse (yazma
+    hatasinda tekrar) BIRI alinir. Eksik parca DOLDURULMAZ: tam=False, kodlar None."""
+    for y in o.skoplar.values():
+        p = y.pop("_parca")
+        kodlar, beklenen = [], 0
+        for ilk in sorted(p):
+            if ilk != beklenen:
+                break
+            kodlar += p[ilk]
+            beklenen = ilk + len(p[ilk])
+        y["tam"] = y["meta"] is not None and beklenen == y["toplam"] and len(kodlar) == y["toplam"]
+        y["kodlar"] = kodlar if y["tam"] else None
+
+
+def skop_ikili(y: dict) -> bytes | None:
+    """Tam yakalamayi bugunku `/skop.bin` bicimine cevir (32 B S3B baslik + u16).
+    Tek kodlama: kopru/arsiv.py skop_ikili'yi kullanir. Eksik yakalama: None."""
+    if not y.get("tam"):
+        return None
+    from arsiv import skop_ikili as ikili
+    m = y["meta"]
+    return ikili({"ornek": y["kodlar"], "hz": m["hz"], "adim": m["adim"], "ofset": m["ofset"],
+                  "tdiv_us": m["tdiv_us"], "tetik_idx": m["tetik"], "kip": m["kip"],
+                  "tetiklendi": m["tetiklendi"], "sira": y["no"]})
 
 
 def ayrinti_ornekler(o) -> list[tuple[int, int, int, int, int, int]]:
@@ -391,6 +451,8 @@ class Oturum:
     etiketler: list[str] = field(default_factory=list)    # en son NOT(etiket), virgulden
     notlar: dict[int, dict] = field(default_factory=dict)  # NOT kaydinin sirasi -> not
     ayrinti: list[dict] = field(default_factory=list)     # 1C-2: ayrinti_coz + "sira"
+    skoplar: dict[int, dict] = field(default_factory=dict)  # 1C-3: no -> {no, meta, toplam,
+                                                            # kodlar, tam, t_sira}
 
 
 def _not_uygula(o: Oturum, k: Kayit) -> None:
@@ -432,6 +494,14 @@ def oturumlari_kur(kayitlar: list[Kayit]) -> dict[int, Oturum]:
         if k.tur == T_AYRINTI and len(k.yuk) >= _AYRINTI_BAS.size:
             o.ayrinti.append({**ayrinti_coz(k.yuk), "sira": k.sira})
             continue
+        if k.tur == T_SKOP and len(k.yuk) >= _SKOP_BAS.size:
+            p = skop_coz(k.yuk)
+            y = o.skoplar.setdefault(p["no"], {"no": p["no"], "meta": None, "toplam": p["toplam"],
+                                               "t_sira": k.sira, "_parca": {}})
+            if p["meta"] is not None:
+                y["meta"] = p["meta"]
+            y["_parca"].setdefault(p["ilk"], p["kodlar"])
+            continue
         if k.tur == T_BASLA:
             o.basla = basla_coz(k.yuk)
             o.basi_eksik = False
@@ -450,4 +520,6 @@ def oturumlari_kur(kayitlar: list[Kayit]) -> dict[int, Oturum]:
             o.bitir = bitir_coz(k.yuk)
         elif k.tur == T_SAAT:
             o.saatler.append(saat_coz(k.yuk))
+    for o in ot.values():
+        _skop_birlestir(o)
     return ot
