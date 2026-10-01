@@ -50,8 +50,8 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 |---|---|---|
 | Onay ve `/kayit/veri` okuması kimliksiz; ağdaki herkes onay yollayabilir (yalnız verilmiş sıralar) | **1D** (eşleştirme + imzalı istek) | 1A-1, 1A-2 |
 | Cihazdan saat alma (bugün yalnız NTP; internetsiz ağda plan kurulamaz, çevrimdışı unix 0) | **1D** | 1B M7, 1C-4 K4 |
-| Açılıştan kaydın sürmesine 2.5–6.3 s; büyüğü `setup()`'taki WiFi beklemesi. Ağ kurulumu görev içine taşınmalı | **1E** (MQTT ile birlikte) | 1A-2 |
-| "Pil testi kesildi" bildirimi | **1E** | 1C-1 |
+| Açılıştan kaydın sürmesine 2.5–6.3 s; büyüğü `setup()`'taki WiFi beklemesi. Ağ kurulumu görev içine taşınmalı | **1E'de YAPILMADI** — MQTT görevi ağ kurulduktan sonra başlıyor; taşıma ayrı iş (açılış sırasını değiştirir, kendi tezgahını ister) | 1A-2 |
+| ~~"Pil testi kesildi" bildirimi~~ | **Kapandı (1E):** `pil_bitti` olayı `pil_durdur`'dan; kayıtsız test de bildirilir | 1C-1 |
 | PC'de W'nin hizalamalı hesabı (örnek zamanında ~1.8 ms kayma; V–I başlangıç kayması saklanmıyor) ve grafik | **2** (`ortak/`) / 3 | 1C-2 |
 | Eski kayda başka kalibrasyon uygulama, dönem uyarısı, "daha yeni ince ayar öner" | **2** + 3 | 1B |
 | Kayıt ekranları; `G` arayüzde yok. Ayrıca ad/not web ucu, `/pil`, `PilHalka` panelden kalkması ve yakalama gösterimi | **3** | 1A-2, 1C-1, 1C-3 |
@@ -138,3 +138,15 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 - [1D #18] `N?` zorunlu/misafir/saat kaynağını göstermiyor · `/eslestir/bilgi` `X-Olcum` istemiyor · `yardim()` E'yi listelemiyor · kapı kodu `kok_sayfa`'nın eski yorumuyla işlevin arasında · `ac()` kartın kimliğini cihaz dosyasıyla karşılaştırmıyor · `ac()`'taki `HTTPError` kapatılmıyor · spec "çekirdek 1 E'yi kuyrukla yollar" diyor, kod muteks kullanıyor.
 - [1D #19] F80 üst sınırı sınamıyor; boş `X-Imza` başlığının kartta imzasız sayılması ölçülmedi (zararsız: imzasız yol daha serbest değil).
 - [1D karar] Kartın `/komut` ucu gömülü satır sonuna karşı düzeltilmedi: kuyruk komutu bölmeden çalıştırıyor, yalnız seri girişi bölüyor. Kuyruk ileride bölmeye başlarsa aynı açık doğar.
+
+## 1E — MQTT bildirimleri (dal `1e-mqtt`, 2026-10-01 gece)
+
+Tasarım `tasarim/2026-10-01-1e-mqtt-bildirim.md` (K1–K12 + "Uygulama sırasında verilen kararlar").
+
+| # | Ne | Durum |
+|---|---|---|
+| E1 | Gerçek TLS (HiveMQ Cloud Serverless) hiç denenmedi: CA demetinin HiveMQ zincirini doğrulaması, el sıkışma süresi, K11'in TLS kısmı (el sıkışma sırasında `loop_azami`) | **Kullanıcının hesap açmasını bekliyor** (`_tezgah.md` "[!] HiveMQ") |
+| E2 | Ö4 (fiş çekme → vasiyet ≤ 15 s) gerçek ağda, 10 tekrar | E1 ile birlikte |
+| E3 | Eşik (`esik`) 500 binde sabit; kullanıcı ayarı yok | Gerekirse `Qe<binde>` (küçük) |
+| E4 | Olay kuyruğu RAM'de (16); kart yeniden başlarsa gönderilmemiş olaylar kaybolur (spec kapsam dışı: kalıcı kuyruk) | Bilinçli |
+| E5 | Telefon/PC bildirim arayüzü yok; PC'de yalnız `kopru/bildirim.py dinle` | Alt proje 4/5 |

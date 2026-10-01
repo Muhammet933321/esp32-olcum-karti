@@ -25,6 +25,12 @@
 #define KAYIT_BOSALT_MS 5000UL
 #endif
 #define KY_BITIR_PAY (KAYIT_BASLIK_BAYT + KAYIT_BITIR_BAYT)
+/* 1E: oturum KAPANDI kancasi (BITIR yazilsa da yazilamasa da, RAM'de kapandi).
+   Kart bildirim icin tanimlar (kayit_esp.h); tanimsizsa bos — AVR'de RAM eklemez.
+   Cagrildiginda y->oturum / y->nokta_sira / y->basla hala kapanan oturumundur. */
+#ifndef KY_BITIR_KANCA
+#define KY_BITIR_KANCA(y, sebep) ((void)0)
+#endif
 /* 1C-2 ayrintili kip: ornekler ayni `yuk` tamponunda (RAM eklemez) */
 #define KAYIT_AYRINTI_TAMPON ((KAYIT_AZAMI_YUK - KAYIT_AYRINTI_BAS) / KAYIT_AYRINTI_ORNEK)
 #define KAYIT_AYRINTI_EN_AZ  8u    /* sektor sonuna bundan az ornek sigarsa yeni sektor */
@@ -102,6 +108,7 @@ static inline int ky__dolu(KayitYazici *y, int r)
         b.sebep = KB_SEBEP_DOLU;
         kayit_bitir_paketle(&b, p);
         (void)kg_ekle(y->g, KAYIT_T_BITIR, y->oturum, p, KAYIT_BITIR_BAYT);
+        KY_BITIR_KANCA(y, KB_SEBEP_DOLU);
         y->dusen += y->yuk_nokta + y->a_adet;
         y->yuk_nokta = 0u;
         y->a_adet = 0u;
@@ -276,6 +283,7 @@ static inline int ky_bitir(KayitYazici *y, uint8_t sebep)
     b.sebep = sebep;
     kayit_bitir_paketle(&b, p);
     s = kg_ekle(y->g, KAYIT_T_BITIR, y->oturum, p, KAYIT_BITIR_BAYT);
+    KY_BITIR_KANCA(y, sebep);
     y->oturum = 0u;
     return s < 0 ? (int)s : KG_TAMAM;
 }

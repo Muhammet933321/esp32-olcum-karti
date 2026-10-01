@@ -10,11 +10,13 @@ Plan: tasarim/2026-09-29-plan-1a2-kayit-firmware.md
 """
 from __future__ import annotations
 
+import hashlib
 import http.server
 import json
 import os
 import re
 import struct
+import subprocess
 import sys
 import tempfile
 import threading
@@ -244,7 +246,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1D"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1E"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -1240,7 +1242,8 @@ def bolum_guvenlik_kart() -> None:
              "/skop.bin": "GUV_OKUMA", "/komut": "GUV_KOMUT", "/kopru": "GUV_KOMUT",
              "/eslestir/bilgi": "GUV_ACIK", "/eslestir/baslat": "GUV_ACIK",
              "/eslestir/kanit": "GUV_ACIK", "/cihaz/liste": "GUV_CIHAZ",
-             "/cihaz/sil": "GUV_CIHAZ", "/saat": "GUV_CIHAZ"}
+             "/cihaz/sil": "GUV_CIHAZ", "/saat": "GUV_CIHAZ",
+             "/bildirim/bilgi": "GUV_CIHAZ"}                       # 1E (K10)
     kayitlar = re.findall(r'sunucu\.on\("([^"]+)"\s*,\s*(?:(HTTP_\w+)\s*,\s*)?(\w+)\s*\)', ino_k)
     eksik, yanlis = [], []
     for yol, yontem, isl in kayitlar:
@@ -1586,8 +1589,121 @@ def bolum_guvenlik_istemci() -> None:
         sunucu.shutdown()
 
 
+def bolum_bildirim_kart() -> None:
+    """1E: MQTT bildirimlerinin karta baglanmasi (bildirim_esp.h + .ino). Platformsuz
+    cekirdek B71.Q / B71.M'de; PC tarafi (ChaCha20-Poly1305, MQTT, sahte araci)
+    test_bildirim.py'de — burada alt surec olarak kosar."""
+    print("\n── B72.Q1+  1E kart: gorev cekirdegi · vasiyet · USB'ye ozel Q · sir basilmaz")
+    be, ino, ke, ko = (_oku("bildirim_esp.h"), _oku("olcum-karti-a3.ino"), _oku("kayit_esp.h"),
+                       _oku("kayit_oturum.h"))
+    be_k, ino_k, ke_k, ko_k = kod(be), kod(ino), kod(ke), kod(ko)
+    bg = govde(be_k, "static void bildirim_baslat(")
+    ok("B72.Q1 bildirim gorevi CEKIRDEK 0'a SABIT (xTaskCreatePinnedToCore(..., 0)); esp-mqtt "
+       "YOK (3.3.11'de gorevi sabitlenmiyor: TLS el sikismasi olcum cekirdegine kayardi)",
+       re.search(r"xTaskCreatePinnedToCore\(\s*bildirim_gorevi\s*,.*,\s*0\s*\)\s*;", bg) is not None
+       and "mqtt_client.h" not in be_k + ino_k and "esp_mqtt_client" not in be_k + ino_k)
+    bb = govde(be_k, "static int bld__baglan(")
+    ok("B72.Q2 CONNECT: keepalive 5 s (K8), vasiyet durum konusunda QoS 1 + retained, vasiyet "
+       "HER baglanista yeniden sifrelenir (yeni nonce, K6), temiz oturum",
+       re.search(r"#define BLD_KEEPALIVE_S\s+5u", be_k) is not None
+       and "m.keepalive = BLD_KEEPALIVE_S;" in bb and "m.vasiyet_qos = 1;" in bb
+       and "m.vasiyet_tut = 1;" in bb and "m.vasiyet_konu = b->konu_durum;" in bb
+       and 0 <= bb.find("bld_vasiyet_json(") < bb.find("bld__zarfla(") < bb.find("mqp_baglan(")
+       and "m.temiz = 1;" in bb)
+    ok("B72.Q3 TLS dogrulamasi CA demetiyle (esp_crt_bundle_attach); dogrulamayi gevseten "
+       "bayrak YOK; duz TCP yalniz mqtt:// ile (yerel sinama)",
+       "cfg.crt_bundle_attach = esp_crt_bundle_attach;" in bb and "skip_common_name" not in be_k
+       and re.search(r"if\s*\(tls\)\s*cfg\.crt_bundle_attach.*?else\s+cfg\.is_plain_tcp\s*=\s*true;",
+                     bb, re.S) is not None)
+    gor = govde(be_k, "static void bildirim_gorevi(")
+    ok("B72.Q4 yalniz STA kipinde baglanir (K8; AP kipinde MQTT yok); baglaninca durum ZORLA "
+       "yayinlanir (retained vasiyetin ustune c:1)",
+       "ag_durum.kip == AG_STA" in gor
+       and gor.find("bld__baglan(") < gor.find("durum_zorla = 1;") < gor.find("bld_durum_json("))
+    gl = govde(be_k, "static int bld__gelen(")
+    ok("B72.Q5 olay kuyruktan YALNIZ eslesen PUBACK ile duser (yayin aninda degil); ayni anda "
+       "tek olay ucusta; onaysiz olay baglantiyi yeniler (yeniden gonderilir, `n` ayiklar)",
+       "bld_kuyruk_at(" not in gor and "bld_kuyruk_at(" in gl
+       and "mqp_puback_pid(&b->ok) == (int32_t)b->ucusta" in gl
+       and "!b->ucusta && bld_kuyruk_adet(&bld)" in gor and "BLDH_PUBACK" in gor)
+    pm = re.search(r"#define BLD_PING_MS\s+(\d+)UL", be_k)
+    pr = re.search(r"#define BLD_PINGRESP_MS\s+(\d+)UL", be_k)
+    ok("B72.Q6 canlilik: PINGREQ keepalive'dan ONCE (4 s < 5 s); PINGRESP gelmezse baglanti olu "
+       "(olu agi kart en gec ~9 s'de fark eder)",
+       bool(pm and pr) and int(pm.group(1)) < 5000 and int(pr.group(1)) <= 5000
+       and "BLDH_PING" in gor)
+    kp = govde(be_k, "static void bld__kapat(")
+    ok("B72.Q7 nazik kapanis (Q0 / ayar degisimi) DISCONNECT'ten ONCE c:0 yayinlar — araci nazik "
+       "kopuista vasiyeti yayinlamaz, 'cevrimici' durum asili kalmasin",
+       0 <= kp.find("bld_vasiyet_json(") < kp.find("mqp_kopar("))
+    kg = govde(ino_k, "void komut_sayfa(")
+    i_q = kg.find("k[0] == 'Q'")
+    ok("B72.Q8 /komut 'Q' ile baslayan komutu 403 ile REDDEDER (araci parolalari aga cikmaz, K9)",
+       0 <= i_q < kg.find("komut_kuyruga(") and "403" in kg[i_q:i_q + 200]
+       and "case 'Q': bld_seri_komut(s); break;" in ino_k)
+    sk = govde(ino_k, "static void bld_seri_komut(")
+    oz = re.search(r"typedef struct \{([^{}]*)\} BildirimOzet;", be_k)
+    ok("B72.Q9 Q komutlari SIR BASMAZ (Serial aynasi /akis'a tasir): ozet yapisinda parola/anahtar "
+       "alani yok (yalniz var/yok), komut metni geri yansitilmaz, seri isleyici ayari kendisi okumaz",
+       bool(oz) and not re.search(r"\b(kp|cp|anahtar)\s*\[", oz.group(1))
+       and "kp_var" in oz.group(1) and "bld__ayar_oku" not in sk
+       and not re.search(r"(Serial\.\w+|snprintf)\([^;]*s \+ 2", sk))
+    ok("B72.Q10 bildirim_esp.h'de Serial YOK (kayit_esp.h gibi: aynayi atlar, cekirdek 0 yaris)",
+       not re.search(r"\bSerial\b", be_k))
+    bil = govde(be_k, "static int bildirim_bilgi_zarf(")
+    ok("B72.Q11 /bildirim/bilgi yaniti CIHAZ anahtariyla sifreli, AAD kimlik + cihaz no'ya bagli "
+       "('OK1-bildirim\\n<kimlik>\\n<n>'), nonce RF rastgelesi; ayar eksikse -1 (404)",
+       'snprintf(aad, sizeof(aad), "OK1-bildirim\\n%s\\n%u", kimlik, (unsigned)n);' in bil
+       and "esp_fill_random(cikti + 4, 12);" in bil and "bld__aead(K," in bil
+       and "int r = -1;" in bil)
+    q1 = sk[sk.find("case '1':"):sk.find("case '0':")]
+    ok("B72.Q12 onek + bildirim anahtari YALNIZ RF acikken uretilir (Ep gibi: RF'siz RNG zayif)",
+       q1.find("WIFI_MODE_NULL") < q1.find("bildirim_sir_uret(") and "WIFI_MODE_NULL" in q1)
+    ik = ke_k.find("#define KY_BITIR_KANCA")
+    ok("B72.Q13 oturum-kapandi kancasi kayit_oturum.h'DEN ONCE tanimli (sonra tanimlansa bos "
+       "varsayilan SESSIZCE kullanilirdi) ve iki BITIR yerinde de cagriliyor (ky_bitir, ky__dolu)",
+       0 <= ik < ke_k.find('#include "kayit_nokta.h"') and ik < ke_k.find('#include "kayit_yonet.h"')
+       and "KY_BITIR_KANCA(y, sebep);" in govde(ko_k, "static inline int ky_bitir(")
+       and "KY_BITIR_KANCA(y, KB_SEBEP_DOLU);" in govde(ko_k, "static inline int ky__dolu("))
+    pd = govde(ino_k, "static void pil_durdur(")
+    pb = govde(be_k, "static void bildirim_pil_bitti(")
+    ok("B72.Q14 pil bitisi kayitsiz testte de bildirilir; cekirdek 1'deki kanca yalniz kisa "
+       "kritik bolge (NVS / ag / bekleme YOK)",
+       "bildirim_pil_bitti(" in pd and pd.find("pil_yuk(false)") < pd.find("bildirim_pil_bitti(")
+       and "portENTER_CRITICAL(&bld_mux);" in pb
+       and not re.search(r"Preferences|esp_tls|vTaskDelay|xQueue", pb))
+    ok("B72.Q17 Qt istekleri BIRLESMEZ: cekirdek 1 istek sayacini, gorev islenen sayacini birer "
+       "artirir (bayrak arka arkaya iki Qt'yi tek olay yapiyordu — kart tezgahi 2026-10-01)",
+       "while (bld_deneme_islenen != bld_deneme_istek) {" in gor
+       and "bld_deneme_islenen = (uint8_t)(bld_deneme_islenen + 1u);" in gor
+       and "bld_deneme_istek = (uint8_t)(bld_deneme_istek + 1u);" in sk)
+
+    # PC tarafi (saf Python ChaCha20-Poly1305, MQTT istemcisi, sahte araci) — alt surec.
+    # ~15 s; B72'nin her mutasyonu bunu yeniden kosmasin diye GIRDILERININ ozetiyle
+    # onbellekli: yalniz GECEN kosu saklanir, kopru/*.py ya da testin kendisi degisirse
+    # (o dosyalarin mutasyonu dahil) yeniden kosar.
+    girdi = [KOK / "kopru" / a for a in ("chacha.py", "mqtt_istemci.py", "bildirim.py",
+                                        "sahte_araci.py", "imza.py")]
+    girdi.append(Path(__file__).with_name("test_bildirim.py"))
+    oz = hashlib.sha256(b"".join(p.read_bytes() if p.exists() else b"-" for p in girdi)).hexdigest()
+    onb = Path(tempfile.gettempdir()) / f"ok_test_bildirim_{oz[:32]}.gecti"
+    if onb.exists():
+        ok("B72.Q16 test_bildirim.py yesil (girdileri degismedi: onbellekteki GECEN kosu)", True,
+           onb.read_text(encoding="utf-8"))
+    else:
+        r = subprocess.run([sys.executable, str(Path(__file__).with_name("test_bildirim.py"))],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=600)
+        m = re.findall(r"(\d+)/(\d+) dogrulama gecti", r.stdout)
+        gec = r.returncode == 0 and bool(m) and m[-1][0] == m[-1][1]
+        ok("B72.Q16 test_bildirim.py (RFC 8439 vektorleri, zarf, bilgi_coz, MQTT istemcisi + "
+           "sahte araci) yesil", gec, (m[-1][0] + "/" + m[-1][1]) if m else r.stdout[-300:])
+        if gec:
+            onb.write_text(f"{m[-1][0]}/{m[-1][1]}", encoding="utf-8")
+
+
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
-            bolum_guvenlik_istemci]
+            bolum_guvenlik_istemci, bolum_bildirim_kart]
 
 
 def main() -> int:
@@ -1638,6 +1754,15 @@ def main() -> int:
         ("[!] ADS takilinca: gercek 500/s ayrintili kayit",
          "Gb0 60 s: ~30 000 ornek, dt ortancasi ~2000 us; PC'de V/I (ve hizalamali W) kartin D "
          "satiriyla ayni anda karsilastirilir; hazir alan bitince KA_SILME kayitlari gorulur"),
+        ("1E bildirimler kartta (PC'de sahte araci, hesap gerekmez)",
+         "tezgah_bildirim.py: Qv gecti; CONNECT keepalive 5 + vasiyet QoS 1 retained; durum c:1 "
+         "cozulur (f A3-1E); Qt olayi `n` artarak; RTS sifirlamasinda vasiyet <= 15 s; araci "
+         "kesintisinde olay kuyrukta bekler, yeniden baglaninca gider; QY dahili_bos >= 60 KB; "
+         "/komut Q'yu 403 ile reddeder; Q?/akis hicbir parolayi gostermez"),
+        ("[!] HiveMQ hesabi acilinca: gercek TLS + O4",
+         "Qu mqtts://<kume>.hivemq.cloud:8883, Qk/Qp kart, Qc/Qd cihaz, Q1: Q? bagli ve "
+         "el_sikisma_ms; TLS el sikismasi sirasinda K satirinda loop_azami degismez (K11); "
+         "fis cekme -> vasiyet <= 15 s (hedef 10), 10 tekrar (O4)"),
         ("Gercek fis cekme (USB + PIL kapali)",
          "elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla "
          "son ~5 s"),

@@ -41,13 +41,42 @@
    IKI cekirdegi de durdurur (AUTO_SUSPEND kapali, tezgahta olculdu). 500 ms
    aralik: dolu bolumde ~24 dk surer, olcum dongusunun duraklama payi ~%5. */
 #define KYN_TEMIZ_MS 500UL
+/* 1E: oturum KAPANDI izi (bildirim_esp.h okur). ky_bitir / ky__dolu cagirir: kayit
+   gorevi (cekirdek 0, kayit_kilit altinda) yazar, bildirim gorevi kopyalar. Sayac
+   acilista 0: tarama sirasinda kapanan oturumlar (sebep 5/1) da sayilir. */
+typedef struct {
+    uint32_t say, oturum, nokta;
+    uint8_t  sebep, tur;
+} KayitBitirIz;
+static KayitBitirIz kayit_bitir_iz = {};
+static portMUX_TYPE kayit_iz_mux = portMUX_INITIALIZER_UNLOCKED;
+static void kayit__bitir_kanca(uint32_t ot, uint32_t nokta, uint8_t sebep, uint8_t tur)
+{
+    portENTER_CRITICAL(&kayit_iz_mux);
+    kayit_bitir_iz.say++;
+    kayit_bitir_iz.oturum = ot;
+    kayit_bitir_iz.nokta = nokta;
+    kayit_bitir_iz.sebep = sebep;
+    kayit_bitir_iz.tur = tur;
+    portEXIT_CRITICAL(&kayit_iz_mux);
+}
+#define KY_BITIR_KANCA(y, sebep) \
+    kayit__bitir_kanca((y)->oturum, (y)->nokta_sira, (uint8_t)(sebep), (y)->basla.oturum_turu)
+static KayitBitirIz kayit_bitir_iz_al(void)
+{
+    KayitBitirIz t;
+    portENTER_CRITICAL(&kayit_iz_mux);
+    t = kayit_bitir_iz;
+    portEXIT_CRITICAL(&kayit_iz_mux);
+    return t;
+}
 #include "kayit_nokta.h"
 #include "kayit_yonet.h"
 #include "kalgec.h"               /* 1B: kalibrasyon gecmisi (platformsuz) */
 #include "kayit_plan.h"           /* 1C-4: zamanlanmis kayit karar mantigi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-1D"     /* 1D: eslestirme + imzali istek + alt proje 1 duzeltmeleri (Y1-Y6, D0) */
+#define KAYIT_FW_SURUM    "A3-1E"     /* 1E: MQTT bildirimleri (uctan uca sifreli) */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
@@ -88,6 +117,7 @@ typedef struct {
     uint8_t  tur;                             /* 1C-3: etkin oturumun turu (0 = yok) */
     uint32_t skop_hata;                       /* 1C-3: gorevin yazamadigi yakalama */
     uint32_t plan_no, plan_ot;                /* Y2: acilis kaniti (kyn__plan_kanit) */
+    uint8_t  tarandi;                         /* 1E: acilis taramasi bitti (kayit_m.hazir) */
 } KayitDurum;
 
 /* olcum_al'in son HAM ornegi — ikisi de cekirdek 1: olcum_al yazar, loop okur */
@@ -271,6 +301,7 @@ static void kayit__durum_guncelle(void)
     t.son_hata = kayit_m.son_hata;
     t.plan_no = kayit_m.plan_kanit_no;
     t.plan_ot = kayit_m.plan_kanit_ot;
+    t.tarandi = kayit_m.hazir ? 1u : 0u;
     portENTER_CRITICAL(&kayit_mux);
     t.nesil = kayit_durum.nesil
             + ((t.durum != kayit_durum.durum || t.oturum != kayit_durum.oturum) ? 1u : 0u);

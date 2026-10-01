@@ -498,6 +498,10 @@ def main() -> int:
     izin_e, neden_e = k2.komut_izinli("Ep telefon", None)
     ok("E komutu surucusuz (anonim kabul eden) koprude de REDDEDILIR",
        not izin_e and "USB" in neden_e, neden_e)
+    # 1E (K9): Q komutlari MQTT araci parolalarini tasir — yalniz USB
+    izin_q = [k2.komut_izinli(x, None) for x in ("Q?", "Qpgizli", "Q1")]
+    ok("1E: Q komutu (MQTT bildirim ayari) surucusuz koprude de REDDEDILIR",
+       not any(i for i, _ in izin_q) and all("USB" in n for _, n in izin_q), str(izin_q))
     yayilan = []
     k2.yayinla = yayilan.append
     threading.Thread(target=k2.dongu, daemon=True).start()

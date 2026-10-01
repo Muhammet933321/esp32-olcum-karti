@@ -186,6 +186,9 @@ class Kopru:
         if komut.startswith("E"):
             return False, ("E komutlari yalniz USB seri konsoldan (kopru uzerinden "
                            "verilemez) — eslestirme icin kopru/imza.py esles-usb")
+        # 1E (K9): Q komutlari MQTT araci parolalarini tasir — yalniz USB
+        if komut.startswith("Q"):
+            return False, "Q komutlari (MQTT bildirim ayari) yalniz USB seri konsoldan"
         if komut in SERBEST_KOMUTLAR:
             return True, ""
         if self.surucu is None:

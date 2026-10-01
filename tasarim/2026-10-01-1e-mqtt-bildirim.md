@@ -63,6 +63,36 @@ Olay düz metni: `{"n":<no>,"a":<açılış>,"t":<unix|0>,"o":"<olay adı>", …
   vasiyet ≤ 15 s (hedef 10), **10 tekrar** · RAM ölçütü (K11).
 - Mutasyon: her yeni iddianın yalanlayıcısı.
 
+## Uygulama sırasında verilen kararlar (2026-10-01)
+
+- **K1 değişti — esp-mqtt KULLANILMADI.** 3.3.11'deki esp-mqtt görevi çekirdeğe
+  sabitlenmiyor (`CONFIG_MQTT_TASK_CORE_SELECTION_ENABLED` yok, `xTaskCreate`; öncelik en az 1).
+  TLS el sıkışması (P-256 yazılımda, yüzlerce ms) çekirdek 1'e kayıp ölçüm döngüsünü
+  bloklayabilirdi. Yerine: platformsuz `mqtt_paket.h` (MQTT 3.1.1 istemci paketleri, AVR'de
+  sınanıyor) + **çekirdek 0'a sabit** `bld` görevi, **esp-tls** üstünde (`esp_crt_bundle_attach`).
+  Bedel: yeniden bağlanma / giden kutusu bizde (`bildirim_esp.h`, ~250 satır).
+- **Durum QoS 0 + retained**, olaylar QoS 1; aynı anda **tek olay uçuşta**, kuyruktan yalnız
+  eşleşen PUBACK ile düşer. Bağlantı koparsa uçuştaki olay yeniden gönderilir (`n` ayıklar).
+- **Canlılık:** 4 s boşlukta PINGREQ; 5 s'de PINGRESP yoksa bağlantı ölü → kart ölü ağı
+  ≤ ~9 s'de fark eder. Geri çekilme 2, 4, 8 … 60 s.
+- **Q0 / ayar değişimi:** DISCONNECT'ten önce durum konusuna `c:0` (retained). Aracı nazik
+  kopuşta vasiyeti yayınlamaz; aksi halde "çevrimiçi" asılı kalırdı.
+- **Olay alanları:** `"o"` olay adı olduğu için oturum `"oturum"` anahtarında:
+  `basladi{devam,oturum}` · `kayit_bitti{sebep,oturum,nokta}` ·
+  `pil_bitti{durum,mah_milli,wh_milli,sure_ms}` · `dolu` · `esik{deger,esik}` · `deneme`.
+  `basladi` açılış taraması bitince üretilir ve her zaman 1 numaralı olaydır; taramada kapanan
+  oturumlar (sebep 5/1) ardından `kayit_bitti` olarak gelir.
+- **Oturum kapandı kancası:** `kayit_oturum.h` `KY_BITIR_KANCA` (ky_bitir + ky__dolu; AVR'de
+  boş, RAM eklemez). Pil bitişi `pil_durdur`'dan (kayıtsız test de bildirilir).
+- **`mqtt://` yalnız yerel sınama** (tezgahta PC'deki sahte aracı); `Q?` uyarır. Yük yine
+  uçtan uca şifreli, ama aracı parolası açık gider.
+- **Q komutları (son hali):** `Q?` (3 satır: `Q`, `QA`, `QY` — sır yok) · `Qu` `Qk` `Qp` `Qc` `Qd`
+  (boş değer = sil) · `Q1` (önek + anahtar yoksa üretir; RF açık olmalı) · `Q0` · `Qt` · `Qv` ·
+  `QR!` (yeni önek + anahtar; cihazlar `/bildirim/bilgi`'yi yeniden almalı).
+- **Tezgah HiveMQ'suz koşar:** `uretim/tezgah_bildirim.py` PC'de sahte aracı (`kopru/sahte_araci.py`,
+  keepalive + vasiyet uygular) açar, kartı `mqtt://<PC>:<port>`'a yönlendirir. Gerçek TLS, K11'in
+  el sıkışma kısmı ve Ö4'ün gerçek ağ ölçümü HiveMQ hesabıyla ayrıca.
+
 ## ⚠ Onay bekleyen kritik kararlar
 
 1. **K5 uçtan uca şifreleme** — önerim evet (aracı içerik görmez, sahte olay yok).

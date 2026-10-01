@@ -2724,13 +2724,595 @@ static void senaryo(void)
 }
 #endif
 
+#if defined(SENARYO_BILDIRIM)
+/* 1E: MQTT BILDIRIMLERI (bildirim.h) — olay uretimi (anlik goruntu dizileri), esik
+   histerezisi, kuyruk tasmasi, `n` sirasi, durum/vasiyet JSON, konu, zarf. Tek acilis.
+   AEAD SAHTE, Python ayni formulle yeniden hesaplar (test_kayit.py _bld_aead):
+     sifreli[i] = duz[i] ^ anahtar[i % 32] ^ nonce[i % 12]
+     h = FNV-1a32(AAD | 0xFF | sifreli); etiket[i] = (h >> 8(i % 4)) ^ i ^ anahtar[i]
+   Rastgele xorshift32 (tohum sabit, Python tahmin eder). Kuyruk 4 olay; mesaj TAM
+   BLD_OLAY_AZAMI: en buyuk olay (Q8) sigmazsa dusen artar, kirmizi. Yigin boyanir,
+   kalan pay olculur (2 KB RAM). */
+#define BLD_ISLEV static __attribute__((noinline, unused))
+#define BLD_KUYRUK 4u
+#define BLD_MESAJ BLD_OLAY_AZAMI
+#include "bildirim.h"
+#ifndef NI
+#define NI __attribute__((noinline))
+#endif
+
+static Bildirim b;
+static BildirimGoruntu g;
+static char tam[BLD_OLAY_AZAMI];
+static uint8_t zarf[BLD_OLAY_AZAMI + BLD_ZARF_EK];
+static uint8_t anahtar[32];
+static uint8_t aead_hata = 0;
+static uint32_t rs = 0x2545F491UL;
+static const char ONEK[] PROGMEM = "0123456789abcdef0123456789abcdef";
+
+static void sahte_rastgele(uint8_t *h, uint16_t n)
+{
+    while (n--) {
+        rs ^= rs << 13; rs ^= rs >> 17; rs ^= rs << 5;
+        *h++ = (uint8_t)(rs >> 8);
+    }
+}
+
+static int sahte_aead(const uint8_t k[32], const uint8_t nonce[12], const uint8_t *aad,
+                      uint16_t aad_n, const uint8_t *duz, uint16_t duz_n, uint8_t *c)
+{
+    uint32_t h = 0x811C9DC5UL;
+    uint16_t i;
+    if (aead_hata) return -1;
+    for (i = 0; i < duz_n; i++) c[i] = (uint8_t)(duz[i] ^ k[i % 32u] ^ nonce[i % 12u]);
+    for (i = 0; i < aad_n; i++) { h ^= aad[i]; h *= 16777619UL; }
+    h ^= 0xFFu; h *= 16777619UL;
+    for (i = 0; i < duz_n; i++) { h ^= c[i]; h *= 16777619UL; }
+    for (i = 0; i < 16u; i++) c[duz_n + i] = (uint8_t)((uint8_t)(h >> (8u * (i & 3u))) ^ i ^ k[i]);
+    return 0;
+}
+
+static const BildirimKripto BK = { sahte_rastgele, sahte_aead };
+static const BildirimKripto BK_AEADSIZ = { sahte_rastgele, 0 };
+
+/* yigin payi: bss sonundan SP'ye kadar boya, sonunda dokunulmamis bayt say */
+extern uint8_t __heap_start;
+static NI void yigin_boya(void)
+{
+    uint8_t *p = &__heap_start;
+    uint8_t *son = (uint8_t *)(uintptr_t)SP - 32;
+    while (p < son) *p++ = 0xA5u;
+}
+
+static NI uint16_t yigin_pay(void)
+{
+    const uint8_t *p = &__heap_start;
+    uint16_t n = 0;
+    while (p[n] == 0xA5u) n++;
+    return n;
+}
+
+/* kuyrugu bosalt: her olay '<etiket> <json>' (JSON bosluksuz) */
+static NI void bosalt(const char *et_P)
+{
+    while (bld_kuyruk_adet(&b)) {
+        if (bld_kuyruk_bas(&b, tam, sizeof(tam)) < 0) break;
+        metin_P(et_P); yaz(' '); metin(tam); satir();
+        bld_kuyruk_at(&b);
+    }
+}
+#define BOSALT(et) bosalt(PSTR(et))
+
+/* bir tur: '<etiket> <uretilen olay sayisi>' */
+static NI void adim_P(const char *et_P, uint32_t ms)
+{
+    uint8_t n = bld_adim(&b, &g, ms);
+    metin_P(et_P); yaz(' '); ondalik(n); satir();
+}
+#define ADIM(et, ms) adim_P(PSTR(et), (ms))
+
+static NI void dizi_P(const char *et_P, const char *s)
+{
+    metin_P(et_P); yaz(' '); metin(s); satir();
+}
+#define DIZI(et, s) dizi_P(PSTR(et), (s))
+
+#define T0 1800000000UL
+
+/* Q1 basladi · Q2 kayit_bitti · Q3 dolu · Q4 pil_bitti */
+static NI void s_olaylar(void)
+{
+    bld_kur(&b, 0u);
+    sayi("ESIK", b.esik);
+    memset(&g, 0, sizeof(g));
+    g.acilis = 7u;
+    g.kayit = KDR_TARIYOR;
+    /* acilis taramasinda kapanan oturum (sebep 5) ve biten pil testi: sayaclar 1 */
+    g.bitir_say = 1u; g.bitir_oturum = 41u; g.bitir_nokta = 777u;
+    g.bitir_sebep = KB_SEBEP_YENIDEN;
+    g.pil_say = 1u; g.pil_durum = 1u; g.pil_mah_milli = 1000u; g.pil_wh_milli = 3700u;
+    g.pil_sure_ms = 60000UL;
+    g.esitlenmemis_binde = 900u;      /* tarama surerken esik karari YOK */
+    ADIM("Q1A", 0u);
+    g.kayit = KDR_KAYIT; g.oturum = 42u; g.tur = 1u; g.devam = 2u; g.unix_s = T0;
+    g.doluluk_binde = 100u; g.esitlenmemis_binde = 50u;
+    ADIM("Q1B", 10u);
+    ADIM("Q1C", 20u);
+    BOSALT("E1");
+    g.bitir_say = 2u; g.bitir_oturum = 42u; g.bitir_nokta = 1234u;
+    g.bitir_sebep = KB_SEBEP_KULLANICI;
+    g.kayit = KDR_BOS; g.oturum = 0u; g.tur = 0u;
+    ADIM("Q2A", 30u);
+    ADIM("Q2B", 40u);
+    g.bitir_say = 1u;                 /* sayac geri gitti (yapistirici sifirladi): olay YOK */
+    ADIM("Q2C", 50u);
+    BOSALT("E2");
+    g.kayit = KDR_DOLU;
+    ADIM("Q3A", 60u);
+    ADIM("Q3B", 70u);
+    g.kayit = KDR_BOS;
+    ADIM("Q3C", 80u);
+    g.kayit = KDR_DOLU;
+    ADIM("Q3D", 90u);
+    BOSALT("E3");
+    g.kayit = KDR_BOS;
+    g.pil_say = 2u; g.pil_durum = 2u; g.pil_mah_milli = 2345678UL;
+    g.pil_wh_milli = 8765432UL; g.pil_sure_ms = 36000123UL;
+    ADIM("Q4A", 100u);
+    ADIM("Q4B", 110u);
+    g.pil_say = 1u;                   /* geri gitti: olay YOK */
+    ADIM("Q4C", 120u);
+    BOSALT("E4");
+}
+
+/* Q5 esik histerezisi */
+static NI void s_esik(void)
+{
+    g.esitlenmemis_binde = 499u; ADIM("Q5A", 200u);
+    g.esitlenmemis_binde = 500u; ADIM("Q5B", 210u);
+    g.esitlenmemis_binde = 700u; ADIM("Q5C", 220u);
+    g.esitlenmemis_binde = 450u; ADIM("Q5D", 230u);
+    g.esitlenmemis_binde = 400u; ADIM("Q5E", 240u);     /* 400 + 100 < 500 DEGIL: kurulmaz */
+    g.esitlenmemis_binde = 520u; ADIM("Q5F", 250u);
+    g.esitlenmemis_binde = 399u; ADIM("Q5G", 260u);     /* kurulur */
+    g.esitlenmemis_binde = 520u; ADIM("Q5H", 270u);
+    g.esitlenmemis_binde = 0u;   ADIM("Q5I", 280u);     /* tam esitlendi: kurulur */
+    g.kayit = KDR_TARIYOR;
+    g.esitlenmemis_binde = 900u; ADIM("Q5J", 290u);     /* tarama: karar yok */
+    g.kayit = KDR_BOS;
+    ADIM("Q5K", 300u);
+    BOSALT("E5");
+}
+
+/* Q6 kuyruk tasmasi (5 kayit_bitti + 1 deneme, kuyruk 4) · Q7 kuyruk uclari ·
+   Q8 en buyuk olay tam sigar */
+static NI void s_kuyruk(void)
+{
+    uint8_t i;
+    for (i = 0; i < 5u; i++) {
+        g.bitir_say++;
+        g.bitir_nokta = 100u + i;
+        (void)bld_adim(&b, &g, 400u + i);
+    }
+    bld_deneme(&b, 9u, T0 + 5u);       /* Qt: ayni yol, dolu kuyrukta en eskiyi dusurur */
+    sayi("Q6ADET", bld_kuyruk_adet(&b));
+    sayi("Q6DUSEN", (int32_t)b.dusen);
+    BOSALT("E6");
+    sayi("Q7BOS", bld_kuyruk_bas(&b, tam, sizeof(tam)));
+    g.kayit = KDR_DOLU;
+    ADIM("Q7A", 500u);
+    sayi("Q7YER", bld_kuyruk_bas(&b, tam, 10u));
+    sayi("Q7ADET", bld_kuyruk_adet(&b));
+    BOSALT("E7");
+    b.no = 4294967290UL;
+    g.acilis = 0xFFFFFFFFUL; g.unix_s = 0xFFFFFFFFUL;
+    g.pil_say++; g.pil_durum = 255u;
+    g.pil_mah_milli = 0xFFFFFFFFUL; g.pil_wh_milli = 0xFFFFFFFFUL; g.pil_sure_ms = 0xFFFFFFFFUL;
+    ADIM("Q8", 600u);
+    sayi("Q8DUSEN", (int32_t)b.dusen);
+    BOSALT("E8");
+    bld_kur(&b, 2000u);
+    sayi("ESIK2", b.esik);
+}
+
+/* D durum gerekliligi · DJ durum JSON · VJ vasiyet */
+static NI void s_durum(void)
+{
+    int n;
+    bld_kur(&b, 0u);
+    memset(&g, 0, sizeof(g));
+    g.acilis = 7u; g.unix_s = T0; g.kayit = KDR_KAYIT; g.oturum = 42u; g.tur = 1u;
+    g.doluluk_binde = 100u; g.esitlenmemis_binde = 50u;
+    sayi("D0", bld_durum_gerek(&b, &g, 1000u));
+    n = bld_durum_json(&g, "B71-test", tam, sizeof(tam));
+    sayi("DJN", n);
+    DIZI("DJ", tam);
+    sayi("DJT", bld_durum_json(&g, "B71-test", tam, (uint16_t)(n + 1)));
+    sayi("DJU", bld_durum_json(&g, "B71-test", tam, (uint16_t)n));
+    sayi("DJU0", tam[0]);
+    bld_durum_yayinlandi(&b, &g, 1000u);
+    sayi("D1", bld_durum_gerek(&b, &g, 1000u));
+    sayi("D2", bld_durum_gerek(&b, &g, 60999u));
+    sayi("D3", bld_durum_gerek(&b, &g, 61000u));
+    g.doluluk_binde = 109u; sayi("D4", bld_durum_gerek(&b, &g, 2000u));
+    g.doluluk_binde = 110u; sayi("D5", bld_durum_gerek(&b, &g, 2000u));
+    g.doluluk_binde = 100u; g.esitlenmemis_binde = 40u; sayi("D6", bld_durum_gerek(&b, &g, 2000u));
+    g.esitlenmemis_binde = 41u; sayi("D7", bld_durum_gerek(&b, &g, 2000u));
+    g.esitlenmemis_binde = 50u; g.kayit = KDR_BOS; sayi("D8", bld_durum_gerek(&b, &g, 2000u));
+    g.kayit = KDR_KAYIT; g.oturum = 43u; sayi("D9", bld_durum_gerek(&b, &g, 2000u));
+    g.oturum = 42u; g.tur = 2u; sayi("D10", bld_durum_gerek(&b, &g, 2000u));
+    g.tur = 1u; sayi("D11", bld_durum_gerek(&b, &g, 2000u));
+    g.doluluk_binde = 110u;
+    bld_durum_yayinlandi(&b, &g, 5000u);
+    sayi("D12", bld_durum_gerek(&b, &g, 5000u));
+    sayi("D13", bld_durum_gerek(&b, &g, 64999u));
+    sayi("D14", bld_durum_gerek(&b, &g, 65000u));
+    bld_durum_yayinlandi(&b, &g, 0xFFFFF000UL);           /* ms sayaci sarar */
+    sayi("D15", bld_durum_gerek(&b, &g, 0x100u));
+    sayi("VJN", bld_vasiyet_json(7u, tam, sizeof(tam)));
+    DIZI("VJ", tam);
+    sayi("DJEN", bld_durum_json(&g, "A\"1\\\x01", tam, sizeof(tam)));
+    DIZI("DJE", tam);
+}
+
+static NI void zarf_yaz(const char *et_P, int n)
+{
+    metin_P(et_P); yaz(' ');
+    if (n > 0) hexdizi(zarf, (uint16_t)n);
+    satir();
+}
+
+/* K konu · Z zarf */
+static NI void s_zarf(void)
+{
+    char onek[33], konu[48];
+    uint8_t i;
+    int n;
+    for (i = 0; i < 32u; i++) anahtar[i] = (uint8_t)(0x40u + i);
+    strcpy_P(onek, ONEK);
+    sayi("KN", bld_konu(onek, "olay", konu, sizeof(konu)));
+    DIZI("KONU", konu);
+    sayi("KB5", bld_konu(onek, "olay", konu, 40u));
+    sayi("KB6", bld_konu(onek, "olay", konu, 41u));
+    sayi("KB3", bld_konu(onek, "ol+ay", konu, sizeof(konu)));
+    sayi("KB4", bld_konu(onek, "", konu, sizeof(konu)));
+    sayi("KB7", bld_konu(onek, "a/b", konu, sizeof(konu)));
+    onek[31] = 'F';
+    sayi("KB1", bld_konu(onek, "olay", konu, sizeof(konu)));
+    onek[31] = 0;
+    sayi("KB2", bld_konu(onek, "olay", konu, sizeof(konu)));
+    strcpy_P(onek, ONEK);
+    (void)bld_konu(onek, "olay", konu, sizeof(konu));
+    /* Z1: gercek bir olay (basladi) olay konusunda */
+    bld_kur(&b, 0u);
+    memset(&g, 0, sizeof(g));
+    g.acilis = 7u; g.unix_s = T0; g.kayit = KDR_BOS;
+    (void)bld_adim(&b, &g, 0u);
+    (void)bld_kuyruk_bas(&b, tam, sizeof(tam));
+    DIZI("Z1J", tam);
+    zarf_yaz(PSTR("Z1"), bld_zarf(&BK, anahtar, konu, tam, zarf, sizeof(zarf)));
+    /* Z2: vasiyet durum konusunda */
+    sayi("KD", bld_konu(onek, "durum", konu, sizeof(konu)));
+    DIZI("KONU2", konu);
+    (void)bld_vasiyet_json(7u, tam, sizeof(tam));
+    n = bld_zarf(&BK, anahtar, konu, tam, zarf, sizeof(zarf));
+    sayi("Z2N", n);
+    zarf_yaz(PSTR("Z2"), n);
+    /* Z3 bir bayt eksik tampon: hata, rastgele HARCANMAZ · Z4 tam sigan tampon */
+    n = (int)strlen(tam) + (int)BLD_ZARF_EK;
+    sayi("Z3", bld_zarf(&BK, anahtar, konu, tam, zarf, (uint16_t)(n - 1)));
+    zarf_yaz(PSTR("Z4"), bld_zarf(&BK, anahtar, konu, tam, zarf, (uint16_t)n));
+    /* Z5 AEAD hatasi: hata ve cikti silinir · Z6 AEAD islevi yok */
+    aead_hata = 1u;
+    sayi("Z5", bld_zarf(&BK, anahtar, konu, tam, zarf, sizeof(zarf)));
+    aead_hata = 0u;
+    sayi("Z5S", zarf[0] | zarf[4] | zarf[16]);
+    sayi("Z6", bld_zarf(&BK_AEADSIZ, anahtar, konu, tam, zarf, sizeof(zarf)));
+}
+
+static void senaryo(void)
+{
+    yigin_boya();
+    s_olaylar();
+    s_esik();
+    s_kuyruk();
+    s_durum();
+    s_zarf();
+    sayi("YIGIN", yigin_pay());
+    metin_P(PSTR("BITTI\n"));
+}
+#endif
+
+#if defined(SENARYO_MQTT)
+/* 1E: MQTT 3.1.1 ISTEMCI PAKETLERI (mqtt_paket.h) — CONNECT / PUBLISH / PINGREQ /
+   DISCONNECT baytlari ve tampon sinirlari, kalan uzunluk kodlamasi (127/128, 16383/
+   16384, 2097151/2097152), parca parca okuyucu (1 bayt, 5 bayt, tek parca), bozuk
+   kalan uzunluk, URI. Python BAGIMSIZ cozer: kopru/mqtt_istemci.py (Ayristirici,
+   publish_coz, uzunluk_coz/kodla) + elle CONNECT cozumu (test_kayit.py bolum_mqtt).
+   16 KB'lik PUBLISH AVR'ye sigmaz: o sinirlarda yalniz yer hesabi (E_YER, yazmadan). */
+#define MQP_ISLEV static __attribute__((noinline, unused))
+#include "mqtt_paket.h"
+#ifndef NI
+#define NI __attribute__((noinline))
+#endif
+
+static uint8_t c[160];
+static uint8_t yuk[125];
+static uint8_t akis[160];
+static uint16_t akis_n;
+static const char VKONU[] = "ok/0123456789abcdef0123456789abcdef/durum";
+static const uint8_t VAS[20] = {0x4F, 0x4B, 0x42, 0x31, 0x00, 0xFF, 0x10, 0x20, 0x7F, 0x80,
+                                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A};
+static const uint8_t Y5[5] = {'{', '"', 'c', '"', '}'};
+
+static NI void isaretli(int32_t v)
+{
+    if (v < 0) { yaz('-'); ondalik((uint32_t)(-v)); }
+    else ondalik((uint32_t)v);
+}
+
+/* '<etiket> <uzunluk> <hex>' ya da '<etiket> <hata>' */
+static NI void paket_yaz(const char *et_P, int32_t n)
+{
+    metin_P(et_P); yaz(' ');
+    isaretli(n);
+    if (n > 0) { yaz(' '); hexdizi(c, (uint16_t)n); }
+    satir();
+}
+#define PAKET(et, n) paket_yaz(PSTR(et), (n))
+
+static NI void s_baglan(void)
+{
+    MqpBaglan b;
+    int32_t n;
+    memset(&b, 0, sizeof(b));
+    b.istemci = "olcum-a1b2"; b.kullanici = "kart"; b.parola = "p@ss:1";
+    b.vasiyet_konu = VKONU; b.vasiyet = VAS; b.vasiyet_n = sizeof(VAS);
+    b.vasiyet_qos = 1u; b.vasiyet_tut = 1u; b.keepalive = 5u; b.temiz = 1u;
+    n = mqp_baglan(&b, c, sizeof(c));
+    PAKET("C1", n);
+    sayi("C1Y", mqp_baglan(&b, c, (uint16_t)(n - 1)));
+    sayi("C1T", mqp_baglan(&b, c, (uint16_t)n));
+    memset(&b, 0, sizeof(b));                         /* C2 vasiyetsiz, kullanicisiz */
+    b.istemci = "x"; b.keepalive = 60u; b.temiz = 1u;
+    n = mqp_baglan(&b, c, sizeof(c));
+    PAKET("C2", n);
+    sayi("C2Y", mqp_baglan(&b, c, (uint16_t)(n - 1)));
+    sayi("C2T", mqp_baglan(&b, c, (uint16_t)n));
+    b.kullanici = "u";                                /* C8 kullanici var, parola yok */
+    PAKET("C8", mqp_baglan(&b, c, sizeof(c)));
+    b.kullanici = 0; b.parola = "p";                  /* C3 kullanicisiz parola */
+    sayi("C3", mqp_baglan(&b, c, sizeof(c)));
+    b.kullanici = "";
+    sayi("C3B", mqp_baglan(&b, c, sizeof(c)));
+    b.kullanici = 0; b.parola = 0;
+    b.vasiyet_konu = "ok/a"; b.vasiyet_qos = 2u;      /* C4 vasiyet QoS 2 */
+    sayi("C4", mqp_baglan(&b, c, sizeof(c)));
+    b.vasiyet_konu = 0; b.vasiyet_qos = 0u; b.vasiyet_tut = 1u;   /* C5 vasiyetsiz bayrak */
+    sayi("C5", mqp_baglan(&b, c, sizeof(c)));
+    b.vasiyet_tut = 0u; b.vasiyet_qos = 1u;
+    sayi("C5B", mqp_baglan(&b, c, sizeof(c)));
+    b.vasiyet_qos = 0u;
+    b.vasiyet_konu = "ok/+/durum";                    /* C6 vasiyet konusu joker / bos */
+    sayi("C6", mqp_baglan(&b, c, sizeof(c)));
+    b.vasiyet_konu = "ok/#";
+    sayi("C6B", mqp_baglan(&b, c, sizeof(c)));
+    b.vasiyet_konu = "";
+    sayi("C6C", mqp_baglan(&b, c, sizeof(c)));
+    b.vasiyet_konu = 0;
+    b.istemci = ""; b.temiz = 0u;                     /* C7 bos kimlik: temiz oturum zorunlu */
+    sayi("C7", mqp_baglan(&b, c, sizeof(c)));
+    b.temiz = 1u;
+    PAKET("C7B", mqp_baglan(&b, c, sizeof(c)));
+    b.istemci = 0;
+    PAKET("C7C", mqp_baglan(&b, c, sizeof(c)));
+}
+
+static NI void s_yayin(void)
+{
+    static const char *const JOKER[] = {"ok/+/x", "ok/#", "a+b", "", 0};
+    uint8_t i;
+    int32_t n;
+    n = mqp_yayin("ok/x/durum", Y5, 5u, 0u, 1u, 77u, c, sizeof(c));   /* QoS 0, tut: pid yok */
+    PAKET("P1", n);
+    sayi("P1Y", mqp_yayin("ok/x/durum", Y5, 5u, 0u, 1u, 77u, c, (uint16_t)(n - 1)));
+    sayi("P1T", mqp_yayin("ok/x/durum", Y5, 5u, 0u, 1u, 77u, c, (uint16_t)n));
+    n = mqp_yayin("ok/x/olay", Y5, 3u, 1u, 0u, 0x1234u, c, sizeof(c));
+    PAKET("P2", n);
+    sayi("P2Y", mqp_yayin("ok/x/olay", Y5, 3u, 1u, 0u, 0x1234u, c, (uint16_t)(n - 1)));
+    sayi("P2T", mqp_yayin("ok/x/olay", Y5, 3u, 1u, 0u, 0x1234u, c, (uint16_t)n));
+    sayi("P3", mqp_yayin("a", Y5, 1u, 1u, 0u, 0u, c, sizeof(c)));     /* QoS 1 pid 0 */
+    sayi("P4", mqp_yayin("a", Y5, 1u, 2u, 0u, 1u, c, sizeof(c)));     /* QoS 2 */
+    for (i = 0; i < 4u; i++) {
+        metin_P(PSTR("P5 "));
+        isaretli(mqp_yayin(JOKER[i], Y5, 1u, 0u, 0u, 0u, c, sizeof(c)));
+        satir();
+    }
+    sayi("P5N", mqp_yayin(JOKER[4], Y5, 1u, 0u, 0u, 0u, c, sizeof(c)));
+    for (i = 0; i < sizeof(yuk); i++) yuk[i] = (uint8_t)(i * 7u + 3u);
+    n = mqp_yayin("t", yuk, 124u, 0u, 0u, 0u, c, sizeof(c));         /* kalan 127 */
+    PAKET("P7A", n);
+    sayi("P7AY", mqp_yayin("t", yuk, 124u, 0u, 0u, 0u, c, (uint16_t)(n - 1)));
+    n = mqp_yayin("t", yuk, 125u, 0u, 0u, 0u, c, sizeof(c));         /* kalan 128 */
+    PAKET("P7B", n);
+    sayi("P7BY", mqp_yayin("t", yuk, 125u, 0u, 0u, 0u, c, (uint16_t)(n - 1)));
+    sayi("P7BT", mqp_yayin("t", yuk, 125u, 0u, 0u, 0u, c, (uint16_t)n));
+    /* kalan 16383 (toplam 16386) / 16384 (toplam 16388): bir eksik azami -> E_YER,
+       YAZMADAN (yuk okunmaz, c'ye dokunulmaz) */
+    sayi("P8A", mqp_yayin("t", yuk, 16380u, 0u, 0u, 0u, c, 16385u));
+    sayi("P8B", mqp_yayin("t", yuk, 16381u, 0u, 0u, 0u, c, 16387u));
+    n = mqp_ping(c, sizeof(c));
+    PAKET("K1", n);
+    sayi("K1Y", mqp_ping(c, 1u));
+    sayi("K1T", mqp_ping(c, 2u));
+    n = mqp_kopar(c, sizeof(c));
+    PAKET("K2", n);
+    sayi("K2Y", mqp_kopar(c, 1u));
+    sayi("K2T", mqp_kopar(c, 2u));
+}
+
+/* kalan uzunluk kodlayicisi dogrudan: 'L <deger> <boy> <yazilan> <hex>' */
+static NI void s_uzunluk(void)
+{
+    static const uint32_t UZ[] = {0UL, 1UL, 127UL, 128UL, 16383UL, 16384UL, 2097151UL,
+                                  2097152UL, 268435455UL};
+    uint8_t t[4], i, k;
+    for (i = 0; i < sizeof(UZ) / sizeof(UZ[0]); i++) {
+        k = mqp__uzunluk_yaz(UZ[i], t);
+        metin_P(PSTR("L ")); ondalik(UZ[i]); yaz(' ');
+        ondalik(mqp__uzunluk_boy(UZ[i])); yaz(' '); ondalik(k); yaz(' ');
+        hexdizi(t, k); satir();
+    }
+}
+
+static void ak(uint8_t b) { akis[akis_n++] = b; }
+
+static NI void akis_kur(void)
+{
+    uint8_t i;
+    akis_n = 0;
+    ak(0x20); ak(2); ak(0); ak(0);                      /* CONNACK kabul */
+    ak(0x40); ak(2); ak(0x12); ak(0x34);                /* PUBACK 0x1234 */
+    ak(0xD0); ak(0);                                    /* PINGRESP (govdesiz) */
+    ak(0x20); ak(2); ak(1); ak(5);                      /* CONNACK 5 (oturum bayragi 1) */
+    ak(0x30); ak(0x82); ak(0x01);                       /* PUBLISH, kalan 130 (2 bayt) */
+    ak(0); ak(3); ak('a'); ak('b'); ak('c');
+    for (i = 0; i < 125u; i++) ak((uint8_t)(0x10u + i));
+    ak(0x40); ak(2); ak(0); ak(7);                      /* PUBACK 7 */
+    metin_P(PSTR("AKIS ")); hexdizi(akis, akis_n); satir();
+}
+
+/* tamamlanan paket: '<et> <tip> <uzunluk> <connack> <puback_pid> <govde hex|->' */
+static NI void okunan_yaz(const char *et_P, const MqpOkuyucu *o)
+{
+    uint8_t g = (uint8_t)(o->uzunluk < MQP_GOVDE_AZAMI ? o->uzunluk : MQP_GOVDE_AZAMI);
+    metin_P(et_P); yaz(' ');
+    ondalik(mqp_tip(o)); yaz(' ');
+    ondalik(o->uzunluk); yaz(' ');
+    isaretli(mqp_connack(o)); yaz(' ');
+    isaretli(mqp_puback_pid(o)); yaz(' ');
+    if (g) hexdizi(o->govde, g); else yaz('-');
+    satir();
+}
+
+static NI void oku_kos(const char *et_P, uint16_t parca)
+{
+    MqpOkuyucu o;
+    uint16_t i = 0, k, m;
+    int r;
+    mqp_oku_kur(&o);
+    while (i < akis_n) {
+        m = (uint16_t)(akis_n - i);
+        if (m > parca) m = parca;
+        while (m) {
+            k = 0;
+            r = mqp_oku(&o, akis + i, m, &k);
+            i = (uint16_t)(i + k);
+            m = (uint16_t)(m - k);
+            if (r == 1) okunan_yaz(et_P, &o);
+            else if (r < 0) { metin_P(et_P); metin_P(PSTR(" E ")); isaretli(r); satir(); return; }
+            else break;
+        }
+    }
+}
+#define OKU(et, p) oku_kos(PSTR(et), (p))
+
+static NI void s_bozuk(void)
+{
+    static const uint8_t K5[] = {0x30, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x00};
+    static const uint8_t K4[] = {0x30, 0xFF, 0xFF, 0xFF, 0x7F};
+    static const uint8_t K4B[] = {0x30, 0x80, 0x80, 0x80, 0x01};
+    MqpOkuyucu o;
+    uint16_t k = 99u;
+    uint8_t i;
+    int r;
+    mqp_oku_kur(&o);
+    r = mqp_oku(&o, K5, sizeof(K5), &k);
+    sayi("BZ", r);
+    sayi("BZK", k);
+    r = mqp_oku(&o, K5 + k, 1u, &k);                  /* bozuk okuyucu bozuk kalir */
+    sayi("BZ2", r);
+    mqp_oku_kur(&o);
+    for (i = 0; i < sizeof(K5); i++) {                /* 1 baytlik parcalarla: kacinci bayt */
+        r = mqp_oku(&o, K5 + i, 1u, &k);
+        if (r) break;
+    }
+    sayi("BZ1", i);
+    sayi("BZ1R", r);
+    mqp_oku_kur(&o);
+    sayi("L4", mqp_oku(&o, K4, sizeof(K4), &k));      /* en buyuk 4 bayt: govde bekler */
+    sayi("L4K", k);
+    sayi("L4U", (int32_t)o.uzunluk);
+    mqp_oku_kur(&o);
+    sayi("L4B", mqp_oku(&o, K4B, sizeof(K4B), &k));
+    sayi("L4BU", (int32_t)o.uzunluk);
+    k = 99u;
+    sayi("N0", mqp_oku(&o, K4B, 0u, &k));
+    sayi("N0K", k);
+}
+
+static NI void uri_dene(const char *et_P, const char *uri_P, uint8_t azami)
+{
+    char u[40], ad[24];
+    uint16_t port = 0;
+    uint8_t tls = 9u;
+    int r;
+    strcpy_P(u, uri_P);
+    r = mqp_uri_coz(u, ad, azami, &port, &tls);
+    metin_P(et_P); yaz(' ');
+    isaretli(r);
+    if (!r) { yaz(' '); ondalik(port); yaz(' '); ondalik(tls); yaz(' '); metin(ad); }
+    satir();
+}
+#define URI(et, s, az) uri_dene(PSTR(et), PSTR(s), (az))
+
+static NI void s_uri(void)
+{
+    URI("UA", "mqtts://abc.hivemq.cloud", 24u);
+    URI("UB", "mqtt://localhost", 24u);
+    URI("UC", "mqtts://h-1.Example:1234", 24u);
+    URI("UD", "mqtts://h:65535", 24u);
+    URI("UE", "mqtts://h:0", 24u);
+    URI("UF", "mqtts://h:65536", 24u);
+    URI("UG", "mqtts://h:", 24u);
+    URI("UH", "mqtts://h:12a", 24u);
+    URI("UI", "mqtts://u@h", 24u);
+    URI("UJ", "mqtts://h/x", 24u);
+    URI("UK", "mqtts://h?x", 24u);
+    URI("UL", "mqtts://", 24u);
+    URI("UM", "mqtts://:8883", 24u);
+    URI("UN", "mqtts://abcdefgh", 8u);
+    URI("UO", "mqtts://abcdefgh", 9u);
+    URI("UP", "http://h", 24u);
+    URI("UQ", "ws://h", 24u);
+    URI("UR", "mqtts://h:99999999999", 24u);
+    URI("US", "mqtts://h:8883/", 24u);
+    URI("UT", "mqtts://h:-1", 24u);
+}
+
+static void senaryo(void)
+{
+    s_baglan();
+    s_yayin();
+    s_uzunluk();
+    akis_kur();
+    OKU("RA", 1u);                     /* 1 baytlik parcalar */
+    OKU("RB", 5u);                     /* 5 baytlik parcalar (paket sinirlari kayik) */
+    OKU("RC", 0xFFFFu);                /* tek parca: birkac paket birden */
+    s_bozuk();
+    s_uri();
+    metin_P(PSTR("BITTI\n"));
+}
+#endif
+
 /* ── giris ── */
 #if !(defined(SENARYO_BICIM) || defined(SENARYO_NOKTACI) || defined(SENARYO_GUNLUK) \
       || defined(SENARYO_YAZICI) || defined(SENARYO_KESINTI) || defined(SENARYO_DIZIN) \
       || defined(SENARYO_TARAMA) || defined(SENARYO_MANTIKSAL) || defined(SENARYO_YONET) \
       || defined(SENARYO_SURUM) || defined(SENARYO_KALGEC) || defined(SENARYO_PIL) \
       || defined(SENARYO_HALKA) || defined(SENARYO_AYRINTI) || defined(SENARYO_HAZIR) \
-      || defined(SENARYO_SKOP) || defined(SENARYO_PLAN) || defined(SENARYO_GUV))
+      || defined(SENARYO_SKOP) || defined(SENARYO_PLAN) || defined(SENARYO_GUV) \
+      || defined(SENARYO_BILDIRIM) || defined(SENARYO_MQTT))
 #error "SENARYO_* tanimli degil"
 #endif
 

@@ -86,6 +86,7 @@
 #include "ag.h"         // B22.4 — WiFi durum makinesi
 #include "kayit_esp.h"  // B72 — kayit motorunun ESP32 yapistiricisi (Serial KULLANMAZ)
 #include "guvenlik_esp.h"  // 1D — eslestirme + imza yapistiricisi (Serial KULLANMAZ)
+#include "bildirim_esp.h"  // 1E — MQTT bildirimleri (Serial KULLANMAZ)
 
 // 🔴 B22.4 — `Serial` AYNASI. BUTUN #include'lardan SONRA gelmeli.
 //
@@ -2373,6 +2374,9 @@ static void pil_durdur(uint8_t yeni_durum, uint8_t hata) {
   pil.hata = hata;
   pil.bitis_ms = millis();
   pil.dcir_icinde = 0;
+  /* 1E: kayitsiz pil testi de bildirilir (kayit_pil_bitir kayit bolumu yoksa susar) */
+  bildirim_pil_bitti(yeni_durum, yuk_mAh3(pil.yuk_pC), enerji_wh3(pil.enerji_pJ),
+                     pil.bitis_ms - pil.baslama_ms);
   kayit_pil_bitir(yeni_durum == PIL_DURDURULDU ? KB_SEBEP_KULLANICI : KB_SEBEP_PIL);
 }
 
@@ -3176,6 +3180,125 @@ void saat_sayfa() {
   settimeofday(&tv, nullptr);
   guv_saat_kaynak = 2u;
   sunucu.send(204, "text/plain", "");
+}
+
+// 1E (K10): eslesmis cihaza araci bilgileri + bildirim anahtari, CIHAZ anahtariyla
+// sifreli (AAD "OK1-bildirim\n<kimlik>\n<n>"). Imzasiz ya da eslesmemis: 401.
+void bildirim_bilgi_sayfa() {
+  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
+  if (!guv_kapi(GUV_CIHAZ)) return;
+  GuvCihaz c;
+  char k[17];
+  guv_kilit();
+  const int r = guv_cihaz_oku(&guv, guv_imzali, &c);
+  guv_kimlik_hex(&guv, k);
+  guv_birak();
+  if (r) { sunucu.send(500, "text/plain", "guvenlik: cihaz okunamadi"); return; }
+  uint8_t z[720];
+  const int n = bildirim_bilgi_zarf(guv_imzali, c.K, k, z, sizeof(z));
+  memset(c.K, 0, sizeof(c.K));
+  if (n == -1) {
+    sunucu.send(404, "text/plain", "bildirim ayarlanmamis (USB: Qu, Qc, Qd, Q1)");
+    return;
+  }
+  if (n < 0) { sunucu.send(500, "text/plain", "kriptografi hatasi (bellek?) — tekrar dene"); return; }
+  sunucu.send_P(200, "application/octet-stream", (PGM_P)z, (size_t)n);
+  memset(z, 0, sizeof(z));
+}
+
+// Seri `Q` komutlari — 1E MQTT bildirimleri, YALNIZ USB (cekirdek 1). /komut ve
+// kopru.py 'Q'yu reddeder: araci parolalari aga cikmaz. Hicbir satir SIR basmaz
+// (Serial aynasi her satiri /akis SSE'sine tasir); parola komutu geri yansitilmaz.
+static void bld_seri_komut(const char *s) {
+  char t[360];   /* QA satiri: uri 127 + iki kullanici 63 + sabitler */
+  const char *alan = nullptr, *ad = nullptr;
+  uint8_t azami = 0;
+  switch (s[1]) {
+    case '?': {
+      BildirimOzet z;
+      bildirim_ozet(&z);
+      const BildirimDurum d = bildirim_durum_al();
+      static const char *const adlar[] = {"kapali", "ayar eksik", "ag yok (STA degil)",
+                                          "baglaniyor", "bagli", "bekliyor"};
+      snprintf(t, sizeof(t),
+               "Q acik=%u durum=%u (%s) hata=%ld baglanti=%lu yayin=%lu olay=%lu kuyruk=%lu dusen=%lu el_sikisma_ms=%lu",
+               (unsigned)z.acik, (unsigned)d.durum, d.durum < 6u ? adlar[d.durum] : "?",
+               (long)d.son_hata, (unsigned long)d.baglanti, (unsigned long)d.yayin,
+               (unsigned long)d.olay, (unsigned long)d.kuyruk, (unsigned long)d.dusen,
+               (unsigned long)d.el_sikisma_ms);
+      Serial.println(t);
+      snprintf(t, sizeof(t), "QA uri=%s kart=%s kart_parola=%s cihaz=%s cihaz_parola=%s onek=%s anahtar=%s",
+               z.uri[0] ? z.uri : "-", z.kk[0] ? z.kk : "-", z.kp_var ? "var" : "yok",
+               z.ck[0] ? z.ck : "-", z.cp_var ? "var" : "yok", z.onek_var ? z.onek8 : "-",
+               z.anahtar_var ? "var" : "yok");
+      Serial.println(t);
+      snprintf(t, sizeof(t), "QY dahili_bos=%lu dahili_en_az=%lu",
+               (unsigned long)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+               (unsigned long)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+      Serial.println(t);
+      if (ag_durum.kip != AG_STA)
+        Serial.println(F("* Q: MQTT yalniz ev aginda (STA) calisir — AP kipinde yok (K8)"));
+      if (!strncmp(z.uri, "mqtt://", 7))
+        Serial.println(F("! Q: mqtt:// SIFRESIZ tasima — araci parolasi acik gider (yalniz yerel sinama)"));
+      return;
+    }
+    case 'u': {
+      char h[64];
+      uint16_t port = 0;
+      uint8_t tls = 0;
+      if (s[2] && mqp_uri_coz(s + 2, h, sizeof(h), &port, &tls)) {   /* bos = sil */
+        Serial.println(F("! Q: Qu<mqtts://ad[:port]> (sinama: mqtt://) — '@', yol, sorgu yok"));
+        return;
+      }
+      alan = "uri"; ad = "adres"; azami = BLD_URI_AZAMI;
+      break;
+    }
+    case 'k': alan = "kk"; ad = "kart kullanicisi"; azami = BLD_KUL_AZAMI; break;
+    case 'p': alan = "kp"; ad = "kart parolasi"; azami = BLD_PAR_AZAMI; break;
+    case 'c': alan = "ck"; ad = "cihaz kullanicisi"; azami = BLD_KUL_AZAMI; break;
+    case 'd': alan = "cp"; ad = "cihaz parolasi"; azami = BLD_PAR_AZAMI; break;
+    case '1':
+    case 'R': {
+      if (s[1] == 'R' && s[2] != '!') { Serial.println(F("! Q: QR! (onek + anahtar YENILENIR)")); return; }
+      /* Ep gibi: RF kapaliyken ESP32 RNG'si yalanci-rastgele — sir uretme */
+      if (WiFi.getMode() == WIFI_MODE_NULL) {
+        Serial.println(F("! Q: WiFi KAPALI — RF'siz rastgele sayi zayif; once N1 + yeniden baslat"));
+        return;
+      }
+      const int r = bildirim_sir_uret(s[1] == 'R');
+      if (r < 0 || (s[1] == '1' && bildirim_ayar_acik(1))) { Serial.println(F("! Q: NVS'e yazilamadi")); return; }
+      if (s[1] == 'R')
+        Serial.println(F("* Q: YENI onek + bildirim anahtari — eslesmis cihazlar /bildirim/bilgi'yi yeniden almali"));
+      else
+        Serial.println(r == 1 ? F("* Q: bildirim ACIK (onek + bildirim anahtari uretildi)")
+                              : F("* Q: bildirim ACIK"));
+      return;
+    }
+    case '0':
+      Serial.println(bildirim_ayar_acik(0) ? F("! Q: NVS'e yazilamadi")
+                                           : F("* Q: bildirim KAPALI (durum c:0 yayinlanip baglanti kapanir)"));
+      return;
+    case 't':
+      bld_deneme_istek = (uint8_t)(bld_deneme_istek + 1u);   /* yalniz cekirdek 1 yazar */
+      Serial.println(F("* Q: deneme olayi kuyruga (bildirim acik ve ayar tamamsa gider)"));
+      return;
+    case 'v': {
+      const int r = bildirim_oz_sinama();
+      snprintf(t, sizeof(t), "QV %s %d (RFC 8439 2.8.2: sifreleme, etiket, cozme, bozuk ret)",
+               r ? "KALDI" : "gecti", r);
+      Serial.println(t);
+      return;
+    }
+    default:
+      Serial.println(F("! Q: Q? durum · Qu<mqtts://ad:port> · Qk/Qp kart kullanici/parola · Qc/Qd cihaz kullanici/parola · Q1/Q0 · Qt deneme · Qv sinama · QR! yeni anahtar"));
+      return;
+  }
+  const int r = bildirim_ayar_metin(alan, s + 2, azami);
+  if (r == -2) { Serial.println(F("! Q: kontrol karakteri olamaz")); return; }
+  if (r == -3) { snprintf(t, sizeof(t), "! Q: %s en fazla %u karakter", ad, (unsigned)azami); Serial.println(t); return; }
+  if (r) { Serial.println(F("! Q: NVS'e yazilamadi")); return; }
+  snprintf(t, sizeof(t), "* Q: %s kaydedildi%s", ad, s[2] ? " (yeniden baglaniyor)" : " (SILINDI)");
+  Serial.println(t);
 }
 
 // Seri `E` komutlari — YALNIZ USB (cekirdek 1). /komut 'E'yi reddeder (B72.F76),
@@ -4192,6 +4315,11 @@ void komut_sayfa() {
     sunucu.send(403, "text/plain", "E komutlari yalniz USB seri konsoldan");
     return;
   }
+  // 1E (K9): Q komutlari araci parolalarini tasir — YALNIZ USB'den
+  if (k[0] == 'Q') {
+    sunucu.send(403, "text/plain", "Q komutlari yalniz USB seri konsoldan");
+    return;
+  }
   if (!guv_imzali && !komut_serbest(k.c_str())) {
     if (guv.ayar.zorunlu) { guv__red(401, "imza gerekli (zorunlu) — p0 ve ? serbest"); return; }
     if (sunucu.header("X-Jeton") != String(oturum_jetonu)) {
@@ -4510,6 +4638,7 @@ void yardim() {
   Serial.println(F("  Gx<oturum>:<sira>[@<ms>] <metin> notu degistir (metin bos: sil) · komut <= 175 karakter"));
   Serial.println(F("  k? kalibrasyon gecmisi  kl liste  kv<no> degerler  kk<t><not> taslagi kaydet"));
   Serial.println(F("  kn<no> <not>  kt<no><t>   (t: d donanim degisti, i ince ayar, - belirtilmemis)"));
+  Serial.println(F("  Q? bildirim (MQTT) durumu  Qu<mqtts://ad:port>  Qk/Qp kart  Qc/Qd cihaz  Q1/Q0  Qt  Qv  (YALNIZ USB)"));
 }
 
 void komut_calistir(const char *s) {
@@ -4520,6 +4649,7 @@ void komut_calistir(const char *s) {
     case 'G': kayit_komut(s); break;   // B72 — kayit
     case 'k': kalgec_komut(s); break;  // 1B — kalibrasyon gecmisi
     case 'E': guv_seri_komut(s); break;   // 1D — eslestirme (YALNIZ USB)
+    case 'Q': bld_seri_komut(s); break;   // 1E — MQTT bildirim ayari (YALNIZ USB)
 
     case 'e':
       enerji_pJ = 0;
@@ -5318,6 +5448,7 @@ void setup() {
   sunucu.on("/cihaz/liste", HTTP_GET, cihaz_liste_sayfa);
   sunucu.on("/cihaz/sil", HTTP_POST, cihaz_sil_sayfa);
   sunucu.on("/saat", HTTP_POST, saat_sayfa);
+  sunucu.on("/bildirim/bilgi", HTTP_GET, bildirim_bilgi_sayfa);   // 1E (K10) — imzali, CIHAZ
   sunucu.on("/skop.bin", skop_bin_sayfa);   // B22.5 — ikili dokum
   // ⚠ YONTEM ACIKCA yaziliyor: HTTP_ANY olsaydi `GET /komut?k=p1` de
   //   calisirdi ve <img> etiketiyle uzaktan pil desarji baslatilabilirdi.
@@ -5478,6 +5609,10 @@ void setup() {
     Serial.print(F("Cekirdek: olcum="));
     Serial.print(xPortGetCoreID());
     Serial.println(F("  ag=0 (WebServer + SSE ayri gorevde)"));
+    /* 1E: MQTT bildirim gorevi (cekirdek 0). Kapaliyken (Q0) yalniz uyur. */
+    char kim[17];
+    guv_kimlik_hex(&guv, kim);
+    bildirim_baslat(kim);
   }
 
   if (ag_durum.kip != AG_KAPALI && !ag_nvs.getString("web_sifre", "").length()) {

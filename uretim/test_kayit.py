@@ -2084,11 +2084,454 @@ def bolum_guvenlik() -> None:
        str([k(a, "AC") for a in (a1, a2, a3)]))
 
 
+# ── B71.Q · 1E MQTT bildirimleri (bildirim.h) ─────────────────────────
+_BLD_T0 = 1800000000
+_BLD_ONEK = "0123456789abcdef0123456789abcdef"
+_BLD_ANAHTAR = bytes(range(0x40, 0x60))
+_BLD_TOHUM = 0x2545F491
+
+
+def _bld_xs(durum: int, n: int) -> tuple[int, bytes]:
+    """ornek_kayit.c sahte_rastgele (xorshift32) ile AYNI."""
+    cikti = bytearray()
+    for _ in range(n):
+        durum ^= (durum << 13) & 0xFFFFFFFF
+        durum ^= durum >> 17
+        durum ^= (durum << 5) & 0xFFFFFFFF
+        cikti.append((durum >> 8) & 0xFF)
+    return durum, bytes(cikti)
+
+
+def _bld_aead(k: bytes, nonce: bytes, aad: bytes, duz: bytes) -> bytes:
+    """ornek_kayit.c sahte_aead ile AYNI formul (sinama AEAD'i; gercegi ChaCha20-Poly1305).
+    Etiket AAD'ye bagli: baska konuyla dogrulanmaz."""
+    ct = bytes(d ^ k[i % 32] ^ nonce[i % 12] for i, d in enumerate(duz))
+    h = 0x811C9DC5
+    for x in aad + b"\xff" + ct:
+        h = ((h ^ x) * 16777619) & 0xFFFFFFFF
+    return ct + bytes(((h >> (8 * (i & 3))) & 0xFF) ^ i ^ k[i] for i in range(16))
+
+
+def _bld_ac(k: bytes, konu: str, zarf: bytes | None) -> bytes | None:
+    """Zarfi SPEC bicimine gore ayir ("OKB1" | nonce 12 | sifreli | etiket 16), AAD = konu
+    ile dogrula; duz metin ya da None."""
+    if not zarf or len(zarf) < 32 or zarf[:4] != b"OKB1":
+        return None
+    nonce, govde = zarf[4:16], zarf[16:]
+    duz = bytes(c ^ k[i % 32] ^ nonce[i % 12] for i, c in enumerate(govde[:-16]))
+    return duz if _bld_aead(k, nonce, konu.encode(), duz) == govde else None
+
+
+def bolum_bildirim() -> None:
+    """1E: platformsuz bildirim cekirdegi (bildirim.h) AVR'de, tek acilis: olay uretimi
+    anlik goruntu dizilerinden, esik histerezisi, kuyruk tasmasi + `n` sirasi, durum
+    gerekliligi, durum/vasiyet JSON, konu, zarf yerlesimi (sahte AEAD; Python ayni
+    formulle yeniden hesaplar, AAD = konu). Tasarim: tasarim/2026-10-01-1e-mqtt-bildirim.md."""
+    import json as _json
+    print("\n── B71.Q  1E bildirim: olaylar · esik · kuyruk · n sirasi · durum · konu · zarf")
+    d = subprocess.run(
+        [str(AVR_GXX), "-mmcu=atmega328p", "-std=gnu++11", "-fsyntax-only", "-Wall", "-Wextra",
+         f"-I{KOD}", "-x", "c++", "-"],
+        input='#include "bildirim.h"\nint main() { return 0; }\n', capture_output=True,
+        text=True, encoding="utf-8", errors="replace")
+    cpp = (d.stderr or "") if (d.returncode or "warning:" in (d.stderr or "")) else ""
+    ok("B71.Q0 bildirim.h kartin varsayilanlariyla (16 x 192) C++ olarak (.ino) UYARISIZ "
+       "(-Wall -Wextra)", not cpp, cpp.strip()[:300])
+    sat = kos(derle("BILDIRIM"))
+
+    def k(ad):
+        return _say(sat, ad)
+
+    def ham(ad):
+        return [x[0] for x in alanlar(sat, ad) if x]
+
+    def js(s):
+        try:
+            return _json.loads(s)
+        except (ValueError, TypeError):
+            return None
+
+    def ob(ad):
+        return [js(x) for x in ham(ad)]
+
+    def hx(ad):
+        x = alanlar(sat, ad)
+        try:
+            return bytes.fromhex(x[0][0]) if x and x[0] else None
+        except ValueError:
+            return None
+    T0 = _BLD_T0
+
+    def ol(n, ad, a=7, t=T0, **ek):
+        return {"n": n, "a": a, "t": t, "o": ad, **ek}
+    q1 = [k(x) for x in ("Q1A", "Q1B", "Q1C")]
+    e1 = ob("E1")
+    ok("B71.Q1 basladi tarama BITINCE (TARIYOR'da hicbir olay yok — esitlenmemis 900 binde "
+       "olsa bile esik de yok), ilk olay n 1: a, t, devam, oturum; ayni goruntu tekrar olay "
+       "uretmez",
+       q1 == [0, 3, 0] and ham("E1")[:1]
+       == ['{"n":1,"a":7,"t":1800000000,"o":"basladi","devam":2,"oturum":42}'],
+       f"{q1} {ham('E1')[:1]}")
+    ok("B71.Q2 acilis taramasinda kapanan oturum (sebep 5) ve biten pil testi (sayaclar ilk "
+       "goruntude 1): basladi'dan SONRA, sirayla kayit_bitti sonra pil_bitti (son gorulen "
+       "sayaclar 0'dan baslar)",
+       e1 == [ol(1, "basladi", devam=2, oturum=42),
+              ol(2, "kayit_bitti", sebep=5, oturum=41, nokta=777),
+              ol(3, "pil_bitti", durum=1, mah_milli=1000, wh_milli=3700, sure_ms=60000)],
+       str(e1))
+    q2 = [k(x) for x in ("Q2A", "Q2B", "Q2C")]
+    ok("B71.Q3 bitir_say ARTINCA kayit_bitti (sebep, oturum, nokta); sayac degismezse tekrar "
+       "YOK; sayac geri giderse olay YOK",
+       q2 == [1, 0, 0] and ob("E2") == [ol(4, "kayit_bitti", sebep=1, oturum=42, nokta=1234)],
+       f"{q2} {ob('E2')}")
+    q3 = [k(x) for x in ("Q3A", "Q3B", "Q3C", "Q3D")]
+    ok("B71.Q4 dolu yalniz DOLU'ya GECISTE: DOLU'da kalmak tekrar uretmez, BOS'a cikip yeniden "
+       "DOLU olunca yine (ek alan yok)",
+       q3 == [1, 0, 0, 1] and ob("E3") == [ol(5, "dolu"), ol(6, "dolu")], f"{q3} {ob('E3')}")
+    q4 = [k(x) for x in ("Q4A", "Q4B", "Q4C")]
+    ok("B71.Q5 pil_say ARTINCA pil_bitti: durum, mah_milli, wh_milli, sure_ms (tamsayi milli "
+       "birim); tekrar YOK; sayac geri giderse olay YOK",
+       q4 == [1, 0, 0] and ob("E4") == [ol(7, "pil_bitti", durum=2, mah_milli=2345678,
+                                         wh_milli=8765432, sure_ms=36000123)],
+       f"{q4} {ob('E4')}")
+    q5 = [k("Q5" + x) for x in "ABCDEFGHIJK"]
+    ok("B71.Q6 esik (varsayilan 500, 2000 -> 1000'e kirpilir): >= esikte BIR kez; ustte kalirken "
+       "ve 450/400'e inip yeniden cikinca TEKRAR YOK; esik-100'un ALTINA (399) ya da 0'a inince "
+       "yeniden kurulur ve tekrar uretir; tarama surerken karar yok",
+       k("ESIK") == 500 and k("ESIK2") == 1000 and q5 == [0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1]
+       and ob("E5") == [ol(8, "esik", deger=500, esik=500), ol(9, "esik", deger=520, esik=500),
+                        ol(10, "esik", deger=900, esik=500)],
+       f"{k('ESIK')} {k('ESIK2')} {q5} {ob('E5')}")
+    e6 = ob("E6")
+    ok("B71.Q7 kuyruk tasmasi (4 yer, 6 olay): EN ESKI iki olay (n 11, 12) duser, dusen 2; "
+       "kalanlar sirayla n 13-16",
+       k("Q6ADET") == 4 and k("Q6DUSEN") == 2
+       and e6 == [ol(13, "kayit_bitti", sebep=1, oturum=42, nokta=102),
+                  ol(14, "kayit_bitti", sebep=1, oturum=42, nokta=103),
+                  ol(15, "kayit_bitti", sebep=1, oturum=42, nokta=104),
+                  ol(16, "deneme", a=9, t=T0 + 5)],
+       f"adet={k('Q6ADET')} dusen={k('Q6DUSEN')} {[x and x.get('n') for x in e6]}")
+    ok("B71.Q8 deneme (Qt): ayni kuyruk ve numara yolundan, a/t cagirandan, ek alan yok; dolu "
+       "kuyrukta o da en eskiyi dusurur",
+       ham("E6")[-1:] == ['{"n":16,"a":9,"t":1800000005,"o":"deneme"}'] and k("Q6DUSEN") == 2,
+       str(ham("E6")[-1:]))
+    ok("B71.Q9 kuyruk uclari: bosken bas BLD_E_BOS (-4); kucuk tamponla bas BLD_E_YER (-1) ve "
+       "olay KUYRUKTA KALIR, sonra tam alinir",
+       k("Q7BOS") == -4 and k("Q7A") == 1 and k("Q7YER") == -1 and k("Q7ADET") == 1
+       and ob("E7") == [ol(17, "dolu")],
+       f"{k('Q7BOS')} {k('Q7YER')} {k('Q7ADET')} {ob('E7')}")
+    hepsi = [ham("E" + str(i)) for i in range(1, 8)]
+    nler = [(js(x) or {}).get("n") for grup in hepsi for x in grup]
+    ok("B71.Q10 n acilis basina 1'den surekli artar; tek bosluk tasmada dusen 11-12 (alici "
+       "kaybi bosluktan gorur)",
+       nler == list(range(1, 11)) + list(range(13, 18)), str(nler))
+    duz = [x for grup in hepsi for x in grup] + ham("E8")
+    ok("B71.Q11 olay JSON'u kompakt ve tamsayi: ham metin == json.dumps(ayirici ',' ':'), anahtar "
+       "sirasi n, a, t, o",
+       bool(duz) and all(js(x) is not None
+                         and x == _json.dumps(js(x), separators=(",", ":"))
+                         and list(js(x))[:4] == ["n", "a", "t", "o"] for x in duz),
+       f"{len(duz)} olay")
+    e8 = ham("E8")
+    m = 0xFFFFFFFF
+    ok("B71.Q12 en buyuk olay (pil_bitti, butun sayilar en buyuk) BLD_OLAY_AZAMI'ye TAM sigar: "
+       "140 karakter + NUL = 141 (AVR'de BLD_MESAJ = 141), dusmez",
+       k("Q8") == 1 and k("Q8DUSEN") == 2 and len(e8) == 1 and len(e8[0]) == 140
+       and js(e8[0]) == ol(4294967290, "pil_bitti", a=m, t=m, durum=255, mah_milli=m,
+                           wh_milli=m, sure_ms=m),
+       f"Q8={k('Q8')} dusen={k('Q8DUSEN')} uzunluk={[len(x) for x in e8]}")
+    dg = [k("D" + str(i)) for i in range(16)]
+    ok("B71.Q13 durum gerekli: hic yayinlanmadiysa; 60 s dolunca (59.999 s degil); doluluk ya "
+       "da esitlenmemis >= 10 binde oynayinca (9 degil, iki yon); kayit/oturum/tur degisince; "
+       "yayinlanan imza yenilenir; ms sayaci sarmasi dogru",
+       dg == [1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0], str(dg))
+    dj = '{"c":1,"a":7,"t":1800000000,"k":2,"o":42,"y":1,"d":100,"e":50,"f":"B71-test"}'
+    ok("B71.Q14 durum JSON birebir; tam sigan tamponda yazilir, bir bayt kisada BLD_E_YER ve "
+       "YARIM dize birakmaz; firmware adinda \" ve \\ kacislanir, denetim karakteri '?'",
+       ham("DJ") == [dj] and k("DJN") == len(dj) and k("DJT") == len(dj) and k("DJU") == -1
+       and k("DJU0") == 0 and (js((ham("DJE") or [""])[0]) or {}).get("f") == 'A"1\\?'
+       and k("DJEN") == len((ham("DJE") or [""])[0]),
+       f"{ham('DJ')} DJU={k('DJU')} DJE={ham('DJE')}")
+    ok("B71.Q15 vasiyet JSON birebir {\"c\":0,\"a\":<acilis>}",
+       ham("VJ") == ['{"c":0,"a":7}'] and k("VJN") == 13, str(ham("VJ")))
+    konu, konu2 = f"ok/{_BLD_ONEK}/olay", f"ok/{_BLD_ONEK}/durum"
+    kb = [k("KB" + str(i)) for i in range(1, 8)]
+    ok("B71.Q16 konu ok/<onek>/<son>; onek tam 32 KUCUK hex (buyuk harf, 31 karakter ret), son "
+       "bos degil ve '/', '+', '#' icermez (BLD_E_ARG -3); tampon tam sigarsa yazilir, kisaysa "
+       "BLD_E_YER",
+       ham("KONU") == [konu] and k("KN") == 40 and ham("KONU2") == [konu2] and k("KD") == 41
+       and kb == [-3, -3, -3, -3, -1, 40, -3], f"{ham('KONU')} {kb}")
+    s, n1 = _bld_xs(_BLD_TOHUM, 12)
+    s, n2 = _bld_xs(s, 12)
+    s, n4 = _bld_xs(s, 12)
+    z1, z2, z4 = hx("Z1"), hx("Z2"), hx("Z4")
+    z1j = (ham("Z1J") or [""])[0].encode()
+    ok("B71.Q17 zarf yerlesimi: \"OKB1\" | nonce 12 (rastgeleden) | sifreli | etiket 16, boy = "
+       "JSON + 32; Python AYNI AEAD'le AAD = olay konusu ile dogrular ve olayi geri alir; ayni "
+       "zarf durum konusuyla DOGRULANMAZ (AAD baglayici)",
+       z1 is not None and z1[:4] == b"OKB1" and z1[4:16] == n1 and len(z1) == len(z1j) + 32
+       and _bld_ac(_BLD_ANAHTAR, konu, z1) == z1j
+       and js(z1j.decode()) == ol(1, "basladi", devam=0, oturum=0)
+       and _bld_ac(_BLD_ANAHTAR, konu2, z1) is None,
+       f"{z1[:16].hex() if z1 else None} boy={len(z1) if z1 else None}")
+    ok("B71.Q18 vasiyet durum konusunda zarflanir; her zarf YENI nonce (rastgeleden sirayla)",
+       z2 is not None and k("Z2N") == 45 and z2[4:16] == n2 and n2 != n1
+       and _bld_ac(_BLD_ANAHTAR, konu2, z2) == b'{"c":0,"a":7}',
+       f"{z2[4:16].hex() if z2 else None}")
+    ok("B71.Q19 zarf hatalari: bir bayt kisa tampon BLD_E_YER ve rastgele HARCANMAZ (sonraki "
+       "zarfin nonce'u siradaki blok); tam sigan tampon yazilir; AEAD hatasi BLD_E_KRIPTO ve "
+       "cikti SILINIR; AEAD islevi yoksa BLD_E_KRIPTO",
+       k("Z3") == -1 and z4 is not None and len(z4) == 45 and z4[4:16] == n4
+       and _bld_ac(_BLD_ANAHTAR, konu2, z4) == b'{"c":0,"a":7}'
+       and k("Z5") == -2 and k("Z5S") == 0 and k("Z6") == -2,
+       f"Z3={k('Z3')} Z4={z4[4:16].hex() if z4 else None} Z5={k('Z5')} Z6={k('Z6')}")
+    ok("B71.Q20 AVR yigini (2 KB RAM) tasmadi: bss sonu ile en derin yigin arasi >= 64 B",
+       (k("YIGIN") or 0) >= 64, f"{k('YIGIN')} B")
+
+
+# ── B71.MQ · 1E MQTT 3.1.1 istemci paketleri (mqtt_paket.h) ───────────
+# (B71.M1-M5 bolum_mantiksal'in; bu bolum B71.MQ*)
+def _mq_connect_coz(p: bytes | None) -> dict | None:
+    """CONNECT'i ELLE coz (MQTT 3.1.1 §3.1) — kopru/mqtt_istemci.py'den de C'den de
+    BAGIMSIZ: sabit baslik, kalan uzunluk, protokol adi/seviyesi, bayraklar,
+    keepalive, kimlik, [vasiyet konusu + yuku], [kullanici], [parola]; artik bayt 0 olmali."""
+    if not p or p[0] != 0x10:
+        return None
+    try:
+        kalan, carpan, i = 0, 1, 1
+        while True:
+            b = p[i]
+            i += 1
+            kalan += (b & 0x7F) * carpan
+            if not b & 0x80:
+                break
+            carpan *= 128
+            if i > 4:
+                return None
+        g = p[i:]
+        if len(g) != kalan:
+            return None
+        j = 0
+
+        def al(n: int) -> bytes:
+            nonlocal j
+            v = g[j:j + n]
+            if len(v) != n:
+                raise IndexError
+            j += n
+            return v
+
+        def dize() -> bytes:
+            return al(int.from_bytes(al(2), "big"))
+        d = {"proto": dize(), "seviye": al(1)[0], "bayrak": al(1)[0],
+             "keepalive": int.from_bytes(al(2), "big"), "istemci": dize()}
+        if d["bayrak"] & 0x04:
+            d["vkonu"] = dize()
+            d["vyuk"] = dize()
+        if d["bayrak"] & 0x80:
+            d["kul"] = dize()
+        if d["bayrak"] & 0x40:
+            d["par"] = dize()
+        d["artik"] = len(g) - j
+        return d
+    except IndexError:
+        return None
+
+
+def bolum_mqtt() -> None:
+    """1E: kartin MQTT 3.1.1 istemci paketleri (mqtt_paket.h) AVR'de; baytlar Python'da
+    IKI bagimsiz yoldan cozulur: kopru/mqtt_istemci.py (Ayristirici, publish_coz,
+    uzunluk_kodla/coz) ve elle CONNECT cozumu (_mq_connect_coz)."""
+    import mqtt_istemci as MI
+    print("\n── B71.MQ  1E MQTT 3.1.1: CONNECT · PUBLISH · kalan uzunluk · okuyucu · URI")
+    d = subprocess.run(
+        [str(AVR_GXX), "-mmcu=atmega328p", "-std=gnu++11", "-fsyntax-only", "-Wall", "-Wextra",
+         f"-I{KOD}", "-x", "c++", "-"],
+        input='#include "mqtt_paket.h"\nint main() { return 0; }\n', capture_output=True,
+        text=True, encoding="utf-8", errors="replace")
+    cpp = (d.stderr or "") if (d.returncode or "warning:" in (d.stderr or "")) else ""
+    ok("B71.MQ0 mqtt_paket.h C++ olarak (.ino) UYARISIZ (-Wall -Wextra)", not cpp, cpp.strip()[:300])
+    sat = kos(derle("MQTT"))
+
+    def k(ad):
+        return _say(sat, ad)
+
+    def pk(ad):
+        x = alanlar(sat, ad)
+        if not x or not x[0]:
+            return None, None
+        try:
+            n = int(x[0][0])
+            return n, (bytes.fromhex(x[0][1]) if n > 0 and len(x[0]) > 1 else None)
+        except ValueError:
+            return None, None
+
+    def ayir(p):
+        """Ayristirici ile TEK paket, artik bayt yok."""
+        if not p:
+            return None
+        a = MI.Ayristirici()
+        a.besle(p)
+        try:
+            s = a.sonraki()
+        except MI.MqttHata:
+            return None
+        return s if s and a.bekleyen() == 0 else None
+
+    def pub(p):
+        s = ayir(p)
+        try:
+            return (s[0], MI.publish_coz(*s)) if s else None
+        except MI.MqttHata:
+            return None
+    VKONU = b"ok/0123456789abcdef0123456789abcdef/durum"
+    VAS = bytes([0x4F, 0x4B, 0x42, 0x31, 0x00, 0xFF, 0x10, 0x20, 0x7F, 0x80, *range(1, 11)])
+    n1, c1 = pk("C1")
+    d1 = _mq_connect_coz(c1)
+    a1 = ayir(c1)
+    ok("B71.MQ1 CONNECT vasiyetli (QoS 1, retain) + kullanici + parola: elle cozum — 'MQTT' "
+       "seviye 4, bayrak 0xEE (kul|par|v.retain|v.QoS1|vasiyet|temiz, bit0 0), keepalive 5, "
+       "kimlik, vasiyet konusu + ikili yuk (00/FF dahil), kullanici, parola, artik 0; "
+       "Ayristirici tek paket, kalan 101 (10 + 12 + 43 + 22 + 6 + 8)",
+       n1 == 103 and d1 == {"proto": b"MQTT", "seviye": 4, "bayrak": 0xEE, "keepalive": 5,
+                            "istemci": b"olcum-a1b2", "vkonu": VKONU, "vyuk": VAS,
+                            "kul": b"kart", "par": b"p@ss:1", "artik": 0}
+       and a1 is not None and a1[0] == 0x10 and len(a1[1]) == 101,
+       f"n={n1} {d1 and {x: d1[x] for x in ('bayrak', 'keepalive', 'artik')}}")
+    n2, c2 = pk("C2")
+    d8 = _mq_connect_coz(pk("C8")[1])
+    d7b, d7c = _mq_connect_coz(pk("C7B")[1]), _mq_connect_coz(pk("C7C")[1])
+    ok("B71.MQ2 CONNECT vasiyetsiz/kullanicisiz birebir 10 0d 00 04 'MQTT' 04 02 00 3c 00 01 'x'; "
+       "kullanici var parola yok -> bayrak 0x82, parola alani YOK; bos kimlik (\"\"/NULL) temiz "
+       "oturumla gecerli",
+       c2 == bytes.fromhex("100d00044d5154540402003c000178") and n2 == 15
+       and d8 == {"proto": b"MQTT", "seviye": 4, "bayrak": 0x82, "keepalive": 60,
+                  "istemci": b"x", "kul": b"u", "artik": 0}
+       and d7b is not None and d7b["bayrak"] == 0x02 and d7b["istemci"] == b""
+       and d7b["artik"] == 0 and pk("C7B")[1] == pk("C7C")[1],
+       f"{c2.hex() if c2 else None} {d8} {d7b}")
+    ok("B71.MQ3 CONNECT ret (MQP_E_ALAN -5): kullanicisiz parola (NULL ve \"\" kullanici, "
+       "MQTT-3.1.2-22), vasiyet QoS 2, vasiyetsiz retain / QoS",
+       [k(x) for x in ("C3", "C3B", "C4", "C5", "C5B")] == [-5] * 5,
+       str([k(x) for x in ("C3", "C3B", "C4", "C5", "C5B")]))
+    ok("B71.MQ4 (inceleme duzeltmesi) vasiyet konusu da konu ADI: '+' / '#' / bos -> E_KONU (-3); "
+       "bos istemci kimligi temiz oturumsuz -> E_ALAN (MQTT-3.1.3-7)",
+       [k(x) for x in ("C6", "C6B", "C6C", "C7")] == [-3, -3, -3, -5],
+       str([k(x) for x in ("C6", "C6B", "C6C", "C7")]))
+    ok("B71.MQ5 CONNECT tampon siniri: bir bayt kisa E_YER (-1), tam sigan yazilir (iki paket)",
+       k("C1Y") == -1 and k("C1T") == n1 and k("C2Y") == -1 and k("C2T") == n2,
+       str([k(x) for x in ("C1Y", "C1T", "C2Y", "C2T")]))
+    n_p1, p1 = pk("P1")
+    n_p2, p2 = pk("P2")
+    u1, u2 = pub(p1), pub(p2)
+    ok("B71.MQ6 PUBLISH QoS 0 retain: ilk bayt 0x31, publish_coz -> (konu, yuk, retain, 0, "
+       "pid YOK) — verilen pid 77 yazilmaz",
+       n_p1 == 19 and u1 == (0x31, ("ok/x/durum", b'{"c"}', True, 0, None)), str(u1))
+    ok("B71.MQ7 PUBLISH QoS 1: ilk bayt 0x32 (retain yok), pid 0x1234 konudan sonra, yuk sonra",
+       n_p2 == 18 and u2 == (0x32, ("ok/x/olay", b'{"c', False, 1, 0x1234)), str(u2))
+    desen = bytes((i * 7 + 3) & 0xFF for i in range(125))
+    n7a, p7a = pk("P7A")
+    n7b, p7b = pk("P7B")
+    p5 = [int(x[0]) for x in alanlar(sat, "P5")]
+    ok("B71.MQ8 PUBLISH ret: QoS 1 pid 0 / QoS 2 -> E_ALAN; konu '+', '#', ortada '+', bos, "
+       "NULL -> E_KONU",
+       k("P3") == -5 and k("P4") == -5 and p5 == [-3, -3, -3, -3] and k("P5N") == -3,
+       f"{k('P3')} {k('P4')} {p5} {k('P5N')}")
+    ok("B71.MQ9 her kurucuda tampon siniri: PUBLISH (QoS 0/1, kalan 127/128) bir bayt kisa E_YER, "
+       "tam sigan yazilir; kalan 16383/16384'te (toplam 16386/16388) bir eksik azami E_YER "
+       "(YAZMADAN); PINGREQ/DISCONNECT 1 bayta E_YER, 2'ye 2",
+       [k(x) for x in ("P1Y", "P1T", "P2Y", "P2T", "P7AY", "P7BY", "P7BT", "P8A", "P8B",
+                       "K1Y", "K1T", "K2Y", "K2T")]
+       == [-1, n_p1, -1, n_p2, -1, -1, n7b, -1, -1, -1, 2, -1, 2] and n7b == 131,
+       str([k(x) for x in ("P1Y", "P1T", "P2Y", "P2T", "P7AY", "P7BY", "P7BT", "P8A", "P8B",
+                           "K1Y", "K1T", "K2Y", "K2T")]))
+    ok("B71.MQ10 kalan uzunluk sinirinda PUBLISH: 127 -> tek bayt 7f (toplam 129), 128 -> 80 01 "
+       "(toplam 131); kopru uzunluk_kodla ile ayni, publish_coz yuku birebir geri verir",
+       n7a == 129 and n7b == 131 and p7a is not None and p7b is not None
+       and p7a[1:2] == MI.uzunluk_kodla(127) == b"\x7f"
+       and p7b[1:3] == MI.uzunluk_kodla(128) == b"\x80\x01"
+       and pub(p7a) == (0x30, ("t", desen[:124], False, 0, None))
+       and pub(p7b) == (0x30, ("t", desen, False, 0, None)),
+       f"{p7a[:3].hex() if p7a else None} {p7b[:4].hex() if p7b else None}")
+    L = alanlar(sat, "L")
+    beklenen_boy = {0: 1, 1: 1, 127: 1, 128: 2, 16383: 2, 16384: 3, 2097151: 3, 2097152: 4,
+                    268435455: 4}
+
+    def l_dogru(x):
+        try:
+            v, boy, n, h = int(x[0]), int(x[1]), int(x[2]), bytes.fromhex(x[3])
+        except (ValueError, IndexError):
+            return False
+        return (boy == n == len(h) == beklenen_boy.get(v) and h == MI.uzunluk_kodla(v)
+                and MI.uzunluk_coz(h) == (v, len(h)))
+    ok("B71.MQ11 kalan uzunluk kodlayicisi 0/1/127/128/16383/16384/2097151/2097152/268435455: "
+       "boy ve baytlar kopru uzunluk_kodla ile ayni, uzunluk_coz geri verir",
+       [int(x[0]) for x in L] == list(beklenen_boy) and all(l_dogru(x) for x in L),
+       str([x[:4] for x in L if not l_dogru(x)][:3]))
+    ok("B71.MQ12 PINGREQ c0 00, DISCONNECT e0 00",
+       pk("K1") == (2, b"\xc0\x00") and pk("K2") == (2, b"\xe0\x00"), f"{pk('K1')} {pk('K2')}")
+    akis = bytes.fromhex((alanlar(sat, "AKIS") or [["00"]])[0][0])
+    a = MI.Ayristirici()
+    a.besle(akis)
+    py = []
+    while (s := a.sonraki()) is not None:
+        ilk, g = s
+        tip = ilk >> 4
+        py.append([str(tip), str(len(g)),
+                   str(g[1] if tip == 2 and len(g) == 2 else -1),
+                   str(int.from_bytes(g, "big") if tip == 4 and len(g) == 2 else -1),
+                   g[:8].hex() or "-"])
+    ra, rb, rc = alanlar(sat, "RA"), alanlar(sat, "RB"), alanlar(sat, "RC")
+    ok("B71.MQ13 okuyucu 1 baytlik parcalarla: 6 paketin hepsi, kopru Ayristirici'nin ayni "
+       "akistan cikardigiyla birebir (tip, uzunluk, CONNACK kodu, PUBACK pid, ilk 8 bayt)",
+       len(py) == 6 and a.bekleyen() == 0 and ra == py, f"C={ra} PY={py}")
+    ok("B71.MQ14 okuyucu 5 baytlik parcalarla (paket sinirlari kayik) ve TEK parcada (birkac "
+       "paket birden) ayni sonuc",
+       rb == py and rc == py, f"RB={len(rb)} RC={len(rc)}")
+    ok("B71.MQ15 okunan degerler: CONNACK kod 0 ve 5, PUBACK pid 0x1234 ve 7, PINGRESP govdesiz "
+       "(uzunluk 0), MQP_GOVDE_AZAMI'den uzun PUBLISH (130, 2 bayt uzunluk) ilk 8 bayti saklanip "
+       "atlanir, ardindaki PUBACK dogru",
+       ra == [["2", "2", "0", "-1", "0000"], ["4", "2", "-1", "4660", "1234"],
+              ["13", "0", "-1", "-1", "-"], ["2", "2", "5", "-1", "0105"],
+              ["3", "130", "-1", "-1", "0003616263101112"], ["4", "2", "-1", "7", "0007"]],
+       str(ra))
+    try:
+        MI.uzunluk_coz(b"\xff\xff\xff\xff\x01")
+        py_bozuk = False
+    except MI.MqttHata:
+        py_bozuk = True
+    ok("B71.MQ16 5 baytlik kalan uzunluk MQP_E_BOZUK (-4): tek parcada baslik + 4 uzunluk bayti "
+       "tuketilir, 1 baytlik parcalarda 5. bayt (4. uzunluk bayti) hata verir, bozuk okuyucu "
+       "bozuk kalir; kopru uzunluk_coz da reddeder",
+       [k(x) for x in ("BZ", "BZK", "BZ2", "BZ1", "BZ1R")] == [-4, 5, -4, 4, -4] and py_bozuk,
+       str([k(x) for x in ("BZ", "BZK", "BZ2", "BZ1", "BZ1R")]))
+    ok("B71.MQ17 4 baytlik en buyuk kalan uzunluk (ff ff ff 7f = 268435455) ve 80 80 80 01 "
+       "(2097152) dogru cozulur, govde beklenir (0); bos parca 0 bayt tuketir",
+       [k(x) for x in ("L4", "L4K", "L4U", "L4B", "L4BU", "N0", "N0K")]
+       == [0, 5, 268435455, 0, 2097152, 0, 0]
+       and MI.uzunluk_coz(b"\xff\xff\xff\x7f") == (268435455, 4),
+       str([k(x) for x in ("L4", "L4K", "L4U", "L4B", "L4BU", "N0", "N0K")]))
+    U = {x: alanlar(sat, x)[0] if alanlar(sat, x) else None
+         for x in ("U" + c for c in "ABCDEFGHIJKLMNOPQRST")}
+    ok("B71.MQ18 URI: mqtts varsayilan 8883 + TLS, mqtt varsayilan 1883 + TLS yok, acik port, "
+       "65535 siniri, ad tampona TAM sigar (8 karakter, azami 9)",
+       U["UA"] == ["0", "8883", "1", "abc.hivemq.cloud"] and U["UB"] == ["0", "1883", "0", "localhost"]
+       and U["UC"] == ["0", "1234", "1", "h-1.Example"] and U["UD"] == ["0", "65535", "1", "h"]
+       and U["UO"] == ["0", "8883", "1", "abcdefgh"],
+       str([U[x] for x in ("UA", "UB", "UC", "UD", "UO")]))
+    ret = [x for x in ("UE", "UF", "UG", "UH", "UI", "UJ", "UK", "UL", "UM", "UN", "UP", "UQ",
+                       "UR", "US", "UT")]
+    ok("B71.MQ19 URI ret (E_ALAN -5): port 0 / 65536 / bos / harfli / tasan / eksi / sonda '/'; "
+       "'@' (kullanici bilgisi), '/' (yol), '?' (sorgu); bos ad (iki bicim); ad tampona sigmiyor; "
+       "baska sema (http, ws)",
+       all(U[x] == ["-5"] for x in ret), str({x: U[x] for x in ret if U[x] != ["-5"]}))
+
+
 BOLUMLER = [bolum_nor, bolum_bicim, bolum_noktaci, bolum_gunluk, bolum_yazici,
             bolum_tarama, bolum_mantiksal, bolum_yonet, bolum_pil, bolum_halka, bolum_ayrinti,
             bolum_hazir, bolum_skop, bolum_plan, bolum_plan_kanit, bolum_guvenlik, bolum_kalgec,
             bolum_dizin,
-            bolum_kesinti]
+            bolum_kesinti, bolum_bildirim, bolum_mqtt]
 
 
 def main() -> int:
