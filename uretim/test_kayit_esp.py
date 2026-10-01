@@ -1659,7 +1659,9 @@ def bolum_bildirim_kart() -> None:
     q1 = sk[sk.find("case '1':"):sk.find("case '0':")]
     ok("B72.Q12 onek + bildirim anahtari YALNIZ RF acikken uretilir (Ep gibi: RF'siz RNG zayif)",
        q1.find("WIFI_MODE_NULL") < q1.find("bildirim_sir_uret(") and "WIFI_MODE_NULL" in q1)
-    ik = ke_k.find("#define KY_BITIR_KANCA")
+    # tam imza: "#define KY_BITIR_KANCA" oneki KY_BITIR_KANCA_ESKI gibi yanlis adi da
+    # kabul ediyordu (mutasyon kosusu yakaladi) — o zaman bos varsayilan devreye girer
+    ik = ke_k.find("#define KY_BITIR_KANCA(y, sebep)")
     ok("B72.Q13 oturum-kapandi kancasi kayit_oturum.h'DEN ONCE tanimli (sonra tanimlansa bos "
        "varsayilan SESSIZCE kullanilirdi) ve iki BITIR yerinde de cagriliyor (ky_bitir, ky__dolu)",
        0 <= ik < ke_k.find('#include "kayit_nokta.h"') and ik < ke_k.find('#include "kayit_yonet.h"')
