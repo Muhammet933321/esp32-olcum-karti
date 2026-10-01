@@ -78,6 +78,7 @@
 #define KB_SEBEP_PIL       4u   /* pil testi kendi bitti (kesme/emniyet; ayrinti SONUC'ta) */
 #define KB_SEBEP_YENIDEN   5u   /* kart yeniden basladi: surdurulmeyen oturum acilista kapandi */
 #define KB_SEBEP_OTURUM    6u   /* baska bir oturum basladi */
+#define KB_SEBEP_PLAN      7u   /* 1C-4: zamanlanmis kaydin suresi doldu */
 
 #define KAYIT_OTURUM_OLCUM 1u   /* BASLA.oturum_turu: V/A/W olcum kaydi */
 #define KAYIT_OTURUM_PIL   2u   /* 1C-1: pil testi (noktalar + OLAY'lar); yeniden baslamada SURMEZ */
@@ -472,11 +473,13 @@ static inline uint8_t kayit_metin_kopyala(char *d, const char *s, uint8_t azami)
 #define KO_PIL_AYAR  1u
 #define KO_DCIR      2u
 #define KO_PIL_SONUC 3u
+#define KO_PLAN      5u   /* 1C-4: 8 u32 bas_unix · 12 u32 sure_s · 16 u32 hiz_ms · 20 u32 plan_no */
 #define KO_SKOP_KAL  4u   /* 1C-3: 8 i16 mv[17] — skop ADC'nin eFuse egrisi (kal_mv_tab) */
 #define KAYIT_OLAY_AYAR_BAYT  32u
 #define KAYIT_OLAY_DCIR_BAYT  44u
 #define KAYIT_OLAY_SONUC_BAYT 36u
 #define KAYIT_OLAY_SKOP_KAL_BAYT 42u
+#define KAYIT_OLAY_PLAN_BAYT  24u
 #define KAYIT_SKOP_KAL_N      17u
 #define KAYIT_OLAY_AZAMI      44u
 
@@ -533,6 +536,21 @@ static inline uint16_t kayit_olay_dcir_paketle(uint32_t kart_ms, const KayitDcir
     kayit_yf(p + 36, d->mah);
     kayit_yf(p + 40, d->wh);
     return (uint16_t)KAYIT_OLAY_DCIR_BAYT;
+}
+
+typedef struct {
+    uint32_t bas_unix, sure_s, hiz_ms, plan_no;
+} KayitPlanOlay;
+
+static inline uint16_t kayit_olay_plan_paketle(uint32_t kart_ms, const KayitPlanOlay *o,
+                                               uint8_t *p)
+{
+    kayit__olay_bas(p, (uint8_t)KO_PLAN, kart_ms);
+    kayit_y32(p + 8, o->bas_unix);
+    kayit_y32(p + 12, o->sure_s);
+    kayit_y32(p + 16, o->hiz_ms);
+    kayit_y32(p + 20, o->plan_no);
+    return (uint16_t)KAYIT_OLAY_PLAN_BAYT;
 }
 
 static inline uint16_t kayit_olay_skop_kal_paketle(uint32_t kart_ms, const int16_t *mv,

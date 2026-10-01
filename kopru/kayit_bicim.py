@@ -40,12 +40,13 @@ KN_YUKSEK, KN_V_HATA, KN_I_HATA = 0x01, 0x02, 0x04
 KN_V_DOYDU, KN_DURAKLAMA, KN_KAYIP_ONCE = 0x08, 0x10, 0x20
 KN_DCIR = 0x40         # 1C-1: en az bir ornek DCIR darbesinde (yuk KAPALI)
 SEBEP = {1: "kullanici", 2: "bellek doldu", 3: "hata", 4: "pil testi bitti",
-         5: "kart yeniden basladi", 6: "baska oturum basladi"}
+         5: "kart yeniden basladi", 6: "baska oturum basladi", 7: "planli sure doldu"}
 OTURUM_OLCUM = 1
 OTURUM_PIL = 2         # 1C-1: yeniden baslamada SURMEZ
 OTURUM_SKOP = 3        # 1C-3: osiloskop gunlugu; hiz_ms = aralik (0 = her tetik); SURMEZ
 KO_PIL_AYAR, KO_DCIR, KO_PIL_SONUC = 1, 2, 3
 KO_SKOP_KAL = 4        # 1C-3: skop ADC'nin eFuse egrisi, 17 x i16 mV
+KO_PLAN = 5            # 1C-4: zamanlanmis kayit (bas_unix, sure_s, hiz_ms, plan_no)
 KNT_AD, KNT_ETIKET, KNT_NOT = 1, 2, 3
 NOT_METIN = 120
 KAL_BICIM = 1
@@ -69,6 +70,7 @@ _OLAY = {                                          # tur -> (yapi, alan adlari)
     KO_PIL_SONUC: (struct.Struct("<BBxxffffII"),
                    ("durum", "hata", "mah", "wh", "ocv", "v_son", "sure_ms", "dcir_sayisi")),
     KO_SKOP_KAL: (struct.Struct("<17h"), ("mv",)),   # tek alan: 17 elemanli liste
+    KO_PLAN: (struct.Struct("<IIII"), ("bas_unix", "sure_s", "hiz_ms", "plan_no")),
 }
 _NOT_BAS = struct.Struct("<IB3xII")                # hedef, alan, nokta_ms, degistirir
 _AYRINTI_BAS = struct.Struct("<IIIHBx")            # ilk, t0_ms, t0_us, adet, bayrak
@@ -78,7 +80,7 @@ _SKOP_META = struct.Struct("<IIIIffHHH5Bx")
 _SKOP_META_AD = ("t_ms", "sure_ms", "hz", "tdiv_us", "adim", "ofset", "tetik", "esik",
                  "histerezis", "kip", "tetiklendi", "kenar", "on_yuzde", "onay")
 assert _NOKTA.size == NOKTA_BAYT
-assert [_OLAY_BAS.size + y.size for y, _ in _OLAY.values()] == [32, 44, 36, 42]
+assert [_OLAY_BAS.size + y.size for y, _ in _OLAY.values()] == [32, 44, 36, 42, 24]
 assert _SKOP_BAS.size == 12 and _SKOP_META.size == 36
 assert _NOT_BAS.size == 16
 assert _AYRINTI_BAS.size == 16 and _AYRINTI_ORNEK.size == 6

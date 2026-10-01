@@ -316,6 +316,20 @@ def bolum_bicim() -> None:
     _bicim_1c1(s)
     _bicim_1c2(s)
     _bicim_1c3(s)
+    _bicim_1c4(s)
+
+
+def _bicim_1c4(s: dict) -> None:
+    """1C-4: OLAY PLAN + sebep 7 (ornek_kayit.c bicim_1c4 ile AYNI girdiler)."""
+    c = bytes.fromhex(s["PLAN"][0]) if s.get("PLAN") else b""
+    ko = getattr(KB, "KO_PLAN", -1)
+    d = {"tur": ko, "kart_ms": 424242, "bas_unix": 1790000000, "sure_s": 21600, "hiz_ms": 60000,
+         "plan_no": 3}
+    ok("B71.B30 OLAY PLAN (8 B olay basi + bas_unix, sure_s, hiz_ms, plan_no) C == Python; coz",
+       len(c) == 24 and ko == 5 and c == KB.olay_paketle(d) and KB.olay_coz(c) == d, c.hex())
+    ok("B71.B31 BITIR sebep 7 = 'planli sure doldu' (C == Python)",
+       (s.get("SEB7") or [""])[0] == "7" and KB.SEBEP.get(7) == "planli sure doldu",
+       f"{s.get('SEB7')} {KB.SEBEP.get(7)}")
 
 
 def _bicim_1c3(s: dict) -> None:

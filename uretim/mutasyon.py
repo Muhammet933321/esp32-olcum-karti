@@ -1975,6 +1975,12 @@ MUTASYONLAR = [
     ("B71", "test_kayit.py", "kod/olcum-karti-a3/kayit_halka.h",
      '    if (isaretli_girdi) ksi_esitle(s, ks);', '    ksi_esitle(s, ks);',
      '1C-2: isaretsiz itme isareti tuketirse durustan sonraki ornek isaretlenmez: H4 kirmizi'),
+    ("B71", "test_kayit.py", "kod/olcum-karti-a3/kayit_bicim.h",
+     '    kayit_y32(p + 20, o->plan_no);', '    kayit_y32(p + 20, o->hiz_ms);',
+     '1C-4: PLAN olayinda plan_no yanlis alandan yazilirsa B30 kirmizi'),
+    ("B71", "test_kayit.py", "kopru/kayit_bicim.py",
+     '6: "baska oturum basladi", 7: "planli sure doldu"}', '6: "baska oturum basladi"}',
+     '1C-4: PC sebep 7yi bilmezse planli bitis okunamaz: B31 kirmizi'),
 ]
 
 

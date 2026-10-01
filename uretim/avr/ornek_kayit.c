@@ -286,6 +286,18 @@ static void bicim_1c3(void)
     ondalik(KAYIT_OTURUM_SKOP); satir();
 }
 
+/* 1C-4: PLAN olayi ve sebep 7 */
+static void bicim_1c4(void)
+{
+    KayitPlanOlay po;
+    uint8_t o[KAYIT_OLAY_AZAMI];
+    uint16_t n;
+    po.bas_unix = 1790000000UL; po.sure_s = 21600UL; po.hiz_ms = 60000UL; po.plan_no = 3u;
+    n = kayit_olay_plan_paketle(424242UL, &po, o);
+    metin("PLAN "); hexdizi(o, n); satir();
+    metin("SEB7 "); ondalik(KB_SEBEP_PLAN); satir();
+}
+
 static void senaryo(void)
 {
     static const uint8_t dokuz[9] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
@@ -308,6 +320,7 @@ static void senaryo(void)
     bicim_1c1();
     bicim_1c2();
     bicim_1c3();
+    bicim_1c4();
     metin("BITTI\n");
 }
 #endif
