@@ -9397,6 +9397,25 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.79 🟢 WEB INTERFACE GUIDELINES DENETİMİ + YENİDEN DENEMEDE KAYIT SAYISI (2026-10-02 akşam)
+
+Kullanıcı Playwright + Taste + Web design guidelines yeteneklerini kurdurup kullanılmasını istedi
+(kaynakları kendisi seçti; kullanıcı düzeyinde). **WIG iş akışı** (ultracode): 4 denetçi kural
+gruplarına göre → 94 tekil bulgu → dosya başına şüpheci (çürütme) → **69 doğrulandı** → düzeltici:
+her denetim adlı (label for/id), menzil grubu role=group + aria-pressed (614 V menzili emniyet), hata
+role=alert, rozet role=status, konsol role=log, her görünümde h1, "İçeriğe geç", çekmece açıkken içerik
+inert, yıkıcı eylemler iki aşamalı onay (6 s / görünüm değişimi / bağlantı kopması düşürür), parola
+alanları new-password, hata metinleri sonraki adımı söylüyor. Osiloskop bölümü kapsam dışı (3E).
+B7 508 → 578, T3D 37, T3C 48; mutasyon WIG **77/77**. ⚠ Benim eklediğim emniyet iddiası: **p0 (pil
+DURDUR) iki aşamalı onaya ASLA sarılmaz** — acil şerit + Pil sekmesi düğmeleri `pilDurdurKomut`'u tek
+tıkla çağırır, gövdede onay yok (EMNIYET-P0 2/2). Sayılarda '.' ondalık bilinçli (3H dil seçimine
+ertelendi); Taste yeteneği kendi kapsamı gereği panelde yalnız uyan kısımlarıyla.
+**Gerçek kartta ikinci kusur:** yeniden denenen eşitlemede sonuç yazısı yalnız SON denemenin
+sayısını söylüyordu (sıfırdan eşitlemede "150 yeni kayıt"; gerçek 2234). `esitleme.js` eklenen
+parçalardaki kayıtları bütün denemeler boyunca sayıyor; T3C ilk eşitlemenin 2. isteğini 12 s
+yanıtsız bırakıyor (49/49), mutasyon 3C-SAYI 1/1; kartta "2234 yeni kayıt alındı", 44/44 oturum.
+Zincir 21 yeşil.
+
 #### 5.12.78 🟢 3D CANLI + SOL ŞERİT; TEST ARACI BİLGİSAYARI KİLİTLİYORDU; PANEL İLK KEZ GERÇEK KARTTA (2026-10-02 öğleden sonra)
 
 **3D** (ajan, kararlar D1–D8 + E1–E13 spec'te): sol şerit kabuğu (≤ 900 px çekmece, Esc/odak),
