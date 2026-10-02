@@ -151,6 +151,49 @@ int main(void)
     skop_olc(tampon, 400u, va, FS, &o);
     olcum_yaz("D25 ", &o, 400u);
 
+    /* --- 6. 1F (S1): YUKSEK DUZ CIZGI 4000 kod -> Vac TAM 0 ---------- */
+    for (i = 0; i < 400u; i++) tampon[i] = 4000u;
+    skop_olc(tampon, 400u, va, FS, &o);
+    olcum_yaz("DZ40", &o, 400u);
+
+    /* 3332 kod: S2 = 400·3332² float32'ye TAM sigmiyor — Vrms'i S2/n'den
+     * kuran yol bu va ile Vort'tan 1 ulp ayrilir (3000..4095 arasinda 154
+     * deger boyle); ozdeslik yolu (√(ort² + ac²)) TAM Vort. */
+    for (i = 0; i < 400u; i++) tampon[i] = 3332u;
+    skop_olc(tampon, 400u, va, FS, &o);
+    olcum_yaz("DZ33", &o, 400u);
+
+    /* --- 7. 1F (S1): 3000 kod DC + {-3..+3} kod "gurultu" ------------
+     * 2997 + (5i mod 7): 57 tam devir (399 ornek), her deger esit sayida.
+     * Ortalama TAM 3000, varyans TAM (9+4+1+0+1+4+9)/7 = 4 kod^2
+     * -> Vac TAM 2 kod. Eski float32 kare farki bunu kaybediyordu. */
+    for (i = 0; i < 399u; i++)
+        tampon[i] = (uint16_t)(2997u + (5u * i) % 7u);
+    skop_olc(tampon, 399u, va, FS, &o);
+    olcum_yaz("GRT ", &o, 399u);
+
+    /* --- 8. 1F (S4): CUCE DARBELER + tam kenarlar ---------------------
+     * 200/3800 -> alt (%10) 560, ust (%90) 3440 (float32'de tam).
+     *  40-49   yukari cuce: 200..1500..200 (%10'u gecer, %90'a VARMAZ)
+     *  80-89   tam yukselen rampa 200+360j: 560 @80, 3440 @88 -> tr 8 ornek
+     * 150-159  asagi cuce: 3800..2500..3800 (%90'i gecer, %10'a VARMAZ)
+     * 200-209  tam dusen rampa 3800-360j: 3440 @200, 560 @208 -> tf 8 ornek
+     * Cuceler orta-hist'e (1550) / ortaya (2000) degmez: kenar sayilmaz. */
+    for (i = 0; i < 400u; i++) {
+        uint16_t y = 200u;
+        if (i >= 40u && i < 45u)       y = (uint16_t)(200u + 260u * (i - 39u));
+        else if (i >= 45u && i < 50u)  y = (uint16_t)(1500u - 260u * (i - 44u));
+        else if (i >= 80u && i < 90u)  y = (uint16_t)(200u + 360u * (i - 79u));
+        else if (i >= 90u && i < 150u) y = 3800u;
+        else if (i >= 150u && i < 155u) y = (uint16_t)(3800u - 260u * (i - 149u));
+        else if (i >= 155u && i < 160u) y = (uint16_t)(2500u + 260u * (i - 154u));
+        else if (i >= 160u && i < 200u) y = 3800u;
+        else if (i >= 200u && i < 210u) y = (uint16_t)(3800u - 360u * (i - 199u));
+        tampon[i] = y;
+    }
+    skop_olc(tampon, 400u, va, FS, &o);
+    olcum_yaz("CUCE", &o, 400u);
+
     metin("BITTI\n");
     for (;;) {}
 }

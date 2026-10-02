@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { skopOlc, ALANLAR, AZAMI_ADET } from "../src/skop.js";
+import { skopOlc, u64f, ALANLAR, AZAMI_ADET } from "../src/skop.js";
 
 const V = JSON.parse(readFileSync(new URL("./vektor/skop.json", import.meta.url), "utf8"));
 const BASLIK = new URL("../../kod/olcum-karti-a3/skop_olc.h", import.meta.url);
@@ -61,6 +61,83 @@ test("A6 dalgalari: kare 125 Hz %50, %25, ucgen 100 Hz, sinus 156.25 Hz, duz olc
   assert.equal(b.sinus64.f, 156.25);
   assert.equal(b.duz.f, 0);
   assert.equal(b.duz.n, 0);
+});
+
+// ── 1F (2026-10-02): dort kusurun TAM degerli capalari (C vektorlerinin kendisinde) ──
+test("1F S3: ideal karede duty TAM %50 / %25 / %90 (eskiden bir ornek fazla: %49.79)", () => {
+  const b = Object.fromEntries(V.vakalar.map((v) => [v.ad, v.beklenen]));
+  assert.equal(b.kare50.duty, 50);
+  assert.equal(b.kare25.duty, 25);
+  assert.equal(b.kare90.duty, 90);
+  assert.equal(b.kare50_tam_4000.duty, 50);
+  assert.equal(b.tam_olcek_65535.duty, 50);
+});
+
+test("1F S1: duz cizgide Vac TAM 0 (eskiden 2048 kodda 0.196 V, 65535'te 0.559 V)", () => {
+  const b = Object.fromEntries(V.vakalar.map((v) => [v.ad, v.beklenen]));
+  for (const ad of ["duz", "sabit_65535", "duz_4095_4000"]) {
+    assert.ok(Object.is(b[ad].Vac, 0), `${ad}.Vac = ${b[ad].Vac}`);
+    assert.equal(b[ad].Vrms, b[ad].Vort, `${ad}: duz cizgide Vrms == Vort`);
+  }
+});
+
+test("1F S1: kucuk AC Vac double basvuruya 1e-6 bagil icinde (eskiden ±3 kodda 0)", () => {
+  for (const ad of ["dc_ustu_kucuk_ac", "hist_7", "hist_8", "sinus_gurultu", "gurultulu_kare",
+    "tavan_tek_fark_4000"]) {
+    const v = V.vakalar.find((x) => x.ad === ad);
+    const h = v.ham.slice(0, v.adet);
+    const ort = h.reduce((a, k) => a + k, 0) / h.length;
+    const std = Math.sqrt(h.reduce((a, k) => a + (k - ort) ** 2, 0) / h.length);
+    const beklenen = std * Math.abs(v.volt_adim);
+    assert.ok(beklenen > 0 && Math.abs(v.beklenen.Vac - beklenen) <= 1e-6 * beklenen,
+      `${ad}: C ${v.beklenen.Vac} ~ double ${beklenen}`);
+  }
+});
+
+test("1F S4: %90'a varmayan cuce darbe tr/tf'ye girmez — yalniz TAM kenar", () => {
+  const b = Object.fromEntries(V.vakalar.map((v) => [v.ad, v.beklenen]));
+  const sekiz = Math.fround(8 / Math.fround(10000)); // 8 ornek @ 10 kHz, C: (t90 - t10) / hz
+  assert.equal(b.cuce_iki_yon.tr, sekiz, "yukari cuce + tam yukselen: 8 ornek");
+  assert.equal(b.cuce_iki_yon.tf, sekiz, "asagi cuce + tam dusen: 8 ornek");
+  // cuce_darbe: tam kenar 200+400j, alt 560 / ust 3440 -> (8 + 0.1) - 0.9 = 7.2 ornek
+  assert.ok(Math.abs(b.cuce_darbe.tr - 7.2e-4) < 1e-8, `cuce_darbe.tr ${b.cuce_darbe.tr} (eskiden 4.89 ms)`);
+  // geri seken: %10'u gecip geri inen ilk tepe sayilmaz; rampa 500+350j: 635 -> 3315
+  const sek = (8 + 15 / 350) - (135 / 350);
+  assert.ok(Math.abs(b.geri_seken_kenar.tr - sek / 1e4) < 1e-8, `geri_seken_kenar.tr ${b.geri_seken_kenar.tr}`);
+});
+
+test("u64f: BigInt -> float32 DOGRU yuvarlar (Math.fround(Number(b)) 2^53 ustunde iki kez yuvarlar)", () => {
+  const f32a = new Float32Array(1);
+  const u32a = new Uint32Array(f32a.buffer);
+  const komsu = (f, d) => { f32a[0] = f; u32a[0] += d; return f32a[0]; };
+  // bagimsiz kahin: iki float32 adaydan tam (BigInt) uzakligi kucuk olan, esitlikte cift mantis
+  const kahin = (b) => {
+    const f = Math.fround(Number(b));
+    let en = null;
+    for (const c of [komsu(f, -1), f, komsu(f, 1)]) {
+      if (!(Number.isInteger(c) && c >= 0)) continue; // b tamsayi: aday da tamsayi olmali
+      const cb = BigInt(c);
+      const u = cb > b ? cb - b : b - cb;
+      f32a[0] = c;
+      const cift = (u32a[0] & 1) === 0;
+      if (en === null || u < en.u || (u === en.u && cift)) en = { c, u };
+    }
+    return en.c;
+  };
+  const ornekler = [0n, 1n, 16777215n, 16777216n, 16777217n, 16777219n, 33554435n,
+    (1n << 60n) + (1n << 36n) + 1n, // yari + 1: yukari; iki kez yuvarlama asagi verirdi
+    (1n << 60n) + (1n << 36n), (1n << 60n) + (3n << 36n), (1n << 64n) - 1n,
+    65535n ** 4n, 18445618199572250625n - 1n];
+  let x = 0x9e3779b97f4a7c15n;
+  for (let i = 0; i < 2000; i++) {
+    x = (x * 6364136223846793005n + 1442695040888963407n) & ((1n << 64n) - 1n);
+    ornekler.push(x >> BigInt(i % 40));
+  }
+  for (const b of ornekler) {
+    assert.ok(Object.is(u64f(b), kahin(b)), `${b}: u64f ${u64f(b)} != ${kahin(b)}`);
+  }
+  assert.notEqual(Math.fround(Number((1n << 60n) + (1n << 36n) + 1n)), u64f((1n << 60n) + (1n << 36n) + 1n),
+    "kahinin yakaladigi iki kez yuvarlama durumu gercekten farkli olmali");
 });
 
 // ── gecersiz / kisa girdi: atmaz, C sozlesmesini dondurur ───────────────

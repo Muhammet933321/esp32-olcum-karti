@@ -42,7 +42,10 @@ from pathlib import Path
 BURASI = Path(__file__).parent
 KOK = BURASI.parent
 
-FW = "A3-1E"
+# Surum KAYNAKTAN (1F: elle yazilan "A3-1E" her surumde guncellenmek zorundaydi)
+FW = re.search(r'#define KAYIT_FW_SURUM\s+"([^"]+)"',
+               (Path(__file__).resolve().parent.parent / "kod" / "olcum-karti-a3" / "kayit_esp.h")
+               .read_text(encoding="utf-8")).group(1)
 KEEPALIVE_S = 5
 VASIYET_HEDEF_S = 10.0
 VASIYET_SINIR_S = 15.0

@@ -191,16 +191,18 @@ def vakalar() -> list[dict]:
     ekle("kirpik", "2048 +- 3000 sinus, 0..4095'te kirpilmis", sinus(600, 60, 2048, 3000, alt=0, ust=4095))
 
     # ── float32 davranisi: double ile ayni cikmayan durumlar ──────────
-    # alt = 4000 + 500*0.1f: float32'de TAM 4050, double'da 4050.0000007. Ornek 4050'de durup
-    # geri inerse float32'de t10 burada baslar, double'da bir SONRAKI kenarda -> tr cok farkli.
-    k = [4000] * 20 + [4020, 4040, 4050, 4040, 4020] + [4000] * 20 + \
-        [4000 + 50 * j for j in range(11)] + [4500] * 40 + [4000] * 20
-    ekle("esik_float32", "alt esik float32'de tamsayi: ornek esige ESIT (double ile farkli tr)", k)
-    ekle("dc_ustu_kucuk_ac", "3000 kod DC + +-3 kod gurultu: float32'de Vac kare farkindan (kayip)",
+    # alt = 4000 + 500*0.1f: float32'de TAM 4050, double'da 4050.0000007. Rampa 4050'de 20
+    # ornek BEKLEYIP surerse float32'de t10 beklemenin BASINDA, double'da SONUNDA -> tr cok
+    # farkli. (1F S4'ten once vaka 4050'ye cikip geri inen cuce darbeydi; artik cuce darbe
+    # %10 noktasini birakiyor, fark kayboluyordu — bekleyen rampa farki S4'ten bagimsiz tutar.)
+    k = [4000] * 20 + [4020, 4040] + [4050] * 20 + \
+        [4000 + 50 * j for j in range(2, 11)] + [4500] * 40 + [4000] * 20
+    ekle("esik_float32", "alt esik float32'de tamsayi: rampa esige ESIT ornekte bekler (double ile farkli tr)", k)
+    ekle("dc_ustu_kucuk_ac", "3000 kod DC + +-3 kod gurultu: Vac tam toplamlardan (1F S1; eskisi 0 basiyordu)",
          [3000 + j for j in lcg_dizi(1000, -3, 3, 11)])
     ekle("tam_olcek_65535", "0/65535 kare, va 0.001 (dogrusallastirilmis kod tavani)",
          kare(300, 30, 0.5, 0, 65535), va=0.001)
-    ekle("sabit_65535", "sabit 65535: kare farki yuvarlamasi (Vac kirpma yolu)", [65535] * 333, va=0.0123)
+    ekle("sabit_65535", "sabit 65535: Vac TAM 0 (1F S1; eskisi kare farkindan 0.559 V)", [65535] * 333, va=0.0123)
 
     # ── tek kenar, kisa, bos ──────────────────────────────────────────
     ekle("tek_yukselen", "tek yukselen kenar (7 ornek rampa): f yok, tr var",
@@ -222,9 +224,29 @@ def vakalar() -> list[dict]:
     # ── yukselme/dusme ozel durumlari ─────────────────────────────────
     k = [200] * 30 + [200 + 300 * j for j in range(1, 8)] + [2300] * 5 + [200] * 30 + \
         [200 + 400 * j for j in range(1, 10)] + [3800] * 30 + [200] * 20
-    ekle("cuce_darbe", "%90'a ulasmayan darbe sonra tam kenar: tr ikisini kapsar (C davranisi)", k)
+    ekle("cuce_darbe", "%90'a ulasmayan darbe sonra tam kenar: tr YALNIZ tam kenar (1F S4; eskisi ikisini kapsardi)", k)
     ekle("yuksekte_baslar", "yuksekte baslayip dusen kare: hazir mantigi",
          kare(450, 90, 0.5, 250, 3750, faz=0.1))
+
+    # ── 1F (2026-10-02) duzeltmelerinin regresyon vektorleri ──────────
+    ekle("duz_4095_4000", "1F S1: sabit 4095, 4000 ornek: Vac TAM 0, Vrms == Vort", [4095] * 4000)
+    ekle("kare50_tam_4000", "1F S3: ideal %50 kare, periyot 100, 4000 ornek: duty TAM 50",
+         [3600 if (i % 100) < 50 else 400 for i in range(4000)])
+    # 300/3300 -> alt 600, ust 3000 (float32'de tam); cuceler ortaya (1800) degmez
+    k = [300] * 50 + [300 + 350 * j for j in range(1, 5)] + [1700 - 350 * j for j in range(1, 4)] + \
+        [300] * 50 + [300 + 300 * j for j in range(1, 11)] + [3300] * 50 + \
+        [3300 - 400 * j for j in range(1, 4)] + [2100 + 400 * j for j in range(1, 4)] + \
+        [3300] * 50 + [3300 - 300 * j for j in range(1, 11)] + [300] * 50
+    ekle("cuce_iki_yon", "1F S4: yukari ve asagi cuce + tam kenarlar: tr = tf = TAM 8 ornek", k)
+    k = [500] * 40 + [700, 900, 400, 300] + [500] * 10 + [500 + 350 * j for j in range(1, 10)] + [3650] * 40
+    ekle("geri_seken_kenar", "1F S4: %10'u gecip geri seken kenar: %10 noktasi yeniden kurulur", k)
+    r = Lcg(5)
+    k = [(3500 if (i % 83) < 41 else 600) + r.tam(-60, 60) for i in range(3000)]
+    ekle("gurultulu_kare", "1F: +-60 kod gurultulu kare, periyot 83 (duty ~41/83, Vac kucuk sapma)", k)
+    # n·S2 ~ 6.9e16 > 2^53: JS'te varyans payi double'da hesaplanirsa +-16'lik yuvarlama
+    # 3999'luk gercek payi bozar -> BigInt sart (C: uint64_t).
+    ekle("tavan_tek_fark_4000", "1F S1: 3999 x 65535 + 1 x 65534: varyans payi TAM 3999 (> 2^53 toplamlar)",
+         [65535] * 2000 + [65534] + [65535] * 1999, va=0.001)
 
     # ── kartin gercek boyutu ──────────────────────────────────────────
     ekle("sinus_4000", "4000 ornek @ 83333 Hz, ~1 kHz + gurultu (kartin azami adedi)",

@@ -15,6 +15,11 @@ frekansi, genligi ve duty'si ANALITIK OLARAK biliniyor.
     sinus  periyot 64 ornek            -> 156.25 Hz, %50 duty
     duz    olcum yapilamaz             -> hepsi 0
     %25    periyot 80, 20 ornek ustte  -> 125.00 Hz, %25 duty
+  1F (2026-10-02) kusurlarinin TAM degerli capalari:
+    S3 kare / %25        -> duty TAM 50.0 / 25.0 (eskiden 120/241, 60/241)
+    S1 duz 2048 / 4000   -> Vac TAM 0 (float32 kare farki sadelesmesi)
+    S1 3000 + {-3..+3}   -> Vac TAM 2 kod (eskisi kaybediyordu)
+    S4 cuce darbe + kenar -> tr = tf = TAM kenarin 8 ornegi (cuce disarida)
 """
 from __future__ import annotations
 
@@ -41,6 +46,9 @@ AVR_BIN = (Path.home() / "AppData/Local/Arduino15/packages/arduino/tools"
 AVR_GCC = AVR_BIN / "avr-gcc.exe"
 
 gecti = kaldi = 0
+
+# ornek_skop.c'nin bastigi dalgalar (satir basi)
+DALGALAR = ("KARE", "UCGN", "SINS", "DUZ", "D25", "DZ40", "DZ33", "GRT", "CUCE")
 
 
 def ok(ad: str, kosul: bool, ek: str = "") -> None:
@@ -98,7 +106,7 @@ def kostur() -> dict:
         p = sat.split()
         if len(p) >= 2 and p[0] == "VA":
             sonuc["VA"] = cozf(p[1])
-        elif len(p) >= 24 and p[0] in ("KARE", "UCGN", "SINS", "DUZ", "D25"):
+        elif len(p) >= 24 and p[0] in DALGALAR:
             d2 = {}
             i = 1
             while i + 1 < len(p):
@@ -118,9 +126,9 @@ def main() -> int:
     s = kostur()
 
     ok("Emulator tum dalgalari isledi",
-       all(k in s for k in ("VA", "KARE", "UCGN", "SINS", "DUZ", "D25")),
-       f"{len(s) - 1}/5 dalga")
-    if len(s) < 6:
+       all(k in s for k in ("VA",) + DALGALAR),
+       f"{len(s) - 1}/{len(DALGALAR)} dalga")
+    if len(s) < len(DALGALAR) + 1:
         return 1
 
     # volt/adim: olcum2.h'deki SKOP_VOLT_ADIM
@@ -139,6 +147,10 @@ def main() -> int:
     yakin("Vmin = 200 kod", k["mn"], 200 * va, 1e-4, " V")
     yakin("Vort = 2000 kod (simetrik kare)", k["av"], 2000 * va, 1e-3, " V")
     yakin("Duty = %50", k["du"], 50.0, 1.5, " %")
+    # 1F (S3): tam sayida periyotlu ideal karede gorev orani TAM %50 —
+    # eskiden ilk kenarin oncesindeki ornek fazladan sayiliyordu: 120/241.
+    ok("1F S3: Duty TAM %50.000 (eskiden %49.79 = 120/241)", k["du"] == 50.0,
+       f"%{k['du']!r}")
     # 400 ornekte 5 periyot var ama yukselen kenarlar i = 0, 80, 160, 240, 320'de.
     # i=0'daki kenarin ONCESINDE ornek olmadigi icin algilanamaz -> 4 kesisim,
     # yani 3 tam cevrim. Periyot yine (320-80)/3 = 80 ornek, frekans tam 125 Hz.
@@ -146,9 +158,11 @@ def main() -> int:
        k["cv"] == 3, f"{k['cv']}")
     # Kare dalgada RMS: sqrt((3800^2 + 200^2)/2) kod
     rms_kod = math.sqrt((3800 ** 2 + 200 ** 2) / 2)
-    yakin("Vrms = kare dalga RMS'i", k["rm"], rms_kod * va, 2e-3, " V")
+    # 1F (S1): tam tamsayi toplamlar -> float32 yuvarlamasi duzeyinde (1e-5 V);
+    # eski float32 toplamlar 400 ornekte ~1e-4 V kaciriyordu.
+    yakin("Vrms = kare dalga RMS'i", k["rm"], rms_kod * va, 1e-5, " V")
     # AC RMS = tepe genligi = 1800 kod
-    yakin("Vac = 1800 kod (AC bileseni)", k["ac"], 1800 * va, 2e-3, " V")
+    yakin("Vac = 1800 kod (AC bileseni)", k["ac"], 1800 * va, 1e-5, " V")
 
     print("\n--- 4. UCGEN dalga: 100 ornek periyot, 4 cevrim --------------------")
     u = s["UCGN"]
@@ -176,6 +190,9 @@ def main() -> int:
     yakin("Vpp 0", d["pp"], 0.0, 1e-6, " V")
     yakin("Vort = 2048 kod", d["av"], 2048 * va, 1e-3, " V")
     yakin("Vac 0 (AC bileseni yok)", d["ac"], 0.0, 1e-3, " V")
+    # 1F (S1): toplamlar tamsayi ve TAM -> varyans payi tam 0, karekok tam 0
+    ok("1F S1: duz cizgide Vac TAM 0 (kare farki sadelesmesi yok)",
+       d["ac"] == 0.0, f"{d['ac']!r} V")
 
     print("\n--- 7. ASIMETRIK KARE: %25 duty ------------------------------------")
     a = s["D25"]
@@ -183,6 +200,39 @@ def main() -> int:
     yakin("Duty = %25", a["du"], 25.0, 1.5, " %")
     ok("Duty simetrikten AYIRT EDILIYOR", abs(a["du"] - k["du"]) > 15.0,
        f"%{a['du']:.1f} vs %{k['du']:.1f}")
+    ok("1F S3: Duty TAM %25.000 (eskiden 60/241 = %24.90)", a["du"] == 25.0,
+       f"%{a['du']!r}")
+
+    print("\n--- 8. 1F (S1): YUKSEK DUZ CIZGI 4000 kod --------------------------")
+    z = s["DZ40"]
+    ok("1F S1: 4000 kodda da Vac TAM 0", z["ac"] == 0.0, f"{z['ac']!r} V")
+    ok("1F S1: duz cizgide Vrms == Vort (Vrms = √(ort² + ac²), ac TAM 0)",
+       z["rm"] == z["av"], f"{z['rm']!r} / {z['av']!r} V")
+    yakin("Vort = 4000 kod", z["av"], 4000 * va, 1e-5, " V")
+    z = s["DZ33"]
+    ok("1F S1: 3332 kodda Vac TAM 0, Vrms == Vort (S2/n yolu burada 1 ulp sapar)",
+       z["ac"] == 0.0 and z["rm"] == z["av"], f"Vac {z['ac']!r}, {z['rm']!r} / {z['av']!r} V")
+
+    print("\n--- 9. 1F (S1): 3000 kod DC + {-3..+3} kod -------------------------")
+    g = s["GRT"]
+    # Ortalama TAM 3000, varyans TAM 4 kod^2 -> Vac TAM 2 kod (n·S2 − S1²
+    # = 399²·4, karekoku 798, /399 = 2: her adim float32'de tam).
+    ok("1F S1: kucuk AC (DC ustunde) Vac = 2 kod, float32'de BIT BIT",
+       g["ac"] == 2.0 * va,             # va float32; 2·va da tam float32
+       f"{g['ac']!r} V ~ {2 * va!r} V (eski float32 kare farki bunu kaybediyordu)")
+    yakin("Vort = 3000 kod", g["av"], 3000 * va, 1e-5, " V")
+    ok("Fark 6 kod < 8: zaman olcumu yok (hist < 1)",
+       g["f"] == 0.0 and g["tr"] == 0.0 and g["tf"] == 0.0, f"f {g['f']}")
+
+    print("\n--- 10. 1F (S4): %90'a VARMAYAN cuce darbeler + tam kenarlar ------")
+    c = s["CUCE"]
+    # Tam kenarlar 360 kod/ornek: 560 (%10) ile 3440 (%90) arasi TAM 8 ornek.
+    yakin("1F S4: tr = yalniz TAM kenar (8 ornek = 0.8 ms), cuce darbe disarida",
+          c["tr"], 8 / 10000.0, 1e-10, " s")
+    yakin("1F S4: tf = yalniz TAM kenar (8 ornek = 0.8 ms), cuce darbe disarida",
+          c["tf"], 8 / 10000.0, 1e-10, " s")
+    ok("Tek yukselen kenar: periyot yok", c["f"] == 0.0 and c["cv"] == 0,
+       f"f {c['f']} cv {c['cv']}")
 
     print("\n" + "=" * 78)
     print(f"  A6: {gecti}/{gecti + kaldi} kosul gecti")

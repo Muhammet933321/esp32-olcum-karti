@@ -15,6 +15,8 @@ Bu adim onu CALISTIRAN programi dogruluyor:
   5. Protokol dizeleri firmware'de GERCEKTEN var mi — arayuz bunlara
      dayanacak. Asama 2'de arayuz ile firmware komutlari AYRISMISTI
      (DEVIR 4.1); bu denetim onu tekrarlanamaz kiliyor.
+  6. 1F (S2): skop_olc ikilide ayri fonksiyon ve icinde kaynasmis kayan
+     nokta komutu (madd.s/msub.s) YOK — kart AVR basvurusuyla ayni sonuc.
 """
 from __future__ import annotations
 
@@ -104,6 +106,69 @@ BULUNMAMALI = [
     (b"v_duzeltme", "Asama 2'nin kalibrasyon alani (artik kazanc/sifir_ham)"),
     (b"tek yonlu", "tek yonlu olcum notu"),
 ]
+
+
+# 1F (S2): ikilide skop_olc'un icinde BULUNMAMASI gereken kaynasmis kayan nokta
+# komutlari (Xtensa FPU: a*b+c tek yuvarlamayla). `madd.s`/`msub.s` ESP32-S3'te
+# B73 capraz uygulamasi sirasinda skop_olc'ta goruldu (Vrms/Vac toplamlari, %10/%90
+# esikleri): kart AVR basvurusundan ayrisiyordu.
+KAYNASMIS = re.compile(r"\b(madd|msub|maddn|msubn)\.s\b")
+KAYAN_NOKTA = re.compile(r"\b[a-z0-9]+\.s\b")
+KAYNASMASIZ_FONKSIYONLAR = ("skop_olc", "skop_kesisim", "skop_u64_float")
+
+
+def _xtensa_arac(ad: str) -> Path | None:
+    """ESP32 cekirdeginin kurdugu Xtensa arac zincirinden bir ikili (en yeni surum)."""
+    kok = Path.home() / "AppData/Local/Arduino15/packages/esp32/tools/esp-x32"
+    adaylar = sorted(kok.glob(f"*/bin/xtensa-esp32s3-elf-{ad}.exe"))
+    return adaylar[-1] if adaylar else None
+
+
+def kaynasma_denetimi(gec_dizin: Path) -> None:
+    """1F (S2): skop_olc ikilide AYRI fonksiyon ve icinde madd.s/msub.s YOK.
+
+    Kaynak `olcum2.h` -> `skop_olc.h` blogu `#pragma GCC optimize
+    ("fp-contract=off")` ile derleniyor. Pragma'nin GERCEKTEN islediginin kaniti
+    kaynak degil ikili: sokulmus fonksiyonda kaynasmis komut sayisi 0 olmali.
+    Fonksiyon bir cagirana GOMULMUS olsaydi bu denetim BOS kalirdi (sembol yok,
+    komut cagiranin icinde, onun ayariyla) — o yuzden sembolun varligi da iddia.
+    ⚠ sqrtf kutuphanede (`__ieee754_sqrtf`: sqrt0.s + maddn.s + divn.s, ISA'nin
+    dogru yuvarlanmis dizisi); skop_olc onu CAGIRIYOR. Derleyici bir gun o diziyi
+    skop_olc'un icine acarsa buradaki maddn.s kaynasma DEGIL — ayirt etmek gerekir.
+    """
+    print("\n--- 2b. 1F (S2): skop_olc'ta kaynasmis kayan nokta (madd.s) YOK ----")
+    elf = next(gec_dizin.glob("*.ino.elf"), None)
+    nm, objdump = _xtensa_arac("nm"), _xtensa_arac("objdump")
+    ok("1F S2: .elf ve Xtensa nm/objdump bulundu",
+       elf is not None and nm is not None and objdump is not None,
+       f"{objdump.parent.parent.name if objdump else 'objdump YOK'}")
+    if elf is None or nm is None or objdump is None:
+        return
+    semboller = []          # (ad, adres, boy)
+    for satir in subprocess.run([str(nm), "-S", str(elf)], capture_output=True, text=True,
+                                encoding="utf-8", errors="replace").stdout.splitlines():
+        p = satir.split()
+        if len(p) == 4 and p[2] in ("t", "T") \
+                and any(f"{len(a)}{a}" in p[3] for a in KAYNASMASIZ_FONKSIYONLAR):
+            semboller.append((p[3], int(p[0], 16), int(p[1], 16)))
+    ok("1F S2: skop_olc ikilide AYRI fonksiyon (gomulmedi — denetim bos degil)",
+       any("8skop_olc" in s[0] for s in semboller),
+       ", ".join(f"{s[0]} {s[2]} B" for s in semboller) or "sembol YOK")
+    kaynasmis, kayan = [], 0
+    for ad, adres, boy in semboller:
+        dis = subprocess.run([str(objdump), "-d", f"--start-address={adres:#x}",
+                              f"--stop-address={adres + boy:#x}", str(elf)],
+                             capture_output=True, text=True, encoding="utf-8",
+                             errors="replace").stdout
+        kayan += len(KAYAN_NOKTA.findall(dis))
+        kaynasmis += [f"{ad}: {x.strip()}" for x in dis.splitlines() if KAYNASMIS.search(x)]
+    # sokum gercekten kayan nokta kodu mu (bos/yanlis aralik sokulmesin)
+    ok("1F S2: sokulen skop_olc kayan nokta komutlari iceriyor", kayan >= 20,
+       f"{kayan} `.s` komutu")
+    ok("1F S2: skop_olc'ta madd.s/msub.s YOK (kart = AVR basvurusu = ortak/src/skop.js)",
+       not kaynasmis, f"{len(kaynasmis)} kaynasmis komut")
+    for x in kaynasmis[:6]:
+        print("       " + x)
 
 
 def main() -> int:
@@ -197,6 +262,8 @@ def main() -> int:
     for dize, aciklama in BULUNMAMALI:
         ok(f"YOK: {aciklama}", dize not in ham,
            dize.decode('ascii', 'replace'))
+
+    kaynasma_denetimi(gec_dizin)
 
     print("\n--- 3. Kaynak ile tasarim ayni mi ----------------------------------")
     kaynak = (ESKIZ / "olcum3.h").read_text(encoding="utf-8")

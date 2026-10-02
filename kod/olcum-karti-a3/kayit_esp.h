@@ -76,7 +76,7 @@ static KayitBitirIz kayit_bitir_iz_al(void)
 #include "kayit_plan.h"           /* 1C-4: zamanlanmis kayit karar mantigi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-1E"     /* 1E: MQTT bildirimleri (uctan uca sifreli) */
+#define KAYIT_FW_SURUM    "A3-1F"     /* 1F: skop olcum duzeltmeleri (Vac, duty, tr/tf, fp-contract); 1E MQTT */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
