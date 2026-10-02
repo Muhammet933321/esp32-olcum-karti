@@ -184,6 +184,18 @@
 | KU9 | **Birleşik CSV:** başlık `kayit<no>_<x>` / `kayit<no>_<kanal>` (EN `rec…`; x `gecen_ms` 3 ondalık · `unix_s` 3 · `yuk_mAh` 6; kanal disari.js adları: nokta `v_ort_V`…, ayrıntılı `v_V`…), aynı numara iki akıştan seçilmişse `@kimlik`; yalnız o kipte ÇİZİLEN kayıtlar; satır j = her kaydın j. örneği, kısa kayıt BOŞ hücre | KR7; dışarıda kalan kaydın sütunu olsaydı ya boş ya uydurma olurdu |
 | KU10 | `KR_AZAMI` ve adres yazıcısı `kayitlar.js`'te (seçim orada), çözücü `karsilastir.js`'te; B7 ikisinin birbirinin tersi olduğunu 200 rastgele seçimle sınar | Tek kaynak; karşılaştırma modülü Kayıtlar açılışına yük olmasın |
 
+## 3H kararları (2026-10-02 akşam, aynı devirle) — 3H-1 şimdi, 3H-2 ayrı
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| AY1 | **3H iki dilim:** 3H-1 = düzen + dil + depolama + kalibrasyon geçmişi + bağlantı/ağ/görünüm (mevcut bölümler korunur); 3H-2 = tarayıcı eşleştirmesi, güvenilir cihazlar, bildirim durumu (ayrı tur — cihaz anahtarını tarayıcıda saklamak güvenlik kararı) | Güvenlik kararını alelacele değil kendi turunda vermek |
+| AY2 | **Ayarlar bölümlere ayrılır, sol iç gezinme / bölüm başlıklarıyla:** Bağlantı · Ağ · Kalibrasyon · Kalibrasyon geçmişi · Depolama · Dil ve görünüm · Gelişmiş. Her bölümün adresi `#/ayar/<bölüm>` (geri tuşu, paylaşılabilir); telefonda üst üste | Bugünkü uzun tek sayfa; adresli bölüm (WIG "URL durum taşır") |
+| AY3 | **Dil seçimi (TR/EN):** `localStorage['olcum.dil']` (3C'nin `dilOku`'su), anında uygulanır (yeniden yükleme yok), `<html lang>` ve sekme başlığı da değişir; sözlüğe girmemiş eski metinler Türkçe kalır ve EN'de hangilerinin kaldığı B7'de LİSTE olarak sayılır (gizlenmez). **Sayı biçimi değişmez ('.' ondalık)** — ölçüm aleti alışkanlığı; CSV'nin Excel-TR biçimi ayrı | P7; sessiz yarım çeviri yerine sayılan eksik |
+| AY4 | **Depolama:** bu tarayıcıdaki kayıt kopyaları (akış başına boyut, oturum sayısı, son eşitleme, "eski kart kopyası"), `navigator.storage.estimate()` kullanım/kota, kalıcı depolama isteği (`navigator.storage.persist()`, sonucu yazılır), kopya silme Kayıtlar'daki iki aşamalı onayla aynı. Arşiv seçimi (C3) burada da görünür | Kullanıcı verinin nerede durduğunu ve silinebilir olup olmadığını görmeli; tarayıcı kotası dolarsa kayıp sessiz olmasın |
+| AY5 | **Kalibrasyon geçmişi (1B) salt okuma:** `/kal/liste` (yoksa bu tarayıcıdaki `kalibrasyon.json` kopyası) — numara, tarih, not, etkin olan, taslak durumu; değerler tablo. Geçmişi değiştiren komutlar (kk/kn/kt) bu dilimde YOK (ADS takılı değilken kartta sınanamaz) | Görmek güvenli; yazmak kartta sınanmadan eklenmez |
+| AY6 | **Gelişmiş:** ham komut konsolu Konsol sekmesinde kalır; Ayarlar'da firmware bilgisi (afiş görüldüyse), panel sürümü (görüntü künyesinin özeti), "tarayıcı ayarlarını sıfırla" (localStorage'ın `olcum.*` anahtarları, iki aşamalı onay) | Destek/hata ayıklama için sürüm görünür olmalı |
+| AY7 | Mevcut bölümlerin bütün B7/T iddiaları korunur (bağlantı, ağ, kalibrasyon, görünüm, WIG etiketleri, p0); yeni metinler `sozluk.js` (`ay.*`, TR + EN); WIG kuralları | Önceki dilimlerin kazanımları |
+
 ## Doğrulama
 
 B7 (`test_arayuz3.js`) ve B22 tarayıcı denetimleri genişler; her dilimde başsız tarayıcı (Edge) ile
