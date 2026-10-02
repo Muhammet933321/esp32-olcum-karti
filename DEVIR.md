@@ -9397,6 +9397,22 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.81 🟢 3F PİL TESTİ EKRANI (2026-10-02 akşam)
+
+Ajan, kararlar PL1–PL7 + uygulama kararları PU1–PU17 (spec). `p0` emniyeti aynen (tek tık, onaysız,
+`:disabled` yok; DURDUR modül yüklenemese de çalışır). Okuma kartları kaynağını söylüyor (mAh/Wh kartın
+sayacı); eğri `grafik.js` (V üstte I altta; DCIR işaretleri `isaretler` seçeneği; mAh ekseni tarayıcı
+integrali, boşluk/negatif akımda zaman eksenine düşer ve sebebini yazar). **Yoklama (PL4) ölçüldü:**
+eskiden bağlıyken HER sekmede 10 s'de bir (Canlı'da saatte ~360 istek); artık yalnız Pil sekmesi + sayfa
+görünür + test sürerken 2 s'de bir, test başlangıç/bitişi kartın `BASLADI`/`BITTI`/… satırlarından.
+**Gerçek kartta:** Canlı'da 15 s'de 0 `/pil`, Pil sekmesinde test yokken tek istek. PİL oturum numarası
+`G` satırından ("Kayıtlar'da aç" → doğru oturum). Başlat `P<v>`'yi yalnız değiştiyse yollar, kartın
+onayını bekler; kartın başlangıç satırı farklı kesme bildirirse panel hemen `p0` yollar (PU4). İki hata
+düzeltildi: yeni test eski sıra numarasıyla isteniyordu (noktalar gelmiyordu, PU12); 3D'nin telefon
+kuralı yanlış sırada (Canlı kartları telefonda iki dar sütun, PU17). USB/köprüde `/pil` yok → durum `p`
+komutunun `B` satırından (eskiden "HTTP 404"). Açık: DCIR aralığı/kapatma firmware'de derleme sabiti
+(komut yok, PU5). B7 626 → 677, yeni T3F 33/33, mutasyon 3F 47/47. Zincir 21 yeşil.
+
 #### 5.12.80 🟢 3E OSİLOSKOP EKRANI (2026-10-02 akşam)
 
 Ajan, kararlar OS1–OS8 + uygulama kararları S1–S14 (spec). Dalga solda geniş, kontroller sağda kümeli
