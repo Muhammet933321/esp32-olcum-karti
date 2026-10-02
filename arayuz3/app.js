@@ -438,30 +438,35 @@ function ayarBolumModul(id) {
 const CIHAZ_VT_AD = 'olcum-cihaz';
 const CIHAZ_DEPO_AD = 'cihaz';
 
-/** Bu tarayicida cihaz kaydi var mi. Veritabani YOKSA yaratmaz (yukseltme iptal edilir). */
+/** Bu tarayicida cihaz kaydi var mi: true | false | 'hata'. Veritabani YOKSA yaratmaz (yukseltme iptal edilir).
+    EU23: veritabani VAR (databases() listesinde) ama acilamiyor / sayilamiyorsa 'hata' — eslesmis tarayici
+    imzasiz yola SESSIZCE dusmesin (ES4); listede yoksa ya da liste sorulamiyorsa eslesmemis yol (false). */
 async function cihazKaydiVar(idb = globalThis.indexedDB) {
   if (!idb) return false;
+  let listede = false;
   try {
     if (typeof idb.databases === 'function') {
       const l = await idb.databases();
       if (!l.some((d) => d && d.name === CIHAZ_VT_AD)) return false;
+      listede = true;
     }
+    const hata = listede ? 'hata' : false;
     return await new Promise((coz) => {
       const r = idb.open(CIHAZ_VT_AD);
       r.onupgradeneeded = () => { try { r.transaction.abort(); } catch (e) { /* zaten bitti */ } };
-      r.onerror = () => coz(false);
-      r.onblocked = () => coz(false);
+      r.onerror = () => coz(hata);
+      r.onblocked = () => coz(hata);
       r.onsuccess = () => {
         const vt = r.result;
         try {
           if (!vt.objectStoreNames.contains(CIHAZ_DEPO_AD)) { vt.close(); coz(false); return; }
           const s = vt.transaction(CIHAZ_DEPO_AD, 'readonly').objectStore(CIHAZ_DEPO_AD).count();
           s.onsuccess = () => { vt.close(); coz(s.result > 0); };
-          s.onerror = () => { vt.close(); coz(false); };
-        } catch (e) { vt.close(); coz(false); }
+          s.onerror = () => { vt.close(); coz(hata); };
+        } catch (e) { vt.close(); coz(hata); }
       };
     });
-  } catch (e) { return false; }
+  } catch (e) { return listede ? 'hata' : false; }
 }
 
 /* AY3: dil secimi. Anahtar ve bicim (JSON) 3C'nin `dilOku`suyla ve yukaridaki
@@ -2606,7 +2611,12 @@ createApp({
     eslesmeHazirla() {
       if (!this._esKarar) {
         this._esKarar = cihazKaydiVar()
-          .then((v) => (v ? this.eslesmeIstemcisi() : null))
+          .then((v) => {
+            if (v !== 'hata') return v ? this.eslesmeIstemcisi() : null;
+            this._esKarar = null;                     // EU23: ezberlenmez; uyari ile imzasiz yol
+            this.eslesmeBildir({ durum: 'depo' });
+            return null;
+          })
           .catch((h) => {
             this._esKarar = null;                     // ezberlenmez: sonraki istek yeniden dener
             this.eslesmeBildir({ durum: 'modul', mesaj: (h && h.message) || String(h) });
@@ -2629,6 +2639,7 @@ createApp({
       if (!o) return;
       if (o.durum === 'tanimiyor') this.eslesmeUyari = { anahtar: 'es.uyari_tanimiyor', d: { n: o.n } };
       else if (o.durum === 'modul') this.eslesmeUyari = { anahtar: 'es.uyari_modul', d: { mesaj: o.mesaj } };
+      else if (o.durum === 'depo') this.eslesmeUyari = { anahtar: 'es.uyari_depo', d: {} };
       else if (o.durum === 'eslesti' || o.durum === 'unutuldu') {
         this.eslesmeUyari = null;
         this._esKarar = null;                         // karar yeniden (kayit artik var / yok)

@@ -44,6 +44,8 @@ export const CIHAZ_DEPO = 'cihaz';
 /** ES6: yeniden baglanma beklemesi (ms): 1, 2, 4, 8, 16, 30, 30 ... */
 export const AKIS_BEKLE_ILK_MS = 1000;
 export const AKIS_BEKLE_AZAMI_MS = 30000;
+/** EU24: /eslestir/bilgi zaman asimi (ms) — kart TCP'yi kabul edip susarsa baglanti / esitleme asili kalmasin. */
+export const BILGI_SURE_MS = 5000;
 
 /* ── metinler (sozluk anahtarlari; ES10) ────────────────────────────── */
 export const ES_METIN = Object.freeze({
@@ -57,6 +59,7 @@ export const ES_METIN = Object.freeze({
   saatNtpVar: 'es.saat_ntp_var', saatEslesmeli: 'es.saat_eslesmeli', guvBaslik: 'es.guv_baslik', guvAciklama: 'es.guv_aciklama',
   anahtarBaslik: 'es.anahtar_baslik', anahtarAciklama: 'es.anahtar_aciklama', bildirimBaslik: 'es.bildirim_baslik',
   bildirimAciklama: 'es.bildirim_aciklama', yenile: 'ay.yenile', vazgec: 'kl.vazgec',
+  yabanciBaslik: 'es.yabanci_baslik', yabanciAciklama: 'es.yabanci_aciklama', yabanciSil: 'es.yabanci_sil', silEminim: 'es.sil_eminim',
 });
 /** /eslestir/bilgi `saat`: 0 yok, 1 NTP, 2 cihazdan (guvenlik_esp.h guv_saat_kaynak). */
 export const SAAT_METIN = Object.freeze(['es.saat_yok', 'es.saat_ntp', 'es.saat_cihaz']);
@@ -64,7 +67,7 @@ const DURUM_METIN = Object.freeze({ yok: 'es.d_yok', hazir: 'es.d_hazir', tanimi
   kartYok: 'es.d_kart_yok' });
 const UYGUN_METIN = Object.freeze({ usb: 'es.uygun_usb', demo: 'es.uygun_demo', taban: 'es.uygun_taban' });
 const UNUT_METIN = Object.freeze({ silindi: 'es.unutuldu', ulasilamadi: 'es.unutuldu_ulasilamadi',
-  tanimiyordu: 'es.unutuldu_tanimiyor', hata: 'es.unutuldu_hata' });
+  tanimiyordu: 'es.unutuldu_tanimiyor', hata: 'es.unutuldu_hata', yok: 'es.unutuldu_yok' });
 const SONUC_METIN = Object.freeze({ eslesti: 'es.eslesti', kaldirildi: 'es.kaldirildi', kaldirHata: 'es.kaldir_hata',
   listeHata: 'es.liste_hata', saatTamam: 'es.saat_tamam', saatHata: 'es.saat_hata' });
 
@@ -112,10 +115,12 @@ export function varsayilanAd(ua) {
  * ES5/ES2: depodaki kayit (eski) + yazilmak istenen (yeni) -> yazilacak kayit; null = YAZMA.
  * Ayni eslestirme (n + eklenme ayni): sayac max (iki sekme geri goturemez), "tanimiyor" yapiskan,
  * acilis yeni yazandan. Farkli eslestirme: yalniz daha YENI (eklenme) olan yazilir.
+ * EU22: kayit YOKSA yalniz eslestirme (`olustur`) yazar — sayac / acilis / "tanimiyor" yazmalari
+ * silinmis kaydi (K ile) geri getiremez ("unut" ile yarisan imzali istek).
  */
-export function kayitBirlestir(eski, yeni) {
+export function kayitBirlestir(eski, yeni, { olustur = false } = {}) {
   if (!yeni) return null;
-  if (!eski) return { ...yeni };
+  if (!eski) return olustur ? { ...yeni } : null;
   if (eski.n !== yeni.n || (eski.eklenme || 0) !== (yeni.eklenme || 0)) {
     return (yeni.eklenme || 0) >= (eski.eklenme || 0) ? { ...yeni } : null;
   }
@@ -173,6 +178,7 @@ export function retSebebi(h, { retry = null } = {}) {
 export class SseCozucu {
   constructor() {
     this._t = '';
+    this._cr = false;             // EU18: onceki parca '\r' ile bitti — bu parcanin basindaki '\n' ayni satir sonu
     this._olay = '';
     this._veri = [];
     this.id = '';
@@ -181,10 +187,17 @@ export class SseCozucu {
 
   ekle(metin) {
     const cikti = [];
+    metin = String(metin);
+    if (this._cr && metin) {
+      if (metin[0] === '\n') metin = metin.slice(1);
+      this._cr = false;
+    }
     this._t += metin;
     let n;
     while ((n = this._t.search(/\r\n|\r|\n/)) >= 0) {
       const sat = this._t.slice(0, n);
+      /* tamponun SONUNDAKI '\r': CRLF'nin '\n'i sonraki parcada olabilir (WHATWG: '\r'den sonraki ilk '\n' yutulur) */
+      if (this._t[n] === '\r' && n === this._t.length - 1) this._cr = true;
       this._t = this._t.slice(n + (this._t.startsWith('\r\n', n) ? 2 : 1));
       if (sat === '') {
         if (this._veri.length) cikti.push({ olay: this._olay || 'message', veri: this._veri.join('\n'), id: this.id });
@@ -233,7 +246,8 @@ function vtAc(idb, surum = null) {
   });
 }
 
-/** {oku, yaz, ayir, sil, hepsi} — her yazma `durability: 'strict'` ve TEKDUZE (kayitBirlestir, tek islemde oku+yaz). */
+/** {oku, yaz, ayir, sil, hepsi} — her yazma `durability: 'strict'` ve TEKDUZE (kayitBirlestir, tek islemde oku+yaz).
+    yaz(c) yalniz VAR OLAN kaydi gunceller; yeni kayit yalniz yaz(c, {olustur: true}) (eslestirme, EU22). */
 export function cihazDeposu(idb = globalThis.indexedDB) {
   let vtSoz = null;
   const vt = () => {
@@ -254,10 +268,10 @@ export function cihazDeposu(idb = globalThis.indexedDB) {
   };
   return {
     oku: (kimlik) => islem(false, (d, ver) => { const r = d.get(kimlik); r.onsuccess = () => ver(r.result || null); }),
-    yaz: (c) => islem(true, (d, ver) => {
+    yaz: (c, secenek = {}) => islem(true, (d, ver) => {
       const r = d.get(c.kimlik);
       r.onsuccess = () => {
-        const y = kayitBirlestir(r.result || null, c);
+        const y = kayitBirlestir(r.result || null, c, secenek);
         if (y) d.put(y);
         ver(y);
       };
@@ -284,9 +298,10 @@ export class EslesmeIstemcisi {
    * kartAdres: app.js kartAdres (taban oneki); bildir({durum, ...}): 'tanimiyor' | 'eslesti' |
    * 'unutuldu' (app serit uyarisi ve akis); depo: cihazDeposu arayuzu (testte bellek).
    */
-  constructor({ kartAdres, bildir = () => {}, depo = null, simdiMs = () => Date.now() } = {}) {
+  constructor({ kartAdres, bildir = () => {}, depo = null, simdiMs = () => Date.now(), bilgiSureMs = BILGI_SURE_MS } = {}) {
     if (typeof kartAdres !== 'function') throw new TypeError('kartAdres islevi gerekli');
     this.kartAdres = kartAdres;
+    this.bilgiSureMs = bilgiSureMs;
     this.bildir = bildir;
     this.depo = depo || cihazDeposu();
     this.simdiMs = simdiMs;
@@ -304,31 +319,41 @@ export class EslesmeIstemcisi {
     return fetch(this.kartAdres(yol), secenekler);
   }
 
-  /** imza.js ortami: imzali istekler tarayicinin Basic-Auth onbellegini TASIMAZ (credentials:'omit'). */
-  _ortam(signal = null) {
+  /** imza.js ortami: imzali istekler tarayicinin Basic-Auth onbellegini TASIMAZ (credentials:'omit').
+      `olustur` yalniz eslestirmede: kaydi o yaratir (EU22). */
+  _ortam(signal = null, { olustur = false } = {}) {
     return {
       fetch: async (url, o) => {
         const y = await this._getir(url, { ...o, cache: 'no-store', credentials: 'omit', ...(signal ? { signal } : {}) });
         this.sonRetry = y.headers.get('Retry-After');
         return y;
       },
-      kaydet: (c) => this._kaydet(c),
+      kaydet: (c) => this._kaydet(c, { olustur }),
       /* sayac _sayacAyir'da AYRILDI (c.sayac = ayrilan - 1): imza.js sonrakiSayac = max(c.sayac + 1, 0)
          tam olarak ayrilani kullanir. Eslestirmede (sayac 0) etkisiz. */
       simdiMs: () => 0,
     };
   }
 
-  /** ES5: sayac (ve acilis) istekten ONCE depoya; depo TEKDUZE birlestirir. */
-  async _kaydet(c) {
+  /** ES5: sayac (ve acilis) istekten ONCE depoya; depo TEKDUZE birlestirir. Donus: yazilan kayit ya da null
+      (EU22: kayit artik yok — baska sekme "unut" dedi; geri YARATILMAZ). */
+  async _kaydet(c, { olustur = false } = {}) {
     if (!c.eklenme) c.eklenme = Date.now();
-    await this.depo.yaz(c);
+    return this.depo.yaz(c, { olustur });
+  }
+
+  /** Kayit bu sekmenin elinden gitti (silindi / yeniden eslestirildi): istemci onu birakir, sonraki istek yeniden cozer. */
+  _birak(c) {
+    if (this.cihaz === c || this.cihaz === null) {
+      this.cihaz = null;
+      this.durum = 'bilinmiyor';
+    }
   }
 
   /** ES5: bu istegin sayacini depoda ATOMIK ayir (istekten ONCE yazilir). Kayit gittiyse false. */
   async _sayacAyir(c) {
     const a = await this.depo.ayir(c, this.simdiMs());
-    if (!a) return false;
+    if (!a) { this._birak(c); return false; }
     c.sayac = a.s - 1;
     if (a.tanimiyor) {                    // baska sekme "kart tanimiyor" buldu: bu sekme de imzasiz yola
       c.tanimiyor = true;
@@ -351,7 +376,9 @@ export class EslesmeIstemcisi {
   }
 
   async _coz(taban) {
-    const y = await this._getir('/eslestir/bilgi', { cache: 'no-store', credentials: 'omit' });
+    const sure = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' && this.bilgiSureMs > 0
+      ? { signal: AbortSignal.timeout(this.bilgiSureMs) } : {};
+    const y = await this._getir('/eslestir/bilgi', { cache: 'no-store', credentials: 'omit', ...sure });
     this.bilgiKod = y.status;
     let b = null;
     if (y.status === 200) b = await y.json().catch(() => null);
@@ -383,7 +410,8 @@ export class EslesmeIstemcisi {
   async _tanimiyor(c, metin, sessiz) {
     c.tanimiyor = true;
     c.tanimiyorMesaj = String(metin || '').slice(0, 160);
-    await this._kaydet(c).catch(() => {});
+    const y = await this._kaydet(c).catch(() => undefined);
+    if (y === null) { this._birak(c); return; }    // EU22: kayit bu arada silindi — geri yazilmadi, bildirim yok
     if (this.cihaz === c) this.durum = 'tanimiyor';
     if (!sessiz) this.bildir({ durum: 'tanimiyor', ...ozet(c), mesaj: c.tanimiyorMesaj });
   }
@@ -400,11 +428,7 @@ export class EslesmeIstemcisi {
     const govde = sec.body === undefined || sec.body === null ? new Uint8Array(0) : sec.body;
     let son = null;
     for (let deneme = 0; deneme < 2; deneme++) {
-      if (!(await this._sayacAyir(c))) {          // kayit baska sekmede silinmis / yenilenmis: yeniden coz
-        this.durum = 'bilinmiyor';
-        this.cihaz = null;
-        return null;
-      }
+      if (!(await this._sayacAyir(c))) return null;    // kayit baska sekmede silinmis / yenilenmis (_birak): yeniden coz
       if (c.tanimiyor) return null;
       try {
         return await ac(c, '', yontem, y, argumanlar, govde, this._ortam(sec.signal || null));
@@ -441,7 +465,7 @@ export class EslesmeIstemcisi {
   /** ES3: parolali eslestirme (imza.js esles). Parola SAKLANMAZ; kisa parola aga cikmaz. */
   async esles(ad, parola) {
     this.sonRetry = null;
-    const c = await esles('', ad, parola, this._ortam());
+    const c = await esles('', ad, parola, this._ortam(null, { olustur: true }));
     this.cihaz = c;
     this.durum = 'hazir';
     this._taban = this.kartAdres('');
@@ -468,11 +492,13 @@ export class EslesmeIstemcisi {
 
   /**
    * ES7: "bu tarayiciyi unut" — ONCE kartta kendini sil, SONRA yerel kayit. Kart ulasilamazsa da
-   * yerel kayit silinir; sonuc kartin durumunu soyler: silindi | ulasilamadi | tanimiyordu | hata.
+   * yerel kayit silinir; sonuc kartin durumunu soyler: silindi | ulasilamadi | tanimiyordu | hata | yok.
+   * EU21: `yok` = bu sekmenin bildigi kayit artik depoda yok (baska sekmede silindi ya da YENIDEN
+   * eslestirildi): hicbir sey silinmez — yeni eslestirmenin kaydi bayat ekrandan silinmesin.
    */
   async unut() {
     const c = this.cihaz;
-    if (!c) return { kart: 'yok', n: null };
+    if (!c) return { kart: 'yok', n: null, kod: null };
     let kart = 'silindi';
     let kod = null;
     if (c.tanimiyor) {
@@ -480,11 +506,15 @@ export class EslesmeIstemcisi {
     } else {
       try {
         const y = await this._imzali('/cihaz/sil?n=' + c.n, { method: 'POST' }, { sessiz: true });
-        if (y === null) kart = 'tanimiyordu';
+        if (y === null) kart = c.tanimiyor ? 'tanimiyordu' : 'yok';
         else if (!y.ok && y.status !== 404) { kart = 'hata'; kod = y.status; }
       } catch (h) {
         kart = 'ulasilamadi';
       }
+    }
+    if (kart === 'yok') {
+      this._birak(c);
+      return { kart, n: c.n, kod };
     }
     await this.depo.sil(c.kimlik);
     this.cihaz = null;
@@ -501,6 +531,21 @@ export class EslesmeIstemcisi {
     const metin = y.ok ? '' : await y.text().catch(() => '');
     if (y.ok) await this.coz(true).catch(() => {});
     return { tamam: y.ok, mesaj: y.ok ? '' : `HTTP ${y.status} ${metin}`.trim(), unix };
+  }
+
+  /** EU26: bu tarayicida BASKA kart kimligine ait kayitlar (eski kart, NVS'i sifirlanan kart) — K disari verilmez. */
+  async yabancilar() {
+    const k = this.bilgi ? this.bilgi.kimlik : null;
+    const l = await this.depo.hepsi();
+    return l.filter((r) => r && r.kimlik !== k)
+      .map((r) => ({ kimlik: r.kimlik, n: r.n, ad: r.ad, eklenme: r.eklenme || 0 }));
+  }
+
+  /** EU26: baska kartin kaydini YALNIZ bu tarayicidan sil. Bu kartin kaydi bu yoldan silinmez ("unut": once kart). */
+  async yerelSil(kimlik) {
+    if (!kimlik || (this.bilgi && kimlik === this.bilgi.kimlik)) return false;
+    await this.depo.sil(kimlik);
+    return true;
   }
 }
 
@@ -532,7 +577,8 @@ export class ImzaliAkis extends EventTarget {
     this.basarisiz = 0;
     this._kapali = false;
     this._iptal = null;
-    this._ret = 0;
+    this._ret = 0;                 // EU17: AYNI acilisla ard arda 401 (yeni acilisli 401 SAYILMAZ)
+    this._acilisYeni = 0;          // ard arda yeni acilisli 401 (sinirli: kart her seferinde yeni acilis derse)
     this._dongu();
   }
 
@@ -545,7 +591,10 @@ export class ImzaliAkis extends EventTarget {
   _yay(tur, veri, id) {
     const e = olay(tur, veri, id);
     this.dispatchEvent(e);
-    if (tur === 'message' && typeof this.onmessage === 'function') this.onmessage(e);
+    /* EU19: EventSource gibi — isleyicinin istisnasi raporlanir, akisi KOPARMAZ */
+    if (tur === 'message' && typeof this.onmessage === 'function') {
+      try { this.onmessage(e); } catch (h) { if (typeof globalThis.reportError === 'function') globalThis.reportError(h); }
+    }
   }
 
   _hata() {
@@ -559,6 +608,7 @@ export class ImzaliAkis extends EventTarget {
     while (!this._kapali) {
       let y = null;
       try { y = await this._ac(); } catch (h) { y = null; }
+      if (y === null) this._ret = 0;                     // EU17: ag hatasi araya girdiyse 401'ler ard arda degil
       if (this._kapali) return;
       if (y === 'yeniden' && ++hemen <= 4) continue;     // yeni acilis / ES5: beklemeden (sinirli)
       hemen = 0;
@@ -579,6 +629,7 @@ export class ImzaliAkis extends EventTarget {
     let d;
     try { d = await this.ist.coz(); } catch (h) { return null; }
     if (this._kapali) return null;
+    if (this._iptal) this._iptal.abort();            // EU19: onceki baglanti kesin kapansin
     this._iptal = new AbortController();
     const sec = { cache: 'no-store', headers: { Accept: 'text/event-stream' }, signal: this._iptal.signal };
     if (d !== 'hazir') {
@@ -596,17 +647,22 @@ export class ImzaliAkis extends EventTarget {
     this.url = await akisUrl(c, '', this.ist._ortam());
     const y = await this.ist._getir(this.url, { ...sec, credentials: 'omit' });
     if (y.status !== 401) {
-      if (y.ok) this._ret = 0;
+      this._ret = 0;
+      this._acilisYeni = 0;
       return y;
     }
     const a = y.headers.get('X-Acilis');
-    this._ret++;
-    if (a && a !== c.acilis && this._ret <= 3) {
+    /* EU17: kart yeniden basladi (yeni acilis) -> acilis guncellenir, bu 401 ayni-acilis sayacina GIRMEZ;
+       boylece ardindan gelen tek ayni-acilisli 401 de ES5'in yeni sayacli denemesini alir */
+    if (a && a !== c.acilis && this._acilisYeni < 3) {
+      this._acilisYeni++;
+      this._ret = 0;
       c.acilis = a;
       await this.ist._kaydet(c);
       return 'yeniden';
     }
-    if (this._ret < 2) return 'yeniden';           // ES5: yeni sayacla tek yeniden deneme
+    this._acilisYeni = 0;
+    if (++this._ret < 2) return 'yeniden';         // ES5: yeni sayacla tek yeniden deneme
     this._ret = 0;
     await this.ist._tanimiyor(c, await y.text().catch(() => ''), false);
     return 'yeniden';
@@ -614,20 +670,31 @@ export class ImzaliAkis extends EventTarget {
 
   async _oku(y) {
     const okuyucu = y.body.getReader();
+    const iptal = this._iptal;
     const cozucu = new TextDecoder('utf-8');
     const sse = new SseCozucu();
     let ilk = true;
-    for (;;) {
-      const { value, done } = await okuyucu.read();
-      if (done || this._kapali) break;
-      if (ilk) {
-        ilk = false;
-        this.readyState = 1;
-        this.basarisiz = 0;
-        this.dispatchEvent(new Event('open'));
-        if (typeof this.onopen === 'function') this.onopen();
+    try {
+      for (;;) {
+        const { value, done } = await okuyucu.read();
+        if (done || this._kapali) break;
+        if (ilk) {
+          ilk = false;
+          this.readyState = 1;
+          this.dispatchEvent(new Event('open'));
+          if (typeof this.onopen === 'function') this.onopen();
+        }
+        for (const o of sse.ekle(cozucu.decode(value, { stream: true }))) {
+          /* EU20: bekleme sayacini GERCEK olay sifirlar (ilk bayt degil): kart 'dolu' / 'kopru' yazip kapatirsa
+             bekleme artmaya devam eder */
+          if (o.olay === 'message' || o.olay === 'kimlik') this.basarisiz = 0;
+          this._yay(o.olay, o.veri, o.id);
+        }
       }
-      for (const o of sse.ekle(cozucu.decode(value, { stream: true }))) this._yay(o.olay, o.veri, o.id);
+    } finally {
+      /* EU19: kopma / hata / bitis — eski baglanti bekleme BASLAMADAN kapanir (kartin akis yuvasini tutmasin) */
+      try { okuyucu.cancel().catch(() => {}); } catch (h) { /* zaten kapali */ }
+      if (iptal) iptal.abort();
     }
   }
 }
@@ -640,7 +707,7 @@ const SABLON = `
     <h2>{{ m.baslik }}</h2>
     <p class="ipucu">{{ m.aciklama }}</p>
     <div class="ay-ust">
-      <p class="ay-ozet" data-es-durum aria-live="polite">{{ durumYazi }}</p>
+      <p class="ay-ozet" data-es-durum tabindex="-1" aria-live="polite">{{ durumYazi }}</p>
       <button type="button" @click="yenile" :disabled="calisiyor" :aria-busy="calisiyor ? 'true' : 'false'">{{ m.yenile }}</button>
     </div>
     <dl class="ay-bilgi" v-if="bilgi" data-es-bilgi>
@@ -654,19 +721,21 @@ const SABLON = `
       <div class="alan">
         <label for="es-ad">{{ m.ad }}</label>
         <input id="es-ad" type="text" name="cihaz-adi" v-model="ad" autocomplete="off" autocapitalize="off" spellcheck="false"
-               maxlength="24" aria-describedby="es-ad-ipucu" required>
+               maxlength="24" :aria-invalid="retAlan === 'ad' ? 'true' : null"
+               :aria-describedby="retAlan === 'ad' ? 'es-ad-ipucu es-ret' : 'es-ad-ipucu'" required>
         <span class="ipucu" id="es-ad-ipucu">{{ m.adIpucu }}</span>
       </div>
       <div class="alan">
         <label for="es-parola">{{ m.parola }}</label>
         <input id="es-parola" ref="parola" type="password" name="parola" autocomplete="current-password"
-               aria-describedby="es-parola-ipucu" required>
+               :aria-invalid="retAlan === 'parola' ? 'true' : null"
+               :aria-describedby="retAlan === 'parola' ? 'es-parola-ipucu es-ret' : 'es-parola-ipucu'" required>
         <span class="ipucu" id="es-parola-ipucu">{{ m.parolaIpucu }}</span>
       </div>
       <button type="submit" class="birincil" data-es-eslestir :disabled="calisiyor" :aria-busy="calisiyor ? 'true' : 'false'">{{ calisiyor ? m.eslesiyor : m.eslestir }}</button>
     </form>
     <div class="ay-duyuru" aria-live="polite"><p v-if="sonuc" class="ipucu" data-es-sonuc>{{ sonuc }}</p></div>
-    <p v-if="ret" class="hata" role="alert" data-es-ret>{{ ret }}</p>
+    <p v-if="ret" id="es-ret" class="hata" role="alert" data-es-ret>{{ ret }}</p>
     <div v-if="cihaz" class="dugme-grup">
       <template v-if="unutOnay">
         <button type="button" class="tehlike" data-es-unut-eminim @click="unut">{{ m.unutEminim }}</button>
@@ -678,7 +747,7 @@ const SABLON = `
   </section>
 
   <section class="kart" v-if="hazir" data-ay-bolum="eslestirme">
-    <h2>{{ m.listeBaslik }}</h2>
+    <h2 id="es-liste-baslik" tabindex="-1">{{ m.listeBaslik }}</h2>
     <p v-if="listeHata" class="hata" role="alert" data-es-liste-hata>{{ listeHata }}</p>
     <div v-if="liste.length" class="ay-tablo-sarmal">
       <table class="ay-tablo" data-es-liste>
@@ -705,6 +774,23 @@ const SABLON = `
       </table>
     </div>
     <p v-if="kaldirOnay !== null" class="uyari" role="alert">{{ m.kaldirUyari }}</p>
+  </section>
+
+  <section class="kart" v-if="yabanci.length" data-ay-bolum="eslestirme" data-es-yabanci>
+    <h2 id="es-yabanci-baslik" tabindex="-1">{{ m.yabanciBaslik }}</h2>
+    <p class="ipucu">{{ m.yabanciAciklama }}</p>
+    <ul class="es-yabanci">
+      <li v-for="y in yabanci" :key="y.kimlik" :data-es-yabanci-kayit="y.kimlik">
+        <span class="ay-metin"><code>{{ y.kimlik }}</code> · {{ y.ad }} ({{ m.lN }} {{ y.n }})</span>
+        <span class="dugme-grup">
+          <template v-if="yabanciOnay === y.kimlik">
+            <button type="button" class="tehlike" :data-es-yabanci-eminim="y.kimlik" @click="yabanciSil(y.kimlik)">{{ m.silEminim }}</button>
+            <button type="button" @click="yabanciVazgec(y.kimlik)">{{ m.vazgec }}</button>
+          </template>
+          <button v-else type="button" :data-es-yabanci-sil="y.kimlik" @click="yabanciBasla(y.kimlik)">{{ m.yabanciSil }}</button>
+        </span>
+      </li>
+    </ul>
   </section>
 
   <section class="kart" data-ay-bolum="eslestirme">
@@ -751,7 +837,8 @@ export const EslestirmeEkrani = {
     return {
       ad: varsayilanAd(globalThis.navigator ? globalThis.navigator.userAgent : ''),
       durum: 'bilinmiyor', bilgi: null, bilgiKod: null, cihaz: null, agMesaj: '',
-      calisiyor: false, ret: '', sonuc: '', liste: [], listeHata: '', kaldirOnay: null, unutOnay: false,
+      calisiyor: false, ret: '', retAlan: null, sonuc: '', liste: [], listeHata: '', kaldirOnay: null, unutOnay: false,
+      yabanci: [], yabanciOnay: null,
     };
   },
   computed: {
@@ -774,7 +861,7 @@ export const EslestirmeEkrani = {
     },
   },
   watch: {
-    etkin(v) { if (v) this.yenile(); else { this.kaldirOnay = null; this.unutOnay = false; } },
+    etkin(v) { if (v) this.yenile(); else { this.kaldirOnay = null; this.unutOnay = false; this.yabanciOnay = null; } },
   },
   mounted() {
     if (this.etkin) this.yenile();
@@ -798,6 +885,7 @@ export const EslestirmeEkrani = {
     async yenile() {
       this.kaldirOnay = null;
       this.unutOnay = false;
+      this.yabanciOnay = null;
       if (this.uygunluk.neden) { this.durum = 'yok'; return; }
       let ist;
       try {
@@ -809,7 +897,38 @@ export const EslestirmeEkrani = {
         this.agMesaj = (h && h.message) || String(h);
         return;
       }
+      await this.yabanciYukle(ist);
       if (this.hazir) await this.listeYukle(ist);
+    },
+    /** EU26: bu tarayicida baska kart kimligine ait kayitlar (yalniz yerel silinebilir). */
+    async yabanciYukle(ist) {
+      try {
+        const i = ist || await this.istemciAl();
+        this.yabanci = typeof i.yabancilar === 'function' ? await i.yabancilar() : [];
+      } catch (h) {
+        this.yabanci = [];
+      }
+    },
+    yabanciBasla(k) {
+      this.yabanciOnay = k;
+      this._odakla('[data-es-yabanci-eminim="' + k + '"]');
+    },
+    yabanciVazgec(k) {
+      this.yabanciOnay = null;
+      this._odakla('[data-es-yabanci-sil="' + k + '"]');
+    },
+    /** EU26: ikinci asama — YALNIZ silahli satirin kaydi, YALNIZ bu tarayicidan. */
+    async yabanciSil(k) {
+      if (this.yabanciOnay !== k) return;
+      this.yabanciOnay = null;
+      try {
+        const ist = await this.istemciAl();
+        await ist.yerelSil(k);
+        await this.yabanciYukle(ist);
+      } catch (h) {
+        this.sonuc = ceviri('es.ret_diger', this.dil, { mesaj: (h && h.message) || String(h) });
+      }
+      this._odakla(this.yabanci.length ? '#es-yabanci-baslik' : '[data-es-durum]');
     },
     async listeYukle(ist) {
       this.listeHata = '';
@@ -828,10 +947,17 @@ export const EslestirmeEkrani = {
       const parola = alan ? alan.value : '';
       if (alan) alan.value = '';
       this.ret = '';
+      this.retAlan = null;
       this.sonuc = '';
-      if (!adGecerli(this.ad)) { this.ret = ceviri('es.ret_ad', this.dil); return; }
+      if (!adGecerli(this.ad)) {
+        this.ret = ceviri('es.ret_ad', this.dil);
+        this.retAlan = 'ad';
+        this._odakla('#es-ad');
+        return;
+      }
       if (utf8Kodla(parola).length < PAROLA_EN_AZ) {
         this.ret = ceviri('es.ret_kisa', this.dil, { en_az: PAROLA_EN_AZ });
+        this.retAlan = 'parola';
         this._odakla('#es-parola');
         return;
       }
@@ -843,10 +969,12 @@ export const EslestirmeEkrani = {
         this._al(ist);
         this.sonuc = ceviri(SONUC_METIN.eslesti, this.dil, { n: c.n });
         await this.listeYukle(ist);
+        this._odakla('[data-es-durum]');              // EU27: form kalkti — odak durum satirina
       } catch (h) {
         const r = retSebebi(h, { retry: ist ? ist.sonRetry : null });
         this.ret = ceviri(r.anahtar, this.dil, r.d);
-        this._odakla('#es-parola');
+        this.retAlan = r.anahtar === 'es.ret_ad' ? 'ad' : 'parola';
+        this._odakla(this.retAlan === 'ad' ? '#es-ad' : '#es-parola');
       }
       this.calisiyor = false;
     },
@@ -868,11 +996,13 @@ export const EslestirmeEkrani = {
         const r = await ist.unut();
         this._al(ist);
         this.liste = [];
-        this.sonuc = ceviri(UNUT_METIN[r.kart] || UNUT_METIN.silindi, this.dil, { n: r.n, kod: r.kod === null ? '?' : r.kod });
+        this.sonuc = ceviri(UNUT_METIN[r.kart] || UNUT_METIN.hata, this.dil, { n: r.n, kod: r.kod === null || r.kod === undefined ? '?' : r.kod });
+        if (r.kart === 'yok') await this.yenile();   // EU21: ekran bayatti — gercek durumu goster
       } catch (h) {
         this.ret = ceviri('es.ret_diger', this.dil, { mesaj: (h && h.message) || String(h) });
       }
       this.calisiyor = false;
+      this._odakla(!this.cihaz && this.bilgi ? '#es-ad' : '[data-es-durum]');   // EU27: tiklanan dugme DOM'dan kalkti
     },
     kaldirBasla(n) {
       this.kaldirOnay = n;
@@ -897,6 +1027,7 @@ export const EslestirmeEkrani = {
         this.sonuc = ceviri(SONUC_METIN.kaldirHata, this.dil, { n, mesaj: (h && h.message) || String(h) });
       }
       this.calisiyor = false;
+      this._odakla('#es-liste-baslik');              // EU27: "Eminim, kaldir" DOM'dan kalkti
     },
     /** ES8: yalniz dugmeyle (otomatik degil). */
     async saatAyarla() {

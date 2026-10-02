@@ -266,9 +266,11 @@ test("3H-2: eslestirmenin (app.js + ekran/eslesme.js) kullandigi HER es. anahtar
   assert.deepEqual(kullanilan.filter((a) => !(a in SOZLUK)), []);
   const aile = Object.keys(SOZLUK).filter((a) => /^es\./.test(a));
   assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup panelde kullanilmayan es. anahtari");
-  /* ES3: parola ag'a cikmaz ve kaydedilmez — kullaniciya iki dilde de SOYLENIR */
-  assert.match(SOZLUK["es.parola_ipucu"].tr, /kaydedilmez/);
-  assert.match(SOZLUK["es.parola_ipucu"].en, /not stored/);
+  /* ES3 + EU25: parola ag'a cikmaz ve PANEL saklamaz; tarayicinin kendi parola yoneticisi kaydetmeyi
+     onerebilir (autocomplete current-password) — kullaniciya iki dilde de DOGRU soylenir */
+  assert.match(SOZLUK["es.parola_ipucu"].tr, /Ağa gönderilmez[\s\S]*panel saklamaz[\s\S]*parola yöneticisi/);
+  assert.match(SOZLUK["es.parola_ipucu"].en, /Never sent[\s\S]*panel does not store it[\s\S]*password manager/);
+  assert.doesNotMatch(SOZLUK["es.aciklama"].tr, /hiçbir yere kaydedilmez/);
   /* ES9 / ES1: zorunluluk ve bildirim yalniz USB — komutlar metinde (Ez1 / Em1, Q) */
   assert.match(SOZLUK["es.guv_aciklama"].tr, /Ez1[\s\S]*Em1/);
   assert.match(SOZLUK["es.bildirim_aciklama"].en, /USB/);

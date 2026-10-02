@@ -59,7 +59,7 @@ JETON = "abc123"
 KULLANICI = "olcum"
 WEB_PAROLA = "sinama-parolasi-12"          # SAHTE kartin parolasi (sinama)
 YANLIS = "yanlis-parola-0000"
-API = ("/komut", "/kayit/", "/kal/liste", "/pil", "/skop.bin", "/kunye.json", "/akis", "/cihaz/", "/saat")
+API = ("/komut", "/kayit/", "/kal/liste", "/pil", "/skop.bin", "/kunye.json", "/akis", "/cihaz/", "/saat", "/durum")
 DUR = threading.Event()
 gecti = kaldi = 0
 
@@ -401,6 +401,16 @@ IDB_KAYIT_JS = """(async () => {
   return l.map(x => ({ ...x, K: x.K instanceof Uint8Array ? Array.from(x.K, b => b.toString(16).padStart(2, '0')).join('') : String(x.K) }));
 })()"""
 
+YABANCI_YAZ_JS = """(async () => {
+  const vt = await new Promise((c, r) => { const q = indexedDB.open('olcum-cihaz'); q.onsuccess = () => c(q.result); q.onerror = () => r(q.error); });
+  await new Promise((c, r) => { const t = vt.transaction('cihaz', 'readwrite');
+    t.objectStore('cihaz').put({ kimlik: 'fedcba9876543210', n: 1, K: new Uint8Array(32).fill(7), ad: 'eski kart', sayac: 0,
+      acilis: 'c'.repeat(32), eklenme: 1 });
+    t.oncomplete = c; t.onerror = () => r(t.error); });
+  vt.close();
+  return true;
+})()"""
+
 PAROLA_TARA_JS = """(async (p) => {
   const bul = []; const enc = new TextEncoder().encode(p);
   const icerir = (u) => { dis: for (let i = 0; i + enc.length <= u.length; i++) { for (let j = 0; j < enc.length; j++) if (u[i + j] !== enc[j]) continue dis; return true; } return false; };
@@ -545,6 +555,7 @@ def main() -> int:
                bool(d4) and len(kayit) == 1 and kayit[0]["kimlik"] == kart.kimlik and kayit[0]["n"] == 1
                and kayit[0]["K"] == kartK and len(kartK) == 64 and kayit[0]["acilis"] == kart.acilis,
                f"{d4[:60]} · {len(kayit)} kayit")
+            odak4 = bekle_js(t, "!!document.activeElement && document.activeElement.hasAttribute('data-es-durum')", 3)
             resim("2-eslesmis")
             es_ist = [r for r in istekler()[b3:] if r["yol"].startswith("/eslestir/")]
             tum = json.dumps([[r["url"], r["govde"].decode("utf-8", "replace")] for r in istekler()], ensure_ascii=False)
@@ -562,6 +573,7 @@ def main() -> int:
             while time.monotonic() < son and not akis_imzali:
                 akis_imzali = next((r for r in istekler()[b4:] if r["yol"] == "/akis" and r["imza"] and r["gecerli"]), None)
                 t.bekle(0.2)
+            ilk_imzali_t = min((r["t"] for r in istekler()[b4:] if r["imza"]), default=time.monotonic())
             b5 = sira()
             t.js(f"{UYG}.gonder('G?')")
             g5 = komut_bekle("G?", b5, 6, imza=True)
@@ -575,35 +587,29 @@ def main() -> int:
             t.js("location.hash = '#/ayar/gelismis'")
             bekle_js(t, "/·/.test((document.querySelector('[data-ay-panel]') || {}).textContent || '')", 10)
             t.bekle(0.5)
-            sonra = [r for r in istekler()[b4:] if api_mi(r) and not (r["yol"] == "/komut" and r["govde"] == b"p0")]
+            # P0-S/EU28: p0 ve /durum (kopru yoklamasi) KASITLI imzasiz — ama Authorization denetiminden ISTISNA DEGILLER
+            sonra = [r for r in istekler()[b4:] if api_mi(r)]
             yollar = sorted({r["yol"] for r in sonra})
-            imzasiz = [r["url"] for r in sonra if not r["imza"]]
+            imzasiz = [r["url"] for r in sonra if not r["imza"] and r["yol"] != "/durum" and not (r["yol"] == "/komut" and r["govde"] == b"p0")]
             gecersiz = [r["url"] for r in sonra if r["imza"] and not r["gecerli"] and r["kod"] != 401]
             kredili = [r["url"] for r in sonra if r["kred"]]
             ok("[!] ES4/ES6: eslesince akis IMZALI URL ile yeniden acildi (kart imza.py ile dogruladi) ve komut imzali gitti",
                bool(akis_imzali) and g5 is not None and g5["jeton"] is None, f"akis {bool(akis_imzali)} · G? {g5 is not None}")
             ok("[!] ES4: eslesmisken /komut /kayit/* /kal/liste /pil /skop.bin /kunye.json /akis /cihaz/* — HEPSI imzali ve gecerli;"
-               " hicbirinde Authorization (tarayicinin onbellekteki Basic-Auth'u) YOK",
+               " hicbirinde (p0 ve /durum dahil) Authorization (tarayicinin onbellekteki Basic-Auth'u) YOK",
                all(y in yollar for y in ("/akis", "/komut", "/kayit/liste", "/kayit/veri", "/kal/liste", "/pil", "/skop.bin", "/kunye.json", "/cihaz/liste"))
                and not imzasiz and not gecersiz and not kredili, f"{yollar} · imzasiz {imzasiz[:3]} · kredili {kredili[:3]}")
 
             # ── 6. EMNIYET-P0: eslesmisken de p0 imzasiz, tek istek ───────────────────────────
             b6 = sira()
+            t6 = time.monotonic()
             t.js(f"{UYG}.pilDurdurKomut()")
             p0 = komut_bekle("p0", b6, 5)
-            if p0 is None:                       # tani: gecikti mi, hic gitmedi mi
-                p0b = komut_bekle("p0", b6, 20)
-                with kart.k:
-                    acik = [(r["yol"], round(time.monotonic() - r["t"], 1)) for r in kart.istekler if r["kod"] is None]
-                print("   TANI p0 sonra:", p0b and round(p0b["t"] - kart.istekler[b6 - 1]["t"], 2) if b6 else None, "acik:", acik)
-                print("   TANI perf:", t.js("JSON.stringify(performance.getEntriesByType('resource').filter(e => /komut/.test(e.name)).slice(-3)"
-                                         ".map(e => [Math.round(e.startTime), Math.round(e.requestStart - e.startTime), Math.round(e.responseEnd - e.startTime)]))"))
-                print("   TANI son istekler:", [(r["yol"], r["kod"], round(time.monotonic() - r["t"], 1)) for r in kart.istekler[-12:]])
-                print("   TANI app:", t.js(f"(() => {{ const u = {UYG}; return [u.tasiyiciAdi, u.bagliTasiyici, u.bagli, u.hata, u.gunluk.slice(-4).map(g => g.metin)]; }})()"))
-                print("   TANI akis:", t.js(f"(() => {{ const a = {UYG}.akis; return a && [a.constructor.name, a.readyState, a.url]; }})()"))
             p0lar = [r for r in istekler()[b6:] if r["yol"] == "/komut"]
-            ok("[!] EMNIYET-P0: eslesmisken p0 IMZASIZ ve TEK istekle gitti (kart K11 geregi kabul etti)",
-               p0 is not None and not p0["imza"] and len(p0lar) == 1, str([(r['govde'], r['imza'], r['kod']) for r in p0lar]))
+            ok("[!] EMNIYET-P0: eslesmisken p0 IMZASIZ, TEK istekle ve <= 5 s icinde gitti (kart K11 geregi kabul etti);"
+               " tarayicinin onbellekteki Basic-Auth'unu TASIMADI (P0-S credentials 'omit')",
+               p0 is not None and not p0["imza"] and not p0["kred"] and len(p0lar) == 1,
+               f"{[(r['govde'], r['imza'], r['kred'], r['kod']) for r in p0lar]} · {round((p0['t'] - t6) if p0 else -1, 3)} s")
 
             # ── 7. kart kurallari (bagimsiz): tekrar reddi, bozuk govde reddi; panel sayaci tekrar etmedi ─
             ornek = next(r for r in istekler()[b5:] if r["yol"] == "/komut" and r["imza"] and r["gecerli"])
@@ -777,8 +783,8 @@ def main() -> int:
             b15b = sira()
             t.js(f"{UYG}.pilDurdurKomut()")
             p015 = komut_bekle("p0", b15b, 5)
-            ok("[!] EMNIYET-P0: kart tanimazken de p0 tek imzasiz istekle hemen gitti",
-               p015 is not None and not p015["imza"] and len([r for r in istekler()[b15b:] if r["yol"] == "/komut"]) == 1)
+            ok("[!] EMNIYET-P0: kart tanimazken de p0 tek imzasiz istekle hemen gitti; tarayici parolayi onbellege almisken bile Authorization YOK",
+               p015 is not None and not p015["imza"] and not p015["kred"] and len([r for r in istekler()[b15b:] if r["yol"] == "/komut"]) == 1)
 
             # ── 16. unut: tanimiyorken karta sormadan; sonra yeniden eslesip unut (kart siler); ulasilamazken ─
             t.js("location.hash = '#/ayar/eslestirme'")
@@ -799,6 +805,7 @@ def main() -> int:
             u2 = bekle_js(t, "/kart da sildi/.test((document.querySelector('[data-es-sonuc]') || {}).textContent || '')"
                              " && document.querySelector('[data-es-sonuc]').textContent", 8) or ""
             sil2 = [r for r in istekler()[b16b:] if r["yol"] == "/cihaz/sil"]
+            odak16 = bekle_js(t, "document.activeElement && document.activeElement.id === 'es-ad' && 'es-ad'", 3)
             esles_formu(WEB_PAROLA)
             bekle_js(t, "/Eşleşmiş: cihaz 1/.test((document.querySelector('[data-es-durum]') || {}).textContent || '')", 15)
             kart.sil_kopar = True
@@ -822,6 +829,26 @@ def main() -> int:
             ok("[!] ES4: unutulunca istekler yine BUGUNKU yoldan (imzasiz, jeton + Basic-Auth); uyari yok",
                g17 is not None and g17["kred"] and g17["jeton"] == JETON and not t.js("!!document.querySelector('[data-es-uyari]')"))
 
+            # ── 17b. EU26: baska kart kimligine ait kayit listelenir ve IKI ASAMADA yalniz bu tarayicidan silinir ─────
+            t.js(YABANCI_YAZ_JS)
+            t.js("location.hash = '#/ayar/eslestirme'")
+            bekle_js(t, "document.querySelector('[data-es-durum]') && document.querySelector('[data-es-durum]').offsetParent", 6)
+            t.js("[...document.querySelectorAll('[data-ay-bolum=eslestirme] button')].find(b => b.textContent.trim() === 'Yenile').click()")
+            yb = bekle_js(t, "(() => { const r = document.querySelector('[data-es-yabanci-kayit=\"fedcba9876543210\"]');"
+                             " return r && r.textContent.replace(/\\s+/g, ' ').trim(); })()", 8) or ""
+            b17 = sira()
+            tikla_cdp(t, "[data-es-yabanci-sil='fedcba9876543210']")
+            silahli17 = bekle_js(t, "document.activeElement && document.activeElement.getAttribute('data-es-yabanci-eminim') === 'fedcba9876543210'", 4)
+            tikla_cdp(t, "[data-es-yabanci-eminim='fedcba9876543210']")
+            gitti = bekle_js(t, "!document.querySelector('[data-es-yabanci]')", 6)
+            kalan17 = [k for k in (t.js(IDB_KAYIT_JS) or []) if k.get("kimlik") == "fedcba9876543210"]
+            ok("[!] EU26: baska kart kimligine ait kayit Eslestirme'de listelendi (kimlik + ad); silme IKI ASAMALI (odak 'Eminim'de),"
+               " yalniz bu tarayicidan silindi (karta istek YOK), bolum kalkti",
+               "fedcba9876543210" in yb and "eski kart" in yb and bool(silahli17) and bool(gitti) and not kalan17
+               and not [r for r in istekler()[b17:] if r["yol"].startswith("/cihaz/")], yb[:80])
+            ok("[!] EU27/WIG: gercek tarayicida odak kaybolmuyor — eslesince durum satirinda, unutunca cihaz adi alaninda",
+               odak4 is True and odak16 == "es-ad", f"{odak4} · {odak16}")
+
             # ── 18. guvenlik + temizlik ───────────────────────────────────────────────────────
             tara2 = t.js(PAROLA_TARA_JS % json.dumps(WEB_PAROLA)) or {}
             ok("[!] ES3: uc eslestirme + unut sonrasi da parola HICBIR depoda yok (kayit kopyalari 'olcum-kayit' dahil butun IndexedDB), alan bos",
@@ -829,6 +856,10 @@ def main() -> int:
                and tara2.get("dom") is False, json.dumps(tara2, ensure_ascii=False)[:200])
             with kart.k:
                 govdeler = [r["govde"] for r in kart.istekler if r["yol"] == "/komut"]
+            durumlar = istekler(lambda r: r["yol"] == "/durum")
+            ok("[!] P0-S/EU28: /durum (kopru yoklamasi) eslesmeden once de sonra da tarayicinin onbellekteki Basic-Auth'unu TASIMADI",
+               len(durumlar) >= 2 and len([r for r in durumlar if r["t"] >= ilk_imzali_t]) >= 1 and not [r for r in durumlar if r["kred"]],
+               f"{len(durumlar)} /durum · kredili {len([r for r in durumlar if r['kred']])}")
             ok("[!] N? (AP parolasini basar) HIC gonderilmedi; Eslestirme karta hicbir E / Q komutu yollamadi",
                b"N?" not in govdeler and not any(g[:1] in (b"E", b"Q") for g in govdeler), f"{len(govdeler)} komut")
             beklenen = ("401", "403", "429", "503")
