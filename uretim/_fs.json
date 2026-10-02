@@ -9,7 +9,7 @@
     "ekran/ayarlar.js": "0ee5ca7352bd2cebc352648524e204923e306f675e62e2f3876e402314b4f20d",
     "ekran/canli.js": "320be3cb32a667c18e5f047f296133d5a5c57a2451b6b9bb12d783cd44eea4db",
     "ekran/depo_idb.js": "4b063437f8ba293bb083c7772aa3ea9307c6053e780ba34f96a94e1429f7bc8d",
-    "ekran/esitleme.js": "d9bc70d52c13ee16b48fc5e67f6f36d2a000c63ab5e6d5076ed3d7c1d78433ec",
+    "ekran/esitleme.js": "83deb835479e2aaa54494101317b03900c69fb65e4a67a69a5bc57ebb191a6cc",
     "ekran/karsilastir.js": "0e018d8c33641d889553dfda058574cbfbbbb313052d488bb94bfe580f328044",
     "ekran/kayit_gorunum.js": "2b700066e718fd91673c1980b1d86aa6942c07b31866ec0b1b528442f9b10873",
     "ekran/kayitlar.js": "03a626a73e565715b67ff6fcbec60122472fb1eee1dc8c3098877ade330a84b4",
@@ -30,7 +30,7 @@
     "ortak/sozluk.js": "61918ec85fec00358731642259fa6a2a1600771f7fa777341992663019b39bdb",
     "ortak/zarf.js": "bd91be6fade85e82be49b8cdbccf447e4997c7949c561eff5559830fbe5f67c4"
   },
-  "panel_surum": "ded54993d996",
+  "panel_surum": "521786badf89",
   "gz": [
     "index.html",
     "app.js",
@@ -64,7 +64,7 @@
   ],
   "ofset": "0x310000",
   "bolum_boyut": 1572864,
-  "icerik_bayt": 362579,
+  "icerik_bayt": 362748,
   "bayt": {
     "index.html": 25115,
     "app.js": 73528,
@@ -75,7 +75,7 @@
     "ekran/ayarlar.js": 9543,
     "ekran/canli.js": 4067,
     "ekran/depo_idb.js": 4489,
-    "ekran/esitleme.js": 4455,
+    "ekran/esitleme.js": 4624,
     "ekran/karsilastir.js": 11852,
     "ekran/kayit_gorunum.js": 12290,
     "ekran/kayitlar.js": 11195,

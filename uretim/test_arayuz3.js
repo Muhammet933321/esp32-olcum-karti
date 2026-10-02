@@ -2775,6 +2775,44 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
     });
   }
   {
+    /* Gercek kartta (2026-10-02, 3G sinamasi) eşitleme sonunda /kal/liste bir kez TimeoutError
+       aldi; Esitleyici bunu kalibrasyon_hata'ya cevirip "tamam" dondugu icin ust katmanin
+       agYenidenDene'si hic devreye girmiyordu ("Kalibrasyon geçmişi alınamadı"). /kal/liste
+       cekimi ag hatasinda artan beklemeyle yeniden denenir; /kayit/veri'ninki DENENMEZ (ust
+       katman eşitlemeyi kaldigi yerden yeniden kuruyor — iki kat yeniden deneme bekleme sisirir). */
+    SONRA.push(async () => {
+      const eskiFetch = globalThis.fetch;
+      const bekleyenler = [];
+      const cagri = [];
+      let kalHata = 2;
+      globalThis.fetch = async (url) => {
+        cagri.push(url);
+        if (url.startsWith('/kal/liste')) {
+          if (kalHata-- > 0) { const h = new Error('signal timed out'); h.name = 'TimeoutError'; throw h; }
+          return new Response('{"kayitlar":[]}', { status: 200 });
+        }
+        throw new TypeError('Failed to fetch');
+      };
+      try {
+        const den = new ES.EsitlemeDenetcisi({ kartAdres: (y) => y,
+          bekle: (ms) => { bekleyenler.push(ms); return Promise.resolve(); } });
+        let y = null;
+        try { y = await den._istek('/kal/liste', []); } catch (h) { y = { status: `${h.name}: ${h.message}` }; }
+        const kalCagri = cagri.splice(0).length;
+        const kalBekle = bekleyenler.splice(0);
+        let veriHata = null;
+        try { await den._istek('/kayit/veri', [['sira', 5]]); } catch (h) { veriHata = h; }
+        const veriCagri = cagri.splice(0).length;
+        ok('[!] /kal/liste ag hatasinda (TimeoutError) artan beklemeyle yeniden denenir; /kayit/veri denenmez',
+           y && y.status === 200 && kalCagri === 3 && kalBekle.join() === `${ES.AG_BEKLE_MS},${2 * ES.AG_BEKLE_MS}`
+           && veriHata instanceof TypeError && veriCagri === 1 && bekleyenler.length === 0,
+           JSON.stringify({ durum: y && y.status, kalCagri, kalBekle, veriCagri, bekleme: bekleyenler }));
+      } finally {
+        globalThis.fetch = eskiFetch;
+      }
+    });
+  }
+  {
     const giden = [];
     const gonder = (m) => { giden.push(m); return Promise.resolve(); };
     const yok1 = ES.onayIslevi({ arsiv: false, bagli: true, gonder });
