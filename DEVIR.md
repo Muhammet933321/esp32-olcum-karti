@@ -9397,6 +9397,41 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.76 🟢 ALT PROJE 3 — 3A GÖRÜNÜMLER + MODÜL ALTYAPISI, 3B GRAFİK ÇEKİRDEĞİ (dal `3-panel`, 2026-10-02)
+
+Görsel yön kullanıcının devriyle seçildi ("ben karar veremedim, sen karar ver"), sonra kullanıcı
+birden çok tasarım arasında geçiş istedi → **tek düzen + üç görünüm** (P1; spec
+`tasarim/2026-10-02-alt-proje-3-panel.md` P1–P7, 3C için C1–C8). Hedef: "sen uygun gördüğün gibi hallet".
+
+**3B — `ortak/src/grafik.js`** (bağımlılıksız kanvas; uPlot yerine, P3): çok kanallı çizgi, Ö1 özet
+piramidi (`ozet.js`) ile her yakınlaştırmada sıçrama korunur (sütun uçları çizim planında), boşluk
+kesik (ham + özet kipte), tekerlek odağı imleçte sabit, sürükleme/iki parmak, gezgin şeridi, iki imleç
++ `imlecOkuma` (istatistik HAM veriden, mAh/Wh boşluğun üstünden integre edilmez — D4). Çizim planı
+saf işlev (`cizimPlani`) → Node'da sahte bağlamla sınanıyor (B73, 28 test). Renkler her çizimde CSS
+belirteçlerinden okunur (önbellek yok → görünüm değişince eski renk kalmaz).
+
+**3A — görünümler + ES modülleri:** `arayuz3/ekran/tema.js` (Sistem/Koyu/Açık/Ön panel; tarayıcıda
+hatırlanır; Sistem işletim sistemini canlı izler; `<head>` betiği ilk boyamada aynı kuralı uygular —
+sıçrama yok). `style.css`: üç görünüm AYNI belirteç kümesini tanımlar (B7 eksik belirteci kırmızı
+yapar); `prefers-color-scheme` CSS'ten çıktı (kural tek yerde). Ön panel alarm rengi maketteki
+#c2361f metin olarak 2.99:1'di → aynı ton #f05a3c (4.85:1). `app.js` artık ES modülü; `file://`
+kutusu sebebini ve çaresini yazıyor. Karta `/ekran/*.js` ve `/ortak/*.js` gzip'li yazılır
+(`arayuz-uret.py` dizinden okur); köprü ve `sunucu.py` `/ortak/`'u `text/javascript` ile, yol geçişi
+olmadan sunar. **Bütçe (P5):** görüntü gzip 214 KB / 600 KB. Kart çekirdeği 3.3.11 `.js`'yi zaten
+`application/javascript` + gzip veriyor — firmware değişmedi. B7 önceden app.js'i gevşek kipte
+koşuyordu; artık modül gibi (strict, gerçek import çözümü).
+
+**Sayılar:** B7 346 → 382, B22b 102 → 109, B22a 59 → 65, B73 → 23 koşul (grafik dahil); başsız Edge
+`tarayici_tema.py` 16/16 (üç görünüm + telefon genişliği + konsol hatası yok). Zincir 21 adım yeşil,
+kilit 3681. **Mutasyon:** 3A 42/42 (T3A başsız tarayıcı adımı, AGIR'da), 3B 12/12; 3 eski girdi
+(`--amper`/`--cok-soluk` girintisi, klasik `<script src=app.js>`) yenisiyle değişti.
+
+⚠ **Karta yüklenmedi:** 2026-10-02 öğlen kart ne USB'de (COM portu yok) ne ağdaydı. Tezgah kalemi
+#71 ("3A: panel karttan ES modülü olarak açılıyor mu") bekliyor: tam yedek → `arayuz-uret.py &&
+arayuz-yaz.py` → konsol 0 hata, `/ekran/tema.js` MIME + gzip, `K` satırında yeni blokaj yok.
+⚠ `tarayici.py`'nin `kapat()`'ı yalnız başlatıcıyı öldürüyor; başsız Edge süreçleri kalabiliyor
+(9333'teki eskiler). Yeni testler kendi açtıklarını ağacıyla kapatıyor.
+
 #### 5.12.75 🟢 ALT PROJE 2 — `ortak/` (2A–2F) + 1F SKOP ÖLÇÜM DÜZELTMELERİ (dal `2-ortak`, 2026-10-02 gecesi)
 
 Kullanıcı yatarken "sıradaki adıma geç, soru sorma, en mantıklısına karar ver" dedi. Spec

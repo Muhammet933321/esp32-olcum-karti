@@ -43,6 +43,7 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 | T7 | Tezgahta "plan sürerken `Gd` + `Gb`" (elle kayıt plan bitişini geçmeli) ve "DOLU'da oturumsuz pil testi + plan" durumları yok | Kaynak iddiası var, kart senaryosu yok | 1C-4 [inceleme M6] |
 | T8 | Tezgah `--skop`, `Gb` sürerken günlüğü ve aynı oturumda yeniden `Gt`'yi kartta sınamıyor (PC tarafı B29'da) | — | 1C-3 |
 | T9 | B10 (kayan nokta FMA) gerçek ESP32 derleyicisiyle tekrarlanmadı | Etkisi örnek başına ≤ 1 µW; PC kartın toplamını okuyor → kabul edildi | 1A-1/1A-2 |
+| T10 | 3A paneli (ES modülleri, `/ekran/`, `/ortak/`, üç görünüm) karta YÜKLENMEDİ; tezgah kalemi #71 | 2026-10-02 öğlen kart ne USB'de ne ağdaydı. Tam yedek → `arayuz-uret.py && arayuz-yaz.py` | 3A |
 
 ## Sonraki alt projelere devredilenler
 
