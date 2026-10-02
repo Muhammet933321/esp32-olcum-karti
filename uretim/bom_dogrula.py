@@ -104,7 +104,8 @@ ESLEME = {
     #   ters polariteyi TVS ile korunamaz dedi). Semadaki J6 sembolu hala
     #   KLEMENS; eslemesi 2026-09-15'e kadar bariyer klemense bakiyordu.
     "24V girisi": ("XT30 Lipo Pil Konnektör Takımı", "Konnektör",
-                   "CON058 — B48: 24 V girisi XT30 (kodlu)"),
+                   "CON058 — B48: 24 V girisi XT30 (kodlu); tezgah icin. Kutuda (B58) "
+                   "kullanilmiyor: teller ic klemense, 24 V kutunun kendi pilinden"),
     "Yuk donusu": ("2 Pin Bariyer Klemens", "Konnektör", "ayni stok"),
     "Pil testi yuk donusu": ("2 Pin Bariyer Klemens", "Konnektör",
                              "B21. J3'ten AYRI olmali: J3 dogrudan sonte gider, "

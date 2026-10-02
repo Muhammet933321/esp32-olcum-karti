@@ -72,8 +72,8 @@ AGIR = {"B3", "B23", "T3A", "T3C", "T3D", "T3E", "T3F", "T3G", "T3H", "T3H2", "T
 
 MUTASYONLAR = [
     # ── B50 · kutu / panel plani (kutu.py) — B50g'de yeniden yazildi
-    ("B50", "kutu.py", "uretim/kutu_veri.py", '"tip": "jak", "x": 187.0, "z": 63.0',
-     '"tip": "jak", "x": 170.0, "z": 63.0',
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"tip": "jak", "x": 179.0, "z": 81.0',
+     '"tip": "jak", "x": 161.0, "z": 81.0',
      "HV jaki komsusuna yaklasirsa kacak yolu (IEC takviyeli 12.6 mm) iddiasi "
      "kirmiziya donmeli"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
@@ -97,7 +97,7 @@ MUTASYONLAR = [
      "cubugun yuvarlak uclari unutulursa (duz bolum = tam boy) kesim iddiasi "
      "kirmizi olmali — parcalar yuvarlak bolgeye tasar"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '"nasil": "Bacakları (5 mΩ\'da 11 mm aralık — 10.16\'ya hafif bük) <b>XP128 10 mm klemense</b> "',
+     '"nasil": "Bacakları (veri sayfası: 10 mm aralık — önce bükmeden dene) <b>XP128 10 mm klemense</b> "',
      '"nasil": "Bacakları tabana sıcak silikonla yapıştırılır <b>XP128 10 mm klemense</b> "',
      "bir ic parca YAPISTIRILARAK tutturulursa sokulebilirlik iddiasi kirmizi "
      "olmali (kullanici ileride baska kaba gececek)"),
@@ -115,12 +115,12 @@ MUTASYONLAR = [
      '"kapak_civata_y": (45.0, 117.0),', '"kapak_civata_y": (10.0, 117.0),',
      "kapak civatasi direge/rayin disina kayarsa ray ve ic kat cubugu iddialari kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '"tip": "jak", "x": 69.0, "z": 9.0', '"tip": "jak", "x": 45.0, "z": 9.0',
+     '"tip": "jak", "x": 71.0, "z": 9.0', '"tip": "jak", "x": 47.0, "z": 9.0',
      "iki jak yaklasirsa (36 -> 12 mm) fis araligi ve ic kat cubuklari ust uste "
      "binme iddialari kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '"renk": "kirmizi",\n     "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),\n     "etiket": "V"',
-     '"renk": "siyah",\n     "parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),\n     "etiket": "V"',
+     '"renk": "kirmizi",\n     "parca": ("4mm Born Jak Şeffaf Kırmızı (Büyük Boy)", "Konnektör"),\n     "etiket": "V"',
+     '"renk": "siyah",\n     "parca": ("4mm Born Jak Şeffaf Kırmızı (Büyük Boy)", "Konnektör"),\n     "etiket": "V"',
      "V jakinin rengi stok kaydiyla celisirse (siyah jak, kirmizi kayit) renk iddiasi kirmizi"),
     ("B50", "kutu.py", "uretim/yerlesim3_veri.py",
      '"T_SP":     ("A", "TEL", 2, 24, 180, 3, "/YUK_EKSI"),',
@@ -140,11 +140,11 @@ MUTASYONLAR = [
      "T sigortanin erime I2t'si 10 kat dusuk olsaydi darbe payi 3x'in altina iner: iddia kirmizi "
      "(veri sayfasi sayisi degisirse karar yeniden verilir)"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     "F tipi → <b>T (gecikmeli) 50 mA cam</b> al", "F tipi → <b>50 mA cam</b> al",
+     "İleride <b>T (gecikmeli) 50 mA cam</b>", "İleride <b>50 mA cam</b>",
      "10.1 metni 'gecikmeli' demeyi birakirsa kullanici yine F alir: iddia kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '{"ad": "50 mA T (gecikmeli) 5×20 cam sigorta, markalı", "stok": None,',
-     '{"ad": "50 mA T (gecikmeli) 5×20 cam sigorta, markalı", "stok": ("50mA 5x20mm Cam Sigorta", "Sigorta"),',
+     'cam sigorta, markalı — İSTEĞE BAĞLI, sonraki plan", "stok": None,',
+     'cam sigorta, markalı — İSTEĞE BAĞLI, sonraki plan", "stok": ("50mA 5x20mm Cam Sigorta", "Sigorta"),',
      "T sigorta stoktaki F ile eslestirilirse 'alinacak' listesinden duser: iddia kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      '"not": "Bir tanesini ölç: gerçek 50 mA telin soğuk direnci', '"not": "Yenisini al. Bir tanesini ölç: gerçek 50 mA telin soğuk direnci',
@@ -153,20 +153,23 @@ MUTASYONLAR = [
     # B52 pil blogu — toprak tuzagi ve yerlesim
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      '("MT1.OUT-", "ESP32.GND", "sinyal",', '("MT2.OUT-", "ESP32.GND", "sinyal",',
-     "hucre 2'nin eksisi (=-12 rayi) ESP32 GND'ye baglanirsa -12 GND'ye kisa olur: graf iddiasi kirmizi "
-     "(kart GND = 24V- + 12 V; sessiz ariza)"),
+     "MT2'nin eksisi (=-12 rayi) ESP32 GND'ye baglanirsa -12 GND'ye kisa olur (B58: B0505S'in "
+     "yalitimi atlanmis olur): graf iddiasi kirmizi (sessiz ariza)"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     'PIL_SECICI = {"PİL": [("SWP2.P1", "SWP2.A1"), ("SWP2.P2", "SWP2.A2")],',
-     'PIL_SECICI = {"PİL": [("SWP2.P1", "SWP2.A1"), ("SWP2.P2", "SWP2.A2"), ("SWP2.P2", "SWP2.B2")],',
-     "secici tek kutuplu olsaydi (eksiler ortak) PIL konumunda XT30 eksisi -12'ye baglanir: iddia kirmizi"),
+     '("IZ.OUT-", "MT2.IN-", "besleme",', '("MT1.OUT-", "MT2.IN-", "besleme",',
+     "B58: MT2'nin eksisi yalitilmis 0V yerine 5 V barasinin eksisine baglanirsa (B0505S atlanir, "
+     "MT3608 yalitimsiz) -12 rayi kart GND'ye kisa olur ve TEK sarj girisinin kosulu duser: "
+     "'-12 rayi kart GND'den AYRI' ve 'kopru yok' kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      '"duvar": "arka", "x": 92.0, "z": 36.0,', '"duvar": "arka", "x": 92.0, "z": 32.0,',
      "yuva ESP32'nin ustune 6 mm'den yakin inerse 3B pay iddiasi kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     "PC'deyken seçici PİL'e ALINMAZ (hücre 2 eksisi = −12 rayı).", "PC'deyken seçici PİL'e alınabilir (hücre 2 eksisi = −12 rayı).",
-     "kullanim tablosu sarj kuralini kaybederse iddia kirmizi"),
+     '"USB\'siz kullanımda kutu tamamen yüzer: HV ölçümü için en güvenli hal. <b>Şarj:</b> PİL KAPALI, "',
+     '"USB\'siz kullanımda kutu tamamen yüzer: HV ölçümü için en güvenli hal. <b>Şarj:</b> PİL açıkken de olur, "',
+     "kullanim tablosunun sarj yordami PIL'i kapatmayi unutursa (TP4056 yuk altinda sarji "
+     "bitiremez) iddia kirmizi — kural iki satirda gectigi icin olcut YORDAM satirinda"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '("TP1.OUT+", "SWP1.1", "pil", "korumalı çıkış (B+ değil!)"),', '("TP1.B+", "SWP1.1", "pil", "korumalı çıkış (B+ değil!)"),',
+     '("TP1.OUT+", "SWP1.1", "pil",', '("TP1.B+", "SWP1.1", "pil",',
      "yuk TP4056'nin B+ ucundan alinirsa koruma devre disi kalir: SWP1 zinciri iddiasi kirmizi"),
     ("B50", "kutu.py", "uretim/kutu.py",
      'ekle(k1, "Taban rayı — kısa parça", D * TABAN_EK[0], 2, "2.2")', 'ekle(k1, "Taban rayı — kısa parça", D * TABAN_EK[0], 2, "2.9")',
@@ -184,23 +187,1089 @@ MUTASYONLAR = [
      "15 mOhm sontun teli olculen 1 mm yerine 2 mm sanilirsa isil sinir 9.5 A'e cikar: '5 A'in altinda' "
      "iddiasi kirmizi — 2 W varsayimi (11.5 A) parcayi eritirdi (B53)"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     "    (\"TP2.OUT+\", \"SW.2a\", \"pil\", \"korumalı çıkış → AÇ/KAPA'nın 2. kutbu (hücre 2 kesme; B54)\"),\n"
-     "    (\"SW.2b\", \"MT2.IN+\", \"pil\", \"AÇ/KAPA kapalıyken MT2 hiç çekmez\"),",
-     "    (\"TP2.OUT+\", \"MT2.IN+\", \"pil\", \"korumalı çıkış\"),",
-     "hucre 2 dogrudan MT2'ye baglanirsa (kesme yok) bosta 1-4 mA pili haftalarda bitirir: iddia kirmizi"),
+     "    (\"MT1.OUT+\", \"F0.1\", \"besleme\", \"5 V barası → F0 (kutu içi sigorta, 1 A)\"),\n"
+     "    (\"F0.2\", \"IZ.IN+\", \"besleme\", \"F0 → B0505S Vin\"),",
+     "    (\"MT1.OUT+\", \"IZ.IN+\", \"besleme\", \"5 V barası → B0505S Vin\"),",
+     "B58: F0 yoldan cikarsa analog zincirindeki bir ariza paketi ve 5 V barasini sigortasiz "
+     "ceker: 'F0 5 V barasi ile B0505S arasinda' kirmizi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
-     "    (\"SWP2.P1\", \"F0.1\", \"besleme\", \"seçici ortak (kutup 1) → kutu sigortası F0 (1 A)\"),\n"
-     "    (\"F0.2\", \"SW.1\", \"besleme\", \"F0 → AÇ/KAPA (kutup 1)\"),",
-     "    (\"SWP2.P1\", \"SW.1\", \"besleme\", \"seçici ortak → AÇ/KAPA\"),",
-     "kutu sigortasi F0 yoldan cikarsa kutu ici kablolama 8.3 A'lik kaynaga ciplak kalir: iddia kirmizi"),
-    ("B50", "kutu.py", "uretim/kutu_veri.py",
-     '"en": 26.0, "boy": 63.0, "yuk": 28.0, "soket_x_ofset": 13.0,', '"en": 26.0, "boy": 63.0, "yuk": 14.0, "soket_x_ofset": 13.0,',
+     '"en": 27.5, "boy": 63.0, "yuk": 28.0, "olculdu": True, "soket_x_ofset": 13.0,', '"en": 26.0, "boy": 63.0, "yuk": 14.0, "soket_x_ofset": 13.0,',
      "ESP32 yuksekligi yine ciplak pin ucu (14) sanilirsa yuva dupont'larin ustune biner — ama iddia YESIL kalir: "
      "bu mutasyon 'dupont payi' iddiasinin OLMADIGINI gosterir; kutu.py'ye ESP32.yuk >= 26 iddiasi eklendi"),
     ("B50", "kutu.py", "uretim/kutu_veri.py",
      '("0.9", "İlk elektrik', '("0.99", "İlk elektrik',
      "on kosul yerlesim planinda olmayan bir alt adima isaret ederse iddia kirmizi "
      "(HTML'den degil yerlesim3_adim'dan olculur — kopyada BELGELER yok)"),
+    # B55 — kapak sirasi ve agirlik merkezi
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '{"no": "13.2", "baslik": "Kapağı dene — sonra ÇIKAR", "tur": "taban", "kapak": True,',
+     '{"no": "13.2", "baslik": "Kapağı yan duvarlardan cıvatala", "tur": "taban", "kapak": True, "kapanis": True,',
+     "KUSURUN KENDISI: kapak pil blogundan once kapanirsa (eski hali) 'kapandiktan sonra kutu icine "
+     "giren adim yok' kirmizi olmali — belge kapali kutunun icine parca takmayi soyluyordu"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"kapak": True, "kapanis": True,', '"kapak": True,',
+     "kapanis isareti hic kalmazsa 'kutunun kapandigi TEK alt adim isaretli' kirmizi — "
+     "kapak sirasi denetimi sessizce kapanmasin"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"Q1":    (32.0, 0.40,', '"Q1":    (150.0, 0.40,',
+     "sag arka kosedeki Q1 sogutucusu 150 g olsaydi (buyuk sogutucu) ray yuk payi kotu halde "
+     "%25'in altina duser: denge iddiasi kirmizi — agir bir parca tek yana konulamaz"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     "TABAN_RAY_X = (0.25, 0.75)", "TABAN_RAY_X = (0.45, 0.55)",
+     "taban raylari birbirine yaklasirsa destek acikligi daralir: devrilme acisi ve ray yuk payi "
+     "iddialari kirmizi — kutu yanlara sallanir"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"HÜCRE": (45.0, 0.10, "katalog: 18650 1500 mAh ≈ 45 g (yuvaya takılınca eklenir)"),',
+     '"HÜCRE": (45.0, 0.10, "18650"),',
+     "kutle satirinin kaynagi kaybolursa iddia kirmizi — tartilmamis bir sayinin nereden geldigi "
+     "yazili kalmali (hicbiri olculmedi)"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    "MT2":   (4.0, 0.30, "tahmin: MT3608 yükseltici modülü"),\n', "",
+     "kutlesi yazilmamis bir parca kalirsa 'MT2 icin kutle kaydi var' kirmizi — agirlik merkezi "
+     "eksik bir kutle setiyle sessizce hesaplanmasin"),
+    # B55c — kesim listesi <-> kutle modeli capraz denetimi
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'if k["grup"] in ("kutu", "kapak")', 'if k["bel"] == TAHTA_BEL',
+     "ahsap kalemleri belirsizlige gore suzulurse ESP32 de (bel 0.20) ahsap sayilir: "
+     "kesim listesi <-> kutle modeli hacim esitligi kirmizi (B55c'de bulunan kusurun kendisi)"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     '4 * k["kapak_somun_kat"], "13.1")', '4, "13.1")',
+     "kapak somun bloklari kesim listesine eksik girerse (12 yerine 4) iki modelin ahsap hacmi "
+     "ayrisir: capraz iddia kirmizi — parcanin biri listede biri kutlede olamaz"),
+    # B73: MT2 artik sicak silikonla (tutucu yok); eski "yanak cubugu kesilmezse" mutasyonunun
+    # hedefi kalkti -> tersi: yapistirilan parcaya tutucu geri eklenirse iki tutturma olur.
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"MT2": None,           # B73', '"MT2": {"ad": "yanak çubuğu", "adet": 2, "uzunluk": 17.0},  # B73',
+     "yapistirilan MT2'ye tutucu geri eklenirse 'Yapistirilan duvar parcasinin ikinci bir tutturmasi "
+     "yok' kirmizi (B73)"),
+    # B55d — dogrulama disiplini incelemesinin actigi bosluklar
+    ("B50", "kutu.py", "uretim/kutu.py",
+     "    for _ in range(50):", "    for _ in range(0):",
+     "KOTU HAL katmani devre disi kalirsa (_am_uc nominali dondurur) 24 denge iddiasinin hepsi "
+     "yesil kaliyordu: 'kotu halde de olculuyor' vaadi hicbir testin arkasinda durmuyordu"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '("MT1.OUT+", "ESP32.5V", "sinyal",', '("MT2.OUT+", "ESP32.5V", "sinyal",',
+     "24 V zinciri devkit'in 5V pinine baglanirsa ESP32 olur; graf denetimi yalnizca EKSI tarafi "
+     "koruyordu, bu tek harflik degisiklik 1643/1643 yesil geciyordu"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"baslik": "2. sıradan en üste", "tur": "duvar", "sira": 5,',
+     '"baslik": "2. sıradan en üste", "tur": "duvar", "sira": 4,',
+     "duvar adimi siralarin hepsini kapsamazsa (4.3 'sira':4 iken tasarim 5 sira) kullanici bir "
+     "sira eksik diker: kapak civatasi, YUVA2 ve ESP32 dupont payi coker"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"{h:.0f} mm; çubuğu ortadan bölmek bu boyu VERMEZ', '"{h:.0f} mm; yarım çubuk yeter',
+     "1.2 metni kesim listesindeki kaynakla celisirse kirmizi — B54'te duvar 4->5 sira olunca "
+     "metin 'yarim cubuktan' demeye devam etmis, 75 mm'lik yarim cubuktan 90 mm kestiriyordu"),
+    # B55d — mekanik/yapilabilirlik incelemesinin actigi bosluklar
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    "SWP1": "PİL — KTS102:', '    "SWPX": "PİL — KTS102:',
+     "monte edilen bir parcanin kural metni kaybolursa belgede 'Kural' hucresi BOS cikar "
+     "(B55d'de AÇ/KAPA'da boyle olmustu): 'kural metni var' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     '    return sorted({ref_panel[r] for r in vurgu if r in ref_panel}) or ["ön", "arka"]',
+     '    return [s.get("panel", "ön")]',
+     "delik adimi sabit bir panel cizerse 5.3 ARKA duvari cizerken kullanici ON panele bes parca "
+     "takiyor olur: 'cizim takilan ogelerin panellerini kapsiyor' iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '{"no": "4.1", "baslik": "1. sıra — ön ve arka", "tur": "duvar", "sira": 1,',
+     '{"no": "4.1", "baslik": "1. sıra — ön ve arka", "tur": "montaj", "sira": 1,',
+     "kutuya bir parca kapak civata deliklerinden ONCE girerse havyayla delerken yanik talas "
+     "lehimlenmis kart A'nin ustune doker: delme sirasi iddiasi kirmizi"),
+    # B55f — panel GUC LED'i
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"bagli": ("KL.+", "KART_GND"),', '"bagli": ("KL.-", "KART_GND"),',
+     "LED -12 rayina baglanirsa 79xx o yonde akim VEREMEZ (7812 degil 7912 secilme sebebi): "
+     "ray kayar, LED sonuk yanar ve kimse anlamaz"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "PANEL_LED_R = 10e3", "PANEL_LED_R = 100.0",
+     "seri direnc 100 ohm olsaydi LED 99 mA cekerdi: direnc gucu 1/4 W'i asar ve F1 (50 mA) atar"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "\"not\": \"PASİF: ESP32'ye bağlı DEĞİL", "\"not\": \"ESP32 GPIO10'dan sürülür",
+     "LED ESP32'ye baglanirsa ESP32 USB'deyken analog kapali olsa da 'hazir' gosterir: "
+     "yalan soyleyen gosterge, hic gostergesiz olmaktan kotu"),
+    # ── B55g · delik tablosu hayali delik uydurmasin + somun cebi metni veriden
+    # B73: "MT1 tutucusu None -> civatali sayilir" mutasyonu emekli: MT1 artik None + YAPISTIRMA_ISTISNA;
+    # ayni iddiayi (civatali <=> civata kaydi) B73'un "MT1 istisnadan duserse" mutasyonu isiriyor.
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'f"Duvara asılı parçalar — EK DELİK YOK ({\', \'.join(bag_ile)})", "—", "kablo bağı (SRF012)",',
+     '"Duvara asılı parçalar (yuva ×2, MT3608 ×2, TP4056 blokları ×2)", "Ø3.2, ikişer", "M3 cıvata dıştan",',
+     "B55c'nin duzelttigi kusurun delik tablosundaki ikizi geri gelirse (8 hayali delik) "
+     "'delik tablosu kablo bagli parcaya delik ATFETMIYOR' kirmizi olmali"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "<b>Cebin hemen altındaki kat</b> da Ø{m3_cap:.1f} delinir",
+     "Ayak bloğunun 3. katındaki Ø6 somun yuvası açılır",
+     "somun cebi capi metne ELLE yazilirsa (B55e oncesi hali) veriden sapar: "
+     "'somun cebinden soz eden her metin SOMUN_CEP capini yaziyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "basınç yolu kapanmasın. HV1'in karşı ucunda",
+     "basınç yolu kapanmasın. x 201.5 iç kat çubuğunun (196–214) ortası; HV1'in karşı ucunda",
+     "havalandirma konumu metne ELLE yazilirsa veriden sapabilir (B55e'de UC delikte birden "
+     "sapmisti): 'panel metinleri ic kat konumunu elle yazmiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"yap": ["Kapağı (13.1\'de yapıldı) yerine koy; 4.7\'de açılan dört delikten "',
+     '"yap": ["Kapağı (13.1\'de yapıldı) yerine koy; 13.2\'de açılan dört delikten "',
+     "delik atfi delmeyen bir adima giderse (16.2 -> 13.2 'Kapagi dene') kullanici delikleri "
+     "yanlis adimda arar: atif iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"kapak_civata_delen": {"duvar": "4.7", "ray": "13.1"},',
+     '"kapak_civata_delen": {"duvar": "4.7"},',
+     "rayi delen adim plandan dusurulurse 13.1 yine FIZIKSEL OLARAK YAPILAMAZ olur (civata "
+     "ekseni 2 mm'lik rayin govdesinden geciyor, orada delik yok): katman iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"kapak_civata_delen": {"duvar": "4.7", "ray": "13.1"},',
+     '"kapak_civata_delen": {"duvar": "4.7", "ray": "16.2"},',
+     "ray civatalar takilirken delinirse is sirasi bozulur (kapak takiliyken havya rayin "
+     "arkasina giremez): 'katman takmadan ONCE deliniyor' kirmizi"),
+    # ── B55g · CAL seri direnci (kullanici karari 2026-09-23: 1K -> 22K)
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "CAL_SERI_R = 22e3", "CAL_SERI_R = 1e3",
+     "eski 1K'ya donulurse yanlis delige giren krokodil +3V3 rayini 19 V'a cikarir "
+     "(iki ADS'in VDD'si orada) ve GPIO enjeksiyonu 34.7 mA olur: uc iddia birden kirmizi"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "CAL_SERI_R = 22e3", "CAL_SERI_R = 220e3",
+     "direnc 220K yapilsa koruma daha iyi olur ama CAL kare dalgasi 36 koda iner: "
+     "okunabilirlik iddiasi kirmizi — koruma ile olcum arasindaki takas iki yonde de olculuyor"),
+    # ── B55g · hucre 2 kolunun sigortasi (kullanici karari 2026-09-23)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '("H2+", "F2.1", "pil",', '("H2+", "TP1.B+", "pil",',
+     "sigorta kolun disina cikarsa hucre ucu / H+ kablosu kisasini hicbir sey kesemez "
+     "(FS8205 B-/OUT- arasinda, DW01A o yolu goremez): yapisal iddia kirmizi"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "PIL_KOL_SIGORTA = 2.0", "PIL_KOL_SIGORTA = 1.0",
+     "1 A sigorta sarj akiminin (1.0 A) TAM kendisi olur, pay 1.0x: IEC 60127-2'ye gore "
+     "1.5xIn'de bir saat icinde acmasi gerekiyor ve sarj ~2 saat suruyor -> atar. "
+     "'sarj ve desarj akiminin buyugunun 1.5 kati' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     "[(f\"<b>{E(m['ad'].format(**bicim_al))}</b>\", k,",
+     "[(f\"<b>{E(m['ad'])}</b>\", k,",
+     "bir metin alani bicimlenmezse yer tutucu HAM cikar (B55c'de {adim_uA}, bu turda "
+     "{pil_sigorta}): belge uretimindeki yer tutucu taramasi patlamali"),
+    # ── B55g · kart B'nin yonu (kullanici karari 2026-09-23: 270 derece)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"tasma": 2.15, "olculdu": True, "yuk": 16.0, "yon": 270,',
+     '"tasma": 2.15, "olculdu": True, "yuk": 16.0, "yon": 180,',
+     "yon 180'e alinirsa 617 V'luk dugum en yakin iletkene 30.2 yerine 19.2 mm kalir ve HV "
+     "kablosu 74 yerine 88 mm olur: iki eniyilik iddiasi birden kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "kartın <b>{yon_b}</b> kutunun o köşesine baksın",
+     "kartın HV telli kenarı öne baksın",
+     "yon metne ELLE yazilirsa veriden sapabilir (kare plaket dort turlu takiliyor, ayaklar "
+     "6.1'de yapistiriliyor = geri donulemez): 'yonu VERIDEN yaziyor' kirmizi"),
+    # ── B55g · kutu ici aciklik envanteri (denetimin en buyuk kor noktasiydi)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '{"ref": "RS", "ad": "5 mΩ Ø1.6 şönt (R042, 9.5 A) — 15 mΩ yedek", "x": 196.0, "y": 96.0',
+     '{"ref": "RS", "ad": "5 mΩ Ø1.6 şönt (R042, 9.5 A) — 15 mΩ yedek", "x": 190.0, "y": 96.0',
+     "sont 6 mm sola kayarsa kart B'nin ayagina yaklasir ve YENI bir dar cift dogar: "
+     "'6 mm'nin altindaki her cift DAR_ACIKLIK'te gerekceli' kirmizi — aciklik artik olculuyor"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    "B-ayak2|RS": "3.82 mm — şöntün gövdesi kart B\'nin ahşap ayağına yaklaşıyor. Manganin U "\n'
+     '                  "havada, altlığa değmiyor; ayak yalıtkan, sorun yok.",\n', "",
+     "gerekcesi silinen bir iletken tarafli dar cift kalirsa liste eksilir: envanter iddiasi "
+     "kirmizi — dar aciklik sessizce listeden dusemesin"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     "if d < K.KUTU[\"parca_payi\"]:", "if d < 0.0:",
+     "aciklik taramasi kapatilirsa envanter BOSALIR ve DAR_ACIKLIK'in 19 kaydi eskimis gorunur: "
+     "'eskimis kayit yok' kirmizi — tarama sessizce devre disi kalmasin"),
+    # ── B55h · yalitkan kaplama (kullanici karari: tirnak cilasi)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    {"ref": "B", "kapsam": "kart", "nerede": "Kart B\'nin İKİ YÜZÜ de — zincirin tamamı bu kartta",',
+     '    {"ref": "A", "kapsam": "kart", "nerede": "Kart A\'nın iki yüzü",',
+     "kaplama yanlis karta yazilirsa (zincir B'de, A'nin en yuksegi 63.5 V) 'zincirin "
+     "bulundugu kart kaplama listesinde' kirmizi — 617 V'luk kart kaplamasiz kalmasin"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"ne_zaman": "6.3\'ten ÖNCE (kart kutuya girmeden, elde kolay)"',
+     '"ne_zaman": "kart takildiktan ve kablolar baglandiktan sonra"',
+     "kaplama kart kutuya girdikten SONRAYA birakilirsa lehim yuzune el/firca ulasmaz: "
+     "sira iddiasi kirmizi"),
+    # ── B55i · delme rehberinin kapsami (kullanici Adim 3'e geliyor)
+    # Not: bu mutasyonun ILK hali yalniz yontem cumlesini siliyordu ve KACTI —
+    # ayni satirin sonundaki "Havalandirma delikleri (Ø5) istisna" ibaresi capi
+    # anmaya devam ediyordu. Iddia capin ANILMASINI olcuyor, yontem verilmesini
+    # degil; o yuzden mutasyon capi satirdan TAMAMEN kaldiriyor.
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"zımparayla çapa getir: <b>Ø5 için bıçak ucu ya da tornavida sapına sarılı zımpara</b> "\n'
+     '                "(havyanın açtığı ~3 mm\'den yalnız 2 mm büyük), Ø6 için kalem, Ø8 için kalın marker. "\n'
+     '                "Sık sık jakla dene: gövde sürtünerek geçmeli, boşluk kalmamalı (somun sıkınca jak "\n'
+     '                "dönmez). <b>Havalandırma delikleri (Ø5) istisna:</b> orada sıkı geçme aranmaz, delik "\n'
+     '                "açık olsun yeter — LED ise sıkı geçmeli, yoksa öne düşer."),',
+     '"zımparayla çapa getir: Ø6 için kalem, Ø8 için kalın marker."),',
+     "Ø5'in yontemi kalkarsa dort havalandirma deligi ve GUC LED'i tarifsiz kalir (Adim 3.2'de "
+     "deliniyor): 'her yuvarlak cap DELME rehberinde geciyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    ("En büyük delik (Ø{buyuk_cap:.0f}) — en dar et",\n', "",
+     "kutudaki EN BUYUK delik (F0'in Ø12'si, 18 mm cubukta 3.0 mm et) yontemsiz kalirsa "
+     "hem kapsam hem 'et sayiyla yaziyor' iddiasi kirmizi — kullanici matkapsiz"),
+    # ── B55j · olculen gercek boyutlar (kart A 115x115 / 35 mm yuksek / 18 mm ayak)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"Ayak bloğu: <b>{ayak_kat_a} parça çubuk üst üste = {ayak_yuk_a:.0f} mm</b>',
+     '"Ayak bloğu: <b>4 parça çubuk üst üste = 8 mm</b>',
+     "kat sayisi metne ELLE yazilirsa veriden sapar (kart A 4 -> 9 kata cikinca tam bu oldu): "
+     "'6.1 kat sayisini VERIDEN yaziyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"tasiyici": {"tip": "ayak", "adet": 4, "kat": 9, "adim": "6.1"},',
+     '"tasiyici": {"tip": "ayak", "adet": 4, "kat": 4, "adim": "6.1"},',
+     "ayak 8 mm'ye donerse kartin altindaki atlama telleri sigmaz; ayrica iki dar aciklik "
+     "kaydi (A bos kenar-MT1, A ayak4-F0) eskir: envanter iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"en": 115.0, "boy": 115.0, "yuk": 35.0, "olculdu": True,',
+     '"en": 115.0, "boy": 115.0, "yuk": 60.0, "olculdu": True,',
+     "kart A 60 mm olsaydi ayakla birlikte ustu 78 mm'ye cikar ve kapak rayinin (72) icine "
+     "girerdi: 'ayakla birlikte kapak rayinin altinda' kirmizi — kapak kapanmazdi"),
+    # ── B55k · hucre kolu sigortalari (500 mA ILK SARJDA ATIYORDU)
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "PIL_KOL_SIGORTA = 2.0", "PIL_KOL_SIGORTA = 0.5",
+     "500 mA'e donulurse sigorta SARJ akiminin (1.0 A, Rprog fabrika) yarisi kalir ve ilk "
+     "sarjda atar: 'sarj ve desarj akiminin buyugunun 1.5 kati' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '("H1+", "F1P.1", "pil",', '("H1+", "TP1.B+", "pil",',
+     "hucre 1 kolunun sigortasi kalkarsa o kol 42 A'lik kisa devreye tamamen acik kalir "
+     "(DW01A B-/OUT- arasinda, bu yolu goremez): 'H1+ once SIGORTAYA giriyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "TP4056_RPROG = 1.2e3", "TP4056_RPROG = 0.6e3",
+     "Rprog yarilanirsa sarj akimi 2 A olur (baska bir modul takilirsa gercek senaryo) ve "
+     "2 A sigortanin payi 1.0x'e duser: sigorta her sarjda atar -> iddia kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '<b>(1) şarj ederken ölçüm yapma</b>', '<b>(1) şarj ederken ölçüm yapabilirsin</b>',
+     "sarjda olcum kurali kalkarsa kutuya giren guc yaklasik iki katina cikar ve 18650'nin "
+     "45 °C sarj tavani sicak bir odada asilabilir: 'sarj ISIL kurali var' kirmizi"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "LIION_SARJ_TAVANI_C = 45.0", "LIION_SARJ_TAVANI_C = 70.0",
+     "sarj tavani desarj tavaninin (60) ustune cikarilirsa Li-ion'un sarj penceresinin DAR "
+     "oldugu gercegi kaybolur: 'sarj tavani desarj tavanindan dusuk' kirmizi"),
+    # ── B55l · yapistirici kurali (once iki adimlik BEYAZ LISTE idi)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     # B55n: eski desen ("Katlari japonla lamine et.") 6.1 yeniden yazilinca
+     # kalktı ve mutasyon SESSIZCE uygulanmiyordu — koşucu yakaladı.
+     '"④ Önce {cep_alt_kat}. + 3. + 2. katı japonla yapıştır',
+     '"④ Önce {cep_alt_kat}. + 3. + 2. katı epoksiyle yapıştır',
+     "adim metninde tabloda olmayan bir yapistirici gecerse ('epoksi') kullanici elinde "
+     "olmayan bir malzemeyi arar: 'her yapistirici tabloda TANIMLI' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"Soğutucunun kendisine değen yerler (Q1\'in tabı, kapı teli, mika pul)",',
+     '"Soğutucu çevresi (Q1 köşebendi, kapı teli)",',
+     "yasak satiri yeniden GENISLETILIRSE 6.6 ile celisir (kosebent tabana silikonla "
+     "yapistiriliyor ve isi hesabi bunu hakli cikariyor): 'yasak degen yerlerle sinirli' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"kapak_ray_payi": 0.5,', '"kapak_ray_payi": 0.0,',
+     "pay sifira donerse kapak takimi acikligin TAM kendisi kadar olur ve girmez "
+     "(cubuk toleransi +-0.3 mm ustune biner): 'gecme payi VAR' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"kapak_ray_payi": 0.5,', '"kapak_ray_payi": 0.2,',
+     "0.2 mm pay iki yan duvarin cubuk toleransini (2 x 0.3) karsilamaz: "
+     "'gecme payi toleransi karsiliyor' kirmizi — pay olcune degil TOLERANSA bagli"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"bolum": 2, "kanal": 9.0,', '"bolum": 1, "kanal": 0.0,',
+     "altlik yeniden BITISIK tam boy olursa kablo bagi altindan GECEMEZ (2 mm cubuga "
+     "yandan delik acilamaz) ve devkit hicbir sekilde tutturulamaz: kanal iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Kalın uçları ŞİMDİ hazırla (kutu boşken):</b> dört büyük jakın iç ucuna "',
+     '"Kalın uçları sonra bağlarsın: dört büyük jakın iç ucuna "',
+     "pigtail talimati kalkarsa kalin yuk kablolari kart A takiliyken 12 mm'lik kor "
+     "yarikta lehimlenmek zorunda kalir: 'kutu BOSKEN hazirlaniyor' kirmizi"),
+    # ── B55l · bugunku kararlar ADIM metinlerine girsin (tarama bulgusu)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "{\"no\": \"1.3\", \"baslik\": \"Kart A'yı {kart_a_en:.0f} × {kart_a_boy:.0f} mm'ye getir\", \"tur\": \"kesim\",",
+     "{\"no\": \"1.3\", \"baslik\": \"Kart A'yı hazırla\", \"tur\": \"montaj\",",
+     "kesim adimi 'kesim' turunden cikarilirsa kart A'yi plandaki olcuye getiren adim "
+     "kalmaz; kullanici 130x120 kartla 6.1'e gelir ve kart kutuya SIGMAZ: kesim iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"🛑 <b>Önce çubuk say.</b> Bu listenin kendisi <b>{kesim1_cubuk} çubuk</b> "',
+     '"Kesime basla. "',
+     "cubuk kapisi kalkarsa kullanici 50 cubukla 62 cubukluk listeyi kesmeye baslar ve "
+     "yarida kalir: 'adim bunu SOYLUYOR' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"tasiyici": {"tip": "altlik", "adet": 1, "uzunluk": 30.0, "bolum": 2, "kanal": 9.0, "adim": "6.6"},',
+     '"tasiyici": {"tip": "altlik", "adet": 1, "uzunluk": 30.0, "adim": "6.6"},',
+     "sont altligi yeniden tek parca olursa 6.6'nin istedigi kablo bagi altindan GECEMEZ "
+     "(ESP32 altligindaki kusurun ikizi): RS kanal iddiasi kirmizi"),
+    # ── B55l · bitirilebilirlik taramasinin tier-1 bulgulari
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    {"ref": "SARJ", "ad": "Şarj girişi — TP4056 Type-C (iki hücre birlikte)", "tip": "yuva",',
+     '    {"ref": "J6", "ad": "24 V girişi — XT30 kuyruğu", "tip": "kuyruk", "x": 152.0, "z": 60.0, '
+     '"delik_mm": 6.0, "metal_mm": 0.0, "derin_mm": 0.0, "renk": "sari", '
+     '"parca": ("XT30 Lipo Pil Konnektör Takımı", "Konnektör"), "etiket": "24 V", '
+     '"not": "dis besleme", "neden": "dis besleme geri geldi: kullanici istemiyor (B58) ve simetriyi bozar"},\n'
+     '    {"ref": "SARJ", "ad": "Şarj girişi — TP4056 Type-C (iki hücre birlikte)", "tip": "yuva",',
+     "B58 (kullanici: 'disaridan ekstra kaynak ile beslemek istemiyorum'): XT30 kuyrugu panele "
+     "geri eklenirse 'Dis besleme girisi yok' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"🛑 <b>Ölçtükten sonra PİL\'i KAPAT.</b> Sıradaki adım (11.1) soketlere entegre, ADS "',
+     '"Enerjiyi acik birakabilirsin. Sıradaki adım soketlere entegre, ADS "',
+     "enerji kesme talimati kalkarsa 11.1 CANLI karta dort DIP entegre, iki ADS modulu ve "
+     "10 telli J5 kablosu taktirir: 'enerjiyi KESEN talimat var' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"Kart C29 ↔ <b>şöntün RS.2 bacağı</b>: ötmeli (yıldız oraya lehimli). "',
+     '"Kart C29 ↔ COM jakı: ötmeli (yıldız = kart GND). "',
+     "kontrol teli HENUZ BAGLANMAMIS COM jakina bakarsa kullanici kesin OL okur ve "
+     "saglam lehimini sokmeye kalkar: 'COM JAKINA bakmiyor' kirmizi"),
+    # ── B55m · tier-2: yer, yontem, malzeme
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '{"ref": "F2", "ad": "Hücre 2 sigorta yuvası (5×20 PCB klipsli)", "duvar": "arka",',
+     '{"ref": "F2x", "ad": "Hücre 2 sigorta yuvası (5×20 PCB klipsli)", "duvar": "arka",',
+     "sigorta yuvasi kutudaki yer listesinden dusrulurse kablo listesinde var ama kutuda "
+     "yok olur (konum/cakisma/kutle/kesim gormez): 'her sigorta yuvasinin yeri var' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"⚠ <b>Havya KULLANMA:</b> cam elyaf erimez, reçine karbonlaşır ve karbon iletkendir. "',
+     '"Havyayla da açabilirsin. "',
+     "FR4 icin havya yasagi kalkarsa kullanici cam elyafi havyayla delmeye kalkar: recine "
+     "karbonlasir, KARBON ILETKEN ve kacak yolunu bozar: FR4 yontem iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"sık — kalaylı uç vida altında zamanla gevşer (gerekçe 5.2). ⚠ <b>Halka pabuç stokta YOK</b> "\n'
+     '                 "ve gerekmez; almak istersen 5.2\'deki gibi borusu lehimli pabuç.",',
+     '"sık — kalaylı uç vida altında zamanla gevşer. Jak tarafında halka pabuç kullan.",',
+     "adim stokta OLMAYAN halka pabucu kosulsuz isterse kullanici (artik soru soramiyor) "
+     "o adimda takilir: 'stokta olmayan parcayi kosulsuz istemiyor' kirmizi"),
+    # ── B55n · tamamlanabilirlik: her adim kendi kendine yetmeli
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"termometre koy, 2 saat sonra hücre gövdesine el sür. <b>Karar eşiği:</b> hücre gövdesi "',
+     '"termometre koy, 2 saat sonra hücre gövdesini ölç ve sayıyı bana söyle. Eşik: "',
+     "bir adim karari kullaniciya degil BANA birakirsa (kullanici artik soru "
+     "soramiyor) 'hicbir adim karari bana birakmiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>GÜÇ lambası (LED1):</b> 5 mm yeşil LED\'i ön duvarın üst sırasındaki Ø5 deliğe "',
+     '"Bu adimda LED ile ilgili yapilacak bir sey yok; kablolamasi 10.1\'de. "',
+     "bir adimin 'monte' listesindeki parcanin takilisi metinde anlatilmazsa "
+     "(LED1 haftalarca oyleydi) 'monte edilen her parca metinde geciyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Ray merkezleri: sol kenardan {ray1_x:.0f} mm ve {ray2_x:.0f} mm</b> "',
+     '"<b>Ray merkezleri: gozunle uclardan iceride</b> "',
+     "taban rayinin KONUMU metinden cikarsa (devrilme ve yuk payi hesabi o "
+     "konumu varsayiyor) 'ray konumunu mm yaziyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"delik": 4.5, "aralik": 12.0}', '"delik": 3.0, "aralik": 12.0}',
+     "kablo bagi deligi seridin genisliginden kucukse serit gecmez: "
+     "'delik seridi geciriyor' kirmizi"),
+    # B73: 10.2'nin "kablo bagi delikleri" maddesi kalkti (moduller sicak silikonla, cubuk yok) — emekli.
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Güç düğümü bariyer klemensi</b> (HB950, CON011) şönt bloğunun yanına: "\n'
+     '                 "XP128\'in her kutbundan bariyerin ilgili kutbuna <b>kısa kalın köprü</b> çek. "\n'
+     '                 "XP128\'de şönt bacağı + o tek köprüden başka bir şey olmayacak.",\n'
+     '                 "YÜK 1 jakının <b>kalın kablosu</b> (≥1.5 mm², 5.2\'de takıldı) → <b>bariyer kutup 1</b> "\n'
+     '                 "(= RS.1 düğümü); <b>bariyer kutup 2</b> (= RS.2 düğümü) → YÜK 2 jakının kalın kablosu. "',
+     '"YÜK 1 jakının <b>kalın kablosu</b> → klemensin RS.1 kutbu (şönt bacağıyla aynı vida); "\n'
+     '                 "klemensin RS.2 kutbu → YÜK 2 jakının kalın kablosu. "',
+     "kalin kablolar sont kutbuna geri tasinirsa (Ø2 manganin + damarli kablo "
+     "ayni kafeste) 'ayri DUGUM parcasi kuruyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    {"ref": "CAL", "ad": "CAL kare dalga',
+     '    {"ref": "SWX1", "ad": "x", "tip": "anahtar", "x": 35.0, "z": 45.0, "delik_mm": 6.0, '
+     '"metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri", "parca": ("KTS102 On/Off 3 Ayak Toggle Anahtar", '
+     '"Anahtar/Buton"), "etiket": "X1", "not": "x", "neden": "x" * 50},\n'
+     '    {"ref": "SWX2", "ad": "x", "tip": "anahtar", "x": 179.0, "z": 45.0, "delik_mm": 6.0, '
+     '"metal_mm": 12.0, "derin_mm": 15.0, "renk": "gri", "parca": ("KTS102 On/Off 3 Ayak Toggle Anahtar", '
+     '"Anahtar/Buton"), "etiket": "X2", "not": "x", "neden": "x" * 50},\n'
+     '    {"ref": "CAL", "ad": "CAL kare dalga',
+     "B58e: panele stoktakinden fazla KTS102 konursa (stokta 2) kurulum yarida kalir: "
+     "'her toggle tipinin adedi stoktakini asmiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Somunlu blokları KAPAK TEZGAHTAYKEN yapıştır — kutunun içinde değil.</b> "\n'
+     '                 "Rayları deldikten sonra <b>kapağı kaldır</b> ve ters çevirip masaya koy (raylar yukarı). "',
+     '"Kapak yerindeyken blokları rayın iç yüzüne yapıştır; sonra <b>kapağı kaldır</b>. "',
+     "somunlu blok kapali kutunun icinde yapistirilmaya kalkilirsa (oraya el "
+     "girmiyor) 'kapak blogu tezgahtayken yapistiriliyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Kapı 1 — Vref.</b> Multimetre kart GND\'ye referanslı: "\n'
+     '                 "① <b>TL431 katodu</b> = {tl431:.3f} V (±%2 → {tl431_alt:.3f}–{tl431_ust:.3f} V). "\n'
+     '                 "② <b>U3\'ün 1. bacağı (delik A:R8)</b> = {vref:.4f} V (±10 mV). "\n'
+     '                 "③ Aynı ölçümü bölücüler bağlıyken tekrarla — <b>kaymıyorsa tampon çalışıyor.</b> "\n'
+     '                 "<i>Tutmazsa:</i> ① yanlışsa TL431 yönü / 220R besleme; ① doğru ② yanlışsa U3 "\n'
+     '                 "soketi, çentiği ya da U3\'ün +5 V beslemesi (3.3 V\'ta çıkış yeterince yükselmez).",\n'
+     '                 "<b>Kapı 2 — I²C.</b> Seri konsolda <code>#</code>: <b>0x48 ve 0x49 ikisi de</b> "\n'
+     '                 "listede görünmeli. <i>Tutmazsa:</i> SDA/SCL ters, ADDR ucu boşta (0x48 = GND, "\n'
+     '                 "0x49 = +3V3) ya da pull-up yok. <b>Bir adres eksikken kalibrasyona geçme</b> — "\n'
+     '                 "eksik olan kanal sessizce sıfır okur.",\n'
+     '                 "İki kapı da geçmeden Adım 12\'ye başlama.",\n'
+     '                 "WiFi',
+     '"WiFi',
+     "bir KAPI adimi sayisal olcut vermezse (11.2 haftalarca oyleydi) kullanici "
+     "kapinin gectigini bilemez: 'her KAPI sayisal olcut veriyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"① Üstteki <b>{cep_alt_kat} katı</b> üst üste koy, mandalla/bantla sık, hepsini birden "\n'
+     '                 "<b>tek seferde Ø3.2</b> del — dört delik böyle eş eksenli çıkar, elle işaretleme yok. "',
+     '"① Her katın deliğini ayrı ayrı işaretleyip tek tek del. "',
+     "ayak blogunda kilavuz delme kalkarsa dort delik ust uste gelmez ve cep "
+     "lamine olduktan sonra acilamaz: 'kilavuz delik cepten ONCE' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'if o["tip"] in ("civata", "havalandirma") or not o.get("etiket"):',
+     'if o["tip"] in ("civata", "havalandirma", "jak") or not o.get("etiket"):',
+     "etiket listesi panel verisinden bir oge kaybederse (eski liste elle yazilmisti "
+     "ve CAL/F0/GUC yoktu) 'butun etiketleri sayiyor' kirmizi"),
+    # ── B57b · 18650 yuvalari yapistirilir (kullanici karari 2026-09-25)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"YUVA2": {"yapistirici": "sıcak silikon",', '"YUVA9": {"yapistirici": "sıcak silikon",',
+     "istisna listesi yapistirilan parcayi kaybederse YUVA2 kuralsiz yapistirilmis olur "
+     "(ve listede olmayan bir ref kalir): 'sokulebilir' ve 'eskimis istisna yok' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"nasil": "Kart RAF gibi yatay (27 × 17 × 5 ölçüldü',
+     '"nasil": "Sıcak silikonla yapıştır. Kart RAF gibi yatay (27 × 17 × 5 ölçüldü',
+     "istisnada OLMAYAN bir parca yapistirilirsa kutu kurali sessizce delinir: "
+     "'TP1 sokulebilir (civata/vida/kablo bagi)' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"Sökülebilir: ısı tabancasıyla ısıt ya da derze izopropil alkol damlat, maket bıçağıyla kaldır. "',
+     '"Kalıcıdır: ısı tabancasıyla ısıt ya da derze izopropil alkol damlat, maket bıçağıyla kaldır. "',
+     "istisnanin SOKME yolu metinden duserse yuva kalicilasir (baska kaba gecis kapanir): "
+     "'yapistirma ISTISNASI: sokme yolu metinde' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '("18650 yuvaları, modüller (MT1, MT2, B0505S), 680 µF, KL, sigorta şeritleri (arka duvarın iç yüzü)", "Sıcak silikon",',
+     '("Plastik yuvalar, modüller (MT1, MT2, B0505S), 680 µF, KL, sigorta şeritleri (arka duvarın iç yüzü)", "Sıcak silikon",',
+     "istisnanin yapistiricisi tabloda kendi satirini kaybederse kullanici hangi yapistiriciyi "
+     "kullanacagini tablodan bulamaz: 'KENDI satirinda tanimli' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    "YUVA1": None,        # B57b: tutucu blok YOK — duvara yapistirilir (YAPISTIRMA_ISTISNA)',
+     '    "YUVA1": {"ad": "raf bloğu", "adet": 3, "uzunluk": 18.0},',
+     "yapistirilan yuvaya bir de tutucu blok eklenirse iki tutturma yontemi olur: "
+     "'yapistirilan parcanin ikinci bir tutturmasi yok' kirmizi"),
+    # ── B58 · tek sarj girisi, dis besleme yok, B0505S (kullanici karari 2026-09-25)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"parca": None, "etiket": "USB", "alt_etiket": "⚡ HV ölçerken çıkar",',
+     '"parca": None, "etiket": "ŞARJ 2", "alt_etiket": "⚡ HV ölçerken çıkar",',
+     "ikinci bir sarj yuvasi belirirse (kullanicinin istedigi TEK kablo bozulur): "
+     "'TEK sarj girisi' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '              ("KL.-", "-12"), ("ESP32.GND", "KART_GND"),',
+     '              ("KL.-", "-12"), ("ESP32.GND", "KART_GND"), ("IZ.IN-", "IZ.OUT-"),',
+     "B0505S yalitimsiz bir modul gibi modellenirse (giris ve cikis eksisi ortak) -12 kart "
+     "GND'ye kisa olur: 'kopru yok' ve '-12 AYRI' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '("MT1.OUT+", "ESP32.5V", "sinyal",', '("MT2.OUT+", "ESP32.5V", "sinyal",',
+     "devkit'in 5V pini 24 V'a baglanirsa ESP32 olur: '5V pini yalitilmis tarafin hicbir "
+     "artisina baglanmiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    ("SWP1.2", "MT1.IN+", "pil",', '    ("TP1.OUT+", "MT1.IN+", "pil",',
+     "PIL anahtari atlanirsa kutu hic kapanmaz ve MT3608 boşta paketi bitirir: "
+     "'PIL acikken paket MT1'e ulasmiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    ("H2-", "TP1.B-", "pil",', '    ("H2-", "F2.1", "pil",',
+     "hucre 2'nin eksisi yanlis uca (kendi artisinin sigortasina) baglanirsa paket paralel "
+     "olmaz, hucre kisa devre olur: 'iki hucre PARALEL' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    ("MT2.OUT+", "KL.+", "besleme",', '    ("MT1.OUT+", "KL.+", "besleme",',
+     "kartin 24 V artisi 5 V barasina baglanirsa: 'kartin 24 V artisi MT2'den' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"⚠ <b>İlk takışta iki hücre aynı gerilimde olmalı (±0.1 V)</b>: farklıysa yüksek olan alçak "',
+     '"⚠ <b>İlk takışta hücreleri doğrudan tak</b>: farklıysa yüksek olan alçak "',
+     "paralel hucrelerin esitleme kurali metinden duserse ilk takista buyuk dengeleme akimi "
+     "akar: '10.3 paralel hucre esitleme kuralini veriyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"kontrol": ["B0505S bacak 2 (−Vin) ↔ bacak 4 (−Vout): <b>ötmemeli</b> (yalıtım sağlam).",',
+     '"kontrol": ["B0505S bacak 2 (−Vin) ↔ bacak 4 (−Vout): <b>ötmeli</b>.",',
+     "yalitim kontrolu tersine donerse (adimda baska 'otmemeli' de var) 10.4 kontrol iddiasi "
+     "AYNI maddede baktigi icin kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"yap": ["Şarj: <b>PİL anahtarını KAPAT</b>, sonra ŞARJ yuvasına <b>tek Type-C</b> tak — iki hücre "',
+     '"yap": ["Şarj: istersen PİL açıkken de ŞARJ yuvasına <b>tek Type-C</b> tak — iki hücre "',
+     "10.6 sarj yordami PIL'i kapattirmazsa: '10.6 sarj kurali' kirmizi"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "IZOLE_GUC_SECENEK = (2.0,)", "IZOLE_GUC_SECENEK = (0.5, 2.0)",
+     "0.5 W'lik bir yalitimli DC-DC secenege girerse 24 V yukunu tasiyamaz (%147): "
+     "'B0505S 0.5 W: yuk' kirmizi — her secenek AYRI denetleniyor"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "IZOLE_GUC_SECENEK = (2.0,)", "IZOLE_GUC_SECENEK = (2.0, 10.0)",
+     "B58b: cok buyuk bir modul alinirsa 24 V yuku ona %10'dan az gelir, regulesiz cikis yukselir: "
+     "'asgari yukun ustunde' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"68 µF 50 V (C035) + 100 nF (C008) ekle', '"100 µF 16 V (C036) + 100 nF (C008) ekle',
+     "B58b: 24 V rayina 16 V'luk elektrolitik onerilirse patlar (stoktaki 100 uF'lerin 13/15'i 16 V): "
+     "'kondansator gerilim sinifi' kirmizi"),
+    # B73'te bulundu: "SR5100 -> 1N5819" mutasyonu KACIYORDU — 1N5819 2026-09-28'de stoga girdi (D013,
+    # B70), "stokta olmayan parcayi isteme" iddiasinin dayanagi kalkti. Emekli.
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "F0_SIGORTA = 1.0 ", "F0_SIGORTA = 0.5 ",
+     "F0 500 mA'e inerse normal analog akimina (~0.2 A) 3x pay kalmaz, aclista atabilir: "
+     "'F0 normal analog akiminin en az 3 kati' kirmizi"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "ESP32_5V_AKIM_KOTU = 250e-3", "ESP32_5V_AKIM_KOTU = 900e-3",
+     "5 V barasinin yuku buyurse tek hucrenin kol akimi MT3608 ve DW01A sinirini asar: "
+     "paket akimi iddialari kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     'süre ≈ {pil_suresi}.', 'süre ≈ 5 saat.',
+     "pil suresi metne ELLE yazilirsa butce degisince sessizce eskir: 'sabitten giriyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"kablosu) geçer — ölçüm bozulur, ince tel ısınır. Test kaynağı: <b>tezgah beslemesi</b> "',
+     '"kablosu) geçer — ölçüm bozulur, ince tel ısınır. Test kaynağı: <b>elindeki kaynak</b> "',
+     "12.2 test kaynagini (tezgah beslemesi) soylemezse kullanici kutunun kendi paketini "
+     "kullanmaya kalkar: '12.2 kurali' kirmizi"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "TEST_KAYNAK_V = 3.7 ", "TEST_KAYNAK_V = 2.5 ",
+     "test kaynagi 15 mOhm kazanc esigini asamazsa (0.76 < 0.85 A) kalibrasyon reddedilir: "
+     "'test kaynagi + yuk' kirmizi"),
+    # 2026-09-28: B0505S geldi (MOD013), iddia ters cevrildi — eski mutasyonun (stok None ->
+    # sorgu) tersi artik yalanlayan degisiklik.
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     'yalıtılmış DC-DC, 5 V → 5 V (Hi-Link, motorobit) — 1 W DEĞİL",\n     "stok": ("B0505S-2WR3", "Modül"),',
+     'yalıtılmış DC-DC, 5 V → 5 V (Hi-Link, motorobit) — 1 W DEĞİL",\n     "stok": None,',
+     "stoktaki B0505S malzeme listesinde alinacak kalirsa kullanici ikinci kez alir: "
+     "'B0505S stokta -> ... STOKTAN' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"derin": 7.0,\n     "stok": ("B0505S-2WR3", "Modül"),',
+     '"derin": 7.0,\n     "alinacak": "Hi-Link B0505S-2WR3 (motorobit)",',
+     "IZ duvar parcasi 'alinacak' kalirsa 10.2'nin stok hucresi 'stokta YOK' der: "
+     "'B0505S stokta -> ... IZ envanter sorguluyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/yerlesim3_veri.py",
+     "Kutuda (B58): XT30 kesilir, teller iç klemense (KL)", "Kutuda da XT30 kalır",
+     "yerlesim notu kutuda da XT30 derse kullanici kuyrugu arar: 'J6 kutuda ic klemens' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'return "analog" if any(u.startswith(ANALOG_UC) for u in kablo[:2]) else "paket"',
+     'return "analog" if any(u.startswith(ANALOG_UC) for u in kablo[:2]) else "analog"',
+     "asama ayrimi bozulursa 10.3'un tablosu bos kalir: '10.3 tablosu yalniz paket' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"soğutucunun vida somununun altına, diğer ucunu kart GND\'ye (A:T_YILDIZ ya da şöntün "',
+     '"soğutucunun vida somununun altına, diğer ucunu kart GND\'ye (klemensin siyah ucu ya da şöntün "',
+     "6.5 yine 'kart GND (klemensin siyah ucu)' derse direnc -12 rayina gider (B50-B57 arasi "
+     "boyleydi): 'klemens eksisini GND diye anmiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     """"<b>Kutup (enerjiden ÖNCE):</b> klemens + ↔ MT2 OUT+ ve kartın C34'ü ötmeli; klemens − ↔ \"""",
+     '"<b>Renk:</b> kırmızı artıya; klemens − ↔ "',
+     "klemens (XT30'un aksine kodlu degil) kutup olcumu metinden duserse ters baglanan 24 V ilk "
+     "enerjide iki TL072'yi oldurur: '10.4 klemensin kutbunu olcturuyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "~1.6 mm). Halka pabuç stokta YOK ve plan",
+     "~1.6 mm). <b>Halka pabuç stokta YOK</b> ve plan",
+     "B58b: malzeme notuna HTML etiketi girerse tabloda cig '<b>' olarak gorunur: "
+     "'Malzeme notlarinda HTML etiketi yok' kirmizi"),
+    # ── B58d · sarj modulu kart A'nin altinda
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"monte": ["YUVA1", "YUVA2", "MT1", "MT2", "IZ", "CB", "KL", "F0", "F1P", "F2"],',
+     '"monte": ["YUVA1", "YUVA2", "TP1", "MT1", "MT2", "IZ", "CB", "KL", "F0", "F1P", "F2"],',
+     "TP1 yine kart A takildiktan sonra (10.2) takilirsa yerine indirilemez ve pedleri lehimlenemez: "
+     "'kart A'dan ONCE takiliyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Önce tezgahta lehimle:</b> modülün <b>B+, B−, OUT+, OUT−</b> pedlerine ~20 cm 0.5 mm² "',
+     '"<b>Kabloları sonra lehimle:</b> modülün <b>B+, B−, OUT+, OUT−</b> pedlerine ~20 cm 0.5 mm² "',
+     "on lehim talimati duserse pedler kart A'nin altinda kalir, havya girmez: "
+     "'kablolari tezgahta ONCEDEN lehimleniyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '("üst kat", 27.0, 1),', '("üst kat", 33.0, 1),',
+     "raf kart A'nin dolu bolgesinin altina uzarsa atlama tellerine dayanir: "
+     "'yalniz BOS seridin altinda' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"TP1": {"ad": "raf", "kanal": 9.0,', '"TP1": {"ad": "raf", "kanal": 3.0,',
+     "kanal kablo bagi seridinden darsa bag gecmez: 'bag kanali seridi geciriyor' kirmizi"),
+    # ── B58e · ANALOG kalkti, F0 kutu icinde
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '<b>USB\'yi PC\'ye takarken PİL AÇIK olsun</b>: "', '<b>USB\'yi istediğin zaman tak</b>: "',
+     "USB kurali (PIL kapaliyken olcum tarafi PC'den beslenir) metinden duserse: "
+     "'Kullanim tablosu USB kuralini veriyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '    {"ref": "F0", "ad": "Analog sigortası F0 (5×20 PCB klipsli, 1 A F)", "duvar": "arka",',
+     '    {"ref": "F0X", "ad": "Analog sigortası F0 (5×20 PCB klipsli, 1 A F)", "duvar": "arka",',
+     "F0 kutu icinden duserse (duvar parcasi degil) sigorta yeri tarifsiz kalir: "
+     "'F0 kutu icinde' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'panel_cap = re.compile(r"panel[^,;]{0,12}?',
+     'panel_cap = re.compile(r"panelX[^,;]{0,12}?',
+     "panel capi eslestiricisi bozulursa, kaydinda panel capi olan bir parca panele girdiginde "
+     "karsilastirma sessizce bos gecer: 'eslestirici envanterde calisiyor' kirmizi"),
+    # ── B58f · kutu besleme zinciri (sim3_kutu_besleme.py) + kutu.py'deki 2 W / CB iddialari
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/tasarim3_sabit.py',
+     'MT2_GIRIS_C = 680e-6',
+     'MT2_GIRIS_C = 220e-6',
+     "MT2 girisindeki toplu kondansator kuculurse (220 uF) referans rampali yumusak baslamada kart 24 V'a cikamaz: 'PLAN: her modelde kart 24 V'a ulasiyor' kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/tasarim3_sabit.py',
+     'IZOLE_GUC_SECENEK = (2.0,)',
+     'IZOLE_GUC_SECENEK = (1.0,)',
+     "plan 1 W'a donerse akim sinirli modelde MT2 girisi UVLO'da takilir: 24 V iddiasi kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/sim3_kutu_besleme.py',
+     'ss2 = np.where(en2, ss2 + dt, 0.0)',
+     'ss2 = np.where(en2, ss2 + dt, ss2)',
+     "UVLO'da yumusak baslama SIFIRLANMAZSA kondansatorsuz plan da baslar — kararin gerekcesi (negatif kontrol 'kondansatorsuz kart 24 V'a CIKAMIYOR') kirmizi olmali"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/kutu_veri.py',
+     '"<b>24 V gelmiyorsa</b> (ESP32',
+     '"<b>24 V yoksa</b> (ESP32',
+     "10.5 ikinci belirtiyi (24 V gelmiyor -> seri direnci cikar) yazmazsa kullanici bana doner: '10.5 iki belirtiyi ve cozumunu yaziyor' kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/kutu_veri.py',
+     "pil azalmış — PİL'i kapat, pili <b>doldur</b> (ŞARJ",
+     "pil azalmış — PİL'i kapat, pili <b>şarj et</b> (ŞARJ",
+     "KULLANIM 'kutu acilmiyorsa doldur' demezse bos pil davranisi yazisiz kalir: kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/kutu_veri.py',
+     "Sürerse pili 10.6'daki gibi <b>doldur</b> ve dene",
+     "Sürerse pili 10.6'daki gibi <b>şarj et</b> ve dene",
+     "10.5 'doldur' adimini yazmazsa kullanici ilk cozumu bilmez; ayni metindeki 'doldururken' "
+     "kelimesi deseni tek basina karsilamamali: '10.5 iki belirtiyi yaziyor' kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/kutu_veri.py',
+     "<b>5.3 V</b>'a çıkar (diyotta",
+     "<b>5.8 V</b>'a çıkar (diyotta",
+     "SR5100 yolunda MT1 5.8 V'a cikarsa B0505S girisi 5.5 V sinirini asar: "
+     "'SR5100 yolunda B0505S girisi araliginda' kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/tasarim3_sabit.py',
+     'DW01_VOIP = (0.120, 0.150, 0.180)',
+     'DW01_VOIP = (0.120, 0.100, 0.180)',
+     "DW01A tipik esigi dusukse B0505S 2x'te bile yarim pilde keser: 'k <= 2 kesmiyor' kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/sim3_kutu_besleme.py',
+     'def acilis_benzet(sc: list[dict], c_kart: float, t_ref: dict, dt: float = 1e-6,',
+     'def acilis_benzet(sc: list[dict], c_kart: float, t_ref: dict, dt: float = 5e-6,',
+     "adim 5 us'ye donerse UVLO cirpinmasi yutulur ve DW01A sureleri 8x dusuk cikar: 'sayisal yakinsama' kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/tasarim3_sabit.py',
+     'F0_SIGORTA = 1.0 ',
+     'F0_SIGORTA = 0.5 ',
+     "F0 yarim amper olsa acilis akimi (1.78 A) %210'u asar: 'F0 acma bolgesine girmiyor' kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/kutu_veri.py',
+     'aynı gerilimde olmalı (±0.1 V)</b>',
+     'aynı gerilimde olmalı (±0.5 V)</b>',
+     "paralel hucre farki 0.5 V'a gevserse dengeleme akimi 3 A (2 C): '10.3 fark kurali' kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/kutu_veri.py',
+     '(~0.35 A, USB 2.0 portunun sınırına yakın)',
+     '(~0.15 A, USB 2.0 portunun sınırına yakın)',
+     "11.2'nin 'PIL kapaliyken USB' sayisi benzetimden sapar: 'sayisi tutarli' kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/tasarim3_sabit.py',
+     'DW01_TOI2 = 5e-6 ',
+     'DW01_TOI2 = 2e-6 ',
+     "kisa devre gecikmesi 2 us olsa anahtar darbesi (2.4 us) DW01A'yi keser: bolum 1 kirmizi — payin ne kadar dar oldugunu da gosterir"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/tasarim3_sabit.py',
+     'IZOLE_DALGALANMA = {1.0: 75e-3, 2.0: 200e-3}',
+     'IZOLE_DALGALANMA = {1.0: 75e-3, 2.0: 200.0}',
+     "dalgalanma birimi (mV -> V) kayarsa raylara 3 mV ulasir: 'dalgalanma payi' kirmizi"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/tasarim3_sabit.py',
+     'MT2_SERI_R_YEDEK = 3.0 ',
+     'MT2_SERI_R_YEDEK = 2.0 ',
+     "yedek yolun direnci 2 ohm olsa guclu modulde DW01A yine keser (tarama: 0.5/1/2 ohm 27-33 ms, "
+     "3 ohm 2 ms): 'YEDEK YOL' iddiasi kirmizi. Ilk surumde 1 ohm'la KACTI: grup tipik egriyi taramiyordu"),
+    ('B58f', 'sim3_kutu_besleme.py', 'uretim/sim3_kutu_besleme.py',
+     'i_kart_tam = T.RAY24_AKIM_KOTU + T.PANEL_LED_AKIM',
+     'i_kart_tam = 3 * (T.RAY24_AKIM_KOTU + T.PANEL_LED_AKIM)',
+     'kart yuku uc katina ciksa 2 W de yetmez: benzetim yuk modeline duyarli mi (24 V iddiasi kirmizi)'),
+    ('B50', 'kutu.py', 'uretim/tasarim3_sabit.py',
+     'IZOLE_GUC_SECENEK = (2.0,)',
+     'IZOLE_GUC_SECENEK = (1.0, 2.0)',
+     "1 W secenegi geri gelirse anma akimi (0.2 A) acilis ihtiyacinin (0.35 A) altinda: 'anma akimi acilista yetiyor' kirmizi"),
+    ('B50', 'kutu.py', 'uretim/kutu_veri.py',
+     '    ("CB.+", "MT2.IN+", "besleme", "680 µF artısı (uzun bacak) → MT2 IN+ (B0505S +Vo ile aynı nokta)"),\n',
+     '',
+     "CB kablosu listeden duserse kondansator kagit uzerinde kalir: 'CB MT2.IN±'ya bagli' kirmizi"),
+    ('B50', 'kutu.py', 'uretim/tasarim3_sabit.py',
+     'MT2_GIRIS_C = 680e-6',
+     'MT2_GIRIS_C = 220e-6',
+     "CB 470 uF'nin altina inerse (ve stok kaydi 680 kalirsa): iki iddia birden kirmizi"),
+    ('B50', 'kutu.py', 'uretim/tasarim3_sabit.py',
+     'MT2_GIRIS_V = 16.0 ',
+     'MT2_GIRIS_V = 25.0 ',
+     "sabitteki gerilim stok kaydindan (16 V) ayrisirsa: 'CB stok kaydi sabitle ayni' kirmizi"),
+    ('B50', 'kutu.py', 'uretim/kutu_veri.py',
+     'MT2 IN− ötmeli; ters',
+     'MT2 IN− ötmemeli; ters',
+     "10.4 CB'nin kutbunu yanlis olcturursa: 'CB'nin kutbunu enerjiden ONCE' kirmizi"),
+    # ── B57 · parca bilgi kartlari — DENETIM tarafi (kartlar veriden dogru mu)
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'k=bi_kapak_civata())', ')',
+     "bir 3B blogu kartsiz kalirsa fare onun uzerine gelince hicbir sey olmaz: "
+     "'3B'deki her blogun bir bilgi karti var' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'ekle(k2, "Kapak rayı (yan duvara yaslı, tek parça)"',
+     'ekle(k2, "Kapak kirişi (yan duvara yaslı, tek parça)"',
+     "3B'de olan bir cubuk kesim listesinden duserse (B55c'de 16 parca boyle eksikti) "
+     "'her cubuk parcasinin KESIM LISTESINDE satiri var' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'k=bi_sira("taban", i, b2, h["dis_en"]))', 'k=bi_sira("taban", i, b2 - 0.4, h["dis_en"]))',
+     "kart cizimdeki 0.4 mm KISALTILMIS boyu gosterirse kullanici 99.5 keser; kesim "
+     "listesi eslesmesi birebir (0.05) oldugu icin kirmizi — ilk surumde 0.6 tolerans bunu kaciriyordu"),
+    # ── B57 · parca bilgi kartlari — TARAYICI tarafi (kullanici gercekten goruyor mu)
+    # kutu_ipucu_test.py belgeyi her kosuda KAYNAKTAN uretip headless Edge'de
+    # gercek fare/klavye olaylariyla sinar: JS bozulunca test bozuk sayfayi gorur.
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "   if (e.pointerType !== 'mouse' || ipSabit) return;",
+     "   return;",
+     "2B'de uzerine gelince kart acilmazsa (asil istek) 'uzerine gelince kart ACILIYOR' kirmizi"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "   if (ipBag && ipBag.getClientRects().length) { var m = elNokta(ipBag); ipKonum(m.x, m.y); }",
+     "   if (false) {}",
+     "kaydirmada bagli kart kapanirsa (ILK SURUMUN HATASI: Tab odaklaninca tarayici "
+     "kaydiriyor, kart kayboluyordu) 'odaklanan parcanin karti acildi' kirmizi"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "     if (k.alfa >= 0.3) { if (z < enZ) { enZ = z; en = k.bl; } }",
+     "     if (k.alfa >= 0.3) { if (z > -1e9) { enZ = z; en = k.bl; } }",
+     "isin EN YAKIN kati govdeyi degil son cizileni secerse kart A'nin altindaki (A'dan SONRA "
+     "cizilen) TP1 gelir: 'TP1'in ustunde yine KART A secildi' kirmizi. B59'da panel yeniden "
+     "dizilince 'ortada kart A' bu hatayi artik goremiyordu (KACTI) — nokta olcek kalibrasyonuyla"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "     tikla(e.clientX, e.clientY);",
+     "     void 0;",
+     "3B'de surukleme olmadan tiklama karti sabitlemezse (dokunmatikte TEK yol bu) "
+     "'3B: tiklayinca sabitlendi' kirmizi"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "     gezin(k === 'n' || k === 'N' ? 1 : -1); e.preventDefault(); return;",
+     "     return;",
+     "N / P tuslari calismazsa ('bir tusa basinca' istegi) '3B: N tusu sonraki parcaya geciyor' kirmizi"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "   if (e.key === 'Escape' && (ipSabit || !ipucu.hidden)) { ipBirak(); e.preventDefault(); return; }",
+     "   if (e.key === 'Esc' && (ipSabit || !ipucu.hidden)) { ipBirak(); e.preventDefault(); return; }",
+     "Esc karti kapatmazsa sabit kart ekranda asili kalir: 'Esc sabit karti KAPATIYOR' kirmizi"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu.py",
+     """return f'<g class="bi" data-bi="{E(anahtar)}" tabindex="0">'""",
+     """return f'<g class="bi" data-bi="{E(anahtar)}">'""",
+     "cizim parcalari tabindex'siz kalirsa klavyeyle hic odaklanamaz: "
+     "'parcalar klavyeyle odaklanabiliyor (tabindex)' kirmizi"),
+    # ── B73 · kablo guzergahi: tablo satiri cizimdeki kabloyu da secmeli
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "       var esi = isaretle(ipSabit.k); el.setAttribute('aria-describedby', 'ipucu');",
+     "       var esi = null; el.classList.add('secili'); el.setAttribute('aria-describedby', 'ipucu');",
+     "tablo satiri cizimdeki kabloyu secmezse B73 tarayici iddiasi kirmizi"),
+    # ── B73 gozden gecirme: telefonda satir -> cizim, N/P tek durak, 3B ozet ve fare secimi
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py", "   return !!h && e.contains(h);\n", "   return true;\n",
+     "kablo yapiskan basligin altindayken 'gorunur' sayilirsa telefonda satira dokunmak kabloyu gostermez: kirmizi"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "   return L.filter(function(b){ return b.g !== 'kablo' || uzun[b.k] === b; })",
+     "   return L.filter(function(b){ return true; })",
+     "N/P kablonun her blogunda durursa ayni kart 4-6 kez gelir: 'her kabloyu BIR kez' kirmizi"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "     if (!ileride && !(bl.g === 'kablo' && kabloSay[bl.k])) {", "     if (!ileride) {",
+     "3B ozeti kablo yerine blok sayarsa ('kablo 142') 'ozet KABLO sayiyor' kirmizi"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py", "     if (!k.bl.k) return;\n     var z = blokIsabet",
+     "     if (!k.bl.k || k.bl.g === 'kablo') return;\n     var z = blokIsabet",
+     "3B isin secimi kablolari atlarsa 'kablo FAREYLE secilebiliyor' kirmizi"),
+    # ── B73: kablolari goster / gizle (kullanici istegi 2026-10-01)
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     ":root.kablo-gizli svg .kb,:root.kablo-gizli svg .kb-yazi{display:none}", ":root.kablo-gizli svg .kb-yok{display:none}",
+     "gizle ayari cizimdeki kablolari gizlemezse kirmizi"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "     if (bl.g === 'kablo' && kabloGizli) return;       // B73: kablolar gizli\n", "",
+     "gizle ayari 3B'deki kablolari gizlemezse kirmizi"),
+    ("B57", "kutu_ipucu_test.py", "uretim/kutu_3b.py",
+     "   try { localStorage.setItem('kutu-kablo', kabloGizli ? 'gizli' : 'acik'); } catch(err) {}\n", "",
+     "gizleme ayari hatirlanmazsa 'yenilenince hatirlaniyor' kirmizi"),
+    # ── B56 · panel simetrisi (kullanici istegi 2026-09-24) — B59'dan beri YALNIZ arka panel;
+    #    on panelin kurali izgara + islev (asagida B59)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"x": 35.0, "z": 81.0', '"x": 53.0, "z": 81.0',
+     "B59: AC/KAPA izgaradan kayarsa (x 53, 36'lik adimin disinda) on panel 'duzenli' olmaktan "
+     "cikar: 'on panelin her ogesi ayni izgarada' kirmizi"),
+    # ── B60 · butun jaklar tek model, renkler stoktan (kullanici 2026-09-26)
+    ('B50', 'kutu.py', 'uretim/kutu_veri.py',
+     '"renk": "siyah",\n     "parca": ("4mm Born Jak Şeffaf Siyah (Büyük Boy)", "Konnektör"),\n     "etiket": "CAL"',
+     '"renk": "sari",\n     "parca": ("4mm Born Jak Şeffaf Sarı (Büyük Boy)", "Konnektör"),\n     "etiket": "CAL"',
+     "CAL eskisi gibi SARI olursa HV'nin tek sari olma ayirt ediciligi kalkar (B15/A1: yanlis delik 615 V): 'HV'nin rengini baska hicbir jak kullanmiyor' kirmizi"),
+    ('B50', 'kutu.py', 'uretim/kutu_veri.py',
+     '"renk": "yesil",\n     "parca": ("4mm Born Jak Şeffaf Yeşil (Büyük Boy)", "Konnektör"),',
+     '"renk": "siyah",\n     "parca": ("4mm Born Jak Şeffaf Siyah (Büyük Boy)", "Konnektör"),',
+     "YUK cifti eskisi gibi siyah olursa 4 siyah gerekir, stokta 2 var (kullanici: alim yok): 'her jak renginin adedi stoktakini asmiyor' kirmizi"),
+    ('B50', 'kutu.py', 'uretim/kutu_veri.py',
+     '"parca": ("4mm Born Jak Şeffaf Kırmızı (Büyük Boy)", "Konnektör"),',
+     '"parca": ("4mm Born Jak Banana Dişi Soket Vidalı (kırmızı)", "Konnektör"),',
+     "V/SKOP eski kucuk vidali modele donerse panelde iki model yan yana (kullanicinin 'uyumsuz gorunur' dedigi hal): 'butun born jaklar AYNI model' kirmizi"),
+    # ── B61 · + / − nerede (kullanici 2026-09-26: "pilin + tarafi, yukun hangi tarafi +")
+    ("B50", "kutu.py", "uretim/kutu.py",
+     """fill="{JAK_RENK[q["renk"]]}" '""", """fill="{JAK_RENK['siyah']}" '""",
+     "kullanim semasi rengi elle/sabit yazarsa (B60'tan once YUK siyah cizili kalmisti, gercekte "
+     "yesil): 'Kullanim semalarinda jak renkleri panelle ayni' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     '    o.append(ucbas(190, "J7.2"))\n', "",
+     "pil semasindan PIL 2 (pilin eksisi) duserse kullanici pilin − ucunu nereye takacagini "
+     "gormez: '... gereken jaklar semada' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"alt_etiket": "yükün −",', '"alt_etiket": "yükün dönüşü",',
+     "YUK 1'in panel etiketi kutbu soylemezse (+ mi − mi?): 'PIL ve YUK jaklarinin etiketi "
+     "DOGRU kutbu soyluyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"alt_etiket": "yükün −",', '"alt_etiket": "yükün +",',
+     "YUK 1 'yukun +' diye etiketlenirse kullanici + hattini keser (low-side sontte kutuya + girer, "
+     "COM yuk gerilimine cikar): 'DOGRU kutbu' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"alt_etiket": "direnç ← pil +",', '"alt_etiket": "pil +",',
+     "PIL 1 'pil +' deyip direnci anmazsa kullanici pili dogrudan PIL 1 - PIL 2'ye takar (Q1 acilinca "
+     "kisa devre): 'PIL 1 = + direncten' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"Akım <b>eksi hattan</b> ölçülür: kaynağın + ucu yükün + ucuna <b>doğrudan</b> gider, kutuya "\n     "girmez. ',
+     '"Akım <b>seri</b> ölçülür. ',
+     "kullanim tablosu hangi hattin kesilecegini soylemezse kullanici + hattini kesip "
+     "YUK'e takabilir: 'Kullanim tablosu akimin EKSI hattan olculdugunu...' kirmizi"),
+    # ── B62 · kalin kablo baglantisi + eskimis guc dugumu metinleri (kullanici 2026-09-27)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"yöne (saat yönü) yatır. Kalaylı uç vida altında zamanla gevşer (5.2). Halka pabuç stokta "',
+     '"yöne (saat yönü) yatır. Kalaylı uç vidanın altına da olur (5.2). Halka pabuç stokta "',
+     "8.1 kalayli ucu vida altina yeniden onerirse (kalay basinc altinda akar, somun gevser, "
+     "9.5 A'lik yol isinir): 'Hicbir metin kalin kabloyu ... KALAYLI koydurmuyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"(CON064) vidalanır — klemens tek çubuk altlığa yapışık; kalın yük kabloları XP128\'e girmez, "',
+     '"(CON064) vidalanır — klemens tek çubuk altlığa yapışık; kalın yük kabloları aynı vidaların altına; "',
+     "sont notu B55n oncesine donerse (XP128 kafesine manganin + iki damarli kablo, gevser): "
+     "'Hicbir metin kalin kabloyu sontun XP128 vidalarina gondermiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "halka yap, iki somunun arasına saplamanın çevresine <b>saat yönünde</b> sar (somunu ",
+     "halka yap, iki somunun arasına saplamanın çevresine sar (somunu ",
+     "5.2 halkanin yonunu soylemezse ters sarilan halka somun sikildikca acilir: "
+     "'5.2 jaka baglamayi tarif ediyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "telleri sıkıca bük ve <b>kalaylama</b>;",
+     "telleri sıkıca bük ve <b>kalayla</b>;",
+     "5.2 teli kalaylatirsa jak somunu zamanla gevser: '5.2 jaka baglamayi tarif ediyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "blokları M3 vidalarla <b>karta ",
+     "blokları kurşun kalemle işaretleyip <b>tek tek ",
+     "6.1 eski yola (kalemle isaretle, tek tek yapistir) donerse 0.5-1 mm kayma vidayi somuna "
+     "sokmaz: '6.1 ayak bloklarini karta VIDALIYKEN yapistirtiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Altlık</b> dört parça: iki sıra, her sıra ortadan bölük, aradaki <b>9 mm kanal</b> kablo "',
+     '"<b>Altlık</b> iki çubuk; altlıkta iki delik, kablo "',
+     "6.3 B55l oncesi 'altlikta iki delik' metnine donerse kullanici bagi gecirecek yer bulamaz: "
+     "'Kanalli altligi takan her adim kanali soyluyor' kirmizi"),
+    # ── B64 · kart A'nin yonu (kullanici 2026-09-27, 6.2)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '     # tellerin gercekten on kenarda kaldigini kart_nokta() ile olcuyor.\n     "yon": 270,',
+     '     # tellerin gercekten on kenarda kaldigini kart_nokta() ile olcuyor.\n     "yon": 90,',
+     "kart A'nin yonu 90'a donerse telli kenar ARKAYA bakar (jak kablolari karti dolasir): "
+     "'Kart A'nin yonu ... telli kenar ON panele bakiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "<b>{yon_a}</b> kutunun o köşesine gelir",
+     "<b>sol-arka köşesi</b> kutunun o köşesine gelir",
+     "6.2 yonu veriden degil elle yazarsa (ustelik yanlis) kullanici karti ters vidalar: "
+     "'Kart A'nin yonu veride ve 6.2'de' kirmizi"),
+    # ── B68b · eskimis Q1 / sont notlari
+    ("B50", "kutu.py", "uretim/yerlesim3_veri.py",
+     "kutuda: kaynağı bariyer klemensin 1. kutbuna (= şöntün RS.1 düğümü, B55n), savağı",
+     "kutuda: kaynağı şönt üst bacağına, savağı",
+     "Q1 notu B55n oncesine donerse (kaynak sontun vidasina) guc dugumu tarifleri celisir: "
+     "'eski tarif yok' kirmizi"),
+    # ── B68 · sonte yapistirici yasagi (kullanici 2026-09-27)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '("Şöntün kendisi ve Kelvin lehimleri", "Yapıştırıcı yok — makaron + kablo bağı",',
+     '("Şöntün kendisi ve Kelvin lehimleri", "Sıcak silikon",',
+     "tablo sonte silikon izni verirse sicakta yumusar ve sogumayi keser: 'Sontun kendisine "
+     "yapistirici YASAK' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "<b>Lehimlere sıcak silikon SÜRME</b>", "<b>Lehimleri sıcak silikonla sağlamlaştır</b>",
+     "6.4 lehimleri silikonlatirsa: 'Sontun kendisine yapistirici YASAK (6.4'te)' kirmizi"),
+    # ── B67 · sont veri sayfasi (kullanici 2026-09-27)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "<b>basık yerin kendisine</b> lehimle", "<b>boncuğun hemen altına</b> lehimle",
+     "Kelvin eski tarife (boncugun altina) donerse R042'de o yer klemensin icinde kalir: 'Sont "
+     "tarifi takili sontun veri sayfasina uyuyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"W_mm": 10.0,', '"W_mm": 11.0,',
+     "bacak araligi 11 mm olsaydi 'once bukmeden dene' yanlis olurdu: bukme tarifi W ile tutarli "
+     "kirmizi (veri gercekten kullaniliyor)"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"anma_A": 10.0,', '"anma_A": 9.0,',
+     "sont 9 A'lik olsaydi 9.5 A'lik sinir onu asardi: 'akim siniri <= sont anma' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<i>±%2 tutmazsa:</i> şöntün görünen', '"<i>Not:</i> şöntün görünen',
+     "12.2 tutmazsa ne yapilacagini soylemezse 5 mOhm'un gercek degeri hic duzeltilmez: '12.2 "
+     "gercek degeri duzeltiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "yazmayan) <b>KULLANMA</b>:", "yazmayan) <b>da kullanabilirsin</b>:",
+     "belirsiz alasimli R043 serbest birakilirsa 9.5 A'de okuma %1.6 kayabilir: 'R043 kullanilmaz' "
+     "kirmizi"),
+    # ── B66 · klemens anma akimi (kullanici 2026-09-27)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "(10 A)</b>: kısa süreli de olsa 10 A'i GEÇME.",
+     "(10 A)</b>: 13 A birkaç dakika olur.",
+     "kullanim metni klemensi asan '13 A birkac dakika' vaadine donerse: 'metin asan akim vaat "
+     "etmiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     'KLEMENS_ANMA_A = {"XP128": 10.0}', 'KLEMENS_ANMA_A = {"XP128": 8.0}',
+     "klemens 8 A'lik olsaydi 9.5 A'lik sinir onu asardi: 'Akim siniri klemensin anma akimini "
+     "asmiyor' kirmizi (veri gercekten kullaniliyor)"),
+    # ── B65 · ESP32 kizagi (kullanici 2026-09-27: bacaklar, USB itmesi, anten cikintisi)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"anten_pay": 1.5,', '"anten_pay": -0.5,',
+     "takozlar anten cikintisinin USTUNE tasarsa USB itmesini anten tasir: 'Omuz takozlari anten "
+     "cikintisina DEGMIYOR' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"ray_pay": 0.25,', '"ray_pay": 3.0,',
+     "raylar karttan 3 mm uzakta kalirsa devkit kizakta yana oynar: 'kizak devkit'i dort yandan "
+     "tutuyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'for ad, y0 in (("arka", kanal_bas - g), ("ön", kanal_son)):',
+     'for ad, y0 in (("arka", kanal_bas - g), ("ön", kanal_bas)):',
+     "on raylar kanalin ustune kayarsa bag altliktan cikip devkit'in ustune donemez: 'Raylar kanal "
+     "hizasinda BOSLUKLU' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"anten_cikinti": 5.0, "anten_cikinti_aralik": (3.0, 8.0)}},',
+     '"anten_cikinti": 5.0, "anten_cikinti_aralik": (0.5, 8.0)}},',
+     "olculmemis cikinti cok kisa cikarsa sol takoz kart B'nin ayagina biner: 'ARALIGI boyunca "
+     "takozlar hicbir govdeye carpmiyor' kirmizi (aralik gercekten sinaniyor)"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "tepesinden", "üstünden",
+     "6.3 bagin BOS pinlerin tepesinden gectigini soylemezse kullanici bagi dupont uclarinin ustune "
+     "atar: '6.3 kizagi ve bagi uygulanabilir tarif ediyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     "        while s < 30.0 and not cakisir(yon * (s + 0.25)):",
+     "        while s < 30.0:",
+     "kaydirma payi hesabi cakismaya bakmazsa 6.3 '30 mm kaydir' der: 'iki bagimsiz hesapta "
+     "tutuyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     '            if ts.get("kizak"):                       # B65: altliklardan SONRA',
+     '            if False:                       # B65: altliklardan SONRA',
+     "kizak uretilmezse (veri var, parca yok) devkit USB itmesinde kacar: 'kizak devkit'i dort "
+     "yandan tutuyor' kirmizi"),
+    # ── B64b · B–A telinin boyu (kullanici 2026-09-27)
+    ("B50", "kutu.py", "uretim/yerlesim3_veri.py",
+     "HVALT_TEL_KES_CM = 22", "HVALT_TEL_KES_CM = 15",
+     "not eski '15 cm kes'e donerse tel kutuda iki kart arasina yetismez (duz cizgi 14.5 cm): "
+     "'B–A telinin boyu kutudaki yoldan' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     "    yol = sum(abs(p - q) for p, q in zip(a, b))\n    return {\"duz\"",
+     "    yol = math.dist(a, b) * 0.5\n    return {\"duz\"",
+     "yol hesabi bozulursa (kart konumu kaybolur) gereken boy dusup notu 'cok uzun' gosterir: "
+     "iki yonlu sinir kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "makaronla kapla (~1.7 V, tehlikesiz) — GND ile burma, B'de GND yok.",
+     "makaronla kapla (~1.7 V, tehlikesiz), GND ile bur.",
+     "1.1 eski 'GND ile bur' tavsiyesine donerse (B'de GND yok, DEVIR karariyla celisir): "
+     "'B–A telinin boyu ... GND ile burduran' kirmizi"),
+    # ── B63 · ayna ovaller (SARJ/USB) karistirilamiyor (kullanici 2026-09-27)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Hangi oval:</b> önden (jak tarafından) bakınca <b>{sarj_taraf}</b> olan — 3.2\'de iç yüzüne "',
+     '"<b>Hangi oval:</b> ŞARJ yazan — 3.2\'de iç yüzüne "',
+     "6.0 tarafi soylemezse kullanici arkadan cizime bakip modulu USB ovaline takar (2026-09-27'de "
+     "olan): 'iki ovale takilan moduller karistirilamiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Deler delmez iki ovalin İÇ yüzüne kurşun kalemle adını yaz: ŞARJ / USB.</b> İkisi "',
+     '"İkisi "',
+     "3.2 ovallere ad yazdirmazsa iki tipatip ayni delik 14.1'e kadar adsiz kalir: "
+     "'iki ovale takilan moduller karistirilamiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     '    return "solda" if o["x"] < K.KUTU["ic_en"] / 2 else "sağda"',
+     '    return "sağda" if o["x"] < K.KUTU["ic_en"] / 2 else "solda"',
+     "taraf fonksiyonu ters donerse belge kullaniciya YANLIS ovali gosterir: kalibrasyon "
+     "(AC/KAPA onden solda, B59 onayli) kirmizi"),
+    # ── B59b · 3B: ic kat delikleri (kullanici 2026-09-26)
+    ("B50", "kutu.py", "uretim/kutu.py",
+     '        if x["tip"] not in ("yuva", "kuyruk"):\n            yi = -0.3 if on else boy - 0.3',
+     '        if False:\n            yi = -0.3 if on else boy - 0.3',
+     "ic kat deligi 3B'de cizilmezse (kullanicinin gordugu hal: iceriden bakinca cubuklar "
+     "deliksiz) '3B: her panel deliginin IC kat yuzunde de plakasi var' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     '                 ix["5.1"], [ix["5.1"]], ARKA if on else ON, k=bi_panel(x))',
+     '                 ix["4.5"], [ix["5.1"]], ARKA if on else ON, k=bi_panel(x))',
+     "ic kat deligi 4.5'te (cubuklar yeni konmusken, DELINMEDEN) belirirse plan sirasiyla "
+     "celisir: '... 5.1'de (delindigi adim) beliriyor' kirmizi"),
+    # ── B59 · on panel: toplu ve duzenli (kullanici 2026-09-26) — islev kurallari
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"x": 107.0, "z": 45.0', '"x": 35.0, "z": 45.0',
+     "COM kullanicinin gorselindeki gibi sol uca giderse gerilim probu panelin bir ucundan obur "
+     "ucuna uzanir: 'COM olcum jaklarinin yaninda' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"x": 143.0, "z": 81.0', '"x": 107.0, "z": 81.0',
+     "CAL SKOP'tan uzaklasirsa CAL -> SKOP patch kablosu uzar: 'CAL SKOP'un komsusu' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "CAL_KOMSU_R = 40.0 ", "CAL_KOMSU_R = 60.0 ",
+     "komsuluk yaricapi buyurse HV (51 mm) CAL'in komsusu sayilir: 'HV aralarinda DEGIL' ve "
+     "'CAL HV'nin komsusu degil' kirmizi — CAL'i HV'nin ustune koyan gorsel hali"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     '"J4.1": max(abs(T.SKOP_MENZIL_EKSI), abs(T.SKOP_MENZIL_ARTI)),',
+     '"J4.1": 200.0,',
+     "CAL'in ariza hesabi komsularin GERCEK menzilinden besleniyor mu: SKOP 200 V olsa enjeksiyon "
+     "9 mA: 'GPIO enjeksiyon akimi hedefin altinda' kirmizi (eskiden sabit PIL 38 V'tu)"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"x": 80.0, "z": 27.0', '"x": 98.0, "z": 27.0',
+     "havalandirma cifti ayna olmaktan cikarsa (eski dagilim gibi) 'her panel "
+     "deligi ayna esine sahip' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "PANEL_SIMETRI_HARIC: dict[str, str] = {",
+     'PANEL_SIMETRI_HARIC: dict[str, str] = {\n    "CAL": "gereksiz kayit: CAL on panelde, simetri kurali yalniz arka panelde — bu satir eskimis olmali",',
+     "simetri istisna listesi arka panelde olmayan (B59'dan beri simetri kurali olmayan on "
+     "paneldeki) bir ogeyi tasirsa 'eskimis kayit yok' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     "PANEL_SIMETRI_HARIC: dict[str, str] = {",
+     'PANEL_SIMETRI_HARIC: dict[str, str] = {\n    "HV1": "gereksiz kayit: HV1in aynasi HV2, zaten simetrik — bu satir eskimis olmali",',
+     "arka panelde ARTIK simetrik olan bir oge istisnada kalirsa 'eskimis kayit yok' kirmizi"),
+    # ── B55n-b · kullanici kararlari (2026-09-24)
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>B0505S (IZ)</b> MT2\'nin soluna, bacaklar aşağı, gövdesinden yapıştır. ⚠ Bu modül kutunun <b>iki toprağını ayıran "',
+     '"MT2\'nin soluna küçük bir modül, bacaklar aşağı, gövdesinden yapıştır. ⚠ Bu modül kutunun <b>iki toprağını ayıran "',
+     "B58: yalitim modulunun takma talimati adini kaybederse kullanici hangi modulu nereye "
+     "koyacagini bilemez: 'monte ettigi her parca icin TAKMA TALIMATI' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Soğutucuyu {sogutucu_r} ile kart GND\'ye bağla</b> ({sogutucu_stok}): direncin bir ucunu "\n'
+     '                 "soğutucunun vida somununun altına, diğer ucunu kart GND\'ye (A:T_YILDIZ ya da şöntün "',
+     '"<b>Soğutucuyu kalın telle kart GND\'ye bağla:</b> telin bir ucunu "\n'
+     '                 "soğutucunun vida somununun altına, diğer ucunu kart GND\'ye (A:T_YILDIZ ya da şöntün "',
+     "sogutucu GND'ye DUZ TELLE baglanirsa mika delindiginde PIL 1 (38.5 V) GND'ye "
+     "kisa devre olur; kontrol satiri direnc okumasini istiyor: 'her yapistirici/metin' zinciri kirmizi"),
+    ("B50", "kutu.py", "uretim/tasarim3_sabit.py",
+     "SOGUTUCU_BOSALTMA_R = 1.0e6", "SOGUTUCU_BOSALTMA_R = 1.0e2",
+     "bosaltma direnci 1 M'dan 100 ohm'a duserse ariza akimi 38 uA -> 0.4 A olur; "
+     "sayi metinden uretildigi icin 6.5'in gerekcesi kendini yalanlar"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"<b>Karar (2026-09-24): takılı sigorta kalıyor, T sonraki plana.</b> Şu an yuvada "',
+     '"<b>T (gecikmeli) 50 mA gelene kadar yuvadaki 400 mA (FUS001) kalsın.</b> Şu an yuvada "',
+     "10.1 eski karara donerse (T beklenecek) kullanicinin 2026-09-24 karari kaybolur: "
+     "'takili sigorta kalacak ve T istege bagli' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py",
+     '"bakma, <b>ohmmetreye bak</b>. Merak edersen sigortayı çıkar, soğukken direncini "\n'
+     '                 "ölç: <b>{r50f:.0f}–{r50t:.0f} Ω</b> → gerçekten 50 mA (o zaman T tipidir, çünkü atmadı); "\n'
+     '                 "<b>{r400:.1f} Ω</b> civarı → 400 mA sınıfı (FUS001). ',
+     '"bak: etiketinde ne yazıyorsa odur. ',
+     "sigortayi OLCUMLE degil ETIKETLE ayirt ettiren metin geri gelirse "
+     "'etiketle degil olcumle ayirt ettiriyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'if p["ref"] in refs or p.get("adim") == s["no"]:',
+     'if p["ref"] in refs and p.get("adim") == s["no"]:',
+     "adim konum tablosu bir parcayi kaybederse ('plandaki yere koy' diyen adimda "
+     "mm yok) 'her adim mm konumunu gosteriyor' kirmizi"),
+    # ── B73 · kablo guzergahi (8-kutu.html cizim + 3B + tablo)
+    # B73 gozden gecirme: "H2- ara noktasi silinirse ESP32'nin icinden gecer" mutasyonu KACTI — serit
+    # secici varsayilan yolu ESP32'nin ustune kaldiriyor. Govde iddiasini artik secicinin suzgeci tasir:
+    ("B50", "kutu.py", "uretim/kutu.py", "            if (kablo_carpismalari(k, govde, yol)\n",
+     "            if (False\n",
+     "serit secici govdeye giren adayi elemezse K10/K11 ESP32'nin icinden gecer: carpisma iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"MT1": {"OUT+": (2.0, 14.0, 12.0)', '"MT1": {"OUT+": (60.0, 14.0, 12.0)',
+     "terminal parcasinin disina kayarsa 'terminal kendi govdesinde' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", "KABLO_PAY = 1.15", "KABLO_PAY = 1.0",
+     "kesim payi kalkarsa 'kesim >= guzergah x 1.1' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '("F2.2", "F1P.2", "pil",', '("F2.2", "TP1.B+", "pil",',
+     "F2 eski uca donerse veri-metin (§4.1) ve bayat KABLO_YOL iddialari kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '{"a": "LED1.K", "b": "J1.2.L"', '{"a": "LED1.K", "b": "MT1.OUT-"',
+     "LED katodu MT1 eksisine giderse 10.5'te yanmaz: §4.3 iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py", 'KABLO_E12 = frozenset({"IZ.OUT-", "MT2.IN-", "MT2.OUT-", "KL.-", ',
+     'KABLO_E12 = frozenset() and frozenset({"IZ.OUT-", "MT2.IN-", "MT2.OUT-", "KL.-", ',
+     "-12 kablosu yanlis renge duserse rol-graf capraz iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py", '"kablo", gor, [gor],', '"kablo", gor + 1, [gor],',
+     "3B'de kablo yanlis adimda belirirse 3B iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"IN+": (3.0, 7.0, 0.0), "IN-": (5.5, 7.0, 0.0)',
+     '"IN+": (5.5, 7.0, 0.0), "IN-": (3.0, 7.0, 0.0)',
+     "B0505S giris bacaklari yer degistirirse (Mornsun sirasi) §4.6 iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", 'for _r in ("MT1", "MT2", "IZ", "CB", "KL", "F0", "F1P", "F2"):',
+     'for _r in ("MT2", "IZ", "CB", "KL", "F0", "F1P", "F2"):',
+     "MT1 yapistirma istisnasindan duserse metin silikon dedigi icin sokulebilir + karar iddiasi kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py", "ROZET_ARA = 18.0", "ROZET_ARA = 0.0",
+     "rozet yerlesimi cakismayi gozetmezse (B0505S bacaklari) 'rozetler ust uste binmiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py", "        return sol + x * olc", "        return sol + (kb[\"ic_en\"] - x) * olc",
+     "ic bakis aynalanirsa (B63: SARJ/USB karisikligi) 'arka duvar ICERIDEN' iddiasi kirmizi"),
+    # ── B73 gozden gecirme: serit, kesim, kendi teller, B0505S adlari, tekrar tablo, §4 metinleri
+    ("B50", "kutu.py", "uretim/kutu_veri.py", "KABLO_SERIT = 2.0", "KABLO_SERIT = 0.0",
+     "serit kalkarsa ucu ortak olmayan kablolar ayni cizgiye biner: 'ayni cizgiye binmiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py", "                    or (izdusum and e != 1 and abs(p[2 - e] - r[2 - e]) < 2.0):",
+     "                    or False:",
+     "seritleme ic bakisi (x-z) gozetmezse denetim KENDI koduyla yakalar: 'ayni cizgiye binmiyor' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'key=lambda k: (k["rol"] != "bacak",\n                                                  0.0 if k["rol"] == "bacak" else -guzergah_boyu(',
+     'key=lambda k: (False,\n                                                  -guzergah_boyu(',
+     "ciplak bacaklar once yerlesmezse 680 µF bacagi K19/K20 ile kesisir: 'ciplak bacak ≥ 2 mm' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", "KABLO_SOYMA = 6.0", "KABLO_SOYMA = 0.0",
+     "soyma payi kalkarsa 30-40 mm'lik kablolar uclar soyulunca yetmez: 'kesim +%10 + soyma' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py", "        if g > boy:\n", "        if False:\n",
+     "TP4056'nin 20 cm'lik teli yetmezken 'ek' denmezse kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     'tp_ped = K.KABLO_UCLARI["TP1"]["B+"][2] - tp["yuk"] + K.KENDI_TEL["TP1"]["kivrim_mm"]', "tp_ped = 0.0",
+     "TP4056 telinin pedden araliga cikisi sayilmazsa 'pedden gereken boy' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py", "    if yuva:\n        g = math.ceil(", "    if False:\n        g = math.ceil(",
+     "yuva telleri yeni kablo sanilirsa 'yuvanin kendi teli' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py", "bacak numarası 1, 2, 4, 6 (10.1)", "bacak numarası (10.1)",
+     "B0505S kablo karti bacak numaralarini vermezse kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py", "IZ.IN± = B0505S bacak 1/2, IZ.OUT± = bacak 6/4 (gövdede ad yok)",
+     "IZ.IN± = B0505S Vin/GND, IZ.OUT± = +Vo/0V",
+     "belge B0505S'te gövdede olmayan adlari aratirsa kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py",
+     "                  if not (kablo_delikleri(i, nl, parcalar) and set(kablo_delikleri(i, nl, parcalar)) <= b73_delik)]",
+     "                  if True]",
+     "10.4'te eski kablo tablosu ayni telleri tekrar ederse kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", "(= kart GND; tablodaki kablo {led_k_no}, {led_k_kesim} cm)",
+     "(= kart GND; LED'den 36 mm)", "LED katot kablosunun boyu elle yazilirsa kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"GPIO10": (2.0, 22.7, 28.0)', '"GPIO10": (2.0, 34.0, 28.0)',
+     "GPIO10 ucu pin diziliminden saparsa kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '{"ara": [(24, 30, 70), (24, 130, 70), (72, 130, 81)]',
+     '{"ara": [(24, 30, 70), (24, 160, 70), (72, 130, 81)]',
+     "guzergah kutudan tasarsa (y 160 > 154) 'kutunun icinde' kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"Hücre telleri <b>yuvanın kendi telleri</b>',
+     '"Hücre telleri <b>yuva telleri</b>', "§4.2 metni kalkarsa kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", "takılı değilken: TP4056 OUT− ↔ kart GND (C29)",
+     "takılı değilken: TP4056 OUT− ↔ C29", "§4.4 paket-GND kontrolu 11.1'den duserse kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"<b>Sigorta yuvası = iki ayrı klips</b>',
+     '"<b>Sigorta yuvası = iki klips</b>', "§4.5 metni kalkarsa kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu_veri.py", '"<b>Tezgahta önce:</b> MT1 ve MT2', '"<b>Önce:</b> MT1 ve MT2',
+     "§4.8 metni kalkarsa kirmizi"),
+    ("B50", "kutu.py", "uretim/kutu.py", '    return "Uç yerleri ±3 mm tahmin" + (', '    return "Uç yerleri tahmin" + (',
+     "kablo karti tahmin payini soylemezse kirmizi"),
     # ── B22b · kart web katmani
     ("B20", "sim3_bant.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "sunucu.enableDelay(false);", "/* sunucu.enableDelay(false); */",
@@ -666,6 +1735,8 @@ MUTASYONLAR = [
      "olcum cekirdegi sokete yazmaya geri doner: hem akis[] dizisinde "
      "ikinci yazar hem de kaldirilan blokaj geri gelir"),
     ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     # B55l: desen eskimisti (kaynakta artik suslu parantez yok) ve mutasyon
+     # UYGULANAMIYORDU — yani bu iddia sessizce sinanmiyordu.
      "    if (skop_kilidi && xSemaphoreTake(skop_kilidi, 0) != pdTRUE)",
      "    if (skop_kilidi && xSemaphoreTake(skop_kilidi, portMAX_DELAY) != pdTRUE)",
      "olcum tarafi HTTP dokumunu beklerse cift cekirdegin anlami kalmaz"),

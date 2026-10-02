@@ -228,33 +228,44 @@ KART_DISI = {
 # ne gelecek, parca var mi" diye sordu (2026-09-17): kablo alt adiminda
 # plakete parca takilmadigi belgede yazmiyordu.
 KART_DISI_NOTU = {
-    "RS": "Type-C şönt, kutuda 5 mΩ Ø2 mm (R042, 9.5 A sürekli) takılı; 15 mΩ Ø1 mm (R044, 3.4 A, "
-          "0.52 mA adım) yedek. U biçimli manganin, iki bakır bacak (10–11 mm aralık), bacaklarda sıkıştırma "
-          "boncuğu. Plakete GİRMEZ; bacaklar XP128 10 mm klemense (CON064), yük kabloları aynı vidalara. "
-          "Kelvin telleri bacağa, boncuğun HEMEN ALTINA (bakıra) lehimlenir — vida daha aşağıda; 'RS.2' "
+    "RS": "Type-C şönt, kutuda 5 mΩ Ø1.6 mm manganin (R042, 9.5 A sürekli) takılı; 15 mΩ Ø1 mm (R044, 3.4 A, "
+          "0.52 mA adım) yedek. R042 veri sayfası: tek parça manganin tel Ø1.6, 10 mm aralık, 10 A; bacaklardaki "
+          "basık yer = ölçüm noktası, altında 3.5 mm bacak. Plakete GİRMEZ; bacaklar XP128 10 mm klemense (CON064); yük kabloları XP128'e girmez, "
+          "yanındaki bariyer klemenste (HB950) birleşir, XP128'e tek köprü (B55n). "
+          "Kelvin telleri bacaklardaki BASIK YERİN kendisine lehimlenir (veri sayfasının ölçüm noktası; "
+          "altındaki 3.5 mm bacak klemense girer, vidaya lehim yok); 'RS.2' "
           "saydığın bacağa S−, yıldız GND ve J3.2 gider — tutarlı ol. Isıl sınır tel çapından (B53).",
-    "J3": "YÜK born jak çifti (büyük boy, siyah ×2, panel): J3.1 → yük eksisi, J3.2 → kaynak "
-          "eksisi. Jakların iç ucundan şönt klemensine (XP128) kısa kalın kablo — jak tarafı halka pabuç, "
-          "klemens tarafı kalaylı uç; akım J3.1 → şönt → J3.2 yolunu izler. (Bariyer klemens panele "
-          "vidalanamıyordu — PCB tipi.)",
-    "J6": "24 V girişi: XT30 (CON058). Kart tarafı ERKEK uç (pimli), güç kaynağı "
-          "tarafı DİŞİ uç — gerilim taşıyan taraf kapalı soketli olsun. Kablo yalıtımlı, "
-          "kırmızı = +, siyah = −.",
+    "J3": "YÜK born jak çifti (büyük boy, yeşil ×2, panel): J3.1 → yük eksisi, J3.2 → kaynak "
+          "eksisi. Jakların iç ucundan şöntün yanındaki bariyer klemense (HB950) kısa kalın kablo — jak "
+          "tarafı lehim kulağı ya da iki somun arasında kalaysız halka, bariyer tarafı kalaysız burulmuş uç "
+          "(kalay vida altında akar, gevşer; halka pabuç stokta yok, gerekmez); akım J3.1 → şönt → J3.2 "
+          "yolunu izler.",
+    "J6": "24 V girişi. Tezgahta: XT30 (CON058) — kart tarafı ERKEK uç (pimli), güç kaynağı "
+          "tarafı DİŞİ uç; gerilim taşıyan taraf kapalı soketli olsun. Kablo yalıtımlı, "
+          "kırmızı = +, siyah = −. Kutuda (B58): XT30 kesilir, teller iç klemense (KL) — "
+          "24 V'u kutunun kendi pili (MT2) verir, dış besleme yok.",
     "J1": "V girişi born jak çifti (panel): kırmızı = V girişi, siyah = COM (kart GND).",
-    "J2": "HV girişi born jakı (panel): AYRI ve işaretli; COM, J1'in COM'uyla ortak.",
+    "J2": "HV girişi born jakı (panel): AYRI, işaretli ve kutudaki TEK SARI jak (B60); COM, J1'in COM'uyla ortak.",
     "J4": "Skop girişi born jakı (panel); COM ortak.",
     "J7": "PİL born jak çifti (büyük boy, mavi ×2, panel): J7.1 → yük direnci, J7.2 → pil "
           "eksisi; J3'ten AYRI — karıştırılırsa kesme çalışmaz.",
-    "Q1": "IRFZ44N (Q006), kutuda: kaynağı şönt üst bacağına, savağı J7.1'e, kapısı "
+    "Q1": "IRFZ44N (Q006), kutuda: kaynağı bariyer klemensin 1. kutbuna (= şöntün RS.1 düğümü, B55n), savağı J7.1'e (PİL 1), kapısı "
           "karta tek telle (T_KAPI). Soğutucusuz 6.55 A'e kadar.",
 }
+
+# B64b (kullanici 2026-09-27, kart B'yi A'ya baglarken): B:O16 -> A:C11 teli icin
+# yerlesim "<10 cm", kablo notu "7-13 cm; 15 cm kes" diyordu. Kutuda (B 270°, B55g) iki
+# lehim noktasi arasi DUZ CIZGIDE 14.5 cm, kenarlardan ~19 cm: 10 cm'lik tel hic yetismez.
+# Tek sayi burada; kutu.py kart_nokta() ile yolu hesaplayip bu sayiyi IKI YONDEN sinar
+# (kisa -> yetmez, cok uzun -> yuksek empedansli dugum gurultu toplar).
+HVALT_TEL_KES_CM = 22
 
 # (uc1, uc2, tur, adim, not)
 #   uc: "A:<TEL>" / "B:<TEL>" (lehim noktasi) · "X:<REF.PIN>" (kart disi pin)
 #   tur: yuk (yuk akimi) · kelvin · yildiz · sinyal · hv · besleme · panel
 KABLOLAR = [
     ("X:J6.1", "A:T_24P", "besleme", 0,
-     "24 V arti — XT30 (kodlu: ters takilamaz; acma-kapama anahtari DEGIL)"),
+     "24 V arti — tezgahta XT30 (kodlu: ters takilamaz); kutuda ic klemens KL.+ (B58)"),
     ("X:J6.2", "A:T_24N", "besleme", 0, "24 V eksi = -12 V rayi"),
     # guc yolu
     ("X:J3.1", "X:RS.1", "yuk", 3, "yuk donusu -> sont ust bacagi"),
@@ -283,8 +294,9 @@ KABLOLAR = [
     ("X:J4.2", "X:J1.2", "sanal", 6, "skop COM = ortak COM jaki (ayni fiziksel jak, tel yok)"),
     ("X:J2.1", "B:T_HV", "hv", 5, "HV jak -> B karti. 600 V silikon test kablosu"),
     ("B:T_N6", "A:T_HVALT", "sinyal", 5,
-     "zincir alt dugumu (~1.7 V, Thevenin 8.2K). KISA tut (kutu planinda B–A arasi 7–13 cm; 15 cm kes, GND ile bur), HV "
-     "kablosundan ve 24 V hattindan uzak; B kartini A'nin yanina monte et"),
+     f"zincir alt dugumu (~1.7 V, Thevenin 8.2K). {HVALT_TEL_KES_CM} cm kes — kutuda iki kartin arasi bu kadar "
+     "(kutu.py kart konumlarindan hesapliyor), daha kisasi YETMEZ; gereksiz uzatma da. GND ile BURMA "
+     "(B'de GND yok). HV kablosundan ve 24 V hattindan uzak gecir"),
     ("X:J4.1", "A:T_SKOP", "sinyal", 6, "skop girisi"),
 ]
 

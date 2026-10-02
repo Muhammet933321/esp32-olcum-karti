@@ -86,22 +86,26 @@ def bolum0(r):
          T.ORTA_NOKTA_KELEPCE_KANAL_NEG, "GND'ye GIRER"),
         ("Hizli akim kelepcesi (U5B ayni)",
          T.ORTA_NOKTA_KELEPCE_KANAL_NEG, "GND'ye GIRER"),
+        ("Panel GUC LED'i (+12 -> GND), SUREKLI", T.PANEL_LED_AKIM,
+         "GND'ye GIRER"),
     ]
     for ad, i, yon in kalemler:
         gosterim = 0.0 if yon == "raydan raya" else i
         r.bilgi(f"  {ad:<42} {i*1e3:7.1f} mA {yon:>14}"
                 + ("   (orta noktaya 0)" if yon == "raydan raya" else ""))
     dengesizlik = (T.ORTA_NOKTA_YUK_7805
-                   + 2 * T.ORTA_NOKTA_KELEPCE_KANAL_NEG)
-    dengesizlik_normal = 2 * T.ORTA_NOKTA_KELEPCE_KANAL_NEG
+                   + 2 * T.ORTA_NOKTA_KELEPCE_KANAL_NEG
+                   + T.PANEL_LED_AKIM)
+    # LED tek SUREKLI kalem: obur ucu ariza/secenek, bu her zaman akiyor
+    dengesizlik_normal = 2 * T.ORTA_NOKTA_KELEPCE_KANAL_NEG + T.PANEL_LED_AKIM
     r.bilgi("  " + "-" * 68)
-    r.bilgi(f"  {'EN KOTU dengesizlik (7805 + iki kelepce)':<42} "
+    r.bilgi(f"  {'EN KOTU dengesizlik (7805 + iki kelepce + LED)':<42} "
             f"{dengesizlik*1e3:7.1f} mA {'GND CEKMELI':>14}")
     r.bilgi("")
     r.bilgi("  ⚠ +5 V bugun ESP32 basligindan (J5.8 = USB) geliyor, yani")
     r.bilgi("    7805 kolu YOK. B15/B6 zaten 7805 EKLENMEMESINI oneriyor")
     r.bilgi("    (ikinci bir +5 V kaynagi geri surme riski aciyor).")
-    r.bilgi(f"    O halde NORMAL calismada dengesizlik ~0, arizada "
+    r.bilgi(f"    O halde NORMAL calismada yalniz LED akiyor ({T.PANEL_LED_AKIM*1e3:.1f} mA), arizada "
             f"{dengesizlik_normal*1e3:.1f} mA.")
     r.bilgi("")
     r.kosul("  B11-0: dengesizlik TEK YONLU (hepsi GND'ye giriyor)",

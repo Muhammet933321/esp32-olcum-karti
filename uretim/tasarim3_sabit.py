@@ -828,6 +828,196 @@ ORTA_NOKTA_R = 1e3                        # bolucunun her bacagi (onerilen)
 # Orta noktadan GND'ye gercekten akan akim (TL072'lerin bosta akimi
 # raydan raya akar, orta noktaya DEGMEZ — DEVIR 5.12.23 bunu yanlis
 # saymisti; B15 bolum 3'te olculuyor):
+# ── panel GUC LED'i (B55f, kullanici karari 2026-09-23) ────────────────
+# "Kart calisiyor mu?" sorusunun gorsel cevabi yoktu. LED +12 RAYINDA:
+# akim GND'ye GIRER, yani 7912'nin cekmek uzere tasarlandigi yon. GND ile
+# -12 arasina konsaydi regulatorden akim VERMESI istenirdi; 79xx veremez
+# (7812 yerine 7912 secilme sebebiyle ayni gerekce).
+# LED ESP32'den BAGIMSIZ ve PASIF: firmware gerektirmez, ESP32 olu olsa da
+# yanar. ESP32'nin surdugu bir gosterge, ESP32 USB'deyken analog kapaliysa
+# "hazir" diye yalan soylerdi — bu yuzden pasif secildi.
+PANEL_LED_VF = 2.1                        # 5 mm yesil LED (LED003), 1 mA'de tipik
+PANEL_LED_R = 10e3                        # R060, 1/4 W
+PANEL_LED_AKIM = (12.0 - PANEL_LED_VF) / PANEL_LED_R     # ~0.99 mA, GND'ye GIRER
+
+# ── CAL cikisinin seri direnci (B55g, kullanici karari 2026-09-23) ─────
+# CAL, panelde KORUMASIZ tek GPIO ucu: devkit GPIO10 -> seri direnc -> sari
+# jak. En yakin komsusu 25.5 mm'deki PIL 1 ve orada pil kapasite testinde
+# PIL_GIRIS_AZAMI_V duruyor. Yanlis delige giren bir krokodil iki ayri
+# yoldan vurur ve IKISI DE olculuyor (kutu.py bolum 6):
+#   1. Kart KAPALIYKEN +3V3 rayini hicbir sey cekmiyor; R41 (1K, +3V3-GND,
+#      netlist3) ile seri direnc bir BOLUCU olur ve ray yukselir. Rayda
+#      yalniz GPIO10 degil, IKI ADS1115'in VDD'si de var (netlist +3V3:
+#      U6.8, U7.1, U7.8) -> mutlak sinir 3.6 V asilirsa ucu birden gider.
+#   2. Kart ACIKKEN ray 3.3 V'ta tutulur (ESP_BOSTA_AKIM 40 mA > enjeksiyon),
+#      ama akim GPIO'nun ESD diyodundan akar: ESP_ENJEKSIYON_HEDEFI 5 mA.
+# 1K ile: ray 19.0 V (5.3x sinir), enjeksiyon 34.7 mA (6.9x hedef), direncte
+# 1.20 W (4.8x anma). 22K ile: 1.65 V, 1.58 mA, 0.055 W.
+# BEDEL: seri direnc CAL sinyalinin de yolunda (skop girisi ~103 kOhm), yani
+# kare dalga %99 -> %82'ye iner. Bu bir HATA DEGIL, bilinen sabit bir bolme
+# orani; kenar yuvarlamasi (R x Cgiris ~ 2.2 us) 1 kHz'de periyodun %0.2'si
+# ve CAL frekansi yazilimdan dusurulebiliyor (X<hz>). Koruma payi geri
+# alinamaz, genlik alinabilir -> 22K secildi (10K yalniz %4.5 pay veriyordu).
+CAL_SERI_R = 22e3                         # 1/4 W
+CAL_SERI_STOK = "R059"                    # 22K, stokta 50 (envanter)
+
+# ── hucre kolu sigortasi (B55g, kullanici karari 2026-09-23) ───────────
+# TP4056'nin koruma FET'i (FS8205) B- ile OUT- ARASINDA. Hucre uclarindaki
+# ya da H+/H- kablolarindaki bir kisa devre o FET'in DISINDA kalir: DW01A
+# kesemez, cunku kesecegi yol devrede degil. Kutudaki tek ~10 A'lik yol bu
+# ve ahsap kapali bir kutunun icinde. Sigorta hucrenin ARTI ucunda: korunan
+# kablo TAMAMEN sigortanin arkasinda kaliyor.
+# ⚠ B55k: ilk hali 0.5 A idi ve YANLISTI — sigorta hucrenin ARTI ucunda, yani
+# TP4056'nin BAT ucunda: SARJ AKIMININ TAMAMI oradan geciyor. Modul fabrika
+# ayarinda (Rprog 1.2 kOhm) 1.0 A sarj ediyor; 500 mA sigorta ILK SARJDA atardi.
+# Olcut artik max(sarj, kol) uzerinden: 1.5 x 1.0 A = 1.5 -> 2 A (FUS004, stokta 8).
+TP4056_RPROG = 1.2e3                      # ohm — fabrika ayari (kutu_veri MALZEME);
+                                          # 1.5-1.6k'ya cikarmak ISTEGE BAGLI
+TP4056_IPROG_KAT = 1200.0                 # veri sayfasi: I_bat = 1200 / Rprog  (A, ohm)
+PIL_SARJ_AKIMI = TP4056_IPROG_KAT / TP4056_RPROG          # 1.00 A
+PIL_KOL_SIGORTA = 2.0                     # A — FUS004 (2 A F cam), stokta 8
+# B58 (kullanici karari 2026-09-25): DIS BESLEME KALKTI. B55n'in XT30 giris
+# sigortasi (F0B, GIRIS_SIGORTA) de onunla gitti. Kutu yalniz kendi pilinden:
+# iki 18650 PARALEL -> tek TP4056 -> PIL anahtari -> MT1 (5 V barasi: ESP32 +
+# analog). Analog: 5 V barasi -> F0 -> B0505S (YALITIMLI) -> (B58e: ANALOG anahtari KALKTI)
+# MT2 (24 V) -> kart. Paketin eksisi kart GND; -12 rayi B0505S'in obur tarafinda,
+# yani tek USB topragi (sarj) hicbir seyi kisa etmiyor -> TEK sarj girisi.
+# B58b: kullanici Hi-Link B0505S-2WR3 aliyor (motorobit): 2 W, 1500 VDC, surekli kisa devre
+# korumali, govde 19.5 x 7 x 10 mm. Ureticinin sarti: yuk anmanin %10'undan AZ olmasin
+# (regulesiz modul, bosta cikis yukselir).
+# B58c: kullanici hangisini alacagina fiyatla karar veriyor (motorobit'te ikisi de Hi-Link, stokta).
+# Plan IKISI icin de gecerli: yuk siniri ve asgari yuk HER secenek icin ayri denetleniyor;
+# duvarda 2 W'in govdesine (19.5 mm) yer ayrildi, 1 W (11.6 mm, 4-SIP) ayni yere sigar.
+# ⚠ B58f (2026-09-25): 1 W CIKARILDI. Duragan yuk %73 ile 1 W yetiyordu ama ACILISTA yetmiyor:
+# Mornsun R3 'buyuk kapasitif yukte CC (akim sinirli) kipte acilis' diyor; akim sinirli kaynak
+# MT2'nin girisini UVLO sinirina (~2 V) ceker ve aktarilan guc ~ I_sinir x 2 V kalir. Kart 24 V'ta
+# ~0.73 W istiyor -> sinir >= 0.37 A: 1 W icin anmanin 1.8 kati (garanti yok), 2 W icin 0.9 kati.
+# sim3_kutu_besleme.py 1 W'i negatif kontrol olarak kosuyor (kart 24 V'a CIKAMIYOR olmali).
+IZOLE_GUC_SECENEK = (2.0,)                # W — yalniz B0505S-2WR3
+IZOLE_ASGARI_YUK = 0.10                   # anmanin en az bu kadari (Hi-Link veri sayfasi)
+RAY24_AKIM_ASGARI = 19e-3                 # A — 24 V rayinin en dusuk yuku (KUTU_NOTU MT2: 19-25 mA)
+IZOLE_VERIM = 0.72                        # katalog tam yukte %75-80; ~%70 yukte daha dusuk
+IZOLE_YUK_PAYI = 0.80                     # anmanin en fazla bu kadari (isinma + regulasyonsuz cikis)
+ESP32_5V_AKIM_KOTU = 250e-3               # A — devkit 5V pininden WiFi tepesi (ORTA_NOKTA_YUK_ESP ile ayni)
+ESP32_5V_AKIM_TIPIK = 120e-3              # A — WiFi bagli, ortalama
+KART_5V_AKIM = 20e-3                      # A — LM358 x2 + ADS1115 x2 + TL431 (+5V/+3V3, J5 uzerinden)
+F0_SIGORTA = 1.0                          # A — FUS003 (1 A F cam), 5 V analog girisinde (pano yuvasi)
+MT3608_ANAHTAR_AKIM = 2.0                 # A — modulun anma akimi (MOD012 "2A"; IC 4 A anahtar siniri)
+DW01_ASIRI_AKIM = 3.0                     # A — DW01A + FS8205 tipik asiri akim kesmesi (150 mV / ~50 mOhm)
+HUCRE_KAPASITE_AH = 1.5                   # PWR005 1500 mAh
+HUCRE_V_NOM = 3.7
+HUCRE_SAYISI = 2                          # paralel
+# Test kaynagi (Adim 12, 14.3): tezgah beslemesi = WCT-200-24 + MOD011 buck.
+# B58'den beri WCT kutuya bagli degil, yalitilmis bir test kaynagi.
+TEST_KAYNAK_V = 3.7                       # V — buck ayari (18650 benzeri)
+TEST_YUK_R = 3.3                          # ohm — R049 11 W
+
+# ── B58f (2026-09-25): kutu besleme zincirinin ZAMAN benzetimi ─────────
+# `sim3_kutu_besleme.py` bu sabitlerle PIL anahtari kapaninca / acilinca ne
+# oldugunu adim adim hesapliyor. Kaynaklar (hepsi indirilip okundu):
+#   Fortune DW01A-DS-11 rev 1.1 (JUN 2010) bolum 5 + Tablo 10
+#   EVVO FS8205A urun belgesi (2023) s.2 — TP4056 modulleri klon tasiyor
+#   Aerosemi MT3608 V1.0 s.3 (elektriksel tablo) + s.4 ("internal soft start")
+#   MORNSUN B_S-1WR3 (2026.09.07-A/7) ve A_S/B_S-2WR3 (2026.09.01-A/8) —
+#     Hi-Link B0505S bunlarin kopyasi; Hi-Link urun sayfasi (hlktech.net id=140):
+#     yuk regulasyonu +-%15, asgari yuk %10, "baslama gerilimi 4.5 V",
+#     kisa sureli azami cikis >= 220 mA (1 W)
+#   Littelfuse 217 soguk direnc: 217001 0.096 ohm, 217002 0.042 ohm (RS listesi)
+# ⚠ Veri sayfasinin VERMEDIGI her sey TARANIYOR, tek degere baglanmiyor:
+#   MT3608'in yumusak baslama suresi, B0505S'in asiri yuk davranisi (sarkma /
+#   akim siniri / hiccup), DW01A gecikmelerinin alt siniri.
+DW01_VOIP = (0.120, 0.150, 0.180)          # V — asiri akim algilama (min, tip, maks)
+DW01_TOI1 = 10e-3                          # s — asiri akim gecikmesi TIPIK (maks 20)
+DW01_TOI1_ALT = 5e-3                       # s — VARSAYIM: veri sayfasinda MIN yok -> tipigin yarisi
+DW01_VSIP = (1.00, 1.35, 1.70)             # V — kisa devre algilama
+DW01_TOI2 = 5e-6                           # s — kisa devre gecikmesi TIPIK (maks 50 us; min yok)
+DW01_VODP = (2.30, 2.40, 2.50)             # V — asiri desarj kesmesi
+DW01_TOD = 40e-3                           # s — asiri desarj gecikmesi TIPIK (maks 100)
+FS8205_RDS = {4.5: (20.5e-3, 27e-3), 2.5: (27e-3, 37e-3)}   # Vgs -> (tip, maks) TEK FET, 25 C
+FS8205_SICAK = 1.3                         # Rds 25 C -> ~75 C (trench MOSFET tipik egri) — VARSAYIM
+FS8205_ACILIS = 1.1                        # acilista FET kutu sicakliginda (~40 C), isinmamis
+IZOLE_ASIRI_TAVAN = 3.0                    # x anma — Royer'in surucu/doyma siniri — VARSAYIM (taranir)
+# MT2'nin girisine (B0505S cikisi) elektrolitik: yumusak baslama 'referans rampasi' ise MT2 girisini
+# UVLO'ya cekip rampayi sifirliyor, her dongu yalniz 22 uF'nin enerjisini tasiyordu -> kart ~15 V'ta
+# takiliyordu (2 W'ta bile). 470 uF her modelde yetiyor (ESR 2x ile de), 220 yetmiyor; stokta 680 uF 16 V.
+MT2_GIRIS_C = 680e-6                      # F — C042 (680 uF 16 V, stok 2)
+MT2_GIRIS_STOK = "C042"
+MT2_GIRIS_V = 16.0                        # V — anma; B0505S bosta en fazla ~7 V (10.1)
+# YEDEK YOL (belirtiye bagli, varsayilan DEGIL): B0505S +Vo ile MT2 girisi arasina seri direnc.
+# Guclu (asiri yukte 3x anma veren) modulde yarim pilde DW01A acilista kesiyorsa takilir; hiccup
+# tipli modulde 24 V'u engeller, o yuzden once denenmez. 3 x R052 (1R 1 W) seri.
+MT2_SERI_R_YEDEK = 3.0                    # ohm
+MT2_SERI_R_STOK = "R052"
+MT2_GIRIS_ESR = {220e-6: 0.5, 470e-6: 0.25, 680e-6: 0.2, 1000e-6: 0.15}   # F -> ohm, genel amacli
+                                           # elektrolitik, ~10-50 kHz darbede (tan d'den) — VARSAYIM
+MT3608_UVLO = 1.98                         # V — yukselen, MAKS
+MT3608_UVLO_HIST = 0.10                    # V
+MT3608_DMAX = 0.90                         # asgari garanti
+MT3608_GIRIS_SINIR = 3.5                   # A — ortalama giris: 4 A anahtar tepesi - dalgalanma/2
+MT3608_SS = (0.3e-3, 1e-3, 5e-3)           # s — "internal soft start", SURE YOK -> taranir
+MT3608_L = 22e-6                           # H — modul bobini (MOD012)
+MT3608_DCR = 0.10                          # ohm — bobin + Schottky diferansiyel direnci
+MT3608_DIYOT_VF = 0.35                     # V — SS34, ~0.5 A
+MT3608_C = 22e-6                           # F — modul giris/cikis seramigi (veri sayfasi onerisi)
+MT3608_C_24V_ETKIN = 0.5                   # 24 V'ta seramigin DC kutuplama kaybi — VARSAYIM
+IZOLE_ANMA_AKIM = {1.0: 0.200, 2.0: 0.400}          # A — Mornsun secim tablosu
+IZOLE_YUK_REG = {1.0: (0.10, 0.15), 2.0: (0.08, 0.15)}   # (tip, maks), %10 -> %100 yuk
+IZOLE_EGRI_10 = (1.00, 1.05, 1.10)         # %10 yukte cikis / anma (min, tip, maks) — Fig. 1
+IZOLE_HAT_REG = 1.2                        # cikis %'si / giris %'si (Linear Regulation)
+IZOLE_BOSTA_AKIM = 20e-3                   # A — Mornsun 8 mA; Hi-Link vermiyor -> kotu yon
+IZOLE_BASLAMA_V = 4.5                      # V — Hi-Link "baslama gerilimi"
+IZOLE_GIRIS_ARALIK = (4.5, 5.5)            # V
+IZOLE_GIRIS_DARBE = 9.0                    # V — "Surge Voltage (1 s max)"; SICAK TAKMA YOK
+IZOLE_KISA_SURELI = 1.10                   # x anma — Hi-Link "kisa sureli azami cikis >= 220 mA"
+IZOLE_C_AZAMI = 2400e-6                    # F — azami kapasitif yuk (5 V cikis, 1 W ve 2 W)
+IZOLE_FSW = {1.0: 270e3, 2.0: 220e3}       # Hz — tam yuk
+IZOLE_DALGALANMA = {1.0: 75e-3, 2.0: 200e-3}   # Vpp — MAKS (20 MHz bant)
+IZOLE_BARIYER_C = 20e-12                   # F — giris-cikis kapasitesi
+IZOLE_HICCUP_KAPALI = 20e-3                # s — hiccup'ta kapali kalma — VARSAYIM
+SIGORTA_1A_R = 0.096                       # ohm — 217001 soguk
+SIGORTA_2A_R = 0.042                       # ohm — 217002 soguk
+SIGORTA_1A_I2T_ALT = 0.10                  # A^2 s — ALT SINIR TAHMINI: tablodaki F 315/400 mA
+SIGORTA_2A_I2T_ALT = 0.40                  #   ~I^2.0 olcekleniyor -> 1 A 0.26, 2 A 1.05; 2.5x pay birakildi
+HUCRE_IC_DIRENC_ALT = 0.03                 # ohm — katalog alt ucu (yeni hucre: EN BUYUK darbe)
+HUCRE_IC_DIRENC_YASLI = 0.20               # ohm — yaslanmis hucre (EN BUYUK sarkma) — VARSAYIM
+PAKET_KABLO_R = 0.05                       # ohm — KTS102 kontagi (<=20 mOhm) + 0.5 mm2 teller
+PAKET_KABLO_L = (50e-9, 300e-9)            # H — anahtar kablosu dongusu (5-30 cm) — taranir
+BARA_5V_C = (25e-6, 60e-6)                 # F — MT1 cikisi 22u + devkit + kart + B0505S ici
+ESP32_5V_TEPE = 0.35                       # A — WiFi TX patlamasi (802.11b en yuksek guc)
+ESP32_LDO_DUSUM = 1.0                      # V — devkit LDO'su, ~300 mA
+ESP32_BROWNOUT = 2.7                       # V — 3V3 rayi; bunun altinda ESP32 yeniden baslar
+USB_VBUS = (4.75, 5.25)                    # V — USB 2.0 port cikisi
+USB_KABLO_R = (0.2, 0.5)                   # ohm — VBUS + GND gidis-donus
+USB_DIYOT_VF = 0.35                        # V — devkit VBUS diyotu (klonda olmayabilir)
+USB2_AKIM = 0.5                            # A — USB 2.0 port siniri
+HUCRE_SARJ_C_ORANI = 0.5                   # C — hucreye verilebilecek surekli sarj akimi (1500 mAh -> 0.75 A)
+# B55n (kullanici karari 2026-09-24): Q1'in sogutucusu mikayla yalitik, yani
+# kapali kutuda YUZEN bir metal plakaydi. Dogrudan GND'ye baglanirsa mika
+# delindiginde PIL 1 (test edilen pil, <= PIL_GIRIS_AZAMI_V) sogutucu uzerinden
+# GND'ye kisa devre olur ve O YOLDA BIZIM KOYDUGUMUZ SIGORTA YOK. 1 M ile:
+# statik akiyor, ariza akimi 38 uA'de kaliyor (R026, stokta 20).
+SOGUTUCU_BOSALTMA_R = 1.0e6               # ohm — R026
+SOGUTUCU_BOSALTMA_STOK = "R026"
+# Li-ion SARJ penceresi uretici sinirı 0-45 °C (desarjda 60). Kutu kapali ve
+# havalandirmanin ISIL katkisi %1 mertebesinde, yani icerideki her sey hucreye
+# biner. ⚠ Kutu ici sicaklik artisi OLCULMEDI: model 4-5 tahmin sabitine
+# (h_ic, h_dis, lambda, ESP32 gucu) dayaniyor ve baskin olan h_ic +%39/-%33
+# oynatiyor. Bu yuzden SAYI IDDIA EDILMIYOR — KULLANIM'a kural yazildi ve
+# tezgahta olculecek.
+LIION_SARJ_TAVANI_C = 45.0                # uretici sarj tavani
+LIION_DESARJ_TAVANI_C = 60.0              # desarjda daha genis
+HUCRE_IC_DIRENC = 0.10                    # ohm — 18650, katalog 30-100 mOhm;
+                                          # ust ucu alindi (sigortanin atmasi
+                                          # icin EN KOTU, yani en kucuk akim)
+HUCRE_V_UST = 4.2                         # dolu hucre
+HUCRE_V_ALT = 2.4                         # DW01A asiri desarj kesme esigi —
+                                          # kol akimi burada EN BUYUK
+MT3608_VERIM = 0.85                       # katalog, bu akim araliginda
+RAY24_AKIM_KOTU = 25e-3                   # 24 V rayinin kotu hal yuku
+                                          # (KUTU_NOTU MT2: 19-25 mA)
+PIL_GIRIS_AZAMI_V = 38.0                  # PIL jaklarinda izin verilen azami
+                                          # pil gerilimi (KULLANIM tablosu)
+
 ORTA_NOKTA_YUK_7805 = 6.4e-3              # 7805 bosta + analog +5 V yuku
 ORTA_NOKTA_YUK_ESP = 250e-3               # ESP32 dusurucu regulatoru +12'den
                                           # beslenirse Wi-Fi tepesinde

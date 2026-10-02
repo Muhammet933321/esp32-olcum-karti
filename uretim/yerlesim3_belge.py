@@ -847,7 +847,8 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
                 satir.append(f"<tr><td><b>{e(V.TEL_ETIKET.get(pp.ref, pp.ref))}</b> ↔ "
                              f"<b>{e(V.TEL_ETIKET.get(q.ref, q.ref))}</b></td>"
                              f"<td>{g1} · {g2}</td><td>{l1} · {l2}</td>"
-                             f"<td class='kucuk'>tek tel, iki ucu da lehimlenir — kısa tut (&lt;10 cm)</td></tr>")
+                             f"<td class='kucuk'>tek tel, iki ucu da lehimlenir — <b>{V.HVALT_TEL_KES_CM} cm</b> "
+                             f"kes (kutuda iki kart arası; daha kısası yetişmez)</td></tr>")
                 continue
             else:
                 nasil = "öbür ucu <b>şimdilik boş</b>"
@@ -880,7 +881,8 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
                          "ucuna (dişi uç güç kaynağının kablosuna) — bu adımın KAPI ölçümü "
                          "24 V'u buradan alıyor.")
             elif kart_kart:
-                m.append("Kart B'den kart A'ya giden tel <b>şimdi</b> lehimlenir (kısa, &lt;10 cm).")
+                m.append(f"Kart B'den kart A'ya giden tel <b>şimdi</b> lehimlenir: <b>{V.HVALT_TEL_KES_CM} cm</b> "
+                         "(kutuda iki kartın arası; daha kısası yetişmez).")
             else:
                 m.append("Tellerin öbür uçları <b>boş kalır</b>; kutu/panel kurulunca aşağıdaki "
                          "parçalara bağlanacak.")

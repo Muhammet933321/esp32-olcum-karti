@@ -8449,6 +8449,1140 @@ Ayrıca ileri/geri artık sayfanın tepesine değil **alt adım kartına** kayd�
 
 **Açık.** Parça yükseklikleri yaklaşık (yalnız sıralama). ~~KAPI 0 "kaynakta CC varsa ~60 mA"~~ **kapandı (2026-09-19):** kullanıcı 5. adımdayken "24 V'u nereye vereceğimi bilmiyorum" dedi — 0.8 (24 V telleri C34/C36) atlanmış, hiçbir KAPI enerjili yapılmamış (fotoğrafla doğrulandı; iki kartın parça yerleşimi plana uyuyor). Akım sınırı = F1 50 mA hızlı: adım 0'da ±12 V'un tek tüketicisi R40 (12 mA) + 7912 boşta akımı → ~15 mA; U3/U4 +5V'tan (ESP32), ±12 V'u ilk kullananlar adım 6–8 (U5, U8, Q3) — netlistten. Yani 5. adıma kadar kurulu kartta da 24 V yalnız besleme bloğuna gider. 0.9 artık somut yordam (`ilk_enerji()`, delik adları veriden): 50 mA sigorta, ESP32/ADS yok, WCT-200-24 doğrudan, XT30 dişi ucunda +24 V polarite ölçümü, 5 s dokunma testi, V36'ya göre V35 +11.5…+12.5 V, R33 ≈ −12 V. XT30: kart tarafı erkek, kaynak tarafı dişi (J6 notu). Aynı fotoğraflarda: B'de E8→D8 (5.10) ve N16→O16 (5.11) izleri bacakla bükülmüş ama D8/O16'da lehimlenmemiş ve kesilmemiş; 5.12'nin B tarafı (HV kablosu D8, sarı tel O16) yapılmamış. `4-kurulum.html` besleme adımını hâlâ içermiyor ve "12 V adaptör başlangıç için yeter" diyor; ana sayfa artık "kurulum Yerleşim'den başlar" diyor ama kılavuzun kendisi düzeltilmedi.
 
+**B55 (2026-09-22) — KAPAK SIRASI KUSURU + AĞIRLIK MERKEZİ.** Kullanıcı sordu: "Adım 13'te kutunun üst kapağı takılıyor ama daha sonraki adımlarda kutunun içerisine yeniden bir şeyler ekleniyor."
+
+**Kusur doğrulandı ve iddia kusuru ONAYLIYORDU.** Adım 13 kapağı cıvatalıyor (13.2), etiketleyip topluyor (13.3), kapalı kutuda uçtan uca test yapıyordu (13.4) — ardından Adım 14–15 pil bloğunu **arka duvarın iç yüzüne** takıyor (yuva cıvatalarının somunları içeriden, TP4056 rafı, MT3608 kablo bağı, hücre 2 kablolaması). Kapak takılıyken bunların hiçbiri yapılamaz. Daha kötüsü, `kutu.py`'de tam bu sırayı **onaylayan** bir iddia vardı:
+
+```python
+D.kosul("Pil blogu adimlari kapali kutu testinden SONRA (istege bagli ek)", sira["13.4"] < sira["14.1"])
+```
+
+Yani 1558/1558 yeşilken belge kullanıcıya kapalı kutunun içine parça takmasını söylüyordu. (B22/B23 dersinin aynısı: yeşil test bir şey kanıtlamaz — burada testin kendisi kusurun bekçisiydi.)
+
+**Düzeltme.** Adım 13 = **kapağı yap, cıvata deliklerini aç, dene ve ÇIKAR**; 14–15 pil bloğu; **Adım 16 = Kapat ve son kontrol** (16.1 etiketle/topla, 16.2 kapağı tak ve cıvatala, 16.3 kapalı kutuda uçtan uca). Delikler bilerek 13'te kalıyor: kutu dolduktan sonra yan duvarı delmek talaşı kartların üstüne döker. 13.2 "pil bloğunu yapmayacaksan doğrudan 16'ya geç" diyor. **16 adım / 53 alt adım.**
+
+**İddia tek adım değil, KURAL oldu.** Kapanış alt adımı veride işaretli (`"kapanis": True`, 16.2) ve denetim şunu ölçüyor: `monte`/`kablo` taşıyan ya da türü montaj/duvar_parca/pil_kablo/kablo/delik/duvar_ic/direk olan **hiçbir alt adım kapanıştan sonra gelemez**. Böylece ileride 17. bir adım eklenirse ya da kapanış öne kayarsa kendiliğinden kırmızı olur. 3B'de kapak artık 13.1/13.2'de **hayalet önizleme** (tezgahta hazır, kutuda değil), takılı görünüm 16.2'den sonra — `kutu_3b.py`'deki `if (kapak && ileride) return;` önizlemeyi de yutuyordu.
+
+**Ağırlık merkezi (kullanıcının ikinci sorusu: "bir taraf aşırı ağır olmasın").** `kutu_veri.KUTLE` — her kalem (gram, belirsizlik, **kaynak**); `kutu.agirlik_merkezi(hucre)` kutuyu parça parça kuruyor (çubuk hacmi × yoğunluk + parça kütleleri) ve dış çerçevede AM'yi, ray yük paylarını, devrilme açılarını veriyor.
+
+| | iki hücre | tek hücre | pilsiz |
+|---|---|---|---|
+| toplam | 746 g | 682 g | 618 g |
+| AM x (merkezden) | +3.3 mm | +2.1 mm | −0.1 mm |
+| AM y (merkezden) | −3.3 mm | +2.7 mm | +9.8 mm |
+| ray yük payı sol/sağ | %47 / %53 | %48 / %52 | %50 / %50 |
+| en küçük devrilme açısı | 55° (kötü halde 45°) | 56° (45°) | 59° (48°) |
+
+**Sonuç: dengeli, düzeltme gerekmiyor.** Denge tesadüf değil: kutunun kendi tahtası (323 g, ≈ 92 çubuk eşdeğeri) toplamın %42'si ve simetrik; ağır parçalar zıt yanlarda (A kartı solda 90 g, Q1 soğutucusu + iki 18650 sağda). AM tabandan 42 mm = dış yüksekliğin %44'ü.
+
+**Ölçüt fiziksel seçildi**, "merkeze yakın olsun"dan değil: kutu **iki taban rayının** üzerinde duruyor (destek açıklığı 129 mm, kutu eni 222) → "bir taraf ağır mı" sorusunun karşılığı **her rayın taşıdığı yük payı** (≥ %35, kötü halde ≥ %25). Derinlikte raylar baştan başa uzandığı için aynı sorun yok; orada ölçüt AM'nin orta bölgede kalması. Devrilme açısı dört yönde ≥ 25°. Hepsi üç yapılandırmada (2/1/0 hücre) ve **kütlelerin en kötü halinde** ölçülüyor: her kalemi belirsizlik aralığının AM'yi en çok kaydıracak ucuna iten sabit nokta yinelemesi (`_am_uc`) — sonuç yalnız nominal tahminlerle sağlıklıysa iddia kırmızı olur.
+
+⚠️ **Hiçbir kütle tartılmadı.** Hepsi hacim × yoğunluk ya da benzerinden kestirme; tablo her satırın nereden geldiğini yazıyor. En değerlisi çubuk: **10 çubuğu tartıp söylemek** (varsayım 3.5 g/çubuk, yoğunluk 0.65 g/cm³) tahtayı — toplamın %42'sini — ölçülen sayıya çevirir.
+
+Yan bulgu: taban rayı konumu **üç ayrı yerde** `(0.25, 0.75)` yazılıydı (3B sahne, kuşbakışı çizim, kütle) → `kutu.TABAN_RAY_X` tek kaynağı. Mutasyon bunu (0.45, 0.55) yapınca destek açıklığı daralıyor ve devrilme/ray payı iddiaları kırmızıya dönüyor.
+
+Denetim **1558 → 1629/1629**, mutasyon **34 → 40/40**. Yeni mutasyonlar: kusurun kendisini geri getir (kapanışı 13.2'ye taşı) · kapanış işaretini sil · Q1 soğutucusunu 150 g yap (ray payı kötü halde %25'in altına düşer) · rayları birbirine yaklaştır · bir kütle satırının kaynağını sil · MT2'nin kütle satırını sil.
+
+**Açık (B55).** Kütleler tartılmadı (yukarıda). Kutu masada **kaymaya** devrilmeden önce başlıyor (7.3 N ağırlık, μ≈0.4 → ~3 N; ön jaka kablo takıp çekmek kutuyu kaydırır, devirmez): istenirse rayların altına lastik ayak — kutunun dışı, "yapıştırma yok" kuralı içerisi için.
+
+**ERTELENDİ (B55b, 2026-09-22) — TEK ŞARJ GİRİŞİ.** Kullanıcı: "bu tek parça bir alet ancak
+2 adet şarj girişi var, saçma hissettiriyor." Haklı; **kullanıcı şimdilik iki girişle idare
+etmeye karar verdi, ileride tekrar plana alınabilir.** Analiz burada dursun ki yeniden
+yapılmasın.
+
+> ✅ **KAPANDI — B58 (2026-09-25).** Kullanıcı dış beslemeyi de kaldırınca (XT30 + seçici) tek
+> şarj girişi uygulandı: iki hücre **paralel** + tek TP4056 + **yalıtılmış 5→5 V (B0505S)**
+> analog tarafta. Aşağıdaki ②'den farkı: yalıtım şarj yolunda değil 24 V'un yolunda — hücreler
+> tek paket, eksisi kart GND. Ayrıntı B58 bloğunda (5.12.64 sonu).
+
+*Neden iki giriş:* iki hücrenin eksisi çalışırken farklı potansiyelde (H1− = kart GND,
+H2− = −12 rayı). Tek jakta USB toprağı ikisini birleştirir → −12 GND'ye kısa → sessiz arıza.
+
+*Üç çözüm — üçü de küçük bir alım istiyor* (KTS202 stoğu 2, ikisi de planda kullanılıyor;
+yani anahtarlı çözüm bile alım demek. İki jak, "alım sıfır" kararının bedeli):
+
+| | ne | alım | sonuç |
+|---|---|---|---|
+| ① | Tek hücre + yalıtılmış **5→24 V** (B0524S-2WR3 sınıfı, 2 W) | 1 modül | 1 hücre, 1 jak, hiç kural yok; 1 hücre + yuva + TP4056 + MT3608 + SWP1 plandan düşer. Süre 2.4–3.8 sa. Güç bloğu baştan yazılır |
+| ② | İki hücre kalır; tek USB-C jakı, TP2 **yalıtılmış 5→5 V** modülden (B0505S-2W sınıfı) | 1 modül | Tek kabloyla ikisi birden şarj; seçici/PC kuralı **tamamen kalkar**. H2 şarjı ~300 mA → 5–6 sa (5 W sınıfı yarıya indirir). Plana dokunuşu küçük: yalnız şarj kablolaması + arka panel |
+| ③ | Tek USB + **3PDT** ŞARJ/ÇALIŞ anahtarı | 1 × 3PDT | Kural anahtara taşınır, yok olmaz; yanlış konumda unutmak mümkün |
+
+*③'te neden DPDT yetmiyor* — üç bağlantı birden kesilmeli: (a) USB +5V → TP2.IN+ (kesilmezse
+ÇALIŞ'ta TP2 girişinde 17 V, mutlak sınır 8 V → modül ölür), (b) H2− ↔ MT2.IN− (kesilmezse
+ŞARJ'da −12 GND'ye kısa), (c) TP2.OUT+ → MT2.IN+ (kesilmezse ŞARJ'da MT2 −12'ye referanslı
+çalışmaya kalkar). (c) AÇ/KAPA'nın 2. kutbuna bırakılırsa DPDT yeter ama "şarj ederken AÇ/KAPA
+kapalı" kuralı kalır.
+
+*Tavsiye edilen:* **②** — şikâyeti tam çözer, projenin en tehlikeli kullanım kuralını
+(ŞARJ 2 kablosu + ESP32 USB'si aynı PC'deyken seçici PİL'e alınmaz) yapısal olarak siler ve
+lehimlenmiş kartla tasarlanmış güç zincirine dokunmaz. Uygulanırsa değişecekler:
+`PANEL_ARKA` (ŞARJ 1/ŞARJ 2 → tek USB-C yuvası), `DUVAR_PARCA` (+ yalıtılmış modül),
+`PIL_KABLOLAR` + union-find denetimi (yeni düğüm: modülün yalıtım bariyeri; iddia "H2− hiçbir
+konumda USB toprağına değmez"), 14.5/15.4 şarj kuralı metinleri, `MALZEME`, `KUTLE`,
+Adım 14.2/15.2 montaj metinleri, mutasyon (bariyeri kısa devre et → iddia kırmızı).
+
+**B55c (2026-09-23) — BAĞIMSIZ GÖZDEN GEÇİRME: 4 açı planlandı, 2'si koştu.** Kullanıcı
+"planladığımız şeyleri tekrar gözden geçir, ekstra ajanlara da söyle" dedi. Dört bağımsız
+inceleme başlatıldı (elektrik/emniyet · mekanik/yapılabilirlik · doğrulama disiplini ·
+belge/sıra/malzeme). **Elektrik ve belge incelemeleri tamamlandı; mekanik ve doğrulama
+disiplini incelemeleri oturum kotasına takılıp hiç çıktı üretmedi — bu iki açı hâlâ
+İNCELENMEDİ.** Denetim koşu boyunca yeşildi; aşağıdakilerin hiçbiri bir iddiayı kırmıyordu.
+
+**Düzeltilenler (hepsi doğrulandı, kaynak okunarak):**
+
+1. 🔴 **Malzeme listesi AÇ/KAPA için YANLIŞ anahtar söylüyordu.** `MALZEME` "KTS202 ×1
+   (seçici) + KTS102 ×2 (AÇ/KAPA + hücre 1)" diyordu; planın gerçek kullanımı (PANEL_ON'dan
+   sayıldı) **KTS202 ×2, KTS102 ×1**. Listeye uyulsaydı AÇ/KAPA'ya tek kutuplu KTS102
+   takılırdı → 2. kutup yok → hücre 2 kesmesi çalışmaz (B54 kusur 4 geri gelirdi) ve MT3608
+   boşta akımı 1500 mAh'ı haftalarda bitirirdi. Stokta KTS202 tam 2 adet, yedek yok.
+2. 🔴 **Kesim listesinde 16 parça eksikti.** 13.1 "gömme somunlu 3 katlı blok" istiyordu
+   (4 blok × 3 kat = 12 parça), MT1/MT2 "iki çubuk parçasının arasına oturur" diyordu
+   (4 parça) — hiçbiri kesim listesinde yoktu. Kök sebep `hesap()` içinde
+   `d["ref"].startswith("TP")` sabit kodu. Artık veri: **`kutu_veri.DUVAR_TUTUCU`** +
+   `KUTU["kapak_somun_kat"]`. Çubuk sayısı 131'de kaldı (parçalar artıklara sığdı).
+3. 🔴 **12.4 (HV kalibrasyonu) "kutuyu besleyen kaynak test kaynağı olamaz" kuralını
+   tekrarlamıyordu** ve üstüne "iki kaynağı seri bağla" diyordu. Kullanıcının elindeki tek
+   24 V kaynak WCT; WCT− = kartın −12 rayı → HV/COM'a bağlanınca −12 GND'ye kısa, parça
+   ölmez, **kalibrasyon sabitleri sessizce yanlış yazılır**. Kural eklendi + "yalıtılmış
+   ikinci kaynağın yoksa bu adımı Adım 14'ten sonra pil kipinde yap" yönlendirmesi.
+   (İki bağımsız inceleme de aynı kusuru buldu.)
+4. **14.2 / 15.2 metni veriyle çelişiyordu.** Metin TP4056 ve MT3608 için "vidala" /
+   "cıvata dıştan somun içeriden" diyordu; `DUVAR_PARCA.nasil` ise "modülde montaj deliği
+   yok, kablo bağı, vida yok". O cıvatalar için delik tablosunda delik de yok. Kullanıcı
+   14.2'de kurulu kutunun arka duvarını delmeye kalkardı (talaş kartların üstüne). Metinler
+   veriye uyduruldu; cıvata yalnız 18650 yuvalarında.
+5. **`{adim_uA}` yer tutucusu belgede HAM çıkıyordu** — `KULLANIM` tablosunun 4. sütunu
+   `.format()` edilmiyordu (`kutu.py`). "1.56 mA adım" yazması gereken yerde `{adim_uA}`.
+   Denetimin "menziller yer tutucudan" iddiası bu sütunu kapsamıyormuş.
+6. **ŞARJ 1 notu "PC'ye takılıyken de güvenli" diyordu** — −12 kısası bakımından doğru, ama
+   HV ölçümünde bu kablo da COM'u (613 V'luk devrenin referansı) PC toprağına bağlar. ⚡
+   uyarısı eklendi.
+7. **Şönt takası anlatımı yanlıştı.** `RS.nasil` ve 6.4 "vidayı gevşet, şönt çıkar" diyor
+   ama Kelvin/yıldız telleri şöntün bacağına LEHİMLİ. Metin düzeltildi + "kalibrasyon için
+   takas zorunlu değil" notu.
+8. **Ters bağlanan pil uyarısı yoktu.** Q1 N-kanal, S→RS.1, D→J7.1: hücre ters bağlanırsa
+   akım **gövde diyodundan** akar ve kart bunu kesemez (MOSFET kapalıyken bile; 3.3 Ω ile
+   ~1.1 A sürekli, 1500 mAh ~1.4 saatte derin deşarja gider). Firmware `PILH_TERS`/
+   `PILH_BAYPAS` ile testi başlatmıyor ama **akımı durduramıyor** — bu ayrım hiçbir yerde
+   yazılı değildi. `KULLANIM` pil satırına uyarı eklendi.
+9. **16.2 "Hücreleri şimdi tak" diyordu** — 14.4/15.4'te zaten takılmıştı. "Yerinde mi, son
+   kez bak" oldu. Ayrıca malzeme notlarındaki iki eskimiş sayı düzeltildi (gömme somun
+   ×6 → ×10; yuva "77×21×21 varsayıldı" → 80×21×21 ÖLÇÜLDÜ, B52d).
+
+**Kendi kodumda bulduğum iki kusur (B55'te dün yazılan ağırlık merkezi):**
+
+10. **Ahşap kalemleri `bel == TAHTA_BEL` ile süzüyordum; ESP32'nin belirsizliği de tam
+    0.20 olduğu için 9 g ESP32 "ahşap" sayılıyordu.** İddia yeşil kalıyor, bastığı sayı
+    yanlış. Artık `grup` alanına göre süzülüyor.
+11. **TP raf blokları kütle modelinde yoktu** (kesim listesinde vardı).
+
+**Yeni iddia — iki bağımsız modelin ahşap hacmi EŞİT olmalı.** Kesim listesi parça parça
+uzunluktan, kütle modeli geometriden kuruluyor. Bugün ayrışma tam olarak eksik parçaları
+gösterdi; düzeltmeden sonra **fark 0** (497 664 mm³ = 497 664 mm³). Bu tek iddia 2, 10 ve
+11'i birden yakalar. Yanında: her `DUVAR_PARCA` için ahşap tutucu kararı verilmiş olmalı, ve
+metinde ahşap tutucu diyen her parçanın kesim listesinde karşılığı olmalı. **Bu ikincisi
+yazıldığı anda bir kusur daha yakaladı:** "blok" ile arama TP2'yi kaçırıyordu, çünkü metinde
+"çubuk **bloğuna**" geçiyor ve Türkçe yumuşak g yüzünden "blok" alt dizgisi yok — deponun
+bilinen tuzağı, kök "blo" ile düzeltildi.
+
+Denetim **1629 → 1643/1643**.
+
+**AÇIK — kullanıcı kararı bekleyen (düzeltilmedi):**
+
+* 🔴 **F0 yanlış yerde.** `SWP2.P1 → F0.1` yani sigorta **seçicinin çıkışında**. XT30'dan
+  seçiciye giden iki tel ve seçiciden klemense dönen tel (toplam ~0.75 m, kutuyu çaprazlayan
+  demet) 8.3 A'lik kaynağa **hâlâ çıplak bağlı** — B54'ün bulduğu kusur doğruydu, çözümü
+  yanlış yere konmuş. Düzeltme **iki telin yerini değiştirmek**: `J6.1 → F0.1`,
+  `F0.2 → SWP2.B1`, `SWP2.P1 → SW.1`. Sıfır parça maliyeti, kullanıcı henüz 10.1'e gelmedi.
+* 🔴 **Kutu içinde HV kaçak yolu hiç uygulanmıyor.** Kart üstünde 12.6 mm (IEC 60664
+  takviyeli) titizlikle uygulanırken kutuda yalnız mekanik 6 mm payı bakıyor:
+  **ESP32–B 7.0 mm**, RS–B ve B–Q1 10.3 mm, A–B 12.7 mm. Yalıtım yüzeyi işlenmemiş ahşap
+  (CTI tanımsız, higroskopik). Ayrıca kart B'nin kutu içindeki **yönü veri değil** — zincirin
+  en yüksek düğümünün hangi kenara baktığı bilinmiyor, en kötü hal hesaplanamıyor.
+* **Q1 soğutucusu yüzen çıplak alüminyum**, 613 V zincirin 10.3 mm yanında. COM'a bağlanmalı
+  mı, yoksa bilerek mi yüzüyor — hiçbir yerde yazılı değil.
+* **CAL jakı tek korumasız giriş.** GPIO10'a yalnız 1 kΩ ile bağlı; 25.5 mm ötedeki PİL 1
+  jakı pil testinde 38.5 V'a çıkıyor. Yanlış deliğe giren yama kablosu GPIO'ya ~35 mA sürer.
+  Öneri: BAT54S kelepçe ya da CAL'ı uzağa al.
+* **TP4056'nın "korumalı" sürüm olduğu hiçbir adımda doğrulanmıyor.** Korumasız modülde
+  B− ile OUT− fiziksel olarak aynı bakırdır → graf denetimi aynı sonucu verir, 1643/1643
+  yeşil kalır. Korumasızsa aşırı deşarj ve aşırı akım koruması yok, hücre kolunda sigorta da
+  yok. Öneri: 14.2/15.2'ye "modülde DW01A + FS8205 var mı" kontrolü.
+* **16.3 için serbest 18650 gerekiyor**, ikisi de 16.2'de kutuya kapanıyor (stokta 2).
+* **6.1 delikli plakete Ø3.2 delik istiyor**, matkapsız delme rehberi yalnız 2 mm ahşap için.
+* **`{...}` kalıbı taraması** ve **F0 darbe payı** (T.SIGORTA'da "F 1 A" satırı yok, F0'ın
+  "bol pay" iddiası ölçülmüyor) — ikisi de iddiaya bağlanmalı.
+* **İncelenmeyen iki açı:** mekanik/yapılabilirlik ve doğrulama disiplini. Yeni oturumda
+  koşulmalı.
+
+**B55d (2026-09-23) — EKSİK KALAN İKİ AÇI KOŞTU: mekanik/yapılabilirlik + doğrulama disiplini.**
+B55c'de kotaya takılan iki inceleme kullanıcının isteğiyle yeniden koşuldu. Denetim koşu boyunca
+yeşildi (1643/1643); bulguların **hiçbiri** bir iddiayı kırmıyordu.
+
+**Belgede BUGÜN duran, kullanıcının sırada olduğu adımları yanlış anlatan üç hata:**
+
+1. 🔴 **Adım 1.2 fiziksel olarak imkânsız bir kesim tarif ediyordu.** Metin "iç kat ve direk
+   parçaları **yarım çubuktan**: çubuğu ortadan ikiye kes → 90 mm" diyordu; yarım çubuk **75 mm**.
+   B54'te duvar 4→5 sıra olunca (`ic_yuk` 72→90 > `yarim` 75) `hesap()` doğru kaynağa (`tek_uc`)
+   geçmiş, **metin 72 mm dünyasından kalmış**. Etki 46 parça (34 iç kat + 12 direk ≈ 23 çubuk).
+   İki inceleme de bağımsız buldu. Bunu yakalaması gereken iddia **tautolojiydi**: `hesap()`'taki
+   formülün kopyasını yazıp veriyi kendisiyle karşılaştırıyordu. Artık metin ile veri karşılaştırılıyor
+   ve metin `KAYNAK_AD[dikey_kaynak]`'tan üretiliyor.
+2. 🔴 **Adım 4.3 dört sıra diyordu, tasarım beş sıra.** Başlık "2., 3. ve 4. sıralar", `"sira": 4`,
+   `duvar_sira = 5`. İzometrik çizim "4. sıra bitti · 72 mm" yazarken aynı adımın parça tablosu
+   5. sıranın parçalarını listeliyordu. Başlığa uyulsaydı duvar 72 mm kalır, kapak cıvatası (z 81),
+   YUVA2 (z 63–84) ve ESP32 dupont payı — B54'te 5. sıranın eklenme gerekçelerinin hepsi çökerdi.
+   Hiçbir iddia `s["sira"]` ile `duvar_sira`'yı karşılaştırmıyordu.
+3. **AÇ/KAPA'nın kural metni hiçbir yerde yoktu** → belgede "Kural" hücresi boş. Kutunun en emniyet
+   kritik anahtarı (KTS202 çift kutup olmak ZORUNDA) kuralsız görünüyordu. Denetim yalnız *var olan*
+   notları geziyordu; artık ters yönden de soruluyor: monte edilen her ref'in notu var mı.
+
+**Kendi B55/B55c işimde bulunan kusurlar:**
+
+4. 🔴 **13.2'nin gerekçesi kendisiyle çelişiyordu (B55'te ben yazmıştım).** "Delikleri neden şimdi:
+   kutu dolduktan sonra delmek talaşı kartların üstüne döker" — oysa 13.2'ye gelindiğinde kart A, B,
+   ESP32, şönt, Q1 ve bütün kablolar takılmış oluyor (6.2 → 11.1). Havyayla 4+2 mm delerken yanık
+   talaş lehimli kart A'nın üstüne dökülecekti. **Ayrıca somun blokları 13.1'de yapıştırılıp delikler
+   13.2'de açılıyordu**: somunun yeri kalıcı sabitlendikten sonra delik iki bağımsız ölçümden
+   açılıyor (±2–3 mm; Ø6 cepte M3 ancak ±1.5 mm oynar). **Çözüm ikisini birden kapattı:** yeni
+   **4.7 = cıvata deliklerini aç (kutu BOŞKEN, konumlar tablodan — kapağa gerek yok)** → 13.1 kapağı
+   yapıp cıvataları geçirir ve somun bloğunu **cıvataya merkezleyerek** yapıştırır (kendi kendine
+   hizalanır) → 13.2 dener ve çıkarır. Numaralandırma korundu (14/15/16 aynı).
+5. **Kötü-hal katmanının tamamı hiçbir mutasyonla sınanmıyordu.** `_am_uc`'yi devre dışı bırakan tek
+   satır (`range(50)` → `range(0)`) 24 denge iddiasını nominal değerle besliyor ve hepsi yeşil
+   kalıyordu — "denetim kötü halde de bakar" vaadi hiçbir testin arkasında durmuyordu. Eklenen iddia:
+   kötü hal nominali her eksende en az `AM_KOTU_EN_AZ`=1 mm aşmalı (katman gerçekten çalışıyor).
+6. **`am_yukseklik` ölçütünün kötü-hal ikizi eksikti ve eklenseydi BUGÜN kırmızı olurdu** (iki hücre
+   0.509, tek hücre 0.508, eşik 0.50). Eşik geçirmek için değiştirilmedi: `kotu_am_yukseklik = 0.55`
+   konuldu ve **neden gevşek olduğu veriye yazıldı** — AM yüksekliği bağımsız bir fiziksel sınır
+   değil, devrilmenin ikincil göstergesi; asıl ölçüt kötü halde ölçülen devrilme açısı (45–56°,
+   eşik 25°).
+7. **Pil grafı yalnız EKSİ tarafı koruyordu.** `MT1.OUT+ → ESP32.5V` kablosunu `MT2.OUT+` yapmak —
+   tek harf — belgeye "24 V'u devkit'in 5V pinine bağla" dedirtiyor ve 1643/1643 yeşil kalıyordu.
+   `ESP32.5V` yaprak düğümdü, hiçbir iddia adını anmıyordu. Artı taraf için iddia + mutasyon eklendi.
+8. **5.3 yanlış duvarın çizimini gösteriyordu**: altı öğenin beşi ön panelde, çizim arka panel.
+   Panel seçimi artık takılan parçalardan türetiliyor. ⚠ İlk yazdığım kapsama iddiası **mutasyonu
+   kaçırdı** — çizim kodunu okumak yerine aynı mantığı ikinci kez yazmıştım; `cizim_panelleri()` tek
+   fonksiyonuna indirildi, ikisi de onu çağırıyor.
+
+**Denetim 1643 → 1687/1687**, mutasyon B50 **47 → 50**.
+
+**AÇIK — kullanıcı kararı bekliyor (B55c'nin açıklarına ek):**
+
+* 🔴 **F0 sigorta yuvası kart A'ya 1.7 mm kalıyor** (`parca_payi` kuralı 6 mm) ve `derin_mm: 26`
+  **ölçülmemiş bir varsayım** — 1.1 kumpas listesinde yoktu. Stoktaki pano yuvaları (BLX-3 sınıfı)
+  tipik 30–33 mm → 3.3 mm girişim demek. Ölçüm maddesi 1.1'e eklendi; 26'dan büyükse F0 ön 4. sıraya
+  (z 63, kart A'nın üstü boş) ya da arka panele alınmalı. Ayrıca F0'ın Ø12 deliği 18 mm çubukta
+  dört yanda tam 3.0 mm et bırakıyor (pay 0.0) — serbest elle zımparada 1 mm kaçış sırayı koparır.
+* 🔴 **Havalandırma yok.** İki 18650 + iki TP4056, kapak 4 × M3 ile sıkılı, hücre kolunda sigorta yok.
+  Serbest hacim ≈ 2.5 L; bir hücrenin termal kaçakta saldığı gaz 1–3 L → ≈ +1 bar → kapağa ≈ 3.3 kN.
+  Düşük olasılık, yüksek sonuç. Öneri: arka duvarın 5. sırasına 3–4 × Ø5 havya deliği (matkapsız
+  rehbere birebir uyuyor), veriye `PANEL_ARKA` tip "havalandirma" olarak girsin.
+* **Gömme M3 somun cebi:** somun 2.4 mm, cep 2.0 mm ve YUVARLAK (köşeden köşeye 6.35 > Ø6). Dönmeye
+  karşı yalnız sıkı geçme; elle tork 0.5 N·m → cep yüzeyinde ≈ 8 MPa, huşun lif dikine ezilme
+  dayanımı 5–7 MPa. Kapak somunu dönerse **kapak bir daha açılamaz**. Ayrıca M3×10 vidanın ucu
+  deliksiz 4. kata 1.5 mm dalıyor. Öneri: cebi bıçakla altıgene getir + son katı da Ø3.2 del.
+* **Kalın jak kabloları kart A takıldıktan sonra 12.7 mm'lik kör yarıkta bağlanıyor** (J3.1/J7.1/J7.2).
+  Öneri: 5.2'de her büyük jakın iç ucuna pabuç + 20 cm pigtail, kutu boşken.
+* **Kablo bağı yolları:** ESP32 altlıkları 2 mm ve tabana yapışık, bağ altından geçemez; MT1/MT2 için
+  "bir kablo bağı" iki ayrı yanaktan geçemez. Öneri: ESP32 altlığı 3 kat (6 mm) tünel delikli, MT'lerde
+  her yanağa bir bağ.
+* **6.6 yapıştırıcı tablosuyla çelişiyor** (tablo "Q1 köşebendi: yapıştırıcı yok" diyor, 6.6 "tabana
+  silikonla"). Fizik 6.6'yı haklı çıkarıyor (ahşap ısı yolunu kesiyor, ΔT 13–19 K) — tablo satırı
+  daraltılmalı.
+* **Kapak raylarının geçme payı nominal SIFIR** (KR1+KR2 dış yüzleri tam 214 = iç en). 0.5 mm içeri
+  alınmalı.
+* **18650 yuva cıvatalarının somunları hücre yatağının içinde kalıyor** (hücreyi 2.4–3 mm kaldırır,
+  YUVA2'nin kapağa payı 6 → 3 mm'ye iner). Öneri: yuvayı da kablo bağıyla tut, vida hiç olmasın.
+* **ESP32 anteni için keep-out kararı yok** (kart A 11.7 mm solda; Espressif ~15 mm istiyor). Öneri:
+  16.3'e kapak açık/kapalı RSSI farkı ≤ 6 dB ölçümü.
+* **YUVA1 ile ESP32 arası tam 6.0 mm** — J5'in 10 telli demeti + 5 V çatalı + CAL jumper'ı o 6 mm'de
+  90° dönmek zorunda. 1.1'e "J5 kablosu takılıyken devkit'in en yüksek noktası" ölçümü eklenmeli.
+* `KUTLE["KABLO"]` = 25 g iyimser; kaba hesap 40–45 g.
+
+**B55e/f (2026-09-23) — KULLANICI KARARLARI: havalandırma, somun cebi, GÜÇ lambası.**
+B55d'nin açık maddelerinden üçü kullanıcı kararıyla kapandı; ayrıca "kablolu kullanım" ve
+"bildirim ışığı" soruları hesaplanıp cevaplandı.
+
+**Havalandırma (B55e, seçenek A).** İki 18650 kapalı ahşap kutuda şarj oluyordu, tek delik
+yoktu: bir hücre termal kaçakta 1–3 L gaz salıyor, serbest hacim ≈ 2.5 L → ≈ +1 bar →
+kapağa ≈ 3.3 kN. Arka duvara **4 × Ø5** delik eklendi (`PANEL_ARKA`, yeni tip
+`havalandirma`): **HV1 x63 z81 · HV2 x81 z63** (üst, çıkış) · **HV3 x81 z27 · HV4 x117 z9**
+(alt, giriş). Konumlar üç kuralı birden sağlıyor: tam boy iç kat çubuğunun ortası, dış kat ek
+yerinden ≥ 10.5 mm, ve **hiçbirini duvara asılı parça kapatmıyor** (18650 yuvaları x 92–172
+şeridini örtüyor, delikler onun dışında). İlk denediğim x 187 / x 117 konumları mevcut
+denetime takıldı (x 187'de tam boy çubuk yok, x 117 ek yerine 0.5 mm yakın) — konumlar
+programla arandı. Dört yeni iddia: hücre varsa delik var · toplam alan ≥ 50 mm² (79) · en az
+ikisi üst yarıda · hiçbirini parça kapatmıyor. `PARCASIZ_TIP` eklendi: havalandırma deliğinin
+kendi parçası yok, kütleye girmez (eklenmeseydi 4 × 6 g hayalet kütle sayılacaktı).
+
+**Somun cebi (B55e, seçenek C — kullanıcı: "somunların sökülebilir olması önemli değil,
+yalnızca değerli parçalar sökülebilir olsun").** Cep Ø6 ve 2 mm idi; DIN 934 M3 somun 2.4 mm
+kalın ve **köşeden köşeye 6.35 mm** — yani Ø6'ya zaten girmiyor, 2 mm cebe 0.4 mm taşıyor ve
+yuvarlak cep dönmeyi engellemiyor (elle tork 0.5 N·m → cepte ~8 MPa, huş 5–7 MPa). Kapak
+somunu dönerse **kapak bir daha açılmaz**. Yeni: `M3_SOMUN` + `SOMUN_CEP` sabitleri —
+**Ø6.5 cep, 2 kat (4 mm) derin, somunun DIŞ yüzüne japon, son kat Ø3.2** (M3×10'un ucu ayakta
+1.5 mm, M3×12'ninki kapakta 1.1 mm deliksiz kata dalıyordu). `kapak_somun_kat` 3 → **4**.
+Adım metinleri artık bu sabitlerden üretiliyor, sabit "Ø6" yok. Kullanıcının gerekçesi de
+veriye yazıldı. Altı yeni iddia.
+
+**Kablolu kullanım sorusu — cevap: tasarım zaten destekliyor.** Kablo XT30'da takılı kalır
+(PİL konumunda DPDT iki bacağı da ayırıyor), ön panelden AÇ/KAPA ile açılıp kapanır, seçici
+ile pile geçilir. Üç uyarı belgeye girecek: (1) **kablo takılı olmak pili ŞARJ ETMEZ** —
+TP4056'lar yalnız Type-C jaklarından besleniyor; (2) geçiş **elle** ve bu bilerek — diyot-OR
+otomatik geçiş pilin eksisi ile kaynağın eksisini kalıcı birleştirir, topraklı adaptörde −12
+rayı toprağa bağlanır ve kutunun yüzer olma özelliği (HV emniyetinin temeli) kaybolur;
+(3) geçişte raylar kısa süre çöküyor (mekanik boşluk 10–50 ms, kondansatör tutması ~5 ms),
+ölçüm kesilir, ESP32 ayrı beslendiği için panel ayakta kalır.
+
+**GÜÇ lambası (B55f).** Kullanıcı "kart çalışıyor mu?" sorusunun görsel cevabı olmadığını
+fark etti ve RGB ile zengin bildirim önerdi. **Analiz: RGB'yi ESP32 sürmek zorunda ve o LED
+YALAN SÖYLEYEBİLİR** — ESP32 USB'deyken analog kapalıysa "hazır" gösterir; hiç gösterge
+olmamasından kötü. Ayrıca saydığı bildirimlerden ikisi aynı yalıtım duvarına çarpıyor: hücre
+2'nin eksisi −12 rayı olduğu için TP2'nin şarj sinyali ve hücre gerilimi **GPIO'ya yalıtımsız
+gidemez** (yalnız hücre 1 okunabilir). Üçüncü sorun: RGB'nin yeşil/mavi Vf'i 3.0–3.2 V, ESP32
+3.3 V veriyor → cılız ve Vf toleransına duyarlı. Kullanıcı bunun üzerine **yalnız pasif GÜÇ
+LED'i** seçti.
+
+Uygulanan: ön panel **5. sıra x 51** (AÇ/KAPA'nın tam üstü, en yakın deliğe 25.5 mm, iç kat
+çubuğunun ortası). **KL.+ (= +12 rayı) → 10 kΩ (R060) → LED anodu; katot kart GND.** Karta
+lehim yok. **LED +12 rayında olmak ZORUNDA:** akım GND'ye GİRER, 7912'nin çekmek üzere
+tasarlandığı yön; GND ile −12 arasına konsaydı regülatörden akım VERMESİ istenirdi ve 79xx
+veremez (7812 yerine 7912 seçilme gerekçesinin aynısı). Sayılar: 0.99 mA · 7912'nin
+kapasitesinin %1.1'i · F1 payı 26/50 mA (%48) · pil analog süresi 7.9 → 7.6 sa (−%4) ·
+direnç 9.8 mW. **LED akımı B11 orta nokta bütçesine de girdi** (`tasarim3_sabit.PANEL_LED_*`,
+`sim3_besleme` kötü hal 15 → **16.0 mA**, 23/23) — sayı iki yerde ayrı yaşamıyor. Yedi yeni
+iddia + üç mutasyon (LED'i −12'ye taşı · direnci 100 Ω yap · ESP32'ye bağla).
+
+Denetim 1687 → **1784/1784**, mutasyon B50 **50 → 53/53**.
+
+**Bu turda düşülen tuzaklar (hepsi yakalandı):** yazdığım açıklama cümleleri iki kez kendi
+iddialarıma takıldı ("yarım çubuk YETMEZ" ve "Ø6 DEĞİL Ø6.5" — olumsuz cümlede geçen dizge),
+ve heredoc kaçışı iki kez ısırdı (bir kez `print("
+"` gerçek satır başına döndü, bir kez
+mutasyon satırındaki kesme işareti dizgeyi kapattı). [[bash-heredoc-ters-bolu]] hâlâ geçerli:
+kesme işareti / ters bölü içeren yamaları tek tırnakla değil, çift tırnak + kaçışla yaz.
+
+**AÇIK kalanlar:** F0'ın derinliği hâlâ ölçülmedi (kullanıcı sigortanın gerekli olduğunu
+onayladı, yeri ölçüme bağlı) · kalın jak kabloları kart takılıyken 12.7 mm kör yarıkta ·
+kablo bağı yolları · kapak rayı geçme payı sıfır · 6.6 yapıştırıcı tablosuyla çelişiyor ·
+18650 yuva somunları hücre yatağında · ESP32 anteni keep-out · YUVA1–ESP32 6.0 mm ·
+kutu içi HV kaçak yolu (ESP32–B 7.0 mm) · hücre 2 için yalıtılmış modül (B55b).
+
+---
+
+**B55g (2026-09-23) — 11 AÇIK MADDE BAĞIMSIZ İNCELENDİ, 3 KULLANICI KARARI UYGULANDI.**
+22 ajanlı bir koşu: her açık madde için bir inceleme, her tavsiye için ayrı bir **çürütme**
+ajanı (varsayılanı "bu tavsiye yanlış"). **11 tavsiyenin 10'u kusurlu çıktı** — yani
+incelemenin kendisi de incelenmeseydi yanlış kararlar veriye girecekti. Denetim koşu boyunca
+1784/1784 yeşildi; aşağıdakilerin hiçbiri bir iddiayı kırmıyordu.
+
+**Belgede BUGÜN duran, kullanıcının birkaç gün içinde okuyacağı beş hata (hepsi düzeltildi):**
+
+1. 🔴 **Delik tablosu 8 HAYALÎ cıvata deliği deldiriyordu.** `kutu.py:2313` elle yazılmış bir
+   satırla "Duvara asılı parçalar (yuva ×2, MT3608 ×2, TP4056 blokları ×2) → Ø3.2, ikişer,
+   M3 cıvata dıştan" diyordu. `DUVAR_TUTUCU`'ya göre MT/TP **kablo bağıyla** tutuluyor,
+   montaj deliği yok; gerçek cıvata deliği yalnız YUVA1/YUVA2'nin dördü (C1a/C1b/C2a/C2b) ve
+   onlar zaten tablonun üstünde tek tek listeli. **B55c bu kusuru adım metinlerinde düzeltmiş,
+   referans tablosundaki ikizini kaçırmıştı.** Üç satır da artık veriden türetiliyor.
+2. 🔴 **Somun cebi metni B55e öncesi dünyada kalmıştı.** Hem `DELME` tablosu hem delik tablosu
+   "3. kattaki **Ø6** somun yuvası" diyordu; B55e dün cebi **Ø6.5 · 2.–3. kat · 4 katlı blok**
+   yapmıştı. İkisi de `SOMUN_CEP`'ten üretiliyor artık.
+3. 🔴 **Üç havalandırma gerekçesi yanlış x yazıyordu** (B55e'de dün yazılmıştı): HV2 "x **187**
+   … kutunun **sağ** yarısı" derken veri x 81 (sol yarı), HV3 "x **117**" derken 81, HV4 "bu
+   noktada iç kat yok" derken denetimin kanıtladığının tersi (çubuk z 0'dan başlıyor).
+   Konum cümlesi artık `ic_kat_konumu()` ile geometriden üretiliyor.
+4. **16.2 "13.2'de açılan dört delikten" diyordu** — delikler B55d'de 4.7'ye taşınmıştı.
+5. 🔴 **13.1 FİZİKSEL OLARAK YAPILAMIYORDU.** Cıvatanın yolunda 2 mm'lik kapak rayı duruyor
+   (KR1 x 0–2 / KR2 x 212–214, z 72–90; cıvata y 45/117 z 81 tam içinden geçiyor) ve **rayı
+   delen adım yoktu**: 4.7 yalnız duvarı deliyor. Çözüm deponun kendi yöntemi (`DELME`'nin
+   "İç kat (5.1)" maddesi): dıştaki delik kılavuz olur, havya ucu ondan geçirilip ray delinir —
+   eş eksenli, işaretleme yok, kapak kalkmıyor.
+
+**Teşhisi değişen iki açık madde:**
+
+* **"Kutu içi HV kaçak yolu ESP32–B 7.0 mm" yanlış çerçevelenmişti.** Orada sürekli katı yüzey
+  yok (B 8 mm ayakta, ESP32 2 mm altlıkta), yani *creepage* değil *clearance* geçerli ve
+  elektriksel pay 3–6 kat. **Ama altından daha kötüsü çıktı:** `IC_PARCA["B"]` 45.7 mm
+  (= 18 × 2.54, yani DELİK ALANI) modelleniyor, oysa `KARTLAR["B"]` = "5×5 cm (SRF020)" ve bu
+  plaket **kesilmiyor** (kart A kesiliyor, B fabrika kenarlı). Her yanda ~2.15 mm eksik →
+  ESP32–B gerçek boşluk **4.85 mm**, `parca_payi` 6.0'ın altında. ⏳ Kullanıcı kumpasla ölçecek.
+* 🔴 **`kutu.py:970` "Kart B HV jakına yakın (kablo ≤ 60 mm)" iddiası 43.6 mm yazıp yeşil
+  geçiyordu.** Kod okundu: 2B `math.hypot` (jakın z 63'ü ile plaketin z 8'i arasındaki **53 mm
+  düşüşü hiç saymıyor**), lehim noktası yerine kartın **merkezini** kullanıyor, ankrajdan geçen
+  kırık yolu düz çizgi sanıyor. Gerçek yol dört yönelimde **74–101 mm** — yani `kutu_veri.py`'deki
+  "HV kablosu ≤ 6 cm" kuralı **hiçbir yönelimde sağlanamıyordu** ve denetim bunu göremiyordu.
+
+**Kullanıcı kararları (uygulandı):**
+
+**① Kart B'nin yönü = 270° (yeni veri alanı `yon`).** Kare plaket dört türlü takılabiliyordu,
+yönü hiçbir yerde yazılı değildi ve ayaklar 6.1'de **yapıştırıldığı için seçim geri dönülemez**.
+617 V'luk düğüm (T_HV, sütun 3 satır 7) kartın bir kenarında toplanmış, yani yön kutudaki en
+yüksek gerilimin nereye bakacağını belirliyor. Dört yönelim hesaplandı:
+
+| yön | HV düğümü → en yakın iletken | HV kablosu (jak→ankraj→D8) |
+|---|---|---|
+| 0° | 21.6 mm | 92 mm |
+| 90° | 16.0 mm | 101 mm |
+| 180° | 19.2 mm | 88 mm |
+| **270°** | **30.2 mm** | **74 mm** |
+
+270° **iki ölçütte de en iyi**. Denetim yönü sabit yazmıyor, **en iyi olduğunu ölçüyor**: ölçütler
+ileride ayrışırsa (biri 180°, diğeri 270° derse) kırmızıya döner ve karar yeniden sorulur.
+Kullanıcıya bakan cümle de üretiliyor (`kart_yon_cumlesi`): *"kartın A1 köşesi (ön-sol) kutunun o
+köşesine baksın"* — ve bu cümle Adım **6.3**'te, HV kablosunun bağlandığı 9.3'ten önce çıkıyor.
+⚠ Yan bulgu: `IC_PARCA["nasil"]` alanı **belgeye hiç girmiyor** (yalnız denetim okuyor) — kartların
+nasıl tutturulacağı kullanıcıya ulaşmıyordu; yön cümlesi bu yüzden adım metnine kondu.
+
+**② CAL seri direnci 1 kΩ → 22 kΩ (R059, stokta 50).** CAL panelin **tek korumasız GPIO ucu**;
+25.5 mm ötesindeki PİL 1'de pil testinde 38 V'a kadar çıkıyor. İki ayrı arıza yolu ve ikisi de
+artık ölçülüyor:
+* Kart **kapalıyken** +3V3'ü hiçbir şey çekmiyor; CAL direnci ile **R41** (1 kΩ, +3V3–GND,
+  netlistten okunuyor) bir **bölücü** oluyor ve ray yükseliyor. O rayda yalnız GPIO10 değil,
+  **iki ADS1115'in VDD'si** de var (netlist +3V3: U6.8, U7.1, U7.8) → mutlak sınır 3.6 V.
+  1 kΩ ile **19.0 V**; 22 kΩ ile **1.65 V**.
+* Kart **açıkken** ray 3.3 V'ta tutuluyor (`ESP_BOSTA_AKIM` 40 mA > enjeksiyon) ama akım GPIO'nun
+  ESD diyodundan akıyor: `ESP_ENJEKSIYON_HEDEFI` 5 mA. 1 kΩ ile **34.7 mA (6.9×)**, 22 kΩ ile
+  **1.58 mA**. Direncin gücü de 1.20 W → **55 mW** (1/4 W anma).
+⚠ *Ajanın "seri R41" tarifi yanlıştı* — R41 GPIO'ya seri değil, rayın tek yükü; sayılar aynı
+çıkıyor ama mekanizma bölücü. Bedel **bilinen sabit bir bölme oranı**: kare dalga 3.27 → 2.72 V,
+skopta **94 kod** (eşik `CAL_ASGARI_KOD` = 50, yüzde değil kod: okunabilirliği sınırlayan şey
+menzil değil çözünürlük). Kenar yuvarlaması 2.2 µs = 1 kHz'de periyodun %0.2'si ve CAL frekansı
+yazılımdan düşürülebiliyor — **koruma payı geri alınamaz, genlik alınabilir.**
+⚠ Kullanıcı "kart A'da tekrar lehim beni aşırı yorar" dedi; gerek yok: direnç kartın üstünde
+değil, devkit'in GPIO10 pinine takılan jumper'ın ucunda ve **Adım 11.1'de**, henüz gelinmemiş bir
+adımda takılıyor. Ölçüm doğruluğu/hızı da etkilenmiyor: CAL bir **çıkış**, ölçüm yollarının
+hiçbirinde değil.
+
+**③ Hücre 2 koluna 500 mA sigorta (F2 = FUS015 + FUS009 yuva, ikisi de stokta).**
+TP4056'nın koruma FET'i (FS8205) **B− ile OUT− ARASINDA**; hücre uçlarındaki ya da H+/H−
+kablolarındaki bir kısa devre o FET'in **dışında** kalıyor ve DW01A kesemiyor. Kapalı ahşap
+kutudaki tek onlarca amperlik yol bu. Graf değişti (`H2+ → F2.1`, `F2.2 → TP2.B+`) ve üç iddia
+ölçüyor: yapısal (artı uç önce sigortaya girer), **sürekli kötü hal 294 mA** (24 V × 25 mA,
+hücre 2.4 V, verim 0.85) → anma 500 mA = **1.7× pay** (boşuna atmaz), **kısa devre 42 A** =
+anmanın 84 katı (gerçekten atar). Hücre 1 kolu isteğe bağlı kaldı (Adım 15 zaten isteğe bağlı).
+
+**🔴 Denetimin en büyük yapısal kör noktası kapatıldı: AÇIKLIK hiç ölçülmüyordu.**
+`cakisma3` yalnızca **çakışmaya** bakıyor ve `parca_payi` = 6 mm kuralı sadece IC_PARCA
+çiftlerine + duvar parçalarına uygulanıyordu. Taşıyıcı bloklar, kutu ek parçaları, sabitler
+(köşe direği / kapak rayı) ve panel gövdeleri **tamamen kapsam dışıydı**. Gerçek 3B (Öklid)
+boşluk hesaplanınca **19 çift 6 mm'nin altında** çıktı ve hiçbirini tek bir iddia ölçmüyordu:
+F0 ↔ kart A **1.70**, ESP32 ↔ B-ayak1 **0.54**, A-ayak2 ↔ ESP32-altlık1 **0.24**,
+RS-altlık1 ↔ B-ayak2 **0.82**, CAL ↔ PİL jakları **5.66** mm… Çözüm bir *eşik* değil **kilitli
+envanter**: `DAR_ACIKLIK` her çifti gerekçesiyle tutuyor, liste hem tavan hem taban (yeni dar
+çift → kırmızı, artık dar olmayan kayıt → kırmızı, gerekçe < 40 karakter → kırmızı, gerekçedeki
+sayı gerçek boşlukla tutmuyorsa → kırmızı) ve belgede tablo olarak duruyor.
+**Envanteri kurarken çıkan yeni bulgu:** ESP32'nin **anten ucu** (USB arka duvarda → anten karşı
+uçta) B-ayak1'e **0.54 mm** — yani 18 mm'lik bir ahşap blok antenin yarım milimetre yanında.
+RF etkisi ölçülmedi, anten keep-out açık maddesine eklendi.
+
+**Sessiz kusur: 43 iddia kaybolabiliyordu ve koşu bunu söylemiyordu.** `kutu.py`'nin
+stdout'u gerçek bir dosya değilse (`bom_dogrula` import'unda `sys.stdout.reconfigure`)
+envanter okuyucusu çöküyor, `yerlesim3_belge.Stok` istisnayı yutuyor ve **7 · STOK bölümünün
+43 iddiası düşüyor** — özet yine "N/N doğrulama geçti", rc=0. Yani 43 iddia eksik bir koşu tam
+koşudan **ayırt edilemiyordu**. (Bu oturumda kazara üretildi: `redirect_stdout` altında
+F0 konumlarını denerken 1815 yerine 1772 çıktı.) Mutasyon koşucusu etkilenmiyor (kopya
+`projeler/` altında, envanter çözülüyor) ve envanter depo DIŞINDA olduğu için (herkese açık
+depo) bunu kırmızı yapmak yanlış olurdu; çözüm özet satırına taşımak:
+`1770/1770 doğrulama geçti  ⚠ EKSİK KOŞU: envanter okunamadı, 7 · STOK bölümü atlandı`.
+
+**Yer tutucu taraması (B55c'nin açık maddesi kapandı).** MALZEME'nin `ad` alanı `.format()`
+edilmiyordu ve `{pil_sigorta}` belgeye **ham** çıktı — B55c'deki `{adim_uA}` kusurunun aynısı.
+Artık belge üretiminin tek çıkış noktasında `{kelime}` kalıbı taranıyor ve bulunursa üretim
+patlıyor.
+
+**Kendi yazdığım iddialarda mutasyon koşucusunun yakaladığı iki ölü doğum:**
+(a) somun cebi kalıbı "Ø6 **somun yuvası**" biçimini hiç yakalamıyordu — cep kelimesi Ø'nun
+önünde de arkasında da olabiliyor, iki kalıp gerekti; (b) rayın delinmesini **metinle** ölçen
+ilk iddia, talimatı değil "orada delik yok" cümlesini yakalıyordu ve mutasyon kaçtı — iddia
+metinden **geometriye** taşındı (`kapak_civata_delen` sözlüğü, cıvatanın kestiği katmanlar
+geometriden hesaplanıp planla karşılaştırılıyor).
+
+**B55g-b — kullanıcı geri bildirimiyle sadeleştirme.** Kullanıcı: *"kartı şu şekilde yamuk
+yerleştir, şunlar arasında şu kadar mesafe olsun falan bunları aşırı derecede hesaplayarak
+kendini yormana gerek yok; basic seviyede hesapla, ben gerekli şekilde ayarlarım, gerekirse
+araya izole bant koyarım."* Haklı: 19 dar çiftin **10'u ahşap–ahşap** ve bıçakla yerinde
+ayarlanıyor; onları tek tek gerekçelendirmek gereksiz bakım yükü. Envanter daraltıldı —
+gerekçe artık **yalnız en az bir tarafı iletken** olan **9 çiftten** isteniyor (`iletken_mi()`:
+IC_PARCA + metal gövdeli panel öğeleri iletken; taşıyıcı/ek blok/direk/ray değil). Ahşap–ahşap
+çiftlerde yalnız **çakışma** ölçülüyor ve belgede tek satırda sayı olarak geçiyor. İddia sayısı
+değişmedi (1815), mutasyon 70/70 korundu. Ayrıca kullanıcı **gerekli parçayı gerektiğinde
+kesiyor** (toplu kesim yapmıyor) → F0'ın yer değiştirmesi hiçbir fireye yol açmıyor, ölçüm
+aciliyeti kalktı.
+
+**B55h — yalıtkan kaplama planı (kullanıcı kararı: tırnak cilası).** Kullanıcı yüksek gerilim
+bölgelerini tırnak cilasıyla 4–5 kat kaplamayı planlıyor; nereye yapılacağı veriye yazıldı
+(`kutu_veri.KAPLAMA` + `KAPLAMA_HARIC`, belgede "Yalıtkan kaplama" bölümü). Kaynaktan çıkan
+tablo: **zincirin tamamı kart B'de** (617 · 514 · 411 · 309 · 206 · 103 V), kart A'nın en
+yüksek düğümü **63.5 V** (skop girişi) — yani kaplama tek kartın işi.
+**Asıl gerekçe emniyet değil DOĞRULUK:** HV bölücüsü 4.92 MΩ / 8.2 kΩ olduğu için yüzey kaçağı
+bölücüye paralel girip oranı kaydırıyor — 1 GΩ → %0.5, **100 MΩ → %4.7**, 50 MΩ → %8.9 okuma
+hatası. Tozlu/nemli FR4 yüzeyi 10⁸–10⁹ Ω mertebesinde, yani kaplama kalibrasyonu koruyor.
+⚠ Kaplama **yüzey kaçağını** keser, **hava aralığından atlamayı kesmez** — mesafe yerine geçmez
+(kutuda mesafeler 16–30 mm, zaten fazlasıyla yeterli). Kaplanmayacak yerler de gerekçesiyle
+yazılı: kart A (gerekmiyor), Q1 soğutucusu/regülatör çevresi (nitroselüloz ısıda çatlar), panel
+jaklarının lehim kulakları (tel oynayınca cila çatlar → makaron/bant), ölçüm pedleri (kaplanmış
+pede prob değmez). Sıra: T_HV/T_N6 tellerini **önce lehimle**, sonra kapla, sonra 6.3'te tak.
+**Kendi iddiam yine ölü doğdu ve mutasyon yakaladı:** "zincirin kartı kaplama listesinde mi"
+diye sormak yetmiyordu — tam-kart kaydı A'ya taşınsa bile aynı kartın "lehim noktaları" kaydı
+listede kaldığı için yeşil kalıyordu. Kayıtlara `kapsam` alanı (kart/nokta) eklendi, iddia
+**tam kart kaplaması** şartına bağlandı.
+
+**B55i — kullanıcının SIRADAKİ adımı denetlendi (Adım 3–4), delme rehberinde iki açık.**
+Kullanıcı tabanı bitirdi (2.1/2.2) ve sırada duvar parçalarını delmek var. O adımlara bakınca:
+
+1. 🔴 **Ø12 için delme yöntemi hiç yoktu.** `DELME`'nin "Büyütme" satırı Ø6 (kalem) ve Ø8
+   (kalın marker) ile bitiyordu; F0 sigorta yuvasının **Ø12'si kutudaki EN BÜYÜK delik** ve
+   18 mm çubukta her yanda **3.0 mm et** bırakıyor (diğer bütün çaplarda et ≥ 4.5 mm).
+   Matkabı olmayan kullanıcı Adım 3.1'e bu tarifsiz geliyordu. Eklendi: **zincir delme**
+   (çemberin üstüne havyayla 8–10 delik → göbeği çıkar → eğe/zımpara) + et payı uyarısı,
+   sayılar `CUBUK`/panel verisinden üretiliyor.
+2. 🔴 **Ø5 için de yöntem yokmuş** — dört havalandırma deliği ve GÜÇ LED'i o çapta ve
+   **Adım 3.2'de** deliniyor. Bunu kendi yazdığım kapsam iddiası ÖNCE kaçırdı: süzgeç olarak
+   `yuvarlak_mi()` kullanmıştım, o ise "arkasına iç kat çubuğu ortalanıyor mu" sorusu —
+   "yuvarlak delik mi" değil. Süzgeç düzeltilince (oval olmayan her delik) iddia kırmızıya
+   döndü ve gerçek açığı gösterdi.
+
+Yeni iddialar: panelde kullanılan **her yuvarlak çapın** `DELME`'de geçmesi (6 çap: Ø3.2 · Ø5 ·
+Ø6 · Ø6.5 · Ø8 · Ø12) ve en büyük delik için kalan etin rehberde **sayıyla** yazması.
+**Mutasyon burada da bir ölü doğum yakaladı:** Ø5'in yöntem cümlesini silen ilk mutasyon KAÇTI,
+çünkü aynı satırın sonundaki "Havalandırma delikleri (Ø5) istisna" ibaresi çapı anmaya devam
+ediyordu — iddia çapın *anılmasını* ölçüyor, *yöntem verilmesini* değil. Mutasyon çapı satırdan
+tamamen kaldıracak şekilde yazıldı; sınırı DEVIR'e not edildi.
+
+**Sıra bulgusu (kullanıcıya verildi):** plan "3.1 ön → 3.2 arka" diyor ama **tersi doğru**.
+F0 taşınırsa yalnız **ön duvarın 2/3/4. sıra** parçalarının ek yeri kayıyor (6 parça, 3'ü uzuyor;
+1. ve 5. sıra etkilenmiyor, arka duvar hiç etkilenmiyor). Kullanıcı gerekliyi gerektiğinde
+kestiği için fire yok: 3.2 → 4.1 → 4.2 serbest, 4.3'ün ön duvar kısmı ölçüme bağlı.
+
+**B55j (2026-09-23) — KULLANICI ÖLÇTÜ: planın üç varsayımı yanlıştı, biri geri dönülemez
+bir çakışmaydı.** Kullanıcı kumpasla ölçüp verdi; hepsi veriye işlendi (`olculdu: True`).
+
+| Ne | Plan varsayımı | ÖLÇÜLEN | Sonuç |
+|---|---|---|---|
+| F0 derinliği | 26 mm | **24** (gövde 19–20 + lehim bacağı 4) | ✅ plandan SIĞ — F0 **yerinde kalıyor**, ön duvarın kesim boyları değişmiyor |
+| F0 diş çapı | Ø12 | **Ø10–11** | delik Ø12 → **Ø11**, 18 mm çubukta et 3.0 → **3.5 mm** |
+| Kart A | 114.3 × 114.3 | **130 × 120** | 🔴 köşe direğine ve kart B'nin ayağına GİRİYORDU → kullanıcı **115 × 115'e kesecek** |
+| Kart A yüksekliği | 24 mm | **35** (alt teller + üst parçalar) | TP4056 rafına pay 4.78 mm |
+| Kart A ayağı | 8 mm (4 kat) | **16–17 gerekiyor** | kullanıcı kararı: ahşap blok **9 kat = 18 mm** |
+| Kart B | 45.7 (delik alanı) | **50 × 50** (fabrika, kesilmiyor) | gövde modeli düzeltildi (`tasma` alanı) |
+| ESP32 | 26 × 63 | **27.5 × 63** | işlendi; yükseklik 14 mm ölçümü modelin 28'iyle tutarlı (dişi dupont dahil) |
+
+**Kart A'nın 130×120 olması geri dönülemez bir hataydı:** kartları delik ızgaralarına ortalayıp
+koyunca kart A **köşe direği D1'e** ve **kart B'nin ayağına** 0.00 mm ile giriyordu. 115×115'e
+kesilince bütün çakışmalar kalkıyor; en dar iletken taraflı açıklık **0.54 mm** (ahşap ayak ↔
+devkit gövdesi). Çubuk sayısı **131'de kaldı** — 18 mm'lik ayakların 20 ek parçası artıklara sığdı.
+
+**Kart B 50 mm** doğrulandı: model 45.7 diyordu ve o DELİK ALANIydı (18 × 2.54), gövde değil.
+`tasma` alanı eklendi — x/y delik ızgarasının çıpası olarak kalıyor, gövde iki yana taşıyor.
+Sonuç: kart B ↔ ESP32 boşluğu 7.0 değil **4.85 mm**. Elektriksel sorun yok (617 V'luk düğüm
+yön 270° ile karşı kenarda, en yakın iletkene 30.2 mm) — 270° gerçek ölçülerle de hâlâ
+her iki ölçütte en iyi.
+
+**Ayak 8 → 18 mm:** kart A z 18–53, kapak rayına 19 mm pay. Gömme somun yine 2.–3. katta,
+yani M3×10 vida yetmeye devam ediyor; alttaki beş kat delinmiyor, sadece yükseltiyor.
+Kart B 8 mm'de kaldı (altında tel yok).
+
+**Ölçümlerin açtığı iki yeni kusur:**
+* **TP4056 rafı (TP1) ↔ kart A = 4.78 mm.** Kart A 35 mm olunca üstü 53'e çıktı ve raf
+  (z 42–47) ile DÜŞEYDE kesişiyor; ayıran şey yatay 4.8 mm. TP1 Adım 15'e ait (hücre 1,
+  isteğe bağlı) — takılmazsa sorun yok.
+* **Kart A'nın arka boş şeridi ↔ MT1 = 4.00 mm** (şerit 18 mm'ye yükseldi, MT3608 z 24–41).
+
+**Ayak kat sayısı değişince iki eskimiş metin daha yakalandı** — ikisi de elle yazılmış sabitti:
+6.1 *"Ayak bloğu: 4 parça çubuk üst üste"* (artık `{ayak_kat_a}` ile veriden, A 9 / B 4 ayrı
+yazıyor) ve `DELME`'nin *"Son kat da Ø3.2 delinir"*'i (9 katlı blokta son kat 9.; artık
+"cebin hemen altındaki kat" ve altındakilerin delinmediğini söylüyor). Yeni iddia:
+**kart + ayak kapak rayının altında kalmalı** (A: 53 ≤ 72) — bu olmasa ayağı yükseltmek
+sessizce kapağı kapanmaz hale getirebilirdi.
+
+**Envanterde iki yapısal eksik kapandı:** (1) duvara asılı modüller açıklık envanterine hiç
+girmiyordu, ayrı bir iddia ailesi onlara tek tek bakıyordu — TP1 tam o boşluktan çıktı;
+(2) HV yön hesabı AYRI bir gövde kopyası kuruyordu ve `tasma` ile dolu/boş ayrımını
+görmüyordu, yani eski modelle çalışıyordu. İkisi de `kutu_govdeleri()`'ne bağlandı.
+
+**B55k (2026-09-23) — KALAN AÇIK MADDELER: dün eklediğim sigortanın kendisi kusurluymuş.**
+Üç açık madde (termal · TP4056 koruma · mekanik artıklar) bağımsız incelendi, termal ve TP4056
+ayrıca çürütüldü. Çürütme turu ikisinde de manşeti çökertti — ve en değerli bulgu B55g'de
+**benim eklediğim** sigortada çıktı.
+
+**🔴 F2 = 500 mA İLK ŞARJDA ATARDI.** Sigortayı hücrenin artı ucuna koydum; orası TP4056'nın
+**BAT** ucu, yani **şarj akımının tamamı oradan geçiyor**. Modül fabrika ayarında
+(`Rprog` 1.2 kΩ) **1.0 A** şarj ediyor (`kutu_veri.py:1366` bunu zaten yazıyordu).
+500 mA, o akımın yarısı. Ölçütüm yalnız **deşarj** kolunu sayıyordu (294 mA) ve 1.7× pay
+görüp yeşil geçiyordu — **iddia doğru hesaplanmış ama yanlış akımı ölçüyordu.**
+Düzeltme: `TP4056_RPROG` + `PIL_SARJ_AKIMI = 1200/Rprog` sabitleri, anma **2 A** (FUS004,
+stokta 8), ölçüt `≥ 1.5 × max(şarj, deşarj)`. Kısa devre payı 42 A / 2 A = **21×**.
+
+**🔴 Hücre 1 kolunda hiç sigorta yoktu.** B55g'nin gerekçesini (koruma FET'i B−/OUT− arasında,
+hücre ucu kısasını DW01A kesemez) yazdım ama yalnız hücre 2'ye uyguladım; denetim de yalnız
+`H2+`'ya bakıyordu. Aynı 42 A'lik yol hücre 1'de tamamen açıktı. **F1P** eklendi, kural artık
+her iki hücre için döngüyle.
+
+**Termal — hiç bakılmamıştı, bakıldı, manşet çürütüldü.** İlk analiz "Li-ion 45 °C şarj tavanı
+aşılıyor, ölümcül" dedi. Çürütme üç kusurunu gösterdi: (a) sonuç **ölçülmemiş bir ESP32 gücüne**
+asılı (1.57 W varsayılmış, KULLANIM'ın "~3 sa" iddiasından türetilmiş; gerçek devkit 0.4–0.8 W),
+(b) en sıcak senaryo (boş hücre 3.0 V) **28 dakikalık geçici bir çalışma noktası**, kutunun ısıl
+zaman sabiti ise 65 dk — kararlı hale hiç ulaşmıyor, (c) model **hücreyi havaya koyuyor**, oysa
+hücreler kutunun en soğuk yüzeyine (arka duvara) cıvatalı. Ayakta kalanlar:
+* Kutu ısıl olarak sorun değil: Q1 soğutuculu Tj 58–78 °C (sınır 175), 7912 38–68 (sınır 125),
+  elektrolitik ömrü 21 yıl. Bağlayıcı tek parça 18650.
+* 🔸 **Havalandırmanın ısıl gerekçesi yanlıştı.** Baca akışı ΔT 10 K'de 0.19 L/dk = **36 mW**,
+  duvarların attığı 3338 mW'ın **%1.1'i**. HV3/HV4'ün "TP4056'ların hemen altında" gerekçesi de
+  geometrik olarak yanlış (delikler x 81/117; TP4056'lar x 18–36 ve 178–196). Metinler düzeltildi;
+  **gaz tahliyesi gerekçesi doğru ve kaldı** — B55e'nin kararı yanlış değildi, gerekçesi yanlıştı.
+* Şarj kuralı `KULLANIM`'a eklendi (şarjda ölçüm yok · iki hücre aynı anda şarj edilmez · sıcak
+  odada kapak açık) + `LIION_SARJ_TAVANI_C` / `LIION_DESARJ_TAVANI_C` sabitleri.
+  **SAYI İDDİA EDİLMEDİ:** model 4–5 tahmin sabitine dayanıyor ve baskın olan iç taşınım
+  katsayısı sonucu **+%39 / −%33** oynatıyor. Yerine tezgah ölçümü (ilk şarjda içeri termometre).
+
+**TP4056 koruma ayrımı: kategori hatası olduğu anlaşıldı.** Bir DC bağlantı grafı korumalı ile
+korumasız modülü **ilke olarak** ayırt edemez — korumalı modülde hücre takılı ve sağlıklıyken
+FS8205 iletken, yani B− ile OUT− gerçekten aynı düğüm. Statik denetime yüklenemez; yordam
+tezgaha ait (hücre yokken diyot kademesinde B−↔OUT− iki yönde de OL, B+↔OUT+ öter).
+Asıl kazanç zaten sigortalardan geldi: artık koruma **olmasa da** her iki kol sigortalı.
+
+**Mekanik artıklar:** "adım metinleri yapıştırıcı tablosuyla çelişmiyor" diye adlandırılan
+denetimin aslında bir **kural değil iki adımlık beyaz liste** olduğu bulundu (yapıştırıcıdan söz
+eden 19 alt adımın 17'si hiç karşılaştırılmıyor) — 6.6 çelişkisinin bu yüzden kaçtığı doğrulandı.
+Bu tur uygulanmadı, açık kaldı.
+
+Denetim **1784 → 1830/1830**, mutasyon B50 **53 → 82/82**, sayım kilidi **3332**.
+
+**AÇIK — kullanıcı kararı / ölçümü bekliyor:** F0 yuvasının derinliği (26'dan büyükse x 141
+z 63'e; dört aday konum 1784 setiyle sınandı, (141,63)/(141,81)/(141,45)/(159,63) yeşil,
+(123,63) ve (105,81) kırmızı) · **kart B'nin gerçek kenar ölçüsü** (model 45.7, fabrika plaketi
+50 → ESP32'ye 4.85 mm) · ESP32 anteni keep-out (ahşap blok 0.54 mm, önce tezgahta RSSI ölçülsün) ·
+kalın jak kabloları kart takılıyken 12.7 mm kör yarıkta · kablo bağı yolları · kapak rayı geçme
+payı sıfır · 6.6 yapıştırıcı tablosuyla çelişiyor · 18650 yuva somunları hücre yatağında ·
+YUVA1–ESP32 6.0 mm · TP4056'nın korumalı sürüm olduğu doğrulanmıyor · Ø12 için `DELME`'de yöntem
+yok (kutudaki en büyük delik, matkap yok, FUS027 stokta tek) · kütleler hiç tartılmadı ·
+hücre 2 için yalıtılmış modül (B55b).
+
+**B55l (2026-09-23) — belge üretecinin kendi altyapısı.** Adım metinlerinin yer tutucu
+sözlüğü **iki yerde elle yazılmıştı** (belge üreteci + denetimin 1.2 kolu); yeni bir yer
+tutucu eklenince denetim tarafı `KeyError` ile çöküyordu. Tek kaynağa indi:
+`adim_bicim(h, nl, parcalar)`. Belgenin tek yazma noktasına **yer tutucu kaçağı kapısı**
+kondu (`{[a-z_]{3,24}}` kalıntısı varsa `AssertionError`) — biçimlenmemiş bir alan artık
+sessizce kullanıcının ekranına çıkamaz. "Adım metinleri yapıştırıcı tablosuyla çelişmiyor"
+denetimi **iki adımlık beyaz listeden gerçek kurala** çevrildi (B55k'da açık bırakılmıştı):
+kapalı dünya olduğu için "epoksi" görünmezdi.
+
+**B55m (2026-09-23) — kullanıcının ölçüleri geldi, plan onlara oturtuldu.** Ölçülenler:
+F0 yuvası **derinlik 24 mm, panel deliği Ø12** (kullanıcı 10–11 okudu ama o **diş** çapı;
+stok kaydı FUS027 "panel Ø12mm" — kaydı okuyan bir iddia eklendi, ben bir ara Ø11'e
+çekmiştim, kayıt geri çevirdi) · kart B **50 × 50** (fabrika, kesilmiyor) · ESP32 **27.5 × 63**
+· kart A **130 × 120**, kullanıcı **115 × 115'e kesecek** (yeni **Adım 1.3**; karar veride ve
+DEVIR'de duruyordu ama *belgede hiç yoktu*) · kart A parçalarla birlikte **35 mm** kalın ve
+altındaki atlama telleri için **16–17 mm** yerden yükseklik istiyor → ayak bloğu **9 kat
+(18 mm)**. Ayrıca: F1P/F2 hücre sigortası yuvalarına gerçek konum (x 76 / x 177, z 0 — üç
+denemede; MT1 ve A-ayak1 ile çakıştı, denetim yakaladı) · Q1 soğutucusu malzeme listesine ·
+FR4 delme yöntemi (**havya YASAK**: cam elyaf erimez, reçine karbonlaşır ve **karbon
+iletkendir**) · "halka pabuç" üç adımda **koşulsuz** isteniyordu ama envanterde hiç yok →
+kalaylı kanca yöntemi + *hiçbir adım stokta olmayan bir parçayı koşulsuz istemiyor* iddiası.
+
+🔴 **Kendi altyapımda gerçek bir kusur üretip yakaladım:** `kutu.main()`'i
+`redirect_stdout` altında çağırınca `bom_dogrula`'nın `sys.stdout.reconfigure`'ü patlıyor,
+`yerlesim3_belge.Stok` bunu yutuyor ve **43 iddia sessizce kayboluyor** — koşu yine
+"1741/1741 geçti", `rc=0` diyordu. Özet satırına **`⚠ EKSIK KOSU: envanter okunamadı`**
+işareti kondu (kırmızı yapılmadı: envanter herkese açık depoda yok, orada eksik koşmak
+normal). Aynı sınıftan ikinci bulgu: bir **B22b firmware mutasyonunun deseni eskimişti**
+(sondaki `{` koda uymuyordu) ve mutasyon **sessizce uygulanmıyordu** — o iddia hiç
+sınanmamış. Koşucu artık "UYGULANAMADI (desen yok)" diye ayrı sayıyor.
+
+**B55n (2026-09-24) — TAMAMLANABİLİRLİK: "sana bir şey sormadan sonuna kadar gidebilmeliyim".**
+Kullanıcının kuralı değişti; plan bu kurala göre tarandı ve **10 kusur** bulundu. Hepsi
+"belge yeşil ama kullanıcı o adımda takılır" sınıfından:
+
+| # | Kusur | Çözüm |
+|---|---|---|
+| 1 | 9.3 *"baskısı 600 V altıysa **söyle**"* — kullanıcıyı bana yolluyor | Karar metne: ≥ tam skala → kullan; altı/baskısız → **boydan boya makaron + panele o değeri yaz**; her halde tek parça kablo. 1.1'deki üç "söyle" ve KULLANIM'daki "sayıyı bana söyle" de kurala çevrildi |
+| 2 | **LED1** 5.3'ün `monte` listesinde ama takılışını anlatan tek cümle yok | Takma + **bacak yönü** (uzun = anot; takılınca görünmez, şimdi işaretle) |
+| 3 | **Şönt kutbuna üç iletken** biniyordu (Ø2 manganin çubuk + iki kalın kablo, tek XP128 kafesi: çubuk basıncı alır, kablo gevşer, 10 A'da ısınır) | Güç düğümü **HB950 bariyer klemensine** (CON011, stokta 2) ayrıldı; XP128'de şönt bacağı + tek köprü. Ölçüme etkisi yok — Kelvin uçları şöntün **bacağında**. Şönt takası da kolaylaştı |
+| 4 | 6.1: "katları lamine et" — dört katın deliği **nasıl üst üste gelecek** yazmıyordu; cep lamine olduktan sonra açılamaz, sıra tersine çevrilemez | 7 adımlık sıra: kılavuz Ø3.2'yi **dört katı birlikte sıkıp tek seferde** del → hizalama çizgisi → ayır, cebi büyüt → 4+3+2'yi yapıştır → somunu kuyuya bırak (kendiliğinden ortalanır) → 1. katı koy → **japon kurumadan vidayı sok-çıkar** |
+| 5 | 13.1: somunlu blok **rayın iç yüzüne**, yani kutunun içine yapıştırılıyordu — kapak takılıyken oraya el girmez (kutunun tek açıklığı kapağın kendisi) | Kapak **tezgaha alınıyor**, ters çevriliyor; cıvata rayın dış yüzünden sokuluyor, blok onun üstünde **kendiliğinden merkezleniyor** |
+| 6 | 10.1: "seçicinin **ortak** uçları" — KTS202'nin hangi ayağının ortak olduğu hiçbir yerde yok; stokta tam 2 adet, yedek yok | Ölçerek bulma yordamı (ohmmetre ötüş, kolu ters at, iki konumda da öten ayak ortak) + işaretle |
+| 7 | 11.2 başlığı "Vref ve I²C kapıları" ama metni **yalnız WiFi ayarı**; iki kapının ölçütü yok | Sayılar `tasarim3_sabit`'ten: TL431 = 2.495 V ±%2, U3A = 1.7153 V ±10 mV, yük altında kaymamalı; I²C'de 0x48 **ve** 0x49; her ikisi için "tutmazsa" dalı |
+| 8 | 14.2/15.2: "blokta iki delik" — **çap yok** | `KABLO_BAGI` (SRF012 3.6 mm şerit → **Ø4.5**, aralık ≥ 12 mm), delikler modülün kısa kenarlarının dışına |
+| 9 | 2.2: taban raylarının **konumu metinde hiç yok** ("uçlardan içeride") — oysa devrilme ve ray yük payı hesabı konumu varsayıyor | Sol kenardan **56 / 166 mm** (dış enin ¼ ve ¾'ü), ±5 mm'den fazla kaydırma |
+| 10 | 16.1'in **etiket listesi elle yazılmıştı** ve panel verisinden kaymıştı: CAL, F0, GÜÇ, ŞARJ 1/2 ve üç toggle listede hiç yoktu | Liste `PANEL_ON`/`PANEL_ARKA`'dan **üretiliyor**; 5.2 kendi `monte` listesinden |
+
+##### Mutasyon koşucusu bu turda **altı ölü iddia** buldu (hepsi benim yeni yazdıklarım)
+
+* *"hiçbir adım kararı bana bırakmıyor"* deseni **`\bsoyle\b` yazılmıştı** — `_kucuk()`
+  harfleri sadeleştirmiyor, yalnızca küçültüyor; Türkçe "söyle" ile hiç eşleşmiyordu.
+  İddia doğduğu gün ölüydü.
+* 13.1 sıra iddiası `find("kapağı kaldır")` yapıyordu ve delme paragrafındaki
+  **"kapağı kaldırMADAN yap"** — yani tam tersini söyleyen cümle — onu yeşil tutuyordu.
+* KAPI ölçütü iddiası **cihaz adresini (0x48) ölçüt sayıyordu**; "var mı yok mu" der,
+  "ne kadar" demez. Ölçüt artık sayı + **fiziksel birim**.
+* KTS202 iddiası adımın **tamamında** "öt…" arıyordu; 10.1'in kontrol satırlarında zaten
+  "ötmeli" var, yordam silinse bile yeşil kalıyordu. Ölçüt aynı cümleye indi.
+* İki mutasyon **fazla zayıftı** (metnin bir bölümünü siliyor, iddiayı besleyen başka
+  cümle kalıyordu) — çok satırlı hale getirildi.
+* `monte` iddiasının eşleştirmesi tek harfli ref ("A") ve ölçüyle başlayan ad
+  ("5 mΩ Ø2 şönt") için tutmuyordu → sözcük sınırı + adın ilk dört harfli sözcüğü.
+
+**B55n-b (2026-09-24) — kullanıcının üç kararı.** Kalan açık maddeler şıklarıyla
+soruldu, üçü de uygulandı:
+
+**① Giriş sigortası (F0B).** F0 kaynak seçicinin **çıkışında** duruyordu, yani J6 ile
+seçici arasındaki ~24 cm kalın kablo kutunun içindeki **tek sigortasız bakırdı** ve tek
+koruması WCT-200-24'ün kendi akım sınırıydı. PCB klipsli yuva (FUS009) + **2 A** (FUS004),
+ikisi de stokta. Yer **programla arandı**: arka duvarın alt bandı tamamen dolu (kart A'nın
+ayakları, 24 V klemens çubuğu, F1P, ESP32 altlığı, F2) — 6 mm'yi geçen tek bölge üst sıra;
+havalandırma delikleri de kaçırılarak **x 30, z 78** (en yakın parça MT2, 12 mm). Kuyruğun
+artı teli J6'dan girer girmez buraya uğruyor.
+
+**② Q1 soğutucusu 1 MΩ ile kart GND'ye** (R026). Mika onu yalıttığı için kapalı kutuda
+**yüzen** bir metal plakaydı. Düz tel *değil*: mika bir gün delinirse soğutucu Q1'in
+savağına, yani **PİL 1**'e (test edilen pil, ≤38.5 V) bağlanır ve düz tel bunu GND'ye kısa
+devre ederdi — o yolda bizim koyduğumuz sigorta yok. 1 MΩ ile arıza akımı **38 µA**.
+Denetim iki şeyi birden ölçüyor: arıza akımı < 1 mA (fizik) **ve** talimat cümlesinde
+direncin geçtiği (metin). Kontrol satırı: soğutucu ↔ GND ≈ 1 MΩ okumalı, **0 Ω ise mika
+delinmiş**.
+
+**③ F1: takılı sigorta kalıyor, T 50 mA "isteğe bağlı / sonraki plan".** Kullanıcı
+*"şu anda 50 mA takılı ancak hiç atmadı"* dedi; B52 aynı yuvada **0.4 Ω** ölçmüştü ve
+50 mA'lık tel 15–21 Ω okur. İki bilgi birbirini tutmuyor ve hangisinin doğru olduğunu
+ancak ölçüm söyler — bu yüzden metin **iddia olmaktan çıkıp yordam oldu**: "etikete değil
+ohmmetreye bak; sigortayı çıkar, soğukken direncini ölç: 15–21 Ω → gerçekten
+50 mA (ve T tipi, çünkü atmadı), 0.3 Ω civarı → 400 mA sınıfı". Her iki hâlde de kısa
+devre koruması var, kurulum beklemiyor.
+
+Bu turda mutasyon koşucusu **yine dört iddiayı ölü buldu** ve ikisi B55n'dekiyle **tam
+aynı sınıftı** (adımın TAMAMINDA anahtar sözcük aramak): soğutucu iddiası gerekçe
+paragrafındaki direnç sayısına takılıyordu, sigorta iddiası ise 10.1'in **KTS202
+yordamındaki "ohmmetre"** kelimesine. İkisi de talimat/madde düzeyine indirildi. Ayrıca
+`ad`'dan türetilen takma adın çok genel olabildiği ortaya çıktı — F0B'ninki **"xt30"**
+çıkıyordu ve 10.1'in her yerinde geçtiği için `monte` iddiası F0B için boştu; takma ad
+artık yalnız `IC_PARCA` için üretiliyor (ref'leri tek harf olabildiği için orada gerekli).
+
+**Doğrulama.** `kutu.py` **1830 → 2181/2181** · mutasyon B50 **82 → 115/115** (tam takım
+**306/306**) · `dogrula3.py` **18/18**, sayım kilidi **3332 → 3683**.
+
+**B56 (2026-09-24) — PANEL SİMETRİSİ.** Kullanıcı üretilen ön duvar çizimine bakıp
+*"ön ve arka yüzünün çok daha düzgün gözükmesini istiyorum, şu anda çok asimetrik ve
+hoş değil"* dedi. Haklıydı: toggle'lar 36 sonra **18** mm aralıkla diziliydi, GÜÇ lambası
+tek başına solda (x 51) duruyordu, V/COM/SKOP sağa kaymıştı, sağ yarı boştu; arkada
+dört havalandırma dört ayrı x ve dört ayrı z'deydi.
+
+**Ne yapıldı.** Bütün panel delikleri **tek bir 18 mm ızgaraya** oturtuldu
+(35·53·71·89·107·125·143·161·179) ve her sıra **x = 107 mm'ye, yani panelin tam
+ortasına göre simetrik** dizildi; sıra içi adım her yerde 36 mm:
+
+| Sıra | İçerik (x) |
+|---|---|
+| z 81 | GÜÇ **35** · HV ⚡ **179** |
+| z 63 | AÇ/KAPA **71** · PİL ESP32 **107** · PİL/HARİCİ **143** |
+| z 45 | V **53** · COM **89** · SKOP **125** · F0 1A **161** |
+| z 27 | CAL **107** |
+| z 9 | PİL 1 **35** · PİL 2 **71** · YÜK 1 **143** · YÜK 2 **179** |
+
+İki ızgara (35+36k ve 53+36k) 18 mm ötelenmiş olduğu için **komşu sıralar hiçbir yerde
+aynı sütunu paylaşmıyor** — en dar komşuluk artık köşegen (25.5 mm merkez arası).
+
+**Estetik değişiklik üç gerçek kusuru birden kapattı.** Ön panelde en dar metal–metal
+aralık **5.66 → 12.0 mm** ve 6 mm'nin altında **hiçbir çift kalmadı**; beş `DAR_ACIKLIK`
+kaydı listeden düştü. Bunlardan ikisi aylardır açık duran maddelerdi: **F0, kart A'nın
+x menzilinin (13–128) dışına, x 161'e geçti** — 24 mm'lik gövdesi artık kart A'nın önünde
+değil, yani B55d'den beri "1.7 mm / 3.0 mm" diye taşınan pay sorunu *geometrik olarak*
+yok oldu. **CAL panelin ortasına** alındı: PİL jaklarına 5.7 mm yerine **26 mm**
+(B55g'de "🔴" işaretiyle kaydedilen çift). HV en yakın komşusuna 20.3 → **25.5 mm**.
+
+**Arka.** Havalandırmalar **iki ayna çiftine** indi: üst çıkışlar x 12.5 / 201.5, alt
+girişler x 80 / 134 (hepsi tam yükseklikte bir iç kat çubuğunun ortasında; simetrik çift
+olabilecek x'ler kısıtlı, çünkü hem x hem 214−x 18650 yuvalarının örttüğü 92–172 şeridinin
+ve F1P/F2/TP/USB bloklarının dışında kalmak zorunda — program tarayarak buldu). XT30
+deliği USB'nin aynasına alındı (x 62 ↔ 152). **18650 yuvasının dört cıvata deliği simetrik
+olamıyor** (yuvanın kendi delikleri 53 mm aralıklı, yuvayı ortalamak MT1/MT2 ile çakışıyor)
+— `PANEL_SIMETRI_HARIC`'te gerekçesiyle yazılı.
+
+**Simetri artık kural, tercih değil.** `PANEL_SIMETRI_HARIC` (DAR_ACIKLIK ile aynı
+disiplin: hem tavan hem taban) + üç iddia: her deliğin ayna eşi olmalı ya da gerekçesi
+yazılı olmalı · istisna listesinde **artık simetrik olan** bir kayıt kalırsa kırmızı ·
+ön panelin her sırası ayrı ayrı ölçülüyor.
+
+⚠ **Mutasyon koşucusu yine iki iddiayı ısırmaz buldu.** (1) Dört mutasyon deseni
+taşıdığım öğelerin eski koordinatlarında kalmıştı ve **sessizce uygulanmıyordu**.
+(2) Daha kötüsü: 5.2/5.3'e koyduğum **üretilen etiket listesi (`{bu_etiketler}`),
+"monte edilen her parça metinde geçiyor" iddiasını besliyordu** — LED1'in montaj cümlesi
+silinse bile liste onu saydığı için iddia yeşil kalıyordu, yani B55n'de düzelttiğim kusur
+sessizce geri gelebilirdi. İddia "adı geçiyor mu"dan **"nasıl tutturulduğunu söyleyen bir
+cümle var mı"**ya çevrildi (ad + tutturma yöntemi aynı maddede; üretilen liste sayılmıyor).
+
+**Doğrulama.** `kutu.py` **2181 → 2189/2189** · mutasyon B50 **115 → 118/118** · `dogrula3.py` **18/18**, sayım kilidi **3683 → 3691**.
+
+**B57 (2026-09-25) — PARÇA BİLGİ KARTI (fareyle üzerine gel / tuşla).** Kullanıcı:
+*"Elimi mouse ile üzerine getirince veya bir tuşa basınca o parçanın detaylarını görebilmem
+lazım. Örneğin uzunluğu ne kadar, veya o parçanın adı ne, ölçüleri ne. Yoksa hangi parça ne,
+ne kadar uzun anlamak zorlaşıyor."*
+
+**Ne yapıldı.** `8-kutu.html`'de 2B çizimlerde (panel, kuşbakışı yerleşim, izometrik, taban/kapak,
+kesim listesi) ve 3B görünümde her parçanın üzerine gelince kart açılıyor: ad, tür, ölçü, çubuksa
+**uzunluk (vurgulu) + kesit + kesim listesindeki satırı + "nereden" (düz/tek uçlu/yarım)**, panel
+öğesiyse delik Ø / metal gövde / içeri uzantı / konum (çizimdeki etiketlerle aynı eksen) /
+delindiği ve takıldığı adım, ve **stokta hangi kutuda** olduğu (`CON027 · Soketler 1 Kutusu`).
+3B'de seçilen blok turkuaz çerçeveyle vurgulanır; kart "★ bu adımın parçası" ya da "⏳ henüz yok —
+X adımında takılır" der. Etkileşim: fare üzerine gel = geçici kart, tıkla/dokun = sabitle, Esc =
+kapat; klavye: çizimlerde **Tab** parçadan parçaya (odak = kart, Enter = sabitle), 3B tuvalde
+**N / P** sonraki / önceki parça (önce bu adımın parçaları).
+
+**Tek kaynak.** `kutu.py`'deki `bi_*` fonksiyonları (panel · iç parça · duvar parçası · ayak · direk
+· çubuk · dış kat sırası · kesim satırı) kartları **veriden** üretip `_BILGI`'ye kaydeder. 3B bloklar
+`k` alanıyla, SVG grupları `data-bi` ile aynı anahtara bakar (aynı parça iki görünümde aynı kart);
+sayfaya tek bir `BILGI` tablosu gömülür, yalnız sayfada ya da sahnede anılan anahtarlar. Kart
+metni DOM'a `textContent` ile yazılır (veri HTML sayılmaz). Taban/kapak/ray başlıkları yöne değil
+**boya** bağlı (kısa/uzun parça — kesim listesiyle aynı dil), çünkü kuşbakışı çizim ile 3B'nin
+"ön" yönü farklı.
+
+**3B seçim.** Işın ↔ eksen hizalı kutu: blok yüzleri klip uzayına izdüşürülür, en yakın yüzün
+derinliği alınır; önce **gözle katı görünenler** (alfa ≥ 0.3) — saydam duvarın arkasındaki parça
+seçilir, hayalet (hedef) bloklar yalnız yedek. Etiket örtülme denetimi (`ortulu`) aynı fonksiyona
+bağlandı. Tıklama eşiği 4 px: altı = seçim, üstü = döndürme.
+
+**Yol boyunca bulunanlar.** (1) Kesim listesi yan duvar için **"sıra 2–4"** diyordu; duvar B54'ten
+beri 5 sıra (adet 8 doğruydu, ad eskimişti) → sıra sayısından üretiliyor. (2) Belgenin yer tutucu
+kapısı ilk denemede kart notlarında çiğ **`{hv_kablo}` / `{yon_b}`** yakaladı — notlar artık adım
+metinleriyle aynı sözlükle biçimleniyor. (3) Kesim listesi eşleşmesi önce 0.6 mm toleranslıydı;
+kart çizimdeki 0.4 mm **kısaltılmış** boyu (99.5) gösterse de geçerdi → **0.05 mm** (yalnız
+yuvarlama payı); 119 çubuk kartının hepsi birebir eşleşiyor.
+
+**İki test katmanı.** `kutu.py` bölüm 9 (6 iddia): her 3B bloğun kartı var · her çubuğun kesim
+listesinde birebir boyla satırı var (**iki bağımsız hesabın çapraz denetimi**: `sahne()` geometrisi ↔
+`hesap()['parcalar']` — B55c'deki "16 parça eksikti" sınıfını yakalar) · her çubuk kartının ilk
+vurgulu satırı uzunluk · kart boyu bloğun gerçek boyu · verideki **her** parça (59) 3B'de üzerine
+gelinebilir · her panel kartında delik ölçüsü. Yazma noktasında yeni kapı: sayfadaki her `data-bi`'nin
+kartı gömülü olmalı. **`kutu_ipucu_test.py`** (28 iddia, ~15 s): belgeyi GEÇİCİ klasöre **kaynaktan**
+üretir, `tarayici.py` ile başsız Edge'e CDP'den **gerçek fare/klavye olayları** gönderir, `#ipucu`'nun
+açılıp ne yazdığına bakar; sayfaya test kancası yok. Mutasyon adımı **B57** bu testi koşar — **JS
+davranışı da mutasyonla sınanıyor**.
+
+⚠ **Tarayıcı testi iki gerçek hata ve üç kendi zayıflığını buldu.** Hata: **Tab odağı sayfayı
+kaydırıyor, kaydırma dinleyicisi de kartı kapatıyordu** — klavye kullanıcısı kartı bir an görüp
+kaybederdi. Çözüm: kart bir öğeye bağlıysa (`ipBag`: odak ya da sabit) kaydırmada kapanmaz, öğeyi
+izler; sabit 3B kartı bloğu izler. Testin zayıflıkları: (a) jak grubunun sınır kutusu alttaki etiketleri
+de kapsıyordu, merkezi başka parçaya düşüyordu → ilk **şeklin** merkezi; (b) Chromium **kapalı
+`<details>` içindeki SVG'ye de sınır kutusu döndürüyor** — `getClientRects()` "görünür" demek değil;
+(c) iki mutasyon **kaçtı**: kaydırma hatası testi artık kaydırma içermiyordu (senaryo: sayfa sonuna
+git, görünüm dışındaki parçaya odaklan, **kaydığını da doğrula**), "en yakın gövde" testi üstten
+bakışta ayırt edemiyordu (orada en yakın = en son çizilen) → önden duvar: dört katman üst üste,
+**ön dış kat** seçilmeli. Ayrıca iki çizim grup açılışını `_bi` yerine elle yazıyordu; tabindex
+mutasyonu onları görmezdi → tek `_bi_ac()`.
+
+**Doğrulama.** `kutu.py` **2189 → 2195/2195** · `kutu_ipucu_test.py` **28/28** · mutasyon B50
+**118 → 121/121**, B57 **7/7** (yeni) · `dogrula3.py` **18/18**, sayım kilidi **3691 → 3697**.
+
+**B57b (2026-09-25) — 18650 YUVALARI YAPIŞTIRILIYOR.** Kullanıcı: *"18650 yuvalarını vidalamak
+yerine direkt olarak yapıştırmak istiyorum yan taraflara"*. Önce yan duvarlar ölçüldü: 80×21×21
+yuva **sığmıyor** — sol duvarda kart A'nın üstü z 53, kapak rayı z 72 → 19 mm; sağ duvarda Q1
+soğutucusu z 60'a kadar. Gösterildi; kullanıcı **"olduğu yerde kalsın, M3 değil yapıştırıcı"**
+dedi.
+
+**Ne değişti.** "Kutuya giren hiçbir parça yapıştırılmaz" kuralının **TEK gerekçeli istisnası**
+veriye yazıldı: `kutu_veri.YAPISTIRMA_ISTISNA` (YUVA1/YUVA2 → sıcak silikon, söküm yolu: ısı
+tabancası / izopropil + maket bıçağı, neden). Arka duvardaki dört M3 deliği (C1a–C2b) kalktı →
+arka panel **istisnasız simetrik** (`PANEL_SIMETRI_HARIC` boş). M3 geçme çapı eskiden yuva cıvata
+kayıtlarından okunuyordu; artık `KUTU["m3_gecme"]` (tek kaynak, kapak ve ayak cıvataları kullanıyor).
+Yapıştırıcı tablosunda yuvaların kendi satırı var.
+
+**Ölü iddia (kendi).** "Duvara cıvatalı EN AZ iki parça var" iddiası yuvalar yapıştırılınca **boş
+kümede** dönecekti (`all([]) = True`). Yerine: yapıştırılan parçanın ikinci bir tutturması
+(cıvata / kablo bağı tutucusu) YOK · istisnadaki her ref gerçekten bir duvar parçası ve metni
+yapıştırıcıyı adıyla söylüyor (eskimiş istisna yok) · istisna dışındaki her parça söküleBİLİR
+(silikon/japon yok). Beş yeni mutasyon: istisna ref kaybı, istisna dışı yapıştırma, söküm yolunun
+düşmesi, tablo satırının düşmesi, yuvaya tutucu blok eklenmesi.
+
+**Doğrulama.** `kutu.py` **2172/2172** (dört panel deliğinin iddiaları gitti) · mutasyon B50
+**121 → 126/126** · `dogrula3.py` **18/18**, sayım kilidi **3697 → 3675**. Bir mutasyon deseni
+(`PANEL_SIMETRI_HARIC = {`) tip ekiyle eskimişti, koşucu "UYGULANAMADI" dedi → düzeltildi.
+
+**B58 (2026-09-25) — DIŞ BESLEME KALKTI, TEK ŞARJ GİRİŞİ.** Kullanıcı: *"1) Ekstra dışarıdan
+besleme kısmını kaldırmanı istiyorum. 2) 24 volt giriş ile çalışma sistemi de komple kalkabilir
+— dışarıdan ekstra kaynak ile beslemek istemiyorum. 3) Şarj en az 2 adet Type-C kablo ile. Bunu
+tek kablo ile yapmam mümkün değil mi?"* Seçenekler sunuldu; seçilen: **"Tek paket (tavsiye)"**
+ve B0505S için **"Yok, alırım"**.
+
+**Neden iki kablo gerekiyordu.** Kart yüzen bir 24 V istiyor ve orta noktası kart GND. Eski
+düzende hücre 1 (ESP32) eksisi = kart GND, hücre 2 (24 V) eksisi = −12 rayı; tek USB toprağı
+ikisini birleştirir → −12 GND'ye kısa. Yalıtımsız her yükseltici aynı sonucu verir.
+
+**Yeni topoloji.** İki 18650 **paralel** (her hücrenin artısı kendi sigortasından: F1P, F2) →
+tek TP4056 → **PİL** anahtarı (SWP1, KTS102) → MT1 5.0 V = **5 V barası** (ESP32 5V pini +
+kartın +5 V'u J5 üzerinden) → **ANALOG** anahtarı (SW, KTS102) → **F0** (1 A, panel, artık 5 V
+tarafında) → **B0505S** (yalıtılmış 5→5 V, 1 W) → MT2 24.0 V → iç klemens (KL) → kart C34/C36.
+Paketin eksisi kart GND; −12 rayı B0505S'in öbür tarafında. Kalkanlar: XT30 kuyruğu (J6 paneli),
+PİL/HARİCİ seçici (SWP2, KTS202), F0B giriş sigortası (B55n), TP2, ŞARJ 2, AÇ/KAPA'nın 2. kutbu;
+**KTS202 artık kullanılmıyor**. `tasarim3_sabit.GIRIS_SIGORTA` silindi, yerine B58 bütçe sabitleri.
+
+**Bütçe (sabitlerden, kötü hâl).** 24 V yükü 26 mA (kart 25 + GÜÇ LED'i 1) = 0.62 W → B0505S
+**0.73 W, anmanın %73'ü** (ölçüt ≤ %80). F0 normal akımı 204 mA (1 A ≥ 3×). 5 V barası
+0.47 A (ESP32 WiFi tepesi 250 mA) → tek hücre, 2.4 V'ta kol akımı **1.16 A**: MT3608 2 A'nın,
+DW01A 3 A'nın (1.5× pay) altında; hücre sigortası 2 A ≥ 1.5 × max(1.16, şarj 1.0) ✓. Çalışma
+≈ **4.9 sa** (tipik, iki hücre), şarj ≈ **3.6 sa** (1 A, iki hücre birlikte). Sayılar metne
+`{pil_suresi}` / `{sarj_suresi}` / `{iz_yuk}` ile giriyor.
+
+**Plan değişiklikleri.** Pil bloğu eski Adım 14–15'ten **Adım 10'a** taşındı — kutu artık
+yalnız kendi pilinden çalıştığı için 11–12'nin enerjisi bu paketten geliyor (yeni iddia: pil
+bloğu ilk kapıdan önce bitiyor). Adım 10 = 10.1 MT1/MT2 ayarı · 10.2 bütün duvar parçaları ·
+10.3 paket kabloları (tablo `asama: "paket"`) · 10.4 analog kabloları (`"analog"`) · 10.5 ilk
+enerji (VBUS geri besleme kontrolü dahil) · 10.6 şarj kuralı. Eski 14–15 silindi, **16 → 14**
+(kapanış 14.2). Panel: ön 4. sıra PİL (x 71) / ANALOG (x 143) ayna çifti, ortadaki SWP2 gitti;
+arka: **ŞARJ yuvası x 62 z 8 = USB'nin tam aynası**, TP1 rafı onun arkasında en alt sırada
+(2 katlı blok). Test kaynağı artık **tezgah beslemesi** (WCT-200-24 + MOD011 buck 3.7 V → 3.3 Ω
+= 1.12 A): WCT kutuya bağlı olmadığı için yalıtılmış bir test kaynağı; yeni 12.2 kuralı "kutunun
+**kendi paketi** test kaynağı olamaz" (dönüş akımı J5'in GND telinden geçer). 12.7 pil testi
+buck'la: 4.0 V'ta akım, 3.4 V'a inince kesme — gerçek pilden daha kesin sınıyor.
+
+**Yol boyunca bulunanlar.** (1) Alt sırada TP1 + F1P + klemens çubuğu + ESP32 sığmıyordu (68.5 mm'ye
+73 mm iş) → "24 V klemens çubuğu" (taban) kalktı, klemens **duvar parçası KL** oldu (B0505S'in
+üstü, MT2'nin çıkışına bitişik). (2) ⚠ **Eski bir hata:** 6.5 soğutucu direncini "kart GND'ye
+(klemensin siyah ucu ya da A:T_YILDIZ)" diye tarif ediyordu — **klemensin siyah ucu C36 = −12
+rayı**, B50'den beri. Düzeltildi, yeni iddia bu sınıfı yakalıyor. (3) F1P/F2 ilk kez bir
+`monte` listesine girince "kural metni yok" kırmızısı verdi → KUTU_NOTU'na eklendi. (4) İki yeni
+iddia ilk hâlinde **gevşekti**: 10.4 yalıtım kontrolü ve KULLANIM şarj kuralı adımın/tablonun
+tamamında arıyordu; aynı kelime başka maddede de geçtiği için tek mutasyonla kaçacaktı → ölçüt
+**aynı maddede** (B55n dersi, yeniden). (5) **Klemens kodlu değil:** XT30 ters takılamazdı; vidalı
+klemens takılır. Ters 24 V iki TL072'yi öldürür ve TVS koruyamaz (B15/F8) → 10.4'e enerjiden
+ÖNCE kutup ölçümü (+ ↔ MT2 OUT+ ve C34, − ↔ MT2 OUT− ve C36) + iddia + yalanlayıcı. (6) Mutasyon
+koşucusu bir **boş iddia** buldu: "delik adımının çizimi takılan öğelerin panellerini kapsıyor"
+5.1 için (hiç panel öğesi anmıyor, iki duvarı birden deliyor) boş kümeyle geçiyordu; eskiden
+5.3'ün arka/ön karışıklığı bu mutasyonu tek başına yakalıyordu, B58'de 5.3'ün hepsi öne geçince
+kaçtı → öğe anmayan delik adımı **iki paneli de** çizmek zorunda. (7) Kart BOM notu (J6 = XT30)
+"tezgah için; kutuda kullanılmıyor" oldu.
+
+**Yeni iddialar (bölüm 4).** Tek şarj girişi (tek yuva + tek TP4056) · dış besleme yok · paket
+eksisi kart GND · iki hücre paralel · **−12 rayı kart GND'den AYRI** (union-find; B0505S'in içi
+grafta kenar değil) · B0505S'in iki tarafını birleştiren kablo/iç bağ yok · ESP32 5V yalıtılmış
+tarafın artısına değmiyor · anahtarlar AÇIK konumda yolu gerçekten kesiyor (PİL, ANALOG) · F0
+ANALOG ile B0505S arasında · bütçe (B0505S yükü, F0 payı, MT3608, DW01A) · süreler sabitten ·
+12.2 kuralı · test kaynağı eşiği · paneldeki toggle adedi ≤ stok (KTS102: 2/2) · B0505S
+"alınacak" · klemens eksisini GND diye anan talimat yok · klemens kutbu enerjiden önce.
+
+**Doğrulama.** `kutu.py` **2172 → 2044/2044** (panel/duvar öğeleri ve eski seçici grafının
+iddiaları gitti; B58'in iddiaları geldi) · `kutu_ipucu_test.py` **28/28** · mutasyon B50
+**126 → 146/146** (16 eskimiş desen yeni topolojiye çevrildi, 20 yeni yalanlayıcı; ilk koşuda
+1 kaçtı → (6)) · B57 **7/7**. Panel çizimleri başsız Edge'de ekran görüntüsüyle de bakıldı:
+ön 4. sıra PİL/ANALOG, arka USB/ŞARJ ayna çifti.
+
+**Alınacak tek parça:** B0505S. Kurulum 10.2'de onu bekliyor; 10.1'e kadar her şey stoktan.
+
+**B58b (2026-09-25) — kullanıcının aldığı modül: Hi-Link B0505S-2WR3 (motorobit).** 2 W,
+4.5–5.5 V giriş, 1500 VDC yalıtım, sürekli kısa devre koruması, **gövde 19.5 × 7 × 10 mm**
+(plan 1 W'lık 11.6 mm gövdeyi varsayıyordu) ve üreticinin şartı **yük ≥ anmanın %10'u**
+(regülesiz). Değişenler: `IZOLE_GUC` 2.0, IZ x 20→14 / en 12→20 (MT2'ye 8 mm), tutucu 22 mm;
+yük %37, **en düşük yükte %28** (yeni iddia, `RAY24_AKIM_ASGARI` 19 mA). 1 W ve 2 W sürümlerin
+bacak sırası farklı → metin artık numara değil **ada göre** bağlatıyor ve 10.1'de modül tezgahta
+deneniyor (5 V giriş, 5–7 V yüksüz çıkış, GND ↔ 0V ötmemeli). Aynı turda iki stok kusuru:
+10.5 "100 µF ekle" diyordu — stoktaki 100 µF'lerin 13/15'i **16 V**, 24 V rayında patlar →
+68 µF 50 V (C035) + gerilim sınıfı iddiası (≥ 1.5 × 24 V); VBUS geri beslemesi için istenen
+1N5819 **stokta yok** → stoktaki SR5100 (D004) + MT1 5.3 V, ve "stokta olmayanı koşulsuz
+isteme" iddiası 1N5819'u da tarıyor. Malzeme notlarında çiğ `<b>` basılıyordu (tablo kaçışlı)
+→ yeni iddia, ilk koşuda ikinci örneği (Q1 soğutucusu) yakaladı. Kullanıcı kapağı mıknatıslı
+yapmayı düşündü, **vazgeçti** (M3 cıvatalı kalıyor; ileride 3D baskıda belki). `kutu.py`
+**2047/2047**, tarayıcı 28/28.
+
+**B58c (2026-09-25) — plan İKİ modül için de geçerli.** Kullanıcı 1 W'ın (B0505S-1WR3, Hi-Link,
+motorobit 123.60 TL; 2 W 171.60 TL) yetip yetmeyeceğini sordu. Yeter: yük 0.73 W → 1 W'ta %73
+(sınır %80), en düşük yükte %56; 2 W'ta %37 / %28. `IZOLE_GUC` tek sayı olmaktan çıktı →
+`IZOLE_GUC_SECENEK = (1.0, 2.0)` ve iki iddia **her seçenek için ayrı** koşuyor (min/max seçen
+tek bir sayı olsaydı "küçüğü mü büyüğü mü" mutasyonu sonucu değiştirmediği için kaçardı). Duvarda
+2 W'ın gövdesine yer ayrılı, 1 W (4-SIP 11.6 mm) aynı yere sığar; bacaklar ada göre. Aynı turda
+kullanıcı motorobit'te **50 mA gecikmeli sigorta** sordu: sigorta kategorisinin 38 sayfası
+tarandı — **yok**; en küçük gecikmeli 500 mA ("TMDP T50A" = T 5.0 A), en küçük sigorta 100 mA
+hızlı. direnc.net aramasında da çıkmadı. Karar zaten "takılı sigorta kalıyor, T isteğe bağlı".
+`kutu.py` **2049/2049**.
+
+**B58d (2026-09-25) — şarj modülü yerleştirilemiyordu.** Kullanıcı "şarj devresinin konumu doğru
+mu, düzgün yerleştirilebilir mi" diye sordu; denetim yeşildi ama üç gerçek sorun çıktı:
+(1) TP1 (y 0–25, z 4–9) kart A'nın arka boş şeridinin (y 12–29.8) **altına** giriyor, kart
+tabanına 9 mm. Plan onu **10.2'de**, kart A 6.2'de takıldıktan sonra takıyordu: 27 mm'lik modül
+duvar ile kart arasındaki 12 mm'lik aralıktan indirilip yatırılamaz (dönerken uç kartın kenarına
+z 25'te çarpıyor). (2) B±/OUT± pedleri kartın altında kalıyor, 10.3'te havya girmez. (3) Tutturma
+tarifi "delikleri kısa kenarların dışına aç" diyordu — kısa kenarlardan biri DUVARA dayalı; fiş
+takılırken modülü içeri iten kuvvete karşı da dayanak yoktu. **Düzeltme:** yeni **6.0** (kart
+A'dan önce, kutu boşken): kablolar tezgahta önceden lehimlenir (4 uç, etiketli), raf 4 parça —
+alt kat 2 × 9 mm arasında **9 mm kanal** (ESP32 altlığıyla aynı yöntem), üst kat 27 mm, dayanak
+5 mm dik; tek kablo bağı kanaldan geçip modülün ortasını sarar. `DUVAR_TUTUCU` artık çok parçalı
+tutucu taşıyor (`parcalar`), kesim listesi ve kütle modeli ikisi de oradan. **Denetim bu sınıfı
+hiç görmüyordu** (yalnız çarpışma ve açıklık ölçülüyordu, SIRA değil) → yeni kurallar: kart A'nın
+altına giren duvar parçası (tutucusuyla) yalnız boş şeridin altında (dolu bölgede atlama telleri
+sarkar) · kart A'dan (6.2) önce takılır · kabloları tezgahta önceden lehimlenir · kanallı
+tutucunun kanalı bağı geçirir ve ölçüsü metne veriden girer. Dört yalanlayıcı mutasyon; "TP1'i
+10.2'ye geri koy" mutasyonu bellekte ayrıca koşuldu, kırmızıyı gerçekten sıra iddiası veriyor.
+`kutu.py` **2057/2057**, tarayıcı 28/28.
+
+**B58e (2026-09-25) — ANALOG anahtarı kalktı, F0 kutunun içinde.** Kullanıcı sordu: "Analog
+anahtarı neden var? Panel sigortası mantıklı mı, içeri alsak? CAL nedir?" Seçenekler sunuldu;
+kararlar: **F0 içeri**, **ANALOG kaldır**. (1) F0 yalnız İÇ arızada atar (B0505S, MT2, kart);
+panelde "F0 1A" yazısı, ölçüm akımının (YÜK jakları, bilerek sigortasız, 9.5 A'e kadar)
+korunduğunu düşündürüyordu ve Ø12 delik panelin en zayıf yeriydi (her yanda 3 mm et). Artık arka
+duvarın sol ucunda, MT1 ile B0505S'in arasında (x 12, z 26; FUS009 PCB klipsli + FUS003 1 A);
+MT1/MT2 1 mm sağa kaydı (F0'a ve köşe direğine 6'şar mm). (2) Kutunun **tek anahtarı PİL**.
+Kaybedilen: ESP32'yi ölçüm tarafından ayrı açabilmek. Bedeli bir kural: **USB'yi PC'ye takarken
+PİL açık olsun** — PİL kapalıyken 5 V hattı USB'den beslenir ve ölçüm tarafı da PC'den çeker
+(~0.35 A, USB 2.0 sınırına yakın); PİL açıkken MT1'in 5.0 V'u USB'nin ~4.7 V'unu bastırır.
+İlk enerji sıralaması (10.5) artık F0 ile: F0 çıkarılmışken PİL → 5 V ölç → PİL kapat, F0 tak →
+±12 V ölç. (3) Ön panel **üç sıraya** indi, hepsi x 107'ye simetrik: üst GÜÇ · PİL · HV, orta
+V · COM · SKOP, alt PİL 1 · PİL 2 · CAL · YÜK 1 · YÜK 2. CAL alt sıranın ortasında (PİL 2 ve
+YÜK 1'e 22 mm; 22 kΩ koruma bu komşuluğu güvenli kılıyor). **Yol boyunca bulunanlar:** DELME'nin
+"en büyük delik" hesabı 14×9 oval yuvaları da yuvarlak sayıyordu — F0'ın Ø12'si bunu
+örtüyordu; F0 kalkınca "en büyük Ø9, 4.5 mm et" diye yanlış yazdı, iddia (yuvarlak Ø8, 5.0 mm)
+yakaladı. "Panel deliği stok kaydıyla tutuyor" iddiasının tek öznesi F0'dı; iddia boş kaldı →
+koruma "eşleştirici gerçek envanterde çalışıyor mu" (FUS027 kaydı hâlâ orada) diye yeniden
+yazıldı + yalanlayıcı. Tarayıcı testi 3B'de panelin tam ortasına bakıyordu; COM oraya gelince
+jaka çarptı → nokta artık dizilime bağlı değil (ortadan yukarı/aşağı taranıp ilk çubuk alınıyor;
+"en yakın katman" iddiasının gücü aynı). KAPLAMA_HARIC B56'dan beri "CAL ↔ PİL 5.66 mm" diyordu
+(eski) → düzeltildi. Yeni iddialar: panelde tek güç anahtarı · USB kuralı kullanım tablosunda ·
+F0 kutu içinde, panelde değil. `kutu.py` **1999/1999**, tarayıcı **28/28**.
+
+**B58 serisinin son doğrulaması (2026-09-25).** `kutu.py` **2057/2057** · `kutu_ipucu_test.py`
+**28/28** · mutasyon B50 **154/154** (B57b sonunda 126) · B57 **7/7** · `dogrula3.py` **18/18**,
+sayım kilidi **3675 → 3559** (panel/duvar öğeleri ve eski seçici grafının iddiaları gitti). Not:
+kilit yazan ilk koşuda B25 (`test_tezgah_kart.py`) 1800 s zaman aşımına düştü — mutasyon
+koşusunun hemen ardındaydı; aynı adım sonraki iki koşuda 344 s'de geçti. Kutuyla ilgisi yok.
+
+**B58e'nin mutasyon turu (2026-09-25):** B50'de 1 kaçak — 11.2'ye eklenen "<b>Enerji:</b> PİL AÇ …
+MT1'in 5.0 V'u USB'nin ~4.7 V'unu … ~0.35 A" cümlesindeki sayılar "her KAPI sayısal ölçüt veriyor"
+iddiasını besliyordu; iki kapının ölçütü silinse bile yeşil kalıyordu. Enerji satırı artık ölçütten
+hariç (`_kapi_metni`); mutasyon yakalanıyor. B57 7/7.
+
+**B58f (2026-09-25) — kutunun kendi beslemesinin ZAMAN benzetimi: iki gerçek kusur.** Kullanıcı:
+"değiştirdiğimiz şeyler gerçekten bir şeyi bozmuş olabilir mi — tek anahtar, yalıtılmış DC-DC… değişen
+her şeyi simüle et ve test et." `kutu.py` besleme zincirini DURAĞAN sayılarla (B0505S %73 yük, paket
+1.16 A) ve bağlantı grafıyla denetliyordu; açılış/kapanış hiç benzetilmemişti. Yeni adım
+**`uretim/sim3_kutu_besleme.py`** (zincirde "B58f", ~1.5 dk): ortalanmış MT3608 ×2 + B0505S Thevenin
+modeli + DW01A/FS8205A + kart (C16 + C17 = 136 µF, netlistten) + ESP32 (LDO, WiFi patlamaları);
+numpy ile yüzlerce senaryo birlikte. Veri sayfaları indirilip okundu (DW01A-DS-11, EVVO FS8205A,
+Aerosemi MT3608 V1.0, Mornsun B_S-1WR3 / A_S-B_S-2WR3 — Hi-Link bunların kopyası; Littelfuse 217
+soğuk direnç). Veri sayfasının VERMEDİĞİ her şey tek değere bağlanmadı, **taranıyor**: MT3608'in
+yumuşak başlama süresi (0.3/1/5 ms) ve mekanizması (referans rampası UVLO'da sıfırlanır / akım rampası),
+B0505S'in aşırı yük davranışı (A3 sarkma + 3× tavan, B15/B11 akım sınırı 1.5×/1.1×, C hiccup),
+B0505S çıkış eğrisi (kötü/tipik), pil (4.2/3.7/3.3 V iki hücre, 3.3 V tek hücre).
+
+**Kusur 1 — 1 W B0505S açılışta YETMİYOR.** Durağan yükte %73 yeterliydi ve kullanıcıya "1 W da
+olur" denmişti. Açılışta MT2 kartın 136 µF'sini doldururken 3.5 A'e kadar çeker; akım sınırlı modül
+(Mornsun R3 kendisi "büyük kapasitif yükte CC kipinde açılış" diyor) MT2'nin girişini UVLO'ya (~2 V)
+çeker ve orada tutar: aktarılan güç ≈ I_sınır × 2 V. Kart 24 V'ta 0.62 W istiyor → sınır ≥ 0.35 A;
+1 W'ta (anma 0.2 A) bu anmanın 1.8 katı, garanti yok. Benzetimde 1 W + 1.5× sınır kartı 18 V'ta,
+1.1× 14 V'ta bırakıyor. → **`IZOLE_GUC_SECENEK = (2.0,)`**, 1 W malzemeden çıktı; `kutu.py`'ye fiziksel
+iddia: modülün ANMA akımı tek başına açılış ihtiyacını karşılamalı.
+
+**Kusur 2 — MT2 girişinde toplu kondansatör yoksa kart ~15 V'ta TAKILIYOR (2 W'ta bile).** Yumuşak
+başlama referans rampasıysa MT2 girişini UVLO'ya çekince rampa sıfırlanıyor; her döngü yalnız modülün
+22 µF seramiğinin enerjisini taşıyor, kart yükü (sabit ~26 mA) onu yiyor. 220 µF yetmiyor, **470 µF
+her modelde yetiyor (ESR iki katıyla da)**. → yeni duvar parçası **CB = 680 µF 16 V (C042, stokta 2)**,
+MT2'nin üstünde (x 45, z 70), bacakları MT2'nin giriş uçlarına; 10.2 montaj, 10.4 kablo + kutup
+kontrolü (şeritli bacak ↔ MT2 IN− ötmeli), grafta B0505S'in çıkış tarafında (`IZ_CIKIS`).
+`kutu.py`: CB ≥ 470 µF ve anma ≥ 1.5 × 7 V; **stok kaydının adı ile sabit aynı değer** (envanter ↔
+`tasarim3_sabit` ayrışmasın).
+
+**Kalan risk — DW01A açılışta kesebilir (belirtiye bağlı yordam yazıldı).** Açılışta paket akımı
+B0505S'in aşırı yükte ne kadar çektiğine bağlı ve bu veri sayfasında yok. Tarama: **dolu pilde dört
+modelin hiçbirinde tipik eşik aşılmıyor**; yarım pilde (3.3–3.7 V) modül anmasının ≤ 2× verirse
+güvenli, ~2.5×'ten itibaren tipik eşik 25–32 ms aşılıyor (gecikme tipik 10 ms). En kötü tolerans
+(VOIP 120 mV + Rds maks) iki toleransın birlikte uca düşmesini gerektiriyor. Seri direnç (B0505S +Vo →
+MT2 IN+, 3 × 1 Ω 1 W R052) güçlü modelde sorunu gideriyor ama hiccup tipinde 24 V'u engelliyor →
+**varsayılan değil, 10.5'te belirtiye bağlı yedek yol**: "kutu açılmazsa" → kapat-aç → doldur →
+3 Ω seri → TP4056 yedeği; "24 V gelmiyorsa" → direnci çıkar. KULLANIM'a "Kutu açılmıyorsa → doldur"
+satırı. **Boş pil** (3.0 V, tek yaşlanmış hücre): MT1 paketi UVLO'ya çökertip çırpınıyor, ESP32
+açılmıyor — zararsız (DW01A aşırı deşarjda keser), bilgi olarak basılıyor.
+
+**Sınırda, B58'den önce de vardı:** PİL kapanırken MT1'in giriş seramiğine 20–31 A'lik µs darbe;
+kısa kablo + en kötü FET direncinde DW01A'nın kısa devre eşiği 2.4 µs aşılıyor (tipik gecikme 5 µs,
+MİN verilmemiş). Olursa belirti aynı ("kutu açılmadı → kapat-aç"). Mutasyon bunu gösteriyor: gecikme
+2 µs olsa kırmızı.
+
+**Doğrulanan (sorun yok):** açılış 24 V'a en geç ~113 ms · ESP32 brownout yok (bara ≥ 4.13 V) ·
+F0 (1 A) açılışta en fazla %178, ms ölçeğinde açma bölgesine girmiyor · F1 gerçek (yumuşak) açılışta
+400 mA sınıfına 25×, T 50 mA'ya 29× pay (F 50 mA hâlâ atar — kutu.py'nin sert kaynak hesabı en kötü
+hal olarak kalıyor) · B0505S girişi durağanda 4.98 V · B0505S'in gördüğü kapasite 849 µF < 2400 ·
+kapanışta ±12 V en fazla ~79 ms yalnız kalıyor (B18'in süresiz güvenli bulduğu hal; B58 öncesinde
+saatlerce olabiliyordu) · yalnız USB 358–510 mA → "USB takarken PİL açık" kuralı gerekli, 11.2'nin
+~0.35 A'i benzetimle tutarlı · paralel hücre ±0.1 V kuralı 0.61 A ≤ 0.5 C (izin 0.12 V) · PİL
+açıkken şarjda yük (482 mA) TP4056'nın bitiş eşiğini (100 mA) engelliyor → 10.6 kuralı doğru ·
+B0505S dalgalanmasının raylara ulaşan payı 3 µVpp (10.5 ölçütünün 1/16000'i) · durağan B0505S yükü
+iki bağımsız modelde (benzetim ↔ `kutu.besleme_butcesi`) aynı, %36.7.
+
+**Doğrulama disiplini — iki tuzak.** (1) **Adım boyu:** 5 µs'de UVLO çırpınması yutuluyordu; DW01A
+süreleri yakınsamış değerin **8'de biri** (2.8 → 21.9 ms), 24 V süresi %50 sapıyordu. Açılış fazı
+artık 1 µs; benzetim kendi yakınsamasını 0.5 µs'ye karşı ölçen bir iddia taşıyor (mutasyon: adım
+5 µs → kırmızı). İlk keşif turundaki "k ≤ 2.2 güvenli" sonucu bu yüzden yanlıştı. (2) **`spice.Rapor`
+numpy bool'unu saymıyordu** (`g is False`): ilk koşu 15 kırmızıyla "27/29 geçti" yazdı. Benzetim
+`bool()` saran bir alt sınıf kullanıyor. (3) Ayrıca: MT1'in UVLO'su önce kaynak geriliminden
+okunuyordu (paket terminali olmalı) — düzeltilince boş pil köşesi ortaya çıktı.
+
+Mutasyon turunun buldukları (üç ölü/maskeli iddia, üçü de düzeltildi): (a) KULLANIM'daki "açılmıyorsa … doldur" deseni aynı satırdaki "doldur**urken**" kelimesiyle kendini karşılıyordu → `\bdoldur\b`; (b) yedek yol iddiası yalnız "kötü" B0505S eğrisini tarıyordu, 1 Ω'u da "yeter" sayıyordu — tipik eğri daha çok akım veriyor; tarama: **0.5/1/2 Ω yetmiyor, 3 Ω yetiyor**, mutasyon artık 3 → 2 Ω; (c) `kutu.py`'deki yeni "anma akımı" iddiası tabloda olmayan seçenekte (0.5 W, 10 W) **KeyError ile çöküyordu**: mutasyon "yakalandı" diyordu ama kırmızıyı iddia değil çökme veriyordu ve asıl iddiaları maskeliyordu → anma = P / 5 V. Ayrıca B58f'in değiştirdiği 4 eski B50 mutasyonu (iki seçenekli demet, malzeme satırı, 10.2 montaj listesi) güncel metne uyarlandı. 10.5'in SR5100 yolu için yeni iddia: MT1 5.3 V + 0.05 ≤ B0505S'in 5.5 V sınırı.
+
+Negatif kontroller (benzetimin içinde, KIRMIZI olmaları iddia): kondansatörsüz plan 15 V'ta takılıyor ·
+1 W 18 V'ta takılıyor · 0.5 ms'de hiccup yapan modül hiç başlamıyor · 1.5 Ω'luk ölü paket ESP32'yi
+sıfırlatıyor · k taraması DW01A dedektörünü tetikliyor (dedektör canlı).
+Sayılar: `sim3_kutu_besleme.py` **31/31** · `kutu.py` **2063/2063** · tarayıcı **28/28** · mutasyon B58f
+**16/16**, B50 **160/160**, B57 **7/7** · `dogrula3.py` **19/19**, sayım kilidi **3501 → 3596**.
+
+**B59 (2026-09-26) — ön yüz: simetrik DEĞİL, toplu ve düzenli.** Kullanıcı: "Sanırım simetrik
+konusunda yanlış anlaştık. Aslında ön yüzün daha toplu ve düzenli gözükmesini istiyorum, simetrik
+değil." B56'da "asimetrik ve hoş değil" sözü "simetrik yap" diye yorumlanmış ve ön panel simetrisi
+DENETİM KURALI olarak yazılmıştı. Bu kez yorumlamadan önce dört aday (A tam ızgara, B ortada 4×3
+blok, C iki işlev kümesi, D iki sıra) bellekte `kutu.denetle`'den geçirilip ASCII önizlemeyle
+soruldu; kullanıcı her biri için başka bir modelde görsel ürettirmek üzere ayrı promptlar istedi,
+sonra kendi görselini getirdi. O görsel kurallardan geçiyordu ama iki işlevsel sorunu vardı:
+(1) **COM sol uçtaydı**, V/HV/SKOP sağda — her gerilim ölçümünde prob ~110 mm yayılır ve COM PİL
+jaklarıyla karışır; (2) **CAL HV'nin tam üstündeydi** — bir HV ucu (614 V) yanlışlıkla CAL'e girse
+22 kΩ'dan ~28 mA akar, GPIO10 ile +3V3 rayındaki iki ADS1115 ölür. Düzeltilmiş hâli onaylandı:
+
+```
+x:     35        71        107       143       179
+z 81:  AÇ/KAPA   GÜÇ●                CAL       SKOP
+z 45:                      COM       V         HV⚡
+z  9:  PİL 1     PİL 2               YÜK 1     YÜK 2
+```
+
+Anahtar panelde büyük "AÇ / KAPA", altında küçük "PİL" (metinler 35 yerde "PİL anahtarı" diyor;
+iki ad aynı anahtarı göstersin diye). PİL ve YÜK jakları yerinde kaldı (kalın kablolar değişmedi).
+**Denetim:** simetri kuralı yalnız ARKA panelde; istisna listesinde arka panelde olmayan bir ref
+de eskimiş sayılıyor. Ön panelin yeni kuralları: her öğe `ON_IZGARA_X/Z` ızgarasında · COM ölçüm
+jaklarına ≤ 2 ızgara adımı · CAL SKOP'un komşusu (patch kablo) · CAL HV'nin komşusu DEĞİL
+(`CAL_KOMSU_R` 40 mm; HV 51 mm çaprazda). **Yol boyunca bulunan:** CAL'in arıza denetimi tehdit
+gerilimini sabit PİL 38 V alıyordu; CAL yer değiştirince komşuları SKOP (−63.5…+46.8 V) ve V
+(±32 V) oldu. Artık tehdit = komşuların GERÇEK menzili (`jak_azami_gerilim`, `cal_komsulari`)
+ve enjeksiyon kutuptan bağımsız |V|/R (SKOP'un eksi ucu GND'ye kenetlenir, VDD'ye değil; eski
+(V−VDD)/R eksi kutbu küçük sayıyordu): 2.89 mA < 5 mA, 183 mW < 250 mW, kart kapalıyken ray
+2.03 V < 3.6 V — 22 kΩ yetiyor. 5.3 ve CAL/HV/anahtar metinleri konumdan bağımsız hâle getirildi
+(komşu adları ve gerilimi veriden). Çizim Edge'de görüntüye çevrilip gözle kontrol edildi.
+Sayılar: `kutu.py` **2065/2065** · tarayıcı **28/28** · mutasyon B50 **165/165**, B57 **7/7** ·
+`dogrula3.py` **19/19**, sayım kilidi **3596 → 3598**.
+Kilit yazan koşu ve ilk doğrulama gizlilik taramasında kırmızıydı: B58f'in DEVIR kaydına `\b` desenini yazan kabuk betiği gerçek backspace (0x08) bırakmıştı — iki karakter temizlendi (hafızadaki heredoc tuzağı; `gizlilik_dogrula.py` yakaladı).
+
+**B59b (2026-09-26) — 3B'de iç kat delikleri.** Kullanıcı: "panelin üzerindeki delikler gözüküyor ama iç kat ön duvardaki kısımlarda olması gereken delikler gözükmüyor." Plan iç katı 5.1'de deliyor (dış kattaki delik kılavuz) ama `sahne()` deliği yalnız DIŞ yüze koyu plaka olarak koyuyordu; içeriden (arka görüş, yakın duvar saydam) bakınca iç kat çubukları deliksiz görünüyordu. Artık her panel deliğinin iç kat yüzünde de plaka var (ön: y −0.3, arka: iç_boy − 0.3), **5.1'den itibaren** görünür ve o adımda vurgulu; USB/ŞARJ yuvalarında yok (arkalarındaki iç kat çubuğu kısa, yuvanın üstünden başlıyor). 4.5'te (çubuklar yeni konmuş, delinmemiş) görünmüyor — başsız Edge'de 4.5 ve 5.1 görüntüsü alınıp gözle doğrulandı (15 iç kat deliği: ön 11 + arka 4 havalandırma). Yeni iddia: her panel deliğinin iç yüz plakası var ve 5.1'de beliriyor; iki yalanlayıcı (plaka hiç yok / 4.5'te beliriyor) yakalanıyor. `kutu.py` **2066/2066**.
+**Tarayıcı testinde iki düzen bağımlılığı (ikisi de B59 panel değişikliğiyle ortaya çıktı, ürünle ilgisi yok):** (1) Tab senaryosu sayfa SONUNA kaydırıp ilk çizim parçasına odaklanıyordu; etiket listesi kısalınca parça görünümün ancak 22 px üstünde kaldı, kaydırma 23 px'te bitti (eşik 50) → taban kırmızı. Artık parça hangi taraftaysa oradan uzaklaşılıyor (ilk ekranın altındaysa sayfa başına) ve önce gerçekten görünüm DIŞINDA olduğu da ölçülüyor. (2) B57'nin "ışın son çizileni seçer" mutasyonu KAÇTI: "üstten ortada kart A" noktasının altında yalnız taban (önce, uzak) ve A (sonra, yakın) var, hatalı seçici de A'yı buluyor. Yeni ayırt edici nokta: TP1 (B58d) kart A'nın arka şeridinin ALTINDA ve A'dan SONRA çiziliyor; test ölçeği kart A'nın dört kenarını fareyle bularak kalibre ediyor (1.54 / 1.55 px/mm, iki eksen tutarlılığı da iddia) ve TP1'in üstünde yine A bekliyor — panel dizilimine bağlı değil. `kutu_ipucu_test.py` **30/30**, B57 **7/7**.
+
+**B60 (2026-09-26) — panelde tek jak modeli, renkler stoktan.** Kullanıcı: "elimde 2 adet born jack var ve ikisi farklı model; ikisi birden kullanılırsa uyumsuz gözükecek, aynı model kullanılmalı." Panelde 6 büyük şeffaf (PİL, YÜK, CAL, HV) + 3 küçük vidalı (V, COM, SKOP) vardı. Küçük vidalı model YÜK'ün 11.5 A'ini taşımaz → birleştirilecek model büyük şeffaf. Stok her renkten 2 (CON027–031); geleneksel renkler 3 kırmızı + 3 siyah isterdi. Üç seçenek soruldu (HV sarı + 1 siyah al · geleneksel + 1 kırmızı 1 siyah al · alım yok); kullanıcı **alım yok**'u seçti: V, SKOP kırmızı · COM, CAL siyah · **HV sarı (tek)** · PİL mavi · **YÜK yeşil**; sarı 1 yedek. Önemli yan etki soruda açıkça söylendi: HV'nin ayırt ediciliği eskiden BOYUTTAYDI ("tek büyük kırmızı"); B15/A1'e göre V'ye 615 V takılırsa R4 257 °C'ye çıkıp zamanla yanar. Artık ayırt edicilik RENKTE. Denetim: bütün jaklar aynı model ve ölçüde (Ø8 / 14 / 15 mm) · HV'nin rengini başka jak kullanmıyor · her jak renginin adedi stoktakini aşmıyor (toggle kuralının genellemesi; 'alım yok' kararı böylece korunuyor). Eski 'büyük boy deliği küçükten büyük' iddiası kalktı. Metinler: jak gerekçeleri, 5.2 montaj, KULLANIM ('HV (SARI)'), delme tablosu renk açıklaması, 3.x ölçü talimatı (tek ölçü), KART_DISI_NOTU J2/J3; 3B'ye yeşil jak rengi. Çizim görüntüye çevrilip kontrol edildi. Üç yalanlayıcı (CAL eskisi gibi sarı → HV tek değil · YÜK siyah → 4 siyah > 2 stok · V/SKOP küçük vidalıya dönerse iki model) + eski renk mutasyonu yeni parça adına uyarlandı. `kutu.py` **2068/2068** · mutasyon B50 **170/170**, B57 **7/7** · `dogrula3.py` **19/19**, sayım kilidi **3599 → 3601**.
+
+**B61 (2026-09-26) — pilin ve yükün + ucu nerede.** Kullanıcı: "Şu anda pilin + tarafı nerede olmalı, ayrıca yükün hangi tarafı + olmalı — bunu da düşünmemiz gerekir." Devre değişmedi, anlatım ve denetim değişti. Şönt kart GND tarafında (**low-side**): YÜK 2 = kart GND = COM = PİL 2. Akım ölçümü: kaynağın + ucu yükün + ucuna **doğrudan** gider, kutuya girmez; yükün − → YÜK 1, kaynağın − → YÜK 2; V → yükün +. Ters YÜK zararsız (okuma eksi; kart çift yönlü, B15/A8). Pil testi: pilin + → **yük direnci → PİL 1** (Q1 drain) ve ayrıca **V**; pilin − → PİL 2. Direnç + tarafta olmak ZORUNDA: − tarafta olsa V jakı (COM'a göre) direnç düşümünü de okur. Pilin + ucu doğrudan PİL 1'e takılırsa Q1 açılınca kısa devre; ters pil Q1 gövde diyodundan akar ve kart kesemez. Bulunan eski kusur: kullanım şemaları ELLE renkliydi, B60'ta YÜK yeşil olunca şema siyah kaldı. Yapılan: panel `alt_etiket`'leri kutbu söylüyor (YÜK 1 'yükün −', YÜK 2 'kaynağın −', PİL 1 'direnç ← pil +', PİL 2 'pil −'; 16.1 etiket listesi panel verisinden, fiziksel etiket de değişti) · `ciz_kullanim` jak rengini/adını panel verisinden alıyor, kaynak/yük/pil kutularında + ve − işaretli · KULLANIM akım satırı 'eksi hattan ölçülür, + kutuya girmez' diyor. Üç iddia: şemadaki her jak dairesinin rengi paneldekiyle aynı ve gereken jaklar şemada · her PİL/YÜK etiketi DOĞRU kutbu söylüyor (YÜK 1/2 ve PİL 2 '−', PİL 1 '+' ve 'direnç') · kullanım tablosu eksi hattı söylüyor. Altı yalanlayıcı (renk sabit yazılır · PİL 2 şemadan düşer · YÜK 1 kutupsuz · YÜK 1 'yükün +' · PİL 1 direnci anmaz · KULLANIM 'seri ölçülür'). Şema görüntüye çevrilip kontrol edildi (alt yazı taşıyordu → iki satır). `kutu.py` **2071/2071** · mutasyon B50 **176/176**, B57 **7/7** · tarayıcı testi **30/30** · `dogrula3.py` **19/19**, sayım kilidi **3601 → 3604**.
+
+**B62 (2026-09-27) — kalın kablo bağlantısı + eskimiş güç düğümü metinleri.** Kullanıcı kutuyu kurdu, 6.0'da (TP4056 takılı) ve sordu: "born klemenslerde hiç kablo yok, normal mi?" Değildi: 5.2 dört büyük jaka (YÜK 1/2, PİL 1/2) kutu boşken ≥1.5 mm² pigtail istiyordu; başlık "Born jakları tak" olduğu için atlanmış (kart A takılmadığı için telafi edildi). Ardından "nasıl bağlayacağım, pabuç lazım mı?" sorusu planın kendi kusurunu gösterdi: 5.2/7.1/8.1/9.1 kalın kabloyu **kalaylı kanca somunun altına / kalaylı uç vidanın altına** koyduruyordu. Kalay basınç altında zamanla akar, somun gevşer; 9.5 A'lik yolda gevşek bağlantı ısınır. Jakın arkası metal saplama + somun, paket içeriği ürün sayfasında yok → 5.2'ye üç durumlu tarif: ① lehim kulağı varsa somun → kulak → ikinci somun, kabloyu kulağa lehimle · ② yoksa kalaysız, saat yönünde halka iki somunun arasında · ③ tek somun varsa ikinci somun (M3 ise MEK034, değilse hırdavat). Jakı panele tutan somun kablo için kullanılmaz (sıktıkça jak döner). Pabuç stokta yok ve gerekmez; alınırsa borusu lehimlenir (lehim boruda, somunun altında değil). Bariyer tarafı kalaysız burulmuş uç. Aynı taramada eskimiş dört metin: 6.4 ve şönt notu kalın kabloları hâlâ XP128'in vidalarına gönderiyordu (B55n'den beri güç düğümü bariyerde) · yerleşim KART_DISI_NOTU RS/J3 aynı + J3 'jak tarafı halka pabuç' (stokta yok) · 6.3 'altlıkta iki delik' (B55l'den beri kanal) · 6.6 kanaldan söz etmiyordu. 6.1 değişti: bloklar kalem işaretiyle tek tek değil **karta vidalıyken** yapıştırılıyor (0.5–1 mm kayma M3'ü somuna sokmaz; hizayı vida verir). Beş iddia: veride 'kalaylı uç/kanca' yalnız uyarı olarak (ardından 'gevşer') · hiçbir metin kalın kabloyu XP128 vidasına göndermiyor · 5.2 kalaysız/ikinci somun/saat yönü/panel somunu değil · 6.1 karta vidalıyken · kanallı altlığı takan her adım kanalı veriyle aynı ölçüyle söylüyor. Altı yeni yalanlayıcı, iki eski desen yeni metne uyarlandı; 7.1'den 'kalın kablo' düşünce eski iddia ('7.1 metninde kalın kablo geçiyor') yakaladı. **Mutasyon koşucusu bir kaçış buldu:** B55n'nin güç düğümü iddiası yalnız 'bariyer' SÖZCÜĞÜNE bakıyordu; 7.1'e 'Bariyer tarafında: teli soy…' cümlesi girince, kabloları şönt vidasına geri gönderen mutasyon yeşil kaldı. İddia artık YÖNLENDİRMEYİ ölçüyor (adım kabloları 'bariyer kutup 1/2'ye götürüyor mu, etiketler sökülerek), XP128 iddiası 'bacağıyla aynı vida'yı da tanıyor — o mutasyon şimdi iki iddiaya takılıyor. `kutu.py` **2076/2076** · mutasyon B50 **182/182**, B57 **7/7** · tarayıcı testi **30/30** · `dogrula3.py` **19/19**, sayım kilidi **3604 → 3609**.
+
+**B63 (2026-09-27) — ayna ovaller karıştı: TP4056 USB yuvasına takılmış.** Kullanıcı: "ESP32'yi yanlış deliğe yerleştirmişim, solda olması gerekirken sağda." Jak tarafından bakınca TP4056 SAĞDA çıktı — yani 6.0'da şarj modülü USB ovaline (x 152) takılmış, ESP32'ye ŞARJ ovali (x 62) kalmış. Kök sebep planda: iki oval TIPATIP AYNI (14 × 9, birbirinin aynası — B56 simetri kararı), etiketler 14.1'e kadar yapıştırılmıyor, arka panel çizimi arkadan bakana göre çizili ve 6.0 yalnız 'ŞARJ yuvasının önüne' diyordu. Sonuç fiziksel: ters takılırsa ESP32 (dupontla 28 mm) kart A'nın altına düşer (A 18 mm ayakta) — kart oturmaz. Düzeltme kullanıcıda: TP4056 rafı silikonundan kesilip soldaki ovale (modül sol iç duvardan 53.5–70.5 mm) taşınıyor; yeni delik gerekmez. Plan: 3.2 deler delmez iki ovalin iç yüzüne kurşun kalemle ŞARJ / USB yazdırıyor; 3.2, 6.0 ve 6.3 tarafı önden bakışa göre söylüyor ve bu söz VERİDEN (`on_bakis_taraf()`, `{sarj_taraf}`/`{usb_taraf}`); 6.0 ters takmanın sonucunu söylüyor; 6.3 COM soketinin ovale girdiğini altlık yapışmadan dışarıdan kabloyla denetiyor. Bir eskimiş kontrol daha: 3.2 'anahtarın somunu oturuyor' diyordu — B58e'den beri arka duvarda anahtar yok. İddia: 'birbirinin aynası iki ovale takılan modüller karıştırılamıyor' — ters takmada ESP32–kart A çakışmasını GEOMETRİDEN hesaplıyor (çakışıyorsa 6.0 uyarmak zorunda), taraf fonksiyonu kullanıcının onayladığı bir gerçekle kalibre (AÇ/KAPA önden solda, B59). Üç yalanlayıcı (6.0 taraf düşer · 3.2 ad yazdırmaz · taraf fonksiyonu ters döner). ⚠ **AÇIK:** `ESP32.soket_x_ofset = 13` (kartın ortası) hiç ölçülmedi, oysa devkit'te iki Type-C yan yana — COM soketi ortada olamaz. 6.3'teki kablo denemesi bunu yakalayacak; kayarsa ESP32 sola kaydırılamaz (kart A'nın ayağı A-ayak2 x 115.8–133.8), seçenekler sağa kayma (çakışma denetimiyle sınanmadı) ya da ovali genişletmek. `kutu.py` **2077/2077** · mutasyon B50 **185/185**, B57 **7/7** · tarayıcı testi **30/30** · `dogrula3.py` **19/19**, sayım kilidi **3609 → 3610**.
+
+**B64 (2026-09-27) — kart A'nın yönü veride yoktu.** Kullanıcı 6.2'de: "kartın kablo olan tarafları ne yöne bakmalı?" Kart A kare (115 × 115) ve dört ayak simetrik: dört türlü oturur, yanlış yön de vidalanır. Yön yalnız 6.1'de parantez içinde ('telli kenar öne') ve IC_PARCA notunda ('A–C sütunları ÖN panele') vardı; 6.2 hiç söylemiyordu, veride `yon` alanı yoktu (kart B'de 270 vardı). Kart A'nın dışarı giden tellerinin dokuzu A–C sütunlarında (V C4, COM C6, HV alt C11, SKOP B16, S+/S−/yıldız C25/27/29, 24 V C34/36); Q1 kapısı Z36 kartın ortasında, J5 (ESP32) AJ15 arka yarıda. A'ya `yon: 270` (kart B ile aynı dönüş, `sutun_yonu: 'arka'` ile aynı şey), 6.2'ye yön cümlesi `{yon_a}` = `kart_yon_cumlesi()` → 'A1 köşesi (ön-sol)'. İddia: yon ile sutun_yonu tutarlı · A–C'deki 9 tel ucu `kart_nokta()` ile kutu koordinatında ön kenara ≤ 7.0 mm · 6.2 yönü veriden söylüyor. Yalanlayıcılar: yon 90 (telli kenar arkaya) · 6.2'de elle ve yanlış 'sol-arka'. `kutu.py` **2078/2078** · mutasyon B50 **187/187**, B57 **7/7** · tarayıcı testi **30/30** · `dogrula3.py` **19/19**, sayım kilidi **3610 → 3611**.
+
+**B64b (2026-09-27) — B:O16 → A:C11 telinin boyu üç yerde üç farklıydı, hepsi kısa.** Kullanıcı kart B'yi gösterdi (6 × 820K yerleşimi planla aynı; T_HV ve T_N6 telleri henüz yok) ve "iki kart kabloyla mı bağlı?" diye sordu. Tel boyuna bakınca: yerleşim 5.12 iki yerde 'kısa tut (<10 cm)', kablo notu 'B–A arası 7–13 cm; 15 cm kes, GND ile bur', 1.1 'kısa kaldıysa ek yap, GND ile bur'. Kutuda (B 270°, B55g) iki lehim noktası `kart_nokta()` ile **düz çizgide 145 mm, eksen eksen yol 189 mm** — '<10 cm' ile kesilen tel hiç yetişmez. 'GND ile bur' da eski kararla (DEVIR başı: 'GND ile burulu değil, B'de GND yok') çelişiyordu. Tek sayı `yerlesim3_veri.HVALT_TEL_KES_CM = 22`; yerleşim belgesi ve kablo notu bu sabiti, 1.1 geometriden `{hvalt_duz}/{hvalt_yol}/{hvalt_kes}` yazıyor; kısa kaldıysa ek + makaron (~1.7 V). İddia İKİ YÖNLÜ: not gereken boydan (yol + 30 mm) kısa olamaz, 50 mm'den fazla uzun da olamaz (yüksek empedanslı düğüm gürültü toplar); hiçbir metin 'GND ile bur' demiyor. Yalanlayıcılar: sabit 15 · yol hesabı bozulur (gereken boy düşer, not 'çok uzun' kalır) · 1.1 'GND ile bur'a döner. `kutu.py` **2079/2079** · mutasyon B50 **190/190**, B57 **7/7** · tarayıcı testi **30/30** · `dogrula3.py` **19/19**, sayım kilidi **3611 → 3612**.
+
+**B65 (2026-09-27) — ESP32 kızağı: bacaklar, USB itmesi, anten çıkıntısı.** Kullanıcı: "ESP'nin bacaklarına dikkat et, USB takılırken geriye gitmemesi için arkasında bir yer olmalı; arkasında ~18–19 mm genişliğinde, ortalanmış dahili anten çıkıntısı var — planla ve hallet." Eski plan yalnız altlık + "bağı devkit'in üstünden dolandır" diyordu. Üç kusur: (1) bağ 3.6 mm, pin arası ~1.9 mm — bağ pinlerin ARASINDAN geçemez, dupont ucuna basardı; (2) USB takılırken devkit'i öne karşı tutan hiçbir şey yoktu; (3) devkit'in anten ucunun 0.5 mm önünde kart B'nin ayağı var — kaçan devkit anteni o ayağa dayardı. **Tasarım (`kutu_veri` ESP32 `tasiyici.kizak`, `kutu.kizak_parcalari()`):** altlığın ÜSTÜNE enine kesilmiş 5 mm şeritler, uzun kenarı üstünde dik — iki uzun kenara ikişer ray (kanal hizasında boşluklu, 0.25 mm pay) ve anten ucunda bir şeridin iki yarısı (9 + 9 mm) omuz takozu: anten çıkıntısının İKİ YANINDA kartın omuzlarına dayanır, aralarında 22 mm (çıkıntı 19 mm + 1.5 mm pay) — itmeyi kartın omuzları taşır, antene hiçbir şey değmez. Arka taraf arka duvar (USB ucu 2 mm). Kurulum kendi kendine hizalanır: Type-C kablo dışarıdan ovalden COM soketine takılıyken parçalar devkit'e dayanarak yapıştırılır (kâğıt = pay + japon koruması). Bağ kanaldan geçer, iki yandaki BOŞ pinlerin tepesinden devkit'in üstüne döner; dolu pinler metne VERİDEN (`esp_dolu_pinler()`: J5 tablosunun kaynağı olan netlist + firmware pinleri + PIN_CAL → 3V3, 5V, GND, GPIO4–10). COM soketi ovale denk gelmezse kaydırma payı da veriden (`esp_kayma_payi()`: takım adım adım kaydırılıp gövde envanteriyle çakışma aranıyor): önden sağa 6, sola 1 mm (kart A'nın sağ-arka ayağı) — fazlası için oval genişletilir. 3B'de devkit gövde + dar anten çıkıntısı olarak çiziliyor; yapıştırıcı tablosuna kızak satırı. İddialar: kızak dört yandan tutuyor (GERÇEK modelden — ilk sürüm yardımcı fonksiyondan okuyordu ve kızak modelden düşse de yeşildi; mutasyon koşucusu yalnız iddia SAYISI düştüğü için yakaladı, sonra çökme olarak — ikisi de düzeltildi) · takozlar antene ≥ 1 mm, omuza ≥ 2 mm · ölçülmemiş çıkıntı ARALIĞI (3–8 mm) boyunca takozlar hiçbir gövdeye/raya çarpmıyor · raylar kanal hizasında boşluklu · kaydırma payı iki bağımsız hesapta tutuyor · 6.3 boş pin/pin listesi/anten/sökme yolunu söylüyor. Yedi yalanlayıcı. Yeni parçalar çakışma envanterine kendiliğinden girdi: `kutu.py` **2398/2398** · mutasyon B50 **197/197**, B57 **7/7** · tarayıcı testi **30/30** · `dogrula3.py` **19/19**, sayım kilidi **3612 → 3931**. ⚠ AÇIK: `soket_x_ofset` hâlâ ölçülmedi — 6.3'teki kablo denemesi bunu kurulumda çözüyor.
+
+**B65b (2026-09-27) — kuşbakışında etiketler üst üste biniyordu.** Kızağı görüntüye çevirip kontrol ederken fark edildi: B59'un ön panel ızgarasında aynı x'te üç öğe var (CAL/V/YÜK 1 x 143, SKOP/HV/YÜK 2 x 179); `ciz_yerlesim` onları aynı noktaya çizip etiketleri index'e göre iki satıra dağıtıyordu → "HVÜK 2", "YÖK1" gibi okunmaz yazılar. Arka duvardaki modüllerde de aynısı (IZ/KL/F0, CB/MT1/MT2/TP1 aynı x'te farklı z). Düzeltme: ön panelde aynı x'tekiler gruplanıyor — daireler yan yana, adlar panelin üstten alta sırasıyla alt alta; duvar modüllerinde açgözlü satır atama (etiket öncekilerle yatayda örtüşürse alt satıra). Açıklamaya üçüncü satır. Yalnız çizim; iddia sayısı değişmedi, tarayıcı testi ve B57 mutasyonları yeniden koştu. Görüntüye çevrilip kontrol edildi.
+
+**B66 (2026-09-27) — yük yolunun en zayıf halkası klemensti.** Kullanıcı 6.4'e gelip sordu: "o klemens kaç amper kaldırıyor, baktın mı?" Bakılmamıştı. Yük yolu sırayla: YÜK jakı → ≥1.5 mm² kablo → HB950 bariyer → köprü → XP128 → şönt. Plan akım sınırını yalnız şöntün ısıl sınırından (9.5 A) alıyordu ve KULLANIM "13 A birkaç dakika" vaat ediyordu; XP128'in stok notu **300 V 10 A** — 13 A onu %30 aşıyor. HB950'nin değeri ne kayıtta ne ürün sayfasında var. Düzeltme: `kutu_veri.KLEMENS_ANMA_A = {"XP128": 10.0}`; KULLANIM ve 7.1 "kısa süreli de olsa 10 A'i geçme"; 7.1 HB950'nin üstündeki baskıya baktırıyor (< 10 A ise o değer kutunun sınırı, YÜK etiketinin altına yazılır). İddia: menzil sınırı ≤ klemens anma akımı, KULLANIM akım satırındaki hiçbir akım onu aşmıyor, 7.1 HB950 baskısını soruyor. Yalanlayıcılar: '13 A birkaç dakika' geri gelir · klemens 8 A olur (veri gerçekten kullanılıyor). Aynı turda kullanıcıya 6.4 adım adım anlatıldı (Kelvin = 4 telli ölçüm, klemensten ÖNCE tezgahta lehim). `kutu.py` **2399/2399** · mutasyon B50 **199/199**, B57 **7/7** · tarayıcı testi **30/30** · `dogrula3.py` **19/19**, sayım kilidi **3931 → 3933 (B67 ile birlikte)**.
+
+**B67 (2026-09-27) — şönt veri sayfaları: plan takılı şöntü yanlış tarif ediyordu.** Kullanıcı iki veri sayfası gönderdi: "elimde 2 şönt var, hangisini kullanayım?" R042 "5mR 9.5A" = **YSR serisi**: tek parça **manganin** Ø1.6 mm, 5 mΩ ±%5, **10 A**, bacak aralığı W = 10 ± 0.5 mm, basık yerin ("boncuk") altında bacak A = **3.5 mm**, ölçüm noktası (test point) basık yerde, lehim sınaması 350 °C / 3.5 s. R043 (akımı yazmayan 5 mΩ) veri sayfası genel katalog (Royalohm CSR): alaşım "değere göre CuNi ya da MnCu", ±400 ppm/°C'ye kadar → 9.5 A'deki ~40 K ısınmada okuma ~%1.6 kayabilir (manganinde ~%0.1). **Karar: R042 (planın zaten seçtiği), R043 kullanılmaz.** Planın eski tarifi veri sayfasıyla çelişiyordu: "iki bakır bacak, manganin–bakır eki" (R042 tek parça manganin), "11 mm aralık, 10 mm'e bük" (W 10 mm = XP128 adımı; B53'teki 11 mm muhtemelen dıştan dışa), "Kelvin boncuğun hemen ALTINA, bakıra" (altta 3.5 mm var ve o kısım klemense giriyor). Yeni 6.4: Kelvin tellerinin ne olduğu bir cümleyle, basık yerin KENDİSİNE lehim, ≤350 °C / ≤3–4 s, önce bükmeden dene. **12.2'de gizli kusur:** iki aşamalı yolda (15 mΩ ile kazanç, sonra 5 mΩ + `s0.005`) 5 mΩ'un gerçek değeri hiç düzeltilmiyordu; veri sayfası ±%5 ve Kelvin lehiminin yeri mm başına ~%4 (Ø1.6 manganin 0.22 mΩ/mm) oynatıyor, metin ±%2 kapısı tutmazsa ne yapılacağını söylemiyordu → "`s` = 0.005 × kart ÷ multimetre" ya da ≥2.6 A yolu. Veriye `SONT_VERI["R042"]` ve `KLEMENS_ADIM_MM`; iddia bükme tarifini W ile, akım sınırını şöntün anma akımıyla karşılaştırıyor, eski tarifin hiçbir metinde kalmadığını ölçüyor. Beş yalanlayıcı, hepsi yakalandı. Stok notları (R042/R043) veri sayfasıyla güncellendi (yedekli). ⚠ AÇIK: 15 mΩ'un ısıl sınırı (3.4 A) B53'te Ø2 referansla d^1.5 ölçeklenmişti; referans Ø1.6 olunca ~4.7 A çıkar — 3.4 A güvenli yönde, değiştirilmedi. `kutu.py` **2400/2400** · `dogrula3.py` **19/19**, sayım kilidi **3931 → 3933** (B66 + B67).
+
+**B68 (2026-09-27) — şönte yapıştırıcı yasağı.** Kullanıcı 6.4'ü bitirdi (fotoğraflar: S+ turuncu RS.1, S−/yıldız siyah+gri RS.2 aynı noktada, basık yerde; A tarafı kırmızı C25 / siyah C27 / yeşil C29, iki tarafta 3'lü header + makaron — doğru; eksikler: yön işareti (orta pin S− simetrik, ters takılırsa S+ ile yıldız yer değiştirir), burma, tel kılları) ve sordu: "silikonlasam nasıl olur, sağlamlık açısından?" Plan şöntün kendisi için bir şey söylemiyordu. Şönt 9.5 A'de ~45 K ısınır (B53 yüzey modeli), kapalı kutuda 70 °C'yi geçer: sıcak silikon ~65 °C'de yumuşar; 9.5 A sınırı açık havada soğumaya göre, silikon onu da bozar; 15 mΩ takasında lehimler sökülür. Yapıştırıcı tablosuna YASAK satırı ("Yapıştırıcı yok — makaron + kablo bağı"; gerilmeyi 7.2'deki kablo bağı alır), 6.4'e aynı cümle. İddia: tabloda yasak satırı var, 6.4 söylüyor, 6.4/7.2 şönte ya da lehimine silikon sürdürmüyor (ilk regex yasak cümlesinin kendisini — "silikon SÜRME" — izin sandı; olumsuz ek dışarıda). İki yalanlayıcı. `kutu.py` **2401/2401** · mutasyon B50 **206/206**, B57 **7/7** · tarayıcı testi **30/30** · `dogrula3.py` **19/19**, sayım kilidi **3933 → 3934**.
+
+**B69 (2026-09-27 akşam) — DEVİR NOTU: kurulum 6.6/7.1/8.1'de, plana işlenmemiş kararlar.** Oturum uzadığı için kapandı; yeni oturum hafızadaki "Ölçüm kartı KURULUM İLERLEMESİ" notundan başlasın. Kullanıcı 6.5'i bitirdi: IRFZ44N U profil soğutucuya yalıtımlı (tabla↔soğutucu ötmüyor), kapıda 1 pin dişi header, 1 MΩ somunun altında (öbür ucu RS.2'ye bağlanacak). Soğutucu ~26×30×20 mm — plan 15×40 varsaymıştı (`sogutucu_olcu_varsayim`); kullanıcı köşebent yerine yapıştırıcısız bir kafes/bağ kurdu, sağ duvara yaslı, B kartına ~6 mm (1 cm geri alması önerildi). Kullanıcıya şönt + güç yolu için tek tek sıra verildi: şönt XP128'e → köprüler XP128'in ALTTAKİ PCB pimlerine lehimli (vida altında yalnız şönt bacağı) → XP128 kanallı altlıkta (pimler kanalda) + kablo bağı → köprülerin öbür ucu HB950'nin alttaki pimlerine → HB950 şöntün arkasında (Q1 ile arası), kanallı altlık + bağ → Q1 S → kutup 1, YÜK 1 → kutup 1, YÜK 2 + PİL 2 → kutup 2, PİL 1 → Q1 D. **Plana işlenecek (fotoğraf gelince):** (1) HB950'nin konumu ve montajı veride hiç yok — çakışma/mesafe denetimi görmüyor; 8.1 "yapıştır/vidala" diyor ama kutuya giren parça yapıştırılmaz ve bu PCB tipinde vida deliği yok; (2) köprülerin pimlere lehimlenmesi 7.1/8.1 metninde yok; (3) Q1'in gerçek ölçüsü/yeri ve montajı; (4) kart B'nin gerçek yönü (veride yon 270, gerçekte 90° dönük; HV ucu en yakın iletkene ~20 mm, sınır 12.6). Açık küçük işler: ESP32 COM soketi denemesi (soket_x_ofset ölçülmedi), HV kablosunun tipi (ince sarı tel gibi görünüyordu), ESP32 kablo bağı, Kelvin fişi yön işareti ve S+/S− burma.
+
+**B70 (2026-09-28) — B0505S-2WR3 GELDİ (envanter MOD013, 1 adet).** Envantere girdiği anda `kutu.py`'nin B58 iddiası ("B0505S stokta yok → malzeme listesinde ALINACAK, duvar parçasında stok sorgusu yok") kırmızıya dönecekti — doğru tepki: plan parçayı hâlâ alınacak sayıyordu, 10.2'nin stok hücresi "stokta YOK — alınacak" yazıyordu. Düzeltme: `kutu_veri` IZ'nin `alinacak` anahtarı → `"stok": ("B0505S-2WR3", "Modül")` (eşleştirici tam ad ya da "ad + boşluk" ister; "B0505S" tek başına "B0505S-2WR3 …"yu BULMAZ), MALZEME kaydı `stok: None` → aynı sorgu, notundaki "Stokta yok, alınacak tek parça bu" → "2026-09-28'de geldi". İddia ters çevrildi: "B0505S stokta → malzeme listesinde STOKTAN, duvar parçası IZ envanter sorguluyor" (IZ stok taşır ve `alinacak` taşımaz · `malzeme_ayir` onu stokta sayar, alınacakta saymaz · envanterde kaydı var). Mutasyon: eski "stok None → sorgu" kaydı kaynakta artık yok (ATLANDI olurdu); yerine tersi + IZ'yi `alinacak`a geri çeviren ikincisi — ikisi de YAKALANDI (rc=1). `kutu.py` 2401 → **2403**: +1 "IZ envanterde", +1 B0505S için "stokta olan alınacak listesinde değil". `beklenen_sayim.json` B9 yalnız bu değer için elle güncellendi (tam `--sayim-kilidi-yaz` yapılmadı: çalışma ağacında başka commit'lenmemiş iş var, onun sayılarını körlemesine kilitlememek için). Tam `dogrula3.py` bu değişiklikten sonra koşulmadı; `kutu.py` 2403/2403, `yerlesim3.py` 52/52, `bom_dogrula.py` 3/3, `_ortak/tahsis.py` 18/18. Aynı gün 1N5819 da geldi (D013, 20 adet) — B58b'deki "1N5819 yok" notu artık geçersiz.
+
 ---
 
 #### 5.12.65 ✅ B71 — KAYIT MOTORU (alt proje 1A-1, 2026-09-29)
@@ -9812,6 +10946,113 @@ penceresine düştü, kullanıcı göremedi); parolaları kendisi yazdı, karta 
 (açılış 2.5–6.3 s) 1E'de YAPILMADI; gerçek fiş çekme (USB + PİL kapalı) elle yapılmadı.
 
 Yedekler: `tam-20261001-232725.bin` (A3-1D, 1E öncesi) · `tam-20261001-235107.bin`.
+
+#### 5.12.73k ✅ KABLO GÜZERGAHI (kutu belgesi, 2026-10-01; iş etiketi "B73")
+
+> **Birleştirme notu (2026-10-03):** bu girdi kullanıcının çalışma kopyasında commit'lenmemiş B55–B70 işiyle
+> birlikte `main`'e alındı. Orada "5.12.73" ve "B73" diye yazılmıştı; o numaralar `main`'de 1E (MQTT) ve
+> zincir adımı B73 (`ortak/`, `test_ortak.py`) olarak kullanıldı. Bu işin "B73"ü yalnız kod açıklamalarındaki
+> iş etiketi; zincirde ayrı bir adım değil (iddiaları B9 `kutu.py` ve B57 `kutu_ipucu_test.py` içinde).
+
+**İstek.** Kullanıcı 10.2'de: *"hangi tel nereye gidiyor tam olarak söyle … acaba bu kutu web sayfasında hangi kablo nereye gidecek ve nasıl gidecek bunu da mı göstersek? Çok daha kolay ve anlaşılır olur."* Sonra: *"web panelde adım adım kısmında da … kablolar da gözüksün."* Kapsamı kullanıcı bana bıraktı (*"sence hangisi mantıklı ise öyle yap"*). Tasarım `tasarim/2026-10-01-kablo-guzergahi.md` (onaylı), plan `tasarim/2026-10-01-plan-b73-kablo-guzergahi.md` (inline yürütme). Firmware dizisi B71/B72'yi aldığı için bu iş B73.
+
+**Ne yapıldı.** 10.3 / 10.4 / 11.1'in 26 kablosu `8-kutu.html`'de:
+- **Arka duvar İÇERİDEN** (jak tarafından bakış, aynasız) ana çizim. Eski arka duvar çizimi dışarıdan ve aynalıydı; B63'te kullanıcı TP4056'yı bu yüzden yanlış ovale takmıştı.
+- Kuşbakışında da kablolar var.
+- 3B'de kablolar eksen eksen ince bloklardan zincir.
+- Numaralı tablo var; satıra dokununca çizimdeki kablo (çizgi + rozet) yanıyor.
+- Bilgi kartında kesim boyu, yol cümlesi, kesit ve "uç yerleri ±3 mm tahmin" notu.
+
+Tek kaynak: bağlantılar `PIL_KABLOLAR` + yeni `KABLO_EK` (LED, J5, CAL), uçlar `KABLO_UCLARI` / `PANEL_UCLARI` / kart delikleri (`kart_nokta`), güzergah `guzergah()`. Kural: arka bölgede "öne çık, dik, yatay, gir"; 13 kabloya açık ara nokta (`KABLO_YOL`).
+
+**Prototip (planı yazmadan, repo dışında).** Varsayılan kuralla 13 kablo bir gövdeden geçiyordu:
+- H2− ve F2→F1P → ESP32'nin içinden.
+- J5, CAL → ESP32 ve kart A'nın içinden.
+- KL→C34/C36 → kart A'nın bileşenleri arasından.
+- PİL anahtarı kabloları → kart A'nın arka kenarı (duvara 12 mm) ve ön jaklar.
+- Adlı "kanal" fonksiyonları bu dar geçitleri genelleyemedi; spec K4 "açık ara nokta"ya çevrildi.
+
+Sonuç: çarpışma 0, kart B'nin HV girişine en yakın kablo **58.2 mm** (sınır 12.6).
+
+Kullanıcıya giden pratik sayılar:
+- 2. yuvanın siyahı TP4056'ya **20 cm** (yuva teli ~15, ek gerekir).
+- PİL anahtarına **31 cm**.
+- Kartın 24 V telleri klemense **27 cm**.
+
+**Aynı adımlarda düzeltilen hatalar (spec §4):**
+- §4.1 F2'nin çıkışı F1P'nin çıkış klipsine (kullanıcı böyle kurdu; düğüm aynı).
+- §4.2 Hücre telleri yuvanın kendi telleri; yuva yönleri.
+- §4.3 GÜÇ LED'inin katodu **COM jakının kulağına**. Eski metin "klemens/GND noktası" diyordu; MT1 eksisine bağlansa 10.5'te J5 yokken lamba **yanmazdı**.
+- §4.4 10.3'teki "hücresizken TP1.B− ↔ kart GND öter" kontrolü **fiziksel olarak imkânsızdı**: paket–GND bağı yalnız J5 (11.1) ve FS8205'in sırt sırta gövde diyotları B−/OUT−'yu ayrı tutar. Kontrol 11.1'e (OUT− ↔ C29) taşındı. Graf `ESP32.GND = KART_GND`'yi J5 takılı varsayıyor; açıklandı.
+- §4.5 FUS009 **iki ayrı çıplak klips** (plan tek gövde sanıyordu) → ≤ 25 mm plaket şeridi. KF-03 denendi: 27×14 mm, F1P kart A'nın altına giriyor, kapaklar üst üste geliyor.
+- §4.6 Hi-Link B0505S'in gövdesinde bacak **adı yok**: 1 +Vin, 2 −Vin, 4 −Vout, 6 +Vout. Mornsun'da girişler TERS.
+- §4.7 Kullanıcı kararı: modüller (MT1, MT2, B0505S) ve küçük parçalar (680 µF, KL, sigorta şeritleri) **sıcak silikonla**. `YAPISTIRMA_ISTISNA` 2 → 10; tutucu çubuklar kesim listesinden düştü (7380 mm³). Kural cümlesi "değerli parçalar yapıştırılmaz" oldu.
+- §4.8 MT1/MT2 kabloları tezgahta önceden lehimleniyor.
+
+**Denetimin bulduğu kendi hatalarım:**
+- **"ŞARJ ovali USB'nin solunda" iddiası TAUTOLOJİYDİ.** Yazıların belgedeki sırasına bakıyordu, aynalı çizimde de geçiyordu. Mutasyon koşucusu yakaladı; x konumuna çevrildi.
+- **−12 rol mutasyonu ölüydü.** Kümeden tek uç çıkarmak hiçbir kablonun rolünü değiştirmiyor, çünkü her −12 kablosunun iki ucu da kümede. Kümeyi boşaltan mutasyona çevrildi.
+- **Rozet ve "ön →" yazıları üst üste biniyordu** (B0505S'in bitişik bacakları, LED'in iki bacağı). Önce kırmızı bir iddia, sonra yerleşim (aday noktalar ≥ 18 px, yazı istifi). Rozetler çizgilerin üstüne ayrı grupta yazılıyor; kuşbakışında rozet yalnız öne uzanan kablolarda.
+- **`_ahsap_der()` "ta-BLO-da"yı ahşap tutucu sandı** (CLAUDE.md'deki Türkçe kök tuzağı). Metin "konum listesinde" oldu.
+- **Sayfa bütünlük denetimi JS'teki `data-bi="` dizesini anahtar sandı.** Seçici `JSON.stringify` ile yazıldı.
+
+**B73'ten bağımsız ama burada bulunan:**
+- "SR5100 → 1N5819" mutasyonu KAÇIYORDU: 1N5819 2026-09-28'de stoğa girdi (D013, B70), iddianın dayanağı kalktı. Emekli.
+- Kesim listesi ile kütle modelinin ahşap hacmi farkı **+972 mm³** B73'ten önce de vardı (B55c "fark 0" diyordu). 27×18×2 = 972, muhtemelen TP1 rafının "üst kat 27" parçası bir modelde eksik. Açık.
+
+**Doğrulama:**
+- `kutu.py` **2403 → 2414** (bölüm 10: 27 yeni iddia; tutucu çubuk döngüleri 16 iddia azaldı).
+- `kutu_ipucu_test.py` **30 → 35**.
+- Mutasyon B50 **216/216** (eklenen 11, güncellenen 4, emekli 3), B57 **8/8**.
+- `beklenen_sayim.json`'da yalnız B9'un kutu.py çifti → 2414 (ağaçta 1D'nin ve kullanıcının commit'lenmemiş işi var; tam kilit yazılmadı).
+
+**Bağımsız gözden geçirme (ayrı model, aynı gün) — zincir 21/21 yeşilken bulunanlar:**
+- **Telefonda tablo satırı işe yaramıyordu (kritik).** Satıra dokununca kablo yapışkan adım başlığının ALTINA kayıyordu. Kart da ekran dışında kalan satıra bağlıydı. Tarayıcı iddiası yalnız `!hidden`'a baktığı için yeşildi. Şimdiki davranış:
+  - Kablo görünmüyorsa (`elementFromPoint` başlığa çarpıyorsa) ortalanıyor.
+  - Kart çizimdeki rozeti izliyor.
+  - Test 390×800'de 7. ve son satırı, masaüstünde son satırı ölçüyor.
+- **Farklı kablolar aynı çizgideydi.** 22 çift çakışıyordu:
+  - 680 µF'in iki ÇIPLAK bacağı aynı çizgide.
+  - 5 V ile GND 96 mm üst üste.
+  - +24 ile −12 üst üste.
+  - H1+ ile H1− üst üste.
+
+  Çözüm `_seritler()`: her kablo, ucu ortak olmayan kablolarla çakışmayan ilk şeridi (2 mm adım) alıyor. Sıra: önce çıplak bacaklar, sonra uzundan kısaya. Denetim çakışmayı şerit kodundan **bağımsız** yazılmış ayrı bir döngüyle arıyor. İç bakış (x-z izdüşümü) aynı adımın kablolarını, 3B ise bütün çiftleri karşılaştırıyor.
+  - İzdüşüm kuralı bütün çiftlere uygulanınca çözümsüz kalıyordu: aynı J1 başlığındaki 5V ile GPIO10 izdüşümde hep üst üste geliyor.
+  - Kart deliğinin 0.05 mm'lik ızgara kayması parçayı "eksenel değil" yapıp çakışmayı gizliyordu. İki tarafta da baskın eksene geçildi.
+- **TP4056'nın 6.0'da lehimlenen ~20 cm'lik telleri yeni kablo sanılıyordu.** "Kablo 9: 4 cm" gibi kesim boyları ne yeni bir parçaya ne o teli kısaltmaya uyuyordu. `kesim_yazi()` artık pedden gereken boyu veriyor; 20 cm yetmezse "ek" diyor (PİL anahtarına giden tel 34 cm). Yuva tellerinin boyu ölçülmedi: "N cm gerekir (uzunsa kes, kısaysa ek)".
+- **3B'de N/P kablonun her bloğunda duruyordu.** Aynı kart 4–6 kez geliyordu. Özet de "kablo 142" diyordu, oysa bu blok sayısıydı. Artık her kablo tek durak ve sayım kabloyu sayıyor. Ayrıca fareyle 3B kablo seçimi için test yoktu, eklendi.
+- **Belgede elle yazılmış ya da eskimiş sayılar:**
+  - B0505S için gövdede OLMAYAN adlar kullanılıyordu (Vin/GND, +Vo/0V); artık bacak 1/2/4/6.
+  - 10.4'te aynı iki tel ikinci tabloda tekrar ediyordu, notu "tezgahta XT30" diyordu.
+  - LED katodu için "36 mm" yazıyordu, oysa kablo 10 cm.
+  - Kısa kablolarda soyma payı yoktu (+2 × 6 mm).
+  - GPIO10 ucu ~11 mm kaymıştı: DevKitC-1 J1'de 5V ile GPIO10 arası 5 pin. Artık `ESP32_J1` ile çapraz denetleniyor.
+- **Mutasyon koşucusu bu turda da üç boş iddia buldu:**
+  - "Başlığın altındaki kablo" durumu hiçbir testte kurulmamıştı (yeni tarayıcı iddiası eklendi).
+  - "H2− ara noktası silinirse ESP32'den geçer" artık KAÇIYOR: şerit seçici yolu kendisi ESP32'nin üstüne kaldırıyor. Yerine seçicinin gövde süzgeci mutasyona alındı.
+  - Bacak sırası mutasyonu yanlış düzeni kurmuyordu.
+- **Kullanıcı isteği: kabloları göster / gizle.** 10.3, 10.4 ve 11.1'de çizimin üstünde bir kutu var, 3B'de de "kablolar" kutusu. İkisi tek ayar ve tarayıcıda hatırlanıyor (`localStorage 'kutu-kablo'`). Gizleyince 2B'de çizgi, rozet ve "ön →" yazısı (`.kb-yazi`), 3B'de bloklar kalkıyor; 3B sayım ve seçim de buna dahil.
+- **Doğrulama:**
+  - `kutu.py` 2414 → **2421**.
+  - Tarayıcı testi 35 → **46**.
+  - Mutasyon B50 **234/234**, B57 15.
+  - `dogrula3.py` **21/21**.
+- **Ertelenen küçükler:**
+  - "ön →" yazılarının okunurluğu.
+  - Telefonda tablo sütununun taşması.
+  - Söküm için ısı tabancası önerisi.
+  - §4.3 iddiasının sabit çift araması.
+  - Lejant sözcüğü.
+  - CB bacaklarının kutup rengi.
+
+**Açık / faz 2:**
+- 5–9 adımlarının kabloları. Önce gerçek yerleşim plana girmeli: güç bloğu sağ duvarda dik, XP128 ön köşede, raf yok; Q1 kafesi; kart B 90° dönük.
+- Kullanıcı kart B'nin üstünden kablo geçişini kabul etti (tırnak cilası); gerekçeli karar olarak yazılacak.
+- 7.2'nin "C25/C27 ayrımı" kontrolü bip ile ayırt edilemez.
+- 7.1'in kare pul metni.
+
+---
 
 #### 5.12.62 🧩 B48 — DELİKLİ PLAKET YERLEŞİM PLANI + KAÇAK YOLU DÜZELTMESİ (2026-09-14)
 

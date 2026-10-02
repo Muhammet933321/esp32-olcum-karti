@@ -12,6 +12,8 @@ __pycache__/
 # --goruntu` her koşuda yeniden üretiyor. Ham ÖLÇÜM verisi (ör.
 # `olcum-adc-dogrusallik.csv`) kayıtlı kalır; bunlar yeniden üretilebilir.
 uretim/_skop-arsiv-*.png
+# B57 parca bilgi karti testi — `python uretim/kutu_ipucu_test.py --goruntu` her kosuda yeniden uretiyor.
+uretim/_ipucu_*.png
 
 # LittleFS görüntüsü — 896 KB ikili, `python arayuz-uret.py` üretir.
 # Ölçüleri `_fs.json`'da; o dosya KAYITLI (bayatlık denetimi ona bakıyor).

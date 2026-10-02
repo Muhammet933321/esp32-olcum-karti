@@ -192,6 +192,11 @@ ADIMLAR = [
     ("B17 ADS es zamanliligi + suzgec duzeltmesi", "sim3_senkron.py"),
     ("B20 Ornekleme hizi + bant siniri + menzil", "sim3_bant.py"),
     ("B21 Pil kapasite testi (anahtar + kapi + tampon)", "sim3_pil.py"),
+    # B58f — kutunun KENDI beslemesi (tek anahtar, paralel paket, B0505S, iki MT3608)
+    # zaman icinde: acilis, kapanis, yalniz USB, DW01A. Davranis modeli; veri
+    # sayfasinin vermedigi her sey taraniyor. 1 W'i ve kondansatorsuz plani
+    # NEGATIF kontrol olarak kosuyor (ikisi de karti 24 V'a cikaramamali).
+    ("B58f Kutu besleme zinciri (zaman benzetimi)", "sim3_kutu_besleme.py"),
     # B22.3 — PC koprusu. Donanim GEREKMIYOR: yukari-akis olarak
     # kaydedilmis bir satir gunlugu oynatiliyor. En onemli iddiasi
     # rolenin BAYT-SEFFAF oldugu; kopru satiri "duzeltmeye" kalksa
