@@ -121,6 +121,9 @@
       Bolum tablosu nvs'i yerinde tutuyor mu, kayit gorevi cekirdek 0'da
       ve kilit altinda mi, PC istemcisi ancak diske yazdiktan sonra mi
       onayliyor. Gercek kart olcumleri tezgah_kayit.py'de.
+  B73 ortak/ (JS hesap kodu)                 (node + Python vektorler)
+      Web paneli, PC ve Android'in ortak JS kodu (alt proje 2) kartla dogrulanmis
+      Python basvurusuyla ayni sonucu mu veriyor: capraz vektorler + RFC/NIST.
   B7  Arayuz + KOMUT DENETIMI                (node)
       Arayuzun gonderebilecegi her komut harfi, firmware'in gercekten
       tanidigi `case` harfleriyle karsilastiriliyor — HEM app.js HEM
@@ -211,6 +214,9 @@ ADIMLAR = [
     # firmware KAYNAGI (yorumsuz), PC esitleme istemcisi sahte karta karsi.
     # Gercek kart olcumleri tezgah_kayit.py'de (tezgah kalemi basiliyor).
     ("B72 Kayit firmware + esitleme (tablo + kaynak + sahte kart)", "test_kayit_esp.py"),
+    # B73 — ORTAK/ (alt proje 2): tek kopya JS hesap kodu (kayit okuyucu, kripto, imza,
+    # zarf ...) Python basvurusuyla capraz vektorlerle BAYT BAYT ayni mi; node --test.
+    ("B73 ortak/ (JS hesap kodu, capraz vektorler)", "test_ortak.py"),
 ]
 
 
