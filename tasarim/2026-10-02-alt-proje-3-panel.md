@@ -156,6 +156,19 @@
 | PU16 | **grafik.js `isaretler` seçeneği** (kesik dikey çizgi + kısa etiket, plan dil metni taşımaz — G8; B73'te sınandı). Seriler sırası I sonra V: dirençli yükte I ∝ V ve iki eğri üst üste biner, birincil ölçüm (V) üstte kalsın | T3F'de V hiç görünmüyordu |
 | PU17 | **`.iki-sutun` telefon kuralı taban kuralından SONRA** (3D'nin kuralı önce yazılmıştı; aynı özgüllükte sonraki kazanır) | T3F 390 px'te ölçtü: Canlı'nın da iki kartı telefonda 171 px'lik iki sütundaydı |
 
+## 3G kararları (2026-10-02 akşam, aynı devirle)
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| KR1 | **Seçim Kayıtlar listesinden:** satırlarda seçim kutusu (yalnız bu tarayıcıdaki kopyası olan oturumlar; en fazla 6), "Karşılaştır" → `#/karsilastir/<no>[@kimlik],<no>[@kimlik],…` — paylaşılabilir, geri tuşu çalışır | Kayıtlar tek giriş noktası (C4); adres durumu taşır (WIG) |
+| KR2 | **Tek grafik, tek birim:** V · I · W'den biri seçilir (K4 ilkesi: iki birim tek eksende yalan söyler); her kayıt ayrı çizgi, renkler tema belirteçlerinden türetilen ve renk körlüğüne dayanıklı ayrık bir dizi (3 görünümde okunur), lejantta kayıt adı + numara | P3 tek çekirdek; renk yalnız ayırt etmek için, anlam için değil |
+| KR3 | **x ekseni üç kip:** "başlangıçtan beri" (varsayılan; her kayıt kendi başlangıcından, K1 kuralıyla — saatsiz yeniden başlama tahmini işaretli), "saat" (unix; saati olmayan kayıt bu kipte dışarıda ve bunu söyler), "mAh" (yalnız pil oturumları; 3F PU9 kuralı: kartın sayacına göre değil nokta integrali, boşluk/negatif akımda o kayıt zaman eksenine düşmez, dışarıda kalır ve sebebi yazar) | §9 "eksen zaman / mAh / başlangıçtan beri" |
+| KR4 | **İmleçler:** iki imleç, okuma KAYIT BAŞINA tablo (A, B, Δ, ort; mAh/Wh yalnız zaman kiplerinde) — `imlecOkuma` her kayıt için ayrı | Karşılaştırmanın asıl çıktısı sayı yan yana |
+| KR5 | **Veri yalnız bu tarayıcıdaki kopyadan** (C5); kartta olup eşitlenmemiş oturum seçilemez, sebebi yazar | Kayıt görünümüyle aynı kural |
+| KR6 | **Şerit menüsünde Karşılaştırma artık görünür** (D1 "yazılmamış ekran şeritte yok" kuralının karşılığı); seçim yokken ekran Kayıtlar'a yönlendiren boş durum gösterir | Ölü bağlantı yok |
+| KR7 | **Dışa aktarma:** birleşik CSV (Excel-TR ve EN) — her kayıt için kendi x ve seçili kanal sütunları yan yana (zamanlar ortak değil, enterpolasyon YOK) | Uydurma veri yok; analiz Excel'de yapılabilir |
+| KR8 | Metinler `sozluk.js` (`kr.*`, TR + EN); WIG kuralları; telefonda (390 px) kullanılabilir | P7, WIG |
+
 ## Doğrulama
 
 B7 (`test_arayuz3.js`) ve B22 tarayıcı denetimleri genişler; her dilimde başsız tarayıcı (Edge) ile
