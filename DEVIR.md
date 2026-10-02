@@ -9397,6 +9397,39 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.78 🟢 3D CANLI + SOL ŞERİT; TEST ARACI BİLGİSAYARI KİLİTLİYORDU; PANEL İLK KEZ GERÇEK KARTTA (2026-10-02 öğleden sonra)
+
+**3D** (ajan, kararlar D1–D8 + E1–E13 spec'te): sol şerit kabuğu (≤ 900 px çekmece, Esc/odak),
+Canlı okuma kartları V·A·W·Enerji + 10 s min…maks, canlı grafik `grafik.js`'e geçti (Dondur'da
+imleç/yakınlaştırma), kayıt denetimi (`Gb<ms>`/`Gb0`/`Gd`/`Gn<oturum>@<ms>`/`Gp…`/`Gp-`, ≤ 175 bayt,
+not ≤ 120 bayt), durum YALNIZ pasif `G`/`GP`/`GA`/`GT` (G? bağlanınca + komuttan sonra), aktif kayıt
+kartı ("~X kaldı" onaysız artışından, ≥ 60 s), son olaylar. Bütçe: 250 KB artık AÇILIŞ kümesine
+(app.js'in statik import ağacından türetilir), toplam 600 KB. B7 382 → 508, yeni T3D 35/35.
+
+**Test aracı (`uretim/tarayici.py`) iki ciddi kusur — kullanıcının bilgisayarı kilitlendi, yeniden
+başlattı:** (1) `kapat()` yalnız Popen PID'ini öldürüyordu; Edge Windows'ta kendini yeniden başlattığı
+için gerçek tarayıcı yaşadı: 81 Edge **12.3 GB RAM**, `%TEMP%`'te 460 profil **131 GB** disk (hepsi
+temizlendi). Artık boş port + CDP `Browser.close` + profil adıyla süreç öldürme + profil silme +
+`atexit`; `test_tarayici.py` (TTR) 9/9, mutasyon 4/4 (üç mekanizma birbirinin yedeği; eski `kapat()`
+mutantı kırmızı). (2) Taze profil Windows hesabıyla **kendiliğinden oturum açıp senkronize oluyordu**;
+eklentiler (~8 s) sekme açıp test sayfasını gizliyordu (`hidden` → rAF durur, CDP tekerleği yanıtsız —
+3D ajanının yeşil raporladığı T3D bu yüzden kırmızıydı; T3C'de tuval çizilmiyordu) ve testler
+kullanıcının hesabıyla dış sitelere gidiyordu → `--disable-sync --disable-extensions` (iş akışı: iki
+bağımsız araştırmacı + düzeltici; ana iş parçacığı boştu, ürün kodunda döngü yok). Skop arşivi testinin
+sahte köprüsü `/ortak/`'u sunmuyordu (3D'den beri app.js onu statik içe alıyor) → düzeltildi, 19/19.
+
+**Panel gerçek kartta (A3-1F, yedek `tam-20261002-162929.bin`, LittleFS 0x310000):** bütün dosyalar
+doğru MIME + gzip; Playwright (kullanıcının kurdurduğu yetenek) ile: açılış 3.6 s, üç görünüm, sol şerit,
+`G?` yalnız bir kez. **GERÇEK KUSUR:** tarayıcı eşitlemesi bir `/kayit/veri`'de `ERR_CONNECTION_TIMED_OUT`
+alıp DURDU (44 oturumdan 1'i); aynı kart ham ardışık çekimde 1.27 MB'ı 7.2 s'de hatasız verdi (ESP32
+soket havuzu tarayıcının paralel bağlantılarında ara sıra reddediyor). → `esitleme.js` `agYenidenDene`
+(ağ hatası artan beklemeyle 4 kez; depo durumundan kaldığı yerden, kayıp/çift yok). Kartta yeniden:
+**44/44 oturum, 1846 kayıt, 45 s, arada bir zaman aşımı atlatıldı**, karta hiç `Go` gitmedi. T3C'ye
+"iki istek 12 s yanıtsız" senaryosu (Chrome hemen kapanan bağlantıda GET'i kendisi tekrarlıyor —
+zaman aşımı şart), mutasyon 3C-AG 4/4. ⚠ Kartta ADS'ler takılı değil: Canlı "veri yok — ADC yanıt
+vermiyor" diyor (doğru); canlı veri ve blokaj ölçümü (tezgah #71 son maddesi) ADS takılınca.
+Zincir 21 yeşil, kilit 3809. 3E kararları OS1–OS8 spec'te.
+
 #### 5.12.77 🟢 ALT PROJE 3C — KAYITLAR + KAYIT GÖRÜNÜMÜ; S7, 1D #16, sürüm NUL (dal `3-panel`, 2026-10-02 öğleden sonra)
 
 **3C** (ayrı ağaçta bir ajanla, kararlar spec C1–C8 + uygulamada U1–U4, K1–K6):
