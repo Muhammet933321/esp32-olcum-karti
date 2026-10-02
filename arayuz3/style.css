@@ -1121,6 +1121,63 @@ canvas.spektrum-grafik { height: 240px; margin-top: 10px; cursor: crosshair; }
   canvas.spektrum-grafik { height: 200px; }
 }
 
+/* ═══════════════════════════════════════════════════════ 3F — PİL TESTİ
+   Başlık + DURDUR (PL1: acil şeridin düğmesiyle aynı görünüş, ASLA :disabled), okuma
+   kartları (yukarıdaki .olcum; altı kart), eğri (ekran/pil.js + grafik.js), DCIR tablosu
+   (.kg-tablo), parametreler + başlatma formu. Renk YALNIZ belirteçten — B7 sınıyor. */
+.pil-dur {
+  margin-left: auto;
+  background: var(--uyari); border-color: var(--uyari); color: var(--zemin);
+  font-weight: 700; letter-spacing: .04em; padding: 8px 18px;
+}
+.pil-dur:hover:not(:disabled) {
+  background: var(--uyari); border-color: var(--uyari); color: var(--zemin);
+  filter: brightness(1.1);
+}
+.pil-okumalar { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.pil-okumalar .olcum .deger { font-size: 26px; overflow-wrap: anywhere; }
+.pil-okumalar .alt-bilgi { overflow-wrap: anywhere; }
+.pil-tuval { min-height: 120px; }
+canvas.pil-grafik { height: 300px; cursor: crosshair; }
+canvas.pil-grafik:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 2px; }
+canvas.pil-grafik { -webkit-user-select: none; user-select: none; }
+.pil-kaynak { font-size: 12px; color: var(--cok-soluk); overflow-wrap: anywhere; min-width: 0; }
+.pil-klavye { font-size: 11.5px; }
+.pil-lejant {
+  display: flex; gap: 6px 16px; flex-wrap: wrap; align-items: center;
+  margin: -4px 0 10px; font-size: 12.5px; color: var(--soluk);
+}
+.pil-lejant i {
+  display: inline-block; width: 14px; height: 3px; border-radius: 2px;
+  margin-right: 6px; vertical-align: middle;
+}
+.pil-lejant .lejant-kesik { background: none; border-top: 2px dashed var(--soluk); height: 0; }
+.pil-sonuc .satir { align-items: center; margin-top: 8px; }
+.pil-kayit-ac { font-weight: 600; }
+.pil-kpiler { display: flex; gap: 8px; flex-wrap: wrap; }
+.pil-kpiler .kpi { flex: 1 1 140px; min-width: 0; }
+.pil-kpiler .kpi-deger { overflow-wrap: anywhere; }
+.pil-form { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--kenar-c); padding-top: 12px; }
+.pil-form .alan { min-width: 0; }
+.pil-form-baslik { margin: 0; font-size: 14px; font-weight: 700; }
+.pil-hazir { display: flex; gap: 8px; flex-wrap: wrap; }
+.pil-form button[type=submit] { align-self: flex-start; }
+.pil-gorulmedi td { color: var(--cok-soluk); }
+.pil-dcir-tablo td:first-child { font-weight: 600; }
+@media (max-width: 620px) {
+  /* 🔴 3F: `.iki-sutun`un telefon kurali (yukaridaki 620 px blogu) TABAN kuralindan ONCE
+     yaziliydi — ayni ozgulukte sonraki kazanir: Canli'nin "aktif kayit / son olaylar"i da
+     telefonda iki dar sutunda kaliyordu (T3F 390 px'te olctu: kart 171 px). Burada, tabandan SONRA. */
+  .iki-sutun { grid-template-columns: minmax(0, 1fr); }
+  canvas.pil-grafik { height: 230px; }
+  .pil-okumalar { grid-template-columns: 1fr 1fr; }
+  .pil-okumalar .olcum .deger { font-size: 21px; }
+  .pil-dur { margin-left: 0; }
+}
+@media (max-width: 380px) {
+  .pil-okumalar { grid-template-columns: 1fr; }
+}
+
 /* Rapor YAZDIRILIRKEN: kabuk ve etkileşim denetimleri kâğıda çıkmaz.
    Renkler: ekran/kayit_gorunum.js beforeprint'te Açık görünüme geçer
    (koyu zemin basılmaz) — burada yeni renk TANIMLANMIYOR. */
