@@ -9428,6 +9428,14 @@ kartta parolayla eşleştirme (parolayı yalnız kullanıcı bilir), imzalı can
 akışın kart yuvası, telefonda PBKDF2 süresi. Kabulden sonra öneri: bütün cihazlar eşleşince USB'den `Ns<yeni>`.
 B7 782 → 852, B73 24, yeni T3H2 31/31, mutasyon 3H2 76/76 + P0-S 7/7.
 
+**Gerçek kartta doğrulandı (2026-10-03 gecesi):** kullanıcının seçimiyle web parolası USB'den (`Ns`) yeni, 16
+karakterlik rastgele bir parolayla değiştirildi (eski parola her komutta ağda açık gitmişti; değeri yalnız
+kullanıcıda). Playwright ile 12/12: parolayla eşleştirme 180 ms; parola hiçbir depoda yok; kartın cihaz listesi
+imzalı okundu; eşleşmiş açılışta canlı akış imzalı (`_c/_s/_i`), komutlar `X-Imza` ile ve HİÇBİR API isteğinde
+`Authorization` yok, panel hatasız bağlı (parolasız 401'ler bitti); Kayıtlar eşitlemesi imzalı (161 istek, 2234
+kayıt); `p0` imzasız + parolasız 69 ms; "unut" kartta da sildi — USB `E?`: `cihaz=0`, `zorunlu=0`. Telefonda
+PBKDF2 süresi ve eski akışın kart yuvasını tutma süresi ölçülmedi.
+
 #### 5.12.84 🟢 p0 SAĞLAMLIĞI + TEST ARACININ SAHTE KIRMIZISI (2026-10-02 gece)
 
 3H-2 (tarayıcıdan eşleştirme, dalda, onay bekliyor) için bağımsız güvenlik incelemesi (iş akışı: 4 denetçi +
