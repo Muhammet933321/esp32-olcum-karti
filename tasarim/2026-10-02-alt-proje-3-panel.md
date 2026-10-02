@@ -221,7 +221,7 @@
 > push yok. Gerçek kartta eşleştirme web parolasını ister — onu yalnız kullanıcı bilir, kart sınaması
 > da onayla birlikte yapılır.
 
-### ⚠ Kullanıcının vereceği kararlar (öneriyle; 2026-10-02 gece)
+### ⚠ Kullanıcının vereceği kararlar (öneriyle; 2026-10-02 gece) — 1–3 karara bağlandı (kullanıcının devriyle), 4 açık
 
 1. **ES2 — cihaz anahtarı K tarayıcıda şifresiz.** Çalınan K'nın ne açtığı aşağıda ES2 satırında firmware'den
    doğrulanmış olarak yazılı (E/Q dışındaki her komut — `Ns` ile parolayı değiştirmek dahil —, kayıt okuma, cihaz
@@ -231,13 +231,17 @@
    da etkin aradaki-adam ister; pasif dinleme yetmez. Yani eşleştirme güvenliği kesin olarak iyileştiriyor.
    Kabulden sonra: bütün cihazlar eşleşince USB'den `Ns<yeni parola>` (eski parola ağda görülmüş olabilir),
    istenirse sonra `Ez1`.
+   karar: ES2 KABUL — K tarayıcıda şifresiz, risk ve çare ES2 satırındaki gibi (kullanıcının devriyle — "sen uygun gördüğün gibi hallet", 2026-10-02; geri alınabilir).
 2. **ES3 — parola hiç saklanmaz, tarayıcının parola yöneticisi önerebilir** (`autocomplete="current-password"`).
    **Öneri: KABUL** (kullanıcı zaten tarayıcıya kaydetmiş olabilir; panel kendi deposuna yazmıyor — T3H2 ölçüyor).
+   karar: ES3 KABUL — parola saklanmaz, `autocomplete="current-password"` kalır (kullanıcının devriyle — "sen uygun gördüğün gibi hallet", 2026-10-02; geri alınabilir).
 3. **EU29 — eşleşmiş tarayıcının Canlı açılışı 266 199 B / 15 dosya** (3D sınırı 256 000 B / 12 dosya; eşleşmesiz
    açılış 209 963 B, sınır içinde). Seçenekler: (a) eşleşmiş tarayıcı için kabul, (b) `kripto.js`'i açılışta
    inceltmek, (c) `es.*` metinlerini açılış sözlüğünden çıkarıp eşleştirme modülüyle indirmek. **Öneri: (c)** —
    `#/skop` doğrudan açılışının payını da (bugün 4 647 B) genişletir; ayrı küçük dilim.
-4. **Kart sınaması** (onaydan sonra, kullanıcı parolayı kendisi girer): parolayla eşleştirme, imzalı canlı akış
+   karar: EU29 (c) UYGULANDI — EU30; eşleşmiş Canlı açılışı 266 199 → 257 017 B / 15 dosya (sınırın hâlâ 1 017 B üstünde; kalanı
+   (b) ya da başka sözlük ailelerini ayırmak kapatır — yeni karar), `#/skop` payı 4 647 → 8 185 B (kullanıcının devriyle; geri alınabilir).
+4. **Kart sınaması** (AÇIK — kullanıcının parolası gerekir; onaydan sonra, kullanıcı parolayı kendisi girer): parolayla eşleştirme, imzalı canlı akış
    (kartın elle yazılmış SSE yanıtı), eski akışın kart yuvasını ne kadar tuttuğu, telefonda PBKDF2 süresi,
    eşleşmişken `p0`.
 
@@ -257,8 +261,8 @@
 ### 3H-2 uygulama kararları (ES1–ES10 dışında; uygulayan, kullanıcının devriyle)
 
 > Üç madde (EU1, EU3, EU4) ve EU6 bir ES kararının firmware okunduktan / ölçüldükten sonra **eksik ya da
-> güvensiz** çıktığı yer: kararın amacı korunup güvenli seçenek uygulandı, gerekçe burada. ES2/ES3'ün ⚠
-> onayı hâlâ kullanıcıda; dal `3h2-eslestirme`, push yok.
+> güvensiz** çıktığı yer: kararın amacı korunup güvenli seçenek uygulandı, gerekçe burada. ES2/ES3 kullanıcının
+> devriyle KABUL (yukarıdaki karar listesi, 2026-10-02; geri alınabilir); kart sınaması açık; dal `3h2-eslestirme`, push yok.
 
 | # | Karar | Gerekçe |
 |---|---|---|
@@ -290,7 +294,8 @@
 | EU26 | **Başka kart kimliğine ait kayıtlar:** Eşleştirme bölümü bu kartın kimliği dışındaki kayıtları (eski kart, NVS'i sıfırlanıp kimliği yenilenen kart) "Başka kartların kayıtları" altında kimlik + ad + n ile listeler (K dışarı verilmez); iki aşamalı "bu tarayıcıdan sil" (karta istek yok). Bu kartın kaydı bu yoldan silinemez ("unut": önce kart) | Eskiden bu anahtarlar arayüzden görünmüyor ve silinemiyordu, ama metin "silmek için Bu tarayıcıyı unut" diyordu; ayrıca modül her açılışta iniyordu |
 | EU27 | **WIG:** eşleşince odak durum satırına (`tabindex="-1"`), geçersiz adda ad alanına, unuttan sonra ad alanına (form yoksa durum satırına), kaldırdıktan sonra liste başlığına; hata metni `id="es-ret"` ilgili alanın `aria-describedby`'ında ve alan `aria-invalid` | Tıklanan düğme DOM'dan kalkınca odak `<body>`'ye düşüyordu; hata alanla ilişkili değildi |
 | EU28 | **P0-S birleştirmesi (`3-p0-saglam`):** `p0` hem imza katmanına HİÇ girmez (EU6) hem `credentials: 'omit'` (eşleşmişken de) hem de 503 / ağ hatasında 150 · 300 · 450 ms ile en çok 4 deneme (`p0Gonder`); `/durum` yoklamaları `omit`. T3H2: eşleşmişken ve "kart tanımıyor"ken `p0`'da Authorization YOK, ≤ 5 s; `/durum` API listesinde ve hiçbirinde Authorization yok; `p0` "kredili" denetiminden artık İSTİSNA DEĞİL. EU16'daki tanı satırları kaldırıldı (kök sebep test aracıydı) | ES10 "eşleşmişken hiçbir istekte Authorization yok" artık `p0` ve `/durum` için de doğru; `es.d_hazir` "parola gönderilmiyor" metni panelin istekleri için doğru (sayfa yüklemeleri: ES2 sınırı) |
-| EU29 | **Bütçe (bilgi; ⚠ karar kullanıcıda):** açılış kümesi 208 692 → 209 963 B gzip (8 dosya); `#/skop` doğrudan açılış 250 082 → 251 353 B (sınır 256 000; pay 4 647 B); eşleşme zinciri 25 050 → 27 237 B (iddia ≤ 28 KB; pay 1.4 KB). **Eşleşmiş tarayıcının Canlı açılışı ÖLÇÜLÜYOR ama iddia DEĞİL** (B7 bilgi satırı): 209 963 + 28 999 + 27 237 = **266 199 B gzip, 15 dosya** — 3D'nin 256 000 B / 12 dosya sınırını **aşıyor** (yalnız eşleşmiş tarayıcıda; eşleşmemiş açılış sınırın içinde). Seçenekler: (a) kabul (yalnız eşleşmiş tarayıcı, ek istekler bir kez; 3D'nin kuralı eşleşmemiş açılışa); (b) imzalama yolunu küçültmek (`kripto.js`'in yalnız HMAC'i açılışta, PBKDF2/ChaCha eşleştirmede); (c) `es.*` metinlerini açılış sözlüğünden çıkarmak (`#/skop` payını da büyütür) | İnceleme: "eşleşmiş açılış ölçülmüyor". P0-S + inceleme düzeltmeleri `#/skop` payını 5.9 KB'tan 4.6 KB'a indirdi — sonraki sözlük eklemesi bunu bilmeli |
+| EU29 | **Bütçe (bilgi; karar: (c), uygulaması EU30):** açılış kümesi 208 692 → 209 963 B gzip (8 dosya); `#/skop` doğrudan açılış 250 082 → 251 353 B (sınır 256 000; pay 4 647 B); eşleşme zinciri 25 050 → 27 237 B (iddia ≤ 28 KB; pay 1.4 KB). **Eşleşmiş tarayıcının Canlı açılışı ÖLÇÜLÜYOR ama iddia DEĞİL** (B7 bilgi satırı): 209 963 + 28 999 + 27 237 = **266 199 B gzip, 15 dosya** — 3D'nin 256 000 B / 12 dosya sınırını **aşıyor** (yalnız eşleşmiş tarayıcıda; eşleşmemiş açılış sınırın içinde). Seçenekler: (a) kabul (yalnız eşleşmiş tarayıcı, ek istekler bir kez; 3D'nin kuralı eşleşmemiş açılışa); (b) imzalama yolunu küçültmek (`kripto.js`'in yalnız HMAC'i açılışta, PBKDF2/ChaCha eşleştirmede); (c) `es.*` metinlerini açılış sözlüğünden çıkarmak (`#/skop` payını da büyütür) | İnceleme: "eşleşmiş açılış ölçülmüyor". P0-S + inceleme düzeltmeleri `#/skop` payını 5.9 KB'tan 4.6 KB'a indirdi — sonraki sözlük eklemesi bunu bilmeli |
+| EU30 | **EU29 seçeneği (c) uygulandı** (kullanıcının devriyle, 2026-10-02): Eşleştirme ekranının metinleri (78 `es.*` anahtarı) açılış sözlüğünden `ortak/src/sozluk_es.js`'e (`SOZLUK_ES` + `ceviriEs`: önce bu sözlük, yoksa `sozluk.js` — ekran `ay.yenile` / `kl.vazgec`'i de kullanır; ATMAZ kuralı `sozluk.js` `sozluktenCeviri` ile ortak). Açılış sözlüğünde YALNIZ kabuğun 5 metni kaldı (`es.uyari_tanimiyor`, `es.uyari_modul` — modül inemezse —, `es.uyari_depo`, `es.uyari_git`, `es.akis_hata`). **(c) tek başına eşleşmiş açılışı küçültmezdi** (metinler istemciyle inseydi aynı bayt yer değiştirirdi); bu yüzden ekran da istemciden ayrıldı: `ekran/eslesme.js` = istemci (depo, imzalı istek, akış, eşleştir/liste/sil/unut/saat; eşleşmiş açılışta iner), `ekran/eslesme_ekran.js` = Ayarlar > Eşleştirme bileşeni + metin haritaları + `retSebebi` / `varsayilanAd` / `eslesmeUygunlugu` (yalnız bölüm açılınca, `sozluk_es.js` ile). **Ölçüm (B7, gzip):** açılış kümesi 209 963 → 206 425 B (8 dosya; eşleşmemiş Canlı açılışı 238 962 → 235 424 B); `#/skop` doğrudan açılış 251 353 → 247 815 B (pay 4 647 → 8 185 B); istemci zinciri 27 237 → 21 593 B (eslesme.js 14 354 → 8 710; iddia ≤ 24 KB / ≤ 10 KB); ekran zinciri (eslesme_ekran.js + sozluk_es.js) 11 544 B, iddia ≤ 14 KB, yalnız bölümde. **Eşleşmiş tarayıcının Canlı açılışı 266 199 → 257 017 B, 15 dosya — 3D'nin 256 000 B sınırının hâlâ 1 017 B üstünde:** B7'de BİLGİ satırı olarak kaldı; İDDİA (B7 + T3H2 gerçek tarayıcıda): eşleşmiş açılış eslesme.js + imza.js + kripto.js indirir, eslesme_ekran.js ve sozluk_es.js İNDİRMEZ; bölüm açılınca ikisi iner. Kalan 1 KB için ölçülüp bırakılan: istemcinin yönetim yöntemlerini (eşleştir, liste, sil, unut, saat, yabancı kayıtlar) ekran modülüne taşımak 1 031 B kazandırır → 255 986 B (pay 14 B — sonraki ilk değişiklikte kırılır, istemci API'si ikiye bölünür); yorum budamak belgeyi siler. **Kapatacak seçenekler (yeni karar, kullanıcıda):** EU29 (b) `kripto.js`'in açılışta yalnız HMAC'i, ya da tembel ekranların başka sözlük ailelerini (kr./kg./pl./os. …) aynı desenle ayırmak (P7'nin "tek sözlük" uygulamasını değiştirir). Dosya sayısı 15 (8 + Canlı 4 + istemci 3): 12'ye inmek imza/kripto birleşmesi ister — bu dilimde yapılmadı. **Testler:** B73 `ortak/test/sozluk_es.test.js` `sozluk.js`'in kurallarıyla (her anahtarda tr + en, yer tutucular eş, kullanılmayan yok, ters yön, iki sözlük ayrık, açılıştaki `es.*` = app.js'in kullandıkları, ekran sozluk_es.js'i içe aktarır, app.js / sozluk.js aktarmaz); ortak dizge çözücü `ortak/test/dizgeler.js`. B7'nin EN'de çevrilmemiş metin sayısı 274 (kilit) değişmedi | Eşleşmemiş kullanıcı da kazanır (açılış −3.5 KB); bir sonraki sözlük eklemesi `#/skop` payını (8.2 KB) bilmeli |
 
 ## Doğrulama
 

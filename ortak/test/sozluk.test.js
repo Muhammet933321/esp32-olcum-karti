@@ -10,6 +10,7 @@ import * as K from "../src/kayit.js";
 import { SOZLUK, DILLER, ceviri, ceviriKod } from "../src/sozluk.js";
 import { KOLONLAR, BAYRAKLAR } from "../src/disari.js";
 import { RAPOR_ETIKET, ALAN_ETIKET } from "../src/rapor.js";
+import { dizgeler } from "./dizgeler.js";
 
 const oku = (yol) => readFileSync(new URL(yol, import.meta.url), "utf8");
 const yorumsuz = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
@@ -117,37 +118,6 @@ test("rapor: RAPOR_ETIKET / ALAN_ETIKET, uyar(...) ve kal durumlarinin anahtari 
   assert.ok(durum.length >= 5);
   for (const d of durum) assert.ok(`kal.durum.${d}` in SOZLUK, `kal.durum.${d}`);
 });
-
-/** Kucuk JS sozcuk cozucu: yorumlari atlar; '...', "..." icerigini ve `...${ oneklerini toplar.
- *  (Regex sabitlerinde tirnak yok varsayimi: kaynak boyle yazildi, bozulursa asagidaki
- *  "dizge sayisi" denetimi kirmiziya doner.) */
-function dizgeler(src) {
-  const literal = new Set();
-  const sablon = new Set();
-  let i = 0;
-  while (i < src.length) {
-    const c = src[i];
-    if (c === "/" && src[i + 1] === "/") { const j = src.indexOf("\n", i); i = j < 0 ? src.length : j; continue; }
-    if (c === "/" && src[i + 1] === "*") { i = src.indexOf("*/", i + 2) + 2; continue; }
-    if (c === '"' || c === "'" || c === "`") {
-      let j = i + 1;
-      let s = "";
-      let onek = null;
-      while (j < src.length && src[j] !== c) {
-        if (src[j] === "\\") { s += src[j + 1]; j += 2; continue; }
-        if (c === "`" && src[j] === "$" && src[j + 1] === "{" && onek === null) onek = s;
-        if (src[j] === "\n" && c !== "`") throw new Error(`kapanmamis dizge: ${src.slice(i, i + 40)}`);
-        s += src[j];
-        j++;
-      }
-      if (c === "`") { if (onek !== null) sablon.add(onek); } else literal.add(s);
-      i = j + 1;
-      continue;
-    }
-    i++;
-  }
-  return { literal, sablon };
-}
 
 /* 3C: web paneli ekranlari (arayuz3/ekran/*.js) da sozlugun TUKETICISI — anahtarlarini duz
    metin sabitiyle yaziyorlar (KL_METIN / KG_METIN). Dizin yoksa (yalniz ortak/ kopyalanmis bir
@@ -257,23 +227,15 @@ test("3H: ayarlarin (app.js + ekran/ayarlar.js) kullandigi HER ay. anahtari sozl
   assert.equal(SOZLUK["ay.dil_en"].tr, "English");
 });
 
-/* 3H-2: Eslestirme (ekran/eslesme.js ES_METIN / SAAT_METIN / ret sebepleri + app.js serit uyarisi) */
-test("3H-2: eslestirmenin (app.js + ekran/eslesme.js) kullandigi HER es. anahtari sozlukte (ters yon)", () => {
-  if (!APP.length || !EKRANLAR.length) return;
-  const { literal } = dizgeler([...APP, ...EKRANLAR].map(oku).join("\n"));
-  const kullanilan = [...literal].filter((s) => /^es\.[a-z0-9_]+$/.test(s));
-  assert.ok(kullanilan.length >= 60, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
-  assert.deepEqual(kullanilan.filter((a) => !(a in SOZLUK)), []);
+/* 3H-2: Eslestirme. EU30: acilis sozlugunde YALNIZ kabugun (app.js serit uyarisi, akis hatasi) es.
+   anahtarlari; Eslestirme ekraninin metinleri ortak/src/sozluk_es.js'te (sozluk_es.test.js ayni
+   kurallarla olcer: tr/en, yer tutucu, kullanilmayan yok, ters yon, acilista yalniz kabugunkiler). */
+test("3H-2: acilis sozlugundeki es. anahtarlarinin HEPSI app.js'te kullaniliyor (ekran metinleri sozluk_es.js'te)", () => {
+  if (!APP.length) return;
+  const { literal } = dizgeler(APP.map(oku).join("\n"));
   const aile = Object.keys(SOZLUK).filter((a) => /^es\./.test(a));
-  assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup panelde kullanilmayan es. anahtari");
-  /* ES3 + EU25: parola ag'a cikmaz ve PANEL saklamaz; tarayicinin kendi parola yoneticisi kaydetmeyi
-     onerebilir (autocomplete current-password) — kullaniciya iki dilde de DOGRU soylenir */
-  assert.match(SOZLUK["es.parola_ipucu"].tr, /Ağa gönderilmez[\s\S]*panel saklamaz[\s\S]*parola yöneticisi/);
-  assert.match(SOZLUK["es.parola_ipucu"].en, /Never sent[\s\S]*panel does not store it[\s\S]*password manager/);
-  assert.doesNotMatch(SOZLUK["es.aciklama"].tr, /hiçbir yere kaydedilmez/);
-  /* ES9 / ES1: zorunluluk ve bildirim yalniz USB — komutlar metinde (Ez1 / Em1, Q) */
-  assert.match(SOZLUK["es.guv_aciklama"].tr, /Ez1[\s\S]*Em1/);
-  assert.match(SOZLUK["es.bildirim_aciklama"].en, /USB/);
+  assert.ok(aile.length >= 4 && aile.length <= 8, `${aile.length} es. anahtari acilista`);
+  assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "acilis sozlugunde olup app.js'te kullanilmayan es. anahtari");
   /* AU10 + ES2: "tarayici ayarlarini sifirla" eslestirmeye dokunmaz ve bunu SOYLER */
   assert.match(SOZLUK["ay.sifirla_aciklama"].tr, /eşleştirmesi/);
   assert.match(SOZLUK["ay.sifirla_aciklama"].en, /pairing/);

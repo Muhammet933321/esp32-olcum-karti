@@ -503,7 +503,7 @@ def main() -> int:
             kom0 = [r for r in once if r["yol"] == "/komut"]
             ct = next((r for r in kom0 if r["govde"] == b"CT" and r["kod"] == 204), None)
             yuklenen = t.js("performance.getEntriesByType('resource').map(e => new URL(e.name).pathname)"
-                            ".filter(p => /eslesme|imza|kripto/.test(p))")
+                            ".filter(p => /eslesme|imza|kripto|sozluk_es/.test(p))")
             dbs = t.js("indexedDB.databases().then(l => l.map(d => d.name))")
             ok("[!] ES4: eslesmemisken BUGUNKU yol aynen — /akis imzasiz (EventSource), komutlar X-Jeton + tarayicinin Basic-Auth'u"
                " (kart sordu, tarayici cevapladi); /eslestir/* hic sorulmadi; eslesme.js / imza.js / kripto.js INMEDI;"
@@ -523,6 +523,10 @@ def main() -> int:
                and t.js("document.querySelectorAll('[data-ay-bolum=eslestirme] input').length") == 2
                and "Ez1" in (t.js("document.querySelector('[data-es-guv]').textContent") or "")
                and "USB" in (t.js("document.querySelector('[data-es-bildirim]').textContent") or ""), d0[:160])
+            yuk2 = sorted(set(t.js("performance.getEntriesByType('resource').map(e => new URL(e.name).pathname)"
+                                   ".filter(p => /eslesme|imza|kripto|sozluk_es/.test(p))") or []))
+            ok("[!] EU30: Eslestirme bolumu acilinca ekran modulu ve metinleri (eslesme_ekran.js + sozluk_es.js) indi",
+               "/ekran/eslesme_ekran.js" in yuk2 and "/ortak/sozluk_es.js" in yuk2, " ".join(yuk2))
 
             resim("1-eslesmemis")
 
@@ -766,6 +770,12 @@ def main() -> int:
             kayit14 = t.js(IDB_KAYIT_JS) or []
             ok("[!] AU10/ES2: 'tarayici ayarlarini sifirla' eslestirmeye dokunmadigini SOYLER; sifirlayip yeniden yukleyince cihaz kaydi duruyor ve akis yine imzali",
                "eşleştirmesi" in aciklama and len(kayit14) == 1 and kayit14[0]["n"] == 1 and akis14 is not None, aciklama[:80])
+            yuk14 = sorted(set(t.js("performance.getEntriesByType('resource').map(e => new URL(e.name).pathname)"
+                                    ".filter(p => /eslesme|imza|kripto|sozluk_es/.test(p))") or []))
+            ok("[!] EU30: ESLESMIS tarayicinin acilisi (yeniden yukleme, Eslestirme bolumu kapali) istemciyi (eslesme.js + imza.js +"
+               " kripto.js) indirdi, Eslestirme EKRANINI ve metinlerini (eslesme_ekran.js, sozluk_es.js) INDIRMEDI",
+               {"/ekran/eslesme.js", "/ortak/imza.js", "/ortak/kripto.js"} <= set(yuk14)
+               and "/ekran/eslesme_ekran.js" not in yuk14 and "/ortak/sozluk_es.js" not in yuk14, " ".join(yuk14))
 
             # ── 15. kart cihazi sildi (USB Ex1): "kart tanimiyor" uyarisi + imzasiz yol; p0 hep serbest ─
             with kart.k:

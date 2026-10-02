@@ -5865,11 +5865,11 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
        && harita['Ağ — kartı kablosuz yapma'] === 'ag' && harita['Görünüm'] === 'dil-gorunum'
        && harita['{{ ay.dil }}'] === 'dil-gorunum', JSON.stringify(harita));
     const modKart = [...T.matchAll(/<section class="kart" v-show="bolum === '([a-z-]+)'"/g)].map((m) => m[1]);
-    /* 3H-2: Eslestirme bolumunun kartlari kendi modulunde (ekran/eslesme.js EslestirmeEkrani) */
+    /* 3H-2: Eslestirme bolumunun kartlari kendi modulunde (ekran/eslesme_ekran.js EslestirmeEkrani; EU30) */
     let esT = '';
-    try { esT = require(path.join(ARAYUZ, 'ekran', 'eslesme.js')).EslestirmeEkrani.template || ''; } catch (h) { esT = ''; }
+    try { esT = require(path.join(ARAYUZ, 'ekran', 'eslesme_ekran.js')).EslestirmeEkrani.template || ''; } catch (h) { esT = ''; }
     const esKart = [...esT.matchAll(/<section class="kart"[^>]*data-ay-bolum="([a-z-]+)"/g)].map((m) => m[1]);
-    ok('[!] AY2: her bolumun en az bir karti var — app bolumleri index.html`de, mod bolumleri ekran/ayarlar.js sablonunda, eslestirme ekran/eslesme.js`te (bos bolum yok)',
+    ok('[!] AY2: her bolumun en az bir karti var — app bolumleri index.html`de, mod bolumleri ekran/ayarlar.js sablonunda, eslestirme ekran/eslesme_ekran.js`te (bos bolum yok)',
        BOLUMLER.every((b) => (b.mod ? modKart : b.es ? esKart : kartlar.map((k) => k.bolum)).includes(b.id))
        && esKart.length >= 3 && esKart.every((x) => x === 'eslestirme')
        && modKart.every((m) => AY.MOD_BOLUMLER.includes(m)), modKart.join(' '));
@@ -6260,6 +6260,8 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
    (a) KABLOLAMA: Ayarlar'da sekizinci bolum `#/ayar/eslestirme`; ekran modulu
        (ekran/eslesme.js + ortak/imza.js + kripto.js) ACILISTA INMEZ — yalniz
        bu tarayicida bir cihaz kaydi varsa ya da bolum acilinca (dinamik import).
+       EU30: Eslestirme EKRANI ve metinleri (eslesme_ekran.js + ortak/sozluk_es.js)
+       istemciden ayri — yalniz bolum acilinca; eslesmis acilisa girmez.
    (b) ISTEK KATMANI (ES4): kartin uclari (/komut, /kayit/*, /kal/liste, /pil,
        /skop.bin, /kunye.json, /akis) TEK katmandan (app.js kartIstek); ekranlar
        fetch'i kendileri imzalamaz. Kayit yoksa bugunku yol AYNEN.
@@ -6283,9 +6285,17 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
   const KRx = require(path.join(KOK, 'ortak', 'src', 'kripto.js'));
   const SZx = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
   const esYolu = path.join(ARAYUZ, 'ekran', 'eslesme.js');
+  /* EU30: Ayarlar > Eslestirme ekrani + metinleri (ortak/sozluk_es.js) ayri modulde — eslesmis tarayicinin
+     acilisi yalniz istemciyi (eslesme.js) indirir. Testler iki modulun disa aktarimini birlikte gorur. */
+  const esEkYolu = path.join(ARAYUZ, 'ekran', 'eslesme_ekran.js');
   let ES = {};
   try { ES = require(esYolu); } catch (h) { console.log('     ekran/eslesme.js yuklenemedi: ' + h.message); }
-  const esKaynak = fs.existsSync(esYolu) ? fs.readFileSync(esYolu, 'utf8') : '';
+  let ESE = {};
+  try { ESE = require(esEkYolu); } catch (h) { console.log('     ekran/eslesme_ekran.js yuklenemedi: ' + h.message); }
+  ES = Object.assign({}, ES, ESE);
+  let SEx = { SOZLUK_ES: {}, ceviriEs: (a) => String(a) };
+  try { SEx = require(path.join(KOK, 'ortak', 'src', 'sozluk_es.js')); } catch (h) { console.log('     ortak/sozluk_es.js yuklenemedi: ' + h.message); }
+  const esKaynak = [esYolu, esEkYolu].filter((y) => fs.existsSync(y)).map((y) => fs.readFileSync(y, 'utf8')).join('\n');
   const esKod = yorumsuz(esKaynak);
   const ayKod = yorumsuz(fs.readFileSync(path.join(ARAYUZ, 'ekran', 'ayarlar.js'), 'utf8'));
   const esitKod = yorumsuz(fs.readFileSync(path.join(ARAYUZ, 'ekran', 'esitleme.js'), 'utf8'));
@@ -6351,8 +6361,8 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
        e ? e[1] : 'yok');
     const b = secenekler.components && secenekler.components['eslestirme-ekran'];
     const sec = b && b.yukleyici && typeof b.yukleyici === 'object' ? b.yukleyici : {};
-    ok('[!] ES1: eslestirme-ekran ASENKRON: ./ekran/eslesme.js (EslestirmeEkrani); inmezse sebep, secili dilde',
-       !!b && b.__asenkron === true && /import\('\.\/ekran\/eslesme\.js'\)\.then\(\(m\) => m\.EslestirmeEkrani\)/.test(String(sec.loader))
+    ok('[!] ES1/EU30: eslestirme-ekran ASENKRON: ./ekran/eslesme_ekran.js (EslestirmeEkrani; istemciden AYRI modul); inmezse sebep, secili dilde',
+       !!b && b.__asenkron === true && /import\('\.\/ekran\/eslesme_ekran\.js'\)\.then\(\(m\) => m\.EslestirmeEkrani\)/.test(String(sec.loader))
        && !!sec.errorComponent && /class="hata"/.test(sec.errorComponent.template || '') && typeof T === 'string' && T.length > 0);
     const gerekli = secenekler.computed && secenekler.computed.eslesmeModGerekli;
     const w = secenekler.watch && secenekler.watch.eslesmeModGerekli;
@@ -6370,18 +6380,34 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
     const statik = iceAktarmaGrafigi().map((x) => x.goruntu);
     const esAgac = fs.existsSync(esYolu) ? iceAktarmaGrafigi(esYolu).map((x) => x.goruntu).sort() : [];
     const dinamik = [...appKod.matchAll(/import\('\.\/ekran\/eslesme\.js'\)/g)].length;
-    ok('[!] ES2/butce: eslesme.js (ve imza.js / kripto.js) ACILISTA inmiyor; app.js onu YALNIZ dinamik ister (istemci + bilesen yukleyicisi)',
+    const dinamikEk = [...appKod.matchAll(/import\('\.\/ekran\/eslesme_ekran\.js'\)/g)].length;
+    ok('[!] ES2/butce: eslesme.js (ve imza.js / kripto.js) ACILISTA inmiyor; app.js istemciyi YALNIZ dinamik ister (eslesmeIstemcisi), ekrani YALNIZ bilesen yukleyicisi (EU30)',
        !statik.includes('ekran/eslesme.js') && !statik.includes('ortak/imza.js') && !statik.includes('ortak/kripto.js')
-       && esAgac.join(' ') === 'ortak/imza.js ortak/kripto.js ortak/sozluk.js' && dinamik === 2
+       && esAgac.join(' ') === 'ortak/imza.js ortak/kripto.js' && dinamik === 1 && dinamikEk === 1
        && govdeIcinde(appKaynak, 'eslesmeIstemcisi', "import('./ekran/eslesme.js')"), esAgac.join(' '));
     const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
     const by = fs.existsSync(kunyeYolu) ? (JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')).bayt || {}) : {};
     const esBayt = ['ekran/eslesme.js', ...esAgac].filter((x) => !statik.includes(x)).reduce((n, a) => n + (by[a] || 0), 0);
-    ok('[!] ES2/butce: eslesme zinciri (acilista olmayan kismi; yalniz eslesmis tarayicida acilista) <= 28 KB gzip; eslesme.js <= 16 KB gzip',
-       esBayt > 0 && esBayt <= 28 * 1024 && by['ekran/eslesme.js'] > 0 && by['ekran/eslesme.js'] <= 16 * 1024,
+    ok('[!] ES2/butce: eslesme zinciri (acilista olmayan kismi; yalniz eslesmis tarayicida acilista) <= 24 KB gzip; eslesme.js (istemci) <= 10 KB gzip',
+       esBayt > 0 && esBayt <= 24 * 1024 && by['ekran/eslesme.js'] > 0 && by['ekran/eslesme.js'] <= 10 * 1024,
        `${esBayt} B (eslesme.js ${by['ekran/eslesme.js']} B)`);
     /* Bilgi (iddia DEGIL): ESLESMIS bir tarayicida acilis bu zinciri de indirir (AU12 deseni). */
     console.log(`     eslesmis tarayicida acilisa eklenen: ${esBayt} B gzip (eslesme.js + imza.js + kripto.js)`);
+    /* EU30: Eslestirme EKRANI + metinleri yalniz bolum acilinca; eslesmis tarayicinin acilisina GIRMEZ */
+    const ekAgac = fs.existsSync(esEkYolu) ? iceAktarmaGrafigi(esEkYolu).map((x) => x.goruntu) : [];
+    const ekZincir = ['ekran/eslesme_ekran.js', ...ekAgac].filter((x, i, a) => a.indexOf(x) === i && !statik.includes(x) && x !== 'ekran/eslesme.js' && !esAgac.includes(x));
+    const ekBayt = ekZincir.reduce((n, a) => n + (Number.isFinite(by[a]) ? by[a] : NaN), 0);
+    ok('[!] EU30: Eslestirme ekraninin metinleri (ortak/sozluk_es.js) ACILISTA DEGIL ve istemci zincirinde DEGIL — yalniz ekran modulunun (eslesme_ekran.js) agacinda; ekran zinciri <= 14 KB gzip',
+       !statik.includes('ortak/sozluk_es.js') && !esAgac.includes('ortak/sozluk_es.js') && ekAgac.includes('ortak/sozluk_es.js')
+       && !statik.includes('ekran/eslesme_ekran.js') && !esAgac.includes('ekran/eslesme_ekran.js')
+       && ekZincir.join(' ') === 'ekran/eslesme_ekran.js ortak/sozluk_es.js' && ekBayt > 0 && ekBayt <= 14 * 1024,
+       `${ekZincir.join(' ')} · ${ekBayt} B · istemci agaci: ${esAgac.join(' ')}`);
+    const acilisEs = Object.keys(SZx.SOZLUK).filter((a) => /^es\./.test(a)).sort();
+    const kabukEs = [...new Set([...appKod.matchAll(/'(es\.[a-z0-9_]+)'/g)].map((m) => m[1]))].sort();
+    ok('[!] EU30: acilis sozlugunde (ortak/sozluk.js) YALNIZ kabugun es. metinleri (serit uyarisi, akis hatasi, modul yuklenemedi); ekranin metinleri sozluk_es.js`te, iki sozluk ayrik',
+       acilisEs.length >= 4 && acilisEs.join() === kabukEs.join() && acilisEs.includes('es.uyari_modul')
+       && Object.keys(SEx.SOZLUK_ES).length >= 70 && Object.keys(SEx.SOZLUK_ES).every((a) => /^es\./.test(a) && !(a in SZx.SOZLUK)),
+       `acilista ${acilisEs.join(' ')} · sozluk_es ${Object.keys(SEx.SOZLUK_ES).length} anahtar`);
   }
 
   /* ── cihazKaydiVar: eslesme YOKSA IndexedDB'de veritabani YARATMAZ ── */
@@ -6579,7 +6605,7 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
     ok('[!] ES3: retSebebi — kartin reddi SEBEBIYLE: yanlis parola / kartin parolasi yok / 429 (Retry-After saniyesi) / dolu / 60 s / sahte kart / bilgi / ag / HTTP; kartin metni tasinir',
        r.map((x) => x.anahtar).join() === 'es.ret_parola,es.ret_kart_parola,es.ret_bekle,es.ret_dolu,es.ret_sure,es.ret_sahte,es.ret_bilgi,es.ret_ag,es.ret_http'
        && r[0].d.kart === 'kanit yanlis (parola?)' && r[2].d.sn === '8' && r[8].d.kod === '503'
-       && r.every((x) => x.anahtar in SZx.SOZLUK), JSON.stringify(r));
+       && r.every((x) => x.anahtar in SEx.SOZLUK_ES), JSON.stringify(r));
     const va = ES.varsayilanAd || (() => '');
     const adlar = [va('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Edg/130.0'),
       va('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36'),
@@ -7077,7 +7103,7 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
       o.unutOnay = true;
       if (o.unut) await o.unut();
       ok('[!] EU21: ekran — "unut" {kart:"yok"} donerse "kart da sildi" DEMEZ, kaydin artik olmadigini soyler ve durumu yeniler',
-         o.sonuc === SZx.ceviri('es.unutuldu_yok', 'tr') && !/kart da sildi/.test(o.sonuc) && yenilendi === 1, String(o.sonuc));
+         o.sonuc === SEx.ceviriEs('es.unutuldu_yok', 'tr') && !/kart da sildi/.test(o.sonuc) && yenilendi === 1, String(o.sonuc));
 
       /* EU24 (inceleme [kucuk]): /eslestir/bilgi zaman asimli — kart TCP'yi kabul edip susarsa coz ASILI KALMAZ */
       const d3 = kayitliDepo();
@@ -7133,7 +7159,7 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
       ok('[!] EU26: sablonda "baska kartlarin kayitlari" bolumu (kimlik + ad + n), her satirda iki asamali "bu tarayicidan sil"; anahtar aciklamasi onu gosteriyor',
          !!ty && /<h2 id="es-yabanci-baslik" tabindex="-1">/.test(ty[1]) && /y\.kimlik/.test(ty[1])
          && /<template v-if="yabanciOnay === y\.kimlik">[\s\S]*?@click="yabanciSil\(y\.kimlik\)"[\s\S]*?@click="yabanciVazgec\(y\.kimlik\)"/.test(ty[1])
-         && /@click="yabanciBasla\(y\.kimlik\)"/.test(ty[1]) && /başka kart/i.test(SZx.ceviri('es.anahtar_aciklama', 'tr')),
+         && /@click="yabanciBasla\(y\.kimlik\)"/.test(ty[1]) && /başka kart/i.test(SEx.ceviriEs('es.anahtar_aciklama', 'tr')),
          ty ? 'var' : 'yok');
 
       /* EU27 (WIG, inceleme [kucuk]): odak kaybolmaz; hata alanla iliskili */
@@ -7177,9 +7203,9 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
          && /<p class="ay-ozet" data-es-durum tabindex="-1" aria-live="polite">/.test(T2) && /<h2 id="es-liste-baslik" tabindex="-1">/.test(T2));
       /* EU25 (inceleme [kucuk]): parola alani tarayicinin parola yoneticisine acik (autocomplete current-password — kart
          kokeninin kayitli web parolasi); metin "kaydedilmez" demez, panelin saklamadigini ve tarayicinin teklif edebilecegini soyler */
-      const ip = SZx.ceviri('es.parola_ipucu', 'tr');
-      const ipEn = SZx.ceviri('es.parola_ipucu', 'en');
-      const ac = SZx.ceviri('es.aciklama', 'tr');
+      const ip = SEx.ceviriEs('es.parola_ipucu', 'tr');
+      const ipEn = SEx.ceviriEs('es.parola_ipucu', 'en');
+      const ac = SEx.ceviriEs('es.aciklama', 'tr');
       ok('[!] EU25: parola metni dogru — panel saklamaz, tarayici kendi parola yoneticisine kaydetmeyi onerebilir (TR + EN); "hiçbir yere kaydedilmez" iddiasi YOK',
          /parola yöneticisi/.test(ip) && /panel/i.test(ip) && /password manager/.test(ipEn) && !/kaydedilmez/.test(ip) && !/hiçbir yere kaydedilmez/.test(ac)
          && /autocomplete="current-password"/.test(T2), ip);
@@ -7213,7 +7239,11 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
          sonuc.join() === 'hata,hata,hata' && ist === null && /okunamadı/.test(u.eslesmeUyariMetni || '') && !u._esKarar,
          JSON.stringify({ sonuc, ist: ist === null ? null : typeof ist, uyari: u.eslesmeUyariMetni }));
     });
-    /* EU29: eslesmis tarayicinin ACILIS boyu — bilgi (3D siniri asiliyor; karar EU29'da, kullanicida) */
+    /* EU29 -> EU30: eslesmis tarayicinin ACILIS boyu. EU29'da 266 199 B / 15 dosya. EU30: Eslestirme
+       ekrani + metinleri istemciden ayrildi; IDDIA: ekran modulu ve sozluk_es.js bu kumeye GIRMEZ.
+       Toplam 3D'nin 256 000 B sinirinin hala ~1 KB ustunde -> BILGI (iddia degil): kalan fark ancak
+       kripto.js'in acilista yalniz HMAC'i (EU29 secenek b) ya da baska sozluk ailelerini ayirmakla kapanir
+       — ikisi de bu dilimin kapsami disi (EU30). Dosya sayisi da bilgi (12'ye inmek imza/kripto birlesmesi ister). */
     {
       const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
       const by = fs.existsSync(kunyeYolu) ? (JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')).bayt || {}) : {};
@@ -7226,8 +7256,14 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
       const a0 = top([...acK]);
       const c0 = top([...new Set(canliZ)]);
       const e0 = top([...new Set(esZ)]);
-      console.log(`     EU29 (bilgi, iddia DEGIL): ESLESMIS tarayicida Canli ile acilis: ${a0} + ${c0} + ${e0} = ${a0 + c0 + e0} B gzip, `
-        + `${acK.size} + ${new Set(canliZ).size} + ${new Set(esZ).size} = ${acK.size + new Set(canliZ).size + new Set(esZ).size} dosya (3D siniri 256000 B / 12 dosya)`);
+      const hepsi = new Set([...acK, ...canliZ, ...esZ]);
+      const toplam = top([...hepsi]);
+      ok('[!] EU30: ESLESMIS tarayicinin Canli ile acilisi (acilis kumesi + Canli zinciri + istemci zinciri) Eslestirme EKRANINI ve metinlerini (eslesme_ekran.js, sozluk_es.js) ICERMEZ',
+         esZ.length > 0 && esZ.includes('ekran/eslesme.js') && !hepsi.has('ekran/eslesme_ekran.js') && !hepsi.has('ortak/sozluk_es.js'),
+         [...hepsi].filter((x) => /eslesme|sozluk|imza|kripto/.test(x)).join(' '));
+      /* Bilgi (iddia DEGIL — yukaridaki aciklama): boyut ve dosya sayisi 3D sinirlarina gore */
+      console.log(`     EU30 (bilgi, iddia DEGIL): ESLESMIS tarayicida Canli ile acilis: ${a0} + ${c0} + ${e0} = ${toplam} B gzip `
+        + `(%${(100 * toplam / 256000).toFixed(1)} / 3D siniri 256000 B), ${acK.size} + ${new Set(canliZ).size} + ${new Set(esZ).size} = ${hepsi.size} dosya (3D siniri 12)`);
     }
   }
 }

@@ -7,7 +7,8 @@
 //   kl.<ad> (web paneli: Kayitlar listesi)  kg.<ad> (web paneli: kayit gorunumu) — 3C;
 //   os.<ad> (web paneli: Osiloskop, 3E — app.js OS_METIN + ekran/osiloskop.js); kr.<ad> (web paneli:
 //   Karsilastirma, 3G — ekran/karsilastir.js + Kayitlar'daki secim); ay.<ad> (web paneli: Ayarlar,
-//   3H — app.js AY_METIN / AYAR_BOLUMLERI / DILLER + ekran/ayarlar.js AYE_METIN / KAL_ALANLARI); ekranlar
+//   3H — app.js AY_METIN / AYAR_BOLUMLERI / DILLER + ekran/ayarlar.js AYE_METIN / KAL_ALANLARI); es.<ad>
+//   (3H-2: yalniz kabugunkiler; Eslestirme ekraninin metinleri acilisa girmesin diye sozluk_es.js, EU30); ekranlar
 //   anahtari DUZ METIN sabitiyle yazar (KL_METIN / KG_METIN), "kullanilmayan anahtar yok" denetimi
 //   arayuz3/ekran/*.js'i de tarar (test/sozluk.test.js).
 // Birimler SI ve dile gore DEGISMEZ (V, A, W, ohm, mAh, Wh, s, ms). CSV basliklari iki dilde
@@ -1011,115 +1012,14 @@ export const SOZLUK = Object.freeze({
     "Archive choices are deleted too: this browser stops sending “received” acknowledgements to the board (the safe direction)."),
   "ay.sifirla_yok": S("Bu tarayıcıda saklanan panel ayarı yok.", "No panel settings are stored in this browser."),
 
-  // ── 3H-2: Eslestirme (ekran/eslesme.js ES_METIN / SAAT_METIN / ret sebepleri; app.js serit uyarisi)
-  "es.baslik": S("Bu tarayıcının eşleştirmesi", "Pairing this browser"),
-  "es.aciklama": S("Eşleşen tarayıcı karta parola göndermeden imzalı istek yollar. Parola yalnız eşleştirmede bir kez girilir ve ağa çıkmaz; panel onu saklamaz.",
-    "A paired browser sends signed requests without sending the password. The password is entered once while pairing and never goes over the network; the panel does not store it."),
-  "es.b_kimlik": S("Kart kimliği", "Board ID"),
-  "es.b_zorunlu": S("İmza zorunlu", "Signature required"),
-  "es.b_misafir": S("Misafir izleme", "Guest viewing"),
-  "es.b_saat": S("Kartın saati", "Board clock"),
-  "es.acik": S("açık", "on"),
-  "es.kapali": S("kapalı", "off"),
-  "es.saat_yok": S("yok (NTP de cihaz saati de yok)", "none (neither NTP nor a device clock)"),
-  "es.saat_ntp": S("NTP (internet saati)", "NTP (internet time)"),
-  "es.saat_cihaz": S("eşleşmiş bir cihazdan ayarlandı", "set from a paired device"),
-  "es.d_denetleniyor": S("Kart soruluyor…", "Asking the board…"),
-  "es.d_yok": S("Bu tarayıcı bu karta eşleşmemiş: istekler bugünkü yoldan (oturum jetonu + web parolası) gidiyor.",
-    "This browser is not paired with this board: requests use today's path (session token + web password)."),
-  "es.d_hazir": S("Eşleşmiş: cihaz {n} «{ad}». Bütün istekler imzalı; parola gönderilmiyor.",
-    "Paired: device {n} «{ad}». All requests are signed; no password is sent."),
-  "es.d_tanimiyor": S("Kart bu tarayıcıyı TANIMIYOR (cihaz {n} «{ad}» kartta silinmiş olabilir): istekler imzasız yoldan gidiyor. Bu kaydı unutup yeniden eşleştirin. Kartın cevabı: {mesaj}",
-    "The board does NOT recognise this browser (device {n} «{ad}» may have been deleted on the board): requests use the unsigned path. Forget this entry and pair again. Board's answer: {mesaj}"),
-  "es.d_ag": S("Karta ulaşılamadı: {mesaj}", "The board could not be reached: {mesaj}"),
-  "es.d_kart_yok": S("Bu adres eşleştirme sunmuyor (HTTP {kod}): kart değil (köprü?) ya da firmware 1D'den eski.",
-    "This address offers no pairing (HTTP {kod}): it is not the board (bridge?) or the firmware predates 1D."),
-  "es.uygun_usb": S("USB'de eşleştirme gerekmez: kart USB'den tam yetkiyle sürülür. Eşleştirmek için paneli kartın kendi adresinden (WiFi) açın.",
-    "No pairing is needed over USB: USB has full control. To pair, open the panel from the board's own address (WiFi)."),
-  "es.uygun_demo": S("Demo kipinde eşleştirme yok.", "There is no pairing in demo mode."),
-  "es.uygun_taban": S("Eşleştirme yalnız panel kartın kendi adresinden açıldığında yapılır (Bağlantı › Kart adresi boş olmalı).",
-    "Pairing works only when the panel is opened from the board's own address (Connection › Board address must be empty)."),
-  "es.ad": S("Bu cihazın adı", "Name of this device"),
-  "es.ad_ipucu": S("Kartın cihaz listesinde görünür (en çok 24 bayt).", "Shown in the board's device list (at most 24 bytes)."),
-  "es.parola": S("Kartın web parolası", "Board web password"),
-  "es.parola_ipucu": S("En az 12 karakter. Ağa gönderilmez (kanıt alışverişi) ve panel saklamaz; tarayıcınız kendi parola yöneticisine kaydetmeyi önerebilir.",
-    "At least 12 characters. Never sent over the network (proof exchange) and the panel does not store it; your browser may offer to save it in its own password manager."),
-  "es.eslestir": S("Eşleştir", "Pair"),
-  "es.eslesiyor": S("Eşleştiriliyor…", "Pairing…"),
-  "es.eslesti": S("Eşleşti: cihaz {n}. Bundan sonra istekler imzalı.", "Paired: device {n}. From now on requests are signed."),
-  "es.ret_kisa": S("Parola en az {en_az} bayt olmalı (kart da reddeder). Kartın parolasını USB'den uzatın: Ns<parola>.",
-    "The password must be at least {en_az} bytes (the board refuses too). Lengthen it over USB: Ns<password>."),
-  "es.ret_ad": S("Ad 1–24 bayt olmalı, kontrol karakteri içermemeli.", "The name must be 1–24 bytes without control characters."),
-  "es.ret_parola": S("Kart reddetti: parola yanlış. Kartın cevabı: {kart}", "The board refused: wrong password. Board's answer: {kart}"),
-  "es.ret_kart_parola": S("Kart reddetti: kartın web parolası yok ya da 12 karakterden kısa, ya da eşleştirme anahtarı hazırlanıyor (birkaç saniye sonra yeniden deneyin). Kartın cevabı: {kart}",
-    "The board refused: it has no web password or one shorter than 12 characters, or the pairing key is being prepared (retry in a few seconds). Board's answer: {kart}"),
-  "es.ret_bekle": S("Çok fazla yanlış deneme: {sn} s bekleyip yeniden deneyin. Kartın cevabı: {kart}",
-    "Too many wrong attempts: wait {sn} s and retry. Board's answer: {kart}"),
-  "es.ret_dolu": S("Kartın cihaz listesi dolu (8): USB'den Ex<n> ile silin. Kartın cevabı: {kart}",
-    "The board's device list is full (8): delete one over USB with Ex<n>. Board's answer: {kart}"),
-  "es.ret_sure": S("Eşleştirme 60 s içinde bitmedi; baştan deneyin. Kartın cevabı: {kart}",
-    "Pairing did not finish within 60 s; start again. Board's answer: {kart}"),
-  "es.ret_http": S("Kart reddetti (HTTP {kod}): {kart}", "The board refused (HTTP {kod}): {kart}"),
-  "es.ret_sahte": S("Kartın kanıtı YANLIŞ: bu kart parolayı bilmiyor (sahte kart?). Anahtar kaydedilmedi.",
-    "The board's proof is WRONG: this board does not know the password (fake board?). No key was stored."),
-  "es.ret_bilgi": S("Kartın bilgisi kabul edilmedi, eşleştirme yapılmadı: {mesaj}", "The board's info was not accepted; nothing was paired: {mesaj}"),
-  "es.ret_ag": S("Karta ulaşılamadı: {mesaj}", "The board could not be reached: {mesaj}"),
-  "es.ret_diger": S("Eşleştirme başarısız: {mesaj}", "Pairing failed: {mesaj}"),
-  "es.unut": S("Bu tarayıcıyı unut", "Forget this browser"),
-  "es.unut_eminim": S("Eminim, unut", "Yes, forget it"),
-  "es.unut_uyari": S("Önce kartın listesinden, sonra bu tarayıcıdan silinir. Yeniden eşleşmek parola ister.",
-    "It is deleted from the board's list first, then from this browser. Pairing again needs the password."),
-  "es.unutuldu": S("Bu tarayıcının kaydı silindi; kart da sildi.", "This browser's entry was deleted; the board deleted it too."),
-  "es.unutuldu_ulasilamadi": S("Bu tarayıcının kaydı silindi ama karta ULAŞILAMADI: kartta cihaz {n} hâlâ kayıtlı. USB'den Ex{n} ile ya da başka bir eşleşmiş cihazdan kaldırın.",
-    "This browser's entry was deleted but the board could NOT be reached: device {n} is still registered on the board. Remove it over USB with Ex{n} or from another paired device."),
-  "es.unutuldu_tanimiyor": S("Bu tarayıcının kaydı silindi (kart bu cihazı zaten tanımıyordu).",
-    "This browser's entry was deleted (the board no longer knew this device)."),
-  "es.unutuldu_yok": S("Bu sekmenin gösterdiği kayıt artık yok (başka sekmede silinmiş ya da yeniden eşleştirilmiş): hiçbir şey silinmedi, durum yenilendi.",
-    "The entry this tab showed no longer exists (deleted or re-paired in another tab): nothing was deleted; the status was refreshed."),
-  "es.unutuldu_hata": S("Bu tarayıcının kaydı silindi; kart silmeyi reddetti (HTTP {kod}): cihaz {n} kartta kalmış olabilir, USB'den E? ile bakın.",
-    "This browser's entry was deleted; the board refused the deletion (HTTP {kod}): device {n} may remain on the board, check over USB with E?."),
-  "es.liste_baslik": S("Güvenilir cihazlar", "Trusted devices"),
-  "es.liste_tablo": S("Kartın eşleşmiş cihazları", "Devices paired with the board"),
-  "es.l_n": S("No", "No."),
-  "es.l_ad": S("Ad", "Name"),
-  "es.l_eklenme": S("Eklenme", "Added"),
-  "es.l_son": S("Son görülme", "Last seen"),
-  "es.l_islem": S("İşlem", "Action"),
-  "es.bu_tarayici": S("bu tarayıcı", "this browser"),
-  "es.kaldir": S("Kaldır", "Remove"),
-  "es.kaldir_eminim": S("Eminim, kaldır", "Yes, remove"),
-  "es.kaldir_uyari": S("Kaldırılan cihaz karta ancak parolayla yeniden eşleşebilir.", "A removed device can pair again only with the password."),
-  "es.kaldirildi": S("Cihaz {n} kaldırıldı.", "Device {n} was removed."),
-  "es.kaldir_hata": S("Cihaz {n} kaldırılamadı: {mesaj}", "Device {n} could not be removed: {mesaj}"),
-  "es.liste_hata": S("Liste alınamadı: {mesaj}", "The list could not be fetched: {mesaj}"),
-  "es.saat_baslik": S("Kartın saati", "Board clock"),
-  "es.saat_ayarla": S("Kartın saatini bu cihazdan ayarla", "Set the board clock from this device"),
-  "es.saat_ipucu": S("Kartın NTP saati yokken (internetsiz ağ) zamanlanmış kayıt için gerekir. NTP gelince NTP kazanır.",
-    "Needed for scheduled recording when the board has no NTP time (offline network). Once NTP arrives, NTP wins."),
-  "es.saat_tamam": S("Kartın saati bu cihazdan ayarlandı ({zaman}).", "The board clock was set from this device ({zaman})."),
-  "es.saat_ntp_var": S("Kartın NTP saati var: cihaz saati gerekmez.", "The board has NTP time: no device clock is needed."),
-  "es.saat_hata": S("Saat ayarlanamadı: {mesaj}", "The clock could not be set: {mesaj}"),
-  "es.saat_eslesmeli": S("Saati ayarlamak için önce bu tarayıcıyı eşleştirin.", "Pair this browser first to set the clock."),
-  "es.guv_baslik": S("İmza zorunluluğu ve misafir izleme", "Signature requirement and guest viewing"),
-  "es.guv_aciklama": S("Bu iki ayar YALNIZ USB seri konsoldan değişir (zorunluluk web'den yanlışlıkla açılsaydı karta erişilemezdi). Bütün cihazlarınız (tarayıcılar, PC köprüsü) eşleşince Ez1 ile imzayı zorunlu yapın; yalnız izleme serbest kalsın isterseniz Em1. Geri almak: Ez0 / Em0. Ardından web parolasını Ns<yeni parola> ile değiştirin ve E? ile cihaz listesine bakın.",
-    "These two settings change ONLY from the USB serial console (had the requirement been switched on from the web by mistake, the board would be unreachable). Once all your devices (browsers, PC bridge) are paired, make signatures mandatory with Ez1; for free viewing only, Em1. To undo: Ez0 / Em0. Then change the web password with Ns<new password> and review the device list with E?."),
-  "es.anahtar_baslik": S("Anahtar bu tarayıcıda nasıl saklanıyor", "How the key is stored in this browser"),
-  "es.anahtar_aciklama": S("Kart http:// ile sunulduğu için tarayıcı güvenli bağlam değil: cihaz anahtarı IndexedDB'de şifresiz durur. Bu tarayıcı profiline erişen biri parolasız komut verebilir, kayıtları okuyabilir ve bildirimlere abone olup onları çözebilir; şüphelenirseniz cihazı listeden kaldırın (USB: Ex<n>). “Tarayıcı ayarlarını sıfırla” anahtara dokunmaz; silmek için “Bu tarayıcıyı unut” (başka kart kimliğine ait kayıtlar aşağıda ayrıca silinir).",
-    "The board is served over http://, so the browser is not a secure context: the device key sits unencrypted in IndexedDB. Anyone with access to this browser profile can send commands without the password, read the records, and subscribe to and decrypt the notifications; if in doubt, remove the device from the list (USB: Ex<n>). “Reset browser settings” does not touch the key; use “Forget this browser” to delete it (entries of other board IDs are deleted separately below)."),
-  "es.bildirim_baslik": S("Bildirimler (MQTT)", "Notifications (MQTT)"),
-  "es.bildirim_aciklama": S("Bildirim ayarı panelde YOK: aracı parolaları ağa çıkmasın diye Q komutları yalnız USB seri konsoldan verilir (durum: Q?).",
-    "Notification settings are NOT in the panel: broker passwords must not go over the network, so the Q commands work only from the USB serial console (status: Q?)."),
+  // ── 3H-2: Eslestirme — YALNIZ acilis kabugunun metinleri (app.js serit uyarisi, akis hatasi). EU30: Ayarlar >
+  //    Eslestirme ekraninin metinleri ortak/src/sozluk_es.js'te (ekranla birlikte iner; acilisa girmez).
   "es.uyari_tanimiyor": S("Kart bu tarayıcının eşleştirmesini tanımıyor (cihaz {n}): istekler imzasız yoldan gidiyor.",
     "The board does not recognise this browser's pairing (device {n}): requests use the unsigned path."),
   "es.uyari_modul": S("Eşleştirme modülü yüklenemedi ({mesaj}): istekler imzasız gidiyor; sayfayı yenileyin.",
     "The pairing module could not be loaded ({mesaj}): requests go unsigned; reload the page."),
   "es.uyari_depo": S("Bu tarayıcının eşleştirme kaydı okunamadı (IndexedDB): istekler imzasız gidiyor; sayfayı yenileyin ya da tarayıcıyı yeniden başlatın.",
     "This browser's pairing record could not be read (IndexedDB): requests go unsigned; reload the page or restart the browser."),
-  "es.yabanci_baslik": S("Başka kartların kayıtları", "Entries of other boards"),
-  "es.yabanci_aciklama": S("Bu tarayıcıda, bu kartın kimliğine ait olmayan cihaz anahtarları (eski kart ya da ayarları sıfırlanmış kart). Yalnız bu tarayıcıdan silinir; o kart hâlâ tanıyorsa orada USB'den Ex<n>.",
-    "Device keys in this browser that do not belong to this board's ID (an old board or a board whose settings were reset). Deleted from this browser only; if that board still knows the device, use Ex<n> over USB there."),
-  "es.yabanci_sil": S("Bu tarayıcıdan sil", "Delete from this browser"),
-  "es.sil_eminim": S("Eminim, sil", "Yes, delete"),
   "es.uyari_git": S("Eşleştirme", "Pairing"),
   "es.akis_hata": S("Canlı akış yeni yolla açılamadı: {mesaj}", "The live stream could not be reopened: {mesaj}"),
 
@@ -1144,8 +1044,13 @@ export const SOZLUK = Object.freeze({
 
 /** Sozlukten metin; ATMAZ (dosya basindaki kurallar). */
 export function ceviri(anahtar, dil = "tr", degiskenler = null) {
+  return sozluktenCeviri(SOZLUK, anahtar, dil, degiskenler);
+}
+
+/** ceviri'nin kurallariyla VERILEN sozlukten (EU30: ek sozlukler, or. sozluk_es.js, ayni kurali kullanir). ATMAZ. */
+export function sozluktenCeviri(sozluk, anahtar, dil = "tr", degiskenler = null) {
   const a = typeof anahtar === "string" ? anahtar : String(anahtar);
-  const g = Object.prototype.hasOwnProperty.call(SOZLUK, a) ? SOZLUK[a] : null;
+  const g = Object.prototype.hasOwnProperty.call(sozluk, a) ? sozluk[a] : null;
   if (!g) return a;
   const d = dil === "en" ? "en" : "tr";
   const obur = d === "en" ? "tr" : "en";

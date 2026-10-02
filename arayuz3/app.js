@@ -408,7 +408,7 @@ function dilSec(depo) {
 const AYAR_BOLUMLERI = Object.freeze([
   Object.freeze({ id: 'baglanti', ad: 'ay.b_baglanti', mod: false }),
   Object.freeze({ id: 'ag', ad: 'ay.b_ag', mod: false }),
-  /* 3H-2 (ES1): kendi tembel modulu (ekran/eslesme.js), ayarlar.js'in degil — `es` */
+  /* 3H-2 (ES1): kendi tembel modulu (ekran/eslesme_ekran.js), ayarlar.js'in degil — `es` */
   Object.freeze({ id: 'eslestirme', ad: 'ay.b_eslestirme', mod: false, es: true }),
   Object.freeze({ id: 'kalibrasyon', ad: 'ay.b_kalibrasyon', mod: false }),
   Object.freeze({ id: 'kal-gecmis', ad: 'ay.b_kal_gecmis', mod: true }),
@@ -962,9 +962,10 @@ createApp({
         },
       },
     }),
-    /* 3H-2 (ES1): Ayarlar > Eslestirme; bolum ILK acilinca iner (istemciyle ayni modul). */
+    /* 3H-2 (ES1): Ayarlar > Eslestirme; bolum ILK acilinca iner. EU30: istemciden (eslesme.js) AYRI modul +
+       metinleri (sozluk_es.js) — eslesmis tarayicinin acilisi ekrani indirmez. */
     'eslestirme-ekran': defineAsyncComponent({
-      loader: () => import('./ekran/eslesme.js').then((m) => m.EslestirmeEkrani),
+      loader: () => import('./ekran/eslesme_ekran.js').then((m) => m.EslestirmeEkrani),
       errorComponent: {
         template: '<p class="hata">{{ metin }}</p>',
         data() {
@@ -1001,7 +1002,7 @@ createApp({
       ayarBolum: ayarBolumCoz(typeof location !== 'undefined' ? location.hash : ''),
       ayarModAcik: hashtenGorunum() === 'ayar'
         && ayarBolumModul(ayarBolumCoz(typeof location !== 'undefined' ? location.hash : '')),
-      /* 3H-2 (ES1): Eslestirme bolumunun modulu (ekran/eslesme.js) — ayni desen */
+      /* 3H-2 (ES1): Eslestirme bolumunun modulu (ekran/eslesme_ekran.js) — ayni desen */
       eslesmeModAcik: hashtenGorunum() === 'ayar'
         && ayarBolumCoz(typeof location !== 'undefined' ? location.hash : '') === 'eslestirme',
       eslesmeUyari: null,          // ES4: {anahtar, d} — "kart tanimiyor" / modul inmedi (serit uyarisi)
