@@ -9397,6 +9397,22 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.82 🟢 3G KARŞILAŞTIRMA EKRANI (2026-10-02 akşam)
+
+Ajan, kararlar KR1–KR8 + uygulama kararları KU1–KU10 (spec). Seçim Kayıtlar listesinden (yalnız bu
+tarayıcıda kopyası olan, en fazla 6 oturum; seçilemeyenin kutusu kapalı ve sebebi etiketinde) →
+`#/karsilastir/<no>@kimlik,…` (kip ve kanal sorguda, `replaceState`). Tek grafik tek birim (V · I · W),
+x üç kip: başlangıçtan beri (K1) · saat · mAh (PU9 integrali). **Uydurma veri yok:** saati eksik/geri
+giden kayıt saat kipinde, boşluklu/negatif akımlı kayıt mAh kipinde dışarıda kalır ve sebebi lejantta
+yazar; imleç bir kaydın aralığı dışındaysa o kaydın değeri "—" (en yakın örneğe yapışmak kısa kayda
+değer uydururdu); birleşik CSV'de zamanlar ortak değil, enterpolasyon yok, kısa kayıt boş hücre.
+**Renk:** koyu takım kilitli olduğundan yeni belirteç yok; 1–3. kayıt düz V/A/W renkleri, 4–6. kayıt
+karışım + kesik çizgi (`grafik.js` `seri.desen`). Yalnız renkle en iyi altılının renk körlüğü benzetiminde
+en kötü çifti ΔE 10.8'di; renk + desenle aynı desenli her çift ΔE ≥ 16.8 (B7 üç görünümde protan/deutan/
+tritan ölçüyor). Bütçe: Kayıtlar zincirine yalnız `karsilastir.js` + `pil.js` (18.1 KB gzip); açılış kümesi
+değişmedi. Şeritte Karşılaştırma artık görünür (KR6). B7 677 → 721, yeni T3G 31/31, mutasyon 3G 22/22.
+Birleşik ağaçta bütün tarayıcı testleri yeşil, Edge sızıntısı 0. Zincir 21 yeşil.
+
 #### 5.12.81 🟢 3F PİL TESTİ EKRANI (2026-10-02 akşam)
 
 Ajan, kararlar PL1–PL7 + uygulama kararları PU1–PU17 (spec). `p0` emniyeti aynen (tek tık, onaysız,
