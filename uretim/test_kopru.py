@@ -18,6 +18,7 @@ Donanim GEREKMIYOR: yukari-akis olarak `KayitKart` kullaniliyor.
 """
 from __future__ import annotations
 
+import http.server
 import json
 import sys
 import threading
@@ -168,6 +169,395 @@ def gelistirme_sunucusu_sina() -> None:
     finally:
         s.shutdown()
         s.server_close()
+
+
+def kimlik_oku(url, basliklar=None, zaman_asimi=5.0):
+    """`/akis`in ilk `kimlik` olayini oku ve baglantiyi kapat."""
+    r = urllib.request.Request(url)
+    for a, d in (basliklar or {}).items():
+        r.add_header(a, d)
+    son = time.monotonic() + zaman_asimi
+    with urllib.request.urlopen(r, timeout=zaman_asimi) as y:
+        sonraki = False
+        while time.monotonic() < son:
+            sat = y.readline().decode("utf-8", "replace").rstrip("\r\n")
+            if sat.startswith("event: kimlik"):
+                sonraki = True
+            elif sat.startswith("data: ") and sonraki:
+                return json.loads(sat[6:])
+    return None
+
+
+# 4A (PC2): "yerel agdaki telefon" taklidi. YALNIZ istemci adresi degisiyor —
+# karar mantigi (hangi uc, hangi komut) gercek `Isleyici`de kaliyor. Adres
+# RFC 5737 belgeleme blogundan: kullanicinin agina ait hicbir adres depoda yok.
+LAN_ISTEMCI = "198.51.100.23"
+
+
+class _LanIsleyici(kopru_mod.Isleyici):
+    def _istemci_ip(self) -> str:
+        return LAN_ISTEMCI
+
+
+def _kos(kopru, taban_sinif=kopru_mod.Isleyici):
+    """Gecici sunucu; isleyici OZEL alt sinif (ana testin `Isleyici.kopru`su ezilmesin)."""
+    isleyici = type("TestIsleyici", (taban_sinif,), {"kopru": kopru})
+    s = kopru_mod.Sunucu(("127.0.0.1", 0), isleyici)
+    threading.Thread(target=s.serve_forever, daemon=True).start()
+    return s
+
+
+def pc_4a_sina(gec_dizin: Path, taban: str) -> None:
+    """4A — PC uygulamasinin ana sureci: koken, yerel ag, port, tek kopya.
+
+    Kararlar tasarim/2026-10-03-alt-proje-4-pc.md PC1-PC4 + "4A uygulama
+    kararlari". 🔴 Acik kapatiliyor: kopru eskiden 0.0.0.0'a baglaniyordu ve
+    yerel agdaki ILK istemci surucu olup USB'den `Ns`/`GF!`/`p1`/`R!`
+    gonderebiliyordu — kart USB'de kimlik sormadigi icin 1D tamamen atlaniyordu.
+    """
+    import os
+    import socket
+    import pc as pc_mod                                     # noqa: E402
+    import pc_ayar                                          # noqa: E402
+
+    print("\n--- 4A. PC1 koken + PC2 yerel ag salt okuma ---")
+    ok("PC1: koken http://olcum.localhost:8770 (tek yer: pc_ayar)",
+       pc_ayar.PORT == 8770 and pc_ayar.adres() == "http://olcum.localhost:8770",
+       pc_ayar.adres())
+    k3 = kopru_mod.Kopru(kart_baglanti.KayitKart([], yanitlar={"p0": ["* durdu"]}),
+                         gec_dizin / "arsiv_4a")
+    s_yerel = kopru_mod.sunucu_kur(k3, port=0)
+    ok("[!] PC2: kopru VARSAYILAN olarak yalniz 127.0.0.1'e baglaniyor (0.0.0.0 degil)",
+       s_yerel.server_address[0] == "127.0.0.1", str(s_yerel.server_address))
+    s_yerel.server_close()
+    s_lan = kopru_mod.sunucu_kur(k3, lan=True, port=0)
+    ok("PC2: --lan butun arayuzlere baglaniyor",
+       s_lan.server_address[0] == "0.0.0.0", str(s_lan.server_address))
+    s_lan.server_close()
+    ok("Windows: allow_reuse_address KAPALI (baska surecin portunu ele gecirmez)",
+       sys.platform != "win32" or kopru_mod.Sunucu.allow_reuse_address is False,
+       str(kopru_mod.Sunucu.allow_reuse_address))
+    # 🔴 Olculdu (2026-10-03): Windows'ta 127.0.0.1:P baskasindayken 0.0.0.0:P
+    #    baglamasi SO_EXCLUSIVEADDRUSE OLMADAN basarili oluyor; dongu trafigi
+    #    yine oteki surece gider ve kopru "acildi" der.
+    tutan = socket.socket()
+    tutan.bind(("127.0.0.1", 0))
+    tutan.listen()
+    tutulan = tutan.getsockname()[1]
+    try:
+        s2 = kopru_mod.sunucu_kur(k3, lan=True, port=tutulan)
+        s2.server_close()
+        cakisti = True
+    except OSError:
+        cakisti = False
+    tutan.close()
+    ok("[!] --lan: 127.0.0.1:P baskasindayken 0.0.0.0:P baglanamiyor (SO_EXCLUSIVEADDRUSE)",
+       not cakisti, "ikinci baglama reddedildi" if not cakisti else "IKI SUNUCU AYNI PORTTA")
+
+    dongu = {ip: kopru_mod.dongu_mu(ip) for ip in
+             ("127.0.0.1", "127.8.9.10", "::1", "::ffff:127.0.0.1",
+              LAN_ISTEMCI, "192.168.4.2", "::ffff:192.168.4.2", "fe80::1", "", "bozuk")}
+    ok("dongu_mu: yalniz 127/8, ::1 ve IPv4-esli 127 dongu sayilir; bozuk/bos adres DEGIL",
+       [ip for ip, d in dongu.items() if d] == ["127.0.0.1", "127.8.9.10", "::1", "::ffff:127.0.0.1"],
+       str(dongu))
+
+    # ── yerel ag istemcisi: GORUR, yalniz p0 gonderir ─────────────────
+    s_l = _kos(k3, _LanIsleyici)
+    lt = f"http://127.0.0.1:{s_l.server_address[1]}"
+    gorur = {y: istek(lt + y)[0] for y in ("/", "/app.js", "/durum", "/skop/liste",
+                                             "/ortak/ozet.js")}
+    ok("PC2: yerel ag istemcisi GOREBILIYOR (statik dosyalar + okuma uclari 200)",
+       all(c == 200 for c in gorur.values()), str(gorur))
+    kim = kimlik_oku(lt + "/akis")
+    ok("[!] PC2: yerel ag istemcisi /akis aliyor ama ASLA surucu olmuyor (surucu yokken bile)",
+       kim is not None and kim.get("surucu") is False and k3.surucu is None,
+       f"{kim} · k.surucu={k3.surucu}")
+    once = len(k3.kart.yazilanlar)
+    kod, _ = istek(lt + "/komut", b"p0", {"X-Olcum": "1"}, "POST")
+    ok("[!] PC2/O7: yerel ag istemcisinin `p0`u (DURDUR) jetonsuz GECIYOR",
+       kod == 204 and k3.kart.yazilanlar[once:] == ["p0"], f"HTTP {kod} · {k3.kart.yazilanlar[once:]}")
+    redler = {}
+    for komut in ("Nsyeni-parola", "GF!", "p1", "R!", "?", "Na ev", "t", "Ep telefon", "Qp x",
+                  "p0\nNs", "p00"):
+        kod, govde = istek(lt + "/komut", komut.encode(), {"X-Olcum": "1", "X-Jeton": kim["jeton"]
+                                                            if kim else "x"}, "POST")
+        redler[komut] = (kod, govde.decode("utf-8", "replace"))
+    ok("[!] PC2: yerel ag istemcisinin p0 DISINDAKI her komutu 403 (Ns, GF!, p1, R!, ?, Na, t, E, Q, gomulu p0)",
+       all(k_ == 403 for k_, _ in redler.values()),
+       " ".join(f"{c!r}={k_}" for c, (k_, _) in redler.items()))
+    ok("PC2: ret sebebi Turkce ve acik (salt okuma + p0 + bu bilgisayardan adres)",
+       all("salt okuma" in g and "p0" in g for c, (_, g) in redler.items()
+           if c in ("Nsyeni-parola", "GF!", "p1", "R!")),
+       redler["GF!"][1][:90])
+    ok("PC2: reddedilen hicbir komut karta ULASMADI",
+       k3.kart.yazilanlar[once:] == ["p0"], str(k3.kart.yazilanlar[once:]))
+    kod, _ = istek(lt + "/devral", b"", {"X-Olcum": "1", "X-Jeton": kim["jeton"] if kim else "x"},
+                   "POST")
+    ok("PC2: yerel ag istemcisi surucu DEVRALAMIYOR", kod == 403 and k3.surucu is None, f"HTTP {kod}")
+    once_t = len(k3.kart.yazilanlar)
+    kod, _ = istek(lt + "/skop.bin")
+    ok("[!] PC2: yerel ag istemcisi /skop.bin ile karta YAKALAMA YAPTIRAMIYOR (`t` gitmez)",
+       kod == 403 and k3.kart.yazilanlar[once_t:] == [], f"HTTP {kod} · {k3.kart.yazilanlar[once_t:]}")
+    s_l.shutdown()
+    s_l.server_close()
+
+    # ── dongu istemcisi: bugunku davranis aynen ──────────────────────
+    s_d = _kos(k3)
+    dt = f"http://127.0.0.1:{s_d.server_address[1]}"
+    kim_d = kimlik_oku(dt + "/akis")
+    once = len(k3.kart.yazilanlar)
+    kod1, _ = istek(dt + "/komut", b"p1", {"X-Olcum": "1", "X-Jeton": kim_d["jeton"] if kim_d else ""},
+                    "POST")
+    kod2, _ = istek(dt + "/komut", b"p1", {"X-Olcum": "1", "X-Jeton": "baskasi"}, "POST")
+    kod3, _ = istek(dt + "/komut", b"p0", {"X-Olcum": "1", "X-Jeton": "baskasi"}, "POST")
+    kod4, _ = istek(dt + "/komut", b"Ep x", {"X-Olcum": "1", "X-Jeton": kim_d["jeton"] if kim_d else ""},
+                    "POST")
+    ok("Dongu istemcisi DEGISMEDI: ilk baglanan surucu, surucunun p1'i gecer, yabancinin p1'i 403, "
+       "p0 herkese acik, E surucuye de kapali",
+       bool(kim_d and kim_d["surucu"]) and (kod1, kod2, kod3, kod4) == (204, 403, 204, 403)
+       and k3.kart.yazilanlar[once:] == ["p1", "p0"],
+       f"{(kod1, kod2, kod3, kod4)} · {k3.kart.yazilanlar[once:]}")
+    s_d.shutdown()
+    s_d.server_close()
+
+    # ── Host basligi: DNS yeniden baglama ────────────────────────────
+    # Dongu baglamasi tek basina yetmez: kotu bir site kendi adini 127.0.0.1'e
+    # cozdurup (DNS rebinding) AYNI KOKEN sayilir, X-Olcum basligini on-ucus
+    # olmadan ekleyebilir ve USB'den komut gonderirdi.
+    print("\n--- 4A. Host basligi (DNS yeniden baglama) ---")
+    port = taban.rsplit(":", 1)[1]
+    host = {}
+    for h in ("olcum.localhost:" + port, "localhost:" + port, "127.0.0.1:" + port,
+              "[::1]:" + port, "198.51.100.23:" + port, "kotu.example:" + port,
+              "olcum.local", "olcum.localhost.kotu.example:" + port):
+        host[h] = istek(taban + "/durum", basliklar={"Host": h})[0]
+    ok("[!] Host yalniz localhost / *.localhost / IP: tanimadik ad 403 (kotu.example, olcum.local, "
+       "*.localhost.kotu.example)",
+       [h for h, c in host.items() if c == 200] == list(host)[:5]
+       and all(c == 403 for h, c in list(host.items())[5:]), str(host))
+    kod, _ = istek(taban + "/komut", b"p0", {"X-Olcum": "1", "Host": "kotu.example:" + port}, "POST")
+    kod_iyi, _ = istek(taban + "/komut", b"p0", {"X-Olcum": "1", "Host": "olcum.localhost:" + port},
+                       "POST")
+    ok("Yabanci Host'tan komut karta gitmiyor; panelin kendi kokeninden p0 geciyor",
+       kod == 403 and kod_iyi == 204, f"kotu={kod} olcum.localhost={kod_iyi}")
+
+    # ── gizli satir suzgeci (D5 #12) ─────────────────────────────────
+    print("\n--- 4A. EK / parola satiri suzgeci (onekli, bolunmus) ---")
+    K1 = "0123456789abcdef" * 4          # deneme anahtarlari — gercek degil
+    K2 = "fedcba9876543210" * 4
+    # Her katman AYRI sinaniyor (biri kalkinca oteki ortmesin — mutasyon 4A):
+    #   isaret (onekli EK) · pencere (24'ten kisa parca) · USB isareti · uzun hex.
+    girdi = [
+        "D 1.0",
+        "W (1234) wifi: bekle EK 3 " + K1,          # TAM ve onekli: yalniz bu satir duser
+        "* E: USB'den cihaz 3 eklendi",              # gecer (tam EK'de pencere yok)
+        "D 2.0",
+        "W (1300) wifi: x EK 4 I (1301) araya girdi",  # onekli VE eksik: anahtar alt satirlarda
+        K2[:20],                                     # 20 hex (< 24): YALNIZ pencere yakalar
+        K2[20:40],
+        "D 3.0",
+        "   AP parolasi (yalniz USB): ",             # parola alt satira dustu
+        "OrnekParola-12",
+        "* web parolasi: KURULU",
+        "D 4.0",
+        "E zorunlu=0 misafir=1 tur=20000 kimlik=0a1b2c3d4e5f6789 saat=1 cihaz=1",
+        "K 1735689600123456789 1503 0",
+        "x " + K1[10:40],                            # pencere disinda 30 hex: YALNIZ hex kurali
+        K2[40:],                                     # 24 hex: YALNIZ hex kurali
+        "D 5.0",
+    ]
+    beklenen = ["D 1.0", girdi[2], "D 2.0", "D 3.0", "D 4.0", girdi[12], girdi[13], "D 5.0"]
+    kart4 = kart_baglanti.KayitKart(list(girdi))
+    kart4.ac()
+    k4 = kopru_mod.Kopru(kart4, gec_dizin / "arsiv_4a_ek")
+    yayilan: list[str] = []
+    k4.yayinla = yayilan.append
+    threading.Thread(target=k4.dongu, daemon=True).start()
+    son = time.monotonic() + 4.0
+    while len(yayilan) < len(beklenen) and time.monotonic() < son:
+        time.sleep(0.02)
+    time.sleep(0.3)
+    k4.calisiyor = False
+    time.sleep(0.6)
+    k4.arsiv.kapat()
+    arsiv4 = list(k4.arsiv.ham_satirlar())
+    parcalar = [x[i:i + 12] for x in (K1, K2) for i in range(0, 64, 4)] + ["OrnekParola", "EK "]
+    sizan = sorted({p for p in parcalar for s in yayilan + arsiv4 if p in s})
+    ok("[!] D5 #12: onekli/bolunmus EK anahtari ve USB'ye ozel parola YAYINLANMIYOR, ARSIVLENMIYOR",
+       not sizan, f"sizan: {sizan}" if sizan else "hicbir 12'lik parca yok")
+    ok("Suzgec olcumu yemiyor: pencere disindaki satirlar (16 hex kimlik, uzun ondalik) GECIYOR",
+       yayilan == beklenen, str(yayilan))
+    k4.durdur()
+
+    # ── PC3: port VID'den ────────────────────────────────────────────
+    print("\n--- 4A. PC3 COM portu VID'den ---")
+
+    def sec(portlar):
+        try:
+            return kart_baglanti.kart_portu_sec(portlar), ""
+        except RuntimeError as e:
+            return None, str(e)
+
+    p, _ = sec({"COM3": "303A", "COM6": "1A86"})
+    ok("[!] PC3: kopru cipli port (1A86) seciliyor, yerel USB (303A) secilmiyor", p == "COM6", str(p))
+    p_, n_ = sec({"COM3": "303A"})
+    ok("[!] PC3: yalniz 303A varsa SECILMIYOR; mesaj yanlis soketi soyluyor",
+       p_ is None and "303A" in n_ and "COM" in n_ and "soket" in n_, n_[:110])
+    p_, n_ = sec({"COM6": "1A86", "COM9": "10C4"})
+    ok("PC3: iki kopru cipli port -> secmiyor, ikisini de sayip --port istiyor",
+       p_ is None and "COM6" in n_ and "COM9" in n_ and "--port" in n_, n_[:110])
+    p_, n_ = sec({})
+    ok("PC3: port yoksa acik mesaj", p_ is None and "bulunamadi" in n_, n_[:80])
+    p, _ = sec({"COM4": None, "COM7": "0403", "COM8": "1A86/303A"})
+    ok("PC3: VID'i bilinmeyen / belirsiz port secilmiyor (FTDI 0403 seciliyor)", p == "COM7", str(p))
+    eski = kart_baglanti.portlar_vid
+    try:
+        # 303A bilerek SON sirada: eski kural "son port"tu
+        kart_baglanti.portlar_vid = lambda: {"COM250": "1A86", "COM251": "303A"}
+        try:
+            kart_baglanti.SeriKart(None).ac()
+            m = "acildi?!"
+        except RuntimeError as e:
+            m = str(e)
+        ok("PC3: SeriKart(port yok) VID secimini kullaniyor (COM250'yi deniyor, sondaki 303A'yi degil)",
+           "COM250" in m and "COM251" not in m, m[:100])
+        try:
+            kart_baglanti.SeriKart("COM251").ac()
+            m = "acildi?!"
+        except RuntimeError as e:
+            m = str(e)
+        ok("PC3: elle verilen 303A port da REDDEDILIYOR (sessiz soket)", "303A" in m, m[:100])
+    finally:
+        kart_baglanti.portlar_vid = eski
+
+    # Mesgul port: kopru o portu tutuyorsa mesaj BUNU soyler.
+    class _KopruKarti(kart_baglanti.KayitKart):
+        ad = "seri:COM250@115200"
+
+    k5 = kopru_mod.Kopru(_KopruKarti([]), gec_dizin / "arsiv_4a_mesgul")
+    s_m = _kos(k5)
+    mp = s_m.server_address[1]
+    m_kopru = kart_baglanti.acma_hatasi("COM250", 5, kopru_portlari=(mp,))
+    m_baska = kart_baglanti.acma_hatasi("COM251", 5, kopru_portlari=(mp,))
+    m_yok = kart_baglanti.acma_hatasi("COM250", 2, kopru_portlari=(mp,))
+    s_m.shutdown()
+    s_m.server_close()
+    ok("[!] PC3: port mesgul VE kopru tutuyor -> 'kopru bu portu kullaniyor — kapat'",
+       "kopru bu portu kullaniyor" in m_kopru and "kapat" in m_kopru, m_kopru[:110])
+    ok("PC3: baska program tutuyorsa kopruyu SUCLAMIYOR (ama olasiligi soyluyor)",
+       "kopru bu portu kullaniyor" not in m_baska and "mesgul" in m_baska, m_baska[:110])
+    ok("PC3: WinError 2 'port yok' olarak kaliyor", "port yok" in m_yok, m_yok[:80])
+
+    # ── PC4: tek kopya, sessiz kip, hata izi ─────────────────────────
+    print("\n--- 4A. PC4 tek ana surec ---")
+    k6 = kopru_mod.Kopru(kart_baglanti.KayitKart([]), gec_dizin / "arsiv_4a_tek")
+    s_t = _kos(k6)
+    tp = s_t.server_address[1]
+    class _SessizHttp(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *a):          # "kopru degil" sunucusu: 404 gunlugu gurultu
+            pass
+
+    baska = _kos(None, _SessizHttp)
+    bp = baska.server_address[1]
+    bos = socket.socket()
+    bos.bind(("127.0.0.1", 0))
+    yp = bos.getsockname()[1]
+    bos.close()
+    ok("zaten_calisiyor: kopru varsa True, baska HTTP sunucusu / bos port False",
+       pc_mod.zaten_calisiyor(tp) and not pc_mod.zaten_calisiyor(bp)
+       and not pc_mod.zaten_calisiyor(yp), f"kopru={tp} baska={bp} bos={yp}")
+    acilan: list[str] = []
+    t0 = time.monotonic()
+    rc = pc_mod.calistir(["--http-port", str(tp)], tarayici_ac=acilan.append)
+    ok("[!] PC4: kopru calisirken ikinci kopya BASLAMIYOR, yalniz tarayiciyi aciyor",
+       rc == 0 and acilan == [pc_ayar.adres(tp) + "/"] and time.monotonic() - t0 < 5,
+       f"rc={rc} acilan={acilan}")
+    acilan.clear()
+    rc = pc_mod.calistir(["--http-port", str(tp), "--sessiz"], tarayici_ac=acilan.append)
+    ok("PC4: --sessiz ikinci kopya tarayici da acmadan cikiyor", rc == 0 and acilan == [],
+       f"rc={rc} acilan={acilan}")
+    rc = pc_mod.calistir(["--http-port", str(tp), "--kayit", "yok.satir"], tarayici_ac=acilan.append)
+    ok("PC4: olu tekrar canli kopruyle carpisinca tarayici ACMIYOR, hata veriyor (baska port onerir)",
+       rc != 0 and acilan == [], f"rc={rc}")
+    hata_dizini = gec_dizin / "pc_dizin"
+    eski_env = os.environ.get("OLCUM_PC_DIZIN")
+    os.environ["OLCUM_PC_DIZIN"] = str(hata_dizini)
+    try:
+        rc = pc_mod.main(["--sessiz", "--http-port", str(bp), "--kayit", "yok.satir"])
+    finally:
+        if eski_env is None:
+            os.environ.pop("OLCUM_PC_DIZIN", None)
+        else:
+            os.environ["OLCUM_PC_DIZIN"] = eski_env
+    iz = hata_dizini / "arkaplan-hata.txt"
+    ok("[!] PC4: --sessiz cokuste iz OLCUM_PC_DIZIN/arkaplan-hata.txt'e yaziliyor",
+       rc == 1 and iz.is_file() and str(bp) in iz.read_text(encoding="utf-8"),
+       f"rc={rc} {iz.name if iz.is_file() else 'iz YOK'}")
+    s_t.shutdown()
+    s_t.server_close()
+    baska.shutdown()
+    baska.server_close()
+
+    os.environ.pop("OLCUM_PC_DIZIN", None)
+    vd = pc_ayar.veri_dizini()
+    if eski_env is not None:
+        os.environ["OLCUM_PC_DIZIN"] = eski_env
+    yerel = os.environ.get("LOCALAPPDATA", "")
+    ok("PC5: veri dizini kullanici basina, depo DISINDA (%LOCALAPPDATA%\\olcum-karti)",
+       vd.name == "olcum-karti" and (not yerel or str(vd).startswith(yerel))
+       and KOK.resolve() not in vd.resolve().parents, str(vd.name))
+
+    # ── kart takili degilken de acilir, kopunca yeniden baglanir ─────
+    print("\n--- 4A. Kart yokken acilis + kopunca yeniden baglanma ---")
+    durum = {"var": False, "kurulan": 0}
+
+    class _Sahte(kart_baglanti.KayitKart):
+        kopuk = False
+
+    def kurucu(port):
+        durum["kurulan"] += 1
+        if not durum["var"]:
+            raise RuntimeError("COM portu bulunamadi — kart takili mi?")
+        return _Sahte(["D 9.0"])
+
+    bildirim: list[str] = []
+    oto = kart_baglanti.OtoSeriKart(None, aralik=0.0, kurucu=kurucu)
+    oto.bildir = bildirim.append
+    oto.ac()
+    bos_okuma = [oto.satir_oku(0.01) for _ in range(5)]
+    ok("[!] PC4: kart takili DEGILKEN acilis cokmuyor; 'bulunamadi' BIR KEZ soyleniyor (spam yok)",
+       bos_okuma == [None] * 5 and len(bildirim) == 1 and "bulunamadi" in bildirim[0],
+       str(bildirim))
+    durum["var"] = True
+    gelen = [oto.satir_oku(0.01) for _ in range(3)]
+    ok("Kart takilinca kendiliginden baglaniyor ve satir akiyor",
+       "D 9.0" in gelen and any("baglandi" in b for b in bildirim), f"{gelen} · {bildirim[-1:]}")
+    oto._kart.kopuk = True
+    k_once = durum["kurulan"]
+    [oto.satir_oku(0.01) for _ in range(3)]
+    ok("Kart kopunca soyleniyor ve YENIDEN aciliyor",
+       any("koptu" in b for b in bildirim) and durum["kurulan"] > k_once, str(bildirim))
+    hata = ""
+    oto2 = kart_baglanti.OtoSeriKart(None, aralik=60.0, kurucu=lambda p: (_ for _ in ()).throw(
+        RuntimeError("COM portu bulunamadi")))
+    oto2.ac()
+    try:
+        oto2.yaz("?")
+    except Exception as e:                              # noqa: BLE001
+        hata = str(e)
+    ok("Kart yokken komut ACIK hatayla reddediliyor (sessizce kaybolmuyor)",
+       "bagli degil" in hata, hata[:80])
+    # Durum satiri BIR KEZ yayinlaniyor; o an abonesi olmayan (acilistan sonra
+    # gelen tarayici) onu ancak /akis'e baglaninca alabilir.
+    k7 = kopru_mod.Kopru(oto2, gec_dizin / "arsiv_4a_oto")
+    s_o = _kos(k7)
+    gelen7, _ = akis_oku(f"http://127.0.0.1:{s_o.server_address[1]}/akis", 1, zaman_asimi=4.0)
+    s_o.shutdown()
+    s_o.server_close()
+    ok("[!] Kart yokken SONRADAN baglanan tarayici da 'kart bulunamadi'yi goruyor",
+       len(gelen7) == 1 and "bulunamadi" in gelen7[0], str(gelen7))
+    ok("Durum satiri kart baglaninca temizleniyor (eski hata yeni gelene gosterilmez)",
+       oto.durum_satiri is None, str(oto.durum_satiri))
 
 
 def main() -> int:
@@ -581,6 +971,8 @@ def main() -> int:
        f"{yayilan} | arsiv {arsiv2}")
     k2.durdur()
 
+    pc_4a_sina(gec_dizin, taban)
+
     k.calisiyor = False
     time.sleep(0.25)
     sunucu.shutdown()
@@ -596,13 +988,24 @@ def main() -> int:
          "Kopru acilinca kart yeniden BASLAMAMALI (acilis banneri "
          "gorunmemeli). Iki hat da bilerek DISABLE; reset atiyorsa devre "
          "otomatik-reset'e bagli ve pil testi kopru acilisinda OLUR"),
-        ("Windows 0.0.0.0:80 / stok-takip cakismasi",
-         "stok-takip 127.0.0.1:80'i tutuyor. Kopru `http://<LAN-IP>` "
-         "yazmali; `127.0.0.1` yazarsa kullaniciyi STOK arayuzune yollar "
-         "(bu makinede gercekten oldu, 5.12.36)"),
-        ("Telefon koprude uctan uca",
-         "Telefondan http://<PC-IP> -> tam arayuz, canli olcum. Iki "
-         "tarayici ayni anda izlerken YALNIZCA biri surucu olmali"),
+        ("4A: panel http://olcum.localhost:8770 (stok-takip ile carpisma yok)",
+         "`kopru/PC Baslat.bat` -> tarayici olcum.localhost:8770'i acmali, panel "
+         "kendiliginden baglanmali (stok-takip 127.0.0.1:80; farkli port, farkli ad). "
+         "2026-10-03 COM6'da kosuldu: VID secimi COM6 (1A86), akista D satirlari, Host "
+         "denetimi, mesgul port mesaji 'PC kopru bu portu kullaniyor', ikinci kopya acilmadi"),
+        ("4A: telefon `--lan` ile SALT OKUMA",
+         "`python kopru/pc.py --lan` -> telefondan http://<PC-IP>:8770 canli olcumu "
+         "gostermeli; `p0` (DURDUR) gecmeli, baska her komut 403 'yerel agdan salt "
+         "okuma'. Komut icin telefon karta DOGRUDAN baglanir (olcum.local). Iki "
+         "tarayici ayni anda izlerken YALNIZCA bu bilgisayardaki surucu olmali"),
+        ("4A: Baslangic kisayolu",
+         "`kopru/Otomatik Baslat Kur.bat` -> oturumu kapat/ac -> pythonw arka planda, "
+         "olcum.localhost:8770 acilir; kart takili degilken de acilir, takilinca akis "
+         "baslar. `Otomatik Baslatmayi Kapat.bat` kisayolu siler (kurulum kullanicinin)"),
+        ("4A: USB kablosu cek / tak",
+         "Kopru acikken kabloyu cek: akista BIR KEZ '! kopru: kart baglantisi koptu'; "
+         "tak: '* kopru: kart baglandi' ve D satirlari geri gelir. ReadFile'in kopmada "
+         "FALSE dondugu gercek CH343'te SINANMADI (OtoSeriKart sahte kartla sinaniyor)"),
         ("p0 (DURDUR) izleyiciden de geciyor mu",
          "Surucu OLMAYAN sekmeden pil testini durdur. Gecmeli — bu bir "
          "kolaylik degil EMNIYET karari"),

@@ -21,8 +21,10 @@ SESSIZCE BOS sonuc verdigini bildirdi; kendi taramam da bu yuzden
 "temiz" demisti. Bu betik saf Python okur — desen basina tek gecis.
 
 NE ARANIR / NE ARANMAZ
-  ARANIR : mutlak Windows yollari (kullanici klasoru ya da proje koku),
-           WiFi/AP/web parolalari, e-posta adresleri, tam MAC adresleri
+  ARANIR : mutlak Windows yollari (kullanici klasoru ya da proje koku; ters
+           VE duz egik cizgili, her surucu harfi),
+           koda gomulu parolalar (`..parola = "..."`), e-posta adresleri,
+           tam MAC adresleri
   ARANMAZ: `Muhammet933321` (GitHub kullanici adi, zaten aleni),
            LICENSE'taki telif sahibi adi, `192.168.4.1` (ESP32 SoftAP
            evrensel varsayilani), `Path.home()` / `LOCALAPPDATA` gibi
@@ -42,15 +44,25 @@ KOK = BURASI.parent
 B = chr(92)
 
 # (ad, derlenmis desen, aciklama)
+# 4A: surucu harfinin onunde harf/rakam olmamali ("http://" icindeki "p:/" yol degil).
+SURUCU = r"(?<![A-Za-z0-9])[A-Za-z]:"
+
 DESENLER = [
     ("Mutlak Windows yolu (kullanici klasoru)",
-     re.compile(r"[Cc]:" + re.escape(B) + r"{1,2}[Uu]sers" + re.escape(B),
+     re.compile(SURUCU + re.escape(B) + r"{1,2}[Uu]sers" + re.escape(B),
                 re.I),
      "kullanici hesap adini acik eder"),
     ("Mutlak Windows yolu (proje koku)",
-     re.compile(r"[Cc]:" + re.escape(B) + r"{1,2}[Mm]uhammet" + re.escape(B),
+     re.compile(SURUCU + re.escape(B) + r"{1,2}[Mm]uhammet" + re.escape(B),
                 re.I),
      "diskteki klasor duzenini acik eder; klonlayan icin de ISE YARAMAZ"),
+    # 🔴 4A: yukaridaki iki desen yalniz TERS egik cizgiyi ariyordu. Python/JS
+    #    yollari cogu zaman surucu + `:/Users/<ad>/...` diye yazilir (Path.as_posix(),
+    #    Git Bash ciktisi, kesif notlari) ve HICBIRI yakalanmiyordu.
+    ("Mutlak Windows yolu (duz egik cizgi: kullanici / ev / proje koku)",
+     re.compile(SURUCU + r"/+(?:Users|home|Documents and Settings|Muhammet)(?:/|\b)",
+                re.I),
+     "ayni iz, duz egik cizgili yazimla — hesap adini ve klasor duzenini acik eder"),
     ("E-posta adresi",
      re.compile(r"[\w.+-]+@[\w-]+\.[\w.]{2,}"),
      "commit yazari ayri — bu, DOSYA ICINDEKI adres"),
@@ -65,6 +77,67 @@ BEYAZ = (
     "noreply@anthropic.com",
     "users.noreply.github.com",
 )
+
+
+# ── 4A: koda gomulu parola ───────────────────────────────────────────
+# Adi parola/sifre/password ile BITEN bir alana (`x.parola = "..."`,
+# `"parola": "..."`, `WEB_PAROLA = '...'`) yazilmis duz metin. `parola_hex`,
+# `sifreli` gibi adlar (ozet / sifreli veri) aranmaz.
+PAROLA = re.compile(
+    r"""(?i)\b\w*(?:parola|sifre|şifre|password|passwd)["']?\s*[:=]\s*[bfr]?"""
+    r"""(["'])(?P<d>[^"'\n]{4,})\1""")
+# Deneme parolasi oldugu GORULEN degerler: bu sozcuklerden birini iceren,
+# 4+ ayni karakter tekrari, ya da sozluk anahtari ("es.parola").
+# ⚠ Yeni bir test parolasi yazarken bu sozcuklerden birini kullanin
+#   ("sinama-parolasi-12"); kullanicinin gercek parolasi hicbirine uymaz
+#   varsayimi BURADA yazili — "kart", "1234" gibi gercek parolada da gecebilecek
+#   parcalar bilerek listede YOK.
+PAROLA_DENEME = ("sinama", "sınama", "deneme", "test", "ornek", "örnek", "gizli",
+                 "dogru", "doğru", "yanlis", "yanlış", "sahte")
+PAROLA_TEKRAR = re.compile(r"(.)\1{3,}")
+PAROLA_SOZLUK = re.compile(r"^[a-z]{1,6}\.[a-z0-9_.]+$")
+# Tek tek bilinen deneme degerleri (desen degil, TAM deger) ve gerekcesi.
+PAROLA_BEYAZ = {
+    "Ölçüm-kartı1": "ortak/ kripto capraz vektorlerinin belgelenmis proje parolasi "
+                    "(ortak_vektor_kripto.PROJE_PAROLA, UTF-8 sinamasi)",
+    "p@ss:1": "uretim/avr/ornek_kayit.c MQTT CONNECT paket sinamasi (ozel karakter)",
+}
+# Uretilmis capraz vektor dosyalari: ureten betikler (taranan .py) zaten
+# denetleniyor; RFC 6070/7914 PBKDF2 vektorleri ("password", "passwd") burada.
+PAROLA_ATLA = ("ortak/test/vektor/", "uretim/vektor_guvenlik.json")
+
+
+def parola_deneme_mi(deger: str) -> bool:
+    d = deger.lower()
+    return (deger in PAROLA_BEYAZ or any(s in d for s in PAROLA_DENEME)
+            or bool(PAROLA_TEKRAR.search(deger)) or bool(PAROLA_SOZLUK.match(deger)))
+
+
+def parola_tara(dosyalar) -> int:
+    bulgu = []
+    for f in dosyalar:
+        if f.startswith(PAROLA_ATLA) or not f.endswith(METIN_UZANTI):
+            continue
+        p = KOK / f
+        if not p.exists():
+            continue
+        try:
+            metin = p.read_bytes().decode("utf-8", "replace")
+        except OSError:
+            continue
+        for i, satir in enumerate(metin.splitlines(), 1):
+            for m in PAROLA.finditer(satir):
+                if not parola_deneme_mi(m.group("d")):
+                    # Degeri BASMA: gercek bir parolaysa cikti da sizinti olur.
+                    bulgu.append((f, i, m.group(0)[:m.start("d") - m.start()] + "<...>"))
+    if bulgu:
+        print(f"  [!!] Koda gomulu parola: {len(bulgu)} gecis — gercek parola depoya "
+              f"girmez; deneme degeriyse 'sinama'/'deneme' gibi bir sozcuk kullanin")
+        for f, i, s in bulgu[:8]:
+            print(f"         {f}:{i}  {s}")
+    else:
+        print("  [OK] Koda gomulu parola: temiz")
+    return len(bulgu)
 
 
 def _gitignore_desenleri() -> list[str]:
@@ -195,6 +268,7 @@ def main() -> int:
             print(f"  [OK] {ad}: temiz")
 
     kk = kontrol_karakteri_tara(dosyalar)
+    toplam += parola_tara(dosyalar)
 
     print()
     if kk:

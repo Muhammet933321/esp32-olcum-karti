@@ -50,6 +50,38 @@ paralel.
 | PC17 | **PWA kabuğu:** service worker yalnız güvenli bağlamda kaydolur; kabuk + `/ortak/` için AĞ ÖNCE (önbellek yedek), `/akis`, `/komut`, `/arsiv`, `/kayit`, API ASLA önbelleklenmez; köprü yoksa "köprü çalışmıyor" sayfası; 192/512 px (maskable) simge, manifest `id`/`scope` | Derleme adımı yok: bayat kabuk, karttaki panelle sürüm ayrışması demek |
 | PC18 | **Ö4'ün PC karşılığı:** hedef 10 s, kabul 15 s (telefonla aynı); ölçümü gerçek aracıda kullanıcı yapar (parolalar onda) | Spec PC tarafına sayı vermiyordu |
 
+### 4A uygulama kararları (2026-10-03)
+
+**PC1 ölçümü (kesinleşti).** Edge 154 başlıksız, sunucu yalnız `127.0.0.1:8770`'e bağlı:
+`http://olcum.localhost:8770/` isteği 127.0.0.1'deki sunucuya ulaştı (`Host: olcum.localhost:8770`),
+`isSecureContext === true`, deneme service worker'ı kaydoldu ve yeniden yüklemede sayfayı denetledi
+(`controller` var). Yedek köken (`127.0.0.1:8770`) gerekmedi. İşletim sistemi `*.localhost`'u
+**çözmüyor** (`getaddrinfo` hata) — yalnız tarayıcı çözüyor; Python tarafı köprüye hep `127.0.0.1` ile
+bağlanır. Ölçüm her koşuda `uretim/tarayici_pc.py` (T4A) ile tekrarlanıyor: gerçek `sunucu_kur` +
+gerçek panel, panel bu kökende taşıyıcıyı kendiliğinden `akis` seçip "Bağlan"sız bağlanıyor.
+Panelde değişiklik gerekmedi: `kopruyuAlgila`/`otomatikBaglanmali` yalnız düz `localhost`'u
+geliştirme sunucusu sayıyor; `olcum.localhost` sayfayı sunan köprü — B7'ye iki iddia eklendi.
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4A-1 | **Port 8770 sabit, başka porta düşülmez** (eski zincir 0.0.0.0:80 → LAN IP:80 → 8770 kalktı). Port meşgulse açık hata; `--http-port` yalnız ölü tekrar / test için | Köken porta bağlı: IndexedDB, service worker, izinler kökende. Düşülseydi panelin yerel verisi her açılışta başka kökende kalırdı |
+| 4A-2 | **Döngü dışı istemci HER kipte salt okuma** (yalnız `--lan`'da değil): sürücü olamaz, `/devral` 403, `/skop.bin` 403 (canlı yakalama karta `t` yollatır — okuma değil komut), `/komut`'ta yalnız tam `p0`; `X-Olcum` başlığı p0 için de kalır (CSRF, kimlik değil) | Varsayılan bağlama zaten 127.0.0.1; kural bağlamaya güvenmesin (derinlemesine savunma). `p0` sıra olarak salt okuma denetiminden ÖNCE — Ö7 |
+| 4A-3 | **Host başlığı denetimi:** yalnız `localhost`, `*.localhost`, IP adresi; diğer ad 403, başlıksız istek kabul | Döngü bağlaması DNS yeniden bağlamaya karşı korumaz: kötü bir site adını 127.0.0.1'e çözdürüp aynı köken sayılır, `X-Olcum`'u ön-uçuşsuz ekler ve USB'den `Ns`/`GF!` yollatır. Telefonlar IP ile gelir — etkilenmez |
+| 4A-4 | **Windows'ta `SO_EXCLUSIVEADDRUSE`** (+ `allow_reuse_address = False`) | Ölçüldü: 127.0.0.1:P başka süreçteyken 0.0.0.0:P bağlaması bu bayrak olmadan BAŞARILI; `--lan` köprüsü "açıldı" der, döngü trafiği öteki sürece gider |
+| 4A-5 | **Gizli satır süzgeci (D5 #12):** `EK <n>` her yerde (önekli de), eksik `EK` ya da `(yalniz USB)` satırından sonra 2 satır pencere, pencere dışında harf içeren ≥ 24 onaltılık dizi düşer; 16'lık kart kimliği ve uzun ondalık sayılar geçer. Tam `EK` satırında pencere açılmaz | **Bulunan açık:** firmware AP parolasını (`N?` ve AP kipindeki açılış afişi) "yalnız USB" diye ham UART'a basıyor, köprü ham UART'ı okuduğu için o satırı `/akis`'e ve arşive taşıyordu. Kök düzeltme (tek `ham()` çağrısı) firmware işi → 4B'ye |
+| 4A-6 | **VID seçimi:** kayıt defteri `Enum\USB` + `Enum\FTDIBUS` ∩ `SERIALCOMM` (takılı olanlar); aynı COM'a iki VID düşerse belirsiz → seçilmez; elle verilen 303A da reddedilir | Enum takılı olmayan eski aygıtları tutuyor (bu makinede COM3/COM5 eski CH340). 303A portu açılır ama sessiz kalır |
+| 4A-7 | **Meşgul port mesajı `kart_baglanti.acma_hatasi`'nda** (bütün araçların açma yolu): WinError 5'te 127.0.0.1:8770/`durum`'a sorulur; köprü o portu tutuyorsa "PC kopru bu portu kullaniyor — kapatin" | Tek yerde; tezgah araçları sessizce "açılamadı" demesin. Gerçek kartta (COM6) doğrulandı |
+| 4A-8 | **`OtoSeriKart`:** köprü kart takılı değilken de açılır, port VID'den yeniden aranır (3 s), kopunca (`ReadFile`/`WriteFile` FALSE → `SeriKart.kopuk`) kapatıp yeniden arar; durum satırları akışa BİR KEZ, arşive hiç; kart yokken son durum satırı sonradan bağlanan tarayıcıya da `/akis` açılışında gönderilir | Başlangıç kısayolu kartsız açılışta ölmesin. ⚠ Gerçek kabloyu çekip takma tezgah kalemi (sahte kartla sınandı) |
+| 4A-9 | **`kopru.py`'nin `main`'i `pc.py`'ye devreder** — eski komut ve seçenekler çalışır; ön planda tarayıcı açılır (stok-takip deseni), `--tarayici-acma` ile kapanır | Tek giriş noktası; iki ayrı `main` ayrışırdı |
+| 4A-10 | **`.satir` arşivinin yeri DEĞİŞMEDİ** (`kopru/arsiv/`, gitignore'da); 4A'da depo dışına taşınan yalnız çökme izi (`%LOCALAPPDATA%\olcum-karti\arkaplan-hata.txt`, `OLCUM_PC_DIZIN`) | PC5 yeni arşivle (4C) birlikte; şimdi taşımak kullanıcının mevcut B35 arşivini "kaybolmuş" gösterirdi (PC12 onu salt okuma eski arşiv yapıyor) |
+| 4A-11 | **Başlangıç kısayolu araçları var, KURULMADI:** `kopru/Otomatik Baslat Kur.bat` / `Otomatik Baslatmayi Kapat.bat` → `otomatik-baslat.ps1` (gerçek `pythonw.exe` yolunu `sys.executable`'dan bulur; WindowsApps takma adı değil). Kısayol, kurulumun yapıldığı çalışma ağacının `pc.py`'sini gösterir | Kurulum kullanıcının kararı. Birden çok çalışma ağacı var — betik yolu ekrana yazar |
+| 4A-12 | **`sunucu_kur` her sunucuya özel işleyici alt sınıfı** kurar (`Isleyici.kopru` paylaşılan sınıf niteliği değil) | Aynı süreçte iki sunucu (test, ölü tekrar) birbirinin köprüsünü eziyordu |
+| 4A-13 | **`gizlilik_dogrula.py`:** düz eğik çizgili mutlak yol (her sürücü harfi + `Users`/`home`/`Muhammet`), ters eğik çizgili desenler de her sürücü harfine genişledi; gömülü parola = adı parola/sifre/password ile BİTEN alana yazılmış ≥ 4 karakterlik düz metin. Deneme değeri işareti: `sinama`/`deneme`/`test`/`ornek`/`gizli`/`dogru`/`yanlis`/`sahte`, 4+ tekrar, sözlük anahtarı (`es.parola`) ya da tam değer beyaz listesi (iki kayıt, gerekçeli); üretilmiş çapraz vektör JSON'ları atlanır (üreten `.py` taranıyor). Bulunan değer EKRANA BASILMAZ | "kart", "1234" gibi gerçek parolada da geçebilecek parçalar bilerek işaret değil. Yeni test parolası işaret sözcüğü taşımalı |
+
+Açık kalanlar (4A dışı): `yukle.py`, `tezgah_kart.py`, `arayuz-yaz.py` kendi port seçicileriyle (`portlari_listele`)
+hâlâ VID'e bakmıyor — açma yolunda meşgul port mesajı var ama otomatik seçim eski; yerel ağ istemcisine panelde
+"salt okuma" arayüzü yok (403 metni görünür) — 4D/4F.
+
 ## Güvenlik (kalıcı kurallar)
 
 - `p0` her yeni katmanda serbest (LAN salt okuma, vekil, imza zorunluluğu): her birine iddia + mutasyon.

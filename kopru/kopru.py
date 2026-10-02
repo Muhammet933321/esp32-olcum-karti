@@ -1,20 +1,36 @@
 # -*- coding: utf-8 -*-
 """PC KOPRUSU — kart ile tarayicilar arasinda role, arsiv ve surucu hakemi.
 
-    python kopru/kopru.py                 # portu otomatik bul, karti otomatik sec
+    python kopru/pc.py                    # PC uygulamasi (onerilen giris noktasi)
+    python kopru/kopru.py                 # ayni sey (eski komut, pc.py'ye devreder)
     python kopru/kopru.py --port COM7
-    python kopru/kopru.py --kayit arsiv/2026-09-10.satir    # olu tekrar
+    python kopru/kopru.py --kayit arsiv/2026-09-10.satir --http-port 8771   # olu tekrar
+    python kopru/kopru.py --lan           # yerel aga SALT OKUMA (yalniz p0)
+
+Panel: http://olcum.localhost:8770 (yalniz bu bilgisayar; `pc_ayar.py` PC1).
 
 🔴 KOPRUNUN ASIL DEGERI GUZEL ARAYUZ DEGIL, ROLE OLMASI.
 
-Karta baglanan HER tarayici olcumu dogrudan bozuyor: her HTTP istegi
-`loop()`'u bloklyor (`/pil` tipik 25-200 ms) ve blokaj 1 s'yi gecerse
-`enerji_biriktir` o araligi TAMAMEN ATIYOR. Ustelik kartin SSE'si tek
-istemcilik. Kopru N tarayiciyi 1'e indiriyor: kart tek bir istemciye
-hizmet ediyor, tarayici trafigini PC emiyor.
+Kopru kartin USB satir akisini N tarayiciya cogaltiyor ve PC tarafinda
+arsivliyor: tarayicilar karta degil kopruye baglanir, kartin `loop()`'u
+tarayici trafigini hic gormez. USB'de kartin WiFi'si kapali da olabilir.
+⚠ (2026-10-03) Eski gerekce "kartin SSE'si tek istemcili, her HTTP istegi
+  loop()'u blokluyor" artik GECERSIZ: B28'den beri web cekirdek 0'da ayri
+  gorevde, olcum cekirdek 1'de; kart en cok 4 `/akis` istemcisine (AKIS_AZAMI) hizmet
+  ediyor. Koprunun bugunku degeri: USB'den canli akis, PC'de arsiv ve
+  guvenli yerel kokenden sunulan panel. Kartla WiFi'den, eslesmis cihaz
+  olarak konusmasi alt proje 4B'de.
 
-USB yukari-akis TERCIH EDILENDIR — o kipte kartin WiFi'si hic acilmaz,
-yani `loop()`'ta TCP yoktur ve olcum dogrulugu en yuksektir.
+── GUVENLIK (4A, PC2) ────────────────────────────────────────────────
+Kart USB'de KIMLIK SORMAZ: USB'ye yazabilen her sey karta `Ns`/`GF!`/`p1`
+yaptirabilir. Bu yuzden kopru:
+  * varsayilan YALNIZ 127.0.0.1'e baglanir; `--lan` ile butun arayuzlere
+    acilirsa dongu DISI istemciler SALT OKUMA (gorur, yalniz `p0`);
+  * yalniz localhost / *.localhost / IP adresli Host basligini kabul eder
+    (DNS yeniden baglama: kotu bir site kendi adini 127.0.0.1'e cozdurup
+    ayni koken sayilamaz);
+  * E ve Q komutlarini kimseden tasimaz; `EK` anahtar satirini ve USB'ye
+    ozel parola satirlarini ne yayinlar ne arsivler (onekli/bolunmus da).
 
 ── ROLE BAYT-SEFFAF ──────────────────────────────────────────────────
 Karttan gelen satir aynen `data: <satir>` olarak yayiliyor. Firmware,
@@ -37,6 +53,7 @@ Yalnizca standart kutuphane.
 from __future__ import annotations
 
 import http.server
+import ipaddress
 import json
 import queue
 import re
@@ -65,14 +82,40 @@ JS_TURU = "text/javascript"
 sys.path.insert(0, str(BURASI))
 from arsiv import Arsiv, SkopCozucu, skop_ikili           # noqa: E402
 import kart_baglanti                                      # noqa: E402
+import pc_ayar                                            # noqa: E402
 
-# stok-takip 127.0.0.1:80'i tutuyor (ayarlar.PORT = 80, Windows acilisinda
-# arka planda basliyor). LAN arayuzundeki 80 bos; oradan da olmazsa 8770.
-PORT = 80
-YEDEK_PORT = 8770
+# 4A (PC1): TEK port, yalniz 127.0.0.1. Eskiden 0.0.0.0:80 -> LAN IP:80 ->
+# 0.0.0.0:8770 diye dusuyordu (stok-takip 127.0.0.1:80'i tutuyor); koken
+# porta bagli oldugu icin artik DUSULMUYOR — gerekce pc_ayar.py'de.
+PORT = pc_ayar.PORT
 
 # Her taşımada, jetonsuz, kimliksiz gecen komutlar.
 SERBEST_KOMUTLAR = {"p0"}
+
+# 4A (PC2): dongu DISI istemcinin (yerel ag) ret sebebi.
+LAN_RET = ("yerel agdan salt okuma: bu baglanti yalniz izleyebilir ve `p0` (DURDUR) "
+           "gonderebilir. Komut icin kopru calisan bilgisayarda "
+           f"{pc_ayar.adres()} adresini acin")
+
+# 4A (D5 #12): yayinlanmayan / arsivlenmeyen satirlar.
+#  * `EK <n> <64 hex>` cihaz anahtari (kart `Ep` yanitini YALNIZ seriye basar).
+#    Kart onu UC ayri `ham()` cagrisiyla basiyor; araya ESP-IDF gunlugu girerse
+#    satir ONEKLENIR ("W (12) wifi: ..EK 3 ab..") ya da anahtar ALT SATIRA duser.
+#    Eski suzgec yalniz `startswith("EK ")` idi: ikisini de kaciriyordu.
+#  * "(yalniz USB)" isaretli satirlar — `N?` ve AP kipindeki acilis afisi AP
+#    parolasini ham UART'a basiyor (B72.D0: aga cikmasin diye). Kopru ham UART'i
+#    okudugu icin o satiri ag istemcilerine VE arsive tasiyordu.
+#  Isaretli satir TAMAM degilse (EK satirinda 64 onaltilik yok, ya da USB'ye ozel
+#  parola satiri — degerin bolunup bolunmedigi bilinemez) sonraki GIZLI_PENCERE
+#  satir da duser: bolunmus deger orada. Tam `EK` satirinda pencere ACILMAZ
+#  (ardindan gelen olcum satirlari bosuna kaybolmasin).
+#  Pencere disinda: harf iceren >= 24 onaltilik dizisi (anahtar parcasi) duser;
+#  16'lik kart kimligi ve uzun ondalik sayilar GECER.
+EK_DESEN = re.compile(r"EK \d")
+EK_TAM = re.compile(r"EK \d+ [0-9A-Fa-f]{64}")
+USB_GIZLI = re.compile(r"\(yalniz USB\)|AP parolas", re.I)
+HEX_UZUN = re.compile(r"[0-9A-Fa-f]{24,}")
+GIZLI_PENCERE = 2
 
 # Karta yakalama YAPTIRAN komutlar (tam eslesme).
 #
@@ -93,6 +136,62 @@ SKOP_KOMUTLARI = {"t", "tB", "ta"}
 # `osiloBekliyor` tavaniyla AYNI — arayuz vazgectikten sonra donen bir
 # yanit kullaniciya hicbir sey soylemezdi.
 SKOP_BEKLE_SN = 20.0
+
+
+def dongu_mu(ip: str) -> bool:
+    """Istemci adresi bu bilgisayar mi (127/8, ::1, IPv4-esli 127)? Bozuk -> HAYIR."""
+    try:
+        a = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    if getattr(a, "ipv4_mapped", None):
+        a = a.ipv4_mapped
+    return a.is_loopback
+
+
+def host_gecerli(host: str | None) -> bool:
+    """Host basligi: localhost, *.localhost ya da IP adresi. Baslik yoksa kabul.
+
+    DNS yeniden baglama korumasi: bir tarayici BASKA bir adla (kotu.example)
+    bu sunucuya geliyorsa o ad 127.0.0.1'e cozdurulmus demektir; sayfa ayni
+    koken sayilip `X-Olcum` basligini on-ucussuz ekleyebilir. Tarayici Host'u
+    hep yazar; basliksiz istek tarayicidan gelmez.
+    """
+    if not host:
+        return True
+    h = host.strip().lower()
+    if h.startswith("["):
+        h = h[1:].split("]", 1)[0]
+    elif h.count(":") == 1:
+        h = h.split(":", 1)[0]
+    h = h.rstrip(".")
+    if h == "localhost" or h.endswith(".localhost"):
+        return True
+    try:
+        ipaddress.ip_address(h)
+        return True
+    except ValueError:
+        return False
+
+
+class GizliSuzgec:
+    """Satir yayinlanir/arsivlenir mi? (D5 #12 — gerekce EK_DESEN'in ustunde)."""
+
+    def __init__(self):
+        self.pencere = 0
+
+    def gecir(self, satir: str) -> bool:
+        if EK_DESEN.search(satir) or USB_GIZLI.search(satir):
+            if not EK_TAM.search(satir):
+                self.pencere = GIZLI_PENCERE
+            return False
+        if self.pencere > 0:
+            self.pencere -= 1
+            return False
+        for m in HEX_UZUN.finditer(satir):
+            if any(c in "abcdefABCDEF" for c in m.group(0)):
+                return False
+        return True
 
 
 def lan_ip() -> str:
@@ -121,6 +220,11 @@ class Kopru:
         self.son_satir = ""
         self.satir_adedi = 0
         self.arsiv_hatasi: str | None = None
+        self.suzgec = GizliSuzgec()
+        # OtoSeriKart durum degisikliklerini (kart yok / baglandi / koptu)
+        # akisa soyler — arsive DEGIL, olcum degil.
+        if hasattr(kart, "bildir"):
+            kart.bildir = self.yayinla
         # ── skop yakalama (B35) ──────────────────────────────────────
         # 🔴 KOPRU KIPINDE SKOP HIC CALISMIYORDU. Arayuz `TasiyiciAkis`
         #    icin `skop: 'ikili'` ilan ediyor ve `/skop.bin` cekiyor;
@@ -168,12 +272,13 @@ class Kopru:
                 pass
 
     # ── jeton / surucu ───────────────────────────────────────────────
-    def jeton_ver(self) -> str:
+    def jeton_ver(self, surucu_olabilir: bool = True) -> str:
         j = secrets.token_urlsafe(12)
         with self.kilit:
             self.jetonlar[j] = time.time()
-            if self.surucu is None:
-                self.surucu = j          # ilk baglanan surucu olur
+            # ilk baglanan surucu olur — 4A (PC2): yerel agdan baglanan ASLA
+            if self.surucu is None and surucu_olabilir:
+                self.surucu = j
         return j
 
     def surucu_mu(self, jeton: str | None) -> bool:
@@ -186,7 +291,8 @@ class Kopru:
             self.surucu = jeton
         return True
 
-    def komut_izinli(self, komut: str, jeton: str | None) -> tuple[bool, str]:
+    def komut_izinli(self, komut: str, jeton: str | None,
+                     yerel: bool = True) -> tuple[bool, str]:
         # 1D: E komutlari (USB eslestirme, zorunluluk, cihaz silme) karta YALNIZ
         # dogrudan USB'den verilir; kopru agdan gelen istegi seriye tasimaz.
         # Son inceleme: kart seriyi \r ve \n'de BOLER; "?\nEz0" bas harfi denetimini
@@ -201,6 +307,9 @@ class Kopru:
             return False, "Q komutlari (MQTT bildirim ayari) yalniz USB seri konsoldan"
         if komut in SERBEST_KOMUTLAR:
             return True, ""
+        # 4A (PC2): dongu disi istemci salt okuma — p0 YUKARIDA, bu ondan SONRA
+        if not yerel:
+            return False, LAN_RET
         if self.surucu is None:
             return True, ""
         if self.surucu_mu(jeton):
@@ -220,9 +329,9 @@ class Kopru:
                 continue
             if satir is None:
                 continue
-            if satir.startswith("EK "):
-                # 1D: cihaz anahtari (kart `Ep` yanitini YALNIZ seriye basar) —
-                # agdaki istemcilere de arsive de GITMEZ
+            if not self.suzgec.gecir(satir):
+                # 1D + 4A: cihaz anahtari / USB'ye ozel parola — agdaki
+                # istemcilere de arsive de GITMEZ (onekli/bolunmus da)
                 continue
             self.son_satir = satir
             self.satir_adedi += 1
@@ -329,6 +438,22 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
     def _jeton(self) -> str | None:
         return self.headers.get("X-Jeton")
 
+    def _istemci_ip(self) -> str:
+        return self.client_address[0]
+
+    def _yerel(self) -> bool:
+        """4A (PC2): istek bu bilgisayardan mi? Degilse SALT OKUMA."""
+        return dongu_mu(self._istemci_ip())
+
+    def _kapi(self) -> bool:
+        """Her istekte once: Host denetimi. Reddettiyse yaniti yazmistir."""
+        if not host_gecerli(self.headers.get("Host")):
+            self._yanit(403, ("Host taninmiyor — kopruye yalniz "
+                              f"{pc_ayar.adres()} ya da IP adresiyle "
+                              "baglanilir (DNS yeniden baglama korumasi)").encode("utf-8"))
+            return False
+        return True
+
     def _yanit(self, kod: int, govde: bytes = b"", tip="text/plain"):
         self.send_response(kod)
         self.send_header("Content-Type", tip + "; charset=utf-8")
@@ -346,12 +471,17 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         return {a: d[0] for a, d in urllib.parse.parse_qs(parca[1]).items()}
 
     def do_GET(self):
+        if not self._kapi():
+            return
         yol = self.path.split("?")[0]
         if yol == "/akis":
             return self._akis()
         if yol == "/durum":
             return self._durum()
         if yol == "/skop.bin":
+            # 4A (PC2): canli yakalama karta `t` YOLLATIR — okuma degil, komut
+            if not self._yerel():
+                return self._yanit(403, LAN_RET.encode("utf-8"))
             return self._skop_canli()
         if yol == "/skop/liste":
             return self._skop_liste()
@@ -442,7 +572,8 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
 
     def _akis(self):
         k = self.kopru
-        jeton = self._jeton() or k.jeton_ver()
+        yerel = self._yerel()
+        jeton = self._jeton() or k.jeton_ver(surucu_olabilir=yerel)
         kuyruk = k.abone_ol()
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -453,7 +584,12 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             # Once kimlik: istemci jetonu saklayip komutlarda gonderiyor.
             self.wfile.write(b"retry: 3000\n\n")
             self._olay("kimlik", json.dumps(
-                {"jeton": jeton, "surucu": k.surucu_mu(jeton)}))
+                {"jeton": jeton, "surucu": yerel and k.surucu_mu(jeton)}))
+            # 4A: kart yoksa / koptuysa yeni gelen de bilsin (OtoSeriKart)
+            durum = getattr(k.kart, "durum_satiri", None)
+            if durum:
+                self.wfile.write(b"data: " + durum.encode("utf-8") + b"\n\n")
+                self.wfile.flush()
             while True:
                 try:
                     satir = kuyruk.get(timeout=15.0)
@@ -476,6 +612,8 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
 
     # ── POST ─────────────────────────────────────────────────────────
     def do_POST(self):
+        if not self._kapi():
+            return
         yol = self.path.split("?")[0]
         if yol == "/komut":
             return self._komut()
@@ -497,7 +635,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         metin = self._govde()
         if not metin:
             return self._yanit(400, b"bos komut")
-        izin, neden = k.komut_izinli(metin, self._jeton())
+        izin, neden = k.komut_izinli(metin, self._jeton(), yerel=self._yerel())
         if not izin:
             return self._yanit(403, neden.encode("utf-8"))
         # Yakalama komutuysa: cozucuyu hazirla ve `tB`yi `t`ye cevir
@@ -518,6 +656,8 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         k = self.kopru
         if self.headers.get("X-Olcum") != "1":
             return self._yanit(400, "X-Olcum basligi gerekli".encode("utf-8"))
+        if not self._yerel():
+            return self._yanit(403, LAN_RET.encode("utf-8"))
         jeton = self._jeton()
         if not jeton or not k.devral(jeton):
             return self._yanit(403, "bilinmeyen oturum".encode("utf-8"))
@@ -551,66 +691,30 @@ class Sunucu(socketserver.ThreadingTCPServer):
     if sys.platform == "win32":
         allow_reuse_address = False
 
+    def server_bind(self):
+        # 4A: olculdu (2026-10-03) — Windows'ta 127.0.0.1:P baska bir surecteyken
+        # 0.0.0.0:P baglamasi BASARILI oluyor (dongu trafigi yine oteki surece
+        # gider, kopru "acildi" der). SO_EXCLUSIVEADDRUSE bunu reddettiriyor.
+        if sys.platform == "win32" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
-def sunucu_kur(kopru: Kopru):
-    Isleyici.kopru = kopru
-    ip = lan_ip()
-    for adres, port in (("0.0.0.0", PORT), (ip, PORT), ("0.0.0.0", YEDEK_PORT)):
-        try:
-            return Sunucu((adres, port), Isleyici), adres, port, ip
-        except OSError:
-            continue
-    raise SystemExit(f"{PORT} ve {YEDEK_PORT} mesgul.")
+
+def sunucu_kur(kopru: Kopru, lan: bool = False, port: int = PORT) -> Sunucu:
+    """4A (PC1/PC2): varsayilan YALNIZ 127.0.0.1; `lan` ile butun arayuzler
+    (dongu disi istemciler salt okuma — Isleyici._yerel). Port mesgulse
+    OSError: baska porta dusulmez (koken porta bagli, bkz. pc_ayar)."""
+    # Sunucuya OZEL alt sinif: sinif niteligini paylasan iki sunucu (test,
+    # ikinci kopru) birbirinin koprusunu ezmesin. `kopru` sonradan da
+    # verilebilir: sunucu.RequestHandlerClass.kopru = ...
+    isleyici = type("KopruIsleyici", (Isleyici,), {"kopru": kopru})
+    return Sunucu(("0.0.0.0" if lan else "127.0.0.1", port), isleyici)
 
 
 def main() -> int:
-    arg = sys.argv[1:]
-
-    def secenek(ad, varsayilan=None):
-        return arg[arg.index(ad) + 1] if ad in arg else varsayilan
-
-    kayit = secenek("--kayit")
-    if kayit:
-        satirlar = [s.split("\t", 1)[-1].rstrip("\n")
-                    for s in Path(kayit).read_text(encoding="utf-8").splitlines()]
-        kart = kart_baglanti.KayitKart(satirlar, gecikme=0.2)
-    else:
-        kart = kart_baglanti.SeriKart(secenek("--port"))
-
-    try:
-        kart.ac()
-    except RuntimeError as e:
-        print(f"Karta baglanilamadi: {e}")
-        print("Portlar:", ", ".join(kart_baglanti.portlari_listele()) or "(yok)")
-        return 1
-
-    kopru = Kopru(kart, KOK / "kopru" / "arsiv")
-    threading.Thread(target=kopru.dongu, daemon=True).start()
-
-    sunucu, adres, port, ip = sunucu_kur(kopru)
-    ek = "" if port == 80 else f":{port}"
-    print(f"Kopru acildi — kart: {kart.ad}")
-    # 🔴 HER IKI SATIRDA DA LAN IP'si — `127.0.0.1` YAZILMIYOR.
-    #    Windows'ta 0.0.0.0:80 baglamasi, 127.0.0.1:80 BASKA bir surec
-    #    tarafindan tutuluyorken de BASARILI olabiliyor (SO_EXCLUSIVEADDRUSE
-    #    kullanilmamissa). O durumda hangi sunucunun cevap verecegi HEDEF
-    #    ADRESE bagli: 127.0.0.1 daha ozel baglamaya, yani stok-takip'e
-    #    gider; kopruye yalnizca LAN IP'sinden ulasilir. "127.0.0.1" yazmak
-    #    kullaniciyi yanlis sunucuya yollardi — bu makinede tam olarak oyle
-    #    oldu ve stok arayuzu acildi.
-    print(f"  Bu bilgisayardan : http://{ip}{ek}")
-    print(f"  Telefondan       : http://{ip}{ek}"
-          f"   (yonlendiricide DHCP rezervasyonu yapin, adres degismesin)")
-    print(f"  Arsiv            : {kopru.arsiv.dizin}")
-    print("Kapatmak icin Ctrl+C")
-    try:
-        sunucu.serve_forever()
-    except KeyboardInterrupt:
-        print("\nkapatiliyor…")
-    finally:
-        kopru.durdur()
-        kart.kapat()
-    return 0
+    """Eski giris noktasi — ayni secenekler `pc.py`'ye devrediliyor (4A, PC4)."""
+    import pc
+    return pc.main(sys.argv[1:])
 
 
 if __name__ == "__main__":

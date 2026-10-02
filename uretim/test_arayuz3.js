@@ -1281,6 +1281,23 @@ console.log('\n--- 11. Rapor araligi + grafik bosluklari (B27 A2) ---');
        karar({ protocol: 'http:', hostname: 'olcum.local', search: '?demo' }) === false);
     ok('tasiyici seri ise baglanma', karar(kart, 'seri') === false);
     ok('zaten bagliysa tekrar baglanma', karar(kart, 'akis', true) === false);
+    /* 4A (PC1): PC koprusu paneli http://olcum.localhost:8770'ten sunuyor. *.localhost
+       guvenli baglam (Web Serial de var) ama sayfayi SUNAN kopru: tasiyici akis olmali
+       ve kendiliginden baglanmali. Yalniz duz `localhost` gelistirme sunucusu (USB). */
+    const pc = { protocol: 'http:', hostname: 'olcum.localhost', host: 'olcum.localhost:8770', search: '' };
+    ok('4A: olcum.localhost (PC koprusu) -> otomatik baglan', karar(pc) === true);
+    {
+      let istek = 0;
+      sandbox.location = pc; sandbox.fetch = () => { istek++; return new Promise(() => {}); };
+      v.tasiyiciAdi = 'seri';
+      const ayarOku = v.ayarOku, kaydet = v.kaydet;
+      v.ayarOku = () => null; v.kaydet = () => {};
+      v.kopruyuAlgila();                 /* yerel degilse ilk await'ten ONCE karar verir */
+      v.ayarOku = ayarOku; v.kaydet = kaydet;
+      delete sandbox.location; delete sandbox.fetch;
+      ok('4A: olcum.localhost -> kopruyuAlgila tasiyiciyi akis yapiyor (Web Serial degil), /durum yoklamadan',
+         v.tasiyiciAdi === 'akis' && istek === 0, `tasiyici=${v.tasiyiciAdi} istek=${istek}`);
+    }
     ok('mounted() kopruyuAlgila SONRASINDA otomatikBaglanmali ile baglan() cagiriyor',
        /kopruyuAlgila\(\)\.then\([\s\S]{0,80}?otomatikBaglanmali\(\)\) this\.baglan\(\)/.test(yorumsuz(appKaynak)));
   }
