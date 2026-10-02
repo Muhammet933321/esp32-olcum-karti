@@ -1613,6 +1613,47 @@ def bolum_guvenlik_istemci() -> None:
             except (ValueError, RuntimeError) as e:
                 bayt12 = f"ret ({e})"
             kart.parola = eski_parola
+            # I8c (1D #16): kaydet() her imzali istekte cagriliyor; iki surec (kopru + esitleme)
+            # ayni cihaz dosyasini kullanabilir. Ortak `.tmp` adi birinin os.replace'ini kirar.
+            # Dosya fsync'lenmeden yerine konmamali (elektrik kesilirse anahtar dosyasi bos).
+            import threading as _th
+            ca = IM.Cihaz.yukle(c12.dosya) if bayt12 == "KABUL" else None
+            yaris_hata = []
+
+            def _yaris(cihaz):
+                try:
+                    for _ in range(150):
+                        cihaz.sonraki_sayac()
+                except Exception as e:                       # noqa: BLE001 — yaris hatasi sayilir
+                    yaris_hata.append(repr(e))
+            if ca is not None:
+                cb = IM.Cihaz.yukle(c12.dosya)
+                isler = [_th.Thread(target=_yaris, args=(x,)) for x in (ca, cb)]
+                for i_ in isler:
+                    i_.start()
+                for i_ in isler:
+                    i_.join()
+            try:
+                son_c = IM.Cihaz.yukle(c12.dosya)
+                okunur = son_c.K == c12.K
+            except Exception as e:                           # noqa: BLE001
+                okunur = f"okunamadi {e!r}"
+            artik = sorted(p.name for p in c12.dosya.parent.iterdir() if p != c12.dosya)
+            sira = []
+            _fs, _rp = os.fsync, os.replace
+            os.fsync = lambda fd: (sira.append("fsync"), _fs(fd))[1]
+            os.replace = lambda a, b: (sira.append("replace"), _rp(a, b))[1]
+            try:
+                son_c.kaydet()
+            finally:
+                os.fsync, os.replace = _fs, _rp
+            ok("B72.I8c (1D #16) iki surec ayni cihaz dosyasini kaydederken yaris YOK (benzersiz gecici "
+               "dosya), dosya okunur ve anahtar ayni, artik gecici dosya kalmaz; kaydet once fsync sonra "
+               "yerine koyar",
+               ca is not None and not yaris_hata and okunur is True and not artik
+               and "fsync" in sira and "replace" in sira and sira.index("fsync") < sira.index("replace"),
+               f"hata={yaris_hata[:2]} okunur={okunur} artik={artik[:4]} sira={sira}")
+
             ok("B72.I8b (S7) tur kesirli / metin / alt cizgili / True ve tamsayi kimlik kanit YOLLAMADAN "
                "reddedilir; parola siniri UTF-8 BAYT (kartla ayni): 11 baytlik 6 harf istek atmadan ret, "
                "12 baytlik 6 harf eslesir",

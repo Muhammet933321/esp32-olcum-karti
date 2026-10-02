@@ -3116,6 +3116,19 @@ MUTASYONLAR = [
      '  if (typeof tur !== "number" || !Number.isInteger(tur)) {',
      '  if (typeof tur !== "number") {',
      "S7: JS kesirli turu kabul ederse (Python reddeder) capraz vektor kirmizi"),
+    # ── 1D #16 (2026-10-02): cihaz dosyasi benzersiz gecici + fsync
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     '        fd, gecici = tempfile.mkstemp(prefix=self.dosya.name + ".", suffix=".tmp",\n'
+     '                                      dir=self.dosya.parent)\n',
+     '        gecici = str(self.dosya.with_suffix(".tmp"))\n'
+     '        fd = os.open(gecici, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0), 0o600)\n',
+     "1D #16: ortak '.tmp' adi geri gelirse iki surec birbirinin os.replace'ini kirar: I8c kirmizi"),
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     "                os.fsync(f.fileno())\n", "",
+     "1D #16: fsync'siz yerine koyma (elektrik kesilince bos anahtar dosyasi): I8c kirmizi"),
+    ("B72", "test_kayit_esp.py", "kopru/imza.py",
+     "            for deneme in range(50):", "            for deneme in range(1):",
+     "1D #16: Windows'ta hedef o an yer degistirirken PermissionError yeniden denenmezse: I8c kirmizi"),
 ]
 
 

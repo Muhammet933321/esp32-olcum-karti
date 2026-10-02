@@ -39,6 +39,7 @@ import os
 import re
 import secrets
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -145,11 +146,31 @@ class Cihaz:
             d["K_duz"] = self.K.hex()
             d["uyari"] = "DPAPI yok: anahtar yalniz dosya izniyle (600) korunuyor"
         self.dosya.parent.mkdir(parents=True, exist_ok=True)
-        gecici = self.dosya.with_suffix(".tmp")
-        gecici.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
-        if sys.platform != "win32":
-            os.chmod(gecici, 0o600)
-        os.replace(gecici, self.dosya)
+        # 1D #16: kaydet() her imzali istekte cagriliyor ve iki surec (kopru + esitleme) ayni
+        # cihaz dosyasini kullanabilir. Ortak '.tmp' adi birinin os.replace'ini kiriyordu.
+        # mkstemp: benzersiz ad, POSIX'te 0600 ile ACILIR (K hic gevsek izinle durmaz). Once
+        # fsync, sonra yerine koy: elektrik kesilirse eski ya da yeni dosya kalir, bos degil.
+        fd, gecici = tempfile.mkstemp(prefix=self.dosya.name + ".", suffix=".tmp",
+                                      dir=self.dosya.parent)
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write(json.dumps(d, ensure_ascii=False).encode("utf-8"))
+                f.flush()
+                os.fsync(f.fileno())
+            for deneme in range(50):
+                try:
+                    os.replace(gecici, self.dosya)
+                    break
+                except PermissionError:      # Windows: hedef o an baska surecte yer degistiriyor
+                    if deneme == 49:
+                        raise
+                    time.sleep(0.005)
+        except BaseException:
+            try:
+                os.unlink(gecici)
+            except OSError:
+                pass
+            raise
 
     @classmethod
     def yukle(cls, dosya) -> "Cihaz":
