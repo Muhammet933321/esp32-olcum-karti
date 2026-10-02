@@ -122,6 +122,18 @@
 | S13 | Eski açıklama metinleri ve B7'nin çivilediği seçenek metinleri (tetik onayı, zoom, CAL ipucu, menzil, B36/B39 uyarıları) TR kaldı; başlıklar, kümeler, düğmeler, yeni işlevler `os.` sözlükte | P7 "eskiler taşındıkça"; B7 iddialarını zayıflatmamak (OS7) |
 | S14 | Demo kartı (`sahte-kart.js`) `Gt`/`Gtd`/`GT` + günlükte elle yakalama reddi, firmware metinleriyle | E12 |
 
+## 3F kararları (2026-10-02 akşam, aynı devirle; kullanıcı dışarıdayken)
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| PL1 | **Firmware değişmez; `p0` emniyeti aynen:** acil şerit + Pil sekmesindeki DURDUR tek tık, onaysız, hiçbir koşulla `:disabled` olmaz (B7 EMNIYET-P0 ve acil şerit iddiaları korunur) | Deşarjı kesen komut; WIG'in iki aşamalı onayları bilerek dışında |
+| PL2 | **Düzen Canlı'yla aynı dilde:** üstte okuma kartları (V · I · mAh · Wh · geçen süre · kesme gerilimi), altında eğri, yanında/altında DCIR tablosu ve test parametreleri. Test sürmüyorsa son testin özeti + "Kayıtlar'da aç" | Kabuk (3D) ve görünümler tutarlı; ölçüm aleti hissi |
+| PL3 | **Eğri `grafik.js` ile** (bugünkü özel tuval yerine): V–zaman, sağ eksende akım; eksen seçimi "zaman / mAh" (3G karşılaştırmasının hazırlığı); DCIR anları grafikte işaret | Tek çizim çekirdeği (P3); pil eğrisinde sıçrama gözden kaçmasın (Ö1 piramidi) |
+| PL4 | **Veri kaynağı:** canlı test sırasında bugünkü `/pil?sira=` artımlı yoklama KALIR (ağ çekirdeğinde, ölçümü bloklamıyor; sayfa yenilense de eğri gelir) ama yalnız Pil sekmesi görünür ve test sürerken; test bitince kaynak kartın PİL oturumu (1C-1) — aynı kökendeyse Kayıtlar eşitlemesiyle (3C), değilse `/pil`'in son hali. Kart `/pil`'i ve `PilHalka`'yı sağlamaya devam eder (firmware değişmez) | Pasif dinleme ilkesi (D5) ölçüm çekirdeğine yük getirmemekle ilgili; `/pil` HTTP'si çekirdek 0'da. Kayıt motoru tek gerçek kaynak, eşitleme varsa ona dayanılır |
+| PL5 | **Başlatma formu:** kesme gerilimi (0.5…38.5 V, bugünkü sınırlar, Li-ion / kurşun-asit hazır değerleri), DCIR aralığı/devre dışı, oturuma ad (Ga) — komutlar kartın kabul ettiği biçimde (bugünkü `P`, `p1`, …); kartın ret satırı olduğu gibi (E9 deseni) | Kurallar kartta; panel kopyasını yazmaz |
+| PL6 | **Bittiğinde:** sonuç (mAh, Wh, süre, bitiş sebebi), DCIR özeti; pil CSV (3C `pilCsv`) ve "Kayıtlar'da aç" (`#/kayit/<oturum>`) | Test sonrası analiz Kayıtlar'da tek yerde |
+| PL7 | Metinler `sozluk.js` (`pl.*`, TR + EN); WIG kuralları (aria-live okuma/ret, etiketli denetimler, odak) | P7, kullanıcı WIG istedi |
+
 ## Doğrulama
 
 B7 (`test_arayuz3.js`) ve B22 tarayıcı denetimleri genişler; her dilimde başsız tarayıcı (Edge) ile
