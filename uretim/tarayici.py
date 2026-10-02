@@ -130,7 +130,7 @@ class _WS:
 
 
 class Tarayici:
-    def __init__(self, genislik=1280, yukseklik=1000, port=9333, auth_iptal=True):
+    def __init__(self, genislik=1280, yukseklik=1000, port=9333, auth_iptal=True, ek_arg=None):
         """auth_iptal: Basic Auth sorusunu CDP'den iptal et (kart icin sart).
 
         ⚠ Bunun BEDELI var: `Fetch.enable` HER istegi duraklatiyor ve
@@ -138,6 +138,10 @@ class Tarayici:
         `Page.captureScreenshot` yanit vermez oldu — parolasiz bir sunucuda
         (yerel gelistirme, ?demo) `auth_iptal=False` ver, yakalama hic
         kurulmasin.
+
+        ek_arg: Edge'e ek bayraklar (3C: `--host-resolver-rules` ile sahte
+        kart localhost DISI bir adda — panel kartin sayfasindaki gibi
+        guvenli baglam DISINDA kosar).
         """
         self.port = port
         self.profil = tempfile.mkdtemp(prefix="olcum-edge-")
@@ -146,7 +150,7 @@ class Tarayici:
              "--no-first-run", "--no-default-browser-check",
              f"--window-size={genislik},{yukseklik}",
              f"--remote-debugging-port={port}",
-             f"--user-data-dir={self.profil}", "about:blank"],
+             f"--user-data-dir={self.profil}", *(ek_arg or []), "about:blank"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self._id = 0
         self.olaylar: list[dict] = []

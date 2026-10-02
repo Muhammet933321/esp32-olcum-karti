@@ -44,6 +44,21 @@
 | C7 | **Gezinme:** Kayıtlar mevcut sekme düzenine yeni görünüm (`#/kayitlar`); kayıt `#/kayit/<oturum>` — geri tuşu çalışır. Sol şerit düzenine (P1) geçiş 3D'de, Canlı yeniden yazılırken | Kademeli bölme (P4): kabuğu şimdi değiştirmek B7'nin sekme iddialarını iki kez yazdırırdı |
 | C8 | **Dil:** yeni ekranların metni `sozluk.js` anahtarlarından (TR + EN); dil seçimi 3H'de, o zamana dek TR | P7 |
 
+### 3C uygulama kararları (C1–C8 dışında; uygulayan, kullanıcının devriyle)
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| U1 | Kayıtlar modülü `defineAsyncComponent` + dinamik `import()` ile **ekran ilk açılınca** iner; inmezse sekmede sebep + çare yazar | Açılışta istenen dosya ≤ 8 (B7 bölüm 15); karttan her dosya isteği döngüyü bloklar |
+| U2 | Her eşitleme **taze `/kayit/liste`** ile başlar; akış eşitleme ortasında değişirse dizin bir kez daha alınıp yeni akışa geçilir | Eski dizinle başlamak, kart biçimlenince eşitlemeyi "akış değişti" ile durduruyordu (tarayıcı testinde yarış olarak görüldü) |
+| U3 | Yeni akış kaydı kimlikle **önceden tohumlanır** (durum.kimlik) | Liste ile ilk veri yanıtı arasında kart biçimlenirse Esitleyici yanlış akışa YAZMAZ |
+| U4 | "Arşiv" seçimi `localStorage['olcum.arsiv.<kimlik>']` (kart akışı başına); panel bağlı değilse onay gönderilmez ve bu yazılır | C3: biçimlenen kartta seçim kendiliğinden kapanır (güvenli yön) |
+| K1 | Grafik x = oturum başından geçen ms; saatsiz yeniden başlamada parça öncekinin ardına (3 × boşluk eşiği) konur ve "konumu tahmini" yazar | Zaman uydurulmaz, görünür kılınır |
+| K2 | Nokta oturumunda ort + ince min/maks çizgileri; okumanın min/maks'ı min/maks kodlarından | Ö1: tek örneklik sıçrama ortalamada erir |
+| K3 | Okumanın mAh/Wh'si **açılış başına** ve Wh **kartın W'sinden** (rapor.js ile aynı kural; tam aralıkta raporla bit bit aynı) | Ort V × ort A dalgalı yükte ayrışır |
+| K4 | Sağ eksen tek birim: Akım **ya da** Güç | İki birim tek eksende eksen yazısını yalancı yapar |
+| K5 | İmleç rengi temanın `--yazi`'sı | grafik.js'in `imlec` yedeği sabit renk; üç görünümde de en yüksek karşıtlık |
+| K6 | Rapor yazdırılırken (beforeprint) geçici olarak Açık görünüm, afterprint geri alır; yeni renk tanımlanmaz | Koyu zemin kâğıda basılmaz, koyu temanın açık yazısı beyaz kâğıtta okunmaz |
+
 ## Doğrulama
 
 B7 (`test_arayuz3.js`) ve B22 tarayıcı denetimleri genişler; her dilimde başsız tarayıcı (Edge) ile

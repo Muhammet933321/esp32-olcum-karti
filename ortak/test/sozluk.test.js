@@ -5,7 +5,7 @@
 // KAYNAGINDAN (yorumlar atilarak) olculur.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import * as K from "../src/kayit.js";
 import { SOZLUK, DILLER, ceviri, ceviriKod } from "../src/sozluk.js";
 import { KOLONLAR, BAYRAKLAR } from "../src/disari.js";
@@ -140,8 +140,15 @@ function dizgeler(src) {
   return { literal, sablon };
 }
 
-test("kullanilmayan anahtar YOK (disari.js + rapor.js kaynagindan)", () => {
-  const ham = ["../src/disari.js", "../src/rapor.js"].map(oku).join("\n");
+/* 3C: web paneli ekranlari (arayuz3/ekran/*.js) da sozlugun TUKETICISI — anahtarlarini duz
+   metin sabitiyle yaziyorlar (KL_METIN / KG_METIN). Dizin yoksa (yalniz ortak/ kopyalanmis bir
+   agac) yalniz ortak/ kaynagi taranir. */
+const EKRAN_URL = new URL("../../arayuz3/ekran/", import.meta.url);
+const EKRANLAR = existsSync(EKRAN_URL)
+  ? readdirSync(EKRAN_URL).filter((a) => a.endsWith(".js")).sort().map((a) => `../../arayuz3/ekran/${a}`) : [];
+
+test("kullanilmayan anahtar YOK (disari.js + rapor.js + panel ekranlari kaynagindan)", () => {
+  const ham = ["../src/disari.js", "../src/rapor.js", ...EKRANLAR].map(oku).join("\n");
   const { literal, sablon } = dizgeler(ham);
   assert.ok(literal.has("csv.v_ort") && literal.has("rapor.kimlik") && literal.has("sebep."), "cozucu dizgeleri kaciriyor");
   assert.ok(sablon.has("kal.durum.") && sablon.has("uyari."), "cozucu sablonlari kaciriyor");
@@ -158,6 +165,17 @@ test("kullanilmayan anahtar YOK (disari.js + rapor.js kaynagindan)", () => {
     return true;
   });
   assert.deepEqual(kullanilmayan, []);
+});
+
+test("3C: panel ekranlarinin kullandigi HER kl./kg. anahtari sozlukte (ters yon)", () => {
+  if (!EKRANLAR.length) return;
+  const { literal } = dizgeler(EKRANLAR.map(oku).join("\n"));
+  const kullanilan = [...literal].filter((s) => /^(kl|kg)\.[a-z0-9_]+$/.test(s));
+  assert.ok(kullanilan.length >= 60, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
+  const eksik = kullanilan.filter((a) => !(a in SOZLUK));
+  assert.deepEqual(eksik, []);
+  const aile = Object.keys(SOZLUK).filter((a) => /^(kl|kg)\./.test(a));
+  assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup ekranda kullanilmayan kl./kg. anahtari");
 });
 
 test("yer tutucular iki dilde ayni", () => {

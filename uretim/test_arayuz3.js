@@ -33,7 +33,10 @@ const INO = path.join(KOK, 'kod', 'olcum-karti-a3', 'olcum-karti-a3.ino');
 // ── Vue taklidi
 let secenekler = null;
 const sandbox = {
-  Vue: { createApp(o) { secenekler = o; return { mount() { return {}; } }; } },
+  /* 3C: `defineAsyncComponent` taklidi yukleyiciyi SAKLIYOR — bolum 24
+     onun hangi modulu istedigine bakiyor (cagirmiyor: vm'de dinamik import yok). */
+  Vue: { createApp(o) { secenekler = o; return { mount() { return {}; } }; },
+         defineAsyncComponent(yukleyici) { return { __asenkron: true, yukleyici }; } },
   navigator: { serial: {} },
   window: { addEventListener() {}, devicePixelRatio: 1 },
   document: { documentElement: {}, createElement: () => ({ click() {} }) },
@@ -124,6 +127,17 @@ function ornek() {
 const SONRA = [];
 
 let gecti = 0, kaldi = 0;
+/* 3C: asenkron zincir ASKIDA kalirsa (bir Promise hic cozulmez) node olay
+   dongusu bosalip 0 ile cikiyordu — ozet satiri HIC basilmadan. Sayim
+   kilidi bunu yakaliyordu ama cikis kodu "yesil" diyordu. Ozete
+   ulasilmadan cikis artik KIRMIZI. */
+let ozetBasildi = false;
+process.on('exit', () => {
+  if (!ozetBasildi) {
+    console.log('[!!] B7 ozete ULASAMADI — asenkron iddia zinciri askida kaldi');
+    process.exitCode = 1;
+  }
+});
 function ok(ad, kosul, ek = '') {
   if (kosul) { gecti++; console.log(`[OK] ${ad}${ek ? '  ' + ek : ''}`); }
   else { kaldi++; console.log(`[!!] ${ad}${ek ? '  ' + ek : ''}`); }
@@ -269,15 +283,11 @@ const ARAYUZSUZ = {
      ⚠ Arayuze bir gun blokaj/tani paneli eklenirse bu harf listeden
      CIKARILACAK. */
   K: 'blokaj sayaci sifirlama — tezgah teshisi, olcumu etkilemiyor',
-  /* B72 (1A-2): KAYIT komutu (Gb<ms> baslat · Gd durdur · G? durum ·
-     Go<sira> esitleme onayi · GF! bicimle). Kayit ekranlari ALT PROJE 3'te
-     (web paneli yenilemesi, tasarim/2026-09-29-yazilim-sistemi.md) —
-     kullanicinin onayladigi sira 1 kart -> 2 ortak/ -> 3 panel. Bugun
-     kaydi seri konsol ve PC esitleme istemcisi (kopru/kayit_esitle.py)
-     kullaniyor; bugunku panel kayit gostermiyor, yani eksik bir dugme
-     kullaniciya YANLIS bir deger okutmuyor (B20'nin f/F durumundan farki).
-     ⚠ Alt proje 3 kayit ekranini ekleyince bu satir CIKARILACAK. */
-  G: 'kayit komutu — ekranlari alt proje 3 (web paneli); simdilik seri + PC esitleme',
+  /* B72 (1A-2) `G` (kayit komutu) BURADAN CIKTI — 3C: Kayitlar ekrani
+     `Go<sira>` onayini panelin komut yolundan gonderiyor (ekran/esitleme.js
+     onayIslevi; yalniz "bu tarayici arsivdir" seciliyse, C3). Kaydi baslat /
+     durdur / plan (Gb Gd Gp) ekranlari 3D'de (Canli); harfin bir alt komutu
+     (Go) arayuzde oldugu icin ters yon denetimi gecer. */
   /* 1B: KALIBRASYON GECMISI (k? durum · kl liste · kv<no> degerler ·
      kk<t><not> taslagi kaydet · kn<no> not · kt<no><t> tur). Kalibrasyonu
      DEGISTIREN komutlar (z g Z i s f F) panelde zaten var; `k` yalniz
@@ -984,15 +994,16 @@ console.log('\n--- 10. Gorunumler: hash yonlendirme, v-show, yeniden cizim ---')
   const appIdler = G ? G.map((g) => g.id) : [];
   const htmlIdler = [...html.matchAll(/<main[^>]*v-show="gorunum === '([a-z]+)'"/g)]
     .map((m) => m[1]);
-  ok('GORUNUMLER listesi var ve 5 gorunum tanimli',
-     appIdler.length === 5, appIdler.join(' '));
+  /* 3C: altinci gorunum `kayitlar` (C7) — sayi 5'ten 6'ya BILEREK. */
+  ok('GORUNUMLER listesi var ve 6 gorunum tanimli (3C: kayitlar)',
+     appIdler.length === 6 && appIdler.includes('kayitlar'), appIdler.join(' '));
   ok('index.html\'deki her <main v-show> app.js listesindeki bir gorunum',
      htmlIdler.length === appIdler.length &&
        htmlIdler.every((id) => appIdler.includes(id)) &&
        new Set(htmlIdler).size === htmlIdler.length,
      'html: ' + htmlIdler.join(' '));
   ok('Gorunumler v-show ile saklaniyor, v-if ile DEGIL (tuval canli kalsin)',
-     !/<main[^>]*v-if="gorunum/.test(html) && htmlIdler.length === 5);
+     !/<main[^>]*v-if="gorunum/.test(html) && htmlIdler.length === 6);
 
   // her gorunumun sekmesi var: nav, GORUNUMLER uzerinde v-for
   ok('Sekme seridi GORUNUMLER listesinden uretiliyor (elle kopya degil)',
@@ -2614,12 +2625,497 @@ console.log('\n--- 23. Gorunum (Koyu/Acik/On panel) + ES modul altyapisi (3A) --
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   24. KAYITLAR + KAYIT GORUNUMU (3C — alt proje 3, C1-C8)
+
+   Kararlar tasarim/2026-10-02-alt-proje-3-panel.md "3C kararlari". Burada
+   (a) KABLOLAMA: altinci gorunum, ekran modulu ilk acilista iner (acilis
+       istekleri buyumez), `#/kayit/<no>` rotasi, adres ezilmiyor, `G`
+       artik arayuzde (onay).
+   (b) SAF MANTIK node'da, GERCEK ortak/ modulleriyle: liste birlesimi ve
+       "nerede", Turkce duyarsiz arama, seri hazirlama, imlec okumasi ve
+       enerjinin RAPORLA ayni sayi olmasi, disa aktarma = ortak/ ciktisi,
+       C1/C3 kararlari, IndexedDB deposunun parca hesabi ve kilidi.
+   Gercek tarayici (IndexedDB, CDP fare olaylari, indirme, uc gorunum)
+   `tarayici_kayitlar.py` (T3C). Ekran modulleri `/ortak/x.js` istiyor:
+   node'da bu yol bir cozumleme kancasiyla ortak/src'ye baglaniyor (kart,
+   kopru ve sunucu.py'nin esleme kuraliyla ayni).
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
+{
+  const { registerHooks } = require('module');
+  const { pathToFileURL } = require('url');
+  registerHooks({
+    resolve(belirtec, baglam, sonraki) {
+      if (belirtec.startsWith('/ortak/')) {
+        return { url: pathToFileURL(path.join(KOK, 'ortak', 'src', belirtec.slice('/ortak/'.length))).href,
+                 shortCircuit: true };
+      }
+      return sonraki(belirtec, baglam);
+    },
+  });
+  const src = (ad) => require(path.join(KOK, 'ortak', 'src', ad));
+  const K = src('kayit.js');
+  const D = src('disari.js');
+  const R = src('rapor.js');
+  const IM = src('imza.js');
+  const SZ = src('sozluk.js');
+  const ek = (ad) => require(path.join(ARAYUZ, 'ekran', ad));
+  const KL = ek('kayitlar.js');
+  const KG = ek('kayit_gorunum.js');
+  const ES = ek('esitleme.js');
+  const DP = ek('depo_idb.js');
+  const html = yorumsuz(htmlKaynak);
+  const kaynak = (ad) => fs.readFileSync(path.join(ARAYUZ, 'ekran', ad), 'utf8');
+
+  /* ── (a) kablolama ───────────────────────────────────────────────── */
+  const kayitlarMain = html.match(/<main class="gorunum" v-show="gorunum === 'kayitlar'">([\s\S]*?)<\/main>/);
+  ok('[!] index.html: Kayitlar gorunumu v-show, ekran ILK acilista (v-if kayitlarAcik) kuruluyor',
+     !!kayitlarMain && /<kayitlar-ekran v-if="kayitlarAcik"/.test(kayitlarMain[1]),
+     kayitlarMain ? 'bulundu' : 'yok');
+  ok('[!] Ekrana kartAdres (tek istek yolu), gonder (komut yolu), bagli, kartTaban, tasiyici, etkin veriliyor',
+     !!kayitlarMain && [':kart-adres="kartAdres"', ':gonder="gonder"', ':bagli="bagli"',
+       ':kart-taban="kartTaban"', ':tasiyici="tasiyiciAdi"', ':etkin="gorunum === \'kayitlar\'"']
+       .every((x) => kayitlarMain[1].includes(x)));
+  const bilesen = secenekler.components && secenekler.components['kayitlar-ekran'];
+  const secenek = bilesen && bilesen.yukleyici && typeof bilesen.yukleyici === 'object' ? bilesen.yukleyici : {};
+  ok('[!] kayitlar-ekran ASENKRON bilesen: yukleyici ./ekran/kayitlar.js`i istiyor ve modul KayitlarEkrani veriyor',
+     !!bilesen && bilesen.__asenkron === true
+     && /import\('\.\/ekran\/kayitlar\.js'\)\.then\(\(m\) => m\.KayitlarEkrani\)/.test(String(secenek.loader))
+     && typeof KL.KayitlarEkrani === 'object' && typeof KL.KayitlarEkrani.template === 'string',
+     String(secenek.loader));
+  ok('[!] Modul inmezse sekme BOS kalmiyor: hata bileseni sebebi ve careyi (.hata) yaziyor',
+     !!secenek.errorComponent && /class="hata"[^>]*>[^<]*yüklenemedi[^<]*yenileyin/.test(secenek.errorComponent.template || ''));
+  ok('[!] Kayitlar modulu ACILISTA inmiyor (statik ice aktarma grafiginde yok)',
+     !iceAktarmaGrafigi().some((g) => /ekran\/(kayitlar|kayit_gorunum|esitleme|depo_idb)\.js$/.test(g.goruntu)),
+     iceAktarmaGrafigi().map((g) => g.goruntu).join(' '));
+  {
+    const hashten = vm.runInContext('hashtenGorunum', sandbox);
+    const dene = (h) => { sandbox.location = { hash: h }; return hashten(); };
+    ok('[!] hashtenGorunum: #/kayitlar, #/kayit/12, #/kayit/12@7/rapor -> kayitlar',
+       dene('#/kayitlar') === 'kayitlar' && dene('#/kayit/12') === 'kayitlar'
+       && dene('#/kayit/12@7/rapor') === 'kayitlar' && dene('#/kayitx') === 'olcum');
+    const w = secenekler.watch.gorunum;
+    let yazilan = [];
+    sandbox.history = { replaceState: (a, b, h) => yazilan.push(h) };
+    const sahte = { $nextTick() {}, grafikCiz() {}, osiloCiz() {}, kayitlarAcik: false };
+    sandbox.location = { hash: '#/kayit/12' };
+    w.call(sahte, 'kayitlar');
+    const korundu = yazilan.length === 0 && sahte.kayitlarAcik === true;
+    yazilan = [];
+    sandbox.location = { hash: '#/olcum' };
+    w.call(sahte, 'kayitlar');
+    ok('[!] watch.gorunum ACIK KAYDIN adresini (#/kayit/12) #/kayitlar`a EZMIYOR; ekran kuruluyor',
+       korundu && yazilan.join() === '#/kayitlar', `korundu=${korundu} yazilan=${yazilan.join()}`);
+    sandbox.location = { hash: '' };
+    ok('Kayitlar ekrani varsayilan olarak KURULMUYOR (acilis yuku yok)', secenekler.data().kayitlarAcik === false);
+    delete sandbox.location;
+    delete sandbox.history;
+  }
+  ok('[!] `G` artik arayuzde (Go<sira> onayi, ekran/esitleme.js); ARAYUZSUZ listesinde DEGIL',
+     gonderilenler.some((g) => g.k === 'Go' && g.nerede === 'ekran/esitleme.js') && !('G' in ARAYUZSUZ));
+
+  /* ── (b) C1 / C3 karar fonksiyonlari ─────────────────────────────── */
+  const U = ES.esitlemeUygunlugu;
+  ok('[!] C1: kartTaban dolu / USB / demo -> esitleme YOK (sebebiyle); ayni koken akis -> on kosul tamam',
+     U({ kartTaban: 'http://baska', tasiyici: 'akis' }).neden === 'taban'
+     && U({ kartTaban: '', tasiyici: 'seri' }).neden === 'usb'
+     && U({ kartTaban: '', tasiyici: 'demo' }).neden === 'demo'
+     && U({ kartTaban: '', tasiyici: 'akis' }).uygun === true && U({ kartTaban: '  ', tasiyici: 'akis' }).uygun);
+  const LY = ES.listeYanitiCoz;
+  ok('[!] C1: /kayit/liste siniflandirma — kart JSON tamam, 401 imza, 404 kart degil, 503 mesgul, bicimsiz bozuk',
+     LY(200, '{"kimlik":7,"oturumlar":[]}').durum === 'tamam' && LY(401, 'imza gerekli').durum === 'imza'
+     && LY(404, '').durum === 'yok' && LY(503, 'kayit mesgul').durum === 'mesgul'
+     && LY(200, '<html>').durum === 'bozuk' && LY(200, '{"oturumlar":[]}').durum === 'bozuk'
+     && LY(403, 'Host reddedildi').durum === 'host' && LY(500, 'x').durum === 'hata');
+  ok('[!] Esitleme sirasindaki HTTP 401 -> "imza" (kullaniciya eslestirme yolu soylenir)',
+     ES.hataSinifla(new IM.HttpHatasi(401, null, '/kayit/veri')).durum === 'imza'
+     && ES.hataSinifla(new IM.HttpHatasi(500, null, '/kayit/veri')).durum === 'hata'
+     && ES.hataSinifla(new TypeError('Failed to fetch')).durum === 'ag');
+  {
+    const metin = SZ.ceviri('kl.neden_imza', 'tr');
+    ok('[!] 401 metni: "Kart imza istiyor — bu tarayıcıyı eşleştirmek Ayarlar\'da (3H)"',
+       metin.startsWith('Kart imza istiyor — bu tarayıcıyı eşleştirmek Ayarlar\'da (3H)'), metin);
+  }
+  {
+    const giden = [];
+    const gonder = (m) => { giden.push(m); return Promise.resolve(); };
+    const yok1 = ES.onayIslevi({ arsiv: false, bagli: true, gonder });
+    const yok2 = ES.onayIslevi({ arsiv: true, bagli: false, gonder });
+    const var_ = ES.onayIslevi({ arsiv: true, bagli: true, gonder });
+    SONRA.push(async () => {
+      if (var_) await var_(42);
+      ok('[!] C3: VARSAYILAN onay YOK (arsiv kapali ya da bagli degil -> null); arsivde `Go<sira>` komut yolundan',
+         yok1 === null && yok2 === null && typeof var_ === 'function' && giden.join() === 'Go42', giden.join());
+    });
+  }
+  {
+    const depo = {};
+    const sahteDepo = { getItem: (k) => (k in depo ? depo[k] : null), setItem: (k, v) => { depo[k] = String(v); },
+      removeItem: (k) => { delete depo[k]; } };
+    const atan = { getItem() { throw new Error('SecurityError'); }, setItem() { throw new Error('Quota'); },
+      removeItem() { throw new Error('x'); } };
+    ES.arsivYaz(7, true, sahteDepo);
+    const yedi = ES.arsivOku(7, sahteDepo);
+    const sekiz = ES.arsivOku(8, sahteDepo);
+    ES.arsivYaz(7, false, sahteDepo);
+    let istisna = '';
+    try { ES.arsivYaz(7, true, atan); ES.arsivOku(7, atan); } catch (e) { istisna = e.message; }
+    ok('[!] C3: "arsiv" secimi KART (akis kimligi) basina; kapatinca silinir; depo atarsa istisna yok',
+       yedi === true && sekiz === false && !('olcum.arsiv.7' in depo) && !istisna, istisna || JSON.stringify(depo));
+  }
+
+  /* ── (c) sentetik akis: ortak/ paketleyicileriyle gercek kayitlar ──── */
+  const u32 = (...d) => { const b = new Uint8Array(4 * d.length); const v = new DataView(b.buffer); d.forEach((x, i) => v.setUint32(4 * i, x, true)); return b; };
+  const bitir = (n, s) => { const b = new Uint8Array(8); const v = new DataView(b.buffer); v.setUint32(0, n, true); v.setUint8(4, s); return b; };
+  const utf8 = (s) => new TextEncoder().encode(s);
+  const kanal = (n) => ({ n, pga: 4.096, kazanc: 1, sifir_ham: 12, tau: 0 });
+  const KAL = { normal: kanal(21), yuksek: kanal(201), i_ofset: 5, i_pga: 0.256, sont_ohm: 0.1,
+    i_duzeltme: 1, sebeke_hz: 0, faz_kal_us: [0, 0] };
+  function akisKur() {
+    let sira = 0;
+    const ham = [];
+    const ekle = (tur, ot, yuk) => { sira++; ham.push(K.kayitPaketle(tur, sira, ot, yuk)); return sira; };
+    const basla = (tur, hiz, unix, kms, acilis) => ekle(K.T_BASLA, sira + 1, K.baslaPaketle({ oturum_turu: tur,
+      kal_bicim: 1, hiz_ms: hiz, unix_s: unix, kart_ms: kms, acilis, surum: 'A3-3C', kal: KAL, kal_no: 2 }));
+    const nokta = (ms, v, i, w, bayrak = 0) => K.noktaPaketle({ kart_ms: ms, n: 40, bayrak, v_ort_kod: v,
+      v_min_kod: Math.round(v) - 30, v_maks_kod: Math.round(v) + 50, i_ort_kod: i, i_min_kod: Math.round(i) - 3,
+      i_maks_kod: Math.round(i) + 4, w_ort: w, w_min: w - 0.25, w_maks: w + 0.5 });
+    const noktalar = (ot, ilk, ns) => {
+      for (let j = 0; j < ns.length; j += 5) {
+        const p = ns.slice(j, j + 5);
+        const y = new Uint8Array(4 + 36 * p.length);
+        y.set(u32(ilk + j), 0);
+        p.forEach((b, k) => y.set(b, 4 + 36 * k));
+        ekle(K.T_NOKTA, ot, y);
+      }
+    };
+    const o = {};
+    // A: olcum, 200 ms, saatli; ad + etiket + iki not
+    o.A = basla(1, 200, 1790000000, 5000, 3);
+    noktalar(o.A, 0, Array.from({ length: 20 }, (_, k) => nokta(5000 + 200 * (k + 1),
+      1500 + 40 * k + (k === 7 ? 900 : 0), 300 + 5 * k, 1.5 + 0.01 * k)));
+    ekle(K.T_NOT, 0, K.notPaketle(o.A, K.KNT_AD, 0, 0, utf8('Akü şarj — deneme')));
+    ekle(K.T_NOT, 0, K.notPaketle(o.A, K.KNT_ETIKET, 0, 0, utf8('akü, şarj, 12V')));
+    ekle(K.T_NOT, 0, K.notPaketle(o.A, K.KNT_NOT, 0, 0, utf8('genel not')));
+    ekle(K.T_NOT, 0, K.notPaketle(o.A, K.KNT_NOT, 5000 + 200 * 11, 0, utf8('dalgalanma başladı')));
+    ekle(K.T_BITIR, o.A, bitir(20, 1));
+    // B: pil testi, 500 ms
+    o.B = basla(2, 500, 1790001000, 90000, 3);
+    ekle(K.T_OLAY, o.B, K.olayPaketle({ tur: K.KO_PIL_AYAR, kart_ms: 90001, kesme_v: 3.0, ocv: 4.1,
+      azami_s: 36000, dcir_aralik_ms: 3000, dcir_ms: 200, kayit_hz: 2 }));
+    noktalar(o.B, 0, Array.from({ length: 10 }, (_, k) => nokta(90000 + 500 * (k + 1), 2000 - 20 * k, 400, 2 - 0.02 * k)));
+    ekle(K.T_OLAY, o.B, K.olayPaketle({ tur: K.KO_DCIR, kart_ms: 92600, no: 1, v_once: 3.9, i_once: 1,
+      v_ani: 3.8, v_oturmus: 3.75, r_ani: 0.1, r_oturmus: 0.15, mah: 1.2, wh: 0.004 }));
+    ekle(K.T_OLAY, o.B, K.olayPaketle({ tur: K.KO_PIL_SONUC, kart_ms: 95100, durum: 2, hata: 0, mah: 1.4,
+      wh: 0.005, ocv: 4.1, v_son: 3.0, sure_ms: 5000, dcir_sayisi: 1 }));
+    ekle(K.T_BITIR, o.B, bitir(10, 4));
+    // C: ayrintili (hiz 0)
+    o.C = basla(1, 0, 1790002000, 200000, 3);
+    ekle(K.T_AYRINTI, o.C, K.ayrintiPaketle({ ilk: 0, t0_ms: 200003, t0_us: 200003417, bayrak: 0,
+      ornekler: Array.from({ length: 12 }, (_, k) => [1000 + 10 * k, 200 + k, k ? 500 : 0, 0]) }));
+    ekle(K.T_AYRINTI, o.C, K.ayrintiPaketle({ ilk: 12, t0_ms: 200070, t0_us: 200070120, bayrak: K.KA_SILME,
+      ornekler: Array.from({ length: 8 }, (_, k) => [1200 + 10 * k, 220 + k, k ? 500 : 0, k === 3 ? K.KAO_V_HATA : 0]) }));
+    ekle(K.T_BITIR, o.C, bitir(20, 1));
+    // D: osiloskop gunlugu, tek tam yakalama
+    o.D = basla(3, 1000, 1790003000, 300000, 3);
+    ekle(K.T_SKOP, o.D, K.skopPaketle({ no: 1, ilk: 0, toplam: 8, parca: 0, kodlar: [100, 200, 300, 400, 300, 200, 100, 0],
+      meta: { t_ms: 300100, sure_ms: 9, hz: 1000, tdiv_us: 1000, adim: 0.03, ofset: 1.5, tetik: 2, esik: 2048,
+        histerezis: 8, kip: 0, tetiklendi: 1, kenar: 0, on_yuzde: 25, onay: 2 } }));
+    ekle(K.T_BITIR, o.D, bitir(0, 1));
+    // E: saatsiz + saatsiz DEVAM (ikinci parcanin baslangica uzakligi BILINMIYOR)
+    o.E = basla(1, 1000, 0, 7000, 3);
+    noktalar(o.E, 0, Array.from({ length: 5 }, (_, k) => nokta(7000 + 1000 * (k + 1), 1000, 100, 1)));
+    ekle(K.T_DEVAM, o.E, u32(4, 0, 2000, 5));
+    noktalar(o.E, 5, Array.from({ length: 4 }, (_, k) => nokta(2000 + 1000 * (k + 1), 1100, 100, 1.2)));
+    ekle(K.T_BITIR, o.E, bitir(9, 5));
+    // P: saatli DEVAM, yeniden baslama arasi (1 s) bosluk esiginden (2.5 s) KISA — enerji acilis
+    // sinirinin ustunden integre EDILMEMELI (rapor.js kurali); tek parca sanan hesap ayrisir.
+    o.P = basla(1, 1000, 1790004000, 50000, 3);
+    noktalar(o.P, 0, Array.from({ length: 5 }, (_, k) => nokta(50000 + 1000 * (k + 1), 1000 + 50 * k, 100, 1 + 0.1 * k)));
+    ekle(K.T_DEVAM, o.P, u32(4, 1790004005, 3000, 5));
+    noktalar(o.P, 5, Array.from({ length: 4 }, (_, k) => nokta(3000 + 1000 * (k + 1), 1400, 300, 3)));
+    ekle(K.T_BITIR, o.P, bitir(9, 1));
+    let n = 0;
+    for (const h of ham) n += h.length;
+    const b = new Uint8Array(n);
+    let a = 0;
+    for (const h of ham) { b.set(h, a); a += h.length; }
+    return { b, o };
+  }
+  const { b: AKIS, o: NO } = akisKur();
+  const kayitlar = K.akisCoz(AKIS);
+  const ot = K.oturumlariKur(kayitlar);
+  const A = ot.get(NO.A);
+  const B = ot.get(NO.B);
+  const C = ot.get(NO.C);
+  const Dk = ot.get(NO.D);
+  const E = ot.get(NO.E);
+  const P = ot.get(NO.P);
+  const sonSira = ES.oturumSonSiralari(kayitlar);
+  ok('Sentetik akis ortak/ ile cozuldu: alti oturum, A`nin adi/etiketi/notlari',
+     ot.size === 6 && A.ad === 'Akü şarj — deneme' && A.etiketler.join('|') === 'akü|şarj|12V' && A.notlar.size === 2,
+     `${ot.size} oturum`);
+
+  /* ── (d) liste birlesimi, nerede, siralama ─────────────────────────── */
+  const yerel = { kimlik: 7, oturumlar: ot, sonSira };
+  const eski = { kimlik: 3, oturumlar: K.oturumlariKur(K.akisCoz(akisKur().b)), sonSira: new Map() };
+  const kartListe = { kimlik: 7, aktif: 999, oturumlar: [
+    { id: NO.A, tur: 1, hiz_ms: 200, unix_s: 1790000000, kart_ms: 5000, acilis: 3, ilk: NO.A,
+      son: sonSira.get(NO.A) + 3, nokta: 20, durum: 2, basi_silindi: 0 },
+    { id: NO.B, tur: 2, hiz_ms: 500, unix_s: 1790001000, kart_ms: 90000, acilis: 3, ilk: NO.B,
+      son: sonSira.get(NO.B), nokta: 10, durum: 2, basi_silindi: 0 },
+    { id: 999, tur: 1, hiz_ms: 0, unix_s: 1790009000, kart_ms: 1, acilis: 3, ilk: 1000, son: 1010, nokta: 77,
+      durum: 1, basi_silindi: 0 },
+  ] };
+  const satirlar = KL.listeBirlestir({ kart: kartListe, yereller: [yerel, eski] });
+  const bul = (k, o_) => satirlar.find((s) => s.kimlik === k && s.oturum === o_);
+  ok('[!] C4 nerede: kartta+yerel -> ikisi, yalniz kart -> kart, yalniz yerel -> tarayici',
+     bul(7, NO.A).nerede === 'ikisi' && bul(7, 999).nerede === 'kart' && bul(7, NO.E).nerede === 'tarayici'
+     && bul(7, NO.C).nerede === 'tarayici',
+     satirlar.map((s) => `${s.kimlik}:${s.oturum}=${s.nerede}`).join(' '));
+  ok('[!] C4: yerel kopya karttan GERIDEYSE "eksik"; aktif oturum "kaydediliyor"; kartin turu (hiz 0 -> ayrintili)',
+     bul(7, NO.A).eksik === true && bul(7, NO.B).eksik === false && bul(7, 999).durum === 'kayitta'
+     && bul(7, 999).tur === 'ayrinti' && bul(7, NO.A).durum === 'bitti');
+  ok('[!] C2: baska kimligin oturumu "eski kart kopyasi", adresi @kimlik tasiyor; guncel akis @siz',
+     bul(3, NO.A).eskiKart === true && bul(3, NO.A).adres === `#/kayit/${NO.A}@3`
+     && bul(7, NO.A).eskiKart === false && bul(7, NO.A).adres === `#/kayit/${NO.A}`);
+  const sira = satirlar.map((s) => `${s.kimlik}:${s.oturum}`);
+  const beklenenSira = [999, NO.P, NO.E, NO.D, NO.C, NO.B, NO.A].map((x) => `7:${x}`)
+    .concat([NO.P, NO.E, NO.D, NO.C, NO.B, NO.A].map((x) => `3:${x}`));
+  ok('[!] Siralama yeni -> eski: guncel akis once, akis icinde oturum no azalan',
+     sira.join() === beklenenSira.join(), sira.join(' '));
+  ok('Kart bilinmiyorsa (null) her yerel oturum "tarayici", eski kart isareti yok',
+     KL.listeBirlestir({ kart: null, yereller: [yerel] }).every((s) => s.nerede === 'tarayici' && !s.eskiKart));
+  ok('[!] Liste satiri adi, etiketleri, sureyi (son nokta - baslangic) ve nokta sayisini tasiyor',
+     bul(7, NO.A).ad === 'Akü şarj — deneme' && bul(7, NO.A).sureMs === 4000 && bul(7, NO.A).nokta === 20
+     && bul(7, NO.C).nokta === 20 && bul(7, NO.D).nokta === 1 && bul(7, NO.E).sureMs === null,
+     `A sure=${bul(7, NO.A).sureMs} E sure=${bul(7, NO.E).sureMs}`);
+
+  /* ── (e) arama ve suzgec ─────────────────────────────────────────── */
+  ok('[!] metinSadele Turkce duyarsiz: "AKÜ ŞARJ İıI ÇĞÖ" -> "aku sarj iii cgo"',
+     KL.metinSadele('AKÜ ŞARJ İıI ÇĞÖ') === 'aku sarj iii cgo', KL.metinSadele('AKÜ ŞARJ İıI ÇĞÖ'));
+  const ara = (q, s = {}) => KL.satirSuz(satirlar, { arama: q, ...s }).map((x) => `${x.kimlik}:${x.oturum}`);
+  ok('[!] Arama ad/etiket/not metninde Turkce duyarsiz ("aku", "SARJ", "12v", "dalgalanma")',
+     ara('aku').join() === `7:${NO.A},3:${NO.A}` && ara('SARJ').length === 2 && ara('12v').length === 2
+     && ara('dalgalanma').length === 2 && ara('aku dalga').length === 2 && ara('aku yok').length === 0,
+     ara('aku').join(' '));
+  ok('[!] Numara: "#N" yalniz o oturum; "N" numara ya da metin',
+     ara('#' + NO.B).join() === `7:${NO.B},3:${NO.B}` && ara(String(999)).join() === '7:999'
+     && ara('#9999').length === 0);
+  ok('[!] Suzgec: tur (olcum ayrintiliyi da kapsar) ve nerede',
+     ara('', { tur: 'olcum' }).includes(`7:${NO.C}`) && !ara('', { tur: 'olcum' }).includes(`7:${NO.B}`)
+     && ara('', { tur: 'pil' }).join() === `7:${NO.B},3:${NO.B}` && ara('', { nerede: 'kart' }).join() === '7:999'
+     && ara('', { nerede: 'ikisi' }).join() === `7:${NO.B},7:${NO.A}`);
+
+  /* ── (f) rota ─────────────────────────────────────────────────────── */
+  const rc = KL.rotaCoz;
+  ok('[!] Rota: #/kayit/12, #/kayit/12@7, #/kayit/12/rapor; bicimsiz -> liste; rotaYaz tersi',
+     JSON.stringify(rc('#/kayit/12')) === '{"oturum":12,"kimlik":null,"rapor":false}'
+     && JSON.stringify(rc('#/kayit/12@7/rapor')) === '{"oturum":12,"kimlik":7,"rapor":true}'
+     && rc('#/kayitlar').oturum === null && rc('#/kayit/x').oturum === null && rc('#/kayit/').oturum === null
+     && ['#/kayit/12', '#/kayit/12@7', '#/kayit/12/rapor', '#/kayit/3@0/rapor', '#/kayitlar']
+       .every((h) => KL.rotaYaz(rc(h)) === h));
+  ok('Rotadaki oturumun akisi: kimlik verilmisse o, yoksa guncel akis',
+     KL.rotaAkisi({ oturum: NO.A, kimlik: 3 }, satirlar) === 3 && KL.rotaAkisi({ oturum: NO.A, kimlik: null }, satirlar) === 7);
+
+  /* ── (g) seri hazirlama, imlec, enerji ─────────────────────────────── */
+  const hA = KG.grafikSerileri(A, { kayitlar });
+  const nsA = D.noktaSerileri(A, { kayitlar });
+  const artan = (t) => t.every((x, k) => k === 0 || x >= t[k - 1]);
+  ok('[!] Nokta oturumu: 9 seri (V/I/W ort + min/maks zarfi), HEPSI ayni t; t = baslangictan gecen ms',
+     hA.tur === 'nokta' && hA.seriler.length === 9 && hA.seriler.every((s) => s.t === hA.t)
+     && hA.t.length === 20 && hA.t[0] === 200 && hA.t[19] === 4000 && artan(hA.t)
+     && hA.seriler.filter((s) => s.zarf).length === 6,
+     `${hA.tur} ${hA.seriler.map((s) => s.ad).join(',')}`);
+  ok('[!] Seri degerleri ortak/disari.noktaSerileri ile AYNI (V ort, I min, W maks); bosluk = hiz x 2.5',
+     hA.seriler[0].y === nsA.vOrt || hA.seriler[0].y.every((x, k) => Object.is(x, nsA.vOrt[k]))
+     && hA.seriler.find((s) => s.ad === 'I min').y.every((x, k) => Object.is(x, nsA.iMin[k]))
+     && hA.seriler.find((s) => s.ad === 'W maks').y.every((x, k) => Object.is(x, nsA.wMaks[k]))
+     && hA.boslukMs === 500 && hA.seriler.every((s) => s.boslukMs === 500));
+  const hC = KG.grafikSerileri(C, { kayitlar });
+  ok('Ayrintili oturum: V/I/W (zarf yok), bosluk 16.38 ms; osiloskop oturumu grafiksiz (3E)',
+     hC.tur === 'ayrinti' && hC.seriler.map((s) => s.ad).join() === 'V,I,W' && hC.boslukMs === D.AYRINTI_BOSLUK_MS
+     && hC.t.length === 20 && artan(hC.t) && KG.grafikSerileri(Dk, { kayitlar }).tur === 'yok');
+  const hE = KG.grafikSerileri(E, { kayitlar });
+  ok('[!] K1: saatsiz DEVAM parcasi oncekinin ARDINA (3 x bosluk ara), "tahmini" isaretli; zaman azalmiyor',
+     hE.tahmini.join() === '1' && artan(hE.t) && hE.t[4] === 5000 && hE.t[5] === 5000 + 3 * 2500 + 0,
+     `tahmini=${hE.tahmini} t=${Array.from(hE.t).join(',')}`);
+  const gor = KG.gorunurluk(hA.seriler, { v: true, sag: 'guc', zarf: false });
+  ok('K4 gorunurluk: sag eksen tek birim (guc secilince akim gizli), zarf kapali',
+     gor.filter((s) => !s.gizli).map((s) => s.ad).join() === 'V,W'
+     && KG.gorunurluk(hA.seriler, {}).filter((s) => !s.gizli).length === 6);
+  {
+    const hP = KG.grafikSerileri(P, { kayitlar });
+    ok('P: saatli DEVAM parcasi GERCEK yerinde (tahmini degil), ara bosluk esiginden kisa',
+       hP.tahmini.length === 0 && hP.t[4] === 5000 && hP.t[5] === 6000 && hP.t[5] - hP.t[4] < hP.boslukMs,
+       Array.from(hP.t).join(','));
+  }
+  for (const [ad, o_] of [['A (olcum)', A], ['B (pil)', B], ['E (DEVAM)', E], ['P (DEVAM, kisa ara)', P]]) {
+    const h = KG.grafikSerileri(o_, { kayitlar });
+    const e = KG.aralikEnerji(h, h.t[0], h.t[h.t.length - 1]);
+    const r = R.oturumRaporu(o_, { kayitlar });
+    ok(`[!] K3: tam aralikta okuma enerjisi RAPORLA bit bit ayni — ${ad}`,
+       e.wh === r.enerji.wh && e.mah === r.enerji.mah && e.wh !== 0, `okuma ${e.wh}/${e.mah} rapor ${r.enerji.wh}/${r.enerji.mah}`);
+  }
+  {
+    const e = KG.aralikEnerji(hC, hC.t[0], hC.t[hC.t.length - 1]);
+    const r = R.oturumRaporu(C, { kayitlar });
+    const yakin_ = (x, y) => Math.abs(x - y) <= 1e-12 * Math.max(1, Math.abs(y));
+    ok('K3: ayrintili oturumda da okuma enerjisi raporla ayni (1e-12)', yakin_(e.wh, r.enerji.wh) && yakin_(e.mah, r.enerji.mah),
+       `${e.wh} ~ ${r.enerji.wh}`);
+  }
+  {
+    const ok2 = KG.okumaHesapla(hA, 1450, 610);           // ters sirayla da
+    const v = nsA.vOrt;
+    const ort = (v[3] + v[4] + v[5] + v[6]) / 4;   // [610, 1450] icindeki ornekler: t 800..1400 (sira 3..6)
+    ok('[!] Imlec okumasi: A <= B siralanir, deger EN YAKIN ham ornek, dV = B - A, ort aralik ortalamasi',
+       ok2.tA === 610 && ok2.tB === 1450 && Object.is(ok2.v.a, v[2]) && Object.is(ok2.v.b, v[6])
+       && ok2.dV === v[6] - v[2] && Math.abs(ok2.v.ort - ort) < 1e-12 && ok2.enerji && ok2.enerji.wh > 0,
+       `A=${ok2.v.a} B=${ok2.v.b} ort=${ok2.v.ort}`);
+    const vMin = nsA.vMin;
+    ok('[!] K2: okumanin min/maks`i min/maks KODLARINDAN (sicrama ortalamada erir, burada kalir)',
+       Object.is(KG.okumaHesapla(hA, 0, 5000).v.maks, Math.max(...nsA.vMaks))
+       && Object.is(KG.okumaHesapla(hA, 0, 5000).v.min, Math.min(...vMin)));
+  }
+  {
+    const notlar = KG.notListesi(A, hA);
+    ok('[!] Notlar: genel not grafikte yer YOK; zamanli not grafikte kendi aninda (x = 2200 ms)',
+       notlar.length === 2 && notlar[0].genel && notlar[0].x === null && notlar[1].x === 2200
+       && notlar[1].metin === 'dalgalanma başladı', JSON.stringify(notlar));
+    const d = { veriT0: 0, veriT1: 10000, t0: 0, t1: 10000 };
+    const p = KG.notPenceresi(d, 2200);
+    ok('Nota gitmek pencereyi ona ortalar (butun veri gorunuyorsa onda bire daralir)',
+       p.t0 === 1700 && p.t1 === 2700 && KG.notPenceresi({ ...d, t0: 0, t1: 400 }, 2200).t1 === 2400);
+  }
+
+  /* ── (h) disa aktarma = ortak/ ciktisi ────────────────────────────── */
+  {
+    const es = (a, b) => a.length === b.length && a.every((x, k) => x === b[k]);
+    const csvTr = KG.disariUret('csv_tr', A, kayitlar);
+    const csvEn = KG.disariUret('csv_en', A, kayitlar);
+    const beklenTr = D.csvBayt(D.oturumCsv(A, { ...D.BICIM_EXCEL_TR, kayitlar }));
+    const beklenEn = D.csvBayt(D.oturumCsv(A, { ...D.BICIM_EN, kayitlar }));
+    const ilkSatir = new TextDecoder().decode(csvTr.bayt).split('\r\n')[0];
+    ok('[!] C6: CSV (Excel-TR) baytlari ortak/oturumCsv ile AYNI; BOM + `;` + ondalik virgul',
+       es(csvTr.bayt, beklenTr) && csvTr.bayt[0] === 0xEF && csvTr.bayt[1] === 0xBB && csvTr.bayt[2] === 0xBF
+       && ilkSatir.includes(';') && csvTr.mime.startsWith('text/csv')
+       && /^\d+,\d{6}$/.test(new TextDecoder().decode(csvTr.bayt).split('\r\n')[1].split(';')[8]),
+       ilkSatir.slice(0, 60));
+    ok('[!] C6: CSV (EN) ortak/oturumCsv(BICIM_EN) ile AYNI; ad kayit-<no>-<ad>-en.csv',
+       es(csvEn.bayt, beklenEn) && csvEn.ad === `kayit-${NO.A}-aku-sarj-deneme-en.csv`
+       && KG.dosyaAdi(A, '', 'csv') === `kayit-${NO.A}-aku-sarj-deneme.csv`, csvEn.ad);
+    const ham = KG.disariUret('ham', A, kayitlar);
+    const geri = K.akisCoz(ham.bayt);
+    ok('[!] C6: ham .kyt = hamDisari: kartin baytlari (oturumun kayitlari + hedefi o olan NOT`lar), yeniden okunur',
+       es(ham.bayt, D.hamDisari(kayitlar, NO.A)) && ham.ad.endsWith('.kyt')
+       && geri.length === kayitlar.filter((k) => k.oturum === NO.A
+         || (k.tur === K.T_NOT && new DataView(k.yuk.buffer, k.yuk.byteOffset, 4).getUint32(0, true) === NO.A)).length
+       && geri.every((k) => es(k.yuk, kayitlar.find((x) => x.sira === k.sira).yuk)), `${geri.length} kayit`);
+    const pil = KG.disariUret('pil_tr', B, kayitlar);
+    const ayr = KG.disariUret('ayrinti_tr', C, kayitlar);
+    const y = Dk.skoplar.values().next().value;
+    const sk = KG.disariUret('skop', Dk, kayitlar, y);
+    ok('[!] C6: pil CSV, ayrintili CSV ve yakalama CSV`si ortak/ ile ayni; tur basina dogru secenekler',
+       es(pil.bayt, D.csvBayt(D.pilCsv(B, { ...D.BICIM_EXCEL_TR, kayitlar })))
+       && es(ayr.bayt, D.csvBayt(D.ayrintiCsv(C, { ...D.BICIM_EXCEL_TR, kayitlar })))
+       && es(sk.bayt, D.csvBayt(D.skopCsv(y, D.BICIM_EXCEL_TR)))
+       && KG.disariTurleri(A).join() === 'csv_tr,csv_en,ham' && KG.disariTurleri(B).join() === 'pil_tr,pil_en,ham'
+       && KG.disariTurleri(C).join() === 'ayrinti_tr,ayrinti_en,ham' && KG.disariTurleri(Dk).join() === 'ham',
+       `${pil.ad} ${ayr.ad} ${sk.ad}`);
+  }
+
+  /* ── (i) IndexedDB deposu: saf parca hesabi + kilit ────────────────── */
+  {
+    const kaynakB = Uint8Array.from({ length: 150 }, (_, k) => k);
+    const p = DP.parcala(kaynakB, 64);
+    kaynakB[0] = 99;
+    ok('[!] parcala: en cok N baytlik KOPYALAR (kaynak degisse de parca degismez)',
+       p.map((x) => x.length).join() === '64,64,22' && p[0][0] === 0 && p[2][21] === 149);
+    const ps = [{ no: 0, bas: 0, veri: Uint8Array.from({ length: 10 }, (_, k) => k) },
+      { no: 1, bas: 10, veri: Uint8Array.from({ length: 10 }, (_, k) => 10 + k) }];
+    const oku = (bas, top) => Array.from(DP.parcalardanOku(ps, bas, top)).join(',');
+    ok('[!] parcalardanOku: bas`tan sona birlestirir (parca icinden, sinirdan, sondan otede bos)',
+       oku(5, 20) === '5,6,7,8,9,10,11,12,13,14,15,16,17,18,19' && oku(10, 20) === '10,11,12,13,14,15,16,17,18,19'
+       && oku(20, 20) === '' && oku(25, 20) === '' && oku(0, 15) === '0,1,2,3,4,5,6,7,8,9,10,11,12,13,14');
+    const k1 = DP.kirpPlani(ps, 15, 20);
+    const k2 = DP.kirpPlani(ps, 10, 20);
+    const k3 = DP.kirpPlani(ps, 25, 20);
+    ok('[!] kirpPlani: ortadan keser, sinirda parca siler, uzunsa SIFIRLA uzatir (Python truncate)',
+       JSON.stringify(k1) === '{"sil":[],"kes":{"no":1,"boy":5},"uzat":0}'
+       && JSON.stringify(k2) === '{"sil":[1],"kes":null,"uzat":0}'
+       && JSON.stringify(k3) === '{"sil":[],"kes":null,"uzat":5}'
+       && JSON.stringify(DP.kirpPlani(ps, 0, 20)) === '{"sil":[0,1],"kes":null,"uzat":0}');
+    const t = new Date(2026, 9, 2, 14, 3, 5);
+    const var_ = new Set(['kalibrasyon-20261002-140305.json']);
+    ok('Kalibrasyon arsivi adi bellekDepo bicimi, ayni saniyede -1',
+       DP.arsivAdi(t, () => false) === 'kalibrasyon-20261002-140305.json'
+       && DP.arsivAdi(t, (a) => var_.has(a)) === 'kalibrasyon-20261002-140305-1.json');
+    const dp = kaynak('depo_idb.js');
+    const kod = dp.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    ok('[!] C2: BUTUN yazma islemleri `durability: \'strict\'` (tek islem yardimcisindan)',
+       (kod.match(/'readwrite'/g) || []).length === 1
+       && /'readwrite', \{ durability: 'strict' \}/.test(kod)
+       && (kod.match(/\.transaction\(/g) || []).length === 2);
+    /* Web Locks taklidi: ifAvailable — dolu kilit null verir. */
+    let tutulan = false;
+    const kilitler = { request(ad, s, fn) {
+      if (tutulan) return Promise.resolve(fn(null));
+      tutulan = true;
+      return Promise.resolve(fn({ name: ad })).then((x) => { tutulan = false; return x; });
+    } };
+    SONRA.push(async () => {
+      const b1 = await DP.kilitAl('olcum-kayit:7', kilitler);
+      let ikinci = '';
+      try { await DP.kilitAl('olcum-kayit:7', kilitler); } catch (e) { ikinci = e.name; }
+      await b1();
+      await new Promise((r) => setImmediate(r));
+      const b2 = await DP.kilitAl('olcum-kayit:7', kilitler).catch((e) => e.name);
+      ok('[!] Web Locks: ayni akisa ikinci esitleme CalismaHatasi; birakinca yeniden alinir',
+         ikinci === 'CalismaHatasi' && typeof b2 === 'function', `ikinci=${ikinci} b2=${typeof b2}`);
+      if (typeof b2 === 'function') await b2();
+      const s1 = await DP.kilitAl('olcum-kayit:8', undefined);
+      let s2 = '';
+      try { await DP.kilitAl('olcum-kayit:8', undefined); } catch (e) { s2 = e.name; }
+      await s1();
+      const s3 = await DP.kilitAl('olcum-kayit:8', undefined).catch((e) => e.name);
+      ok('[!] Web Locks YOKSA (kartin http:// koken`i) sekme ici kilit ayni kurali uyguluyor',
+         s2 === 'CalismaHatasi' && typeof s3 === 'function', `s2=${s2}`);
+      if (typeof s3 === 'function') await s3();
+    });
+  }
+
+  /* ── (j) sablon siniflari ve renkler ──────────────────────────────── */
+  {
+    const css = cssOku();
+    const siniflar = new Set();
+    for (const ad of ['kayitlar.js', 'kayit_gorunum.js']) {
+      for (const m of kaynak(ad).matchAll(/\sclass="([^"{}]+)"/g)) {
+        for (const c of m[1].split(/\s+/)) if (/^[a-z][a-z0-9-]*$/.test(c)) siniflar.add(c);
+      }
+    }
+    for (const c of ['kl-nerede-kart', 'kl-nerede-tarayici', 'kl-nerede-ikisi', 'kl-durum-kayitta',
+      'kl-durum-acik', 'kl-durum-bitti', 'kl-dikkat', 'kg-rapor-kipi']) siniflar.add(c);
+    const tanimsiz = [...siniflar].filter((c) => c !== 'kg-rapor-kipi'
+      && !new RegExp('\\.' + c + '(?![A-Za-z0-9_-])').test(css));
+    ok('[!] Ekran sablonlarindaki her sinif (dinamik nerede/durum dahil) CSS`te TANIMLI',
+       siniflar.size >= 40 && tanimsiz.length === 0, tanimsiz.join(' ') || `${siniflar.size} sinif`);
+    const bolum = css.slice(css.indexOf('3C — KAYITLAR'));
+    ok('[!] 3C stilleri YALNIZ belirtecle: sabit renk (#hex / rgb) yok, uc gorunumde ayni kurallar',
+       css.indexOf('3C — KAYITLAR') > 0 && !/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(bolum.replace(/\/\*[\s\S]*?\*\//g, '')));
+    const telefon = [...css.matchAll(/@media \(max-width: 620px\)\s*\{([\s\S]*?)\n\}/g)].map((m) => m[1]).join('\n');
+    ok('[!] Telefonda (<=620px) liste satiri TEK sutuna iniyor (390 px`te yatay tasma yok)',
+       /\.kl-satir\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/.test(telefon));
+  }
+}
+
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
    fonksiyonun govdesinde (bolum 13) dolduruluyor; bosaltma burada,
    ozetin hemen oncesinde. */
 for (const f of SONRA) await f();
 
 console.log(`\n${gecti}/${gecti + kaldi} dogrulama gecti`);
+ozetBasildi = true;
 
 /* ── TEZGAH KALEMLERI (B23.1) ──────────────────────────────────────────
    Bicim `uretim/tezgah.py` ile AYNI olmali — dogrula3.py ikisini de ayni

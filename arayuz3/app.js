@@ -27,7 +27,11 @@
 
 import { TEMALAR, temaKur } from './ekran/tema.js';
 
-const { createApp } = Vue;
+/* 3C: `defineAsyncComponent` — Kayitlar ekrani (ekran/kayitlar.js ve onun
+   /ortak/ modulleri) ancak ekran ILK acilinca iner (dinamik `import()`):
+   karttan her dosya istegi olcum dongusunu blokluyor ve acilis istekleri
+   (B7 bolum 15: <= 8) buyumesin. */
+const { createApp, defineAsyncComponent } = Vue;
 
 /* Zaman tabanı merdiveni — firmware'deki SKOP_TDIV_US ile AYNI olmalı
    (kod/olcum-karti-a2/olcum-karti-a2.ino). Doğrulama zinciri (A5) iki
@@ -261,6 +265,10 @@ const GORUNUMLER = [
   { id: 'olcum',  ad: 'Ölçüm',     alt: 'V · I · P · enerji · zaman grafiği' },
   { id: 'skop',   ad: 'Osiloskop', alt: 'yakalama · tetik · hızlı güç ölçümü' },
   { id: 'pil',    ad: 'Pil testi', alt: 'deşarj eğrisi · mAh · Wh · iç direnç' },
+  /* 3C (C7): sekme adı burada GÖMÜLÜ (öteki beşi gibi) — kabuk sözlüğe
+     3D/3H'de, sol şerit düzeniyle birlikte taşınacak (P4/P7). Ekranın
+     İÇİ sözlükten (ekran/kayitlar.js). */
+  { id: 'kayitlar', ad: 'Kayıtlar', alt: 'kartın kayıtları · eşitleme · grafik · dışa aktarma' },
   { id: 'ayar',   ad: 'Ayarlar',   alt: 'kalibrasyon · şönt · menzil · ağ' },
   { id: 'konsol', ad: 'Konsol',    alt: 'ham satırlar · komut' },
 ];
@@ -289,10 +297,23 @@ let grafikBekliyor = false;
 
 function hashtenGorunum() {
   const h = (typeof location !== 'undefined' ? location.hash : '').replace(/^#\/?/, '');
+  /* 3C: `#/kayit/<oturum>[@kimlik][/rapor]` Kayitlar sekmesinin ICI; hangi
+     kaydin acik oldugunu ekran kendisi okuyor (ekran/kayitlar.js rotaCoz). */
+  if (/^kayit\//.test(h)) return 'kayitlar';
   return GORUNUMLER.some((g) => g.id === h) ? h : GORUNUM_VARSAYILAN;
 }
 
 createApp({
+  /* 3C (P4): yeni ekran modul olarak; ilk kullanimda iner (yukaridaki not). */
+  components: {
+    'kayitlar-ekran': defineAsyncComponent({
+      loader: () => import('./ekran/kayitlar.js').then((m) => m.KayitlarEkrani),
+      /* Modul inmezse (bayat goruntu, kart yeniden basliyor) sekme BOS kalmasin:
+         sebep + care (DEVIR 4.15 dersi). Sozluk de o modullerle iniyor — bu
+         metin bu yuzden burada. */
+      errorComponent: { template: '<p class="hata">Kayıtlar ekranı yüklenemedi (modül inmedi) — kart yeniden başlıyor olabilir; birkaç saniye sonra sayfayı yenileyin.</p>' },
+    }),
+  },
   data() {
     return {
       /* B22.2: hangi taşıyıcı etkin. `tasiyici` ve `yetenek` bundan
@@ -310,6 +331,9 @@ createApp({
       menzil: null,       // 0 NORMAL, 1 YUKSEK, null bilinmiyor
       gorunum: hashtenGorunum(),   // B27 Aşama 1: #/olcum #/skop #/pil #/ayar #/konsol
       gorunumler: GORUNUMLER,
+      /* 3C: Kayitlar ekrani ilk acilista KURULUR (sonra v-show ile canli
+         kalir; tuval ve esitleme durumu kaybolmasin). */
+      kayitlarAcik: hashtenGorunum() === 'kayitlar',
       /* 3A (P1): renk takımı SEÇİMİ ('sistem' | 'koyu' | 'acik' | 'onpanel').
          ⚠ `gorunum` (SEKME) ile karıştırma — bkz. ekran/tema.js. Değer
          mounted()'ta kayıtlı seçimden geliyor; uygulama ve saklama
@@ -773,9 +797,12 @@ createApp({
     /* B27 Aşama 1: gizli (display:none) tuval 0 genişlik okur; görünüme
        dönünce yeniden çizilmeli. Adres çubuğunu da eşitle. */
     gorunum(v) {
-      if (typeof location !== 'undefined' && location.hash !== '#/' + v) {
+      /* 3C: adres ZATEN bu gorunumu gosteriyorsa (#/kayit/12 -> kayitlar)
+         dokunma — yoksa acik kaydin adresi #/kayitlar'a ezilirdi. */
+      if (typeof location !== 'undefined' && hashtenGorunum() !== v) {
         try { history.replaceState(null, '', '#/' + v); } catch (e) { /* file:// */ }
       }
+      if (v === 'kayitlar') this.kayitlarAcik = true;
       this.$nextTick(() => { this.grafikCiz(); this.osiloCiz(); });
     },
     /* B22.2: cizimi tazele VE tercihi sakla. Bu alanlar her acilista

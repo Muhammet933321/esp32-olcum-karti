@@ -1,11 +1,15 @@
 {
   "kaynak": {
-    "index.html": "88f43dc0ba607142805987cc4d04ca11a03384052a49713c24a9b67ea841b72d",
-    "app.js": "faf55481ae166652317ee658a38dc57d47247e9d6ea5e7a121a154cd5f4c5519",
-    "style.css": "184fdfb7444d2d9cbf59c3bea1480d6eb4c1d30d037b490eb13d658e20d1b6e7",
+    "index.html": "37d153e44f9bbedf6c5438bef814d1c802c7e799ee6a5e6e4a9e34d9beb9fabc",
+    "app.js": "2fea7a056967572022af4f6164510b2f7d458f1bf8be976af8463725d22e7feb",
+    "style.css": "29fde5c516405ffab9927b8445563487da8b26350f12bba16f375a71db2b537a",
     "vendor/vue.global.prod.js": "220ffd8a70f6161104efbf08802375364d9e4579f2552ba412cf80437f1692fe",
     "manifest.json": "783666c88eeb14cd82282e7ccb8baef9a395e6371bc216cf14d7b0e7268898f5",
     "ikon-180.png": "f6c99da2cadc82d1a6d8959e4b74f617a3730627108c011db6ae700dd053fd00",
+    "ekran/depo_idb.js": "4b063437f8ba293bb083c7772aa3ea9307c6053e780ba34f96a94e1429f7bc8d",
+    "ekran/esitleme.js": "46f28af83f14cb518e8afdddf81f99b0e9817fe1bb580acc654070e0a68e8e2e",
+    "ekran/kayit_gorunum.js": "8762a3bd7241df0418fe5963e51e210053229c569295d59722399915920be720",
+    "ekran/kayitlar.js": "d48769dda2116ce8578d0519ea2040bc597a2acadb481073ea0f9890639f9c74",
     "ekran/tema.js": "b91af2f06e2db6cd1f1059846a35fcaf0f953936a8c588f02dca3305ac26d244",
     "ortak/disari.js": "2f9f2478890daccf410b005b5718f165dad83c6b3297f75c49b1e16ccb751d15",
     "ortak/esitle.js": "f879a1cfb18e5b751df633e6d158d0bdd27c9b4a3d3048485c7ed82dcfb12928",
@@ -18,7 +22,7 @@
     "ortak/ozet.js": "d163998b887f02e4608a12bddc66320f4fc26314864d7d2c2b7a3c4a6735a2ed",
     "ortak/rapor.js": "141b6579e672f05ca938df57aa5e6b7b51a2a11814a929655e3c27beb0497478",
     "ortak/skop.js": "1e0edcb7e94305671ead80cd70bdfeea6ea33ca58409a23f00674b0d1f15801e",
-    "ortak/sozluk.js": "692c30fbc05036ae188a2cc544522d6f5e05962e32c80032190e899c9f6e092d",
+    "ortak/sozluk.js": "c01c73b83a6d18d4068d3768130712d6c7139d3992b4cd4fbd7873e87391740e",
     "ortak/zarf.js": "bd91be6fade85e82be49b8cdbccf447e4997c7949c561eff5559830fbe5f67c4"
   },
   "gz": [
@@ -27,6 +31,10 @@
     "style.css",
     "vendor/vue.global.prod.js",
     "manifest.json",
+    "ekran/depo_idb.js",
+    "ekran/esitleme.js",
+    "ekran/kayit_gorunum.js",
+    "ekran/kayitlar.js",
     "ekran/tema.js",
     "ortak/disari.js",
     "ortak/esitle.js",
@@ -44,7 +52,7 @@
   ],
   "ofset": "0x310000",
   "bolum_boyut": 1572864,
-  "icerik_bayt": 214343,
+  "icerik_bayt": 249226,
   "goruntu_bayt": 1572864,
   "blok": 4096,
   "sayfa": 256
