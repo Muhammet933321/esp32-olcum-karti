@@ -318,6 +318,13 @@ def tasma(t) -> int:
     return t.js("document.documentElement.scrollWidth - document.documentElement.clientWidth")
 
 
+def durdur(t) -> None:
+    """WIG: Durdur IKI ASAMALI — [data-kd=durdur] silahlar, [data-kd=durdur-eminim] gonderir."""
+    t.js("document.querySelector('[data-kd=durdur]').click()")
+    bekle_js(t, "!!document.querySelector('[data-kd=durdur-eminim]')", 4)
+    t.js("document.querySelector('[data-kd=durdur-eminim]').click()")
+
+
 def deger_yaz(sec: str, deger: str, olay: str = "input") -> str:
     return ("(() => { const e = document.querySelector(%s); if (!e) return 'yok'; e.value = %s;"
             " e.dispatchEvent(new Event(%s)); return 'ok'; })()" % (json.dumps(sec), json.dumps(deger), json.dumps(olay)))
@@ -478,10 +485,25 @@ def main() -> int:
                 and int(notlar[0][len("Gn121@"):].split(" ")[0]) in {x[0] for x in kart.gonderilen}
             ok("[!] D4: Not -> 'Gn<oturum>@<kart_ms> <metin>' (oturum G satirindan, ms GONDERILMIS bir D'nin ms'i)",
                ms_ok and kart.komutlar[-1] == "G?", " ".join(kart.komutlar[n1:]))
+            # WIG: Durdur iki asamali — ilk tik HICBIR komut gondermez, odak onay dugmesine;
+            # Vazgec silahi indirir ve odagi Durdur'a geri verir
+            nw = len(kart.komutlar)
+            t.js("document.querySelector('[data-kd=durdur]').click()")
+            silahli = bekle_js(t, "!!document.querySelector('[data-kd=durdur-eminim]') && document.activeElement"
+                                  " && document.activeElement.dataset.onay === 'durdur'", 4)
+            t.bekle(0.6)
+            komut_yok = len(kart.komutlar) == nw
+            t.js("document.querySelector('[data-kd=durdur-vazgec]').click()")
+            geri = bekle_js(t, "!document.querySelector('[data-kd=durdur-eminim]') && document.activeElement"
+                               " && document.activeElement.dataset.kd === 'durdur'", 4)
+            t.bekle(0.3)
+            ok("[!] WIG: Durdur IKI ASAMALI — ilk tik komut gondermez (odak 'Eminim, durdur'da), Vazgec geri alir (odak Durdur'a)",
+               silahli is True and komut_yok and geri is True and len(kart.komutlar) == nw and t.js(f"{UYG}.kayitAktif") is True,
+               f"silahli={silahli} komut_yok={komut_yok} geri={geri} komutlar={kart.komutlar[nw:]}")
             # ret (pil testi suruyor)
             kart.pil = True
             nr = len(kart.komutlar)
-            t.js("document.querySelector('[data-kd=durdur]').click()")
+            durdur(t)
             ret = bekle_js(t, "(() => { const e = document.querySelector('[data-kd=uyari]');"
                               " return e && e.dataset.tur === 'kart' && e.textContent.trim(); })()", 5)
             olay = t.js("[...document.querySelectorAll('[data-olaylar] .olay')].map(o => o.textContent.trim())[0]")
@@ -491,7 +513,7 @@ def main() -> int:
             komut_bekle(t, kart, nr, 2)
             kart.pil = False
             n2 = len(kart.komutlar)
-            t.js("document.querySelector('[data-kd=durdur]').click()")
+            durdur(t)
             bekle_js(t, f"!{UYG}.kayitAktif && !!document.querySelector('[data-kd=baslat]')", 5)
             k2 = komut_bekle(t, kart, n2, 2)
             ok("[!] D4: Durdur -> 'Gd' + 'G?'; kart durunca baslat geri geliyor, ret kutusu temizlendi",
@@ -505,7 +527,7 @@ def main() -> int:
             k3 = komut_bekle(t, kart, n3, 2)
             ok("[!] D4: 'her ornek' -> 'Gb0'", k3[:2] == ["Gb0", "G?"], " ".join(k3))
             n3b = len(kart.komutlar)
-            t.js("document.querySelector('[data-kd=durdur]').click()")
+            durdur(t)
             bekle_js(t, f"!{UYG}.kayitAktif", 5)
             komut_bekle(t, kart, n3b, 2)
             # zamanla
@@ -549,7 +571,7 @@ def main() -> int:
             ok("[!] D7/D1: kart yeniden basladi (afis + ms sifirlandi): olay, kayit surdu, seritte afis surumu, zaman AZALMADI",
                "Asama 3" in (ys or "") and artan is True and surdu is True, f"{ys} artan={artan} surdu={surdu}")
             n7 = len(kart.komutlar)
-            t.js("document.querySelector('[data-kd=durdur]').click()")
+            durdur(t)
             bekle_js(t, f"!{UYG}.kayitAktif", 5)
             komut_bekle(t, kart, n7, 2)
             t.bekle(3.0)                     # bos sure: yeni G? DOGMAMALI
@@ -662,14 +684,26 @@ def main() -> int:
                gizli["v"] == "hidden" and gizli["ust"] == "flex" and gizli["d"] == "false"
                and acik["v"] == "visible" and acik["d"] == "true" and acik["odak"] == "Canlı" and 0 < acik["sag"] <= 390,
                json.dumps({"gizli": gizli, "acik": acik}, ensure_ascii=False))
+            # WIG: cekmece acikken arka plan INERT — son serit baglantisindan Tab perdenin arkasina dusmez
+            son = t.js("(() => { const a = [...document.querySelectorAll('#serit .gorunum-sekme')].pop(); a.focus();"
+                       " return document.activeElement === a; })()")
+            tus(t, "Tab", "Tab")
+            t.bekle(0.2)
+            inert = t.js("({ic: document.querySelector('.icerik').inert, ust: document.querySelector('.ust .baglanti').inert,"
+                         " odakIcerikte: !!document.activeElement.closest('.icerik'),"
+                         " kilit: getComputedStyle(document.documentElement).overflow})")
+            ok("[!] WIG (390 px): cekmece acikken .icerik ve ust cubuk baglantisi INERT; Tab icerige DUSMEZ; govde kilitli",
+               son is True and inert["ic"] is True and inert["ust"] is True and inert["odakIcerikte"] is False
+               and inert["kilit"] == "hidden", json.dumps(inert))
             resim("5-telefon-cekmece")
             tus(t, "Escape", "Escape")
             bekle_js(t, "getComputedStyle(document.querySelector('#serit')).visibility === 'hidden'", 3)
             esc = t.js("({v: getComputedStyle(document.querySelector('#serit')).visibility,"
                        " odak: document.activeElement && document.activeElement.classList.contains('menu-dugme'),"
-                       " d: document.querySelector('.menu-dugme').getAttribute('aria-expanded')})")
-            ok("[!] D1 (390 px): Esc cekmeceyi KAPATIR, odak ☰ dugmesine doner", esc["v"] == "hidden" and esc["odak"] is True
-               and esc["d"] == "false", json.dumps(esc))
+                       " d: document.querySelector('.menu-dugme').getAttribute('aria-expanded'),"
+                       " ic: document.querySelector('.icerik').inert})")
+            ok("[!] D1 (390 px): Esc cekmeceyi KAPATIR, odak ☰ dugmesine doner (WIG: icerik artik inert DEGIL)",
+               esc["v"] == "hidden" and esc["odak"] is True and esc["d"] == "false" and esc["ic"] is False, json.dumps(esc))
             tikla(t, m["x"], m["y"])
             bekle_js(t, "getComputedStyle(document.querySelector('#serit')).visibility === 'visible'", 3)
             t.bekle(0.3)

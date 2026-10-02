@@ -1588,6 +1588,17 @@ console.log('\n--- 14. Telefon yerlesimi + acil durdurma ---');
   /* Emniyet dugmesi ENGELLENMEMELI: `:disabled` konursa surucu olmayan
      oturumda ya da baglanti dalgalanmasinda durdurma kilitlenir. `p0`
      zaten jetonsuz gecen tek komut. */
+  /* WIG (2026-10-02) yikici eylemlere iki asamali onay getirdi; p0 BILEREK disarida:
+     deşarji kesen emniyet komutu TEK dokunusla ve aninda gitmeli. Her p0 dugmesi
+     pilDurdurKomut'u DOGRUDAN cagirir ve govdesinde onay (onayIste/confirm) yok. */
+  {
+    const dogrudan = (html.match(/@click="pilDurdurKomut"/g) || []).length;
+    const sarili = /onayIste\(\s*'(?:p0|pil[A-Za-z]*Dur[a-z]*)'/.test(html) || /onayIste\(\s*'(?:p0|pil[A-Za-z]*Dur[a-z]*)'/.test(appKaynak);
+    const govde = (appKaynak.match(/pilDurdurKomut\(\)\s*\{([^}]*)\}/) || [])[1] || '';
+    ok('[!] Emniyet: pil DURDUR (acil serit + Pil sekmesi) pilDurdurKomut\'u TEK tikla cagirir; p0 onaya sarilmaz, govdede onay yok',
+       dogrudan >= 2 && !sarili && /gonder\('p0'\)/.test(govde) && !/onayIste|confirm\(|onay/.test(govde),
+       `dogrudan=${dogrudan} sarili=${sarili} govde=${govde.trim()}`);
+  }
   ok('Acil dugmede :disabled YOK (durdurma hicbir kosula bagli degil)',
      !/class="acil"[\s\S]{0,600}acil-dur[^>]*:disabled/.test(html));
   ok('Acil serit gorsel olarak uyari rengiyle ayirt ediliyor',
@@ -2713,8 +2724,9 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
      && ES.hataSinifla(new TypeError('Failed to fetch')).durum === 'ag');
   {
     const metin = SZ.ceviri('kl.neden_imza', 'tr');
-    ok('[!] 401 metni: "Kart imza istiyor — bu tarayıcıyı eşleştirmek Ayarlar\'da (3H)"',
-       metin.startsWith('Kart imza istiyor — bu tarayıcıyı eşleştirmek Ayarlar\'da (3H)'), metin);
+    /* WIG: eski metin olmayan bir ayara ("Ayarlar'da (3H)") gonderiyordu; artik bugunku yolu soyluyor */
+    ok('[!] 401 metni: "Kart imzalı istek istiyor; bu tarayıcı henüz eşleştirilemiyor" + PC yolu (kayit_esitle.py)',
+       metin.startsWith('Kart imzalı istek istiyor; bu tarayıcı henüz eşleştirilemiyor') && metin.includes('kopru/kayit_esitle.py'), metin);
   }
   {
     /* Gercek kartta (2026-10-02) esitleme tek bir ag zaman asimiyla durdu: ag hatasi artan
@@ -3429,7 +3441,7 @@ console.log('\n--- 25. Canli + kabuk + kayit denetimi (3D) ---');
       giden.length = 0;
       const sonuc = await u.kayitDurdur();
       ok('Bagli degilken kayit komutu GITMIYOR ve sebebi yaziyor', sonuc === false && giden.length === 0
-         && u.kayitUyari && u.kayitUyari.metin === 'Karta bağlı değil.');
+         && u.kayitUyari && u.kayitUyari.metin === 'Karta bağlı değil — önce “Karta bağlan”a basın.');
     });
   }
 
@@ -3514,7 +3526,7 @@ console.log('\n--- 25. Canli + kabuk + kayit denetimi (3D) ---');
        w.kayitDusenYazi === 'Kart 3 noktayı yazamadı (kayıt kuyruğu doldu).'
        && (w.satirIsle('G 2 61 101 121 0 310 45 0 0 0 0 300 0'), w.kayitDusenYazi === ''));
     w.satirIsle('GP 1 1790000000 7200 1000 0');
-    ok('D6: plan satiri durum + baslangic + sure + aralik', /^Plan: bekliyor · \d\d\.\d\d\.\d{4} \d\d:\d\d · 2 sa · 1 s$/.test(w.planYazi),
+    ok('D6: plan satiri durum + baslangic + sure + aralik', /^Plan: bekliyor · \d{4}-\d\d-\d\d \d\d:\d\d · 2 sa · 1 s$/.test(w.planYazi),
        w.planYazi);
   }
 
@@ -3649,6 +3661,484 @@ console.log('\n--- 25. Canli + kabuk + kayit denetimi (3D) ---');
     ok('[!] 3D stilleri YALNIZ belirtecle: sabit renk (#hex / rgb) yok',
        css.indexOf('3D — KABUK') > 0 && css.indexOf('3D — CANLI') > 0
        && !/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(blok.replace(/\/\*[\s\S]*?\*\//g, '')));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   26. WEB ARAYUZ KURALLARI (WIG, 2026-10-02) — kabuk, Canli, Pil, Ayarlar,
+       Konsol, Kayitlar. Osiloskop bolumu BU BOLUMUN DISINDA (ayri is).
+   Dogrulanmis bulgularin her biri burada DAVRANIS ya da sablon iddiasi:
+   (a) her denetimin erisilebilir adi var (label for/sarmalama/aria-label),
+       sahipsiz <label> yok; (b) eszamansiz durumlar duyuruluyor; (c) yikici
+       eylemler IKI ASAMALI (onay kendiliginden ve gorunum degisince duser);
+       (d) kod/ag adi/parola alanlari otomatik buyuk harf / duzeltme yapmiyor;
+       (e) baglanti yokken okuma kartlari '0.000 V' YAZMIYOR; (f) metinler
+       ekranda olani soyluyor; (g) cekmece arkasi inert, odak yonetimi.
+   Gercek tarayici: tarayici_canli.py (iki asamali Durdur, inert cekmece),
+   tarayici_kayitlar.py (arsiv onayi, kayit acilinca odak).
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, Konsol, Kayitlar ---');
+{
+  const htmlTam = yorumsuz(htmlKaynak);
+  /* osiloskop <main>'i kapsam disi: cikarilip bakiliyor */
+  const html = htmlTam.replace(/<main class="gorunum" v-show="gorunum === 'skop'">[\s\S]*?<\/main>/, '');
+  const css = cssOku();
+  const cssKod = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const kod = yorumsuz(appKaynak);
+  const SZ = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const KLm = require(path.join(ARAYUZ, 'ekran', 'kayitlar.js'));
+  const KGm = require(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'));
+  const TEMAm = require(path.join(ARAYUZ, 'ekran', 'tema.js'));
+  const al = (ad) => vm.runInContext(ad, sandbox);
+  if (!sandbox.clearTimeout) sandbox.clearTimeout = () => {};
+  const ana = (ad) => { const m = html.match(new RegExp(`<main class="gorunum" v-show="gorunum === '${ad}'">([\\s\\S]*?)</main>`)); return m ? m[1] : ''; };
+  const etiketler = (s, ad) => [...s.matchAll(new RegExp(`<${ad}\\b((?:[^>"']|"[^"]*"|'[^']*')*)>`, 'g'))].map((m) => m[1]);
+  const nit = (a, ad) => { const m = a.match(new RegExp(`(?:^|\\s)${ad}="([^"]*)"`)); return m ? m[1] : null; };
+  const vmodel = (ad) => etiketler(html, 'input').find((a) => nit(a, 'v-model') === ad) || '';
+  /** Bilesen ornegi (Vue'suz): data + methods + computed (ust = computed ezmesi). */
+  const bilesen = (B, props = {}, ust = {}) => {
+    const o = Object.assign({}, props);
+    Object.assign(o, B.data ? B.data.call(o) : {});
+    Object.assign(o, B.methods || {});
+    o.$nextTick = (f) => { if (f) f(); return Promise.resolve(); };
+    o.$refs = {};
+    for (const [ad, fn] of Object.entries(B.computed || {})) {
+      Object.defineProperty(o, ad, ad in ust ? { get: () => ust[ad], configurable: true }
+        : { get: fn.bind(o), configurable: true });
+    }
+    return o;
+  };
+  /** sandbox setTimeout'u gecici yakala (onay zaman asimi). */
+  const zamanlayicili = (f) => {
+    const eski = sandbox.setTimeout;
+    const kuyruk = [];
+    sandbox.setTimeout = (fn, ms) => { kuyruk.push({ fn, ms }); return kuyruk.length; };
+    try { f(kuyruk); } finally { sandbox.setTimeout = eski; }
+    return kuyruk;
+  };
+
+  /* ── (a) erisilebilir ad: her input/select/textarea ───────────────── */
+  const adsizlar = (s) => {
+    const idler = new Set([...s.matchAll(/<label\b[^>]*\sfor="([^"]+)"/g)].map((m) => m[1]));
+    const adsiz = [];
+    const sahipsiz = [];
+    let derin = 0;
+    let acik = null;
+    for (const m of s.matchAll(/<(\/?)(label|input|select|textarea)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/g)) {
+      const [, kapat, ad, a] = m;
+      if (ad === 'label') {
+        if (kapat) { if (acik && !acik.denetim && !acik.for) sahipsiz.push(acik.metin); derin = Math.max(0, derin - 1); acik = null; } else { derin++; acik = { denetim: false, for: /\sfor="/.test(a), metin: s.slice(m.index, m.index + 70) }; }
+        continue;
+      }
+      if (kapat) continue;
+      if (acik) acik.denetim = true;
+      const id = nit(a, 'id');
+      const adli = derin > 0 || /(?:^|\s):?aria-label(?:ledby)?="/.test(a) || (id && idler.has(id));
+      if (!adli) adsiz.push(s.slice(m.index, m.index + 80).replace(/\s+/g, ' '));
+    }
+    return { adsiz, sahipsiz };
+  };
+  const ha = adsizlar(html);
+  ok('[!] WIG a: index.html`de (osiloskop disi) HER input/select/textarea adli (label for/sarmalama/aria-label)',
+     ha.adsiz.length === 0 && etiketler(html, 'input').length >= 12, ha.adsiz.join(' | ') || `${etiketler(html, 'input').length} input`);
+  ok('[!] WIG a: sahipsiz <label> yok (ne for= ne denetim saran) — "Gerilim menzili" artik grup adi',
+     ha.sahipsiz.length === 0, ha.sahipsiz.join(' | '));
+  const sk = adsizlar(yorumsuz(KLm.KayitlarEkrani.template) + yorumsuz(KGm.KayitGorunumu.template));
+  ok('WIG a: Kayitlar + kayit gorunumu sablonlarinda da adsiz denetim / sahipsiz label yok',
+     sk.adsiz.length === 0 && sk.sahipsiz.length === 0, sk.adsiz.concat(sk.sahipsiz).join(' | '));
+  const menzil = ana('ayar').match(/<div class="dugme-grup" role="group" aria-labelledby="([^"]+)">([\s\S]*?)<\/div>/);
+  ok('[!] WIG a: menzil dugmeleri role=group + aria-labelledby (gorunen ad) + aria-pressed; Otomatik menzil aria-pressed',
+     !!menzil && new RegExp(`id="${menzil[1]}"[^>]*>Gerilim menzili<`).test(ana('ayar'))
+     && /:aria-pressed="menzil === 0 \? 'true' : 'false'"/.test(menzil[2]) && /:aria-pressed="menzil === 1 \? 'true' : 'false'"/.test(menzil[2])
+     && /@click="otoMenzilDegistir"[^>]*:aria-pressed="otoMenzil \? 'true' : 'false'"|:aria-pressed="otoMenzil \? 'true' : 'false'"[^>]*@click="otoMenzilDegistir"/.test(ana('ayar')));
+
+  /* ── (d) alan turleri / otomatik duzeltme ─────────────────────────── */
+  const kapali = (a) => nit(a, 'autocapitalize') === 'off' && nit(a, 'spellcheck') === 'false';
+  const konsol = vmodel('elleKomut');
+  ok('[!] WIG d: Konsol komut kutusu buyuk/kucuk harf KORUNUR (f50 != F50, z != Z): autocapitalize/autocorrect/spellcheck kapali, autocomplete off, ad',
+     kapali(konsol) && nit(konsol, 'autocorrect') === 'off' && nit(konsol, 'autocomplete') === 'off'
+     && nit(konsol, 'name') === 'komut' && nit(konsol, 'enterkeyhint') === 'send' && /aria-label="/.test(konsol), konsol);
+  const ssid = vmodel('agSsid');
+  ok('[!] WIG d: SSID birebir gider (teras != Teras): otomatik buyuk harf/duzeltme kapali, name, autocomplete off',
+     kapali(ssid) && nit(ssid, 'autocorrect') === 'off' && nit(ssid, 'autocomplete') === 'off' && nit(ssid, 'name') === 'ssid', ssid);
+  const p1 = vmodel('agSifre');
+  const p2 = vmodel('agWebSifre');
+  ok('[!] WIG d: iki parola alani parola yoneticisine "giris formu" degil: name + autocomplete=new-password, AYRI adlar',
+     nit(p1, 'type') === 'password' && nit(p2, 'type') === 'password' && nit(p1, 'autocomplete') === 'new-password'
+     && nit(p2, 'autocomplete') === 'new-password' && nit(p1, 'name') && nit(p2, 'name') && nit(p1, 'name') !== nit(p2, 'name'));
+  const adr = vmodel('kartTaban');
+  ok('WIG d: kart adresi type=url + inputmode=url, buyuk harf/yazim kapali; yer tutucu ornek (…), talimat alanin altinda',
+     nit(adr, 'type') === 'url' && nit(adr, 'inputmode') === 'url' && kapali(adr)
+     && /…$/.test(nit(adr, 'placeholder') || '') && !/boş = /.test(nit(adr, 'placeholder') || ''));
+  ok('WIG d: kesme gerilimi inputmode=decimal; kalibrasyon/faz alanlarinda buyuk harf/yazim kapali; faz yer tutucusu talimat degil',
+     nit(vmodel('pilKesmeGiris'), 'inputmode') === 'decimal' && ['kalibV', 'kalibA', 'fazKal'].every((v) => kapali(vmodel(v)))
+     && !/PF en büyük/.test(nit(vmodel('fazKal'), 'placeholder') || ''));
+  ok('WIG d: Kayitlar arama kutusu: autocomplete/autocorrect/spellcheck kapali, enterkeyhint=search',
+     (() => { const a = etiketler(KLm.KayitlarEkrani.template, 'input').find((x) => /kl-ara/.test(x)) || '';
+       return kapali(a) && nit(a, 'autocomplete') === 'off' && nit(a, 'autocorrect') === 'off' && nit(a, 'enterkeyhint') === 'search'; })());
+  {
+    const u = ornek();
+    const adres = (t) => { u.kartTaban = t; return u.kartAdres('/akis'); };
+    ok('[!] WIG d: semasiz kart adresi http:// alir (yoksa istek sayfanin KENDI sunucusuna gider); https korunur; bos = ayni koken',
+       adres('192.168.1.50') === 'http://192.168.1.50/akis' && adres('olcum.local/') === 'http://olcum.local/akis'
+       && adres('https://x.y') === 'https://x.y/akis' && adres('HTTP://A') === 'HTTP://A/akis' && adres('') === '/akis'
+       && adres('  ') === '/akis', adres('192.168.1.50'));
+    u.kartTaban = '192.168.1.50';
+    u.tasiyiciAdi = 'akis';
+    ok('WIG d: serit alt satiri semasiz adreste de karti gosteriyor', u.seritAlt.startsWith('192.168.1.50'), u.seritAlt);
+  }
+
+  /* ── (b) duyurular ────────────────────────────────────────────────── */
+  ok('[!] WIG b: bildirim hatasi role=alert; desteksiz kip ve izleyici role=status',
+     /<div v-if="hata" class="hata" role="alert">/.test(html) && /<div v-if="!destekli" class="hata" role="status">/.test(html)
+     && /<div v-if="bagli && !surucuyum" class="uyari" role="status">/.test(html));
+  ok('[!] WIG b: baglanti rozeti (iki kopya) role=status, nokta aria-hidden; acil serit noktasi aria-hidden, DURDUR baglamli ad',
+     (html.match(/<span class="rozet" role="status"/g) || []).length === 2 && (html.match(/<span class="nokta" aria-hidden="true">/g) || []).length === 2
+     && /<span class="acil-nokta" aria-hidden="true">/.test(html) && /class="acil-dur"[^>]*aria-label="Pil testini durdur"/.test(html));
+  ok('[!] WIG b: kabuk duyurucusu (role=status) .icerik DISINDA ve kalici: pil testi baslayinca duyurulur',
+     (() => { const k = html.indexOf('class="gorunmez" role="status"'); return k > 0 && k < html.indexOf('<div class="icerik"'); })()
+     && (() => { const u = ornek(); const a = u.kabukDuyuru; u.pilDurum = 'CALISIYOR'; return a === '' && /Pil testi çalışıyor/.test(u.kabukDuyuru); })());
+  ok('[!] WIG b: pil hata / veri alinamiyor role=alert',
+     /v-if="pilHata && pilHata !== '-'" class="hata" role="alert"/.test(html) && /v-if="pilHataMetni" class="uyari" role="alert"/.test(html));
+  ok('WIG b: Konsol gunlugu role=log, adli, klavyeyle odaklanir; bossa "henuz satir yok" (bos kutu degil)',
+     /<div class="gunluk" ref="gunlukKutu" role="log" aria-live="off" :aria-label="'Kart satırları'" tabindex="0">/.test(html)
+     && /<p v-if="!gunluk\.length" class="ipucu">/.test(ana('konsol')) && /\.gunluk:focus-visible\s*\{[^}]*outline:\s*2px/.test(cssKod));
+  ok('[!] WIG b: Kayitlar esitleme sonucu/sebebi KALICI aria-live bolgede; esitle dugmesi aria-busy; disari aktarma hatasi role=alert',
+     /<div class="kl-duyuru" aria-live="polite">\s*<p v-if="nedenMetni"[\s\S]*?<p v-if="sonuc"[\s\S]*?<\/div>/.test(KLm.KayitlarEkrani.template)
+     && /kl-esitle"[^>]*:aria-busy="esitleniyor \? 'true' : 'false'"/.test(KLm.KayitlarEkrani.template)
+     && /<p v-if="hata" class="hata" role="alert">/.test(KGm.KayitGorunumu.template));
+  {
+    /* imlec okumasi: kalici, gorunmez, polite bolge; ~300 ms sonra TEK satir ozet */
+    const g = bilesen(KGm.KayitGorunumu, { dil: 'tr', rapor: false, etkin: true }, {
+      okumaSatirlari: [{ a: 'ta', etiket: 'A', deger: '00:01' }, { a: 'tb', etiket: 'B', deger: '00:02' },
+        { a: 'dt', etiket: 'Δt', deger: '00:01' }, { a: 'Va', etiket: 'V (A)', deger: '1.0000 V' },
+        { a: 'Vb', etiket: 'V (B)', deger: '2.0000 V' }, { a: 'Ia', etiket: 'I (A)', deger: '0.1 A' }] });
+    g.okuma = { tA: 1 };
+    const eskiZ = globalThis.setTimeout;
+    const kq = [];
+    globalThis.setTimeout = (fn, ms) => { kq.push({ fn, ms }); return kq.length; };
+    try { g.duyuruZamanla(); } finally { globalThis.setTimeout = eskiZ; }
+    const once = g.duyuru;
+    if (kq.length) kq[kq.length - 1].fn();
+    ok('[!] WIG b: kayit gorunumu imlec okumasi aria-live polite GORUNMEZ bolgede, ~300 ms gecikmeli tek satir (her ok tusunda 20 deger degil)',
+       /<p class="gorunmez" aria-live="polite">\{\{ duyuru \}\}<\/p>/.test(KGm.KayitGorunumu.template) && once === ''
+       && kq.length === 1 && kq[0].ms >= 200 && kq[0].ms <= 600 && g.duyuru === 'A 00:01 · B 00:02 · Δt 00:01 · V (A) 1.0000 V · V (B) 2.0000 V',
+       g.duyuru);
+    const u = ornek();
+    const q = zamanlayicili(() => { u.canliOkumaDegisti([{ ad: 'A', d: '−00:00:05.0' }, { ad: 'B', d: '—' }]); });
+    if (q.length) q[q.length - 1].fn();
+    ok('[!] WIG b: Canli donmus okuma da gorunmez polite bolgede (gecikmeli ozet)',
+       /<p class="gorunmez" aria-live="polite">\{\{ canliDuyuru \}\}<\/p>/.test(ana('canli')) && q.length === 1
+       && u.canliDuyuru === 'A −00:00:05.0 · B —', u.canliDuyuru);
+  }
+  ok('[!] WIG b: gorunmez sinif CSS`te (kirpilmis, 1 px) — display:none DEGIL (ekran okuyucu okur)',
+     /\.gorunmez\s*\{[^}]*position:\s*absolute[^}]*clip-path:\s*inset\(50%\)/.test(cssKod)
+     && !/\.gorunmez\s*\{[^}]*display:\s*none/.test(cssKod));
+
+  /* ── (c) iki asamali yikici eylemler ─────────────────────────────── */
+  /** onay kalibi: acan dugme v-if="onay !== X" @click=onayIste(X); eylem YALNIZ v-else'deki data-onay=X dugmesinde. */
+  const onayli = (s, ad, eylem, kosul = '') => {
+    const ac = new RegExp(`<button v-if="${kosul}onay !== '${ad}'"[^>]*data-onay-ac="${ad}"[^>]*@click="onayIste\\('${ad}'\\)"`);
+    const es = new RegExp(`<button[^>]*data-onay="${ad}"[^>]*@click="${eylem.replace(/[()]/g, '\\$&')}"`);
+    const tum = s.split(`@click="${eylem}"`).length - 1;
+    return ac.test(s) && es.test(s) && tum === 1;
+  };
+  const yikici = [
+    ['canli', 'durdur', 'kayitDurdur'], ['canli', 'grafikTemizle', 'gecmisiTemizle'],
+    ['ayar', 'akimSifir', 'sifirlaA'], ['ayar', 'enerjiSifir', 'enerjiSifirla'], ['ayar', 'gerilimSifir', 'sifirlaV'],
+    ['ayar', 'webKoruma', 'agWebKorumaKaldir'], ['pil', 'pilSil', 'pilTemizle'],
+  ];
+  const yanlis = yikici.filter(([g, ad, e]) => !onayli(ana(g), ad, e));
+  ok('[!] WIG c: Durdur, Grafigi temizle, Akim/Enerji/Gerilim sifirla, web korumasini kaldir, pil noktalarini sil IKI ASAMALI (eylem yalniz onay dugmesinde)',
+     yanlis.length === 0, yanlis.map((x) => x[1]).join(', ') || `${yikici.length} eylem`);
+  ok('[!] WIG c: Plani iptal — plan SUREN kayda bagliysa iki asamali ("suren kayit da durur"); bekleyen plan tek tik',
+     onayli(ana('canli'), 'planIptal', 'planIptal', 'planBagli && ')
+     && (() => { const u = ornek(); const P = al('PLAN'); u.kayit.gp = { durum: P.BEKLIYOR, oturum: 0 }; const a = u.planBagli;
+       u.kayit.gp = { durum: P.SURUYOR, oturum: 12 }; return a === false && u.planBagli === true; })());
+  ok('[!] WIG c: Agi kapat — ag uzerinden bagliyken iki asamali (kendini kilitler), USB`de tek tik',
+     onayli(ana('ayar'), 'agKapat', "komut('N0')", "tasiyiciAdi !== 'seri' && "));
+  {
+    const u = ornek();
+    const giden = [];
+    u.gonder = (k) => { giden.push(k); return Promise.resolve(); };
+    const q = zamanlayicili(() => u.onayIste('durdur'));
+    const silahli = u.onay;
+    q[q.length - 1].fn();
+    ok('[!] WIG c: onay ~6 s sonra KENDILIGINDEN duser (bayat "Eminim" tek tikla calismaz), komut gitmez',
+       silahli === 'durdur' && u.onay === null && giden.length === 0 && q[q.length - 1].ms >= 3000 && q[q.length - 1].ms <= 10000,
+       `${silahli} -> ${u.onay}, ${q.length ? q[q.length - 1].ms : '-'} ms`);
+    zamanlayicili(() => u.onayIste('akimSifir'));
+    secenekler.watch.gorunum.call(u, 'pil');
+    const g1 = u.onay;
+    zamanlayicili(() => u.onayIste('akimSifir'));
+    secenekler.watch.bagli.call(u, false);
+    ok('[!] WIG c: gorunum degisince ya da baglanti kopunca onay duser', g1 === null && u.onay === null);
+    const v = ornek();
+    v.tasiyiciAdi = 'demo';
+    zamanlayicili(() => v.onayIste('enerjiSifir'));
+    try { const p = v.gonder('?'); if (p && p.catch) p.catch(() => {}); } catch (e) { /* demo betigi yok */ }
+    ok('[!] WIG c: karta giden herhangi bir komut silahli onayi dusurur (Eminim baska is yapildiktan sonra kalmaz)', v.onay === null);
+    const f = ornek();
+    f.gonder = () => Promise.resolve();
+    const fq = zamanlayicili(() => f.fabrikaSifirla());
+    const fs1 = f.sifirlaOnay;
+    if (fq.length) fq[fq.length - 1].fn();
+    const fs2 = f.sifirlaOnay;
+    zamanlayicili(() => f.fabrikaSifirla());
+    secenekler.watch.gorunum.call(f, 'canli');
+    ok('[!] WIG c: fabrika sifirlama onayi da zaman asiminda ve gorunum degisince duser (saatler sonra tek tik R! YOK)',
+       fs1 === true && fs2 === false && f.sifirlaOnay === false && fq.length >= 1);
+    const w = ornek();
+    const wg = [];
+    w.gonder = (k) => { wg.push(k); return Promise.resolve(); };
+    w.agWebSifre = ''; w.agWebSifreGonder();
+    w.agSifre = ''; w.agSifreGonder();
+    const h1 = w.hata;
+    w.agWebKorumaKaldir();
+    ok('[!] WIG c: bos web parolasi / bos ag parolasi GONDERILMEZ (sebep soylenir); koruma YALNIZ "Korumayi kaldir" ile (Ns)',
+       wg.join(',') === 'Ns' && /boş/i.test(h1) && /:disabled="!bagli \|\| !agWebSifre"/.test(ana('ayar'))
+       && /:disabled="!bagli \|\| !agSifre"/.test(ana('ayar')), wg.join(','));
+  }
+  ok('WIG c: pil "Kaydi sil" -> "Tarayicidaki noktalari sil" (kartin kaydini silmez), onayda neyin silinecegi yaziyor',
+     /Tarayıcıdaki noktaları sil/.test(ana('pil')) && !/>Kaydı sil</.test(ana('pil')) && /v-if="onay === 'pilSil'"[^>]*class="uyari"/.test(ana('pil')));
+  {
+    const k = bilesen(KLm.KayitlarEkrani, { kartAdres: (y) => y, kartTaban: '', tasiyici: 'akis', bagli: true, gonder: null, etkin: true },
+      { esitlenebilir: true });
+    let esit = 0;
+    k.esitle = () => { esit++; };
+    k.kartKimlik = null;
+    k.arsivDegisti(true);
+    const a1 = { arsiv: k.arsiv, onay: k.arsivOnay, esit };
+    k.arsivVazgec();
+    const a2 = { arsiv: k.arsiv, onay: k.arsivOnay };
+    k.arsivDegisti(true);
+    k.arsivOnayla();
+    const a3 = { arsiv: k.arsiv, onay: k.arsivOnay, esit };
+    k.arsivDegisti(false);
+    ok('[!] WIG c: "bu tarayici arsivdir" IKI ASAMALI: isaretlemek yazmaz/esitlemez; Eminim -> arsiv + esitle; kapatmak aninda',
+       !a1.arsiv && a1.onay && a1.esit === 0 && !a2.arsiv && !a2.onay && a3.arsiv && !a3.onay && a3.esit === 1 && k.arsiv === false
+       && /:checked="arsiv \|\| arsivOnay"/.test(KLm.KayitlarEkrani.template) && /class="kl-arsiv-eminim"[^>]*@click="arsivOnayla"/.test(KLm.KayitlarEkrani.template),
+       JSON.stringify([a1, a2, a3]));
+  }
+  ok('WIG c: onay/vazgec odagi kaybetmiyor: onayIste onay dugmesine, onayVazgec acan dugmeye, kopya silme ayni kalip',
+     govdeIcinde(appKaynak, 'onayIste', '[data-onay=') && govdeIcinde(appKaynak, 'onayVazgec', '[data-onay-ac=')
+     && /@click="silBasla\(k\.kimlik\)"/.test(KLm.KayitlarEkrani.template) && /@click="silVazgec\(k\.kimlik\)"/.test(KLm.KayitlarEkrani.template));
+  {
+    const u = ornek();
+    let n = 0;
+    let coz;
+    u.kayitKomut = () => { n++; return new Promise((r) => { coz = r; }); };
+    u.kayit.g = { durum: al('KDR').KAYIT, oturum: 5 };
+    u.notMetni = 'deneme';
+    const p1n = u.notEkle();
+    const p2n = u.notEkle();
+    ok('[!] WIG c: not gonderilirken ikinci basis IKINCI Gn gondermez (dugme mesgul: disabled + aria-busy + "Ekleniyor…")',
+       n === 1 && /type="submit" class="birincil"[^>]*:disabled="notGonderiliyor"[^>]*:aria-busy="notGonderiliyor \? 'true' : 'false'"/.test(ana('canli'))
+       && /Ekleniyor…|m\.notGonderiliyor/.test(ana('canli')), `${n} cagri`);
+    if (coz) coz(true);
+    SONRA.push(async () => {
+      await p1n; await p2n;
+      ok('WIG c: not istegi bitince dugme yeniden acik', u.notGonderiliyor === false);
+    });
+  }
+
+  /* ── (e) bos / bayat okuma ────────────────────────────────────────── */
+  {
+    const u = ornek();
+    const a = u.veriYok;
+    u.bagli = true;
+    const b = u.veriYok;
+    u.gecmis = [Object.freeze({ t: 0, v: 1, i: 0, w: 0, e: 0 })];
+    const c = u.veriYok;
+    ok('[!] WIG e: baglanti yokken / ilk D gelmeden okuma kartlari "0.000 V" DEGIL "—" (veriYok)',
+       a === true && b === true && c === false && ['!voltGecersiz && !veriYok', '!amperGecersiz && !veriYok', '!gucGecersiz && !veriYok', '!veriYok']
+         .every((x) => ana('canli').includes(`<div class="deger" v-if="${x}">`)));
+    u.pilDcirN = 0;
+    const d0 = u.pilDcirYazi;
+    u.pilDcirN = 3; u.pilDcirAni = 0.0456;
+    ok('WIG e: pil ic direnc olcum yokken "—" (0.0 mΩ degil)', d0 === '—' && u.pilDcirYazi === '45.6 mΩ' && /\{\{ pilDcirYazi \}\}/.test(ana('pil')), d0);
+    const e = ornek();
+    const e1 = e.esitlenmemisYazi;
+    ok('WIG e: serit alt bilgisi bagli degilken "bagli degil" diyor (kart suclanmiyor)', /bağlı değil/.test(e1) && e1.includes('—'), e1);
+  }
+
+  /* ── (f) metinler ekranda olani soyluyor ──────────────────────────── */
+  {
+    const u = ornek();
+    const durumlar = { BEKLEMEDE: 0, CALISIYOR: 1, BITTI: 2, DURDURULDU: 3, HATA: 4 };
+    const dYanlis = Object.entries(durumlar).filter(([ad, k]) => { u.pilDurum = ad; return u.pilDurumYazi !== SZ.ceviri('pil.durum.' + k, 'tr'); });
+    u.pilDurum = 'YENI';
+    const bilinmeyen = u.pilDurumYazi;
+    const fwHata = [...ino.matchAll(/case PILH_(\w+):\s*return "([^"]*)"\s*(?:"([^"]*)")?/g)];
+    const kodlar = { GERILIM_DUSUK: 1, GERILIM_YUKSEK: 2, TERS: 3, BAYPAS: 4, SURE: 5, AKIM_YOK: 6 };
+    const hYanlis = fwHata.filter((m) => { u.pilHata = m[2] + (m[3] || ''); return u.pilHataYazi !== SZ.ceviri('pil.hata.' + kodlar[m[1]], 'tr'); });
+    ok('[!] WIG f: pil durumu ve hatasi SOZLUKTEN (CALISIYOR -> "çalışıyor", TERS POLARITE -> "ters polarite"); firmware`in 6 hata metninin hepsi eslesiyor',
+       dYanlis.length === 0 && hYanlis.length === 0 && fwHata.length === 6 && /YENI/.test(bilinmeyen)
+       && /\{\{ pilDurumYazi \}\}/.test(ana('pil')) && /\{\{ pilHataYazi \}\}/.test(ana('pil')),
+       dYanlis.map((x) => x[0]).concat(hYanlis.map((m) => m[1])).join(',') || `${fwHata.length} hata`);
+    ok('[!] WIG f: Pil ekrani "deşarj eğrisi" / "grafikte" VAAT ETMIYOR (pil gorunumunde grafik yok)',
+       !/deşarj eğrisi|grafikte/.test(ana('pil')) && !/<canvas/.test(ana('pil'))
+       && !/eğri/.test(SZ.ceviri('kb.pil_alt', 'tr')) && !/curve/.test(SZ.ceviri('kb.pil_alt', 'en')));
+    ok('WIG f: yaniti yalniz Konsol`a dusen dugmeler bunu soyluyor (Fazi / Ag durumunu ... Konsol)',
+       /komut\('F'\)[^>]*>[^<]*Konsol/.test(ana('ayar')) && /komut\('N\?'\)[^>]*>[^<]*Konsol/.test(ana('ayar')));
+    ok('WIG f: Konsol "Temizle" -> "Gunlugu temizle"; kopya silme "Kopyayi sil"',
+       />Günlüğü temizle</.test(ana('konsol')) && SZ.ceviri('kl.sil', 'tr') === 'Kopyayı sil');
+    ok('WIG f: ADC yanit vermiyor metinleri sozlukte ve sonraki adimi soyluyor (I²C tara)',
+       /\{\{ m\.adcYokV \}\}/.test(ana('canli')) && /\{\{ m\.adcYokI \}\}/.test(ana('canli'))
+       && /I²C tara/.test(SZ.ceviri('cn.adc_yok_v', 'tr')) && /I²C scan/.test(SZ.ceviri('cn.adc_yok_v', 'en')));
+    ok('WIG f: izleyici bilgisi TEK yerde (bildirim + devral dugmesi); Canli`daki ikinci kopya yok',
+       !/m\.izleyici/.test(ana('canli')) && /Sürücülüğü devral/.test(html));
+    u.gecmis = [{ t: 3900 }];
+    const s1 = u.sureGoster;
+    u.gecmis = [{ t: 65 }];
+    ok('[!] WIG f: gecen sure "1 sa 5 dk" ("1s 5dk" = 1 saniye 5 dakika okunuyordu); saniye "sn"',
+       s1 === '1 sa 5 dk' && u.sureGoster === '1 dk 5 sn', `${s1} | ${u.sureGoster}`);
+    const n = ornek();
+    n.kayit.g = { durum: al('KDR').KAYIT, oturum: 1, nokta: 12345 };
+    ok('[!] WIG f: nokta sayisi "12.345" DEGIL (panelde . ondalik ayraci): dar bosluklu gruplama',
+       !/12\.345/.test(n.kayitNoktaYazi) && n.kayitNoktaYazi.startsWith('12\u202f345'), n.kayitNoktaYazi);
+    ok('WIG f: plan tarihi ISO-benzeri YYYY-AA-GG (Kayitlar listesiyle ayni)', /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(n.tarihYazi(1767225600)),
+       n.tarihYazi(1767225600));
+  }
+  {
+    const u = ornek();
+    const giden = [];
+    u.gonder = (k) => { giden.push(k); return Promise.resolve(); };
+    u.kalibV = 'abc'; u.kalibreV();
+    const h1 = u.hata;
+    u.hata = ''; u.kalibA = '0'; u.kalibreA();
+    const h2 = u.hata;
+    u.hata = ''; u.pilKesmeGiris = '40'; u.pilKesmeGonder();
+    const h3 = u.hata;
+    ok('[!] WIG f: kalibrasyon / kesme gecersizse SESSIZ degil: sebep + ornek yazilir, komut gitmez',
+       giden.length === 0 && /sayı/.test(h1) && /sayı/.test(h2) && /0\.5 … 38\.5 V/.test(h3), [h1, h2, h3].join(' | '));
+    u.hata = ''; u.fazKal = 'x'; u.fazGonder();
+    ok('[!] WIG f: faz hatasi alanin YANINDA (role=alert, aria-invalid + aria-describedby), en ustteki genel kutuda degil',
+       /sayı girin/.test(u.fazHata) && u.hata === '' && /<p v-if="fazHata" class="hata" role="alert" id="faz-hata">/.test(ana('ayar'))
+       && /v-model="fazKal"[^>]*:aria-invalid="fazHata \? 'true' : 'false'"[^>]*aria-describedby="faz-hata[ "]/.test(ana('ayar')), u.fazHata);
+    const b = (ad, mesaj) => u.baglantiHatasiMetni(Object.assign(new Error(mesaj), { name: ad }));
+    ok('[!] WIG f: baglanti hatalari sonraki adimi soyluyor (port baska programda -> kapatip yeniden baglanin)',
+       /başka bir program/.test(b('InvalidStateError', 'The port is already open.')) && /başka bir program/.test(b('NetworkError', 'Failed to open serial port.'))
+       && /Failed to open/.test(b('NetworkError', 'Failed to open serial port.')) && b('NotFoundError', 'x') === '');
+    ok('WIG f: "Demo kipi açılamadı" Turkce; Devralinamadi (409) eylem oneriyor; okuma hatasi sonraki adim',
+       /'Demo kipi açılamadı: '/.test(kod) && /Başka bir sürücü/.test(kod) && /Okuma hatası: ' \+ e\.message \+ ' — /.test(kod));
+  }
+  {
+    const anah = (a) => SZ.ceviri(a, 'tr');
+    ok('[!] WIG f: Kayitlar hata metinleri sonraki adimi soyluyor (ag/host/hata/depo/kal/disari)',
+       /Yenile/.test(anah('kl.neden_ag')) && /adresinden/.test(anah('kl.neden_host')) && /Yenile/.test(anah('kl.neden_hata'))
+       && /izin/.test(anah('kl.neden_depo')) && /Yenile/.test(anah('kl.kal_hata')) && /yeniden deneyin/.test(anah('kg.disari_hata'))
+       && /Refresh/.test(SZ.ceviri('kl.neden_ag', 'en')) && /again/.test(SZ.ceviri('kg.disari_hata', 'en')));
+    ok('[!] WIG f: imza hatasi OLMAYAN ayara (Ayarlar 3H) gondermiyor; ic asama kodu (3H/3E) kullaniciya gorunmuyor',
+       !/\(3[A-Z]\)/.test(anah('kl.neden_imza') + anah('kg.skop_ipucu') + SZ.ceviri('kl.neden_imza', 'en') + SZ.ceviri('kg.skop_ipucu', 'en'))
+       && /kayit_esitle\.py/.test(anah('kl.neden_imza')) && !/Ayarlar/.test(anah('kl.neden_imza')));
+    ok('WIG f: plan / baglanti hatalari ne yapilacagini soyluyor',
+       /seçin/.test(anah('cn.hata_plan_bas')) && /ileri alın|uzatın/.test(anah('cn.hata_plan_gecmis')) && /Karta bağlan/.test(anah('cn.hata_bagli_degil')));
+    ok('WIG f: kayit gorunumunde veri yoksa NEDEN bos oldugu yaziyor (kirik sayfa degil)',
+       /<section class="kart" v-if="!grafikVar && !notlar\.length && !pilOzet && !yakalamalar\.length">/.test(KGm.KayitGorunumu.template)
+       && /\{\{ m\.veriYok \}\}/.test(KGm.KayitGorunumu.template) && SZ.ceviri('kg.veri_yok', 'tr').length > 20);
+  }
+  {
+    /* Turkce harf sinirli (JS \b 'ı' gibi harfleri harf saymaz): 'bağlısın' YAKALANIR, 'bağlısınız' DEGIL */
+    const harf = 'A-Za-zçğıöşüÇĞİÖŞÜ';
+    const sen = new RegExp(['görüyorsun', 'gönderemezsin', 'bağlısın', 'yazacağın', 'şüphelenirsen', 'çalışırsan',
+      'kullan[.]', 'bağla,', 'gir,', 'yap[.]', 'bağla ve'].map((x) => `(?<![${harf}])${x}(?![${harf}])`).join('|'));
+    const metin = html.replace(/<[^>]+>/g, ' ');
+    ok('WIG f: gomulu metinlerde hitap "siz" (sen bicimi yok)', !sen.test(metin) && sen.test('ağ üzerinden bağlısın.'),
+       (metin.match(sen) || [''])[0]);
+  }
+
+  /* ── (g) baslik, odak, cekmece ─────────────────────────────────────── */
+  ok('[!] WIG g: her gorunumde (osiloskop disi) h1 var; Kayitlar listesi ve kayit gorunumu h1; Canli grafik basligi h2',
+     ['canli', 'ayar', 'pil', 'konsol'].every((g) => /<h1\b/.test(ana(g))) && /<h1\b/.test(KLm.KayitlarEkrani.template)
+     && /<h1 class="kg-baslik" ref="baslik" tabindex="-1">/.test(KGm.KayitGorunumu.template)
+     && /<h2 class="gosterge-baslik">\{\{ m\.grafik \}\}<\/h2>/.test(ana('canli')) && /\.kart > h1/.test(cssKod));
+  {
+    const u = ornek();
+    const cagri = [];
+    u.$refs.icerik = { setAttribute: (a, d) => cagri.push(a + '=' + d), focus: () => cagri.push('focus'),
+      addEventListener: (t) => cagri.push('dinle:' + t), removeAttribute: () => {} };
+    u.icerigeGec();
+    ok('[!] WIG g: "Icerige gec" baglantisi kabugun ILK ogesi; odagi .icerik`e tasir (hash degistirmeden)',
+       /<div class="kabuk"[^>]*>\s*<a class="atla" href="#icerik" @click\.prevent="icerigeGec">/.test(html)
+       && /<div class="icerik" id="icerik" ref="icerik" :inert="cekmeceAcik">/.test(html)
+       && cagri.join(',') === 'tabindex=-1,focus,dinle:blur' && /\.atla:focus-visible\s*\{[^}]*transform:\s*none/.test(cssKod), cagri.join(','));
+  }
+  ok('[!] WIG g: cekmece acikken arka plan INERT (.icerik + ust cubuk baglanti kumesi); aside`in adi yok (tek "Ana gezinme" = nav)',
+     /<div class="baglanti" :inert="cekmeceAcik">/.test(html) && /<aside id="serit" class="serit">/.test(html)
+     && (html.match(/:aria-label="m\.gezinme"/g) || []).length === 1);
+  {
+    const u = ornek();
+    u.cekmeceAcik = true;
+    const eskiW = sandbox.window;
+    sandbox.window = Object.assign({}, eskiW, { matchMedia: () => ({ matches: true }) });
+    try { u.genislikDegisti(); } finally { sandbox.window = eskiW; }
+    ok('[!] WIG g: pencere genisleyince (> 900 px) acik cekmece kapanir — masaustunde icerik inert KALMAZ', u.cekmeceAcik === false);
+  }
+  {
+    const u = ornek();
+    secenekler.watch.gorunum.call(u, 'pil');
+    const t1 = sandbox.document.title;
+    secenekler.watch.gorunum.call(u, 'konsol');
+    ok('[!] WIG g: sekme basligi gorunumu soyluyor (ekran okuyucu + gecmis)', t1 === 'Pil testi — Ölçüm Kartı'
+       && sandbox.document.title === 'Konsol — Ölçüm Kartı', `${t1} | ${sandbox.document.title}`);
+  }
+  ok('[!] WIG g: kayit acilinca odak kayit basligina (etkinse), kayit_gorunum mounted',
+     /this\.\$refs\.baslik/.test(String(KGm.KayitGorunumu.mounted)) && /focus\(/.test(String(KGm.KayitGorunumu.mounted)));
+  {
+    const u = ornek();
+    u.$nextTick = (f) => f();
+    u.gorunum = 'konsol';
+    const kutu = { scrollTop: 0, scrollHeight: 1000, clientHeight: 200 };
+    u.$refs.gunlukKutu = kutu;
+    u.kaydet('a');
+    const yukarida = kutu.scrollTop;
+    kutu.scrollTop = 795;
+    u.kaydet('b');
+    const dipte = kutu.scrollTop;
+    u.gorunum = 'canli'; kutu.scrollTop = 795; kutu.scrollHeight = 1200;
+    u.kaydet('c');
+    ok('[!] WIG g: konsol yukari kaydirilmisken yeni satir DIBE ATMIYOR; dipteyse izliyor; gizliyken dokunulmuyor',
+       yukarida === 0 && dipte === 1000 && kutu.scrollTop === 795, `${yukarida} ${dipte} ${kutu.scrollTop}`);
+  }
+  ok('WIG g: yakalama tablosu sinirli (rapor disi 100 + "daha fazla"), rapor tam',
+     /v-for="y in gorunenYakalamalar"/.test(KGm.KayitGorunumu.template) && /@click="yakalamaSinir \+= 100"/.test(KGm.KayitGorunumu.template)
+     && (() => { const y = Array.from({ length: 250 }, (_, i) => ({ sira: i }));
+       const g = bilesen(KGm.KayitGorunumu, { dil: 'tr', rapor: false }, { yakalamalar: y });
+       const r = bilesen(KGm.KayitGorunumu, { dil: 'tr', rapor: true }, { yakalamalar: y });
+       return g.gorunenYakalamalar.length === 100 && r.gorunenYakalamalar.length === 250; })());
+
+  /* ── (h) CSS: odak, guvenli alan, dokunma, tema ───────────────────── */
+  ok('[!] WIG h: dondurulmus Canli tuvali (tabIndex 0) GORUNUR odak halkasi; kg tuvalleri de',
+     /\.canli-tuval\.donmus canvas\.canli-grafik:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--vurgu\)/.test(cssKod)
+     && /canvas\.kg-grafik:focus-visible[^{]*\{[^}]*outline:\s*2px/.test(cssKod));
+  ok('[!] WIG h: suruklenen tuvallerde metin secimi kapali (user-select none)',
+     /canvas\.kg-grafik,\s*canvas\.kg-gezgin,\s*\.canli-tuval\.donmus canvas\.canli-grafik\s*\{[^}]*-webkit-user-select:\s*none;\s*user-select:\s*none/.test(cssKod));
+  const dar = (cssKod.match(/@media \(max-width: 900px\) \{([\s\S]*?)\n\}/) || [])[1] || '';
+  ok('[!] WIG h: dar ekranda yapiskan ust cubuk odagi ortmuyor (scroll-padding-top), cekmece overscroll contain, perde touch-action none, govde kilidi',
+     /html\s*\{[^}]*scroll-padding-top:\s*72px/.test(dar) && /\.serit\s*\{[^}]*overscroll-behavior:\s*contain/.test(dar)
+     && /\.perde\s*\{[^}]*touch-action:\s*none/.test(dar) && /html:has\(\.cekmece-acik\)\s*\{[^}]*overflow:\s*hidden/.test(dar));
+  const vp = (htmlTam.match(/<meta name="viewport" content="([^"]+)"/) || [])[1] || '';
+  ok('[!] WIG h: iOS centik/durum cubugu: viewport-fit=cover YOK ya da env(safe-area-inset) VAR; durum cubugu saydam degil',
+     (!/viewport-fit=cover/.test(vp) || /env\(safe-area-inset-/.test(cssKod))
+     && !/apple-mobile-web-app-status-bar-style" content="black-translucent"/.test(htmlTam), vp);
+  ok('WIG h: kullanici etiketleri (rozet) uzun boşluksuz metinde satiri tasirmiyor; 100dvh; parola/url alanlari temali',
+     /\.kl-rozet,\s*\.kg-etiket\s*\{[^}]*overflow-wrap:\s*anywhere/.test(cssKod) && /min-height:\s*100dvh/.test(cssKod)
+     && /height:\s*100dvh/.test(cssKod) && /input\[type=password\]/.test(cssKod) && /input\[type=url\]/.test(cssKod));
+  {
+    const zemin2 = {};
+    for (const [ad, sec] of [['koyu', ':root[data-tema="koyu"]'], ['acik', ':root[data-tema="acik"]'], ['onpanel', ':root[data-tema="onpanel"]']]) {
+      const k = cssKod.indexOf(sec);
+      const blok = k >= 0 ? cssKod.slice(k, cssKod.indexOf('}', k)) : '';
+      zemin2[ad] = (blok.match(/--zemin-2:\s*(#[0-9a-fA-F]{3,8})/) || [])[1];
+    }
+    const meta = { content: '', setAttribute(a, d) { if (a === 'content') this.content = d; } };
+    const belge = { documentElement: { setAttribute() {} }, querySelector: (s) => (s === 'meta[name="theme-color"]' ? meta : null) };
+    const sonuc = ['koyu', 'acik', 'onpanel'].map((t) => { TEMAm.temaUygula(belge, t, false); return meta.content.toLowerCase() === String(zemin2[t]).toLowerCase(); });
+    TEMAm.temaUygula({ documentElement: { setAttribute() {} } }, 'acik', false);   // querySelector'suz belge atmaz
+    ok('[!] WIG h: theme-color ETKIN temanin --zemin-2`si (Acik`ta adres cubugu koyu kalmiyor); ilk deger Koyu',
+       sonuc.every(Boolean) && Object.values(zemin2).every(Boolean)
+       && (htmlTam.match(/<meta name="theme-color" content="([^"]+)"/) || [])[1] === zemin2.koyu, JSON.stringify(zemin2));
   }
 }
 

@@ -313,7 +313,12 @@ export const KG_METIN = Object.freeze({
   csvTr: 'kg.csv_tr', csvEn: 'kg.csv_en', ayrintiTr: 'kg.ayrinti_tr', ayrintiEn: 'kg.ayrinti_en',
   pilTr: 'kg.pil_tr', pilEn: 'kg.pil_en', ham: 'kg.ham', skopCsv: 'kg.skop_csv',
   disariHata: 'kg.disari_hata', herOrnek: 'kg.her_ornek',
+  veriYok: 'kg.veri_yok', dahaFazla: 'kg.daha_fazla',
 });
+
+/** WIG: rapor disinda yakalama tablosu bu kadar satirla baslar ("daha fazla" 100'er ekler):
+ *  Gt0 / Gt1000 gunlugu binlerce satir — telefonda kayit acilirken donma. */
+export const YAKALAMA_SINIR = 100;
 
 export const TUR_METIN = Object.freeze({
   olcum: 'kl.tur_olcum', ayrinti: 'kl.tur_ayrinti', pil: 'kl.tur_pil', skop: 'kl.tur_skop',
@@ -346,8 +351,10 @@ const SABLON = `
   </div>
 
   <section class="kart">
-    <h2>{{ rapor ? m.raporBaslik : m.baslik }}</h2>
-    <div class="kg-ad">{{ adMetni }}</div>
+    <!-- WIG: sayfa basligi h1 = "Kayit" + kaydin ADI (eskiden ad duz bir div'di). Kayit
+         acilinca odak buraya (mounted) — liste v-else ile kalkinca odak body'ye dusuyordu. -->
+    <h1 class="kg-baslik" ref="baslik" tabindex="-1"><span class="kg-ust-ad">{{ rapor ? m.raporBaslik : m.baslik }}</span><span class="gorunmez">: </span><span
+      class="kg-ad">{{ adMetni }}</span></h1>
     <div class="kg-kpiler">
       <div class="kpi" v-for="k in kimlikSatirlari" :key="k.a">
         <span class="kpi-ad">{{ k.etiket }}</span><span class="kpi-deger">{{ k.deger }}</span>
@@ -357,6 +364,10 @@ const SABLON = `
       <span class="kg-etiket" v-for="e in etiketler" :key="e">{{ e }}</span>
     </div>
     <p v-for="u in uyarilar" :key="u" class="uyari">{{ u }}</p>
+  </section>
+
+  <section class="kart" v-if="!grafikVar && !notlar.length && !pilOzet && !yakalamalar.length">
+    <p class="ipucu">{{ m.veriYok }}</p>
   </section>
 
   <section class="kart" v-if="grafikVar">
@@ -380,6 +391,9 @@ const SABLON = `
     </div>
     <canvas ref="gezgin" class="kg-gezgin yazdirma-yok" role="img" :aria-label="m.gezginEtiket"></canvas>
     <p class="ipucu yazdirma-yok">{{ m.grafikIpucu }}</p>
+    <!-- WIG: imlec klavyeyle de (A/B, Shift+ok) tasiniyor; izgara canli bolge DEGIL (her
+         tusta ~20 deger), ~300 ms durulunca tek satirlik ozet burada duyurulur. -->
+    <p class="gorunmez" aria-live="polite">{{ duyuru }}</p>
     <div class="kg-okuma" :data-okuma="okumaMetni">
       <div v-if="okuma" class="kg-okuma-izgara">
         <div class="kg-okuma-oge" v-for="o in okumaSatirlari" :key="o.a">
@@ -429,7 +443,7 @@ const SABLON = `
           <th>{{ m.sutunTam }}</th><th class="yazdirma-yok"></th>
         </tr></thead>
         <tbody>
-          <tr v-for="y in yakalamalar" :key="y.sira" :data-sira="y.sira">
+          <tr v-for="y in gorunenYakalamalar" :key="y.sira" :data-sira="y.sira">
             <td>{{ y.no }}</td><td>{{ y.zaman }}</td><td>{{ y.toplam }}</td><td>{{ y.hz }}</td>
             <td>{{ y.tdiv }}</td><td>{{ y.tetik }}</td><td>{{ y.tam ? m.evet : m.eksikYakalama }}</td>
             <td class="yazdirma-yok"><button type="button" v-if="y.tam" @click="indir('skop', y.sira)" data-disari="skop">{{ m.skopCsv }}</button></td>
@@ -437,6 +451,8 @@ const SABLON = `
         </tbody>
       </table>
     </div>
+    <button v-if="gorunenYakalamalar.length < yakalamalar.length" type="button" class="yazdirma-yok"
+            style="margin-top:10px" @click="yakalamaSinir += 100">{{ dahaFazlaYazi }}</button>
   </section>
 
   <section class="kart yazdirma-yok" v-if="!rapor">
@@ -446,7 +462,7 @@ const SABLON = `
               @click="indir(d.tur)">{{ d.etiket }}</button>
     </div>
     <p class="ipucu">{{ m.disariIpucu }}</p>
-    <p v-if="hata" class="hata">{{ hata }}</p>
+    <p v-if="hata" class="hata" role="alert">{{ hata }}</p>
   </section>
 
   <section class="kart kg-rapor" v-if="rapor && raporVeri">
@@ -487,7 +503,8 @@ export const KayitGorunumu = {
   },
   template: SABLON,
   data() {
-    return { goster: { v: true, sag: 'akim', zarf: true }, okuma: null, pencereJson: '', hata: '' };
+    return { goster: { v: true, sag: 'akim', zarf: true }, okuma: null, pencereJson: '', hata: '',
+      duyuru: '', yakalamaSinir: YAKALAMA_SINIR };
   },
   created() {
     /* Agir veri reaktif DEGIL (markRaw / bilesen alani). */
@@ -609,6 +626,13 @@ export const KayitGorunumu = {
         zaman: sureYaz(y.gecenMs), hz: y.hz === null ? '—' : String(y.hz),
         tdiv: y.tdivUs === null ? '—' : y.tdivUs + ' µs', tetik: y.tetiklendi === null ? '—' : (y.tetiklendi ? ev : hy) }));
     },
+    /** WIG: rapor (yazdirma) TAM tablo; ekranda ilk `yakalamaSinir` satir. */
+    gorunenYakalamalar() {
+      return this.rapor ? this.yakalamalar : this.yakalamalar.slice(0, this.yakalamaSinir);
+    },
+    dahaFazlaYazi() {
+      return ceviri(KG_METIN.dahaFazla, this.dil, { kalan: this.yakalamalar.length - this.gorunenYakalamalar.length });
+    },
     disariSecenekleri() {
       const ad = { csv_tr: 'csvTr', csv_en: 'csvEn', ayrinti_tr: 'ayrintiTr', ayrinti_en: 'ayrintiEn',
         pil_tr: 'pilTr', pil_en: 'pilEn', ham: 'ham' };
@@ -654,8 +678,16 @@ export const KayitGorunumu = {
     window.addEventListener('resize', this._boyut);
     window.addEventListener('beforeprint', this._once);
     window.addEventListener('afterprint', this._sonra);
+    /* WIG: kayit acildi -> odak basliga (ekran gorunurse); klavye kullanicisi sayfa basina atilmaz. */
+    if (this.etkin) {
+      this.$nextTick(() => {
+        const b = this.$refs.baslik;
+        if (b && typeof b.focus === 'function') b.focus({ preventScroll: true });
+      });
+    }
   },
   beforeUnmount() {
+    if (this._duyuruZaman) clearTimeout(this._duyuruZaman);
     if (this._gozcu) this._gozcu.disconnect();
     window.removeEventListener('resize', this._boyut);
     window.removeEventListener('beforeprint', this._once);
@@ -699,8 +731,16 @@ export const KayitGorunumu = {
       if (anahtar !== this._sonImlec) {            // kaydirma/yakinlastirmada yeniden hesap yok
         this._sonImlec = anahtar;
         this.okuma = Number.isFinite(A) || Number.isFinite(B) ? okumaHesapla(this._h, A, B) : null;
+        this.duyuruZamanla();
       }
       this.pencereYaz();
+    },
+    /** WIG: okuma ~300 ms durulunca TEK satir (A · B · Δt · ilk kanalin A/B'si). */
+    duyuruZamanla() {
+      if (this._duyuruZaman) clearTimeout(this._duyuruZaman);
+      this._duyuruZaman = setTimeout(() => {
+        this.duyuru = this.okuma ? this.okumaSatirlari.slice(0, 5).map((o) => o.etiket + ' ' + o.deger).join(' · ') : '';
+      }, 300);
     },
     pencereYaz() {
       if (!this._g) return;

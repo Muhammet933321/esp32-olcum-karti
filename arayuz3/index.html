@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ölçüm Kartı — Aşama 3</title>
 
 <!-- ═══ B22.5 — TELEFONDA UYGULAMA GİBİ ═══════════════════════════════
@@ -13,11 +13,15 @@
        Bu vaat EDİLMİYOR, belgede de böyle yazıyor.
      ⚠ Service worker YOK (güvenli bağlam şart). Çevrimdışı davranış
        sıradan HTTP önbelleğinden geliyor: vendor/ `immutable` ile bir
-       kez iniyor. Bu, LAN'daki bir karttan alınabilecek en iyi sonuç. -->
+       kez iniyor. Bu, LAN'daki bir karttan alınabilecek en iyi sonuç.
+     WIG (2026-10-02): `viewport-fit=cover` + `black-translucent` sayfayı çentiğin
+       ve durum çubuğunun ALTINA uzatıyordu; CSS'te güvenli alan payı yoktu, ☰ ve
+       bağlantı düğmesi saatin altına giriyordu. Opak çubuk: içerik altından başlar.
+       theme-color ilk boyamada Koyu'nun --zemin-2'si; `ekran/tema.js` etkin temaya eşitler. -->
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Ölçüm">
-<meta name="theme-color" content="#161b21">
+<meta name="theme-color" content="#101821">
 <link rel="apple-touch-icon" href="ikon-180.png">
 <link rel="icon" href="ikon-180.png">
 <link rel="manifest" href="manifest.json">
@@ -53,6 +57,11 @@
 <!-- ⚠ Vue 3 baglama noktasinin (#uyg) KENDI ozniteliklerini derlemez (yalniz icini):
      kabugun `:class`i bu yuzden icteki ogede. -->
 <div class="kabuk" :class="{ 'cekmece-acik': cekmeceAcik }">
+  <a class="atla" href="#icerik" @click.prevent="icerigeGec">{{ m.icerigeGec }}</a>
+  <!-- WIG: kalıcı duyurucu (.icerik DIŞINDA — çekmece açıkken içerik inert).
+       Pil testi başlayınca ekran okuyucuya söylenir; acil şeridin kendisi
+       her yoklamada mAh değiştiği için canlı bölge değil. -->
+  <div class="gorunmez" role="status">{{ kabukDuyuru }}</div>
 
   <!-- ═══ 3D (D1) — KABUK: sol şerit + içerik ═══════════════════════════
        Geniş ekranda şerit hep görünür; ≤ 900 px'te ÇEKMECE olur (☰ açar,
@@ -67,22 +76,23 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
     <span class="ust-ad">{{ m.ad }}</span>
-    <div class="baglanti">
-      <span class="rozet" :class="bagli ? 'acik' : 'kapali'">
-        <span class="nokta"></span>{{ baglantiYazi }}
+    <div class="baglanti" :inert="cekmeceAcik">
+      <span class="rozet" role="status" :class="bagli ? 'acik' : 'kapali'">
+        <span class="nokta" aria-hidden="true"></span>{{ baglantiYazi }}
       </span>
       <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">{{ m.baglan }}</button>
     </div>
   </header>
 
-  <aside id="serit" class="serit" :aria-label="m.gezinme">
+  <!-- WIG: aside'ın kendi adı YOK — "Ana gezinme" yalnız içteki <nav>'da (iki kopya landmark olmasın). -->
+  <aside id="serit" class="serit">
     <div class="serit-ad">
       <b>{{ m.ad }}</b>
       <span class="serit-alt-ad" :title="afisSurum ? '' : m.surumIpucu">{{ seritAlt }}</span>
     </div>
     <div class="baglanti">
-      <span class="rozet" :class="bagli ? 'acik' : 'kapali'">
-        <span class="nokta"></span>{{ baglantiYazi }}
+      <span class="rozet" role="status" :class="bagli ? 'acik' : 'kapali'">
+        <span class="nokta" aria-hidden="true"></span>{{ baglantiYazi }}
       </span>
       <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">{{ m.baglan }}</button>
       <button v-else @click="kes">{{ m.kes }}</button>
@@ -99,21 +109,24 @@
   </aside>
   <div class="perde" v-if="cekmeceAcik" @click="cekmeceKapat(true)"></div>
 
-  <div class="icerik">
+  <!-- WIG: çekmece açıkken içerik INERT (Tab perdenin arkasına düşmesin, ekran
+       okuyucu arkayı okumasın); "İçeriğe geç" odağı buraya taşır (app.js icerigeGec). -->
+  <div class="icerik" id="icerik" ref="icerik" :inert="cekmeceAcik">
 
   <!-- ═══════════════════════════════════════════ ACİL DURDURMA
        Pil testi çalışırken HER görünümde, üstte. Telefonda deşarjı
-       durdurmak için önce doğru sekmeyi bulmak zorunda kalmayasın diye:
-       `p0` jeton ve parola İSTEMEYEN tek komut, emniyet böyle çalışır. -->
+       durdurmak için önce doğru sekmeyi bulmak zorunda kalmayın diye:
+       `p0` jeton ve parola İSTEMEYEN tek komut, emniyet böyle çalışır.
+       Bilerek TEK TIK (onay yok): durdurmak hiçbir şeyi bozmaz. -->
   <div v-if="pilDurum === 'CALISIYOR'" class="acil">
     <!-- Nokta ve metin TEK öğe: ayrı esnek öğe olduklarında telefonda
          nokta kendi satırında kalıyordu (390 px render'ı gösterdi). -->
     <div class="acil-bilgi">
-      <span class="acil-nokta"></span>
+      <span class="acil-nokta" aria-hidden="true"></span>
       <span><b>Pil testi çalışıyor</b> — {{ bicim(pilMah, 1) }} mAh ·
         {{ bicim(volt, 3) }} V, kesme {{ bicim(pilKesme, 2) }} V</span>
     </div>
-    <button class="acil-dur" @click="pilDurdurKomut">DURDUR</button>
+    <button class="acil-dur" @click="pilDurdurKomut" aria-label="Pil testini durdur">DURDUR</button>
   </div>
 
   <!-- Gezinme (B27 A1 → 3D D1) yukarıdaki şeritte: tek sayfa, görünüm = adres
@@ -126,7 +139,7 @@
   <div class="bildirimler">
   <!-- 🔴 Yetenek yoksa düğme kapalı ama NEDENİ görünür. Ölü düğme
        bırakmak DEVIR 4.15'in ta kendisiydi. -->
-  <div v-if="!destekli" class="hata">
+  <div v-if="!destekli" class="hata" role="status">
     <strong>Bu kipte bağlanılamıyor.</strong> {{ desteksizNeden }}
     <template v-if="tasiyiciAdi === 'seri'">
       Ayrıca sayfa <code>http://localhost</code> üzerinden açılmalı —
@@ -138,11 +151,11 @@
     Kart bir bilgisayara bağlı. Sınırsız geçmiş ve çoklu izleyici için
     arayüzü <a :href="kopruAdresi">{{ kopruAdresi }}</a> üzerinden açın.
   </div>
-  <div v-if="hata" class="hata">{{ hata }}</div>
+  <div v-if="hata" class="hata" role="alert">{{ hata }}</div>
   <!-- B22.3: köprüde N izleyici, BIR sürücü. Yetki sunucuda; burası
        yalnızca durumu gösteriyor ve devri istiyor. -->
-  <div v-if="bagli && !surucuyum" class="uyari">
-    Bu oturum <b>izleyici</b> — ölçümü görüyorsun ama komut gönderemezsin.
+  <div v-if="bagli && !surucuyum" class="uyari" role="status">
+    Bu oturum <b>izleyici</b> — ölçümü görüyorsunuz ama komut gönderemezsiniz.
     Kalibrasyon ve pil testi sürücüdeyken tek elde olmalı.
     <b>Durdurma (<code>p0</code>) her zaman açık.</b>
     <button @click="devral" style="margin-left:8px">Sürücülüğü devral</button>
@@ -176,15 +189,21 @@
       <template v-else>
         <button type="button" data-kd="not" @click="notAcDegistir" :disabled="!kayitKomutAcik"
                 :aria-expanded="notAcik ? 'true' : 'false'">{{ m.notEkle }}</button>
-        <button type="button" class="tehlike" data-kd="durdur" @click="kayitDurdur"
-                :disabled="!kayitKomutAcik">{{ m.durdur }}</button>
+        <!-- WIG: Durdur İKİ AŞAMALI — kapanan oturum sürdürülemez; dar ekranda
+             "Not ekle"nin hemen yanında. Onay ~6 s sonra, görünüm değişince ya da
+             başka bir komut gidince kendiliğinden düşer (app.js onayIste). -->
+        <button v-if="onay !== 'durdur'" type="button" class="tehlike" data-kd="durdur" data-onay-ac="durdur"
+                @click="onayIste('durdur')" :disabled="!kayitKomutAcik">{{ m.durdur }}</button>
+        <template v-else>
+          <button type="button" class="tehlike" data-kd="durdur-eminim" data-onay="durdur" @click="kayitDurdur"
+                  :disabled="!kayitKomutAcik">{{ m.durdurEminim }}</button>
+          <button type="button" data-kd="durdur-vazgec" @click="onayVazgec('durdur')">{{ m.vazgec }}</button>
+        </template>
       </template>
       <button type="button" data-kd="zamanla" @click="planAcDegistir" :disabled="!kayitKomutAcik"
               :aria-expanded="planAcik ? 'true' : 'false'">{{ m.zamanla }}</button>
     </div>
   </div>
-
-  <p v-if="bagli && !surucuyum" class="ipucu">{{ m.izleyici }}</p>
 
   <form v-if="notAcik" class="kart kd-form" data-kd="not-form" @submit.prevent="notEkle">
     <label class="alan kd-genis">
@@ -192,7 +211,8 @@
       <input type="text" v-model="notMetni" data-kd="not-metin" autocomplete="off">
     </label>
     <span class="kd-bayt" :class="{ 'uyari-metin': notBayt > 120 }">{{ notBaytYazi }}</span>
-    <button type="submit" class="birincil">{{ m.notGonder }}</button>
+    <button type="submit" class="birincil" :disabled="notGonderiliyor"
+            :aria-busy="notGonderiliyor ? 'true' : 'false'">{{ notGonderiliyor ? m.notGonderiliyor : m.notGonder }}</button>
     <button type="button" @click="notAcik = false">{{ m.vazgec }}</button>
   </form>
 
@@ -217,44 +237,55 @@
       </select>
     </label>
     <button type="submit" class="birincil">{{ m.planKur }}</button>
-    <button type="button" data-kd="plan-iptal" @click="planIptal">{{ m.planIptal }}</button>
+    <!-- WIG: plan SÜREN bir kayda bağlıysa `Gp-` kaydı da durdurur (1C-4, sebep 1):
+         o zaman iki aşamalı ve bunu söyler. Bekleyen plan tek tık. -->
+    <button v-if="planBagli && onay !== 'planIptal'" type="button" data-kd="plan-iptal" data-onay-ac="planIptal"
+            @click="onayIste('planIptal')">{{ m.planIptalKayit }}</button>
+    <template v-else>
+      <button type="button" data-kd="plan-iptal" data-onay="planIptal" :class="{ tehlike: planBagli }"
+              @click="planIptal">{{ planBagli ? m.planIptalEminim : m.planIptal }}</button>
+      <button v-if="planBagli" type="button" @click="onayVazgec('planIptal')">{{ m.vazgec }}</button>
+    </template>
     <p class="ipucu kd-genis">{{ m.planSureIpucu }}</p>
   </form>
 
   <p v-if="kayitUyari" class="hata" data-kd="uyari" role="alert" :data-tur="kayitUyari.tur">{{ kayitUyari.metin }}</p>
 
-  <!-- ───────────────────────── okuma kartları (D2): değer + son 10 s min … maks -->
+  <!-- ───────────────────────── okuma kartları (D2): değer + son 10 s min … maks
+       WIG: bağlantı yokken / ilk D gelmeden `veriYok` — "0.000 V" bir ölçü aletinde
+       "girişte 0 V var" diye okunur; bağlantı kopunca son değer işaretsiz donmaz. -->
   <section class="olcumler" :aria-label="m.okumalar">
     <div class="olcum v">
       <div class="ad">{{ m.gerilim }} <span class="menzil-rozet">{{ menzilAd }}</span></div>
-      <div class="deger" v-if="!voltGecersiz">{{ bicim(volt, 3) }}<span class="birim">V</span></div>
+      <div class="deger" v-if="!voltGecersiz && !veriYok">{{ bicim(volt, 3) }}<span class="birim">V</span></div>
       <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
       <div class="on-saniye">{{ onSaniye.v }}</div>
       <div class="alt-bilgi" v-if="!voltGecersiz">{{ menzilAralik }}</div>
-      <div class="alt-bilgi uyari-metin" v-else>veri yok — gerilim ADC'si (0x49) yanıt vermiyor</div>
+      <div class="alt-bilgi uyari-metin" v-else>{{ m.adcYokV }}</div>
     </div>
     <div class="olcum i">
       <div class="ad">{{ m.akim }}</div>
-      <div class="deger" v-if="!amperGecersiz">{{ akimGoster }}<span class="birim">{{ akimBirim }}</span></div>
+      <div class="deger" v-if="!amperGecersiz && !veriYok">{{ akimGoster }}<span class="birim">{{ akimBirim }}</span></div>
       <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
       <div class="on-saniye">{{ onSaniye.i }}</div>
-      <div class="alt-bilgi uyari-metin" v-if="amperGecersiz">veri yok — akım ADC'si (0x48) yanıt vermiyor</div>
+      <div class="alt-bilgi uyari-metin" v-if="amperGecersiz">{{ m.adcYokI }}</div>
       <!-- B27 A2-b: menzil VE adım. Adım olmadan boştaki girişin
            gürültüsü (0.1 Ω şöntte 1 LSB = 78 µA) gerçek akım sanılıyor. -->
       <div class="alt-bilgi" v-else>{{ akimMenzilAralik }}</div>
     </div>
     <div class="olcum w">
       <div class="ad">{{ m.guc }}</div>
-      <div class="deger" v-if="!gucGecersiz">{{ gucGoster }}<span class="birim">{{ gucBirim }}</span></div>
+      <div class="deger" v-if="!gucGecersiz && !veriYok">{{ gucGoster }}<span class="birim">{{ gucBirim }}</span></div>
       <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
       <div class="on-saniye">{{ onSaniye.w }}</div>
-      <div class="alt-bilgi">{{ gucGecersiz ? 'veri yok' : gucYon }}</div>
+      <div class="alt-bilgi">{{ gucGecersiz ? m.kanalVeriYok : gucYon }}</div>
     </div>
     <div class="olcum e" :title="m.enerjiIpucu">
       <div class="ad">{{ m.enerji }}</div>
-      <div class="deger">{{ enerjiGoster }}<span class="birim">{{ enerjiBirim }}</span></div>
+      <div class="deger" v-if="!veriYok">{{ enerjiGoster }}<span class="birim">{{ enerjiBirim }}</span></div>
+      <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
       <div class="on-saniye">{{ onSaniye.e }}</div>
-      <div class="alt-bilgi">{{ bicim(joule, 2) }} J</div>
+      <div class="alt-bilgi">{{ veriYok ? '' : bicim(joule, 2) + ' J' }}</div>
     </div>
   </section>
 
@@ -275,7 +306,7 @@
   <!-- ───────────────────────────────────────── grafik (D3) -->
   <section class="kart" :aria-label="m.grafikEtiket">
     <div class="gosterge">
-      <b>{{ m.grafik }}</b>
+      <h2 class="gosterge-baslik">{{ m.grafik }}</h2>
       <label><input type="checkbox" v-model="gosterV">
         <span class="cizgi" style="background:var(--volt)"></span> {{ m.gerilim }}</label>
       <label>{{ m.sagEksen }}:
@@ -313,6 +344,9 @@
       <p v-else-if="!gecmis.length" class="tuval-ust">{{ m.veriYok }}</p>
     </div>
     <p v-if="donmus" class="ipucu">{{ m.donmusIpucu }}</p>
+    <!-- WIG: imleç okuması klavyeyle (A/B, Shift+ok) de değişiyor; ızgara canlı bölge
+         DEĞİL (her tuşta ~10 değer okunurdu) — gecikmeli tek satırlık özet burada. -->
+    <p class="gorunmez" aria-live="polite">{{ canliDuyuru }}</p>
     <div v-if="donmus" class="canli-okuma" :data-okuma="canliOkuma ? 'var' : ''">
       <template v-if="canliOkuma">
         <div v-for="s in canliOkuma" :key="s.ad" class="okuma-oge" :class="s.renk ? 'okuma-' + s.renk : ''">
@@ -322,10 +356,17 @@
       <p v-else class="ipucu">{{ m.imlecYok }}</p>
     </div>
     <div class="satir" style="margin-top:12px">
-      <button type="button" data-kd="dondur" @click="dondurDegistir" :disabled="!gecmis.length"
-              :aria-pressed="donmus ? 'true' : 'false'">{{ donmus ? m.canliyaDon : m.dondur }}</button>
+      <!-- WIG: etiket durumu zaten söylüyor ("Dondur" ↔ "Canlıya dön"); aria-pressed
+           ile birlikte "Canlıya dön, basılı" çelişkisi okunuyordu. -->
+      <button type="button" data-kd="dondur" @click="dondurDegistir" :disabled="!gecmis.length">{{ donmus ? m.canliyaDon : m.dondur }}</button>
       <button v-if="donmus" type="button" @click="imlecTemizle" :disabled="!canliOkuma">{{ m.imlecSil }}</button>
-      <button @click="gecmisiTemizle" :disabled="!gecmis.length">Grafiği temizle</button>
+      <!-- WIG: tarayıcıdaki iz (CSV'si alınmamış olabilir) geri alınamaz: iki aşamalı -->
+      <button v-if="onay !== 'grafikTemizle'" data-onay-ac="grafikTemizle" @click="onayIste('grafikTemizle')"
+              :disabled="!gecmis.length">Grafiği temizle</button>
+      <template v-else>
+        <button class="tehlike" data-onay="grafikTemizle" @click="gecmisiTemizle">Eminim, grafiği temizle</button>
+        <button @click="onayVazgec('grafikTemizle')">Vazgeç</button>
+      </template>
       <button @click="csvIndir" :disabled="!gecmis.length">CSV indir</button>
     </div>
   </section>
@@ -713,28 +754,33 @@
 
   <!-- ═════════════════════════════════════════════ #/ayar -->
   <main class="gorunum" v-show="gorunum === 'ayar'">
+  <h1 class="gorunmez">{{ metin('kb.ayar') }}</h1>
 
   <!-- B27 Aşama 3: üst şeritten taşındı -->
   <section class="kart">
     <h2>Bağlantı</h2>
     <div class="satir">
       <div class="alan">
-        <label>Bağlantı yolu</label>
+        <label for="ayar-tasiyici">Bağlantı yolu</label>
         <!-- B22.2: TAŞIYICI SEÇİCİ. Modlar arasındaki fark kodda değil
              burada: aynı arayüz, farklı yol.
              B27 A2: `demo` seçeneği EKLENDİ — ?demo ile açınca taşıyıcı
              'demo' oluyordu ama menüde karşılığı yoktu ve seçici BOŞ
              görünüyordu. -->
-        <select v-model="tasiyiciAdi" :disabled="bagli" title="bağlantı yolu">
+        <select id="ayar-tasiyici" v-model="tasiyiciAdi" :disabled="bagli">
           <option value="seri">USB (Web Serial)</option>
           <option value="akis">WiFi / köprü (akış)</option>
           <option value="demo">Demo — sahte kart</option>
         </select>
       </div>
       <div class="alan" v-if="tasiyiciAdi === 'akis'" style="flex:1">
-        <label>Kart adresi</label>
-        <input type="text" v-model="kartTaban" :disabled="bagli"
-               placeholder="http://olcum.local (boş = aynı köken)">
+        <label for="ayar-kart-adres">Kart adresi</label>
+        <!-- WIG: type=url (telefonda URL klavyesi), büyük harf/düzeltme kapalı.
+             Şemasız yazılan adrese app.js kartAdres() http:// ekliyor. -->
+        <input id="ayar-kart-adres" type="url" inputmode="url" name="kart-adres" autocomplete="off"
+               autocapitalize="off" autocorrect="off" spellcheck="false" v-model="kartTaban" :disabled="bagli"
+               placeholder="ör. http://192.168.1.50…" aria-describedby="ayar-kart-adres-ipucu">
+        <span class="ipucu" id="ayar-kart-adres-ipucu" style="margin:0">Boş = sayfayı sunan adres (aynı köken).</span>
       </div>
       <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">
         Karta bağlan
@@ -746,7 +792,7 @@
       bağlantı otomatik kurulur. <b>USB</b> yalnızca <code>http://localhost</code>
       üzerinden açıldığında çalışır (Web Serial güvenli bağlam ister).
       Telefonda <code>.local</code> adı Android'de çözülmez —
-      kartın <b>IP adresini</b> kullan.
+      kartın <b>IP adresini</b> kullanın.
     </p>
   </section>
 
@@ -755,22 +801,24 @@
 
     <div class="satir" style="margin-bottom:14px">
       <div class="alan">
-        <label>Gerilim menzili</label>
-        <div class="dugme-grup">
+        <!-- WIG: <label> bir düğme grubunu adlandıramaz; grup adı aria-labelledby ile,
+             seçili menzil aria-pressed ile (614 V menzili emniyet bilgisi). -->
+        <span class="alan-ad" id="menzil-etiket">Gerilim menzili</span>
+        <div class="dugme-grup" role="group" aria-labelledby="menzil-etiket">
           <button @click="menzilSec(0)" :disabled="!bagli"
-                  :class="{ etkin: menzil === 0 }">NORMAL ±32 V</button>
+                  :class="{ etkin: menzil === 0 }" :aria-pressed="menzil === 0 ? 'true' : 'false'">NORMAL ±32 V</button>
           <button @click="menzilSec(1)" :disabled="!bagli"
-                  :class="{ etkin: menzil === 1 }">YÜKSEK ±614 V</button>
+                  :class="{ etkin: menzil === 1 }" :aria-pressed="menzil === 1 ? 'true' : 'false'">YÜKSEK ±614 V</button>
         </div>
       </div>
       <button @click="otoMenzilDegistir" :disabled="!bagli"
-              :class="{ etkin: otoMenzil }">Otomatik menzil</button>
+              :class="{ etkin: otoMenzil }" :aria-pressed="otoMenzil ? 'true' : 'false'">Otomatik menzil</button>
     </div>
 
     <div class="satir" style="margin-bottom:14px">
       <div class="alan">
-        <label>Takılı şönt</label>
-        <select v-model="sontSecim" @change="sontGonder">
+        <label for="ayar-sont">Takılı şönt</label>
+        <select id="ayar-sont" v-model="sontSecim" @change="sontGonder">
           <option value="10">10R — ±26 mA</option>
           <option value="1">1R — ±256 mA</option>
           <option value="0.1">0.1R — ±2.56 A</option>
@@ -778,26 +826,47 @@
         </select>
         <span class="ipucu" :class="{ 'uyari-metin': sontUyumsuz }">{{ kartSontYazi }}<template v-if="sontUyumsuz"> — menüyle UYUŞMUYOR, menü tercihini gösterir, kart bunu kullanıyor</template></span>
       </div>
-      <button @click="sifirlaA" :disabled="!bagli">Akımı sıfırla</button>
-      <button @click="enerjiSifirla" :disabled="!bagli">Enerjiyi sıfırla</button>
       <button @click="komut('?')" :disabled="!bagli">Ayarları göster</button>
-      <button @click="komut('#')" :disabled="!bagli">I²C tara</button>
+      <button @click="komut('#')" :disabled="!bagli">I²C tara → Konsol</button>
+    </div>
+
+    <!-- WIG: SIFIRLAMALAR İKİ AŞAMALI ve "göster" düğmelerinden AYRI satırda. Sıfırlar
+         NVS'e yazılıyor: yük bağlıyken basılan "Akımı sıfırla" kalibrasyonu sessizce
+         bozar; enerji sayacının Wh'si geri gelmez. Onay metni ön koşulu söylüyor. -->
+    <div class="satir" style="margin-bottom:14px">
+      <button v-if="onay !== 'gerilimSifir'" data-onay-ac="gerilimSifir" @click="onayIste('gerilimSifir')"
+              :disabled="!bagli">Gerilimi sıfırla</button>
+      <template v-else>
+        <button class="tehlike" data-onay="gerilimSifir" @click="sifirlaV" :disabled="!bagli">Eminim — giriş 0 V'ta</button>
+        <button @click="onayVazgec('gerilimSifir')">Vazgeç</button>
+      </template>
+      <button v-if="onay !== 'akimSifir'" data-onay-ac="akimSifir" @click="onayIste('akimSifir')"
+              :disabled="!bagli">Akımı sıfırla</button>
+      <template v-else>
+        <button class="tehlike" data-onay="akimSifir" @click="sifirlaA" :disabled="!bagli">Eminim — yük çıkarıldı</button>
+        <button @click="onayVazgec('akimSifir')">Vazgeç</button>
+      </template>
+      <button v-if="onay !== 'enerjiSifir'" data-onay-ac="enerjiSifir" @click="onayIste('enerjiSifir')"
+              :disabled="!bagli">Enerjiyi sıfırla</button>
+      <template v-else>
+        <button class="tehlike" data-onay="enerjiSifir" @click="enerjiSifirla" :disabled="!bagli">Eminim, enerjiyi sıfırla</button>
+        <button @click="onayVazgec('enerjiSifir')">Vazgeç</button>
+      </template>
     </div>
 
     <div class="satir">
-      <button @click="sifirlaV" :disabled="!bagli">Gerilimi sıfırla</button>
 
       <div class="alan">
-        <label>Gerçek gerilim (multimetre)</label>
-        <input type="text" v-model="kalibV" placeholder="12.34 · −24 da olur"
-               @keyup.enter="kalibreV">
+        <label for="ayar-kalib-v">Gerçek gerilim (multimetre)</label>
+        <input id="ayar-kalib-v" type="text" v-model="kalibV" placeholder="12.34 · −24 da olur…"
+               autocomplete="off" autocapitalize="off" spellcheck="false" @keyup.enter="kalibreV">
       </div>
       <button @click="kalibreV" :disabled="!bagli || !kalibV">Gerilimi kalibre et</button>
 
       <div class="alan">
-        <label>Gerçek akım, amper</label>
-        <input type="text" v-model="kalibA" placeholder="0.250 · −0.25 da olur"
-               @keyup.enter="kalibreA">
+        <label for="ayar-kalib-a">Gerçek akım, amper</label>
+        <input id="ayar-kalib-a" type="text" v-model="kalibA" placeholder="0.250 · −0.25 da olur…"
+               autocomplete="off" autocapitalize="off" spellcheck="false" @keyup.enter="kalibreA">
       </div>
       <button @click="kalibreA" :disabled="!bagli || !kalibA">Akımı kalibre et</button>
     </div>
@@ -808,46 +877,51 @@
          güç %82 yüksek okunuyordu ve bunu düzeltecek bir denetim yoktu. -->
     <div class="satir" style="margin-top:14px">
       <div class="alan">
-        <label>Şebeke frekansı (ölçek düzeltmesi)</label>
-        <select v-model="sebekeHz" @change="sebekeGonder">
+        <label for="ayar-sebeke">Şebeke frekansı (ölçek düzeltmesi)</label>
+        <select id="ayar-sebeke" v-model="sebekeHz" @change="sebekeGonder">
           <option value="0">DC — düzeltme KAPALI</option>
           <option value="50">50 Hz (Türkiye)</option>
           <option value="60">60 Hz</option>
         </select>
       </div>
       <div class="alan">
-        <label>Faz kalibrasyonu, µs (−2000 … +2000)</label>
-        <input type="text" v-model="fazKal" placeholder="dirençli yükte PF en büyük"
+        <label for="ayar-faz">Faz kalibrasyonu, µs (−2000 … +2000)</label>
+        <!-- WIG: talimat yer tutucuda değil (yazınca kayboluyordu) — altta; hata alanın yanında -->
+        <input id="ayar-faz" type="text" v-model="fazKal" placeholder="ör. 120…"
+               autocomplete="off" autocapitalize="off" spellcheck="false"
+               :aria-invalid="fazHata ? 'true' : 'false'" aria-describedby="faz-hata ayar-faz-ipucu"
                @keyup.enter="fazGonder">
+        <span class="ipucu" id="ayar-faz-ipucu" style="margin:0">Dirençli yükte PF'yi en büyük yapan değer.</span>
       </div>
       <button @click="fazGonder" :disabled="!bagli || !fazKal">Fazı ayarla</button>
-      <button @click="komut('F')" :disabled="!bagli">Fazı göster</button>
+      <button @click="komut('F')" :disabled="!bagli">Fazı sor → Konsol</button>
     </div>
+    <p v-if="fazHata" class="hata" role="alert" id="faz-hata">{{ fazHata }}</p>
 
     <p class="uyari" style="margin-top:12px">
       ⚠ <b>Fabrika ayarları</b> tüm kalibrasyonu (gerilim/akım sıfırı ve
       kazancı, şönt, faz) siler ve kartı varsayılanlara döndürür. Yalnızca
       kalibrasyon bozulduysa kullanın — kart tekrar kalibre edilmelidir.
-      <button @click="fabrikaSifirla" :disabled="!bagli"
+      <button @click="fabrikaSifirla" :disabled="!bagli" data-onay-ac="fabrika"
               style="margin-left:8px">
         {{ sifirlaOnay ? 'Eminim, sıfırla' : 'Fabrika ayarlarına dön' }}
       </button>
-      <button v-if="sifirlaOnay" @click="sifirlaOnay = false">Vazgeç</button>
+      <button v-if="sifirlaOnay" @click="fabrikaVazgec">Vazgeç</button>
     </p>
 
     <!-- B27 A1: bu iki paragraf yıllardır pil bölümünün ALTINDA duruyordu
          — tek kaydırmalı sayfada fark edilmiyordu; görünümler ayrılınca
          "Pil testi" sekmesinde kalibrasyon talimatı belirdi. Yerine geldi. -->
     <p class="ipucu">
-      <strong>Sıra önemli.</strong> Önce girişi 0 V'a bağla ve
+      <strong>Sıra önemli.</strong> Önce girişi 0 V'a bağlayın ve
       “Gerilimi sıfırla” — bu, Vref'in gerçek değerini ölçüp çıkarır.
-      Sonra <strong>yükü kes</strong> ve “Akımı sıfırla”. En son bilinen bir
-      gerilim/akım uygulayıp multimetrenin okuduğu değeri gir.
+      Sonra <strong>yükü kesin</strong> ve “Akımı sıfırla”. En son bilinen bir
+      gerilim/akım uygulayıp multimetrenin okuduğu değeri girin.
       Kalibrasyon her menzil için <em>ayrı</em> tutulur ve NVS'e yazılır.
     </p>
     <p class="ipucu">
       Kalibrasyon değeri <strong>negatif de olabilir</strong> — kart çift
-      yönlü. Sıfıra çok yakın bir değerle kalibre etmeye çalışırsan kart
+      yönlü. Sıfıra çok yakın bir değerle kalibre etmeye çalışırsanız kart
       reddeder (tam ölçeğin %5'i eşiği).
     </p>
 
@@ -860,40 +934,65 @@
     <h2>Ağ — kartı kablosuz yapma</h2>
 
     <p class="ipucu">
-      <strong>Sıra:</strong> kartı <em>USB ile</em> bağla, ağ bilgilerini
-      buradan gir, kartı yeniden başlat. Kart önce ev ağına bağlanmayı
+      <strong>Sıra:</strong> kartı <em>USB ile</em> bağlayın, ağ bilgilerini
+      buradan girin, kartı yeniden başlatın. Kart önce ev ağına bağlanmayı
       dener; 10 saniyede olmazsa <strong>kendi ağını kurar</strong>
       (<code>OLCUM-KARTI-XXXX</code>). AP parolası ilk açılışta rastgele
       üretilip <strong>seri konsola yazılır</strong> — oradan okuyun.
     </p>
     <p v-if="tasiyiciAdi !== 'seri'" class="uyari">
-      ⚠ Şu anda <b>ağ üzerinden</b> bağlısın. Buraya yazacağın parolalar
+      ⚠ Şu anda <b>ağ üzerinden</b> bağlısınız. Buraya yazacağınız parolalar
       <b>şifrelenmeden</b> gidiyor (kartta TLS yok). Ağ kurulumunu
-      tercihen <b>USB ile</b> yap.
+      tercihen <b>USB ile</b> yapın.
     </p>
 
     <div class="satir" style="margin-top:12px">
       <div class="alan">
-        <label>Ev ağı adı (SSID)</label>
-        <input type="text" v-model="agSsid" @keyup.enter="agSsidGonder">
+        <!-- WIG: SSID birebir eşleşmeli (büyük/küçük harf, sondaki boşluk): telefon
+             klavyesinin otomatik büyük harfi / düzeltmesi KAPALI. -->
+        <label for="ayar-ssid">Ev ağı adı (SSID)</label>
+        <input id="ayar-ssid" type="text" name="ssid" autocomplete="off" autocapitalize="off"
+               autocorrect="off" spellcheck="false" v-model="agSsid" @keyup.enter="agSsidGonder">
       </div>
       <button @click="agSsidGonder" :disabled="!bagli || !agSsid">Ağ adını yaz</button>
       <div class="alan">
-        <label>Ev ağı parolası</label>
-        <input type="password" v-model="agSifre" @keyup.enter="agSifreGonder">
+        <!-- WIG: new-password — parola yöneticisi bunu giriş formu sanıp kart kökeninin
+             kayıtlı parolasını doldurmasın. Boş parola GİTMEZ (kart ev ağına bağlanamazdı). -->
+        <label for="ayar-wifi-parola">Ev ağı parolası</label>
+        <input id="ayar-wifi-parola" type="password" name="wifi-parola" autocomplete="new-password"
+               v-model="agSifre" @keyup.enter="agSifreGonder">
       </div>
-      <button @click="agSifreGonder" :disabled="!bagli">Parolayı yaz</button>
+      <button @click="agSifreGonder" :disabled="!bagli || !agSifre">Parolayı yaz</button>
     </div>
 
     <div class="satir" style="margin-top:10px">
       <div class="alan">
-        <label>Web parolası (boş = koruma yok)</label>
-        <input type="password" v-model="agWebSifre" @keyup.enter="agWebSifreGonder">
+        <label for="ayar-web-parola">Yeni web parolası</label>
+        <input id="ayar-web-parola" type="password" name="web-parola" autocomplete="new-password"
+               v-model="agWebSifre" @keyup.enter="agWebSifreGonder">
       </div>
-      <button @click="agWebSifreGonder" :disabled="!bagli">Web parolasını yaz</button>
-      <button @click="komut('N?')" :disabled="!bagli">Ağ durumunu göster</button>
+      <button @click="agWebSifreGonder" :disabled="!bagli || !agWebSifre">Web parolasını yaz</button>
+      <!-- WIG: korumayı kaldırmak boş alanla DEĞİL, ayrı ve iki aşamalı (Ns hemen geçerli) -->
+      <button v-if="onay !== 'webKoruma'" data-onay-ac="webKoruma" @click="onayIste('webKoruma')"
+              :disabled="!bagli">Korumayı kaldır</button>
+      <template v-else>
+        <button class="tehlike" data-onay="webKoruma" @click="agWebKorumaKaldir" :disabled="!bagli">Eminim — komut ucu parolasız kalır</button>
+        <button @click="onayVazgec('webKoruma')">Vazgeç</button>
+      </template>
+    </div>
+
+    <div class="satir" style="margin-top:10px">
+      <button @click="komut('N?')" :disabled="!bagli">Ağ durumunu sor → Konsol</button>
       <button @click="komut('N1')" :disabled="!bagli">Ağı aç</button>
-      <button @click="komut('N0')" :disabled="!bagli">Ağı kapat</button>
+      <!-- WIG: ağ üzerinden bağlıyken ağı kapatmak bir sonraki açılışta paneli
+           kilitler (geri açmak USB ister): o zaman iki aşamalı. USB'de tek tık. -->
+      <button v-if="tasiyiciAdi !== 'seri' && onay !== 'agKapat'" data-onay-ac="agKapat" @click="onayIste('agKapat')"
+              :disabled="!bagli">Ağı kapat</button>
+      <template v-else>
+        <button data-onay="agKapat" :class="{ tehlike: tasiyiciAdi !== 'seri' }" @click="komut('N0')"
+                :disabled="!bagli">{{ tasiyiciAdi !== 'seri' ? 'Eminim — sonraki açılışta ağ kapanır, geri açmak USB ister' : 'Ağı kapat' }}</button>
+        <button v-if="tasiyiciAdi !== 'seri'" @click="onayVazgec('agKapat')">Vazgeç</button>
+      </template>
     </div>
 
     <p class="ipucu">
@@ -929,7 +1028,8 @@
 
   <!-- ═══════════ B21 — PİL KAPASİTE TESTİ ═══════════ -->
   <section class="kart">
-    <h2>Pil kapasite testi — mAh · Wh · deşarj eğrisi · iç direnç</h2>
+    <!-- WIG: "deşarj eğrisi" vaat etmiyor — bu görünümde grafik yok; noktalar CSV'de -->
+    <h1>Pil kapasite testi — mAh · Wh · iç direnç · nokta CSV'si</h1>
 
     <p class="uyari">
       ⚠ Yükü <b>J7</b>'ye bağlayın, J3'e değil. J3 doğrudan şönte gider;
@@ -940,9 +1040,9 @@
 
     <div class="satir">
       <div class="alan">
-        <label>Kesme gerilimi, V (Li-ion 3.0 · kurşun asit 10.5)</label>
-        <input type="text" v-model="pilKesmeGiris" placeholder="3.0"
-               @keyup.enter="pilKesmeGonder">
+        <label for="pil-kesme">Kesme gerilimi, V (Li-ion 3.0 · kurşun asit 10.5)</label>
+        <input id="pil-kesme" type="text" inputmode="decimal" v-model="pilKesmeGiris" placeholder="3.0…"
+               autocomplete="off" @keyup.enter="pilKesmeGonder">
       </div>
       <button @click="pilKesmeGonder" :disabled="!bagli || !pilKesmeGiris">
         Kesmeyi ayarla</button>
@@ -951,12 +1051,21 @@
       <button @click="pilDurdurKomut"
               :disabled="!bagli || pilDurum !== 'CALISIYOR'">Durdur</button>
       <button @click="pilCsvIndir" :disabled="!pilNokta.length">CSV indir</button>
-      <button @click="pilTemizle" :disabled="!pilNokta.length">Kaydı sil</button>
+      <!-- WIG: yalnız BU TARAYICININ noktaları (IndexedDB) silinir; kartın PİL oturumu
+           Kayıtlar'da kalır. Yine de geri alınamaz: iki aşamalı. -->
+      <button v-if="onay !== 'pilSil'" data-onay-ac="pilSil" @click="onayIste('pilSil')"
+              :disabled="!pilNokta.length">Tarayıcıdaki noktaları sil</button>
+      <template v-else>
+        <button class="tehlike" data-onay="pilSil" @click="pilTemizle" :disabled="!pilNokta.length">Eminim, sil</button>
+        <button @click="onayVazgec('pilSil')">Vazgeç</button>
+      </template>
     </div>
+    <p v-if="onay === 'pilSil'" class="uyari">Bu tarayıcıdaki pil noktaları silinir (geri gelmez);
+      kartın kaydı Kayıtlar'da kalır. Önce <b>CSV indir</b>'i kullanın.</p>
 
     <div class="satir" style="margin-top:12px">
       <div class="kpi"><span class="kpi-ad">Durum</span>
-        <span class="kpi-deger">{{ pilDurum }}</span></div>
+        <span class="kpi-deger">{{ pilDurumYazi }}</span></div>
       <div class="kpi"><span class="kpi-ad">Kapasite</span>
         <span class="kpi-deger">{{ bicim(pilMah, 1) }} mAh</span></div>
       <div class="kpi"><span class="kpi-ad">Enerji</span>
@@ -966,19 +1075,19 @@
       <div class="kpi"><span class="kpi-ad">Kesme</span>
         <span class="kpi-deger">{{ bicim(pilKesme, 2) }} V</span></div>
       <div class="kpi"><span class="kpi-ad">İç direnç ({{ pilDcirN }} ölçüm)</span>
-        <span class="kpi-deger">{{ bicim(pilDcirAni * 1000, 1) }} mΩ</span></div>
+        <span class="kpi-deger">{{ pilDcirYazi }}</span></div>
     </div>
 
-    <p v-if="pilHata && pilHata !== '-'" class="hata">
-      Pil testi: {{ pilHata }}</p>
+    <p v-if="pilHata && pilHata !== '-'" class="hata" role="alert">
+      Pil testi: {{ pilHataYazi }}</p>
     <!-- B22.2: kart yanıt vermiyorsa SÖYLE. Eskiden 404 sessizce
          ayrıştırılıp tüm KPI'lar 0 gösteriliyordu. -->
-    <p v-if="pilHataMetni" class="uyari">Pil verisi alınamıyor: {{ pilHataMetni }}</p>
+    <p v-if="pilHataMetni" class="uyari" role="alert">Pil verisi alınamıyor: {{ pilHataMetni }}</p>
 
     <p v-if="pilBosluk" class="uyari">
-      ⚠ Eğride <b>{{ pilBosluk }} nokta boşluk</b> var — tarayıcı kartın
+      ⚠ Kayıtta <b>{{ pilBosluk }} nokta boşluk</b> var — tarayıcı kartın
       tuttuğu 1.5 saatlik pencereden daha uzun kapalı kaldı. Boşluk
-      grafikte işaretli; <b>mAh ve Wh toplamları etkilenmedi</b>, çünkü
+      CSV'de işaretli (<code>bosluk</code> sütunu 1); <b>mAh ve Wh toplamları etkilenmedi</b>, çünkü
       sayaçlar kartta kesintisiz birikiyor.</p>
 
     <p class="ipucu" v-if="pilNokta.length">
@@ -1008,24 +1117,28 @@
 
   <!-- ───────────────────────────────────────────── günlük -->
   <section class="kart">
-    <h2>Konsol — kartla ham konuşma</h2>
+    <h1>Konsol — kartla ham konuşma</h1>
     <p class="ipucu">
       Karttan gelen her satır burada — saniyede 20 kez gelen <code>D</code>
       ölçüm satırı, <code>W</code> hızlı ölçüm satırı ve skop dökümünün
       ham örnekleri hariç (onlar panelde). <code>y</code> yazıp göndermek
       komut listesini verir. Panelin gösterdiği her şey bu satırlardan
-      türetiliyor — bir değerden şüphelenirsen kaynağı burada.
+      türetiliyor — bir değerden şüphelenirseniz kaynağı burada.
     </p>
       <div>
         <div class="satir" style="margin-bottom:10px">
           <div class="alan" style="flex:1">
-            <input type="text" v-model="elleKomut" placeholder="komut yaz (y = yardım)"
-                   @keyup.enter="elleGonder">
+            <!-- WIG: komutlar büyük/küçük harf DUYARLI (z gerilim / Z akım sıfırı, f50 şebeke /
+                 F50 faz): telefonun otomatik büyük harfi ve düzeltmesi KAPALI. -->
+            <input type="text" v-model="elleKomut" placeholder="komut yazın (y = yardım)…"
+                   name="komut" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                   enterkeyhint="send" aria-label="Kart komutu" @keyup.enter="elleGonder">
           </div>
           <button @click="elleGonder" :disabled="!bagli || !elleKomut">Gönder</button>
-          <button @click="gunluk = []">Temizle</button>
+          <button @click="gunluk = []">Günlüğü temizle</button>
         </div>
-        <div class="gunluk" ref="gunlukKutu">
+        <p v-if="!gunluk.length" class="ipucu">Henüz satır yok — karta bağlanın.</p>
+        <div class="gunluk" ref="gunlukKutu" role="log" aria-live="off" :aria-label="'Kart satırları'" tabindex="0">
           <div v-for="(s, i) in gunluk" :key="i" :class="{ giden: s.giden }"
             >{{ s.giden ? '> ' : '' }}{{ s.metin }}</div>
         </div>

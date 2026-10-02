@@ -88,11 +88,19 @@ function sistemSorgusu(pencere) {
   }
 }
 
+/* WIG (2026-10-02): <meta name="theme-color"> etkin temanın ÜST ÇUBUK zemini
+   (style.css --zemin-2). Sabit koyu renk Açık temada telefonun adres çubuğunu
+   koyu bırakıyordu. ⚠ Değerler style.css'teki üç bloğun --zemin-2'siyle AYNI —
+   B7 (bölüm 26) CSS'i okuyup karşılaştırıyor; renk değişirse İKİ yer değişmeli. */
+export const TEMA_UST_ZEMIN = Object.freeze({ koyu: '#101821', acik: '#ffffff', onpanel: '#101214' });
+
 export function temaUygula(belge, secim, sistemAcik) {
   const etkin = temaCoz(secim, sistemAcik);
   const kok = belge.documentElement;
   kok.setAttribute('data-tema', etkin);
   kok.setAttribute('data-tema-secim', secim);
+  const meta = typeof belge.querySelector === 'function' ? belge.querySelector('meta[name="theme-color"]') : null;
+  if (meta) meta.setAttribute('content', TEMA_UST_ZEMIN[etkin]);
   return etkin;
 }
 
