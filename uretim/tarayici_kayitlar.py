@@ -237,6 +237,7 @@ class Kart(T._SahteKart):
         # yanitsiz kapaninca GET'i kendiliginden bir kez tekrarliyor — zaman asimini tekrarlamiyor.
         self.kopar = 0
         self.koparilan = 0
+        self.kopar_sonra = 0     # kopma ancak bu kadar BASARILI /kayit/veri isteginden sonra
 
     def dizin(self) -> dict:
         oz: dict[int, dict] = {}
@@ -328,7 +329,7 @@ def sunucu_kur(kart: Kart):
                     return
                 sira = int(q.get("sira", ["1"])[0])
                 with kart.kilit:
-                    kopar = kart.kopar > 0
+                    kopar = kart.kopar > 0 and len(kart.veri_istekleri) >= kart.kopar_sonra
                     if kopar:
                         kart.kopar -= 1
                         kart.koparilan += 1
@@ -696,9 +697,15 @@ def main() -> int:
                 t.cagir("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": str(indirme)})
 
             # ── 1. ilk acilis: otomatik baglanti + otomatik esitleme ──────
+            # Gercek kartta (2026-10-02) esitleme ORTASINDA zaman asimi: ilk deneme bir kismini aldi,
+            # yeniden deneme kalanini; sonuc yazisi yalniz SON denemenin sayisini ("150") gosterdi.
+            # Burada ilk esitlemenin 2. /kayit/veri istegi 12 s yanitsiz kalir.
+            kart.kopar, kart.kopar_sonra = 1, 1
             t.git(taban + "/#/kayitlar")
             satir = bekle_js(t, f"document.querySelectorAll('.kl-satir').length >= 6 && {SATIRLAR_JS}"
-                                f".every(s => s.n === 'ikisi') && document.querySelectorAll('.kl-satir').length")
+                                f".every(s => s.n === 'ikisi') && document.querySelectorAll('.kl-satir').length", 60.0)
+            ilk_sonuc = bekle_js(t, "(document.querySelector('.kl-sonuc') || {}).textContent", 10.0) or ""
+            kart.kopar_sonra = 0
             acildi = t.js("!document.querySelector('#uyg').hasAttribute('v-cloak')") is True
             ok("[!] Panel kartin adresinden (localhost DISI, guvenli baglam DISI) acildi, Vue basladi",
                acildi and t.js("window.isSecureContext") is False, t.js("location.origin"))
@@ -712,6 +719,10 @@ def main() -> int:
             veri1 = list(kart.veri_istekleri)
             ok("[!] Ilk esitleme sira 1'den basladi, kartin butun kayitlarini aldi",
                bool(veri1) and veri1[0] == 1 and max(veri1) >= ilk_son, f"istek sira: {veri1[:3]}…{veri1[-2:]}")
+            ok("[!] Esitleme ORTASINDA zaman asimi: yeniden denendi ve sonuc yazisi BUTUN denemelerin "
+               "kayit sayisini soyluyor (gercek kartta yalniz son denemeninkini gosteriyordu)",
+               kart.koparilan == 1 and f"{len(akis.kayitlar)} yeni kayıt" in ilk_sonuc,
+               f"koparilan {kart.koparilan}, kart {len(akis.kayitlar)} kayit, sonuc {ilk_sonuc!r}")
             idb = t.js(IDB_JS) or {}
             k7 = idb.get(str(kart.kimlik)) or idb.get(kart.kimlik) or {}
             kart_hex = b"".join(akis.kayitlar).hex()
@@ -796,6 +807,7 @@ def main() -> int:
             t.js("document.querySelector('.kl-esitle') ? 0 : [...document.querySelectorAll('button')]"
                  ".find(b => b.textContent.trim() === 'Yenile').click()")
             bekle_js(t, "!!document.querySelector('.kl-esitle')")
+            koparilan_once = kart.koparilan
             kart.kopar = 2                           # ikinci esitlemede iki baglanti yanitsiz kopar
             t.js("document.querySelector('.kl-esitle').click()")
             bekle_js(t, f"{SATIRLAR_JS}.some(s => s.o === {no['G']} && s.n === 'ikisi')", 60.0)
@@ -810,10 +822,10 @@ def main() -> int:
             k72 = idb2.get(str(kart.kimlik)) or idb2.get(kart.kimlik) or {}
             ok("[!] Ag kopmasi: iki /kayit/veri istegi 12 s yanitsiz kaldi (zaman asimi), esitleme YENIDEN DENEYEREK "
                "tamamlandi; IndexedDB kartla bayt bayt ayni (gercek kartta 2026-10-02 goruldu)",
-               kart.koparilan == 2 and kart.kopar == 0 and "yeni kayıt alındı" in sonuc
+               kart.koparilan - koparilan_once == 2 and kart.kopar == 0 and "yeni kayıt alındı" in sonuc
                and (k72.get("hex") or "").endswith(b"".join(kart.kayitlar).hex())
                and not (t.js("(document.querySelector('.kl-neden') || {}).textContent") or "").strip(),
-               f"koparilan {kart.koparilan}, {k72.get('bayt')} B, kart akisi IDB'nin sonu: "
+               f"koparilan {kart.koparilan - koparilan_once}, {k72.get('bayt')} B, kart akisi IDB'nin sonu: "
                f"{(k72.get('hex') or '').endswith(b''.join(kart.kayitlar).hex())}, sonuc {sonuc!r}")
 
             # ── 4. arsiv secimi: onay panelin komut yolundan ─────────────

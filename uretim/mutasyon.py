@@ -4035,6 +4035,10 @@ MUTASYONLAR = [
      "    pilDurdurKomut() { this.gonder('p0'); },",
      "    pilDurdurKomut() { if (this.onay !== 'p0') { this.onayIste('p0'); return; } this.gonder('p0'); },",
      "EMNIYET-P0: pilDurdurKomut govdesine onay eklenirse: B7 kirmizi"),
+    # ── 3C-SAYI (2026-10-02, gercek kart): yeniden denemede kayit sayisi butun denemelerin toplami
+    ("T3C", "tarayici_kayitlar.py", "arayuz3/ekran/esitleme.js",
+     "sonuc: { ...sonuc, yeni_kayit: yeniKayit }", "sonuc",
+     "3C-SAYI: sonuc yalniz son denemenin sayisini soylerse (kartta 1846 yerine 150): T3C kirmizi"),
 ]
 
 
