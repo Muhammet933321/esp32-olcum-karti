@@ -388,18 +388,38 @@ def bolum5(r):
     #    println YOKTU ve cikti `http://192.168.4.1Arayuz: ...` seklinde
     #    yapisiyordu — adresi kopyalayan kullanici BOZUK adres aliyordu.
     #    B25 bringup kosucusu hazirlanirken bulundu (2026-09-11).
-    #    ⚠ Kapsam: `setup()` govdesinin ICINDE, "Ag: " ile "Arayuz: "
-    #    arasindaki parcaya bakiyoruz — tum dosyada aramak komsu
-    #    fonksiyonlarin println'lerini kabul ederdi.
-    _kur = govde(INO, "void setup()")
+    #    ⚠ Kapsam: 1E-2'den beri satir `ag_satiri_bas()`te (STA sonucu
+    #    loop()'tan da basilabiliyor): o govdenin ICINDE "Ag: " ile AP
+    #    parolasi blogu arasindaki parcaya bakiyoruz — tum dosyada aramak
+    #    komsu fonksiyonlarin println'lerini kabul ederdi.
+    _kur = govde(INO, "static void ag_satiri_bas()")
     _i = _kur.find('F("Ag: ")')
-    _j = _kur.find('F("Arayuz: ")', _i + 1)
+    _j = _kur.find("if (ag_durum.kip == AG_AP)", _i + 1)
     _ara = _kur[_i:_j] if 0 <= _i < _j else ""
-    r.kosul("  5a: `Ag:` satiri `Arayuz:`den ONCE KAPANIYOR",
+    r.kosul("  5a: `Ag:` satiri sonraki satirdan ONCE KAPANIYOR",
             "Serial.println();" in _ara.replace(" ", "").replace(
                 "Serial.println()", "Serial.println();").replace(";;", ";"),
             "kapanmazsa IP adresi bir sonraki etikete yapisir ve "
             "kullanici bozuk adres kopyalar")
+    # ── 1E-2 (2026-10-02): STA beklemesi setup()'tan ag gorevine tasindi.
+    #    Kartta olculdu: sifirlamadan ilk `D`ye 5.7-7.2 s, ev agi yoksa > 10 s.
+    _rf = govde(AG_KOD, "static uint8_t ag_baslat_rf(void)")
+    _bk = govde(AG_KOD, "static void ag_bekle_tamamla(void)")
+    _gv = govde(INO, "static void ag_gorevi(void *)")
+    r.kosul("  5k: setup() STA BEKLEMEZ — ag_baslat_rf yalniz radyoyu acar (dongu/bekleme yok)",
+            bool(_rf) and "WiFi.begin(" in _rf and not re.search(r"\bwhile\b|delay\(|vTaskDelay", _rf)
+            and "ag_baslat_rf();" in govde(INO, "void setup()")
+            and not re.search(r"while\s*\(\s*WiFi\.status\(\)", govde(INO, "void setup()")),
+            "setup() beklerse olcum dongusu ag gelene dek (10 s'ye dek) durur")
+    r.kosul("  5k: STA beklemesi ag gorevinde, SUNUCU DONGUSUNDEN ONCE; olmazsa AP'ye duser",
+            bool(_bk) and "while (WiFi.status() != WL_CONNECTED" in _bk and "ag__ap_kur()" in _bk
+            and 0 <= _gv.find("ag_bekle_tamamla();") < _gv.find("for (;;)"))
+    r.kosul("  5k: kip EN SON yazilir (alanlar once): baska gorev AG_STA'yi gorunce ip/mac hazir",
+            bool(_bk) and _bk.find("ag_durum.ip") < _bk.find("ag__kip_yaz(AG_STA)")
+            and _bk.find("ag_durum.mac") < _bk.find("ag__kip_yaz(AG_STA)")
+            and "ag_durum.kip = AG_AP" not in AG_KOD and "ag_durum.kip = AG_STA" not in AG_KOD)
+    r.kosul("  5k: STA sonucu `Ag:` satiri cekirdek 1'de bir kez basilir (loop)",
+            "if (ag_hazir && !ag_satiri_basildi) ag_satiri_bas();" in govde(INO, "void loop()"))
 
     r.kosul("  5a: mDNS adi BOS DEGIL", bool(_mdns and _mdns.group(1)),
             f"http://{_mdns.group(1) if _mdns else '?'}.local")
@@ -481,9 +501,14 @@ def bolum5(r):
     #   satiri silinse bile `N` komut ciktisindaki kopya iddiayi yesil
     #   tutuyordu. Kosucu AFISI okuyor, `N`'i degil — kapsam setup()'a
     #   daraltildi. (mutasyon.py bunu ilk turda yakaladi.)
+    #   1E-2: afisin "Ag:" satiri `ag_satiri_bas()`te — setup (AP/KAPALI) ve
+    #   loop (STA sonucu) ONU cagiriyor; kapsam o govde + iki cagri.
     g_setup = govde(INO, "void setup()")
+    g_agsat = govde(INO, "static void ag_satiri_bas()")
+    _afis_yolu = ("ag_satiri_bas();" in kod(g_setup)
+                  and "ag_satiri_bas();" in kod(govde(INO, "void loop()")))
     r.kosul("  5c: ACILIS AFISI gercek MAC'i da ilan ediyor",
-            "MAC=" in g_setup and "ag_durum.mac" in kod(g_setup),
+            "MAC=" in g_agsat and "ag_durum.mac" in kod(g_agsat) and _afis_yolu,
             "tezgah_kart.py SSID sonekini AFISTEKI MAC ile "
             "karsilastiriyor; `N` ciktisindaki kopya yetmez")
 
@@ -491,7 +516,7 @@ def bolum5(r):
             "web parolasi YOK" in INO,
             "sessiz 'guvenlik yok', guvenlik olmamasindan kotudur")
     r.kosul("  5d: ag durumu acilista BASILIYOR",
-            "ag_kip_adi" in kod(govde(INO, "void setup()")),
+            "ag_kip_adi" in kod(g_agsat) and _afis_yolu,
             "DEVIR 4.9 kurali: durum sessiz kalamaz")
 
     r.kosul("  5e: `N` komut ailesi arayuzden erisilebilir olmali",

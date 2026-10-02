@@ -9397,6 +9397,48 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.74 🟢 1E-2 — AÇILIŞTA AĞ BEKLENMİYOR (dal `1e2-ag-acilis`, 2026-10-02 gecesi)
+
+1A-2'den beri 1E'ye devredilmiş madde: "açılıştan kaydın sürmesine 2.5–6.3 s; büyüğü `setup()`'taki
+WiFi beklemesi". Kullanıcı yatmadan "işin biterse sıradaki adıma geç, soru sorma" dedi.
+
+**Ölçülen sorun (A3-1E, RTS sıfırlaması, 5 tekrar):** sıfırlamadan ilk `D` satırına (ölçüm döngüsü
+başladı) **5.7–7.2 s, ortalama 6.35 s**; bunun 4–6 s'si `ag_baslat()`'ın STA beklemesi. Ev ağı yoksa
+her açılışta > 10 s ölçüm yok (AP'ye düşmeden önce 10 s bekleme). ⚠ İlk ölçüm betiği 0.45 s
+"buldu": sıfırlamadan ÖNCEKİ tamponda kalmış `D` satırı — ROM satırından sonrası sayılınca düzeldi.
+
+**Değişiklik:** `ag.h` ikiye bölündü — `ag_baslat_rf()` (setup, kısa: `WiFi.mode` + `begin`; RF açık
+olduğu için `guv_esp_ac`'ın rastgele sayıları 1D kuralına uyar; kayıtlı ağ yoksa AP hemen) ·
+`ag_bekle_tamamla()` (ağ görevi, sunucu döngüsünden ÖNCE: STA'yı bekler, olmazsa AP). Yeni kip
+`AG_BAGLANIYOR`; alanlar (ip/mac/mdns) önce, `kip` EN SON (`ag__kip_yaz`, bellek bariyeri). "Ag:"
+satırı `ag_satiri_bas()`'ta: AP/KAPALI setup'ta, STA sonucu `loop()`'tan bir kez (çekirdek 1 —
+aynanın tek yazarı). Setup'ta "Ag baglaniyor: …" satırı (önek "Ag:" DEĞİL: afiş okuyan araçlar
+ilk "Ag:" satırını sonuç sanar).
+
+**Kartta (A3-1E, aynı sürüm adı — biçim değişmedi):**
+- Sıfırlamadan ilk `D`: **1.31–1.32 s** (5/5); "Ag: STA" 4.9–6.0 s'de, ölçümü bekletmeden.
+- **AP'ye düşüş** (ağ adı geçici olarak var olmayan bir adla — `Na`, parola NVS'te AYNEN kaldı):
+  ilk `D` **1.31–1.37 s** (eskiden > 10 s), "Ag: AP" 10.6 s, SSID MAC'ten doğru; ad birebir geri
+  yazıldı, STA'ya döndü.
+- Kayıt sürerken 20 RTS sıfırlaması: **20/20 aynı oturum (DEVAM)**, flaşta 20 DEVAM, oturum tutarlı.
+- Bringup (aşama 1 + web): 56 geçti · 3 kaldı (üçü de ADS takılı değil: 0x48/0x49 yok, örnek 33)
+  · 2 atlandı.
+
+**Tezgah araçlarında bulunan 3 kusur (firmware değil):**
+1. `tezgah_kart.py` "bilinmeyen komut" sondası sabit `QQ` idi; 1E'de `Q` komut ailesi olunca kart
+   tanıdı → yanlış kırmızı. Sonda artık firmware'in hiçbir `case`inde olmayan harften türetiliyor
+   (`~~`); test_tezgah_kart'a bağımsız iddia + mutasyon (sahte kart sondaya ne verilirse onu
+   döndürdüğü için senaryolar bunu GÖRMEZDİ).
+2. "Afiş göründü = ağ hazır" varsayımı: `tezgah_kayit.py --kesinti` 20/20 DEVAM'dan sonra eşitlemede
+   `olcum.local` çözülemeden çöktü → `ag_hazir_bekle()` (ad çözülüp 80'e bağlanana dek). Bringup
+   afişi artık `D` + "Ag:" ikisini birden bekliyor.
+3. `--kesinti`'nin "oturumun DEVAM'ları tutarlı" iddiası eşitlenen AKIŞIN TAMAMINA bakıyordu; akışta
+   eski `--ayrinti` oturumları (hız 0: örnekler AYRINTI kayıtlarında, NOKTA yok) kalınca kusursuz
+   oturum varken kırmızı yandı → yalnız sınanan oturum.
+
+**Testler:** sim3_web 5a/5c/5d `ag_satiri_bas()`'a taşındı + yeni 5k ×4 (setup beklemez, bekleme
+görevde sunucudan önce, kip en son, STA sonucu loop'tan); B72.F97 `ag_baslat_rf`. Mutasyon 1E-2 4/4.
+
 #### 5.12.73 🟢 1E — MQTT BİLDİRİMLERİ (dal `1e-mqtt`, 2026-10-01 gece → 10-02)
 
 Tasarım: `tasarim/2026-10-01-1e-mqtt-bildirim.md` (K1–K12 + "Uygulama sırasında verilen

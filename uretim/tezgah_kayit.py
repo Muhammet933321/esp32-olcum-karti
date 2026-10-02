@@ -117,7 +117,24 @@ def durum_iste(k, bekle: float = 2.0) -> dict | None:
     return komut(k, "G?", bekle, lambda g: True)[1]
 
 
+def ag_hazir_bekle(host: str, sn: float = 30.0) -> bool:
+    """1E-2 (2026-10-02): kart STA'yi artik AG GOREVINDE bekliyor — afis (ve `D`)
+    agdan ~4-5 s ONCE geliyor. "Afis goruldu = ag hazir" varsayimi bozuldu: kesinti
+    tezgahi 20/20 DEVAM'dan sonra esitlemede `olcum.local` cozulemeden coktu. HTTP'den
+    once adi cozup 80'e baglanabilene dek bekle."""
+    import socket
+    son = time.time() + sn
+    while time.time() < son:
+        try:
+            with socket.create_connection((host, 80), timeout=1.5):
+                return True
+        except OSError:
+            time.sleep(0.5)
+    return False
+
+
 def esitle(k, host: str, dizin: Path) -> dict:
+    ag_hazir_bekle(host)
     return KE.Esitleyici(f"http://{host}", dizin, KE.seri_onay(k)).esitle()
 
 
@@ -245,8 +262,13 @@ def kesinti(k, host: str, n: int) -> None:
         ms = sorted(d["kart_ms"] for d in ot.devamlar)
         print(f"  acilistan DEVAM'a (kayit yeniden basliyor): en az {ms[0]} ms, "
               f"ortanca {ms[len(ms) // 2]} ms, en cok {ms[-1]} ms")
+    # 🔴 2026-10-02: devam_tutarli eskiden eşitlenen AKISIN TAMAMINA bakiyordu; akista
+    #    onceki gunlerin --ayrinti oturumlari (hiz 0: ornekler AYRINTI kayitlarinda, NOKTA
+    #    yok) kalinca DEVAM'lari "tutarsiz" sayildi ve bu oturum kusursuzken KIRMIZI yandi.
+    #    Iddia "oturumun DEVAM'lari" diyor: yalniz sinanan oturumun kayitlari.
     ok("oturumun nokta siralari tekrarsiz ve artan; DEVAM'lar tutarli; kayit sirasi tekrarsiz",
-       bool(idx) and idx == sorted(set(idx)) and devam_tutarli(kay)
+       bool(idx) and idx == sorted(set(idx))
+       and devam_tutarli([x for x in kay if x.oturum == oturum])
        and len(siralar) == len(set(siralar)),
        f"{len(idx)} nokta, en uzun tarama {max(taramalar)} ms")
 
@@ -274,6 +296,7 @@ def dolu(k, host: str) -> None:
     ok("dolu bolumde acilis taramasi < 5 s; onaysiz veri acilistan sonra da korunuyor",
        bool(g) and g["durum"] in (1, 3) and 0 < g["tarama_ms"] < 5000
        and g["onaysiz"] >= 990, f"tarama {g and g['tarama_ms']} ms, {g}")
+    ag_hazir_bekle(host)                 # 1E-2: ag beklemesi esitleme suresine girmesin
     with tempfile.TemporaryDirectory() as d:
         t0 = time.time()
         r = KE.Esitleyici(f"http://{host}", Path(d), KE.seri_onay(k)).esitle()
@@ -938,6 +961,7 @@ def guvenlik(k, host: str) -> None:
     import imza as IM
     print("\n── guvenlik: 1D eslestirme + imzali istek")
     taban = f"http://{host}"
+    ag_hazir_bekle(host)                 # 1E-2: afis agdan once gelir
     s, _ = komut(k, "E?", 2)
     e0 = next((x for x in s if x.startswith("E zorunlu=")), "")
     adet0 = int(e0.split("cihaz=")[1]) if "cihaz=" in e0 else -1

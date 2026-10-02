@@ -37,7 +37,7 @@
 #define AG_MDNS "olcum"          /* http://olcum.local */
 #define AG_STA_BEKLE_MS 10000u
 
-enum AgKip { AG_KAPALI = 0, AG_STA = 1, AG_AP = 2 };
+enum AgKip { AG_KAPALI = 0, AG_STA = 1, AG_AP = 2, AG_BAGLANIYOR = 3 };   /* 1E-2: 3 = STA bekleniyor */
 
 struct AgDurum {
     uint8_t kip;
@@ -106,39 +106,74 @@ static String ag_ap_ssid(void)
     return String(s);
 }
 
-/* Kullaniciya gorunen tek kurulum yolu. Donus: kip. */
-static uint8_t ag_baslat(void)
+/* ── 1E-2: KURULUM IKIYE BOLUNDU (2026-10-02) ───────────────────────────
+   Eskiden `ag_baslat()` setup()'ta STA baglantisini 10 s'ye dek BEKLIYORDU: kartta
+   olculdu, sifirlamadan ilk `D` satirina 5.7-7.2 s (ortalama 6.35 s); ev agi yoksa
+   (AP'ye dusus) her acilista >10 s olcum yok. Simdi:
+     ag_baslat_rf()     setup, cekirdek 1, KISA: radyoyu acar (WiFi.mode + begin —
+                        guv_esp_ac'in rastgele sayilari RF ister, 1D) ya da kayitli ag
+                        yoksa AP'yi hemen kurar. STA'da kip = AG_BAGLANIYOR.
+     ag_bekle_tamamla() ag gorevi, cekirdek 0: baglantiyi bekler; olmazsa AP'ye duser.
+                        Bitince `ag_hazir` = 1 (cekirdek 1 "Ag:" satirini basar).
+   Alanlar (ssid/ip/mac/mdns) once doldurulur, `kip` EN SON yazilir: baska gorev
+   AG_STA'yi gordugunde alanlar hazirdir. */
+static volatile uint8_t ag_hazir = 0;        /* kip kesinlesti (STA / AP / KAPALI) */
+static uint32_t ag_bas_ms = 0;
+
+static void ag__kip_yaz(uint8_t k)
+{
+    __sync_synchronize();                    /* alanlar kip'ten ONCE gorunsun */
+    ag_durum.kip = k;
+    __sync_synchronize();
+    ag_hazir = 1;
+}
+
+static uint8_t ag__ap_kur(void);
+
+/* setup: radyoyu ac. Donus: kip (STA'da AG_BAGLANIYOR — sonucu gorev verir). */
+static uint8_t ag_baslat_rf(void)
 {
     String ad = ag_nvs.getString("wifi_ad", "");
     String sifre = ag_nvs.getString("wifi_sifre", "");
-
     if (ad.length()) {
         WiFi.mode(WIFI_STA);
         WiFi.begin(ad.c_str(), sifre.c_str());
-        uint32_t son = millis() + AG_STA_BEKLE_MS;
-        while (WiFi.status() != WL_CONNECTED && (int32_t)(millis() - son) < 0) {
-            delay(200);
-        }
-        if (WiFi.status() == WL_CONNECTED) {
-            ag_durum.kip = AG_STA;
-            snprintf(ag_durum.ssid, sizeof(ag_durum.ssid), "%s", ad.c_str());
-            snprintf(ag_durum.ip, sizeof(ag_durum.ip), "%s",
-                     WiFi.localIP().toString().c_str());
-            /* B26: surucu AYAKTA, bu MAC gercek. */
-            snprintf(ag_durum.mac, sizeof(ag_durum.mac), "%s",
-                     WiFi.macAddress().c_str());
-            ag_durum.mdns = MDNS.begin(AG_MDNS);
-            return AG_STA;
-        }
-        WiFi.disconnect(true);
+        snprintf(ag_durum.ssid, sizeof(ag_durum.ssid), "%s", ad.c_str());
+        ag_bas_ms = millis();
+        ag_durum.kip = AG_BAGLANIYOR;
+        return AG_BAGLANIYOR;
     }
+    return ag__ap_kur();       /* bekleme yok: AP hemen kurulur */
+}
 
-    /* STA olmadi (ya da hic kurulmadi) -> KENDI AGIN. */
+/* ag gorevi (cekirdek 0), sunucu dongusunden ONCE: STA'yi bekle, olmazsa AP. */
+static void ag_bekle_tamamla(void)
+{
+    if (ag_durum.kip != AG_BAGLANIYOR) { ag_hazir = 1; return; }
+    while (WiFi.status() != WL_CONNECTED
+           && (int32_t)(millis() - (ag_bas_ms + AG_STA_BEKLE_MS)) < 0)
+        vTaskDelay(pdMS_TO_TICKS(100));
+    if (WiFi.status() == WL_CONNECTED) {
+        snprintf(ag_durum.ip, sizeof(ag_durum.ip), "%s",
+                 WiFi.localIP().toString().c_str());
+        /* B26: surucu AYAKTA, bu MAC gercek. */
+        snprintf(ag_durum.mac, sizeof(ag_durum.mac), "%s",
+                 WiFi.macAddress().c_str());
+        ag_durum.mdns = MDNS.begin(AG_MDNS);
+        ag__kip_yaz(AG_STA);
+        return;
+    }
+    WiFi.disconnect(true);
+    (void)ag__ap_kur();
+}
+
+/* STA olmadi (ya da hic kurulmadi) -> KENDI AGIN. Kipi ag__kip_yaz ile kesinlestirir. */
+static uint8_t ag__ap_kur(void)
+{
     String ap = ag_ap_ssid();
     String aps = ag_nvs.getString("ap_sifre", "");
     WiFi.mode(WIFI_AP);
     bool ok = WiFi.softAP(ap.c_str(), aps.c_str());
-    ag_durum.kip = ok ? AG_AP : AG_KAPALI;
     snprintf(ag_durum.ssid, sizeof(ag_durum.ssid), "%s", ap.c_str());
     snprintf(ag_durum.ip, sizeof(ag_durum.ip), "%s",
              WiFi.softAPIP().toString().c_str());
@@ -151,12 +186,14 @@ static uint8_t ag_baslat(void)
     snprintf(ag_durum.mac, sizeof(ag_durum.mac), "%s",
              WiFi.softAPmacAddress().c_str());
     ag_durum.mdns = ok && MDNS.begin(AG_MDNS);
-    return ag_durum.kip;
+    ag__kip_yaz(ok ? AG_AP : AG_KAPALI);
+    return ok ? AG_AP : AG_KAPALI;
 }
 
 static const char *ag_kip_adi(uint8_t k)
 {
-    return k == AG_STA ? "STA (ev agi)" : (k == AG_AP ? "AP (kendi agi)" : "KAPALI");
+    return k == AG_STA ? "STA (ev agi)" : (k == AG_AP ? "AP (kendi agi)"
+         : (k == AG_BAGLANIYOR ? "BAGLANIYOR (ev agi bekleniyor)" : "KAPALI"));
 }
 
 #endif /* AG_H */

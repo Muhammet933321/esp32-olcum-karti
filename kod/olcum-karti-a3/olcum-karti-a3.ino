@@ -5327,7 +5327,44 @@ void komut_isle() {
    ⚠ `vTaskDelay(1)` SART: ag gorevi bosta donerken tik birakmazsa ayni
      cekirdekteki bos gorev (IDLE0) ac kalir ve gorev bekci kopegi
      karti yeniden baslatir. */
+// B22.4 + 1E-2: "Ag:" satiri — kip kesinlesince BIR KEZ. AP/KAPALI setup'ta
+// hemen belli; STA bekleniyorsa ag gorevi bitirince loop()'tan basilir.
+// Cekirdek 1 basar (Serial aynasinin tek yazari, B28).
+static uint8_t ag_satiri_basildi = 0;
+static void ag_satiri_bas() {
+  ag_satiri_basildi = 1;
+  Serial.print(F("Ag: "));
+  Serial.print(ag_kip_adi(ag_durum.kip));
+  if (ag_durum.kip != AG_KAPALI) {
+    Serial.print(F("  SSID=")); Serial.print(ag_durum.ssid);
+    /* B26: GERCEK MAC. Ad bundan turetiliyor; ikisi ayrisirsa SSID
+       yanlis uretilmis demektir (bkz. ag.h'deki B26 notu). */
+    Serial.print(F("  MAC=")); Serial.print(ag_durum.mac);
+    Serial.print(F("  http://")); Serial.print(ag_durum.ip);
+    if (ag_durum.mdns) Serial.print(F("  http://" AG_MDNS ".local"));
+  }
+  /* 🔴 Buradaki println EKSIKTI: "Ag:" satiri kapanmadigi icin cikti
+     `...http://192.168.4.1Arayuz: YOK...` seklinde yapisiyordu. Adresi
+     seri konsoldan kopyalayan kullanici BOZUK bir adres aliyordu ve
+     acilis afisi ayristirilamaz haldeydi. B25 bringup kosucusu
+     hazirlanirken bulundu (2026-09-11); sim3_web.py artik bu satirin
+     KAPANDIGINI ayrica sinıyor. */
+  Serial.println();
+  if (ag_durum.kip == AG_AP) {
+    // AP parolasi RASTGELE uretildi ve NVS'te; kullanici bir kez buradan
+    // okuyup telefonuna yaziyor. MAC'ten turetseydik hicbir sey korumazdi
+    // (SSID zaten MAC son ekini yayinliyor).
+    /* yalniz ham UART'a: afis satirlari da akis kuyruguna girer (B72.D0) */
+    Serial.ham("  AP parolasi (yalniz USB): ");
+    Serial.ham(ag_nvs.getString("ap_sifre", "").c_str());
+    Serial.ham("\r\n");
+  }
+}
+
 static void ag_gorevi(void *) {
+  /* 1E-2: STA beklemesi BURADA (cekirdek 0) — setup() ve olcum dongusu beklemez.
+     Sunucu dongusu bundan sonra; beklerken zaten ag yok. */
+  ag_bekle_tamamla();
   for (;;) {
     sunucu.handleClient();
     akis_kuyrugunu_bosalt();   // olcum cekirdeginin biraktigi satirlar
@@ -5398,7 +5435,9 @@ void setup() {
   if (ag_nvs.getUChar("acik", 1)) {
     // STA dene -> olmazsa KENDI AGINI kur. "Bilgisayar yoksa" senaryosu
     // var olan bir altyapiya bagimli olamaz.
-    ag_baslat();
+    // 1E-2: burada YALNIZ radyo acilir (kisa); STA beklemesi ag gorevinde
+    // (ag_bekle_tamamla) — olcum dongusu ag beklenmeden baslar.
+    ag_baslat_rf();
   }
   // 1D: AG'DAN SONRA — acilis nonce'u, tuz, kimlik RF acikken uretilsin (RF'siz ESP32
   // RNG'si yalanci-rastgele; acilis her acilista ayni olsaydi tekrar korumasi coker)
@@ -5569,36 +5608,18 @@ void setup() {
   Serial.println(F("`h` yardim"));
   if (!skop_kulp) Serial.println(F("! osiloskop suruculu kurulamadi"));
   // ── B22.4: AG DURUMU — sessiz kalmasi YASAK ──────────────────────
-  Serial.print(F("Ag: "));
-  Serial.print(ag_kip_adi(ag_durum.kip));
-  if (ag_durum.kip != AG_KAPALI) {
-    Serial.print(F("  SSID=")); Serial.print(ag_durum.ssid);
-    /* B26: GERCEK MAC. Ad bundan turetiliyor; ikisi ayrisirsa SSID
-       yanlis uretilmis demektir (bkz. ag.h'deki B26 notu). */
-    Serial.print(F("  MAC=")); Serial.print(ag_durum.mac);
-    Serial.print(F("  http://")); Serial.print(ag_durum.ip);
-    if (ag_durum.mdns) Serial.print(F("  http://" AG_MDNS ".local"));
+  // 1E-2: STA bekleniyorsa sonuc satiri (`Ag: ...`) ag gorevi bitirince
+  // loop()'tan basilir; burada yalniz "baglaniyor" satiri.
+  if (ag_durum.kip != AG_BAGLANIYOR) {      /* AP / KAPALI (WiFi N0 dahil): sonuc belli */
+    ag_satiri_bas();
+  } else {
+    Serial.print(F("Ag baglaniyor: STA  SSID=")); Serial.print(ag_durum.ssid);
+    Serial.println(F("  — sonuc `Ag:` satirinda (en fazla 10 s; olcum BEKLEMEDEN basliyor)"));
   }
-  /* 🔴 Buradaki println EKSIKTI: "Ag:" satiri kapanmadigi icin cikti
-     `...http://192.168.4.1Arayuz: YOK...` seklinde yapisiyordu. Adresi
-     seri konsoldan kopyalayan kullanici BOZUK bir adres aliyordu ve
-     acilis afisi ayristirilamaz haldeydi. B25 bringup kosucusu
-     hazirlanirken bulundu (2026-09-11); sim3_web.py artik afisin her
-     satirinin KAPANDIGINI ayrica sinıyor. */
-  Serial.println();
   Serial.print(F("Arayuz: "));
   Serial.println(fs_hazir ? F("LittleFS'te (karttan servis ediliyor)")
                           : F("YOK — uretim/arayuz-yaz.py ile yukleyin"));
   Serial.println();
-  if (ag_durum.kip == AG_AP) {
-    // AP parolasi RASTGELE uretildi ve NVS'te; kullanici bir kez buradan
-    // okuyup telefonuna yaziyor. MAC'ten turetseydik hicbir sey korumazdi
-    // (SSID zaten MAC son ekini yayinliyor).
-    /* yalniz ham UART'a: afis satirlari da akis kuyruguna girer (B72.D0) */
-    Serial.ham("  AP parolasi (yalniz USB): ");
-    Serial.ham(ag_nvs.getString("ap_sifre", "").c_str());
-    Serial.ham("\r\n");
-  }
   /* B28: ag gorevi EN SONDA baslatiliyor — sunucu, kuyruklar ve afis
      hazir olduktan sonra. Onceden baslatilsaydi ilk istek yarim kurulmus
      bir sunucuya duserdi. Yigin 8 KB: WebServer + LittleFS akisi
@@ -5641,6 +5662,7 @@ void loop() {
      ikisi de artik cekirdek 0'daki `ag_gorevi()` icinde. Sayfa sunmak
      bu donguyu bloklamiyor. Komutlar yine BURADA calisiyor: tek yazar
      disiplini korunuyor (kalibrasyon, NVS, skop hep cekirdek 1'de). */
+  if (ag_hazir && !ag_satiri_basildi) ag_satiri_bas();   // 1E-2: STA sonucu (bir kez)
   komut_isle();              // seri porttan gelen komutlar
   komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
   skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu

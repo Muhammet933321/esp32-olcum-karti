@@ -1357,7 +1357,7 @@ def bolum_guvenlik_kart() -> None:
        "sifirlar; YALNIZ Authorization basligi varken sayilir",
        "web_serbest_ms" in yw and 'hasHeader("Authorization")' in yw and "429" in kg
        and "web_yetki()" in kg and "web_yetkili()" not in ino_k)
-    i_ag, i_guv = ino_k.find("ag_baslat();"), ino_k.find("guv_esp_ac();")
+    i_ag, i_guv = ino_k.find("ag_baslat_rf();"), ino_k.find("guv_esp_ac();")   # 1E-2: radyo setup'ta acilir
     pg = sk[sk.find("case 'p':"):sk.find("case 'z':")]
     ok("B72.F97 rastgele sayilar RF acikken: guv_esp_ac ag kurulduktan SONRA; Ep WiFi kapaliyken "
        "REDDEDILIR (RF'siz RNG yalanci-rastgele)",

@@ -729,8 +729,15 @@ def d_fabrika_onayi(c):
            "onaysiz kabul edilirse butun kalibrasyon tek harfle gider")
 
 
+# 🔴 1E (2026-10-02 kart tezgahi): sinama eskiden sabit "QQ" gonderiyordu; 1E'de `Q`
+#    MQTT komut ailesi oldu, kart "QQ"yu `! Q: ...` yardimiyla reddetti ve denetim
+#    KIRMIZI yandi. Harf artik firmware'in HICBIR `case`inde gecmeyenlerden TURETILIYOR.
+BILINMEYEN_KOMUT = next(h for h in "~^`|" + "ZJjUuOoHhLlVvWwYy"
+                        if f"case '{h}':" not in INO) * 2
+
+
 def d_bilinmeyen_komut(c):
-    sat = c.k.sor("QQ", r"^! bilinmeyen komut", zaman_asimi=3.0)
+    sat = c.k.sor(BILINMEYEN_KOMUT, r"^! bilinmeyen komut", zaman_asimi=3.0)
     c.s.ok("Bilinmeyen komut ACIKCA reddediliyor", bool(sat),
            "sessizce yutulursa yazim hatasi fark edilmez")
 
@@ -1150,9 +1157,12 @@ def afis_al(kart, konusma, sifirla: bool, bekle: float = 3.0):
     son = time.monotonic() + tavan
     while time.monotonic() < son:
         sat += konusma.topla(0.4)
-        # `D ` = loop() basladi, yani afis tamamlandi.
+        # `D ` = loop() basladi. 1E-2 (2026-10-02): STA beklemesi ag gorevine
+        # tasindi, `Ag: ` satiri artik `D`den SONRA (ag kurulunca) gelebilir —
+        # afis ikisi de gorulunce tamam.
         if any(x.startswith("D ") for x in sat) and \
-           any("Olcum Karti" in x for x in sat):
+           any("Olcum Karti" in x for x in sat) and \
+           any(x.startswith("Ag: ") for x in sat):
             break
     # Afis geldi mi? Baslik satiri yoksa kart yerel USB CDC'li olabilir
     # ve DTR/RTS bir pine bagli degildir — sinyaller gitti ama reset olmadi.

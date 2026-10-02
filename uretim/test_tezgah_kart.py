@@ -172,7 +172,7 @@ def yanitlar_saglikli(loop_us=8500, i2c="I2C: 0x48 0x49",
     y["Z"] = ["* akim sifiri ham=0"]
     y["R"] = (["! R: onay gerekli — `R!` yaz. TUM kalibrasyonu siler."]
               if r_onayi else ["* FABRIKA AYARLARI yuklendi"])
-    y["QQ"] = (["! bilinmeyen komut — `h` yardim"] if bilinmeyen else [])
+    y[TK.BILINMEYEN_KOMUT] = (["! bilinmeyen komut — `h` yardim"] if bilinmeyen else [])
     return y
 
 
@@ -521,6 +521,14 @@ def bolum6_beklentiler_kaynaktan():
     _bagimsiz = _m.group(1).count("%") if _m else -1
     ok("`D` alan sayisi firmware bicim dizesinden", TK.D_ALAN == _bagimsiz,
        f"{TK.D_ALAN} — bicimde {_bagimsiz} adet %% var, ikisi ayni olmali")
+    # 🔴 1E kart tezgahi (2026-10-02): "bilinmeyen komut" sondasi sabit "QQ" idi; `Q`
+    #    MQTT komutu olunca kart onu tanidi ve denetim yanlis KIRMIZI yandi. Sahte kart
+    #    sondaya ne verirse onu dondurdugu icin buradaki senaryolar bunu GORMEZ —
+    #    bagimsiz olcut: sondanin ilk harfi firmware'deki HICBIR `case`te yok.
+    _harfler = set(re.findall(r"case '(.)':", TK.INO))
+    ok("bilinmeyen komut sondasi firmware'in tanimadigi bir harf",
+       bool(TK.BILINMEYEN_KOMUT) and TK.BILINMEYEN_KOMUT[0] not in _harfler,
+       f"{TK.BILINMEYEN_KOMUT!r} — firmware harfleri: {''.join(sorted(_harfler))}")
 
     # 🔴 B26 — SAYI DEGIL, SIRA. Yandaki iddia yalnizca ALAN SAYISINA
     #    bakiyordu (8 == 8) ve alan sirasi takas olunca sessiz kaldi:
