@@ -6247,6 +6247,72 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   31. p0 SAGLAMLIGI (3H-2 guvenlik incelemesi, 2026-10-02 gece)
+   - p0 tek atimlikti: kartin komut kuyrugu doluyken 503 ("kuyruk dolu") ya da tek bir ag
+     hatasi DURDURMA'yi kaybettiriyordu. p0 es etkili (iki kez durdurmak zararsiz) ->
+     ag hatasi ve 503'te kisa artan beklemeyle yeniden denenir; 4xx hemen doner.
+   - p0 tarayicinin onbellekteki Basic-Auth basligini tasiyordu (credentials varsayilani
+     'same-origin'): kart p0'i parolasiz kabul ediyor (komut_serbest), kopru Basic hic
+     kullanmiyor — her durdurmada parola acik HTTP'den gidiyordu. Artik credentials 'omit'.
+   - /durum (kopru yoklamasi) da ayni sebeple 'omit'.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 31. p0 sagligi (yeniden deneme + parolasiz) ---');
+{
+  let p0Gonder = null, P0_DENEME = null, P0_BEKLE_MS = null;
+  try {
+    p0Gonder = vm.runInContext('p0Gonder', sandbox);
+    P0_DENEME = vm.runInContext('P0_DENEME', sandbox);
+    P0_BEKLE_MS = vm.runInContext('P0_BEKLE_MS', sandbox);
+  } catch (e) { /* yok -> iddialar kirmizi */ }
+  SONRA.push(async () => {
+    const bekleyen = [];
+    const bekle = (ms) => { bekleyen.push(ms); return Promise.resolve(); };
+    const sirayla = (dizi) => { let n = 0; const f = async () => { const v = dizi[Math.min(n++, dizi.length - 1)]; if (v === 'at') throw new TypeError('Failed to fetch'); return v; }; f.say = () => n; return f; };
+    let a = null, b = null, c = null, aB = [], bB = [], cB = [], aN = 0, bN = 0, cN = 0;
+    if (typeof p0Gonder === 'function') {
+      const fa = sirayla([null, { ok: false, status: 503 }, 'at', { ok: true, status: 200 }]);
+      a = await p0Gonder(fa, bekle); aN = fa.say(); aB = bekleyen.splice(0);
+      const fb = sirayla([{ ok: false, status: 403 }, { ok: true, status: 200 }]);
+      b = await p0Gonder(fb, bekle); bN = fb.say(); bB = bekleyen.splice(0);
+      const fc = sirayla([{ ok: false, status: 503 }]);
+      c = await p0Gonder(fc, bekle); cN = fc.say(); cB = bekleyen.splice(0);
+    }
+    const toplam = cB.reduce((s, x) => s + x, 0);
+    ok('[!] EMNIYET-P0: ag hatasi / istisna / 503\'te kisa artan beklemeyle yeniden denenir, 4xx hemen doner, en fazla P0_DENEME',
+       a && a.status === 200 && aN === 4 && aB.join() === `${P0_BEKLE_MS},${2 * P0_BEKLE_MS},${3 * P0_BEKLE_MS}`
+       && b && b.status === 403 && bN === 1 && bB.length === 0
+       && c && c.status === 503 && cN === P0_DENEME && cB.length === P0_DENEME - 1 && P0_DENEME >= 3,
+       JSON.stringify({ a, aN, aB, b, bN, bB, c, cN, cB }));
+    ok('[!] EMNIYET-P0: en kotu durumda toplam bekleme <= 1.5 s (durdurma gecikmesin)', toplam > 0 && toplam <= 1500, `${toplam} ms`);
+
+    /* Tasiyici: p0 parolasiz (omit), baska komut eskisi gibi (Basic-Auth gerekebilir) */
+    const giden = [];
+    const eskiFetch = sandbox.fetch;
+    let p0Ilk = true;
+    sandbox.fetch = async (url, sec) => {
+      giden.push({ url, sec });
+      if (sec && sec.body === 'p0' && p0Ilk) { p0Ilk = false; return { ok: false, status: 503, text: async () => 'kuyruk dolu' }; }
+      return { ok: true, status: 200, text: async () => '' };
+    };
+    const eskiZaman = sandbox.setTimeout;
+    sandbox.setTimeout = (f) => { f(); return 0; };     // p0Gonder'in varsayilan beklemesi aninda
+    try {
+      const TA = vm.runInContext('TasiyiciAkis', sandbox);
+      const uyg = { kartAdres: (y) => y, jeton: 'j', satirIsle() {}, hata: '' };
+      await TA.gonder(uyg, 'p0');
+      await TA.gonder(uyg, 'G?');
+    } catch (e) { giden.push({ hata: String(e) }); } finally { sandbox.fetch = eskiFetch; sandbox.setTimeout = eskiZaman; }
+    ok('[!] EMNIYET-P0: tasiyici p0\'i p0Gonder\'den yollar (503\'ten sonra 2. deneme) ve onbellekteki Basic-Auth\'u TASIMAZ (credentials omit); diger komutlar degismedi',
+       giden.length === 3 && giden.slice(0, 2).every((g) => g.sec && g.sec.credentials === 'omit' && g.sec.body === 'p0'
+         && g.sec.headers['X-Olcum'] === '1')
+       && giden[2].sec && giden[2].sec.credentials !== 'omit' && giden[2].sec.body === 'G?',
+       JSON.stringify(giden.map((g) => g.sec ? { c: g.sec.credentials, b: g.sec.body } : g)));
+  });
+  ok('/durum yoklamalari (kopruYokla, kopruyuAlgila) onbellekteki Basic-Auth\'u tasimaz (credentials omit)',
+     govdeIcinde(appKaynak, 'kopruYokla', "credentials: 'omit'") && govdeIcinde(appKaynak, 'kopruyuAlgila', "credentials: 'omit'"));
+}
+
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
    fonksiyonun govdesinde (bolum 13) dolduruluyor; bosaltma burada,
    ozetin hemen oncesinde. */

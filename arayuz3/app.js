@@ -157,6 +157,22 @@ const TasiyiciSeri = {
   },
 };
 
+/* p0 (pil DURDUR) teslimi: kartın komut kuyruğu doluyken 503, ya da tek bir ağ hatası
+   durdurmayı kaybettiriyordu. p0 eş etkili (iki kez durdurmak zararsız) → ağ hatası
+   (null / istisna) ve 503'te kısa artan beklemeyle yeniden; başka yanıt (2xx, 4xx) hemen
+   döner. En kötü toplam bekleme 150 + 300 + 450 ms. */
+const P0_DENEME = 4;
+const P0_BEKLE_MS = 150;
+async function p0Gonder(getir, bekle = (ms) => new Promise((r) => setTimeout(r, ms))) {
+  let y = null;
+  for (let n = 1; n <= P0_DENEME; n++) {
+    try { y = await getir(); } catch (e) { y = null; }
+    if (y && y.status !== 503) return y;
+    if (n < P0_DENEME) await bekle(n * P0_BEKLE_MS);
+  }
+  return y;
+}
+
 /* SSE — kart doğrudan (B22.4) ya da PC köprüsü (B22.3) üzerinden.
    Satırlar `data: <satır>` olarak geliyor, yani tel üstündeki baytlar
    seri porttakiyle BİREBİR AYNI. Tek ayrıştırıcı bu yüzden mümkün. */
@@ -212,8 +228,13 @@ const TasiyiciAkis = {
     /* POST + özel başlık: çapraz kökende preflight'a zorlar ve
        <img>/<form> özel başlık ekleyemez. GET olsaydı CSRF'e açık olurdu
        ve `p1` (pil deşarjını başlat) uzaktan tetiklenebilirdi. */
-    const y = await fetch(uyg.kartAdres('/komut'), {
+    /* p0 (pil DURDUR): kart ve kopru onu parolasiz kabul ediyor — tarayicinin onbellekteki
+       Basic-Auth'u tasinmasin (credentials 'omit'; yoksa her durdurmada parola acik HTTP'den
+       giderdi) ve 503 / ag hatasinda kaybolmasin (p0Gonder). */
+    const p0 = metin === 'p0';
+    const istek = () => fetch(uyg.kartAdres('/komut'), {
       method: 'POST',
+      credentials: p0 ? 'omit' : 'same-origin',
       headers: {
         'Content-Type': 'text/plain',
         'X-Olcum': '1',
@@ -221,6 +242,7 @@ const TasiyiciAkis = {
       },
       body: metin,
     }).catch(() => null);
+    const y = p0 ? await p0Gonder(istek) : await istek();
     if (!y || !y.ok) {
       /* Sunucunun SEBEBİNİ göster — "403" tek başına kullanıcıya
          "neden olmadı" sorusunun cevabını vermiyor. */
@@ -2555,7 +2577,7 @@ createApp({
       }
 
       try {
-        const y = await fetch(this.kartAdres('/durum'));
+        const y = await fetch(this.kartAdres('/durum'), { credentials: 'omit' });   /* Basic-Auth onbellegi tasinmasin */
         if (!y.ok) return;
         const d = await y.json();
         if (d && d.kart) {
@@ -3831,7 +3853,7 @@ createApp({
          olurdu. Hata durumunda SESSİZCE kapalı kalıyor — arşiv bir ek
          özellik, yokluğu ölçümü etkilemiyor. */
       try {
-        const y = await fetch(this.kartAdres('/durum'), { cache: 'no-store' });
+        const y = await fetch(this.kartAdres('/durum'), { cache: 'no-store', credentials: 'omit' });   /* Basic-Auth onbellegi tasinmasin */
         if (!y.ok) { this.skopArsivVar = false; this.kopruda = false; return; }
         const d = await y.json();
         this.skopArsivVar = !!d.skop_arsiv;

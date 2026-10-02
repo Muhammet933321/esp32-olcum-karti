@@ -146,6 +146,30 @@ def main() -> int:
     ok("5. 15 s sonra rAF calisiyor ve CDP tekerlegi <= 5 s'de yanit verip sayfayi kaydiriyor",
        raf == 3 and teker.startswith("yanit") and kaydi > 0, f"rAF {raf}, {teker}, scrollY {kaydi}")
 
+    # 6: (3H-2 incelemesi) tek recv() iki CDP cercevesini birden tampona cekerse ikincisi
+    #    bekle()'de ISLENMELI. Eskiden select() yalniz ham sokete bakiyordu: tamponda kalan
+    #    Fetch.requestPaused islenmiyor, Edge istegi (ornegin p0) duraklatilmis tutuyordu —
+    #    yuk altinda EMNIYET-P0 iddiasini SAHTE kirmizi yapan test araci kusuru.
+    import socket
+    a, b = socket.socketpair()
+    try:
+        ws = T._WS.__new__(T._WS)
+        ws.s, ws._kalan = a, b""
+        cerceve = lambda m: bytes([0x81, len(m)]) + m  # noqa: E731 (maskesiz kisa metin cercevesi)
+        b.sendall(cerceve(b'{"id":1}') + cerceve(b'{"method":"Fetch.requestPaused"}'))
+        time.sleep(0.1)
+        ilk = ws.al()                                   # cagir() kendi yanitini boyle tuketir
+        tr = T.Tarayici.__new__(T.Tarayici)
+        tr.ws = ws
+        islenen = []
+        tr._olay = islenen.append
+        tr.bekle(0.5)
+    finally:
+        a.close()
+        b.close()
+    ok("6. tamponda kalan tam cerceve bekle()'de islenir (soket sessiz kalsa da)",
+       ilk == '{"id":1}' and islenen == [{"method": "Fetch.requestPaused"}], f"ilk={ilk!r} islenen={islenen}")
+
     print(f"\n{gecen}/{gecen + kalan} dogrulama gecti")
     return 0 if kalan == 0 else 1
 

@@ -114,6 +114,27 @@ class _WS:
         veri, self._kalan = self._kalan[:n], self._kalan[n:]
         return veri
 
+    def tam_cerceve_var(self) -> bool:
+        """Tamponda (sokete bakmadan) en az bir TAM cerceve var mi.
+
+        Tek recv(65536) birden cok CDP cercevesini `_kalan`'a cekebilir; select()
+        yalniz ham sokete baktigi icin bunlar soket sessizken hic islenmezdi."""
+        v = self._kalan
+        if len(v) < 2:
+            return False
+        n, i = v[1] & 0x7F, 2
+        if n == 126:
+            if len(v) < 4:
+                return False
+            n, i = struct.unpack(">H", v[2:4])[0], 4
+        elif n == 127:
+            if len(v) < 10:
+                return False
+            n, i = struct.unpack(">Q", v[2:10])[0], 10
+        if v[1] & 0x80:
+            i += 4
+        return len(v) >= i + n
+
     def gonder(self, metin: str) -> None:
         govde = metin.encode()
         maske = os.urandom(4)
@@ -258,6 +279,10 @@ class Tarayici:
         """
         son = time.monotonic() + sn
         while True:
+            # 3H-2 incelemesi: tamponda kalan tam cerceveler ONCE (select onlari gormez) —
+            # yoksa Fetch.requestPaused islenmeden kalir, Edge istegi duraklatilmis tutar.
+            while self.ws.tam_cerceve_var():
+                self._olay(json.loads(self.ws.al()))
             kalan = son - time.monotonic()
             if kalan <= 0:
                 return
