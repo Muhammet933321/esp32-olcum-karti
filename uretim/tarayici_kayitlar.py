@@ -817,7 +817,17 @@ def main() -> int:
                f"{(k72.get('hex') or '').endswith(b''.join(kart.kayitlar).hex())}, sonuc {sonuc!r}")
 
             # ── 4. arsiv secimi: onay panelin komut yolundan ─────────────
+            # WIG: arsivi acmak IKI ASAMALI — kutuyu isaretlemek yazmaz, esitlemez, Go gondermez
+            go_once = sum(1 for c in kart.tum_komutlar if c.startswith("Go"))
             t.js("document.querySelector('.kl-arsiv input').click()")
+            sordu = bekle_js(t, "!!document.querySelector('.kl-arsiv-eminim') && document.activeElement"
+                                " && document.activeElement.classList.contains('kl-arsiv-eminim')", 4)
+            t.bekle(0.8)
+            ok("[!] WIG: 'bu tarayıcı arşivdir' isaretlemek yalniz ONAY sorar: Go gitmedi, secim yazilmadi, odak 'Eminim'de",
+               sordu is True and sum(1 for c in kart.tum_komutlar if c.startswith("Go")) == go_once
+               and t.js(f"localStorage.getItem('olcum.arsiv.{kart.kimlik}')") != "true",
+               f"sordu={sordu} Go={[c for c in kart.tum_komutlar if c.startswith('Go')]}")
+            t.js("document.querySelector('.kl-arsiv-eminim').click()")
             son_sira = max(struct.unpack_from("<I", h, 4)[0] for h in kart.kayitlar)
             bekle_js(t, f"(document.querySelector('.kl-sonuc') || {{}}).textContent.includes('doğruladı')")
             ok("[!] C3: 'bu tarayıcı arşivdir' secilince Go<son sira> komut yolundan gitti, kart dogruladi",
@@ -853,6 +863,10 @@ def main() -> int:
             # ── 6. kayit gorunumu: tuval, gercek fare ile iki imlec ──────
             t.js(f"location.hash = '#/kayit/{no['A']}@{eski_kimlik}'")
             bekle_js(t, "!!document.querySelector('canvas.kg-grafik') && !!document.querySelector('.kg-tuval').dataset.pencere")
+            odak = bekle_js(t, "document.activeElement && document.activeElement.classList.contains('kg-baslik')"
+                               " && document.activeElement.textContent.replace(/\\s+/g, ' ').trim()", 4)
+            ok("[!] WIG: kayit acilinca odak kayit BASLIGINA (h1: 'Kayıt' + ad) — liste kalkinca body'ye dusmuyor",
+               bool(odak) and odak.startswith("Kayıt") and t.js("document.activeElement.tagName") == "H1", str(odak))
             koyu = takim["koyu"]
             t_cizim = time.monotonic()               # sabit uyku YOK: en gec 8 s icinde cizilmeli
             px = None
@@ -1069,8 +1083,9 @@ def main() -> int:
             t.js("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Yenile').click()")
             imza = bekle_js(t, "(document.querySelector('.kl-neden') || {dataset: {}}).dataset.neden === 'imza'"
                                " && document.querySelector('.kl-neden').textContent")
-            ok("[!] 401 'imza gerekli': 'Kart imza istiyor — bu tarayıcıyı eşleştirmek Ayarlar'da (3H)', liste yerelden",
-               bool(imza) and "Kart imza istiyor — bu tarayıcıyı eşleştirmek Ayarlar'da (3H)" in imza
+            ok("[!] 401 'imza gerekli': 'Kart imzalı istek istiyor; bu tarayıcı henüz eşleştirilemiyor' (+ PC yolu), liste yerelden",
+               bool(imza) and "Kart imzalı istek istiyor; bu tarayıcı henüz eşleştirilemiyor" in imza
+               and "kopru/kayit_esitle.py" in imza
                and t.js("document.querySelectorAll('.kl-satir').length") >= 8, imza or "")
             kart.imza_zorunlu = False
             for e in evre_401:
@@ -1091,7 +1106,7 @@ def main() -> int:
             t.cagir("Page.reload", {"ignoreCache": True})
             t.bekle(0.5)
             en = bekle_js(t, "document.querySelectorAll('.kl-satir').length > 0 && !!document.querySelector('.kl-esitle')"
-                             " && !document.querySelector('.kl-esitle').disabled && ({h: [...document.querySelectorAll('.kl h2')]"
+                             " && !document.querySelector('.kl-esitle').disabled && ({h: [...document.querySelectorAll('.kl h1, .kl h2')]"
                              ".map(h => h.textContent).join('|'), d: document.querySelector('.kl-esitle').textContent.trim(),"
                              " r: document.querySelector('.kl-satir .kl-rozet').textContent})")
             ok("C8: dil 'en' iken ekran sozlugun Ingilizcesiyle (Recordings · Sync · in both)",

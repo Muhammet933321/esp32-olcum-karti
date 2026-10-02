@@ -232,6 +232,7 @@ export const KL_METIN = Object.freeze({
   silUyari: 'kl.sil_uyari', yalnizKartta: 'kl.yalniz_kartta', bulunamadi: 'kl.bulunamadi',
   listeyeDon: 'kl.listeye_don', yukleniyor: 'kl.yukleniyor', ipucu: 'kl.ipucu',
   turSec: 'kl.tur_sec', neredeSec: 'kl.nerede_sec', liste: 'kl.liste',
+  arsivOnayUyari: 'kl.arsiv_onay_uyari', arsivEminim: 'kl.arsiv_eminim',
 });
 
 /* ── Vue bileseni ───────────────────────────────────────────────────── */
@@ -253,7 +254,7 @@ const SABLON = `
 
   <template v-else>
     <section class="kart">
-      <h2>{{ m.baslik }}</h2>
+      <h1>{{ m.baslik }}</h1>
       <div class="kl-ust">
         <div class="kl-durum">
           <span v-if="kartOzet" class="kl-kart-ozet">{{ kartOzet }}</span>
@@ -261,22 +262,35 @@ const SABLON = `
         </div>
         <div class="dugme-grup">
           <button v-if="esitlenebilir" type="button" class="birincil kl-esitle" @click="esitle"
-                  :disabled="esitleniyor">{{ esitleniyor ? esitlemeYazisi : m.esitle }}</button>
+                  :disabled="esitleniyor" :aria-busy="esitleniyor ? 'true' : 'false'">{{ esitleniyor ? esitlemeYazisi : m.esitle }}</button>
           <button type="button" @click="yenile" :disabled="esitleniyor">{{ m.yenile }}</button>
         </div>
       </div>
-      <p v-if="nedenMetni" class="uyari kl-neden" :data-neden="neden">{{ nedenMetni }}</p>
-      <p v-if="sonuc" class="ipucu kl-sonuc">{{ sonuc }}</p>
+      <!-- WIG: esitleme sonucu / sebebi KALICI bir canli bolgede (v-if ile sonradan eklenen
+           role=status her ekran okuyucuda duyurulmuyor; bolge once DOM'da olmali). -->
+      <div class="kl-duyuru" aria-live="polite">
+        <p v-if="nedenMetni" class="uyari kl-neden" :data-neden="neden">{{ nedenMetni }}</p>
+        <p v-if="sonuc" class="ipucu kl-sonuc">{{ sonuc }}</p>
+      </div>
+      <!-- WIG: arsivi ACMAK iki asamali (karta geri alinamaz "aldim" onaylari gider, kart
+           kayitlari silebilir); kapatmak aninda. -->
       <label v-if="kartKimlik !== null" class="kl-arsiv">
-        <input type="checkbox" :checked="arsiv" @change="arsivDegisti($event.target.checked)"> {{ m.arsiv }}
+        <input type="checkbox" :checked="arsiv || arsivOnay" @change="arsivDegisti($event.target.checked)"> {{ m.arsiv }}
       </label>
+      <p v-if="arsivOnay" class="uyari kl-arsiv-onay">{{ m.arsivOnayUyari }}
+        <span class="dugme-grup" style="margin-top:8px">
+          <button type="button" class="kl-arsiv-eminim" @click="arsivOnayla">{{ m.arsivEminim }}</button>
+          <button type="button" class="kl-arsiv-vazgec" @click="arsivVazgec">{{ m.vazgec }}</button>
+        </span>
+      </p>
       <p v-if="kartKimlik !== null" class="ipucu">{{ m.arsivAciklama }}</p>
     </section>
 
     <section class="kart">
       <h2>{{ m.liste }}</h2>
       <div class="kl-suzgec">
-        <input type="search" class="kl-ara" v-model="arama" :placeholder="m.ara" :aria-label="m.ara">
+        <input type="search" class="kl-ara" v-model="arama" :placeholder="m.ara" :aria-label="m.ara"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
         <select v-model="turSuzgec" :aria-label="m.turSec">
           <option value="hepsi">{{ m.turHepsi }}</option>
           <option value="olcum">{{ turAdi('olcum') }}</option>
@@ -317,10 +331,10 @@ const SABLON = `
         <span class="kl-rozet" :class="k.guncel ? 'kl-nerede-ikisi' : 'kl-dikkat'">{{ k.guncel ? m.kopyaGuncel : m.kopyaEski }}</span>
         <span class="bosluk"></span>
         <template v-if="silOnay === k.kimlik">
-          <button type="button" @click="kopyaSil(k.kimlik)">{{ m.silOnay }}</button>
-          <button type="button" @click="silOnay = null">{{ m.vazgec }}</button>
+          <button type="button" :data-kl-sil-eminim="k.kimlik" @click="kopyaSil(k.kimlik)">{{ m.silOnay }}</button>
+          <button type="button" @click="silVazgec(k.kimlik)">{{ m.vazgec }}</button>
         </template>
-        <button v-else type="button" @click="silOnay = k.kimlik" :disabled="esitleniyor">{{ m.sil }}</button>
+        <button v-else type="button" :data-kl-sil="k.kimlik" @click="silBasla(k.kimlik)" :disabled="esitleniyor">{{ m.sil }}</button>
       </div>
       <p v-if="silOnay !== null" class="uyari">{{ m.silUyari }}</p>
     </section>
@@ -348,7 +362,7 @@ export const KayitlarEkrani = {
       arama: '', turSuzgec: 'hepsi', neredeSuzgec: 'hepsi',
       kartDurum: null, kartMesaj: '', kartKimlik: null, kartOzetVeri: null,
       esitleniyor: false, ilerleme: 0, sonuc: '', esitlemeNeden: null, esitlemeMesaj: '',
-      arsiv: false, satirlar: [], kopyalar: [], silOnay: null,
+      arsiv: false, arsivOnay: false, satirlar: [], kopyalar: [], silOnay: null,
       secili: null, seciliAnahtar: '', seciliHata: '', seciliKartta: false, yukleniyor: false,
     };
   },
@@ -474,6 +488,7 @@ export const KayitlarEkrani = {
       this.kartDurum = r.durum;
       if (r.durum === 'tamam') {
         this._kartListe = vueAl().markRaw(r.liste);
+        if (this.kartKimlik !== r.liste.kimlik) this.arsivOnay = false;   // onay kart basina
         this.kartKimlik = r.liste.kimlik;
         this.arsiv = arsivOku(r.liste.kimlik);
         this.kartOzetVeri = { oturum: r.liste.oturumlar.length, doluluk: r.liste.doluluk_binde || 0,
@@ -547,10 +562,42 @@ export const KayitlarEkrani = {
       if (r.kalibrasyon_hata) p.push(ceviri(KL_METIN.kalHata, this.dil, { hata: r.kalibrasyon_hata }));
       return p.join(' ');
     },
+    /* WIG: ACMAK iki asamali — isaretlemek yalniz onayi sorar (yazmaz, esitlemez); kapatmak aninda. */
     arsivDegisti(acik) {
+      if (acik && !this.arsiv) {
+        this.arsivOnay = true;
+        this._odakla('.kl-arsiv-eminim');
+        return;
+      }
+      this.arsivOnay = false;
       this.arsiv = !!acik;
       if (this.kartKimlik !== null) arsivYaz(this.kartKimlik, this.arsiv);
-      if (this.arsiv && this.esitlenebilir) this.esitle();
+    },
+    arsivOnayla() {
+      this.arsivOnay = false;
+      this.arsiv = true;
+      if (this.kartKimlik !== null) arsivYaz(this.kartKimlik, true);
+      if (this.esitlenebilir) this.esitle();
+    },
+    arsivVazgec() {
+      this.arsivOnay = false;
+      this._odakla('.kl-arsiv input');
+    },
+    /* WIG: kopya silme onayinda odak kaybolmasin (tiklanan dugme DOM'dan kalkiyor). */
+    silBasla(kimlik) {
+      this.silOnay = kimlik;
+      this._odakla('[data-kl-sil-eminim="' + kimlik + '"]');
+    },
+    silVazgec(kimlik) {
+      this.silOnay = null;
+      this._odakla('[data-kl-sil="' + kimlik + '"]');
+    },
+    _odakla(secici) {
+      this.$nextTick(() => {
+        if (typeof document === 'undefined') return;
+        const e = document.querySelector(secici);
+        if (e && typeof e.focus === 'function') e.focus();
+      });
     },
     async kopyaSil(kimlik) {
       this.silOnay = null;

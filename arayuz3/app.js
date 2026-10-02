@@ -146,7 +146,7 @@ const TasiyiciSeri = {
         satirBol(uyg, value);
       }
     } catch (e) {
-      if (!uyg.durduruldu) uyg.hata = 'Okuma hatası: ' + e.message;
+      if (!uyg.durduruldu) uyg.hata = 'Okuma hatası: ' + e.message + ' — kablo çıkmış ya da kart yeniden başlamış olabilir; “Karta bağlan”a yeniden basın.';
     } finally {
       uyg.okuyucu.releaseLock();
     }
@@ -293,6 +293,7 @@ const KB_METIN = Object.freeze({
   ad: 'kb.ad', gezinme: 'kb.gezinme', menuAc: 'kb.menu_ac', menuKapat: 'kb.menu_kapat',
   cevrimdisi: 'kb.cevrimdisi', baglan: 'kb.baglan', kes: 'kb.kes',
   esitlenmemisYok: 'kb.esitlenmemis_yok', surumIpucu: 'kb.surum_ipucu',
+  icerigeGec: 'kb.icerige_gec', esitlenmemisBagliDegil: 'kb.esitlenmemis_bagli_degil', pilCalisiyor: 'kb.pil_calisiyor',
 });
 const CN_METIN = Object.freeze({
   baslik: 'cn.baslik', okumalar: 'cn.okumalar', gerilim: 'cn.gerilim', akim: 'cn.akim', guc: 'cn.guc',
@@ -307,11 +308,36 @@ const CN_METIN = Object.freeze({
   durdur: 'cn.durdur', notEkle: 'cn.not_ekle', notMetin: 'cn.not_metin', notGonder: 'cn.not_gonder',
   vazgec: 'cn.vazgec', zamanla: 'cn.zamanla', planBas: 'cn.plan_bas', planSure: 'cn.plan_sure',
   planSureIpucu: 'cn.plan_sure_ipucu', planKur: 'cn.plan_kur', planIptal: 'cn.plan_iptal',
-  birimSa: 'cn.birim_sa', birimDk: 'cn.birim_dk', izleyici: 'cn.izleyici', kayitSuruyor: 'cn.kayit_suruyor',
+  birimSa: 'cn.birim_sa', birimDk: 'cn.birim_dk', kayitSuruyor: 'cn.kayit_suruyor',
   aktifKayit: 'cn.aktif_kayit', kayitBilinmiyor: 'cn.kayit_bilinmiyor', sure: 'cn.sure', hiz: 'cn.hiz',
   kalanHesap: 'cn.kalan_hesap', planYok: 'cn.plan_yok', planSuresiz: 'cn.plan_suresiz',
   sonOlaylar: 'cn.son_olaylar', olayYok: 'cn.olay_yok',
+  /* WIG (2026-10-02): iki asamali onaylar, mesgul not dugmesi, ADC yanit vermiyor */
+  durdurEminim: 'cn.durdur_eminim', planIptalKayit: 'cn.plan_iptal_kayit', planIptalEminim: 'cn.plan_iptal_eminim',
+  notGonderiliyor: 'cn.not_gonderiliyor', adcYokV: 'cn.adc_yok_v', adcYokI: 'cn.adc_yok_i',
 });
+
+/* WIG: iki asamali onayin omru — bayat bir "Eminim" saatler sonra tek tikla calismasin. */
+const ONAY_MS = 6000;
+/* WIG: pil durumu / hatasi kartta ASCII ad olarak geliyor (`/pil`); ekranda sozlukten.
+   Hata metinleri firmware `pil_hata_metni` ile AYNI (B7 her birini ino'dan okuyup sinar). */
+const PIL_DURUM_KOD = Object.freeze({ BEKLEMEDE: 0, CALISIYOR: 1, BITTI: 2, DURDURULDU: 3, HATA: 4 });
+const PIL_HATA_KOD = Object.freeze([
+  ['gerilim zaten kesmenin altinda', 1], ['gerilim 38.5 V ustunde', 2], ['TERS POLARITE', 3],
+  ['MOSFET kapali ama AKIM VAR', 4], ['azami sure asildi', 5], ['yuk baglanmadi', 6],
+]);
+/** WIG: sekme basligi gorunumu soyler ("Pil testi — Olcum Karti"; ekran okuyucu, gecmis). */
+function belgeBasligiYaz(id, dil) {
+  if (typeof document === 'undefined') return;
+  const g = GORUNUMLER.find((x) => x.id === id);
+  document.title = (g ? ceviri(g.ad, dil) + ' — ' : '') + ceviri('kb.ad', dil);
+}
+/** Kart adresi: sema yoksa http:// (yoksa istek sayfanin KENDI sunucusuna goreli gider). */
+function tabanTam(taban) {
+  const t = String(taban || '').trim().replace(/\/+$/, '');
+  if (!t) return '';
+  return /^https?:\/\//i.test(t) ? t : 'http://' + t;
+}
 
 /** Anahtar haritasi -> metinler (dil). */
 function metinHaritasi(harita, dil) {
@@ -625,7 +651,10 @@ createApp({
       olaylar: [],                 // D7: [{saat, metin, tur}] en yeni basta, <= 20
       baslatHiz: 200,
       kayitHizlari: KAYIT_HIZLARI,
-      notAcik: false, notMetni: '',
+      notAcik: false, notMetni: '', notGonderiliyor: false,
+      /* WIG: iki asamali onay — silahli eylemin adi (null = yok); bkz. onayIste */
+      onay: null,
+      canliDuyuru: '',             // WIG: donmus imlec okumasinin gecikmeli ozeti (aria-live)
       planAcik: false, planBas: '', planSureSa: 1, planSureDk: 0, planHiz: 1000,
       /* 3A (P1): renk takımı SEÇİMİ ('sistem' | 'koyu' | 'acik' | 'onpanel').
          ⚠ `gorunum` (SEKME) ile karıştırma — bkz. ekran/tema.js. Değer
@@ -749,6 +778,7 @@ createApp({
          yuksek okunur ve arayuzde bunu duzeltecek bir sey yoktu. */
       sebekeHz: '50',
       fazKal: '',
+      fazHata: '',          // WIG: faz hatasi ALANIN yaninda (en ustteki genel kutuda degil)
       sifirlaOnay: false,
       agSsid: '',
       agSifre: '',
@@ -846,7 +876,7 @@ createApp({
       if (this.baglantiKipi === 'usb') yer = 'USB';
       else if (this.baglantiKipi === 'demo') yer = 'demo';
       else {
-        const m = /^https?:\/\/([^/]+)/.exec(this.kartTaban || '');
+        const m = /^https?:\/\/([^/]+)/.exec(tabanTam(this.kartTaban));
         yer = m ? m[1] : (typeof location !== 'undefined' ? location.host : '');
       }
       return [yer, this.afisSurum].filter(Boolean).join(' · ');
@@ -854,7 +884,7 @@ createApp({
     /** D1 alt bilgi: eşitlenmemiş oran — `G` satırının `onaysiz` alanı (binde). */
     esitlenmemisYazi() {
       const g = this.kayit.g;
-      if (!g) return this.m.esitlenmemisYok;
+      if (!g) return this.bagli ? this.m.esitlenmemisYok : this.m.esitlenmemisBagliDegil;
       return ceviri('kb.esitlenmemis', this.dil, { oran: (g.onaysiz / 10).toFixed(1) });
     },
     menzilKisa() {
@@ -935,7 +965,10 @@ createApp({
       const g = this.kayit.g;
       if (!g) return '';
       const ayrinti = this.kayitHiz && this.kayitHiz.hiz === 0;
-      return ceviri(ayrinti ? 'cn.ornek' : 'cn.nokta', this.dil, { nokta: g.nokta.toLocaleString('tr-TR') });
+      /* WIG: toLocaleString('tr-TR') '.' ile gruplardi ("12.345 nokta" = "12.345 V" gibi
+         okunuyordu; panelde '.' ondalik ayraci). Dar bolunmez bosluk (U+202F). */
+      const n = String(g.nokta).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
+      return ceviri(ayrinti ? 'cn.ornek' : 'cn.nokta', this.dil, { nokta: n });
     },
     kayitDolulukYazi() {
       const g = this.kayit.g;
@@ -1260,12 +1293,31 @@ createApp({
       return (Math.abs(y) < 0.05) ? 'hizalama farkı yok (dirençsel)'
                                   : `hizalama ${y > 0 ? '+' : ''}${y.toFixed(2)}% düzeltti`;
     },
+    /* WIG: saat "sa" — eski "1s 5dk" panelin geri kalaninda 's' = saniye oldugu icin
+       "1 saniye 5 dakika" okunuyordu. */
     sureGoster() {
       if (!this.gecmis.length) return '—';
       const s = Math.floor(this.gecmis[this.gecmis.length - 1].t);
       const sa = Math.floor(s / 3600), dk = Math.floor((s % 3600) / 60);
-      return sa ? `${sa}s ${dk}dk` : dk ? `${dk}dk ${s % 60}sn` : `${s} sn`;
+      return sa ? `${sa} sa ${dk} dk` : dk ? `${dk} dk ${s % 60} sn` : `${s} sn`;
     },
+    /* ── WIG (2026-10-02) ── */
+    /** Baglanti yok ya da ilk D gelmedi: okuma kartlari "0.000 V" degil "—". */
+    veriYok() { return !this.bagli || !this.gecmis.length; },
+    /** Kalici duyurucu (.icerik disinda): pil testi baslayinca soylenir. */
+    kabukDuyuru() { return this.pilDurum === 'CALISIYOR' ? this.m.pilCalisiyor : ''; },
+    /** Plan SUREN bir kayda bagli: `Gp-` kaydi da durdurur (1C-4) -> iki asamali iptal. */
+    planBagli() { const p = this.kayit.gp; return !!p && p.durum === PLAN.SURUYOR; },
+    pilDurumYazi() {
+      const k = PIL_DURUM_KOD[this.pilDurum];
+      return k === undefined ? ceviriKod('pil.durum.', this.pilDurum, this.dil) : ceviri('pil.durum.' + k, this.dil);
+    },
+    pilHataYazi() {
+      const h = String(this.pilHata || '');
+      const e = PIL_HATA_KOD.find(([bas]) => h.startsWith(bas));
+      return e ? ceviri('pil.hata.' + e[1], this.dil) : h;
+    },
+    pilDcirYazi() { return this.pilDcirN > 0 ? this.bicim(this.pilDcirAni * 1000, 1) + ' mΩ' : '—'; },
 
     osiloTepe() {
       if (!this.osilo) return 0;
@@ -1284,8 +1336,18 @@ createApp({
       }
       if (v === 'kayitlar') this.kayitlarAcik = true;
       if (v === 'canli') this.canliAcik = true;        // 3D: grafik modulu ilk acilista
+      /* WIG: silahli onaylar gorunum degisince duser; sekme basligi gorunumu soyler;
+         gizliyken birikmis konsol satirlarinin dibine gidilir. */
+      this.onay = null;
+      this.sifirlaOnay = false;
+      belgeBasligiYaz(v, this.dil);
+      if (v === 'konsol') this.$nextTick(() => { const k = this.$refs.gunlukKutu; if (k) k.scrollTop = k.scrollHeight; });
       this.$nextTick(() => { this.grafikCiz(); this.osiloCiz(); });
     },
+    /* WIG: baglanti kopunca silahli onay duser (bagli degilken komut zaten gitmez). */
+    bagli(v) { if (!v) this.onay = null; },
+    /* WIG: donmus imlec okumasi degisti -> gecikmeli duyuru */
+    canliOkuma(v) { this.canliOkumaDegisti(v); },
     /* 3D: Canli ilk kez gorunur oldu -> grafik modulunu indir (bir kez). */
     canliAcik(v) { if (v) this.canliYukle(); },
     /* B22.2: cizimi tazele VE tercihi sakla. Bu alanlar her acilista
@@ -1333,6 +1395,7 @@ createApp({
     let depo = null;
     try { depo = window.localStorage; } catch (e) { depo = null; }
     this.dil = dilSec(depo);
+    this.baslikGuncelle();
     /* 3D (D1): Esc cekmeceyi kapatir (odak menu dugmesine doner). */
     window.addEventListener('keydown', (e) => this.tusBasildi(e));
     if (this.canliAcik) this.canliYukle();
@@ -1349,7 +1412,7 @@ createApp({
        sayfa hep "bağlı değil" halinde kalıyordu. localhost/file:// ve
        ?demo'da DEĞİL — orada taşıyıcı USB ya da sahte kart. */
     this.kopruyuAlgila().then(() => { if (this.otomatikBaglanmali()) this.baglan(); });
-    window.addEventListener('resize', () => { this.grafikCiz(); this.osiloCiz(); });
+    window.addEventListener('resize', () => { this.genislikDegisti(); this.grafikCiz(); this.osiloCiz(); });
     window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); });
     window.addEventListener('mousemove', (e) => this.surukHareket(e));
     window.addEventListener('mouseup', () => this.surukBitir());
@@ -1411,6 +1474,60 @@ createApp({
     },
     /* Seritte bir gorunum secildi: cekmece aciksa kapanir (masaustunde zaten kapali). */
     gorunumSecildi() { this.cekmeceKapat(true); },
+    /* WIG: pencere genisledi (> 900 px): cekmece yok — acik kalirsa .icerik INERT kalirdi. */
+    genislikDegisti() {
+      const w = typeof window !== 'undefined' ? window : null;
+      if (this.cekmeceAcik && w && typeof w.matchMedia === 'function' && w.matchMedia('(min-width: 901px)').matches) {
+        this.cekmeceKapat(false);
+      }
+    },
+    /* WIG: "Icerige gec" — odagi .icerik'e tasir. Hash DEGISMEZ (#icerik gorunum adresini
+       ezerdi); tabindex yalniz bu odak icin, ayrilinca kalkar (fareyle tiklamada kutu odak almasin). */
+    icerigeGec() {
+      const e = this.$refs.icerik;
+      if (!e || typeof e.focus !== 'function') return;
+      e.setAttribute('tabindex', '-1');
+      e.focus();
+      e.addEventListener('blur', () => e.removeAttribute('tabindex'), { once: true });
+    },
+    /* WIG: sekme basligi gorunumu soyler (ekran okuyucu, tarayici gecmisi). */
+    baslikGuncelle(id = this.gorunum) { belgeBasligiYaz(id, this.dil); },
+    /* ═══ WIG — IKI ASAMALI ONAY ══════════════════════════════════════════
+       Yikici eylem: ilk tik `onay`i silahlar (dugme "Eminim …"e doner, yaninda
+       Vazgec), ikinci tik eylemi yapar. Onay ONAY_MS sonra, gorunum degisince,
+       baglanti kopunca ve karta HERHANGI bir komut gidince (gonder) duser — bayat bir
+       "Eminim" saatler sonra tek tikla calismaz. Odak kaybolmasin: silahlaninca onay
+       dugmesine, vazgecince (ya da zaman asiminda) acan dugmeye doner. */
+    onayIste(ad) {
+      this.onay = ad;
+      if (this._onayZaman) clearTimeout(this._onayZaman);
+      this._onayZaman = setTimeout(() => {
+        if (this.onay !== ad) return;
+        const odakta = typeof document !== 'undefined' && document.activeElement
+          && document.activeElement.getAttribute && document.activeElement.getAttribute('data-onay') === ad;
+        this.onay = null;
+        if (odakta) this._odakla('[data-onay-ac="' + ad + '"]');
+      }, ONAY_MS);
+      this._odakla('[data-onay="' + ad + '"]');
+    },
+    onayVazgec(ad) {
+      this.onay = null;
+      this._odakla('[data-onay-ac="' + ad + '"]');
+    },
+    _odakla(secici) {
+      this.$nextTick(() => {
+        if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return;
+        const e = document.querySelector(secici);
+        if (e && typeof e.focus === 'function') e.focus();
+      });
+    },
+    /* WIG: imlec okumasi ~300 ms durulunca TEK satir ozet (her ok tusunda degil). */
+    canliOkumaDegisti(v) {
+      if (this._duyuruZaman) clearTimeout(this._duyuruZaman);
+      this._duyuruZaman = setTimeout(() => {
+        this.canliDuyuru = v ? v.slice(0, 5).map((s) => s.ad + ' ' + s.d).join(' · ') : '';
+      }, 300);
+    },
     tusBasildi(e) {
       if (e && e.key === 'Escape' && this.cekmeceAcik) {
         if (typeof e.preventDefault === 'function') e.preventDefault();
@@ -1460,14 +1577,21 @@ createApp({
     kayitDurdur() { return this.kayitKomut('Gd'); },
     notAcDegistir() { this.notAcik = !this.notAcik; this.planAcik = false; },
     async notEkle() {
+      /* WIG: istek surerken ikinci basis/Enter IKINCI bir NOT kaydi yazdirmasin */
+      if (this.notGonderiliyor) return false;
       const g = this.kayit.g;
       /* Not grafikte kendi aninda dursun: son D satirinin kart ms'i (taze ise). */
       const kms = this.kartMs && Date.now() - (this._sonDZaman || 0) < 3000 ? this.kartMs : null;
       const k = kayitNotKomutu(g && g.durum === KDR.KAYIT ? g.oturum : 0, this.notMetni, kms);
       if (k.hata) { this.kayitHataGoster(k); return false; }
-      const gitti = await this.kayitKomut(k.komut);
-      if (gitti) { this.notMetni = ''; this.notAcik = false; }
-      return gitti;
+      this.notGonderiliyor = true;
+      try {
+        const gitti = await this.kayitKomut(k.komut);
+        if (gitti) { this.notMetni = ''; this.notAcik = false; }
+        return gitti;
+      } finally {
+        this.notGonderiliyor = false;
+      }
     },
     planAcDegistir() {
       this.planAcik = !this.planAcik;
@@ -1632,10 +1756,11 @@ createApp({
       if (sa >= 1) return Math.floor(sa) + ' ' + this.m.birimSa;
       return Math.max(1, Math.floor(ms / 60000)) + ' ' + this.m.birimDk;
     },
+    /* WIG: ISO-benzeri YYYY-AA-GG (Kayitlar listesi kayit_gorunum tarihYaz ile ayni; siralanabilir). */
     tarihYazi(unix) {
       const d = new Date(unix * 1000);
       const p = (x) => String(x).padStart(2, '0');
-      return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
     },
     yerelSaatYaz(d) {
       const p = (x) => String(x).padStart(2, '0');
@@ -1705,7 +1830,9 @@ createApp({
        sayfasının HTML'i `anahtar=değer` sanılıp ayrıştırılıyordu:
        tüm pil KPI'ları SESSİZCE sıfır oluyordu. */
     kartAdres(yol) {
-      return (this.kartTaban || '').replace(/\/+$/, '') + yol;
+      /* WIG: "192.168.1.50" ya da "olcum.local" yazilirsa istek GORELI olup sayfanin
+         kendi sunucusuna gidiyordu ("akis koptu" disinda iz yok) — tabanTam http:// ekler. */
+      return tabanTam(this.kartTaban) + yol;
     },
 
     /* Tercihler tarayıcıda kalsın — kullanıcı her açılışta pencereyi,
@@ -1821,7 +1948,7 @@ createApp({
       try {
         await this.betikYukle('sahte-kart.js');
       } catch (e) {
-        this.hata = 'demo kipi acilamadi: ' + e.message;
+        this.hata = 'Demo kipi açılamadı: ' + e.message + ' — sayfayı yenileyip yeniden deneyin.';
         this.demoKurulu = false;
         return;
       }
@@ -1875,12 +2002,14 @@ createApp({
     },
 
     kaydet(metin, giden = false) {
+      /* WIG: yalniz kullanici DIPTEYKEN izle — yukari kaydirip eski bir yaniti okuyan,
+         saniyede bir gelen G satiriyla dibe atilmasin. Konsol gizliyken DOM'a dokunulmaz
+         (gorunum izleyicisi acilinca dibe goturur). */
+      const k = this.gorunum === 'konsol' ? this.$refs.gunlukKutu : null;
+      const dipte = !!k && k.scrollHeight - k.scrollTop - k.clientHeight < 8;
       this.gunluk.push({ metin, giden });
       if (this.gunluk.length > 400) this.gunluk.splice(0, this.gunluk.length - 400);
-      this.$nextTick(() => {
-        const k = this.$refs.gunlukKutu;
-        if (k) k.scrollTop = k.scrollHeight;
-      });
+      if (dipte) this.$nextTick(() => { k.scrollTop = k.scrollHeight; });
     },
 
     // ─────────────────────────────────────────────── seri port
@@ -1912,8 +2041,22 @@ createApp({
         this.kopruYokla();
       } catch (e) {
         // Kullanıcı port seçim kutusunu kapattıysa bu hata değil.
-        if (e.name !== 'NotFoundError') this.hata = 'Bağlanamadı: ' + e.message;
+        const metin = this.baglantiHatasiMetni(e);
+        if (metin) this.hata = metin;
       }
+    },
+    /* WIG: hata metni SONRAKI ADIMI soyler. Web Serial'in Ingilizce metni ("Failed to open
+       serial port.") tek basina bir sey anlatmiyor; en sik sebep portun baska bir programda
+       (Arduino seri monitoru, tezgah betigi) acik olmasi. */
+    baglantiHatasiMetni(e) {
+      const ad = e && e.name;
+      if (ad === 'NotFoundError') return '';
+      const mesaj = (e && e.message) || String(e);
+      if (ad === 'InvalidStateError' || ad === 'NetworkError') {
+        return 'Bağlanamadı: ' + mesaj + ' — port başka bir program (Arduino seri monitör, tezgah betiği) '
+          + 'tarafından kullanılıyor olabilir; onu kapatıp yeniden bağlanın.';
+      }
+      return 'Bağlanamadı: ' + mesaj + ' — kablo ve kartın açık olduğunu denetleyip yeniden deneyin.';
     },
 
     async kes() {
@@ -1926,6 +2069,7 @@ createApp({
     /* ⚠ ÇAĞRI YERLERİ DEĞİŞMEDİ: `gonder('z')`, `gonder('F' + d)` …
        hepsi aynı şekilde duruyor. Değişen yalnızca burası. */
     async gonder(metin) {
+      this.onay = null;                  // WIG: baska bir komut silahli onayi dusurur
       this.kaydet(metin, true);
       await this.tasiyici.gonder(this, metin);
     },
@@ -2242,12 +2386,20 @@ createApp({
       if (!this.agSsid) { this.hata = 'Ağ adı boş olamaz'; return; }
       this.gonder('Na' + this.agSsid);
     },
-    agSifreGonder() { this.gonder('Np' + this.agSifre); this.agSifre = ''; },
+    /* WIG: bos ag parolasi GITMEZ — kart bir sonraki acilista WPA agina baglanamaz, AP'ye
+       duser, geri donmek USB ister. Parolasiz (acik) ag gercekten isteniyorsa Konsol'dan `Np`. */
+    agSifreGonder() {
+      if (!this.agSifre) { this.hata = 'Parola boş olamaz — parolasız (açık) ağ için Konsol\'dan Np gönderin.'; return; }
+      this.gonder('Np' + this.agSifre); this.agSifre = '';
+    },
     agWebSifreGonder() {
-      /* Bos gondermek parolayi KALDIRIR — firmware bunu ayrica soyluyor. */
+      /* WIG: bos gondermek parolayi KALDIRIR (firmware HEMEN uygular) — bos alan/Enter bunu
+         artik yapmaz; koruma yalniz iki asamali "Korumayi kaldir" (agWebKorumaKaldir) ile kalkar. */
+      if (!this.agWebSifre) { this.hata = 'Web parolası boş olamaz — korumayı kaldırmak için “Korumayı kaldır”ı kullanın.'; return; }
       this.gonder('Ns' + this.agWebSifre);
       this.agWebSifre = '';
     },
+    agWebKorumaKaldir() { this.gonder('Ns'); },
 
     /* Köprüden sürücülüğü devral. Yetki sunucuda; arayüz yalnızca
        durumu gösteriyor ve devri istiyor — politikayı İKİ YERDE
@@ -2258,7 +2410,8 @@ createApp({
         headers: { 'X-Olcum': '1', 'X-Jeton': this.jeton || '' },
       }).catch(() => null);
       if (y && y.ok) { this.surucuyum = true; this.hata = ''; }
-      else this.hata = 'Devralınamadı' + (y ? ' (' + y.status + ')' : '');
+      else if (y && y.status === 409) this.hata = 'Devralınamadı (409): Başka bir sürücü etkin — o sekmeyi kapatıp yeniden deneyin.';
+      else this.hata = 'Devralınamadı' + (y ? ' (' + y.status + ')' : '') + ' — köprünün çalıştığını denetleyip yeniden deneyin.';
     },
 
     /* ASAMA 3 komut kumesi.
@@ -2281,10 +2434,12 @@ createApp({
          kalibre edilebilir. Yalnizca sifira yakin deger anlamsiz —
          onu firmware zaten reddediyor (tam olcegin %5'i esigi). */
       if (isFinite(v) && v !== 0) { this.gonder('g' + v); this.kalibV = ''; }
+      else this.hata = 'Gerilim kalibrasyonu: sıfırdan farklı bir sayı girin (ör. 12.34 ya da −24).';
     },
     kalibreA() {
       const a = parseFloat(this.kalibA.replace(',', '.'));
       if (isFinite(a) && a !== 0) { this.gonder('i' + a); this.kalibA = ''; }
+      else this.hata = 'Akım kalibrasyonu: sıfırdan farklı bir sayı girin, amper (ör. 0.250).';
     },
     menzilSec(m) {
       this.gonder(m === 1 ? 'y' : 'n');
@@ -2304,14 +2459,16 @@ createApp({
        bolmenin icine girdigi icin duzeltme dongu periyodundan bagimsiz;
        sinir da +-2000 us oldu. Eskiden burada +-1 yaziyordu ve arayuz
        sinir disi degeri SESSIZCE yutuyordu — artik sebebini soyluyor. */
+    /* WIG: hata ALANIN yaninda (fazHata, role=alert) — en ustteki genel kutu uzun Ayarlar
+       sayfasinda gorus alaninin disinda kaliyordu. */
     fazGonder() {
       const d = parseFloat(String(this.fazKal).replace(',', '.'));
-      if (!isFinite(d)) { this.hata = 'Faz kalibrasyonu: sayı girin (µs)'; return; }
+      if (!isFinite(d)) { this.fazHata = 'Faz kalibrasyonu: sayı girin (µs), ör. 120'; return; }
       if (d < -2000 || d > 2000) {
-        this.hata = 'Faz kalibrasyonu −2000 … +2000 µs arası olmalı';
+        this.fazHata = 'Faz kalibrasyonu −2000 … +2000 µs arası olmalı';
         return;
       }
-      this.hata = '';
+      this.fazHata = '';
       this.gonder('F' + d);
       this.fazKal = '';
     },
@@ -2320,9 +2477,19 @@ createApp({
        baska yolu yok. Iki asamali onay — tarayici confirm() kullanilmiyor
        cunku o hem sinanamiyor hem de kip kilitliyor. */
     fabrikaSifirla() {
-      if (!this.sifirlaOnay) { this.sifirlaOnay = true; return; }
+      if (!this.sifirlaOnay) {
+        this.sifirlaOnay = true;
+        /* WIG: onay ONAY_MS sonra (ve gorunum degisince) duser — bayat "Eminim, sifirla" yok */
+        if (this._sifirlaZaman) clearTimeout(this._sifirlaZaman);
+        this._sifirlaZaman = setTimeout(() => { this.sifirlaOnay = false; }, ONAY_MS);
+        return;
+      }
       this.sifirlaOnay = false;
       this.gonder('R!');
+    },
+    fabrikaVazgec() {
+      this.sifirlaOnay = false;
+      this._odakla('[data-onay-ac="fabrika"]');
     },
     /* ── B21 · IndexedDB: sekme kapansa da veri kaybolmasın ─────────
        ⚠ IndexedDB tarayıcının verisidir — "tarayıcı verilerini temizle"
@@ -2356,6 +2523,7 @@ createApp({
       this.pilYerelSira = hepsi.length ? hepsi[hepsi.length - 1].sira + 1 : 0;
     },
     async pilTemizle() {
+      this.onay = null;                  // WIG: iki asamali onay buradan geldi
       const db = await this.pilDb();
       db.transaction('nokta', 'readwrite').objectStore('nokta').clear();
       this.pilNokta = []; this.pilYerelSira = 0; this.pilBosluk = 0;
@@ -2440,6 +2608,8 @@ createApp({
       if (isFinite(v) && v >= 0.5 && v <= 38.5) {
         this.gonder('P' + v);
         this.pilKesmeGiris = '';
+      } else {
+        this.hata = 'Kesme gerilimi 0.5 … 38.5 V arası bir sayı olmalı (Li-ion 3.0, kurşun asit 10.5).';
       }
     },
     pilCsvIndir() {
@@ -2904,6 +3074,7 @@ createApp({
     },
 
     gecmisiTemizle() {
+      this.onay = null;                  // WIG: iki asamali onay buradan geldi
       this.gecmis = [];
       this.ilkMs = null;
       this.msKaydir = 0;
