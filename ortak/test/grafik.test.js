@@ -1526,3 +1526,24 @@ test('3F isaretler: Grafik sınıfı seçeneği plana geçiriyor, sonradan deği
   assert.equal(gz.ciz().komutlar.some((c) => c.rol === 'isaret'), false);
   gz.yokEt();
 });
+
+test('3G desen: seri.desen seri çizgisinin komutuna ve ctx.setLineDash\'e geçer; desensiz seri düz; imleç deseni ayrı', () => {
+  const k = sahteKanvas(800, 240);
+  const t = Float64Array.from({ length: 50 }, (_, i) => i * 1000);
+  const y = Float64Array.from({ length: 50 }, (_, i) => Math.sin(i / 5));
+  const g = new Grafik(k, { pencere: { devicePixelRatio: 1 }, zamanKokeni: 0, renk: (ad) => ({ kr0: '#111111', kr3: '#333333' }[ad] || '#888888') });
+  g.veriAyarla([{ ad: 'K0', t, y, birim: 'V', renk: 'kr0' }, { ad: 'K3', t, y: y.map((v) => v + 1), birim: 'V', renk: 'kr3', desen: [7, 4] }]);
+  const plan = g.ciz();
+  const seri = plan.komutlar.filter((c) => c.rol === 'seri' && c.tur === 'cizgi');
+  assert.ok(seri.some((c) => c.renk === 'kr0') && seri.some((c) => c.renk === 'kr3'));
+  assert.ok(seri.filter((c) => c.renk === 'kr0').every((c) => c.desen === undefined));
+  assert.ok(seri.filter((c) => c.renk === 'kr3').every((c) => Array.isArray(c.desen) && c.desen.join() === '7,4'));
+  const v0 = k.ctx.vuruslar.filter((v) => v.renk === '#111111');
+  const v3 = k.ctx.vuruslar.filter((v) => v.renk === '#333333');
+  assert.ok(v0.length && v0.every((v) => v.desen.length === 0), 'desensiz seri düz çizilmeli');
+  assert.ok(v3.length && v3.every((v) => v.desen.join() === '7,4'), 'desenli seri setLineDash ile');
+  /* boş dizi desen değildir */
+  const p2 = cizimPlani([seriHazirla({ ad: 'X', t, y, renk: 'volt', desen: [] })], durumKur([seriHazirla({ ad: 'X', t, y })]), { w: 800, h: 240 }, {});
+  assert.ok(p2.komutlar.filter((c) => c.rol === 'seri').every((c) => c.desen === undefined));
+  g.yokEt();
+});

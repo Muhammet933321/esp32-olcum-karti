@@ -156,6 +156,34 @@
 | PU16 | **grafik.js `isaretler` seçeneği** (kesik dikey çizgi + kısa etiket, plan dil metni taşımaz — G8; B73'te sınandı). Seriler sırası I sonra V: dirençli yükte I ∝ V ve iki eğri üst üste biner, birincil ölçüm (V) üstte kalsın | T3F'de V hiç görünmüyordu |
 | PU17 | **`.iki-sutun` telefon kuralı taban kuralından SONRA** (3D'nin kuralı önce yazılmıştı; aynı özgüllükte sonraki kazanır) | T3F 390 px'te ölçtü: Canlı'nın da iki kartı telefonda 171 px'lik iki sütundaydı |
 
+## 3G kararları (2026-10-02 akşam, aynı devirle)
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| KR1 | **Seçim Kayıtlar listesinden:** satırlarda seçim kutusu (yalnız bu tarayıcıdaki kopyası olan oturumlar; en fazla 6), "Karşılaştır" → `#/karsilastir/<no>[@kimlik],<no>[@kimlik],…` — paylaşılabilir, geri tuşu çalışır | Kayıtlar tek giriş noktası (C4); adres durumu taşır (WIG) |
+| KR2 | **Tek grafik, tek birim:** V · I · W'den biri seçilir (K4 ilkesi: iki birim tek eksende yalan söyler); her kayıt ayrı çizgi, renkler tema belirteçlerinden türetilen ve renk körlüğüne dayanıklı ayrık bir dizi (3 görünümde okunur), lejantta kayıt adı + numara | P3 tek çekirdek; renk yalnız ayırt etmek için, anlam için değil |
+| KR3 | **x ekseni üç kip:** "başlangıçtan beri" (varsayılan; her kayıt kendi başlangıcından, K1 kuralıyla — saatsiz yeniden başlama tahmini işaretli), "saat" (unix; saati olmayan kayıt bu kipte dışarıda ve bunu söyler), "mAh" (yalnız pil oturumları; 3F PU9 kuralı: kartın sayacına göre değil nokta integrali, boşluk/negatif akımda o kayıt zaman eksenine düşmez, dışarıda kalır ve sebebi yazar) | §9 "eksen zaman / mAh / başlangıçtan beri" |
+| KR4 | **İmleçler:** iki imleç, okuma KAYIT BAŞINA tablo (A, B, Δ, ort; mAh/Wh yalnız zaman kiplerinde) — `imlecOkuma` her kayıt için ayrı | Karşılaştırmanın asıl çıktısı sayı yan yana |
+| KR5 | **Veri yalnız bu tarayıcıdaki kopyadan** (C5); kartta olup eşitlenmemiş oturum seçilemez, sebebi yazar | Kayıt görünümüyle aynı kural |
+| KR6 | **Şerit menüsünde Karşılaştırma artık görünür** (D1 "yazılmamış ekran şeritte yok" kuralının karşılığı); seçim yokken ekran Kayıtlar'a yönlendiren boş durum gösterir | Ölü bağlantı yok |
+| KR7 | **Dışa aktarma:** birleşik CSV (Excel-TR ve EN) — her kayıt için kendi x ve seçili kanal sütunları yan yana (zamanlar ortak değil, enterpolasyon YOK) | Uydurma veri yok; analiz Excel'de yapılabilir |
+| KR8 | Metinler `sozluk.js` (`kr.*`, TR + EN); WIG kuralları; telefonda (390 px) kullanılabilir | P7, WIG |
+
+### 3G uygulama kararları (KR1–KR8 dışında; uygulayan, kullanıcının devriyle)
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| KU1 | **Ekran `ekran/karsilastir.js`, ilk açılışta `import()`** (U1/E1 deseni); hesap kodu yeniden kullanılır: seriler ve K1 ekseni `kayit_gorunum.grafikSerileri`, okuma `okumaHesapla` (imlecOkuma + K3), mAh ekseni `pil.mahEkseni` (PU9), sayı/hücre `disari.sayiYaz`/`metinHucre`. Bütçe kuralı (B7): Kayıtlar zincirine YALNIZ `karsilastir.js` + `pil.js` ekler, ≤ 20 KB gzip (ölçülen 18.1 KB); açılış kümesi (≤ 8 dosya, ≤ 250 KB) değişmedi | KR1 gereği ekrana Kayıtlar'dan gelinir, zincirin geri kalanı zaten inmiştir. Doğrudan `#/karsilastir/…` ile açılış Kayıtlar açılışı kadar dosya ister (≈ 300 KB) — Kayıtlar'da da kural yok; "≤ 250 KB" açılış kümesi için |
+| KU2 | **Kip ve kanal adreste sorgu olarak** (`?x=saat&k=I`; varsayılan `baslangic`/`V` yazılmaz), değişince `history.replaceState` | Adres paylaşılınca aynı görünüm (WIG); kip değişimi geçmişe girdi eklerse geri tuşu ekrandan çıkamazdı |
+| KU3 | **Renk tarifi `KR_RENKLER`:** 1–3. kayıt `--volt` / `--amper` / `--watt` düz; 4–6. kayıt `--volt`→`--yazi` %50, `--amper`→`--yazi` %35, `--vurgu`→`--kart` %35 karışımı **ve kesik çizgi** ([7, 4]; imleç B'ninkinden ayrı). Yeni belirteç tanımlanmadı. Renk **seçim sırasına** bağlı (bir kayıt bir kipte dışarıda kalınca diğerlerinin rengi kaymaz). grafik.js'e `seri.desen` seçeneği eklendi (B73) | Koyu takım 3A öncesine kilitli (B7) — yeni token konamaz. Altı ayrık renk tek başına renk körlüğünde yetmiyordu (aranan en iyi altılının Machado 2009 benzetiminde en kötü çifti ΔE 10.8); renk + desen ile aynı desenli her çift ΔE ≥ 16.8 (B7 üç görünümde, protan/deutan/tritan ölçer), kart zeminine ≥ 3.31:1 |
+| KU4 | **İmleç bir kaydın aralığının dışındaysa o kaydın değeri "—"**; Δ, ort, mAh, Wh yalnız iki imleç de kaydın içindeyse | En yakın örneğe yapışmak kısa kayda uydurma değer yazdırırdı (B imleci 42 s'de, kayıt 41.5 s'de bitiyor) |
+| KU5 | **Kayıtlar'ın "Karşılaştır" bağlantısı kimliği HER ZAMAN yazar**; elle yazılmış `@kimlik`siz adreste oturumu taşıyan EN YENİ akış (3E S4). Bağlantı en az 2 seçimde etkin; seçim kutusu satır bağlantısının DIŞINDA (iç içe etkileşimli öğe yok), seçilemeyenin kutusu kapalı ve sebebi etiketinde (KR5: yalnız kartta · osiloskop günlüğü · noktasız kopya · 6 dolu) | Eski kart kopyasında aynı numaralı başka oturum açılmasın; WIG |
+| KU6 | **Saat kipinde** her noktanın saati bilinmeli: hiç yoksa "saat yok", kısmen yoksa "N / M noktanın saati bilinmiyor", saat geri gidiyorsa "geri gitti" — üçü de dışarıda. Eksen çizgileri ilk anın yerel gece yarısından (yuvarlak saatlere oturur), yazı yerel SS:DD[:SN] | Zaman uydurulmaz (K1 ilkesi); grafik.js azalmayan x ister |
+| KU7 | **mAh kipinde x = `mahEkseni(K1 ekseni, I ort, nokta boşluğu)`**; DEVAM'lı pil kaydı K1'in tahmini boşluğu yüzünden "boşluk" sebebiyle dışarıda. Lejantta eksen sonu yazılır | PU9 aynen; pil oturumu yeniden başlamada kapanır (1C-1), DEVAM görülmez — görülürse integral uydurulmaz |
+| KU8 | **Karşılaştırmada min/maks zarfı YOK**, her kayıt tek çizgi (ortalama ya da ayrıntılı örnek); Ö1 piramidi sıçramayı yine gösterir | Altı kayıt × üç çizgi okunmaz; zarf kayıt görünümünde |
+| KU9 | **Birleşik CSV:** başlık `kayit<no>_<x>` / `kayit<no>_<kanal>` (EN `rec…`; x `gecen_ms` 3 ondalık · `unix_s` 3 · `yuk_mAh` 6; kanal disari.js adları: nokta `v_ort_V`…, ayrıntılı `v_V`…), aynı numara iki akıştan seçilmişse `@kimlik`; yalnız o kipte ÇİZİLEN kayıtlar; satır j = her kaydın j. örneği, kısa kayıt BOŞ hücre | KR7; dışarıda kalan kaydın sütunu olsaydı ya boş ya uydurma olurdu |
+| KU10 | `KR_AZAMI` ve adres yazıcısı `kayitlar.js`'te (seçim orada), çözücü `karsilastir.js`'te; B7 ikisinin birbirinin tersi olduğunu 200 rastgele seçimle sınar | Tek kaynak; karşılaştırma modülü Kayıtlar açılışına yük olmasın |
+
 ## Doğrulama
 
 B7 (`test_arayuz3.js`) ve B22 tarayıcı denetimleri genişler; her dilimde başsız tarayıcı (Edge) ile

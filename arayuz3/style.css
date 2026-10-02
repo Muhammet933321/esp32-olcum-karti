@@ -1187,3 +1187,66 @@ canvas.pil-grafik { -webkit-user-select: none; user-select: none; }
   .icerik { max-width: none; padding: 0; }
   .kart { box-shadow: none; break-inside: avoid; }
 }
+
+/* ═══════════════════════════════════════════════════════ 3G — KARŞILAŞTIRMA
+   KR1 seçim kutusu Kayıtlar satırının SOLUNDA (bağlantının dışında: iç içe
+   etkileşimli öğe yok). KR2 çizgi renkleri tuvalde ve lejantta TEMA
+   BELİRTEÇLERİNDEN türetiliyor (ekran/karsilastir.js KR_RENKLER) — burada
+   da renk YALNIZ belirteçten, B7 sınıyor. KR8: 390 px'te taşma yok (lejant
+   sarar, okuma tablosu kendi kutusunda kayar). */
+.kl-karsilastir {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px;
+}
+.kl-secim-bilgi { font-size: 13px; color: var(--soluk); min-width: 0; overflow-wrap: anywhere; }
+a.kl-karsilastir-git {
+  display: inline-flex; align-items: center; padding: 8px 14px; border-radius: var(--yuvarlak-sm);
+  background: var(--vurgu); border: 1px solid var(--vurgu); color: var(--vurgu-yazi);
+  font-weight: 600; text-decoration: none;
+}
+a.kl-karsilastir-git:hover { filter: brightness(1.1); }
+a.kl-karsilastir-git:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 2px; }
+.kl-satir-sarmal { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.kl-satir-sarmal > .kl-satir { flex: 1 1 auto; min-width: 0; }
+.kl-sec {
+  display: flex; align-items: center; justify-content: center; flex: 0 0 34px;
+  border-radius: var(--yuvarlak-sm); border: 1px solid var(--kenar-c); background: var(--zemin-2);
+  cursor: pointer;
+}
+.kl-sec input { accent-color: var(--vurgu); width: 18px; height: 18px; margin: 0; cursor: pointer; }
+.kl-sec input:disabled { cursor: not-allowed; opacity: .45; }
+.kl-sec:has(input:focus-visible) { outline: 2px solid var(--vurgu); outline-offset: 1px; }
+
+.kr-git { font-weight: 600; }
+.kr-denetim { display: flex; gap: 10px 16px; flex-wrap: wrap; align-items: center; margin: 4px 0 12px; }
+.kr-denetim label {
+  display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  font-size: 13px; color: var(--soluk); min-width: 0;
+}
+.kr-lejant { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.kr-lejant-oge {
+  display: flex; align-items: baseline; gap: 2px 10px; flex-wrap: wrap;
+  font-size: 13px; min-width: 0;
+}
+.kr-ornek { width: 30px; height: 8px; flex: 0 0 auto; align-self: center; }
+.kr-lejant-ad { font-weight: 600; color: var(--yazi); overflow-wrap: anywhere; min-width: 0; }
+.kr-lejant-tur {
+  font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--cok-soluk);
+}
+.kr-lejant-not { font-size: 12.5px; color: var(--soluk); overflow-wrap: anywhere; min-width: 0; }
+.kr-lejant-not.kr-disari { color: var(--uyari); }
+.kr-lejant-oge:not([data-durum="ici"]) .kr-ornek { opacity: .35; }
+canvas.kr-grafik { height: 340px; cursor: crosshair; -webkit-user-select: none; user-select: none; }
+canvas.kr-grafik:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 2px; }
+.kr-imlecler {
+  margin: 0 0 8px; font-family: var(--mono); font-size: 12.5px; color: var(--yazi);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.kr-tablo th[scope="row"] {
+  font-family: var(--govde); font-size: 12.5px; font-weight: 600; letter-spacing: 0;
+  color: var(--yazi); white-space: normal; min-width: 130px; overflow-wrap: anywhere;
+}
+.kr-tablo th[scope="row"] .kr-ornek { display: inline-block; vertical-align: middle; margin-right: 4px; }
+@media (max-width: 620px) {
+  canvas.kr-grafik { height: 260px; }
+  .kl-sec { flex-basis: 30px; }
+}

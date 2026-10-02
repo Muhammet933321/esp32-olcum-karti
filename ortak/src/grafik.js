@@ -61,7 +61,8 @@
  * ── SERİ ──────────────────────────────────────────────────────────────────
  * { ad, t: Float64Array (ms, azalmayan, sonlu), y: Float64Array (NaN = eksik),
  *   birim?: 'V'|'A'|'W'|…, renk?: CSS değişkeni adı ('volt' → --volt),
- *   eksen?: 'sol'|'sag', boslukMs?, enAzAralik?, kalinlik?, gizli?, oz? (ozetKur sonucu) }
+ *   eksen?: 'sol'|'sag', boslukMs?, enAzAralik?, kalinlik?, gizli?, oz? (ozetKur sonucu),
+ *   desen?: number[] (kesik çizgi, ctx.setLineDash; 3G — renk körlüğüne karşı ikinci ayırt edici) }
  */
 
 import { altSinir, ustSinir, ozetKur, ozetPencere } from './ozet.js';
@@ -463,6 +464,7 @@ export function cizimPlani(seriler, durum, boyut, secenek = {}) {
     const ty = yCevirici(alan, p.eksenler[eksen]);
     kanallar.push({ ad: s.ad, kip: q.tur, duzey: q.tur === 'ozet' ? q.duzey : 0, eksen });
     const ozellik = { renk: s.renk || 'volt', kalinlik: s.kalinlik ?? (gezgin ? 1 : 1.5), kanal: k };
+    if (Array.isArray(s.desen) && s.desen.length) ozellik.desen = s.desen; // 3G: renge ek ayirt edici (KR2)
     const ciz = new CizgiYapici(komutlar, alan, ozellik, q.tur === 'ham');
     if (q.tur === 'ham') {
       const bolumler = q.bolumler ?? [[q.i0, q.i1]];

@@ -226,6 +226,20 @@ test("3F: pil ekraninin (app.js + ekran/pil.js) kullandigi HER pl. anahtari sozl
   assert.match(SOZLUK["kb.pil_alt"].en, /curve/);
 });
 
+/* 3G: Karsilastirma (ekran/karsilastir.js KR_METIN + sebep anahtarlari; Kayitlar'daki secim, kayitlar.js KL_KR_METIN) */
+test("3G: karsilastirmanin (ekran/karsilastir.js + kayitlar.js) kullandigi HER kr. anahtari sozlukte (ters yon)", () => {
+  if (!EKRANLAR.length) return;
+  const { literal } = dizgeler(EKRANLAR.map(oku).join("\n"));
+  const kullanilan = [...literal].filter((s) => /^kr\.[a-z0-9_]+$/.test(s));
+  assert.ok(kullanilan.length >= 50, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
+  assert.deepEqual(kullanilan.filter((a) => !(a in SOZLUK)), []);
+  const aile = Object.keys(SOZLUK).filter((a) => /^kr\./.test(a));
+  assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup panelde kullanilmayan kr. anahtari");
+  /* KR3: disarida kalma sebepleri kullaniciya "dışarıda" der; CSV oneki iki dilde ASCII */
+  assert.match(SOZLUK["kr.disari"].tr, /dışarıda/);
+  assert.match(SOZLUK["kr.csv_onek"].tr + SOZLUK["kr.csv_onek"].en, /^[a-z]+$/);
+});
+
 test("yer tutucular iki dilde ayni", () => {
   const yer = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(",");
   for (const [a, g] of Object.entries(SOZLUK)) assert.equal(yer(g.tr), yer(g.en), a);

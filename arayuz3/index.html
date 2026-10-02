@@ -1365,6 +1365,15 @@
                     :etkin="gorunum === 'kayitlar'"></kayitlar-ekran>
   </main><!-- /kayitlar -->
 
+  <!-- ═════════════════════════════════════════════ #/karsilastir (3G)
+       Çok kayıt tek grafikte (KR1–KR8): seçim Kayıtlar listesinden,
+       #/karsilastir/<no>@<kimlik>,… ; veri YALNIZ bu tarayıcının kopyasından
+       (KR5). Ekran modülü İLK açılışta iner (app.js defineAsyncComponent). -->
+  <main class="gorunum" v-show="gorunum === 'karsilastir'">
+    <karsilastir-ekran v-if="karsilastirAcik" :kart-adres="kartAdres"
+                       :etkin="gorunum === 'karsilastir'"></karsilastir-ekran>
+  </main><!-- /karsilastir -->
+
   <!-- ═════════════════════════════════════════════ #/konsol -->
   <main class="gorunum" v-show="gorunum === 'konsol'">
 

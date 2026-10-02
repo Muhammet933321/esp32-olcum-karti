@@ -68,7 +68,7 @@ ATLA_DOSYA = {"DEVIR.md"}
 # `betik` mutasyondan SONRA kosturulan sey. Beklenen sonuc: KIRMIZI
 # (sifirdan farkli cikis) ya da IDDIA SAYISI degisimi.
 # Tam zinciri kosturan mutasyonlar (~6 dk): yalnizca --adim ile.
-AGIR = {"B3", "B23", "T3A", "T3C", "T3D", "T3E", "T3F", "TTR"}  # T3A/T3C/T3D/T3E/T3F: basliksiz Edge (tarayici_tema.py, tarayici_kayitlar.py, tarayici_canli.py, tarayici_skop.py, tarayici_pil.py)
+AGIR = {"B3", "B23", "T3A", "T3C", "T3D", "T3E", "T3F", "T3G", "TTR"}  # T3A/T3C/T3D/T3E/T3F/T3G: basliksiz Edge (tarayici_tema.py, tarayici_kayitlar.py, tarayici_canli.py, tarayici_skop.py, tarayici_pil.py, tarayici_karsilastir.py)
 
 MUTASYONLAR = [
     # ── B50 · kutu / panel plani (kutu.py) — B50g'de yeniden yazildi
@@ -3759,8 +3759,8 @@ MUTASYONLAR = [
      '"vendor/vue.global.prod.js": 158361',
      '3D: acilis kumesi 250 KB gzip butcesini asar (karar: acilista inenler <= 250 KB)'),
     ('B7', 'test_arayuz3.js', 'uretim/_fs.json',
-     '"ortak/grafik.js": 17204',
-     '"ortak/grafik.js": 117204',
+     '"ortak/grafik.js": 17309',
+     '"ortak/grafik.js": 117309',
      "3D: Canli grafik zinciri ile acilis 250 KB'i asar (Canli varsayilan ekran)"),
     ('B7', 'test_arayuz3.js', 'arayuz3/ekran/canli.js',
      "import { Grafik, cssRenk } from '/ortak/grafik.js';",
@@ -4125,6 +4125,29 @@ MUTASYONLAR = [
     ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "      if (!this._pilMod || this.pilCalisiyor || this.pilBayat || !this.pilOturum || this.gorunum !== 'pil') return;", "      if (!this._pilMod || this.pilCalisiyor || !this.pilOturum || this.gorunum !== 'pil') return;", '3F: yenilemede durum bilinmeden SUREN testin yarim kaydi "bitmis testin kaynagi" olarak acilir (PU11)'),
     ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "        /* test (yeniden) suruyor: kayit kaynagi canli kopyaya doner, bitince yeniden acilir */\n        this.pilKayitOzet = null;", "        /* test (yeniden) suruyor: kayit kaynagi canli kopyaya doner, bitince yeniden acilir */", '3F: test yeniden baslayinca egri / DCIR tablosu ONCEKI testin kaydindan kalir (PU11)'),
     ('T3F', 'tarayici_pil.py', 'arayuz3/app.js', "      if (o.tur === 'bitti') { this.pilMah = o.mah; this.pilWh = o.wh; this.pilHata = '-'; this.pilDurumAyarla('BITTI'); return; }", '', '3F: kartin BITTI satiri yok sayilir — acil serit kalir, yoklama durmaz (PL4)'),
+    # ── 3G · Karsilastirma (B7 bolum 29, B73 grafik/sozluk, T3G tarayici_karsilastir.py)
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "  if (/^karsilastir(?:[/?]|$)/.test(h)) return 'karsilastir';\n", '', "3G: #/karsilastir/<secim> adresi Karsilastirma'yi acmaz, varsayilana duser (KR1)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "      if (v === 'karsilastir') this.karsilastirAcik = true;   // 3G: modul ilk acilista\n", '', '3G: Karsilastirma sekmesi acilinca ekran HIC kurulmaz (bos sayfa)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "  { id: 'karsilastir', ad: 'kb.karsilastir', alt: 'kb.karsilastir_alt',\n    ikon: 'M3 20h18M3 16l5-7 4 4 4-8 5 6M3 11l5 3 4-5 4 3 5-6' },\n", '', '3G: Karsilastirma seritte yok — yazilmis ekrana ulasilamaz (KR6)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/kayitlar.js', "  if (!satir || !satir.yerelde) return { uygun: false, sebep: 'kr.sec_kartta' };\n", '', '3G: yalniz kartta olan (esitlenmemis) oturum karsilastirmaya secilebilir (KR5)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/kayitlar.js', "  if (!seciliMi && adet >= KR_AZAMI) return { uygun: false, sebep: 'kr.sec_dolu' };\n", '', '3G: 6 kayittan fazlasi secilebilir (KR1)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/kayitlar.js', 'return karsilastirRotaYaz({ secim: this.secim.map((x) => ({ oturum: x.oturum, kimlik: x.kimlik })) });', 'return karsilastirRotaYaz({ secim: this.secim.map((x) => ({ oturum: x.oturum, kimlik: null })) });', '3G: Karsilastir adresi kimliksiz — eski kart kopyasinda yanlis oturum acilir (3E S4)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/karsilastir.js', '    if (r.secim.length >= KR_AZAMI) {\n', '    if (false) {\n', '3G: adresteki 6`dan fazla kayit kesilmez (KR1)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/karsilastir.js', "    if (bilinen < n) return { sebep: 'kr.disari_saat_kismi', d: { eksik: n - bilinen, toplam: n } };\n", '', '3G: kismen saatli kayit saat ekseninde cizilir — saati olmayan noktalar NaN x (KR3)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/karsilastir.js', "    if (tur !== 'pil' || h.tur !== 'nokta') return { sebep: 'kr.disari_pil_degil', d: {} };", "    if (h.tur !== 'nokta') return { sebep: 'kr.disari_pil_degil', d: {} };", '3G: olcum kaydi da mAh ekseninde cizilir (KR3: yalniz pil)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/karsilastir.js', '  const ic = (t) => n > 0 && Number.isFinite(t) && t >= x[0] && t <= x[n - 1];', '  const ic = (t) => n > 0 && Number.isFinite(t);', '3G: imlec kaydin disindayken son ornege yapisir — kisa kayit uydurma deger gosterir (KU4)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/karsilastir.js', "    if (kip !== 'mah' && ok.enerji) {", '    if (ok.enerji) {', '3G: mAh kipinde x ekseni (mAh) ms sanilip mAh/Wh hesaplanir (KR4)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/karsilastir.js', "      else h.push('', '');", '      else h.push(xYaz(g.x[g.x.length - 1]), sayiYaz(g.y[g.y.length - 1], k.basamak, b.ondalik));', '3G: kisa kaydin CSV sutunu son degerle doldurulur — uydurma veri (KR7)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/karsilastir.js', "  Object.freeze({ belirtec: 'vurgu', kutup: 'kart', oran: 0.35, desen: KR_DESEN }),", "  Object.freeze({ belirtec: 'vurgu', kutup: 'kart', oran: 0.35, desen: null }),", '3G: 6. kayit duz cizgi — renk korlugunde ayni desenli cizgiler karisir (KR2)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/karsilastir.js', '        kayitlar: this._cizilen.map(({ g, ks }) => ({ anahtar: g.anahtar, no: g.no, ...kayitOkuma(ks, tA, tB, { kip, kanal }) })),', '        kayitlar: this._cizilen.map(({ g }) => ({ anahtar: g.anahtar, no: g.no, ...kayitOkuma(this._cizilen[0].ks, tA, tB, { kip, kanal }) })),', '3G: okuma her satirda ILK kaydin degeri — kayit basina degil (KR4)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/karsilastir.js', "      try { history.replaceState(null, '', karsilastirRotaYaz(yeni)); } catch (e) { /* file:// */ }", "      try { history.pushState(null, '', karsilastirRotaYaz(yeni)); } catch (e) { /* file:// */ }", '3G: her kip/kanal degisimi gecmise girdi ekler — geri tusu ekrandan cikmaz (KU2)'),
+    ('B73', 'test_ortak.py', 'ortak/src/grafik.js', '    if (Array.isArray(s.desen) && s.desen.length) ozellik.desen = s.desen; // 3G: renge ek ayirt edici (KR2)\n', '', '3G: seri deseni cizime gecmez — kesik cizgi tuvalde yok (KR2)'),
+    ('B73', 'test_ortak.py', 'ortak/src/sozluk.js', '  "kr.disari_saatsiz": S(', '  "kr.disari_saatsizx": S(', '3G: karsilastirmanin kullandigi anahtar sozlukte yok — lejantta ham anahtar yazar (KR8)'),
+    ('T3G', 'tarayici_karsilastir.py', 'arayuz3/ekran/karsilastir.js', '    this._gozcu = new MutationObserver(() => { this.renklerOku(); this.ciz(); });', '    this._gozcu = new MutationObserver(() => {});', '3G: gorunum degisince karsilastirma tuvali eski renklerle kalir (KR2)'),
+    ('T3G', 'tarayici_karsilastir.py', 'arayuz3/ekran/karsilastir.js', "            l.not = ceviri('kr.disari', this.dil, { sebep: ceviri(c.ks.sebep, this.dil, c.ks.d) });", "            l.not = '';", '3G: disarida kalan kaydin sebebi lejantta yazmaz (KR3)'),
+    ('T3G', 'tarayici_karsilastir.py', 'arayuz3/ekran/karsilastir.js', '        return m ? krRenk(Number(m[1]), cs) : cs(ad);', "        return m ? cs('volt') : cs(ad);", '3G: butun kayitlar tuvalde ayni renkte (KR2)'),
+    ('T3G', 'tarayici_karsilastir.py', 'arayuz3/ekran/karsilastir.js', '      this.rota = karsilastirRotaCoz(location.hash);\n      this.yukle();\n    };', '      this.yukle();\n    };', "3G: Kayitlar'daki 'Karsilastir' baglantisi ekrani acar ama secimi YUKLEMEZ (KR1)"),
+    ('T3G', 'tarayici_karsilastir.py', 'arayuz3/style.css', '.kl-satir-sarmal > .kl-satir { flex: 1 1 auto; min-width: 0; }', '.kl-satir-sarmal > .kl-satir { flex: 1 0 auto; min-width: 420px; }', '3G: secim kutulu Kayitlar satiri 390 px telefonda yatay tasar (KR8)'),
 ]
 
 
