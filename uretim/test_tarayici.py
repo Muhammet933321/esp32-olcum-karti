@@ -108,7 +108,7 @@ def main() -> int:
 
     # 5: sayfa ARKA SEKMEYE DUSMEZ (3D-FIX, 2026-10-02). Taze profilli Edge Windows
     # hesabiyla kendiliginden oturum acip SENKRONIZE ediyordu; senkron eklentileri
-    # (Teleparty, AdGuard) acilistan ~7.5–10 s sonra kendi sekmelerini acti, test sayfasi
+    # acilistan ~7.5–10 s sonra kendi sekmelerini acti, test sayfasi
     # gizlendi (visibilityState 'hidden'), rAF durdu ve kareye hizalanan CDP mouseWheel
     # HIC yanit vermedi -> T3D'nin D3 tekerlegi 30 s'de dustu. 15 s yetiyor.
     t = T.Tarayici()
