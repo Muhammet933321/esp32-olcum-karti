@@ -162,12 +162,17 @@ def akis_coz(veri: bytes) -> list[Kayit]:
 def flas_coz(veri: bytes, sektor: int) -> tuple[list[Kayit], int]:
     """Flas goruntusu. Her sektor bastan; ilk gecersiz kayitta o sektor
     biter (kg_ac ile ayni kural). Donus: (sira ile sirali kayitlar,
-    cop/yarim gorulen sektor sayisi)."""
+    cop/yarim gorulen sektor sayisi).
+    S6: goruntu tam sektor olmak zorunda DEGIL (yarim dokum). Son sektor
+    goruntunun sonunda biter: < 16 B kalan kuyruk (yarim baslik) sektor
+    sonundaki < 16 B gibi BOS sayilir (bozuk degil); basligi tam ama yuku
+    goruntuden tasan kayit yarim kayittir (bozuk +1). Cokmez."""
     kayitlar, bozuk = [], 0
     for s in range(0, len(veri), sektor):
         a, son_sira = s, 0
+        son = min(s + sektor, len(veri))
         while True:
-            d, k = _kayit_oku(veri, a, s + sektor)
+            d, k = _kayit_oku(veri, a, son)
             if d == 1 and k.sira <= son_sira:
                 d = -1
             if d != 1:
@@ -277,18 +282,20 @@ def basla_coz(y: bytes) -> Basla:
                  kal_coz(y, _BASLA_BAS.size), bs, kal_no)
 
 
+# S5: DEVAM/BITIR/SAAT yuku bilinen boydan UZUNSA on ek cozulur (yeni firmware alan
+# ekleyebilir — ileri uyumluluk); KISAYSA struct.error (oturumlari_kur onu atlar + uyarir).
 def devam_coz(y: bytes) -> dict:
-    a, u, k, n = _DEVAM.unpack(y)
+    a, u, k, n = _DEVAM.unpack_from(y)
     return {"acilis": a, "unix_s": u, "kart_ms": k, "nokta_sira": n}
 
 
 def bitir_coz(y: bytes) -> dict:
-    n, s = _BITIR.unpack(y)
+    n, s = _BITIR.unpack_from(y)
     return {"nokta_adedi": n, "sebep": s}
 
 
 def saat_coz(y: bytes) -> dict:
-    u, k, a = _SAAT.unpack(y)
+    u, k, a = _SAAT.unpack_from(y)
     return {"unix_s": u, "kart_ms": k, "acilis": a}
 
 
@@ -431,7 +438,11 @@ def volt(kod: float, k: Kanal) -> float:
 
 
 def amper(kod: float, kal: Kalibrasyon) -> float:
-    """olc_akim3 (olcum3.h) ile ayni formul, float64."""
+    """olc_akim3 (olcum3.h) ile ayni formul, float64.
+    S6: sont_ohm 0 (ya da -0; bozuk/eksik kalibrasyon) -> NaN: akim BILINMIYOR.
+    ZeroDivisionError YOK (tek bozuk kalibrasyon butun disari aktarimi dusurmesin)."""
+    if kal.sont_ohm == 0:
+        return float("nan")
     d = kod - kal.i_ofset
     if isinstance(kod, int):
         d = _kirp(d)
@@ -486,8 +497,33 @@ def _not_uygula(o: Oturum, k: Kayit) -> None:
             o.notlar[k.sira] = {"nokta_ms": n["nokta_ms"], "metin": n["metin"]}
 
 
-def oturumlari_kur(kayitlar: list[Kayit]) -> dict[int, Oturum]:
-    ot: dict[int, Oturum] = {}
+# S5: bilinen kayit turunun EN KISA gecerli yuku (bayt). Daha uzun yuk: bilinen on ek
+# cozulur (BASLA 98..101 = surum 1, >= 102 = surum 2 + fazlasi; NOKTA'da yarim nokta,
+# AYRINTI/SKOP'ta adet'i asan kuyruk, OLAY'da govdeyi asan bayt yok sayilir). Daha kisa:
+# kayit ATLANIR, oturum ACMAZ, Oturumlar.uyarilar'a girer. Tabloda olmayan (bilinmeyen)
+# tur sessizce yok sayilir ve o da oturum ACMAZ (S6).
+_EN_AZ = {T_BASLA: BASLA_V1_BAYT, T_TEKRAR: BASLA_V1_BAYT, T_NOKTA: 4,
+          T_DEVAM: _DEVAM.size, T_BITIR: _BITIR.size, T_SAAT: _SAAT.size,
+          T_OLAY: _OLAY_BAS.size, T_NOT: _NOT_BAS.size,
+          T_AYRINTI: _AYRINTI_BAS.size, T_SKOP: _SKOP_BAS.size}
+assert list(_EN_AZ.values()) == [98, 98, 4, 16, 8, 12, 8, 16, 16, 12]
+
+
+class Oturumlar(dict):
+    """oturumlari_kur donusu: {oturum id: Oturum}, oturumun ilk VERI kaydinin
+    sirasiyla. `uyarilar`: yuku turunun en kisa boyundan (`_EN_AZ`) KISA oldugu icin
+    ATLANAN kayitlar, kayit sirasiyla: {"sira", "tur", "oturum" (baslik), "bayt"
+    (yuk boyu), "en_az"}. Bos liste = hepsi cozuldu. JS: Map + sayilamaz `uyarilar`."""
+
+    def __init__(self):
+        super().__init__()
+        self.uyarilar: list[dict] = []
+
+
+def oturumlari_kur(kayitlar: list[Kayit]) -> Oturumlar:
+    """Kayitlardan oturumlar. CRC'si gecerli her kayitta COKMEZ (S5): boyu yanlis
+    kayit atlanir + uyari (`Oturumlar.uyarilar`), uzun kayidin on eki cozulur."""
+    ot = Oturumlar()
     # 1C-3: yakalama KAYIT SIRASIYLA kurulur. `no` bir oturumda tekrarlanabilir
     # (Gtd + yeniden Gt, DEVAM'dan sonra Gt): 0. parca yeni yakalama acar; sonraki
     # parca yalniz HEMEN onceki acik yakalamaya (ayni no/toplam, ilk kesintisiz)
@@ -497,6 +533,13 @@ def oturumlari_kur(kayitlar: list[Kayit]) -> dict[int, Oturum]:
     for k in sorted(kayitlar, key=lambda x: x.sira):
         if k.oturum and k.tur not in (T_SKOP, T_TEKRAR):
             acik.pop(k.oturum, None)
+        en_az = _EN_AZ.get(k.tur)
+        if en_az is None:
+            continue                    # bilinmeyen tur: yok sayilir, oturum ACMAZ (S6)
+        if len(k.yuk) < en_az:          # S5: kisa kayit cozulemez — atla, oturum ACMA, uyar
+            ot.uyarilar.append({"sira": k.sira, "tur": k.tur, "oturum": k.oturum,
+                                "bayt": len(k.yuk), "en_az": en_az})
+            continue
         if k.tur == T_NOT and len(k.yuk) >= _NOT_BAS.size:
             h = struct.unpack_from("<I", k.yuk)[0]     # baslikta oturum 0; hedef yukte
             if h:

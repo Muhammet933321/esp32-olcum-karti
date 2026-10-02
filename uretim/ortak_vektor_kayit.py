@@ -12,6 +12,10 @@ Kapsam: her kayit turu (BASLA v1/v2, NOKTA, DEVAM, BITIR, SAAT, TEKRAR, OLAY'in 
 NOT + degistirir, AYRINTI + bosluklar/sarma/esit yuvarlama, SKOP + META), coklu oturum,
 ortada bozuk CRC, kesik kuyruk, bilinmeyen tur, sektorlu flas goruntusu, her *_coz'un
 sinir uzunluklari (Python'un REDDETTIGI girdiler dahil), paketleyiciler, volt/amper.
+Saglamlik (S5/S6): her turun bilinen boydan UZUN kaydi (on ek), en kisa boydan KISA kaydi
+(atlanir + `oturumlari_kur_uyarilar`), oturum numarali bilinmeyen tur (oturum acmaz), tam
+sektor olmayan flas goruntusu, sont_ohm 0 -> NaN. `kurallar()` bu kurallari Python
+basvurusunda ayrica ASSERT eder (vektor yalniz "ayni" der, kural "dogru" der).
 
 JSON: float repr ile (JS ayni double'i okur); NaN/sonsuz {"$f": ...}, bayt {"$b": hex},
 int anahtarli sozluk {"$map": [[k, v], ...]} (sira korunur), Python istisnasi {"hata": ad}.
@@ -437,8 +441,8 @@ def akis_coklu() -> tuple[str, bytes]:
     a.k(KB.T_SAAT, 0, struct.pack("<III", 1, 2, 3), sira=18)              # oturum 0: atlanir
     a.k(KB.T_OLAY, 0, KB.olay_paketle(olay_r(r, KB.KO_PLAN, 1)), sira=19)
     a.k(42, 11, r.bayt(7), sira=20)                                      # bilinmeyen tur
-    a.k(43, 13, r.bayt(3), sira=21)                                      # bilinmeyen: bos oturum
-    a.k(KB.T_NOT, 14, r.bayt(10), sira=22)                               # kisa NOT, baslikta oturum
+    a.k(43, 13, r.bayt(3), sira=21)                                      # bilinmeyen: 13 ACILMAZ (S6)
+    a.k(KB.T_NOT, 14, r.bayt(10), sira=22)                               # kisa NOT: uyari, 14 ACILMAZ
     a.k(KB.T_NOT, 0, not_yuk(15, KB.KNT_AD, 0, 0, "yalniz NOT'la var"), sira=23)
     a.k(KB.T_NOT, 12, not_yuk(16, KB.KNT_NOT, 9, 0, "baslik oturumu 12, hedef 16"), sira=24)
     a.k(KB.T_NOKTA, 12, nokta_yuk(0, [nokta_r(r, 8)]), sira=25)
@@ -573,7 +577,8 @@ def akis_bozuklar() -> list[tuple[str, bytes]]:
         ("dolgu_baytlari_dolu", on + boz(kayit(tur=77, yuk=b"\x01\x02\x03"), 19, 0x55) + sonra()),
         ("bilinmeyen_turler", on + kayit(tur=11) + kayit(tur=200, sira=51)
          + kayit(tur=254, sira=52, oturum=0) + sonra()),
-        # Python oturumlari_kur bunlarda struct.error verir (gecerli CRC, yanlis uzunluk)
+        # gecerli CRC, yanlis uzunluk. S5 oncesi oturumlari_kur bunlarda struct.error
+        # veriyordu; simdi kisa -> atla + uyari, uzun -> on ek
         ("kisa_basla", on + kayit(tur=KB.T_BASLA, yuk=r.bayt(50))),
         ("kisa_tekrar", on + kayit(tur=KB.T_TEKRAR, yuk=r.bayt(97))),      # BASLA var: cozulmez
         ("kisa_tekrar_yeni_oturum", on + kayit(tur=KB.T_TEKRAR, oturum=2, yuk=r.bayt(97))),
@@ -584,6 +589,73 @@ def akis_bozuklar() -> list[tuple[str, bytes]]:
         ("nokta_yarim", on + kayit(tur=KB.T_NOKTA, yuk=struct.pack("<I", 9) + r.bayt(40))),
     ]
     return out
+
+
+# S5: turun en kisa gecerli yuku — kayit_bicim.h'den BAGIMSIZ yazildi (KB._EN_AZ'dan
+# okunmaz: tablo kayarsa vektor de kaysin, kural iddiasi kirmizi olsun)
+EN_AZ_BAGIMSIZ = [(KB.T_BASLA, 98), (KB.T_TEKRAR, 98), (KB.T_NOKTA, 4), (KB.T_DEVAM, 16),
+                  (KB.T_BITIR, 8), (KB.T_SAAT, 12), (KB.T_OLAY, 8), (KB.T_NOT, 16),
+                  (KB.T_AYRINTI, 16), (KB.T_SKOP, 12)]
+
+
+def akis_uzun_kayitlar() -> tuple[str, bytes]:
+    """S5: her sabit boylu tur bilinen boydan UZUN (yeni firmware alan eklemis olabilir):
+    bilinen on ek cozulur, fazlasi yok sayilir, uyari YOK."""
+    r = Rng(0x2A12)
+    a = Akis()
+    o = 60
+    a.k(KB.T_BASLA, o, KB.basla_paketle(basla_r(r, KB.OTURUM_OLCUM, 100, kal_no=5)) + r.bayt(9))
+    a.k(KB.T_TEKRAR, o, KB.basla_paketle(basla_r(r, KB.OTURUM_OLCUM, 100)) + r.bayt(1))
+    a.k(KB.T_SAAT, o, struct.pack("<III", 1_790_000_200, 70, 1) + r.bayt(4))
+    a.k(KB.T_NOKTA, o, nokta_yuk(0, [nokta_r(r, 1), nokta_r(r, 2)], kuyruk=r.bayt(35)))
+    for t in (KB.KO_PIL_AYAR, KB.KO_DCIR, KB.KO_PIL_SONUC, KB.KO_SKOP_KAL, KB.KO_PLAN):
+        a.k(KB.T_OLAY, o, KB.olay_paketle(olay_r(r, t, 90 + t)) + r.bayt(t + 3))
+    a.k(KB.T_NOT, 0, not_yuk(o, KB.KNT_AD, 0, 0, "uzun kayitlar"))
+    a.k(KB.T_DEVAM, o, struct.pack("<IIII", 2, 1_790_000_300, 80, 2) + r.bayt(12))
+    a.k(KB.T_AYRINTI, o, ayrinti_yuk(r, 0, 100, 100_000, 0, 3, kuyruk=r.bayt(11)))
+    a.k(KB.T_SKOP, o, skop_yuk(r, 1, 0, 6, 0, 3, kuyruk=r.bayt(5)))
+    a.k(KB.T_SKOP, o, skop_yuk(r, 1, 3, 6, 1, 3, kuyruk=r.bayt(1)))
+    a.k(KB.T_BITIR, o, struct.pack("<IB3x", 2, 1) + r.bayt(6))
+    # BASLA'si olmayan oturum: TEKRAR'dan bilgi; surum 1 + 3 B (101 B: kal_no YOK -> 0)
+    a.k(KB.T_TEKRAR, o + 1, basla_v1(basla_r(r, KB.OTURUM_PIL, 1000, kal_no=4)) + r.bayt(3))
+    a.k(KB.T_NOKTA, o + 1, nokta_yuk(0, [nokta_r(r, 3)]))
+    a.k(KB.T_TEKRAR, o + 2, KB.basla_paketle(basla_r(r, KB.OTURUM_SKOP, 7, kal_no=6)) + r.bayt(40))
+    return "uzun_kayitlar", bytes(a.b)
+
+
+def akis_kisa_kayitlar() -> tuple[str, bytes]:
+    """S5/S6: her bilinen tur en kisa boyundan 1 B (ve bazisi 0 B) KISA: kayit atlanir +
+    uyari (sirayla), YALNIZ kisa kaydi olan oturum (70..79) ACILMAZ, var olan oturum (69)
+    degismez; cokme yok. Baslik oturumu 0 olan kisa kayit da uyarir."""
+    r = Rng(0x2A13)
+    a = Akis()
+    a.k(KB.T_BASLA, 69, KB.basla_paketle(basla_r(r, KB.OTURUM_OLCUM, 100)))
+    for i, (tur, n) in enumerate(EN_AZ_BAGIMSIZ):
+        a.k(tur, 70 + i, r.bayt(n - 1))
+        a.k(tur, 69, r.bayt(n - 1))
+    a.k(KB.T_DEVAM, 69, b"")
+    a.k(KB.T_OLAY, 69, b"")
+    a.k(KB.T_SAAT, 0, r.bayt(11))
+    a.k(KB.T_NOT, 0, r.bayt(15))
+    a.k(KB.T_NOKTA, 69, nokta_yuk(0, [nokta_r(r, 5)]))
+    a.k(KB.T_BITIR, 69, struct.pack("<IB3x", 1, 1))
+    return "kisa_kayitlar", bytes(a.b)
+
+
+def akis_bilinmeyen_oturum() -> tuple[str, bytes]:
+    """S6: oturum numarali bilinmeyen tur oturum ACMAZ ve oturum SIRASINI etkilemez: 50'nin
+    ilk kaydi bilinmeyen tur ama ilk VERI kaydi 51'inkinden sonra -> sira [51, 50]; yalniz
+    bilinmeyen kaydi olan 52 yok."""
+    r = Rng(0x2A14)
+    a = Akis()
+    a.k(77, 50, r.bayt(20))
+    a.k(KB.T_BASLA, 51, KB.basla_paketle(basla_r(r, KB.OTURUM_OLCUM, 100)))
+    a.k(200, 52, b"")
+    a.k(11, 52, r.bayt(30))
+    a.k(KB.T_BASLA, 50, KB.basla_paketle(basla_r(r, KB.OTURUM_PIL, 1000)))
+    a.k(254, 51, r.bayt(3))
+    a.k(KB.T_BITIR, 51, struct.pack("<IB3x", 0, 1))
+    return "bilinmeyen_oturum", bytes(a.b)
 
 
 # ── flas goruntuleri ─────────────────────────────────────────────────
@@ -626,12 +698,25 @@ def flas_vektorleri() -> list[dict]:
          ("flas_bos", b"", S),
          ("flas_hepsi_ff", b"\xff" * (3 * S), S),
          ("flas_buyuk_sektor", tam, 4 * S)]
+    # S6: tam sektor olmayan goruntu (yarim dokum). < 16 B kuyruk BOS sayilir (cop olsa da),
+    # basligi tam / yuku eksik kayit yarim (bozuk +1)
+    v += [("flas_kuyruk_cop_8", s0 + devam(90) + bytes(0xA5 ^ i for i in range(8)), S),
+          ("flas_kuyruk_baslik_15", s0 + devam(91) + devam(92)[:15], S),
+          ("flas_kuyruk_yuk_eksik", s0 + devam(93) + devam(94)[:20], S),
+          ("flas_kuyruk_yalniz_baslik", s0 + devam(95) + devam(96)[:16], S),
+          ("flas_goruntu_baslik_kisa", devam(97)[:10], S),
+          ("flas_kuyruk_ikinci_sektor_ortasi", s0 + s4[:100], S)]
     out = []
     for ad, veri, sek in v:
         d = {"ad": ad, "veri": j(veri), "sektor": sek, "flas_coz": dene(KB.flas_coz, veri, sek)}
         if "hata" not in d["flas_coz"]:
-            d["oturumlari_kur"] = dene(lambda x: jot(KB.oturumlari_kur(x)),
-                                       KB.flas_coz(veri, sek)[0])
+            try:
+                ot = KB.oturumlari_kur(KB.flas_coz(veri, sek)[0])
+                d["oturumlari_kur"] = jot(ot)
+                if ot.uyarilar:
+                    d["oturumlari_kur_uyarilar"] = j(ot.uyarilar)
+            except Exception as e:  # noqa: BLE001
+                d["oturumlari_kur"] = hata(e)
         out.append(d)
     return out
 
@@ -653,6 +738,8 @@ def akis_vektoru(ad: str, veri: bytes) -> dict:
         d["oturumlari_kur"] = hata(e)
         return d
     d["oturumlari_kur"] = jot(ot)
+    if ot.uyarilar:                       # S5: yalniz doluysa (eski vektorler bayt bayt ayni)
+        d["oturumlari_kur_uyarilar"] = j(ot.uyarilar)
     d["ayrinti_ornekler"] = [[i, j(KB.ayrinti_ornekler(o))] for i, o in ot.items() if o.ayrinti]
     d["skop_ikili"] = [[i, s, j(KB.skop_ikili(y))] for i, o in ot.items()
                        for s, y in o.skoplar.items()]
@@ -789,6 +876,97 @@ def birimler() -> dict:
     return {"kallar": j(kallar), "vakalar": out}
 
 
+# ── S5/S6 kurallari: Python basvurusunda DOGRUDAN (vektor yalniz JS == Python der) ──
+def kurallar() -> list[str]:
+    """Bozulan her kural icin bir satir; bos liste = hepsi tutuyor."""
+    r = Rng(0x2A15)
+    hatalar: list[str] = []
+
+    def bak(ad: str, kosul: bool, ek: str = "") -> None:
+        if not kosul:
+            hatalar.append(f"{ad}{': ' + ek if ek else ''}")
+
+    def kur(*kayitlar):
+        try:
+            return KB.oturumlari_kur(list(kayitlar))
+        except Exception as e:  # noqa: BLE001
+            return e
+
+    def ayni(x, y) -> bool:
+        return (not isinstance(x, Exception) and not isinstance(y, Exception)
+                and tek(jot(x)) == tek(jot(y)))
+
+    K = KB.Kayit
+    o = 9
+    bas2 = KB.basla_paketle(basla_r(r, KB.OTURUM_OLCUM, 100, kal_no=3))
+    bas1 = basla_v1(basla_r(r, KB.OTURUM_PIL, 5))
+    tam = {   # tur -> bilinen boyda yuk(ler)
+        KB.T_BASLA: [bas2, bas1], KB.T_TEKRAR: [bas2, bas1],
+        KB.T_NOKTA: [nokta_yuk(0, [nokta_r(r, 1), nokta_r(r, 2)])],
+        KB.T_DEVAM: [struct.pack("<IIII", 2, 3, 4, 5)], KB.T_BITIR: [struct.pack("<IB3x", 6, 1)],
+        KB.T_SAAT: [struct.pack("<III", 7, 8, 9)],
+        KB.T_OLAY: [KB.olay_paketle(olay_r(r, t, 10)) for t in (1, 2, 3, 4, 5)],
+        KB.T_AYRINTI: [ayrinti_yuk(r, 0, 1, 1000, 0, 3)],
+        KB.T_SKOP: [skop_yuk(r, 1, 0, 4, 0, 4), skop_yuk(r, 1, 4, 8, 1, 4)],
+    }
+    # S5-1: UZUN kayit = bilinen on ek + fazlasi; sonuc ayni, uyari yok, cokme yok.
+    # Fazlalik < 36 (NOKTA'da 36 B yeni bir nokta olur); surum 1 BASLA'da < 4 (102 B'tan
+    # itibaren boy surum 2 der: kal_no okunur — boya gore surum karari)
+    for tur, yukler in tam.items():
+        for y in yukler:
+            for ek in ((1, 3) if y is bas1 else (1, 3, 4, 35)):
+                a, b = kur(K(tur, 1, o, y)), kur(K(tur, 1, o, y + r.bayt(ek)))
+                bak(f"S5 uzun tur {tur} (+{ek} B) on eki cozulmedi", ayni(a, b)
+                    and not b.uyarilar and o in b, repr(b) if isinstance(b, Exception) else "")
+    # S5-2: KISA kayit: cokmez, atlanir, oturum ACMAZ, uyari (sira/tur/oturum/bayt/en_az)
+    for tur, n in EN_AZ_BAGIMSIZ:
+        for m in sorted({0, n - 1}):
+            x = kur(K(tur, 5, o, r.bayt(m)), K(KB.T_DEVAM, 6, 3, bytes(16)))
+            bak(f"S5 kisa tur {tur} ({m} B) atlanmadi / uyarmadi",
+                not isinstance(x, Exception) and list(x) == [3]
+                and x.uyarilar == [{"sira": 5, "tur": tur, "oturum": o, "bayt": m, "en_az": n}],
+                repr(x) if isinstance(x, Exception) else f"{list(x)} {x.uyarilar}")
+        x = kur(K(tur, 5, o, bytes(n)))
+        bak(f"S5 tam en kisa boy tur {tur} ({n} B) reddedildi",
+            not isinstance(x, Exception) and not x.uyarilar, repr(x))
+    # S6: bilinmeyen tur oturum ACMAZ, sirayi etkilemez; uyari da yok
+    x = kur(K(77, 1, 50, b"abc"), K(KB.T_DEVAM, 2, 51, bytes(16)), K(KB.T_DEVAM, 3, 50, bytes(16)),
+            K(200, 4, 52, b""))
+    bak("S6 bilinmeyen tur oturum acti / sirayi degistirdi",
+        not isinstance(x, Exception) and list(x) == [51, 50] and not x.uyarilar, repr(x))
+    # S6: flas goruntusu HER uzunlukta kesilince cokmez; tam icerilen kayitlar AYNEN cozulur;
+    # yarim kayit (basligi tam) bozuk, < 16 B kuyruk bos
+    S = 112                                   # 3 kayit (96 B) + 16 B silinmis
+    img = b""
+    for s in range(2):
+        sek = b"".join(KB.kayit_paketle(KB.T_DEVAM, 10 * s + i, 1, struct.pack("<IIII", i, 0, 0, 0))
+                       for i in range(1, 3)) + KB.kayit_paketle(KB.T_SAAT, 10 * s + 3, 1, bytes(13))
+        img += sek + b"\xff" * (S - len(sek))
+    tum, bz = KB.flas_coz(img, S)
+    bak("S6 flas taban", bz == 0 and len(tum) == 6, f"{len(tum)} {bz}")
+    for L in range(len(img) + 1):
+        try:
+            kay, bz = KB.flas_coz(img[:L], S)
+        except Exception as e:  # noqa: BLE001
+            bak(f"S6 flas {L} B'de cokuyor", False, repr(e))
+            continue
+        bek = [k.sira for k in tum if k.adres + KB.toplam_bayt(len(k.yuk)) <= L]
+        yarim = any(k.adres + 16 <= L < k.adres + KB.toplam_bayt(len(k.yuk)) for k in tum)
+        bak(f"S6 flas {L} B: kayitlar/bozuk", [k.sira for k in kay] == bek and bz == int(yarim),
+            f"{[k.sira for k in kay]} != {bek} ya da bozuk {bz} != {int(yarim)}")
+    # S6: sont_ohm 0 / -0 -> NaN (ZeroDivisionError YOK); sifir olmayan sont degismedi
+    kal = kal_r(r)
+    for so in (0.0, -0.0):
+        try:
+            v = [KB.amper(kod, dataclasses.replace(kal, sont_ohm=so)) for kod in (0, 5, 1.5, -40000)]
+            bak(f"S6 amper sont {so!r} NaN degil", all(math.isnan(x) for x in v), str(v))
+        except Exception as e:  # noqa: BLE001
+            bak(f"S6 amper sont {so!r} cokuyor", False, repr(e))
+    kb = dataclasses.replace(kal, i_ofset=0, i_pga=32768.0, sont_ohm=2.0, i_duzeltme=1.0)
+    bak("S6 amper sifir olmayan sont", KB.amper(100, kb) == 50.0, str(KB.amper(100, kb)))
+    return hatalar
+
+
 def api() -> list[str]:
     return sorted(n for n, f in vars(KB).items()
                   if inspect.isfunction(f) and not n.startswith("_") and f.__module__ == KB.__name__)
@@ -806,7 +984,8 @@ def vektorler() -> dict:
     r = Rng(0x2A0E)
     akis = [akis_olcum_v2(), akis_olcum_v1(), akis_basi_eksik(), akis_pil(), akis_ayrinti(),
             akis_skop(), akis_skop_nan(), akis_coklu(), akis_utf8(), akis_ozel_float(),
-            akis_rastgele(0x2A10, 70), akis_rastgele(0x2A11, 70)] + akis_bozuklar()
+            akis_rastgele(0x2A10, 70), akis_rastgele(0x2A11, 70)] + akis_bozuklar() + [
+        akis_uzun_kayitlar(), akis_kisa_kayitlar(), akis_bilinmeyen_oturum()]
     crc_v = [{"veri": j(b"123456789"), "onceki": 0, "cikti": KB.crc(b"123456789")},
              {"veri": j(b""), "onceki": 0x12345678, "cikti": KB.crc(b"", 0x12345678)}]
     for _ in range(12):
@@ -874,6 +1053,12 @@ def main() -> int:
     ap.add_argument("--denetle", action="store_true",
                     help="dosyayi yazma; depodakiyle karsilastir, farkliysa 1 don")
     a = ap.parse_args()
+    kh = kurallar()
+    for s in kh[:30]:
+        print("  KURAL " + s)
+    if kh:
+        print(f"KIRMIZI: S5/S6 kurallari Python basvurusunda tutmuyor ({len(kh)})")
+        return 1
     v = vektorler()
     m = metin(v)
     sayi = sum(len(x) for x in v.values() if isinstance(x, list))

@@ -270,7 +270,7 @@ function kayitOku(veri, a, son) {
   if (a + BASLIK_BAYT > son) return [0, null];
   const b = veri.subarray(a, a + BASLIK_BAYT);
   if (b.length === BASLIK_BAYT && b.every((x) => x === 0xFF)) return [0, null];
-  // b kisaysa (flas goruntusu sektor ortasinda bitiyor) Python struct.error verir
+  // son <= veri.length (flasCoz kirpar, S6): b burada hep 16 bayt
   const [imza, tur, n, sira, oturum, c] = cozTam(b, S_KAYIT_BAS);
   // bilinmeyen tur GECERLI (C ile ayni): ileride eklenen turler esitlemeyi kirmasin
   if (imza !== IMZA || tur === 0 || tur === 0xFF || sira === 0 || sira === 0xFFFFFFFF) {
@@ -311,7 +311,10 @@ export function akisCoz(veri) {
 }
 
 /** Flas goruntusu: her sektor bastan, ilk gecersiz kayitta o sektor biter.
- *  Donus [sira ile sirali kayitlar, cop/yarim gorulen sektor sayisi]. */
+ *  Donus [sira ile sirali kayitlar, cop/yarim gorulen sektor sayisi].
+ *  S6: goruntu tam sektor olmak zorunda DEGIL. Son sektor goruntunun sonunda biter:
+ *  < 16 B kuyruk (yarim baslik) sektor sonundaki < 16 B gibi BOS sayilir (bozuk degil);
+ *  basligi tam ama yuku goruntuden tasan kayit yarim kayittir (bozuk +1). Firlatmaz. */
 export function flasCoz(veri, sektor) {
   const v = bayt(veri);
   if (!Number.isInteger(sektor)) throw new TypeError("sektor tamsayi olmali");
@@ -321,8 +324,9 @@ export function flasCoz(veri, sektor) {
   for (let s = 0; sektor > 0 && s < v.length; s += sektor) {
     let a = s;
     let sonSira = 0;
+    const son = Math.min(s + sektor, v.length);
     for (;;) {
-      let [d, k] = kayitOku(v, a, s + sektor);
+      let [d, k] = kayitOku(v, a, son);
       if (d === 1 && k.sira <= sonSira) d = -1;
       if (d !== 1) {
         bozuk += d < 0 ? 1 : 0;
@@ -415,18 +419,20 @@ export function baslaCoz(y) {
     bicim_surum: bs, kal_no: kalNo };
 }
 
+// S5: DEVAM/BITIR/SAAT yuku bilinen boydan UZUNSA on ek cozulur (yeni firmware alan
+// ekleyebilir — ileri uyumluluk); KISAYSA KayitHatasi (oturumlariKur onu atlar + uyarir).
 export function devamCoz(y) {
-  const [a, u, k, n] = cozTam(bayt(y), S_DEVAM);
+  const [a, u, k, n] = oku(bayt(y), 0, S_DEVAM);
   return { acilis: a, unix_s: u, kart_ms: k, nokta_sira: n };
 }
 
 export function bitirCoz(y) {
-  const [n, s] = cozTam(bayt(y), S_BITIR);
+  const [n, s] = oku(bayt(y), 0, S_BITIR);
   return { nokta_adedi: n, sebep: s };
 }
 
 export function saatCoz(y) {
-  const [u, k, a] = cozTam(bayt(y), S_SAAT);
+  const [u, k, a] = oku(bayt(y), 0, S_SAAT);
   return { unix_s: u, kart_ms: k, acilis: a };
 }
 
@@ -620,12 +626,13 @@ export function volt(kod, k, tamsayi) {
   return d * (k.pga / ADS_SAYIM) * k.n * k.kazanc;
 }
 
-/** olc_akim3 ile ayni formul, float64. sont_ohm 0 -> RangeError (Python ZeroDivisionError). */
+/** olc_akim3 ile ayni formul, float64. S6: sont_ohm 0 (ya da -0; bozuk/eksik kalibrasyon)
+ *  -> NaN: akim BILINMIYOR (Python da NaN; eskiden ZeroDivisionError / RangeError). */
 export function amper(kod, kal, tamsayi) {
   tamsayiDenetle("amper", kod, tamsayi);
+  if (kal.sont_ohm === 0) return NaN;
   let d = kod - kal.i_ofset;
   if (tamsayi) d = kirp(d);
-  if (kal.sont_ohm === 0) throw new RangeError("float division by zero");
   return d * (kal.i_pga / ADS_SAYIM) / kal.sont_ohm * kal.i_duzeltme;
 }
 
@@ -692,9 +699,28 @@ function notUygula(o, k) {
   }
 }
 
-/** Kayitlardan oturumlar: Map(oturum id -> oturum), ilk gorulme sirasiyla. */
+// S5: bilinen kayit turunun EN KISA gecerli yuku (bayt) — Python _EN_AZ ile ayni. Daha uzun
+// yuk: bilinen on ek cozulur (BASLA 98..101 = surum 1, >= 102 = surum 2 + fazlasi; NOKTA'da
+// yarim nokta, AYRINTI/SKOP'ta adet'i asan kuyruk, OLAY'da govdeyi asan bayt yok sayilir).
+// Daha kisa: kayit ATLANIR, oturum ACMAZ, ot.uyarilar'a girer. Tabloda olmayan (bilinmeyen)
+// tur sessizce yok sayilir ve o da oturum ACMAZ (S6).
+const EN_AZ = new Map([
+  [T_BASLA, BASLA_V1_BAYT], [T_TEKRAR, BASLA_V1_BAYT], [T_NOKTA, 4],
+  [T_DEVAM, S_DEVAM.boyut], [T_BITIR, S_BITIR.boyut], [T_SAAT, S_SAAT.boyut],
+  [T_OLAY, S_OLAY_BAS.boyut], [T_NOT, S_NOT_BAS.boyut],
+  [T_AYRINTI, S_AYRINTI_BAS.boyut], [T_SKOP, S_SKOP_BAS.boyut],
+]);
+dogrula([...EN_AZ.values()].join() === "98,98,4,16,8,12,8,16,16,12", "EN_AZ");
+
+/** Kayitlardan oturumlar: Map(oturum id -> oturum), oturumun ilk VERI kaydinin sirasiyla.
+ *  CRC'si gecerli her kayitta FIRLATMAZ (S5). Donen Map'in SAYILAMAZ `uyarilar` ozelligi
+ *  (Python Oturumlar.uyarilar): yuku turunun en kisa boyundan KISA oldugu icin ATLANAN
+ *  kayitlar, kayit sirasiyla: {sira, tur, oturum (baslik), bayt (yuk boyu), en_az}. Bos
+ *  dizi = hepsi cozuldu. Sayilamaz: Map'in kendisi ve deepStrictEqual karsilastirmasi degismez. */
 export function oturumlariKur(kayitlar) {
   const ot = new Map();
+  const uyarilar = [];
+  Object.defineProperty(ot, "uyarilar", { value: uyarilar, enumerable: false });
   const al = (id) => {
     let o = ot.get(id);
     if (!o) {
@@ -710,6 +736,12 @@ export function oturumlariKur(kayitlar) {
   const sirali = [...kayitlar].sort((x, y) => x.sira - y.sira);
   for (const k of sirali) {
     if (k.oturum && k.tur !== T_SKOP && k.tur !== T_TEKRAR) acik.delete(k.oturum);
+    const enAz = EN_AZ.get(k.tur);
+    if (enAz === undefined) continue;          // bilinmeyen tur: yok sayilir, oturum ACMAZ (S6)
+    if (k.yuk.length < enAz) {                 // S5: kisa kayit cozulemez — atla, oturum ACMA, uyar
+      uyarilar.push({ sira: k.sira, tur: k.tur, oturum: k.oturum, bayt: k.yuk.length, en_az: enAz });
+      continue;
+    }
     if (k.tur === T_NOT && k.yuk.length >= S_NOT_BAS.boyut) {
       const h = oku(k.yuk, 0, S_U32)[0];        // baslikta oturum 0; hedef yukte
       if (h) notUygula(al(h), k);

@@ -283,3 +283,75 @@ test('enerji: NaN örnek atlanır, komşular birleşir; boş/tek nokta; geçersi
   assert.throws(() => enerji(t, v, i, 0, 1, { boslukMs: -1 }), RangeError);
   assert.throws(() => enerji(t, v, i, NaN, 1), RangeError);
 });
+
+// ── S9: zamanı sonlu olmayan örnek EKSİK örnektir (aralığı kesmez) ────────────
+
+/** Başvuru: zamanı sonlu olmayan örnekleri diziden ÇIKAR, sonra düz başvuruyu çağır. */
+function sonluSuz(t, ...diziler) {
+  const k = [];
+  for (let j = 0; j < t.length; j++) if (Number.isFinite(t[j])) k.push(j);
+  return [Float64Array.from(k, (j) => t[j]), ...diziler.map((d) => Float64Array.from(k, (j) => d[j]))];
+}
+
+test('S9: [0, NaN, 2] — NaN zamanlı örnek atlanır, aralık KESİLMEZ (istatistik + enerji)', () => {
+  const t = Float64Array.of(0, NaN, 2);
+  const y = Float64Array.of(1, 100, 3);
+  const iki = { adet: 2, min: 1, maks: 3, ort: 2, rms: Math.sqrt(5), tepeTepe: 2, tMin: 0, tMaks: 2 };
+  assert.deepEqual(istatistik(t, y), iki);
+  assert.deepEqual(istatistik(t, y, 0, 2), iki);
+  assert.deepEqual(istatistik(t, y, -Infinity, Infinity), iki);
+  assert.equal(istatistik(t, y, 1, 2).adet, 1);
+  assert.equal(istatistik(t, y, 0, 1).adet, 1);
+  // delik başta / sonda / ±∞ / art arda: hepsi eksik örnek
+  for (const [tt, yy] of [
+    [[NaN, 0, 2], [100, 1, 3]], [[0, 2, NaN], [1, 3, 100]], [[-Infinity, 0, NaN, NaN, 2, Infinity], [100, 1, 100, 100, 3, 100]],
+    [[0, Infinity, 2], [1, 100, 3]], [[0, -Infinity, 2], [1, 100, 3]], [[NaN, NaN, 0, NaN, 2, NaN, NaN], [9, 9, 1, 9, 3, 9, 9]],
+  ]) {
+    assert.deepEqual(istatistik(Float64Array.from(tt), Float64Array.from(yy)), iki, String(tt));
+  }
+  assert.equal(istatistik(Float64Array.of(NaN, Infinity), Float64Array.of(1, 2)).adet, 0);
+  // enerji: 0 ve 2000 ms birleşir (1 W × 2000 ms); birleşen parça boşluk denetiminden geçer
+  const te = Float64Array.of(0, NaN, 2000);
+  const bir = new Float64Array(3).fill(1);
+  assert.deepEqual(enerji(te, bir, bir), { wh: 2000 / MS_SAAT, mah: 2000 / AMS_MAH, sureS: 2 });
+  assert.deepEqual(enerji(Float64Array.of(0, Infinity, 2000), bir, bir), { wh: 2000 / MS_SAAT, mah: 2000 / AMS_MAH, sureS: 2 });
+  assert.deepEqual(enerji(te, bir, bir, -Infinity, Infinity, { boslukMs: 1500 }), { wh: 0, mah: 0, sureS: 0 });
+  assert.deepEqual(enerji(te, bir, bir, 0, 2000), { wh: 2000 / MS_SAAT, mah: 2000 / AMS_MAH, sureS: 2 });
+});
+
+test('S9: rastgele delikli zaman (NaN / ±∞ dizileri) — sonlu olmayanlar ÇIKARILMIŞ seriyle aynı', () => {
+  const { t, v, i, r } = seri(20_000, 99);
+  for (let j = 0; j < t.length;) {        // ~%3 delik, 1…40'lık diziler
+    if (r() < 0.003) {
+      const n = 1 + Math.floor(r() * 40);
+      for (let k = 0; k < n && j < t.length; k++, j++) t[j] = [NaN, Infinity, -Infinity][Math.floor(r() * 3)];
+    } else j++;
+  }
+  const [tf, vf, iff] = sonluSuz(t, v, i);
+  assert.ok(tf.length < t.length - 300, `delik az: ${t.length - tf.length}`);
+  const n = tf.length;
+  let dolu = 0;
+  for (let k = 0; k < 300; k++) {
+    const p = Math.floor(r() * n);
+    const q = Math.min(n - 1, p + Math.floor(r() * 4000));
+    const t0 = k % 3 === 0 ? tf[p] : tf[p] - 0.5;
+    const t1 = k % 3 === 1 ? tf[q] : tf[q] + 0.25;
+    const etiket = `[${t0}, ${t1}]`;
+    const s = istatistik(t, v, t0, t1);
+    const e = istatistikRef(tf, vf, t0, t1);
+    assert.equal(s.adet, e.adet, `adet ${etiket}`);
+    for (const alan of ['min', 'maks', 'tMin', 'tMaks', 'tepeTepe']) {
+      assert.ok(ayni(s[alan], e[alan]), `${alan} ${etiket}: ${s[alan]} ≠ ${e[alan]}`);
+    }
+    yakin(s.ort, e.ort, e.rms, `ort ${etiket}`);
+    const bosluk = [undefined, 2.5, 50][k % 3];
+    const en = enerji(t, v, i, t0, t1, { boslukMs: bosluk });
+    const b = enerjiRef(tf, vf, iff, t0, t1, bosluk ?? Infinity);
+    yakin(en.wh, b.wh, b.olcekWh, `Wh ${etiket}`);
+    yakin(en.mah, b.mah, b.olcekMah, `mAh ${etiket}`);
+    yakin(en.sureS, b.sureS, b.sureS, `sureS ${etiket}`);
+    if (e.adet > 0) dolu++;
+  }
+  assert.ok(dolu > 250, `dolu aralık az: ${dolu}`);
+  assert.equal(istatistik(t, v).adet, istatistikRef(tf, vf, -Infinity, Infinity).adet);
+});

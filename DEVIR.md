@@ -9437,6 +9437,11 @@ pragma kalkınca kırmızı (mutasyon). Kartta maliyet yok: D başına örnek 32
 ama boyu yanlış kayıtta çöküyor (gelecek biçim eski istemciyi düşürür) · S6–S7 küçük sağlamlık ·
 S9 `istatistik.js` zamanda NaN · S10 NOT/OLAY'da açılış numarası yok (biçim 3).
 
+**Sağlamlık (S5/S6/S9, aynı gece, dal `2-saglamlik`):** kayıt çözücü (Python + JS birlikte) CRC'si
+geçerli ama boyu farklı kayıtta artık çökmüyor — uzun kayıt bilinen önekle okunur (ileriye uyum), kısa
+atlanır ve uyarı olur; bilinmeyen/kısa kayıt oturum açmaz; kesik flaş görüntüsü temiz durur; `amper`
+şönt 0'da NaN; `istatistik` NaN zamanı eksik sayar. Vektörler 822 → 831; mutasyon 20/20.
+
 **Mutasyon:** B73 + A6 + B6 için ~90 yeni girdi; yanında eski bir B22b girdisinin `{` yüzünden
 uygulanamaz olduğu (B40'tan beri) bulunup düzeltildi.
 

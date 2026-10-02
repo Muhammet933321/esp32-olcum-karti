@@ -113,6 +113,8 @@ for (const a of V.akislar) {
     }
     const ot = K.oturumlariKur(kayitlar);
     esit("oturumlari_kur", ot, a.oturumlari_kur, a.ad);
+    // S5: atlanan kisa kayitlar (vektorde yalniz doluysa var)
+    esit("oturumlari_kur", ot.uyarilar, a.oturumlari_kur_uyarilar ?? [], `${a.ad} uyarilar`);
     for (const [id, py] of a.ayrinti_ornekler) {
       esit("ayrinti_ornekler", K.ayrintiOrnekler(ot.get(id)), py, `${a.ad} oturum ${id}`);
     }
@@ -132,7 +134,11 @@ for (const f of V.flaslar) {
     esit("flas_coz", K.flasCoz(veri, f.sektor), f.flas_coz, f.ad);
     const [kayitlar] = K.flasCoz(veri, f.sektor);
     if (f.oturumlari_kur.hata) ret("oturumlari_kur", () => K.oturumlariKur(kayitlar), f.oturumlari_kur, f.ad);
-    else esit("oturumlari_kur", K.oturumlariKur(kayitlar), f.oturumlari_kur, f.ad);
+    else {
+      const ot = K.oturumlariKur(kayitlar);
+      esit("oturumlari_kur", ot, f.oturumlari_kur, f.ad);
+      esit("oturumlari_kur", ot.uyarilar, f.oturumlari_kur_uyarilar ?? [], `${f.ad} uyarilar`);
+    }
   });
 }
 
@@ -296,7 +302,13 @@ test("volt / amper: bilinen sayilar, int16 kirpmasi yalniz tamsayi kodda", () =>
   const kal = { i_ofset: 5, i_pga: 0.256, sont_ohm: 0.005, i_duzeltme: 1 };
   assert.ok(Math.abs(K.amper(5 + 6400, kal, true) - 10.0) < 1e-12);   // 6400 x 7.8125 uV / 5 mOhm
   assert.equal(Object.is(K.volt(-10, { ...k, n: -1 }, true), -0), true);
-  assert.throws(() => K.amper(1, { ...kal, sont_ohm: 0 }, true), RangeError);
+  // S6: sont_ohm 0 / -0 -> NaN (akim bilinmiyor), firlatmaz
+  for (const so of [0, -0]) {
+    for (const [kod, ts] of [[1, true], [5, true], [1.5, false], [-40000, true]]) {
+      assert.ok(Number.isNaN(K.amper(kod, { ...kal, sont_ohm: so }, ts)), `sont ${Object.is(so, -0) ? "-0" : so} kod ${kod}`);
+    }
+  }
+  assert.throws(() => K.amper(1, { ...kal, sont_ohm: 0 }), TypeError);   // tamsayi yine zorunlu
   assert.throws(() => K.volt(1, k), TypeError);         // tamsayi zorunlu
   assert.throws(() => K.volt(1.5, k, true), TypeError);
 });
@@ -361,4 +373,134 @@ test("skopIkili: eksik yakalama null, tam yakalama S3B basligi", () => {
   const v = new DataView(b.buffer);
   assert.deepEqual([v.getUint16(4, true), v.getUint16(24, true), b[26], b[27], v.getUint32(28, true)],
     [2, 0xFFFF, 0xFF, 1, 5]);
+});
+
+// ── S5 / S6 saglamlik: kural kural, vektorden BAGIMSIZ ──────────────────
+// (vektorler JS == Python der; Python ile JS AYNI hatayi yapsa da yesil kalirdi)
+const EN_AZ_BAGIMSIZ = [[K.T_BASLA, 98], [K.T_TEKRAR, 98], [K.T_NOKTA, 4], [K.T_DEVAM, 16],
+  [K.T_BITIR, 8], [K.T_SAAT, 12], [K.T_OLAY, 8], [K.T_NOT, 16], [K.T_AYRINTI, 16], [K.T_SKOP, 12]];
+const kyt = (tur, sira, oturum, yuk) => ({ tur, sira, oturum, yuk, adres: null });
+const kuyruk = (y, n) => akis(y, Uint8Array.from({ length: n }, (_, i) => (0x5A + 7 * i) & 0xFF));
+const KANAL_T = { n: 21, pga: 4.096, kazanc: 1, sifir_ham: 3, tau: 0.1 };
+const KAL_T = { normal: KANAL_T, yuksek: KANAL_T, i_ofset: 0, i_pga: 0.256, sont_ohm: 0.005, i_duzeltme: 1,
+  sebeke_hz: 50, faz_kal_us: [0, 0] };
+const baslaT = K.baslaPaketle({ oturum_turu: K.OTURUM_OLCUM, kal_bicim: 1, hiz_ms: 100, unix_s: 0,
+  kart_ms: 5, acilis: 1, surum: "A3-test", kal_no: 2, kal: KAL_T });
+const baslaV1 = (() => {
+  const b = baslaT.slice(0, K.BASLA_V1_BAYT);
+  b[2] = 1;
+  return b;
+})();
+const noktaT = (ms) => K.noktaPaketle({ kart_ms: ms, n: 1, bayrak: 0, v_ort_kod: 1.5, v_min_kod: -1,
+  v_maks_kod: 2, i_ort_kod: 0.25, i_min_kod: 0, i_maks_kod: 1, w_ort: 0.5, w_min: 0, w_maks: 1 });
+const metaT = { t_ms: 1, sure_ms: 2, hz: 1000, tdiv_us: 100, adim: 0.5, ofset: -1, tetik: 3, esik: 4,
+  histerezis: 5, kip: 0, tetiklendi: 1, kenar: 0, on_yuzde: 10, onay: 2 };
+
+test("S5: her sabit boylu tur bilinen boydan UZUNSA on eki cozulur, uyari yok", () => {
+  const tam = [
+    [K.T_BASLA, baslaT, [1, 3, 4, 35]], [K.T_BASLA, baslaV1, [1, 3]],     // 102 B'tan itibaren surum 2
+    [K.T_TEKRAR, baslaT, [1, 3, 4, 35]], [K.T_TEKRAR, baslaV1, [1, 3]],
+    [K.T_NOKTA, akis(new Uint8Array(4), noktaT(1), noktaT(2)), [1, 3, 35]],   // 36 B = yeni nokta
+    [K.T_DEVAM, devamYuk(2, 3, 4, 5), [1, 3, 4, 35]],
+    [K.T_BITIR, Uint8Array.from([6, 0, 0, 0, 1, 0, 0, 0]), [1, 3, 4, 35]],
+    [K.T_SAAT, new Uint8Array(12).fill(7), [1, 3, 4, 35]],
+    [K.T_OLAY, K.olayPaketle({ tur: K.KO_PLAN, kart_ms: 10, bas_unix: 1, sure_s: 2, hiz_ms: 3, plan_no: 4 }), [1, 4, 35]],
+    [K.T_OLAY, K.olayPaketle({ tur: K.KO_SKOP_KAL, kart_ms: 11, mv: Array.from({ length: 17 }, (_, i) => i - 8) }), [1, 35]],
+    [K.T_AYRINTI, K.ayrintiPaketle({ ilk: 0, t0_ms: 1, t0_us: 1000, bayrak: 0, ornekler: [[1, 2, 3, 0], [4, 5, 6, 1]] }), [1, 5, 6, 35]],
+    [K.T_SKOP, K.skopPaketle({ no: 1, ilk: 0, toplam: 4, parca: 0, meta: metaT, kodlar: [1, 2, 3, 4] }), [1, 3, 35]],
+    [K.T_SKOP, K.skopPaketle({ no: 1, ilk: 4, toplam: 8, parca: 1, meta: null, kodlar: [5, 6] }), [1, 2, 35]],
+  ];
+  for (const [tur, y, ekler] of tam) {
+    const a = K.oturumlariKur([kyt(tur, 1, 9, y)]);
+    assert.deepEqual([...a.keys()], [9], `tur ${tur}`);
+    for (const ek of ekler) {
+      const b = K.oturumlariKur([kyt(tur, 1, 9, kuyruk(y, ek))]);
+      assert.deepStrictEqual(jsonla(b), jsonla(a), `tur ${tur} +${ek} B: on ek ayni cozulmeli`);
+      assert.deepEqual(b.uyarilar, [], `tur ${tur} +${ek} B: uyari olmamali`);
+    }
+  }
+  // dogrudan cozuculer de on eki cozer
+  assert.deepEqual(K.devamCoz(kuyruk(devamYuk(1, 2, 3, 4), 8)), { acilis: 1, unix_s: 2, kart_ms: 3, nokta_sira: 4 });
+  assert.deepEqual(K.bitirCoz(kuyruk(Uint8Array.from([9, 0, 0, 0, 2, 0, 0, 0]), 1)), { nokta_adedi: 9, sebep: 2 });
+  assert.deepEqual(K.saatCoz(kuyruk(Uint8Array.from([1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0]), 4)),
+    { unix_s: 1, kart_ms: 2, acilis: 3 });
+});
+
+test("S5: en kisa boydan KISA kayit atlanir, oturum ACMAZ, uyari (sira/tur/oturum/bayt/en_az); firlatmaz", () => {
+  for (const [tur, n] of EN_AZ_BAGIMSIZ) {
+    for (const m of new Set([0, n - 1])) {
+      const ot = K.oturumlariKur([kyt(tur, 5, 9, new Uint8Array(m).fill(0x33)),
+        kyt(K.T_DEVAM, 6, 3, devamYuk(1, 2, 3, 4))]);
+      assert.deepEqual([...ot.keys()], [3], `tur ${tur} ${m} B: oturum 9 acilmamali`);
+      assert.deepEqual(ot.uyarilar, [{ sira: 5, tur, oturum: 9, bayt: m, en_az: n }], `tur ${tur} ${m} B`);
+    }
+    assert.deepEqual(K.oturumlariKur([kyt(tur, 5, 9, new Uint8Array(n))]).uyarilar, [], `tur ${tur} tam ${n} B`);
+  }
+  // baslik oturumu 0 olan kisa kayit da uyarir; uyarilar KAYIT SIRASIYLA
+  const ot = K.oturumlariKur([kyt(K.T_NOT, 8, 0, new Uint8Array(15)), kyt(K.T_SAAT, 7, 0, new Uint8Array(11))]);
+  assert.deepEqual(ot.uyarilar.map((u) => [u.sira, u.tur]), [[7, K.T_SAAT], [8, K.T_NOT]]);
+  assert.equal(ot.size, 0);
+});
+
+test("S5: uyarilar SAYILAMAZ ozellik — Map'in kendisi ve karsilastirmasi degismez", () => {
+  const ot = K.oturumlariKur([]);
+  assert.ok(ot instanceof Map && Array.isArray(ot.uyarilar));
+  assert.deepStrictEqual(ot, new Map());
+  assert.deepEqual(Object.keys(ot), []);
+});
+
+test("S6: oturum numarali bilinmeyen tur oturum ACMAZ, oturum sirasini etkilemez, uyarmaz", () => {
+  const ot = K.oturumlariKur([kyt(77, 1, 50, Uint8Array.of(1, 2, 3)), kyt(K.T_DEVAM, 2, 51, devamYuk(0, 0, 0, 0)),
+    kyt(K.T_DEVAM, 3, 50, devamYuk(0, 0, 0, 0)), kyt(200, 4, 52, new Uint8Array(0))]);
+  assert.deepEqual([...ot.keys()], [51, 50]);
+  assert.deepEqual(ot.uyarilar, []);
+});
+
+test("S6: flasCoz her uzunlukta kesilen goruntude firlatmaz; tam kayitlar aynen, yarim kayit bozuk, < 16 B kuyruk bos", () => {
+  const S = 112;                                  // 3 kayit (96 B) + 16 B silinmis
+  const parcalar = [];
+  for (let s = 0; s < 2; s++) {
+    const sek = akis(K.kayitPaketle(K.T_DEVAM, 10 * s + 1, 1, devamYuk(1, 0, 0, 0)),
+      K.kayitPaketle(K.T_DEVAM, 10 * s + 2, 1, devamYuk(2, 0, 0, 0)),
+      K.kayitPaketle(K.T_SAAT, 10 * s + 3, 1, new Uint8Array(13)));
+    parcalar.push(sek, new Uint8Array(S - sek.length).fill(0xFF));
+  }
+  const img = akis(...parcalar);
+  const [tum, bz0] = K.flasCoz(img, S);
+  assert.equal(bz0, 0);
+  assert.equal(tum.length, 6);
+  for (let L = 0; L <= img.length; L++) {
+    const [kay, bz] = K.flasCoz(img.subarray(0, L), S);
+    const son = (k) => k.adres + K.toplamBayt(k.yuk.length);
+    const bek = tum.filter((k) => son(k) <= L).map((k) => k.sira);
+    const yarim = tum.some((k) => k.adres + 16 <= L && L < son(k));
+    assert.deepEqual(kay.map((k) => k.sira), bek, `L ${L}`);
+    assert.equal(bz, yarim ? 1 : 0, `L ${L} bozuk`);
+  }
+  // sektor sinirsiz rastgele boy (sektor kati DEGIL) + cop kuyruk: firlatmaz
+  let s = 0x5EED;
+  const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) >>> 16) & 0xFF;
+  for (let i = 0; i < 300; i++) {
+    const n = 1 + (rnd() * 3 + rnd()) % 300;
+    const b = Uint8Array.from({ length: n }, rnd);
+    if (i % 2) b.set(img.subarray(0, Math.min(n, img.length)));    // gecerli kayitla baslayan
+    K.flasCoz(b, 16);
+    K.flasCoz(b, 64);
+    K.flasCoz(b, S);
+  }
+});
+
+test("kapsam S5/S6: hicbir vektor cokme degil; her bilinen tur icin kisa-kayit uyarisi; uzun kayit akisi uyarisiz", () => {
+  assert.deepEqual(V.akislar.filter((a) => a.oturumlari_kur.hata).map((a) => a.ad), [],
+    "oturumlari_kur gecerli CRC'li akista cokmemeli (S5)");
+  assert.deepEqual(V.flaslar.filter((f) => f.flas_coz.hata || f.oturumlari_kur?.hata).map((f) => f.ad), [],
+    "flas_coz / oturumlari_kur hicbir goruntude cokmemeli (S6)");
+  const turler = new Set(V.akislar.flatMap((a) => (a.oturumlari_kur_uyarilar ?? []).map((u) => u.tur)));
+  for (const [tur] of EN_AZ_BAGIMSIZ) assert.ok(turler.has(tur), `tur ${tur} icin kisa-kayit uyarisi vektoru yok`);
+  const uzun = V.akislar.find((a) => a.ad === "uzun_kayitlar");
+  assert.ok(uzun && !uzun.oturumlari_kur_uyarilar && uzun.oturumlari_kur.$map.map(([i]) => i).join() === "60,61,62");
+  const kuyruklu = V.flaslar.filter((f) => f.ad.startsWith("flas_kuyruk") && jsden(f.veri).length % f.sektor !== 0);
+  assert.ok(kuyruklu.length >= 4, "tam sektor olmayan flas goruntusu vektoru az");
+  assert.ok(V.birimler.some((v) => v.fn === "amper" && V.birim_kallar[v.kal].sont_ohm === 0
+    && v.cikti?.$f === "nan"), "sont_ohm 0 -> NaN vektoru yok");
 });

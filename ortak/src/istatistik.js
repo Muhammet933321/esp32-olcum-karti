@@ -9,11 +9,44 @@
  * kısım tahmin edilmez (ilk örnekten önce / son örnekten sonra integral yok).
  * NaN = eksik örnek: atlanır.
  *
+ * ZAMAN (S9): zamanı SONLU OLMAYAN (NaN, ±∞) örnek de EKSİK örnektir: değeri ne
+ * olursa olsun atlanır, aralığı KESMEZ (eskiden ikili arama NaN'da dönüp
+ * [0, NaN, 2]'yi 1 örneğe indiriyordu). Sonlu zamanlar azalmayan olmalı; delikler
+ * (sonlu olmayan zamanlar) aralarında her yerde olabilir. Enerjide atlanan
+ * örneğin iki komşusu birleşir (NaN değerli örnekle aynı kural).
+ *
  * TOPLAMA: Neumaier (telafili) toplam — 30 günlük kayıtta (~1e9 örnek) bile
  * toplam hatası sabit kalır; düz toplamdaki n·ε birikimi olmaz.
  */
 
-import { altSinir, ustSinir } from './ozet.js';
+/** k ≥ m olan ilk SONLU zamanlı indis (yoksa hi). */
+function sonluIlk(t, m, hi) {
+  while (m < hi && !Number.isFinite(t[m])) m++;
+  return m;
+}
+
+/** t[lo, hi) içinde SONLU t[i] ≥ x olan ilk sınır: önündeki her sonlu zaman < x,
+ *  kendisinden sonraki her sonlu zaman ≥ x (ozet.js altSinir'in delik bilen eşi). */
+function altSinir(t, x, lo = 0, hi = t.length) {
+  while (lo < hi) {
+    const m = (lo + hi) >>> 1;
+    const k = sonluIlk(t, m, hi);
+    if (k < hi && t[k] < x) lo = k + 1;
+    else hi = m;
+  }
+  return lo;
+}
+
+/** t[lo, hi) içinde SONLU t[i] > x olan ilk sınır (delik bilen ustSinir). */
+function ustSinir(t, x, lo = 0, hi = t.length) {
+  while (lo < hi) {
+    const m = (lo + hi) >>> 1;
+    const k = sonluIlk(t, m, hi);
+    if (k < hi && t[k] <= x) lo = k + 1;
+    else hi = m;
+  }
+  return lo;
+}
 
 /** 1 saat = 3 600 000 ms. */
 export const MS_SAAT = 3_600_000;
@@ -49,14 +82,14 @@ function aralikIndis(t, t0, t1, ad) {
 }
 
 /**
- * [t0, t1] aralığındaki HAM örneklerin istatistiği (NaN atlanır).
- *  - adet: NaN olmayan örnek sayısı
+ * [t0, t1] aralığındaki HAM örneklerin istatistiği (NaN değer ve sonlu olmayan zaman atlanır).
+ *  - adet: zamanı sonlu, değeri NaN olmayan örnek sayısı
  *  - min, maks, tepeTepe = maks − min
  *  - tMin, tMaks: min'in / maks'ın İLK görüldüğü örneğin zamanı (ms)
  *  - ort: örnek ortalaması Σy/adet (zaman ağırlıklı DEĞİL — multimetre gibi)
  *  - rms: √(Σy²/adet)
  * Örnek yoksa adet 0, geri kalan her alan NaN.
- * @param {Float64Array} t  ms, azalmayan
+ * @param {Float64Array} t  ms; sonlu olanlar azalmayan (NaN/±∞ = eksik örnek, S9)
  * @param {Float64Array} y
  */
 export function istatistik(t, y, t0 = -Infinity, t1 = Infinity) {
@@ -72,6 +105,7 @@ export function istatistik(t, y, t0 = -Infinity, t1 = Infinity) {
   const top = new Toplam();
   const kare = new Toplam();
   for (let i = a; i < b; i++) {
+    if (!Number.isFinite(t[i])) continue; // S9: zamanı sonlu değil: eksik örnek
     const v = y[i];
     if (v !== v) continue; // NaN: eksik örnek
     adet++;
@@ -98,7 +132,7 @@ export function istatistik(t, y, t0 = -Infinity, t1 = Infinity) {
 /**
  * [t0, t1] aralığında enerji ve yük (D4), yamuk kuralıyla HAM örneklerden:
  *   Wh  = ∫ V·I dt,   mAh = ∫ I dt,   sureS = integre edilen süre (s).
- * Örnek GEÇERLİ ⇔ v ve i ikisi de NaN değil; geçersiz örnek atlanır ve
+ * Örnek GEÇERLİ ⇔ v ve i ikisi de NaN değil VE zamanı sonlu (S9); geçersiz örnek atlanır ve
  * komşu iki geçerli örnek birleşir (aralarındaki süre yine boşluk denetiminden
  * geçer). Böylece Wh, mAh ve sureS hep AYNI zaman parçalarını kapsar.
  *
@@ -111,7 +145,7 @@ export function istatistik(t, y, t0 = -Infinity, t1 = Infinity) {
  * sureS = Σms / 1000. Tamsayı ms ızgarasında sabit güç için sonuç tam çıkar
  * (2 V × 0.5 A × 3600 s → tam 1 Wh, tam 500 mAh).
  *
- * @param {Float64Array} t  ms, azalmayan
+ * @param {Float64Array} t  ms; sonlu olanlar azalmayan (NaN/±∞ = eksik örnek, S9)
  * @param {Float64Array} v  gerilim (V)
  * @param {Float64Array} i  akım (A); işaretli (şarjda eksi)
  * @returns {{wh: number, mah: number, sureS: number}}
@@ -140,6 +174,7 @@ export function enerji(t, v, i, t0 = -Infinity, t1 = Infinity, { boslukMs } = {}
     const ij = i[j];
     if (vj !== vj || ij !== ij) continue; // eksik örnek
     const tj = t[j];
+    if (!Number.isFinite(tj)) continue; // S9: zamanı sonlu değil: eksik örnek, komşular birleşir
     const pj = vj * ij;
     if (oncekiVar) {
       const dt = tj - tOnce;
