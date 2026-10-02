@@ -9397,6 +9397,32 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.83 🟢 3H-1 AYARLAR + KARTTA /kal/liste ZAMAN AŞIMI (2026-10-02 gece)
+
+**3H-1** (ajan, kararlar AY1–AY7 + uygulama kararları AU1–AU12, spec): Ayarlar yedi bölüm, bir seferde
+tek bölüm, adres `#/ayar/<bölüm>` (Bağlantı · Ağ · Kalibrasyon · Kalibrasyon geçmişi · Depolama · Dil ve
+görünüm · Gelişmiş). Eski kartlar yerinde; yalnız üç yeni bölüm `ekran/ayarlar.js`'te (9.4 KB gzip,
+IndexedDB zinciri onun içinde dinamik `import()`). **Dil TR/EN** anında (`olcum.dil`, `<html lang>`, sekme
+başlığı); EN'de hâlâ Türkçe kalan **274** metin GİZLENMİYOR — B7 sayıp listeliyor, kilit iki yönlü
+(3H'nin yeni parçaları 0; kör nokta: Türkçe harfsiz ASCII dizgeler sayılmıyor, spec'te yazılı).
+**Kalibrasyon geçmişi SALT OKUMA** (`/kal/liste`, kart vermezse en yeni yerel kopya ve bunu söyler; 17
+alan firmware'in JSON'undan, birim uydurulmadı); Ayarlar karta hiçbir `k…`/`N…`/`Go` komutu göndermiyor
+(T3H ölçüyor). **Depolama:** kopya başına boyut/oturum/son eşitleme, eski kart kopyası, silme iki aşamalı;
+`navigator.storage` kartın `http://` adresinde YOK (güvenli bağlam ister) — panel sebebiyle yazıyor.
+**Gelişmiş:** panel sürümü (`arayuz-uret.py` görüntüye `kunye.json` koyuyor, `_fs.json` `panel_surum`),
+firmware afişten (E11 açık), "tarayıcı ayarlarını sıfırla" yalnız `olcum.` anahtarları, listeli, iki aşamalı.
+Bütçe: açılış 8 dosya 195.6 → 202.8 KB; ⚠ `#/skop` doğrudan açılışı **244 / 250 KB** — pay daralıyor.
+B7 721 → 777, yeni T3H 28/28, mutasyon 3H 34/34.
+
+**Gerçek kartta 3G sınanırken bulunan kusur (3C-KAL):** üç eşitlemenin birinde `/kal/liste` TimeoutError
+aldı, sonuç "Kalibrasyon geçmişi alınamadı" dedi. Esitleyici kalibrasyon hatasını `kalibrasyon_hata`ya
+çevirip "tamam" döndüğü için 5.12.78'in `agYenidenDene`'si onu hiç görmüyordu. Artık panelin istek
+katmanında yalnız `/kal/liste` ağ hatasında artan beklemeyle yeniden deneniyor (`/kayit/veri`'yi üst katman
+zaten kaldığı yerden kuruyor; ikisi birden bekleme şişirirdi). `ortak/` dokunulmadı (Python eşliği).
+B7 +1, mutasyon 3C-KAL 4/4. Aynı sınamada bir koşuda Karşılaştır bağlantısı çıkmadı: betik, eşitleme sonuç
+yazısı belirdiği anda listeyi okumuştu — liste o an henüz yerel kopyadan kurulmamış, kutular kapalı;
+kullanıcı o arada seçim yapamaz, ürün kusuru değil. Kartın `/durum` 404'ü köprü yoklaması (bilerek).
+
 #### 5.12.82 🟢 3G KARŞILAŞTIRMA EKRANI (2026-10-02 akşam)
 
 Ajan, kararlar KR1–KR8 + uygulama kararları KU1–KU10 (spec). Seçim Kayıtlar listesinden (yalnız bu
