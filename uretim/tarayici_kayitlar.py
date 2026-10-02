@@ -905,18 +905,22 @@ def main() -> int:
             hucre = t.js("[...document.querySelectorAll('.kg-rapor tbody tr')][0].children[3].textContent")
             ok("[!] Rapor acildi (#/.../rapor); V en yuksek hucresi ham min/maks kodlarindan (Python)",
                t.js("location.hash").endswith("/rapor") and hucre == f"{vmaks_py:.4f}", f"{hucre} ~ {vmaks_py:.4f}")
+            # 3D: kabuk sol serit (#serit) + dar ekranin ust cubugu (.ust). Ekranda serit GORUNUR
+            # olmali (yoksa "yazdirmada gizli" iddiasi bos kalirdi), yazdirmada hepsi gizli.
+            ekranda = t.js("getComputedStyle(document.querySelector('#serit')).display")
             t.cagir("Emulation.setEmulatedMedia", {"media": "print"})
             t.bekle(0.4)
             yazdir = t.js("({ust: getComputedStyle(document.querySelector('.ust')).display,"
+                          " serit: getComputedStyle(document.querySelector('#serit')).display,"
                           " nav: getComputedStyle(document.querySelector('.gorunum-nav')).display,"
                           " rapor: getComputedStyle(document.querySelector('.kg-rapor')).display,"
                           " dugme: getComputedStyle(document.querySelector('.kg-ust')).display})")
             resim("3-rapor-yazdir")
             t.cagir("Emulation.setEmulatedMedia", {"media": ""})
             t.tema("dark")
-            ok("Yazdirmada kabuk ve dugmeler gizli, rapor gorunur",
-               yazdir["ust"] == "none" and yazdir["nav"] == "none" and yazdir["dugme"] == "none"
-               and yazdir["rapor"] != "none", str(yazdir))
+            ok("Yazdirmada kabuk (serit + ust cubuk) ve dugmeler gizli, rapor gorunur",
+               ekranda != "none" and yazdir["ust"] == "none" and yazdir["serit"] == "none" and yazdir["nav"] == "none"
+               and yazdir["dugme"] == "none" and yazdir["rapor"] != "none", f"ekranda {ekranda} · {yazdir}")
             # K6: tarayicinin yazdirma olaylari (emulasyon bunlari atmaz — olay elle)
             tema_once = t.js("document.documentElement.dataset.tema")
             t.js("window.dispatchEvent(new Event('beforeprint'))")

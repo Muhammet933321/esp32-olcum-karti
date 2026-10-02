@@ -16,6 +16,9 @@ const yorumsuz = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, 
 const BICIM_H = oku("../../kod/olcum-karti-a3/kayit_bicim.h");
 const PIL_H = oku("../../kod/olcum-karti-a3/pil_test.h");
 const KALGEC_H = oku("../../kod/olcum-karti-a3/kalgec.h");
+/* 3D: panelin Canli ekrani kartin kayit durumunu (G satiri) ve plan durumunu (GP) yaziya ceviriyor */
+const YONET_H = oku("../../kod/olcum-karti-a3/kayit_yonet.h");
+const PLAN_H = oku("../../kod/olcum-karti-a3/kayit_plan.h");
 const KAYNAK = ["../src/disari.js", "../src/rapor.js"].map((y) => yorumsuz(oku(y))).join("\n");
 
 function tanimlar(metin, onek) {
@@ -46,6 +49,10 @@ const AILELER = [
   { onek: "pil.hata.", kodlar: enumDegerleri(PIL_H, "PilHata") },
   { onek: "kal.tur.", kodlar: tanimlar(KALGEC_H, "KGT_") },
   { onek: "kal.kaynak.", kodlar: tanimlar(KALGEC_H, "KGK_") },
+  /* 3D: KDR_* (kayit_yonet.h) ve PLAN_<durum> (kayit_plan.h; PLAN_BASLAT_S bir SURE, durum degil) */
+  { onek: "kayit.durum.", kodlar: tanimlar(YONET_H, "KDR_") },
+  { onek: "plan.durum.", kodlar: [...PLAN_H.matchAll(/#define (PLAN_\w+)\s+(\d+)u\b/g)]
+    .filter((m) => m[1] !== "PLAN_BASLAT_S").map((m) => Number(m[2])) },
 ];
 
 test("her anahtarda bos olmayan tr VE en metni var (yalniz bu iki dil)", () => {
@@ -72,6 +79,8 @@ test("kod aileleri: firmware'deki HER kodun (+ 'bilinmeyen') tr/en metni var", (
   assert.deepEqual(AILELER[0].kodlar, [1, 2, 3, 4, 5, 6, 7]);
   assert.deepEqual(AILELER[3].kodlar, [0, 1, 2, 3, 4]);
   assert.deepEqual(AILELER[4].kodlar, [0, 1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(AILELER.find((f) => f.onek === "kayit.durum.").kodlar, [0, 1, 2, 3, 4, 5]);
+  assert.deepEqual(AILELER.find((f) => f.onek === "plan.durum.").kodlar, [0, 1, 2, 3, 4, 5, 6, 7]);
 });
 
 test("CSV basliklari: her sutunun anahtari var; ASCII snake_case; birim soneki iki dilde AYNI (SI); tablo icinde tekil", () => {
@@ -146,9 +155,11 @@ function dizgeler(src) {
 const EKRAN_URL = new URL("../../arayuz3/ekran/", import.meta.url);
 const EKRANLAR = existsSync(EKRAN_URL)
   ? readdirSync(EKRAN_URL).filter((a) => a.endsWith(".js")).sort().map((a) => `../../arayuz3/ekran/${a}`) : [];
+/* 3D: panel KABUGU ve Canli (arayuz3/app.js: KB_METIN, CN_METIN, GORUNUMLER) da tuketici. */
+const APP = existsSync(new URL("../../arayuz3/app.js", import.meta.url)) ? ["../../arayuz3/app.js"] : [];
 
 test("kullanilmayan anahtar YOK (disari.js + rapor.js + panel ekranlari kaynagindan)", () => {
-  const ham = ["../src/disari.js", "../src/rapor.js", ...EKRANLAR].map(oku).join("\n");
+  const ham = ["../src/disari.js", "../src/rapor.js", ...EKRANLAR, ...APP].map(oku).join("\n");
   const { literal, sablon } = dizgeler(ham);
   assert.ok(literal.has("csv.v_ort") && literal.has("rapor.kimlik") && literal.has("sebep."), "cozucu dizgeleri kaciriyor");
   assert.ok(sablon.has("kal.durum.") && sablon.has("uyari."), "cozucu sablonlari kaciriyor");
@@ -176,6 +187,17 @@ test("3C: panel ekranlarinin kullandigi HER kl./kg. anahtari sozlukte (ters yon)
   assert.deepEqual(eksik, []);
   const aile = Object.keys(SOZLUK).filter((a) => /^(kl|kg)\./.test(a));
   assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup ekranda kullanilmayan kl./kg. anahtari");
+});
+
+test("3D: kabuk ve Canli'nin (app.js) kullandigi HER kb./cn. anahtari sozlukte (ters yon)", () => {
+  if (!APP.length) return;
+  const { literal } = dizgeler(APP.map(oku).join("\n"));
+  const kullanilan = [...literal].filter((s) => /^(kb|cn)\.[a-z0-9_]+$/.test(s));
+  assert.ok(kullanilan.length >= 60, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
+  assert.deepEqual(kullanilan.filter((a) => !(a in SOZLUK)), []);
+  const aile = Object.keys(SOZLUK).filter((a) => /^(kb|cn)\./.test(a));
+  assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup panelde kullanilmayan kb./cn. anahtari");
+  assert.ok(literal.has("kayit.durum.") && literal.has("plan.durum."), "durum aileleri ceviriKod ile kullanilmiyor");
 });
 
 test("yer tutucular iki dilde ayni", () => {

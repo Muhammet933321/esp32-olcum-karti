@@ -273,9 +273,105 @@ const SahteKart = (() => {
   let raporMs = 200;
   const RAPOR_EN_AZ = 20, RAPOR_EN_COK = 5000;
 
+  /* ── 3D — KAYIT MOTORU (demo) ───────────────────────────────────────
+     Firmware'in `G` alt komutlari (b d ? n p) ve kendiliginden bastigi
+     `G` / `GA` / `GT` / `GP` satirlari — BICIM olcum-karti-a3.ino
+     kayit_durum_bas / kayit_ga_bas / kayit_gt_bas / kayit_gp_bas ile ayni
+     (B7 alan sayisini firmware'den turetip sinar). Ret metinleri firmware'in
+     metni. Kayitta saniyede bir G satiri (kayitTik). */
+  const KAYIT_HIZLARI = [0, 20, 100, 200, 1000, 10000, 60000];
+  const kayit = { durum: 1, oturum: 0, nokta: 0, sonraki: 120, onay: 0, doluluk: 18, onaysiz: 18,
+                  dusen: 0, hiz: 200, sonG: 0, artik: 0, bayt: 0 };
+  const plan = { durum: 0, bas: 0, sure: 0, hiz: 0, oturum: 0 };
+  const gSatiri = () => `G ${kayit.durum} ${kayit.oturum} ${kayit.nokta} ${kayit.sonraki} ${kayit.onay}`
+    + ` ${kayit.doluluk} ${kayit.onaysiz} ${kayit.dusen} 2900 1300 4 300 0`;
+  const gaSatiri = () => `GA 480 ${kayit.durum === 2 && kayit.hiz === 0 ? kayit.nokta : 0} 0 0`;
+  const gpSatiri = () => `GP ${plan.durum} ${plan.bas} ${plan.sure} ${plan.hiz} ${plan.oturum}`;
+  function kayitBaslat(h) {
+    kayit.durum = 2; kayit.oturum = kayit.sonraki++; kayit.nokta = 0; kayit.hiz = h; kayit.artik = 0;
+  }
+  function kayitKomut(k) {
+    const alt = k[1];
+    if (!alt || alt === '?') return [gSatiri(), gaSatiri(), 'GT 0 0 0 0', gpSatiri()];
+    if (alt === 'b') {
+      const h = Number(k.slice(2));
+      if (!/^\d+$/.test(k.slice(2)) || !KAYIT_HIZLARI.includes(h)) {
+        return ['! G: hiz 0 (her ornek) / 20/100/200/1000/10000/60000 ms olmali'];
+      }
+      kayitBaslat(h);
+      return ['* G istek kuyrukta — sonuc G satirinda', gSatiri()];
+    }
+    if (alt === 'd') {
+      if (kayit.durum === 2) { kayit.durum = 1; kayit.oturum = 0; }
+      if (plan.durum === 2) plan.durum = 3;
+      return ['* G istek kuyrukta — sonuc G satirinda', gSatiri()];
+    }
+    if (alt === 'n') {
+      const m = /^Gn(\d+)(@\d+)?( (.*))?$/.exec(k);
+      if (!m || Number(m[1]) === 0) return ['! G: oturum numarasi gerekli (yalniz rakam, 0 degil)'];
+      if (!m[4]) return ["! G: numaradan sonra bosluk ve metin (Gn'de metin zorunlu)"];
+      return ['* G not kuyrukta (verilmemis oturuma yazilmaz; sonuc esitlenen dosyada)'];
+    }
+    if (alt === 'p') {
+      const r = k.slice(2);
+      if (r === '-') {
+        const vardi = plan.durum === 1 || plan.durum === 2;
+        if (plan.durum === 2 && kayit.durum === 2) { kayit.durum = 1; kayit.oturum = 0; }
+        plan.durum = 0;
+        return [vardi ? '* G plan iptal' : '* G plan yok (bekleyen ya da suren plan yoktu)'];
+      }
+      if (!r || r === '?') return [gpSatiri()];
+      const m = /^(\d+),(\d+),(\d+)$/.exec(r);
+      if (!m) return ['! G: Gp<unix>,<sure_s>,<hiz_ms> ya da Gp+<saniye>,<sure_s>,<hiz_ms>; Gp- iptal'];
+      const [bas, sure, hiz] = [Number(m[1]), Number(m[2]), Number(m[3])];
+      const simdi = Math.floor(Date.now() / 1000);
+      if (!KAYIT_HIZLARI.includes(hiz)) return ['! G: hiz 0 (her ornek) / 20/100/200/1000/10000/60000 ms olmali'];
+      if (bas < 1700000000 || bas - simdi > 366 * 86400) {
+        return ['! G: baslangic anlamsiz (unix saniye, en fazla 1 yil ileri; goreli icin Gp+<saniye>)'];
+      }
+      if (sure > 30 * 86400) return ['! G: sure en fazla 30 gun'];
+      if (sure && bas + sure <= simdi) return ['! G: planin penceresi gecmis'];
+      if (plan.durum === 2) return ['! G: plan suruyor — once Gp- (kaydini da durdurur)'];
+      Object.assign(plan, { durum: 1, bas, sure, hiz, oturum: 0 });
+      return [`* G plan kuruldu: ${bas} (+${bas - simdi} s), ${sure} s, ${hiz} ms — GP durum`];
+    }
+    return ['! G: alt komut b<ms> d ? o<sira> F!  a<id> e<id> n<id> x<id>:<sira>  t<ms> td  p<plan>'];
+  }
+  /* Demo dongusunden (app.js demoVeri) her D satirinda: kayitta nokta birikir,
+     saniyede bir G satiri; plan zamani gelince oturum acilir. */
+  function kayitTik(ms) {
+    const cikti = [];
+    const simdi = Math.floor(Date.now() / 1000);
+    if (plan.durum === 1 && simdi >= plan.bas) {
+      if (kayit.durum === 2) plan.durum = 4;
+      else { kayitBaslat(plan.hiz); plan.durum = 2; plan.oturum = kayit.oturum; }
+      cikti.push('* G plan basladi', gSatiri());
+    } else if (plan.durum === 2 && plan.sure && simdi >= plan.bas + plan.sure) {
+      plan.durum = 3;
+      if (kayit.durum === 2) { kayit.durum = 1; kayit.oturum = 0; }
+      cikti.push('* G plan suresi doldu — kayit kapaniyor', gSatiri());
+    }
+    if (kayit.durum === 2) {
+      const gecen = kayit.sonG ? ms - kayit.sonG : 0;
+      if (!kayit.sonG || gecen >= 1000) {
+        const yeni = kayit.hiz ? gecen / kayit.hiz + kayit.artik : gecen * 0.5;
+        kayit.nokta += Math.floor(yeni);
+        kayit.artik = yeni - Math.floor(yeni);
+        kayit.bayt += Math.floor(yeni) * (kayit.hiz ? 36 : 6);
+        while (kayit.bayt >= 11923) { kayit.bayt -= 11923; kayit.doluluk++; kayit.onaysiz++; }
+        kayit.sonG = ms;
+        cikti.push(gSatiri());
+      }
+    } else {
+      kayit.sonG = 0;
+    }
+    return cikti;
+  }
+
   function komut(k) {
     k = String(k).trim();
     const c = k[0], alt = k[1];
+    if (c === 'G') return kayitKomut(k);
 
     /* B36 — kalibrasyon tablosu. Sahte kart GERÇEK kartın protokolünü
        konuşmak zorunda: ayrışırsa demo, arayüzü gerçek yolundan
@@ -392,6 +488,7 @@ const SahteKart = (() => {
 
   return {
     komut,
+    kayitTik,                            // 3D: kayit motoru (G satirlari)
     raporAralik() { return raporMs; },   // B27 A2: demo dongusu bunu okur
     sinyaller: SINYALLER,
     sinyalSec(ad) { if (SINYALLER[ad]) secili = ad; },

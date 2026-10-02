@@ -77,6 +77,26 @@ def rgb(hex_: str) -> tuple[int, int, int]:
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
 
+def durum_bekle(t, ifade: str, beklenen, sure: float = 5.0) -> tuple:
+    """`ifade` `beklenen`e esit olana dek bekle; (son deger, gecen saniye) — zaman asiminda da.
+
+    🔴 3D: "Sistem canli izleme" adimi 3C'de 3 kosunun 1'inde kirmiziydi. Adim SABIT
+       uykuyla (tiklamadan sonra 0.4 s, medya taklidinden sonra 0.6 s) okuyordu. Olculdu
+       (2026-10-02, 80 gecis: bosta 26-166 ms, 24 mesgul surecle 31-54 ms; 6 paralel Edge
+       ile 18/18 yesil): olay HIC kaybolmuyor, yalniz gec gelebiliyor. Sabit uyku = test
+       yarisi. Artik durum BEKLENIYOR (tavan 5 s) ve gecikme iddianin ayrintisinda yaziyor:
+       bir gun yine kirmizi olursa "geldi ama gec" (sayi) ile "hic gelmedi" (tavan) ayrilir."""
+    import time
+    t0 = time.monotonic()
+    deger = None
+    while time.monotonic() - t0 < sure:
+        deger = t.js(ifade)
+        if deger == beklenen:
+            break
+        t.bekle(0.02)
+    return deger, time.monotonic() - t0
+
+
 def bos_port() -> int:
     """CDP icin bos port. ⚠ SABIT PORT KULLANILMIYOR: `Tarayici.kapat()`
     yalnizca baslatici sureci olduruyor, Edge'in kendisi YASAMAYA devam
@@ -225,7 +245,8 @@ def main() -> int:
                     "(() => { const b = [...document.querySelectorAll('button')]"
                     f".find(x => x.textContent.trim() === {repr(['Koyu', 'Açık', 'Ön panel'][TEMALAR.index(ad)])});"
                     " if (!b) return 'dugme yok'; b.click(); return 'ok'; })()")
-                t.bekle(0.6)
+                durum_bekle(t, "document.documentElement.dataset.tema", ad)
+                t.bekle(0.2)                     # tuval: temaDegisti -> yeniden cizim
                 zemin = t.js("getComputedStyle(document.body).backgroundColor")
                 beklenen = "rgb({}, {}, {})".format(*rgb(d["--zemin"]))
                 kayit = t.js("localStorage.getItem('olcum.tema')")
@@ -259,25 +280,31 @@ def main() -> int:
 
             # ── Sistem: isletim sistemi tercihi CANLI izleniyor ──────
             t.js("[...document.querySelectorAll('button')].find(x => x.textContent.trim() === 'Sistem').click()")
-            t.bekle(0.4)
+            secim, _ = durum_bekle(t, "document.documentElement.dataset.temaSecim", "sistem")
             t.tema("light")
-            t.bekle(0.6)
-            acik_mi = t.js("document.documentElement.dataset.tema")
+            acik_mi, g1 = durum_bekle(t, "document.documentElement.dataset.tema", "acik")
             t.tema("dark")
-            t.bekle(0.6)
-            koyu_mu = t.js("document.documentElement.dataset.tema")
+            koyu_mu, g2 = durum_bekle(t, "document.documentElement.dataset.tema", "koyu")
             ok("[!] 'Sistem': isletim sistemi acik -> Acik, koyu -> Koyu (sayfa yenilenmeden)",
-               acik_mi == "acik" and koyu_mu == "koyu", f"{acik_mi} -> {koyu_mu}")
+               secim == "sistem" and acik_mi == "acik" and koyu_mu == "koyu",
+               f"{acik_mi} ({g1 * 1000:.0f} ms) -> {koyu_mu} ({g2 * 1000:.0f} ms)")
 
             # ── telefon genisligi: secici sigiyor ────────────────────
             t.ekran(390, 844)
             t.bekle(0.8)
+            # 🔴 3D: `innerWidth` KULLANILMAZ — mobil taklitte icerik tasinca Chrome
+            #    innerWidth'i ICERIK genisligine buyutuyor (3C 390 -> 549 olctu) ve "sigiyor"
+            #    tasan sayfada da donuyordu (kor iddia). `clientWidth` yerlesim genisliginde
+            #    kalir; ayrica SAYFANIN yatay tasmasi da olculuyor.
             sig = t.js("(() => { const g = [...document.querySelectorAll('.dugme-grup')]"
                        ".find(x => x.getAttribute('aria-label') === 'Görünüm');"
                        " if (!g) return 'yok';"
                        " const r = [...g.children].map(b => b.getBoundingClientRect().right);"
-                       " return Math.max(...r) <= innerWidth ? 'sigiyor' : 'tasiyor ' + Math.max(...r); })()")
-            ok("Telefonda (390 px) Gorunum dugmeleri ekrana sigiyor", sig == "sigiyor", str(sig))
+                       " const gen = document.documentElement.clientWidth;"
+                       " return Math.max(...r) <= gen ? 'sigiyor' : 'tasiyor ' + Math.max(...r) + ' > ' + gen; })()")
+            tasma = t.js("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+            ok("Telefonda (390 px) Gorunum dugmeleri ekrana sigiyor, sayfa yatay TASMIYOR (clientWidth olcutu)",
+               sig == "sigiyor" and tasma <= 0, f"{sig} · tasma {tasma} px")
             if goruntu:
                 t.js("[...document.querySelectorAll('h2')].find(h => h.textContent === 'Görünüm')"
                      ".scrollIntoView({block: 'center'})")

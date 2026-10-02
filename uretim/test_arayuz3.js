@@ -1017,8 +1017,12 @@ console.log('\n--- 10. Gorunumler: hash yonlendirme, v-show, yeniden cizim ---')
     const dene = (h) => { sandbox.location = { hash: h }; return hashten(); };
     ok('hashtenGorunum: #/skop -> skop', dene('#/skop') === 'skop');
     ok('hashtenGorunum: #skop (egik cizgisiz) -> skop', dene('#skop') === 'skop');
-    ok('hashtenGorunum: bilinmeyen (#/yok) -> varsayilan olcum', dene('#/yok') === 'olcum');
-    ok('hashtenGorunum: bos hash -> varsayilan olcum', dene('') === 'olcum');
+    /* 3D (D1): varsayilan gorunum Canli (`canli`); ESKI `#/olcum` adresi de Canli'ya
+       duser (yer imi / paylasilmis baglanti bos ekrana gitmesin). */
+    ok('hashtenGorunum: bilinmeyen (#/yok) -> varsayilan canli', dene('#/yok') === 'canli');
+    ok('hashtenGorunum: bos hash -> varsayilan canli', dene('') === 'canli');
+    ok('[!] 3D: ESKI adres #/olcum -> canli (ve #/canli -> canli)', dene('#/olcum') === 'canli'
+       && dene('#olcum') === 'canli' && dene('#/canli') === 'canli');
     delete sandbox.location;
   } else {
     ok('hashtenGorunum fonksiyonu sandbox\'ta erisilebilir', false);
@@ -1106,53 +1110,10 @@ console.log('\n--- 11. Rapor araligi + grafik bosluklari (B27 A2) ---');
   ok('orneklemeHizi 93 ornek / 200 ms = "465 örnek/s"',
      u.orneklemeHizi === '465 örnek/s', u.orneklemeHizi);
 
-  // grafik: sahte tuval, cagrilari kaydeden baglam
-  const cagri = [];
-  /* Sahte 2B baglam: her cagriyi kaydeder. `measureText` GERCEK
-     tarayicida her zaman bir TextMetrics doner; undefined dondurmek
-     sahte baglamin kusuru olurdu (app.js'i savunmaci yazmak yerine
-     taklidi duzeltiyoruz — B17 dersi: taklit GERCEGI modellemeli). */
-  const ctx = new Proxy({}, {
-    get: (_, ad) => (...args) => {
-      cagri.push([ad, args]);
-      if (ad === 'measureText') return { width: String(args[0] || '').length * 6 };
-      return undefined;
-    },
-    set: () => true,
-  });
-  u.$refs.grafik = {
-    getBoundingClientRect: () => ({ width: 800 }), dataset: {},
-    height: 300, width: 0, style: {}, getContext: () => ctx,
-  };
-  u.pencere = 60; u.gosterV = true; u.gosterI = true; u.gosterW = false;
-  const say = (ad) => cagri.filter((c) => c[0] === ad).length;
-  const metinler = () => cagri.filter((c) => c[0] === 'fillText').map((c) => c[1][0]);
-
-  // V tamamen NaN, I gecerli
-  u.gecmis = [{ t: 0, v: NaN, i: 1, w: NaN }, { t: 1, v: NaN, i: 2, w: NaN },
-              { t: 2, v: NaN, i: 3, w: NaN }];
-  u.grafikCiz();
-  ok('V tamamen NaN: "veri yok" etiketi var, "tepe … V" YOK',
-     metinler().includes('veri yok') && !metinler().some((m) => /tepe .* V$/.test(m)),
-     metinler().join(' | '));
-  ok('I gecerli: "tepe … mA" etiketi var',
-     metinler().some((m) => /^tepe .* mA$/.test(m)));
-
-  // ortada NaN: cizgi KOPMALI (bir moveTo fazla, bir lineTo eksik)
-  u.gosterV = false;
-  cagri.length = 0;
-  u.gecmis = [{ t: 0, v: 1, i: 1, w: 1 }, { t: 1, v: 1, i: 2, w: 1 },
-              { t: 2, v: 1, i: 3, w: 1 }, { t: 3, v: 1, i: 4, w: 1 }];
-  u.grafikCiz();
-  const duzMove = say('moveTo'), duzLine = say('lineTo');
-  cagri.length = 0;
-  u.gecmis[1].i = NaN;
-  u.grafikCiz();
-  /* Kopan nokta iki lineTo goturur: kendi lineTo'su ve ardindaki noktanin
-     lineTo'su (o artik moveTo). Ilk yazimda -1 beklenmisti, yanlisti. */
-  ok('ortadaki NaN cizgiyi KOPARIYOR (moveTo +1, lineTo -2)',
-     say('moveTo') === duzMove + 1 && say('lineTo') === duzLine - 2,
-     `moveTo ${duzMove}->${say('moveTo')} lineTo ${duzLine}->${say('lineTo')}`);
+  /* 3D (D3): canli grafik artik ortak/src/grafik.js (ekran/canli.js). Eski elle cizimin
+     uc davranis iddiasi ("V tamamen NaN: veri yok", "I gecerli: tepe ... mA", "ortadaki
+     NaN cizgiyi KOPARIYOR") ZAYIFLATILMADAN yeni koda gore bolum 25'te yeniden yazildi:
+     lejant metni gercek modulden, cizginin kopmasi grafik.js'in cizim planindan. */
 
   // CSV: NaN bos hucre (Blob/URL sanalikta yok; govde denetimi)
   ok('csvIndir NaN hucreyi BOS birakiyor',
@@ -1498,7 +1459,9 @@ console.log('\n--- 13. Tasarim sistemi: temalar, kanal renkleri, hareket ---');
      okunakligi bozar — ilk yazimda "en fazla bir tane" demistim, ama
      ikinci mesru gosterge gelince o kural yanlis yere kirmiziya dondu.
      Dogru olcut SAYI degil, HANGI SECICI. */
-  const IZINLI_NABIZ = ['.rozet.acik .nokta', '.acil-nokta'];
+  /* 3D: `.kayit-nokta` — Canli basligindaki "kayit suruyor" gostergesi (durum, olcum
+     sayisi degil). */
+  const IZINLI_NABIZ = ['.rozet.acik .nokta', '.acil-nokta', '.kayit-nokta'];
   const nabizli = [...css.matchAll(/([^{}]+)\{[^{}]*animation:[^;]*infinite[^;]*;/g)]
     .map((m) => m[1].trim().split(/[\n,]/).pop().trim());
   ok('Sonsuz animasyon yalnizca durum gostergelerinde',
@@ -1636,21 +1599,33 @@ console.log('\n--- 14. Telefon yerlesimi + acil durdurma ---');
   const telefon = css.match(/@media \(max-width: 620px\)\s*\{([\s\S]*?)\n\}/);
   ok('Telefon kirilimi (<=620px) tanimli', !!telefon);
   if (telefon) {
-    ok('Telefonda olcum kartlari iki sutun, guc tam genislik',
-       /\.olcumler\s*\{[^}]*grid-template-columns:\s*1fr 1fr/.test(telefon[1]) &&
-       /\.olcum\.w\s*\{[^}]*grid-column:\s*1 \/ -1/.test(telefon[1]));
-    ok('Telefonda ust seridin alt basligi gizleniyor (yer kazanci)',
-       /\.ust \.alt\s*\{[^}]*display:\s*none/.test(telefon[1]));
+    /* 3D (D2): dort okuma karti (V · A · W · Enerji) telefonda 2 x 2 — dordu de ilk
+       ekranda. Eski uc kartta "guc tam genislik" kurali vardi; dort kartta 2 x 2. */
+    const canliMain = html.match(/<main[^>]*v-show="gorunum === 'canli'"([\s\S]*?)<\/main>/);
+    const kartlar = canliMain ? [...canliMain[1].matchAll(/class="olcum (v|i|w|e)"/g)].map((m) => m[1]) : [];
+    ok('Telefonda dort okuma karti 2 x 2 (iki sutun)',
+       /\.olcumler\s*\{[^}]*grid-template-columns:\s*1fr 1fr/.test(telefon[1])
+       && kartlar.join('') === 'viwe', kartlar.join(' '));
   }
   ok('Cok dar ekranda (<=380px) olcumler tek sutuna donuyor',
      /@media \(max-width: 380px\)[\s\S]{0,200}grid-template-columns:\s*1fr;/.test(css));
+  /* 3D (D1): <= 900 px serit CEKMECE. Kapaliyken `visibility: hidden` (yalniz gorunmez
+     degil, SEKME ile de ulasilamaz); acikken gorunur; ust cubuk YALNIZ dar ekranda. */
+  const dar = css.match(/@media \(max-width: 900px\)\s*\{([\s\S]*?)\n\}/);
+  ok('[!] 3D: <=900 px serit cekmece — kapali: transform + visibility hidden, acik: gorunur; ust cubuk yalniz burada',
+     !!dar && /\.serit\s*\{[^}]*transform:\s*translateX\(-100%\)[^}]*visibility:\s*hidden/.test(dar[1])
+     && /\.cekmece-acik \.serit\s*\{[^}]*visibility:\s*visible/.test(dar[1])
+     && /\.ust\s*\{[^}]*display:\s*flex/.test(dar[1])
+     && /(^|\n)\.ust\s*\{\s*display:\s*none;\s*\}/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')));
 
-  /* Ust serit sadelesti: tasiyici secici ve adres AYARLAR'da. */
+  /* Ust serit sadelesti: tasiyici secici ve adres AYARLAR'da. 3D: baglanti kumesi
+     iki yerde (dar ekranin ust cubugu + sol serit), CSS her genislikte birini gosterir. */
   const ust = html.match(/<header class="ust">([\s\S]*?)<\/header>/);
-  ok('Ust seritte tasiyici secici ve adres kutusu YOK', !!ust &&
-     !ust[1].includes('v-model="tasiyiciAdi"') && !ust[1].includes('v-model="kartTaban"'));
-  ok('Ust seritte durum rozeti ve birincil eylem VAR', !!ust &&
-     ust[1].includes('class="rozet"') && ust[1].includes('@click="baglan"'));
+  const serit = html.match(/<aside id="serit" class="serit"[^>]*>([\s\S]*?)<\/aside>/);
+  ok('Ust cubukta ve seritte tasiyici secici ve adres kutusu YOK', !!ust && !!serit &&
+     [ust[1], serit[1]].every((b) => !b.includes('v-model="tasiyiciAdi"') && !b.includes('v-model="kartTaban"')));
+  ok('Ust cubukta ve seritte durum rozeti ve birincil eylem VAR', !!ust && !!serit &&
+     [ust[1], serit[1]].every((b) => b.includes('class="rozet"') && b.includes('@click="baglan"')));
   const ayarBlok = html.match(/v-show="gorunum === 'ayar'"([\s\S]*?)<\/main>/);
   ok('Tasiyici secici ve kart adresi AYARLAR gorunumunde', !!ayarBlok &&
      ayarBlok[1].includes('v-model="tasiyiciAdi"') &&
@@ -1681,14 +1656,40 @@ console.log('\n--- 15. Butce ve dayaniklilik ---');
   ok('LittleFS kunyesi (_fs.json) var', fs.existsSync(kunyeYolu));
   if (fs.existsSync(kunyeYolu)) {
     const kunye = JSON.parse(fs.readFileSync(kunyeYolu, 'utf8'));
-    /* ⚠ 3A: bu B27 A4 butcesi. Alt proje 3'un butcesi P5 = 600 KB
-       (`ortak/` dahil) ve sim3_web.py 6m'de sinaniyor; bu sayi ondan SIKI,
-       yani once bu kirmiziya doner — erken uyari olarak birakildi. Bastiginda
-       karar P5'e gore verilir (yukseltmek ya da kucultmek). */
+    /* 3D — BUTCE KARARI (alt proje 3 yoneticisi, 2026-10-02): B27 A4'un 250 KB'si
+       (3C'de goruntunun %97'si) artik ACILISTA INEN dosyalara uygulaniyor: index.html +
+       sayfanin istedigi varliklar + app.js'in STATIK ice aktarma agaci. Ekran ilk acilinca
+       inen moduller (dinamik `import()`; 3C Kayitlar) haric. Goruntunun TAMAMI P5 <= 600 KB
+       (sim3_web.py 6m). Acilis kumesi ELLE listelenmiyor — asagida `acilis` kumesinden
+       (html referanslari + iceAktarmaGrafigi) TURETILIYOR; yeni bir statik import
+       kendiliginden sayilir. Bayt `_fs.json`dan (karta GERCEKTEN yazilan gzip boyu). */
     const BUTCE = 250 * 1024;
-    ok(`Arayuz gzip butcesi: ${kunye.icerik_bayt} B < ${BUTCE} B`,
-       kunye.icerik_bayt > 0 && kunye.icerik_bayt < BUTCE,
-       `%${(100 * kunye.icerik_bayt / BUTCE).toFixed(0)} dolu`);
+    const acilisK = new Set(['index.html']);
+    for (const m of html.matchAll(/(?:^|\s)(?:href|src)="([^"]+)"/gm)) {
+      if (!/^(https?:|data:|#|mailto:)/.test(m[1])) acilisK.add(m[1]);
+    }
+    for (const g of iceAktarmaGrafigi()) acilisK.add(g.goruntu);
+    const baytlar = kunye.bayt || {};
+    const topla = (k) => [...k].reduce((n, a) => n + (Number.isFinite(baytlar[a]) ? baytlar[a] : NaN), 0);
+    const acilisBayt = topla(acilisK);
+    ok(`[!] 3D: ACILIS kumesi gzip butcesi: ${acilisBayt} B <= ${BUTCE} B (statik agac; dinamik import haric)`,
+       acilisBayt > 0 && acilisBayt <= BUTCE,
+       `%${(100 * acilisBayt / BUTCE).toFixed(0)} dolu · ${acilisK.size} dosya · goruntu toplami ${kunye.icerik_bayt} B`
+       + (kunye.bayt ? '' : ' — _fs.json`da dosya baytlari yok: python arayuz-uret.py'));
+    /* 3D: Canli VARSAYILAN ekran ve grafigi (ekran/canli.js + ortak/grafik.js agaci) ekran
+       ilk gorunur olunca `import()` ile iniyor — yani Canli ile acilan sayfada O DA aciliste
+       iniyor. Gizlenmesin: o zincir de bu butceye SAYILIYOR (yoneticinin kuralindan SIKI). */
+    const canliYol = govdeIcinde(appKaynak, 'canliYukle', "import('./ekran/canli.js')")
+      && vm.runInContext('GORUNUM_VARSAYILAN', sandbox) === 'canli' ? path.join(ARAYUZ, 'ekran', 'canli.js') : null;
+    const canliK = new Set(canliYol ? ['ekran/canli.js', ...iceAktarmaGrafigi(canliYol).map((g) => g.goruntu)] : []);
+    for (const a of acilisK) canliK.delete(a);
+    const canliBayt = acilisBayt + topla(canliK);
+    ok(`[!] 3D: Canli ile acilis (statik + Canli grafik zinciri) gzip <= ${BUTCE} B`,
+       canliK.size >= 2 && canliBayt <= BUTCE,
+       `${canliBayt} B = %${(100 * canliBayt / BUTCE).toFixed(0)} · zincir: ${[...canliK].join(' ')}`);
+    ok('[!] 3D: Canli ile acilista istenen TOPLAM dosya <= 12 (statik <= 8 + Canli zinciri <= 4)',
+       canliK.size >= 2 && canliK.size <= 4 && acilisK.size + canliK.size <= 12,
+       `${acilisK.size} + ${canliK.size}`);
     /* Dosya sayisi: her dosya karta ayri bir HTTP istegi demek ve her
        istek olcum dongusunu blokluyor (kartta olculdu: 6.5 KB'lik
        style.css bile 34 ms).
@@ -2208,22 +2209,15 @@ console.log('\n--- 20. Ikili yolda olcum satiri (B43) ---');
    ═══════════════════════════════════════════════════════════════════════ */
 console.log('\n--- 21. Tarayici gezisinde bulunanlar (B45) ---');
 {
-  /* (a) negatif deger: sifir ORTADA, pozitif-yalniz: sifir ALTTA */
+  /* (a) negatif deger + sifir: 3D'de grafik.js'e gecti — "negatif tuvalin DISINA
+     cizilmesin, sifir gorunsun" iddialari bolum 25'te GERCEK cizim planindan sinaniyor. */
   const g = ornek();
   g.kartSont = 0.1; g.menzil = 0;
   const pencere = [{ t: 0, v: 1.7, i: -0.5, w: 0.2 }, { t: 1, v: 1.7, i: 0.4, w: 0.1 }];
   const taban = g.olcekTabani(pencere);
-  const oi = g.grafikOlcek(pencere, 'i', taban.i);
-  const ov = g.grafikOlcek(pencere, 'v', taban.v);
-  ok('[!] Negatif akim penceresinde sifir ORTADA (negatif=true), pozitif gerilimde altta',
-     oi.negatif === true && ov.negatif === false && oi.enb === 0.5,
-     `i: ${JSON.stringify(oi)} v: ${JSON.stringify(ov)}`);
-  ok('[!] Cizim eslemi negatifte [-enb,+enb], pozitifte [0,enb] (kaynak)',
-     govdeIcinde(appKaynak, 'grafikCiz', 'negatif ? ust + boy * (1 - deger / enb) / 2')
-     && govdeIcinde(appKaynak, 'grafikCiz', ': ust + boy * (1 - deger / enb)'),
-     'eski eslem negatif her noktayi tuvalin DISINA koyuyordu');
 
-  /* (b) gurultu tabani: 20 LSB, kartin sont'undan */
+  /* (b) gurultu tabani: 20 LSB, kartin sont'undan. Grafikte bu `enAzAralik`
+     (2 x taban, ekran/canli.js K2); davranisi bolum 25. */
   const iLsb = 0.256 / 32768 / 0.1;           // 78.125 uA
   ok('Akim tabani = 20 LSB (kartin sont\'undan)', Math.abs(taban.i - 20 * iLsb) < 1e-12,
      `${(taban.i * 1e3).toFixed(4)} mA`);
@@ -2233,23 +2227,8 @@ console.log('\n--- 21. Tarayici gezisinde bulunanlar (B45) ---');
   g.menzil = 0;
   const gurultu = Array.from({ length: 40 }, (_, k) => ({ t: k, v: 1.7156, i: (k % 2 ? 3e-6 : -3e-6), w: (k % 2 ? 5e-6 : -5e-6) }));
   const tg = g.olcekTabani(gurultu);
-  const gi = g.grafikOlcek(gurultu, 'i', tg.i);
-  const gw = g.grafikOlcek(gurultu, 'w', tg.w);
-  ok('[!] Bostaki +-3 uA gurultusu TABANDA kaliyor (ekrani doldurmuyor)',
-     gi.tabanda === true && Math.abs(gi.enb - tg.i) < 1e-12 && gi.tepe === 3e-6,
-     `enb ${(gi.enb * 1e3).toFixed(3)} mA, tepe ${(gi.tepe * 1e6).toFixed(1)} uA`);
-  ok('[!] Guc tabani |V|max x akim tabani (1.7 V x 1.56 mA ~ 2.7 mW), gurultu altinda',
-     gw.tabanda === true && Math.abs(tg.w - (1.7156 * tg.i + 3e-6 * tg.v)) < 1e-12,
-     `${(tg.w * 1e3).toFixed(3)} mW`);
-  const yuk = Array.from({ length: 40 }, (_, k) => ({ t: k, v: 12, i: 0.01, w: 0.12 }));
-  const ty = g.olcekTabani(yuk);
-  ok('10 mA\'lik gercek yuk tabanin USTUNDE, eskisi gibi tepeye olcekleniyor',
-     g.grafikOlcek(yuk, 'i', ty.i).tabanda === false && g.grafikOlcek(yuk, 'w', ty.w).tabanda === false);
-  ok('Taban devredeyken etiket olcegi de yaziyor (kaynak)',
-     govdeIcinde(appKaynak, 'grafikCiz', "' · ölçek '") && govdeIcinde(appKaynak, 'grafikCiz', "'tepe ' + bicimle(tepe)"),
-     '"tepe 0.0 mA" tek basina ekrandaki izi aciklamaz');
-  ok('Sifir cizgisi ciziliyor (kaynak)',
-     govdeIcinde(appKaynak, 'grafikCiz', 'const y0 = Math.round(yOl(0)) + .5;'));
+  ok('[!] Guc tabani |V|max x akim tabani + |I|max x gerilim tabani (1.7 V x 1.56 mA ~ 2.7 mW)',
+     Math.abs(tg.w - (1.7156 * tg.i + 3e-6 * tg.v)) < 1e-12, `${(tg.w * 1e3).toFixed(3)} mW`);
 
   /* (c) skop olcum satirinda gerilimler TEK birimde */
   const s = ornek();
@@ -2694,7 +2673,7 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
     const dene = (h) => { sandbox.location = { hash: h }; return hashten(); };
     ok('[!] hashtenGorunum: #/kayitlar, #/kayit/12, #/kayit/12@7/rapor -> kayitlar',
        dene('#/kayitlar') === 'kayitlar' && dene('#/kayit/12') === 'kayitlar'
-       && dene('#/kayit/12@7/rapor') === 'kayitlar' && dene('#/kayitx') === 'olcum');
+       && dene('#/kayit/12@7/rapor') === 'kayitlar' && dene('#/kayitx') === 'canli');
     const w = secenekler.watch.gorunum;
     let yazilan = [];
     sandbox.history = { replaceState: (a, b, h) => yazilan.push(h) };
@@ -3106,6 +3085,550 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
     const telefon = [...css.matchAll(/@media \(max-width: 620px\)\s*\{([\s\S]*?)\n\}/g)].map((m) => m[1]).join('\n');
     ok('[!] Telefonda (<=620px) liste satiri TEK sutuna iniyor (390 px`te yatay tasma yok)',
        /\.kl-satir\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/.test(telefon));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   25. CANLI + KABUK + KAYIT DENETIMI (3D — alt proje 3, D1-D8)
+
+   Kararlar tasarim/2026-10-02-alt-proje-3-panel.md "3D kararlari". Burada:
+   (a) KABUK: sol serit gezinmesi (Karsilastirma YOK), cekmece (Esc / secim
+       kapatir, odak menu dugmesine doner), baglanti kipi, esitlenmemis orani.
+   (b) PASIF DURUM: G / GA / GT / GP ayristiricilari — alan ADLARI firmware'in
+       protokol yorumundan, SAYISI onun snprintf bicimindan TURETILIYOR (kart
+       bir alan eklerse kirmizi); `G?` yalniz baglaninca + kayit komutundan
+       sonra (YOKLAMA YOK — davranissal: zamanlayicilar elle kosturuluyor).
+   (c) KOMUT URETICILERI: firmware'in sinirlariyla (hiz listesi, 175 BAYT,
+       not 120 bayt, plan 30 gun / 1.7e9 / 1 yil) — sabitler firmware'den.
+   (d) OKUMA + KALAN: son 10 s min/maks, "~X kaldi" yalniz >= 60 s gozlemle.
+   (e) CANLI GRAFIK: ekran/canli.js + GERCEK ortak/grafik.js cizim plani —
+       bolum 11/21'deki eski elle cizim iddialari burada yeni koda gore.
+   Gercek tarayici (cekmece 390 px, CDP fare, SSE + /komut, uc gorunum):
+   tarayici_canli.py (T3D).
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 25. Canli + kabuk + kayit denetimi (3D) ---');
+{
+  const html = yorumsuz(htmlKaynak);
+  const kod = yorumsuz(appKaynak);
+  const css = cssOku();
+  const SZ = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const GR = require(path.join(KOK, 'ortak', 'src', 'grafik.js'));
+  const CN = require(path.join(ARAYUZ, 'ekran', 'canli.js'));
+  const ESx = require(path.join(ARAYUZ, 'ekran', 'esitleme.js'));
+  const al = (ad) => vm.runInContext(ad, sandbox);
+  const YONET_H = fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'kayit_yonet.h'), 'utf8');
+  const PLAN_H = fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'kayit_plan.h'), 'utf8');
+  const BICIM_H = fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'kayit_bicim.h'), 'utf8');
+  const inoYorumsuz = ino.replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+  /* ── (a) KABUK ──────────────────────────────────────────────────── */
+  const G = al('GORUNUMLER');
+  ok('[!] D1: serit gezinmesi Canli · Osiloskop · Pil testi · Kayitlar · Ayarlar · Konsol (Karsilastirma YOK)',
+     G.map((g) => g.id).join(' ') === 'canli skop pil kayitlar ayar konsol'
+     && !G.some((g) => /karsila/i.test(g.id + g.ad)), G.map((g) => g.id).join(' '));
+  ok('[!] D8: her gorunumun adi ve alt yazisi SOZLUKTE (tr + en, bos degil)',
+     G.every((g) => [g.ad, g.alt].every((a) => a in SZ.SOZLUK && SZ.SOZLUK[a].tr && SZ.SOZLUK[a].en)),
+     G.map((g) => g.ad).join(' '));
+  const serit = html.match(/<aside id="serit" class="serit"[^>]*>([\s\S]*?)<\/aside>/);
+  ok('[!] D1: serit = ad + alt satir (yer · surum) + baglanti + gezinme (v-for gorunumler) + alt bilgi (esitlenmemis)',
+     !!serit && /\{\{ seritAlt \}\}/.test(serit[1]) && /class="gorunum-nav"/.test(serit[1])
+     && /v-for="g in gorunumler"/.test(serit[1]) && /@click="gorunumSecildi"/.test(serit[1])
+     && /\{\{ esitlenmemisYazi \}\}/.test(serit[1]));
+  ok('[!] D1: menu dugmesi cekmeceyi denetliyor (aria-controls="serit", aria-expanded)',
+     /<button[^>]*class="menu-dugme"[^>]*ref="menuDugme"[^>]*@click="cekmeceDegistir"[^>]*:aria-expanded="cekmeceAcik \? 'true' : 'false'"[^>]*aria-controls="serit"/.test(html));
+  {
+    const u = ornek();
+    let odak = 0;
+    u.$nextTick = (f) => f && f();
+    u.$refs = { menuDugme: { focus() { odak++; } } };
+    u.cekmeceDegistir();
+    const acildi = u.cekmeceAcik === true;
+    u.tusBasildi({ key: 'a', preventDefault() {} });
+    const harfKapatmadi = u.cekmeceAcik === true;
+    let engel = false;
+    u.tusBasildi({ key: 'Escape', preventDefault() { engel = true; } });
+    const escKapadi = u.cekmeceAcik === false && odak === 1 && engel;
+    u.cekmeceAc();
+    u.gorunumSecildi();
+    ok('[!] D1: cekmece — dugme acar, Esc kapatir ve odagi menu dugmesine dondurur, secim kapatir; baska tus kapatmaz',
+       acildi && harfKapatmadi && escKapadi && u.cekmeceAcik === false && odak === 2,
+       `acildi=${acildi} harf=${harfKapatmadi} esc=${escKapadi} odak=${odak}`);
+    u.tusBasildi({ key: 'Escape', preventDefault() { throw new Error('kapaliyken engellendi'); } });
+    ok('Cekmece kapaliyken Esc sayfanin baska isine KARISMIYOR (grafik imleci vb.)', u.cekmeceAcik === false);
+  }
+  {
+    const u = ornek();
+    const kip = (t, b, k) => { u.tasiyiciAdi = t; u.bagliTasiyici = b; u.kopruda = k; return u.baglantiKipi; };
+    ok('[!] D1: baglanti kipi USB / WiFi / kopru / demo (kopru `/durum` ile ayriliyor)',
+       kip('seri', 'seri', false) === 'usb' && kip('akis', 'akis', false) === 'wifi'
+       && kip('akis', 'akis', true) === 'kopru' && kip('demo', 'demo', false) === 'demo',
+       [kip('seri', 'seri', false), kip('akis', 'akis', false), kip('akis', 'akis', true)].join(' '));
+    u.tasiyiciAdi = 'seri'; u.bagliTasiyici = 'seri'; u.bagli = true;
+    ok('Baglanti rozeti "Cevrimici · USB"; bagli degilken "Bagli degil"',
+       u.baglantiYazi === 'Çevrimiçi · USB' && (u.bagli = false, u.baglantiYazi === 'Bağlı değil'), u.baglantiYazi);
+    ok('Seritin "esitlenmemis" alt bilgisi G gelmeden "—"', u.esitlenmemisYazi.includes('—'), u.esitlenmemisYazi);
+    u.satirIsle('G 2 61 24337 50012 49000 310 45 0 2900 1300 4 300 0');
+    ok('[!] D1: alt bilgi = G satirinin `onaysiz` alani (binde 45 -> %4.5)', u.esitlenmemisYazi === 'Eşitlenmemiş: %4.5',
+       u.esitlenmemisYazi);
+  }
+  {
+    const depo = (v) => ({ getItem: (k) => (k === 'olcum.dil' ? v : null) });
+    const atan = { getItem() { throw new Error('SecurityError'); } };
+    const girdiler = [null, '"en"', '"tr"', 'en', '"EN"', '{bozuk', '42', '"de"'];
+    const dilSec = al('dilSec');
+    const fark = girdiler.filter((v) => dilSec(depo(v)) !== ESx.dilOku(depo(v)));
+    ok('[!] D8: kabugun dil secimi ekran/esitleme.js dilOku ile HER girdide ayni (ve depo atarsa tr)',
+       fark.length === 0 && dilSec(atan) === 'tr' && dilSec(null) === 'tr' && dilSec(depo('"en"')) === 'en',
+       fark.join(' ') || `${girdiler.length} girdi`);
+  }
+  {
+    const afisCoz = al('afisCoz');
+    const fw = (inoYorumsuz.match(/Serial\.println\(F\("(Olcum Karti[^"]*)"\)\)/) || [])[1];
+    const a = fw ? afisCoz(fw) : null;
+    ok('[!] D1: firmware acilis afisi taniniyor (metin firmware kaynagindan), surum afisteki metin',
+       !!a && a.surum === fw.replace(/^Olcum Karti\s*—\s*/, '') && a.fw === null
+       && afisCoz('Olcum Karti — Asama 3 A3-1F').fw === 'A3-1F' && afisCoz('Kayit: 11648 KB') === null,
+       fw || 'afis yok');
+  }
+
+  /* ── (b) PASIF DURUM: G / GA / GT / GP ─────────────────────────── */
+  const KS = al('KAYIT_SATIRLARI');
+  const kayitSatiriCoz = al('kayitSatiriCoz');
+  const fwSatir = {};
+  for (const [tur, islev] of [['G', 'kayit_durum_bas'], ['GA', 'kayit_ga_bas'], ['GT', 'kayit_gt_bas'], ['GP', 'kayit_gp_bas']]) {
+    const bicim = (ino.match(new RegExp('snprintf\\(t, sizeof\\(t\\), "' + tur + ' ([^"]*)"')) || [])[1];
+    const i = ino.indexOf('static void ' + islev + '(');
+    const yorum = i > 0 ? (ino.slice(0, i).match(/\/\*((?:(?!\*\/)[\s\S])*)\*\/\s*$/) || [])[1] || '' : '';
+    const adlar = [...yorum.replace(/^[\s\S]*?\b(G[ATP]?) </, '$1 <').matchAll(/<(\w+?)(?:%o)?>/g)].map((m) => m[1]);
+    fwSatir[tur] = { bicim, n: bicim ? (bicim.match(/%/g) || []).length : -1, adlar };
+  }
+  ok('[!] D5: G / GA / GT / GP alan SAYISI firmware snprintf bicimiyle ayni',
+     ['G', 'GA', 'GT', 'GP'].every((t) => KS[t].length === fwSatir[t].n && fwSatir[t].n > 0),
+     ['G', 'GA', 'GT', 'GP'].map((t) => `${t}:${KS[t].length}/${fwSatir[t].n}`).join(' '));
+  ok('[!] D5: alan ADLARI ve SIRASI firmware protokol yorumundaki adlar',
+     ['G', 'GA', 'GT', 'GP'].every((t) => KS[t].join(',') === fwSatir[t].adlar.join(',')),
+     ['G', 'GA', 'GT', 'GP'].map((t) => `${t}: ${fwSatir[t].adlar.join(',')}`).join(' | '));
+  {
+    /* firmware bicimini sayilarla doldur (snprintf benzetimi) ve geri coz */
+    const doldur = (tur) => tur + ' ' + fwSatir[tur].bicim.replace(/%l?[ud]/g, (() => { let k = 0; return () => String(k++ * 7 + 1); })());
+    const sonuc = ['G', 'GA', 'GT', 'GP'].map((t) => {
+      const o = kayitSatiriCoz(doldur(t));
+      return !!o && o.tur === t && KS[t].every((ad, k) => o[ad] === k * 7 + 1);
+    });
+    const negatif = kayitSatiriCoz('G 5 0 0 1 0 0 0 0 0 0 0 0 -3');
+    ok('[!] D5: firmware bicimiyle uretilen satirlar alan alan cozuluyor; son_hata eksi olabilir',
+       sonuc.every(Boolean) && !!negatif && negatif.son_hata === -3 && negatif.durum === 5, sonuc.join(' '));
+    ok('[!] D5: KATI — eksik/fazla alan, tamsayi olmayan ya da yabanci satir DURUM SAYILMAZ',
+       kayitSatiriCoz('G 2 61 24337') === null && kayitSatiriCoz('G 2 61 24337 50012 49000 310 45 0 2900 1300 4 300 0 9') === null
+       && kayitSatiriCoz('G 2 61 x 50012 49000 310 45 0 2900 1300 4 300 0') === null
+       && kayitSatiriCoz('GX 1 2 3 4') === null && kayitSatiriCoz('Gerilim 1') === null);
+  }
+  {
+    const KDR = al('KDR');
+    const PLAN = al('PLAN');
+    const def = (h, ad) => { const m = h.match(new RegExp('#define ' + ad + '\\s+(\\d+)u')); return m ? Number(m[1]) : NaN; };
+    const kdrTamam = Object.entries(KDR).every(([a, v]) => def(YONET_H, 'KDR_' + a) === v);
+    const planTamam = Object.entries(PLAN).every(([a, v]) => def(PLAN_H, 'PLAN_' + a) === v);
+    ok('[!] D5/D6: kayit durumu (KDR_*) ve plan durumu (PLAN_*) kodlari firmware ile ayni',
+       kdrTamam && planTamam && Object.keys(KDR).length === 6 && Object.keys(PLAN).length === 8);
+  }
+  {
+    /* YOKLAMA YOK (D5): baglan() + zamanlayicilar elle (5 dk'lik pil yoklamasi esdegeri) */
+    const u = ornek();
+    const giden = [];
+    u.gonder = async (k) => { giden.push(k); };
+    u.kaydet = () => {};
+    u.tasiyiciAdi = 'demo';
+    SONRA.push(async () => {
+      /* bu iddianin zamanlayicilari: baglan()dan ve G/D satirlarindan SONRA kurulan her
+         setTimeout yakalanip elle kosturuluyor (5 dk'lik yoklama esdegeri) */
+      const zaman = [];
+      const eskiZ = sandbox.setTimeout;
+      sandbox.setTimeout = (fn, ms) => { zaman.push(fn); return zaman.length; };
+      await u.baglan();
+      for (let tur = 0; tur < 150; tur++) {
+        const bekleyen = zaman.splice(0);
+        for (const f of bekleyen) await f();
+      }
+      for (let k = 0; k < 5; k++) u.satirIsle('G 2 61 ' + (100 + k) + ' 50012 49000 310 45 0 2900 1300 4 300 0');
+      const gSoru = giden.filter((k) => k === 'G?').length;
+      await u.kayitBaslat();
+      const sonra = giden.filter((k) => k === 'G?').length;
+      sandbox.setTimeout = eskiZ;
+      ok('[!] D5: `G?` baglaninca BIR KEZ; zamanlayicilar ve gelen G satirlari yeni `G?` DOGURMUYOR (yoklama yok)',
+         gSoru === 1 && giden.indexOf('G?') > giden.indexOf('CT'), giden.join(' '));
+      ok('[!] D5: kayit komutundan SONRA tam bir `G?`', sonra === 2 && giden[giden.length - 2] === 'Gb200'
+         && giden[giden.length - 1] === 'G?', giden.slice(-3).join(' '));
+    });
+    ok('[!] D5: app.js`te setInterval YOK ve `G?` yalniz baglan + demoVeri (sahte kartin baglanmasi) + kayitKomut govdesinde',
+       !/setInterval\(/.test(kod) && (kod.match(/'G\?'/g) || []).length === 3
+       && govdeIcinde(appKaynak, 'baglan', "this.gonder('G?')") && govdeIcinde(appKaynak, 'demoVeri', "this.gonder('G?')")
+       && govdeIcinde(appKaynak, 'kayitKomut', "this.gonder('G?')"));
+  }
+  {
+    /* Durum gecisleri -> olaylar (D7), ret satiri (D4), konsol */
+    const u = ornek();
+    u.satirIsle('G 1 0 0 120 0 300 30 0 0 0 0 300 0');
+    const ilk = u.olaylar.length;
+    u.satirIsle('G 2 61 0 121 0 300 30 0 0 0 0 300 0');
+    u.satirIsle('G 2 61 5 121 0 300 30 2 0 0 0 300 0');
+    u.satirIsle('G 1 0 0 122 0 301 31 2 0 0 0 300 0');
+    const m = u.olaylar.map((o) => o.metin);
+    ok('[!] D7: olaylar — ilk G olay DEGIL; baslama, dusen artisi, durma (durum metniyle), en yeni basta',
+       ilk === 0 && m[0] === 'Kayıt durdu · oturum 61 (kayıt yok (hazır))' && m[1] === 'Kart 2 noktayı düşürdü'
+       && m[2] === 'Kayıt başladı · oturum 61' && u.gunluk.some((x) => x.metin.startsWith('G 2 61')), m.join(' | '));
+    u.kayitKomutZamani = Date.now();
+    u.satirIsle('! G: pil testi suruyor — kaydi zaten acik; durdurmak icin p0');
+    ok('[!] D4: kayit komutundan sonra gelen `! G:` satiri OLDUGU GIBI denetimin yaninda ve olaylarda',
+       !!u.kayitUyari && u.kayitUyari.tur === 'kart'
+       && u.kayitUyari.metin === 'Kart reddetti: ! G: pil testi suruyor — kaydi zaten acik; durdurmak icin p0'
+       && u.olaylar[0].metin.startsWith('! G: pil testi') && u.olaylar[0].tur === 'unlem');
+    const v = ornek();
+    v.kayitKomutZamani = Date.now() - 60000;
+    v.satirIsle('! G plan atlandi: o an baska kayit vardi');
+    ok('Komuttan BAGIMSIZ `! G` (plan atlandi) ret kutusuna DUSMUYOR, olaylara dusuyor',
+       v.kayitUyari === null && v.olaylar.length === 1);
+    for (let k = 0; k < 30; k++) v.satirIsle('! akis: ' + k + ' satir dustu (kuyruk doldu)');
+    ok('[!] D7: son olaylar EN FAZLA 20, en yeni basta', v.olaylar.length === 20
+       && v.olaylar[0].metin.includes(' 29 ') && v.olaylar[19].metin.includes(' 10 '), String(v.olaylar.length));
+    v.satirIsle('GP 1 1790000000 7200 1000 0');
+    v.satirIsle('GP 2 1790000000 7200 1000 62');
+    v.satirIsle('GT 0 0 0 0');
+    v.satirIsle('GT 1 0 3 0');
+    ok('D7: plan durum degisimi ve osiloskop gunlugu olay; GP/GT konsola da dusuyor',
+       v.olaylar[1].metin === 'Plan: sürüyor' && v.olaylar[0].metin === 'Osiloskop günlüğü başladı'
+       && v.gunluk.some((x) => x.metin.startsWith('GP 2')), v.olaylar.slice(0, 2).map((o) => o.metin).join(' | '));
+  }
+  {
+    /* Kart yeniden basladi (D ms geri gitti) — t AZALMAZ, arada bosluk; kayit surduyse soylenir */
+    const u = ornek();
+    u.raporMs = 200;
+    u.satirIsle('G 2 61 100 121 0 300 30 0 0 0 0 300 0');
+    for (const ms of [50000, 50200, 50400]) u.satirIsle(`D 12.0 0.5 6.0 1.0 0.001 ${ms} 172 0 0`);
+    u.satirIsle('D 12.0 0.5 6.0 1.0 0.001 3000 172 0 0');
+    u.satirIsle('D 12.0 0.5 6.0 1.0 0.001 3200 172 0 0');
+    const t = u.gecmis.map((x) => x.t);
+    const artan = t.every((x, k) => k === 0 || x > t[k - 1]);
+    const bosluk = (t[3] - t[2]) * 1000;
+    u.satirIsle('G 2 61 105 121 0 300 30 0 0 0 0 300 0');
+    const m = u.olaylar.map((o) => o.metin);
+    ok('[!] 3D: kart yeniden baslayinca (D ms geri) gecmisin zamani AZALMIYOR, arada bosluk esiginden genis bosluk',
+       artan && bosluk > CN.canliBoslukMs(200) && Math.abs((t[4] - t[3]) * 1000 - 200) < 1e-6,
+       `t=${t.join(',')} bosluk=${bosluk}`);
+    ok('[!] D7: "Kart yeniden basladi" + ayni oturum KAYITta surduyse "Kayit surdu"',
+       m[0] === 'Kayıt sürdü · oturum 61' && m[1] === 'Kart yeniden başladı', m.join(' | '));
+    const w = ornek();
+    for (const ms of [4294967000, 4294967200]) w.satirIsle(`D 1 0 0 0 0 ${ms} 172 0 0`);
+    w.satirIsle('D 1 0 0 0 0 104 172 0 0');
+    const tw = w.gecmis.map((x) => x.t);
+    ok('[!] millis 32 bit sarmasi yeniden baslama SAYILMIYOR, zaman surekli',
+       w.olaylar.length === 0 && Math.abs((tw[2] - tw[1]) * 1000 - 200) < 1e-6, tw.join(','));
+    const a = ornek();
+    a.satirIsle('Olcum Karti — Asama 3 (CIFT YONLU on uc)');
+    a.satirIsle('D 1 0 0 0 0 5000 172 0 0');
+    a.satirIsle('D 1 0 0 0 0 300 172 0 0');
+    ok('[!] D1/D7: afis surumu seritte; afis + ardindan gelen ms dususu TEK "yeniden basladi" olayi',
+       a.afisSurum === 'Asama 3 (CIFT YONLU on uc)' && a.olaylar.length === 1
+       && a.olaylar[0].metin === 'Kart yeniden başladı' && a.gunluk.some((x) => x.metin.startsWith('Olcum Karti')));
+  }
+
+  /* ── (c) KOMUT URETICILERI (D4) ─────────────────────────────────── */
+  {
+    const H = al('KAYIT_HIZLARI');
+    const hizFw = [...((inoYorumsuz.match(/static bool kayit__hiz_gecerli\(long h\) \{([\s\S]*?)\n\}/) || [])[1] || '')
+      .matchAll(/h == (\d+)/g)].map((m) => Number(m[1]));
+    ok('[!] D4: kayit araliklari firmware kayit__hiz_gecerli listesiyle AYNI (0 = her ornek)',
+       hizFw.length >= 5 && H.join(',') === hizFw.join(','), `panel ${H.join(',')} · firmware ${hizFw.join(',')}`);
+    const b = al('kayitBaslatKomutu');
+    ok('[!] D4: Baslat -> Gb<ms>, "her ornek" -> Gb0; listede olmayan aralik GONDERILMIYOR',
+       b(200).komut === 'Gb200' && b(0).komut === 'Gb0' && b(60000).komut === 'Gb60000'
+       && b(50).hata === 'cn.hata_hiz' && b(-1).hata && b(NaN).hata);
+    const azamiFw = Number((ino.match(/#define KOMUT_AZAMI (\d+)u/) || [])[1]) - 1;
+    const notFw = Number((BICIM_H.match(/#define KAYIT_NOT_METIN (\d+)u/) || [])[1]);
+    ok('[!] D4: komut tavani 175 BAYT (KOMUT_AZAMI - 1) ve not metni 120 bayt (KAYIT_NOT_METIN) firmware`ten',
+       al('KOMUT_AZAMI_BAYT') === azamiFw && azamiFw === 175 && al('NOT_METIN_AZAMI_BAYT') === notFw && notFw === 120);
+    const d = al('kayitKomutuDenetle');
+    const s2 = String.fromCharCode(0x15f);       // 'ş' = 2 bayt
+    ok('[!] D4: tavan BAYT sayiyor (Turkce harf 2 bayt): 175 ASCII gecer, 176 ASCII ve 88 x "ş" (176 bayt) GECMEZ',
+       d('G' + 'x'.repeat(174)).komut && d('G' + 'x'.repeat(175)).hata === 'cn.hata_komut_uzun'
+       && d(s2.repeat(88)).hata && d(s2.repeat(87)).komut && al('utf8Bayt')(s2 + 'a') === 3);
+    const n = al('kayitNotKomutu');
+    const tirnak = String.fromCharCode(34);
+    const tersBolu = String.fromCharCode(92);
+    ok('[!] D4: Not -> Gn<oturum> <metin>; taze D varsa Gn<oturum>@<kart_ms> <metin> (grafikte aninda)',
+       n(61, 'Oda 24 °C').komut === 'Gn61 Oda 24 °C' && n(61, '  hücre ılık ', 123456).komut === 'Gn61@123456 hücre ılık');
+    ok('[!] D4: Not reddi — oturum yok, bos, kartin attigi karakter (cift tirnak, ters bolu, denetim), 120 bayt ustu',
+       n(0, 'x').hata === 'cn.hata_oturum' && n(61, '   ').hata === 'cn.hata_not_bos'
+       && n(61, 'a' + tirnak + 'b').hata === 'cn.hata_not_karakter' && n(61, 'a' + tersBolu + 'b').hata === 'cn.hata_not_karakter'
+       && n(61, 'a' + String.fromCharCode(1) + 'b').hata === 'cn.hata_not_karakter'
+       && n(61, 'x'.repeat(120)).komut && n(61, 'x'.repeat(121)).hata === 'cn.hata_not_uzun'
+       && n(61, s2.repeat(60)).komut && n(61, s2.repeat(61)).bayt === 122);
+    const p = al('kayitPlanKomutu');
+    const simdi = 1790000000;
+    const sureFw = (PLAN_H.match(/#define PLAN_SURE_AZAMI \((\d+)UL \* (\d+)UL\)/) || []).slice(1).reduce((a, x) => a * Number(x), 1);
+    const altFw = Number((PLAN_H.match(/#define PLAN_UNIX_ALT\s+(\d+)UL/) || [])[1]);
+    const ileriFw = (PLAN_H.match(/#define PLAN_ILERI_AZAMI \((\d+)UL \* (\d+)UL\)/) || []).slice(1).reduce((a, x) => a * Number(x), 1);
+    ok('[!] D4: plan sinirlari firmware kayit_plan.h`ten (30 gun, 1.7e9, 366 gun)',
+       al('PLAN_SURE_AZAMI_S') === sureFw && sureFw === 2592000 && al('PLAN_UNIX_ALT') === altFw
+       && altFw === 1700000000 && al('PLAN_ILERI_AZAMI_S') === ileriFw && ileriFw === 366 * 86400);
+    const g = (b_, s, h) => p({ basUnix: b_, sureS: s, hizMs: h, simdiUnix: simdi });
+    ok('[!] D4: Zamanla -> Gp<unix>,<sure_s>,<hiz_ms>; sinirlar kartla AYNI (1.7e9 alti, 1 yil ileri, 30 gun, pencere gecmis, hiz)',
+       g(simdi + 3600, 7200, 1000).komut === 'Gp1790003600,7200,1000'
+       && g(simdi + 60, 0, 0).komut === 'Gp1790000060,0,0'
+       && g(1699999999, 60, 1000).hata === 'cn.hata_plan_eski' && g(1700000000, 0, 1000).komut
+       && g(simdi + ileriFw, 60, 1000).komut && g(simdi + ileriFw + 1, 60, 1000).hata === 'cn.hata_plan_ileri'
+       && g(simdi, sureFw, 1000).komut && g(simdi, sureFw + 1, 1000).hata === 'cn.hata_plan_sure'
+       && g(simdi - 100, 100, 1000).hata === 'cn.hata_plan_gecmis' && g(simdi - 100, 101, 1000).komut
+       && g(simdi - 100, 0, 1000).komut && g(simdi, 60, 50).hata === 'cn.hata_hiz' && g(simdi, -1, 1000).hata
+       && p({ basUnix: NaN, sureS: 60, hizMs: 1000, simdiUnix: simdi }).hata === 'cn.hata_plan_bas');
+    const yu = al('yerelSaattenUnix');
+    ok('Plan baslangici datetime-local (YEREL saat) -> unix; bicimsiz -> NaN',
+       yu('2026-10-02T21:05') === Math.floor(new Date(2026, 9, 2, 21, 5).getTime() / 1000)
+       && Number.isNaN(yu('')) && Number.isNaN(yu('02.10.2026 21:05')));
+    /* davranis: komutlar panelin komut yolundan, ardindan G? */
+    const u = ornek();
+    const giden = [];
+    u.gonder = async (k) => { giden.push(k); };
+    u.bagli = true; u.surucuyum = true;
+    u.satirIsle('G 2 61 100 121 0 300 30 0 0 0 0 300 0');
+    u.satirIsle('D 12.0 0.5 6.0 1.0 0.001 77000 172 0 0');
+    u.notMetni = 'deneme';
+    const ileri = new Date(Date.now() + 7 * 86400000);
+    ileri.setSeconds(0, 0);
+    u.planBas = u.yerelSaatYaz(ileri); u.planSureSa = 2; u.planSureDk = 30; u.planHiz = 1000;
+    SONRA.push(async () => {
+      await u.kayitDurdur();
+      await u.notEkle();
+      await u.planKur();
+      await u.planIptal();
+      const beklenen = ['Gd', 'G?', 'Gn61@77000 deneme', 'G?',
+        'Gp' + Math.floor(ileri.getTime() / 1000) + ',9000,1000', 'G?', 'Gp-', 'G?'];
+      ok('[!] D4: Durdur / Not / Zamanla / Iptal panelin KOMUT YOLUNDAN dogru metni gonderiyor (her biri ardindan G?)',
+         giden.join('|') === beklenen.join('|') && u.notMetni === '' && u.notAcik === false, giden.join(' '));
+      u.bagli = false;
+      giden.length = 0;
+      const sonuc = await u.kayitDurdur();
+      ok('Bagli degilken kayit komutu GITMIYOR ve sebebi yaziyor', sonuc === false && giden.length === 0
+         && u.kayitUyari && u.kayitUyari.metin === 'Karta bağlı değil.');
+    });
+  }
+
+  /* ── (d) OKUMA + KALAN (D2, D6) ─────────────────────────────────── */
+  {
+    const mm = al('sonAralikMinMaks');
+    const gc = Array.from({ length: 21 }, (_, k) => ({ t: k, v: 10 + k, i: k === 15 ? NaN : -k, w: NaN, e: k / 10 }));
+    const r = mm(gc, 'v', 10);
+    const ri = mm(gc, 'i', 10);
+    ok('[!] D2: son 10 s (son noktaya gore) min/maks; NaN sayilmiyor; hepsi NaN ya da bos -> null',
+       r.min === 20 && r.maks === 30 && r.say === 11 && ri.min === -20 && ri.maks === -10 && ri.say === 10
+       && mm(gc, 'w', 10) === null && mm([], 'v', 10) === null, JSON.stringify([r, ri]));
+    const u = ornek();
+    for (let k = 0; k < 60; k++) {
+      /* k = 0: 10 s PENCERESININ DISINDA bir sicrama (13 V) — pencere kaymazsa maks 13 olurdu */
+      u.satirIsle(`D ${(k === 0 ? 13 : 12 + (k % 7) * 0.001).toFixed(4)} 0.0${50 + (k % 5)} 0.6 ${k}.0 ${(k * 1e-4).toFixed(7)} ${1000 + 200 * k} 172 0 0`);
+    }
+    ok('[!] D2: okuma kartlari V · A · W · Enerji altinda "10 s: min … maks" (canli orneklerden, kartin birimiyle)',
+       u.onSaniye.v === '10 s: 12.000 V … 12.006 V' && u.onSaniye.i === '10 s: 50.00 mA … 54.00 mA'
+       && /^10 s: .* mWh … .* mWh$/.test(u.onSaniye.e) && u.onSaniye.w === '10 s: 600.00 mW … 600.00 mW',
+       JSON.stringify(u.onSaniye));
+    const cm = html.match(/<main[^>]*v-show="gorunum === 'canli'"([\s\S]*?)<\/main>/);
+    ok('[!] D2: dort kartin her birinde 10 s satiri (onSaniye.v/i/w/e) sablonda',
+       !!cm && ['v', 'i', 'w', 'e'].every((a) => cm[1].includes('{{ onSaniye.' + a + ' }}')));
+  }
+  {
+    const kt = al('kalanTahmin');
+    const seri = (n, adim, d) => Array.from({ length: n }, (_, k) => ({ t: k * adim, d: d(k) }));
+    const az = kt(seri(59, 1000, () => 310));
+    const sabit = kt(seri(71, 1000, () => 310));
+    const duz = kt(seri(121, 1000, (k) => 300 + Math.floor(k / 10)));
+    const yavas = kt(seri(121, 1000, (k) => 300 + Math.floor(Math.min(k, 30) / 10)));
+    ok('[!] D6: "kaldi" tahmini < 60 s gozlemde "hesaplaniyor"', az.durum === 'hesaplaniyor', JSON.stringify(az));
+    ok('[!] D6: degisim yoksa (binde nicemleme) KALAN ALT SINIRI ("> X"): (1000-d-1) x sure / 1',
+       sabit.durum === 'enaz' && Math.abs(sabit.ms - 689 * 70000) < 1e-6, JSON.stringify(sabit));
+    const beklenen = (1000 - 312) * 10000;
+    ok('[!] D6: duzenli artista (10 s`de binde 1) "~X" = (1000 - onaysiz) / olculen hiz',
+       duz.durum === 'yaklasik' && Math.abs(duz.ms - beklenen) / beklenen < 0.02, `${duz.ms} ~ ${beklenen}`);
+    ok('D6: artis durunca tahmin buyuyor (son degisimden sonraki sessizlik hesaba katiliyor)',
+       yavas.durum === 'yaklasik' && yavas.ms > 2 * (1000 - 303) * 10000, JSON.stringify(yavas));
+    const u = ornek();
+    for (let k = 0; k < 500; k++) u.satirIsle('G 2 61 ' + k + ' 121 0 300 30 0 0 0 0 300 0');
+    const sikisti = u.kayitGozlem.length;
+    u.satirIsle('G 2 61 600 121 0 300 31 0 0 0 0 300 0');
+    u.satirIsle('G 2 61 601 121 900 300 5 0 0 0 0 300 0');
+    ok('[!] D6: ayni onaysiz degeri tek araliga sikisiyor (uzun kayitta dizi buyumez); onay gelip azalinca gozlem bastan',
+       sikisti === 2 && u.kayitGozlem.length === 1 && u.kayitGozlem[0].d === 5, `${sikisti} -> ${u.kayitGozlem.length}`);
+    ok('Kalan metni: hesaplaniyor / "~X sa kaldi" / "> X gun kaldi"',
+       u.kayitKalanYazi.startsWith('kalan süre hesaplanıyor')
+       && (u.kayitGozlem = [{ t: 0, d: 310 }, { t: 70000, d: 310 }], u.kayitKalanYazi === '> 13 sa kaldı'), u.kayitKalanYazi);
+  }
+  {
+    const u = ornek();
+    u.bagli = true; u.surucuyum = true;
+    u.gonder = async () => {};
+    u.satirIsle('G 1 0 0 120 0 300 30 0 0 0 0 300 0');
+    u.baslatHiz = 200;
+    SONRA.push(async () => {
+      await u.kayitBaslat();
+      u.satirIsle('G 2 62 50 121 0 300 30 0 0 0 0 300 0');
+      const istek = u.kayitHiz;
+      ok('[!] D6: aralik bu sekmenin Gb`sinden; sure = nokta x aralik; "her ornek" GA`dan; yoksa OLCULEN',
+         istek && istek.hiz === 200 && istek.kaynak === 'istek' && u.kayitSureMs === 10000 && u.kayitSureYazi === '00:00:10',
+         JSON.stringify(istek));
+      const v = ornek();
+      v.satirIsle('G 2 70 0 121 0 300 30 0 0 0 0 300 0');
+      const bilinmiyor = v.kayitHiz === null && v.kayitSureMs === null;
+      v.kayitNoktaGozlem = [{ t: 0, n: 0 }, { t: 20000, n: 100 }];
+      const olculen = v.kayitHiz;
+      v.satirIsle('GA 480 1234 0 0');
+      ok('D6: panel baslangici GORMEDIYSE sure tahmin edilmiyor; olculen aralik "~200 ms (olculen)"; GA ayrintili -> her ornek',
+         bilinmiyor && olculen.kaynak === 'olculen' && Math.abs(olculen.hiz - 200) < 1e-9
+         && v.kayitHiz.hiz === 0 && v.kayitHizYazi === 'her örnek (~500/s)');
+    });
+    const ak = html.match(/data-ak="kart"([\s\S]*?)data-olaylar/);
+    ok('[!] D6: aktif kayit karti — oturum, nokta, sure, aralik, doluluk cubugu, kalan, plan, dusen uyarisi',
+       !!ak && ['kayitOturumYazi', 'kayitNoktaYazi', 'kayitSureYazi', 'kayitHizYazi', 'role="progressbar"',
+         'kayitDolulukYazi', 'kayitKalanYazi', 'planYazi', 'kayitDusenYazi'].every((x) => ak[1].includes(x)));
+    const w = ornek();
+    w.satirIsle('G 2 61 100 121 0 310 45 3 0 0 0 300 0');
+    ok('[!] D6: dusen > 0 ise uyari metni; 0 ise yok',
+       w.kayitDusenYazi === 'Kart 3 noktayı yazamadı (kayıt kuyruğu doldu).'
+       && (w.satirIsle('G 2 61 101 121 0 310 45 0 0 0 0 300 0'), w.kayitDusenYazi === ''));
+    w.satirIsle('GP 1 1790000000 7200 1000 0');
+    ok('D6: plan satiri durum + baslangic + sure + aralik', /^Plan: bekliyor · \d\d\.\d\d\.\d{4} \d\d:\d\d · 2 sa · 1 s$/.test(w.planYazi),
+       w.planYazi);
+  }
+
+  /* ── (e) CANLI GRAFIK: ekran/canli.js + ortak/grafik.js ─────────── */
+  {
+    const veri = Array.from({ length: 50 }, (_, k) => ({ t: k * 0.2, v: 12 + k * 0.01, i: k === 20 ? NaN : 0.5, w: 6 }));
+    const taban = { v: 0.02, i: 0.0015, w: 0.03 };
+    const s = CN.canliSeriler(veri, { taban, boslukMs: 500, gosterV: true, sagEksen: 'akim' });
+    ok('[!] D3: uc kanal AYNI t dizisini paylasiyor (ms), NaN korunuyor, en dar aralik 2 x taban (B45 K2)',
+       s.length === 3 && s[0].t === s[1].t && s[1].t === s[2].t && s[0].t[1] === 200 && Number.isNaN(s[1].y[20])
+       && s[0].enAzAralik === 0.04 && s[1].enAzAralik === 0.003 && s.every((x) => x.boslukMs === 500));
+    const gor = (sec) => CN.canliSeriler(veri, { taban, ...sec }).filter((x) => !x.gizli).map((x) => x.ad).join(',');
+    ok('[!] D3 (canli.js K1): sag eksen TEK birim — akim YA DA guc; V ayri kutu',
+       gor({ gosterV: true, sagEksen: 'akim' }) === 'V,I' && gor({ gosterV: true, sagEksen: 'guc' }) === 'V,W'
+       && gor({ gosterV: false, sagEksen: 'yok' }) === '' && gor({ gosterV: false, sagEksen: 'guc' }) === 'W');
+    /* eski bolum 11 (a)/(b): lejant */
+    const u = ornek();
+    const yok = CN.canliLejant([{ t: 0, v: NaN, i: 0.001, w: NaN }, { t: 1, v: NaN, i: 0.002, w: NaN }],
+      { v: 0.02, i: 0.0015, w: 0.03 }, { gosterV: true, sagEksen: 'akim' });
+    const metinler = yok.map((l) => u.lejantMetni(l));
+    ok('[!] V tamamen NaN: "veri yok", "tepe … V" YOK; I gecerli: "tepe … mA" (eski bolum 11, grafik.js ile)',
+       metinler[0] === 'veri yok' && !/tepe .* V/.test(metinler[0]) && /^tepe 2\.0 mA/.test(metinler[1]), metinler.join(' | '));
+    const gur = Array.from({ length: 40 }, (_, k) => ({ t: k, v: 1.7156, i: (k % 2 ? 3e-6 : -3e-6), w: (k % 2 ? 5e-6 : -5e-6) }));
+    const gt = { v: 0.02084, i: 0.0015625, w: 0.0027 };
+    const lg = CN.canliLejant(gur, gt, { gosterV: true, sagEksen: 'akim' });
+    ok('[!] Taban devredeyken lejant olcegi de yaziyor ("tepe 0.0 mA" tek basina izi aciklamaz)',
+       lg[1].tabanda === true && u.lejantMetni(lg[1]) === 'tepe 0.0 mA · ölçek ±1.6 mA', u.lejantMetni(lg[1]));
+
+    /* cizim plani: gercek grafik.js */
+    const planKur = (vr, tb, sec, boslukMs = 2500) => {
+      const ss = CN.canliSeriler(vr, { taban: tb, boslukMs, ...sec }).map(GR.seriHazirla);
+      return GR.cizimPlani(ss, GR.durumKur(ss), { w: 800, h: 280 });
+    };
+    const cizgiler = (plan, kanal) => plan.komutlar.filter((k) => k.rol === 'seri' && k.kanal === kanal);
+    const duzVeri = veri.map((x) => ({ ...x, i: 0.5 + (x.t % 1) * 0.1 }));
+    const p1 = planKur(duzVeri, taban, { sagEksen: 'akim' });
+    const p2 = planKur(duzVeri.map((x, k) => (k === 20 ? { ...x, i: NaN } : x)), taban, { sagEksen: 'akim' });
+    ok('[!] Ortadaki NaN akim cizgisini KOPARIYOR (eski bolum 11; grafik.js G2): 1 cizgi -> 2 cizgi',
+       cizgiler(p1, 1).length === 1 && cizgiler(p2, 1).length === 2,
+       `${cizgiler(p1, 1).length} -> ${cizgiler(p2, 1).length}`);
+    const neg = [{ t: 0, v: 1.7, i: -0.5, w: 0.2 }, { t: 1, v: 1.7, i: 0.4, w: 0.1 }, { t: 2, v: 1.7, i: -0.1, w: 0 }];
+    const p3 = planKur(neg, { v: 0.02, i: 0.0016, w: 0.003 }, { sagEksen: 'akim' });
+    const ylar = (k) => (k.tur === 'nokta' ? [k.y] : Array.from(k.noktalar).filter((_, j) => j % 2 === 1));
+    const icinde = cizgiler(p3, 1).every((k) => ylar(k).every((y) => y >= p3.alan.y - 0.5 && y <= p3.alan.y + p3.alan.h + 0.5));
+    const sag = p3.eksenler.sag;
+    ok('[!] Negatif akim TUVALIN ICINDE (eski bolum 21 a): eksen [-0.5, 0.4]`u kapsiyor, sifir izgara cizgisi var',
+       icinde && sag.min <= -0.5 && sag.maks >= 0.4 && sag.degerler.includes(0) && cizgiler(p3, 1).length >= 1,
+       `sag [${sag.min.toFixed(3)}, ${sag.maks.toFixed(3)}] cizgi ${sag.degerler.join(',')}`);
+    const p4 = planKur(gur, gt, { sagEksen: 'akim' });
+    const s4 = p4.eksenler.sag;
+    ok('[!] Bostaki +-3 uA gurultusu ekrani DOLDURMUYOR (eski bolum 21 b): eksen >= 2 x taban, gurultu yuksekligin <%1`i',
+       s4.maks - s4.min >= 2 * gt.i - 1e-12 && (6e-6 / (s4.maks - s4.min)) < 0.01, `${((s4.maks - s4.min) * 1e3).toFixed(3)} mA`);
+    const dalgali = Array.from({ length: 40 }, (_, k) => ({ t: k, v: 12, i: 0.01 + 0.005 * Math.sin(k), w: 0.12 }));
+    const p5 = planKur(dalgali, gt, { sagEksen: 'akim' });
+    const l5 = CN.canliLejant(dalgali, gt, { gosterV: false, sagEksen: 'akim' });
+    ok('Gercek 10 +- 5 mA sinyal tabanin USTUNDE: lejant tabanda DEGIL, eksen sinyalin tam min/maksi',
+       l5[0].tabanda === false && p5.eksenler.sag.min < 0.0051 && p5.eksenler.sag.maks > 0.0149);
+    /* yeniden baslama boslugu cizgiyi koparir */
+    const yb = ornek();
+    yb.raporMs = 200;
+    for (const ms of [50000, 50200, 50400, 3000, 3200, 3400]) yb.satirIsle(`D 12.0 0.5 6.0 1.0 0.001 ${ms} 172 0 0`);
+    const p6 = planKur(yb.gecmis, taban, { sagEksen: 'akim' }, CN.canliBoslukMs(200));
+    ok('[!] Kart yeniden baslayinca grafikte cizgi KOPUYOR (zaman uydurulmuyor)', cizgiler(p6, 0).length === 2,
+       String(cizgiler(p6, 0).length));
+  }
+  {
+    /* CanliGrafik: sahte tuval, canli / donmus */
+    const sahteTuval = () => {
+      const baglam = new Proxy({}, { get: (_, ad) => (ad === 'measureText' ? () => ({ width: 6 }) : () => {}), set: () => true });
+      return { clientWidth: 800, clientHeight: 280, width: 0, height: 0, style: {}, tabIndex: -1,
+        getContext: () => baglam, addEventListener() {}, removeEventListener() {} };
+    };
+    const pen = { devicePixelRatio: 1, getComputedStyle: () => ({ getPropertyValue: () => '#123456' }) };
+    const tv = sahteTuval();
+    const bilgiler = [];
+    const cg = new CN.CanliGrafik(tv, { pencere: pen, degisti: (b) => bilgiler.push(b) });
+    const gc = Array.from({ length: 400 }, (_, k) => Object.freeze({ t: k / 5, v: 12, i: 0.5, w: 6, e: 0 }));
+    const esit = (a, b) => Math.abs(a - b) < 1e-6;
+    const d = { gecmis: gc, pencereS: 30, gosterV: true, sagEksen: 'akim', taban: () => ({ v: 0.02, i: 0.0015, w: 0.03 }),
+      aralikMs: 200, donmus: false };
+    const b1 = cg.ciz(d);
+    ok('[!] D3: canli pencere = son `pencere` s (30 s), canlida etkilesim KAPALI (pointer-events none, sekmeye kapali)',
+       esit(b1.pencere.t1 - b1.pencere.t0, 30000) && esit(b1.pencere.t1, 79800)
+       && tv.style.pointerEvents === 'none' && tv.tabIndex === -1 && esit(b1.pencere.koken, 79800) && b1.okuma === null,
+       JSON.stringify(b1.pencere));
+    const b2 = cg.ciz({ ...d, donmus: true });
+    const yeni = gc.concat(Array.from({ length: 50 }, (_, k) => Object.freeze({ t: 80 + k / 5, v: 13, i: 0.6, w: 7, e: 0 })));
+    const b3 = cg.ciz({ ...d, gecmis: yeni, donmus: true });
+    ok('[!] D3: DONDUR — pencere ayni, yeni D satirlari KOPYAYA GIRMIYOR, imlec/yakinlastirma acik',
+       b2.donmus && b3.donmus && esit(b3.pencere.t1, 79800) && esit(cg.g.durum.veriT1, 79800) && cg.g.durum.veriT0 === 0
+       && tv.style.pointerEvents === '' && tv.tabIndex === 0, JSON.stringify(b3.pencere));
+    cg.g.durumAyarla({ imlecA: 60000, imlecB: 70000 });
+    const ok3 = cg._bildir();
+    ok('[!] D3: donmusken iki imlec okumasi (A/B, dt, V/I degerleri, enerji)',
+       !!ok3.okuma && ok3.okuma.dt === 10000 && ok3.okuma.enerji && Math.abs(ok3.okuma.enerji.wh - 12 * 0.5 * 10 / 3600) < 1e-9,
+       ok3.okuma ? JSON.stringify(ok3.okuma.enerji) : 'yok');
+    const b4 = cg.ciz({ ...d, gecmis: yeni, donmus: false });
+    ok('D3: Canliya don — yeni veri gorunur, etkilesim yine kapali', !b4.donmus && esit(b4.pencere.t1, 89800)
+       && tv.style.pointerEvents === 'none');
+    const u = ornek();
+    u.pencere = 300;                     // varsayilan (60) DEGIL: secim grafige gidiyor mu
+    const dd = u.canliDurumu();
+    ok('[!] D3: bugunku pencere / yenileme davranisi grafige gidiyor (pencereS, aralik, taban = olcekTabani, sag eksen)',
+       dd.pencereS === u.pencere && dd.aralikMs === u.raporMs && typeof dd.taban === 'function'
+       && JSON.stringify(dd.taban([{ t: 0, v: 1, i: 0, w: 0 }])) === JSON.stringify(u.olcekTabani([{ t: 0, v: 1, i: 0, w: 0 }])));
+    u.gecmis = [{ t: 0 }]; u.ilkMs = 5; u.msKaydir = 9; u.donmus = true;
+    u.gecmisiTemizle();
+    ok('[!] D3: "Grafigi temizle" gecmisi, zaman kaydirmasini ve dondurmayi sifirliyor',
+       u.gecmis.length === 0 && u.ilkMs === null && u.msKaydir === 0 && u.donmus === false);
+  }
+  {
+    const cm = html.match(/<main[^>]*v-show="gorunum === 'canli'"([\s\S]*?)<\/main>/);
+    const b = cm ? cm[1] : '';
+    ok('[!] D3: Canli`da tuval (ref grafik) + dondur + temizle + CSV + pencere (30 s … 30 dk) + yenileme',
+       /<canvas ref="grafik" class="canli-grafik" role="img"/.test(b) && /@click="dondurDegistir"/.test(b)
+       && /@click="gecmisiTemizle"/.test(b) && /@click="csvIndir"/.test(b) && /v-model\.number="pencere"/.test(b)
+       && [30, 60, 300, 1800].every((x) => b.includes(':value="' + x + '"')) && /v-model\.number="raporMs"/.test(b));
+    ok('[!] D4: baslikta kayit denetimi: hiz secimi (kayitHizlari), Baslat, Not ekle, Durdur, Zamanla; ret kutusu',
+       /v-for="h in kayitHizlari"/.test(b) && /@click="kayitBaslat"/.test(b) && /@click="kayitDurdur"/.test(b)
+       && /@click="notAcDegistir"/.test(b) && /@click="planAcDegistir"/.test(b) && /@submit\.prevent="notEkle"/.test(b)
+       && /@submit\.prevent="planKur"/.test(b) && /@click="planIptal"/.test(b) && /v-if="kayitUyari"/.test(b));
+    ok('[!] Kayit komutlari izleyicide (kopru, surucu degil) KAPALI',
+       (() => { const u = ornek(); u.bagli = true; u.surucuyum = false; const a = u.kayitKomutAcik; u.surucuyum = true; return a === false && u.kayitKomutAcik; })()
+       && (b.match(/:disabled="!kayitKomutAcik"/g) || []).length >= 4);
+    ok('[!] Canli grafik modulu TEMBEL: ekran/canli.js statik ice aktarma grafiginde YOK, canliYukle import() ediyor',
+       !iceAktarmaGrafigi().some((g) => g.goruntu === 'ekran/canli.js')
+       && govdeIcinde(appKaynak, 'canliYukle', "import('./ekran/canli.js')")
+       && govdeIcinde(appKaynak, 'canliYukle', "this.canliDurum = 'yuklenemedi'") && /m\.yuklenemedi/.test(b));
+    const blok = css.slice(css.indexOf('3D — KABUK'), css.indexOf('gezinme (şerit)'))
+      + css.slice(css.indexOf('3D — dar ekran'), css.indexOf('@media (max-width: 620px)'))
+      + css.slice(css.indexOf('3D — CANLI'), css.indexOf('3C — KAYITLAR'));
+    ok('[!] 3D stilleri YALNIZ belirtecle: sabit renk (#hex / rgb) yok',
+       css.indexOf('3D — KABUK') > 0 && css.indexOf('3D — CANLI') > 0
+       && !/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(blok.replace(/\/\*[\s\S]*?\*\//g, '')));
   }
 }
 

@@ -72,6 +72,24 @@
 | D7 | **Son olaylar:** panelin gördüğü kayıt durum değişimleri, `!` satırları, kartın yeniden başlaması (afiş); en fazla 20, yalnız bu sekmede | Maket |
 | D8 | Yeni metinler `sozluk.js`'ten, TR + EN | P7 |
 
+### 3D uygulama kararları (D1–D8 dışında; uygulayan, kullanıcının devriyle)
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| E1 | **Kabuk, okuma kartları, kayıt denetimi ve `G`/`GA`/`GT`/`GP` ayrıştırıcıları `app.js`'te; Canlı'nın GRAFİĞİ `ekran/canli.js`, ekran ilk görünür olunca `import()` ile iner** (U1 deseni). Açılışta istenen statik dosya ≤ 8 (B7 bölüm 15) korunuyor: index + style + vue + app + manifest + ikon + tema + sözlük = 8. Canlı varsayılan ekran olduğundan grafik zinciri (canli + grafik + ozet + istatistik) açılışta da iner — B7 bunu AYRICA sayıyor: toplam ≤ 12 dosya ve ≤ 250 KB gzip | Tek ayrıştırıcı `satirIsle`'de (B22.2). Okuma kartları ve kayıt durumu grafik modülünü beklemez. Statik içe aktarılsaydı açılış 12 dosya olurdu (≤ 8 iddiası) |
+| E2 | **Bütçe (yöneticinin kararı) ölçümü:** `arayuz-uret.py` künyeye (`_fs.json`) dosya başına gzip baytı yazıyor (`bayt`); B7 açılış kümesini html referansları + `app.js`'in statik içe aktarma ağacından TÜRETİP topluyor | Elle liste yok: yeni statik import kendiliğinden sayılır |
+| E3 | **Enerji kartı "Enerji (sayaç)"**: `D` satırının kart sayacı (`e` ile sıfırlanır), kayıt oturumuna bağlı değil — maket "(oturum)" diyordu | Kart oturum enerjisini canlı yayınlamıyor; "oturum" demek yanlış sayı vaadi olurdu |
+| E4 | **Sağ eksen tek birim** (Akım · Güç · yok; 3C K4 ile aynı). Eski üç onay kutusu (`gosterI`/`gosterW`) ilk açılışta bu seçime çevrilir | grafik.js eksen YAZIYOR; iki birim tek eksende eksen yazısını yalancı yapar (eski tuval yazmıyordu) |
+| E5 | **Canlıda grafik etkileşimi kapalı, Dondur'da açık** (`pointer-events`), x ekseni "şimdi"ye göre (−00:00:30 … 00:00:00); gürültü tabanı (B45) `enAzAralik` = 2 × taban | Her D satırı pencereyi yeniden kurar — yakınlaştırma 200 ms sonra silinirdi; telefonda grafiğin üstünden sayfa kaymalı |
+| E6 | **"~X kaldı" ONAYSIZ artışından**, çubuk doluluk. Binde nicemleme yüzünden hız DEĞİŞİM ANLARINDAN; < 60 s "hesaplanıyor", değişim yoksa ALT SINIR ("> X") | Kart onaysız veri yüzünden DOLU olur (kg: onaysız ASLA silinmez); onaylı eski veri yerini açar — dolulukla tahmin, onay verilmiş kartta yanlış olurdu. D6'nın "doluluk artış hızı" onay yokken (varsayılan, C3) aynı sayı |
+| E7 | **Not `Gn<oturum>@<kart_ms> <metin>`** (son D taze ise) — not kayıt görünümünde kendi anında durur. Kartın SESSİZCE attığı karakterler (çift tırnak, ters bölü, denetim) ve 120 baytı (KAYIT_NOT_METIN) aşan metin REDDEDİLİR; her kayıt komutu ≤ 175 BAYT (UTF-8; kartın `String::length()`'i) | Yazılan, kaydedilenle aynı olsun; Türkçe harf 2 bayt |
+| E8 | **Aralık kaynağı:** bu sekmenin `Gb`'si (15 s içinde beliren oturum) → plan (`GP`) → `GA` (her örnek) → yoksa nokta artışından ÖLÇÜLEN ("~200 ms (ölçülen)"). Süre = nokta × aralık; değilse panelin GÖRDÜĞÜ başlangıçtan; görmediyse "—" | `G` satırı aralığı taşımıyor; tahmin yalnız ölçülenden |
+| E9 | **Ret:** bir kayıt komutundan sonraki 5 s içinde gelen `! G…` satırı o komutun reddi — denetimin yanında OLDUĞU GİBİ; her `!` satırı ayrıca son olaylarda | Komutla ilgisiz `! G plan atlandı` "komutun reddedildi" sanılmasın |
+| E10 | **Yeniden başlama:** afiş YA DA `D` satırının `ms`i geri gitmesi; zaman ekseni AZALMAZ (3 rapor aralığı boşlukla sürer, çizgi kopar), millis sarması (49.7 gün) ayrı; 15 s içinde tek olay; sonraki `G` aynı oturumu sürdürüyorsa "Kayıt sürdü" | grafik.js/ozet.js azalmayan zaman ister (eski tuval geri çiziyordu); WiFi'de afiş görülmez, `ms` her taşıyıcıda var |
+| E11 | **Sürüm:** kartın açılış afişi firmware sürümünü (KAYIT_FW_SURUM) TAŞIMIYOR — şerit afişteki aşama metnini gösterir, afiş görülmediyse (WiFi'de hep) yalnız yer + açıklayan ipucu | Firmware değişmez (3D); açık iş: afişe sürüm eklemek |
+| E12 | **Demo kartı** (`sahte-kart.js`) kayıt motoru: `G` alt komutları + `G`/`GA`/`GT`/`GP` satırları, ret metinleri firmware'in; demo bağlanınca da `G?` bir kez | `?demo` Canlı'yı gerçek yolundan çalıştırsın |
+| E13 | **Kabuğun `:class`ı `#uyg`'nin İÇİNDEKİ öğede** | Vue 3 bağlama noktasının kendi özniteliklerini derlemez (yalnız içini) — başsız tarayıcıda çekmece hiç açılmıyordu |
+
 ## Doğrulama
 
 B7 (`test_arayuz3.js`) ve B22 tarayıcı denetimleri genişler; her dilimde başsız tarayıcı (Edge) ile
