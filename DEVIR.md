@@ -9397,6 +9397,40 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.77 🟢 ALT PROJE 3C — KAYITLAR + KAYIT GÖRÜNÜMÜ; S7, 1D #16, sürüm NUL (dal `3-panel`, 2026-10-02 öğleden sonra)
+
+**3C** (ayrı ağaçta bir ajanla, kararlar spec C1–C8 + uygulamada U1–U4, K1–K6):
+`arayuz3/ekran/depo_idb.js` (esitle.js DEPO arayüzünün IndexedDB uygulaması; kart kimliği başına
+akış, ≤ 64 KB parçalar, `durability:'strict'`, Web Locks) · `esitleme.js` (eşitleme yalnız kartın
+KENDİ adresinden açılan panelde — C1; varsayılan ONAYSIZ, "Bu tarayıcı arşivdir" kart kimliği başına
+— C3/U4; her eşitleme taze `/kayit/liste` ile, akış ortada değişirse bir kez yeniden — U2) ·
+`kayitlar.js` (kart dizini ∪ yerel oturumlar, nerede = kartta / bu tarayıcıda / ikisinde, "eski kart
+kopyası"; Türkçe karakter duyarsız arama; `#/kayitlar`, `#/kayit/<no>[@kimlik][/rapor]`) ·
+`kayit_gorunum.js` (grafik.js ile V/I/W + ince min/maks çizgileri (Ö1), gezgin, iki imleç; mAh/Wh
+açılış başına ve kartın W'sinden — tam aralıkta raporla bit bit aynı (K3); saatsiz yeniden başlama
+"konumu tahmini" ile görünür (K1); notlar, pil özeti, skop yakalama tablosu + CSV; CSV TR/EN,
+ayrıntılı, pil, ham `.kyt`, yazdırılabilir rapor). Kayıtlar modülü sekme ilk açılınca iner (U1):
+açılış hâlâ 7 istek.
+**Doğrulama:** B7 382 → 439. Yeni başsız Edge testi `tarayici_kayitlar.py` (T3C) **45/45**: sahte kart
+`olcum.test` adında (localhost değil, güvenli bağlam değil — gerçek kart gibi); IndexedDB baytları kartla
+bayt bayt aynı; varsayılan hiç `Go` yok, arşiv seçimiyle var ve kart doğruluyor; yenilemede veri isteği
+0, ikinci eşitleme son sıra + 1'den; kimlik değişince yeni akış; GERÇEK CDP çift tıklamalarıyla iki
+imleç, okumalar bağımsız Python hesabıyla 1e-9; CSV/ham/skop CSV indirmeleri Python başvurusuyla bayt
+bayt; üç görünüm, 390 px'te taşma yok, konsol temiz. Mutasyon 76/76 (B7 54, B73 3, T3C 19); ilk
+koşuda kaçan üçü gerçek boşluk çıkardı (ü→u Unicode ayrıştırmasıyla zaten gidiyordu; ayrıntılı kip
+fikstüründe 16.38 ms üstü boşluk yoktu; **390 px taşma denetimi kördü** — mobil öykünmede Chrome
+`innerWidth`'i içerik genişliğine büyütüyor, `clientWidth`'e geçildi). Görüntü 249 KB gzip / 600.
+**Küçük açıklar kapandı (1-acik-isler):** **S7** bildirim/imza istemcisi Python + JS aynı kural (zarfta
+NaN/Infinity ret; kimlik/tuz/açılış yalnız metin, tur yalnız JSON tamsayısı; parola sınırı UTF-8 BAYT
+— kartla aynı; B72.I8b, mutasyon 7/7) · **1D #16** cihaz dosyası: GERÇEK YARIŞ (iki süreç aynı
+dosyada `PermissionError`, test kırmızıyla gösterdi) → `mkstemp` + `fsync` + Windows'ta kısa yeniden
+deneme (benzersiz adla bile gerekli — mutasyon gösterdi); B72.I8c, 3/3 · sürüm metni ilk NUL'da
+kesiliyor (Python + JS, vektör 832).
+**Zincir** 21 adım yeşil, kilit 3740 (B72 170 → 172, B7 382 → 439).
+⚠ Açık (3D'ye devredildi): B7'nin 250 KB sınırı %97 doluydu → artık yalnız AÇILIŞ kümesine uygulanacak
+(toplam P5 600 KB); `tarayici_tema.py`'nin telefon denetimi de `innerWidth` körlüğünde; T3A bir koşuda
+"Sistem canlı izleme" adımında kırmızı oldu (3'te 1). 3C karta da yüklenmedi (T10).
+
 #### 5.12.76 🟢 ALT PROJE 3 — 3A GÖRÜNÜMLER + MODÜL ALTYAPISI, 3B GRAFİK ÇEKİRDEĞİ (dal `3-panel`, 2026-10-02)
 
 Görsel yön kullanıcının devriyle seçildi ("ben karar veremedim, sen karar ver"), sonra kullanıcı
