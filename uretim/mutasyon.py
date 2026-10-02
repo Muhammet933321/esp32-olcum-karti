@@ -3857,6 +3857,21 @@ MUTASYONLAR = [
      '             "--disable-sync", "--disable-extensions",\n',
      '             "--disable-extensions",\n',
      "3D-FIX: yalniz senkron acik -> edge://sync-confirmation-dialog ikinci sayfa hedefi olur"),
+    # ── 3C-AG (2026-10-02, gercek kartta goruldu): esitleme ag hatasinda yeniden dener
+    ("B7", "test_arayuz3.js", "arayuz3/ekran/esitleme.js",
+     "    if (!r || r.durum !== 'ag') return { ...r, deneme: n + 1 };",
+     "    return { ...r, deneme: n + 1 };",
+     "3C-AG: ag hatasi yeniden denenmezse (ilk sonuc doner): B7 kirmizi"),
+    ("B7", "test_arayuz3.js", "arayuz3/ekran/esitleme.js",
+     "    if (n) await bekle(bekleMs * n);", "    if (n) await bekle(bekleMs);",
+     "3C-AG: bekleme artmazsa (sabit) B7 kirmizi"),
+    ("T3C", "tarayici_kayitlar.py", "arayuz3/ekran/esitleme.js",
+     "export const AG_DENEME = 4;", "export const AG_DENEME = 1;",
+     "3C-AG: tek deneme — gercek karttaki gibi esitleme ilk zaman asiminda durur: T3C kirmizi"),
+    ("T3C", "tarayici_kayitlar.py", "arayuz3/ekran/esitleme.js",
+     "      }, { bekle: this._bekle });\n    } finally {",
+     "      }, { bekle: this._bekle, deneme: 1 });\n    } finally {",
+     "3C-AG: esitle() yeniden denemiyorsa (yalniz liste deniyor) T3C kirmizi"),
 ]
 
 
