@@ -68,6 +68,28 @@ export function hataSinifla(h) {
   return { durum: 'ag', mesaj: (h && h.message) || String(h) };
 }
 
+/* Ag hatasinda yeniden deneme. Gercek kartta (2026-10-02) tarayici esitlemesi bir /kayit/veri
+   isteginde ERR_CONNECTION_TIMED_OUT aldi ve DURDU (44 oturumdan 1'i geldi); ayni kart ham
+   ardisik cekimde 1.27 MB'i hatasiz verdi. ESP32'nin soket havuzu tarayicinin paralel
+   baglantilarinda (SSE + moduller + esitleme) ara sira reddediyor. Esitleme depodaki durumdan
+   KALDIGI YERDEN surer — yeniden denemek ne veri kaybettirir ne cift kayit yazar. */
+export const AG_DENEME = 4;          // ag hatasinda toplam deneme
+export const AG_BEKLE_MS = 1500;     // n. yeniden denemeden once n x bu kadar
+
+const uyu = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** islev() -> {durum, ...}. durum 'ag' ise artan beklemeyle en fazla `deneme` kez dener;
+ *  baska her sonuc HEMEN doner. Donus sonucun kendisi + `deneme` (kac kez denendi). */
+export async function agYenidenDene(islev, { deneme = AG_DENEME, bekleMs = AG_BEKLE_MS, bekle = uyu } = {}) {
+  let r = null;
+  for (let n = 0; n < deneme; n++) {
+    if (n) await bekle(bekleMs * n);
+    r = await islev(n);
+    if (!r || r.durum !== 'ag') return { ...r, deneme: n + 1 };
+  }
+  return { ...r, deneme };
+}
+
 /** C3: onay islevi. Arsiv secili DEGILSE ya da panel karta bagli degilse null
  *  (Esitleyici onaysiz calisir; kart bu tarayicinin kopyasini "arsiv" saymaz). */
 export function onayIslevi({ arsiv, bagli, gonder }) {
@@ -127,10 +149,11 @@ export function kalJsonCoz(b) {
 
 export class EsitlemeDenetcisi {
   /** kartAdres: app.js kartAdres (taban oneki); zamanAsimiMs: istek basina. */
-  constructor({ kartAdres, zamanAsimiMs = 10000 } = {}) {
+  constructor({ kartAdres, zamanAsimiMs = 10000, bekle = uyu } = {}) {
     if (typeof kartAdres !== 'function') throw new TypeError('kartAdres islevi gerekli');
     this.kartAdres = kartAdres;
     this.zamanAsimiMs = zamanAsimiMs;
+    this._bekle = bekle;
     this._onbellek = new Map();          // kimlik -> {bayt, kayitlar, oturumlar, sonSira, kal}
   }
 
@@ -141,14 +164,16 @@ export class EsitlemeDenetcisi {
 
   /** Kartin oturum dizini (ayni koken). Ag hatasi -> {durum: 'ag'}. */
   async kartListesi() {
-    let y;
-    try {
-      y = await fetch(this.kartAdres('/kayit/liste'), { cache: 'no-store', ...this._sinyal() });
-    } catch (h) {
-      return { durum: 'ag', mesaj: (h && h.message) || String(h) };
-    }
-    const metin = await y.text().catch(() => '');
-    return listeYanitiCoz(y.status, metin);
+    return agYenidenDene(async () => {
+      let y;
+      try {
+        y = await fetch(this.kartAdres('/kayit/liste'), { cache: 'no-store', ...this._sinyal() });
+      } catch (h) {
+        return { durum: 'ag', mesaj: (h && h.message) || String(h) };
+      }
+      const metin = await y.text().catch(() => '');
+      return listeYanitiCoz(y.status, metin);
+    }, { bekle: this._bekle });
   }
 
   /** Esitleyici'nin `istek`i: /kayit/veri ve /kal/liste, kartAdres uzerinden. */
@@ -173,13 +198,18 @@ export class EsitlemeDenetcisi {
     const depo = idbDepo(vt, kimlik);
     let yeni = 0;
     const izleyen = { ...depo, async veriEkle(b) { await depo.veriEkle(b); yeni += b.length; if (ilerleme) ilerleme(yeni); } };
-    const e = new Esitleyici({ tabanUrl: '', depo: izleyen, onay, bayt: PARCA_BAYT,
-      istek: (taban, yol, argumanlar) => this._istek(yol, argumanlar) });
     try {
-      const sonuc = await e.esitle();
-      return { durum: 'tamam', sonuc, bayt: yeni };
-    } catch (h) {
-      return { ...hataSinifla(h), bayt: yeni };
+      /* Her deneme YENI Esitleyici: depodaki durumdan (son sira) kaldigi yerden surer. */
+      return await agYenidenDene(async () => {
+        const e = new Esitleyici({ tabanUrl: '', depo: izleyen, onay, bayt: PARCA_BAYT,
+          istek: (taban, yol, argumanlar) => this._istek(yol, argumanlar) });
+        try {
+          const sonuc = await e.esitle();
+          return { durum: 'tamam', sonuc, bayt: yeni };
+        } catch (h) {
+          return { ...hataSinifla(h), bayt: yeni };
+        }
+      }, { bekle: this._bekle });
     } finally {
       this._onbellek.delete(kimlik);
     }

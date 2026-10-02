@@ -230,6 +230,13 @@ class Kart(T._SahteKart):
         self.kal_liste = {"surum": 1, "adet": 2, "taslak": 0, "etkin": 2, "azami": 40,
                           "kayitlar": [kal_json(1), kal_json(2)]}
         self.kilit = threading.Lock()
+        # Gercek kartta (2026-10-02) tarayici esitlemesi bir /kayit/veri baglantisinda
+        # ERR_CONNECTION_TIMED_OUT aldi (ESP32'nin soket havuzu; ham Python cekimi hatasiz).
+        # kopar = N: sonraki N /kayit/veri istegi YANITSIZ bekletilir (panelin 10 s istek zaman
+        # asimini asar) ve koparilir. Hemen kapatmak YETMEZ: Chrome yeniden kullanilan baglanti
+        # yanitsiz kapaninca GET'i kendiliginden bir kez tekrarliyor — zaman asimini tekrarlamiyor.
+        self.kopar = 0
+        self.koparilan = 0
 
     def dizin(self) -> dict:
         oz: dict[int, dict] = {}
@@ -320,6 +327,19 @@ def sunucu_kur(kart: Kart):
                 if self._imza_reddi():
                     return
                 sira = int(q.get("sira", ["1"])[0])
+                with kart.kilit:
+                    kopar = kart.kopar > 0
+                    if kopar:
+                        kart.kopar -= 1
+                        kart.koparilan += 1
+                if kopar:
+                    DUR.wait(12.0)                   # > panelin istek zaman asimi (10 s)
+                    self.close_connection = True
+                    try:
+                        self.connection.shutdown(2)
+                    except OSError:
+                        pass
+                    return
                 with kart.kilit:
                     kart.veri_istekleri.append(sira)
                     govde, ilk, son = kart.veri(sira, int(q.get("bayt", ["8192"])[0]))
@@ -776,8 +796,9 @@ def main() -> int:
             t.js("document.querySelector('.kl-esitle') ? 0 : [...document.querySelectorAll('button')]"
                  ".find(b => b.textContent.trim() === 'Yenile').click()")
             bekle_js(t, "!!document.querySelector('.kl-esitle')")
+            kart.kopar = 2                           # ikinci esitlemede iki baglanti yanitsiz kopar
             t.js("document.querySelector('.kl-esitle').click()")
-            bekle_js(t, f"{SATIRLAR_JS}.some(s => s.o === {no['G']} && s.n === 'ikisi')")
+            bekle_js(t, f"{SATIRLAR_JS}.some(s => s.o === {no['G']} && s.n === 'ikisi')", 60.0)
             evre_503[2] = len(t.olaylar)               # 503 evresi burada kapanir
             ikinci = kart.veri_istekleri[veri_once:]
             ok("[!] Ikinci esitleme YALNIZ yeni kayitlari cekti (her istek sira > ilk esitlemenin son sirasi)",
@@ -785,6 +806,15 @@ def main() -> int:
                f"ilk son {ilk_son}, ikinci istekler {ikinci}")
             sonuc = t.js("(document.querySelector('.kl-sonuc') || {}).textContent") or ""
             ok("Esitleme sonucu yaziliyor (yeni kayit sayisi)", "yeni kayıt alındı" in sonuc, sonuc)
+            idb2 = t.js(IDB_JS) or {}
+            k72 = idb2.get(str(kart.kimlik)) or idb2.get(kart.kimlik) or {}
+            ok("[!] Ag kopmasi: iki /kayit/veri istegi 12 s yanitsiz kaldi (zaman asimi), esitleme YENIDEN DENEYEREK "
+               "tamamlandi; IndexedDB kartla bayt bayt ayni (gercek kartta 2026-10-02 goruldu)",
+               kart.koparilan == 2 and kart.kopar == 0 and "yeni kayıt alındı" in sonuc
+               and (k72.get("hex") or "").endswith(b"".join(kart.kayitlar).hex())
+               and not (t.js("(document.querySelector('.kl-neden') || {}).textContent") or "").strip(),
+               f"koparilan {kart.koparilan}, {k72.get('bayt')} B, kart akisi IDB'nin sonu: "
+               f"{(k72.get('hex') or '').endswith(b''.join(kart.kayitlar).hex())}, sonuc {sonuc!r}")
 
             # ── 4. arsiv secimi: onay panelin komut yolundan ─────────────
             t.js("document.querySelector('.kl-arsiv input').click()")
@@ -823,11 +853,17 @@ def main() -> int:
             # ── 6. kayit gorunumu: tuval, gercek fare ile iki imlec ──────
             t.js(f"location.hash = '#/kayit/{no['A']}@{eski_kimlik}'")
             bekle_js(t, "!!document.querySelector('canvas.kg-grafik') && !!document.querySelector('.kg-tuval').dataset.pencere")
-            t.bekle(0.6)
             koyu = takim["koyu"]
-            px = piksel_say(t, [list(rgb(koyu["--volt"])), list(rgb(koyu["--amper"]))])
-            ok("[!] Kayit acilinca tuval GERCEKTEN cizili (--volt ve --amper pikselleri)",
-               bool(px) and px[0] > 80 and px[1] > 80, f"volt {px and px[0]} amper {px and px[1]}")
+            t_cizim = time.monotonic()               # sabit uyku YOK: en gec 8 s icinde cizilmeli
+            px = None
+            while time.monotonic() - t_cizim < 8.0:
+                px = piksel_say(t, [list(rgb(koyu["--volt"])), list(rgb(koyu["--amper"]))])
+                if px and px[0] > 80 and px[1] > 80:
+                    break
+                t.bekle(0.1)
+            ok("[!] Kayit acilinca tuval GERCEKTEN cizili (--volt ve --amper pikselleri), en gec 8 s",
+               bool(px) and px[0] > 80 and px[1] > 80,
+               f"volt {px and px[0]} amper {px and px[1]}, {time.monotonic() - t_cizim:.2f} s")
             t.js("document.querySelector('canvas.kg-grafik').scrollIntoView({block: 'center'})")
             t.bekle(0.3)
             r = t.js("(() => { const c = document.querySelector('canvas.kg-grafik'); const b = c.getBoundingClientRect();"

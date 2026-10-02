@@ -2738,6 +2738,26 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
        metin.startsWith('Kart imza istiyor — bu tarayıcıyı eşleştirmek Ayarlar\'da (3H)'), metin);
   }
   {
+    /* Gercek kartta (2026-10-02) esitleme tek bir ag zaman asimiyla durdu: ag hatasi artan
+       beklemeyle yeniden denenir, baska hata (imza, mesgul, bozuk) HEMEN doner. */
+    const bekleyenler = [];
+    const bekle = (ms) => { bekleyenler.push(ms); return Promise.resolve(); };
+    const sirayla = (dizi) => { let n = 0; return async () => dizi[Math.min(n++, dizi.length - 1)]; };
+    SONRA.push(async () => {
+      const a = await ES.agYenidenDene(sirayla([{ durum: 'ag' }, { durum: 'ag' }, { durum: 'tamam', x: 1 }]), { bekle });
+      const b1 = bekleyenler.splice(0);
+      const b = await ES.agYenidenDene(sirayla([{ durum: 'imza' }, { durum: 'tamam' }]), { bekle });
+      const b2 = bekleyenler.splice(0);
+      const c = await ES.agYenidenDene(sirayla([{ durum: 'ag', mesaj: 'son' }]), { bekle });
+      const b3 = bekleyenler.splice(0);
+      ok('[!] Ag hatasi yeniden denenir (artan bekleme), baska sonuc hemen doner, en fazla AG_DENEME kez',
+         a.durum === 'tamam' && a.x === 1 && a.deneme === 3 && b1.join() === `${ES.AG_BEKLE_MS},${2 * ES.AG_BEKLE_MS}`
+         && b.durum === 'imza' && b.deneme === 1 && b2.length === 0
+         && c.durum === 'ag' && c.mesaj === 'son' && c.deneme === ES.AG_DENEME && b3.length === ES.AG_DENEME - 1
+         && ES.AG_DENEME >= 3, JSON.stringify({ a, b1, b, c, b3 }));
+    });
+  }
+  {
     const giden = [];
     const gonder = (m) => { giden.push(m); return Promise.resolve(); };
     const yok1 = ES.onayIslevi({ arsiv: false, bagli: true, gonder });
