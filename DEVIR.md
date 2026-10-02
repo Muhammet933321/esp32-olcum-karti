@@ -9397,6 +9397,21 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.80 🟢 3E OSİLOSKOP EKRANI (2026-10-02 akşam)
+
+Ajan, kararlar OS1–OS8 + uygulama kararları S1–S14 (spec). Dalga solda geniş, kontroller sağda kümeli
+(Yakalama · Zaman tabanı · Tetik · Yakalama günlüğü · Kalibrasyon çıkışı), ≤ 900 px altta; dalga
+ızgarası 10 × 8 bölme; spektrum `grafik.js` (`xEksen` Hz/kHz, DC metin olarak), Hann/dikdörtgen,
+V tepe / dBV, ilk 5 harmonik (komşuluktaki gerçek tepe değilse "≤" — sahte harmonik yok). **Bulgu:**
+OS4'ün "kayıtlı yakalamada `skopOlc`" kararı yanlıştı — kart `M` satırını EĞRİLİ hesaplıyor (B43),
+çıplak `skopOlc` gerçek kartta ~7 V ayrışırdı → `ortak/src/skop.js`'e kartın hesabının JS eşi
+`skopOlcKart`; gerçek ESP32 yakalamasında (`uretim/olcum-skop-fikstur.json`) Vpp/Vmax/Vmin/Vort/Vrms/
+Vac/f/T/n basılan haneye kadar kartla aynı. Günlük `Gt0`/`Gt<ms>`/`Gtd`, `GT` durumu G? ile (firmware
+GT'yi kendiliğinden basmıyor). Kayıtlı yakalama `#/skop/kayit/<oturum>/<sıra>@kimlik`, Kayıtlar'dan
+"Osiloskopta aç". B7 578 → 626, yeni T3E 37/37; mutasyon 3E 37/37 (+ birleşik ağaçta WIG 77, 3D 104
+yeniden). Bütçe: açılış 166 KB, toplam görüntü 294 KB / 600. Kartta açıldı (Playwright). Açık: eğrili
+yolun duty/tr/tf'si ve kartın GT'yi kendiliğinden basması (firmware). Zincir 21 yeşil.
+
 #### 5.12.79 🟢 WEB INTERFACE GUIDELINES DENETİMİ + YENİDEN DENEMEDE KAYIT SAYISI (2026-10-02 akşam)
 
 Kullanıcı Playwright + Taste + Web design guidelines yeteneklerini kurdurup kullanılmasını istedi
