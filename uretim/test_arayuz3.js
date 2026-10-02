@@ -5800,11 +5800,12 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
 
   /* ── (a) KABLOLAMA (AY2) ────────────────────────────────────────── */
   {
-    ok('[!] AY2: yedi bolum KARARDAKI sirayla (Baglanti · Ag · Kalibrasyon · Kalibrasyon gecmisi · Depolama · Dil ve gorunum · Gelismis); adlari sozlukte (tr + en)',
-       ids.join(' ') === 'baglanti ag kalibrasyon kal-gecmis depolama dil-gorunum gelismis'
+    /* 3H-2 (ES1): Eslestirme Ag'dan sonra sekizinci bolum olarak eklendi (bolum 31) */
+    ok('[!] AY2: sekiz bolum KARARDAKI sirayla (Baglanti · Ag · Eslestirme (3H-2) · Kalibrasyon · Kalibrasyon gecmisi · Depolama · Dil ve gorunum · Gelismis); adlari sozlukte (tr + en)',
+       ids.join(' ') === 'baglanti ag eslestirme kalibrasyon kal-gecmis depolama dil-gorunum gelismis'
        && BOLUMLER.every((b) => b.ad in SZx.SOZLUK && SZx.SOZLUK[b.ad].tr && SZx.SOZLUK[b.ad].en)
        && BOLUMLER.map((b) => SZx.SOZLUK[b.ad] ? SZx.SOZLUK[b.ad].tr : '').join(' · ')
-         === 'Bağlantı · Ağ · Kalibrasyon · Kalibrasyon geçmişi · Depolama · Dil ve görünüm · Gelişmiş', ids.join(' '));
+         === 'Bağlantı · Ağ · Eşleştirme · Kalibrasyon · Kalibrasyon geçmişi · Depolama · Dil ve görünüm · Gelişmiş', ids.join(' '));
     ok('[!] AY2: tembel modulun bolumleri (mod) tam olarak kalibrasyon gecmisi, depolama, gelismis — ekran/ayarlar.js MOD_BOLUMLER ile ayni',
        BOLUMLER.filter((b) => b.mod).map((b) => b.id).join() === 'kal-gecmis,depolama,gelismis'
        && Array.isArray(AY.MOD_BOLUMLER) && AY.MOD_BOLUMLER.join() === 'kal-gecmis,depolama,gelismis');
@@ -5864,8 +5865,13 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
        && harita['Ağ — kartı kablosuz yapma'] === 'ag' && harita['Görünüm'] === 'dil-gorunum'
        && harita['{{ ay.dil }}'] === 'dil-gorunum', JSON.stringify(harita));
     const modKart = [...T.matchAll(/<section class="kart" v-show="bolum === '([a-z-]+)'"/g)].map((m) => m[1]);
-    ok('[!] AY2: her bolumun en az bir karti var — app bolumleri index.html`de, mod bolumleri ekran/ayarlar.js sablonunda (bos bolum yok)',
-       BOLUMLER.every((b) => (b.mod ? modKart : kartlar.map((k) => k.bolum)).includes(b.id))
+    /* 3H-2: Eslestirme bolumunun kartlari kendi modulunde (ekran/eslesme_ekran.js EslestirmeEkrani; EU30) */
+    let esT = '';
+    try { esT = require(path.join(ARAYUZ, 'ekran', 'eslesme_ekran.js')).EslestirmeEkrani.template || ''; } catch (h) { esT = ''; }
+    const esKart = [...esT.matchAll(/<section class="kart"[^>]*data-ay-bolum="([a-z-]+)"/g)].map((m) => m[1]);
+    ok('[!] AY2: her bolumun en az bir karti var — app bolumleri index.html`de, mod bolumleri ekran/ayarlar.js sablonunda, eslestirme ekran/eslesme_ekran.js`te (bos bolum yok)',
+       BOLUMLER.every((b) => (b.mod ? modKart : b.es ? esKart : kartlar.map((k) => k.bolum)).includes(b.id))
+       && esKart.length >= 3 && esKart.every((x) => x === 'eslestirme')
        && modKart.every((m) => AY.MOD_BOLUMLER.includes(m)), modKart.join(' '));
     const b = secenekler.components && secenekler.components['ayarlar-ekran'];
     const sec = b && b.yukleyici && typeof b.yukleyici === 'object' ? b.yukleyici : {};
@@ -6170,7 +6176,7 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
     });
     ok('[!] AY5: SALT OKUMA — ekran/ayarlar.js komut GONDERMEZ (gonder / komut / /komut / POST / kk kn kt yok), yalniz /kal/liste ve /kunye.json okur',
        !!ayKod && !/\bgonder\b|\bkomut\(|\/komut|method:|'k[knt]|"k[knt]|`k[knt]/.test(ayKod) && !('gonder' in ((AE || {}).props || {}))
-       && [...ayKod.matchAll(/kartAdres\('([^']+)'\)/g)].map((m) => m[1]).sort().join() === '/kal/liste,/kunye.json');
+       && [...ayKod.matchAll(/(?:kartAdres|_istek)\('([^']+)'/g)].map((m) => m[1]).sort().join() === '/kal/liste,/kunye.json');
     ok('[!] AY5/WIG: sablon — gecmis tablosu (caption, th scope), etkin satir METINLE (renk degil), degerler ayri tablo, taslak uyarisi',
        /<caption class="gorunmez">\{\{ m\.kalTablo \}\}<\/caption>/.test(T) && /<th scope="col">\{\{ m\.kalNo \}\}<\/th>/.test(T)
        && /r\.etkin \? m\.kalEtkin/.test(T) && /<caption class="ay-tablo-baslik">\{\{ kalDegerBaslik \}\}<\/caption>/.test(T)
@@ -6248,7 +6254,1027 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   31. p0 SAGLAMLIGI (3H-2 guvenlik incelemesi, 2026-10-02 gece)
+   31. ESLESTIRME (3H-2 — tarayicidan eslestirme, ES1-ES10; uygulama kararlari 3H-2)
+
+   Kararlar tasarim/2026-10-02-alt-proje-3-panel.md "3H-2 kararlari". Burada:
+   (a) KABLOLAMA: Ayarlar'da sekizinci bolum `#/ayar/eslestirme`; ekran modulu
+       (ekran/eslesme.js + ortak/imza.js + kripto.js) ACILISTA INMEZ — yalniz
+       bu tarayicida bir cihaz kaydi varsa ya da bolum acilinca (dinamik import).
+       EU30: Eslestirme EKRANI ve metinleri (eslesme_ekran.js + ortak/sozluk_es.js)
+       istemciden ayri — yalniz bolum acilinca; eslesmis acilisa girmez.
+   (b) ISTEK KATMANI (ES4): kartin uclari (/komut, /kayit/*, /kal/liste, /pil,
+       /skop.bin, /kunye.json, /akis) TEK katmandan (app.js kartIstek); ekranlar
+       fetch'i kendileri imzalamaz. Kayit yoksa bugunku yol AYNEN.
+   (c) EMNIYET-P0: `p0` imza katmanina HIC girmez (kart onu K11 geregi imzasiz
+       kabul ediyor): katman askida / bozuk olsa da tek tikla gider.
+   (d) SAF MANTIK (node, GERCEK ortak/imza.js ile): yol ayirma, SSE cozucu,
+       artan bekleme, ret sebepleri, kayit birlestirme (sayac TEKDUZE).
+   (e) ISTEMCI (sahte fetch + bellek deposu): imzali istek basliklari, sayac
+       istekten ONCE yazilir, ES5 tek yeniden deneme, "kart tanimiyor" -> imzasiz
+       yol + bildirim, yeni acilis, unut, eslestirme (parola hicbir yere yazilmaz).
+   (f) AKIS (ES6): imzali URL, koptugunda YENI imzali URL + artan bekleme.
+   (g) SABLON (WIG, ES3/ES7/ES8/ES9).
+   Imzanin BAGIMSIZ dogrulamasi (kopru/imza.py) ve gercek tarayici (IndexedDB,
+   iki sekme, SSE, Basic-Auth onbellegi): tarayici_eslestirme.py (T3H2).
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 31. Eslestirme (3H-2) ---');
+{
+  const html = yorumsuz(htmlKaynak);
+  const al = (ad) => { try { return vm.runInContext(ad, sandbox); } catch (e) { return undefined; } };
+  const IMx = require(path.join(KOK, 'ortak', 'src', 'imza.js'));
+  const KRx = require(path.join(KOK, 'ortak', 'src', 'kripto.js'));
+  const SZx = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const esYolu = path.join(ARAYUZ, 'ekran', 'eslesme.js');
+  /* EU30: Ayarlar > Eslestirme ekrani + metinleri (ortak/sozluk_es.js) ayri modulde — eslesmis tarayicinin
+     acilisi yalniz istemciyi (eslesme.js) indirir. Testler iki modulun disa aktarimini birlikte gorur. */
+  const esEkYolu = path.join(ARAYUZ, 'ekran', 'eslesme_ekran.js');
+  let ES = {};
+  try { ES = require(esYolu); } catch (h) { console.log('     ekran/eslesme.js yuklenemedi: ' + h.message); }
+  let ESE = {};
+  try { ESE = require(esEkYolu); } catch (h) { console.log('     ekran/eslesme_ekran.js yuklenemedi: ' + h.message); }
+  ES = Object.assign({}, ES, ESE);
+  let SEx = { SOZLUK_ES: {}, ceviriEs: (a) => String(a) };
+  try { SEx = require(path.join(KOK, 'ortak', 'src', 'sozluk_es.js')); } catch (h) { console.log('     ortak/sozluk_es.js yuklenemedi: ' + h.message); }
+  const esKaynak = [esYolu, esEkYolu].filter((y) => fs.existsSync(y)).map((y) => fs.readFileSync(y, 'utf8')).join('\n');
+  const esKod = yorumsuz(esKaynak);
+  const ayKod = yorumsuz(fs.readFileSync(path.join(ARAYUZ, 'ekran', 'ayarlar.js'), 'utf8'));
+  const esitKod = yorumsuz(fs.readFileSync(path.join(ARAYUZ, 'ekran', 'esitleme.js'), 'utf8'));
+  const appKod = yorumsuz(appKaynak);
+  const T = (ES.EslestirmeEkrani && ES.EslestirmeEkrani.template) || '';
+  const BOLUMLER = al('AYAR_BOLUMLERI') || [];
+  const ayar = (html.match(/<main class="gorunum" v-show="gorunum === 'ayar'">([\s\S]*?)<\/main>/) || [])[1] || '';
+  const uyu = () => new Promise((r) => setImmediate(r));
+  const bayt = (s) => new TextEncoder().encode(s);
+  /* sahte yanit (fetch'in Response'u): durum, govde, basliklar */
+  const yanit = (durum, govde = '', bas = {}) => new Response(durum === 204 ? null : govde, { status: durum, headers: bas });
+  /* bellek deposu: cihazDeposu ile AYNI arayuz, ayni birlestirme kurali (kayitBirlestir) */
+  const bellekDepo = () => {
+    const m = new Map();
+    const log = [];
+    return {
+      m, log,
+      async oku(k) { const c = m.get(k); return c ? { ...c } : null; },
+      async yaz(c, o = {}) {
+        const y = (ES.kayitBirlestir || ((a, b) => b))(m.get(c.kimlik) || null, c, o);
+        if (y) m.set(c.kimlik, { ...y });
+        log.push(['yaz', c.sayac]);
+        return y;
+      },
+      async ayir(c, simdi) {
+        const r = (ES.sayacAyir || (() => null))(m.get(c.kimlik) || null, c, simdi);
+        if (r) m.set(c.kimlik, { ...r.kayit });
+        log.push(['ayir', r && r.s]);
+        return r ? { s: r.s, tanimiyor: r.tanimiyor } : null;
+      },
+      async sil(k) { m.delete(k); log.push(['sil', k]); },
+      async hepsi() { return [...m.values()]; },
+    };
+  };
+  const KIMLIK = '0123456789abcdef';
+  const ACILIS = 'a'.repeat(32);
+  const ACILIS2 = 'b'.repeat(32);
+  const K = new Uint8Array(32).map((_, i) => i + 1);
+  const bilgiJson = (ek = {}) => JSON.stringify({ surum: 'OK1', kimlik: KIMLIK, acilis: ACILIS, tuz: '00'.repeat(16), tur: 10000,
+    zorunlu: 0, misafir: 0, saat: 0, cihaz_azami: 8, ...ek });
+  /* kanonik imza kontrolu: URL + basliklar -> imza.js imzala ile AYNI mi */
+  const imzaDogru = (url, sec, acilis = ACILIS, k = K) => {
+    const u = new URL(url, 'http://x');
+    const args = [...u.searchParams.entries()].filter(([a]) => !['_c', '_s', '_i'].includes(a));
+    const h = sec.headers || {};
+    const govde = sec.body === undefined ? new Uint8Array(0) : (typeof sec.body === 'string' ? bayt(sec.body) : sec.body);
+    return h['X-Imza'] === IMx.imzala(k, sec.method || 'GET', u.pathname, args, acilis, Number(h['X-Sayac']), govde);
+  };
+
+  /* ── (a) KABLOLAMA ──────────────────────────────────────────────── */
+  {
+    const es = BOLUMLER.find((b) => b.id === 'eslestirme');
+    ok('[!] ES1: Ayarlar`da sekizinci bolum `eslestirme` (Ag`dan sonra), adi sozlukte; tembel ayarlar.js`in bolumu DEGIL (kendi modulu)',
+       BOLUMLER.map((b) => b.id).join(' ') === 'baglanti ag eslestirme kalibrasyon kal-gecmis depolama dil-gorunum gelismis'
+       && !!es && es.mod === false && es.es === true && es.ad === 'ay.b_eslestirme'
+       && SZx.SOZLUK['ay.b_eslestirme'].tr === 'Eşleştirme' && al('ayarBolumCoz')('#/ayar/eslestirme') === 'eslestirme',
+       BOLUMLER.map((b) => b.id).join(' '));
+    const e = ayar.match(/<eslestirme-ekran ([^>]*)>/);
+    ok('[!] ES1: eslestirme-ekran Ayarlar`in icinde, YALNIZ gerekince (v-if eslesmeModAcik), bolumu secilince gorunur; istemci app`in TEK istemcisi',
+       !!e && /^v-if="eslesmeModAcik" v-show="ayarBolum === 'eslestirme'"/.test(e[1])
+       && [':istemci-al="eslesmeIstemcisi"', ':kart-taban="kartTaban"', ':tasiyici="tasiyiciAdi"', ':bagli="bagli"',
+         ':dil-secim="dil"', ":etkin=\"gorunum === 'ayar' && ayarBolum === 'eslestirme'\""].every((x) => e[1].includes(x)),
+       e ? e[1] : 'yok');
+    const b = secenekler.components && secenekler.components['eslestirme-ekran'];
+    const sec = b && b.yukleyici && typeof b.yukleyici === 'object' ? b.yukleyici : {};
+    ok('[!] ES1/EU30: eslestirme-ekran ASENKRON: ./ekran/eslesme_ekran.js (EslestirmeEkrani; istemciden AYRI modul); inmezse sebep, secili dilde',
+       !!b && b.__asenkron === true && /import\('\.\/ekran\/eslesme_ekran\.js'\)\.then\(\(m\) => m\.EslestirmeEkrani\)/.test(String(sec.loader))
+       && !!sec.errorComponent && /class="hata"/.test(sec.errorComponent.template || '') && typeof T === 'string' && T.length > 0);
+    const gerekli = secenekler.computed && secenekler.computed.eslesmeModGerekli;
+    const w = secenekler.watch && secenekler.watch.eslesmeModGerekli;
+    const s1 = { gorunum: 'ayar', ayarBolum: 'eslestirme', eslesmeModAcik: false };
+    if (w) w.call(s1, true);
+    sandbox.location = { hash: '#/ayar/eslestirme' };
+    const d1 = secenekler.data();
+    sandbox.location = { hash: '#/ayar/ag' };
+    const d2 = secenekler.data();
+    delete sandbox.location;
+    ok('[!] ES1: modul YALNIZ Ayarlar`da Eslestirme bolumu seciliyken iner (bir kez); #/ayar/eslestirme ile acilis da indirir, baska bolum indirmez',
+       !!gerekli && gerekli.call(s1) === true && gerekli.call({ gorunum: 'canli', ayarBolum: 'eslestirme' }) === false
+       && gerekli.call({ gorunum: 'ayar', ayarBolum: 'ag' }) === false && s1.eslesmeModAcik === true
+       && d1.eslesmeModAcik === true && d2.eslesmeModAcik === false && d1.ayarModAcik === false);
+    const statik = iceAktarmaGrafigi().map((x) => x.goruntu);
+    const esAgac = fs.existsSync(esYolu) ? iceAktarmaGrafigi(esYolu).map((x) => x.goruntu).sort() : [];
+    const dinamik = [...appKod.matchAll(/import\('\.\/ekran\/eslesme\.js'\)/g)].length;
+    const dinamikEk = [...appKod.matchAll(/import\('\.\/ekran\/eslesme_ekran\.js'\)/g)].length;
+    ok('[!] ES2/butce: eslesme.js (ve imza.js / kripto.js) ACILISTA inmiyor; app.js istemciyi YALNIZ dinamik ister (eslesmeIstemcisi), ekrani YALNIZ bilesen yukleyicisi (EU30)',
+       !statik.includes('ekran/eslesme.js') && !statik.includes('ortak/imza.js') && !statik.includes('ortak/kripto.js')
+       && esAgac.join(' ') === 'ortak/imza.js ortak/kripto.js' && dinamik === 1 && dinamikEk === 1
+       && govdeIcinde(appKaynak, 'eslesmeIstemcisi', "import('./ekran/eslesme.js')"), esAgac.join(' '));
+    const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
+    const by = fs.existsSync(kunyeYolu) ? (JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')).bayt || {}) : {};
+    const esBayt = ['ekran/eslesme.js', ...esAgac].filter((x) => !statik.includes(x)).reduce((n, a) => n + (by[a] || 0), 0);
+    ok('[!] ES2/butce: eslesme zinciri (acilista olmayan kismi; yalniz eslesmis tarayicida acilista) <= 24 KB gzip; eslesme.js (istemci) <= 10 KB gzip',
+       esBayt > 0 && esBayt <= 24 * 1024 && by['ekran/eslesme.js'] > 0 && by['ekran/eslesme.js'] <= 10 * 1024,
+       `${esBayt} B (eslesme.js ${by['ekran/eslesme.js']} B)`);
+    /* Bilgi (iddia DEGIL): ESLESMIS bir tarayicida acilis bu zinciri de indirir (AU12 deseni). */
+    console.log(`     eslesmis tarayicida acilisa eklenen: ${esBayt} B gzip (eslesme.js + imza.js + kripto.js)`);
+    /* EU30: Eslestirme EKRANI + metinleri yalniz bolum acilinca; eslesmis tarayicinin acilisina GIRMEZ */
+    const ekAgac = fs.existsSync(esEkYolu) ? iceAktarmaGrafigi(esEkYolu).map((x) => x.goruntu) : [];
+    const ekZincir = ['ekran/eslesme_ekran.js', ...ekAgac].filter((x, i, a) => a.indexOf(x) === i && !statik.includes(x) && x !== 'ekran/eslesme.js' && !esAgac.includes(x));
+    const ekBayt = ekZincir.reduce((n, a) => n + (Number.isFinite(by[a]) ? by[a] : NaN), 0);
+    ok('[!] EU30: Eslestirme ekraninin metinleri (ortak/sozluk_es.js) ACILISTA DEGIL ve istemci zincirinde DEGIL — yalniz ekran modulunun (eslesme_ekran.js) agacinda; ekran zinciri <= 14 KB gzip',
+       !statik.includes('ortak/sozluk_es.js') && !esAgac.includes('ortak/sozluk_es.js') && ekAgac.includes('ortak/sozluk_es.js')
+       && !statik.includes('ekran/eslesme_ekran.js') && !esAgac.includes('ekran/eslesme_ekran.js')
+       && ekZincir.join(' ') === 'ekran/eslesme_ekran.js ortak/sozluk_es.js' && ekBayt > 0 && ekBayt <= 14 * 1024,
+       `${ekZincir.join(' ')} · ${ekBayt} B · istemci agaci: ${esAgac.join(' ')}`);
+    const acilisEs = Object.keys(SZx.SOZLUK).filter((a) => /^es\./.test(a)).sort();
+    const kabukEs = [...new Set([...appKod.matchAll(/'(es\.[a-z0-9_]+)'/g)].map((m) => m[1]))].sort();
+    ok('[!] EU30: acilis sozlugunde (ortak/sozluk.js) YALNIZ kabugun es. metinleri (serit uyarisi, akis hatasi, modul yuklenemedi); ekranin metinleri sozluk_es.js`te, iki sozluk ayrik',
+       acilisEs.length >= 4 && acilisEs.join() === kabukEs.join() && acilisEs.includes('es.uyari_modul')
+       && Object.keys(SEx.SOZLUK_ES).length >= 70 && Object.keys(SEx.SOZLUK_ES).every((a) => /^es\./.test(a) && !(a in SZx.SOZLUK)),
+       `acilista ${acilisEs.join(' ')} · sozluk_es ${Object.keys(SEx.SOZLUK_ES).length} anahtar`);
+  }
+
+  /* ── cihazKaydiVar: eslesme YOKSA IndexedDB'de veritabani YARATMAZ ── */
+  {
+    const var_ = al('cihazKaydiVar');
+    const sahteIdb = ({ liste = null, var: vt = null, at = false } = {}) => {
+      const iz = { acilan: 0, iptal: 0, yaratilan: 0 };
+      const idb = {
+        iz,
+        open(ad) {
+          if (at) throw new Error('engelli');
+          iz.acilan++;
+          const r = {};
+          setImmediate(() => {
+            if (!vt || ad !== vt.ad) {
+              /* yeni veritabani: onupgradeneeded (oldVersion 0); iptal edilirse onerror */
+              r.transaction = { abort() { iz.iptal++; } };
+              r.result = { close() {}, objectStoreNames: { contains: () => false } };
+              if (r.onupgradeneeded) r.onupgradeneeded({ oldVersion: 0 });
+              if (iz.iptal) { r.error = new Error('AbortError'); if (r.onerror) r.onerror(); return; }
+              iz.yaratilan++;
+              if (r.onsuccess) r.onsuccess();
+              return;
+            }
+            r.result = {
+              close() {},
+              objectStoreNames: { contains: (d) => d === vt.depo },
+              transaction: () => ({ objectStore: () => ({ count() { const q = {}; setImmediate(() => { q.result = vt.adet; q.onsuccess(); }); return q; } }) }),
+            };
+            if (r.onsuccess) r.onsuccess();
+          });
+          return r;
+        },
+      };
+      if (liste) idb.databases = async () => liste;
+      return idb;
+    };
+    SONRA.push(async () => {
+      const VT = al('CIHAZ_VT_AD');
+      const yok1 = sahteIdb();
+      const r1 = typeof var_ === 'function' ? await var_(yok1) : 'yok';
+      const yok2 = sahteIdb({ liste: [{ name: 'olcum-kayit' }] });
+      const r2 = typeof var_ === 'function' ? await var_(yok2) : 'yok';
+      const dolu = sahteIdb({ liste: [{ name: VT }], var: { ad: VT, depo: 'cihaz', adet: 1 } });
+      const r3 = typeof var_ === 'function' ? await var_(dolu) : 'yok';
+      const bos = sahteIdb({ var: { ad: VT, depo: 'cihaz', adet: 0 } });
+      const r4 = typeof var_ === 'function' ? await var_(bos) : 'yok';
+      const r5 = typeof var_ === 'function' ? await var_(sahteIdb({ at: true })) : 'yok';
+      const r6 = typeof var_ === 'function' ? await var_(null) : 'yok';
+      ok('[!] ES4: cihazKaydiVar — kayit yoksa false ve veritabani YARATILMAZ (yukseltme iptal); databases() listesinde yoksa hic ACILMAZ; kayit varsa true; IndexedDB yok / atar -> false',
+         r1 === false && yok1.iz.iptal === 1 && yok1.iz.yaratilan === 0 && r2 === false && yok2.iz.acilan === 0
+         && r3 === true && r4 === false && r5 === false && r6 === false
+         && VT === ES.CIHAZ_VT && al('CIHAZ_DEPO_AD') === ES.CIHAZ_DEPO && ES.CIHAZ_DEPO === 'cihaz',
+         JSON.stringify({ r1, i1: yok1.iz, r2, a2: yok2.iz.acilan, r3, r4, r5, r6, VT }));
+    });
+  }
+
+  /* ── (b) ISTEK KATMANI (ES4) ────────────────────────────────────── */
+  {
+    const UCLAR = /'\/(komut|kayit\/|kal\/liste|pil|skop\.bin|kunye\.json|akis|cihaz\/|saat|eslestir\/)/;
+    const kaynaklar = kodKaynaklari.filter((k) => k.ad !== 'ekran/eslesme.js');
+    const ciplak = [];
+    for (const k of kaynaklar) {
+      for (const m of yorumsuz(k.kaynak).matchAll(/fetch\(([^\n]*)/g)) if (UCLAR.test(m[1])) ciplak.push(k.ad + ': ' + m[1].slice(0, 60));
+    }
+    /* p0'in KASITLI ciplak yolu (EMNIYET) tek istisna */
+    const p0Yolu = ciplak.filter((c) => c.startsWith("app.js: uyg.kartAdres('/komut')"));
+    const kalan = ciplak.filter((c) => !p0Yolu.includes(c));
+    const istekler = [...appKod.matchAll(/kartIstek\('([^'?]+)/g)].map((m) => m[1]);
+    ok('[!] ES4: kartin uclarina giden HER fetch tek katmandan (kartIstek); dogrudan fetch YALNIZ p0`in emniyet yolu',
+       kalan.length === 0 && p0Yolu.length === 1 && ['/komut', '/pil', '/skop.bin'].every((u) => istekler.includes(u))
+       && /this\._istek\('\/kal\/liste'/.test(ayKod) && /this\._istek\('\/kunye\.json'/.test(ayKod)
+       && /this\._getir\(yol/.test(esitKod) && /this\._getir\('\/kayit\/liste'/.test(esitKod),
+       kalan.join(' | ') || `${istekler.join(' ')} + p0`);
+    ok('[!] ES4: ekranlar istek katmanini ALIR: Kayitlar ve Ayarlar `:kart-istek`, Pil esitlemesi kartIstek, denetci `istek` ile kurulur',
+       /<kayitlar-ekran [^>]*:kart-istek="kartIstek"/.test(html) && /<ayarlar-ekran [^>]*:kart-istek="kartIstek"/.test(html)
+       && /new EsitlemeDenetcisi\(\{ kartAdres: this\.kartAdres, istek: this\.kartIstek \}\)/.test(
+         yorumsuz(fs.readFileSync(path.join(ARAYUZ, 'ekran', 'kayitlar.js'), 'utf8')))
+       && /new es\.EsitlemeDenetcisi\(\{ kartAdres: this\.kartAdres, istek: this\.kartIstek \}\)/.test(ayKod)
+       && govdeIcinde(appKaynak, 'pilKayitYukle', 'kartIstek')
+       && /new es\.EsitlemeDenetcisi\(\{ kartAdres, istek: kartIstek \}\)/.test(yorumsuz(fs.readFileSync(path.join(ARAYUZ, 'ekran', 'pil.js'), 'utf8'))));
+    /* davranis: kayit YOK -> bugunku yol (fetch(kartAdres), ayni secenekler); istemci VAR -> istemci.istek */
+    SONRA.push(async () => {
+      const u = ornek();
+      u.kartTaban = '';
+      const giden = [];
+      const eski = sandbox.fetch;
+      sandbox.fetch = async (url, o) => { giden.push([url, o]); return { ok: true, status: 200 }; };
+      const s1 = { cache: 'no-store' };
+      let r1 = null;
+      try { r1 = await u.kartIstek('/pil?sira=3', s1); } catch (h) { r1 = h; }
+      const v = ornek();
+      const cagri = [];
+      v._esKarar = Promise.resolve({ istek: async (yol, sec, duz) => { cagri.push([yol, sec]); return duz(); } });
+      let r2 = null;
+      try { r2 = await v.kartIstek('/kal/liste', { cache: 'no-store' }); } catch (h) { r2 = h; }
+      sandbox.fetch = eski;
+      ok('[!] ES4: kartIstek — eslesme kaydi yoksa BUGUNKU yol (fetch(kartAdres(yol)), secenekler aynen); kayit varsa istemci.istek (yedek yolu duz fetch)',
+         r1 && r1.status === 200 && giden.length === 2 && giden[0][0] === '/pil?sira=3' && giden[0][1] === s1
+         && cagri.length === 1 && cagri[0][0] === '/kal/liste' && giden[1][0] === '/kal/liste' && r2 && r2.status === 200,
+         JSON.stringify({ giden: giden.map((g) => g[0]), cagri: cagri.map((c) => c[0]) }));
+    });
+    /* EsitlemeDenetcisi istek enjeksiyonu */
+    SONRA.push(async () => {
+      const ESx = require(path.join(ARAYUZ, 'ekran', 'esitleme.js'));
+      const yollar = [];
+      const d = new ESx.EsitlemeDenetcisi({ kartAdres: (y) => 'X' + y,
+        istek: async (yol, o) => { yollar.push([yol, o && o.cache]); return { status: 404, text: async () => 'yok' }; }, bekle: async () => {} });
+      const l = await d.kartListesi();
+      const y2 = await d._istek('/kayit/veri', [['sira', '4'], ['bayt', '8192']]);
+      ok('[!] ES4: EsitlemeDenetcisi `istek` alir: /kayit/liste ve /kayit/veri ondan (kartAdres onekiyle DEGIL — onu katman ekler), no-store',
+         l.durum === 'yok' && y2.status === 404 && yollar.map((y) => y.join(':')).join(' ') === '/kayit/liste:no-store /kayit/veri?sira=4&bayt=8192:no-store',
+         JSON.stringify(yollar));
+    });
+  }
+
+  /* ── (c) EMNIYET-P0 ─────────────────────────────────────────────── */
+  {
+    const TA = (al('TASIYICILAR') || {}).akis;
+    SONRA.push(async () => {
+      const giden = [];
+      const eski = sandbox.fetch;
+      sandbox.fetch = async (url, o) => { giden.push([url, o]); return { ok: true, status: 204, text: async () => '' }; };
+      let katman = 0;
+      const uyg = { kartAdres: (y) => 'K' + y, jeton: 'j1', hata: '', satirIsle() {},
+        kartIstek: () => { katman++; return new Promise(() => {}); } };     // katman ASKIDA: hic cozulmez
+      if (TA) TA.gonder(uyg, 'p0');
+      await uyu();
+      await uyu();
+      const p0 = giden.slice();
+      if (TA) TA.gonder(uyg, 'G?');
+      await uyu();
+      const uyg2 = { ...uyg, kartIstek: () => { throw new Error('imza bozuk'); } };
+      if (TA) TA.gonder(uyg2, 'p0');
+      await uyu();
+      sandbox.fetch = eski;
+      ok('[!] EMNIYET-P0 (ES4/K11): `p0` imza katmanina HIC girmez — katman askida ya da atiyor olsa da tek POST /komut (jeton ile) hemen gider; diger komutlar katmandan',
+         !!TA && p0.length === 1 && p0[0][0] === 'K/komut' && p0[0][1].body === 'p0' && p0[0][1].method === 'POST'
+         && p0[0][1].headers['X-Jeton'] === 'j1' && p0[0][1].headers['X-Olcum'] === '1' && katman === 1
+         && giden.length === 2 && giden[1][1].body === 'p0',
+         JSON.stringify({ p0: p0.map((g) => g[0]), katman, n: giden.length }));
+    });
+    ok('[!] EMNIYET-P0: p0 yolu eslesme modulunu BEKLEMEZ (TasiyiciAkis.gonder, p0 dali kartIstek`ten ONCE) ve pilDurdurKomut hala tek gonder(\'p0\')',
+       /metin === 'p0'\s*\?\s*fetch\(uyg\.kartAdres\('\/komut'\), sec\)\s*:\s*uyg\.kartIstek\('\/komut', sec\)/.test(appKod)
+       && /pilDurdurKomut\(\) \{ this\.gonder\('p0'\); \}/.test(appKaynak));
+  }
+
+  /* ── (d) SAF MANTIK ─────────────────────────────────────────────── */
+  {
+    const ya = ES.yolAyir || (() => ({}));
+    const a1 = ya('/kayit/veri?sira=5&bayt=8192');
+    const a2 = ya('/komut');
+    const a3 = ya('/pil?sira=0&ad=%C5%9F%20x');
+    ok('ES4: yolAyir — yol + argumanlar (gelis sirasi, URL-cozulmus); sorgusuz yol bos liste',
+       a1.yol === '/kayit/veri' && JSON.stringify(a1.argumanlar) === '[["sira","5"],["bayt","8192"]]'
+       && a2.yol === '/komut' && JSON.stringify(a2.argumanlar) === '[]' && JSON.stringify(a3.argumanlar) === '[["sira","0"],["ad","ş x"]]');
+    const C = ES.SseCozucu ? new ES.SseCozucu() : null;
+    const olaylar = C ? [
+      ...C.ekle('retry: 3000\r\n\r\nevent: kim'), ...C.ekle('lik\ndata: {"jeton":"j"}\n\n: nabiz\n\nid: 7\ndata: D 1\ndata: 2\n'),
+      ...C.ekle('\n'), ...C.ekle('event: kopru\ndata: http://pc\n\nevent: bos\n\n'),
+    ] : [];
+    ok('[!] ES6: SseCozucu — parcali gelis, CRLF, yorum, cok satirli data, olay adi, id, retry; verisiz blok olay degil',
+       !!C && JSON.stringify(olaylar.map((o) => [o.olay, o.veri, o.id])) === JSON.stringify([
+         ['kimlik', '{"jeton":"j"}', ''], ['message', 'D 1\n2', '7'], ['kopru', 'http://pc', '7']]) && C.retry === 3000,
+       JSON.stringify(olaylar));
+    const b = ES.akisBekleme || (() => NaN);
+    ok('[!] ES6: yeniden baglanma beklemesi ARTAR (1, 2, 4, 8, 16 s) ve 30 s`de durur',
+       [1, 2, 3, 4, 5, 6, 9].map(b).join() === '1000,2000,4000,8000,16000,30000,30000' && ES.AKIS_BEKLE_AZAMI_MS === 30000);
+    const kb = ES.kayitBirlestir || (() => undefined);
+    const e0 = { kimlik: KIMLIK, n: 2, K, ad: 'a', sayac: 50, acilis: ACILIS, eklenme: 10, tanimiyor: false };
+    const g1 = kb(e0, { ...e0, sayac: 40, acilis: ACILIS2 });
+    const g2 = kb({ ...e0, tanimiyor: true }, { ...e0, sayac: 60 });
+    const g3 = kb(e0, { ...e0, n: 3, eklenme: 20, sayac: 0 });
+    const g4 = kb({ ...e0, n: 3, eklenme: 20 }, { ...e0, sayac: 99 });
+    ok('[!] ES5: kayitBirlestir — sayac GERI GITMEZ (iki sekme), acilis yeni yazandan, "tanimiyor" yapiskan; yeni eslestirme eskisini ezer, ESKI eslestirme yeniyi ezemez',
+       g1 && g1.sayac === 50 && g1.acilis === ACILIS2 && g2 && g2.tanimiyor === true && g2.sayac === 60
+       && g3 && g3.n === 3 && g3.sayac === 0 && g4 === null && kb(null, e0, { olustur: true }).sayac === 50,
+       JSON.stringify([g1 && g1.sayac, g2 && g2.tanimiyor, g3 && g3.n, g4]));
+    const sa = ES.sayacAyir || (() => null);
+    const dk = { ...e0, sayac: 100 };
+    const t1 = sa(dk, { ...e0, sayac: 0 }, 50);           // sekme A: bellekte geride, saat geride
+    const t2 = t1 && sa(t1.kayit, { ...e0, sayac: 0 }, 50);  // sekme B: AYNI bellek + AYNI ms
+    const t3 = t2 && sa(t2.kayit, { ...e0, sayac: 0 }, 900);
+    ok('[!] ES5: sayacAyir — iki sekme ayni bellek sayaci ve AYNI ms ile ayirsa da FARKLI sayac (depo + 1); saat ilerideyse saat; baska eslestirmeye ayirmaz',
+       !!t1 && t1.s === 101 && t2.s === 102 && t3.s === 900 && t3.kayit.sayac === 900 && sa(dk, { ...e0, n: 9 }, 1) === null && sa(null, e0, 1) === null,
+       JSON.stringify([t1 && t1.s, t2 && t2.s, t3 && t3.s]));
+    const rs = ES.retSebebi || (() => ({}));
+    const ch = (m) => { const h = new IMx.CalismaHatasi(m); return h; };
+    const r = [
+      rs(ch('/eslestir/kanit: 403 kanit yanlis (parola?)')), rs(ch('/eslestir/baslat: 403 web parolasi yok')),
+      rs(ch('/eslestir/baslat: 429 cok fazla yanlis deneme'), { retry: '8' }), rs(ch('/eslestir/baslat: 409 cihaz listesi dolu (8)')),
+      rs(ch('/eslestir/kanit: 410 bekleyen eslestirme yok')), rs(ch('kart kaniti YANLIS — bu kart parolayi bilmiyor')),
+      rs(new KRx.DegerHatasi('PBKDF2 turu 5 kabul edilmez')), rs(new TypeError('Failed to fetch')), rs(ch('/eslestir/baslat: 503 x')),
+    ];
+    ok('[!] ES3: retSebebi — kartin reddi SEBEBIYLE: yanlis parola / kartin parolasi yok / 429 (Retry-After saniyesi) / dolu / 60 s / sahte kart / bilgi / ag / HTTP; kartin metni tasinir',
+       r.map((x) => x.anahtar).join() === 'es.ret_parola,es.ret_kart_parola,es.ret_bekle,es.ret_dolu,es.ret_sure,es.ret_sahte,es.ret_bilgi,es.ret_ag,es.ret_http'
+       && r[0].d.kart === 'kanit yanlis (parola?)' && r[2].d.sn === '8' && r[8].d.kod === '503'
+       && r.every((x) => x.anahtar in SEx.SOZLUK_ES), JSON.stringify(r));
+    const va = ES.varsayilanAd || (() => '');
+    const adlar = [va('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Edg/130.0'),
+      va('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36'),
+      va('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'),
+      va('Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0'), va('')];
+    ok('ES7: varsayilan cihaz adi tarayici + isletim sisteminden (listede ayirt edilsin), her zaman gecerli ad (1-24 bayt)',
+       adlar.join(' | ') === 'Edge/Windows | Chrome/Android | Safari/iOS | Firefox/Linux | Tarayici' && adlar.every((a) => IMx.adGecerli(a)), adlar.join(' | '));
+    const uy = ES.eslesmeUygunlugu || (() => ({}));
+    ok('ES1: eslestirme yalniz panel kartin KENDI adresinden (akis kipi, bos taban): USB / demo / baska taban -> sebep',
+       uy({ kartTaban: '', tasiyici: 'akis' }).uygun === true && uy({ kartTaban: '', tasiyici: 'seri' }).neden === 'usb'
+       && uy({ kartTaban: '', tasiyici: 'demo' }).neden === 'demo' && uy({ kartTaban: '10.0.0.5', tasiyici: 'akis' }).neden === 'taban');
+  }
+
+  /* ── (e) ISTEMCI ────────────────────────────────────────────────── */
+  if (ES.EslesmeIstemcisi) {
+    const kur = (cevap, { cihaz = true } = {}) => {
+      const depo = bellekDepo();
+      if (cihaz) depo.m.set(KIMLIK, { kimlik: KIMLIK, n: 2, K, ad: 'Edge/Windows', sayac: 0, acilis: ACILIS2, eklenme: 5, tanimiyor: false });
+      const bildirim = [];
+      const ist = new ES.EslesmeIstemcisi({ kartAdres: (y) => 'http://kart' + y, depo, bildir: (o) => bildirim.push(o) });
+      const giden = [];
+      const getir = async (url, o) => {
+        giden.push({ url, o, sira: depo.log.length, kayitliSayac: (depo.m.get(KIMLIK) || {}).sayac });
+        if (url === 'http://kart/eslestir/bilgi') return yanit(200, bilgiJson(), { 'Content-Type': 'application/json' });
+        return cevap(url, o, giden.length);
+      };
+      return { ist, depo, bildirim, giden, getir };
+    };
+    const kos = async (getir, f) => {
+      const eski = globalThis.fetch;
+      globalThis.fetch = getir;
+      try { return await f(); } finally { globalThis.fetch = eski; }
+    };
+    SONRA.push(async () => {
+      /* imzali istek: basliklar, sayac ONCE yazilir, credentials omit, Authorization / X-Jeton YOK */
+      const a = kur(() => yanit(204));
+      const r = await kos(a.getir, async () => {
+        const d = await a.ist.coz();
+        const y = await a.ist.istek('/komut', { method: 'POST', headers: { 'Content-Type': 'text/plain', 'X-Olcum': '1', 'X-Jeton': 'j' }, body: 'G?' },
+          () => { throw new Error('duz yola dusmemeli'); });
+        const y2 = await a.ist.istek('/kayit/veri?sira=5&bayt=8192', { cache: 'no-store' }, () => null);
+        return { d, y, y2 };
+      });
+      const k = a.giden.filter((g) => g.url.startsWith('http://kart/komut') || g.url.startsWith('http://kart/kayit'));
+      const h = k.length ? k[0].o.headers : {};
+      ok('[!] ES4/ES5: imzali istek — X-Cihaz/X-Sayac/X-Imza (kanonik metin imza.js ile ayni), sayac istekten ONCE depoya yazildi, credentials:omit, Authorization ve X-Jeton YOK; acilis /eslestir/bilgi`den tazelendi',
+         r.d === 'hazir' && r.y.status === 204 && r.y2.status === 204 && k.length === 2
+         && h['X-Cihaz'] === '2' && /^\d+$/.test(h['X-Sayac']) && imzaDogru(k[0].url, k[0].o) && imzaDogru(k[1].url, k[1].o)
+         && k.every((g) => g.o.credentials === 'omit' && !('Authorization' in (g.o.headers || {})) && !('X-Jeton' in (g.o.headers || {})))
+         && k.every((g) => g.kayitliSayac === Number(g.o.headers['X-Sayac'])) && Number(k[1].o.headers['X-Sayac']) > Number(h['X-Sayac'])
+         && k[1].url === 'http://kart/kayit/veri?sira=5&bayt=8192' && a.depo.m.get(KIMLIK).acilis === ACILIS && k[0].o.body !== undefined,
+         JSON.stringify(k.map((g) => [g.url, g.o.headers['X-Sayac'], g.kayitliSayac])));
+      /* ES5: ayni acilisla 401 BIR kez -> yeni sayacla yeniden dene; tanimiyor DEGIL */
+      const b = kur((url, o, n) => (n === 2 ? yanit(401, 'imza: sayac tekrar ya da cok eski', { 'X-Acilis': ACILIS }) : yanit(204)));
+      const rb = await kos(b.getir, () => b.ist.istek('/komut', { method: 'POST', body: 'G?' }, () => 'DUZ'));
+      const kb2 = b.giden.filter((g) => g.url === 'http://kart/komut');
+      ok('[!] ES5: ayni acilisla tek 401 (iki sekmenin sayac carpismasi) -> YENI sayacla tek yeniden deneme, basarili; cihaz isaretlenmez',
+         rb && rb.status === 204 && kb2.length === 2 && Number(kb2[1].o.headers['X-Sayac']) > Number(kb2[0].o.headers['X-Sayac'])
+         && b.bildirim.length === 0 && !b.depo.m.get(KIMLIK).tanimiyor, JSON.stringify(kb2.map((g) => g.o.headers['X-Sayac'])));
+      /* iki kez 401 ayni acilis -> kart tanimiyor: isaret + bildirim + imzasiz yol; sonrakiler dogrudan imzasiz */
+      const c = kur((url) => (url === 'http://kart/komut' ? yanit(401, 'imza: cihaz kayitli degil', { 'X-Acilis': ACILIS }) : yanit(200)));
+      let duz = 0;
+      const rc = await kos(c.getir, () => c.ist.istek('/komut', { method: 'POST', body: 'G?' }, () => { duz++; return 'DUZ'; }));
+      const once = c.giden.length;
+      const rc2 = await kos(c.getir, () => c.ist.istek('/pil?sira=0', {}, () => { duz++; return 'DUZ2'; }));
+      ok('[!] ES4: ayni acilisla IKI 401 -> "kart tanimiyor": cihaz depoda isaretli, kullaniciya bildirildi (kartin metniyle), istek IMZASIZ yoldan; sonraki istekler dogrudan imzasiz (imzali deneme yok)',
+         rc === 'DUZ' && rc2 === 'DUZ2' && duz === 2 && c.giden.filter((g) => g.url === 'http://kart/komut').length === 2
+         && c.giden.length === once && c.depo.m.get(KIMLIK).tanimiyor === true && c.ist.durum === 'tanimiyor'
+         && c.bildirim.length >= 1 && c.bildirim[0].durum === 'tanimiyor' && c.bildirim[0].n === 2
+         && /cihaz kayitli degil/.test(c.bildirim[0].mesaj), JSON.stringify(c.bildirim));
+      /* 401 YENI acilis (kart yeniden basladi) -> acilis guncellenir, basarili */
+      const d = kur((url, o, n) => (n === 2 ? yanit(401, 'imza gecersiz', { 'X-Acilis': ACILIS2 }) : yanit(204)));
+      const rd = await kos(d.getir, () => d.ist.istek('/komut', { method: 'POST', body: 'x' }, () => 'DUZ'));
+      const kd = d.giden.filter((g) => g.url === 'http://kart/komut');
+      ok('[!] ES4: 401 + YENI X-Acilis (kart yeniden basladi) -> acilis guncellenir (depoda da), yeni acilisla imzali yeniden deneme basarili',
+         rd && rd.status === 204 && kd.length === 2 && imzaDogru(kd[1].url, kd[1].o, ACILIS2) && d.depo.m.get(KIMLIK).acilis === ACILIS2
+         && d.bildirim.length === 0);
+      /* 401 disi hata yanit olarak doner (cagiran isler), imzasiz yola DUSULMEZ */
+      const e = kur(() => yanit(503, 'mesgul'));
+      const re = await kos(e.getir, () => e.ist.istek('/kal/liste', {}, () => 'DUZ'));
+      ok('ES4: 401 disi hata (503) cagirana YANIT olarak doner; imzasiz yola dusulmez, cihaz isaretlenmez',
+         re && re.status === 503 && !e.depo.m.get(KIMLIK).tanimiyor);
+      /* kayit yok -> durum 'yok', istek dogrudan imzasiz */
+      const f = kur(() => yanit(204), { cihaz: false });
+      const rf = await kos(f.getir, () => f.ist.istek('/komut', { method: 'POST', body: 'x' }, () => 'DUZ'));
+      ok('[!] ES4: bu kartin kimligiyle kayit YOKSA istek bugunku yoldan (imzali deneme yok)',
+         rf === 'DUZ' && f.ist.durum === 'yok' && f.giden.every((g) => g.url === 'http://kart/eslestir/bilgi'));
+      /* kart ulasilamazsa coz atar ve durum ezberlenmez */
+      const g = kur(() => yanit(204));
+      let ag = null;
+      await kos(async () => { throw new TypeError('Failed to fetch'); }, async () => { try { await g.ist.coz(); } catch (h) { ag = h; } });
+      const sonra = await kos(g.getir, () => g.ist.coz());
+      ok('ES4: /eslestir/bilgi`e ulasilamazsa coz ATAR (istek ag hatasi gibi) ve sonuc ezberlenmez — kart donunce imzali yol',
+         ag instanceof TypeError && sonra === 'hazir');
+      /* unut: once kartta kendini sil (imzali POST /cihaz/sil?n=), sonra yerel; ulasilamazsa yine yerel + sebep */
+      const u1 = kur(() => yanit(204));
+      const ru1 = await kos(u1.getir, async () => { await u1.ist.coz(); return u1.ist.unut(); });
+      const sil1 = u1.giden.find((x) => x.url.startsWith('http://kart/cihaz/sil'));
+      const u2 = kur(() => yanit(204));
+      await kos(u2.getir, () => u2.ist.coz());
+      const ru2 = await kos(async (url) => { if (url.includes('/cihaz/sil')) throw new TypeError('Failed to fetch'); return u2.getir(url); }, () => u2.ist.unut());
+      ok('[!] ES7: unut — ONCE kartta kendini siler (imzali POST /cihaz/sil?n=<kendi>), SONRA bu tarayicidaki kayit; kart ulasilamazsa yerel kayit yine silinir ve sonuc bunu soyler',
+         ru1.kart === 'silindi' && !!sil1 && sil1.url === 'http://kart/cihaz/sil?n=2' && sil1.o.method === 'POST' && imzaDogru(sil1.url, sil1.o)
+         && u1.depo.log.findIndex((l) => l[0] === 'sil') > sil1.sira - 1 && !u1.depo.m.has(KIMLIK) && u1.ist.durum === 'yok'
+         && u1.bildirim.some((b2) => b2.durum === 'unutuldu')
+         && ru2.kart === 'ulasilamadi' && ru2.n === 2 && !u2.depo.m.has(KIMLIK), JSON.stringify([ru1, ru2]));
+      /* saat: imzali POST /saat?unix=<simdi> */
+      const s = kur(() => yanit(204));
+      await kos(s.getir, async () => { await s.ist.coz(); return s.ist.saatAyarla(); });
+      const st = s.giden.find((x) => x.url.startsWith('http://kart/saat'));
+      const unix = st ? Number(new URL(st.url).searchParams.get('unix')) : 0;
+      ok('[!] ES8: saat — imzali POST /saat?unix=<bu cihazin saati> (otomatik degil: yalniz cagrilinca)',
+         !!st && st.o.method === 'POST' && imzaDogru(st.url, st.o) && Math.abs(unix - Date.now() / 1000) < 5);
+    });
+    SONRA.push(async () => {
+      /* eslestirme: JS'te kart taklidi (imza.js ile) — parola HICBIR istekte ve depoda yok */
+      const PAROLA = 'sinama-parolasi-123';
+      const tuz = new Uint8Array(16).fill(7);
+      const P = IMx.pbkdf2(PAROLA, tuz, 10000);
+      const nk = new Uint8Array(16).fill(9);
+      let bekleyen = null;
+      let yanlis = 0;
+      const depo = bellekDepo();
+      const bildirim = [];
+      const ist = new ES.EslesmeIstemcisi({ kartAdres: (y) => 'http://kart' + y, depo, bildir: (o) => bildirim.push(o) });
+      const giden = [];
+      const kart = async (url, o) => {
+        giden.push({ url, o });
+        const u = new URL(url);
+        if (u.pathname === '/eslestir/bilgi') {
+          return yanit(200, JSON.stringify({ surum: 'OK1', kimlik: KIMLIK, acilis: ACILIS, tuz: KRx.hex(tuz), tur: 10000, zorunlu: 0, misafir: 0, saat: 0, cihaz_azami: 8 }));
+        }
+        if (u.pathname === '/eslestir/baslat') {
+          if (yanlis >= 2) return yanit(429, 'cok fazla yanlis deneme', { 'Retry-After': '4' });
+          bekleyen = { ad: u.searchParams.get('ad'), nc: KRx.hexten(u.searchParams.get('nc')) };
+          return yanit(200, JSON.stringify({ eno: 1, nk: KRx.hex(nk) }));
+        }
+        if (u.pathname === '/eslestir/kanit') {
+          const beklenen = IMx.kanitIstemci(P, KIMLIK, nk, bekleyen.nc, bekleyen.ad);
+          if (KRx.hex(beklenen) !== u.searchParams.get('kanit')) { yanlis++; return yanit(403, 'kanit yanlis (parola?)'); }
+          return yanit(200, JSON.stringify({ n: 3, kart_kanit: KRx.hex(IMx.kanitKart(P, KIMLIK, nk, bekleyen.nc, 3)) }));
+        }
+        return yanit(404, 'yok');
+      };
+      const kos2 = async (f) => { const e = globalThis.fetch; globalThis.fetch = kart; try { return await f(); } catch (h) { return h; } finally { globalThis.fetch = e; } };
+      const kisa = await kos2(() => ist.esles('Edge/Windows', 'kisa-parola'));
+      const kisaGiden = giden.length;
+      const yanlis1 = await kos2(() => ist.esles('Edge/Windows', 'yanlis-parola-1234'));
+      const yanlis2 = await kos2(() => ist.esles('Edge/Windows', 'yanlis-parola-1234'));
+      const bekle = await kos2(() => ist.esles('Edge/Windows', PAROLA));
+      const bekleRetry = ist.sonRetry;
+      yanlis = 0;
+      const c = await kos2(() => ist.esles('Edge/Windows', PAROLA));
+      const kayit = depo.m.get(KIMLIK);
+      const tumMetin = JSON.stringify(giden.map((g) => [g.url, g.o && g.o.headers, g.o && g.o.body ? KRx.utf8Coz(new Uint8Array(g.o.body)) : '']))
+        + JSON.stringify([...depo.m.values()].map((v) => ({ ...v, K: KRx.hex(v.K) })));
+      ok('[!] ES3: eslestirme — kisa parola AG`A HIC CIKMADAN reddedilir; yanlis parola / deneme siniri kartin SEBEBIYLE (Retry-After); dogru parolada cihaz kaydi (K, n, acilis, eklenme) depoda',
+         ES.retSebebi(kisa).anahtar === 'es.ret_kisa' && kisaGiden === 0
+         && ES.retSebebi(yanlis1, { retry: ist.sonRetry }).anahtar === 'es.ret_parola'
+         && ES.retSebebi(bekle, { retry: bekleRetry }).anahtar === 'es.ret_bekle' && ES.retSebebi(bekle, { retry: bekleRetry }).d.sn === '4'
+         && c && c.n === 3 && kayit && kayit.n === 3 && kayit.K instanceof Uint8Array && kayit.K.length === 32 && kayit.acilis === ACILIS
+         && kayit.eklenme > 0 && kayit.sayac === 0 && ist.durum === 'hazir' && bildirim.some((b) => b.durum === 'eslesti'),
+         JSON.stringify({ kisa: ES.retSebebi(kisa), y1: ES.retSebebi(yanlis1), b: ES.retSebebi(bekle, { retry: bekleRetry }), n: c && c.n }));
+      ok('[!] ES3: parola HICBIR istekte (URL, baslik, govde) ve depoda YOK; eslestirme istekleri credentials:omit',
+         !tumMetin.includes(PAROLA) && !tumMetin.includes('yanlis-parola-1234') && giden.length > 0
+         && giden.every((g) => g.o && g.o.credentials === 'omit'), String(giden.length));
+      ok('ES3: K, eslestirmenin AYNI turetimiyle (imza.js cihazAnahtari) — kart ile tarayici ayni anahtari tutar',
+         !!kayit && KRx.hex(kayit.K) === KRx.hex(IMx.cihazAnahtari(P, KIMLIK, nk, (bekleyen || {}).nc || new Uint8Array(16), 3)));
+    });
+  }
+
+  /* ── (f) AKIS (ES6) ─────────────────────────────────────────────── */
+  if (ES.ImzaliAkis && ES.EslesmeIstemcisi) {
+    SONRA.push(async () => {
+      const depo = bellekDepo();
+      depo.m.set(KIMLIK, { kimlik: KIMLIK, n: 2, K, ad: 'x', sayac: 0, acilis: ACILIS, eklenme: 5, tanimiyor: false });
+      const bildirim = [];
+      const ist = new ES.EslesmeIstemcisi({ kartAdres: (y) => 'http://kart' + y, depo, bildir: (o) => bildirim.push(o) });
+      const urller = [];
+      let baglanti = 0;
+      const akisGovde = (parcalar) => new ReadableStream({ start(c) { for (const p of parcalar) c.enqueue(bayt(p)); c.close(); } });
+      const getir = async (url, o) => {
+        if (url === 'http://kart/eslestir/bilgi') return yanit(200, bilgiJson({ acilis: baglanti >= 4 ? ACILIS2 : ACILIS }));
+        if (url.startsWith('http://kart/akis')) {
+          baglanti++;
+          urller.push({ url, o });
+          if (baglanti === 4) return yanit(401, 'imza gecersiz', { 'X-Acilis': ACILIS2 });     // kart yeniden basladi
+          if (baglanti === 2 || baglanti === 3) throw new TypeError('Failed to fetch');
+          return new Response(akisGovde(['retry: 3000\n\nevent: kimlik\ndata: {"jeton":"j","surucu":true}\n\n', 'id: 1\ndata: D 1\n\n']), { status: 200 });
+        }
+        return yanit(404);
+      };
+      const eski = globalThis.fetch;
+      globalThis.fetch = getir;
+      const beklemeler = [];
+      const olay = [];
+      let akis = null;
+      try {
+        await ist.coz();
+        akis = new ES.ImzaliAkis(ist, { bekle: async (ms) => { beklemeler.push(ms); if (beklemeler.length >= 4) akis.close(); } });
+        akis.onmessage = (e) => olay.push('m:' + e.data);
+        akis.onerror = () => olay.push('hata');
+        akis.addEventListener('kimlik', (e) => olay.push('k:' + JSON.parse(e.data).jeton));
+        for (let i = 0; i < 200 && akis.readyState !== 2; i++) await uyu();
+      } finally { globalThis.fetch = eski; }
+      const imzali = urller.filter((x) => /_i=/.test(x.url));
+      const s = imzali.map((x) => new URL(x.url).searchParams.get('_s'));
+      const dogru = (x, acilis) => { const q = new URL(x.url).searchParams;
+        return q.get('_i') === IMx.imzala(K, 'GET', '/akis', [], acilis, Number(q.get('_s')), new Uint8Array(0)) && q.get('_c') === '2'; };
+      ok('[!] ES6: akis IMZALI URL ile (/akis?_c&_s&_i, imza.js ile ayni), credentials:omit; olaylar (kimlik, data) EventSource gibi dagitilir',
+         urller.length >= 5 && imzali.length === urller.length && dogru(urller[0], ACILIS) && urller.every((x) => x.o.credentials === 'omit')
+         && olay.includes('k:j') && olay.includes('m:D 1'), JSON.stringify(olay));
+      ok('[!] ES6: her yeniden baglanma YENI imzali URL (sayac ve imza hep farkli — EventSource`un eski URL`yi tekrar yollamasi yok); bekleme ARTAR (1, 2, 4 s)',
+         new Set(urller.map((x) => x.url)).size === urller.length && s.every((v, i) => i === 0 || Number(v) > Number(s[i - 1]))
+         && beklemeler.slice(0, 3).join() === '1000,2000,4000' && olay.filter((o) => o === 'hata').length >= 3, `${beklemeler} · ${urller.length}`);
+      ok('[!] ES6: akista 401 + YENI acilis (kart yeniden basladi) -> acilis guncellenir, HEMEN yeni acilisla imzali yeniden baglanir',
+         urller.length >= 5 && dogru(urller[4], ACILIS2) && depo.m.get(KIMLIK).acilis === ACILIS2 && bildirim.length === 0,
+         JSON.stringify(urller.map((x) => new URL(x.url).searchParams.get('_s'))));
+      /* tanimiyor: iki 401 ayni acilis -> bildirim + IMZASIZ /akis (EventSource ile ayni kimlik bilgisi kipi) */
+      const depo2 = bellekDepo();
+      depo2.m.set(KIMLIK, { kimlik: KIMLIK, n: 2, K, ad: 'x', sayac: 0, acilis: ACILIS, eklenme: 5, tanimiyor: false });
+      const b2 = [];
+      const ist2 = new ES.EslesmeIstemcisi({ kartAdres: (y) => 'http://kart' + y, depo: depo2, bildir: (o) => b2.push(o) });
+      const u2 = [];
+      globalThis.fetch = async (url, o) => {
+        if (url === 'http://kart/eslestir/bilgi') return yanit(200, bilgiJson());
+        u2.push({ url, o });
+        if (/_i=/.test(url)) return yanit(401, 'imza: cihaz kayitli degil', { 'X-Acilis': ACILIS });
+        return new Response(akisGovde(['data: D 2\n\n']), { status: 200 });
+      };
+      let a2 = null;
+      try {
+        await ist2.coz();
+        a2 = new ES.ImzaliAkis(ist2, { bekle: async () => { a2.close(); } });
+        for (let i = 0; i < 200 && a2.readyState !== 2; i++) await uyu();
+      } finally { globalThis.fetch = eski; }
+      ok('[!] ES4/ES6: akista iki 401 ayni acilis -> "kart tanimiyor" bildirilir, akis IMZASIZ /akis ile surer (credentials same-origin: bugunku EventSource yolu)',
+         u2.length === 3 && /_i=/.test(u2[0].url) && /_i=/.test(u2[1].url) && u2[2].url === 'http://kart/akis'
+         && u2[2].o.credentials === 'same-origin' && b2.some((b) => b.durum === 'tanimiyor') && depo2.m.get(KIMLIK).tanimiyor === true,
+         JSON.stringify(u2.map((x) => x.url.slice(0, 40))));
+    });
+    ok('[!] ES6: TasiyiciAkis eslesmisken istemcinin akisini (ImzaliAkis) acar, yoksa bugunku EventSource(kartAdres(\'/akis\'))',
+       /const ist = await uyg\.eslesmeHazirla\(\);/.test(appKod) && /uyg\.akis = imzali \|\| new EventSource\(uyg\.kartAdres\('\/akis'\)\);/.test(appKod)
+       && /imzali = ist \? await ist\.akisAc\(\) : null/.test(appKod));
+  }
+
+  /* ── (g) SABLON (WIG, ES3 ES7 ES8 ES9) + app tepkisi ─────────────── */
+  {
+    const form = T.match(/<form ([^>]*)>([\s\S]*?)<\/form>/);
+    const parola = T.match(/<input ([^>]*type="password"[^>]*)>/);
+    ok('[!] ES3/WIG: eslestirme formu — etiketli ad + parola; parola type=password, autocomplete="current-password", name; v-model YOK (Vue durumunda da tutulmaz), gonder type=submit + aria-busy',
+       !!form && /@submit\.prevent="eslestir"/.test(form[1]) && !!parola && /autocomplete="current-password"/.test(parola[1])
+       && /\bname="parola"/.test(parola[1]) && /\bid="es-parola"/.test(parola[1]) && !/v-model/.test(parola[1]) && /ref="parola"/.test(parola[1])
+       && /<label for="es-parola">/.test(form[2]) && /<label for="es-ad">/.test(form[2]) && /<input [^>]*id="es-ad"[^>]*maxlength="24"/.test(form[2])
+       && /<button type="submit"[^>]*:aria-busy=/.test(form[2]), parola ? parola[1] : 'yok');
+    const E = ES.EslestirmeEkrani || {};
+    SONRA.push(async () => {
+      if (!E.methods || !E.methods.eslestir) { ok('[!] ES3: gonderilince parola alani HEMEN bosaltilir', false, 'eslestir yok'); return; }
+      const alan = { value: 'sinama-parolasi-123' };
+      let gelen = null;
+      let coz;
+      const ist = { esles: (ad, p) => { gelen = [ad, p, alan.value]; return new Promise((r) => { coz = r; }); }, durum: 'yok', cihaz: null };
+      const o = Object.assign({ $refs: { parola: alan }, $nextTick: (f) => { if (f) f(); return Promise.resolve(); }, ad: 'Edge/Windows',
+        istemciAl: async () => ist, dilSecim: 'tr' }, E.data ? E.data.call({}) : {}, E.methods);
+      for (const [ad, fn] of Object.entries(E.computed || {})) Object.defineProperty(o, ad, { get: fn.bind(o), configurable: true });
+      o.ad = 'Edge/Windows';
+      const p = o.eslestir();
+      for (let i = 0; i < 5; i++) await uyu();
+      const ara = { alan: alan.value, gelen, durum: JSON.stringify(o.$data || {}) };
+      if (coz) coz({ n: 3 });
+      await p;
+      ok('[!] ES3: gonderilince parola alani esles cagrilmadan ONCE bosaltilir; parola bilesenin durumunda (data) YOK',
+         alan.value === '' && gelen && gelen[1] === 'sinama-parolasi-123' && gelen[2] === ''
+         && !Object.values(o).some((v) => typeof v === 'string' && v.includes('sinama-parolasi-123')), JSON.stringify(ara.gelen));
+    });
+    ok('[!] ES9: zorunluluk / misafir SALT OKUMA — onlara bagli girdi / dugme yok; USB komutlari (Ez1, Em1) sozluk metninde, bolumde gosteriliyor',
+       !/v-model="[^"]*(zorunlu|misafir)|@click="[^"]*(zorunlu|misafir)/.test(T) && /m\.guvAciklama/.test(T) && /bilgi\.zorunlu/.test(T) && /bilgi\.misafir/.test(T));
+    ok('[!] ES1: bildirim (MQTT) ayari panelde YOK — yalniz USB oldugu yaziyor; Q komutu gonderen kod yok',
+       /m\.bildirimAciklama/.test(T) && !/['"`]Q[a-z?0-9]/.test(esKod));
+    ok('[!] ES8: "saati bu cihazdan ayarla" yalniz eslesmisken ve kartin NTP saati YOKKEN (saat !== 1); otomatik cagri yok',
+       /v-if="hazir && bilgi && bilgi\.saat !== 1"/.test(T) && /@click="saatAyarla"/.test(T)
+       && (esKod.match(/\.saatAyarla\(/g) || []).length === 1);
+    ok('[!] ES7/WIG: cihaz listesi tablo (caption, th scope), bu tarayici METINLE isaretli; baska cihazi kaldirma IKI ASAMALI (Eminim + Vazgec); kendi satiri "unut" yoluna gider',
+       /<caption class="gorunmez">\{\{ m\.listeTablo \}\}<\/caption>/.test(T) && /<th scope="col">\{\{ m\.lN \}\}<\/th>/.test(T)
+       && /c\.n === kendiN \? m\.buTarayici/.test(T) && /<template v-(?:else-)?if="kaldirOnay === c\.n">[\s\S]*?data-es-kaldir-eminim[\s\S]*?@click="kaldir\(c\.n\)"[\s\S]*?@click="kaldirVazgec\(c\.n\)"/.test(T)
+       && /<template v-if="unutOnay">[\s\S]*?data-es-unut-eminim[\s\S]*?@click="unut"/.test(T));
+    const dugmeler = [...T.matchAll(/<button\b([^>]*)>/g)].map((m) => m[1]);
+    ok('ES/WIG: eslestirme bolumunun dugmeleri type="button" (formun gonderi disinda); durum metni aria-live; ret role=alert',
+       dugmeler.length >= 6 && dugmeler.filter((a) => !/type="button"/.test(a)).length === 1 && /data-es-durum[^>]*aria-live="polite"|aria-live="polite"[^>]*data-es-durum/.test(T)
+       && /class="hata" role="alert" data-es-ret/.test(T), `${dugmeler.length}`);
+    SONRA.push(async () => {
+      const E2 = ES.EslestirmeEkrani || {};
+      if (!E2.methods) { ok('[!] ES7: kaldirma iki asamali', false); return; }
+      const sil = [];
+      const ist = { cihazSil: async (n) => { sil.push(n); return { tamam: true }; }, cihazListe: async () => [], cihaz: { n: 2 }, durum: 'hazir' };
+      const o = Object.assign({ $nextTick: (f) => { if (f) f(); return Promise.resolve(); }, istemciAl: async () => ist, dilSecim: 'tr' },
+        E2.data ? E2.data.call({}) : {}, E2.methods);
+      for (const [ad, fn] of Object.entries(E2.computed || {})) Object.defineProperty(o, ad, { get: fn.bind(o), configurable: true });
+      o._odakla = () => {};
+      await o.kaldir(5);
+      const onaysiz = sil.length;
+      o.kaldirBasla(5);
+      await o.kaldir(6);
+      const baska = sil.length;
+      await o.kaldir(5);
+      ok('[!] ES7: baska cihazi kaldirma IKI ASAMALI — onaysiz ya da baska satirin onayiyla cagri karta GITMEZ, ikinci asamada yalniz o cihaz',
+         onaysiz === 0 && baska === 0 && sil.join() === '5', sil.join());
+    });
+    /* app tepkisi: tanimiyor -> serit uyarisi; eslesti -> uyari temizlenir + akis yenilenir */
+    const u = ornek();
+    let yenile = 0;
+    u.akisYenile = () => { yenile++; };
+    if (u.eslesmeBildir) u.eslesmeBildir({ durum: 'tanimiyor', n: 4, ad: 'x', mesaj: 'imza: cihaz kayitli degil' });
+    const metin1 = u.eslesmeUyariMetni;
+    if (u.eslesmeBildir) u.eslesmeBildir({ durum: 'eslesti' });
+    const metin2 = u.eslesmeUyariMetni;
+    ok('[!] ES4: "kart tanimiyor" kullaniciya SOYLENIR (her gorunumde serit uyarisi, cihaz no ile); eslesince uyari kalkar ve akis imzali yeniden acilir',
+       typeof metin1 === 'string' && metin1.includes('4') && /tanımıyor/.test(metin1) && !metin2 && yenile === 1
+       && /<div v-if="eslesmeUyariMetni" class="uyari" role="alert" data-es-uyari>\{\{ eslesmeUyariMetni \}\}\s*<a href="#\/ayar\/eslestirme">\{\{ eslesmeGit \}\}<\/a><\/div>/.test(html),
+       String(metin1));
+    ok('[!] ES3/ES2: eslesme.js parolayi ve anahtari hicbir yere YAZMAZ (localStorage / sessionStorage / console yok); N? gondermez',
+       !!esKod && !/localStorage|sessionStorage|console\.(log|info|warn|error)|'N\?'|"N\?"/.test(esKod));
+  }
+
+  /* ── (h) INCELEME DUZELTMELERI (3H-2 guvenlik incelemesi; EU17-EU28) ──────── */
+  if (ES.EslesmeIstemcisi && ES.ImzaliAkis) {
+    const akisGovde = (parcalar, { hata = false } = {}) => new ReadableStream({
+      start(c) { for (const p of parcalar) c.enqueue(bayt(p)); if (hata) c.error(new TypeError('network error')); else c.close(); },
+    });
+    const kayitliDepo = (ek = {}) => {
+      const d = bellekDepo();
+      d.m.set(KIMLIK, { kimlik: KIMLIK, n: 2, K, ad: 'x', sayac: 0, acilis: ACILIS, eklenme: 5, tanimiyor: false, ...ek });
+      return d;
+    };
+    /* bir akis senaryosu: getir(url, o, baglantiNo), bekle(ms, akis) -> {urller, beklemeler, olay, bildirim, depo} */
+    const akisKos = async (getir, { bekle = null, onmessage = null, bilgi = () => bilgiJson() } = {}) => {
+      const depo = kayitliDepo();
+      const bildirim = [];
+      const ist = new ES.EslesmeIstemcisi({ kartAdres: (y) => 'http://kart' + y, depo, bildir: (o) => bildirim.push(o) });
+      const urller = [];
+      const beklemeler = [];
+      const olay = [];
+      const eski = globalThis.fetch;
+      let akis = null;
+      globalThis.fetch = async (url, o) => {
+        if (url === 'http://kart/eslestir/bilgi') return yanit(200, bilgi());
+        urller.push({ url, o });
+        return getir(url, o, urller.length);
+      };
+      try {
+        await ist.coz();
+        akis = new ES.ImzaliAkis(ist, { bekle: async (ms) => { beklemeler.push(ms); if (bekle) await bekle(ms, akis, urller); else akis.close(); } });
+        akis.onmessage = onmessage || ((e) => olay.push('m:' + e.data));
+        akis.addEventListener('kimlik', () => olay.push('kimlik'));
+        for (let i = 0; i < 400 && akis.readyState !== 2; i++) await uyu();
+      } finally { globalThis.fetch = eski; if (akis) akis.close(); }
+      return { urller, beklemeler, olay, bildirim, depo, ist };
+    };
+
+    const r4b = [];
+    SONRA.push(async () => {
+      /* EU17 (inceleme [onemli]): kart yeniden basladi -> yeni acilisli 401 SAYILMAZ; ardindan TEK ayni-acilisli 401
+         (sayac carpismasi) ES5'in yeni sayacli yeniden denemesini alir — kalici "tanimiyor" DEGIL */
+      const r = await akisKos((url, o, n) => {
+        if (n === 1) return yanit(401, 'imza gecersiz', { 'X-Acilis': ACILIS2 });
+        if (n === 2) return yanit(401, 'imza: sayac tekrar ya da cok eski', { 'X-Acilis': ACILIS2 });
+        return new Response(akisGovde(['data: D 1\n\n']), { status: 200 });
+      });
+      const s = r.urller.map((x) => new URL(x.url).searchParams.get('_s'));
+      ok('[!] EU17: akista yeni acilisli 401 ayni-acilis sayacina GIRMEZ — yeniden baslamadan sonra tek bir ayni-acilisli 401 kalici "kart tanimiyor" yapmaz; ucuncu baglanti yeni acilisla imzali, veri geliyor',
+         r.urller.length >= 3 && r.bildirim.length === 0 && r.depo.m.get(KIMLIK).tanimiyor === false && r.depo.m.get(KIMLIK).acilis === ACILIS2
+         && r.olay.includes('m:D 1') && s.every((v, i) => i === 0 || Number(v) > Number(s[i - 1])),
+         JSON.stringify({ n: r.urller.length, b: r.bildirim.map((b) => b.durum), olay: r.olay }));
+      /* gercekten silinmis cihaz: ayni acilisla IKI 401 -> yine "tanimiyor" (EU7 korunuyor), yeni acilis olsa da */
+      const r2 = await akisKos((url, o, n) => {
+        if (n === 1) return yanit(401, 'imza gecersiz', { 'X-Acilis': ACILIS2 });
+        if (/_i=/.test(url)) return yanit(401, 'imza: cihaz kayitli degil', { 'X-Acilis': ACILIS2 });
+        return new Response(akisGovde(['data: D 2\n\n']), { status: 200 });
+      });
+      ok('[!] EU17: yeniden baslama + ayni acilisla IKI 401 -> yine "kart tanimiyor" ve imzasiz /akis (EU7 korunur)',
+         r2.bildirim.some((b) => b.durum === 'tanimiyor') && r2.depo.m.get(KIMLIK).tanimiyor === true
+         && r2.urller.filter((x) => /_i=/.test(x.url)).length === 3 && r2.urller.some((x) => x.url === 'http://kart/akis'),
+         JSON.stringify(r2.urller.map((x) => x.url.slice(11, 40))));
+
+      /* EU19 (inceleme [kucuk]): onmessage'tan atilan istisna akisi KOPARMAZ (EventSource gibi raporlanir) */
+      const raporlanan = [];
+      const eskiRapor = globalThis.reportError;
+      globalThis.reportError = (h) => raporlanan.push(String(h && h.message));
+      let r3;
+      const mesaj3 = [];
+      try {
+        r3 = await akisKos(() => new Response(akisGovde(['data: D 1\n\n', 'data: D 2\n\n']), { status: 200 }), {
+          onmessage: (e) => { mesaj3.push(e.data); if (e.data === 'D 1') throw new Error('satir isleyici patladi'); },
+        });
+      } finally { if (eskiRapor === undefined) delete globalThis.reportError; else globalThis.reportError = eskiRapor; }
+      ok('[!] EU19: onmessage istisnasi akisi koparmaz — ayni baglantida sonraki olay da gelir, istisna reportError ile raporlanir (yeniden baglanma YOK)',
+         mesaj3.join() === 'D 1,D 2' && r3.urller.length === 1 && raporlanan.join() === 'satir isleyici patladi',
+         JSON.stringify({ mesaj3, n: r3.urller.length, raporlanan }));
+      /* kopan baglanti (okuma hatasi) bekleme BASLAMADAN iptal edilir: eski fetch kartin akis yuvasini tutmaz */
+      const iptalAni = [];
+      await akisKos(() => new Response(akisGovde(['data: D 1\n\n'], { hata: true }), { status: 200 }), {
+        bekle: async (ms, akis, urller) => { iptalAni.push(!!(urller[0] && urller[0].o.signal && urller[0].o.signal.aborted)); akis.close(); },
+      });
+      ok('[!] EU19: akis koptugunda eski baglantinin fetch`i bekleme BASLAMADAN iptal edilir (AbortController) — kartin AKIS_AZAMI yuvasini tutmaz',
+         iptalAni.length === 1 && iptalAni[0] === true, JSON.stringify(iptalAni));
+
+      /* EU20 (inceleme [kucuk]): 'dolu' / 'kopru' cevabi (200 + olay + kapanis) bekleme sayacini SIFIRLAMAZ */
+      const r4 = await akisKos(() => new Response(akisGovde(['event: dolu\ndata: 4\n\n']), { status: 200 }), {
+        bekle: async (ms, akis) => { if (r4b.push(ms) >= 4) akis.close(); },
+      });
+      ok('[!] EU20: kart "dolu" (ya da "kopru") yazip kapatinca bekleme ARTAR (1, 2, 4, 8 s) — ilk bayt degil GERCEK olay (kimlik / veri) sayaci sifirlar',
+         r4b.join() === '1000,2000,4000,8000' && r4.urller.length === 4, r4b.join());
+    });
+
+    {
+      /* EU18 (inceleme [kucuk]): kartin GERCEK SSE metni (firmware literal'leri) her bayt sinirinda bolunse de ayni olaylar;
+         CRLF'li sunucuda '\r' | '\n' bolunmesi sahte bos satir uretmez */
+      const ino = fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'olcum-karti-a3.ino'), 'utf8');
+      const lit = (re) => { const m = ino.match(re); return m ? JSON.parse('"' + m[1] + '"') : null; };
+      const retry = lit(/akis\[yuva\]\.print\(F\("(retry: \d+\\n\\n)"\)\)/);
+      const kimBas = lit(/akis\[yuva\]\.print\(F\("(event: kimlik\\ndata: )\{\\"jeton\\":\\""\)\)/);
+      const olayBic = lit(/snprintf\(olay, sizeof\(olay\), "(id: %lu\\ndata: %s\\n\\n)"/);
+      const doluBas = lit(/c\.print\(F\("(event: dolu\\ndata: )"\)\)/);
+      const kartMetni = retry && kimBas && olayBic && doluBas
+        ? retry + kimBas + '{"jeton":"a1b2","surucu":true}' + '\n\n'
+          + olayBic.replace('%lu', '41').replace('%s', 'K 12.0012 0.5003 6.0 1') + olayBic.replace('%lu', '42').replace('%s', 'G 0 0')
+          + doluBas + '4\n\n' : '';
+      const coz = (parcalar) => { const C = new ES.SseCozucu(); return JSON.stringify(parcalar.flatMap((p) => C.ekle(p)).map((o) => [o.olay, o.veri, o.id])); };
+      const kontrol = (metin) => {
+        const tek = coz([metin]);
+        const bozuk = [];
+        for (let i = 0; i <= metin.length; i++) if (coz([metin.slice(0, i), metin.slice(i)]) !== tek) bozuk.push(i);
+        for (let i = 1; i < metin.length - 1; i += 3) if (coz([metin.slice(0, i), metin.slice(i, i + 2), metin.slice(i + 2)]) !== tek) bozuk.push('3@' + i);
+        return { tek, bozuk };
+      };
+      const lf = ES.SseCozucu ? kontrol(kartMetni) : { bozuk: ['yok'] };
+      const crlf = ES.SseCozucu ? kontrol(kartMetni.replace(/\n/g, '\r\n') + 'data: a\r\ndata: b\r\n\r\n') : { bozuk: ['yok'] };
+      ok('[!] EU18: SseCozucu — kartin gercek SSE metni (firmware literal\'leri: retry, kimlik, id+data, dolu) HER bayt sinirinda bolunse de tek parcayla AYNI olaylar; CRLF\'de \\r|\\n bolunmesi sahte bos satir uretmez (cok satirli olay ikiye bolunmez)',
+         !!kartMetni && lf.bozuk.length === 0 && crlf.bozuk.length === 0
+         && lf.tek === JSON.stringify([['kimlik', '{"jeton":"a1b2","surucu":true}', ''], ['message', 'K 12.0012 0.5003 6.0 1', '41'],
+           ['message', 'G 0 0', '42'], ['dolu', '4', '42']])
+         && crlf.tek === JSON.stringify([['kimlik', '{"jeton":"a1b2","surucu":true}', ''], ['message', 'K 12.0012 0.5003 6.0 1', '41'],
+           ['message', 'G 0 0', '42'], ['dolu', '4', '42'], ['message', 'a\nb', '42']]),
+         JSON.stringify({ lf: lf.bozuk.slice(0, 5), crlf: crlf.bozuk.slice(0, 5), metin: kartMetni.length }));
+    }
+
+    SONRA.push(async () => {
+      /* EU22 (inceleme [kucuk]): "unut" ile es zamanli imzali istek silinen kaydi (K ile) GERI YAZAMAZ — yazmalar yalniz
+         VAR OLAN kaydi gunceller; kaydi yalniz eslestirme yaratir */
+      const depo = kayitliDepo();
+      const bildirim = [];
+      const ist = new ES.EslesmeIstemcisi({ kartAdres: (y) => 'http://kart' + y, depo, bildir: (o) => bildirim.push(o) });
+      let n = 0;
+      const eski = globalThis.fetch;
+      globalThis.fetch = async (url) => {
+        if (url === 'http://kart/eslestir/bilgi') return yanit(200, bilgiJson());
+        n++;
+        if (n === 2) depo.m.delete(KIMLIK);               // baska sekme tam bu arada "unut" dedi (yerel kayit silindi)
+        return yanit(401, 'imza: cihaz kayitli degil', { 'X-Acilis': ACILIS });
+      };
+      let r = null;
+      try { await ist.coz(); r = await ist.istek('/komut', { method: 'POST', body: 'G?' }, () => 'DUZ'); } finally { globalThis.fetch = eski; }
+      ok('[!] EU22: unut ile es zamanli imzali istegin ikinci 401`i silinen kaydi (K ile) YENIDEN YARATMAZ; "tanimiyor" bildirilmez, istemci kaydi birakir, istek imzasiz yoldan',
+         r === 'DUZ' && !depo.m.has(KIMLIK) && bildirim.length === 0 && ist.cihaz === null && n === 2,
+         JSON.stringify({ r, var: depo.m.has(KIMLIK), b: bildirim.map((b) => b.durum), n }));
+      const kb = ES.kayitBirlestir || (() => undefined);
+      const e0 = { kimlik: KIMLIK, n: 2, K, ad: 'a', sayac: 50, acilis: ACILIS, eklenme: 10 };
+      ok('[!] EU22: kayitBirlestir — kayit YOKKEN yalniz {olustur:true} (eslestirme) yazar; diger yazmalar (sayac, acilis, tanimiyor) null',
+         kb(null, e0) === null && kb(null, e0, { olustur: true }) && kb(null, e0, { olustur: true }).sayac === 50
+         && kb(e0, { ...e0, sayac: 60 }).sayac === 60);
+
+      /* EU21 (inceleme [kucuk]): bayat ekran — kayit baska sekmede silinip YENIDEN eslestirildi; bu sekmenin "unut"u yeni kaydi
+         SILMEZ, karta /cihaz/sil gondermez ve "kart da sildi" demez */
+      const d2 = kayitliDepo();
+      const ist2 = new ES.EslesmeIstemcisi({ kartAdres: (y) => 'http://kart' + y, depo: d2 });
+      const giden2 = [];
+      globalThis.fetch = async (url) => { giden2.push(url); return url === 'http://kart/eslestir/bilgi' ? yanit(200, bilgiJson()) : yanit(204); };
+      let u = null;
+      try {
+        await ist2.coz();
+        d2.m.set(KIMLIK, { kimlik: KIMLIK, n: 5, K, ad: 'yeni', sayac: 0, acilis: ACILIS, eklenme: 99, tanimiyor: false });
+        u = await ist2.unut();
+      } finally { globalThis.fetch = eski; }
+      ok('[!] EU21: bayat ekranda "unut" — kayit artik bu eslestirme degil: kart "yok" doner, karta /cihaz/sil GITMEZ, yeni kayit SILINMEZ',
+         u && u.kart === 'yok' && !giden2.some((x) => x.includes('/cihaz/sil')) && d2.m.get(KIMLIK) && d2.m.get(KIMLIK).n === 5,
+         JSON.stringify({ u, giden2 }));
+      const E = ES.EslestirmeEkrani || {};
+      let yenilendi = 0;
+      const o = Object.assign({ $nextTick: (f) => { if (f) f(); return Promise.resolve(); }, dilSecim: 'tr',
+        istemciAl: async () => ({ unut: async () => ({ kart: 'yok', n: null, kod: null }), durum: 'bilinmiyor', cihaz: null, bilgi: null }) },
+      E.data ? E.data.call({}) : {}, E.methods || {});
+      for (const [ad, fn] of Object.entries(E.computed || {})) Object.defineProperty(o, ad, { get: fn.bind(o), configurable: true });
+      o._odakla = () => {};
+      o.yenile = async () => { yenilendi++; };
+      o.unutOnay = true;
+      if (o.unut) await o.unut();
+      ok('[!] EU21: ekran — "unut" {kart:"yok"} donerse "kart da sildi" DEMEZ, kaydin artik olmadigini soyler ve durumu yeniler',
+         o.sonuc === SEx.ceviriEs('es.unutuldu_yok', 'tr') && !/kart da sildi/.test(o.sonuc) && yenilendi === 1, String(o.sonuc));
+
+      /* EU24 (inceleme [kucuk]): /eslestir/bilgi zaman asimli — kart TCP'yi kabul edip susarsa coz ASILI KALMAZ */
+      const d3 = kayitliDepo();
+      const ist3 = new ES.EslesmeIstemcisi({ kartAdres: (y) => 'http://kart' + y, depo: d3, bilgiSureMs: 40 });
+      let sinyal = null;
+      globalThis.fetch = (url, o2) => new Promise((coz, red) => {
+        sinyal = o2 && o2.signal;
+        if (sinyal) sinyal.addEventListener('abort', () => red(sinyal.reason || new Error('abort')));
+      });
+      let sonuc3 = 'ASILI';
+      let akis3 = null;
+      try {
+        sonuc3 = await Promise.race([ist3.coz().then((d) => 'coz:' + d, (h) => 'atti:' + (h && h.name)),
+          new Promise((r2) => setTimeout(() => r2('ASILI'), 1500))]);
+        akis3 = await Promise.race([ist3.akisAc(), new Promise((r2) => setTimeout(() => r2('ASILI'), 1500))]);
+      } finally { globalThis.fetch = eski; if (akis3 && akis3.close) akis3.close(); }
+      ok('[!] EU24: /eslestir/bilgi zaman asimli (AbortSignal.timeout) — kart susarsa coz ATAR (asili kalmaz, ezberlenmez); akisAc ImzaliAkis doner (ag gibi)',
+         /^atti:(TimeoutError|AbortError)$/.test(sonuc3) && !!sinyal && ist3.durum === 'bilinmiyor' && akis3 instanceof ES.ImzaliAkis
+         && ES.BILGI_SURE_MS > 0 && ES.BILGI_SURE_MS <= 10000, JSON.stringify({ sonuc3, akis: akis3 && akis3.constructor && akis3.constructor.name }));
+
+      /* EU26 (inceleme [kucuk]): BASKA kart kimligine ait kayitlar listelenir ve yerelden silinebilir; bu kartinki bu yoldan silinemez */
+      const YABANCI = 'fedcba9876543210';
+      const d4 = kayitliDepo();
+      d4.m.set(YABANCI, { kimlik: YABANCI, n: 1, K, ad: 'eski kart', sayac: 9, acilis: ACILIS, eklenme: 3, tanimiyor: false });
+      const ist4 = new ES.EslesmeIstemcisi({ kartAdres: (y) => 'http://kart' + y, depo: d4 });
+      let l4 = null, sil4a = null, sil4b = null;
+      globalThis.fetch = async (url) => (url === 'http://kart/eslestir/bilgi' ? yanit(200, bilgiJson()) : yanit(204));
+      try {
+        await ist4.coz();
+        l4 = ist4.yabancilar ? await ist4.yabancilar() : null;
+        sil4a = ist4.yerelSil ? await ist4.yerelSil(KIMLIK) : null;
+        sil4b = ist4.yerelSil ? await ist4.yerelSil(YABANCI) : null;
+      } finally { globalThis.fetch = eski; }
+      ok('[!] EU26: baska kart kimligine ait kayitlar listelenir (kimlik, n, ad — K YOK) ve yerelden silinir; bu kartin kaydi bu yoldan SILINEMEZ ("unut" yolu)',
+         Array.isArray(l4) && l4.length === 1 && l4[0].kimlik === YABANCI && l4[0].n === 1 && !('K' in l4[0])
+         && sil4a === false && sil4b === true && d4.m.has(KIMLIK) && !d4.m.has(YABANCI), JSON.stringify({ l4, sil4a, sil4b }));
+      const silinen = [];
+      const o5 = Object.assign({ $nextTick: (f) => { if (f) f(); return Promise.resolve(); }, dilSecim: 'tr',
+        istemciAl: async () => ({ yerelSil: async (k) => { silinen.push(k); return true; }, yabancilar: async () => [] }) },
+      E.data ? E.data.call({}) : {}, E.methods || {});
+      for (const [ad, fn] of Object.entries(E.computed || {})) Object.defineProperty(o5, ad, { get: fn.bind(o5), configurable: true });
+      const odak5 = [];
+      o5._odakla = (s) => odak5.push(s);
+      if (o5.yabanciSil) {
+        await o5.yabanciSil(YABANCI);
+        o5.yabanciBasla(YABANCI);
+        await o5.yabanciSil('0000000000000000');
+        await o5.yabanciSil(YABANCI);
+      }
+      ok('[!] EU26/WIG: baska kartin kaydini silmek IKI ASAMALI (onaysiz / baska satirin onayiyla silmez), sonra liste yenilenir; liste bosalinca odak durum satirina',
+         silinen.join() === YABANCI && odak5[odak5.length - 1] === '[data-es-durum]', JSON.stringify({ silinen, odak5 }));
+      const ty = T.match(/<section class="kart" v-if="yabanci\.length"[^>]*>([\s\S]*?)<\/section>/);
+      ok('[!] EU26: sablonda "baska kartlarin kayitlari" bolumu (kimlik + ad + n), her satirda iki asamali "bu tarayicidan sil"; anahtar aciklamasi onu gosteriyor',
+         !!ty && /<h2 id="es-yabanci-baslik" tabindex="-1">/.test(ty[1]) && /y\.kimlik/.test(ty[1])
+         && /<template v-if="yabanciOnay === y\.kimlik">[\s\S]*?@click="yabanciSil\(y\.kimlik\)"[\s\S]*?@click="yabanciVazgec\(y\.kimlik\)"/.test(ty[1])
+         && /@click="yabanciBasla\(y\.kimlik\)"/.test(ty[1]) && /başka kart/i.test(SEx.ceviriEs('es.anahtar_aciklama', 'tr')),
+         ty ? 'var' : 'yok');
+
+      /* EU27 (WIG, inceleme [kucuk]): odak kaybolmaz; hata alanla iliskili */
+      const odak = [];
+      const kurE = (ist5) => {
+        const x = Object.assign({ $refs: { parola: { value: 'sinama-parolasi-123' } }, $nextTick: (f) => { if (f) f(); return Promise.resolve(); },
+          dilSecim: 'tr', istemciAl: async () => ist5 }, E.data ? E.data.call({}) : {}, E.methods || {});
+        for (const [ad, fn] of Object.entries(E.computed || {})) Object.defineProperty(x, ad, { get: fn.bind(x), configurable: true });
+        x._odakla = (s) => odak.push(s);
+        x.listeYukle = async () => {};
+        return x;
+      };
+      const ok1 = kurE({ esles: async () => ({ n: 3 }), durum: 'hazir', cihaz: { n: 3, ad: 'a' }, bilgi: { kimlik: KIMLIK, saat: 0 } });
+      if (ok1.eslestir) await ok1.eslestir();
+      const sonEs = odak.slice();
+      odak.length = 0;
+      const ok2 = kurE({});
+      ok2.ad = '';
+      if (ok2.eslestir) await ok2.eslestir();
+      const adHata = { odak: odak.slice(), alan: ok2.retAlan };
+      odak.length = 0;
+      const ok3 = kurE({ unut: async () => ({ kart: 'silindi', n: 3, kod: null }), durum: 'yok', cihaz: null, bilgi: { kimlik: KIMLIK, saat: 0 } });
+      ok3.unutOnay = true;
+      if (ok3.unut) await ok3.unut();
+      const unutOdak = odak.slice();
+      odak.length = 0;
+      const ok4 = kurE({ cihazSil: async () => ({ tamam: true }), cihazListe: async () => [] });
+      ok4.kaldirOnay = 4;
+      if (ok4.kaldir) await ok4.kaldir(4);
+      const kaldirOdak = odak.slice();
+      ok('[!] EU27/WIG: odak kaybolmaz — eslesince durum satirina, gecersiz adda ad alanina (retAlan "ad"), unuttan sonra ad alanina, kaldirdiktan sonra liste basligina',
+         sonEs.join() === '[data-es-durum]' && adHata.odak.join() === '#es-ad' && adHata.alan === 'ad'
+         && unutOdak.join() === '#es-ad' && kaldirOdak.join() === '#es-liste-baslik', JSON.stringify({ sonEs, adHata, unutOdak, kaldirOdak }));
+    });
+    {
+      const T2 = T;
+      ok('[!] EU27/WIG: hata alanla iliskili — ad ve parola alaninda :aria-invalid ve hata id`si (es-ret) :aria-describedby`de; durum satiri ve liste basligi odaklanabilir (tabindex -1)',
+         /<input id="es-ad"[^>]*:aria-invalid="retAlan === 'ad' \? 'true' : null"[^>]*:aria-describedby="retAlan === 'ad' \? 'es-ad-ipucu es-ret' : 'es-ad-ipucu'"/.test(T2)
+         && /<input id="es-parola"[^>]*:aria-invalid="retAlan === 'parola' \? 'true' : null"[^>]*:aria-describedby="retAlan === 'parola' \? 'es-parola-ipucu es-ret' : 'es-parola-ipucu'"/.test(T2)
+         && /<p v-if="ret" id="es-ret" class="hata" role="alert" data-es-ret>/.test(T2)
+         && /<p class="ay-ozet" data-es-durum tabindex="-1" aria-live="polite">/.test(T2) && /<h2 id="es-liste-baslik" tabindex="-1">/.test(T2));
+      /* EU25 (inceleme [kucuk]): parola alani tarayicinin parola yoneticisine acik (autocomplete current-password — kart
+         kokeninin kayitli web parolasi); metin "kaydedilmez" demez, panelin saklamadigini ve tarayicinin teklif edebilecegini soyler */
+      const ip = SEx.ceviriEs('es.parola_ipucu', 'tr');
+      const ipEn = SEx.ceviriEs('es.parola_ipucu', 'en');
+      const ac = SEx.ceviriEs('es.aciklama', 'tr');
+      ok('[!] EU25: parola metni dogru — panel saklamaz, tarayici kendi parola yoneticisine kaydetmeyi onerebilir (TR + EN); "hiçbir yere kaydedilmez" iddiasi YOK',
+         /parola yöneticisi/.test(ip) && /panel/i.test(ip) && /password manager/.test(ipEn) && !/kaydedilmez/.test(ip) && !/hiçbir yere kaydedilmez/.test(ac)
+         && /autocomplete="current-password"/.test(T2), ip);
+    }
+    /* EU23 (inceleme [kucuk], ES4 "sessiz degil"): kayit VARKEN IndexedDB acilamazsa serit uyarisi */
+    SONRA.push(async () => {
+      const var_ = al('cihazKaydiVar');
+      const VT = al('CIHAZ_VT_AD');
+      const bozukIdb = (tur) => ({
+        databases: async () => [{ name: VT }],
+        open() {
+          if (tur === 'atar') throw new Error('UnknownError: Internal error opening backing store');
+          const r = {};
+          setImmediate(() => {
+            if (tur === 'acilmaz') { r.error = new Error('UnknownError'); if (r.onerror) r.onerror(); return; }
+            r.result = { close() {}, objectStoreNames: { contains: () => true },
+              transaction: () => ({ objectStore: () => ({ count() { const q = {}; setImmediate(() => { q.error = new Error('x'); q.onerror(); }); return q; } }) }) };
+            if (r.onsuccess) r.onsuccess();
+          });
+          return r;
+        },
+      });
+      const sonuc = [];
+      for (const tur of ['acilmaz', 'sayilmaz', 'atar']) sonuc.push(typeof var_ === 'function' ? await var_(bozukIdb(tur)) : 'yok');
+      const u = ornek();
+      const eskiIdb = sandbox.indexedDB;
+      sandbox.indexedDB = bozukIdb('acilmaz');
+      let ist = 'yok';
+      try { ist = await u.eslesmeHazirla(); } finally { if (eskiIdb === undefined) delete sandbox.indexedDB; else sandbox.indexedDB = eskiIdb; }
+      ok('[!] EU23: cihaz veritabani VARKEN (databases() listesinde) acilamaz / sayilamaz / atarsa "hata" -> imzasiz yol AMA serit uyarisi (sessiz degil); karar ezberlenmez',
+         sonuc.join() === 'hata,hata,hata' && ist === null && /okunamadı/.test(u.eslesmeUyariMetni || '') && !u._esKarar,
+         JSON.stringify({ sonuc, ist: ist === null ? null : typeof ist, uyari: u.eslesmeUyariMetni }));
+    });
+    /* EU29 -> EU30: eslesmis tarayicinin ACILIS boyu. EU29'da 266 199 B / 15 dosya. EU30: Eslestirme
+       ekrani + metinleri istemciden ayrildi; IDDIA: ekran modulu ve sozluk_es.js bu kumeye GIRMEZ.
+       Toplam 3D'nin 256 000 B sinirinin hala ~1 KB ustunde -> BILGI (iddia degil): kalan fark ancak
+       kripto.js'in acilista yalniz HMAC'i (EU29 secenek b) ya da baska sozluk ailelerini ayirmakla kapanir
+       — ikisi de bu dilimin kapsami disi (EU30). Dosya sayisi da bilgi (12'ye inmek imza/kripto birlesmesi ister). */
+    {
+      const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
+      const by = fs.existsSync(kunyeYolu) ? (JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')).bayt || {}) : {};
+      const acK = new Set(['index.html']);
+      for (const m of html.matchAll(/(?:^|\s)(?:href|src)="([^"]+)"/gm)) if (!/^(https?:|data:|#|mailto:)/.test(m[1])) acK.add(m[1]);
+      for (const g of iceAktarmaGrafigi()) acK.add(g.goruntu);
+      const canliZ = ['ekran/canli.js', ...iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'canli.js')).map((g) => g.goruntu)].filter((x) => !acK.has(x));
+      const esZ = fs.existsSync(esYolu) ? ['ekran/eslesme.js', ...iceAktarmaGrafigi(esYolu).map((g) => g.goruntu)].filter((x) => !acK.has(x)) : [];
+      const top = (l) => l.reduce((n, a) => n + (by[a] || 0), 0);
+      const a0 = top([...acK]);
+      const c0 = top([...new Set(canliZ)]);
+      const e0 = top([...new Set(esZ)]);
+      const hepsi = new Set([...acK, ...canliZ, ...esZ]);
+      const toplam = top([...hepsi]);
+      ok('[!] EU30: ESLESMIS tarayicinin Canli ile acilisi (acilis kumesi + Canli zinciri + istemci zinciri) Eslestirme EKRANINI ve metinlerini (eslesme_ekran.js, sozluk_es.js) ICERMEZ',
+         esZ.length > 0 && esZ.includes('ekran/eslesme.js') && !hepsi.has('ekran/eslesme_ekran.js') && !hepsi.has('ortak/sozluk_es.js'),
+         [...hepsi].filter((x) => /eslesme|sozluk|imza|kripto/.test(x)).join(' '));
+      /* EU31 (karar, kullanicinin devriyle 2026-10-03): eslesmis acilisin 3D sinirini ~1 KB / 3 dosya asmasi
+         ESLESMIS TARAYICIYA OZGU istisna olarak kabul — kalan farki kapatmak kripto.js'i bolmeyi ister,
+         %0.4'luk asim icin orantisiz. Ama sessizce buyumesin: AYRI tavan 262 144 B (256 KiB) / 15 dosya. */
+      const ES_ACILIS_TAVAN = 262144;
+      const ES_ACILIS_DOSYA = 15;
+      ok('[!] EU31: ESLESMIS tarayicinin Canli ile acilisi <= 262 144 B gzip ve <= 15 dosya (3D sinirinin eslesmis istisnasi; buyume kilitli)',
+         toplam > 0 && toplam <= ES_ACILIS_TAVAN && hepsi.size <= ES_ACILIS_DOSYA,
+         `${a0} + ${c0} + ${e0} = ${toplam} B (%${(100 * toplam / 256000).toFixed(1)} / 3D 256000), ${hepsi.size} dosya`);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   32. p0 SAGLAMLIGI (3H-2 guvenlik incelemesi, 2026-10-02 gece)
    - p0 tek atimlikti: kartin komut kuyrugu doluyken 503 ("kuyruk dolu") ya da tek bir ag
      hatasi DURDURMA'yi kaybettiriyordu. p0 es etkili (iki kez durdurmak zararsiz) ->
      ag hatasi ve 503'te kisa artan beklemeyle yeniden denenir; 4xx hemen doner.
@@ -6257,7 +7283,7 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
      kullanmiyor — her durdurmada parola acik HTTP'den gidiyordu. Artik credentials 'omit'.
    - /durum (kopru yoklamasi) da ayni sebeple 'omit'.
    ═══════════════════════════════════════════════════════════════════════ */
-console.log('\n--- 31. p0 sagligi (yeniden deneme + parolasiz) ---');
+console.log('\n--- 32. p0 sagligi (yeniden deneme + parolasiz) ---');
 {
   let p0Gonder = null, P0_DENEME = null, P0_BEKLE_MS = null;
   try {
@@ -6299,7 +7325,8 @@ console.log('\n--- 31. p0 sagligi (yeniden deneme + parolasiz) ---');
     sandbox.setTimeout = (f) => { f(); return 0; };     // p0Gonder'in varsayilan beklemesi aninda
     try {
       const TA = vm.runInContext('TasiyiciAkis', sandbox);
-      const uyg = { kartAdres: (y) => y, jeton: 'j', satirIsle() {}, hata: '' };
+      const uyg = { kartAdres: (y) => y, jeton: 'j', satirIsle() {}, hata: '',
+        kartIstek: (y, s) => sandbox.fetch(y, s) };   // eslesmemis yol: katman fetch'i aynen cagirir
       await TA.gonder(uyg, 'p0');
       await TA.gonder(uyg, 'G?');
     } catch (e) { giden.push({ hata: String(e) }); } finally { sandbox.fetch = eskiFetch; sandbox.setTimeout = eskiZaman; }

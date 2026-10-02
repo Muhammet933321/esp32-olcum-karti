@@ -148,13 +148,20 @@ export function kalJsonCoz(b) {
 /* ── denetci ────────────────────────────────────────────────────────── */
 
 export class EsitlemeDenetcisi {
-  /** kartAdres: app.js kartAdres (taban oneki); zamanAsimiMs: istek basina. */
-  constructor({ kartAdres, zamanAsimiMs = 10000, bekle = uyu } = {}) {
+  /** kartAdres: app.js kartAdres (taban oneki); istek: app.js kartIstek (3H-2 ES4 — TEK istek
+   *  katmani: eslesmisse imzali; verilmezse bugunku yol fetch(kartAdres)); zamanAsimiMs: istek basina. */
+  constructor({ kartAdres, istek = null, zamanAsimiMs = 10000, bekle = uyu } = {}) {
     if (typeof kartAdres !== 'function') throw new TypeError('kartAdres islevi gerekli');
     this.kartAdres = kartAdres;
+    this._katman = typeof istek === 'function' ? istek : null;
     this.zamanAsimiMs = zamanAsimiMs;
     this._bekle = bekle;
     this._onbellek = new Map();          // kimlik -> {bayt, kayitlar, oturumlar, sonSira, kal}
+  }
+
+  /** Tek ag kapisi: istek katmani (varsa) ya da bugunku yol. */
+  _getir(yol, secenekler) {
+    return this._katman ? this._katman(yol, secenekler) : fetch(this.kartAdres(yol), secenekler);
   }
 
   _sinyal() {
@@ -167,7 +174,7 @@ export class EsitlemeDenetcisi {
     return agYenidenDene(async () => {
       let y;
       try {
-        y = await fetch(this.kartAdres('/kayit/liste'), { cache: 'no-store', ...this._sinyal() });
+        y = await this._getir('/kayit/liste', { cache: 'no-store', ...this._sinyal() });
       } catch (h) {
         return { durum: 'ag', mesaj: (h && h.message) || String(h) };
       }
@@ -182,7 +189,7 @@ export class EsitlemeDenetcisi {
    *  2026-10-02, TimeoutError). /kayit/veri'yi ust katman kaldigi yerden yeniden kuruyor. */
   async _istek(yol, argumanlar) {
     const q = argumanlar.map(([a, d]) => `${a}=${d}`).join('&');
-    const getir = () => fetch(this.kartAdres(yol + (q ? '?' + q : '')), { cache: 'no-store', ...this._sinyal() });
+    const getir = () => this._getir(yol + (q ? '?' + q : ''), { cache: 'no-store', ...this._sinyal() });
     if (yol !== '/kal/liste') return getir();
     for (let n = 1; ; n++) {
       try {

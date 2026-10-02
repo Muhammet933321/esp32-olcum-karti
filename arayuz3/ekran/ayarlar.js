@@ -348,6 +348,8 @@ export const AyarlarEkrani = {
   props: {
     bolum: { type: String, default: 'gelismis' },
     kartAdres: { type: Function, required: true },
+    /* 3H-2 (ES4): app.js'in TEK istek katmani (eslesmisse imzali); yoksa bugunku yol */
+    kartIstek: { type: Function, default: null },
     kartTaban: { type: String, default: '' },
     tasiyici: { type: String, default: 'akis' },
     bagli: { type: Boolean, default: false },
@@ -447,9 +449,13 @@ export const AyarlarEkrani = {
       try { return globalThis.localStorage || null; } catch (e) { return null; }
     },
     _yenidenYukle() { globalThis.location.reload(); },
+    /** Tek ag kapisi (3H-2 ES4): istek katmani (varsa) ya da bugunku yol. */
+    _istek(yol, secenekler) {
+      return this.kartIstek ? this.kartIstek(yol, secenekler) : fetch(this.kartAdres(yol), secenekler);
+    },
     async _den() {
       if (!this._denSoz) {
-        this._denSoz = this._esAl().then((es) => ({ es, den: new es.EsitlemeDenetcisi({ kartAdres: this.kartAdres }) }));
+        this._denSoz = this._esAl().then((es) => ({ es, den: new es.EsitlemeDenetcisi({ kartAdres: this.kartAdres, istek: this.kartIstek }) }));
       }
       return this._denSoz;
     },
@@ -479,7 +485,7 @@ export const AyarlarEkrani = {
           this.kalNeden = u.neden;
         } else {
           try {
-            const y = await fetch(this.kartAdres('/kal/liste'), { cache: 'no-store' });
+            const y = await this._istek('/kal/liste', { cache: 'no-store' });
             if (y.status === 200) {
               liste = kalListesiCoz(await y.json().catch(() => null));
               if (liste) kaynak = 'kart'; else this.kalNeden = 'bozuk';
@@ -611,7 +617,7 @@ export const AyarlarEkrani = {
     async kunyeYukle() {
       this.kunyeNeden = '';
       try {
-        const y = await fetch(this.kartAdres('/kunye.json'), { cache: 'no-store' });
+        const y = await this._istek('/kunye.json', { cache: 'no-store' });
         if (y.status === 200) {
           this.kunye = kunyeCoz(await y.json().catch(() => null));
           if (!this.kunye) this.kunyeNeden = 'JSON';

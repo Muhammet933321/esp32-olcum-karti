@@ -50,7 +50,8 @@ from tarayici_karsilastir import (KrTarayici, Kopuk, bekle_js, profil_surecleri,
 UYG = "document.querySelector('#uyg')._vnode.component.proxy"
 AD = "olcum.test"
 JETON = "abc123"
-SIRA = ["baglanti", "ag", "kalibrasyon", "kal-gecmis", "depolama", "dil-gorunum", "gelismis"]
+# 3H-2: Eslestirme Ag'dan sonra (ES1)
+SIRA = ["baglanti", "ag", "eslestirme", "kalibrasyon", "kal-gecmis", "depolama", "dil-gorunum", "gelismis"]
 gecti = kaldi = 0
 
 
@@ -248,7 +249,7 @@ def main() -> int:
             nav = t.js("[...document.querySelectorAll('.ay-nav a')].map(a => ({h: a.getAttribute('href'),"
                        " c: a.getAttribute('aria-current'), m: a.textContent.trim()}))") or []
             gor = t.js(GORUNEN_JS)
-            ok("[!] AY2: #/ayar ilk bolumu (Baglanti) gosterir, digerleri GIZLI; ic gezinmede yedi bolum karardaki sirayla,"
+            ok("[!] AY2: #/ayar ilk bolumu (Baglanti) gosterir, digerleri GIZLI; ic gezinmede sekiz bolum (3H-2 Eslestirme dahil) karardaki sirayla,"
                " secili olan aria-current",
                [n["h"] for n in nav] == [f"#/ayar/{b}" for b in SIRA] and nav[0]["c"] == "true"
                and all(n["c"] is None for n in nav[1:]) and gor == ["baglanti"]
@@ -362,7 +363,7 @@ def main() -> int:
                              " p: document.querySelector('[data-ay-dil=en]').getAttribute('aria-pressed')})", 6) or {}
             ok("[!] AY3: English — <html lang>, sekme basligi, ic gezinme ve serit ANINDA; secim `olcum.dil`de; sayfa YENILENMEDI",
                en.get("t") == "Settings — Measurement Board" and en.get("l") == '"en"' and en.get("i") == 3
-               and en.get("n", [""])[4] == "Storage" and "Recordings" in en.get("s", []) and en.get("p") == "true",
+               and en.get("n", [""])[SIRA.index("depolama")] == "Storage" and "Recordings" in en.get("s", []) and en.get("p") == "true",
                json.dumps(en, ensure_ascii=False)[:300])
             tikla_cdp(t, "#serit .gorunum-sekme[href='#/kayitlar']")
             kl = bekle_js(t, "location.hash === '#/kayitlar' && document.title.startsWith('Recordings') && ({t: document.title,"

@@ -295,10 +295,11 @@ export function pilKayitKur(oturum, { disari, kayitlar = null, kimlik = null, di
   return { seri, boslukMs: disari.noktaBoslukMs(oturum), ozet };
 }
 
-async function denetci(kartAdres, denetciKur) {
+async function denetci(kartAdres, denetciKur, kartIstek = null) {
   if (denetciKur) return denetciKur();
   const es = await import('./esitleme.js');
-  return new es.EsitlemeDenetcisi({ kartAdres });
+  /* 3H-2 (ES4): ag istekleri app.js'in TEK istek katmanindan (eslesmisse imzali) */
+  return new es.EsitlemeDenetcisi({ kartAdres, istek: kartIstek });
 }
 
 /**
@@ -344,7 +345,7 @@ export async function pilKaydiAc(rota, { kartAdres = (y) => y, denetciKur = null
  * baska kokende esitleme YOK.
  * @returns {Promise<{durum: 'tamam'} | {durum, mesaj?, neden?}>}
  */
-export async function pilKaydiEsitle({ kartAdres = (y) => y, kartTaban = '', tasiyici = 'akis', kopruda = false,
+export async function pilKaydiEsitle({ kartAdres = (y) => y, kartIstek = null, kartTaban = '', tasiyici = 'akis', kopruda = false,
   bagli = false, gonder = null, denetciKur = null } = {}) {
   let es;
   try {
@@ -356,7 +357,7 @@ export async function pilKaydiEsitle({ kartAdres = (y) => y, kartTaban = '', tas
   if (!u.uygun || kopruda) return { durum: 'uygun_degil', neden: u.neden || 'kopru' };
   let den;
   try {
-    den = await denetci(kartAdres, denetciKur);
+    den = await denetci(kartAdres, denetciKur, kartIstek);
   } catch (h) {
     return { durum: 'modul', mesaj: (h && h.message) || String(h) };
   }

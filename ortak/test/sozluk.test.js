@@ -10,6 +10,7 @@ import * as K from "../src/kayit.js";
 import { SOZLUK, DILLER, ceviri, ceviriKod } from "../src/sozluk.js";
 import { KOLONLAR, BAYRAKLAR } from "../src/disari.js";
 import { RAPOR_ETIKET, ALAN_ETIKET } from "../src/rapor.js";
+import { dizgeler } from "./dizgeler.js";
 
 const oku = (yol) => readFileSync(new URL(yol, import.meta.url), "utf8");
 const yorumsuz = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
@@ -118,37 +119,6 @@ test("rapor: RAPOR_ETIKET / ALAN_ETIKET, uyar(...) ve kal durumlarinin anahtari 
   for (const d of durum) assert.ok(`kal.durum.${d}` in SOZLUK, `kal.durum.${d}`);
 });
 
-/** Kucuk JS sozcuk cozucu: yorumlari atlar; '...', "..." icerigini ve `...${ oneklerini toplar.
- *  (Regex sabitlerinde tirnak yok varsayimi: kaynak boyle yazildi, bozulursa asagidaki
- *  "dizge sayisi" denetimi kirmiziya doner.) */
-function dizgeler(src) {
-  const literal = new Set();
-  const sablon = new Set();
-  let i = 0;
-  while (i < src.length) {
-    const c = src[i];
-    if (c === "/" && src[i + 1] === "/") { const j = src.indexOf("\n", i); i = j < 0 ? src.length : j; continue; }
-    if (c === "/" && src[i + 1] === "*") { i = src.indexOf("*/", i + 2) + 2; continue; }
-    if (c === '"' || c === "'" || c === "`") {
-      let j = i + 1;
-      let s = "";
-      let onek = null;
-      while (j < src.length && src[j] !== c) {
-        if (src[j] === "\\") { s += src[j + 1]; j += 2; continue; }
-        if (c === "`" && src[j] === "$" && src[j + 1] === "{" && onek === null) onek = s;
-        if (src[j] === "\n" && c !== "`") throw new Error(`kapanmamis dizge: ${src.slice(i, i + 40)}`);
-        s += src[j];
-        j++;
-      }
-      if (c === "`") { if (onek !== null) sablon.add(onek); } else literal.add(s);
-      i = j + 1;
-      continue;
-    }
-    i++;
-  }
-  return { literal, sablon };
-}
-
 /* 3C: web paneli ekranlari (arayuz3/ekran/*.js) da sozlugun TUKETICISI — anahtarlarini duz
    metin sabitiyle yaziyorlar (KL_METIN / KG_METIN). Dizin yoksa (yalniz ortak/ kopyalanmis bir
    agac) yalniz ortak/ kaynagi taranir. */
@@ -255,6 +225,20 @@ test("3H: ayarlarin (app.js + ekran/ayarlar.js) kullandigi HER ay. anahtari sozl
   assert.equal(SOZLUK["ay.dil_tr"].tr, "Türkçe");
   assert.equal(SOZLUK["ay.dil_tr"].en, "Türkçe");
   assert.equal(SOZLUK["ay.dil_en"].tr, "English");
+});
+
+/* 3H-2: Eslestirme. EU30: acilis sozlugunde YALNIZ kabugun (app.js serit uyarisi, akis hatasi) es.
+   anahtarlari; Eslestirme ekraninin metinleri ortak/src/sozluk_es.js'te (sozluk_es.test.js ayni
+   kurallarla olcer: tr/en, yer tutucu, kullanilmayan yok, ters yon, acilista yalniz kabugunkiler). */
+test("3H-2: acilis sozlugundeki es. anahtarlarinin HEPSI app.js'te kullaniliyor (ekran metinleri sozluk_es.js'te)", () => {
+  if (!APP.length) return;
+  const { literal } = dizgeler(APP.map(oku).join("\n"));
+  const aile = Object.keys(SOZLUK).filter((a) => /^es\./.test(a));
+  assert.ok(aile.length >= 4 && aile.length <= 8, `${aile.length} es. anahtari acilista`);
+  assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "acilis sozlugunde olup app.js'te kullanilmayan es. anahtari");
+  /* AU10 + ES2: "tarayici ayarlarini sifirla" eslestirmeye dokunmaz ve bunu SOYLER */
+  assert.match(SOZLUK["ay.sifirla_aciklama"].tr, /eşleştirmesi/);
+  assert.match(SOZLUK["ay.sifirla_aciklama"].en, /pairing/);
 });
 
 test("yer tutucular iki dilde ayni", () => {

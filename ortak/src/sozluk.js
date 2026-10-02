@@ -7,7 +7,8 @@
 //   kl.<ad> (web paneli: Kayitlar listesi)  kg.<ad> (web paneli: kayit gorunumu) — 3C;
 //   os.<ad> (web paneli: Osiloskop, 3E — app.js OS_METIN + ekran/osiloskop.js); kr.<ad> (web paneli:
 //   Karsilastirma, 3G — ekran/karsilastir.js + Kayitlar'daki secim); ay.<ad> (web paneli: Ayarlar,
-//   3H — app.js AY_METIN / AYAR_BOLUMLERI / DILLER + ekran/ayarlar.js AYE_METIN / KAL_ALANLARI); ekranlar
+//   3H — app.js AY_METIN / AYAR_BOLUMLERI / DILLER + ekran/ayarlar.js AYE_METIN / KAL_ALANLARI); es.<ad>
+//   (3H-2: yalniz kabugunkiler; Eslestirme ekraninin metinleri acilisa girmesin diye sozluk_es.js, EU30); ekranlar
 //   anahtari DUZ METIN sabitiyle yazar (KL_METIN / KG_METIN), "kullanilmayan anahtar yok" denetimi
 //   arayuz3/ekran/*.js'i de tarar (test/sozluk.test.js).
 // Birimler SI ve dile gore DEGISMEZ (V, A, W, ohm, mAh, Wh, s, ms). CSV basliklari iki dilde
@@ -888,6 +889,7 @@ export const SOZLUK = Object.freeze({
   "ay.bolumler": S("Ayar bölümleri", "Settings sections"),
   "ay.b_baglanti": S("Bağlantı", "Connection"),
   "ay.b_ag": S("Ağ", "Network"),
+  "ay.b_eslestirme": S("Eşleştirme", "Pairing"),
   "ay.b_kalibrasyon": S("Kalibrasyon", "Calibration"),
   "ay.b_kal_gecmis": S("Kalibrasyon geçmişi", "Calibration history"),
   "ay.b_depolama": S("Depolama", "Storage"),
@@ -1002,13 +1004,24 @@ export const SOZLUK = Object.freeze({
   "ay.konsol_ipucu": S("Ham komut konsolu Konsol ekranında.", "The raw command console is on the Console screen."),
   "ay.konsola_git": S("Konsol'a git", "Go to Console"),
   "ay.sifirla_baslik": S("Tarayıcı ayarları", "Browser settings"),
-  "ay.sifirla_aciklama": S("Bu tarayıcıda saklanan panel ayarları ({n} anahtar): görünüm, dil, grafik tercihleri, kart adresi, arşiv seçimleri. Sıfırlamak yalnız bunları siler ve sayfayı yeniden yükler; kayıt kopyaları (Depolama) ve kartın kendi ayarları değişmez.",
-    "Panel settings stored in this browser ({n} keys): appearance, language, chart preferences, board address, archive choices. Resetting deletes only these and reloads the page; the recording copies (Storage) and the board's own settings do not change."),
+  "ay.sifirla_aciklama": S("Bu tarayıcıda saklanan panel ayarları ({n} anahtar): görünüm, dil, grafik tercihleri, kart adresi, arşiv seçimleri. Sıfırlamak yalnız bunları siler ve sayfayı yeniden yükler; kayıt kopyaları (Depolama), bu tarayıcının eşleştirmesi (cihaz anahtarı — silmek için Eşleştirme › “Bu tarayıcıyı unut”) ve kartın kendi ayarları değişmez.",
+    "Panel settings stored in this browser ({n} keys): appearance, language, chart preferences, board address, archive choices. Resetting deletes only these and reloads the page; the recording copies (Storage), this browser's pairing (device key — to delete it use Pairing › “Forget this browser”) and the board's own settings do not change."),
   "ay.sifirla": S("Tarayıcı ayarlarını sıfırla", "Reset browser settings"),
   "ay.sifirla_eminim": S("Eminim, {n} anahtarı sil", "Yes, delete {n} keys"),
   "ay.sifirla_uyari": S("Arşiv seçimleri de silinir: bu tarayıcı karta yeniden “aldım” onayı göndermez (güvenli yön).",
     "Archive choices are deleted too: this browser stops sending “received” acknowledgements to the board (the safe direction)."),
   "ay.sifirla_yok": S("Bu tarayıcıda saklanan panel ayarı yok.", "No panel settings are stored in this browser."),
+
+  // ── 3H-2: Eslestirme — YALNIZ acilis kabugunun metinleri (app.js serit uyarisi, akis hatasi). EU30: Ayarlar >
+  //    Eslestirme ekraninin metinleri ortak/src/sozluk_es.js'te (ekranla birlikte iner; acilisa girmez).
+  "es.uyari_tanimiyor": S("Kart bu tarayıcının eşleştirmesini tanımıyor (cihaz {n}): istekler imzasız yoldan gidiyor.",
+    "The board does not recognise this browser's pairing (device {n}): requests use the unsigned path."),
+  "es.uyari_modul": S("Eşleştirme modülü yüklenemedi ({mesaj}): istekler imzasız gidiyor; sayfayı yenileyin.",
+    "The pairing module could not be loaded ({mesaj}): requests go unsigned; reload the page."),
+  "es.uyari_depo": S("Bu tarayıcının eşleştirme kaydı okunamadı (IndexedDB): istekler imzasız gidiyor; sayfayı yenileyin ya da tarayıcıyı yeniden başlatın.",
+    "This browser's pairing record could not be read (IndexedDB): requests go unsigned; reload the page or restart the browser."),
+  "es.uyari_git": S("Eşleştirme", "Pairing"),
+  "es.akis_hata": S("Canlı akış yeni yolla açılamadı: {mesaj}", "The live stream could not be reopened: {mesaj}"),
 
   // ── 3D: kayit durumu (kayit_yonet.h KDR_*) ve plan durumu (kayit_plan.h PLAN_*)
   "kayit.durum.0": S("kayıt belleği taranıyor", "scanning recording memory"),
@@ -1031,8 +1044,13 @@ export const SOZLUK = Object.freeze({
 
 /** Sozlukten metin; ATMAZ (dosya basindaki kurallar). */
 export function ceviri(anahtar, dil = "tr", degiskenler = null) {
+  return sozluktenCeviri(SOZLUK, anahtar, dil, degiskenler);
+}
+
+/** ceviri'nin kurallariyla VERILEN sozlukten (EU30: ek sozlukler, or. sozluk_es.js, ayni kurali kullanir). ATMAZ. */
+export function sozluktenCeviri(sozluk, anahtar, dil = "tr", degiskenler = null) {
   const a = typeof anahtar === "string" ? anahtar : String(anahtar);
-  const g = Object.prototype.hasOwnProperty.call(SOZLUK, a) ? SOZLUK[a] : null;
+  const g = Object.prototype.hasOwnProperty.call(sozluk, a) ? sozluk[a] : null;
   if (!g) return a;
   const d = dil === "en" ? "en" : "tr";
   const obur = d === "en" ? "tr" : "en";

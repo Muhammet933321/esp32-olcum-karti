@@ -1306,3 +1306,12 @@ canvas.kr-grafik:focus-visible { outline: 2px solid var(--vurgu); outline-offset
   .ay-bilgi { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .ay-bilgi dd { margin-bottom: 8px; }
 }
+
+/* ═══════════════════════════════════════════════════════ 3H-2 — ESLESTIRME
+   ekran/eslesme.js: form (ad + parola + gonder) tek satir, telefonda alt alta. Yalniz belirtec. */
+.es-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin: 6px 0 4px; }
+.es-form .alan { flex: 1 1 220px; min-width: 0; }
+.es-form > button { margin-top: 22px; }
+.es-form .alan .ipucu { margin: 0; }
+.es-mod .kart h2 + .ipucu { margin-top: 0; }
+.es-mod .kl-rozet { white-space: nowrap; }
