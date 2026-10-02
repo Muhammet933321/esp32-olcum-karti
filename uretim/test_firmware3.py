@@ -170,6 +170,35 @@ def kaynasma_denetimi(gec_dizin: Path) -> None:
     for x in kaynasmis[:6]:
         print("       " + x)
 
+    # ── 1F-2 (S8): BUTUN eskiz ceviri birimi. Ayni kaynasma guc_olc (6), olcum_al (5),
+    #    skop_gorevi (4), suzgec_ters_kazanc (1)'de de vardi: B4/B5'in AVR'de dogruladigi
+    #    olcum3.h matematigi kartta FARKLI sonuc veriyordu. Pragma .ino'nun basinda; kanit
+    #    yine ikili: eskizin NESNE dosyasinin tamami (satir ici gomulen islevler de icinde —
+    #    sembol listesine bakmak gomulmeyi kacirirdi).
+    print("\n--- 2c. 1F-2 (S8): eskiz nesnesinin TAMAMINDA kaynasmis komut YOK ------")
+    nesne = next((gec_dizin / "yapi" / "sketch").glob("*.ino.cpp.o"), None) \
+        if (gec_dizin / "yapi" / "sketch").exists() else None
+    ok("1F-2 S8: eskizin nesne dosyasi (--build-path) bulundu", nesne is not None,
+       str(nesne.name) if nesne else "yok")
+    if nesne is None:
+        return
+    dis = subprocess.run([str(objdump), "-d", str(nesne)], capture_output=True, text=True,
+                         encoding="utf-8", errors="replace").stdout
+    kayan_t = len(KAYAN_NOKTA.findall(dis))
+    kaynasmis_t, islev = [], "?"
+    for x in dis.splitlines():
+        m = re.match(r"^[0-9a-f]+ <(.+)>:", x)
+        if m:
+            islev = m.group(1)
+        elif KAYNASMIS.search(x):
+            kaynasmis_t.append(f"{islev}: {x.strip()}")
+    ok("1F-2 S8: eskiz nesnesi kayan nokta kodu iceriyor (sokum bos degil)", kayan_t >= 200,
+       f"{kayan_t} `.s` komutu")
+    ok("1F-2 S8: eskizin HICBIR islevinde madd.s/msub.s YOK (kart = AVR'de dogrulanan matematik)",
+       not kaynasmis_t, f"{len(kaynasmis_t)} kaynasmis komut")
+    for x in kaynasmis_t[:8]:
+        print("       " + x)
+
 
 def main() -> int:
     print("=" * 78)
@@ -189,7 +218,9 @@ def main() -> int:
         # Bedeli: derleme ~12 s yerine ~60 s. Iddianin anlamli olmasi
         # bu bedele deger.
         [str(ARDUINO_CLI), "compile", "--fqbn", hedef2.FQBN, "--clean",
-         "--warnings", "all", "--output-dir", str(gec_dizin), str(ESKIZ)],
+         "--warnings", "all", "--output-dir", str(gec_dizin),
+         # 1F-2 (S8): nesne dosyalari da gecici dizinde (eskiz .o kaynasma taramasi)
+         "--build-path", str(gec_dizin / "yapi"), str(ESKIZ)],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
         timeout=1800)
 

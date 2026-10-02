@@ -57,6 +57,13 @@
  * burasi duzenlenir.
  * ─────────────────────────────────────────────────────────────────────
  */
+// 🔴 1F-2 (S8, 2026-10-02): KAYAN NOKTA ISLEMLERI KAYNASTIRILMAZ (fp-contract=off), BUTUN
+// eskiz ceviri biriminde. Xtensa gcc a*b+c'yi `madd.s` ile TEK yuvarlamada hesapliyordu:
+// olcum3.h/olcum2.h matematigi AVR'de (B4/B5, A6) dogrulaniyor ama kart FARKLI sonuc
+// veriyordu (skop Vac'ta %5 — 1F S2; guc_olc, olcum_al, skop_gorevi, suzgec_ters_kazanc'ta da
+// kaynasma vardi). Denetim B6: eskizin nesne dosyasinda madd/msub YOK. ⚠ #include'lardan
+// ONCE: sonra gelirse onceki basliklardaki satir ici islevler kaynasik derlenir.
+#pragma GCC optimize ("fp-contract=off")
 #include <Wire.h>
 #include <WiFi.h>
 #include <WebServer.h>

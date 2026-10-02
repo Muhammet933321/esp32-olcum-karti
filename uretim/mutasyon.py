@@ -2490,9 +2490,6 @@ MUTASYONLAR = [
      'if (t90 >= 0.0f && s > ust)', 'if (t90 >= 0.0f && s > 65536.0f)',
      '1F: S4 dusmede %90 noktasi birakilmazsa tf 0.8 -> 5.76 ms: A6 kirmizi'),
     ('B6', 'test_firmware3.py', 'kod/olcum-karti-a3/skop_olc.h',
-     '#pragma GCC optimize ("fp-contract=off")\n', '',
-     "1F: S2 pragma kalkarsa ESP32 skop_olc'ta 3 madd.s geri gelir (kartta derlenip olculdu): B6 kirmizi"),
-    ('B6', 'test_firmware3.py', 'kod/olcum-karti-a3/skop_olc.h',
      'static void skop_olc(const uint16_t *ham,', 'static inline __attribute__((always_inline)) void skop_olc(const uint16_t *ham,',
      "1F: S2 skop_olc cagirana gomulurse madd denetimi BOS kalir; 'AYRI fonksiyon' iddiasi kirmizi"),
     ('B73', 'test_ortak.py', 'kod/olcum-karti-a3/skop_olc.h',
@@ -2549,6 +2546,11 @@ MUTASYONLAR = [
     ('B73', 'test_ortak.py', 'ortak/src/disari.js',
      's.unixMs = z.unix_s * 1000 - fark32(z.kart_ms, s.kartMs);', 's.unixMs = z.unix_s * 1000;',
      '2F: SAAT capasi kayar: Python vektoru kirmizi'),
+    # 1F-2: skop_olc.h'deki pragmanin kendi mutasyonu ESDEGER oldu (eskiz pragmasi ayni
+    #   korumayi veriyor) ve cikarildi; korunan iddia artik butun eskiz.
+    ('B6', 'test_firmware3.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino',
+     '#pragma GCC optimize ("fp-contract=off")\n#include <Wire.h>', '#include <Wire.h>',
+     "1F-2: eskiz pragmasi kalkarsa guc_olc/olcum_al/skop_gorevi'nde madd.s geri gelir (S8): B6 kirmizi"),
     ('B22a', 'test_kopru.py', 'kopru/kopru.py',
      '        if komut.startswith("Q"):\n', '        if komut.startswith("Q") and False:\n',
      "1E: kopru Q'yu reddetmezse araci parolasi agdan karta yazilir"),

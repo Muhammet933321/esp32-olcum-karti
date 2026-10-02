@@ -9397,6 +9397,49 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.75 🟢 ALT PROJE 2 — `ortak/` (2A–2F) + 1F SKOP ÖLÇÜM DÜZELTMELERİ (dal `2-ortak`, 2026-10-02 gecesi)
+
+Kullanıcı yatarken "sıradaki adıma geç, soru sorma, en mantıklısına karar ver" dedi. Spec
+`tasarim/2026-10-02-alt-proje-2-ortak.md` (O1–O8, D1–D5) kararları devredilmiş yetkiyle; grafik
+çekirdeği (uPlot, dış dosya indirme izni ister) alt proje 3'e bırakıldı. Altı dilim paralel
+ajanlarla (her biri ayrık dosyalar; git/zincir/mutasyon.py yasak), entegrasyon + mutasyon + zincir bende.
+
+**`ortak/`** — düz JS ES modülleri, bağımlılık yok (`package.json` yalnız `type: module`), src
+tarayıcı/Capacitor uyumlu (Node API'si yok — B73.Y4 ölçüyor), testler Node 24 `node:test`.
+Çapraz uygulama ilkesi (O3): her dilimin Python üreteci (`uretim/ortak_vektor_*.py`) kartla
+doğrulanmış başvurudan JSON vektör yazar; zincir `--denetle` ile Python'un hâlâ aynı olduğunu,
+`node --test` ile JS'nin bayt bayt aynı olduğunu ölçer. Yeni zincir adımı **B73** (`test_ortak.py`).
+
+| Dilim | Modül | Başvuru | Sonuç |
+|---|---|---|---|
+| 2A | `kayit.js` | `kopru/kayit_bicim.py` | 822 vektörde bit bit (80 test) |
+| 2B | `kripto.js` (SHA-256/HMAC/PBKDF2/ChaCha20-Poly1305), `imza.js` (1D), `zarf.js` (1E) | `hashlib`, `chacha.py`, `imza.py`, `bildirim.py` + `vektor_guvenlik.json` | bayt bayt (127); PBKDF2 20 000 tur Node'da 10.8 ms |
+| 2C | `esitle.js` (fetch/depo/onay enjeksiyonla) | `kayit_esitle.py` | B72'nin sahte kartında JS ve Python istemcisi aynı senaryolarda saklanan bayt, durum, kalibrasyon.json, onay dizisi birebir (39) |
+| 2D | `ozet.js` (min/maks piramidi), `istatistik.js` | yeni (§9, Ö1) | Ö1 BİREBİR: her sütunun [min,maks]'ı o sütundaki ham örneklerin tam uçları; 1 M noktada piramit ~8 ms, pencere ~2 ms (16) |
+| 2E | `skop.js`, `fft.js` | kartın `skop_olc.h`'si AVR emülatöründe | `Math.fround` ile float32 taklidi, bit bit (Object.is) — düz double port Vac'ta 0.196 V farkla ayrışıyordu |
+| 2F | `disari.js` (Excel-TR CSV, ham), `rapor.js`, `sozluk.js` | `arsiv.csv_uret` kuralları | 48 test; formül enjeksiyonu koruması (`= + - @`) |
+
+**1F — çapraz uygulama kartın kendi ölçümünde 4 kusur buldu** (1-acik-isler S1–S4), düzeltildi
+(kaynak `arsiv/asama2/.../olcum2.h`, `skop_olc.h` üretildi, A4/A5/A6 yeşil, firmware **A3-1F**):
+S1 Vac düz DC'de 0.196 V → 0 (float32 kare farkı sadeleşmesi; tam sayı u64 toplamlar, tek sqrt —
+**kartta: düz −63.53 V girişte Vac 0.0000, Vrms = |Vort|**) · S2 ESP32 derlemesi skop_olc'ta
+`madd.s`/`msub.s` (kart ≠ AVR başvurusu, Vac ~%5) → `fp-contract=off` pragması + B6 objdump
+denetimi · S3 duty bir örnek fazla (%49.79 → 50.000) · S4 tr/tf yeniden kurulmuyordu (cüce darbe
+4.76 → 0.80 ms).
+**1F-2 (S8, kapandı):** aynı birleştirme `guc_olc`, `olcum_al`, `skop_gorevi`, `suzgec_ters_kazanc`'ta
+da vardı — B4/B5'in "AVR'de doğrulanan matematik = kart" varsayımı o işlevlerde geçersizdi. `.ino`'nun
+başına (include'lardan ÖNCE) `fp-contract=off` pragması; B6 artık eskizin NESNE dosyasının tamamını
+tarıyor (sembol listesi satır içi gömmeyi kaçırırdı): 449 kayan nokta komutu, 0 birleştirilmiş;
+pragma kalkınca kırmızı (mutasyon). Kartta maliyet yok: D başına örnek 32.99 = 32.99, en uzun tur
+7.31 → 7.19 ms. 1F'nin skop_olc.h pragma mutasyonu bununla EŞDEĞER oldu, çıkarıldı.
+
+**Ajanların başvurularda bulduğu (raporlandı, düzeltilmedi):** S5 `oturumlari_kur` CRC'si geçerli
+ama boyu yanlış kayıtta çöküyor (gelecek biçim eski istemciyi düşürür) · S6–S7 küçük sağlamlık ·
+S9 `istatistik.js` zamanda NaN · S10 NOT/OLAY'da açılış numarası yok (biçim 3).
+
+**Mutasyon:** B73 + A6 + B6 için ~90 yeni girdi; yanında eski bir B22b girdisinin `{` yüzünden
+uygulanamaz olduğu (B40'tan beri) bulunup düzeltildi.
+
 #### 5.12.74 🟢 1E-2 — AÇILIŞTA AĞ BEKLENMİYOR (dal `1e2-ag-acilis`, 2026-10-02 gecesi)
 
 1A-2'den beri 1E'ye devredilmiş madde: "açılıştan kaydın sürmesine 2.5–6.3 s; büyüğü `setup()`'taki
