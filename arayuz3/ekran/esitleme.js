@@ -197,7 +197,13 @@ export class EsitlemeDenetcisi {
     }
     const depo = idbDepo(vt, kimlik);
     let yeni = 0;
-    const izleyen = { ...depo, async veriEkle(b) { await depo.veriEkle(b); yeni += b.length; if (ilerleme) ilerleme(yeni); } };
+    let yeniKayit = 0;     // BUTUN denemeler boyunca (Esitleyici yalniz kendi denemesininkini sayar)
+    const izleyen = { ...depo, async veriEkle(b) {
+      await depo.veriEkle(b);
+      yeni += b.length;
+      yeniKayit += akisOnek(b)[0].length;     // eklenen parca butun, CRC'si dogrulanmis kayitlar
+      if (ilerleme) ilerleme(yeni);
+    } };
     try {
       /* Her deneme YENI Esitleyici: depodaki durumdan (son sira) kaldigi yerden surer. */
       return await agYenidenDene(async () => {
@@ -205,7 +211,9 @@ export class EsitlemeDenetcisi {
           istek: (taban, yol, argumanlar) => this._istek(yol, argumanlar) });
         try {
           const sonuc = await e.esitle();
-          return { durum: 'tamam', sonuc, bayt: yeni };
+          /* Ag hatasindan sonra yeniden denendiyse Esitleyici'nin sayisi yalniz SON denemeninki:
+             gercek kartta 1846 kayit alindigi halde "150 yeni kayit" yaziyordu. */
+          return { durum: 'tamam', sonuc: { ...sonuc, yeni_kayit: yeniKayit }, bayt: yeni };
         } catch (h) {
           return { ...hataSinifla(h), bayt: yeni };
         }
