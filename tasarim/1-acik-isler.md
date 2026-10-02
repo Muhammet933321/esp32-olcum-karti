@@ -152,3 +152,18 @@ Tasarım `tasarim/2026-10-01-1e-mqtt-bildirim.md` (K1–K12 + "Uygulama sırası
 | E3 | Eşik (`esik`) 500 binde sabit; kullanıcı ayarı yok | Gerekirse `Qe<binde>` (küçük) |
 | E4 | Olay kuyruğu RAM'de (16); kart yeniden başlarsa gönderilmemiş olaylar kaybolur (spec kapsam dışı: kalıcı kuyruk) | Bilinçli |
 | E5 | Telefon/PC bildirim arayüzü yok; PC'de yalnız `kopru/bildirim.py dinle` | Alt proje 4/5 |
+
+## Alt proje 2 (`ortak/`) çalışırken bulunanlar (2026-10-02 gecesi)
+
+Çapraz uygulama (JS ↔ Python ↔ AVR) başvuruların kendisinde kusur buldu. Kartın ölçümünü
+etkileyenler **Y** (veri doğruluğu):
+
+| # | Ne | Nerede | Durum |
+|---|---|---|---|
+| S1 | **Skop Vac düz DC'de 0.196 V** (doğrusu ~0): float32'de `Vrms² − Vort²` büyük sayıların farkı (sadeleşme); ±3 kodluk gerçek gürültüde 0 okuyor | `olcum2.h` → `skop_olc.h` `skop_olc` | **Y** — 1F'de düzeltilecek |
+| S2 | **ESP32 derlemesi skop_olc'ta kayan nokta işlemlerini birleştiriyor** (`madd.s`/`msub.s`: Vrms/Vac toplamları, %10/%90 eşikleri) → kart AVR başvurusundan farklı; Vac'ta ~%5'e dek. "AVR ile ESP32 aynı IEEE sonucu" varsayımı YANLIŞ | firmware derlemesi | **Y** — `-ffp-contract=off` (pragma) |
+| S3 | Görev oranı bir örnek fazla sayıyor: temiz %50 kare %49.79 | `skop_olc` | Y — 1F |
+| S4 | tr/tf %10 geçişinden sonra yeniden kurulmuyor: %90'a varmayan darbe yükselme süresini sonraki kenara uzatıyor | `skop_olc` | Y — 1F |
+| S5 | `oturumlari_kur` CRC'si geçerli ama boyu yanlış kayıtta (`struct.error`) çöküyor; DEVAM/BİTİR/SAAT TAM boy istiyor → ileride uzayan bir biçim eski PC istemcisini eşitlemede düşürür ("bilinmeyen tür geçerli" niyetine aykırı). JS birebir kopyaladı | `kopru/kayit_bicim.py`, `ortak/src/kayit.js` | O — ikisinde birlikte düzelt (vektörler) |
+| S6 | `flas_coz` tam sektör olmayan ve geçerli kayıttan sonra < 16 B ile biten görüntüde çöküyor; `amper` `sont_ohm` 0'da ZeroDivisionError; kısa NOT / bilinmeyen tür boş oturum yaratıyor | `kayit_bicim.py` | D |
+| S7 | `zarf_ac`/`bilgi_coz` düz metin JSON'da NaN/Infinity kabul ediyor (JS reddediyor); `_bilgi_denetle` tamsayı kimlik, `tur` 20000.7 → 20000, `"20_000"` ve `True` kabul ediyor; parola uzunluğu Python'da kod noktası, kartta UTF-8 bayt | `kopru/bildirim.py`, `imza.py` | D — sertleştir |
