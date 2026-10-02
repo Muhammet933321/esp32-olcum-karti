@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import sys
 import threading
 import http.server
@@ -138,6 +139,19 @@ class SahteKopru(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         yol = self.path.split("?")[0]
+        # Gercek kopru (kopru.py `_ortak`) gibi: /ortak/<ad>.js -> ortak/src/<ad>.js. 3D'den beri
+        # app.js acilista /ortak/sozluk.js'i STATIK iceri aliyor; sahte kopru bunu sunmayinca
+        # modul 404 aliyor, uygulama hic baglanmiyordu (test "component undefined" ile cokuyordu).
+        if yol.startswith("/ortak/"):
+            ad = yol[len("/ortak/"):]
+            dosya = KOK / "ortak" / "src" / ad
+            if not re.fullmatch(r"[a-z0-9_-]+\.js", ad) or not dosya.is_file():
+                return self._gonder(404, b"ortak modulu yok", "text/plain")
+            return self._gonder(200, dosya.read_bytes(), "text/javascript")
+        if yol.endswith(".js"):                  # Windows mimetypes .js'i text/plain sanabilir
+            dosya = ARAYUZ / yol.lstrip("/")
+            if dosya.is_file() and dosya.resolve().is_relative_to(ARAYUZ.resolve()):
+                return self._gonder(200, dosya.read_bytes(), "text/javascript")
         if yol == "/durum":
             return self._gonder(200, json.dumps({
                 "kart": "sahte", "satir": 10, "abone": 1,

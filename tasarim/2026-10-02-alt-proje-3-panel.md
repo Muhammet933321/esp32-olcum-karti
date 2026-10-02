@@ -90,6 +90,19 @@
 | E12 | **Demo kartı** (`sahte-kart.js`) kayıt motoru: `G` alt komutları + `G`/`GA`/`GT`/`GP` satırları, ret metinleri firmware'in; demo bağlanınca da `G?` bir kez | `?demo` Canlı'yı gerçek yolundan çalıştırsın |
 | E13 | **Kabuğun `:class`ı `#uyg`'nin İÇİNDEKİ öğede** | Vue 3 bağlama noktasının kendi özniteliklerini derlemez (yalnız içini) — başsız tarayıcıda çekmece hiç açılmıyordu |
 
+## 3E kararları (2026-10-02, aynı devirle; kullanıcı dışarıdayken)
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| OS1 | **Düzen:** dalga geniş alanda (sol, ≥ 2/3 genişlik), kontroller sağda dikey sütunda; ≤ 900 px'te kontroller dalganın altına iner. Kontroller kümelenir: Yakalama (Yakala · Sürekli · Otomatik) · Zaman tabanı · Tetik (kip · kenar · eşik · ön-tetik · onay) · Günlük · Kalibrasyon çıkışı | §9 "dalga geniş alanda, kontroller yanda"; bugünkü tek satırlık düğme şeridi telefonda iki satıra taşıyor |
+| OS2 | **Dalga kendi tuvalinde kalır** (10 × 8 bölmeli ızgara, tetik seviyesi + ön-tetik işaretleri, yatay/dikey zoom — B42–B46'da kartla doğrulanmış çizim); yalnız renkleri tema belirteçlerine bağlanır. **Spektrum `grafik.js` ile** (x ekseni Hz biçimli — grafik.js'e x biçimleyici seçeneği eklenir, B73'te sınanır) | Osiloskop ızgarası "zaman/bölme" sözleşmesi genel zaman grafiğinden farklı; kartta doğrulanmış çizimi yeniden yazmanın kullanıcıya getirisi yok. Spektrum düz bir x–y grafiği, tek çekirdek ilkesi (P3) orada uygulanır |
+| OS3 | **FFT:** `fft.spektrum` — Hann (varsayılan) / dikdörtgen, DC çıkarılır, genlik V (tepe) ya da dBV seçilir; tepe frekansı + ilk 5 harmonik (genlik, THD yaklaşığı) listesi. Kaynak her zaman o anki yakalamanın HAM kodları (görüntülenen zoom penceresi değil) | §9; kartta FFT yok. Zoom penceresi kısa olunca frekans çözünürlüğü sessizce bozulurdu |
+| OS4 | **Ölçümler:** canlı yakalamada kartın `S` satırı ölçümleri (bugünkü gibi); kayıtlı / arşivden açılan yakalamada aynı sayılar `skop.skopOlc` ile tarayıcıda (bit bit kartla aynı, 2E). Hangisinin kaynağı olduğu ölçüm kutusunda yazar | Kayıt (SKOP 10) ölçüm taşımıyor, ham kod taşıyor; kart = panel kanıtlı |
+| OS5 | **Yakalama günlüğü denetimi** Osiloskop'ta: "Her tetikte" `Gt0`, "Her N s" `Gt<ms>` (1 s … 1 sa, kartın sınırı), Durdur `Gtd`; durum PASİF `GT` satırından (D5 deseni), ret satırı olduğu gibi (E9 deseni) | 1C-3 komutları panelde yoktu |
+| OS6 | **Kayıtlı yakalamayı aç:** Kayıtlar'daki yakalama tablosunda (3C) satır → `#/skop/kayit/<oturum>/<sıra>[@kimlik]`: osiloskop ekranı o yakalamayı ARŞİV şeridiyle gösterir (bugünkü köprü arşivi deseni), "Canlıya dön" | 3C "yakalamanın grafiği 3E'de" dedi; iki arşiv aynı görünümü paylaşır |
+| OS7 | **Bugünkü iddialar korunur:** köprü arşivi, kırpık blok reddi, ADS susturma, tetik onayı, hızlı ölçüm (gerçek güç / PF) davranışları değişmez; B7'deki ilgili iddialar zayıflatılmaz | Kartta bulunmuş kusurların (B35, B41–B47) geri gelmemesi |
+| OS8 | Yeni metinler `sozluk.js`'ten, TR + EN; erişilebilirlik Web Interface Guidelines'a göre (aria-live ölçüm/ret, klavye kısayolları görünür) | P7; kullanıcı WIG yeteneğini kullanmamı istedi |
+
 ## Doğrulama
 
 B7 (`test_arayuz3.js`) ve B22 tarayıcı denetimleri genişler; her dilimde başsız tarayıcı (Edge) ile
