@@ -9397,6 +9397,22 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.84 🟢 p0 SAĞLAMLIĞI + TEST ARACININ SAHTE KIRMIZISI (2026-10-02 gece)
+
+3H-2 (tarayıcıdan eşleştirme, dalda, onay bekliyor) için bağımsız güvenlik incelemesi (iş akışı: 4 denetçi +
+her bulguya çürütücü) eşleşmeden BAĞIMSIZ üç kusur buldu; bunlar `main`'e girdi:
+- **`p0` (pil DURDUR) tek atımlıktı:** kartın komut kuyruğu doluyken 503 ya da tek bir ağ hatası durdurmayı
+  kaybettiriyordu. `p0` eş etkili → `p0Gonder`: ağ hatası / 503'te 150 · 300 · 450 ms ile en fazla 4 deneme
+  (en kötü 0.9 s), 4xx hemen döner. Tek tık, onaysız kuralı aynen.
+- **`p0` ve `/durum` tarayıcının önbellekteki Basic-Auth'unu açık HTTP'den taşıyordu** (fetch varsayılanı
+  `same-origin`). Kart `p0`'ı parolasız kabul ediyor (`komut_serbest`), köprü Basic hiç kullanmıyor →
+  `credentials: 'omit'`. Her acil durdurmada web parolası ağa çıkıyordu.
+- **Test aracı:** `tarayici.py` `bekle()` tek `recv`'de gelen ikinci CDP çerçevesini işlemiyordu (select yalnız
+  ham sokete bakıyor). Yük altında `Fetch.requestPaused` tamponda kalıyor, Edge isteği (ör. `p0`) duraklatılmış
+  tutuyordu — 3H-2 ajanının "eşleşmişken p0 5 s'de gitmedi" diye raporladığı aralıklı kırmızının KÖK SEBEBİ;
+  ürün kusuru değil ama bir EMNİYET iddiasında sahte kırmızı ve bütün T3x testlerini etkiliyordu.
+B7 778 → 782 (bölüm 31), TTR 9 → 10, mutasyon P0-S 7/7; bütün tarayıcı testleri yeşil, sızıntı 0.
+
 #### 5.12.83 🟢 3H-1 AYARLAR + KARTTA /kal/liste ZAMAN AŞIMI (2026-10-02 gece)
 
 **3H-1** (ajan, kararlar AY1–AY7 + uygulama kararları AU1–AU12, spec): Ayarlar yedi bölüm, bir seferde
