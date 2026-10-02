@@ -176,10 +176,22 @@ export class EsitlemeDenetcisi {
     }, { bekle: this._bekle });
   }
 
-  /** Esitleyici'nin `istek`i: /kayit/veri ve /kal/liste, kartAdres uzerinden. */
+  /** Esitleyici'nin `istek`i: /kayit/veri ve /kal/liste, kartAdres uzerinden.
+   *  /kal/liste ag hatasinda burada yeniden denenir: Esitleyici o hatayi kalibrasyon_hata'ya
+   *  cevirip "tamam" dondugunden ust katmanin agYenidenDene'si onu hic gormez (gercek kartta
+   *  2026-10-02, TimeoutError). /kayit/veri'yi ust katman kaldigi yerden yeniden kuruyor. */
   async _istek(yol, argumanlar) {
     const q = argumanlar.map(([a, d]) => `${a}=${d}`).join('&');
-    return fetch(this.kartAdres(yol + (q ? '?' + q : '')), { cache: 'no-store', ...this._sinyal() });
+    const getir = () => fetch(this.kartAdres(yol + (q ? '?' + q : '')), { cache: 'no-store', ...this._sinyal() });
+    if (yol !== '/kal/liste') return getir();
+    for (let n = 1; ; n++) {
+      try {
+        return await getir();
+      } catch (h) {
+        if (n >= AG_DENEME) throw h;
+        await this._bekle(n * AG_BEKLE_MS);
+      }
+    }
   }
 
   /**
