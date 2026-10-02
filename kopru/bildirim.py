@@ -69,6 +69,10 @@ def zarf_kur(anahtar: bytes, konu: str, icerik: dict, nonce: bytes | None = None
     return SIHIR + bytes(nonce) + chacha.sifrele(anahtar, nonce, duz, konu.encode("utf-8"))
 
 
+def _sonlu_degil(ad: str):
+    raise ValueError(f"zarf icerigi sonlu olmayan sayi ({ad}) tasiyor")
+
+
 def _zarf_coz(anahtar: bytes, aad: bytes, veri: bytes) -> dict:
     _anahtar_denetle(anahtar)
     veri = bytes(veri)
@@ -78,7 +82,8 @@ def _zarf_coz(anahtar: bytes, aad: bytes, veri: bytes) -> dict:
         raise ValueError("zarf sihri 'OKB1' degil")
     nonce = veri[len(SIHIR):len(SIHIR) + NONCE_UZUNLUK]
     duz = chacha.coz(anahtar, nonce, veri[len(SIHIR) + NONCE_UZUNLUK:], aad)   # etiket tutmazsa ValueError
-    icerik = json.loads(duz.decode("utf-8"))        # UnicodeDecodeError/JSONDecodeError de ValueError
+    icerik = json.loads(duz.decode("utf-8"),        # UnicodeDecodeError/JSONDecodeError de ValueError
+                        parse_constant=_sonlu_degil)   # S7: NaN/Infinity -> ValueError (JS gibi)
     if not isinstance(icerik, dict):
         raise ValueError("zarf icerigi JSON nesnesi degil")
     return icerik

@@ -1740,6 +1740,31 @@
      "durum": 200,
      "basliklar": {},
      "govde": "7b226b696d6c696b223a202261316232633364346535663630373138222c20226163696c6973223a20223066316532643363346235613639373838373936613562346333643265316630222c202274757a223a20223732666139633462363431613034613931366238653634346233306134333162222c2022747572223a20223230303030222c20227a6f72756e6c75223a20302c20226d697361666972223a20302c202273616174223a20226e7470227d"
+    }
+   ],
+   "sonuc": {
+    "hata": "ValueError"
+   },
+   "istekler": [
+    {
+     "url": "http://olcum.local/eslestir/bilgi",
+     "yontem": "GET",
+     "basliklar": {},
+     "govde": null
+    }
+   ]
+  },
+  {
+   "ad": "tur_tam_ondalik",
+   "taban": "http://olcum.local",
+   "cihaz_adi": "PC",
+   "parola": "Ölçüm-kartı1",
+   "nc": "5a6c0f28dc4384992aae516652b3bfd6",
+   "yanitlar": [
+    {
+     "durum": 200,
+     "basliklar": {},
+     "govde": "7b226b696d6c696b223a202261316232633364346535663630373138222c20226163696c6973223a20223066316532643363346235613639373838373936613562346333643265316630222c202274757a223a20223732666139633462363431613034613931366238653634346233306134333162222c2022747572223a2032303030302e302c20227a6f72756e6c75223a20302c20226d697361666972223a20302c202273616174223a20226e7470227d"
     },
     {
      "durum": 200,
@@ -1786,6 +1811,56 @@
       "content-type": "text/plain"
      },
      "govde": ""
+    }
+   ]
+  },
+  {
+   "ad": "tur_kesirli",
+   "taban": "http://olcum.local",
+   "cihaz_adi": "PC",
+   "parola": "Ölçüm-kartı1",
+   "nc": "5a6c0f28dc4384992aae516652b3bfd6",
+   "yanitlar": [
+    {
+     "durum": 200,
+     "basliklar": {},
+     "govde": "7b226b696d6c696b223a202261316232633364346535663630373138222c20226163696c6973223a20223066316532643363346235613639373838373936613562346333643265316630222c202274757a223a20223732666139633462363431613034613931366238653634346233306134333162222c2022747572223a2032303030302e372c20227a6f72756e6c75223a20302c20226d697361666972223a20302c202273616174223a20226e7470227d"
+    }
+   ],
+   "sonuc": {
+    "hata": "ValueError"
+   },
+   "istekler": [
+    {
+     "url": "http://olcum.local/eslestir/bilgi",
+     "yontem": "GET",
+     "basliklar": {},
+     "govde": null
+    }
+   ]
+  },
+  {
+   "ad": "kimlik_tamsayi",
+   "taban": "http://olcum.local",
+   "cihaz_adi": "PC",
+   "parola": "Ölçüm-kartı1",
+   "nc": "5a6c0f28dc4384992aae516652b3bfd6",
+   "yanitlar": [
+    {
+     "durum": 200,
+     "basliklar": {},
+     "govde": "7b226b696d6c696b223a20313233343536373839303132333435362c20226163696c6973223a20223066316532643363346235613639373838373936613562346333643265316630222c202274757a223a20223732666139633462363431613034613931366238653634346233306134333162222c2022747572223a2032303030302c20227a6f72756e6c75223a20302c20226d697361666972223a20302c202273616174223a20226e7470227d"
+    }
+   ],
+   "sonuc": {
+    "hata": "ValueError"
+   },
+   "istekler": [
+    {
+     "url": "http://olcum.local/eslestir/bilgi",
+     "yontem": "GET",
+     "basliklar": {},
+     "govde": null
     }
    ]
   },
@@ -1959,7 +2034,7 @@
     }
    ],
    "sonuc": {
-    "hata": "TypeError"
+    "hata": "ValueError"
    },
    "istekler": [
     {
@@ -2062,6 +2137,126 @@
    "taban": "http://olcum.local",
    "cihaz_adi": "PC",
    "parola": "🔋🔋abcdefghi",
+   "nc": "5a6c0f28dc4384992aae516652b3bfd6",
+   "yanitlar": [
+    {
+     "durum": 200,
+     "basliklar": {},
+     "govde": "7b226b696d6c696b223a202261316232633364346535663630373138222c20226163696c6973223a20223066316532643363346235613639373838373936613562346333643265316630222c202274757a223a20223732666139633462363431613034613931366238653634346233306134333162222c2022747572223a2032303030302c20227a6f72756e6c75223a20302c20226d697361666972223a20302c202273616174223a20226e7470227d"
+    },
+    {
+     "durum": 200,
+     "basliklar": {},
+     "govde": "7b22656e6f223a20352c20226e6b223a20223461643135333039376161366130393337303065323237393839323235373630227d"
+    },
+    {
+     "durum": 200,
+     "basliklar": {},
+     "govde": "7b226e223a20332c20226b6172745f6b616e6974223a202230333162353766323238633834386635663338333066376632343164663463643630306265313265343739623833373133393565346362383038663836316462227d"
+    }
+   ],
+   "sonuc": {
+    "cihaz": {
+     "kimlik": "a1b2c3d4e5f60718",
+     "n": 3,
+     "K": "566a8c3f00db074895e45dc62540a9942ce54b583a65a32f6605cd4e5a6601fa",
+     "ad": "PC",
+     "sayac": 0,
+     "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
+    }
+   },
+   "istekler": [
+    {
+     "url": "http://olcum.local/eslestir/bilgi",
+     "yontem": "GET",
+     "basliklar": {},
+     "govde": null
+    },
+    {
+     "url": "http://olcum.local/eslestir/baslat?ad=PC&nc=5a6c0f28dc4384992aae516652b3bfd6",
+     "yontem": "POST",
+     "basliklar": {
+      "x-olcum": "1",
+      "content-type": "text/plain"
+     },
+     "govde": ""
+    },
+    {
+     "url": "http://olcum.local/eslestir/kanit?eno=5&kanit=e61814c10e758a109035e9092c6b459961a771486ade2e24d1d87f38fb823fd8",
+     "yontem": "POST",
+     "basliklar": {
+      "x-olcum": "1",
+      "content-type": "text/plain"
+     },
+     "govde": ""
+    }
+   ]
+  },
+  {
+   "ad": "parola_6_harf_12_bayt",
+   "taban": "http://olcum.local",
+   "cihaz_adi": "PC",
+   "parola": "şşşşşş",
+   "nc": "5a6c0f28dc4384992aae516652b3bfd6",
+   "yanitlar": [
+    {
+     "durum": 200,
+     "basliklar": {},
+     "govde": "7b226b696d6c696b223a202261316232633364346535663630373138222c20226163696c6973223a20223066316532643363346235613639373838373936613562346333643265316630222c202274757a223a20223732666139633462363431613034613931366238653634346233306134333162222c2022747572223a2032303030302c20227a6f72756e6c75223a20302c20226d697361666972223a20302c202273616174223a20226e7470227d"
+    },
+    {
+     "durum": 200,
+     "basliklar": {},
+     "govde": "7b22656e6f223a20352c20226e6b223a20223461643135333039376161366130393337303065323237393839323235373630227d"
+    },
+    {
+     "durum": 200,
+     "basliklar": {},
+     "govde": "7b226e223a20332c20226b6172745f6b616e6974223a202238373265353135353535353736333065346433313336643330313830303764336531613863626561353061613861316235363937363937333338373435316363227d"
+    }
+   ],
+   "sonuc": {
+    "cihaz": {
+     "kimlik": "a1b2c3d4e5f60718",
+     "n": 3,
+     "K": "626d05a67ceaf8ddeabe4fcecffb01151c26e3b94318b128fd47d736357876fa",
+     "ad": "PC",
+     "sayac": 0,
+     "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
+    }
+   },
+   "istekler": [
+    {
+     "url": "http://olcum.local/eslestir/bilgi",
+     "yontem": "GET",
+     "basliklar": {},
+     "govde": null
+    },
+    {
+     "url": "http://olcum.local/eslestir/baslat?ad=PC&nc=5a6c0f28dc4384992aae516652b3bfd6",
+     "yontem": "POST",
+     "basliklar": {
+      "x-olcum": "1",
+      "content-type": "text/plain"
+     },
+     "govde": ""
+    },
+    {
+     "url": "http://olcum.local/eslestir/kanit?eno=5&kanit=85105149cb6507904421db66f1b5e62063dd2172a0222c84ba27176e586516ef",
+     "yontem": "POST",
+     "basliklar": {
+      "x-olcum": "1",
+      "content-type": "text/plain"
+     },
+     "govde": ""
+    }
+   ]
+  },
+  {
+   "ad": "parola_6_harf_11_bayt",
+   "taban": "http://olcum.local",
+   "cihaz_adi": "PC",
+   "parola": "ğğğğğ1",
    "nc": "5a6c0f28dc4384992aae516652b3bfd6",
    "yanitlar": [],
    "sonuc": {
@@ -2211,10 +2406,58 @@
     "tur": 20000.7
    },
    "sonuc": {
+    "hata": "ValueError"
+   }
+  },
+  {
+   "ad": "tur_tam_ondalik",
+   "bilgi": {
+    "kimlik": "a1b2c3d4e5f60718",
+    "tuz": "72fa9c4b641a04a916b8e644b30a431b",
+    "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "tur": 20000.0
+   },
+   "sonuc": {
     "kimlik": "a1b2c3d4e5f60718",
     "tuz": "72fa9c4b641a04a916b8e644b30a431b",
     "tur": 20000,
     "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
+   }
+  },
+  {
+   "ad": "tur_metin",
+   "bilgi": {
+    "kimlik": "a1b2c3d4e5f60718",
+    "tuz": "72fa9c4b641a04a916b8e644b30a431b",
+    "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "tur": "20000"
+   },
+   "sonuc": {
+    "hata": "ValueError"
+   }
+  },
+  {
+   "ad": "tuz_tamsayi",
+   "bilgi": {
+    "kimlik": "a1b2c3d4e5f60718",
+    "tuz": 5,
+    "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "tur": 20000
+   },
+   "sonuc": {
+    "hata": "ValueError"
+   }
+  },
+  {
+   "ad": "acilis_tamsayi",
+   "bilgi": {
+    "kimlik": "a1b2c3d4e5f60718",
+    "tuz": "72fa9c4b641a04a916b8e644b30a431b",
+    "acilis": 7,
+    "tur": 20000
+   },
+   "sonuc": {
+    "hata": "ValueError"
    }
   },
   {
@@ -2226,10 +2469,7 @@
     "tur": "20_000"
    },
    "sonuc": {
-    "kimlik": "a1b2c3d4e5f60718",
-    "tuz": "72fa9c4b641a04a916b8e644b30a431b",
-    "tur": 20000,
-    "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
+    "hata": "ValueError"
    }
   },
   {
@@ -2241,10 +2481,7 @@
     "tur": " 20000 "
    },
    "sonuc": {
-    "kimlik": "a1b2c3d4e5f60718",
-    "tuz": "72fa9c4b641a04a916b8e644b30a431b",
-    "tur": 20000,
-    "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
+    "hata": "ValueError"
    }
   },
   {
@@ -2322,7 +2559,7 @@
     "tur": null
    },
    "sonuc": {
-    "hata": "TypeError"
+    "hata": "ValueError"
    }
   },
   {
@@ -2357,10 +2594,7 @@
     "tur": 20000
    },
    "sonuc": {
-    "kimlik": "1234567890123456",
-    "tuz": "72fa9c4b641a04a916b8e644b30a431b",
-    "tur": 20000,
-    "acilis": "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
+    "hata": "ValueError"
    }
   },
   {

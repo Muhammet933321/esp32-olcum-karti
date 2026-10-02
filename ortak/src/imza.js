@@ -204,11 +204,19 @@ function _metin(v) {
 export function bilgiDenetle(b) {
   if (b === null || typeof b !== "object" || Array.isArray(b)) throw new TypeError("bilgi JSON nesnesi olmali");
   const al = (k, v) => (Object.hasOwn(b, k) ? b[k] : v);
-  const kimlik = _metin(al("kimlik", "")), tuz = _metin(al("tuz", "")), acilis = _metin(al("acilis", ""));
+  // S7: kart kimlik/tuz/acilis'i METIN, turu JSON TAMSAYISI basar; String()/tamsayi() gevsekligi yok
+  const kimlik = al("kimlik", ""), tuz = al("tuz", ""), acilis = al("acilis", "");
+  if (![kimlik, tuz, acilis].every((x) => typeof x === "string")) {
+    throw new DegerHatasi("kartin kimlik/tuz/acilis alanlari metin degil");
+  }
   if (!/^[0-9a-f]{16}$/.test(kimlik)) throw new DegerHatasi(`kart kimligi bicimsiz: ${JSON.stringify(kimlik.slice(0, 40))}`);
   if (!/^[0-9a-f]{32}$/.test(tuz)) throw new DegerHatasi("kartin tuzu 16 bayt (32 hex) degil");
   if (!/^[0-9a-f]{32}$/.test(acilis)) throw new DegerHatasi("kartin acilis degeri bicimsiz");
-  const tur = tamsayi(al("tur", 0));
+  const tur = al("tur", null);
+  if (typeof tur !== "number" || !Number.isInteger(tur)) {
+    throw new DegerHatasi(`PBKDF2 turu JSON tamsayisi degil: ${JSON.stringify(String(tur).slice(0, 40))} — `
+      + "eslestirme YAPILMADI");
+  }
   if (!(TUR_EN_AZ <= tur && tur <= TUR_EN_COK)) {
     throw new DegerHatasi(`PBKDF2 turu ${tur} kabul edilmez (${TUR_EN_AZ}..${TUR_EN_COK}) — `
       + "sahte kart olabilir; eslestirme YAPILMADI");
@@ -310,20 +318,14 @@ export async function acikPost(taban, yol, argumanlar, ortam) {
   return _jsonOku(y);
 }
 
-function _kodNoktasi(s) {
-  let n = 0;
-  for (const _ of s) n++;
-  return n;
-}
-
 // Parolali eslestirme (K5). Parola ve P aga CIKMAZ. Kartin kaniti dogrulanmadan anahtar
 // DONDURULMEZ (karsilikli: sahte kart parolayi bilmez). Kisa parola, bicimsiz kimlik/tuz ve
 // sinir disi tur HICBIR kanit yollanmadan reddedilir. Donus: yeni cihaz nesnesi (sayac 0).
 export async function esles(taban, ad, parola, ortam) {
   if (!adGecerli(ad)) throw new DegerHatasi("ad 1-24 bayt olmali, kontrol karakteri yok");
   if (typeof parola !== "string") throw new TypeError("parola metin olmali");
-  if (_kodNoktasi(parola) < PAROLA_EN_AZ) {                // Python len(): kod noktasi
-    throw new DegerHatasi(`parola en az ${PAROLA_EN_AZ} karakter olmali (kart da reddeder)`);
+  if (utf8Kodla(parola).length < PAROLA_EN_AZ) {          // S7: kart UTF-8 BAYT sayar
+    throw new DegerHatasi(`parola en az ${PAROLA_EN_AZ} bayt (UTF-8) olmali (kart da reddeder)`);
   }
   const { kimlik, tuz, tur, acilis } = bilgiDenetle(await bilgi(taban, ortam));
   const nc = _rastgele(ortam, 16);

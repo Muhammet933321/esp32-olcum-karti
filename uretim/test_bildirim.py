@@ -258,6 +258,11 @@ def bolum_zarf() -> None:
        hata_verir(lambda: bildirim.zarf_ac(ANAHTAR, KONU_OLAY, ham(b"[1,2]"))))
     ok("etiket gecerli ama UTF-8 degil -> ValueError",
        hata_verir(lambda: bildirim.zarf_ac(ANAHTAR, KONU_OLAY, ham(b"\xff\xfe{}"))))
+    # S7: Python json.loads NaN/Infinity'yi KABUL eder, JS JSON.parse reddeder; kart sonlu
+    # olmayani zaten basmaz. Iki istemci ayni zarfi farkli yorumlamasin.
+    ok("S7: etiket gecerli ama icerikte NaN / Infinity / -Infinity -> ValueError (JS ile ayni)",
+       all(hata_verir(lambda d=d: bildirim.zarf_ac(ANAHTAR, KONU_OLAY, ham(d)))
+           for d in (b'{"x":NaN}', b'{"x":Infinity}', b'{"x":-Infinity}')))
     ok("zarf_kur: anahtar 31 bayt -> ValueError",
        hata_verir(lambda: bildirim.zarf_kur(ANAHTAR[:31], KONU_OLAY, OLAY)))
     ok("zarf_kur: nonce 11 bayt -> ValueError",

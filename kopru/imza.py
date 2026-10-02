@@ -238,14 +238,22 @@ def _post_acik(taban: str, yol: str, argumanlar, zaman_asimi: float) -> dict:
 def _bilgi_denetle(b: dict) -> tuple[str, bytes, int, str]:
     """Kartin (ya da kart taklidinin) verdigini dogrula: kimlik dosya adina gider,
     tur ve tuz parolanin cevrimdisi tahmin maliyetini belirler."""
-    kimlik, tuz, acilis = str(b.get("kimlik", "")), str(b.get("tuz", "")), str(b.get("acilis", ""))
+    # S7: kart kimlik/tuz/acilis'i METIN, turu JSON TAMSAYISI olarak basar. str()/int()
+    # gevsekligi (tamsayi kimlik, 20000.7 -> 20000, "20_000", True) kabul edilmez.
+    kimlik, tuz, acilis = b.get("kimlik", ""), b.get("tuz", ""), b.get("acilis", "")
+    if not all(isinstance(x, str) for x in (kimlik, tuz, acilis)):
+        raise ValueError("kartin kimlik/tuz/acilis alanlari metin degil")
     if not re.fullmatch(r"[0-9a-f]{16}", kimlik):
         raise ValueError(f"kart kimligi bicimsiz: {kimlik[:40]!r}")
     if not re.fullmatch(r"[0-9a-f]{32}", tuz):
         raise ValueError("kartin tuzu 16 bayt (32 hex) degil")
     if not re.fullmatch(r"[0-9a-f]{32}", acilis):
         raise ValueError("kartin acilis degeri bicimsiz")
-    tur = int(b.get("tur", 0))
+    tur = b.get("tur")
+    # tam degerli float (20000.0) JS'de ayirt edilemez -> ikisi de kabul eder (capraz vektor)
+    if isinstance(tur, bool) or not isinstance(tur, (int, float)) or not float(tur).is_integer():
+        raise ValueError(f"PBKDF2 turu JSON tamsayisi degil: {str(tur)[:40]!r} — eslestirme YAPILMADI")
+    tur = int(tur)
     if not TUR_EN_AZ <= tur <= TUR_EN_COK:
         raise ValueError(f"PBKDF2 turu {tur} kabul edilmez ({TUR_EN_AZ}..{TUR_EN_COK}) — "
                          "sahte kart olabilir; eslestirme YAPILMADI")
@@ -258,8 +266,8 @@ def esles(taban: str, ad: str, parola: str, dizin=None, zaman_asimi: float = 30.
     kimlik/tuz ve sinir disi tur HICBIR kanit yollanmadan reddedilir."""
     if not ad_gecerli(ad):
         raise ValueError("ad 1-24 bayt olmali, kontrol karakteri yok")
-    if len(parola) < PAROLA_EN_AZ:
-        raise ValueError(f"parola en az {PAROLA_EN_AZ} karakter olmali (kart da reddeder)")
+    if len(parola.encode("utf-8")) < PAROLA_EN_AZ:     # S7: kart UTF-8 BAYT sayar
+        raise ValueError(f"parola en az {PAROLA_EN_AZ} bayt (UTF-8) olmali (kart da reddeder)")
     kimlik, tuz, tur, acilis = _bilgi_denetle(bilgi(taban, zaman_asimi))
     nc = secrets.token_bytes(16)
     y = _post_acik(taban, "/eslestir/baslat", [("ad", ad), ("nc", nc.hex())], zaman_asimi)

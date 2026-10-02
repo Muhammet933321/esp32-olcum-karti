@@ -95,7 +95,7 @@ describe("saf cekirdek: Python capraz (kopru/imza.py)", () => {
       assert.equal(hex(I.cihazAnahtari(P, e.kimlik, nk, nc, k.n)), k.K, `n=${k.n}`);
     }
   });
-  it(`bilgiDenetle (${V.bilgi_denetle.length} durum: tur sinirlari, int() cevrimi, bicimsiz kimlik/tuz/acilis)`, () => {
+  it(`bilgiDenetle (${V.bilgi_denetle.length} durum: tur sinirlari, tur yalniz JSON tamsayisi (S7), bicimsiz ya da metin olmayan kimlik/tuz/acilis)`, () => {
     for (const v of V.bilgi_denetle) {
       if (v.sonuc.hata) {
         assert.throws(() => I.bilgiDenetle(v.bilgi), HATA[v.sonuc.hata], v.ad);

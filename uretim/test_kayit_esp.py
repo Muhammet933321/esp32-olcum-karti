@@ -1575,6 +1575,51 @@ def bolum_guvenlik_istemci() -> None:
                all(v == "ret" for v in sonuclar.values()) and kanitsiz and kisa == "ret"
                and not kart.istekler and not (d / "i8").exists(), f"{sonuclar} kanitsiz={kanitsiz} kisa={kisa}")
 
+            # I8b (S7): kart turu JSON TAMSAYISI, kimligi METIN olarak verir. int() gevsekligi
+            # (20000.7 -> 20000, "20_000", "20000", True) ve tamsayi kimlik (str() ile 16 hane)
+            # eslesmeyi YURUTMEMELI. Parola siniri kartta UTF-8 BAYT: 6 Turkce harf (12 bayt)
+            # kartin kabul ettigi parola, istemci de kabul etmeli; 11 bayt istek atmadan ret.
+            kart.istekler.clear()
+            gevsek = {}
+            for ad, ayar in (("tur_kesir", {"tur": 20000.7}), ("tur_alt_cizgi", {"tur": "20_000"}),
+                             ("tur_metin", {"tur": "20000"}), ("tur_true", {"tur": True}),
+                             ("kimlik_tamsayi", {"gkimlik": 1234567890123456})):
+                eski = (kart.tur, kart.gkimlik, kart.tuz)
+                for a, v in ayar.items():
+                    setattr(kart, a, v)
+                try:
+                    IM.esles(taban, "PC", kart.parola, dizin=d / "i8b")
+                    gevsek[ad] = "KABUL"
+                except (ValueError, TypeError):
+                    gevsek[ad] = "ret"
+                except (RuntimeError, OSError):              # OSError: sahte kart kesirli turla coker
+                    gevsek[ad] = "KARTA GITTI"
+                kart.tur, kart.gkimlik, kart.tuz = eski
+            kanitsiz_b = not any("/eslestir/kanit" in s for s in kart.istekler)
+            kart.istekler.clear()
+            try:
+                IM.esles(taban, "PC", "ğğğğğ1", dizin=d / "i8b")     # 6 harf ama 11 bayt
+                bayt11 = "KABUL"
+            except ValueError:
+                bayt11 = "ret"
+            except (RuntimeError, OSError):
+                bayt11 = "KARTA GITTI"
+            istek11 = list(kart.istekler)
+            eski_parola = kart.parola
+            kart.parola = "şşşşşş"                                    # 6 harf, 12 bayt
+            try:
+                c12 = IM.esles(taban, "PC", "şşşşşş", dizin=d / "i8b12")
+                bayt12 = "KABUL" if c12.n else "?"
+            except (ValueError, RuntimeError) as e:
+                bayt12 = f"ret ({e})"
+            kart.parola = eski_parola
+            ok("B72.I8b (S7) tur kesirli / metin / alt cizgili / True ve tamsayi kimlik kanit YOLLAMADAN "
+               "reddedilir; parola siniri UTF-8 BAYT (kartla ayni): 11 baytlik 6 harf istek atmadan ret, "
+               "12 baytlik 6 harf eslesir",
+               all(v == "ret" for v in gevsek.values()) and kanitsiz_b and bayt11 == "ret"
+               and not istek11 and bayt12 == "KABUL",
+               f"{gevsek} kanitsiz={kanitsiz_b} 11B={bayt11} istek={istek11} 12B={bayt12}")
+
             # I9 (son inceleme): kayit_esitle komut satiri imzali yolu kullanir
             kart.imza_zorunlu = True
             kart.kayitlar = kay

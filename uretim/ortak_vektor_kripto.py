@@ -368,11 +368,17 @@ def esles_akis_vektorleri() -> list:
 
     baslat = _yanit(200, {"eno": 5, "nk": NK.hex()})
     kanit = _yanit(200, {"n": n, "kart_kanit": kart_kanit.hex()})
+
+    def basari(parola: str) -> list:                     # S7: bayt siniri vektorleri icin
+        return [bilgi(), baslat, _yanit(200, {"n": n, "kart_kanit": IM.kanit_kart(
+            IM.pbkdf2(parola, PROJE_TUZ, PROJE_TUR), KIMLIK, NK, NC, n).hex()})]
     durumlar = [
         ("basarili", "PC ğ", PROJE_PAROLA, [bilgi(), baslat, kanit]),
-        ("tur_metin", "PC", PROJE_PAROLA,
-         [bilgi(tur="20000"), baslat, _yanit(200, {"n": n, "kart_kanit": IM.kanit_kart(
-             P, KIMLIK, NK, NC, n).hex()})]),
+        ("tur_metin", "PC", PROJE_PAROLA, [bilgi(tur="20000")]),          # S7: kart tamsayi basar
+        ("tur_tam_ondalik", "PC", PROJE_PAROLA,                          # 20000.0: JS ayirt edemez
+         [bilgi(tur=20000.0), baslat, kanit]),
+        ("tur_kesirli", "PC", PROJE_PAROLA, [bilgi(tur=20000.7)]),
+        ("kimlik_tamsayi", "PC", PROJE_PAROLA, [bilgi(kimlik=1234567890123456)]),
         ("kart_kaniti_yanlis", "PC", PROJE_PAROLA,
          [bilgi(), baslat, _yanit(200, {"n": n, "kart_kanit": yanlis.hex()})]),
         ("kart_kaniti_kisa", "PC", PROJE_PAROLA,
@@ -384,7 +390,10 @@ def esles_akis_vektorleri() -> list:
         ("tuz_kisa", "PC", PROJE_PAROLA, [bilgi(tuz=PROJE_TUZ.hex()[:30])]),
         ("acilis_bicimsiz", "PC", PROJE_PAROLA, [bilgi(acilis="xyz")]),
         ("kisa_parola", "PC", "a" * 11, []),
-        ("parola_kod_noktasi", "PC", "🔋🔋abcdefghi", []),        # 11 kod noktasi, 13 UTF-16 birimi
+        ("parola_kod_noktasi", "PC", "🔋🔋abcdefghi",               # 11 kod noktasi, 17 bayt: S7 KABUL
+         basari("🔋🔋abcdefghi")),
+        ("parola_6_harf_12_bayt", "PC", "şşşşşş", basari("şşşşşş")),      # kart UTF-8 bayt sayar
+        ("parola_6_harf_11_bayt", "PC", "ğğğğğ1", []),
         ("ad_bos", "", PROJE_PAROLA, []),
         ("ad_uzun", "a" * 25, PROJE_PAROLA, []),
         ("baslat_429", "PC", PROJE_PAROLA, [bilgi(), _yanit(429, "bekle 4 s")]),
@@ -404,7 +413,7 @@ def esles_akis_vektorleri() -> list:
         assert not ag.yanitlar, ad_
         o["istekler"] = ag.istekler
         c.append(o)
-    beklenen_basari = {"basarili", "tur_metin"}
+    beklenen_basari = {"basarili", "tur_tam_ondalik", "parola_kod_noktasi", "parola_6_harf_12_bayt"}
     for o in c:
         assert ("cihaz" in o["sonuc"]) == (o["ad"] in beklenen_basari), o["ad"]
     return c
@@ -415,6 +424,10 @@ def bilgi_denetle_vektorleri() -> list:
     degisler = [
         ("temel", {}),
         ("tur_ondalik", {"tur": 20000.7}),
+        ("tur_tam_ondalik", {"tur": 20000.0}),
+        ("tur_metin", {"tur": "20000"}),
+        ("tuz_tamsayi", {"tuz": 5}),
+        ("acilis_tamsayi", {"acilis": 7}),
         ("tur_metin_alt_cizgi", {"tur": "20_000"}),
         ("tur_metin_bosluk", {"tur": " 20000 "}),
         ("tur_alt_sinir", {"tur": 10_000}),
