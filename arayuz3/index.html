@@ -834,6 +834,18 @@
 
   </main><!-- /pil -->
 
+  <!-- ═════════════════════════════════════════════ #/kayitlar (3C)
+       Kartın kayıtları: liste (kart ∪ bu tarayıcı), eşitleme (IndexedDB),
+       kayıt görünümü #/kayit/<no>. Ekran modülü İLK açılışta iner
+       (app.js defineAsyncComponent); sonra v-show ile canlı kalır.
+       Eşitleme yalnız sayfa kartın kendi adresinden açıldıysa (C1);
+       karta "aldım" onayı yalnız "bu tarayıcı arşivdir" seçiliyse (C3). -->
+  <main class="gorunum" v-show="gorunum === 'kayitlar'">
+    <kayitlar-ekran v-if="kayitlarAcik" :kart-adres="kartAdres" :kart-taban="kartTaban"
+                    :tasiyici="tasiyiciAdi" :bagli="bagli" :gonder="gonder"
+                    :etkin="gorunum === 'kayitlar'"></kayitlar-ekran>
+  </main><!-- /kayitlar -->
+
   <!-- ═════════════════════════════════════════════ #/konsol -->
   <main class="gorunum" v-show="gorunum === 'konsol'">
 
