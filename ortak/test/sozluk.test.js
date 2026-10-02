@@ -257,6 +257,26 @@ test("3H: ayarlarin (app.js + ekran/ayarlar.js) kullandigi HER ay. anahtari sozl
   assert.equal(SOZLUK["ay.dil_en"].tr, "English");
 });
 
+/* 3H-2: Eslestirme (ekran/eslesme.js ES_METIN / SAAT_METIN / ret sebepleri + app.js serit uyarisi) */
+test("3H-2: eslestirmenin (app.js + ekran/eslesme.js) kullandigi HER es. anahtari sozlukte (ters yon)", () => {
+  if (!APP.length || !EKRANLAR.length) return;
+  const { literal } = dizgeler([...APP, ...EKRANLAR].map(oku).join("\n"));
+  const kullanilan = [...literal].filter((s) => /^es\.[a-z0-9_]+$/.test(s));
+  assert.ok(kullanilan.length >= 60, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
+  assert.deepEqual(kullanilan.filter((a) => !(a in SOZLUK)), []);
+  const aile = Object.keys(SOZLUK).filter((a) => /^es\./.test(a));
+  assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup panelde kullanilmayan es. anahtari");
+  /* ES3: parola ag'a cikmaz ve kaydedilmez — kullaniciya iki dilde de SOYLENIR */
+  assert.match(SOZLUK["es.parola_ipucu"].tr, /kaydedilmez/);
+  assert.match(SOZLUK["es.parola_ipucu"].en, /not stored/);
+  /* ES9 / ES1: zorunluluk ve bildirim yalniz USB — komutlar metinde (Ez1 / Em1, Q) */
+  assert.match(SOZLUK["es.guv_aciklama"].tr, /Ez1[\s\S]*Em1/);
+  assert.match(SOZLUK["es.bildirim_aciklama"].en, /USB/);
+  /* AU10 + ES2: "tarayici ayarlarini sifirla" eslestirmeye dokunmaz ve bunu SOYLER */
+  assert.match(SOZLUK["ay.sifirla_aciklama"].tr, /eşleştirmesi/);
+  assert.match(SOZLUK["ay.sifirla_aciklama"].en, /pairing/);
+});
+
 test("yer tutucular iki dilde ayni", () => {
   const yer = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(",");
   for (const [a, g] of Object.entries(SOZLUK)) assert.equal(yer(g.tr), yer(g.en), a);

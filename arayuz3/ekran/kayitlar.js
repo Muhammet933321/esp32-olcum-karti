@@ -409,6 +409,8 @@ export const KayitlarEkrani = {
   components: { 'kayit-gorunumu': KayitGorunumu },
   props: {
     kartAdres: { type: Function, required: true },
+    /* 3H-2 (ES4): app.js'in TEK istek katmani (eslesmisse imzali); yoksa bugunku yol */
+    kartIstek: { type: Function, default: null },
     kartTaban: { type: String, default: '' },
     tasiyici: { type: String, default: 'akis' },
     bagli: { type: Boolean, default: false },
@@ -431,7 +433,7 @@ export const KayitlarEkrani = {
     };
   },
   created() {
-    this._den = new EsitlemeDenetcisi({ kartAdres: this.kartAdres });
+    this._den = new EsitlemeDenetcisi({ kartAdres: this.kartAdres, istek: this.kartIstek });
     this._kartListe = null;
     this._yereller = [];
   },

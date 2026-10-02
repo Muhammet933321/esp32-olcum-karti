@@ -168,7 +168,12 @@ const TasiyiciAkis = {
   },
   destekli() { return typeof EventSource !== 'undefined'; },
   async ac(uyg) {
-    uyg.akis = new EventSource(uyg.kartAdres('/akis'));
+    /* 3H-2 (ES6): bu kartla eslesmis bir cihaz kaydi varsa akis ImzaliAkis (ekran/eslesme.js):
+       her baglantida YENI imzali URL, koptugunda artan bekleme. EventSource'un kendiliginden
+       yeniden baglanmasi ayni tek kullanimlik URL'yi yollardi. Kayit yoksa bugunku yol AYNEN. */
+    const ist = await uyg.eslesmeHazirla();
+    const imzali = ist ? await ist.akisAc() : null;
+    uyg.akis = imzali || new EventSource(uyg.kartAdres('/akis'));
     uyg.akis.onmessage = (e) => uyg.satirIsle(String(e.data).trim());
     uyg.akis.onerror = () => { uyg.hata = 'Akış koptu — yeniden bağlanılıyor'; };
     /* Kart TEK sürücüye hizmet ediyor. Köprü kayıtlıysa ikinci istemci
@@ -212,7 +217,7 @@ const TasiyiciAkis = {
     /* POST + özel başlık: çapraz kökende preflight'a zorlar ve
        <img>/<form> özel başlık ekleyemez. GET olsaydı CSRF'e açık olurdu
        ve `p1` (pil deşarjını başlat) uzaktan tetiklenebilirdi. */
-    const y = await fetch(uyg.kartAdres('/komut'), {
+    const sec = {
       method: 'POST',
       headers: {
         'Content-Type': 'text/plain',
@@ -220,7 +225,17 @@ const TasiyiciAkis = {
         'X-Jeton': uyg.jeton || '',
       },
       body: metin,
-    }).catch(() => null);
+    };
+    /* 3H-2 EMNIYET-P0: `p0` (pil DURDUR) imza katmanina HIC girmez — kart onu imzasiz kabul
+       ediyor (1D K11, zorunlulukta da). Katman askida, modul inmemis ya da imza bozuk olsa da
+       desarj tek tikla kesilir. Diger komutlar tek istek katmanindan (kartIstek, ES4). */
+    let istek;
+    try {
+      istek = metin === 'p0' ? fetch(uyg.kartAdres('/komut'), sec) : uyg.kartIstek('/komut', sec);
+    } catch (e) {
+      istek = Promise.reject(e);
+    }
+    const y = await istek.catch(() => null);
     if (!y || !y.ok) {
       /* Sunucunun SEBEBİNİ göster — "403" tek başına kullanıcıya
          "neden olmadı" sorusunun cevabını vermiyor. */
@@ -371,6 +386,8 @@ function dilSec(depo) {
 const AYAR_BOLUMLERI = Object.freeze([
   Object.freeze({ id: 'baglanti', ad: 'ay.b_baglanti', mod: false }),
   Object.freeze({ id: 'ag', ad: 'ay.b_ag', mod: false }),
+  /* 3H-2 (ES1): kendi tembel modulu (ekran/eslesme.js), ayarlar.js'in degil — `es` */
+  Object.freeze({ id: 'eslestirme', ad: 'ay.b_eslestirme', mod: false, es: true }),
   Object.freeze({ id: 'kalibrasyon', ad: 'ay.b_kalibrasyon', mod: false }),
   Object.freeze({ id: 'kal-gecmis', ad: 'ay.b_kal_gecmis', mod: true }),
   Object.freeze({ id: 'depolama', ad: 'ay.b_depolama', mod: true }),
@@ -390,6 +407,39 @@ function ayarBolumCoz(hash) {
 function ayarBolumModul(id) {
   const b = AYAR_BOLUMLERI.find((x) => x.id === id);
   return !!(b && b.mod);
+}
+
+/* ═══ 3H-2 — ESLESTIRME: istek katmaninin karari ════════════════════════
+   Imzali yol (ekran/eslesme.js + ortak/imza.js) ACILISTA INMEZ. Bu tarayicida
+   cihaz kaydi var mi, IndexedDB'den modulsuz bakilir; YOKSA bugunku yol aynen ve
+   modul hic inmez. Ad ve depo eslesme.js CIHAZ_VT / CIHAZ_DEPO ile AYNI (B7). */
+const CIHAZ_VT_AD = 'olcum-cihaz';
+const CIHAZ_DEPO_AD = 'cihaz';
+
+/** Bu tarayicida cihaz kaydi var mi. Veritabani YOKSA yaratmaz (yukseltme iptal edilir). */
+async function cihazKaydiVar(idb = globalThis.indexedDB) {
+  if (!idb) return false;
+  try {
+    if (typeof idb.databases === 'function') {
+      const l = await idb.databases();
+      if (!l.some((d) => d && d.name === CIHAZ_VT_AD)) return false;
+    }
+    return await new Promise((coz) => {
+      const r = idb.open(CIHAZ_VT_AD);
+      r.onupgradeneeded = () => { try { r.transaction.abort(); } catch (e) { /* zaten bitti */ } };
+      r.onerror = () => coz(false);
+      r.onblocked = () => coz(false);
+      r.onsuccess = () => {
+        const vt = r.result;
+        try {
+          if (!vt.objectStoreNames.contains(CIHAZ_DEPO_AD)) { vt.close(); coz(false); return; }
+          const s = vt.transaction(CIHAZ_DEPO_AD, 'readonly').objectStore(CIHAZ_DEPO_AD).count();
+          s.onsuccess = () => { vt.close(); coz(s.result > 0); };
+          s.onerror = () => { vt.close(); coz(false); };
+        } catch (e) { vt.close(); coz(false); }
+      };
+    });
+  } catch (e) { return false; }
 }
 
 /* AY3: dil secimi. Anahtar ve bicim (JSON) 3C'nin `dilOku`suyla ve yukaridaki
@@ -885,6 +935,18 @@ createApp({
         },
       },
     }),
+    /* 3H-2 (ES1): Ayarlar > Eslestirme; bolum ILK acilinca iner (istemciyle ayni modul). */
+    'eslestirme-ekran': defineAsyncComponent({
+      loader: () => import('./ekran/eslesme.js').then((m) => m.EslestirmeEkrani),
+      errorComponent: {
+        template: '<p class="hata">{{ metin }}</p>',
+        data() {
+          let depo = null;
+          try { depo = window.localStorage; } catch (e) { depo = null; }
+          return { metin: ceviri('ay.mod_yuklenemedi', dilSec(depo)) };
+        },
+      },
+    }),
   },
   data() {
     return {
@@ -912,6 +974,10 @@ createApp({
       ayarBolum: ayarBolumCoz(typeof location !== 'undefined' ? location.hash : ''),
       ayarModAcik: hashtenGorunum() === 'ayar'
         && ayarBolumModul(ayarBolumCoz(typeof location !== 'undefined' ? location.hash : '')),
+      /* 3H-2 (ES1): Eslestirme bolumunun modulu (ekran/eslesme.js) — ayni desen */
+      eslesmeModAcik: hashtenGorunum() === 'ayar'
+        && ayarBolumCoz(typeof location !== 'undefined' ? location.hash : '') === 'eslestirme',
+      eslesmeUyari: null,          // ES4: {anahtar, d} — "kart tanimiyor" / modul inmedi (serit uyarisi)
       /* 3D: Canli'nin grafik modulu (ekran/canli.js) ekran ILK gorunur olunca iner
          (yukaridaki Kayitlar deseni). `canliAcik` o ani isaretler; okuma kartlari
          ve kayit denetimi modulu BEKLEMEZ (app.js'te). */
@@ -1645,6 +1711,11 @@ createApp({
     dilSecenekleri() { return DILLER.map((d) => ({ id: d.id, ad: ceviri(d.ad, d.id) })); },
     /** Tembel Ayarlar modulu gerekli mi: Ayarlar gorunur VE secili bolum modulde. */
     ayarModGerekli() { return this.gorunum === 'ayar' && ayarBolumModul(this.ayarBolum); },
+    /* 3H-2 (ES1): Eslestirme modulu YALNIZ Ayarlar'da o bolum seciliyken iner */
+    eslesmeModGerekli() { return this.gorunum === 'ayar' && this.ayarBolum === 'eslestirme'; },
+    /* 3H-2 (ES4): "kart tanimiyor" ya da modul inmedi — her gorunumde serit uyarisi */
+    eslesmeUyariMetni() { return this.eslesmeUyari ? ceviri(this.eslesmeUyari.anahtar, this.dil, this.eslesmeUyari.d) : ''; },
+    eslesmeGit() { return ceviri('es.uyari_git', this.dil); },
     pilCalisiyor() { return this.pilDurum === 'CALISIYOR'; },
     pilHazirKesme() { return PIL_HAZIR_KESME; },
     /** PL2 okuma kartlari — HER kartin degeri ve KAYNAGI (PU8). mAh / Wh KARTIN sayaclari
@@ -1899,6 +1970,7 @@ createApp({
     dil(v) { dilUygula(v, this.gorunum); },
     /* 3H (AY2): tembel Ayarlar modulu BIR KEZ kurulur (sonra v-show'lu bolumleriyle kalir). */
     ayarModGerekli(v) { if (v) this.ayarModAcik = true; },
+    eslesmeModGerekli(v) { if (v) this.eslesmeModAcik = true; },
     /* Tasiyici degisince ONCE mevcut baglantiyi kapat — akis acikken
        seriye gecmek iki kaynagin ayni ayristiriciyi beslemesi demek. */
     async tasiyiciAdi(v, eski) {
@@ -2496,6 +2568,62 @@ createApp({
        gidiyor ve 404 dönüyordu. `fetch` 404'te reddetmediği için hata
        sayfasının HTML'i `anahtar=değer` sanılıp ayrıştırılıyordu:
        tüm pil KPI'ları SESSİZCE sıfır oluyordu. */
+    /* ═══ 3H-2 (ES4) — TEK ISTEK KATMANI ═══════════════════════════════
+       Kartin uclarina (/komut, /kayit/*, /kal/liste, /pil, /skop.bin, /kunye.json) giden HER
+       istek buradan: bu tarayicida bu kartla eslesmis cihaz kaydi varsa istek IMZALI
+       (ekran/eslesme.js EslesmeIstemcisi, credentials:'omit'); yoksa bugunku yol AYNEN
+       (fetch(kartAdres(yol))). Kart cihazi tanimazsa istemci imzasiz yola duser ve SOYLER
+       (eslesmeBildir). Ekranlar fetch'i kendileri imzalamaz: `kartIstek` prop/secenek alir.
+       ⚠ `p0` buraya GIRMEZ (TasiyiciAkis.gonder, EMNIYET). */
+    async kartIstek(yol, sec) {
+      const ist = await this.eslesmeHazirla();
+      if (!ist) return fetch(this.kartAdres(yol), sec);
+      return ist.istek(yol, sec || {}, () => fetch(this.kartAdres(yol), sec));
+    },
+    /** Imzali yol var mi: cihaz kaydi yoksa null (modul INMEZ); varsa TEK istemci. */
+    eslesmeHazirla() {
+      if (!this._esKarar) {
+        this._esKarar = cihazKaydiVar()
+          .then((v) => (v ? this.eslesmeIstemcisi() : null))
+          .catch((h) => {
+            this._esKarar = null;                     // ezberlenmez: sonraki istek yeniden dener
+            this.eslesmeBildir({ durum: 'modul', mesaj: (h && h.message) || String(h) });
+            return null;
+          });
+      }
+      return this._esKarar;
+    },
+    /** Sayfanin TEK eslesme istemcisi (Eslestirme bolumu de bunu kullanir). */
+    eslesmeIstemcisi() {
+      if (!this._esIst) {
+        this._esIst = import('./ekran/eslesme.js').then((m) => new m.EslesmeIstemcisi({
+          kartAdres: (y) => this.kartAdres(y), bildir: (o) => this.eslesmeBildir(o) }));
+        this._esIst.catch(() => { this._esIst = null; });
+      }
+      return this._esIst;
+    },
+    /** Istemcinin bildirimi: tanimiyor / modul -> serit uyarisi; eslesti / unutuldu -> akis yeni yolla. */
+    eslesmeBildir(o) {
+      if (!o) return;
+      if (o.durum === 'tanimiyor') this.eslesmeUyari = { anahtar: 'es.uyari_tanimiyor', d: { n: o.n } };
+      else if (o.durum === 'modul') this.eslesmeUyari = { anahtar: 'es.uyari_modul', d: { mesaj: o.mesaj } };
+      else if (o.durum === 'eslesti' || o.durum === 'unutuldu') {
+        this.eslesmeUyari = null;
+        this._esKarar = null;                         // karar yeniden (kayit artik var / yok)
+        this.akisYenile();
+      }
+    },
+    /** Eslesme degisince canli akis yeni yolla (imzali / imzasiz) yeniden acilir. */
+    async akisYenile() {
+      if (!this.bagli || this.bagliTasiyici !== 'akis') return;
+      await TasiyiciAkis.kapat(this);
+      try {
+        await TasiyiciAkis.ac(this);
+      } catch (e) {
+        this.hata = this.metin('es.akis_hata', { mesaj: (e && e.message) || String(e) });
+      }
+    },
+
     kartAdres(yol) {
       /* WIG: "192.168.1.50" ya da "olcum.local" yazilirsa istek GORELI olup sayfanin
          kendi sunucusuna gidiyordu ("akis koptu" disinda iz yok) — tabanTam http:// ekler. */
@@ -3264,7 +3392,7 @@ createApp({
             if (typeof SahteKart === 'undefined' || typeof SahteKart.pilSayfa !== 'function') return;
             m = SahteKart.pilSayfa(this.pilYerelSira);
           } else {
-            const y = await fetch(this.kartAdres('/pil?sira=' + this.pilYerelSira), { cache: 'no-store' });
+            const y = await this.kartIstek('/pil?sira=' + this.pilYerelSira, { cache: 'no-store' });
             if (!y.ok) {
               this.pilHataMetni = 'kart yanıt vermiyor (HTTP ' + y.status + ')';
               return;
@@ -3690,7 +3818,8 @@ createApp({
       let r = await mod.pilKaydiAc({ oturum: no, kimlik: null }, { kartAdres, dil: this.dil });
       if (r.hata === 'pl.hata_kayit_yok' && this.bagli) {
         this.pilKayitDurum = 'esitleniyor';
-        const e = await mod.pilKaydiEsitle({ kartAdres, kartTaban: this.kartTaban, tasiyici: this.bagliTasiyici || this.tasiyiciAdi,
+        const e = await mod.pilKaydiEsitle({ kartAdres, kartIstek: (y, o) => this.kartIstek(y, o), kartTaban: this.kartTaban,
+          tasiyici: this.bagliTasiyici || this.tasiyiciAdi,
           kopruda: this.kopruda, bagli: this.bagli, gonder: (k) => this.gonder(k) });
         if (e.durum === 'tamam') r = await mod.pilKaydiAc({ oturum: no, kimlik: null }, { kartAdres, dil: this.dil });
         else if (e.durum !== 'uygun_degil') r = { hata: 'pl.hata_esitleme', d: { mesaj: e.mesaj || e.durum } };
@@ -3765,7 +3894,7 @@ createApp({
          (4000 örnek ~20 KB, 115 200 baud'da ~1.8 s). Sunucu 503 dönerse
          SEBEBİ gövdede yazıyor — "alınamadı (503)" tek başına kullanıcıya
          "tetiklenemedi mi, kırpık mı" sorusunu yanıtlamıyor. */
-      const y = await fetch(this.kartAdres('/skop.bin')).catch(() => null);
+      const y = await this.kartIstek('/skop.bin').catch(() => null);
       if (!y || !y.ok) {
         const neden = y ? await y.text().catch(() => '') : '';
         this.hata = 'İkili skop dökümü alınamadı'

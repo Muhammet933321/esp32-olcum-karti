@@ -152,6 +152,9 @@
     arayüzü <a :href="kopruAdresi">{{ kopruAdresi }}</a> üzerinden açın.
   </div>
   <div v-if="hata" class="hata" role="alert">{{ hata }}</div>
+  <!-- 3H-2 (ES4): kart bu tarayicinin eslestirmesini tanimiyorsa istekler imzasiz yoldan
+       gidiyor — sessizce degil: her gorunumde, Eslestirme bolumune baglantiyla. -->
+  <div v-if="eslesmeUyariMetni" class="uyari" role="alert" data-es-uyari>{{ eslesmeUyariMetni }} <a href="#/ayar/eslestirme">{{ eslesmeGit }}</a></div>
   <!-- B22.3: köprüde N izleyici, BIR sürücü. Yetki sunucuda; burası
        yalnızca durumu gösteriyor ve devri istiyor. -->
   <div v-if="bagli && !surucuyum" class="uyari" role="status">
@@ -1210,9 +1213,14 @@
   </section>
 
   <!-- 3H-1 (AY4-AY6): kalibrasyon geçmişi · depolama · gelişmiş — tembel modül -->
-  <ayarlar-ekran v-if="ayarModAcik" :bolum="ayarBolum" :kart-adres="kartAdres" :kart-taban="kartTaban"
+  <ayarlar-ekran v-if="ayarModAcik" :bolum="ayarBolum" :kart-adres="kartAdres" :kart-istek="kartIstek" :kart-taban="kartTaban"
                  :tasiyici="tasiyiciAdi" :bagli="bagli" :afis-surum="afisSurum" :dil-secim="dil"
                  :etkin="gorunum === 'ayar'"></ayarlar-ekran>
+
+  <!-- 3H-2 (ES1-ES9): Eşleştirme — kendi tembel modülü (ekran/eslesme.js); istemci app.js'in TEK istemcisi -->
+  <eslestirme-ekran v-if="eslesmeModAcik" v-show="ayarBolum === 'eslestirme'" :istemci-al="eslesmeIstemcisi"
+                    :kart-taban="kartTaban" :tasiyici="tasiyiciAdi" :bagli="bagli" :dil-secim="dil"
+                    :etkin="gorunum === 'ayar' && ayarBolum === 'eslestirme'"></eslestirme-ekran>
 
   </div><!-- /ay-icerik -->
   </div><!-- /ay-duzen -->
@@ -1396,7 +1404,7 @@
        Eşitleme yalnız sayfa kartın kendi adresinden açıldıysa (C1);
        karta "aldım" onayı yalnız "bu tarayıcı arşivdir" seçiliyse (C3). -->
   <main class="gorunum" v-show="gorunum === 'kayitlar'">
-    <kayitlar-ekran v-if="kayitlarAcik" :kart-adres="kartAdres" :kart-taban="kartTaban"
+    <kayitlar-ekran v-if="kayitlarAcik" :kart-adres="kartAdres" :kart-istek="kartIstek" :kart-taban="kartTaban"
                     :tasiyici="tasiyiciAdi" :bagli="bagli" :gonder="gonder"
                     :etkin="gorunum === 'kayitlar'" :dil-secim="dil"></kayitlar-ekran>
   </main><!-- /kayitlar -->
