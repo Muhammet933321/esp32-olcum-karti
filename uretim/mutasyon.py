@@ -3849,6 +3849,14 @@ MUTASYONLAR = [
      "            shutil.rmtree(self.profil, ignore_errors=True)\n            if not os.path.exists(self.profil):\n                break\n",
      "            break\n",
      "TTR: profil dizini silinmezse %TEMP% yine dolar (131 GB): 1 kirmizi"),
+    # ── 3D-FIX (2026-10-02): senkron eklentileri test sayfasini arka sekmeye dusuruyordu
+    ("TTR", "test_tarayici.py", "uretim/tarayici.py",
+     '             "--disable-sync", "--disable-extensions",\n', "",
+     "3D-FIX: senkron + eklentiler acik -> eklenti sekmeleri sayfayi gizler, rAF + CDP tekerlegi durur: 3 kirmizi"),
+    ("TTR", "test_tarayici.py", "uretim/tarayici.py",
+     '             "--disable-sync", "--disable-extensions",\n',
+     '             "--disable-extensions",\n',
+     "3D-FIX: yalniz senkron acik -> edge://sync-confirmation-dialog ikinci sayfa hedefi olur"),
 ]
 
 

@@ -177,9 +177,16 @@ class Tarayici:
         self.profil = tempfile.mkdtemp(prefix="olcum-edge-")
         # kapat() cagrilmadan cikan surec (istisna, sys.exit) da Edge birakmasin
         atexit.register(self.kapat)
+        # 🔴 3D-FIX (2026-10-02): --disable-sync / --disable-extensions ZORUNLU. Taze
+        # profilli Edge Windows hesabiyla kendiliginden oturum acip senkronize ediyordu;
+        # senkron eklentileri ~8 s sonra kendi sekmelerini acti, test sayfasi ARKA SEKMEYE
+        # dustu (visibilityState 'hidden', rAF durdu) ve CDP mouseWheel hic yanit vermedi
+        # (T3D D3 tekerlegi 30 s'de dustu). Ayrica testler kullanicinin hesabiyla dis
+        # sitelere istek atiyordu. test_tarayici.py iddia 5 sinar.
         self.surec = subprocess.Popen(
             [_edge_yolu(), "--headless=new", "--disable-gpu", "--hide-scrollbars",
              "--no-first-run", "--no-default-browser-check",
+             "--disable-sync", "--disable-extensions",
              f"--window-size={genislik},{yukseklik}",
              f"--remote-debugging-port={self.port}",
              f"--user-data-dir={self.profil}", *(ek_arg or []), "about:blank"],

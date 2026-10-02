@@ -12,11 +12,14 @@ Iddialar (Windows'ta; baska platformda atlanir):
   2. iki Tarayici ayni anda acilinca farkli portlar kullanir (sabit port yok)
   3. kapat() cagrilmadan cikan surec (istisna) da temizlenir (atexit)
   4. kapat() iki kez cagrilabilir (hata yok)
+  5. sayfa 15 s sonra hala tek ve GORUNUR sekme; rAF ve CDP tekerlegi calisiyor
+     (senkron/eklentiler kapali — 3D-FIX)
 
     python test_tarayici.py
 """
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import time
@@ -102,6 +105,46 @@ def main() -> int:
     kalan3 = bekle_bos(p3) if p3 else ["?"]
     ok("3. kapat() cagrilmadan cikan surecin Edge'i de temizlendi (atexit)",
        bool(p3) and not kalan3 and not Path(p3).exists(), f"{kalan3}")
+
+    # 5: sayfa ARKA SEKMEYE DUSMEZ (3D-FIX, 2026-10-02). Taze profilli Edge Windows
+    # hesabiyla kendiliginden oturum acip SENKRONIZE ediyordu; senkron eklentileri
+    # (Teleparty, AdGuard) acilistan ~7.5–10 s sonra kendi sekmelerini acti, test sayfasi
+    # gizlendi (visibilityState 'hidden'), rAF durdu ve kareye hizalanan CDP mouseWheel
+    # HIC yanit vermedi -> T3D'nin D3 tekerlegi 30 s'de dustu. 15 s yetiyor.
+    t = T.Tarayici()
+    try:
+        t.git("data:text/html,<div style='height:5000px'>uzun</div>")
+        gizli, fazla = [], []
+        for k in range(6):
+            t.bekle(2.5)
+            g = t.js("document.visibilityState")
+            with T.urllib.request.urlopen(f"http://127.0.0.1:{t.port}/json", timeout=5) as y:
+                sayfalar = [h.get("url", "")[:60] for h in json.load(y) if h.get("type") == "page"]
+            if g != "visible":
+                gizli.append(f"+{2.5 * (k + 1):.1f}s {g}")
+            if len(sayfalar) != 1:
+                fazla.append(f"+{2.5 * (k + 1):.1f}s {sayfalar}")
+        raf = t.js("new Promise(r => { let n = 0; const f = () => { if (++n >= 3) r(n);"
+                   " else requestAnimationFrame(f); }; requestAnimationFrame(f);"
+                   " setTimeout(() => r(n), 2000); })")
+        t.ws.s.settimeout(5)
+        t0 = time.monotonic()
+        try:
+            t.cagir("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": 200, "y": 200,
+                                                 "deltaX": 0, "deltaY": 400})
+            teker = f"yanit {time.monotonic() - t0:.2f} s"
+            t.ws.s.settimeout(30)
+            t.bekle(0.5)
+            kaydi = t.js("scrollY") or 0
+        except (TimeoutError, OSError):
+            teker, kaydi = f"YANIT YOK ({time.monotonic() - t0:.1f} s)", 0
+    finally:
+        t.kapat()
+    ok("5. 15 s acik kalan tarayicida tek sayfa hedefi (senkron/eklenti sekmesi acilmaz)",
+       not fazla, "; ".join(fazla[:2]))
+    ok("5. sayfa 15 s boyunca GORUNUR kalir (arka sekmeye dusmez)", not gizli, "; ".join(gizli[:2]))
+    ok("5. 15 s sonra rAF calisiyor ve CDP tekerlegi <= 5 s'de yanit verip sayfayi kaydiriyor",
+       raf == 3 and teker.startswith("yanit") and kaydi > 0, f"rAF {raf}, {teker}, scrollY {kaydi}")
 
     print(f"\n{gecen}/{gecen + kalan} dogrulama gecti")
     return 0 if kalan == 0 else 1
