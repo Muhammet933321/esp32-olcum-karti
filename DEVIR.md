@@ -9397,6 +9397,37 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.85 🟢 3H-2 TARAYICIDAN EŞLEŞTİRME (2026-10-03 gecesi)
+
+Ajan, kararlar ES1–ES10 + uygulama kararları EU1–EU31 (spec). Ayarlar > **Eşleştirme**: ad + web parolası →
+`ortak/imza.js` `esles` (parola ağa ÇIKMAZ, panel hiçbir yere yazmaz — T3H2 bütün depoları tarıyor); eşleşmişken
+bütün API istekleri imzalı (`app.js kartIstek` tek katman), canlı akış `fetch` ile (EventSource önbellekteki
+Basic-Auth'u taşıyor ve her yeniden bağlanmada aynı tek kullanımlık URL'yi yolluyordu — EU4), sayaç IndexedDB
+işleminde atomik ayrılıyor (iki sekme × 8 eşzamanlı komut ilk denemede kabul — EU3), anahtar ayrı veritabanında
+(`olcum-cihaz`; kayıt veritabanının sürüm yükseltmesini eski sekme kilitlemesin — EU1). Cihaz listesi + silme
+(iki aşamalı), "bu tarayıcıyı unut", NTP yoksa kart saatini bu cihazdan kurma, zorunluluk/misafir durumu (yalnız
+USB'den değişir), bildirim ayarının neden yalnız USB olduğu. Eşleşmemiş tarayıcının yolu birebir aynı (`cihazKaydiVar`
+modülü ve veritabanını açmadan bakar). **`p0` imza katmanına hiç girmez** (geçersiz imzalı `p0` reddedilirdi — EU6),
+P0-S'in yeniden denemesi ve `credentials: 'omit'`'i eşleşmişken de geçerli.
+
+**Bağımsız güvenlik incelemesi** (iş akışı: `p0` araştırmacısı + anahtar sızıntısı + protokol + gerileme denetçisi,
+her bulguya çürütücü): ajanın "eşleşmişken p0 gecikiyor" gözlemi test aracıymış (5.12.84); 13 bulgu kapandı —
+yeni açılışlı 401'in cihazı kalıcı "kart tanımıyor"a düşürmesi, SSE ayrıştırıcıda parça sınırında bölünen CRLF,
+istisnada eski akışın iptal edilmemesi (kart yuvası), 'dolu'da artmayan bekleme, bayat ekranda yanlış "kart da
+sildi", unutulan anahtarın eşzamanlı yazımla geri gelmesi, IndexedDB açılamazsa sessiz imzasız yol, `/eslestir/bilgi`
+zaman aşımı, başka kartların silinemeyen kayıtları, WIG odak. **ES2 riski firmware'den doğrulanıp yazıldı:** çalınan
+K = E/Q dışı her komut (`Ns` ile web parolasını değiştirmek dahil), kayıt okuma, her cihazı silme, `/saat`,
+`/bildirim/bilgi` üzerinden yalnız-abone MQTT bilgisi + bildirim anahtarı; K parola değişince geçersiz olmaz.
+
+**Kararlar (kullanıcının devriyle, geri alınabilir):** ES2 KABUL (bugünkü yol parolanın kendisini her komutta açık
+HTTP'den yolluyor; K'yı çalmak tarayıcı profili ya da etkin aradaki-adam ister — eşleştirme kesin iyileştirme),
+ES3 KABUL, EU29 (c) uygulandı (eşleştirme metinleri açılış sözlüğünden `ortak/src/sozluk_es.js`'e; eşleşmemiş açılış
+209 963 → 206 425 B, `#/skop` payı 4.6 → 8.2 KB), EU31: eşleşmiş açılışın kalan aşımı (257 017 B / 15 dosya, 3D
+sınırının %0.4 üstü) eşleşmiş tarayıcıya özgü istisna, ayrı tavan 262 144 B / 15 dosya İDDİA. **AÇIK:** gerçek
+kartta parolayla eşleştirme (parolayı yalnız kullanıcı bilir), imzalı canlı akışın kartın SSE yanıtıyla, eski
+akışın kart yuvası, telefonda PBKDF2 süresi. Kabulden sonra öneri: bütün cihazlar eşleşince USB'den `Ns<yeni>`.
+B7 782 → 852, B73 24, yeni T3H2 31/31, mutasyon 3H2 76/76 + P0-S 7/7.
+
 #### 5.12.84 🟢 p0 SAĞLAMLIĞI + TEST ARACININ SAHTE KIRMIZISI (2026-10-02 gece)
 
 3H-2 (tarayıcıdan eşleştirme, dalda, onay bekliyor) için bağımsız güvenlik incelemesi (iş akışı: 4 denetçi +
