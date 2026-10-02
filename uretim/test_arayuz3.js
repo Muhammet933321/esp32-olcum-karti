@@ -804,9 +804,15 @@ console.log('\n--- 8. Varlik denetimi: referanslar diskte var mi ---');
      `<ad>.js` bicimi. Izin verilen TEK dis dizin `ORTAK` tanimi; baska bir
      `BURASI.parent` ya da `translate_path` (genel yol cevirisi) K4'tur.
      DAVRANISI test_kopru.py sinar: arayuz3'te olmayan `/disari.js` 404. */
-  const disari = govde.match(/BURASI\.parent[^\n]*/g) || [];
+  /* 3H-1 (AY6): ikinci dis yol `URETEC` (uretim/arayuz-uret.py) — YALNIZ ice aktarilir
+     (`/kunye.json` icin kunye_hesapla); dosya sunma yolunda (read_bytes / open) gecmez. */
+  const disari = (govde.match(/BURASI\.parent[^\n]*/g) || [])
+    .filter((x) => x.trim() !== 'BURASI.parent / "uretim" / "arayuz-uret.py"');
+  const uretecAdi = (govde.match(/^.*\bURETEC\b.*$/gm) || []).map((x) => x.trim());
   ok('sunucu.py dizin disina dusme yapmiyor (K4 mekanizmasi)',
      disari.length === 1 && /^BURASI\.parent \/ "ortak" \/ "src"$/.test(disari[0].trim())
+     && /^URETEC = BURASI\.parent \/ "uretim" \/ "arayuz-uret\.py"$/m.test(govde)
+     && uretecAdi.length === 3 && uretecAdi.every((x) => /^URETEC = |^if not URETEC\.is_file\(\):$|spec_from_file_location\("arayuz_uret", URETEC\)$/.test(x))
      && /^ORTAK = BURASI\.parent/m.test(govde)
      && /if yol\.startswith\("\/ortak\/"\):\s*\n\s*return self\._ortak\(/.test(govde)
      && !/translate_path/.test(govde),
@@ -5637,6 +5643,569 @@ console.log('\n--- 29. Karsilastirma (3G) ---');
     ok('[!] 3G stilleri YALNIZ belirtecle (sabit renk yok); telefonda tuval kisalir',
        blok.length > 500 && !/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(blok.replace(/\/\*[\s\S]*?\*\//g, ''))
        && /@media \(max-width: 620px\) \{[^}]*canvas\.kr-grafik \{ height: 260px; \}/.test(blok));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   30. AYARLAR (3H-1 — alt proje 3, AY1-AY7; uygulama kararlari 3H-1)
+
+   Kararlar tasarim/2026-10-02-alt-proje-3-panel.md "3H kararlari". Burada:
+   (a) KABLOLAMA (AY2): yedi bolum karardaki sirayla, `#/ayar/<bolum>` rotasi
+       (adres ezilmiyor), ic gezinme, her kart TEK bolume bagli; uc yeni bolum
+       (kalibrasyon gecmisi, depolama, gelismis) TEMBEL modulde — acilis
+       kumesine girmiyor, IndexedDB zinciri yalniz gereken bolumde DINAMIK.
+   (b) DIL (AY3): secim `olcum.dil` (esitleme.js dilOku ile ayni anahtar),
+       ANINDA (<html lang>, sekme basligi, alt ekranlar); sayi bicimi dile
+       bagli degil; EN'de cevrilmemis metinler SAYILIP LISTELENIYOR (kilitli).
+   (c) DEPOLAMA (AY4): akis basina boyut / oturum / son esitleme / eski kart
+       kopyasi; storage.estimate + persist (yoksa sebep); iki asamali silme.
+   (d) KALIBRASYON GECMISI (AY5): `/kal/liste` (yoksa bu tarayicidaki kopya),
+       SALT OKUMA — kk/kn/kt ya da herhangi bir komut YOK; alanlar firmware'in
+       JSON'undan turetiliyor.
+   (e) GELISMIS (AY6): firmware (afis), panel surumu (`kunye.json` = _fs.json
+       ozeti; Python ile capraz), yalniz `olcum.*` anahtarlarini silen iki
+       asamali sifirlama.
+   (f) WIG (AY7): etiketler, odak, tablo basliklari, tabular-nums, telefon.
+   Gercek tarayici (IndexedDB, storage, dil gecisi, geri tusu, uc gorunum,
+   390 px): tarayici_ayarlar.py (T3H).
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 30. Ayarlar (3H-1) ---');
+{
+  const html = yorumsuz(htmlKaynak);
+  const css = cssOku();
+  const al = (ad) => { try { return vm.runInContext(ad, sandbox); } catch (e) { return undefined; } };
+  const SZx = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const ESx = require(path.join(ARAYUZ, 'ekran', 'esitleme.js'));
+  const KLx = require(path.join(ARAYUZ, 'ekran', 'kayitlar.js'));
+  const KRx = require(path.join(ARAYUZ, 'ekran', 'karsilastir.js'));
+  const ayYolu = path.join(ARAYUZ, 'ekran', 'ayarlar.js');
+  let AY = {};
+  try { AY = require(ayYolu); } catch (h) { console.log('     ekran/ayarlar.js yuklenemedi: ' + h.message); }
+  const ayKaynak = fs.existsSync(ayYolu) ? fs.readFileSync(ayYolu, 'utf8') : '';
+  const ayKod = yorumsuz(ayKaynak);
+  const T = (AY.AyarlarEkrani && AY.AyarlarEkrani.template) || '';
+  const ana = (ad) => { const m = html.match(new RegExp(`<main class="gorunum" v-show="gorunum === '${ad}'">([\\s\\S]*?)</main>`)); return m ? m[1] : ''; };
+  const ayar = ana('ayar');
+  const BOLUMLER = al('AYAR_BOLUMLERI') || [];
+  const ids = BOLUMLER.map((b) => b.id);
+  const bilesen = (B, props = {}) => {
+    const o = Object.assign({}, props);
+    Object.assign(o, B && B.data ? B.data.call(o) : {});
+    Object.assign(o, (B && B.methods) || {});
+    o.$nextTick = (f) => { if (f) f(); return Promise.resolve(); };
+    o.$refs = {};
+    for (const [ad, fn] of Object.entries((B && B.computed) || {})) {
+      Object.defineProperty(o, ad, { get: fn.bind(o), configurable: true });
+    }
+    return o;
+  };
+  const sahteDepo = (ilk = {}, atar = false) => {
+    const m = new Map(Object.entries(ilk));
+    return {
+      m,
+      get length() { if (atar) throw new Error('engelli'); return m.size; },
+      key(i) { if (atar) throw new Error('engelli'); return [...m.keys()][i] ?? null; },
+      getItem(a) { if (atar) throw new Error('engelli'); return m.has(a) ? m.get(a) : null; },
+      setItem(a, d) { if (atar) throw new Error('engelli'); m.set(a, String(d)); },
+      removeItem(a) { if (atar) throw new Error('engelli'); m.delete(a); },
+    };
+  };
+
+  /* AY3: EN'de hala Turkce kalan (sozluge girmemis) metinler — GIZLENMEZ, sayilir ve listelenir.
+     Kapsam: (1) index.html sablonu (#uyg): duz metin (satir ici b/code/... birlestirilerek),
+     sabit placeholder / title / aria-label / alt ve baglamalardaki ('...') Turkce harfli dizgeler;
+     (2) app.js + ekran/*.js: Turkce harf (çğıöşü) iceren dizge sabitleri (yorumlar haric;
+     `<` iceren sablon dizgeleri (1)'in kuraliyla). Bilinen kor nokta: Turkce harfi olmayan
+     (ASCII) Turkce dizge sabiti JS'te sayilmaz — sayilsaydi protokol sozcukleri ve firmware'in
+     ASCII satirlari listeyi bogardi. sahte-kart.js (firmware'in taklidi) ve kartin kendi
+     satirlari (Konsol) kapsam disi: onlar kartin dili. */
+  const TR_HARF = /[çğıöşüÇĞİÖŞÜ]/;
+  const HARF = /[A-Za-zçğıöşüÇĞİÖŞÜ]{2,}/;
+  /* Dilden bagimsiz birim / kisaltma (yalniz bunlardan olusan metin ceviri istemez: "100 Hz", "Vrms / Irms"). */
+  const NOTR = new Set(['Hz', 'kHz', 'MHz', 'mA', 'mV', 'kSa', 'Vrms', 'Irms', 'Vpp', 'USB', 'CSV', 'GPIO', 'ADC',
+    'DC', 'AC', 'PF', 'VA', 'DEMO']);
+  const cevrilecek = (x) => HARF.test(x) && !(x.match(/[A-Za-zçğıöşüÇĞİÖŞÜµΩ]{2,}/g) || []).every((w) => NOTR.has(w));
+  const sablonMetinleri = (s, yer, liste) => {
+    const t = s.replace(/<(script|style)\b[\s\S]*?<\/\1>/g, ' ')
+      .replace(/<\/?(?:b|strong|em|i|code|kbd|sub|sup|br|abbr|small)\b[^>]*>/g, '');
+    for (const m of t.matchAll(/>([^<>]+)</g)) {
+      const x = m[1].replace(/\{\{[\s\S]*?\}\}/g, ' ').replace(/\s+/g, ' ').trim();
+      if (cevrilecek(x)) liste.push({ yer, tur: 'metin', metin: x });
+    }
+    for (const m of t.matchAll(/\s(placeholder|title|aria-label|alt)="([^"]*)"/g)) {
+      if (cevrilecek(m[2])) liste.push({ yer, tur: m[1], metin: m[2] });
+    }
+    const baglamalar = [...t.matchAll(/\{\{([\s\S]*?)\}\}/g)].map((m) => m[1])
+      .concat([...t.matchAll(/\s[:@][\w.-]+="([^"]*)"/g)].map((m) => m[1]));
+    for (const b of baglamalar) {
+      for (const l of b.matchAll(/'([^']*)'/g)) if (TR_HARF.test(l[1])) liste.push({ yer, tur: 'baglama', metin: l[1] });
+    }
+  };
+  const enEksikleri = (yalniz = null) => {
+    const liste = [];
+    if (yalniz !== null) { sablonMetinleri(yalniz, 'parca', liste); return liste; }
+    const h = yorumsuz(htmlKaynak);
+    sablonMetinleri(h.slice(h.indexOf('<div id="uyg"')), 'index.html', liste);
+    for (const k of kodKaynaklari) {
+      const kod = yorumsuz(k.kaynak);
+      for (const m of kod.matchAll(/'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g)) {
+        const d = m[1] ?? m[2] ?? m[3];
+        if (/<[a-z]/.test(d)) { sablonMetinleri(d, k.ad, liste); continue; }
+        if (TR_HARF.test(d)) liste.push({ yer: k.ad, tur: 'dizge', metin: d.replace(/\s+/g, ' ').trim() });
+      }
+    }
+    return liste;
+  };
+  /* KILIT: 3H-1'de olculen. Azalirsa (eski metin sozluge tasindi) kilidi dusur; artarsa
+     yeni metni sozluge koy — gomulu Turkce metin bu kilidi kirmiziya dondurur. */
+  const EN_EKSIK_KILIT = 274;
+
+  /* ── (a) KABLOLAMA (AY2) ────────────────────────────────────────── */
+  {
+    ok('[!] AY2: yedi bolum KARARDAKI sirayla (Baglanti · Ag · Kalibrasyon · Kalibrasyon gecmisi · Depolama · Dil ve gorunum · Gelismis); adlari sozlukte (tr + en)',
+       ids.join(' ') === 'baglanti ag kalibrasyon kal-gecmis depolama dil-gorunum gelismis'
+       && BOLUMLER.every((b) => b.ad in SZx.SOZLUK && SZx.SOZLUK[b.ad].tr && SZx.SOZLUK[b.ad].en)
+       && BOLUMLER.map((b) => SZx.SOZLUK[b.ad] ? SZx.SOZLUK[b.ad].tr : '').join(' · ')
+         === 'Bağlantı · Ağ · Kalibrasyon · Kalibrasyon geçmişi · Depolama · Dil ve görünüm · Gelişmiş', ids.join(' '));
+    ok('[!] AY2: tembel modulun bolumleri (mod) tam olarak kalibrasyon gecmisi, depolama, gelismis — ekran/ayarlar.js MOD_BOLUMLER ile ayni',
+       BOLUMLER.filter((b) => b.mod).map((b) => b.id).join() === 'kal-gecmis,depolama,gelismis'
+       && Array.isArray(AY.MOD_BOLUMLER) && AY.MOD_BOLUMLER.join() === 'kal-gecmis,depolama,gelismis');
+    const coz = al('ayarBolumCoz');
+    ok('[!] AY2: ayarBolumCoz — #/ayar/<bolum> o bolum; #/ayar, bilinmeyen, eski bicim -> Baglanti (varsayilan)',
+       typeof coz === 'function' && ids.every((i) => coz('#/ayar/' + i) === i) && coz('#/ayar/depolama/') === 'depolama'
+       && coz('#/ayar') === 'baglanti' && coz('#/ayar/') === 'baglanti' && coz('#/ayar/yok') === 'baglanti'
+       && coz('#/ayar/__proto__') === 'baglanti' && coz('') === 'baglanti' && coz('#/kayitlar') === 'baglanti'
+       && al('AYAR_VARSAYILAN') === 'baglanti');
+    const hashten = al('hashtenGorunum');
+    const dene = (h) => { sandbox.location = { hash: h }; return hashten(); };
+    ok('[!] AY2: hashtenGorunum — #/ayar, #/ayar/depolama, #/ayar/yok -> ayar; #/ayarx -> canli',
+       dene('#/ayar') === 'ayar' && dene('#/ayar/depolama') === 'ayar' && dene('#/ayar/yok') === 'ayar'
+       && dene('#/ayarx') === 'canli');
+    const w = secenekler.watch.gorunum;
+    const yazilan = [];
+    sandbox.history = { replaceState: (a, b2, h) => yazilan.push(h) };
+    sandbox.location = { hash: '#/ayar/depolama' };
+    w.call({ $nextTick() {}, grafikCiz() {}, osiloCiz() {} }, 'ayar');
+    ok('[!] AY2: watch.gorunum bolumlu adresi (#/ayar/depolama) EZMIYOR (geri tusu / paylasilan adres)',
+       yazilan.length === 0, yazilan.join());
+    /* data(): ilk acilista bolum + modul karari */
+    sandbox.location = { hash: '#/ayar/depolama' };
+    const d1 = secenekler.data();
+    sandbox.location = { hash: '#/ayar/ag' };
+    const d2 = secenekler.data();
+    sandbox.location = { hash: '' };
+    const d3 = secenekler.data();
+    ok('[!] AY2: ilk acilis — #/ayar/depolama bolumu ve MODULU acar; #/ayar/ag modulu INDIRMEZ; varsayilan acilista ikisi de yok',
+       d1.ayarBolum === 'depolama' && d1.ayarModAcik === true && d2.ayarBolum === 'ag' && d2.ayarModAcik === false
+       && d3.ayarModAcik === false, `${d1.ayarBolum}/${d1.ayarModAcik} ${d2.ayarBolum}/${d2.ayarModAcik} ${d3.ayarModAcik}`);
+    delete sandbox.location;
+    delete sandbox.history;
+    const gerekli = secenekler.computed && secenekler.computed.ayarModGerekli;
+    const ws = secenekler.watch && secenekler.watch.ayarModGerekli;
+    const s1 = { gorunum: 'ayar', ayarBolum: 'gelismis', ayarModAcik: false };
+    const s2 = { gorunum: 'canli', ayarBolum: 'gelismis' };
+    const s3 = { gorunum: 'ayar', ayarBolum: 'ag' };
+    if (ws) ws.call(s1, true);
+    ok('[!] AY2: modul YALNIZ Ayarlar gorunurken ve modul bolumu seciliyken iner (ayarModGerekli -> ayarModAcik, bir kez)',
+       !!gerekli && gerekli.call(s1) === true && gerekli.call(s2) === false && gerekli.call(s3) === false
+       && s1.ayarModAcik === true);
+    ok('AY2: adres degisince (hashchange) bolum de guncelleniyor (geri tusu bolumler arasinda calisir)',
+       govdeIcinde(appKaynak, 'mounted', "window.addEventListener('hashchange', () => { this.ayarBolum = ayarBolumCoz(location.hash); });"));
+
+    const nav = ayar.match(/<nav class="ay-nav" :aria-label="ay\.bolumler">([\s\S]*?)<\/nav>/);
+    ok('[!] AY2/AY7: Ayarlar`in ic gezinmesi <nav> (adli), bolum basina BAGLANTI #/ayar/<id>, secili olan aria-current',
+       !!nav && /<a v-for="b in ayarBolumListesi" :key="b\.id"/.test(nav[1]) && /:href="'#\/ayar\/' \+ b\.id"/.test(nav[1])
+       && /:aria-current="ayarBolum === b\.id \? 'true' : null"/.test(nav[1]) && /class="ay-sekme" :class="\{ etkin: ayarBolum === b\.id \}"/.test(nav[1])
+       && /:data-ay-git="b\.id"/.test(nav[1]));
+    const kartlar = [...ayar.matchAll(/<section class="kart"([^>]*)>\s*<h2>([^<]*)<\/h2>/g)].map((m) => ({
+      bolum: (/v-show="ayarBolum === '([a-z-]+)'"/.exec(m[1]) || [])[1] || null, baslik: m[2].trim() }));
+    const harita = Object.fromEntries(kartlar.map((k) => [k.baslik, k.bolum]));
+    ok('[!] AY2: index.html`deki HER Ayarlar karti TEK bolumde (v-show); mevcut kartlar yerinde (AY1/AY7: hicbiri kalkmadi)',
+       kartlar.length >= 5 && kartlar.every((k) => k.bolum && ids.includes(k.bolum))
+       && harita['Bağlantı'] === 'baglanti' && harita['Kalibrasyon ve ayar'] === 'kalibrasyon'
+       && harita['Ağ — kartı kablosuz yapma'] === 'ag' && harita['Görünüm'] === 'dil-gorunum'
+       && harita['{{ ay.dil }}'] === 'dil-gorunum', JSON.stringify(harita));
+    const modKart = [...T.matchAll(/<section class="kart" v-show="bolum === '([a-z-]+)'"/g)].map((m) => m[1]);
+    ok('[!] AY2: her bolumun en az bir karti var — app bolumleri index.html`de, mod bolumleri ekran/ayarlar.js sablonunda (bos bolum yok)',
+       BOLUMLER.every((b) => (b.mod ? modKart : kartlar.map((k) => k.bolum)).includes(b.id))
+       && modKart.every((m) => AY.MOD_BOLUMLER.includes(m)), modKart.join(' '));
+    const b = secenekler.components && secenekler.components['ayarlar-ekran'];
+    const sec = b && b.yukleyici && typeof b.yukleyici === 'object' ? b.yukleyici : {};
+    ok('[!] ayarlar-ekran ASENKRON: ./ekran/ayarlar.js (AyarlarEkrani); inmezse sebep + care, metin secili dilde',
+       !!b && b.__asenkron === true && /import\('\.\/ekran\/ayarlar\.js'\)\.then\(\(m\) => m\.AyarlarEkrani\)/.test(String(sec.loader))
+       && typeof (AY.AyarlarEkrani || {}).template === 'string' && !!sec.errorComponent
+       && /class="hata"/.test(sec.errorComponent.template || '') && typeof sec.errorComponent.data === 'function'
+       && /yüklenemedi[\s\S]*yenileyin/.test(SZx.ceviri('ay.mod_yuklenemedi', 'tr')), String(sec.loader));
+    const ekr = ayar.match(/<ayarlar-ekran ([^>]*)>/);
+    ok('[!] ayarlar-ekran Ayarlar`in icinde, YALNIZ gerekince (v-if ayarModAcik); bolum, kart adresi, tasiyici, baglanti, afis surumu, dil ve etkinlik veriliyor',
+       !!ekr && /^v-if="ayarModAcik"/.test(ekr[1]) && [':bolum="ayarBolum"', ':kart-adres="kartAdres"', ':kart-taban="kartTaban"',
+         ':tasiyici="tasiyiciAdi"', ':bagli="bagli"', ':afis-surum="afisSurum"', ':dil-secim="dil"', ":etkin=\"gorunum === 'ayar'\""]
+         .every((x) => ekr[1].includes(x)), ekr ? ekr[1] : 'yok');
+
+    /* butce: ayarlar.js ACILISTA inmez; statik agaci yalniz sozluk (zaten acilista); IndexedDB zinciri DINAMIK */
+    const statik = iceAktarmaGrafigi().map((x) => x.goruntu);
+    const ayAgac = iceAktarmaGrafigi(ayYolu).map((x) => x.goruntu);
+    ok('[!] AY2: ekran/ayarlar.js ACILISTA inmiyor; kendi statik agaci yalniz acilis kumesindeki dosyalar (Gelismis tek dosya ekler)',
+       !statik.includes('ekran/ayarlar.js') && ayAgac.length > 0 && ayAgac.every((x) => statik.includes(x)), ayAgac.join(' '));
+    const dinamik = [...ayKod.matchAll(/import\('(\.\/[a-z_]+\.js)'\)/g)].map((m) => m[1]).sort();
+    const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
+    const kunye = fs.existsSync(kunyeYolu) ? JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')) : {};
+    const by = kunye.bayt || {};
+    const dinAgac = new Set();
+    for (const d of dinamik) {
+      const dosya = path.join(ARAYUZ, 'ekran', d.slice(2));
+      for (const x of [path.relative(ARAYUZ, dosya).split(path.sep).join('/'), ...iceAktarmaGrafigi(dosya).map((y) => y.goruntu)]) {
+        if (!statik.includes(x)) dinAgac.add(x);
+      }
+    }
+    const dinBayt = [...dinAgac].reduce((n, a) => n + (Number.isFinite(by[a]) ? by[a] : NaN), 0);
+    const ayBayt = by['ekran/ayarlar.js'];
+    ok('[!] AY4/AY5: IndexedDB zinciri ayarlar.js`e DINAMIK (yalniz esitleme.js + depo_idb.js), <= 6 dosya ve <= 48 KB gzip; ayarlar.js <= 12 KB gzip',
+       dinamik.join(' ') === './depo_idb.js ./esitleme.js' && dinAgac.size > 0 && dinAgac.size <= 6 && dinBayt > 0 && dinBayt <= 48 * 1024
+       && ayBayt > 0 && ayBayt <= 12 * 1024, `${[...dinAgac].join(' ')} · ${dinBayt} B · ayarlar.js ${ayBayt} B`);
+    const statikBayt = statik.concat(['index.html', 'style.css', 'vendor/vue.global.prod.js', 'manifest.json', 'ikon-180.png', 'app.js'])
+      .filter((x, i, a) => a.indexOf(x) === i).reduce((n, a) => n + (by[a] || 0), 0);
+    /* Bilgi (iddia DEGIL — Kayitlar'in dogrudan acilisinda da kural yok, 3G KU1): dogrudan
+       #/ayar/depolama acilisi = acilis kumesi (<= 250 KB, yukaridaki iddialar) + bu iki sinir. */
+    console.log(`     #/ayar/depolama ile dogrudan acilis: ${statikBayt} + ${ayBayt} + ${dinBayt} = ${statikBayt + ayBayt + dinBayt} B gzip`);
+  }
+
+  /* ── (b) DIL (AY3) ──────────────────────────────────────────────── */
+  {
+    ok('[!] AY3: dil secenekleri TR + EN; adlari sozlukte KENDI dillerinde (Türkçe / English)',
+       JSON.stringify((al('DILLER') || []).map((d) => d.id)) === '["tr","en"]'
+       && SZx.ceviri('ay.dil_tr', 'en') === 'Türkçe' && SZx.ceviri('ay.dil_en', 'tr') === 'English');
+    const depo = sahteDepo({ 'olcum.tema': '"acik"' });
+    const eskiW = sandbox.window;
+    sandbox.window = Object.assign({}, eskiW, { localStorage: depo });
+    const u = ornek();
+    u.dilSecildi('en');
+    const yazildi = depo.getItem('olcum.dil');
+    const okunan = [al('dilSec')(depo), ESx.dilOku(depo)];
+    u.dilSecildi('de');
+    const deSonra = [u.dil, depo.getItem('olcum.dil')];
+    u.dilSecildi('tr');
+    sandbox.window = eskiW;
+    ok('[!] AY3: dilSecildi `olcum.dil`e JSON yazar (3C dilOku ile ayni anahtar ve bicim); app ve esitleme.js ayni dili okur; bilinmeyen dil YAZILMAZ',
+       yazildi === '"en"' && okunan.join() === 'en,en' && deSonra.join() === 'en,"en"' && u.dil === 'tr'
+       && depo.getItem('olcum.dil') === '"tr"' && al('DIL_ANAHTAR') === ESx.DIL_ANAHTAR,
+       `${yazildi} ${okunan} ${deSonra}`);
+    const eskiD = sandbox.document;
+    sandbox.document = { documentElement: {}, createElement: () => ({ click() {} }) };
+    secenekler.watch.dil.call({ gorunum: 'ayar' }, 'en');
+    const en = [sandbox.document.documentElement.lang, sandbox.document.title];
+    secenekler.watch.dil.call({ gorunum: 'canli' }, 'tr');
+    const tr = [sandbox.document.documentElement.lang, sandbox.document.title];
+    sandbox.document = eskiD;
+    ok('[!] AY3: dil degisince ANINDA <html lang> ve sekme basligi (yeniden yukleme yok)',
+       en.join('|') === 'en|Settings — Measurement Board' && tr.join('|') === 'tr|Canlı — Ölçüm Kartı', `${en} / ${tr}`);
+    ok('AY3: acilista kayitli dil <html lang>e de uygulanir (mounted dilUygula)',
+       govdeIcinde(appKaynak, 'mounted', 'dilUygula(this.dil, this.gorunum)'));
+    const etiket = (ad) => (html.match(new RegExp(`<${ad} ([^>]*)>`)) || [])[1] || '';
+    let kl = null, kr = null;
+    const fk = { dil: 'tr', listeKur() { kl = this.dil; }, kur() { kr = this.dil; } };
+    if (KLx.KayitlarEkrani.watch && KLx.KayitlarEkrani.watch.dilSecim) KLx.KayitlarEkrani.watch.dilSecim.call(fk, 'en');
+    const klDil = fk.dil;
+    fk.dil = 'tr';
+    if (KRx.KarsilastirEkrani.watch && KRx.KarsilastirEkrani.watch.dilSecim) KRx.KarsilastirEkrani.watch.dilSecim.call(fk, 'en');
+    ok('[!] AY3: alt ekranlar (Kayitlar, Karsilastirma, Ayarlar modulu) secili dili ANINDA alir (prop dilSecim; liste/lejant yeniden kurulur)',
+       ['kayitlar-ekran', 'karsilastir-ekran', 'ayarlar-ekran'].every((a) => etiket(a).includes(':dil-secim="dil"'))
+       && KLx.KayitlarEkrani.props.dilSecim && KRx.KarsilastirEkrani.props.dilSecim && (AY.AyarlarEkrani || { props: {} }).props.dilSecim
+       && klDil === 'en' && kl === 'en' && fk.dil === 'en' && kr === 'en', `${klDil} ${kl} ${kr}`);
+    const kod = kodKaynaklari.map((k) => yorumsuz(k.kaynak)).join('\n');
+    ok('[!] AY3: sayi / tarih bicimi dile bagli DEGIL — toLocaleString, toLocaleDateString, toLocaleTimeString, Intl.NumberFormat / DateTimeFormat YOK',
+       !/\.toLocale(?:String|DateString|TimeString)\(|Intl\.(?:NumberFormat|DateTimeFormat)/.test(kod));
+
+    /* EN'de cevrilmemis metinler — GIZLENMEZ, sayilir ve listelenir (AY3). */
+    const liste = enEksikleri();
+    const gruplar = {};
+    for (const e of liste) gruplar[e.yer] = (gruplar[e.yer] || 0) + 1;
+    console.log(`     EN'de cevrilmemis ${liste.length} metin (${Object.entries(gruplar).map(([a, n]) => a + ' ' + n).join(' · ')}):`);
+    for (const e of liste) console.log(`       [EN?] ${e.yer} ${e.tur}: ${e.metin.slice(0, 90)}`);
+    ok('[!] AY3: EN`de cevrilmemis metin sayisi KILITLI (azalirsa kilidi dusur, artarsa yeni metin sozluge girmeli)',
+       liste.length === EN_EKSIK_KILIT, `${liste.length} (kilit ${EN_EKSIK_KILIT})`);
+    const ayParca = ayar.match(/<nav class="ay-nav"[\s\S]*?<\/nav>/);
+    const dilKart = ayar.match(/<section class="kart" v-show="ayarBolum === 'dil-gorunum'" data-ay-bolum="dil">[\s\S]*?<\/section>/);
+    ok('[!] AY3: 3H`nin yeni parcalari (ic gezinme, Dil karti, ekran/ayarlar.js) listede YOK — hepsi sozlukten',
+       liste.every((e) => e.yer !== 'ekran/ayarlar.js') && !!ayParca && !!dilKart
+       && enEksikleri(ayParca[0] + dilKart[0]).length === 0, `${liste.filter((e) => e.yer === 'ekran/ayarlar.js').length}`);
+    const ayAnahtar = Object.keys(SZx.SOZLUK).filter((a) => a.startsWith('ay.'));
+    const trHarfli = ayAnahtar.filter((a) => a !== 'ay.dil_tr' && /[çğıöşüÇĞİÖŞÜ]/.test(SZx.SOZLUK[a].en));
+    ok('AY3: `ay.` metinlerinin EN karsiliginda Turkce harf yok (Türkçe adinin kendisi haric)',
+       ayAnahtar.length >= 40 && trHarfli.length === 0, trHarfli.join(' ') || `${ayAnahtar.length} anahtar`);
+  }
+
+  /* ── (c) DEPOLAMA (AY4) ─────────────────────────────────────────── */
+  {
+    const D = AY.depolamaDestegi || (() => ({}));
+    const est = { estimate() {}, persist() {}, persisted() {} };
+    ok('[!] AY4: storage yoksa SEBEP — guvenli baglam degil (http://kart) / tarayici desteklemiyor; estimate varsa destekli',
+       D({ storage: undefined, guvenli: false }).neden === 'guvensiz' && D({ storage: undefined, guvenli: true }).neden === 'yok'
+       && D({ storage: {}, guvenli: true }).neden === 'yok' && D({ storage: est, guvenli: true }).destek === true
+       && D({ storage: est, guvenli: true }).neden === null && D({ storage: undefined, guvenli: false }).destek === false);
+    const yaz = AY.boyutYaz || (() => '');
+    ok('AY4: boyut yazimi Kayitlar`la AYNI (kayitlar.baytYaz)',
+       [0, 1, 1023, 1024, 1536, 1048575, 1048576, 5.5 * 1048576, -1, NaN].every((n) => yaz(n) === KLx.baytYaz(n)));
+    const ky = AY.kotaYazi || (() => '');
+    ok('[!] AY4: kota yazisi kullanim / kota / yuzde (sayi bicimi dile gore DEGISMEZ: nokta)',
+       ky({ usage: 1536, quota: 1073741824 }, 'tr') === '1.5 KB / 1024.00 MB kullanılıyor (%0.0)'
+       && ky({ usage: 300 * 1048576, quota: 1200 * 1048576 }, 'en') === '300.00 MB of 1200.00 MB used (25.0%)'
+       && ky({ usage: 5, quota: 0 }, 'tr') === '' && ky(null, 'tr') === '', ky({ usage: 1536, quota: 1073741824 }, 'tr'));
+    const S = AY.depoSatirlari || (() => []);
+    const akislar = [
+      { kimlik: 3, bayt: 100, olusma: 1000, guncelleme: 1790000000000, durum: { son_sira: 40 } },
+      { kimlik: 7, bayt: 2048, olusma: 5000, guncelleme: 1790000500000, durum: { son_sira: 12 } },
+    ];
+    const say = new Map([[3, 4], [7, 2]]);
+    const r1 = S({ akislar, oturumSayisi: say, kartKimlik: 3, arsiv: (k) => k === 7 });
+    const r2 = S({ akislar, oturumSayisi: say, kartKimlik: null, arsiv: () => false });
+    const r3 = S({ akislar, oturumSayisi: new Map(), kartKimlik: 9, arsiv: () => false });
+    ok('[!] AY4: akis basina boyut, oturum, son sira, son esitleme, arsiv secimi; yeniden eskiye; kart biliniyorsa ESKI = kartin kimligi degil',
+       r1.map((r) => r.kimlik).join() === '7,3' && r1[0].eski === true && r1[1].eski === false && r1[1].guncel === true
+       && r1[0].oturum === 2 && r1[0].sonSira === 12 && r1[0].bayt === 2048 && r1[0].boyut === '2.0 KB' && r1[0].arsiv === true
+       && r1[1].arsiv === false && r1[0].zaman === 1790000500000 && r1[0].kartBilinen === true, JSON.stringify(r1));
+    ok('[!] AY4: kart bilinmiyorsa en YENI acilan akis guncel sayilir (kimlik degisince yeni akis acilir, C2); oturum sayisi yoksa null; kart yeni bicimlendiyse ikisi de eski',
+       r2[0].kimlik === 7 && r2[0].guncel === true && r2[1].eski === true && r2[0].kartBilinen === false
+       && r3.every((r) => r.eski) && r3[0].oturum === null, JSON.stringify(r2.map((r) => [r.kimlik, r.guncel])));
+
+    /* bilesen: sahte esitleme modulu + sahte storage */
+    const AE = AY.AyarlarEkrani || {};
+    const cagri = { liste: 0, sil: [], veri: [] };
+    const sahteMod = (akisListe) => ({
+      esitlemeUygunlugu: ESx.esitlemeUygunlugu,
+      arsivOku: (k) => k === 7,
+      EsitlemeDenetcisi: class {
+        constructor(o) { this.kartAdres = o.kartAdres; }
+        async akislar() { return akisListe; }
+        async akisVerisi(k) { cagri.veri.push(k); return { kimlik: k, oturumlar: new Map(Array.from({ length: say.get(k) || 0 }, (_, j) => [j + 1, {}])) }; }
+        async akisSil(k) { cagri.sil.push(k); akisListe = akisListe.filter((a) => a.kimlik !== k); }
+        async kartListesi() { cagri.liste++; return { durum: 'tamam', liste: { kimlik: 3, oturumlar: [] } }; }
+      },
+    });
+    const yap = (props) => {
+      const o = bilesen(AE, { bolum: 'depolama', kartAdres: (y) => y, kartTaban: '', tasiyici: 'seri', bagli: false,
+        afisSurum: '', dilSecim: 'tr', etkin: true, ...props });
+      const m = sahteMod([...akislar]);
+      o._esAl = async () => m;
+      o._depolama = () => ({ storage: undefined, guvenli: false });
+      return o;
+    };
+    SONRA.push(async () => {
+      const o = yap({ tasiyici: 'seri' });
+      await o.depoYukle();
+      await o.kotaOku();
+      const usb = [cagri.liste, o.depoSatir.map((r) => [r.kimlik, r.oturum, r.eski])];
+      const o2 = yap({ tasiyici: 'akis', kartTaban: '' });
+      await o2.depoYukle();
+      ok('[!] AY4: kartin dizini YALNIZ C1 on kosulu tamamken sorulur (USB/demo/baska koken: sorulmaz, en yeni akis guncel)',
+         usb[0] === 0 && JSON.stringify(usb[1]) === '[[7,2,false],[3,4,true]]' && cagri.liste === 1
+         && JSON.stringify(o2.depoSatir.map((r) => [r.kimlik, r.eski])) === '[[7,true],[3,false]]',
+         JSON.stringify(usb) + ' / ' + cagri.liste);
+      ok('[!] AY4: storage YOKKEN (http:// kart = guvenli baglam degil) cokmez, sebebi soyler; kota istenmez',
+         o.kotaDestek && o.kotaDestek.destek === false && o.kotaDestek.neden === 'guvensiz' && o.kota === null
+         && /güvenli bağlam/.test(o.kotaSebep || ''), o.kotaSebep);
+      /* iki asamali silme (Kayitlar'la ayni) */
+      o.silBasla(7);
+      const silahli = o.silOnay;
+      await o.kopyaSil(3);              // silahli OLMAYAN kopya: silinmez
+      const yanlis = cagri.sil.length;
+      await o.kopyaSil(7);
+      ok('[!] AY4: kopya silme IKI ASAMALI — silBasla silahlar, YALNIZ silahli kopya silinir, liste yeniden okunur',
+         silahli === 7 && yanlis === 0 && cagri.sil.join() === '7' && o.silOnay === null
+         && o.depoSatir.map((r) => r.kimlik).join() === '3', `${silahli} ${cagri.sil} ${o.depoSatir.map((r) => r.kimlik)}`);
+      o.silBasla(3);
+      o.silVazgec(3);
+      ok('AY4: Vazgec silahi indirir', o.silOnay === null);
+      /* kota + kalici depolama */
+      let istendi = 0;
+      const st = (izin) => ({ estimate: async () => ({ usage: 2048, quota: 4096 }), persisted: async () => false,
+        persist: async () => { istendi++; return izin; } });
+      const k1 = yap({});
+      k1._depolama = () => ({ storage: st(true), guvenli: true });
+      await k1.kotaOku();
+      const once = [k1.kota && k1.kota.usage, k1.kalici];
+      await k1.kaliciIste();
+      const k2 = yap({});
+      k2._depolama = () => ({ storage: st(false), guvenli: true });
+      await k2.kotaOku();
+      await k2.kaliciIste();
+      ok('[!] AY4: estimate kullanim/kota, persisted ilk durum; persist() SONUCU yaziliyor (verildi / reddedildi)',
+         once.join() === '2048,false' && istendi === 2 && k1.kalici === true && k1.kaliciSonuc === 'ay.kalici_verildi'
+         && k2.kalici === false && k2.kaliciSonuc === 'ay.kalici_reddedildi' && /4\.0 KB/.test(k1.kotaMetni), k1.kotaMetni);
+    });
+    ok('[!] AY4/WIG: sablon — kopya tablosu (caption, th scope), silme iki asamali (Sil -> Eminim + Vazgec + uyari), kalici depolama sonucu canli bolgede',
+       /<caption class="gorunmez">\{\{ m\.depoTablo \}\}<\/caption>/.test(T) && /<th scope="row">/.test(T)
+       && /<template v-if="silOnay === r\.kimlik">[\s\S]*?:data-ay-sil-eminim="r\.kimlik" @click="kopyaSil\(r\.kimlik\)"[\s\S]*?@click="silVazgec\(r\.kimlik\)"[\s\S]*?<\/template>\s*<button v-else type="button" :data-ay-sil="r\.kimlik" @click="silBasla\(r\.kimlik\)"/.test(T)
+       && /<p v-if="silOnay !== null" class="uyari"[^>]*>\{\{ m\.silUyari \}\}/.test(T)
+       && /aria-live="polite"[^>]*>[\s\S]{0,200}kaliciSonucMetni/.test(T)
+       && /<progress [^>]*:value="kota\.usage" :max="kota\.quota" :aria-label="m\.kota"/.test(T));
+    ok('AY4: arsiv secimi (C3) depolamada da gorunur — degistirmek Kayitlar`dan (iki asamali onay orada)',
+       /r\.arsiv \? m\.arsivAcik : m\.arsivKapali/.test(T) && /href="#\/kayitlar"/.test(T));
+  }
+
+  /* ── (d) KALIBRASYON GECMISI (AY5) ─────────────────────────────── */
+  {
+    const kn = (k) => ({ n: 21, pga: 4.096, kazanc: k, sifir_ham: 12, tau: 0.5 });
+    const fw = { surum: 1, adet: 3, taslak: 0, etkin: 2, azami: 40, kayitlar: [
+      { no: 1, unix: 0, acilis: 4, tur: 1, kaynak: 2, not: '', kal: { normal: kn(1), yuksek: kn(1.1), i_ofset: -3, i_pga: 0.256,
+        sont_ohm: 0.005, i_duzeltme: 1, sebeke_hz: 0, faz0: 0, faz1: null } },
+      { no: 3, bozuk: true },
+      { no: 2, unix: 1790000000, acilis: 9, tur: 2, kaynak: 0, not: 'şönt değişti', kal: { normal: kn(1.02), yuksek: kn(1.12),
+        i_ofset: 5, i_pga: 0.256, sont_ohm: 0.0049, i_duzeltme: 1.01, sebeke_hz: 50, faz0: 12.5, faz1: -3 } },
+    ] };
+    const C = AY.kalListesiCoz || (() => null);
+    const c = C(fw);
+    ok('[!] AY5: kalListesiCoz — firmware bicimi (surum, adet, taslak, etkin, azami, kayitlar); bozuk kayit SESSIZCE atlanmaz; numara sirasi',
+       !!c && c.adet === 3 && c.taslak === false && c.etkin === 2 && c.azami === 40 && c.kayitlar.map((k) => k.no).join() === '1,2,3'
+       && c.kayitlar[2].bozuk === true && c.kayitlar[1].not === 'şönt değişti' && c.kayitlar[0].kal.yuksek.kazanc === 1.1);
+    ok('AY5: bicimsiz girdi -> null (atmaz); taslak bayragi 1 -> true',
+       [null, 'x', 5, {}, { kayitlar: 'x' }, []].every((v) => C(v) === null) && C({ ...fw, taslak: 1, etkin: 0 }).taslak === true);
+    const R = AY.kalSatirlari || (() => []);
+    const rt = R(c, 'tr');
+    const re = R(c, 'en');
+    ok('[!] AY5: satirlar YENIDEN ESKIYE; etkin olan isaretli; tur / kaynak sozluk ailesinden (kal.tur., kal.kaynak.); saatsiz kayit acilis numarasiyla',
+       rt.map((r) => r.no).join() === '3,2,1' && rt[1].etkin === true && rt.filter((r) => r.etkin).length === 1
+       && rt[1].tur === SZx.ceviriKod('kal.tur.', 2, 'tr') && rt[1].kaynak === SZx.ceviriKod('kal.kaynak.', 0, 'tr')
+       && re[1].tur === 'fine tuning' && /4/.test(rt[2].tarih) && rt[2].tarih === SZx.ceviri('ay.kal_saatsiz', 'tr', { acilis: 4 })
+       && rt[0].bozuk === true && rt[0].tur === SZx.ceviri('kal.durum.bozuk', 'tr') && /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(rt[1].tarih),
+       JSON.stringify(rt.map((r) => [r.no, r.tarih, r.etkin])));
+    /* firmware'in /kal/liste JSON alanlari (kal_liste_sayfa) — elle liste DEGIL */
+    const govde = (ino.match(/void kal_liste_sayfa\(\) \{([\s\S]*?)\n\}\n/) || [])[1] || '';
+    const alanlar = [...govde.matchAll(/kal_json_f\(t, sizeof\(t\), "(\w+)"|\\"(\w+)\\":%d/g)].map((m) => m[1] || m[2]);
+    const kanallar = /i \? "(\w+)" : "(\w+)"/.exec(govde);
+    const fwAlan = kanallar ? [...[kanallar[2], kanallar[1]].flatMap((k) => alanlar.slice(0, 5).map((a) => `${k}.${a}`)), ...alanlar.slice(5)] : [];
+    const KA = AY.KAL_ALANLARI || [];
+    ok('[!] AY5: degerler tablosunun alanlari FIRMWARE`in /kal/liste JSON`undan (kal_liste_sayfa) — 17 alan, ayni sira; adlari sozlukte',
+       fwAlan.length === 17 && KA.map((a) => a.alan).join() === fwAlan.join()
+       && KA.every((a) => a.ad in SZx.SOZLUK), fwAlan.join(' '));
+    const kalgec = fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'kalgec.h'), 'utf8');
+    const uyari = Number((/#define KALGEC_UYARI\s+(\d+)u/.exec(kalgec) || [])[1]);
+    const ozet = (ad, liste) => { const o = bilesen(AY.AyarlarEkrani || {}, { bolum: 'kal-gecmis', kartAdres: (y) => y, dilSecim: 'tr' }); o.kalListe = liste; return o[ad]; };
+    ok('AY5: "dolmak uzere" esigi firmware`in KALGEC_UYARI`si (kalgec.h); esikte uyari var, altinda yok',
+       uyari > 0 && AY.KAL_UYARI === uyari && /35 \/ 40/.test(ozet('kalDoluYazi', { ...c, adet: uyari, azami: 40 }))
+       && ozet('kalDoluYazi', { ...c, adet: uyari - 1 }) === '', `${uyari}`);
+    const dg = (AY.kalDegerleri || (() => []))(c.kayitlar[0].kal, 'tr');
+    ok('AY5: kalDegerleri — degerler oldugu gibi (JSON sayisi), null -> "—", alan adi ham (mono) + sozluk etiketi',
+       dg.length === 17 && dg.find((d) => d.alan === 'yuksek.kazanc').deger === '1.1' && dg.find((d) => d.alan === 'faz1').deger === '—'
+       && dg.find((d) => d.alan === 'i_ofset').deger === '-3' && dg[0].ad === SZx.ceviri(KA[0].ad, 'tr')
+       && (AY.kalDegerleri || (() => []))(null, 'tr').length === 0);
+    /* kaynak secimi: kart -> yerel kopya; komut YOK */
+    const AE = AY.AyarlarEkrani || {};
+    const yerelKal = new TextEncoder().encode(JSON.stringify({ ...fw, etkin: 1 }));
+    const fetchler = [];
+    const sahteFetch = (kod, govde_) => async (u, o) => { fetchler.push([u, o]); return { status: kod, ok: kod === 200, json: async () => govde_, text: async () => '' }; };
+    const yap = (props, fetchFn, yerelVar = true) => {
+      const o = bilesen(AE, { bolum: 'kal-gecmis', kartAdres: (y) => 'K' + y, kartTaban: '', tasiyici: 'akis', bagli: true,
+        afisSurum: '', dilSecim: 'tr', etkin: true, ...props });
+      o._esAl = async () => ({
+        esitlemeUygunlugu: ESx.esitlemeUygunlugu, kalJsonCoz: ESx.kalJsonCoz,
+        EsitlemeDenetcisi: class { async akislar() { return yerelVar ? [{ kimlik: 5, olusma: 2, guncelleme: 1790000600000, kalVar: true }, { kimlik: 4, olusma: 1, kalVar: true }] : []; } },
+      });
+      o._idbAl = async () => ({ vtAc: async () => ({}), idbDepo: (vt, k) => ({ kalOku: async () => (k === 5 ? yerelKal : null) }) });
+      o.__fetch = fetchFn;
+      return o;
+    };
+    /* ekran modulu node'un GERCEK fetch'ini kullanir (B7 kurali: her fetch kartAdres'ten) — gecici degistirilir */
+    const yukle = async (o) => {
+      const eski = globalThis.fetch;
+      globalThis.fetch = o.__fetch;
+      try { await o.kalYukle(); } finally { globalThis.fetch = eski; }
+    };
+    SONRA.push(async () => {
+      const a = yap({}, sahteFetch(200, fw));
+      await yukle(a);
+      const b2 = yap({}, sahteFetch(401, null));
+      await yukle(b2);
+      const c2 = yap({ tasiyici: 'seri' }, sahteFetch(200, fw));
+      const once = fetchler.length;
+      await yukle(c2);
+      const d = yap({ kartTaban: '192.0.2.1' }, sahteFetch(200, fw), false);
+      await yukle(d);
+      ok('[!] AY5: kaynak — ayni kokenli kartta /kal/liste (kartAdres, no-store); 401/404/ag -> bu tarayicidaki EN YENI kopya (sebep yazilir); USB/baska koken -> karta sorulmaz',
+         a.kalKaynak === 'kart' && a.kalListe && a.kalListe.etkin === 2 && fetchler[0][0] === 'K/kal/liste'
+         && fetchler[0][1] && fetchler[0][1].cache === 'no-store'
+         && b2.kalKaynak === 'yerel' && b2.kalNeden === 'imza' && b2.kalListe.etkin === 1 && b2.kalYerel.kimlik === 5
+         && c2.kalKaynak === 'yerel' && c2.kalNeden === 'usb' && fetchler.length === once
+         && d.kalKaynak === null && d.kalListe === null && d.kalNeden === 'taban', `${a.kalKaynak} ${b2.kalKaynak}/${b2.kalNeden} ${c2.kalNeden} ${d.kalNeden}`);
+      ok('AY5: yerel kopyanin kaynagi ve tarihi yazilir; karttan gelince "kartin geçmişi"',
+         /5/.test(b2.kalKaynakYazi) && /kart/i.test(a.kalKaynakYazi) && a.kalKaynakYazi !== b2.kalKaynakYazi, b2.kalKaynakYazi);
+    });
+    ok('[!] AY5: SALT OKUMA — ekran/ayarlar.js komut GONDERMEZ (gonder / komut / /komut / POST / kk kn kt yok), yalniz /kal/liste ve /kunye.json okur',
+       !!ayKod && !/\bgonder\b|\bkomut\(|\/komut|method:|'k[knt]|"k[knt]|`k[knt]/.test(ayKod) && !('gonder' in ((AE || {}).props || {}))
+       && [...ayKod.matchAll(/kartAdres\('([^']+)'\)/g)].map((m) => m[1]).sort().join() === '/kal/liste,/kunye.json');
+    ok('[!] AY5/WIG: sablon — gecmis tablosu (caption, th scope), etkin satir METINLE (renk degil), degerler ayri tablo, taslak uyarisi',
+       /<caption class="gorunmez">\{\{ m\.kalTablo \}\}<\/caption>/.test(T) && /<th scope="col">\{\{ m\.kalNo \}\}<\/th>/.test(T)
+       && /r\.etkin \? m\.kalEtkin/.test(T) && /<caption class="ay-tablo-baslik">\{\{ kalDegerBaslik \}\}<\/caption>/.test(T)
+       && /v-if="kalListe && kalListe\.taslak"/.test(T) && /:aria-pressed="kalSecili === r\.no \? 'true' : 'false'"/.test(T));
+  }
+
+  /* ── (e) GELISMIS (AY6) ─────────────────────────────────────────── */
+  {
+    const depo = sahteDepo({ 'olcum.dil': '"en"', 'olcum.tema': '"acik"', 'olcum.arsiv.7': 'true', baska: '1', olcumx: '2', 'olcum.': '3' });
+    const A = (AY.olcumAnahtarlari || (() => null))(depo);
+    const sil = (AY.ayarlariSifirla || (() => null))(depo);
+    ok('[!] AY6: sifirlama YALNIZ `olcum.` onekli localStorage anahtarlarini siler (baska anahtar / IndexedDB kopyalari kalir)',
+       JSON.stringify(A) === '["olcum.","olcum.arsiv.7","olcum.dil","olcum.tema"]' && JSON.stringify(sil) === JSON.stringify(A)
+       && [...depo.m.keys()].sort().join() === 'baska,olcumx' && !/indexedDB|akisSil/.test(String(AY.ayarlariSifirla)));
+    ok('AY6: depo engelliyse (ozel kip) atmaz, bos liste',
+       JSON.stringify((AY.olcumAnahtarlari || (() => null))(sahteDepo({}, true))) === '[]'
+       && JSON.stringify((AY.ayarlariSifirla || (() => null))(sahteDepo({}, true))) === '[]'
+       && JSON.stringify((AY.olcumAnahtarlari || (() => null))(null)) === '[]');
+    const AE = AY.AyarlarEkrani || {};
+    const o = bilesen(AE, { bolum: 'gelismis', kartAdres: (y) => y, kartTaban: '', tasiyici: 'akis', bagli: true,
+      afisSurum: 'A3-1D', dilSecim: 'tr', etkin: true });
+    const d2 = sahteDepo({ 'olcum.dil': '"tr"', x: '1' });
+    let yuklendi = 0;
+    o._yerelDepo = () => d2;
+    o._yenidenYukle = () => { yuklendi++; };
+    if (o.sifirla) o.sifirla();
+    const onaysiz = [d2.m.size, yuklendi];
+    if (o.sifirlaBasla) o.sifirlaBasla();
+    if (o.sifirla) o.sifirla();
+    ok('[!] AY6: sifirlama IKI ASAMALI — onaysiz cagri hicbir sey silmez; onaydan sonra siler ve sayfayi yeniden yukler (varsayilanlar uygulansin)',
+       onaysiz.join() === '2,0' && d2.m.size === 1 && d2.m.has('x') && yuklendi === 1);
+    ok('[!] AY6/WIG: sablon — sifirla dugmesi -> "Eminim" + Vazgec; silinecek anahtarlar LISTELENIR; konsol baglantisi; firmware afisten',
+       /<template v-if="sifirlaOnay">[\s\S]*?data-ay-sifirla-eminim[\s\S]*?@click="sifirla"[\s\S]*?@click="sifirlaVazgec"[\s\S]*?<\/template>\s*<button v-else type="button" data-ay-sifirla @click="sifirlaBasla"/.test(T)
+       && /v-for="a in anahtarlar"/.test(T) && /href="#\/konsol"/.test(T) && /afisSurum \|\| m\.fwYok/.test(T));
+    const K = AY.kunyeCoz || (() => undefined);
+    ok('AY6: kunyeCoz — surum 12 onaltilik, dosya / bayt sayisi; bicimsiz -> null',
+       JSON.stringify(K({ surum: '0123456789ab', dosya: 31, icerik_bayt: 600000, bicim: 1 })) === '{"surum":"0123456789ab","dosya":31,"bayt":600000}'
+       && K({ surum: 'xyz', dosya: 1, icerik_bayt: 1 }) === null && K(null) === null && K({ surum: '0123456789AB', dosya: 1, icerik_bayt: 1 }) === null);
+    /* panel surumu: _fs.json ozeti Python (arayuz-uret.py) ile node ayni sonucu veriyor mu */
+    const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
+    const k = fs.existsSync(kunyeYolu) ? JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')) : {};
+    const satirlar = Object.keys(k.kaynak || {}).sort().map((a) => `${a}:${k.kaynak[a]}\n`).join('');
+    const nodeSurum = require('crypto').createHash('sha256').update(satirlar, 'utf8').digest('hex').slice(0, 12);
+    const uret = fs.readFileSync(path.join(KOK, 'uretim', 'arayuz-uret.py'), 'utf8');
+    const sun = fs.readFileSync(path.join(ARAYUZ, 'sunucu.py'), 'utf8');
+    ok('[!] AY6: panel surumu = _fs.json kaynak ozetinin sha256`si (ilk 12): Python (arayuz-uret.py) ile node AYNI; goruntuye kunye.json yaziliyor, sunucu.py de ayni islevle sunuyor',
+       /^[0-9a-f]{12}$/.test(k.panel_surum || '') && k.panel_surum === nodeSurum && Number.isFinite((k.bayt || {})['kunye.json'])
+       && /def panel_kunyesi\(/.test(uret) && /"kunye\.json\.gz"|kunye\.json/.test(uret)
+       && /"\/kunye\.json"/.test(sun) && /u\.kunye_hesapla\(\)/.test(sun) && /return panel_kunyesi\(kaynak_ozeti\(\)/.test(uret),
+       `${k.panel_surum} / ${nodeSurum}`);
+  }
+
+  /* ── (f) WIG (AY7) + telefon ────────────────────────────────────── */
+  {
+    const blok = css.slice(css.indexOf('3H — AYARLAR'));
+    const kod = blok.replace(/\/\*[\s\S]*?\*\//g, '');
+    ok('[!] AY7: 3H stilleri YALNIZ belirtecle; ic gezinmede odak gorunur, etkin bolum renkten ote (kalin + cizgi); sayilar tabular-nums',
+       css.includes('3H — AYARLAR') && !/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(kod)
+       && /\.ay-sekme:focus-visible \{[^}]*outline: 2px solid var\(--vurgu\)/.test(kod)
+       && /\.ay-sekme\.etkin \{[^}]*font-weight: 600[^}]*box-shadow: inset 3px 0 0 var\(--vurgu\)/.test(kod)
+       && /\.ay-tablo td \{[^}]*font-variant-numeric: tabular-nums/.test(kod));
+    ok('[!] AY2: telefonda (<= 900 px) ic gezinme icerigin USTUNDE (tek sutun), genis ekranda solda',
+       /\.ay-duzen \{[^}]*grid-template-columns: 200px minmax\(0, 1fr\)/.test(kod)
+       && /@media \(max-width: 900px\) \{[^}]*\.ay-duzen \{ grid-template-columns: minmax\(0, 1fr\); \}/.test(kod));
+    const dugmeler = [...T.matchAll(/<button\b([^>]*)>/g)].map((m) => m[1]);
+    ok('AY7/WIG: ayarlar modulunun BUTUN dugmeleri type="button"; tablolar kendi kutusunda kayar (390 px tasma yok)',
+       dugmeler.length >= 6 && dugmeler.every((a) => /type="button"/.test(a)) && /\.ay-tablo-sarmal \{[^}]*overflow-x: auto/.test(kod),
+       `${dugmeler.length} dugme`);
+    const dil = ayar.match(/<section class="kart" v-show="ayarBolum === 'dil-gorunum'" data-ay-bolum="dil">([\s\S]*?)<\/section>/);
+    ok('[!] AY3/WIG: Dil secici dugme grubu (adli), secili aria-pressed, her dugmenin lang`i kendi dili',
+       !!dil && /<div class="dugme-grup" role="group" :aria-label="ay\.dil">/.test(dil[1])
+       && /<button v-for="d in dilSecenekleri" :key="d\.id" type="button" :lang="d\.id"/.test(dil[1])
+       && /:aria-pressed="dil === d\.id \? 'true' : 'false'"/.test(dil[1]) && /@click="dilSecildi\(d\.id\)"/.test(dil[1]));
   }
 }
 

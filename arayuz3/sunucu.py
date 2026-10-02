@@ -39,11 +39,17 @@ yalnizca JavaScript MIME turuyle calistiriyor. `mimetypes` Windows'ta
 kayit defterini okuyor ve orada `.js` -> `text/plain` olabiliyor; o
 makinede arayuz HIC acilmazdi.
 
+3H-1 (AY6) — `/kunye.json`: kartin arayuz goruntusune `uretim/arayuz-uret.py`
+uretilmis bir kunye koyuyor (panel surumu). Burada AYNI islevle (`kunye_hesapla`)
+KAYNAKTAN uretiliyor — gelistirme sunucusu da surum gostersin; uretec yoksa 404.
+
 Yalnizca standart kutuphane.
 """
 from __future__ import annotations
 
 import http.server
+import importlib.util
+import json
 import re
 import socket
 import socketserver
@@ -55,6 +61,8 @@ from pathlib import Path
 
 BURASI = Path(__file__).resolve().parent
 ORTAK = BURASI.parent / "ortak" / "src"
+# 3H-1: goruntu ureteci YALNIZ ice aktariliyor (kunye_hesapla) — ondan dosya SUNULMAZ.
+URETEC = BURASI.parent / "uretim" / "arayuz-uret.py"
 ORTAK_AD = re.compile(r"[a-z0-9_-]+\.js")
 JS_TURU = "text/javascript"
 PORT = 8772
@@ -70,9 +78,27 @@ class Sunucu(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         yol = urllib.parse.urlsplit(self.path).path
+        if yol == "/kunye.json":
+            return self._kunye()
         if yol.startswith("/ortak/"):
             return self._ortak(yol[len("/ortak/"):])
         return super().do_GET()
+
+    def _kunye(self):
+        if not URETEC.is_file():
+            return self.send_error(404, "kunye yok (uretec bulunamadi)")
+        oz = importlib.util.spec_from_file_location("arayuz_uret", URETEC)
+        u = importlib.util.module_from_spec(oz)
+        oz.loader.exec_module(u)
+        try:
+            govde = json.dumps(u.kunye_hesapla(), separators=(",", ":")).encode("utf-8")
+        except (OSError, SystemExit) as h:
+            return self.send_error(503, f"kunye uretilemedi: {h}")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(govde)))
+        self.end_headers()
+        self.wfile.write(govde)
 
     def _ortak(self, ad: str):
         dosya = ORTAK / ad

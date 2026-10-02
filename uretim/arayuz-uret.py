@@ -31,6 +31,14 @@
   cozuyor — `arayuz-yaz.py` ve `sim3_web.py` bayatlik denetiminde AYNI
   fonksiyonu kullaniyor (iki kopya kural ayrisirdi).
   Butce (P5): icerik (gzip) <= 600 KB, `ortak/` dahil — `sim3_web.py` 6m.
+
+3H-1 (AY6) — PANEL SURUMU: goruntuye URETILMIS bir `kunye.json` da giriyor
+  (`panel_kunyesi`: kaynak ozetlerinin sha256'si, ilk 12 onaltilik + dosya
+  sayisi + icerik bayti). Kaynagi YOK (kunyenin `kaynak`inda degil, bayatlik
+  denetimi onu aramaz); `bayt`ta ve `icerik_bayt`ta sayiliyor. Panel Ayarlar ->
+  Gelismis'te `/kunye.json`dan okuyor; `arayuz3/sunucu.py` ayni islevle
+  (`kunye_hesapla`) kaynaktan uretip sunuyor. B7 surumu `_fs.json`dan node'da
+  yeniden hesaplayip `panel_surum` ile karsilastiriyor (iki dil, tek kural).
 """
 from __future__ import annotations
 
@@ -90,6 +98,30 @@ def kaynak_yolu(ad: str) -> Path:
     return ARAYUZ / ad
 
 
+def sikistir(ad: str) -> tuple[bytes, bool]:
+    """Varligin goruntudeki baytlari ve gzip'li mi (ayni girdi ayni cikti: mtime=0)."""
+    ham = kaynak_yolu(ad).read_bytes()
+    if kaynak_yolu(ad).suffix.lower() in GZIPLENMEYEN:
+        return ham, False
+    return gzip.compress(ham, 9, mtime=0), True
+
+
+def panel_surumu(ozet: dict) -> str:
+    """Kaynak ozetlerinden panel surumu: sha256("<ad>:<sha256>\\n" ad sirasinda), ilk 12."""
+    satirlar = "".join(f"{ad}:{ozet[ad]}\n" for ad in sorted(ozet))
+    return hashlib.sha256(satirlar.encode("utf-8")).hexdigest()[:12]
+
+
+def panel_kunyesi(ozet: dict, icerik_bayt: int) -> dict:
+    """Goruntuye giren `kunye.json` (AY6). `icerik_bayt` kunyenin KENDISI haric."""
+    return {"bicim": 1, "surum": panel_surumu(ozet), "dosya": len(ozet), "icerik_bayt": icerik_bayt}
+
+
+def kunye_hesapla() -> dict:
+    """Kaynaktan, goruntu uretmeden: `arayuz3/sunucu.py` `/kunye.json` icin."""
+    return panel_kunyesi(kaynak_ozeti(), sum(len(sikistir(ad)[0]) for ad in goruntu_listesi()))
+
+
 def araclar() -> tuple[Path, Path, Path]:
     """mklittlefs ve esptool makineye ozgu, ARANIYOR. Bolum tablosu TEK
     kaynaktan: cizim klasorundeki partitions.csv (B72; cekirdegin
@@ -145,21 +177,26 @@ def main() -> int:
     print(f"  {'varlik':<30} {'ham':>9} {'goruntude':>10}")
     print("  " + "-" * 52)
     for ad in goruntu_listesi():
-        kaynak = kaynak_yolu(ad)
-        ham = kaynak.read_bytes()
-        if kaynak.suffix.lower() in GZIPLENMEYEN:
-            hedef = SAHNE / ad
-            veri = ham
-        else:
-            hedef = SAHNE / (ad + ".gz")
-            # mtime=0: ayni girdi ayni cikti versin (yeniden uretilebilir).
-            veri = gzip.compress(ham, 9, mtime=0)
+        ham = kaynak_yolu(ad).read_bytes()
+        # mtime=0: ayni girdi ayni cikti versin (yeniden uretilebilir).
+        veri, sikisik = sikistir(ad)
+        hedef = SAHNE / (ad + ".gz" if sikisik else ad)
+        if sikisik:
             gz.append(ad)
         hedef.parent.mkdir(parents=True, exist_ok=True)
         hedef.write_bytes(veri)
         toplam += len(veri)
         bayt[ad] = len(veri)
         print(f"  {ad:<30} {len(ham):>9} {len(veri):>10}")
+    # 3H-1 (AY6): uretilmis kunye — kaynagi yok, butceye sayiliyor
+    kunye = panel_kunyesi(ozet, toplam)
+    ham = json.dumps(kunye, separators=(",", ":")).encode("utf-8")
+    veri = gzip.compress(ham, 9, mtime=0)
+    (SAHNE / "kunye.json.gz").write_bytes(veri)
+    gz.append("kunye.json")
+    toplam += len(veri)
+    bayt["kunye.json"] = len(veri)
+    print(f"  {'kunye.json (uretilmis)':<30} {len(ham):>9} {len(veri):>10}")
     print("  " + "-" * 52)
     print(f"  {'TOPLAM':<30} {'':>9} {toplam:>10} B   "
           f"(P5 butcesi 600 KB'in %{100.0 * toplam / (600 * 1024):.0f}'i)")
@@ -179,6 +216,7 @@ def main() -> int:
 
     KUNYE.write_text(json.dumps({
         "kaynak": ozet,
+        "panel_surum": kunye["surum"],
         "gz": gz,
         "ofset": hex(ofset),
         "bolum_boyut": boyut,

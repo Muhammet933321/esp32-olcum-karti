@@ -360,6 +360,66 @@ function dilSec(depo) {
   try { v = JSON.parse(depo ? depo.getItem('olcum.dil') : null); } catch (e) { v = null; }
   return v === 'en' ? 'en' : 'tr';
 }
+
+/* ═══ 3H-1 — AYARLAR (AY1-AY7) ═══════════════════════════════════════
+   AY2: Ayarlar bolumlere ayrildi; her bolumun adresi `#/ayar/<id>` (geri tusu,
+   paylasilabilir), `#/ayar` ve bilinmeyen bolum = ilk bolum. Sira KARARDAKI sira.
+   `mod: true` bolumler (kalibrasyon gecmisi, depolama, gelismis) TEMBEL modulde
+   (ekran/ayarlar.js) — ancak o bolum ilk acilinca iner; geri kalani (eski kartlar:
+   baglanti, ag, kalibrasyon, gorunum + yeni Dil karti) index.html'de, bu dosyanin
+   durumuyla. Bolum adlari sozlukten (`ay.b_<id>`). */
+const AYAR_BOLUMLERI = Object.freeze([
+  Object.freeze({ id: 'baglanti', ad: 'ay.b_baglanti', mod: false }),
+  Object.freeze({ id: 'ag', ad: 'ay.b_ag', mod: false }),
+  Object.freeze({ id: 'kalibrasyon', ad: 'ay.b_kalibrasyon', mod: false }),
+  Object.freeze({ id: 'kal-gecmis', ad: 'ay.b_kal_gecmis', mod: true }),
+  Object.freeze({ id: 'depolama', ad: 'ay.b_depolama', mod: true }),
+  Object.freeze({ id: 'dil-gorunum', ad: 'ay.b_dil_gorunum', mod: false }),
+  Object.freeze({ id: 'gelismis', ad: 'ay.b_gelismis', mod: true }),
+]);
+const AYAR_VARSAYILAN = 'baglanti';
+
+/** `#/ayar/<id>` -> bolum id; `#/ayar`, bilinmeyen ya da baska adres -> AYAR_VARSAYILAN. */
+function ayarBolumCoz(hash) {
+  const m = /^#?\/?ayar\/([a-z-]+)\/?$/.exec(String(hash || ''));
+  const b = m ? AYAR_BOLUMLERI.find((x) => x.id === m[1]) : null;
+  return b ? b.id : AYAR_VARSAYILAN;
+}
+
+/** Bu bolum tembel modulde mi (ekran/ayarlar.js). */
+function ayarBolumModul(id) {
+  const b = AYAR_BOLUMLERI.find((x) => x.id === id);
+  return !!(b && b.mod);
+}
+
+/* AY3: dil secimi. Anahtar ve bicim (JSON) 3C'nin `dilOku`suyla ve yukaridaki
+   `dilSec` ile AYNI. Dil adlari sozlukte KENDI dillerinde (endonim). */
+const DIL_ANAHTAR = 'olcum.dil';
+const DILLER = Object.freeze([
+  Object.freeze({ id: 'tr', ad: 'ay.dil_tr' }),
+  Object.freeze({ id: 'en', ad: 'ay.dil_en' }),
+]);
+
+/** Secimi yaz (ozel kip / engelli depo: false, atmaz). */
+function dilYaz(depo, dil) {
+  try {
+    if (!depo) return false;
+    depo.setItem(DIL_ANAHTAR, JSON.stringify(dil));
+    return true;
+  } catch (e) { return false; }
+}
+
+/** AY3: dili ANINDA uygula — <html lang> (ekran okuyucu, heceleme) ve sekme basligi. */
+function dilUygula(dil, gorunum) {
+  if (typeof document === 'undefined') return;
+  if (document.documentElement) document.documentElement.lang = dil === 'en' ? 'en' : 'tr';
+  belgeBasligiYaz(gorunum, dil);
+}
+
+/* AY7 (P7): Ayarlar'in yeni metinleri sozlukten (`ay.`). */
+const AY_METIN = Object.freeze({
+  bolumler: 'ay.bolumler', dil: 'ay.dil', dilIpucu: 'ay.dil_ipucu', dilEksik: 'ay.dil_eksik',
+});
 /* 3D (D1): ESKİ ADRES `#/olcum` (B27'den beri Ölçüm sekmesi) Canlı'ya düşer:
    bilinmeyen her adres varsayılana gider ve varsayılan Canlı. Ayrı bir takma
    ad tablosu YOK — mutasyon onu ölü kod olarak gösterdi (aynı sonucu
@@ -399,6 +459,8 @@ function hashtenGorunum() {
   /* 3G (KR1): `#/karsilastir/<no>[@kimlik],…[?x=…&k=…]` Karsilastirma'nin ICI — secimi
      ekran modulu okuyor (ekran/karsilastir.js karsilastirRotaCoz). */
   if (/^karsilastir(?:[/?]|$)/.test(h)) return 'karsilastir';
+  /* 3H (AY2): `#/ayar/<bolum>` Ayarlar'in ICI — bolum ayarBolumCoz'da. */
+  if (/^ayar\//.test(h)) return 'ayar';
   return GORUNUMLER.some((g) => g.id === h) ? h : GORUNUM_VARSAYILAN;
 }
 
@@ -810,6 +872,19 @@ createApp({
       loader: () => import('./ekran/karsilastir.js').then((m) => m.KarsilastirEkrani),
       errorComponent: { template: '<p class="hata">Karşılaştırma ekranı yüklenemedi (modül inmedi) — kart yeniden başlıyor olabilir; birkaç saniye sonra sayfayı yenileyin.</p>' },
     }),
+    /* 3H (AY2): Ayarlar'in kalibrasyon gecmisi / depolama / gelismis bolumleri; o bolum ILK
+       acilinca iner (ayni desen). Hata metni secili dilde (sozluk acilista zaten inmis). */
+    'ayarlar-ekran': defineAsyncComponent({
+      loader: () => import('./ekran/ayarlar.js').then((m) => m.AyarlarEkrani),
+      errorComponent: {
+        template: '<p class="hata">{{ metin }}</p>',
+        data() {
+          let depo = null;
+          try { depo = window.localStorage; } catch (e) { depo = null; }
+          return { metin: ceviri('ay.mod_yuklenemedi', dilSec(depo)) };
+        },
+      },
+    }),
   },
   data() {
     return {
@@ -832,6 +907,11 @@ createApp({
          kalir; tuval ve esitleme durumu kaybolmasin). */
       kayitlarAcik: hashtenGorunum() === 'kayitlar',
       karsilastirAcik: hashtenGorunum() === 'karsilastir',   // 3G: ayni desen (ilk acilista kurulur)
+      /* 3H (AY2): Ayarlar'in secili bolumu (adresten) ve tembel modulun kurulup kurulmadigi —
+         modul YALNIZ Ayarlar gorunurken bir modul bolumu secilince iner (ayarModGerekli). */
+      ayarBolum: ayarBolumCoz(typeof location !== 'undefined' ? location.hash : ''),
+      ayarModAcik: hashtenGorunum() === 'ayar'
+        && ayarBolumModul(ayarBolumCoz(typeof location !== 'undefined' ? location.hash : '')),
       /* 3D: Canli'nin grafik modulu (ekran/canli.js) ekran ILK gorunur olunca iner
          (yukaridaki Kayitlar deseni). `canliAcik` o ani isaretler; okuma kartlari
          ve kayit denetimi modulu BEKLEMEZ (app.js'te). */
@@ -1559,6 +1639,12 @@ createApp({
       return a === 'akis' && !this.kopruda ? 'http' : 'satir';
     },
     pl() { return metinHaritasi(PL_METIN, this.dil); },
+    /* ── 3H-1 — Ayarlar (AY2/AY3) ── */
+    ay() { return metinHaritasi(AY_METIN, this.dil); },
+    ayarBolumListesi() { return AYAR_BOLUMLERI.map((b) => ({ id: b.id, ad: ceviri(b.ad, this.dil) })); },
+    dilSecenekleri() { return DILLER.map((d) => ({ id: d.id, ad: ceviri(d.ad, d.id) })); },
+    /** Tembel Ayarlar modulu gerekli mi: Ayarlar gorunur VE secili bolum modulde. */
+    ayarModGerekli() { return this.gorunum === 'ayar' && ayarBolumModul(this.ayarBolum); },
     pilCalisiyor() { return this.pilDurum === 'CALISIYOR'; },
     pilHazirKesme() { return PIL_HAZIR_KESME; },
     /** PL2 okuma kartlari — HER kartin degeri ve KAYNAGI (PU8). mAh / Wh KARTIN sayaclari
@@ -1808,6 +1894,11 @@ createApp({
     /* 3A: görünüm düğmesi → ekran/tema.js (uygula + sakla). Etkin tema
        gerçekten değişirse `temaDegisti` tuvalleri yeniden çizdiriyor. */
     temaSecim(v) { if (this._tema && v) this._tema.sec(v); },
+    /* 3H (AY3): dil ANINDA — <html lang> + sekme basligi; ekranlar `dil`e bagli (computed /
+       alt ekranlarin dilSecim prop'u). Saklama dilSecildi'de (yalniz kullanici secince). */
+    dil(v) { dilUygula(v, this.gorunum); },
+    /* 3H (AY2): tembel Ayarlar modulu BIR KEZ kurulur (sonra v-show'lu bolumleriyle kalir). */
+    ayarModGerekli(v) { if (v) this.ayarModAcik = true; },
     /* Tasiyici degisince ONCE mevcut baglantiyi kapat — akis acikken
        seriye gecmek iki kaynagin ayni ayristiriciyi beslemesi demek. */
     async tasiyiciAdi(v, eski) {
@@ -1833,6 +1924,7 @@ createApp({
     try { depo = window.localStorage; } catch (e) { depo = null; }
     this.dil = dilSec(depo);
     this.baslikGuncelle();
+    dilUygula(this.dil, this.gorunum);              // 3H (AY3): kayitli dil <html lang>e de
     /* 3D (D1): Esc cekmeceyi kapatir (odak menu dugmesine doner). */
     window.addEventListener('keydown', (e) => this.tusBasildi(e));
     if (this.canliAcik) this.canliYukle();
@@ -1852,6 +1944,7 @@ createApp({
     this.kopruyuAlgila().then(() => { if (this.otomatikBaglanmali()) this.baglan(); });
     window.addEventListener('resize', () => { this.genislikDegisti(); this.grafikCiz(); this.osiloCiz(); this.pilCiz(); });
     window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); this.skopRotaIsle(); });
+    window.addEventListener('hashchange', () => { this.ayarBolum = ayarBolumCoz(location.hash); });
     window.addEventListener('mousemove', (e) => this.surukHareket(e));
     window.addEventListener('mouseup', () => this.surukBitir());
     this.grafikCiz();
@@ -1891,6 +1984,14 @@ createApp({
 
   methods: {
     gorunumeGit(id) { this.gorunum = id; },
+    /** 3H (AY3): dil secildi — sakla (`olcum.dil`, JSON; 3C dilOku ile ayni) ve ANINDA uygula. */
+    dilSecildi(d) {
+      if (!DILLER.some((x) => x.id === d)) return;
+      let depo = null;
+      try { depo = window.localStorage; } catch (e) { depo = null; }
+      dilYaz(depo, d);
+      this.dil = d;
+    },
 
     /* ═══ 3D — KABUK (D1) ═══════════════════════════════════════════════ */
     metin(anahtar, degiskenler = null) { return ceviri(anahtar, this.dil, degiskenler); },

@@ -465,7 +465,7 @@ PIKSEL_JS = """(() => {
 
 def tema_sec(t, ad: str, geri: str = "#/pil") -> None:
     yazi = ["Koyu", "Açık", "Ön panel"][TEMALAR.index(ad)]
-    t.js("location.hash = '#/ayar'")
+    t.js("location.hash = '#/ayar/dil-gorunum'")   # 3H: tema dugmeleri 'Dil ve gorunum' bolumunde
     t.bekle(0.3)
     t.js("[...document.querySelectorAll('button')].find(x => x.textContent.trim() === %s).click()" % json.dumps(yazi))
     bekle_js(t, f"document.documentElement.dataset.tema === {json.dumps(ad)}", 5)
