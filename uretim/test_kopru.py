@@ -110,6 +110,66 @@ def akis_oku(url, n_olay, jeton=None, zaman_asimi=8.0):
     return veriler, kimlik
 
 
+def _tur(basliklar: dict) -> str:
+    """Content-Type (http.server `Content-type` yaziyor — buyuk/kucuk harf serbest)."""
+    return next((v for k, v in basliklar.items() if k.lower() == "content-type"), "")
+
+
+def ortak_sina(taban: str, kim: str) -> None:
+    """3A (P4): panel `import ... from '/ortak/x.js'` diyor. Kart LittleFS'ten,
+    kopru ve `arayuz3/sunucu.py` `ortak/src/`ten AYNI dosyayi vermeli.
+
+    🔴 `app.js` artik ES MODULU: tarayici modul betigini YALNIZCA JavaScript
+       MIME turuyle calistirir. `mimetypes` Windows'ta kayit defterinden
+       `.js` -> `text/plain` okuyabiliyor — o makinede panel HIC acilmazdi.
+    ⚠ `/ortak/` bir DUSME degil (K4): arayuz3'te olmayan bir dosya baska
+      dizinden VERILMEMELI. `/disari.js` ortak/src'te var, arayuz3'te yok -> 404.
+    """
+    ortak = KOK / "ortak" / "src"
+    kod, govde, _ = istek_bas(taban + "/ortak/ozet.js")
+    ok(f"{kim}: /ortak/ozet.js = ortak/src/ozet.js (bayt-bayt, kopya yok)",
+       kod == 200 and govde == (ortak / "ozet.js").read_bytes(), f"HTTP {kod}")
+    turler = {}
+    for yol in ("/app.js", "/ekran/tema.js", "/ortak/ozet.js"):
+        k2, _, b2 = istek_bas(taban + yol)
+        turler[yol] = (k2, _tur(b2))
+    ok(f"{kim}: [!] .js JavaScript MIME turuyle (ES modulu bunu ister)",
+       all(k == 200 and t.split(";")[0].strip() in ("text/javascript", "application/javascript")
+           for k, t in turler.values()),
+       " ".join(f"{y}={k}:{t}" for y, (k, t) in turler.items()))
+    red = {yol: istek(taban + yol)[0]
+           for yol in ("/ortak/yok.js", "/ortak/../../arayuz3/app.js", "/ortak/ozet.txt",
+                       "/disari.js")}
+    ok(f"{kim}: /ortak/ DUSME DEGIL — yalniz ortak/src/<ad>.js; arayuz3'te olmayan 404",
+       all(k == 404 for k in red.values()),
+       " ".join(f"{y}={k}" for y, k in red.items()))
+
+
+def gelistirme_sunucusu_sina() -> None:
+    """`arayuz3/sunucu.py`nin isleyicisi gecici portta — ayni `/ortak/` kurali."""
+    import importlib.util
+    import socketserver
+    oz = importlib.util.spec_from_file_location("arayuz_sunucu", KOK / "arayuz3" / "sunucu.py")
+    gs = importlib.util.module_from_spec(oz)
+    oz.loader.exec_module(gs)
+
+    class Sessiz(gs.Sunucu):
+        def log_message(self, *a):
+            pass
+
+    class Tcp(socketserver.ThreadingTCPServer):
+        daemon_threads = True
+        allow_reuse_address = False
+
+    s = Tcp(("127.0.0.1", 0), Sessiz)
+    threading.Thread(target=s.serve_forever, daemon=True).start()
+    try:
+        ortak_sina(f"http://127.0.0.1:{s.server_address[1]}", "sunucu.py")
+    finally:
+        s.shutdown()
+        s.server_close()
+
+
 def main() -> int:
     print("=" * 78)
     print("  B22.3  PC KOPRUSU  (role · arsiv · surucu hakemi)")
@@ -229,6 +289,9 @@ def main() -> int:
     ok("Kopru arayuz3/'u KOPYALAMIYOR, aynen servis ediyor",
        govde == (KOK / "arayuz3" / "app.js").read_bytes(),
        "iki kopya olsa ayrisirdi")
+    # 3A (P4): `/ortak/` — kopru ve gelistirme sunucusu AYNI kurali uyguluyor.
+    ortak_sina(taban, "kopru")
+    gelistirme_sunucusu_sina()
 
     # ── 6. DURUM UCU ─────────────────────────────────────────────────
     print("\n--- 6. Durum ucu ---")

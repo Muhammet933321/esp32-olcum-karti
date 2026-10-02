@@ -31,6 +31,19 @@
 | 3G | Karşılaştırma (çok kayıt; eksen zaman / mAh / başlangıçtan beri) | — |
 | 3H | Ayarlar: bağlantı, güvenilir cihazlar, bildirimler, kalibrasyon geçmişi, depolama, dil, görünüm, Gelişmiş (konsol) | — |
 
+## 3C kararları (2026-10-02, kullanıcının devriyle: "sen uygun gördüğün gibi hallet")
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| C1 | **Eşitleme yalnız panel kartın KENDİ adresinden açıldığında** (aynı köken). Köprü / USB / `kartTaban` ile başka kökenden açılan panelde Kayıtlar bu tarayıcıdaki kopyayı gösterir, eşitleme düğmesi yerine "paneli kartın adresinden açın" yazar | `/kayit/veri` seri yoldan yok; kart CORS'u yalnız kayıtlı köprü kökenine ve `X-Kayit-*` başlıklarını açmadan veriyor. Firmware değişikliği (flaş + tezgah) 3C'ye girmez; PC'de arşiv `kopru/kayit_esitle.py`, alt proje 4 |
+| C2 | **Depo IndexedDB, kart kimliği (`X-Kayit-Kimlik`) başına bir akış**; `esitle.js` DEPO arayüzünün birebir uygulaması (`ekran/depo_idb.js`). Yazmalar `durability: 'strict'`; `kilitAl` Web Locks (`navigator.locks`) varsa onunla, yoksa sekme içi kilit | Ortak eşitleyici olduğu gibi kullanılır (P6); iki sekme aynı akışa yazmasın. Kimlik değişirse (kart biçimlendi) yeni akış — eski kopya silinmez, listede "eski kart kopyası" diye durur |
+| C3 | **Varsayılan: karta "aldım" onayı GÖNDERİLMEZ.** Kayıtlar ekranında açıkça "Bu tarayıcı arşivdir" seçilirse (kart başına, tarayıcıda hatırlanır) onay panelin komut yolundan `Go<sıra>` ile gider | Kartın akıllı temizliği yalnız onaylara bakar; bir telefonun geçici kopyası "arşivlendi" sayılırsa kart veriyi silebilir ve tek kopya o telefonda kalır |
+| C4 | **Liste = kartın dizini (`/kayit/liste`) ∪ bu tarayıcıdaki oturumlar**, satırda tür · ad · başlangıç · süre · nokta · etiketler · **nerede** (`kartta` / `bu tarayıcıda` / `ikisinde`) · durum. Arama ad/etiket/not/numarada (Türkçe karakter duyarsız); süzgeç tür + nerede | Kullanıcı "bu kayıt nerede, silinirse kaybolur mu" sorusunu listeden görmeli |
+| C5 | **Kayıt görünümü yalnız bu tarayıcıdaki veriden** (kartta olup eşitlenmemişse "önce eşitle"). Grafik `grafik.js` (V · I · W), iki imleç + `imlecOkuma`; zaman ekseni `disari.zamanEkseni` (saat yoksa açılıştan beri); ayrıntılı kip oturumu `ayrintiSerileri`; notlar listesi (tıklayınca grafik o ana gider); pil olayları (DCIR, sonuç) özet kutusunda. Osiloskop oturumunda yakalama TABLOSU + yakalama başına CSV; yakalamanın grafiği 3E'de | Hesap tek kopya `ortak/`'ta; osiloskop ekranı 3E'nin işi, 3C onu yarım yapmaz |
+| C6 | **Dışa aktarma:** CSV (Excel-TR `;`/`,` ve EN), ayrıntılı CSV, pil CSV, ham `.kyt` (o oturumun kayıtları, `hamDisari`); **rapor** `rapor.oturumRaporu` → yazdırılabilir sayfa (tarayıcının "PDF olarak kaydet"i) | §9; dosya indirmek kartı yormaz (tarayıcıda üretilir) |
+| C7 | **Gezinme:** Kayıtlar mevcut sekme düzenine yeni görünüm (`#/kayitlar`); kayıt `#/kayit/<oturum>` — geri tuşu çalışır. Sol şerit düzenine (P1) geçiş 3D'de, Canlı yeniden yazılırken | Kademeli bölme (P4): kabuğu şimdi değiştirmek B7'nin sekme iddialarını iki kez yazdırırdı |
+| C8 | **Dil:** yeni ekranların metni `sozluk.js` anahtarlarından (TR + EN); dil seçimi 3H'de, o zamana dek TR | P7 |
+
 ## Doğrulama
 
 B7 (`test_arayuz3.js`) ve B22 tarayıcı denetimleri genişler; her dilimde başsız tarayıcı (Edge) ile

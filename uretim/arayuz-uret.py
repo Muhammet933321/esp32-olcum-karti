@@ -19,6 +19,18 @@
 ⚠ `sahte-kart.js` GORUNTUYE GIRMIYOR (15 936 B, yalnizca `?demo` icin).
   Karttan `?demo` acilirsa `betikYukle` sebebini soyleyip duruyor —
   sessizce bos ekran degil.
+
+3A (P4) — ES MODULLERI DE GORUNTUDE:
+  * `arayuz3/ekran/*.js`  -> `/ekran/*.js`   (yeni ekranlar; `app.js` import ediyor)
+  * `ortak/src/*.js`      -> `/ortak/*.js`   (alt proje 2'nin paylasilan hesabi)
+  Ikisi de DIZINDEN okunuyor, elle liste degil: yeni bir ekran ya da ortak
+  modul eklenince goruntu onu kendiliginden alir; unutulan bir dosya kartta
+  404 olur ve modul grafigi HIC yuklenmez (`onerror` -> "acilmadi" kutusu).
+  `VARLIKLAR` sayfanin <script>/<link> ile ISTEDIGI dosyalar olarak kaldi.
+  Kunye (`_fs.json`) goruntu yolunu anahtar tutuyor; kaynagi `kaynak_yolu()`
+  cozuyor — `arayuz-yaz.py` ve `sim3_web.py` bayatlik denetiminde AYNI
+  fonksiyonu kullaniyor (iki kopya kural ayrisirdi).
+  Butce (P5): icerik (gzip) <= 600 KB, `ortak/` dahil — `sim3_web.py` 6m.
 """
 from __future__ import annotations
 
@@ -35,6 +47,7 @@ from pathlib import Path
 BURASI = Path(__file__).parent
 KOK = BURASI.parent
 ARAYUZ = KOK / "arayuz3"
+ORTAK = KOK / "ortak" / "src"
 SAHNE = BURASI / "_fs"
 GORUNTU = BURASI / "_fs.bin"
 KUNYE = BURASI / "_fs.json"
@@ -56,6 +69,25 @@ VARLIKLAR = [
 
 # Zaten sikistirilmis olanlar tekrar gzip'lenmiyor — PNG buyurdu.
 GZIPLENMEYEN = {".png", ".jpg", ".gz", ".woff2"}
+
+# 3A: dizinden okunan ES modulleri (goruntu oneki, kaynak dizini).
+EKRAN_ONEK = "ekran/"
+ORTAK_ONEK = "ortak/"
+
+
+def goruntu_listesi() -> list[str]:
+    """Goruntuye giren HER dosyanin goruntudeki yolu (`/` sonrasi)."""
+    ekran = sorted(EKRAN_ONEK + p.name for p in (ARAYUZ / "ekran").glob("*.js"))
+    ortak = sorted(ORTAK_ONEK + p.name for p in ORTAK.glob("*.js"))
+    return list(VARLIKLAR) + ekran + ortak
+
+
+def kaynak_yolu(ad: str) -> Path:
+    """Goruntu yolundan kaynak dosyaya: `ortak/x.js` -> `ortak/src/x.js`,
+    gerisi `arayuz3/` altinda. Sunucularin `/ortak/` esleme kuraliyla AYNI."""
+    if ad.startswith(ORTAK_ONEK):
+        return ORTAK / ad[len(ORTAK_ONEK):]
+    return ARAYUZ / ad
 
 
 def araclar() -> tuple[Path, Path, Path]:
@@ -90,8 +122,8 @@ def bolum(csv: Path) -> tuple[int, int]:
 def kaynak_ozeti() -> dict:
     """Her varligin KAYNAK sha256'si — goruntunun bayatligini yakalar."""
     o = {}
-    for ad in VARLIKLAR:
-        y = ARAYUZ / ad
+    for ad in goruntu_listesi():
+        y = kaynak_yolu(ad)
         if not y.exists():
             raise SystemExit(f"varlik yok: {ad}  (once ikon-uret.py kostur)")
         o[ad] = hashlib.sha256(y.read_bytes()).hexdigest()
@@ -106,10 +138,11 @@ def main() -> int:
     shutil.rmtree(SAHNE, ignore_errors=True)
     SAHNE.mkdir(parents=True)
     toplam = 0
+    gz = []                  # goruntude `.gz` olarak duranlar (kunyede)
     print(f"  {'varlik':<30} {'ham':>9} {'goruntude':>10}")
     print("  " + "-" * 52)
-    for ad in VARLIKLAR:
-        kaynak = ARAYUZ / ad
+    for ad in goruntu_listesi():
+        kaynak = kaynak_yolu(ad)
         ham = kaynak.read_bytes()
         if kaynak.suffix.lower() in GZIPLENMEYEN:
             hedef = SAHNE / ad
@@ -118,12 +151,14 @@ def main() -> int:
             hedef = SAHNE / (ad + ".gz")
             # mtime=0: ayni girdi ayni cikti versin (yeniden uretilebilir).
             veri = gzip.compress(ham, 9, mtime=0)
+            gz.append(ad)
         hedef.parent.mkdir(parents=True, exist_ok=True)
         hedef.write_bytes(veri)
         toplam += len(veri)
         print(f"  {ad:<30} {len(ham):>9} {len(veri):>10}")
     print("  " + "-" * 52)
-    print(f"  {'TOPLAM':<30} {'':>9} {toplam:>10} B")
+    print(f"  {'TOPLAM':<30} {'':>9} {toplam:>10} B   "
+          f"(P5 butcesi 600 KB'in %{100.0 * toplam / (600 * 1024):.0f}'i)")
 
     d = subprocess.run([str(mk), "-c", str(SAHNE), "-b", str(BLOK),
                         "-p", str(SAYFA), "-s", str(boyut), str(GORUNTU)],
@@ -140,6 +175,7 @@ def main() -> int:
 
     KUNYE.write_text(json.dumps({
         "kaynak": ozet,
+        "gz": gz,
         "ofset": hex(ofset),
         "bolum_boyut": boyut,
         "icerik_bayt": toplam,

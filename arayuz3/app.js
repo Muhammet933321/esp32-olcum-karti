@@ -13,7 +13,19 @@
 
    Web Serial güvenli bağlam ister: sayfa http://localhost üzerinden
    açılmalı. file:// ile çalışmaz — sunucu.py bunun için var.
+
+   3A (P4) — BU DOSYA BİR ES MODÜLÜ (`<script type="module">`): strict
+   kip, en üst düzey adlar `window`a düşmüyor. Yeni ekranlar `ekran/*.js`
+   modülleri, paylaşılan hesap `/ortak/*.js` (kart/köprü/sunucu.py aynı
+   yolu sunuyor). Eski ekranlar BURADA kalıyor; ancak yeniden yazılınca
+   çıkıyorlar — bir seferde bölmek B7/B22'nin bu dosyanın metnine bakan
+   iddialarını ve mutasyon girdilerini boşa düşürürdü.
+   ⚠ İçe aktarmalar TEK SATIR `import { … } from '…';` biçiminde: B7 bu
+     dosyayı vm'de betik olarak koşuyor ve bu satırları söküp adları
+     modülün kendisinden (node `require`) bağlıyor; başka biçim KIRMIZI.
    ═══════════════════════════════════════════════════════════════════════ */
+
+import { TEMALAR, temaKur } from './ekran/tema.js';
 
 const { createApp } = Vue;
 
@@ -298,6 +310,12 @@ createApp({
       menzil: null,       // 0 NORMAL, 1 YUKSEK, null bilinmiyor
       gorunum: hashtenGorunum(),   // B27 Aşama 1: #/olcum #/skop #/pil #/ayar #/konsol
       gorunumler: GORUNUMLER,
+      /* 3A (P1): renk takımı SEÇİMİ ('sistem' | 'koyu' | 'acik' | 'onpanel').
+         ⚠ `gorunum` (SEKME) ile karıştırma — bkz. ekran/tema.js. Değer
+         mounted()'ta kayıtlı seçimden geliyor; uygulama ve saklama
+         `ekran/tema.js`te, burada yalnızca düğmelerin durumu. */
+      temaSecim: null,
+      temaSecenekleri: TEMALAR,
       adsDurum: 0,        // B27/K1: bit0 V okunamadi, bit1 I okunamadi
       kartSont: null,     // B27/K5: kartin `?` ile bildirdigi GERCEK sont (ohm)
       hizliHata: '',      // B27/K3: kart 'giris rayda' derse burada
@@ -777,6 +795,9 @@ createApp({
     },
     sebekeHz(v) { this.ayarYaz('sebekeHz', v); },
     kartTaban(v) { this.ayarYaz('kartTaban', v); },
+    /* 3A: görünüm düğmesi → ekran/tema.js (uygula + sakla). Etkin tema
+       gerçekten değişirse `temaDegisti` tuvalleri yeniden çizdiriyor. */
+    temaSecim(v) { if (this._tema && v) this._tema.sec(v); },
     /* Tasiyici degisince ONCE mevcut baglantiyi kapat — akis acikken
        seriye gecmek iki kaynagin ayni ayristiriciyi beslemesi demek. */
     async tasiyiciAdi(v, eski) {
@@ -797,6 +818,13 @@ createApp({
 
   mounted() {
     this.tercihleriYukle();
+    /* 3A (P1): görünüm. İlk boyamayı index.html'in <head> betiği zaten
+       yaptı; burada aynı seçim yeniden uygulanıyor, 'Sistem'deyken işletim
+       sistemi izleniyor ve değişince tuvaller yeniden çiziliyor (renkler
+       `renk()` ile her çizimde CSS'ten okunuyor ama tuval bir bit eşlem). */
+    this._tema = temaKur({ pencere: window, belge: document,
+                           degisti: () => this.temaDegisti() });
+    this.temaSecim = this._tema.secim;
     /* B27 A2: sayfayı KART ya da KÖPRÜ sunduysa kendiliğinden bağlan.
        Kullanıcı kartın adresini açmışsa ölçümü görmek istiyor; "Karta
        bağlan"a basmak fazladan bir adımdı ve headless doğrulamada da
@@ -835,6 +863,12 @@ createApp({
 
   methods: {
     gorunumeGit(id) { this.gorunum = id; },
+    /* 3A: etkin renk takımı değişti (düğme ya da işletim sistemi). İki
+       tuval de bit eşlem: eski renklerle kalırdı — skop bir sonraki
+       yakalamaya, grafik bir sonraki `D` satırına (bağlı değilken HİÇ)
+       kadar. Gizli sekmedeki tuval 0 genişlik okur ve çizmez; o sekmeye
+       dönülünce `gorunum` izleyicisi zaten yeniden çiziyor. */
+    temaDegisti() { this.grafikCiz(); this.osiloCiz(); },
     calGonder() { this.gonder('X' + this.calHz); },
     calGorevGonder() { this.gonder('x' + this.calGorev); },
     bicim(x, n) {

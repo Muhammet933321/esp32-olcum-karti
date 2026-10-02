@@ -22,6 +22,27 @@
 <link rel="icon" href="ikon-180.png">
 <link rel="manifest" href="manifest.json">
 
+<!-- 3A — GÖRÜNÜM İLK BOYAMADAN ÖNCE. `ekran/tema.js` bir ES modülü ve
+     modüller ERTELENİR: sayfa önce Koyu çizilip sonra Açık'a dönerdi
+     (yanıp sönme). Bu betik aynı kararı gövde çizilmeden veriyor.
+     ⚠ Kural `ekran/tema.js` `temaOku` + `temaCoz` ile AYNI — B7 her
+       girdide ikisini karşılaştırıyor; birini değiştiren ötekini de değiştirmeli. -->
+<script>
+  (function () {
+    var secim = 'sistem', sistemAcik = false;
+    try {
+      var v = JSON.parse(localStorage.getItem('olcum.tema'));
+      if (v === 'sistem' || v === 'koyu' || v === 'acik' || v === 'onpanel') secim = v;
+    } catch (e) { /* özel kip / engelli depo: varsayılan */ }
+    try {
+      sistemAcik = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+    } catch (e) { /* matchMedia yok: koyu */ }
+    var kok = document.documentElement;
+    kok.setAttribute('data-tema', secim === 'sistem' ? (sistemAcik ? 'acik' : 'koyu') : secim);
+    kok.setAttribute('data-tema-secim', secim);
+  })();
+</script>
+
 <!-- B27 A2: tek CSS. `ek.css` style.css'e katildi — karttan her ek
      istek olcum dongusunu blokluyor (web sunucusu loop() icinde). -->
 <link rel="stylesheet" href="style.css">
@@ -726,6 +747,24 @@
 
   </section>
 
+  <!-- ═══════════ 3A (P1) — GÖRÜNÜM ═══════════
+       Seçenekler `ekran/tema.js` TEMALAR listesinden (elle kopya değil).
+       Seçim yalnızca BU tarayıcıda saklanıyor; karta hiçbir şey gitmiyor. -->
+  <section class="kart">
+    <h2>Görünüm</h2>
+    <div class="dugme-grup" role="group" aria-label="Görünüm">
+      <button v-for="t in temaSecenekleri" :key="t.id" type="button"
+              :class="{ etkin: temaSecim === t.id }"
+              :aria-pressed="temaSecim === t.id ? 'true' : 'false'"
+              :title="t.alt" @click="temaSecim = t.id">{{ t.ad }}</button>
+    </div>
+    <p class="ipucu">
+      <b>Sistem</b> işletim sisteminin açık/koyu tercihine uyar ve o
+      değişince kendiliğinden geçer. Seçim bu tarayıcıda saklanır
+      (cihaz başına); grafikler yeni renklerle yeniden çizilir.
+    </p>
+  </section>
+
   </main><!-- /ayar -->
 
   <!-- ═════════════════════════════════════════════ #/pil -->
@@ -847,7 +886,14 @@
     var kutu = document.getElementById('acilmadi');
     var neden = document.getElementById('acilmadi-neden');
     window.arayuzHata = function (ne) {
-      neden.textContent = ne + ' yüklenemedi.';
+      /* 3A: `app.js` artık ES MODÜLÜ. Tarayıcı modülü `file://`'dan
+         YÜKLEMİYOR (köken `null`, CORS); o durumda "kart yeniden
+         başlıyor" demek yanlış yere baktırırdı — sebebi ve çaresi yazılıyor. */
+      neden.textContent = ne + ' yüklenemedi.' + (location.protocol === 'file:'
+        ? ' Sayfa dosyadan (file://) açılmış — arayüz ES modülü olarak yükleniyor'
+          + ' ve tarayıcı bunu dosyadan izin vermiyor. Sunucuyla açın:'
+          + ' python arayuz3/sunucu.py (ya da köprü / kartın adresi).'
+        : '');
       kutu.hidden = false;
     };
     setTimeout(function () {
@@ -864,6 +910,14 @@
 <script src="vendor/vue.global.prod.js" onerror="arayuzHata('Vue')"></script>
 <!-- sahte-kart.js BILEREK YOK: yalnizca ?demo kipinde gerekiyor ve
      app.js icindeki betikYukle() ile dinamik iniyor (B22.0). -->
-<script src="app.js" onerror="arayuzHata('app.js')"></script>
+<!-- 3A (P4): app.js ES MODULU — yeni ekranlari `ekran/*.js`ten, paylasilan
+     hesabi `/ortak/*.js`ten `import` ediyor (derleme yok). Modul ERTELENIR:
+     Vue (yukaridaki klasik betik) once yuklenir, app.js ayristirmadan sonra
+     kosar — sayfanin sonundaki klasik betikle ayni an. `onerror` modulun
+     KENDISI ya da ice aktardigi herhangi bir dosya gelmezse de tetiklenir.
+     ⚠ Modul betigi sunucudan JavaScript MIME turu ister; kart
+       (`application/javascript`), kopru ve sunucu.py (`text/javascript`)
+       veriyor — test_kopru.py ve sim3_web.py 6n sinar. -->
+<script type="module" src="app.js" onerror="arayuzHata('app.js')"></script>
 </body>
 </html>

@@ -42,7 +42,66 @@ const sandbox = {
   console,
 };
 vm.createContext(sandbox);
-vm.runInContext(fs.readFileSync(APP, 'utf8'), sandbox, { filename: 'app.js' });
+
+/* ═══ 3A (P4): app.js tarayicida ES MODULU ════════════════════════════
+   vm betik kipinde `import` yok. Ice aktarma satirlari SOKULUYOR (satir
+   sayisi korunarak — yigin izleri dogru satiri gostersin) ve adlar,
+   modulun KENDISI node'da yuklenerek (`require(esm)`) baglama konuyor.
+   Yani test modulun bir kopyasini degil GERCEK dosyasini kullaniyor.
+   ⚠ Tanimadigimiz bicimde bir `import`/`export` kalirsa vm SyntaxError
+     ile coker — sessizce atlanmaz.
+   ⚠ "use strict": tarayicidaki modul STRICT kipte kosuyor (bildirilmemis
+     ada atama ReferenceError). vm de oyle kossun ki 3A oncesi gevsek
+     kipte gizli kalan bir atama burada da kirmiziya donsun. */
+const ICE_AKTARMA = /^import\s*\{([^}]*)\}\s*from\s*'([^']+)';[ \t]*$/gm;
+function modulYolu(kimden, yol) {
+  /* `/ortak/x.js` -> `ortak/src/x.js`: kart, kopru ve sunucu.py'nin
+     esleme kuraliyla AYNI (arayuz-uret.py `kaynak_yolu`). */
+  if (yol.startsWith('/ortak/')) return path.join(KOK, 'ortak', 'src', yol.slice('/ortak/'.length));
+  return path.resolve(path.dirname(kimden), yol);
+}
+const ICE_AKTARILAN = [];          // {yol, dosya, adlar} — bolum 23 kullaniyor
+const appBetik = fs.readFileSync(APP, 'utf8').replace(ICE_AKTARMA, (_, adlar, yol) => {
+  const dosya = modulYolu(APP, yol);
+  const mod = require(dosya);
+  const bagli = [];
+  for (const parca of adlar.split(',').map((s) => s.trim()).filter(Boolean)) {
+    const [kaynak, yerel] = parca.split(/\s+as\s+/).map((s) => s.trim());
+    if (!(kaynak in mod)) throw new Error(`${yol} '${kaynak}' disa aktarmiyor`);
+    sandbox[yerel || kaynak] = mod[kaynak];
+    bagli.push(yerel || kaynak);
+  }
+  ICE_AKTARILAN.push({ yol, dosya, adlar: bagli });
+  return '';
+});
+vm.runInContext('"use strict"; ' + appBetik, sandbox, { filename: 'app.js' });
+
+/* Tarayicinin app.js'ten baslayarak STATIK olarak indirecegi her modul
+   (gecisli): `ortak/` modulleri birbirini `./x.js` ile, cok satirli
+   `import {\n …\n} from "…"` bicimiyle cagiriyor. `goruntu` = kartta
+   (LittleFS) ve sunucularda istenecek yol. */
+const ITHAL_DESENI = /^\s*(?:import|export)\s[^'"]*?\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]/gm;
+function goruntuYolu(dosya) {
+  const ortak = path.relative(path.join(KOK, 'ortak', 'src'), dosya);
+  if (!ortak.startsWith('..') && !path.isAbsolute(ortak)) return 'ortak/' + ortak.split(path.sep).join('/');
+  return path.relative(ARAYUZ, dosya).split(path.sep).join('/');
+}
+function iceAktarmaGrafigi(bas = APP) {
+  const gorulen = new Map();
+  const yigin = [bas];
+  while (yigin.length) {
+    const kimden = yigin.pop();
+    const kaynak = fs.existsSync(kimden) ? fs.readFileSync(kimden, 'utf8') : '';
+    for (const m of yorumsuz(kaynak).matchAll(ITHAL_DESENI)) {
+      const dosya = modulYolu(kimden, m[1] || m[2]);
+      if (gorulen.has(dosya)) continue;
+      gorulen.set(dosya, { yol: m[1] || m[2], dosya, goruntu: goruntuYolu(dosya),
+                           kimden: path.basename(kimden), var: fs.existsSync(dosya) });
+      yigin.push(dosya);
+    }
+  }
+  return [...gorulen.values()];
+}
 
 function ornek() {
   const o = Object.assign({}, secenekler.data());
@@ -96,6 +155,14 @@ console.log('     firmware: ' + [...firmwareHarfleri].sort().join(' '));
    komut fark edilmemisti. */
 const appKaynak = fs.readFileSync(APP, 'utf8');
 const htmlKaynak = fs.readFileSync(HTML, 'utf8');
+/* 3A (P4): yeni ekranlar `ekran/*.js` modulleri. Komut, fetch ve tuval
+   belirteci tarayicilari onlara da bakiyor — app.js'ten bir ekrana tasinan
+   `gonder('x')` ya da ciplak `fetch(` gozden kacmasin. */
+const EKRAN = path.join(ARAYUZ, 'ekran');
+const ekranKaynaklari = (fs.existsSync(EKRAN) ? fs.readdirSync(EKRAN) : [])
+  .filter((a) => a.endsWith('.js')).sort()
+  .map((a) => ({ ad: 'ekran/' + a, kaynak: fs.readFileSync(path.join(EKRAN, a), 'utf8') }));
+const kodKaynaklari = [{ ad: 'app.js', kaynak: appKaynak }].concat(ekranKaynaklari);
 
 /* Sayfanin BAGLADIGI stil dosyalari — elle liste degil. Bir stil dosyasi
    eklenir/cikarilirsa butun CSS iddialari kendiliginden onu izler. */
@@ -149,7 +216,7 @@ function komutlariTopla(ham, etiket) {
   return bulunan;
 }
 
-const gonderilenler = komutlariTopla(appKaynak, 'app.js')
+const gonderilenler = kodKaynaklari.flatMap((k) => komutlariTopla(k.kaynak, k.ad))
   .concat(komutlariTopla(htmlKaynak, 'index.html'));
 
 ok('Arayuzde komut gonderen cagri bulundu', gonderilenler.length > 0,
@@ -712,8 +779,17 @@ console.log('\n--- 8. Varlik denetimi: referanslar diskte var mi ---');
          tasininca kusur sessizce ortaya cikti. */
   const sunucu = fs.readFileSync(path.join(ARAYUZ, 'sunucu.py'), 'utf8');
   const govde = sunucu.replace(/"""[\s\S]*?"""/g, '');   // docstring haric
+  /* 3A (P4): `/ortak/` ESLEMESI bir dusme DEGIL — onekle kapili, tek dizin,
+     `<ad>.js` bicimi. Izin verilen TEK dis dizin `ORTAK` tanimi; baska bir
+     `BURASI.parent` ya da `translate_path` (genel yol cevirisi) K4'tur.
+     DAVRANISI test_kopru.py sinar: arayuz3'te olmayan `/disari.js` 404. */
+  const disari = govde.match(/BURASI\.parent[^\n]*/g) || [];
   ok('sunucu.py dizin disina dusme yapmiyor (K4 mekanizmasi)',
-     !/BURASI\.parent/.test(govde) && !/translate_path/.test(govde));
+     disari.length === 1 && /^BURASI\.parent \/ "ortak" \/ "src"$/.test(disari[0].trim())
+     && /^ORTAK = BURASI\.parent/m.test(govde)
+     && /if yol\.startswith\("\/ortak\/"\):\s*\n\s*return self\._ortak\(/.test(govde)
+     && !/translate_path/.test(govde),
+     disari.join(' | ') || 'dis dizin yok');
 
   /* (c) sahte-kart.js STATIK baglanmamali — yalnizca ?demo'da dinamik
          iniyor. Kosulsuz baglanirsa 15 936 B her acilista bosuna iner ve
@@ -834,7 +910,9 @@ console.log('\n--- 9. Tasiyici katmani: uc tasima, tek arayuz ---');
      localhost:8772'den servis edildigi icin istek karta HIC gitmiyordu.
      404 govdesi `anahtar=deger` sanilip ayristiriliyor, tum KPI'lar
      sessizce 0 oluyordu. Artik her uzak istek kartAdres()'ten gecmeli. */
-  const fetchler = [...kod.matchAll(/fetch\(([^,)]*)/g)].map((m) => m[1].trim());
+  /* 3A: ekran modulleri de taraniyor (yeni ekranlar oraya giriyor). */
+  const fetchKodu = kodKaynaklari.map((k) => yorumsuz(k.kaynak)).join('\n');
+  const fetchler = [...fetchKodu.matchAll(/fetch\(([^,)]*)/g)].map((m) => m[1].trim());
   const kacak = fetchler.filter((a) => !a.includes('kartAdres('));
   ok('app.js\'te kartAdres() disinda fetch( YOK',
      kacak.length === 0,
@@ -1330,28 +1408,50 @@ console.log('\n--- 13. Tasarim sistemi: temalar, kanal renkleri, hareket ---');
   const belirtecler = (govde) => new Set(
     [...(govde || '').matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
 
-  const koyu = belirtecler(blok(':root {'));
-  const acikBlok = css.match(/@media \(prefers-color-scheme: light\)\s*\{\s*:root\s*\{([^}]*)\}/);
-  const acik = belirtecler(acikBlok && acikBlok[1]);
+  /* 3A (P1): UC GORUNUM, her biri `<html data-tema>` ile secilen bir blok.
+     Koyu blogunun seciciler listesinde ciplak `:root` da var — ozniteligi
+     olmayan sayfa (JS'siz, ilk boyama) Koyu cizilir. Eski "acik tema =
+     prefers-color-scheme medya blogu" duzeni kalkti: secim JS'te
+     (ekran/tema.js + <head> betigi), kullanicinin acik secimi kazaniyor. */
+  /* Yorumlar cikarilip kural kural taraniyor; seciciler listesinde
+     `:root[data-tema="<ad>"]` gecen ILK kural o temanin blogu. */
+  const cssKod = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const temaBlok = (ad) => {
+    for (const m of cssKod.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const secici = m[1].trim();
+      if (secici.split(',').map((s) => s.trim()).includes(':root[data-tema="' + ad + '"]')) {
+        return { secici, govde: m[2] };
+      }
+    }
+    return null;
+  };
+  const TEMA_ADLARI = ['koyu', 'acik', 'onpanel'];
+  const bloklar = Object.fromEntries(TEMA_ADLARI.map((a) => [a, temaBlok(a)]));
+  const koyu = belirtecler(bloklar.koyu && bloklar.koyu.govde);
+  const acik = belirtecler(bloklar.acik && bloklar.acik.govde);
 
-  ok('Koyu tema VARSAYILAN: butun belirtecler bare :root icinde',
-     koyu.size >= 20, `${koyu.size} belirtec`);
+  ok('Uc gorunum blogu var (koyu · acik · onpanel)',
+     TEMA_ADLARI.every((a) => bloklar[a]),
+     TEMA_ADLARI.map((a) => a + (bloklar[a] ? '' : ' YOK')).join(' '));
+  ok('Koyu VARSAYILAN: ciplak :root (data-tema yokken) Koyu blogunda',
+     !!bloklar.koyu && bloklar.koyu.secici.split(',').map((s) => s.trim()).includes(':root')
+     && koyu.size >= 20, bloklar.koyu ? `${bloklar.koyu.secici} · ${koyu.size} belirtec` : 'yok');
   ok('Acik tema yalnizca DEGERLERI degistiriyor (yeni belirtec uretmiyor)',
      [...acik].every((b) => koyu.has(b)),
      [...acik].filter((b) => !koyu.has(b)).join(' '));
 
-  /* Renk belirtecleri IKI temada da tanimli olmali. Olcu/bicim
+  /* Renk belirtecleri UC temada da tanimli olmali. Olcu/bicim
      belirtecleri (--mono, --yuvarlak, --gecis, --govde) temaya gore
-     degismez; onlar disarida. */
+     degismez; onlar ayri, TEK bir :root blogunda. */
   const renkler = [...koyu].filter((b) =>
     !/^--(mono|govde|yuvarlak|yuvarlak-sm|gecis)$/.test(b));
   const eksikAcik = renkler.filter((b) => !acik.has(b));
   ok('Her renk/golge belirteci ACIK temada da yeniden tanimli',
      eksikAcik.length === 0, eksikAcik.join(' '));
 
-  /* Kanal renkleri: tanimli, birbirinden FARKLI, iki temada da. */
-  for (const [ad, kume] of [['koyu', blok(':root {')], ['acik', acikBlok && acikBlok[1]]]) {
-    const g = kume || '';
+  /* Kanal renkleri: tanimli, birbirinden FARKLI, uc temada da. */
+  for (const ad of TEMA_ADLARI) {
+    const g = bloklar[ad] ? bloklar[ad].govde : '';
     const oku = (b) => (g.match(new RegExp(b + ':\\s*([^;]+);')) || [])[1];
     const uc = ['--volt', '--amper', '--watt'].map(oku);
     ok(`Kanal renkleri ${ad} temada tanimli ve UCU DE FARKLI`,
@@ -1367,11 +1467,16 @@ console.log('\n--- 13. Tasarim sistemi: temalar, kanal renkleri, hareket ---');
   /* app.js'in tuvalde okudugu her belirtec CSS'te tanimli olmali.
      Tanimsizsa getPropertyValue bos doner ve cizgi '#888'e duser —
      grafik sessizce gri cizilir. */
-  const tuvalBelirtecleri = [...new Set(
-    [...yorumsuz(appKaynak).matchAll(/renk\('(--[a-z0-9-]+)'\)/g)].map((m) => m[1]))];
+  /* 3A: UC temada da (ve ekran modullerinin okudugu belirtecler de). */
+  const tuvalBelirtecleri = [...new Set(kodKaynaklari.flatMap((k) =>
+    [...yorumsuz(k.kaynak).matchAll(/renk\('(--[a-z0-9-]+)'\)/g)].map((m) => m[1])))];
+  const tuvalEksik = TEMA_ADLARI.flatMap((a) => {
+    const b = belirtecler(bloklar[a] && bloklar[a].govde);
+    return tuvalBelirtecleri.filter((x) => !b.has(x)).map((x) => a + ':' + x);
+  });
   ok('app.js`in tuvalde okudugu her belirtec CSS`te TANIMLI',
-     tuvalBelirtecleri.length >= 3 && tuvalBelirtecleri.every((b) => koyu.has(b)),
-     tuvalBelirtecleri.filter((b) => !koyu.has(b)).join(' ') || tuvalBelirtecleri.join(' '));
+     tuvalBelirtecleri.length >= 3 && tuvalEksik.length === 0,
+     tuvalEksik.join(' ') || tuvalBelirtecleri.join(' '));
 
   /* Hareket olculu: reduced-motion karsiligi VAR. */
   ok('prefers-reduced-motion karsiligi var (hareket kapanabiliyor)',
@@ -1565,17 +1670,31 @@ console.log('\n--- 15. Butce ve dayaniklilik ---');
   ok('LittleFS kunyesi (_fs.json) var', fs.existsSync(kunyeYolu));
   if (fs.existsSync(kunyeYolu)) {
     const kunye = JSON.parse(fs.readFileSync(kunyeYolu, 'utf8'));
+    /* ⚠ 3A: bu B27 A4 butcesi. Alt proje 3'un butcesi P5 = 600 KB
+       (`ortak/` dahil) ve sim3_web.py 6m'de sinaniyor; bu sayi ondan SIKI,
+       yani once bu kirmiziya doner — erken uyari olarak birakildi. Bastiginda
+       karar P5'e gore verilir (yukseltmek ya da kucultmek). */
     const BUTCE = 250 * 1024;
     ok(`Arayuz gzip butcesi: ${kunye.icerik_bayt} B < ${BUTCE} B`,
        kunye.icerik_bayt > 0 && kunye.icerik_bayt < BUTCE,
        `%${(100 * kunye.icerik_bayt / BUTCE).toFixed(0)} dolu`);
     /* Dosya sayisi: her dosya karta ayri bir HTTP istegi demek ve her
        istek olcum dongusunu blokluyor (kartta olculdu: 6.5 KB'lik
-       style.css bile 34 ms). */
+       style.css bile 34 ms).
+       3A: olculen sey ARTIK "goruntudeki dosya" degil "ACILISTA ISTENEN
+       dosya". Goruntu `/ortak/*.js`yi de tasiyor (P4) ama onlar ancak bir
+       ekran `import` edince iniyor. Sayilan: index.html + yerel varliklari +
+       app.js'in (gecisli) statik ice aktarmalari. Eski hali VARLIKLAR'daki
+       tirnaklari sayiyordu — goruntu 20 dosyayken "6" derdi. */
     const varliklar = fs.readFileSync(path.join(KOK, 'uretim', 'arayuz-uret.py'), 'utf8')
       .match(/VARLIKLAR = \[([\s\S]*?)\]/);
-    const adet = varliklar ? (varliklar[1].match(/"/g) || []).length / 2 : -1;
-    ok('Karta yazilan dosya sayisi <= 8', adet > 0 && adet <= 8, `${adet} dosya`);
+    const acilis = new Set(['index.html']);
+    for (const m of html.matchAll(/(?:^|\s)(?:href|src)="([^"]+)"/gm)) {
+      if (!/^(https?:|data:|#|mailto:)/.test(m[1])) acilis.add(m[1]);
+    }
+    for (const g of iceAktarmaGrafigi()) acilis.add(g.goruntu);
+    ok('Acilista istenen dosya sayisi <= 8 (index + varliklar + statik import)',
+       acilis.size > 1 && acilis.size <= 8, `${acilis.size}: ${[...acilis].join(' ')}`);
     /* Sayfanin istedigi her yerel varlik goruntude OLMALI: biri eksikse
        kart 404 doner ve arayuz acilmaz (B22.0'in ta kendisi). */
     const istenen = [...html.matchAll(/(?:^|\s)(?:href|src)="([^"]+)"/gm)]
@@ -1584,12 +1703,22 @@ console.log('\n--- 15. Butce ve dayaniklilik ---');
     const eksik = istenen.filter((u) => !yazilan.includes(u));
     ok('Sayfanin istedigi her varlik LittleFS goruntusunde',
        eksik.length === 0, eksik.join(' ') || istenen.join(' '));
+    /* 3A: app.js'in (gecisli) ice aktardigi her modul de goruntude olmali —
+       biri eksikse kart 404 doner ve modul grafigi HIC yuklenmez. Kunye
+       (`_fs.json`) GERCEKTEN uretilen goruntunun listesi. */
+    const goruntude = new Set(Object.keys(kunye.kaynak || {}));
+    const ithal = iceAktarmaGrafigi();
+    const ithalEksik = ithal.filter((g) => !goruntude.has(g.goruntu)).map((g) => g.goruntu);
+    ok('app.js`in ice aktardigi her modul LittleFS goruntusunde',
+       ithal.length >= 1 && ithalEksik.length === 0,
+       ithalEksik.join(' ') || ithal.map((g) => g.goruntu).join(' '));
   }
 
-  /* Dayaniklilik: acilmama durumu. */
+  /* Dayaniklilik: acilmama durumu. 3A: app.js `type="module"`; `onerror`
+     modulun kendisi YA DA ice aktardigi bir dosya gelmezse tetikleniyor. */
   ok('Betik `onerror` ile acilmama durumu yakalaniyor',
      /<script src="vendor\/vue\.global\.prod\.js" onerror="arayuzHata\(/.test(html) &&
-     /<script src="app\.js" onerror="arayuzHata\(/.test(html));
+     /<script type="module" src="app\.js" onerror="arayuzHata\(/.test(html));
   ok('Zaman asimi kapisi da var (betik indi ama Vue baslamadi)',
      /setTimeout\([\s\S]{0,400}hasAttribute\('v-cloak'\)/.test(html));
   ok('Acilmama kutusu VARSAYILAN OLARAK gizli (hidden)',
@@ -2208,6 +2337,281 @@ console.log('\n--- 22. Tetik onayi — gurultu reddi (B47) ---');
      /\bonay=1\b/.test(SK2.komut('tn1')[0]) && /\bonay=2\b/.test(SK2.komut('tn2')[0]));
   ok('Sahte kart gecersiz `tn3` reddediyor', SK2.komut('tn3')[0].startsWith('!'));
   /* Firmware tarafi (tetik_w/kalan, komut, T satiri) sim3_skop.py 6m'de. */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   23. GORUNUM + ES MODUL ALTYAPISI (3A — alt proje 3, P1/P4)
+
+   Kullanici birden cok tasarim arasinda gecis istedi; karar (P1): TEK
+   duzen, UC renk takimi (Koyu · Acik · On panel), Ayarlar'dan secilir,
+   tarayicida hatirlanir. Ayni dilimde app.js ES modulu oldu (P4) ve
+   `ekran/` acildi; ilk modul `ekran/tema.js`.
+
+   Korunan seyler:
+   (a) Koyu, 3A ONCESININ DEGERLERI — donmus kopyayla karsilastiriliyor.
+       "Gorunum eklendi" bahanesiyle varsayilan gorunum sessizce degismesin.
+   (b) Uc takim AYNI belirtecleri tanimliyor ve METIN OKUNUYOR (WCAG
+       4.5:1, sayiyla). On panel maketinin alarm rengi metin olarak 2.99:1
+       idi — bu iddia olmasaydi hata kutusu o temada okunmazdi.
+   (c) <head> betigi ile modul AYNI karari veriyor (ilk boyama vs sonrasi);
+       ayrisirlarsa sayfa acilista bir renkte, sonra baskasinda cizilir.
+   (d) Saklama try/catch icinde; erisimin KENDISI atinca da gorunum degisir.
+   (e) Renk degisince tuvaller yeniden ciziliyor (bit eslem; renk onbellekte
+       degil ama cizim eskide kalir).
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 23. Gorunum (Koyu/Acik/On panel) + ES modul altyapisi (3A) ---');
+{
+  const html = yorumsuz(htmlKaynak);
+  const css = cssOku();
+  const cssKod = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const TEMA = require(path.join(ARAYUZ, 'ekran', 'tema.js'));
+
+  /* ── (a) modul yuklemesi ─────────────────────────────────────────── */
+  ok('[!] app.js ES MODULU olarak yukleniyor (type="module"), klasik kopyasi yok',
+     /<script type="module" src="app\.js"/.test(html) && !/<script src="app\.js"/.test(html));
+  ok('Vue (klasik betik) app.js modulunden ONCE baglaniyor',
+     html.indexOf('vendor/vue.global.prod.js') >= 0
+     && html.indexOf('vendor/vue.global.prod.js') < html.indexOf('type="module" src="app.js"'));
+  ok('app.js tema modulunu ekran/ altindan ice aktariyor',
+     ICE_AKTARILAN.some((i) => i.yol === './ekran/tema.js' && i.adlar.includes('temaKur')),
+     ICE_AKTARILAN.map((i) => i.yol + ' {' + i.adlar.join(',') + '}').join(' · '));
+  const grafik = iceAktarmaGrafigi();
+  ok('app.js`in statik ice aktarma grafigindeki her dosya DISKTE var',
+     grafik.length >= 1 && grafik.every((g) => g.var),
+     grafik.filter((g) => !g.var).map((g) => g.kimden + ' -> ' + g.yol).join(' ')
+       || grafik.map((g) => g.goruntu).join(' '));
+  /* file:// artik modulu YUKLEMIYOR (koken null). Kutu "kart yeniden
+     basliyor" deyip yanlis yere baktirmamali. */
+  ok('Acilmama kutusu file:// sebebini ve caresini soyluyor',
+     /arayuzHata = function[\s\S]{0,400}location\.protocol === 'file:'[\s\S]{0,300}sunucu\.py/.test(html));
+
+  /* ── (b) renk takimlari ──────────────────────────────────────────── */
+  const kural = (ad) => {
+    for (const m of cssKod.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (m[1].split(',').map((s) => s.trim()).includes(':root[data-tema="' + ad + '"]')) return m[2];
+    }
+    return null;
+  };
+  const degerler = (govde) => Object.fromEntries(
+    [...(govde || '').matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)]
+      .map((m) => [m[1], m[2].replace(/\s+/g, ' ').trim().toLowerCase()]));
+  const TAKIM = { koyu: degerler(kural('koyu')), acik: degerler(kural('acik')),
+                  onpanel: degerler(kural('onpanel')) };
+  const adlar = (t) => Object.keys(TAKIM[t]).sort().join(' ');
+  ok('[!] Uc gorunum AYNI belirtec adlarini tanimliyor',
+     adlar('koyu').length > 0 && adlar('koyu') === adlar('acik') && adlar('koyu') === adlar('onpanel'),
+     ['acik', 'onpanel'].map((t) => t + ': ' + (
+       Object.keys(TAKIM.koyu).filter((b) => !(b in TAKIM[t])).map((b) => '-' + b)
+         .concat(Object.keys(TAKIM[t]).filter((b) => !(b in TAKIM.koyu)).map((b) => '+' + b))
+         .join(' ') || 'tam')).join(' | '));
+  /* 3A ONCESI koyu (bare :root) degerleri — donmus kopya. */
+  const KOYU_3A_ONCESI = {
+    '--zemin': '#0b0f14', '--zemin-2': '#101821', '--kart': '#131c25',
+    '--kenar-c': '#1f2b37', '--kenar-koyu': '#31414f', '--yazi': '#dee7ef',
+    '--soluk': '#94a3b3', '--cok-soluk': '#6b7c8b', '--vurgu': '#4cc4e0',
+    '--vurgu-yazi': '#05131a', '--vurgu-zemin': '#0d2a34', '--uyari': '#ff8f7a',
+    '--uyari-zemin': '#2a1310', '--iyi': '#74d99b', '--iyi-zemin': '#0c2a1c',
+    '--volt': '#6ea8fe', '--amper': '#f2a33c', '--watt': '#35d39a',
+    '--golge-1': '0 1px 0 rgba(255, 255, 255, .02) inset',
+    '--golge-2': '0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .35)',
+  };
+  const koyuFark = Object.entries(KOYU_3A_ONCESI).filter(([b, d]) => TAKIM.koyu[b] !== d)
+    .map(([b, d]) => `${b} ${TAKIM.koyu[b]} != ${d}`)
+    .concat(Object.keys(TAKIM.koyu).filter((b) => !(b in KOYU_3A_ONCESI)).map((b) => '+' + b));
+  ok('[!] Koyu degerleri 3A oncesiyle BIREBIR ayni (varsayilan gorunum degismedi)',
+     koyuFark.length === 0 && /color-scheme:\s*dark/.test(kural('koyu') || ''),
+     koyuFark.join(' · ') || `${Object.keys(KOYU_3A_ONCESI).length} belirtec + color-scheme`);
+  ok('Bicim belirtecleri (mono/govde/yuvarlak/gecis) TEK :root blogunda, temada degil',
+     ['koyu', 'acik', 'onpanel'].every((t) => !/--(mono|govde|yuvarlak|gecis)\s*:/.test(kural(t) || ''))
+     && /:root\s*\{[^}]*--mono:[^}]*--yuvarlak:\s*10px;[^}]*--gecis:/.test(cssKod));
+  ok('color-scheme her temada dogru (form denetimleri ve kaydirma cubugu uyar)',
+     /color-scheme:\s*dark/.test(kural('koyu') || '') && /color-scheme:\s*light/.test(kural('acik') || '')
+     && /color-scheme:\s*dark/.test(kural('onpanel') || ''));
+  ok('prefers-color-scheme CSS`te YOK (sistem tercihi tek yerde: tema.js + <head>)',
+     !/prefers-color-scheme/.test(cssKod));
+  ok('[hidden] { display: none !important } kurali DURUYOR',
+     /\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/.test(cssKod));
+
+  /* WCAG goreli parlaklik ve karsitlik — sayiyla. */
+  const parlaklik = (h) => {
+    const m = /^#([0-9a-f]{6})$/i.exec((h || '').trim());
+    if (!m) return NaN;
+    const k = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
+    return 0.2126 * k[0] + 0.7152 * k[1] + 0.0722 * k[2];
+  };
+  const karsitlik = (a, b) => {
+    const x = parlaklik(a), y = parlaklik(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+  const CIFTLER = [
+    ['--yazi', ['--zemin', '--zemin-2', '--kart']],
+    ['--soluk', ['--zemin', '--zemin-2', '--kart']],
+    ['--uyari', ['--kart', '--uyari-zemin']],         // hata kutusu metni
+    ['--iyi', ['--iyi-zemin']],                       // "bagli" rozeti
+    ['--vurgu', ['--zemin', '--vurgu-zemin']],        // etkin sekme / etkin dugme
+    ['--vurgu-yazi', ['--vurgu']],                    // birincil dugme
+  ];
+  /* --cok-soluk (kucuk etiketler) Koyu'da 4.5'in ALTINDA (4.00) ve Koyu
+     degismiyor; olcut: hicbir temada Koyu'dan DAHA okunaksiz olmasin. */
+  const ZEMINLER = ['--zemin', '--zemin-2', '--kart'];
+  const cokSolukTaban = Math.min(...ZEMINLER.map((z) =>
+    karsitlik(TAKIM.koyu['--cok-soluk'], TAKIM.koyu[z])));
+  for (const t of ['koyu', 'acik', 'onpanel']) {
+    const d = TAKIM[t];
+    let enKotu = { k: Infinity, ad: '' };
+    for (const [on, zeminler] of CIFTLER) {
+      for (const z of zeminler) {
+        const k = karsitlik(d[on], d[z]);
+        if (!(k >= enKotu.k)) enKotu = { k, ad: `${on} / ${z}` };
+      }
+    }
+    ok(`[!] ${t}: metin karsitligi >= 4.5:1 (yazi/soluk/uyari/iyi/vurgu, ${CIFTLER.reduce((n, c) => n + c[1].length, 0)} cift)`,
+       enKotu.k >= 4.5, `en kotu ${enKotu.ad} = ${enKotu.k.toFixed(2)}:1`);
+    const cs = Math.min(...ZEMINLER.map((z) => karsitlik(d['--cok-soluk'], d[z])));
+    ok(`${t}: --cok-soluk en az Koyu kadar okunur (>= ${cokSolukTaban.toFixed(2)}:1)`,
+       cs >= cokSolukTaban - 1e-9, `${cs.toFixed(2)}:1`);
+  }
+
+  /* ── (c) tema modulu: secim, cozme, saklama ──────────────────────── */
+  ok('TEMALAR: sistem · koyu · acik · onpanel; her somut temanin CSS blogu var',
+     TEMA.TEMALAR.map((t) => t.id).join(' ') === 'sistem koyu acik onpanel'
+     && TEMA.TEMALAR.filter((t) => t.id !== 'sistem').every((t) => kural(t.id) !== null)
+     && [...cssKod.matchAll(/data-tema="([a-z]+)"/g)].every((m) => TEMA.temaGecerli(m[1])),
+     TEMA.TEMALAR.map((t) => t.id + (t.id === 'sistem' || kural(t.id) ? '' : '(CSS yok)')).join(' '));
+  ok('[!] Acik secim sistem tercihini EZER; "sistem" tercihe uyar; gecersiz -> Koyu',
+     TEMA.temaCoz('sistem', true) === 'acik' && TEMA.temaCoz('sistem', false) === 'koyu'
+     && TEMA.temaCoz('koyu', true) === 'koyu' && TEMA.temaCoz('onpanel', true) === 'onpanel'
+     && TEMA.temaCoz('acik', false) === 'acik' && TEMA.temaCoz('bozuk', true) === 'koyu');
+
+  /* Sahte pencere/belge: localStorage (atabilen), matchMedia (degisebilen). */
+  const ortam = ({ depo = {}, acik = false, atar = '' } = {}) => {
+    const nitelik = {}, dinleyici = [];
+    const mq = { matches: acik,
+      addEventListener: (_, f) => dinleyici.push(f),
+      removeEventListener: (_, f) => { const i = dinleyici.indexOf(f); if (i >= 0) dinleyici.splice(i, 1); } };
+    const pencere = {
+      get localStorage() {
+        if (atar === 'erisim') throw new Error('SecurityError');
+        return {
+          getItem: (k) => { if (atar === 'okuma') throw new Error('okuma'); return k in depo ? depo[k] : null; },
+          setItem: (k, v) => { if (atar === 'yazma') throw new Error('QuotaExceeded'); depo[k] = String(v); },
+        };
+      },
+      matchMedia: () => mq,
+    };
+    const belge = { documentElement: { setAttribute: (k, v) => { nitelik[k] = v; } } };
+    return { pencere, belge, nitelik, depo, dinleyici,
+             sistem(a) { mq.matches = a; dinleyici.slice().forEach((f) => f({ matches: a })); } };
+  };
+  {
+    const o = ortam();
+    const cagri = [];
+    const y = TEMA.temaKur({ pencere: o.pencere, belge: o.belge, degisti: (t) => cagri.push(t) });
+    const ilk = y.secim === 'sistem' && o.nitelik['data-tema'] === 'koyu'
+             && o.nitelik['data-tema-secim'] === 'sistem';
+    const s1 = y.sec('onpanel');
+    const kayit = o.depo[TEMA.TEMA_ANAHTAR];
+    const s2 = y.sec('onpanel');
+    ok('[!] temaKur: secim uygulanir, SAKLANIR (JSON, olcum.tema), tuval geri cagrisi BIR kez',
+       ilk && s1 === true && s2 === false && kayit === '"onpanel"'
+       && o.nitelik['data-tema'] === 'onpanel' && cagri.join(',') === 'onpanel',
+       `ilk=${ilk} kayit=${kayit} cagri=${cagri.join(',')}`);
+    o.sistem(true);
+    const sabit = o.nitelik['data-tema'] === 'onpanel' && cagri.length === 1;
+    y.sec('sistem');                     // sistem su an acik -> Acik
+    o.sistem(false);                     // canli: koyuya gecmeli
+    ok('[!] "sistem" isletim sistemini CANLI izliyor; acik secim izlemiyor',
+       sabit && o.nitelik['data-tema'] === 'koyu' && cagri.join(',') === 'onpanel,acik,koyu',
+       `sabit=${sabit} cagri=${cagri.join(',')} etkin=${o.nitelik['data-tema']}`);
+    y.birak();
+    ok('birak() isletim sistemi dinleyicisini kaldiriyor', o.dinleyici.length === 0);
+    ok('Gecersiz secim reddediliyor (saklanmiyor, uygulanmiyor)',
+       y.sec('mor') === false && o.depo[TEMA.TEMA_ANAHTAR] === '"sistem"');
+  }
+  {
+    /* (d) Saklama ATARSA: gorunum yine degisir, istisna kacmaz. */
+    let istisna = '';
+    const sonuc = [];
+    for (const atar of ['erisim', 'okuma', 'yazma']) {
+      const o = ortam({ atar, depo: { 'olcum.tema': '"acik"' } });
+      try {
+        const y = TEMA.temaKur({ pencere: o.pencere, belge: o.belge });
+        y.sec('onpanel');
+        sonuc.push(atar + ':' + o.nitelik['data-tema']);
+      } catch (e) { istisna = atar + ': ' + e.message; }
+    }
+    ok('[!] localStorage ATARSA (erisim/okuma/yazma) gorunum yine degisiyor, istisna yok',
+       !istisna && sonuc.join(' ') === 'erisim:onpanel okuma:onpanel yazma:onpanel',
+       istisna || sonuc.join(' '));
+    ok('temaOku/temaYaz erisimi try/catch icinde (kaynak)',
+       /export function temaOku[\s\S]{0,80}try \{[\s\S]{0,200}catch/.test(fs.readFileSync(
+         path.join(ARAYUZ, 'ekran', 'tema.js'), 'utf8'))
+       && /export function temaYaz[\s\S]{0,80}try \{[\s\S]{0,200}catch/.test(fs.readFileSync(
+         path.join(ARAYUZ, 'ekran', 'tema.js'), 'utf8')));
+  }
+
+  /* <head> betigi: ilk boyamadan ONCE, ve modulle AYNI karar. */
+  const bas = (htmlKaynak.match(/<head>([\s\S]*?)<\/head>/) || [])[1] || '';
+  const basBetik = (bas.match(/<script>([\s\S]*?)<\/script>/) || [])[1] || '';
+  ok('Gorunum <head> icinde, stil dosyasindan ONCE uygulaniyor (yanip sonme yok)',
+     !!basBetik && /data-tema/.test(basBetik)
+     && bas.indexOf('<script>') < bas.indexOf('rel="stylesheet"'));
+  {
+    const farklar = [];
+    let say = 0;
+    const DEGERLER = [null, '"sistem"', '"koyu"', '"acik"', '"onpanel"', '"mor"', '{bozuk', '42'];
+    const durumlar = [];
+    for (const d of DEGERLER) for (const acik of [false, true]) for (const mm of [true, false]) {
+      durumlar.push({ d, acik, mm, atar: '' });
+    }
+    for (const atar of ['erisim', 'okuma']) durumlar.push({ d: '"acik"', acik: true, mm: true, atar });
+    for (const { d, acik, mm, atar } of durumlar) {
+      const depo = d === null ? {} : { 'olcum.tema': d };
+      // <head> betigi
+      const o1 = ortam({ depo, acik, atar });
+      const ctx = { document: o1.belge, JSON };
+      Object.defineProperty(ctx, 'localStorage', { get: () => o1.pencere.localStorage });
+      if (mm) ctx.matchMedia = o1.pencere.matchMedia;
+      ctx.window = ctx;
+      try { vm.createContext(ctx); vm.runInContext(basBetik, ctx); } catch (e) { o1.nitelik.hata = e.message; }
+      // modul
+      const o2 = ortam({ depo, acik, atar });
+      if (!mm) delete o2.pencere.matchMedia;
+      TEMA.temaKur({ pencere: o2.pencere, belge: o2.belge });
+      say++;
+      const a = JSON.stringify(o1.nitelik), b = JSON.stringify(o2.nitelik);
+      if (a !== b) farklar.push(`${d}/${acik ? 'acik' : 'koyu'}/${mm ? 'mm' : '-'}/${atar}: bas ${a} modul ${b}`);
+    }
+    ok('[!] <head> betigi ile ekran/tema.js HER girdide AYNI karari veriyor',
+       !!basBetik && farklar.length === 0, farklar[0] || `${say} durum`);
+  }
+
+  /* ── (e) uygulamaya baglanti ─────────────────────────────────────── */
+  {
+    const d = secenekler.data();
+    ok('Secenekler TEMALAR`dan (elle kopya degil); baslangic secimi mounted`ta',
+       d.temaSecenekleri === sandbox.TEMALAR && d.temaSecim === null);
+    const giden = [];
+    secenekler.watch.temaSecim.call({ _tema: { sec: (v) => giden.push(v) } }, 'acik');
+    ok('watch.temaSecim secimi tema modulune veriyor', giden.join(',') === 'acik', giden.join(','));
+    const u = ornek();
+    let g = 0, o = 0;
+    u.grafikCiz = () => { g++; }; u.osiloCiz = () => { o++; };
+    u.temaDegisti();
+    ok('[!] temaDegisti iki tuvali de yeniden ciziyor', g === 1 && o === 1, `grafik=${g} skop=${o}`);
+    ok('mounted() temaKur`u temaDegisti geri cagrisiyla kuruyor',
+       govdeIcinde(appKaynak, 'mounted', 'temaKur({')
+       && govdeIcinde(appKaynak, 'mounted', 'degisti: () => this.temaDegisti()')
+       && govdeIcinde(appKaynak, 'mounted', 'this.temaSecim = this._tema.secim'));
+    const ayar = html.match(/v-show="gorunum === 'ayar'"([\s\S]*?)<\/main>/);
+    ok('Ayarlar`da Gorunum secici: TEMALAR`dan, temaSecim`e bagli, aria-pressed',
+       !!ayar && /<h2>Görünüm<\/h2>/.test(ayar[1])
+       && /v-for="t in temaSecenekleri"/.test(ayar[1])
+       && /@click="temaSecim = t\.id"/.test(ayar[1])
+       && /:class="\{ etkin: temaSecim === t\.id \}"/.test(ayar[1])
+       && /:aria-pressed=/.test(ayar[1]));
+  }
 }
 
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu

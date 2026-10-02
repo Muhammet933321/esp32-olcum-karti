@@ -28,26 +28,62 @@ Kusuru duzeltmek yerine kusuru ureten mekanizma kaldirildi: dusme yolu yok,
 varliklar burada. Asama 1/2 zaten arsivde oldugu icin "tek kopya" gerekcesi
 de gecerliligini yitirmisti.
 
+3A (P4) — `/ortak/<ad>.js` -> `ortak/src/<ad>.js`. Bu bir DUSME DEGIL:
+YALNIZCA bu onek, YALNIZCA o dizin, YALNIZCA `<ad>.js` bicimi. arayuz3'te
+olmayan bir dosya hala 404 (test_kopru.py `/disari.js` ile sinar). Ayni
+yolu kart (LittleFS `/ortak/`) ve kopru de sunuyor: panel `import ...
+from '/ortak/x.js'` dediginde uc yerde de AYNI dosya gelir.
+
+`.js` MIME turu ELLE: `app.js` artik ES modulu ve tarayici modul betigini
+yalnizca JavaScript MIME turuyle calistiriyor. `mimetypes` Windows'ta
+kayit defterini okuyor ve orada `.js` -> `text/plain` olabiliyor; o
+makinede arayuz HIC acilmazdi.
+
 Yalnizca standart kutuphane.
 """
 from __future__ import annotations
 
 import http.server
+import re
 import socket
 import socketserver
 import sys
 import threading
+import urllib.parse
 import webbrowser
 from pathlib import Path
 
 BURASI = Path(__file__).resolve().parent
+ORTAK = BURASI.parent / "ortak" / "src"
+ORTAK_AD = re.compile(r"[a-z0-9_-]+\.js")
+JS_TURU = "text/javascript"
 PORT = 8772
 YEDEK_PORT = 8773
 
 
 class Sunucu(http.server.SimpleHTTPRequestHandler):
+    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map,
+                      ".js": JS_TURU}
+
     def __init__(self, *a, **k):
         super().__init__(*a, directory=str(BURASI), **k)
+
+    def do_GET(self):
+        yol = urllib.parse.urlsplit(self.path).path
+        if yol.startswith("/ortak/"):
+            return self._ortak(yol[len("/ortak/"):])
+        return super().do_GET()
+
+    def _ortak(self, ad: str):
+        dosya = ORTAK / ad
+        if not ORTAK_AD.fullmatch(ad) or not dosya.is_file():
+            return self.send_error(404, "ortak modulu yok")
+        govde = dosya.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", JS_TURU + "; charset=utf-8")
+        self.send_header("Content-Length", str(len(govde)))
+        self.end_headers()
+        self.wfile.write(govde)
 
     def end_headers(self):
         # Gelistirme sirasinda tarayici eski dosyayi tutmasin

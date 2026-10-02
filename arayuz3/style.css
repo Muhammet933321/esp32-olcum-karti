@@ -14,15 +14,38 @@
    Sayılar `--mono` ve `tabular-nums`: değer değişirken hane kaymaz.
    Ölçü aleti okurken zıplayan rakam okunaksızdır.
 
-   TEMA: koyu VARSAYILAN (tezgah aleti), açık tema sistem tercihine uyar.
-   Bütün belirteçler `:root`ta tanımlı; `@media (prefers-color-scheme:
-   light)` yalnızca DEĞERLERİ değiştiriyor — hiçbir bileşen kuralı tema
-   bloğunun içinde yaşamıyor. Bir rengin tek tanımı medya bloğunda
-   kalırsa öteki temada sessizce kaybolur.
+   GÖRÜNÜM (3A, P1): üç renk takımı — Koyu (VARSAYILAN, tezgah aleti) ·
+   Açık · Ön panel (grafit + turuncu). Seçim <html data-tema="…">
+   özniteliğinde; Ayarlar → Görünüm'den yapılıyor (`ekran/tema.js`).
+   Kural 3A öncesiyle aynı: blokların İÇİNDE yalnızca DEĞER var, hiçbir
+   bileşen kuralı tema bloğunda yaşamıyor; üç blok AYNI belirteç adlarını
+   tanımlıyor (B7 sınıyor). Bir rengin tanımı bir blokta eksik kalırsa
+   o temada `var()` sessizce geçersize düşer.
+   ⚠ `prefers-color-scheme` BURADA YOK. Eskiden açık tema bir medya
+     bloğuydu; şimdi kullanıcının açık seçimi kazanıyor, "Sistem"
+     seçimini (varsayılan) `ekran/tema.js` + index.html'in <head>
+     betiği Koyu/Açık'a çözüyor. Medya bloğu geri gelirse ölü kod olur
+     (öznitelik seçicisi daha özgül) ama iki kural kaynağı demektir.
+   ⚠ Koyu bloğunun DEĞERLERİ 3A öncesiyle BİREBİR aynı; B7 dondurulmuş
+     kopyayla karşılaştırıyor. Açık, seçilen maketin (B) renkleri; 3A
+     öncesinin sistem-açık takımının yerine geçti.
    ═══════════════════════════════════════════════════════════════════════ */
 
+/* ── biçim: temadan BAĞIMSIZ, tek tanım */
 :root {
-  /* ── gövde: hafif mavi-yeşil kaçışlı nötrler (kasa) */
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+  --govde: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+           "Helvetica Neue", Arial, sans-serif;
+  --yuvarlak:    10px;
+  --yuvarlak-sm: 7px;
+  --gecis:       140ms cubic-bezier(.2, .6, .3, 1);
+}
+
+/* ── KOYU — varsayılan: `data-tema` yoksa da bu (JS'siz, ilk boyama). */
+:root,
+:root[data-tema="koyu"] {
+  /* gövde: hafif mavi-yeşil kaçışlı nötrler (kasa) */
   --zemin:       #0b0f14;
   --zemin-2:     #101821;
   --kart:        #131c25;
@@ -32,63 +55,89 @@
   --soluk:       #94a3b3;
   --cok-soluk:   #6b7c8b;
 
-  /* ── tek vurgu: etkileşim ve etkin durum. Ölçülen büyüklük DEĞİL. */
+  /* tek vurgu: etkileşim ve etkin durum. Ölçülen büyüklük DEĞİL. */
   --vurgu:       #4cc4e0;
   --vurgu-yazi:  #05131a;
   --vurgu-zemin: #0d2a34;
 
-  /* ── anlam renkleri (vurgudan ayrı): uyarı ve iyi durum */
+  /* anlam renkleri (vurgudan ayrı): uyarı ve iyi durum */
   --uyari:       #ff8f7a;
   --uyari-zemin: #2a1310;
   --iyi:         #74d99b;
   --iyi-zemin:   #0c2a1c;
 
-  /* ── ÖLÇÜLEN BÜYÜKLÜKLER — hem kart hem tuval çizgisi */
+  /* ÖLÇÜLEN BÜYÜKLÜKLER — hem kart hem tuval çizgisi */
   --volt:        #6ea8fe;
   --amper:       #f2a33c;
   --watt:        #35d39a;
 
-  /* ── biçim */
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-          "Liberation Mono", monospace;
-  --govde: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-           "Helvetica Neue", Arial, sans-serif;
-  --yuvarlak:    10px;
-  --yuvarlak-sm: 7px;
-  --gecis:       140ms cubic-bezier(.2, .6, .3, 1);
   --golge-1:     0 1px 0 rgba(255, 255, 255, .02) inset;
   --golge-2:     0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .35);
   color-scheme: dark;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --zemin:       #eceff4;
-    --zemin-2:     #e1e6ed;
-    --kart:        #ffffff;
-    --kenar-c:     #d6dde6;
-    --kenar-koyu:  #b4c0cd;
-    --yazi:        #0e1620;
-    --soluk:       #53616f;
-    --cok-soluk:   #75828f;
+/* ── AÇIK — seçilen maketin (B) renkleri. `--cok-soluk` ve
+   `--uyari-zemin` maket'te yok; türetildi (cok-soluk beyazda 4.6:1). */
+:root[data-tema="acik"] {
+  --zemin:       #f4f5f7;
+  --zemin-2:     #ffffff;
+  --kart:        #ffffff;
+  --kenar-c:     #dde1e6;
+  --kenar-koyu:  #c9cfd6;
+  --yazi:        #18202a;
+  --soluk:       #5b6775;
+  --cok-soluk:   #6b7684;
 
-    --vurgu:       #0a7e9c;
-    --vurgu-yazi:  #ffffff;
-    --vurgu-zemin: #e0f3f8;
+  --vurgu:       #0b5d67;
+  --vurgu-yazi:  #ffffff;
+  --vurgu-zemin: #e3f1f2;
 
-    --uyari:       #b42318;
-    --uyari-zemin: #fdecea;
-    --iyi:         #0a7a4c;
-    --iyi-zemin:   #e6f7ee;
+  --uyari:       #b3341f;
+  --uyari-zemin: #fbeae7;
+  --iyi:         #15784f;
+  --iyi-zemin:   #e4f4ec;
 
-    --volt:        #1f5ed0;
-    --amper:       #b0590a;
-    --watt:        #0b7a58;
+  --volt:        #2f63c6;
+  --amper:       #a85a06;
+  --watt:        #15784f;
 
-    --golge-1:     0 1px 2px rgba(16, 24, 40, .05);
-    --golge-2:     0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .08);
-    color-scheme: light;
-  }
+  --golge-1:     0 1px 2px rgba(16, 24, 40, .05);
+  --golge-2:     0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .08);
+  color-scheme: light;
+}
+
+/* ── ÖN PANEL — grafit + turuncu (maket C). Zemin #16181b, panel
+   #1d2024, gömük alan #101214, kenar #2a2e33 / #3a3f45, vurgu #f5a524.
+   ⚠ Maketin alarm rengi #c2361f bir DOLGU rengi; `--uyari` ise metin
+     rengi de (hata kutusu, "eksen HAM" rozeti) ve #c2361f panel üstünde
+     2.99:1 — okunmaz. Aynı ton açıldı (#f05a3c, panelde 4.85:1); B7 bu
+     temada da metin karşıtlığını sınıyor. */
+:root[data-tema="onpanel"] {
+  --zemin:       #16181b;
+  --zemin-2:     #101214;
+  --kart:        #1d2024;
+  --kenar-c:     #2a2e33;
+  --kenar-koyu:  #3a3f45;
+  --yazi:        #e4e6e8;
+  --soluk:       #9aa1a8;
+  --cok-soluk:   #7a8189;
+
+  --vurgu:       #f5a524;
+  --vurgu-yazi:  #1b1203;
+  --vurgu-zemin: #33260f;
+
+  --uyari:       #f05a3c;
+  --uyari-zemin: #2c1512;
+  --iyi:         #7fd99a;
+  --iyi-zemin:   #13261b;
+
+  --volt:        #8fb6ff;
+  --amper:       #ffc46b;
+  --watt:        #6fe3a8;
+
+  --golge-1:     0 1px 0 rgba(255, 255, 255, .03) inset;
+  --golge-2:     0 1px 2px rgba(0, 0, 0, .55), 0 8px 24px rgba(0, 0, 0, .4);
+  color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -540,7 +589,7 @@ button.kosuyor:hover:not(:disabled) { color: #06121f; border-color: var(--amper)
 .kal-rozet.yok { color: var(--uyari); }
 
 /* ── skop arşivi (B35) — geriye dönük kayıt listesi ─────────────────
-   Renkler YALNIZCA değişkenlerden geliyor; iki tema da aynı kurallarla
+   Renkler YALNIZCA değişkenlerden geliyor; üç görünüm de aynı kurallarla
    çalışıyor. Liste bir ızgara: satır sayısı içeriğe göre büyüsün ama
    kutular aynı hizada kalsın. */
 .kayit-listesi {

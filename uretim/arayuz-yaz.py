@@ -37,14 +37,28 @@ def main() -> int:
         return 1
     k = json.loads(KUNYE.read_text(encoding="utf-8"))
 
+    # Uretec modulu: arac arama VE kaynak cozme kurali orada (tek kopya).
+    import importlib.util
+    ozellik = importlib.util.spec_from_file_location(
+        "arayuz_uret", BURASI / "arayuz-uret.py")
+    _uret = importlib.util.module_from_spec(ozellik)
+    ozellik.loader.exec_module(_uret)
+
     # 🔴 BAYATLIK DENETIMI — bu betigin en onemli isi.
+    # 3A: goruntu `/ortak/` (ortak/src) ve `/ekran/` de tasiyor; kaynak yolu
+    #   ureticinin `kaynak_yolu()`'ndan. Eskiden `ARAYUZ / ad`ydi — ortak
+    #   dosyalari "silinmis" sayilip yazma REDDEDILIRDI. Uretimden sonra
+    #   EKLENEN bir ekran/ortak dosyasi da bayatlik (goruntude yok).
     bayat = []
     for ad, ozet in k["kaynak"].items():
-        y = ARAYUZ / ad
+        y = _uret.kaynak_yolu(ad)
         if not y.exists():
             bayat.append(f"{ad} (silinmis)")
         elif hashlib.sha256(y.read_bytes()).hexdigest() != ozet:
             bayat.append(ad)
+    for ad in _uret.goruntu_listesi():
+        if ad not in k["kaynak"]:
+            bayat.append(f"{ad} (goruntude yok)")
     if bayat:
         print("Goruntu BAYAT — su dosyalar uretimden sonra degisti:")
         for b in bayat:
@@ -55,12 +69,7 @@ def main() -> int:
     # Arac arama mantigi `arayuz-uret.py`'de — IKI KOPYA OLMASIN.
     # Dosya adinda tire oldugu icin normal `import` calismiyor; bu
     # projenin adlandirma deseni (belge-uret.py, sema3-uret.py …)
-    # korunsun diye modul yoldan yukleniyor.
-    import importlib.util
-    ozellik = importlib.util.spec_from_file_location(
-        "arayuz_uret", BURASI / "arayuz-uret.py")
-    _uret = importlib.util.module_from_spec(ozellik)
-    ozellik.loader.exec_module(_uret)
+    # korunsun diye modul yoldan yukleniyor (yukarida, bayatliktan once).
     mk, esp, csv = _uret.araclar()
 
     arg = sys.argv[1:]

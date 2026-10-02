@@ -81,6 +81,67 @@ def bolum(r, baslik):
     r.bilgi("")
 
 
+_URETEC = None
+
+
+def uretec():
+    """`arayuz-uret.py` modulu (adinda tire var — yoldan yukleniyor).
+    Goruntu listesi ve kaynak cozme kurali TEK yerde: orada."""
+    global _URETEC
+    if _URETEC is None:
+        import importlib.util
+        oz = importlib.util.spec_from_file_location("arayuz_uret", BURASI / "arayuz-uret.py")
+        _URETEC = importlib.util.module_from_spec(oz)
+        oz.loader.exec_module(_URETEC)
+    return _URETEC
+
+
+# P5 (alt proje 3, 2026-10-02): kartin arayuz goruntusu (gzip) <= 600 KB,
+# `ortak/` DAHIL. Uretecin sabitinden OKUNMUYOR: iddia spesifikasyonun
+# sayisi; uretec degistirilse de bu sayi degismemeli.
+P5_BUTCE = 600 * 1024
+
+
+def _cekirdek_webserver():
+    """Kurulu ESP32 Arduino cekirdeginin WebServer kaynagi (en yeni surum).
+    Derleme ayni yerden yapiliyor (yukle.py / arduino-cli)."""
+    import os
+    kok = os.environ.get("LOCALAPPDATA")
+    if not kok:
+        return None
+    taban = Path(kok) / "Arduino15" / "packages" / "esp32" / "hardware" / "esp32"
+    adaylar = sorted(taban.glob("*/libraries/WebServer/src"),
+                     key=lambda p: [int(x) if x.isdigit() else x
+                                    for x in re.split(r"[.-]", p.parents[2].name)])
+    adaylar = [p for p in adaylar if (p / "detail" / "mimetable.cpp").exists()]
+    return adaylar[-1] if adaylar else None
+
+
+def bolum6_moduller(r, k, _uret):
+    """3A (P4/P5): ES modulleri goruntude, gzip'li, butce icinde."""
+    goruntude = set(k["kaynak"])
+    gz = set(k.get("gz", []))
+    ortak = sorted("ortak/" + p.name for p in (KOK / "ortak" / "src").glob("*.js"))
+    ekran = sorted("ekran/" + p.name for p in (KOK / "arayuz3" / "ekran").glob("*.js"))
+    eksik = [a for a in ortak + ekran if a not in goruntude]
+    r.kosul("  6l: [!] `ortak/src/*.js` -> `/ortak/`, `arayuz3/ekran/*.js` -> `/ekran/` GORUNTUDE",
+            bool(ortak) and bool(ekran) and not eksik,
+            " ".join(eksik) or f"{len(ortak)} ortak + {len(ekran)} ekran modulu")
+    duz = [a for a in ortak + ekran if a not in gz]
+    r.kosul("  6l: ES modulleri gzip'li (serveStatic `<yol>.gz` buluyor)",
+            not duz and ".js" not in _uret.GZIPLENMEYEN,
+            " ".join(duz) or "hepsi .gz")
+    r.kosul("  6l: goruntu yolu -> kaynak: `ortak/x.js` ortak/src'ten, gerisi arayuz3'ten",
+            _uret.kaynak_yolu("ortak/ozet.js") == KOK / "ortak" / "src" / "ozet.js"
+            and _uret.kaynak_yolu("ekran/tema.js") == KOK / "arayuz3" / "ekran" / "tema.js"
+            and _uret.kaynak_yolu("app.js") == KOK / "arayuz3" / "app.js")
+    ortak_adet = len([a for a in goruntude if a.startswith("ortak/")])
+    r.kosul(f"  6m: [!] P5 butcesi: arayuz goruntusu (gzip, ortak/ dahil) <= {P5_BUTCE} B",
+            ortak_adet > 0 and 0 < k["icerik_bayt"] <= P5_BUTCE,
+            f"{k['icerik_bayt']} B = %{100.0 * k['icerik_bayt'] / P5_BUTCE:.0f} "
+            f"({ortak_adet} ortak modulu dahil)")
+
+
 # ═══════════════════════════════════════════════════════════════════════
 def bolum1(r):
     bolum(r, "BOLUM 1 — `Serial` AYNASI (SSE artik HER satiri tasiyor)")
@@ -638,6 +699,37 @@ def bolum6(r):
             (BURASI / "ikon-uret.py").exists()
             and (KOK / "arayuz3" / "ikon-180.png").exists())
 
+    # ── 3A: ES MODULLERI KARTTAN DA YUKLENEBILMELI ───────────────────
+    # `app.js` artik `<script type="module">` ve `ekran/tema.js`i import
+    # ediyor; panel ileride `/ortak/*.js`i de alacak. Tarayici modul betigini
+    # YALNIZCA JavaScript MIME turuyle calistirir (`text/plain` gelirse sayfa
+    # HIC acilmaz). FIRMWARE DEGISMEDI: bu istekler `serveStatic("/")`e
+    # dusuyor; MIME'i ve gzip'i CEKIRDEK belirliyor — kurulu cekirdekten
+    # okunuyor, varsayilmiyor.
+    r.kosul("  6n: `/ekran/`, `/ortak/` icin ozel isleyici YOK — kok serveStatic sunuyor",
+            '"/ortak' not in INO_KOD and '"/ekran' not in INO_KOD and i_kok >= 0)
+    cekirdek = _cekirdek_webserver()
+    if cekirdek is None:
+        r.bilgi("     ESP32 cekirdegi (WebServer) bulunamadi — MIME/gzip denetimi ATLANDI.")
+        r.kosul("  6n: cekirdek yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
+    else:
+        _mime = (cekirdek / "detail" / "mimetable.cpp").read_text(encoding="utf-8", errors="replace")
+        _js = re.search(r'\{\s*"\.js"\s*,\s*"([^"]+)"\s*\}', _mime)
+        r.kosul("  6n: [!] cekirdek `.js` -> JavaScript MIME (modul betigi bunu ister)",
+                _js is not None and _js.group(1) in ("application/javascript", "text/javascript"),
+                f"esp32 {cekirdek.parents[2].name}: {_js.group(1) if _js else '.js satiri yok'}")
+        _isl = kod((cekirdek / "detail" / "RequestHandlersImpl.h").read_text(
+            encoding="utf-8", errors="replace"))
+        # ⚠ Ayni imzali `handle` FunctionRequestHandler'da da var — sinifin ICINDE ara.
+        _sbt = govde(_isl[max(0, _isl.find("class StaticRequestHandler")):],
+                     "bool handle(WebServer &server, HTTPMethod requestMethod, const String &requestUri)")
+        _i_tur, _i_gz = _sbt.find("getContentType(path)"), _sbt.find("pathWithGz")
+        _ws = kod((cekirdek / "WebServer.cpp").read_text(encoding="utf-8", errors="replace"))
+        r.kosul("  6n: `.gz`e dususte MIME ASIL yoldan, Content-Encoding: gzip cekirdekten",
+                0 <= _i_tur < _i_gz
+                and 'sendHeader(F("Content-Encoding"), F("gzip"))' in govde(_ws, "void WebServer::_streamFileCore("),
+                "x.js istenir, x.js.gz gonderilir, tur application/javascript kalir")
+
     # ── Goruntunun bayatligi ─────────────────────────────────────────
     r.kosul("  6j: uretec ve yazici var",
             (BURASI / "arayuz-uret.py").exists()
@@ -652,16 +744,28 @@ def bolum6(r):
     else:
         import hashlib, json as _json
         k = _json.loads(kunye.read_text(encoding="utf-8"))
+        # 3A: goruntu `/ortak/` (ortak/src) ve `/ekran/` de tasiyor. Kaynak
+        #   yolu ve "goruntuye ne girer" listesi URETECIN fonksiyonlarindan
+        #   (arayuz-yaz.py de ayni ikisini kullaniyor) — burada ikinci bir
+        #   kopya kural yazilsaydi uc yer ayrisabilirdi. Uretimden SONRA
+        #   eklenen bir ekran/ortak dosyasi da bayatlik: kartta 404 olur.
+        _uret = uretec()
         bayat = [ad for ad, ozet in k["kaynak"].items()
-                 if not (KOK / "arayuz3" / ad).exists()
-                 or hashlib.sha256((KOK / "arayuz3" / ad).read_bytes()
+                 if not _uret.kaynak_yolu(ad).exists()
+                 or hashlib.sha256(_uret.kaynak_yolu(ad).read_bytes()
                                    ).hexdigest() != ozet]
+        _liste = _uret.goruntu_listesi()
+        bayat += [f"{ad}(goruntude yok)" for ad in _liste if ad not in k["kaynak"]]
+        # Ters yon: uretec artik URETMEDIGI bir dosyayi goruntu hala tasiyorsa
+        # (kural degisti ya da dosya listeden cikti) goruntu yine bayat.
+        bayat += [f"{ad}(fazla)" for ad in k["kaynak"] if ad not in _liste]
         r.kosul("  6j: LittleFS goruntusu GUNCEL", not bayat,
                 " ".join(bayat) or f"{len(k['kaynak'])} varlik, "
                 f"{k['icerik_bayt']} B, bolumun %"
                 f"{100.0 * k['icerik_bayt'] / k['bolum_boyut']:.1f}'i")
         r.kosul("  6j: goruntu bolume SIGIYOR",
                 k["icerik_bayt"] < k["bolum_boyut"])
+        bolum6_moduller(r, k, _uret)
 
 
 def main() -> int:
@@ -729,6 +833,13 @@ def main() -> int:
         ("arayuz-yaz.py ile karta yazma",
          "esptool yolu ve 0x310000 ofseti HIC denenmedi. "
          "`python arayuz-uret.py && python arayuz-yaz.py`"),
+        ("3A: panel karttan ES MODULU olarak aciliyor mu (STA + AP)",
+         "`python arayuz-uret.py && python arayuz-yaz.py` sonrasi http://<ip>/: "
+         "konsolda 0 hata; Ag sekmesinde /app.js ve /ekran/tema.js "
+         "`Content-Type: application/javascript` + `Content-Encoding: gzip`; "
+         "konsolda `await import('/ortak/rapor.js')` hatasiz. Ayarlar > Gorunum "
+         "uc temayi degistiriyor, sayfa yenilenince secim kaliyor. Olcum "
+         "dongusunde yeni blokaj yok (`K` satiri, KOMUT GONDERMEDEN)"),
     ])
     return 0 if tamam else 1
 

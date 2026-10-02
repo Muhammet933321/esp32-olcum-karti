@@ -163,99 +163,100 @@ Bu 20 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 68 | Telefondan ilk yukleme suresi | PC'de OLCULDU (B27 A4): 622 ms, 107 KB, 7 istek; ikinci acilista statik trafik 0 B (onbellek). 3 s'yi gecerse panel cikarma adimi acilir (5.12.38). TELEFONDA ayni olcumu yap — WiFi mesafesi ve telefon CPU'su bu sayiyi buyutur |
 | 69 | Sayfa sunmanin OLCUME bedeli — CIFT CEKIRDEKTEN SONRA | B27 A4'te (tek cekirdek) varlik varlik olculmustu: index 33 ms, style 34 ms, vue 155 ms, app.js 186 ms blokaj. B28'den sonra AYNI olcum: tam sayfa yuklemesinde 3.8-4.1 ms, bosta 3.0 ms, 0 uzun tur. ⚠ Bu kalemin onceki hali 'bosta 300 s'de 20 ms'yi asan TUR YOK' diyordu — YANLIS: o olcumde 5 tur vardi (22.5 ms, ~50 s'de bir). Metin olcum bitmeden yazilmisti. Olcum: `K` sifirla, sayfayi ac, KOMUT GONDERMEDEN kartin kendi `K` satirlarini dinle (`?` ciktisi tek basina bir turu ~12 ms bloklar) |
 | 70 | arayuz-yaz.py ile karta yazma | esptool yolu ve 0x310000 ofseti HIC denenmedi. `python arayuz-uret.py && python arayuz-yaz.py` |
+| 71 | 3A: panel karttan ES MODULU olarak aciliyor mu (STA + AP) | `python arayuz-uret.py && python arayuz-yaz.py` sonrasi http://<ip>/: konsolda 0 hata; Ag sekmesinde /app.js ve /ekran/tema.js `Content-Type: application/javascript` + `Content-Encoding: gzip`; konsolda `await import('/ortak/rapor.js')` hatasiz. Ayarlar > Gorunum uc temayi degistiriyor, sayfa yenilenince secim kaliyor. Olcum dongusunde yeni blokaj yok (`K` satiri, KOMUT GONDERMEDEN) |
 
 ## B25 Kart bringup kosucusu
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 71 | [!] Kosucunun kendisi gercek kartta calisiyor mu | Bu adim kosucuyu KAYITLI bir kart uzerinde siniyor. Gercek seri port, gercek zamanlama ve gercek USB CDC davranisi yalnizca kart takilinca gorulur: `python tezgah_kart.py --sifirla` |
-| 72 | Acilis afisi yakalanabiliyor mu | DTR/RTS ile reset YALNIZCA UART kopruli kartlarda calisiyor. Yerel USB CDC'de EN dugmesine elle basmak gerekir — afis alinamazsa PSRAM/LittleFS denetimleri ATLANIR, kirmizi olmaz |
-| 73 | Denetimler yeterli mi | Kosucu 33 denetim yapiyor; `_tezgah.md` bundan COK DAHA fazla kalem sayiyor (toplam dosyanin sonunda). Fark, multimetre isteyen kalemler. Kart calisir calismaz ikisini birlikte kullan |
+| 72 | [!] Kosucunun kendisi gercek kartta calisiyor mu | Bu adim kosucuyu KAYITLI bir kart uzerinde siniyor. Gercek seri port, gercek zamanlama ve gercek USB CDC davranisi yalnizca kart takilinca gorulur: `python tezgah_kart.py --sifirla` |
+| 73 | Acilis afisi yakalanabiliyor mu | DTR/RTS ile reset YALNIZCA UART kopruli kartlarda calisiyor. Yerel USB CDC'de EN dugmesine elle basmak gerekir — afis alinamazsa PSRAM/LittleFS denetimleri ATLANIR, kirmizi olmaz |
+| 74 | Denetimler yeterli mi | Kosucu 33 denetim yapiyor; `_tezgah.md` bundan COK DAHA fazla kalem sayiyor (toplam dosyanin sonunda). Fark, multimetre isteyen kalemler. Kart calisir calismaz ikisini birlikte kullan |
 
 ## B71 Kayit motoru
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 74 | Flas yazma/silmenin olcume etkisi (gercek kart, 1A-2) | kayit 50/s ve 5/s surerken K satirinda loop_azami ve uzun tur kayitsiz tabanla ayni sinifta; kuyrukta dusen nokta 0 |
-| 75 | Gercek elektrik kesme: fis cekme, PIL anahtari kapali | 20 tekrar: kurtarma hatasiz, oturum DEVAM ile suruyor, kayip en fazla son ~5 s (spec O2) |
-| 76 | Emule NOR ariza modeli gercek ESP32 flasini temsil ediyor mu | kartta RTS sifirlamasiyla rastgele 100 kesme: K5-K10'un karsiliklari yesil |
-| 77 | Python cozucunun volt/amper cevrimi kartin kendi hesabiyla ayni mi | karttan alinan kayit kayit_bicim.volt()/amper() ile cozulunce ayni anin D satiriyla bagil fark <= 1e-6 |
+| 75 | Flas yazma/silmenin olcume etkisi (gercek kart, 1A-2) | kayit 50/s ve 5/s surerken K satirinda loop_azami ve uzun tur kayitsiz tabanla ayni sinifta; kuyrukta dusen nokta 0 |
+| 76 | Gercek elektrik kesme: fis cekme, PIL anahtari kapali | 20 tekrar: kurtarma hatasiz, oturum DEVAM ile suruyor, kayip en fazla son ~5 s (spec O2) |
+| 77 | Emule NOR ariza modeli gercek ESP32 flasini temsil ediyor mu | kartta RTS sifirlamasiyla rastgele 100 kesme: K5-K10'un karsiliklari yesil |
+| 78 | Python cozucunun volt/amper cevrimi kartin kendi hesabiyla ayni mi | karttan alinan kayit kayit_bicim.volt()/amper() ile cozulunce ayni anin D satiriyla bagil fark <= 1e-6 |
 
 ## B72 Kayit firmware + esitleme
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 78 | Flas yazma/silmenin olcume etkisi (spec §11 ilk risk) | tezgah_kayit.py --durma: 50/s ve 5/s'de kuyrukta dusen nokta 0; loop_azami ve sil_azami_us raporlanir |
-| 79 | Kayit surerken sifirlama (RTS) -> DEVAM | tezgah_kayit.py --kesinti 20: her sifirlamada durum 2'ye doner, flasta tek oturum, noktalar bosluksuz, sira tekrar yok |
-| 80 | Esitlenen dosya == karttaki flas bolumu (bayt bayt) | tezgah_kayit.py --esit: esptool ile okunan bolumdeki her kayit esitlenen dosyadakiyle ayni |
-| 81 | DOLU bolumde acilis (bolumu 50/s ONAYSIZ ~1.7 sa doldur) | tezgah_kayit.py --dolu: tarama < 5 s ve Task WDT sifirlamasi YOK (2026-09-30'da sonsuz yeniden baslama bulundu), 11 MB esitlenir, onay dogrulanir, halka doner, dusen 0 |
-| 82 | DOLU bolumde GF! | tezgah_kayit.py --bicim: anlik biter, temizlik surerken /kayit/liste her istekte < 1 s (p0 ayni web sunucusunda), temiz_kalan azalir |
-| 83 | 1B kalibrasyon gecmisi kartta | tezgah_kayit.py --kal: #1 = Ayar3, not/tur kalici, oturum basliginda kal_no, /kal/liste == kl, etkin, `kk` taslaksiz kayit acmaz, Gb sessiz (kalibrasyon komutu CALISTIRMAZ) |
-| 84 | [!] ADS takilinca: GERCEK bir kalibrasyon adimi | g sonrasi `k?` taslak=1; `kk<t><not>` yeni numara; ardindan baslayan kaydin kal_no'su o numara; unutulursa kayit baslarken otomatik ve kart 'otomatik kaydedildi' der. z (sifirlama) sonrasi taslak=0 (sifirlar gecmise girmez); sont degistirip geri alinca eski numara |
-| 85 | [!] Gecmis doluyken tarama suresi | 30+ kayitli gecmiste degerler degisince kgc_esle en fazla 39 NVS okumasi: ayar komutu ve Gb'de loop_azami < 20 ms (tahmin ~4-8 ms) |
-| 86 | 1C-1 pil oturumu kartta (ADS yok) | tezgah_kayit.py --pil: p1 reddedilir ve oturum acmaz; Ga/Ge/Gn gercek oturuma, PC adi/etiketi/notlari okur, Gx siler; olcum oturumu yeniden baslatmada DEVAM |
-| 87 | [!] ADS takilinca: GERCEK pil testi kaydi | p1 -> G satirinda PIL oturumu; 5 dk'da bir DCIR olayi; kesmede PIL_SONUC == `B` raporu (mAh, Wh, sure, dcir sayisi); test ortasinda fis cekilirse acilista oturum BITIR(5), DEVAM yok; olcum kaydi surerken p1 -> olcum BITIR(6) |
-| 88 | 1C-2 ayrintili kip kartta (ADS yok) | tezgah_kayit.py --ayrinti: hazir alan bosta buyur; Gb0 60 s: sira kesintisiz, zaman farki dagilimi, kayit ici silme 0, dusen 0; yeniden baslatmada DEVAM |
-| 89 | [!] Skop girisine CAL bagliyken osiloskop gunlugu (1C-3) | X1000 + tek tel GPIO10 -> GPIO4 (ya da RC duzenegi): tezgah_kayit.py --skop sinyalli dalda Gt0 her yakalama tetikli ve ~1 kHz; 2026-10-01'de giriste sinyal yoktu (kodlar 0) |
-| 90 | [!] ADS takilinca: gercek 500/s ayrintili kayit | Gb0 60 s: ~30 000 ornek, dt ortancasi ~2000 us; PC'de V/I (ve hizalamali W) kartin D satiriyla ayni anda karsilastirilir; hazir alan bitince KA_SILME kayitlari gorulur |
-| 91 | 1E bildirimler kartta (PC'de sahte araci, hesap gerekmez) | tezgah_bildirim.py: Qv gecti; CONNECT keepalive 5 + vasiyet QoS 1 retained; durum c:1 cozulur (f A3-1E); Qt olayi `n` artarak; RTS sifirlamasinda vasiyet <= 15 s; araci kesintisinde olay kuyrukta bekler, yeniden baglaninca gider; QY dahili_bos >= 60 KB; /komut Q'yu 403 ile reddeder; Q?/akis hicbir parolayi gostermez |
-| 92 | Gercek araci (EMQX Serverless): TLS + O4 (2026-10-02: 16/16 vasiyet 4.0-7.9 s) | Qu mqtts://<adres>.emqxsl.com:8883, Qk/Qp kart, Qc/Qd cihaz, Q1: Q? bagli ve el_sikisma_ms; TLS el sikismasi sirasinda K satirinda loop_azami degismez (K11); fis cekme -> vasiyet <= 15 s (hedef 10), 10 tekrar (O4) |
-| 93 | Gercek fis cekme (USB + PIL kapali) | elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla son ~5 s |
+| 79 | Flas yazma/silmenin olcume etkisi (spec §11 ilk risk) | tezgah_kayit.py --durma: 50/s ve 5/s'de kuyrukta dusen nokta 0; loop_azami ve sil_azami_us raporlanir |
+| 80 | Kayit surerken sifirlama (RTS) -> DEVAM | tezgah_kayit.py --kesinti 20: her sifirlamada durum 2'ye doner, flasta tek oturum, noktalar bosluksuz, sira tekrar yok |
+| 81 | Esitlenen dosya == karttaki flas bolumu (bayt bayt) | tezgah_kayit.py --esit: esptool ile okunan bolumdeki her kayit esitlenen dosyadakiyle ayni |
+| 82 | DOLU bolumde acilis (bolumu 50/s ONAYSIZ ~1.7 sa doldur) | tezgah_kayit.py --dolu: tarama < 5 s ve Task WDT sifirlamasi YOK (2026-09-30'da sonsuz yeniden baslama bulundu), 11 MB esitlenir, onay dogrulanir, halka doner, dusen 0 |
+| 83 | DOLU bolumde GF! | tezgah_kayit.py --bicim: anlik biter, temizlik surerken /kayit/liste her istekte < 1 s (p0 ayni web sunucusunda), temiz_kalan azalir |
+| 84 | 1B kalibrasyon gecmisi kartta | tezgah_kayit.py --kal: #1 = Ayar3, not/tur kalici, oturum basliginda kal_no, /kal/liste == kl, etkin, `kk` taslaksiz kayit acmaz, Gb sessiz (kalibrasyon komutu CALISTIRMAZ) |
+| 85 | [!] ADS takilinca: GERCEK bir kalibrasyon adimi | g sonrasi `k?` taslak=1; `kk<t><not>` yeni numara; ardindan baslayan kaydin kal_no'su o numara; unutulursa kayit baslarken otomatik ve kart 'otomatik kaydedildi' der. z (sifirlama) sonrasi taslak=0 (sifirlar gecmise girmez); sont degistirip geri alinca eski numara |
+| 86 | [!] Gecmis doluyken tarama suresi | 30+ kayitli gecmiste degerler degisince kgc_esle en fazla 39 NVS okumasi: ayar komutu ve Gb'de loop_azami < 20 ms (tahmin ~4-8 ms) |
+| 87 | 1C-1 pil oturumu kartta (ADS yok) | tezgah_kayit.py --pil: p1 reddedilir ve oturum acmaz; Ga/Ge/Gn gercek oturuma, PC adi/etiketi/notlari okur, Gx siler; olcum oturumu yeniden baslatmada DEVAM |
+| 88 | [!] ADS takilinca: GERCEK pil testi kaydi | p1 -> G satirinda PIL oturumu; 5 dk'da bir DCIR olayi; kesmede PIL_SONUC == `B` raporu (mAh, Wh, sure, dcir sayisi); test ortasinda fis cekilirse acilista oturum BITIR(5), DEVAM yok; olcum kaydi surerken p1 -> olcum BITIR(6) |
+| 89 | 1C-2 ayrintili kip kartta (ADS yok) | tezgah_kayit.py --ayrinti: hazir alan bosta buyur; Gb0 60 s: sira kesintisiz, zaman farki dagilimi, kayit ici silme 0, dusen 0; yeniden baslatmada DEVAM |
+| 90 | [!] Skop girisine CAL bagliyken osiloskop gunlugu (1C-3) | X1000 + tek tel GPIO10 -> GPIO4 (ya da RC duzenegi): tezgah_kayit.py --skop sinyalli dalda Gt0 her yakalama tetikli ve ~1 kHz; 2026-10-01'de giriste sinyal yoktu (kodlar 0) |
+| 91 | [!] ADS takilinca: gercek 500/s ayrintili kayit | Gb0 60 s: ~30 000 ornek, dt ortancasi ~2000 us; PC'de V/I (ve hizalamali W) kartin D satiriyla ayni anda karsilastirilir; hazir alan bitince KA_SILME kayitlari gorulur |
+| 92 | 1E bildirimler kartta (PC'de sahte araci, hesap gerekmez) | tezgah_bildirim.py: Qv gecti; CONNECT keepalive 5 + vasiyet QoS 1 retained; durum c:1 cozulur (f A3-1E); Qt olayi `n` artarak; RTS sifirlamasinda vasiyet <= 15 s; araci kesintisinde olay kuyrukta bekler, yeniden baglaninca gider; QY dahili_bos >= 60 KB; /komut Q'yu 403 ile reddeder; Q?/akis hicbir parolayi gostermez |
+| 93 | Gercek araci (EMQX Serverless): TLS + O4 (2026-10-02: 16/16 vasiyet 4.0-7.9 s) | Qu mqtts://<adres>.emqxsl.com:8883, Qk/Qp kart, Qc/Qd cihaz, Q1: Q? bagli ve el_sikisma_ms; TLS el sikismasi sirasinda K satirinda loop_azami degismez (K11); fis cekme -> vasiyet <= 15 s (hedef 10), 10 tekrar (O4) |
+| 94 | Gercek fis cekme (USB + PIL kapali) | elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla son ~5 s |
 
 ## B73 ortak/ (JS hesap kodu)
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 94 | Kartin GERCEK akisi JS ile de ayni cozuluyor mu | tezgah_kayit.py --esit ile esitlenen kayit.bin'i hem kopru/kayit_bicim.py hem ortak/src/kayit.js ile coz; oturumlar, noktalar, volt/amper bit bit ayni |
-| 95 | [!] Telefonda PBKDF2 suresi (Capacitor WebView) | 20 000 tur; spec 'telefonda < 1 s' (yazilim-sistemi §13). Node'daki sure telefonu temsil etmez |
+| 95 | Kartin GERCEK akisi JS ile de ayni cozuluyor mu | tezgah_kayit.py --esit ile esitlenen kayit.bin'i hem kopru/kayit_bicim.py hem ortak/src/kayit.js ile coz; oturumlar, noktalar, volt/amper bit bit ayni |
+| 96 | [!] Telefonda PBKDF2 suresi (Capacitor WebView) | 20 000 tur; spec 'telefonda < 1 s' (yazilim-sistemi §13). Node'daki sure telefonu temsil etmez |
 
 ## B3 Sema
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 96 | Kurulan kart SEMAYLA ayni mi | Netlist yalnizca semayi dogruluyor; lehimlenen kart baska olabilir. Olcum: her dugumu ohmmetrenin sureklilik kipiyle netliste karsi tek tek gec |
-| 97 | Polarite: elektrolitik ve diyot yonleri | ERC yon hatasi YAKALAMAZ. Olcum: montajdan ONCE her kutuplu parcayi gozle dogrula — enerji verdikten sonra elektrolitik geri donusu yok |
+| 97 | Kurulan kart SEMAYLA ayni mi | Netlist yalnizca semayi dogruluyor; lehimlenen kart baska olabilir. Olcum: her dugumu ohmmetrenin sureklilik kipiyle netliste karsi tek tek gec |
+| 98 | Polarite: elektrolitik ve diyot yonleri | ERC yon hatasi YAKALAMAZ. Olcum: montajdan ONCE her kutuplu parcayi gozle dogrula — enerji verdikten sonra elektrolitik geri donusu yok |
 
 ## B4/B5 Olcum matematigi
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 98 | ESP32'nin gercek ADC gurultusu ve INL'i | Sabit gerilimde 1000 ornek al, standart sapmayi olc. Skop cozunurlugu (28.8 mV) bu gurultunun altinda kalmali |
-| 99 | Gercek ADS1115 ofset (+-3 LSB) ve kazanc (%0.15) hatasi | Kalibrasyon SONRASI bilinen iki noktada olc. Kalan hata veri sayfasi sinirlarinin icinde mi |
-| 100 | ESP32 ADC'sinin gercek TAM OLCEGI | 3.1 V nominal ama yongaya gore degisiyor; skop volt/adim dogrudan buna bagli |
+| 99 | ESP32'nin gercek ADC gurultusu ve INL'i | Sabit gerilimde 1000 ornek al, standart sapmayi olc. Skop cozunurlugu (28.8 mV) bu gurultunun altinda kalmali |
+| 100 | Gercek ADS1115 ofset (+-3 LSB) ve kazanc (%0.15) hatasi | Kalibrasyon SONRASI bilinen iki noktada olc. Kalan hata veri sayfasi sinirlarinin icinde mi |
+| 101 | ESP32 ADC'sinin gercek TAM OLCEGI | 3.1 V nominal ama yongaya gore degisiyor; skop volt/adim dogrudan buna bagli |
 
 ## B6 Firmware derleme + ikili
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 101 | I2C gercekten calisiyor mu | `#` komutu -> `I2C: 0x48 0x49`. Ikisi de gorunmuyorsa adres pinleri ya da cekme direncleri yanlis |
-| 102 | Menzil gecisi gercek gerilimde puruzsuz mu | Yavas artan bir gerilimde NORMAL->YUKSEK gecisini izle. Sicrama varsa histerezis yetersiz |
-| 103 | PSRAM kartta gercekten var mi | Acilista `PSRAM: 8192 KB` yazmali. `YOK` yazarsa hedef2.py'de PSRAM=opi yerine PSRAM=enabled (quad) denenecek |
+| 102 | I2C gercekten calisiyor mu | `#` komutu -> `I2C: 0x48 0x49`. Ikisi de gorunmuyorsa adres pinleri ya da cekme direncleri yanlis |
+| 103 | Menzil gecisi gercek gerilimde puruzsuz mu | Yavas artan bir gerilimde NORMAL->YUKSEK gecisini izle. Sicrama varsa histerezis yetersiz |
+| 104 | PSRAM kartta gercekten var mi | Acilista `PSRAM: 8192 KB` yazmali. `YOK` yazarsa hedef2.py'de PSRAM=opi yerine PSRAM=enabled (quad) denenecek |
 
 ## B7 Arayuz
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 104 | [!] Arayuz tarayicida GERCEKTEN dogru gorunuyor mu | Bu adim Vue`yu TAKLIT ediyor; sayfa hic render edilmiyor. B22.0`da arayuz zincir 15/15 yesilken tarayicida HIC acilmiyordu. `python arayuz3/sunucu.py` -> konsolda 0 hata, ham {{ }} yok |
-| 105 | J7/J3 baypas uyarisi KIRMIZI seritli gorunuyor mu | Emniyet uyarisi govde metninden ayirt edilebilmeli. B22.0 oncesi `.uyari` sinifi hic tanimli degildi ve duz paragraf olarak cikiyordu |
-| 106 | Osiloskop iki yoldan da AYNI cizimi veriyor mu | USB`de ASCII, WiFi`de ikili (/skop.bin) yol kullaniliyor. Ayni sinyalde iki kip AYNI dalgayi cizmeli; farkliysa cozuculerden biri yanlis (endian, olcek ya da ofset) |
-| 107 | Telefonda Ana Ekrana Ekle | iPhone: adres cubugu OLMADAN, kendi ikonuyla acilmali. Android: kisayol Chrome sekmesinde acilir — bu beklenen davranis, gercek PWA kurulumu HTTPS istiyor |
+| 105 | [!] Arayuz tarayicida GERCEKTEN dogru gorunuyor mu | Bu adim Vue`yu TAKLIT ediyor; sayfa hic render edilmiyor. B22.0`da arayuz zincir 15/15 yesilken tarayicida HIC acilmiyordu. `python arayuz3/sunucu.py` -> konsolda 0 hata, ham {{ }} yok |
+| 106 | J7/J3 baypas uyarisi KIRMIZI seritli gorunuyor mu | Emniyet uyarisi govde metninden ayirt edilebilmeli. B22.0 oncesi `.uyari` sinifi hic tanimli degildi ve duz paragraf olarak cikiyordu |
+| 107 | Osiloskop iki yoldan da AYNI cizimi veriyor mu | USB`de ASCII, WiFi`de ikili (/skop.bin) yol kullaniliyor. Ayni sinyalde iki kip AYNI dalgayi cizmeli; farkliysa cozuculerden biri yanlis (endian, olcek ya da ofset) |
+| 108 | Telefonda Ana Ekrana Ekle | iPhone: adres cubugu OLMADAN, kendi ikonuyla acilmali. Android: kisayol Chrome sekmesinde acilir — bu beklenen davranis, gercek PWA kurulumu HTTPS istiyor |
 
 ## B9 Malzeme listesi
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 108 | [!] Direnc adetleri SAYIM degil goz karari | envanter.csv'nin direnc adetleri yaklasik (CLAUDE.md). Listede yeter gorunen bir deger tezgahta bitebilir. Olcum: montajdan ONCE kritik degerleri say |
-| 109 | Kayitta gorunmeyen parca GERCEKTEN yok mu | Bobin/cekirdek ve modul alanlari KISMEN girildi. 'kayitta yok' = 'elde yok' DEGIL. Olcum: kutuya bak |
-| 110 | Parcalarin gercek degerleri etiketiyle ayni mi | Ozellikle HV bolucusundeki 4.9 M ohm zinciri. Olcum: lehimlemeden once her direnci ohmmetreyle gec |
+| 109 | [!] Direnc adetleri SAYIM degil goz karari | envanter.csv'nin direnc adetleri yaklasik (CLAUDE.md). Listede yeter gorunen bir deger tezgahta bitebilir. Olcum: montajdan ONCE kritik degerleri say |
+| 110 | Kayitta gorunmeyen parca GERCEKTEN yok mu | Bobin/cekirdek ve modul alanlari KISMEN girildi. 'kayitta yok' = 'elde yok' DEGIL. Olcum: kutuya bak |
+| 111 | Parcalarin gercek degerleri etiketiyle ayni mi | Ozellikle HV bolucusundeki 4.9 M ohm zinciri. Olcum: lehimlemeden once her direnci ohmmetreyle gec |
 
 ## B48 Yerlesim plani
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 111 | [!] BJT/TL431/7912 bacak sirasi multimetrenin diyot kademesiyle | Plan E-B-C (2N2222-331), C-B-E (BC557), REF-A-K (TL431), GND-VI-VO (7912) varsayiyor. Semadaki Q2 sembolu BC547 (C-B-E); yanlis sira transistoru YARI calistirir, sessiz kusur |
-| 112 | Plaket ped capi kumpasla | Kacak yolu hesabi lehimli iletken capini 1.54 mm aliyor. Olculen buyukse yerlesim3_veri/tasarim3_sabit guncellenip denetim yeniden kosulacak (HV kartinda pay +1.97 mm) |
-| 113 | Sigorta klipsi, 68uF ve C18 bacak araliklari | Ayak izleri tahmin: klips cifti 6 adim, 68uF 1 adim / 8 mm govde, C18 film 6 adim. Parcayi plakete oturt, delikleri say; uymayan varsa plan yeniden uretilecek (--yol-uret) |
-| 114 | Her adimin sonunda bakir sureklilik (ohmmetre) | Plan acik/kisa devre olmadigini GEOMETRIDEN kanitliyor; soguk lehim ve lehim koprusunu kanitlayamaz. Her adimda kilavuzun KAPI olcumunden once komsu pedler arasi kisa, ag iclerinde sureklilik |
+| 112 | [!] BJT/TL431/7912 bacak sirasi multimetrenin diyot kademesiyle | Plan E-B-C (2N2222-331), C-B-E (BC557), REF-A-K (TL431), GND-VI-VO (7912) varsayiyor. Semadaki Q2 sembolu BC547 (C-B-E); yanlis sira transistoru YARI calistirir, sessiz kusur |
+| 113 | Plaket ped capi kumpasla | Kacak yolu hesabi lehimli iletken capini 1.54 mm aliyor. Olculen buyukse yerlesim3_veri/tasarim3_sabit guncellenip denetim yeniden kosulacak (HV kartinda pay +1.97 mm) |
+| 114 | Sigorta klipsi, 68uF ve C18 bacak araliklari | Ayak izleri tahmin: klips cifti 6 adim, 68uF 1 adim / 8 mm govde, C18 film 6 adim. Parcayi plakete oturt, delikleri say; uymayan varsa plan yeniden uretilecek (--yol-uret) |
+| 115 | Her adimin sonunda bakir sureklilik (ohmmetre) | Plan acik/kisa devre olmadigini GEOMETRIDEN kanitliyor; soguk lehim ve lehim koprusunu kanitlayamaz. Her adimda kilavuzun KAPI olcumunden once komsu pedler arasi kisa, ag iclerinde sureklilik |
 
-**Toplam 114 kalem, 20 tanesi ilk gun.**
+**Toplam 115 kalem, 20 tanesi ilk gun.**

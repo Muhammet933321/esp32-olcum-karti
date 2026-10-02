@@ -39,6 +39,7 @@ from __future__ import annotations
 import http.server
 import json
 import queue
+import re
 import secrets
 import socket
 import socketserver
@@ -51,6 +52,15 @@ from pathlib import Path
 BURASI = Path(__file__).resolve().parent
 KOK = BURASI.parent
 ARAYUZ = KOK / "arayuz3"
+# 3A (P4): panel paylasilan hesabi `/ortak/<ad>.js`ten `import` ediyor —
+# kart LittleFS'ten, `arayuz3/sunucu.py` ve kopru `ortak/src/`ten AYNI
+# dosyayi sunuyor. DUSME DEGIL: yalniz bu onek, yalniz `<ad>.js`.
+ORTAK = KOK / "ortak" / "src"
+ORTAK_AD = re.compile(r"[a-z0-9_-]+\.js")
+# `app.js` ES modulu: tarayici modul betigini yalnizca JavaScript MIME
+# turuyle calistirir; `mimetypes` Windows kayit defterinden `.js` ->
+# `text/plain` okuyabiliyor. Elle sabitleniyor.
+JS_TURU = "text/javascript"
 
 sys.path.insert(0, str(BURASI))
 from arsiv import Arsiv, SkopCozucu, skop_ikili           # noqa: E402
@@ -305,6 +315,8 @@ class Kopru:
 
 class Isleyici(http.server.SimpleHTTPRequestHandler):
     kopru: Kopru = None                                  # sinif duzeyinde
+    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map,
+                      ".js": JS_TURU}
 
     def __init__(self, *a, **k):
         super().__init__(*a, directory=str(ARAYUZ), **k)
@@ -345,7 +357,16 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._skop_liste()
         if yol == "/skop/al":
             return self._skop_al()
+        if yol.startswith("/ortak/"):
+            return self._ortak(yol[len("/ortak/"):])
         return super().do_GET()
+
+    def _ortak(self, ad: str):
+        """`/ortak/<ad>.js` -> `ortak/src/<ad>.js` (3A, P4). Baska her ad 404."""
+        dosya = ORTAK / ad
+        if not ORTAK_AD.fullmatch(ad) or not dosya.is_file():
+            return self._yanit(404, b"ortak modulu yok")
+        self._yanit(200, dosya.read_bytes(), JS_TURU)
 
     def _durum(self):
         k = self.kopru
