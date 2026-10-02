@@ -5,7 +5,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { skopOlc, u64f, ALANLAR, AZAMI_ADET } from "../src/skop.js";
+import {
+  skopOlc, u64f, ALANLAR, AZAMI_ADET, KART_SABIT, KART_VOLT_ADIM, KART_VOLT_OFSET, KAL_N, kalDugumKod,
+  egriGecerli, kalMvKart, skopOfsetle, skopOlcKalibre, skopOlcKart,
+} from "../src/skop.js";
 
 const V = JSON.parse(readFileSync(new URL("./vektor/skop.json", import.meta.url), "utf8"));
 const BASLIK = new URL("../../kod/olcum-karti-a3/skop_olc.h", import.meta.url);
@@ -210,4 +213,118 @@ test("float32 sonuc: her alan Math.fround'a degismez", () => {
     for (const a of ALANLAR) assert.ok(Object.is(Math.fround(o[a]), o[a]), `${v.ad}.${a}`);
     assert.ok(Number.isInteger(o.n));
   }
+});
+
+// ── 3E (OS4): kartin `M` satiri = skop_olc_kalibre / skop_olc + skop_ofsetle ─────────
+/** Kartin `skop_m_satiri` snprintf bicimi (olcum-karti-a3.ino). */
+function mSatiri(o) {
+  return `M f=${o.f.toFixed(3)} T=${o.T.toFixed(9)} Vpp=${o.Vpp.toFixed(4)} Vmax=${o.Vmax.toFixed(4)} `
+    + `Vmin=${o.Vmin.toFixed(4)} Vort=${o.Vort.toFixed(4)} Vrms=${o.Vrms.toFixed(4)} Vac=${o.Vac.toFixed(4)} `
+    + `duty=${o.duty.toFixed(2)} tr=${o.tr.toFixed(9)} tf=${o.tf.toFixed(9)} n=${o.n}`;
+}
+const mCoz = (s) => Object.fromEntries(s.slice(2).trim().split(/\s+/).map((a) => a.split("=")));
+const FIKSTUR = JSON.parse(readFileSync(new URL("../../uretim/olcum-skop-fikstur.json", import.meta.url), "utf8"));
+const ctEgri = (ct) => ct.split(" ").filter((p) => /^\d+:\d+$/.test(p)).map((p) => Number(p.split(":")[1]));
+/** Bagimsiz dogrusal ara degerleme (double): kartin kural metni (kal_mv) — dugum 256'nin katlari, son 4095. */
+const mvRef = (e, k) => {
+  const i = Math.min(15, Math.max(0, Math.floor((k - 1e-9) / 256)));
+  const k0 = i * 256;
+  const k1 = i === 15 ? 4095 : (i + 1) * 256;
+  return e[i] + (e[i + 1] - e[i]) * (k - k0) / (k1 - k0);
+};
+
+test("3E: kart sabitleri olcum3.h ile ayni ve kartin BASTIGI degerler (CT oran/ofset, S2 adim)", () => {
+  const h = readFileSync(new URL("../../kod/olcum-karti-a3/olcum3.h", import.meta.url), "utf8");
+  assert.match(h, /#define SKOP_ORAN\s+38\.03703704f/);
+  assert.match(h, /#define SKOP_ADC_TAVAN 3\.10f/);
+  assert.match(h, /#define SKOP_ADC_SAYIM 4096\.0f/);
+  assert.match(h, /#define VREF_NOMINAL\s+1\.71531250f/);
+  assert.equal(KART_SABIT.ORAN.toFixed(6), "38.037037");
+  assert.equal(KART_VOLT_OFSET.toFixed(6), "63.530090", "CT ofset=");
+  assert.equal(KART_VOLT_ADIM.toFixed(6), "0.028788", "S2 volt/adim");
+  assert.equal(KART_VOLT_ADIM, V.vakalar[0].volt_adim, "C vektorlerinin adimi (AVR'de derlenen SKOP_VOLT_ADIM)");
+  assert.deepEqual(Array.from({ length: KAL_N }, (_, k) => kalDugumKod(k)),
+    [0, 256, 512, 768, 1024, 1280, 1536, 1792, 2048, 2304, 2560, 2816, 3072, 3328, 3584, 3840, 4095]);
+});
+
+test("[!] 3E GERCEK KART: egriyle hesaplanan M satiri kartin bastigiyla AYNI (gerilimler, f, T, n)", () => {
+  const egri = ctEgri(FIKSTUR.ct);
+  assert.equal(egri.length, 17);
+  assert.ok(egriGecerli(egri));
+  const s2 = FIKSTUR.s2.split(" ");
+  const o = skopOlcKart(FIKSTUR.kodlar, { adim: KART_VOLT_ADIM, ofset: KART_VOLT_OFSET, hz: Number(s2[2]), egri });
+  assert.equal(o.egri, true);
+  const js = mCoz(mSatiri(o));
+  const kart = mCoz(FIKSTUR.m);
+  for (const a of ["f", "T", "Vpp", "Vmax", "Vmin", "Vort", "Vrms", "Vac", "n"]) {
+    assert.equal(js[a], kart[a], `${a}: panel ${js[a]} kart ${kart[a]}`);
+  }
+  /* duty / tr / tf: fikstur 2026-09-13'te, 1F (2026-10-02) S3/S4 duzeltmelerinden ONCE
+     basildi — bugunku C baska sayi verir (duty bir ornek eksik, tr/tf cuce kenar kurali). */
+  assert.ok(Math.abs(o.duty - Number(kart.duty)) < 0.5 && o.tr > 0 && o.tf > 0, mSatiri(o));
+  /* egrisiz yol AYNI kodlarda kartla UYUSMAZ — egri gercekten bir sey yapiyor (B43: ~7 V) */
+  const ham = skopOlcKart(FIKSTUR.kodlar, { adim: KART_VOLT_ADIM, ofset: KART_VOLT_OFSET, hz: 83333 });
+  assert.equal(ham.egri, false);
+  assert.ok(Math.abs(ham.Vmax - Number(kart.Vmax)) > 1, `${ham.Vmax} vs ${kart.Vmax}`);
+});
+
+test("3E: egrisiz yol = C vektoru (skop_olc) + skop_ofsetle; fark/zaman alanlari ofsetten bagimsiz", () => {
+  const OF = KART_VOLT_OFSET;
+  for (const v of V.vakalar) {
+    const o = skopOlcKart(v.ham, { adim: v.volt_adim, ofset: OF, hz: v.hz, adet: v.adet });
+    const b = v.beklenen;
+    for (const a of ["f", "T", "Vpp", "Vac", "duty", "tr", "tf", "n"]) assert.ok(Object.is(o[a], b[a]), `${v.ad}.${a}`);
+    assert.ok(Object.is(o.Vmax, Math.fround(b.Vmax - OF)) && Object.is(o.Vmin, Math.fround(b.Vmin - OF))
+      && Object.is(o.Vort, Math.fround(b.Vort - OF)), v.ad);
+    assert.ok(Math.abs(o.Vrms - Math.hypot(b.Vac, o.Vort)) <= 1e-5 * Math.max(1, o.Vrms), `${v.ad}: Vrms^2 = Vac^2 + Vort^2`);
+  }
+});
+
+test("3E: egri gecerliligi = kartin kal_tab_var'i (17 nokta, >= 0, kesin artan)", () => {
+  const iyi = ctEgri(FIKSTUR.ct);
+  assert.ok(egriGecerli(iyi));
+  assert.ok(!egriGecerli(new Array(17).fill(0)), "kart kal_tab_var=false iken sifir dizi yazar");
+  assert.ok(!egriGecerli([...iyi.slice(0, 9), ...new Array(8).fill(0)]), "yarim dolu (eFuse okuma yarida kesildi)");
+  assert.ok(!egriGecerli(iyi.slice(0, 16)), "16 nokta");
+  assert.ok(!egriGecerli([-1, ...iyi.slice(1)]), "eksi mV");
+  assert.ok(!egriGecerli([...iyi.slice(0, 5), iyi[4], ...iyi.slice(6)]), "duz (kesin artan degil)");
+  assert.ok(!egriGecerli(null) && !egriGecerli(undefined) && !egriGecerli("abc"));
+  const ham = Array.from({ length: 300 }, (_, i) => ((i % 40) < 20 ? 3000 : 500));
+  assert.deepEqual(skopOlcKart(ham, { adim: 0.02, ofset: 1, hz: 1000, egri: new Array(17).fill(0) }),
+    skopOlcKart(ham, { adim: 0.02, ofset: 1, hz: 1000 }), "gecersiz egri = egrisiz yol");
+});
+
+test("3E: kalMvKart — dugumde tablo degeri TAM, arada dogrusal, tablo disi UZATILIR (kirpilmaz)", () => {
+  const e = ctEgri(FIKSTUR.ct);
+  for (let k = 0; k < 17; k++) assert.equal(kalMvKart(e, kalDugumKod(k)), e[k], `dugum ${k}`);
+  assert.ok(kalMvKart(e, 4500) > kalMvKart(e, 4095), "4095 ustu uzatilir");
+  for (let kod = 0; kod <= 4095; kod += 7) {
+    assert.ok(Math.abs(kalMvKart(e, kod) - mvRef(e, kod)) <= 1e-3, `kod ${kod}`);
+  }
+});
+
+test("3E: kalibre yol — gerilimler egriden (bagimsiz double hesap), zaman dogrusallastirilmis koddan", () => {
+  const e = ctEgri(FIKSTUR.ct);
+  const ham = Array.from({ length: 1000 }, (_, i) => 2000 + Math.round(1500 * Math.sin(2 * Math.PI * i / 83.3)));
+  const o = skopOlcKalibre(ham, undefined, KART_VOLT_ADIM, 83333, e);
+  const v = ham.map((k) => mvRef(e, k) * 38.03703704 / 1000);
+  const ort = v.reduce((a, b) => a + b, 0) / v.length;
+  const rms = Math.sqrt(v.reduce((a, b) => a + b * b, 0) / v.length);
+  const yakin = (a, b) => Math.abs(a - b) <= 1e-5 * Math.max(1, Math.abs(b));
+  assert.ok(yakin(o.Vmax, Math.max(...v)) && yakin(o.Vmin, Math.min(...v)) && yakin(o.Vort, ort) && yakin(o.Vrms, rms),
+    JSON.stringify(o));
+  assert.ok(Math.abs(o.f - 83333 / 83.3) < 0.5, `f ${o.f}`);
+  /* zaman: dogrusallastirilmis kod = round(mV x 4096 / 3100) — bagimsiz (double) hesapla en fazla 1 kod fark */
+  const lin = ham.map((k) => Math.trunc(mvRef(e, k) * 4096 / 3100 + 0.5));
+  const zaman = skopOlc(lin, undefined, KART_VOLT_ADIM, 83333);
+  assert.ok(Math.abs(o.f - zaman.f) < 1e-3 * zaman.f && o.n === zaman.n && Math.abs(o.duty - zaman.duty) < 0.5,
+    `${o.f}/${zaman.f} ${o.duty}/${zaman.duty}`);
+});
+
+test("3E: skopOfsetle yerinde degistirir; Vrms = sqrt(Vac^2 + Vort^2)", () => {
+  const o = { Vmax: 3, Vmin: 1, Vort: 2, Vac: 1, Vrms: 99 };
+  assert.equal(skopOfsetle(o, 0), o);
+  assert.equal(o.Vrms, Math.fround(Math.sqrt(5)));
+  skopOfsetle(o, 2);
+  assert.deepEqual([o.Vmax, o.Vmin, o.Vort, o.Vrms], [1, -1, 0, 1]);
 });

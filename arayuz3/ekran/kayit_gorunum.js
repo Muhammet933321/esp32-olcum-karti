@@ -236,6 +236,13 @@ export function dosyaAdi(oturum, ek, uzanti) {
   return `kayit-${oturum.id}${ad ? '-' + ad : ''}${ek ? '-' + ek : ''}.${uzanti}`;
 }
 
+/** 3E (OS6): yakalamayi osiloskopta acan adres `#/skop/kayit/<oturum>/<sira>[@kimlik]`
+ *  (sira = yakalamanin 0. parcasinin kayit sirasi, oturum.skoplar anahtari). Cozucusu
+ *  ekran/osiloskop.js skopRotaCoz — B7 ikisinin birbirinin tersi oldugunu sinar. */
+export function skopRotaYaz({ oturum, sira, kimlik = null } = {}) {
+  return `#/skop/kayit/${oturum}/${sira}${kimlik === null || kimlik === undefined ? '' : '@' + kimlik}`;
+}
+
 /** Oturuma uygun disa aktarma turleri (C6). */
 export function disariTurleri(oturum) {
   const tur = oturumTuru(oturum);
@@ -312,6 +319,7 @@ export const KG_METIN = Object.freeze({
   sutunTam: 'kg.sutun_tam', evet: 'kg.evet', hayir: 'kg.hayir', eksikYakalama: 'kg.eksik_yakalama',
   csvTr: 'kg.csv_tr', csvEn: 'kg.csv_en', ayrintiTr: 'kg.ayrinti_tr', ayrintiEn: 'kg.ayrinti_en',
   pilTr: 'kg.pil_tr', pilEn: 'kg.pil_en', ham: 'kg.ham', skopCsv: 'kg.skop_csv',
+  osiloskoptaAc: 'kg.osiloskopta_ac',
   disariHata: 'kg.disari_hata', herOrnek: 'kg.her_ornek',
 });
 
@@ -432,7 +440,8 @@ const SABLON = `
           <tr v-for="y in yakalamalar" :key="y.sira" :data-sira="y.sira">
             <td>{{ y.no }}</td><td>{{ y.zaman }}</td><td>{{ y.toplam }}</td><td>{{ y.hz }}</td>
             <td>{{ y.tdiv }}</td><td>{{ y.tetik }}</td><td>{{ y.tam ? m.evet : m.eksikYakalama }}</td>
-            <td class="yazdirma-yok"><button type="button" v-if="y.tam" @click="indir('skop', y.sira)" data-disari="skop">{{ m.skopCsv }}</button></td>
+            <td class="yazdirma-yok"><button type="button" v-if="y.tam" @click="indir('skop', y.sira)" data-disari="skop">{{ m.skopCsv }}</button>
+              <a v-if="y.tam" :href="skopAdresi(y.sira)" class="kg-skop-ac" data-skop-ac>{{ m.osiloskoptaAc }}</a></td>
           </tr>
         </tbody>
       </table>
@@ -730,6 +739,10 @@ export const KayitGorunumu = {
       if (!this._g || n.x === null) return;
       this._g.durumAyarla(notPenceresi(this._g.durum, n.x));
       this.degisti(this._g.durum);
+    },
+    /** 3E (OS6): yakalamanin osiloskop adresi (kimlik HER ZAMAN yazilir: eski kart kopyasinda da dogru akis). */
+    skopAdresi(sira) {
+      return skopRotaYaz({ oturum: this.oturum.id, sira, kimlik: this.veri.kimlik });
     },
     indir(tur, sira = null) {
       this.hata = '';

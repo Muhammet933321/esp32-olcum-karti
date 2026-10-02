@@ -220,3 +220,126 @@ export function skopOlc(ham, adet, voltAdim, orneklemeHz) {
   }
   return o;
 }
+
+/* ═══ 3E — KARTIN `M` SATIRI (alt proje 3, karar OS4) ════════════════════════
+ * Kart `M` satirini `skop_olc`'un CIPLAK sonucundan basmaz: kod/olcum-karti-a3/
+ * olcum-karti-a3.ino `skop_olc_kalibre` (B43) + `skop_ofsetle` (B19). Kayitli yakalama
+ * (SKOP 10) olcum TASIMIYOR, ham kod tasiyor; panel kartin gosterecegi sayiyi bu iki
+ * islevin birebir kopyasiyla bulur:
+ *   * egri GECERLIYSE (OLAY KO_SKOP_KAL, 17 nokta; karttaki `kal_tab_var`):
+ *       gerilimler egriden — kal_mv (float32) x SKOP_ORAN/1000, toplamlar DOUBLE;
+ *       zaman buyuklukleri skop_olc'tan, egriyle DOGRUSALLASTIRILMIS kodlarla.
+ *   * egri yoksa: skop_olc(ham, adim) (ofsetsiz).
+ *   * sonra skop_ofsetle: Vmax/Vmin/Vort -= ofset (float32), Vrms = sqrtf(Vac² + Vort²).
+ * Kanit: gercek karttan alinmis yakalama (uretim/olcum-skop-fikstur.json, 2026-09-13) —
+ * bu kod kartin `M` satirindaki gerilimleri, f, T ve n'yi BASILAN HANEYE KADAR ayni
+ * veriyor (test/skop.test.js). duty/tr/tf o tarihten sonra 1F (S3/S4) ile degisti.
+ * ⚠ Kart egriyi kayda HER ZAMAN yazar (kal_tab_var olmasa da `kal_mv_tab` sifir ya da
+ *   yarim dolu) — gecerlilik `egriGecerli` ile: tam 17 nokta, ilk >= 0, KESIN ARTAN
+ *   (eFuse egrisi monoton; sifir / yarim dizi degil). */
+
+/** olcum3.h sabitleri — derleyicinin float32 katlamasiyla (her islem SFmode'da). */
+export const KART_SABIT = Object.freeze({
+  ORAN: f32(38.03703704),                       // SKOP_ORAN
+  ADC_TAVAN: f32(3.10),                         // SKOP_ADC_TAVAN
+  ADC_SAYIM: 4096,                              // SKOP_ADC_SAYIM
+  VREF: f32(1.7153125),                         // VREF_NOMINAL
+});
+/** SKOP_VOLT_ADIM = ADC_TAVAN / ADC_SAYIM * ORAN; SKOP_VOLT_OFSET = VREF * (ORAN - 1). */
+export const KART_VOLT_ADIM = f32(f32(KART_SABIT.ADC_TAVAN / KART_SABIT.ADC_SAYIM) * KART_SABIT.ORAN);
+export const KART_VOLT_OFSET = f32(KART_SABIT.VREF * f32(KART_SABIT.ORAN - 1));
+/** Egri nokta sayisi (KAL_N) ve dugum kodu (kal_dugum_kod: 0, 256, ..., 3840, 4095). */
+export const KAL_N = 17;
+export function kalDugumKod(k) {
+  return k === KAL_N - 1 ? 4095 : k * 256;
+}
+
+/** Kartin `kal_tab_var` karsiligi: 17 sayi, ilk >= 0, kesin artan. */
+export function egriGecerli(egri) {
+  if (!egri || typeof egri.length !== 'number' || egri.length !== KAL_N) return false;
+  for (let k = 0; k < KAL_N; k++) {
+    const v = egri[k];
+    if (!Number.isFinite(v) || (k === 0 ? v < 0 : v <= egri[k - 1])) return false;
+  }
+  return true;
+}
+
+/** C `kal_mv(kod)`: ham kod -> pin mV, tablo ara degerlemesi (float32; tablo disi UZATILIR). */
+export function kalMvKart(egri, kod) {
+  const x = f32(kod);
+  let i;
+  if (x <= 256) i = 0;
+  else if (x >= 3840) i = KAL_N - 2;
+  else i = Math.trunc(f32(x / 256));
+  const k0 = kalDugumKod(i);
+  const k1 = kalDugumKod(i + 1);
+  const v0 = f32(egri[i]);
+  const v1 = f32(egri[i + 1]);
+  return f32(v0 + f32(f32(f32(v1 - v0) * f32(x - k0)) / f32(k1 - k0)));
+}
+
+/** C `skop_ofsetle(m)` — `o` YERINDE degisir ve doner. ofset float32'ye yuvarlanir. */
+export function skopOfsetle(o, ofset) {
+  const of = f32(ofset);
+  o.Vmax = f32(o.Vmax - of);
+  o.Vmin = f32(o.Vmin - of);
+  o.Vort = f32(o.Vort - of);
+  o.Vrms = f32(Math.sqrt(f32(f32(o.Vac * o.Vac) + f32(o.Vort * o.Vort))));
+  return o;
+}
+
+/**
+ * C `skop_olc_kalibre` (egri GECERLI dali; ofsetsiz — ofseti `skopOfsetle` uygular).
+ * Egri gecersizse kart gibi `skopOlc`a duser.
+ */
+export function skopOlcKalibre(ham, adet, voltAdim, orneklemeHz, egri) {
+  const uzunluk = ham && typeof ham.length === 'number' ? ham.length : 0;
+  let n = adet === undefined ? uzunluk : Math.floor(Number(adet));
+  if (!(n > 0)) n = 0;
+  n = Math.min(n, uzunluk, AZAMI_ADET);
+  if (!egriGecerli(egri) || n === 0) return skopOlc(ham, n, voltAdim, orneklemeHz);
+  const mvKod = f32(KART_SABIT.ADC_SAYIM / f32(KART_SABIT.ADC_TAVAN * 1000));   // pin mV -> dogrusal kod
+  const mvV = f32(KART_SABIT.ORAN / 1000);                                      // pin mV -> V (ofsetsiz)
+  const h = new Uint16Array(n);
+  for (let i = 0; i < n; i++) h[i] = ham[i];
+  const gecici = new Uint16Array(n);
+  let hmin = h[0];
+  let hmax = h[0];
+  let top = 0;
+  let kare = 0;
+  for (let i = 0; i < n; i++) {
+    const mv = kalMvKart(egri, h[i]);
+    const d = f32(f32(mv * mvKod) + 0.5);
+    gecici[i] = d <= 0 ? 0 : d >= 65535 ? 65535 : Math.trunc(d);
+    const v = mv * mvV;              // float x float: double'da TAM (24 + 24 bit)
+    top += v;
+    kare += v * v;
+    if (h[i] < hmin) hmin = h[i];
+    if (h[i] > hmax) hmax = h[i];
+  }
+  const o = skopOlc(gecici, n, voltAdim, orneklemeHz);   // zaman buyuklukleri
+  const ort = top / n;
+  const ac = kare / n - ort * ort;
+  o.Vmax = f32(kalMvKart(egri, hmax) * mvV);
+  o.Vmin = f32(kalMvKart(egri, hmin) * mvV);
+  o.Vpp = f32(o.Vmax - o.Vmin);
+  o.Vort = f32(ort);
+  o.Vac = ac > 0 ? f32(Math.sqrt(ac)) : 0;
+  o.Vrms = f32(Math.sqrt(kare / n));
+  return o;
+}
+
+/**
+ * Kartin `M` satirinin sayilari: `skop_olc_kalibre` (ya da egrisizse `skop_olc`) +
+ * `skop_ofsetle`. `adim`/`ofset`/`hz` kaydin META'sindan (kartin float32 degerleri),
+ * `egri` OLAY KO_SKOP_KAL'in 17 mV'si (yoksa / gecersizse egrisiz yol).
+ * @returns {{f,T,Vpp,Vmax,Vmin,Vort,Vrms,Vac,duty,tr,tf,n, egri: boolean}}
+ */
+export function skopOlcKart(ham, { adim, ofset, hz, egri = null, adet } = {}) {
+  const egriVar = egriGecerli(egri);
+  const o = egriVar ? skopOlcKalibre(ham, adet, adim, hz, egri) : skopOlc(ham, adet, adim, hz);
+  /* adet 0 ya da hz <= 0: kart da skop_ofsetle'yi cagirir — ama gercekte M basilmaz
+     (yakalama yok); burada da sozlesme ayni kalsin. */
+  skopOfsetle(o, ofset);
+  return { ...o, egri: egriVar };
+}

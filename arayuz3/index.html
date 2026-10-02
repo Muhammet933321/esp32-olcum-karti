@@ -372,122 +372,36 @@
 
   </main><!-- /canli -->
 
-  <!-- ═════════════════════════════════════════════ #/skop -->
+  <!-- ═════════════════════════════════════════════ #/skop (3E) — Osiloskop
+       OS1: dalga SOLDA geniş alanda, denetimler SAĞDA dikey sütunda kümeli
+       (Yakalama · Zaman tabanı · Tetik · Günlük · Kalibrasyon çıkışı); ≤ 900 px'te
+       denetimler dalganın ALTINA iner. OS2: dalga kendi tuvalinde (10 × 8 bölme,
+       app.js osiloCiz), spektrum grafik.js ile (ekran/osiloskop.js). OS4: ölçüm
+       kutusu kaynağını yazar. OS6: kayıtlı yakalama ARŞİV şeridiyle. Yeni metinler
+       sözlükten (`os.`); eski açıklama metinleri ve B7'nin çivilediği seçenekler
+       olduğu gibi. -->
   <main class="gorunum" v-show="gorunum === 'skop'">
 
-  <!-- ───────────────────────────────────────────── osiloskop -->
-  <section class="kart">
-    <h2>Osiloskop — 12 bit, 611 Sa/s … 83.3 kSa/s, ayarlanabilir zaman tabanı</h2>
+  <div class="baslik">
+    <h1>{{ os.baslik }}</h1>
+    <span class="etiket">{{ os.altBaslik }}</span>
+  </div>
 
-    <div v-if="demo" class="demo-serit">
-      <span class="demo-rozet">DEMO</span>
-      <label>
-        Prob ucundaki test sinyali
-        <select v-model="demoSinyal" @change="demoSinyalDegisti">
-          <option v-for="(s, k) in demoSinyaller" :key="k" :value="k">{{ s.ad }}</option>
-        </select>
-      </label>
-      <span class="demo-not">karta bağlı değil — sahte kart aynı protokolü konuşuyor</span>
-    </div>
-
-    <!-- B30 — KALİBRASYON ÇIKIŞI. Gerçek osiloskopların prob dengeleme
-         çıkışının karşılığı; skop zincirini bilinen bir sinyalle sınar.
-         ⚠ Gösterilen frekans kartın BİLDİRDİĞİ (gerçekleşen) değer:
-           LEDC 7000 isteyince 6998 üretiyor. Ölçümü istenen değerle
-           karşılaştırmak, ölçümü kendi varsayımıyla doğrulamak olurdu. -->
-    <div class="satir" style="margin-bottom:10px;gap:8px;align-items:center">
-      <label style="font-size:12px;color:var(--soluk)">Kalibrasyon çıkışı</label>
-      <select v-model.number="calHz" @change="calGonder" :disabled="!bagli"
-              style="width:auto" title="GPIO10'da %50 kare dalga">
-        <option :value="0">kapalı</option>
-        <option :value="100">100 Hz</option>
-        <option :value="1000">1 kHz</option>
-        <option :value="10000">10 kHz</option>
-        <option :value="50000">50 kHz</option>
+  <div v-if="demo" class="demo-serit">
+    <span class="demo-rozet">DEMO</span>
+    <label>
+      Prob ucundaki test sinyali
+      <select v-model="demoSinyal" @change="demoSinyalDegisti">
+        <option v-for="(s, k) in demoSinyaller" :key="k" :value="k">{{ s.ad }}</option>
       </select>
-      <!-- B33: görev oranı. RC süzgeçle CAL bir DC kaynağına dönüşüyor;
-           ADC doğrusallığını ölçmek de bununla yapılıyor. -->
-      <label v-if="calHz" style="font-size:12px;color:var(--soluk);display:flex;
-             align-items:center;gap:6px">Görev
-        <input type="range" min="0" max="1000" step="10" v-model.number="calGorev"
-               @change="calGorevGonder" :disabled="!bagli" style="width:110px">
-        <span class="skop-deger" style="min-width:44px">%{{ (calGorev/10).toFixed(0) }}</span>
-      </label>
-      <span class="ipucu" style="margin:0">
-        <template v-if="calGercek">kart {{ calGercek }} Hz üretiyor<template
-          v-if="calCozunurluk"> ({{ calCozunurluk }} bit görev)</template> —
-          skop ölçümünü <b>bununla</b> karşılaştır</template>
-        <template v-else>GPIO10 → GPIO4 tek tel; skop zincirini bilinen
-          sinyalle sınamak için</template>
-      </span>
-    </div>
+    </label>
+    <span class="demo-not">karta bağlı değil — sahte kart aynı protokolü konuşuyor</span>
+  </div>
 
-    <div class="satir" style="margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <button class="birincil" @click="osiloYakala"
-              :disabled="!bagli || osiloBekliyor || surekli">
-        {{ osiloBekliyor ? 'Yakalanıyor…' : 'Yakala' }}
-      </button>
-      <button @click="surekliDegis" :disabled="!bagli"
-              :class="{ 'kosuyor': surekli }"
-              title="Sürekli yakala — gerçek osiloskoplardaki RUN/STOP">
-        {{ surekli ? '■ Durdur' : '▶ Sürekli' }}
-      </button>
-      <button @click="osiloOtomatik" :disabled="!bagli || osiloBekliyor"
-              title="Sinyali bulup zaman tabanını ve tetiği kendisi ayarlar">
-        Otomatik
-      </button>
+  <div class="skop-duzen">
 
-      <span class="skop-grup">
-        <button @click="tabanDegistir(-1)" :disabled="!bagli || tdivEnHizli"
-                title="Zaman tabanını hızlandır">◀</button>
-        <span class="skop-deger">{{ tdivEtiket }}</span>
-        <button @click="tabanDegistir(1)" :disabled="!bagli || tdivEnYavas"
-                title="Zaman tabanını yavaşlat">▶</button>
-      </span>
-
-      <select v-model.number="skopKip" @change="skopKomut('tm' + skopKip)"
-              :disabled="!bagli" title="Tetikleme kipi">
-        <option :value="0">Oto</option>
-        <option :value="1">Normal</option>
-        <option :value="2">Tek atış</option>
-      </select>
-
-      <select v-model.number="skopKenar" @change="skopKomut('te' + skopKenar)"
-              :disabled="!bagli" title="Tetik kenarı">
-        <option :value="0">↑ Yükselen</option>
-        <option :value="1">↓ Düşen</option>
-      </select>
-
-      <!-- B47: tetik onayı — gerçek skoplardaki "noise reject". İki örnek:
-           eşiği geçen örneği bir sonraki de doğrulamalı; tek-örnek iğneler
-           (ölçülen ~0.1–0.3/1000) tetikleyemez. Yavaş tabanlarda gerçekten
-           tek örnek süren bir darbe için tek örneğe alınır. -->
-      <select v-model.number="skopOnay" @change="skopKomut('tn' + skopOnay)"
-              :disabled="!bagli"
-              title="Tetik onayı: iki örnek = gürültü reddi (tek-örnek iğne tetiklemez); tek örnek = yavaş tabanda tek örnek süren darbe için">
-        <option :value="2">Gürültü reddi (2 örnek)</option>
-        <option :value="1">Tek örnek</option>
-      </select>
-    </div>
-
-    <div class="satir" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
-      <label class="skop-kaydir">
-        Tetik seviyesi
-        <input type="range" min="0" max="4095" step="16" v-model.number="skopEsik"
-               @input="osiloCiz" @change="skopKomut('tl' + skopEsik)"
-               :disabled="!bagli">
-        <span class="skop-deger" :class="{ 'uyari-renk': esikMenzilDisi }">
-          {{ esikVolt.toFixed(2) }} V
-        </span>
-      </label>
-      <label class="skop-kaydir">
-        Ön-tetik
-        <input type="range" min="0" max="90" step="5" v-model.number="skopOn"
-               @change="skopKomut('tp' + skopOn)" :disabled="!bagli">
-        <span class="skop-deger">%{{ skopOn }}</span>
-      </label>
-    </div>
-
+  <!-- ───────────────────────────────────────────── dalga (sol üst) -->
+  <section class="kart skop-dalga">
     <!-- 🔴 CANLI MI ARŞİV Mİ. Tuvalde çizilen şey bir kayıt olduğunda
          bunu söylemek zorunlu: aynı tuval, aynı ölçüm satırı, ama veri
          geçmişten. Söylenmeseydi kullanıcı eski bir dalgaya bakıp
@@ -499,10 +413,20 @@
       <button @click="osiloYakala" :disabled="!bagli || osiloBekliyor"
               style="margin-left:auto">Canlıya dön</button>
     </div>
+    <!-- 3E (OS6): Kayıtlar'dan açılan yakalama — bu tarayıcının kopyasından,
+         ölçümler kartın hesabıyla (skopOlcKart). Aynı şerit deseni. -->
+    <div v-if="skopKayitli" class="arsiv-serit" data-skop-kayitli>
+      <span class="rozet">{{ os.arsiv }}</span>
+      <span>{{ skopKayitliYazi }}</span>
+      <a :href="skopKayitAdresi" class="serit-bag">{{ os.kaydaDon }}</a>
+      <button type="button" @click="skopCanliyaDon" class="serit-sag" data-skop="canliya-don">{{ os.canliyaDon }}</button>
+    </div>
+    <p v-if="skopKayitliYukleniyor" class="ipucu" role="status">{{ os.kayitliYukleniyor }}</p>
+    <p v-if="skopKayitliHata" class="hata" role="alert" data-skop-kayitli-hata>{{ skopKayitliHata }}</p>
 
     <div class="tuval-sarmal">
       <canvas ref="osiloTuval" height="360" @wheel="tekerlek"
-              @mousedown="surukBasla" class="surukle"></canvas>
+              @mousedown="surukBasla" class="surukle" role="img" :aria-label="os.tuvalEtiket"></canvas>
     </div>
 
     <!-- Yakınlaştırma: kartı hiç meşgul etmez, yakalanmış kaydın
@@ -510,21 +434,21 @@
     <div class="satir zoom-satir">
       <span class="zoom-grup">
         <span class="zoom-ad">Dikey</span>
-        <button @click="dikeyBuyut(1/1.5)" title="Uzaklaştır">−</button>
+        <button @click="dikeyBuyut(1/1.5)" title="Uzaklaştır" aria-label="Dikey uzaklaştır">−</button>
         <span class="skop-deger">{{ dikeyZoomEtiket }}</span>
-        <button @click="dikeyBuyut(1.5)" title="Yakınlaştır">+</button>
-        <button @click="dikeyKaydirDegis(-0.25)" title="Yukarı kaydır">▲</button>
-        <button @click="dikeyKaydirDegis(0.25)" title="Aşağı kaydır">▼</button>
+        <button @click="dikeyBuyut(1.5)" title="Yakınlaştır" aria-label="Dikey yakınlaştır">+</button>
+        <button @click="dikeyKaydirDegis(-0.25)" title="Yukarı kaydır" aria-label="Yukarı kaydır">▲</button>
+        <button @click="dikeyKaydirDegis(0.25)" title="Aşağı kaydır" aria-label="Aşağı kaydır">▼</button>
         <button @click="dikeySifirla" title="Otomatik ölçeğe dön">oto</button>
       </span>
 
       <span class="zoom-grup">
         <span class="zoom-ad">Yatay</span>
-        <button @click="yatayBuyut(1/2)" :disabled="yatayZoom <= 1" title="Uzaklaştır">−</button>
+        <button @click="yatayBuyut(1/2)" :disabled="yatayZoom <= 1" title="Uzaklaştır" aria-label="Yatay uzaklaştır">−</button>
         <span class="skop-deger">{{ yatayZoomEtiket }}</span>
-        <button @click="yatayBuyut(2)" title="Yakınlaştır">+</button>
-        <button @click="yatayKaydirDegis(-0.5)" :disabled="yatayZoom <= 1" title="Sola">◀</button>
-        <button @click="yatayKaydirDegis(0.5)" :disabled="yatayZoom <= 1" title="Sağa">▶</button>
+        <button @click="yatayBuyut(2)" title="Yakınlaştır" aria-label="Yatay yakınlaştır">+</button>
+        <button @click="yatayKaydirDegis(-0.5)" :disabled="yatayZoom <= 1" title="Sola" aria-label="Sola kaydır">◀</button>
+        <button @click="yatayKaydirDegis(0.5)" :disabled="yatayZoom <= 1" title="Sağa" aria-label="Sağa kaydır">▶</button>
         <button @click="yatayTetigeGit" :disabled="yatayZoom <= 1" title="Tetik anına git">T</button>
         <button @click="yatarSifirla" :disabled="yatayZoom <= 1" title="Tam kayda dön">tam</button>
       </span>
@@ -535,13 +459,18 @@
     <p v-if="skopUyari" class="skop-uyari">⚠ {{ skopUyari }}</p>
 
     <!-- Otomatik ölçümler — gerçek osiloskopların ekran altı satırı.
-         Değerler kartta skop_olc() ile hesaplanıyor (olcum2.h), burada
-         yalnızca biçimleniyor. -->
-    <div v-if="skopOlcumler.length" class="skop-olcum">
-      <div v-for="m in skopOlcumler" :key="m.ad"
-           class="skop-olcum-oge" :class="{ vurgu: m.vurgu }">
-        <span class="skop-olcum-ad">{{ m.ad }}</span>
-        <span class="skop-olcum-deger">{{ m.d }}</span>
+         OS4: canlıda kartın `M` satırı (skop_olc_kalibre + skop_ofsetle,
+         kartta); kayıtlı yakalamada AYNI hesap tarayıcıda (ortak/skop.js
+         skopOlcKart); kaynak kutunun üstünde YAZIYOR. aria-live: yeni
+         yakalamanın sayıları ekran okuyucuya da gider. -->
+    <div class="skop-olcum-kutu" aria-live="polite" data-skop-olcum>
+      <p v-if="skopOlcumler.length" class="skop-olcum-kaynak" :data-kaynak="skopOlcumKaynak">{{ skopOlcumKaynakYazi }}</p>
+      <div v-if="skopOlcumler.length" class="skop-olcum">
+        <div v-for="m in skopOlcumler" :key="m.ad"
+             class="skop-olcum-oge" :class="{ vurgu: m.vurgu }">
+          <span class="skop-olcum-ad">{{ m.ad }}</span>
+          <span class="skop-olcum-deger">{{ m.d }}</span>
+        </div>
       </div>
     </div>
 
@@ -553,14 +482,19 @@
       <!-- 🔴 GERİLİM EKSENİ KALİBRE Mİ — SUSMUYORUZ. Düzeltme yokken
            eksen yine çizilir ve "ölçülmüş" görünür; B34 o varsayımın
            girişte 9 V'a varan hata verdiğini ölçtü. Hangi eksende
-           olduğun yazmazsa sayılar sessizce yanlış okunur. -->
-      · <span v-if="skopKal" class="kal-rozet"
+           olduğun yazmazsa sayılar sessizce yanlış okunur.
+           3E (OS6): kayıtlı yakalama KENDİ eğrisini taşıyor (osilo.kal). -->
+      · <span v-if="skopKayitli" class="kal-rozet" :class="{ yok: !osilo.kal }">{{ osilo.kal ? os.egriKayitta : os.egriYokKayitta }}</span>
+      <template v-else><span v-if="skopKal" class="kal-rozet"
               title="Gerilim ekseni çipin kendi eFuse eğrisiyle düzeltiliyor">
           eksen kalibre</span>
         <span v-else class="kal-rozet yok"
               title="Kart kalibrasyon tablosu vermedi — eksen sabit çarpanla çiziliyor">
-          eksen HAM</span>
+          eksen HAM</span></template>
     </p>
+    <!-- 3E (OS6): bu uyarı CANLI eksen (kartın CT'si) için; kayıtlı yakalama kendi
+         eğrisini taşıyor ve rozeti onu söylüyor. -->
+    <template v-if="!skopKayitli">
     <p v-if="!skopKal" class="ipucu">
       ⚠ Gerilim ekseni <strong>düzeltmesiz</strong>: ham ADC kodu sabit
       bir çarpanla çevriliyor. Kartta ölçüldü — bu varsayım girişte
@@ -568,6 +502,7 @@
       Kart <code>CT</code> komutuna yanıt verirse düzeltme kendiliğinden
       devreye girer.
     </p>
+    </template>
     <p v-if="esikMenzilDisi" class="skop-uyari">
       ⚠ Tetik seviyesi ({{ esikVolt.toFixed(2) }} V) sinyalin dışında —
       hiçbir zaman tetiklenmez. Kaydırıcıyı dalganın içine getir ya da
@@ -588,6 +523,230 @@
       <strong>Şebekeye bağlanamaz</strong> — kart izole değil.
     </p>
   </section>
+
+
+  <!-- ───────────────────────────────────────────── denetimler (sağ, OS1)
+       DOM sırası dalga → denetimler → spektrum: geniş ekranda ızgara alanları
+       denetimi sağa (iki satır boyu) alıyor; dar ekranda denetimler dalganın
+       HEMEN altında (spektrumun üstünde) — klavye sırası da aynı. -->
+  <aside class="skop-denetim" :aria-label="os.denetimler">
+
+    <fieldset class="kart skop-kume" data-kume="yakalama">
+      <legend>{{ os.yakalama }}</legend>
+      <div class="skop-dugmeler">
+        <button class="birincil" @click="osiloYakala" data-skop="yakala"
+                :disabled="!bagli || osiloBekliyor || surekli || skopGunlukAktif">
+          {{ osiloBekliyor ? os.yakalaniyor : os.yakala }}
+        </button>
+        <button @click="surekliDegis" :disabled="!bagli || (skopGunlukAktif && !surekli)"
+                :class="{ 'kosuyor': surekli }" :aria-pressed="surekli ? 'true' : 'false'"
+                :title="os.surekliIpucu" data-skop="surekli">
+          {{ surekli ? os.surekliDur : os.surekli }}
+        </button>
+        <button @click="osiloOtomatik" :disabled="!bagli || osiloBekliyor || skopGunlukAktif"
+                :title="os.otomatikIpucu" data-skop="otomatik">
+          {{ os.otomatik }}
+        </button>
+      </div>
+      <p v-if="skopGunlukAktif" class="ipucu">{{ os.gunlukElleYok }}</p>
+      <div class="kume-ret" role="status" aria-live="polite">
+        <p v-if="skopYakalamaUyari" class="hata" data-skop-ret>{{ skopYakalamaUyari }}</p>
+      </div>
+    </fieldset>
+
+    <fieldset class="kart skop-kume" data-kume="taban">
+      <legend>{{ os.zamanTabani }}</legend>
+      <span class="skop-grup">
+        <button @click="tabanDegistir(-1)" :disabled="!bagli || tdivEnHizli"
+                :title="os.hizlandir" :aria-label="os.hizlandir">◀</button>
+        <span class="skop-deger" aria-live="polite">{{ tdivEtiket }}</span>
+        <button @click="tabanDegistir(1)" :disabled="!bagli || tdivEnYavas"
+                :title="os.yavaslat" :aria-label="os.yavaslat">▶</button>
+      </span>
+    </fieldset>
+
+    <fieldset class="kart skop-kume" data-kume="tetik">
+      <legend>{{ os.tetik }}</legend>
+      <label class="skop-alan">
+        <span>{{ os.tetikKip }}</span>
+        <select v-model.number="skopKip" @change="skopKomut('tm' + skopKip)"
+                :disabled="!bagli" title="Tetikleme kipi">
+          <option :value="0">{{ os.kipOto }}</option>
+          <option :value="1">{{ os.kipNormal }}</option>
+          <option :value="2">{{ os.kipTek }}</option>
+        </select>
+      </label>
+      <label class="skop-alan">
+        <span>{{ os.kenar }}</span>
+        <select v-model.number="skopKenar" @change="skopKomut('te' + skopKenar)"
+                :disabled="!bagli" title="Tetik kenarı">
+          <option :value="0">{{ os.kenarYukselen }}</option>
+          <option :value="1">{{ os.kenarDusen }}</option>
+        </select>
+      </label>
+      <label class="skop-kaydir">
+        <span>{{ os.seviye }}</span>
+        <input type="range" min="0" max="4095" step="16" v-model.number="skopEsik"
+               @input="osiloCiz" @change="skopKomut('tl' + skopEsik)"
+               :disabled="!bagli">
+        <span class="skop-deger" :class="{ 'uyari-renk': esikMenzilDisi }">
+          {{ esikVolt.toFixed(2) }} V
+        </span>
+      </label>
+      <label class="skop-kaydir">
+        <span>{{ os.onTetik }}</span>
+        <input type="range" min="0" max="90" step="5" v-model.number="skopOn"
+               @change="skopKomut('tp' + skopOn)" :disabled="!bagli">
+        <span class="skop-deger">%{{ skopOn }}</span>
+      </label>
+      <!-- B47: tetik onayı — gerçek skoplardaki "noise reject". İki örnek:
+           eşiği geçen örneği bir sonraki de doğrulamalı; tek-örnek iğneler
+           (ölçülen ~0.1–0.3/1000) tetikleyemez. Yavaş tabanlarda gerçekten
+           tek örnek süren bir darbe için tek örneğe alınır. -->
+      <label class="skop-alan">
+        <span>{{ os.onay }}</span>
+        <select v-model.number="skopOnay" @change="skopKomut('tn' + skopOnay)"
+                :disabled="!bagli"
+                title="Tetik onayı: iki örnek = gürültü reddi (tek-örnek iğne tetiklemez); tek örnek = yavaş tabanda tek örnek süren darbe için">
+          <option :value="2">Gürültü reddi (2 örnek)</option>
+          <option :value="1">Tek örnek</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <!-- 3E (OS5): YAKALAMA GÜNLÜĞÜ — `Gt0` her tetikte, `Gt<ms>` N saniyede bir,
+         `Gtd` durdur. Durum PASİF `GT` satırından (D5); kartın `! G:` reddi
+         olduğu gibi (E9). Komutlar sürücüde (köprüde izleyici gönderemez). -->
+    <fieldset class="kart skop-kume" data-kume="gunluk">
+      <legend>{{ os.gunluk }}</legend>
+      <p class="skop-gunluk-durum" :class="{ etkin: skopGunlukAktif }" role="status" aria-live="polite"
+         data-gunluk="durum">{{ skopGunlukDurumYazi }}</p>
+      <div class="skop-secim" role="radiogroup" :aria-label="os.gunluk">
+        <label><input type="radio" name="gunluk-kip" value="tetik" v-model="gunlukKip" :disabled="skopGunlukAktif"
+                      data-gunluk="kip-tetik"> {{ os.gunlukHerTetik }}</label>
+        <label><input type="radio" name="gunluk-kip" value="aralik" v-model="gunlukKip" :disabled="skopGunlukAktif"
+                      data-gunluk="kip-aralik"> {{ os.gunlukHerN }}</label>
+      </div>
+      <label v-if="gunlukKip === 'aralik'" class="skop-alan">
+        <span>{{ os.gunlukSaniye }}</span>
+        <input type="number" name="gunluk-aralik" autocomplete="off" min="1" max="3600" step="1" inputmode="decimal" v-model="gunlukSaniye"
+               :disabled="skopGunlukAktif" data-gunluk="saniye">
+      </label>
+      <div class="skop-dugmeler">
+        <button type="button" @click="skopGunlukBaslat" :disabled="!kayitKomutAcik || skopGunlukAktif"
+                data-gunluk="baslat">{{ os.gunlukBaslat }}</button>
+        <button type="button" @click="skopGunlukDurdur"
+                :disabled="!kayitKomutAcik || (!!kayit.gt && !kayit.gt.etkin)"
+                data-gunluk="durdur">{{ os.gunlukDurdur }}</button>
+      </div>
+      <p class="ipucu">{{ os.gunlukIpucu }}</p>
+      <div class="kume-ret" role="status" aria-live="polite">
+        <p v-if="skopGunlukUyari" class="hata" :data-tur="skopGunlukUyari.tur"
+           data-gunluk="uyari">{{ skopGunlukUyari.metin }}</p>
+      </div>
+    </fieldset>
+
+    <!-- B30 — KALİBRASYON ÇIKIŞI. Gerçek osiloskopların prob dengeleme
+         çıkışının karşılığı; skop zincirini bilinen bir sinyalle sınar.
+         ⚠ Gösterilen frekans kartın BİLDİRDİĞİ (gerçekleşen) değer:
+           LEDC 7000 isteyince 6998 üretiyor. Ölçümü istenen değerle
+           karşılaştırmak, ölçümü kendi varsayımıyla doğrulamak olurdu. -->
+    <fieldset class="kart skop-kume" data-kume="cal">
+      <legend>{{ os.kalCikisi }}</legend>
+      <label class="skop-alan">
+        <span>{{ os.frekans }}</span>
+        <select v-model.number="calHz" @change="calGonder" :disabled="!bagli"
+                title="GPIO10'da %50 kare dalga">
+          <option :value="0">{{ os.calKapali }}</option>
+          <option :value="100">100 Hz</option>
+          <option :value="1000">1 kHz</option>
+          <option :value="10000">10 kHz</option>
+          <option :value="50000">50 kHz</option>
+        </select>
+      </label>
+      <!-- B33: görev oranı. RC süzgeçle CAL bir DC kaynağına dönüşüyor;
+           ADC doğrusallığını ölçmek de bununla yapılıyor. -->
+      <label v-if="calHz" class="skop-kaydir">
+        <span>{{ os.gorev }}</span>
+        <input type="range" min="0" max="1000" step="10" v-model.number="calGorev"
+               @change="calGorevGonder" :disabled="!bagli">
+        <span class="skop-deger">%{{ (calGorev/10).toFixed(0) }}</span>
+      </label>
+      <p class="ipucu">
+        <template v-if="calGercek">kart {{ calGercek }} Hz üretiyor<template
+          v-if="calCozunurluk"> ({{ calCozunurluk }} bit görev)</template> —
+          skop ölçümünü <b>bununla</b> karşılaştır</template>
+        <template v-else>GPIO10 → GPIO4 tek tel; skop zincirini bilinen
+          sinyalle sınamak için</template>
+      </p>
+    </fieldset>
+  </aside>
+
+  <!-- ───────────────────────────────────────────── spektrum (OS2/OS3)
+       grafik.js (P3 tek çekirdek), x ekseni Hz. Kaynak yakalamanın BÜTÜN ham
+       kodları (zoom penceresi değil); DC çıkarılır ve çizilmez (yazılır). -->
+  <section class="kart skop-spektrum" data-spektrum>
+    <div class="spektrum-baslik">
+      <h2>{{ os.spektrum }}</h2>
+      <label class="skop-alan">
+        <span>{{ os.pencere }}</span>
+        <select name="spektrum-pencere" v-model="spektrumPencere" data-spektrum="pencere">
+          <option value="hann">{{ os.pencereHann }}</option>
+          <option value="dikdortgen">{{ os.pencereDikdortgen }}</option>
+        </select>
+      </label>
+      <label class="skop-alan">
+        <span>{{ os.genlik }}</span>
+        <select name="spektrum-birim" v-model="spektrumBirim" data-spektrum="birim">
+          <option value="v">{{ os.birimV }}</option>
+          <option value="dbv">{{ os.birimDbv }}</option>
+        </select>
+      </label>
+    </div>
+    <p class="ipucu">{{ os.spektrumIpucu }}</p>
+    <p v-if="skopDurum === 'yuklenemedi'" class="hata">{{ os.yuklenemedi }}</p>
+    <p v-else-if="skopDurum !== 'hazir'" class="ipucu">{{ os.yukleniyor }}</p>
+    <div class="tuval-sarmal">
+      <canvas ref="spektrumTuval" class="spektrum-grafik" role="img" :aria-label="os.spektrumEtiket"></canvas>
+    </div>
+    <p class="ipucu spektrum-klavye">{{ os.spektrumKlavye }}</p>
+    <div class="spektrum-ozet" aria-live="polite" data-spektrum-ozet>
+      <template v-if="spektrumOzet">
+        <div class="skop-olcum">
+          <div class="skop-olcum-oge vurgu">
+            <span class="skop-olcum-ad">{{ os.tepeFrekans }}</span>
+            <span class="skop-olcum-deger" data-spektrum="tepe">{{ spektrumOzet.tepe || os.tepeYok }}</span>
+          </div>
+          <div class="skop-olcum-oge">
+            <span class="skop-olcum-ad">{{ os.genlik }}</span>
+            <span class="skop-olcum-deger">{{ spektrumOzet.tepeGenlik || '—' }}</span>
+          </div>
+          <div class="skop-olcum-oge">
+            <span class="skop-olcum-ad">{{ os.thd }}</span>
+            <span class="skop-olcum-deger" data-spektrum="thd">{{ spektrumOzet.thd }}</span>
+          </div>
+        </div>
+        <div class="kg-tablo-sarmal" v-if="spektrumSatirlari.length">
+          <table class="kg-tablo spektrum-tablo" data-spektrum="harmonikler">
+            <caption>{{ os.harmonikTablo }}</caption>
+            <thead><tr>
+              <th scope="col">{{ os.harmonik }}</th><th scope="col">{{ os.frekans }}</th>
+              <th scope="col">{{ os.birimV }}</th><th scope="col">{{ os.birimDbv }}</th>
+            </tr></thead>
+            <tbody>
+              <tr v-for="h in spektrumSatirlari" :key="h.n" :data-n="h.n">
+                <td>{{ h.n }}</td><td>{{ h.f }}</td><td>{{ h.v }}</td><td>{{ h.db }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-if="spektrumOzet.imlec" class="spektrum-imlec" data-spektrum="imlec">{{ spektrumOzet.imlec }}</p>
+        <p class="ipucu">{{ spektrumOzet.dc }} · {{ spektrumOzet.cozunurluk }}</p>
+      </template>
+      <p v-else class="ipucu">{{ os.spektrumYok }}</p>
+    </div>
+  </section>
+  </div><!-- /skop-duzen -->
 
   <!-- ─────────────────────────────── skop arşivi (B35) -->
   <!-- 🔴 GERİYE DÖNÜK KAYIT. Yalnızca PC köprüsüne bağlıyken görünür:

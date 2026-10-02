@@ -15,7 +15,7 @@ import {
   guzelAdim, guzelAdimlar, zamanAdimi, zamanAdimlari, eksenAraligi, zamanYazi, sayiYazi,
   yerlesim, pencereHesapla, cizimPlani, lejantOgeleri, tipikAralik, durumKur, durumBirlestir,
   pencereKirp, yakinlastir, etkilesim, enYakinOrnek, imlecOkuma, seriHazirla, cssRenk,
-  planUygula, Grafik,
+  planUygula, Grafik, xSayiEkseni, sayiAdimlari, xYazici,
 } from '../src/grafik.js';
 
 // ── yardımcılar ─────────────────────────────────────────────────────────────
@@ -1421,4 +1421,58 @@ test('seriHazirla: piramit bir kez; uyumsuz uzunluk reddedilir; Grafik canvas is
   assert.throws(() => seriHazirla({ ad: 'V', t, y: Float64Array.of(1) }), RangeError);
   assert.throws(() => new Grafik(null), TypeError);
   assert.throws(() => new Grafik({}), TypeError);
+});
+
+// ── 3E (OS2): x ekseni seçeneği — spektrumda x = Hz, çentik düz 1-2-5, yazı çağırandan ──
+/** Spektrum benzeri seri: x 0 … 41 666 Hz (artan sayı), 2049 nokta. */
+function spektrumSerisi() {
+  const n = 2049;
+  const t = new Float64Array(n).map((_, i) => i * (83333 / 4096));
+  const y = new Float64Array(n).map((_, i) => (i === 50 ? 1 : 0.001));
+  return [seriHazirla({ ad: 'S', t, y, birim: 'V', renk: 'volt' })];
+}
+const hzYazi = (v) => (v >= 1000 ? (v / 1000).toFixed(1) + ' kHz' : v.toFixed(0) + ' Hz');
+
+test('3E xEksen: verilmezse G8 (zaman çentikleri, ss:dd:sn); verilirse düz 1-2-5 ve yazı çağırandan', () => {
+  const s = spektrumSerisi();
+  const d = durumKur(s);
+  const zaman = cizimPlani(s, d, { w: 800, h: 240 }, { zamanKokeni: 0 });
+  const zamanYazilari = zaman.komutlar.filter((k) => k.tur === 'yazi' && k.rol === 'eksen' && k.y > zaman.alan.y + zaman.alan.h);
+  assert.ok(zamanYazilari.length >= 2 && zamanYazilari.every((k) => /^\d\d:\d\d:\d\d/.test(k.metin)), zamanYazilari.map((k) => k.metin).join(' '));
+  const sayi = cizimPlani(s, d, { w: 800, h: 240 }, { zamanKokeni: 0, xEksen: { tur: 'sayi', yazi: hzYazi } });
+  const adim = sayi.x.adim;
+  assert.ok([1, 2, 5].includes(adim / 10 ** Math.floor(Math.log10(adim))), `1-2-5 değil: ${adim}`);
+  assert.equal(adim, guzelAdimlar(0, 83333 / 2, Math.max(2, Math.floor(sayi.alan.w / 110))).adim);
+  assert.ok(sayi.x.degerler.every((v) => Math.abs(v / adim - Math.round(v / adim)) < 1e-9), 'çentik adımın katı');
+  const yazilar = sayi.komutlar.filter((k) => k.tur === 'yazi' && k.rol === 'eksen' && k.y > sayi.alan.y + sayi.alan.h);
+  assert.deepEqual(yazilar.map((k) => k.metin), sayi.x.degerler.map((v) => hzYazi(v)));
+  assert.ok(yazilar.some((k) => k.metin.endsWith('kHz')));
+  /* x ölçeği değişmez: aynı t aynı piksele düşer (yalnız çentik ve yazı farklı) */
+  const nokta = (p) => p.komutlar.find((k) => k.rol === 'seri');
+  assert.deepEqual(Array.from(nokta(sayi).noktalar), Array.from(nokta(zaman).noktalar));
+});
+
+test('3E xEksen: sayiAdimlari kökene göre; atan / boş yazıcı boş metin; xSayiEkseni yalnız tur === sayi', () => {
+  assert.deepEqual(sayiAdimlari(0, 10, 5, 0), guzelAdimlar(0, 10, 5));
+  assert.deepEqual(sayiAdimlari(100, 110, 5, 100).degerler, guzelAdimlar(0, 10, 5).degerler.map((v) => v + 100));
+  assert.equal(xSayiEkseni({ xEksen: { tur: 'sayi' } }), true);
+  assert.equal(xSayiEkseni({ xEksen: { tur: 'zaman' } }), false);
+  assert.equal(xSayiEkseni({}), false);
+  assert.equal(xSayiEkseni(undefined), false);
+  assert.equal(xYazici({})(61000, 1000), zamanYazi(61000, 1000));
+  assert.equal(xYazici({ xEksen: { tur: 'sayi', yazi: () => { throw new Error('x'); } } })(5, 1), '');
+  assert.equal(xYazici({ xEksen: { tur: 'sayi', yazi: () => null } })(5, 1), '');
+  assert.equal(xYazici({ xEksen: { tur: 'sayi', yazi: (v) => v * 2 } })(5, 1), '10');
+});
+
+test('3E xEksen: Grafik sınıfı seçeneği plana geçiriyor (çizilen yazı Hz)', () => {
+  const k = sahteKanvas(800, 240);
+  const g = new Grafik(k, { pencere: { devicePixelRatio: 1 }, zamanKokeni: 0, xEksen: { tur: 'sayi', yazi: hzYazi } });
+  g.veriAyarla(spektrumSerisi());
+  const plan = g.ciz();
+  assert.ok(plan.x.degerler.length >= 2);
+  const yazilan = k.ctx.yazilar.map((y) => y.metin);
+  assert.ok(plan.x.degerler.every((v) => yazilan.includes(hzYazi(v))), yazilan.join(' | '));
+  assert.ok(!yazilan.some((m) => /^\d\d:\d\d:\d\d/.test(m)), 'zaman yazısı kalmadı');
+  g.yokEt();
 });

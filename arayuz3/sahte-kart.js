@@ -283,6 +283,9 @@ const SahteKart = (() => {
   const kayit = { durum: 1, oturum: 0, nokta: 0, sonraki: 120, onay: 0, doluluk: 18, onaysiz: 18,
                   dusen: 0, hiz: 200, sonG: 0, artik: 0, bayt: 0 };
   const plan = { durum: 0, bas: 0, sure: 0, hiz: 0, oturum: 0 };
+  /* 3E (OS5): osiloskop gunlugu — firmware `kayit_skop_komut` metinleri ve GT satiri */
+  const gunluk = { etkin: 0, aralik: 0, yakalama: 0, yazilamayan: 0 };
+  const gtSatiri = () => `GT ${gunluk.etkin} ${gunluk.aralik} ${gunluk.yakalama} ${gunluk.yazilamayan}`;
   const gSatiri = () => `G ${kayit.durum} ${kayit.oturum} ${kayit.nokta} ${kayit.sonraki} ${kayit.onay}`
     + ` ${kayit.doluluk} ${kayit.onaysiz} ${kayit.dusen} 2900 1300 4 300 0`;
   const gaSatiri = () => `GA 480 ${kayit.durum === 2 && kayit.hiz === 0 ? kayit.nokta : 0} 0 0`;
@@ -292,7 +295,25 @@ const SahteKart = (() => {
   }
   function kayitKomut(k) {
     const alt = k[1];
-    if (!alt || alt === '?') return [gSatiri(), gaSatiri(), 'GT 0 0 0 0', gpSatiri()];
+    if (!alt || alt === '?') return [gSatiri(), gaSatiri(), gtSatiri(), gpSatiri()];
+    if (alt === 't') {
+      const r = k.slice(2);
+      if (r === 'd') {
+        const cikti = gunluk.etkin ? [] : ['! G: osiloskop gunlugu yok'];
+        if (gunluk.etkin) {
+          cikti.push(`* G osiloskop gunlugu durdu: ${gunluk.yakalama} yakalama, ${gunluk.yazilamayan} yazilamayan`);
+          gunluk.etkin = 0;
+        }
+        return cikti;
+      }
+      const ms = Number(r);
+      if (!/^\d{1,7}$/.test(r) || (ms !== 0 && (ms < 1000 || ms > 3600000))) {
+        return ['! G: Gt<ms> — 0 (her tetik) ya da 1000..3600000; Gtd durdurur'];
+      }
+      if (gunluk.etkin) return ['! G: osiloskop gunlugu zaten suruyor (Gtd)'];
+      Object.assign(gunluk, { etkin: 1, aralik: ms, yakalama: 0, yazilamayan: 0 });
+      return ['* G osiloskop gunlugu basladi: ' + (ms ? ms + " ms'de bir" : 'her tetikte') + ' — SKOP oturumu'];
+    }
     if (alt === 'b') {
       const h = Number(k.slice(2));
       if (!/^\d+$/.test(k.slice(2)) || !KAYIT_HIZLARI.includes(h)) {
@@ -387,6 +408,10 @@ const SahteKart = (() => {
     }
 
     if (c === 't') {
+      /* 1C-3 / 3E: gunluk surerken ELLE yakalama yok (firmware skop_komut ile ayni metin) */
+      if (gunluk.etkin && (!alt || (alt >= '0' && alt <= '9') || alt === 'B' || alt === 'a' || alt === 'K')) {
+        return ['! skop: osiloskop gunlugu suruyor — elle yakalama yok (once Gtd)'];
+      }
       if (!alt || (alt >= '0' && alt <= '9')) {
         if (alt) ayar.esik = parseInt(k.slice(1), 10) || ayar.esik;
         return yakala();
