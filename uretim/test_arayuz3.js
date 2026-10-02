@@ -1588,6 +1588,17 @@ console.log('\n--- 14. Telefon yerlesimi + acil durdurma ---');
   /* Emniyet dugmesi ENGELLENMEMELI: `:disabled` konursa surucu olmayan
      oturumda ya da baglanti dalgalanmasinda durdurma kilitlenir. `p0`
      zaten jetonsuz gecen tek komut. */
+  /* WIG (2026-10-02) yikici eylemlere iki asamali onay getirdi; p0 BILEREK disarida:
+     deşarji kesen emniyet komutu TEK dokunusla ve aninda gitmeli. Her p0 dugmesi
+     pilDurdurKomut'u DOGRUDAN cagirir ve govdesinde onay (onayIste/confirm) yok. */
+  {
+    const dogrudan = (html.match(/@click="pilDurdurKomut"/g) || []).length;
+    const sarili = /onayIste\(\s*'(?:p0|pil[A-Za-z]*Dur[a-z]*)'/.test(html) || /onayIste\(\s*'(?:p0|pil[A-Za-z]*Dur[a-z]*)'/.test(appKaynak);
+    const govde = (appKaynak.match(/pilDurdurKomut\(\)\s*\{([^}]*)\}/) || [])[1] || '';
+    ok('[!] Emniyet: pil DURDUR (acil serit + Pil sekmesi) pilDurdurKomut\'u TEK tikla cagirir; p0 onaya sarilmaz, govdede onay yok',
+       dogrudan >= 2 && !sarili && /gonder\('p0'\)/.test(govde) && !/onayIste|confirm\(|onay/.test(govde),
+       `dogrudan=${dogrudan} sarili=${sarili} govde=${govde.trim()}`);
+  }
   ok('Acil dugmede :disabled YOK (durdurma hicbir kosula bagli degil)',
      !/class="acil"[\s\S]{0,600}acil-dur[^>]*:disabled/.test(html));
   ok('Acil serit gorsel olarak uyari rengiyle ayirt ediliyor',

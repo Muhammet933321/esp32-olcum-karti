@@ -4027,6 +4027,14 @@ MUTASYONLAR = [
      'WIG: (tarayicida) arsiv kutusu tek tikla Go gonderir'),
     ('T3C', 'tarayici_kayitlar.py', 'arayuz3/ekran/kayit_gorunum.js', "        if (b && typeof b.focus === 'function') b.focus({ preventScroll: true });\n", '',
      'WIG: (tarayicida) kayit acilinca odak basliga gitmez'),
+    # ── EMNIYET-P0 (2026-10-02): iki asamali onaylar p0'i ASLA sarmaz
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     '<button class="acil-dur" @click="pilDurdurKomut"', '<button class="acil-dur" @click="onayIste(\'p0\')"',
+     "EMNIYET-P0: acil DURDUR onaya sarilirsa desarj iki dokunusa kalir: B7 kirmizi"),
+    ("B7", "test_arayuz3.js", "arayuz3/app.js",
+     "    pilDurdurKomut() { this.gonder('p0'); },",
+     "    pilDurdurKomut() { if (this.onay !== 'p0') { this.onayIste('p0'); return; } this.gonder('p0'); },",
+     "EMNIYET-P0: pilDurdurKomut govdesine onay eklenirse: B7 kirmizi"),
 ]
 
 
