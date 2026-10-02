@@ -275,9 +275,10 @@ const TASIYICILAR = {
    Görünümler `v-show` ile gizleniyor, `v-if` ile DEĞİL — tuvaller
    (zaman grafiği, skop) canlı kalsın, geçişte yalnızca yeniden çizilsin. */
 /* 3D (D1): sol şeridin gezinmesi. Ad ve alt yazı SÖZLÜKTEN (`kb.<id>`,
-   `kb.<id>_alt`; D8). Henüz yazılmamış ekran (Karşılaştırma, 3G) BURADA
-   YOK — ölü bağlantı kullanıcıyı boş ekrana götürürdü. `ikon` SVG yolu
-   (seçilen maketten; çizgi, dolgu yok). */
+   `kb.<id>_alt`; D8). Henüz yazılmamış ekran BURADA YOK — ölü bağlantı
+   kullanıcıyı boş ekrana götürürdü. 3G (KR6): Karşılaştırma yazıldı ve
+   şeritte; seçim yokken ekranı Kayıtlar'a yönlendiren boş durum gösterir.
+   `ikon` SVG yolu (seçilen maketten; çizgi, dolgu yok). */
 const GORUNUMLER = [
   { id: 'canli', ad: 'kb.canli', alt: 'kb.canli_alt', ikon: 'M3 12h4l3-8 4 16 3-8h4' },
   { id: 'skop', ad: 'kb.skop', alt: 'kb.skop_alt',
@@ -285,6 +286,8 @@ const GORUNUMLER = [
   { id: 'pil', ad: 'kb.pil', alt: 'kb.pil_alt',
     ikon: 'M9 4h6a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM10 2h4M10 14h4' },
   { id: 'kayitlar', ad: 'kb.kayitlar', alt: 'kb.kayitlar_alt', ikon: 'M4 6h16M4 12h16M4 18h10' },
+  { id: 'karsilastir', ad: 'kb.karsilastir', alt: 'kb.karsilastir_alt',
+    ikon: 'M3 20h18M3 16l5-7 4 4 4-8 5 6M3 11l5 3 4-5 4 3 5-6' },
   { id: 'ayar', ad: 'kb.ayar', alt: 'kb.ayar_alt',
     ikon: 'M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2' },
   { id: 'konsol', ad: 'kb.konsol', alt: 'kb.konsol_alt', ikon: 'M4 17l6-5-6-5M12 19h8' },
@@ -393,6 +396,9 @@ function hashtenGorunum() {
   /* 3E (OS6): `#/skop/kayit/<oturum>/<sira>[@kimlik]` Osiloskop'un ICI — hangi yakalama
      oldugunu ekran modulu okuyor (ekran/osiloskop.js skopRotaCoz). */
   if (/^skop\/kayit\//.test(h)) return 'skop';
+  /* 3G (KR1): `#/karsilastir/<no>[@kimlik],…[?x=…&k=…]` Karsilastirma'nin ICI — secimi
+     ekran modulu okuyor (ekran/karsilastir.js karsilastirRotaCoz). */
+  if (/^karsilastir(?:[/?]|$)/.test(h)) return 'karsilastir';
   return GORUNUMLER.some((g) => g.id === h) ? h : GORUNUM_VARSAYILAN;
 }
 
@@ -799,6 +805,11 @@ createApp({
          metin bu yuzden burada. */
       errorComponent: { template: '<p class="hata">Kayıtlar ekranı yüklenemedi (modül inmedi) — kart yeniden başlıyor olabilir; birkaç saniye sonra sayfayı yenileyin.</p>' },
     }),
+    /* 3G: Karsilastirma ekrani da ilk acilista iner (ayni desen, ayni gerekce). */
+    'karsilastir-ekran': defineAsyncComponent({
+      loader: () => import('./ekran/karsilastir.js').then((m) => m.KarsilastirEkrani),
+      errorComponent: { template: '<p class="hata">Karşılaştırma ekranı yüklenemedi (modül inmedi) — kart yeniden başlıyor olabilir; birkaç saniye sonra sayfayı yenileyin.</p>' },
+    }),
   },
   data() {
     return {
@@ -820,6 +831,7 @@ createApp({
       /* 3C: Kayitlar ekrani ilk acilista KURULUR (sonra v-show ile canli
          kalir; tuval ve esitleme durumu kaybolmasin). */
       kayitlarAcik: hashtenGorunum() === 'kayitlar',
+      karsilastirAcik: hashtenGorunum() === 'karsilastir',   // 3G: ayni desen (ilk acilista kurulur)
       /* 3D: Canli'nin grafik modulu (ekran/canli.js) ekran ILK gorunur olunca iner
          (yukaridaki Kayitlar deseni). `canliAcik` o ani isaretler; okuma kartlari
          ve kayit denetimi modulu BEKLEMEZ (app.js'te). */
@@ -1748,6 +1760,7 @@ createApp({
         try { history.replaceState(null, '', '#/' + v); } catch (e) { /* file:// */ }
       }
       if (v === 'kayitlar') this.kayitlarAcik = true;
+      if (v === 'karsilastir') this.karsilastirAcik = true;   // 3G: modul ilk acilista
       if (v === 'canli') this.canliAcik = true;        // 3D: grafik modulu ilk acilista
       /* WIG: silahli onaylar gorunum degisince duser; sekme basligi gorunumu soyler;
          gizliyken birikmis konsol satirlarinin dibine gidilir. */

@@ -23,6 +23,9 @@
    ROTA: `#/kayitlar` liste · `#/kayit/<no>` kayit · `#/kayit/<no>@<kimlik>`
    eski akistaki kayit · sonuna `/rapor` yazdirilabilir rapor. Geri tusu
    calisir (her acilis bir gecmis girdisi).
+   3G (KR1): satirlarda karsilastirma secim kutusu (yalniz bu tarayicidaki
+   kopyasi olan, grafigi olan oturum; en cok KR_AZAMI), "Karsilastir" ->
+   `#/karsilastir/<no>@<kimlik>,…` (ekran/karsilastir.js).
    ⚠ Saf fonksiyonlar Vue'suz (B7 node'da sinar); bilesen globalThis.Vue'yu
      yalniz calisirken kullanir.
    ═══════════════════════════════════════════════════════════════════════ */
@@ -205,6 +208,42 @@ export function rotaAkisi(rota, satirlar) {
   return herhangi ? herhangi.kimlik : null;
 }
 
+/* ── 3G: karsilastirma secimi (KR1, KR5) ────────────────────────────── */
+
+/** KR1: en fazla bu kadar kayit karsilastirilir. Tek kaynak (karsilastir.js de bunu kullanir). */
+export const KR_AZAMI = 6;
+/** Grafigi olan ekran turleri: zaman grafigi skop gunlugunde yok (yakalama tablosu). */
+export const KR_TURLER = Object.freeze(['olcum', 'ayrinti', 'pil']);
+
+/**
+ * KR1/KR5: satir karsilastirmaya eklenebilir mi. Donus {uygun, sebep (sozluk anahtari | null)}.
+ * Yalniz bu tarayicidaki kopyasi olan (yerelde) ve grafigi olan oturum; secili olmayan satir
+ * secim KR_AZAMI'ya ulasinca eklenemez (secili olan her zaman cikarilabilir).
+ */
+export function secilebilir(satir, { seciliMi = false, adet = 0 } = {}) {
+  if (!satir || !satir.yerelde) return { uygun: false, sebep: 'kr.sec_kartta' };
+  if (satir.tur === 'skop') return { uygun: false, sebep: 'kr.sec_skop' };
+  if (!KR_TURLER.includes(satir.tur) || !(satir.nokta > 0)) return { uygun: false, sebep: 'kr.sec_bos' };
+  if (!seciliMi && adet >= KR_AZAMI) return { uygun: false, sebep: 'kr.sec_dolu' };
+  return { uygun: true, sebep: null };
+}
+
+/**
+ * KR1 adresi: `#/karsilastir/<no>[@kimlik],…` + secime bagli olmayan durum sorguda
+ * (`?x=<kip>&k=<kanal>`; varsayilan 'baslangic' / 'V' yazilmaz). Kayitlar listesi kimligi
+ * HER ZAMAN yazar (3E S4 kurali: eski kart kopyasinda yanlis oturum acilmasin).
+ * Cozucusu ekran/karsilastir.js karsilastirRotaCoz — B7 ikisinin birbirinin tersi oldugunu sinar.
+ */
+export function karsilastirRotaYaz({ secim = [], kip = 'baslangic', kanal = 'V' } = {}) {
+  let h = '#/karsilastir';
+  const p = secim.map((s) => `${s.oturum}${s.kimlik === null || s.kimlik === undefined ? '' : '@' + s.kimlik}`);
+  if (p.length) h += '/' + p.join(',');
+  const q = [];
+  if (kip && kip !== 'baslangic') q.push('x=' + kip);
+  if (kanal && kanal !== 'V') q.push('k=' + kanal);
+  return h + (q.length ? '?' + q.join('&') : '');
+}
+
 export function baytYaz(n) {
   if (!(n >= 0)) return '—';
   if (n < 1024) return n + ' B';
@@ -233,6 +272,12 @@ export const KL_METIN = Object.freeze({
   listeyeDon: 'kl.listeye_don', yukleniyor: 'kl.yukleniyor', ipucu: 'kl.ipucu',
   turSec: 'kl.tur_sec', neredeSec: 'kl.nerede_sec', liste: 'kl.liste',
   arsivOnayUyari: 'kl.arsiv_onay_uyari', arsivEminim: 'kl.arsiv_eminim',
+});
+
+/* 3G (KR8): listedeki karsilastirma secimi metinleri (`kr.` ailesi; ekran/karsilastir.js ile ortak). */
+export const KL_KR_METIN = Object.freeze({
+  karsilastir: 'kr.karsilastir', secimTemizle: 'kr.secim_temizle', secimBilgi: 'kr.secim_bilgi',
+  secimYok: 'kr.secim_yok', sec: 'kr.sec', secCikar: 'kr.sec_cikar',
 });
 
 /* ── Vue bileseni ───────────────────────────────────────────────────── */
@@ -305,21 +350,37 @@ const SABLON = `
         </select>
       </div>
       <p class="ipucu">{{ m.ipucu }}</p>
+      <!-- 3G (KR1): karsilastirma secimi. Kutu baglantinin DISINDA (ic ice etkilesimli oge yok);
+           secilemeyen satirin kutusu kapali ve SEBEBI etiketinde (KR5). -->
+      <div class="kl-karsilastir" v-if="satirlar.length">
+        <span class="kl-secim-bilgi" aria-live="polite">{{ secimBilgi }}</span>
+        <span class="bosluk"></span>
+        <button v-if="secim.length" type="button" @click="secimTemizle" data-kl-secim-temizle>{{ km.secimTemizle }}</button>
+        <a v-if="secim.length >= 2" class="kl-karsilastir-git" :href="secimAdresi" data-kl-karsilastir>{{ km.karsilastir }}</a>
+        <button v-else type="button" class="birincil" disabled data-kl-karsilastir>{{ km.karsilastir }}</button>
+      </div>
       <div class="kl-liste">
-        <a v-for="s in gorunenSatirlar" :key="s.anahtar" class="kl-satir" :href="s.adres"
-           :data-oturum="s.oturum" :data-kimlik="s.kimlik" :data-nerede="s.nerede">
-          <span class="kl-tur">{{ turAdi(s.tur) }}</span>
-          <span class="kl-ad">{{ s.ad || ('#' + s.oturum) }}<span v-if="s.ad" class="kl-no"> #{{ s.oturum }}</span></span>
-          <span class="kl-bilgi">{{ baslangic(s) }} · {{ sure(s.sureMs) }} · {{ noktaYazi(s) }}</span>
-          <span class="kl-rozetler">
-            <span class="kl-rozet" :class="'kl-nerede-' + s.nerede">{{ neredeAdi(s.nerede) }}</span>
-            <span class="kl-rozet" :class="'kl-durum-' + s.durum">{{ durumAdi(s.durum) }}</span>
-            <span v-if="s.eksik" class="kl-rozet kl-dikkat">{{ m.eksik }}</span>
-            <span v-if="s.eskiKart" class="kl-rozet kl-dikkat">{{ m.eskiKart }}</span>
-            <span v-if="s.basiSilindi" class="kl-rozet">{{ m.basiSilindi }}</span>
-            <span v-for="e in s.etiketler" :key="e" class="kl-rozet kl-etiket">{{ e }}</span>
-          </span>
-        </a>
+        <div v-for="s in gorunenSatirlar" :key="s.anahtar" class="kl-satir-sarmal">
+          <label class="kl-sec" :title="secimDurumlari[s.anahtar].ipucu">
+            <input type="checkbox" :data-kl-sec="s.anahtar" :checked="secimDurumlari[s.anahtar].secili"
+                   :disabled="!secimDurumlari[s.anahtar].uygun" :aria-label="secimDurumlari[s.anahtar].etiket"
+                   @change="secimDegistir(s, $event.target.checked)">
+          </label>
+          <a class="kl-satir" :href="s.adres"
+             :data-oturum="s.oturum" :data-kimlik="s.kimlik" :data-nerede="s.nerede">
+            <span class="kl-tur">{{ turAdi(s.tur) }}</span>
+            <span class="kl-ad">{{ s.ad || ('#' + s.oturum) }}<span v-if="s.ad" class="kl-no"> #{{ s.oturum }}</span></span>
+            <span class="kl-bilgi">{{ baslangic(s) }} · {{ sure(s.sureMs) }} · {{ noktaYazi(s) }}</span>
+            <span class="kl-rozetler">
+              <span class="kl-rozet" :class="'kl-nerede-' + s.nerede">{{ neredeAdi(s.nerede) }}</span>
+              <span class="kl-rozet" :class="'kl-durum-' + s.durum">{{ durumAdi(s.durum) }}</span>
+              <span v-if="s.eksik" class="kl-rozet kl-dikkat">{{ m.eksik }}</span>
+              <span v-if="s.eskiKart" class="kl-rozet kl-dikkat">{{ m.eskiKart }}</span>
+              <span v-if="s.basiSilindi" class="kl-rozet">{{ m.basiSilindi }}</span>
+              <span v-for="e in s.etiketler" :key="e" class="kl-rozet kl-etiket">{{ e }}</span>
+            </span>
+          </a>
+        </div>
       </div>
       <p v-if="!gorunenSatirlar.length" class="ipucu kl-bos">{{ satirlar.length ? m.bosSuzgec : m.bos }}</p>
     </section>
@@ -364,6 +425,7 @@ export const KayitlarEkrani = {
       esitleniyor: false, ilerleme: 0, sonuc: '', esitlemeNeden: null, esitlemeMesaj: '',
       arsiv: false, arsivOnay: false, satirlar: [], kopyalar: [], silOnay: null,
       secili: null, seciliAnahtar: '', seciliHata: '', seciliKartta: false, yukleniyor: false,
+      secim: [],                 // 3G (KR1): [{anahtar, oturum, kimlik}] — secim sirasi = renk sirasi
     };
   },
   created() {
@@ -404,6 +466,29 @@ export const KayitlarEkrani = {
     gorunenSatirlar() {
       return satirSuz(this.satirlar, { arama: this.arama, tur: this.turSuzgec, nerede: this.neredeSuzgec });
     },
+    km() { return metinler(KL_KR_METIN, this.dil); },
+    /** 3G (KR1/KR5): satir basina secim durumu — secili mi, eklenebilir mi, etiket ve sebep. */
+    secimDurumlari() {
+      const d = {};
+      const adet = this.secim.length;
+      for (const s of this.satirlar) {
+        const secili = this.secim.some((x) => x.anahtar === s.anahtar);
+        const u = secilebilir(s, { seciliMi: secili, adet });
+        const ad = s.ad || `${ceviri(TUR_METIN[s.tur] || TUR_METIN.bilinmeyen, this.dil)} #${s.oturum}`;
+        const sebep = u.sebep ? ceviri(u.sebep, this.dil) : '';
+        d[s.anahtar] = { secili, uygun: u.uygun, sebep: u.sebep, ipucu: sebep,
+          etiket: ceviri(secili ? KL_KR_METIN.secCikar : KL_KR_METIN.sec, this.dil, { ad })
+            + (sebep ? ' — ' + sebep : '') };
+      }
+      return d;
+    },
+    secimBilgi() {
+      return this.secim.length ? ceviri(KL_KR_METIN.secimBilgi, this.dil, { n: this.secim.length, azami: KR_AZAMI })
+        : ceviri(KL_KR_METIN.secimYok, this.dil, { azami: KR_AZAMI });
+    },
+    secimAdresi() {
+      return karsilastirRotaYaz({ secim: this.secim.map((x) => ({ oturum: x.oturum, kimlik: x.kimlik })) });
+    },
   },
   watch: {
     etkin(v) { if (v) this.etkinlesti(); },
@@ -431,6 +516,17 @@ export const KayitlarEkrani = {
       const b = s.tur === 'skop' ? this.m.yakalamaKisa : s.tur === 'ayrinti' ? this.m.ornekKisa : this.m.noktaKisa;
       return s.nokta + ' ' + b;
     },
+    /** 3G (KR1): secime ekle / cikar; KR_AZAMI ve KR5 kurali secilebilir()'de (kutu zaten kapali). */
+    secimDegistir(s, acik) {
+      const var_ = this.secim.some((x) => x.anahtar === s.anahtar);
+      if (!acik) {
+        this.secim = this.secim.filter((x) => x.anahtar !== s.anahtar);
+        return;
+      }
+      if (var_ || !secilebilir(s, { seciliMi: false, adet: this.secim.length }).uygun) return;
+      this.secim = [...this.secim, { anahtar: s.anahtar, oturum: s.oturum, kimlik: s.kimlik }];
+    },
+    secimTemizle() { this.secim = []; },
     kayitAdresi(rapor) {
       const s = this.satirlar.find((x) => x.oturum === this.rota.oturum
         && x.kimlik === (this.secili ? this.secili.kimlik : null));
@@ -505,6 +601,9 @@ export const KayitlarEkrani = {
       /* guncel akisi one al, kalanini yeniden eskiye */
       yereller.sort((a, b) => (b.olusma || 0) - (a.olusma || 0));
       this.satirlar = listeBirlestir({ kart: this._kartListe, yereller });
+      /* 3G: listeden dusen ya da artik secilemeyen (kopyasi silinen) oturum secimden cikar */
+      this.secim = this.secim.filter((x) => this.satirlar.some((s) => s.anahtar === x.anahtar
+        && secilebilir(s, { seciliMi: true }).uygun));
       const guncel = this._kartListe ? this._kartListe.kimlik : null;
       this.kopyalar = yereller.map((y) => ({ kimlik: y.kimlik, guncel: y.kimlik === guncel,
         metin: ceviri(KL_METIN.kopyaSatir, this.dil, { kimlik: y.kimlik, boyut: baytYaz(y.bayt),

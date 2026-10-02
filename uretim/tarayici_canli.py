@@ -413,8 +413,8 @@ def main() -> int:
                        " esit: document.querySelector('#serit .serit-alt').textContent.trim(),"
                        " gorunur: getComputedStyle(document.querySelector('#serit')).visibility,"
                        " ust: getComputedStyle(document.querySelector('.ust')).display})")
-            ok("[!] D1: sol serit — 6 baglanti (Karsilastirma YOK), Canli etkin, 'Cevrimici · WiFi', yer, ust cubuk gizli",
-               ser["ad"] == ["Canlı", "Osiloskop", "Pil testi", "Kayıtlar", "Ayarlar", "Konsol"]
+            ok("[!] D1/KR6: sol serit — 7 baglanti (3G: Karsilastirma), Canli etkin, 'Cevrimici · WiFi', yer, ust cubuk gizli",
+               ser["ad"] == ["Canlı", "Osiloskop", "Pil testi", "Kayıtlar", "Karşılaştırma", "Ayarlar", "Konsol"]
                and (ser["etkin"] or "").strip() == "Canlı" and ser["rozet"] == "Çevrimiçi · WiFi"
                and AD in ser["alt"] and ser["gorunur"] == "visible" and ser["ust"] == "none", json.dumps(ser, ensure_ascii=False))
             ok("[!] D1: alt bilgi = G satirinin `onaysiz`i (sahte kart binde 45 -> %4.5)",
