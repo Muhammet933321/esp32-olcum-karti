@@ -2,7 +2,7 @@
 // Python vektoru yok: basvuru DFT'nin tanimi (burada O(N^2) ile hesaplanir).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fft, spektrum, tepeFrekans, pencere, ikiKuvveti } from "../src/fft.js";
+import { fft, spektrum, tepeFrekans, pencere, ikiKuvveti, harmonikler, harmonikPencere, dbv } from "../src/fft.js";
 
 /** Belirlenimci [-1, 1) (LCG). */
 function rastgele(tohum) {
@@ -285,4 +285,123 @@ test("Float64Array, Float32Array ve duz dizi ayni spektrumu verir", () => {
   const c = spektrum(Float64Array.from(y), 50);
   assert.deepEqual(a.genlik, b.genlik);
   assert.deepEqual(a.genlik, c.genlik);
+});
+
+// ── 3E (OS3): harmonikler + THD yaklasigi + dBV ─────────────────────────────────────
+/** Bilinen harmonik icerikli sinyal: sum A_n cos(2 pi n f0 t + faz_n) + dc. */
+function harmonikli(nOrnek, hz, f0, genlikler, dc = 0) {
+  const y = new Float64Array(nOrnek);
+  for (let i = 0; i < nOrnek; i++) {
+    let s = dc;
+    genlikler.forEach((a, j) => { s += a * Math.cos(2 * Math.PI * (j + 1) * f0 * i / hz + 0.3 * j); });
+    y[i] = s;
+  }
+  return y;
+}
+
+test("3E harmonikler: kutuya dusen temel + 4 harmonik (dikdortgen) -> genlikler TAM, THD = sqrt(sum A_n^2)/A_1", () => {
+  const n = 1024;
+  const hz = 1024;
+  const A = [2, 0.5, 0.25, 0.1, 0.05];
+  const sp = spektrum(harmonikli(n, hz, 16, A, 1.5), hz, { pencere: "dikdortgen" });
+  const t = tepeFrekans(sp);
+  const h = harmonikler(sp, t.f, 5);
+  assert.equal(h.harmonikler.length, 5);
+  h.harmonikler.forEach((x, j) => {
+    assert.equal(x.n, j + 1);
+    assert.ok(Math.abs(x.f - 16 * (j + 1)) < 1e-9, `f${j + 1} ${x.f}`);
+    assert.ok(Math.abs(x.genlik - A[j]) < 1e-9, `A${j + 1} ${x.genlik}`);
+  });
+  const beklenen = Math.sqrt(0.5 ** 2 + 0.25 ** 2 + 0.1 ** 2 + 0.05 ** 2) / 2;
+  assert.ok(Math.abs(h.thd - beklenen) < 1e-9, `${h.thd} ~ ${beklenen}`);
+});
+
+test("3E harmonikler: kutular arasi temel (Hann, dolgulu n=1000): frekans <= 0.05 kutu, genlik %5, THD %5 icinde", () => {
+  const n = 1000;
+  const hz = 10000;
+  const A = [1, 0.3, 0.2, 0.1, 0.05];
+  const f0 = 123.4;
+  const sp = spektrum(harmonikli(n, hz, f0, A), hz);
+  const t = tepeFrekans(sp);
+  const h = harmonikler(sp, t.f, 5);
+  h.harmonikler.forEach((x, j) => {
+    assert.ok(Math.abs(x.f - f0 * (j + 1)) <= 0.05 * sp.df, `f${j + 1} ${x.f} ~ ${f0 * (j + 1)}`);
+    assert.ok(Math.abs(x.genlik - A[j]) <= 0.05 * A[j], `A${j + 1} ${x.genlik} ~ ${A[j]}`);
+  });
+  const beklenen = Math.sqrt(0.3 ** 2 + 0.2 ** 2 + 0.1 ** 2 + 0.05 ** 2);
+  assert.ok(Math.abs(h.thd - beklenen) <= 0.05 * beklenen, `${h.thd} ~ ${beklenen}`);
+});
+
+test("3E harmonikler: Nyquist'i asan harmonik null (THD'ye girmez); saf sinus THD ~ 0; gecersiz girdi", () => {
+  const hz = 1000;
+  const sp = spektrum(harmonikli(1000, hz, 180, [1]), hz);
+  const h = harmonikler(sp, tepeFrekans(sp).f, 5);
+  assert.ok(h.harmonikler[0] && h.harmonikler[1] && h.harmonikler[2] === null && h.harmonikler[4] === null,
+    JSON.stringify(h.harmonikler.map((x) => x && x.f)));
+  assert.ok(h.thd < 0.01, String(h.thd));
+  assert.equal(harmonikler(sp, 0).thd, NaN);
+  assert.equal(harmonikler(sp, NaN).harmonikler.length, 0);
+  assert.equal(harmonikler({ genlik: new Float64Array(0), df: 1 }, 5).harmonikler.length, 0);
+});
+
+test("3E harmonikPencere: Hann 2*nfft/n, dikdortgen nfft/n kutu, en az 2", () => {
+  assert.equal(harmonikPencere({ n: 1024, nfft: 1024, pencere: "hann" }), 2);
+  assert.equal(harmonikPencere({ n: 1000, nfft: 1024, pencere: "hann" }), 3);
+  assert.equal(harmonikPencere({ n: 600, nfft: 1024, pencere: "hann" }), 4);
+  assert.equal(harmonikPencere({ n: 1024, nfft: 1024, pencere: "dikdortgen" }), 2);
+  assert.equal(harmonikPencere({ n: 300, nfft: 1024, pencere: "dikdortgen" }), 4);
+});
+
+test("3E dBV: 1 V = 0 dBV, 0.1 V = -20 dBV, 0 tabana (-120 dBV), NaN NaN", () => {
+  assert.equal(dbv(1), 0);
+  assert.ok(Math.abs(dbv(0.1) + 20) < 1e-12);
+  assert.ok(Math.abs(dbv(-0.1) + 20) < 1e-12, "isaret onemsiz (genlik)");
+  assert.ok(Math.abs(dbv(0) + 120) < 1e-12);
+  assert.ok(Math.abs(dbv(0, 1e-3) + 60) < 1e-12);
+  assert.ok(Number.isNaN(dbv(NaN)));
+});
+
+test("3E harmonikler: temiz sinus, kaba cozunurluk (f0 = 5.1 kutu, Hann): temelin sizinti yamaci harmonik SANILMAZ", () => {
+  const hz = 10000;
+  const n = 1000;
+  const y = Float64Array.from({ length: n }, (_, i) => 12 + 9 * Math.sin(2 * Math.PI * 50.0 * i / hz));
+  const sp = spektrum(y, hz);
+  const t = tepeFrekans(sp);
+  const h = harmonikler(sp, t.f, 5);
+  for (const x of h.harmonikler.slice(1)) {
+    assert.ok(x && Math.abs(x.f - x.n * t.f) <= 1.01 * sp.df, `${x && x.n}. harmonik ${x && x.f} Hz (beklenen ~${x && x.n * t.f})`);
+    assert.ok(x.genlik < 0.01 * 9, `${x.n}. genlik ${x.genlik}`);
+  }
+  assert.ok(h.thd < 0.005, `THD ${h.thd}`);
+});
+
+test("3E harmonikler: yalniz gurultu olan harmonik kutusunda gurultu tepesi harmonik SANILMAZ (taban, n·f0'da)", () => {
+  const hz = 83333;
+  const n = 4000;
+  let x = 12345;
+  const rnd = () => { x = (Math.imul(1664525, x) + 1013904223) >>> 0; return x / 4294967296 - 0.5; };
+  const y = Float64Array.from({ length: n }, (_, i) => 50 * Math.sin(2 * Math.PI * 1000.03 * i / hz) + 0.2 * rnd());
+  const sp = spektrum(y, hz);
+  const t = tepeFrekans(sp);
+  const h = harmonikler(sp, t.f, 5);
+  const hucre = Math.max(sp.df, hz / n);
+  for (const z of h.harmonikler.slice(1)) {
+    assert.ok(z.taban === true || Math.abs(z.f - z.n * t.f) <= hucre, `${z.n}: ${z.f} Hz`);
+    assert.ok(Math.abs(z.f - z.n * t.f) <= hucre, `${z.n}. harmonik ${z.f} Hz, beklenen ~${z.n * t.f}`);
+  }
+  assert.ok(h.harmonikler.slice(1).some((z) => z.taban), "temiz sinuste en az bir harmonik taban olmali");
+  assert.ok(h.thd < 0.01, `THD ${h.thd}`);
+});
+
+test("3E harmonikler: temelin sizinti yamaci komsulukta daha BUYUKSE de kucuk gercek harmonik (yerel tepe) bulunur", () => {
+  /* 50 Hz 9 V + 100 Hz 0.05 V, 1000 ornek @ 10 kSa/s (Hann): 8. kutuda temelin yamaci 0.080 V,
+     10. kutuda harmonik 0.066 V — en buyuk kutu yamac; yerel tepe kurali harmonigi bulur */
+  const hz = 10000;
+  const n = 1000;
+  const y = Float64Array.from({ length: n }, (_, i) => 9 * Math.sin(2 * Math.PI * 50 * i / hz) + 0.05 * Math.sin(2 * Math.PI * 100 * i / hz));
+  const sp = spektrum(y, hz);
+  const h = harmonikler(sp, tepeFrekans(sp).f, 3);
+  const h2 = h.harmonikler[1];
+  assert.ok(sp.genlik[8] > sp.genlik[10], "kurulum: yamac harmonikten buyuk olmali");
+  assert.ok(h2 && h2.taban !== true && Math.abs(h2.f - 100) < 5 && h2.kutu === 10, JSON.stringify(h2));
 });

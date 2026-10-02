@@ -1037,16 +1037,18 @@ console.log('\n--- 10. Gorunumler: hash yonlendirme, v-show, yeniden cizim ---')
   const w = secenekler.watch && secenekler.watch.gorunum;
   ok('watch.gorunum tanimli', typeof w === 'function');
   if (typeof w === 'function') {
-    let g = 0, o = 0, tick = 0;
+    let g = 0, o = 0, sp = 0, tick = 0;
     const sahte = {
       $nextTick(fn) { tick++; fn(); },
-      grafikCiz() { g++; }, osiloCiz() { o++; },
+      grafikCiz() { g++; }, osiloCiz() { o++; }, spektrumCiz() { sp++; }, skopAcik: false,
     };
     sandbox.location = { hash: '#/olcum' };
     sandbox.history = { replaceState() {} };
     w.call(sahte, 'skop');
-    ok('gorunum degisince grafik VE skop $nextTick icinde yeniden ciziliyor',
-       tick === 1 && g === 1 && o === 1, `nextTick=${tick} grafik=${g} skop=${o}`);
+    /* 3E: spektrum tuvali (ekran/osiloskop.js) da ayni kurala tabi — gizliyken 0 genislik okur */
+    ok('gorunum degisince grafik, skop VE spektrum $nextTick icinde yeniden ciziliyor; Osiloskop modulu kuruluyor',
+       tick === 1 && g === 1 && o === 1 && sp === 1 && sahte.skopAcik === true,
+       `nextTick=${tick} grafik=${g} skop=${o} spektrum=${sp} skopAcik=${sahte.skopAcik}`);
     delete sandbox.location; delete sandbox.history;
   }
 
@@ -3292,10 +3294,12 @@ console.log('\n--- 25. Canli + kabuk + kayit denetimi (3D) ---');
       ok('[!] D5: kayit komutundan SONRA tam bir `G?`', sonra === 2 && giden[giden.length - 2] === 'Gb200'
          && giden[giden.length - 1] === 'G?', giden.slice(-3).join(' '));
     });
-    ok('[!] D5: app.js`te setInterval YOK ve `G?` yalniz baglan + demoVeri (sahte kartin baglanmasi) + kayitKomut govdesinde',
-       !/setInterval\(/.test(kod) && (kod.match(/'G\?'/g) || []).length === 3
+    /* 3E (OS5): dorduncu yer osiloskop gunlugu komutu (Gt/Gtd) — o da bir KAYIT komutu (D5) */
+    ok('[!] D5: app.js`te setInterval YOK ve `G?` yalniz baglan + demoVeri (sahte kartin baglanmasi) + kayitKomut + skopGunlukGonder govdesinde',
+       !/setInterval\(/.test(kod) && (kod.match(/'G\?'/g) || []).length === 4
        && govdeIcinde(appKaynak, 'baglan', "this.gonder('G?')") && govdeIcinde(appKaynak, 'demoVeri', "this.gonder('G?')")
-       && govdeIcinde(appKaynak, 'kayitKomut', "this.gonder('G?')"));
+       && govdeIcinde(appKaynak, 'kayitKomut', "this.gonder('G?')")
+       && govdeIcinde(appKaynak, 'skopGunlukGonder', "this.gonder('G?')"));
   }
   {
     /* Durum gecisleri -> olaylar (D7), ret satiri (D4), konsol */
@@ -4139,6 +4143,433 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
     ok('[!] WIG h: theme-color ETKIN temanin --zemin-2`si (Acik`ta adres cubugu koyu kalmiyor); ilk deger Koyu',
        sonuc.every(Boolean) && Object.values(zemin2).every(Boolean)
        && (htmlTam.match(/<meta name="theme-color" content="([^"]+)"/) || [])[1] === zemin2.koyu, JSON.stringify(zemin2));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   27. OSILOSKOP (3E — alt proje 3, OS1-OS8)
+
+   Kararlar tasarim/2026-10-02-alt-proje-3-panel.md "3E kararlari". Burada:
+   (a) KABLOLAMA + DUZEN: rota, tembel modul (esitleme zinciri ancak kayitli
+       yakalamada), sag sutun kumeleri ve DOM sirasi (dar ekranda denetimler
+       dalganin altinda), erisilebilirlik ozellikleri, 3E stilleri belirtecle.
+   (b) OS5 GUNLUK: Gt sinirlari FIRMWARE kaynagindan, komut uretici, `/komut`
+       metni + `G?`, kartin `! G:` reddi oldugu gibi, GT / "durdu" satirlari.
+   (c) OS4 OLCUM: kaynak etiketi; kayitli yakalama (ortak/kayit.js ile GERCEK
+       kayitlar) panelde kartin hesabiyla — GERCEK KART fiksturunde M satiriyla
+       basilan haneye kadar ayni.
+   (d) OS3 SPEKTRUM: ham kodlarin TAMAMI, DC cizilmez, Hz yazisi, ust sinir (≤).
+   (e) OS6 KAYITLI YAKALAMA: rota yaz/coz tersi, akis secimi, ac / canliya don.
+   (f) OS2 IZGARA: 10 x 8 bolme (yatay = firmware SKOP_BOLME).
+   Gercek tarayici (SSE + /skop.bin, IndexedDB, uc gorunum, 390 px):
+   tarayici_skop.py (T3E).
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 26. Osiloskop (3E) ---');
+{
+  const html = yorumsuz(htmlKaynak);
+  const kod = yorumsuz(appKaynak);
+  const css = cssOku();
+  const al = (ad) => vm.runInContext(ad, sandbox);
+  const OS = require(path.join(ARAYUZ, 'ekran', 'osiloskop.js'));
+  const KGx = require(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'));
+  const Kx = require(path.join(KOK, 'ortak', 'src', 'kayit.js'));
+  const SKx = require(path.join(KOK, 'ortak', 'src', 'skop.js'));
+  const SZx = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const osKaynak = fs.readFileSync(path.join(ARAYUZ, 'ekran', 'osiloskop.js'), 'utf8');
+  const skopMain = html.match(/<main class="gorunum" v-show="gorunum === 'skop'">([\s\S]*?)<\/main>/);
+  const sm = skopMain ? skopMain[1] : '';
+
+  /* ── (a) KABLOLAMA + DUZEN ──────────────────────────────────────── */
+  {
+    const hashten = al('hashtenGorunum');
+    const dene = (h) => { sandbox.location = { hash: h }; return hashten(); };
+    ok('[!] OS6: #/skop/kayit/<oturum>/<sira>[@kimlik] Osiloskop`u aciyor; #/skop da; bicimsiz adres varsayilana',
+       dene('#/skop/kayit/12/5') === 'skop' && dene('#/skop/kayit/12/5@7') === 'skop' && dene('#/skop') === 'skop'
+       && dene('#/skopx') === 'canli');
+    const w = secenekler.watch.gorunum;
+    const yazilan = [];
+    sandbox.history = { replaceState: (a, b, h) => yazilan.push(h) };
+    sandbox.location = { hash: '#/skop/kayit/12/5@7' };
+    const sahte = { $nextTick() {}, grafikCiz() {}, osiloCiz() {}, spektrumCiz() {}, skopAcik: false };
+    w.call(sahte, 'skop');
+    ok('[!] OS6: watch.gorunum KAYITLI YAKALAMA adresini #/skop`a EZMIYOR; modul kuruluyor (skopAcik)',
+       yazilan.length === 0 && sahte.skopAcik === true, yazilan.join());
+    delete sandbox.location;
+    delete sandbox.history;
+    ok('Osiloskop modulu varsayilan (Canli) acilista KURULMUYOR', secenekler.data().skopAcik === false);
+  }
+  {
+    const statik = iceAktarmaGrafigi().map((g) => g.goruntu);
+    const osAgac = iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'osiloskop.js')).map((g) => g.goruntu);
+    ok('[!] Osiloskop modulu TEMBEL: acilis grafiginde YOK, skopYukle import() ediyor, inmezse sebep ekranda',
+       !statik.includes('ekran/osiloskop.js')
+       && govdeIcinde(appKaynak, 'skopYukle', "import('./ekran/osiloskop.js')")
+       && govdeIcinde(appKaynak, 'skopYukle', "this.skopDurum = 'yuklenemedi'") && /os\.yuklenemedi/.test(sm),
+       statik.join(' '));
+    ok('[!] Esitleme zinciri (esitleme / depo_idb / ortak kayit, esitle, imza) osiloskobun STATIK agacinda YOK — yalniz kayitli yakalamada iner',
+       osAgac.join(' ') === ['ortak/grafik.js', 'ortak/fft.js', 'ortak/skop.js', 'ortak/ozet.js', 'ortak/istatistik.js']
+         .filter((x) => osAgac.includes(x)).join(' ')
+       && !osAgac.some((g) => /esitleme|depo_idb|ortak\/(kayit|esitle|imza|disari)\.js/.test(g))
+       && /import\('\.\/esitleme\.js'\)/.test(osKaynak) && /import\('\/ortak\/disari\.js'\)/.test(osKaynak),
+       osAgac.join(' '));
+    const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
+    if (fs.existsSync(kunyeYolu)) {
+      const b = JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')).bayt || {};
+      const zincir = ['ekran/osiloskop.js', ...osAgac];
+      const top = zincir.reduce((n, a) => n + (Number.isFinite(b[a]) ? b[a] : NaN), 0);
+      ok('Osiloskop zinciri (modul + statik agaci) gzip <= 48 KB, <= 6 dosya ve kunyede (goruntude) var',
+         top > 0 && top <= 48 * 1024 && zincir.length <= 6, `${top} B · ${zincir.join(' ')}`);
+      /* #/skop ile ACILIS: sayfanin statik kumesi + osiloskop zinciri (Canli inmez) — 3D'nin 250 KB kurali */
+      const acilisK = new Set(['index.html']);
+      for (const m of html.matchAll(/(?:^|\s)(?:href|src)="([^"]+)"/gm)) {
+        if (!/^(https?:|data:|#|mailto:)/.test(m[1])) acilisK.add(m[1]);
+      }
+      for (const g of iceAktarmaGrafigi()) acilisK.add(g.goruntu);
+      for (const a of zincir) acilisK.add(a);
+      const skopAcilis = [...acilisK].reduce((n, a) => n + (Number.isFinite(b[a]) ? b[a] : NaN), 0);
+      ok('[!] #/skop ile acilis (statik + osiloskop zinciri) gzip <= 250 KB ve <= 14 dosya',
+         skopAcilis > 0 && skopAcilis <= 250 * 1024 && acilisK.size <= 14, `${skopAcilis} B · ${acilisK.size} dosya`);
+    }
+  }
+  {
+    const kumeler = [...sm.matchAll(/<fieldset class="kart skop-kume" data-kume="([a-z]+)">([\s\S]*?)<\/fieldset>/g)];
+    const ad = kumeler.map((k) => k[1]);
+    const ic = Object.fromEntries(kumeler.map((k) => [k[1], k[2]]));
+    ok('[!] OS1: sag sutunda bes kume, sirayla Yakalama · Zaman tabani · Tetik · Gunluk · Kalibrasyon cikisi (fieldset + legend)',
+       ad.join() === 'yakalama,taban,tetik,gunluk,cal' && kumeler.every((k) => /<legend>\{\{ os\.\w+ \}\}<\/legend>/.test(k[2])),
+       ad.join());
+    ok('[!] OS1: her denetim KENDI kumesinde (yakala/surekli/otomatik · tdiv · tm/te/tl/tp/tn · Gt · CAL)',
+       !!ic.yakalama && /@click="osiloYakala"/.test(ic.yakalama) && /@click="surekliDegis"/.test(ic.yakalama)
+       && /@click="osiloOtomatik"/.test(ic.yakalama) && /tabanDegistir\(-1\)/.test(ic.taban || '')
+       && ['tm', 'te', 'tl', 'tp', 'tn'].every((k) => (ic.tetik || '').includes(`skopKomut('${k}' +`))
+       && /@click="skopGunlukBaslat"/.test(ic.gunluk || '') && /@click="skopGunlukDurdur"/.test(ic.gunluk || '')
+       && /@change="calGonder"/.test(ic.cal || ''));
+    const iDalga = sm.indexOf('class="kart skop-dalga"');
+    const iDenetim = sm.indexOf('<aside class="skop-denetim"');
+    const iSpektrum = sm.indexOf('class="kart skop-spektrum"');
+    ok('[!] OS1: DOM sirasi dalga -> denetimler -> spektrum (dar ekranda denetimler dalganin hemen altinda; klavye sirasi)',
+       iDalga > 0 && iDalga < iDenetim && iDenetim < iSpektrum && /<div class="skop-duzen">/.test(sm));
+    const blok = css.slice(css.indexOf('3E — OSİLOSKOP'), css.indexOf('/* Rapor YAZDIRILIRKEN'));
+    const dar = [...blok.matchAll(/@media \(max-width: 900px\)\s*\{([\s\S]*?)\n\}/g)].map((m) => m[1]).join('\n');
+    ok('[!] OS1: genis ekranda dalga >= 2/3 (7fr / 3fr), denetim sagda iki satir; <= 900 px TEK sutun: dalga, denetim, spektrum',
+       /grid-template-columns:\s*minmax\(0, 7fr\) minmax\(220px, 3fr\)/.test(blok)
+       && /grid-template-areas:\s*"dalga denetim" "spektrum denetim"/.test(blok)
+       && /grid-template-columns:\s*minmax\(0, 1fr\)/.test(dar) && /grid-template-areas:\s*"dalga" "denetim" "spektrum"/.test(dar));
+    ok('[!] 3E stilleri YALNIZ belirtecle: sabit renk (#hex / rgb) yok',
+       blok.length > 500 && !/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(blok.replace(/\/\*[\s\S]*?\*\//g, '')));
+    ok('[!] OS8: olcum kutusu, gunluk durumu ve ret alanlari aria-live="polite"; tuvaller role=img + etiket; aside etiketli',
+       /class="skop-olcum-kutu" aria-live="polite"/.test(sm) && /class="skop-gunluk-durum"[^>]*aria-live="polite"/.test(sm)
+       && (sm.match(/class="kume-ret" role="status" aria-live="polite"/g) || []).length === 2
+       && /class="spektrum-ozet" aria-live="polite"/.test(sm)
+       && /ref="osiloTuval"[^>]*role="img" :aria-label="os\.tuvalEtiket"/.test(sm)
+       && /ref="spektrumTuval"[^>]*role="img" :aria-label="os\.spektrumEtiket"/.test(sm)
+       && /<aside class="skop-denetim" :aria-label="os\.denetimler">/.test(sm));
+    ok('OS8: Surekli dugmesi durumu aria-pressed ile soyluyor; olcum sayilari tabular-nums',
+       /@click="surekliDegis"[\s\S]{0,200}:aria-pressed="surekli \? 'true' : 'false'"/.test(sm)
+       && /\.skop-olcum-deger\s*\{[^}]*tabular-nums/.test(css) && /\.skop-gunluk-durum\s*\{[^}]*tabular-nums/.test(css));
+    const os = al('OS_METIN');
+    ok('[!] OS8: osiloskobun metinleri sozlukten (OS_METIN, tr + en dolu); sablon `os.` kullaniyor',
+       Object.values(os).every((k) => k in SZx.SOZLUK && SZx.SOZLUK[k].tr && SZx.SOZLUK[k].en)
+       && Object.keys(os).length >= 60 && (sm.match(/\{\{ os\.\w+ \}\}/g) || []).length >= 40,
+       `${Object.keys(os).length} anahtar`);
+  }
+
+  /* ── (b) OS5 GUNLUK ─────────────────────────────────────────────── */
+  {
+    const ar = (ino.match(/static bool kayit__skop_aralik\([\s\S]*?\n}/) || [])[0];
+    const sinir = /x != 0 && \(x < (\d+)UL \|\| x > (\d+)UL\)/.exec(ar || '');
+    ok('[!] OS5: Gt araligi kartin sinirindan (kayit__skop_aralik: 0 ya da 1000 … 3 600 000 ms, en cok 7 hane)',
+       !!sinir && Number(sinir[1]) === al('SKOP_GUNLUK_ENAZ_MS') && Number(sinir[2]) === al('SKOP_GUNLUK_AZAMI_MS')
+       && /strlen\(p\) > 7u/.test(ar), sinir ? `${sinir[1]} … ${sinir[2]}` : 'bulunamadi');
+    const GK = al('skopGunlukKomutu');
+    const k = (o) => { const r = GK(o); return r.komut || r.hata; };
+    ok('[!] OS5: komut uretici — her tetik Gt0, N s -> Gt<ms> (virgul de), sinir disi / bos / sayi degil REDDEDILIR',
+       k({ kip: 'tetik' }) === 'Gt0' && k({ kip: 'aralik', saniye: 5 }) === 'Gt5000' && k({ kip: 'aralik', saniye: '2,5' }) === 'Gt2500'
+       && k({ kip: 'aralik', saniye: 1 }) === 'Gt1000' && k({ kip: 'aralik', saniye: 3600 }) === 'Gt3600000'
+       && k({ kip: 'aralik', saniye: 0.999 }) === 'os.hata_aralik' && k({ kip: 'aralik', saniye: 3600.001 }) === 'os.hata_aralik'
+       && k({ kip: 'aralik', saniye: '' }) === 'os.hata_aralik' && k({ kip: 'aralik', saniye: 'abc' }) === 'os.hata_aralik'
+       && k({ kip: 'aralik', saniye: 0 }) === 'os.hata_aralik' && k({ kip: 'x' }) === 'os.hata_kip');
+    /* kartin dogrulayicisinin JS esi: uretilen HER komut kartta gecerli */
+    const kartKabul = (c) => /^Gt\d{1,7}$/.test(c) && (Number(c.slice(2)) === 0
+      || (Number(c.slice(2)) >= 1000 && Number(c.slice(2)) <= 3600000));
+    const uretilen = [{ kip: 'tetik' }, ...[1, 1.5, 7, 59.9, 600, 3599.9995, 3600].map((s) => ({ kip: 'aralik', saniye: s }))]
+      .map((o) => GK(o).komut);
+    ok('OS5: uretilen her Gt komutu kartin kabul kuralindan geciyor', uretilen.every(kartKabul), uretilen.join(' '));
+    ok('[!] OS5: firmware Gt / Gtd alt komutunu taniyor (kayit_komut -> kayit_skop_komut)',
+       /alt == 't'\) \{?\s*kayit_skop_komut\(s\)|else if \(alt == 't'\)[\s\S]{0,80}kayit_skop_komut/.test(ino)
+       && /s\[2\] == 'd' && !s\[3\]/.test(ino));
+
+    const u = ornek();
+    const giden = [];
+    u.gonder = async (m) => { giden.push(m); };
+    u.gunlukKip = 'aralik'; u.gunlukSaniye = 5;
+    const v = ornek();
+    v.bagli = false;
+    const gidenV = [];
+    v.gonder = async (m) => { gidenV.push(m); };
+    SONRA.push(async () => {
+      u.bagli = true;
+      await u.skopGunlukBaslat();
+      const bas = giden.splice(0);
+      await u.skopGunlukDurdur();
+      const dur = giden.splice(0);
+      u.gunlukKip = 'tetik';
+      await u.skopGunlukBaslat();
+      const tet = giden.splice(0);
+      u.gunlukKip = 'aralik'; u.gunlukSaniye = 0.2;
+      await u.skopGunlukBaslat();
+      const red = giden.splice(0);
+      const panelUyari = u.skopGunlukUyari;
+      await v.skopGunlukBaslat();
+      ok('[!] OS5: Baslat -> `Gt5000` + `G?`; Durdur -> `Gtd` + `G?`; her tetikte -> `Gt0`; sinir disi GONDERILMIYOR (sebep ekranda)',
+         bas.join() === 'Gt5000,G?' && dur.join() === 'Gtd,G?' && tet.join() === 'Gt0,G?' && red.length === 0
+         && panelUyari && panelUyari.tur === 'panel' && /1 … 3600 s/.test(panelUyari.metin),
+         JSON.stringify({ bas, dur, tet, red, panelUyari }));
+      ok('OS5: bagli degilken komut gitmiyor, sebep ekranda', gidenV.length === 0 && v.skopGunlukUyari
+         && v.skopGunlukUyari.metin === 'Karta bağlı değil.');
+      u.skopGunlukZamani = Date.now();
+      u.satirIsle('! G: osiloskop gunlugu zaten suruyor (Gtd)');
+      const ret = u.skopGunlukUyari;
+      u.skopGunlukUyari = null;
+      u.skopGunlukZamani = Date.now() - 6000;
+      u.satirIsle('! G: osiloskop gunlugu zaten suruyor (Gtd)');
+      ok('[!] OS5 (E9): komuttan sonraki 5 s icinde gelen `! G:` gunluk kumesinde OLDUGU GIBI; 6 s sonra gelen o komutun reddi sayilmiyor',
+         ret && ret.tur === 'kart' && ret.metin === 'Kart reddetti: ! G: osiloskop gunlugu zaten suruyor (Gtd)'
+         && u.skopGunlukUyari === null, JSON.stringify(ret));
+    });
+    const g = ornek();
+    ok('OS5: GT gorulmeden durum "bilinmiyor"', g.skopGunlukDurumYazi === 'Günlük durumu bilinmiyor (bağlanınca kart söyler).'
+       && g.skopGunlukAktif === false);
+    g.satirIsle('GT 0 0 0 0');
+    const kapali = g.skopGunlukDurumYazi;
+    g.satirIsle('GT 1 5000 3 1');
+    const aralik = g.skopGunlukDurumYazi;
+    const aktif = g.skopGunlukAktif;
+    g.satirIsle('GT 1 0 7 0');
+    const tetik = g.skopGunlukDurumYazi;
+    const n0 = g.olaylar.length;
+    g.satirIsle('* G osiloskop gunlugu durdu: 9 yakalama, 2 yazilamayan');
+    ok('[!] OS5: durum PASIF GT satirindan; kartin "gunlugu durdu" satiri durumu kapatiyor (sayilarla), olay yaziyor',
+       kapali === 'Günlük kapalı' && aralik === 'Sürüyor: her 5 s · 3 yakalama · 1 yakalama yazılamadı' && aktif
+       && tetik === 'Sürüyor: her tetikte · 7 yakalama' && g.skopGunlukAktif === false && g.kayit.gt.yakalama === 9
+       && g.kayit.gt.yazilamayan === 2 && g.olaylar.length === n0 + 1,
+       JSON.stringify({ kapali, aralik, tetik }));
+    ok('OS5: "gunlugu durdu" ve "oturumu acilamadi" metinleri FIRMWARE`de birebir',
+       ino.includes('Serial.print(F("* G osiloskop gunlugu durdu: "));') && ino.includes('Serial.print(F(" yakalama, "));')
+       && ino.includes('Serial.println(F(" yazilamayan"));') && ino.includes('"! G: osiloskop gunlugu oturumu acilamadi — durdu"'));
+    ok('[!] OS5: gunluk surerken elle yakalama dugmeleri KAPALI (kart reddeder), Surekli durdurulabilir',
+       /@click="osiloYakala" data-skop="yakala"\s*:disabled="!bagli \|\| osiloBekliyor \|\| surekli \|\| skopGunlukAktif"/.test(sm)
+       && /:disabled="!bagli \|\| \(skopGunlukAktif && !surekli\)"/.test(sm)
+       && /@click="osiloOtomatik" :disabled="!bagli \|\| osiloBekliyor \|\| skopGunlukAktif"/.test(sm));
+    ok('OS5: gunluk komutlari izleyicide (kopru, surucu degil) KAPALI', /data-gunluk="baslat"/.test(sm)
+       && (sm.match(/:disabled="!kayitKomutAcik/g) || []).length === 2);
+    const SK = require(path.join(ARAYUZ, 'sahte-kart.js'));
+    const bas = SK.komut('Gt5000');
+    const durum = SK.komut('G?');
+    const elle = SK.komut('t');
+    const iki = SK.komut('Gt0');
+    const dur = SK.komut('Gtd');
+    const kotu = SK.komut('Gt999');
+    ok('[!] E12: demo karti Gt / Gtd: GT satiri, elle yakalama reddi, ret metinleri FIRMWARE`in metni',
+       /basladi: 5000 ms'de bir/.test(bas[0]) && durum.includes('GT 1 5000 0 0')
+       && elle[0] === '! skop: osiloskop gunlugu suruyor — elle yakalama yok (once Gtd)' && ino.includes(elle[0])
+       && iki[0] === '! G: osiloskop gunlugu zaten suruyor (Gtd)' && ino.includes(iki[0])
+       && /durdu: 0 yakalama, 0 yazilamayan/.test(dur[0])
+       && kotu[0] === '! G: Gt<ms> — 0 (her tetik) ya da 1000..3600000; Gtd durdurur' && ino.includes(kotu[0]),
+       JSON.stringify({ bas, elle, iki, dur, kotu }));
+  }
+
+  /* ── (c) OS4 OLCUM: kaynak + kayitli yakalamada kartin hesabi ────── */
+  const fk = JSON.parse(fs.readFileSync(path.join(__dirname, 'olcum-skop-fikstur.json'), 'utf8'));
+  const egri = fk.ct.split(' ').filter((p) => /^\d+:\d+$/.test(p)).map((p) => Number(p.split(':')[1]));
+  function skopOturumu({ olay = true, mv = egri, parcali = true } = {}) {
+    let sira = 0;
+    const ham = [];
+    const ekle = (tur, ot, yuk) => { sira++; ham.push(Kx.kayitPaketle(tur, sira, ot, yuk)); return sira; };
+    const kanal = (n) => ({ n, pga: 4.096, kazanc: 1, sifir_ham: 12, tau: 0 });
+    const ot = ekle(Kx.T_BASLA, 1, Kx.baslaPaketle({ oturum_turu: 3, kal_bicim: 1, hiz_ms: 0, unix_s: 1790003000,
+      kart_ms: 300000, acilis: 3, surum: 'A3-3E', kal: { normal: kanal(21), yuksek: kanal(201), i_ofset: 5, i_pga: 0.256,
+        sont_ohm: 0.1, i_duzeltme: 1, sebeke_hz: 0, faz_kal_us: [0, 0] }, kal_no: 2 }));
+    if (olay) ekle(Kx.T_OLAY, ot, Kx.olayPaketle({ tur: Kx.KO_SKOP_KAL, kart_ms: 300001, mv }));
+    const meta = { t_ms: 302000, sure_ms: 12, hz: 83333, tdiv_us: 1000, adim: SKx.KART_VOLT_ADIM, ofset: SKx.KART_VOLT_OFSET,
+      tetik: 208, esik: 1916, histerezis: 14, kip: 0, tetiklendi: 1, kenar: 0, on_yuzde: 25, onay: 2 };
+    const kodlar = fk.kodlar;
+    const bolum = parcali ? 400 : kodlar.length;
+    const s0 = ekle(Kx.T_SKOP, ot, Kx.skopPaketle({ no: 1, ilk: 0, toplam: kodlar.length, parca: 0, meta, kodlar: kodlar.slice(0, bolum) }));
+    if (parcali) ekle(Kx.T_SKOP, ot, Kx.skopPaketle({ no: 1, ilk: bolum, toplam: kodlar.length, parca: 1, kodlar: kodlar.slice(bolum) }));
+    const eksik = ekle(Kx.T_SKOP, ot, Kx.skopPaketle({ no: 2, ilk: 0, toplam: kodlar.length, parca: 0,
+      meta: { ...meta, t_ms: 303000 }, kodlar: kodlar.slice(0, 100) }));
+    let n = 0;
+    for (const h of ham) n += h.length;
+    const b = new Uint8Array(n);
+    let a = 0;
+    for (const h of ham) { b.set(h, a); a += h.length; }
+    const kayitlar = Kx.akisCoz(b);
+    return { o: Kx.oturumlariKur(kayitlar).get(ot), kayitlar, s0, eksik, ot };
+  }
+  const mSatiri = (o) => `M f=${o.f.toFixed(3)} T=${o.T.toFixed(9)} Vpp=${o.Vpp.toFixed(4)} Vmax=${o.Vmax.toFixed(4)} `
+    + `Vmin=${o.Vmin.toFixed(4)} Vort=${o.Vort.toFixed(4)} Vrms=${o.Vrms.toFixed(4)} Vac=${o.Vac.toFixed(4)} n=${o.n}`;
+  const alanlar = (s) => Object.fromEntries(s.slice(2).trim().split(/\s+/).map((x) => x.split('=')));
+  {
+    const u = ornek();
+    const kart = u.skopOlcumKaynak;
+    u.skopAcikKayit = { gun: 'x', ms: 1 };
+    const arsiv = u.skopOlcumKaynak;
+    u.skopKayitli = { oturum: 1, no: 1 };
+    const panel = u.skopOlcumKaynak;
+    ok('[!] OS4: olcum kutusu KAYNAGINI yaziyor — canli kart (M), kopru arsivi, panel (kayitli)',
+       kart === 'kart' && arsiv === 'arsiv' && panel === 'panel'
+       && u.skopOlcumKaynakYazi === 'Kaynak: panel, kaydın ham kodlarından — kartın hesabıyla (skopOlcKart)'
+       && /:data-kaynak="skopOlcumKaynak">\{\{ skopOlcumKaynakYazi \}\}/.test(sm));
+  }
+  {
+    const { o, s0, eksik } = skopOturumu();
+    const r = OS.yakalamaKur(o, s0);
+    const kartM = alanlar(fk.m);
+    const panelM = alanlar(mSatiri(r.olcum));
+    const esit = ['f', 'T', 'Vpp', 'Vmax', 'Vmin', 'Vort', 'Vrms', 'Vac', 'n'].filter((a) => panelM[a] !== kartM[a]);
+    ok('[!] OS4 GERCEK KART: kayitli yakalama (ortak/kayit.js ile paketlenip cozulen 2 parca + egri OLAYI) panelde kartin M satiriyla AYNI',
+       !r.hata && r.osilo.olcumKaynak === 'panel' && r.bilgi.egri === true && esit.length === 0,
+       esit.length ? `farkli: ${esit.map((a) => `${a} ${panelM[a]}/${kartM[a]}`).join(' ')}` : mSatiri(r.olcum));
+    const u = ornek();
+    u.satirIsle(fk.ct);
+    u.osilo = { voltAdim: 0.028788, voltOfset: SKx.KART_VOLT_OFSET, veri: [2048] };
+    const canliEksen = u.kodVolt(2048);
+    u.osilo = r.osilo;
+    const kayitEksen = u.kodVolt(2048);
+    u.skopKal = null;
+    const ctsiz = u.kodVolt(2048);
+    ok('[!] OS6: kayitli yakalamanin ekseni KENDI egrisiyle (canli CT olmasa da) — CT`li canli eksenle ayni',
+       Math.abs(kayitEksen - canliEksen) < 1e-6 && Math.abs(ctsiz - canliEksen) < 1e-6 && r.osilo.kal.kod.length === 17,
+       `${kayitEksen} / ${canliEksen} / ${ctsiz}`);
+    ok('OS6: eksik yakalama (parca eksik) CIZILMIYOR, sebebi soyleniyor', OS.yakalamaKur(o, eksik).hata === 'os.hata_yakalama_eksik'
+       && OS.yakalamaKur(o, 999).hata === 'os.hata_yakalama_yok');
+    const e2 = skopOturumu({ olay: false });
+    const r2 = OS.yakalamaKur(e2.o, e2.s0);
+    const u2 = ornek();
+    u2.satirIsle(fk.ct);                         // canli kartin CT'si VAR — ama kayit egrisiz olculmus
+    u2.osilo = r2.osilo;
+    const beklenen = 2048 * r2.osilo.voltAdim - r2.osilo.voltOfset;
+    ok('[!] OS4/OS6: egri OLAYI yoksa (ya da gecersizse) kart o yakalamayi EGRISIZ olcmustu: olcum skopOlc + ofset, eksen HAM',
+       r2.osilo.kal === null && r2.bilgi.egri === false
+       && Object.is(r2.olcum.Vpp, SKx.skopOlc(fk.kodlar, undefined, SKx.KART_VOLT_ADIM, 83333).Vpp)
+       && Math.abs(u2.kodVolt(2048) - beklenen) < 1e-9
+       && OS.yakalamaKur(skopOturumu({ mv: new Array(17).fill(0) }).o, e2.s0 + 1).osilo.kal === null,
+       `${u2.kodVolt(2048)} vs ${beklenen}`);
+    const oturum = { olaylar: [{ tur: 4, sira: 2, mv: egri.map((x) => x + 1) }, { tur: 4, sira: 10, mv: egri },
+      { tur: 4, sira: 30, mv: egri.map((x) => x + 2) }, { tur: 1, sira: 5 }] };
+    ok('OS6 (S3): egri = yakalamadan ONCEKI en son KO_SKOP_KAL; hic yoksa ilki',
+       OS.yakalamaEgrisi(oturum, 20)[0] === egri[0] && OS.yakalamaEgrisi(oturum, 1)[0] === egri[0] + 1
+       && OS.yakalamaEgrisi({ olaylar: [] }, 5) === null);
+  }
+
+  /* ── (d) OS3 SPEKTRUM ───────────────────────────────────────────── */
+  {
+    const hz = 10000;
+    const veri = Array.from({ length: 1000 }, (_, i) => 2000 + Math.round(1000 * Math.sin(2 * Math.PI * 437.5 * i / hz)));
+    const sp = OS.spektrumHesapla(veri, hz, { kodVolt: (k) => k * 0.01 - 20 });
+    ok('[!] OS3: tepe frekansi Hann ile <= 0.05 kutu; genlik volt (kodVolt), DC cikarildi (dc = ortalama)',
+       Math.abs(sp.tepe.f - 437.5) <= 0.05 * sp.df && Math.abs(sp.tepe.genlik - 10) < 0.4 && Math.abs(sp.dc - 0) < 0.05
+       && sp.pencere === 'hann' && sp.nfft === 1024 && sp.harmonik.harmonikler.length === 5,
+       `${sp.tepe.f} Hz ${sp.tepe.genlik} V dc ${sp.dc}`);
+    const dik = OS.spektrumHesapla(veri, hz, { kodVolt: (k) => k, pencere: 'dikdortgen' });
+    ok('OS3: pencere secimi gidiyor (dikdortgen); bilinmeyen pencere -> hann', dik.pencere === 'dikdortgen'
+       && OS.spektrumHesapla(veri, hz, { pencere: 'blackman' }).pencere === 'hann' && OS.spektrumHesapla([1], hz) === null);
+    const s = OS.spektrumSerisi(sp, 'v');
+    const d = OS.spektrumSerisi(sp, 'dbv');
+    ok('[!] OS3 (S1): grafik serisi DC kutusunu ICERMIYOR (x = f[1] …), dBV = 20 log10(V), birim etiketi',
+       s.t[0] === sp.f[1] && s.t.length === sp.f.length - 1 && s.y[0] === sp.genlik[1] && s.birim === 'V'
+       && d.birim === 'dBV' && Math.abs(d.y[44] - 20 * Math.log10(sp.genlik[45])) < 1e-9);
+    ok('[!] OS3: spektrum yakalamanin TAMAMINDAN (osilo.veri), zoom penceresinden DEGIL; eksenle ayni ceviri (kodVolt)',
+       govdeIcinde(appKaynak, 'spektrumCiz', 'o.veri') && govdeIcinde(appKaynak, 'spektrumCiz', 'this.kodVolt(k)')
+       && !govdeIcinde(appKaynak, 'spektrumCiz', 'gorunurAralik'));
+    ok('OS2: x ekseni Hz/kHz (grafik.js xEksen), adima gore ondalik',
+       OS.hzYazi(12500, 500) === '12.5 kHz' && OS.hzYazi(500, 100) === '500 Hz' && OS.hzYazi(2000, 1000) === '2 kHz'
+       && OS.hzYazi(12.5, 0.5) === '12.5 Hz' && OS.hzYazi(1500, 100) === '1.5 kHz' && OS.hzYazi(NaN, 1) === '' && /xEksen: \{ tur: 'sayi', yazi: hzYazi \}/.test(osKaynak));
+    const u = ornek();
+    u.spektrumBilgi = { var: true, n: 1000, nfft: 1024, df: 9.765625, dc: 12, tepe: { f: 50, genlik: 9 }, thd: 0.0123,
+      harmonikler: [{ n: 1, f: 50, genlik: 9 }, { n: 2, f: 97.6, genlik: 0.013, taban: true }, null, { n: 4, f: 200, genlik: 0.01 }, null] };
+    const st = u.spektrumSatirlari;
+    ok('[!] OS3: harmonik tablosu — yerel tepe yoksa (sizinti tabani) genlik "≤" ile UST SINIR; Nyquist otesi "—"; THD %',
+       st.length === 5 && st[1].v === '≤ 0.0130 V' && st[1].db.startsWith('≤ ') && st[0].v === '9.0000 V'
+       && st[2].f === '—' && u.spektrumOzet.thd === '1.23 %' && u.spektrumOzet.tepe === '50.000 Hz', JSON.stringify(st));
+    ok('OS3: pencere / birim tercihi saklaniyor, bilinmeyen kayitli deger varsayilana dusuyor',
+       /spektrumPencere\(v\) \{ this\.ayarYaz\('spektrumPencere', v\)/.test(kod) && /spektrumBirim\(v\) \{ this\.ayarYaz\('spektrumBirim', v\)/.test(kod)
+       && govdeIcinde(appKaynak, 'tercihleriYukle', "['hann', 'dikdortgen'].includes(sp)"));
+  }
+
+  /* ── (e) OS6 KAYITLI YAKALAMA ───────────────────────────────────── */
+  {
+    const rc = OS.skopRotaCoz;
+    const ry = KGx.skopRotaYaz;
+    ok('[!] OS6: rota yaz/coz birbirinin TERSI (kayit_gorunum yaziyor, osiloskop cozuyor); bicimsiz -> null',
+       JSON.stringify(rc('#/skop/kayit/12/5')) === '{"oturum":12,"sira":5,"kimlik":null}'
+       && JSON.stringify(rc('#/skop/kayit/12/5@7')) === '{"oturum":12,"sira":5,"kimlik":7}'
+       && rc('#/skop') === null && rc('#/skop/kayit/12') === null && rc('#/skop/kayit/x/5') === null && rc('#/skop/kayit/0/5') === null
+       && ['#/skop/kayit/12/5', '#/skop/kayit/12/5@7', '#/skop/kayit/3/1@0'].every((h) => ry(rc(h)) === h));
+    const kg = fs.readFileSync(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'), 'utf8');
+    ok('[!] OS6: 3C yakalama tablosunda tam yakalamaya "Osiloskopta ac" baglantisi (kimlikli adres)',
+       /<a v-if="y\.tam" :href="skopAdresi\(y\.sira\)" class="kg-skop-ac" data-skop-ac>\{\{ m\.osiloskoptaAc \}\}<\/a>/.test(kg)
+       && govdeIcinde(kg, 'skopAdresi', 'kimlik: this.veri.kimlik'));
+    const { o, kayitlar, s0, ot } = skopOturumu();
+    const akis = (kimlik, olusma) => ({ kimlik, olusma });
+    const veriler = { 3: { kimlik: 3, oturumlar: new Map([[ot, o]]), kayitlar }, 7: { kimlik: 7, oturumlar: new Map([[ot, o]]), kayitlar },
+      9: { kimlik: 9, oturumlar: new Map(), kayitlar: [] } };
+    const istenen = [];
+    const denetci = { akislar: async () => [akis(3, 10), akis(7, 20), akis(9, 30)],
+      akisVerisi: async (k) => { istenen.push(k); return veriler[k]; } };
+    SONRA.push(async () => {
+      const a = await OS.kayitliYakalamaAc({ oturum: ot, sira: s0, kimlik: null }, { denetciKur: async () => denetci });
+      const ia = istenen.splice(0);
+      const b = await OS.kayitliYakalamaAc({ oturum: ot, sira: s0, kimlik: 3 }, { denetciKur: async () => denetci });
+      const ib = istenen.splice(0);
+      const c = await OS.kayitliYakalamaAc({ oturum: ot, sira: s0, kimlik: 5 }, { denetciKur: async () => denetci });
+      ok('[!] OS6 (S4): @kimlik yoksa oturumu TASIYAN en yeni akis (9 tasimiyor -> 7); @3 -> 3; olmayan akis -> "yok"',
+         !a.hata && a.bilgi.kimlik === 7 && ia.join() === '9,7' && !b.hata && b.bilgi.kimlik === 3 && ib.join() === '3'
+         && c.hata === 'os.hata_yakalama_yok' && a.bilgi.oturum === ot && a.bilgi.no === 1
+         && a.bilgi.unixMs === 1790003000 * 1000 + 2000, JSON.stringify({ a: a.bilgi, ia, ib, c }));
+      const u = ornek();
+      u._skopMod = { kayitliYakalamaAc: async () => a };
+      u.surekli = true;
+      u.surekliZaman = null;
+      u.skopAcikKayit = { gun: 'x', ms: 1 };
+      await u.skopKayitliAc({ oturum: ot, sira: s0, kimlik: null });
+      const acik = { osilo: u.osilo === a.osilo, kayitli: !!u.skopKayitli, surekli: u.surekli, ark: u.skopAcikKayit,
+        yazi: u.skopKayitliYazi };
+      u.gonder = async () => {};
+      u.osiloYakala();
+      ok('[!] OS6: kayitli yakalama ACILIYOR (surekli durur, kopru arsivi isareti kalkar, serit "canli degil"); canli yakalama onu KAPATIYOR',
+         acik.osilo && acik.kayitli && acik.surekli === false && acik.ark === null
+         && acik.yazi === `Kayıt #${ot} · yakalama 1 · ${u.tarihYazi(1790003002)} — canlı değil` && u.skopKayitli === null,
+         JSON.stringify(acik));
+      const w = ornek();
+      w._skopMod = { kayitliYakalamaAc: async () => ({ hata: 'os.hata_yakalama_yok', d: { oturum: 4, sira: 9 } }) };
+      await w.skopKayitliAc({ oturum: 4, sira: 9, kimlik: null });
+      ok('OS6: bulunamayan yakalama SEBEBIYLE (Kayitlar`dan esitle)', w.skopKayitliHata
+         === 'Bu tarayıcıda oturum #4 içinde 9 sıralı yakalama yok — Kayıtlar\'dan eşitleyin.' && w.osilo === null);
+    });
+    ok('[!] OS6: ARSIV seridi (kayitli), "Kayda don" baglantisi ve "Canliya don" dugmesi sablonda',
+       /<div v-if="skopKayitli" class="arsiv-serit" data-skop-kayitli>[\s\S]{0,300}\{\{ skopKayitliYazi \}\}[\s\S]{0,200}:href="skopKayitAdresi"[\s\S]{0,200}@click="skopCanliyaDon"/.test(sm));
+  }
+
+  /* ── (f) OS2 IZGARA ─────────────────────────────────────────────── */
+  {
+    const bolme = /static const uint8_t\s+SKOP_BOLME\s*=\s*(\d+);/.exec(ino);
+    const u = ornek();
+    const cizgi = [];
+    let renk = '';
+    let bas = null;
+    const ctx = { set strokeStyle(v) { renk = v; }, get strokeStyle() { return renk; }, lineWidth: 1,
+      beginPath() {}, stroke() {}, moveTo(x, y) { bas = [x, y]; }, lineTo(x, y) { cizgi.push({ renk, d: bas[0] === x, x, y }); } };
+    u.renk = (ad) => ad;
+    u.izgara(ctx, 500, 300, 50, 10, 400, 280);
+    const dikey = cizgi.filter((c) => c.d);
+    const yatay = cizgi.filter((c) => !c.d);
+    ok('[!] OS2: dalga izgarasi 10 x 8 BOLME (11 dikey + 9 yatay cizgi; yatay bolme = firmware SKOP_BOLME); orta eksenler --kenar-koyu',
+       !!bolme && Number(bolme[1]) === al('SKOP_BOLME_X') && dikey.length === 11 && yatay.length === 9
+       && dikey.filter((c) => c.renk === '--kenar-koyu').length === 1 && yatay.filter((c) => c.renk === '--kenar-koyu').length === 1
+       && cizgi.every((c) => c.renk === '--kenar-c' || c.renk === '--kenar-koyu'),
+       `${dikey.length} dikey, ${yatay.length} yatay`);
   }
 }
 

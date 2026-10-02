@@ -194,6 +194,13 @@ export function tepeFrekans(sp) {
   if (k < 0) return null;
   if (enb > tum) tum = enb;
   if (enb <= 1e-12 * tum) return null;
+  return araDeger(g, k, sp.df);
+}
+
+/** `k` kutusundaki tepenin log-parabol ara degerlemesi (tepeFrekans'in kurali). */
+function araDeger(g, k, df) {
+  const m = g.length;
+  const enb = g[k];
   let d = 0;
   let tepe = enb;
   if (k > 1 && k + 1 < m) {
@@ -208,5 +215,74 @@ export function tepeFrekans(sp) {
       tepe = log ? Math.exp(t) : t;
     }
   }
-  return { f: (k + d) * sp.df, genlik: tepe, kutu: k };
+  return { f: (k + d) * df, genlik: tepe, kutu: k };
+}
+
+/** Harmonik aranirken temelin n katinin cevresinde bakilan kutu sayisi (her yana): ana lob
+ *  yari genisligi Hann'da 2·nfft/n, dikdortgende nfft/n kutu; en az 2. */
+export function harmonikPencere(sp) {
+  const n = sp && sp.n > 0 ? sp.n : 1;
+  const nfft = sp && sp.nfft > 0 ? sp.nfft : n;
+  return Math.max(2, Math.ceil(((sp && sp.pencere === 'dikdortgen') ? 1 : 2) * nfft / n));
+}
+
+/**
+ * HARMONIKLER (3E, karar OS3): temel `f0`in n. katlari, n = 1 … adet. Her harmonik
+ * n·f0/df kutusunun ± min(harmonikPencere(sp), f0/df/2) kutu komsulugundaki en buyuk YEREL
+ * TEPE, tepeFrekans ile ayni log-parabol ara degerlemesi (genlik scalloping'e karsi kismen
+ * duzeltilmis). Komsulukta yerel tepe yoksa (temelin sizinti yamaci; temiz sinuste 2. harmonik
+ * boyle — basliksiz tarayicida 50 Hz sinuste 68 Hz'lik yamac "2. harmonik" sanilmisti) beklenen
+ * kutunun degeri ve `taban: true`: genlik o harmonik icin UST SINIR. Bulunan tepe n·f0'dan bir
+ * cozunurluk hucresinden (max(df, hz/n)) uzaksa da (gurultu tepesi) ayni: `taban: true`.
+ * Nyquist'i (son kutu) asan ya da komsulugu bos (hepsi 0) harmonik null.
+ * THD YAKLASIGI = sqrt(Σ_{n=2..adet} A_n²) / A_1 (oran; yuzde icin x100) — yalniz ilk `adet`
+ * harmonik, pencere sizintisi ve gurultu tabani dahil: tanim geregi YAKLASIK. A_1 yoksa NaN.
+ * @param {{genlik: Float64Array, df: number, n: number, nfft: number, pencere: string}} sp spektrum()
+ * @returns {{harmonikler: Array<{n: number, f: number, genlik: number, kutu: number}|null>, thd: number}}
+ */
+export function harmonikler(sp, f0, adet = 5) {
+  const g = sp && sp.genlik;
+  const sonuc = { harmonikler: [], thd: NaN };
+  if (!g || g.length < 2 || !(f0 > 0) || !(sp.df > 0) || !Number.isFinite(f0)) return sonuc;
+  const m = g.length;
+  /* Arama komsulugu komsu harmonigin ana lobuna TASMAZ: en cok temel araliginin yarisi. */
+  const w = Math.max(1, Math.min(harmonikPencere(sp), Math.floor(f0 / sp.df / 2)));
+  for (let n = 1; n <= adet; n++) {
+    const merkez = Math.round((n * f0) / sp.df);
+    if (merkez >= m) { sonuc.harmonikler.push(null); continue; }
+    /* YEREL TEPE: komsulukta yerel maksimumlarin en buyugu. Yoksa (deger komsu bir lobun
+       yamacinda azalarak gidiyor — gercek harmonik sizintinin altinda) beklenen kutunun
+       degeri, ara degerlemesiz: harmonigin genligi icin UST SINIR (sizinti tabani). */
+    let k = -1;
+    let enb = 0;
+    for (let i = Math.max(1, merkez - w); i <= Math.min(m - 1, merkez + w); i++) {
+      const yerel = g[i] >= g[i - 1] && (i + 1 >= m || g[i] >= g[i + 1]);
+      if (yerel && g[i] > enb) { enb = g[i]; k = i; }
+    }
+    /* Periyodik sinyalin harmonigi TAM n·f0'dadir (f0 ara degerli, hatasi << 1 kutu); bulunan
+       tepe ondan bir cozunurluk hucresinden (max(df, hz/n) — dolgu kutulari cozunurluk degil)
+       uzaktaysa GURULTU tepesidir (basliksiz tarayicida temiz sinuste "2. harmonik 1930 Hz"
+       goruldu): harmonik yok sayilir, taban yazilir. */
+    const ara = k < 0 ? null : araDeger(g, k, sp.df);
+    const hucre = Math.max(sp.df, sp.n > 0 ? (sp.df * (sp.nfft || sp.n)) / sp.n : sp.df);
+    if (!ara || Math.abs(ara.f - n * f0) > hucre) {
+      sonuc.harmonikler.push(g[merkez] > 0 ? { n, f: merkez * sp.df, genlik: g[merkez], kutu: merkez, taban: true } : null);
+    } else {
+      sonuc.harmonikler.push({ n, ...ara });
+    }
+  }
+  const h1 = sonuc.harmonikler[0];
+  if (h1 && h1.genlik > 0) {
+    let top = 0;
+    for (const h of sonuc.harmonikler.slice(1)) if (h) top += h.genlik * h.genlik;
+    sonuc.thd = Math.sqrt(top) / h1.genlik;
+  }
+  return sonuc;
+}
+
+/** dBV (tepe genligine gore, 1 V = 0 dBV); `taban` (V) altinda tabana kirpilir (log 0 yok).
+ *  NaN (eksik) NaN kalir. */
+export function dbv(genlik, taban = 1e-6) {
+  if (Number.isNaN(genlik)) return NaN;
+  return 20 * Math.log10(Math.max(Math.abs(genlik), taban));
 }

@@ -47,6 +47,10 @@ const { createApp, defineAsyncComponent } = Vue;
    listenin ayrışmadığını sınıyor. */
 const SKOP_TDIV = [100, 200, 500, 1000, 2000, 5000,
                    10000, 20000, 50000, 100000, 200000, 500000];
+/* 3E (OS2): izgara bolmeleri. Yatay = firmware SKOP_BOLME (pencere = bolme x tdiv);
+   B7 iki sayiyi karsilastiriyor. Dikey 8 (osiloskop gelenegi). */
+const SKOP_BOLME_X = 10;
+const SKOP_BOLME_Y = 8;
 
 /* Mühendislik biçimi: 0.000012 -> "12.0 µ" */
 function muh(v, birim, hane = 3) {
@@ -386,6 +390,9 @@ function hashtenGorunum() {
   /* 3C: `#/kayit/<oturum>[@kimlik][/rapor]` Kayitlar sekmesinin ICI; hangi
      kaydin acik oldugunu ekran kendisi okuyor (ekran/kayitlar.js rotaCoz). */
   if (/^kayit\//.test(h)) return 'kayitlar';
+  /* 3E (OS6): `#/skop/kayit/<oturum>/<sira>[@kimlik]` Osiloskop'un ICI — hangi yakalama
+     oldugunu ekran modulu okuyor (ekran/osiloskop.js skopRotaCoz). */
+  if (/^skop\/kayit\//.test(h)) return 'skop';
   return GORUNUMLER.some((g) => g.id === h) ? h : GORUNUM_VARSAYILAN;
 }
 
@@ -592,6 +599,53 @@ function kayitOlaylari(o, y) {
   return ol;
 }
 
+/* ═══ 3E — OSILOSKOP (OS1-OS8) ═════════════════════════════════════════
+   Dalga tuvali, yakalama ve komutlar BURADA (eski skop kodu; OS2/OS7: kartla
+   dogrulanmis cizim ve iddialar korunuyor). Spektrum ve kayitli yakalama
+   `ekran/osiloskop.js` (ekran ilk acilinca `import()`; U1/E1 deseni).
+   OS5 — yakalama gunlugu `Gt0` (her tetik) / `Gt<ms>` / `Gtd`: aralik kartin
+   `kayit__skop_aralik` siniri (0 ya da 1000 … 3 600 000 ms, yalniz rakam);
+   B7 bu iki sayiyi firmware kaynagindan okuyup karsilastiriyor. Durum PASIF
+   `GT` satirindan (kayitSatiriCoz, D5), kartin `! G:` reddi OLDUGU GIBI (E9). */
+const SKOP_GUNLUK_ENAZ_MS = 1000;
+const SKOP_GUNLUK_AZAMI_MS = 3600000;
+/* Elle yakalamanin reddi bu kadar sonra da gelebilir: NORMAL kipte tetik beklenir (osiloYakala'nin
+   20 s / osiloOtomatik'in 30 s tavaniyla ayni) — `! tetiklenemedi` o zaman gelir. */
+const SKOP_RET_PENCERESI_MS = 30000;
+
+/** Gunluk komutu: {kip: 'tetik'} -> Gt0; {kip: 'aralik', saniye} -> Gt<ms> (1 s … 1 sa). */
+function skopGunlukKomutu({ kip, saniye } = {}) {
+  if (kip === 'tetik') return { komut: 'Gt0' };
+  if (kip !== 'aralik') return { hata: 'os.hata_kip' };
+  const s = typeof saniye === 'string' ? Number(saniye.replace(',', '.')) : Number(saniye);
+  if (saniye === '' || saniye === null || !Number.isFinite(s)) return { hata: 'os.hata_aralik' };
+  const ms = Math.round(s * 1000);
+  if (ms < SKOP_GUNLUK_ENAZ_MS || ms > SKOP_GUNLUK_AZAMI_MS) return { hata: 'os.hata_aralik' };
+  return { komut: 'Gt' + ms };
+}
+
+/** 3E (OS8): osiloskop ekraninin metinleri (sozluk anahtari duz metin; D8 deseni). */
+const OS_METIN = Object.freeze({
+  baslik: 'os.baslik', altBaslik: 'os.alt_baslik', denetimler: 'os.denetimler', yakalama: 'os.yakalama',
+  yakala: 'os.yakala', yakalaniyor: 'os.yakalaniyor', surekli: 'os.surekli', surekliDur: 'os.surekli_dur',
+  surekliIpucu: 'os.surekli_ipucu', otomatik: 'os.otomatik', otomatikIpucu: 'os.otomatik_ipucu',
+  zamanTabani: 'os.zaman_tabani', hizlandir: 'os.hizlandir', yavaslat: 'os.yavaslat', tetik: 'os.tetik',
+  tetikKip: 'os.tetik_kip', kipOto: 'os.kip_oto', kipNormal: 'os.kip_normal', kipTek: 'os.kip_tek',
+  kenar: 'os.kenar', kenarYukselen: 'os.kenar_yukselen', kenarDusen: 'os.kenar_dusen', seviye: 'os.seviye',
+  onTetik: 'os.on_tetik', onay: 'os.onay', gunluk: 'os.gunluk', gunlukIpucu: 'os.gunluk_ipucu',
+  gunlukHerTetik: 'os.gunluk_her_tetik', gunlukHerN: 'os.gunluk_her_n', gunlukSaniye: 'os.gunluk_saniye',
+  gunlukBaslat: 'os.gunluk_baslat', gunlukDurdur: 'os.gunluk_durdur', gunlukElleYok: 'os.gunluk_elle_yok',
+  kalCikisi: 'os.kal_cikisi', calKapali: 'os.cal_kapali', gorev: 'os.gorev',
+  spektrum: 'os.spektrum', spektrumIpucu: 'os.spektrum_ipucu', pencere: 'os.pencere', pencereHann: 'os.pencere_hann',
+  pencereDikdortgen: 'os.pencere_dikdortgen', genlik: 'os.genlik', birimV: 'os.birim_v', birimDbv: 'os.birim_dbv',
+  tepeFrekans: 'os.tepe_frekans', harmonik: 'os.harmonik', frekans: 'os.frekans', thd: 'os.thd',
+  spektrumYok: 'os.spektrum_yok', tepeYok: 'os.tepe_yok', yukleniyor: 'os.yukleniyor', yuklenemedi: 'os.yuklenemedi',
+  arsiv: 'os.arsiv', canliyaDon: 'os.canliya_don', kaydaDon: 'os.kayda_don', kayitliYukleniyor: 'os.kayitli_yukleniyor',
+  tuvalEtiket: 'os.tuval_etiket', spektrumEtiket: 'os.spektrum_etiket', tuvalBos: 'os.tuval_bos',
+  harmonikTablo: 'os.harmonik_tablo', egriKayitta: 'os.egri_kayitta', egriYokKayitta: 'os.egri_yok_kayitta',
+  spektrumKlavye: 'os.spektrum_klavye',
+});
+
 createApp({
   /* 3C (P4): yeni ekran modul olarak; ilk kullanimda iner (yukaridaki not). */
   components: {
@@ -698,6 +752,21 @@ createApp({
       // osiloskop
       osilo: null,
       osiloBekliyor: false,
+      /* 3E: spektrum + kayitli yakalama modulu (ekran/osiloskop.js) ekran ILK acilinca iner. */
+      skopAcik: hashtenGorunum() === 'skop',
+      skopDurum: 'bekliyor',       // 'bekliyor' | 'yukleniyor' | 'hazir' | 'yuklenemedi'
+      spektrumBilgi: null,         // SpektrumGrafik.ciz bilgisi (tepe, harmonikler, thd, df …)
+      spektrumPencere: 'hann',     // OS3: 'hann' | 'dikdortgen' (tercih)
+      spektrumBirim: 'v',          // OS3: 'v' (tepe) | 'dbv' (tercih)
+      skopKayitli: null,           // OS6: {oturum, kimlik, no, sira, gecenMs, unixMs, ad, egri}
+      skopKayitliHata: '',
+      skopKayitliYukleniyor: false,
+      gunlukKip: 'tetik',          // OS5: 'tetik' (Gt0) | 'aralik' (Gt<ms>)
+      gunlukSaniye: 10,
+      skopGunlukUyari: null,       // {tur: 'panel'|'kart', metin}
+      skopGunlukZamani: 0,
+      skopKomutZamani: 0,          // son elle yakalama komutu (ret penceresi)
+      skopYakalamaUyari: '',       // kartin `! skop…` / `! tetiklenemedi` reddi, oldugu gibi
       skopIkiliBekle: false,  // B40: `tB` gönderildi, onay satırı bekleniyor
       skopIkiliOlcum: null,   // B43: ikili yakalamanın `M` satırı (onaydan ÖNCE gelir)
       osiloTopla: null,
@@ -1001,6 +1070,67 @@ createApp({
     skopGunlukYazi() {
       const t = this.kayit.gt;
       return t && t.etkin ? ceviri('cn.skop_gunlugu', this.dil, { n: t.yakalama }) : '';
+    },
+    /* ═══ 3E — OSILOSKOP ═══════════════════════════════════════════════ */
+    /** OS8: osiloskop metinleri (sozluk `os.`). */
+    os() { return metinHaritasi(OS_METIN, this.dil); },
+    /** OS5: gunluk suruyor mu — PASIF `GT` satirindan (kart elle yakalamayi reddeder). */
+    skopGunlukAktif() { return !!(this.kayit.gt && this.kayit.gt.etkin); },
+    skopGunlukDurumYazi() {
+      const t = this.kayit.gt;
+      if (!t) return this.metin('os.gunluk_bilinmiyor');
+      if (!t.etkin) return this.metin('os.gunluk_kapali');
+      const s = t.aralik_ms
+        ? this.metin('os.gunluk_aralik_suruyor', { aralik: this.hizYazi(t.aralik_ms), n: t.yakalama })
+        : this.metin('os.gunluk_her_tetik_suruyor', { n: t.yakalama });
+      return t.yazilamayan > 0 ? s + ' · ' + this.metin('os.gunluk_yazilamayan', { n: t.yazilamayan }) : s;
+    },
+    /** OS4: olcum kutusunun KAYNAGI — canli `M` satiri / panel (kayitli, skopOlcKart) / kopru arsivi. */
+    skopOlcumKaynak() {
+      if (this.skopKayitli) return 'panel';
+      if (this.skopAcikKayit) return 'arsiv';
+      return 'kart';
+    },
+    skopOlcumKaynakYazi() {
+      return this.metin({ kart: 'os.kaynak_kart', panel: 'os.kaynak_panel', arsiv: 'os.kaynak_arsiv' }[this.skopOlcumKaynak]);
+    },
+    /** OS6: ARSIV seridinin metni. */
+    skopKayitliYazi() {
+      const k = this.skopKayitli;
+      if (!k) return '';
+      let zaman = this.metin('os.zaman_yok');
+      if (Number.isFinite(k.unixMs)) zaman = this.tarihYazi(Math.floor(k.unixMs / 1000));
+      else if (Number.isFinite(k.gecenMs)) zaman = this.metin('os.saatsiz', { sure: this.saatYazi(k.gecenMs) });
+      return this.metin('os.kayitli_serit', { oturum: k.oturum, no: k.no, zaman });
+    },
+    skopKayitAdresi() {
+      const k = this.skopKayitli;
+      return k ? '#/kayit/' + k.oturum + (k.kimlik === null || k.kimlik === undefined ? '' : '@' + k.kimlik) : '#/kayitlar';
+    },
+    /** OS3: harmonik tablosu (n, f, genlik V tepe, dBV) — spektrum modulunun bilgisinden. */
+    spektrumSatirlari() {
+      const b = this.spektrumBilgi;
+      if (!b || !b.var) return [];
+      /* `taban`: komsulukta yerel tepe yok — sizinti tabani, genlik bir UST SINIR (≤) */
+      return b.harmonikler.map((h, j) => (h ? {
+        n: h.n, f: muh(h.f, 'Hz', 3), taban: !!h.taban,
+        v: (h.taban ? '≤ ' : '') + h.genlik.toFixed(4) + ' V',
+        db: (h.taban ? '≤ ' : '') + (20 * Math.log10(Math.max(h.genlik, 1e-6))).toFixed(1) + ' dBV',
+      } : { n: j + 1, f: '—', v: '—', db: '—', taban: false }));
+    },
+    spektrumOzet() {
+      const b = this.spektrumBilgi;
+      if (!b || !b.var) return null;
+      return {
+        tepe: b.tepe ? muh(b.tepe.f, 'Hz', 3) : null,
+        tepeGenlik: b.tepe ? b.tepe.genlik.toFixed(4) + ' V' : '',
+        thd: Number.isFinite(b.thd) ? (100 * b.thd).toFixed(2) + ' %' : '—',
+        dc: this.metin('os.dc', { v: Number.isFinite(b.dc) ? b.dc.toFixed(3) + ' V' : '—' }),
+        cozunurluk: this.metin('os.cozunurluk', { df: muh(b.df, 'Hz', 2), n: b.n, nfft: b.nfft }),
+        /* imlec okumasi (A/B): Hz + secili birimde genlik */
+        imlec: (b.imlec || []).map((i) => i.ad + ': ' + muh(i.f, 'Hz', 3) + ' · '
+          + (b.birim === 'dbv' ? i.deger.toFixed(1) + ' dBV' : i.deger.toFixed(4) + ' V')).join('   '),
+      };
     },
     notBayt() { return utf8Bayt(String(this.notMetni || '').trim()); },
     notBaytYazi() {
@@ -1342,7 +1472,8 @@ createApp({
       this.sifirlaOnay = false;
       belgeBasligiYaz(v, this.dil);
       if (v === 'konsol') this.$nextTick(() => { const k = this.$refs.gunlukKutu; if (k) k.scrollTop = k.scrollHeight; });
-      this.$nextTick(() => { this.grafikCiz(); this.osiloCiz(); });
+      if (v === 'skop') this.skopAcik = true;          // 3E: spektrum modulu ilk acilista
+      this.$nextTick(() => { this.grafikCiz(); this.osiloCiz(); this.spektrumCiz(); });
     },
     /* WIG: baglanti kopunca silahli onay duser (bagli degilken komut zaten gitmez). */
     bagli(v) { if (!v) this.onay = null; },
@@ -1350,6 +1481,10 @@ createApp({
     canliOkuma(v) { this.canliOkumaDegisti(v); },
     /* 3D: Canli ilk kez gorunur oldu -> grafik modulunu indir (bir kez). */
     canliAcik(v) { if (v) this.canliYukle(); },
+    /* 3E: Osiloskop ilk kez gorunur oldu -> spektrum modulu (bir kez). */
+    skopAcik(v) { if (v) this.skopYukle(); },
+    spektrumPencere(v) { this.ayarYaz('spektrumPencere', v); this.spektrumCiz(); },
+    spektrumBirim(v) { this.ayarYaz('spektrumBirim', v); this.spektrumCiz(); },
     /* B22.2: cizimi tazele VE tercihi sakla. Bu alanlar her acilista
        yeniden giriliyordu — localStorage hic kullanilmiyordu. */
     pencere(v) { this.grafikCiz(); this.ayarYaz('pencere', v); },
@@ -1399,6 +1534,7 @@ createApp({
     /* 3D (D1): Esc cekmeceyi kapatir (odak menu dugmesine doner). */
     window.addEventListener('keydown', (e) => this.tusBasildi(e));
     if (this.canliAcik) this.canliYukle();
+    if (this.skopAcik) this.skopYukle();               // 3E: #/skop… ile acildi
     /* 3A (P1): görünüm. İlk boyamayı index.html'in <head> betiği zaten
        yaptı; burada aynı seçim yeniden uygulanıyor, 'Sistem'deyken işletim
        sistemi izleniyor ve değişince tuvaller yeniden çiziliyor (renkler
@@ -1413,7 +1549,7 @@ createApp({
        ?demo'da DEĞİL — orada taşıyıcı USB ya da sahte kart. */
     this.kopruyuAlgila().then(() => { if (this.otomatikBaglanmali()) this.baglan(); });
     window.addEventListener('resize', () => { this.genislikDegisti(); this.grafikCiz(); this.osiloCiz(); });
-    window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); });
+    window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); this.skopRotaIsle(); });
     window.addEventListener('mousemove', (e) => this.surukHareket(e));
     window.addEventListener('mouseup', () => this.surukBitir());
     this.grafikCiz();
@@ -1707,6 +1843,14 @@ createApp({
       if (/^! ?G\b/.test(satir) && Date.now() - this.kayitKomutZamani < RET_PENCERESI_MS) {
         this.kayitUyari = { tur: 'kart', metin: this.metin('cn.kart_reddetti', { satir }) };
       }
+      /* 3E (OS5): gunluk komutunun reddi osiloskobun gunluk kumesinde (E9 deseni) */
+      if (/^! ?G\b/.test(satir) && Date.now() - this.skopGunlukZamani < RET_PENCERESI_MS) {
+        this.skopGunlukUyari = { tur: 'kart', metin: this.metin('os.kart_reddetti', { satir }) };
+      }
+      /* 3E: elle yakalamanin reddi (gunluk suruyor, pil testi, tetik yok…) Yakalama kumesinde */
+      if (/^! ?(skop|tetiklenemedi|otomatik)/.test(satir) && Date.now() - this.skopKomutZamani < SKOP_RET_PENCERESI_MS) {
+        this.skopYakalamaUyari = this.metin('os.kart_reddetti', { satir });
+      }
     },
     /** Kart yeniden basladi (afis ya da D `ms`i geri gitti) — ayni an icin TEK olay. */
     yenidenBasladi() {
@@ -1809,12 +1953,122 @@ createApp({
       this.grafikCiz();
     },
     imlecTemizle() { if (this._canli) this._canli.imlecTemizle(); },
+
+    /* ═══ 3E — OSILOSKOP: spektrum + kayitli yakalama (ekran/osiloskop.js) ═ */
+    async skopYukle() {
+      if (this._skop || this.skopDurum === 'yukleniyor') return;
+      this.skopDurum = 'yukleniyor';
+      try {
+        const mod = await import('./ekran/osiloskop.js');
+        await this.$nextTick();
+        const tuval = this.$refs.spektrumTuval;
+        if (!tuval) throw new Error('spektrum tuvali yok');
+        this._skopMod = mod;
+        this._skop = new mod.SpektrumGrafik(tuval, { pencere: window, degisti: (b) => { this.spektrumBilgi = b; } });
+        this.skopDurum = 'hazir';
+        this.spektrumCiz();
+        this.skopRotaIsle();
+      } catch (e) {
+        /* Modul inmedi (kart yeniden basliyor, bayat goruntu): sebep + care ekranda */
+        this.skopDurum = 'yuklenemedi';
+      }
+    },
+    /** OS3: spektrum HER ZAMAN yakalamanin butun ham kodlarindan, eksenle ayni ceviriyle. */
+    spektrumCiz() {
+      if (!this._skop || this.gorunum !== 'skop') return;
+      const o = this.osilo;
+      this._skop.ciz({
+        veri: o && o.veri && o.veri.length >= 2 ? o.veri : null, hz: o ? o.hz : 0,
+        kodVolt: (k) => this.kodVolt(k), pencere: this.spektrumPencere, birim: this.spektrumBirim,
+      });
+    },
+    /** OS6: adres kayitli yakalama rotasiysa onu ac (modul hazir degilse yuklenince). */
+    skopRotaIsle() {
+      if (!this._skopMod || typeof location === 'undefined') return;
+      const r = this._skopMod.skopRotaCoz(location.hash);
+      if (!r) return;
+      const k = this.skopKayitli;
+      if (k && k.oturum === r.oturum && k.sira === r.sira && (r.kimlik === null || r.kimlik === k.kimlik)) return;
+      this.skopKayitliAc(r);
+    },
+    async skopKayitliAc(rota) {
+      this.skopKayitliYukleniyor = true;
+      this.skopKayitliHata = '';
+      let r;
+      try {
+        r = await this._skopMod.kayitliYakalamaAc(rota, { kartAdres: (y) => this.kartAdres(y) });
+      } catch (e) {
+        r = { hata: 'os.hata_modul', d: { mesaj: (e && e.message) || String(e) } };
+      }
+      this.skopKayitliYukleniyor = false;
+      if (r.hata) {
+        this.skopKayitliHata = this.metin(r.hata, r.d);
+        return;
+      }
+      /* Kayitli yakalama acilinca SUREKLI kip durur (kopru arsivinin B35 kurali): yoksa bir
+         sonraki tur kaydin ustune canli dalgayi cizer. */
+      if (this.surekli) this.surekliDegis();
+      this.skopAcikKayit = null;
+      this.osiloTopla = null;
+      this.osilo = r.osilo;
+      this.skopKayitli = { ...r.bilgi };
+      this.yatayZoom = 1;
+      this.yatayKaydir = 0.5;
+      this.$nextTick(() => { this.osiloCiz(); this.spektrumCiz(); });
+    },
+    /** OS6: kayitli gorunumden cik — isaret silinir, adres kayit rotasiysa #/skop olur
+     *  (adres gosterilenle ayrismasin; geri tusu kayda doner). */
+    skopKayitliCik() {
+      this.skopKayitli = null;
+      this.skopKayitliHata = '';
+      if (typeof location !== 'undefined' && /^#\/?skop\/kayit\//.test(location.hash)) {
+        try { history.replaceState(null, '', '#/skop'); } catch (e) { /* file:// */ }
+      }
+    },
+    /** OS6 "Canliya don": kayitli gorunumden cik, bagliysa yakala (gunluk surerken kart reddeder). */
+    skopCanliyaDon() {
+      this.skopKayitliCik();
+      if (this.bagli && !this.skopGunlukAktif) {
+        this.osiloYakala();
+      } else {
+        this.osilo = null;
+        this.$nextTick(() => { this.osiloCiz(); this.spektrumCiz(); });
+      }
+    },
+    /* OS5 — yakalama gunlugu. Komut panelin MEVCUT yolundan; ardindan `G?` (D5: durum
+       yalniz bir kayit komutundan sonra sorulur, gerisi kartin bastigi GT satirlari).
+       Kartin `! G:` reddi 5 s icinde gelirse BU denetimin yaninda oldugu gibi (E9). */
+    async skopGunlukGonder(komut) {
+      if (!this.bagli) {
+        this.skopGunlukUyari = { tur: 'panel', metin: this.metin('os.hata_bagli_degil') };
+        return false;
+      }
+      this.skopGunlukUyari = null;
+      this.skopGunlukZamani = Date.now();
+      try {
+        await this.gonder(komut);
+        await this.gonder('G?');          // D5: GT satiri (durum) bir kez
+      } catch (e) {
+        this.skopGunlukUyari = { tur: 'panel', metin: String((e && e.message) || e) };
+        return false;
+      }
+      return true;
+    },
+    skopGunlukBaslat() {
+      const k = skopGunlukKomutu({ kip: this.gunlukKip, saniye: this.gunlukSaniye });
+      if (k.hata) {
+        this.skopGunlukUyari = { tur: 'panel', metin: this.metin(k.hata) };
+        return Promise.resolve(false);
+      }
+      return this.skopGunlukGonder(k.komut);
+    },
+    skopGunlukDurdur() { return this.skopGunlukGonder('Gtd'); },
     /* 3A: etkin renk takımı değişti (düğme ya da işletim sistemi). İki
        tuval de bit eşlem: eski renklerle kalırdı — skop bir sonraki
        yakalamaya, grafik bir sonraki `D` satırına (bağlı değilken HİÇ)
        kadar. Gizli sekmedeki tuval 0 genişlik okur ve çizmez; o sekmeye
        dönülünce `gorunum` izleyicisi zaten yeniden çiziyor. */
-    temaDegisti() { this.grafikCiz(); this.osiloCiz(); },
+    temaDegisti() { this.grafikCiz(); this.osiloCiz(); this.spektrumCiz(); },
     calGonder() { this.gonder('X' + this.calHz); },
     calGorevGonder() { this.gonder('x' + this.calGorev); },
     bicim(x, n) {
@@ -1911,6 +2165,11 @@ createApp({
       this.sontSecim = this.ayarOku('sontSecim', this.sontSecim);
       this.sebekeHz = this.ayarOku('sebekeHz', this.sebekeHz);
       this.raporMs = this.ayarOku('raporMs', this.raporMs);
+      /* 3E (OS3): spektrum penceresi / birimi — bilinmeyen kayitli deger varsayilana dusuyor */
+      const sp = this.ayarOku('spektrumPencere', 'hann');
+      this.spektrumPencere = ['hann', 'dikdortgen'].includes(sp) ? sp : 'hann';
+      const sb = this.ayarOku('spektrumBirim', 'v');
+      this.spektrumBirim = ['v', 'dbv'].includes(sb) ? sb : 'v';
     },
 
     /* Tek seferlik betik yukleyici. `sahte-kart.js` YALNIZCA ?demo kipinde
@@ -2346,6 +2605,14 @@ createApp({
       }
 
       this.kaydet(satir);
+      /* 3E (OS5): `GT` yalniz `G?` ile basiliyor; gunlugun KENDILIGINDEN durdugunu (Gd, oturum
+         kapandi, oturum acilamadi) kartin kendi satiri soyluyor — yoklama yok (D5). */
+      const gd = /^\* G osiloskop gunlugu durdu: (\d+) yakalama, (\d+) yazilamayan/.exec(satir);
+      if ((gd || /^! G: osiloskop gunlugu oturumu acilamadi/.test(satir)) && this.kayit.gt) {
+        if (this.kayit.gt.etkin) this.olayEkle(this.metin('cn.olay_skop_durdu'));
+        this.kayit.gt = { ...this.kayit.gt, etkin: 0,
+          ...(gd ? { yakalama: Number(gd[1]), yazilamayan: Number(gd[2]) } : {}) };
+      }
       if (satir.startsWith('!')) {
         this.osiloBekliyor = false; this.skopIkiliBekle = false; this.skopIkiliOlcum = null;
         this.unlemSatiri(satir);          // 3D: D7 olay + D4 kayit komutunun reddi
@@ -2644,6 +2911,9 @@ createApp({
       this.osiloBekliyor = true;
       this.osiloTopla = null;
       this.skopAcikKayit = null;     // canli yakalama: artik arsiv kaydi degil
+      this.skopKayitliCik();         // 3E (OS6): kayitli yakalama da degil
+      this.skopKomutZamani = Date.now();
+      this.skopYakalamaUyari = '';
       /* 🔴 KÖPRÜDE ASCII YOLU DOĞRU OLAN — sezgiye ters ama ölçülebilir.
          `tB` + `/skop.bin` WiFi'de doğru: dökümü SSE'den geçirmeyip
          gövdeyi ayrı çekiyor, aynı veri iki kez taşınmıyor.
@@ -2863,8 +3133,10 @@ createApp({
       const o = this.osilo;
       const of = o ? (o.voltOfset || 0)
                    : (1.71531250 * (38.03703704 - 1));
-      const k = this.skopKal;
-      if (k) return this.kalMv(kod) / 1000 * k.oran - of;
+      /* 3E (OS6): kayitli yakalama KENDI egrisini tasir (`o.kal`; kart o yakalamayi
+         egrisiz olcmusse null) — canli kartin `CT` tablosu ona uygulanmaz. */
+      const k = o && o.kal !== undefined ? o.kal : this.skopKal;
+      if (k) return this.kalMv(kod, k) / 1000 * k.oran - of;
       const va = o ? o.voltAdim : (3.10 / 4096 * 38.03703704);
       return kod * va - of;
     },
@@ -2873,8 +3145,8 @@ createApp({
        Tablo dışına taşan kod uçtaki eğimle uzatılıyor — kırpılsaydı
        doyuma giren bir sinyal DÜZ bir çizgi gibi görünür ve kırpıldığı
        anlaşılmazdı. */
-    kalMv(kod) {
-      const { kod: ks, mv: vs } = this.skopKal;
+    kalMv(kod, kal = this.skopKal) {
+      const { kod: ks, mv: vs } = kal;
       const n = ks.length;
       if (kod <= ks[0]) {
         const e = (vs[1] - vs[0]) / (ks[1] - ks[0]);
@@ -2903,6 +3175,9 @@ createApp({
       this.osiloBekliyor = true;
       this.osiloTopla = null;
       this.skopAcikKayit = null;
+      this.skopKayitliCik();
+      this.skopKomutZamani = Date.now();
+      this.skopYakalamaUyari = '';
       this.gonder('ta');
       setTimeout(() => { this.osiloBekliyor = false; }, 30000);
     },
@@ -3054,11 +3329,14 @@ createApp({
       }
       this.osiloTopla = null;
       this.osiloBekliyor = false;
+      this.skopYakalamaUyari = '';
+      /* 3E (OS6): canli (ya da kopru arsivinden) bir yakalama cizildi — kayitli degil */
+      this.skopKayitliCik();
       /* Yeni kayıt geldi: yatay yakınlaştırmayı sıfırla, dikeyi koru
          (kullanıcı bir kademeye kilitlemişse orada kalsın). */
       this.yatayZoom = 1;
       this.yatayKaydir = 0.5;
-      this.$nextTick(() => this.osiloCiz());
+      this.$nextTick(() => { this.osiloCiz(); this.spektrumCiz(); });
       /* TEK TAMAMLANMA NOKTASI: ASCII yolu da ikili yol da buradan
          geciyor, yani liste tazeleme tek yerde duruyor. `skopIkiliAl`
          icinde kalsaydi koprudeki ASCII yakalamalari listeye HIC
@@ -3128,15 +3406,26 @@ createApp({
                .getPropertyValue(ad).trim() || '#888';
     },
 
+    /* 3E (OS2): osiloskop izgarasi 10 x 8 BOLME — yatay 10 bolme kartin zaman tabani
+       sozlesmesi (pencere = SKOP_BOLME x tdiv, tdivEtiket "…/böl"), dikey 8. Orta eksenler
+       `--kenar-koyu` ile (tema belirteci; uc gorunumde okunur), digerleri `--kenar-c`. */
     izgara(c, g, y, sol, ust, en, boy) {
-      c.strokeStyle = this.renk('--kenar-c');
       c.lineWidth = 1;
-      c.beginPath();
-      for (let i = 0; i <= 4; i++) {
-        const yy = Math.round(ust + boy * i / 4) + .5;
-        c.moveTo(sol, yy); c.lineTo(sol + en, yy);
+      for (const [renk, orta] of [['--kenar-c', false], ['--kenar-koyu', true]]) {
+        c.strokeStyle = this.renk(renk);
+        c.beginPath();
+        for (let i = 0; i <= SKOP_BOLME_X; i++) {
+          if ((i === SKOP_BOLME_X / 2) !== orta) continue;
+          const xx = Math.round(sol + en * i / SKOP_BOLME_X) + .5;
+          c.moveTo(xx, ust); c.lineTo(xx, ust + boy);
+        }
+        for (let i = 0; i <= SKOP_BOLME_Y; i++) {
+          if ((i === SKOP_BOLME_Y / 2) !== orta) continue;
+          const yy = Math.round(ust + boy * i / SKOP_BOLME_Y) + .5;
+          c.moveTo(sol, yy); c.lineTo(sol + en, yy);
+        }
+        c.stroke();
       }
-      c.stroke();
     },
 
     grafikPlanla() {
@@ -3187,7 +3476,7 @@ createApp({
         c.fillStyle = this.renk('--cok-soluk');
         c.font = '13px system-ui, sans-serif';
         c.textAlign = 'center';
-        c.fillText('yakalama yok — “Yakala” düğmesine bas', g / 2, y / 2);
+        c.fillText(this.os.tuvalBos, g / 2, y / 2);
         return;
       }
 

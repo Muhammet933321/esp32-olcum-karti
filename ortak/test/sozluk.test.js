@@ -200,6 +200,18 @@ test("3D: kabuk ve Canli'nin (app.js) kullandigi HER kb./cn. anahtari sozlukte (
   assert.ok(literal.has("kayit.durum.") && literal.has("plan.durum."), "durum aileleri ceviriKod ile kullanilmiyor");
 });
 
+/* 3E: osiloskop ekrani (app.js OS_METIN + this.metin('os.…') + ekran/osiloskop.js hata anahtarlari) */
+test("3E: osiloskobun (app.js + ekran/osiloskop.js) kullandigi HER os. anahtari sozlukte (ters yon)", () => {
+  if (!APP.length || !EKRANLAR.length) return;
+  const { literal } = dizgeler([...APP, ...EKRANLAR].map(oku).join("\n"));
+  const kullanilan = [...literal].filter((s) => /^os\.[a-z0-9_]+$/.test(s));
+  assert.ok(kullanilan.length >= 60, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
+  assert.deepEqual(kullanilan.filter((a) => !(a in SOZLUK)), []);
+  const aile = Object.keys(SOZLUK).filter((a) => /^os\./.test(a));
+  assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup panelde kullanilmayan os. anahtari");
+  assert.ok(literal.has("kg.osiloskopta_ac"), "3C yakalama tablosundaki baglanti");
+});
+
 test("yer tutucular iki dilde ayni", () => {
   const yer = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(",");
   for (const [a, g] of Object.entries(SOZLUK)) assert.equal(yer(g.tr), yer(g.en), a);

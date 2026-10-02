@@ -103,6 +103,25 @@
 | OS7 | **Bugünkü iddialar korunur:** köprü arşivi, kırpık blok reddi, ADS susturma, tetik onayı, hızlı ölçüm (gerçek güç / PF) davranışları değişmez; B7'deki ilgili iddialar zayıflatılmaz | Kartta bulunmuş kusurların (B35, B41–B47) geri gelmemesi |
 | OS8 | Yeni metinler `sozluk.js`'ten, TR + EN; erişilebilirlik Web Interface Guidelines'a göre (aria-live ölçüm/ret, klavye kısayolları görünür) | P7; kullanıcı WIG yeteneğini kullanmamı istedi |
 
+### 3E uygulama kararları (OS1–OS8 dışında; uygulayan, kullanıcının devriyle)
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| S1 | **OS4'ün hesabı `skopOlc` DEĞİL `skopOlcKart`** (`ortak/src/skop.js`): kartın `skop_olc_kalibre` (eğri geçerliyse gerilimler eğriden, zaman büyüklükleri eğriyle doğrusallaştırılmış koddan) + `skop_ofsetle`. Eğri = oturumdaki OLAY `KO_SKOP_KAL` | Kart `M` satırını çıplak `skop_olc`'tan basmıyor (B43); gerçek kartta eğrisiz hesap ~7 V ayrışırdı. Gerçek kart fikstüründe (`olcum-skop-fikstur.json`) gerilimler, f, T, n basılan haneye kadar aynı (B73 + T3E) |
+| S2 | **Eğri geçerliliği = kartın `kal_tab_var`ı:** 17 nokta, ilk ≥ 0, kesin artan; değilse eğrisiz yol (ölçüm de eksen de) | Firmware eğri olayını HER Gt'de yazıyor — eğri kuramamışsa sıfır/yarım dizi |
+| S3 | Yakalamanın eğrisi: kayıt sırasından ÖNCEKİ en son `KO_SKOP_KAL`; hiç yoksa (baş temizlenmiş) oturumdaki ilki | Eğri yonga başına sabit (eFuse); Gt her başlangıçta bir tane yazar |
+| S4 | `#/skop/kayit/<oturum>/<sıra>` @kimliksizse oturumu TAŞIYAN en yeni akış; Kayıtlar'ın bağlantısı kimliği HER ZAMAN yazar | Eski kart kopyasında yanlış yakalama açılmasın |
+| S5 | Kayıtlı yakalamanın ekseni KENDİ eğrisiyle (`osilo.kal`); canlı kartın `CT`si ona uygulanmaz; rozet "eksen kaydın eğrisiyle / eksen HAM (kayıtta eğri yok)" | Kayıt başka kartın / başka ayarın olabilir |
+| S6 | Spektrumda 0. kutu (DC) çizilmez, değeri yazılır; x ekseni Hz/kHz (grafik.js `xEksen`, 1-2-5) | Skop VREF ofsetli (~63 V): DC çubuğu bileşenleri ezer |
+| S7 | Harmonikler n = 1 … 5 (1 = temel = tepe). Komşulukta (≤ temel aralığının yarısı) en büyük YEREL tepe; o tepe n·f0'dan bir çözünürlük hücresinden (max(df, hz/n)) uzaksa ya da yerel tepe yoksa harmonik "≤" (sızıntı tabanı, üst sınır). THD yaklaşığı 2 … 5'ten | Başsız tarayıcıda temiz sinüste temelin yamacı ve gürültü tepeleri "2. harmonik 68 Hz / 1930 Hz" diye görüldü |
+| S8 | `GT` yalnız `G?` ile basılıyor: durum Gt/Gtd'den sonra bir `G?` ile; günlüğün KENDİLİĞİNDEN durması kartın `* G osiloskop gunlugu durdu: …` / `! G: … oturumu acilamadi` satırından. Yoklama yok | D5 |
+| S9 | Günlük sürerken Yakala / Otomatik / Sürekli(başlat) kapalı (kart reddeder), gerekçe yazılı; elle yakalamanın reddi (`! skop…`, `! tetiklenemedi`, `! otomatik…`) 30 s içinde Yakalama kümesinde olduğu gibi | NORMAL kipte tetik 20 s beklenebilir (`osiloYakala` tavanı) |
+| S10 | Düzen ızgara alanlarıyla; DOM sırası dalga → denetimler → spektrum: geniş ekranda denetim sağda iki satır boyu, dar ekranda dalganın HEMEN altında | OS1; klavye sırası da aynı |
+| S11 | Dalga ızgarası 10 × 8 bölme (yatay = firmware `SKOP_BOLME`), orta eksenler `--kenar-koyu` | OS2 "10 × 8" diyordu; eski çizim 4 yatay çizgiydi |
+| S12 | Spektrumda grafik.js imleçleri: çift tık / A, B → okuma (Hz + seçili birimde genlik); klavye ipucu görünür | OS8 "kısayollar görünür" |
+| S13 | Eski açıklama metinleri ve B7'nin çivilediği seçenek metinleri (tetik onayı, zoom, CAL ipucu, menzil, B36/B39 uyarıları) TR kaldı; başlıklar, kümeler, düğmeler, yeni işlevler `os.` sözlükte | P7 "eskiler taşındıkça"; B7 iddialarını zayıflatmamak (OS7) |
+| S14 | Demo kartı (`sahte-kart.js`) `Gt`/`Gtd`/`GT` + günlükte elle yakalama reddi, firmware metinleriyle | E12 |
+
 ## Doğrulama
 
 B7 (`test_arayuz3.js`) ve B22 tarayıcı denetimleri genişler; her dilimde başsız tarayıcı (Edge) ile

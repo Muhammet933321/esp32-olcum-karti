@@ -196,6 +196,37 @@ export function zamanYazi(ms, adim = 1000) {
   return (ms < 0 && (birim > 0 || kesir > 0) ? '−' : '') + yazi;
 }
 
+/**
+ * X EKSENİ SEÇENEĞİ (3E, karar OS2): `secenek.xEksen = { tur: 'sayi', yazi(deger, adim) }`.
+ * Verilirse x çentikleri zaman listesi (1-2-5 ms, sonra 1/2/5/10/15/30 s …) DEĞİL düz 1-2-5
+ * (guzelAdimlar) olur ve yazı `yazi(t − koken, adim)` ile basılır — örn. spektrumda x = Hz
+ * ("12.5 kHz"). Verilmezse G8 (geçen süre) aynen. `t` dizisi yine azalmayan sayı; birimi
+ * çağıranın (grafik.js x'i yalnız sayı olarak görür).
+ */
+export function xSayiEkseni(secenek) {
+  return !!(secenek && secenek.xEksen && secenek.xEksen.tur === 'sayi');
+}
+
+/** [t0, t1] içindeki düz 1-2-5 çentikler, `koken`e göre (sayı ekseni). */
+export function sayiAdimlari(t0, t1, hedef = 6, koken = 0) {
+  const r = guzelAdimlar(t0 - koken, t1 - koken, hedef);
+  return { adim: r.adim, degerler: r.degerler.map((v) => v + koken) };
+}
+
+/** X yazıcısı: `xEksen.yazi` (işlevse) yoksa zamanYazi. Atan yazıcı boş metin verir. */
+export function xYazici(secenek) {
+  const y = secenek && secenek.xEksen && secenek.xEksen.yazi;
+  if (typeof y !== 'function') return zamanYazi;
+  return (v, adim) => {
+    try {
+      const m = y(v, adim);
+      return m === null || m === undefined ? '' : String(m);
+    } catch {
+      return '';
+    }
+  };
+}
+
 /** Eksen sayısı: adımın gerektirdiği kadar ondalık; eksi '−' (maket). */
 export function sayiYazi(v, adim) {
   if (!Number.isFinite(v)) return '';
@@ -244,7 +275,8 @@ export function pencereHesapla(seriler, durum, boyut, secenek = {}) {
     alan, gezgin, x: { t0: x0, t1: x1, adim: NaN, degerler: [], koken }, eksenler: {}, sorgular: [],
   };
   if (alan.w < 1 || alan.h < 1 || !(x1 > x0)) return sonuc;
-  const xt = zamanAdimlari(x0, x1, Math.max(2, Math.floor(alan.w / 110)), koken);
+  const xHedef = Math.max(2, Math.floor(alan.w / 110));
+  const xt = xSayiEkseni(secenek) ? sayiAdimlari(x0, x1, xHedef, koken) : zamanAdimlari(x0, x1, xHedef, koken);
   sonuc.x.adim = xt.adim;
   sonuc.x.degerler = xt.degerler;
 
@@ -488,7 +520,7 @@ export function cizimPlani(seriler, durum, boyut, secenek = {}) {
 
   for (const t of p.x.degerler) {
     komutlar.push({
-      tur: 'yazi', rol: 'eksen', x: tx(t), y: alan.y + alan.h + 5, metin: zamanYazi(t - p.x.koken, p.x.adim),
+      tur: 'yazi', rol: 'eksen', x: tx(t), y: alan.y + alan.h + 5, metin: xYazici(secenek)(t - p.x.koken, p.x.adim),
       renk: 'soluk', hiza: 'center', taban: 'top',
     });
   }
@@ -1040,7 +1072,7 @@ const OLAYLAR = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'po
  *   g.ciz();    // görünüm (renk) değişince
  *   g.yokEt();
  * secenek: { gezgin, renk(ad), onDegisim(durum, grafik), pencere, kenar, zamanKokeni,
- *            yaziTipi, gerilim, akim }
+ *            yaziTipi, gerilim, akim, xEksen }
  */
 export class Grafik {
   constructor(canvas, secenek = {}) {
@@ -1097,7 +1129,8 @@ export class Grafik {
   }
 
   _planSecenek() {
-    return { gezgin: this.gezgin, kenar: this.secenek.kenar, zamanKokeni: this.secenek.zamanKokeni };
+    return { gezgin: this.gezgin, kenar: this.secenek.kenar, zamanKokeni: this.secenek.zamanKokeni,
+      xEksen: this.secenek.xEksen };
   }
 
   _boyut() {

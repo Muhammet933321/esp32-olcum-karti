@@ -68,7 +68,7 @@ ATLA_DOSYA = {"DEVIR.md"}
 # `betik` mutasyondan SONRA kosturulan sey. Beklenen sonuc: KIRMIZI
 # (sifirdan farkli cikis) ya da IDDIA SAYISI degisimi.
 # Tam zinciri kosturan mutasyonlar (~6 dk): yalnizca --adim ile.
-AGIR = {"B3", "B23", "T3A", "T3C", "T3D", "TTR"}  # T3A/T3C/T3D: basliksiz Edge (tarayici_tema.py, tarayici_kayitlar.py, tarayici_canli.py)
+AGIR = {"B3", "B23", "T3A", "T3C", "T3D", "T3E", "TTR"}  # T3A/T3C/T3D/T3E: basliksiz Edge (tarayici_tema.py, tarayici_kayitlar.py, tarayici_canli.py, tarayici_skop.py)
 
 MUTASYONLAR = [
     # ── B50 · kutu / panel plani (kutu.py) — B50g'de yeniden yazildi
@@ -381,15 +381,17 @@ MUTASYONLAR = [
      "v-if tuvali YOK EDER: skop sekmesine donunce yakalama kaybolur, "
      "grafik ilk D satirina kadar bos"),
     ('B7', 'test_arayuz3.js', 'arayuz3/app.js',
-     '      this.$nextTick(() => { this.grafikCiz(); this.osiloCiz(); });\n    },\n    /* WIG: baglanti kopunca',
+     '      this.$nextTick(() => { this.grafikCiz(); this.osiloCiz(); this.spektrumCiz(); });\n    },\n    /* WIG: baglanti kopunca',
      '      this.$nextTick(() => { this.grafikCiz(); });\n    },\n    /* WIG: baglanti kopunca',
+     '      this.$nextTick(() => { this.grafikCiz(); this.osiloCiz(); this.spektrumCiz(); });\n    },\n    /* 3D: Canli ilk kez',
+     '      this.$nextTick(() => { this.grafikCiz(); this.spektrumCiz(); });\n    },\n    /* 3D: Canli ilk kez',
      '3D: skop yeniden cizilmezse gizliyken 0 genislik okuyan tuval 300px varsayilanda, sola yapisik kalir'),
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
      "return GORUNUMLER.some((g) => g.id === h) ? h : GORUNUM_VARSAYILAN;",
      "return h || GORUNUM_VARSAYILAN;",
      "bilinmeyen hash (#/yok) bes gorunumun HICBIRINI acmaz — bos sayfa"),
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
-     "window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); });",
+     "window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); this.skopRotaIsle(); });",
      "",
      "hashchange dinlenmezse geri tusu adresi degistirir ama gorunum "
      "degismez — adres ile ekran ayrisir"),
@@ -458,7 +460,7 @@ MUTASYONLAR = [
      "kirpik kayitlarla dolar"),
     # ── B36 · skop gerilim ekseni kalibrasyonu
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
-     "      if (k) return this.kalMv(kod) / 1000 * k.oran - of;", "",
+     "      if (k) return this.kalMv(kod, k) / 1000 * k.oran - of;", "",
      "kalibrasyon tablosu gelse bile KULLANILMIYOR: eksen eski sabit "
      "carpanla ciziliyor, girisde 9 V'a varan sapma geri geliyor"),
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
@@ -2998,8 +3000,8 @@ MUTASYONLAR = [
      "    temaSecim(v) { },",
      "3A: dugme durumu degisir ama tema uygulanmaz/saklanmaz"),
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
-     "    temaDegisti() { this.grafikCiz(); this.osiloCiz(); },",
-     "    temaDegisti() { this.grafikCiz(); },",
+     "    temaDegisti() { this.grafikCiz(); this.osiloCiz(); this.spektrumCiz(); },",
+     "    temaDegisti() { this.grafikCiz(); this.spektrumCiz(); },",
      "3A: tema degisince skop tuvali ESKI renkte kalir"),
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
      "    this._tema = temaKur({ pencere: window, belge: document,\n"
@@ -3759,8 +3761,8 @@ MUTASYONLAR = [
      '"vendor/vue.global.prod.js": 158361',
      '3D: acilis kumesi 250 KB gzip butcesini asar (karar: acilista inenler <= 250 KB)'),
     ('B7', 'test_arayuz3.js', 'uretim/_fs.json',
-     '"ortak/grafik.js": 16370',
-     '"ortak/grafik.js": 116370',
+     '"ortak/grafik.js": 16849',
+     '"ortak/grafik.js": 116849',
      "3D: Canli grafik zinciri ile acilis 250 KB'i asar (Canli varsayilan ekran)"),
     ('B7', 'test_arayuz3.js', 'arayuz3/ekran/canli.js',
      "import { Grafik, cssRenk } from '/ortak/grafik.js';",
@@ -4039,6 +4041,44 @@ MUTASYONLAR = [
     ("T3C", "tarayici_kayitlar.py", "arayuz3/ekran/esitleme.js",
      "sonuc: { ...sonuc, yeni_kayit: yeniKayit }", "sonuc",
      "3C-SAYI: sonuc yalniz son denemenin sayisini soylerse (kartta 1846 yerine 150): T3C kirmizi"),
+    # ── 3E · Osiloskop (B7 bolum 26, B73 skop/fft/grafik/sozluk, T3E tarayici_skop.py)
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "  if (/^skop\\/kayit\\//.test(h)) return 'skop';\n", '', "3E: kayitli yakalama adresi (#/skop/kayit/…) Osiloskop'u acmaz, varsayilana duser (OS6)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "        this.skopDurum = 'yuklenemedi';", "        this.skopDurum = 'hazir';", '3E: spektrum modulu inmezse ekran sebebi soylemez (U1 deseni)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', 'const SKOP_GUNLUK_ENAZ_MS = 1000;', 'const SKOP_GUNLUK_ENAZ_MS = 100;', '3E: Gt alt siniri kartin sinirindan ayrisir — kartin reddedecegi Gt100 uretilir (OS5)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "  if (kip === 'tetik') return { komut: 'Gt0' };", "  if (kip === 'tetik') return { komut: 'Gt' };", "3E: 'Her tetikte' bozuk komut gonderir (Gt0 yerine Gt) (OS5)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "        await this.gonder('G?');          // D5: GT satiri (durum) bir kez\n", '', '3E: gunluk komutundan sonra durum sorulmaz — GT degismez, ekran eski durumu gosterir (D5/OS5)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "        this.skopGunlukUyari = { tur: 'kart', metin: this.metin('os.kart_reddetti', { satir }) };", '        this.skopGunlukUyari = null;', '3E: kartin `! G:` gunluk reddi ekranda gorunmez (E9/OS5)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', '        this.kayit.gt = { ...this.kayit.gt, etkin: 0,', '        this.kayit.gt = { ...this.kayit.gt, etkin: 1,', "3E: kartin 'gunlugu durdu' satirindan sonra panel gunlugu suruyor sanir (OS5)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "      if (this.skopKayitli) return 'panel';", "      if (this.skopKayitli) return 'kart';", '3E: kayitli yakalamanin olcumu kartin M satiri sanilir — kaynak yanlis yazilir (OS4)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', '      const k = o && o.kal !== undefined ? o.kal : this.skopKal;', '      const k = this.skopKal;', "3E: kayitli yakalamanin ekseni kendi egrisini degil canli kartin CT'sini kullanir (OS6)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', '        veri: o && o.veri && o.veri.length >= 2 ? o.veri : null, hz: o ? o.hz : 0,', '        veri: o && o.veri && o.veri.length >= 2 ? o.veri.slice(this.gorunurAralik.bas, this.gorunurAralik.son) : null, hz: o ? o.hz : 0,', '3E: spektrum yalniz gorunen zoom penceresinden — cozunurluk sessizce bozulur (OS3)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', '      this.skopKayitliCik();         // 3E (OS6): kayitli yakalama da degil\n', '', "3E: canli yakalama kayitli yakalamanin ARSIV seridini kaldirmaz — canli dalga 'canli degil' der (OS6)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', '      if (this.surekli) this.surekliDegis();\n      this.skopAcikKayit = null;\n      this.osiloTopla = null;', '      this.skopAcikKayit = null;\n      this.osiloTopla = null;', '3E: kayitli yakalama acilinca surekli yakalama surer ve onu ezer (OS6, B35 kurali)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', 'const SKOP_BOLME_Y = 8;', 'const SKOP_BOLME_Y = 4;', '3E: dalga izgarasi 10 x 8 bolme degil (OS2)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "        v: (h.taban ? '≤ ' : '') + h.genlik.toFixed(4) + ' V',", "        v: h.genlik.toFixed(4) + ' V',", '3E: sizinti tabani (ust sinir) olculmus harmonik genligi gibi yazilir (OS3)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/style.css', '    grid-template-areas: "dalga" "denetim" "spektrum";', '    grid-template-areas: "dalga" "spektrum" "denetim";', '3E: dar ekranda denetimler spektrumun altina kacar (OS1)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/index.html', '    <div class="skop-olcum-kutu" aria-live="polite" data-skop-olcum>', '    <div class="skop-olcum-kutu" data-skop-olcum>', '3E: yeni olcumler ekran okuyucuya duyurulmaz (OS8, aria-live)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js', '  const egriVar = egriGecerli(egri);', '  const egriVar = !!egri;', '3E: kartin egri kuramadiginda yazdigi sifir dizi gecerli egri sanilir — olcum ve eksen yanlis (OS4/OS6)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js', '  for (const e of egriler) if (e.sira < sira) sec = e;\n', '', '3E: yakalamaya yakalamadan ONCEKI egri degil hep ilki uygulanir (S3)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js', '    t[k - 1] = sp.f[k];', '    t[k - 1] = sp.f[k - 1];', '3E: spektrum serisinin frekans ekseni bir kutu kayar (DC kutusu S1)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js', '  if (!(oturum > 0) || !(sira > 0)) return null;\n', '', '3E: oturum/sira 0 olan bozuk rota kabul edilir (OS6)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js', '    const adaylar = rota.kimlik === null ? akislar.map((a) => a.kimlik) : [rota.kimlik];', '    const adaylar = akislar.map((a) => a.kimlik);', '3E: @kimlik yok sayilir — eski kart kopyasindaki yakalama yerine guncel akisinki acilir (OS6)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/kayit_gorunum.js', '      return skopRotaYaz({ oturum: this.oturum.id, sira, kimlik: this.veri.kimlik });', '      return skopRotaYaz({ oturum: this.oturum.id, sira, kimlik: null });', "3E: 'Osiloskopta ac' baglantisi akis kimligi tasimaz — eski kart kopyasinda yanlis yakalama (OS6)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/sahte-kart.js', "      if (gunluk.etkin) return ['! G: osiloskop gunlugu zaten suruyor (Gtd)'];\n", '', '3E: demo karti suren gunlugu ikinci Gt ile bastan kurar — firmware reddeder (E12)'),
+    ('B73', 'test_ortak.py', 'ortak/src/skop.js', '  o.Vmax = f32(kalMvKart(egri, hmax) * mvV);', '  o.Vmax = f32(hmax * voltAdim);', '3E: kalibre yolda Vmax egriden degil dogrusal modelden — gercek kartin M satirindan ayrisir (OS4)'),
+    ('B73', 'test_ortak.py', 'ortak/src/skop.js', '  o.Vrms = f32(Math.sqrt(f32(f32(o.Vac * o.Vac) + f32(o.Vort * o.Vort))));', '  o.Vrms = f32(o.Vrms - of);', "3E: skop_ofsetle Vrms'i yeniden kurmaz (B19 kurali) — kartin M satirindan ayrisir"),
+    ('B73', 'test_ortak.py', 'ortak/src/skop.js', '    if (!Number.isFinite(v) || (k === 0 ? v < 0 : v <= egri[k - 1])) return false;', '    if (!Number.isFinite(v) || (k === 0 ? v < 0 : false)) return false;', '3E: sifir / yarim egri gecerli sayilir (kal_tab_var karsiligi bozulur)'),
+    ('B73', 'test_ortak.py', 'ortak/src/skop.js', '  else if (x >= 3840) i = KAL_N - 2;', '  else if (x >= 3840) i = KAL_N - 1;', '3E: kal_mv son dilimde tablo disini okur (NaN)'),
+    ('B73', 'test_ortak.py', 'ortak/src/fft.js', '      const yerel = g[i] >= g[i - 1] && (i + 1 >= m || g[i] >= g[i + 1]);', '      const yerel = true;', '3E: harmonik aramasi temelin sizinti yamacini secer — kucuk gercek harmonik kaybolur (OS3)'),
+    ('B73', 'test_ortak.py', 'ortak/src/fft.js', '    if (!ara || Math.abs(ara.f - n * f0) > hucre) {', '    if (!ara) {', "3E: gurultu tepesi harmonik sayilir ('2. harmonik 1930 Hz') (OS3)"),
+    ('B73', 'test_ortak.py', 'ortak/src/grafik.js', '  const xt = xSayiEkseni(secenek) ? sayiAdimlari(x0, x1, xHedef, koken) : zamanAdimlari(x0, x1, xHedef, koken);', '  const xt = zamanAdimlari(x0, x1, xHedef, koken);', '3E: sayi ekseni (Hz) zaman adimlariyla bolunur — 1-2-5 cikmaz (OS2)'),
+    ('B73', 'test_ortak.py', 'ortak/src/grafik.js', '    return { gezgin: this.gezgin, kenar: this.secenek.kenar, zamanKokeni: this.secenek.zamanKokeni,\n      xEksen: this.secenek.xEksen };', '    return { gezgin: this.gezgin, kenar: this.secenek.kenar, zamanKokeni: this.secenek.zamanKokeni };', '3E: Grafik sinifi xEksen secenegini plana gecirmez — spektrum ekseni zaman yazar (OS2)'),
+    ('B73', 'test_ortak.py', 'ortak/src/sozluk.js', '  "os.tuval_bos": S(', '  "os.tuval_bosx": S(', '3E: osiloskobun kullandigi anahtar sozlukte yok — ekranda anahtar adi gorunur (OS8)'),
+    ('T3E', 'tarayici_skop.py', 'arayuz3/style.css', 'fieldset.skop-kume {\n  min-width: 0;', 'fieldset.skop-kume {\n  min-width: 520px;', '3E: 390 px telefonda osiloskop denetimleri yatay tasar (OS1)'),
+    ('T3E', 'tarayici_skop.py', 'arayuz3/ekran/osiloskop.js', '    if (veri !== this._veri || anahtar !== this._anahtar || d.zorla) {', '    if (veri !== this._veri || d.zorla) {', '3E: genlik birimi (dBV) degisince spektrum yeniden kurulmaz (OS3)'),
+    ('T3E', 'tarayici_skop.py', 'arayuz3/ekran/osiloskop.js', "      for (const [ad, u] of [['A', k && k.a], ['B', k && k.b]]) if (u) imlec.push({ ad, f: u.t, deger: u.deger });\n", '', '3E: spektrum imlec okumasi (Hz + genlik) ekrana gelmez'),
+    ('T3E', 'tarayici_skop.py', 'arayuz3/app.js', "    window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); this.skopRotaIsle(); });", "    window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); });", "3E: Kayitlar'daki 'Osiloskopta ac' baglantisi Osiloskop'u acar ama yakalamayi YUKLEMEZ (OS6)"),
+    ('T3E', 'tarayici_skop.py', 'arayuz3/app.js', '      this.osilo = r.osilo;\n      this.skopKayitli = { ...r.bilgi };', '      this.osilo = { ...r.osilo, olcum: this.skopIkiliOlcum };\n      this.skopKayitli = { ...r.bilgi };', '3E: kayitli yakalamanin olcumu panelin hesabi yerine (bos) bekleyen M satirindan (OS4)'),
 ]
 
 
