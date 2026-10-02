@@ -44,6 +44,19 @@
 | C7 | **Gezinme:** Kayıtlar mevcut sekme düzenine yeni görünüm (`#/kayitlar`); kayıt `#/kayit/<oturum>` — geri tuşu çalışır. Sol şerit düzenine (P1) geçiş 3D'de, Canlı yeniden yazılırken | Kademeli bölme (P4): kabuğu şimdi değiştirmek B7'nin sekme iddialarını iki kez yazdırırdı |
 | C8 | **Dil:** yeni ekranların metni `sozluk.js` anahtarlarından (TR + EN); dil seçimi 3H'de, o zamana dek TR | P7 |
 
+## 3D kararları (2026-10-02, aynı devirle)
+
+| # | Karar | Gerekçe |
+|---|---|---|
+| D1 | **Kabuk sol şeride geçer (P1):** ad + firmware sürümü (afişten) · bağlantı (WiFi / USB / köprü / demo) · gezinme Canlı · Osiloskop · Pil testi · Kayıtlar · Ayarlar · Konsol. Henüz yazılmamış ekran (Karşılaştırma) şeritte YOK. Alt bilgi: eşitlenmemiş oran (`G` satırının `onaysiz` alanı). ≤ 900 px'te şerit çekmece olur, seçimde kapanır. Eski adresler (`#/olcum` …) çalışmaya devam eder | Seçilen maket; ölü bağlantı kullanıcıyı boş ekrana götürür |
+| D2 | **Canlı okuma kartları** V · A · W · Enerji (oturum); her birinin altında son 10 s'nin min … maks'ı (canlı örneklerden, tarayıcıda) | Kullanıcı ilkesi: sıçrama gözden kaçmasın |
+| D3 | **Canlı grafik `grafik.js`'e geçer** (tek çekirdek, P3). Bugünkü pencere / yenileme / temizle / CSV davranışları korunur; "dondur" ile canlıda da imleç ve yakınlaştırma | Kayıt görünümüyle aynı etkileşim, iki çizim kodu kalmaz |
+| D4 | **Kayıt denetimi Canlı'nın başlığında:** Başlat (hız → `Gb<ms>`, "her örnek" → `Gb0`) · Durdur `Gd` · Not ekle `Gn<oturum> <metin>` · Zamanla (`Gp<unix>,<süre_s>,<hız_ms>`, yerel saatten; iptal `Gp-`). Komutlar mevcut komut yolundan; kartın ret satırı (`! G: …`) olduğu gibi gösterilir | Kurallar kartta (pil sürerken ret vb.); panel kopyasını yazmaz, firmware değişmez |
+| D5 | **Kayıt durumu PASİF dinlemeyle:** kartın kendiliğinden bastığı `G` (kayıtta saniyede bir + değişimde), `GP`, `GA`, `GT`; `G?` yalnız bağlanınca bir kez ve bir kayıt komutundan sonra. Yoklama döngüsü yok | "Ölçerken pasif dinle" kuralı; `G` zaten akıyor |
+| D6 | **Aktif kayıt kartı:** oturum · nokta · süre · hız · doluluk çubuğu · "~X sa kaldı" (doluluğun ölçülen artış hızından, en az 60 s gözlemle; öncesinde "hesaplanıyor") · plan · `dusen` > 0 ise uyarı | Tahmin yalnız ölçülenden |
+| D7 | **Son olaylar:** panelin gördüğü kayıt durum değişimleri, `!` satırları, kartın yeniden başlaması (afiş); en fazla 20, yalnız bu sekmede | Maket |
+| D8 | Yeni metinler `sozluk.js`'ten, TR + EN | P7 |
+
 ## Doğrulama
 
 B7 (`test_arayuz3.js`) ve B22 tarayıcı denetimleri genişler; her dilimde başsız tarayıcı (Edge) ile
