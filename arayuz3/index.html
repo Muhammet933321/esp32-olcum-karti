@@ -49,30 +49,57 @@
 </head>
 <body>
 
-<div id="uyg" class="sarmal" v-cloak>
+<div id="uyg" v-cloak>
+<!-- ⚠ Vue 3 baglama noktasinin (#uyg) KENDI ozniteliklerini derlemez (yalniz icini):
+     kabugun `:class`i bu yuzden icteki ogede. -->
+<div class="kabuk" :class="{ 'cekmece-acik': cekmeceAcik }">
 
-  <!-- ───────────────────────────────────────────── üst şerit -->
+  <!-- ═══ 3D (D1) — KABUK: sol şerit + içerik ═══════════════════════════
+       Geniş ekranda şerit hep görünür; ≤ 900 px'te ÇEKMECE olur (☰ açar,
+       seçim / Esc / perde kapatır, Esc'te odak menü düğmesine döner).
+       Bağlantı durumu ve birincil eylem (B27 Aşama 3) iki yerde: şeritte ve
+       dar ekranın üst çubuğunda — CSS her genişlikte YALNIZ birini gösterir.
+       Taşıyıcı seçimi ve kart adresi Ayarlar'ın "Bağlantı" kartında. -->
   <header class="ust">
-    <div class="marka">
-      <h1>Ölçüm Kartı <span class="menzil-rozet">AŞAMA 3 · ÇİFT YÖNLÜ</span></h1>
-      <p class="alt">Voltmetre · Ampermetre · Wattmetre · Osiloskop</p>
-    </div>
-    <div class="bosluk"></div>
-
-    <!-- B27 Aşama 3: üst şerit TELEFONDA da tek satır kalsın diye
-         sadeleşti — yalnızca durum ve birincil eylem. Taşıyıcı seçimi ve
-         kart adresi oturumda bir kez dokunulan şeyler; Ayarlar'ın
-         "Bağlantı" kartına taşındı. -->
+    <button type="button" class="menu-dugme" ref="menuDugme" @click="cekmeceDegistir"
+            :aria-expanded="cekmeceAcik ? 'true' : 'false'" aria-controls="serit"
+            :aria-label="cekmeceAcik ? m.menuKapat : m.menuAc">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <span class="ust-ad">{{ m.ad }}</span>
     <div class="baglanti">
       <span class="rozet" :class="bagli ? 'acik' : 'kapali'">
-        <span class="nokta"></span>{{ bagli ? 'bağlı' : 'bağlı değil' }}
+        <span class="nokta"></span>{{ baglantiYazi }}
       </span>
-      <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">
-        Karta bağlan
-      </button>
-      <button v-else @click="kes">Bağlantıyı kes</button>
+      <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">{{ m.baglan }}</button>
     </div>
   </header>
+
+  <aside id="serit" class="serit" :aria-label="m.gezinme">
+    <div class="serit-ad">
+      <b>{{ m.ad }}</b>
+      <span class="serit-alt-ad" :title="afisSurum ? '' : m.surumIpucu">{{ seritAlt }}</span>
+    </div>
+    <div class="baglanti">
+      <span class="rozet" :class="bagli ? 'acik' : 'kapali'">
+        <span class="nokta"></span>{{ baglantiYazi }}
+      </span>
+      <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">{{ m.baglan }}</button>
+      <button v-else @click="kes">{{ m.kes }}</button>
+    </div>
+    <nav class="gorunum-nav" :aria-label="m.gezinme">
+      <a v-for="g in gorunumler" :key="g.id"
+         :href="'#/' + g.id"
+         class="gorunum-sekme" :class="{ etkin: gorunum === g.id }"
+         :aria-current="gorunum === g.id ? 'page' : null"
+         :title="metin(g.alt)" @click="gorunumSecildi">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="g.ikon"/></svg>{{ metin(g.ad) }}</a>
+    </nav>
+    <div class="serit-alt">{{ esitlenmemisYazi }}</div>
+  </aside>
+  <div class="perde" v-if="cekmeceAcik" @click="cekmeceKapat(true)"></div>
+
+  <div class="icerik">
 
   <!-- ═══════════════════════════════════════════ ACİL DURDURMA
        Pil testi çalışırken HER görünümde, üstte. Telefonda deşarjı
@@ -89,16 +116,9 @@
     <button class="acil-dur" @click="pilDurdurKomut">DURDUR</button>
   </div>
 
-  <!-- ───────────────────────────────────────────── gezinme (B27 A1)
-       Tek sayfa, beş görünüm. Sekme = adres (#/olcum …); geri tuşu
-       çalışır. Görünümler v-show ile saklı — tuvaller canlı kalır. -->
-  <nav class="gorunum-nav" aria-label="görünümler">
-    <a v-for="g in gorunumler" :key="g.id"
-       :href="'#/' + g.id"
-       class="gorunum-sekme" :class="{ etkin: gorunum === g.id }"
-       :aria-current="gorunum === g.id ? 'page' : null"
-       :title="g.alt">{{ g.ad }}</a>
-  </nav>
+  <!-- Gezinme (B27 A1 → 3D D1) yukarıdaki şeritte: tek sayfa, görünüm = adres
+       (#/canli …; eski #/olcum da Canlı); geri tuşu çalışır. Görünümler
+       v-show ile saklı — tuvaller canlı kalır. -->
 
   <!-- ───────────────────────────────────────────── bildirimler
        TEK alan; her görünümde aynı yerde. Bloklar koşullu — hiçbiri
@@ -129,44 +149,116 @@
   </div>
   </div><!-- /bildirimler -->
 
-  <!-- ═════════════════════════════════════════════ #/olcum -->
-  <main class="gorunum" v-show="gorunum === 'olcum'">
+  <!-- ═════════════════════════════════════════════ #/canli (3D) — Canlı
+       Okuma kartları (D2) + grafik (D3, ekran/canli.js) + kayıt denetimi (D4)
+       + aktif kayıt kartı (D6) + son olaylar (D7). Metinler sözlükten (D8);
+       eski panelden kalan ölçüm metinleri (menzil, adım, güç yönü) olduğu gibi. -->
+  <main class="gorunum" v-show="gorunum === 'canli'">
 
-  <!-- ───────────────────────────────────────────── anlık ölçümler -->
-  <div class="olcumler">
+  <div class="baslik">
+    <h1>{{ m.baslik }}</h1>
+    <span v-if="menzil !== null" class="etiket">{{ menzilAd }} {{ menzilKisa }}</span>
+    <span v-if="kayitAktif" class="kayit-durum">
+      <span class="kayit-nokta"></span>{{ m.kayitSuruyor }} · <span class="mono">{{ kayitSureYazi }}</span><template
+        v-if="kayitHizYazi"> · {{ kayitHizYazi }}</template>
+    </span>
+    <div class="kayit-denetim" role="group" :aria-label="m.kayitDenetim">
+      <template v-if="!kayitAktif">
+        <label class="kd-hiz">
+          <span>{{ m.kayitHiz }}</span>
+          <select v-model.number="baslatHiz" :disabled="!kayitKomutAcik">
+            <option v-for="h in kayitHizlari" :key="h" :value="h">{{ hizYazi(h) }}</option>
+          </select>
+        </label>
+        <button type="button" class="birincil" data-kd="baslat" @click="kayitBaslat"
+                :disabled="!kayitKomutAcik">{{ m.baslat }}</button>
+      </template>
+      <template v-else>
+        <button type="button" data-kd="not" @click="notAcDegistir" :disabled="!kayitKomutAcik"
+                :aria-expanded="notAcik ? 'true' : 'false'">{{ m.notEkle }}</button>
+        <button type="button" class="tehlike" data-kd="durdur" @click="kayitDurdur"
+                :disabled="!kayitKomutAcik">{{ m.durdur }}</button>
+      </template>
+      <button type="button" data-kd="zamanla" @click="planAcDegistir" :disabled="!kayitKomutAcik"
+              :aria-expanded="planAcik ? 'true' : 'false'">{{ m.zamanla }}</button>
+    </div>
+  </div>
+
+  <p v-if="bagli && !surucuyum" class="ipucu">{{ m.izleyici }}</p>
+
+  <form v-if="notAcik" class="kart kd-form" data-kd="not-form" @submit.prevent="notEkle">
+    <label class="alan kd-genis">
+      <span>{{ m.notMetin }}</span>
+      <input type="text" v-model="notMetni" data-kd="not-metin" autocomplete="off">
+    </label>
+    <span class="kd-bayt" :class="{ 'uyari-metin': notBayt > 120 }">{{ notBaytYazi }}</span>
+    <button type="submit" class="birincil">{{ m.notGonder }}</button>
+    <button type="button" @click="notAcik = false">{{ m.vazgec }}</button>
+  </form>
+
+  <form v-if="planAcik" class="kart kd-form" data-kd="plan-form" @submit.prevent="planKur">
+    <label class="alan">
+      <span>{{ m.planBas }}</span>
+      <input type="datetime-local" v-model="planBas" data-kd="plan-bas">
+    </label>
+    <div class="alan">
+      <span>{{ m.planSure }}</span>
+      <span class="kd-sure">
+        <input type="number" min="0" max="720" step="1" v-model.number="planSureSa" data-kd="plan-sa"
+               :aria-label="m.planSure + ' (' + m.birimSa + ')'"> {{ m.birimSa }}
+        <input type="number" min="0" max="59" step="1" v-model.number="planSureDk" data-kd="plan-dk"
+               :aria-label="m.planSure + ' (' + m.birimDk + ')'"> {{ m.birimDk }}
+      </span>
+    </div>
+    <label class="alan">
+      <span>{{ m.kayitHiz }}</span>
+      <select v-model.number="planHiz" data-kd="plan-hiz">
+        <option v-for="h in kayitHizlari" :key="h" :value="h">{{ hizYazi(h) }}</option>
+      </select>
+    </label>
+    <button type="submit" class="birincil">{{ m.planKur }}</button>
+    <button type="button" data-kd="plan-iptal" @click="planIptal">{{ m.planIptal }}</button>
+    <p class="ipucu kd-genis">{{ m.planSureIpucu }}</p>
+  </form>
+
+  <p v-if="kayitUyari" class="hata" data-kd="uyari" role="alert" :data-tur="kayitUyari.tur">{{ kayitUyari.metin }}</p>
+
+  <!-- ───────────────────────── okuma kartları (D2): değer + son 10 s min … maks -->
+  <section class="olcumler" :aria-label="m.okumalar">
     <div class="olcum v">
-      <div class="ad">Gerilim <span class="menzil-rozet">{{ menzilAd }}</span></div>
+      <div class="ad">{{ m.gerilim }} <span class="menzil-rozet">{{ menzilAd }}</span></div>
       <div class="deger" v-if="!voltGecersiz">{{ bicim(volt, 3) }}<span class="birim">V</span></div>
       <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
+      <div class="on-saniye">{{ onSaniye.v }}</div>
       <div class="alt-bilgi" v-if="!voltGecersiz">{{ menzilAralik }}</div>
       <div class="alt-bilgi uyari-metin" v-else>veri yok — gerilim ADC'si (0x49) yanıt vermiyor</div>
     </div>
     <div class="olcum i">
-      <div class="ad">Akım</div>
+      <div class="ad">{{ m.akim }}</div>
       <div class="deger" v-if="!amperGecersiz">{{ akimGoster }}<span class="birim">{{ akimBirim }}</span></div>
       <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
+      <div class="on-saniye">{{ onSaniye.i }}</div>
       <div class="alt-bilgi uyari-metin" v-if="amperGecersiz">veri yok — akım ADC'si (0x48) yanıt vermiyor</div>
       <!-- B27 A2-b: menzil VE adım. Adım olmadan boştaki girişin
            gürültüsü (0.1 Ω şöntte 1 LSB = 78 µA) gerçek akım sanılıyor. -->
       <div class="alt-bilgi" v-else>{{ akimMenzilAralik }}</div>
     </div>
     <div class="olcum w">
-      <div class="ad">Güç</div>
+      <div class="ad">{{ m.guc }}</div>
       <div class="deger" v-if="!gucGecersiz">{{ gucGoster }}<span class="birim">{{ gucBirim }}</span></div>
       <div class="deger gecersiz" v-else>—<span class="birim"></span></div>
+      <div class="on-saniye">{{ onSaniye.w }}</div>
       <div class="alt-bilgi">{{ gucGecersiz ? 'veri yok' : gucYon }}</div>
     </div>
-  </div>
+    <div class="olcum e" :title="m.enerjiIpucu">
+      <div class="ad">{{ m.enerji }}</div>
+      <div class="deger">{{ enerjiGoster }}<span class="birim">{{ enerjiBirim }}</span></div>
+      <div class="on-saniye">{{ onSaniye.e }}</div>
+      <div class="alt-bilgi">{{ bicim(joule, 2) }} J</div>
+    </div>
+  </section>
 
   <div class="ikincil">
-    <div class="kutu">
-      <div class="ad">Enerji</div>
-      <div class="deger">{{ bicim(joule, 2) }} J</div>
-    </div>
-    <div class="kutu">
-      <div class="ad">Enerji</div>
-      <div class="deger">{{ wh.toFixed(6) }} Wh</div>
-    </div>
     <div class="kutu">
       <div class="ad">Geçen süre</div>
       <div class="deger">{{ sureGoster }}</div>
@@ -180,24 +272,27 @@
     </div>
   </div>
 
-  <!-- ───────────────────────────────────────────── grafik -->
-  <section class="kart">
-    <h2>Zaman grafiği</h2>
+  <!-- ───────────────────────────────────────── grafik (D3) -->
+  <section class="kart" :aria-label="m.grafikEtiket">
     <div class="gosterge">
+      <b>{{ m.grafik }}</b>
       <label><input type="checkbox" v-model="gosterV">
-        <span class="cizgi" style="background:var(--volt)"></span> Gerilim</label>
-      <label><input type="checkbox" v-model="gosterI">
-        <span class="cizgi" style="background:var(--amper)"></span> Akım</label>
-      <label><input type="checkbox" v-model="gosterW">
-        <span class="cizgi" style="background:var(--watt)"></span> Güç</label>
+        <span class="cizgi" style="background:var(--volt)"></span> {{ m.gerilim }}</label>
+      <label>{{ m.sagEksen }}:
+        <select v-model="sagEksen" style="width:auto">
+          <option value="akim">{{ m.sagAkim }}</option>
+          <option value="guc">{{ m.sagGuc }}</option>
+          <option value="yok">{{ m.sagYok }}</option>
+        </select>
+      </label>
       <div class="bosluk"></div>
-      <label title="Kart bu aralıkta bir D satırı yollar; her nokta o aralığın ortalaması. Sadece sürücü değiştirebilir.">Yenileme:
+      <label title="Kart bu aralıkta bir D satırı yollar; her nokta o aralığın ortalaması. Sadece sürücü değiştirebilir.">{{ m.yenileme }}:
         <select v-model.number="raporMs" style="width:auto"
                 :disabled="bagli && !surucuyum">
           <option v-for="s in raporSecenekleri" :key="s.ms" :value="s.ms">{{ s.ad }}</option>
         </select>
       </label>
-      <label>Pencere:
+      <label>{{ m.pencere }}:
         <select v-model.number="pencere" style="width:auto">
           <option :value="30">30 sn</option>
           <option :value="60">1 dk</option>
@@ -206,14 +301,76 @@
         </select>
       </label>
     </div>
-    <div class="tuval-sarmal"><canvas ref="grafik" height="300"></canvas></div>
+    <div class="lejant" aria-live="off">
+      <span v-for="l in canliLejant" :key="l.ad" :class="'lejant-' + l.renk">
+        <i :style="{ background: 'var(--' + l.renk + ')' }"></i>{{ l.ad }} ({{ l.birim }}) · {{ l.metin }}
+      </span>
+    </div>
+    <div class="tuval-sarmal canli-tuval" :data-pencere="canliPencereVeri" :class="{ donmus: donmus }">
+      <canvas ref="grafik" class="canli-grafik" role="img" :aria-label="m.grafikEtiket"></canvas>
+      <p v-if="canliDurum === 'yuklenemedi'" class="hata tuval-ust">{{ m.yuklenemedi }}</p>
+      <p v-else-if="canliDurum !== 'hazir'" class="tuval-ust">{{ m.yukleniyor }}</p>
+      <p v-else-if="!gecmis.length" class="tuval-ust">{{ m.veriYok }}</p>
+    </div>
+    <p v-if="donmus" class="ipucu">{{ m.donmusIpucu }}</p>
+    <div v-if="donmus" class="canli-okuma" :data-okuma="canliOkuma ? 'var' : ''">
+      <template v-if="canliOkuma">
+        <div v-for="s in canliOkuma" :key="s.ad" class="okuma-oge" :class="s.renk ? 'okuma-' + s.renk : ''">
+          <span class="kpi-ad">{{ s.ad }}</span><span class="kpi-deger">{{ s.d }}</span>
+        </div>
+      </template>
+      <p v-else class="ipucu">{{ m.imlecYok }}</p>
+    </div>
     <div class="satir" style="margin-top:12px">
+      <button type="button" data-kd="dondur" @click="dondurDegistir" :disabled="!gecmis.length"
+              :aria-pressed="donmus ? 'true' : 'false'">{{ donmus ? m.canliyaDon : m.dondur }}</button>
+      <button v-if="donmus" type="button" @click="imlecTemizle" :disabled="!canliOkuma">{{ m.imlecSil }}</button>
       <button @click="gecmisiTemizle" :disabled="!gecmis.length">Grafiği temizle</button>
       <button @click="csvIndir" :disabled="!gecmis.length">CSV indir</button>
     </div>
   </section>
 
-  </main><!-- /olcum -->
+  <!-- ───────────────────── aktif kayıt (D6) + son olaylar (D7) -->
+  <section class="iki-sutun">
+    <div class="kart" data-ak="kart">
+      <h2>{{ m.aktifKayit }}</h2>
+      <template v-if="kayitAktif">
+        <div class="ak-satir">
+          <span data-ak="oturum">{{ kayitOturumYazi }}</span>
+          <span class="mono" data-ak="nokta">{{ kayitNoktaYazi }}</span>
+        </div>
+        <div class="ak-satir ak-soluk">
+          <span>{{ m.sure }}: <span class="mono" data-ak="sure">{{ kayitSureYazi }}</span></span>
+          <span>{{ m.hiz }}: <span data-ak="hiz">{{ kayitHizYazi || '—' }}</span></span>
+        </div>
+      </template>
+      <p v-else data-ak="durum">{{ kayitDurumYazi }}</p>
+      <template v-if="kayit.g">
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+             :aria-valuenow="(kayit.g.doluluk / 10).toFixed(1)" :aria-label="kayitDolulukYazi">
+          <div :style="{ width: Math.min(100, kayit.g.doluluk / 10) + '%' }"></div>
+        </div>
+        <div class="ak-satir ak-soluk">
+          <span data-ak="doluluk">{{ kayitDolulukYazi }}</span>
+          <span v-if="kayitAktif" data-ak="kalan">{{ kayitKalanYazi }}</span>
+        </div>
+      </template>
+      <div class="ak-soluk" data-ak="plan">{{ planYazi }}</div>
+      <div v-if="skopGunlukYazi" class="ak-soluk">{{ skopGunlukYazi }}</div>
+      <p v-if="kayitDusenYazi" class="uyari" data-ak="dusen">⚠ {{ kayitDusenYazi }}</p>
+    </div>
+    <div class="kart" data-olaylar>
+      <h2>{{ m.sonOlaylar }}</h2>
+      <ol v-if="olaylar.length" class="olay-listesi">
+        <li v-for="o in olaylar" :key="o.no" class="olay" :class="'olay-' + o.tur">
+          <span class="mono">{{ o.saat }}</span><span>{{ o.metin }}</span>
+        </li>
+      </ol>
+      <p v-else class="ipucu">{{ m.olayYok }}</p>
+    </div>
+  </section>
+
+  </main><!-- /canli -->
 
   <!-- ═════════════════════════════════════════════ #/skop -->
   <main class="gorunum" v-show="gorunum === 'skop'">
@@ -876,6 +1033,9 @@
   </section>
 
   </main><!-- /konsol -->
+
+  </div><!-- /icerik -->
+</div><!-- /kabuk -->
 
 </div>
 

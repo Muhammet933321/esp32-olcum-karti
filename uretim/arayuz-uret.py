@@ -139,6 +139,9 @@ def main() -> int:
     SAHNE.mkdir(parents=True)
     toplam = 0
     gz = []                  # goruntude `.gz` olarak duranlar (kunyede)
+    # 3D: dosya basina goruntudeki bayt — B7 acilis kumesinin (index + varliklar +
+    # app.js'in statik ice aktarma agaci) butcesini bundan topluyor.
+    bayt = {}
     print(f"  {'varlik':<30} {'ham':>9} {'goruntude':>10}")
     print("  " + "-" * 52)
     for ad in goruntu_listesi():
@@ -155,6 +158,7 @@ def main() -> int:
         hedef.parent.mkdir(parents=True, exist_ok=True)
         hedef.write_bytes(veri)
         toplam += len(veri)
+        bayt[ad] = len(veri)
         print(f"  {ad:<30} {len(ham):>9} {len(veri):>10}")
     print("  " + "-" * 52)
     print(f"  {'TOPLAM':<30} {'':>9} {toplam:>10} B   "
@@ -179,6 +183,7 @@ def main() -> int:
         "ofset": hex(ofset),
         "bolum_boyut": boyut,
         "icerik_bayt": toplam,
+        "bayt": bayt,
         "goruntu_bayt": n,
         "blok": BLOK, "sayfa": SAYFA,
     }, indent=2), encoding="utf-8")
