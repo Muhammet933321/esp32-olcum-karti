@@ -27,10 +27,12 @@ parca yollar), ping'e pong. Baska bir sey gerekmiyor.
 """
 from __future__ import annotations
 
+import atexit
 import base64
 import json
 import os
 import select
+import shutil
 import socket
 import struct
 import subprocess
@@ -44,6 +46,32 @@ EDGE_ADAYLAR = [
     r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
 ]
+
+
+def bos_port() -> int:
+    """CDP icin bos port. SABIT PORT YOK: eski bir Edge o portu tutarken yeni
+    tarayici ESKISINE baglaniyordu (onceki sayfanin hatalarini kendisininki sandi)."""
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def _profil_surecleri_oldur(profil: str) -> None:
+    """Komut satirinda bu profil dizini gecen BUTUN msedge sureclerini oldur (Windows).
+    Edge Windows'ta kendini yeniden baslatiyor: Popen'in PID'i gercek tarayici DEGIL,
+    o yuzden PID ile degil profil adiyla bulunur."""
+    if sys.platform != "win32":
+        return
+    ad = os.path.basename(profil)
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-Command",
+                        "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | "
+                        f"Where-Object {{ $_.CommandLine -like '*{ad}*' }} | "
+                        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force "
+                        "-ErrorAction SilentlyContinue }"],
+                       capture_output=True, timeout=60)
+    except Exception:
+        pass
 
 
 def _edge_yolu() -> str:
@@ -130,7 +158,7 @@ class _WS:
 
 
 class Tarayici:
-    def __init__(self, genislik=1280, yukseklik=1000, port=9333, auth_iptal=True, ek_arg=None):
+    def __init__(self, genislik=1280, yukseklik=1000, port=None, auth_iptal=True, ek_arg=None):
         """auth_iptal: Basic Auth sorusunu CDP'den iptal et (kart icin sart).
 
         ⚠ Bunun BEDELI var: `Fetch.enable` HER istegi duraklatiyor ve
@@ -143,13 +171,17 @@ class Tarayici:
         kart localhost DISI bir adda — panel kartin sayfasindaki gibi
         guvenli baglam DISINDA kosar).
         """
-        self.port = port
+        self.port = port or bos_port()
+        self._kapandi = False
+        self.ws = None
         self.profil = tempfile.mkdtemp(prefix="olcum-edge-")
+        # kapat() cagrilmadan cikan surec (istisna, sys.exit) da Edge birakmasin
+        atexit.register(self.kapat)
         self.surec = subprocess.Popen(
             [_edge_yolu(), "--headless=new", "--disable-gpu", "--hide-scrollbars",
              "--no-first-run", "--no-default-browser-check",
              f"--window-size={genislik},{yukseklik}",
-             f"--remote-debugging-port={port}",
+             f"--remote-debugging-port={self.port}",
              f"--user-data-dir={self.profil}", *(ek_arg or []), "about:blank"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self._id = 0
@@ -157,7 +189,7 @@ class Tarayici:
         hedef = None
         for _ in range(60):
             try:
-                with urllib.request.urlopen(f"http://127.0.0.1:{port}/json", timeout=2) as y:
+                with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/json", timeout=2) as y:
                     hedefler = json.load(y)
                 hedef = next((h for h in hedefler if h.get("type") == "page"), None)
                 if hedef:
@@ -274,15 +306,51 @@ class Tarayici:
                 if o["tur"] == "hata" or o.get("seviye") == "error"]
 
     def kapat(self) -> None:
+        """Tarayiciyi GERCEKTEN kapat (tekrar cagrilabilir).
+
+        🔴 Eskiden yalniz Popen'in PID'ini olduruyordu. Edge Windows'ta kendini
+        yeniden baslatiyor; gercek tarayici baska bir PID'de YASAMAYA devam etti:
+        her test bir Edge (~16 surec) birakti, 81'i 12.3 GB RAM ve %TEMP%'teki
+        460 profil 131 GB disk tuttu, bilgisayar kilitlendi (2026-10-02).
+        Sira: CDP Browser.close (hangi PID'de olursa olsun) -> profil adiyla kalan
+        surecleri oldur -> profil dizinini sil. test_tarayici.py sinar."""
+        if getattr(self, "_kapandi", True):
+            return
+        self._kapandi = True
         try:
-            self.ws.kapat()
+            atexit.unregister(self.kapat)
         except Exception:
             pass
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/json/version", timeout=2) as y:
+                ws_url = json.load(y)["webSocketDebuggerUrl"]
+            w = _WS(ws_url)
+            w.gonder(json.dumps({"id": 1, "method": "Browser.close"}))
+            w.s.settimeout(3)
+            try:
+                w.al()
+            except Exception:
+                pass
+            w.kapat()
+        except Exception:
+            pass
+        if self.ws is not None:
+            try:
+                self.ws.kapat()
+            except Exception:
+                pass
         try:
             self.surec.kill()
             self.surec.wait(timeout=5)
         except Exception:
             pass
+        time.sleep(0.5)
+        _profil_surecleri_oldur(self.profil)
+        for _ in range(20):                         # Edge dosyalari birakana dek
+            shutil.rmtree(self.profil, ignore_errors=True)
+            if not os.path.exists(self.profil):
+                break
+            time.sleep(0.25)
 
     def __enter__(self):
         return self

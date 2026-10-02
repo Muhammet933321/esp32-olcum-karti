@@ -68,7 +68,7 @@ ATLA_DOSYA = {"DEVIR.md"}
 # `betik` mutasyondan SONRA kosturulan sey. Beklenen sonuc: KIRMIZI
 # (sifirdan farkli cikis) ya da IDDIA SAYISI degisimi.
 # Tam zinciri kosturan mutasyonlar (~6 dk): yalnizca --adim ile.
-AGIR = {"B3", "B23", "T3A", "T3C", "T3D"}  # T3A/T3C/T3D: basliksiz Edge (tarayici_tema.py, tarayici_kayitlar.py, tarayici_canli.py)
+AGIR = {"B3", "B23", "T3A", "T3C", "T3D", "TTR"}  # T3A/T3C/T3D: basliksiz Edge (tarayici_tema.py, tarayici_kayitlar.py, tarayici_canli.py)
 
 MUTASYONLAR = [
     # ── B50 · kutu / panel plani (kutu.py) — B50g'de yeniden yazildi
@@ -3834,6 +3834,21 @@ MUTASYONLAR = [
      '.dugme-grup { display: flex; gap: 6px; flex-wrap: wrap; }',
      '.dugme-grup { display: flex; gap: 6px; flex-wrap: wrap; min-width: 560px; }',
      '3D: 390 px telefonda Ayarlar > Gorunum dugmeleri yatay tasar (innerWidth olcutu bunu GORMUYORDU)'),
+    # ── TTR (2026-10-02): tarayici.py kapanis sozlesmesi — sizan Edge bilgisayari kilitledi
+    ("TTR", "test_tarayici.py", "uretim/tarayici.py",
+     "        atexit.register(self.kapat)\n", "",
+     "TTR: kapat() cagrilmadan cikan surec Edge birakir: 3 kirmizi"),
+    ("TTR", "test_tarayici.py", "uretim/tarayici.py",
+     "        self.port = port or bos_port()", "        self.port = port or 9333",
+     "TTR: sabit port geri gelirse ikinci tarayici ESKISINE baglanir: 2 kirmizi"),
+    ("TTR", "test_tarayici.py", "uretim/tarayici.py",
+     '        try:\n            with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/json/version", timeout=2) as y:\n                ws_url = json.load(y)["webSocketDebuggerUrl"]\n            w = _WS(ws_url)\n            w.gonder(json.dumps({"id": 1, "method": "Browser.close"}))\n            w.s.settimeout(3)\n            try:\n                w.al()\n            except Exception:\n                pass\n            w.kapat()\n        except Exception:\n            pass\n        if self.ws is not None:\n            try:\n                self.ws.kapat()\n            except Exception:\n                pass\n        try:\n            self.surec.kill()\n            self.surec.wait(timeout=5)\n        except Exception:\n            pass\n        time.sleep(0.5)\n        _profil_surecleri_oldur(self.profil)\n        for _ in range(20):                         # Edge dosyalari birakana dek\n            shutil.rmtree(self.profil, ignore_errors=True)\n            if not os.path.exists(self.profil):\n                break\n            time.sleep(0.25)\n',
+     '        if self.ws is not None:\n            try:\n                self.ws.kapat()\n            except Exception:\n                pass\n        try:\n            self.surec.kill()\n            self.surec.wait(timeout=5)\n        except Exception:\n            pass\n',
+     "TTR: ESKI kapat() (Browser.close + profil oldurme + profil silme YOK, yalniz Popen PID) -> Edge kalir: 1 kirmizi"),
+    ("TTR", "test_tarayici.py", "uretim/tarayici.py",
+     "            shutil.rmtree(self.profil, ignore_errors=True)\n            if not os.path.exists(self.profil):\n                break\n",
+     "            break\n",
+     "TTR: profil dizini silinmezse %TEMP% yine dolar (131 GB): 1 kirmizi"),
 ]
 
 

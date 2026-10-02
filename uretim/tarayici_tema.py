@@ -98,33 +98,17 @@ def durum_bekle(t, ifade: str, beklenen, sure: float = 5.0) -> tuple:
 
 
 def bos_port() -> int:
-    """CDP icin bos port. ⚠ SABIT PORT KULLANILMIYOR: `Tarayici.kapat()`
-    yalnizca baslatici sureci olduruyor, Edge'in kendisi YASAMAYA devam
-    ediyor (bu oturumda 9341'de birikti). Sonraki kosu ayni portta ESKI
-    tarayiciya baglanip onceki sayfanin hatalarini kendi hatasi sandi."""
-    import socket
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    """tarayici.bos_port (tek kopya; Tarayici artik varsayilan olarak bos port kullaniyor)."""
+    from tarayici import bos_port as _bp
+    return _bp()
 
 
 class KayitliTarayici(Tarayici):
     """`Log` alanini da dinler: modul/varlik yukleme hatalari oraya dusuyor.
-    Kapanista profil dizinine ait BUTUN Edge sureclerini olduruyor."""
+    (Kapanis temizligi artik temel Tarayici.kapat()'ta — test_tarayici.py.)"""
 
     def kapat(self) -> None:
-        super().kapat()
-        if sys.platform == "win32":
-            import subprocess
-            ad = Path(self.profil).name
-            subprocess.run(["powershell", "-NoProfile", "-Command",
-                            "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | "
-                            f"Where-Object {{ $_.CommandLine -like '*{ad}*' }} | "
-                            "ForEach-Object { Stop-Process -Id $_.ProcessId -Force "
-                            "-ErrorAction SilentlyContinue }"],
-                           capture_output=True, timeout=60)
-        import shutil
-        shutil.rmtree(self.profil, ignore_errors=True)   # gecici profil de kalmasin
+        super().kapat()      # surecler (profil adiyla) + profil dizini temel sinifta
 
     def _olay(self, m: dict) -> None:
         if m.get("method") == "Log.entryAdded":
