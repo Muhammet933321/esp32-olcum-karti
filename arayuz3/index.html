@@ -915,8 +915,22 @@
   <main class="gorunum" v-show="gorunum === 'ayar'">
   <h1 class="gorunmez">{{ metin('kb.ayar') }}</h1>
 
+  <!-- ═══ 3H-1 (AY2) — BÖLÜMLER ═══════════════════════════════════════
+       Ayarlar bölümlere ayrıldı: geniş ekranda iç gezinme solda, ≤ 900 px'te
+       içeriğin ÜSTÜNDE (üst üste). Her bölümün adresi #/ayar/<id> (geri tuşu,
+       paylaşılabilir); #/ayar = ilk bölüm. Kartlar v-show ile (DOM'da kalır:
+       odak/denetimler kaybolmaz). Kalibrasyon geçmişi, Depolama ve Gelişmiş
+       ekran/ayarlar.js'te — o bölüm ilk açılınca iner (app.js ayarModGerekli). -->
+  <div class="ay-duzen">
+  <nav class="ay-nav" :aria-label="ay.bolumler">
+    <a v-for="b in ayarBolumListesi" :key="b.id" :href="'#/ayar/' + b.id"
+       class="ay-sekme" :class="{ etkin: ayarBolum === b.id }"
+       :aria-current="ayarBolum === b.id ? 'true' : null" :data-ay-git="b.id">{{ b.ad }}</a>
+  </nav>
+  <div class="ay-icerik">
+
   <!-- B27 Aşama 3: üst şeritten taşındı -->
-  <section class="kart">
+  <section class="kart" v-show="ayarBolum === 'baglanti'" data-ay-bolum="baglanti">
     <h2>Bağlantı</h2>
     <div class="satir">
       <div class="alan">
@@ -955,7 +969,7 @@
     </p>
   </section>
 
-  <section class="kart">
+  <section class="kart" v-show="ayarBolum === 'kalibrasyon'" data-ay-bolum="kalibrasyon">
     <h2>Kalibrasyon ve ayar</h2>
 
     <div class="satir" style="margin-bottom:14px">
@@ -1089,7 +1103,7 @@
   </section>
 
   <!-- ═══════════ B22.4 — AĞ KURULUMU ═══════════ -->
-  <section class="kart">
+  <section class="kart" v-show="ayarBolum === 'ag'" data-ay-bolum="ag">
     <h2>Ağ — kartı kablosuz yapma</h2>
 
     <p class="ipucu">
@@ -1165,7 +1179,22 @@
   <!-- ═══════════ 3A (P1) — GÖRÜNÜM ═══════════
        Seçenekler `ekran/tema.js` TEMALAR listesinden (elle kopya değil).
        Seçim yalnızca BU tarayıcıda saklanıyor; karta hiçbir şey gitmiyor. -->
-  <section class="kart">
+  <!-- ═══════════ 3H-1 (AY3) — DİL ═══════════
+       TR / EN; `olcum.dil` (3C dilOku ile aynı anahtar), ANINDA (app.js dilSecildi +
+       watch.dil: <html lang>, sekme başlığı, alt ekranlar). Dil adları kendi dillerinde
+       ve kendi `lang`ları ile. Sayı biçimi dile göre değişmez. -->
+  <section class="kart" v-show="ayarBolum === 'dil-gorunum'" data-ay-bolum="dil">
+    <h2>{{ ay.dil }}</h2>
+    <div class="dugme-grup" role="group" :aria-label="ay.dil">
+      <button v-for="d in dilSecenekleri" :key="d.id" type="button" :lang="d.id"
+              :class="{ etkin: dil === d.id }" :aria-pressed="dil === d.id ? 'true' : 'false'"
+              :data-ay-dil="d.id" @click="dilSecildi(d.id)">{{ d.ad }}</button>
+    </div>
+    <p class="ipucu">{{ ay.dilIpucu }}</p>
+    <p class="ipucu" v-if="dil === 'en'">{{ ay.dilEksik }}</p>
+  </section>
+
+  <section class="kart" v-show="ayarBolum === 'dil-gorunum'" data-ay-bolum="dil-gorunum">
     <h2>Görünüm</h2>
     <div class="dugme-grup" role="group" aria-label="Görünüm">
       <button v-for="t in temaSecenekleri" :key="t.id" type="button"
@@ -1180,6 +1209,13 @@
     </p>
   </section>
 
+  <!-- 3H-1 (AY4-AY6): kalibrasyon geçmişi · depolama · gelişmiş — tembel modül -->
+  <ayarlar-ekran v-if="ayarModAcik" :bolum="ayarBolum" :kart-adres="kartAdres" :kart-taban="kartTaban"
+                 :tasiyici="tasiyiciAdi" :bagli="bagli" :afis-surum="afisSurum" :dil-secim="dil"
+                 :etkin="gorunum === 'ayar'"></ayarlar-ekran>
+
+  </div><!-- /ay-icerik -->
+  </div><!-- /ay-duzen -->
   </main><!-- /ayar -->
 
   <!-- ═════════════════════════════════════════════ #/pil (3F) — Pil testi
@@ -1362,7 +1398,7 @@
   <main class="gorunum" v-show="gorunum === 'kayitlar'">
     <kayitlar-ekran v-if="kayitlarAcik" :kart-adres="kartAdres" :kart-taban="kartTaban"
                     :tasiyici="tasiyiciAdi" :bagli="bagli" :gonder="gonder"
-                    :etkin="gorunum === 'kayitlar'"></kayitlar-ekran>
+                    :etkin="gorunum === 'kayitlar'" :dil-secim="dil"></kayitlar-ekran>
   </main><!-- /kayitlar -->
 
   <!-- ═════════════════════════════════════════════ #/karsilastir (3G)
@@ -1371,7 +1407,7 @@
        (KR5). Ekran modülü İLK açılışta iner (app.js defineAsyncComponent). -->
   <main class="gorunum" v-show="gorunum === 'karsilastir'">
     <karsilastir-ekran v-if="karsilastirAcik" :kart-adres="kartAdres"
-                       :etkin="gorunum === 'karsilastir'"></karsilastir-ekran>
+                       :etkin="gorunum === 'karsilastir'" :dil-secim="dil"></karsilastir-ekran>
   </main><!-- /karsilastir -->
 
   <!-- ═════════════════════════════════════════════ #/konsol -->

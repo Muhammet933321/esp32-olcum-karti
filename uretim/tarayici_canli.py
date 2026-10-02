@@ -343,7 +343,7 @@ PIKSEL_JS = """(() => {
 
 def tema_sec(t, ad: str) -> None:
     yazi = ["Koyu", "Açık", "Ön panel"][TEMALAR.index(ad)]
-    t.js("location.hash = '#/ayar'")
+    t.js("location.hash = '#/ayar/dil-gorunum'")   # 3H: tema dugmeleri 'Dil ve gorunum' bolumunde
     t.bekle(0.3)
     t.js("[...document.querySelectorAll('button')].find(x => x.textContent.trim() === %s).click()" % json.dumps(yazi))
     bekle_js(t, f"document.documentElement.dataset.tema === {json.dumps(ad)}", 5)
@@ -638,12 +638,12 @@ def main() -> int:
                and (t.js("(document.querySelector('#serit [aria-current=page]') || {}).textContent") or "").strip() == "Osiloskop",
                f"hash {t.js('location.hash')} · tiklanan {ust}")
             for href, ad, ifade in (("#/konsol", "konsol", "[...document.querySelectorAll('.gunluk div')].some(d => /^G \\d/.test(d.textContent))"),
-                                    ("#/ayar", "ayar", "[...document.querySelectorAll('h2')].some(h => h.textContent === 'Görünüm' && h.offsetParent)"),
+                                    ("#/ayar", "ayar", "[...document.querySelectorAll('h2')].some(h => h.textContent === 'Bağlantı' && h.offsetParent)"),
                                     ("#/pil", "pil", "!!document.querySelector('.kpi') && document.querySelector('.kpi').offsetParent !== null")):
                 m = merkez(t, f"#serit .gorunum-sekme[href='{href}']")
                 tikla(t, m["x"], m["y"])
                 bekle_js(t, f"location.hash === '{href}' && {ifade}", 4)
-            ok("Mevcut gorunumler yeni kabukta calisiyor: Konsol (G satirlari dahil), Ayarlar (Gorunum), Pil testi",
+            ok("Mevcut gorunumler yeni kabukta calisiyor: Konsol (G satirlari dahil), Ayarlar (3H: ilk bolum Baglanti), Pil testi",
                t.js("location.hash") == "#/pil" and t.js(f"{UYG}.gorunum") == "pil"
                and t.js("[...document.querySelectorAll('.gunluk div')].some(d => /^G \\d/.test(d.textContent))") is True)
             t.js("location.hash = '#/olcum'")

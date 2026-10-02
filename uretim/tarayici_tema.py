@@ -253,7 +253,7 @@ def main() -> int:
                 onceki = ad
 
             # ── yeniden yukle: secim kaliyor, ilk boyamada uygulanmis ─
-            t.git(taban + "/?demo#/ayar")
+            t.git(taban + "/?demo#/ayar/dil-gorunum")   # 3H (AY2): Gorunum karti bu bolumde
             t.bekle(3.0)
             ok("[!] Yeniden yuklemede secim KALIYOR (On panel) ve dugmesi etkin",
                t.js("document.documentElement.dataset.tema") == "onpanel"

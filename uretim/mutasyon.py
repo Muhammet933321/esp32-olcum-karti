@@ -68,7 +68,7 @@ ATLA_DOSYA = {"DEVIR.md"}
 # `betik` mutasyondan SONRA kosturulan sey. Beklenen sonuc: KIRMIZI
 # (sifirdan farkli cikis) ya da IDDIA SAYISI degisimi.
 # Tam zinciri kosturan mutasyonlar (~6 dk): yalnizca --adim ile.
-AGIR = {"B3", "B23", "T3A", "T3C", "T3D", "T3E", "T3F", "T3G", "TTR"}  # T3A/T3C/T3D/T3E/T3F/T3G: basliksiz Edge (tarayici_tema.py, tarayici_kayitlar.py, tarayici_canli.py, tarayici_skop.py, tarayici_pil.py, tarayici_karsilastir.py)
+AGIR = {"B3", "B23", "T3A", "T3C", "T3D", "T3E", "T3F", "T3G", "T3H", "TTR"}  # T3A/T3C/T3D/T3E/T3F/T3G/T3H: basliksiz Edge (tarayici_tema.py, tarayici_kayitlar.py, tarayici_canli.py, tarayici_skop.py, tarayici_pil.py, tarayici_karsilastir.py, tarayici_ayarlar.py)
 
 MUTASYONLAR = [
     # ── B50 · kutu / panel plani (kutu.py) — B50g'de yeniden yazildi
@@ -4148,6 +4148,41 @@ MUTASYONLAR = [
     ('T3G', 'tarayici_karsilastir.py', 'arayuz3/ekran/karsilastir.js', '        return m ? krRenk(Number(m[1]), cs) : cs(ad);', "        return m ? cs('volt') : cs(ad);", '3G: butun kayitlar tuvalde ayni renkte (KR2)'),
     ('T3G', 'tarayici_karsilastir.py', 'arayuz3/ekran/karsilastir.js', '      this.rota = karsilastirRotaCoz(location.hash);\n      this.yukle();\n    };', '      this.yukle();\n    };', "3G: Kayitlar'daki 'Karsilastir' baglantisi ekrani acar ama secimi YUKLEMEZ (KR1)"),
     ('T3G', 'tarayici_karsilastir.py', 'arayuz3/style.css', '.kl-satir-sarmal > .kl-satir { flex: 1 1 auto; min-width: 0; }', '.kl-satir-sarmal > .kl-satir { flex: 1 0 auto; min-width: 420px; }', '3G: secim kutulu Kayitlar satiri 390 px telefonda yatay tasar (KR8)'),
+    # ── 3H-1 · Ayarlar (B7 bolum 30, B73 sozluk, T3H tarayici_ayarlar.py)
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "  if (/^ayar\\//.test(h)) return 'ayar';\n", '', "3H: #/ayar/<bolum> adresi Ayarlar'i acmaz, varsayilana (Canli) duser (AY2)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', '  const b = m ? AYAR_BOLUMLERI.find((x) => x.id === m[1]) : null;', '  const b = null;', '3H: #/ayar/<bolum> hep ilk bolumu acar — adres bolumu tasimaz (AY2)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "  Object.freeze({ id: 'kal-gecmis', ad: 'ay.b_kal_gecmis', mod: true }),", "  Object.freeze({ id: 'kal-gecmis', ad: 'ay.b_kal_gecmis', mod: false }),", '3H: kalibrasyon gecmisi bolumu acilinca modul INMEZ — bos bolum (AY2/AY5)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "    ayarModGerekli() { return this.gorunum === 'ayar' && ayarBolumModul(this.ayarBolum); },", '    ayarModGerekli() { return ayarBolumModul(this.ayarBolum); },', '3H: Ayarlar modulu baska ekrandayken de iner (adres bolumu hatirlaninca) (AY2)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "      ayarModAcik: hashtenGorunum() === 'ayar'\n", "      ayarModAcik: true || hashtenGorunum() === 'ayar'\n", '3H: Ayarlar modulu ACILISTA kurulur (her acilista fazladan dosya) (AY2)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', '      dilYaz(depo, d);\n', '', '3H: dil secimi SAKLANMAZ — yenileyince Turkce doner (AY3)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', '    dil(v) { dilUygula(v, this.gorunum); },', '    dil(v) { },', '3H: dil degisince <html lang> ve sekme basligi eski dilde kalir (AY3)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "  if (document.documentElement) document.documentElement.lang = dil === 'en' ? 'en' : 'tr';\n", '', '3H: <html lang> hep tr — ekran okuyucu Ingilizceyi Turkce okur (AY3)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/kayitlar.js', '      this.dil = v;\n      this.listeKur();', '      this.listeKur();', '3H: Kayitlar dil degisimini almaz — yenilemeden Turkce kalir (AY3)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/index.html', ':etkin="gorunum === \'karsilastir\'" :dil-secim="dil"', ':etkin="gorunum === \'karsilastir\'"', '3H: Karsilastirma secili dili hic almaz (AY3)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/index.html', '  <section class="kart" v-show="ayarBolum === \'kalibrasyon\'" data-ay-bolum="kalibrasyon">', '  <section class="kart">', '3H: Kalibrasyon karti her bolumde gorunur — bolumler karisir (AY2)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/index.html', '<ayarlar-ekran v-if="ayarModAcik"', '<ayarlar-ekran v-if="true"', '3H: Ayarlar modulu acilista iner (v-if ayarModAcik yok) (AY2)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '    if (k.bozuk) { kayitlar.push({ no: k.no, bozuk: true }); continue; }', '    if (k.bozuk) continue;', '3H: bozuk kalibrasyon kaydi SESSIZCE atlanir — eksik gecmis tam sanilir (AY5, Y6)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '  return [...liste.kayitlar].reverse().map((k) => {', '  return [...liste.kayitlar].map((k) => {', '3H: kalibrasyon gecmisi eskiden yeniye — en yeni kayit sonda (AY5)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '    return { no: k.no, bozuk: false, etkin: liste.etkin === k.no,', '    return { no: k.no, bozuk: false, etkin: false,', '3H: kartin su anki degerlerinin hangi kayit oldugu gosterilmez (AY5)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', "  Object.freeze({ alan: 'faz1', ad: 'ay.kd_faz1' }),\n", '', "3H: degerler tablosu firmware'in /kal/liste alanlarindan birini (faz1) gostermez (AY5)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '    const guncel = kartBilinen ? a.kimlik === kartKimlik : i === 0;', '    const guncel = i === 0;', '3H: kart bicimlendiyse eski akis "bu kart" sanilir — kartin kimligi yok sayilir (AY4)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', "  return { destek: false, neden: guvenli === false ? 'guvensiz' : 'yok' };", "  return { destek: false, neden: 'yok' };", "3H: kartin http:// adresinde kota yoklugu 'tarayici desteklemiyor' diye yanlis aciklanir (AY4)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '      if (this.silOnay !== kimlik) return;\n', '', '3H: kopya silme silahlanmadan (tek tikla / baska satirin onayiyla) siler (AY4)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '      if (typeof k === \'string\' && k.startsWith(AYAR_ONEK)) a.push(k);', "      if (typeof k === 'string' && k.startsWith('olcum')) a.push(k);", "3H: sifirlama `olcum.` olmayan anahtarlari da siler (olcumx) (AY6)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '      if (!this.sifirlaOnay) return;\n', '', '3H: tarayici ayarlarini sifirlama onaysiz (tek tik) (AY6)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '        if (!u.uygun) {\n', '        if (false) {\n', "3H: USB / baska kokenden de karta /kal/liste sorulur (C1 on kosulu yok) (AY5)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '        if (!liste) {\n', '        if (false) {\n', '3H: kart vermezse bu tarayicidaki kalibrasyon kopyasina dusulmez (AY5)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', "        this.kaliciSonuc = v ? 'ay.kalici_verildi' : 'ay.kalici_reddedildi';", "        this.kaliciSonuc = 'ay.kalici_verildi';", '3H: tarayici kalici depolamayi reddetse de "verdi" yazar (AY4)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', "import { ceviri, ceviriKod } from '/ortak/sozluk.js';\n", "import { ceviri, ceviriKod } from '/ortak/sozluk.js';\nimport { EsitlemeDenetcisi } from './esitleme.js';\n", '3H: IndexedDB zinciri ayarlar.js`e STATIK — Gelismis de ~43 KB indirir (AY2)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '    yuzde: (100 * k.usage / k.quota).toFixed(1) });', '    yuzde: (k.usage / k.quota).toFixed(1) });', '3H: kota yuzdesi 100 kat kucuk yazilir (AY4)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/ayarlar.js', '    <h2>{{ m.kalBaslik }}</h2>', '    <h2>Kalibrasyon geçmişi</h2>', '3H: yeni bolume gomulu Turkce metin — EN`de cevrilmemis sayisi artar (AY3/AY7)'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/style.css', '  .ay-duzen { grid-template-columns: minmax(0, 1fr); }\n', '', '3H: telefonda ic gezinme yanda kalir, icerik sikisir (AY2)'),
+    ('B73', 'test_ortak.py', 'ortak/src/sozluk.js', '  "ay.kd_faz1": S(', '  "ay.kd_faz1x": S(', '3H: degerler tablosunun etiketi sozlukte yok — ham anahtar yazar (AY7)'),
+    ('T3H', 'tarayici_ayarlar.py', 'arayuz3/ekran/ayarlar.js', "      return { storage: n ? n.storage : undefined, guvenli: typeof isSecureContext === 'boolean' ? isSecureContext : undefined };", "      return { storage: n ? n.storage : undefined, guvenli: undefined };", '3H: kartin http:// adresinde kota yoklugunun SEBEBI (guvenli baglam) yazmaz (AY4)'),
+    ('T3H', 'tarayici_ayarlar.py', 'arayuz3/ekran/ayarlar.js', "      if (this.bolum === 'depolama') { this.depoYukle(); this.kotaOku(); }", "      if (this.bolum === 'depolama') { this.kotaOku(); }", '3H: Depolama bolumu acilinca kopya tablosu hic okunmaz (AY4)'),
+    ('T3H', 'tarayici_ayarlar.py', 'arayuz3/ekran/ayarlar.js', '          this.kunye = kunyeCoz(await y.json().catch(() => null));', '          this.kunye = null;', '3H: panel surumu (kunye) gosterilmez (AY6)'),
+    ('T3H', 'tarayici_ayarlar.py', 'arayuz3/style.css', '.ay-sekme.etkin { color: var(--yazi); background: var(--vurgu-zemin); font-weight: 600;', '.ay-sekme.etkin { color: var(--yazi); font-weight: 600;', '3H: ic gezinmede secili bolumun zemini yok — uc gorunumde secili bolum zor secilir (AY7)'),
+    ('T3H', 'tarayici_ayarlar.py', 'arayuz3/app.js', '    window.addEventListener(\'hashchange\', () => { this.ayarBolum = ayarBolumCoz(location.hash); });\n', '', '3H: geri tusu / ic gezinme baglantisi bolumu degistirmez (AY2)'),
 ]
 
 

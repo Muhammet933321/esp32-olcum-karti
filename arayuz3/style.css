@@ -1250,3 +1250,59 @@ canvas.kr-grafik:focus-visible { outline: 2px solid var(--vurgu); outline-offset
   canvas.kr-grafik { height: 260px; }
   .kl-sec { flex-basis: 30px; }
 }
+
+/* ═══════════════════════════════════════════════════════ 3H — AYARLAR
+   AY2: bölümler — geniş ekranda iç gezinme SOLDA (sabit genişlik), ≤ 900 px'te
+   içeriğin ÜSTÜNDE ve sarar (şerit de orada çekmece). Etkin bölüm şeritteki
+   gibi: renk YETMEZ (renk körü) — zemin + kalın + sol çizgi. Tablolar kendi
+   kutusunda kayar (390 px'te sayfa taşmaz); sayılar tabular-nums (AY7, WIG).
+   Renk YALNIZ belirteçten (B7 sınar). */
+.ay-duzen { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; align-items: start; }
+.ay-nav { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ay-sekme {
+  display: flex; align-items: center; min-height: 40px; padding: 0 10px;
+  border-radius: var(--yuvarlak-sm); color: var(--soluk);
+  font-size: 14px; font-weight: 500; text-decoration: none; overflow-wrap: anywhere;
+  transition: color var(--gecis), background var(--gecis);
+}
+.ay-sekme:hover { color: var(--yazi); }
+.ay-sekme:focus-visible { outline: 2px solid var(--vurgu); outline-offset: -2px; }
+.ay-sekme.etkin { color: var(--yazi); background: var(--vurgu-zemin); font-weight: 600; box-shadow: inset 3px 0 0 var(--vurgu); }
+.ay-icerik { min-width: 0; }
+.ay-ust { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.ay-ust > .ay-kaynak { flex: 1 1 260px; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ay-ozet { margin: 6px 0; font-size: 13.5px; color: var(--yazi); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ay-kota { display: block; width: 100%; max-width: 420px; height: 10px; margin: 4px 0 10px; accent-color: var(--vurgu); }
+.ay-duyuru:empty { display: none; }
+.ay-tablo-sarmal { overflow-x: auto; margin-top: 10px; max-width: 100%; }
+.ay-tablo { border-collapse: collapse; font-size: 12.5px; min-width: 100%; }
+.ay-tablo th, .ay-tablo td {
+  padding: 5px 9px; border-bottom: 1px solid var(--kenar-c); text-align: left; white-space: nowrap; vertical-align: top;
+}
+.ay-tablo thead th { color: var(--cok-soluk); font-weight: 600; font-size: 11px; letter-spacing: .03em; }
+.ay-tablo td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.ay-tablo tbody th { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; color: var(--yazi); }
+.ay-tablo .ay-metin { font-family: var(--govde); white-space: normal; min-width: 90px; overflow-wrap: anywhere; }
+.ay-tablo tr.ay-etkin > * { background: var(--vurgu-zemin); }
+.ay-tablo tr.ay-etkin > th:first-child { box-shadow: inset 3px 0 0 var(--vurgu); }
+.ay-tablo td button { padding: 3px 9px; font-size: 12px; font-family: var(--govde); }
+.ay-tablo-baslik { caption-side: top; text-align: left; padding: 4px 0 6px; font-size: 13px; font-weight: 600; color: var(--yazi); }
+.ay-islem { white-space: nowrap; }
+.ay-islem button + button { margin-left: 6px; }
+.ay-alan-ad { display: block; font-family: var(--mono); font-size: 11px; color: var(--cok-soluk); font-weight: 400; }
+.ay-bilgi { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0 0 10px; font-size: 13.5px; }
+.ay-bilgi dt { color: var(--soluk); font-weight: 500; }
+.ay-bilgi dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; min-width: 0; }
+.ay-bilgi dd.ay-aciklama { font-family: var(--govde); color: var(--soluk); }
+.ay-anahtarlar { margin: 6px 0 12px; padding-left: 18px; font-size: 12.5px; columns: 2 220px; }
+.ay-anahtarlar code { overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .ay-duzen { grid-template-columns: minmax(0, 1fr); }
+  .ay-nav { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+  .ay-sekme { min-height: 36px; border: 1px solid var(--kenar-c); }
+  .ay-sekme.etkin { box-shadow: inset 0 -3px 0 var(--vurgu); }
+}
+@media (max-width: 620px) {
+  .ay-bilgi { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .ay-bilgi dd { margin-bottom: 8px; }
+}

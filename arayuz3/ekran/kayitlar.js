@@ -414,12 +414,14 @@ export const KayitlarEkrani = {
     bagli: { type: Boolean, default: false },
     gonder: { type: Function, default: null },
     etkin: { type: Boolean, default: true },
+    /* 3H (AY3): kabugun secili dili — degisince ANINDA (yeniden yukleme yok). */
+    dilSecim: { type: String, default: null },
   },
   template: SABLON,
   data() {
     return {
       rota: rotaCoz(globalThis.location ? globalThis.location.hash : ''),
-      dil: dilOku(),
+      dil: this.dilSecim === 'en' || this.dilSecim === 'tr' ? this.dilSecim : dilOku(),   // 3H: kabuktan
       arama: '', turSuzgec: 'hepsi', neredeSuzgec: 'hepsi',
       kartDurum: null, kartMesaj: '', kartKimlik: null, kartOzetVeri: null,
       esitleniyor: false, ilerleme: 0, sonuc: '', esitlemeNeden: null, esitlemeMesaj: '',
@@ -496,6 +498,12 @@ export const KayitlarEkrani = {
     /* C1 on kosulu degisti (Ayarlar'da adres / tasiyici): kartin dizinini yeniden sor. */
     kartTaban() { this.onKosulDegisti(); },
     tasiyici() { this.onKosulDegisti(); },
+    /* 3H (AY3): dil degisti — metinler computed; kurulmus kopya satirlari yeniden yazilir. */
+    dilSecim(v) {
+      if (v !== 'tr' && v !== 'en') return;
+      this.dil = v;
+      this.listeKur();
+    },
   },
   mounted() {
     this._hash = () => { this.rota = rotaCoz(location.hash); };

@@ -240,6 +240,23 @@ test("3G: karsilastirmanin (ekran/karsilastir.js + kayitlar.js) kullandigi HER k
   assert.match(SOZLUK["kr.csv_onek"].tr + SOZLUK["kr.csv_onek"].en, /^[a-z]+$/);
 });
 
+/* 3H-1: Ayarlar (app.js AY_METIN / AYAR_BOLUMLERI / DILLER + ekran/ayarlar.js AYE_METIN / KAL_ALANLARI) */
+test("3H: ayarlarin (app.js + ekran/ayarlar.js) kullandigi HER ay. anahtari sozlukte (ters yon)", () => {
+  if (!APP.length || !EKRANLAR.length) return;
+  const { literal } = dizgeler([...APP, ...EKRANLAR].map(oku).join("\n"));
+  const kullanilan = [...literal].filter((s) => /^ay\.[a-z0-9_]+$/.test(s));
+  assert.ok(kullanilan.length >= 60, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
+  assert.deepEqual(kullanilan.filter((a) => !(a in SOZLUK)), []);
+  const aile = Object.keys(SOZLUK).filter((a) => /^ay\./.test(a));
+  assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup panelde kullanilmayan ay. anahtari");
+  /* AY5: degerler tablosunun 17 alani (firmware'in /kal/liste JSON'u; B7 alan yollarini firmware'den sinar) */
+  assert.equal(Object.keys(SOZLUK).filter((a) => a.startsWith("ay.kd_")).length, 17);
+  /* AY3: dil adlari kendi dillerinde (endonim) — iki dilde de ayni */
+  assert.equal(SOZLUK["ay.dil_tr"].tr, "Türkçe");
+  assert.equal(SOZLUK["ay.dil_tr"].en, "Türkçe");
+  assert.equal(SOZLUK["ay.dil_en"].tr, "English");
+});
+
 test("yer tutucular iki dilde ayni", () => {
   const yer = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(",");
   for (const [a, g] of Object.entries(SOZLUK)) assert.equal(yer(g.tr), yer(g.en), a);

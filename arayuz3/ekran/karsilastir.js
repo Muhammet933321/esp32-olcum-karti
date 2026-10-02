@@ -407,12 +407,13 @@ export const KarsilastirEkrani = {
   props: {
     kartAdres: { type: Function, required: true },
     etkin: { type: Boolean, default: true },
+    dilSecim: { type: String, default: null },     // 3H (AY3): kabugun secili dili
   },
   template: SABLON,
   data() {
     return {
       rota: karsilastirRotaCoz(globalThis.location ? globalThis.location.hash : ''),
-      dil: dilOku(), yukleniyor: false, depoHata: '', lejantVeri: [], renkler: [],
+      dil: this.dilSecim === 'en' || this.dilSecim === 'tr' ? this.dilSecim : dilOku(), yukleniyor: false, depoHata: '', lejantVeri: [], renkler: [],
       okuma: null, pencereJson: '', duyuru: '', hata: '', grafikVar: false,
     };
   },
@@ -484,6 +485,12 @@ export const KarsilastirEkrani = {
       if (!v) return;
       this.renklerOku();
       this.yukle();
+    },
+    /* 3H (AY3): dil degisti — lejant / sebepler kurulurken yaziliyor: yeniden kur. */
+    dilSecim(v) {
+      if (v !== 'tr' && v !== 'en') return;
+      this.dil = v;
+      this.kur();
     },
   },
   mounted() {
