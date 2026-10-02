@@ -15,7 +15,7 @@ import {
   guzelAdim, guzelAdimlar, zamanAdimi, zamanAdimlari, eksenAraligi, zamanYazi, sayiYazi,
   yerlesim, pencereHesapla, cizimPlani, lejantOgeleri, tipikAralik, durumKur, durumBirlestir,
   pencereKirp, yakinlastir, etkilesim, enYakinOrnek, imlecOkuma, seriHazirla, cssRenk,
-  planUygula, Grafik, xSayiEkseni, sayiAdimlari, xYazici,
+  planUygula, Grafik, xSayiEkseni, sayiAdimlari, xYazici, isaretListesi,
 } from '../src/grafik.js';
 
 // ── yardımcılar ─────────────────────────────────────────────────────────────
@@ -1475,4 +1475,54 @@ test('3E xEksen: Grafik sınıfı seçeneği plana geçiriyor (çizilen yazı Hz
   assert.ok(plan.x.degerler.every((v) => yazilan.includes(hzYazi(v))), yazilan.join(' | '));
   assert.ok(!yazilan.some((m) => /^\d\d:\d\d:\d\d/.test(m)), 'zaman yazısı kalmadı');
   g.yokEt();
+});
+
+
+// ── 3F (PL3): olay işaretleri — pil eğrisinde DCIR anları ──
+test('3F isaretler: pencere içindeki her işaret t\'de kesik dikey çizgi + etiket; dışı ve sonsuz t çizilmez', () => {
+  const n = 601;
+  const t = new Float64Array(n).map((_, i) => i * 1000);
+  const y = new Float64Array(n).map((_, i) => 4 - i / 1000);
+  const s = [seriHazirla({ ad: 'V', t, y, birim: 'V', renk: 'volt' })];
+  const d = durumBirlestir(durumKur(s), { t0: 100000, t1: 500000 });
+  const isaretler = [{ t: 300200, metin: 'R1' }, { t: 600400, metin: 'R2' }, { t: NaN, metin: 'X' }, { t: 50000 }];
+  const plan = cizimPlani(s, d, { w: 800, h: 240 }, { zamanKokeni: 0, isaretler });
+  const cizgi = plan.komutlar.filter((k) => k.rol === 'isaret' && k.tur === 'cizgi');
+  const yazi = plan.komutlar.filter((k) => k.rol === 'isaret' && k.tur === 'yazi');
+  assert.equal(cizgi.length, 1, 'yalnız pencere içindeki (300.2 s) işaret');
+  const { x0, x1 } = { x0: plan.x.t0, x1: plan.x.t1 };
+  const beklenenX = Math.round(plan.alan.x + (300200 - x0) * plan.alan.w / (x1 - x0)) + 0.5;
+  assert.equal(cizgi[0].noktalar[0], beklenenX);
+  assert.equal(cizgi[0].noktalar[1], plan.alan.y);
+  assert.equal(cizgi[0].noktalar[3], plan.alan.y + plan.alan.h);
+  assert.deepEqual(cizgi[0].desen, [3, 3]);
+  assert.deepEqual(yazi.map((k) => k.metin), ['R1']);
+  /* işaret imleçlerden ÖNCE (imleç üstte kalsın), eksen yazılarından önce */
+  const i0 = plan.komutlar.indexOf(cizgi[0]);
+  const ie = plan.komutlar.findIndex((k) => k.rol === 'eksen');
+  assert.ok(i0 > 0 && i0 < ie);
+  /* işaretsiz plan: rol 'isaret' yok; liste süzgeci */
+  assert.equal(cizimPlani(s, d, { w: 800, h: 240 }, {}).komutlar.some((k) => k.rol === 'isaret'), false);
+  assert.deepEqual(isaretListesi({ isaretler: isaretler }).map((x) => x.t), [300200, 600400, 50000]);
+  assert.deepEqual(isaretListesi(undefined), []);
+});
+
+test('3F isaretler: Grafik sınıfı seçeneği plana geçiriyor, sonradan değişebiliyor; gezginde yok', () => {
+  const k = sahteKanvas(800, 240);
+  const t = Float64Array.from({ length: 100 }, (_, i) => i * 1000);
+  const y = Float64Array.from({ length: 100 }, (_, i) => i);
+  const g = new Grafik(k, { pencere: { devicePixelRatio: 1 }, zamanKokeni: 0, isaretler: [{ t: 40000, metin: 'R1' }] });
+  g.veriAyarla([{ ad: 'V', t, y, birim: 'V', renk: 'volt' }]);
+  let plan = g.ciz();
+  assert.equal(plan.komutlar.filter((c) => c.rol === 'isaret' && c.tur === 'cizgi').length, 1);
+  assert.ok(k.ctx.yazilar.some((w) => w.metin === 'R1'));
+  g.secenek.isaretler = [{ t: 10000, metin: 'R1' }, { t: 70000, metin: 'R2' }];
+  plan = g.ciz();
+  assert.deepEqual(plan.komutlar.filter((c) => c.rol === 'isaret' && c.tur === 'yazi').map((c) => c.metin), ['R1', 'R2']);
+  g.yokEt();
+  const kg = sahteKanvas(800, 60);
+  const gz = new Grafik(kg, { pencere: { devicePixelRatio: 1 }, gezgin: true, isaretler: [{ t: 40000, metin: 'R1' }] });
+  gz.veriAyarla([{ ad: 'V', t, y, birim: 'V', renk: 'volt' }]);
+  assert.equal(gz.ciz().komutlar.some((c) => c.rol === 'isaret'), false);
+  gz.yokEt();
 });

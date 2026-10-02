@@ -315,6 +315,7 @@ const SahteKart = (() => {
       return ['* G osiloskop gunlugu basladi: ' + (ms ? ms + " ms'de bir" : 'her tetikte') + ' — SKOP oturumu'];
     }
     if (alt === 'b') {
+      if (pil.durum === 'CALISIYOR') return ['! G: pil testi suruyor — kaydi zaten acik; durdurmak icin p0'];
       const h = Number(k.slice(2));
       if (!/^\d+$/.test(k.slice(2)) || !KAYIT_HIZLARI.includes(h)) {
         return ['! G: hiz 0 (her ornek) / 20/100/200/1000/10000/60000 ms olmali'];
@@ -323,9 +324,16 @@ const SahteKart = (() => {
       return ['* G istek kuyrukta — sonuc G satirinda', gSatiri()];
     }
     if (alt === 'd') {
+      if (pil.durum === 'CALISIYOR') return ['! G: pil testi suruyor — testi p0 ile durdur (kayit onunla kapanir)'];
       if (kayit.durum === 2) { kayit.durum = 1; kayit.oturum = 0; }
       if (plan.durum === 2) plan.durum = 3;
       return ['* G istek kuyrukta — sonuc G satirinda', gSatiri()];
+    }
+    if (alt === 'a' || alt === 'e') {
+      /* 3F (PU7): oturuma ad / etiket — firmware kayit_not_ayir (bos metin: siler) */
+      const m = /^G[ae](\d+)(?: (.*))?$/.exec(k);
+      if (!m || Number(m[1]) === 0) return ['! G: oturum numarasi gerekli (yalniz rakam, 0 degil)'];
+      return ['* G not kuyrukta (verilmemis oturuma yazilmaz; sonuc esitlenen dosyada)'];
     }
     if (alt === 'n') {
       const m = /^Gn(\d+)(@\d+)?( (.*))?$/.exec(k);
@@ -389,10 +397,118 @@ const SahteKart = (() => {
     return cikti;
   }
 
+  /* ── 3F — PIL TESTI (demo) ──────────────────────────────────────────
+     Firmware'in `p1` / `p0` / `p` / `P` komutlari, kendiliginden bastigi satirlar ve
+     `/pil` govdesi (pil_sayfa) — METINLER FIRMWARE'IN (B7 her birini ino'da arar).
+     Zaman HIZLANDIRILMIS (PIL_HIZ kat): DCIR (5 dk) ve kesme demo icinde gorulsun.
+     Pil modeli: 2000 mAh Li-ion, 3.9 ohm yuk, 80 mohm ic direnc — demo, kanit DEGIL. */
+  const PIL_HIZ = 30;
+  const PIL_AZAMI_V = 38.5;
+  const PIL_DCIR_ARALIK_MS = 300000;
+  const PIL_DCIR_MS = 200;
+  const pil = { durum: 'BEKLEMEDE', hata: '-', kesme: 3.0, ocv: 0, vson: 0, mah: 0, wh: 0, coulomb: 0,
+                dcirAni: 0, dcirOtr: 0, dcirN: 0, nokta: [], tMs: 0, sonDemo: 0, sonKayit: 0, sonDcir: 0, bitisMs: 0 };
+  const pilOcv = (q) => 4.15 - 0.85 * q - 0.45 * Math.pow(q, 8);
+  function pilAn() {
+    const q = Math.min(1.2, pil.mah / 2000);
+    const i = pilOcv(q) / (3.9 + 0.08);
+    return { v: pilOcv(q) - 0.08 * i, i };
+  }
+  function pilBSatiri() {
+    const sure = Math.floor((pil.durum === 'CALISIYOR' ? pil.tMs : pil.bitisMs) / 1000);
+    return `B ${pil.durum} ${pil.mah.toFixed(3)} ${pil.wh.toFixed(5)} ${pil.ocv.toFixed(4)} ${pil.vson.toFixed(4)} `
+      + `${pil.kesme.toFixed(3)} ${sure} ${pil.dcirAni.toFixed(5)} ${pil.dcirOtr.toFixed(5)} ${pil.dcirN} ${pil.nokta.length} ${pil.hata}`;
+  }
+  function pilDurdur(durum, hata) {
+    pil.durum = durum;
+    pil.hata = hata;
+    pil.bitisMs = pil.tMs;
+    const cikti = [];
+    if (kayit.durum === 2 && kayit.pil) { kayit.durum = 1; kayit.oturum = 0; kayit.pil = false; cikti.push(gSatiri()); }
+    return cikti;
+  }
+  function pilKomut(k) {
+    if (k[0] === 'P') {
+      if (k.length === 1) {
+        return [`* pil kesme gerilimi ${pil.kesme.toFixed(3)} V · kayit 1.00 Hz · azami sure 24 saat`];
+      }
+      const v = parseFloat(k.slice(1));
+      if (!(v >= 0.5) || !(v <= PIL_AZAMI_V)) return ["! P: 0.5 ile 38.5 V arasi olmali (ust sinir MOSFET Vdss'inden)"];
+      pil.kesme = v;
+      return [`* pil kesme gerilimi ${v.toFixed(3)} V`];
+    }
+    if (k[1] === '1') {
+      if (gunluk.etkin) return ['! pil: osiloskop gunlugu suruyor — once Gtd'];
+      if (pil.durum === 'CALISIYOR') return ['! pil testi zaten suruyor — yeniden baslatmak icin once p0'];
+      Object.assign(pil, { durum: 'CALISIYOR', hata: '-', ocv: 4.15, vson: 4.15, mah: 0, wh: 0, coulomb: 0, dcirAni: 0,
+        dcirOtr: 0, dcirN: 0, nokta: [], tMs: 0, sonDemo: 0, sonKayit: 0, sonDcir: 0, bitisMs: 0 });
+      const cikti = [`* pil testi BASLADI — OCV ${pil.ocv.toFixed(4)} V, kesme ${pil.kesme.toFixed(3)} V`];
+      /* 1C-1: her kabul edilen test kendi PIL oturumunda (acik olcum kaydi kapanir) */
+      kayitBaslat(1000);
+      kayit.pil = true;
+      cikti.push('* pil testi kaydi istendi (oturum turu PIL; olcum kaydi aciksa kapanir) — sonuc G satirinda', gSatiri());
+      return cikti;
+    }
+    if (k[1] === '0') {
+      if (pil.durum === 'CALISIYOR') return ['* pil testi DURDURULDU, yuk kesildi', ...pilDurdur('DURDURULDU', '-')];
+      return ['* pil testi zaten calismiyor; yuk kapali'];
+    }
+    return [pilBSatiri()];
+  }
+  /** Demo dongusunden (app.js demoVeri) her D satirinda: test zamani PIL_HIZ kat ilerler. */
+  function pilTik(ms) {
+    if (pil.durum !== 'CALISIYOR') { pil.sonDemo = ms; return []; }
+    const dt = pil.sonDemo ? Math.max(0, ms - pil.sonDemo) * PIL_HIZ : 0;
+    pil.sonDemo = ms;
+    const cikti = [];
+    const adim = 100;
+    for (let t = 0; t < dt; t += adim) {
+      pil.tMs += adim;
+      const a = pilAn();
+      if (pil.tMs - pil.sonDcir >= PIL_DCIR_ARALIK_MS) {
+        pil.dcirN++;
+        pil.dcirAni = 0.062 + 0.03 * pil.mah / 2000;
+        pil.dcirOtr = pil.dcirAni * 1.35;
+        pil.tMs += PIL_DCIR_MS;
+        pil.sonDcir = pil.tMs;
+      }
+      pil.mah += a.i * adim / 3600;
+      pil.wh += a.v * a.i * adim / 3.6e6;
+      pil.coulomb = pil.mah * 3.6;
+      pil.vson = a.v;
+      if (pil.tMs - pil.sonKayit >= 1000) {
+        pil.nokta.push({ ms: pil.tMs, v: a.v, i: a.i });
+        pil.sonKayit = pil.tMs;
+      }
+      if (a.v <= pil.kesme) {
+        cikti.push(`* pil testi BITTI — ${pil.mah.toFixed(2)} mAh, ${pil.wh.toFixed(4)} Wh`, ...pilDurdur('BITTI', '-'));
+        break;
+      }
+    }
+    return cikti;
+  }
+  /** `/pil?sira=N` govdesi (firmware pil_sayfa bicimi; en cok 150 nokta, `kalan=`). */
+  function pilSayfa(sira) {
+    const SATIR = String.fromCharCode(10);
+    const n = pil.nokta.length;
+    const bas = Math.min(Math.max(0, Number(sira) || 0), n);
+    const adet = Math.min(150, n - bas);
+    const l = [`durum=${pil.durum}`, `hata=${pil.hata}`, `mah=${pil.mah.toFixed(4)}`, `wh=${pil.wh.toFixed(6)}`,
+      `ocv=${pil.ocv.toFixed(4)}`, `vson=${pil.vson.toFixed(4)}`, `kesme=${pil.kesme.toFixed(3)}`,
+      `dcir_ani=${pil.dcirAni.toFixed(5)}`, `dcir_otr=${pil.dcirOtr.toFixed(5)}`, `dcir_n=${pil.dcirN}`,
+      `sira=${n}`, `ilk_sira=${bas}`, `kalan=${n - bas - adet}`, `coulomb=${pil.coulomb.toFixed(3)}`, '--'];
+    for (let k = bas; k < bas + adet; k++) {
+      const q = pil.nokta[k];
+      l.push(`${q.ms},${q.v.toFixed(4)},${q.i.toFixed(6)}`);
+    }
+    return l.join(SATIR) + SATIR;
+  }
+
   function komut(k) {
     k = String(k).trim();
     const c = k[0], alt = k[1];
     if (c === 'G') return kayitKomut(k);
+    if (c === 'P' || (c === 'p' && (k.length === 1 || alt === '0' || alt === '1'))) return pilKomut(k);
 
     /* B36 — kalibrasyon tablosu. Sahte kart GERÇEK kartın protokolünü
        konuşmak zorunda: ayrışırsa demo, arayüzü gerçek yolundan
@@ -514,6 +630,8 @@ const SahteKart = (() => {
   return {
     komut,
     kayitTik,                            // 3D: kayit motoru (G satirlari)
+    pilTik,                              // 3F: pil testi (hizlandirilmis; BITTI satiri)
+    pilSayfa,                            // 3F: `/pil?sira=` govdesi
     raporAralik() { return raporMs; },   // B27 A2: demo dongusu bunu okur
     sinyaller: SINYALLER,
     sinyalSec(ad) { if (SINYALLER[ad]) secili = ad; },
@@ -525,11 +643,13 @@ const SahteKart = (() => {
        akim periyodik olarak isaret degistiriyor ki arayuzun negatif guc
        gosterimi demo kipinde de gorulebilsin. */
     dSatiri(ms, enerjiJ) {
-      const v = 12 + 0.35 * Math.sin(ms / 4000) + 0.02 * (Math.random() - 0.5);
+      let v = 12 + 0.35 * Math.sin(ms / 4000) + 0.02 * (Math.random() - 0.5);
       /* 25 saniyede bir yon degistiren akim: yuk <-> kaynak */
-      const a = 0.0182 * Math.sin(ms / 25000) +
+      let a = 0.0182 * Math.sin(ms / 25000) +
                 0.006 * Math.sin(ms / 7000 + 1) +
                 0.00004 * (Math.random() - 0.5);
+      /* 3F: pil testi surerken girisler pilin (V jaki + sont) */
+      if (pil.durum === 'CALISIYOR') { const p = pilAn(); v = p.v; a = p.i; }
       const w = v * a;
       return {
         satir: `D ${v.toFixed(4)} ${a.toFixed(6)} ${w.toFixed(5)} ` +

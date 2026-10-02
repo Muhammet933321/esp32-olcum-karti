@@ -212,6 +212,20 @@ test("3E: osiloskobun (app.js + ekran/osiloskop.js) kullandigi HER os. anahtari 
   assert.ok(literal.has("kg.osiloskopta_ac"), "3C yakalama tablosundaki baglanti");
 });
 
+/* 3F: Pil testi ekrani (app.js PL_METIN + this.metin('pl.…') + ekran/pil.js hata / eksen anahtarlari) */
+test("3F: pil ekraninin (app.js + ekran/pil.js) kullandigi HER pl. anahtari sozlukte (ters yon)", () => {
+  if (!APP.length || !EKRANLAR.length) return;
+  const { literal } = dizgeler([...APP, ...EKRANLAR].map(oku).join("\n"));
+  const kullanilan = [...literal].filter((s) => /^pl\.[a-z0-9_]+$/.test(s));
+  assert.ok(kullanilan.length >= 80, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
+  assert.deepEqual(kullanilan.filter((a) => !(a in SOZLUK)), []);
+  const aile = Object.keys(SOZLUK).filter((a) => /^pl\./.test(a));
+  assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup panelde kullanilmayan pl. anahtari");
+  /* serit vaadi (WIG f / PL3): Pil ekrani egriyi ciziyor */
+  assert.match(SOZLUK["kb.pil_alt"].tr, /eğri/);
+  assert.match(SOZLUK["kb.pil_alt"].en, /curve/);
+});
+
 test("yer tutucular iki dilde ayni", () => {
   const yer = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(",");
   for (const [a, g] of Object.entries(SOZLUK)) assert.equal(yer(g.tr), yer(g.en), a);

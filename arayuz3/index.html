@@ -123,7 +123,7 @@
          nokta kendi satırında kalıyordu (390 px render'ı gösterdi). -->
     <div class="acil-bilgi">
       <span class="acil-nokta" aria-hidden="true"></span>
-      <span><b>Pil testi çalışıyor</b> — {{ bicim(pilMah, 1) }} mAh ·
+      <span><b>Pil testi çalışıyor</b> — {{ acilMahYazi }} ·
         {{ bicim(volt, 3) }} V, kesme {{ bicim(pilKesme, 2) }} V</span>
     </div>
     <button class="acil-dur" @click="pilDurdurKomut" aria-label="Pil testini durdur">DURDUR</button>
@@ -1182,34 +1182,103 @@
 
   </main><!-- /ayar -->
 
-  <!-- ═════════════════════════════════════════════ #/pil -->
+  <!-- ═════════════════════════════════════════════ #/pil (3F) — Pil testi
+       PL2: Canlı'yla aynı dil — üstte okuma kartları (V · I · mAh · Wh · geçen
+       süre · kesme; her kartın altında KAYNAĞI: canlı D satırı / kartın sayacı /
+       kayıt), altında eğri (ekran/pil.js + grafik.js; PL3), yanında DCIR tablosu
+       ve test parametreleri / başlatma formu (PL5). PL1: DURDUR tek tık, onaysız,
+       HİÇBİR koşulla :disabled değil, her zaman görünür (acil şeritle birlikte iki
+       `p0` düğmesi). Okuma kartları ve DURDUR eğri modülünü BEKLEMEZ (PU1). -->
   <main class="gorunum" v-show="gorunum === 'pil'">
 
-  <!-- ═══════════ B21 — PİL KAPASİTE TESTİ ═══════════ -->
-  <section class="kart">
-    <!-- WIG: "deşarj eğrisi" vaat etmiyor — bu görünümde grafik yok; noktalar CSV'de -->
-    <h1>Pil kapasite testi — mAh · Wh · iç direnç · nokta CSV'si</h1>
+  <div class="baslik">
+    <h1>{{ pl.baslik }}</h1>
+    <span class="etiket" data-pil="durum">{{ pilDurumYazi }}</span>
+    <span v-if="pilOturum" class="etiket" data-pil="oturum">{{ pilOturumYazi }}</span>
+    <button type="button" class="pil-dur" data-pil="durdur" :title="pl.durdurIpucu" @click="pilDurdurKomut">{{ pl.durdur }}</button>
+  </div>
+  <!-- PL7: durum değişimi (başladı / bitti) duyurulur; okuma kartları her yoklamada
+       değiştiği için canlı bölge DEĞİL. -->
+  <p class="gorunmez" aria-live="polite">{{ pilDuyuru }}</p>
 
-    <p class="uyari">
-      ⚠ Yükü <b>J7</b>'ye bağlayın, J3'e değil. J3 doğrudan şönte gider;
-      oraya bağlarsanız MOSFET <b>baypas</b> olur ve <b>kesme çalışmaz</b>.
-      Kart bunu başlangıçta denetleyip testi reddediyor.
-      Pil gerilimi <b>≤ 38.5 V</b> olmalı (MOSFET V<sub>dss</sub> sınırı).
-    </p>
+  <p class="uyari">
+    ⚠ Yükü <b>J7</b>'ye bağlayın, J3'e değil. J3 doğrudan şönte gider;
+    oraya bağlarsanız MOSFET <b>baypas</b> olur ve <b>kesme çalışmaz</b>.
+    Kart bunu başlangıçta denetleyip testi reddediyor.
+    Pil gerilimi <b>≤ 38.5 V</b> olmalı (MOSFET V<sub>dss</sub> sınırı).
+  </p>
+  <!-- PL5 (E9 deseni): panelin reddi (geçersiz kesme / ad) ve kartın ret satırı OLDUĞU GİBİ -->
+  <p v-if="pilUyari" class="hata" data-pil="uyari" role="alert" :data-tur="pilUyari.tur">{{ pilUyari.metin }}</p>
+  <p v-if="pilHata && pilHata !== '-'" class="hata" role="alert">
+      Pil testi: {{ pilHataYazi }}</p>
+  <!-- B22.2: kart yanıt vermiyorsa SÖYLE. Eskiden 404 sessizce
+       ayrıştırılıp tüm KPI'lar 0 gösteriliyordu. -->
+  <p v-if="pilHataMetni" class="uyari" role="alert">Pil verisi alınamıyor: {{ pilHataMetni }}</p>
+  <p v-if="pilKayitYok" class="uyari" data-pil="kayit-yok">{{ pilKayitYokYazi }}</p>
 
+  <!-- PL2 okuma kartları — PU8: her değerin kaynağı altında yazılı -->
+  <section class="olcumler pil-okumalar" :aria-label="pl.okumalar">
+    <div v-for="o in pilOkumalar" :key="o.a" class="olcum" :class="o.sinif" :data-pil-okuma="o.a">
+      <div class="ad">{{ o.ad }}</div>
+      <div class="deger" :class="{ gecersiz: o.deger === '—' }">{{ o.deger }}<span class="birim">{{ o.deger === '—' ? '' : o.birim }}</span></div>
+      <div class="alt-bilgi" data-pil="kaynak">{{ o.kaynak }}</div>
+    </div>
+  </section>
+
+  <!-- PL6: test sürmüyorken son testin sonucu + "Kayıtlar'da aç" (#/kayit/<oturum>) -->
+  <section v-if="pilSonucYazi || (pilOturum && !pilCalisiyor)" class="kart pil-sonuc" data-pil="sonuc">
+    <h2>{{ pl.sonuc }}</h2>
+    <div class="ak-satir">
+      <span data-pil="sonuc-durum">{{ pilSonucYazi || '—' }}</span>
+      <span v-if="pilKayitOzet && pilKayitOzet.sebepMetin">{{ pl.bitisSebebi }}: <span data-pil="sebep">{{ pilKayitOzet.sebepMetin }}</span></span>
+    </div>
     <div class="satir">
-      <div class="alan">
-        <label for="pil-kesme">Kesme gerilimi, V (Li-ion 3.0 · kurşun asit 10.5)</label>
-        <input id="pil-kesme" type="text" inputmode="decimal" v-model="pilKesmeGiris" placeholder="3.0…"
-               autocomplete="off" @keyup.enter="pilKesmeGonder">
+      <a v-if="pilOturum && !pilCalisiyor" :href="pilKayitAdresi" class="pil-kayit-ac" data-pil="kayitlarda-ac">{{ pl.kayitlardaAc }}</a>
+      <span v-if="pilKayitDurumYazi" class="ipucu" data-pil="kayit-durum" aria-live="polite">{{ pilKayitDurumYazi }}</span>
+    </div>
+  </section>
+
+  <!-- PL3 eğri: grafik.js (ekran/pil.js) — V sol, I sağ eksen; x zaman ya da mAh; DCIR anları R1, R2 … -->
+  <section class="kart" :aria-label="pl.grafikEtiket">
+    <div class="gosterge">
+      <h2 class="gosterge-baslik">{{ pl.grafik }}</h2>
+      <label>{{ pl.xEksen }}:
+        <select v-model="pilEksen" data-pil="eksen" style="width:auto">
+          <option value="zaman">{{ pl.eksenZaman }}</option>
+          <option value="mah">{{ pl.eksenMah }}</option>
+        </select>
+      </label>
+      <div class="bosluk"></div>
+      <span class="pil-kaynak" data-pil="egri-kaynak">{{ pilEgriKaynakYazi }}</span>
+    </div>
+    <div class="pil-lejant" aria-live="off">
+      <span><i style="background: var(--volt)"></i>V · {{ pl.gerilim }}</span>
+      <span><i style="background: var(--amper)"></i>I · {{ pl.akim }}</span>
+      <span><i class="lejant-kesik"></i>R1, R2 … · {{ pl.dcir }}</span>
+    </div>
+    <div class="tuval-sarmal pil-tuval">
+      <canvas ref="pilTuval" class="pil-grafik" role="img" :aria-label="pl.grafikEtiket"></canvas>
+      <p v-if="pilModDurum === 'yuklenemedi'" class="hata tuval-ust">{{ pl.yuklenemedi }}</p>
+      <p v-else-if="pilModDurum !== 'hazir'" class="tuval-ust">{{ pl.yukleniyor }}</p>
+      <p v-else-if="!(pilBilgi && pilBilgi.var)" class="tuval-ust">{{ pilKaynak === 'satir' && !pilKayitOzet ? pl.egriSatir : pl.egriYok }}</p>
+    </div>
+    <p v-if="pilEksenUyari" class="uyari" data-pil="eksen-uyari">{{ pilEksenUyari }}</p>
+    <p v-else-if="pilMahKarsilastirma" class="ipucu" data-pil="mah-karsilastir">{{ pilMahKarsilastirma }}</p>
+    <p class="ipucu pil-klavye">{{ pl.grafikKlavye }}</p>
+    <div v-if="pilBilgi && pilBilgi.okuma" class="canli-okuma" data-pil="okuma">
+      <div v-for="s in pilBilgi.okuma" :key="s.ad" class="okuma-oge" :class="s.renk ? 'okuma-' + s.renk : ''">
+        <span class="kpi-ad">{{ s.ad }}</span><span class="kpi-deger">{{ s.d }}</span>
       </div>
-      <button @click="pilKesmeGonder" :disabled="!bagli || !pilKesmeGiris">
-        Kesmeyi ayarla</button>
-      <button class="birincil" @click="pilBaslat"
-              :disabled="!bagli || pilDurum === 'CALISIYOR'">Testi başlat</button>
-      <button @click="pilDurdurKomut"
-              :disabled="!bagli || pilDurum !== 'CALISIYOR'">Durdur</button>
-      <button @click="pilCsvIndir" :disabled="!pilNokta.length">CSV indir</button>
+    </div>
+    <p v-if="pilBosluk" class="uyari">
+      ⚠ Kayıtta <b>{{ pilBosluk }} nokta boşluk</b> var — tarayıcı kartın
+      tuttuğu 1.5 saatlik pencereden daha uzun kapalı kaldı. Boşluk
+      eğride kesik, CSV'de işaretli (<code>bosluk</code> sütunu 1); <b>mAh ve Wh toplamları etkilenmedi</b>, çünkü
+      sayaçlar kartta kesintisiz birikiyor. Tam eğri kartın kaydında (Kayıtlar).</p>
+    <div class="satir" style="margin-top:12px">
+      <button v-if="pilBilgi && pilBilgi.okuma" type="button" @click="pilImlecTemizle">{{ pl.imlecSil }}</button>
+      <button type="button" data-pil="kayit-csv" @click="pilKayitCsv" :disabled="!pilKayitOzet">{{ pl.pilCsv }}</button>
+      <button type="button" data-pil="nokta-csv" @click="pilCsvIndir" :disabled="!pilNokta.length">{{ pl.noktaCsv }}</button>
       <!-- WIG: yalnız BU TARAYICININ noktaları (IndexedDB) silinir; kartın PİL oturumu
            Kayıtlar'da kalır. Yine de geri alınamaz: iki aşamalı. -->
       <button v-if="onay !== 'pilSil'" data-onay-ac="pilSil" @click="onayIste('pilSil')"
@@ -1220,41 +1289,66 @@
       </template>
     </div>
     <p v-if="onay === 'pilSil'" class="uyari">Bu tarayıcıdaki pil noktaları silinir (geri gelmez);
-      kartın kaydı Kayıtlar'da kalır. Önce <b>CSV indir</b>'i kullanın.</p>
+      kartın kaydı Kayıtlar'da kalır. Önce <b>{{ pl.noktaCsv }}</b>'ni kullanın.</p>
+  </section>
 
-    <div class="satir" style="margin-top:12px">
-      <div class="kpi"><span class="kpi-ad">Durum</span>
-        <span class="kpi-deger">{{ pilDurumYazi }}</span></div>
-      <div class="kpi"><span class="kpi-ad">Kapasite</span>
-        <span class="kpi-deger">{{ bicim(pilMah, 1) }} mAh</span></div>
-      <div class="kpi"><span class="kpi-ad">Enerji</span>
-        <span class="kpi-deger">{{ bicim(pilWh, 4) }} Wh</span></div>
-      <div class="kpi"><span class="kpi-ad">OCV → şimdi</span>
-        <span class="kpi-deger">{{ bicim(pilOcv, 3) }} → {{ bicim(pilVson, 3) }} V</span></div>
-      <div class="kpi"><span class="kpi-ad">Kesme</span>
-        <span class="kpi-deger">{{ bicim(pilKesme, 2) }} V</span></div>
-      <div class="kpi"><span class="kpi-ad">İç direnç ({{ pilDcirN }} ölçüm)</span>
+  <section class="iki-sutun">
+    <!-- PU10: DCIR tablosu — canlıda yoklamanın gördüğü ölçümler (mAh "≈" yoklama anında),
+         kayıt yüklenince kaydın DCIR olayları -->
+    <div class="kart" data-pil="dcir">
+      <h2>{{ pl.dcir }}</h2>
+      <div class="kpi"><span class="kpi-ad">{{ pilDcirSonYazi }}</span>
         <span class="kpi-deger">{{ pilDcirYazi }}</span></div>
+      <div v-if="pilDcirTablo.length" class="kg-tablo-sarmal">
+        <table class="kg-tablo pil-dcir-tablo">
+          <caption class="gorunmez">{{ pl.dcir }}</caption>
+          <thead><tr><th scope="col">{{ pl.dcirNo }}</th><th scope="col">{{ pl.dcirZaman }}</th>
+            <th scope="col">{{ pl.dcirAni }}</th><th scope="col">{{ pl.dcirOtr }}</th><th scope="col">{{ pl.dcirMah }}</th></tr></thead>
+          <tbody><tr v-for="d in pilDcirTablo" :key="d.no" :class="{ 'pil-gorulmedi': d.gorulmedi }">
+            <td>R{{ d.no }}</td><td>{{ d.zaman }}</td><td>{{ d.rAni }}</td><td>{{ d.rOtr }}</td><td>{{ d.mah }}</td></tr></tbody>
+        </table>
+      </div>
+      <p v-else class="ipucu">{{ pl.dcirYok }}</p>
+      <p v-if="pilDcirGorulmeyen" class="ipucu" data-pil="dcir-gorulmedi">{{ pl.dcirGorulmedi }}</p>
+      <p class="ipucu">{{ pl.dcirIpucu }}</p>
     </div>
 
-    <p v-if="pilHata && pilHata !== '-'" class="hata" role="alert">
-      Pil testi: {{ pilHataYazi }}</p>
-    <!-- B22.2: kart yanıt vermiyorsa SÖYLE. Eskiden 404 sessizce
-         ayrıştırılıp tüm KPI'lar 0 gösteriliyordu. -->
-    <p v-if="pilHataMetni" class="uyari" role="alert">Pil verisi alınamıyor: {{ pilHataMetni }}</p>
-
-    <p v-if="pilBosluk" class="uyari">
-      ⚠ Kayıtta <b>{{ pilBosluk }} nokta boşluk</b> var — tarayıcı kartın
-      tuttuğu 1.5 saatlik pencereden daha uzun kapalı kaldı. Boşluk
-      CSV'de işaretli (<code>bosluk</code> sütunu 1); <b>mAh ve Wh toplamları etkilenmedi</b>, çünkü
-      sayaçlar kartta kesintisiz birikiyor.</p>
-
-    <p class="ipucu" v-if="pilNokta.length">
-      {{ pilNokta.length }} nokta kayıtlı (tarayıcıda, sekme kapansa da
-      durur). İç direnç 1.5 ms sonra ölçülüyor — <b>mutlak DCIR değil</b>,
-      aynı pili tekrar ölçünce <b>karşılaştırılabilir</b> bir sağlık
-      göstergesi.</p>
-
+    <!-- PL5: test parametreleri + başlatma formu. DCIR aralığı kartta DERLEME SABİTİ (komutu
+         yok; PL1 firmware değişmez) — salt okunur (PU5). -->
+    <div class="kart" data-pil="parametre">
+      <h2>{{ pl.parametreler }}</h2>
+      <div class="pil-kpiler">
+        <div class="kpi"><span class="kpi-ad">{{ pl.ocv }}</span><span class="kpi-deger" data-pil="ocv">{{ pilOcvYazi }}</span></div>
+        <div class="kpi"><span class="kpi-ad">{{ pl.kesme }}</span><span class="kpi-deger">{{ pilKesmeYazi }}</span></div>
+        <div class="kpi"><span class="kpi-ad">{{ pl.dcirAralik }}</span><span class="kpi-deger">{{ pilDcirAralikYazi }}</span></div>
+      </div>
+      <p class="ipucu">{{ pl.dcirSabit }}</p>
+      <form v-if="!pilCalisiyor" class="pil-form" data-pil="form" @submit.prevent="pilBaslat">
+        <h3 class="pil-form-baslik">{{ pl.basla }}</h3>
+        <div class="alan">
+          <label for="pil-kesme">{{ pl.kesmeGir }}</label>
+          <input id="pil-kesme" type="text" inputmode="decimal" v-model="pilKesmeGiris" :placeholder="pilKesmeYer"
+                 autocomplete="off" data-pil="kesme">
+        </div>
+        <div class="pil-hazir" role="group" :aria-label="pl.hazir">
+          <button v-for="h in pilHazirKesme" :key="h.v" type="button" data-pil="hazir" @click="pilHazirSec(h.v)">{{ metin(h.ad) }}</button>
+        </div>
+        <div class="alan">
+          <label for="pil-ad">{{ pl.ad }}</label>
+          <input id="pil-ad" type="text" v-model="pilAd" autocomplete="off" data-pil="ad">
+        </div>
+        <p class="ipucu">{{ pl.adIpucu }}</p>
+        <button type="submit" class="birincil" data-pil="baslat" :disabled="!bagli || pilBaslatiliyor"
+                :aria-busy="pilBaslatiliyor ? 'true' : 'false'">{{ pilBaslatiliyor ? pl.baslatiliyor : pl.baslat }}</button>
+      </form>
+      <form v-else-if="pilOturum" class="pil-form" data-pil="ad-form" @submit.prevent="pilAdVer">
+        <div class="alan">
+          <label for="pil-ad-surerken">{{ pl.ad }}</label>
+          <input id="pil-ad-surerken" type="text" v-model="pilAd" autocomplete="off" data-pil="ad-surerken">
+        </div>
+        <button type="submit" :disabled="!bagli || !pilAd.trim()">{{ pl.adGonder }}</button>
+      </form>
+    </div>
   </section>
 
   </main><!-- /pil -->

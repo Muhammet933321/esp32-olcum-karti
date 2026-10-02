@@ -400,9 +400,20 @@ function yCevirici(alan, eks) {
  *           {tur:'nokta', x, y, r, renk, rol, kanal} · {tur:'dikdortgen', x, y, w, h, dolgu?, saydamlik?, kenar?, kalinlik?, rol}
  *           {tur:'yazi', x, y, metin, renk, hiza, taban, rol} · {tur:'kirp', x, y, w, h} · {tur:'kirpBitir'}
  * `renk`/`dolgu`/`kenar` CSS değişkeni ADI (çizici çözer). Sıra: zemin/ızgara → seçim bandı →
- * kanallar (kırpılmış) → gezgin penceresi → imleçler → eksen yazıları.
+ * kanallar (kırpılmış) → gezgin penceresi → olay işaretleri → imleçler → eksen yazıları.
  * @returns {{alan, gezgin, x, eksenler, kanallar: Array<{ad, kip, duzey, eksen}|null>, komutlar}}
  */
+/**
+ * OLAY İŞARETLERİ (3F, karar PL3): `secenek.isaretler = [{ t, metin?, renk? }]` — ana grafikte
+ * x = t'de kesik dikey çizgi (rol 'isaret') + alt köşede kısa etiket. Etiket ÇAĞIRANDAN ve
+ * yalnız simge/numara olmalı (G8: plan dil metni taşımaz; ör. DCIR için "R3"). Sonlu olmayan t
+ * atılır; pencere dışındakiler çizilmez; gezginde çizilmez.
+ */
+export function isaretListesi(secenek) {
+  const l = secenek && Array.isArray(secenek.isaretler) ? secenek.isaretler : [];
+  return l.filter((s) => s && Number.isFinite(s.t));
+}
+
 export function cizimPlani(seriler, durum, boyut, secenek = {}) {
   const p = pencereHesapla(seriler, durum, boyut, secenek);
   const { alan, gezgin } = p;
@@ -507,6 +518,14 @@ export function cizimPlani(seriler, durum, boyut, secenek = {}) {
       dolgu: 'vurgu', saydamlik: 0.12, kenar: 'vurgu', kalinlik: 1.5,
     });
     return plan;
+  }
+
+  for (const s of isaretListesi(secenek)) {
+    if (s.t < x0 || s.t > x1) continue;
+    const x = Math.round(tx(s.t)) + 0.5;
+    const renk = s.renk || 'soluk';
+    komutlar.push({ tur: 'cizgi', rol: 'isaret', renk, kalinlik: 1, desen: [3, 3], noktalar: Float64Array.of(x, alan.y, x, alan.y + alan.h) });
+    if (s.metin) komutlar.push({ tur: 'yazi', rol: 'isaret', x: x + 3, y: alan.y + alan.h - 2, metin: String(s.metin), renk, hiza: 'left', taban: 'bottom' });
   }
 
   for (const [ad, t, desen] of [['A', durum.imlecA, null], ['B', durum.imlecB, [6, 4]]]) {
@@ -1072,7 +1091,8 @@ const OLAYLAR = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'po
  *   g.ciz();    // görünüm (renk) değişince
  *   g.yokEt();
  * secenek: { gezgin, renk(ad), onDegisim(durum, grafik), pencere, kenar, zamanKokeni,
- *            yaziTipi, gerilim, akim, xEksen }
+ *            yaziTipi, gerilim, akim, xEksen, isaretler }   (isaretler: 3F — sonradan
+ *            `g.secenek.isaretler = …; g.ciz()` ile de değişir)
  */
 export class Grafik {
   constructor(canvas, secenek = {}) {
@@ -1130,7 +1150,7 @@ export class Grafik {
 
   _planSecenek() {
     return { gezgin: this.gezgin, kenar: this.secenek.kenar, zamanKokeni: this.secenek.zamanKokeni,
-      xEksen: this.secenek.xEksen };
+      xEksen: this.secenek.xEksen, isaretler: this.secenek.isaretler };
   }
 
   _boyut() {
