@@ -221,6 +221,26 @@
 > push yok. Gerçek kartta eşleştirme web parolasını ister — onu yalnız kullanıcı bilir, kart sınaması
 > da onayla birlikte yapılır.
 
+### ⚠ Kullanıcının vereceği kararlar (öneriyle; 2026-10-02 gece)
+
+1. **ES2 — cihaz anahtarı K tarayıcıda şifresiz.** Çalınan K'nın ne açtığı aşağıda ES2 satırında firmware'den
+   doğrulanmış olarak yazılı (E/Q dışındaki her komut — `Ns` ile parolayı değiştirmek dahil —, kayıt okuma, cihaz
+   silme, `/saat`, `/bildirim/bilgi` üzerinden yalnız-abone MQTT bilgisi + bildirim anahtarı). **Öneri: KABUL.**
+   Gerekçe: bugünkü yol (eşleşmesiz) web parolasını her komutta açık HTTP'den yolluyor; parolayı pasif dinleyen
+   K'nın açtığı her şeyi ve fazlasını (yeni cihaz eşleştirmek) yapar. K'yı çalmak tarayıcı profiline erişim ya
+   da etkin aradaki-adam ister; pasif dinleme yetmez. Yani eşleştirme güvenliği kesin olarak iyileştiriyor.
+   Kabulden sonra: bütün cihazlar eşleşince USB'den `Ns<yeni parola>` (eski parola ağda görülmüş olabilir),
+   istenirse sonra `Ez1`.
+2. **ES3 — parola hiç saklanmaz, tarayıcının parola yöneticisi önerebilir** (`autocomplete="current-password"`).
+   **Öneri: KABUL** (kullanıcı zaten tarayıcıya kaydetmiş olabilir; panel kendi deposuna yazmıyor — T3H2 ölçüyor).
+3. **EU29 — eşleşmiş tarayıcının Canlı açılışı 266 199 B / 15 dosya** (3D sınırı 256 000 B / 12 dosya; eşleşmesiz
+   açılış 209 963 B, sınır içinde). Seçenekler: (a) eşleşmiş tarayıcı için kabul, (b) `kripto.js`'i açılışta
+   inceltmek, (c) `es.*` metinlerini açılış sözlüğünden çıkarıp eşleştirme modülüyle indirmek. **Öneri: (c)** —
+   `#/skop` doğrudan açılışının payını da (bugün 4 647 B) genişletir; ayrı küçük dilim.
+4. **Kart sınaması** (onaydan sonra, kullanıcı parolayı kendisi girer): parolayla eşleştirme, imzalı canlı akış
+   (kartın elle yazılmış SSE yanıtı), eski akışın kart yuvasını ne kadar tuttuğu, telefonda PBKDF2 süresi,
+   eşleşmişken `p0`.
+
 | # | Karar | Gerekçe / yanlışsa maliyeti |
 |---|---|---|
 | ES1 | **Kapsam:** Ayarlar'da yeni bölüm **Eşleştirme** (`#/ayar/eslestirme`): bu tarayıcıyı karta eşleştir (ad + web parolası → `ortak/imza.js` `esles`), eşleşmişse bütün istekler imzalı, kartın cihaz listesi + silme, kartın saatini bu cihazdan ayarlama, "bu tarayıcıyı unut". **Bildirim (MQTT) ayarı panelde YOK** — 1E'de `Q` komutları bilerek yalnız USB; bölüm bunu ve USB yolunu söyler | 1D K1 "paneldeki eşleştirme ekranı (3)"; bildirim parolası ağa hiç çıkmasın (1E) |
