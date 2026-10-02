@@ -658,6 +658,22 @@ def akis_bilinmeyen_oturum() -> tuple[str, bytes]:
     return "bilinmeyen_oturum", bytes(a.b)
 
 
+def akis_surum_nul() -> tuple[str, bytes]:
+    """[1A-1 D] Firmware surumu C dizgisi: ILK NUL'da biter. Alanin NUL'dan sonrasi cop
+    olabilir (eski strncpy/yari yazma); rstrip yalniz SONDAKI NUL'lari atip copu tutuyordu."""
+    r = Rng(0x2A15)
+    a = Akis()
+    b = bytearray(KB.basla_paketle(basla_r(r, KB.OTURUM_OLCUM, 100, surum="A3-1F")))
+    b[20 + 6:20 + 9] = b"xyz"                     # surum alani 20..36: "A3-1F\0xyz\0..."
+    assert KB.basla_coz(bytes(b)).surum == "A3-1F", KB.basla_coz(bytes(b)).surum
+    a.k(KB.T_BASLA, 70, bytes(b))
+    c = bytearray(KB.basla_paketle(basla_r(r, KB.OTURUM_PIL, 1000, surum="A3-1F")))
+    c[20:36] = b"\0" + b"A3" + b"\0" * 13         # bos surum + cop
+    assert KB.basla_coz(bytes(c)).surum == "", KB.basla_coz(bytes(c)).surum
+    a.k(KB.T_BASLA, 71, bytes(c))
+    return "surum_nul", bytes(a.b)
+
+
 # ── flas goruntuleri ─────────────────────────────────────────────────
 def flas_vektorleri() -> list[dict]:
     r = Rng(0x2A0B)
@@ -985,7 +1001,7 @@ def vektorler() -> dict:
     akis = [akis_olcum_v2(), akis_olcum_v1(), akis_basi_eksik(), akis_pil(), akis_ayrinti(),
             akis_skop(), akis_skop_nan(), akis_coklu(), akis_utf8(), akis_ozel_float(),
             akis_rastgele(0x2A10, 70), akis_rastgele(0x2A11, 70)] + akis_bozuklar() + [
-        akis_uzun_kayitlar(), akis_kisa_kayitlar(), akis_bilinmeyen_oturum()]
+        akis_uzun_kayitlar(), akis_kisa_kayitlar(), akis_bilinmeyen_oturum(), akis_surum_nul()]
     crc_v = [{"veri": j(b"123456789"), "onceki": 0, "cikti": KB.crc(b"123456789")},
              {"veri": j(b""), "onceki": 0x12345678, "cikti": KB.crc(b"", 0x12345678)}]
     for _ in range(12):

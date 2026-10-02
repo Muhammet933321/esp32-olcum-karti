@@ -402,8 +402,8 @@ export function baslaPaketle(b) {
 
 /** bytes.rstrip(b"\0").decode("ascii", "replace") */
 function surumCoz(s) {
-  let n = s.length;
-  while (n > 0 && s[n - 1] === 0) n--;
+  let n = s.indexOf(0);                     // C dizgisi: ILK NUL'da biter (sonrasi cop olabilir)
+  if (n < 0) n = s.length;
   let m = "";
   for (let i = 0; i < n; i++) m += s[i] < 0x80 ? String.fromCharCode(s[i]) : "\ufffd";
   return m;

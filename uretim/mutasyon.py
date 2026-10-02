@@ -3129,6 +3129,14 @@ MUTASYONLAR = [
     ("B72", "test_kayit_esp.py", "kopru/imza.py",
      "            for deneme in range(50):", "            for deneme in range(1):",
      "1D #16: Windows'ta hedef o an yer degistirirken PermissionError yeniden denenmezse: I8c kirmizi"),
+    # ── [1A-1 D] (2026-10-02): firmware surumu ilk NUL'da kesilir (Python + JS)
+    ("B73", "test_ortak.py", "kopru/kayit_bicim.py",
+     'surum.split(b"\\0", 1)[0].decode("ascii", "replace")',
+     'surum.rstrip(b"\\0").decode("ascii", "replace")',
+     "SURUM-NUL: Python surumu yalniz sondaki NUL'dan kirparsa NUL sonrasi cop surume girer: B73 kirmizi"),
+    ("B73", "test_ortak.py", "ortak/src/kayit.js",
+     "  let n = s.indexOf(0);", "  let n = s.lastIndexOf(0) + 1 || s.length;",
+     "SURUM-NUL: JS surumu ilk NUL'da kesmezse capraz vektor kirmizi"),
 ]
 
 

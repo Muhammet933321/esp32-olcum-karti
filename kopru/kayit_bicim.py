@@ -278,7 +278,7 @@ def basla_coz(y: bytes) -> Basla:
     tur, kb, bs, hiz, unix, kms, acilis, surum = _BASLA_BAS.unpack_from(y, 0)
     kal_no = struct.unpack_from("<I", y, BASLA_V1_BAYT)[0] if len(y) >= BASLA_BAYT else 0
     return Basla(tur, kb, hiz, unix, kms, acilis,
-                 surum.rstrip(b"\0").decode("ascii", "replace"),
+                 surum.split(b"\0", 1)[0].decode("ascii", "replace"),   # C dizgisi: ilk NUL
                  kal_coz(y, _BASLA_BAS.size), bs, kal_no)
 
 
