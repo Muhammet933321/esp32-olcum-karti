@@ -4295,6 +4295,12 @@ MUTASYONLAR = [
     ('B73', 'test_ortak.py', 'ortak/src/sozluk_es.js', '  "es.baslik": S(', '  "es.olu_anahtar": S("ölü", "dead"),\n  "es.baslik": S(', "3H2: sozluk_es.js'te kullanilmayan anahtar (EU30)"),
     ('B73', 'test_ortak.py', 'ortak/src/sozluk_es.js', '    ? sozluktenCeviri(SOZLUK_ES, a, dil, degiskenler) : ceviri(a, dil, degiskenler);', '    ? sozluktenCeviri(SOZLUK_ES, a, dil, degiskenler) : a;', "3H2: ceviriEs acilis sozlugune dusmez — ekranda ay.yenile / kl.vazgec ham anahtar yazar (EU30)"),
     ('B73', 'test_ortak.py', 'arayuz3/ekran/eslesme_ekran.js', "import { ceviriEs } from '/ortak/sozluk_es.js';", "import { ceviri as ceviriEs } from '/ortak/sozluk.js';", "3H2: Eslestirme ekrani metinlerini acilis sozlugunde arar — her metin ham anahtar (EU30)"),
+    ('B7', 'test_arayuz3.js', 'uretim/test_arayuz3.js', '      const ES_ACILIS_TAVAN = 262144;', '      const ES_ACILIS_TAVAN = 256000;',
+     "3H2: eslesmis acilis tavani bugunku boyun altina inerse iddia kirmizi olmali (EU31 gercekten olcuyor)"),
+    ('B7', 'test_arayuz3.js', 'uretim/test_arayuz3.js', '      const ES_ACILIS_DOSYA = 15;', '      const ES_ACILIS_DOSYA = 14;',
+     "3H2: eslesmis acilis dosya tavani bugunku sayinin altina inerse kirmizi (EU31)"),
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/eslesme.js', "\nimport {\n", "\nimport { sozluktenCeviri } from '/ortak/sozluk.js';\nimport {\n",
+     "3H2: istemci acilis sozlugunu (yaklasik 30 KB) ice aktarirsa eslesmis acilis tavani asilir / zincir iddiasi kirmizi (EU31)"),
 ]
 
 

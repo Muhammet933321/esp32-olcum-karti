@@ -7261,9 +7261,14 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
       ok('[!] EU30: ESLESMIS tarayicinin Canli ile acilisi (acilis kumesi + Canli zinciri + istemci zinciri) Eslestirme EKRANINI ve metinlerini (eslesme_ekran.js, sozluk_es.js) ICERMEZ',
          esZ.length > 0 && esZ.includes('ekran/eslesme.js') && !hepsi.has('ekran/eslesme_ekran.js') && !hepsi.has('ortak/sozluk_es.js'),
          [...hepsi].filter((x) => /eslesme|sozluk|imza|kripto/.test(x)).join(' '));
-      /* Bilgi (iddia DEGIL — yukaridaki aciklama): boyut ve dosya sayisi 3D sinirlarina gore */
-      console.log(`     EU30 (bilgi, iddia DEGIL): ESLESMIS tarayicida Canli ile acilis: ${a0} + ${c0} + ${e0} = ${toplam} B gzip `
-        + `(%${(100 * toplam / 256000).toFixed(1)} / 3D siniri 256000 B), ${acK.size} + ${new Set(canliZ).size} + ${new Set(esZ).size} = ${hepsi.size} dosya (3D siniri 12)`);
+      /* EU31 (karar, kullanicinin devriyle 2026-10-03): eslesmis acilisin 3D sinirini ~1 KB / 3 dosya asmasi
+         ESLESMIS TARAYICIYA OZGU istisna olarak kabul — kalan farki kapatmak kripto.js'i bolmeyi ister,
+         %0.4'luk asim icin orantisiz. Ama sessizce buyumesin: AYRI tavan 262 144 B (256 KiB) / 15 dosya. */
+      const ES_ACILIS_TAVAN = 262144;
+      const ES_ACILIS_DOSYA = 15;
+      ok('[!] EU31: ESLESMIS tarayicinin Canli ile acilisi <= 262 144 B gzip ve <= 15 dosya (3D sinirinin eslesmis istisnasi; buyume kilitli)',
+         toplam > 0 && toplam <= ES_ACILIS_TAVAN && hepsi.size <= ES_ACILIS_DOSYA,
+         `${a0} + ${c0} + ${e0} = ${toplam} B (%${(100 * toplam / 256000).toFixed(1)} / 3D 256000), ${hepsi.size} dosya`);
     }
   }
 }
