@@ -1,7 +1,7 @@
 {
   "kaynak": {
     "index.html": "a796192e48be40b135d9e9a0f0ef2836040a4eb67ffc57aac1ee33d745221733",
-    "app.js": "a235cceaae31b979735674428e4a3951092a3b20b29e40f34b7c21c37f66fb28",
+    "app.js": "577cd15da9002611f7df5ac7849e9266cd4cbccc2ad017eddb051a267a2fc956",
     "style.css": "03168f3957315eab4e89c47ddf3079761157d73ab5f2c0c9c8734509c3891611",
     "vendor/vue.global.prod.js": "220ffd8a70f6161104efbf08802375364d9e4579f2552ba412cf80437f1692fe",
     "manifest.json": "783666c88eeb14cd82282e7ccb8baef9a395e6371bc216cf14d7b0e7268898f5",
@@ -31,7 +31,7 @@
     "ortak/sozluk.js": "742513d3281f9eede48ae47b49c8d51370fe9c3183bbae7e43a065823b559a6b",
     "ortak/zarf.js": "bd91be6fade85e82be49b8cdbccf447e4997c7949c561eff5559830fbe5f67c4"
   },
-  "panel_surum": "d20ccfba55ce",
+  "panel_surum": "e88cdb45da32",
   "gz": [
     "index.html",
     "app.js",
@@ -66,10 +66,10 @@
   ],
   "ofset": "0x310000",
   "bolum_boyut": 1572864,
-  "icerik_bayt": 381528,
+  "icerik_bayt": 382072,
   "bayt": {
     "index.html": 25404,
-    "app.js": 75678,
+    "app.js": 76222,
     "style.css": 14731,
     "vendor/vue.global.prod.js": 58361,
     "manifest.json": 210,
