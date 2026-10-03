@@ -10673,6 +10673,56 @@ bayrağı yok · D5 #15/#17/#18/#19 ve #8 hâlâ açık · E3 için PC/panel ara
 
 ---
 
+#### 5.12.104 🟢 W5 KART TEZGAHI: T7 · T8 · E7 (2026-10-03, dal `w5-tezgah`)
+
+Ajan, gerçek kartta (COM6, A3-4B, ADS takılı değil). Push yok. Kart ayarına dokunulmadı: yalnız
+`G?`, `Gb`, `Gd`, `Gp…`, `Gt…`, `Ga` ve `Q?` (salt okunur). Eşitleme ONAYSIZ: kartta onay ilerlemedi,
+köprü kayıtları sonra kendi arşivine alır.
+
+- **T7 — `tezgah_kayit.py --plan-elle` 3/3.** Plan sürerken `Gd`, ardından `Gb200` iki zamanlamayla
+  denendi: 3 s arayla ve aynı anda. İkisinde de `Gd` planın oturumunu kapattı (GP 3, plan oturumuyla).
+  `Gb` yeni bir oturum açtı ve bu kayıt planın bitişinden 10 s sonra hâlâ sürüyordu. Kayıt yalnız
+  `Gd` ile kapandı (sebep 1), içinde PLAN olayı yok. Ek senaryo: skop günlüğü (SKOP oturumu)
+  sürerken planın başlangıcı geldi. Plan atlandı (GP 4), günlük bölünmedi. "DOLU'da oturumsuz pil testi + plan"
+  kartta denenemez: `p1` ister (ADS ve yük yok, `p1` reddedilir — T5) ve ~1.6 sa doldurma ister. Bu
+  durum AVR'de (B71.R) ve F70'te sınanıyor.
+- **T8 — `--skop-olcum` 1/1.** `Gb200` sürerken `Gt2000` (9 yakalama), `Gtd`, 8 s sonra AYNI oturumda
+  `Gt3000` (8 yakalama), `Gtd`, `Gd`. Sonuç: tek ÖLÇÜM oturumu, iki parti, ortanca aralıklar 2002 ve
+  3003 ms. Yakalama numaraları 1–17 tekrarsız ve artan (`Gt` sıfırlamıyor). İki `SKOP_KAL` olayı var,
+  269 nokta kesintisiz, hepsi S3B'ye çevriliyor. İki `Gtd` de ölçümü kapatmadı. Gözlem (Y7 ile ilgili):
+  yakalama sırasında 200 ms'lik noktalar arasında en büyük boşluk **423 ms** — yakalama ölçümde
+  boşluk bırakıyor, NOKTA'da bayrağı yok.
+- **E7 — `tezgah_bildirim.py --basladi N` (gerçek aracı EMQX, PC'nin 4E önbelleğiyle abone, karta
+  imzalı istek yok).** Her sıfırlamadan hemen önce `Q? olay` okundu: bu sayaç o açılışta PUBACK'i
+  alınmış olay sayısıdır, `basladi` her zaman ilk olaydır. Sonuçlar:
+  - `--kip bagli` (ilk koşunun zamanlaması: bağlanınca 0–3 s): **15/16 ulaştı.** Tek kayıpta kart
+    "bağlı" görünüyordu ama `olay=0 kuyruk=1` idi.
+  - `--kip rastgele` (afişten 2–15 s sonra): 8/16 ulaştı. 8 kaybın hepsi `olay=0`'dı.
+
+  Toplam 32 açılışta PUBACK alınmış **23/23 `basladi` aboneye ulaştı**, aracıda kayıp **0**. Bütün
+  kayıplar kartta. Sıfırlama, olay RAM kuyruğundayken ya da uçuştayken geldi. Bağlantı kurulduktan
+  sonra birkaç saniye bu pencere açık kalabiliyor. Bu, E4'ün bilinçli kararı (kalıcı kuyruk yok).
+  Abone kesintisizdi; açılış numaraları sıfırlamalarla birebir eşleşti (a0 + 16).
+- **Yan gözlem (E6):** `QY dahili_en_az` 3 ayrı sıfırlamada 59.5, 61.7 ve 42.8 KB çıktı; 42.8 KB
+  bağlandıktan sonra düştü. E7'nin son açılışında 20.7 KB görüldü; o açılışta yalnız `Q?`/`G?` gitti,
+  köprü kapalıydı. E6'nın "54–60 KB" değeri iyimser kalıyor. Nedeni ayrılmadı; ayrıntı
+  `1-acik-isler.md` E6'da.
+- Çevrimdışı ölçü aleti denetimleri: B72.TZ1–TZ4 (`test_kayit_esp.py`, B72 207 → 211) ve
+  test_bildirim E7.1–E7.7. Bunlara 20 mutasyon (`W5:`) eklendi.
+- **İnceleme düzeltmesi (2026-10-04, 5.12.104a):** iki bulgu kapandı.
+  1. TZ4 yalnız `plan_elle`…`_ham_istek` kaynak dilimine bakıyordu. `esitle_onaysiz`'in gövdesi bu
+     dilimin dışında kalıyordu: imzalı yolda Esitleyici'ye `onay=KE.imzali_onay(...)` verilse TZ4 yine
+     yeşildi, kartta `Go` gider, köprü arşivi kayıt kaçırırdı. Yeni **TZ5** gövdeyi davranışla sınıyor:
+     sahte Esitleyici, düz ve 401 (imzalı) yolda `onay`/`istek` hep `None`.
+  2. Akış kimliği değişince ya da sıra GERİ gidince `esitle_onaysiz` verilen `--dizin`'i
+     `shutil.rmtree` ile siliyordu; köprü arşivi verilirse veri kaybolurdu. Artık yalnız tezgahın kendi
+     `VARSAYILAN_DIZIN`'i (`%TEMP%\olcum-tezgah-w5`) baştan kuruluyor. Kullanıcı dizininde Esitleyici'nin
+     hatası "SİLİNMEDİ, yeni --dizin ver" ekiyle geçiyor; yardım metni köprü arşivini vermemeyi söylüyor.
+     Bunu **TZ6** sınıyor.
+  B72 211 → 213; 4 yeni `W5:` mutasyonu (yorumcunun mutasyonu birebir dahil).
+
+---
+
 #### 5.12.99 🟢 HIZ ↔ main BİRLEŞMESİ (2026-10-03, dal `zincir-hiz`, ağaç `projeler/olcum-karti-hiz`)
 
 Ajan. `main` (e6e086d: 4D–4J, 3C-LISTE, kılavuz, `gercek_dizin_koru` son kuralı, köprü 405) `zincir-hiz`'e

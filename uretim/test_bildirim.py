@@ -1971,6 +1971,63 @@ def bolum_4e_iplik_birim() -> None:
        "yeniden denenecek" and "baska.ad" not in "".join(durumlar), durumlar[-1])
 
 
+def bolum_e7() -> None:
+    """E7 (W5): `tezgah_bildirim.py --basladi`'nin olcu aleti — kayip kartta mi aracida mi."""
+    print("\n-- E7: basladi kaybi siniflandirici (tezgah_bildirim) --")
+    import re
+    import pc_ayar
+    import tezgah_bildirim as TB
+    oz = "ok/" + ONEK + "/olay"
+
+    def m(a, o="basladi", konu=oz, icerik=True):
+        return {"konu": konu, "icerik": ({"o": o, "a": a, "n": 1} if icerik else None)}
+    gelen = TB.basladi_gelenler([m(11), m(12, o="kayit_bitti"), m(13, konu="ok/" + ONEK + "/durum"),
+                                 m(14, icerik=False), m(15), m(15)], oz)
+    ok("E7.1 basladi_gelenler: yalniz olay konusundaki COZULMUS basladi (durum/baska olay/cozulemeyen "
+       "disarida), tekrar korunur", gelen == [11, 15, 15], str(gelen))
+    q1, q0 = {"olay": 1, "kuyruk": 0}, {"olay": 0, "kuyruk": 1}
+    s = TB.basladi_siniflandir(10, [q1, q0, q1, None, q0], [11, 14, 15, 10, 99], 15)
+    ok("E7.2 siniflar: acilis a0+i; gelen -> ulasti (Q? olay 0 olsa da: PUBACK Q?'den SONRA geldi); "
+       "gelmeyen + olay 0 -> kartta_kaldi; gelmeyen + olay >= 1 -> aracida_kayip; Q? yok -> belirsiz",
+       s == [(11, "ulasti"), (12, "kartta_kaldi"), (13, "aracida_kayip"), (14, "ulasti"), (15, "ulasti")]
+       and TB.basladi_siniflandir(10, [None], [], 11) == [(11, "belirsiz")], str(s))
+    ok("E7.3 acilis numaralari sifirlamalarla eslesmiyorsa (son_a != a0 + n) HEPSI belirsiz — "
+       "kayip 'aracida' diye yanlis yazilmaz",
+       TB.basladi_siniflandir(10, [q1, q1], [11], 13) == [(11, "belirsiz"), (12, "belirsiz")])
+    k = TB.basladi_karar
+    ok("E7.4 karar: kayip yok / kartta / aracida / ikisinde / belirsiz",
+       [k([(1, "ulasti")]), k([(1, "ulasti"), (2, "kartta_kaldi")]), k([(1, "aracida_kayip")]),
+        k([(1, "kartta_kaldi"), (2, "aracida_kayip")]), k([(1, "ulasti"), (2, "belirsiz")]), k([])]
+       == ["kayip yok", "kayip kartta", "kayip aracida", "kayip ikisinde", "belirsiz", "belirsiz"])
+    # pc_bilgi_onbellek: PC'nin 4E onbellegini YALNIZ OKUR (guard: gecici dizinler)
+    cdiz, vdiz = pc_ayar.cihaz_dizini(), pc_ayar.veri_dizini()
+    imza.Cihaz(cdiz / f"{KIMLIK}.json", KIMLIK, CIHAZ_N, K_CIHAZ, "e7-sinama", 0, "").kaydet()
+    (vdiz / "bildirim").mkdir(parents=True, exist_ok=True)
+    (vdiz / "bildirim" / f"{KIMLIK}.okb").write_bytes(bilgi_govde(IYI_BILGI))
+
+    def dokum():
+        return sorted((str(p), p.stat().st_mtime_ns, p.stat().st_size)
+                      for kok in (cdiz, vdiz) for p in kok.rglob("*") if p.is_file())
+    once = dokum()
+    b = TB.pc_bilgi_onbellek()
+    ok("E7.5 pc_bilgi_onbellek PC'nin sifreli onbellegini cozer (cihaz anahtari) ve HICBIR dosyaya "
+       "yazmaz (cihaz sayaci dahil)",
+       bool(b) and b["onek"] == ONEK and b["kullanici"] == "cihaz" and dokum() == once,
+       f"{bool(b)} degisti={dokum() != once}")
+    (vdiz / "bildirim" / f"{KIMLIK}.okb").unlink()
+    (cdiz / f"{KIMLIK}.json").unlink()
+    ok("E7.6 onbellek yoksa None (tezgah 'kopruyu bir kez calistirin' der, karta istek ATMAZ)",
+       TB.pc_bilgi_onbellek() is None)
+    src = (BURASI / "tezgah_bildirim.py").read_text(encoding="utf-8")
+    g = src[src.find("def basladi_kaybi("):src.find("# ── tezgah ──")]
+    ana = src[src.find("    if a.basladi:"):src.find("    t = Tezgah(")]
+    ok("E7.7 --basladi kartin bildirim ayarina DOKUNMAZ: yalniz Q? okunur (Q komutu yazilmaz, Tezgah "
+       "akisi ve temizligi KURULMAZ), karta imzali istek yok",
+       bool(g) and "q_ayar(" not in g and "imzali(" not in g and "IM.ac(" not in g
+       and not re.search(r'yaz\(\s*f?"Q(?!\?)', g) and "Tezgah(" not in ana and ".temizlik(" not in ana
+       and "return" in ana)
+
+
 def bolum_4e() -> None:
     bolum_4e_metin()
     bolum_4e_mantik()
@@ -1996,6 +2053,7 @@ def main() -> int:
     bolum_dinleyici()
     bolum_sahte_araci()
     bolum_4e()
+    bolum_e7()
     gercek_dizin_koru.denetle(_KORUMA, ok)
     print(f"\n{gecti}/{gecti + kaldi} dogrulama gecti")
     return 0 if kaldi == 0 else 1

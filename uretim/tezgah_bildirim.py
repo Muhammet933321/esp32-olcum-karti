@@ -4,6 +4,9 @@
     python tezgah_bildirim.py --liste                  planlanan denetimleri yazar, DONANIMA DOKUNMAZ
     python tezgah_bildirim.py                          tam akis (= --bildirim); sifirlama tekrari 3
     python tezgah_bildirim.py --tekrar 10              vasiyet olcumu icin 10 RTS sifirlamasi
+    python tezgah_bildirim.py --basladi 16 [--kip bagli|rastgele]
+                                                       E7 (W5): GERCEK aracida `basladi` kaybi kartta mi
+                                                       aracida mi (Q? olay sayaci; ayara DOKUNMAZ)
     secenekler: --port COM6  --http olcum.local  --ip <PC'nin LAN IP'si>  --ustune-yaz
 
 Hicbir kullanici sirri GEREKMEZ: araci kimlik bilgileri her kosuda RASTGELE uretilir, kartin
@@ -27,6 +30,8 @@ Tasarim: tasarim/2026-10-01-1e-mqtt-bildirim.md (K1-K12). Kart: kod/olcum-karti-
 from __future__ import annotations
 
 import argparse
+import collections
+import random
 import re
 import secrets
 import socket
@@ -323,6 +328,140 @@ class Dinleyici(threading.Thread):
     def liste(self) -> list[dict]:
         with self.kilit:
             return list(self.mesajlar)
+
+
+# ── E7 (W5, 2026-10-03): `basladi` kaybi kartta mi aracida mi ──────────────────────────
+# GERCEK araci, kartin bildirim ayarina DOKUNMAZ (yalniz `Q?` okunur, Q komutu YAZILMAZ). Abone:
+# PC'nin 4E onbellegindeki sifreli bilgi zarfi (<veri>\bildirim\<kimlik>.okb, cihaz anahtari
+# DPAPI'de) YALNIZ OKUNUR — karta imzali istek gitmez, cihaz sayaci degismez, hicbir sey yazilmaz.
+# Ayirt edici olcu: kartin `Q? olay` sayaci = BU ACILISTA araciya ulasip PUBACK'i alinmis olay
+# sayisi (RAM, acilista 0). `basladi` her acilisin ILK olayi ve kuyruk FIFO (bildirim.h) ->
+# sifirlamadan hemen once olay >= 1 ise `basladi` ARACIDA onaylanmistir.
+def basladi_gelenler(mesajlar: list[dict], olay_konu: str) -> list[int]:
+    """Abonenin cozdugu mesajlardan `basladi` olaylarinin acilis numaralari (sirasiyla, tekrar dahil)."""
+    return [m["icerik"]["a"] for m in mesajlar
+            if m.get("konu") == olay_konu and isinstance(m.get("icerik"), dict)
+            and m["icerik"].get("o") == "basladi" and isinstance(m["icerik"].get("a"), int)]
+
+
+def basladi_siniflandir(a0: int, onyoklama: list, gelen: list[int],
+                        son_a: int | None = None) -> list[tuple[int, str]]:
+    """SAF. `a0`: ilk sifirlamadan ONCEKI acilis; `onyoklama[i]`: (a0 + 1 + i). acilista bir sonraki
+    sifirlamadan HEMEN ONCE (son acilista beklemeden sonra) okunan `Q?` sozlugu (None = okunamadi);
+    `gelen`: abonenin gordugu `basladi` acilislari; `son_a`: kosu sonunda retained durumun acilisi
+    (a0 + len(onyoklama) olmali: her sifirlama TAM bir acilis). Siniflar:
+      ulasti         abone gordu
+      kartta_kaldi   gormedi; kart o acilista HICBIR olayin PUBACK'ini almadi (olay 0) — olay RAM
+                     kuyrugunda / ucustayken sifirlandi (E4: kalici kuyruk bilincli olarak yok)
+      aracida_kayip  gormedi; kart PUBACK aldi (olay >= 1) — araci onayladi ama aboneye ulastirmadi
+      belirsiz       Q? okunamadi ya da acilis numaralari sifirlamalarla eslesmiyor"""
+    tutarli = son_a is None or son_a == a0 + len(onyoklama)
+    gk = set(gelen)
+    out = []
+    for i, q in enumerate(onyoklama, 1):
+        a = a0 + i
+        if not tutarli or (a not in gk and (not isinstance(q, dict) or not isinstance(q.get("olay"), int))):
+            s = "belirsiz"
+        elif a in gk:
+            s = "ulasti"
+        elif q["olay"] >= 1:
+            s = "aracida_kayip"
+        else:
+            s = "kartta_kaldi"
+        out.append((a, s))
+    return out
+
+
+def basladi_karar(siniflar: list[tuple[int, str]]) -> str:
+    """'kayip yok' | 'kayip kartta' | 'kayip aracida' | 'kayip ikisinde' | 'belirsiz'."""
+    say = collections.Counter(s for _, s in siniflar)
+    if say.get("belirsiz") or not siniflar:
+        return "belirsiz"
+    kart, araci = say.get("kartta_kaldi", 0), say.get("aracida_kayip", 0)
+    if kart and araci:
+        return "kayip ikisinde"
+    return "kayip kartta" if kart else ("kayip aracida" if araci else "kayip yok")
+
+
+def pc_bilgi_onbellek() -> dict | None:
+    """PC'nin 4E onbelleginden cozulmus bildirim bilgisi (YALNIZ BELLEKTE; ekrana basilmaz)."""
+    _moduller()
+    import types
+    import pc_bildirim
+    return pc_bildirim.PcBildirim(None, types.SimpleNamespace(cikis=None))._onbellekten()
+
+
+def _q_bekle(k, kosul, sn: float) -> dict | None:
+    son, q = time.monotonic() + sn, None
+    while time.monotonic() < son:
+        q = q_oku(k, 3.0)
+        if q and kosul(q):
+            return q
+        k.satir_oku(0.5)
+    return q
+
+
+def basladi_kaybi(k, n: int, kip: str = "bagli", tohum: int = 7) -> str:
+    """E7: n RTS sifirlamasi; her birinden HEMEN ONCE `Q?` (olay/kuyruk/durum) kaydedilir, abone her
+    `basladi`yi bekler. kip 'bagli': kart araciya baglanir baglanmaz (Q? durum 4) + 0..3 s — ilk
+    gercek araci kosusunun (E1 dongusu) zamanlamasi; 'rastgele': afisten 2..15 s sonra."""
+    _moduller()
+    bilgi = pc_bilgi_onbellek()
+    if not bilgi:
+        raise Iptal("PC'nin bildirim onbellegi yok ya da cozulemiyor — kopruyu bir kez calistirin (4E)")
+    olay_konu, durum_konu = f"ok/{bilgi['onek']}/olay", f"ok/{bilgi['onek']}/durum"
+    din = Dinleyici(bilgi)
+    din.start()
+    try:
+        if not din.bagli.wait(30):
+            raise Iptal(f"araciya abone olunamadi ({din.hatalar[-1:] or '-'})")
+
+        def son_durum_a():
+            d = [m["icerik"] for m in din.liste() if m["konu"] == durum_konu and m["icerik"]
+                 and m["icerik"].get("c") == 1 and isinstance(m["icerik"].get("a"), int)]
+            return d[-1]["a"] if d else None
+        q0 = _q_bekle(k, lambda q: q.get("durum") == 4, 60)
+        son = time.monotonic() + 20
+        while son_durum_a() is None and time.monotonic() < son:
+            k.satir_oku(0.3)
+        a0 = son_durum_a()
+        if a0 is None or not q0 or q0.get("durum") != 4:
+            raise Iptal(f"baslangic: retained durum yok ya da kart bagli degil (Q? durum {q0 and q0.get('durum')})")
+        print(f"\n── E7: {n} RTS sifirlamasi (kip {kip}); baslangic acilisi a0, kart bagli")
+        rng = random.Random(tohum)
+        onyok: list = []
+        for i in range(1, n + 1):
+            k.sifirla()
+            acildi = yeni_acilis(k, 30)
+            if kip == "bagli":
+                _q_bekle(k, lambda q: q.get("durum") == 4, 60)
+                seri_bosalt(k, rng.uniform(0.0, 3.0))
+            else:
+                seri_bosalt(k, rng.uniform(2.0, 15.0))
+            q = q_oku(k, 3.0) if i < n else _q_bekle(k, lambda q: q.get("olay", 0) >= 1, 90)
+            onyok.append(q)
+            print(f"  {i:2d}/{n}: afis={'var' if acildi else 'YOK'}  Q? durum={q and q.get('durum')} "
+                  f"olay={q and q.get('olay')} kuyruk={q and q.get('kuyruk')} baglanti={q and q.get('baglanti')}"
+                  f"  abone basladi={len(basladi_gelenler(din.liste(), olay_konu))}")
+        seri_bosalt(k, 8.0)
+        son_a = son_durum_a()
+        gelen = basladi_gelenler(din.liste(), olay_konu)
+        sinif = basladi_siniflandir(a0, onyok, gelen, son_a)
+        karar = basladi_karar(sinif)
+        say = collections.Counter(s for _, s in sinif)
+        print(f"  siniflar {say}; abone yeniden baglanma {din.baglanma_sayisi - 1}; karar: {karar}")
+        for (a, s), q in zip(sinif, onyok):
+            if s != "ulasti":
+                print(f"    acilis a0+{a - a0}: {s} (Q? durum={q and q.get('durum')} olay={q and q.get('olay')} "
+                      f"kuyruk={q and q.get('kuyruk')})")
+        ok(f"E7: her sifirlama tek acilis (retained durum a = a0 + {n}) ve abone kesintisiz",
+           son_a == a0 + n and din.baglanma_sayisi == 1, f"son_a-a0={None if son_a is None else son_a - a0}, "
+           f"abone baglanma {din.baglanma_sayisi}")
+        ok("E7: PUBACK'i alinmis (Q? olay >= 1) her `basladi` aboneye ULASTI (aracida kayip yok)",
+           karar in ("kayip yok", "kayip kartta"), karar)
+        return karar
+    finally:
+        din.dur.set()
 
 
 # ── tezgah ───────────────────────────────────────────────────────────────
@@ -781,6 +920,10 @@ def main(argv=None) -> int:
     ap.add_argument("--http", default="olcum.local")
     ap.add_argument("--ip", default=None, help="PC'nin karta erisilebilir IP'si (otomatik bulunamazsa)")
     ap.add_argument("--ustune-yaz", action="store_true", help="kartta var olan bildirim ayarini silmeyi kabul et")
+    ap.add_argument("--basladi", type=int, default=0,
+                    help="E7: GERCEK araci, N RTS sifirlamasi; basladi kaybi kartta mi aracida mi "
+                         "(kartin ayarina dokunmaz, PC'nin 4E onbellegini okur)")
+    ap.add_argument("--kip", choices=("bagli", "rastgele"), default="bagli", help="E7 sifirlama zamanlamasi")
     a = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -795,6 +938,17 @@ def main(argv=None) -> int:
         print(f"HATA: {h}")
         return 2
     time.sleep(1.0)
+    if a.basladi:
+        # E7: Tezgah AKISI KURULMAZ (o kartin bildirim ayarini yazar ve temizlikte siler)
+        try:
+            basladi_kaybi(SeriYakala(ham), a.basladi, a.kip)
+        except Iptal as h:
+            print(f"\nDURDU: {h}")
+            return 2
+        finally:
+            ham.kapat()
+        print(f"\n{gecti}/{gecti + kaldi} tezgah denetimi gecti")
+        return 0 if kaldi == 0 else 1
     t = Tezgah(SeriYakala(ham), a.http, a.tekrar, a.ip, a.ustune_yaz)
     sonuc = 0
     try:
