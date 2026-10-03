@@ -1,9 +1,15 @@
 # -*- coding: utf-8 -*-
 """MUTASYON KOSUCUSU — "yesil test bir sey kanitlamaz"i olculebilir kilar.
 
-    python mutasyon.py                 butun mutasyonlar
+    python mutasyon.py                 butun mutasyonlar (AGIR haric)
     python mutasyon.py --adim B22b     yalnizca o adimin mutasyonlari
+    python mutasyon.py --neden 4D      yalnizca nedeni "4D" ile BASLAYANLAR
+    python mutasyon.py --paralel 4     4 isci (varsayilan min(4, cekirdek-2); 1 = sirali)
     python mutasyon.py --liste         ne kosacagini yazar, kosmaz
+
+HIZ (2026-10-03): isciler KENDI kopyasinda + KENDI TMP/TEMP/LOCALAPPDATA'sinda
+kosar; dogrula3.py ile ayni anda kosabilir (test_zincir_hiz.py A3). Ayrinti
+`Isci` sinifinda ve DEVIR 5.12.91.
 
 Bu projenin altin kurali: bir iddia, onu YALANLAYAN bir degisiklikle
 kirmiziya donmuyorsa BOSTUR. Simdiye kadar her mutasyon ELLE yapildi ve
@@ -45,7 +51,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import sayim                                            # noqa: E402
 
-sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
 
 BURASI = Path(__file__).parent
 KOK = BURASI.parent
@@ -59,7 +65,10 @@ KOK = BURASI.parent
 #    dosya; dislamaya degmiyor. Ders: "eski asamalar" diye isaretlenmis
 #    bir dizin, guncel uretecin bagimliligi olabilir.
 ATLA = {"BELGELER", "__pycache__", ".git", "build"}
-ATLA_DOSYA = {"DEVIR.md"}
+# HIZ: `.zincir_onbellek.json` (artimli zincirin onbellegi) KOPYALANMAZ — kopyada
+# B3/B23 mutasyonlari dogrula3.py kosuyor; asil agacin onbellegi orada gecerli
+# olsaydi (kok yolu ayrica denetleniyor) mutasyonlu adim onbellekten YESIL gelirdi.
+ATLA_DOSYA = {"DEVIR.md", ".zincir_onbellek.json"}
 
 
 # ── Mutasyon tanimlari ────────────────────────────────────────────────
@@ -6160,10 +6169,215 @@ MUTASYONLAR = [
      "4C: kayit arsivi calisma agacina duser (PC5)"),
     ("B22a", "test_kopru.py", "kopru/pc_ayar.py",
      '    return veri_dizini() / "satir"', '    return Path(__file__).resolve().parent / "arsiv"',
-     "4C: .satir gunlugu calisma agacinda kalir (PC5)"),]
+     "4C: .satir gunlugu calisma agacinda kalir (PC5)"),
+    # ── HIZ (2026-10-03): paralel mutasyon kosucusu + artimli zincir (test_zincir_hiz.py)
+    # python mutasyon.py --neden HIZ --paralel 4
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '        for k in ("TMP", "TEMP", "TMPDIR'
+     '"):\n            self.ortam[k] = str(tmp)',
+     '        for k in ():\n            self.ortam[k] = str(tmp)',
+     "HIZ: isci ozel TEMP kurmaz -> adim ortak TEMP'te, suepurme dizinini siler: A2 + A3 kirmizi"),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '        self.ortam["LOC'
+     'ALAPPDATA"] = str(yerel)',
+     '        pass',
+     'HIZ: isci ozel LOCALAPPDATA kurmaz (gercek_dizin_koru esanli iscide sahte YAKALANDI): A2 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '                    if not _baglanti'
+     '_kur(yerel / ad, Path(gercek) / ad):',
+     '                    if False:',
+     "HIZ: ozel LOCALAPPDATA'da Arduino15 junction'i kurulmaz -> derleyen adimlar tabanda kirmizi: A2 kirmizi"),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '                    os.rmdir(g.path) if os'
+     '.path.isdir(g.path) else os.unlink(g.path)',
+     '                    [os.unlink(x.path) for x in os.scandir(g.path)]; os.rmdir(g.path)',
+     "HIZ: temizlik junction'i IZLER ve hedefin (gercek Arduino15) dosyalarini siler: A4 kirmizi"),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '            s'
+     'onuclar[i] = s',
+     '            sonuclar[len(sonuclar) + 1] = s',
+     'HIZ: paralel sonuclar bitis sirasina gore numaralanir (secim sirasi kaybolur): A1 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '            kalan_di'
+     'zin += isci.temizle()',
+     '            pass',
+     'HIZ: kopyalar ve ozel dizinler silinmez: A4 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '        signal.signal('
+     'signal.SIGBREAK, _kes)',
+     '        pass',
+     "HIZ: CTRL_BREAK KeyboardInterrupt'a cevrilmez, surec temizliksiz olur: A5 kirmizi"),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '                raise Tab'
+     'anKirmizi((betik, cikti))',
+     '                pass',
+     'HIZ: kirmizi taban yok sayilir, her mutasyon sahte YAKALANDI: A7 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '    if not adim'
+     ' and not neden:',
+     '    if not adim:',
+     'HIZ: --neden ile hedeflenen AGIR mutasyonlar yine atlanir: A6 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '        if agir:\n          '
+     '  with self.ortak.tarayici:',
+     '        if False:\n            with self.ortak.tarayici:',
+     'HIZ: tarayici esanlilik siniri uygulanmaz (4 Edge ayni anda): A8 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '        if agir:\n            kal'
+     'an = edge_kalanlar(str(self.tmp))',
+     '        if False:\n            kalan = edge_kalanlar(str(self.tmp))',
+     'HIZ: AGIR mutasyondan sonra Edge sizintisi denetlenmez: A8 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     'ATLA_DOSYA = {"DEVIR.md",'
+     ' ".zincir_onbellek.json"}',
+     'ATLA_DOSYA = {"DEVIR.md"}',
+     'HIZ: zincir onbellegi kopyaya tasinir (B3/B23 kopyada onbellekten YESIL gelebilirdi): A6 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '    return (adim in AGIR or betik.startswith(("tarayici", "t'
+     'est_tarayici"))\n            or betik == "kutu_ipucu_test.py")',
+     '    return (adim in AGIR or betik.startswith(("tarayici", "test_tarayici")))',
+     'HIZ: Edge acan B57 (kutu_ipucu_test) tarayici sinirinin disinda kalir: A6 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '        yakalandi = rc'
+     ' != 0 or simdi != taban',
+     '        yakalandi = rc != 0',
+     'HIZ: paralel kosucu iddia sayisi degisimini gormez (yalniz rc): A1 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_kanca/sitecustomize.py',
+     '    anin'
+     'da = True',
+     '    aninda = False',
+     'HIZ: yaz-gec kapali — oldurulen alt surecin okumalari kaybolur: B13 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_kanca/sitecustomize.py',
+     '    for ad_ in ("exists", "i'
+     'sfile", "isdir", "lexists"):',
+     '    for ad_ in ():',
+     'HIZ: varlik yoklamalari kaydedilmez (bayrak dosyasi belirince adim kosmaz): B10 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_kanca/sitecustomize.py',
+     '                 '
+     '   yaz("liste", p)',
+     '                    pass',
+     'HIZ: dizin listelemeleri kaydedilmez: B10b kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '            i'
+     'f t == "oku":',
+     '            if t == "okuma_yok":',
+     'HIZ: open ile okunan dosyalar girdi sayilmaz: B2 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '    if iz.rapor'
+     '_py < bekle_py:',
+     '    if False:',
+     'HIZ: rapor yazmayan Python alt sureci (-I) fark edilmez, adim yanlislikla onbellekten: B15b kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '            if not s.get("iz", True):\n        '
+     '        g.her_zaman.append(f"Python alt sureci',
+     '            if False:\n                g.her_zaman.append(f"Python alt sureci',
+     'HIZ: iz ortamini dusuren Python alt sureci isaretlenmez: B15 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '        g.her_zaman.append(f"sinirlanama'
+     'yan arac: {ad} ({\' \'.join(argv)[:120]})")',
+     '        pass',
+     'HIZ: kurali olmayan arac girdileri sinirsiz iken adim onbellekten gelir: B5 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '            gir, cik = _yol_argumanlari(argv, cwd)\n            for x in g'
+     'ir:\n                (g.dizin_agac if os.path.isdir(x) else g.dosya).add(x)',
+     '            gir, cik = [], []\n            for x in gir:\n                (g.dizin_agac if os.path.isdir(x) else g.dosya).add(x)',
+     'HIZ: derleyici argumanlarindaki dosyalar girdi sayilmaz: B4 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '    for p, eski in kayit.'
+     'get("cikti", {}).items():',
+     '    for p, eski in {}.items():',
+     'HIZ: silinen cikti fark edilmez (BELGELER yeniden uretilmez): B11 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '              '
+     '  if s.tamam:\n',
+     '                if True:\n',
+     'HIZ: KIRMIZI adim da onbellege yazilir ve sonra YESIL diye geri gelir: B11b kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '        if yas > AZAMI_YAS_SN or yas < -30'
+     '0:\n            return True, f"son tam kosu',
+     '        if False:\n            return True, f"son tam kosu',
+     'HIZ: 24 saat kurali uygulanmaz: B7 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '        if tam:\n        '
+     '    return True, "--tam"',
+     '        if tam:\n            pass',
+     'HIZ: --tam yok sayilir: B6 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '        degisen = [d for d in self.tetik if'
+     ' st.get("tetik", {}).get(d) != simdi.get(d)]',
+     '        degisen = []',
+     'HIZ: dogrula3/mutasyon/tasarim3_sabit degisince tam kosu zorlanmaz: B14 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '        if self.veri.get'
+     '("kok") != str(self.kok):',
+     '        if False:',
+     'HIZ: baska kokun (mutasyon kopyasi) onbellegi kullanilir: B12 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '        if self.v'
+     'eri.get("bozuk"):',
+     '        if False:',
+     'HIZ: bozuk onbellek ayrica tanilanmaz: B8 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '    ortam["PYTHONPATH"] = str(KANCA_DIZI'
+     'N) + (os.pathsep + eski if eski else "")',
+     '    ortam["PYTHONPATH"] = eski or ""',
+     'HIZ: Python kancasi alt sureclere kurulmaz (hicbir sey kaydedilmez): B1 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '    ortam["NODE_OPTIONS"] = f\'--require '
+     '"{kanca}"\' + (" " + eski if eski else "")',
+     '    ortam["NODE_OPTIONS"] = eski or ""',
+     'HIZ: node kancasi kurulmaz: B1 kirmizi (node adimi onbellekten gelmez)'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_kanca/node_kanca.cjs',
+     "        if (typeof url === 'string' && url"
+     ".startsWith('file:')) kayit('yukle', url);",
+     '        // yukleme kaydi yok',
+     'HIZ: node ES modul yuklemeleri (registerHooks) kaydedilmez: B16c kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_kanca/node_kanca.cjs',
+     '    for (const ad of OKU) sar(nesn'
+     "e, ad, (a) => kayit('oku', a[0]));",
+     "    for (const ad of []) sar(nesne, ad, (a) => kayit('oku', a[0]));",
+     'HIZ: node fs okumalari kaydedilmez: B16b kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '    for p, eski in kayit'
+     '.get("arac", {}).items():',
+     '    for p, eski in {}.items():',
+     'HIZ: arac ikilisi degisince adim kosmaz: B4b kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '    for p, eski in kayit.'
+     'get("liste", {}).items():',
+     '    for p, eski in {}.items():',
+     'HIZ: listelenen dizinin ad listesi karsilastirilmaz: B10b kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '    for p, eski in kayit.'
+     'get("yokla", {}).items():',
+     '    for p, eski in {}.items():',
+     'HIZ: yoklanan yolun var/yok durumu karsilastirilmaz: B10 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     'COP_URETIM_DOSYA = ("_'
+     'a4_*.elf", "erc*.rpt")',
+     'COP_URETIM_DOSYA = ("_a4_*.elf",)',
+     "HIZ: dogrula3'un sildigi erc*.rpt girdi/cikti sayilir (B3 hic onbellekten gelmez): yapisal kirmizi"),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/dogrula3.py',
+     '        for kalip in'
+     ' ZO.COP_URETIM_KOPRU:',
+     '        for kalip in ("_b[0-9]*", "_chk*", "_lk*", "__pycache__"):',
+     "HIZ: cop kaliplari dogrula3'te ikinci kopya (ayrisma sinifi): yapisal kirmizi"),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/dogrula3.py',
+     '    if "--sayim-kilidi-yaz" in'
+     ' argv and "--artimli" in argv:',
+     '    if False:',
+     'HIZ: --sayim-kilidi-yaz --artimli kabul edilir (onbellekten gelen sayi kilide yazilir): B9 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', '.gitignore',
+     'uretim/.zincir'
+     '_onbellek.json\n',
+     '',
+     'HIZ: zincir onbellegi (mutlak yollar) depoya girebilir: yapisal kirmizi'),
+]
 
 
-def kopyala(hedef: Path) -> Path:
+def kopyala(hedef: Path, kok: Path | None = None) -> Path:
+    kok = KOK if kok is None else Path(kok)
+
     def gormezden(dizin, adlar):
         return [a for a in adlar
                 if a in ATLA or a in ATLA_DOSYA
@@ -6181,28 +6395,167 @@ def kopyala(hedef: Path) -> Path:
     for _ in range(5):
         if not hedef.exists():
             break
-        shutil.rmtree(hedef, ignore_errors=True)
+        guvenli_sil(hedef)
         if hedef.exists():
             time.sleep(0.3)
     if hedef.exists():
         n = 1
-        while (KOK.parent / f"{hedef.name}-{n}").exists():
+        while (hedef.parent / f"{hedef.name}-{n}").exists():
             n += 1
-        hedef = KOK.parent / f"{hedef.name}-{n}"
-    shutil.copytree(KOK, hedef, ignore=gormezden)
+        hedef = hedef.parent / f"{hedef.name}-{n}"
+    shutil.copytree(kok, hedef, ignore=gormezden)
     return hedef
 
 
-def kosut(kopya: Path, betik: str) -> tuple[int, str]:
+# ── HIZ (2026-10-03): paralel kosucu ──────────────────────────────────
+# Isci basina OZEL ortam. 🔴 NEDEN: dogrula3.py'nin cop toplayicisi
+# (`gecici.kalintilari_sil`) %TEMP%'teki `spice-*`, `kopru_*`, `olcum3_*` ...
+# dizinlerini SILIYOR — esanli bir mutasyon kosusunun canli dizinleri dahil.
+# Bu yuzden "zincirle mutasyonu ust uste bindirme" kurali vardi. Artik her
+# isci (ve --paralel 1'in tek iscisi) her alt sureci KENDI TMP/TEMP/TMPDIR'i
+# ile kosuyor: suepurme oraya ulasamaz, iki kosu birbirinin dizinine dokunamaz.
+# LOCALAPPDATA da ozel: `gercek_dizin_koru` testleri GERCEK
+# %LOCALAPPDATA%\olcum-karti'nin dokumunu once/sonra karsilastiriyor; bir
+# iscideki mutasyon oraya yazinca (B72 "yonlendirmesiz eslestirme") esanli
+# BASKA bir iscinin testi kirmiziya donerdi = SAHTE "YAKALANDI" (bos iddia
+# gizlenir). Ozel LOCALAPPDATA'da yalniz arac kurulumlari gercek dizine
+# JUNCTION ile baglanir (Arduino15 = ESP32/AVR cekirdekleri, arduino = onbellek).
+YEREL_BAGLANTI = ("Arduino15", "arduino")
+TARAYICI_AZAMI = 2          # esanli basliksiz Edge kosusu (CPU aclugu -> sahte zaman asimi)
+ISCI_ONEK = "_mutp"
+
+
+def sinyal_kur() -> None:
+    """Windows'ta CTRL_BREAK (ayri surec grubundan durdurma) da Ctrl+C gibi
+    KeyboardInterrupt olsun — kopyalar `finally`de silinsin (test_zincir_hiz A5)."""
+    import signal
+    if hasattr(signal, "SIGBREAK"):
+        def _kes(*_a):
+            raise KeyboardInterrupt
+        signal.signal(signal.SIGBREAK, _kes)
+
+
+def sinirli(m: tuple) -> bool:
+    """Esanli sayisi TARAYICI_AZAMI ile sinirlanan mutasyon: AGIR adimlar (basliksiz
+    Edge ya da tam zincir) + Edge acan AGIR-disi betikler (B57 kutu_ipucu_test.py).
+    Bunlarin her kosusundan sonra Edge sizintisi da denetlenir."""
+    adim, betik = m[0], m[1]
+    return (adim in AGIR or betik.startswith(("tarayici", "test_tarayici"))
+            or betik == "kutu_ipucu_test.py")
+
+
+def varsayilan_paralel() -> int:
+    return max(1, min(4, (os.cpu_count() or 1) - 2))
+
+
+def _baglanti_mi(p) -> bool:
+    try:
+        return os.path.islink(p) or os.path.isjunction(p)
+    except OSError:
+        return False
+
+
+def guvenli_sil(kok: Path) -> bool:
+    """Dizini sil — ama icindeki JUNCTION/symlink'lerin HEDEFINE asla dokunmadan.
+
+    🔴 Ozel LOCALAPPDATA'da `Arduino15` gercek ESP32 cekirdegine junction. Bir
+    silme rutini junction'i izlerse kullanicinin araclarini siler. Once butun
+    baglantilar BAGLANTI olarak kaldirilir (os.rmdir junction'i, os.unlink
+    symlink'i), kalan yoksa agac silinir. Kaldirilamayan baglanti varsa agac
+    SILINMEZ (False) — birakmak zararsiz, yanlis silmek degil."""
+    kok = Path(kok)
+    if not kok.exists() and not _baglanti_mi(kok):
+        return True
+    if _baglanti_mi(kok):
+        try:
+            os.rmdir(kok) if os.path.isdir(kok) else os.unlink(kok)
+        except OSError:
+            return False
+        return True
+    yigin = [kok]
+    while yigin:
+        d = yigin.pop()
+        try:
+            girdiler = list(os.scandir(d))
+        except OSError:
+            continue
+        for g in girdiler:
+            if _baglanti_mi(g.path):
+                try:
+                    os.rmdir(g.path) if os.path.isdir(g.path) else os.unlink(g.path)
+                except OSError:
+                    pass
+                if _baglanti_mi(g.path) or os.path.lexists(g.path):
+                    return False
+            elif g.is_dir(follow_symlinks=False):
+                yigin.append(Path(g.path))
+    shutil.rmtree(kok, ignore_errors=True)
+    return not kok.exists()
+
+
+def _baglanti_kur(link: Path, hedef: Path) -> bool:
+    if not hedef.is_dir():
+        return False
+    try:
+        import _winapi
+        _winapi.CreateJunction(str(hedef), str(link))
+    except (ImportError, OSError):
+        try:
+            os.symlink(hedef, link, target_is_directory=True)
+        except OSError:
+            return False
+    return _baglanti_mi(link)
+
+
+def _agac_oldur(pid: int) -> None:
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True)
+    else:
+        try:
+            os.kill(pid, 9)
+        except OSError:
+            pass
+
+
+def edge_kalanlar(*desenler: str) -> list[int]:
+    """Komut satirinda desenlerden BIRI gecen msedge surecleri (Windows; tek powershell)."""
+    if sys.platform != "win32" or not desenler:
+        return []
+    kosul = " -or ".join(f"$_.CommandLine -like '*{d}*'" for d in desenler)
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | "
+             f"Where-Object {{ {kosul} }} | "
+             "ForEach-Object { $_.ProcessId }"],
+            capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [int(x) for x in r.stdout.split() if x.strip().isdigit()]
+
+
+def kosut(kopya: Path, betik: str, ortam: dict | None = None, surecler: set | None = None,
+          zaman_asimi: float = 1800) -> tuple[int, str]:
     # B27: `.js` betikleri (test_arayuz3.js — B7, 132 iddia) node ile.
     # Onceden yalnizca Python kosuyordu, yani arayuz iddialarinin HICBIRI
     # mutasyonla sinanmiyordu — "olmayan iddia gorunmezdir" sinifinin
     # koca bir dosyalik ornegi.
     calistirici = ["node"] if betik.endswith(".js") else [sys.executable]
-    r = subprocess.run(calistirici + [betik], cwd=kopya / "uretim",
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=1800)
-    return r.returncode, r.stdout + r.stderr
+    p = subprocess.Popen(calistirici + [betik], cwd=kopya / "uretim", env=ortam,
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                         encoding="utf-8", errors="replace")
+    if surecler is not None:
+        surecler.add(p)
+    try:
+        out, err = p.communicate(timeout=zaman_asimi)
+        return p.returncode, out + err
+    except subprocess.TimeoutExpired:
+        _agac_oldur(p.pid)
+        out, err = p.communicate()
+        return -9, (out or "") + (err or "") + f"\nZAMAN ASIMI ({zaman_asimi:.0f} s)"
+    finally:
+        if surecler is not None:
+            surecler.discard(p)
 
 
 def uygula(kopya: Path, dosya: str, eski: str, yeni: str) -> bool:
@@ -6227,23 +6580,226 @@ def uygula(kopya: Path, dosya: str, eski: str, yeni: str) -> bool:
     return True
 
 
-def main() -> int:
+class TabanKirmizi(Exception):
+    pass
+
+
+class Isci:
+    """Tek isci: KENDI kopyasi + KENDI TMP/TEMP/TMPDIR + KENDI LOCALAPPDATA.
+
+    Taban (mutasyonsuz kosu) her betik icin BU iscinin kopyasinda ve ortaminda
+    olculur — baska bir yerde olculmus taban, iscinin ortami bir betigi bozduysa
+    her mutasyonu sahte YAKALANDI yapardi."""
+
+    def __init__(self, no: int, kok: Path, taban_ortam: dict, ortak):
+        self.no = no
+        self.kok = Path(kok)
+        self.ortak = ortak
+        etiket = f"{ISCI_ONEK}{no}-{os.getpid()}-{time.time_ns() % 10**9}"
+        self.kopya = self.kok.parent / etiket
+        self.ozel = self.kok.parent / (etiket + ".ozel")
+        self.kullanilan = {self.kopya, self.ozel}
+        tmp = self.ozel / "tmp"
+        yerel = self.ozel / "yerel"
+        tmp.mkdir(parents=True)
+        yerel.mkdir(parents=True)
+        gercek = taban_ortam.get("LOCALAPPDATA")
+        if gercek:
+            for ad in YEREL_BAGLANTI:
+                if (Path(gercek) / ad).is_dir():
+                    if not _baglanti_kur(yerel / ad, Path(gercek) / ad):
+                        raise RuntimeError(f"junction kurulamadi: {yerel / ad}")
+        self.tmp = tmp
+        self.ortam = dict(taban_ortam)
+        for k in ("TMP", "TEMP", "TMPDIR"):
+            self.ortam[k] = str(tmp)
+        self.ortam["LOCALAPPDATA"] = str(yerel)
+        self.tabanlar: dict[str, tuple[int, list]] = {}
+
+    def taze_kopya(self) -> None:
+        self.kopya = kopyala(self.kopya, self.kok)
+        self.kullanilan.add(self.kopya)
+
+    def _kos(self, betik: str, agir: bool) -> tuple[int, str]:
+        if agir:
+            with self.ortak.tarayici:
+                return kosut(self.kopya, betik, self.ortam, self.ortak.surecler)
+        return kosut(self.kopya, betik, self.ortam, self.ortak.surecler)
+
+    def taban(self, betik: str, agir: bool) -> tuple[int, list]:
+        if betik not in self.tabanlar:
+            self.taze_kopya()
+            rc, cikti = self._kos(betik, agir)
+            self.tabanlar[betik] = (rc, sayim.sayimlar(cikti))
+            self.ortak.yaz([f"  taban {betik:24} rc={rc} {self.tabanlar[betik][1]}"
+                            + (f"  (isci {self.no})" if self.ortak.paralel > 1 else "")])
+            if rc != 0:
+                raise TabanKirmizi((betik, cikti))
+        return self.tabanlar[betik]
+
+    def kos(self, i: int, m: tuple) -> dict:
+        adim, betik, dosya, eski, yeni, neden = m
+        agir = sinirli(m)
+        _rc0, taban = self.taban(betik, agir)
+        self.taze_kopya()
+        if not uygula(self.kopya, dosya, eski, yeni):
+            return {"i": i, "m": m, "durum": "UYGULANAMADI"}
+        rc, cikti = self._kos(betik, agir)
+        simdi = sayim.sayimlar(cikti)
+        yakalandi = rc != 0 or simdi != taban
+        s = {"i": i, "m": m, "durum": "YAKALANDI" if yakalandi else "KACTI", "rc": rc,
+             "sayim": simdi}
+        if agir:
+            kalan = edge_kalanlar(str(self.tmp))
+            if kalan:
+                for pid in kalan:
+                    _agac_oldur(pid)
+                s["sizinti"] = len(kalan)
+        return s
+
+    def temizle(self) -> list[Path]:
+        kalan = []
+        for p in sorted(self.kullanilan, key=str):
+            if not guvenli_sil(p):
+                kalan.append(p)
+        return kalan
+
+
+class _Ortak:
+    def __init__(self, paralel: int, cikis=None):
+        import threading
+        self.paralel = paralel
+        self.kilit = threading.Lock()
+        self.tarayici = threading.BoundedSemaphore(TARAYICI_AZAMI)
+        self.surecler: set = set()
+        self.durdur = threading.Event()
+        self.cikis = cikis or (lambda s: print(s, flush=True))
+
+    def yaz(self, satirlar: list[str]) -> None:
+        with self.kilit:
+            for s in satirlar:
+                self.cikis(s)
+
+
+def mutasyonlari_kos(secili: list, kok: Path | None = None, paralel: int = 1,
+                     taban_ortam: dict | None = None, cikis=None) -> dict:
+    """Secili mutasyonlari `paralel` iscide kosar. Donus:
+        {"sonuclar": [ {i, m, durum, rc, sayim}... ] (secim sirasiyla),
+         "taban_kirmizi": (betik, cikti) | None, "sizinti": [...], "kalan_dizin": [...],
+         "kesildi": bool}
+    `durum` YAKALANDI / KACTI / UYGULANAMADI. Sonuc paralel sayisindan BAGIMSIZ olmali
+    (test_zincir_hiz.py: --paralel 1 ile 3 ayni kumeyi verir)."""
+    import queue
+    import threading
+    kok = KOK if kok is None else Path(kok)
+    taban_ortam = dict(os.environ if taban_ortam is None else taban_ortam)
+    paralel = max(1, min(paralel, len(secili) or 1))
+    ortak = _Ortak(paralel, cikis)
+    is_kuyrugu: queue.Queue = queue.Queue()
+    for i, m in enumerate(secili, 1):
+        is_kuyrugu.put((i, m))
+    sonuclar: dict[int, dict] = {}
+    durum = {"taban_kirmizi": None, "hata": None}
+    isciler: list[Isci] = []
+
+    def calis(isci: Isci) -> None:
+        while not ortak.durdur.is_set():
+            try:
+                i, m = is_kuyrugu.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                s = isci.kos(i, m)
+            except TabanKirmizi as h:
+                with ortak.kilit:
+                    if durum["taban_kirmizi"] is None:
+                        durum["taban_kirmizi"] = h.args[0]
+                ortak.durdur.set()
+                return
+            except Exception as h:                    # noqa: BLE001 — kosuyu tasi, sakla
+                with ortak.kilit:
+                    durum["hata"] = durum["hata"] or f"isci {isci.no}: {h!r}"
+                ortak.durdur.set()
+                return
+            sonuclar[i] = s
+            adim, _b, dosya, eski, yeni, neden = m
+            satir = ["", f"  [{i}/{len(secili)}] {adim} · {dosya}", f"        {eski}  ->  {yeni}"]
+            if s["durum"] == "UYGULANAMADI":
+                satir.append("        ATLANDI: desen bulunamadi (kod degisti mi?)")
+            else:
+                satir.append(f"        rc={s['rc']} sayim={s['sayim']} "
+                             f"-> {'YAKALANDI' if s['durum'] == 'YAKALANDI' else 'KACTI'}")
+                if s["durum"] == "KACTI":
+                    satir.append(f"        !! {neden}")
+            if s.get("sizinti"):
+                satir.append(f"        !! Edge SIZDI: {s['sizinti']} surec (olduruldu)")
+            ortak.yaz(satir)
+
+    kesildi = False
+    try:
+        for n in range(1, paralel + 1):
+            isciler.append(Isci(n, kok, taban_ortam, ortak))
+        ipler = [threading.Thread(target=calis, args=(isci,), daemon=True) for isci in isciler]
+        for t in ipler:
+            t.start()
+        while any(t.is_alive() for t in ipler):
+            for t in ipler:
+                t.join(0.2)
+    except KeyboardInterrupt:
+        kesildi = True
+        ortak.durdur.set()
+        for p in list(ortak.surecler):
+            _agac_oldur(p.pid)
+        for t in ipler if "ipler" in locals() else []:
+            t.join(10)
+    finally:
+        # Ctrl+C ya da coken bir kosunun biraktigi Edge: bu kosunun iscileri (tek cagri)
+        sizinti = edge_kalanlar(*[str(isci.ozel) for isci in isciler]) if isciler else []
+        for pid in sizinti:
+            _agac_oldur(pid)
+        kalan_dizin = []
+        for isci in isciler:
+            kalan_dizin += isci.temizle()
+    if durum["hata"]:
+        raise RuntimeError(durum["hata"])
+    return {"sonuclar": [sonuclar[i] for i in sorted(sonuclar)],
+            "taban_kirmizi": durum["taban_kirmizi"], "sizinti": sizinti,
+            "kalan_dizin": kalan_dizin, "kesildi": kesildi, "toplam": len(secili)}
+
+
+def secim(adim: str | None, neden: str | None) -> tuple[list, bool]:
+    """(secili, agir_atlandi)."""
+    secili = list(MUTASYONLAR)
+    if adim:
+        secili = [m for m in secili if m[0].lower() == adim.lower()]
+    if neden:
+        secili = [m for m in secili if m[5].startswith(neden)]
+    atlandi = False
+    if not adim and not neden:
+        atlandi = any(m[0] in AGIR for m in secili)
+        secili = [m for m in secili if m[0] not in AGIR]
+    return secili, atlandi
+
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--adim", help="yalnizca bu adimin mutasyonlari")
+    ap.add_argument("--neden", help="yalnizca nedeni bu onekle BASLAYAN mutasyonlar "
+                                    "(ornek: --neden 4D; --adim ile birlikte de verilebilir)")
+    ap.add_argument("--paralel", type=int, default=varsayilan_paralel(),
+                    help="isci sayisi (varsayilan min(4, cekirdek-2)); 1 = sirali")
     ap.add_argument("--liste", action="store_true")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
+    sinyal_kur()
 
-    if a.adim:
-        secili = [m for m in MUTASYONLAR if m[0].lower() == a.adim.lower()]
-    else:
-        secili = [m for m in MUTASYONLAR if m[0] not in AGIR]
-    if not a.adim and any(m[0] in AGIR for m in MUTASYONLAR):
+    secili, atlandi = secim(a.adim, a.neden)
+    if atlandi:
         print(f"  (atlandi: {', '.join(sorted(AGIR))} — tam zincir "
               f"kosturuyor, --adim ile calistirin)")
     if not secili:
         adlar = sorted({m[0] for m in MUTASYONLAR})
-        print(f"  '{a.adim}' icin mutasyon yok. Var olanlar: "
-              f"{', '.join(adlar)}")
+        print(f"  '{a.adim or ''}{' / ' + a.neden if a.neden else ''}' icin mutasyon yok. "
+              f"Var olan adimlar: {', '.join(adlar)}")
         return 1
 
     print("=" * 78)
@@ -6256,71 +6812,58 @@ def main() -> int:
             print(f"        {neden}")
         return 0
 
-    kopya = KOK.parent / f"_mutasyon-{os.getpid()}"
-    kacan, uygulanamayan = [], []
-    try:
-        print(f"  kopya: {kopya}")
-        t0 = time.time()
-        kopya = kopyala(kopya)
-        print(f"  kopyalandi ({time.time() - t0:.1f} s)")
+    paralel = max(1, min(a.paralel, len(secili)))
+    print(f"  paralel: {paralel} isci (her biri kendi kopyasi + ozel TEMP/LOCALAPPDATA; "
+          f"esanli tarayici en fazla {TARAYICI_AZAMI})")
+    t0 = time.time()
+    s = mutasyonlari_kos(secili, KOK, paralel)
+    print(f"\n  sure: {time.time() - t0:.0f} s")
 
-        # Once TEMIZ taban: mutasyonsuz kosu gercekten yesil mi?
-        taban = {}
-        for betik in sorted({m[1] for m in secili}):
-            rc, cikti = kosut(kopya, betik)
-            taban[betik] = (rc, sayim.sayimlar(cikti))
-            print(f"  taban {betik:24} rc={rc} {taban[betik][1]}")
-            if rc != 0:
-                print(f"  KIRMIZI: {betik} mutasyonsuz da KALIYOR — "
-                      f"once onu duzelt. Kopyadaki cikti:")
-                # Yalnizca ozet satiri basmak yetmiyordu: taban kirmizi
-                # olunca NEDENI gorunmuyordu ve tanilamak icin kopyayi
-                # elle kurmak gerekti.
-                ilginc = [x for x in cikti.splitlines()
-                          if ("KALDI" in x and "[OK]" not in x)
-                          or "KIRMIZI" in x or "Traceback" in x
-                          or x.strip().startswith("[!!]")]
-                for x in ilginc[-25:]:
-                    print("      " + x.rstrip()[:110])
-                if not ilginc:
-                    for x in cikti.rstrip().splitlines()[-15:]:
-                        print("      " + x.rstrip()[:110])
-                return 1
+    if s["kesildi"]:
+        print("  KESILDI (Ctrl+C) — kopyalar temizlendi; sonuc EKSIK.")
+        return 130
+    if s["taban_kirmizi"]:
+        betik, cikti = s["taban_kirmizi"]
+        print(f"  KIRMIZI: {betik} mutasyonsuz da KALIYOR — "
+              f"once onu duzelt. Kopyadaki cikti:")
+        # Yalnizca ozet satiri basmak yetmiyordu: taban kirmizi
+        # olunca NEDENI gorunmuyordu ve tanilamak icin kopyayi
+        # elle kurmak gerekti.
+        ilginc = [x for x in cikti.splitlines()
+                  if ("KALDI" in x and "[OK]" not in x)
+                  or "KIRMIZI" in x or "Traceback" in x
+                  or x.strip().startswith("[!!]")]
+        for x in ilginc[-25:]:
+            print("      " + x.rstrip()[:110])
+        if not ilginc:
+            for x in cikti.rstrip().splitlines()[-15:]:
+                print("      " + x.rstrip()[:110])
+        return 1
 
-        for i, (adim, betik, dosya, eski, yeni, neden) in enumerate(secili, 1):
-            shutil.rmtree(kopya, ignore_errors=True)
-            kopya = kopyala(kopya)
-            print()
-            print(f"  [{i}/{len(secili)}] {adim} · {dosya}")
-            print(f"        {eski}  ->  {yeni}")
-            if not uygula(kopya, dosya, eski, yeni):
-                print(f"        ATLANDI: desen bulunamadi (kod degisti mi?)")
-                uygulanamayan.append((adim, dosya, eski))
-                continue
-            rc, cikti = kosut(kopya, betik)
-            simdi = sayim.sayimlar(cikti)
-            yakalandi = rc != 0 or simdi != taban[betik][1]
-            print(f"        rc={rc} sayim={simdi} "
-                  f"-> {'YAKALANDI' if yakalandi else 'KACTI'}")
-            if not yakalandi:
-                print(f"        !! {neden}")
-                kacan.append((adim, dosya, eski, neden))
-    finally:
-        shutil.rmtree(kopya, ignore_errors=True)
-
+    kacan = [r["m"] for r in s["sonuclar"] if r["durum"] == "KACTI"]
+    uygulanamayan = [r["m"] for r in s["sonuclar"] if r["durum"] == "UYGULANAMADI"]
     print()
     print("=" * 78)
+    hata = False
+    if s["kalan_dizin"]:
+        print(f"  ⚠ silinemeyen kopya: {', '.join(p.name for p in s['kalan_dizin'])}")
+    if s["sizinti"]:
+        print(f"  KIRMIZI: {len(s['sizinti'])} basliksiz Edge sureci SIZDI (olduruldu)")
+        hata = True
+    if len(s["sonuclar"]) != len(secili):
+        print(f"  KIRMIZI: {len(secili)} mutasyondan {len(s['sonuclar'])} tanesi kostu")
+        hata = True
     if uygulanamayan:
         print(f"  {len(uygulanamayan)} mutasyon UYGULANAMADI (desen yok):")
-        for adim, dosya, eski in uygulanamayan:
+        for adim, _b, dosya, eski, _y, _n in uygulanamayan:
             print(f"    * {adim} {dosya}: {eski}")
     if kacan:
         print(f"  {len(kacan)} MUTASYON KACTI — o iddialar bos:")
-        for adim, dosya, eski, neden in kacan:
+        for adim, _b, dosya, eski, _y, neden in kacan:
             print(f"    * {adim} {dosya}: {eski}")
             print(f"      {neden}")
         return 1
-    if uygulanamayan:
+    if uygulanamayan or hata:
         return 1
     print(f"  {len(secili)} mutasyonun hepsi YAKALANDI.")
     return 0

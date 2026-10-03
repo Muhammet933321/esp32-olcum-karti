@@ -43,6 +43,11 @@ uretim/erc*.rpt
 ../_mutasyon-*/
 *.mutyedek
 
+# Artımlı zincirin önbelleği (`dogrula3.py --artimli`) — makineye özgü mutlak
+# yollar ve adım çıktıları taşır; her tam koşu yeniden yazar.
+uretim/.zincir_onbellek.json
+uretim/.zincir_onbellek.json.*.yaz
+
 # ─────────────────────────────────────────────────────────────────────
 # KULLANICI VERİSİ — depoya girmemeli
 # ─────────────────────────────────────────────────────────────────────

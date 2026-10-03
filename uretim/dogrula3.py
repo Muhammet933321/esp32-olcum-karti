@@ -137,6 +137,19 @@
 
 Cikis kodu 0 ise her sey gecti.
 
+── HIZ (2026-10-03): ARTIMLI KOSU ───────────────────────────────────
+
+    python dogrula3.py                TAM kosu (varsayilan) — onbellegi de tazeler
+    python dogrula3.py --artimli      girdileri degismeyen adimlar onbellekten
+    python dogrula3.py --artimli --tam   artimli kipte bile hepsini kos
+    python dogrula3.py --izsiz        TAM kosu, girdi kancasi KURULMADAN (eski
+                                      davranis; onbellege yazmaz)
+
+Girdi kesfi ve kurallar `zincir_onbellek.py`'nin basinda. TAM kosu SART:
+`main`'e gondermeden once (kullanici karari), son yesil tam kosu 24 saatten
+eskiyse ve dogrula3/mutasyon/tasarim3_sabit degistiyse (ikisi kendiliginden),
+`--sayim-kilidi-yaz` icin (--artimli ile REDDEDILIR). Testi: test_zincir_hiz.py.
+
 ── ADIMLARIN USTUNDE UC DENETIM (B23) ───────────────────────────────
 
 1. TEZGAH KALEMLERI. Her adim, KENDI dogrulayamadigi seyleri
@@ -173,6 +186,7 @@ import json
 
 import gecici
 import sayim
+import zincir_onbellek as ZO
 from tezgah import ayristir, markdown
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -232,14 +246,6 @@ ADIMLAR = [
 # gercek adim sayisiyla karsilastiriyor, sapma KIRMIZI.
 EL_ADIMLARI = 5
 ADIM_SAYISI = len(ADIMLAR) + EL_ADIMLARI
-
-
-def kos(betik: str) -> tuple[bool, str, float]:
-    t0 = time.time()
-    s = subprocess.run([sys.executable, betik], cwd=BURASI,
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=1800)
-    return s.returncode == 0, s.stdout, time.time() - t0
 
 
 TABAN_YOLU = BURASI / "beklenen_sayim.json"
@@ -376,41 +382,31 @@ def tezgah_birlestir(sonuclar) -> list[str]:
     return sessiz + hatalar
 
 
-def main() -> int:
-    print("=" * 78)
-    print("  OLCUM KARTI — ASAMA 3 DOGRULAMA ZINCIRI  (cift yonlu, +-615 V)")
-    print("=" * 78)
-    sonuclar = []
+def _betik_govde(betik: str):
+    """Tek betikli adim: stdout hem ekrana hem sayim/tezgah ayristiricisina gider."""
+    def govde(cal):
+        s = cal([sys.executable, betik], timeout=1800)
+        return s.returncode == 0, s.stdout.rstrip(), s.stdout
+    return govde
 
-    for baslik, betik in ADIMLAR:
-        print(f"\n{'-' * 78}\n  {baslik}\n{'-' * 78}")
-        tamam, cikti, sure = kos(betik)
-        print(cikti.rstrip())
-        sonuclar.append((baslik, tamam, sure, cikti))
 
-    # --- B3: sema uret + ERC + netlist polarite
-    print(f"\n{'-' * 78}\n  B3  Sema: uretim + ERC + netlist\n{'-' * 78}")
-    t0 = time.time()
-    u = subprocess.run([sys.executable, "sema3-uret.py"], cwd=BURASI,
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300)
-    print(u.stdout.rstrip())
+def _b3_govde(cal):
+    ekran = []
+    u = cal([sys.executable, "sema3-uret.py"], timeout=300)
+    ekran.append(u.stdout.rstrip())
     # 🔴 `u.returncode` DENETLENMIYORDU. Sema uretimi coksede ERC ve
     # netlist denetimi diskteki BAYAT `.kicad_sch` / `.net` dosyalarini
     # okuyup temiz rapor veriyordu — yani B3, uretimi hic calismamis bir
     # semayla YESIL kaliyordu. Zincirin en sessiz deligi.
     if u.returncode != 0:
-        print(u.stderr[-1500:])
-        print("  KIRMIZI: sema3-uret.py cokti — ERC ve netlist BAYAT "
-              "dosyalari okuyacakti.")
-    erc = subprocess.run(
-        [KICAD_CLI, "sch", "erc", "--output", "erc3.rpt",
-         "--severity-error", "--severity-warning", str(SEMA3)],
-        cwd=BURASI, capture_output=True, text=True, encoding="utf-8",
-        errors="replace", timeout=300)
+        ekran.append(u.stderr[-1500:])
+        ekran.append("  KIRMIZI: sema3-uret.py cokti — ERC ve netlist BAYAT "
+                     "dosyalari okuyacakti.")
+    erc = cal([KICAD_CLI, "sch", "erc", "--output", "erc3.rpt",
+               "--severity-error", "--severity-warning", str(SEMA3)], timeout=300)
     ihlal = [x for x in erc.stdout.splitlines() if "violation" in x.lower()]
     erc_temiz = "Found 0 violations" in erc.stdout
-    print(f"  ERC: {ihlal[0].strip() if ihlal else '?'}")
+    ekran.append(f"  ERC: {ihlal[0].strip() if ihlal else '?'}")
     # 🔴 NETLIST'I NORMALLESTIR. kicad-cli iki UCUCU sey gomuyor:
     #    uretim ZAMAN DAMGASI ve semanin MUTLAK YOLU. Ikisi de her
     #    kosuda degisiyor/makineye ozgu:
@@ -420,118 +416,85 @@ def main() -> int:
     #    depoda duruyor. Normallestirince hem belirlenimli hem temiz.
     #    ⚠ Temizlik ARTIK `netlist_temizle.py`de — TEK KAYNAK. Buradaki
     #      kopya B9'da netlist yeniden uretilince eziliyordu (B26).
-    import netlist_temizle
-    netlist_temizle.temizle(BURASI / "netlist3.net")
-
-    n = subprocess.run([sys.executable, "netlist3_dogrula.py"], cwd=BURASI,
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300)
-    print(n.stdout.rstrip())
+    #    HIZ: eskiden dogrula3'un KENDI surecinde cagriliyordu; artimli zincir
+    #    adimin okuyup yazdigini ancak alt surecte gorebildigi icin alt surec.
+    t = cal([sys.executable, "-c", "import pathlib, netlist_temizle; "
+             "netlist_temizle.temizle(pathlib.Path('netlist3.net'))"], timeout=120)
+    if t.returncode != 0:
+        ekran.append(t.stderr[-1500:])
+        ekran.append("  KIRMIZI: netlist_temizle cokti")
+    n = cal([sys.executable, "netlist3_dogrula.py"], timeout=300)
+    ekran.append(n.stdout.rstrip())
     # B48: kullanicinin okudugu `BELGELER/sema.pdf` ELLE uretiliyordu ve
     # 9 Eylul'de donmustu — sema 11 Eylul'de degisti (emniyet baglantisi),
     # PDF degismedi. Artik semayla ayni adimda uretiliyor.
-    pdf = subprocess.run(
-        [KICAD_CLI, "sch", "export", "pdf", "--output",
-         str(BURASI.parent / "BELGELER" / "sema.pdf"), str(SEMA3)],
-        cwd=BURASI, capture_output=True, text=True, encoding="utf-8",
-        errors="replace", timeout=300)
-    print(f"  sema.pdf: {'yazildi' if pdf.returncode == 0 else 'KIRMIZI — uretilemedi'}")
-    sonuclar.append(("B3  Sema (ERC + netlist)",
-                     u.returncode == 0 and erc_temiz and n.returncode == 0
-                     and pdf.returncode == 0,
-                     time.time() - t0, u.stdout + n.stdout))
+    pdf = cal([KICAD_CLI, "sch", "export", "pdf", "--output",
+               str(BURASI.parent / "BELGELER" / "sema.pdf"), str(SEMA3)], timeout=300)
+    ekran.append(f"  sema.pdf: {'yazildi' if pdf.returncode == 0 else 'KIRMIZI — uretilemedi'}")
+    tamam = (u.returncode == 0 and erc_temiz and t.returncode == 0 and n.returncode == 0
+             and pdf.returncode == 0)
+    return tamam, "\n".join(ekran), u.stdout + n.stdout
 
-    # --- B4/B5: firmware matematigi, GERCEK KOD AVR emulatorunde
-    print(f"\n{'-' * 78}\n  B4/B5  Olcum matematigi + Lagrange (AVR emulatoru)"
-          f"\n{'-' * 78}")
-    tamam, cikti, sure = kos("test_olcum3.py")
-    print(cikti.rstrip())
-    sonuclar.append(("B4/B5  Firmware + Lagrange (AVR)", tamam, sure, cikti))
 
-    # --- B6: firmware derleme + ikilide olu kod
-    print(f"\n{'-' * 78}\n  B6  Firmware: derleme + ikilide olu kod\n{'-' * 78}")
-    t0 = time.time()
+def _b6_govde(cal):
     # once ortak skop matematiginin iki kopyasi ayrismis mi
-    a = subprocess.run([sys.executable, "test_skop_ayni.py"], cwd=BURASI,
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300)
-    print(a.stdout.rstrip())
-    tamam, cikti, _ = kos("test_firmware3.py")
-    print(cikti.rstrip())
-    sonuclar.append(("B6  Firmware derleme + ikili",
-                     tamam and a.returncode == 0, time.time() - t0,
-                     a.stdout + cikti))
+    a = cal([sys.executable, "test_skop_ayni.py"], timeout=300)
+    s = cal([sys.executable, "test_firmware3.py"], timeout=1800)
+    return (s.returncode == 0 and a.returncode == 0,
+            a.stdout.rstrip() + "\n" + s.stdout.rstrip(), a.stdout + s.stdout)
 
-    # --- B7: arayuz + arayuz<->firmware komut denetimi
-    print(f"\n{'-' * 78}\n  B7  Arayuz (arayuz3) + komut denetimi\n{'-' * 78}")
-    t0 = time.time()
-    a = subprocess.run(["node", "test_arayuz3.js"], cwd=BURASI,
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300)
-    print(a.stdout.rstrip())
+
+def _b7_govde(cal):
+    a = cal(["node", "test_arayuz3.js"], timeout=300)
+    ekran = a.stdout.rstrip()
     if a.returncode != 0 and a.stderr.strip():
-        print(a.stderr.rstrip())
-    sonuclar.append(("B7  Arayuz + komut denetimi",
-                     a.returncode == 0, time.time() - t0, a.stdout))
+        ekran += "\n" + a.stderr.rstrip()
+    return a.returncode == 0, ekran, a.stdout
 
-    # --- B9: malzeme listesi + tezgah kilavuzu
-    print(f"\n{'-' * 78}\n  B9  Malzeme listesi + tezgah kilavuzu\n{'-' * 78}")
-    t0 = time.time()
-    b = subprocess.run([sys.executable, "bom_dogrula.py"], cwd=BURASI,
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300)
-    print(b.stdout.rstrip())
-    k = subprocess.run([sys.executable, "kurulum3-uret.py"], cwd=BURASI,
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300)
-    print(k.stdout.rstrip())
+
+def _b9_govde(cal):
+    ekran, cikti, tamam = [], "", True
     # B21: kullanici belgeleri de buradan uretiliyor — tasarim degisince
     # BELGELER/ bayat kalmasin diye zincire bagli.
-    bl = subprocess.run([sys.executable, "belge-uret.py"], cwd=BURASI,
-                        capture_output=True, text=True, encoding="utf-8",
-                        errors="replace", timeout=300)
-    print(bl.stdout.rstrip())
-    if bl.returncode != 0:
-        print(bl.stderr[-1500:])
-    # B48: delikli plaket yerlesimi — bakir netlistle birebir mi (her kurulum
-    # adiminda), kacak yolu, Kelvin, ayirma. B3'un urettigi netlist3.net'i
-    # okur, o yuzden B3'ten SONRA kosmali. Denetim gecerse 7-yerlesim.html.
-    y = subprocess.run([sys.executable, "yerlesim3.py"], cwd=BURASI,
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300)
-    print(y.stdout.rstrip())
-    if y.returncode != 0:
-        print(y.stderr[-1500:])
-    # B50: kart disi kurulum (kutu, panel, sont, Q1, jaklar). yerlesim3'un
-    # KABLOLAR'ini ve netlisti okur, o yuzden ondan SONRA. Denetim gecerse
-    # 8-kutu.html.
-    ku = subprocess.run([sys.executable, "kutu.py"], cwd=BURASI,
-                        capture_output=True, text=True, encoding="utf-8",
-                        errors="replace", timeout=300)
-    print(ku.stdout.rstrip())
-    if ku.returncode != 0:
-        print(ku.stderr[-1500:])
-    sonuclar.append(("B9  Malzeme + kurulum kilavuzu",
-                     b.returncode == 0 and k.returncode == 0 and bl.returncode == 0
-                     and y.returncode == 0 and ku.returncode == 0,
-                     time.time() - t0,
-                     b.stdout + k.stdout + bl.stdout + y.stdout + ku.stdout))
+    # B48: yerlesim3 B3'un urettigi netlist3.net'i okur, o yuzden B3'ten SONRA.
+    # B50: kutu.py yerlesim3'un KABLOLAR'ini ve netlisti okur, ondan SONRA.
+    for betik in ("bom_dogrula.py", "kurulum3-uret.py", "belge-uret.py", "yerlesim3.py",
+                  "kutu.py"):
+        r = cal([sys.executable, betik], timeout=300)
+        ekran.append(r.stdout.rstrip())
+        if r.returncode != 0 and betik not in ("bom_dogrula.py", "kurulum3-uret.py"):
+            ekran.append(r.stderr[-1500:])
+        tamam = tamam and r.returncode == 0
+        cikti += r.stdout
+    return tamam, "\n".join(ekran), cikti
 
-    print("\n" + "=" * 78)
-    print("  OZET")
-    print("=" * 78)
-    for baslik, tamam, sure, _ in sonuclar:
-        print(f"  {'GECTI ' if tamam else 'KALDI '} {baslik:<40} {sure:6.1f} s")
 
-    # Zincir kendi copunu toplasin — arduino-cli ve ngspice geride
-    # onlarca MB birakiyor ve bunlarin hepsi YENIDEN URETILEBILIR.
+# `ADIMLAR`'a girmeyen el adimlari: (ekrandaki baslik, sonuc basligi, govde).
+# Sonuc basligi sayim kilidinin ve onbellegin anahtari — DEGISTIRME.
+EL_ADIM_GOVDELERI = [
+    ("B3  Sema: uretim + ERC + netlist", "B3  Sema (ERC + netlist)", _b3_govde),
+    ("B4/B5  Olcum matematigi + Lagrange (AVR emulatoru)", "B4/B5  Firmware + Lagrange (AVR)",
+     _betik_govde("test_olcum3.py")),
+    ("B6  Firmware: derleme + ikilide olu kod", "B6  Firmware derleme + ikili", _b6_govde),
+    ("B7  Arayuz (arayuz3) + komut denetimi", "B7  Arayuz + komut denetimi", _b7_govde),
+    ("B9  Malzeme listesi + tezgah kilavuzu", "B9  Malzeme + kurulum kilavuzu", _b9_govde),
+]
+assert len(EL_ADIM_GOVDELERI) == EL_ADIMLARI
+
+
+def cop_topla() -> int:
+    """Zincir kendi copunu toplasin — arduino-cli ve ngspice geride onlarca MB
+    birakiyor ve bunlarin hepsi YENIDEN URETILEBILIR. Kaliplar TEK KAYNAK:
+    `zincir_onbellek.COP_*` (artimli zincir ayni yollari girdi/cikti SAYMIYOR —
+    ayrisirsa ya silinen bir dosya "cikti silindi" diye her adimi kosturur ya da
+    silinmeyen bir dosya izlenmez)."""
     import shutil
     # 🔴 `glob` OZYINELEMESIZ ve `if d.is_dir()` DOSYALARI ELIYORDU:
     # `kopru/__pycache__` ile `uretim/avr/__pycache__` hic silinmiyordu,
     # `_a4_*.elf` gibi dosyalar da oyle. `rglob` + dosya dali eklendi.
     # ⚠ `kopru/arsiv/` KAPSAM DISI — orasi kullanicinin olcum gunlugu.
     for kok in (BURASI, BURASI.parent / "kopru"):
-        for kalip in ("_b[0-9]*", "_chk*", "_lk*", "__pycache__"):
+        for kalip in ZO.COP_URETIM_KOPRU:
             for d in kok.rglob(kalip):
                 if "arsiv" in d.parts:
                     continue
@@ -539,24 +502,79 @@ def main() -> int:
                     shutil.rmtree(d, ignore_errors=True)
                 else:
                     d.unlink(missing_ok=True)
-    for f in BURASI.glob("_a4_*.elf"):
-        f.unlink(missing_ok=True)
+    for kalip in ZO.COP_URETIM_DOSYA:
+        for f in BURASI.glob(kalip):
+            f.unlink(missing_ok=True)
+    for d in ZO.COP_BUILD:
+        shutil.rmtree(BURASI.parent / d, ignore_errors=True)
     # %TEMP% kalintilari: alti betik mkdtemp cagirip silmiyordu, 826
     # dizin birikmisti (B23.3'te olculdu). `gecici.py` yeni kosularda
     # sizmayi durduruyor; burasi ESKI birikimi suepuruyor.
-    n_gec = gecici.kalintilari_sil()
+    # ⚠ HIZ: mutasyon kosucusunun iscileri KENDI ozel TEMP'lerinde kosuyor;
+    #   bu suepurme onlarin dizinlerine erisemez (zincir ile mutasyon ust uste
+    #   binebilir — test_zincir_hiz.py sinar).
+    return gecici.kalintilari_sil()
+
+
+def arguman_reddi(argv: list[str]) -> str | None:
+    """Kilit butun adimlarin O ANKI sayisini yazar; onbellekten gelen bir sayi
+    "bu kosuda olculdu" degildir. Kilit YALNIZ tam kosudan yazilir."""
+    if "--sayim-kilidi-yaz" in argv and "--artimli" in argv:
+        return ("RED: --sayim-kilidi-yaz TAM kosu ister; --artimli ile birlikte "
+                "verilemez. `python dogrula3.py --sayim-kilidi-yaz` kos.")
+    return None
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    artimli = "--artimli" in argv
+    kilit_yaz = "--sayim-kilidi-yaz" in argv
+    red = arguman_reddi(argv)
+    if red:
+        print("  " + red)
+        return 2
+    print("=" * 78)
+    print("  OLCUM KARTI — ASAMA 3 DOGRULAMA ZINCIRI  (cift yonlu, +-615 V)")
+    print("=" * 78)
+    izsiz = "--izsiz" in argv
+    if izsiz and artimli:
+        print("  RED: --izsiz kancasiz kosar, onbellek kuramaz; --artimli ile birlikte olmaz.")
+        return 2
+    zincir = ZO.Zincir(artimli=artimli, tam="--tam" in argv, izle=not izsiz)
+    if artimli:
+        print(f"  ARTIMLI kip: "
+              f"{'TAM kosu — ' + zincir.tam_sebep if zincir.tam_kosu else 'degismeyen adimlar onbellekten'}")
+    adimlar = ([(b, b, _betik_govde(betik)) for b, betik in ADIMLAR]
+               + list(EL_ADIM_GOVDELERI))
+    sonuclar = []
+    for ust, baslik, govde in adimlar:
+        print(f"\n{'-' * 78}\n  {ust}\n{'-' * 78}")
+        s = zincir.kos(baslik, govde)
+        if s.onbellek_yas is not None:
+            print(f"  [onbellekten — {ZO.yas_yazi(s.onbellek_yas)} once kostu, "
+                  f"okudugu hicbir sey degismedi]")
+        elif artimli and not zincir.tam_kosu:
+            print(f"  [kosuyor: {s.sebep}]"[:200])
+        print(s.ekran)
+        sonuclar.append((s.baslik, s.tamam, s.sure, s.cikti))
+
+    print("\n" + "=" * 78)
+    print("  OZET")
+    print("=" * 78)
+    for s in zincir.sonuclar:
+        ek = (f"  [onbellekten, {ZO.yas_yazi(s.onbellek_yas)} once]"
+              if s.onbellek_yas is not None else "")
+        print(f"  {'GECTI ' if s.tamam else 'KALDI '} {s.baslik:<40} {s.sure:6.1f} s{ek}")
+    for satir in zincir.ozet():
+        print(satir)
+
+    n_gec = cop_topla()
     if n_gec:
         print(f"  (temizlendi: %TEMP% altinda {n_gec} artik dizin)")
-    for d in (BURASI.parent / "kod" / "olcum-karti-a3" / "build",
-              BURASI.parent / "arsiv" / "asama2" / "olcum-karti-a2" / "build",
-              BURASI.parent / "arsiv" / "asama1" / "olcum-karti" / "build"):
-        shutil.rmtree(d, ignore_errors=True)
-    for f in BURASI.glob("erc*.rpt"):
-        f.unlink(missing_ok=True)
 
     kalan = [b for b, t, _, _c in sonuclar if not t]
     sessiz = tezgah_birlestir(sonuclar)
-    kilit = sayim_kilidi(sonuclar, yaz="--sayim-kilidi-yaz" in sys.argv)
+    kilit = sayim_kilidi(sonuclar, yaz=kilit_yaz)
     if kilit:
         print()
         print("  KIRMIZI: iddia sayisi kilidi tutmadi — bir iddia dustu,")
@@ -564,6 +582,7 @@ def main() -> int:
         print("    python dogrula3.py --sayim-kilidi-yaz")
         for h in kilit:
             print(f"    * {h}")
+    zincir.bitir(genel_yesil=not kalan and not sessiz and not kilit)
     print()
     if kalan:
         print(f"  {len(kalan)} adim BASARISIZ: {', '.join(kalan)}")
