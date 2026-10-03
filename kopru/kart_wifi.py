@@ -26,6 +26,14 @@ Tasarim: tasarim/2026-10-03-alt-proje-4-pc.md PC6 + "4B uygulama kararlari".
     (R11). Ret yaniti (HTTPError) okunup KAPATILIR ve kodla soylenir.
   * Vekil (HTTP_PROXY / sistem vekili) KULLANILMAZ: kart yerel agda ya da kendi
     AP'sinde; vekile giden istek kartin anahtarli trafigini disari tasirdi.
+  * 4J: butun kart istekleri (acik /eslestir/bilgi, /akis, imzali komut / esitleme / vekil /
+    bildirim) kartin OGRENILMIS adresine baglanir (`_baglan`; Windows `olcum.local`'i ~8 s'de bir
+    yeniden cozuyor, cozum 2.7 s surebiliyor). `Host:` basligi ad olarak kalir (kart yabanci Host'u
+    403 ile reddeder). Adres en cok 2 s denenir; baglanti kurulamazsa BIR KEZ ad (istek henuz
+    gitmemistir — imzali istek iki kez ulasmaz) ve adres tazelenir. O adreste kart dogrulanamazsa
+    (`dogrula`, kimlik cihaz dosyasiyla) adres unutulur, ad ile bir kez daha. Kart her yanittan
+    sonra baglantiyi kapatiyor (`Connection: close`, keep-alive yok — olculdu). `p0` 4G yolunda
+    (akisin karsi adresi, Host IP) — degismedi.
 
 Yalnizca standart kutuphane.
 """
@@ -54,11 +62,49 @@ ACILIS_DESEN = re.compile(r"[0-9a-f]{32}")
 SATIR_AZAMI = 65536
 
 _ACICI = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+IP_SURE = 2.0            # 4J: onbellekteki karsi adrese baglanma suresi (yoksa ada geri dusulur)
 
 
 def vekilsiz_ac(istek, timeout=None):
     """urlopen gibi, ama sistem/ortam vekiline UYMAZ (kart yerel agda)."""
     return _ACICI.open(istek, timeout=timeout)
+
+
+def _tcp_ac(adres, sure, kaynak=None):
+    """TCP baglantisi (4J: testler buradan hangi adrese baglanildigini izler)."""
+    return socket.create_connection(adres, sure, kaynak)
+
+
+def _ip_mi(host: str) -> bool:
+    import ipaddress
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+        return True
+    except ValueError:
+        return False
+
+
+class _KartBaglantisi(http.client.HTTPConnection):
+    """4J: TCP'yi `WifiKart._baglan` kurar (ogrenilmis karsi adres; olmezse ad). `Host:` basligi
+    ISTEKTEKI ad olarak kalir (kart yabanci Host'u 403 ile reddeder — DNS rebinding korumasi)."""
+
+    kart: "WifiKart"
+
+    def connect(self):
+        self.sock = self.kart._baglan(self.host, self.port, self.timeout, self.source_address)
+        try:
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError:
+            pass
+
+
+class _KartIsleyici(urllib.request.HTTPHandler):
+    def __init__(self, sinif):
+        super().__init__()
+        self._sinif = sinif
+
+    def http_open(self, req):
+        return self.do_open(self._sinif, req)
 
 
 def bekleme(n: int) -> float:
@@ -127,6 +173,14 @@ class WifiKart:
         self._imza_kilit = threading.RLock()
         self._cihazlar: dict[Path, IM.Cihaz] = {}   # dosya -> TEK paylasilan Cihaz nesnesi
         self._son_neden: str | None = None
+        # 4J: kartin OGRENILMIS adresi (son basarili ad baglantisinin karsi ucu). Butun kart istekleri
+        # (/eslestir/bilgi, /akis, imzali komut / esitleme / vekil / bildirim) once buna baglanir —
+        # Windows `olcum.local`'i ~8 s'de bir yeniden cozuyor ve cozum 2.7 s surebiliyor (4G).
+        # Baglanti kurulamazsa BIR KEZ ada dusulur ve adres tazelenir. Kimlik denetimi aynen (dogrula).
+        self._karsi: str | None = None
+        sinif = type("_Baglanti", (_KartBaglantisi,), {"kart": self})
+        self._baglanti_sinifi = sinif
+        self._acici = urllib.request.build_opener(urllib.request.ProxyHandler({}), _KartIsleyici(sinif))
 
     # ── yuzey ────────────────────────────────────────────────────────
     @property
@@ -190,14 +244,51 @@ class WifiKart:
         Govdeyi cagiran kilitsiz okur (kart imzayi yanit basindan once dogrulamistir)."""
         with self._imza_kilit:
             return IM.ac(cihaz, self.taban, yontem, yol, list(argumanlar), govde,
-                         zaman_asimi or self.zaman_asimi, acici=vekilsiz_ac)
+                         zaman_asimi or self.zaman_asimi, acici=self._ac)
+
+    def _ac(self, istek, timeout=None):
+        """vekilsiz_ac gibi; TCP ogrenilmis karsi adrese (4J), `Host:` istekteki ad."""
+        return self._acici.open(istek, timeout=timeout)
+
+    def _baglan(self, host: str, port: int, sure, kaynak=None) -> socket.socket:
+        """4J: once ogrenilmis karsi adres (en cok IP_SURE); kurulamazsa BIR KEZ ad ve adres
+        tazelenir. Yalniz BAGLANTI kurulamamasi geri dusurur: istek gitmeden — imzali istek karta
+        iki kez ulasmaz. Adres IP ise (kullanici verdi) onbellek yok."""
+        ip = self._karsi
+        if ip is not None and not _ip_mi(host):
+            try:
+                kisa = min(sure, IP_SURE) if isinstance(sure, (int, float)) else IP_SURE
+                s = _tcp_ac((ip, port), kisa, kaynak)
+                s.settimeout(sure if isinstance(sure, (int, float)) else socket.getdefaulttimeout())
+                return s
+            except OSError:
+                if self._karsi == ip:
+                    self._karsi = None                # olu adres: ad cozulur, yenisi ogrenilir
+        s = _tcp_ac((host, port), sure, kaynak)
+        if not _ip_mi(host):
+            try:
+                self._karsi = s.getpeername()[0]
+            except OSError:
+                pass
+        return s
 
     def dogrula(self) -> tuple[IM.Cihaz, str, dict]:
         """Adresteki karti dogrula: acik `/eslestir/bilgi` -> kimlik bicimi -> bu kart icin eslesmis
         cihaz dosyasi -> kimlik uyusmasi; acilis tazelenir. Donus: (PAYLASILAN Cihaz, kimlik, bilgi).
-        Hata: KartDogrulanamadi (metin kullaniciya). Canli akis ve arka plan esitlemesi (4C) ayni yol."""
+        Hata: KartDogrulanamadi (metin kullaniciya). Canli akis ve arka plan esitlemesi (4C) ayni yol.
+        4J: ogrenilmis adresteki cihaz dogrulanamazsa (kart baska IP almis, eski adreste baska bir
+        cihaz) adres UNUTULUR ve ad ile BIR KEZ daha denenir."""
         try:
-            b = IM.bilgi(self.taban, self.zaman_asimi, acici=vekilsiz_ac)
+            return self._dogrula()
+        except KartDogrulanamadi:
+            if self._karsi is None:
+                raise
+            self._karsi = None
+            return self._dogrula()
+
+    def _dogrula(self) -> tuple[IM.Cihaz, str, dict]:
+        try:
+            b = IM.bilgi(self.taban, self.zaman_asimi, acici=self._ac)
         except urllib.error.HTTPError as h:
             raise KartDogrulanamadi(f"/eslestir/bilgi {_hata_metni(h)} (eski firmware?)") from None
         except (OSError, ValueError, http.client.HTTPException) as e:
@@ -331,7 +422,7 @@ class WifiKart:
         if self._durdu():
             return False
         with self._imza_kilit:
-            url = IM.akis_url(cihaz, self.taban, acici=vekilsiz_ac)     # HER baglanmada YENI
+            url = IM.akis_url(cihaz, self.taban, acici=self._ac)     # HER baglanmada YENI
             # 4C: istek + yanit basi da kilitte — yavas baglantida (mDNS) araya giren esitleme
             # istegi daha buyuk sayacla once ulasirsa kart bu adresi pencere disi diye reddederdi
             baglanti, y, hata = self._akis_iste(url)
@@ -381,7 +472,7 @@ class WifiKart:
     def _akis_iste(self, url: str):
         """/akis istegini gonder, yanit basini al. Donus (baglanti, yanit | None, hata | None)."""
         u = urllib.parse.urlsplit(url)
-        baglanti = http.client.HTTPConnection(u.hostname, u.port or 80, timeout=self.zaman_asimi)
+        baglanti = self._baglanti_sinifi(u.hostname, u.port or 80, timeout=self.zaman_asimi)
         self._baglanti = baglanti
         try:
             baglanti.request("GET", u.path + "?" + u.query,

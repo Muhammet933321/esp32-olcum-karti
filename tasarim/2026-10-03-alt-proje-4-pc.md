@@ -347,7 +347,43 @@ WiFi, ADS takılı değil, eşleşmiş cihazlar "Desktop" + "PC-kopru", `zorunlu
 Açık (4G sonrası, kullanıcı):
 - `Ez1` önerildi, AÇILMADI (DEVIR 5.12.92: USB adımları + sonucu).
 - Ö4 PC karşılığı (PC18), kablo çekip takmada USB↔WiFi geçişi, Başlangıç kısayolu kurulumu — elle.
-- İmzalı istek ve eşitleme her istekte `olcum.local`'ı çözüyor (keep-alive yok): 4G-1'in IP yolu genelleştirilebilir.
+- ~~İmzalı istek ve eşitleme her istekte `olcum.local`'ı çözüyor (keep-alive yok): 4G-1'in IP yolu genelleştirilebilir.~~
+  **4J'de yapıldı** (aşağıda): bütün kart istekleri öğrenilmiş adrese; tam eşitleme 23.6–26.4 → 18.4–18.5 s.
+
+### 4J uygulama kararları (2026-10-03) — köprünün kart isteklerinde ağ hızlandırması
+
+Ölçüm gerçek kartta (`A3-4B`, WiFi, bu PC cihaz 2; karta yalnız `/eslestir/bilgi`, imzalı `/kayit/*`, `G?`,
+`p0` — eşitleme ONAYSIZ, geçici veri dizini, cihaz dosyasının KOPYASIYLA) önce/sonra dönüşümlü, aynı makine
+yükünde. Ayrıntı DEVIR 5.12.95.
+
+| Ölçü | Önce (HEAD 9e4eb13) | Sonra (4J) |
+|---|---|---|
+| Tam eşitleme, 2299 kayıt / 1 311 112 B / 165 imzalı istek (taban 165 × 100 ms = 16.5 s) | **23.57 · 26.37 · 24.82 s** | **18.41 · 18.35 · 18.53 s** |
+| Eşitlemede istek başı (100 ms ara dahil) | 143–160 ms | 111–112 ms |
+| İmzalı komut `G?` (12'şer, 1 s arayla) | ortanca 60–131 ms; **2.7–2.8 s takılma 6/60** | ortanca 114–127 ms; en kötü **149 ms**, takılma **0/48** |
+| İmzalı `/kayit/liste` (kartta 350–600 ms sürüyor) | **3.0–3.2 s takılma 5/40** | en kötü 634 ms, takılma **0/32** |
+| `/eslestir/bilgi` | 2.75–2.80 s takılma her 8'de 1–2 | yalnız sürecin İLK ad çözümü (2.8 s; bir kez 7.5 s), sonra 30–150 ms |
+| `p0` (akış açık) | 20–59 ms | 22–66 ms (yol değişmedi) |
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4J-1 | **Bütün kart istekleri `WifiKart._karsi`'ye (öğrenilmiş adres) bağlanır**: açık `/eslestir/bilgi`, imzalı `/akis`, `/komut`, `/saat`, eşitleme `/kayit/*` `/kal/liste`, vekil, `/bildirim/bilgi` — hepsi `imzali_ac` / `dogrula` / `_akis_iste` üzerinden, TEK yer `_baglan` (`_KartBaglantisi.connect`). Adres, ad ile kurulan HER bağlantının karşı ucundan öğrenilir | Takılmanın kaynağı ağ değil Windows'un `olcum.local` yeniden çözümü (~8 s'de bir, 2.7 s; 4G). Eşitlemede ~3, her ~8 imzalı istekte 1 takılma vardı |
+| 4J-2 | **`Host:` başlığı ad olarak kalır** (URL değişmez; yalnız TCP hedefi IP) | Kart yabancı Host'u 403 ile reddeder (DNS rebinding koruması). Ad/IP ayrımı TCP katmanında kalınca imza, URL, vekil, sorgu kodlaması hiç değişmedi |
+| 4J-3 | **Öğrenilmiş adres en çok 2 s denenir; bağlantı KURULAMAZSA bir kez ad, adres tazelenir** | Yalnız bağlantı kurulamaması geri düşürür — istek henüz gönderilmemiştir: imzalı istek karta iki kez ulaşmaz (B72.W15: 401 yok, komut tek). Kart yeni IP alınca tek istek ≤ 2 s kaybeder |
+| 4J-4 | **Kimlik denetimi aynen; öğrenilmiş adreste kart doğrulanamazsa adres UNUTULUR, ad ile bir kez daha** (`dogrula`) | IP'ye körlemesine güvenilmez: eski adresi başka bir cihaz aldıysa `/eslestir/bilgi` kimliği cihaz dosyasına uymaz; ona imzalı istek gitmez (B72.W16). Her eşitleme turu ve her akış bağlantısı `dogrula`'dan geçiyor |
+| 4J-5 | **Keep-alive YOK** | Ölçüldü: kart `Connection: keep-alive` isteğine `Connection: close` ile yanıt veriyor ve soketi kapatıyor (ESP32 `WebServer`), ikinci istek 0 B. Kart tarafı değişmedi; bağlantı tutulmuyor (kartın sınırlı soketi/yuvası meşgul edilmez) |
+| 4J-6 | **Sayaç blok ayırma YAPILMADI** | Ölçüldü: `sonraki_sayac` (DPAPI 0.33 ms + mkstemp + fsync + replace) **3.6–4.8 ms** — 100 ms aralı istekte %4; asıl maliyet ağdı. Ayrıca sayaç zaman tabanlı (`max(son+1, unix_ms)`) ve kartın penceresi 64: ileriye ayrılan blok, aynı cihaz dosyasını kullanan İKİNCİ bir süreci (ör. `imza.py liste`) kopru sayacının 64 ötesine atıp köprünün isteklerini 401'e düşürürdü. Kazanç küçük, risk gerçek |
+| 4J-7 | **B72.A6 aralığı İSTEMCİNİN gönderme anında ölçer** (`imzali_ac` sarmalayıcısı), eşik 98 ms (100 ms tavanı, 2 ms saat payı) | Kartın varış anıyla ölçülünce yüklü makinede ilk isteğin varışı gecikiyor, ara 81–82 ms görünüyordu: iddia zamanlayıcıyı değil makine yükünü sınıyordu. Yalanlayıcı: tavan yarıya (50 ms) — kesin kırmızı |
+| 4J-8 | **`p0` 4G yolunda kaldı** (akışın karşı adresi `_ip`, Host IP, ≤ 2 s sonra ad; imzasız, ücretsiz) | İstenen: p0 yolu değişmesin. Ölçüm 22–66 ms |
+
+Testler: B72.W14 (bütün istekler öğrenilmiş adrese, ad bir kez, Host ad), W15 (ölü adres → bir kez ad, tek
+istek, 2 s sınırı, tazeleme), W16 (eski adreste yabancı cihaz → unut, ad ile doğrula, yabancıya imzalı istek
+yok), A6 (istemci zamanı). Bağlantı hedefi `kart_wifi._tcp_ac` kancasıyla izleniyor (sahte kartta ad
+`localhost`; Windows'ta her `localhost` bağlantısı ::1 reddi yüzünden ~2 s — gerçek kartın yavaş çözümüne
+benziyor). W6 / A10'un kancaları yeni katmana taşındı (`w._ac`, `w._baglanti_sinifi`). 8 yalanlayıcı `4J:`.
+
+Açık: öğrenilmiş adres süreç içinde (diske yazılmaz) — köprü her açılışta bir kez ad çözer (2.8 s; bir
+ölçümde 7.5 s). `kayit_esitle.py` / `imza.py` komut satırı araçları eskisi gibi adla.
 
 ## Güvenlik (kalıcı kurallar)
 

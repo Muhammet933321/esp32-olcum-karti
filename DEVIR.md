@@ -10531,6 +10531,57 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.95 🟢 4J: KÖPRÜNÜN KART İSTEKLERİ ÖĞRENİLMİŞ ADRESE — TAM EŞİTLEME 24–26 s → 18.4 s (2026-10-03 akşam)
+
+Ajan, dal `4j-ag` (HEAD 9e4eb13 = main + 4G). 4G'nin açığı: Windows `olcum.local`'ı ~8 s'de bir yeniden
+çözüyor ve çözüm 2.7 s sürüyor; 4G yalnız `p0`'ı akışın karşı adresine almıştı. Kararlar spec
+"4J uygulama kararları" (4J-1…8).
+
+**Değişiklik (`kopru/kart_wifi.py`):** `WifiKart._karsi` = ad ile kurulan son bağlantının karşı ucu. Bütün
+kart istekleri (`dogrula`'nın açık `/eslestir/bilgi`'si, `akis_url`, `/akis`, `imzali_ac` → komut, `/saat`,
+eşitleme, vekil, `/bildirim/bilgi`) WifiKart'ın kendi açıcısından (`_ac`, `_KartBaglantisi`) geçer; TCP'yi
+`_baglan` kurar: önce öğrenilmiş adres (en çok 2 s), kurulamazsa BİR KEZ ad + tazeleme. URL ve `Host:`
+değişmez (kart yabancı Host'u 403 ile reddeder). `dogrula` öğrenilmiş adreste başarısızsa adresi unutur ve
+ad ile bir kez daha dener — kimlik denetimi aynen. `p0` 4G yolunda, değişmedi.
+
+**Gerçek kart ölçümü** (`A3-4B`, WiFi; karta yalnız `/eslestir/bilgi`, imzalı `/kayit/liste` `/kayit/veri`,
+`G?`, `p0`; eşitleme ONAYSIZ, geçici veri dizinine, cihaz dosyasının KOPYASIYLA — gerçek
+`%LOCALAPPDATA%\olcum-karti`'ye yazılmadı; önce = `git archive HEAD kopru`, önce/sonra dönüşümlü):
+
+| | Önce | Sonra |
+|---|---|---|
+| Tam eşitleme (2299 kayıt, 1 311 112 B, 165 imzalı istek, canlı akış açık) | 23.57 · 26.37 · 24.82 s | **18.41 · 18.35 · 18.53 s** (taban 16.5 s) |
+| İstek başı (100 ms ara dahil) | 143–160 ms | 111–112 ms |
+| İmzalı `G?` | ortanca 60–131 ms, 2.7–2.8 s takılma **6/60** | ortanca 114–127 ms, en kötü 149 ms, takılma **0/48** |
+| İmzalı `/kayit/liste` (kartta 350–600 ms) | 3.0–3.2 s takılma **5/40** | en kötü 634 ms, **0/32** |
+| `/eslestir/bilgi` | her 8'de 1–2 kez 2.75–2.8 s | yalnız sürecin ilk ad çözümü (2.8 s; bir kez 7.5 s) |
+| `p0` (akış açık, 5'er) | 20–59 ms | 22–66 ms |
+
+**Keep-alive:** ham soketle `Connection: keep-alive` — kart `HTTP/1.1 200 OK … Connection: close` ile yanıt
+verip soketi kapattı, ikinci istek 0 B. ESP32 `WebServer` keep-alive tutmuyor → yapılmadı (4J-5).
+**Sayaç kalıcılığı:** `sonraki_sayac` 3.6–4.8 ms (DPAPI 0.33 ms; gerisi mkstemp + fsync + replace); blok
+ayırma yapılmadı — kazanç %4, ve zaman tabanlı sayaçta ileri ayrılan blok aynı dosyayı kullanan ikinci
+süreci kartın 64'lük penceresinin ötesine atıp köprüyü 401'e düşürürdü (4J-6).
+**B72.A6 kararsızlığı:** aralık sahte kartın varış anından ölçülüyordu (yükte 81–82 ms); artık `imzali_ac`
+sarmalayıcısıyla İSTEMCİNİN gönderme anında, eşik 98 ms. Yalanlayıcı: tavan yarıya (50 ms).
+
+**Testler:** B72 **207/207** (+3: W14 bütün istekler öğrenilmiş adrese / ad bir kez / Host ad; W15 ölü adres →
+bir kez ad, komut tek, 401 yok, IP denemesi ≤ 2 s; W16 eski adreste yabancı cihaz → unut, ad ile doğrula,
+yabancıya yalnız açık `/eslestir/bilgi`). Bağlantı hedefi `kart_wifi._tcp_ac` kancasıyla izleniyor; sahte
+kartta ad `localhost` (Windows'ta ::1 reddi yüzünden her ad bağlantısı ~2 s). W6 ve A10'un kancaları yeni
+katmana taşındı (`w._ac`, `w._baglanti_sinifi` — eski `KW.vekilsiz_ac` / `KW.http.client.HTTPConnection`
+yaması artık bir şey ölçmezdi). B22a 172/172, `test_bildirim.py` 259/259, `gizlilik_dogrula.py` temiz.
+Mutasyon (karalama koşucusu): **4J 8/8**, **4G 13/13**, 4C MUT4C — hepsi öldü, uygulanamayan yok.
+`beklenen_sayim.json` B72 204 → 207.
+
+⚠ **Süreç:** ilk mutasyon koşusunun tabanı kırmızıydı — aynı anda gerçek kartı ölçüyordum ve ölçüm gerçek
+cihaz dosyasının sayacını ilerletti; `gercek_dizin_koru` bunu (doğru olarak) "test gerçek dizine dokundu"
+diye yakaladı. Ölçüm betiği cihaz dosyasının KOPYASINA geçirildi. Gerçek karta karşı ölçüm yapan her araç,
+paralel koşan testleri kırmamak için gerçek dizine yazmamalı.
+
+Açık: öğrenilmiş adres yalnız süreç içinde (köprü her açılışta bir kez ad çözer); `kayit_esitle.py` /
+`imza.py` komut satırı araçları eskisi gibi adla.
+
 #### 5.12.92 🟢 4G KABUL: PC UYGULAMASI GERÇEK KARTTA — Ö3, Ö5, 4 İZLEYİCİ, p0 (2026-10-03 öğleden sonra)
 
 Ajan, dal `4g-kabul`. Araç **`uretim/tezgah_pc.py`** (`--o3`, `--o5`; zincirde değil — saf yardımcıları

@@ -5896,8 +5896,8 @@ MUTASYONLAR = [
      "4B: AP parolasi tamponu silinmez: D0 kirmizi"),
     # kopru WiFi yukari-akisi (kart_wifi.WifiKart) — B72.W sahte karta karsi
     ("B72", "test_kayit_esp.py", "kopru/kart_wifi.py",
-     "            url = IM.akis_url(cihaz, self.taban, acici=vekilsiz_ac)     # HER baglanmada YENI\n",
-     "            url = getattr(self, '_url', None) or IM.akis_url(cihaz, self.taban, acici=vekilsiz_ac)\n"
+     "            url = IM.akis_url(cihaz, self.taban, acici=self._ac)     # HER baglanmada YENI\n",
+     "            url = getattr(self, '_url', None) or IM.akis_url(cihaz, self.taban, acici=self._ac)\n"
      "            self._url = url\n",
      "4B: imzali /akis adresi yeniden baglanmada TEKRAR kullanilir (D5 #17: kart tekrar diye 401): W2 kirmizi"),
     ("B72", "test_kayit_esp.py", "kopru/kart_wifi.py",
@@ -6726,6 +6726,42 @@ MUTASYONLAR = [
      '    kopru = bool(yeni or degisen or silinen) and kopru_acik()\n',
      '    kopru = False\n',
      '4G: test temizligi kullanicinin ACIK koprusunun yeni arsiv dosyalarini da siler'),
+    # ── 4J: kart isteklerinin ag hizlandirmasi (kopru/kart_wifi.py ogrenilmis karsi adres; B72.W14-W16, A6) ──
+    ('B72', 'test_kayit_esp.py', 'kopru/kart_wifi.py',
+     '        if ip is not None and not _ip_mi(host):\n',
+     '        if False:\n',
+     '4J: ogrenilmis karsi adres kullanilmaz — her istekte ad cozumu (Windows olcum.local: 2.7 s): W14 kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kopru/kart_wifi.py',
+     '                self._karsi = s.getpeername()[0]\n',
+     '                s.getpeername()\n',
+     '4J: ad baglantisinin karsi adresi ogrenilmez (onbellek hic dolmaz): W14 kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kopru/kart_wifi.py',
+     '            return IM.ac(cihaz, self.taban, yontem, yol,',
+     '            return IM.ac(cihaz, (f"http://{self._karsi}:{urllib.parse.urlsplit(self.taban).port or 80}"\n'
+     '                                 if self._karsi else self.taban), yontem, yol,',
+     '4J: ogrenilmis adres URL\'ye yazilir — Host: IP olur (kart yabanci Host\'u 403 ile reddeder; ad/IP '
+     'ayrimi kaybolur): W14 kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kopru/kart_wifi.py',
+     '            except OSError:\n                if self._karsi == ip:\n',
+     '            except OSError:\n                raise\n                if self._karsi == ip:\n',
+     '4J: olu adreste ada geri dusulmez — kart yeni IP alinca hicbir istek gitmez: W15 kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kopru/kart_wifi.py',
+     'IP_SURE = 2.0 ', 'IP_SURE = 10.0 ',
+     '4J: olu (sessiz) adres tam zaman asimi kadar beklenir — her yeni IP\'de istek 10 s takilir: W15 kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kopru/kart_wifi.py',
+     '            if self._karsi is None:\n                raise\n            self._karsi = None\n'
+     '            return self._dogrula()\n',
+     '            raise\n',
+     '4J: eski adresteki yabanci cihaz kalici olur — kart ad ile yeniden dogrulanmaz, kopru baglanamaz: W16 kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kopru/kart_wifi.py',
+     '            self._karsi = None\n            return self._dogrula()\n',
+     '            return self._dogrula()\n',
+     '4J: dogrulanamayan adres unutulmaz — ikinci deneme yine yabanci cihaza gider: W16 kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kopru/kayit_esitle.py',
+     '                kalan = self.parca_arasi - (time.monotonic() - onceki)',
+     '                kalan = self.parca_arasi / 2 - (time.monotonic() - onceki)',
+     '4J: istek hizi tavani yarim uygulanir (50 ms) — A6 istemcinin gonderme aninda olcer, makine yukunden '
+     'bagimsiz kirmizi: A6 kirmizi'),
 ]
 
 
