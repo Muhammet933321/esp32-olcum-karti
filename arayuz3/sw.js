@@ -33,7 +33,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 'use strict';
 
-const SURUM = 'a5e8d0234997';
+const SURUM = 'feba96cddc0c';
 const ONEK = 'olcum-kabuk-';
 const ONBELLEK = ONEK + SURUM;
 const CEVRIMDISI = '/cevrimdisi.html';
@@ -67,7 +67,7 @@ function istekKarari(istek, koken) {
 
 /* Onbellek de bossa (temizlenmis) son care: dis kaynaksiz kisa sayfa. */
 const YEDEK_SAYFA = '<!doctype html><meta charset="utf-8"><title>Köprü çalışmıyor</title>'
-  + '<p>Köprü çalışmıyor — Kopru Baslat.bat ile başlatıp sayfayı yenileyin.</p>'
+  + '<p>Köprü çalışmıyor — kopru\\PC Baslat.bat ile başlatıp sayfayı yenileyin.</p>'
   + '<p lang="en">Bridge not running — start it and reload.</p>';
 
 async function sayfa(istek) {

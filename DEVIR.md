@@ -10531,6 +10531,26 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.96 🟢 BİRLEŞİK-4: 4G+4J, 4H, 4I, KILAVUZ TEK DALDA (2026-10-03 gece)
+
+Ajan, dal `birlesik-4` (ağaç `projeler/olcum-karti-birlesik`, `main` 40d33f7'den), sırayla `--no-ff`: `4j-ag`
+(4G'yi içerir), `4h-kalan`, `4i-surucu`, `pc-kilavuz`. Push yok; `dogrula3.py` koşulmadı (orkestratör koşacak).
+
+- **`gercek_dizin_koru` tek kurala indi** (4G-3 "köprü açıkken geri alma yok" + 4H "geri alma yalnız `cihaz/`"):
+  geri alma YALNIZ `cihaz/`'da beliren dosyada, başka yerde hiçbir şey silinmez; gerçek köprü 127.0.0.1:8770'te
+  `/durum` verirken `cihaz/` dışındaki değişiklikler ve `cihaz/`'da VAR OLAN dosyanın değişmesi (köprü kendi
+  cihaz dosyasının sayacını ilerletir) beklenir → yeşil; `cihaz/`'da YENİ dosya her zaman kırmızı (+ geri alınır).
+  4G iddiası bu kurala göre yeniden yazıldı (iki kip × iki durum), +2 `4H:` mutasyonu; "4B: test eşleştirmeyi
+  yönlendirmesiz" yalanlayıcısı aynen ısırıyor.
+- **Kılavuz (`belge_pc.py`):** bildirimlerde panel yolu "Ayarlar → Gelişmiş → “Bildirimler (bu bilgisayar)”"
+  (adlar ve sınıflar `sozluk.js` / `sozluk_pc.js` / `pc_kopru.js`'ten OKUNUR), komut satırı yolu ikinci seçenek;
+  bildirim tablosunda paneldeki kutu adı. Kökteki `Kopru Baslat.bat` artık `kopru\PC Baslat.bat`'ı çağırıyor
+  (eskiden doğrudan `kopru.py` + "kart USB'de olmalı"); çevrimdışı sayfa ve sw.js yedek metni
+  `kopru\PC Baslat.bat` diyor. İki yeni kural (15/15) + 5 `KLV:` mutasyonu. BELGELER dipnotu ve index uyarısı:
+  "Kart kuruluyor — ESP32 çalışıyor, ADS modülleri henüz takılı değil" (eski: "Donanım henüz kurulmadı").
+- DEVIR sırası 5.12.95 (4J) · 94 (4I) · 93 (4H) · 92 (4G) — numara çakışması yoktu. `beklenen_sayim.json`
+  zincir koşusunda yeniden yazılacak (B22a 190, B72 207, B7 911, B9 kuralları 15).
+
 #### 5.12.95 🟢 4J: KÖPRÜNÜN KART İSTEKLERİ ÖĞRENİLMİŞ ADRESE — TAM EŞİTLEME 24–26 s → 18.4 s (2026-10-03 akşam)
 
 Ajan, dal `4j-ag` (HEAD 9e4eb13 = main + 4G). 4G'nin açığı: Windows `olcum.local`'ı ~8 s'de bir yeniden

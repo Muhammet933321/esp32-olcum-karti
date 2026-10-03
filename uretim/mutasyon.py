@@ -7065,6 +7065,24 @@ MUTASYONLAR = [
      'Kart kendi ağındaysa (ev ağına bağlı değilse)',
      'Kart 198.51.100.7 adresindeyse ya da kendi ağındaysa (ev ağına bağlı değilse)',
      'KLV: sayfaya izinli olmayan bir IP adresi sizar'),
+    # birlesik-4: kilavuz panelin bildirim bolumunu (4H) anlatir; eski girisler PC Baslat.bat'a yollar
+    ('KLV', 'belge-uret.py', 'arayuz3/ekran/pc_kopru.js',
+     "'kacirilan', 'deneme']);", "'kacirilan']);",
+     'KLV: panelin bildirim bolumundeki siniflar koprununkinden ayrisir (kilavuz ikisini ayni anlatir)'),
+    ('KLV', 'belge-uret.py', 'arayuz3/ekran/ayarlar.js',
+     "async _pcKopruAl() { return import('./pc_kopru.js'); }",
+     "async _pcKopruAl() { return null; }",
+     'KLV: Ayarlar bildirim bolumunu hic indirmez — kilavuzun anlattigi panel yolu yok'),
+    ('KLV', 'belge-uret.py', 'uretim/belge_pc.py',
+     "<tr><th>Panelden</th><td><b>Ayarlar → {v['panel_gelismis']} → “{v['panel_bolum']}”</b>.",
+     "<tr><th>Panelden</th><td><b>Ayarlar</b>.",
+     'KLV: kilavuz panelin bildirim bolumunun yerini soylemez'),
+    ('KLV', 'belge-uret.py', 'Kopru Baslat.bat',
+     'kopru\\PC Baslat.bat" %*', 'kopru\\kopru.py" %*',
+     'KLV: kokteki Kopru Baslat.bat PC uygulamasini (pc.py) degil eski kopruyu acar'),
+    ('KLV', 'belge-uret.py', 'arayuz3/cevrimdisi.html',
+     'yanıt vermiyor. <code>kopru\\PC Baslat.bat</code>', 'yanıt vermiyor. <code>Kopru Baslat.bat</code>',
+     'KLV: cevrimdisi sayfa kullaniciyi kopru\\PC Baslat.bat yerine eski girise yollar'),
 ]
 
 

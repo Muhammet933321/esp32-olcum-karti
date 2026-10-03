@@ -190,7 +190,8 @@ MENU = MN.MENU
 URETILEN: dict[str, str] = {}
 DIPNOT_TASARIM = """Bu sayfa <code>uretim/belge-uret.py</code> tarafından
  üretildi — buradaki her sayı tasarım dosyalarından hesaplanıyor, elle
- yazılmıyor. Donanım henüz kurulmadı; değerler tasarımın vaadidir."""
+ yazılmıyor. Kart kuruluyor (ESP32 çalışıyor, ADS modülleri henüz takılı
+ değil); değerler tasarımın vaadidir."""
 
 
 def sayfa(dosya, baslik, alt, govde, dipnot=DIPNOT_TASARIM):

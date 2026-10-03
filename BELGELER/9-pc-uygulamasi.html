@@ -187,6 +187,8 @@ döner.</p>
     (salt okuma)</td></tr>
 <tr><td><b>Ayarlar → Eşleştirme</b></td><td>Köprüde <b>kullanılmaz</b> — köprü 1. bölümdeki
     komutla eşleşir</td></tr>
+<tr><td><b>Ayarlar → Gelişmiş</b></td><td>“Bildirimler (bu bilgisayar)” bölümü (4. bölüm)
+    ve köprünün sunduğu panelin sürümü — ikisi de yalnız köprüde</td></tr>
 </table>
 
 <h3>Eşitleme durum satırı</h3>
@@ -211,14 +213,20 @@ vermediyse) kart dolunca kaydı durdurur ve bildirir.</div>
 Windows bildirimi gösterir. Kaynak adı <b>“Ölçüm kartı”</b>. Bunun için kartın bildirim
 (MQTT) ayarı USB'den yapılmış olmalı; yapılmamışsa yalnız “karttan haber yok” (yerel yol)
 çalışır.</p>
-<table><tr><th>Ayar adı</th><th>Bildirim</th><th>Ne zaman</th></tr><tr><td><code>kopuk</code></td><td><b>Karttan haber yok / Ev interneti koptu</b></td><td>Yalnız <b>kayıt sürerken</b>. Kart yerelde (USB ya da WiFi) hâlâ görünüyorsa “Ev interneti koptu — kart çalışıyor”. Kart dönünce <b>aynı bildirim</b> “yeniden bağlandı” olur. Kartın MQTT ayarı yoksa: kayıt sürerken kart 20 s susarsa</td></tr><tr><td><code>bitti</code></td><td><b>Kayıt / pil testi bitti</b></td><td>Kayıt durdu, planlı süre doldu, pil testi bitti</td></tr><tr><td><code>dolu</code></td><td><b>Kartın belleği doldu</b></td><td>Kayıt yer kalmadığı için durdu</td></tr><tr><td><code>esik</code></td><td><b>Eşik aşıldı</b></td><td>Kartta kurulu eşik</td></tr><tr><td><code>yeniden_basladi</code></td><td><b>Kart yeniden başladı</b></td><td>Kayıt kesildi ve sürüyor, ya da kesildi — son haberin saatiyle</td></tr><tr><td><code>kacirilan</code></td><td><b>N olay kaçırıldı</b></td><td>Köprü kapalıyken ya da bağlantı yokken kaçan olayların sayısı</td></tr><tr><td><code>deneme</code></td><td><b>Deneme bildirimi</b></td><td>USB'den <code>Qt</code> gönderilince — yolun çalıştığını sınamak için</td></tr></table>
-<p>Hepsi varsayılan <b>açık</b>. Birini kapatmak ya da açmak (<code>0</code> kapalı,
-<code>1</code> açık; köprüyü yeniden başlatmak gerekmez):</p>
+<table><tr><th>Bildirim</th><th>Ne zaman</th><th>Paneldeki kutu</th><th>Komut satırı adı</th></tr><tr><td><b>Karttan haber yok / Ev interneti koptu</b></td><td>Yalnız <b>kayıt sürerken</b>. Kart yerelde (USB ya da WiFi) hâlâ görünüyorsa “Ev interneti koptu — kart çalışıyor”. Kart dönünce <b>aynı bildirim</b> “yeniden bağlandı” olur. Kartın MQTT ayarı yoksa: kayıt sürerken kart 20 s susarsa</td><td>Karttan haber yok / ev interneti koptu (kayıt sürerken)</td><td><code>kopuk</code></td></tr><tr><td><b>Kayıt / pil testi bitti</b></td><td>Kayıt durdu, planlı süre doldu, pil testi bitti</td><td>Kayıt ya da pil testi bitti</td><td><code>bitti</code></td></tr><tr><td><b>Kartın belleği doldu</b></td><td>Kayıt yer kalmadığı için durdu</td><td>Kayıt belleği doldu</td><td><code>dolu</code></td></tr><tr><td><b>Eşik aşıldı</b></td><td>Kartta kurulu eşik</td><td>Eşik aşıldı</td><td><code>esik</code></td></tr><tr><td><b>Kart yeniden başladı</b></td><td>Kayıt kesildi ve sürüyor, ya da kesildi — son haberin saatiyle</td><td>Kart yeniden başladı (kayıt kesildi)</td><td><code>yeniden_basladi</code></td></tr><tr><td><b>N olay kaçırıldı</b></td><td>Köprü kapalıyken ya da bağlantı yokken kaçan olayların sayısı</td><td>Kaçırılan olayların özeti</td><td><code>kacirilan</code></td></tr><tr><td><b>Deneme bildirimi</b></td><td>USB'den <code>Qt</code> gönderilince — yolun çalıştığını sınamak için</td><td>Deneme bildirimi (Qt)</td><td><code>deneme</code></td></tr></table>
+<p>Hepsi varsayılan <b>açık</b>. Açıp kapamanın iki yolu var; ikisi de aynı ayar dosyasına
+(<code>ayar.json</code>) yazar ve köprüyü yeniden başlatmak gerekmez.</p>
+<table>
+<tr><th>Panelden</th><td><b>Ayarlar → Gelişmiş → “Bildirimler (bu bilgisayar)”</b>.
+    Bağlantı durumunu (aracıya bağlı mı, kart çevrimiçi mi), son olayı, her bildirimin
+    aç/kapa kutusunu ve <b>“Bildirim dili”</b> seçimini gösterir; tıkladığınız an kaydedilir.
+    Bölüm yalnız köprünün açtığı panelde (<code>http://olcum.localhost:8770</code>) görünür — kartın kendi
+    sayfasında ve yerel ağdaki başka bir cihazdan açılan panelde yoktur</td></tr>
+<tr><th>Komut satırından</th><td><code>0</code> kapalı, <code>1</code> açık:
 <pre>python kopru/pc_bildirim.py ayar esik=0 kacirilan=0
 python kopru/pc_bildirim.py ayar dil=en</pre>
-<p>Köprünün bildirim durumunu görmek (abone mi, son mesaj ne zaman):
-<code>python kopru/pc_bildirim.py durum</code>. Panelde ayrı bir bildirim ayarı bölümü
-henüz yok; ayar bu komutla ve <code>ayar.json</code> ile yapılır.</p>
+    Durum (abone mi, son mesaj ne zaman): <code>python kopru/pc_bildirim.py durum</code></td></tr>
+</table>
 <table>
 <tr><th>Deneme</th><td>Köprüyü <code>PC Baslat.bat --usb-yok</code> ile açın, Arduino
     IDE'nin Seri Monitörü'nden (115200) karta <code>Qt</code> gönderin → “Deneme bildirimi”
@@ -315,7 +323,8 @@ Arduino Seri Monitörü'nden ve <code>imza.py</code>'den önce köprüyü durdur
 <tr><td>Bildirim gelmiyor</td>
     <td>Kartın bildirim ayarı yok, köprü <code>--bildirim-yok</code> ile açık, o sınıf kapalı ya da
     Rahatsız Etmeyin açık</td>
-    <td><code>python kopru/pc_bildirim.py durum</code> (<code>etkin</code>, <code>abone</code>,
+    <td>Ayarlar → Gelişmiş → “Bildirimler (bu bilgisayar)” (bağlantı durumu, kapalı kutu)
+    ya da <code>python kopru/pc_bildirim.py durum</code> (<code>etkin</code>, <code>abone</code>,
     <code>mesaj</code>); sonra 4. bölümdeki deneme. “Karttan haber yok” yalnız kayıt sürerken
     gelir</td></tr>
 <tr><td>Telefonda (<code>--lan</code>) komut düğmeleri çalışmıyor</td>

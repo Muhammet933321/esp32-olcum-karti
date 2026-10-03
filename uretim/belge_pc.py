@@ -13,6 +13,8 @@ Kaynaklar (elle sayi/ad YOK — hepsi buradan okunur, okunamazsa uretim COKER):
     kopru/windows_bildirim.py   kaynak adi (AUMID) ve gorunen ad
     kopru/otomatik-baslat.ps1   kisayol adi, dal agaci (worktree) reddi
     kopru/*.bat             dort cift tiklama dosyasi ve cagirdiklari
+    Kopru Baslat.bat        kokteki eski giris (kopru\\PC Baslat.bat'i cagirir); arayuz3/cevrimdisi.html
+    arayuz3/ekran/pc_kopru.js + ortak/src/sozluk_pc.js   panelin bildirim bolumu (4H): adi, siniflari
     kod/olcum-karti-a3/     USB komutlari (E?, Ez1, Ez0, Ex<n>, Q?, Qt) ve cihaz siniri
 
 KURAL (kutu.py'deki "plan soru sormadan bitirilebilir" kuraliyla AYNI): kullanici bu sayfayi
@@ -131,7 +133,15 @@ def veri(kok: Path) -> dict:
     ps = _oku(kok, "kopru/otomatik-baslat.ps1")
     ino = _oku(kok, "kod/olcum-karti-a3/olcum-karti-a3.ino")
     gh = _oku(kok, "kod/olcum-karti-a3/guvenlik.h")
-    ad = _bul(r'^AD\s*=\s*"([^"]+)"', pa, "pc_ayar.py")
+    sp = _oku(kok, "ortak/src/sozluk_pc.js")
+    so = _oku(kok, "ortak/src/sozluk.js")
+    pk = _oku(kok, "arayuz3/ekran/pc_kopru.js")
+
+    def _tr(anahtar: str, kaynak: str, ad_: str) -> str:
+        """Panel sozlugundeki Turkce metin (kilavuz paneldeki adi AYNEN soylesin)."""
+        return _bul(r'"' + re.escape(anahtar) + r'":\s*S\("([^"]+)"', kaynak, ad_)
+
+    ad =_bul(r'^AD\s*=\s*"([^"]+)"', pa, "pc_ayar.py")
     port = int(_bul(r"^PORT\s*=\s*(\d+)", pa, "pc_ayar.py"))
     v = {
         "ad": ad, "port": port, "adres": f"http://{ad}:{port}",
@@ -159,6 +169,16 @@ def veri(kok: Path) -> dict:
         "kod_secenek": kod_secenekleri(pc),
         "e_yardim": _bul(r'F\("(! E: E\? liste[^"]*)"\)', ino, "olcum-karti-a3.ino"),
         "q_yardim": _bul(r'F\("(\s*Q\? bildirim[^"]*)"\)', ino, "olcum-karti-a3.ino"),
+        # 4H: panelde Ayarlar > Gelismis > "Bildirimler (bu bilgisayar)" (ekran/pc_kopru.js)
+        "panel_gelismis": _tr("ay.b_gelismis", so, "sozluk.js"),
+        "panel_bolum": _tr("pc.bl_baslik", sp, "sozluk_pc.js"),
+        "panel_dil": _tr("pc.bl_dil", sp, "sozluk_pc.js"),
+        "panel_siniflar": tuple(re.findall(r"'([a-z_]+)'", _bul(
+            r"BILDIRIM_SINIFLARI\s*=\s*Object\.freeze\(\[([^\]]*)\]", pk, "pc_kopru.js"))),
+        "panel_sinif_ad": {s: _tr(f"pc.bl_s_{s}", sp, "sozluk_pc.js")
+                           for s in re.findall(r"'([a-z_]+)'", _bul(
+                               r"BILDIRIM_SINIFLARI\s*=\s*Object\.freeze\(\[([^\]]*)\]", pk,
+                               "pc_kopru.js"))},
     }
     return v
 
@@ -173,9 +193,11 @@ def _secenek_tablosu(v: dict) -> str:
 
 def _bildirim_tablosu(v: dict) -> str:
     satir = "".join(
-        f"<tr><td><code>{s}</code></td><td><b>{b}</b></td><td>{a.format(**v)}</td></tr>"
+        f"<tr><td><b>{b}</b></td><td>{a.format(**v)}</td>"
+        f"<td>{_html.escape(v['panel_sinif_ad'].get(s, '—'))}</td><td><code>{s}</code></td></tr>"
         for s, b, a in BILDIRIM)
-    return f"<table><tr><th>Ayar adı</th><th>Bildirim</th><th>Ne zaman</th></tr>{satir}</table>"
+    return ("<table><tr><th>Bildirim</th><th>Ne zaman</th><th>Paneldeki kutu</th>"
+            f"<th>Komut satırı adı</th></tr>{satir}</table>")
 
 
 def govde(v: dict) -> str:
@@ -310,6 +332,8 @@ döner.</p>
     (salt okuma)</td></tr>
 <tr><td><b>Ayarlar → Eşleştirme</b></td><td>Köprüde <b>kullanılmaz</b> — köprü 1. bölümdeki
     komutla eşleşir</td></tr>
+<tr><td><b>Ayarlar → {v['panel_gelismis']}</b></td><td>“{v['panel_bolum']}” bölümü (4. bölüm)
+    ve köprünün sunduğu panelin sürümü — ikisi de yalnız köprüde</td></tr>
 </table>
 
 <h3>Eşitleme durum satırı</h3>
@@ -335,13 +359,19 @@ Windows bildirimi gösterir. Kaynak adı <b>“{v['gorunen_ad']}”</b>. Bunun i
 (MQTT) ayarı USB'den yapılmış olmalı; yapılmamışsa yalnız “karttan haber yok” (yerel yol)
 çalışır.</p>
 {_bildirim_tablosu(v)}
-<p>Hepsi varsayılan <b>açık</b>. Birini kapatmak ya da açmak (<code>0</code> kapalı,
-<code>1</code> açık; köprüyü yeniden başlatmak gerekmez):</p>
+<p>Hepsi varsayılan <b>açık</b>. Açıp kapamanın iki yolu var; ikisi de aynı ayar dosyasına
+(<code>{v['ayar_ad']}</code>) yazar ve köprüyü yeniden başlatmak gerekmez.</p>
+<table>
+<tr><th>Panelden</th><td><b>Ayarlar → {v['panel_gelismis']} → “{v['panel_bolum']}”</b>.
+    Bağlantı durumunu (aracıya bağlı mı, kart çevrimiçi mi), son olayı, her bildirimin
+    aç/kapa kutusunu ve <b>“{v['panel_dil']}”</b> seçimini gösterir; tıkladığınız an kaydedilir.
+    Bölüm yalnız köprünün açtığı panelde (<code>{v['adres']}</code>) görünür — kartın kendi
+    sayfasında ve yerel ağdaki başka bir cihazdan açılan panelde yoktur</td></tr>
+<tr><th>Komut satırından</th><td><code>0</code> kapalı, <code>1</code> açık:
 <pre>python kopru/pc_bildirim.py ayar esik=0 kacirilan=0
 python kopru/pc_bildirim.py ayar dil=en</pre>
-<p>Köprünün bildirim durumunu görmek (abone mi, son mesaj ne zaman):
-<code>python kopru/pc_bildirim.py durum</code>. Panelde ayrı bir bildirim ayarı bölümü
-henüz yok; ayar bu komutla ve <code>{v['ayar_ad']}</code> ile yapılır.</p>
+    Durum (abone mi, son mesaj ne zaman): <code>python kopru/pc_bildirim.py durum</code></td></tr>
+</table>
 <table>
 <tr><th>Deneme</th><td>Köprüyü <code>PC Baslat.bat --usb-yok</code> ile açın, Arduino
     IDE'nin Seri Monitörü'nden (115200) karta <code>Qt</code> gönderin → “Deneme bildirimi”
@@ -438,7 +468,8 @@ Arduino Seri Monitörü'nden ve <code>imza.py</code>'den önce köprüyü durdur
 <tr><td>Bildirim gelmiyor</td>
     <td>Kartın bildirim ayarı yok, köprü <code>--bildirim-yok</code> ile açık, o sınıf kapalı ya da
     Rahatsız Etmeyin açık</td>
-    <td><code>python kopru/pc_bildirim.py durum</code> (<code>etkin</code>, <code>abone</code>,
+    <td>Ayarlar → {v['panel_gelismis']} → “{v['panel_bolum']}” (bağlantı durumu, kapalı kutu)
+    ya da <code>python kopru/pc_bildirim.py durum</code> (<code>etkin</code>, <code>abone</code>,
     <code>mesaj</code>); sonra 4. bölümdeki deneme. “Karttan haber yok” yalnız kayıt sürerken
     gelir</td></tr>
 <tr><td>Telefonda (<code>--lan</code>) komut düğmeleri çalışmıyor</td>
@@ -553,6 +584,20 @@ def denetle(kok: Path, v: dict, sayfa_html: str, menu: list, butun_sayfalar: dic
             kotu.append(ad + " (sayfada yok)")
     s.append(("Dort .bat kopru/'da, dogru komutu cagiriyor ve sayfada adiyla geciyor",
               not kotu, str(kotu) if kotu else "4 dosya"))
+    # 4b) Eski girisler de ayni programa yollar: kokteki "Kopru Baslat.bat" (sayfa "ayni programi
+    #     acar" diyor) ve koprunun cevrimdisi sayfasi (kullaniciya hangi dosyayi soyluyor).
+    pcb = "kopru\\PC Baslat.bat"
+    kok_bat = kok / "Kopru Baslat.bat"
+    kb = kok_bat.read_text(encoding="utf-8", errors="replace") if kok_bat.is_file() else ""
+    cv = (kok / "arayuz3" / "cevrimdisi.html").read_text(encoding="utf-8", errors="replace")
+    kotu = [ad for ad, kosul in (
+        ("kokteki Kopru Baslat.bat PC Baslat.bat'i cagirmiyor",
+         f'"%~dp0{pcb}" %*' in kb and "kopru.py" not in kb),
+        ("sayfa kokteki .bat'in ayni programi actigini soylemiyor", "Kopru Baslat.bat" in metin),
+        ("cevrimdisi.html PC Baslat.bat'i soylemiyor",
+         cv.count(f"<code>{pcb}</code>") == 2 and "<code>Kopru Baslat.bat</code>" not in cv)) if not kosul]
+    s.append(("Kokteki Kopru Baslat.bat ve cevrimdisi sayfa da kopru\\PC Baslat.bat'a (pc.py) yollar",
+              not kotu, str(kotu) if kotu else "2 dosya"))
 
     # 5) "Yalniz ana klasorden kurun" iddiasi betikte uygulanıyor.
     ps = (kopru / "otomatik-baslat.ps1").read_text(encoding="utf-8", errors="replace")
@@ -581,6 +626,19 @@ def denetle(kok: Path, v: dict, sayfa_html: str, menu: list, butun_sayfalar: dic
     pb = (kopru / "pc_bildirim.py").read_text(encoding="utf-8", errors="replace")
     s.append(("pc_bildirim.py CLI 'ayar' ve 'durum' alt komutlari var",
               'argv[:1] == ["ayar"]' in pb and 'argv[:1] == ["durum"]' in pb, "pc_bildirim.main"))
+    # 8b) 4H: paneldeki bildirim bolumu GERCEKTEN var ve kilavuz onu panelin kendi adiyla anlatiyor.
+    ay = (kok / "arayuz3" / "ekran" / "ayarlar.js").read_text(encoding="utf-8", errors="replace")
+    ko = (kopru / "kopru.py").read_text(encoding="utf-8", errors="replace")
+    yol_panel = f"Ayarlar → {v['panel_gelismis']} → “{v['panel_bolum']}”"
+    eksik_p = [ad for ad, kosul in (
+        ("pc_kopru.js siniflari = pc_bildirim.SINIFLAR", v["panel_siniflar"] == v["siniflar"]),
+        ("ayarlar.js pc_kopru.js'i indiriyor", "import('./pc_kopru.js')" in ay),
+        ("kopru.py POST /bildirim/ayar", 'yol == "/bildirim/ayar"' in ko),
+        ("sayfada panel yolu", yol_panel in metin),
+        ("sayfada CLI yolu", "pc_bildirim.py ayar" in metin)) if not kosul]
+    s.append(("Panelin bildirim bolumu (Ayarlar > Gelismis) kodda var ve kilavuz onu adiyla anlatiyor; "
+              "komut satiri yolu da duruyor",
+              not eksik_p, str(eksik_p) if eksik_p else yol_panel))
 
     # 9) Sayfadaki USB komutlari kartin kendi yardim satirlarinda var.
     e, q = v["e_yardim"], v["q_yardim"]

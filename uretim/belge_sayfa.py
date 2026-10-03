@@ -67,11 +67,11 @@ USB ile bağlayıp oradan — <a href="6-ag.html">Bağlanma</a>.</p>
         class="rozet">isteğe bağlı</span></td></tr>
 </table>
 
-<div class="uy"><b>Donanım henüz kurulmadı.</b> Bütün tasarım
-bilgisayarda doğrulandı ({d['adim_sayisi']} adımlı bir zincir, binin
-üzerinde otomatik denetim), ama kart fiziksel olarak hâlâ kurulmadı. Bu sayfalardaki
-değerler <b>tasarımın vaadi</b>; tezgâhta ölçülecekler ayrı ayrı
-işaretli.</div>
+<div class="uy"><b>Kart kuruluyor.</b> Ölçüm kartı ESP32 ile çalışıyor; ADS
+modülleri henüz takılı değil, yani ölçülen değerler henüz anlamlı değil. Bütün
+tasarım bilgisayarda doğrulandı ({d['adim_sayisi']} adımlı bir zincir, binin
+üzerinde otomatik denetim). Bu sayfalardaki değerler <b>tasarımın vaadi</b>;
+tezgâhta ölçülecekler ayrı ayrı işaretli.</div>
 """
 
 
