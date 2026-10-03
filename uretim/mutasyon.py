@@ -6026,7 +6026,11 @@ MUTASYONLAR = [
     ("B22a", "test_kopru.py", "kopru/pc.py",
      '    if "--wifi-yok" in arg and "--usb-yok" in arg:\n', "    if False:\n",
      "4B: --usb-yok + --wifi-yok sessizce kabul edilir (yukari-akis yok, kopru bos acilir)"),
-]
+    # 4B gercek kart sinamasi: sahte kartin cihaz dosyasi kullanicinin GERCEK %LOCALAPPDATA%'sina dusmustu
+    ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
+     '            os.environ["OLCUM_CIHAZ_DIZIN"] = str(d / "es")',
+     '            os.environ.pop("OLCUM_CIHAZ_DIZIN", None); os.environ.pop("OLCUM_PC_DIZIN", None)',
+     "4B: test eslestirmeyi yonlendirmesiz yaparsa sahte kart gercek PC dizinine yazilir — koruma iddiasi KIRMIZI"),]
 
 
 def kopyala(hedef: Path) -> Path:

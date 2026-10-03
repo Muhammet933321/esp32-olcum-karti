@@ -31,6 +31,9 @@ from pathlib import Path
 BURASI = Path(__file__).parent
 KOK = BURASI.parent
 sys.path.insert(0, str(KOK / "kopru"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import gercek_dizin_koru                                   # noqa: E402
+_KORUMA = gercek_dizin_koru.koru()   # LOCALAPPDATA gecici dizine — gercek PC dizinine asla yazilmaz
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import kart_baglanti                                       # noqa: E402
@@ -1618,6 +1621,7 @@ def main() -> int:
     time.sleep(0.25)
     sunucu.shutdown()
     k.durdur()
+    gercek_dizin_koru.denetle(_KORUMA, ok)
     print(f"\n{gecti}/{gecti + kaldi} dogrulama gecti")
     # Yukari-akis olarak KayitKart kullanildi; gercek seri port hic
     # acilmadi. Asagidakiler yalnizca tezgahta gorulur.

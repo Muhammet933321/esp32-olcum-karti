@@ -31,6 +31,8 @@ KOK = BURASI.parent
 KOD = KOK / "kod" / "olcum-karti-a3"
 sys.path.insert(0, str(BURASI))
 sys.path.insert(0, str(KOK / "kopru"))
+import gercek_dizin_koru                                   # noqa: E402
+_KORUMA = gercek_dizin_koru.koru()   # LOCALAPPDATA gecici dizine — gercek PC dizinine asla yazilmaz
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from tezgah import tezgah                          # noqa: E402
@@ -2311,6 +2313,7 @@ def main() -> int:
          "elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla "
          "son ~5 s"),
     ])
+    gercek_dizin_koru.denetle(_KORUMA, ok)
     print(f"\nB72: {gecti}/{gecti + kaldi} kosul gecti")
     return 0 if kaldi == 0 else 1
 

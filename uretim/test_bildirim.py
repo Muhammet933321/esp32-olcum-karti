@@ -35,6 +35,9 @@ from pathlib import Path
 BURASI = Path(__file__).parent
 KOK = BURASI.parent
 sys.path.insert(0, str(KOK / "kopru"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import gercek_dizin_koru                                   # noqa: E402
+_KORUMA = gercek_dizin_koru.koru()   # LOCALAPPDATA gecici dizine — gercek PC dizinine asla yazilmaz
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -1339,6 +1342,7 @@ def main() -> int:
     bolum_tls_yolu()
     bolum_dinleyici()
     bolum_sahte_araci()
+    gercek_dizin_koru.denetle(_KORUMA, ok)
     print(f"\n{gecti}/{gecti + kaldi} dogrulama gecti")
     return 0 if kaldi == 0 else 1
 
