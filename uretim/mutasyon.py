@@ -7490,6 +7490,9 @@ MUTASYONLAR = [
      '    (yerel / OZEL_ISARET).write_text(',
      '    (yerel / "isaret-yok").write_text(',
      'HIZ-BIRLESME: yerel_kur ozel dizini isaretlemez (gercek_dizin_koru onu gercek sanir): B22a kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_kanca/sitecustomize.py',
+     ' or (isinstance(ad, str) and ad.startswith("127."))', '',
+     'HIZ-BIRLESME: yalniz 127.0.0.1 yerel sayilir — 127.83.41.7 sahte araci (4E) adimi HER ZAMAN KOSAR yapar: B5/B15 kirmizi'),
 ]
 
 

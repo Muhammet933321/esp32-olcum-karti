@@ -430,6 +430,10 @@ def sahte_zincir_proje(kap: Path) -> Path:
         from pathlib import Path
         B = Path(__file__).resolve().parent
         v = (B / "veri_a.txt").read_text()
+        # geri donus aginda (127.0.0.0/8, 127.0.0.1 DEGIL) sahte sunucu — 4E testi gibi; dis ag sayilmamali
+        import socket
+        sv = socket.socket(); sv.bind(("127.83.41.7", 0)); sv.listen(1)
+        socket.create_connection(("127.83.41.7", sv.getsockname()[1]), timeout=5).close(); sv.close()
         print("  1/1 dogrulama gecti" if v else "  0/1 dogrulama gecti")
     ''')
     yaz(kok / "veri_a.txt", "a1")
@@ -621,7 +625,8 @@ def test_artimli() -> None:
         ok("B15b -I bayrakli (kancayi yuklemeyen) Python alt sureci -> I HER ZAMAN KOSAR "
            "(rapor sayimi)", "I" in her and any("rapor var" in h for h in her["I"]),
            str(her.get("I")))
-        ok("B5/B15 digerleri sinirli (HER ZAMAN listesinde yalniz D, H, I)",
+        ok("B5/B15 digerleri sinirli (HER ZAMAN listesinde yalniz D, H, I; A'nin 127.83.41.7 "
+           "geri donus baglantisi dis ag sayilmaz)",
            sorted(her) == HER_ZAMAN_B, str(sorted(her)))
 
         z, s = zincir_kos(kok, yol)

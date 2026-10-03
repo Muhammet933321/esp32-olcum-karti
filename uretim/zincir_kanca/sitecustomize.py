@@ -92,6 +92,11 @@ def _kur(iz_dizin):
 
     yerel_adlar = ("127.0.0.1", "localhost", "::1", "0.0.0.0", "", None)
 
+    def yerel_mi(ad) -> bool:
+        # Butun 127.0.0.0/8 geri donus agi yerel (birlesme 2026-10-03: 4E testi sahte araciyi
+        # 127.83.41.7'de acar; yalniz 127.0.0.1 sayilinca B72 HER ZAMAN KOSAR oluyordu).
+        return ad in yerel_adlar or (isinstance(ad, str) and ad.startswith("127."))
+
     # Kanca HER denetim olayinda cagrilir (builtins.id, sys._getframe, exec ...);
     # ilgisiz olay ilk satirda donmeli — yoksa yogun Python (B58f) yavaslar.
     ilgi = frozenset((
@@ -161,10 +166,10 @@ def _kur(iz_dizin):
                 yaz("dll", str(a[0]))
             elif olay == "socket.connect":
                 adres = a[1]
-                if isinstance(adres, tuple) and adres and adres[0] not in yerel_adlar:
+                if isinstance(adres, tuple) and adres and not yerel_mi(adres[0]):
                     yaz("ag", f"connect {adres[0]}")
             elif olay == "socket.getaddrinfo":
-                if a and a[0] not in yerel_adlar and not isinstance(a[0], bytes):
+                if a and not yerel_mi(a[0]) and not isinstance(a[0], bytes):
                     yaz("ag", f"getaddrinfo {a[0]}")
         except Exception as h:      # kanca asla kosulan programi dusurmesin
             try:
