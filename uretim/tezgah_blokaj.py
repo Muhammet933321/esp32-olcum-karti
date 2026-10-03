@@ -519,6 +519,33 @@ def skop_blokaj(k, zaman_tabanlari=(3, 5, 7, 9, 10)) -> int:
 
 
 K_DESEN = re.compile(r"^K (\d+) (\d+) (\d+)")
+# `G` durum satiri: A3-W2'den beri 15 alan (son_not + mesaj_dusen SONA eklendi), A3-4B ve
+# oncesi 13; baska sayi RET. sil_adet iki bicimde de ayni yerde (G'den sonra 11.). W2 inceleme:
+# desen 13'te kalmisti -> yeni satir eslesmiyor, bekleyis "durdu" deyip aninda bitiyordu (B72.W2h).
+G_DESEN = re.compile(r"^G(?: -?\d+){13}(?: -?\d+ -?\d+)?\s*$")
+G_SIL_ADET = 11
+
+
+def on_silme_bekle(k, azami_sn: float = 1800.0) -> float | None:
+    """Bosta on silme (hazir alan / GF! temizligi) bitene dek bekle: `G?` ile silme sayaci
+    (sil_adet) 3 s arayla iki kez ayni gelene dek. Doner: bekleme (s); `G` satiri gelmez ya
+    da cozulemezse None — cagiran bunu SESLI soyler ("durdu" DEMEZ)."""
+    onceki, t0 = None, time.monotonic()
+    while time.monotonic() - t0 < azami_sn:
+        k.yaz("G?")
+        sil, bitis = None, time.monotonic() + 3
+        while time.monotonic() < bitis:
+            s = k.satir_oku(0.3)
+            if s and G_DESEN.match(s):
+                sil = int(s.split()[G_SIL_ADET])
+                break
+        if sil is None:
+            return None
+        if sil == onceki:
+            return time.monotonic() - t0
+        onceki = sil
+        time.sleep(3.0)
+    return time.monotonic() - t0
 
 
 def main() -> int:
@@ -582,20 +609,12 @@ def main() -> int:
     # bir ~25 ms) olcumu kirletir. Varsayilan: `G` satirinin silme sayaci 3 s
     # artmayana dek bekle; `--on-silmeli` ile bekleme.
     if "--on-silmeli" not in arg:
-        onceki, t0 = None, time.monotonic()
-        while time.monotonic() - t0 < 1800:
-            k.yaz("G?")
-            sil, bitis = None, time.monotonic() + 3
-            while time.monotonic() < bitis:
-                s = k.satir_oku(0.3)
-                if s and re.match(r"^G( -?\d+){13}\s*$", s):
-                    sil = int(s.split()[11])
-                    break
-            if sil is None or sil == onceki:
-                print(f"bosta silme durdu ({time.monotonic() - t0:.0f} s) — olcum simdi")
-                break
-            onceki = sil
-            time.sleep(3.0)
+        bs = on_silme_bekle(k)
+        if bs is None:
+            print("! `G?` yaniti cozulemedi — bosta on silme BEKLENEMEDI; olcum silme "
+                  "surerken olabilir (~25 ms azami kusur DEGIL, 1C-2)")
+        else:
+            print(f"bosta silme durdu ({bs:.0f} s) — olcum simdi")
 
     print(f"kart {k.k.ad if hasattr(k, 'k') else port} · {tekrar} x {sure:.0f} s")
     print(f"  {'pencere':>7} {'azami us':>9} {'>20ms tur':>9} {'atlanan ms':>10}")

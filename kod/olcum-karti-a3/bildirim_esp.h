@@ -192,6 +192,7 @@ typedef struct {
     uint8_t onek[16];
     uint8_t anahtar[32];
     uint8_t onek_var, anahtar_var;
+    uint16_t esik;                /* W2 (E3): `Qe` binde; 0 / gecersiz = varsayilan */
 } BildirimAyar;
 
 static void bld__ayar_oku(BildirimAyar *a)
@@ -205,6 +206,7 @@ static void bld__ayar_oku(BildirimAyar *a)
     p.getString("ck", a->ck, sizeof(a->ck));
     p.getString("cp", a->cp, sizeof(a->cp));
     a->acik = p.getUChar("acik", 0);
+    a->esik = p.getUShort("esik", 0);
     a->onek_var = p.getBytes("onek", a->onek, 16) == 16u;
     a->anahtar_var = p.getBytes("anahtar", a->anahtar, 32) == 32u;
     p.end();
@@ -238,6 +240,34 @@ static int bildirim_ayar_metin(const char *anahtar, const char *deger, uint8_t a
     if (n != strlen(deger) && deger[0]) return -1;
     bld_istek_yeniden = 1;
     return 0;
+}
+
+/* W2 (E3): `Qe<binde>` (cekirdek 1, YALNIZ USB). 0 = anahtari sil (varsayilan). Gorev yeni
+   esigi BAGLANTIYI KESMEDEN alir (bld_istek_yeniden degil: istek/islenen sayaclari). */
+static volatile uint8_t bld_esik_istek = 0, bld_esik_islenen = 0;
+static volatile uint16_t bld_esik_etkin = BLD_ESIK_VARSAYILAN;   /* gorev yazar, Q? okur */
+
+static int bildirim_esik_yaz(uint16_t binde)
+{
+    Preferences p;
+    int r = 0;
+    if (!p.begin(BLD_NVS, false)) return -1;
+    if (binde) r = p.putUShort("esik", binde) == 2u ? 0 : -1;
+    else if (p.isKey("esik") && !p.remove("esik")) r = -1;
+    p.end();
+    bld_esik_istek = (uint8_t)(bld_esik_istek + 1u);   /* yalniz cekirdek 1 yazar */
+    return r;
+}
+
+static uint16_t bld__esik_oku(void)
+{
+    Preferences p;
+    uint16_t e = 0;
+    if (p.begin(BLD_NVS, true)) {
+        e = p.getUShort("esik", 0);
+        p.end();
+    }
+    return e;
 }
 
 static int bildirim_ayar_acik(uint8_t acik)
@@ -604,9 +634,15 @@ static void bildirim_gorevi(void *)
             if (b->tls) bld__kapat(b, 1);
             bld__ayar_sil(&bld_ayar);
             bld__ayar_oku(&bld_ayar);
+            bld_esik_ayarla(&bld, bld_ayar.esik);          /* W2 (E3): NVS'teki kullanici esigi */
             deneme_ms = millis();
             geri = BLD_DENEME_EN_AZ;
         }
+        if (bld_esik_islenen != bld_esik_istek) {          /* W2 (E3): Qe — baglanti kesilmez */
+            bld_esik_islenen = bld_esik_istek;
+            bld_esik_ayarla(&bld, bld__esik_oku());
+        }
+        bld_esik_etkin = bld.esik;
         if (!bld_ayar.acik) {
             bld__durum_yaz(BLDD_KAPALI, 0);
             vTaskDelay(pdMS_TO_TICKS(500));

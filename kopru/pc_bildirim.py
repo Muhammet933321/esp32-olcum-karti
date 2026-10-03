@@ -74,8 +74,9 @@ KEEPALIVE = 30
 SESSIZLIK_SN = 180.0             # kart 60 s'de bir durum yollar; 3 kati sessizlik = konu degismis olabilir
 SESSIZ_YENILE_ARALIK = 1800.0
 YENILE_EN_AZ_SN = 60.0
-G_ALAN = 13                      # `G` satiri alan sayisi (olcum-karti-a3.ino kayit_durum_bas)
-_G_DESEN = re.compile(r"G(?: -?\d+){%d}" % G_ALAN)
+G_ALAN = 15                      # `G` satiri alan sayisi (olcum-karti-a3.ino kayit_durum_bas, A3-W2)
+G_ALAN_ESKI = 13                 # A3-4B ve oncesi: son_not + mesaj_dusen YOK (satir yine durum)
+_G_DESEN = re.compile(r"G(?: -?\d+){%d}(?:(?: -?\d+){%d})?" % (G_ALAN_ESKI, G_ALAN - G_ALAN_ESKI))
 _KIMLIK_DESEN = re.compile(r"[0-9a-f]{16}")
 
 

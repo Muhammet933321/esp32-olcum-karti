@@ -3340,6 +3340,22 @@ console.log('\n--- 25. Canli + kabuk + kayit denetimi (3D) ---');
        kayitSatiriCoz('G 2 61 24337') === null && kayitSatiriCoz('G 2 61 24337 50012 49000 310 45 0 2900 1300 4 300 0 9') === null
        && kayitSatiriCoz('G 2 61 x 50012 49000 310 45 0 2900 1300 4 300 0') === null
        && kayitSatiriCoz('GX 1 2 3 4') === null && kayitSatiriCoz('Gerilim 1') === null);
+    /* W2 (A3-W2): G'ye son_not + mesaj_dusen SONA eklendi. Eski firmware'in 13 alanli satiri
+       (kartta A3-4B) hala DURUM: kayit gostergesi yeni panel + eski kartta susmamali. */
+    const ESKI = al('KAYIT_SATIR_ESKI');
+    const eskiG = kayitSatiriCoz('G 2 61 24337 50012 49000 310 45 0 2900 1300 4 300 0');
+    const yeniG = kayitSatiriCoz('G 2 61 24337 50012 49000 310 45 0 2900 1300 4 300 0 50020 3');
+    const hataG = kayitSatiriCoz('G 2 61 24337 50012 49000 310 45 0 2900 1300 4 300 0 -1 0');
+    ok('[!] W2: G GERIYE UYUMLU — eski firmware satiri (13 alan) cozulur, son_not/mesaj_dusen nesnede YOK; '
+       + 'yeni satir (15) ikisini tasir, son_not eksi (KG_*) olabilir; aradaki 14 alan RET; eski sayi '
+       + 'firmware alan sayisindan KUCUK (yeni alanlar SONDA)',
+       !!eskiG && eskiG.son_hata === 0 && eskiG.nokta === 24337 && !('son_not' in eskiG) && !('mesaj_dusen' in eskiG)
+       && !!yeniG && yeniG.son_not === 50020 && yeniG.mesaj_dusen === 3 && yeniG.son_hata === 0
+       && !!hataG && hataG.son_not === -1
+       && Array.isArray(ESKI.G) && ESKI.G.length > 0 && ESKI.G.every((n) => n > 0 && n < fwSatir.G.n)
+       && KS.G.slice(0, 13).join(',') === 'durum,oturum,nokta,sonraki,onay,doluluk,onaysiz,dusen,yaz_azami_us,sil_azami_us,sil_adet,tarama_ms,son_hata'
+       && ['GA', 'GT', 'GP'].every((t) => kayitSatiriCoz(t + ' 1') === null),
+       JSON.stringify({ eskiG, yeniG, hataG, ESKI }));
   }
   {
     const KDR = al('KDR');

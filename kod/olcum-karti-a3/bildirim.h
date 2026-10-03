@@ -55,6 +55,10 @@
 #define BLD_OLAY_AZAMI 141u
 #define BLD_ESIK_VARSAYILAN 500u  /* binde */
 #define BLD_ESIK_GERI 100u        /* K7: yeniden kurulma icin esigin bu kadar altina */
+/* W2 (E3): kullanici esigi `Qe<binde>` (YALNIZ USB, NVS `mqtt`/`esik`). Alt sinir GERI
+   payi: daha alcak esik histerezisle yalniz tam esitlemede (0) yeniden kurulurdu. */
+#define BLD_ESIK_EN_AZ 100u
+#define BLD_ESIK_EN_COK 1000u
 #define BLD_DURUM_FARK 10u        /* binde */
 #define BLD_DURUM_MS 60000UL      /* K6: "son gorulme" */
 #define BLD_ZARF_EK 32u           /* "OKB1" 4 + nonce 12 + etiket 16 */
@@ -215,6 +219,38 @@ BLD_ISLEV void bld_kur(Bildirim *b, uint16_t esik_binde)
     b->esik_kurulu = 1u;
     b->ilk = 1u;
     b->son_kayit = KDR_TARIYOR;
+}
+
+BLD_ISLEV uint8_t bld_esik_gecerli(uint32_t e)
+{
+    return (uint8_t)(e >= BLD_ESIK_EN_AZ && e <= BLD_ESIK_EN_COK);
+}
+
+/* W2 (E3): `Qe` argumani. Bos -> *e = 0 (varsayilana don); yoksa yalniz rakam (en fazla 4),
+   BLD_ESIK_EN_AZ..BLD_ESIK_EN_COK. Basarisizsa -1 ve *e DEGISMEZ. */
+BLD_ISLEV int bld_esik_coz(const char *s, uint16_t *e)
+{
+    uint16_t x = 0;
+    uint8_t n = 0;
+    if (!s) return -1;
+    if (!*s) { *e = 0u; return 0; }
+    for (; *s; s++, n++) {
+        const uint8_t r = (uint8_t)(*s - '0');
+        if (r > 9u || n >= 4u) return -1;
+        x = (uint16_t)(x * 10u + r);
+    }
+    if (!bld_esik_gecerli(x)) return -1;
+    *e = x;
+    return 0;
+}
+
+/* W2 (E3): calisirken esik degisir (Qe). Olay numarasi, kuyruk ve sayaclar KORUNUR
+   (bld_kur her seyi sifirlardi); `esik_kurulu` da korunur: bildirilmis bir dolulugu
+   esigi indirmek TEKRAR bildirmez, yukseltmek histerezisle yeniden kurar. Gecersiz
+   (0, NVS bozuk) -> varsayilan. */
+BLD_ISLEV void bld_esik_ayarla(Bildirim *b, uint16_t e)
+{
+    b->esik = bld_esik_gecerli(e) ? e : (uint16_t)BLD_ESIK_VARSAYILAN;
 }
 
 BLD_ISLEV uint8_t bld_kuyruk_adet(const Bildirim *b)

@@ -10577,6 +10577,102 @@ mutasyon `W4:` ×2 (çağrı silinir / ortam çevrilmez) **YAKALANDI** — W4 ö
 
 ---
 
+#### 5.12.101a 🟢 W2 inceleme: `tezgah_kart` / `tezgah_blokaj` 15 alanlı `G` satırını bekleyebiliyor (2026-10-04, dal `w2-fw`)
+
+Ajan (W2), inceleme bulgusu. 5.12.101'deki "bütün G ayrıştırıcıları geriye uyumlu" listesi EKSİKTİ: kararlı-hal
+blokaj ölçümünden önce boşta ön silmeyi bekleyen iki araç (`tezgah_kart._on_silme_bekle`, `tezgah_blokaj`'ın
+`main` içi döngüsü) `G?` yanıtını `^G( -?\d+){13}\s*$` ile arıyordu. A3-W2'nin 15 alanlı satırı eşleşmez →
+`tezgah_kart` hemen None döner ("None s beklendi"), `tezgah_blokaj` "boşta silme durdu" deyip çıkar; ikisi de
+`loop_azami`'yi 500 ms / ~25 ms ön silme sürerken ölçer — 1C-2'nin önlediği sahte kırmızı. Kart listesinin 9.
+maddesi (blokaj aynı sınıfta mı) yanıltıcı olurdu. B72.W2c yalnız `pc_bildirim`, `tezgah_kayit`, `tezgah_pc`'yi
+kapsıyordu.
+
+- İki modülde `G_DESEN` = 13 alan + isteğe bağlı 2 (`son_not`, `mesaj_dusen`); 14/16 RET. `G_SIL_ADET = 11`
+  (iki biçimde aynı yer).
+- `tezgah_blokaj`: bekleyiş `on_silme_bekle(k, azami_sn)` işlevine çıktı. Çözülemeyen `G`'de eskiden "durdu"
+  deyip ölçüyordu; artık None döner ve iki araç da "`G?` yanıtı çözülemedi — ön silme BEKLENEMEDİ" uyarısı basar.
+- **B72.W2h** (davranış, kaynak metni değil): sanal saat + sahte kart; `sil_adet` 5, 9, 9 → 15 ve 13 alanda
+  6 s / 3 sorgu, 14 ve 16 alanda None / 1 sorgu, iki modülde. İlk koşu kırmızıydı (`tezgah_kart` 15 → None,
+  `on_silme_bekle` yok), düzeltmeden sonra yeşil. B72 214 → **215** (sayım kilidi güncellendi).
+- Mutasyonlar (B72): iki modülde deseni 13'e geri çevirmek, `tezgah_blokaj`'da None yolunu eski "durdu"ya
+  bağlamak.
+
+**Doğrulama:** `dogrula3.py --artimli` **22/22** (`mutasyon.py` değiştiği için zincir kendisi TAM koştu; ilk koşuda B6 derlemesi `arduino-cli` geçici dosyası kaybolunca düştü — `…AP.cpp.libsdetect.d: No such file`, koddan bağımsız; yeniden koşu yeşil, B72 215/215) · `mutasyon.py --neden "W2:" --paralel 2` **21/21 YAKALANDI** (1606 s; yeni üçü B72.W2h'de) · uygulanamayan yok · `gizlilik_dogrula.py` temiz. Karta dokunulmadı.
+
+---
+
+#### 5.12.101 🟢 W2: FİRMWARE KÜÇÜKLERİ — G `son_not`, `/saat` + `Ex` tam çözüm, rastgele `eno`, `Qe` eşiği (2026-10-03, dal `w2-fw`, firmware `A3-W2`)
+
+Ajan (W2). Ağaç `projeler/olcum-karti-w2-fw`, `main` 20d3171'den. Push yok. **Karta YÜKLENMEDİ** (yükleme
+tam yedekten sonra orkestratörün işi; kart listesi aşağıda). `1-acik-isler.md`'de yedi satırın üstü çizildi.
+
+- **G satırı (1C-1 + M9):** `G`'nin SONUNA iki alan: `son_not` (son Ga/Ge/Gn/Gx'in NOT kaydının sırası =
+  `kyn_not` dönüşü; `Gx<oturum>:<sıra>` bunu hedefler; < 0 KG_*, 0 = açılıştan beri yok) ve `mesaj_dusen`
+  (istek kuyruğunda düşen). `son_not` değişince G hemen basılır — `nesil` ARTMAZ, çünkü `nesil` noktacıyı
+  yeniden başlatır (`kayit__nesil`), kayıt sürerken yarım nokta kaybolurdu. **Geriye uyum:** panel
+  (`KAYIT_SATIR_ESKI`), `pc_bildirim._G_DESEN`, `tezgah_kayit`/`tezgah_pc.g_coz` eski 13 alanlı satırı da durum
+  sayar (14 alan RET); eski satırda yeni alanlar nesnede yok. Panelde `son_not`'u GÖSTEREN bir öğe yok (açık).
+- **Noktacı (1A-1 D):** `kn_ornek` sonlu olmayan watt'ı (NaN, ±Inf) kendisi V+I hatalı sayar; `(int64_t)`
+  dönüşümü yapılmaz. Yapıştırıcının aynı kuralı duruyor; başlık ona güvenmiyor.
+- **`ky_nokta` (1A-1 O):** tampon doluyken boşaltma yine başarısızsa reddedilen nokta `dusen`'e sayılır.
+- **D5 #10 `/saat`:** `guv_saat_coz` — yalnız rakam, ≤ 10 hane, 32 bit taşmasız, 1 700 000 000 ≤ unix <
+  4 102 444 800 (2100-01-01); dışı 400. Eskiden `strtoul("-1")` = 2106.
+- **D5 #11 `Ex<n>`:** `guv_cihaz_no_coz` önce TAM çözer: yalnız `!` (tek başına) ya da 1..8. `Ex257`
+  (uint8 kesimi), `Ex-255` (atoi), `Ex!x`, `Ex4294967297` (32 bit taşması) RET.
+- **D5 #14 `eno`:** rastgele 31 bit (`uint32`, 0 ve önceki hariç), yanıtta `%lu`; kanıt ucu `guv_sayi_coz` ile
+  TAM çözer (eskiden `(uint8_t)toInt()`), çözülemeyen 0 = hiçbir bekleyene uymaz. Yanlış numara bekleyeni
+  TÜKETMEZ (zaten öyleydi; artık tahmin 2^-31). İstemciler (`imza.py`, `imza.js`) değişmeden uyumlu (JSON
+  tamsayısı, < 2^31).
+- **E3 `Qe<binde>`:** 100..1000, boş = varsayılan 500 (anahtar silinir); YALNIZ USB (`/komut` Q'yu 403 ile
+  zaten reddediyor); NVS `mqtt`/`esik`; görev yeni eşiği **bağlantıyı kesmeden** alır (istek/işlenen
+  sayaçları; `bld_istek_yeniden` yeniden bağlanırdı); açılışta NVS'ten. `Q?` satırına `esik=` (etkin eşik).
+  Karar: `bld_esik_ayarla` olay numarasını, kuyruğu ve `esik_kurulu`yu KORUR — eşiği indirmek zaten
+  bildirilmiş doluluğu tekrar bildirmez, eşiğin altına inmiş (bildirilmemiş) dolulukta hemen bildirir;
+  yükseltmek histerezisle yeniden kurar. Alt sınır 100 = `BLD_ESIK_GERI` (daha alçak eşik yalnız tam
+  eşitlemede yeniden kurulurdu).
+- `KAYIT_FW_SURUM` **`A3-W2`** (B72.F25 + mutasyonu güncellendi).
+
+**Derleme:** `yukle.py --derle` uyarısız. Flaş 1 412 758 → **1 414 402 B (+1 644)**, DRAM 81 684 →
+**81 700 B (+16)** → `_ESP_DRAM_SON_OLCUM` gerekçesiyle güncellendi.
+
+**İddialar:** B71 362 → **369** (P7 NaN/Inf, Y15 dolu tampon + yazma hatası, U20 `/saat`, U21 `Ex`, U22 `eno`,
+Q21 `Qe` ayrıştırıcı, Q22 çalışırken eşik) · B72 207 → **214** (W2a–W2g) · B7 911 → **912** (G geriye uyum).
+AVR donanımı: NOKTACI S6, YAZICI O5 (emüle NOR yazma arızası `NOR_ARIZA_YAZ = 1`, iki kez), GUV aşama 3
+`a3_coz` + `a3_eno`, BILDIRIM `s_esik_ayar` (yığın payı 678 B).
+
+**Doğrulama:** `dogrula3.py --artimli` **22/22** (ilk koşu B22b'de kırmızıydı: `app.js` değişince LittleFS
+görüntüsü ve `sw.js` SURUM bayat — `python arayuz-uret.py` ile yenilendi) · `mutasyon.py --neden W2 --paralel 2`
+**18/18 YAKALANDI** (2331 s) · `--neden "1D: surum adi"` **1/1** · uygulanamayan yok. ⚠ B7 yalanlayıcısı
+(`KAYIT_SATIR_ESKI` boş) ilk kırmızıyı D1'de veriyor ve sayım BOŞ dönüyor: B7'nin başka iddiaları da 13
+alanlı (eski biçim) G satırı besliyor, ayrıştırıcı onu reddedince test çöküyor — yakalandı, ama W2 iddiasından
+önce. `gizlilik_dogrula.py` temiz.
+
+**Gerçek kart listesi (A3-W2 yüklendikten sonra; `N?` GÖNDERME):**
+1. `G?` → `G` satırı 15 alan, son ikisi `0 0`; `GA`/`GT`/`GP` değişmedi. Afiş/kayıt BAŞLA sürümü `A3-W2`
+   (eşitlenen kayıtta), MQTT durumunda `"f":"A3-W2"`.
+2. `Gb1000` → G'de oturum `<o>`; `Gn<o> deneme` → G satırı HEMEN gelir, `son_not` > 0; eşitlenen dosyada o sırada
+   NOT kaydı var; `Gx<o>:<son_not> ` (boş metin) notu siler; `Gn999999 x` → `son_not` = -4 (KG_YOK). `Gd`.
+3. Kayıt sürerken G periyodu bozulmadı (saniyede bir) ve `D` satırında örnekleme hızı değişmedi;
+   `tezgah_kayit.py --pil` (Ga/Ge/Gn/Gx) ve `--duman` yeşil.
+4. Panel (kartın kendi paneli, Playwright): Canlı'da kayıt durumu ve konsol G satırını gösteriyor; köprü
+   açıkken kayıt bitince "kayıt bitti" yerel PC bildirimi geliyor (`pc_bildirim` yeni G'yi durum sayıyor).
+5. USB: `E?` (cihaz sayısını not et) → `Ex257`, `Ex-255`, `Ex1x`, `Ex!x`, `Ex0`, `Ex9` hepsi `! E: Ex<1..8>…`
+   ve `E?` cihaz sayısı AYNI. (`Ex1`/`Ex!` DENEME — gerçek cihazları siler.)
+6. Eşleştirme: `tezgah_kayit.py --guvenlik` yeşil; `/eslestir/baslat`
+   yanıtındaki `eno` > 255 ve ardışık iki başlatmada +1 değil; yanlış `eno` ile `/eslestir/kanit` 404 (YOK),
+   ardından doğru `eno` + doğru kanıt hâlâ KABUL. Köprü (`imza.py`) ve panel (`imza.js`) eşleştirmesi uçtan uca.
+7. `/saat` (yalnız NTP'siz kartta; NTP varsa 409 beklenir): imzalı POST `unix=-1` → 400, `unix=4102444800` → 400,
+   `unix=17000000000` → 400, geçerli `unix` → 204 ve `E?` `saat=2`.
+8. `Q?` → `esik=500`; `Qe700` → `* Q: esik 700 binde`, `Q?` `esik=700` ve `baglanti` sayacı ARTMADI (bağlantı
+   kopmadı); RTS sıfırlaması sonrası `esik=700` kalıcı; `Qe99`, `Qe1001`, `Qex` RET; `Qe` → 500 (varsayılan);
+   `/komut` ile `Qe700` → 403. MQTT bağlıyken (EMQX) `Qe` sonrası `QY dahili_en_az` ≥ 54 KB (E6 sınıfı).
+9. Blokaj: `tezgah_kart.py --sifirla` kararlı-hal `loop_azami` öncekiyle aynı sınıfta (G satırı 2 alan uzadı).
+
+**Açık:** panelde `son_not` gösterimi / Gx kısayolu yok · `ky_nokta` reddinden sonraki noktaya `KN_KAYIP_ONCE`
+bayrağı yok · D5 #15/#17/#18/#19 ve #8 hâlâ açık · E3 için PC/panel arayüzü yok (yalnız USB).
+
+---
+
 #### 5.12.99 🟢 HIZ ↔ main BİRLEŞMESİ (2026-10-03, dal `zincir-hiz`, ağaç `projeler/olcum-karti-hiz`)
 
 Ajan. `main` (e6e086d: 4D–4J, 3C-LISTE, kılavuz, `gercek_dizin_koru` son kuralı, köprü 405) `zincir-hiz`'e

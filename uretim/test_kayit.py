@@ -564,7 +564,7 @@ def bolum_noktaci() -> None:
         p = s.split()
         if p[:1] == ["P"]:
             simdiki.append(KB.nokta_coz(bytes.fromhex(p[1])))
-        elif p[:1] and p[0] in ("S1", "S2", "S3", "S4", "S5"):
+        elif p[:1] and p[0] in ("S1", "S2", "S3", "S4", "S5", "S6"):
             gruplar[p[0]], simdiki = simdiki, []
     s1 = [beklenen(100 * (m + 1),
                    [(100 + j, -j, j * 0.5) for j in range(10 * m, 10 * m + 10)])
@@ -592,6 +592,11 @@ def bolum_noktaci() -> None:
     ok("B71.P6 (1C-1) DCIR bayragi ornegin AIT OLDUGU noktada: sinirdaki ornek onceki "
        "noktayi kapatir, bayragi YENISINE verir (1. nokta temiz)",
        gruplar.get("S5") == s5, str([p.bayrak for p in gruplar.get("S5", [])]))
+    s6 = [beklenen(50, [(5, 1, 0.25), (3, 3, 0.5)], bayrak=KB.KN_V_HATA | KB.KN_I_HATA)]
+    ok("B71.P7 (W2, 1A-1 D) yapistiricinin hata bayragi OLMADAN gelen NaN ve +Inf watt: noktaci "
+       "kendisi HATALI sayar (V+I hata bayragi), (int64_t) donusumu yapilmaz, istatistige yalniz "
+       "sonlu iki ornek girer (isfinite kayit_nokta.h'de)",
+       gruplar.get("S6") == s6, str(gruplar.get("S6"))[:200])
 
 
 # ── B71.G · gunluk ────────────────────────────────────────────────────
@@ -809,6 +814,18 @@ def bolum_yazici() -> None:
        o4 is not None and _noktalar_mi(o4, range(ucta), lambda j: 1000 + j))
     ok("B71.Y14 BITIR payi: BITIR disinda hicbir kayit sektorun son 24 baytina girmez",
        bitir_payi_korunur(bellek))
+    tamp = (AZAMI_YUK - 4) // KB.NOKTA_BAYT
+    o5 = ot.get(int(d["O5"][0])) if "O5" in d else None
+    r5a, r5b = int(d["R5A"][0]), int(d["R5B"][0])
+    ok("B71.Y15 (W2, 1A-1 O) tampon DOLU iken yazma hatasi: ilk hatada noktalar tamponda kalir "
+       f"({tamp}); dolu tamponda yine hata alan SONRAKI nokta reddedilir ve dusen'e SAYILIR (1); "
+       "bitiste tampondakiler eksiksiz, sira 0..n-1, BITIR nokta adedi tutar",
+       r5a < 0 and r5a != -1 and r5b < 0 and r5b != -1 and int(d["YN5"][0]) == tamp
+       and int(d["DUS5"][0]) == 1 and d["B5"] == ["0"]
+       and _noktalar_mi(o5, range(tamp), lambda j: 5000 + j)
+       and o5.bitir == {"nokta_adedi": tamp, "sebep": 1},
+       f"R5A={r5a} R5B={r5b} YN5={d['YN5']} DUS5={d['DUS5']} B5={d['B5']} "
+       f"nokta={len(o5.noktalar) if o5 else None} bitir={o5.bitir if o5 else None}")
 
 
 # ── B71.T · kurtarma maliyeti ve kirli kuyruk ─────────────────────────
@@ -2079,6 +2096,32 @@ def bolum_guvenlik() -> None:
        f"{alanlar(a3, 'U14')} {h(a3, 'TUZ')} {h(a3, 'KIMLIK')}")
     ok("B71.U15 hepsini sil (Ex!) -> 0 cihaz", [k(a3, "U15A"), k(a3, "U15N")] == [0, 0],
        str([k(a3, "U15A"), k(a3, "U15N")]))
+    def cz(ad):
+        x = alanlar(a3, ad)
+        return (int(x[0][0]), int(x[0][1])) if x and len(x[0]) == 2 else None
+    ws = {x: cz("WS" + x) for x in "ABCDEFGHIJKL"}
+    ok("B71.U20 (W2, D5 #10) /saat ayristiricisi TAM cozer, sonra sinirlar: 1700000000 ve "
+       "4102444799 kabul; alt sinirin alti, 2100 ve sonrasi, '-1' (strtoul: 4294967295 = 2106), "
+       "11+ hane, sonek, bos, bosluk/arti onek RET ve ret degeri DEGISTIRMEZ",
+       ws["A"] == (0, 1700000000) and ws["E"] == (0, 4102444799)
+       and all(ws[x] == (-1, 77) for x in "BCDFGHIJKL"), str(ws))
+    wx = {x: cz("WX" + x) for x in "ABCDEFGHIJK"}
+    ok("B71.U21 (W2, D5 #11) Ex<n> ayristiricisi TAM cozer: '!' -> 0 (hepsi), 1 ve 8 kabul; 9, 0, "
+       "257 (eskiden uint8 kesimiyle 1), -255 (atoi: 1), '1x', bos, '!x', 4294967297 (32 bit "
+       "tasmasiyla 1) RET ve numara DEGISMEZ (cihaz 1 silinmez)",
+       wx["A"] == (0, 0) and wx["B"] == (0, 1) and wx["C"] == (0, 8)
+       and all(wx[x] == (-1, 77) for x in "DEFGHIJK"), str(wx))
+    wen = [int(v) for v in (alanlar(a3, "WEN") or [[]])[0]]
+    ok("B71.U22 (W2, D5 #14) eslestirme numarasi RASTGELE 31 bit: ardisik uc baslatmada "
+       "1..2^31-1, hepsi farkli, hicbiri oncekinin +1'i degil, 8 bite sigmayan var; ucuncu "
+       "kisinin tahminleri (sonraki ardisik, 8 bite kesik, eski numara) YOK alir ve bekleyeni "
+       "TUKETMEZ: dogru numara + dogru kanit ardindan KABUL",
+       [k(a3, x) for x in ("WEP", "WE1", "WE2", "WE3")] == [0, 0, 0, 0] and len(wen) == 3
+       and all(1 <= e <= 0x7FFFFFFF for e in wen) and len(set(wen)) == 3
+       and wen[1] != wen[0] + 1 and wen[2] != wen[1] + 1 and max(wen) > 255
+       and (wen[2] & 0xFF) != wen[2]
+       and [k(a3, x) for x in ("WEA", "WEB", "WEC")] == [YOK, YOK, YOK] and k(a3, "WED") == 0,
+       f"eno={wen} tahmin={[k(a3, x) for x in ('WEA', 'WEB', 'WEC')]} dogru={k(a3, 'WED')}")
     ok("B71.U16 acilis: her acilista AC 0, kimlik ve tuz uretildi (bos degil)",
        all(k(a, "AC") == 0 for a in (a1, a2, a3)) and h(a1, "TUZ") not in (None, "0" * 32),
        str([k(a, "AC") for a in (a1, a2, a3)]))
@@ -2285,6 +2328,24 @@ def bolum_bildirim() -> None:
        and _bld_ac(_BLD_ANAHTAR, konu2, z4) == b'{"c":0,"a":7}'
        and k("Z5") == -2 and k("Z5S") == 0 and k("Z6") == -2,
        f"Z3={k('Z3')} Z4={z4[4:16].hex() if z4 else None} Z5={k('Z5')} Z6={k('Z6')}")
+    def ez(ad):
+        x = alanlar(sat, ad)
+        return (int(x[0][0]), int(x[0][1])) if x and len(x[0]) == 2 else None
+    wq = {x: ez("WQ" + x) for x in "ABCDEFGHIJK"}
+    ok("B71.Q21 (W2, E3) Qe<binde> ayristiricisi: bos -> 0 (varsayilana don), 700 / 100 / 1000 "
+       "kabul; 99, 1001, -5, 7x, 0, 65636 (16 bit tasmasi), bosluk onekli RET ve deger DEGISMEZ",
+       wq["A"] == (0, 0) and wq["B"] == (0, 700) and wq["C"] == (0, 100) and wq["D"] == (0, 1000)
+       and all(wq[x] == (-1, 77) for x in "EFGHIJK"), str(wq))
+    wqa = [k("WQ" + x) for x in "12345"]
+    wqv = ob("WQV")
+    ok("B71.Q22 (W2, E3) calisirken esik degisimi: olay numarasi SURER (bld_kur gibi sifirlamaz); "
+       "esik indirilince (500 -> 300) mevcut 400 HEMEN bildirilir; bildirilmisken yine indirmek "
+       "(350) TEKRAR uretmez; yukseltmek (800) histerezisle yeniden kurar ve 820'de yeni esikle "
+       "bildirir; gecersiz (30) -> varsayilan 500",
+       wqa == [1, 1, 0, 0, 1] and k("WQE1") == 800 and k("WQE2") == 500
+       and [x and x.get("o") for x in wqv] == ["basladi", "esik", "esik"]
+       and wqv[1:] == [ol(2, "esik", a=8, deger=400, esik=300), ol(3, "esik", a=8, deger=820, esik=800)],
+       f"{wqa} {k('WQE1')} {k('WQE2')} {wqv}")
     ok("B71.Q20 AVR yigini (2 KB RAM) tasmadi: bss sonu ile en derin yigin arasi >= 64 B",
        (k("YIGIN") or 0) >= 64, f"{k('YIGIN')} B")
 

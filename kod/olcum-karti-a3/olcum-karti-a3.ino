@@ -3076,7 +3076,8 @@ void eslestir_baslat_sayfa() {
   if (!guv_kapi(GUV_ACIK)) return;
   if (!guv_hazir) { sunucu.send(503, "text/plain", "guvenlik hazir degil (NVS)"); return; }
   if (sunucu.header("X-Olcum") != "1") { sunucu.send(400, "text/plain", "X-Olcum basligi gerekli"); return; }
-  uint8_t nc[16], nk[16], eno = 0;
+  uint8_t nc[16], nk[16];
+  uint32_t eno = 0;   /* W2 (D5 #14): rastgele 31 bit */
   if (guv__hexten(sunucu.arg("nc").c_str(), nc, 16)) {
     sunucu.send(400, "text/plain", "nc: 32 hex karakter");
     return;
@@ -3088,7 +3089,7 @@ void eslestir_baslat_sayfa() {
   if (r) { guv__esles_hata(r); return; }
   char t[96], h[33];
   guv__hex(nk, 16, h);
-  snprintf(t, sizeof(t), "{\"eno\":%u,\"nk\":\"%s\"}", (unsigned)eno, h);
+  snprintf(t, sizeof(t), "{\"eno\":%lu,\"nk\":\"%s\"}", (unsigned long)eno, h);
   sunucu.send(200, "application/json", t);
 }
 
@@ -3102,7 +3103,10 @@ void eslestir_kanit_sayfa() {
     sunucu.send(400, "text/plain", "kanit: 64 hex karakter");
     return;
   }
-  const uint8_t eno = (uint8_t)sunucu.arg("eno").toInt();
+  /* W2 (D5 #14): TAM cozum; cozulemeyen numara 0 kalir = hicbir bekleyene uymaz (YOK) —
+     eskiden (uint8_t)toInt() 257'yi 1'e kesiyordu */
+  uint32_t eno = 0;
+  (void)guv_sayi_coz(sunucu.arg("eno").c_str(), 1UL, GUV_ENO_AZAMI, &eno);
   guv_kilit();
   const int r = guv_esles_kanit(&guv, eno, kanit, millis(), kayit__unix(), &n, kk);
   guv_birak();
@@ -3159,8 +3163,11 @@ void saat_sayfa() {
   if (!guv_kapi(GUV_CIHAZ)) return;
   if (sunucu.header("X-Olcum") != "1") { sunucu.send(400, "text/plain", "X-Olcum basligi gerekli"); return; }
   if (guv_saat_ntp) { sunucu.send(409, "text/plain", "kartin NTP saati var — cihaz saati kullanilmaz"); return; }
-  const uint32_t u = strtoul(sunucu.arg("unix").c_str(), nullptr, 10);
-  if (u < 1700000000UL) { sunucu.send(400, "text/plain", "unix >= 1700000000 olmali"); return; }
+  uint32_t u = 0;   /* W2 (D5 #10): TAM cozum + ust sinir (strtoul "-1"i 2106 yapiyordu) */
+  if (guv_saat_coz(sunucu.arg("unix").c_str(), &u)) {
+    sunucu.send(400, "text/plain", "unix: yalniz rakam, 1700000000 <= unix < 4102444800");
+    return;
+  }
   struct timeval tv;
   tv.tv_sec = (time_t)u;
   tv.tv_usec = 0;
@@ -3200,6 +3207,22 @@ static void bld_seri_komut(const char *s) {
   char t[360];   /* QA satiri: uri 127 + iki kullanici 63 + sabitler */
   const char *alan = nullptr, *ad = nullptr;
   uint8_t azami = 0;
+  /* W2 (E3): Qe<binde> kullanici esigi (bos = varsayilan). Alt komut `s[1] == 'e'` ile,
+     ic switch DEGIL (komut harfi denetimi butun `case` satirlarini topluyor). */
+  if (s[1] == 'e') {
+    uint16_t e = 0;
+    if (bld_esik_coz(s + 2, &e)) {
+      snprintf(t, sizeof(t), "! Q: Qe<%u..%u> esitlenmemis binde esigi (bos = varsayilan %u)",
+               (unsigned)BLD_ESIK_EN_AZ, (unsigned)BLD_ESIK_EN_COK, (unsigned)BLD_ESIK_VARSAYILAN);
+      Serial.println(t);
+      return;
+    }
+    if (bildirim_esik_yaz(e)) { Serial.println(F("! Q: NVS'e yazilamadi")); return; }
+    snprintf(t, sizeof(t), "* Q: esik %u binde%s (baglanti kesilmez)",
+             (unsigned)(e ? e : BLD_ESIK_VARSAYILAN), e ? "" : " (varsayilan)");
+    Serial.println(t);
+    return;
+  }
   switch (s[1]) {
     case '?': {
       BildirimOzet z;
@@ -3208,11 +3231,11 @@ static void bld_seri_komut(const char *s) {
       static const char *const adlar[] = {"kapali", "ayar eksik", "ag yok (STA degil)",
                                           "baglaniyor", "bagli", "bekliyor"};
       snprintf(t, sizeof(t),
-               "Q acik=%u durum=%u (%s) hata=%ld baglanti=%lu yayin=%lu olay=%lu kuyruk=%lu dusen=%lu el_sikisma_ms=%lu",
+               "Q acik=%u durum=%u (%s) hata=%ld baglanti=%lu yayin=%lu olay=%lu kuyruk=%lu dusen=%lu el_sikisma_ms=%lu esik=%u",
                (unsigned)z.acik, (unsigned)d.durum, d.durum < 6u ? adlar[d.durum] : "?",
                (long)d.son_hata, (unsigned long)d.baglanti, (unsigned long)d.yayin,
                (unsigned long)d.olay, (unsigned long)d.kuyruk, (unsigned long)d.dusen,
-               (unsigned long)d.el_sikisma_ms);
+               (unsigned long)d.el_sikisma_ms, (unsigned)bld_esik_etkin);
       Serial.println(t);
       snprintf(t, sizeof(t), "QA uri=%s kart=%s kart_parola=%s cihaz=%s cihaz_parola=%s onek=%s anahtar=%s",
                z.uri[0] ? z.uri : "-", z.kk[0] ? z.kk : "-", z.kp_var ? "var" : "yok",
@@ -3277,7 +3300,7 @@ static void bld_seri_komut(const char *s) {
       return;
     }
     default:
-      Serial.println(F("! Q: Q? durum · Qu<mqtts://ad:port> · Qk/Qp kart kullanici/parola · Qc/Qd cihaz kullanici/parola · Q1/Q0 · Qt deneme · Qv sinama · QR! yeni anahtar"));
+      Serial.println(F("! Q: Q? durum · Qu<mqtts://ad:port> · Qk/Qp kart kullanici/parola · Qc/Qd cihaz kullanici/parola · Q1/Q0 · Qt deneme · Qv sinama · QR! yeni anahtar · Qe<binde> esik"));
       return;
   }
   const int r = bildirim_ayar_metin(alan, s + 2, azami);
@@ -3329,8 +3352,9 @@ static void guv_seri_komut(const char *s) {
       break;
     }
     case 'x': {
-      const uint8_t n = (s[2] == '!') ? 0u : (uint8_t)atoi(s + 2);
-      if (s[2] != '!' && (n < 1 || n > GUV_CIHAZ_AZAMI)) {
+      /* W2 (D5 #11): once TAM coz, sonra sil — (uint8_t)atoi Ex257/Ex-255'i cihaz 1 yapiyordu */
+      uint8_t n = 0;
+      if (guv_cihaz_no_coz(s + 2, &n)) {
         Serial.println(F("! E: Ex<1..8> ya da Ex! (hepsi)"));
         break;
       }
@@ -3515,10 +3539,15 @@ static void kayit_basla_doldur(KayitBasla *b, uint32_t hiz) {
 }
 
 /* G <durum> <oturum> <nokta> <sonraki> <onay> <doluluk%o> <onaysiz%o> <dusen>
-     <yaz_azami_us> <sil_azami_us> <sil_adet> <tarama_ms> <son_hata>
-   Kayit surerken saniyede bir, durum degisince HEMEN; `G?` ile istenince. */
+     <yaz_azami_us> <sil_azami_us> <sil_adet> <tarama_ms> <son_hata> <son_not> <mesaj_dusen>
+   Kayit surerken saniyede bir, durum degisince HEMEN; `G?` ile istenince.
+   W2: son iki alan SONA eklendi (A3-W2; eski firmware 13 alan basar, ayristiricilar ikisini
+   de kabul eder): son_not = son Ga/Ge/Gn/Gx'in NOT kaydi sirasi (> 0; Gx bu sirayi
+   hedefler), < 0 KG_* hata, 0 yok — degisince HEMEN basilir (nesil DEGIL: nesil
+   noktaciyi yeniden baslatir); mesaj_dusen = istek kuyrugunda dusen (1C-1 M9). */
 static void kayit_durum_bas(bool zorla) {
   static uint32_t son_ms = 0, son_nesil = 0xFFFFFFFFu;
+  static int32_t son_not = 0;
   if (!kayit_bolum) {
     if (zorla) Serial.println(F("! G: kayit bolumu yok (partitions.csv ile tam yukleme)"));
     return;
@@ -3526,17 +3555,19 @@ static void kayit_durum_bas(bool zorla) {
   uint32_t ms = millis();
   KayitDurum d = kayit_durum_al();
   bool periyot = d.durum == KDR_KAYIT && (ms - son_ms) >= 1000u;
-  if (!zorla && d.nesil == son_nesil && !periyot) return;
+  if (!zorla && d.nesil == son_nesil && !periyot && d.son_not == son_not) return;
   son_ms = ms;
   son_nesil = d.nesil;
-  char t[176];
-  snprintf(t, sizeof(t), "G %u %lu %lu %lu %lu %u %u %lu %lu %lu %lu %lu %ld",
+  son_not = d.son_not;
+  char t[200];
+  snprintf(t, sizeof(t), "G %u %lu %lu %lu %lu %u %u %lu %lu %lu %lu %lu %ld %ld %lu",
            (unsigned)d.durum, (unsigned long)d.oturum, (unsigned long)d.nokta_sira,
            (unsigned long)d.sonraki_sira, (unsigned long)d.onay,
            (unsigned)d.doluluk_binde, (unsigned)d.onaysiz_binde,
            (unsigned long)d.dusen, (unsigned long)d.yaz_azami_us,
            (unsigned long)d.sil_azami_us, (unsigned long)d.sil_adet,
-           (unsigned long)d.tarama_ms, (long)d.son_hata);
+           (unsigned long)d.tarama_ms, (long)d.son_hata, (long)d.son_not,
+           (unsigned long)kayit_mesaj_dusen);
   Serial.println(t);
 }
 
@@ -4611,7 +4642,7 @@ void yardim() {
   Serial.println(F("  Gx<oturum>:<sira>[@<ms>] <metin> notu degistir (metin bos: sil) · komut <= 175 karakter"));
   Serial.println(F("  k? kalibrasyon gecmisi  kl liste  kv<no> degerler  kk<t><not> taslagi kaydet"));
   Serial.println(F("  kn<no> <not>  kt<no><t>   (t: d donanim degisti, i ince ayar, - belirtilmemis)"));
-  Serial.println(F("  Q? bildirim (MQTT) durumu  Qu<mqtts://ad:port>  Qk/Qp kart  Qc/Qd cihaz  Q1/Q0  Qt  Qv  (YALNIZ USB)"));
+  Serial.println(F("  Q? bildirim (MQTT) durumu  Qu<mqtts://ad:port>  Qk/Qp kart  Qc/Qd cihaz  Q1/Q0  Qt  Qv  Qe<binde> esik  (YALNIZ USB)"));
 }
 
 void komut_calistir(const char *s) {

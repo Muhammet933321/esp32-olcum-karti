@@ -48,7 +48,9 @@ import kayit_esitle as KE                              # noqa: E402
 
 YEDEK = KOK.parents[1] / ".yedek" / "olcum-karti"
 G_ALAN = ["durum", "oturum", "nokta", "sonraki", "onay", "doluluk", "onaysiz",
-          "dusen", "yaz_azami_us", "sil_azami_us", "sil_adet", "tarama_ms", "son_hata"]
+          "dusen", "yaz_azami_us", "sil_azami_us", "sil_adet", "tarama_ms", "son_hata",
+          "son_not", "mesaj_dusen"]           # W2 (A3-W2): son iki alan; eski firmware 13 alan
+G_ALAN_ESKI = 13
 gecti = kaldi = 0
 
 
@@ -86,7 +88,8 @@ def kayit_bolumu() -> tuple[int, int]:
 
 def g_coz(satir: str) -> dict | None:
     p = satir.split()
-    if len(p) != 14 or p[0] != "G" or not all(x.lstrip("-").isdigit() for x in p[1:]):
+    if (len(p) - 1 not in (len(G_ALAN), G_ALAN_ESKI) or p[0] != "G"
+            or not all(x.lstrip("-").isdigit() for x in p[1:])):
         return None
     return dict(zip(G_ALAN, (int(x) for x in p[1:])))
 

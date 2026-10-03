@@ -47,6 +47,12 @@
 #ifndef GUV_NEFES_ARALIK
 #define GUV_NEFES_ARALIK  1000UL
 #endif
+/* W2 (D5 #10): /saat kabul araligi. Alt sinir kayit__unix'in "bilinmiyor" esigi;
+   ust sinir 2100-01-01 (uint32 unix 2106'da tasar, "-1" -> 4294967295 = 2106 RET). */
+#define GUV_SAAT_ALT      1700000000UL
+#define GUV_SAAT_UST      4102444800UL   /* HARIC */
+/* W2 (D5 #14): eslestirme numarasi RASTGELE, 1..2^31-1 (JS/Java int'e sigar). */
+#define GUV_ENO_AZAMI     0x7FFFFFFFUL
 /* Islev niteligi: kartta `static inline`. AVR sinamasi (2 KB RAM) `noinline`
    verir; yoksa derleyici her seyi tek cerceveye gomup yigini tasirir. */
 #ifndef GUV_ISLEV
@@ -137,7 +143,8 @@ typedef struct {
     uint8_t  P[32];
     uint8_t  p_var;
     /* bekleyen eslestirme (ayni anda tek) */
-    uint8_t  e_var, e_no;
+    uint8_t  e_var;
+    uint32_t e_no;              /* W2 (D5 #14): rastgele; tahmin edilemez */
     uint8_t  e_nk[16], e_nc[16];
     char     e_ad[GUV_AD_AZAMI + 1];
     uint32_t e_bas_ms;
@@ -169,6 +176,42 @@ GUV_ISLEV uint8_t guv__esit(const uint8_t *a, const uint8_t *b, uint8_t n)
     uint8_t f = 0, i;
     for (i = 0; i < n; i++) f |= (uint8_t)(a[i] ^ b[i]);
     return (uint8_t)(f == 0u);
+}
+
+/* W2 (D5 #10, #11): ondalik sayiyi TAMAMEN coz, sonra sinirla. Yalniz rakam (isaret, bosluk,
+   onek, sonek YOK), en fazla 10 hane, 32 bit tasmasiz, en_az <= v <= en_cok. Basarisizsa
+   -1 ve *v DEGISMEZ. strtoul/atoi "-1"i 4294967295'e, "257"yi (uint8) 1'e cevirirdi. */
+GUV_ISLEV int guv_sayi_coz(const char *s, uint32_t en_az, uint32_t en_cok, uint32_t *v)
+{
+    uint32_t x = 0;
+    uint8_t n = 0;
+    if (!s) return -1;
+    for (; *s; s++, n++) {
+        const uint8_t r = (uint8_t)(*s - '0');
+        if (r > 9u || n >= 10u) return -1;
+        if (x > (0xFFFFFFFFUL - r) / 10u) return -1;
+        x = x * 10u + r;
+    }
+    if (!n || x < en_az || x > en_cok) return -1;
+    *v = x;
+    return 0;
+}
+
+/* /saat (D5 #10): GUV_SAAT_ALT <= u < GUV_SAAT_UST. */
+GUV_ISLEV int guv_saat_coz(const char *s, uint32_t *u)
+{
+    return guv_sayi_coz(s, GUV_SAAT_ALT, GUV_SAAT_UST - 1UL, u);
+}
+
+/* Ex<n> (D5 #11): "!" (yalniz o) -> 0 = hepsi; yoksa 1..GUV_CIHAZ_AZAMI. Basarisizsa -1 ve
+   *n DEGISMEZ — eskiden (uint8_t)atoi once KESIYORDU: Ex257, Ex-255 cihaz 1'i siliyordu. */
+GUV_ISLEV int guv_cihaz_no_coz(const char *s, uint8_t *n)
+{
+    uint32_t v = 0;
+    if (s && s[0] == '!' && !s[1]) { *n = 0u; return 0; }
+    if (guv_sayi_coz(s, 1UL, GUV_CIHAZ_AZAMI, &v)) return -1;
+    *n = (uint8_t)v;
+    return 0;
 }
 
 GUV_ISLEV int guv__hexten(const char *h, uint8_t *v, uint8_t n)
@@ -425,8 +468,10 @@ GUV_ISLEV int guv_p_hesapla(GuvDurum *g, const char *parola)
 }
 
 GUV_ISLEV int guv_esles_baslat(GuvDurum *g, const char *ad, const uint8_t nc[16],
-                               uint32_t simdi_ms, uint8_t *eno, uint8_t nk[16])
+                               uint32_t simdi_ms, uint32_t *eno, uint8_t nk[16])
 {
+    uint8_t r[4];
+    uint32_t x;
     int n;
     if (!g->p_var) return GUV_E_PAROLA;
     if (!guv__ad_gecerli(ad)) return GUV_E_AD;
@@ -434,8 +479,14 @@ GUV_ISLEV int guv_esles_baslat(GuvDurum *g, const char *ad, const uint8_t nc[16]
     n = guv__bos_numara(g);
     if (n < 0) return n;
     g->e_var = 1u;
-    g->e_no = (uint8_t)(g->e_no + 1u);
-    if (!g->e_no) g->e_no = 1u;
+    /* W2 (D5 #14): ardisik uint8 numarayi ucuncu kisi tahmin edip bekleyen eslestirmeyi
+       TUKETIYOR (her bekleyen tek deneme) ve ortak geri cekilmeyi buyutuyordu. Rastgele
+       31 bit: tahmin 2^-31; yanlis numara bekleyeni tuketmez (guv_esles_kanit: YOK). */
+    g->k->rastgele(r, 4);
+    x = (((uint32_t)r[0] << 24) | ((uint32_t)r[1] << 16) | ((uint32_t)r[2] << 8) | r[3])
+        & GUV_ENO_AZAMI;
+    if (!x || x == g->e_no) x = (g->e_no % GUV_ENO_AZAMI) + 1UL;   /* 0 ve tekrar yok */
+    g->e_no = x;
     memcpy(g->e_nc, nc, 16);
     g->k->rastgele(g->e_nk, 16);
     memset(g->e_ad, 0, sizeof(g->e_ad));
@@ -446,7 +497,7 @@ GUV_ISLEV int guv_esles_baslat(GuvDurum *g, const char *ad, const uint8_t nc[16]
     return 0;
 }
 
-GUV_ISLEV int guv_esles_kanit(GuvDurum *g, uint8_t eno, const uint8_t kanit[32],
+GUV_ISLEV int guv_esles_kanit(GuvDurum *g, uint32_t eno, const uint8_t kanit[32],
                               uint32_t simdi_ms, uint32_t unix, uint8_t *n_cikis,
                               uint8_t kart_kanit[32])
 {
@@ -665,7 +716,7 @@ GUV_ISLEV void guv__sinama_ayar(GuvDurum *g, const uint8_t kimlik[8], const uint
 
 GUV_ISLEV void guv__sinama_acilis(GuvDurum *g, const uint8_t a[16]) { memcpy(g->acilis, a, 16); }
 
-GUV_ISLEV void guv__sinama_bekleyen(GuvDurum *g, uint8_t eno, const uint8_t nk[16],
+GUV_ISLEV void guv__sinama_bekleyen(GuvDurum *g, uint32_t eno, const uint8_t nk[16],
                                     const uint8_t nc[16], const char *ad, uint32_t simdi_ms)
 {
     g->e_var = 1u;
