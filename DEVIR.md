@@ -10531,6 +10531,18 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.94 🟢 4I: YENİLENEN SEKME SÜRÜCÜ KALIR (2026-10-03)
+
+4H'de bulundu: köprü, yenilenen/kapanan sekmenin sürücü jetonunu tutuyordu; yenilenen sekme izleyici kalıyor,
+açılış komutları (`?` `CT` `G?`) 403 alıyordu — PC uygulamasında her yenilemede. Gerçek Edge'de (T4A) önce
+KIRMIZI görüldü. Düzeltme yalnız `kopru/kopru.py`: her `/akis` kaydediliyor, işleyici soketi 0.5 s'de bir yokluyor
+(`select` + `MSG_PEEK`); sürücünün bütün akışları kapanınca rol **en yeni yaşayan yerel** akışa geçiyor ve ona
+`event: kimlik` gidiyor (yeni bağlantıda, akış bitince ve reddedilecek komuttan önce yoklanıyor). Aday yoksa rol
+boşta bekliyor (`None`'a düşmüyor). İki açık sekme arasında çalma yok (`/devral` aynen), LAN asla aday değil,
+çapraz köken jeton almıyor, `p0` serbest. `app.js` değişmedi (mevcut `kimlik` dinleyicisi her olayı işliyor).
+Devir 0.26–0.44 s. B22a 166 → 175, T4A 12 → 15, mutasyon `4I:` 14. Kararlar spec "4I uygulama kararları".
+Açık: kartın kendi web sunucusu dokunulmadı; iki gerçek Edge sekmesiyle ölçülmedi.
+
 #### 5.12.91 🟢 3C-LISTE: İLK EŞİTLEMEDE BOŞ LİSTE (2026-10-03 öğle)
 
 4D+4E kartta sınanırken bulundu: yeni bir tarayıcıda Kayıtlar açılınca liste ~24 s (ilk eşitleme boyunca) BOŞ

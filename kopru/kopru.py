@@ -65,6 +65,7 @@ import json
 import queue
 import re
 import secrets
+import select
 import socket
 import socketserver
 import sys
@@ -99,6 +100,12 @@ PORT = pc_ayar.PORT
 
 # Her taşımada, jetonsuz, kimliksiz gecen komutlar.
 SERBEST_KOMUTLAR = {"p0"}
+
+# 4I: `/akis` isleyicisi bu aralikla istemcinin soketini yokluyor (kapandi mi).
+# Kart bostayken akisa satir gelmez; kopus yalniz 15 s'lik kalp atisinda fark
+# edilseydi yenilenen sekme o kadar izleyici kalirdi. Hedef: rol <= ~2 s'de bosalsin.
+AKIS_YOKLAMA_S = 0.5
+KALP_S = 15.0
 
 # 4A (PC2): dongu DISI istemcinin (yerel ag) ret sebebi.
 LAN_RET = ("yerel agdan salt okuma: bu baglanti yalniz izleyebilir ve `p0` (DURDUR) "
@@ -256,6 +263,11 @@ class Kopru:
         self.kilit = threading.Lock()
         self.jetonlar: dict[str, float] = {}
         self.surucu: str | None = None
+        # 4I: yasayan `/akis` baglantilari ({jeton, soket, kuyruk, yerel, no}) ve en az
+        # bir `/akis`i olmus jetonlar — "surucunun sekmesi kapandi mi" bunlardan okunur.
+        self.akislar: list[dict] = []
+        self.akisli: set[str] = set()
+        self._akis_no = 0
         self.calisiyor = False
         self.son_satir = ""
         self.satir_adedi = 0
@@ -330,6 +342,64 @@ class Kopru:
     def surucu_mu(self, jeton: str | None) -> bool:
         return bool(jeton) and jeton == self.surucu
 
+    # ── 4I: surucunun akisi kapaninca rol birakilir ──────────────────
+    @staticmethod
+    def soket_kapali(s) -> bool:
+        """Karsi taraf baglantiyi kapatti mi? (okunabilir + 0 bayt = FIN; hata = kopuk)"""
+        try:
+            okunur, _, _ = select.select([s], [], [], 0)
+            if not okunur:
+                return False
+            return s.recv(1, socket.MSG_PEEK) == b""
+        except (OSError, ValueError):
+            return True
+
+    def akis_kaydet(self, jeton: str, soket, kuyruk, yerel: bool) -> dict:
+        """Yeni `/akis` baglantisi. Surucunun akisi olmusse rol HEMEN en yeniye (buna) gecer:
+        yenilenen sekme ilk `kimlik`inde surucu olur, acilis komutlari 403 almaz."""
+        with self.kilit:
+            self._akis_no += 1
+            b = {"jeton": jeton, "soket": soket, "kuyruk": kuyruk, "yerel": yerel,
+                 "no": self._akis_no}
+            self.akislar.append(b)
+            self.akisli.add(jeton)
+        self.surucu_yokla(haric=b)
+        return b
+
+    def akis_bitti(self, b: dict) -> None:
+        with self.kilit:
+            if b in self.akislar:
+                self.akislar.remove(b)
+        self.surucu_yokla()
+
+    def surucu_yokla(self, haric: dict | None = None) -> str | None:
+        """4I politikasi: surucunun BUTUN `/akis`lari kapandiysa rol en yeni YASAYAN yerel
+        (donguden) akisa gecer ve o akisa `kimlik` olayi gider. Aday yoksa rol bosta bekler:
+        sonraki yerel `/akis` ya da yasayan bir yerel sekmenin komutu alir. Surucu yasiyorsa
+        HICBIR SEY olmaz (iki acik sekme arasinda sessiz calma yok; acik yol /devral).
+        Hic `/akis`i olmamis jeton (arac, test) olu sayilmaz."""
+        with self.kilit:
+            j = self.surucu
+            if j is None or j not in self.akisli:
+                return None
+            if any(b["jeton"] == j and not self.soket_kapali(b["soket"]) for b in self.akislar):
+                return None
+            adaylar = [b for b in self.akislar
+                       if b["yerel"] and b["jeton"] != j and not self.soket_kapali(b["soket"])]
+            if not adaylar:
+                return None
+            yeni = max(adaylar, key=lambda b: b["no"])
+            self.surucu = yeni["jeton"]
+            hedef = [b for b in self.akislar if b["jeton"] == yeni["jeton"] and b is not haric]
+        olay = ("kimlik", json.dumps({"jeton": yeni["jeton"], "surucu": True}))
+        for b in hedef:
+            try:
+                b["kuyruk"].put_nowait(olay)
+            except queue.Full:
+                pass
+        self.yayinla("* kopru: surucu degisti")
+        return yeni["jeton"]
+
     def devral(self, jeton: str) -> bool:
         with self.kilit:
             if jeton not in self.jetonlar:
@@ -358,6 +428,10 @@ class Kopru:
             return False, LAN_RET
         if self.surucu is None:
             return True, ""
+        if self.surucu_mu(jeton):
+            return True, ""
+        # 4I: surucunun sekmesi kapanmis ama isleyicisi henuz fark etmemis olabilir
+        self.surucu_yokla()
         if self.surucu_mu(jeton):
             return True, ""
         return False, ("bu oturum SURUCU degil — komut reddedildi. "
@@ -691,6 +765,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         yerel = self._yerel()
         jeton = self._jeton() or k.jeton_ver(surucu_olabilir=yerel)
         kuyruk = k.abone_ol()
+        bag = k.akis_kaydet(jeton, self.connection, kuyruk, yerel)
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
@@ -706,21 +781,37 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             if durum:
                 self.wfile.write(b"data: " + durum.encode("utf-8") + b"\n\n")
                 self.wfile.flush()
+            son_yazma = son_yokla = time.monotonic()
             while True:
                 try:
-                    satir = kuyruk.get(timeout=15.0)
+                    satir = kuyruk.get(timeout=AKIS_YOKLAMA_S)
                 except queue.Empty:
-                    # Kalp atisi: NAT ve ara vekiller sessiz baglantiyi
-                    # dusuruyor. Yorum satiri istemciye gorunmuyor.
-                    self.wfile.write(b": kalp\n\n")
-                    self.wfile.flush()
+                    satir = None
+                simdi = time.monotonic()
+                # 4I: sekme kapandi / yenilendi mi — rolun bosalmasi bunu bekliyor
+                if simdi - son_yokla >= AKIS_YOKLAMA_S:
+                    son_yokla = simdi
+                    if k.soket_kapali(self.connection):
+                        break
+                if satir is None:
+                    if simdi - son_yazma >= KALP_S:
+                        # Kalp atisi: NAT ve ara vekiller sessiz baglantiyi
+                        # dusuruyor. Yorum satiri istemciye gorunmuyor.
+                        self.wfile.write(b": kalp\n\n")
+                        self.wfile.flush()
+                        son_yazma = simdi
                     continue
-                self.wfile.write(b"data: " + satir.encode("utf-8") + b"\n\n")
-                self.wfile.flush()
+                if isinstance(satir, tuple):        # 4I: yalniz bu akisa olay (rol devri)
+                    self._olay(*satir)
+                else:
+                    self.wfile.write(b"data: " + satir.encode("utf-8") + b"\n\n")
+                    self.wfile.flush()
+                son_yazma = simdi
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass
         finally:
             k.abonelikten_cik(kuyruk)
+            k.akis_bitti(bag)
 
     def _olay(self, ad: str, veri: str):
         self.wfile.write(f"event: {ad}\ndata: {veri}\n\n".encode("utf-8"))

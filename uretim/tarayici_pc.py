@@ -96,6 +96,7 @@ def main() -> int:
     k = kopru_mod.Kopru(kart, gecici.dizin("kopru_t4a_") / "arsiv")
     sunucu = kopru_mod.sunucu_kur(k, port=0)        # GERCEK baglama: yalniz 127.0.0.1
     gorulen: list[tuple[str, str, str]] = []
+    komutlar: list[tuple[str, int]] = []         # 4I: (komut, HTTP kodu) — /komut yanitlari
     taban_sinif = sunucu.RequestHandlerClass
 
     class Kayitli(taban_sinif):
@@ -109,6 +110,11 @@ def main() -> int:
                     return
                 return self._yanit(200, SW, "text/javascript")
             return super().do_GET()
+
+        def _yanit(self, kod, govde=b"", tip="text/plain"):
+            if self.path.split("?")[0] == "/komut":
+                komutlar.append((getattr(self, "_govde_metin", ""), kod))
+            return super()._yanit(kod, govde, tip)
 
     sunucu.RequestHandlerClass = Kayitli
     port = sunucu.server_address[1]
@@ -178,6 +184,62 @@ def main() -> int:
                f"surucuyum={t.js(UYG + '.surucuyum')} jeton={len(k.jetonlar)}")
             hatalar = [h for h in t.hatalar() if "favicon" not in h.lower()]
             ok("Konsol hatasi yok", not hatalar, " | ".join(hatalar[:3]) or "temiz")
+
+            # ── 4I: surucu sekme YENILENINCE rol yeni sekmeye gecer ──────
+            # 🔴 4H'de bulundu: kopru eski sekmenin jetonunu tutuyordu; yenilenen sekme
+            #    izleyici kaliyor, acilis komutlari (`?`, `CT`, `G?`) 403 aliyordu.
+            eski = k.surucu
+            komutlar.clear()
+            t.cagir("Page.reload", {"ignoreCache": False})
+            t.bekle(1.0)
+            bekle_js(t, f"{UYG}.bagli && {UYG}.gecmis.length > 10", 15)
+            bekle_js(t, f"{UYG}.surucuyum === true", 3)
+            t.bekle(1.5)                 # acilis komutlarinin yanitlari
+            red = [(m, c) for m, c in komutlar if c != 204]
+            ok("[!] 4I: panel YENILENINCE yeni sekme SURUCU (elle devralmadan), acilis komutlari "
+               "403 almadi",
+               t.js(f"{UYG}.surucuyum") is True and k.surucu not in (None, eski)
+               and any(m == "?" and c == 204 for m, c in komutlar) and not red,
+               f"surucuyum={t.js(UYG + '.surucuyum')} degisti={k.surucu != eski} "
+               f"komutlar={komutlar[:8]} red={red[:4]}")
+            ok("4I: yenilemeden sonra panelde 'Komut gönderilemedi' hatasi yok",
+               "403" not in str(t.js(f"{UYG}.hata") or ""), str(t.js(f"{UYG}.hata")))
+
+            # ── 4I: ACIK izleyici panel, surucu sekme kapaninca yeniden yuklenmeden surucu ─
+            # Ikinci "sekme" ham soketle (bu bilgisayardan) acilip /devral ile surucu olur;
+            # panel izleyiciye duser. O sekme kapaninca kopru rolu panele verir ve `kimlik`
+            # olayini AKAN baglantiya yollar — panel bunu yeniden yuklenmeden islemeli.
+            import json as _json
+            import socket as _socket
+            import urllib.request as _ur
+            ikinci = _socket.create_connection(("127.0.0.1", port), timeout=10)
+            ikinci.sendall(f"GET /akis HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n".encode())
+            dosya = ikinci.makefile("rb")
+            jeton2, sonraki = None, False
+            son = time.monotonic() + 5
+            while jeton2 is None and time.monotonic() < son:
+                sat = dosya.readline().decode("utf-8", "replace").rstrip("\r\n")
+                if sat.startswith("event: kimlik"):
+                    sonraki = True
+                elif sat.startswith("data: ") and sonraki:
+                    jeton2 = _json.loads(sat[6:])["jeton"]
+            r = _ur.Request(f"http://127.0.0.1:{port}/devral", data=b"", method="POST",
+                            headers={"X-Olcum": "1", "X-Jeton": jeton2 or ""})
+            with _ur.urlopen(r, timeout=5) as y:
+                kod_dv = y.status
+            t.js(f"{UYG}.surucuyum = false")          # panel izleyici (devral'i bilmiyordu)
+            ikinci.shutdown(_socket.SHUT_RDWR)
+            dosya.close()
+            ikinci.close()
+            t0 = time.monotonic()
+            gecti_mi = bekle_js(t, f"{UYG}.surucuyum === true", 4)
+            dt = time.monotonic() - t0
+            ok("[!] 4I: ACIK izleyici panel, surucu sekme kapaninca YENIDEN YUKLENMEDEN surucu olur "
+               "(`kimlik` olayi akan baglantidan; <= 2 s)",
+               kod_dv == 204 and gecti_mi is True and dt <= 2.0
+               and k.surucu == t.js(f"{UYG}.jeton"),
+               f"devral={kod_dv} dt={dt:.2f} s surucuyum={t.js(UYG + '.surucuyum')}")
+            print(f"     profil: {t.profil}")
     finally:
         saldiri.shutdown()
         saldiri.server_close()

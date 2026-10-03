@@ -324,6 +324,31 @@ Açık (4E dışı / sonraki):
 - Yerel yol yalnız `G` satırından: kartın açılış afişi ("yeniden başladı") yerel olarak bildirilmiyor (MQTT'den geliyor).
 - `esik` yalnız MQTT'den (eşik değeri kartta); yerel `G`'nin `onaysiz` alanından türetilmedi.
 
+### 4I uygulama kararları (2026-10-03)
+
+**Kusur (4H'de bulundu):** köprü sürücü jetonunu, sekmesi yenilenen ya da kapanan istemcide tutmaya devam
+ediyordu. `EventSource` başlık gönderemediği için yenilenen sekme `/akis`'te YENİ jeton alır → yalnız izleyici;
+açılış komutları (`?`, `CT`, `G?`) ve kullanıcının her işlemi 403 "sürücü değil", ta ki elle devralana dek.
+Gerçek tarayıcıda (T4A, düzeltmeden önce) ölçüldü: yenilemeden sonra `?`/`CT`/`G?` üçü de 403, panelde
+"Komut gönderilemedi (403)".
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4I-1 | **Köprü her `/akis` bağlantısını kaydeder** (`Kopru.akis_kaydet` / `akis_bitti`: jeton, soket, kuyruk, yerel mi, sıra no). İşleyici kuyruğu 15 s yerine **0.5 s** (`AKIS_YOKLAMA_S`) aralıkla bekler ve her turda soketi yoklar (`soket_kapali`: `select` + `recv(MSG_PEEK)` = 0 bayt → karşı taraf kapattı); kalp atışı yine 15 s sessizlikte (`KALP_S`) | Kart boştayken akışa satır gelmez: kopuş yalnız yazma hatasında görülseydi 15 s'lik kalp atışına kalırdı. Ölçülen devir 0.26–0.44 s (hedef ≤ ~2 s). Bedel: bağlantı başına 0.5 s'de bir `select` |
+| 4I-2 | **Politika: sürücünün BÜTÜN `/akis`ları kapandıysa rol en YENİ yaşayan YEREL akışa geçer** (`surucu_yokla`), o akışa `event: kimlik {"jeton", "surucu": true}` gider ve herkese `* kopru: surucu degisti`. Yoklama üç yerde: yeni `/akis` kaydında (yenilenen sekme ilk `kimlik`inde sürücü — eski soket o anda zaten kapalı görünüyor), bir akış bitince, ve izleyicinin komutu reddedilmeden hemen önce (işleyici kopuşu henüz fark etmemişse) | "Bırak + sonraki komut alsın" yerine devir seçildi: açık kalan izleyici sekme rolünü yeniden yüklenmeden öğrenir (panelin mevcut `kimlik` dinleyicisi her olayı işliyor — **`app.js` değişmedi**). En yeni sekme: yenileme sonrası kullanıcının baktığı sekme odur |
+| 4I-3 | **Aday yoksa rol boşta bekler** (`surucu` eski jetonda kalır, ölü): sonraki yerel `/akis` ya da yaşayan yerel sekmenin komutu alır. `surucu = None`'a düşülmez | `None` "her yerel istemci komut verebilir" demek (köprü yeni açılmışken bugünkü davranış); kapanan bir sekme yüzünden jetonsuz/yabancı jetonlu komutlara kapı açılmasın. Ölü jeton komut verebilir ama sahibi kapalı bir sekme (yalnız bu bilgisayarda bilinen sır) |
+| 4I-4 | **Sürücü yaşıyorsa HİÇBİR şey değişmez**: iki açık sekme arasında sessiz çalma yok; yeni açılan sekme izleyici, açık yol yine `/devral` | Bugünkü tek-sürücü anlamı korunur |
+| 4I-5 | **Güvenlik aynen:** LAN (döngü dışı) akış ASLA aday değil (4A PC2); çapraz köken `/akis` CSRF kapısında 403, jeton/kayıt yok (4A-14); `p0` her durumda jetonsuz serbest; hiç `/akis`'i olmamış jeton (araç, test) ölü sayılmaz | Her biri B22a iddiası + `4I:` mutasyonu |
+
+Sınama: B22a "4I" bölümü 9 iddia (ham soketli açık akışlar: yenileme, ≤ 2 s devir ve en yeni sekme, iki açık sekme,
+`/devral`, LAN, CSRF, `p0`, komut anında yoklama `socketpair` ile); B22a 166 → 175. Önceki bir B22a iddiası (4A
+inceleme: "aynı köken + adres çubuğu, ilki sürücü") ilk akışı KAPATIP ikinciyi açıyordu — artık ilk akış açık tutuluyor
+(kapansaydı rol doğru olarak ikinciye geçerdi). T4A +3 (gerçek Edge: panel yenilenir → sürücü, `?`/`CT`/`G?` 204;
+açık izleyici panel, sürücü sekme kapanınca yeniden yüklenmeden 0.26 s'de sürücü). Mutasyon `4I:` 14.
+
+Açık: kartın kendi web sunucusundaki tek-sürücü kuralına dokunulmadı (bu dilim yalnız PC köprüsü). İki gerçek
+Edge sekmesiyle (yenileme sırasında öteki sekme açıkken) ölçülmedi — B22a ham soketle, T4A tek sekme + ham soket.
+
 ## Güvenlik (kalıcı kurallar)
 
 - `p0` her yeni katmanda serbest (LAN salt okuma, vekil, imza zorunluluğu): her birine iddia + mutasyon.
