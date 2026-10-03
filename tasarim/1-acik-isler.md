@@ -57,13 +57,13 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 | Eski kayda başka kalibrasyon uygulama, dönem uyarısı, "daha yeni ince ayar öner" | **2** + 3 | 1B |
 | ~~Kayıt ekranları; `G` arayüzde yok. Ayrıca ad/not web ucu, `/pil`, `PilHalka` panelden kalkması ve yakalama gösterimi~~ | **Kapandı (alt proje 3):** Kayıtlar + kayıt görünümü 3C (DEVIR 5.12.77); `G`/`GP`/`GA`/`GT` pasif durum + `Gn` 3D (5.12.78); yakalama gösterimi 3E (5.12.80); `/pil` eğrisi + `Ga` (PU7) 3F (5.12.81) | 1A-2, 1C-1, 1C-3 |
 | ~~Plan gösterimi (panel / PC / telefon)~~ | **Kapandı (panel + PC):** Canlı'da "Zamanla" formu + `GP` durumu 3D (DEVIR 5.12.78); PC aynı paneli köprüden açar (4D, 5.12.89). Telefon uygulaması alt proje 5'in kapsamı | 1C-4 |
-| `Gn` ile yazılan notun sıra numarası kartta basılmıyor (`Gx` için eşitlenen dosyadan okunuyor); `G` satırında `son_not` alanı | **3** | 1C-1 |
+| ~~`Gn` ile yazılan notun sıra numarası kartta basılmıyor (`Gx` için eşitlenen dosyadan okunuyor); `G` satırında `son_not` alanı~~ | **Kapandı (W2, `A3-W2`, DEVIR 5.12.101):** `G` satırının SONUNA `son_not` (son Ga/Ge/Gn/Gx'in NOT sırası; < 0 KG_*) + `mesaj_dusen`; değişince G hemen basılır. Panel / pc_bildirim / tezgah ayrıştırıcıları eski 13 alanlı satırı da kabul ediyor (B7 W2, B72.W2a–c). Panelde sıranın GÖSTERİLMESİ (Gx kısayolu) yapılmadı | 1C-1 |
 | B34 ADC doğrusalsızlık düzeltmesi | **Karar bekliyor** (kullanıcı) | 1B |
 
 ## Nadir durumda yanlış davranış (O)
 
 - [1A-1] `menzil` bölmesi nokta çizelgesini kaydırıyor; DURAKLAMA ile birleşince noktanın başlangıcı bilinmeyebilir. Bir "nokta süresi" alanı düşünülmeli.
-- [1A-1] `ky_nokta` KG_HATA sonrası tampon doluyken reddettiği noktayı `dusen`'e saymıyor.
+- ~~[1A-1] `ky_nokta` KG_HATA sonrası tampon doluyken reddettiği noktayı `dusen`'e saymıyor.~~ — **Kapandı (W2, dal `w2-fw`, firmware `A3-W2`, DEVIR 5.12.101; ⚠ karta henüz YÜKLENMEDİ):** reddedilen nokta sayılır (B71.Y15, emüle NOR yazma arızasıyla). Bayrak (sonraki noktada `KN_KAYIP_ONCE`) eklenmedi.
 - [1A-1, 1C-2] `kg_ilerle` / ön silme: silme başarısızsa sektör tablosu zaten düşürülmüş, yeniden denemede `silinen_sektor` iki kez sayılır; ön silme hatasında geri çekilme yok (`temiz_ms` güncellenmiyor).
 - [1A-2] `Gb` kayıt sürerken yeniden verilirse kuyruktaki 1–2 eski nokta yeni oturuma girebilir. [1C-2] Oturum sınırında halkadaki örnekler de öyle (ms mertebesi; zaman damgası gösterir).
 - [1A-2] Bölüm doluyken baş sektörde yarım yazma varsa açık oturum sürdürülemez → durum 4 (BEKLİYOR). Yedek sektör ayrılmadı. Kullanıcı durdurduysa ilk geçerli onayda BITIR yazılır, yoksa DEVAM.
@@ -85,7 +85,7 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 ## Kozmetik, test boşluğu, belge (D)
 
 - [1A-1] `KayitNoktaci.bekleyen` hiç 0 dışında bir değer almıyor (ölü alan; 2026-10-01'de yeniden bakıldı, hâlâ öyle).
-- [1A-1] Noktacıda `watt` NaN/Inf ise `(int64_t)` dönüşümü tanımsız. Yapıştırıcı NaN'ı hata sayıp dönüşümü atlatıyor, ama `kayit_nokta.h`'de `isfinite` yok.
+- ~~[1A-1] Noktacıda `watt` NaN/Inf ise `(int64_t)` dönüşümü tanımsız. Yapıştırıcı NaN'ı hata sayıp dönüşümü atlatıyor, ama `kayit_nokta.h`'de `isfinite` yok.~~ — **Kapandı (W2, dal `w2-fw`, firmware `A3-W2`, DEVIR 5.12.101; ⚠ karta henüz YÜKLENMEDİ):** `kn_ornek` sonlu olmayan watt'ı V+I hatalı sayar (B71.P7, NaN ve +Inf).
 - [1A-1] `kg_oku` 0/0/0 hem "yeni yok" hem "kap küçük" demek; asgari kap belgelenmeli.
 - ~~[1A-1] Python `basla_coz` / sürüm çözümü `rstrip(b"\0")` ilk NUL'dan sonraki çöpü tutar; ilk NUL'da kesilmeli.~~ **Kapandı (2026-10-02, Python + JS):** ilk NUL'da kesiliyor; vektör `surum_nul` (832), mutasyon 2/2.
 - [1A-1] "Kullanmadan önce hep sil" için mutasyon yok (inceleyici elle denedi, test ısırıyor).
@@ -96,7 +96,7 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 - [1B M9] `Gb`'de NVS yazma duraklaması.
 - [1B M10] Sürüm 1'den uçtan uca devam sınanmıyor; ESP yapıştırıcısı yalnız kaynak iddiasıyla sınanıyor.
 - [1B M11] Okuyucular tam blob boyu istiyor (B34 büyütmesi için).
-- [1C-1 M9] `kayit_mesaj_dusen` sayacı hiçbir yerde okunmuyor (G satırında yok).
+- ~~[1C-1 M9] `kayit_mesaj_dusen` sayacı hiçbir yerde okunmuyor (G satırında yok).~~ — **Kapandı (W2, dal `w2-fw`, firmware `A3-W2`, DEVIR 5.12.101; ⚠ karta henüz YÜKLENMEDİ):** `G` satırının son alanı `mesaj_dusen` (B72.W2a).
 - [1C-1 M12] `ky_olay`, `kyn_pil_bitir` ve `kyn_not`'un DOLU yolları testsiz; iki kuyruk arasında en fazla bir nokta olaydan sonra yazılabilir.
 - [1C-1 M13] `kayit_komut` ve `kayit_not_komut` yığında ikişer ~254 B `KayitMesaj` tutuyor.
 - [1C-2] 4095/4096 dt sınırı, `kg_on_sil_adim`'daki `kg__sektor_dusur`, C tarafında `micros` sarması doğrudan sınanmıyor.
@@ -129,10 +129,10 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 **D5 — son incelemenin ertelenen küçükleri** (hiçbiri bugün sömürülebilir değil; birleştirmeden önce ya da 1E'de):
 
 - [1D #8] GET dışındaki her yöntem "GET" diye imzalanıyor; PUT/PATCH/DELETE gövdesi özetlenmiyor (kartta böyle bir uç yok).
-- [1D #10] `/saat`'in üst sınırı yok; `strtoul` bitişi denetlenmiyor (`"-1"` → 2106).
-- [1D #11] `Ex<n>` önce kesiyor, sonra denetliyor (`Ex257`, `Ex-255` cihaz 1'i siler; yalnız USB).
+- ~~[1D #10] `/saat`'in üst sınırı yok; `strtoul` bitişi denetlenmiyor (`"-1"` → 2106).~~ — **Kapandı (W2, dal `w2-fw`, firmware `A3-W2`, DEVIR 5.12.101; ⚠ karta henüz YÜKLENMEDİ):** `guv_saat_coz` yalnız rakam, taşmasız, 1 700 000 000 ≤ unix < 4 102 444 800 (2100); dışı 400 (B71.U20, B72.W2d).
+- ~~[1D #11] `Ex<n>` önce kesiyor, sonra denetliyor (`Ex257`, `Ex-255` cihaz 1'i siler; yalnız USB).~~ — **Kapandı (W2, dal `w2-fw`, firmware `A3-W2`, DEVIR 5.12.101; ⚠ karta henüz YÜKLENMEDİ):** `guv_cihaz_no_coz` önce TAM çözer: yalnız `!` ya da 1..8; `Ex257`, `Ex-255`, `Ex!x`, 32 bit taşan sayı RET (B71.U21, B72.W2e).
 - ~~[1D #12] `EK` satırı üç `ham()` çağrısında basılıyor; araya IDF günlüğü girerse hex ayrı satıra düşer ve köprü süzgeci yakalamaz. Çözüm: tek çağrı + köprüye 64-hex satır süzgeci.~~ **Kapandı (4B, 2026-10-03, firmware `A3-4B`):** `EK` satırı ve AP parolası satırı (`N?` + AP afişi, `ap_parolasi_bas`) tek tamponda, TEK `ham()` ile; tamponlar silinir (B72.F77/D0/F91). Köprü süzgeci (4A-5) derinlemesine savunma olarak duruyor. ~~⚠ Kartta henüz yüklenmedi~~ Kartta (`A3-4B`, DEVIR 5.12.87: `--guvenlik` 14/14, EK satırı seride tek parça, SSE'de yok); tek `uart_write`'ın IDF günlüğüyle kesişmezliği hâlâ kanıtlanmadı.
-- [1D #14] Eşleştirme numarası (`eno`) ardışık `uint8`: üçüncü kişi bekleyen eşleştirmeyi tüketip ortak geri çekilmeyi büyütebilir. Çözüm: rastgele `eno`.
+- ~~[1D #14] Eşleştirme numarası (`eno`) ardışık `uint8`: üçüncü kişi bekleyen eşleştirmeyi tüketip ortak geri çekilmeyi büyütebilir. Çözüm: rastgele `eno`.~~ — **Kapandı (W2, dal `w2-fw`, firmware `A3-W2`, DEVIR 5.12.101; ⚠ karta henüz YÜKLENMEDİ):** `eno` rastgele 31 bit (`uint32`, 0 ve tekrar yok); kanıt ucu tam çözer, yanlış numara bekleyeni TÜKETMEZ (B71.U22, B72.W2f). İstemciler (`imza.py`, `imza.js`) değişmeden uyumlu.
 - [1D #15] 401 metni "cihaz kayıtlı değil" ile "imza geçersiz"i ayırıyor (cihaz numarası taranabilir).
 - ~~[1D #16] İstemci dosyası `fsync`'siz `os.replace` ediliyor; `.tmp` adı süreçler arası ortak; POSIX'te `chmod`'dan önce K'li geçici dosya oluşuyor.~~ **Kapandı (2026-10-02):** gerçek yarıştı — `kaydet()` her imzalı istekte çağrılıyor, iki süreç aynı dosyada `PermissionError` alıyordu (test kırmızıyla gösterdi). `mkstemp` (benzersiz ad, POSIX'te baştan 0600) + `fsync` + Windows'ta kısa yeniden deneme (benzersiz adla bile gerekli — mutasyon gösterdi). B72.I8c, mutasyon 3/3.
 - [1D #17] İmza her uçta sorgu dizgisinde kabul ediliyor (K9 yalnız EventSource diyor) — **AÇIK**. ~~İmzalı `/akis` adresi tek kullanımlık: tarayıcının otomatik yeniden bağlanması 401 alır~~ **Kapandı:** panel 3H-2'de (`ImzaliAkis`), PC köprüsü 4B'de (`kart_wifi.WifiKart`: her yeniden bağlanmada yeni imzalı adres, artan bekleme; B72.W2/W2b).
@@ -150,7 +150,7 @@ Tasarım `tasarim/2026-10-01-1e-mqtt-bildirim.md` (K1–K12 + "Uygulama sırası
 | ~~E2~~ | ~~Ö4 gerçek ağda, 10 tekrar~~ | **Kapandı (RTS sıfırlamasıyla):** 16/16 vasiyet 4.0–7.9 s (ortanca ~7 s, hepsi ≤ 10 s). Gerçek fiş çekme (USB + PİL kapalı) elle yapılmadı; RTS ile aynı yol (TCP kapanmadan kopuş) |
 | E6 | Dahili yığının en düşük değeri açılış + el sıkışma anında 54–60 KB (bağlıyken 82–83 KB; K11 ≥ 60 KB bağlıyken tutuyor). Ağır web yükü + el sıkışma çakışırsa TLS ayırması başarısız olabilir (kart yeniden dener) | İzle; gerekirse 3 KB olay kuyruğu ve paket tamponu PSRAM'e |
 | E7 | İlk gerçek aracı koşusunda 16 sıfırlamadan birinin `basladi` olayı aboneye ULAŞMADI; hedefli tekrar 6/6 geldi. Kartın `olay` sayacı o an kaydedilmedi → kayıp kartta mı (uçuştaki olay + sıfırlama) aracıda mı ayırt edilemiyor | Bir sonraki tezgahta her sıfırlamadan önce `Q?` olay sayacını kaydet |
-| E3 | Eşik (`esik`) 500 binde sabit; kullanıcı ayarı yok | Gerekirse `Qe<binde>` (küçük) |
+| ~~E3~~ | ~~Eşik (`esik`) 500 binde sabit; kullanıcı ayarı yok~~ | **Kapandı (W2, `A3-W2`, DEVIR 5.12.101; karta yüklenmedi):** `Qe<binde>` (100..1000, boş = varsayılan 500), YALNIZ USB (/komut Q'yu 403 ile reddeder), NVS `mqtt`/`esik`, bağlantıyı kesmeden uygulanır, `Q?` satırında `esik=`. Eşiği indirmek bildirilmiş doluluğu tekrar bildirmez, yükseltmek histerezisle yeniden kurar (B71.Q21–Q22, B72.W2g) |
 | E4 | Olay kuyruğu RAM'de (16); kart yeniden başlarsa gönderilmemiş olaylar kaybolur (spec kapsam dışı: kalıcı kuyruk) | Bilinçli |
 | E5 | ~~Telefon/PC bildirim arayüzü yok; PC'de yalnız `kopru/bildirim.py dinle`~~ PC: 4E'de yapıldı (köprüde MQTT aboneliği + Windows bildirimi, `tasarim/2026-10-03-alt-proje-4-pc.md` "4E"); telefon kaldı | Alt proje 5 |
 

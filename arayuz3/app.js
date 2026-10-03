@@ -555,11 +555,15 @@ function hashtenGorunum() {
      firmware'in biçimiyle sınıyor (Vue'suz). */
 const KAYIT_SATIRLARI = Object.freeze({
   G: Object.freeze(['durum', 'oturum', 'nokta', 'sonraki', 'onay', 'doluluk', 'onaysiz', 'dusen',
-    'yaz_azami_us', 'sil_azami_us', 'sil_adet', 'tarama_ms', 'son_hata']),
+    'yaz_azami_us', 'sil_azami_us', 'sil_adet', 'tarama_ms', 'son_hata', 'son_not', 'mesaj_dusen']),
   GA: Object.freeze(['hazir_sektor', 'ayrintili_ornek', 'dusen_ornek', 'kayit_ici_silme']),
   GT: Object.freeze(['etkin', 'aralik_ms', 'yakalama', 'yazilamayan']),
   GP: Object.freeze(['durum', 'bas_unix', 'sure_s', 'hiz_ms', 'oturum']),
 });
+/* W2 (A3-W2): firmware alanları SONA ekler; ESKİ firmware'in satırı da durumdur. Burada
+   satır türü başına eski alan SAYILARI (yalnız bunlar ya da tam liste kabul; arası değil).
+   Eski satırda eksik alanlar nesnede YOK (undefined). G: A3-4B ve öncesi 13 alan. */
+const KAYIT_SATIR_ESKI = Object.freeze({ G: Object.freeze([13]) });
 /* kayit_yonet.h KDR_* ve kayit_plan.h PLAN_* (B7 karşılaştırıyor). */
 const KDR = Object.freeze({ TARIYOR: 0, BOS: 1, KAYIT: 2, DOLU: 3, BEKLIYOR: 4, HATA: 5 });
 const PLAN = Object.freeze({ YOK: 0, BEKLIYOR: 1, SURUYOR: 2, BITTI: 3, ATLANDI: 4, KACIRILDI: 5,
@@ -586,13 +590,17 @@ const RET_PENCERESI_MS = 5000;
 /* millis() 32 bit: 49.7 günde sarar (yeniden başlama SAYILMAZ). */
 const MILLIS_TUR = 4294967296;
 
-/** `G` / `GA` / `GT` / `GP` satırı -> {tur, <alan>: sayı}; değilse null. */
+/** `G` / `GA` / `GT` / `GP` satırı -> {tur, <alan>: sayı}; değilse null. Eski firmware'in
+ *  kısa satırı (KAYIT_SATIR_ESKI) da çözülür; sondaki yeni alanlar o zaman nesnede yok. */
 function kayitSatiriCoz(satir) {
   const p = String(satir === null || satir === undefined ? '' : satir).trim().split(/\s+/);
   const alanlar = Object.prototype.hasOwnProperty.call(KAYIT_SATIRLARI, p[0]) ? KAYIT_SATIRLARI[p[0]] : null;
-  if (!alanlar || p.length !== alanlar.length + 1) return null;
+  if (!alanlar) return null;
+  const n = p.length - 1;
+  const eski = Object.prototype.hasOwnProperty.call(KAYIT_SATIR_ESKI, p[0]) ? KAYIT_SATIR_ESKI[p[0]] : [];
+  if (n !== alanlar.length && !eski.includes(n)) return null;
   const o = { tur: p[0] };
-  for (let k = 0; k < alanlar.length; k++) {
+  for (let k = 0; k < n; k++) {
     if (!/^-?\d{1,10}$/.test(p[k + 1])) return null;
     o[alanlar[k]] = Number(p[k + 1]);
   }

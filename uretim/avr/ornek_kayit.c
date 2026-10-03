@@ -399,7 +399,18 @@ static void senaryo(void)
                      (t == 100u || t == 110u || t == 200u) ? KN_DCIR : 0u, &c)) p_yaz(&c);
     }
     if (kn_zaman(&k, 300u, &c)) p_yaz(&c);
-    metin("S5\nBITTI\n");
+    metin("S5\n");
+
+    /* S6 (W2, 1A-1 D): yapistiricinin `hata` bayragi OLMADAN gelen NaN ve +Inf watt —
+       noktaci kendisi HATALI sayar (V+I hata), (int64_t) donusumu YAPILMAZ; istatistige
+       yalniz sonlu iki ornek girer. */
+    kn_baslat(&k, 50u, 0u, 0u);
+    kn_ornek(&k, 0u, 0u, 5, 1, 0.25f, 0u, 0u, 0u, &c);
+    kn_ornek(&k, 10u, 0u, 9999, 9999, __builtin_nanf(""), 0u, 0u, 0u, &c);
+    kn_ornek(&k, 20u, 0u, -9999, -9999, __builtin_inff(), 0u, 0u, 0u, &c);
+    kn_ornek(&k, 30u, 0u, 3, 3, 0.5f, 0u, 0u, 0u, &c);
+    if (kn_zaman(&k, 50u, &c)) p_yaz(&c);
+    metin("S6\nBITTI\n");
 }
 #endif
 
@@ -568,6 +579,25 @@ static void senaryo(void)
     sayi("B3", ky_bitir(&y, KB_SEBEP_KULLANICI));
     kg_ac(&g, 0u, 0u);
     oz("OZS");
+
+    /* O5 (W2, 1A-1 O): tampon DOLU iken yazma HATASI. Ilk bosaltma hatasinda noktalar
+       tamponda kalir; tampon doluyken gelen sonraki nokta bosaltma yine basarisiz olunca
+       REDDEDILIR ve dusen'e SAYILIR. Bitiste tampondakiler eksiksiz yazilir. */
+    ky_kur(&y, &g);
+    basla_uret(&b, 100u);
+    sayi("O5", ky_baslat(&y, &b));
+    for (k = 0; k + 1u < KAYIT_TAMPON_NOKTA; k++) {
+        nokta_uret(5000u + k, &p); t += 100u; ky_nokta(&y, &p, t);
+    }
+    NOR_ARIZA_YAZ = 1u;                       /* sonraki yazmanin ILK bayti: hicbir sey yazilmaz */
+    nokta_uret(5000u + k, &p); k++; t += 100u;
+    sayi("R5A", ky_nokta(&y, &p, t));        /* tampon doldu, bosaltma HATA: nokta tamponda */
+    sayi("YN5", y.yuk_nokta);
+    NOR_ARIZA_YAZ = 1u;
+    nokta_uret(5000u + k, &p); t += 100u;
+    sayi("R5B", ky_nokta(&y, &p, t));        /* dolu tampon + yine HATA: nokta REDDEDILIR */
+    sayi("DUS5", (int32_t)y.dusen);
+    sayi("B5", ky_bitir(&y, KB_SEBEP_KULLANICI));
 
     /* O4: onay YOK -> bellek dolar; BITIR(DOLU) yazilmali */
     ky_kur(&y, &g);
@@ -2483,7 +2513,8 @@ static NI void a1_imza_vektor(void)
 
 static NI void a1_eslesme(void)
 {
-    uint8_t eno = 0, n = 0, nk[16], nc[16], kk[32], P[32], i;
+    uint32_t eno = 0;
+    uint8_t n = 0, nk[16], nc[16], kk[32], P[32], i;
     GuvCihaz c;
     int r;
     for (i = 0; i < 16u; i++) nc[i] = (uint8_t)(0x60u + i);
@@ -2509,7 +2540,8 @@ static NI void a1_eslesme(void)
 
 static NI void a1_deneme(void)
 {
-    uint8_t eno = 0, n = 0, nk[16], nc[16], kk[32], P[32], i;
+    uint32_t eno = 0;
+    uint8_t n = 0, nk[16], nc[16], kk[32], P[32], i;
     for (i = 0; i < 16u; i++) nc[i] = (uint8_t)(0x60u + i);
     /* U7 deneme siniri: 1 s, sonra 2 s; basarida sifirlanir */
     memset(kk, 0, sizeof(kk));
@@ -2591,7 +2623,8 @@ static NI void a1_degisiklik(void)
 static NI void a1_hata(void)
 {
     char s[65];
-    uint8_t eno = 0, n = 0, nk[16], nc[16], kk[32], P[32];
+    uint32_t eno = 0;
+    uint8_t n = 0, nk[16], nc[16], kk[32], P[32];
     memset(nc, 0x33, sizeof(nc));
     t_imzala(K4, "GET", "/pil", 700u, "", s);
     gv_bit_hata = 1u;
@@ -2618,7 +2651,8 @@ static NI void a1_hata(void)
 
 static NI void a1_dolu(void)
 {
-    uint8_t eno = 0, n = 0, nk[16], nc[16], kk[32], i;
+    uint32_t eno = 0;
+    uint8_t n = 0, nk[16], nc[16], kk[32], i;
     int r;
     memset(nc, 0x55, sizeof(nc));
     /* U11 liste dolu (1..5 var; 6, 7, 8; 9. ret) */
@@ -2679,6 +2713,54 @@ static NI void a3(void)
     KOD("U15N", say_var());
 }
 
+/* ── asama 3 ek (W2): D5 #10 /saat, #11 Ex<n> ayristiricilari, #14 rastgele eno ── */
+static NI void coz_dene(const char *ad_P, const char *girdi_P, uint8_t cihaz)
+{
+    char b[20];
+    uint32_t u = 77u;
+    uint8_t n = 77u;
+    int r;
+    strncpy_P(b, girdi_P, sizeof(b) - 1u);
+    b[sizeof(b) - 1u] = 0;
+    if (cihaz) { r = guv_cihaz_no_coz(b, &n); u = n; }
+    else r = guv_saat_coz(b, &u);
+    metin_P(ad_P); yaz(' ');
+    if (r < 0) { yaz('-'); r = -r; }
+    ondalik((uint32_t)r); yaz(' '); ondalik(u); satir();
+}
+#define CZ(ad, girdi, cihaz) coz_dene(PSTR(ad), PSTR(girdi), (cihaz))
+
+static NI void a3_coz(void)
+{
+    CZ("WSA", "1700000000", 0);  CZ("WSB", "1699999999", 0);  CZ("WSC", "-1", 0);
+    CZ("WSD", "4294967295", 0);  CZ("WSE", "4102444799", 0);  CZ("WSF", "4102444800", 0);
+    CZ("WSG", "17000000000", 0); CZ("WSH", "1700000000x", 0); CZ("WSI", "", 0);
+    CZ("WSJ", " 1700000000", 0); CZ("WSK", "+1700000000", 0); CZ("WSL", "99999999999999", 0);
+    CZ("WXA", "!", 1);   CZ("WXB", "1", 1);    CZ("WXC", "8", 1);    CZ("WXD", "9", 1);
+    CZ("WXE", "0", 1);   CZ("WXF", "257", 1);  CZ("WXG", "-255", 1); CZ("WXH", "1x", 1);
+    CZ("WXI", "", 1);    CZ("WXJ", "!x", 1);   CZ("WXK", "4294967297", 1);
+}
+
+static NI void a3_eno(void)
+{
+    uint32_t e1 = 0, e2 = 0, e3 = 0;
+    uint8_t nk[16], nc[16], kk[32], P[32], n = 0;
+    memset(nc, 0x33, sizeof(nc));
+    KOD("WEP", guv_p_hesapla(&g, PAROLA));
+    KOD("WE1", guv_esles_baslat(&g, "a", nc, 100000UL, &e1, nk));
+    KOD("WE2", guv_esles_baslat(&g, "a", nc, 100100UL, &e2, nk));
+    KOD("WE3", guv_esles_baslat(&g, "a", nc, 100200UL, &e3, nk));
+    metin_P(PSTR("WEN ")); ondalik(e1); yaz(' '); ondalik(e2); yaz(' '); ondalik(e3); satir();
+    /* ucuncu kisi tahmin eder: ardisik (eski kural), 8 bite kesik — bekleyen TUKENMEZ */
+    memset(kk, 0, sizeof(kk));
+    KOD("WEA", guv_esles_kanit(&g, e3 + 1UL, kk, 100300UL, 1800000000UL, &n, P));
+    KOD("WEB", guv_esles_kanit(&g, e3 & 0xFFUL, kk, 100300UL, 1800000000UL, &n, P));
+    KOD("WEC", guv_esles_kanit(&g, e2, kk, 100300UL, 1800000000UL, &n, P));
+    ss_pbkdf2(PAROLA, g.ayar.tuz, 16, g.ayar.tur, P);
+    t_hmac_es(P, "OK1-istemci", nk, nc, "a", kk);
+    KOD("WED", guv_esles_kanit(&g, e3, kk, 100400UL, 1800000000UL, &n, P));
+}
+
 static void senaryo(void)
 {
     uint32_t adim = t_adim_oku();
@@ -2710,6 +2792,8 @@ static void senaryo(void)
         break;
     case 3:
         a3();
+        a3_coz();
+        a3_eno();
         break;
     case 4:
         a4();
@@ -3010,6 +3094,43 @@ static NI void s_zarf(void)
     sayi("Z6", bld_zarf(&BK_AEADSIZ, anahtar, konu, tam, zarf, sizeof(zarf)));
 }
 
+/* W2 (E3): Qe<binde> ayristiricisi + calisirken esik degisimi (numara/sayac korunur) */
+static NI void ez_dene(const char *ad_P, const char *girdi_P)
+{
+    char t[12];
+    uint16_t e = 77u;
+    int r;
+    strncpy_P(t, girdi_P, sizeof(t) - 1u);
+    t[sizeof(t) - 1u] = 0;
+    r = bld_esik_coz(t, &e);
+    metin_P(ad_P); yaz(' ');
+    if (r < 0) { yaz('-'); r = -r; }
+    ondalik((uint32_t)r); yaz(' '); ondalik(e); satir();
+}
+#define EZ(ad, girdi) ez_dene(PSTR(ad), PSTR(girdi))
+
+static NI void s_esik_ayar(void)
+{
+    EZ("WQA", "");     EZ("WQB", "700");  EZ("WQC", "100");  EZ("WQD", "1000");
+    EZ("WQE", "99");   EZ("WQF", "1001"); EZ("WQG", "-5");   EZ("WQH", "7x");
+    EZ("WQI", "0");    EZ("WQJ", "65636"); EZ("WQK", " 700");
+    bld_kur(&b, 0u);
+    memset(&g, 0, sizeof(g));
+    g.acilis = 8u; g.kayit = KDR_BOS; g.unix_s = T0;
+    g.esitlenmemis_binde = 400u; ADIM("WQ1", 700u);     /* basladi; 400 < 500 */
+    bld_esik_ayarla(&b, 300u);
+    ADIM("WQ2", 710u);                                   /* indirildi, 400 >= 300: olay */
+    bld_esik_ayarla(&b, 350u);
+    ADIM("WQ3", 720u);                                   /* bildirilmisti: TEKRAR YOK */
+    bld_esik_ayarla(&b, 800u);
+    ADIM("WQ4", 730u);                                   /* 400 + 100 < 800: yeniden kurulur */
+    g.esitlenmemis_binde = 820u; ADIM("WQ5", 740u);     /* yeni esik: olay */
+    sayi("WQE1", b.esik);
+    bld_esik_ayarla(&b, 30u);                            /* gecersiz -> varsayilan */
+    sayi("WQE2", b.esik);
+    BOSALT("WQV");
+}
+
 static void senaryo(void)
 {
     yigin_boya();
@@ -3018,6 +3139,7 @@ static void senaryo(void)
     s_kuyruk();
     s_durum();
     s_zarf();
+    s_esik_ayar();
     sayi("YIGIN", yigin_pay());
     metin_P(PSTR("BITTI\n"));
 }

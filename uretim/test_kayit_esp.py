@@ -252,7 +252,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-4B"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-W2"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -2831,8 +2831,93 @@ def bolum_kopru_esitle() -> None:
         sunucu.shutdown()
 
 
+def bolum_w2() -> None:
+    """W2 (2026-10-03): firmware kucukleri — G satirinda son_not + mesaj_dusen (geriye uyumlu
+    ayristiricilar), /saat ve Ex<n> TAM cozum, rastgele eno, Qe esigi. Platformsuz mantik
+    B71'de (U20-U22, Q21-Q22); burada karta baglanmasi ve PC/tezgah ayristiricilari."""
+    print("\n── B72.W2  firmware kucukleri: G son_not · /saat · Ex · eno · Qe")
+    ino, ke, be = _oku("olcum-karti-a3.ino"), _oku("kayit_esp.h"), _oku("bildirim_esp.h")
+    ino_k, ke_k, be_k = kod(ino), kod(ke), kod(be)
+    gb = govde(ino_k, "static void kayit_durum_bas(")
+    bicim = (re.search(r'snprintf\(t, sizeof\(t\), "G ([^"]*)"', gb) or [None, ""])[1]
+    n_fw = bicim.count("%")
+    i = ino.find("static void kayit_durum_bas(")
+    yorum = (re.findall(r"/\*((?:(?!\*/).)*)\*/\s*$", ino[:i], re.S) or [""])[-1]
+    adlar = re.findall(r"<(\w+?)(?:%o)?>", yorum[yorum.find("G <"):])
+    arg = gb[gb.find('"G '):gb.find("Serial.println(t)")]
+    dg = govde(ke_k, "static void kayit__durum_guncelle(")
+    ok("B72.W2a G satiri SONA iki alan: son_not (son Ga/Ge/Gn/Gx'in NOT kaydi sirasi, kyn_not "
+       "donusu) ve mesaj_dusen (1C-1 M9: istek kuyrugunda dusen); protokol yorumu ve snprintf 15 "
+       "alan, ilk 13 ESKI sirada",
+       n_fw == 15 and adlar[-2:] == ["son_not", "mesaj_dusen"] and len(adlar) == 15
+       and adlar[12] == "son_hata"
+       and "kayit_son_not = kyn_not(&kayit_m, m->yuk, m->n);" in govde(ke_k, "static void kayit__mesaj(")
+       and "t.son_not = kayit_son_not;" in dg
+       and arg.find("d.son_hata") < arg.find("d.son_not") < arg.find("kayit_mesaj_dusen"),
+       f"alan={n_fw} adlar={adlar[-3:]}")
+    ok("B72.W2b son_not DEGISINCE G hemen basilir; nesil ARTMAZ (nesil noktaciyi yeniden "
+       "baslatir: kayit_kn_nesil)",
+       "d.son_not == son_not" in gb and "son_not = d.son_not;" in gb
+       and "son_not" not in dg[dg.find("t.nesil ="):dg.find("kayit_durum = t;")])
+    import importlib
+    sys.path.insert(0, str(KOK / "kopru"))
+    PB = importlib.import_module("pc_bildirim")
+    fw_satir = "G " + " ".join(str(k * 3 - 7) for k in range(n_fw))
+    eski = "G " + " ".join(str(k) for k in range(13))
+    yanlis = ["G " + " ".join("1" for _ in range(n)) for n in (12, 14, 16)]
+    tz = {}
+    for ad in ("tezgah_kayit", "tezgah_pc"):
+        try:
+            tz[ad] = importlib.import_module(ad)
+        except Exception as e:          # noqa: BLE001 — iddia kirmiziya doner, sebep basilir
+            tz[ad] = e
+    tz_ok = all(not isinstance(m, Exception) and m.G_ALAN == adlar
+                and m.g_coz(fw_satir) == dict(zip(adlar, (k * 3 - 7 for k in range(n_fw))))
+                and m.g_coz(eski) == dict(zip(adlar[:13], range(13)))
+                and all(m.g_coz(y) is None for y in yanlis) for m in tz.values())
+    ok("B72.W2c PC ayristiricilari GERIYE UYUMLU: pc_bildirim (yerel G -> 'kayit bitti' "
+       "bildirimi), tezgah_kayit ve tezgah_pc firmware bicimli satiri (15) VE eski firmware "
+       "satirini (13) kabul eder; 12/14/16 RET; tezgah alan adlari firmware yorumundaki adlar",
+       PB.G_ALAN == n_fw and bool(PB._G_DESEN.fullmatch(fw_satir)) and bool(PB._G_DESEN.fullmatch(eski))
+       and not any(PB._G_DESEN.fullmatch(y) for y in yanlis) and tz_ok,
+       f"PB.G_ALAN={PB.G_ALAN} tezgah={ {k: (type(v).__name__ if isinstance(v, Exception) else 'ok') for k, v in tz.items()} }")
+
+    st = govde(ino_k, "void saat_sayfa(")
+    ok("B72.W2d (D5 #10) /saat unix'i guv_saat_coz ile TAM cozer (rakam disi, tasma, ust sinir "
+       "2100 -> 400); strtoul YOK; settimeofday ancak cozumden SONRA",
+       "guv_saat_coz(sunucu.arg(\"unix\").c_str(), &u)" in st and "strtoul" not in st
+       and 0 <= st.find("guv_saat_coz") < st.find("settimeofday"))
+    sk = govde(ino_k, "static void guv_seri_komut(")
+    sx = sk[sk.find("case 'x':"):sk.find("case 'p':")]
+    ok("B72.W2e (D5 #11) Ex<n> once guv_cihaz_no_coz ile TAM cozulur, SONRA silinir; atoi/kesme "
+       "YOK (Ex257 / Ex-255 cihaz 1'i silmez)",
+       0 <= sx.find("guv_cihaz_no_coz(s + 2, &n)") < sx.find("guv_cihaz_sil(") and "atoi" not in sx)
+    kb, kk = govde(ino_k, "void eslestir_baslat_sayfa("), govde(ino_k, "void eslestir_kanit_sayfa(")
+    ok("B72.W2f (D5 #14) eslestirme numarasi uint32 (rastgele 31 bit): baslat %lu ile basar, kanit "
+       "guv_sayi_coz(1..GUV_ENO_AZAMI) ile TAM cozer (uint8 kesimi / toInt YOK; cozulemeyen 0 = YOK)",
+       "uint32_t eno = 0;" in kb and '\\"eno\\":%lu' in kb and "(unsigned long)eno" in kb
+       and 'guv_sayi_coz(sunucu.arg("eno").c_str(), 1UL, GUV_ENO_AZAMI, &eno)' in kk
+       and "toInt" not in kk and "uint8_t eno" not in kb + kk)
+    qk = govde(ino_k, "static void bld_seri_komut(")
+    qe = qk[qk.find("if (s[1] == 'e')"):qk.find("switch (s[1])")]
+    ey = govde(be_k, "static int bildirim_esik_yaz(")
+    gor = govde(be_k, "static void bildirim_gorevi(")
+    ks = govde(ino_k, "void komut_sayfa(")
+    ok("B72.W2g (E3) Qe<binde>: bld_esik_coz ile TAM cozulur, NVS'e (`mqtt`/`esik`) yazilir; "
+       "gorev esigi BAGLANTIYI KESMEDEN alir (istek/islenen sayaci, bld_istek_yeniden DEGIL); "
+       "acilista NVS'ten; Q? `esik=` etkin esigi basar; /komut Q'yu 403 ile reddeder (YALNIZ USB)",
+       0 <= qe.find("bld_esik_coz(s + 2, &e)") < qe.find("bildirim_esik_yaz(e)")
+       and 'p.putUShort("esik", binde)' in ey and "bld_esik_istek" in ey and "bld_istek_yeniden" not in ey
+       and 'a->esik = p.getUShort("esik", 0);' in govde(be_k, "static void bld__ayar_oku(")
+       and "bld_esik_ayarla(&bld, bld_ayar.esik);" in gor
+       and "bld_esik_ayarla(&bld, bld__esik_oku());" in gor and "bld_esik_etkin = bld.esik;" in gor
+       and "esik=%u" in qk and "(unsigned)bld_esik_etkin" in qk
+       and ks.find("if (k[0] == 'Q')") >= 0 and "403" in ks[ks.find("if (k[0] == 'Q')"):][:120])
+
+
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
-            bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle]
+            bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle,
+            bolum_w2]
 
 
 def main() -> int:
