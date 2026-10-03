@@ -10531,6 +10531,30 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.86 🟢 ALT PROJE 4 BAŞLADI: 4A KÖPRÜ ANA SÜRECİ + 4F PWA KABUĞU (2026-10-03 gecesi)
+
+Kullanıcı "soru sorma, en uygun yoldan devam et" dedi; kararlar benim (`tasarim/2026-10-03-alt-proje-4-pc.md`
+PC1–PC18, gerekçeli). **Keşif** (iş akışı: 5 okuyucu + sentez): PC tarafının parçaları `kopru/`'da vardı ama
+birbirine bağlı değildi. **4A:** tek ana süreç `kopru/pc.py` (`--sessiz`, tek kopya, çökme izi `%LOCALAPPDATA%`,
+Başlangıç kısayolu betikleri — KURULMADI, kullanıcı kurar, yalnız ana klasörden); köken
+**`http://olcum.localhost:8770`, yalnız 127.0.0.1** — Edge'de ölçüldü: güvenli bağlam ve service worker kaydı
+var (Windows `*.localhost`'u çözmez, yalnız tarayıcı; Python 127.0.0.1 kullanır). **Kapanan açıklar:** köprü
+`0.0.0.0`'a bağlanıyordu ve yerel ağdaki İLK istemci sürücü olup USB'den `Ns`/`GF!`/`p1`… yolluyordu (1D'yi
+atlıyordu) → yerel ağ her kipte salt okuma, yalnız `p0`; DNS yeniden bağlamaya karşı Host denetimi; **AP parolası
+sızıyordu:** kart AP kipinde ve `N?`'de parolayı "(yalnız USB)" diye ham UART'a basıyor, köprü bunu `/akis`'e ve
+arşive aktarıyordu → süzgeç (EK satırı, işaretli satır + 2 satır penceresi, ≥ 24 onaltılık dizi; bağlantı
+açılınca ilk yarım satır atılır). **Bağımsız inceleme** (3 denetçi + çürütücü) 5 ciddi bulgu doğruladı, 12 bulgu
+kapandı: çapraz kökenli `<img>` ile karta `t` yollatma ve sürücülüğü kapma (CSRF), `/skop/*` `gun` yol enjeksiyonu
+(arşiv dışı okuma, UNC ile NTLM özeti sızıntısı), port açılışındaki yarım satırla sır kuyruğu, `belge-uret.py`'nin
+çökmesi (B9 kırmızı olurdu), VID'den herhangi bir CH34x/CP210x aygıtını kart sanma → port tutulmadan önce pasif
+`D`/`K` satırıyla (gerekirse serbest `?`) doğrulanıyor; gerçek kartta 0.06 s, karta hiçbir şey yazılmadı.
+**4F:** `sw.js` (izin listesi, ağ önce, API asla önbelleğe alınmaz), "Köprü çalışmıyor" çevrimdışı sayfası,
+192/512 + maskable simgeler (`uretim/ikon-uret.py`, stdlib), manifest `id`/`scope`; Edge kurulabilirlik hatası
+listesi BOŞ; kart kökeninde kayıt yok (güvenli bağlam değil), kart görüntüsüne `sw.js` girmez.
+B22a 65 → 132, B22b 109 → 113, B7 852 → 878, yeni T4A 12/12, T4F 16/16; mutasyon 4A 77/77, 4F 48/48.
+Sırada 4B (kartla WiFi + eşleşmiş köprü; firmware: köprü kaydı reddi ve CORS kaydı kalkar, EK/AP parola satırı
+tek parça basılır).
+
 #### 5.12.85 🟢 3H-2 TARAYICIDAN EŞLEŞTİRME (2026-10-03 gecesi)
 
 Ajan, kararlar ES1–ES10 + uygulama kararları EU1–EU31 (spec). Ayarlar > **Eşleştirme**: ad + web parolası →
