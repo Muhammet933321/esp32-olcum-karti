@@ -107,6 +107,35 @@ Açık kalanlar (4A dışı): `yukle.py`, `tezgah_kart.py`, `arayuz-yaz.py` kend
 hâlâ VID'e bakmıyor — açma yolunda meşgul port mesajı var ama otomatik seçim eski; yerel ağ istemcisine panelde
 "salt okuma" arayüzü yok (403 metni görünür) — 4D/4F.
 
+### 4F uygulama kararları (2026-10-03)
+
+**PC17 ölçümü (Edge, başlıksız, gerçek `sunucu_kur` + gerçek panel, `uretim/tarayici_pwa.py` = T4F 16/16).**
+Panel `olcum.localhost`'ta `sw.js`'i kaydediyor (kapsam `/`), yeniden yüklemede sayfayı denetliyor; denetim
+altındaki yüklemede `/app.js`, `/style.css`, `/vendor/vue.global.prod.js`, `/ortak/sozluk.js` yine köprüden
+isteniyor (ağ önce). Edge'in kendi denetimi: `Page.getAppManifest` hatasız, `Page.getInstallabilityErrors` BOŞ
+(kurulabilir). Cache Storage'da tek `olcum-kabuk-<SURUM>`, içinde yalnız kabuk dosyaları (cevrimdisi.html,
+manifest, ikonlar, app.js, style.css, vendor, `/ekran/*.js`, `/ortak/*.js`); `/durum`, `/skop/liste`,
+`/kunye.json`, `/arsiv/liste`, `/app.js?v=1`, `/akis`, `/komut` istendikten sonra da YOK. Köprü kapatılınca
+yeniden yükleme "Köprü çalışmıyor" sayfasını veriyor (adres ve `#/canli` korunuyor, dış kaynak yok); köprü
+aynı portta yeniden açılınca sayfa kendiliğinden panele dönüp bağlanıyor. Kart kökeni benzetimi
+(`http://olcum.local`, Edge'de ad 127.0.0.1'e eşleniyor): `isSecureContext` false, `serviceWorker` yok, panel
+`atlandi`; geliştirme sunucusu (`localhost`): güvenli bağlam ama kayıt yok.
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4F-1 | **Kayıt yalnız güvenli bağlamdaki `*.localhost` kökeninde** (`swKaydiUygun`: `isSecureContext === true` + `serviceWorker` API + `^[a-z0-9-]+\.localhost$`); düz `localhost`/`127.0.0.1` (geliştirme sunucusu, testler) ve kart HAYIR. Uygun olmayan güvenli kökende eski kayıt varsa silinir | Kart zaten güvenli değil (tarayıcı izin vermez) ama koruma tarayıcıya bırakılmadı. Geliştirme sunucusunda kaydolsaydı düz `localhost`'taki her test bir SW arkasında kalırdı. Yanlışsa: tek regex |
+| 4F-2 | **Kayıt `load`'dan sonra, bir sonraki görev turunda** (`setTimeout 0`); `updateViaCache: 'none'` | Açılışı, ilk boyamayı ve p0 yolunu bekletmez; sw.js güncellemesi HTTP önbelleğine takılmaz |
+| 4F-3 | **İZİN listesi** (yasak listesi değil): `KABUK` (app.js, style.css, vendor, manifest, cevrimdisi.html) + desen `/ekran/*.js`, `/ortak/*.js`, `/ikon-*.png`; GET + aynı köken + sorgusuz. Başka her istekte `respondWith` YOK | Yeni bir API ucu unutulursa sonuç "önbelleklenmez" olur, tersi değil. B7 kart görüntüsündeki her durağan dosyanın listede olduğunu sınıyor (yeni varlık unutulmasın) |
+| 4F-4 | **Ağ önce `cache: 'no-cache'` ile**; önbellek yalnız ağ hatasında. Gezinme ağdan, yoksa cevrimdisi.html; gezinme yanıtı (index.html) ÖNBELLEĞE ALINMAZ | Köprü `Last-Modified` veriyor, sezgisel HTTP önbelleği bayat kabuk verebilirdi (304 ucuz). Eski index.html yeni modüllerle karışmasın |
+| 4F-5 | **Önbellek adı `olcum-kabuk-<SURUM>`; SURUM satırını `arayuz-uret.py` yazar** (`kabuk_surumu` = panel sürümü kuralı, kapsam panelin kaynakları + cevrimdisi.html, sw.js hariç). `skipWaiting` + `clients.claim`; `activate` yalnız eski `olcum-kabuk-*`'ı siler | Panel değişince sw.js baytları değişir → yeni SW → tutarlı kabuk. `sim3_web.py` 6p satırın bayat olmadığını sınar (unutulursa kırmızı). Köprüde `/kunye.json` yok ve PC11'de KARTIN künyesi olacak — sürüm oradan alınamazdı |
+| 4F-6 | **sw.js ve cevrimdisi.html karta GİRMEZ** (`arayuz-uret.py` `PC_KABUGU`); **manifestteki her ikon GİRER** (`manifest_ikonlari`, liste manifestten) | Kart SW kullanamaz: ölü bayt. Manifest kartta da sunuluyor; ikonları 404 olsaydı Android "Ana Ekrana Ekle" ikonsuz kalırdı. Kart görüntüsü 387 348 → 402 622 B (P5 600 KB'nin %66'sı); ikonlar 15 090 B (sim3_web bütçesi 24 KB). Açılış kümesi DEĞİŞMEDİ (index.html yalnız ikon-180'i istiyor; B7 sınıyor) |
+| 4F-7 | **İkonlar `ikon-uret.py`'den** (stdlib zlib PNG): 180/192/512 any + 192/512 maskable, aynı iki sinüs, kenar yumuşatmalı, **paletli PNG** (RGB'nin ~⅓'ü); maskable ölçeği hesaplanıyor (çizim güvenli dairenin, yarıçap %40, içinde). Renkler style.css KOYU bloğundan; manifest aynı üreteçten (`id`/`scope`/`start_url` = `/`, `lang` tr) | sim3_web 6p ikonları ve manifesti bayt bayt yeniden üretip karşılaştırıyor; B7 PNG'yi çözüp ölçü, zemin ve maskable güvenli bölgesini ölçüyor. Eski manifestin teması (#161b21) index.html'in theme-color'ından (#101821) ayrışmıştı — artık aynı (B7) |
+| 4F-8 | **SW kayıt hatası kullanıcı günlüğüne değil konsola** (`console.warn`, `_sw.hata`) | Panel kabuksuz da tam çalışır; günlüğe yazmak çevrilmemiş metin kilidine (AY3) yeni metin eklerdi |
+
+Açık (4F dışı): kurulu PWA penceresinde gerçek "Yükle" akışı ve görev çubuğu ikonu elle denenmedi (başlıksız
+Edge'de kurulum istemi yok; `getInstallabilityErrors` boş olması ölçüt); köprü `--lan` ile IP'den açılırsa
+güvenli bağlam değil → kabuk yok (beklenen).
+
 ## Güvenlik (kalıcı kurallar)
 
 - `p0` her yeni katmanda serbest (LAN salt okuma, vekil, imza zorunluluğu): her birine iddia + mutasyon.

@@ -142,6 +142,61 @@ def bolum6_moduller(r, k, _uret):
             f"({ortak_adet} ortak modulu dahil)")
 
 
+# 4F: manifest ikonlarinin karttaki toplam payi (PNG gzip'lenmez). Paletli PNG ile
+# bugun ~15 KB; RGB'ye donulse ~45 KB olurdu — kart icin olu bayt degil ama ucuz da degil.
+IKON_BUTCE = 24 * 1024
+
+
+def bolum6_pwa(r, k, _uret):
+    """4F (PC17): PWA kabugu — sw.js / cevrimdisi.html karta GIRMEZ, sw.js'in SURUM'u
+    guncel, manifestteki her ikon goruntude ve butce icinde."""
+    goruntude = set(k["kaynak"])
+    kabuk = getattr(_uret, "PC_KABUGU", ())
+    var = [a for a in kabuk if (KOK / "arayuz3" / a).is_file()]
+    r.kosul("  6p: [!] 4F: PC kabugu (sw.js, cevrimdisi.html) VAR ama kart goruntusunde YOK",
+            set(kabuk) == {"sw.js", "cevrimdisi.html"} and len(var) == 2
+            and not goruntude & set(kabuk) and not set(_uret.goruntu_listesi()) & set(kabuk),
+            " ".join(sorted(goruntude & set(kabuk))) or "kart service worker kullanamaz")
+    try:
+        metin = (KOK / "arayuz3" / "sw.js").read_text(encoding="utf-8")
+        m = _uret.SW_SURUM.search(metin)
+        beklenen = _uret.kabuk_surumu()
+    except Exception as e:                                  # noqa: BLE001
+        m, beklenen = None, f"hata: {e}"
+    r.kosul("  6p: [!] 4F: sw.js SURUM kaynaktan hesaplananla AYNI (bayatsa: python arayuz-uret.py)",
+            m is not None and m.group(1) == beklenen,
+            f"sw.js {m.group(1) if m else 'yok'} / kaynak {beklenen}")
+    ikonlar = _uret.manifest_ikonlari()
+    eksik = [a for a in ikonlar if a not in goruntude]
+    toplam = sum(k.get("bayt", {}).get(a, 10 ** 9) for a in ikonlar)
+    r.kosul(f"  6p: 4F: manifestin her ikonu kart goruntusunde, toplam <= {IKON_BUTCE} B",
+            len(ikonlar) >= 5 and not eksik and 0 < toplam <= IKON_BUTCE,
+            " ".join(eksik) or f"{len(ikonlar)} ikon, {toplam} B")
+    # Ikonlar ve manifest depoda elle konmus ikili degil: ureteç bugun AYNI baytlari veriyor
+    import importlib.util
+    import tempfile
+    farkli = []
+    try:
+        oz = importlib.util.spec_from_file_location("ikon_uret", BURASI / "ikon-uret.py")
+        iu = importlib.util.module_from_spec(oz)
+        oz.loader.exec_module(iu)
+        zemin = iu.css_renk("zemin-2", "#101821")
+        renk = (iu.css_renk("volt", "#6ea8fe"), iu.css_renk("amper", "#f2a33c"))
+        with tempfile.TemporaryDirectory(prefix="ikon4f_") as g:
+            for ad, n, amac in iu.IKONLAR:
+                iu.png_yaz(Path(g) / ad, n, iu.ciz(n, amac == "maskable", zemin, renk))
+                asil = KOK / "arayuz3" / ad
+                if not asil.is_file() or asil.read_bytes() != (Path(g) / ad).read_bytes():
+                    farkli.append(ad)
+        man = (KOK / "arayuz3" / "manifest.json").read_text(encoding="utf-8")
+        if man != iu.manifest_metni("#%02x%02x%02x" % zemin):
+            farkli.append("manifest.json")
+    except Exception as e:                                  # noqa: BLE001
+        farkli.append(f"hata: {e}")
+    r.kosul("  6p: 4F: ikonlar + manifest ikon-uret.py'den BIREBIR yeniden uretiliyor (bayatsa: python ikon-uret.py)",
+            not farkli, " ".join(farkli) or "5 ikon + manifest ayni")
+
+
 # ═══════════════════════════════════════════════════════════════════════
 def bolum1(r):
     bolum(r, "BOLUM 1 — `Serial` AYNASI (SSE artik HER satiri tasiyor)")
@@ -766,6 +821,7 @@ def bolum6(r):
         r.kosul("  6j: goruntu bolume SIGIYOR",
                 k["icerik_bayt"] < k["bolum_boyut"])
         bolum6_moduller(r, k, _uret)
+        bolum6_pwa(r, k, _uret)
 
 
 def main() -> int:
