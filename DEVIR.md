@@ -10570,12 +10570,31 @@ Ajan. `main` (e6e086d: 4D–4J, 3C-LISTE, kılavuz, `gercek_dizin_koru` son kura
   köprü muafiyeti VERMEZ — özel dizine gerçek köprü yazamaz, oradaki her değişiklik testindir. Testi
   DOĞRUDAN koşan yine main'in kuralıyla korunur. Yeni B22a iddiası (test_kopru) + 3 `HIZ-BIRLESME`
   yalanlayıcısı.
-- **`mutasyon.py`:** iki listenin hepsi korundu (2073 + 3 = 2076 kayıt, hepsi 6'lı); yeni koşucu hepsini
+- **`mutasyon.py`:** iki listenin hepsi korundu (2073 + 4 yeni = 2077 kayıt, hepsi 6’lı); yeni koşucu hepsini
   koşar. ⚠ `main`'den gelen **4 eski mutasyon UYGULANAMADI** (desen kaynakta yok, birleşmeden ÖNCE de):
   3A `arayuz-uret.py: return list(VARLIKLAR) + ekran + ortak`, 3C/WIG `sozluk.js` 401 metni, 3C (C4)
   `kayitlar.js` `const nerede = ...`, 4D `kart_wifi.py` DURDUR docstring'i — sahipleri güncellemeli.
 
-**Doğrulama:** (aşağıdaki sayılar bu birleşmenin koşuları)
+- **Birleşmenin ortaya çıkardığı iki kusur (düzeltildi):** ① Zincir kancası yalnız `127.0.0.1`'i yerel
+  sayıyordu; 4E testi sahte aracıyı `127.83.41.7`'de açıyor → B72 `--artimli`'de **HER ZAMAN KOŞAR** oldu.
+  Artık bütün `127.0.0.0/8` yerel (`sitecustomize.yerel_mi`); `test_zincir_hiz` A adımı oraya bağlanır, B5/B15
+  iddiası sınar + yalanlayıcı. ② HIZ'in "kesme kodunu görmezden gel" yalanlayıcısı (A5b) iki kez **KAÇTI**:
+  ölçüt `mtime > t_kes + 50 ms` idi, bekleyen işçi yeni koşuyu kesmeden ~40 ms sonra başlatıyordu; ayrıca
+  yarış makineye bağlıydı. Ölçüt artık "TARAYICI_AZAMI'yı aşan kayıt", sürücü kesmeyi ana iş parçacığında
+  2 s geç işler → yalanlayıcı her seferinde A5b ile ölür.
+- İlk `--artimli` (tam koşudan hemen sonra) 16 adımı koştu: birleşmeden önce `git checkout` ile geri
+  aldığım üretilmiş dosyalar (`_firmware.json`, `netlist3.net`, LF) tam koşunun SONUNDA CRLF'li yeniden
+  yazıldı, erken adımlar eski hali okumuştu. Bir kerelik; sonraki tam koşudan sonra 22/22 önbellekten.
+
+**Doğrulama (bu ağaç, 2026-10-03):** `test_zincir_hiz.py` **101/101** (61–65 s) · tam zincir
+`--tam --sayim-kilidi-yaz` **22/22**, kilit 5289 → **5290** (B22a +1), 1060 s; kanca düzeltmesinden sonra
+yeniden **22/22, 1013 s** · `--artimli`, değişiklik yok: **22/22 önbellekten, 14 s** ·
+`mutasyon.py --neden HIZ --paralel 4` **82/82** YAKALANDI (1932 s; ilk koşu 81/82, 1868 s — A5b, yukarıda) ·
+`--neden 4I` **20/20** (546 s) · `--neden 4J` **8/8** (259 s; 50 ms tavanı B72.A6 ile öldü, bir ŞÜPHELİ
+tek başına yeniden koşulup YAKALANDI) · `gizlilik_dogrula.py` temiz (361 dosya) · gerçek
+`%LOCALAPPDATA%\olcum-karti` koşulardan önce/sonra birebir aynı; `_mutp*` ve `msedge.exe` kalıntısı yok.
+Son commit'lerden sonra `--artimli` kendisi TAM koştu (git HEAD `mutasyon.py`'ye dokunmuştu): **22/22, 1078 s**;
+ardından `--artimli` **22/22 önbellekten, 13 s**.
 
 ---
 
