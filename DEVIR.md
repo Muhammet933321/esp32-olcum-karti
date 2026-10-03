@@ -10531,6 +10531,24 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.89 🟢 4D: PANEL PC'DE — PC ARŞİVİ, KART VEKİLİ, ESKİ SKOP ARŞİVİ (2026-10-03)
+
+Ajan, dal `4d-panel-pc`. Panel köprüde (`olcum.localhost:8770`) Kayıtlar'ı köprünün **disk arşivinden** okur
+("bu PC'de"; `kopru/vekil.py`: `GET /arsiv/liste`, `/arsiv/veri`, `/arsiv/kal` — salt okuma, katı parametre, boy =
+`durum.json`'un kalıcı öneki, yalnız bu bilgisayar + aynı köken, yol arşiv kökünde) — panelde `ekran/depo_pc.js`
+(DEPO okuma tarafı, yazanlar reddeder; tek yazar Python), kaynak kararı denetçide (`/durum` `pc_arsiv`; **kart
+kökeninde bu karar için istek YOK**). Kayıt görünümü / grafik / dışa aktarma / rapor / Karşılaştırma aynı kod yolu.
+Kartın `/pil`, `/kal/liste`, `/kunye.json`'u köprünün **imzalı vekilinden** (aynı `Cihaz` + sayaç kilidi; 401 → 502
+`imza`; vekil hatası 502 + `X-Kopru-Vekil: hata`); `/eslestir/*` vekil EDİLMEZ (EU8'/EU9' yeniden yazıldı); `p0`
+vekilde değil, sayaç kilidini beklemez (1.5 s'lik vekil isteği sürerken 0.02 s). Kayıtlar'da köprü eşitlemesinin
+durumu (onay açık/kapalı), Osiloskop'ta B35 satır arşivi "Eski arşiv" başlığında. Bayat metinler (`kl.neden_imza`,
+`kl.neden_yok`, `kl.neden_usb`, `ay.kal_neden_imza`, `ay.panel*`) düzeltildi; yeni metinler `ortak/src/sozluk_pc.js`
+(açılışta değil; açılış +692 B gzip). B22a 150 → 162, B7 878 → 898, B73 24 → 25, yeni **T4D**
+`uretim/tarayici_pc_kayit.py` 20/20 (gerçek `sunucu_kur` + gerçek `ArkaEsitleme` turu + Edge). Mutasyon 4D 67.
+**Gerçek arşivde (salt okuma, karta istek yok):** 44 oturumun hepsi "bu PC'de", kayıtlar açıldı, arşiv bayt/mtime
+aynı; çizgiler boş çünkü o oturumların verisi `n=0` / `V_HATA|I_HATA` (ADS takılı değildi). Kararlar ve açıklar:
+spec "4D uygulama kararları" 4D-1…4D-15.
+
 #### 5.12.88 🟢 4C: ARKA PLAN DİSK ARŞİVİ (2026-10-03 sabahı)
 
 Ajan. `kopru/arka_esitle.py`: köprü süreci içinde kartın kayıtlarını WiFi'den diske eşitler — her (yeniden) bağlantıda
