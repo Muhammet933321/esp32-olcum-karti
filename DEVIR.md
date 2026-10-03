@@ -10531,6 +10531,27 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.87 🟢 4B: KÖPRÜ KARTLA WiFi'DEN EŞLEŞMİŞ CİHAZ + FİRMWARE A3-4B (2026-10-03 sabahı)
+
+Ajan + benim gerçek kart sınamam. **Firmware A3-4B** (tam yedek `tam-20261003-062021.bin`): `/kopru` kaydı, kayıtlı
+köprü varken ikinci `/akis` reddi ve köprü kökenine CORS izni KALKTI (PC8; spec §5 "4 istemci"); kart hiçbir
+kökene CORS izni vermiyor. **D5 #12 kök düzeltmesi:** EK satırı ve AP parolası satırı tek tampon + tek `ham()` ile
+basılıyor (IDF günlüğü araya girip parçalayamasın; köprü süzgeci derinlemesine savunma olarak kaldı). Flaş −1452 B,
+DRAM −40 B. **Köprü (`kopru/kart_wifi.py`):** USB'de doğrulanmış kart yoksa WiFi'den eşleşmiş cihaz olarak — her
+bağlantıda kart kimliği cihaz dosyasıyla denetlenir (uyuşmazsa hiçbir komut gitmez), YENİ imzalı `/akis` adresi (D5
+#17), imzalı komutlar, `p0` her zaman imzasız; kartın NTP saati yoksa imzalı `/saat`. Cihaz dosyaları
+`%LOCALAPPDATA%\olcum-karti\cihaz` (PC5); `imza.py esles --parola-ortamdan` (yalnız bayrakla, basılmaz/saklanmaz).
+**Gerçek kartta:** `/kopru` 404, `OPTIONS /komut` CORS başlıksız; köprü eşleştirildi (cihaz 2 "PC-kopru", anahtar
+yalnız DPAPI'de); yalnız WiFi kipinde panel `olcum.localhost:8770`'te güvenli bağlamda, imzalı `?` → `A menzil=`,
+`p0` 204; kart sıfırlanınca köprü koptu ve yeni imzalı adresle 401 döngüsüz geri bağlandı; köprü bir yuvayı
+tutarken doğrudan istemciler akış aldı (ret yalnız 4 yuva doluyken `dolu`); `tezgah_kayit.py --guvenlik` **14/14**
+(EK satırı seride tek parça, SSE'de YOK). `E?`: Desktop + PC-kopru, zorunlu 0. **Bulunan kusur:** B72/B22a/
+`test_bildirim` sahte kartın cihaz dosyasını (bir mutasyon altında) kullanıcının GERÇEK `%LOCALAPPDATA%`'sına
+yazmıştı → `uretim/gercek_dizin_koru.py`: iki yönlendirme de geçici dizine + test sonunda gerçek dizinin dökümü
+iddia, belirenler geri alınır (mutasyon 1/1). **Açık:** USB↔WiFi geçişi gerçek kartta kablo çıkarılarak denenmedi
+(elle); kapanmış eski akışın kart yuvasını tutma süresi ölçülmedi; tek `uart_write`'ın ROM günlüğüyle bölünmediği
+kanıtlanmadı. B72 172 → 189, B22a 132 → 143, B6 77; mutasyon 4B 51/51, 4A 77/77.
+
 #### 5.12.86 🟢 ALT PROJE 4 BAŞLADI: 4A KÖPRÜ ANA SÜRECİ + 4F PWA KABUĞU (2026-10-03 gecesi)
 
 Kullanıcı "soru sorma, en uygun yoldan devam et" dedi; kararlar benim (`tasarim/2026-10-03-alt-proje-4-pc.md`
