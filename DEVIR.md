@@ -10531,6 +10531,29 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.90 🟢 4E: MQTT ABONELİĞİ + WINDOWS BİLDİRİMİ (2026-10-03)
+
+Ajan (`kopru/pc_bildirim.py` karar katmanı + MQTT iş parçacığı, `kopru/windows_bildirim.py`, `kopru/bildirim_metin.py`
+TR/EN). **Deneme (PC13) ölçüldü:** stdlib Python'dan gizli `powershell.exe -EncodedCommand` + WinRT toast — görünüyor
+(~0.19 s), aynı Tag/Group ile YERİNDE güncelleniyor (geçmişte tek kayıt), kaynak adı "Ölçüm kartı" + panel simgesi
+(`HKCU\Software\Classes\AppUserModelId\OlcumKarti.Kopru` kaydı; kısayol/paket gerekmez, silinince geri alınır),
+tarayıcı kapalıyken de. Bu makinede Rahatsız Etmeyin açıktı: afiş çıkmadı, bildirim merkezine düştü (Windows ayarı).
+Tepsi simgesi yapılmadı (pencere + mesaj döngüsü ister; durdurma `Kopruyu Durdur.bat`). **Tasarım:** `/bildirim/bilgi`
+imzalı, paylaşılan cihaz + sayaç kilidiyle; şifreli `OKB1` zarfı OLDUĞU GİBİ `%LOCALAPPDATA%\olcum-karti\bildirim\`
+önbelleğinde (PC14) — kart erişilemezken de abone olunabilir; yeniden alma yalnız çözme hatası / CONNACK 4-5 / durum
+konusu 180 s sessizken (QR! öneki de değiştirir), hız sınırlı. Aracı adresi, kullanıcı, parola, önek, anahtar YALNIZ
+bellekte; hata metinleri hatanın türünden kurulur (TLS hatası aracı adını içeriyor). "Karttan haber yok" YALNIZ kayıt
+sürerken, tek `baglanti` etiketli bildirim, kart yerelde görünürken "Ev interneti koptu", dönünce "yeniden bağlandı"
+(aynı bildirim güncellenir); aracı yokken kayıt sırasında 20 s yerel sessizlik de aynı bildirimi verir. Yineleme
+`(a, n)` + yerel `G` satırı ile anlamsal anahtar (PC16); `(a, n)` boşluğundan "N olay kaçırıldı" (PC15), son sayaç
+diskte. Açma/kapama `ayar.json` `bildirim` (4C anahtarlarıyla birleşir). `GET /bildirim/durum` yalnız bu bilgisayar,
+sırsız. **Gerçek aracıda:** kartın tutulan `durum` mesajı 3.4 s'de alındı ve çözüldü; hiçbir şey yayımlanmadı, hiçbir
+sır diske/durum satırına/bildirim metnine düşmedi. test_bildirim 222 → 259, B22a +4; mutasyon 4E 59/59, 4C 38/38, 4B
+51/51. **Kullanıcının tezgah kalemi (PC18):** kayıt sürerken kartın gücünü kes → "Karttan haber yok" süresi (hedef
+10 s, kabul 15 s, 10 tekrar); geri tak → aynı bildirim "yeniden bağlandı"; modemin internet kablosunu çıkar → "Ev
+interneti koptu"; USB `Qt` → deneme bildirimi. Rahatsız Etmeyin'de "Ölçüm kartı"nı öncelikli listeye ekle.
+Açık: panelde bildirim durumu/ayar bölümü yok (CLI/`ayar.json`), tepsi simgesi, telefon tarafı (alt proje 5).
+
 #### 5.12.89 🟢 4D: PANEL PC'DE — PC ARŞİVİ, KART VEKİLİ, ESKİ SKOP ARŞİVİ (2026-10-03)
 
 Ajan, dal `4d-panel-pc`. Panel köprüde (`olcum.localhost:8770`) Kayıtlar'ı köprünün **disk arşivinden** okur
