@@ -627,6 +627,9 @@ class _SahteKart:
         self.zaman = time.monotonic           # istek gunlugunun saati (sanal saat verilebilir)
         self.zamanli: list[tuple] = []        # (zaman, yontem, yol) — her istek
         self.onay_kanca = None                # Go<sira> karta ULASTIGI anda cagrilir (sira)
+        # 4D: koprunun kart vekili (kopru/vekil.py) icin kartin diger GET uclari
+        self.ek_get: dict[str, tuple] = {}    # yol -> (kod, tur, govde); /pil, /kunye.json ...
+        self.ek_bekle: dict[str, float] = {}  # yol -> yanittan once bekleme (yavas kart)
 
     def liste(self) -> dict:
         """Kartin /kayit/liste ozeti (yalniz esitlemenin kullandigi alanlar)."""
@@ -794,6 +797,16 @@ def _sunucu(kart: _SahteKart):
                 govde = json.dumps(kart.kal_liste, ensure_ascii=False).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(govde)))
+                self.end_headers()
+                self.wfile.write(govde)
+                return
+            if u.path in kart.ek_get:                    # 4D: vekil sinamasi (imza yukarida denetlendi)
+                if kart.ek_bekle.get(u.path):
+                    time.sleep(kart.ek_bekle[u.path])
+                kod, tur, govde = kart.ek_get[u.path]
+                self.send_response(kod)
+                self.send_header("Content-Type", tur)
                 self.send_header("Content-Length", str(len(govde)))
                 self.end_headers()
                 self.wfile.write(govde)

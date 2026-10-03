@@ -164,7 +164,7 @@ B22a "4B" (seçim + `pc.py`), B22b 2d/3b/4a, B72 D0/F74/F77/F81c/F88/F91/F25, B6
 | 4B-17 | **Testler gerçek karta gitmez**: `test_kopru.py` `OLCUM_KART_HOST=127.0.0.1:9` (kapalı port) ve geçici cihaz dizini kuruyor | `pc.calistir` artık USB yoksa WiFi'yi deniyor; test makinesinin ağındaki gerçek kart (ve kullanıcının cihaz dizini) testlere karışmasın |
 
 Açık (4B dışı / sonraki dilimler):
-- **WiFi'de skop yakalaması** köprüde hâlâ `tB → t` + ASCII dökümü SSE'den topluyor; kartın akış kuyruğu (48 satır) büyük dökümde satır düşürürse yakalama "kırpık" (503). Kartın `/skop.bin`'ini imzalı vekil etmek PC11 / 4D.
+- **WiFi'de skop yakalaması** köprüde hâlâ `tB → t` + ASCII dökümü SSE'den topluyor; kartın akış kuyruğu (48 satır) büyük dökümde satır düşürürse yakalama "kırpık" (503). Kartın `/skop.bin`'ini imzalı vekil etmek PC11 / 4D — 4D'de YAPILMADI (vekil beyaz listesi `/pil`, `/kal/liste`, `/kunye.json`; açık).
 - ~~**Kayıt verisi WiFi'den** (PC6'nın ikinci yarısı) ve eşitleyicinin aynı sayaç kilidini paylaşması 4C.~~
   4C'de yapıldı (aşağıda 4C-2).
 - `ortak/src/imza.js`'te kimlik denetimi yok (panel); kart her uçta `_i` sorgu imzasını kabul ediyor (D5 #17'nin ilk yarısı).
@@ -219,7 +219,53 @@ Açık (4C dışı / sonraki):
 - `--kayit` (ölü tekrar) satırları da `satir\`'a yazar (eski davranış `kopru/arsiv`) — geliştirme aracı.
 - Uçtan uca ölçümde akış eşitlemeyle AYNI anda bağlanıyordu (köprü açılışı): pencere hızı 4.29/s, en uzun
   2.3 s — bağlanma payı; akış önceden bağlıyken (tablo) hız boştakine eşit.
-- Panelde eşitleme durumu (4D).
+- ~~Panelde eşitleme durumu (4D).~~ 4D'de yapıldı (4D-13).
+
+### 4D uygulama kararları (2026-10-03)
+
+Panel PC köprüsünde (`http://olcum.localhost:8770`): Kayıtlar köprünün **disk arşivini** okur ("bu PC'de"),
+Ayarlar ve Pil kartın uçlarını köprünün **imzalı vekilinden** alır, B35 satır arşivi Osiloskop'ta **"Eski
+arşiv"** başlığı altında. Köprü tarafı yeni modülde (`kopru/vekil.py`); `kopru.py`'de tek dağıtım satırı +
+`/durum`'a iki alan. Panel tarafı `ekran/depo_pc.js` (yeni, salt okuma DEPO), `ekran/esitleme.js` (kaynak kararı),
+`ekran/kayitlar.js`, `ekran/ayarlar.js`, `app.js` (pil kaynağı), metinler `ortak/src/sozluk_pc.js` (yeni).
+Sınama: B22a "4D" (12 iddia: arşiv uçları, parametre / yol içerme, kapılar, salt okuma, vekil imzası, beyaz liste,
+ortak sayaç, p0, hata JSON'u, yolsuz yanıt), B7 bölüm 33 (20 iddia), B73 `sozluk_pc.test.js`, **T4D**
+`uretim/tarayici_pc_kayit.py` (20 iddia: GERÇEK `sunucu_kur` + GERÇEK `ArkaEsitleme` turu + sahte kart + Edge).
+Her iddianın `4D:` önekli yalanlayan mutasyonu var (67).
+
+**Gerçek arşivde ölçüldü (2026-10-03, SALT OKUMA, karta hiçbir istek yok):** kullanıcının
+`%LOCALAPPDATA%\olcum-karti\arsiv\<kart>\akis-3995957410` arşivi, yukarı-akışı sahte (`KayitKart`) olan bir köprü
+(`sunucu_kur`, bu çalışma ağacından) + başlıksız Edge: Kayıtlar 44 oturumun hepsini "bu PC'de" listeledi (Python
+`kayit_bicim` çözümüyle aynı sayı), özet "1 akış · 44 oturum · 1.21 MB", ölçüm #61147 ve ayrıntılı #60089 açıldı
+(KPI'lar: 1628 nokta / 9975 örnek, firmware A3-1E / A3-1C4, "bu PC'de (köprü arşivi)"), konsol hatası yok; arşivin
+öncesi/sonrası (boy, mtime, sha256) AYNI. Grafiklerde çizgi yok — **veri öyle**: o oturumların bütün noktaları `n=0`,
+bütün ayrıntılı örnekleri `V_HATA|I_HATA` (ADS'ler o gün takılı değildi); aynı baytlar tarayıcı kopyasından da boş çizilir.
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4D-1 | **Kaynak kararı denetçide** (`EsitlemeDenetcisi.kaynak()`): sayfa döngü kökenindeyse (`localhost`, `*.localhost`, `127/8`, `[::1]`) `/durum` sorulur, `pc_arsiv === true` (ve `kart` alanı) ise kaynak **'pc'**; değilse **'tarayici'** (IndexedDB). **Kart kökeninde (olcum.local, IP) bu karar için İSTEK YOK** — kartın sunduğu panel bayt bayt bugünkü gibi. `/durum`'a `pc_arsiv` (bu istemci döngüden mi) ve `vekil` (döngü + köprünün WiFi kolu var mı) eklendi. Ağ hatası ezberlenmez | Mevcut `kopruda` bayrağı yalnız bağlanınca (`baglan` → `kopruYokla`) doluyor ve yerel ağ istemcisinde de doğru — Kayıtlar bağlantıdan bağımsız açılabiliyor, LAN istemcisi `/arsiv/*`'den 403 alırdı. Karar denetçide olduğu için beş tüketici (Kayıtlar, Karşılaştırma, Pil kaydı, Osiloskop kayıtlı yakalama, Ayarlar) prop zinciri olmadan aynı kaynağı görür |
+| 4D-2 | **PC kipinde IndexedDB hiç açılmaz;** liste yalnız PC arşivi (`nerede: 'pc'`), panel eşitlemesi yok (C1 sebebi `'pc'`, kullanıcıya hata kutusu DEĞİL), arşiv onayı kutusu ve kopya silme yok, kartın dizini (`/kayit/liste`) sorulmaz — Kayıtlar'da da Ayarlar > Depolama'da da | PC10: tek yazar Python (`esitle.kilit`'in önlediği iki yazar / iki kopya yok). Köprü kökenindeki IndexedDB'de 4D öncesi de kayıt kopyası olamazdı (C1: köprüde `/kayit/liste` 404) — kaybolan veri yok. `olcum.local` kökenindeki kopyalar ayrı köken (PC10 a) |
+| 4D-3 | **Arşiv uçları** `GET /arsiv/liste` · `/arsiv/veri?kart=&akis=&ofset=&bayt=` · `/arsiv/kal?kart=&akis=` (`kalibrasyon.json` ayrı uç: DEPO `kalOku`). Parametre KATI: kart 16 küçük onaltılık, akış/ofset/bayt baştaki sıfırsız ondalık, `bayt ≤ 4 MiB`, bilinmeyen / tekrar eden / eksik parametre 400; çözülen yol arşiv kökünün İÇİNDE (sembolik bağ ve junction dışarı çıkamaz; listede de yok). **Boy = `durum.json`'un `bayt`ı** (kalıcı önek; dosyadaki çökme kuyruğu / süren yazım verilmez), `X-Arsiv-Boy` başlığında. Yalnız bu bilgisayar (yerel ağ 403), yalnız aynı köken (CSRF 403), POST/PUT/DELETE yok, yanıtta mutlak yol yok. Liste oturum özetini Python'dan (`kayit_bicim`, boy+mtime önbellekli) verir; panel kayıtları kendi çözümüyle (`ortak/kayit.js`) kurar | 4A-16 dersi (UNC / mutlak yol arşivi ezer, `exists()` SMB açar). Kalıcı önek: Esitleyici veriyi fsync'ten SONRA `durum.json`'u atomik yazıyor. Panel aynı çözümü kullanınca kayıt görünümü, grafik, dışa aktarma, rapor, Karşılaştırma tarayıcı kopyasıyla AYNI kod yolu. Gerçek arşivde liste çözümü 1.27 MB'de ~50 ms |
+| 4D-4 | **Rota anahtarı = kartın kayıt AKIŞ kimliği** (`#/kayit/<no>@<akış>`), kart kimliği satır bilgisinde. İki kartın akış kimliği çakışırsa (olasılık ~2^-32) yalnız en yenisi listelenir | Rota, Karşılaştırma (KR1), Pil ve Osiloskop rotaları tarayıcı kopyasıyla AYNI biçimde kalır. Maliyet: çakışan eski kartın kaydı panelde görünmez (diskte durur) — açık |
+| 4D-5 | **`ekran/depo_pc.js`** `ortak/src/esitle.js` DEPO arayüzünün OKUMA tarafı (`durumOku`, `veriBoyu`, `veriOku` (2 MB'lık aralıklarla, `X-Arsiv-Boy`'da durur), `kalOku`); yazan her yöntem (`kilitAl`, `durumYaz`, `veriEkle`, `veriKirp`, `kalYaz`, `kalArsivle`) `CalismaHatasi` ile reddeder — Esitleyici bu depoyla ilk adımda durur, ağa istek gitmez. `esitleme.js` onu **dinamik** `import()` ile, yalnız 'pc' kaynağında indirir; ağ enjekte (`getir`), dosyada `fetch` yok | Kart onu hiç indirmez; Ayarlar'ın IndexedDB zinciri 6 dosya kaldı (AY4/AY5 bütçesi). Kart görüntüsüne girer (~2 KB gzip, SW izin listesi `/ekran/*.js`) — çıkarmak ölü bağlantı riski, kazancı yok |
+| 4D-6 | **EU8' (EU8'in yeniden yazımı):** köprüye özgü uçlar (`/durum`, `/devral`, `/skop/liste`, `/skop/al`, **`/arsiv/*`, `/esitleme/durum`**) imza katmanına GİRMEZ — düz `fetch(kartAdres(yol))` (`EsitlemeDenetcisi._kopruGetir`). Kartın uçları (`/pil`, `/kal/liste`, `/kunye.json`) eskisi gibi `kartIstek`'ten | Köprü panelin imzasını doğrulamaz; köprü uçlarını imzalamak sayaç harcar, köprüde anlamı yok. B7 33(e) iki yönü de ölçüyor |
+| 4D-7 | **EU9' (EU9'un yeniden yazımı):** köprü `/eslestir/*`'i **VEKİL ETMEZ** — panelin imza katmanı köprüde HER ZAMAN imzasız yola düşer (`/eslestir/bilgi` 404 → `yok`, EU9 kuralı köprü için aynen geçerli); köprü panelin imza başlıklarını (`X-Cihaz/X-Sayac/X-Imza`) TAŞIMAZ, `_c _s _i` parametresi 400; karta kendi eşleşmiş cihazıyla imzalar. "Köprüden 404 = imzasız yol" artık yalnız `/eslestir/bilgi` için: `/kal/liste`, `/pil`, `/kunye.json` köprüde 200 (vekil) ya da **502 + `X-Kopru-Vekil: hata`** (JSON sebep) döner | PC7: panelden köprü için eşleştirme yok (K tarayıcı deposuna düşmesin). Vekil `/eslestir/*`'i taşısaydı panel köprüyü kart sanıp kendi anahtarıyla imzalamaya kalkardı (B22a mutasyonu). Panel 502'yi "kart vermedi" değil "köprü karta ulaşamadı" diye yazar |
+| 4D-8 | **Vekil (PC11)** `GET /pil[?sira]`, `/kal/liste`, `/kunye.json` — beyaz liste, yalnız GET; kart doğrulaması (`WifiKart.dogrula`) 30 s yeniden kullanılır; imzalı istek `WifiKart.imzali_ac` (canlı akış ve arka plan eşitlemesiyle AYNI `Cihaz` + sayaç kilidi). Kartın 401'i → **502 `imza`** ("köprüyü yeniden eşleştirin"); 404/503 aynen; doğrulanamadı / erişilemedi / WiFi kolu yok → 502 JSON; mesajlardan mutlak yol çıkarılır (`yolsuz`). Yerel ağa kapalı (403) | 401 aynen geçseydi panel "bu tarayıcı eşleşmemiş" derdi. Donuk saatle (aynı ms) vekil + eşitleme istekleri: 401 yok (B22a). LAN telefonu karta doğrudan bağlanır (PC2) |
+| 4D-9 | **`p0` vekilde YOK, her katmanda serbest:** `/komut` → `SecmeliKart` → `WifiKart._p0` imzasız ve **sayaç kilidini beklemeden**. Ölçüldü: kart 1.5 s'de yanıtlayan bir vekil isteği kilidi tutarken p0 0.02 s'de karta ulaştı | Ö7; kalıcı kural "p0 her yeni katmanda serbest" — iddia + iki mutasyon (kilit beklemesi, p0'ın imzalanması) |
+| 4D-10 | **`/kunye.json` köprüde = KARTIN arayüz görüntüsünün künyesi** (vekil). Ayarlar etiketi "Kartın arayüz görüntüsü (panel sürümü)" — iki kökende de doğru; künye okunamazsa vekilin sebebi yazılır | 4F-5 bunu öngörmüştü (kabuk sürümü sw.js SURUM'da). Köprünün sunduğu panelin kendi sürümü panelde gösterilmiyor — açık |
+| 4D-11 | **Pil (PC11):** köprüde `/durum.vekil` doğruysa pil durum kaynağı **'http'** (`/pil` vekilden — eğri noktaları gelir); vekil 502 dönerse o bağlantıda **'satir'**a döner (sürücüyse `p` → B satırı, PU13) | PU13'te köprüde eğri yoktu. Kart WiFi'de değilse (yalnız USB) eski davranış |
+| 4D-12 | **Ayarlar:** kalibrasyon geçmişi köprüde vekilden (kaynak "kartın kalibrasyon geçmişi"); vekil 502 → sebep (JSON) + **bu PC'deki arşivin kopyası** (kaynak 'pc': kart + akış + son eşitleme; IndexedDB açılmaz). Depolama PC arşivini SALT OKUMA gösterir (silme yok, "köprü yazar, panel yalnız okur"). PC metinleri (`sozluk_pc.js`) yalnız köprüde dinamik iner | Kart kökeninde Ayarlar'ın davranışı ve Gelişmiş'in tek dosya kuralı (AY2) aynen |
+| 4D-13 | **Köprü eşitlemesinin durumu** (`/esitleme/durum`) Kayıtlar'da canlı bölgede (aria-live) tek satır: son başarılı zaman · son turda / açılıştan beri yeni kayıt · kartın son sırası · **karta onay açık/kapalı** (açıkken "kart, PC'ye kopyalanan eski kayıtları yer gerekince silebilir"); hata (sebep + kaç s sonra), atlandı, kapalı, bekliyor, alınamadı. Ekran açılınca ve Yenile'de; yoklama yok | PC9 uyarısının UI'daki yeri. Sebep metinleri köprünün ASCII Türkçesi (veri olarak) |
+| 4D-14 | **PC12:** B35 satır arşivi Osiloskop'ta **"Eski arşiv — köprünün satır günlüğündeki yakalamalar"** (sözlükten, TR+EN; `data-skop-eski-arsiv`), açıklama "salt okuma, dönüştürülmez", yer 4C'nin `olcum-karti/satir`'ı (bayat `kopru/arsiv/<gün>.satir` kalktı); kartın kendi 1C-3 skop günlükleri Kayıtlar'da | R13: iki arşiv yan yana karışmasın |
+| 4D-15 | **Metinler:** yeni metinler `ortak/src/sozluk_pc.js` (EU30 deseni: Kayıtlar zinciri statik, Ayarlar yalnız köprüde dinamik; açılışta YOK). Bayat metinler düzeltildi (TR+EN): `kl.neden_imza` (panel eşleştirmesi 3H-2'den beri var → "Ayarlar → Eşleştirme"; PC yolu `kopru/pc.py`), `kl.neden_yok` (köprünün yerel ağ adresi / geliştirme sunucusu; PC arşivi yalnız köprünün bilgisayarında), `kl.neden_usb`, `ay.kal_neden_imza`, `ay.panel`, `ay.panel_yok`. EN'de çevrilmemiş metin kilidi 274 → 272. Açılış kümesi +692 B gzip (209 211 B; EU31 259 803 ≤ 262 144) | Açılış bütçesi dar (EU31 kalan ~2.3 KB): PC metinleri açılışa girseydi ~2 KB daha yerdi. B7 iddiaları bayat metni KODLUYORDU (401 metni, WIG f) — gerekçesiyle yeniden yazıldı |
+
+Açık (4D dışı / sonraki):
+- İki kartın akış kimliği çakışırsa eski kartın PC kayıtları listede görünmez (4D-4).
+- Köprünün sunduğu panelin kendi sürümü (sw.js SURUM) panelde gösterilmiyor.
+- WiFi'de canlı skop yakalaması hâlâ `tB → t` + ASCII dökümü; `/skop.bin` vekili yapılmadı (4B açık maddesi, kapsam dışı).
+- Yerel ağ istemcisine panelde "salt okuma" arayüzü yok (4A'dan devreden; 403 metni görünür).
+- Vekilin gerçek kartta (imzalı `/kal/liste`, `/pil`, `/kunye.json`) koşusu yapılmadı — bu dilimde karta komut / istek
+  gönderilmedi; tezgah kalemi (4G).
 
 ## Güvenlik (kalıcı kurallar)
 

@@ -1095,9 +1095,11 @@ def main() -> int:
             t.js("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Yenile').click()")
             imza = bekle_js(t, "(document.querySelector('.kl-neden') || {dataset: {}}).dataset.neden === 'imza'"
                                " && document.querySelector('.kl-neden').textContent")
-            ok("[!] 401 'imza gerekli': 'Kart imzalı istek istiyor; bu tarayıcı henüz eşleştirilemiyor' (+ PC yolu), liste yerelden",
-               bool(imza) and "Kart imzalı istek istiyor; bu tarayıcı henüz eşleştirilemiyor" in imza
-               and "kopru/kayit_esitle.py" in imza
+            # 4D: metin bayatti (3H-2'den beri panel eslestirmesi var; PC'de arsivi kopru/pc.py tutuyor)
+            ok("[!] 401 'imza gerekli': 'Kart imzalı istek istiyor ve bu tarayıcıyı tanımıyor' + Ayarlar → Eşleştirme "
+               "(+ PC yolu kopru/pc.py), liste yerelden",
+               bool(imza) and "Kart imzalı istek istiyor ve bu tarayıcıyı tanımıyor" in imza
+               and "Ayarlar → Eşleştirme" in imza and "kopru/pc.py" in imza
                and t.js("document.querySelectorAll('.kl-satir').length") >= 8, imza or "")
             kart.imza_zorunlu = False
             for e in evre_401:

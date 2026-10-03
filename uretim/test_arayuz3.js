@@ -2767,9 +2767,14 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
      && ES.hataSinifla(new TypeError('Failed to fetch')).durum === 'ag');
   {
     const metin = SZ.ceviri('kl.neden_imza', 'tr');
-    /* WIG: eski metin olmayan bir ayara ("Ayarlar'da (3H)") gonderiyordu; artik bugunku yolu soyluyor */
-    ok('[!] 401 metni: "Kart imzalı istek istiyor; bu tarayıcı henüz eşleştirilemiyor" + PC yolu (kayit_esitle.py)',
-       metin.startsWith('Kart imzalı istek istiyor; bu tarayıcı henüz eşleştirilemiyor') && metin.includes('kopru/kayit_esitle.py'), metin);
+    /* WIG: eski metin olmayan bir ayara ("Ayarlar'da (3H)") gonderiyordu. 4D: 3H-2'den beri panel
+       eslestirmesi VAR (Ayarlar → Eşleştirme) ve PC'de arsivi kopru (pc.py) tutuyor — "henüz
+       eşleştirilemiyor" + kayit_esitle.py BAYATTI; metin bugunku iki yolu soyler. */
+    const en = SZ.ceviri('kl.neden_imza', 'en');
+    ok('[!] 401 metni (4D): "Kart imzalı istek istiyor ve bu tarayıcıyı tanımıyor" + Ayarlar → Eşleştirme + PC yolu (kopru/pc.py); bayat "henüz eşleştirilemiyor" / kayit_esitle.py YOK',
+       metin.startsWith('Kart imzalı istek istiyor ve bu tarayıcıyı tanımıyor') && metin.includes('Ayarlar → Eşleştirme')
+       && metin.includes('kopru/pc.py') && !/henüz eşleştirilemiyor|kayit_esitle/.test(metin)
+       && en.includes('Settings → Pairing') && en.includes('kopru/pc.py') && !/cannot be paired yet|kayit_esitle/.test(en), metin);
   }
   {
     /* Gercek kartta (2026-10-02) esitleme tek bir ag zaman asimiyla durdu: ag hatasi artan
@@ -4115,9 +4120,13 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
        /Yenile/.test(anah('kl.neden_ag')) && /adresinden/.test(anah('kl.neden_host')) && /Yenile/.test(anah('kl.neden_hata'))
        && /izin/.test(anah('kl.neden_depo')) && /Yenile/.test(anah('kl.kal_hata')) && /yeniden deneyin/.test(anah('kg.disari_hata'))
        && /Refresh/.test(SZ.ceviri('kl.neden_ag', 'en')) && /again/.test(SZ.ceviri('kg.disari_hata', 'en')));
-    ok('[!] WIG f: imza hatasi OLMAYAN ayara (Ayarlar 3H) gondermiyor; ic asama kodu (3H/3E) kullaniciya gorunmuyor',
+    /* 4D: 3H-2'den beri Ayarlar → Eşleştirme VAR — imza hatasi oraya (ve PC'de kopru/pc.py'ye) gonderir;
+       olmayan bir bolume ("Ayarlar (3H)") ve ic asama koduna gondermez. */
+    const esVar = /id: 'eslestirme'/.test(appKaynak);
+    ok('[!] WIG f: imza hatasi VAR OLAN ayara (Ayarlar → Eşleştirme, 3H-2) gonderiyor; ic asama kodu (3H/3E) kullaniciya gorunmuyor',
        !/\(3[A-Z]\)/.test(anah('kl.neden_imza') + anah('kg.skop_ipucu') + SZ.ceviri('kl.neden_imza', 'en') + SZ.ceviri('kg.skop_ipucu', 'en'))
-       && /kayit_esitle\.py/.test(anah('kl.neden_imza')) && !/Ayarlar/.test(anah('kl.neden_imza')));
+       && esVar && /Ayarlar → Eşleştirme/.test(anah('kl.neden_imza')) && /Ayarlar → Eşleştirme/.test(anah('ay.kal_neden_imza'))
+       && /kopru\/pc\.py/.test(anah('kl.neden_imza')) && !/henüz yok|not available yet/.test(anah('ay.kal_neden_imza') + SZ.ceviri('ay.kal_neden_imza', 'en')));
     ok('WIG f: plan / baglanti hatalari ne yapilacagini soyluyor',
        /seçin/.test(anah('cn.hata_plan_bas')) && /ileri alın|uzatın/.test(anah('cn.hata_plan_gecmis')) && /Karta bağlan/.test(anah('cn.hata_bagli_degil')));
     ok('WIG f: kayit gorunumunde veri yoksa NEDEN bos oldugu yaziyor (kirik sayfa degil)',
@@ -5813,7 +5822,7 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
   };
   /* KILIT: 3H-1'de olculen. Azalirsa (eski metin sozluge tasindi) kilidi dusur; artarsa
      yeni metni sozluge koy — gomulu Turkce metin bu kilidi kirmiziya dondurur. */
-  const EN_EKSIK_KILIT = 274;
+  const EN_EKSIK_KILIT = 272;     /* 4D: skop eski arsiv basligi + aciklamasi sozluge (os.eski_arsiv*) */
 
   /* ── (a) KABLOLAMA (AY2) ────────────────────────────────────────── */
   {
@@ -7683,6 +7692,337 @@ console.log('\n--- 33. 4F PWA kabugu (service worker + manifest) ---');
   const kabukIstek = istenen.filter((u) => /^(sw\.js|cevrimdisi\.html)$/.test(u) || (/^ikon-/.test(u) && u !== 'ikon-180.png'));
   ok('[!] 4F: sw.js, cevrimdisi.html ve yeni ikonlar index.html\'den istenmiyor (kartta acilis istegi ve butce degismez)',
      kabukIstek.length === 0 && istenen.includes('ikon-180.png'), kabukIstek.join(' ') || 'yalniz ikon-180 (apple-touch-icon)');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   33. 4D — PANEL PC'DE (alt proje 4; PC10, PC11, PC12)
+   Kararlar tasarim/2026-10-03-alt-proje-4-pc.md "4D uygulama kararlari".
+   (a) KAYNAK: denetci kopru kokeninde `/durum` `pc_arsiv` ile PC arsivini secer; kart
+       kokeninde bu karar ICIN istek YOK (kartin sundugu panel aynen).
+   (b) depo_pc.js SALT OKUMA: yazan her yontem reddeder, aga istek gitmez; okuma kopru
+       baytlarini AYNEN birlestirir (X-Arsiv-Boy).
+   (c) Kayitlar PC kipinde: nerede 'pc', esitleme / arsiv onayi / silme yok, kopru
+       esitlemesinin durum satiri (TR + EN), canli bolgede.
+   (d) PC11: /pil kopru vekilinden ('http'), vekil karta ulasamazsa (502) `p` -> B;
+       Ayarlar kalibrasyon gecmisi vekilden, 502'de PC arsivinin kopyasi.
+   (e) EU8'/EU9': kopru uclari (/durum, /arsiv/*, /esitleme/durum) imza katmanina girmez;
+       kartin uclari (/pil, /kal/liste, /kunye.json) kartIstek'ten (kopruda vekil imzalar).
+   (f) PC12: skop "eski arsiv" basligi sozlukten, bayat `kopru/arsiv` yolu yok.
+   Gercek tarayici + gercek kopru + gercek arsiv baytlari: tarayici_pc_kayit.py (T4D).
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 33. 4D: panel PC koprusunde (PC arsivi salt okuma, vekil, eski skop arsivi) ---');
+{
+  const ek = (ad) => require(path.join(ARAYUZ, 'ekran', ad));
+  const src = (ad) => require(path.join(KOK, 'ortak', 'src', ad));
+  const ES = ek('esitleme.js');
+  const DPC = ek('depo_pc.js');
+  const KL = ek('kayitlar.js');
+  const AY = ek('ayarlar.js');
+  const K = src('kayit.js');
+  const ESI = src('esitle.js');
+  const IM = src('imza.js');
+  const SZP = src('sozluk_pc.js');
+  const SZ = src('sozluk.js');
+  const kaynak = (ad) => fs.readFileSync(path.join(ARAYUZ, 'ekran', ad), 'utf8');
+  const html = yorumsuz(htmlKaynak);
+
+  /* gercek kayit bicimi: oturum 5 (3 NOKTA) + oturum 9 (2 NOKTA) */
+  const nokta = (sira, ot) => K.kayitPaketle(K.T_NOKTA, sira, ot, new Uint8Array(4 + 36));
+  const parcalar = [nokta(101, 5), nokta(102, 5), nokta(103, 5), nokta(104, 9), nokta(105, 9)];
+  const VERI = new Uint8Array(parcalar.reduce((n, p) => n + p.length, 0));
+  { let a = 0; for (const p of parcalar) { VERI.set(p, a); a += p.length; } }
+  const KUYRUK = new Uint8Array([0xA5, 2, 40, 0, 1, 2, 3]);       // kalici onekin otesi — kopru VERMEZ
+  const KAL = new TextEncoder().encode(JSON.stringify({ adet: 1, etkin: 1, azami: 40, kayitlar: [{ no: 1, unix: 1790000000 }] }));
+  const LISTE = { arsivler: [
+    { kart: '0a1b2c3d4e5f6a7b', akis: 3995957410, bayt: VERI.length, dosya_bayt: VERI.length + KUYRUK.length, degisim: 1790000100.5,
+      durum: { son_sira: 105, bayt: VERI.length, onaylanan: 0, kimlik: 3995957410 }, kal: true, oturum: 2, oturumlar: [] },
+    { kart: '0a1b2c3d4e5f6a7b', akis: 77, bayt: 0, degisim: 1790000000, durum: null, kal: false, oturum: 0 },
+    { kart: 'KOTU', akis: 1, bayt: 0 },
+  ] };
+  const yanit = (status, govde, basliklar = {}) => {
+    const b = typeof govde === 'string' ? new TextEncoder().encode(govde) : govde || new Uint8Array(0);
+    const h = new Map(Object.entries(basliklar).map(([a, v]) => [a.toLowerCase(), String(v)]));
+    return { status, ok: status >= 200 && status < 300, headers: { get: (a) => (h.has(a.toLowerCase()) ? h.get(a.toLowerCase()) : null) },
+      text: async () => new TextDecoder().decode(b), json: async () => JSON.parse(new TextDecoder().decode(b)),
+      arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.length) };
+  };
+  /* Kopru taklidi: /durum, /arsiv/liste, /arsiv/veri (aralik + X-Arsiv-Boy), /arsiv/kal, /esitleme/durum */
+  const kopru = ({ pcArsiv = true, durumKod = 200 } = {}) => {
+    const cagri = [];
+    const f = async (url, sec = {}) => {
+      cagri.push({ url: String(url), yontem: (sec && sec.method) || 'GET', sec });
+      const u = new URL(String(url), 'http://olcum.localhost:8770');
+      if (u.pathname === '/durum') return durumKod === 200 ? yanit(200, JSON.stringify({ kart: 'wifi:olcum.local', skop_arsiv: true, pc_arsiv: pcArsiv, vekil: true })) : yanit(durumKod, 'yok');
+      if (u.pathname === '/arsiv/liste') return yanit(200, JSON.stringify(LISTE));
+      if (u.pathname === '/arsiv/veri') {
+        const of = Number(u.searchParams.get('ofset')), n = Number(u.searchParams.get('bayt'));
+        if (u.searchParams.get('akis') !== '3995957410' || of > VERI.length) return yanit(400, 'x');
+        return yanit(200, VERI.slice(of, Math.min(VERI.length, of + Math.min(n, 13))), { 'X-Arsiv-Boy': VERI.length });   // 13 B'lik parcalar
+      }
+      if (u.pathname === '/arsiv/kal') return u.searchParams.get('akis') === '3995957410' ? yanit(200, KAL) : yanit(404, '');
+      if (u.pathname === '/esitleme/durum') return yanit(200, JSON.stringify({ etkin: true, onay: true, sonuc: 'tamam', son_basari: 1790000200, yeni_kayit: 3, toplam_yeni: 9, kart_son_sira: 105 }));
+      return yanit(404, '');
+    };
+    f.cagri = cagri;
+    return f;
+  };
+  const fetchIle = async (f, islev) => {
+    const eski = globalThis.fetch;
+    globalThis.fetch = f;
+    try { return await islev(); } finally { globalThis.fetch = eski; }
+  };
+  const KOPRU_KONUM = { protocol: 'http:', hostname: 'olcum.localhost', host: 'olcum.localhost:8770' };
+  const KART_KONUM = { protocol: 'http:', hostname: 'olcum.local', host: 'olcum.local' };
+  const pcYukle = async () => DPC;
+  const den = (konum, ek_ = {}) => new ES.EsitlemeDenetcisi({ kartAdres: (y) => y, konum, pcYukle, ...ek_ });
+
+  /* ── (a) kaynak karari ─────────────────────────────────────────────── */
+  const KS = ES.kokenSinama || (() => null);
+  const kok = (h, p = 'http:') => KS({ protocol: p, hostname: h });
+  ok('[!] 4D (a): koken sinamasi — olcum.localhost / localhost / 127.x / [::1] kopru olabilir; kart (olcum.local, IP), file: ve bos konum ASLA',
+     kok('olcum.localhost') === true && kok('localhost') === true && kok('127.0.0.1') === true && kok('[::1]') === true
+     && kok('olcum.local') === false && kok('192.168.1.50') === false && kok('olcum.localhost.example') === false
+     && kok('localhost', 'file:') === false && KS(null) === false && KS(undefined) === false);
+  SONRA.push(async () => {
+    const fk = kopru();
+    const kartK = await fetchIle(fk, () => den(KART_KONUM).kaynak());
+    const kartIstek = fk.cagri.length;
+    const kopruK = await fetchIle(fk, () => den(KOPRU_KONUM).kaynak());
+    const lan = await fetchIle(kopru({ pcArsiv: false }), () => den(KOPRU_KONUM).kaynak());
+    const gel = await fetchIle(kopru({ durumKod: 404 }), () => den({ protocol: 'http:', hostname: 'localhost' }).kaynak());
+    let atan = 0;
+    const d = den(KOPRU_KONUM);
+    const ilk = await fetchIle(async () => { atan++; throw new TypeError('Failed to fetch'); }, () => d.kaynak());
+    const ikinci = await fetchIle(fk, () => d.kaynak());
+    ok('[!] 4D (a): KART kokeninde kaynak "tarayici" ve bu karar icin HICBIR istek yok (kartin sundugu panel aynen); kopruda /durum pc_arsiv:true -> "pc"; yerel ag (pc_arsiv false) / gelistirme sunucusu (404) -> "tarayici"; ag hatasi ezberlenmez',
+       kartK === 'tarayici' && kartIstek === 0 && kopruK === 'pc' && fk.cagri.some((c) => c.url === '/durum' && c.sec.credentials === 'omit')
+       && lan === 'tarayici' && gel === 'tarayici' && ilk === 'tarayici' && atan === 1 && ikinci === 'pc',
+       `kart=${kartK}/${kartIstek} kopru=${kopruK} lan=${lan} gel=${gel} ag=${ilk}->${ikinci}`);
+    ok('4D (a): kaynakCoz — yalniz 200 + JSON + `kart` + pc_arsiv === true "pc" (kartin 404\'u, bicimsiz govde, pc_arsiv "1" degil)',
+       ES.kaynakCoz(200, '{"kart":"x","pc_arsiv":true}') === 'pc' && ES.kaynakCoz(404, '') === 'tarayici'
+       && ES.kaynakCoz(200, '<html>') === 'tarayici' && ES.kaynakCoz(200, '{"kart":"x","pc_arsiv":"1"}') === 'tarayici'
+       && ES.kaynakCoz(200, '{"pc_arsiv":true}') === 'tarayici');
+  });
+
+  /* ── (b) depo_pc.js salt okuma ─────────────────────────────────────── */
+  SONRA.push(async () => {
+    const fk = kopru();
+    const liste = DPC.pcListeCoz(LISTE);
+    const a = liste ? liste[0] : null;
+    const depo = a ? DPC.pcDepo(fk, a) : null;
+    const ret = [];
+    for (const ad of ['kilitAl', 'durumYaz', 'veriEkle', 'veriKirp', 'kalYaz', 'kalArsivle']) {
+      try { await depo[ad](new Uint8Array(3)); ret.push(ad + ':kabul'); } catch (h) { ret.push(h instanceof IM.CalismaHatasi ? 'ret' : ad + ':' + h.name); }
+    }
+    const yazmaIstek = fk.cagri.length;
+    /* Esitleyici bu depoyla calisirsa ilk adimda (kilitAl) durur, /kayit/veri istenmez */
+    let esit = 'gecti';
+    const esitIstek = [];
+    try {
+      await new ESI.Esitleyici({ tabanUrl: '', depo, istek: async (t, y) => { esitIstek.push(y); return yanit(200, ''); } }).esitle();
+    } catch (h) { esit = h instanceof IM.CalismaHatasi ? 'ret' : h.name; }
+    const veri = await depo.veriOku(0);
+    const kal = await depo.kalOku();
+    const kalYok = await DPC.pcDepo(fk, liste[1]).kalOku();
+    ok('[!] 4D (b): PC deposu SALT OKUMA — yazan her yontem (kilitAl, durumYaz, veriEkle, veriKirp, kalYaz, kalArsivle) CalismaHatasi ile reddeder ve aga istek atmaz; Esitleyici ilk adimda durur, /kayit/veri ISTENMEZ',
+       ret.every((x) => x === 'ret') && ret.length === 6 && yazmaIstek === 0 && esit === 'ret' && esitIstek.length === 0,
+       `${ret.join(' ')} istek=${yazmaIstek} esit=${esit}/${esitIstek.length}`);
+    const vIstek = fk.cagri.filter((c) => c.url.startsWith('/arsiv/veri'));
+    ok('[!] 4D (b): veriOku koprunun baytlarini AYNEN birlestirir (parca parca, X-Arsiv-Boy\'da durur — kuyruk istenmez); yalniz GET /arsiv/veri?kart&akis&ofset&bayt; kalOku /arsiv/kal, kopyasi yoksa istek atmadan null',
+       veri.length === VERI.length && veri.every((x, i) => x === VERI[i]) && vIstek.length === Math.ceil(VERI.length / 13)
+       && vIstek.every((c) => c.yontem === 'GET' && /^\/arsiv\/veri\?kart=0a1b2c3d4e5f6a7b&akis=3995957410&ofset=\d+&bayt=\d+$/.test(c.url))
+       && new TextDecoder().decode(kal) === new TextDecoder().decode(KAL) && kalYok === null
+       && fk.cagri.filter((c) => c.url.includes('akis=77')).length === 0,
+       `${veri.length}/${VERI.length} istek=${vIstek.length}`);
+    ok('4D (b): pcListeCoz — bicimsiz arsiv (kart 16 kucuk onaltilik degil) atilir; durum yalniz tamsayi alanlar; liste degilse null',
+       liste.length === 2 && liste[0].durum.son_sira === 105 && liste[1].durum === null && DPC.pcListeCoz({}) === null
+       && DPC.pcListeCoz(null) === null && DPC.pcListeCoz({ arsivler: [{ kart: '0A1B2C3D4E5F6A7B', akis: 1, bayt: 0 }] }).length === 0);
+  });
+
+  /* ── denetci PC kipinde ─────────────────────────────────────────────── */
+  SONRA.push(async () => {
+    const fk = kopru();
+    const imzali = [];
+    const d = den(KOPRU_KONUM, { istek: async (y) => { imzali.push(y); return yanit(500, ''); } });
+    const r = await fetchIle(fk, async () => {
+      const ak = await d.akislar();
+      const v = await d.akisVerisi(3995957410);
+      const b = await d.akisBaytlari(3995957410);
+      const kb = await d.kalBaytlari(3995957410);
+      const e = await d.esitle({ kimlik: 3995957410 });
+      let sil = 'silindi';
+      try { await d.akisSil(3995957410); } catch (h) { sil = h instanceof IM.CalismaHatasi ? 'ret' : h.name; }
+      const ed = await d.esitlemeDurumu();
+      return { ak, v, b, kb, e, sil, ed };
+    });
+    const bekl = K.oturumlariKur(K.akisOnek(VERI)[0]);
+    ok('[!] 4D (PC10): kopruda denetci PC arsivini okur — akislar /arsiv/liste\'den (pc, kimlik = akis kimligi, kart), akisVerisi AYNI cozumle (oturumlar 5 ve 9), kalBaytlari kopyayi verir; esitle {durum:"pc"} (/kayit/* ISTENMEZ, onay yok), akisSil reddeder; hicbir istek imza katmanindan (istek) gecmez',
+       r.ak.length === 2 && r.ak[0].pc === true && r.ak[0].kimlik === 3995957410 && r.ak[0].kart === '0a1b2c3d4e5f6a7b' && r.ak[0].kalVar === true
+       && [...r.v.oturumlar.keys()].join() === [...bekl.keys()].join() && [...bekl.keys()].join() === '5,9'
+       && r.b.length === VERI.length && r.v.kart === '0a1b2c3d4e5f6a7b' && r.kb && r.kb.length === KAL.length
+       && r.e.durum === 'pc' && r.sil === 'ret' && r.ed && r.ed.sonuc === 'tamam' && imzali.length === 0
+       && !fk.cagri.some((c) => /\/kayit\/|\/komut/.test(c.url)) && fk.cagri.every((c) => c.yontem === 'GET'),
+       `${r.ak.length} ${[...r.v.oturumlar.keys()]} e=${r.e.durum} sil=${r.sil} imzali=${imzali.length} ${fk.cagri.map((c) => c.url.split('?')[0]).join(' ')}`);
+  });
+
+  /* ── (c) Kayitlar PC kipinde ───────────────────────────────────────── */
+  {
+    const U = ES.esitlemeUygunlugu;
+    ok('[!] 4D (C1): PC kipinde esitleme YOK (sebep "pc"); kopru disinda C1 kurallari aynen',
+       U({ kartTaban: '', tasiyici: 'akis', pc: true }).neden === 'pc' && U({ kartTaban: '', tasiyici: 'akis', pc: true }).uygun === false
+       && U({ kartTaban: '', tasiyici: 'akis' }).uygun === true && U({ kartTaban: 'x', tasiyici: 'akis', pc: false }).neden === 'taban');
+    const yerel = { kimlik: 3995957410, kart: '0a1b2c3d4e5f6a7b', bayt: 10, oturumlar: K.oturumlariKur(K.akisOnek(VERI)[0]), sonSira: new Map() };
+    const sat = KL.listeBirlestir({ kart: null, yereller: [yerel], yerelNerede: 'pc' });
+    const satT = KL.listeBirlestir({ kart: null, yereller: [yerel] });
+    ok('[!] 4D: PC arsivinin satirlari nerede "pc" (metni sozluk_pc: "bu PC\'de"); varsayilan yine "tarayici"; karsilastirmaya secilebilir (yerelde)',
+       sat.length === 2 && sat.every((s) => s.nerede === 'pc' && s.yerelde) && satT.every((s) => s.nerede === 'tarayici')
+       && SZP.ceviriPc(require(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js')).NEREDE_METIN.pc, 'tr').includes("PC'de")
+       && SZP.ceviriPc('pc.nerede', 'en').includes('PC'), sat.map((s) => s.nerede).join());
+    const PD = KL.pcDurumYazi || (() => '');
+    const tamam = { etkin: true, onay: true, sonuc: 'tamam', son_basari: 1790000200, yeni_kayit: 3, toplam_yeni: 9, kart_son_sira: 105 };
+    const t1 = PD(tamam, 'tr');
+    const t2 = PD({ ...tamam, onay: false, sonuc: 'hata', mesaj: 'kart erisilemiyor', sonraki_deneme_s: 30 }, 'tr');
+    const t3 = PD({ ...tamam, sonuc: 'atlandi', mesaj: 'yalniz USB' }, 'en');
+    const t4 = PD({ etkin: false, neden: '--esitleme-yok' }, 'tr');
+    const t5 = PD({ hata: 'HTTP 403' }, 'en');
+    const t6 = PD({ etkin: true, onay: false, sonuc: 'bekliyor', son_basari: null }, 'tr');
+    ok('[!] 4D: kopru esitlemesinin durum satiri — son basarili zaman, yeni kayit, kartin son sirasi, karta onay ACIK/KAPALI (acik: kart silebilir); hata sebebi + bekleme; atlandi; kapali; durum alinamadi; ilk tur bekleniyor (TR + EN)',
+       /Köprü eşitlemesi: son başarılı \d{4}-\d\d-\d\d/.test(t1) && /3 yeni kayıt/.test(t1) && /105/.test(t1) && /silebilir/.test(t1)
+       && /başarısız \(kart erisilemiyor\) — 30 s/.test(t2) && /kapalı/.test(t2) && /skipped \(yalniz USB\)/.test(t3)
+       && /kapalı \(--esitleme-yok\)/.test(t4) && /did not report[\s\S]*HTTP 403/.test(t5) && /henüz bir tur/.test(t6)
+       && PD(null) === '' && !/\{/.test(t1 + t2 + t3 + t4 + t5 + t6), [t1, t2, t3].join(' | '));
+    const T = KL.KayitlarEkrani.template;
+    ok('[!] 4D/WIG: Kayitlar sablonu — PC durum satiri CANLI bolgede (aria-live), salt okuma aciklamasi, nerede suzgecinde "pc" (PC kipinde tarayici/kart/ikisi yok), kopya silme dugmeleri PC kipinde YOK, ozet satiri PC arsivini anlatir',
+       /data-kl-pc-durum/.test(((T.match(/<div class="kl-duyuru" aria-live="polite">((?:(?!<\/div>)[\s\S])*)<\/div>/) || [])[1]) || '')
+       && /<p v-if="pc" class="ipucu" data-kl-pc-salt>\{\{ pm\.salt \}\}<\/p>/.test(T)
+       && /<option v-if="pc" value="pc">[\s\S]*?<template v-else>[\s\S]*?value="tarayici"/.test(T)
+       && /<template v-if="!pc && silOnay === k\.kimlik">/.test(T) && /<button v-else-if="!pc" type="button" :data-kl-sil=/.test(T)
+       && /v-else-if="pc" class="kl-kart-ozet" data-kl-pc-ozet>\{\{ pcOzetMetin \}\}/.test(T));
+    /* bilesen mantigi: etkinlesti once kaynak; PC kipinde kartin dizini sorulmaz, esitleme cagrilmaz */
+    const o = Object.assign({}, KL.KayitlarEkrani.data.call({ dilSecim: 'tr' }), KL.KayitlarEkrani.methods,
+      { kartAdres: (y) => y, kartTaban: '', tasiyici: 'akis', bagli: true, dilSecim: 'tr', $nextTick: (f) => f && f() });
+    for (const [ad, fn] of Object.entries(KL.KayitlarEkrani.computed)) Object.defineProperty(o, ad, { get: fn.bind(o) });
+    const olay = [];
+    o._den = { kaynak: async () => 'pc', akislar: async () => [{ kimlik: 3995957410, kart: '0a1b2c3d4e5f6a7b', olusma: 1, pc: true }],
+      akisVerisi: async () => ({ ...yerel, durum: { son_sira: 105 } }), kartListesi: async () => { olay.push('kartListesi'); return { durum: 'yok' }; },
+      esitle: async () => { olay.push('esitle'); return { durum: 'pc' }; }, esitlemeDurumu: async () => { olay.push('durum'); return tamam; } };
+    o._yereller = [];
+    o.kayitAc = async () => {};
+    SONRA.push(async () => {
+      const eskiVue = globalThis.Vue;
+      globalThis.Vue = { markRaw: (x) => x };
+      try {
+        await o.etkinlesti();
+        await new Promise((r) => setImmediate(r));
+      } finally { globalThis.Vue = eskiVue; }
+      ok('[!] 4D: Kayitlar PC kipinde — kaynak once sorulur, kartin dizini (/kayit/liste) SORULMAZ, esitleme CAGRILMAZ, uyari kutusu bos (sebep "pc" kullaniciya hata degil), kopya satiri kart + akis yazar, durum satiri yuklenir',
+         o.pc === true && !olay.includes('kartListesi') && !olay.includes('esitle') && olay.includes('durum') && o.nedenMetni === ''
+         && o.satirlar.length === 2 && o.satirlar.every((s) => s.nerede === 'pc') && /0a1b2c3d4e5f6a7b[\s\S]*3995957410/.test(o.kopyalar[0].metin)
+         && /Bu PC'deki arşiv \(köprü\): 1 akış · 2 oturum/.test(o.pcOzetMetin) && /Köprü eşitlemesi/.test(o.pcDurumMetni),
+         `pc=${o.pc} olay=${olay} neden=${o.nedenMetni} ozet=${o.pcOzetMetin}`);
+    });
+  }
+
+  /* ── (d) PC11: /pil vekilden, 502'de `p` ──────────────────────────── */
+  {
+    const u = ornek();
+    u.bagli = true; u.tasiyiciAdi = 'akis'; u.bagliTasiyici = 'akis';
+    u.kopruda = true; u.kopruVekil = true;
+    const vekilli = u.pilKaynak;
+    u.kopruVekil = false;
+    const vekilsiz = u.pilKaynak;
+    u.kopruda = false;
+    const kart = u.pilKaynak;
+    ok('[!] 4D (PC11): pil durum kaynagi — kopru /pil\'i vekil ediyorsa (/durum vekil) kopruda da "http" (egri noktalari gelir); vekil yoksa "satir" (PU13); kartin kendi WiFi\'sinde "http" aynen',
+       vekilli === 'http' && vekilsiz === 'satir' && kart === 'http', `${vekilli} ${vekilsiz} ${kart}`);
+    const w = ornek();
+    const giden = [];
+    w.gonder = async (k) => { giden.push(k); };
+    w.bagli = true; w.tasiyiciAdi = 'akis'; w.bagliTasiyici = 'akis'; w.kopruda = true; w.kopruVekil = true; w.surucuyum = true;
+    w.kartIstek = async () => yanit(502, '{"vekil":"erisim","mesaj":"x"}', { 'X-Kopru-Vekil': 'hata' });
+    const y = ornek();
+    y.bagli = true; y.tasiyiciAdi = 'akis'; y.bagliTasiyici = 'akis';
+    SONRA.push(async () => {
+      await w.pilYokla();
+      const sonra = w.pilKaynak;
+      const eskiF = sandbox.fetch;
+      sandbox.fetch = async () => yanit(200, JSON.stringify({ kart: 'wifi:x', skop_arsiv: false, pc_arsiv: true, vekil: true }));
+      try { await y.kopruYokla(); } finally { sandbox.fetch = eskiF; }
+      const vk = y.kopruVekil;
+      sandbox.fetch = async () => yanit(200, JSON.stringify({ kart: 'kayit:0', skop_arsiv: false, pc_arsiv: true, vekil: false }));
+      try { await y.kopruYokla(); } finally { sandbox.fetch = eskiF; }
+      ok('[!] 4D (PC11): vekil karta ulasamazsa (502 + X-Kopru-Vekil) pil bu baglantida `p` -> B satirina doner (surucuyse `p` gider, hata metni yok); kopruYokla /durum `vekil`ini okur',
+         sonra === 'satir' && w.kopruVekil === false && giden.join() === 'p' && !w.pilHataMetni && vk === true && y.kopruVekil === false,
+         `${sonra} ${giden} ${w.pilHataMetni} vk=${vk}/${y.kopruVekil}`);
+    });
+  }
+  {
+    const AE = AY.AyarlarEkrani;
+    const yap = (yanitF, pc) => {
+      const o = Object.assign({}, AE.data.call({}), AE.methods, { bolum: 'kal-gecmis', kartAdres: (y) => y, kartIstek: null, kartTaban: '',
+        tasiyici: 'akis', bagli: true, afisSurum: '', dilSecim: 'tr', etkin: true, $nextTick: (f) => f && f() });
+      for (const [ad, fn] of Object.entries(AE.computed)) Object.defineProperty(o, ad, { get: fn.bind(o), configurable: true });
+      const idb = [];
+      o._esAl = async () => ({ esitlemeUygunlugu: ES.esitlemeUygunlugu, kalJsonCoz: ES.kalJsonCoz,
+        EsitlemeDenetcisi: class { async kaynak() { return pc ? 'pc' : 'tarayici'; }
+          async akislar() { return [{ kimlik: 3995957410, kart: '0a1b2c3d4e5f6a7b', olusma: 2, guncelleme: 1790000600000, kalVar: true }]; }
+          async kalBaytlari() { return KAL; } } });
+      o._idbAl = async () => { idb.push('idb'); return { vtAc: async () => ({}), idbDepo: () => ({ kalOku: async () => null }) }; };
+      o._pcSozlukAl = async () => ({ SOZLUK_PC: SZP.SOZLUK_PC });
+      o.__f = yanitF;
+      o.__idb = idb;
+      return o;
+    };
+    SONRA.push(async () => {
+      const a = yap(async () => yanit(502, '{"vekil":"dogrulanamadi","mesaj":"kart WiFi\'den dogrulanamadi"}', { 'X-Kopru-Vekil': 'hata' }), true);
+      await fetchIle(a.__f, () => a.kalYukle());
+      const b = yap(async () => yanit(200, '{"adet":2,"etkin":2,"azami":40,"kayitlar":[{"no":1},{"no":2}]}'), true);
+      await fetchIle(b.__f, () => b.kalYukle());
+      ok('[!] 4D (PC11): Ayarlar kalibrasyon gecmisi kopruda VEKILDEN (kaynak "kart"); vekil karta ulasamazsa (502) sebep JSON\'dan ("köprü karta WiFi\'den ulaşamadı") ve PC arsivinin kopyasi (kaynak "pc", kart + akis yazilir) — IndexedDB acilmaz',
+         b.kalKaynak === 'kart' && b.kalListe && b.kalListe.etkin === 2
+         && a.kalKaynak === 'pc' && a.kalNeden === 'kopru' && a.kalListe && a.kalListe.etkin === 1 && a.__idb.length === 0
+         && /köprü karta WiFi'den ulaşamadı \(kart WiFi'den dogrulanamadi\)/.test(a.kalKaynakYazi)
+         && /bu PC'deki arşivin kopyası[\s\S]*0a1b2c3d4e5f6a7b[\s\S]*3995957410/.test(a.kalKaynakYazi),
+         `${a.kalKaynak}/${a.kalNeden} ${a.kalKaynakYazi}`);
+      const d = Object.assign(yap(null, true), {});
+      await d._pcKur(new (await d._esAl()).EsitlemeDenetcisi());
+      d.depoSatir = AY.depoSatirlari({ akislar: [{ kimlik: 3995957410, bayt: 10, pc: true, olusma: 1 }] });
+      ok('4D: Ayarlar depolama PC kipinde satiri "pc" isaretler (silme yok — sablonda salt okuma), PC metni sozluk_pc\'den',
+         d.pc === true && d.depoSatir[0].pc === true && d.t('pc.ay_depo_salt') === 'salt okuma'
+         && /<span v-if="r\.pc" class="ay-aciklama" data-ay-salt>/.test(AE.template) && /<p v-if="pc" class="ipucu" data-ay-depo-pc>/.test(AE.template));
+    });
+  }
+
+  /* ── (e) EU8' / EU9' ───────────────────────────────────────────────── */
+  {
+    const es = yorumsuz(kaynak('esitleme.js'));
+    const kopruUc = [...es.matchAll(/_kopruGetir\('([^']+)'\)/g)].map((m) => m[1]).sort();
+    ok("[!] 4D EU8': kopru uclari (/durum, /esitleme/durum) duz fetch(kartAdres) ile, imza katmanina (istek) GIRMEZ; /arsiv/* depo_pc.js'e verilen getir de ayni yol; depo_pc.js'te fetch YOK",
+       kopruUc.join() === '/durum,/esitleme/durum'
+       && /_kopruGetir\(yol\) \{\s*return fetch\(this\.kartAdres\(yol\), \{ cache: 'no-store', credentials: 'omit'/.test(es)
+       && /pcAkislar\(\(y\) => this\._kopruGetir\(y\)\)/.test(es) && /pcDepo\(\(y\) => this\._kopruGetir\(y\), a\)/.test(es)
+       && !/fetch\(/.test(yorumsuz(kaynak('depo_pc.js'))), kopruUc.join());
+    const ayKod = yorumsuz(kaynak('ayarlar.js'));
+    ok("[!] 4D EU9': kartin uclari (/kal/liste, /kunye.json, /pil) kartIstek / _istek'ten (kopruda kopru imzalar — panel imzalamaz, kopru /eslestir/*'i vekil ETMEZ: imzasiz yol); kopru vekil hatasi X-Kopru-Vekil ile ayirt edilir",
+       [...ayKod.matchAll(/_istek\('([^']+)'/g)].map((m) => m[1]).sort().join() === '/kal/liste,/kunye.json'
+       && /this\.kartIstek\('\/pil\?sira=' \+ this\.pilYerelSira/.test(appKaynak) && (ayKod.match(/X-Kopru-Vekil/g) || []).length === 2);
+    const statik = iceAktarmaGrafigi().map((g) => g.goruntu);
+    const esAgac = iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'esitleme.js')).map((g) => g.goruntu);
+    ok('[!] 4D: depo_pc.js YALNIZ dinamik (esitleme.js, kopru kokeninde) — acilista ve esitleme zincirinin statik agacinda YOK; sozluk_pc.js acilista YOK',
+       !statik.includes('ekran/depo_pc.js') && !esAgac.includes('ekran/depo_pc.js') && !statik.includes('ortak/sozluk_pc.js')
+       && /pcYukle = \(\) => import\('\.\/depo_pc\.js'\)/.test(yorumsuz(kaynak('esitleme.js'))), esAgac.join(' '));
+  }
+
+  /* ── (f) PC12: eski skop arsivi ────────────────────────────────────── */
+  {
+    const bolum = (html.match(/<section class="kart" v-if="skopArsivVar">([\s\S]*?)<\/section>/) || [])[1] || '';
+    const tr = SZ.ceviri('os.eski_arsiv_ipucu', 'tr');
+    ok('[!] 4D (PC12): skop arsivi kopruda "ESKI ARSIV" basligi altinda (sozlukten, TR + EN), salt okuma ve donusturulmez yazar, yeri bayat `kopru/arsiv` DEGIL (4C: olcum-karti/satir); kartin kendi skop gunlukleri Kayitlar\'da',
+       /<h2 data-skop-eski-arsiv>\{\{ os\.eskiArsiv \}\}<\/h2>/.test(bolum) && /\{\{ os\.eskiArsivIpucu \}\}/.test(bolum)
+       && !/kopru\/arsiv/.test(bolum) && /^Eski arşiv/.test(SZ.ceviri('os.eski_arsiv', 'tr')) && /^Legacy archive/.test(SZ.ceviri('os.eski_arsiv', 'en'))
+       && /Salt okuma, dönüştürülmez/.test(tr) && /olcum-karti\/satir/.test(tr) && /Kayıtlar/.test(tr) && !/kopru\/arsiv/.test(tr),
+       SZ.ceviri('os.eski_arsiv', 'tr'));
+  }
 }
 
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu

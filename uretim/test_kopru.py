@@ -1344,6 +1344,362 @@ def pc_4c_sina(gec_dizin: Path) -> None:
        f"{kod_c} {govde_c[:90]} rc={sonuc.get('rc')}")
 
 
+def _akis_baytlari(oturum_say: int, sira0: int = 0) -> bytes:
+    """4D: gercek kayit bicimiyle (kopru/kayit_bicim.py paketleyicileri) bir akisin baytlari:
+    her oturum BASLA + 4 NOKTA kaydi (24 nokta) + BITIR."""
+    import struct
+    import kayit_bicim as KB
+    f = lambda x: struct.unpack("<f", struct.pack("<f", x))[0]          # noqa: E731
+    kn = lambda n: KB.Kanal(f(n), f(4.096), f(1.0), 12, 0.0)             # noqa: E731
+    kal = KB.Kalibrasyon(kn(21.0), kn(201.0), 5, f(0.256), f(0.1), f(1.0), 0.0, (0.0, 0.0))
+    sira, cikti = sira0, []
+
+    def ekle(tur, ot, yuk):
+        nonlocal sira
+        sira += 1
+        cikti.append(KB.kayit_paketle(tur, sira, ot, yuk))
+        return sira
+    for k in range(oturum_say):
+        ot = ekle(KB.T_BASLA, sira + 1, KB.basla_paketle(
+            KB.Basla(1, 1, 200, 1790000000 + k * 3600, 1000, 1, "A3-4D", kal, kal_no=1)))
+        for j in range(0, 24, 6):
+            ns = [KB.Nokta(200 * (j + i + 1), 40, 0, f(12.0 + i), 1000, 1100, f(0.5), 10, 20, f(6.0),
+                           f(5.9), f(6.1)) for i in range(6)]
+            ekle(KB.T_NOKTA, ot, struct.pack("<I", j) + b"".join(KB.nokta_paketle(p) for p in ns))
+        ekle(KB.T_BITIR, ot, struct.pack("<IB3x", 24, 1))
+    return b"".join(cikti)
+
+
+def _arsiv_yaz(kok: Path, kart: str, akis: int, veri: bytes, kuyruk: bytes = b"", kal: bool = True) -> Path:
+    """Esitleyicinin yazdigi dizin bicimi: kayitlar.kyt (+ kalici onekin otesinde `kuyruk`),
+    durum.json (bayt = kalici onek), kalibrasyon.json."""
+    import struct
+    d = kok / kart / f"akis-{akis}"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "kayitlar.kyt").write_bytes(veri + kuyruk)
+    son = max(struct.unpack_from("<I", veri, a + 4)[0] for a in _kayit_baslari(veri)) if veri else 0
+    (d / "durum.json").write_text(json.dumps({"son_sira": son, "bayt": len(veri), "onaylanan": 0,
+                                              "kimlik": akis}), encoding="utf-8")
+    if kal:
+        (d / "kalibrasyon.json").write_text(json.dumps(
+            {"adet": 1, "etkin": 1, "azami": 40, "kayitlar": [{"no": 1, "unix": 1790000000, "not": "pc"}]},
+            indent=1), encoding="utf-8")
+    return d
+
+
+def _kayit_baslari(veri: bytes) -> list[int]:
+    import kayit_bicim as KB
+    a, cikti = 0, []
+    while a + 16 <= len(veri):
+        cikti.append(a)
+        a += KB.toplam_bayt(int.from_bytes(veri[a + 2:a + 4], "little"))
+    return cikti
+
+
+def _dokum(kok: Path) -> dict:
+    return {str(p.relative_to(kok)): (p.stat().st_size, p.stat().st_mtime_ns, p.read_bytes())
+            for p in sorted(kok.rglob("*")) if p.is_file()}
+
+
+def pc_4d_sina(gec_dizin: Path) -> None:
+    """4D (PC10/PC11): koprunun PC arsivini SALT OKUMA sunan uclari (/arsiv/liste, /arsiv/veri,
+    /arsiv/kal) ve kartin /pil, /kal/liste, /kunye.json uclarinin IMZALI vekili.
+
+    Kart: B72'nin sahte karti (test_kayit_esp._SahteKart — imza dogrulayicisi BAGIMSIZ, imza.py'yi
+    kullanmaz). Arsiv: gercek kayit bicimi, gecici OLCUM_PC_DIZIN altinda."""
+    print("\n--- 4D. Panel PC'de: PC arsivi (salt okuma) + kart uclarinin imzali vekili ---")
+    import struct
+    import imza as IM
+    import kart_wifi as KW
+    import kayit_bicim as KB
+    import pc_ayar
+    import vekil as VK
+    ortam = {a: os.environ.get(a) for a in ("OLCUM_PC_DIZIN", "OLCUM_CIHAZ_DIZIN")}
+    import test_kayit_esp as T                       # B72 sahte karti (ice aktarma ortami yeniden yonlendirir)
+    for a, v in ortam.items():
+        if v is not None:
+            os.environ[a] = v
+
+    kok = pc_ayar.arsiv_dizini()
+    KART = "0a1b2c3d4e5f6a7b"          # harfli: buyuk harf denemesi gercekten farkli olsun
+    v1 = _akis_baytlari(3, 100)
+    v2 = _akis_baytlari(1, 0)
+    kuyruk = KB.kayit_paketle(KB.T_NOKTA, 999, 7, b"\x00" * 40)[:30]      # cokme kuyrugu (kalici degil)
+    d2 = _arsiv_yaz(kok, KART, 77, v2, kal=False)
+    os.utime(d2 / "kayitlar.kyt", (time.time() - 3600, time.time() - 3600))
+    d1 = _arsiv_yaz(kok, KART, 3995957410, v1, kuyruk)
+    disari = gec_dizin / "arsiv_disi"
+    _arsiv_yaz(disari, "aaaaaaaaaaaaaaaa", 5, _akis_baytlari(1, 0))
+    baglanti = None
+    if sys.platform == "win32":
+        import _winapi
+        try:
+            _winapi.CreateJunction(str(disari / "aaaaaaaaaaaaaaaa"), str(kok / "aaaaaaaaaaaaaaaa"))
+            baglanti = "junction"
+        except OSError:
+            baglanti = None
+    if baglanti is None:
+        try:
+            (kok / "aaaaaaaaaaaaaaaa").symlink_to(disari / "aaaaaaaaaaaaaaaa", target_is_directory=True)
+            baglanti = "symlink"
+        except OSError:
+            baglanti = None
+    once = _dokum(kok)
+
+    kart = T._SahteKart([])
+    kart_sun, kart_taban = T._sunucu(kart)
+    cdiz = gec_dizin / "cihaz_4d"
+    IM.esles(kart_taban, "kopru-4d", kart.parola, dizin=cdiz)
+    kart.imza_zorunlu = True
+    kart.kal_liste = {"adet": 2, "etkin": 2, "azami": 40, "kayitlar": [{"no": 1}, {"no": 2}]}
+    PIL = b"durum=CALISIYOR\nsira=9\nkalan=0\n--\n1000,12.0,0.5\n"
+    KUNYE = b'{"surum":"0123456789ab","dosya":30,"icerik_bayt":400000}'
+    kart.ek_get = {"/pil": (200, "text/plain; charset=utf-8", PIL),
+                   "/kunye.json": (200, "application/json", KUNYE)}
+    usb = _SahteYukari("seri:COM9@115200")
+    wifi = KW.WifiKart(kart_taban, dizin=cdiz)
+    sec = KW.SecmeliKart(usb, wifi)
+    kop = kopru_mod.Kopru(sec, gec_dizin / "satir_4d")
+    s = _kos(kop)
+    taban = f"http://127.0.0.1:{s.server_address[1]}"
+    s_lan = _kos(kop, _LanIsleyici)
+    taban_lan = f"http://127.0.0.1:{s_lan.server_address[1]}"
+    govdeler: list[bytes] = []
+
+    def al(url, basliklar=None, yontem=None, veri=None):
+        kod, g, b = None, b"", {}
+        try:
+            kod, g, b = istek_bas(url, veri, basliklar, yontem, 15)
+        except Exception as e:                              # noqa: BLE001
+            g = str(e).encode("utf-8", "replace")
+        govdeler.append(g)
+        return kod, g, {k.lower(): v for k, v in b.items()}
+
+    try:
+        # ── PC10: liste ──────────────────────────────────────────────
+        kod, g, _ = al(taban + "/arsiv/liste")
+        try:
+            liste = json.loads(g)["arsivler"]
+        except (ValueError, KeyError, TypeError):
+            liste = []
+        py1 = KB.oturumlari_kur(KB.akis_onek(v1)[0])
+        a1 = liste[0] if liste else {}
+        ok("4D (PC10): GET /arsiv/liste kart/akis basina arsivleri EN YENI ONCE verir: boy = durum.json'un "
+           "KALICI oneki (dosyanin cokme kuyrugu degil), durum, kalibrasyon kopyasi var mi, oturum listesi "
+           "(Python kayit_bicim'in kendi cozumuyle ayni), goreli ad; arsiv kokunun DISINA giden bag LISTELENMEZ",
+           kod == 200 and [(a["kart"], a["akis"]) for a in liste] == [(KART, 3995957410), (KART, 77)]
+           and a1.get("bayt") == len(v1) and a1.get("dosya_bayt") == len(v1) + len(kuyruk)
+           and a1.get("durum", {}).get("kimlik") == 3995957410 and a1.get("kal") is True
+           and liste[1].get("kal") is False and a1.get("oturum") == len(py1) == 3
+           and [o["id"] for o in a1.get("oturumlar", [])] == sorted(py1)
+           and all(o["nokta"] == 24 and o["bitti"] and o["tur"] == 1 for o in a1["oturumlar"])
+           and a1.get("ad") == f"arsiv/{KART}/akis-3995957410",
+           f"{kod} {[(a.get('kart'), a.get('akis'), a.get('bayt')) for a in liste]} bag={baglanti}")
+
+        # ── PC10: bayt araliklari ─────────────────────────────────────
+        q = f"kart={KART}&akis=3995957410"
+        parcalar, ofset, boylar = [], 0, set()
+        for _ in range(20):
+            kod_v, g_v, b_v = al(f"{taban}/arsiv/veri?{q}&ofset={ofset}&bayt=1000")
+            if kod_v != 200:
+                break
+            boylar.add(b_v.get("x-arsiv-boy"))
+            parcalar.append(g_v)
+            ofset += len(g_v)
+            if not g_v or ofset >= len(v1):
+                break
+        kod_son, g_son, _ = al(f"{taban}/arsiv/veri?{q}&ofset={len(v1)}&bayt=1000")
+        kod_ust, _, _ = al(f"{taban}/arsiv/veri?{q}&ofset={len(v1) + 1}&bayt=10")
+        kod_kal, g_kal, _ = al(f"{taban}/arsiv/kal?{q}")
+        kod_kal2, _, _ = al(f"{taban}/arsiv/kal?kart={KART}&akis=77")
+        ok("4D (PC10): GET /arsiv/veri parca parca okunan baytlar kayitlar.kyt'nin KALICI onekiyle BAYT BAYT "
+           "ayni (X-Arsiv-Boy = durum.json bayt; cokme kuyrugu verilmez, ofset = boy bos 200, otesi 400); "
+           "/arsiv/kal kalibrasyon.json'u AYNEN verir, kopyasi yoksa 404",
+           b"".join(parcalar) == v1 and boylar == {str(len(v1))} and kod_son == 200 and g_son == b""
+           and kod_ust == 400 and kod_kal == 200 and g_kal == (d1 / "kalibrasyon.json").read_bytes()
+           and kod_kal2 == 404,
+           f"{len(b''.join(parcalar))}/{len(v1)} boy={boylar} son={kod_son} ust={kod_ust} kal={kod_kal}/{kod_kal2}")
+
+        # ── PC10: kati parametre + yol icerme ─────────────────────────
+        kotu = {
+            "kart buyuk harf": f"/arsiv/veri?kart={KART.upper()}&akis=77&ofset=0&bayt=10",
+            "kart 15": f"/arsiv/veri?kart={KART[:15]}&akis=77&ofset=0&bayt=10",
+            "kart ..": "/arsiv/veri?kart=..&akis=77&ofset=0&bayt=10",
+            "kart %2e%2e": "/arsiv/veri?kart=%2e%2e%2f%2e%2e&akis=77&ofset=0&bayt=10",
+            "kart UNC": "/arsiv/veri?kart=%5C%5Csaldirgan%5Cpay&akis=77&ofset=0&bayt=10",
+            "kart mutlak": "/arsiv/veri?kart=C%3A%2FWindows&akis=77&ofset=0&bayt=10",
+            "akis 007": f"/arsiv/veri?kart={KART}&akis=077&ofset=0&bayt=10",
+            "akis eksi": f"/arsiv/veri?kart={KART}&akis=-1&ofset=0&bayt=10",
+            "akis bos": f"/arsiv/veri?kart={KART}&akis=&ofset=0&bayt=10",
+            "ofset harf": f"/arsiv/veri?kart={KART}&akis=77&ofset=1e3&bayt=10",
+            "bayt 0": f"/arsiv/veri?kart={KART}&akis=77&ofset=0&bayt=0",
+            "bayt dev": f"/arsiv/veri?kart={KART}&akis=77&ofset=0&bayt={VK.VERI_AZAMI + 1}",
+            "bayt cok dev": f"/arsiv/veri?kart={KART}&akis=77&ofset=0&bayt=99999999999999999999",
+            "bilinmeyen": f"/arsiv/veri?kart={KART}&akis=77&ofset=0&bayt=10&dosya=durum.json",
+            "tekrar": f"/arsiv/veri?kart={KART}&akis=77&akis=78&ofset=0&bayt=10",
+            "eksik": f"/arsiv/veri?kart={KART}&akis=77&bayt=10",
+            "liste parametre": "/arsiv/liste?kok=C%3A%2F",
+        }
+        if baglanti:
+            kotu["arsiv disina bag"] = "/arsiv/veri?kart=aaaaaaaaaaaaaaaa&akis=5&ofset=0&bayt=10"
+        kodlar = {ad: al(taban + y)[0] for ad, y in kotu.items()}
+        kod_yok, _, _ = al(f"{taban}/arsiv/veri?kart={KART}&akis=78&ofset=0&bayt=10")
+        ok("4D (PC10): /arsiv/* parametreleri KATI — kart 16 kucuk onaltilik, akis/ofset/bayt bastaki "
+           f"sifirsiz ondalik, bayt <= {VK.VERI_AZAMI}; yol gecisi / UNC / mutlak yol / bilinmeyen / tekrar / "
+           f"eksik parametre 400; arsiv kokunun disina giden bag ({baglanti or 'kurulamadi'}) 400; olmayan akis 404",
+           all(k == 400 for k in kodlar.values()) and kod_yok == 404,
+           " ".join(f"{a}={k}" for a, k in kodlar.items() if k != 400) + f" yok={kod_yok}")
+
+        # ── kapilar: yerel ag, capraz koken ──────────────────────────
+        k_lan = [al(taban_lan + y)[0] for y in ("/arsiv/liste", f"/arsiv/veri?{q}&ofset=0&bayt=10",
+                                                 f"/arsiv/kal?{q}", "/pil", "/kal/liste", "/kunye.json")]
+        k_capraz = [al(taban + "/arsiv/liste", {"Sec-Fetch-Site": "cross-site"})[0],
+                    al(taban + "/arsiv/liste", {"Sec-Fetch-Site": "same-site"})[0],
+                    al(f"{taban}/arsiv/veri?{q}&ofset=0&bayt=10",
+                       {"Origin": "http://kotu.example", "Host": s.server_address[0] + ":" + str(s.server_address[1])})[0],
+                    al(taban + "/kal/liste", {"Sec-Fetch-Site": "cross-site"})[0]]
+        k_ayni = al(taban + "/arsiv/liste", {"Sec-Fetch-Site": "same-origin"})[0]
+        ok("4D (PC10/PC11): /arsiv/* ve vekil uclari YALNIZ bu bilgisayardan (yerel ag 403) ve YALNIZ ayni "
+           "kokenden (baska site / baska port `<img>`/fetch'i 403 — 4A CSRF kapisi); panelin kendisi 200",
+           k_lan == [403] * 6 and k_capraz == [403] * 4 and k_ayni == 200, f"lan={k_lan} capraz={k_capraz} ayni={k_ayni}")
+
+        # ── yazma yok ────────────────────────────────────────────────
+        k_yaz = [al(f"{taban}/arsiv/veri?{q}&ofset=0&bayt=10", yontem=y, veri=b"x")[0]
+                 for y in ("POST", "PUT", "DELETE")]
+        k_yaz.append(al(taban + "/arsiv/liste", yontem="POST", veri=b"{}")[0])
+        k_yaz.append(al(taban + "/pil", yontem="POST", veri=b"p1")[0])
+        sonra = _dokum(kok)
+        ok("4D (PC10): arsiv ve vekil yollari YAZMA kabul etmez (POST/PUT/DELETE 2xx degil; vekil POST'u karta "
+           "gitmez) ve butun istekler bittiginde arsiv dizini BAYT BAYT ve mtime'iyla ayni — tek yazar Python",
+           all(k is not None and not 200 <= k < 300 for k in k_yaz) and sonra == once
+           and not any(y.startswith("POST /pil") for y in kart.istekler),
+           f"{k_yaz} degisen={sorted(set(sonra) ^ set(once))[:3]}")
+
+        # ── /durum ───────────────────────────────────────────────────
+        dj = json.loads(al(taban + "/durum")[1] or b"{}")
+        dl = json.loads(al(taban_lan + "/durum")[1] or b"{}")
+        kop_usb = kopru_mod.Kopru(kart_baglanti.KayitKart([]), gec_dizin / "satir_4d_u")
+        s_u = _kos(kop_usb)
+        du = json.loads(al(f"http://127.0.0.1:{s_u.server_address[1]}/durum")[1] or b"{}")
+        ok("4D: /durum bu istemcinin PC arsivini okuyup okuyamayacagini (`pc_arsiv`) ve kartin uclarinin "
+           "WiFi vekilinden gelip gelemeyecegini (`vekil`) soyler — yerel agdan ikisi de false, WiFi'siz "
+           "yukari-akista vekil false (panel bundan karar verir)",
+           dj.get("pc_arsiv") is True and dj.get("vekil") is True and dl.get("pc_arsiv") is False
+           and dl.get("vekil") is False and du.get("pc_arsiv") is True and du.get("vekil") is False
+           and "kart" in dj and "skop_arsiv" in dj, f"{dj} {dl} {du}")
+
+        # ── PC11: imzali vekil ───────────────────────────────────────
+        kart.istekler.clear()
+        i401 = kart.ret_401
+        kod_p, g_p, b_p = al(taban + "/pil?sira=9", {"X-Cihaz": "7", "X-Sayac": "1", "X-Imza": "00" * 32})
+        kod_k, g_k, b_k = al(taban + "/kal/liste")
+        kod_n, g_n, b_n = al(taban + "/kunye.json")
+        giden = list(kart.istekler)
+        cihaz_n = str(IM.Cihaz.yukle(next(cdiz.glob("*.json"))).n)
+        imzali = [x for x in giden if x.startswith(("GET /pil", "GET /kal/liste", "GET /kunye.json"))]
+        ok("4D (PC11): /pil?sira, /kal/liste, /kunye.json karta kopru cihaziyla IMZALI gider (kartin bagimsiz "
+           "dogrulayicisi kabul eder, imza zorunluyken); panelin yolladigi imza basliklari TASINMAZ; kartin "
+           "yaniti AYNEN doner (X-Kopru-Vekil: kart)",
+           (kod_p, kod_k, kod_n) == (200, 200, 200) and g_p == PIL and g_n == KUNYE
+           and json.loads(g_k) == kart.kal_liste and kart.ret_401 == i401 and len(imzali) == 3
+           and all(f"'x-cihaz': '{cihaz_n}'" in x.lower() and "'x-imza'" in x.lower() for x in imzali)
+           and any(x.startswith("GET /pil?sira=9 ") for x in imzali)
+           and {b_p.get("x-kopru-vekil"), b_k.get("x-kopru-vekil"), b_n.get("x-kopru-vekil")} == {"kart"},
+           f"{kod_p} {kod_k} {kod_n} 401={kart.ret_401 - i401} giden={[x[:40] for x in giden]}")
+        k_izin = [al(taban + y)[0] for y in ("/pil?sira=09", "/pil?sira=1&_c=1&_s=2&_i=ab", "/pil?x=1",
+                                             "/kal/liste?sira=1", "/kunye.json?a=b")]
+        k_yok = [al(taban + y)[0] for y in ("/eslestir/bilgi", "/kayit/liste", "/komut")]
+        ok("4D (PC11): vekil BEYAZ LISTE — yalniz /pil (sira), /kal/liste, /kunye.json; izinsiz parametre ve "
+           "`_c _s _i` 400; /eslestir/* ve /kayit/* VEKILDE DEGIL (kopru 404 = panelin imzasiz yolu, EU9)",
+           k_izin == [400] * 5 and all(k == 404 for k in k_yok[:2]) and k_yok[2] != 200,
+           f"izin={k_izin} yok={k_yok}")
+
+        # ayni Cihaz nesnesi + sayac kilidi (esitleme / akis ile): donuk saatte bile tekrar sayac yok
+        asil_time = IM.time
+        IM.time = T._DonukSaat(time.time())
+        try:
+            i401 = kart.ret_401
+            cihaz, _, _ = wifi.dogrula()
+            sonuc_s = []
+            for _ in range(4):
+                sonuc_s.append(al(taban + "/kunye.json")[0])
+                with wifi.imzali_ac(cihaz, "GET", "/kal/liste", []) as y:   # arka plan esitlemesinin yolu
+                    y.read()
+        finally:
+            IM.time = asil_time
+        ok("4D (PC11 + 4C-2): vekil canli akis / esitlemeyle AYNI Cihaz nesnesini ve sayac kilidini kullanir — "
+           "ayni milisaniyede (donuk saat) art arda vekil + esitleme istekleri: kart hicbirini 401 ile reddetmez",
+           sonuc_s == [200] * 4 and kart.ret_401 == i401, f"{sonuc_s} 401={kart.ret_401 - i401}")
+
+        # p0: vekilden gecmez, yavas bir vekil istegi (sayac kilidi tutulurken) onu BEKLETMEZ
+        kart.ek_bekle["/pil"] = 1.5
+        kart.imza_zorunlu = False      # gercek kart p0'i imza zorunluyken de serbest birakir (komut_serbest)
+        kart.komut_imzali.clear()
+        sonuc_p = {}
+        t_v = threading.Thread(target=lambda: sonuc_p.update(v=al(taban + "/pil?sira=1")[0]), daemon=True)
+        t_v.start()
+        time.sleep(0.3)
+        t0 = time.monotonic()
+        kod_p0 = al(taban + "/komut", {"X-Olcum": "1"}, "POST", b"p0")[0]
+        sure_p0 = time.monotonic() - t0
+        t_v.join(10)
+        kart.ek_bekle.clear()
+        ok("4D (O7): p0 (DURDUR) vekilden GECMEZ — kopru /komut'tan karta IMZASIZ gider ve sayac kilidini "
+           "tutan YAVAS bir vekil istegi (kart 1.5 s'de yanitliyor) suruyorken bile beklemeden ulasir",
+           kod_p0 == 204 and ("p0", False) in kart.komut_imzali and sure_p0 < 0.8 and sonuc_p.get("v") == 200,
+           f"p0={kod_p0} {sure_p0:.2f} s {kart.komut_imzali[-2:]} vekil={sonuc_p.get('v')}")
+
+        # hatalar: acik JSON, mutlak yol yok
+        kart.ek_get.pop("/kunye.json")
+        kod_404, g_404, b_404 = al(taban + "/kunye.json")
+        kart.cihazlar.clear()                                       # kart cihazi unuttu -> 401
+        VK._durum(kop, "_kart_vekili", VK.KartVekili).unut()
+        kod_401, g_401, b_401 = al(taban + "/kal/liste")
+        bos = gec_dizin / "cihaz_4d_bos"
+        wifi_bos = KW.WifiKart(kart_taban, dizin=bos)
+        kop_bos = kopru_mod.Kopru(KW.SecmeliKart(_SahteYukari("seri:COM9@115200"), wifi_bos), gec_dizin / "s4b")
+        s_b = _kos(kop_bos)
+        kod_es, g_es, _ = al(f"http://127.0.0.1:{s_b.server_address[1]}/pil")
+        kop_x = kopru_mod.Kopru(KW.WifiKart("127.0.0.1:9", dizin=cdiz), gec_dizin / "s4x")
+        s_x = _kos(kop_x)
+        kod_er, g_er, _ = al(f"http://127.0.0.1:{s_x.server_address[1]}/kunye.json")
+        kod_wy, g_wy, _ = al(f"http://127.0.0.1:{s_u.server_address[1]}/kal/liste")
+
+        def neden(g):
+            try:
+                return json.loads(g).get("vekil")
+            except (ValueError, AttributeError):
+                return None
+        ok("4D (PC11): vekil hatasi ACIK JSON — kartin 404'u aynen gecer; kart imzayi reddederse (cihaz "
+           "silinmis) 502 `imza` (panel 401'i 'bu tarayici eslesmemis' sanmasin); bu PC karta eslesmemisse "
+           "`dogrulanamadi`, kart erisilemezse `dogrulanamadi`, WiFi yukari-akisi yoksa `wifi_yok`",
+           kod_404 == 404 and b_404.get("x-kopru-vekil") == "kart" and kod_401 == 502 and neden(g_401) == "imza"
+           and b_401.get("x-kopru-vekil") == "hata" and kod_es == 502 and neden(g_es) == "dogrulanamadi"
+           and "ESLESMEMIS" in g_es.decode("utf-8", "replace") and kod_er == 502
+           and neden(g_er) == "dogrulanamadi" and kod_wy == 502 and neden(g_wy) == "wifi_yok",
+           f"404={kod_404} 401={kod_401}/{neden(g_401)} es={kod_es}/{neden(g_es)} er={kod_er}/{neden(g_er)} "
+           f"wy={kod_wy}/{neden(g_wy)}")
+        for x in (s_b, s_x):
+            x.shutdown()
+            x.server_close()
+        hepsi = b"\n".join(govdeler).decode("utf-8", "replace")
+        yollar = {str(gec_dizin), str(kok), str(cdiz), str(bos), str(Path.home()), str(pc_ayar.veri_dizini())}
+        sizan = [y for y in yollar | {json.dumps(x)[1:-1] for x in yollar} if y and y in hepsi]
+        import re
+        # mutlak Windows kullanici yolu (ham ya da JSON kacisli) ve UNC — desen olarak (gizlilik_dogrula temiz kalsin)
+        sizan += [m.group(0) for m in re.finditer(r"[A-Za-z]:(?:\\{1,2}|/)Users|\\{2,}[A-Za-z]", hepsi)]
+        ok("4D: /arsiv/* ve vekil yanitlarinin HICBIRINDE mutlak kullanici yolu yok (eslesmemis kartin "
+           "mesajindaki cihaz dizini dahil — `vekil.yolsuz`)", not sizan and len(govdeler) > 40, f"{sizan[:3]}")
+        s_u.shutdown()
+        s_u.server_close()
+    finally:
+        for x in (s, s_lan):
+            x.shutdown()
+            x.server_close()
+        kart_sun.shutdown()
+        kart_sun.server_close()
+
+
 def main() -> int:
     print("=" * 78)
     print("  B22.3  PC KOPRUSU  (role · arsiv · surucu hakemi)")
@@ -1764,6 +2120,7 @@ def main() -> int:
     pc_4a_inceleme_sina(gec_dizin)
     pc_4b_sina(gec_dizin)
     pc_4c_sina(gec_dizin)
+    pc_4d_sina(gec_dizin)
 
     k.calisiyor = False
     time.sleep(0.25)

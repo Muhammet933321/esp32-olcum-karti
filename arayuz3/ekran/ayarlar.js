@@ -18,6 +18,12 @@
          arayuz goruntusunun kunyesi `/kunye.json`, arayuz-uret.py yazar), baglanti
          yolu; tarayici ayarlarini sifirla: YALNIZ `olcum.` onekli localStorage
          anahtarlari, iki asamali, sonra sayfa yeniden yuklenir.
+   4D (PC10/PC11) — PANEL PC KOPRUSUNDE: `/kal/liste` ve `/kunye.json` koprunun
+     imzali VEKILINDEN (kartin kendisi); vekil karta ulasamazsa (502, JSON sebep)
+     kalibrasyon gecmisi bu PC'deki arsivin kopyasindan. Depolama tablosu PC
+     arsivini SALT OKUMA gosterir (silme yok — tek yazar kopru). Bu metinler
+     ortak/src/sozluk_pc.js'te ve YALNIZ kopruda dinamik olarak iner (kartin
+     Gelismis'i tek dosya kalir).
    NEDEN IKI ASAMALI YUKLEME: kalibrasyon gecmisi ve depolama IndexedDB zincirini
    (esitleme.js + depo_idb.js ve ortak/ modulleri, ~43 KB gzip) ister; Gelismis
    istemez. Zincir bu dosyaya DINAMIK `import()` ile gelir — Gelismis tek dosya
@@ -27,7 +33,7 @@
      yontemlerden erisir — testte degistirilir.
    ═══════════════════════════════════════════════════════════════════════ */
 
-import { ceviri, ceviriKod } from '/ortak/sozluk.js';
+import { ceviri, ceviriKod, sozluktenCeviri } from '/ortak/sozluk.js';
 
 /* ── sabitler ───────────────────────────────────────────────────────── */
 
@@ -80,10 +86,16 @@ export const AYE_METIN = Object.freeze({
   sifirlaBaslik: 'ay.sifirla_baslik', sifirla: 'ay.sifirla', sifirlaUyari: 'ay.sifirla_uyari', sifirlaYok: 'ay.sifirla_yok',
 });
 
+/** 4D: kopruda Depolama tablosunun PC metinleri (ortak/src/sozluk_pc.js; yalniz kopruda iner). */
+export const AY_PC_METIN = Object.freeze({
+  depoPc: 'pc.ay_depo_pc', depoSalt: 'pc.ay_depo_salt', depoIpucu: 'pc.ay_depo_ipucu',
+});
+
 /** Kalibrasyon kaynaginin karttan okunamama sebebi -> sozluk anahtari. */
 const KAL_NEDEN = Object.freeze({
   imza: 'ay.kal_neden_imza', yok: 'ay.kal_neden_yok', ag: 'ay.kal_neden_ag', bozuk: 'ay.kal_neden_bozuk',
   usb: 'ay.kal_neden_usb', demo: 'ay.kal_neden_demo', taban: 'ay.kal_neden_taban',
+  kopru: 'pc.ay_kal_neden_kopru',     // 4D: koprunun vekili karta WiFi'den ulasamadi (502)
 });
 const TASIYICI_METIN = Object.freeze({ seri: 'ay.tas_seri', akis: 'ay.tas_akis', demo: 'ay.tas_demo' });
 
@@ -181,7 +193,7 @@ export function depoSatirlari({ akislar = [], oturumSayisi = new Map(), kartKiml
   const kartBilinen = kartKimlik !== null && kartKimlik !== undefined;
   return sirali.map((a, i) => {
     const guncel = kartBilinen ? a.kimlik === kartKimlik : i === 0;
-    return { kimlik: a.kimlik, bayt: a.bayt, boyut: boyutYaz(a.bayt),
+    return { kimlik: a.kimlik, bayt: a.bayt, boyut: boyutYaz(a.bayt), pc: a.pc === true,
       oturum: oturumSayisi.has(a.kimlik) ? oturumSayisi.get(a.kimlik) : null,
       sonSira: a.durum && Number.isInteger(a.durum.son_sira) ? a.durum.son_sira : null,
       zaman: a.guncelleme || null, guncel, eski: !guncel, kartBilinen, arsiv: !!arsiv(a.kimlik) };
@@ -296,14 +308,17 @@ const SABLON = `
           <tr v-for="r in depoSatir" :key="r.kimlik" :data-ay-akis="r.kimlik">
             <th scope="row">{{ r.kimlik }}</th><td>{{ r.boyut }}</td><td>{{ r.oturum === null ? '—' : r.oturum }}</td>
             <td>{{ r.sonSira === null ? '—' : r.sonSira }}</td><td>{{ zaman(r.zaman) }}</td>
-            <td class="ay-metin">{{ r.arsiv ? m.arsivAcik : m.arsivKapali }}</td>
+            <td class="ay-metin">{{ r.pc ? pm.depoPc : r.arsiv ? m.arsivAcik : m.arsivKapali }}</td>
             <td class="ay-metin"><span class="kl-rozet" :class="r.guncel ? 'kl-nerede-ikisi' : 'kl-dikkat'">{{ r.guncel ? m.kopyaGuncel : m.kopyaEski }}</span></td>
             <td class="ay-islem">
-              <template v-if="silOnay === r.kimlik">
-                <button type="button" class="tehlike" :data-ay-sil-eminim="r.kimlik" @click="kopyaSil(r.kimlik)">{{ m.silOnay }}</button>
-                <button type="button" @click="silVazgec(r.kimlik)">{{ m.vazgec }}</button>
+              <span v-if="r.pc" class="ay-aciklama" data-ay-salt>{{ pm.depoSalt }}</span>
+              <template v-else>
+                <template v-if="silOnay === r.kimlik">
+                  <button type="button" class="tehlike" :data-ay-sil-eminim="r.kimlik" @click="kopyaSil(r.kimlik)">{{ m.silOnay }}</button>
+                  <button type="button" @click="silVazgec(r.kimlik)">{{ m.vazgec }}</button>
+                </template>
+                <button v-else type="button" :data-ay-sil="r.kimlik" @click="silBasla(r.kimlik)" :disabled="depoYukleniyor">{{ m.sil }}</button>
               </template>
-              <button v-else type="button" :data-ay-sil="r.kimlik" @click="silBasla(r.kimlik)" :disabled="depoYukleniyor">{{ m.sil }}</button>
             </td>
           </tr>
         </tbody>
@@ -311,8 +326,11 @@ const SABLON = `
     </div>
     <p v-else-if="!depoYukleniyor && depoDenendi" class="ipucu" data-ay-depo-bos>{{ m.depoBos }}</p>
     <p v-if="silOnay !== null" class="uyari" role="alert">{{ m.silUyari }}</p>
-    <p v-if="depoSatir.length && !depoSatir[0].kartBilinen" class="ipucu">{{ m.depoKartBilinmiyor }}</p>
-    <p class="ipucu">{{ m.arsivIpucu }} <a href="#/kayitlar">{{ m.kayitlaraGit }}</a></p>
+    <p v-if="pc" class="ipucu" data-ay-depo-pc>{{ pm.depoIpucu }} <a href="#/kayitlar">{{ m.kayitlaraGit }}</a></p>
+    <template v-else>
+      <p v-if="depoSatir.length && !depoSatir[0].kartBilinen" class="ipucu">{{ m.depoKartBilinmiyor }}</p>
+      <p class="ipucu">{{ m.arsivIpucu }} <a href="#/kayitlar">{{ m.kayitlaraGit }}</a></p>
+    </template>
   </section>
 
   <!-- ═══ AY6 — GELISMIS -->
@@ -369,22 +387,34 @@ export const AyarlarEkrani = {
       kaliciHata: '',
       /* AY6 */
       kunye: null, kunyeNeden: '', kunyeDenendi: false, anahtarlar: [], sifirlaOnay: false,
+      /* 4D: kaynak koprunun PC arsivi mi; PC metinleri (sozluk_pc.js, yalniz kopruda iner) */
+      pc: false, pcSoz: null,
     };
   },
   computed: {
     dil() { return this.dilSecim === 'en' ? 'en' : 'tr'; },
     m() { return metinler(AYE_METIN, this.dil); },
+    /* 4D: PC metinleri (pcSoz inmeden anahtarin kendisi — sablon yalniz kopruda gosterir) */
+    pm() {
+      const m = {};
+      for (const [a, k] of Object.entries(AY_PC_METIN)) m[a] = this.t(k);
+      return m;
+    },
     /* ── AY5 */
     kalSatir() { return kalSatirlari(this.kalListe, this.dil); },
     kalKaynakYazi() {
       const p = [];
       if (this.kalKaynak === 'kart') p.push(ceviri('ay.kal_kaynak_kart', this.dil));
+      if (this.kalKaynak === 'pc' && this.kalYerel) {
+        p.push(this.t('pc.ay_kal_kaynak', { kart: this.kalYerel.kart || '—', kimlik: this.kalYerel.kimlik,
+          zaman: zamanYaz(this.kalYerel.zaman) || '—' }));
+      }
       if (this.kalKaynak === 'yerel' && this.kalYerel) {
         p.push(ceviri('ay.kal_kaynak_yerel', this.dil, { kimlik: this.kalYerel.kimlik,
           zaman: zamanYaz(this.kalYerel.zaman) || '—' }));
       }
       if (this.kalNeden) {
-        p.push(ceviri('ay.kal_neden', this.dil, { neden: ceviri(KAL_NEDEN[this.kalNeden] || KAL_NEDEN.bozuk, this.dil, this.kalNedenD) }));
+        p.push(ceviri('ay.kal_neden', this.dil, { neden: this.t(KAL_NEDEN[this.kalNeden] || KAL_NEDEN.bozuk, this.kalNedenD) }));
       }
       return p.join(' ');
     },
@@ -438,6 +468,19 @@ export const AyarlarEkrani = {
   },
   methods: {
     zaman(ms) { return zamanYaz(ms) || '—'; },
+    /** 4D: metin — `pc.` ailesi sozluk_pc.js'ten (kopruda iner), digerleri acilis sozlugunden. */
+    t(anahtar, d = null) {
+      return this.pcSoz && Object.prototype.hasOwnProperty.call(this.pcSoz, anahtar)
+        ? sozluktenCeviri(this.pcSoz, anahtar, this.dil, d) : ceviri(anahtar, this.dil, d);
+    },
+    async _pcSozlukAl() { return import('/ortak/sozluk_pc.js'); },
+    /** 4D: denetcinin kaynagi kopru (PC arsivi) mi; oyleyse PC metinlerini indir. */
+    async _pcKur(den) {
+      this.pc = typeof den.kaynak === 'function' && (await den.kaynak()) === 'pc';
+      if (this.pc && !this.pcSoz) {
+        try { this.pcSoz = Object.freeze({ ...(await this._pcSozlukAl()).SOZLUK_PC }); } catch (h) { this.pcSoz = null; }
+      }
+    },
     /* ── ortam (testte degistirilir) ── */
     async _esAl() { return import('./esitleme.js'); },
     async _idbAl() { return import('./depo_idb.js'); },
@@ -479,7 +522,8 @@ export const AyarlarEkrani = {
       let liste = null;
       let kaynak = null;
       try {
-        const { es } = await this._den();
+        const { es, den } = await this._den();
+        await this._pcKur(den);
         const u = es.esitlemeUygunlugu({ kartTaban: this.kartTaban, tasiyici: this.tasiyici });
         if (!u.uygun) {
           this.kalNeden = u.neden;
@@ -491,6 +535,11 @@ export const AyarlarEkrani = {
               if (liste) kaynak = 'kart'; else this.kalNeden = 'bozuk';
             } else if (y.status === 401) {
               this.kalNeden = 'imza';
+            } else if (y.status === 502 && y.headers && y.headers.get('X-Kopru-Vekil') === 'hata') {
+              /* 4D: koprunun vekili karta WiFi'den ulasamadi — sebebi kopru JSON'da soyler */
+              const j = await y.json().catch(() => null);
+              this.kalNeden = 'kopru';
+              this.kalNedenD = { mesaj: (j && j.mesaj) || 'HTTP 502' };
             } else {
               this.kalNeden = 'yok';
               this.kalNedenD = { kod: y.status };
@@ -503,7 +552,7 @@ export const AyarlarEkrani = {
         if (!liste) {
           /* yerel kopya okunamazsa (IndexedDB yok / ozel kip) kartin sebebi EZILMEZ */
           const yerel = await this.kalYerelOku(es).catch(() => null);
-          if (yerel) { liste = yerel.liste; kaynak = 'yerel'; this.kalYerel = yerel.bilgi; }
+          if (yerel) { liste = yerel.liste; kaynak = this.pc ? 'pc' : 'yerel'; this.kalYerel = yerel.bilgi; }
         }
       } catch (h) {
         this.kalNeden = 'ag';
@@ -517,16 +566,21 @@ export const AyarlarEkrani = {
       this.kalDenendi = true;
       this.kalYukleniyor = false;
     },
-    /** Bu tarayicidaki EN YENI akisin kalibrasyon kopyasi (esitlemenin yazdigi kalibrasyon.json). */
+    /** Bu tarayicidaki EN YENI akisin kalibrasyon kopyasi (esitlemenin yazdigi kalibrasyon.json).
+     *  4D: kopruda denetcinin kaynagi PC arsivi — kopya oradan (denetci.kalBaytlari, salt okuma). */
     async kalYerelOku(es) {
       const { den } = await this._den();
       const akislar = [...await den.akislar()].sort((a, b) => (b.olusma || 0) - (a.olusma || 0));
-      const idb = await this._idbAl();
-      const vt = await idb.vtAc();
+      let oku = (k) => den.kalBaytlari(k);
+      if (!this.pc) {
+        const idb = await this._idbAl();
+        const vt = await idb.vtAc();
+        oku = (k) => idb.idbDepo(vt, k).kalOku();
+      }
       for (const a of akislar) {
         if (!a.kalVar) continue;
-        const liste = kalListesiCoz(es.kalJsonCoz(await idb.idbDepo(vt, a.kimlik).kalOku()));
-        if (liste) return { liste, bilgi: { kimlik: a.kimlik, zaman: a.guncelleme || null } };
+        const liste = kalListesiCoz(es.kalJsonCoz(await oku(a.kimlik)));
+        if (liste) return { liste, bilgi: { kimlik: a.kimlik, kart: a.kart || null, zaman: a.guncelleme || null } };
       }
       return null;
     },
@@ -539,13 +593,15 @@ export const AyarlarEkrani = {
       this.depoHata = '';
       try {
         const { es, den } = await this._den();
+        await this._pcKur(den);
         const akislar = await den.akislar();
         const sayi = new Map();
         for (const a of akislar) {
           try { sayi.set(a.kimlik, (await den.akisVerisi(a.kimlik)).oturumlar.size); } catch (h) { /* sayi bilinmiyor: "—" */ }
         }
         let kartKimlik = null;
-        if (es.esitlemeUygunlugu({ kartTaban: this.kartTaban, tasiyici: this.tasiyici }).uygun) {
+        /* 4D: kopruda kartin dizini sorulmaz (kopruda /kayit/* yok — arsivi kopru esitler) */
+        if (!this.pc && es.esitlemeUygunlugu({ kartTaban: this.kartTaban, tasiyici: this.tasiyici }).uygun) {
           const r = await den.kartListesi();
           if (r && r.durum === 'tamam') kartKimlik = r.liste.kimlik;
         }
@@ -621,6 +677,9 @@ export const AyarlarEkrani = {
         if (y.status === 200) {
           this.kunye = kunyeCoz(await y.json().catch(() => null));
           if (!this.kunye) this.kunyeNeden = 'JSON';
+        } else if (y.status === 502 && y.headers && y.headers.get('X-Kopru-Vekil') === 'hata') {
+          const j = await y.json().catch(() => null);           // 4D: koprunun vekili karta ulasamadi
+          this.kunyeNeden = (j && j.mesaj) || 'HTTP 502';
         } else {
           this.kunyeNeden = 'HTTP ' + y.status;
         }

@@ -17,6 +17,13 @@
          panelin komut yolundan `Go<sira>` (app.js gonder).
    Her uzak istek app.js `kartAdres()`ten geciyor (B7 kurali); C1 geregi
    taban bos oldugu icin ayni koken.
+   4D (PC10) — PANEL PC KOPRUSUNDE: kopru kokeninde (`*.localhost`,
+   dongu adresi) `/durum` `pc_arsiv: true` derse denetcinin KAYNAGI
+   'pc': akislar / akisVerisi / akisBaytlari / kalBaytlari koprunun disk
+   arsivinden (ekran/depo_pc.js, salt okuma — tek yazar Python), esitleme
+   ve kopya silme YOK (C1 sebebi 'pc'). Kart kokeninde (olcum.local, IP)
+   bu karar ICIN hicbir istek gitmez; kaynak 'tarayici' (IndexedDB) —
+   kartin sundugu panelin davranisi degismedi.
    ⚠ Bu dosyada Vue YOK. Agir veri (kayitlar, oturumlar) bilesene markRaw
      ile gider — reaktif vekil yuz binlerce noktada paneli kilitlerdi.
    ═══════════════════════════════════════════════════════════════════════ */
@@ -34,8 +41,10 @@ export const PARCA_BAYT = 8192;
 /* ── SAF karar fonksiyonlari (B7 node'da sinar) ─────────────────────── */
 
 /** C1: bu panel esitleyebilir mi? Kanit (ayni kokende kart mi) `/kayit/liste`
- *  yaniti; bu yalniz ON kosul. neden: 'taban' | 'usb' | 'demo' | null. */
-export function esitlemeUygunlugu({ kartTaban = '', tasiyici = 'akis' } = {}) {
+ *  yaniti; bu yalniz ON kosul. neden: 'pc' | 'taban' | 'usb' | 'demo' | null.
+ *  4D: `pc` (kayitlar PC arsivinden) -> esitleme YOK: kartin kayitlarini kopru esitler. */
+export function esitlemeUygunlugu({ kartTaban = '', tasiyici = 'akis', pc = false } = {}) {
+  if (pc === true) return { uygun: false, neden: 'pc' };
   if (String(kartTaban || '').trim()) return { uygun: false, neden: 'taban' };
   if (tasiyici === 'seri') return { uygun: false, neden: 'usb' };
   if (tasiyici === 'demo') return { uygun: false, neden: 'demo' };
@@ -145,18 +154,104 @@ export function kalJsonCoz(b) {
   try { return JSON.parse(new TextDecoder('utf-8').decode(b)); } catch (e) { return null; }
 }
 
+/** 4D: sayfa kopru kokeninden mi acilmis olabilir (dongu adi / adresi)? Yalniz o zaman `/durum`
+ *  sorulur. Kart (olcum.local, IP) ASLA — kartin sundugu panel bu karar icin istek atmaz. */
+export function kokenSinama(konum) {
+  if (!konum || (konum.protocol !== 'http:' && konum.protocol !== 'https:')) return false;
+  const h = String(konum.hostname || '').toLowerCase();
+  return h === 'localhost' || h.endsWith('.localhost') || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)
+    || h === '[::1]' || h === '::1';
+}
+
+/** 4D: kaynak karari — `/durum` yaniti kopru mu ve BU istemci PC arsivini okuyabilir mi. */
+export function kaynakCoz(durum, metin) {
+  if (durum !== 200) return 'tarayici';
+  let d = null;
+  try { d = JSON.parse(metin); } catch (e) { d = null; }
+  return d && typeof d === 'object' && d.pc_arsiv === true && 'kart' in d ? 'pc' : 'tarayici';
+}
+
 /* ── denetci ────────────────────────────────────────────────────────── */
 
 export class EsitlemeDenetcisi {
   /** kartAdres: app.js kartAdres (taban oneki); istek: app.js kartIstek (3H-2 ES4 — TEK istek
-   *  katmani: eslesmisse imzali; verilmezse bugunku yol fetch(kartAdres)); zamanAsimiMs: istek basina. */
-  constructor({ kartAdres, istek = null, zamanAsimiMs = 10000, bekle = uyu } = {}) {
+   *  katmani: eslesmisse imzali; verilmezse bugunku yol fetch(kartAdres)); zamanAsimiMs: istek basina.
+   *  4D: kaynak ('pc' | 'tarayici'; verilmezse kendisi bulur), konum (location) ve pcYukle (depo_pc
+   *  modulu) testte verilir. */
+  constructor({ kartAdres, istek = null, zamanAsimiMs = 10000, bekle = uyu, kaynak = null,
+    konum = globalThis.location, pcYukle = () => import('./depo_pc.js') } = {}) {
     if (typeof kartAdres !== 'function') throw new TypeError('kartAdres islevi gerekli');
     this.kartAdres = kartAdres;
     this._katman = typeof istek === 'function' ? istek : null;
     this.zamanAsimiMs = zamanAsimiMs;
     this._bekle = bekle;
     this._onbellek = new Map();          // kimlik -> {bayt, kayitlar, oturumlar, sonSira, kal}
+    this._kaynakSoz = kaynak === 'pc' || kaynak === 'tarayici' ? Promise.resolve(kaynak) : null;
+    this._konum = konum;
+    this._pcYukle = pcYukle;
+    this._pc = new Map();                // 4D: akis kimligi -> /arsiv/liste ogesi
+  }
+
+  /* ── 4D (PC10): kaynak — PC arsivi mi, bu tarayici mi ── */
+
+  /** 'pc' (kopru, bu istemci PC arsivini okuyabilir) | 'tarayici'. Kart kokeninde ISTEK YOK. */
+  kaynak() {
+    if (!this._kaynakSoz) {
+      const soz = this._kaynakBul().then(([k, ezber]) => {
+        if (!ezber && this._kaynakSoz === soz) this._kaynakSoz = null;   // ag hatasi ezberlenmez
+        return k;
+      });
+      this._kaynakSoz = soz;
+    }
+    return this._kaynakSoz;
+  }
+
+  /** [kaynak, ezberlenir mi]. Kart kokeninde istek YOK. */
+  async _kaynakBul() {
+    if (!kokenSinama(this._konum)) return ['tarayici', true];
+    try {
+      const y = await this._kopruGetir('/durum');
+      return [kaynakCoz(y.status, await y.text().catch(() => '')), true];
+    } catch (h) {
+      return ['tarayici', false];
+    }
+  }
+
+  /** Kopru uclari (/durum, /arsiv/*, /esitleme/durum) imza katmanina GIRMEZ (EU8'): duz fetch. */
+  _kopruGetir(yol) {
+    return fetch(this.kartAdres(yol), { cache: 'no-store', credentials: 'omit', ...this._sinyal() });
+  }
+
+  async _pcListe() {
+    const m = await this._pcYukle();
+    const l = await m.pcAkislar((y) => this._kopruGetir(y));
+    /* ayni akis kimligi iki kartta (olasilik ~2^-32): kopru sirasinda ilki (EN YENI) kalir */
+    const tekil = new Map();
+    for (const a of l) if (!tekil.has(a.akis)) tekil.set(a.akis, a);
+    this._pc = tekil;
+    return tekil;
+  }
+
+  /** Akisin deposu: kopruda PC arsivi (salt okuma), degilse bu tarayicinin IndexedDB'si. */
+  async _depo(kimlik) {
+    if (await this.kaynak() !== 'pc') return idbDepo(await vtAc(), kimlik);
+    if (!this._pc.has(kimlik)) await this._pcListe();
+    const a = this._pc.get(kimlik);
+    if (!a) throw new Error(`PC arsivinde akis yok: ${kimlik}`);
+    return (await this._pcYukle()).pcDepo((y) => this._kopruGetir(y), a);
+  }
+
+  /** 4D: koprunun arka plan esitlemesinin durumu (`/esitleme/durum`); kopru degilse null. */
+  async esitlemeDurumu() {
+    if (await this.kaynak() !== 'pc') return null;
+    try {
+      const y = await this._kopruGetir('/esitleme/durum');
+      if (!y.ok) return { hata: `HTTP ${y.status}` };
+      const d = await y.json();
+      return d && typeof d === 'object' ? d : { hata: 'JSON' };
+    } catch (h) {
+      return { hata: (h && h.message) || String(h) };
+    }
   }
 
   /** Tek ag kapisi: istek katmani (varsa) ya da bugunku yol. */
@@ -207,6 +302,8 @@ export class EsitlemeDenetcisi {
    * Donus: {durum: 'tamam', sonuc} | {durum, mesaj} (hataSinifla).
    */
   async esitle({ kimlik, onay = null, ilerleme = null } = {}) {
+    /* 4D: PC arsivi SALT OKUMA — tek yazar kopru; panel hicbir sey yazmaz, karta onay yollamaz */
+    if (await this.kaynak() === 'pc') return { durum: 'pc', mesaj: 'PC arsivini kopru esitler' };
     let vt;
     try {
       vt = await vtAc();
@@ -242,35 +339,45 @@ export class EsitlemeDenetcisi {
     }
   }
 
-  /** Bu tarayicidaki akislarin ozetleri (veri yok). */
+  /** Bu tarayicidaki akislarin ozetleri (veri yok). 4D: kopruda PC arsivinin akislari (pc: true). */
   async akislar() {
+    if (await this.kaynak() === 'pc') {
+      return [...(await this._pcListe()).values()].map((a) => ({ kimlik: a.akis, kart: a.kart, bayt: a.bayt,
+        durum: a.durum, olusma: a.degisim * 1000, guncelleme: a.degisim * 1000, kalVar: a.kal, pc: true,
+        oturum: a.oturum }));
+    }
     return akislar(await vtAc());
   }
 
   /** Akisi coz (onbellekli; akisin boyu degisince yeniden). Gecerli ON EK
    *  (akisOnek): yarim kuyruk (cokme) okumayi bozmaz, sonraki esitleme kirpar. */
   async akisVerisi(kimlik) {
-    const vt = await vtAc();
-    const depo = idbDepo(vt, kimlik);
+    const depo = await this._depo(kimlik);
     const boy = await depo.veriBoyu();
     const eski = this._onbellek.get(kimlik);
-    if (eski && eski.bayt === boy) return eski;
+    if (eski && eski.boy === boy) return eski;
     const veri = await depo.veriOku(0);
     const [kayitlar, gecerli] = akisOnek(veri);
     const oturumlar = oturumlariKur(kayitlar);
-    const c = { kimlik, bayt: veri.length, gecerli, kayitlar, oturumlar,
+    const c = { kimlik, bayt: veri.length, boy, gecerli, kayitlar, oturumlar,
       sonSira: oturumSonSiralari(kayitlar), kal: kalJsonCoz(await depo.kalOku()),
-      durum: await depo.durumOku() };
+      durum: await depo.durumOku(), kart: depo.kart || null };
     this._onbellek.set(kimlik, c);
     return c;
   }
 
   /** Akisin ham baytlari (dogrulama / ham disa aktarma icin). */
   async akisBaytlari(kimlik) {
-    return idbDepo(await vtAc(), kimlik).veriOku(0);
+    return (await this._depo(kimlik)).veriOku(0);
+  }
+
+  /** Akisin kalibrasyon.json kopyasinin HAM baytlari (yoksa null). */
+  async kalBaytlari(kimlik) {
+    return (await this._depo(kimlik)).kalOku();
   }
 
   async akisSil(kimlik) {
+    if (await this.kaynak() === 'pc') throw new CalismaHatasi('PC arsivi salt okuma: kopyayi kopru tutar');
     this._onbellek.delete(kimlik);
     await akisSil(await vtAc(), kimlik);
   }

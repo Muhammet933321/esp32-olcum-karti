@@ -788,7 +788,7 @@ const OS_METIN = Object.freeze({
   arsiv: 'os.arsiv', canliyaDon: 'os.canliya_don', kaydaDon: 'os.kayda_don', kayitliYukleniyor: 'os.kayitli_yukleniyor',
   tuvalEtiket: 'os.tuval_etiket', spektrumEtiket: 'os.spektrum_etiket', tuvalBos: 'os.tuval_bos',
   harmonikTablo: 'os.harmonik_tablo', egriKayitta: 'os.egri_kayitta', egriYokKayitta: 'os.egri_yok_kayitta',
-  spektrumKlavye: 'os.spektrum_klavye',
+  spektrumKlavye: 'os.spektrum_klavye', eskiArsiv: 'os.eski_arsiv', eskiArsivIpucu: 'os.eski_arsiv_ipucu',
 });
 
 /* ═══ 3F — PIL TESTI (PL1-PL7) ═════════════════════════════════════════
@@ -1037,6 +1037,7 @@ createApp({
       dil: 'tr',
       afisSurum: '',               // D1: acilis afisinin asama/surum metni (gorulduyse)
       kopruda: false,              // D1: sayfa PC koprusu uzerinden (kopruYokla /durum)
+      kopruVekil: false,           // 4D (PC11): kopru kartin /pil'ini imzali vekil eder (/durum vekil)
       /* ── 3D — KAYIT DURUMU (pasif; D4-D7) ── */
       kayit: { g: null, ga: null, gt: null, gp: null },
       kayitGZaman: 0,              // son G satirinin (tarayici) zamani
@@ -1743,11 +1744,13 @@ createApp({
     pilYoklamaAcik() {
       return pilYoklamaKosulu({ bagli: this.bagli, gorunum: this.gorunum, gorunur: this.sayfaGorunur, durum: this.pilDurum });
     },
-    /** PU13: durum kaynagi — 'http' (/pil, kartin kendi WiFi'si) · 'satir' (USB / kopru: `p` -> B) · 'demo'. */
+    /** PU13: durum kaynagi — 'http' (/pil, kartin kendi WiFi'si) · 'satir' (USB / kopru: `p` -> B) · 'demo'.
+     *  4D (PC11): kopru kartin /pil'ini imzali VEKIL ediyorsa (/durum `vekil`) kopruda da 'http' — egri
+     *  noktalari gelir; vekil karta ulasamazsa (502) bu baglantida 'satir'a doner (pilYokla). */
     pilKaynak() {
       const a = this.bagliTasiyici || this.tasiyiciAdi;
       if (a === 'demo') return 'demo';
-      return a === 'akis' && !this.kopruda ? 'http' : 'satir';
+      return a === 'akis' && (!this.kopruda || this.kopruVekil) ? 'http' : 'satir';
     },
     pl() { return metinHaritasi(PL_METIN, this.dil); },
     /* ── 3H-1 — Ayarlar (AY2/AY3) ── */
@@ -3473,6 +3476,12 @@ createApp({
             m = SahteKart.pilSayfa(this.pilYerelSira);
           } else {
             const y = await this.kartIstek('/pil?sira=' + this.pilYerelSira, { cache: 'no-store' });
+            if (!y.ok && this.kopruda && y.status === 502) {
+              /* 4D: koprunun vekili karta WiFi'den ulasamadi — bu baglantida `p` -> B satiri (PU13) */
+              this.kopruVekil = false;
+              if (this.bagli && this.surucuyum) await this.gonder('p').catch(() => {});
+              return;
+            }
             if (!y.ok) {
               this.pilHataMetni = 'kart yanıt vermiyor (HTTP ' + y.status + ')';
               return;
@@ -4041,12 +4050,13 @@ createApp({
          özellik, yokluğu ölçümü etkilemiyor. */
       try {
         const y = await fetch(this.kartAdres('/durum'), { cache: 'no-store', credentials: 'omit' });   /* Basic-Auth onbellegi tasinmasin */
-        if (!y.ok) { this.skopArsivVar = false; this.kopruda = false; return; }
+        if (!y.ok) { this.skopArsivVar = false; this.kopruda = false; this.kopruVekil = false; return; }
         const d = await y.json();
         this.skopArsivVar = !!d.skop_arsiv;
         this.kopruda = !!(d && d.kart);          // 3D (D1): seritte "köprü"
+        this.kopruVekil = !!(d && d.kart && d.vekil === true);   // 4D (PC11): /pil vekilden
         if (this.skopArsivVar) await this.skopKayitlariYukle();
-      } catch (e) { this.skopArsivVar = false; this.kopruda = false; } finally { this._kopruBilindi = true; }
+      } catch (e) { this.skopArsivVar = false; this.kopruda = false; this.kopruVekil = false; } finally { this._kopruBilindi = true; }
     },
 
     async skopKayitlariYukle(gun) {

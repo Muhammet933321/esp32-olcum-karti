@@ -795,21 +795,18 @@
   </section>
   </div><!-- /skop-duzen -->
 
-  <!-- ─────────────────────────────── skop arşivi (B35) -->
+  <!-- ─────────────────────────────── skop arşivi (B35) — 4D (PC12): "ESKİ ARŞİV"
+       Salt okuma, dönüştürülmez. Köprünün satır günlüğü (4C'den beri kullanıcı veri
+       dizininde, olcum-karti/satir). Kartın kendi kaydettiği osiloskop günlükleri
+       (1C-3) Kayıtlar'da — iki arşiv yan yana karışmasın diye başlık "eski arşiv". -->
   <!-- 🔴 GERİYE DÖNÜK KAYIT. Yalnızca PC köprüsüne bağlıyken görünür:
        kayıt köprünün disk günlüğünde duruyor, tarayıcıda değil. Kart
        doğrudan bağlandığında yakalama hiçbir yere yazılmıyor ve bu
        bölüm hiç çizilmiyor — olmayan bir özelliği ölü bir düğme olarak
        göstermek bu projenin daha önce yaptığı hata (DEVIR 4.15). -->
   <section class="kart" v-if="skopArsivVar">
-    <h2>Kayıtlar — geriye dönük dalga şekilleri</h2>
-    <p class="ipucu">
-      Köprüye bağlıyken <strong>her yakalama diske düşüyor</strong>
-      (<code>kopru/arsiv/&lt;gün&gt;.satir</code>). Liste o günlükten
-      türetiliyor, ayrı bir dosyada tutulmuyor. Örnekler
-      <strong>ham ADC kodu</strong> olarak saklanıyor: ölçüm ekseninin
-      düzeltmesi ileride karara bağlanınca eski kayıtlara da uygulanabilsin.
-    </p>
+    <h2 data-skop-eski-arsiv>{{ os.eskiArsiv }}</h2>
+    <p class="ipucu">{{ os.eskiArsivIpucu }}</p>
 
     <div class="satir" style="margin-bottom:10px;gap:8px;align-items:center">
       <label v-if="skopGunler.length > 1" style="font-size:12px;color:var(--soluk)">

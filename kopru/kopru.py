@@ -90,6 +90,7 @@ sys.path.insert(0, str(BURASI))
 from arsiv import Arsiv, SkopCozucu, skop_ikili           # noqa: E402
 import kart_baglanti                                      # noqa: E402
 import pc_ayar                                            # noqa: E402
+import vekil                                              # noqa: E402  (4D: PC arsivi + kart vekili)
 
 # 4A (PC1): TEK port, yalniz 127.0.0.1. Eskiden 0.0.0.0:80 -> LAN IP:80 ->
 # 0.0.0.0:8770 diye dusuyordu (stok-takip 127.0.0.1:80'i tutuyor); koken
@@ -543,6 +544,10 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._durum()
         if yol == "/esitleme/durum":
             return self._esitleme_durum()
+        # 4D (PC10/PC11): PC arsivi (salt okuma) + kartin uclarinin imzali vekili — kopru/vekil.py
+        # (kapilari orada: yalniz bu bilgisayar, yalniz ayni koken)
+        if yol in vekil.UCLAR:
+            return vekil.isle(self, yol)
         if yol in ("/akis", "/skop.bin", "/skop/liste", "/skop/al") and self._capraz():
             # 4A inceleme (CSRF): baska kokenden <img>/<script> GET'i — surucu jetonu
             # verilmez, karta yakalama yaptirilmaz, arsiv okunmaz
@@ -580,6 +585,10 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             # bir gercek kaynagi olurdu.
             "skop_arsiv": True,
             "skop_adedi": k.skop_adedi,
+            # 4D: bu istemci PC arsivini (/arsiv/*) okuyabilir mi, kartin uclari WiFi vekilinden
+            # (/pil, /kal/liste, /kunye.json) gelebilir mi — ikisi de YALNIZ bu bilgisayara
+            "pc_arsiv": self._yerel(),
+            "vekil": self._yerel() and vekil.wifi_al(k.kart) is not None,
         }
         self._yanit(200, json.dumps(d).encode("utf-8"), "application/json")
 
