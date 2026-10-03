@@ -1,6 +1,6 @@
 # Alt proje 5 — Android uygulaması (tasarım)
 
-**Durum:** TASLAK — kullanıcı onayı bekliyor (2026-10-03). Onaydan önce kod yazılmaz.
+**Durum:** ✅ kullanıcı onayladı (2026-10-04) — §10'daki 7 karar, şartlarıyla (§10 sonu). Plan: `2026-10-04-plan-5-android.md`.
 **Dal / ağaç:** `5-android`, ayrı çalışma ağacı; uygulama `mobil/` altında. Push ve `main`'e birleştirme yok.
 
 Üst tasarım: [2026-09-29-yazilim-sistemi.md](2026-09-29-yazilim-sistemi.md) §3 (Ionic Vue + Capacitor,
@@ -27,9 +27,10 @@ sürerken kart düşerse ~10 s'de haber veren bir uygulama. Kullanıcı kararı 
 Kayıtlar'da osiloskop ve pil **oturumları** ilk kabulde de listelenir ve açılır (veri `ortak/` ile
 zaten çözülüyor); ertelenen yalnız bunların canlı ekranlarıdır.
 
-**Hedef cihazlar:** asıl telefon Honor 400 Pro (Android 16, API 36); geliştirme telefonu kullanıcının
-eski telefonu (modeli adb yetkisi gelince bu satıra yazılacak). `minSdk` **28** (Android 9) — eski
-telefon bundan eskiyse kullanıcıyla yeniden konuşulur. Ö6 eski telefonda ölçülür ama tasarım ona
+**Hedef cihazlar:** asıl telefon Honor DNP-NX9 (Android 16, API 36, MagicOS 10, WebView 154) — kurulum
+ve test öncesi kullanıcıya sorulur, asıl kabul burada; geliştirme telefonu Xiaomi Redmi Note 10S
+(M2101K7BG, Android 13, API 33, MIUI 14, WebView 153) — günlük kurma/kaldırma ve testler burada.
+İkisi de arm64. `minSdk` **28** (Android 9) ikisini de kapsar. adb komutları her zaman `-s <seri>` ile. Ö6 eski telefonda ölçülür ama tasarım ona
 göre küçültülmez; Ö4 son kabulde yeni telefonda da ölçülür.
 
 ## 2. Yaklaşım seçenekleri ve seçilen
@@ -259,7 +260,7 @@ dilimin sonunda bağımsız çürütücü; doğrulanan bulgu önce kırmızı te
 | Saf JS PBKDF2 (20 000 tur) telefonda > 1 s | 5B | Ölçülür, ekranda ilerleme; protokol değişmez |
 | `connectedDevice` servis türü Wi-Fi cihazı için reddedilir | 5E | `specialUse` |
 
-## 10. ⚠ Onay bekleyen kararlar
+## 10. ✅ Onaylanan kararlar (2026-10-04) ve şartları
 
 1. **A14** — K, Keystore AES anahtarıyla sarılı saklanır (HMAC içe aktarma değil); parmak izi istenmez.
 2. **A15** — yalnız WebView imzalar; servis karta imzalı istek atmaz, arka planda eşitleme yok (A22).
@@ -269,3 +270,14 @@ dilimin sonunda bağımsız çürütücü; doğrulanan bulgu önce kırmızı te
 6. **A28–A29** — servis türü `connectedDevice`; kayıt PC'den başlatıldıysa telefon bunu en geç 15 dk'da
    fark eder (kayıt yokken sürekli bağlantı yok).
 7. **§1 tablo** — ilk kabulde not/ad düzenleme, zamanlanmış kayıt kurma ve kalibrasyon seçimi YOK (5H).
+
+### Kullanıcının şartları (bağlayıcı)
+
+| # | Şart | Nerede sabitlenir |
+|---|---|---|
+| Ş1 | **Sayaç dosyasına YALNIZ tek süreç yazar** (uygulamanın ana süreci, `Kasa` eklentisi). Servis aynı süreçte çalışır (`android:process` verilmez) ve sayaç dosyasına dokunmaz. İkinci yazar eklenirse karar yeniden değerlendirilir (PC'de iki süreç → 401, 4J-6) | 5B: manifestte `android:process` olmadığını ve `Kasa` dışında sayaç yoluna yazan Kotlin kodu bulunmadığını ölçen test + mutasyonu |
+| Ş2 | **MQTT TLS'inde sertifika VE ana bilgisayar adı doğrulaması zorunlu** (`SSLSocket` kendiliğinden ad doğrulamaz → `endpointIdentificationAlgorithm = "HTTPS"`); `mqtt://` (şifresiz) uygulamada HİÇ kabul edilmez | 5E: sahte aracıya karşı — yanlış ada kesilmiş sertifika, kendinden imzalı sertifika, süresi geçmiş sertifika → bağlantı REDDİ; gerçek aracıda yalnız-abone bağlantı (5G) |
+| Ş3 | **Aracı adresi / kullanıcı / parola / konu öneki / yük anahtarı hiçbir günlüğe, hata metnine, dosyaya düşmez.** Hata metni istisnanın `message`'ından değil **türünden** kurulur (sabit metin tablosu) | 5E: bilinen sınama sırlarıyla her hata yolunun çıktısında arama + mutasyon |
+| Ş4 | **JDK 21 gerekirse yalnız proje içinde** (Gradle toolchain ya da `org.gradle.java.home`); sistem `JAVA_HOME`/`PATH` değiştirilmez | 5A |
+| Ş5 | **Cleartext önce ölçülür;** ikinci yol gerekirse herkese açık IP'nin REDDİ testle sabit. Android 16'nın yerel ağ erişimi kuralları Honor'da ölçülür; kart isteği orada da çalışmalı | 5A (ölçüm + ret testi), Honor ölçümü kullanıcıya sorularak |
+| Ş6 | **Pil yöneticisi yönergesi iki üretici için:** MIUI (Otomatik başlatma · Pil tasarrufu "Kısıtlama yok" · son uygulamalarda kilitle) ve MagicOS (Uygulama başlatma "Elle yönet": otomatik başlat + ikincil başlatma + arka planda çalış · pil optimizasyonu "İzin verme") | 5E (A37) |
