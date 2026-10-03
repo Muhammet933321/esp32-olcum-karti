@@ -5917,7 +5917,8 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
     const ayAgac = iceAktarmaGrafigi(ayYolu).map((x) => x.goruntu);
     ok('[!] AY2: ekran/ayarlar.js ACILISTA inmiyor; kendi statik agaci yalniz acilis kumesindeki dosyalar (Gelismis tek dosya ekler)',
        !statik.includes('ekran/ayarlar.js') && ayAgac.length > 0 && ayAgac.every((x) => statik.includes(x)), ayAgac.join(' '));
-    const dinamik = [...ayKod.matchAll(/import\('(\.\/[a-z_]+\.js)'\)/g)].map((m) => m[1]).sort();
+    /* 4H: ./pc_kopru.js da dinamik ama IndexedDB zinciri DEGIL (yalniz kopruda, Gelismis'te) — bolum 34 */
+    const dinamik = [...ayKod.matchAll(/import\('(\.\/[a-z_]+\.js)'\)/g)].map((m) => m[1]).filter((d) => d !== './pc_kopru.js').sort();
     const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
     const kunye = fs.existsSync(kunyeYolu) ? JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')) : {};
     const by = kunye.bayt || {};
@@ -8023,6 +8024,222 @@ console.log('\n--- 33. 4D: panel PC koprusunde (PC arsivi salt okuma, vekil, esk
        && /Salt okuma, dönüştürülmez/.test(tr) && /olcum-karti\/satir/.test(tr) && /Kayıtlar/.test(tr) && !/kopru\/arsiv/.test(tr),
        SZ.ceviri('os.eski_arsiv', 'tr'));
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   34. 4H — PANEL PC KOPRUSUNDE: bildirim bolumu, yerel ag uyarisi, kabuk surumu
+   Kararlar tasarim/2026-10-03-alt-proje-4-pc.md "4H uygulama kararlari".
+   (a) Gelismis kopru bolumu YALNIZ kopruda: kart kokeninde HICBIR istek / indirme yok
+       (AY2: Gelismis tek dosya); kopruda 4D'nin karari (/durum pc_arsiv) — yerel ag istemcisi YOK.
+   (b) ekran/pc_kopru.js YALNIZ dinamik: acilista, ayarlar.js'in statik agacinda yok; app.js onu
+       yalniz koprunun isaretli 403'unde ister.
+   (c) bildirim bolumu: GET /bildirim/durum, POST /bildirim/ayar (X-Olcum, JSON, yalniz degisen alan),
+       sonuc / hata canli bolgede; metinler sozluk_pc.js'te (TR + EN).
+   (d) yerel ag istemcisi: 403 + X-Kopru-Ret: lan -> ham ret metni yerine cevrilmis "salt okuma" uyarisi.
+   Gercek tarayici + gercek kopru: tarayici_pc_kayit.py (T4D, 4H bolumu).
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 34. 4H: panel PC koprusunde (bildirim bolumu, yerel ag uyarisi, kabuk surumu) ---');
+{
+  const ek = (ad) => require(path.join(ARAYUZ, 'ekran', ad));
+  const PK_YOL = path.join(ARAYUZ, 'ekran', 'pc_kopru.js');
+  const PK = fs.existsSync(PK_YOL) ? ek('pc_kopru.js') : {};
+  const AY = ek('ayarlar.js');
+  const ES = ek('esitleme.js');
+  const SZP = require(path.join(KOK, 'ortak', 'src', 'sozluk_pc.js'));
+  const ayKod = yorumsuz(fs.readFileSync(path.join(ARAYUZ, 'ekran', 'ayarlar.js'), 'utf8'));
+  const pkKod = fs.existsSync(PK_YOL) ? yorumsuz(fs.readFileSync(PK_YOL, 'utf8')) : '';
+  const appKod = yorumsuz(appKaynak);
+  const yanit = (status, govde, basliklar = {}) => {
+    const b = new TextEncoder().encode(typeof govde === 'string' ? govde : '');
+    const h = new Map(Object.entries(basliklar).map(([a, v]) => [a.toLowerCase(), String(v)]));
+    return { status, ok: status >= 200 && status < 300, headers: { get: (a) => (h.has(a.toLowerCase()) ? h.get(a.toLowerCase()) : null) },
+      text: async () => new TextDecoder().decode(b), json: async () => JSON.parse(new TextDecoder().decode(b)) };
+  };
+  const fetchIle = async (f, islev) => {
+    const eski = globalThis.fetch;
+    globalThis.fetch = f;
+    try { return await islev(); } finally { globalThis.fetch = eski; }
+  };
+  const KOPRU_KONUM = { protocol: 'http:', hostname: 'olcum.localhost', host: 'olcum.localhost:8770' };
+  const KART_KONUM = { protocol: 'http:', hostname: 'olcum.local', host: 'olcum.local' };
+  const LAN_RET = 'yerel agdan salt okuma: bu baglanti yalniz izleyebilir';
+  const DURUM = { etkin: true, bilgi: 'onbellek', abone: true, kart_cevrimici: true, son_olay: 1790000000, son_olay_tur: 'kayit_bitti',
+    ayar: { kopuk: true, bitti: true, dolu: true, esik: true, yeniden_basladi: true, kacirilan: true, deneme: true }, dil: 'tr', ayar_uyari: null, mesaj: '' };
+  const yeni = (B, props = {}) => {
+    const o = Object.assign({}, props);
+    Object.assign(o, B && B.data ? B.data.call(o) : {});
+    Object.assign(o, (B && B.methods) || {});
+    o.$nextTick = (f) => { if (f) f(); return Promise.resolve(); };
+    for (const [ad, fn] of Object.entries((B && B.computed) || {})) Object.defineProperty(o, ad, { get: fn.bind(o), configurable: true });
+    return o;
+  };
+
+  /* ── (a) koken kurali: kokenSinama ile AYNI ─────────────────────────── */
+  const KK = AY.kopruKokeni || (() => null);
+  const vektor = [['http:', 'olcum.localhost'], ['http:', 'localhost'], ['https:', 'a.localhost'], ['http:', '127.0.0.1'], ['http:', '127.9.8.7'],
+    ['http:', '[::1]'], ['http:', 'olcum.local'], ['http:', '192.168.1.50'], ['http:', 'olcum.localhost.example'], ['file:', 'localhost'],
+    ['http:', 'LOCALHOST'], ['http:', '127.0.0.1.example'], ['http:', '']].map(([p, h]) => ({ protocol: p, hostname: h }));
+  ok('[!] 4H (a): ayarlar.js kopruKokeni esitleme.js kokenSinama ile AYNI karari veriyor (Gelismis kartta esitleme.js\'i indirmeden karar verir)',
+     typeof AY.kopruKokeni === 'function' && vektor.every((k) => KK(k) === ES.kokenSinama(k)) && KK(null) === false && KK(undefined) === false
+     && KK(KOPRU_KONUM) === true && KK(KART_KONUM) === false,
+     vektor.filter((k) => KK(k) !== ES.kokenSinama(k)).map((k) => k.protocol + k.hostname).join(' ') || 'ayni');
+
+  const AE = AY.AyarlarEkrani;
+  const ayarYap = ({ konum, kaynak = 'pc', durum = { kart: 'wifi:olcum.local', pc_arsiv: true, kabuk: '0123456789ab' } } = {}) => {
+    const o = Object.assign({}, AE.data.call({}), AE.methods, { bolum: 'gelismis', kartAdres: (y) => y, kartIstek: null, kartTaban: '',
+      tasiyici: 'akis', bagli: true, afisSurum: '', dilSecim: 'tr', etkin: true, $nextTick: (f) => f && f() });
+    for (const [ad, fn] of Object.entries(AE.computed)) Object.defineProperty(o, ad, { get: fn.bind(o), configurable: true });
+    const iz = { es: 0, pk: 0, fetch: [] };
+    o._konum = () => konum;
+    o._esAl = async () => { iz.es++; return { EsitlemeDenetcisi: class { async kaynak() { return kaynak; } } }; };
+    o._pcSozlukAl = async () => ({ SOZLUK_PC: SZP.SOZLUK_PC });
+    o._pcKopruAl = async () => { iz.pk++; return PK; };
+    o._istek = async () => yanit(404, '');
+    o.__f = async (url, sec) => { iz.fetch.push({ url: String(url), sec }); return String(url) === '/durum' ? yanit(200, JSON.stringify(durum)) : yanit(404, ''); };
+    o.__iz = iz;
+    return o;
+  };
+  SONRA.push(async () => {
+    const kart = ayarYap({ konum: KART_KONUM });
+    await fetchIle(kart.__f, async () => { kart.bolumAcildi(); await (kart.pcKopruKur ? kart.pcKopruKur() : null); });
+    ok('[!] 4H (a): KART kokeninde Gelismis kopru bolumu icin HICBIR istek yok, esitleme.js ve pc_kopru.js INMEZ (AY2 tek dosya); bolum ve kabuk satiri yok',
+       typeof kart.pcKopruKur === 'function' && kart.__iz.es === 0 && kart.__iz.pk === 0 && kart.__iz.fetch.length === 0
+       && !kart.pcBilesen && !kart.kabuk, JSON.stringify(kart.__iz));
+    const kopru = ayarYap({ konum: KOPRU_KONUM });
+    await fetchIle(kopru.__f, () => (kopru.pcKopruKur ? kopru.pcKopruKur() : null));
+    const lan = ayarYap({ konum: KOPRU_KONUM, kaynak: 'tarayici' });
+    await fetchIle(lan.__f, () => (lan.pcKopruKur ? lan.pcKopruKur() : null));
+    ok('[!] 4H (a): KOPRUDE (4D karari: /durum pc_arsiv) bildirim bolumu kurulur ve kabuk surumu /durum `kabuk`tan; yerel ag istemcisi / gelistirme sunucusu (kaynak "tarayici") pc_kopru.js\'i INDIRMEZ',
+       kopru.__iz.pk === 1 && kopru.pcBilesen === PK.PcBildirimBolumu && kopru.kabuk === '0123456789ab'
+       && kopru.__iz.fetch.some((c) => c.url === '/durum' && c.sec && c.sec.credentials === 'omit')
+       && lan.__iz.pk === 0 && !lan.pcBilesen && !lan.kabuk, `${kopru.__iz.pk} ${kopru.kabuk} lan=${lan.__iz.pk}`);
+    ok('4H (a): kabuk satiri Gelismis\'te kartin arayuz surumunun HEMEN ardinda (v-if, sozluk_pc metni TR + EN); bildirim bolumu v-if ile (kartta hic kurulmaz)',
+       /<dd data-ay-panel[^>]*>\{\{ panelYazi \}\}<\/dd>\s*<template v-if="kabuk"><dt>\{\{ pm\.kabuk \}\}<\/dt><dd data-ay-kabuk>\{\{ kabuk \}\}<\/dd><\/template>/.test(AE.template)
+       && /<component v-if="pcBilesen" :is="pcBilesen"[^>]*v-show="bolum === 'gelismis'"[^>]*:kart-adres="kartAdres"[^>]*:dil-secim="dil"/.test(AE.template)
+       && /Bu PC/.test(SZP.ceviriPc('pc.ay_kabuk', 'tr')) && /this PC/i.test(SZP.ceviriPc('pc.ay_kabuk', 'en')));
+  });
+
+  /* ── (b) tembel yukleme ve butce ────────────────────────────────────── */
+  {
+    const statik = iceAktarmaGrafigi().map((g) => g.goruntu);
+    const ayAgac = iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'ayarlar.js')).map((g) => g.goruntu);
+    const pkAgac = fs.existsSync(PK_YOL) ? iceAktarmaGrafigi(PK_YOL).map((g) => g.goruntu) : ['yok'];
+    const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
+    const by = (fs.existsSync(kunyeYolu) ? JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')) : {}).bayt || {};
+    const pkBayt = by['ekran/pc_kopru.js'];
+    ok('[!] 4H (b): ekran/pc_kopru.js YALNIZ dinamik — acilis kumesinde ve ayarlar.js\'in statik agacinda YOK; kendi statik agaci yalniz sozluk_pc.js + sozluk.js; <= 6 KB gzip',
+       !statik.includes('ekran/pc_kopru.js') && !ayAgac.includes('ekran/pc_kopru.js') && !statik.includes('ortak/sozluk_pc.js')
+       && pkAgac.length > 0 && pkAgac.every((x) => ['ortak/sozluk_pc.js', 'ortak/sozluk.js'].includes(x))
+       && Number.isFinite(pkBayt) && pkBayt > 0 && pkBayt <= 6 * 1024, `${pkAgac.join(' ')} · ${pkBayt} B`);
+    const appDin = [...appKod.matchAll(/import\('\.\/ekran\/pc_kopru\.js'\)/g)].length;
+    const ayDin = [...ayKod.matchAll(/import\('\.\/pc_kopru\.js'\)/g)].length;
+    ok('[!] 4H (b): app.js pc_kopru.js\'i TEK yerden (_pcKopruAl) ister ve onu yalniz lanUyarisi cagirir — o da yalniz 403 + X-Kopru-Ret: lan iken; ayarlar.js tek yerden (_pcKopruAl), yalniz kopru kokeninde ve kaynak "pc" iken',
+       appDin === 1 && /_pcKopruAl\(\) \{ return import\('\.\/ekran\/pc_kopru\.js'\); \}/.test(appKod)
+       && (appKod.match(/_pcKopruAl\(\)/g) || []).length === 2
+       && /async lanUyarisi\(y\) \{\s*if \(!y \|\| y\.status !== 403 \|\| !y\.headers \|\| y\.headers\.get\('X-Kopru-Ret'\) !== 'lan'\) return '';/.test(appKod)
+       && ayDin === 1 && /if \(!kopruKokeni\(this\._konum\(\)\)\) return;[\s\S]{0,200}await this\._pcKur\(den\);\s*if \(!this\.pc\) return;\s*const m = await this\._pcKopruAl\(\);/.test(ayKod),
+       `app ${appDin} ayarlar ${ayDin}`);
+  }
+
+  /* ── (c) bildirim bolumu ────────────────────────────────────────────── */
+  {
+    const py = fs.readFileSync(path.join(KOK, 'kopru', 'pc_bildirim.py'), 'utf8');
+    const pySinif = ((py.match(/^SINIFLAR = \(([^)]*)\)/m) || [])[1] || '').match(/"([a-z_]+)"/g) || [];
+    const sinif = PK.BILDIRIM_SINIFLARI || [];
+    const B = PK.PcBildirimBolumu || {};
+    const ad = (d) => (yeni(B, { kartAdres: (y) => y, dilSecim: d }).siniflar || []).map((s) => s.ad);
+    ok('[!] 4H (c): panelin bildirim siniflari koprununkiyle (kopru/pc_bildirim.py SINIFLAR) AYNI ve AYNI sirada; her birinin TR ve EN adi var, adlar ayri',
+       sinif.join() === pySinif.map((x) => x.slice(1, -1)).join() && sinif.length === 7
+       && ad('tr').length === 7 && new Set(ad('tr')).size === 7 && ad('en').length === 7 && new Set(ad('en')).size === 7
+       && ad('tr').every((x, i) => x !== ad('en')[i] && !/^pc\./.test(x)), `${sinif.join()} / ${pySinif.join()}`);
+    const T = B.template || '';
+    ok('[!] 4H (c)/WIG: bolum sablonu — baslik, canli bolgede (aria-live) durum ve kaydetme sonucu, siniflar fieldset + legend icinde onay kutulari, dil secimi etiketli; yenile aria-busy; gomulu Turkce metin YOK',
+       /<section class="kart" data-pc-bildirim>\s*<h2>\{\{ m\.baslik \}\}<\/h2>/.test(T)
+       && /aria-live="polite"[^>]*data-pc-bl-durum/.test(T) && /<div class="ay-duyuru" aria-live="polite">[\s\S]*?data-pc-bl-sonuc/.test(T)
+       && /<fieldset[^>]*data-pc-bl-siniflar>\s*<legend>/.test(T) && /<input type="checkbox"[^>]*:data-pc-bl-sinif="s\.id"/.test(T)
+       && /<label class="skop-alan">\{\{ m\.dil \}\}\s*<select[^>]*data-pc-bl-dil/.test(T) && /:aria-busy="yukleniyor \? 'true' : 'false'"/.test(T)
+       && !/[çğıöşüÇĞİÖŞÜ]/.test(T));
+    SONRA.push(async () => {
+      const c = yeni(B, { kartAdres: (y) => y, dilSecim: 'tr' });
+      const istek = [];
+      let cevap = (u, s) => (u === '/bildirim/durum' ? yanit(200, JSON.stringify(DURUM)) : yanit(200, JSON.stringify({ ayar: { ...DURUM.ayar, kopuk: false }, dil: 'tr', ayar_uyari: null })));
+      const f = async (u, s = {}) => { istek.push({ u: String(u), s }); return cevap(String(u), s); };
+      await fetchIle(f, async () => { if (c.yukle) await c.yukle(); });
+      const ilk = istek[0] || { s: {} };
+      const dYazi = c.durumYazi;
+      await fetchIle(f, async () => { if (c.sinifDegistir) await c.sinifDegistir('kopuk', false); });
+      const p = istek[1] || { s: { headers: {} } };
+      ok('[!] 4H (c): bolum durumu GET /bildirim/durum (no-store, kimlik bilgisi tasimaz) ile okur; bir sinif degisince POST /bildirim/ayar YALNIZ o sinifi yollar ({"bildirim":{"kopuk":false}}, X-Olcum: 1, application/json); yanitin ayari gosterilir, sonuc "kaydedildi"',
+         ilk.u === '/bildirim/durum' && ilk.s.cache === 'no-store' && ilk.s.credentials === 'omit' && /dinliyor/.test(dYazi || '')
+         && p.u === '/bildirim/ayar' && p.s.method === 'POST' && p.s.body === '{"bildirim":{"kopuk":false}}'
+         && p.s.headers && p.s.headers['X-Olcum'] === '1' && p.s.headers['Content-Type'] === 'application/json' && p.s.credentials === 'omit'
+         && c.ayar && c.ayar.kopuk === false && c.ayar.bitti === true && c.sonuc === SZP.ceviriPc('pc.bl_kaydedildi', 'tr') && !c.sonucHata,
+         `${ilk.u} ${p.u} ${p.s.body} ${c.sonuc}`);
+      await fetchIle(f, async () => { if (c.dilDegistir) await c.dilDegistir('en'); });
+      const pd = istek[2] || { s: {} };
+      const once = istek.length;
+      await fetchIle(f, async () => {
+        if (c.sinifDegistir) { await c.sinifDegistir('parola', false); await c.sinifDegistir('kopuk', 'false'); }
+        if (c.dilDegistir) await c.dilDegistir('de');
+      });
+      ok('[!] 4H (c): dil degisimi YALNIZ {"dil":"en"} yollar; bilinmeyen sinif, true/false olmayan deger, bilinmeyen dil kopruye HIC gitmez (istemci de dogrular)',
+         pd.u === '/bildirim/ayar' && pd.s.body === '{"dil":"en"}' && istek.length === once
+         && typeof PK.ayarGovdesi === 'function' && PK.ayarGovdesi({ bildirim: { kopuk: true } }) === '{"bildirim":{"kopuk":true}}'
+         && PK.ayarGovdesi({ bildirim: { x: true } }) === null && PK.ayarGovdesi({ bildirim: { kopuk: 1 } }) === null
+         && PK.ayarGovdesi({ dil: 'de' }) === null && PK.ayarGovdesi({}) === null && PK.ayarGovdesi({ parola: 'x', dil: 'en' }) === null,
+         `${pd.s.body} ${istek.length - once}`);
+      cevap = (u) => (u === '/bildirim/ayar' ? yanit(409, 'ayar.json okunamadi (JSONDecodeError) — uzerine YAZILMADI') : yanit(200, JSON.stringify(DURUM)));
+      await fetchIle(f, async () => { if (c.sinifDegistir) await c.sinifDegistir('esik', false); });
+      const hata409 = c.sonuc;
+      const h409 = c.sonucHata;
+      cevap = (u) => (u === '/bildirim/ayar' ? yanit(403, LAN_RET, { 'X-Kopru-Ret': 'lan' }) : yanit(200, JSON.stringify(DURUM)));
+      await fetchIle(f, async () => { if (c.sinifDegistir) await c.sinifDegistir('esik', false); });
+      ok('[!] 4H (c): kopru reddederse (409 bozuk ayar.json) sebep cevrilmis cerceveyle yazilir ve bolum durumu yeniden okunur; yerel ag reddi (403 lan) "salt okuma" uyarisi',
+         h409 === true && hata409 === SZP.ceviriPc('pc.bl_kayit_hata', 'tr', { mesaj: 'ayar.json okunamadi (JSONDecodeError) — uzerine YAZILMADI' })
+         && c.sonuc === (PK.lanMetni ? PK.lanMetni('tr') : 'x') && c.sonucHata === true && istek[istek.length - 1].u === '/bildirim/durum',
+         `${hata409} | ${c.sonuc}`);
+      const y = (d, dil) => (PK.bildirimDurumYazi ? PK.bildirimDurumYazi(d, dil) : '');
+      ok('[!] 4H (c): durum metinleri (TR + EN) — kapali (sebep), aboneyken "dinliyor" + kart cevrimici, abone degilken koprunun mesaji, alinamadi; son olay zamani ve turu, yoksa "henuz yok"',
+         /kapalı \(--bildirim-yok\)/.test(y({ etkin: false, neden: '--bildirim-yok' }, 'tr')) && /off \(--bildirim-yok\)/.test(y({ etkin: false, neden: '--bildirim-yok' }, 'en'))
+         && /dinliyor[\s\S]*çevrimiçi/.test(y(DURUM, 'tr')) && /listening[\s\S]*online/.test(y(DURUM, 'en'))
+         && /bağlı değil \(! bildirim: aracıya bağlanılamadı\)[\s\S]*bilinmiyor/.test(y({ etkin: true, abone: false, kart_cevrimici: null, mesaj: '! bildirim: aracıya bağlanılamadı' }, 'tr'))
+         && /HTTP 403/.test(y({ hata: 'HTTP 403' }, 'tr')) && /HTTP 403/.test(y({ hata: 'HTTP 403' }, 'en'))
+         && PK.sonOlayYazi && /kayit_bitti/.test(PK.sonOlayYazi(DURUM, 'tr')) && /\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(PK.sonOlayYazi(DURUM, 'tr'))
+         && PK.sonOlayYazi({ etkin: true }, 'en') === SZP.ceviriPc('pc.bl_son_yok', 'en'),
+         y(DURUM, 'tr'));
+    });
+  }
+
+  /* ── (d) yerel ag istemcisi: cevrilmis salt okuma uyarisi ───────────── */
+  SONRA.push(async () => {
+    const u = ornek();
+    u.bagli = true; u.tasiyiciAdi = 'akis'; u.bagliTasiyici = 'akis'; u.kopruda = true; u.surucuyum = false;
+    let yuklenen = 0;
+    u._pcKopruAl = async () => { yuklenen++; return PK; };
+    u.kartIstek = async () => yanit(403, LAN_RET, { 'X-Kopru-Ret': 'lan' });
+    await u.gonder('?');
+    const tr = u.hata;
+    u.dil = 'en';
+    u.hata = '';
+    await u.gonder('?');
+    const en = u.hata;
+    u.dil = 'tr';
+    const eskiFetch = sandbox.fetch;
+    sandbox.fetch = async () => yanit(403, LAN_RET, { 'X-Kopru-Ret': 'lan' });
+    u.hata = '';
+    try { await u.devral(); } catch (e) { /* asagida */ }
+    const dv = u.hata;
+    const n = yuklenen;
+    u.kartIstek = async () => yanit(403, 'bu oturum SURUCU degil — komut reddedildi.');
+    await u.gonder('?');
+    const isaretsiz = u.hata;
+    sandbox.fetch = eskiFetch;
+    ok('[!] 4H (d): koprunun yerel ag reddi (403 + X-Kopru-Ret: lan) komutta ve devralmada HAM METIN yerine cevrilmis "salt okuma — bu PC ya da kart" uyarisi (TR + EN); baska 403 (isaretsiz) eskisi gibi sebebiyle, modul de INMEZ',
+       !!PK.lanMetni && tr === PK.lanMetni('tr') && en === PK.lanMetni('en') && dv === PK.lanMetni('tr') && n === 3
+       && /salt okuma/i.test(tr) && /bu bilgisayar/i.test(tr) && /olcum\.local/.test(tr) && /read-only/i.test(en) && /p0/.test(tr)
+       && isaretsiz === 'Komut gönderilemedi (403): bu oturum SURUCU degil — komut reddedildi.' && yuklenen === 3,
+       `${tr} | ${en} | ${dv} | ${isaretsiz}`);
+  });
 }
 
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu

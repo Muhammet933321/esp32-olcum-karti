@@ -142,6 +142,55 @@ def ayar_yaz(degisiklik: dict, dil: str | None = None) -> dict:
     return mevcut
 
 
+# 4H: panelin `POST /bildirim/ayar` govdesi — {"bildirim": {<sinif>: true|false, ...}, "dil": "tr"|"en"}
+AYAR_GOVDE_AZAMI = 512
+
+
+def ayar_istegi_coz(metin: str) -> tuple[dict, str | None]:
+    """4H: panelden gelen bildirim ayari govdesini KATI dogrula -> (degisiklik, dil).
+
+    Yalniz iki ust alan (`bildirim`, `dil`), yalniz bilinen siniflar, yalniz true/false, yalniz
+    bilinen dil; tekrarlanan anahtar, NaN/Infinity, bos degisiklik ve 512 B'den buyuk govde ret
+    (ValueError). Hata metni gelen veriyi YANKILAMAZ (govdede sir olabilir). Boylece ayar.json'a
+    bu yoldan bildirim ac/kapa ve dilden baska hicbir sey (parola, araci adresi) giremez."""
+    if len(metin.encode("utf-8")) > AYAR_GOVDE_AZAMI:
+        raise ValueError(f"govde {AYAR_GOVDE_AZAMI} bayttan buyuk")
+
+    def tekil(ciftler):
+        d = {}
+        for a, v in ciftler:
+            if a in d:
+                raise ValueError("tekrarlanan anahtar")
+            d[a] = v
+        return d
+
+    def sabit_ret(_):
+        raise ValueError("NaN / Infinity kabul edilmez")
+
+    try:
+        g = json.loads(metin, object_pairs_hook=tekil, parse_constant=sabit_ret)
+    except ValueError:
+        raise ValueError("gecersiz JSON (tekrarlanan anahtar ve NaN da reddedilir)") from None
+    if not isinstance(g, dict):
+        raise ValueError("govde bir JSON nesnesi olmali")
+    if set(g) - {"bildirim", "dil"}:
+        raise ValueError("bilinmeyen alan (yalniz 'bildirim' ve 'dil')")
+    b = g.get("bildirim", {})
+    if not isinstance(b, dict):
+        raise ValueError("'bildirim' bir nesne olmali")
+    for s, v in b.items():
+        if s not in SINIFLAR:
+            raise ValueError(f"bilinmeyen bildirim sinifi (siniflar: {', '.join(SINIFLAR)})")
+        if not isinstance(v, bool):
+            raise ValueError("bildirim degeri true/false olmali")
+    dil = g.get("dil")
+    if "dil" in g and dil not in BM.DILLER:
+        raise ValueError(f"dil {'/'.join(BM.DILLER)} olmali")
+    if not b and "dil" not in g:
+        raise ValueError("degisiklik yok")
+    return dict(b), dil
+
+
 def _atomik_yaz(p: Path, veri: bytes) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     gecici = p.with_name(p.name + ".yeni")

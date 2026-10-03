@@ -262,9 +262,9 @@ const TasiyiciAkis = {
       /* Sunucunun SEBEBİNİ göster — "403" tek başına kullanıcıya
          "neden olmadı" sorusunun cevabını vermiyor. */
       const neden = y ? await y.text().catch(() => '') : '';
-      uyg.hata = 'Komut gönderilemedi'
+      uyg.hata = (await uyg.lanUyarisi(y)) || ('Komut gönderilemedi'
                + (y ? ' (' + y.status + ')' : ' — bağlantı yok')
-               + (neden ? ': ' + neden : '');
+               + (neden ? ': ' + neden : ''));
       return;
     }
     /* Köprü 204 + boş gövde döndürüyor: kartın cevabı zaten SSE'den
@@ -3313,7 +3313,13 @@ createApp({
       }).catch(() => null);
       if (y && y.ok) { this.surucuyum = true; this.hata = ''; }
       else if (y && y.status === 409) this.hata = 'Devralınamadı (409): Başka bir sürücü etkin — o sekmeyi kapatıp yeniden deneyin.';
-      else this.hata = 'Devralınamadı' + (y ? ' (' + y.status + ')' : '') + ' — köprünün çalıştığını denetleyip yeniden deneyin.';
+      else this.hata = (await this.lanUyarisi(y)) || ('Devralınamadı' + (y ? ' (' + y.status + ')' : '') + ' — köprünün çalıştığını denetleyip yeniden deneyin.');
+    },
+    /* 4H: koprunun yerel ag reddi (403 + X-Kopru-Ret: lan) -> cevrilmis uyari (modul yalniz kopruda) */
+    _pcKopruAl() { return import('./ekran/pc_kopru.js'); },
+    async lanUyarisi(y) {
+      if (!y || y.status !== 403 || !y.headers || y.headers.get('X-Kopru-Ret') !== 'lan') return '';
+      try { return (await this._pcKopruAl()).lanMetni(this.dil); } catch (e) { return ''; }
     },
 
     /* ASAMA 3 komut kumesi.

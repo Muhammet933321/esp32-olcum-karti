@@ -104,8 +104,8 @@ kırmızı görüldü, her iddianın `4A:` önekli yalanlayan mutasyonu var.
 - **Açılış yarışının** `OSError` dalında ikinci deneme yok; kart açılışı döngü ipliğine alındığı için pencere küçüldü — kalan risk küçük.
 
 Açık kalanlar (4A dışı): `yukle.py`, `tezgah_kart.py`, `arayuz-yaz.py` kendi port seçicileriyle (`portlari_listele`)
-hâlâ VID'e bakmıyor — açma yolunda meşgul port mesajı var ama otomatik seçim eski; yerel ağ istemcisine panelde
-"salt okuma" arayüzü yok (403 metni görünür) — 4D/4F.
+hâlâ VID'e bakmıyor — açma yolunda meşgul port mesajı var ama otomatik seçim eski; ~~yerel ağ istemcisine panelde
+"salt okuma" arayüzü yok (403 metni görünür) — 4D/4F~~ (4H-7'de yapıldı).
 
 ### 4F uygulama kararları (2026-10-03)
 
@@ -252,7 +252,7 @@ bütün ayrıntılı örnekleri `V_HATA|I_HATA` (ADS'ler o gün takılı değild
 | 4D-7 | **EU9' (EU9'un yeniden yazımı):** köprü `/eslestir/*`'i **VEKİL ETMEZ** — panelin imza katmanı köprüde HER ZAMAN imzasız yola düşer (`/eslestir/bilgi` 404 → `yok`, EU9 kuralı köprü için aynen geçerli); köprü panelin imza başlıklarını (`X-Cihaz/X-Sayac/X-Imza`) TAŞIMAZ, `_c _s _i` parametresi 400; karta kendi eşleşmiş cihazıyla imzalar. "Köprüden 404 = imzasız yol" artık yalnız `/eslestir/bilgi` için: `/kal/liste`, `/pil`, `/kunye.json` köprüde 200 (vekil) ya da **502 + `X-Kopru-Vekil: hata`** (JSON sebep) döner | PC7: panelden köprü için eşleştirme yok (K tarayıcı deposuna düşmesin). Vekil `/eslestir/*`'i taşısaydı panel köprüyü kart sanıp kendi anahtarıyla imzalamaya kalkardı (B22a mutasyonu). Panel 502'yi "kart vermedi" değil "köprü karta ulaşamadı" diye yazar |
 | 4D-8 | **Vekil (PC11)** `GET /pil[?sira]`, `/kal/liste`, `/kunye.json` — beyaz liste, yalnız GET; kart doğrulaması (`WifiKart.dogrula`) 30 s yeniden kullanılır; imzalı istek `WifiKart.imzali_ac` (canlı akış ve arka plan eşitlemesiyle AYNI `Cihaz` + sayaç kilidi). Kartın 401'i → **502 `imza`** ("köprüyü yeniden eşleştirin"); 404/503 aynen; doğrulanamadı / erişilemedi / WiFi kolu yok → 502 JSON; mesajlardan mutlak yol çıkarılır (`yolsuz`). Yerel ağa kapalı (403) | 401 aynen geçseydi panel "bu tarayıcı eşleşmemiş" derdi. Donuk saatle (aynı ms) vekil + eşitleme istekleri: 401 yok (B22a). LAN telefonu karta doğrudan bağlanır (PC2) |
 | 4D-9 | **`p0` vekilde YOK, her katmanda serbest:** `/komut` → `SecmeliKart` → `WifiKart._p0` imzasız ve **sayaç kilidini beklemeden**. Ölçüldü: kart 1.5 s'de yanıtlayan bir vekil isteği kilidi tutarken p0 0.02 s'de karta ulaştı | Ö7; kalıcı kural "p0 her yeni katmanda serbest" — iddia + iki mutasyon (kilit beklemesi, p0'ın imzalanması) |
-| 4D-10 | **`/kunye.json` köprüde = KARTIN arayüz görüntüsünün künyesi** (vekil). Ayarlar etiketi "Kartın arayüz görüntüsü (panel sürümü)" — iki kökende de doğru; künye okunamazsa vekilin sebebi yazılır | 4F-5 bunu öngörmüştü (kabuk sürümü sw.js SURUM'da). Köprünün sunduğu panelin kendi sürümü panelde gösterilmiyor — açık |
+| 4D-10 | **`/kunye.json` köprüde = KARTIN arayüz görüntüsünün künyesi** (vekil). Ayarlar etiketi "Kartın arayüz görüntüsü (panel sürümü)" — iki kökende de doğru; künye okunamazsa vekilin sebebi yazılır | 4F-5 bunu öngörmüştü (kabuk sürümü sw.js SURUM'da). ~~Köprünün sunduğu panelin kendi sürümü panelde gösterilmiyor — açık~~ (4H-8) |
 | 4D-11 | **Pil (PC11):** köprüde `/durum.vekil` doğruysa pil durum kaynağı **'http'** (`/pil` vekilden — eğri noktaları gelir); vekil 502 dönerse o bağlantıda **'satir'**a döner (sürücüyse `p` → B satırı, PU13) | PU13'te köprüde eğri yoktu. Kart WiFi'de değilse (yalnız USB) eski davranış |
 | 4D-12 | **Ayarlar:** kalibrasyon geçmişi köprüde vekilden (kaynak "kartın kalibrasyon geçmişi"); vekil 502 → sebep (JSON) + **bu PC'deki arşivin kopyası** (kaynak 'pc': kart + akış + son eşitleme; IndexedDB açılmaz). Depolama PC arşivini SALT OKUMA gösterir (silme yok, "köprü yazar, panel yalnız okur"). PC metinleri (`sozluk_pc.js`) yalnız köprüde dinamik iner | Kart kökeninde Ayarlar'ın davranışı ve Gelişmiş'in tek dosya kuralı (AY2) aynen |
 | 4D-13 | **Köprü eşitlemesinin durumu** (`/esitleme/durum`) Kayıtlar'da canlı bölgede (aria-live) tek satır: son başarılı zaman · son turda / açılıştan beri yeni kayıt · kartın son sırası · **karta onay açık/kapalı** (açıkken "kart, PC'ye kopyalanan eski kayıtları yer gerekince silebilir"); hata (sebep + kaç s sonra), atlandı, kapalı, bekliyor, alınamadı. Ekran açılınca ve Yenile'de; yoklama yok | PC9 uyarısının UI'daki yeri. Sebep metinleri köprünün ASCII Türkçesi (veri olarak) |
@@ -261,9 +261,9 @@ bütün ayrıntılı örnekleri `V_HATA|I_HATA` (ADS'ler o gün takılı değild
 
 Açık (4D dışı / sonraki):
 - İki kartın akış kimliği çakışırsa eski kartın PC kayıtları listede görünmez (4D-4).
-- Köprünün sunduğu panelin kendi sürümü (sw.js SURUM) panelde gösterilmiyor.
+- ~~Köprünün sunduğu panelin kendi sürümü (sw.js SURUM) panelde gösterilmiyor.~~ 4H-8'de yapıldı.
 - WiFi'de canlı skop yakalaması hâlâ `tB → t` + ASCII dökümü; `/skop.bin` vekili yapılmadı (4B açık maddesi, kapsam dışı).
-- Yerel ağ istemcisine panelde "salt okuma" arayüzü yok (4A'dan devreden; 403 metni görünür).
+- ~~Yerel ağ istemcisine panelde "salt okuma" arayüzü yok (4A'dan devreden; 403 metni görünür).~~ 4H-7'de yapıldı.
 - ~~Vekilin gerçek kartta (imzalı `/kal/liste`, `/pil`, `/kunye.json`) koşusu yapılmadı — bu dilimde karta komut / istek
   gönderilmedi; tezgah kalemi (4G).~~ **4G'de koşuldu:** tam eşitleme sürerken üç uç ~1 s'de bir, hepsi 200 (Ö5 koşusu).
 
@@ -317,7 +317,8 @@ tezgah kalemi B22a listesinde ("4E: PC'de Windows bildirimi + Ö4"): kayıt sür
 bildirim "yeniden bağlandı", modem WAN'ı çek → "Ev interneti koptu", `Qt` → "Deneme bildirimi".
 
 Açık (4E dışı / sonraki):
-- Panelde bildirim bölümü (durum + aç/kapa; `POST` ucu YOK — yazma şimdilik CLI ve `ayar.json`).
+- ~~Panelde bildirim bölümü (durum + aç/kapa; `POST` ucu YOK — yazma şimdilik CLI ve `ayar.json`).~~ 4H'de yapıldı
+  (`POST /bildirim/ayar`, Ayarlar > Gelişmiş).
 - Tepsi simgesi (çıkış menüsü) yapılmadı; "Rahatsız Etmeyin"de banner çıkmaz (kullanıcı ayarı); `scenario="urgent"`
   denenmedi.
 - Ö4 PC ölçümü (yukarıda), E7 (`basladi` kaybı) gerçek aracıda yeniden gözlenmedi.
@@ -341,7 +342,7 @@ WiFi, ADS takılı değil, eşleşmiş cihazlar "Desktop" + "PC-kopru", `zorunlu
 |---|---|---|
 | 4G-1 | **`p0` canlı akışın KARŞI ADRESİNE gider** (`WifiKart._ip`, akış açılınca `getpeername`, kopunca silinir); 2 s'de yanıt yoksa ada geri düşer | **Bulunan kusur:** Windows `olcum.local`'ı ~8 s'de bir yeniden çözüyor ve o çözüm 2.7 s sürüyor (30 çözümde 2694/2726 ms) — p0 panelden karta **2.77 s**'de ulaşıyordu (Ö7). Düzeltmeden sonra gerçek kartta 30/30 p0 28–117 ms. Kart kendi IP'sini Host olarak kabul ediyor. B72.W4b + 4 mutasyon. İmzalı istekler / eşitleme hâlâ adla (istek başına çözüm — açık) |
 | 4G-2 | **Akış soketi istekten hemen sonra tutulur** (`_akis_soket`) | `http.client` uzunluksuz SSE yanıtında `HTTPConnection.sock`'u None yapıyor: 4B-8'in 40 s okuma zaman aşımı HİÇ uygulanmıyordu (soket 10 s'de kalıyordu), `kapat()` bekleyen okumayı kesemiyordu. B72.W4b ölçüyor |
-| 4G-3 | **`gercek_dizin_koru` kullanıcının köprüsü açıkken geri alma YAPMAZ** (iddia yine kırmızı, sebebini söyler) | Köprü (Başlangıç kısayolu, varsayılan onaylı) de bu dizine yazar; test sırasında beliren yeni `akis-<n>` / `.satir` / bildirim önbelleği SİLİNİYORDU — onaylı kayıt kartta da temizlenebilir: veri kaybı. Ö3 sırasında oldu: başka bir koşunun `test_kopru.py`'si köprünün gerçek bildirim önbelleğini sildi. B22a + mutasyon |
+| 4G-3 | **`gercek_dizin_koru` kullanıcının köprüsü açıkken geri alma YAPMAZ** (iddia yine kırmızı, sebebini söyler). *Birleştirmede 4H ile tek kurala indi: geri alma yalnız `cihaz/`'da beliren dosyada; köprü açıkken onun değişiklikleri yeşil, `cihaz/`'da yeni dosya her zaman kırmızı (4H Açık maddesi).* | Köprü (Başlangıç kısayolu, varsayılan onaylı) de bu dizine yazar; test sırasında beliren yeni `akis-<n>` / `.satir` / bildirim önbelleği SİLİNİYORDU — onaylı kayıt kartta da temizlenebilir: veri kaybı. Ö3 sırasında oldu: başka bir koşunun `test_kopru.py`'si köprünün gerçek bildirim önbelleğini sildi. B22a + mutasyon |
 | 4G-4 | **Tezgah aracının sızıntı sayımı yalnız KENDİ Edge profillerini sayar** | `olcum-edge-` öneki ortak: başka bir koşunun tarayıcısı "sızıntı" sanılıyor (ve elle temizlik onu öldürür — bu oturumda oldu) |
 
 Açık (4G sonrası, kullanıcı):
@@ -349,6 +350,37 @@ Açık (4G sonrası, kullanıcı):
 - Ö4 PC karşılığı (PC18), kablo çekip takmada USB↔WiFi geçişi, Başlangıç kısayolu kurulumu — elle.
 - ~~İmzalı istek ve eşitleme her istekte `olcum.local`'ı çözüyor (keep-alive yok): 4G-1'in IP yolu genelleştirilebilir.~~
   **4J'de yapıldı** (aşağıda): bütün kart istekleri öğrenilmiş adrese; tam eşitleme 23.6–26.4 → 18.4–18.5 s.
+
+### 4H uygulama kararları (2026-10-03)
+
+Alt proje 4'ün artıkları: panelde **"Bildirimler (bu bilgisayar)"** bölümü (köprünün `GET /bildirim/durum`'u + yeni
+`POST /bildirim/ayar`), yerel ağ istemcisine çevrilmiş **"salt okuma"** uyarısı, Gelişmiş'te köprünün sunduğu **kabuk
+sürümü**. Hepsi YALNIZ köprüde: kartın sunduğu panel bu kod için ne istek atar ne modül indirir. Sınama: B22a "4H"
+(7 iddia), B7 bölüm 34 (13 iddia), T4D `tarayici_pc_kayit.py` (+4: GERÇEK köprü + Edge; seçim gerçek `POST` ile
+`ayar.json`'a birleşir, gerçek yeniden yüklemede korunur, LAN istemcisi bölümü görmez ve çevrilmiş uyarıyı görür).
+Her iddianın `4H:` önekli yalanlayan mutasyonu var (37).
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4H-1 | **Bölüm Ayarlar > Gelişmiş'te** (yeni bir Ayarlar sekmesi değil), kartın arayüz sürümü kartının altında ayrı kart; kabuk sürümü aynı `dl`'de kartın arayüz görüntüsü satırının hemen ardında | Sekme listesi (`AYAR_BOLUMLERI`) `app.js`'te, yani açılış kümesinde ve KARTTA da görünür; Gelişmiş zaten "sürüm ve tanı" ve tembel modülde. Maliyet: bildirim ayarı bir tık daha derinde |
+| 4H-2 | **Karar 4D'ninki:** `EsitlemeDenetcisi.kaynak() === 'pc'` (döngü kökeni + `/durum` `pc_arsiv: true`). Kart kökeninde Gelişmiş bu karar için `esitleme.js`'i bile indirmesin diye `ayarlar.js`'te `kopruKokeni` (= `kokenSinama`, B7 13 vektörle eşitliği ölçer) önce bakar | AY2 (Gelişmiş kartta TEK dosya) korunur. Maliyet: kural iki yerde — eşitlik iddiası + mutasyonu var. Yerel ağ istemcisi ve geliştirme sunucusu 'tarayici' → bölüm yok |
+| 4H-3 | **Yeni modül `ekran/pc_kopru.js` yalnız dinamik:** `ayarlar.js` `_pcKopruAl` (köprüde, Gelişmiş açılınca) ve `app.js` `_pcKopruAl` (yalnız işaretli 403'te). Metinler `sozluk_pc.js`'te (24 yeni anahtar, TR + EN); yeni CSS yok (mevcut `skop-kume`/`skop-secim`/`skop-alan`/`ay-*`) | Açılış kümesi yalnız `app.js`'in ~10 satırı kadar büyüdü (+193 B gzip): `#/skop` 250 601 → 250 794 (≤ 256 000), EU31 259 803 → 259 996 (≤ 262 144), açılış 209 211 → 209 404. `ayarlar.js` 10 692 → 11 154 B (≤ 12 KB). `pc_kopru.js` 3 824 B kart görüntüsüne girer (4D-5 deseni; SW izin listesi `/ekran/*.js`); görüntü 411 814 → 417 627 B (%68) |
+| 4H-4 | **`POST /bildirim/ayar`** kapıları `/kapat` ile aynı sırada: `X-Olcum` yoksa 400 → yerel ağ 403 (işaretli) → başka köken 403 → gövde `application/json` değilse 415 → KATI doğrulama (`pc_bildirim.ayar_istegi_coz`) 400 → `ayar_yaz` (bozuk dosya 409, üstüne yazılmaz). Gövde ≤ 512 B; yalnız `bildirim` (bilinen sınıf → `true`/`false`) ve `dil` (`tr`/`en`); tekrarlanan anahtar, NaN, boş değişiklik, dizi ret; hata metni gövdeyi YANKILAMAZ. Yanıt yalnız `ayar`, `dil`, `ayar_uyari` | Sır yazılamaz: bu yoldan `ayar.json`'a aç/kapa ve dilden başka hiçbir şey giremez (parola/aracı adresi denemesi 400, dosya bayt bayt aynı — B22a). Aracı parolaları kartta, yalnız USB (1E K9). `ayar_yaz` 4C anahtarlarını ve kullanıcının elle yazdığı anahtarları korur (birleştirir) |
+| 4H-5 | **Tek değişiklik yollanır** (`{"bildirim":{"kopuk":false}}` ya da `{"dil":"en"}`), bütün tablo değil; köprü reddederse sebep yazılır ve durum köprüden YENİDEN okunur. İstemci aynı kuralla doğrular (geçersiz istek ağa gitmez) | İki sekme ya da CLI (`pc_bildirim.py ayar`) aynı anda değiştirirse birbirinin seçimini ezmesin. Bildirim ipliği ayarı her kararda dosyadan okur — kayıt hemen geçerli |
+| 4H-6 | **`/bildirim/durum` iplik kurulmamışken de** (`--bildirim-yok`, `--kayit`) `ayar`/`dil`/`ayar_uyari` verir | Bölüm "kapalı (sebep)" der ama seçimler görünür ve değiştirilebilir; bir sonraki açılışta geçerli |
+| 4H-7 | **Yerel ağ reddi işaretli: `X-Kopru-Ret: lan`** — yalnız `LAN_RET`'li 403'lerde (`/komut` p0 dışı, `/devral`, `/kapat`, `/skop.bin`, `/esitleme/durum`, `/bildirim/*`, `/arsiv/*` + vekil). Çapraz köken, "sürücü değil", E/Q retleri İŞARETSİZ. Panel (`app.js` `lanUyarisi`, komut ve devralma) işaretli 403'te ham metin yerine çevrilmiş "yerel ağdan salt okuma — DURDUR (p0) her zaman geçer; komut için köprünün bilgisayarında ya da karta doğrudan (olcum.local)" | Metne bakmak köprünün ASCII Türkçe metnine, durum koduna bakmak "sürücü değil"i de kapsamaya bağlanırdı. Kart başlığı hiç yollamaz → kartta modül inmez. `p0` serbestliği değişmedi (B22a yine ölçüyor) |
+| 4H-8 | **Kabuk sürümü `/durum` `kabuk`** (sw.js `SURUM`, her istekte dosyadan okunur) | Panel güncellenip köprü yeniden başlatılmadan da doğru sürüm. Kartın künyesi (4D-10) ile kabuk sürümü farklı kapsamdan hesaplanır (kabuk `cevrimdisi.html`'i de içerir) — ikisi eşit OLMAZ, karşılaştırma değil bilgi |
+| 4H-9 | **Yerel ağ istemcisinin Gelişmiş'inde künye satırı "HTTP 403"** (vekil yerel ağa kapalı, 4D-8) — dokunulmadı | `ayarlar.js` bütçesi (≤ 12 KB) dar; künye satırı tanı bilgisi, işlevsel kayıp yok |
+
+Açık (4H dışı):
+- **Köprü sürücü jetonunu kapanmış sekmede tutuyor:** köprüde sayfa yeniden yüklenince yeni sekme İZLEYİCİ, açılış
+  komutları (`?`) 403 "sürücü değil" (4H'den önce de böyle; T4D bunu beklenen hata sayıyor). Çözüm adayı: SSE abonesi
+  kopunca sürücüyü bırakmak (yarış ve p0'a etkisi ölçülerek) — ayrı dilim.
+- Gerçek köprüde (Windows toast) bir sınıf kapatılınca o bildirimin gerçekten gelmediği: tezgah (`Qt` + "Deneme
+  bildirimi" kutusu kapalıyken bildirim çıkmamalı).
+- ~~`gercek_dizin_koru` geri alması, aynı anda GERÇEK bir köprü / tezgah koşusu varsa onun yeni dosyalarını da siler
+  (4H sırasında bir kez `bildirim\<kart>.okb` önbelleği silindi; köprü karttan yeniden alır). Testleri yalıtılmış
+  `LOCALAPPDATA` ile koşmak ya da korumanın çalışan köprüyü (127.0.0.1:8770) görünce geri almaması gerekir.~~ **Birleştirmede (`birlesik-4`) kapandı:** 4G-3 ile tek kural — geri alma YALNIZ `cihaz/`'da beliren dosyada, başka yerde silme yok; gerçek köprü 8770'te yanıt verirken `cihaz/` dışı ve var olan cihaz dosyasının değişmesi beklenir (yeşil), `cihaz/`'da YENİ dosya her zaman kırmızı.
 
 ### 4J uygulama kararları (2026-10-03) — köprünün kart isteklerinde ağ hızlandırması
 

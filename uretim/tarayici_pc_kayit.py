@@ -16,6 +16,10 @@
        vekilden okur. Pil durumu /pil vekilinden.
      * Osiloskop ekraninda B35 satir arsivi "Eski arsiv" basligi altinda.
      * Konsol hatasi yok, 390 px telefonda yatay tasma yok, Ingilizce metinler.
+     * 4H: Gelismis'te koprunun kabuk surumu ve "Bildirimler (bu bilgisayar)" bolumu; ac/kapa ve dil
+       GERCEK POST /bildirim/ayar ile ayar.json'a BIRLESTIRILIR (oteki anahtarlar kalir), yeniden
+       yuklemede korunur; yerel ag istemcisi (ayni kopru, LAN IP'li isleyici) bolumu GORMEZ ve
+       komutunda ham 403 yerine cevrilmis "salt okuma" uyarisi.
 
 Kart: B72'nin sahte karti (test_kayit_esp._SahteKart — imza dogrulayicisi BAGIMSIZ); oturumlar
 tarayici_kayitlar.akis_kur'dan (kayit_bicim paketleyicileri: adli/etiketli olcum, pil, ayrintili,
@@ -53,6 +57,7 @@ import kart_wifi as KW                                     # noqa: E402
 import kayit_bicim as KB                                   # noqa: E402
 import kopru as kopru_mod                                  # noqa: E402
 import pc_ayar                                             # noqa: E402
+import pc_bildirim as PB                                   # noqa: E402  (4H)
 from tarayici_tema import KayitliTarayici, bos_port, css_takimlari, rgb   # noqa: E402
 
 UYG = "document.querySelector('#uyg')._vnode.component.proxy"
@@ -72,6 +77,17 @@ def ok(ad: str, kosul: bool, ek: str = "") -> bool:
         kaldi += 1
         print(f"[!!] {ad}" + (f"  {ek}" if ek else ""))
     return kosul
+
+
+class _SahteCikis:
+    """4H: bildirim cikisi (GERCEK toast YOK)."""
+    yol = "sahte"
+
+    def goster(self, *a, **k):
+        pass
+
+    def kapat(self):
+        pass
 
 
 class UsbKayit(kart_baglanti.KayitKart):
@@ -124,6 +140,11 @@ def main() -> int:
        f"{r.get('sonuc')} {r.get('mesaj', '')} yeni={r.get('yeni_kayit')}")
     oturumlar = KB.oturumlari_kur(KB.akis_coz(kart_bayt))
 
+    # 4H: gercek bildirim katmani (iplik BASLATILMAZ — araci yok) + kullanicinin onceden yazdigi ayar
+    kop.bildirim = PB.PcBildirim(None, PB.Mantik(_SahteCikis()), veri_dizini=pc_ayar.veri_dizini())
+    ayar_yolu = pc_ayar.veri_dizini() / pc_ayar.AYAR
+    ayar_yolu.parent.mkdir(parents=True, exist_ok=True)
+    ayar_yolu.write_text(json.dumps({"esitleme_onay": False, "kullanicinin_notu": "elle"}), encoding="utf-8")
     sunucu = kopru_mod.sunucu_kur(kop, port=0)               # GERCEK baglama: yalniz 127.0.0.1
     istenen: list[str] = []
     taban_sinif = sunucu.RequestHandlerClass
@@ -140,6 +161,13 @@ def main() -> int:
     sunucu.RequestHandlerClass = Kayitli
     port = sunucu.server_address[1]
     threading.Thread(target=sunucu.serve_forever, daemon=True).start()
+
+    class LanIsleyici(Kayitli):                                # 4H: AYNI kopru, yerel agdan gelen istemci
+        def _istemci_ip(self) -> str:
+            return "192.168.1.77"
+
+    lan_sun = kopru_mod.Sunucu(("127.0.0.1", 0), LanIsleyici)
+    threading.Thread(target=lan_sun.serve_forever, daemon=True).start()
     threading.Thread(target=kop.dongu, daemon=True).start()
     adres = f"http://{pc_ayar.AD}:{port}"
     print(f"     kopru: {sunucu.server_address} · panel: {adres} · sahte kart: {kart_taban}\n")
@@ -312,6 +340,75 @@ def main() -> int:
                and en.get("s", "").startswith("Read-only"), str(en)[:160])
             t.js(f"{UYG}.dilSecildi('tr')")
 
+            # ── 4H. Gelismis: kabuk surumu + bildirim bolumu; yerel ag istemcisi ──
+            import re as _re
+            sw_surum = _re.search(r"^const SURUM = '([0-9a-f]{12})';$",
+                                  (KOK / "arayuz3" / "sw.js").read_text(encoding="utf-8"), _re.M).group(1)
+            t.js("location.hash = '#/ayar/gelismis'")
+            g = TK.bekle_js(t, "(() => { const b = document.querySelector('[data-pc-bildirim]'); const k = document.querySelector('[data-ay-kabuk]');"
+                               " const s = document.querySelector('[data-pc-bl-sinif=\"kopuk\"]');"
+                               " return b && b.getBoundingClientRect().height > 0 && k && s && !s.closest('fieldset').disabled"
+                               " && {k: k.textContent.trim(), d: document.querySelector('[data-pc-bl-durum]').textContent,"
+                               " h: b.querySelector('h2').textContent, c: s.checked, n: document.querySelectorAll('[data-pc-bl-sinif]').length}; })()", 15) or {}
+            ok("[!] 4H: kopruda Gelismis'te 'Bildirimler (bu bilgisayar)' bolumu GORUNUR (gercek /bildirim/durum: "
+               "araciya bagli degil), 7 sinif; kabuk surumu = koprunun sundugu sw.js SURUM",
+               g.get("h") == "Bildirimler (bu bilgisayar)" and g.get("k") == sw_surum and g.get("n") == 7
+               and g.get("c") is True and "Aracıya bağlı değil" in g.get("d", ""), str(g)[:200])
+            t.js("document.querySelector('[data-pc-bl-sinif=\"kopuk\"]').click()")
+            sonuc = TK.bekle_js(t, "(document.querySelector('[data-pc-bl-sonuc]') || {}).textContent", 10) or ""
+            t.js("(() => { const s = document.querySelector('[data-pc-bl-dil]'); s.value = 'en';"
+                 " s.dispatchEvent(new Event('change')); })()")
+            TK.bekle_js(t, "(() => { const s = document.querySelector('[data-pc-bl-dil]');"
+                           " return s && !s.closest('fieldset').disabled && s.value === 'en'; })()", 10)
+            dosya = {}
+            son = time.monotonic() + 5
+            while time.monotonic() < son:
+                try:
+                    dosya = json.loads(ayar_yolu.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    dosya = {}
+                if dosya.get("bildirim_dil") == "en":
+                    break
+                t.bekle(0.1)
+            ok("[!] 4H: sinif kapatma ve dil secimi GERCEK POST /bildirim/ayar ile ayar.json'a BIRLESTIRILDI — "
+               "kullanicinin oteki anahtarlari (esitleme_onay, kendi notu) AYNEN; sonuc canli bolgede 'Kaydedildi'",
+               "Kaydedildi" in sonuc and dosya.get("bildirim") == {"kopuk": False} and dosya.get("bildirim_dil") == "en"
+               and dosya.get("esitleme_onay") is False and dosya.get("kullanicinin_notu") == "elle"
+               and "POST /bildirim/ayar" in istenen, f"{sonuc} {dosya}")
+            # Sayfa YENIDEN yuklenince kopru eski (kapanmis) sekmenin jetonunu surucu tutuyor: yeni sekme izleyici,
+            # acilis komutlari 403 "surucu degil" (onceden var olan davranis — 4H acik maddesi). Bundan sonra beklenen.
+            beklenen_hata.append(["/komut", len(t.olaylar), None])
+            t.js("window.__yuklenmedi = 1")
+            t.git(adres + "/?yeniden=4h#/ayar/gelismis")          # GERCEK yeniden yukleme (yalniz hash degil)
+            kal = TK.bekle_js(t, "(() => { const s = document.querySelector('[data-pc-bl-sinif=\"kopuk\"]');"
+                                 " const d = document.querySelector('[data-pc-bl-dil]');"
+                                 " return !window.__yuklenmedi && !document.querySelector('[data-pc-bl-sonuc]')"
+                                 " && s && d && !s.closest('fieldset').disabled && {c: s.checked,"
+                                 " b: document.querySelector('[data-pc-bl-sinif=\"bitti\"]').checked, d: d.value}; })()", 15) or {}
+            ok("[!] 4H: secim YENIDEN YUKLEMEDE korunur (kopruden okunur): 'kopuk' kapali, 'bitti' acik, dil en",
+               kal == {"c": False, "b": True, "d": "en"}, str(kal))
+            resim("4-gelismis-bildirim")
+            # yerel ag istemcisi: AYNI kopru, LAN IP'li isleyici (adres *.localhost -> Edge 127.0.0.1'e cozer)
+            lan_adres = f"http://lan.localhost:{lan_sun.server_address[1]}"
+            # beklenen 403'ler: yerel ag salt okuma (baglaninca `?` ve bizim komutumuz) + kart vekili (kunye)
+            lan_evre = [[y, len(t.olaylar), None] for y in ("/komut", "/kunye.json")]
+            beklenen_hata.extend(lan_evre)
+            t.git(lan_adres + "/#/ayar/gelismis")
+            TK.bekle_js(t, f"{UYG}.bagli === true && !{UYG}.surucuyum && !!document.querySelector('[data-ay-panel]')", 20)
+            t.bekle(1.0)
+            lan_bolum = t.js("!!document.querySelector('[data-pc-bildirim]') || !!document.querySelector('[data-ay-kabuk]')")
+            t.js(f"{UYG}.hata = ''")
+            t.js(f"{UYG}.gonder('?')")
+            lan_hata = TK.bekle_js(t, "(document.querySelector('.hata[role=alert]') || {}).textContent", 10) or ""
+            t.bekle(0.3)
+            for e in lan_evre:
+                e[2] = len(t.olaylar) + 1
+            ok("[!] 4H: yerel ag istemcisi bildirim bolumunu ve kabuk satirini GORMEZ; komutunda ham 403 yerine "
+               "cevrilmis 'salt okuma — bu bilgisayar ya da karta dogrudan' uyarisi",
+               lan_bolum is False and lan_hata.startswith("Yerel ağdan salt okuma") and "olcum.local" in lan_hata
+               and "yerel agdan" not in lan_hata, f"bolum={lan_bolum} hata={lan_hata[:90]}")
+            t.git(adres + "/#/kayitlar")
+
             # ── 8. konsol ───────────────────────────────────────────────
             hatalar = []
             for i, o in enumerate(t.olaylar):
@@ -332,6 +429,8 @@ def main() -> int:
         kop.calisiyor = False
         sunucu.shutdown()
         sunucu.server_close()
+        lan_sun.shutdown()
+        lan_sun.server_close()
         kop.durdur()
         kart_sun.shutdown()
         kart_sun.server_close()

@@ -298,7 +298,7 @@ def _sayi(v: str, ad: str) -> int:
 def isle(h, yol: str) -> None:
     """`kopru.Isleyici` icin: kapilar (yerel + ayni koken) sonra arsiv ya da vekil."""
     if not h._yerel():
-        return h._yanit(403, LAN_RET.encode("utf-8"))
+        return h._lan_ret(LAN_RET)                      # 4H: X-Kopru-Ret: lan
     if h._capraz():
         return h._yanit(403, CAPRAZ_RET.encode("utf-8"))
     try:
