@@ -11,9 +11,12 @@
      ⚠ Android'de GERÇEK PWA kurulumu HTTPS + service worker istiyor;
        kart düz HTTP konuştuğu için kısayol Chrome sekmesinde açılıyor.
        Bu vaat EDİLMİYOR, belgede de böyle yazıyor.
-     ⚠ Service worker YOK (güvenli bağlam şart). Çevrimdışı davranış
+     ⚠ KARTTA service worker YOK (güvenli bağlam şart). Çevrimdışı davranış
        sıradan HTTP önbelleğinden geliyor: vendor/ `immutable` ile bir
        kez iniyor. Bu, LAN'daki bir karttan alınabilecek en iyi sonuç.
+     4F (PC17): PC köprüsünün kökeninde (http://olcum.localhost:8770, güvenli
+       bağlam) `app.js` `swKur` sw.js'i kaydediyor — kurulabilir PWA, ağ önce,
+       köprü yoksa cevrimdisi.html. sw.js ve cevrimdisi.html karta GİRMEZ.
      WIG (2026-10-02): `viewport-fit=cover` + `black-translucent` sayfayı çentiğin
        ve durum çubuğunun ALTINA uzatıyordu; CSS'te güvenli alan payı yoktu, ☰ ve
        bağlantı düğmesi saatin altına giriyordu. Opak çubuk: içerik altından başlar.

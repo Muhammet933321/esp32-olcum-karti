@@ -934,6 +934,23 @@ const PL_METIN = Object.freeze({
   imlecSil: 'pl.imlec_sil', adGonder: 'pl.ad_gonder',
 });
 
+/* ═══ 4F (PC17) — PWA KABUGU: SERVICE WORKER YALNIZ PC KOPRUSUNDE ═══════
+   Ayni panel UC yerden aciliyor: kartin kendisi (`http://olcum.local`, IP —
+   guvenli baglam DEGIL, tarayici service worker'a izin vermez), gelistirme
+   sunucusu (`localhost:<port>`, USB kipi) ve PC koprusu (`http://olcum.localhost:8770`,
+   guvenli baglam, PC1). Kabuk yalniz kopruye ait: `*.localhost` + guvenli baglam +
+   API var. Gelistirme sunucusunda kaydolsaydi duz `localhost`'taki her test ve
+   gelistirme oturumu bir service worker'in arkasinda kalirdi.
+   Kayit `load`dan SONRA ve bir sonraki gorev turunda: acilisi, ilk boyamayi ve p0
+   yolunu bekletmez. Uygun degilse bu kokende onceden kalmis bir kayit varsa
+   SILINIR (or. koken kurali degisti) — "atla" sessiz bir yarim durum birakmasin. */
+const SW_YOL = '/sw.js';
+function swKaydiUygun({ guvenli = false, swVar = false, konum = null } = {}) {
+  if (guvenli !== true || !swVar || !konum) return false;
+  if (konum.protocol !== 'http:' && konum.protocol !== 'https:') return false;
+  return /^[a-z0-9-]+\.localhost$/i.test(konum.hostname || '');
+}
+
 createApp({
   /* 3C (P4): yeni ekran modul olarak; ilk kullanimda iner (yukaridaki not). */
   components: {
@@ -2080,9 +2097,38 @@ createApp({
     const saat = () => { this.saatTik = Date.now(); this._saatZaman = setTimeout(saat, 1000); };
     saat();
     if (this.pilAcik) this.pilModYukle();
+    this.swKur();                                   // 4F: yalniz PC koprusunde, load'dan sonra
   },
 
   methods: {
+    /* 4F (PC17): karar `swKaydiUygun`; kayit ertelenir (load + sonraki tur). Sonuc
+       `_sw`de (T4F tarayici testi okuyor): { uygun, durum: 'bekliyor'|'kayitli'|'atlandi'|'hata' }. */
+    swKur(pencere = (typeof window !== 'undefined' ? window : null),
+          gezgin = (typeof navigator !== 'undefined' ? navigator : null),
+          konum = (typeof location !== 'undefined' ? location : null),
+          belge = (typeof document !== 'undefined' ? document : null)) {
+      const sw = gezgin && 'serviceWorker' in gezgin ? gezgin.serviceWorker : null;
+      const uygun = swKaydiUygun({ guvenli: !!pencere && pencere.isSecureContext === true, swVar: !!sw, konum });
+      this._sw = { uygun, durum: uygun ? 'bekliyor' : 'atlandi' };
+      if (!uygun) {
+        if (sw && typeof sw.getRegistrations === 'function') {
+          sw.getRegistrations().then((liste) => liste.forEach((k) => k.unregister())).catch(() => {});
+        }
+        return;
+      }
+      const kaydet = () => setTimeout(() => {
+        sw.register(SW_YOL, { scope: '/', updateViaCache: 'none' })
+          .then(() => { this._sw.durum = 'kayitli'; })
+          .catch((e) => {
+            /* Panel kabuksuz da tam calisir; kullanici gunlugune degil gelistirici konsoluna */
+            this._sw.durum = 'hata';
+            this._sw.hata = String((e && e.message) || e);
+            if (typeof console !== 'undefined') console.warn('4F: service worker kaydolmadi:', this._sw.hata);
+          });
+      }, 0);
+      if (belge && belge.readyState === 'complete') kaydet();
+      else pencere.addEventListener('load', kaydet, { once: true });
+    },
     gorunumeGit(id) { this.gorunum = id; },
     /** 3H (AY3): dil secildi — sakla (`olcum.dil`, JSON; 3C dilOku ile ayni) ve ANINDA uygula. */
     dilSecildi(d) {

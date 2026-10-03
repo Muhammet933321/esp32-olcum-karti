@@ -39,6 +39,12 @@
   Gelismis'te `/kunye.json`dan okuyor; `arayuz3/sunucu.py` ayni islevle
   (`kunye_hesapla`) kaynaktan uretip sunuyor. B7 surumu `_fs.json`dan node'da
   yeniden hesaplayip `panel_surum` ile karsilastiriyor (iki dil, tek kural).
+
+4F (PC17) — PWA KABUGU: manifestteki her ikon goruntuye girer (`manifest_ikonlari`,
+  kartin manifesti 404'lu ikon gostermesin). `PC_KABUGU` (sw.js, cevrimdisi.html)
+  GIRMEZ: kart guvenli baglam degil, service worker kullanamaz. Uretec her kosuda
+  sw.js'in SURUM satirini `kabuk_surumu()` ile yazar (panel degisince service
+  worker yeniden kurulsun); `sim3_web.py` 6j satirin bayat olmadigini sinar.
 """
 from __future__ import annotations
 
@@ -83,11 +89,32 @@ EKRAN_ONEK = "ekran/"
 ORTAK_ONEK = "ortak/"
 
 
+# 4F (PC17): YALNIZ PC KABUGUNUN dosyalari — karta GIRMEZ. Kart guvenli baglam
+# degil (`http://olcum.local`), tarayici orada service worker'a izin vermiyor;
+# sw.js ve cevrimdisi.html kartta olu bayt olurdu. `sim3_web.py` 6j bunlarin
+# goruntude OLMADIGINI ve sw.js'in SURUM satirinin guncel oldugunu sinar.
+SW = "sw.js"
+PC_KABUGU = (SW, "cevrimdisi.html")
+SW_SURUM = re.compile(r"^const SURUM = '([0-9a-f]{12})';$", re.M)
+
+
+def manifest_ikonlari() -> list[str]:
+    """`manifest.json`'daki ikon dosyalari (4F). Kartin manifesti de bunlari
+    gosteriyor; goruntude olmasalar kart 404 verir ve Android "Ana Ekrana Ekle"
+    kisayolu ikonsuz kalir. Elle liste degil: ikon-uret.py manifestle birlikte uretiyor."""
+    try:
+        man = json.loads((ARAYUZ / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [i["src"] for i in man.get("icons", []) if isinstance(i, dict) and i.get("src")]
+
+
 def goruntu_listesi() -> list[str]:
     """Goruntuye giren HER dosyanin goruntudeki yolu (`/` sonrasi)."""
     ekran = sorted(EKRAN_ONEK + p.name for p in (ARAYUZ / "ekran").glob("*.js"))
     ortak = sorted(ORTAK_ONEK + p.name for p in ORTAK.glob("*.js"))
-    return list(VARLIKLAR) + ekran + ortak
+    ikon = [a for a in manifest_ikonlari() if a not in VARLIKLAR]
+    return list(VARLIKLAR) + ikon + ekran + ortak
 
 
 def kaynak_yolu(ad: str) -> Path:
@@ -115,6 +142,31 @@ def panel_surumu(ozet: dict) -> str:
 def panel_kunyesi(ozet: dict, icerik_bayt: int) -> dict:
     """Goruntuye giren `kunye.json` (AY6). `icerik_bayt` kunyenin KENDISI haric."""
     return {"bicim": 1, "surum": panel_surumu(ozet), "dosya": len(ozet), "icerik_bayt": icerik_bayt}
+
+
+def kabuk_surumu() -> str:
+    """4F: PC kabugunun (service worker onbellegi) surumu — panel surumuyle AYNI
+    kural, kapsami panelin kaynaklari + PC kabugunun dosyalari (sw.js'in kendisi
+    haric: kendi baytlarini kendisi belirleyemez). cevrimdisi.html degisince de
+    service worker yeniden kurulur."""
+    ozet = kaynak_ozeti()
+    for ad in PC_KABUGU:
+        if ad != SW:
+            ozet[ad] = hashlib.sha256((ARAYUZ / ad).read_bytes()).hexdigest()
+    return panel_surumu(ozet)
+
+
+def sw_surum_yaz() -> str:
+    """sw.js'in `const SURUM = '...';` satirini kabuk surumuyle gunceller."""
+    yol = ARAYUZ / SW
+    metin = yol.read_text(encoding="utf-8")
+    if not SW_SURUM.search(metin):
+        raise SystemExit("sw.js'te `const SURUM = '<12 onaltilik>';` satiri yok")
+    surum = kabuk_surumu()
+    yeni = SW_SURUM.sub(f"const SURUM = '{surum}';", metin, count=1)
+    if yeni != metin:
+        yol.write_text(yeni, encoding="utf-8", newline="\n")
+    return surum
 
 
 def kunye_hesapla() -> dict:
@@ -166,6 +218,8 @@ def main() -> int:
     mk, esp, csv = araclar()
     ofset, boyut = bolum(csv)
     ozet = kaynak_ozeti()
+    # 4F: PC kabugu karta girmiyor ama surumu panelle birlikte ilerlemeli
+    print(f"  sw.js SURUM = {sw_surum_yaz()}  (PC kabugu, karta girmez)")
 
     shutil.rmtree(SAHNE, ignore_errors=True)
     SAHNE.mkdir(parents=True)
@@ -224,7 +278,7 @@ def main() -> int:
         "bayt": bayt,
         "goruntu_bayt": n,
         "blok": BLOK, "sayfa": SAYFA,
-    }, indent=2), encoding="utf-8")
+    }, indent=2), encoding="utf-8", newline="\n")   # LF: depoda CRLF/LF gurultusu olmasin
 
     # Sahne dizini yalnizca mklittlefs icin gerekliydi — birakmak
     # goruntuyle ayrisabilecek ikinci bir kopya olurdu.

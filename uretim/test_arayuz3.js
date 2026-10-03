@@ -7357,6 +7357,334 @@ console.log('\n--- 32. p0 sagligi (yeniden deneme + parolasiz) ---');
      govdeIcinde(appKaynak, 'kopruYokla', "credentials: 'omit'") && govdeIcinde(appKaynak, 'kopruyuAlgila', "credentials: 'omit'"));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   33. 4F (PC17) — PWA KABUGU: service worker, cevrimdisi sayfa, manifest
+
+   Ayni panel karttan (`http://olcum.local`, guvenli baglam DEGIL), gelistirme
+   sunucusundan (`localhost`) ve PC koprusunden (`http://olcum.localhost:8770`)
+   aciliyor. Service worker YALNIZ kopru kokeninde ve guvenli baglamda kaydolur,
+   acilisi bekletmez. sw.js'te onbellege yalniz IZIN LISTESINDEKI duragan kabuk
+   dosyalari girer; API (/akis /komut /arsiv /kayit /skop* /pil /kal /eslestir
+   /cihaz /saat /bildirim /kunye.json /durum) ASLA. Ag once, onbellek yedek;
+   gezinme ag yoksa "kopru calismiyor". Gercek tarayicida olcum: T4F tarayici_pwa.py.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 33. 4F PWA kabugu (service worker + manifest) ---');
+{
+  /* (a) kayit karari — saf islev */
+  let uygunF = null, SW_YOL = null;
+  try { uygunF = vm.runInContext('swKaydiUygun', sandbox); SW_YOL = vm.runInContext('SW_YOL', sandbox); } catch (e) { /* yok */ }
+  const K = (h, p = 'http:') => ({ protocol: p, hostname: h });
+  const tablo = [
+    ['PC koprusu olcum.localhost, guvenli', { guvenli: true, swVar: true, konum: K('olcum.localhost') }, true],
+    ['kart olcum.local (guvenli degil)', { guvenli: false, swVar: false, konum: K('olcum.local') }, false],
+    ['kart IP (guvenli degil)', { guvenli: false, swVar: false, konum: K('192.168.1.50') }, false],
+    ['kopru adi ama guvenli baglam DEGIL', { guvenli: false, swVar: true, konum: K('olcum.localhost') }, false],
+    ['gelistirme sunucusu localhost', { guvenli: true, swVar: true, konum: K('localhost') }, false],
+    ['127.0.0.1 (guvenli ama kopru kokeni degil)', { guvenli: true, swVar: true, konum: K('127.0.0.1') }, false],
+    ['serviceWorker API yok', { guvenli: true, swVar: false, konum: K('olcum.localhost') }, false],
+    ['file://', { guvenli: true, swVar: true, konum: K('', 'file:') }, false],
+    ['olcum.localhost.kotu.example', { guvenli: true, swVar: true, konum: K('olcum.localhost.kotu.example', 'https:') }, false],
+    ['konum yok', { guvenli: true, swVar: true, konum: null }, false],
+  ];
+  const yanlis = typeof uygunF === 'function' ? tablo.filter(([, g, b]) => uygunF(g) !== b).map(([ad]) => ad) : ['swKaydiUygun yok'];
+  ok('[!] 4F: service worker YALNIZ guvenli baglamdaki *.localhost (PC koprusu) kokeninde; kart, IP, localhost, file:// ATLANIR',
+     yanlis.length === 0, yanlis.join(' | ') || `${tablo.length} durum`);
+
+  /* (b) swKur: erteleme + atlama + eski kaydi silme (sahte pencere/gezgin) */
+  const v = ornek();
+  const ortam = ({ guvenli, sw = true, konum, hazir = 'interactive' }) => {
+    const e = { kayit: [], silinen: 0, dinleyici: {}, zaman: [] };
+    e.gezgin = sw ? { serviceWorker: {
+      register(y, s) { e.kayit.push({ y, s }); return Promise.resolve({}); },
+      getRegistrations() { return Promise.resolve([{ unregister() { e.silinen++; return Promise.resolve(true); } }]); },
+    } } : {};
+    e.pencere = { isSecureContext: guvenli, addEventListener(t, f, o) { e.dinleyici[t] = { f, o }; } };
+    e.belge = { readyState: hazir };
+    e.konum = konum;
+    return e;
+  };
+  const eskiZaman = sandbox.setTimeout;
+  let aktif = null;
+  sandbox.setTimeout = (f) => { if (aktif) aktif.zaman.push(f); return 1; };
+  const kopru = aktif = ortam({ guvenli: true, konum: K('olcum.localhost') });
+  v.swKur(kopru.pencere, kopru.gezgin, kopru.konum, kopru.belge);
+  const esz = kopru.kayit.length;                                  /* mounted aninda */
+  const yukDinle = kopru.dinleyici.load;
+  if (yukDinle) yukDinle.f();
+  const loadSonrasi = kopru.kayit.length;                          /* load: yine sonraki tura */
+  kopru.zaman.forEach((f) => f());
+  const k0 = kopru.kayit[0] || { s: {} };
+  ok('[!] 4F: kopru kokeninde kayit acilisi BEKLETMEZ: mounted\'ta ve load aninda degil, load\'dan sonraki gorev turunda',
+     esz === 0 && !!yukDinle && yukDinle.o && yukDinle.o.once === true && loadSonrasi === 0 && kopru.kayit.length === 1,
+     `mounted=${esz} load=${loadSonrasi} sonra=${kopru.kayit.length}`);
+  ok('4F: kayit /sw.js, kapsam /, updateViaCache none (sw.js guncellemesi HTTP onbellegini atlar)',
+     SW_YOL === '/sw.js' && k0.y === '/sw.js' && k0.s.scope === '/' && k0.s.updateViaCache === 'none',
+     JSON.stringify(k0));
+  const hazirOrtam = aktif = ortam({ guvenli: true, konum: K('olcum.localhost'), hazir: 'complete' });
+  v.swKur(hazirOrtam.pencere, hazirOrtam.gezgin, hazirOrtam.konum, hazirOrtam.belge);
+  hazirOrtam.zaman.forEach((f) => f());
+  ok('4F: sayfa zaten yuklendiyse (readyState complete) load beklenmeden ertelenmis kayit',
+     !hazirOrtam.dinleyici.load && hazirOrtam.kayit.length === 1);
+  const kart = aktif = ortam({ guvenli: false, sw: false, konum: K('olcum.local') });
+  v.swKur(kart.pencere, kart.gezgin, kart.konum, kart.belge);
+  kart.zaman.forEach((f) => f());
+  const kartSw = v._sw;
+  const gel = aktif = ortam({ guvenli: true, konum: K('localhost') });
+  v.swKur(gel.pencere, gel.gezgin, gel.konum, gel.belge);
+  gel.zaman.forEach((f) => f());
+  const sahteKopru = aktif = ortam({ guvenli: false, konum: K('olcum.localhost') });
+  v.swKur(sahteKopru.pencere, sahteKopru.gezgin, sahteKopru.konum, sahteKopru.belge);
+  sahteKopru.zaman.forEach((f) => f());
+  sandbox.setTimeout = eskiZaman;
+  aktif = null;
+  ok('[!] 4F: kartta (guvenli degil) ve gelistirme sunucusunda kayit YOK, load dinleyicisi YOK',
+     kart.kayit.length === 0 && !kart.dinleyici.load && kartSw && kartSw.uygun === false && kartSw.durum === 'atlandi'
+     && gel.kayit.length === 0 && !gel.dinleyici.load && sahteKopru.kayit.length === 0,
+     `kart=${kart.kayit.length} gelistirme=${gel.kayit.length} guvensiz-kopru=${sahteKopru.kayit.length}`);
+  SONRA.push(async () => {
+    await new Promise((c) => setImmediate(c));
+    ok('4F: uygun olmayan guvenli kokende onceden kalmis kayit SILINIR (sessiz yarim durum yok)',
+       gel.silinen === 1 && kopru.silinen === 0, `gelistirme=${gel.silinen} kopru=${kopru.silinen}`);
+  });
+  ok('4F: mounted() swKur\'u cagiriyor', govdeIcinde(appKaynak, 'mounted', 'this.swKur()'));
+
+  /* (c) sw.js — node vm'de, sahte self/caches/fetch ile */
+  const SWD = path.join(ARAYUZ, 'sw.js');
+  const swKaynak = fs.existsSync(SWD) ? fs.readFileSync(SWD, 'utf8') : '';
+  const KOKEN = 'http://olcum.localhost:8770';
+  class Istek {
+    constructor(u, o = {}) {
+      this.url = typeof u === 'string' ? new URL(u, KOKEN).href : u.url;
+      this.method = o.method || (typeof u === 'object' ? u.method : 'GET');
+      this.mode = o.mode || (typeof u === 'object' ? u.mode : 'cors');
+      this.cache = o.cache || 'default';
+    }
+  }
+  class Yanit {
+    constructor(govde, o = {}) {
+      this.govde = govde; this.status = o.status === undefined ? 200 : o.status;
+      this.ok = this.status >= 200 && this.status < 300; this.type = 'basic'; this.headers = o.headers || {};
+    }
+    clone() { return new Yanit(this.govde, { status: this.status, headers: this.headers }); }
+  }
+  const anahtar = (i) => (typeof i === 'string' ? new URL(i, KOKEN).href : i.url);
+  const ag = { kapali: false, cagri: [], surum: 'yeni' };
+  const depolar = new Map();
+  const yazilan = [];
+  const isleyici = {};
+  const swB = {
+    URL, Promise, console,
+    Request: Istek, Response: Yanit,
+    fetch: async (i, o = {}) => {
+      const r = i instanceof Istek ? i : new Istek(i);
+      ag.cagri.push({ url: r.url, cache: o.cache || r.cache, mode: r.mode });
+      if (ag.kapali) throw new TypeError('Failed to fetch');
+      return new Yanit(`${ag.surum}:${new URL(r.url).pathname}`);
+    },
+    caches: {
+      async open(ad) {
+        if (!depolar.has(ad)) depolar.set(ad, new Map());
+        const m = depolar.get(ad);
+        return {
+          async put(i, y) { yazilan.push({ ad, url: anahtar(i) }); m.set(anahtar(i), y); },
+          async match(i) { return m.get(anahtar(i)); },
+          async add(i) { const y = await swB.fetch(i); yazilan.push({ ad, url: anahtar(i), cache: i.cache }); m.set(anahtar(i), y); },
+        };
+      },
+      async keys() { return [...depolar.keys()]; },
+      async delete(ad) { return depolar.delete(ad); },
+    },
+    self: null,
+  };
+  let atla = 0, sahip = 0;
+  swB.self = {
+    location: { origin: KOKEN },
+    addEventListener(t, f) { isleyici[t] = f; },
+    skipWaiting() { atla++; return Promise.resolve(); },
+    clients: { claim() { sahip++; return Promise.resolve(); } },
+  };
+  vm.createContext(swB);
+  let swYuklendi = true;
+  try { vm.runInContext(swKaynak, swB, { filename: 'sw.js' }); } catch (e) { swYuklendi = false; console.log('     sw.js yuklenemedi: ' + e); }
+  const swDeger = (ad) => { try { return vm.runInContext(ad, swB); } catch (e) { return undefined; } };
+  const izinli = swDeger('onbellekIzinli');
+  const ONB = swDeger('ONBELLEK');
+  const SURUM = swDeger('SURUM');
+  ok('4F: sw.js yuklendi; onbellek adi olcum-kabuk-<SURUM> (SURUM 12 onaltilik, arayuz-uret.py yazar)',
+     swYuklendi && typeof izinli === 'function' && /^[0-9a-f]{12}$/.test(SURUM || '') && ONB === 'olcum-kabuk-' + SURUM
+     && ['install', 'activate', 'fetch'].every((t) => typeof isleyici[t] === 'function'),
+     `${ONB}`);
+
+  /* izin listesi: PC17'nin yasak yollari + her API ucu + sorgulu adres + gezinme kabugu disari */
+  const YASAK = ['/akis', '/komut', '/arsiv/liste', '/arsiv/veri', '/kayit/liste', '/kayit/veri', '/skop.bin',
+    '/skop/liste', '/skop/al', '/pil', '/kal/liste', '/eslestir', '/cihaz', '/saat', '/bildirim/bilgi',
+    '/kunye.json', '/durum', '/devral', '/sw.js', '/sahte-kart.js', '/', '/index.html',
+    '/ortak/x.json', '/ekran/alt/x.js', '/ortak/../akis.js', '/vendor/baska.js'];
+  const sizan = typeof izinli === 'function' ? YASAK.filter((y) => izinli(y)) : ['onbellekIzinli yok'];
+  ok('[!] 4F: izin listesi API yollarini (PC17: /akis /komut /arsiv /kayit /skop* /pil /kal /eslestir /cihaz /saat /bildirim /kunye.json) ve /durum, /sw.js, gezinme kabugunu KABUL ETMEZ',
+     sizan.length === 0, sizan.join(' ') || `${YASAK.length} yol`);
+  const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
+  const goruntu = fs.existsSync(kunyeYolu) ? Object.keys(JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')).kaynak || {}) : [];
+  const kabukDosya = goruntu.filter((a) => a !== 'index.html').concat(['cevrimdisi.html']);
+  const disarda = typeof izinli === 'function' ? kabukDosya.filter((a) => !izinli('/' + a)) : ['onbellekIzinli yok'];
+  ok('4F: kart goruntusundeki her duragan dosya (index.html haric) + cevrimdisi.html izin listesinde (yeni varlik unutulmasin)',
+     goruntu.length > 10 && disarda.length === 0, disarda.join(' ') || `${kabukDosya.length} dosya`);
+
+  SONRA.push(async () => {
+    const gonder = async (istek) => {
+      let yp = null; const bekleyen = [];
+      const olay = { request: istek, respondWith(p) { yp = Promise.resolve(p); }, waitUntil(p) { bekleyen.push(p); } };
+      isleyici.fetch(olay);
+      let yanit = null, hata = null;
+      if (yp) { try { yanit = await yp; } catch (e) { hata = e; } }
+      await Promise.all(bekleyen);
+      return { cevap: !!yp, yanit, hata };
+    };
+    const kur = async () => {
+      const b = []; isleyici.install({ waitUntil(p) { b.push(p); } }); await Promise.all(b);
+    };
+    if (!swYuklendi || typeof isleyici.fetch !== 'function') {
+      ok('[!] 4F: sw.js fetch isleyicisi sinanabildi', false, 'sw.js yuklenmedi');
+      return;
+    }
+    await kur();
+    const cevrim = (depolar.get(ONB) || new Map()).get(KOKEN + '/cevrimdisi.html');
+    ok('4F: install cevrimdisi.html\'i onbellege alir (HTTP onbellegini atlayarak) ve skipWaiting',
+       !!cevrim && yazilan.some((y) => y.url === KOKEN + '/cevrimdisi.html' && y.cache === 'reload') && atla === 1);
+
+    /* API ve yasak yollar: respondWith YOK, onbellege yazim YOK (GET, POST, gezinme disi) */
+    const yazOnce = yazilan.length;
+    const dokunan = [];
+    for (const y of YASAK.filter((x) => x !== '/' && x !== '/index.html')) {
+      const s = await gonder(new Istek(y));
+      if (s.cevap) dokunan.push(y);
+    }
+    for (const y of ['/komut', '/eslestir', '/kayit/onay', '/app.js']) {
+      const s = await gonder(new Istek(y, { method: 'POST' }));
+      if (s.cevap) dokunan.push('POST ' + y);
+    }
+    for (const y of ['/app.js?v=2', '/ortak/sozluk.js?x', '/akis?jeton=abc']) {
+      const s = await gonder(new Istek(y));
+      if (s.cevap) dokunan.push(y);
+    }
+    const yabanci = await gonder(new Istek('http://olcum.local/app.js'));
+    if (yabanci.cevap) dokunan.push('baska koken');
+    ok('[!] 4F: API / yasak / sorgulu / baska kokenli istekte service worker KARISMAZ ve onbellege HICBIR SEY yazilmaz',
+       dokunan.length === 0 && yazilan.length === yazOnce, dokunan.join(' ') || `yazilan ${yazilan.length - yazOnce}`);
+
+    /* ag once: onbellekte ESKI kopya varken ag acik -> agdan gelen (yeni) doner ve onbellek guncellenir */
+    const onb = depolar.get(ONB);
+    onb.set(KOKEN + '/style.css', new Yanit('eski:/style.css'));
+    ag.cagri.length = 0;
+    const s1 = await gonder(new Istek('/style.css'));
+    ok('[!] 4F: AG ONCE: onbellekte eski kopya varken agdan gelen doner, HTTP onbellegi atlanir (no-cache), onbellek tazelenir',
+       s1.cevap && s1.yanit && s1.yanit.govde === 'yeni:/style.css' && ag.cagri.length === 1 && ag.cagri[0].cache === 'no-cache'
+       && onb.get(KOKEN + '/style.css').govde === 'yeni:/style.css',
+       JSON.stringify({ g: s1.yanit && s1.yanit.govde, c: ag.cagri }));
+    ag.kapali = true;
+    const s2 = await gonder(new Istek('/style.css'));
+    const s3 = await gonder(new Istek('/ekran/hic-inmedi.js'));
+    ok('4F: ag yokken (kopru kapali) onbellekteki kabuk dosyasi doner; hic inmemis modul HATA verir (yanlis dosya degil)',
+       s2.yanit && s2.yanit.govde === 'yeni:/style.css' && s3.cevap && s3.yanit === null && s3.hata instanceof TypeError);
+    const s4 = await gonder(new Istek('/#/canli', { mode: 'navigate' }));
+    ok('[!] 4F: gezinme ag yokken "kopru calismiyor" sayfasini verir (cevrimdisi.html)',
+       s4.cevap && s4.yanit === cevrim, s4.yanit ? String(s4.yanit.govde).slice(0, 40) : String(s4.hata));
+    onb.delete(KOKEN + '/cevrimdisi.html');
+    const s5 = await gonder(new Istek('/', { mode: 'navigate' }));
+    ok('4F: cevrimdisi.html de onbellekte yoksa dis kaynaksiz yedek sayfa (503)',
+       s5.yanit && s5.yanit.status === 503 && /Köprü çalışmıyor/.test(s5.yanit.govde) && !/https?:/.test(s5.yanit.govde));
+    ag.kapali = false;
+    const yazOnce2 = yazilan.length;
+    const s6 = await gonder(new Istek('/', { mode: 'navigate' }));
+    ok('4F: gezinme ag acikken agdan gelir ve onbellege YAZILMAZ (eski index.html yeni modullerle karismaz)',
+       s6.yanit && s6.yanit.govde === 'yeni:/' && yazilan.length === yazOnce2);
+
+    /* activate: yalniz kendi eski surumlerini siler, kontrolu hemen alir */
+    depolar.set('olcum-kabuk-000000000001', new Map());
+    depolar.set('baska-uygulama', new Map());
+    const b = []; isleyici.activate({ waitUntil(p) { b.push(p); } }); await Promise.all(b);
+    ok('4F: activate eski olcum-kabuk-* onbelleklerini siler, guncel ve yabanci onbellege dokunmaz, clients.claim',
+       !depolar.has('olcum-kabuk-000000000001') && depolar.has('baska-uygulama') && depolar.has(ONB) && sahip === 1,
+       [...depolar.keys()].join(' '));
+  });
+
+  /* (d) manifest + ikonlar */
+  const zlib = require('zlib');
+  const png = (dosya) => {
+    /* Kucuk PNG cozucu: 8 bit, renk tipi 2 (RGB) ya da 3 (paletli), 5 filtrenin hepsi */
+    const b = fs.readFileSync(dosya);
+    if (b.slice(0, 8).toString('hex') !== '89504e470d0a1a0a') return null;
+    let i = 8, en = 0, boy = 0, tip = 0, derinlik = 0, plte = null; const idat = [];
+    while (i < b.length) {
+      const n = b.readUInt32BE(i), t = b.slice(i + 4, i + 8).toString('latin1'), d = b.slice(i + 8, i + 8 + n);
+      if (t === 'IHDR') { en = d.readUInt32BE(0); boy = d.readUInt32BE(4); derinlik = d[8]; tip = d[9]; }
+      else if (t === 'PLTE') plte = d;
+      else if (t === 'IDAT') idat.push(d);
+      i += 12 + n;
+    }
+    if (derinlik !== 8 || (tip !== 2 && tip !== 3)) return { en, boy, piksel: null };
+    const bpp = tip === 2 ? 3 : 1, satir = en * bpp, ham = zlib.inflateSync(Buffer.concat(idat));
+    const out = Buffer.alloc(satir * boy);
+    for (let y = 0; y < boy; y++) {
+      const f = ham[y * (satir + 1)];
+      for (let x = 0; x < satir; x++) {
+        const r = ham[y * (satir + 1) + 1 + x];
+        const a = x >= bpp ? out[y * satir + x - bpp] : 0, u = y ? out[(y - 1) * satir + x] : 0;
+        const c = x >= bpp && y ? out[(y - 1) * satir + x - bpp] : 0;
+        const p = a + u - c, pa = Math.abs(p - a), pb = Math.abs(p - u), pc = Math.abs(p - c);
+        const tah = [0, a, u, (a + u) >> 1, pa <= pb && pa <= pc ? a : (pb <= pc ? u : c)][f];
+        out[y * satir + x] = (r + tah) & 255;
+      }
+    }
+    const renk = (x, y) => {
+      if (tip === 2) return out.slice((y * en + x) * 3, (y * en + x) * 3 + 3).toString('hex');
+      const k = out[y * en + x]; return plte.slice(k * 3, k * 3 + 3).toString('hex');
+    };
+    return { en, boy, renk };
+  };
+  let man = null;
+  try { man = JSON.parse(fs.readFileSync(path.join(ARAYUZ, 'manifest.json'), 'utf8')); } catch (e) { man = null; }
+  ok('[!] 4F: manifest id, scope, start_url = "/" (kart ve kopru paneli kokten), standalone, Turkce ad',
+     !!man && man.id === '/' && man.scope === '/' && man.start_url === '/' && man.display === 'standalone'
+     && man.name === 'Ölçüm Kartı' && man.short_name === 'Ölçüm' && man.lang === 'tr',
+     man ? JSON.stringify({ id: man.id, scope: man.scope, start_url: man.start_url }) : 'manifest okunamadi');
+  const ikonlar = (man && man.icons) || [];
+  const var2 = (n, amac) => ikonlar.some((x) => x.sizes === `${n}x${n}` && x.purpose === amac && x.type === 'image/png');
+  ok('[!] 4F: 192 ve 512 px ikon, hem any hem maskable (Edge/Chrome kurulum olcutu)',
+     var2(192, 'any') && var2(512, 'any') && var2(192, 'maskable') && var2(512, 'maskable'),
+     ikonlar.map((x) => `${x.src}:${x.sizes}:${x.purpose}`).join(' '));
+  const zeminHex = ((man && man.background_color) || '').replace('#', '').toLowerCase();
+  const olcuYanlis = [];
+  const maskeTasan = [];
+  for (const x of ikonlar) {
+    const p = fs.existsSync(path.join(ARAYUZ, x.src)) ? png(path.join(ARAYUZ, x.src)) : null;
+    if (!p || `${p.en}x${p.boy}` !== x.sizes || !p.renk) { olcuYanlis.push(`${x.src}=${p ? p.en + 'x' + p.boy : 'yok'}`); continue; }
+    let dolu = 0, uzak = 0;
+    const r2 = (0.4 * p.en) ** 2;
+    for (let y = 0; y < p.boy; y++) {
+      for (let xx = 0; xx < p.en; xx++) {
+        if (p.renk(xx, y) === zeminHex) continue;
+        dolu++;
+        if (((xx + 0.5 - p.en / 2) ** 2 + (y + 0.5 - p.boy / 2) ** 2) > r2) uzak++;
+      }
+    }
+    if (p.renk(0, 0) !== zeminHex || dolu < p.en * 2) olcuYanlis.push(`${x.src}: kose zemini ${p.renk(0, 0)} / dolu ${dolu}`);
+    if (x.purpose === 'maskable' && uzak > 0) maskeTasan.push(`${x.src}: ${uzak} piksel`);
+  }
+  ok('4F: her manifest ikonu diskte, PNG olcusu `sizes` ile AYNI, zemini background_color, bos degil',
+     ikonlar.length >= 5 && olcuYanlis.length === 0, olcuYanlis.join(' | ') || `${ikonlar.length} ikon`);
+  ok('[!] 4F: maskable ikonlarin cizimi guvenli dairede (merkez, yaricap %40) — maske kirpinca egriler kesilmez',
+     ikonlar.some((x) => x.purpose === 'maskable') && maskeTasan.length === 0, maskeTasan.join(' | ') || 'tasma yok');
+  const meta = (htmlKaynak.match(/<meta name="theme-color" content="(#[0-9a-fA-F]{6})">/) || [])[1];
+  ok('4F: manifest theme_color index.html theme-color ile AYNI (ilk boyama ile kurulu pencere ayrismaz)',
+     !!man && !!meta && man.theme_color.toLowerCase() === meta.toLowerCase(), `${man && man.theme_color} / ${meta}`);
+  /* (e) butce: PC kabugu kartin ACILIS kumesine girmez */
+  const istenen = [...yorumsuz(htmlKaynak).matchAll(/(?:^|\s)(?:href|src)="([^"]+)"/gm)].map((m) => m[1]);
+  const kabukIstek = istenen.filter((u) => /^(sw\.js|cevrimdisi\.html)$/.test(u) || (/^ikon-/.test(u) && u !== 'ikon-180.png'));
+  ok('[!] 4F: sw.js, cevrimdisi.html ve yeni ikonlar index.html\'den istenmiyor (kartta acilis istegi ve butce degismez)',
+     kabukIstek.length === 0 && istenen.includes('ikon-180.png'), kabukIstek.join(' ') || 'yalniz ikon-180 (apple-touch-icon)');
+}
+
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
    fonksiyonun govdesinde (bolum 13) dolduruluyor; bosaltma burada,
    ozetin hemen oncesinde. */
