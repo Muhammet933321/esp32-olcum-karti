@@ -10548,8 +10548,13 @@ Ajan, dal `birlesik-4` (ağaç `projeler/olcum-karti-birlesik`, `main` 40d33f7'd
   (eskiden doğrudan `kopru.py` + "kart USB'de olmalı"); çevrimdışı sayfa ve sw.js yedek metni
   `kopru\PC Baslat.bat` diyor. İki yeni kural (15/15) + 5 `KLV:` mutasyonu. BELGELER dipnotu ve index uyarısı:
   "Kart kuruluyor — ESP32 çalışıyor, ADS modülleri henüz takılı değil" (eski: "Donanım henüz kurulmadı").
+- **4I yalanlayıcısı koşuya göre kaçıyordu:** `AKIS_YOKLAMA_S = 15.0` birleşik ağaçta iki kez KAÇTI (bir kez
+  öldü). Bölüm 2'de sürücünün kapanışını bazen önceki bölümlerin bayat işleyicileri (kendi 15 s uyanışlarında
+  `surucu_yokla`) fark ettiriyordu — iddia zamanlamaya bağlıydı. Yeni B22a iddiası (bölüm 7): temiz köprüde TEK
+  akış, başka trafik yok → kapanış işleyicinin kendi yoklamasıyla ≤ 5 s'de (yüklü makine payı) kayıttan düşer, pencere başlar
+  (gerçek 0.50 s; mutasyonla akış 10 s sonra hâlâ kayıtlı → kesin kırmızı).
 - DEVIR sırası 5.12.95 (4J) · 94 (4I) · 93 (4H) · 92 (4G) — numara çakışması yoktu. `beklenen_sayim.json`
-  zincir koşusunda yeniden yazılacak (B22a 190, B72 207, B7 911, B9 kuralları 15).
+  zincir koşusunda yeniden yazılacak (B22a 191, B72 207, B7 911, B9 kuralları 15).
 
 #### 5.12.95 🟢 4J: KÖPRÜNÜN KART İSTEKLERİ ÖĞRENİLMİŞ ADRESE — TAM EŞİTLEME 24–26 s → 18.4 s (2026-10-03 akşam)
 

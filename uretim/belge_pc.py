@@ -630,12 +630,15 @@ def denetle(kok: Path, v: dict, sayfa_html: str, menu: list, butun_sayfalar: dic
     ay = (kok / "arayuz3" / "ekran" / "ayarlar.js").read_text(encoding="utf-8", errors="replace")
     ko = (kopru / "kopru.py").read_text(encoding="utf-8", errors="replace")
     yol_panel = f"Ayarlar → {v['panel_gelismis']} → “{v['panel_bolum']}”"
+    # Bildirimler bolumunun KENDISI (sorun giderme tablosundaki tekrar sayilmaz)
+    m4 = re.search(r"4 · Bildirimler(.*?)5 · Seçenekler", metin, re.S)
+    bolum4 = m4.group(1) if m4 else ""
     eksik_p = [ad for ad, kosul in (
         ("pc_kopru.js siniflari = pc_bildirim.SINIFLAR", v["panel_siniflar"] == v["siniflar"]),
         ("ayarlar.js pc_kopru.js'i indiriyor", "import('./pc_kopru.js')" in ay),
         ("kopru.py POST /bildirim/ayar", 'yol == "/bildirim/ayar"' in ko),
-        ("sayfada panel yolu", yol_panel in metin),
-        ("sayfada CLI yolu", "pc_bildirim.py ayar" in metin)) if not kosul]
+        ("Bildirimler bolumunde panel yolu", yol_panel in bolum4),
+        ("Bildirimler bolumunde CLI yolu", "pc_bildirim.py ayar" in bolum4)) if not kosul]
     s.append(("Panelin bildirim bolumu (Ayarlar > Gelismis) kodda var ve kilavuz onu adiyla anlatiyor; "
               "komut satiri yolu da duruyor",
               not eksik_p, str(eksik_p) if eksik_p else yol_panel))

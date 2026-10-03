@@ -2256,6 +2256,31 @@ def pc_4i_sina(gec_dizin: Path) -> None:
     for x in (s1, s2, s3, s3_karsi, s4, s4_karsi):
         x.close()
 
+    # ── 7. TEK akis, baska hicbir trafik yok: kapanisi isleyicinin KENDI yoklamasi bulur ──
+    # Birlestirmede (birlesik-4) bulundu: bolum 2'de kapanisi bazen ESKI bolumlerin bayat
+    # isleyicileri (kendi 15 s'lik uyanislarinda surucu_yokla cagirip) fark ettiriyordu; yoklama
+    # 15 s'ye cikinca da yesil kalabiliyordu (mutasyon kosuya gore kaciyordu). Burada temiz kopru.
+    kart7 = kart_baglanti.KayitKart([], yanitlar={"p0": ["* durdu"]})
+    kart7.ac()
+    k7 = kopru_mod.Kopru(kart7, gec_dizin / "arsiv_4i_7")
+    s7 = _kos(k7)
+    try:
+        a7 = _AcikAkis(f"http://127.0.0.1:{s7.server_address[1]}")
+        ka7 = a7.kimlik()
+        t7 = time.monotonic()
+        a7.kapat()
+        while k7.akislar and time.monotonic() - t7 < 8.0:
+            time.sleep(0.05)
+        dt7 = time.monotonic() - t7
+        ok("[!] 4I: baska trafik yokken kapanan surucu akisi isleyicinin kendi yoklamasiyla <= 5 s'de (olculen ~0.5 s; yuklu makine payi) "
+           "kayittan duser ve yeniden yuklenme penceresi baslar (15 s kalp atisini beklemez)",
+           bool(ka7 and ka7["surucu"]) and not k7.akislar and dt7 <= 5.0 and k7._bosaldi is not None,
+           f"surucu={bool(ka7 and ka7['surucu'])} akis={len(k7.akislar)} dt={dt7:.2f} s "
+           f"pencere={k7._bosaldi is not None}")
+    finally:
+        s7.shutdown()
+        s7.server_close()
+
 
 def _g4e(durum: int, oturum: int) -> str:
     return f"G {durum} {oturum} 100 101 50 120 10 0 900 25000 3 400 0"
