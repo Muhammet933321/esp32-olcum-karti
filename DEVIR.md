@@ -10531,6 +10531,13 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.91 🟢 3C-LISTE: İLK EŞİTLEMEDE BOŞ LİSTE (2026-10-03 öğle)
+
+4D+4E kartta sınanırken bulundu: yeni bir tarayıcıda Kayıtlar açılınca liste ~24 s (ilk eşitleme boyunca) BOŞ
+kalıyordu — kartın oturum dizini eşitlemenin başında alınıyor ama listeye ancak eşitleme bitince basılıyordu
+(3C'den beri). Artık hemen kuruluyor, oturumlar eşitleme sürerken "yalnız kartta" görünür. T3C 50/50 (12 s
+bekletilen istek SIRASINDA 6 oturum listede), mutasyon 1/1. Zincir 5232.
+
 #### 5.12.90 🟢 4E: MQTT ABONELİĞİ + WINDOWS BİLDİRİMİ (2026-10-03)
 
 Ajan (`kopru/pc_bildirim.py` karar katmanı + MQTT iş parçacığı, `kopru/windows_bildirim.py`, `kopru/bildirim_metin.py`
