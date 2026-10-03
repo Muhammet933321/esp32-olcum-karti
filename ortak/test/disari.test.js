@@ -343,6 +343,37 @@ test("ayrintiCsv == Python: us zamani, KA bayragi kaydin ilk orneginde, hatali o
   assert.ok(sat.slice(1).some((r) => r[sat[0].indexOf("bayraklar")].includes("SILME")));
 });
 
+// ── W1: hizali guc + yakalama boslugu ────────────────────────────────
+test("W1: ayrintili W == Python bagimsiz hizali guc (bit bit) == kayit.js ayrintiGuc; ayni satirin V x A'si DEGIL", () => {
+  const v = V.ayrinti[0];
+  const [o] = oturumAl(hexten(v.veri), v.oturum);
+  const s = D.ayrintiSerileri(o);
+  const py = v.w.map(jsden);
+  assert.equal(s.adet, py.length);
+  for (let k = 0; k < s.adet; k++) assert.ok(Object.is(s.w[k], py[k]), `ornek ${k}: ${s.w[k]} != ${py[k]}`);
+  assert.deepEqual(K.ayrintiGuc(o).map(([, w]) => w), Array.from(s.w));
+  let farkli = 0;
+  for (let k = 0; k < s.adet; k++) if (Number.isFinite(s.w[k]) && s.w[k] !== s.v[k] * s.i[k]) farkli++;
+  assert.ok(farkli > s.adet / 2, `yalniz ${farkli}/${s.adet} ornekte hizali W farkli: test bos`);
+  assert.ok(py.some((x) => Number.isNaN(x)) && py.filter(Number.isFinite).length > 20);
+});
+
+test("W1/Y7: yakalamadan sonraki ilk satirin bayraklarinda SKOP (EN: SCOPE_CAPTURE), yalniz orada; sayisal bayrak degismez", () => {
+  const vakalar = [...V.olcum.map((v) => [v, D.oturumCsv]), [V.ayrinti[0], D.ayrintiCsv]];
+  for (const [v, csv] of vakalar) {
+    const [o] = oturumAl(hexten(v.veri), v.oturum);
+    for (const [bicim, ad] of [[{}, "SKOP"], [D.BICIM_EN, "SCOPE_CAPTURE"]]) {
+      const sat = csvAyristir(csv(o, bicim), bicim.ayrac || ";");
+      const iB = sat[0].findIndex((x) => /^(bayraklar|flag_names)$/.test(x));
+      const iS = 0;
+      assert.ok(iB > 0, sat[0].join());
+      const isaretli = sat.slice(1).filter((r) => r[iB].split("|").includes(ad)).map((r) => Number(r[iS]));
+      assert.deepEqual(isaretli, v.skop_sonra, `${v.ad || "ayrinti"} ${ad}`);
+    }
+    assert.ok(v.skop_sonra.length >= 1, "vektorde yakalama yok: test bos");
+  }
+});
+
 // ── skop ─────────────────────────────────────────────────────────────
 function skopOturumu() {
   const a = new Akis(500);

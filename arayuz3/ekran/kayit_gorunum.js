@@ -22,6 +22,11 @@
       yok) ve nokta oturumunda Wh KARTIN W'sinden (ort V x ort A degil) —
       rapor.js / pilCsv ile ayni kural; tam aralikta rapor enerjisiyle
       ayni sayi (B7 sinar). Degerler ve aralik istatistigi `imlecOkuma`.
+   K3b (W1) Ayrintili oturumda W ve Wh HIZALI gucten (kayit.js ayrintiGuc:
+      V akim ornegi anina tasinir) — ayni ornegin V x I'si degil; rapor ile ayni.
+   K3c (W1/Y7) Osiloskop yakalamalari grafikte kesik dikey isaret "S<no>"
+      (grafik.js `isaretler`): x = META t_ms, yakalamanin KENDI acilisinda
+      (kayit sirasi zaman sirasi degil; `yakalamaIsaretleri`).
    K4 Sag eksen tek birim: Akim YA DA Guc (secilir). Iki farkli birimi tek
       eksene koymak eksen yazisini yalanci yapardi.
    K5 Imlec rengi temanin YAZI rengi (`--yazi`): uc gorunumde de zemine
@@ -42,7 +47,7 @@ import {
 import { oturumRaporu, RAPOR_ETIKET } from '/ortak/rapor.js';
 import { ceviri, ceviriKod } from '/ortak/sozluk.js';
 import { ceviriPc } from '/ortak/sozluk_pc.js';
-import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP } from '/ortak/kayit.js';
+import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP, skopYerleri } from '/ortak/kayit.js';
 
 /* ── SAF yardimcilar (B7 node'da sinar) ─────────────────────────────── */
 
@@ -172,10 +177,11 @@ export function aralikEnerji(h, tA, tB) {
       mah += ei.mah;
       sureS += ew.sureS;
     } else {
-      const e = enerji(t, h.s.v.subarray(p, q), h.s.i.subarray(p, q), tA, tB, kip);
-      wh += e.wh;
-      mah += e.mah;
-      sureS += e.sureS;
+      const ew = enerji(t, h.s.w.subarray(p, q), h.birler.subarray(p, q), tA, tB, kip);   // K3b: hizali W
+      const ei = enerji(t, h.s.v.subarray(p, q), h.s.i.subarray(p, q), tA, tB, kip);
+      wh += ew.wh;
+      mah += ei.mah;
+      sureS += ei.sureS;
     }
   }
   return { wh, mah, sureS };
@@ -202,6 +208,21 @@ export function okumaHesapla(h, tA, tB) {
   };
   return { tA: ok.tA, tB: ok.tB, dt: ok.dt, v: kanal('V'), i: kanal('I'), w: kanal('W'),
     dV: ok.dV, ortI: ok.ortI, enerji: aralikEnerji(h, ok.tA, ok.tB) };
+}
+
+/** K3c (W1/Y7): yakalama isaretleri [{t, metin: 'S<no>'}], ZAMAN sirasiyla (kayit.js
+ *  skopYerleri); x = yakalamanin acilisinin grafik ofseti + t_ms'nin capaya farki. Acilisi
+ *  grafikte olmayan (o acilista olcum verisi yok) yakalama atlanir. */
+export function yakalamaIsaretleri(oturum, h) {
+  if (!h || h.tur === 'yok') return [];
+  const l = [];
+  for (const y of skopYerleri(oturum)) {
+    const z = anZamani(h.eksen, h.araliklar, y.t_ms, y.sira, y.acilis);
+    const o = z.acilis === null ? undefined : h.segOfset[z.acilis];
+    if (o === null || o === undefined || z.relMs === null) continue;
+    l.push({ t: o + z.relMs, metin: 'S' + y.no });
+  }
+  return l;
 }
 
 /** Notlar, kayit sirasiyla: {sira, metin, genel, x (grafikte) | null, gecenMs | null}. */
@@ -720,7 +741,7 @@ export const KayitGorunumu = {
       const t = this.$refs.tuval;
       const gz = this.$refs.gezgin;
       this._g = markRaw(new Grafik(t, { renk: this.renkCozucu(t), zamanKokeni: 0, gerilim: 'V', akim: 'I',
-        onDegisim: (d) => this.degisti(d) }));
+        isaretler: yakalamaIsaretleri(this.oturum, this._h), onDegisim: (d) => this.degisti(d) }));
       this._gz = markRaw(new Grafik(gz, { gezgin: true, renk: this.renkCozucu(gz),
         onDegisim: (d) => { if (this._g) this._g.durumAyarla({ t0: d.t0, t1: d.t1 }); this.pencereYaz(); } }));
       this.gorunurlukUygula(false);

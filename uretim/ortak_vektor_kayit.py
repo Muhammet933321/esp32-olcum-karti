@@ -28,6 +28,7 @@ import dataclasses
 import inspect
 import json
 import math
+import re
 import struct
 import sys
 from pathlib import Path
@@ -674,6 +675,230 @@ def akis_surum_nul() -> tuple[str, bytes]:
     return "surum_nul", bytes(a.b)
 
 
+# ── W1: yakalamanin yeri (Y7) + hizali guc ────────────────────────────
+def yer_ornekler(r: Rng, n: int, us0: int, bayrak: dict | None = None, faz: float = 0.0):
+    """n ayrintili ornek, 50 Hz sinus (V) + 0.3 rad kaymali akim, dt ~2 ms titresimli.
+    Donus (ornekler [(v, i, dt4, b)], son ornegin us'i). Ilk ornek us0'da (dt4 0)."""
+    orn, us = [], us0
+    for k in range(n):
+        dt4 = 0 if k == 0 else r.tam(470, 530)
+        us += 4 * dt4
+        t = us / 1e6
+        orn.append((int(round(12000 * math.sin(2 * math.pi * 50 * t + faz))),
+                    int(round(9000 * math.sin(2 * math.pi * 50 * t + faz + 0.3))),
+                    dt4, (bayrak or {}).get(k, 0)))
+    return orn, us
+
+
+def yer_ayrinti(ilk: int, us0: int, orn, bayrak: int = 0) -> bytes:
+    return KB.ayrinti_paketle({"ilk": ilk, "t0_ms": (us0 // 1000) & 0xFFFFFFFF,
+                               "t0_us": us0 & 0xFFFFFFFF, "bayrak": bayrak, "ornekler": orn})
+
+
+def yer_skop(r: Rng, no: int, t_ms: int, sure_ms: int, parca: int = 0) -> bytes:
+    m = meta_r(r)
+    m.update(t_ms=t_ms & 0xFFFFFFFF, sure_ms=sure_ms)
+    return skop_yuk(r, no, 0 if parca == 0 else 6, 12, parca, 6, meta=m if parca == 0 else None)
+
+
+def akis_yerlesim() -> tuple[str, bytes]:
+    """Y7 + hizali W: kayit sirasi zaman sirasi DEGIL (yakalama SONRAKI orneklerden sonra
+    yazilir), DEVAM'dan sonra sayisal olarak KUCUK t_ms, yakalama verinin oncesinde/sonunda,
+    META'siz yetim, menzil gecisi, V/I hatasi, tek ornekli parca, millis sarmali nokta oturumu,
+    BASLA'siz ayrinti oturumu."""
+    r = Rng(0x2A20)
+    a = Akis()
+    kal = dataclasses.replace(kal_r(r), sebeke_hz=50.0, faz_kal_us=(40.0, -400.0))
+    kal = dataclasses.replace(kal, normal=dataclasses.replace(kal.normal, tau=0.0021),
+                              yuksek=dataclasses.replace(kal.yuksek, tau=0.0))
+    b = dataclasses.replace(basla_r(r, KB.OTURUM_OLCUM, 0), kal=kal, kart_ms=1_000_000, acilis=3)
+    o = 50
+    a.k(KB.T_BASLA, o, KB.basla_paketle(b))
+    us = 1_000_010_250
+    r1, son = yer_ornekler(r, 30, us, {7: KB.KAO_YUKSEK, 8: KB.KAO_YUKSEK, 12: KB.KAO_V_HATA,
+                                       20: KB.KAO_I_HATA})
+    a.k(KB.T_AYRINTI, o, yer_ayrinti(0, us, r1))
+    us = son + 2004
+    r2, son = yer_ornekler(r, 20, us)                     # sektor bolmesi: zaman kesintisiz
+    a.k(KB.T_AYRINTI, o, yer_ayrinti(30, us, r2))
+    t1 = son // 1000                                      # istek son ornekten hemen sonra
+    us = (t1 + 37) * 1000 + 1500
+    r3, son = yer_ornekler(r, 25, us)
+    a.k(KB.T_AYRINTI, o, yer_ayrinti(50, us, r3))
+    a.k(KB.T_SKOP, o, yer_skop(r, 1, t1, 37))             # Y7: SONRAKI orneklerden sonra yazilir
+    a.k(KB.T_SKOP, o, yer_skop(r, 1, t1, 37, parca=1))
+    us = son + 21_000
+    r4, son = yer_ornekler(r, 1, us)                      # tek ornekli parca: hizasiz V_k
+    a.k(KB.T_AYRINTI, o, yer_ayrinti(75, us, r4, KB.KA_SILME))
+    us = son + 30_000
+    r5, son = yer_ornekler(r, 10, us)
+    a.k(KB.T_AYRINTI, o, yer_ayrinti(76, us, r5))
+    t2 = son // 1000 + 1
+    a.k(KB.T_SKOP, o, yer_skop(r, 9, 1_000_005, 4))      # verinin ONCESINDE; kayit sirasi gec
+    a.k(KB.T_SKOP, o, yer_skop(r, 2, t2, 60, parca=1))    # META'siz yetim: listede yok
+    us = (t2 + 60) * 1000 + 900
+    r6, son = yer_ornekler(r, 8, us)
+    a.k(KB.T_AYRINTI, o, yer_ayrinti(86, us, r6))
+    a.k(KB.T_SKOP, o, yer_skop(r, 3, t2, 60))
+    a.k(KB.T_DEVAM, o, struct.pack("<IIII", 4, 0, 500, 94))
+    us = 600_123
+    r7, son = yer_ornekler(r, 15, us, {3: KB.KAO_YUKSEK, 4: KB.KAO_YUKSEK, 5: KB.KAO_YUKSEK})
+    a.k(KB.T_AYRINTI, o, yer_ayrinti(94, us, r7))
+    t4 = son // 1000 + 2                                  # DEVAM'dan sonra: t_ms acilis 0'dan KUCUK
+    us = (t4 + 25) * 1000 + 700
+    r8, son = yer_ornekler(r, 10, us)
+    a.k(KB.T_AYRINTI, o, yer_ayrinti(109, us, r8))
+    a.k(KB.T_SKOP, o, yer_skop(r, 1, t4, 25))
+    a.k(KB.T_SKOP, o, yer_skop(r, 2, son // 1000 + 50, 10))   # verinin SONUNDA: sonra None
+    a.k(KB.T_BITIR, o, struct.pack("<IB3x", 119, 1))
+    # nokta oturumu, millis 2^32 sarmali: yakalama sarmadan once, icine dustugu nokta sonra
+    o = 51
+    kart0 = 2**32 - 250
+    a.k(KB.T_BASLA, o, KB.basla_paketle(dataclasses.replace(basla_r(r, KB.OTURUM_OLCUM, 100),
+                                                            kart_ms=kart0)))
+    ps = [nokta_r(r, (kart0 + 100 * (k + 1)) & 0xFFFFFFFF) for k in range(6)]
+    a.k(KB.T_NOKTA, o, nokta_yuk(0, ps[:3]))
+    a.k(KB.T_NOKTA, o, nokta_yuk(3, ps[3:]))
+    a.k(KB.T_SKOP, o, yer_skop(r, 1, kart0 + 230, 40))
+    a.k(KB.T_SKOP, o, yer_skop(r, 2, kart0 + 100, 5))     # kart_ms TAM esit: o nokta "once"
+    a.k(KB.T_BITIR, o, struct.pack("<IB3x", 6, 1))
+    # BASLA'siz ayrinti: guc NaN (kalibrasyon yok), yer yine bulunur
+    o = 52
+    us = 77_000_000
+    r9, son = yer_ornekler(r, 6, us)
+    a.k(KB.T_AYRINTI, o, yer_ayrinti(0, us, r9))
+    a.k(KB.T_SKOP, o, yer_skop(r, 1, us // 1000 + 3, 2))
+    return "yerlesim", bytes(a.b)
+
+
+def w1_kurallar() -> list[str]:
+    """W1: hizali guc ve yakalama yeri Python basvurusunda DOGRU mu (vektor yalniz 'ayni' der).
+    Bozulan her kural icin bir satir."""
+    hatalar: list[str] = []
+
+    def bak(ad: str, kosul: bool, ek: str = "") -> None:
+        if not kosul:
+            hatalar.append(f"{ad}{': ' + ek if ek else ''}")
+
+    # 1) PC'nin tanimi firmware'inki: kaynak hala bu formulle mi hesapliyor
+    ino = (KOK / "kod" / "olcum-karti-a3" / "olcum-karti-a3.ino").read_text(encoding="utf-8")
+    o3 = (KOK / "kod" / "olcum-karti-a3" / "olcum3.h").read_text(encoding="utf-8")
+    for parca in ("float d = ((float)t_kayma_us + ayar.faz_kal_us[ayar.menzil ? 1 : 0])",
+                  "o.volt = hizala_kesirli(d, hv_tampon[0], hv_tampon[1],",
+                  "o.amper = hi_tampon[1];", "o.watt = o.volt * o.amper;",
+                  "o.watt *= suzgec_ters_kazanc(ayar.sebeke_hz, etkin_kanal()->tau)",
+                  "* suzgec_ters_kazanc(ayar.sebeke_hz, TAU_AKIM);"):
+        bak("W1.K1 firmware guc tanimi degismedi (olcum_al)", parca in ino, parca)
+    m = re.search(r"#define TAU_AKIM\s+([0-9.eE+-]+)f", o3)
+    bak("W1.K2 TAU_AKIM == olcum3.h", bool(m) and KB.TAU_AKIM == struct.unpack(
+        "<f", struct.pack("<f", float(m.group(1))))[0], m.group(1) if m else "yok")
+    for parca in ("h[0] = (d - 0.0f) * (d - 1.0f) * (d - 2.0f) / (-6.0f);",
+                  "h[1] = (d + 1.0f) * (d - 1.0f) * (d - 2.0f) / (2.0f);",
+                  "h[2] = (d + 1.0f) * (d - 0.0f) * (d - 2.0f) / (-2.0f);",
+                  "h[3] = (d + 1.0f) * (d - 0.0f) * (d - 1.0f) / (6.0f);",
+                  "w = 6.28318531f * f_hz * tau_s;", "return sqrtf(1.0f + w * w);"):
+        bak("W1.K3 olcum3.h lagrange4 / suzgec_ters_kazanc degismedi", parca in o3, parca)
+    bak("W1.K4 VI_KAYMA_US tezgah bandinda (tezgah_kart.py 80..400 us)", 80.0 <= KB.VI_KAYMA_US <= 400.0)
+
+    def kanal(pga: float = 4.096, tau: float = 0.0) -> KB.Kanal:
+        return KB.Kanal(1.0, pga, 1.0, 0, tau)
+
+    def kal(faz=(0.0, 0.0), f=0.0, tau=0.0, sont=0.005) -> KB.Kalibrasyon:
+        return KB.Kalibrasyon(kanal(tau=tau), kanal(40.96), 0, 0.256, sont, 1.0, f, faz)
+
+    def oturum(k: KB.Kalibrasyon, orn, devam=()) -> KB.Oturum:
+        o = KB.Oturum(1, basla=KB.Basla(1, 1, 0, 0, 0, 1, "t", k))
+        us = orn[0][0]
+        o.ayrinti = [{"ilk": 0, "t0_ms": (us // 1000) & 0xFFFFFFFF, "t0_us": us & 0xFFFFFFFF,
+                      "bayrak": 0, "sira": 1,
+                      "ornekler": [(v, i, 0 if j == 0 else (orn[j][0] - orn[j - 1][0]) // 4, b)
+                                   for j, (_t, v, i, b) in enumerate(orn)]}]
+        o.devamlar = list(devam)
+        return o
+
+    # 2) esit aralikta ic ornek: firmware'in lagrange4 + suzgec olcegiyle AYNI sayi
+    T, faz, f, tau = 2000, 37.0, 50.0, 0.0021
+    orn = [(5_000_000 + T * j, 1000 * j - 3000 + (j * j) % 7, 500 + 3 * j, 0) for j in range(8)]
+    k0 = kal((faz, 0.0), f, tau)
+    w = dict(KB.ayrinti_guc(oturum(k0, orn)))
+    d = (KB.VI_KAYMA_US + faz) / T
+    h = [(d - 0.0) * (d - 1.0) * (d - 2.0) / (-6.0), (d + 1.0) * (d - 1.0) * (d - 2.0) / 2.0,
+         (d + 1.0) * (d - 0.0) * (d - 2.0) / (-2.0), (d + 1.0) * (d - 0.0) * (d - 1.0) / 6.0]
+    for k in (1, 3, 4):
+        vv = [KB.volt(orn[k - 1 + j][1], k0.normal) for j in range(4)]
+        g = math.sqrt(1 + (2 * math.pi * f * tau) ** 2) * math.sqrt(1 + (2 * math.pi * f * KB.TAU_AKIM) ** 2)
+        fw = sum(h[j] * vv[j] for j in range(4)) * KB.amper(orn[k][2], k0) * g
+        bak("W1.K5 esit aralikta PC guc == firmware lagrange4 x I x 1/|H|^2 (ic ornek)",
+            abs(w[k] - fw) <= 1e-12 * max(1.0, abs(fw)), f"k={k} pc={w[k]!r} fw={fw!r}")
+    # 3) fiziksel: V ve I ayni fazda, I ornegi 1000 us GEC (kayma 152 + faz 848): hizali
+    #    ortalama P = AB/2, hizasiz cos(18 derece) = %4.9 dusuk okur
+    A, B, faz = 16000, 12000, 1000.0 - KB.VI_KAYMA_US
+    kp = kal((faz, 0.0))
+    orn, t = [], 9_000_000
+    for j in range(2000):                                          # 4 s, titresimli ~2 ms
+        t += 4 * (475 + (j * 7919) % 75)
+        orn.append((t, int(round(A * math.sin(2 * math.pi * 50 * t / 1e6))),
+                    int(round(B * math.sin(2 * math.pi * 50 * (t + 1000) / 1e6))), 0))
+    w = [x for _, x in KB.ayrinti_guc(oturum(kp, orn))][2:-2]
+    p = sum(w) / len(w)
+    gercek = KB.volt(A, kp.normal) * KB.amper(B, kp) / 2
+    hizasiz = sum(KB.volt(v, kp.normal) * KB.amper(i, kp) for _, v, i, _ in orn) / len(orn)
+    bak("W1.K6 sinus: hizali ortalama guc gercegin %0.5'i icinde (d=0.5'te Lagrange sarkmasi %0.35)",
+        abs(p / gercek - 1) < 0.005,
+        f"{p / gercek:.5f}")
+    bak("W1.K7 sinus: hizasiz V*I %3'ten fazla sapar (test bos degil)", abs(hizasiz / gercek - 1) > 0.03,
+        f"{hizasiz / gercek:.5f}")
+    # 4) yedek dugumler: parca basi/sonu dogrusal, tek ornek V_k, hata/sont 0 -> NaN
+    kq = kal((100.0, -400.0))
+    orn = [(1_000_000 + 2000 * j, 100 * j, 50, 0) for j in range(3)] + [(1_100_000, 777, 9, 0)]
+    w = dict(KB.ayrinti_guc(oturum(kq, orn)))
+    lin = (100 * 1 * 252 / 2000) * (4.096 / KB.ADS_SAYIM) * KB.amper(50, kq)
+    bak("W1.K8 parca sonundan bir onceki ornek [k, k+1] dogrusal (k+2 yok)",
+        abs(w[1] - KB.volt(100, kq.normal) * KB.amper(50, kq) - lin) < 1e-12, repr(w[1]))
+    bak("W1.K9 parcanin son ornegi (kayma >= 0, k+1 baska parcada): hizasiz V_k x I_k",
+        w[2] == KB.volt(200, kq.normal) * KB.amper(50, kq), repr(w[2]))
+    bak("W1.K10 tek ornekli parca: V_k x I_k", w[3] == KB.volt(777, kq.normal) * KB.amper(9, kq))
+    orn = [(1_000_000 + 2000 * j, 100 * (j + 1), 50, KB.KAO_YUKSEK) for j in range(3)]
+    w = dict(KB.ayrinti_guc(oturum(kq, orn)))
+    vy = [KB.volt(100 * (j + 1), kq.yuksek) for j in range(3)]
+    son = (vy[2] - (vy[2] - vy[1]) * 248 / 2000) * KB.amper(50, kq)
+    bak("W1.K11 YUKSEK menzil, kayma 152-400 < 0: ilk ornek ([k-1] yok) V_k; son ornek [k-1, k]",
+        w[0] == vy[0] * KB.amper(50, kq) and abs(w[2] - son) <= 1e-12 * abs(son), f"{w} {son}")
+    orn = [(1_000_000 + 2000 * j, 100, 50, b) for j, b in
+           enumerate([0, KB.KAO_V_HATA, 0, KB.KAO_I_HATA, 0])]
+    w = dict(KB.ayrinti_guc(oturum(kq, orn)))
+    bak("W1.K12 V/I hatali ornek NaN; V hatali komsu dugum olamaz",
+        math.isnan(w[1]) and math.isnan(w[3]) and w[0] == KB.volt(100, kq.normal) * KB.amper(50, kq)
+        and math.isfinite(w[2]) and math.isfinite(w[4]),
+        f"{w}")
+    w = KB.ayrinti_guc(oturum(kal(sont=0.0), orn))
+    bak("W1.K13 sont 0: hepsi NaN", all(math.isnan(x) for _, x in w))
+    orn = [(2_000_000 + 2000 * j, 100 * j * j, 50, 0) for j in range(6)]
+    kz = kal((9000.0, -9000.0))
+    w = dict(KB.ayrinti_guc(oturum(kz, orn)))
+    bak("W1.K18 kayma dugum araligini asarsa x kirpilir (kartin d kirpmasi): ic ornekte V_(k+2)",
+        w[2] == KB.volt(1600, kz.normal) * KB.amper(50, kz), f"{w[2]!r}")
+    # 5) yakalamanin yeri: kayit sirasi zaman sirasi degil; acilis DEVAM'dan
+    ot = KB.oturumlari_kur(KB.akis_coz(akis_yerlesim()[1]))
+    y = KB.skop_yerleri(ot[50])
+    orn = {s: (us, ac) for s, us, *_x, ac in KB.ayrinti_ornekler(ot[50])}
+    bak("W1.K14 yerler ZAMAN sirasinda (no 9 verinin oncesinde, kaydi gec)",
+        [x["no"] for x in y] == [9, 1, 3, 1, 2], f"{[x['no'] for x in y]}")
+    ic = [x for x in y if x["once"] is not None and x["sonra"] is not None]
+    bak("W1.K15 once < istek <= sonra, ayni acilis; bosluk yakalama suresinden uzun",
+        len(ic) == 3 and all(orn[x["once"]][0] < (x["t_ms"] + 1) * 1000 <= orn[x["sonra"]][0]
+                             and orn[x["once"]][1] == orn[x["sonra"]][1] == x["acilis"]
+                             and orn[x["sonra"]][0] - orn[x["once"]][0] > x["sure_ms"] * 1000
+                             for x in ic), f"{ic}")
+    bak("W1.K16 verinin oncesi: once None, sonra ilk ornek; sonu: sonra None",
+        y[0]["once"] is None and y[0]["sonra"] == 0 and y[-1]["sonra"] is None
+        and y[-1]["once"] == 118 and [x["acilis"] for x in y] == [0, 0, 0, 1, 1], f"{y}")
+    yn = KB.skop_yerleri(ot[51])
+    bak("W1.K17 nokta oturumu, millis sarmasi: yakalama icine dustugu noktada (kart_ms > t_ms)",
+        [(x["no"], x["once"], x["sonra"]) for x in yn] == [(2, 0, 1), (1, 1, 2)], f"{yn}")
+    return hatalar
+
+
 # ── flas goruntuleri ─────────────────────────────────────────────────
 def flas_vektorleri() -> list[dict]:
     r = Rng(0x2A0B)
@@ -759,6 +984,9 @@ def akis_vektoru(ad: str, veri: bytes) -> dict:
     d["ayrinti_ornekler"] = [[i, j(KB.ayrinti_ornekler(o))] for i, o in ot.items() if o.ayrinti]
     d["skop_ikili"] = [[i, s, j(KB.skop_ikili(y))] for i, o in ot.items()
                        for s, y in o.skoplar.items()]
+    # W1: yakalamanin yeri (Y7) ve hizali guc — yalniz ilgili oturumlar
+    d["skop_yerleri"] = [[i, j(KB.skop_yerleri(o))] for i, o in ot.items() if o.skoplar]
+    d["ayrinti_guc"] = [[i, j(KB.ayrinti_guc(o))] for i, o in ot.items() if o.ayrinti]
     return d
 
 
@@ -1001,7 +1229,8 @@ def vektorler() -> dict:
     akis = [akis_olcum_v2(), akis_olcum_v1(), akis_basi_eksik(), akis_pil(), akis_ayrinti(),
             akis_skop(), akis_skop_nan(), akis_coklu(), akis_utf8(), akis_ozel_float(),
             akis_rastgele(0x2A10, 70), akis_rastgele(0x2A11, 70)] + akis_bozuklar() + [
-        akis_uzun_kayitlar(), akis_kisa_kayitlar(), akis_bilinmeyen_oturum(), akis_surum_nul()]
+        akis_uzun_kayitlar(), akis_kisa_kayitlar(), akis_bilinmeyen_oturum(), akis_surum_nul(),
+        akis_yerlesim()]
     crc_v = [{"veri": j(b"123456789"), "onceki": 0, "cikti": KB.crc(b"123456789")},
              {"veri": j(b""), "onceki": 0x12345678, "cikti": KB.crc(b"", 0x12345678)}]
     for _ in range(12):
@@ -1069,7 +1298,7 @@ def main() -> int:
     ap.add_argument("--denetle", action="store_true",
                     help="dosyayi yazma; depodakiyle karsilastir, farkliysa 1 don")
     a = ap.parse_args()
-    kh = kurallar()
+    kh = kurallar() + w1_kurallar()
     for s in kh[:30]:
         print("  KURAL " + s)
     if kh:

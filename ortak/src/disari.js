@@ -52,9 +52,16 @@
 //            buyuklugu min olmayabilir — kayit ne diyorsa o). W kartin sakladigi watt
 //            (ornek basina V*I ortalamasi). n = 0 (hic gecerli ornek yok): V/A/W BOS.
 // ayrintiCsv ornek basina satir (hiz 0): sira, acilis, devam, kart_us, gecen_ms (3 hane),
-//            unix_s, zaman_utc, V, A, W (= V*A, PC'de), ornek_bayrak (KAO), kayit_bayrak (KA;
+//            unix_s, zaman_utc, V, A, W, ornek_bayrak (KAO), kayit_bayrak (KA;
 //            kaydin ILK orneginde: KA_SILME/KA_KAYIP_ONCE), bayraklar, not. KAO_V_HATA'li
-//            ornekte V (ve W) BOS, KAO_I_HATA'lida A (ve W) BOS.
+//            ornekte V (ve W) BOS, KAO_I_HATA'lida A (ve W) BOS. W1: W = HIZALI guc
+//            (kayit.js ayrintiGuc: V akim ornegi anina Lagrange'la tasinir, kartin o.watt'iyla
+//            ayni tanim) — ayni satirin V x A'si DEGIL. V/A ham ornegin kendisi.
+// SKOP BOSLUGU (W1/Y7): oturumdaki her META'li yakalama kayit.js skopYerleri ile ZAMANINA
+//            yerlestirilir (kayit sirasi zaman sirasi degil); yakalamadan SONRAKI ilk olcum
+//            satirinin `bayraklar` hucresine "SKOP" eklenir (sayisal bayrak sutunlari kartin
+//            yazdigi gibi kalir: PC turetimi ham bayraga karismaz). Nokta oturumunda o satir
+//            yakalamanin icine dustugu noktadir.
 // pilCsv     KARAR: TEK TABLO, DCIR olaylari ZAMAN SIRASINDA AYRI SATIR (ilk sutun `kayit`:
 //            nokta | dcir). Nokta satirlari oturumCsv sutunlari + birikimli mAh/Wh (PC,
 //            yamuk, bosluk haric — rapor enerjisiyle son satirda AYNI sayi); DCIR satirinda
@@ -73,7 +80,7 @@
 // Ayni satirdaki notlar LF ile (tirnakli hucre icinde) birlesir, asil not sirasiyla.
 
 import {
-  volt, amper, ayrintiOrnekler, kayitPaketle, T_NOT,
+  volt, amper, ayrintiOrnekler, ayrintiGuc, skopYerleri, kayitPaketle, T_NOT,
   KN_YUKSEK, KN_V_HATA, KN_I_HATA, KN_V_DOYDU, KN_DURAKLAMA, KN_KAYIP_ONCE, KN_DCIR,
   KAO_YUKSEK, KAO_V_HATA, KAO_I_HATA, KAO_V_DOYDU, KA_KAYIP_ONCE, KA_SILME, KO_DCIR,
   T_DEVAM,
@@ -90,6 +97,9 @@ export const BASAMAK = Object.freeze({
 export const NOKTA_BOSLUK_KAT = 2.5;
 /** Ayrintili kipte bosluk: kartin YENI AYRINTI kaydi actigi sinir (dt4 12 bit x 4 us). */
 export const AYRINTI_BOSLUK_MS = 4095 * 4 / 1000;
+
+/** PC'nin turettigi (kayitta biti olmayan) ad: yakalamadan sonraki ilk olcum satiri (W1/Y7). */
+export const SKOP_BAYRAK_AD = "bayrak.skop";
 
 /** Bayrak bit -> sozluk anahtari (adlar '|' ile). Bilinmeyen bit 0x.. diye yazilir. */
 export const BAYRAKLAR = Object.freeze({
@@ -339,13 +349,16 @@ function segmentNo(eksen, s) {
 
 /**
  * kart_ms'li bir anin (OLAY, NOT, SKOP) zamani. kayitSira: anin kayit sirasi (NOT icin
- * null). araliklar: noktaSerileri/ayrintiSerileri'nin acilis basina [enKucukRel, enBuyukRel].
+ * null). acilis: biliniyorsa (yakalama: kayit.js `acilis`) dogrudan o; yoksa kayitSira/sezgi.
+ * araliklar: noktaSerileri/ayrintiSerileri'nin acilis basina [enKucukRel, enBuyukRel].
  * Donus {acilis, relMs, gecenMs, unixMs} — bilinmeyen alan null; acilis null = belirsiz.
  */
-export function anZamani(eksen, araliklar, kartMs, kayitSira = null) {
+export function anZamani(eksen, araliklar, kartMs, kayitSira = null, acilis = null) {
   const seg = eksen.segmentler;
   let no = null;
-  if (!eksen.devamVar) {
+  if (acilis !== null && Number.isInteger(acilis) && acilis >= 0 && acilis < seg.length) {
+    no = acilis;                       // W1: kayit.js'in bildigi acilis (yakalama: DEVAM sayisi)
+  } else if (!eksen.devamVar) {
     no = 0;
   } else if (kayitSira !== null && eksen.kayitlarVar) {
     no = 0;
@@ -383,7 +396,8 @@ function kanalSec(kal, yuksek) {
  * Nokta oturumunun fiziksel serileri (nokta sirasiyla). Diziler:
  *   sira, acilis, devam (0/1), kartMs, n, bayrak: Array;  relMs (acilis capasindan, ms),
  *   gecenMs, unixMs: Float64Array (bilinmeyen NaN);  vOrt vMin vMaks iOrt iMin iMaks wOrt
- *   wMin wMaks: Float64Array (V, A, W; eksik NaN).
+ *   wMin wMaks: Float64Array (V, A, W; eksik NaN); skop: Array (W1: yakalamanin icine dustugu
+ *   noktada o yakalamanin skoplar anahtari, digerlerinde 0 — skopSonralari).
  * araliklar[acilis] = [ilk rel, son rel] (o acilisin noktalari). eksen: zamanEkseni.
  */
 export function noktaSerileri(oturum, secenek = {}) {
@@ -396,7 +410,9 @@ export function noktaSerileri(oturum, secenek = {}) {
     adet: n, eksen, araliklar: [], sira: [], acilis: [], devam: [], kartMs: [], n: [], bayrak: [],
     relMs: new Float64Array(n), gecenMs: f(), unixMs: f(),
     vOrt: f(), vMin: f(), vMaks: f(), iOrt: f(), iMin: f(), iMaks: f(), wOrt: f(), wMin: f(), wMaks: f(),
+    skop: [],
   };
+  const sonralar = skopSonralari(oturum);
   let onceSeg = 0;
   let onceKart = 0;
   let onceRel = 0;
@@ -410,6 +426,7 @@ export function noktaSerileri(oturum, secenek = {}) {
     r.kartMs.push(p.kart_ms);
     r.n.push(p.n);
     r.bayrak.push(p.bayrak);
+    r.skop.push(sonralar.get(s) || 0);
     r.relMs[k] = rel;
     if (seg.ofsetMs !== null) r.gecenMs[k] = seg.ofsetMs + rel;
     if (seg.unixMs !== null) r.unixMs[k] = seg.unixMs + rel;
@@ -439,6 +456,14 @@ export function noktaSerileri(oturum, secenek = {}) {
   return r;
 }
 
+/** W1/Y7: olcum sirasi -> o siradan HEMEN ONCE biten yakalamanin skoplar anahtari
+ *  (kayit.js skopYerleri `sonra`; ayni satira iki yakalama duserse ZAMANCA ilki). */
+export function skopSonralari(oturum) {
+  const m = new Map();
+  for (const y of skopYerleri(oturum)) if (y.sonra !== null && !m.has(y.sonra)) m.set(y.sonra, y.sira);
+  return m;
+}
+
 /** Ornek sirasi -> kaydin KA bayragi (yalniz o ornegi SAGLAYAN kaydin ILK ornegiyse). */
 function ayrintiKayitBayraklari(oturum) {
   const m = new Map();
@@ -458,8 +483,10 @@ const US_SARMA = IKI32 * 1000;
 
 /**
  * Ayrintili oturumun ornek serileri (ornek sirasiyla). Diziler: sira, acilis, devam, kartUs,
- * ornekBayrak, kayitBayrak: Array; relUs, gecenUs, unixUs (bilinmeyen NaN), relMs: Float64Array;
- * v, i, w: Float64Array (KAO_V_HATA -> v NaN, KAO_I_HATA -> i NaN; w = v*i). araliklar ms.
+ * ornekBayrak, kayitBayrak, skop: Array; relUs, gecenUs, unixUs (bilinmeyen NaN), relMs:
+ * Float64Array; v, i, w: Float64Array (KAO_V_HATA -> v NaN, KAO_I_HATA -> i NaN; w = HIZALI guc,
+ * kayit.js ayrintiGuc — V x I DEGIL). skop: yakalamadan sonraki ilk ornekte o yakalamanin
+ * skoplar anahtari, digerlerinde 0. araliklar ms.
  */
 export function ayrintiSerileri(oturum, secenek = {}) {
   const eksen = secenek.eksen || zamanEkseni(oturum, secenek.kayitlar || null);
@@ -470,9 +497,11 @@ export function ayrintiSerileri(oturum, secenek = {}) {
   const f = () => new Float64Array(n).fill(NaN);
   const r = {
     adet: n, eksen, araliklar: [], sira: [], acilis: [], devam: [], kartUs: [], ornekBayrak: [],
-    kayitBayrak: [], relUs: new Float64Array(n), relMs: new Float64Array(n), gecenUs: f(), unixUs: f(),
-    v: f(), i: f(), w: f(),
+    kayitBayrak: [], skop: [], relUs: new Float64Array(n), relMs: new Float64Array(n), gecenUs: f(),
+    unixUs: f(), v: f(), i: f(), w: f(),
   };
+  const guc = ayrintiGuc(oturum);                 // ayni siralama (sira, kararli): k. eleman = k. ornek
+  const sonralar = skopSonralari(oturum);
   let onceSeg = 0;
   orn.forEach(([[s, us, vk, ik, b, ac]], k) => {
     const seg = eksen.segmentler[ac] || eksen.segmentler[eksen.segmentler.length - 1];
@@ -485,6 +514,7 @@ export function ayrintiSerileri(oturum, secenek = {}) {
     r.kartUs.push(us);
     r.ornekBayrak.push(b);
     r.kayitBayrak.push(kb.get(s) || 0);
+    r.skop.push(sonralar.get(s) || 0);
     r.relUs[k] = rel;
     r.relMs[k] = rel / 1000;
     if (seg.ofsetMs !== null) r.gecenUs[k] = seg.ofsetMs * 1000 + rel;
@@ -495,8 +525,9 @@ export function ayrintiSerileri(oturum, secenek = {}) {
     if (kal) {
       if (!(b & KAO_V_HATA)) r.v[k] = volt(vk, kanalSec(kal, b & KAO_YUKSEK), true);
       if (!(b & KAO_I_HATA) && kal.sont_ohm !== 0) r.i[k] = amper(ik, kal, true);
-      r.w[k] = r.v[k] * r.i[k];
     }
+    if (guc[k][0] !== s) throw new Error("ayrintiGuc sirasi ornek sirasiyla uyusmuyor");
+    r.w[k] = guc[k][1];
     onceSeg = ac;
   });
   return r;
@@ -560,6 +591,13 @@ function noktaHucreleri(y, s, k) {
   ];
 }
 
+/** Bayrak adlari + (yakalamadan sonraki ilk satirsa) PC'nin "SKOP" adi, '|' ile. */
+function adlarSkop(adlar, skop, dil) {
+  if (!skop) return adlar;
+  const s = ceviri(SKOP_BAYRAK_AD, dil);
+  return adlar ? adlar + "|" + s : s;
+}
+
 function notHucre(y, notlar, k) {
   const n = notlar.get(k);
   return n ? y.metin(n.join("\n")) : "";
@@ -579,7 +617,7 @@ export function oturumCsv(oturum, secenek = {}) {
       y.tam(s.sira[k]), y.tam(s.acilis[k]), y.tam(s.devam[k]), y.tam(s.kartMs[k]),
       ...zamanHucreleri(y, s.gecenMs[k], s.unixMs[k]),
       ...noktaHucreleri(y, s, k),
-      y.tam(s.bayrak[k]), y.metin(bayrakAdlari(s.bayrak[k], BAYRAKLAR.nokta, y.b.dil)),
+      y.tam(s.bayrak[k]), y.metin(adlarSkop(bayrakAdlari(s.bayrak[k], BAYRAKLAR.nokta, y.b.dil), s.skop[k], y.b.dil)),
       notHucre(y, notlar, k),
     ]);
   }
@@ -597,8 +635,8 @@ export function ayrintiCsv(oturum, secenek = {}) {
     const g = s.gecenUs[k];
     const u = s.unixUs[k];
     const ms = Number.isFinite(u) ? ciftBol(u, 1000) : null;
-    const adlar = [bayrakAdlari(s.ornekBayrak[k], BAYRAKLAR.ornek, y.b.dil),
-      bayrakAdlari(s.kayitBayrak[k], BAYRAKLAR.kayit, y.b.dil)].filter((x) => x).join("|");
+    const adlar = adlarSkop([bayrakAdlari(s.ornekBayrak[k], BAYRAKLAR.ornek, y.b.dil),
+      bayrakAdlari(s.kayitBayrak[k], BAYRAKLAR.kayit, y.b.dil)].filter((x) => x).join("|"), s.skop[k], y.b.dil);
     c += y.satir([
       y.tam(s.sira[k]), y.tam(s.acilis[k]), y.tam(s.devam[k]), y.tam(s.kartUs[k]),
       Number.isFinite(g) ? y.olcekli(g, BASAMAK.ayrinti_ms) : "",
@@ -691,7 +729,7 @@ export function pilCsv(oturum, secenek = {}) {
     ...noktaHucreleri(y, s, k),
     y.sayi(mah[k], BASAMAK.mAh), y.sayi(wh[k], BASAMAK.Wh),
     "", "", "", "", "", "", "", "", "",
-    y.tam(s.bayrak[k]), y.metin(bayrakAdlari(s.bayrak[k], BAYRAKLAR.nokta, y.b.dil)),
+    y.tam(s.bayrak[k]), y.metin(adlarSkop(bayrakAdlari(s.bayrak[k], BAYRAKLAR.nokta, y.b.dil), s.skop[k], y.b.dil)),
     notHucre(y, notlar, k),
   ]);
   const olay = ({ o, z }) => y.satir([

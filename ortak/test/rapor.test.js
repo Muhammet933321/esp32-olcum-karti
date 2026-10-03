@@ -301,7 +301,7 @@ test("DEVAM'li oturumda olay acilisi: kayitlar verilirse kesin, verilmezse belir
 });
 
 // ── ayrintili ────────────────────────────────────────────────────────
-test("ayrintili oturum: istatistik ve enerji ORNEKLERDEN; bosluk > 16.38 ms ve DEVAM haric; KA uyarilari", () => {
+test("ayrintili oturum: istatistik ve enerji ORNEKLERDEN (Wh HIZALI W'den, W1); bosluk > 16.38 ms ve DEVAM haric; KA uyarilari", () => {
   const v = V.ayrinti[0];
   const kay = K.akisCoz(hexten(v.veri));
   const o = K.oturumlariKur(kay).get(v.oturum);
@@ -310,8 +310,9 @@ test("ayrintili oturum: istatistik ve enerji ORNEKLERDEN; bosluk > 16.38 ms ve D
   const kal = o.basla.kal;
   const dv = o.devamlar.map((d) => d.nokta_sira);
   const capa = [o.basla.kart_ms, ...o.devamlar.map((d) => d.kart_ms)];
+  const gw = new Map(K.ayrintiGuc(o));
   const orn = K.ayrintiOrnekler(o).map(([s, us, vk, ik, b, ac]) => ({
-    s, ac, t: us / 1000 - capa[ac],
+    s, ac, t: us / 1000 - capa[ac], w: gw.get(s),
     v: b & K.KAO_V_HATA ? NaN : K.volt(vk, b & K.KAO_YUKSEK ? kal.yuksek : kal.normal, true),
     i: b & K.KAO_I_HATA ? NaN : K.amper(ik, kal, true), b,
   }));
@@ -326,18 +327,29 @@ test("ayrintili oturum: istatistik ve enerji ORNEKLERDEN; bosluk > 16.38 ms ve D
   for (const x of orn) {
     if (Number.isNaN(x.v) || Number.isNaN(x.i)) continue;
     if (once && once.ac === x.ac && x.t - once.t <= 16.38) {
-      wh += (once.v * once.i + x.v * x.i) / 2 * (x.t - once.t) / 3_600_000;
+      wh += (once.w + x.w) / 2 * (x.t - once.t) / 3_600_000;
       mah += (once.i + x.i) / 2 * (x.t - once.t) / 3_600;
     }
     once = x;
   }
   yakin(r.enerji.wh, wh, "wh");
   yakin(r.enerji.mah, mah, "mah");
+  yakin(r.enerji.wh, v.enerji.wh, "wh == Python bagimsiz hizali W enerjisi");
+  yakin(r.enerji.mah, v.enerji.mah, "mah == Python");
+  let ham = 0;
+  once = null;
+  for (const x of orn) {
+    if (Number.isNaN(x.v) || Number.isNaN(x.i)) continue;
+    if (once && once.ac === x.ac && x.t - once.t <= 16.38) ham += (once.v * once.i + x.v * x.i) / 2 * (x.t - once.t);
+    once = x;
+  }
+  assert.ok(Math.abs(ham / 3_600_000 - wh) > 1e-6 * Math.abs(wh), "hizali ve hizasiz enerji ayni: test bos");
   const u = Object.fromEntries(r.uyarilar.map((x) => [x.kod, x.sayi]));
   assert.equal(u.silme, 1);
   assert.equal(u.kayip_once, 1);
+  assert.equal(u.skop_bosluk, 2, "W1/Y7: iki yakalama olcumun icinde");
   assert.equal(u.v_hata, orn.filter((x) => x.b & K.KAO_V_HATA).length);
-  assert.equal(r.zaman.boslukAdet, 3, "iki ic bosluk (silme, kayip) + DEVAM");
+  assert.equal(r.zaman.boslukAdet, 5, "iki ic bosluk (silme, kayip) + iki yakalama boslugu + DEVAM");
   assert.ok(dv.length === 1);
 });
 
@@ -357,6 +369,19 @@ test("skop oturumu: yakalama sayilari, eksik uyarisi, bitis = son yakalamanin so
   assert.equal(r.uyarilar.find((x) => x.kod === "skop_eksik").sayi, 1);
   assert.equal(r.zaman.toplamMs, 1540);
   assert.equal(r.kimlik.tur.metin, ceviri("oturum.tur.3", "tr"));
+});
+
+test("W1/Y7: yakalamalar ZAMAN sirasinda, acilis yakalamanin kendisinden (ham kayit VERILMEDEN), gecen == Python", () => {
+  for (const v of [...V.olcum, ...V.ayrinti]) {
+    const o = K.oturumlariKur(K.akisCoz(hexten(v.veri))).get(v.oturum);
+    const r = oturumRaporu(o);                         // kayitlar YOK: eskiden DEVAM'li oturumda sezgi
+    assert.deepEqual(r.skop.yakalamalar.map((y) => [y.sira, y.acilis, y.gecenMs]), v.yakalamalar, v.ad || "ayrinti");
+    assert.ok(!r.uyarilar.some((x) => x.kod === "zaman_belirsiz"), "yakalama zamani belirsiz kaldi");
+  }
+  const va = V.ayrinti[0];
+  assert.ok(va.yakalamalar.length === 3 && va.yakalamalar[2][1] === 1, "vektor: DEVAM'dan sonra yakalama yok — test bos");
+  assert.ok(va.yakalamalar[0][0] > va.yakalamalar[1][0], "vektor: kayit sirasi zaman sirasindan farkli degil — test bos");
+  assert.ok(V.olcum.every((v) => v.yakalamalar.some((y) => y[1] === 1)), "vektor: belirsiz (iki acilisa uyan) yakalama yok");
 });
 
 // ── bicim ────────────────────────────────────────────────────────────

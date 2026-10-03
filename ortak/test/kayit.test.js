@@ -121,6 +121,13 @@ for (const a of V.akislar) {
     for (const [id, sira, py] of a.skop_ikili) {
       esit("skop_ikili", K.skopIkili(ot.get(id).skoplar.get(sira)), py, `${a.ad} ${id}/${sira}`);
     }
+    // W1: yakalamanin yeri (Y7) ve hizali guc (bit bit)
+    for (const [id, py] of a.skop_yerleri) {
+      esit("skop_yerleri", K.skopYerleri(ot.get(id)), py, `${a.ad} oturum ${id}`);
+    }
+    for (const [id, py] of a.ayrinti_guc) {
+      esit("ayrinti_guc", K.ayrintiGuc(ot.get(id)), py, `${a.ad} oturum ${id}`);
+    }
   });
 }
 

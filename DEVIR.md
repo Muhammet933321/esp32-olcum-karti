@@ -10550,6 +10550,37 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.100 🟢 W1: PC'DE HİZALI GÜÇ + YAKALAMANIN ZAMANINDA YERİ (Y7) (2026-10-03, dal `w1-veri`)
+
+Ajan, kart ve firmware değişikliği yok. Kullanıcı "bensiz yapabileceklerinle devam et" dedi; kararlar
+benim, gerekçeleri `tasarim/1-acik-isler.md` "W1 kararları"nda (WK1–WK7). İki açık iş kapandı:
+**Y7** (ekli oturumda kayıt sırası zaman sırası değil, yakalama boşluğu ayrıntılı kayıtta bayraksız) ve
+**"PC'de W'nin hizalamalı hesabı"** (1C-2'den devredilen).
+
+| Dosya | Ne |
+|---|---|
+| `kopru/kayit_bicim.py` ⇄ `ortak/src/kayit.js` | Yakalama `acilis` alanı (kayıttan önceki DEVAM sayısı). `skop_yerleri`: META'lı her yakalama ZAMAN sırasıyla, `once`/`sonra` = boşluğun iki yanındaki ölçüm verisi (ayrıntılı: zamanı ≥ (t_ms+1) ms ilk örnek; nokta: kart_ms > t_ms). `ayrinti_guc`: kartın `o.watt` tanımı (V akım anına Lagrange, × I, şebeke RC ters kazancı) GERÇEK örnek zamanlarıyla; `VI_KAYMA_US` 152 (B29), `TAU_AKIM`. İki dil aynı aritmetik sırası, kayit.json'da bit bit |
+| `ortak/src/disari.js` | Ayrıntılı `w` = hizalı güç (V×A değil). `skop` dizisi; CSV `bayraklar`'a PC türetimi `SKOP` (EN `SCOPE_CAPTURE`), ham bayrak sütunları aynen. `anZamani` bilinen açılışı alır |
+| `ortak/src/rapor.js` | Ayrıntılı Wh hizalı W'den; yakalama tablosu zaman sırası + kendi açılışı (ham kayıt verilmeden de); uyarı `skop_bosluk` |
+| `arayuz3/ekran/kayit_gorunum.js` | Okuma Wh'si hizalı (raporla aynı); grafikte yakalama işareti `S<no>` (K3b, K3c) |
+| `uretim/ortak_vektor_kayit.py` | Yeni akış `yerlesim`; `w1_kurallar` W1.K1–K18: firmware kaynağı hâlâ bu formülle mi (olcum_al, lagrange4, TAU_AKIM), eşit aralıkta PC = firmware lagrange4 (1e-12), 50 Hz sinüste 1 ms kaymada hizalı ortalama %0.5 içinde / hizasız %4.9 sapar, yedek düğümler, kırpma, yakalama sırası/açılış/sarma |
+| `uretim/ortak_vektor_disari.py` | Bağımsız hizalı güç + yakalama yeri; akışlara kayıt sırası zaman sırası OLMAYAN yakalamalar, iki açılışa uyan (sezgide belirsiz) yakalama |
+
+**Bulgu (veriye dokunuyor):** ayrıntılı kayıtlarda PC'nin gösterdiği/aktardığı W ve Wh eskiden aynı
+örneğin V×I'sıydı: V, I'dan 152 µs (+ faz kalibrasyonu) ÖNCE örneklendiği için endüktif/kapasitif yükte
+kartın nokta W'sinden farklıydı (50 Hz, PF 0.5'te ~%8). Nokta oturumları zaten kartın W'sini taşıyor —
+değişmedi.
+
+**Doğrulama:** B73 25/25 (node: kayit 97, disari 25, rapor 15; vektörler `--denetle` aynı), B7 912/912
+(+1: K3c). Mutasyon `--neden W1:` 26/26 yakalandı (ayrıntı aşağıda). İki eski mutasyon kaydı bu dalın
+değiştirdiği satırlara güncellendi (B7 K3 `ei`, T3C `onDegisim`).
+
+**Açık:** firmware V–I kaymasını AYRINTI'ya yazmıyor (sabit 152 µs kullanılıyor) · ADS takılınca PC
+hizalı W ↔ kartın `D` satırı W'si tezgahta karşılaştırılmalı (T11) · 16.38 ms'den kısa skop duraklaması
+kartta hâlâ işaretsiz; PC artık META'dan bulur (O listesinde kapandı).
+
+---
+
 #### 5.12.99 🟢 HIZ ↔ main BİRLEŞMESİ (2026-10-03, dal `zincir-hiz`, ağaç `projeler/olcum-karti-hiz`)
 
 Ajan. `main` (e6e086d: 4D–4J, 3C-LISTE, kılavuz, `gercek_dizin_koru` son kuralı, köprü 405) `zincir-hiz`'e

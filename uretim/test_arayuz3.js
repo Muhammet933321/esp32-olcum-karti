@@ -3063,6 +3063,40 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
        `${e.wh} ~ ${r.enerji.wh}`);
   }
   {
+    /* W1/Y7 (K3c): yakalama isaretleri ZAMANINDA (META t_ms) — yakalamanin kaydi SONRAKI
+       orneklerden sonra yazilir (kayit sirasi zaman sirasi degil); DEVAM'dan sonraki yakalama
+       KENDI acilisinin ofsetinde. */
+    let sira = 0;
+    const ham = [];
+    const ekle = (tur, ot_, yuk) => { sira++; ham.push(K.kayitPaketle(tur, sira, ot_, yuk)); return sira; };
+    const id = ekle(K.T_BASLA, 1, K.baslaPaketle({ oturum_turu: 1, kal_bicim: 1, hiz_ms: 0, unix_s: 1790005000,
+      kart_ms: 400000, acilis: 3, surum: 'A3-W1', kal: KAL, kal_no: 2 }));
+    const ayr = (ilk, ms, n) => ekle(K.T_AYRINTI, id, K.ayrintiPaketle({ ilk, t0_ms: ms, t0_us: ms * 1000, bayrak: 0,
+      ornekler: Array.from({ length: n }, (_, k) => [1000 + k, 200 + k, k ? 500 : 0, 0]) }));
+    const skop = (no, t) => ekle(K.T_SKOP, id, K.skopPaketle({ no, ilk: 0, toplam: 2, parca: 0, kodlar: [1, 2],
+      meta: { t_ms: t, sure_ms: 30, hz: 1000, tdiv_us: 1000, adim: 0.03, ofset: 1.5, tetik: 0, esik: 2048,
+        histerezis: 8, kip: 0, tetiklendi: 1, kenar: 0, on_yuzde: 25, onay: 2 } }));
+    ayr(0, 400010, 10);                  // 400010..400028 ms
+    ayr(10, 400070, 10);                 // yakalama 400030 + 30 ms
+    skop(1, 400030);                     // kaydi SONRAKI orneklerden sonra
+    ekle(K.T_DEVAM, id, u32(4, 1790005002, 1000, 20));
+    ayr(20, 1010, 10);
+    ayr(30, 1070, 10);
+    skop(2, 1035);
+    ekle(K.T_BITIR, id, bitir(40, 1));
+    const b2 = new Uint8Array(ham.reduce((x, h) => x + h.length, 0));
+    ham.reduce((x, h) => { b2.set(h, x); return x + h.length; }, 0);
+    const kay2 = K.akisCoz(b2);
+    const o2 = K.oturumlariKur(kay2).get(id);
+    const h2 = KG.grafikSerileri(o2, { kayitlar: kay2 });
+    const is2 = KG.yakalamaIsaretleri(o2, h2);
+    ok('[!] W1/Y7 K3c: yakalama isareti iki ornegin ARASINDA (META t_ms), DEVAM sonrasi kendi acilisinda; "S<no>"',
+       is2.length === 2 && is2[0].metin === 'S1' && is2[1].metin === 'S2' && is2[0].t === 30 && is2[1].t === 2035
+       && h2.t[9] < is2[0].t && is2[0].t < h2.t[10] && h2.t[29] < is2[1].t && is2[1].t < h2.t[30]
+       && KG.yakalamaIsaretleri(A, hA).length === 0,
+       JSON.stringify(is2) + ' t9..10=' + h2.t[9] + ',' + h2.t[10] + ' t29..30=' + h2.t[29] + ',' + h2.t[30]);
+  }
+  {
     const ok2 = KG.okumaHesapla(hA, 1450, 610);           // ters sirayla da
     const v = nsA.vOrt;
     const ort = (v[3] + v[4] + v[5] + v[6]) / 4;   // [610, 1450] icindeki ornekler: t 800..1400 (sira 3..6)

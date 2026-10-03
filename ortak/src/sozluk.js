@@ -95,6 +95,7 @@ export const SOZLUK = Object.freeze({
   "bayrak.kayip_once": S("KAYIP_ONCE", "LOSS_BEFORE"),
   "bayrak.dcir": S("DCIR", "DCIR"),
   "bayrak.silme": S("SILME", "FLASH_ERASE"),
+  "bayrak.skop": S("SKOP", "SCOPE_CAPTURE"),      // W1: PC turetir (yakalamadan sonraki ilk satir)
 
   // ── CSV basliklari (ASCII snake_case + SI birim soneki)
   "csv.kayit": S("kayit", "row_type"),
@@ -265,6 +266,8 @@ export const SOZLUK = Object.freeze({
   "uyari.not_belirsiz": S("{sayi} notun grafikteki yeri belirsiz (kart_ms birden fazla açılışa uyuyor ya da hiçbirine).",
     "Position of {sayi} note(s) is ambiguous (board_ms fits several boots or none)."),
   "uyari.olay_bilinmeyen": S("{sayi} olayın türü bu sürümde bilinmiyor.", "{sayi} event(s) of a type unknown to this version."),
+  "uyari.skop_bosluk": S("{sayi} osiloskop yakalaması ölçümü durdurdu; boşluktan sonraki ilk satır SKOP ile işaretli.",
+    "{sayi} oscilloscope capture(s) paused the measurement; the first row after each gap is flagged SCOPE_CAPTURE."),
   "uyari.skop_eksik": S("{sayi} osiloskop yakalaması eksik (parça eşitlenmemiş).",
     "{sayi} oscilloscope capture(s) incomplete (part not synced)."),
   "uyari.kal_farkli": S("Geçmişteki {no} numaralı kalibrasyon oturumun kopyasından farklı; çevrimde kopya kullanıldı.",

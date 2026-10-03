@@ -13,17 +13,21 @@
 //  * Enerji yamuk kuraliyla, ACILIS BASINA (DEVAM sinirinin ustunden integral YOK) ve acilis
 //    icinde bosluk > hiz x 2.5 (ayrintili: > 16.38 ms) haric; acilis toplamlari sirayla
 //    toplanir. Wh = ∫ W dt — nokta oturumunda kartin W'si (ornek basina V*I ortalamasi; ort V x
-//    ort A DEGIL, dalgali yukte ayrisir); ayrintilida V*I. mAh = ∫ A dt. pilCsv'nin son
+//    ort A DEGIL, dalgali yukte ayrisir); ayrintilida HIZALI W (W1: kayit.js ayrintiGuc — V
+//    akim ornegi anina tasinir; ayni ornegin V x I'si DEGIL). mAh = ∫ A dt. pilCsv'nin son
 //    satiriyla bit bit ayni.
 //  * Sure: toplamMs = baslangictan (BASLA) son veriye (bosluklar DAHIL); olculenMs = enerjiye
 //    giren sure; boslukMs = bosluk sayilan ardisik araliklarin toplami (acilis gecisi dahil;
 //    gecis suresi bilinmiyorsa null).
 //  * Olaylar KAYIT SIRASIYLA (gercek zaman sirasi). Zamanlar disari.js zaman ekseninden.
+//  * Osiloskop yakalamalari ZAMAN SIRASIYLA (W1/Y7: kayit sirasi degil — kayit.js skopYerleri;
+//    acilis yakalamanin kendi `acilis`'inden). META'siz yakalama sonda, kayit sirasiyla.
+//    Olcumun icine dusen yakalama (oncesinde ve sonrasinda veri var) uyari `skop_bosluk`.
 //  * Kalibrasyon: cevrim HER ZAMAN oturumun kendi kopyasiyla (kopya); kal_no gecmiste aranir.
 //    Gecmis kaydi sifir ofsetleri haric (kalgec.h kgc__iz) kopyayla ayni degilse 'kal_farkli'.
 
 import {
-  OTURUM_PIL, KO_PIL_AYAR, KO_DCIR, KO_PIL_SONUC,
+  OTURUM_PIL, KO_PIL_AYAR, KO_DCIR, KO_PIL_SONUC, skopYerleri,
   KN_V_HATA, KN_I_HATA, KN_V_DOYDU, KN_DURAKLAMA, KN_KAYIP_ONCE,
   KAO_V_HATA, KAO_I_HATA, KAO_V_DOYDU, KA_KAYIP_ONCE, KA_SILME,
 } from "./kayit.js";
@@ -205,12 +209,16 @@ export function oturumRaporu(oturum, secenek = {}) {
     satir = { acilis: seri.acilis, relMs: seri.relMs, gecenMs: gecen, unixMs: unix, adet: seri.adet };
     ist = { v: kanal(seri.v, seri.v, seri.v, seri.sira, gecen), i: kanal(seri.i, seri.i, seri.i, seri.sira, gecen),
       w: kanal(seri.w, seri.w, seri.w, seri.sira, gecen) };
+    const birler = new Float64Array(seri.adet).fill(1);
     for (const [p, q] of acilisParcalari(seri.acilis)) {
-      const e = enerji(seri.relMs.subarray(p, q), seri.v.subarray(p, q), seri.i.subarray(p, q),
+      const t = seri.relMs.subarray(p, q);
+      const ew = enerji(t, seri.w.subarray(p, q), birler.subarray(p, q),
         -Infinity, Infinity, { boslukMs: AYRINTI_BOSLUK_MS });
-      en.wh += e.wh;
-      en.mah += e.mah;
-      en.sureS += e.sureS;
+      const ei = enerji(t, seri.v.subarray(p, q), seri.i.subarray(p, q),
+        -Infinity, Infinity, { boslukMs: AYRINTI_BOSLUK_MS });
+      en.wh += ew.wh;
+      en.mah += ei.mah;
+      en.sureS += ei.sureS;
     }
     for (let k = 0; k < seri.adet; k++) {
       if (seri.kayitBayrak[k] & KA_KAYIP_ONCE) uyar("kayip_once", 1);
@@ -287,9 +295,14 @@ export function oturumRaporu(oturum, secenek = {}) {
   }
 
   // ── skop
-  const yakalamalar = [...oturum.skoplar.entries()].sort((x, y) => x[0] - y[0]).map(([sira, y]) => {
+  const yerler = skopYerleri(oturum);
+  const yeri = new Map(yerler.map((x) => [x.sira, x]));
+  uyar("skop_bosluk", yerler.filter((x) => x.once !== null && x.sonra !== null).length);
+  const skopSira = [...yerler.map((x) => x.sira),
+    ...[...oturum.skoplar.keys()].filter((k) => !yeri.has(k)).sort((x, y) => x - y)];
+  const yakalamalar = skopSira.map((sira) => [sira, oturum.skoplar.get(sira)]).map(([sira, y]) => {
     const m = y.meta;
-    const z = m ? anZamani(eksen, araliklar, m.t_ms, sira) : null;
+    const z = m ? anZamani(eksen, araliklar, m.t_ms, sira, y.acilis) : null;
     if (z && z.acilis === null) uyar("zaman_belirsiz", 1);
     if (!y.tam) uyar("skop_eksik", 1);
     return { sira, no: y.no, toplam: y.toplam, tam: y.tam, hz: m ? m.hz : null, tdivUs: m ? m.tdiv_us : null,

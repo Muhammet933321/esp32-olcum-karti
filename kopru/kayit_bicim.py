@@ -15,6 +15,8 @@ Guc (W) kayit anindaki kalibrasyonla watt olarak saklanir.
 """
 from __future__ import annotations
 
+import bisect
+import math
 import struct
 import zlib
 from dataclasses import dataclass, field
@@ -454,6 +456,156 @@ def unix_zaman(s: int) -> datetime | None:
     return None if not s else datetime.fromtimestamp(s, timezone.utc)
 
 
+# ── W1: PC hesaplari — yakalamanin yeri (Y7) ve hizali guc ────────────
+# JS karsiligi ortak/src/kayit.js (skopYerleri, ayrintiGuc): ayni aritmetik SIRASI, capraz
+# vektorle bit bit (uretim/ortak_vektor_kayit.py). Kararlar tasarim/1-acik-isler.md W1.
+US_SARMA = 2**32 * 1000        # millis() 32 bit sarmasinin mikrosaniyesi (ayrinti us bu alanda)
+AYRINTI_BOSLUK_US = 4095 * 4   # dt4 12 bit x 4 us: kart bu boslukta YENI AYRINTI kaydi acar
+# V-I BASLATMA KAYMASI: olcum_al iki ADS'e tek atisi ARDI ARDINA yazar; akim ornegi gerilimden
+# bu kadar GEC alinir. Kart her ornekte OLCER (t_kayma_us) ama AYRINTI kaydina YAZMAZ; kartta
+# B29'da olculen deger (F satiri: 152 us, tezgah_kart.py 80..400 bandini denetler). Hata payi
+# +-20 us = 50 Hz'te 0.36 derece. Ornek zaman damgasinin olcum_al donusunde (~1.8 ms GEC)
+# olmasi V ve I'ya AYNI kaydir: hizalamaya girmez, ham zaman (kart_us) aynen kalir.
+VI_KAYMA_US = 152.0
+TAU_AKIM = struct.unpack("<f", struct.pack("<f", 0.002904))[0]   # olcum3.h TAU_AKIM (float32)
+
+
+def _isaretli(x: int, m: int) -> int:
+    """x mod m, [-m/2, m/2) araligina: isaretli sarma farki (m cift)."""
+    x %= m
+    return x - m if x >= m // 2 else x
+
+
+def _olcum_zamanlari(o) -> list[tuple[int, int, int]]:
+    """Olcum verisi (sira, zaman_us, acilis), sira ile. Ayrintili oturum (AYRINTI var, nokta
+    yok; disari.js grafikSerileri ile ayni kural): her ornek, us = o acilisin micros'u
+    (ayrinti_ornekler). Nokta oturumu: her nokta, us = kart_ms x 1000 (noktanin BITTIGI an),
+    acilis = nokta_sira <= sira olan DEVAM sayisi."""
+    if o.ayrinti and not o.noktalar:
+        return [(r[0], r[1], r[5]) for r in sorted(ayrinti_ornekler(o), key=lambda r: r[0])]
+    dv = sorted(d["nokta_sira"] for d in o.devamlar)
+    return [(s, p.kart_ms * 1000, sum(1 for d in dv if d <= s))
+            for s, p in sorted(o.noktalar, key=lambda x: x[0])]
+
+
+def skop_yerleri(o) -> list[dict]:
+    """Y7: META'li her yakalamanin olcumdeki YERI, ZAMAN sirasiyla (kayit sirasi zaman sirasi
+    DEGIL: gorev yakalamayi yazmadan once bekleyen noktalari/ornekleri bosaltir, ~100 ms).
+    {"sira" (skoplar anahtari), "no", "acilis", "t_ms", "sure_ms", "once", "sonra"}:
+    sonra = yakalama isteginden (t_ms) SONRAKI ilk olcum verisinin sirasi (ayrintili: zamani
+    >= (t_ms + 1) x 1000 us olan ilk ornek — istek o turun ornegini keser, t_ms tabana
+    yuvarli; nokta: kart_ms > t_ms olan ilk nokta = yakalamanin icine dustugu nokta), once =
+    ayni acilista ondan onceki veri; yoksa None. Yakalamanin olcumde biraktigi BOSLUK once ile
+    sonra arasidir. Siralama (acilis, t_ms'nin o acilisin ilk yakalamasina isaretli 32 bit
+    farki, sira). META'siz (yetim) yakalama zamani bilinmedigi icin listede YOK."""
+    if not o.skoplar:
+        return []
+    gruplar: dict[int, dict] = {}
+    for s, us, ac in _olcum_zamanlari(o):
+        g = gruplar.get(ac)
+        if g is None:
+            g = gruplar[ac] = {"us0": us, "sira": [], "rel": []}
+        g["sira"].append(s)
+        g["rel"].append(_isaretli(us - g["us0"], US_SARMA))
+    ilk_t: dict[int, int] = {}
+    yerler = []
+    for sira in sorted(o.skoplar):
+        y = o.skoplar[sira]
+        m = y["meta"]
+        if m is None:
+            continue
+        ac = y["acilis"]
+        t0 = ilk_t.setdefault(ac, m["t_ms"])
+        once = sonra = None
+        g = gruplar.get(ac)
+        if g is not None:
+            j = bisect.bisect_left(g["rel"], _isaretli((m["t_ms"] + 1) * 1000 - g["us0"], US_SARMA))
+            sonra = g["sira"][j] if j < len(g["sira"]) else None
+            once = g["sira"][j - 1] if j > 0 else None
+        yerler.append(((ac, _isaretli(m["t_ms"] - t0, 2**32), sira),
+                       {"sira": sira, "no": y["no"], "acilis": ac, "t_ms": m["t_ms"],
+                        "sure_ms": m["sure_ms"], "once": once, "sonra": sonra}))
+    yerler.sort(key=lambda x: x[0])
+    return [d for _, d in yerler]
+
+
+def _suzgec_ters_kazanc(f_hz: float, tau_s: float) -> float:
+    """olcum3.h suzgec_ters_kazanc, float64: 1/|H| = sqrt(1 + (2 pi f tau)^2); f/tau <= 0 -> 1."""
+    if f_hz <= 0 or tau_s <= 0:
+        return 1.0
+    w = 2 * math.pi * f_hz * tau_s
+    return math.sqrt(1 + w * w)
+
+
+def _lagrange(dx: list[int], y: list[float], x: float) -> float:
+    """dx dugumlerinden (us, tamsayi) gecen polinomun x'teki degeri. Esit aralikta (dx =
+    -T, 0, T, 2T; x = dT) olcum3.h lagrange4 katsayilarini verir (B73.W)."""
+    t = 0.0
+    for j in range(len(dx)):
+        pay = payda = 1.0
+        for m in range(len(dx)):
+            if m != j:
+                pay *= x - dx[m]
+                payda *= dx[j] - dx[m]
+        t += pay / payda * y[j]
+    return t
+
+
+def ayrinti_guc(o) -> list[tuple[int, float]]:
+    """Ayrintili ornek basina HIZALI guc (W): [(sira, w)], ornek sirasiyla (ayrinti_ornekler
+    tekilligiyle). Kartin noktaya biriktirdigi o.watt ile AYNI tanim (olcum-karti-a3.ino
+    olcum_al): V, akim ornegi anina (ornek zamani + VI_KAYMA_US + faz_kal_us[menzil])
+    Lagrange ile tasinir, I ile carpilir, sebeke_hz > 0 ise iki RC'nin ters kazanciyla
+    olceklenir. Fark: kart sabit aralik (yumusatilmis periyot) varsayar, PC GERCEK ornek
+    zamanlarini kullanir ve sonucu ORNEGIN KENDI anina koyar (kart 2 ornek gec).
+    Dugumler: k-1..k+2 (hepsi gecerli V, ayni acilis, ardisik fark 0 < dt <= 16 380 us);
+    yoksa kayma >= 0'da [k, k+1], < 0'da [k-1, k]; o da yoksa V_k (hizasiz). x dugum
+    araligina kirpilir (kartin d kirpmasi). KAO_V_HATA / KAO_I_HATA / sont 0 -> NaN."""
+    orn = sorted(ayrinti_ornekler(o), key=lambda r: r[0])
+    nan = float("nan")
+    kal = o.basla.kal if o.basla else None
+    if kal is None:
+        return [(r[0], nan) for r in orn]
+    n = len(orn)
+    v = [nan if b & KAO_V_HATA else volt(vk, kal.yuksek if b & KAO_YUKSEK else kal.normal)
+         for _s, _us, vk, _ik, b, _ac in orn]
+    f = kal.sebeke_hz
+    olcek = [_suzgec_ters_kazanc(f, k.tau) * _suzgec_ters_kazanc(f, TAU_AKIM) if f > 0 else 1.0
+             for k in (kal.normal, kal.yuksek)]
+
+    def bagli(a: int) -> bool:          # a ile a+1 ayni kesintisiz parcada
+        d = _isaretli(orn[a + 1][1] - orn[a][1], US_SARMA)
+        return orn[a][5] == orn[a + 1][5] and 0 < d <= AYRINTI_BOSLUK_US
+
+    def gecerli(a: int) -> bool:
+        return v[a] == v[a]
+
+    out = []
+    for k, (s, us, _vk, ik, b, _ac) in enumerate(orn):
+        if b & KAO_I_HATA or not gecerli(k):
+            out.append((s, nan))
+            continue
+        yk = 1 if b & KAO_YUKSEK else 0
+        kayma = VI_KAYMA_US + kal.faz_kal_us[yk]
+        if (k >= 1 and k + 2 < n and bagli(k - 1) and bagli(k) and bagli(k + 1)
+                and gecerli(k - 1) and gecerli(k + 1) and gecerli(k + 2)):
+            dugum = [k - 1, k, k + 1, k + 2]
+        elif kayma >= 0 and k + 1 < n and bagli(k) and gecerli(k + 1):
+            dugum = [k, k + 1]
+        elif kayma < 0 and k >= 1 and bagli(k - 1) and gecerli(k - 1):
+            dugum = [k - 1, k]
+        else:
+            dugum = [k]
+        dx = [_isaretli(orn[j][1] - us, US_SARMA) for j in dugum]
+        x = kayma
+        if x < dx[0]:
+            x = float(dx[0])
+        if x > dx[-1]:
+            x = float(dx[-1])
+        out.append((s, _lagrange(dx, [v[j] for j in dugum], x) * amper(ik, kal) * olcek[yk]))
+    return out
+
+
 # ── oturumlar ────────────────────────────────────────────────────────
 @dataclass
 class Oturum:
@@ -472,7 +624,8 @@ class Oturum:
     ayrinti: list[dict] = field(default_factory=list)     # 1C-2: ayrinti_coz + "sira"
     skoplar: dict[int, dict] = field(default_factory=dict)  # 1C-3: 0. parcanin (ya da yetim
                                                             # parcanin) SIRASI -> {no, meta,
-                                                            # toplam, kodlar, tam, t_sira}
+                                                            # toplam, kodlar, tam, t_sira,
+                                                            # acilis (W1: DEVAM sayisi)}
 
 
 def _not_uygula(o: Oturum, k: Kayit) -> None:
@@ -559,8 +712,10 @@ def oturumlari_kur(kayitlar: list[Kayit]) -> Oturumlar:
             y = acik.get(k.oturum)
             if (p["parca"] == 0 or y is None or y["no"] != p["no"]
                     or y["toplam"] != p["toplam"] or p["ilk"] != y["_sonraki"]):
+                # W1/Y7: acilis = oturumda bu kayittan ONCE gelen DEVAM sayisi (yuva yeniden
+                # baslamayi gecmez: yakalama yazildigi acilisa aittir; `kayitlar` gerekmez)
                 y = {"no": p["no"], "meta": None, "toplam": p["toplam"], "t_sira": k.sira,
-                     "_parca": {}, "_sonraki": 0}
+                     "acilis": len(o.devamlar), "_parca": {}, "_sonraki": 0}
                 o.skoplar[k.sira] = y
                 acik[k.oturum] = y
             if p["parca"] == 0:
