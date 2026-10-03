@@ -56,8 +56,11 @@ code{background:var(--yz2);padding:1px 6px;border-radius:5px;
 .kucuk{font-size:14px;color:var(--m2)}
 .rozet{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;
   background:var(--yz2);border:1px solid var(--cizgi);color:var(--m2)}
+pre{background:var(--yz2);border:1px solid var(--cizgi);border-radius:8px;
+  padding:10px 14px;margin:10px 0;overflow-x:auto;white-space:pre;
+  font:14px/1.5 ui-monospace,Consolas,monospace}
 </style></head><body>
-<div class="kutu"><nav class="ust"><a href="index.html">Başla</a><a href="1-ne-yapabilir.html">Ne yapabilir</a><a href="2-olcumler.html">Ölçümler</a><a href="3-pil-testi.html">Pil testi</a><a href="6-ag.html" class='bu'>Bağlanma</a><a href="2-malzemeler.html">Malzemeler</a><a href="4-kurulum.html">Kurulum</a><a href="7-yerlesim.html">Yerleşim</a><a href="8-kutu.html">Kutu</a><a href="5-muhendislik.html">Mühendislik</a></nav>
+<div class="kutu"><nav class="ust"><a href="index.html">Başla</a><a href="1-ne-yapabilir.html">Ne yapabilir</a><a href="2-olcumler.html">Ölçümler</a><a href="3-pil-testi.html">Pil testi</a><a href="6-ag.html" class='bu'>Bağlanma</a><a href="9-pc-uygulamasi.html">PC uygulaması</a><a href="2-malzemeler.html">Malzemeler</a><a href="4-kurulum.html">Kurulum</a><a href="7-yerlesim.html">Yerleşim</a><a href="8-kutu.html">Kutu</a><a href="5-muhendislik.html">Mühendislik</a></nav>
 <h1>Baglanma</h1><p class="alt">Telefondan, bilgisayardan ya da ikisinden birden</p>
 
 <p>Kartın ekranı yok; <b>tarayıcıdan</b> kullanılıyor. Üç yolu var ve
@@ -205,16 +208,17 @@ belleğinde durur; bir daha girmeniz gerekmez.</p>
 </table>
 <div class="uy"><b>Aynı anda kaç kişi bakabilir?</b> Doğrudan karta
 bağlanınca <b>4 tarayıcıya</b> kadar izleyebilir; her biri
-ölçümü biraz yavaşlatır. <b>Köprü kayıtlıyken</b> kart doğrudan bağlanan
-tarayıcıları <b>reddedip köprünün adresine yönlendiriyor</b> — o zaman
-kartla konuşan tek şey köprü olur. İkiden çok izleyici istiyorsanız
-3. kipi kullanın.</div>
+ölçümü biraz yavaşlatır. PC köprüsü karta WiFi'den bağlıyken bu yerlerden
+<b>birini</b> kullanır, USB'den bağlıyken hiçbirini. Daha çok izleyici
+istiyorsanız 3. kipi kullanın.</div>
 
 <h2>3 · USB köprü — bilgisayarda; telefon yalnız izler</h2>
 <p>Kart bilgisayara <b>USB ile</b> bağlanıyor, bilgisayarda küçük bir
 program (<code>kopru</code> klasöründeki <code>PC Baslat.bat</code>) çalışıyor. O program hem
 arayüzü yayınlıyor hem ölçümleri kaydediyor. Durdurmak için aynı
-klasördeki <code>Kopruyu Durdur.bat</code>.</p>
+klasördeki <code>Kopruyu Durdur.bat</code>. İlk eşleştirme, kayıtların
+bilgisayardaki arşivi, bildirimler ve sorun giderme:
+<a href="9-pc-uygulamasi.html">PC uygulaması</a>.</p>
 <table>
 <tr><th>Bilgisayarda</th><td>Panel <b><code>http://olcum.localhost:8770</code></b>
     — köprü yalnız bu bilgisayarı (<code>127.0.0.1</code>) dinler, başka

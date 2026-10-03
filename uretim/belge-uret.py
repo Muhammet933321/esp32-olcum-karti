@@ -10,6 +10,8 @@ ayrintisi DEVIR.md'de; burasi "kart ne yapabiliyor" sorusunun cevabi.
     uretim/tasarim3_sabit.py           bolucular, PGA, sont, ADC
     kod/olcum-karti-a3/olcum3.h        firmware sabitleri
     kod/olcum-karti-a3/*.ino, *.h      zaman tabani, tampon, sinirlar
+    kopru/*.py, *.bat, *.ps1           PC uygulamasi kilavuzu (belge_pc.py: port, adres,
+                                       aralik, klasorler, secenekler, bildirim siniflari)
 Grafiklerin verisi de HESAPLANIYOR — dekoratif cizim yok.
 
 RENK PALETI: dataviz becerisinin dogrulanmis varsayilan paleti
@@ -171,6 +173,9 @@ code{background:var(--yz2);padding:1px 6px;border-radius:5px;
 .kucuk{font-size:14px;color:var(--m2)}
 .rozet{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;
   background:var(--yz2);border:1px solid var(--cizgi);color:var(--m2)}
+pre{background:var(--yz2);border:1px solid var(--cizgi);border-radius:8px;
+  padding:10px 14px;margin:10px 0;overflow-x:auto;white-space:pre;
+  font:14px/1.5 ui-monospace,Consolas,monospace}
 """
 
 # Gezinme seridi `belge_menu.py`'de — `kurulum3-uret.py` ile PAYLASILIYOR.
@@ -181,7 +186,14 @@ code{background:var(--yz2);padding:1px 6px;border-radius:5px;
 MENU = MN.MENU
 
 
-def sayfa(dosya, baslik, alt, govde):
+# Bu kosuda uretilen sayfalar (dosya -> html): belge_pc.denetle hepsini "bana sor" icin tarar.
+URETILEN: dict[str, str] = {}
+DIPNOT_TASARIM = """Bu sayfa <code>uretim/belge-uret.py</code> tarafından
+ üretildi — buradaki her sayı tasarım dosyalarından hesaplanıyor, elle
+ yazılmıyor. Donanım henüz kurulmadı; değerler tasarımın vaadidir."""
+
+
+def sayfa(dosya, baslik, alt, govde, dipnot=DIPNOT_TASARIM):
     ust = MN.serit(dosya)
     html = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -190,16 +202,16 @@ def sayfa(dosya, baslik, alt, govde):
 <h1>{baslik}</h1><p class="alt">{alt}</p>
 {govde}
 <p class="kucuk" style="margin-top:60px;border-top:1px solid var(--cizgi);
- padding-top:14px">Bu sayfa <code>uretim/belge-uret.py</code> tarafından
- üretildi — buradaki her sayı tasarım dosyalarından hesaplanıyor, elle
- yazılmıyor. Donanım henüz kurulmadı; değerler tasarımın vaadidir.</p>
+ padding-top:14px">{dipnot}</p>
 </div></body></html>"""
     (HEDEF / dosya).write_text(html, encoding="utf-8")
+    URETILEN[dosya] = html
     return len(html)
 
 import belge_grafik as G                              # noqa: E402
 import belge_sayfa as P                               # noqa: E402
 import belge_malzeme as M                             # noqa: E402
+import belge_pc as PC                                 # noqa: E402
 
 
 def main() -> int:
@@ -270,6 +282,13 @@ def main() -> int:
                "Telefondan, bilgisayardan ya da ikisinden birden",
                P.ag(d, T))
     sayfa_n += 1
+    # Alt proje 4: PC uygulamasi kilavuzu — sayilar/adlar kopru/'nun KODUNDAN (belge_pc.veri)
+    v_pc = PC.veri(KOK)
+    n += sayfa(PC.DOSYA, PC.BASLIK, PC.ALT, PC.govde(v_pc),
+               dipnot="Bu sayfa <code>uretim/belge-uret.py</code> (<code>belge_pc.py</code>) "
+                      "tarafından üretildi — port, adres, aralık, klasör adları, seçenekler ve "
+                      "bildirim türleri <code>kopru/</code>'nun kodundan okunuyor, elle yazılmıyor.")
+    sayfa_n += 1
     n += sayfa("2-malzemeler.html", "Malzemeler",
                "Semadan uretiliyor, stok kaydiyla karsilastiriliyor",
                M.malzemeler(d))
@@ -296,6 +315,16 @@ def main() -> int:
     if eksik:
         print(f"  KIRMIZI: MENU'de olup index tablosunda olmayan sayfa: "
               f"{', '.join(eksik)}")
+        return 1
+    # Alt proje 4 kilavuzu: kodla ayrisma, "bana sor" yasagi (BUTUN sayfalar), sir izi.
+    # Ozet satiri sayim.py bicimiyle — B9 kilidine girer (beklenen_sayim.json).
+    kurallar = PC.denetle(KOK, v_pc, URETILEN[PC.DOSYA], MENU, URETILEN)
+    for ad, tamam, ayrinti in kurallar:
+        print(f"  [{'OK' if tamam else '!!'}] {ad} — {ayrinti}")
+    gecen = sum(1 for _a, t, _d in kurallar if t)
+    print(f"{gecen}/{len(kurallar)} kural gecti (BELGELER: PC kilavuzu + butun sayfalar)")
+    if gecen != len(kurallar):
+        print("  KIRMIZI: PC kilavuzu denetimi")
         return 1
     print(f"BELGELER/ yazildi: {sayfa_n} sayfa, {n/1024:.0f} KB")
     print(f"  olcum hizi {SPS:.0f} Sa/s · skop adim {SKOP_ADIM*1e3:.1f} mV")
