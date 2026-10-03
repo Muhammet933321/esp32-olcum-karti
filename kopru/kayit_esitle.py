@@ -52,6 +52,23 @@ import kayit_bicim as KB                                   # noqa: E402
 import imza as IM                                          # noqa: E402  (1D)
 
 DOSYA = "kayitlar.kyt"
+
+# Windows PAYLASIM IHLALI: hedefi o an acik tutan biri (dizinleyici, virus tarayici, durumu okuyan
+# baska surec) varken os.replace PermissionError [WinError 5] verir. 4 iscili mutasyon kosusunda 20
+# kosunun 2'sinde test bu yuzden coktu (HIZ inceleme 2026-10-03); gercek kopru de yasayabilir.
+DEGISTIR_DENEME = 8
+
+
+def atomik_degistir(g, p, deneme: int = DEGISTIR_DENEME, uyu=time.sleep) -> None:
+    """os.replace(g, p); paylasim ihlalinde (PermissionError) kisa araliklarla yeniden dener."""
+    for i in range(deneme):
+        try:
+            os.replace(g, p)
+            return
+        except PermissionError:
+            if i == deneme - 1:
+                raise
+            uyu(0.05 * (i + 1))
 DURUM = "durum.json"
 KILIT = "esitle.kilit"
 KAL_DOSYA = "kalibrasyon.json"   # 1B: kartin kalibrasyon gecmisi (/kal/liste)
@@ -144,7 +161,7 @@ class Esitleyici:
             json.dump(d, f)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(g, p)
+        atomik_degistir(g, p)
 
     def _hazirla(self, d: dict) -> None:
         """Durumdan UZUN dosya: durum yazilmadan kesilmis ekleme. GECERLI ve
@@ -321,7 +338,7 @@ class Esitleyici:
             json.dump(veri, f, ensure_ascii=False, indent=1)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(g, p)
+        atomik_degistir(g, p)
         return sonuc
 
     @staticmethod

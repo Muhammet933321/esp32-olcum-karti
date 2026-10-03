@@ -574,6 +574,9 @@ def _kos(argv, artimli, kilit_yaz, izsiz, yerel) -> int:
         elif artimli and not zincir.tam_kosu:
             print(f"  [kosuyor: {s.sebep}]"[:200])
         print(s.ekran)
+        if s.gecersiz:
+            print(f"  [uyari: {s.gecersiz} — onbellege GECERSIZ yazildi, sonraki "
+                  f"--artimli kosuda yeniden kosar]"[:300])
         sonuclar.append((s.baslik, s.tamam, s.sure, s.cikti))
 
     print("\n" + "=" * 78)

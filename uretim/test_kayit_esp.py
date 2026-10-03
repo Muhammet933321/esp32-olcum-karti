@@ -16,6 +16,7 @@ import io
 import json
 import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -1875,27 +1876,66 @@ def bolum_bildirim_kart() -> None:
        and "bld_deneme_istek = (uint8_t)(bld_deneme_istek + 1u);" in sk)
 
     # PC tarafi (saf Python ChaCha20-Poly1305, MQTT istemcisi, sahte araci) — alt surec.
-    # ~15 s; B72'nin her mutasyonu bunu yeniden kosmasin diye GIRDILERININ ozetiyle
-    # onbellekli: yalniz GECEN kosu saklanir, kopru/*.py ya da testin kendisi degisirse
-    # (o dosyalarin mutasyonu dahil) yeniden kosar.
-    girdi = [KOK / "kopru" / a for a in ("chacha.py", "mqtt_istemci.py", "bildirim.py",
-                                        "sahte_araci.py", "imza.py")]
-    girdi.append(Path(__file__).with_name("test_bildirim.py"))
-    oz = hashlib.sha256(b"".join(p.read_bytes() if p.exists() else b"-" for p in girdi)).hexdigest()
-    onb = Path(tempfile.gettempdir()) / f"ok_test_bildirim_{oz[:32]}.gecti"
-    if onb.exists():
-        ok("B72.Q16 test_bildirim.py yesil (girdileri degismedi: onbellekteki GECEN kosu)", True,
-           onb.read_text(encoding="utf-8"))
+    # ~23 s; B72'nin her mutasyonu bunu yeniden kosmasin diye onbellekli: yalniz GECEN kosu
+    # saklanir. 🔴 ANAHTAR = test_bildirim'in GERCEKTEN yukledigi depo modulleri (gecen kosunun
+    #    cikisinda sys.modules) + her birinin ozeti. Ilk surum elle 6 dosya sayiyordu;
+    #    kopru/pc_ayar.py (imza.py import ediyor) ve uretim/gercek_dizin_koru.py eksikti —
+    #    yalniz test_bildirim'i kiran bir pc_ayar degisikligi TAM kosuda bile onbellekten
+    #    "yesil" geliyordu (HIZ inceleme 2026-10-03). Dosya adi agac kokune bagli (baska agacin
+    #    kaydi kullanilmaz); %TEMP% kalintisi dogrula3'un cop toplayicisinda (gecici.DOSYA_ONEKLER).
+    tb = Path(__file__).with_name("test_bildirim.py")
+    onb = (Path(tempfile.gettempdir())
+           / f"ok_test_bildirim_{hashlib.sha256(str(KOK).encode()).hexdigest()[:16]}.gecti")
+
+    def _q16_gecerli() -> str | None:
+        try:
+            v = json.loads(onb.read_text(encoding="utf-8"))
+            dosyalar = v["dosyalar"]
+            if str(tb.resolve()) not in dosyalar:
+                return None
+            for yol, oz in dosyalar.items():
+                p = Path(yol)
+                if KOK.resolve() not in p.resolve().parents:
+                    return None
+                if not p.exists() or hashlib.sha256(p.read_bytes()).hexdigest() != oz:
+                    return None
+            return f"{v['sayim']} ({len(dosyalar)} modul ozeti ayni)"
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return None
+    q16 = _q16_gecerli()
+    if q16:
+        ok("B72.Q16 test_bildirim.py yesil (yukledigi modullerin hicbiri degismedi: onbellekteki "
+           "GECEN kosu)", True, q16)
     else:
-        r = subprocess.run([sys.executable, str(Path(__file__).with_name("test_bildirim.py"))],
+        mod_yol = Path(tempfile.mkdtemp(prefix="kayit_q16_")) / "moduller.json"
+        sarmal = ("import atexit, json, runpy, sys\n"
+                  "yol, cikti = sys.argv[1], sys.argv[2]\n"
+                  "def _yaz():\n"
+                  "    open(cikti, 'w', encoding='utf-8').write(json.dumps(sorted({m.__file__ "
+                  "for m in list(sys.modules.values()) if getattr(m, '__file__', None)})))\n"
+                  "atexit.register(_yaz)\n"
+                  "sys.argv = [yol]\n"
+                  "runpy.run_path(yol, run_name='__main__')\n")
+        r = subprocess.run([sys.executable, "-c", sarmal, str(tb), str(mod_yol)],
                            capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=600)
+                           timeout=600, cwd=str(tb.parent))
         m = re.findall(r"(\d+)/(\d+) dogrulama gecti", r.stdout)
         gec = r.returncode == 0 and bool(m) and m[-1][0] == m[-1][1]
         ok("B72.Q16 test_bildirim.py (RFC 8439 vektorleri, zarf, bilgi_coz, MQTT istemcisi + "
            "sahte araci) yesil", gec, (m[-1][0] + "/" + m[-1][1]) if m else r.stdout[-300:])
         if gec:
-            onb.write_text(f"{m[-1][0]}/{m[-1][1]}", encoding="utf-8")
+            try:
+                kok_r = KOK.resolve()
+                yuklu = {str(Path(f).resolve()) for f in json.loads(mod_yol.read_text("utf-8"))}
+                yuklu = {f for f in yuklu if kok_r in Path(f).parents and f.endswith(".py")}
+                yuklu.add(str(tb.resolve()))
+                onb.write_text(json.dumps({
+                    "sayim": f"{m[-1][0]}/{m[-1][1]}",
+                    "dosyalar": {f: hashlib.sha256(Path(f).read_bytes()).hexdigest()
+                                 for f in sorted(yuklu)}}), encoding="utf-8")
+            except (OSError, ValueError):
+                pass
+        shutil.rmtree(mod_yol.parent, ignore_errors=True)
 
 
 # ── B72.W · 4B kopru WiFi: eslesmis cihaz olarak imzali /akis + /komut ─────────
@@ -2365,6 +2405,17 @@ def bolum_kopru_esitle() -> None:
             kart.istekler.clear()
             kart.komutlar.clear()
             w = wifi_yeni()
+            # A6 araligi istemcinin GONDERME anindan (HIZ inceleme 2026-10-03): kartin VARIS zamani
+            # sunucu is parcaciginin zamanlamasina bagli — yuk altinda 81-82 ms olculup iddia
+            # kendiliginden dustu (paralel mutasyonda sahte YAKALANDI). Hiz tavani istemcinin isi.
+            gonderim: list[float] = []
+            _asil_ac = w.imzali_ac
+
+            def _zamanli_ac(cihaz, yontem, yol, *a, **k):
+                if yol.startswith("/kayit/veri"):
+                    gonderim.append(time.monotonic())
+                return _asil_ac(cihaz, yontem, yol, *a, **k)
+            w.imzali_ac = _zamanli_ac
             e, yay = es_yeni(w, kok)
             r = e.tur()
             ok("B72.A1 (PC9) kopru esitleme turu kartin BUTUN kayitlarini WiFi'den <kart kimligi>/akis-<akis "
@@ -2387,15 +2438,18 @@ def bolum_kopru_esitle() -> None:
             veri_ist = [(t, dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(p).query)))
                         for t, y, p in kart.zamanli if p.startswith("/kayit/veri")]
             bayt = [int(q.get("bayt", "0")) for _, q in veri_ist]
-            aralar = [b[0] - a[0] for a, b in zip(veri_ist, veri_ist[1:])]
+            varis_ara = [b[0] - a[0] for a, b in zip(veri_ist, veri_ist[1:])]
+            aralar = [b - a for a, b in zip(gonderim, gonderim[1:])]
             imzasiz = [x for x in kart.istekler if x.split()[1].startswith(("/kayit/", "/kal/"))
                        and "X-Imza" not in x]
             ok("B72.A6 (spec §5/§11) parca kartin tavanini asmaz (bayt <= 8192) ve iki parca isteginin "
                "baslangici arasi en az 100 ms (istek hizi tavani <= 10/s, tek istek; spec 4C-3); "
                "butun kayit istekleri IMZALI",
-               len(veri_ist) >= 5 and all(0 < b <= 8192 for b in bayt) and max(bayt) == AE.PARCA_BAYT
-               and min(aralar) >= 0.09 and not imzasiz,
-               f"{len(veri_ist)} parca bayt={sorted(set(bayt))} en kisa ara={min(aralar or [0]) * 1000:.0f} ms "
+               len(veri_ist) >= 5 and len(gonderim) == len(veri_ist)
+               and all(0 < b <= 8192 for b in bayt) and max(bayt) == AE.PARCA_BAYT
+               and min(aralar or [0]) >= 0.09 and not imzasiz,
+               f"{len(veri_ist)} parca bayt={sorted(set(bayt))} en kisa ara (gonderme)="
+               f"{min(aralar or [0]) * 1000:.0f} ms (varis {min(varis_ara or [0]) * 1000:.0f} ms) "
                f"imzasiz={len(imzasiz)}")
             kart.onay_kanca = None
 

@@ -10,8 +10,10 @@
 Bir adimin onbellek kaydi ancak HEPSI tutarsa kullanilir:
   * kayit YESIL bir kosudan (kirmizi adim hic saklanmaz)
   * ayni proje koku (mutasyon kopyasi asil agacin kaydini KULLANAMAZ)
-  * ayni "genel anahtar": dogrula3.py + bu dosya + kanca dosyalari + Python
-    surumu + ilgili ortam degiskenleri + adim basligi
+  * ayni "genel anahtar": ANA_SUREC dosyalari (dogrula3.py, bu dosya,
+    ozel_ortam.py, kanca dosyalari) + Python surumu + ortamin TAMAMI (oturum
+    degiskenleri haric) + adim basligi
+  * kayit GECERSIZ degil (girdisi adim KOSARKEN degismemis — asagida)
   * adimin GERCEKTEN OKUDUGU her dosyanin icerigi (sha256) ayni
   * adimin LISTELEDIGI her dizinin ad listesi ayni
   * adimin varligina BAKTIGI her yolun var/yok durumu ayni
@@ -42,11 +44,50 @@ Adimin komutlari `izli_ortam()` ile kosar:
     Eksik rapor (ortami silinen alt surec, -I bayragi, os.system, Popen disi
     surec acilisi) -> girdiler SINIRLANAMAZ -> adim HER ZAMAN KOSAR.
 
-⚠ KALAN RISKLER (DEVIR 5.12.9x HIZ): araclarin KENDI kurulum dosyalari (ESP32
-  cekirdegi, avr-libc, KiCad kutuphaneleri) yalnizca ikili + dizin imzasiyla
-  izleniyor; sys.path'e yeni bir golge modul eklenmesi (importlib'in kendi
-  listelemeleri sayilmiyor); saat/tarih ya da tohumsuz rastgelelige bagli
-  davranis. Ucunu de 24 saat kurali ve TAM kosu sinirliyor.
+── ADIM KOSARKEN DEGISEN GIRDI (TOCTOU, HIZ inceleme 2026-10-03) ──────
+
+Zincir 13–17 dk suruyor ve kullanici bu arada calisiyor. Imza adim BITTIKTEN
+sonra aliniyor; adim dosyayi ESKI haliyle okuyup yesil verdikten sonra dosya
+degisirse YENI icerigin ozeti kaydediliyordu -> sonraki --artimli kosuda adim
+onbellekten YESIL geliyordu (olculdu: B25, araya `raise SystemExit` sokulan
+test_tezgah_kart.py ile 22/22 onbellekten). Simdi:
+  * adim BASLAMADAN once onceki kaydin butun girdilerinin SIMDIKI imzasi
+    alinir; bitince ayni yollar yeniden imzalanir — fark varsa;
+  * onceki kayitta olmayan (yeni) girdi dosyasi/dizini adim basladiktan
+    sonra degismis (mtime) ise;
+kayit GECERSIZ isaretlenir (sonraki kosu adimi KOSTURUR; kayit yine de
+saklanir ki bir sonraki kosunun "once" imzasi olsun).
+CIKTILAR: her adimdan ONCE ve SONRA bilinen butun ciktilar ozetlenir. Adim
+sirasindaki degisiklik o adimin yazimi sayilir (B3 ve B9 ikisi de
+netlist3.net yaziyor; kicad-cli izlenmeden yaziyor); adimlar ARASINDA ya da
+son adimdan SONRA olan degisiklik DISARIDAN sayilir ve kaydi kutsamaz
+(eskiden zincir sonunda her cikti yeniden ozetleniyordu — kullanicinin
+araya giren degisikligi de "adimin ciktisi" oluyordu).
+
+── ANAHTARA GIREN ORTAM: BUTUN ORTAM, oturum degiskenleri HARIC ──────
+
+Ilk surum izin listesiydi (PATH, PYTHON*, NODE_* ...) ve kullanicinin
+PYTHONPATH/NODE_OPTIONS'unu, HTTP_PROXY'yi, ARDUINO_*/KICAD*'i disarida
+birakiyordu — bunlar her adimi kirabilir, onbellek 22/22 YESIL kalirdi
+(olculdu). Simdi RED listesi: yalniz oturuma ozgu, adimlarin davranisina
+girmeyen degiskenler (`ORTAM_UCUCU*`) haric. Ana surecin adim ortamini
+kuran dosyalari da (`ANA_SUREC`: ozel_ortam.py ...) anahtarda;
+test_zincir_hiz "yapisal", dogrula3'un import ettigi her depo modulunun ya
+orada ya `ANAHTAR_DISI`'nda (gerekceli) oldugunu denetler.
+
+── GOLGE MODUL ──────────────────────────────────────────────────────
+
+Python betigin kendi dizinini (uretim/) standart kutuphaneden ONCE arar:
+uretim/gzip.py herkesi kirar. importlib'in kendi dizin bakislari kayda
+girmiyor. Kanca surec cikisinda sys.path'teki her dizini "liste" olarak
+yazar — o dizinlere yeni ad eklenince adim kosar.
+
+⚠ KALAN RISKLER: araclarin KENDI kurulum dosyalari (ESP32 cekirdegi, avr-libc,
+  KiCad kutuphaneleri) yalnizca ikili + dizin imzasiyla izleniyor; Windows
+  KAYIT DEFTERI (mimetypes icerik turleri, ortamda vekil yokken urllib'in
+  sistem vekili, COM port listesi) izlenmiyor; saat/tarih ya da tohumsuz
+  rastgelelige bagli davranis; oldurulen (terminate) bir alt surecin cikis
+  kayitlari (sys.path listesi, sys.modules). 24 saat kurali ve TAM kosu sinirliyor.
 """
 from __future__ import annotations
 
@@ -83,11 +124,35 @@ COP_URETIM_DOSYA = ("_a4_*.elf", "erc*.rpt")
 COP_BUILD = ("kod/olcum-karti-a3/build", "arsiv/asama2/olcum-karti-a2/build",
              "arsiv/asama1/olcum-karti/build")
 
-ORTAM_ANAHTARLARI = ("PATH", "PATHEXT", "SYSTEMROOT", "COMSPEC", "LOCALAPPDATA", "APPDATA",
-                     "USERPROFILE", "HOME", "LANG", "TZ")
-ORTAM_ONEKLERI = ("PYTHON", "NODE_", "OLCUM_", "LC_")
-# kancanin kendi kurdugu / degistirdigi
-ORTAM_HARIC = {IZ_ORTAM, "PYTHONPATH", "NODE_OPTIONS"}
+# Anahtara ortamin TAMAMI girer — bunlar HARIC (oturuma/terminale ozgu, adimlarin davranisina
+# girmeyen; anahtara girseler her yeni Claude/VS Code oturumu onbellegi bosa cikarirdi).
+# 🔴 PYTHONPATH / NODE_OPTIONS BURADA DEGIL: kancanin kendi eklemeleri yalniz alt surecin
+#    ortaminda (izli_ortam bir KOPYA kurar); kullanicinin kendi degeri her adimda gecerli.
+# TEMP/TMP: Kapsam gecici dizini zaten girdi saymiyor (icerigi izlenmiyor).
+ORTAM_UCUCU = {IZ_ORTAM, "_", "OLDPWD", "PWD", "SHLVL", "PROMPT", "SESSIONNAME", "CLIENTNAME",
+               "LOGONSERVER", "TEMP", "TMP", "TMPDIR", "CLAUDECODE", "AI_AGENT",
+               "CHROME_CRASHPAD_PIPE_NAME", "MCP_CONNECTION_NONBLOCKING",
+               "COPILOT_OTEL_FILE_EXPORTER_PATH", "TERM_SESSION_ID"}
+ORTAM_UCUCU_ONEK = ("CLAUDE_", "VSCODE_", "EFC_", "WT_", "TERM_PROGRAM")
+
+# dogrula3'un ANA sureci adimlarin ORTAMINI kuruyor (ozel LOCALAPPDATA, iz kancasi): biri
+# degisince HER adim yeniden kosmali. uretim/'e goreli. 🔴 ozel_ortam.py ilk surumde yoktu:
+# YEREL_HARIC'e "Arduino15" eklemek yalniz B9'u (dosyayi okudugu icin) kosturdu, B72 onbellekten
+# YESIL geldi ama dogrudan kosunca kirmiziydi (olculdu).
+ANA_SUREC = ("dogrula3.py", "zincir_onbellek.py", "ozel_ortam.py", "zincir_kanca/sitecustomize.py",
+             "zincir_kanca/node_kanca.cjs")
+# dogrula3'un import ettigi ama adim ortamina GIRMEYEN depo modulleri (gerekceli) —
+# test_zincir_hiz "yapisal" her yeni import'un buraya ya da ANA_SUREC'e yazilmasini ister.
+ANAHTAR_DISI = {
+    "gecici.py": "yalniz zincir SONUNDA %TEMP% kalintisi supurur; adimlar onu import ederse "
+                 "kendi girdileri olarak izlenir",
+    "sayim.py": "adim CIKTISINI sayar; onbellekten gelen cikti da her kosuda yeniden sayilir",
+    "tezgah.py": "adim CIKTISINDAN tezgah kalemi toplar; her kosuda yeniden",
+}
+# Depo DISI yeni girdi "adim basladiktan sonra degisti" mi: NTFS mtime'i cekirdegin kaba saatinden
+# (~15.6 ms tik) alir — adim sirasindaki bir yazim t0'dan biraz ONCE damgalanabilir. Pay temkinli
+# yonde: adimdan hemen once degisen dosya da "degisti" sayilir (yalniz bir kez fazladan kosu).
+MTIME_PAYI_NS = 100 * 10**6
 
 PY_ADLAR = {"python", "pythonw", "py", "python3", "pyw"}
 NODE_ADLAR = {"node"}
@@ -494,8 +559,17 @@ def cozumle(iz: Iz, kok: Path, kokler: list[dict], kapsam: Kapsam | None = None)
         if ad in SISTEM_DLL:
             continue
         if ad == "ngspice" and os.path.isabs(d):
-            # surucu netlistini kancada taradi (.include -> oku); DLL'in kendisi arac imzasi
+            # surucu netlistini kancada taradi (.include -> oku); DLL'in kendisi arac imzasi.
+            # ngspice acilista spinit'i ve kullanicinin ~/.spiceinit'ini OKUR (C duzeyinde, iz
+            # yok): ikisi de dosya girdisi (yoksa "YOK" — belirirse adim kosar).
             g.arac.add(d)
+            dd = os.path.dirname(d)
+            for aday in (os.path.join(os.path.expanduser("~"), ".spiceinit"),
+                         os.path.join(dd, "spinit"),
+                         os.path.normpath(os.path.join(dd, "..", "share", "ngspice", "scripts",
+                                                       "spinit")),
+                         os.path.normpath(os.path.join(dd, "..", "lib", "ngspice", "spinit"))):
+                g.dosya.add(aday)
             continue
         g.her_zaman.append(f"ctypes ile yuklenen kutuphane: {d}")
 
@@ -650,22 +724,122 @@ def imza_farki(kayit: dict, kapsam: Kapsam, sinir: int = 3) -> list[str]:
     return fark
 
 
+# ── TOCTOU: adim kosarken degisen girdi ───────────────────────────────
+_IMZACI = {"dosya": lambda p, k: _dosya_imza(p), "liste": _liste_imza,
+           "dizin_agac": _agac_imza, "arac": lambda p, k: _arac_imza(p)}
+
+
+def imza_simdi(eski: dict, kapsam: Kapsam) -> dict:
+    """Onceki kaydin GIRDI yollarinin (cikti haric) SIMDIKI imzasi — adim baslamadan."""
+    s: dict = {}
+    try:
+        for tur, f in _IMZACI.items():
+            s[tur] = {p: f(p, kapsam) for p in eski.get(tur, {})}
+        s["kurulum"] = {k: _kurulum_imza(k.rsplit("|", 1)[0], int(k.rsplit("|", 1)[1]))
+                        for k in eski.get("kurulum", {})}
+    except (AttributeError, TypeError, ValueError):
+        return {}
+    return s
+
+
+def _mtime_ns(p: str) -> int:
+    try:
+        return os.stat(p).st_mtime_ns
+    except OSError:
+        return -1
+
+
+def _agac_mtime_ns(p: str, kapsam: Kapsam) -> int:
+    en = _mtime_ns(p)
+    for d, alt, dosyalar in os.walk(p):
+        alt[:] = [x for x in alt if not kapsam.yoksay(os.path.join(d, x)) and x != ".git"]
+        for x in alt + dosyalar:
+            tam = os.path.join(d, x)
+            if not kapsam.yoksay(tam):
+                en = max(en, _mtime_ns(tam))
+    return en
+
+
+def depo_durumu(kapsam: Kapsam) -> tuple[dict, dict]:
+    """Deponun (cop haric) her dosyasinin (boyut, mtime) ve her dizininin ad kumesi — adimdan
+    ONCE ve SONRA alinir (depoda ~350 dosya, ~10 ms). Anahtar normcase mutlak yol."""
+    dosyalar, dizinler = {}, {}
+    for d, alt, adlar in os.walk(kapsam.kok):
+        alt[:] = [x for x in alt if x != ".git" and not kapsam.yoksay(os.path.join(d, x))]
+        dizinler[_nc(d)] = frozenset(x for x in alt + adlar
+                                     if not kapsam.yoksay(os.path.join(d, x)))
+        for x in adlar:
+            tam = os.path.join(d, x)
+            if kapsam.yoksay(tam):
+                continue
+            try:
+                st = os.stat(tam)
+                dosyalar[_nc(tam)] = (st.st_size, st.st_mtime_ns)
+            except OSError:
+                pass
+    return dosyalar, dizinler
+
+
+def adim_sirasinda_degisen(once: dict, sonra: dict, t0_ns: int, kapsam: Kapsam,
+                           depo_once=None, depo_sonra=None) -> list[str]:
+    """Adim KOSARKEN degismis girdiler (bos = temiz).
+    once : adim baslamadan alinan imza_simdi() (onceki kaydin yollari)
+    sonra: adim bittikten sonraki imzala()
+    depo_once/depo_sonra: depo_durumu() adimdan once / sonra
+    Onceki kayitta olan yol ICERIKLE (mtime'a bakmadan: mtime'i koruyan kopya da yakalanir).
+    YENI yol: depodaysa once/sonra (boyut, mtime) ya da ad kumesi; depo disindaysa mtime
+    adim basladiktan sonra mi (MTIME_PAYI_NS payiyla — dosya sisteminin saat tiki)."""
+    sinir = t0_ns - MTIME_PAYI_NS
+    d_once, z_once = depo_once or ({}, {})
+    d_sonra, z_sonra = depo_sonra or ({}, {})
+    fark = []
+
+    def depoda_degisti(tur: str, p: str) -> bool:
+        n = _nc(p)
+        if tur in ("dosya", "arac"):
+            return d_once.get(n) != d_sonra.get(n)
+        if tur == "liste":
+            return z_once.get(n) != z_sonra.get(n)
+        on = n + os.sep                         # dizin_agac: altindaki her sey
+        return ({k: v for k, v in d_once.items() if k.startswith(on)}
+                != {k: v for k, v in d_sonra.items() if k.startswith(on)}
+                or {k: v for k, v in z_once.items() if k == n or k.startswith(on)}
+                != {k: v for k, v in z_sonra.items() if k == n or k.startswith(on)})
+
+    for tur in ("dosya", "liste", "dizin_agac", "arac", "kurulum"):
+        o = once.get(tur, {})
+        for p, v in sonra.get(tur, {}).items():
+            if p in o:
+                if o[p] != v:
+                    fark.append(f"{tur}: {p}")
+            elif tur == "kurulum":
+                continue
+            elif kapsam.ic(p) is not None and depo_once is not None:
+                if depoda_degisti(tur, p):
+                    fark.append(f"{tur} (yeni; adim sirasinda degisti): {p}")
+            elif tur == "dizin_agac":
+                if _agac_mtime_ns(p, kapsam) >= sinir:
+                    fark.append(f"{tur} (yeni; adim basladiktan sonra degisti): {p}")
+            elif _mtime_ns(p) >= sinir:
+                fark.append(f"{tur} (yeni; adim basladiktan sonra degisti): {p}")
+    return fark
+
+
 # ── genel anahtar ─────────────────────────────────────────────────────
 def ortam_ozeti(ortam: dict | None = None) -> dict:
     ortam = os.environ if ortam is None else ortam
     s = {}
     for k, v in ortam.items():
         ku = k.upper()
-        if ku in ORTAM_HARIC:
+        if ku in ORTAM_UCUCU or ku.startswith(ORTAM_UCUCU_ONEK):
             continue
-        if ku in ORTAM_ANAHTARLARI or ku.startswith(ORTAM_ONEKLERI):
-            s[ku] = v
+        s[ku] = v
     return dict(sorted(s.items()))
 
 
-def genel_anahtar(baslik: str, ek_dosyalar=(), ek: str = "") -> str:
-    dosyalar = [BURASI / "dogrula3.py", Path(__file__).resolve(),
-                KANCA_DIZIN / "sitecustomize.py", KANCA_DIZIN / "node_kanca.cjs", *ek_dosyalar]
+def genel_anahtar(baslik: str, ek_dosyalar=(), ek: str = "", burasi: Path | None = None) -> str:
+    burasi = BURASI if burasi is None else Path(burasi)
+    dosyalar = [burasi / d for d in ANA_SUREC] + list(ek_dosyalar)
     return sha_metin(SURUM, sys.version, sys.platform, baslik, ek,
                      json.dumps(ortam_ozeti(), sort_keys=True),
                      *[_dosya_imza(str(p)) for p in dosyalar])
@@ -719,6 +893,7 @@ class Sonuc:
     onbellek_yas: float | None = None     # None = bu kosuda kostu
     sebep: str = ""                        # neden kostu (artimli kipte)
     her_zaman: list = field(default_factory=list)
+    gecersiz: str = ""                     # bos degilse: girdi adim SIRASINDA degisti
 
 
 class Calistir:
@@ -758,6 +933,8 @@ class Zincir:
         self.kapsam = Kapsam(self.kok, onbellek=self.yol, ozel=self.ozel_yerel)
         self.veri = onbellek_oku(self.yol)
         self.sonuclar: list[Sonuc] = []
+        # cikti yolu -> bu kosuda bir ADIMIN biraktigi son ozet ("DIS" = adimlar disinda degisti)
+        self.cikti_son: dict[str, str] = {}
         self.tam_kosu, self.tam_sebep = True, "artimli istenmedi"
         if artimli:
             self.tam_kosu, self.tam_sebep = self._karar(tam)
@@ -789,6 +966,15 @@ class Zincir:
                 return True, f"git HEAD degisti ve {d or 'fark okunamadi'} etkilendi"
         return False, ""
 
+    def _bilinen_ciktilar(self) -> set:
+        k = set(self.cikti_son)
+        for kayit in self.veri["adimlar"].values():
+            try:
+                k.update(kayit["imza"]["cikti"])
+            except (KeyError, TypeError, AttributeError):
+                pass
+        return k
+
     def kos(self, baslik: str, govde) -> Sonuc:
         anahtar = genel_anahtar(baslik, self.ek_anahtar, ek=f"ozel_yerel={bool(self.ozel_yerel)}")
         kayit = self.veri["adimlar"].get(baslik)
@@ -802,21 +988,46 @@ class Zincir:
                 return s
         iz_dizin = Path(tempfile.mkdtemp(prefix="olcum-zincir-iz-")) if self.izle else None
         try:
+            # 🔴 TOCTOU: imza adim BITTIKTEN sonra aliniyor. Adim baslamadan ONCE onceki kaydin
+            #    girdilerini ve bilinen butun ciktilari ozetle; bitince karsilastir.
+            once: dict = {}
+            if iz_dizin is not None and isinstance(kayit, dict) and isinstance(kayit.get("imza"),
+                                                                               dict):
+                once = imza_simdi(kayit["imza"], self.kapsam)
+            ciktilar = self._bilinen_ciktilar() if iz_dizin is not None else set()
+            c_once = {p: _dosya_imza(p) for p in ciktilar}
+            for p, h in c_once.items():
+                if p in self.cikti_son and self.cikti_son[p] != h:
+                    self.cikti_son[p] = "DIS"      # adimlar ARASINDA disaridan degisti
+            depo_once = depo_durumu(self.kapsam) if iz_dizin is not None else None
             cal = Calistir(iz_dizin, self.ek_ortam)
+            t0_ns = time.time_ns()
             t0 = time.time()
             tamam, ekran, cikti = govde(cal)
             sure = time.time() - t0
             s = Sonuc(baslik, bool(tamam), sure, cikti, ekran, sebep=sebep)
             if iz_dizin is not None:
+                depo_sonra = depo_durumu(self.kapsam)
                 g = cozumle(iz_oku(iz_dizin), self.kok, cal.kokler, self.kapsam)
                 s.her_zaman = list(g.her_zaman)
                 if s.tamam:
-                    self.veri["adimlar"][baslik] = {
-                        "anahtar": anahtar, "zaman": self.simdi, "sure": sure, "cikti": cikti,
-                        "ekran": ekran, "her_zaman": g.her_zaman,
-                        "imza": imzala(g, self.kapsam)}
+                    im = imzala(g, self.kapsam)
+                    degisen = adim_sirasinda_degisen(once, im, t0_ns, self.kapsam, depo_once,
+                                                     depo_sonra)
+                    yeni = {"anahtar": anahtar, "zaman": self.simdi, "sure": sure,
+                            "cikti": cikti, "ekran": ekran, "her_zaman": g.her_zaman, "imza": im}
+                    if degisen:
+                        s.gecersiz = "girdi adim SIRASINDA degisti: " + "; ".join(degisen[:3])
+                        yeni["gecersiz"] = s.gecersiz
+                    self.veri["adimlar"][baslik] = yeni
                 else:
                     self.veri["adimlar"].pop(baslik, None)
+                # adim SIRASINDA degisen bilinen ciktilar + adimin kendi ciktilari = ADIMIN yazimi
+                # (kicad-cli gibi izlenmeyen bir arac baska adimin ciktisini yazabiliyor)
+                for p in ciktilar | set(g.cikti):
+                    h = _dosya_imza(p)
+                    if p in g.cikti or h != c_once.get(p):
+                        self.cikti_son[p] = h
             else:
                 self.veri["adimlar"].pop(baslik, None)
         finally:
@@ -831,6 +1042,8 @@ class Zincir:
         try:
             if kayit.get("her_zaman"):
                 return "HER ZAMAN KOSAR: " + kayit["her_zaman"][0]
+            if kayit.get("gecersiz"):
+                return "onceki kosuda " + str(kayit["gecersiz"])
             if kayit.get("anahtar") != anahtar:
                 return "genel anahtar degisti (dogrula3/kanca/Python/ortam)"
             yas = self.simdi - float(kayit["zaman"])
@@ -858,16 +1071,21 @@ class Zincir:
         if hepsi_kostu and hepsi_yesil and genel_yesil and self.izle and self.sonuclar:
             self.veri["son_tam"] = {"zaman": self.simdi, "head": git_head(self.kok),
                                     "tetik": self._tetik_ozet()}
-        # CIKTILAR ZINCIRIN SONUNDAKI haliyle. Iki adim ayni dosyayi yazabiliyor (B3 ve B9
-        # ikisi de netlist3.net uretiyor, ikincisi birincinin uzerine): adimin kendi
-        # bitisindeki hal saklansaydi, sonraki kosuda B3 "cikti degisti" diye kosar, o da
-        # B9'u kostururdu — her kosuda ikisi de (olculdu, 2026-10-03). Bir tam kosunun
-        # BIRAKTIGI hal budur; kullanici ya da baska bir sey sonradan degistirirse yine
-        # yakalanir.
+        # CIKTILAR: iki adim ayni dosyayi yazabiliyor (B3 ve B9 ikisi de netlist3.net uretiyor,
+        # ikincisi birincinin uzerine). Her kayit o yolu bu kosuda EN SON YAZAN ADIMIN biraktigi
+        # ozeti alir (yoksa B3 her kosuda "cikti degisti" deyip B9'u da kostururdu, olculdu).
+        # 🔴 Zincir SONUNDA yeniden OZETLENMEZ: adimlar arasinda ya da son adimdan sonra
+        #    disaridan yapilan degisiklik ("DIS") kutsanmaz — sonraki kosuda sahibi kosar (HIZ
+        #    inceleme: eski surum araya giren degisikligi "adimin ciktisi" sayiyordu).
+        for p, h in list(self.cikti_son.items()):
+            if _dosya_imza(p) != h:
+                self.cikti_son[p] = "DIS"
         for kayit in self.veri["adimlar"].values():
             try:
                 c = kayit["imza"]["cikti"]
-                kayit["imza"]["cikti"] = {q: _dosya_imza(q) for q in c}
+                for q in c:
+                    if q in self.cikti_son:
+                        c[q] = self.cikti_son[q]
             except (KeyError, TypeError, AttributeError):
                 pass
         try:

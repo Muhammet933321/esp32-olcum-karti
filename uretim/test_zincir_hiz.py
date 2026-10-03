@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """HIZ (2026-10-03): artimli zincir + paralel mutasyon kosucusu — KENDI testleri.
 
-    python test_zincir_hiz.py            (~40 s)
+    python test_zincir_hiz.py            (~65 s)
 
 ZINCIRDE DEGIL (30 s sinirini asiyor; zincire girse HER ZAMAN KOSAR olurdu — kendi
 sahte araclarini cagiriyor). Bu dosyaya ya da mutasyon.py / dogrula3.py /
@@ -45,6 +45,28 @@ B) dogrula3.py --artimli (zincir_onbellek.py)
    B13 oldurulen alt surecin okumasi da kayitli (yaz-gec)
    B14 TAM_TETIK dosyasi degisti -> tam kosu
    B15 iz ortamini dusuren Python alt sureci -> HER ZAMAN KOSAR
+
+C) bagimsiz HIZ incelemesinin (2026-10-03) olcup gosterdigi kusurlar
+   B19 adim OKUDUKTAN sonra degisen girdi (TOCTOU) -> kayit GECERSIZ; B19b mtime'i
+       koruyan degisiklik; B19c depo disi girdi
+   B20 zincir sonunda cikti yeniden ozetlenmez (disaridan degisiklik kutsanmaz);
+       B20c izlenmeyen yazarin (kicad-cli) adim SIRASINDAKI yazimi o adimin
+   B21 kullanicinin PYTHONPATH/NODE_OPTIONS'u, B22 HTTP_PROXY ve gerisi anahtarda
+       (RED listesi); B22b oturum degiskenleri anahtarda DEGIL
+   B23 ozel_ortam.py (adim ortamini kuran) anahtarda; dogrula3'un her depo modulu
+       ANA_SUREC ya da ANAHTAR_DISI
+   B24 golge modul (betigin dizinine colorsys.py) -> adim kosar
+   B25 ngspice spinit / ~/.spiceinit girdi
+   A5b/A5c Ctrl+C semafor beklerken / kopyalarken: yeni surec yok, kalinti yok
+   A6b varsayilan isci sayisi makine yukune gore
+   A9  ic ice ozel LOCALAPPDATA (B3/B23 iscide dogrula3) Arduino15 + Python'u gorur
+   A10 kopya cop dizinlerini tasimaz, kaybolan girdide yeniden dener
+   A11 isciler kosu basindaki ANLIK kopyadan kopyalar
+   A12 iddiasiz COKME = SUPHELI, tek basina yeniden kosulur; A13 kirmizi taban bir
+       kez yeniden olculur; A16 cokme teshisi son istisna satiri
+   A14 kopru durum.json paylasim ihlalinde yeniden dener
+   A15 Ctrl+C'de kalan kopya yazilir; mutasyon basina Edge sizintisi KIRMIZI
+   A17 bayat _mutp* supurulur, sahibi canli olana dokunulmaz
 """
 from __future__ import annotations
 
@@ -96,6 +118,8 @@ import os, sys, tempfile, time
 from pathlib import Path
 B = Path(__file__).resolve().parent
 sonuc = []
+if os.environ.get("ADIM_BASLAMA"):      # A5c: hicbir adim baslamadi mi
+    (Path(os.environ["ADIM_BASLAMA"]) / f"{os.getpid()}").write_text("1")
 # 1. dogrula3 suepurmesinin HEDEF ALDIGI bicimde bir dizin: spice-* + _surucu.py
 d = tempfile.mkdtemp(prefix="spice-")
 open(os.path.join(d, "_surucu.py"), "w").write("# gecici")
@@ -308,8 +332,6 @@ def test_paralel() -> None:
         sec, _ = M.secim(None, "TTR:")
         ok("A6 --neden AGIR adimlari atlamaz (hedefli istek)",
            bool(sec) and all(m[0] in M.AGIR for m in sec))
-        ok("A6 varsayilan isci sayisi min(4, cekirdek-2), en az 1",
-           M.varsayilan_paralel() == max(1, min(4, (os.cpu_count() or 1) - 2)))
         ok("A6 Edge acan AGIR-disi betik (B57 kutu_ipucu_test) da tarayici sinirinda; "
            "duz betik degil",
            M.sinirli(("B57", "kutu_ipucu_test.py")) and M.sinirli(("T3A", "tarayici_tema.py"))
@@ -366,6 +388,13 @@ def test_tarayici(kap: Path, sessiz: list) -> None:
     try:
         ortam = dict(os.environ, ADIM_KAYIT=str(kayit))
         s = M.mutasyonlari_kos(muts, kok, 4, ortam, cikis=sessiz.append)
+        ok(f"A8 hepsi tarayici/AGIR olan secimde isci sayisi TARAYICI_AZAMI'ya iner (her isci kendi "
+           f"tabanini kosuyor; fazlasi yalniz fazladan taban demek)", s["paralel"] == M.TARAYICI_AZAMI,
+           f"paralel={s['paralel']}")
+        for f in kayit.iterdir():
+            f.unlink()
+        # karisik secim (4 tarayici + 1 duz): 4 isci kalir, tarayici siniri SEMAFORLA uygulanmali
+        s = M.mutasyonlari_kos(muts + [SAHTE_MUT[0]], kok, 4, ortam, cikis=sessiz.append)
         olay = []
         for f in kayit.iterdir():
             b, z = f.read_text().split()
@@ -375,8 +404,8 @@ def test_tarayici(kap: Path, sessiz: list) -> None:
             an += d
             en_cok = max(en_cok, an)
         ok(f"A8 AGIR (tarayici) kosulari 4 iscide bile en fazla {M.TARAYICI_AZAMI} esanli",
-           len(olay) == 16 and en_cok <= M.TARAYICI_AZAMI
-           and all(r["durum"] == "KACTI" for r in s["sonuclar"]),
+           s["paralel"] == 4 and len(olay) == 16 and en_cok <= M.TARAYICI_AZAMI
+           and [r["durum"] for r in s["sonuclar"]] == ["KACTI"] * 4 + ["YAKALANDI"],
            f"en cok {en_cok} esanli, {len(olay) // 2} kosu")
 
         # Edge sizintisi: sahte "msedge.exe" ozel TEMP'teki profilden yasiyor
@@ -445,16 +474,20 @@ def sahte_zincir_proje(kap: Path) -> Path:
         import os
         from pathlib import Path
         B = Path(__file__).resolve().parent
-        var = (B / "bayrak.txt").exists()
+        var = (B / "isaret" / "bayrak.txt").exists()
         adlar = sorted(os.listdir(B / "liste_dizin"))
         print(f"  1/1 dogrulama gecti  bayrak={var} adlar={adlar}")
     ''')
+    # ⚠ Adimlar betigin dizinini (kok) sys.path olarak LISTELER (golge modul) — kokte dosya
+    #   belirmesi/silinmesi HER Python adimini kosturur. Tek adimi hedefleyen testler alt dizinde.
+    (kok / "isaret").mkdir()
+    (kok / "ciktilar").mkdir()
     (kok / "liste_dizin").mkdir()
     yaz(kok / "liste_dizin" / "x.txt", "x")
     yaz(kok / "f.py", '''
         from pathlib import Path
         B = Path(__file__).resolve().parent
-        (B / "cikti_f.txt").write_text("uretildi")
+        (B / "ciktilar" / "cikti_f.txt").write_text("uretildi")
         print("  1/1 dogrulama gecti")
     ''')
     yaz(kok / "g.py", '''
@@ -637,12 +670,12 @@ def test_artimli() -> None:
         tek_degisiklik("B16b node: fs ile okunan dosya degisti -> J kosar",
                        lambda: (kok / "veri_j.txt").write_text("j2"), ["J"])
         tek_degisiklik("B10 varligina bakilan yol belirdi -> E kosar",
-                       lambda: (kok / "bayrak.txt").write_text("1"), ["E"])
+                       lambda: (kok / "isaret" / "bayrak.txt").write_text("1"), ["E"])
         tek_degisiklik("B10b listelenen dizine dosya eklendi -> E kosar",
                        lambda: (kok / "liste_dizin" / "y.txt").write_text("y"), ["E"])
         tek_degisiklik("B11 adimin ciktisi silindi -> F kosar (cikti yeniden uretilir)",
-                       lambda: (kok / "cikti_f.txt").unlink(), ["F"])
-        ok("B11 F ciktiyi yeniden uretti", (kok / "cikti_f.txt").exists())
+                       lambda: (kok / "ciktilar" / "cikti_f.txt").unlink(), ["F"])
+        ok("B11 F ciktiyi yeniden uretti", (kok / "ciktilar" / "cikti_f.txt").exists())
         tek_degisiklik("B13 OLDURULEN alt surecin okudugu dosya degisti -> G kosar (yaz-gec)",
                        lambda: (kok / "veri_g.txt").write_text("g2"), ["G"])
 
@@ -737,6 +770,9 @@ def test_artimli() -> None:
                 return sy
             finally:
                 ozel_ortam.guvenli_sil(oz)
+        # depo DISI girdi (gercek_yerel): "adim basladiktan sonra degisti" denetimi mtime'a
+        # 100 ms pay birakir — hemen once yazilmis dosya da (temkinli) "degisti" sayilirdi
+        time.sleep(0.3)
         s1, s2 = kos_y(), kos_y()
         (gercek / "Arduino15" / "cekirdek.txt").write_text("c2")
         s3 = kos_y()
@@ -823,6 +859,631 @@ def test_yapisal() -> None:
        and not any(k.cop_mu(str(KOK / p)) for p in ("kopru/arsiv/_b1", "uretim/tasarim3.py")))
 
 
+# ══════════════════════════════════════════════════════════════════════
+# C) HIZ INCELEMESI (2026-10-03) — bagimsiz incelemenin olcup gosterdigi kusurlar
+# ══════════════════════════════════════════════════════════════════════
+def test_inceleme_zincir() -> None:
+    print("\n  ── C) inceleme: artimli zincir")
+    kap = KOK.parent / f"_zhiz-ek-{os.getpid()}"
+    M.guvenli_sil(kap)
+    kap.mkdir()
+    eski_ortam = {k: os.environ.get(k) for k in ("PYTHONPATH", "NODE_OPTIONS", "HTTP_PROXY",
+                                                 "CLAUDE_CODE_SESSION_ID")}
+    try:
+        # ── B19: TOCTOU — adim okuduktan SONRA degisen girdi
+        kok_t = kap / "proje_t"
+        yaz(kok_t / "t.py", '''
+            from pathlib import Path
+            B = Path(__file__).resolve().parent
+            v = (B / "veri_t.txt").read_text().strip()
+            (B / "tetik_t.txt").read_text()
+            (B.parent / "dis_t.txt").read_text()          # depo DISI girdi
+            ok = v != "kot"
+            print(f"  {int(ok)}/1 dogrulama gecti")
+            raise SystemExit(0 if ok else 1)
+        ''')
+        yaz(kok_t / "veri_t.txt", "iyi")
+        yaz(kok_t / "tetik_t.txt", "t1")
+        yaz(kap / "dis_t.txt", "d1")
+        mod = {"hedef": None, "icerik": "", "mtime_koru": False}
+
+        def govde_t(cal):
+            r = cal([sys.executable, "t.py"], cwd=kok_t, timeout=120)
+            if mod["hedef"] is not None:
+                # "kullanici" adim KOSARKEN (adim dosyayi okuduktan sonra) degistiriyor
+                p = mod["hedef"]
+                st = os.stat(p)
+                p.write_text(mod["icerik"])
+                if mod["mtime_koru"]:
+                    os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
+                mod["hedef"] = None
+            return r.returncode == 0, r.stdout.rstrip(), r.stdout
+
+        def kos_t(artimli=True):
+            z = ZO.Zincir(kok=kok_t, yol=kok_t / "onb.json", artimli=artimli, tetik=())
+            s = z.kos("T", govde_t)
+            z.bitir()
+            return z, s
+
+        time.sleep(0.3)          # depo disi dis_t.txt: 100 ms mtime payinin disinda kalsin
+        mod.update(hedef=kok_t / "veri_t.txt", icerik="kot", mtime_koru=False)
+        _z, s1 = kos_t(artimli=False)
+        _z, s2 = kos_t()
+        ok("B19 adim OKUDUKTAN sonra degisen (depo ici, ilk kez gorulen) girdi: kayit GECERSIZ, "
+           "sonraki --artimli kosu adimi KOSTURUR ve kirmiziyi gorur (eskiden onbellekten YESIL)",
+           s1.tamam and bool(s1.gecersiz) and s2.onbellek_yas is None and not s2.tamam,
+           f"s1.gecersiz={s1.gecersiz[:120]!r} s2: yas={s2.onbellek_yas} tamam={s2.tamam} "
+           f"sebep={s2.sebep[:80]!r}")
+
+        (kok_t / "veri_t.txt").write_text("iyi")
+        kos_t(artimli=False)
+        _z, s3 = kos_t()
+        ok("B19 on kosul: degisiklik yokken T onbellekten", s3.onbellek_yas is not None, s3.sebep)
+        # B19b: kayitli girdi, mtime KORUNARAK ayni boyda degisir — yalniz icerik karsilastirmasi
+        (kok_t / "tetik_t.txt").write_text("t2")          # T'yi kosmaya zorla
+        mod.update(hedef=kok_t / "veri_t.txt", icerik="kot", mtime_koru=True)
+        _z, s4 = kos_t()
+        _z, s5 = kos_t()
+        ok("B19b mtime'i KORUYAN (ayni boy) degisiklik adim kosarken: onceki kaydin girdileri "
+           "adimdan ONCE icerikle ozetlenir -> GECERSIZ, sonraki kosu kosar",
+           s4.onbellek_yas is None and s4.tamam and bool(s4.gecersiz)
+           and s5.onbellek_yas is None and not s5.tamam,
+           f"s4.gecersiz={s4.gecersiz[:100]!r} s5 yas={s5.onbellek_yas} tamam={s5.tamam}")
+        # B19c: depo DISI girdi (ilk kez gorulen) adim kosarken degisir — mtime yolu
+        (kok_t / "veri_t.txt").write_text("iyi")
+        (kok_t / "onb.json").unlink()
+        time.sleep(0.3)
+        mod.update(hedef=kap / "dis_t.txt", icerik="d2", mtime_koru=False)
+        _z, s6 = kos_t(artimli=False)
+        _z, s7 = kos_t()
+        ok("B19c depo DISI girdi adim kosarken degisti (mtime adim basladiktan sonra): GECERSIZ, "
+           "sonraki kosu kosar", bool(s6.gecersiz) and "dis_t" in s6.gecersiz
+           and s7.onbellek_yas is None, f"s6.gecersiz={s6.gecersiz[:120]!r} s7.sebep={s7.sebep[:80]!r}")
+
+        # ── B20: CIKTI zincir sonunda yeniden ozetlenmez (disaridan degisiklik kutsanmaz)
+        kok_c = kap / "proje_c"
+        (kok_c / "ciktilar").mkdir(parents=True)
+        yaz(kok_c / "p.py", '''
+            from pathlib import Path
+            (Path(__file__).resolve().parent / "ciktilar" / "out.txt").write_text("P")
+            print("  1/1 dogrulama gecti")
+        ''')
+        yaz(kok_c / "r.py", 'print("  1/1 dogrulama gecti")\n')
+        q_yaz = {"aktif": False}
+
+        def gp(cal):
+            r = cal([sys.executable, "p.py"], cwd=kok_c, timeout=120)
+            return r.returncode == 0, r.stdout, r.stdout
+
+        def gq(cal):
+            r = cal([sys.executable, "r.py"], cwd=kok_c, timeout=120)
+            if q_yaz["aktif"]:
+                # izlenmeyen bir arac (kicad-cli gibi) P'nin ciktisini Q SIRASINDA yeniden yaziyor
+                (kok_c / "ciktilar" / "out.txt").write_text("Q")
+            return r.returncode == 0, r.stdout, r.stdout
+
+        def kos_c(artimli=True, sona=None):
+            z = ZO.Zincir(kok=kok_c, yol=kok_c / "onb.json", artimli=artimli, tetik=())
+            z.kos("P", gp)
+            z.kos("Q", gq)
+            if sona:
+                sona()
+            z.bitir()
+            return {s.baslik: s for s in z.sonuclar}
+
+        kos_c(artimli=False)
+        s = kos_c()
+        ok("B20 on kosul: P ve Q onbellekten", all(x.onbellek_yas is not None for x in s.values()),
+           str({b: x.sebep for b, x in s.items()}))
+        kos_c(sona=lambda: (kok_c / "ciktilar" / "out.txt").write_text("X"))
+        s = kos_c()
+        ok("B20 zincir bittikten sonra (bitir'den once) disaridan degisen CIKTI kaydi kutsamaz: "
+           "sonraki kosuda sahibi P KOSAR", s["P"].onbellek_yas is None, s["P"].sebep)
+        q_yaz["aktif"] = True
+        kos_c(artimli=False)
+        s = kos_c()
+        ok("B20c izlenmeyen yazar: Q SIRASINDA degisen (P'nin) cikti Q'nun yazimi sayilir — P ve Q "
+           "onbellekten (ping-pong yok)", all(x.onbellek_yas is not None for x in s.values()),
+           str({b: x.sebep for b, x in s.items()}))
+
+        # ── B21/B22: ortam anahtari — RED listesi
+        def anahtar(**ek):
+            eski = {k: os.environ.get(k) for k in ek}
+            try:
+                for k, v in ek.items():
+                    if v is None:
+                        os.environ.pop(k, None)
+                    else:
+                        os.environ[k] = v
+                return ZO.genel_anahtar("X")
+            finally:
+                for k, v in eski.items():
+                    if v is None:
+                        os.environ.pop(k, None)
+                    else:
+                        os.environ[k] = v
+        golge = kap / "golge"
+        golge.mkdir()
+        a0 = anahtar(PYTHONPATH=None, NODE_OPTIONS=None, HTTP_PROXY=None)
+        ok("B21 kullanicinin PYTHONPATH'i ve NODE_OPTIONS'u anahtarda (her adim onlarla kosuyor)",
+           anahtar(PYTHONPATH=str(golge)) != a0 and anahtar(NODE_OPTIONS="--require x.cjs") != a0)
+        ok("B22 HTTP_PROXY (ve gerisi: RED listesi) anahtarda — vekil yerel sunucuya giden "
+           "istegi kirar", anahtar(HTTP_PROXY="http://127.0.0.1:9") != a0
+           and anahtar(ARDUINO_DIRECTORIES_DATA=str(golge)) != a0)
+        ok("B22b oturuma ozgu degisken (CLAUDE_CODE_SESSION_ID, VSCODE_PID) anahtari DEGISTIRMEZ "
+           "(yeni oturum onbellegi bosa cikarmasin)",
+           anahtar(CLAUDE_CODE_SESSION_ID="baska-oturum", VSCODE_PID="1") == a0)
+        # davranis: PYTHONPATH degisince adim kosar
+        kos_t(artimli=False)
+        os.environ["PYTHONPATH"] = str(golge)
+        try:
+            _z, s8 = kos_t()
+        finally:
+            if eski_ortam["PYTHONPATH"] is None:
+                os.environ.pop("PYTHONPATH", None)
+            else:
+                os.environ["PYTHONPATH"] = eski_ortam["PYTHONPATH"]
+        ok("B21 kullanici PYTHONPATH kurunca adim onbellekten GELMEZ",
+           s8.onbellek_yas is None and "genel anahtar" in s8.sebep, s8.sebep)
+
+        # ── B23: ana surecin adim ortamini kuran dosyalari anahtarda
+        ana = kap / "ana"
+        for d in set(ZO.ANA_SUREC) | {"ozel_ortam.py"}:
+            (ana / d).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(BURASI / d, ana / d)
+        a1 = ZO.genel_anahtar("X", burasi=ana)
+        (ana / "ozel_ortam.py").write_text((ana / "ozel_ortam.py").read_text(encoding="utf-8")
+                                          + "\n# degisti\n", encoding="utf-8")
+        ok("B23 ozel_ortam.py (adimlarin LOCALAPPDATA'sini kuran) degisince genel anahtar degisir",
+           ZO.genel_anahtar("X", burasi=ana) != a1)
+        r = subprocess.run([sys.executable, "-c",
+                            "import json, sys; sys.path.insert(0, sys.argv[1]); import dogrula3; "
+                            "print(json.dumps([getattr(m, '__file__', None) or '' "
+                            "for m in list(sys.modules.values())]))", str(BURASI)],
+                           capture_output=True, text=True, cwd=str(BURASI), timeout=120)
+        try:
+            yuklu = json.loads(r.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            yuklu = []
+        b = str(BURASI.resolve()).lower()
+        yerel = sorted({os.path.relpath(f, BURASI).replace(os.sep, "/") for f in yuklu
+                        if f and str(Path(f).resolve()).lower().startswith(b + os.sep)
+                        and f.endswith(".py")})
+        eksik = [f for f in yerel if f not in ZO.ANA_SUREC and f not in ZO.ANAHTAR_DISI]
+        ok("B23 dogrula3'un import ettigi HER depo modulu ya ANA_SUREC'te (anahtar) ya ANAHTAR_DISI'nda "
+           "(gerekceli)", bool(yerel) and not eksik and "ozel_ortam.py" in yerel,
+           f"yuklu={yerel} eksik={eksik}")
+
+        # ── B24: golge modul (uretim/gzip.py gibi)
+        kok_s = kap / "proje_s"
+        # ⚠ json DEGIL: iz kancasi json'u surec acilisinda zaten yukluyor (sys.modules) — golge
+        #   hic devreye girmezdi. Kancanin yuklemedigi bir standart modul.
+        yaz(kok_s / "s.py", '''
+            import colorsys
+            print("  1/1 dogrulama gecti", colorsys.rgb_to_hsv(1, 0, 0))
+        ''')
+
+        def kos_s(artimli=True):
+            z = ZO.Zincir(kok=kok_s, yol=kok_s / "onb.json", artimli=artimli, tetik=())
+            g = govde(kok_s, "s.py")
+            s = z.kos("S", g)
+            z.bitir()
+            return s
+        kos_s(artimli=False)
+        on = kos_s()
+        yaz(kok_s / "colorsys.py", 'raise ImportError("GOLGE colorsys")\n')
+        try:
+            sg = kos_s()
+        finally:
+            (kok_s / "colorsys.py").unlink()
+        ok("B24 betigin dizinine standart kutuphaneyi GOLGELEYEN modul (colorsys.py) eklenince adim "
+           "KOSAR (ve kirmiziyi gorur)", on.onbellek_yas is not None and sg.onbellek_yas is None
+           and not sg.tamam, f"on={on.sebep!r} sg={sg.sebep[:100]!r}")
+
+        # ── B25: ngspice spinit / ~/.spiceinit
+        iz = ZO.Iz()
+        iz.dll.add(r"C:\Program Files\KiCad\10.0\bin\ngspice.dll")
+        g = ZO.cozumle(iz, kok_s, [], ZO.Kapsam(kok_s))
+        ok("B25 ngspice.dll yuklenince ~/.spiceinit ve spinit dosya girdisi (C duzeyinde okunuyor)",
+           any(p.endswith(".spiceinit") for p in g.dosya)
+           and any(p.lower().endswith("spinit") for p in g.dosya), str(sorted(g.dosya))[:200])
+    finally:
+        for k, v in eski_ortam.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        M.guvenli_sil(kap)
+
+
+KIRILGAN_PY = '''
+import os, sys
+from pathlib import Path
+isaret = Path(os.environ["ADIM_COKME"]) / "taban_bir_kez"
+if not isaret.exists():
+    isaret.write_text("1")
+    print("  0/1 dogrulama gecti")
+    sys.exit(1)
+print("  1/1 dogrulama gecti")
+# k1
+'''
+
+COKME_PY = '''
+import os, sys
+from pathlib import Path
+MUT_GECICI = False
+MUT_KALICI = False
+isaret = Path(os.environ["ADIM_COKME"]) / "coktu"
+if MUT_GECICI and not isaret.exists():
+    isaret.write_text("1")
+    raise PermissionError("[WinError 5] sahte paylasim ihlali")
+if MUT_KALICI:
+    raise RuntimeError("deterministik cokme")
+print("  [OK] c")
+print("  1/1 dogrulama gecti")
+'''
+
+SEMAFOR_PY = '''
+import os, time
+from pathlib import Path
+(Path(os.environ["ADIM_KAYIT"]) / f"{os.getpid()}-{time.time_ns()}.txt").write_text("basladi")
+time.sleep(float(os.environ.get("ADIM_UYKU", "30")))
+print("  1/1 dogrulama gecti")
+# s1
+# s2
+# s3
+# s4
+'''
+
+
+def test_inceleme_kosucu() -> None:
+    print("\n  ── C) inceleme: paralel mutasyon kosucusu")
+    import threading
+    kap = Path(tempfile.mkdtemp(prefix="olcum-hizek-"))
+    eski_yerel = os.environ.get("LOCALAPPDATA")
+    try:
+        kok = sahte_mut_proje(kap)
+        sahte_yerel = kap / "gercek_yerel"
+        yaz(sahte_yerel / "Arduino15" / "nobet.txt", "arac")
+        yaz(sahte_yerel / "Python" / "surum.txt", "3.14")
+        yaz(sahte_yerel / "olcum-karti" / "kopru.txt", "kullanicinin")
+        os.environ["LOCALAPPDATA"] = str(sahte_yerel)
+        ortam = dict(os.environ, LOCALAPPDATA=str(sahte_yerel), ADIM_ORTAM_DENETLE="1")
+        sessiz: list = []
+
+        def artik():
+            return sorted(p.name for p in kap.iterdir() if p.name.startswith(M.ISCI_ONEK)
+                          or p.name.startswith("_ic"))
+
+        # ── A9: IC ICE ozel LOCALAPPDATA (B3/B23 mutasyonu iscide dogrula3 kosuyor)
+        ad_link = sahte_yerel / "Application Data"          # LOCALAPPDATA'nin KENDISINE baglanti
+        ozel_ortam.baglanti_kur(ad_link, sahte_yerel)
+        isci = None
+        try:
+            isci = M.Isci(1, kok, {"LOCALAPPDATA": str(sahte_yerel)}, M._Ortak(1, sessiz.append))
+            ic = ozel_ortam.yerel_kur(kap / "_ic_yerel" / "yerel", isci.ortam["LOCALAPPDATA"])
+            gorunen = sorted(os.listdir(ic))
+            sizan = [x for x in gorunen if (ic / x / "olcum-karti" / "kopru.txt").exists()
+                     or (ic / x / "kopru.txt").exists()]
+            ok("A9 ic ice ozel LOCALAPPDATA (iscinin dizininden kurulan) Arduino15 ve Python'u "
+               "GORUR (eskiden yalniz Temp: ESP32 cekirdegi yok, Python yeniden indirilebilirdi)",
+               (ic / "Arduino15" / "nobet.txt").exists() and (ic / "Python" / "surum.txt").exists(),
+               str(gorunen))
+            ok("A9 korunan olcum-karti hicbir yoldan gorunmez; LOCALAPPDATA'nin KENDISINE giden "
+               "baglanti ('Application Data') izlenmez (iscide de ic icede de)",
+               not (ic / "olcum-karti").exists() and not sizan
+               and not (Path(isci.ortam["LOCALAPPDATA"]) / "Application Data").exists()
+               and "Application Data" not in gorunen, f"sizan={sizan} gorunen={gorunen}")
+        finally:
+            ozel_ortam.guvenli_sil(kap / "_ic_yerel")
+            if isci is not None:
+                isci.temizle()
+            os.rmdir(ad_link)
+        ok("A9 temizlik: ic ice dizinler silindi, baglanti hedefleri yerinde",
+           not artik() and (sahte_yerel / "Arduino15" / "nobet.txt").exists(), str(artik()))
+
+        # ── A10: kopyalayici + zincir AYNI agacta
+        (kok / "uretim" / "_b2_bol_hv").mkdir()
+        (kok / "uretim" / "_b2_bol_hv" / "x.raw").write_text("spice")
+        (kok / "kopru" / "_chk1").mkdir(parents=True)
+        (kok / "kopru" / "arsiv" / "_b1").mkdir(parents=True)
+        (kok / "kopru" / "arsiv" / "_b1" / "olcum.satir").write_text("kullanicinin")
+        hedef = kap / "_mutpT-1-1"
+        k = M.kopyala(hedef, kok)
+        ok("A10 kopya zincirin cop dizinlerini (uretim/_b*, kopru/_chk*) TASIMAZ; kopru/arsiv "
+           "altindaki ayni adli dizin (kullanicinin olcumu) tasinir",
+           not (k / "uretim" / "_b2_bol_hv").exists() and not (k / "kopru" / "_chk1").exists()
+           and (k / "kopru" / "arsiv" / "_b1" / "olcum.satir").exists()
+           and (k / "uretim" / "adim.py").exists())
+        M.guvenli_sil(k)
+        asil = shutil.copytree
+        sayac = {"n": 0}
+
+        def bozuk_copytree(src, dst, *a, **kw):
+            sayac["n"] += 1
+            if sayac["n"] == 1:
+                os.makedirs(dst)
+                (Path(dst) / "yarim.txt").write_text("yarim")
+                raise shutil.Error([(str(src), str(dst), "[WinError 3] kaybolan girdi")])
+            return asil(src, dst, *a, **kw)
+        shutil.copytree = bozuk_copytree
+        try:
+            try:
+                k = M.kopyala(hedef, kok)
+                hata = None
+            except Exception as h:              # noqa: BLE001
+                k, hata = None, h
+        finally:
+            shutil.copytree = asil
+        ok("A10 canli agacta kaybolan girdi (shutil.Error) kosuyu DUSURMEZ: yarim kopya silinip "
+           "yeniden denenir", hata is None and k is not None and (k / "uretim" / "adim.py").exists()
+           and not (k / "yarim.txt").exists() and sayac["n"] >= 2, f"hata={hata!r} n={sayac['n']}")
+        if k is not None:
+            M.guvenli_sil(k)
+        # gercek esanli zincir benzetimi: _b* dizinleri durmadan kurulup siliniyor
+        dur = threading.Event()
+        cop_hata = []
+
+        def cop_uret():
+            n = 0
+            while not dur.is_set():
+                d = kok / "uretim" / f"_b9_x{n % 7}"
+                try:
+                    d.mkdir(exist_ok=True)
+                    for j in range(20):
+                        (d / f"{j}.raw").write_text("x" * 100)
+                    shutil.rmtree(d, ignore_errors=True)
+                except OSError as h:
+                    cop_hata.append(repr(h))
+                n += 1
+        t = threading.Thread(target=cop_uret)
+        t.start()
+        hatalar = []
+        try:
+            for n in range(8):
+                try:
+                    k = M.kopyala(kap / f"_mutpT-2-{n}", kok)
+                    if list((k / "uretim").glob("_b9_*")):
+                        hatalar.append(f"{n}: _b9 kopyalandi")
+                    M.guvenli_sil(k)
+                except Exception as h:          # noqa: BLE001
+                    hatalar.append(f"{n}: {h!r}"[:120])
+        finally:
+            dur.set()
+            t.join()
+        ok("A10 zincir adimi _b* dizinlerini kurup silerken 8 kopyanin hicbiri cokmez ve hicbiri "
+           "onlari tasimaz", not hatalar, str(hatalar[:3]))
+        for d in kok.rglob("_b9_x*"):
+            shutil.rmtree(d, ignore_errors=True)
+        shutil.rmtree(kok / "uretim" / "_b2_bol_hv", ignore_errors=True)
+        shutil.rmtree(kok / "kopru", ignore_errors=True)
+
+        # ── A11: ANLIK kopya — kosu basladiktan sonra canli agac degisse de sonuc ayni
+        bozuldu = threading.Event()
+
+        def cikis_bozan(satir):
+            sessiz.append(satir)
+            if "taban" in satir and not bozuldu.is_set():
+                (kok / "uretim" / "veri.txt").write_text("bozuk\n")
+                bozuldu.set()
+        try:
+            s = M.mutasyonlari_kos(SAHTE_MUT, kok, 3, ortam, cikis=cikis_bozan)
+        finally:
+            (kok / "uretim" / "veri.txt").write_text("dogru\n")
+        d = {r["i"]: r["durum"] for r in s["sonuclar"]}
+        ok("A11 isciler kosu basindaki ANLIK kopyadan kopyalar: ilk tabandan sonra canli agac "
+           "bozulsa da taban yesil ve karar kumesi ayni", bozuldu.is_set()
+           and s["taban_kirmizi"] is None and d == BEKLENEN,
+           f"{d} taban={(s['taban_kirmizi'] or [None])[0]}")
+        ok("A11 anlik kopya da kosu sonunda silinir", not artik(), str(artik()))
+
+        # ── A12: COKME (iddiasiz kirmizi) = SUPHELI -> tek basina yeniden kosulur
+        cokme_d = kap / "cokme_isaret"
+        cokme_d.mkdir()
+        yaz(kok / "uretim" / "cokme.py", COKME_PY)
+        yaz(kok / "uretim" / "kirilgan.py", KIRILGAN_PY)
+        ortam_c = dict(ortam, ADIM_COKME=str(cokme_d))
+        muts = [("XC", "cokme.py", "uretim/cokme.py", "MUT_GECICI = False", "MUT_GECICI = True",
+                 "yalniz ilk kosuda coker (paralel yukte paylasim ihlali gibi)"),
+                ("XC", "cokme.py", "uretim/cokme.py", "MUT_KALICI = False", "MUT_KALICI = True",
+                 "her kosuda coker")]
+        s = M.mutasyonlari_kos(muts, kok, 2, ortam_c, cikis=sessiz.append)
+        r = {x["i"]: x for x in s["sonuclar"]}
+        ok("A12 iddiasiz COKME yalniz ilk kosuda: tek basina yeniden kosulur, karar ikinci kosunun "
+           "(KACTI) — eskiden sahte YAKALANDI",
+           r.get(1, {}).get("durum") == "KACTI" and bool(r.get(1, {}).get("cokme_ilk")),
+           str(r.get(1))[:200])
+        ok("A12 her kosuda coken mutasyon yeniden kosulduktan sonra YAKALANDI; teshis SON "
+           "istisna satiri (Traceback basligi degil)",
+           r.get(2, {}).get("durum") == "YAKALANDI" and bool(r.get(2, {}).get("cokme_ilk"))
+           and "RuntimeError: deterministik cokme" in r.get(2, {}).get("ilk_kirmizi", ""),
+           str(r.get(2))[:200])
+        ok("A16 teshis: [!!] yoksa cokmenin son istisna satiri",
+           M.teshis("x\nTraceback (most recent call last):\n  File \"a\", line 1\n    f()\n"
+                    "PermissionError: [WinError 5] Erisim engellendi\n")
+           == "cokme: PermissionError: [WinError 5] Erisim engellendi"
+           and M.teshis("  [OK] KIRMIZI degil\n  [!!] gercek\n") == "[!!] gercek")
+
+        # ── A13: kirmizi taban BIR KEZ yeniden olculur
+        s = M.mutasyonlari_kos([("XK", "kirilgan.py", "uretim/kirilgan.py", "# k1", "# K1",
+                                 "kacar")], kok, 1, ortam_c, cikis=sessiz.append)
+        ok("A13 bir kez kirmizi olan taban yeniden olculur; ikincisi yesilse kosu surer",
+           s["taban_kirmizi"] is None and [x["durum"] for x in s["sonuclar"]] == ["KACTI"],
+           str((s["taban_kirmizi"] or [None])[0]))
+
+        ev = threading.Event()
+        ev.set()
+        try:
+            M.kosut(kok, "adim.py", ortam, durdur=ev)
+            durduruldu = False
+        except M.Durduruldu:
+            durduruldu = True
+        ok("A5d durdur (Ctrl+C) kuruluyken kosut YENI SUREC ACMAZ", durduruldu)
+
+        # ── A15: sonuc yazimi
+        cikti: list = []
+        m0 = SAHTE_MUT[0]
+        rc = M.sonuc_kodu({"sonuclar": [], "taban_kirmizi": None, "sizinti": [],
+                           "kalan_dizin": [kap / "_mutp2-9028-682360000"], "kesildi": True},
+                          [m0], cikti.append)
+        metin = "\n".join(cikti)
+        ok("A15 Ctrl+C'de silinemeyen kopya ADIYLA yazilir; 'kopyalar temizlendi' DENMEZ",
+           rc == 130 and "_mutp2-9028-682360000" in metin and "temizlendi" not in metin, metin)
+        cikti.clear()
+        rc = M.sonuc_kodu({"sonuclar": [{"i": 1, "m": m0, "durum": "YAKALANDI", "rc": 1,
+                                         "sayim": [], "sizinti": 2}],
+                           "taban_kirmizi": None, "sizinti": [], "kalan_dizin": [],
+                           "kesildi": False}, [m0], cikti.append)
+        ok("A15 mutasyon basina gorulen Edge SIZINTISI kosuyu KIRMIZI yapar (son taramada hicbir "
+           "sey kalmasa da)", rc == 1 and "SIZDI" in "\n".join(cikti), "\n".join(cikti))
+
+        # ── A17: bayat _mutp* supurmesi — sahibi OLU olan silinir, CANLI olanin dizinine dokunulmaz
+        p = subprocess.Popen([sys.executable, "-c", "pass"])
+        p.wait()
+        olu, canli = p.pid, os.getpid()
+        hedef_d = kap / "baglanti_hedefi"
+        yaz(hedef_d / "deger.txt", "kalmali")
+        d_olu = kap / f"_mutp9-{olu}-123"
+        d_canli = kap / f"_mutp8-{canli}-123.ozel"
+        for d in (d_olu, d_canli):
+            d.mkdir()
+            ozel_ortam.baglanti_kur(d / "Arduino15", hedef_d)
+            eski_t = time.time() - 3600
+            os.utime(d, (eski_t, eski_t))
+        ok("A17 ad -> sahip pid", ozel_ortam.sahip_pid(d_olu.name, "_mutp") == olu
+           and ozel_ortam.sahip_pid(d_canli.name, "_mutp") == canli
+           and ozel_ortam.sahip_pid("_zincir-yerel-4321-99", "_zincir-yerel-") == 4321
+           and ozel_ortam.sahip_pid("_mutpA-77-5-1", "_mutp") == 77)
+        M.mutasyonlari_kos(SAHTE_MUT[:1], kok, 1, ortam, cikis=sessiz.append)
+        ok("A17 kosu basinda sahibi olmus bayat _mutp* dizini supurulur (baglanti hedefi yerinde); "
+           "sahibi CANLI olan (uzun suren baska bir kosu) KORUNUR",
+           not d_olu.exists() and d_canli.exists() and (hedef_d / "deger.txt").exists(),
+           f"olu={d_olu.exists()} canli={d_canli.exists()}")
+        ozel_ortam.guvenli_sil(d_canli)
+
+        # ── A14: kopru durum.json'u paylasim ihlalinde yeniden dener
+        sys.path.insert(0, str(KOK / "kopru"))
+        import kayit_esitle as KE
+        dd = kap / "durum_test"
+        dd.mkdir()
+        hedef_j, gec = dd / "durum.json", dd / "durum.tmp"
+        hedef_j.write_text("eski")
+        gec.write_text("yeni")
+        acik = open(hedef_j, "r")                       # paylasim: OKU+YAZ, SIL yok
+        try:
+            os.replace(gec, hedef_j)
+            on_kosul = False
+            gec.write_text("yeni")
+        except PermissionError:
+            on_kosul = True
+        threading.Timer(0.3, acik.close).start()
+        try:
+            KE.atomik_degistir(gec, hedef_j)
+            sonuc = hedef_j.read_text()
+        except OSError as h:
+            sonuc = repr(h)
+        finally:
+            time.sleep(0.4)
+            acik.close()
+        ok("A14 kopru durum.json: hedef acikken os.replace PermissionError (on kosul) ve "
+           "atomik_degistir kapaninca YAZAR (eskiden test 4 iscide coktu)",
+           on_kosul and sonuc == "yeni", f"on_kosul={on_kosul} sonuc={sonuc!r}")
+
+        # ── A6b: varsayilan isci sayisi makine yukune gore
+        n = os.cpu_count() or 1
+        taban = max(1, min(4, n - 2))
+        y = M.sistem_yuku(0.2)
+        ok("A6b varsayilan isci: bosta min(4, cekirdek-2), tam yukte 1; yuk olculebiliyor",
+           M.varsayilan_paralel(0.0) == taban and M.varsayilan_paralel(1.0) == 1
+           and M.varsayilan_paralel(None) == taban and (y is None or 0.0 <= y <= 1.0)
+           and 1 <= M.varsayilan_paralel() <= taban, f"yuk={y} taban={taban}")
+
+        # ── A5b/A5c: Ctrl+C semafor beklerken ve kopyalama sirasinda
+        if sys.platform == "win32":
+            test_kesme(kap, kok)
+    finally:
+        if eski_yerel is None:
+            os.environ.pop("LOCALAPPDATA", None)
+        else:
+            os.environ["LOCALAPPDATA"] = eski_yerel
+        M.guvenli_sil(kap)
+
+
+def _kes_kos(kap: Path, surucu_metin: str, hazir, sinir: float = 60):
+    surucu = yaz(kap / "surucu_k.py", surucu_metin)
+    p = subprocess.Popen([sys.executable, str(surucu)], cwd=kap,
+                         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                         encoding="utf-8", errors="replace")
+    son = time.time() + sinir
+    while time.time() < son and not hazir():
+        time.sleep(0.05)
+    basladi = hazir()
+    t_kes = time.time()
+    p.send_signal(signal.CTRL_BREAK_EVENT)
+    try:
+        cikti, _ = p.communicate(timeout=180)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        cikti, _ = p.communicate()
+    return basladi, t_kes, time.time() - t_kes, cikti
+
+
+def test_kesme(kap: Path, kok: Path) -> None:
+    # A5b: 4 isci, 4 AGIR + 1 duz mutasyon -> 2 tarayici kosar, 2 isci semaforda bekler
+    yaz(kok / "uretim" / "semafor_sahte.py", SEMAFOR_PY)
+    kayit = kap / "semafor_kayit"
+    kayit.mkdir()
+    muts = ([("XS", "semafor_sahte.py", "uretim/semafor_sahte.py", f"# s{n}", f"# S{n}", "kacar")
+             for n in range(1, 5)] + [SAHTE_MUT[0]])
+    basladi, t_kes, sure, cikti = _kes_kos(kap, f'''
+        import os, sys
+        sys.path.insert(0, {str(BURASI)!r})
+        import mutasyon as M
+        from pathlib import Path
+        M.sinyal_kur()
+        M.AGIR = set(M.AGIR) | {{"XS"}}
+        ortam = dict(os.environ, ADIM_KAYIT={str(kayit)!r}, ADIM_UYKU="30")
+        r = M.mutasyonlari_kos({muts!r}, Path({str(kok)!r}), 4, ortam)
+        print("KESILDI=" + str(r["kesildi"]))
+        print("KALAN=" + str(len(r["kalan_dizin"])))
+    ''', lambda: len(list(kayit.iterdir())) >= 2)
+    time.sleep(1.0)
+    sonra = [f for f in kayit.iterdir() if f.stat().st_mtime > t_kes + 0.05]
+    kalan = [x.name for x in kap.iterdir() if x.name.startswith(M.ISCI_ONEK)]
+    ok("A5b Ctrl+C: semaforda bekleyen isciler YENI tarayici kosusu BASLATMAZ; kopyalar silinir",
+       basladi and "KESILDI=True" in cikti and not sonra and not kalan and sure < 60,
+       f"basladi={basladi} sonradan={len(sonra)} kalan={kalan} sure={sure:.1f}s "
+       f"cikti={cikti[-160:]!r}")
+
+    # A5c: kopyalama SIRASINDA kesme (buyuk agac)
+    kok_b = kap / "buyuk"
+    for i in range(30):
+        for j in range(60):
+            yaz(kok_b / "uretim" / f"d{i}" / f"f{j}.txt", "x" * 64)
+    yaz(kok_b / "uretim" / "adim.py", ADIM_PY)
+    yaz(kok_b / "uretim" / "veri.txt", "dogru\n")
+    bas = kap / "baslama"
+    bas.mkdir()
+    ortak_on = M.ISCI_ONEK + "1-"
+    basladi, _t, sure, cikti = _kes_kos(kap, f'''
+        import os, sys
+        sys.path.insert(0, {str(BURASI)!r})
+        import mutasyon as M
+        from pathlib import Path
+        M.sinyal_kur()
+        ortam = dict(os.environ, ADIM_UYKU="30", ADIM_BASLAMA={str(bas)!r})
+        r = M.mutasyonlari_kos({SAHTE_MUT[:2]!r}, Path({str(kok_b)!r}), 2, ortam)
+        print("KESILDI=" + str(r["kesildi"]))
+    ''', lambda: any(x.name.startswith(ortak_on) and not x.name.endswith(".ozel")
+                     for x in kap.iterdir()))
+    kalan = [x.name for x in kap.iterdir() if x.name.startswith(M.ISCI_ONEK)]
+    ok("A5c Ctrl+C isci KOPYALARKEN: kosu kesilir, hicbir adim baslamaz, kalinti yok",
+       basladi and "KESILDI=True" in cikti and not list(bas.iterdir()) and not kalan and sure < 60,
+       f"basladi={basladi} adim={len(list(bas.iterdir()))} kalan={kalan} sure={sure:.1f}s "
+       f"cikti={cikti[-160:]!r}")
+
+
 def main() -> int:
     print("=" * 78)
     print("  HIZ — artimli zincir + paralel mutasyon kosucusu (sahte projelerde)")
@@ -830,7 +1491,9 @@ def main() -> int:
     t0 = time.time()
     test_yapisal()
     test_artimli()
+    test_inceleme_zincir()
     test_paralel()
+    test_inceleme_kosucu()
     print(f"\n  ({time.time() - t0:.0f} s)")
     print()
     print(f"  {gecti}/{gecti + kaldi} dogrulama gecti")

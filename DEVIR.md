@@ -42,6 +42,9 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
    > `tasarim3_sabit.py` değiştiyse (bu ikisini `--artimli` kendisi anlar ve tam koşar) ·
    > `--sayim-kilidi-yaz` (`--artimli` ile reddedilir). Özetteki `[onbellekten, N dk önce]`
    > etiketine bak; bir adımın neden koştuğu `[kosuyor: ...]` satırında.
+   > **5.12.92:** adım KOŞARKEN girdisi değişirse (zincir sürerken dosya düzenlemek) kayıt
+   > GEÇERSİZ yazılır (`[uyari: girdi adim SIRASINDA degisti ...]`), sonraki koşu o adımı koşar.
+   > Ortamın TAMAMI anahtarda (oturum değişkenleri hariç) — farklı terminal/PATH = tam koşu gibi.
 
    > **Adım adım iddia sayıları burada ELLE tutulmuyor** — B23.3'ten beri
    > `uretim/beklenen_sayim.json` tutuyor ve zincir her koşuda birebir
@@ -125,14 +128,19 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
    python mutasyon.py --adim B23      # bu ikisi zincirin KENDİ korumalarını sınar
    python mutasyon.py --adim B22b     # tek adım
    python mutasyon.py --neden 4D      # nedeni "4D" ile başlayanlar (scratch mut_hedef_*.py yerine)
-   python mutasyon.py --paralel 4     # 4 işçi (varsayılan min(4, çekirdek-2)); 1 = sıralı
+   python mutasyon.py --paralel 4     # 4 işçi (varsayılan min(4, çekirdek-2), makine yüklüyse daha az); 1 = sıralı
    python mutasyon.py --liste         # ne koşacağını yazar, koşmaz
    ```
-   **HIZ (5.12.91):** her işçi kendi kopyasında ve kendi `TMP/TEMP/LOCALAPPDATA`'sında
-   koşar → **zincir ile (yeni) mutasyon koşucusu artık aynı anda koşabilir**
-   (`test_zincir_hiz.py` A3). Eski kural yalnız eski/scratch koşucular için geçerli.
-   ⚠ Zamanlamaya bağlı iddialar (B72.A6) paralel yük altında kendiliğinden düşebilir →
-   YAKALANDI satırının altındaki `ilk kirmizi:` beklenen iddia değilse sonuç ŞÜPHELİ.
+   **HIZ (5.12.91/92):** her işçi kendi kopyasında ve kendi `TMP/TEMP/LOCALAPPDATA`'sında
+   koşar; koşu başında ağacın TEK anlık kopyası alınır, işçiler ondan kopyalar.
+   → **FARKLI ağaçlarda** zincir ile mutasyon koşucusu aynı anda koşabilir (A3).
+   ⚠ **AYNI ağaçta koşan zincirin ÜSTÜNE koşucu BAŞLATMA** (5.12.92 incelemesi: anlık kopya
+   alınırken kopyalayıcının açtığı çıktı dosyası zincir adımını kırabilir; `_b*` çöp dizinleri
+   artık kopyalanmıyor, kaybolan girdide kopya yeniden deneniyor ama pencere kapanmadı).
+   İddiasız ÇÖKME (yalnız Traceback) = ŞÜPHELİ → paralel evreden sonra tek başına yeniden
+   koşulur, karar ikincinin. ⚠ Zamanlamaya bağlı bir iddia yük altında düşerse YAKALANDI
+   satırının `ilk kirmizi:`'si beklenen iddia değildir — o sonuç hâlâ elle şüpheli (B72.A6
+   artık istemcinin GÖNDERME anından ölçüyor). Varsayılan işçi sayısı makine yüküne göre.
    Kaynağı bir **kopyada** bozup testin kırmızıya döndüğünü ölçüyor;
    asıl ağaca dokunmuyor (proje git deposu değil, bir Ctrl-C geri dönüşü
    olmayan bir bozulma bırakırdı). Yeni bir iddia yazdığında
@@ -10547,6 +10555,72 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.92 🟢 HIZ İNCELEMESİ: 11 ÖLÇÜLMÜŞ KUSUR KAPANDI (2026-10-03, dal `zincir-hiz`)
+
+Bağımsız inceleme 5.12.91'in iki hızlandırmasında 11 kusuru deneyle gösterdi (3 kritik). Hepsi önce
+`test_zincir_hiz.py`'de kırmızı bir iddia, sonra düzeltme, sonra yalanlayan bir `HIZ:` mutasyonu.
+
+**Artımlı zincir (`zincir_onbellek.py`):**
+1. 🔴 **TOCTOU** — imza adım BİTTİKTEN sonra alınıyordu: adım dosyayı eski haliyle okuyup yeşil verdi,
+   kullanıcı o sırada dosyayı bozdu, sonraki `--artimli` 22/22 önbellekten YEŞİL (B25'e `raise SystemExit`
+   sokuldu). Şimdi adımdan ÖNCE önceki kaydın girdileri içerikle + depo (boyut, mtime, ad kümesi)
+   özetlenir, sonra karşılaştırılır; depo dışı yeni girdi mtime ile (100 ms pay). Değişen varsa kayıt
+   GEÇERSİZ (sonraki koşu koşar; kayıt "önce" imzası için saklanır). B19/B19b/B19c.
+   Çıktılar zincir sonunda YENİDEN ÖZETLENMİYOR (kullanıcının araya giren değişikliğini kutsuyordu):
+   her kayıt o yolu EN SON YAZAN adımın, adımdan hemen sonraki özetini alır; adım SIRASINDA değişen başka
+   adımın çıktısı (kicad-cli izlenmeden yazıyor) o adımın yazımı sayılır (B20/B20c, B3/B9 ping-pong yok).
+2. 🔴 Kullanıcının `PYTHONPATH`/`NODE_OPTIONS`'u anahtardan düşürülüyordu (gölge numpy → 22/22 yeşil).
+3. `HTTP_PROXY` (ve ARDUINO_*/KICAD*/SPICE_*) anahtarda değildi → **anahtar artık ortamın TAMAMI**, yalnız
+   oturum değişkenleri hariç (`ORTAM_UCUCU`: CLAUDE_*, VSCODE_*, PWD, TEMP…). ⚠ Farklı terminal (Git Bash ↔
+   PowerShell, PATH farklı) = her adım koşar. B21/B22/B22b.
+4. `ozel_ortam.py` (her adımın LOCALAPPDATA'sını kuruyor) anahtarda değildi → `ANA_SUREC` (anahtar) +
+   `ANAHTAR_DISI` (gerekçeli); `dogrula3`'ün import ettiği her depo modülü ikisinden birinde olmalı (B23).
+5. Gölge modül (`uretim/gzip.py`) adımları koşturmuyordu → kanca çıkışta `sys.path`'teki her dizini
+   LİSTELER (B24). ⚠ Bedeli: `uretim/`'e yeni dosya eklemek bütün Python adımlarını koşturur.
+6. B72.Q16'nın `%TEMP%` önbelleği elle 6 dosya sayıyordu (`pc_ayar.py`, `gercek_dizin_koru.py` yoktu —
+   tam koşuda bile yeşil). Anahtar artık test_bildirim'in GERÇEKTEN yüklediği depo modülleri (geçen koşunun
+   `sys.modules`'ü, 8 dosya), adı ağaç köküne bağlı; `.gecti` dosyaları `gecici.DOSYA_ONEKLER` ile süpürülüyor.
+   Yalanlayıcı: `pc_ayar.py`'ye yalnız test_bildirim'i kıran satır → Q16 kırmızı.
+   Ek (küçük): ngspice.dll yükleyen adımın girdisi `~/.spiceinit` + `spinit` (B25).
+
+**Paralel koşucu (`mutasyon.py`, `ozel_ortam.py`):**
+7. 🔴 **İç içe özel LOCALAPPDATA boştu**: B3/B23 işçide `dogrula3` koşuyor; `yerel_kur` junction girdileri
+   ATLIYORDU → iç zincir yalnız `Temp` görüyordu (Arduino15 yok → B22b 113→112, sayım kilidi kırmızı; Python
+   yok → B73'ün `python`'u Python'u yeniden indirtebilirdi). Bu dalın getirdiği gerileme. Artık bağlantı
+   girdisi HEDEFİNE bağlanır; hedef kaynağın kendisi/atası ise ("Application Data") izlenmez (A9; gerçek
+   LOCALAPPDATA ile denendi: iç içe 94 girdi, Arduino15 + Python görünür, olcum-karti görünmez).
+8. Aynı ağaçta zincir + koşucu: `_b*` spice dizinleri kopyalanıyordu, kaybolan girdi `shutil.Error` ile bütün
+   koşuyu düşürüyordu. Artık çöp kalıpları (`ZO.COP_URETIM_KOPRU`) kopyalanmaz, copytree hatasında kopya
+   silinip yeniden denenir (A10), koşu başında TEK anlık kopya alınır, işçiler ondan kopyalar (A11).
+   **Kural geri geldi: AYNI ağaçta koşan zincirin üstüne koşucu başlatma** (anlık kopya penceresi).
+9. 4 işçide ortam kaynaklı çökme YAKALANDI sayılıyordu → iddiasız çökme = ŞÜPHELİ, paralel evreden sonra tek
+   başına yeniden koşulur (A12); kırmızı taban bir kez yeniden ölçülür (A13); teşhis son istisna satırı
+   (A16); köprünün `durum.json` `os.replace`'i paylaşım ihlalinde yeniden dener (`atomik_degistir`, A14 —
+   gerçek köprüde de olabilirdi); varsayılan işçi sayısı makine yüküne göre (A6b); hepsi tarayıcı olan
+   seçimde işçi = 2 (A8); B72.A6 aralığı istemcinin GÖNDERME anından (varış zamanı sunucu iş parçacığının
+   zamanlamasına bağlıydı; 4C'nin A6 mutasyonlarının üçü de hâlâ A6 ile öldürülüyor).
+10. Ctrl+C: kesmeden sonra semaforda bekleyen işçi yeni tarayıcı başlatıyordu (çocuk konsol kesmesiyle ana
+   iş parçacığından ÖNCE ölüyor → işçi `STATUS_CONTROL_C_EXIT`'i görünce `durdur`'u kurar); `kosut` durdur
+   kuruluyken süreç açmaz (kilitle); kopya dizin dizin iptal edilir; `_mutp*` kalıntısı adıyla yazılır, "kopyalar
+   temizlendi" yalnız temizse; koşu başında sahibi ölmüş + 5 dk'dan eski `_mutp*` süpürülür — **sahibi canlıysa
+   asla** (ad pid taşıyor; uzun bir koşunun `.ozel` mtime'ı eski kalır). A5b/A5c/A5d/A15/A17.
+    Ek: mutasyon başına Edge sızıntısı artık çıkış kodunu kırmızı yapıyor (A15).
+11. Kayıt defteri yan etkisi: 5.12.91 ② altına yazıldı — **kullanıcı onayı bekliyor, dokunulmadı.**
+
+**Ölçüm:** `test_zincir_hiz.py` 65 → **101/101** (~65 s). `mutasyon.py --neden HIZ --paralel 4`: 78 mutasyon,
+1655 s; ilk koşuda 2'si sorunluydu — semafor mutasyonu KAÇTI (yeni A8 sınırı tek tarayıcılı seçimde semaforu
+gereksiz kılıyordu; A8 karışık seçimle yeniden yazıldı) ve `ANA_SUREC` mutasyonu iddiayla değil ÇÖKMEYLE
+öldü (B23 testi o listeden kopyalıyordu) — ikisi düzeltilip yeniden koşuldu: **78/78 YAKALANDI**, hepsi
+hedef iddiasıyla. B72'nin A6'yı hedefleyen üç 4C mutasyonu yeni ölçümle de A6 ile öldü.
+**Gerçek zincir:** tam koşu yeşil **15 dk 20 s** (B3 bir kez GEÇERSİZ: kicad-cli koşarken `%APPDATA%\kicad`'ı
+yazdı — önceki kayıtla içerik farkı; sonraki koşuda temiz); `--artimli` 20/22 önbellekten **19.8 s** (B3 +
+netlist'i yeniden yazdığı için B9), ardından **22/22, 12.2 s**. **TOCTOU gerçek kartsız zincirde:**
+B25 koşarken (`test_tezgah_kart.py` süreci görülünce, 30 s sonra) dosyanın başına `raise SystemExit` sokuldu →
+r1 `GECTI B25 347.4 s` + `[uyari: girdi adim SIRASINDA degisti ...]`, r2 B25'i koştu ve **KALDI** (eskiden
+22/22 önbellekten yeşil). İlk deneme yanıltıcıydı: dosyaya yönlendirilen stdout blok tamponlu, "B25" başlığı
+adım BİTTİKTEN sonra göründü ve bozma adımdan sonra yapıldı — süreç listesinden tespit gerekiyor.
+Kayıt defteri zincir koşuları öncesi/sonrası AYNI (yeni yan etki yok).
+
 #### 5.12.91 🟢 HIZ: PARALEL MUTASYON + ARTIMLI ZİNCİR + ÖZEL LOCALAPPDATA (2026-10-03, dal `zincir-hiz`)
 
 Kullanıcı "işler hızlansın" dedi, dört seçenekten ikisini seçti (hafıza: *hız alt ajan*). Kod:
@@ -10565,7 +10639,7 @@ ortamı bir betiği bozduysa her mutasyonu sahte YAKALANDI yapardı). Tarayıcı
 B57) en fazla **2 eşanlı**; her birinden sonra işçinin TEMP'inde kalan `msedge.exe` öldürülüp SIZINTI
 raporlanır (A8). Ctrl+C / CTRL_BREAK → kopyalar silinir (A5). `--neden ÖNEK` scratch `mut_hedef_*.py`'lerin
 yerini aldı. YAKALANDI satırının altında `ilk kirmizi:` — mutasyonu HANGİ iddianın öldürdüğü.
-🔴 **KURAL DEĞİŞTİ:** "zinciri mutasyon koşusuyla üst üste bindirme" YENİ koşucu için kalktı —
+🔴 **KURAL DEĞİŞTİ (⚠ 5.12.92: AYNI AĞAÇ için YANLIŞTI — kural orada sürüyor, aşağıya bak):** "zinciri mutasyon koşusuyla üst üste bindirme" YENİ koşucu için kalktı —
 `dogrula3.py`'nin `%TEMP%` süpürmesi işçilerin özel TEMP'ine ulaşamaz (A3: iki eşanlı koşu + sürekli süpürme;
 A3b: süpürme ortak TEMP'te gerçekten siler). ⚠ Eski/scratch koşucular (`mut_hedef_*.py`, `mut_par.py`) ortak
 TEMP kullanıyor; onlar için kural sürüyor.
@@ -10576,7 +10650,13 @@ TEMP kullanıyor; onlar için kural sürüyor.
 `bildirim/<kart>.okb`). Aynı pencerede yeni bir arşiv akış dizini açılsaydı onaylanmış kayıtlar da silinirdi.
 ② ilk sürüm özel dizine yalnız Arduino15'i bağladı; B73'ün tam yolsuz `python`'u WindowsApps takma adından
 geçti, Python kurulum yöneticisi `%LOCALAPPDATA%\Python`'u bulamadı ve **özel dizine 153 MB yeni bir
-Python 3.14 indirip kurdu**. Şimdi: `dogrula3.py` her koşuda `projeler/_zincir-yerel-<pid>-…/yerel` kurar;
+Python 3.14 indirip kurdu**. ⚠ **Yan etkisi (5.12.92 incelemesinde bulundu, RAPORLANMAMIŞTI):** kurulum
+yöneticisi `HKCU\Software\Python\PythonCore\3.14` kaydını (PEP 514) o özel dizine yazdı — DisplayName
+`Python 3.14.8`, `InstallPath\ExecutablePath` = `…\projeler\_zincir-yerel-33400-127871700\yerel\Python\
+pythoncore-3.14-64\python.exe`; dizin silindi, yol YOK. Kayıt defterinden Python bulan araçlar (VS Code /
+IDE, eski `py` başlatıcısı) olmayan bir 3.14.8 görüyor; `python` komutu (`bin\*.__target__`) hâlâ gerçek
+3.14.2'ye gidiyor. **Dokunulmadı — kullanıcı onayıyla onarılacak** (gerçek 3.14.2'yi kurulum yöneticisiyle
+yeniden kaydettirmek ya da anahtarı gerçek yola çevirmek). Şimdi: `dogrula3.py` her koşuda `projeler/_zincir-yerel-<pid>-…/yerel` kurar;
 gerçek LOCALAPPDATA'nın HER üst dizini junction (yalnız `olcum-karti` ve `Temp` HARİÇ), sonunda
 `guvenli_sil` (junction BAĞLANTI olarak kaldırılır, hedefe inilmez — A4 + yalanlayıcı). 6 saatten eski
 kalıntıları kendisi süpürür.

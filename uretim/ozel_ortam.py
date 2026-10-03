@@ -28,12 +28,15 @@ degiskeniyle HIC gorunmez.
 from __future__ import annotations
 
 import os
+import re
 import shutil
+import sys
 import time
 from pathlib import Path
 
-# Junction ile BAGLANMAYANLAR (gerisi baglanir). Kendisi zaten baglanti olan girdiler
-# (ornegin "Application Data" -> LOCALAPPDATA'nin kendisi) da atlanir.
+# Junction ile BAGLANMAYANLAR (gerisi baglanir). Kendisi zaten baglanti olan girdi HEDEFINE
+# baglanir — hedef kaynak dizinin kendisi/atasi degilse ("Application Data" -> LOCALAPPDATA
+# atlanir); bkz. yerel_kur.
 YEREL_HARIC = ("olcum-karti", "Temp")
 
 
@@ -96,30 +99,105 @@ def baglanti_kur(link: Path, hedef: Path) -> bool:
     return baglanti_mi(link)
 
 
+def _ata_ya_da_kendisi(ata: str, p: str) -> bool:
+    a, q = os.path.normcase(ata.rstrip("\\/")), os.path.normcase(p.rstrip("\\/"))
+    return q == a or q.startswith(a + os.sep)
+
+
 def yerel_kur(yerel: Path, gercek: str | None) -> Path:
     """`yerel`i olustur; gercek LOCALAPPDATA'nin ust dizinlerini (YEREL_HARIC disinda)
-    junction'la bagla."""
+    junction'la bagla.
+
+    🔴 IC ICE (HIZ inceleme 2026-10-03): mutasyon iscisinin LOCALAPPDATA'si zaten ozel ve
+       icindeki HER girdi junction. B3/B23 mutasyonlari orada dogrula3 kosuyor; dogrula3 kendi
+       ozel dizinini o dizinden kuruyordu ve junction girdileri ATLANDIGI icin ic zincir yalniz
+       `Temp` goruyordu — Arduino15 yok (B22b 113 -> 112, sayim kilidi kirmizi), Python yok
+       (B73'un tam yolsuz `python`'u Python'u YENIDEN INDIRTEBILIRDI). Artik kaynak girdi bir
+       baglantiysa HEDEFINE baglanir. Izlenmeyen tek durum: hedef kaynak dizinin KENDISI ya da
+       bir ATASI ("Application Data" -> LOCALAPPDATA) — korunan olcum-karti onun icinden
+       gorunurdu; ve hedefin adi korunanlardan biriyse."""
     yerel = Path(yerel)
     yerel.mkdir(parents=True, exist_ok=True)
     (yerel / "Temp").mkdir(exist_ok=True)
     if gercek and os.path.isdir(gercek):
+        kok = os.path.realpath(gercek)
         for g in sorted(os.scandir(gercek), key=lambda x: x.name):
             ad = g.name
-            if ad in YEREL_HARIC or baglanti_mi(g.path) or not g.is_dir(follow_symlinks=False):
+            if ad in YEREL_HARIC:
+                continue
+            if baglanti_mi(g.path):
+                try:
+                    hedef = os.path.realpath(g.path)
+                except (OSError, ValueError):
+                    continue
+                if (_ata_ya_da_kendisi(hedef, kok) or os.path.basename(hedef) in YEREL_HARIC
+                        or not os.path.isdir(hedef)):
+                    continue
+                kaynak = Path(hedef)
+            elif g.is_dir(follow_symlinks=False):
+                kaynak = Path(gercek) / ad
+            else:
                 continue
             if baglanti_mi(yerel / ad) or (yerel / ad).exists():
                 continue
-            if not baglanti_kur(yerel / ad, Path(gercek) / ad):
+            if not baglanti_kur(yerel / ad, kaynak):
                 raise RuntimeError(f"junction kurulamadi: {yerel / ad}")
     return yerel
 
 
-def bayatlari_sil(ust: Path, onek: str, yas_sn: float = 6 * 3600) -> int:
-    """Oldurulmus bir kosudan kalan `<onek>*` dizinlerini (yas_sn'den eski) guvenle sil."""
+def surec_canli(pid: int) -> bool:
+    """pid'li surec yasiyor mu. 🔴 Windows'ta os.kill(pid, 0) SURECI OLDURUR
+    (TerminateProcess) — kullanilmaz. Emin olunamazsa True (silmeme yonu)."""
+    if pid <= 0:
+        return False
+    if sys.platform != "win32":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except OSError:
+            return True
+        return True
+    import ctypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.OpenProcess.restype = ctypes.c_void_p
+    k32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+    k32.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+    k32.CloseHandle.argtypes = [ctypes.c_void_p]
+    h = k32.OpenProcess(0x1000, 0, pid)        # PROCESS_QUERY_LIMITED_INFORMATION
+    if not h:
+        return ctypes.get_last_error() == 5     # erisim reddi = var; 87 (gecersiz) = yok
+    try:
+        kod = ctypes.c_uint32()
+        if not k32.GetExitCodeProcess(h, ctypes.byref(kod)):
+            return True
+        return kod.value == 259                 # STILL_ACTIVE
+    finally:
+        k32.CloseHandle(h)
+
+
+def sahip_pid(ad: str, onek: str) -> int | None:
+    """`<onek>[etiket-]<pid>-<sayi>...` adindan sahibin pid'i (`_zincir-yerel-1234-5`,
+    `_mutp2-1234-5`, `_mutp2-1234-5.ozel`, `_mutpA-1234-5-1`)."""
+    m = re.match(re.escape(onek) + r"(?:[A-Za-z0-9]*-)?(\d+)-\d+", ad)
+    return int(m.group(1)) if m else None
+
+
+def bayatlari_sil(ust: Path, onek: str, yas_sn: float = 6 * 3600, canli=None) -> int:
+    """Oldurulmus bir kosudan kalan `<onek>*` dizinlerini guvenle sil: yas_sn'den eski VE adindaki
+    sahip surec artik YOK (ad pid tasimiyorsa yalniz yas). 🔴 Yalniz yasa bakmak yetmez: uzun bir
+    mutasyon kosusunun `.ozel` dizininin mtime'i olusturuldugu andan kalir — 6 saat sonra BASKA
+    agactan baslayan bir kosucu canli iscinin dizinini silerdi."""
+    canli = surec_canli if canli is None else canli
     n = 0
     for d in Path(ust).glob(onek + "*"):
         try:
-            if d.is_dir() and time.time() - d.stat().st_mtime > yas_sn and guvenli_sil(d):
+            if not d.is_dir() or time.time() - d.stat().st_mtime <= yas_sn:
+                continue
+            pid = sahip_pid(d.name, onek)
+            if pid is not None and canli(pid):
+                continue
+            if guvenli_sil(d):
                 n += 1
         except OSError:
             pass

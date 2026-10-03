@@ -32,6 +32,9 @@ from pathlib import Path
 # Bu projenin urettigi gecici dizin onekleri — `dogrula3.py`'nin cop
 # toplayicisi ESKI kalintilari da bu listeye gore suepuruyor.
 ONEKLER = ("spice-", "olcum3_", "skopolc_", "kopru_", "fw3_", "skop_", "kayit_")
+# DOSYA kalintilari: B72.Q16'nin test_bildirim onbellegi (%TEMP%'te onlarca birikmisti — HIZ
+# inceleme 2026-10-03). Silinmesi yalniz bir sonraki B72 kosusunu ~23 s uzatir.
+DOSYA_ONEKLER = ("ok_test_bildirim_",)
 
 KAL = os.environ.get("OLCUM_GECICI_KAL") == "1"
 
@@ -61,9 +64,18 @@ def eski_kalintilar() -> list[Path]:
 
 
 def kalintilari_sil() -> int:
-    """Eski kalintilari siler; silinen dizin sayisini dondurur."""
+    """Eski kalintilari siler; silinen dizin (ve dosya) sayisini dondurur."""
     n = 0
     for d in eski_kalintilar():
         shutil.rmtree(d, ignore_errors=True)
         n += not d.exists()
+    kok = Path(tempfile.gettempdir())
+    for onek in DOSYA_ONEKLER:
+        for f in kok.glob(onek + "*"):
+            try:
+                if f.is_file():
+                    f.unlink()
+                    n += 1
+            except OSError:
+                pass
     return n

@@ -20,6 +20,7 @@ NE KAYDEDER (surec basina bir `py-<pid>-....jsonl` dosyasi, IZ dizininde):
   ag          loopback DISI socket.connect / getaddrinfo — dis durum
   mod         cikista sys.modules'teki her modulun dosyasi (gecerli .pyc varken
               import kaynagi .py'yi HIC acmaz; bu satir onu kapatir)
+  liste       cikista sys.path'teki her dizin (golge modul: uretim/gzip.py)
   son         surec duzgun bitti
 
 🔴 YAZ-GEC (write-through). Her YENI kayit olaydan ONCE diske yazilir (os.write,
@@ -256,6 +257,17 @@ def _kur(iz_dizin):
                 f = getattr(m, "__file__", None)
                 if f:
                     yaz("mod", _os.path.abspath(f))
+            # GOLGE MODUL: importlib'in dizin bakislari kayda girmiyor (importlib_mi). Betigin
+            # dizinine (uretim/) gelen bir gzip.py standart kutuphaneyi golgeler — sys.path'teki
+            # her dizinin AD LISTESI girdi (HIZ inceleme 2026-10-03: uretim/gzip.py ile 19/22
+            # adim onbellekten YESIL geldi, dogrudan kosunca ImportError).
+            for d in list(sys.path):
+                try:
+                    y = _os.path.abspath(d or _os.getcwd())
+                except Exception:
+                    continue
+                if _os.path.isdir(y):
+                    yaz("liste", y)
             if any("ngspice" in k[1].lower() for k in list(gorulen) if k[0] == "dll"):
                 spice_tara()
             yaz("son", "")
