@@ -2831,8 +2831,87 @@ def bolum_kopru_esitle() -> None:
         sunucu.shutdown()
 
 
+def bolum_tezgah_w5() -> None:
+    """W5 (2026-10-03): T7/T8 kart tezgahinin (tezgah_kayit.py --plan-elle / --skop-olcum) SAF
+    denetimleri. Olcu aleti yalan soylemesin: her bozuk senaryo kirmizi olmali."""
+    print("\n--- W5. Tezgah T7/T8 denetimleri (tezgah_kayit.py, cevrimdisi) ---")
+    from types import SimpleNamespace as NS
+    import tezgah_kayit as TK
+
+    def oturum(oid, tur=KB.OTURUM_OLCUM, sebep=1, olaylar=(), ms=range(0, 40_001, 200), skop=None):
+        o = KB.Oturum(oid, basla=NS(oturum_turu=tur))
+        o.bitir = None if sebep is None else {"nokta_adedi": 0, "sebep": sebep}
+        o.olaylar = [{"tur": t} for t in olaylar]
+        o.noktalar = [(i, NS(kart_ms=m)) for i, m in enumerate(ms)]
+        o.skoplar = skop or {}
+        return o
+    plan = oturum(5, olaylar=[KB.KO_PLAN])
+    elle = oturum(6)
+    ot = {5: plan, 6: elle}
+    iyi = TK.plan_elle_denetle(ot, 5, 6, 40)
+    bozuk = {
+        "elle sebep 7 (plan kesti)": ({5: plan, 6: oturum(6, sebep=7)}, 5, 6, 40),
+        "ayni oturum": ({5: plan}, 5, 5, 40),
+        "elle PLAN olayi (benimsedi)": ({5: plan, 6: oturum(6, olaylar=[KB.KO_PLAN])}, 5, 6, 40),
+        "plan sebep 7 (Gd kapatmadi)": ({5: oturum(5, sebep=7, olaylar=[KB.KO_PLAN]), 6: elle}, 5, 6, 40),
+        "plan PLAN olaysiz": ({5: oturum(5), 6: elle}, 5, 6, 40),
+        "elle kisa (plan bitisinde kesildi)": ({5: plan, 6: oturum(6, ms=range(0, 20_001, 200))}, 5, 6, 40),
+        "elle oturum yok": ({5: plan}, 5, 6, 40),
+    }
+    kacan = [ad for ad, (o2, a, b, s) in bozuk.items() if not TK.plan_elle_denetle(o2, a, b, s)]
+    ok("B72.TZ1 T7 plan_elle_denetle: dogru senaryo bos; elle kaydin plan bitisinde kesilmesi, yeni oturum "
+       "acilmamasi, planin elle kaydi benimsemesi, Gd'nin planin oturumunu kapatmamasi ve eksik oturum "
+       "KIRMIZI", iyi == [] and not kacan, f"iyi={iyi} kacan={kacan}")
+
+    def yk(sira, no, t, tam=True, meta=True):
+        return {"no": no, "meta": {"t_ms": t} if meta else None, "tam": tam, "t_sira": sira}
+    sk = {10 + i: yk(10 + i, i + 1, 1000 + 2000 * i) for i in range(6)}
+    sk.update({30 + i: yk(30 + i, 7 + i, 30_000 + 3000 * i) for i in range(5)})
+    p = TK.skop_partileri({**sk, 20: yk(20, 99, 0, meta=False)}, 6000)
+    ok("B72.TZ2 skop_partileri: META istek anlari arasi > ayir_ms yeni parti; META'siz yakalama yeni parti "
+       "ACMAZ (oncekine eklenir); kayit sirasiyla",
+       [len(x) for x in p] == [7, 5] and p[0][-1]["no"] == 99, str([len(x) for x in p]))
+    kal = [KB.KO_SKOP_KAL, KB.KO_SKOP_KAL]
+    h, bilgi = TK.skop_ekli_denetle(oturum(7, olaylar=kal, skop=sk), [2000, 3000], 6000)
+
+    def degis(i, **alan):
+        d = {k: dict(v) for k, v in sk.items()}
+        d[i].update(alan)
+        return d
+    tek = {k: v for k, v in sk.items() if k < 30}
+    bozuk2 = {
+        "numara tekrari (Gt sifirladi)": oturum(7, olaylar=kal, skop=degis(30, no=3)),
+        "tam degil": oturum(7, olaylar=kal, skop=degis(12, tam=False)),
+        "aralik yanlis": oturum(7, olaylar=kal, skop={k: (yk(k, v["no"], 1000 + 4000 * (k - 10)) if k < 30
+                                                           else v) for k, v in sk.items()}),
+        "tek parti": oturum(7, olaylar=kal, skop=tek),
+        "tek SKOP_KAL": oturum(7, olaylar=kal[:1], skop=sk),
+        "SKOP oturumu": oturum(7, tur=KB.OTURUM_SKOP, olaylar=kal, skop=sk),
+        "Gtd oturumu kapatti (bitir yok)": oturum(7, sebep=None, olaylar=kal, skop=sk),
+        "nokta boslugu": oturum(7, olaylar=kal, skop=sk, ms=range(0, 40_001, 200)),
+    }
+    bozuk2["nokta boslugu"].noktalar = [(i if i < 50 else i + 3, n) for i, n in bozuk2["nokta boslugu"].noktalar]
+    kacan2 = [ad for ad, o2 in bozuk2.items() if not TK.skop_ekli_denetle(o2, [2000, 3000], 6000)[0]]
+    ok("B72.TZ3 T8 skop_ekli_denetle: iki Gt'li dogru oturum bos (parti 6+5, ortanca 2000/3000); numara "
+       "tekrari, tam olmayan, yanlis aralik, eksik parti, eksik SKOP_KAL, SKOP oturumu, kapanmamis oturum "
+       "ve nokta boslugu KIRMIZI",
+       h == [] and bilgi["parti"] == [6, 5] and bilgi["ortanca_ms"] == [2000, 3000] and not kacan2,
+       f"h={h} {bilgi.get('parti')} kacan={kacan2}")
+    src = (BURASI / "tezgah_kayit.py").read_text(encoding="utf-8")
+    g = src[src.find("def plan_elle("):src.find("def _ham_istek(")]
+    komutlar = re.findall(r'(?:komut\(k,|k\.yaz\()\s*f?"([^"]*)"', g)
+    izinli = re.compile(r"^(Gd|Gb\d+|Gp[+\-?].*|Gt(\d+|d|\{a\})|Ga\{oid\} .*|G\?)(\\n)?$")
+    ok("B72.TZ4 --plan-elle/--skop-olcum yalniz izinli komutlari yollar (G?, Gb, Gd, Gp, Gt, Ga; p1/GF!/"
+       "N/k/E/Q YOK) ve esitleme ONAYSIZ (Go/seri_onay yok: kartta onay ilerlemez)",
+       bool(komutlar) and all(izinli.match(c) for c in komutlar) and "seri_onay" not in g
+       and "esitle_onaysiz(" in g and "Go" not in "".join(komutlar)
+       and not re.search(r"(?<![\w.])(_ayr_)?esitle\(", g),
+       str([c for c in komutlar if not izinli.match(c)]))
+
+
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
-            bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle]
+            bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle,
+            bolum_tezgah_w5]
 
 
 def main() -> int:

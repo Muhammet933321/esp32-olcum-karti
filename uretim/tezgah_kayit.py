@@ -17,7 +17,12 @@
     python tezgah_kayit.py --plan                  1C-4 Gp: baslar/biter (sebep 7), yeniden baslama, atlama, iptal
     python tezgah_kayit.py --guvenlik              1D: USB eslestirme, imzali istek, tekrar/bozuk ret, Ez1/Em1, temizlik
                                                     (--doldur: once bolumu Gb20 ile doldur, ~1.6 sa)
+    python tezgah_kayit.py --plan-elle             T7 (W5): plan surerken Gd + Gb (3 s arayla ve HEMEN): elle kayit
+                                                   planin bitisini GECER; skop gunlugu suruyorken plan ATLANIR
+    python tezgah_kayit.py --skop-olcum            T8 (W5): Gb surerken Gt2000 -> Gtd -> AYNI oturumda Gt3000 -> Gtd
     secenekler: --port COM6  --http olcum.local  (ya da kartin IP'si)
+                --dizin <yol>  (--plan-elle/--skop-olcum: ONAYSIZ esitleme dizini; vars. gecici dizinde
+                               olcum-tezgah-w5 — kartta onay ILERLEMEZ, kopru sonra kendi arsivine alir)
 
 🔴 --yedek NVS'i (WiFi ve web parolalarini) icerir: DEPO DISINA yazilir
    (<calisma alani>/.yedek/olcum-karti/). Geri donus:
@@ -927,6 +932,239 @@ def plan(k, host: str) -> None:
        f"GP={gp_c}->{gp_d} durum={gd and (gd['durum'], gd['oturum'])} bitir={o and o.bitir}")
 
 
+# ── W5 (2026-10-03): T7 plan + elle kayit, T8 OLCUM oturumuna iki skop gunlugu ──────────
+# SAF denetimler (plan_elle_denetle, skop_partileri, skop_ekli_denetle) cevrimdisi B72'de
+# sinaniyor (test_kayit_esp.py bolum_tezgah_w5); kart kosusu --plan-elle / --skop-olcum.
+# Esitleme ONAYSIZ (kalici gecici dizine, artimli): tezgah kartta onay ilerletmez — kopru
+# sonra kendi arsivine alir; kullanicinin PC arsivi hicbir kaydi kacirmaz.
+SEBEP_KULLANICI, SEBEP_PLAN = 1, 7
+
+
+def esitle_onaysiz(host: str, dizin: Path):
+    """Onaysiz artimli esitleme -> Oturumlar. Kart AKISI degismisse (X-Kayit-Kimlik) dizin
+    bastan kurulur. Imza zorunluysa (401) PC'nin eslesmis cihaziyla imzali."""
+    import shutil
+    import urllib.error
+    ag_hazir_bekle(host)
+    dizin = Path(dizin)
+
+    def bir(cihaz=None):
+        KE.Esitleyici(f"http://{host}", dizin, cihaz=cihaz).esitle()
+    try:
+        try:
+            bir()
+        except ValueError as h:
+            if "kimlik" not in str(h) and "GERI" not in str(h):
+                raise
+            shutil.rmtree(dizin, ignore_errors=True)
+            bir()
+    except urllib.error.HTTPError as h:
+        if h.code != 401:
+            raise
+        import imza as IM
+        import pc_ayar
+        dosya = next(iter(sorted(pc_ayar.cihaz_dizini().glob("*.json"))), None)
+        if dosya is None:
+            raise
+        bir(IM.Cihaz.yukle(dosya))
+    return KB.oturumlari_kur(KB.akis_coz((dizin / KE.DOSYA).read_bytes()))
+
+
+def plan_elle_denetle(ot, plan_ot: int, elle_ot: int, elle_sure_s: float,
+                      oran: float = 0.8) -> list[str]:
+    """T7: plan surerken Gd + Gb. Bos liste = gecti. Plan oturumu Gd ile (sebep 1) kapanir;
+    elle kayit AYRI bir oturumdur, PLAN olayi tasimaz, planin bitis aninda KESILMEZ
+    (sebep 7 degil, noktalari elle surenin en az `oran`i kadar yayilir)."""
+    p, e = ot.get(plan_ot), ot.get(elle_ot)
+    if p is None or e is None:
+        return [f"oturum esitlenen dosyada yok (plan {plan_ot}: {p is not None}, "
+                f"elle {elle_ot}: {e is not None})"]
+    h = []
+    if plan_ot == elle_ot:
+        h.append("elle kayit YENI oturum acmadi (planin oturumu suruyor)")
+    if not any(x.get("tur") == KB.KO_PLAN for x in p.olaylar):
+        h.append("plan oturumunda PLAN olayi yok")
+    if any(x.get("tur") == KB.KO_PLAN for x in e.olaylar):
+        h.append("elle oturumda PLAN olayi var (plan elle kaydi benimsedi)")
+    if not p.bitir or p.bitir["sebep"] != SEBEP_KULLANICI:
+        h.append(f"plan oturumu Gd ile (sebep 1) kapanmadi: {p.bitir}")
+    if not e.bitir or e.bitir["sebep"] != SEBEP_KULLANICI:
+        h.append(f"elle oturum sebep 1 ile kapanmadi (planin bitisi kesti?): {e.bitir}")
+    ms = [n.kart_ms for _, n in e.noktalar]
+    yayilim = (max(ms) - min(ms)) / 1000.0 if ms else 0.0
+    if yayilim < oran * elle_sure_s:
+        h.append(f"elle oturumun noktalari {yayilim:.1f} s'ye yayiliyor (< {oran:.0%} x {elle_sure_s:.0f} s)")
+    return h
+
+
+def skop_partileri(skoplar: dict, ayir_ms: int) -> list[list[dict]]:
+    """Yakalamalar KAYIT sirasiyla (t_sira); META istek anlari arasi `ayir_ms`'den buyukse yeni
+    parti (= yeni Gt). META'siz (yetim) yakalama kendi partisini acmaz, oncekine eklenir."""
+    partiler: list[list[dict]] = []
+    son_t = None
+    for y in sorted(skoplar.values(), key=lambda y: y["t_sira"]):
+        t = y["meta"]["t_ms"] if y.get("meta") else None
+        if partiler and (t is None or son_t is None or t - son_t <= ayir_ms):
+            partiler[-1].append(y)
+        else:
+            partiler.append([y])
+        if t is not None:
+            son_t = t
+    return partiler
+
+
+def skop_ekli_denetle(o, araliklar: list[int], ayir_ms: int) -> tuple[list[str], dict]:
+    """T8: OLCUM oturumu surerken sirayla `Gt<a>` ... `Gtd` (araliklar). Bos liste = gecti.
+    Her Gt bir parti: ortanca aralik ~a (0.9a..1.35a), en az 2 yakalama; hepsi TAM; yakalama
+    numarasi oturum boyunca TEKRARSIZ ve ARTAN (Gt sifirlamaz, ino skop_gunluk_no); her Gt bir
+    SKOP_KAL olayi; noktalar kesintisiz; oturum OLCUM ve yalniz Gd ile kapandi (Gtd KAPATMAZ)."""
+    if o is None:
+        return ["oturum esitlenen dosyada yok"], {}
+    h = []
+    if o.basla is None or o.basla.oturum_turu != KB.OTURUM_OLCUM:
+        h.append("oturum OLCUM degil (Gt ayri SKOP oturumu acmis olabilir)")
+    partiler = skop_partileri(o.skoplar, ayir_ms)
+    ortancalar = []
+    for p in partiler:
+        tl = [y["meta"]["t_ms"] for y in p if y.get("meta")]
+        ara = sorted(b - a for a, b in zip(tl, tl[1:]))
+        ortancalar.append(ara[len(ara) // 2] if ara else None)
+    if len(partiler) != len(araliklar):
+        h.append(f"{len(partiler)} parti, beklenen {len(araliklar)}")
+    else:
+        for i, (p, a, m) in enumerate(zip(partiler, araliklar, ortancalar), 1):
+            if len(p) < 2 or m is None or not 0.9 * a <= m <= 1.35 * a:
+                h.append(f"parti {i}: {len(p)} yakalama, ortanca aralik {m} ms (beklenen ~{a})")
+    yk = [y for p in partiler for y in p]
+    if not all(y["tam"] for y in yk):
+        h.append(f"tam olmayan yakalama: {sum(1 for y in yk if not y['tam'])}")
+    nolar = [y["no"] for y in yk]
+    if any(b <= a for a, b in zip(nolar, nolar[1:])):
+        h.append(f"yakalama numarasi tekrarladi ya da geri gitti: {nolar}")
+    kal = sum(1 for x in o.olaylar if x.get("tur") == KB.KO_SKOP_KAL)
+    if kal != len(araliklar):
+        h.append(f"SKOP_KAL olayi {kal}, beklenen {len(araliklar)} (her Gt bir)")
+    idx = [i for i, _ in o.noktalar]
+    if not idx or idx != list(range(idx[0], idx[0] + len(idx))):
+        h.append(f"noktalar kesintili ya da yok ({len(idx)})")
+    if not o.bitir or o.bitir["sebep"] != SEBEP_KULLANICI:
+        h.append(f"oturum Gd ile kapanmadi: {o.bitir}")
+    ms = [n.kart_ms for _, n in o.noktalar]
+    bosluk = max((b - a for a, b in zip(ms, ms[1:])), default=0)
+    return h, {"parti": [len(p) for p in partiler], "ortanca_ms": ortancalar, "no": nolar,
+               "nokta": len(idx), "en_buyuk_nokta_boslugu_ms": bosluk, "skop_kal": kal}
+
+
+def _ad(k, oid: int, ad: str) -> None:
+    if oid:
+        komut(k, f"Ga{oid} W5 tezgah {ad}", 1.0)
+
+
+def plan_elle(k, host: str, dizin: Path) -> None:
+    """T7 kartta: (a) plan surerken Gd, 3 s sonra Gb; (b) Gd ve Gb ARKA ARKAYA (ayni saniye).
+    Elle kayit planin bitisini (bas + sure) gecmeli; GP 3 (BITTI) planin KENDI oturumuyla kalir.
+    (c) skop gunlugu (SKOP oturumu) suruyorken baslangic: plan ATLANIR, gunluk bolunmez.
+    "DOLU'da oturumsuz pil testi + plan" kartta SINANAMAZ: oturumsuz pil testi `p1` ister (ADS ve
+    yuk yok — p1 reddedilir, T5) ve DOLU ~1.6 sa onaysiz doldurma ister; AVR (B71.R) + F70."""
+    print("\n── plan-elle (T7): plan surerken Gd + Gb; skop gunlugu suruyorken plan")
+    for bekleme in (3.0, 0.0):
+        ad = "3 s arayla" if bekleme else "HEMEN (ayni saniye)"
+        komut(k, "Gd", 3)
+        komut(k, "Gp-", 1.5)
+        t0 = time.time()
+        s, _ = komut(k, "Gp+5,30,200", 1.5)
+        if any("saat yok" in x for x in s):
+            ok("NTP saati var (plan kurulabilir)", False, "kart 'saat yok' dedi")
+            return
+        g, _ = _durum_bekle(k, 2, 20)
+        plan_ot = g["oturum"] if g else 0
+        _ad(k, plan_ot, "T7 plan")
+        gp1 = _gp_bekle(k, lambda x: x[0] == 2 and x[4] == plan_ot)
+        time.sleep(max(0.0, t0 + 13 - time.time()))
+        k.yaz("Gd\n")
+        if bekleme:
+            dinle(k, bekleme)
+        _, g2 = komut(k, "Gb200", 6, lambda x: x["durum"] == 2 and x["oturum"] not in (0, plan_ot))
+        t_gb = time.time()
+        elle_ot = g2["oturum"] if g2 else 0
+        _ad(k, elle_ot, "T7 elle")
+        gp2 = _gp_bekle(k, lambda x: x[0] == 3)
+        satir, _ = dinle(k, max(0.0, t0 + 5 + 30 + 10 - time.time()))   # planin bitisinden 10 s sonrasi
+        kesildi = [g for g in map(g_coz, satir) if g and g["durum"] != 2]
+        gd = durum_iste(k)
+        gp3 = _gp(k)
+        komut(k, "Gd", 5, lambda x: x["durum"] == 1)
+        sure = time.time() - t_gb
+        ot = esitle_onaysiz(host, dizin)
+        hata = plan_elle_denetle(ot, plan_ot, elle_ot, sure)
+        print(f"  [{ad}] plan oturumu {plan_ot}, elle {elle_ot}; GP {gp1} -> {gp2} -> {gp3}; "
+              f"planin bitisinden 10 s sonra G {gd and (gd['durum'], gd['oturum'])}; elle {sure:.0f} s")
+        ok(f"T7 ({ad}): Gd planin oturumunu kapatti (GP 3, plan oturumuyla), Gb YENI oturum acti; elle "
+           "kayit planin bitis anini GECTI (kesilmedi, sebep 1 ile Gd'de kapandi, PLAN olayi yok)",
+           bool(gp1) and plan_ot > 0 and elle_ot > 0 and bool(gp2) and gp2[0] == 3
+           and bool(gp3) and gp3[0] == 3 and gp3[4] == plan_ot and not kesildi
+           and bool(gd) and gd["durum"] == 2 and gd["oturum"] == elle_ot and not hata,
+           f"{hata} GP={gp3} kesildi={kesildi[:1]}")
+    # (c) mesgul = skop gunlugu (SKOP oturumu): plan ATLANIR, gunluk bolunmez
+    komut(k, "Gd", 3)
+    _, g = komut(k, "Gt2000", 8, lambda x: x["durum"] == 2)
+    sk_ot = g["oturum"] if g else 0
+    _ad(k, sk_ot, "T7 skop")
+    komut(k, "Gp+3,20,1000", 1.5)
+    time.sleep(6)
+    gp = _gp(k)
+    gd = durum_iste(k)
+    gt = _gt(k)
+    komut(k, "Gtd", 4)
+    _, g3 = komut(k, "Gd", 3, lambda x: x["durum"] == 1)
+    g3 = g3 or durum_iste(k)
+    komut(k, "Gp-", 1.5)
+    ok("T7 skop gunlugu suruyorken plan baslangici: plan ATLANDI (GP 4), SKOP oturumu bolunmedi, "
+       "gunluk surdu (GT etkin 1)",
+       sk_ot > 0 and bool(gp) and gp[0] == 4 and bool(gd) and gd["durum"] == 2 and gd["oturum"] == sk_ot
+       and bool(gt) and gt[0] == 1 and bool(g3) and g3["durum"] == 1,
+       f"GP={gp} G={gd and (gd['durum'], gd['oturum'])} GT={gt}")
+
+
+def skop_olcum(k, host: str, dizin: Path) -> None:
+    """T8 kartta: Gb200 surerken Gt2000 ~13 s, Gtd, 8 s ara, AYNI oturumda Gt3000 ~16 s, Gtd, Gd.
+    Skop ayarlarina DOKUNULMAZ (kip OTO olmali: tetiksiz da yakalar; NORMAL'de sinyal yoksa 0
+    yakalama -> denetim kirmizi ve sebebi yazilir)."""
+    print("\n── skop-olcum (T8): OLCUM oturumuna iki ayri skop gunlugu")
+    araliklar, ayir = [2000, 3000], 6000
+    komut(k, "Gd", 3)
+    _, g = komut(k, "Gb200", 8, lambda x: x["durum"] == 2)
+    oid = g["oturum"] if g else 0
+    _ad(k, oid, "T8")
+    gtler, durdu = [], []
+    for i, a in enumerate(araliklar):
+        if i:
+            time.sleep(8)
+        s, _ = komut(k, f"Gt{a}", 2)
+        red = [x for x in s if x.startswith("! G")]
+        time.sleep(a * 5 / 1000 + 3)
+        gtler.append(_gt(k))
+        s, _ = komut(k, "Gtd", 3)
+        durdu.append(next((x for x in s if "gunlugu durdu" in x), red[0] if red else ""))
+        gd = durum_iste(k)
+        if not (gd and gd["durum"] == 2 and gd["oturum"] == oid):
+            break
+    gd = durum_iste(k)
+    time.sleep(2)
+    komut(k, "Gd", 5, lambda x: x["durum"] == 1)
+    ot = esitle_onaysiz(host, dizin)
+    o = ot.get(oid)
+    hata, bilgi = skop_ekli_denetle(o, araliklar, ayir)
+    ikili_ok = bool(o) and all((KB.skop_ikili(y) or b"")[:3] == b"S3B" for y in o.skoplar.values())
+    print(f"  oturum {oid}: {bilgi}; GT {gtler}; {durdu}")
+    ok("T8: Gb surerken iki ayri Gt (2000, 3000) AYNI OLCUM oturumuna; iki Gtd olcumu KAPATMADI; "
+       "parti araliklari dogru, yakalamalar TAM, numara tekrarsiz-artan, iki SKOP_KAL, noktalar "
+       "kesintisiz; PC /skop.bin (S3B) uretir",
+       oid > 0 and bool(gd) and gd["durum"] == 2 and gd["oturum"] == oid and not hata and ikili_ok
+       and all(gt and gt[1] == a for gt, a in zip(gtler, araliklar)),
+       f"{hata} ikili={ikili_ok} GT={gtler}")
+
+
 def _ham_istek(taban: str, yol: str, basliklar: dict, yontem: str = "GET", govde=None,
                sn: float = 10.0) -> tuple[int, dict, str]:
     import urllib.error
@@ -1186,6 +1424,11 @@ def main() -> int:
             guvenlik(k, host)
         if "--hazirsiz" in a:
             hazirsiz(k, host, float(sec("--sure", "60")), "--doldur" in a)
+        dizin = Path(sec("--dizin", str(Path(tempfile.gettempdir()) / "olcum-tezgah-w5")))
+        if "--plan-elle" in a:
+            plan_elle(k, host, dizin)
+        if "--skop-olcum" in a:
+            skop_olcum(k, host, dizin)
         if "--esit" in a:
             esit(k, host, port)
     finally:
