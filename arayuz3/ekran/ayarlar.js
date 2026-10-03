@@ -23,18 +23,21 @@
      kalibrasyon gecmisi bu PC'deki arsivin kopyasindan. Depolama tablosu PC
      arsivini SALT OKUMA gosterir (silme yok — tek yazar kopru). Bu metinler
      ortak/src/sozluk_pc.js'te ve YALNIZ kopruda dinamik olarak iner (kartin
-     Gelismis'i tek dosya kalir).
+     Gelismis'ine PC metni inmez).
    4H — kopruda Gelismis: kabuk surumu + bildirim bolumu (ekran/pc_kopru.js); kartta istek yok.
    NEDEN IKI ASAMALI YUKLEME: kalibrasyon gecmisi ve depolama IndexedDB zincirini
    (esitleme.js + depo_idb.js ve ortak/ modulleri, ~43 KB gzip) ister; Gelismis
-   istemez. Zincir bu dosyaya DINAMIK `import()` ile gelir — Gelismis tek dosya
+   istemez. Zincir bu dosyaya DINAMIK `import()` ile gelir — Gelismis yalniz bu
+   dosyayi ve metinlerini (ortak/sozluk_ay.js, EU32: acilis sozlugunden ayrildi)
    indirir (karttan her istek olcum dongusunu blokluyor).
    ⚠ Saf fonksiyonlar Vue'suz ve DOM'suz (B7 bolum 30 node'da sinar); bilesen
      ortama (fetch, storage, localStorage, location) yalniz `_` onekli yardimci
      yontemlerden erisir — testte degistirilir.
    ═══════════════════════════════════════════════════════════════════════ */
 
-import { ceviri, ceviriKod, sozluktenCeviri } from '/ortak/sozluk.js';
+import { ceviriKod, sozluktenCeviri } from '/ortak/sozluk.js';
+/* W3 (EU32): bu ekranin ay. metinleri acilis sozlugunde DEGIL — modulle iner (sozluk_ay.js; yoksa sozluk.js) */
+import { ceviriAy as ceviri } from '/ortak/sozluk_ay.js';
 
 /* ── sabitler ───────────────────────────────────────────────────────── */
 

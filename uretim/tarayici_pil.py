@@ -492,6 +492,9 @@ def mah_yamuk(sayi: int) -> float:
 
 
 # ── ana akis ─────────────────────────────────────────────────────────────
+# EU32 (W3): tembel ekran sozlukleri bu ekranin acilisinda INMEZ (butce payi)
+TEMBEL_SOZ_JS = ("performance.getEntriesByType('resource').map(e => new URL(e.name).pathname)"
+                 ".filter(p => /\\/ortak\\/sozluk_(kayit|ay)\\.js$/.test(p))")
 def main() -> int:
     arg = sys.argv[1:]
     goruntu = Path(arg[arg.index("--goruntu") + 1]) if "--goruntu" in arg else None
@@ -540,6 +543,9 @@ def main() -> int:
                bool(dur) and dur["d"] is False and dur["a"] is False and dur["g"] is True and dur["m"] == "DURDUR", str(dur))
             ok("[!] PL4: Pil sekmesi acildi, test surmuyor, durum taze -> yeni `/pil` YOK",
                istek_say(kart) == n_acilis, f"{istek_say(kart)} istek")
+            tembel = t.js(TEMBEL_SOZ_JS)
+            ok("[!] EU32: Canli + Pil acilisi tembel ekran sozluklerini (ortak/sozluk_kayit.js, sozluk_ay.js) INDIRMEDI",
+               tembel == [], f"{tembel}")
             ok_ = okumalar(t)
             ok("PL2: okuma kartlari altisi da var; kesme KARTIN ayari (3.00 V, kaynak yazili)",
                list(ok_) == ["v", "i", "mah", "wh", "sure", "kesme"] and ok_["kesme"]["d"] == "3.00V"

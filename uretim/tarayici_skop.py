@@ -468,6 +468,9 @@ def profil_surecleri(profil: str) -> list[int]:
 
 
 # ── ana akis ─────────────────────────────────────────────────────────────
+# EU32 (W3): tembel ekran sozlukleri bu ekranin acilisinda INMEZ (butce payi)
+TEMBEL_SOZ_JS = ("performance.getEntriesByType('resource').map(e => new URL(e.name).pathname)"
+                 ".filter(p => /\\/ortak\\/sozluk_(kayit|ay)\\.js$/.test(p))")
 def main() -> int:
     arg = sys.argv[1:]
     goruntu = Path(arg[arg.index("--goruntu") + 1]) if "--goruntu" in arg else None
@@ -505,6 +508,9 @@ def main() -> int:
                t.js(f"{UYG}.gorunum") == "skop" and t.js(f"{UYG}.tasiyiciAdi") == "akis" and t.js(f"{UYG}.skopDurum") == "hazir",
                " ".join(kart.komut_listesi))
             t.bekle(1.0)
+            tembel = t.js(TEMBEL_SOZ_JS)
+            ok("[!] EU32: #/skop acilisi tembel ekran sozluklerini (ortak/sozluk_kayit.js, sozluk_ay.js) INDIRMEDI",
+               tembel == [], f"{tembel}")
 
             # ── 2. duzen (1280): dalga solda >= 2/3, denetimler sagda ─────
             d = t.js(DUZEN_JS)

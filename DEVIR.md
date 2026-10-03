@@ -10550,6 +10550,34 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.102 🟢 W3: PANEL AÇILIŞ BÜTÇESİNE PAY — TEMBEL EKRAN SÖZLÜKLERİ (2026-10-03, dal `w3-butce`)
+
+Ajan (W3), kart yok. Karar `tasarim/2026-10-02-alt-proje-3-panel.md` **EU32**; açık işler
+`tasarim/1-acik-isler.md` "Panel açılış bütçesi" (W3-1 kapandı, W3-2…4).
+
+- **Ne taşındı:** yalnız TEMBEL zincirlerin kendi kullandığı metinler. `ortak/src/sozluk_kayit.js` (200
+  anahtar: `kl.`/`kg.`/`kr.`; `kayit_gorunum.js` statik alır, Kayıtlar ve Karşılaştırma onu zaten
+  alıyor) ve `ortak/src/sozluk_ay.js` (95 anahtar: `ekran/ayarlar.js`). Ayrım elle değil: anahtarı
+  hangi dosyaların dizge olarak yazdığına bakan betik (B73 `dizgeler` çözücüsü); birden çok ekranın ya
+  da kabuğun kullandığı her metin açılışta kaldı. `ceviriKayit`/`ceviriAy` = önce kendi sözlüğü, yoksa
+  `sozluk.js`; ekranlar `import { ceviriKayit as ceviri }` ile (çağrılar değişmedi).
+- **Tuzak (bulundu, düzeltildi):** Kayıtlar `NEREDE_METIN` / `nedenMetni` / kopya satırı `pc.` ve `kl.`
+  anahtarlarını KARIŞIK `ceviriPc`'ye veriyordu; `ceviriPc` yalnız açılış sözlüğüne düştüğü için taşımadan
+  sonra "nerede" sütunu `kl.nerede_kart` yazardı → `kayit_gorunum.js` `ceviriKlPc` (B7 iddiası + T3H'nin
+  "ekranda ham anahtar yok" denetimi).
+- **`os.`/`pl.` bilerek kaldı:** iki ekran kabuğun parçası (app.js + index.html), modül inmeden çizilir;
+  Pil'in DURDUR'u modülü beklemez (PU1). `os.`'u taşımak `#/skop`'u küçültmezdi.
+- **Ölçüm (B7, gzip):** `sozluk.js` 27 727 → 18 187 B · açılış kümesi 209 404 → **199 864** · Canlı ile
+  açılış 238 403 → 228 863 · `#/skop` 250 794 → **241 254** (pay 5.2 → 14.7 KB) · `#/pil` 240 732 →
+  231 192 · eşleşmiş açılış (EU31) 259 996 → **250 456** (3D'nin 256 000'inin de altında; 15 dosya
+  istisnası sürüyor) · `#/ayar/depolama` 265 232 → 260 358 · kart görüntüsü 417 627 → 421 545 B.
+  Bedel: Ayarlar modülü iki dosya (AY2 güncellendi), görüntü +3.9 KB.
+- **İddialar:** B73 `ortak/test/sozluk_kayit.test.js` + `sozluk_ay.test.js` (yerleşim iki yönde, statik
+  içe aktaranlar, ATMAZ geri düşme); B7 +4 (tembel sözlükler açılış/#/skop/#/pil/eşleşmiş açılışta yok,
+  `sozluk.js` ≤ 19 500 B, `sozluk_ay.js` ≤ 5.5 KB, `ceviriKlPc`) ve metin iddiaları birleşik sözlük
+  görünümünden (`sozlukTum`); T3H +3, T3E +1, T3F +1 gerçek tarayıcıda. 18 `W3:` yalanlayıcısı; taşınan
+  anahtarları hedefleyen 10 eski mutasyon yeni dosyaya yönlendirildi.
+
 #### 5.12.99 🟢 HIZ ↔ main BİRLEŞMESİ (2026-10-03, dal `zincir-hiz`, ağaç `projeler/olcum-karti-hiz`)
 
 Ajan. `main` (e6e086d: 4D–4J, 3C-LISTE, kılavuz, `gercek_dizin_koru` son kuralı, köprü 405) `zincir-hiz`'e
