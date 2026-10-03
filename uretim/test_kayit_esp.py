@@ -23,6 +23,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import urllib.error
 import urllib.parse
 from pathlib import Path
@@ -2881,6 +2882,83 @@ def bolum_w2() -> None:
        PB.G_ALAN == n_fw and bool(PB._G_DESEN.fullmatch(fw_satir)) and bool(PB._G_DESEN.fullmatch(eski))
        and not any(PB._G_DESEN.fullmatch(y) for y in yanlis) and tz_ok,
        f"PB.G_ALAN={PB.G_ALAN} tezgah={ {k: (type(v).__name__ if isinstance(v, Exception) else 'ok') for k, v in tz.items()} }")
+
+    # W2h (inceleme): tezgah_kart / tezgah_blokaj kararli hali olcmeden once `G` satirinin silme
+    # sayaci (sil_adet) durana dek bekler (1C-2). Desen 13 alanda kalmisti -> 15 alanli A3-W2
+    # satiri hic eslesmiyor, bekleyis HEMEN bitiyor ve loop_azami bosta on silme surerken olculuyordu.
+    # Davranisla sinanir: sanal saat + sahte kart; sil_adet 5, 9, 9 -> iki 3 s bekleyis (6 s).
+    i_sil = adlar.index("sil_adet")
+
+    def g_sil(n: int, sil: int) -> str:
+        return "G " + " ".join(str(sil if j == i_sil else j % 3) for j in range(n))
+
+    class _Saat:
+        def __init__(self) -> None:
+            self.t = 0.0
+
+        def time(self) -> float:
+            return self.t
+
+        monotonic = time
+
+        def sleep(self, d: float) -> None:
+            self.t += d
+
+    class _KartSor:                       # tezgah_kart: c.k.sor(komut, desen) -> eslesen satirlar
+        def __init__(self, satirlar) -> None:
+            self.q, self.n = list(satirlar), 0
+
+        def sor(self, komut, desen, zaman_asimi=3.0, adet=1):
+            self.n += 1
+            s = self.q.pop(0) if self.q else None
+            return [s] if komut == "G?" and s and re.compile(desen).search(s.rstrip()) else []
+
+    class _KartSatir:                     # tezgah_blokaj: k.yaz + k.satir_oku (ham satirlar)
+        def __init__(self, satirlar, saat) -> None:
+            self.q, self.bekleyen, self.saat, self.n = list(satirlar), [], saat, 0
+
+        def yaz(self, komut) -> None:
+            if komut == "G?":
+                self.n += 1
+                if self.q:
+                    self.bekleyen.append(self.q.pop(0))
+
+        def satir_oku(self, zaman_asimi=0.3):
+            if self.bekleyen:
+                return self.bekleyen.pop(0)
+            self.saat.t += zaman_asimi
+            return None
+
+    def bekle_dene(mod, ad, n):
+        saat, eski_time = _Saat(), mod.time
+        satirlar = [g_sil(n, 5), g_sil(n, 9), g_sil(n, 9)]
+        mod.time = saat
+        try:
+            if ad == "tezgah_kart":
+                kk = _KartSor(satirlar)
+                r = mod._on_silme_bekle(types.SimpleNamespace(k=kk), azami_sn=60.0)
+            else:
+                kk = _KartSatir(satirlar, saat)
+                r = mod.on_silme_bekle(kk, azami_sn=60.0)
+        finally:
+            mod.time = eski_time
+        return r, kk.n
+
+    bek = {}
+    for ad in ("tezgah_kart", "tezgah_blokaj"):
+        try:
+            m = importlib.import_module(ad)
+            bek[ad] = {n: bekle_dene(m, ad, n) for n in (n_fw, 13, 14, 16)}
+        except Exception as e:          # noqa: BLE001 — iddia kirmiziya doner, sebep basilir
+            bek[ad] = repr(e)[:120]
+    bek_ok = all(isinstance(v, dict)
+                 and all(v[n][0] is not None and abs(v[n][0] - 6) < 0.5 and v[n][1] == 3 for n in (n_fw, 13))
+                 and all(v[n][0] is None and v[n][1] == 1 for n in (14, 16))
+                 for v in bek.values())
+    ok("B72.W2h tezgah_kart._on_silme_bekle ve tezgah_blokaj.on_silme_bekle (kararli hal blokaj "
+       "olcumunden once bosta on silmeyi bekler, 1C-2) firmware bicimli (15) VE eski (13) G satirinda "
+       "sil_adet DURANA dek bekler (5, 9, 9 -> 6 s, 3 sorgu); 14/16 alan cozulmez -> None (sessiz "
+       "'durdu' degil)", bek_ok, str(bek)[:300])
 
     st = govde(ino_k, "void saat_sayfa(")
     ok("B72.W2d (D5 #10) /saat unix'i guv_saat_coz ile TAM cozer (rakam disi, tasma, ust sinir "

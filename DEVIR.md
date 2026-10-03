@@ -10550,6 +10550,30 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.101a 🟢 W2 inceleme: `tezgah_kart` / `tezgah_blokaj` 15 alanlı `G` satırını bekleyebiliyor (2026-10-04, dal `w2-fw`)
+
+Ajan (W2), inceleme bulgusu. 5.12.101'deki "bütün G ayrıştırıcıları geriye uyumlu" listesi EKSİKTİ: kararlı-hal
+blokaj ölçümünden önce boşta ön silmeyi bekleyen iki araç (`tezgah_kart._on_silme_bekle`, `tezgah_blokaj`'ın
+`main` içi döngüsü) `G?` yanıtını `^G( -?\d+){13}\s*$` ile arıyordu. A3-W2'nin 15 alanlı satırı eşleşmez →
+`tezgah_kart` hemen None döner ("None s beklendi"), `tezgah_blokaj` "boşta silme durdu" deyip çıkar; ikisi de
+`loop_azami`'yi 500 ms / ~25 ms ön silme sürerken ölçer — 1C-2'nin önlediği sahte kırmızı. Kart listesinin 9.
+maddesi (blokaj aynı sınıfta mı) yanıltıcı olurdu. B72.W2c yalnız `pc_bildirim`, `tezgah_kayit`, `tezgah_pc`'yi
+kapsıyordu.
+
+- İki modülde `G_DESEN` = 13 alan + isteğe bağlı 2 (`son_not`, `mesaj_dusen`); 14/16 RET. `G_SIL_ADET = 11`
+  (iki biçimde aynı yer).
+- `tezgah_blokaj`: bekleyiş `on_silme_bekle(k, azami_sn)` işlevine çıktı. Çözülemeyen `G`'de eskiden "durdu"
+  deyip ölçüyordu; artık None döner ve iki araç da "`G?` yanıtı çözülemedi — ön silme BEKLENEMEDİ" uyarısı basar.
+- **B72.W2h** (davranış, kaynak metni değil): sanal saat + sahte kart; `sil_adet` 5, 9, 9 → 15 ve 13 alanda
+  6 s / 3 sorgu, 14 ve 16 alanda None / 1 sorgu, iki modülde. İlk koşu kırmızıydı (`tezgah_kart` 15 → None,
+  `on_silme_bekle` yok), düzeltmeden sonra yeşil. B72 214 → **215** (sayım kilidi güncellendi).
+- Mutasyonlar (B72): iki modülde deseni 13'e geri çevirmek, `tezgah_blokaj`'da None yolunu eski "durdu"ya
+  bağlamak.
+
+**Doğrulama:** `dogrula3.py --artimli` **22/22** (`mutasyon.py` değiştiği için zincir kendisi TAM koştu; ilk koşuda B6 derlemesi `arduino-cli` geçici dosyası kaybolunca düştü — `…AP.cpp.libsdetect.d: No such file`, koddan bağımsız; yeniden koşu yeşil, B72 215/215) · `mutasyon.py --neden "W2:" --paralel 2` **21/21 YAKALANDI** (1606 s; yeni üçü B72.W2h'de) · uygulanamayan yok · `gizlilik_dogrula.py` temiz. Karta dokunulmadı.
+
+---
+
 #### 5.12.101 🟢 W2: FİRMWARE KÜÇÜKLERİ — G `son_not`, `/saat` + `Ex` tam çözüm, rastgele `eno`, `Qe` eşiği (2026-10-03, dal `w2-fw`, firmware `A3-W2`)
 
 Ajan (W2). Ağaç `projeler/olcum-karti-w2-fw`, `main` 20d3171'den. Push yok. **Karta YÜKLENMEDİ** (yükleme
