@@ -1,0 +1,394 @@
+<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PC uygulaması — Ölçüm Kartı</title><style>
+:root{color-scheme:light dark;
+  --yz:#fcfcfb; --yz2:#f4f3f0; --cizgi:#e2e0da;
+  --m1:#0b0b0b; --m2:#52514e; --m3:#77756d;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --iyi:#0a7d3f; --uyari:#b25e00; --kotu:#b3261e;}
+@media (prefers-color-scheme:dark){:root:not([data-tema="acik"]){
+  --yz:#1a1a19; --yz2:#232322; --cizgi:#3a3a37;
+  --m1:#ffffff; --m2:#c3c2b7; --m3:#9a988e;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --iyi:#4ec27d; --uyari:#e0a350; --kotu:#f2837a;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--yz);color:var(--m1);
+  font:16px/1.65 -apple-system,"Segoe UI",Roboto,sans-serif;}
+.kutu{max-width:960px;margin:0 auto;padding:32px 22px 80px}
+h1{font-size:30px;line-height:1.25;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:21px;margin:44px 0 4px;letter-spacing:-.01em;
+   padding-top:18px;border-top:1px solid var(--cizgi)}
+h3{font-size:16px;margin:26px 0 6px;color:var(--m2);
+   text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+p{margin:10px 0}
+.alt{color:var(--m2);font-size:15px;margin:0 0 26px}
+.ust{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px;font-size:14px}
+.ust a{color:var(--m2);text-decoration:none;padding:5px 11px;
+  border:1px solid var(--cizgi);border-radius:99px}
+.ust a:hover{color:var(--m1);border-color:var(--m3)}
+.ust a.bu{background:var(--m1);color:var(--yz);border-color:var(--m1)}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--cizgi)}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+   color:var(--m3);font-weight:600}
+td.s,th.s{text-align:right;font-variant-numeric:tabular-nums}
+.kart{background:var(--yz2);border:1px solid var(--cizgi);
+  border-radius:12px;padding:16px 18px;margin:14px 0}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;margin:16px 0}
+.kpi div{background:var(--yz2);border:1px solid var(--cizgi);
+  border-radius:10px;padding:12px 14px}
+.kpi b{display:block;font-size:24px;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--m2);text-transform:uppercase;
+  letter-spacing:.05em}
+.uy{border-left:3px solid var(--uyari);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+.ok{border-left:3px solid var(--iyi);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+.no{border-left:3px solid var(--kotu);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+figure{margin:22px 0}
+figcaption{font-size:14px;color:var(--m2);margin-top:8px}
+svg{max-width:100%;height:auto;display:block}
+code{background:var(--yz2);padding:1px 6px;border-radius:5px;
+  font:14px/1 ui-monospace,Consolas,monospace}
+.kucuk{font-size:14px;color:var(--m2)}
+.rozet{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;
+  background:var(--yz2);border:1px solid var(--cizgi);color:var(--m2)}
+pre{background:var(--yz2);border:1px solid var(--cizgi);border-radius:8px;
+  padding:10px 14px;margin:10px 0;overflow-x:auto;white-space:pre;
+  font:14px/1.5 ui-monospace,Consolas,monospace}
+</style></head><body>
+<div class="kutu"><nav class="ust"><a href="index.html">Başla</a><a href="1-ne-yapabilir.html">Ne yapabilir</a><a href="2-olcumler.html">Ölçümler</a><a href="3-pil-testi.html">Pil testi</a><a href="6-ag.html">Bağlanma</a><a href="9-pc-uygulamasi.html" class='bu'>PC uygulaması</a><a href="2-malzemeler.html">Malzemeler</a><a href="4-kurulum.html">Kurulum</a><a href="7-yerlesim.html">Yerleşim</a><a href="8-kutu.html">Kutu</a><a href="5-muhendislik.html">Mühendislik</a></nav>
+<h1>PC uygulaması</h1><p class="alt">Köprü · bilgisayarda arşiv · Windows bildirimleri — kurmak, başlatmak, kullanmak</p>
+
+<div class="kpi">
+  <div><span>Panel adresi</span><b style="font-size:17px">olcum.localhost:8770</b></div>
+  <div><span>Kayıt eşitleme</span><b>120 s'de bir</b></div>
+  <div><span>Karta onay</span><b>varsayılan açik</b></div>
+  <div><span>Veri klasörü</span><b style="font-size:17px">olcum-karti</b></div>
+</div>
+
+<p><b>PC uygulaması</b>, kartla bu bilgisayar arasında duran tek bir programdır
+(<code>kopru/pc.py</code>; “köprü”). Üç iş yapar:</p>
+<table>
+<tr><th>İş</th><th>Ne demek</th></tr>
+<tr><td><b>Köprü</b></td><td>Kartın panelini bu bilgisayarda <code>http://olcum.localhost:8770</code>
+    adresinden açar. Canlı ölçüm ve komutlar kart <b>USB'deyse USB'den</b>, değilse
+    <b>WiFi'den</b> gider. Panel, kartın kendi sunduğu panelle aynıdır</td></tr>
+<tr><td><b>Arşiv</b></td><td>Kartın kayıtlarını <b>WiFi'den</b> bu bilgisayarın diskine
+    kopyalar — her bağlanışta ve 120 saniyede bir. Panelin <b>Kayıtlar</b>
+    ekranı bu kopyayı gösterir</td></tr>
+<tr><td><b>Bildirim</b></td><td>Kart internete bildirim yolluyorsa (MQTT) onları dinler ve
+    <b>Windows bildirimi</b> olarak gösterir — tarayıcı kapalıyken de</td></tr>
+</table>
+<div class="ok"><b>Asıl kayıt kartta.</b> Bilgisayar yalnız bir kopya tutar. Köprü kapalıyken
+de kart ölçer ve kaydeder; köprü açılınca eksikleri kendisi çeker.</div>
+
+<h2>1 · İlk kurulum — bu bilgisayarı karta bir kez tanıtmak</h2>
+<p>Köprünün karta WiFi'den konuşabilmesi için bu bilgisayar kartla <b>eşleşmiş</b> olmalı.
+Bu <b>bir kez</b> yapılır; anahtar bu bilgisayarda, Windows hesabınıza bağlı şifreli
+saklanır.</p>
+<table>
+<tr><th>Gerekenler</th><td>Python kurulu (<code>python</code> ya da <code>py</code>) ·
+    kart ev ağında ve tarayıcıda <code>http://olcum.local</code> açılıyor · kartın
+    <b>web parolası</b> (en az 12 karakter)</td></tr>
+</table>
+
+<h3>Adım 0 — zaten eşleşmiş mi?</h3>
+<p>Dosya Gezgini'nin adres çubuğuna <code>%LOCALAPPDATA%\olcum-karti\cihaz</code> yazıp Enter'a basın. İçinde
+16 harf/rakamlık adı olan bir <code>.json</code> dosyası varsa bu bilgisayar <b>zaten
+eşleşmiş</b>: Adım 4'teki denetimi yapıp 2. bölüme geçin. Klasör yoksa ya da boşsa devam
+edin.</p>
+
+<h3>Adım 1 — köprü açıksa durdurun</h3>
+<p><code>projeler\olcum-karti\kopru\Kopruyu Durdur.bat</code> dosyasına çift tıklayın.
+“çalışan köprü yok” derse sorun yok. (Eşleştirme aracı ile köprü aynı anahtar dosyasını
+kullanır; ikisi aynı anda çalışırsa kart istekleri tekrar sanıp reddedebilir.)</p>
+
+<h3>Adım 2 — komutu çalıştırın</h3>
+<p>Dosya Gezgini'nde <code>projeler\olcum-karti</code> klasörünü açın, adres çubuğuna
+<code>cmd</code> yazıp Enter'a basın. Açılan pencereye:</p>
+<pre>python kopru/imza.py esles --host olcum.local --ad PC-kopru</pre>
+<p><code>--ad</code> bu bilgisayarın kartın listesindeki adıdır (en çok 24 bayt,
+istediğinizi yazın). <code>python</code> bulunamazsa aynı komutu <code>py</code> ile yazın.
+Kart kendi ağındaysa (ev ağına bağlı değilse) bilgisayarı kartın ağına bağlayıp
+<code>--host 192.168.4.1</code> yazın.</p>
+
+<h3>Adım 3 — parola sorusu</h3>
+<p>Ekranda şu soru çıkar:</p>
+<pre>kartin WEB parolasi (WiFi parolasi DEGIL; ekrana yazilmaz): </pre>
+<p>Kartın <b>web parolasını</b> yazıp Enter'a basın. Yazarken ekranda <b>hiçbir şey
+görünmez</b> — bu normal, yazdıklarınız gidiyor. Parola ağa çıkmaz ve hiçbir yere
+kaydedilmez.</p>
+
+<div class="no"><b>Web parolası ≠ WiFi parolası.</b> Kartta üç ayrı parola var; burada
+istenen <b>yalnız web parolası</b>:
+<table>
+<tr><th>Parola</th><th>Ne için</th><th>Nasıl kurulur</th></tr>
+<tr><td><b>Web parolası</b> ✔</td><td>Kartın panelinde komut vermek ve eşleştirmek. En az
+    12 karakter</td><td>USB'den <code>Ns&lt;parola&gt;</code></td></tr>
+<tr><td>WiFi parolası</td><td>Kartın <b>ev ağınıza</b> bağlanması (modeminizin parolası)</td>
+    <td>USB'den <code>Np&lt;parola&gt;</code></td></tr>
+<tr><td>AP parolası</td><td>Telefonun <b>kartın kendi ağına</b> bağlanması</td>
+    <td>Kart kendisi üretir</td></tr>
+</table>
+PC köprüsünün <b>kendi parolası yoktur</b>: <code>http://olcum.localhost:8770</code> hiçbir zaman parola
+sormaz.</div>
+
+<p><b>Başarılı olursa</b> son satır şöyledir (sayı ve klasör sizde farklı):</p>
+<pre>eslesti: cihaz 3 (PC-kopru) -&gt; ...\olcum-karti\cihaz\&lt;kart kimliği&gt;.json</pre>
+<p>Hata alırsanız aşağıdaki <a href="#sorun">Sorun giderme</a> tablosuna bakın.</p>
+
+<h3>Adım 4 — kartın listesinde görün</h3>
+<pre>python kopru/imza.py liste --host olcum.local</pre>
+<p>Kartın eşleşmiş cihazları yazılır (<code>"ad":"PC-kopru"</code> gibi). Verdiğiniz ad
+listede varsa kurulum bitti. Kart en çok <b>8</b> cihaz tutar; eski,
+kullanmadığınız bir kayıt (ör. aynı bilgisayarın önceki eşleşmesi) varsa
+<code>python kopru/imza.py sil --host olcum.local --n &lt;numara&gt;</code> ile silin —
+kendi numaranızı (eşleştirme çıktısındaki <code>cihaz N</code>) silmeyin.</p>
+
+<h2>2 · Başlatmak</h2>
+<p><code>projeler\olcum-karti\kopru\PC Baslat.bat</code> dosyasına <b>çift tıklayın</b>.
+Bir konsol penceresi açılır, birkaç saniye sonra tarayıcıda panel gelir:
+<b><code>http://olcum.localhost:8770</code></b>.</p>
+<table>
+<tr><th>Konsolda</th><td><code>Kopru acildi — kart: …</code>, panel adresi, kayıt arşivinin
+    klasörü ve bildirim durumu yazar. Pencere açık kaldıkça köprü çalışır</td></tr>
+<tr><th>Kart USB'de</th><td>Kartın <b>COM yazan</b> USB soketini kullanın; köprü kartı
+    kendisi bulur. Kart takılı değilse WiFi'den bağlanır, takılınca USB'ye geçer</td></tr>
+<tr><th>Zaten çalışıyorsa</th><td>İkinci kopya açılmaz; yalnız tarayıcı açılır</td></tr>
+<tr><th>Adres</th><td>Yalnız bu bilgisayardan açılır. Port 8770 sabittir; başka bir
+    program tutuyorsa köprü açılmaz ve bunu yazar</td></tr>
+</table>
+<p class="kucuk">Kökteki eski <code>Kopru Baslat.bat</code> da aynı programı açar.</p>
+
+<h3>Uygulama olarak kurmak (Edge)</h3>
+<p>Panel açıkken Edge'in adres çubuğunun sağındaki <b>“Uygulamayı yükle”</b> simgesine ya da
+<b>⋯ menüsü → Uygulamalar → Bu siteyi uygulama olarak yükle</b>'ye tıklayın. Panel kendi
+penceresinde, Başlat menüsünde ve görev çubuğunda simgesiyle açılır. Köprü kapalıyken bu
+pencere <b>“Köprü çalışmıyor”</b> sayfasını gösterir ve köprü açılınca kendiliğinden panele
+döner.</p>
+
+<h2>3 · Günlük kullanım</h2>
+<table>
+<tr><th>Panelde</th><th>Köprüdeyken</th></tr>
+<tr><td><b>Canlı</b></td><td>Ölçüm ve komutlar; kart USB'deyse USB'den, değilse WiFi'den</td></tr>
+<tr><td><b>Kayıtlar</b></td><td>Liste <b>bu bilgisayardaki arşivden</b> gelir (“bu PC'de
+    (köprü arşivi)”). Grafik, dışa aktarma, rapor ve Karşılaştırma aynen çalışır. Panel bu
+    arşive yazmaz ve silmez</td></tr>
+<tr><td><b>Pil testi</b></td><td>Eğri kartın WiFi'sinden gelir (köprü karta WiFi'den
+    ulaşamıyorsa yalnız anlık durum)</td></tr>
+<tr><td><b>Ayarlar → Kalibrasyon geçmişi</b></td><td>Karttan; kart ulaşılamazsa bu
+    bilgisayardaki kopyadan (kaynak satırında yazar)</td></tr>
+<tr><td><b>Ayarlar → Depolama</b></td><td>Bu bilgisayardaki arşivin özeti — salt okuma</td></tr>
+<tr><td><b>Osiloskop → Eski arşiv</b></td><td>Köprünün eski satır günlüğündeki yakalamalar
+    (salt okuma)</td></tr>
+<tr><td><b>Ayarlar → Eşleştirme</b></td><td>Köprüde <b>kullanılmaz</b> — köprü 1. bölümdeki
+    komutla eşleşir</td></tr>
+<tr><td><b>Ayarlar → Gelişmiş</b></td><td>“Bildirimler (bu bilgisayar)” bölümü (4. bölüm)
+    ve köprünün sunduğu panelin sürümü — ikisi de yalnız köprüde</td></tr>
+</table>
+
+<h3>Eşitleme durum satırı</h3>
+<p>Kayıtlar ekranında tek satır:
+<i>“Köprü eşitlemesi: son başarılı … · son turda N yeni kayıt · kartın son sırası … · karta
+onay açık”</i>. Hata varsa sebebini ve kaç saniye sonra yeniden deneyeceğini yazar. Kart
+yalnız USB'deyse (WiFi'de değilse) tur <b>atlanır</b>: kayıt verisi yalnız WiFi'den
+alınır.</p>
+
+<div class="uy"><b>Onay ne demek?</b> Köprü kayıtları diske <b>kalıcı olarak yazdıktan
+sonra</b> karta “bunlar kopyalandı” der (varsayılan açik). Kartın belleği dolunca
+yalnız <b>bir yere kopyalanmış</b> eski kayıtları siler; kopyalanmamış veri asla silinmez.
+Yani onay açıkken kart, bu bilgisayara kopyalanan eski kayıtları yer gerektiğinde silebilir
+— onlar bu bilgisayarda durur, ama <b>henüz eşitlenmemiş bir telefon</b> onları artık
+göremez. İstemiyorsanız onayı kapatın: <code>PC Baslat.bat --onaysiz</code>, ya da kalıcı
+olarak <code>%LOCALAPPDATA%\olcum-karti\ayar.json</code> dosyasına <code>{"esitleme_onay": false}</code>
+yazın (köprüyü yeniden başlatınca geçerli). Onay kapalıyken (ve başka bir cihaz da onay
+vermediyse) kart dolunca kaydı durdurur ve bildirir.</div>
+
+<h2>4 · Bildirimler</h2>
+<p>Köprü, kartın internete yolladığı bildirimleri dinler (yalnız dinler, yayın yapmaz) ve
+Windows bildirimi gösterir. Kaynak adı <b>“Ölçüm kartı”</b>. Bunun için kartın bildirim
+(MQTT) ayarı USB'den yapılmış olmalı; yapılmamışsa yalnız “karttan haber yok” (yerel yol)
+çalışır.</p>
+<table><tr><th>Bildirim</th><th>Ne zaman</th><th>Paneldeki kutu</th><th>Komut satırı adı</th></tr><tr><td><b>Karttan haber yok / Ev interneti koptu</b></td><td>Yalnız <b>kayıt sürerken</b>. Kart yerelde (USB ya da WiFi) hâlâ görünüyorsa “Ev interneti koptu — kart çalışıyor”. Kart dönünce <b>aynı bildirim</b> “yeniden bağlandı” olur. Kartın MQTT ayarı yoksa: kayıt sürerken kart 20 s susarsa</td><td>Karttan haber yok / ev interneti koptu (kayıt sürerken)</td><td><code>kopuk</code></td></tr><tr><td><b>Kayıt / pil testi bitti</b></td><td>Kayıt durdu, planlı süre doldu, pil testi bitti</td><td>Kayıt ya da pil testi bitti</td><td><code>bitti</code></td></tr><tr><td><b>Kartın belleği doldu</b></td><td>Kayıt yer kalmadığı için durdu</td><td>Kayıt belleği doldu</td><td><code>dolu</code></td></tr><tr><td><b>Eşik aşıldı</b></td><td>Kartta kurulu eşik</td><td>Eşik aşıldı</td><td><code>esik</code></td></tr><tr><td><b>Kart yeniden başladı</b></td><td>Kayıt kesildi ve sürüyor, ya da kesildi — son haberin saatiyle</td><td>Kart yeniden başladı (kayıt kesildi)</td><td><code>yeniden_basladi</code></td></tr><tr><td><b>N olay kaçırıldı</b></td><td>Köprü kapalıyken ya da bağlantı yokken kaçan olayların sayısı</td><td>Kaçırılan olayların özeti</td><td><code>kacirilan</code></td></tr><tr><td><b>Deneme bildirimi</b></td><td>USB'den <code>Qt</code> gönderilince — yolun çalıştığını sınamak için</td><td>Deneme bildirimi (Qt)</td><td><code>deneme</code></td></tr></table>
+<p>Hepsi varsayılan <b>açık</b>. Açıp kapamanın iki yolu var; ikisi de aynı ayar dosyasına
+(<code>ayar.json</code>) yazar ve köprüyü yeniden başlatmak gerekmez.</p>
+<table>
+<tr><th>Panelden</th><td><b>Ayarlar → Gelişmiş → “Bildirimler (bu bilgisayar)”</b>.
+    Bağlantı durumunu (aracıya bağlı mı, kart çevrimiçi mi), son olayı, her bildirimin
+    aç/kapa kutusunu ve <b>“Bildirim dili”</b> seçimini gösterir; tıkladığınız an kaydedilir.
+    Bölüm yalnız köprünün açtığı panelde (<code>http://olcum.localhost:8770</code>) görünür — kartın kendi
+    sayfasında ve yerel ağdaki başka bir cihazdan açılan panelde yoktur</td></tr>
+<tr><th>Komut satırından</th><td><code>0</code> kapalı, <code>1</code> açık:
+<pre>python kopru/pc_bildirim.py ayar esik=0 kacirilan=0
+python kopru/pc_bildirim.py ayar dil=en</pre>
+    Durum (abone mi, son mesaj ne zaman): <code>python kopru/pc_bildirim.py durum</code></td></tr>
+</table>
+<table>
+<tr><th>Deneme</th><td>Köprüyü <code>PC Baslat.bat --usb-yok</code> ile açın, Arduino
+    IDE'nin Seri Monitörü'nden (115200) karta <code>Qt</code> gönderin → “Deneme bildirimi”
+    gelmeli</td></tr>
+<tr><th>Rahatsız Etmeyin</th><td>Açıksa bildirim ekranda belirmez, yalnız Bildirim
+    merkezine düşer. Belirmesini istiyorsanız Windows Ayarlar → Sistem → Bildirimler →
+    öncelikli bildirimlere <b>“Ölçüm kartı”</b>'nı ekleyin</td></tr>
+<tr><th>Kaynak adı kaydı</th><td>İlk bildirimde Windows'a
+    <code>HKCU\Software\Classes\AppUserModelId\OlcumKarti.Kopru</code> yazılır (ad + simge; yönetici
+    gerekmez). Kaldırmak: <code>reg delete "HKCU\Software\Classes\AppUserModelId\OlcumKarti.Kopru" /f</code>
+    — bildirimler açık kaldıkça bir sonraki bildirimde yeniden yazılır</td></tr>
+</table>
+
+<h2>5 · Seçenekler</h2>
+<p>Seçenek vermek için komut satırından:
+<code>"kopru\PC Baslat.bat" --onaysiz</code> ya da <code>python kopru/pc.py --onaysiz</code>
+(<code>projeler\olcum-karti</code> klasöründe). Köprü zaten çalışıyorsa yeni seçenek
+uygulanmaz — önce durdurun.</p>
+<table><tr><th>Seçenek</th><th>Ne yapar</th></tr><tr><td><code>--sessiz</code></td><td>Arka plan kipi: konsol yok, tarayıcı açılmaz (otomatik başlatma bunu kullanır). Çökerse iz <code>arkaplan-hata.txt</code>'ye yazılır</td></tr><tr><td><code>--durdur</code></td><td>Çalışan köprüyü (arka plandakini de) durdurur — <code>Kopruyu Durdur.bat</code> bunu çağırır</td></tr><tr><td><code>--tarayici-acma</code></td><td>Köprü açılır ama tarayıcı açılmaz</td></tr><tr><td><code>--usb-yok</code></td><td>Yalnız WiFi: COM portu <b>hiç açılmaz</b>. Köprü açıkken firmware yüklemek, tezgah araçlarını ya da Arduino Seri Monitörü'nü kullanmak için</td></tr><tr><td><code>--wifi-yok</code></td><td>Yalnız USB. Kayıt arşivi (eşitleme) bu kipte çalışmaz — kayıt verisi yalnız WiFi'den alınır</td></tr><tr><td><code>--port</code></td><td>COM portunu elle verir (ör. <code>--port COM6</code>); verilmezse köprü kartın USB köprü çipinden (CH343) kendisi bulur</td></tr><tr><td><code>--kart-host</code></td><td>Kartın WiFi adresi (varsayılan <code>olcum.local</code>). Kartın kendi ağındayken <code>--kart-host 192.168.4.1</code>, ya da kartın IP'si</td></tr><tr><td><code>--cihaz</code></td><td>Eşleşmiş cihaz dosyasını elle seçer (iki kart varsa); verilmezse kartın kimliğine göre bulunur</td></tr><tr><td><code>--onaysiz</code></td><td>Kayıtları diske eşitler ama karta <b>onay göndermez</b> (aşağıda “Onay ne demek”)</td></tr><tr><td><code>--esitleme-aralik</code></td><td>Eşitleme aralığı, saniye (varsayılan 120, en az 30)</td></tr><tr><td><code>--esitleme-yok</code></td><td>Arka plan eşitlemesi kapalı (canlı izleme ve komutlar çalışır)</td></tr><tr><td><code>--bildirim-yok</code></td><td>MQTT aboneliği ve Windows bildirimleri kapalı</td></tr><tr><td><code>--lan</code></td><td>Yerel ağdaki telefonlar <code>http://&lt;bilgisayarın IP'si&gt;:8770</code> adresinden <b>yalnız izler</b>; tek izinli komut DURDUR (<code>p0</code>)</td></tr></table>
+
+<h2>6 · Windows açılışında otomatik başlatma</h2>
+<table>
+<tr><th>Kurmak</th><td><code>projeler\olcum-karti\kopru\Otomatik Baslat Kur.bat</code> —
+    Başlangıç klasörüne <code>Olcum Karti PC (arka plan).lnk</code> kısayolu konur. Köprü her oturum
+    açılışında <b>arka planda</b> (<code>--sessiz</code>: pencere ve tarayıcı yok)
+    başlar</td></tr>
+<tr><th>Kaldırmak</th><td><code>Otomatik Baslatmayi Kapat.bat</code> (aynı klasör). O an
+    çalışan köprüyü durdurmaz — onu <code>Kopruyu Durdur.bat</code> durdurur</td></tr>
+<tr><th>Ayarlar</th><td>Arka plandaki köprüye seçenek verilmez; onay ve aralık için
+    <code>ayar.json</code> (<code>"esitleme_onay"</code>,
+    <code>"esitleme_aralik_s"</code>)</td></tr>
+</table>
+<div class="no"><b>Yalnız ana klasörden kurun:</b> <code>projeler\olcum-karti</code>. Geçici
+dal klasörlerinden (<code>olcum-karti-…</code>) kurmayın: o klasör silinince kısayol olmayan
+bir dosyayı gösterir ve köprü iz bırakmadan açılmaz. Betik geçici dal klasöründe
+çalıştırılırsa zaten reddeder.</div>
+
+<h2>7 · Durdurmak</h2>
+<table>
+<tr><th>Her durumda</th><td><code>kopru\Kopruyu Durdur.bat</code> (arka plandakini de
+    durdurur)</td></tr>
+<tr><th>Pencerede açtıysanız</th><td>Konsol penceresinde <b>Ctrl+C</b></td></tr>
+<tr><th>Komut satırından</th><td><code>python kopru/pc.py --durdur</code></td></tr>
+</table>
+<div class="uy"><b>Görev Yöneticisi'nden <code>pythonw.exe</code> sonlandırmayın:</b> stok
+takip programı da aynı adla çalışıyor, yanlışı kapanır.<br>
+Köprü kartın COM portunu tutar. <b>Firmware yüklemeden</b>, tezgah araçlarından,
+Arduino Seri Monitörü'nden ve <code>imza.py</code>'den önce köprüyü durdurun — ya da köprüyü
+<code>--usb-yok</code> ile açın (o zaman portu hiç tutmaz).</div>
+
+<h2 id="sorun">8 · Sorun giderme</h2>
+<table>
+<tr><th>Ne görüyorsunuz</th><th>Sebep</th><th>Ne yapın</th></tr>
+<tr><td><code>8770 portu baska bir program tarafindan kullaniliyor (kopru degil)</code></td>
+    <td>Bu bilgisayarda başka bir program 8770 portunu tutuyor</td>
+    <td>O programı kapatın. Başka porta geçmeyin: panelin bu bilgisayardaki ayarları adrese
+    bağlıdır</td></tr>
+<tr><td>Bir araç: <code>PC kopru bu portu kullaniyor — kapatin</code></td>
+    <td>Köprü kartın COM portunu tutuyor</td>
+    <td><code>Kopruyu Durdur.bat</code>, işiniz bitince yeniden <code>PC Baslat.bat</code>;
+    ya da köprüyü <code>--usb-yok</code> ile açın</td></tr>
+<tr><td><code>kart dogrulanmadi</code> … <code>ESLESMEMIS</code></td>
+    <td>Bu bilgisayar bu kartla eşleşmemiş</td><td>1. bölüm</td></tr>
+<tr><td><code>kart dogrulanmadi</code> … <code>bu kart o DEGIL</code></td>
+    <td><code>olcum.local</code> adresinde başka bir kart cevap veriyor (iki kart ya da ad
+    karışması)</td>
+    <td>Doğru kartın IP'siyle açın: <code>--kart-host &lt;IP&gt;</code>; o kartı da
+    kullanacaksanız onu da eşleştirin. Kimliği uymayan karta köprü komut göndermez</td></tr>
+<tr><td><code>kart imzayi reddetti (HTTP 401)</code></td>
+    <td>Bu bilgisayarın kaydı kartta silinmiş</td>
+    <td>Köprüyü durdurup 1. bölümü yeniden yapın</td></tr>
+<tr><td>Eşleştirmede <code>403 kanit yanlis (parola?)</code></td>
+    <td>Parola yanlış — çoğunlukla WiFi parolası yazılmıştır</td>
+    <td>Web parolasıyla tekrar deneyin. Her yanlış denemede kartın bekletme süresi iki katına
+    çıkar (en çok ~4 dk): <code>429</code> görürseniz bekleyin</td></tr>
+<tr><td>Eşleştirmede <code>403 web parolasi yok ya da 12 karakterden kisa</code></td>
+    <td>Kartta web parolası kurulu değil ya da kısa</td>
+    <td>USB'den <code>Ns&lt;en az 12 karakter&gt;</code> (Arduino Seri Monitörü,
+    115200; köprü durdurulmuşken)</td></tr>
+<tr><td>Eşleştirmede <code>409 cihaz listesi dolu</code></td>
+    <td>Kartta 8 cihaz kayıtlı</td>
+    <td>Kullanmadığınız birini silin (1. bölüm, Adım 4; ya da USB'den <code>Ex&lt;n&gt;</code>)</td></tr>
+<tr><td>Web parolasını bilmiyorum</td><td>—</td>
+    <td>Parolasız USB eşleştirmesi: köprüyü durdurun, kart USB'de ve WiFi'si açıkken
+    <code>python kopru/imza.py esles-usb --ad PC-kopru</code></td></tr>
+<tr><td>Kartın panelinde (<code>olcum.local</code>) parola soruluyor</td>
+    <td>O, kartın kendi paneli; kartın <b>web parolasını</b> ister</td>
+    <td>Köprünün paneli (<code>http://olcum.localhost:8770</code>) parola sormaz</td></tr>
+<tr><td>Kayıtlar boş, satırda <code>atlandi</code> ya da hata</td>
+    <td>Kart WiFi'de değil, eşleşme yok ya da <code>--wifi-yok</code>/<code>--esitleme-yok</code>
+    ile açılmış</td>
+    <td>Kartın WiFi'sini açın (USB'den <code>N1</code>), eşleşmeyi denetleyin; satırdaki sebep
+    hangisi olduğunu yazar</td></tr>
+<tr><td>Bildirim gelmiyor</td>
+    <td>Kartın bildirim ayarı yok, köprü <code>--bildirim-yok</code> ile açık, o sınıf kapalı ya da
+    Rahatsız Etmeyin açık</td>
+    <td>Ayarlar → Gelişmiş → “Bildirimler (bu bilgisayar)” (bağlantı durumu, kapalı kutu)
+    ya da <code>python kopru/pc_bildirim.py durum</code> (<code>etkin</code>, <code>abone</code>,
+    <code>mesaj</code>); sonra 4. bölümdeki deneme. “Karttan haber yok” yalnız kayıt sürerken
+    gelir</td></tr>
+<tr><td>Telefonda (<code>--lan</code>) komut düğmeleri çalışmıyor</td>
+    <td>Yerel ağdan bağlantı <b>salt okuma</b>; yalnız DURDUR geçer</td>
+    <td>Telefondan komut için kartın kendi adresine bağlanın (<a href="6-ag.html">Bağlanma</a>)</td></tr>
+<tr><td>Panel yerine “Köprü çalışmıyor”</td><td>Köprü kapalı</td>
+    <td><code>PC Baslat.bat</code>; sayfa kendiliğinden döner</td></tr>
+<tr><td>Arka planda başlamadı</td><td>Çökme izi</td>
+    <td><code>%LOCALAPPDATA%\olcum-karti\arkaplan-hata.txt</code> dosyasının son satırı sebebi yazar;
+    <code>PC Baslat.bat</code> ile pencerede açınca aynı hata ekranda görünür</td></tr>
+</table>
+
+<h2>9 · Dosyalar nerede, ne silinebilir</h2>
+<p>Her şey depo <b>dışında</b>, <code>%LOCALAPPDATA%\olcum-karti\</code> altında (Dosya Gezgini adres çubuğuna
+yazılabilir). Silmeden önce köprüyü durdurun.</p>
+<table>
+<tr><th>Ne</th><th>İçinde</th><th>Silinirse</th></tr>
+<tr><td><code>cihaz\</code></td><td>Eşleşme anahtarı (Windows hesabınıza bağlı şifreli)</td>
+    <td><b>Silmeyin.</b> Silinirse yeniden eşleştirmek gerekir; kartta eski kayıt kalır</td></tr>
+<tr><td><code>arsiv\</code></td><td>Kartın kayıtlarının kopyası (kart → akış klasörleri)</td>
+    <td><b>Dikkat:</b> onay açıkken kart bunların bir kısmını silmiş olabilir — buradaki tek
+    kopya olabilir. Gerekmeyen bir akış klasörü silinebilir</td></tr>
+<tr><td><code>satir\</code></td><td>Köprünün günlük satır kaydı (canlı ölçüm satırları;
+    Osiloskop → Eski arşiv buradan okur)</td>
+    <td>Silinebilir; kayıtlar (<code>arsiv\</code>) etkilenmez, Eski arşiv'deki
+    yakalamalar gider</td></tr>
+<tr><td><code>bildirim\</code></td><td>Şifreli bildirim bilgisi önbelleği</td>
+    <td>Güvenli; kart ulaşılabilirken yeniden alınır</td></tr>
+<tr><td><code>ayar.json</code></td><td>İsteğe bağlı ayarlar</td>
+    <td>Güvenli; varsayılanlar döner (onay açik, 120 s, bütün
+    bildirimler açık)</td></tr>
+<tr><td><code>arkaplan-hata.txt</code></td><td>Son çökme izi</td><td>Güvenli</td></tr>
+</table>
+<p class="kucuk">Klasörü taşımak için <code>OLCUM_PC_DIZIN</code> ortam değişkeni.</p>
+
+<h2>10 · Güvenlik notları</h2>
+<table>
+<tr><th>DURDUR her zaman çalışır</th><td>Pil testini kesen <code>p0</code> parola, imza ya da
+    eşleşme istemez; köprüde, telefonda (<code>--lan</code>) ve kartta aynıdır</td></tr>
+<tr><th>Parolalar</th><td>Web parolasını yalnız <code>imza.py</code>'nin sorusuna (ekranda
+    görünmez) ya da kartın panelindeki Eşleştirme formuna yazın. <b>Komut satırına, bir
+    dosyaya, sohbete ya da ekran görüntüsüne asla.</b> Köprü parolayı saklamaz</td></tr>
+<tr><th>Yerel ağ</th><td>Köprü varsayılan olarak yalnız bu bilgisayarı dinler;
+    <code>--lan</code> açılsa bile telefonlar yalnız izler</td></tr>
+<tr><th>E ve Q komutları</th><td>Eşleştirme ve bildirim ayarı yalnız <b>USB seri
+    konsolundan</b> değişir; köprü bunları karta asla iletmez</td></tr>
+</table>
+
+<h3>İsteğe bağlı: imzayı zorunlu yapmak (<code>Ez1</code>)</h3>
+<p>Kart varsayılan olarak imzasız istekleri de (parolalı eski yol) kabul eder
+(<code>E?</code> → <code>zorunlu=0</code>). <code>Ez1</code> açılınca
+kart <b>yalnız eşleşmiş cihazların</b> isteklerini kabul eder (DURDUR yine serbest).
+<b>Zorunlu değil</b>; yalnız kullandığınız bütün cihazlar (bu bilgisayar, telefonlar,
+tarayıcılar — Ayarlar → Eşleştirme) eşleştikten sonra mantıklıdır, yoksa eşleşmemiş cihaz
+karta erişemez.</p>
+<table>
+<tr><th>1</th><td><code>Kopruyu Durdur.bat</code> (ya da köprüyü <code>--usb-yok</code> ile açın)</td></tr>
+<tr><th>2</th><td>Arduino IDE → Araçlar → Port: kartın COM portu → Seri Monitör, 115200 baud</td></tr>
+<tr><th>3</th><td><code>E?</code> gönderin: <code>zorunlu=0</code> ve eşleşmiş cihazların listesi
+    yazar — hepsini tanıyor musunuz bakın</td></tr>
+<tr><th>4</th><td><code>Ez1</code> gönderin. Geri almak: <code>Ez0</code></td></tr>
+<tr><th>5</th><td>Seri Monitör'ü kapatıp köprüyü yeniden başlatın</td></tr>
+</table>
+
+<p class="kucuk" style="margin-top:60px;border-top:1px solid var(--cizgi);
+ padding-top:14px">Bu sayfa <code>uretim/belge-uret.py</code> (<code>belge_pc.py</code>) tarafından üretildi — port, adres, aralık, klasör adları, seçenekler ve bildirim türleri <code>kopru/</code>'nun kodundan okunuyor, elle yazılmıyor.</p>
+</div></body></html>

@@ -41,6 +41,7 @@ import {
 } from '/ortak/disari.js';
 import { oturumRaporu, RAPOR_ETIKET } from '/ortak/rapor.js';
 import { ceviri, ceviriKod } from '/ortak/sozluk.js';
+import { ceviriPc } from '/ortak/sozluk_pc.js';
 import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP } from '/ortak/kayit.js';
 
 /* ── SAF yardimcilar (B7 node'da sinar) ─────────────────────────────── */
@@ -333,8 +334,9 @@ export const TUR_METIN = Object.freeze({
   bilinmeyen: 'kl.tur_bilinmeyen',
 });
 
+/* 4D: 'pc' — kayit koprunun PC arsivinden (salt okuma); metni sozluk_pc.js'te (ceviriPc). */
 export const NEREDE_METIN = Object.freeze({
-  kart: 'kl.nerede_kart', tarayici: 'kl.nerede_tarayici', ikisi: 'kl.nerede_ikisi',
+  kart: 'kl.nerede_kart', tarayici: 'kl.nerede_tarayici', ikisi: 'kl.nerede_ikisi', pc: 'pc.nerede',
 });
 
 /** Anahtar haritasini dile cevir. */
@@ -562,7 +564,7 @@ export const KayitGorunumu = {
       }
       s.push({ a: 'durum', etiket: m.durum,
         deger: o.bitir ? ceviriKod('sebep.', o.bitir.sebep, this.dil) : m.acik });
-      if (sat.nerede) s.push({ a: 'nerede', etiket: m.nerede, deger: ceviri(NEREDE_METIN[sat.nerede], this.dil) });
+      if (sat.nerede) s.push({ a: 'nerede', etiket: m.nerede, deger: ceviriPc(NEREDE_METIN[sat.nerede], this.dil) });
       return s;
     },
     uyarilar() {

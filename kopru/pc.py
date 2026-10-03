@@ -15,6 +15,7 @@
     python kopru/pc.py --onaysiz          # 4C: kayitlari esitle ama karta ONAY (Go) yollama
     python kopru/pc.py --esitleme-aralik 300   # 4C: esitleme araligi (s; en az 30, varsayilan 120)
     python kopru/pc.py --esitleme-yok     # 4C: arka plan esitlemesi kapali
+    python kopru/pc.py --bildirim-yok     # 4E: MQTT aboneligi + Windows bildirimi kapali
 
 Panel: http://olcum.localhost:8770 — yalniz bu bilgisayardan (PC1/PC2).
 
@@ -32,8 +33,13 @@ Varsayilan ONAY verir (kalici yazimdan SONRA) — `--onaysiz` ya da ayar.json
 `"esitleme_onay": false` kapatir. Durum: `GET /esitleme/durum` (yalniz bu bilgisayar).
 Eski `.satir` satir gunlugu `...\\olcum-karti\\satir\\` (eskiden calisan agacin kopru/arsiv'i;
 yeni dizin bossa BIR KEZ kopyalanir, eskisi yerinde kalir).
-MQTT bildirimleri (4E) de AYNI surece eklenecek — ikinci bir arka plan sureci ayni COM portu /
-ayni cihaz sayacini tutmasin diye (PC4).
+4E (PC13–PC16) — MQTT BILDIRIMLERI AYNI surecte (pc_bildirim.py): kartin /bildirim/bilgi'si
+(eslesmis cihaz, imzali, ayni sayac kilidi) -> araciya YALNIZ ABONE -> Windows bildirimi
+(windows_bildirim.py, WinRT toast; kaynak "Ölçüm kartı"). K ile sifreli zarf onbellekte
+(`...\\olcum-karti\\bildirim\\`), cozulmus araci bilgisi diske/gunluge YAZILMAZ. Olay basina
+ac/kapa: ayar.json `"bildirim": {"kopuk": false, ...}` (ya da `python kopru/pc_bildirim.py ayar
+kopuk=0`). Durum: `GET /bildirim/durum` (yalniz bu bilgisayar). `--bildirim-yok` kapatir.
+Ikinci bir arka plan sureci ayni COM portu / ayni cihaz sayacini tutmasin diye tek surec (PC4).
 
 Desen stok-takip'ten (stok/konsol.py), kanitlanmis:
   * `zaten_calisiyor()` — kopru ayaktayken ikinci kopya ACILMAZ; masaustu
@@ -75,6 +81,7 @@ import kart_baglanti                                      # noqa: E402
 import kart_wifi                                          # noqa: E402
 import kopru as kopru_mod                                 # noqa: E402
 import pc_ayar                                            # noqa: E402
+import pc_bildirim                                        # noqa: E402  (4E)
 
 YARDIM = __doc__
 
@@ -214,6 +221,30 @@ def esitleme_kur(arg: list[str], kart, kopru, arsiv_kok=None, yazdir=print):
     return es
 
 
+# ── 4E: MQTT bildirimleri (ayri blok; pc_bildirim.py / windows_bildirim.py) ──
+def bildirim_kur(arg: list[str], kart, kopru, yazdir=print, cikis=None, veri_dizini=None):
+    """4E (PC13–PC16): MQTT aboneligi + Windows bildirimini kur (BASLATMAZ), kopruye bagla
+    (`/bildirim/durum`) ve kartin yerel satirlarini (`G` kayit durumu) dinlet. `--bildirim-yok`
+    ise None. WiFi yukari-akisi yoksa (--wifi-yok) onbellekteki bilgiyle calisir (karttan bilgi
+    alinamaz). `cikis` yalniz sinamada verilir (gercek bildirim gostermesin)."""
+    if "--bildirim-yok" in arg:
+        kopru.bildirim_neden = "--bildirim-yok"
+        yazdir("  Bildirimler           : KAPALI (--bildirim-yok)")
+        return None
+    import windows_bildirim
+    wifi = kart.wifi if isinstance(kart, kart_wifi.SecmeliKart) else (
+        kart if isinstance(kart, kart_wifi.WifiKart) else None)
+    dizin = Path(veri_dizini) if veri_dizini else pc_ayar.veri_dizini()
+    if cikis is None:
+        cikis = (windows_bildirim.WindowsBildirim(dizin, hata=kopru.yayinla) if sys.platform == "win32"
+                 else windows_bildirim.YokBildirim(kopru.yayinla))
+    mantik = pc_bildirim.Mantik(cikis, yayinla=kopru.yayinla, kalici=dizin / "bildirim" / "son.json")
+    pb = pc_bildirim.PcBildirim(wifi, mantik, yayinla=kopru.yayinla, veri_dizini=dizin)
+    pc_bildirim.satir_dinle(kart, pb.yerel_satir)
+    kopru.bildirim = pb
+    return pb
+
+
 def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
     """Kopruyu ac ve kapanana dek hizmet et. Donus: cikis kodu."""
     if "--yardim" in arg or "-h" in arg:
@@ -271,6 +302,8 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
         sunucu.RequestHandlerClass.kopru = kopru
         esitleme = None if kayit else esitleme_kur(arg, kart, kopru,
                                                    yazdir=(lambda *_: None) if sessiz else yazdir)
+        bildirim = None if kayit else bildirim_kur(arg, kart, kopru,           # 4E
+                                                   yazdir=(lambda *_: None) if sessiz else yazdir)
         if not sessiz and hasattr(kart, "bildir"):
             # 4A inceleme: kart durumu (bulunamadi / baglandi / koptu) konsola da.
             # Eskiden yalniz /akis'e gidiyordu: `--port COM7` yanlissa konsoldaki
@@ -294,6 +327,8 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
     threading.Thread(target=yukari_akis, daemon=True).start()
     if esitleme is not None:
         esitleme.baslat()
+    if bildirim is not None:                                # 4E
+        bildirim.baslat()
 
     if not sessiz:
         yazdir(f"Kopru acildi — kart: {kart.ad}")
@@ -311,6 +346,9 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
         if esitleme is not None:
             yazdir(f"  Kayit arsivi          : {esitleme.arsiv_kok} (esitleme {esitleme.aralik:.0f} s'de bir, "
                    + ("ONAY verir — kalici yazimdan sonra)" if esitleme.onay else "ONAYSIZ)"))
+        if bildirim is not None:                            # 4E
+            yazdir(f"  Bildirimler           : MQTT (yalniz abone) + {bildirim.mantik.cikis.yol} "
+                   f"— durum {adres}/bildirim/durum")
         yazdir("Kapatmak icin Ctrl+C (arka plandaysa: kopru\\Kopruyu Durdur.bat)")
         if "--tarayici-acma" not in arg:
             threading.Timer(0.6, lambda: tarayici_ac(adres + "/")).start()
@@ -322,6 +360,8 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
     finally:
         if esitleme is not None:
             esitleme.durdur()
+        if bildirim is not None:                            # 4E
+            bildirim.durdur()
         kopru.durdur()
         kart.kapat()
         sunucu.server_close()

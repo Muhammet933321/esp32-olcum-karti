@@ -28,23 +28,23 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
 1. **Doğrulama zincirini koştur.** Belgede yazan her şey bu zincire dayanıyor:
    ```
    cd projeler/olcum-karti/uretim
-   python dogrula3.py          # AŞAMA 3 — GÜNCEL, B1..B25, 18/18, ~6 dk
+   python dogrula3.py          # AŞAMA 3 — GÜNCEL, 22/22 adım (ADIM_SAYISI), TAM koşu ~15–20 dk
+   python dogrula3.py --artimli   # iş sırasında: değişmeyen adımlar önbellekten (5.12.97)
    python dogrula2.py          # Aşama 2 — A1..A6, 6/6 geçmeli, ~70 s
    python dogrula.py           # Aşama 1 — S1..S9, 9/9 geçmeli, ~110 s
    ```
    **Aşama 3 güncel olan.** Yeşil değilse **önce onu düzelt**, yeni iş açma.
 
-   > **HIZ (5.12.91):** iş sırasında `python dogrula3.py --artimli` — girdileri (adımın
-   > GERÇEKTEN okuduğu dosyalar, alt süreçleri ve araçları dahil) değişmeyen adımın yeşil
-   > sonucu önbellekten gelir; değişiklik yoksa ~20–30 s, `kopru/kopru.py` değişince ~70 s (tam zincir ~13.5–17 dk).
-   > **TAM koşu ŞART:** `main`'e göndermeden önce (varsayılan `python dogrula3.py` zaten
-   > tam) · son yeşil tam koşu 24 saatten eskiyse ya da `dogrula3.py`/`mutasyon.py`/
-   > `tasarim3_sabit.py` değiştiyse (bu ikisini `--artimli` kendisi anlar ve tam koşar) ·
-   > `--sayim-kilidi-yaz` (`--artimli` ile reddedilir). Özetteki `[onbellekten, N dk önce]`
-   > etiketine bak; bir adımın neden koştuğu `[kosuyor: ...]` satırında.
-   > **5.12.92:** adım KOŞARKEN girdisi değişirse (zincir sürerken dosya düzenlemek) kayıt
-   > GEÇERSİZ yazılır (`[uyari: girdi adim SIRASINDA degisti ...]`), sonraki koşu o adımı koşar.
-   > Ortamın TAMAMI anahtarda (oturum değişkenleri hariç) — farklı terminal/PATH = tam koşu gibi.
+   > **Artımlı zincir (HIZ, 5.12.97/98/99):** `--artimli`'de girdileri (adımın GERÇEKTEN
+   > okuduğu dosyalar, alt süreçleri, araçları, ortam) değişmeyen adımın yeşil sonucu
+   > önbellekten gelir — hiçbir şey değişmediyse ~20–30 s. Özette `[onbellekten, N dk önce]`;
+   > koşanın sebebi `[kosuyor: ...]` satırında. **TAM koşu ŞART** (`python dogrula3.py` ya da
+   > `--tam`): `main`'e almadan / push'tan önce · son yeşil tam koşu 24 saatten eskiyse ·
+   > `--sayim-kilidi-yaz` için (`--artimli` ile REDDEDİLİR; `--tam --sayim-kilidi-yaz` olur).
+   > `dogrula3.py`/`mutasyon.py`/`tasarim3_sabit.py` değişince `--artimli` kendisi tam koşar.
+   > Zincir sürerken dosya düzenlersen o adımın kaydı geçersiz yazılır, sonraki koşu onu koşar.
+   > Adımlar ÖZEL bir `LOCALAPPDATA`'da koşar (`ozel_ortam.py`): gerçek
+   > `%LOCALAPPDATA%\olcum-karti`'ye dokunulmaz.
 
    > **Adım adım iddia sayıları burada ELLE tutulmuyor** — B23.3'ten beri
    > `uretim/beklenen_sayim.json` tutuyor ve zincir her koşuda birebir
@@ -123,24 +123,19 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
 
    B23.3'ten beri mutasyon testi **elle değil**:
    ```
-   python mutasyon.py                 # AGIR hariç hepsi (uzun; --paralel ile)
-   python mutasyon.py --adim B3       # tam zincir koşar (~13 dk) —
-   python mutasyon.py --adim B23      # bu ikisi zincirin KENDİ korumalarını sınar
-   python mutasyon.py --adim B22b     # tek adım
-   python mutasyon.py --neden 4D      # nedeni "4D" ile başlayanlar (scratch mut_hedef_*.py yerine)
-   python mutasyon.py --paralel 4     # 4 işçi (varsayılan min(4, çekirdek-2), makine yüklüyse daha az); 1 = sıralı
+   python mutasyon.py --neden 4J --paralel 4   # bir dilimin yalanlayıcıları (nedeni "4J" ile başlayanlar)
+   python mutasyon.py --adim B22b --paralel 4  # tek adım
+   python mutasyon.py --paralel 4     # AGIR hariç hepsi (uzun)
+   python mutasyon.py --adim B3       # tam zincir koşar — B3/B23 zincirin KENDİ korumalarını sınar
    python mutasyon.py --liste         # ne koşacağını yazar, koşmaz
    ```
-   **HIZ (5.12.91/92):** her işçi kendi kopyasında ve kendi `TMP/TEMP/LOCALAPPDATA`'sında
-   koşar; koşu başında ağacın TEK anlık kopyası alınır, işçiler ondan kopyalar.
-   → **FARKLI ağaçlarda** zincir ile mutasyon koşucusu aynı anda koşabilir (A3).
-   ⚠ **AYNI ağaçta koşan zincirin ÜSTÜNE koşucu BAŞLATMA** (5.12.92 incelemesi: anlık kopya
-   alınırken kopyalayıcının açtığı çıktı dosyası zincir adımını kırabilir; `_b*` çöp dizinleri
-   artık kopyalanmıyor, kaybolan girdide kopya yeniden deneniyor ama pencere kapanmadı).
-   İddiasız ÇÖKME (yalnız Traceback) = ŞÜPHELİ → paralel evreden sonra tek başına yeniden
-   koşulur, karar ikincinin. ⚠ Zamanlamaya bağlı bir iddia yük altında düşerse YAKALANDI
-   satırının `ilk kirmizi:`'si beklenen iddia değildir — o sonuç hâlâ elle şüpheli (B72.A6
-   artık istemcinin GÖNDERME anından ölçüyor). Varsayılan işçi sayısı makine yüküne göre.
+   ⚠ Oturum karalama dizinindeki eski `mut_hedef_*.py` / `mut_par.py` koşucuları ESKİDİ, kullanma:
+   yerine **`python uretim/mutasyon.py --neden <ONEK> --paralel 4`** (aynı karar, ~2.5–3× hızlı).
+   **Paralel koşucu (HIZ, 5.12.97/98):** her işçi kendi kopyasında ve kendi
+   `TMP/TEMP/LOCALAPPDATA`'sında koşar; `--paralel 1` = sıralı, aynı karar kümesi. FARKLI ağaçta
+   zincirle aynı anda koşabilir; ⚠ **AYNI ağaçta koşan zincirin ÜSTÜNE BAŞLATMA.** İddiasız
+   çökme = ŞÜPHELİ, tek başına yeniden koşulur. `UYGULANAMADI` = eski mutasyon (deseni artık
+   kaynakta yok) — düzelt. Kalan `_mutp*` dizini olmamalı.
    Kaynağı bir **kopyada** bozup testin kırmızıya döndüğünü ölçüyor;
    asıl ağaca dokunmuyor (proje git deposu değil, bir Ctrl-C geri dönüşü
    olmayan bir bozulma bırakırdı). Yeni bir iddia yazdığında
@@ -10555,9 +10550,38 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
-#### 5.12.92 🟢 HIZ İNCELEMESİ: 11 ÖLÇÜLMÜŞ KUSUR KAPANDI (2026-10-03, dal `zincir-hiz`)
+#### 5.12.99 🟢 HIZ ↔ main BİRLEŞMESİ (2026-10-03, dal `zincir-hiz`, ağaç `projeler/olcum-karti-hiz`)
 
-Bağımsız inceleme 5.12.91'in iki hızlandırmasında 11 kusuru deneyle gösterdi (3 kritik). Hepsi önce
+Ajan. `main` (e6e086d: 4D–4J, 3C-LISTE, kılavuz, `gercek_dizin_koru` son kuralı, köprü 405) `zincir-hiz`'e
+(1c51e46) `--no-ff` alındı. Push yok. HIZ'in iki kaydı **5.12.91 → 5.12.97, 5.12.92 → 5.12.98** oldu
+(`main`'in 5.12.91'i 3C-LISTE, 5.12.92'si 4G KABUL — numaralar çakışıyordu); başlık ve iç atıflar düzeltildi.
+
+- **B72.A6 (iki dal aynı düzeltmeyi yapmıştı):** tek uygulama — 4J'nin `(zaman, yol)` kaydı + `w.imzali_ac`
+  geri yükleme, HIZ'in önek süzgeci (`yol.startswith("/kayit/veri")`) ve varış aralığını tanı satırında
+  gösterme. Eşik **0.09 s** (4J 0.098'di): zaman damgası sınırlayıcının `onceki`sinden sonra alınır, GIL
+  geçiş aralığı 5 ms — yük altında 0.098 sınırda kalırdı. Yalanlayıcılar 0 ms (4C ×2) ve 50 ms (4J) — üçü de
+  eşiğin çok altında.
+- **B72.Q16 önbelleği:** HIZ'in anahtarı (test_bildirim'in GERÇEKTEN yüklediği modüller) alındı, ama 4E'den
+  beri test_bildirim `ortak/src/sozluk.js` ve `kod/olcum-karti-a3/bildirim.h`'yi DOSYA olarak okuyor —
+  modül listesi bunları görmez, `main`'in elle listesi görüyordu. İkisi açık `ek_girdi` olarak anahtara
+  eklendi; listede olmayan kayıt geçersiz.
+- **`gercek_dizin_koru` (main'in kuralı aynen) + HIZ'in özel LOCALAPPDATA'sı:** `ozel_ortam.yerel_kur` özel
+  dizinin köküne `.olcum-ozel-yerel` işaretini yazar; `koru()` bunu görünce `koruma["ozel"]`, `denetle`
+  köprü muafiyeti VERMEZ — özel dizine gerçek köprü yazamaz, oradaki her değişiklik testindir. Testi
+  DOĞRUDAN koşan yine main'in kuralıyla korunur. Yeni B22a iddiası (test_kopru) + 3 `HIZ-BIRLESME`
+  yalanlayıcısı.
+- **`mutasyon.py`:** iki listenin hepsi korundu (2073 + 3 = 2076 kayıt, hepsi 6'lı); yeni koşucu hepsini
+  koşar. ⚠ `main`'den gelen **4 eski mutasyon UYGULANAMADI** (desen kaynakta yok, birleşmeden ÖNCE de):
+  3A `arayuz-uret.py: return list(VARLIKLAR) + ekran + ortak`, 3C/WIG `sozluk.js` 401 metni, 3C (C4)
+  `kayitlar.js` `const nerede = ...`, 4D `kart_wifi.py` DURDUR docstring'i — sahipleri güncellemeli.
+
+**Doğrulama:** (aşağıdaki sayılar bu birleşmenin koşuları)
+
+---
+
+#### 5.12.98 🟢 HIZ İNCELEMESİ: 11 ÖLÇÜLMÜŞ KUSUR KAPANDI (2026-10-03, dal `zincir-hiz`)
+
+Bağımsız inceleme 5.12.97'nin iki hızlandırmasında 11 kusuru deneyle gösterdi (3 kritik). Hepsi önce
 `test_zincir_hiz.py`'de kırmızı bir iddia, sonra düzeltme, sonra yalanlayan bir `HIZ:` mutasyonu.
 
 **Artımlı zincir (`zincir_onbellek.py`):**
@@ -10605,7 +10629,7 @@ Bağımsız inceleme 5.12.91'in iki hızlandırmasında 11 kusuru deneyle göste
    temizlendi" yalnız temizse; koşu başında sahibi ölmüş + 5 dk'dan eski `_mutp*` süpürülür — **sahibi canlıysa
    asla** (ad pid taşıyor; uzun bir koşunun `.ozel` mtime'ı eski kalır). A5b/A5c/A5d/A15/A17.
     Ek: mutasyon başına Edge sızıntısı artık çıkış kodunu kırmızı yapıyor (A15).
-11. Kayıt defteri yan etkisi: 5.12.91 ② altına yazıldı — **kullanıcı onayı bekliyor, dokunulmadı.**
+11. Kayıt defteri yan etkisi: 5.12.97 ② altına yazıldı — **kullanıcı onayı bekliyor, dokunulmadı.**
 
 **Ölçüm:** `test_zincir_hiz.py` 65 → **101/101** (~65 s). `mutasyon.py --neden HIZ --paralel 4`: 78 mutasyon,
 1655 s; ilk koşuda 2'si sorunluydu — semafor mutasyonu KAÇTI (yeni A8 sınırı tek tarayıcılı seçimde semaforu
@@ -10621,7 +10645,7 @@ r1 `GECTI B25 347.4 s` + `[uyari: girdi adim SIRASINDA degisti ...]`, r2 B25'i k
 adım BİTTİKTEN sonra göründü ve bozma adımdan sonra yapıldı — süreç listesinden tespit gerekiyor.
 Kayıt defteri zincir koşuları öncesi/sonrası AYNI (yeni yan etki yok).
 
-#### 5.12.91 🟢 HIZ: PARALEL MUTASYON + ARTIMLI ZİNCİR + ÖZEL LOCALAPPDATA (2026-10-03, dal `zincir-hiz`)
+#### 5.12.97 🟢 HIZ: PARALEL MUTASYON + ARTIMLI ZİNCİR + ÖZEL LOCALAPPDATA (2026-10-03, dal `zincir-hiz`)
 
 Kullanıcı "işler hızlansın" dedi, dört seçenekten ikisini seçti (hafıza: *hız alt ajan*). Kod:
 `uretim/mutasyon.py` (koşucu), `uretim/zincir_onbellek.py` + `uretim/zincir_kanca/` (artımlı zincir),
@@ -10639,7 +10663,7 @@ ortamı bir betiği bozduysa her mutasyonu sahte YAKALANDI yapardı). Tarayıcı
 B57) en fazla **2 eşanlı**; her birinden sonra işçinin TEMP'inde kalan `msedge.exe` öldürülüp SIZINTI
 raporlanır (A8). Ctrl+C / CTRL_BREAK → kopyalar silinir (A5). `--neden ÖNEK` scratch `mut_hedef_*.py`'lerin
 yerini aldı. YAKALANDI satırının altında `ilk kirmizi:` — mutasyonu HANGİ iddianın öldürdüğü.
-🔴 **KURAL DEĞİŞTİ (⚠ 5.12.92: AYNI AĞAÇ için YANLIŞTI — kural orada sürüyor, aşağıya bak):** "zinciri mutasyon koşusuyla üst üste bindirme" YENİ koşucu için kalktı —
+🔴 **KURAL DEĞİŞTİ (⚠ 5.12.98: AYNI AĞAÇ için YANLIŞTI — kural orada sürüyor, aşağıya bak):** "zinciri mutasyon koşusuyla üst üste bindirme" YENİ koşucu için kalktı —
 `dogrula3.py`'nin `%TEMP%` süpürmesi işçilerin özel TEMP'ine ulaşamaz (A3: iki eşanlı koşu + sürekli süpürme;
 A3b: süpürme ortak TEMP'te gerçekten siler). ⚠ Eski/scratch koşucular (`mut_hedef_*.py`, `mut_par.py`) ortak
 TEMP kullanıyor; onlar için kural sürüyor.
@@ -10650,7 +10674,7 @@ TEMP kullanıyor; onlar için kural sürüyor.
 `bildirim/<kart>.okb`). Aynı pencerede yeni bir arşiv akış dizini açılsaydı onaylanmış kayıtlar da silinirdi.
 ② ilk sürüm özel dizine yalnız Arduino15'i bağladı; B73'ün tam yolsuz `python`'u WindowsApps takma adından
 geçti, Python kurulum yöneticisi `%LOCALAPPDATA%\Python`'u bulamadı ve **özel dizine 153 MB yeni bir
-Python 3.14 indirip kurdu**. ⚠ **Yan etkisi (5.12.92 incelemesinde bulundu, RAPORLANMAMIŞTI):** kurulum
+Python 3.14 indirip kurdu**. ⚠ **Yan etkisi (5.12.98 incelemesinde bulundu, RAPORLANMAMIŞTI):** kurulum
 yöneticisi `HKCU\Software\Python\PythonCore\3.14` kaydını (PEP 514) o özel dizine yazdı — DisplayName
 `Python 3.14.8`, `InstallPath\ExecutablePath` = `…\projeler\_zincir-yerel-33400-127871700\yerel\Python\
 pythoncore-3.14-64\python.exe`; dizin silindi, yol YOK. Kayıt defterinden Python bulan araçlar (VS Code /
@@ -10715,6 +10739,251 @@ PATH/PYTHON*/NODE_*/OLCUM_*/LOCALAPPDATA/APPDATA/… anahtara giriyor. Hepsi 24 
 koşuyla sınırlı. `gercek_dizin_koru`'nun "geri al"ı hâlâ gerçek dizinde SİLİYOR — zincir ve yeni koşucu
 artık oraya ulaşmıyor, ama testi DOĞRUDAN (`python test_kayit_esp.py`) köprü açıkken koşan biri yine
 köprü dosyası silebilir (4B sahibine: silmek yerine yalnız raporla).
+
+#### 5.12.96 🟢 BİRLEŞİK-4: 4G+4J, 4H, 4I, KILAVUZ TEK DALDA (2026-10-03 gece)
+
+Ajan, dal `birlesik-4` (ağaç `projeler/olcum-karti-birlesik`, `main` 40d33f7'den), sırayla `--no-ff`: `4j-ag`
+(4G'yi içerir), `4h-kalan`, `4i-surucu`, `pc-kilavuz`. Push yok; `dogrula3.py` koşulmadı (orkestratör koşacak).
+
+- **`gercek_dizin_koru` tek kurala indi** (4G-3 "köprü açıkken geri alma yok" + 4H "geri alma yalnız `cihaz/`"):
+  geri alma YALNIZ `cihaz/`'da beliren dosyada, başka yerde hiçbir şey silinmez; gerçek köprü 127.0.0.1:8770'te
+  `/durum` verirken `cihaz/` dışındaki değişiklikler ve `cihaz/`'da VAR OLAN dosyanın değişmesi (köprü kendi
+  cihaz dosyasının sayacını ilerletir) beklenir → yeşil; `cihaz/`'da YENİ dosya her zaman kırmızı (+ geri alınır).
+  4G iddiası bu kurala göre yeniden yazıldı (iki kip × iki durum), +2 `4H:` mutasyonu; "4B: test eşleştirmeyi
+  yönlendirmesiz" yalanlayıcısı aynen ısırıyor.
+- **Kılavuz (`belge_pc.py`):** bildirimlerde panel yolu "Ayarlar → Gelişmiş → “Bildirimler (bu bilgisayar)”"
+  (adlar ve sınıflar `sozluk.js` / `sozluk_pc.js` / `pc_kopru.js`'ten OKUNUR), komut satırı yolu ikinci seçenek;
+  bildirim tablosunda paneldeki kutu adı. Kökteki `Kopru Baslat.bat` artık `kopru\PC Baslat.bat`'ı çağırıyor
+  (eskiden doğrudan `kopru.py` + "kart USB'de olmalı"); çevrimdışı sayfa ve sw.js yedek metni
+  `kopru\PC Baslat.bat` diyor. İki yeni kural (15/15) + 5 `KLV:` mutasyonu. BELGELER dipnotu ve index uyarısı:
+  "Kart kuruluyor — ESP32 çalışıyor, ADS modülleri henüz takılı değil" (eski: "Donanım henüz kurulmadı").
+- **4I yalanlayıcısı koşuya göre kaçıyordu:** `AKIS_YOKLAMA_S = 15.0` birleşik ağaçta iki kez KAÇTI (bir kez
+  öldü). Bölüm 2'de sürücünün kapanışını bazen önceki bölümlerin bayat işleyicileri (kendi 15 s uyanışlarında
+  `surucu_yokla`) fark ettiriyordu — iddia zamanlamaya bağlıydı. Yeni B22a iddiası (bölüm 7): temiz köprüde TEK
+  akış, başka trafik yok → kapanış işleyicinin kendi yoklamasıyla ≤ 5 s'de (yüklü makine payı) kayıttan düşer, pencere başlar
+  (gerçek 0.50 s; mutasyonla akış 10 s sonra hâlâ kayıtlı → kesin kırmızı).
+- DEVIR sırası 5.12.95 (4J) · 94 (4I) · 93 (4H) · 92 (4G) — numara çakışması yoktu. `beklenen_sayim.json`
+  zincir koşusunda yeniden yazılacak (B22a 191, B72 207, B7 911, B9 kuralları 15).
+
+#### 5.12.95 🟢 4J: KÖPRÜNÜN KART İSTEKLERİ ÖĞRENİLMİŞ ADRESE — TAM EŞİTLEME 24–26 s → 18.4 s (2026-10-03 akşam)
+
+Ajan, dal `4j-ag` (HEAD 9e4eb13 = main + 4G). 4G'nin açığı: Windows `olcum.local`'ı ~8 s'de bir yeniden
+çözüyor ve çözüm 2.7 s sürüyor; 4G yalnız `p0`'ı akışın karşı adresine almıştı. Kararlar spec
+"4J uygulama kararları" (4J-1…8).
+
+**Değişiklik (`kopru/kart_wifi.py`):** `WifiKart._karsi` = ad ile kurulan son bağlantının karşı ucu. Bütün
+kart istekleri (`dogrula`'nın açık `/eslestir/bilgi`'si, `akis_url`, `/akis`, `imzali_ac` → komut, `/saat`,
+eşitleme, vekil, `/bildirim/bilgi`) WifiKart'ın kendi açıcısından (`_ac`, `_KartBaglantisi`) geçer; TCP'yi
+`_baglan` kurar: önce öğrenilmiş adres (en çok 2 s), kurulamazsa BİR KEZ ad + tazeleme. URL ve `Host:`
+değişmez (kart yabancı Host'u 403 ile reddeder). `dogrula` öğrenilmiş adreste başarısızsa adresi unutur ve
+ad ile bir kez daha dener — kimlik denetimi aynen. `p0` 4G yolunda, değişmedi.
+
+**Gerçek kart ölçümü** (`A3-4B`, WiFi; karta yalnız `/eslestir/bilgi`, imzalı `/kayit/liste` `/kayit/veri`,
+`G?`, `p0`; eşitleme ONAYSIZ, geçici veri dizinine, cihaz dosyasının KOPYASIYLA — gerçek
+`%LOCALAPPDATA%\olcum-karti`'ye yazılmadı; önce = `git archive HEAD kopru`, önce/sonra dönüşümlü):
+
+| | Önce | Sonra |
+|---|---|---|
+| Tam eşitleme (2299 kayıt, 1 311 112 B, 165 imzalı istek, canlı akış açık) | 23.57 · 26.37 · 24.82 s | **18.41 · 18.35 · 18.53 s** (taban 16.5 s) |
+| İstek başı (100 ms ara dahil) | 143–160 ms | 111–112 ms |
+| İmzalı `G?` | ortanca 60–131 ms, 2.7–2.8 s takılma **6/60** | ortanca 114–127 ms, en kötü 149 ms, takılma **0/48** |
+| İmzalı `/kayit/liste` (kartta 350–600 ms) | 3.0–3.2 s takılma **5/40** | en kötü 634 ms, **0/32** |
+| `/eslestir/bilgi` | her 8'de 1–2 kez 2.75–2.8 s | yalnız sürecin ilk ad çözümü (2.8 s; bir kez 7.5 s) |
+| `p0` (akış açık, 5'er) | 20–59 ms | 22–66 ms |
+
+**Keep-alive:** ham soketle `Connection: keep-alive` — kart `HTTP/1.1 200 OK … Connection: close` ile yanıt
+verip soketi kapattı, ikinci istek 0 B. ESP32 `WebServer` keep-alive tutmuyor → yapılmadı (4J-5).
+**Sayaç kalıcılığı:** `sonraki_sayac` 3.6–4.8 ms (DPAPI 0.33 ms; gerisi mkstemp + fsync + replace); blok
+ayırma yapılmadı — kazanç %4, ve zaman tabanlı sayaçta ileri ayrılan blok aynı dosyayı kullanan ikinci
+süreci kartın 64'lük penceresinin ötesine atıp köprüyü 401'e düşürürdü (4J-6).
+**B72.A6 kararsızlığı:** aralık sahte kartın varış anından ölçülüyordu (yükte 81–82 ms); artık `imzali_ac`
+sarmalayıcısıyla İSTEMCİNİN gönderme anında, eşik 98 ms. Yalanlayıcı: tavan yarıya (50 ms).
+
+**Testler:** B72 **207/207** (+3: W14 bütün istekler öğrenilmiş adrese / ad bir kez / Host ad; W15 ölü adres →
+bir kez ad, komut tek, 401 yok, IP denemesi ≤ 2 s; W16 eski adreste yabancı cihaz → unut, ad ile doğrula,
+yabancıya yalnız açık `/eslestir/bilgi`). Bağlantı hedefi `kart_wifi._tcp_ac` kancasıyla izleniyor; sahte
+kartta ad `localhost` (Windows'ta ::1 reddi yüzünden her ad bağlantısı ~2 s). W6 ve A10'un kancaları yeni
+katmana taşındı (`w._ac`, `w._baglanti_sinifi` — eski `KW.vekilsiz_ac` / `KW.http.client.HTTPConnection`
+yaması artık bir şey ölçmezdi). B22a 172/172, `test_bildirim.py` 259/259, `gizlilik_dogrula.py` temiz.
+Mutasyon (karalama koşucusu): **4J 8/8**, **4G 13/13**, **4C 38/38** — hepsi öldü, uygulanamayan yok.
+`beklenen_sayim.json` B72 204 → 207.
+
+⚠ **Süreç:** ilk mutasyon koşusunun tabanı kırmızıydı — aynı anda gerçek kartı ölçüyordum ve ölçüm gerçek
+cihaz dosyasının sayacını ilerletti; `gercek_dizin_koru` bunu (doğru olarak) "test gerçek dizine dokundu"
+diye yakaladı. Ölçüm betiği cihaz dosyasının KOPYASINA geçirildi. Gerçek karta karşı ölçüm yapan her araç,
+paralel koşan testleri kırmamak için gerçek dizine yazmamalı.
+
+Açık: öğrenilmiş adres yalnız süreç içinde (köprü her açılışta bir kez ad çözer); `kayit_esitle.py` /
+`imza.py` komut satırı araçları eskisi gibi adla.
+
+#### 5.12.94 🟢 4I: YENİLENEN SEKME SÜRÜCÜ KALIR (2026-10-03)
+
+4H'de bulundu: köprü, yenilenen/kapanan sekmenin sürücü jetonunu tutuyordu; yenilenen sekme izleyici kalıyor,
+açılış komutları (`?` `CT` `G?`) 403 alıyordu — PC uygulamasında her yenilemede. Gerçek Edge'de (T4A) önce
+KIRMIZI görüldü. Düzeltme yalnız `kopru/kopru.py`: her `/akis` kaydediliyor, işleyici soketi 0.5 s'de bir yokluyor
+(`select` + `MSG_PEEK`); sürücünün bütün akışları kapanınca rol **en yeni yaşayan yerel** akışa geçiyor ve ona
+`event: kimlik` gidiyor (yeni bağlantıda, akış bitince ve reddedilecek komuttan önce yoklanıyor). Aday yoksa rol
+boşta bekliyor (`None`'a düşmüyor). İki açık sekme arasında çalma yok (`/devral` aynen), LAN asla aday değil,
+çapraz köken jeton almıyor, `p0` serbest. `app.js` değişmedi (mevcut `kimlik` dinleyicisi her olayı işliyor).
+Devir 0.26–0.44 s. B22a 166 → 175, T4A 12 → 15, mutasyon `4I:` 14. Kararlar spec "4I uygulama kararları".
+Açık: kartın kendi web sunucusu dokunulmadı; iki gerçek Edge sekmesiyle ölçülmedi.
+
+**İnceleme düzeltmesi (4I-6):** ikinci yerel sekme açıkken sürücü yenilenince rol arka sekmeye kaçıyordu (eski
+işleyici kapanışı yeni `/akis`'ten ÖNCE fark ediyor; 0…1.5 s gecikmelerin hepsinde yenilenen sekme 403). Artık
+sürücünün akışları kapanınca 3 s'lik yeniden yükleme penceresi (`AKIS_DEVIR_BEKLE_S`): pencerede rol yalnız yeni
+kaydolan yerel akışa; pencere dolunca zamanlayıcı en yeni yaşayan yerel akışa verir; açık sekmenin komutu pencere
+sonunu bekler. Bedel: gerçekten kapanan sürücüde devir ~3.5 s. B22a 175 → 177, T4A yenilemesi ikinci sekme
+açıkken; mutasyon `4I:` 14 → 20, hepsi öldü. Spec 4I-6.
+
+#### 5.12.93 🟢 4H: ALT PROJE 4'ÜN ARTIKLARI — PANELDE PC BİLDİRİMLERİ, YEREL AĞ UYARISI, KABUK SÜRÜMÜ (2026-10-03)
+
+Ajan, dal `4h-kalan` (ağaç `projeler/olcum-karti-4h`). Kararlar spec "4H uygulama kararları" (4H-1…4H-9). Kart
+sınanmadı, karta istek gitmedi.
+
+- **Ayarlar > Gelişmiş, YALNIZ köprüde:** "Bildirimler (bu bilgisayar)" bölümü (bağlantı durumu, son olay, 7 sınıfın
+  aç/kapası, bildirim dili) ve kartın arayüz sürümünün yanında köprünün sunduğu kabuk sürümü (`/durum` `kabuk` = sw.js
+  SURUM). Yeni modül `ekran/pc_kopru.js` yalnız dinamik; karar 4D'ninki (`kaynak() === 'pc'`), kart kökeninde ne istek
+  ne indirme (`ayarlar.js` `kopruKokeni` = `kokenSinama`, B7 eşitliği ölçüyor). Metinler `sozluk_pc.js` (+24, TR + EN).
+- **Köprüde `POST /bildirim/ayar`:** `X-Olcum`, yalnız bu bilgisayar, aynı köken, `application/json`, ≤ 512 B; yalnız
+  bilinen sınıf → true/false ve `dil`; tekrarlanan anahtar / NaN / boş değişiklik ret; `ayar.json`'a BİRLEŞTİRİR
+  (4C anahtarları ve kullanıcının anahtarları kalır), bozuk dosyada 409 ve dosyaya dokunmaz. Sır yolu yok.
+- **Yerel ağ istemcisi:** köprünün `LAN_RET`'li 403'leri artık `X-Kopru-Ret: lan` taşıyor; panel komutta ve
+  devralmada ham ASCII ret metni yerine çevrilmiş "yerel ağdan salt okuma — DURDUR (p0) her zaman geçer; komut için
+  köprünün bilgisayarı ya da karta doğrudan" der. Başka 403'ler (çapraz köken, sürücü değil) işaretsiz, eskisi gibi.
+- **Bütçe** (gzip): açılış 209 211 → 209 404; `#/skop` 250 601 → 250 794 (≤ 256 000); EU31 259 803 → 259 996
+  (≤ 262 144); `ayarlar.js` 10 692 → 11 154 (≤ 12 288); `pc_kopru.js` 3 824 (yalnız köprüde iner); kart görüntüsü
+  411 814 → 417 627 B. EN'de çevrilmemiş metin kilidi 272 (değişmedi). Yeni CSS yok.
+- **Testler:** B22a 166 → 173, B7 898 → 911 (bölüm 34), T4D 20 → 24 (gerçek köprü + Edge: seçim gerçek POST ile
+  `ayar.json`'a birleşir, GERÇEK yeniden yüklemede korunur — ilk sürüm yalnız hash değiştiriyordu, yeniden yükleme
+  sanılıyordu; LAN istemcisi `lan.localhost` + LAN IP'li işleyiciyle). B72.Q16, B22b, B73, T4A, T4F, T3H aynen yeşil.
+  Mutasyon `4H:` 37/37 (ilk koşuda biri KAÇTI: yazma yanıtına mutlak yol eklenince "yolsuz" iddiası JSON'un
+  kaçışlı ters bölülerini görmüyordu — artık düz VE JSON-kaçışlı biçimi arıyor). Zincir sayımı 5232 → 5252 (hesap;
+  `dogrula3.py` bu dilimde koşulmadı).
+- **Ev işi:** `tasarim/1-acik-isler.md`'de sonraki işlerle kapanan beş satırın üstü çizildi (D0, kimliksiz onay,
+  cihazdan saat, kayıt ekranları, plan gösterimi), her biri kanıt numarasıyla. `mutasyon.py`'de bu dilimin değiştirdiği
+  koda bakan 6 eski mutasyon (+ önceden bayatlamış 2: 3F `/pil` kaynağı, 3H `ayarlar.js` içe aktarma) güncellendi.
+- **Bulunan, düzeltilmeyen:** köprüde sayfa yeniden yüklenince sürücü jetonu kapanmış sekmede kalıyor (yeni sekme
+  izleyici, açılış komutu 403) — önceden var. `gercek_dizin_koru` aynı anda koşan GERÇEK köprünün yeni dosyalarını da
+  geri alıyor: bu dilimde bir kez gerçek `bildirim\<kart>.okb` önbelleğini sildi (köprü karttan yeniden alır); sonraki
+  koşular yalıtılmış `LOCALAPPDATA`/`TEMP` ile yapıldı (aynı anda koşan başka bir `dogrula3`'ün süpürücüsü de
+  `kopru_*` geçici dizinini koşu ortasında silmiş görünüyor).
+
+#### 5.12.92 🟢 4G KABUL: PC UYGULAMASI GERÇEK KARTTA — Ö3, Ö5, 4 İZLEYİCİ, p0 (2026-10-03 öğleden sonra)
+
+Ajan, dal `4g-kabul`. Araç **`uretim/tezgah_pc.py`** (`--o3`, `--o5`; zincirde değil — saf yardımcıları
+B22a "4G"de, tezgah kalemi B22a listesinde). Kart `A3-4B`, WiFi, ADS takılı değil, eşleşmiş "Desktop" +
+"PC-kopru", `zorunlu=0`. Karta yalnız `?` `G?` `Gb200` `Gd` `Ga` `Gn` `p0`; flaş yazılmadı, `N?` yok.
+
+**Ö3 (11/11)** — `pc.py --usb-yok`, GERÇEK veri dizini, varsayılan ONAYLI (gerçek karta onaylı koşu):
+test oturumu 61277 "4G kabul" (`Gb200`, `Ga`, `Gn`); kayıt sürerken bir tur (+4 kayıt); köprü
+**202 s kapalı**, kart aynı oturumla kaydetti; yeniden açılınca ilk turda **59 kayıt / 40 340 B, 4.5 s**;
+`Gd` + son tur (+2): `Go` gitti, kart `X-Onay` ile doğruladı. Köprü kapatılıp kartın akışı geçici
+dizine bağımsız indirildi (2299 kayıt, 22.2 s): PC arşivi **bayt bayt aynı** (1 311 112 B, sıra
+59043–61341, `tam_ayni`). Arşivde oturum: ad, not, 1102 nokta, BİTİR sebep 1, testin 65 sırası kesintisiz.
+
+**Ö5 (14/14 ile birlikte)** — köprü geçici veri dizinli + `--onaysiz`, arada bayt kaydeden TCP rölesi
+(`KayitciVekil`). **Bulgu:** kart yabancı `Host`'u 403 "Host reddedildi" ile reddediyor (DNS yeniden
+bağlama savunması çalışıyor) → röle yalnız `Host:` satırını kartın adıyla yazar. Kayıt: 288 istek,
+1.56 MB — `/akis` 1, `/komut` 7, `/kayit/veri` 164 (bos dizinden tam eşitleme 22.6 s), `/kayit/liste` 2,
+`/pil` 39, `/kal/liste` 35, `/kunye.json` 33, `/bildirim/bilgi` 1, `/eslestir/bilgi` 6. Bellekte (DPAPI +
+`OKB1` zarfı süreç içinde çözüldü, hiçbir değer basılmadı) aranan: K, aracı uri / sunucu adı / kullanıcı /
+parola, konu öneki, yük anahtarı — ham, onaltılık (küçük/BÜYÜK), base64 (standart/URL/dolgusuz), yüzde
+kodlu: **hepsi 0**; `Authorization:` **0**; köprü konsol günlüğünde de 0. Pozitif denetim: kart kimliği
+6 kez, `/bildirim/bilgi` yanıtı `OKB1`. **Web parolası ARANMADI** (`OLCUM_PAROLA` verilmedi). Kayıt ve
+geçici dizin silindi.
+
+**4 canlı izleyici** — 6 tarayıcı sekmesi (2 başlıksız Edge × 3) + komut istemcisi köprüden akış aldı
+(sekme başına 4 s'de 78–97 `D`), köprü kartta **TEK yuva**. Kalan 3 yuvadan 1'ini kullanıcının Chrome'u
+tutuyordu (dünden beri açık; `Get-NetTCPConnection` ile ölçüldü), 2 doğrudan istemci veri aldı, sonraki
+`event: dolu`. Kapanan doğrudan istemcinin yuvası 0.2–0.45 s'de boşaldı (4B'nin açık maddesi).
+
+**p0 yük altında** — tam eşitleme + vekil (~3 istek/s) + 6 izleyici sürerken sekmeden 5/5 **204,
+45–246 ms** (köprü→kart ayağı 21–226 ms).
+
+**Bulunan ve düzeltilen kusurlar** (her biri önce kartta / testte kırmızı görüldü, `4G:` mutasyonlu):
+1. **p0 2.77 s** — Windows `olcum.local`'ı ~8 s'de bir yeniden çözüyor, çözüm 2.7 s (30 çözümde 2694 ve
+   2726 ms). Köprünün p0'ı her seferinde adı çözüyordu. Artık canlı akışın karşı adresine (`WifiKart._ip`,
+   kopunca silinir), 2 s'de yanıt yoksa ada düşer. Kartta düzeltmeden sonra 30/30 p0 28–117 ms. B72.W4b.
+2. **40 s okuma zaman aşımı hiç uygulanmıyordu** — `http.client` SSE yanıtında `HTTPConnection.sock`'u None
+   yapıyor; soket 10 s'de kalıyordu, `kapat()` okumayı kesemiyordu. Soket istekten hemen sonra tutuluyor.
+3. **`gercek_dizin_koru` canlı köprünün dosyalarını silebiliyordu** — test sırasında gerçek dizinde
+   beliren her şey "geri alınıyordu"; kullanıcının köprüsü açıkken bu, yeni `akis-<n>` arşivi / günün
+   `.satir`'ı / bildirim önbelleği demek (onaylı kayıt kartta da temizlenebilir → veri kaybı). Ö3 sırasında
+   OLDU: başka bir ajanın `test_kopru.py` koşusu köprünün yazdığı gerçek `bildirim\<kart>.okb`'yi sildi
+   (orkestratör doğruladı; köprü onu karttan yeniden alır; Ö3'ün arşivi yalnız değişti, silinmedi).
+   Artık köprü açıksa geri alma yapılmaz (iddia kırmızı kalır, sebebi yazar). B22a + mutasyon.
+4. **Tezgah hijyeni:** `olcum-edge-` öneki ortak — sızıntı sayımı başka koşunun tarayıcısını da sayıyor.
+   Araç artık yalnız kendi profillerini sayıyor. ⚠ Bu oturumda genel önekle 16 `msedge` süreci elle
+   öldürüldü; profilleri silinmişti (yetim) ama o an başka bir ağaçta `dogrula3.py --artimli` koşuyordu —
+   onun tarayıcı adımı etkilenmiş olabilir.
+
+Açık: kart ADS'siz (veri değerleri anlamsız); Ö4 PC karşılığı (PC18), USB kablo çek/tak geçişi, Başlangıç
+kısayolu — elle. İmzalı istekler ve eşitleme hâlâ her istekte adı çözüyor (keep-alive yok).
+B22a 166 → 172, B72 203 → 204 (zincir 5232 → 5239); mutasyon 4G 13/13. ⚠ Orkestratör aynı korumayı
+ayrıca düzeltiyor ("cihaz dizini dışında silme yok" + köprü açıkken geri alma yok) — `gercek_dizin_koru.denetle`
+birleştirmede çakışabilir.
+
+**ÖNERİ — `Ez1` (imza zorunluluğu), AÇILMADI, kullanıcı kararı.** İki cihaz da eşleşmiş (Desktop =
+kullanıcının tarayıcısı, PC-kopru = bu PC'nin köprüsü), köprü imzalı konuşuyor (4G'de ölçüldü). Adımlar:
+1. `python kopru/pc.py --durdur` (ya da `kopru/Kopruyu Durdur.bat`) — köprü COM portunu bıraksın.
+2. Kartın **COM yazan** soketi USB'de; seri konsol (Arduino IDE Seri Monitör ya da benzeri, 115200,
+   satır sonu `\n`). `E?` → `E zorunlu=0 misafir=0 … cihaz=2` görülmeli (iki cihaz).
+3. `Ez1` gönder; yanıtı oku; `E?` → `zorunlu=1`.
+4. Köprüyü yeniden aç (`kopru/PC Baslat.bat`); panel (köprüde ve Desktop tarayıcısında kartın kendi
+   sayfası) eskisi gibi çalışmalı.
+**Sonuç:** eşleşmemiş HER istemci kilitlenir — `/akis`, `/kayit/*`, `/pil`, `/kal/liste`, imzasız `/komut`
+401 (serbest kalanlar: `p0`, `?`, `/eslestir/*`, `/` sayfası). Eşleşmemiş telefon / başka tarayıcı canlı
+izleyemez (`Em1` misafir izleme açılırsa `/akis` ve `/pil` imzasız kalır). İmzasız HTTP kullanan tezgah
+araçları (ör. `tezgah_kayit.py`'nin `esitle()`'si: eşleşmiş cihaz kullanmıyor) 401 alır → o koşulardan önce
+USB `Ez0`. Geri alma: USB `Ez0`. Ayar bozulursa kart fail-closed (zorunlu) davranır.
+
+#### 5.12.91 🟢 3C-LISTE: İLK EŞİTLEMEDE BOŞ LİSTE (2026-10-03 öğle)
+
+4D+4E kartta sınanırken bulundu: yeni bir tarayıcıda Kayıtlar açılınca liste ~24 s (ilk eşitleme boyunca) BOŞ
+kalıyordu — kartın oturum dizini eşitlemenin başında alınıyor ama listeye ancak eşitleme bitince basılıyordu
+(3C'den beri). Artık hemen kuruluyor, oturumlar eşitleme sürerken "yalnız kartta" görünür. T3C 50/50 (12 s
+bekletilen istek SIRASINDA 6 oturum listede), mutasyon 1/1. Zincir 5232.
+
+#### 5.12.90 🟢 4E: MQTT ABONELİĞİ + WINDOWS BİLDİRİMİ (2026-10-03)
+
+Ajan (`kopru/pc_bildirim.py` karar katmanı + MQTT iş parçacığı, `kopru/windows_bildirim.py`, `kopru/bildirim_metin.py`
+TR/EN). **Deneme (PC13) ölçüldü:** stdlib Python'dan gizli `powershell.exe -EncodedCommand` + WinRT toast — görünüyor
+(~0.19 s), aynı Tag/Group ile YERİNDE güncelleniyor (geçmişte tek kayıt), kaynak adı "Ölçüm kartı" + panel simgesi
+(`HKCU\Software\Classes\AppUserModelId\OlcumKarti.Kopru` kaydı; kısayol/paket gerekmez, silinince geri alınır),
+tarayıcı kapalıyken de. Bu makinede Rahatsız Etmeyin açıktı: afiş çıkmadı, bildirim merkezine düştü (Windows ayarı).
+Tepsi simgesi yapılmadı (pencere + mesaj döngüsü ister; durdurma `Kopruyu Durdur.bat`). **Tasarım:** `/bildirim/bilgi`
+imzalı, paylaşılan cihaz + sayaç kilidiyle; şifreli `OKB1` zarfı OLDUĞU GİBİ `%LOCALAPPDATA%\olcum-karti\bildirim\`
+önbelleğinde (PC14) — kart erişilemezken de abone olunabilir; yeniden alma yalnız çözme hatası / CONNACK 4-5 / durum
+konusu 180 s sessizken (QR! öneki de değiştirir), hız sınırlı. Aracı adresi, kullanıcı, parola, önek, anahtar YALNIZ
+bellekte; hata metinleri hatanın türünden kurulur (TLS hatası aracı adını içeriyor). "Karttan haber yok" YALNIZ kayıt
+sürerken, tek `baglanti` etiketli bildirim, kart yerelde görünürken "Ev interneti koptu", dönünce "yeniden bağlandı"
+(aynı bildirim güncellenir); aracı yokken kayıt sırasında 20 s yerel sessizlik de aynı bildirimi verir. Yineleme
+`(a, n)` + yerel `G` satırı ile anlamsal anahtar (PC16); `(a, n)` boşluğundan "N olay kaçırıldı" (PC15), son sayaç
+diskte. Açma/kapama `ayar.json` `bildirim` (4C anahtarlarıyla birleşir). `GET /bildirim/durum` yalnız bu bilgisayar,
+sırsız. **Gerçek aracıda:** kartın tutulan `durum` mesajı 3.4 s'de alındı ve çözüldü; hiçbir şey yayımlanmadı, hiçbir
+sır diske/durum satırına/bildirim metnine düşmedi. test_bildirim 222 → 259, B22a +4; mutasyon 4E 59/59, 4C 38/38, 4B
+51/51. **Kullanıcının tezgah kalemi (PC18):** kayıt sürerken kartın gücünü kes → "Karttan haber yok" süresi (hedef
+10 s, kabul 15 s, 10 tekrar); geri tak → aynı bildirim "yeniden bağlandı"; modemin internet kablosunu çıkar → "Ev
+interneti koptu"; USB `Qt` → deneme bildirimi. Rahatsız Etmeyin'de "Ölçüm kartı"nı öncelikli listeye ekle.
+Açık: panelde bildirim durumu/ayar bölümü yok (CLI/`ayar.json`), tepsi simgesi, telefon tarafı (alt proje 5).
+
+#### 5.12.89 🟢 4D: PANEL PC'DE — PC ARŞİVİ, KART VEKİLİ, ESKİ SKOP ARŞİVİ (2026-10-03)
+
+Ajan, dal `4d-panel-pc`. Panel köprüde (`olcum.localhost:8770`) Kayıtlar'ı köprünün **disk arşivinden** okur
+("bu PC'de"; `kopru/vekil.py`: `GET /arsiv/liste`, `/arsiv/veri`, `/arsiv/kal` — salt okuma, katı parametre, boy =
+`durum.json`'un kalıcı öneki, yalnız bu bilgisayar + aynı köken, yol arşiv kökünde) — panelde `ekran/depo_pc.js`
+(DEPO okuma tarafı, yazanlar reddeder; tek yazar Python), kaynak kararı denetçide (`/durum` `pc_arsiv`; **kart
+kökeninde bu karar için istek YOK**). Kayıt görünümü / grafik / dışa aktarma / rapor / Karşılaştırma aynı kod yolu.
+Kartın `/pil`, `/kal/liste`, `/kunye.json`'u köprünün **imzalı vekilinden** (aynı `Cihaz` + sayaç kilidi; 401 → 502
+`imza`; vekil hatası 502 + `X-Kopru-Vekil: hata`); `/eslestir/*` vekil EDİLMEZ (EU8'/EU9' yeniden yazıldı); `p0`
+vekilde değil, sayaç kilidini beklemez (1.5 s'lik vekil isteği sürerken 0.02 s). Kayıtlar'da köprü eşitlemesinin
+durumu (onay açık/kapalı), Osiloskop'ta B35 satır arşivi "Eski arşiv" başlığında. Bayat metinler (`kl.neden_imza`,
+`kl.neden_yok`, `kl.neden_usb`, `ay.kal_neden_imza`, `ay.panel*`) düzeltildi; yeni metinler `ortak/src/sozluk_pc.js`
+(açılışta değil; açılış +692 B gzip). B22a 150 → 162, B7 878 → 898, B73 24 → 25, yeni **T4D**
+`uretim/tarayici_pc_kayit.py` 20/20 (gerçek `sunucu_kur` + gerçek `ArkaEsitleme` turu + Edge). Mutasyon 4D 67.
+**Gerçek arşivde (salt okuma, karta istek yok):** 44 oturumun hepsi "bu PC'de", kayıtlar açıldı, arşiv bayt/mtime
+aynı; çizgiler boş çünkü o oturumların verisi `n=0` / `V_HATA|I_HATA` (ADS takılı değildi). Kararlar ve açıklar:
+spec "4D uygulama kararları" 4D-1…4D-15.
 
 #### 5.12.88 🟢 4C: ARKA PLAN DİSK ARŞİVİ (2026-10-03 sabahı)
 

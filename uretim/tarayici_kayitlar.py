@@ -702,6 +702,17 @@ def main() -> int:
             # Burada ilk esitlemenin 2. /kayit/veri istegi 12 s yanitsiz kalir.
             kart.kopar, kart.kopar_sonra = 1, 1
             t.git(taban + "/#/kayitlar")
+            # 3C-LISTE (gercek kartta 2026-10-03): yeni bir tarayicida ilk esitleme ~24 s surerken liste
+            # BOS kaliyordu — kartin dizini esitleme basinda aliniyor ama ancak esitleme bitince ekrana
+            # basiliyordu. Burada 2. /kayit/veri istegi 12 s bekletilirken (esitleme SURUYOR) bakiliyor.
+            son_bekle = time.monotonic() + 20
+            while kart.koparilan < 1 and time.monotonic() < son_bekle:
+                t.bekle(0.2)
+            t.bekle(1.5)
+            sirada = t.js(SATIRLAR_JS) or []
+            ok("[!] 3C-LISTE: esitleme SURERKEN kartin oturumlari listede (yeni tarayicida bos liste yok)",
+               kart.koparilan == 1 and len(sirada) == 6 and all(x["n"] in ("kart", "ikisi") for x in sirada),
+               f"koparilan {kart.koparilan}, satir {len(sirada)}: " + " ".join(f"{x['o']}:{x['n']}" for x in sirada))
             satir = bekle_js(t, f"document.querySelectorAll('.kl-satir').length >= 6 && {SATIRLAR_JS}"
                                 f".every(s => s.n === 'ikisi') && document.querySelectorAll('.kl-satir').length", 60.0)
             ilk_sonuc = bekle_js(t, "(document.querySelector('.kl-sonuc') || {}).textContent", 10.0) or ""
@@ -1095,9 +1106,11 @@ def main() -> int:
             t.js("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Yenile').click()")
             imza = bekle_js(t, "(document.querySelector('.kl-neden') || {dataset: {}}).dataset.neden === 'imza'"
                                " && document.querySelector('.kl-neden').textContent")
-            ok("[!] 401 'imza gerekli': 'Kart imzalı istek istiyor; bu tarayıcı henüz eşleştirilemiyor' (+ PC yolu), liste yerelden",
-               bool(imza) and "Kart imzalı istek istiyor; bu tarayıcı henüz eşleştirilemiyor" in imza
-               and "kopru/kayit_esitle.py" in imza
+            # 4D: metin bayatti (3H-2'den beri panel eslestirmesi var; PC'de arsivi kopru/pc.py tutuyor)
+            ok("[!] 401 'imza gerekli': 'Kart imzalı istek istiyor ve bu tarayıcıyı tanımıyor' + Ayarlar → Eşleştirme "
+               "(+ PC yolu kopru/pc.py), liste yerelden",
+               bool(imza) and "Kart imzalı istek istiyor ve bu tarayıcıyı tanımıyor" in imza
+               and "Ayarlar → Eşleştirme" in imza and "kopru/pc.py" in imza
                and t.js("document.querySelectorAll('.kl-satir').length") >= 8, imza or "")
             kart.imza_zorunlu = False
             for e in evre_401:

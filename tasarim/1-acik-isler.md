@@ -1,6 +1,6 @@
 # Alt proje 1 — açık işler ve ertelenenler
 
-> Durum: 2026-10-01. Kapsam: 1A-1 · 1A-2 · 1B · 1C-1 · 1C-2 · 1C-3 · 1C-4.
+> Durum: 2026-10-01 (4H'de, 2026-10-03, sonraki işlerle kapananların üstü çizildi). Kapsam: 1A-1 · 1A-2 · 1B · 1C-1 · 1C-2 · 1C-3 · 1C-4.
 > Geri dönüldüğünde **buradan** başlanır. Her maddenin kaynağı köşeli parantezde.
 > - "DEVIR x" mühendislik günlüğündeki girdidir.
 > - "inceleme" o dilimin bağımsız son incelemesidir.
@@ -49,14 +49,14 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 
 | Ne | Nereye | Dilim |
 |---|---|---|
-| Onay ve `/kayit/veri` okuması kimliksiz; ağdaki herkes onay yollayabilir (yalnız verilmiş sıralar) | **1D** (eşleştirme + imzalı istek) | 1A-1, 1A-2 |
-| Cihazdan saat alma (bugün yalnız NTP; internetsiz ağda plan kurulamaz, çevrimdışı unix 0) | **1D** | 1B M7, 1C-4 K4 |
+| ~~Onay ve `/kayit/veri` okuması kimliksiz; ağdaki herkes onay yollayabilir (yalnız verilmiş sıralar)~~ | **Kapandı (1D, `8058560`, DEVIR 5.12.72):** eşleştirme + imzalı istekler; zorunlulukta `/kayit/*` ve `Go` imza ister (köprü 4B'de eşleşmiş cihaz olarak imzalar, DEVIR 5.12.87; kartta 4G). İmzasız yolun KAPANMASI `Ez1`'e bağlı: önerisi DEVIR 5.12.92, kullanıcı kararı | 1A-1, 1A-2 |
+| ~~Cihazdan saat alma (bugün yalnız NTP; internetsiz ağda plan kurulamaz, çevrimdışı unix 0)~~ | **Kapandı:** kartta imzalı `/saat` (1D, DEVIR 5.12.72); panelden "saati ayarla" (3H-2, DEVIR 5.12.85); köprü NTP'siz kartın saatini her bağlantıda kurar (4B-9, DEVIR 5.12.87) | 1B M7, 1C-4 K4 |
 | ~~Açılıştan kaydın sürmesine 2.5–6.3 s; büyüğü `setup()`'taki WiFi beklemesi. Ağ kurulumu görev içine taşınmalı~~ | **Kapandı (1E-2, 2026-10-02):** STA beklemesi ağ görevine (`ag_bekle_tamamla`); `setup()` yalnız radyoyu açar. Kartta: sıfırlamadan ilk `D`ye 6.35 s → **1.32 s**; 20 sıfırlamada kayıt aynı oturumla sürdü. AP'ye düşüş yolu kartta sınanmadı (ev ağı kapatılmadı) | 1A-2 |
 | ~~"Pil testi kesildi" bildirimi~~ | **Kapandı (1E):** `pil_bitti` olayı `pil_durdur`'dan; kayıtsız test de bildirilir | 1C-1 |
 | PC'de W'nin hizalamalı hesabı (örnek zamanında ~1.8 ms kayma; V–I başlangıç kayması saklanmıyor) ve grafik | **2** (`ortak/`) / 3 | 1C-2 |
 | Eski kayda başka kalibrasyon uygulama, dönem uyarısı, "daha yeni ince ayar öner" | **2** + 3 | 1B |
-| Kayıt ekranları; `G` arayüzde yok. Ayrıca ad/not web ucu, `/pil`, `PilHalka` panelden kalkması ve yakalama gösterimi | **3** | 1A-2, 1C-1, 1C-3 |
-| Plan gösterimi (panel / PC / telefon) | **3–5** | 1C-4 |
+| ~~Kayıt ekranları; `G` arayüzde yok. Ayrıca ad/not web ucu, `/pil`, `PilHalka` panelden kalkması ve yakalama gösterimi~~ | **Kapandı (alt proje 3):** Kayıtlar + kayıt görünümü 3C (DEVIR 5.12.77); `G`/`GP`/`GA`/`GT` pasif durum + `Gn` 3D (5.12.78); yakalama gösterimi 3E (5.12.80); `/pil` eğrisi + `Ga` (PU7) 3F (5.12.81) | 1A-2, 1C-1, 1C-3 |
+| ~~Plan gösterimi (panel / PC / telefon)~~ | **Kapandı (panel + PC):** Canlı'da "Zamanla" formu + `GP` durumu 3D (DEVIR 5.12.78); PC aynı paneli köprüden açar (4D, 5.12.89). Telefon uygulaması alt proje 5'in kapsamı | 1C-4 |
 | `Gn` ile yazılan notun sıra numarası kartta basılmıyor (`Gx` için eşitlenen dosyadan okunuyor); `G` satırında `son_not` alanı | **3** | 1C-1 |
 | B34 ADC doğrusalsızlık düzeltmesi | **Karar bekliyor** (kullanıcı) | 1B |
 
@@ -119,7 +119,7 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 
 | # | Ne | Durum |
 |---|---|---|
-| D0 | ⚠ **`main`'deki firmware'de ön-cesi sızıntı:** `N?` AP WiFi parolasını `Serial` aynası üzerinden açık `/akis` SSE'sine (ağa) basıyor. Düzeltme yalnız 1D dalında (`Serial.ham`). | **Öncelikli** — 1D onaylanmasa da bu tek satır `main`'e alınmalı |
+| ~~D0~~ | ~~⚠ **`main`'deki firmware'de ön-cesi sızıntı:** `N?` AP WiFi parolasını `Serial` aynası üzerinden açık `/akis` SSE'sine (ağa) basıyor. Düzeltme yalnız 1D dalında (`Serial.ham`).~~ | **Kapandı:** `a3650d7` (dal `1-duzeltme`, DEVIR 5.12.72a, B72.D0), `main`'e `8058560` ile girdi; ham UART'taki satır 4B'de tek `ham()` yazımına indi (A3-4B, DEVIR 5.12.87) ve köprü süzgeci (4A-5) ağa taşımaz. 4G (DEVIR 5.12.92): köprü↔kart trafiği kaydında sır yok (Ö5) |
 | ~~D1~~ | ~~Kart tezgahı hiç koşulmadı~~ → **2026-10-01 akşam koşuldu: ilk koşu 15/18**, üç gerçek bulgu: (a) PBKDF2 50 000 tur 4.76 s; (b) her `Ez`/`Em` P'yi yeniden hesaplatıp çekirdek 1'i 4.7 s donduruyordu, sonraki seri komutlar bekliyordu; (c) tezgahın SSE dinleyicisi `olcum.local` çözümü (~3 s) bitmeden `Ep` gönderiyordu, "anahtar SSE'de yok" denetimi BOŞ yere geçebilirdi. Tanı koşusunda anahtar SSE'ye DÜŞMÜYOR (doğrulandı). Üçü de düzeltildi (B71.U19, B72.F98–F101), **son koşu 19/19**. Kart ardından tam yedekten `main` firmware'ine (A3-1C4) döndürüldü | Kapandı |
 | ~~D2~~ | ~~Varsayılan tur ölçülmedi~~ → kartta ayrı bir ölçüm eskiziyle beş PBKDF2 yolu karşılaştırıldı (hepsi `hashlib` ile aynı sonuç): her turda HMAC kurulumu 85 µs/tur · mbedTLS PBKDF2 56.7 · `hmac_reset` 56.3 · yazılım SHA 43.3 · **ipad/opad kopyası 30.5** (seçildi). Firmware içinde ~38 µs/tur: 25 000 tur 956 ms (pay %4), **varsayılan 20 000 = 764 ms**. 50 000 bu çipte < 1 s OLAMAZ (en iyi yol 1.9 s) | Kapandı (karar spec K4'te; kullanıcı onayına açık) |
 | ~~D3~~ | ~~Parolalı eşleştirmenin BAŞARI yolu kartta sınanmadı~~ | **Kapandı (2026-10-01 gece):** kullanıcı web parolasını 12 karaktere çıkardı (USB `Ns`). Kartta (`A3-1D`) parolalı eşleştirme başarılı (karşılıklı kanıt), imzalı `/kayit/liste` 200, imzalı `/cihaz/liste` anahtarı göstermiyor; test cihazı silindi (`cihaz=0`). Yan bulgu: kart WPA3-yalnız telefon hotspot'una bağlandı, ağ adının sonundaki BOŞLUK kayıtta korunmalı (tanı: kanal/bayt taraması) |
@@ -131,7 +131,7 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 - [1D #8] GET dışındaki her yöntem "GET" diye imzalanıyor; PUT/PATCH/DELETE gövdesi özetlenmiyor (kartta böyle bir uç yok).
 - [1D #10] `/saat`'in üst sınırı yok; `strtoul` bitişi denetlenmiyor (`"-1"` → 2106).
 - [1D #11] `Ex<n>` önce kesiyor, sonra denetliyor (`Ex257`, `Ex-255` cihaz 1'i siler; yalnız USB).
-- ~~[1D #12] `EK` satırı üç `ham()` çağrısında basılıyor; araya IDF günlüğü girerse hex ayrı satıra düşer ve köprü süzgeci yakalamaz. Çözüm: tek çağrı + köprüye 64-hex satır süzgeci.~~ **Kapandı (4B, 2026-10-03, firmware `A3-4B`):** `EK` satırı ve AP parolası satırı (`N?` + AP afişi, `ap_parolasi_bas`) tek tamponda, TEK `ham()` ile; tamponlar silinir (B72.F77/D0/F91). Köprü süzgeci (4A-5) derinlemesine savunma olarak duruyor. ⚠ Kartta henüz yüklenmedi; IDF günlüğüyle kesişmezlik tezgahta ölçülecek.
+- ~~[1D #12] `EK` satırı üç `ham()` çağrısında basılıyor; araya IDF günlüğü girerse hex ayrı satıra düşer ve köprü süzgeci yakalamaz. Çözüm: tek çağrı + köprüye 64-hex satır süzgeci.~~ **Kapandı (4B, 2026-10-03, firmware `A3-4B`):** `EK` satırı ve AP parolası satırı (`N?` + AP afişi, `ap_parolasi_bas`) tek tamponda, TEK `ham()` ile; tamponlar silinir (B72.F77/D0/F91). Köprü süzgeci (4A-5) derinlemesine savunma olarak duruyor. ~~⚠ Kartta henüz yüklenmedi~~ Kartta (`A3-4B`, DEVIR 5.12.87: `--guvenlik` 14/14, EK satırı seride tek parça, SSE'de yok); tek `uart_write`'ın IDF günlüğüyle kesişmezliği hâlâ kanıtlanmadı.
 - [1D #14] Eşleştirme numarası (`eno`) ardışık `uint8`: üçüncü kişi bekleyen eşleştirmeyi tüketip ortak geri çekilmeyi büyütebilir. Çözüm: rastgele `eno`.
 - [1D #15] 401 metni "cihaz kayıtlı değil" ile "imza geçersiz"i ayırıyor (cihaz numarası taranabilir).
 - ~~[1D #16] İstemci dosyası `fsync`'siz `os.replace` ediliyor; `.tmp` adı süreçler arası ortak; POSIX'te `chmod`'dan önce K'li geçici dosya oluşuyor.~~ **Kapandı (2026-10-02):** gerçek yarıştı — `kaydet()` her imzalı istekte çağrılıyor, iki süreç aynı dosyada `PermissionError` alıyordu (test kırmızıyla gösterdi). `mkstemp` (benzersiz ad, POSIX'te baştan 0600) + `fsync` + Windows'ta kısa yeniden deneme (benzersiz adla bile gerekli — mutasyon gösterdi). B72.I8c, mutasyon 3/3.
@@ -152,7 +152,7 @@ Tasarım `tasarim/2026-10-01-1e-mqtt-bildirim.md` (K1–K12 + "Uygulama sırası
 | E7 | İlk gerçek aracı koşusunda 16 sıfırlamadan birinin `basladi` olayı aboneye ULAŞMADI; hedefli tekrar 6/6 geldi. Kartın `olay` sayacı o an kaydedilmedi → kayıp kartta mı (uçuştaki olay + sıfırlama) aracıda mı ayırt edilemiyor | Bir sonraki tezgahta her sıfırlamadan önce `Q?` olay sayacını kaydet |
 | E3 | Eşik (`esik`) 500 binde sabit; kullanıcı ayarı yok | Gerekirse `Qe<binde>` (küçük) |
 | E4 | Olay kuyruğu RAM'de (16); kart yeniden başlarsa gönderilmemiş olaylar kaybolur (spec kapsam dışı: kalıcı kuyruk) | Bilinçli |
-| E5 | Telefon/PC bildirim arayüzü yok; PC'de yalnız `kopru/bildirim.py dinle` | Alt proje 4/5 |
+| E5 | ~~Telefon/PC bildirim arayüzü yok; PC'de yalnız `kopru/bildirim.py dinle`~~ PC: 4E'de yapıldı (köprüde MQTT aboneliği + Windows bildirimi, `tasarim/2026-10-03-alt-proje-4-pc.md` "4E"); telefon kaldı | Alt proje 5 |
 
 ## Alt proje 2 (`ortak/`) çalışırken bulunanlar (2026-10-02 gecesi)
 

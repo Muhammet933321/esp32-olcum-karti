@@ -11,17 +11,22 @@ Panel: http://olcum.localhost:8770 (yalniz bu bilgisayar; `pc_ayar.py` PC1).
 
 🔴 KOPRUNUN ASIL DEGERI GUZEL ARAYUZ DEGIL, ROLE OLMASI.
 
-Kopru kartin USB satir akisini N tarayiciya cogaltiyor ve PC tarafinda
-arsivliyor: tarayicilar karta degil kopruye baglanir, kartin `loop()`'u
-tarayici trafigini hic gormez. USB'de kartin WiFi'si kapali da olabilir.
+Kopru kartin satir akisini (USB ya da WiFi) N tarayiciya cogaltiyor:
+tarayicilar karta degil kopruye baglanir, kartta TEK `/akis` yuvasi tutulur.
 ⚠ (2026-10-03) Eski gerekce "kartin SSE'si tek istemcili, her HTTP istegi
   loop()'u blokluyor" artik GECERSIZ: B28'den beri web cekirdek 0'da ayri
-  gorevde, olcum cekirdek 1'de; kart en cok 4 `/akis` istemcisine (AKIS_AZAMI) hizmet
-  ediyor. Koprunun bugunku degeri: USB'den canli akis, PC'de arsiv ve
-  guvenli yerel kokenden sunulan panel. 4B: USB'de dogrulanmis kart yoksa
-  kartla WiFi'den ESLESMIS CIHAZ olarak konusur (kart_wifi.py: imzali /akis
-  ve /komut, p0 imzasiz); kart artik ikinci /akis'i reddetmiyor, `/kopru`
-  kaydi ve CORS izni kalkti (firmware A3-4B) — kopru sunucu tarafinda vekil.
+  gorevde, olcum cekirdek 1'de; kart en cok 4 `/akis` istemcisine (AKIS_AZAMI)
+  hizmet ediyor. Koprunun bugunku degeri (alt proje 4, `pc.py` tek surec):
+    * USB'de dogrulanmis kart yoksa kartla WiFi'den ESLESMIS CIHAZ olarak konusur
+      (kart_wifi.py: imzali /akis ve /komut, p0 imzasiz); kart artik ikinci
+      /akis'i reddetmiyor, `/kopru` kaydi ve CORS izni kalkti (firmware A3-4B);
+    * kartin kayitlarini arka planda diske esitler (arka_esitle.py, 4C) ve panele
+      o arsivi + kartin uclarini imzali vekil eder (vekil.py, 4D);
+    * MQTT bildirimlerine abone olup Windows bildirimi gosterir (pc_bildirim.py, 4E);
+    * paneli guvenli yerel kokenden (`olcum.localhost`, PWA kabugu 4F) sunar.
+  4G (gercek kart): 6 tarayici sekmesi + komut istemcisi kartta TEK yuva tuttu;
+  kalan 3 yuvaya kullanicinin tarayicisi + 2 dogrudan istemci, sonraki `event: dolu`.
+  Eski `.satir` gunlugu (B35) yalniz satir arsivi; kayitlarin asil arsivi 4C'ninki.
 
 ── GUVENLIK (4A, PC2) ────────────────────────────────────────────────
 Kart USB'de KIMLIK SORMAZ: USB'ye yazabilen her sey karta `Ns`/`GF!`/`p1`
@@ -45,9 +50,10 @@ Karttan gelen satir aynen `data: <satir>` olarak yayiliyor. Firmware,
 ayristiricisi bu yuzden yetiyor. `test_kopru.py` bunu bayt-bayt siniyor.
 
 ── KOMUT UCU: /komut ─────────────────────────────────────────────────
-⚠ Plan `/k` diyordu; `/komut` secildi. Kartin B22.4'te acacagi uc de
-  `/komut` olacak, yani istemci KOPRUYE mi KARTA mi bagli oldugunu
-  bilmek zorunda kalmiyor. Ayni yol, ayni yontem, ayni basliklar.
+Kartin kendi ucu da `/komut` (B22.4): istemci KOPRUYE mi KARTA mi bagli
+  oldugunu bilmek zorunda kalmiyor. Ayni yol, ayni yontem, ayni `X-Olcum`;
+  kart eslesmis cihazdan imza da bekler — kopru kendi cihaziyla imzalar
+  (panelin imza basliklarini TASIMAZ, 4D-7).
 
 ── SURUCU HAKEMI ─────────────────────────────────────────────────────
 N izleyici, BIR surucu. Jeton kimdeyse kalibrasyon/menzil/pil onda.
@@ -65,6 +71,7 @@ import json
 import queue
 import re
 import secrets
+import select
 import socket
 import socketserver
 import sys
@@ -90,6 +97,7 @@ sys.path.insert(0, str(BURASI))
 from arsiv import Arsiv, SkopCozucu, skop_ikili           # noqa: E402
 import kart_baglanti                                      # noqa: E402
 import pc_ayar                                            # noqa: E402
+import vekil                                              # noqa: E402  (4D: PC arsivi + kart vekili)
 
 # 4A (PC1): TEK port, yalniz 127.0.0.1. Eskiden 0.0.0.0:80 -> LAN IP:80 ->
 # 0.0.0.0:8770 diye dusuyordu (stok-takip 127.0.0.1:80'i tutuyor); koken
@@ -98,6 +106,16 @@ PORT = pc_ayar.PORT
 
 # Her taşımada, jetonsuz, kimliksiz gecen komutlar.
 SERBEST_KOMUTLAR = {"p0"}
+
+# 4I: `/akis` isleyicisi bu aralikla istemcinin soketini yokluyor (kapandi mi).
+# Kart bostayken akisa satir gelmez; kopus yalniz 15 s'lik kalp atisinda fark
+# edilseydi yenilenen sekme o kadar izleyici kalirdi. Hedef: rol <= ~2 s'de bosalsin.
+AKIS_YOKLAMA_S = 0.5
+KALP_S = 15.0
+# 4I (inceleme): surucunun akislari kapaninca rol bu kadar YENIDEN YUKLENME icin bekler.
+# Yenilenen sekmenin yeni /akis'i eski isleyici kapanisi fark ettikten SONRA geliyor;
+# rol hemen yasayan arka sekmeye verilseydi yenilenen sekme izleyici kalirdi (403).
+AKIS_DEVIR_BEKLE_S = 3.0
 
 # 4A (PC2): dongu DISI istemcinin (yerel ag) ret sebebi.
 LAN_RET = ("yerel agdan salt okuma: bu baglanti yalniz izleyebilir ve `p0` (DURDUR) "
@@ -151,6 +169,24 @@ SKOP_BEKLE_SN = 20.0
 
 # 4A inceleme: `?gun=` dosya yoluna giriyor — yalniz YYYY-AA-GG (yol gecisi, UNC).
 GUN_DESEN = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+# 4H: yerel ag istemcisine verilen 403'lerin ISARETI. Panel bu baslikla ham ret metni yerine
+# cevrilmis "yerel agdan salt okuma — bu PC'den ya da karta dogrudan" uyarisini gosterir. Yalniz
+# LAN_RET'li retlerde (capraz koken / surucu degil retlerinde YOK); kart bu basligi hic yollamaz.
+LAN_ISARET = ("X-Kopru-Ret", "lan")
+
+# 4H: koprunun sundugu panel kabugunun surumu (sw.js `SURUM`, arayuz-uret.py `kabuk_surumu` yazar).
+SW_SURUM = re.compile(r"^const SURUM = '([0-9a-f]{12})';$", re.M)
+
+
+def kabuk_surumu() -> str | None:
+    """4H: `/durum` `kabuk` — panel Ayarlar > Gelismis'te kartin arayuz surumunun yaninda gosterir."""
+    try:
+        m = SW_SURUM.search((ARAYUZ / "sw.js").read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    return m.group(1) if m else None
+
 
 CAPRAZ_RET = ("baska bir kokenden (site) gelen istek reddedildi — panel yalniz "
               f"{pc_ayar.adres()} adresinden kullanilir")
@@ -255,6 +291,15 @@ class Kopru:
         self.kilit = threading.Lock()
         self.jetonlar: dict[str, float] = {}
         self.surucu: str | None = None
+        # 4I: yasayan `/akis` baglantilari ({jeton, soket, kuyruk, yerel, no}) ve en az
+        # bir `/akis`i olmus jetonlar — "surucunun sekmesi kapandi mi" bunlardan okunur.
+        self.akislar: list[dict] = []
+        self.akisli: set[str] = set()
+        self._akis_no = 0
+        # 4I (inceleme): surucunun akislarinin kapali bulundugu ilk an (monotonic); None =
+        # surucu yasiyor ya da rol devredildi. Pencere (AKIS_DEVIR_BEKLE_S) icinde rol yalniz
+        # YENI kaydolan yerel akisa (yenilenen sekme) gecer, zaten acik sekmelere degil.
+        self._bosaldi: float | None = None
         self.calisiyor = False
         self.son_satir = ""
         self.satir_adedi = 0
@@ -329,11 +374,99 @@ class Kopru:
     def surucu_mu(self, jeton: str | None) -> bool:
         return bool(jeton) and jeton == self.surucu
 
+    # ── 4I: surucunun akisi kapaninca rol birakilir ──────────────────
+    @staticmethod
+    def soket_kapali(s) -> bool:
+        """Karsi taraf baglantiyi kapatti mi? (okunabilir + 0 bayt = FIN; hata = kopuk)"""
+        try:
+            okunur, _, _ = select.select([s], [], [], 0)
+            if not okunur:
+                return False
+            return s.recv(1, socket.MSG_PEEK) == b""
+        except (OSError, ValueError):
+            return True
+
+    def akis_kaydet(self, jeton: str, soket, kuyruk, yerel: bool) -> dict:
+        """Yeni `/akis` baglantisi. Surucunun akisi olmusse rol HEMEN en yeniye (buna) gecer:
+        yenilenen sekme ilk `kimlik`inde surucu olur, acilis komutlari 403 almaz."""
+        with self.kilit:
+            self._akis_no += 1
+            b = {"jeton": jeton, "soket": soket, "kuyruk": kuyruk, "yerel": yerel,
+                 "no": self._akis_no}
+            self.akislar.append(b)
+            self.akisli.add(jeton)
+        self.surucu_yokla(haric=b)
+        return b
+
+    def akis_bitti(self, b: dict) -> None:
+        with self.kilit:
+            if b in self.akislar:
+                self.akislar.remove(b)
+        self.surucu_yokla()
+
+    def surucu_yokla(self, haric: dict | None = None) -> str | None:
+        """4I politikasi: surucunun BUTUN `/akis`lari kapandiysa rol, once YENIDEN YUKLENME
+        penceresi (AKIS_DEVIR_BEKLE_S) icinde YENI kaydolan yerel akisa (`haric`, yenilenen
+        sekme), pencere dolunca en yeni YASAYAN yerel (donguden) akisa gecer ve o akisa
+        `kimlik` olayi gider. Aday yoksa rol bosta bekler:
+        sonraki yerel `/akis` ya da yasayan bir yerel sekmenin komutu alir. Surucu yasiyorsa
+        HICBIR SEY olmaz (iki acik sekme arasinda sessiz calma yok; acik yol /devral).
+        Hic `/akis`i olmamis jeton (arac, test) olu sayilmaz."""
+        zamanla = False
+        with self.kilit:
+            j = self.surucu
+            if j is None or j not in self.akisli:
+                return None
+            if any(b["jeton"] == j and not self.soket_kapali(b["soket"]) for b in self.akislar):
+                self._bosaldi = None
+                return None
+            simdi = time.monotonic()
+            if self._bosaldi is None:
+                self._bosaldi = simdi
+                zamanla = True
+            if (haric is not None and haric["yerel"] and haric["jeton"] != j
+                    and not self.soket_kapali(haric["soket"])):
+                # Yeni kaydolan yerel akis = yenilenen sekme (kullanicinin baktigi): hemen ona
+                yeni = haric
+            elif simdi - self._bosaldi < AKIS_DEVIR_BEKLE_S:
+                # Pencere suruyor: yenilenen sekmenin yeni /akis'i henuz gelmemis olabilir;
+                # rol acik (arka) sekmelere VERILMEZ. Pencere sonunda zamanlayici yeniden yoklar.
+                yeni = None
+            else:
+                adaylar = [b for b in self.akislar
+                           if b["yerel"] and b["jeton"] != j and not self.soket_kapali(b["soket"])]
+                yeni = max(adaylar, key=lambda b: b["no"]) if adaylar else None
+            if yeni is None:
+                if zamanla:
+                    t = threading.Timer(AKIS_DEVIR_BEKLE_S + 0.05, self.surucu_yokla)
+                    t.daemon = True
+                    t.start()
+                return None
+            self._bosaldi = None
+            self.surucu = yeni["jeton"]
+            hedef = [b for b in self.akislar if b["jeton"] == yeni["jeton"] and b is not haric]
+        olay = ("kimlik", json.dumps({"jeton": yeni["jeton"], "surucu": True}))
+        for b in hedef:
+            try:
+                b["kuyruk"].put_nowait(olay)
+            except queue.Full:
+                pass
+        self.yayinla("* kopru: surucu degisti")
+        return yeni["jeton"]
+
+    def devir_kalan(self) -> float:
+        """Yeniden yuklenme penceresinden kalan sure (s); pencere yoksa 0."""
+        with self.kilit:
+            if self._bosaldi is None:
+                return 0.0
+            return max(0.0, AKIS_DEVIR_BEKLE_S - (time.monotonic() - self._bosaldi))
+
     def devral(self, jeton: str) -> bool:
         with self.kilit:
             if jeton not in self.jetonlar:
                 return False
             self.surucu = jeton
+            self._bosaldi = None
         return True
 
     def komut_izinli(self, komut: str, jeton: str | None,
@@ -359,6 +492,18 @@ class Kopru:
             return True, ""
         if self.surucu_mu(jeton):
             return True, ""
+        # 4I: surucunun sekmesi kapanmis ama isleyicisi henuz fark etmemis olabilir
+        self.surucu_yokla()
+        if self.surucu_mu(jeton):
+            return True, ""
+        # 4I (inceleme): yeniden yuklenme penceresi suruyorsa acik sekmenin komutu pencere
+        # sonunu bekler: yenilenen sekme gelirse rol onundur (403), gelmezse rol buna gecer.
+        kalan = self.devir_kalan()
+        if kalan > 0:
+            time.sleep(kalan + 0.05)
+            self.surucu_yokla()
+            if self.surucu_mu(jeton):
+                return True, ""
         return False, ("bu oturum SURUCU degil — komut reddedildi. "
                        "`p0` (durdur) her zaman acik.")
 
@@ -519,14 +664,20 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return False
         return True
 
-    def _yanit(self, kod: int, govde: bytes = b"", tip="text/plain"):
+    def _yanit(self, kod: int, govde: bytes = b"", tip="text/plain", basliklar=()):
         self.send_response(kod)
         self.send_header("Content-Type", tip + "; charset=utf-8")
         self.send_header("Content-Length", str(len(govde)))
         self.send_header("Cache-Control", "no-store")
+        for ad, deger in basliklar:
+            self.send_header(ad, deger)
         self.end_headers()
         if govde:
             self.wfile.write(govde)
+
+    def _lan_ret(self, metin: str = LAN_RET):
+        """4A (PC2) yerel ag reddi — 4H: `X-Kopru-Ret: lan` isaretiyle (panel cevrilmis uyari yazar)."""
+        self._yanit(403, metin.encode("utf-8"), basliklar=(LAN_ISARET,))
 
     # ── GET ──────────────────────────────────────────────────────────
     def _sorgu(self) -> dict:
@@ -543,6 +694,12 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._durum()
         if yol == "/esitleme/durum":
             return self._esitleme_durum()
+        # 4D (PC10/PC11): PC arsivi (salt okuma) + kartin uclarinin imzali vekili — kopru/vekil.py
+        # (kapilari orada: yalniz bu bilgisayar, yalniz ayni koken)
+        if yol in vekil.UCLAR:
+            return vekil.isle(self, yol)
+        if yol == "/bildirim/durum":                        # 4E
+            return self._bildirim_durum()
         if yol in ("/akis", "/skop.bin", "/skop/liste", "/skop/al") and self._capraz():
             # 4A inceleme (CSRF): baska kokenden <img>/<script> GET'i — surucu jetonu
             # verilmez, karta yakalama yaptirilmaz, arsiv okunmaz
@@ -580,6 +737,12 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             # bir gercek kaynagi olurdu.
             "skop_arsiv": True,
             "skop_adedi": k.skop_adedi,
+            # 4D: bu istemci PC arsivini (/arsiv/*) okuyabilir mi, kartin uclari WiFi vekilinden
+            # (/pil, /kal/liste, /kunye.json) gelebilir mi — ikisi de YALNIZ bu bilgisayara
+            "pc_arsiv": self._yerel(),
+            "vekil": self._yerel() and vekil.wifi_al(k.kart) is not None,
+            # 4H: koprunun sundugu panel kabugunun surumu (Gelismis'te kartin arayuz surumunun yaninda)
+            "kabuk": kabuk_surumu(),
         }
         self._yanit(200, json.dumps(d).encode("utf-8"), "application/json")
 
@@ -587,11 +750,56 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         """4C: arka plan esitlemesinin son durumu (salt okuma, YALNIZ bu bilgisayardan — 4D panel
         kullanacak). Mutlak yol yok: arsiv adi veri dizinine gorelidir."""
         if not self._yerel():
-            return self._yanit(403, LAN_RET.encode("utf-8"))
+            return self._lan_ret()
         es = self.kopru.esitleme
         d = es.durum() if es is not None else {
             "etkin": False, "neden": self.kopru.esitleme_neden or "esitleme kurulmadi"}
         self._yanit(200, json.dumps(d, ensure_ascii=False).encode("utf-8"), "application/json")
+
+    # ── 4E: MQTT bildirim durumu ─────────────────────────────────────
+    def _bildirim_durum(self):
+        """4E: bildirim ipliginin durumu (salt okuma, YALNIZ bu bilgisayardan — sonraki panel bolumu
+        kullanacak): bagli mi, son olay, ac/kapa ayarlari. Araci adresi / kullanici / parola / konu
+        oneki / anahtar YOK (pc_bildirim.PcBildirim.durum)."""
+        if not self._yerel():
+            return self._lan_ret()
+        b = getattr(self.kopru, "bildirim", None)
+        if b is not None:
+            d = b.durum()
+        else:
+            import pc_bildirim as PB                    # 4H: kapaliyken de panel ac/kapa ayarini gorsun
+            acik, dil, uyari = PB.ayar_oku()
+            d = {"etkin": False, "neden": getattr(self.kopru, "bildirim_neden", None) or "bildirim kurulmadi",
+                 "ayar": acik, "dil": dil, "ayar_uyari": uyari}
+        self._yanit(200, json.dumps(d, ensure_ascii=False).encode("utf-8"), "application/json")
+
+    def _bildirim_ayar(self):
+        """4H: panelin "Bildirimler (bu bilgisayar)" bolumu — sinif ac/kapa + bildirim dili ayar.json'a
+        BIRLESTIRILIR (pc_bildirim.ayar_yaz: oteki anahtarlar aynen, bozuk dosyanin ustune yazilmaz).
+        Kapilar /kapat ile AYNI: `X-Olcum`, yalniz bu bilgisayar, yalniz ayni koken; govde JSON ve
+        KATI (ayar_istegi_coz: yalniz bilinen siniflar / true-false / dil — sir giremez). Bildirim ipligi
+        ayari her kararda dosyadan okur: degisiklik hemen gecerli."""
+        import pc_bildirim as PB
+        if self.headers.get("X-Olcum") != "1":
+            return self._yanit(400, "X-Olcum basligi gerekli".encode("utf-8"))
+        if not self._yerel():
+            return self._lan_ret()
+        if self._capraz():
+            return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
+        if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
+            return self._yanit(415, "govde application/json olmali".encode("utf-8"))
+        try:
+            degisiklik, dil = PB.ayar_istegi_coz(self._govde_metin)
+        except ValueError as e:
+            return self._yanit(400, str(e).encode("utf-8"))
+        try:
+            PB.ayar_yaz(degisiklik, dil)
+        except (ValueError, OSError) as e:
+            metin = str(e) if isinstance(e, ValueError) else f"{pc_ayar.AYAR} yazilamadi ({type(e).__name__})"
+            return self._yanit(409, metin.encode("utf-8"))
+        acik, dil, uyari = PB.ayar_oku()
+        self._yanit(200, json.dumps({"ayar": acik, "dil": dil, "ayar_uyari": uyari}, ensure_ascii=False)
+                    .encode("utf-8"), "application/json")
 
     # ── skop (B35) ───────────────────────────────────────────────────
     def _skop_canli(self):
@@ -604,7 +812,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         k = self.kopru
         # 4A (PC2): canli yakalama karta `t` YOLLATIR — okuma degil, komut
         if not self._yerel():
-            return self._yanit(403, LAN_RET.encode("utf-8"))
+            return self._lan_ret()
         # 4A inceleme: kendi `t`si icin /komut'un kapisi (X-Olcum + surucu jetonu)
         if self.headers.get("X-Olcum") != "1":
             izin = (False, TETIK_RET)
@@ -668,6 +876,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         yerel = self._yerel()
         jeton = self._jeton() or k.jeton_ver(surucu_olabilir=yerel)
         kuyruk = k.abone_ol()
+        bag = k.akis_kaydet(jeton, self.connection, kuyruk, yerel)
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
@@ -683,21 +892,37 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             if durum:
                 self.wfile.write(b"data: " + durum.encode("utf-8") + b"\n\n")
                 self.wfile.flush()
+            son_yazma = son_yokla = time.monotonic()
             while True:
                 try:
-                    satir = kuyruk.get(timeout=15.0)
+                    satir = kuyruk.get(timeout=AKIS_YOKLAMA_S)
                 except queue.Empty:
-                    # Kalp atisi: NAT ve ara vekiller sessiz baglantiyi
-                    # dusuruyor. Yorum satiri istemciye gorunmuyor.
-                    self.wfile.write(b": kalp\n\n")
-                    self.wfile.flush()
+                    satir = None
+                simdi = time.monotonic()
+                # 4I: sekme kapandi / yenilendi mi — rolun bosalmasi bunu bekliyor
+                if simdi - son_yokla >= AKIS_YOKLAMA_S:
+                    son_yokla = simdi
+                    if k.soket_kapali(self.connection):
+                        break
+                if satir is None:
+                    if simdi - son_yazma >= KALP_S:
+                        # Kalp atisi: NAT ve ara vekiller sessiz baglantiyi
+                        # dusuruyor. Yorum satiri istemciye gorunmuyor.
+                        self.wfile.write(b": kalp\n\n")
+                        self.wfile.flush()
+                        son_yazma = simdi
                     continue
-                self.wfile.write(b"data: " + satir.encode("utf-8") + b"\n\n")
-                self.wfile.flush()
+                if isinstance(satir, tuple):        # 4I: yalniz bu akisa olay (rol devri)
+                    self._olay(*satir)
+                else:
+                    self.wfile.write(b"data: " + satir.encode("utf-8") + b"\n\n")
+                    self.wfile.flush()
+                son_yazma = simdi
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass
         finally:
             k.abonelikten_cik(kuyruk)
+            k.akis_bitti(bag)
 
     def _olay(self, ad: str, veri: str):
         self.wfile.write(f"event: {ad}\ndata: {veri}\n\n".encode("utf-8"))
@@ -717,7 +942,18 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._devral()
         if yol == "/kapat":
             return self._kapat()
+        if yol == "/bildirim/ayar":                         # 4H
+            return self._bildirim_ayar()
         self._yanit(404, b"bilinmeyen uc")
+
+    def _yalniz_okuma(self):
+        # PUT/DELETE/PATCH: kopru bunlari HIC kabul etmez. Varsayilan (BaseHTTPRequestHandler) govdeyi
+        # okumadan 501 doner; okunmamis govde Windows'ta baglantiyi RST ile kopariyor ve istemci yanit
+        # yerine ConnectionAborted goruyordu (zincirde yuk altinda 4D iddiasini kirmiziya ceviren buydu).
+        self._govde()
+        self._yanit(405, "yalniz okuma — bu uc yazma kabul etmez".encode("utf-8"))
+
+    do_PUT = do_DELETE = do_PATCH = _yalniz_okuma
 
     def _govde(self) -> str:
         n = int(self.headers.get("Content-Length") or 0)
@@ -739,7 +975,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
         izin, neden = k.komut_izinli(metin, self._jeton(), yerel=self._yerel())
         if not izin:
-            return self._yanit(403, neden.encode("utf-8"))
+            return self._lan_ret() if neden == LAN_RET else self._yanit(403, neden.encode("utf-8"))
         # Yakalama komutuysa: cozucuyu hazirla ve `tB`yi `t`ye cevir
         # (gerekcesi SKOP_KOMUTLARI'nin yaninda).
         if metin in SKOP_KOMUTLARI:
@@ -759,7 +995,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         if self.headers.get("X-Olcum") != "1":
             return self._yanit(400, "X-Olcum basligi gerekli".encode("utf-8"))
         if not self._yerel():
-            return self._yanit(403, LAN_RET.encode("utf-8"))
+            return self._lan_ret()
         if self._capraz():
             return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
         jeton = self._jeton()
@@ -778,7 +1014,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         if self.headers.get("X-Olcum") != "1":
             return self._yanit(400, "X-Olcum basligi gerekli".encode("utf-8"))
         if not self._yerel():
-            return self._yanit(403, LAN_RET.encode("utf-8"))
+            return self._lan_ret()
         if self._capraz():
             return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
         self._yanit(204)

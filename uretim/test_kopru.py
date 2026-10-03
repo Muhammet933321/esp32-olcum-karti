@@ -34,6 +34,7 @@ sys.path.insert(0, str(KOK / "kopru"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gercek_dizin_koru                                   # noqa: E402
 _KORUMA = gercek_dizin_koru.koru()   # LOCALAPPDATA gecici dizine — gercek PC dizinine asla yazilmaz
+os.environ["OLCUM_TOAST_YOK"] = "1"  # 4E: pc.calistir GERCEK bildirim cikisiyla kosuyor — toast/kayit defteri YOK
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import kart_baglanti                                       # noqa: E402
@@ -640,7 +641,9 @@ def pc_4a_inceleme_sina(gec_dizin: Path) -> None:
        kod == 403 and kc.yazilanlar == [], f"HTTP {kod} · {kc.yazilanlar}")
     ayni = {"Sec-Fetch-Site": "same-origin", "Origin": f"http://olcum.localhost:{p}",
             "Host": f"olcum.localhost:{p}"}
-    kim = kimlik_oku(tb + "/akis", basliklar=ayni)
+    # 4I: ilk sekme ACIK kalir — kapansaydi rol (dogru olarak) ikinciye gecerdi
+    acik_ilk = _AcikAkis(tb, ayni)
+    kim = acik_ilk.kimlik()
     kim_none = kimlik_oku(tb + "/akis", basliklar={"Sec-Fetch-Site": "none"})
     ok("Ayni koken (same-origin, Origin = Host) ve adres cubugu (none) /akis aliyor; ilki surucu",
        bool(kim and kim.get("surucu")) and kim_none is not None and kim_none.get("surucu") is False,
@@ -664,6 +667,7 @@ def pc_4a_inceleme_sina(gec_dizin: Path) -> None:
        "/devral 403",
        kod_x == 403 and kod_p0 == 204 and kod_dv == 403 and kc.yazilanlar[len(once):] == ["p0"],
        f"GF!={kod_x} p0={kod_p0} devral={kod_dv} · karta={kc.yazilanlar[len(once):]}")
+    acik_ilk.kapat()
 
     # ── 2. gun yol gecisi ────────────────────────────────────────────
     print("\n--- 4A inceleme 2. `gun` parametresi (yol gecisi, UNC) ---")
@@ -1344,6 +1348,1074 @@ def pc_4c_sina(gec_dizin: Path) -> None:
        f"{kod_c} {govde_c[:90]} rc={sonuc.get('rc')}")
 
 
+def _akis_baytlari(oturum_say: int, sira0: int = 0) -> bytes:
+    """4D: gercek kayit bicimiyle (kopru/kayit_bicim.py paketleyicileri) bir akisin baytlari:
+    her oturum BASLA + 4 NOKTA kaydi (24 nokta) + BITIR."""
+    import struct
+    import kayit_bicim as KB
+    f = lambda x: struct.unpack("<f", struct.pack("<f", x))[0]          # noqa: E731
+    kn = lambda n: KB.Kanal(f(n), f(4.096), f(1.0), 12, 0.0)             # noqa: E731
+    kal = KB.Kalibrasyon(kn(21.0), kn(201.0), 5, f(0.256), f(0.1), f(1.0), 0.0, (0.0, 0.0))
+    sira, cikti = sira0, []
+
+    def ekle(tur, ot, yuk):
+        nonlocal sira
+        sira += 1
+        cikti.append(KB.kayit_paketle(tur, sira, ot, yuk))
+        return sira
+    for k in range(oturum_say):
+        ot = ekle(KB.T_BASLA, sira + 1, KB.basla_paketle(
+            KB.Basla(1, 1, 200, 1790000000 + k * 3600, 1000, 1, "A3-4D", kal, kal_no=1)))
+        for j in range(0, 24, 6):
+            ns = [KB.Nokta(200 * (j + i + 1), 40, 0, f(12.0 + i), 1000, 1100, f(0.5), 10, 20, f(6.0),
+                           f(5.9), f(6.1)) for i in range(6)]
+            ekle(KB.T_NOKTA, ot, struct.pack("<I", j) + b"".join(KB.nokta_paketle(p) for p in ns))
+        ekle(KB.T_BITIR, ot, struct.pack("<IB3x", 24, 1))
+    return b"".join(cikti)
+
+
+def _arsiv_yaz(kok: Path, kart: str, akis: int, veri: bytes, kuyruk: bytes = b"", kal: bool = True) -> Path:
+    """Esitleyicinin yazdigi dizin bicimi: kayitlar.kyt (+ kalici onekin otesinde `kuyruk`),
+    durum.json (bayt = kalici onek), kalibrasyon.json."""
+    import struct
+    d = kok / kart / f"akis-{akis}"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "kayitlar.kyt").write_bytes(veri + kuyruk)
+    son = max(struct.unpack_from("<I", veri, a + 4)[0] for a in _kayit_baslari(veri)) if veri else 0
+    (d / "durum.json").write_text(json.dumps({"son_sira": son, "bayt": len(veri), "onaylanan": 0,
+                                              "kimlik": akis}), encoding="utf-8")
+    if kal:
+        (d / "kalibrasyon.json").write_text(json.dumps(
+            {"adet": 1, "etkin": 1, "azami": 40, "kayitlar": [{"no": 1, "unix": 1790000000, "not": "pc"}]},
+            indent=1), encoding="utf-8")
+    return d
+
+
+def _kayit_baslari(veri: bytes) -> list[int]:
+    import kayit_bicim as KB
+    a, cikti = 0, []
+    while a + 16 <= len(veri):
+        cikti.append(a)
+        a += KB.toplam_bayt(int.from_bytes(veri[a + 2:a + 4], "little"))
+    return cikti
+
+
+def _dokum(kok: Path) -> dict:
+    return {str(p.relative_to(kok)): (p.stat().st_size, p.stat().st_mtime_ns, p.read_bytes())
+            for p in sorted(kok.rglob("*")) if p.is_file()}
+
+
+def pc_4d_sina(gec_dizin: Path) -> None:
+    """4D (PC10/PC11): koprunun PC arsivini SALT OKUMA sunan uclari (/arsiv/liste, /arsiv/veri,
+    /arsiv/kal) ve kartin /pil, /kal/liste, /kunye.json uclarinin IMZALI vekili.
+
+    Kart: B72'nin sahte karti (test_kayit_esp._SahteKart — imza dogrulayicisi BAGIMSIZ, imza.py'yi
+    kullanmaz). Arsiv: gercek kayit bicimi, gecici OLCUM_PC_DIZIN altinda."""
+    print("\n--- 4D. Panel PC'de: PC arsivi (salt okuma) + kart uclarinin imzali vekili ---")
+    import struct
+    import imza as IM
+    import kart_wifi as KW
+    import kayit_bicim as KB
+    import pc_ayar
+    import vekil as VK
+    ortam = {a: os.environ.get(a) for a in ("OLCUM_PC_DIZIN", "OLCUM_CIHAZ_DIZIN")}
+    import test_kayit_esp as T                       # B72 sahte karti (ice aktarma ortami yeniden yonlendirir)
+    for a, v in ortam.items():
+        if v is not None:
+            os.environ[a] = v
+
+    kok = pc_ayar.arsiv_dizini()
+    KART = "0a1b2c3d4e5f6a7b"          # harfli: buyuk harf denemesi gercekten farkli olsun
+    v1 = _akis_baytlari(3, 100)
+    v2 = _akis_baytlari(1, 0)
+    kuyruk = KB.kayit_paketle(KB.T_NOKTA, 999, 7, b"\x00" * 40)[:30]      # cokme kuyrugu (kalici degil)
+    d2 = _arsiv_yaz(kok, KART, 77, v2, kal=False)
+    os.utime(d2 / "kayitlar.kyt", (time.time() - 3600, time.time() - 3600))
+    d1 = _arsiv_yaz(kok, KART, 3995957410, v1, kuyruk)
+    disari = gec_dizin / "arsiv_disi"
+    _arsiv_yaz(disari, "aaaaaaaaaaaaaaaa", 5, _akis_baytlari(1, 0))
+    baglanti = None
+    if sys.platform == "win32":
+        import _winapi
+        try:
+            _winapi.CreateJunction(str(disari / "aaaaaaaaaaaaaaaa"), str(kok / "aaaaaaaaaaaaaaaa"))
+            baglanti = "junction"
+        except OSError:
+            baglanti = None
+    if baglanti is None:
+        try:
+            (kok / "aaaaaaaaaaaaaaaa").symlink_to(disari / "aaaaaaaaaaaaaaaa", target_is_directory=True)
+            baglanti = "symlink"
+        except OSError:
+            baglanti = None
+    once = _dokum(kok)
+
+    kart = T._SahteKart([])
+    kart_sun, kart_taban = T._sunucu(kart)
+    cdiz = gec_dizin / "cihaz_4d"
+    IM.esles(kart_taban, "kopru-4d", kart.parola, dizin=cdiz)
+    kart.imza_zorunlu = True
+    kart.kal_liste = {"adet": 2, "etkin": 2, "azami": 40, "kayitlar": [{"no": 1}, {"no": 2}]}
+    PIL = b"durum=CALISIYOR\nsira=9\nkalan=0\n--\n1000,12.0,0.5\n"
+    KUNYE = b'{"surum":"0123456789ab","dosya":30,"icerik_bayt":400000}'
+    kart.ek_get = {"/pil": (200, "text/plain; charset=utf-8", PIL),
+                   "/kunye.json": (200, "application/json", KUNYE)}
+    usb = _SahteYukari("seri:COM9@115200")
+    wifi = KW.WifiKart(kart_taban, dizin=cdiz)
+    sec = KW.SecmeliKart(usb, wifi)
+    kop = kopru_mod.Kopru(sec, gec_dizin / "satir_4d")
+    s = _kos(kop)
+    taban = f"http://127.0.0.1:{s.server_address[1]}"
+    s_lan = _kos(kop, _LanIsleyici)
+    taban_lan = f"http://127.0.0.1:{s_lan.server_address[1]}"
+    govdeler: list[bytes] = []
+
+    def al(url, basliklar=None, yontem=None, veri=None):
+        kod, g, b = None, b"", {}
+        try:
+            kod, g, b = istek_bas(url, veri, basliklar, yontem, 15)
+        except Exception as e:                              # noqa: BLE001
+            g = str(e).encode("utf-8", "replace")
+        govdeler.append(g)
+        return kod, g, {k.lower(): v for k, v in b.items()}
+
+    try:
+        # ── PC10: liste ──────────────────────────────────────────────
+        kod, g, _ = al(taban + "/arsiv/liste")
+        try:
+            liste = json.loads(g)["arsivler"]
+        except (ValueError, KeyError, TypeError):
+            liste = []
+        py1 = KB.oturumlari_kur(KB.akis_onek(v1)[0])
+        a1 = liste[0] if liste else {}
+        ok("4D (PC10): GET /arsiv/liste kart/akis basina arsivleri EN YENI ONCE verir: boy = durum.json'un "
+           "KALICI oneki (dosyanin cokme kuyrugu degil), durum, kalibrasyon kopyasi var mi, oturum listesi "
+           "(Python kayit_bicim'in kendi cozumuyle ayni), goreli ad; arsiv kokunun DISINA giden bag LISTELENMEZ",
+           kod == 200 and [(a["kart"], a["akis"]) for a in liste] == [(KART, 3995957410), (KART, 77)]
+           and a1.get("bayt") == len(v1) and a1.get("dosya_bayt") == len(v1) + len(kuyruk)
+           and a1.get("durum", {}).get("kimlik") == 3995957410 and a1.get("kal") is True
+           and liste[1].get("kal") is False and a1.get("oturum") == len(py1) == 3
+           and [o["id"] for o in a1.get("oturumlar", [])] == sorted(py1)
+           and all(o["nokta"] == 24 and o["bitti"] and o["tur"] == 1 for o in a1["oturumlar"])
+           and a1.get("ad") == f"arsiv/{KART}/akis-3995957410",
+           f"{kod} {[(a.get('kart'), a.get('akis'), a.get('bayt')) for a in liste]} bag={baglanti}")
+
+        # ── PC10: bayt araliklari ─────────────────────────────────────
+        q = f"kart={KART}&akis=3995957410"
+        parcalar, ofset, boylar = [], 0, set()
+        for _ in range(20):
+            kod_v, g_v, b_v = al(f"{taban}/arsiv/veri?{q}&ofset={ofset}&bayt=1000")
+            if kod_v != 200:
+                break
+            boylar.add(b_v.get("x-arsiv-boy"))
+            parcalar.append(g_v)
+            ofset += len(g_v)
+            if not g_v or ofset >= len(v1):
+                break
+        kod_son, g_son, _ = al(f"{taban}/arsiv/veri?{q}&ofset={len(v1)}&bayt=1000")
+        kod_ust, _, _ = al(f"{taban}/arsiv/veri?{q}&ofset={len(v1) + 1}&bayt=10")
+        kod_kal, g_kal, _ = al(f"{taban}/arsiv/kal?{q}")
+        kod_kal2, _, _ = al(f"{taban}/arsiv/kal?kart={KART}&akis=77")
+        ok("4D (PC10): GET /arsiv/veri parca parca okunan baytlar kayitlar.kyt'nin KALICI onekiyle BAYT BAYT "
+           "ayni (X-Arsiv-Boy = durum.json bayt; cokme kuyrugu verilmez, ofset = boy bos 200, otesi 400); "
+           "/arsiv/kal kalibrasyon.json'u AYNEN verir, kopyasi yoksa 404",
+           b"".join(parcalar) == v1 and boylar == {str(len(v1))} and kod_son == 200 and g_son == b""
+           and kod_ust == 400 and kod_kal == 200 and g_kal == (d1 / "kalibrasyon.json").read_bytes()
+           and kod_kal2 == 404,
+           f"{len(b''.join(parcalar))}/{len(v1)} boy={boylar} son={kod_son} ust={kod_ust} kal={kod_kal}/{kod_kal2}")
+
+        # ── PC10: kati parametre + yol icerme ─────────────────────────
+        kotu = {
+            "kart buyuk harf": f"/arsiv/veri?kart={KART.upper()}&akis=77&ofset=0&bayt=10",
+            "kart 15": f"/arsiv/veri?kart={KART[:15]}&akis=77&ofset=0&bayt=10",
+            "kart ..": "/arsiv/veri?kart=..&akis=77&ofset=0&bayt=10",
+            "kart %2e%2e": "/arsiv/veri?kart=%2e%2e%2f%2e%2e&akis=77&ofset=0&bayt=10",
+            "kart UNC": "/arsiv/veri?kart=%5C%5Csaldirgan%5Cpay&akis=77&ofset=0&bayt=10",
+            "kart mutlak": "/arsiv/veri?kart=C%3A%2FWindows&akis=77&ofset=0&bayt=10",
+            "akis 007": f"/arsiv/veri?kart={KART}&akis=077&ofset=0&bayt=10",
+            "akis eksi": f"/arsiv/veri?kart={KART}&akis=-1&ofset=0&bayt=10",
+            "akis bos": f"/arsiv/veri?kart={KART}&akis=&ofset=0&bayt=10",
+            "ofset harf": f"/arsiv/veri?kart={KART}&akis=77&ofset=1e3&bayt=10",
+            "bayt 0": f"/arsiv/veri?kart={KART}&akis=77&ofset=0&bayt=0",
+            "bayt dev": f"/arsiv/veri?kart={KART}&akis=77&ofset=0&bayt={VK.VERI_AZAMI + 1}",
+            "bayt cok dev": f"/arsiv/veri?kart={KART}&akis=77&ofset=0&bayt=99999999999999999999",
+            "bilinmeyen": f"/arsiv/veri?kart={KART}&akis=77&ofset=0&bayt=10&dosya=durum.json",
+            "tekrar": f"/arsiv/veri?kart={KART}&akis=77&akis=78&ofset=0&bayt=10",
+            "eksik": f"/arsiv/veri?kart={KART}&akis=77&bayt=10",
+            "liste parametre": "/arsiv/liste?kok=C%3A%2F",
+        }
+        if baglanti:
+            kotu["arsiv disina bag"] = "/arsiv/veri?kart=aaaaaaaaaaaaaaaa&akis=5&ofset=0&bayt=10"
+        kodlar = {ad: al(taban + y)[0] for ad, y in kotu.items()}
+        kod_yok, _, _ = al(f"{taban}/arsiv/veri?kart={KART}&akis=78&ofset=0&bayt=10")
+        ok("4D (PC10): /arsiv/* parametreleri KATI — kart 16 kucuk onaltilik, akis/ofset/bayt bastaki "
+           f"sifirsiz ondalik, bayt <= {VK.VERI_AZAMI}; yol gecisi / UNC / mutlak yol / bilinmeyen / tekrar / "
+           f"eksik parametre 400; arsiv kokunun disina giden bag ({baglanti or 'kurulamadi'}) 400; olmayan akis 404",
+           all(k == 400 for k in kodlar.values()) and kod_yok == 404,
+           " ".join(f"{a}={k}" for a, k in kodlar.items() if k != 400) + f" yok={kod_yok}")
+
+        # ── kapilar: yerel ag, capraz koken ──────────────────────────
+        k_lan = [al(taban_lan + y)[0] for y in ("/arsiv/liste", f"/arsiv/veri?{q}&ofset=0&bayt=10",
+                                                 f"/arsiv/kal?{q}", "/pil", "/kal/liste", "/kunye.json")]
+        k_capraz = [al(taban + "/arsiv/liste", {"Sec-Fetch-Site": "cross-site"})[0],
+                    al(taban + "/arsiv/liste", {"Sec-Fetch-Site": "same-site"})[0],
+                    al(f"{taban}/arsiv/veri?{q}&ofset=0&bayt=10",
+                       {"Origin": "http://kotu.example", "Host": s.server_address[0] + ":" + str(s.server_address[1])})[0],
+                    al(taban + "/kal/liste", {"Sec-Fetch-Site": "cross-site"})[0]]
+        k_ayni = al(taban + "/arsiv/liste", {"Sec-Fetch-Site": "same-origin"})[0]
+        ok("4D (PC10/PC11): /arsiv/* ve vekil uclari YALNIZ bu bilgisayardan (yerel ag 403) ve YALNIZ ayni "
+           "kokenden (baska site / baska port `<img>`/fetch'i 403 — 4A CSRF kapisi); panelin kendisi 200",
+           k_lan == [403] * 6 and k_capraz == [403] * 4 and k_ayni == 200, f"lan={k_lan} capraz={k_capraz} ayni={k_ayni}")
+
+        # ── yazma yok ────────────────────────────────────────────────
+        k_yaz = [al(f"{taban}/arsiv/veri?{q}&ofset=0&bayt=10", yontem=y, veri=b"x")[0]
+                 for y in ("POST", "PUT", "DELETE")]
+        k_yaz.append(al(taban + "/arsiv/liste", yontem="POST", veri=b"{}")[0])
+        k_yaz.append(al(taban + "/pil", yontem="POST", veri=b"p1")[0])
+        sonra = _dokum(kok)
+        ok("4D (PC10): arsiv ve vekil yollari YAZMA kabul etmez (POST/PUT/DELETE 2xx degil; vekil POST'u karta "
+           "gitmez) ve butun istekler bittiginde arsiv dizini BAYT BAYT ve mtime'iyla ayni — tek yazar Python",
+           all(k is not None and not 200 <= k < 300 for k in k_yaz) and k_yaz[1] == 405 and k_yaz[2] == 405
+           and sonra == once
+           and not any(y.startswith("POST /pil") for y in kart.istekler),
+           f"{k_yaz} degisen={sorted(set(sonra) ^ set(once))[:3]}")
+
+        # ── /durum ───────────────────────────────────────────────────
+        dj = json.loads(al(taban + "/durum")[1] or b"{}")
+        dl = json.loads(al(taban_lan + "/durum")[1] or b"{}")
+        kop_usb = kopru_mod.Kopru(kart_baglanti.KayitKart([]), gec_dizin / "satir_4d_u")
+        s_u = _kos(kop_usb)
+        du = json.loads(al(f"http://127.0.0.1:{s_u.server_address[1]}/durum")[1] or b"{}")
+        ok("4D: /durum bu istemcinin PC arsivini okuyup okuyamayacagini (`pc_arsiv`) ve kartin uclarinin "
+           "WiFi vekilinden gelip gelemeyecegini (`vekil`) soyler — yerel agdan ikisi de false, WiFi'siz "
+           "yukari-akista vekil false (panel bundan karar verir)",
+           dj.get("pc_arsiv") is True and dj.get("vekil") is True and dl.get("pc_arsiv") is False
+           and dl.get("vekil") is False and du.get("pc_arsiv") is True and du.get("vekil") is False
+           and "kart" in dj and "skop_arsiv" in dj, f"{dj} {dl} {du}")
+
+        # ── PC11: imzali vekil ───────────────────────────────────────
+        kart.istekler.clear()
+        i401 = kart.ret_401
+        kod_p, g_p, b_p = al(taban + "/pil?sira=9", {"X-Cihaz": "7", "X-Sayac": "1", "X-Imza": "00" * 32})
+        kod_k, g_k, b_k = al(taban + "/kal/liste")
+        kod_n, g_n, b_n = al(taban + "/kunye.json")
+        giden = list(kart.istekler)
+        cihaz_n = str(IM.Cihaz.yukle(next(cdiz.glob("*.json"))).n)
+        imzali = [x for x in giden if x.startswith(("GET /pil", "GET /kal/liste", "GET /kunye.json"))]
+        ok("4D (PC11): /pil?sira, /kal/liste, /kunye.json karta kopru cihaziyla IMZALI gider (kartin bagimsiz "
+           "dogrulayicisi kabul eder, imza zorunluyken); panelin yolladigi imza basliklari TASINMAZ; kartin "
+           "yaniti AYNEN doner (X-Kopru-Vekil: kart)",
+           (kod_p, kod_k, kod_n) == (200, 200, 200) and g_p == PIL and g_n == KUNYE
+           and json.loads(g_k) == kart.kal_liste and kart.ret_401 == i401 and len(imzali) == 3
+           and all(f"'x-cihaz': '{cihaz_n}'" in x.lower() and "'x-imza'" in x.lower() for x in imzali)
+           and any(x.startswith("GET /pil?sira=9 ") for x in imzali)
+           and {b_p.get("x-kopru-vekil"), b_k.get("x-kopru-vekil"), b_n.get("x-kopru-vekil")} == {"kart"},
+           f"{kod_p} {kod_k} {kod_n} 401={kart.ret_401 - i401} giden={[x[:40] for x in giden]}")
+        k_izin = [al(taban + y)[0] for y in ("/pil?sira=09", "/pil?sira=1&_c=1&_s=2&_i=ab", "/pil?x=1",
+                                             "/kal/liste?sira=1", "/kunye.json?a=b")]
+        k_yok = [al(taban + y)[0] for y in ("/eslestir/bilgi", "/kayit/liste", "/komut")]
+        ok("4D (PC11): vekil BEYAZ LISTE — yalniz /pil (sira), /kal/liste, /kunye.json; izinsiz parametre ve "
+           "`_c _s _i` 400; /eslestir/* ve /kayit/* VEKILDE DEGIL (kopru 404 = panelin imzasiz yolu, EU9)",
+           k_izin == [400] * 5 and all(k == 404 for k in k_yok[:2]) and k_yok[2] != 200,
+           f"izin={k_izin} yok={k_yok}")
+
+        # ayni Cihaz nesnesi + sayac kilidi (esitleme / akis ile): donuk saatte bile tekrar sayac yok
+        asil_time = IM.time
+        IM.time = T._DonukSaat(time.time())
+        try:
+            i401 = kart.ret_401
+            cihaz, _, _ = wifi.dogrula()
+            sonuc_s = []
+            for _ in range(4):
+                sonuc_s.append(al(taban + "/kunye.json")[0])
+                with wifi.imzali_ac(cihaz, "GET", "/kal/liste", []) as y:   # arka plan esitlemesinin yolu
+                    y.read()
+        finally:
+            IM.time = asil_time
+        ok("4D (PC11 + 4C-2): vekil canli akis / esitlemeyle AYNI Cihaz nesnesini ve sayac kilidini kullanir — "
+           "ayni milisaniyede (donuk saat) art arda vekil + esitleme istekleri: kart hicbirini 401 ile reddetmez",
+           sonuc_s == [200] * 4 and kart.ret_401 == i401, f"{sonuc_s} 401={kart.ret_401 - i401}")
+
+        # p0: vekilden gecmez, yavas bir vekil istegi (sayac kilidi tutulurken) onu BEKLETMEZ
+        kart.ek_bekle["/pil"] = 1.5
+        kart.imza_zorunlu = False      # gercek kart p0'i imza zorunluyken de serbest birakir (komut_serbest)
+        kart.komut_imzali.clear()
+        sonuc_p = {}
+        t_v = threading.Thread(target=lambda: sonuc_p.update(v=al(taban + "/pil?sira=1")[0]), daemon=True)
+        t_v.start()
+        time.sleep(0.3)
+        t0 = time.monotonic()
+        kod_p0 = al(taban + "/komut", {"X-Olcum": "1"}, "POST", b"p0")[0]
+        sure_p0 = time.monotonic() - t0
+        t_v.join(10)
+        kart.ek_bekle.clear()
+        ok("4D (O7): p0 (DURDUR) vekilden GECMEZ — kopru /komut'tan karta IMZASIZ gider ve sayac kilidini "
+           "tutan YAVAS bir vekil istegi (kart 1.5 s'de yanitliyor) suruyorken bile beklemeden ulasir",
+           kod_p0 == 204 and ("p0", False) in kart.komut_imzali and sure_p0 < 0.8 and sonuc_p.get("v") == 200,
+           f"p0={kod_p0} {sure_p0:.2f} s {kart.komut_imzali[-2:]} vekil={sonuc_p.get('v')}")
+
+        # hatalar: acik JSON, mutlak yol yok
+        kart.ek_get.pop("/kunye.json")
+        kod_404, g_404, b_404 = al(taban + "/kunye.json")
+        kart.cihazlar.clear()                                       # kart cihazi unuttu -> 401
+        VK._durum(kop, "_kart_vekili", VK.KartVekili).unut()
+        kod_401, g_401, b_401 = al(taban + "/kal/liste")
+        bos = gec_dizin / "cihaz_4d_bos"
+        wifi_bos = KW.WifiKart(kart_taban, dizin=bos)
+        kop_bos = kopru_mod.Kopru(KW.SecmeliKart(_SahteYukari("seri:COM9@115200"), wifi_bos), gec_dizin / "s4b")
+        s_b = _kos(kop_bos)
+        kod_es, g_es, _ = al(f"http://127.0.0.1:{s_b.server_address[1]}/pil")
+        kop_x = kopru_mod.Kopru(KW.WifiKart("127.0.0.1:9", dizin=cdiz), gec_dizin / "s4x")
+        s_x = _kos(kop_x)
+        kod_er, g_er, _ = al(f"http://127.0.0.1:{s_x.server_address[1]}/kunye.json")
+        kod_wy, g_wy, _ = al(f"http://127.0.0.1:{s_u.server_address[1]}/kal/liste")
+
+        def neden(g):
+            try:
+                return json.loads(g).get("vekil")
+            except (ValueError, AttributeError):
+                return None
+        ok("4D (PC11): vekil hatasi ACIK JSON — kartin 404'u aynen gecer; kart imzayi reddederse (cihaz "
+           "silinmis) 502 `imza` (panel 401'i 'bu tarayici eslesmemis' sanmasin); bu PC karta eslesmemisse "
+           "`dogrulanamadi`, kart erisilemezse `dogrulanamadi`, WiFi yukari-akisi yoksa `wifi_yok`",
+           kod_404 == 404 and b_404.get("x-kopru-vekil") == "kart" and kod_401 == 502 and neden(g_401) == "imza"
+           and b_401.get("x-kopru-vekil") == "hata" and kod_es == 502 and neden(g_es) == "dogrulanamadi"
+           and "ESLESMEMIS" in g_es.decode("utf-8", "replace") and kod_er == 502
+           and neden(g_er) == "dogrulanamadi" and kod_wy == 502 and neden(g_wy) == "wifi_yok",
+           f"404={kod_404} 401={kod_401}/{neden(g_401)} es={kod_es}/{neden(g_es)} er={kod_er}/{neden(g_er)} "
+           f"wy={kod_wy}/{neden(g_wy)}")
+        for x in (s_b, s_x):
+            x.shutdown()
+            x.server_close()
+        hepsi = b"\n".join(govdeler).decode("utf-8", "replace")
+        yollar = {str(gec_dizin), str(kok), str(cdiz), str(bos), str(Path.home()), str(pc_ayar.veri_dizini())}
+        sizan = [y for y in yollar | {json.dumps(x)[1:-1] for x in yollar} if y and y in hepsi]
+        import re
+        # mutlak Windows kullanici yolu (ham ya da JSON kacisli) ve UNC — desen olarak (gizlilik_dogrula temiz kalsin)
+        sizan += [m.group(0) for m in re.finditer(r"[A-Za-z]:(?:\\{1,2}|/)Users|\\{2,}[A-Za-z]", hepsi)]
+        ok("4D: /arsiv/* ve vekil yanitlarinin HICBIRINDE mutlak kullanici yolu yok (eslesmemis kartin "
+           "mesajindaki cihaz dizini dahil — `vekil.yolsuz`)", not sizan and len(govdeler) > 40, f"{sizan[:3]}")
+        s_u.shutdown()
+        s_u.server_close()
+    finally:
+        for x in (s, s_lan):
+            x.shutdown()
+            x.server_close()
+        kart_sun.shutdown()
+        kart_sun.server_close()
+
+
+class _Cikis4E:
+    """4E: bildirim cikisi yerine kayit (GERCEK toast YOK)."""
+    yol = "sahte"
+
+    def __init__(self):
+        self.cagri: list[tuple] = []
+
+    def goster(self, etiket, baslik, metin, sessiz=False):
+        self.cagri.append((etiket, metin, sessiz))
+
+    def kapat(self):
+        pass
+
+
+def pc_4e_sina(gec_dizin: Path) -> None:
+    """4E (PC13–PC16): bildirim ipliginin pc.py baglantisi, yerel `G` satiri dinleme, /bildirim/durum.
+
+    MQTT ipligi, karar katmani ve Windows bildirim betigi B72.Q16'da (test_bildirim.py) sinaniyor."""
+    print("\n--- 4E. MQTT bildirimleri: pc.py baglantisi, yerel satir, /bildirim/durum ---")
+    import kart_wifi as KW
+    import pc
+    import pc_ayar
+    import pc_bildirim as PB
+
+    def _durum_al(url):
+        kod, govde = _guvenli_istek(url)
+        return kod, govde.decode("utf-8", "replace")
+    usb, wifi = _SahteYukari("seri:COM9@115200"), KW.WifiKart("127.0.0.1:9")
+    sec = KW.SecmeliKart(usb, wifi)
+    kop = kopru_mod.Kopru(sec, gec_dizin / "arsiv_4e")
+    sus: list[str] = []
+    yok = pc.bildirim_kur(["--bildirim-yok"], sec, kop, yazdir=sus.append)
+    neden_yok = getattr(kop, "bildirim_neden", None)
+    b1 = pc.bildirim_kur([], sec, kop, yazdir=sus.append)
+    kop_u = kopru_mod.Kopru(usb, gec_dizin / "arsiv_4e_u")
+    b2 = pc.bildirim_kur([], usb, kop_u, yazdir=sus.append, cikis=_Cikis4E())
+    ok("4E: pc.bildirim_kur — --bildirim-yok kurmaz (sebep); varsayilan kartin WiFi kolunu kullanir, cikis "
+       "Windows bildirimi (sinamada OLCUM_TOAST_YOK: alt surec yok), veri dizini %LOCALAPPDATA%\\olcum-karti; "
+       "WiFi'siz (--wifi-yok) yukari-akista da kurulur (onbellekle calisir)",
+       yok is None and neden_yok == "--bildirim-yok" and b1 is not None and b1.wifi is wifi
+       and kop.bildirim is b1 and b1.mantik.cikis.yol == ("windows" if sys.platform == "win32" else "yok")
+       and getattr(b1.mantik.cikis, "sinama", True) and b1.dizin == pc_ayar.veri_dizini() / "bildirim"
+       and b2 is not None and b2.wifi is None and any("KAPALI (--bildirim-yok)" in x for x in sus),
+       f"{yok} {neden_yok} {b1 and b1.wifi}")
+
+    # yerel satirlar: kartin satir_oku'su sarilir — Kopru.dongu degismeden G gecisi bildirime
+    kart = kart_baglanti.KayitKart([_g4e(2, 7), "D 1.0 0.5", _g4e(1, 7)], gecikme=0.0)
+    kart.ac()
+    kop_k = kopru_mod.Kopru(kart, gec_dizin / "arsiv_4e_k")
+    cikis = _Cikis4E()
+    pc.bildirim_kur([], kart, kop_k, yazdir=sus.append, cikis=cikis)
+    okunan = [kart.satir_oku(1.0) for _ in range(3)]
+    ok("4E (PC16): kartin yukari-akis satirlari (Kopru.dongu'nun okudugu) bildirim katmanina da gider — "
+       "`G` kayit -> degil gecisi YEREL 'kayit bitti' bildirimi; satirlar akisa AYNEN devam eder",
+       okunan == [_g4e(2, 7), "D 1.0 0.5", _g4e(1, 7)]
+       and [c[0] for c in cikis.cagri] == ["os-7"] and "Kayıt bitti (oturum 7)" in cikis.cagri[0][1],
+       f"{okunan} {cikis.cagri}")
+    kart.kapat()
+
+    # /bildirim/durum: yalniz bu bilgisayar, JSON, sir yok
+    b1._b = {"uri": "mqtts://gizli-araci.example:8883", "kullanici": "cihaz-sinama-b22", "parola": "sinama-pw-b22",
+             "onek": "ab" * 16, "anahtar": bytes(range(32))}
+    b1._d["mesaj"] = "! bildirim: gizli-araci.example cihaz-sinama-b22 sinama-pw-b22"
+    s1 = _kos(kop)
+    kod_d, govde_d = _durum_al(f"http://127.0.0.1:{s1.server_address[1]}/bildirim/durum")
+    s1.shutdown()
+    s1.server_close()
+    s2 = _kos(kop, _LanIsleyici)
+    kod_lan, _ = _durum_al(f"http://127.0.0.1:{s2.server_address[1]}/bildirim/durum")
+    s2.shutdown()
+    s2.server_close()
+    kop_y = kopru_mod.Kopru(usb, gec_dizin / "arsiv_4e_y")
+    pc.bildirim_kur(["--bildirim-yok"], usb, kop_y, yazdir=sus.append)
+    s3 = _kos(kop_y)
+    kod_y, govde_y = _durum_al(f"http://127.0.0.1:{s3.server_address[1]}/bildirim/durum")
+    s3.shutdown()
+    s3.server_close()
+    try:
+        dj, dy = json.loads(govde_d), json.loads(govde_y)
+    except ValueError:
+        dj, dy = {}, {}
+    sirlar = ["gizli-araci", "cihaz-sinama-b22", "sinama-pw-b22", "ab" * 16, bytes(range(32)).hex()]
+    ok("4E: GET /bildirim/durum yalniz BU BILGISAYARDAN (yerel ag 403) — etkin / abone / kart cevrimici / "
+       "son olay / ac-kapa ayarlari; kurulmadiysa etkin:false + sebep; araci adresi, kullanici, parola, "
+       "konu oneki, anahtar ve mutlak yol YOK",
+       kod_d == 200 and dj.get("etkin") is True and dj.get("abone") is False and "kart_cevrimici" in dj
+       and set(dj.get("ayar", {})) == set(PB.SINIFLAR) and kod_lan == 403 and kod_y == 200
+       and dy.get("etkin") is False and dy.get("neden") == "--bildirim-yok"
+       and not [s for s in sirlar if s in govde_d] and str(pc_ayar.veri_dizini()) not in govde_d,
+       f"{kod_d} {govde_d[:120]} lan={kod_lan} yok={govde_y[:60]}")
+
+    # pc.calistir: bildirim ipligi kurulur, baslar, /bildirim/durum'dan gorunur, durdurulunca biter
+    hp = _bos_port()
+    yazilan: list[str] = []
+    sonuc = {}
+    th = threading.Thread(target=lambda: sonuc.update(rc=pc.calistir(
+        ["--usb-yok", "--esitleme-yok", "--http-port", str(hp), "--tarayici-acma"],
+        tarayici_ac=lambda u: None, yazdir=yazilan.append)), daemon=True)
+    th.start()
+    son = time.monotonic() + 8
+    while not pc.zaten_calisiyor(hp) and time.monotonic() < son:
+        time.sleep(0.05)
+    kod_c, govde_c = _durum_al(f"http://127.0.0.1:{hp}/bildirim/durum")
+    son = time.monotonic() + 6
+    while "dogrulanamadi" not in govde_c and time.monotonic() < son:
+        time.sleep(0.1)
+        kod_c, govde_c = _durum_al(f"http://127.0.0.1:{hp}/bildirim/durum")
+    durdu, _ = pc.durdur(hp)
+    th.join(8)
+    ok("4E: pc.py bildirim ipligini KURAR ve BASLATIR (kart yoksa 'dogrulanamadi' soylenir), konsolda "
+       "'Bildirimler' satiri; durdurulunca surec kapanir",
+       kod_c == 200 and '"etkin": true' in govde_c and "dogrulanamadi" in govde_c and durdu
+       and not th.is_alive() and sonuc.get("rc") == 0 and any("Bildirimler" in x and "MQTT" in x for x in yazilan),
+       f"{kod_c} {govde_c[:100]} rc={sonuc.get('rc')}")
+
+
+def pc_4h_sina(gec_dizin: Path) -> None:
+    """4H: panelin bildirim bolumu icin YAZMA ucu (`POST /bildirim/ayar`), yerel ag reddinin isareti
+    (`X-Kopru-Ret: lan`) ve koprunun sundugu kabugun surumu (`/durum` `kabuk`).
+
+    Kararlar tasarim/2026-10-03-alt-proje-4-pc.md "4H uygulama kararlari"."""
+    print("\n--- 4H. Bildirim ayari yazma ucu, yerel ag reddi isareti, kabuk surumu ---")
+    import pc
+    import pc_ayar
+    import pc_bildirim as PB
+
+    ayar = pc_ayar.veri_dizini() / pc_ayar.AYAR
+    ayar.parent.mkdir(parents=True, exist_ok=True)
+    kart = kart_baglanti.KayitKart([], gecikme=0.0)
+    kart.ac()
+    kop = kopru_mod.Kopru(kart, gec_dizin / "arsiv_4h")
+    pc.bildirim_kur(["--bildirim-yok"], kop.kart, kop, yazdir=lambda *_: None)
+    s = _kos(kop)
+    s_lan = _kos(kop, _LanIsleyici)
+    taban = f"http://127.0.0.1:{s.server_address[1]}"
+    taban_lan = f"http://127.0.0.1:{s_lan.server_address[1]}"
+    JSON_B = {"X-Olcum": "1", "Content-Type": "application/json"}
+
+    def post(govde, basliklar=JSON_B, t=taban):
+        veri = govde if isinstance(govde, bytes) else json.dumps(govde).encode("utf-8")
+        kod, g, b = _guvenli_istek_bas(t + "/bildirim/ayar", veri, basliklar, "POST")
+        return kod, g.decode("utf-8", "replace"), b
+
+    def yolsuz(metin: str) -> bool:
+        """Mutlak veri dizini ne duz ne JSON-kacisli (ters bolu iki katli) bicimde gecmez."""
+        d = str(pc_ayar.veri_dizini())
+        return d not in metin and json.dumps(d)[1:-1] not in metin
+
+    def lan_isareti(b: dict) -> str | None:
+        return next((v for k, v in b.items() if k.lower() == "x-kopru-ret"), None)
+
+    try:
+        # ── kapilar: yazmadan ONCE reddedilir, dosya hic olusmaz ──────────────
+        ayar.unlink(missing_ok=True)
+        k_baslik, _, _ = post({"bildirim": {"kopuk": False}}, {"Content-Type": "application/json"})
+        k_lan, g_lan, b_lan = post({"bildirim": {"kopuk": False}}, t=taban_lan)
+        k_x, _, _ = post({"bildirim": {"kopuk": False}}, {**JSON_B, "Origin": "http://evil.example"})
+        k_sfs, _, _ = post({"bildirim": {"kopuk": False}}, {**JSON_B, "Sec-Fetch-Site": "cross-site"})
+        k_tur, _, _ = post({"bildirim": {"kopuk": False}}, {"X-Olcum": "1", "Content-Type": "text/plain"})
+        k_host, _, _ = post({"bildirim": {"kopuk": False}}, {**JSON_B, "Host": "evil.example"})
+        ok("[!] 4H: POST /bildirim/ayar KAPILARI — X-Olcum yoksa 400, yerel ag 403 (+ X-Kopru-Ret: lan), baska "
+           "koken (Origin / Sec-Fetch-Site) 403, govde JSON degilse 415, taninmayan Host 403; hicbirinde "
+           "ayar.json YAZILMAZ",
+           k_baslik == 400 and k_lan == 403 and lan_isareti(b_lan) == "lan" and k_x == 403 and k_sfs == 403
+           and k_tur == 415 and k_host == 403 and not ayar.exists(),
+           f"baslik={k_baslik} lan={k_lan}/{lan_isareti(b_lan)} origin={k_x} sfs={k_sfs} tur={k_tur} host={k_host}")
+
+        # ── kati dogrulama: her biri 400, dosya degismez ──────────────────────
+        once = {"esitleme_onay": False, "esitleme_aralik_s": 300, "bildirim": {"bitti": False},
+                "kullanicinin_notu": "elle yazdim"}
+        ayar.write_text(json.dumps(once, ensure_ascii=False, indent=2), encoding="utf-8")
+        ham_once = ayar.read_bytes()
+        kotu = {
+            "bilinmeyen alan": {"bildirim": {"kopuk": False}, "parola": "sinama-pw-4h"},
+            "araci adresi": {"uri": "mqtts://sinama.example:8883"},
+            "bilinmeyen sinif": {"bildirim": {"parola": False}},
+            "bool olmayan (1)": {"bildirim": {"kopuk": 1}},
+            "bool olmayan ('false')": {"bildirim": {"kopuk": "false"}},
+            "bool olmayan (null)": {"bildirim": {"kopuk": None}},
+            "bildirim nesne degil": {"bildirim": ["kopuk"]},
+            "gecersiz dil": {"dil": "de"},
+            "dil metin degil": {"dil": 1},
+            "bos degisiklik": {},
+            "bos bildirim": {"bildirim": {}},
+            "dizi govde": [{"bildirim": {"kopuk": False}}],
+            "JSON degil": b"kopuk=0",
+            "tekrarlanan anahtar": b'{"bildirim": {"kopuk": false, "kopuk": true}}',
+            "tekrarlanan ust anahtar": b'{"dil": "en", "dil": "tr"}',
+            "NaN": b'{"bildirim": {"kopuk": NaN}}',
+            "tam buyuk ama gecerli": b'{"bildirim": {"kopuk": false}' + b" " * 600 + b"}",
+        }
+        sonuc = {ad: post(g)[0] for ad, g in kotu.items()}
+        ok("[!] 4H: KATI dogrulama — bilinmeyen alan (parola, uri), bilinmeyen sinif, true/false olmayan deger "
+           "(1, 'false', null), nesne olmayan bildirim, gecersiz dil, bos degisiklik, dizi govde, JSON olmayan "
+           "govde, tekrarlanan anahtar, NaN, 512 B'den buyuk govde -> 400; ayar.json BAYT BAYT ayni",
+           all(k == 400 for k in sonuc.values()) and ayar.read_bytes() == ham_once,
+           " ".join(f"{a}={k}" for a, k in sonuc.items() if k != 400) or "hepsi 400")
+
+        # ── birlestirme: oteki anahtarlar korunur ─────────────────────────────
+        k1, g1, _ = post({"bildirim": {"kopuk": False, "deneme": True}})
+        k2, g2, _ = post({"dil": "en"})
+        sonra = json.loads(ayar.read_text(encoding="utf-8"))
+        try:
+            y1, y2 = json.loads(g1), json.loads(g2)
+        except ValueError:
+            y1, y2 = {}, {}
+        kd, gd = _guvenli_istek(taban + "/bildirim/durum")
+        try:
+            dd = json.loads(gd)
+        except ValueError:
+            dd = {}
+        ok("[!] 4H: yazma ayar.json'a BIRLESTIRIR — esitleme_onay / esitleme_aralik_s / kullanicinin anahtari ve "
+           "onceki bildirim.bitti AYNEN kalir; yanit ve GET /bildirim/durum (bildirim ipligi kurulmamisken de) "
+           "yeni ac/kapa ve dili gosterir",
+           k1 == 200 and k2 == 200 and sonra.get("esitleme_onay") is False and sonra.get("esitleme_aralik_s") == 300
+           and sonra.get("kullanicinin_notu") == "elle yazdim"
+           and sonra.get("bildirim") == {"bitti": False, "kopuk": False, "deneme": True}
+           and sonra.get("bildirim_dil") == "en"
+           and y1.get("ayar", {}).get("kopuk") is False and y1.get("ayar", {}).get("bitti") is False
+           and y2.get("dil") == "en" and set(y2.get("ayar", {})) == set(PB.SINIFLAR)
+           and kd == 200 and dd.get("etkin") is False and dd.get("dil") == "en"
+           and dd.get("ayar", {}).get("kopuk") is False and dd.get("ayar", {}).get("esik") is True,
+           f"{k1} {k2} {sonra} durum={gd[:120]}")
+        ok("[!] 4H: SIR YOK — yazmalardan sonra ayar.json'da yalniz onceki anahtarlar + bildirim / bildirim_dil; "
+           "bildirim altinda yalniz bilinen siniflar ve true/false; reddedilen parola / araci adresi dosyada yok, "
+           "yanitlarda mutlak yol yok",
+           set(sonra) == set(once) | {"bildirim_dil"} and set(sonra["bildirim"]) <= set(PB.SINIFLAR)
+           and all(isinstance(v, bool) for v in sonra["bildirim"].values())
+           and "sinama-pw-4h" not in ayar.read_text(encoding="utf-8") and "sinama.example" not in ayar.read_text(encoding="utf-8")
+           and yolsuz(g1 + g2), str(sorted(sonra)))
+
+        # ── bozuk dosyanin uzerine yazilmaz ───────────────────────────────────
+        ayar.write_bytes(b'{"esitleme_onay": false, "bildirim": ')
+        bozuk = ayar.read_bytes()
+        kb, gb, _ = post({"bildirim": {"kopuk": True}})
+        ok("[!] 4H: ayar.json okunamiyorsa 409 ve dosya BAYT BAYT ayni (kullanicinin elle yazdigi ayar ezilmez); "
+           "mesajda mutlak yol yok",
+           kb == 409 and ayar.read_bytes() == bozuk and yolsuz(gb), f"{kb} {gb[:80]}")
+        ayar.unlink()
+
+        # ── yerel ag reddi isaretli; oteki retler isaretsiz; p0 serbest ───────
+        lan = {}
+        for ad, yol, yontem, veri, bas in (
+                ("komut", "/komut", "POST", b"?", {"X-Olcum": "1"}),
+                ("devral", "/devral", "POST", b"", {"X-Olcum": "1", "X-Jeton": "x"}),
+                ("kapat", "/kapat", "POST", b"", {"X-Olcum": "1"}),
+                ("esitleme", "/esitleme/durum", None, None, {}),
+                ("bildirim", "/bildirim/durum", None, None, {}),
+                ("arsiv", "/arsiv/liste", None, None, {}),
+                ("skop", "/skop.bin", None, None, {"X-Olcum": "1"})):
+            r = _guvenli_istek_bas(taban_lan + yol, veri, bas, yontem)
+            lan[ad] = (r[0], lan_isareti(r[2]))
+        p0 = _guvenli_istek_bas(taban_lan + "/komut", b"p0", {"X-Olcum": "1"}, "POST")
+        csrf = _guvenli_istek_bas(taban + "/komut", b"?", {"X-Olcum": "1", "Origin": "http://evil.example"}, "POST")
+        kop.surucu = "baskasi"
+        surucu_degil = _guvenli_istek_bas(taban + "/komut", b"?", {"X-Olcum": "1", "X-Jeton": "x"}, "POST")
+        kop.surucu = None
+        ok("[!] 4H: yerel ag istemcisinin 403'leri ISARETLI (X-Kopru-Ret: lan — panel cevrilmis 'salt okuma' "
+           "uyarisi gosterir): komut, devral, kapat, esitleme/durum, bildirim/durum, arsiv, skop.bin; p0 yine "
+           "serbest; baska sebepli 403 (capraz koken, surucu degil) ISARETSIZ",
+           all(v == (403, "lan") for v in lan.values()) and p0[0] == 204
+           and csrf[0] == 403 and lan_isareti(csrf[2]) is None
+           and surucu_degil[0] == 403 and lan_isareti(surucu_degil[2]) is None,
+           f"{lan} p0={p0[0]} csrf={csrf[0]}/{lan_isareti(csrf[2])} surucu={surucu_degil[0]}/{lan_isareti(surucu_degil[2])}")
+
+        # ── kabuk surumu ──────────────────────────────────────────────────────
+        import re as _re
+        sw = (KOK / "arayuz3" / "sw.js").read_text(encoding="utf-8")
+        m = _re.search(r"^const SURUM = '([0-9a-f]{12})';$", sw, _re.M)
+        kdu, gdu = _guvenli_istek(taban + "/durum")
+        try:
+            du = json.loads(gdu)
+        except ValueError:
+            du = {}
+        ok("[!] 4H: /durum `kabuk` = koprunun sundugu panel kabugunun surumu (sw.js SURUM, arayuz-uret.py yazar)",
+           kdu == 200 and m is not None and du.get("kabuk") == m.group(1), f"{du.get('kabuk')} / {m and m.group(1)}")
+    finally:
+        for x in (s, s_lan):
+            x.shutdown()
+            x.server_close()
+        ayar.unlink(missing_ok=True)
+
+
+def _guvenli_istek_bas(url, veri=None, basliklar=None, yontem=None, zaman_asimi=5):
+    """`istek_bas` + baglanti hatasi -> (None, hata, {})."""
+    try:
+        return istek_bas(url, veri, basliklar, yontem, zaman_asimi)
+    except Exception as e:                              # noqa: BLE001
+        return None, str(e).encode("utf-8", "replace"), {}
+
+
+class _AcikAkis:
+    """4I: ACIK kalan `/akis` — yasayan bir sekme. Ham soketle (baglantiyi ne zaman
+    kapattigimizi biz bilelim: urllib yaniti soketi kendi tutuyor). `kimlikler` her
+    `event: kimlik` olayini varis anıyla toplar; `kapat()` sekmenin kapanmasi/yenilenmesi."""
+
+    def __init__(self, taban: str, basliklar: dict | None = None):
+        import socket
+        import urllib.parse
+        u = urllib.parse.urlsplit(taban)
+        self.s = socket.create_connection((u.hostname, u.port), timeout=10)
+        bas = {"Host": f"{u.hostname}:{u.port}", **(basliklar or {})}
+        self.s.sendall(("GET /akis HTTP/1.1\r\n" + "".join(f"{a}: {d}\r\n" for a, d in bas.items())
+                        + "\r\n").encode("utf-8"))
+        self.dosya = self.s.makefile("rb")
+        self.kod = int(self.dosya.readline().split()[1])
+        self.kimlikler: list[tuple[float, dict]] = []
+        self.kapali = False
+        threading.Thread(target=self._oku, daemon=True).start()
+
+    def _oku(self):
+        sonraki = False
+        try:
+            while True:
+                ham = self.dosya.readline()
+                if not ham:
+                    break
+                sat = ham.decode("utf-8", "replace").rstrip("\r\n")
+                if sat.startswith("event: kimlik"):
+                    sonraki = True
+                elif sat.startswith("data: ") and sonraki:
+                    self.kimlikler.append((time.monotonic(), json.loads(sat[6:])))
+                    sonraki = False
+        except Exception:                                   # noqa: BLE001
+            pass
+
+    def kimlik(self, n: int = 1, sure: float = 3.0) -> dict | None:
+        """n. kimlik olayini bekle (1 = ilk)."""
+        son = time.monotonic() + sure
+        while len(self.kimlikler) < n and time.monotonic() < son:
+            time.sleep(0.01)
+        return self.kimlikler[n - 1][1] if len(self.kimlikler) >= n else None
+
+    @property
+    def jeton(self) -> str:
+        k = self.kimlik()
+        return k["jeton"] if k else ""
+
+    def kapat(self):
+        import socket
+        if self.kapali:
+            return
+        self.kapali = True
+        try:
+            self.s.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        self.dosya.close()
+        self.s.close()
+
+
+def pc_4i_sina(gec_dizin: Path) -> None:
+    """4I — surucu sekmesi yenilenince / kapaninca rol BIRAKILIR (spec "4I uygulama kararlari").
+
+    🔴 4H'de bulundu: kopru, yenilenen ya da kapanan sekmenin surucu jetonunu tutmaya devam
+       ediyordu. EventSource baslik gonderemedigi icin yenilenen sekme YENI jeton aliyor ->
+       yalniz izleyici; acilis komutlari (`?`, `CT`, `G?`) ve kullanicinin her islemi 403
+       "surucu degil", ta ki elle devralana dek. PC uygulamasinda her yenilemede.
+    """
+    print("\n--- 4I. Surucunun akisi kapaninca rol birakilir ---")
+    kart = kart_baglanti.KayitKart([], yanitlar={"p0": ["* durdu"]})   # BOSTA: akisa satir gelmiyor
+    kart.ac()
+    k = kopru_mod.Kopru(kart, gec_dizin / "arsiv_4i")
+    s = _kos(k)
+    s_lan = _kos(k, _LanIsleyici)
+    tb = f"http://127.0.0.1:{s.server_address[1]}"
+    lb = f"http://127.0.0.1:{s_lan.server_address[1]}"
+    kom = {"X-Olcum": "1"}
+
+    def komut(metin, jeton, taban=tb):
+        return istek(taban + "/komut", metin.encode(), {**kom, "X-Jeton": jeton}, "POST")[0]
+
+    acik: list[_AcikAkis] = []
+
+    def ac(taban=tb, basliklar=None):
+        a = _AcikAkis(taban, basliklar)
+        acik.append(a)
+        return a
+
+    try:
+        # ── 1. yenileme: eski surucu kapanir, HEMEN yeni akis gelir ──────
+        a = ac()
+        ka = a.kimlik()
+        a.kapat()
+        b = ac()                     # bekleme YOK — tarayicida yenileme boyle
+        kb = b.kimlik()
+        once = len(kart.yazilanlar)
+        kodlar = {m: komut(m, b.jeton) for m in ("?", "CT", "G?")}
+        ok("[!] 4I: surucu sekme YENILENINCE yeni sekme ilk `kimlik`te SURUCU, acilis komutlari "
+           "(`?` `CT` `G?`) 204 ve karta ulasiyor",
+           bool(ka and ka["surucu"]) and bool(kb and kb["surucu"]) and k.surucu == b.jeton
+           and all(c == 204 for c in kodlar.values()) and kart.yazilanlar[once:] == ["?", "CT", "G?"],
+           f"eski={ka} yeni={kb} · {kodlar} · karta={kart.yazilanlar[once:]}")
+        ok("4I: kapanan sekmenin eski jetonu artik surucu degil (komutu 403)",
+           komut("?", ka["jeton"] if ka else "x") == 403, f"surucu={k.surucu == (ka or {}).get('jeton')}")
+
+        # ── 1b. IKINCI sekme aciktayken yenileme: rol arka sekmeye KACMAZ ───
+        # 🔴 4I incelemesinde bulundu: eski akisin isleyicisi kapanisi <= 0.5 s'de fark edip
+        #    rolu HEMEN yasayan tek yerel akisa (arka sekme) veriyordu; yenilenen sekmenin
+        #    yeni /akis'i hep ondan SONRA geliyor -> surucu yasiyor, "calma yok" -> yenilenen
+        #    sekme izleyici, acilis komutlari 403. Gecikmeler 0…1.5 s hepsinde. Yeniden
+        #    yuklenme penceresi (AKIS_DEVIR_BEKLE_S) icinde gelen yeni yerel akis rolu alir.
+        sonuc_1b = []
+        for gec in (0.0, 0.8, 1.5):
+            v = ac()
+            kv = v.kimlik()
+            b.kapat()
+            time.sleep(gec)              # eski isleyici kapanisi coktan fark etti (<= 0.5 s)
+            b = ac()
+            kb = b.kimlik()
+            kod_b = komut("?", b.jeton)
+            kod_v = komut("CT", v.jeton)
+            sonuc_1b.append((gec, bool(kv) and not kv["surucu"], bool(kb and kb["surucu"]), kod_b,
+                             kod_v, len(v.kimlikler)))
+            v.kapat()
+        time.sleep(kopru_mod.AKIS_DEVIR_BEKLE_S + 0.6)   # pencere zamanlayicisi da rolu kacirmasin
+        ok("[!] 4I: IKINCI yerel sekme aciktayken surucu YENILENINCE (yeni akis eski isleyici "
+           "fark ettikten 0 / 0.8 / 1.5 s sonra) yenilenen sekme SURUCU, `?` 204; arka sekme rol "
+           "olayi almaz, komutu 403",
+           all(x[1:] == (True, True, 204, 403, 1) for x in sonuc_1b) and k.surucu == b.jeton
+           and komut("?", b.jeton) == 204,
+           f"(gec, v izleyici, yeni surucu, ?, v CT, v olay) = {sonuc_1b}")
+
+        # ── 2. kapanan surucu: rol <= 2 s'de EN YENI yasayan yerel izleyiciye ─
+        c = ac()
+        d = ac()
+        kc, kd = c.kimlik(), d.kimlik()
+        t0 = time.monotonic()
+        b.kapat()
+        devir_ust = kopru_mod.AKIS_DEVIR_BEKLE_S + 1.5   # pencere + 0.5 s yoklama + pay
+        kd2 = d.kimlik(2, sure=devir_ust + 2.0)
+        dt = (d.kimlikler[1][0] - t0) if len(d.kimlikler) >= 2 else None
+        ok("[!] 4I: surucunun akisi kapaninca rol, yeniden yuklenme penceresi dolunca "
+           f"(<= {devir_ust:.1f} s) EN YENI yasayan yerel izleyiciye gecer, "
+           "o sekme yeniden yuklenmeden `kimlik` olayi (surucu: true, kendi jetonu) alir",
+           bool(kc and kd) and not kc["surucu"] and not kd["surucu"] and bool(kd2 and kd2["surucu"])
+           and kd2["jeton"] == d.jeton and dt is not None and dt <= devir_ust and k.surucu == d.jeton,
+           f"dt={dt if dt is None else round(dt, 3)} s · yeni={kd2}")
+        time.sleep(0.3)
+        ok("4I: devir yalniz yeni surucuye — daha eski izleyici (c) rol olayi almadi, komutu 403; "
+           "yeni surucunun komutu 204",
+           len(c.kimlikler) == 1 and komut("?", c.jeton) == 403 and komut("?", d.jeton) == 204,
+           f"c olaylari={len(c.kimlikler)}")
+
+        # ── 3. iki YASAYAN sekme: sessiz calma yok; /devral acik yol ───────
+        kodlar_c = []
+        for _ in range(4):
+            kodlar_c.append(komut("CT", c.jeton))
+            time.sleep(0.3)
+        e = ac()
+        ke = e.kimlik()
+        ok("[!] 4I: iki sekme de ACIKKEN surucu degismez — izleyicinin komutlari 403 kalir, yeni "
+           "acilan sekme izleyici (rol calinmaz)",
+           all(x == 403 for x in kodlar_c) and k.surucu == d.jeton and bool(ke) and not ke["surucu"],
+           f"izleyici={kodlar_c} · yeni={ke}")
+        kod_dv, _ = istek(tb + "/devral", b"", {**kom, "X-Jeton": c.jeton}, "POST")
+        ok("4I: acik devralma (/devral) aynen calisiyor: izleyici devralir, eski surucu 403",
+           kod_dv == 204 and komut("?", c.jeton) == 204 and komut("?", d.jeton) == 403,
+           f"devral={kod_dv}")
+
+        # ── 4. LAN: yerel ag izleyicisi ASLA surucu olmaz; p0 her zaman ────
+        for x in (d, e):
+            x.kapat()
+        lan = ac(lb)
+        kl = lan.kimlik()
+        c.kapat()                        # yasayan tek yerel sekme (surucu) kapandi
+        time.sleep(0.8)                  # isleyici fark etti; yeniden yuklenme penceresi acik
+        lan2 = ac(lb)                    # pencere icinde YENI kaydolan LAN akisi da aday degil
+        kl2 = lan2.kimlik()
+        time.sleep(kopru_mod.AKIS_DEVIR_BEKLE_S + 1.0)   # pencere zamanlayicisi da LAN'a vermesin
+        kod_l = komut("?", lan.jeton, lb)
+        kod_p0 = komut("p0", "", lb)
+        kod_p0b = komut("p0", "")
+        ok("[!] 4I: surucu kapaninca yerel AG izleyicisi rolu ALMAZ — ne acik olan, ne pencere icinde "
+           "yeni kaydolan, ne pencere dolunca (olay yok, komutu 403); `p0` (DURDUR) LAN'dan da bu "
+           "bilgisayardan da jetonsuz 204",
+           bool(kl) and not kl["surucu"] and len(lan.kimlikler) == 1 and k.surucu != lan.jeton
+           and bool(kl2) and not kl2["surucu"] and len(lan2.kimlikler) == 1 and k.surucu != lan2.jeton
+           and kod_l == 403 and kod_p0 == 204 and kod_p0b == 204,
+           f"lan olaylari={len(lan.kimlikler)}/{len(lan2.kimlikler)} yeni={kl2} ?={kod_l} "
+           f"p0={kod_p0}/{kod_p0b}")
+
+        # ── 5. CSRF: baska kokenden /akis rolu ve jetonu ALAMAZ ───────────
+        jetonlar = len(k.jetonlar)
+        kod_x = _AcikAkis(tb, {"Sec-Fetch-Site": "cross-site"})
+        acik.append(kod_x)
+        kod_o = _AcikAkis(tb, {"Origin": "http://stok"})
+        acik.append(kod_o)
+        time.sleep(0.3)
+        f = ac()
+        kf = f.kimlik()
+        ok("[!] 4I: rol bostayken baska kokenden /akis 403, jeton yok; ardindan ayni kokenden acilan "
+           "sekme SURUCU",
+           kod_x.kod == 403 and kod_o.kod == 403 and not kod_x.kimlikler and not kod_o.kimlikler
+           and len(k.jetonlar) == jetonlar + 1 and bool(kf and kf["surucu"]) and k.surucu == f.jeton,
+           f"capraz={kod_x.kod}/{kod_o.kod} jeton +{len(k.jetonlar) - jetonlar} yeni={kf}")
+    finally:
+        for x in acik:
+            x.kapat()
+        for sv in (s, s_lan):
+            sv.shutdown()
+            sv.server_close()
+
+    # ── 6. komut aninda yoklama (isleyici kopuslugu henuz fark etmeden) ──
+    import socket
+    import queue as _q
+    k2 = kopru_mod.Kopru(kart_baglanti.KayitKart([]), gec_dizin / "arsiv_4i_2")
+    j1 = k2.jeton_ver()
+    j2 = k2.jeton_ver()
+    s1, s1_karsi = socket.socketpair()
+    s2, s2_karsi = socket.socketpair()
+    q2 = _q.Queue()
+    k2.akis_kaydet(j1, s1, _q.Queue(), True)
+    k2.akis_kaydet(j2, s2, q2, True)
+    once = (k2.komut_izinli("?", j2)[0], k2.surucu == j1)
+    s1_karsi.close()                 # surucunun sekmesi kapandi; isleyicisi henuz bilmiyor
+    t_k = time.monotonic()
+    izin = k2.komut_izinli("?", j2)[0]
+    dt_k = time.monotonic() - t_k
+    olay = q2.get_nowait() if not q2.empty() else None
+    yabanci = k2.komut_izinli("?", "baskasi")[0]
+    pencere = kopru_mod.AKIS_DEVIR_BEKLE_S
+    ok("[!] 4I: surucunun soketi kapaliysa izleyicinin KOMUTU (isleyici kopusu henuz fark etmeden) "
+       "yeniden yuklenme penceresinin sonunu bekleyip rolu devralir ve 204 alir (403 degil); ona "
+       "`kimlik` gider; bilinmeyen jeton yine 403",
+       once == (False, True) and izin and k2.surucu == j2 and isinstance(olay, tuple)
+       and pencere - 0.2 <= dt_k <= pencere + 1.0
+       and olay[0] == "kimlik" and json.loads(olay[1]) == {"jeton": j2, "surucu": True} and not yabanci,
+       f"once={once} izin={izin} bekleme={dt_k:.2f} s olay={olay} yabanci={yabanci}")
+
+    # ── 6b. pencere icinde yenilenen sekme gelirse bekleyen izleyici komutu 403 ──
+    s3, s3_karsi = socket.socketpair()
+    q3 = _q.Queue()
+    j3 = k2.jeton_ver()
+    s4, s4_karsi = socket.socketpair()
+    j4 = k2.jeton_ver()
+    k2.akis_kaydet(j4, s4, _q.Queue(), True)              # acik izleyici sekme (surucu j2 yasarken)
+    s2_karsi.close()                 # surucu (j2) kapandi; pencere basliyor
+    sonuc6b: dict = {}
+    th6 = threading.Thread(target=lambda: sonuc6b.update(izin=k2.komut_izinli("CT", j4)[0]),
+                           daemon=True)
+    th6.start()
+    time.sleep(0.4)
+    k2.akis_kaydet(j3, s3, q3, True)                      # yenilenen sekme pencere icinde geldi
+    th6.join(pencere + 2.0)
+    ok("[!] 4I: pencere icinde yenilenen sekme gelirse rol ONUN; pencereyi bekleyen acik izleyicinin "
+       "komutu 403 (rol arka sekmeye kacmaz)",
+       k2.surucu == j3 and sonuc6b.get("izin") is False and not th6.is_alive(),
+       f"surucu=j3:{k2.surucu == j3} j4:{k2.surucu == j4} izin={sonuc6b}")
+    for x in (s1, s2, s3, s3_karsi, s4, s4_karsi):
+        x.close()
+
+    # ── 7. TEK akis, baska hicbir trafik yok: kapanisi isleyicinin KENDI yoklamasi bulur ──
+    # Birlestirmede (birlesik-4) bulundu: bolum 2'de kapanisi bazen ESKI bolumlerin bayat
+    # isleyicileri (kendi 15 s'lik uyanislarinda surucu_yokla cagirip) fark ettiriyordu; yoklama
+    # 15 s'ye cikinca da yesil kalabiliyordu (mutasyon kosuya gore kaciyordu). Burada temiz kopru.
+    kart7 = kart_baglanti.KayitKart([], yanitlar={"p0": ["* durdu"]})
+    kart7.ac()
+    k7 = kopru_mod.Kopru(kart7, gec_dizin / "arsiv_4i_7")
+    s7 = _kos(k7)
+    try:
+        a7 = _AcikAkis(f"http://127.0.0.1:{s7.server_address[1]}")
+        ka7 = a7.kimlik()
+        t7 = time.monotonic()
+        a7.kapat()
+        while k7.akislar and time.monotonic() - t7 < 8.0:
+            time.sleep(0.05)
+        dt7 = time.monotonic() - t7
+        ok("[!] 4I: baska trafik yokken kapanan surucu akisi isleyicinin kendi yoklamasiyla <= 5 s'de (olculen ~0.5 s; yuklu makine payi) "
+           "kayittan duser ve yeniden yuklenme penceresi baslar (15 s kalp atisini beklemez)",
+           bool(ka7 and ka7["surucu"]) and not k7.akislar and dt7 <= 5.0 and k7._bosaldi is not None,
+           f"surucu={bool(ka7 and ka7['surucu'])} akis={len(k7.akislar)} dt={dt7:.2f} s "
+           f"pencere={k7._bosaldi is not None}")
+    finally:
+        s7.shutdown()
+        s7.server_close()
+
+
+def _g4e(durum: int, oturum: int) -> str:
+    return f"G {durum} {oturum} 100 101 50 120 10 0 900 25000 3 400 0"
+
+
+def pc_4g_sina() -> None:
+    """4G (gercek kart kabulu): `uretim/tezgah_pc.py`'nin SAF yardimcilari cevrimdisi.
+
+    Kabulun kendisi gercek kartta (tezgah); burada olcum ARACININ yalan soylemedigi sinaniyor:
+    kayitci TCP rolesi iki yonu de kaydediyor mu, sir arayici onaltilik/base64 bicimini buluyor mu,
+    `Authorization:` sayaci harf duyarsiz mi, akis karsilastirici tek bayt farkini yakaliyor mu."""
+    print("\n--- 4G. Kabul araci (tezgah_pc.py): kayitci, sir arama, akis karsilastirma ---")
+    import base64
+    import secrets as _s
+    import tezgah_pc as T
+    import kayit_bicim as KB
+    sir = _s.token_bytes(32)
+    kullanici = "araci-kullanicisi-" + _s.token_hex(4)
+    gorulen_host: list = []
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            gorulen_host.append(self.headers.get("Host"))
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            g = b"zarf " + sir.hex().upper().encode() + b" " + base64.urlsafe_b64encode(sir).rstrip(b"=")
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(g)))
+            self.end_headers()
+            self.wfile.write(g)
+
+        def log_message(self, *a):
+            pass
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    v = T.KayitciVekil("127.0.0.1", srv.server_address[1], host_yaz="olcum.local").baslat()
+    ist = urllib.request.Request(f"http://127.0.0.1:{v.port}/komut?x=1", data=kullanici.encode(), method="POST",
+                                 headers={"authorization": "Basic eHk6eg==", "X-Olcum": "1"})
+    try:
+        govde = urllib.request.build_opener(urllib.request.ProxyHandler({})).open(ist, timeout=5).read()
+    except OSError as e:
+        govde = repr(e).encode()
+    time.sleep(0.3)
+    akislar = list(v.akislar().values())
+    istekler = v.istekler()
+    v.durdur()
+    srv.shutdown()
+    bulunan = T.kayitta_ara(akislar, {"sir": sir, "kullanici": kullanici, "yok": _s.token_bytes(16)})
+    ok("4G: kayitci TCP rolesi baytlari aynen iletir ve IKI YONU de kaydeder (istek satiri + yanit kodu); "
+       "yalniz `Host:` karta kendi adiyla gider (kart baska Host'u 403 'Host reddedildi' ile reddediyor)",
+       govde.startswith(b"zarf ") and [(x["yontem"], x["yol"], x["durum"]) for x in istekler]
+       == [("POST", "/komut?x=1", 200)] and gorulen_host == ["olcum.local"]
+       and b"Host: olcum.local\r\n" in b"".join(akislar), f"{istekler} {govde[:12]!r} host={gorulen_host}")
+    ok("4G: sir arayici kayitta BUYUK onaltilik ve dolgusuz URL-guvenli base64 bicimini (yanittan), duz "
+       "metni (istek govdesinden) bulur; olmayan sir 0",
+       bulunan["sir"]["ham"] >= 2 and bulunan["kullanici"]["sinirli"] == 1 and bulunan["yok"]["ham"] == 0,
+       str(bulunan))
+    ok("4G: `Authorization:` sayaci harf duyarsiz (kucuk harfli baslik da sayilir), govdedeki sozcuk degil",
+       T.yetki_basligi(akislar) == 1 and T.yetki_basligi([b"x authorization: y"]) == 0
+       and T.yetki_basligi([b"GET / HTTP/1.1\r\nProxy-Authorization: Basic x\r\n"]) == 1,
+       str(T.yetki_basligi(akislar)))
+    ok("4G: sinirli sayim daha uzun sozcugun parcasini ayirir ('olcum-kart' 'olcum-karti' icinde)",
+       T.kayitta_ara([b"olcum-karti olcum-kart."], {"k": "olcum-kart"})["k"] == {"ham": 2, "sinirli": 1})
+    k = [KB.kayit_paketle(3, i, 7, bytes([i]) * 8) for i in range(1, 11)]
+    tam = b"".join(k)
+    farkli = b"".join(k[:5] + [KB.kayit_paketle(3, 6, 7, bytes([99]) * 8)] + k[6:])
+    a = T.akis_karsilastir(tam, tam)
+    b = T.akis_karsilastir(b"".join(k[:8]), b"".join(k[2:]))       # arsivde eski onek, taze sonek
+    c = T.akis_karsilastir(tam, farkli)
+    d = T.akis_karsilastir(b"".join(k[:4] + k[5:]), tam)              # arsivde bir sira EKSIK
+    ok("4G: akis karsilastirici — ayni akis ayni; arsivin eski oneki / tazenin yeni soneki ortak araligi "
+       "bozmaz (sayilir); TEK kayitta farkli bayt (gecerli CRC) ve arsivde eksik sira AYNI DEGIL",
+       a["ayni"] and a["tam_ayni"] and b["ayni"] and not b["tam_ayni"] and b["yalniz_pc"] == 2
+       and b["yalniz_taze"] == 2 and b["ortak"] == 6 and not c["ayni"] and c["ortak"] == 10
+       and not d["ayni"], f"{a['ayni']} {b} {c['ayni']} {d['ayni']}")
+    # gercek_dizin_koru (4G + 4H birlesik kural): geri alma YALNIZ cihaz/'da beliren dosyada; baska yerde
+    # silme yok; gercek kopru aciksa cihaz/ disindaki ve cihaz/'da VAROLAN dosyadaki degisiklik onun (yesil),
+    # cihaz/'da YENI dosya her zaman kirmizi.
+    import tempfile as _tf
+    sonuc = {}
+    for ad, acik in (("acik", True), ("kapali", False)):
+        with _tf.TemporaryDirectory() as kd:
+            kok = Path(kd)
+            (kok / "cihaz").mkdir()
+            varolan = kok / "cihaz" / "kart.json"
+            varolan.write_bytes(b"sayac=1")
+            # 1) cihaz/ disinda beliren arsiv + cihaz/'da varolan dosyanin sayaci ilerler (kopru isi)
+            koruma = {"kok": kok, "once": gercek_dizin_koru._dokum(kok)}
+            arsiv = kok / "akis-1" / "kayitlar.kyt"
+            arsiv.parent.mkdir()
+            arsiv.write_bytes(b"x")
+            varolan.write_bytes(b"sayac=22")
+            notlar = []
+            gercek_dizin_koru.denetle(koruma, lambda a, k, e="": notlar.append((k, e)), kopru_acik=lambda a=acik: a)
+            # 2) cihaz/'da YENI dosya (sahte kartin cihaz dosyasi)
+            koruma = {"kok": kok, "once": gercek_dizin_koru._dokum(kok)}
+            sahte = kok / "cihaz" / "sahte.json"
+            sahte.write_bytes(b"y")
+            notlar2 = []
+            gercek_dizin_koru.denetle(koruma, lambda a, k, e="": notlar2.append((k, e)), kopru_acik=lambda a=acik: a)
+            sonuc[ad] = (arsiv.exists(), varolan.exists(), notlar[0][0], sahte.exists(), notlar2[0][0])
+    ok("4G/4H: gercek_dizin_koru — cihaz/ disinda HIC silmez (calisan koprunun yeni arsivi olabilir); kopru "
+       "ACIKKEN cihaz/ disi + varolan cihaz dosyasinin degismesi yesil, kapaliyken kirmizi; cihaz/'da beliren "
+       "YENI dosya her durumda kirmizi ve geri alinir",
+       sonuc == {"acik": (True, True, True, False, False), "kapali": (True, True, False, False, False)},
+       str(sonuc))
+    # HIZ + 4G/4H birlesmesi: zincir/mutasyon iscisinin OZEL LOCALAPPDATA'sinda (ozel_ortam.yerel_kur
+    # isareti) gercek kopru YAZAMAZ — kopru acik olsa da cihaz/ disindaki degisiklik testin: KIRMIZI.
+    import ozel_ortam as _oo
+    import shutil as _sh
+    with _tf.TemporaryDirectory() as kd:
+        yerel = _oo.yerel_kur(Path(kd) / "yerel", None)
+        sakla = {k: os.environ.get(k) for k in ("LOCALAPPDATA", "OLCUM_PC_DIZIN", "OLCUM_CIHAZ_DIZIN")}
+        try:
+            os.environ["LOCALAPPDATA"] = str(yerel)
+            koruma = gercek_dizin_koru.koru()
+        finally:
+            for k, v in sakla.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        _sh.rmtree(koruma["gecici"], ignore_errors=True)
+        yeni = yerel / "olcum-karti" / "akis-1" / "kayitlar.kyt"
+        yeni.parent.mkdir(parents=True)
+        yeni.write_bytes(b"x")
+        notlar3 = []
+        gercek_dizin_koru.denetle(koruma, lambda a, k, e="": notlar3.append((k, e)), kopru_acik=lambda: True)
+    ok("HIZ: OZEL LOCALAPPDATA'da (zincir/mutasyon iscisi) kopru muafiyeti YOK — gercek kopru acik olsa da "
+       "cihaz/ disinda beliren dosya KIRMIZI (orada gercek kopru yazamaz); isaret iki modulde ayni",
+       koruma.get("ozel") is True and bool(notlar3) and notlar3[0][0] is False
+       and gercek_dizin_koru.OZEL_ISARET == _oo.OZEL_ISARET,
+       f"ozel={koruma.get('ozel')} {notlar3[:1]}")
+
+
 def main() -> int:
     print("=" * 78)
     print("  B22.3  PC KOPRUSU  (role · arsiv · surucu hakemi)")
@@ -1764,6 +2836,11 @@ def main() -> int:
     pc_4a_inceleme_sina(gec_dizin)
     pc_4b_sina(gec_dizin)
     pc_4c_sina(gec_dizin)
+    pc_4d_sina(gec_dizin)
+    pc_4e_sina(gec_dizin)
+    pc_4g_sina()
+    pc_4h_sina(gec_dizin)
+    pc_4i_sina(gec_dizin)
 
     k.calisiyor = False
     time.sleep(0.25)
@@ -1806,14 +2883,31 @@ def main() -> int:
          "USB kablosu takili DEGILKEN `kopru/PC Baslat.bat` (ya da `python kopru/pc.py --usb-yok`: "
          "COM portu acilmaz): akista '* kopru: ... yukari-akis WiFi' + "
          "'* kopru: WiFi baglandi', D satirlari; komut (ör. `?`) imzali gider, `p0` imzasiz. Kablo "
-         "takilinca USB'ye doner ('WiFi baglantisi kapatildi'), cekilince WiFi'ye. Kopru + karta "
-         "dogrudan 3 tarayici = 4 yuva, hicbiri reddedilmez; 5. istemci `event: dolu`"),
+         "takilinca USB'ye doner ('WiFi baglantisi kapatildi'), cekilince WiFi'ye (KALAN: kablo cek/tak elle). "
+         "Kopru + karta dogrudan 3 tarayici = 4 yuva, hicbiri reddedilmez; 5. istemci `event: dolu` — 4G'de "
+         "koşuldu (`tezgah_pc.py --o5`: kopru 1 yuva, kullanicinin Chrome'u 1, dogrudan 2, sonraki dolu)"),
+        ("4G: GERCEK KART KABULU — `python uretim/tezgah_pc.py --o3` ve `--o5`",
+         "2026-10-03 A3-4B: Ö3 11/11 (kopru 202 s kapali, bosluk 59 kayit 4.5 s'de, arsiv bagimsiz indirmeyle "
+         "bayt bayt ayni 1 311 112 B), Ö5 + izleyici + p0 14/14 (kopru<->kart kaydinda K / araci bilgisi / "
+         "Authorization 0; 6 sekme 1 yuvada; p0 5/5 204 <= 246 ms). Kopru, firmware ya da kart_wifi degisince "
+         "TEKRAR kosun. ⚠ Ö3 kullanicinin GERCEK arsivine yazar ve karta ONAY yollar; Ö5 web parolasini "
+         "yalniz OLCUM_PAROLA verilirse arar. Kopru KAPALIYKEN baslatin (betik acik kopruyu reddeder)"),
         ("4C: arka plan esitlemesi gercek kartta (ONAYLI ilk kosu bekliyor)",
          "2026-10-03 A3-4B, `pc.py --usb-yok --onaysiz` (gecici OLCUM_PC_DIZIN): 2234 kayit / 1 268 956 B / "
          "son sira 61276 / 44 oturum, kartin /kayit/listesiyle ayni, 29.6 s; canli akis hizi bosta ile ayni "
-         "(spec 4C tablosu). KALAN: varsayilan ONAYLI kosu — `Go` sonrasi /kayit/liste `onay` == son sira, "
-         "PC'deki kayitlar.kyt == kartin bolumu (tezgah_kayit.py --esit); USB takiliyken (SecmeliKart USB) "
+         "(spec 4C tablosu). ONAYLI kosu 4G'de yapildi (Go gitti, kart dogruladi, PC arsivi kartin akisiyla "
+         "bayt bayt ayni). KALAN: PC'deki kayitlar.kyt == kartin FLAS bolumu (tezgah_kayit.py --esit, COM6 + "
+         "kopru kapali); USB takiliyken (SecmeliKart USB) "
          "esitlemenin WiFi'den surdugu; kart kapatilip acilinca yeniden baglanma tetigiyle <= 10 s'de tur"),
+        ("4E: PC'de Windows bildirimi + Ö4 PC karsiligi (PC18: hedef 10 s, kabul 15 s) — GERCEK aracida",
+         "Kopru ana agactan acikken (`kopru/PC Baslat.bat`; kart eslesmis, kartta MQTT ayarli) karta kayit "
+         "baslat (`Gb1000`), kartin FISINI CEK (USB + pil kapali): saniye olcerle 'Ölçüm kartı — Karttan haber "
+         "yok' bildirimine kadar gecen sure <= 10 s hedef, <= 15 s kabul (10 tekrar; aracinin ilani ~7.5 s + "
+         "PC). Karti geri tak: AYNI bildirim 'Kart yeniden bağlandı — kayıt sürüyor' olmali (Bildirim "
+         "merkezinde tek kart). Ev interneti: modemin WAN kablosunu cek (kart ve PC ayni agda): 'Ev interneti "
+         "koptu — kart çalışıyor'. `Qt` (USB) -> 'Deneme bildirimi'. ⚠ 'Rahatsız Etmeyin' aciksa acilir "
+         "pencere CIKMAZ (Bildirim merkezine duser): Ayarlar > Sistem > Bildirimler > Öncelikli bildirimler'e "
+         "'Ölçüm kartı' eklenebilir. Araci parolalari yalniz kullanicida — olcumu kullanici yapar"),
         ("p0 (DURDUR) izleyiciden de geciyor mu",
          "Surucu OLMAYAN sekmeden pil testini durdur. Gecmeli — bu bir "
          "kolaylik degil EMNIYET karari"),

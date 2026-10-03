@@ -5,7 +5,7 @@ cd /d "%~dp0.."
 
 echo Olcum Karti PC uygulamasi baslatiliyor...
 echo   Panel: http://olcum.localhost:8770  (yalniz bu bilgisayar)
-echo   Kart USB'nin "COM" soketinde olmali; takili degilse kopru bekler.
+echo   Kart USB'nin "COM" soketindeyse USB'den, degilse WiFi'den (olcum.local) baglanir.
 echo   Arka planda zaten calisiyorsa yalniz tarayici acilir.
 echo.
 

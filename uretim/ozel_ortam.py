@@ -38,6 +38,10 @@ from pathlib import Path
 # baglanir — hedef kaynak dizinin kendisi/atasi degilse ("Application Data" -> LOCALAPPDATA
 # atlanir); bkz. yerel_kur.
 YEREL_HARIC = ("olcum-karti", "Temp")
+# Ozel dizinin kokune yazilan isaret: `gercek_dizin_koru` bunu gorunce LOCALAPPDATA'nin OZEL
+# oldugunu bilir — gercek kopru oraya YAZAMAZ, oradaki her degisiklik testin (birlesme
+# HIZ + main 4G/4H, 2026-10-03). Dosya; junction degil, ic ice kurulumda da yeniden yazilir.
+OZEL_ISARET = ".olcum-ozel-yerel"
 
 
 def baglanti_mi(p) -> bool:
@@ -119,6 +123,7 @@ def yerel_kur(yerel: Path, gercek: str | None) -> Path:
     yerel = Path(yerel)
     yerel.mkdir(parents=True, exist_ok=True)
     (yerel / "Temp").mkdir(exist_ok=True)
+    (yerel / OZEL_ISARET).write_text("dogrula3 / mutasyon iscisi ozel LOCALAPPDATA\n", encoding="utf-8")
     if gercek and os.path.isdir(gercek):
         kok = os.path.realpath(gercek)
         for g in sorted(os.scandir(gercek), key=lambda x: x.name):

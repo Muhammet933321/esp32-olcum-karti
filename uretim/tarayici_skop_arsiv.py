@@ -263,13 +263,14 @@ def main() -> int:
 
             # 🔴 ASIL IDDIA: bolum GERCEKTEN DOM'da ve GORUNUR.
             gorunur = t.js(
-                "(() => { const e = [...document.querySelectorAll('h2')]"
-                ".find(h => h.textContent.includes('Kayıtlar'));"
+                # 4D (PC12): baslik artik "Eski arşiv — ..." (sozlukten) ve data-skop-eski-arsiv isaretli
+                "(() => { const e = document.querySelector('h2[data-skop-eski-arsiv]');"
                 " if (!e) return 'baslik yok';"
                 " const s = e.closest('section');"
                 " return s.getBoundingClientRect().height > 0 ? 'gorunur'"
                 " : 'yuksekligi sifir'; })()")
-            ok("[!] Kayitlar bolumu DOM'da ve gorunur", gorunur == "gorunur",
+            ok("[!] Eski arsiv (B35) bolumu DOM'da ve gorunur; baslik 'Eski arşiv'", gorunur == "gorunur"
+               and (t.js("document.querySelector('h2[data-skop-eski-arsiv]').textContent") or "").startswith("Eski arşiv"),
                str(gorunur))
             ok("Listede 2 kayit dugmesi ciziliyor",
                t.js("document.querySelectorAll('.kayit').length") == 2,

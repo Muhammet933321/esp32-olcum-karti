@@ -104,8 +104,8 @@ kırmızı görüldü, her iddianın `4A:` önekli yalanlayan mutasyonu var.
 - **Açılış yarışının** `OSError` dalında ikinci deneme yok; kart açılışı döngü ipliğine alındığı için pencere küçüldü — kalan risk küçük.
 
 Açık kalanlar (4A dışı): `yukle.py`, `tezgah_kart.py`, `arayuz-yaz.py` kendi port seçicileriyle (`portlari_listele`)
-hâlâ VID'e bakmıyor — açma yolunda meşgul port mesajı var ama otomatik seçim eski; yerel ağ istemcisine panelde
-"salt okuma" arayüzü yok (403 metni görünür) — 4D/4F.
+hâlâ VID'e bakmıyor — açma yolunda meşgul port mesajı var ama otomatik seçim eski; ~~yerel ağ istemcisine panelde
+"salt okuma" arayüzü yok (403 metni görünür) — 4D/4F~~ (4H-7'de yapıldı).
 
 ### 4F uygulama kararları (2026-10-03)
 
@@ -164,11 +164,11 @@ B22a "4B" (seçim + `pc.py`), B22b 2d/3b/4a, B72 D0/F74/F77/F81c/F88/F91/F25, B6
 | 4B-17 | **Testler gerçek karta gitmez**: `test_kopru.py` `OLCUM_KART_HOST=127.0.0.1:9` (kapalı port) ve geçici cihaz dizini kuruyor | `pc.calistir` artık USB yoksa WiFi'yi deniyor; test makinesinin ağındaki gerçek kart (ve kullanıcının cihaz dizini) testlere karışmasın |
 
 Açık (4B dışı / sonraki dilimler):
-- **WiFi'de skop yakalaması** köprüde hâlâ `tB → t` + ASCII dökümü SSE'den topluyor; kartın akış kuyruğu (48 satır) büyük dökümde satır düşürürse yakalama "kırpık" (503). Kartın `/skop.bin`'ini imzalı vekil etmek PC11 / 4D.
+- **WiFi'de skop yakalaması** köprüde hâlâ `tB → t` + ASCII dökümü SSE'den topluyor; kartın akış kuyruğu (48 satır) büyük dökümde satır düşürürse yakalama "kırpık" (503). Kartın `/skop.bin`'ini imzalı vekil etmek PC11 / 4D — 4D'de YAPILMADI (vekil beyaz listesi `/pil`, `/kal/liste`, `/kunye.json`; açık).
 - ~~**Kayıt verisi WiFi'den** (PC6'nın ikinci yarısı) ve eşitleyicinin aynı sayaç kilidini paylaşması 4C.~~
   4C'de yapıldı (aşağıda 4C-2).
 - `ortak/src/imza.js`'te kimlik denetimi yok (panel); kart her uçta `_i` sorgu imzasını kabul ediyor (D5 #17'nin ilk yarısı).
-- Gerçek kartta: tek `ham()` yazımının IDF günlüğüyle kesişmediği, 4 izleyici + köprü, köprünün kablo çekip takmada USB ↔ WiFi geçişi (aşağıdaki tezgah listesi orkestratörde).
+- Gerçek kartta: tek `ham()` yazımının IDF günlüğüyle kesişmediği, ~~4 izleyici + köprü~~ (**4G'de koşuldu**: köprü 1 yuva, "4G gerçek kart kabulü"), köprünün kablo çekip takmada USB ↔ WiFi geçişi (elle).
 
 ### 4C uygulama kararları (2026-10-03)
 
@@ -211,7 +211,7 @@ sürüyor (her istekte yeni TCP + ad çözümü + sayaç dosyası DPAPI + fsync)
 | 4C-11 | **`Esitleyici` ek parametreleri** (`istek`, `parca_arasi`, `uyu`, `durdu`, `onay_parca`) komut satırında eski davranışta (parça başı onay, ara yok); köprü kapanırken tur parçalar arasında durur (yazılan kalıcı kalır, onay doğrulaması atlanır) | `kayit_esitle.py` CLI ve B72.E iddiaları değişmedi |
 
 Açık (4C dışı / sonraki):
-- **Gerçek karta ilk ONAYLI koşu** (varsayılan) — onay geri alınamaz sonuç doğurabildiği için orkestratörde.
+- ~~**Gerçek karta ilk ONAYLI koşu** (varsayılan) — onay geri alınamaz sonuç doğurabildiği için orkestratörde.~~ **4G'de koşuldu** (Ö3, gerçek veri dizini): `Go` gitti, kart doğruladı; arşiv kartın akışıyla bayt bayt aynı.
 - **Köprü açıkken `kayit_esitle.py` / `imza.py` CLI'si** aynı cihaz dosyasını AYRI süreçte kullanır: sayaç
   yarışabilir (aynı ms → 401). Kural: önce `pc.py --durdur`. Süreçler arası kilit yok.
 - İstek başına PC yükü (~100 ms: yeni TCP + `olcum.local` çözümü + sayaç dosyası DPAPI/fsync): keep-alive ve
@@ -219,7 +219,242 @@ Açık (4C dışı / sonraki):
 - `--kayit` (ölü tekrar) satırları da `satir\`'a yazar (eski davranış `kopru/arsiv`) — geliştirme aracı.
 - Uçtan uca ölçümde akış eşitlemeyle AYNI anda bağlanıyordu (köprü açılışı): pencere hızı 4.29/s, en uzun
   2.3 s — bağlanma payı; akış önceden bağlıyken (tablo) hız boştakine eşit.
-- Panelde eşitleme durumu (4D).
+- ~~Panelde eşitleme durumu (4D).~~ 4D'de yapıldı (4D-13).
+
+### 4D uygulama kararları (2026-10-03)
+
+Panel PC köprüsünde (`http://olcum.localhost:8770`): Kayıtlar köprünün **disk arşivini** okur ("bu PC'de"),
+Ayarlar ve Pil kartın uçlarını köprünün **imzalı vekilinden** alır, B35 satır arşivi Osiloskop'ta **"Eski
+arşiv"** başlığı altında. Köprü tarafı yeni modülde (`kopru/vekil.py`); `kopru.py`'de tek dağıtım satırı +
+`/durum`'a iki alan. Panel tarafı `ekran/depo_pc.js` (yeni, salt okuma DEPO), `ekran/esitleme.js` (kaynak kararı),
+`ekran/kayitlar.js`, `ekran/ayarlar.js`, `app.js` (pil kaynağı), metinler `ortak/src/sozluk_pc.js` (yeni).
+Sınama: B22a "4D" (12 iddia: arşiv uçları, parametre / yol içerme, kapılar, salt okuma, vekil imzası, beyaz liste,
+ortak sayaç, p0, hata JSON'u, yolsuz yanıt), B7 bölüm 33 (20 iddia), B73 `sozluk_pc.test.js`, **T4D**
+`uretim/tarayici_pc_kayit.py` (20 iddia: GERÇEK `sunucu_kur` + GERÇEK `ArkaEsitleme` turu + sahte kart + Edge).
+Her iddianın `4D:` önekli yalanlayan mutasyonu var (67).
+
+**Gerçek arşivde ölçüldü (2026-10-03, SALT OKUMA, karta hiçbir istek yok):** kullanıcının
+`%LOCALAPPDATA%\olcum-karti\arsiv\<kart>\akis-3995957410` arşivi, yukarı-akışı sahte (`KayitKart`) olan bir köprü
+(`sunucu_kur`, bu çalışma ağacından) + başlıksız Edge: Kayıtlar 44 oturumun hepsini "bu PC'de" listeledi (Python
+`kayit_bicim` çözümüyle aynı sayı), özet "1 akış · 44 oturum · 1.21 MB", ölçüm #61147 ve ayrıntılı #60089 açıldı
+(KPI'lar: 1628 nokta / 9975 örnek, firmware A3-1E / A3-1C4, "bu PC'de (köprü arşivi)"), konsol hatası yok; arşivin
+öncesi/sonrası (boy, mtime, sha256) AYNI. Grafiklerde çizgi yok — **veri öyle**: o oturumların bütün noktaları `n=0`,
+bütün ayrıntılı örnekleri `V_HATA|I_HATA` (ADS'ler o gün takılı değildi); aynı baytlar tarayıcı kopyasından da boş çizilir.
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4D-1 | **Kaynak kararı denetçide** (`EsitlemeDenetcisi.kaynak()`): sayfa döngü kökenindeyse (`localhost`, `*.localhost`, `127/8`, `[::1]`) `/durum` sorulur, `pc_arsiv === true` (ve `kart` alanı) ise kaynak **'pc'**; değilse **'tarayici'** (IndexedDB). **Kart kökeninde (olcum.local, IP) bu karar için İSTEK YOK** — kartın sunduğu panel bayt bayt bugünkü gibi. `/durum`'a `pc_arsiv` (bu istemci döngüden mi) ve `vekil` (döngü + köprünün WiFi kolu var mı) eklendi. Ağ hatası ezberlenmez | Mevcut `kopruda` bayrağı yalnız bağlanınca (`baglan` → `kopruYokla`) doluyor ve yerel ağ istemcisinde de doğru — Kayıtlar bağlantıdan bağımsız açılabiliyor, LAN istemcisi `/arsiv/*`'den 403 alırdı. Karar denetçide olduğu için beş tüketici (Kayıtlar, Karşılaştırma, Pil kaydı, Osiloskop kayıtlı yakalama, Ayarlar) prop zinciri olmadan aynı kaynağı görür |
+| 4D-2 | **PC kipinde IndexedDB hiç açılmaz;** liste yalnız PC arşivi (`nerede: 'pc'`), panel eşitlemesi yok (C1 sebebi `'pc'`, kullanıcıya hata kutusu DEĞİL), arşiv onayı kutusu ve kopya silme yok, kartın dizini (`/kayit/liste`) sorulmaz — Kayıtlar'da da Ayarlar > Depolama'da da | PC10: tek yazar Python (`esitle.kilit`'in önlediği iki yazar / iki kopya yok). Köprü kökenindeki IndexedDB'de 4D öncesi de kayıt kopyası olamazdı (C1: köprüde `/kayit/liste` 404) — kaybolan veri yok. `olcum.local` kökenindeki kopyalar ayrı köken (PC10 a) |
+| 4D-3 | **Arşiv uçları** `GET /arsiv/liste` · `/arsiv/veri?kart=&akis=&ofset=&bayt=` · `/arsiv/kal?kart=&akis=` (`kalibrasyon.json` ayrı uç: DEPO `kalOku`). Parametre KATI: kart 16 küçük onaltılık, akış/ofset/bayt baştaki sıfırsız ondalık, `bayt ≤ 4 MiB`, bilinmeyen / tekrar eden / eksik parametre 400; çözülen yol arşiv kökünün İÇİNDE (sembolik bağ ve junction dışarı çıkamaz; listede de yok). **Boy = `durum.json`'un `bayt`ı** (kalıcı önek; dosyadaki çökme kuyruğu / süren yazım verilmez), `X-Arsiv-Boy` başlığında. Yalnız bu bilgisayar (yerel ağ 403), yalnız aynı köken (CSRF 403), POST/PUT/DELETE yok, yanıtta mutlak yol yok. Liste oturum özetini Python'dan (`kayit_bicim`, boy+mtime önbellekli) verir; panel kayıtları kendi çözümüyle (`ortak/kayit.js`) kurar | 4A-16 dersi (UNC / mutlak yol arşivi ezer, `exists()` SMB açar). Kalıcı önek: Esitleyici veriyi fsync'ten SONRA `durum.json`'u atomik yazıyor. Panel aynı çözümü kullanınca kayıt görünümü, grafik, dışa aktarma, rapor, Karşılaştırma tarayıcı kopyasıyla AYNI kod yolu. Gerçek arşivde liste çözümü 1.27 MB'de ~50 ms |
+| 4D-4 | **Rota anahtarı = kartın kayıt AKIŞ kimliği** (`#/kayit/<no>@<akış>`), kart kimliği satır bilgisinde. İki kartın akış kimliği çakışırsa (olasılık ~2^-32) yalnız en yenisi listelenir | Rota, Karşılaştırma (KR1), Pil ve Osiloskop rotaları tarayıcı kopyasıyla AYNI biçimde kalır. Maliyet: çakışan eski kartın kaydı panelde görünmez (diskte durur) — açık |
+| 4D-5 | **`ekran/depo_pc.js`** `ortak/src/esitle.js` DEPO arayüzünün OKUMA tarafı (`durumOku`, `veriBoyu`, `veriOku` (2 MB'lık aralıklarla, `X-Arsiv-Boy`'da durur), `kalOku`); yazan her yöntem (`kilitAl`, `durumYaz`, `veriEkle`, `veriKirp`, `kalYaz`, `kalArsivle`) `CalismaHatasi` ile reddeder — Esitleyici bu depoyla ilk adımda durur, ağa istek gitmez. `esitleme.js` onu **dinamik** `import()` ile, yalnız 'pc' kaynağında indirir; ağ enjekte (`getir`), dosyada `fetch` yok | Kart onu hiç indirmez; Ayarlar'ın IndexedDB zinciri 6 dosya kaldı (AY4/AY5 bütçesi). Kart görüntüsüne girer (~2 KB gzip, SW izin listesi `/ekran/*.js`) — çıkarmak ölü bağlantı riski, kazancı yok |
+| 4D-6 | **EU8' (EU8'in yeniden yazımı):** köprüye özgü uçlar (`/durum`, `/devral`, `/skop/liste`, `/skop/al`, **`/arsiv/*`, `/esitleme/durum`**) imza katmanına GİRMEZ — düz `fetch(kartAdres(yol))` (`EsitlemeDenetcisi._kopruGetir`). Kartın uçları (`/pil`, `/kal/liste`, `/kunye.json`) eskisi gibi `kartIstek`'ten | Köprü panelin imzasını doğrulamaz; köprü uçlarını imzalamak sayaç harcar, köprüde anlamı yok. B7 33(e) iki yönü de ölçüyor |
+| 4D-7 | **EU9' (EU9'un yeniden yazımı):** köprü `/eslestir/*`'i **VEKİL ETMEZ** — panelin imza katmanı köprüde HER ZAMAN imzasız yola düşer (`/eslestir/bilgi` 404 → `yok`, EU9 kuralı köprü için aynen geçerli); köprü panelin imza başlıklarını (`X-Cihaz/X-Sayac/X-Imza`) TAŞIMAZ, `_c _s _i` parametresi 400; karta kendi eşleşmiş cihazıyla imzalar. "Köprüden 404 = imzasız yol" artık yalnız `/eslestir/bilgi` için: `/kal/liste`, `/pil`, `/kunye.json` köprüde 200 (vekil) ya da **502 + `X-Kopru-Vekil: hata`** (JSON sebep) döner | PC7: panelden köprü için eşleştirme yok (K tarayıcı deposuna düşmesin). Vekil `/eslestir/*`'i taşısaydı panel köprüyü kart sanıp kendi anahtarıyla imzalamaya kalkardı (B22a mutasyonu). Panel 502'yi "kart vermedi" değil "köprü karta ulaşamadı" diye yazar |
+| 4D-8 | **Vekil (PC11)** `GET /pil[?sira]`, `/kal/liste`, `/kunye.json` — beyaz liste, yalnız GET; kart doğrulaması (`WifiKart.dogrula`) 30 s yeniden kullanılır; imzalı istek `WifiKart.imzali_ac` (canlı akış ve arka plan eşitlemesiyle AYNI `Cihaz` + sayaç kilidi). Kartın 401'i → **502 `imza`** ("köprüyü yeniden eşleştirin"); 404/503 aynen; doğrulanamadı / erişilemedi / WiFi kolu yok → 502 JSON; mesajlardan mutlak yol çıkarılır (`yolsuz`). Yerel ağa kapalı (403) | 401 aynen geçseydi panel "bu tarayıcı eşleşmemiş" derdi. Donuk saatle (aynı ms) vekil + eşitleme istekleri: 401 yok (B22a). LAN telefonu karta doğrudan bağlanır (PC2) |
+| 4D-9 | **`p0` vekilde YOK, her katmanda serbest:** `/komut` → `SecmeliKart` → `WifiKart._p0` imzasız ve **sayaç kilidini beklemeden**. Ölçüldü: kart 1.5 s'de yanıtlayan bir vekil isteği kilidi tutarken p0 0.02 s'de karta ulaştı | Ö7; kalıcı kural "p0 her yeni katmanda serbest" — iddia + iki mutasyon (kilit beklemesi, p0'ın imzalanması) |
+| 4D-10 | **`/kunye.json` köprüde = KARTIN arayüz görüntüsünün künyesi** (vekil). Ayarlar etiketi "Kartın arayüz görüntüsü (panel sürümü)" — iki kökende de doğru; künye okunamazsa vekilin sebebi yazılır | 4F-5 bunu öngörmüştü (kabuk sürümü sw.js SURUM'da). ~~Köprünün sunduğu panelin kendi sürümü panelde gösterilmiyor — açık~~ (4H-8) |
+| 4D-11 | **Pil (PC11):** köprüde `/durum.vekil` doğruysa pil durum kaynağı **'http'** (`/pil` vekilden — eğri noktaları gelir); vekil 502 dönerse o bağlantıda **'satir'**a döner (sürücüyse `p` → B satırı, PU13) | PU13'te köprüde eğri yoktu. Kart WiFi'de değilse (yalnız USB) eski davranış |
+| 4D-12 | **Ayarlar:** kalibrasyon geçmişi köprüde vekilden (kaynak "kartın kalibrasyon geçmişi"); vekil 502 → sebep (JSON) + **bu PC'deki arşivin kopyası** (kaynak 'pc': kart + akış + son eşitleme; IndexedDB açılmaz). Depolama PC arşivini SALT OKUMA gösterir (silme yok, "köprü yazar, panel yalnız okur"). PC metinleri (`sozluk_pc.js`) yalnız köprüde dinamik iner | Kart kökeninde Ayarlar'ın davranışı ve Gelişmiş'in tek dosya kuralı (AY2) aynen |
+| 4D-13 | **Köprü eşitlemesinin durumu** (`/esitleme/durum`) Kayıtlar'da canlı bölgede (aria-live) tek satır: son başarılı zaman · son turda / açılıştan beri yeni kayıt · kartın son sırası · **karta onay açık/kapalı** (açıkken "kart, PC'ye kopyalanan eski kayıtları yer gerekince silebilir"); hata (sebep + kaç s sonra), atlandı, kapalı, bekliyor, alınamadı. Ekran açılınca ve Yenile'de; yoklama yok | PC9 uyarısının UI'daki yeri. Sebep metinleri köprünün ASCII Türkçesi (veri olarak) |
+| 4D-14 | **PC12:** B35 satır arşivi Osiloskop'ta **"Eski arşiv — köprünün satır günlüğündeki yakalamalar"** (sözlükten, TR+EN; `data-skop-eski-arsiv`), açıklama "salt okuma, dönüştürülmez", yer 4C'nin `olcum-karti/satir`'ı (bayat `kopru/arsiv/<gün>.satir` kalktı); kartın kendi 1C-3 skop günlükleri Kayıtlar'da | R13: iki arşiv yan yana karışmasın |
+| 4D-15 | **Metinler:** yeni metinler `ortak/src/sozluk_pc.js` (EU30 deseni: Kayıtlar zinciri statik, Ayarlar yalnız köprüde dinamik; açılışta YOK). Bayat metinler düzeltildi (TR+EN): `kl.neden_imza` (panel eşleştirmesi 3H-2'den beri var → "Ayarlar → Eşleştirme"; PC yolu `kopru/pc.py`), `kl.neden_yok` (köprünün yerel ağ adresi / geliştirme sunucusu; PC arşivi yalnız köprünün bilgisayarında), `kl.neden_usb`, `ay.kal_neden_imza`, `ay.panel`, `ay.panel_yok`. EN'de çevrilmemiş metin kilidi 274 → 272. Açılış kümesi +692 B gzip (209 211 B; EU31 259 803 ≤ 262 144) | Açılış bütçesi dar (EU31 kalan ~2.3 KB): PC metinleri açılışa girseydi ~2 KB daha yerdi. B7 iddiaları bayat metni KODLUYORDU (401 metni, WIG f) — gerekçesiyle yeniden yazıldı |
+
+Açık (4D dışı / sonraki):
+- İki kartın akış kimliği çakışırsa eski kartın PC kayıtları listede görünmez (4D-4).
+- ~~Köprünün sunduğu panelin kendi sürümü (sw.js SURUM) panelde gösterilmiyor.~~ 4H-8'de yapıldı.
+- WiFi'de canlı skop yakalaması hâlâ `tB → t` + ASCII dökümü; `/skop.bin` vekili yapılmadı (4B açık maddesi, kapsam dışı).
+- ~~Yerel ağ istemcisine panelde "salt okuma" arayüzü yok (4A'dan devreden; 403 metni görünür).~~ 4H-7'de yapıldı.
+- ~~Vekilin gerçek kartta (imzalı `/kal/liste`, `/pil`, `/kunye.json`) koşusu yapılmadı — bu dilimde karta komut / istek
+  gönderilmedi; tezgah kalemi (4G).~~ **4G'de koşuldu:** tam eşitleme sürerken üç uç ~1 s'de bir, hepsi 200 (Ö5 koşusu).
+
+### 4E uygulama kararları (2026-10-03)
+
+Köprü süreci kartın MQTT bildirimlerine **yalnız abone** olup Windows bildirimi gösteriyor
+(`kopru/pc_bildirim.py`: `Mantik` saf karar katmanı + `PcBildirim` ipliği; `kopru/windows_bildirim.py`;
+metinler `kopru/bildirim_metin.py`; `pc.bildirim_kur`). Sınama: B72.Q16 = `uretim/test_bildirim.py`
+"4E" bölümleri (sahte aracı `127.83.41.7` + imzayı doğrulayan sahte kart + gerçek `WifiKart`; karar katmanı
+sahte saatle), B22a "4E" (4 iddia: `pc.py` bağlantısı, yerel satır, `/bildirim/durum`). Her iddianın `4E:`
+önekli yalanlayan mutasyonu var (59). Testte ve zincirde GERÇEK toast yok (`OLCUM_TOAST_YOK=1`, sahte çıkış).
+
+**PC13 denemesi (ölçüldü, bu PC: Windows 11 26200, PowerShell 5.1, 2026-10-03 sabahı; iki deneme bildirimi).**
+`powershell.exe -EncodedCommand` + `[Windows.UI.Notifications.ToastNotificationManager, …, ContentType =
+WindowsRuntime]` stdlib Python'dan çalışıyor: `Show()` 0.19 s (alt süreç dahil, ikinci çağrı 0.19 s),
+`Notifier.Setting = Enabled`. **Yerinde güncelleme:** aynı `Tag='deneme'` + `Group='olcum'` ile ikinci
+`Show` sonrası `History.GetHistory` **1 kayıt**; Bildirim merkezinde tek kart, yeni metin ("2/2 — aynı
+bildirim yerinde güncellendi"). **Kaynak adı:** AUMID `OlcumKarti.Kopru`, `HKCU\Software\Classes\
+AppUserModelId\OlcumKarti.Kopru` altına `DisplayName = "Ölçüm kartı"` + `IconUri` (panel ikonu) yazılınca
+Bildirim merkezinde **"Ölçüm kartı" + dalga ikonu** (ekran görüntüsüyle doğrulandı); Başlat menüsü kısayolu
+ya da paket GEREKMEDİ. **Tarayıcı / panel kapalıyken** (o an hiç `msedge` süreci yok) bildirim çıktı.
+⚠ Kullanıcıda **"Rahatsız Etmeyin" açıktı**: açılır pencere (banner) görünmedi, bildirim doğrudan Bildirim
+merkezine düştü — Windows ayarı, kod değil (tezgah kalemi: öncelikli uygulamalara "Ölçüm kartı").
+Tepsi simgesi (`Shell_NotifyIconW`) **yapılmadı**: pencere + mesaj döngüsü ister, ucuz değil; çıkış zaten
+`Kopruyu Durdur.bat` / `pc.py --durdur`. Deneme bildirimlerinden biri ("2/2") Bildirim merkezinde duruyor.
+
+**Gerçek aracı (EMQX, 2026-10-03, kart A3-4B WiFi'de, köprü kapalıyken ayrı betikle, sahte çıkış, geçici
+önbellek dizini, hiçbir sır basılmadan):** imzalı `/bildirim/bilgi` 1 kez alındı, önbellek `OKB1` zarfı,
+aracıya yalnız abone bağlanıldı, **retained `durum` 3.4 s'de çözüldü** (`c=1 k=1 f=A3-4B`), çözülemeyen
+mesaj 0; veri dizininde, durum satırlarında ve `/bildirim/durum`'da aracı adresi/kullanıcı/parola/önek/
+anahtar YOK (bellekteki değerlerle tarandı). Yayın yapılmadı, karta komut gitmedi.
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4E-1 | **Bildirim yolu WinRT toast** (`powershell.exe` alt süreci, `CREATE_NO_WINDOW`, ayrı iplik + kuyruk); kaynak adı HKCU AUMID kaydıyla (ilk bildirimde, ikon çalışma ağacından veri dizinine KOPYALANIR); metin XML'e kaçırılıp YALNIZ base64 olarak betiğe girer, etiket/grup `[a-z0-9-]{1,16}` | PC13 ölçümü. Base64: bildirim metni (kartın şifreli yükünden gelir) PowerShell komutu olarak yorumlanamaz. Geri alma: `HKCU\Software\Classes\AppUserModelId\OlcumKarti.Kopru` anahtarını silmek. Windows dışı: bildirim akışa durum satırı (`YokBildirim`) |
+| 4E-2 | **MQTT ipliği köprü sürecinde** (`pc.bildirim_kur`, `--bildirim-yok`); bilgi kartın WiFi kolundan, **canlı akış ve eşitlemeyle AYNI `Cihaz` + sayaç kilidi** (`WifiKart.dogrula` + `imzali_ac`); `--wifi-yok`'ta da kurulur (yalnız önbellekle çalışır) | 4B-12/4C-2'nin kuralı: ayrı nesne aynı ms'de aynı sayacı üretir → 401. Kart MQTT'si köprünün yukarı-akışından bağımsız |
+| 4E-3 | **PC14 önbellek:** `/bildirim/bilgi` yanıtı AYNEN `…\olcum-karti\bildirim\<kart kimliği>.okb` (fsync + atomik); açılışta ÖNCE önbellek (kart erişilemezken de abone olunur). Yeniden alma YALNIZ: (a) zarf çözülemedi, (b) CONNACK 4/5, (c) kart çevrimiçi görünürken `durum` konusu **180 s sessiz** — ve yalnız kart erişilebilirse; (a)/(b) en sık 60 s'de bir, (c) 30 dk'da bir. Erişilemezse eldeki bilgiyle devam | (c) eklendi: `QR!` **öneki de değiştirir** — eski konu yalnız susar, çözme hatası hiç olmaz (eski retained durum eski anahtarla çözülür). Kart 60 s'de bir durum yolluyor; vasiyet geldiyse sessizlik beklenen, tetiklemez |
+| 4E-4 | **Sır disiplini:** çözülmüş adres/kullanıcı/parola/önek/anahtar yalnız bellekte; hata metinleri istisnadan DEĞİL sınıftan (`hata_sinifi`: ssl hatası aracı adını taşır); her durum metni ayrıca bellekteki sırlardan arındırılır; iplik istisnayı yakalar, iz yazmaz; `/bildirim/durum` önek dahil hiçbir sır taşımaz. Diskte yalnız `OKB1` zarfı + son `(a, n)` | Ö5 kapsamı (MQTT bilgisi). Test veri dizinini, durum satırlarını, `/bildirim/durum`'u, bildirim metinlerini ve konsolu parola/adres/kullanıcı/önek/anahtar/K için tarıyor |
+| 4E-5 | **Sınıflar ve ayar:** `kopuk`, `bitti`, `dolu`, `esik`, `yeniden_basladi` (§8'in beşi) + `kacirilan`, `deneme`; `ayar.json` `"bildirim": {...}` (true/false, yoksa açık), `"bildirim_dil": "tr"|"en"`. Bozuk dosya / biçimsiz değer → o sınıf AÇIK (+ uyarı). Yazma `pc_bildirim.ayar_yaz` (CLI `python kopru/pc_bildirim.py ayar kopuk=0 dil=en`): 4C anahtarlarıyla **birleştirir**, bozuk dosyanın üstüne YAZMAZ | 4C'nin tersi güvenli taraf: kaybolan bildirim, fazla bildirimden pahalı. Panelde ayar arayüzü YOK (sonraki dilim; panelin "Bildirimler (MQTT)" metni kartın `Q` ayarı hakkında, hâlâ doğru — değişmedi) |
+| 4E-6 | **"Karttan haber yok" yalnız kayıt sürerken** (son bilinen kayıt durumu `k ∈ {2 KAYIT, 4 BEKLIYOR}`; yerel `G` satırı ile aracının `durum`'undan HANGİSİ daha yeniyse); tek bildirim, etiket `baglanti`: vasiyet/`{c:0}` → kart yerelde görünüyorsa (son kart satırı ≤ 15 s) **"Ev interneti koptu — kart çalışıyor"**, değilse "Karttan haber yok"; durum değişince AYNI bildirim güncellenir; kart dönünce "yeniden bağlandı — kayıt sürüyor/sürmüyor". Retained `{c:0}` her yeniden bağlanmada tekrar açılmaz | §8. Yerel erişim = köprünün yukarı-akışından satır gelmesi (USB ya da WiFi). Köprü açılırken retained `c:0` ve kayıt bilinmiyorsa bildirim yok |
+| 4E-7 | **Yalnız yerel yol** (aracı yok / bağlı değil / kart hiç durum yollamadı): kayıt sürerken kart satırları **20 s** susarsa "Karttan haber yok — yerel bağlantı da koptu" (aynı etiket), dönünce "yeniden bağlandı" | Kartta MQTT ayarsızken de PC uyarır |
+| 4E-8 | **PC16 yineleme:** MQTT içinde `(a, n)` (son 1024); yollar arası aile + `a` (iki tarafta biliniyorsa) + `oturum` (iki tarafta biliniyorsa; yoksa ≤ 120 s) + 15 dk pencere. Ayrıntı sırası yerel `G` geçişi (1) < `kayit_bitti`/`dolu` (2) < `pil_bitti` (3): daha ayrıntılı ikinci haber AYNI bildirimi **sessizce** (`SuppressPopup`) günceller, eşit/az ayrıntılı düşer. `kayit_bitti` sebep 2 → `dolu` sınıfı, sebep 5 → `yeniden_basladi` ("<tür> kesildi, son haber <saat>"), sebep 4 → `pil_bitti` ile birleşir | Bellek dolunca kart `kayit_bitti(2)` + `dolu` + yerel `G 3` üretir → tek bildirim. Yerel yol kartın kendiliğinden bastığı `G` satırından (yeni kanal yok); köprü `satir_oku`'yu sarar, `Kopru.dongu` değişmedi |
+| 4E-9 | **`basladi`:** yalnız `devam=1` bildirilir ("kayıt kesildi ve sürüyor"); düz açılış bildirim değil; kesilen oturum ardından gelen `kayit_bitti` sebep 5 ile | Her açılışta bildirim gürültü olurdu; spec §8 "kayıt kesildi ve sürüyor / pil testi şu saatte kesildi" |
+| 4E-10 | **PC15 kaçırılanlar:** kalıcı oturum YOK (temiz oturum, rastgele kimlik); aynı açılışta `n` boşluğu, yeni açılışta `1..n-1`, köprü yeniden açılınca diskteki son `(a, n)`'den — "N olay kaçırıldı" tek bildirim (etiket `kacirilan`, birikerek); önceki çalışmada görülen olay yeniden bildirilmez | Olayların içeriği kayıp (aracı saklamaz); ayrıntı eşitlenen kayıtlarda. EMQX'in kalıcı oturumu ölçülmeden kullanılmadı |
+| 4E-11 | **`GET /bildirim/durum`** (yalnız bu bilgisayar, yerel ağ 403): `etkin`, `bilgi` (yok/önbellek/karttan), `abone`, `kart_cevrimici`, `kayit_suruyor`, `yerel_erisim`, son mesaj/olay zamanı ve türü, `kacirilan`, `baglanti_bildirimi`, `ayar`, `dil`, `bildirim_yolu`, `mesaj` (arındırılmış). Kurulmadıysa `etkin:false` + `neden` | 4C-7 deseni; sonraki panel bölümü buradan beslenir |
+| 4E-12 | **Metinler** `bildirim_metin.py`: `sebep.*` / `pil.durum.*` / `oturum.tur.*` `ortak/src/sozluk.js` ile AYNI anahtar ve metin (test sözlüğü okuyup karşılaştırır), bildirime özgüler `bld.*`; firmware'in her olay adı (`bildirim.h`'den okunur) için TR+EN | Panel ve PC aynı kelimeyi kullansın; Python'dan JS modülü okumak yerine kopya + eşitlik testi (stdlib, derleme yok) |
+
+**PC18 (Ö4'ün PC karşılığı): hedef 10 s, kabul 15 s — ÖLÇÜLMEDİ.** Aracı parolaları yalnız kullanıcıda;
+tezgah kalemi B22a listesinde ("4E: PC'de Windows bildirimi + Ö4"): kayıt sürerken kartın fişini çek →
+"Karttan haber yok" bildirimine kadar süre (10 tekrar; aracının ilanı ~7.5 s + PC), geri tak → aynı
+bildirim "yeniden bağlandı", modem WAN'ı çek → "Ev interneti koptu", `Qt` → "Deneme bildirimi".
+
+Açık (4E dışı / sonraki):
+- ~~Panelde bildirim bölümü (durum + aç/kapa; `POST` ucu YOK — yazma şimdilik CLI ve `ayar.json`).~~ 4H'de yapıldı
+  (`POST /bildirim/ayar`, Ayarlar > Gelişmiş).
+- Tepsi simgesi (çıkış menüsü) yapılmadı; "Rahatsız Etmeyin"de banner çıkmaz (kullanıcı ayarı); `scenario="urgent"`
+  denenmedi.
+- Ö4 PC ölçümü (yukarıda), E7 (`basladi` kaybı) gerçek aracıda yeniden gözlenmedi.
+- Yerel yol yalnız `G` satırından: kartın açılış afişi ("yeniden başladı") yerel olarak bildirilmiyor (MQTT'den geliyor).
+- `esik` yalnız MQTT'den (eşik değeri kartta); yerel `G`'nin `onaysiz` alanından türetilmedi.
+
+### 4G gerçek kart kabulü (2026-10-03)
+
+Araç `uretim/tezgah_pc.py` (`--o3`, `--o5`; zincirde değil, saf yardımcıları B22a "4G"de). Kart `A3-4B`,
+WiFi, ADS takılı değil, eşleşmiş cihazlar "Desktop" + "PC-kopru", `zorunlu=0`. Karta yalnız `?`, `G?`,
+`Gb200`, `Gd`, `Ga`, `Gn`, `p0` gitti; flaş yazılmadı. Ayrıntılı sayılar DEVIR 5.12.92.
+
+| Kalem | Sonuç |
+|---|---|
+| **Ö3** uzun kopukluk | `pc.py --usb-yok` GERÇEK veri dizini, varsayılan ONAYLI: test oturumu "4G kabul" (`Gb200`); köprü **202 s kapalı** (kart kaydetti), yeniden açılınca ilk turda **59 kayıt / 40 340 B, 4.5 s**; `Gd` + son tur: onay gitti, kart doğruladı. Köprü kapalıyken bağımsız indirme (2299 kayıt, 22.2 s): PC arşivi **bayt bayt aynı** (1 311 112 B, sıra 59043–61341). 11/11 |
+| **Ö5** trafikte sır yok | Köprü ↔ kart arasına bayt kaydeden TCP rölesi (Host satırı karta kendi adıyla yazılır — kart başka Host'u 403 ile reddediyor): 288 istek / 1.56 MB (akış, 7 komut, 164 parça tam eşitleme, vekil, `/bildirim/bilgi`). K, aracı adresi/sunucu/kullanıcı/parola, konu öneki, yük anahtarı (ham / onaltılık / base64 / yüzde kodlu) **0**, `Authorization:` **0**, köprü konsolunda da 0; pozitif denetim: kart kimliği 6 kez, `/bildirim/bilgi` yanıtı `OKB1` zarfı. Web parolası ARANMADI (`OLCUM_PAROLA` verilmedi). Kayıt silindi |
+| **4 canlı izleyici** | 6 tarayıcı sekmesi (2 başlıksız Edge) + komut istemcisi köprüden akış alıyor (her sekme 4 s'de 78–97 `D`), köprü kartta **1 yuva**; kalan 3 yuvanın 1'ini kullanıcının Chrome'u tutuyordu, 2 doğrudan istemci veri aldı, sonraki **`event: dolu`**. Kapanan doğrudan istemcinin yuvası 0.2–0.45 s'de boşaldı (4B açık maddesi) |
+| **p0 yük altında** | Tam eşitleme + vekil (~3 istek/s) + 6 izleyici sürerken sekmeden 5/5 **204, 45–246 ms** |
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4G-1 | **`p0` canlı akışın KARŞI ADRESİNE gider** (`WifiKart._ip`, akış açılınca `getpeername`, kopunca silinir); 2 s'de yanıt yoksa ada geri düşer | **Bulunan kusur:** Windows `olcum.local`'ı ~8 s'de bir yeniden çözüyor ve o çözüm 2.7 s sürüyor (30 çözümde 2694/2726 ms) — p0 panelden karta **2.77 s**'de ulaşıyordu (Ö7). Düzeltmeden sonra gerçek kartta 30/30 p0 28–117 ms. Kart kendi IP'sini Host olarak kabul ediyor. B72.W4b + 4 mutasyon. İmzalı istekler / eşitleme hâlâ adla (istek başına çözüm — açık) |
+| 4G-2 | **Akış soketi istekten hemen sonra tutulur** (`_akis_soket`) | `http.client` uzunluksuz SSE yanıtında `HTTPConnection.sock`'u None yapıyor: 4B-8'in 40 s okuma zaman aşımı HİÇ uygulanmıyordu (soket 10 s'de kalıyordu), `kapat()` bekleyen okumayı kesemiyordu. B72.W4b ölçüyor |
+| 4G-3 | **`gercek_dizin_koru` kullanıcının köprüsü açıkken geri alma YAPMAZ** (iddia yine kırmızı, sebebini söyler). *Birleştirmede 4H ile tek kurala indi: geri alma yalnız `cihaz/`'da beliren dosyada; köprü açıkken onun değişiklikleri yeşil, `cihaz/`'da yeni dosya her zaman kırmızı (4H Açık maddesi).* | Köprü (Başlangıç kısayolu, varsayılan onaylı) de bu dizine yazar; test sırasında beliren yeni `akis-<n>` / `.satir` / bildirim önbelleği SİLİNİYORDU — onaylı kayıt kartta da temizlenebilir: veri kaybı. Ö3 sırasında oldu: başka bir koşunun `test_kopru.py`'si köprünün gerçek bildirim önbelleğini sildi. B22a + mutasyon |
+| 4G-4 | **Tezgah aracının sızıntı sayımı yalnız KENDİ Edge profillerini sayar** | `olcum-edge-` öneki ortak: başka bir koşunun tarayıcısı "sızıntı" sanılıyor (ve elle temizlik onu öldürür — bu oturumda oldu) |
+
+Açık (4G sonrası, kullanıcı):
+- `Ez1` önerildi, AÇILMADI (DEVIR 5.12.92: USB adımları + sonucu).
+- Ö4 PC karşılığı (PC18), kablo çekip takmada USB↔WiFi geçişi, Başlangıç kısayolu kurulumu — elle.
+- ~~İmzalı istek ve eşitleme her istekte `olcum.local`'ı çözüyor (keep-alive yok): 4G-1'in IP yolu genelleştirilebilir.~~
+  **4J'de yapıldı** (aşağıda): bütün kart istekleri öğrenilmiş adrese; tam eşitleme 23.6–26.4 → 18.4–18.5 s.
+
+### 4H uygulama kararları (2026-10-03)
+
+Alt proje 4'ün artıkları: panelde **"Bildirimler (bu bilgisayar)"** bölümü (köprünün `GET /bildirim/durum`'u + yeni
+`POST /bildirim/ayar`), yerel ağ istemcisine çevrilmiş **"salt okuma"** uyarısı, Gelişmiş'te köprünün sunduğu **kabuk
+sürümü**. Hepsi YALNIZ köprüde: kartın sunduğu panel bu kod için ne istek atar ne modül indirir. Sınama: B22a "4H"
+(7 iddia), B7 bölüm 34 (13 iddia), T4D `tarayici_pc_kayit.py` (+4: GERÇEK köprü + Edge; seçim gerçek `POST` ile
+`ayar.json`'a birleşir, gerçek yeniden yüklemede korunur, LAN istemcisi bölümü görmez ve çevrilmiş uyarıyı görür).
+Her iddianın `4H:` önekli yalanlayan mutasyonu var (37).
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4H-1 | **Bölüm Ayarlar > Gelişmiş'te** (yeni bir Ayarlar sekmesi değil), kartın arayüz sürümü kartının altında ayrı kart; kabuk sürümü aynı `dl`'de kartın arayüz görüntüsü satırının hemen ardında | Sekme listesi (`AYAR_BOLUMLERI`) `app.js`'te, yani açılış kümesinde ve KARTTA da görünür; Gelişmiş zaten "sürüm ve tanı" ve tembel modülde. Maliyet: bildirim ayarı bir tık daha derinde |
+| 4H-2 | **Karar 4D'ninki:** `EsitlemeDenetcisi.kaynak() === 'pc'` (döngü kökeni + `/durum` `pc_arsiv: true`). Kart kökeninde Gelişmiş bu karar için `esitleme.js`'i bile indirmesin diye `ayarlar.js`'te `kopruKokeni` (= `kokenSinama`, B7 13 vektörle eşitliği ölçer) önce bakar | AY2 (Gelişmiş kartta TEK dosya) korunur. Maliyet: kural iki yerde — eşitlik iddiası + mutasyonu var. Yerel ağ istemcisi ve geliştirme sunucusu 'tarayici' → bölüm yok |
+| 4H-3 | **Yeni modül `ekran/pc_kopru.js` yalnız dinamik:** `ayarlar.js` `_pcKopruAl` (köprüde, Gelişmiş açılınca) ve `app.js` `_pcKopruAl` (yalnız işaretli 403'te). Metinler `sozluk_pc.js`'te (24 yeni anahtar, TR + EN); yeni CSS yok (mevcut `skop-kume`/`skop-secim`/`skop-alan`/`ay-*`) | Açılış kümesi yalnız `app.js`'in ~10 satırı kadar büyüdü (+193 B gzip): `#/skop` 250 601 → 250 794 (≤ 256 000), EU31 259 803 → 259 996 (≤ 262 144), açılış 209 211 → 209 404. `ayarlar.js` 10 692 → 11 154 B (≤ 12 KB). `pc_kopru.js` 3 824 B kart görüntüsüne girer (4D-5 deseni; SW izin listesi `/ekran/*.js`); görüntü 411 814 → 417 627 B (%68) |
+| 4H-4 | **`POST /bildirim/ayar`** kapıları `/kapat` ile aynı sırada: `X-Olcum` yoksa 400 → yerel ağ 403 (işaretli) → başka köken 403 → gövde `application/json` değilse 415 → KATI doğrulama (`pc_bildirim.ayar_istegi_coz`) 400 → `ayar_yaz` (bozuk dosya 409, üstüne yazılmaz). Gövde ≤ 512 B; yalnız `bildirim` (bilinen sınıf → `true`/`false`) ve `dil` (`tr`/`en`); tekrarlanan anahtar, NaN, boş değişiklik, dizi ret; hata metni gövdeyi YANKILAMAZ. Yanıt yalnız `ayar`, `dil`, `ayar_uyari` | Sır yazılamaz: bu yoldan `ayar.json`'a aç/kapa ve dilden başka hiçbir şey giremez (parola/aracı adresi denemesi 400, dosya bayt bayt aynı — B22a). Aracı parolaları kartta, yalnız USB (1E K9). `ayar_yaz` 4C anahtarlarını ve kullanıcının elle yazdığı anahtarları korur (birleştirir) |
+| 4H-5 | **Tek değişiklik yollanır** (`{"bildirim":{"kopuk":false}}` ya da `{"dil":"en"}`), bütün tablo değil; köprü reddederse sebep yazılır ve durum köprüden YENİDEN okunur. İstemci aynı kuralla doğrular (geçersiz istek ağa gitmez) | İki sekme ya da CLI (`pc_bildirim.py ayar`) aynı anda değiştirirse birbirinin seçimini ezmesin. Bildirim ipliği ayarı her kararda dosyadan okur — kayıt hemen geçerli |
+| 4H-6 | **`/bildirim/durum` iplik kurulmamışken de** (`--bildirim-yok`, `--kayit`) `ayar`/`dil`/`ayar_uyari` verir | Bölüm "kapalı (sebep)" der ama seçimler görünür ve değiştirilebilir; bir sonraki açılışta geçerli |
+| 4H-7 | **Yerel ağ reddi işaretli: `X-Kopru-Ret: lan`** — yalnız `LAN_RET`'li 403'lerde (`/komut` p0 dışı, `/devral`, `/kapat`, `/skop.bin`, `/esitleme/durum`, `/bildirim/*`, `/arsiv/*` + vekil). Çapraz köken, "sürücü değil", E/Q retleri İŞARETSİZ. Panel (`app.js` `lanUyarisi`, komut ve devralma) işaretli 403'te ham metin yerine çevrilmiş "yerel ağdan salt okuma — DURDUR (p0) her zaman geçer; komut için köprünün bilgisayarında ya da karta doğrudan (olcum.local)" | Metne bakmak köprünün ASCII Türkçe metnine, durum koduna bakmak "sürücü değil"i de kapsamaya bağlanırdı. Kart başlığı hiç yollamaz → kartta modül inmez. `p0` serbestliği değişmedi (B22a yine ölçüyor) |
+| 4H-8 | **Kabuk sürümü `/durum` `kabuk`** (sw.js `SURUM`, her istekte dosyadan okunur) | Panel güncellenip köprü yeniden başlatılmadan da doğru sürüm. Kartın künyesi (4D-10) ile kabuk sürümü farklı kapsamdan hesaplanır (kabuk `cevrimdisi.html`'i de içerir) — ikisi eşit OLMAZ, karşılaştırma değil bilgi |
+| 4H-9 | **Yerel ağ istemcisinin Gelişmiş'inde künye satırı "HTTP 403"** (vekil yerel ağa kapalı, 4D-8) — dokunulmadı | `ayarlar.js` bütçesi (≤ 12 KB) dar; künye satırı tanı bilgisi, işlevsel kayıp yok |
+
+Açık (4H dışı):
+- ~~**Köprü sürücü jetonunu kapanmış sekmede tutuyor:** köprüde sayfa yeniden yüklenince yeni sekme İZLEYİCİ, açılış
+  komutları (`?`) 403 "sürücü değil" (4H'den önce de böyle; T4D bunu beklenen hata sayıyor). Çözüm adayı: SSE abonesi
+  kopunca sürücüyü bırakmak (yarış ve p0'a etkisi ölçülerek) — ayrı dilim.~~ **4I'de yapıldı** (aşağıda).
+- Gerçek köprüde (Windows toast) bir sınıf kapatılınca o bildirimin gerçekten gelmediği: tezgah (`Qt` + "Deneme
+  bildirimi" kutusu kapalıyken bildirim çıkmamalı).
+- ~~`gercek_dizin_koru` geri alması, aynı anda GERÇEK bir köprü / tezgah koşusu varsa onun yeni dosyalarını da siler
+  (4H sırasında bir kez `bildirim\<kart>.okb` önbelleği silindi; köprü karttan yeniden alır). Testleri yalıtılmış
+  `LOCALAPPDATA` ile koşmak ya da korumanın çalışan köprüyü (127.0.0.1:8770) görünce geri almaması gerekir.~~ **Birleştirmede (`birlesik-4`) kapandı:** 4G-3 ile tek kural — geri alma YALNIZ `cihaz/`'da beliren dosyada, başka yerde silme yok; gerçek köprü 8770'te yanıt verirken `cihaz/` dışı ve var olan cihaz dosyasının değişmesi beklenir (yeşil), `cihaz/`'da YENİ dosya her zaman kırmızı.
+
+### 4I uygulama kararları (2026-10-03)
+
+**Kusur (4H'de bulundu):** köprü sürücü jetonunu, sekmesi yenilenen ya da kapanan istemcide tutmaya devam
+ediyordu. `EventSource` başlık gönderemediği için yenilenen sekme `/akis`'te YENİ jeton alır → yalnız izleyici;
+açılış komutları (`?`, `CT`, `G?`) ve kullanıcının her işlemi 403 "sürücü değil", ta ki elle devralana dek.
+Gerçek tarayıcıda (T4A, düzeltmeden önce) ölçüldü: yenilemeden sonra `?`/`CT`/`G?` üçü de 403, panelde
+"Komut gönderilemedi (403)".
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4I-1 | **Köprü her `/akis` bağlantısını kaydeder** (`Kopru.akis_kaydet` / `akis_bitti`: jeton, soket, kuyruk, yerel mi, sıra no). İşleyici kuyruğu 15 s yerine **0.5 s** (`AKIS_YOKLAMA_S`) aralıkla bekler ve her turda soketi yoklar (`soket_kapali`: `select` + `recv(MSG_PEEK)` = 0 bayt → karşı taraf kapattı); kalp atışı yine 15 s sessizlikte (`KALP_S`) | Kart boştayken akışa satır gelmez: kopuş yalnız yazma hatasında görülseydi 15 s'lik kalp atışına kalırdı. Ölçülen devir 0.26–0.44 s (hedef ≤ ~2 s). Bedel: bağlantı başına 0.5 s'de bir `select` |
+| 4I-2 | **Politika: sürücünün BÜTÜN `/akis`ları kapandıysa rol en YENİ yaşayan YEREL akışa geçer** (`surucu_yokla`), o akışa `event: kimlik {"jeton", "surucu": true}` gider ve herkese `* kopru: surucu degisti`. Yoklama üç yerde: yeni `/akis` kaydında (yenilenen sekme ilk `kimlik`inde sürücü — eski soket o anda zaten kapalı görünüyor), bir akış bitince, ve izleyicinin komutu reddedilmeden hemen önce (işleyici kopuşu henüz fark etmemişse) | "Bırak + sonraki komut alsın" yerine devir seçildi: açık kalan izleyici sekme rolünü yeniden yüklenmeden öğrenir (panelin mevcut `kimlik` dinleyicisi her olayı işliyor — **`app.js` değişmedi**). En yeni sekme: yenileme sonrası kullanıcının baktığı sekme odur |
+| 4I-3 | **Aday yoksa rol boşta bekler** (`surucu` eski jetonda kalır, ölü): sonraki yerel `/akis` ya da yaşayan yerel sekmenin komutu alır. `surucu = None`'a düşülmez | `None` "her yerel istemci komut verebilir" demek (köprü yeni açılmışken bugünkü davranış); kapanan bir sekme yüzünden jetonsuz/yabancı jetonlu komutlara kapı açılmasın. Ölü jeton komut verebilir ama sahibi kapalı bir sekme (yalnız bu bilgisayarda bilinen sır) |
+| 4I-4 | **Sürücü yaşıyorsa HİÇBİR şey değişmez**: iki açık sekme arasında sessiz çalma yok; yeni açılan sekme izleyici, açık yol yine `/devral` | Bugünkü tek-sürücü anlamı korunur |
+| 4I-5 | **Güvenlik aynen:** LAN (döngü dışı) akış ASLA aday değil (4A PC2); çapraz köken `/akis` CSRF kapısında 403, jeton/kayıt yok (4A-14); `p0` her durumda jetonsuz serbest; hiç `/akis`'i olmamış jeton (araç, test) ölü sayılmaz | Her biri B22a iddiası + `4I:` mutasyonu |
+
+Sınama: B22a "4I" bölümü 9 iddia (ham soketli açık akışlar: yenileme, ≤ 2 s devir ve en yeni sekme, iki açık sekme,
+`/devral`, LAN, CSRF, `p0`, komut anında yoklama `socketpair` ile); B22a 166 → 175. Önceki bir B22a iddiası (4A
+inceleme: "aynı köken + adres çubuğu, ilki sürücü") ilk akışı KAPATIP ikinciyi açıyordu — artık ilk akış açık tutuluyor
+(kapansaydı rol doğru olarak ikinciye geçerdi). T4A +3 (gerçek Edge: panel yenilenir → sürücü, `?`/`CT`/`G?` 204;
+açık izleyici panel, sürücü sekme kapanınca yeniden yüklenmeden 0.26 s'de sürücü). Mutasyon `4I:` 14.
+
+Açık: kartın kendi web sunucusundaki tek-sürücü kuralına dokunulmadı (bu dilim yalnız PC köprüsü). İki gerçek
+Edge sekmesiyle (yenileme sırasında öteki sekme açıkken) ölçülmedi — B22a ham soketle, T4A tek sekme + ham soket.
+
+**4I-6 (inceleme düzeltmesi, 2026-10-03): yeniden yükleme penceresi.** İnceleme 4I-2'nin gerekçesini çürüttü:
+İKİNCİ yerel sekme açıkken sürücü yenilenince eski akışın işleyicisi kapanışı ≤ 0.5 s'de fark edip rolü HEMEN
+o arka sekmeye veriyordu; yenilenen sekmenin yeni `/akis`'i pratikte hep bundan SONRA geliyor (ölçülen gecikme
+0…1.5 s'nin hepsinde) → 4I-4 "çalma yok" → yenilenen sekme izleyici, açılış komutları 403. Karar: sürücünün
+akışları kapalı bulununca **`AKIS_DEVIR_BEKLE_S` = 3 s pencere** açılır. Pencere içinde rol yalnız YENİ kaydolan
+yerel akışa (yenilenen sekme) geçer; açık sekmelere verilmez. Pencere dolunca zamanlayıcı yeniden yoklar ve rol
+4I-2'deki gibi en yeni yaşayan yerel akışa geçer. Pencere içinde açık bir sekmenin komutu pencere sonunu bekler
+(en fazla ~3 s): yenilenen sekme gelirse 403, gelmezse rol ona geçer ve komut 204. Bedel: sürücü sekme gerçekten
+KAPATILINCA açık izleyici rolü ~3.5 s'de alır (eskiden 0.26–0.44 s). 3 s gerekçesi: yeni `/akis` panel betikleri
+yüklendikten sonra açılıyor; yerelde < 1.5 s ölçüldü, pay iki katı. Sınama: B22a 1b (ikinci sekme açıkken
+yenileme, 0 / 0.8 / 1.5 s gecikme) + 6 (komut pencereyi bekler) + 6b (pencerede yeni sekme gelirse bekleyen
+komut 403) → B22a 175 → 177; T4A'nın yenilemesi artık ikinci (ham soket) yerel sekme AÇIKKEN yapılıyor.
+Mutasyon `4I:` 14 → 20 (pencere yüzünden metni değişen üç eski mutasyon güncellendi; LAN iddiası artık pencere sonrasını da bekliyor).
+
+### 4J uygulama kararları (2026-10-03) — köprünün kart isteklerinde ağ hızlandırması
+
+Ölçüm gerçek kartta (`A3-4B`, WiFi, bu PC cihaz 2; karta yalnız `/eslestir/bilgi`, imzalı `/kayit/*`, `G?`,
+`p0` — eşitleme ONAYSIZ, geçici veri dizini, cihaz dosyasının KOPYASIYLA) önce/sonra dönüşümlü, aynı makine
+yükünde. Ayrıntı DEVIR 5.12.95.
+
+| Ölçü | Önce (HEAD 9e4eb13) | Sonra (4J) |
+|---|---|---|
+| Tam eşitleme, 2299 kayıt / 1 311 112 B / 165 imzalı istek (taban 165 × 100 ms = 16.5 s) | **23.57 · 26.37 · 24.82 s** | **18.41 · 18.35 · 18.53 s** |
+| Eşitlemede istek başı (100 ms ara dahil) | 143–160 ms | 111–112 ms |
+| İmzalı komut `G?` (12'şer, 1 s arayla) | ortanca 60–131 ms; **2.7–2.8 s takılma 6/60** | ortanca 114–127 ms; en kötü **149 ms**, takılma **0/48** |
+| İmzalı `/kayit/liste` (kartta 350–600 ms sürüyor) | **3.0–3.2 s takılma 5/40** | en kötü 634 ms, takılma **0/32** |
+| `/eslestir/bilgi` | 2.75–2.80 s takılma her 8'de 1–2 | yalnız sürecin İLK ad çözümü (2.8 s; bir kez 7.5 s), sonra 30–150 ms |
+| `p0` (akış açık) | 20–59 ms | 22–66 ms (yol değişmedi) |
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4J-1 | **Bütün kart istekleri `WifiKart._karsi`'ye (öğrenilmiş adres) bağlanır**: açık `/eslestir/bilgi`, imzalı `/akis`, `/komut`, `/saat`, eşitleme `/kayit/*` `/kal/liste`, vekil, `/bildirim/bilgi` — hepsi `imzali_ac` / `dogrula` / `_akis_iste` üzerinden, TEK yer `_baglan` (`_KartBaglantisi.connect`). Adres, ad ile kurulan HER bağlantının karşı ucundan öğrenilir | Takılmanın kaynağı ağ değil Windows'un `olcum.local` yeniden çözümü (~8 s'de bir, 2.7 s; 4G). Eşitlemede ~3, her ~8 imzalı istekte 1 takılma vardı |
+| 4J-2 | **`Host:` başlığı ad olarak kalır** (URL değişmez; yalnız TCP hedefi IP) | Kart yabancı Host'u 403 ile reddeder (DNS rebinding koruması). Ad/IP ayrımı TCP katmanında kalınca imza, URL, vekil, sorgu kodlaması hiç değişmedi |
+| 4J-3 | **Öğrenilmiş adres en çok 2 s denenir; bağlantı KURULAMAZSA bir kez ad, adres tazelenir** | Yalnız bağlantı kurulamaması geri düşürür — istek henüz gönderilmemiştir: imzalı istek karta iki kez ulaşmaz (B72.W15: 401 yok, komut tek). Kart yeni IP alınca tek istek ≤ 2 s kaybeder |
+| 4J-4 | **Kimlik denetimi aynen; öğrenilmiş adreste kart doğrulanamazsa adres UNUTULUR, ad ile bir kez daha** (`dogrula`) | IP'ye körlemesine güvenilmez: eski adresi başka bir cihaz aldıysa `/eslestir/bilgi` kimliği cihaz dosyasına uymaz; ona imzalı istek gitmez (B72.W16). Her eşitleme turu ve her akış bağlantısı `dogrula`'dan geçiyor |
+| 4J-5 | **Keep-alive YOK** | Ölçüldü: kart `Connection: keep-alive` isteğine `Connection: close` ile yanıt veriyor ve soketi kapatıyor (ESP32 `WebServer`), ikinci istek 0 B. Kart tarafı değişmedi; bağlantı tutulmuyor (kartın sınırlı soketi/yuvası meşgul edilmez) |
+| 4J-6 | **Sayaç blok ayırma YAPILMADI** | Ölçüldü: `sonraki_sayac` (DPAPI 0.33 ms + mkstemp + fsync + replace) **3.6–4.8 ms** — 100 ms aralı istekte %4; asıl maliyet ağdı. Ayrıca sayaç zaman tabanlı (`max(son+1, unix_ms)`) ve kartın penceresi 64: ileriye ayrılan blok, aynı cihaz dosyasını kullanan İKİNCİ bir süreci (ör. `imza.py liste`) kopru sayacının 64 ötesine atıp köprünün isteklerini 401'e düşürürdü. Kazanç küçük, risk gerçek |
+| 4J-7 | **B72.A6 aralığı İSTEMCİNİN gönderme anında ölçer** (`imzali_ac` sarmalayıcısı), eşik 98 ms (100 ms tavanı, 2 ms saat payı) | Kartın varış anıyla ölçülünce yüklü makinede ilk isteğin varışı gecikiyor, ara 81–82 ms görünüyordu: iddia zamanlayıcıyı değil makine yükünü sınıyordu. Yalanlayıcı: tavan yarıya (50 ms) — kesin kırmızı |
+| 4J-8 | **`p0` 4G yolunda kaldı** (akışın karşı adresi `_ip`, Host IP, ≤ 2 s sonra ad; imzasız, ücretsiz) | İstenen: p0 yolu değişmesin. Ölçüm 22–66 ms |
+
+Testler: B72.W14 (bütün istekler öğrenilmiş adrese, ad bir kez, Host ad), W15 (ölü adres → bir kez ad, tek
+istek, 2 s sınırı, tazeleme), W16 (eski adreste yabancı cihaz → unut, ad ile doğrula, yabancıya imzalı istek
+yok), A6 (istemci zamanı). Bağlantı hedefi `kart_wifi._tcp_ac` kancasıyla izleniyor (sahte kartta ad
+`localhost`; Windows'ta her `localhost` bağlantısı ::1 reddi yüzünden ~2 s — gerçek kartın yavaş çözümüne
+benziyor). W6 / A10'un kancaları yeni katmana taşındı (`w._ac`, `w._baglanti_sinifi`). 8 yalanlayıcı `4J:`.
+
+Açık: öğrenilmiş adres süreç içinde (diske yazılmaz) — köprü her açılışta bir kez ad çözer (2.8 s; bir
+ölçümde 7.5 s). `kayit_esitle.py` / `imza.py` komut satırı araçları eskisi gibi adla.
 
 ## Güvenlik (kalıcı kurallar)
 

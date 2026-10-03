@@ -45,6 +45,9 @@ USB ile bağlayıp oradan — <a href="6-ag.html">Bağlanma</a>.</p>
 <tr><td><a href="6-ag.html"><b>Bağlanma</b></a></td>
     <td>Karta telefondan mı bilgisayardan mı gireceğiniz, hangi adres,
         hangi kip <b>hangi durumda</b></td></tr>
+<tr><td><a href="9-pc-uygulamasi.html"><b>PC uygulaması</b></a></td>
+    <td>Bilgisayardaki köprü: ilk eşleştirme, başlatma, kayıtların bilgisayarda
+        arşivi, Windows bildirimleri, otomatik başlatma, sorun giderme</td></tr>
 <tr><td><a href="2-malzemeler.html"><b>Malzemeler</b></a></td>
     <td>Gereken her parça, elinizde olan ve alınacak olanlar</td></tr>
 <tr><td><a href="4-kurulum.html"><b>Kurulum</b></a></td>
@@ -64,11 +67,11 @@ USB ile bağlayıp oradan — <a href="6-ag.html">Bağlanma</a>.</p>
         class="rozet">isteğe bağlı</span></td></tr>
 </table>
 
-<div class="uy"><b>Donanım henüz kurulmadı.</b> Bütün tasarım
-bilgisayarda doğrulandı ({d['adim_sayisi']} adımlı bir zincir, binin
-üzerinde otomatik denetim), ama kart fiziksel olarak hâlâ kurulmadı. Bu sayfalardaki
-değerler <b>tasarımın vaadi</b>; tezgâhta ölçülecekler ayrı ayrı
-işaretli.</div>
+<div class="uy"><b>Kart kuruluyor.</b> Ölçüm kartı ESP32 ile çalışıyor; ADS
+modülleri henüz takılı değil, yani ölçülen değerler henüz anlamlı değil. Bütün
+tasarım bilgisayarda doğrulandı ({d['adim_sayisi']} adımlı bir zincir, binin
+üzerinde otomatik denetim). Bu sayfalardaki değerler <b>tasarımın vaadi</b>;
+tezgâhta ölçülecekler ayrı ayrı işaretli.</div>
 """
 
 
@@ -563,16 +566,17 @@ belleğinde durur; bir daha girmeniz gerekmez.</p>
 </table>
 <div class="uy"><b>Aynı anda kaç kişi bakabilir?</b> Doğrudan karta
 bağlanınca <b>{d['akis_azami']} tarayıcıya</b> kadar izleyebilir; her biri
-ölçümü biraz yavaşlatır. <b>Köprü kayıtlıyken</b> kart doğrudan bağlanan
-tarayıcıları <b>reddedip köprünün adresine yönlendiriyor</b> — o zaman
-kartla konuşan tek şey köprü olur. İkiden çok izleyici istiyorsanız
-3. kipi kullanın.</div>
+ölçümü biraz yavaşlatır. PC köprüsü karta WiFi'den bağlıyken bu yerlerden
+<b>birini</b> kullanır, USB'den bağlıyken hiçbirini. Daha çok izleyici
+istiyorsanız 3. kipi kullanın.</div>
 
 <h2>3 · USB köprü — bilgisayarda; telefon yalnız izler</h2>
 <p>Kart bilgisayara <b>USB ile</b> bağlanıyor, bilgisayarda küçük bir
 program (<code>kopru</code> klasöründeki <code>PC Baslat.bat</code>) çalışıyor. O program hem
 arayüzü yayınlıyor hem ölçümleri kaydediyor. Durdurmak için aynı
-klasördeki <code>Kopruyu Durdur.bat</code>.</p>
+klasördeki <code>Kopruyu Durdur.bat</code>. İlk eşleştirme, kayıtların
+bilgisayardaki arşivi, bildirimler ve sorun giderme:
+<a href="9-pc-uygulamasi.html">PC uygulaması</a>.</p>
 <table>
 <tr><th>Bilgisayarda</th><td>Panel <b><code>{d['kopru_adres']}</code></b>
     — köprü yalnız bu bilgisayarı (<code>127.0.0.1</code>) dinler, başka

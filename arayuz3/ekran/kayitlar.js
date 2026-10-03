@@ -23,6 +23,11 @@
    ROTA: `#/kayitlar` liste · `#/kayit/<no>` kayit · `#/kayit/<no>@<kimlik>`
    eski akistaki kayit · sonuna `/rapor` yazdirilabilir rapor. Geri tusu
    calisir (her acilis bir gecmis girdisi).
+   4D (PC10) — PANEL PC KOPRUSUNDE: denetcinin kaynagi 'pc' ise (esitleme.js
+   `kaynak()`) liste koprunun DISK ARSIVIDIR (nerede 'pc'), esitleme / arsiv
+   onayi / kopya silme YOK (salt okuma — tek yazar kopru), kartin dizini
+   sorulmaz; koprunun arka plan esitlemesi (`/esitleme/durum`) bir durum
+   satirinda. Kayit / grafik / disa aktarma / rapor / Karsilastirma AYNI yol.
    3G (KR1): satirlarda karsilastirma secim kutusu (yalniz bu tarayicidaki
    kopyasi olan, grafigi olan oturum; en cok KR_AZAMI), "Karsilastir" ->
    `#/karsilastir/<no>@<kimlik>,…` (ekran/karsilastir.js).
@@ -32,6 +37,7 @@
 
 import { zamanEkseni } from '/ortak/disari.js';
 import { ceviri } from '/ortak/sozluk.js';
+import { ceviriPc } from '/ortak/sozluk_pc.js';
 import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP } from '/ortak/kayit.js';
 import {
   KayitGorunumu, oturumTuru, metinler, sureYaz, tarihYaz, TUR_METIN, NEREDE_METIN,
@@ -130,8 +136,9 @@ export function kartSatiri(kimlik, k) {
 /**
  * C4 birlesim. kart: `/kayit/liste` JSON ya da null (bilinmiyor). yereller: akisVerisi
  * sonuclari ({kimlik, oturumlar, sonSira}), YENIDEN ESKIYE. Donus: sirali satirlar.
+ * yerelNerede: yerel kopyanin yeri — 'tarayici' (IndexedDB) ya da 'pc' (4D: koprunun arsivi).
  */
-export function listeBirlestir({ kart = null, yereller = [] } = {}) {
+export function listeBirlestir({ kart = null, yereller = [], yerelNerede = 'tarayici' } = {}) {
   const guncel = kart ? kart.kimlik : null;
   const akisSira = [];
   if (guncel !== null) akisSira.push(guncel);
@@ -162,7 +169,7 @@ export function listeBirlestir({ kart = null, yereller = [] } = {}) {
   }
   const aktif = kart ? kart.aktif : 0;
   const cikti = [...satirlar.values()].map((s) => {
-    const nerede = s.kartta && s.yerelde ? 'ikisi' : s.kartta ? 'kart' : 'tarayici';
+    const nerede = s.kartta && s.yerelde ? 'ikisi' : s.kartta ? 'kart' : yerelNerede;
     const kayitta = s.kartta && s.kimlik === guncel && aktif === s.oturum;
     return {
       ...s,
@@ -274,6 +281,36 @@ export const KL_METIN = Object.freeze({
   arsivOnayUyari: 'kl.arsiv_onay_uyari', arsivEminim: 'kl.arsiv_eminim',
 });
 
+/* 4D: PC koprusundeki metinler (`pc.` ailesi, ortak/src/sozluk_pc.js — acilis sozlugunde degil). */
+export const KL_PC_METIN = Object.freeze({
+  salt: 'pc.kl_salt', kopyalar: 'pc.kl_kopyalar', nerede: 'pc.nerede',
+});
+
+/** 4D: koprunun arka plan esitlemesinin durum satiri (`/esitleme/durum` JSON'u). null -> ''. */
+export function pcDurumYazi(d, dil = 'tr') {
+  if (!d || typeof d !== 'object') return '';
+  if (d.hata) return ceviriPc('pc.es_yok', dil, { mesaj: d.hata });
+  if (d.etkin === false) return ceviriPc('pc.es_kapali', dil, { neden: d.neden || '—' });
+  const onay = ceviriPc(d.onay ? 'pc.onay_acik' : 'pc.onay_kapali', dil);
+  const zaman = tarihYaz(d.son_basari) || ceviriPc('pc.zaman_yok', dil);
+  const sayi = (x) => (Number.isFinite(x) ? x : '—');
+  if (d.sonuc === 'hata') {
+    return ceviriPc('pc.es_hata', dil, { mesaj: d.mesaj || '—', sn: sayi(d.sonraki_deneme_s), zaman, onay });
+  }
+  if (d.sonuc === 'atlandi') return ceviriPc('pc.es_atlandi', dil, { mesaj: d.mesaj || '—', zaman, onay });
+  if (!d.son_basari) return ceviriPc('pc.es_bekliyor', dil, { onay });
+  return ceviriPc('pc.es_tamam', dil, { zaman, yeni: sayi(d.yeni_kayit), toplam: sayi(d.toplam_yeni),
+    kart_son: sayi(d.kart_son_sira), onay });
+}
+
+/** 4D: PC arsivinin ozeti (akis / oturum / boyut). */
+export function pcOzetYazi(yereller, dil = 'tr') {
+  let oturum = 0;
+  let bayt = 0;
+  for (const y of yereller) { oturum += y.oturumlar ? y.oturumlar.size : 0; bayt += y.bayt || 0; }
+  return ceviriPc('pc.kl_ozet', dil, { akis: yereller.length, oturum, boyut: baytYaz(bayt) });
+}
+
 /* 3G (KR8): listedeki karsilastirma secimi metinleri (`kr.` ailesi; ekran/karsilastir.js ile ortak). */
 export const KL_KR_METIN = Object.freeze({
   karsilastir: 'kr.karsilastir', secimTemizle: 'kr.secim_temizle', secimBilgi: 'kr.secim_bilgi',
@@ -303,6 +340,7 @@ const SABLON = `
       <div class="kl-ust">
         <div class="kl-durum">
           <span v-if="kartOzet" class="kl-kart-ozet">{{ kartOzet }}</span>
+          <span v-else-if="pc" class="kl-kart-ozet" data-kl-pc-ozet>{{ pcOzetMetin }}</span>
           <span v-else class="kl-kart-ozet kl-soluk">{{ m.kartYok }}</span>
         </div>
         <div class="dugme-grup">
@@ -316,7 +354,9 @@ const SABLON = `
       <div class="kl-duyuru" aria-live="polite">
         <p v-if="nedenMetni" class="uyari kl-neden" :data-neden="neden">{{ nedenMetni }}</p>
         <p v-if="sonuc" class="ipucu kl-sonuc">{{ sonuc }}</p>
+        <p v-if="pc && pcDurumMetni" class="ipucu" data-kl-pc-durum>{{ pcDurumMetni }}</p>
       </div>
+      <p v-if="pc" class="ipucu" data-kl-pc-salt>{{ pm.salt }}</p>
       <!-- WIG: arsivi ACMAK iki asamali (karta geri alinamaz "aldim" onaylari gider, kart
            kayitlari silebilir); kapatmak aninda. -->
       <label v-if="kartKimlik !== null" class="kl-arsiv">
@@ -344,9 +384,12 @@ const SABLON = `
         </select>
         <select v-model="neredeSuzgec" :aria-label="m.neredeSec">
           <option value="hepsi">{{ m.neredeHepsi }}</option>
-          <option value="kart">{{ neredeAdi('kart') }}</option>
-          <option value="tarayici">{{ neredeAdi('tarayici') }}</option>
-          <option value="ikisi">{{ neredeAdi('ikisi') }}</option>
+          <option v-if="pc" value="pc">{{ neredeAdi('pc') }}</option>
+          <template v-else>
+            <option value="kart">{{ neredeAdi('kart') }}</option>
+            <option value="tarayici">{{ neredeAdi('tarayici') }}</option>
+            <option value="ikisi">{{ neredeAdi('ikisi') }}</option>
+          </template>
         </select>
       </div>
       <p class="ipucu">{{ m.ipucu }}</p>
@@ -386,16 +429,16 @@ const SABLON = `
     </section>
 
     <section class="kart" v-if="kopyalar.length">
-      <h2>{{ m.kopyalar }}</h2>
+      <h2>{{ pc ? pm.kopyalar : m.kopyalar }}</h2>
       <div class="kl-kopya" v-for="k in kopyalar" :key="k.kimlik" :data-kimlik="k.kimlik">
         <span class="kl-kopya-metin">{{ k.metin }}</span>
         <span class="kl-rozet" :class="k.guncel ? 'kl-nerede-ikisi' : 'kl-dikkat'">{{ k.guncel ? m.kopyaGuncel : m.kopyaEski }}</span>
         <span class="bosluk"></span>
-        <template v-if="silOnay === k.kimlik">
+        <template v-if="!pc && silOnay === k.kimlik">
           <button type="button" :data-kl-sil-eminim="k.kimlik" @click="kopyaSil(k.kimlik)">{{ m.silOnay }}</button>
           <button type="button" @click="silVazgec(k.kimlik)">{{ m.vazgec }}</button>
         </template>
-        <button v-else type="button" :data-kl-sil="k.kimlik" @click="silBasla(k.kimlik)" :disabled="esitleniyor">{{ m.sil }}</button>
+        <button v-else-if="!pc" type="button" :data-kl-sil="k.kimlik" @click="silBasla(k.kimlik)" :disabled="esitleniyor">{{ m.sil }}</button>
       </div>
       <p v-if="silOnay !== null" class="uyari">{{ m.silUyari }}</p>
     </section>
@@ -430,6 +473,7 @@ export const KayitlarEkrani = {
       arsiv: false, arsivOnay: false, satirlar: [], kopyalar: [], silOnay: null,
       secili: null, seciliAnahtar: '', seciliHata: '', seciliKartta: false, yukleniyor: false,
       secim: [],                 // 3G (KR1): [{anahtar, oturum, kimlik}] — secim sirasi = renk sirasi
+      pc: false, pcDurum: null, pcOzetMetin: '',  // 4D: kaynak koprunun PC arsivi mi; koprunun /esitleme/durum'u
     };
   },
   created() {
@@ -439,11 +483,12 @@ export const KayitlarEkrani = {
   },
   computed: {
     m() { return metinler(KL_METIN, this.dil); },
-    uygunluk() { return esitlemeUygunlugu({ kartTaban: this.kartTaban, tasiyici: this.tasiyici }); },
+    uygunluk() { return esitlemeUygunlugu({ kartTaban: this.kartTaban, tasiyici: this.tasiyici, pc: this.pc }); },
     esitlenebilir() { return this.uygunluk.uygun && this.kartDurum === 'tamam'; },
     /** Gosterilecek sebep: on kosul (C1), kart yaniti ya da son esitlemenin hatasi. */
     neden() {
-      if (!this.uygunluk.uygun) return this.uygunluk.neden;
+      /* 4D: kopruda esitlemenin yoklugu sebep DEGIL (kopru esitliyor); yalniz arsivin okunamamasi */
+      if (!this.uygunluk.uygun) return this.uygunluk.neden === 'pc' ? this.esitlemeNeden : this.uygunluk.neden;
       if (this.kartDurum && this.kartDurum !== 'tamam') return this.kartDurum;
       return this.esitlemeNeden;
     },
@@ -453,9 +498,9 @@ export const KayitlarEkrani = {
       const harita = { taban: 'nedenTaban', usb: 'nedenUsb', demo: 'nedenDemo', yok: 'nedenYok',
         imza: 'nedenImza', mesgul: 'nedenMesgul', host: 'nedenHost', ag: 'nedenAg', bozuk: 'nedenBozuk',
         hata: 'nedenHata', akis: 'nedenAkis', kilit: 'nedenKilit', depo: 'nedenDepo' };
-      const anahtar = KL_METIN[harita[n] || 'nedenHata'];
+      const anahtar = n === 'pcdepo' ? 'pc.kl_neden_arsiv' : KL_METIN[harita[n] || 'nedenHata'];
       const mesaj = this.esitlemeNeden === n ? this.esitlemeMesaj : this.kartMesaj;
-      return ceviri(anahtar, this.dil, { mesaj: mesaj || '—' });
+      return ceviriPc(anahtar, this.dil, { mesaj: mesaj || '—' });
     },
     kartOzet() {
       const k = this.kartOzetVeri;
@@ -471,6 +516,13 @@ export const KayitlarEkrani = {
       return satirSuz(this.satirlar, { arama: this.arama, tur: this.turSuzgec, nerede: this.neredeSuzgec });
     },
     km() { return metinler(KL_KR_METIN, this.dil); },
+    /* 4D */
+    pm() {
+      const m = {};
+      for (const [a, k] of Object.entries(KL_PC_METIN)) m[a] = ceviriPc(k, this.dil);
+      return m;
+    },
+    pcDurumMetni() { return pcDurumYazi(this.pcDurum, this.dil); },
     /** 3G (KR1/KR5): satir basina secim durumu — secili mi, eklenebilir mi, etiket ve sebep. */
     secimDurumlari() {
       const d = {};
@@ -517,7 +569,7 @@ export const KayitlarEkrani = {
   },
   methods: {
     turAdi(t) { return ceviri(TUR_METIN[t] || TUR_METIN.bilinmeyen, this.dil); },
-    neredeAdi(n) { return ceviri(NEREDE_METIN[n], this.dil); },
+    neredeAdi(n) { return ceviriPc(NEREDE_METIN[n], this.dil); },
     durumAdi(d) { return this.m[{ kayitta: 'durumKayitta', acik: 'durumAcik', bitti: 'durumBitti' }[d]]; },
     sure(ms) { return sureYaz(ms); },
     baslangic(s) { return tarihYaz(s.unix) || this.m.saatsiz; },
@@ -548,7 +600,10 @@ export const KayitlarEkrani = {
       if (this._calisiyor) return;
       this._calisiyor = true;
       try {
+        /* 4D: once kaynak (kopruda PC arsivi) — kart kokeninde bu karar istek atmaz */
+        this.pc = (await this._den.kaynak()) === 'pc';
         await this.yereliYukle();
+        if (this.pc) this.pcDurumYukle();
         if (this.uygunluk.uygun) {
           await this.esitle();
         } else {
@@ -575,7 +630,7 @@ export const KayitlarEkrani = {
         const ozet = await this._den.akislar();
         for (const a of ozet) yereller.push({ ...(await this._den.akisVerisi(a.kimlik)), olusma: a.olusma });
       } catch (h) {
-        this.esitlemeNeden = 'depo';
+        this.esitlemeNeden = this.pc ? 'pcdepo' : 'depo';
         this.esitlemeMesaj = (h && h.message) || String(h);
       }
       this._yereller = vueAl().markRaw(yereller);
@@ -610,22 +665,28 @@ export const KayitlarEkrani = {
       const yereller = [...this._yereller];
       /* guncel akisi one al, kalanini yeniden eskiye */
       yereller.sort((a, b) => (b.olusma || 0) - (a.olusma || 0));
-      this.satirlar = listeBirlestir({ kart: this._kartListe, yereller });
+      this.satirlar = listeBirlestir({ kart: this._kartListe, yereller, yerelNerede: this.pc ? 'pc' : 'tarayici' });
+      this.pcOzetMetin = this.pc ? pcOzetYazi(yereller, this.dil) : '';
       /* 3G: listeden dusen ya da artik secilemeyen (kopyasi silinen) oturum secimden cikar */
       this.secim = this.secim.filter((x) => this.satirlar.some((s) => s.anahtar === x.anahtar
         && secilebilir(s, { seciliMi: true }).uygun));
       const guncel = this._kartListe ? this._kartListe.kimlik : null;
-      this.kopyalar = yereller.map((y) => ({ kimlik: y.kimlik, guncel: y.kimlik === guncel,
-        metin: ceviri(KL_METIN.kopyaSatir, this.dil, { kimlik: y.kimlik, boyut: baytYaz(y.bayt),
-          son: y.durum ? y.durum.son_sira : 0, oturum: y.oturumlar.size }) }));
+      this.kopyalar = yereller.map((y, i) => ({ kimlik: y.kimlik, guncel: this.pc ? i === 0 : y.kimlik === guncel,
+        metin: ceviriPc(this.pc ? 'pc.kl_kopya_satir' : KL_METIN.kopyaSatir, this.dil, { kimlik: y.kimlik,
+          kart: y.kart || '—', boyut: baytYaz(y.bayt), son: y.durum ? y.durum.son_sira : 0, oturum: y.oturumlar.size }) }));
     },
     async yenile() {
       this.sonuc = '';
       this.esitlemeNeden = null;
+      if (this.pc) this.pcDurumYukle();
       await this.yereliYukle();
       await this.kartYenile();
       this.listeKur();
       await this.kayitAc();
+    },
+    /** 4D: koprunun arka plan esitlemesinin durumu (yalniz kopruda; beklenmez). */
+    async pcDurumYukle() {
+      this.pcDurum = await this._den.esitlemeDurumu();
     },
     /** Esitle (C1-C3). Her esitleme TAZE dizinle baslar: kimlik (akis) o anki karttan — eski
      *  bir dizinle baslamak, kart bu arada bicimlendiyse esitlemeyi "akis degisti" ile durdururdu.
@@ -639,6 +700,9 @@ export const KayitlarEkrani = {
       this.esitlemeNeden = null;
       try {
         await this.kartYenile();
+        /* 3C-LISTE (gercek kartta 2026-10-03): kartin dizini HEMEN listeye — yeni bir tarayicida ilk
+           esitleme ~24 s suruyor ve liste o sure boyunca BOS kaliyordu (oturumlar "yalniz kartta" gorunur). */
+        this.listeKur();
         for (let deneme = 0; deneme < 2 && this.esitlenebilir; deneme++) {
           const kimlik = this._kartListe.kimlik;
           const onay = onayIslevi({ arsiv: this.arsiv, bagli: this.bagli, gonder: this.gonder });

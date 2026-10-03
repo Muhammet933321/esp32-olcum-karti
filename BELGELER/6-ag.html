@@ -56,8 +56,11 @@ code{background:var(--yz2);padding:1px 6px;border-radius:5px;
 .kucuk{font-size:14px;color:var(--m2)}
 .rozet{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;
   background:var(--yz2);border:1px solid var(--cizgi);color:var(--m2)}
+pre{background:var(--yz2);border:1px solid var(--cizgi);border-radius:8px;
+  padding:10px 14px;margin:10px 0;overflow-x:auto;white-space:pre;
+  font:14px/1.5 ui-monospace,Consolas,monospace}
 </style></head><body>
-<div class="kutu"><nav class="ust"><a href="index.html">Başla</a><a href="1-ne-yapabilir.html">Ne yapabilir</a><a href="2-olcumler.html">Ölçümler</a><a href="3-pil-testi.html">Pil testi</a><a href="6-ag.html" class='bu'>Bağlanma</a><a href="2-malzemeler.html">Malzemeler</a><a href="4-kurulum.html">Kurulum</a><a href="7-yerlesim.html">Yerleşim</a><a href="8-kutu.html">Kutu</a><a href="5-muhendislik.html">Mühendislik</a></nav>
+<div class="kutu"><nav class="ust"><a href="index.html">Başla</a><a href="1-ne-yapabilir.html">Ne yapabilir</a><a href="2-olcumler.html">Ölçümler</a><a href="3-pil-testi.html">Pil testi</a><a href="6-ag.html" class='bu'>Bağlanma</a><a href="9-pc-uygulamasi.html">PC uygulaması</a><a href="2-malzemeler.html">Malzemeler</a><a href="4-kurulum.html">Kurulum</a><a href="7-yerlesim.html">Yerleşim</a><a href="8-kutu.html">Kutu</a><a href="5-muhendislik.html">Mühendislik</a></nav>
 <h1>Baglanma</h1><p class="alt">Telefondan, bilgisayardan ya da ikisinden birden</p>
 
 <p>Kartın ekranı yok; <b>tarayıcıdan</b> kullanılıyor. Üç yolu var ve
@@ -81,7 +84,7 @@ olması gerektiğine</b> bağlı.</p>
 <text x="400.0" y="86.0" text-anchor="middle" font-size="11" fill="var(--m3)">http://olcum.local</text>
 <text x="400.0" y="100.0" text-anchor="middle" font-size="11" fill="var(--m3)">ya da 192.168.4.1</text>
 <text x="490.0" y="60.0" text-anchor="start" font-size="11" fill="var(--m3)">Kart arayüzü kendi belleğinden sunuyor</text>
-<text x="490.0" y="76.0" text-anchor="start" font-size="11" fill="var(--m3)">(393 KB, LittleFS)</text>
+<text x="490.0" y="76.0" text-anchor="start" font-size="11" fill="var(--m3)">(408 KB, LittleFS)</text>
 <text x="490.0" y="96.0" text-anchor="start" font-size="11" fill="#1baf7a" font-weight="600">Bilgisayar gerekmez.</text>
 <text x="20.0" y="160.0" text-anchor="start" font-size="13" fill="var(--m1)" font-weight="600">2 · Kart ev ağında — telefon ve PC aynı Wi-Fi'da</text>
 <rect x="20" y="172" width="170" height="78" rx="8" fill="var(--yz2)" stroke="#1baf7a" stroke-width="2"/>
@@ -205,16 +208,17 @@ belleğinde durur; bir daha girmeniz gerekmez.</p>
 </table>
 <div class="uy"><b>Aynı anda kaç kişi bakabilir?</b> Doğrudan karta
 bağlanınca <b>4 tarayıcıya</b> kadar izleyebilir; her biri
-ölçümü biraz yavaşlatır. <b>Köprü kayıtlıyken</b> kart doğrudan bağlanan
-tarayıcıları <b>reddedip köprünün adresine yönlendiriyor</b> — o zaman
-kartla konuşan tek şey köprü olur. İkiden çok izleyici istiyorsanız
-3. kipi kullanın.</div>
+ölçümü biraz yavaşlatır. PC köprüsü karta WiFi'den bağlıyken bu yerlerden
+<b>birini</b> kullanır, USB'den bağlıyken hiçbirini. Daha çok izleyici
+istiyorsanız 3. kipi kullanın.</div>
 
 <h2>3 · USB köprü — bilgisayarda; telefon yalnız izler</h2>
 <p>Kart bilgisayara <b>USB ile</b> bağlanıyor, bilgisayarda küçük bir
 program (<code>kopru</code> klasöründeki <code>PC Baslat.bat</code>) çalışıyor. O program hem
 arayüzü yayınlıyor hem ölçümleri kaydediyor. Durdurmak için aynı
-klasördeki <code>Kopruyu Durdur.bat</code>.</p>
+klasördeki <code>Kopruyu Durdur.bat</code>. İlk eşleştirme, kayıtların
+bilgisayardaki arşivi, bildirimler ve sorun giderme:
+<a href="9-pc-uygulamasi.html">PC uygulaması</a>.</p>
 <table>
 <tr><th>Bilgisayarda</th><td>Panel <b><code>http://olcum.localhost:8770</code></b>
     — köprü yalnız bu bilgisayarı (<code>127.0.0.1</code>) dinler, başka
@@ -251,9 +255,9 @@ de aynı veriyi görür; komut yalnız bilgisayardaki panelden gider.</p>
 <b>kartın kendi belleğinde</b>. İnternet gerekmiyor, hiçbir dosya
 dışarıdan indirilmiyor.</p>
 <table>
-<tr><th>Arayüz boyutu</th><td>393 KB</td></tr>
+<tr><th>Arayüz boyutu</th><td>408 KB</td></tr>
 <tr><th>Ayrılan yer</th><td>1536 KB
-    (26% dolu)</td></tr>
+    (27% dolu)</td></tr>
 <tr><th>Canlı veri</th><td>saniyede 5 güncelleme</td></tr>
 </table>
 
@@ -286,5 +290,6 @@ karşı koruma <b>değildir</b>.</div>
 <p class="kucuk" style="margin-top:60px;border-top:1px solid var(--cizgi);
  padding-top:14px">Bu sayfa <code>uretim/belge-uret.py</code> tarafından
  üretildi — buradaki her sayı tasarım dosyalarından hesaplanıyor, elle
- yazılmıyor. Donanım henüz kurulmadı; değerler tasarımın vaadidir.</p>
+ yazılmıyor. Kart kuruluyor (ESP32 çalışıyor, ADS modülleri henüz takılı
+ değil); değerler tasarımın vaadidir.</p>
 </div></body></html>

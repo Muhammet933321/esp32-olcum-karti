@@ -628,6 +628,9 @@ class _SahteKart:
         self.zaman = time.monotonic           # istek gunlugunun saati (sanal saat verilebilir)
         self.zamanli: list[tuple] = []        # (zaman, yontem, yol) — her istek
         self.onay_kanca = None                # Go<sira> karta ULASTIGI anda cagrilir (sira)
+        # 4D: koprunun kart vekili (kopru/vekil.py) icin kartin diger GET uclari
+        self.ek_get: dict[str, tuple] = {}    # yol -> (kod, tur, govde); /pil, /kunye.json ...
+        self.ek_bekle: dict[str, float] = {}  # yol -> yanittan once bekleme (yavas kart)
 
     def liste(self) -> dict:
         """Kartin /kayit/liste ozeti (yalniz esitlemenin kullandigi alanlar)."""
@@ -795,6 +798,16 @@ def _sunucu(kart: _SahteKart):
                 govde = json.dumps(kart.kal_liste, ensure_ascii=False).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(govde)))
+                self.end_headers()
+                self.wfile.write(govde)
+                return
+            if u.path in kart.ek_get:                    # 4D: vekil sinamasi (imza yukarida denetlendi)
+                if kart.ek_bekle.get(u.path):
+                    time.sleep(kart.ek_bekle[u.path])
+                kod, tur, govde = kart.ek_get[u.path]
+                self.send_response(kod)
+                self.send_header("Content-Type", tur)
                 self.send_header("Content-Length", str(len(govde)))
                 self.end_headers()
                 self.wfile.write(govde)
@@ -1884,6 +1897,9 @@ def bolum_bildirim_kart() -> None:
     #    "yesil" geliyordu (HIZ inceleme 2026-10-03). Dosya adi agac kokune bagli (baska agacin
     #    kaydi kullanilmaz); %TEMP% kalintisi dogrula3'un cop toplayicisinda (gecici.DOSYA_ONEKLER).
     tb = Path(__file__).with_name("test_bildirim.py")
+    # Modul olmayan girdiler (4E: test_bildirim bunlari DOSYA olarak okur, sys.modules gormez) —
+    # birlesmede (main 4E + HIZ) elle eklendi; listede yoksa onbellek gecersiz sayilir.
+    ek_girdi = [KOK / "ortak" / "src" / "sozluk.js", KOK / "kod" / "olcum-karti-a3" / "bildirim.h"]
     onb = (Path(tempfile.gettempdir())
            / f"ok_test_bildirim_{hashlib.sha256(str(KOK).encode()).hexdigest()[:16]}.gecti")
 
@@ -1891,7 +1907,7 @@ def bolum_bildirim_kart() -> None:
         try:
             v = json.loads(onb.read_text(encoding="utf-8"))
             dosyalar = v["dosyalar"]
-            if str(tb.resolve()) not in dosyalar:
+            if any(str(x.resolve()) not in dosyalar for x in [tb, *ek_girdi]):
                 return None
             for yol, oz in dosyalar.items():
                 p = Path(yol)
@@ -1929,6 +1945,7 @@ def bolum_bildirim_kart() -> None:
                 yuklu = {str(Path(f).resolve()) for f in json.loads(mod_yol.read_text("utf-8"))}
                 yuklu = {f for f in yuklu if kok_r in Path(f).parents and f.endswith(".py")}
                 yuklu.add(str(tb.resolve()))
+                yuklu |= {str(x.resolve()) for x in ek_girdi if x.exists()}
                 onb.write_text(json.dumps({
                     "sayim": f"{m[-1][0]}/{m[-1][1]}",
                     "dosyalar": {f: hashlib.sha256(Path(f).read_bytes()).hexdigest()
@@ -2085,6 +2102,35 @@ def bolum_kopru_wifi() -> None:
                and "X-Imza" not in kom[1] and "'X-Olcum': '1'" in kom[1],
                f"{kart.komut_imzali}")
 
+            # W4b (4G) p0 canli akisin KARSI ADRESINE gider (ad cozumu yok); o adres olmezse ada duser
+            kart.akis_tut = 2.0
+            kart.akis_bitir.clear()
+            kart.komutlar.clear()
+            kart.istekler.clear()
+            ad_host = "localhost:" + taban.rsplit(":", 1)[1]
+            w = KW.WifiKart(ad_host, dizin=cdiz, bekle=lambda sn: time.sleep(0.02))
+            w.bildir = lambda m: None
+            w.ac()
+            _bekle_kosul(lambda: w.bagli)
+            ip_bagli = w._ip
+            zaman_asimi = w._akis_soket.gettimeout() if w._akis_soket is not None else None
+            w.yaz("p0")
+            w._ip = ("127.0.0.1", 9)                    # kart baska IP almis gibi: kapali port
+            w.yaz("p0")
+            kart.akis_bitir.set()
+            w.kapat()
+            ip_kapali = w._ip
+            hostlar = [x.split("'Host': '", 1)[1].split("'", 1)[0] for x in kart.istekler
+                       if x.startswith("POST /komut") and "'Host': '" in x]
+            ok("B72.W4b (4G) p0 canli akisin KARSI ADRESINE gider (Windows `olcum.local` cozumu 2.7 s "
+               "surebiliyor — kartta p0 2.77 s'de ulasiyordu); o adres yanit vermezse ada geri duser; "
+               "akis kapaninca adres silinir; akis soketine 40 s okuma zaman asimi GERCEKTEN uygulanir "
+               "(http.client SSE yanitinda baglantinin soketini None yapiyordu: soket 10 s'de kaliyordu)",
+               ip_bagli is not None and ip_bagli[0] == "127.0.0.1" and kart.komutlar == ["p0", "p0"]
+               and hostlar[:1] == [taban.split("//", 1)[1]] and hostlar[1:] == [ad_host]
+               and ip_kapali is None and zaman_asimi == w.okuma_zaman_asimi,
+               f"zaman asimi={zaman_asimi} ip={ip_bagli} host={hostlar} komut={kart.komutlar} sonra={ip_kapali}")
+
             # W5 (R11) kartta NTP yoksa her baglantida BIR KEZ imzali /saat; NTP varsa hic
             kart.akis_tut = 0.0
             kart.saat_kaynak = 0
@@ -2120,7 +2166,7 @@ def bolum_kopru_wifi() -> None:
             w.ac()
             _bekle_kosul(lambda: w.bagli)
             kapanan = []
-            asil = KW.vekilsiz_ac
+            asil = w._ac                                 # 4J: kart istekleri WifiKart'in kendi acicisindan
 
             def izle(istek, timeout=None):
                 try:
@@ -2129,14 +2175,14 @@ def bolum_kopru_wifi() -> None:
                     eski_kapat = h.close
                     h.close = lambda _e=eski_kapat, _k=h.code: (kapanan.append(_k), _e())
                     raise
-            KW.vekilsiz_ac = izle
+            w._ac = izle
             try:
                 w.yaz("A?")
                 mesaj = ""
             except RuntimeError as e:
                 mesaj = str(e)
             finally:
-                KW.vekilsiz_ac = asil
+                del w._ac
             kart.komut_red = 0
             kart.akis_bitir.set()
             w.kapat()
@@ -2318,6 +2364,10 @@ def bolum_kopru_wifi() -> None:
                "girmez (USB<->WiFi gecisinde eski akis yeni akisa karismaz); guncel iplik koyar",
                sonuc_13 == [True] and w.satir_oku(0.1) == "D yeni" and w.satir_oku(0.05) is None,
                str(sonuc_13))
+
+            # W14-W16 (4J) butun kart istekleri OGRENILMIS karsi adrese; Host ad olarak kalir;
+            # olu adreste ada BIR KEZ dusulur; eski adresteki yabanci cihaz dogrulanamaz -> ad
+            bolum_kopru_wifi_4j(KW, kart, cdiz, taban)
     finally:
         for a, v in eski_ortam.items():
             if v is None:
@@ -2325,6 +2375,113 @@ def bolum_kopru_wifi() -> None:
             else:
                 os.environ[a] = v
         sunucu.shutdown()
+
+
+def _host_basligi(istek: str) -> str | None:
+    if "'Host': '" not in istek:
+        return None
+    return istek.split("'Host': '", 1)[1].split("'", 1)[0]
+
+
+def bolum_kopru_wifi_4j(KW, kart: "_SahteKart", cdiz: Path, taban: str) -> None:
+    """4J: WifiKart'in BUTUN kart istekleri (acik /eslestir/bilgi, imzali /akis, /komut, esitleme /
+    vekil / bildirim — hepsi `imzali_ac`) ogrenilmis karsi adrese gider; ad cozumu (Windows'ta
+    `olcum.local` ~8 s'de bir 2.7 s) yalniz ilk baglantida ve adres oldugunde. Sahte kartta ad
+    `localhost` (Windows'ta her ad baglantisi ::1 reddi yuzunden ~2 s — gercek kartin yavas cozumu
+    gibi). Hangi adrese baglanildigi `kart_wifi._tcp_ac` kancasiyla izlenir."""
+    port = taban.rsplit(":", 1)[1]
+    ad_host = "localhost:" + port
+    yabanci = _SahteKart([])
+    yabanci.gkimlik = "8899aabbccddeeff"              # baska bir cihaz (kartin eski IP'sini almis)
+    ys, ytaban = _sunucu(yabanci)
+    yabanci_port = int(ytaban.rsplit(":", 1)[1])
+    asil_tcp = KW._tcp_ac
+    hedefler: list[str] = []
+    sureler: dict[str, float] = {}
+
+    def kayitli_tcp(adres, sure, kaynak=None):
+        hedefler.append(adres[0])
+        sureler[adres[0]] = sure
+        if adres[0] == "192.0.2.1":                    # TEST-NET: kartin eski (olu) adresi
+            raise ConnectionRefusedError("4J sinama: eski adres yanit vermiyor")
+        if adres[0] == "192.0.2.2":                    # eski adreste BASKA bir cihaz
+            adres = ("127.0.0.1", yabanci_port)
+        return asil_tcp(adres, sure, kaynak)
+    KW._tcp_ac = kayitli_tcp
+    w = None
+    try:
+        kart.akis_satirlari = ["D 1.0"]
+        kart.akis_tut = 30.0
+        kart.akis_bitir.clear()
+        kart.saat_kaynak = 1
+        kart.komut_imzali.clear()
+        kart.istekler.clear()
+        w = KW.WifiKart(ad_host, dizin=cdiz, bekle=lambda sn: time.sleep(0.02))
+        w.bildir = lambda m: None
+        w.ac()
+        _bekle_kosul(lambda: w.bagli, 10.0)
+        w.yaz("A?")
+        cihaz, _, _ = w.dogrula()
+        with w.imzali_ac(cihaz, "GET", "/kayit/liste") as y:
+            y.read()
+        h14 = list(hedefler)
+        yollar14 = [x.split()[1].split("?")[0] for x in kart.istekler]
+        host14 = {_host_basligi(x) for x in kart.istekler}
+        ok("B72.W14 (4J) WiFi koprusunun BUTUN kart istekleri (acik /eslestir/bilgi, imzali /akis, "
+           "/komut, esitleme /kayit/*) ilk ad baglantisinda OGRENILEN karsi adrese gider — ad cozumu "
+           "yalniz bir kez (Windows `olcum.local` ~8 s'de bir 2.7 s; 4G); `Host:` basligi HER istekte "
+           "ad olarak kalir (kart yabanci Host'u 403 ile reddeder — DNS rebinding korumasi)",
+           w.bagli and h14[:1] == ["localhost"] and len(h14) >= 5
+           and all(h == "127.0.0.1" for h in h14[1:])
+           and {"/eslestir/bilgi", "/akis", "/komut", "/kayit/liste"} <= set(yollar14)
+           and host14 == {ad_host} and kart.komut_imzali == [("A?", True)] and w._karsi == "127.0.0.1",
+           f"baglantilar={h14} yollar={yollar14} host={host14} komut={kart.komut_imzali} karsi={w._karsi}")
+
+        # W15 olu adres (kart baska IP almis): BIR KEZ ada dusulur, istek karta TEK KEZ ulasir,
+        # adres tazelenir; sonraki istek yine adsiz
+        w._karsi = "192.0.2.1"
+        hedefler.clear()
+        n401 = kart.ret_401
+        w.yaz("A2?")
+        h15a = list(hedefler)
+        karsi15 = w._karsi
+        hedefler.clear()
+        w.yaz("A3?")
+        h15b = list(hedefler)
+        ok("B72.W15 (4J) ogrenilmis adres yanit vermezse (kart baska IP almis) istek BIR KEZ ada duser "
+           "ve karta TEK KEZ ulasir (yalniz baglanti kurulamamasi geri dusurur — imzali istek iki kez "
+           "gitmez, 401 yok); olu adres en cok 2 s beklenir (sessiz adres her istegi 10 s bekletmesin); "
+           "adres tazelenir, sonraki istek yeniden adsiz",
+           h15a == ["192.0.2.1", "localhost"] and karsi15 == "127.0.0.1" and h15b == ["127.0.0.1"]
+           and sureler.get("192.0.2.1", 99) <= 2.0 and sureler.get("localhost") == w.zaman_asimi
+           and kart.komut_imzali == [("A?", True), ("A2?", True), ("A3?", True)] and kart.ret_401 == n401,
+           f"once={h15a} karsi={karsi15} sonra={h15b} sure={sureler} komut={kart.komut_imzali} "
+           f"401={kart.ret_401 - n401}")
+
+        # W16 eski adreste BASKA bir cihaz: kimlik uymaz -> adres unutulur, ad ile kart dogrulanir;
+        # yabanci cihaza imzali istek GITMEZ
+        w._karsi = "192.0.2.2"
+        hedefler.clear()
+        yabanci.istekler.clear()
+        try:
+            _, k16, _ = w.dogrula()
+        except KW.KartDogrulanamadi as e:
+            k16 = f"HATA {e}"
+        h16 = list(hedefler)
+        y_yollar = [x.split()[1] for x in yabanci.istekler]
+        ok("B72.W16 (4J) ogrenilmis adreste BASKA bir cihaz cevap verirse kimlik denetimi (D5 #18) onu "
+           "reddeder, adres unutulur ve kart ad ile BIR KEZ daha dogrulanir; yabanci cihaza yalniz acik "
+           "/eslestir/bilgi gider (imzali istek YOK) — IP'ye korlemesine guvenilmez",
+           k16 == kart.gkimlik and h16 == ["192.0.2.2", "localhost"] and w._karsi == "127.0.0.1"
+           and y_yollar == ["/eslestir/bilgi"] and not any("X-Imza" in x for x in yabanci.istekler),
+           f"kimlik={k16} baglantilar={h16} yabanci={y_yollar} karsi={w._karsi}")
+    finally:
+        KW._tcp_ac = asil_tcp
+        kart.akis_bitir.set()
+        if w is not None:
+            w.kapat()
+        kart.akis_tut = 0.0
+        ys.shutdown()
 
 
 # ── B72.A · 4C arka plan disk arsivi: kopru icinde esitleme dongusu ───────────
@@ -2405,19 +2562,20 @@ def bolum_kopru_esitle() -> None:
             kart.istekler.clear()
             kart.komutlar.clear()
             w = wifi_yeni()
-            # A6 araligi istemcinin GONDERME anindan (HIZ inceleme 2026-10-03): kartin VARIS zamani
-            # sunucu is parcaciginin zamanlamasina bagli — yuk altinda 81-82 ms olculup iddia
-            # kendiliginden dustu (paralel mutasyonda sahte YAKALANDI). Hiz tavani istemcinin isi.
-            gonderim: list[float] = []
-            _asil_ac = w.imzali_ac
+            # A6 araligi ISTEMCININ gonderme aninda olculur (4J + HIZ inceleme 2026-10-03, ikisi ayni
+            # sonuca vardi): kartin VARIS zamani sunucu is parcaciginin zamanlamasina bagli — yuk
+            # altinda 81-82 ms olculup iddia kendiliginden dusuyordu (paralel mutasyonda sahte
+            # YAKALANDI). Hiz tavani istemcinin isi. Yol onekle suzulur (sorgu yola girse de sayar).
+            gonderim: list[tuple] = []
+            asil_imzali = w.imzali_ac
 
-            def _zamanli_ac(cihaz, yontem, yol, *a, **k):
-                if yol.startswith("/kayit/veri"):
-                    gonderim.append(time.monotonic())
-                return _asil_ac(cihaz, yontem, yol, *a, **k)
-            w.imzali_ac = _zamanli_ac
+            def _izli_imzali(cihaz_, yontem, yol, *a, **k):
+                gonderim.append((time.monotonic(), yol))
+                return asil_imzali(cihaz_, yontem, yol, *a, **k)
+            w.imzali_ac = _izli_imzali
             e, yay = es_yeni(w, kok)
             r = e.tur()
+            w.imzali_ac = asil_imzali
             ok("B72.A1 (PC9) kopru esitleme turu kartin BUTUN kayitlarini WiFi'den <kart kimligi>/akis-<akis "
                "kimligi>/kayitlar.kyt'ye bayt bayt yazar; `* esitleme:` durum satiri yeni kayit + son sira "
                "soyler",
@@ -2439,14 +2597,18 @@ def bolum_kopru_esitle() -> None:
                         for t, y, p in kart.zamanli if p.startswith("/kayit/veri")]
             bayt = [int(q.get("bayt", "0")) for _, q in veri_ist]
             varis_ara = [b[0] - a[0] for a, b in zip(veri_ist, veri_ist[1:])]
-            aralar = [b - a for a, b in zip(gonderim, gonderim[1:])]
+            gonder_veri = [t for t, y in gonderim if y.startswith("/kayit/veri")]
+            aralar = [b - a for a, b in zip(gonder_veri, gonder_veri[1:])]
             imzasiz = [x for x in kart.istekler if x.split()[1].startswith(("/kayit/", "/kal/"))
                        and "X-Imza" not in x]
             ok("B72.A6 (spec §5/§11) parca kartin tavanini asmaz (bayt <= 8192) ve iki parca isteginin "
-               "baslangici arasi en az 100 ms (istek hizi tavani <= 10/s, tek istek; spec 4C-3); "
+               "baslangici arasi en az 100 ms (istek hizi tavani <= 10/s, tek istek; spec 4C-3) — 4J: ara "
+               "ISTEMCININ gonderme aninda olculur (kartin varis ani makine yukunu de olcuyordu); "
                "butun kayit istekleri IMZALI",
-               len(veri_ist) >= 5 and len(gonderim) == len(veri_ist)
+               len(veri_ist) >= 5 and len(gonder_veri) == len(veri_ist)
                and all(0 < b <= 8192 for b in bayt) and max(bayt) == AE.PARCA_BAYT
+               # 0.09: zaman damgasi sinirlayicinin `onceki`sinden birkac µs..ms sonra alinir; GIL
+               # gecis araligi 5 ms, yuk altinda 0.098 sinirda kalirdi. Yanlislayanlar 0 / 50 ms.
                and min(aralar or [0]) >= 0.09 and not imzasiz,
                f"{len(veri_ist)} parca bayt={sorted(set(bayt))} en kisa ara (gonderme)="
                f"{min(aralar or [0]) * 1000:.0f} ms (varis {min(varis_ara or [0]) * 1000:.0f} ms) "
@@ -2557,21 +2719,23 @@ def bolum_kopru_esitle() -> None:
             # A10 imzali /akis adresi uretimi + istek + yanit basi kilitte: yavas ag (mDNS) sirasinda
             # esitleme istegi araya girip sayaci ileri atamaz (kart pencere disi eski sayaci reddederdi)
             istekte = threading.Event()
-            asil_bag = KW.http.client.HTTPConnection
 
-            class _Yavas(asil_bag):
-                def request(self, yontem, url, *a, **k):
-                    if url.startswith("/akis"):
-                        istekte.set()
-                        time.sleep(0.4)
-                    return super().request(yontem, url, *a, **k)
+            def yavaslat(w_):
+                """4J: /akis baglantisi WifiKart'in kendi baglanti sinifindan — onu yavaslat."""
+                class _Yavas(w_._baglanti_sinifi):
+                    def request(self, yontem, url, *a, **k):
+                        if url.startswith("/akis"):
+                            istekte.set()
+                            time.sleep(0.4)
+                        return super().request(yontem, url, *a, **k)
+                w_._baglanti_sinifi = _Yavas
+                return w_
             kart.akis_satirlari = ["D 1.0"]
             kart.akis_tut = 2.0
             kart.akis_bitir.clear()
             kart.ret_401 = 0
-            KW.http.client.HTTPConnection = _Yavas
             try:
-                w = wifi_yeni()
+                w = yavaslat(wifi_yeni())
                 e10, _ = es_yeni(w, d / "arsiv_sira", onay=False)
                 w.ac()
                 istekte.wait(5)
@@ -2585,7 +2749,7 @@ def bolum_kopru_esitle() -> None:
                 # esitlemenin her imzali istegi de kilitte olmali (yalniz dogrula degil)
                 kart.akis_bitir.clear()
                 istekte.clear()
-                w = wifi_yeni()
+                w = yavaslat(wifi_yeni())
                 e10b, _ = es_yeni(w, d / "arsiv_sira2", onay=False)
                 r10b: dict = {}
                 isaret = len(kart.zamanli)
@@ -2597,8 +2761,7 @@ def bolum_kopru_esitle() -> None:
                 t10.join(15)
                 _bekle_kosul(lambda: w.bagli, 3)
             finally:
-                KW.http.client.HTTPConnection = asil_bag
-            kart.akis_bitir.set()
+                kart.akis_bitir.set()
             w.kapat()
             r10 = {**r10, "sonuc": r10["sonuc"] if r10b.get("sonuc") == "tamam" else "B:" + str(r10b.get("sonuc"))}
             kart.ret_401 = max(kart.ret_401, ret_a)

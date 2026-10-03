@@ -6,12 +6,19 @@
 yonlendiriyordu; o yolu atlatan bir mutasyon (ya da kod kusuru) varsayilana, yani GERCEK
 %LOCALAPPDATA%'ya dusuyordu.
 
-Iki katman:
+Katmanlar:
+  0. (HIZ) `dogrula3.py` ve `mutasyon.py` iscileri adimlara zaten OZEL bir LOCALAPPDATA verir
+     (`ozel_ortam.yerel_kur`: gercek ust dizinler junction, `olcum-karti` ayri). Zincirden ya da
+     mutasyondan kosan test gercek dizini HIC gormez; "gercek dizin" burada surecin GORDUGU
+     LOCALAPPDATA'dir. Ozel dizinde (isaret `OZEL_ISARET`) gercek kopru YAZAMAZ: oradaki her
+     degisiklik testindir, kopru muafiyeti uygulanmaz (`denetle`). Testi DOGRUDAN kosan
+     (`python test_kayit_esp.py`) gercek dizini gorur — o zaman 2. katmanin kurali gecerli.
   1. OLCUM_PC_DIZIN VE OLCUM_CIHAZ_DIZIN ikisi de gecici dizinlere — biri atlatilsa obur yonlendirme
-     yine gecici dizine dusurur. (LOCALAPPDATA'nin kendisi DEGISTIRILMEZ: Arduino cekirdegi
+     yine gecici dizine dusurur. (LOCALAPPDATA'nin kendisi burada DEGISTIRILMEZ: Arduino cekirdegi
      `%LOCALAPPDATA%\\Arduino15`'te, arayuz-uret.py ve B72.P1 onu oradan okuyor.)
-  2. Test sonunda gercek dizinin dokumu OLCULUR (iddia). Degistiyse iddia KIRMIZI ve test sirasinda
-     beliren dosyalar geri alinir (yalniz testin baslangicinda OLMAYANLAR silinir).
+  2. Test sonunda gercek dizinin dokumu OLCULUR (iddia). cihaz/'da beliren dosya KIRMIZI ve geri
+     alinir (yalniz testin baslangicinda OLMAYANLAR silinir); baska yerde hicbir sey silinmez. Gercek
+     kopru calisiyorsa onun degisiklikleri beklenir (ayrinti `denetle`).
 
     import gercek_dizin_koru
     _KORUMA = gercek_dizin_koru.koru()          # ice aktarma aninda
@@ -49,18 +56,61 @@ def koru() -> dict:
     gecici = Path(tempfile.mkdtemp(prefix="olcum-test-pc-"))
     os.environ["OLCUM_PC_DIZIN"] = str(gecici / "pc")
     os.environ["OLCUM_CIHAZ_DIZIN"] = str(gecici / "cihaz")
-    return {"kok": kok, "once": once, "gecici": gecici}
+    return {"kok": kok, "once": once, "gecici": gecici, "ozel": ozel_mi(yerel)}
 
 
-def denetle(koruma: dict, ok) -> None:
+OZEL_ISARET = ".olcum-ozel-yerel"     # = ozel_ortam.OZEL_ISARET (test_kopru ikisini karsilastirir)
+
+
+def ozel_mi(yerel: str | None) -> bool:
+    """LOCALAPPDATA dogrula3 / mutasyon iscisinin OZEL dizini mi (ozel_ortam.yerel_kur isareti)."""
+    return bool(yerel) and (Path(yerel) / OZEL_ISARET).is_file()
+
+
+CIHAZ = "cihaz"
+
+
+def kopru_calisiyor(port: int = 8770) -> bool:
+    """Bu bilgisayarda GERCEK PC koprusu (pc.py) acik mi? (`/durum` imzasi: `kart` + `skop_arsiv`)"""
+    import json
+    import urllib.request
+    try:
+        acici = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        r = urllib.request.Request(f"http://127.0.0.1:{port}/durum", headers={"Host": f"olcum.localhost:{port}"})
+        with acici.open(r, timeout=1.5) as y:
+            d = json.load(y)
+        return isinstance(d, dict) and "kart" in d and "skop_arsiv" in d
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+def denetle(koruma: dict, ok, kopru_acik=kopru_calisiyor) -> None:
+    """Gercek dizini test sonundaki dokumle karsilastir; iddia + (yalniz cihaz/'da) geri alma.
+
+    4G + 4H (ikisi de gercek kopru calisirken bulundu): kullanicinin koprusu (Baslangic kisayolu,
+    varsayilan ONAYLI esitleme) acikken o da bu dizine YAZAR — yeni `akis-<n>` arsivi, gunun `.satir`'i,
+    bildirim onbellegi (4H'de geri alma onu SILMISTI; onayli kayit kartta da temizlenebilir: veri kaybi).
+    Kural:
+      * Geri alma YALNIZ cihaz/ altinda, test sirasinda BELIREN dosyalarda (sahte kartin cihaz dosyasi
+        oraya dusmustu, 4B). Baska hicbir yerde hicbir sey silinmez.
+      * cihaz/'da YENI dosya her zaman KIRMIZI (gercek kopru cihaz dosyasi YARATMAZ).
+      * Gercek kopru 127.0.0.1:8770'te yanit veriyorsa cihaz/ DISINDAKI degisiklikler ve cihaz/'daki
+        VAROLAN dosyalarin degismesi (kopru kendi cihaz dosyasinin sayacini ilerletir) beklenir: yesil.
+        Kopru kapaliysa her degisiklik kirmizi.
+      * (HIZ) LOCALAPPDATA OZEL ise (koruma["ozel"]) gercek kopru oraya yazamaz: muafiyet YOK,
+        her degisiklik kirmizi — kopru acik olsa da."""
+    if koruma.get("ozel"):
+        kopru_acik = lambda: False  # noqa: E731
     kok = koruma["kok"]
     sonra = _dokum(kok)
     once = koruma["once"]
     yeni = sorted(set(sonra) - set(once))
     degisen = sorted(k for k in set(sonra) & set(once) if sonra[k] != once[k] and not sonra[k][0])
     silinen = sorted(set(once) - set(sonra))
-    # Geri al: yalniz test sirasinda BELIREN dosya/dizinler (derinden sigaya); onceden olana dokunma.
-    for ad in sorted(yeni, key=lambda s: -s.count(os.sep)):
+    cihazda = lambda a: a == CIHAZ or a.startswith(CIHAZ + os.sep)  # noqa: E731
+    # Geri al: YALNIZ cihaz/ altinda, test sirasinda BELIREN dosya/dizinler (derinden sigaya);
+    # onceden olana dokunma. arsiv/ satir/ bildirim/ ASLA silinmez.
+    for ad in sorted((a for a in yeni if cihazda(a)), key=lambda s: -s.count(os.sep)):
         p = kok / ad
         try:
             if p.is_dir():
@@ -69,7 +119,17 @@ def denetle(koruma: dict, ok) -> None:
                 p.unlink()
         except OSError:
             pass
+    kopru = bool(yeni or degisen or silinen) and kopru_acik()
+    yeni_cihaz = [a for a in yeni if cihazda(a)]
+    beklenen = [a for a in degisen + silinen if cihazda(a)] + [a for a in yeni + degisen + silinen if not cihazda(a)]
     ok("[!] Test kullanicinin GERCEK %LOCALAPPDATA%\\olcum-karti dizinine dokunmadi "
-       "(sahte kartin cihaz dosyasi gercek dizine dusmesin; belirenler geri alindi)",
-       not yeni and not degisen and not silinen,
-       f"yeni={yeni[:3]} degisen={degisen[:3]} silinen={silinen[:3]}")
+       "(cihaz/'da beliren sahte cihaz dosyasi geri alindi; baska yerde silme yok, gercek kopru "
+       "calisirken onun degisiklikleri beklenir)",
+       not yeni_cihaz and (kopru or not beklenen),
+       f"cihaz_yeni={yeni_cihaz[:3]} diger={beklenen[:3]} gercek_kopru={kopru}"
+       + (" — GERCEK kopru acik: cihaz/ disindaki ve varolan dosyalardaki degisiklik onun sayildi"
+          if kopru and beklenen else "")
+       + (" — kopru kapali: zinciri kopru kapaliyken kosuyorsaniz bu degisiklik testin"
+          if beklenen and not kopru and not koruma.get("ozel") else "")
+       + (" — LOCALAPPDATA OZEL (zincir/mutasyon): gercek kopru buraya yazamaz, degisiklik testin"
+          if beklenen and koruma.get("ozel") else ""))
