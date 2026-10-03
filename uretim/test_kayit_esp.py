@@ -2908,6 +2908,75 @@ def bolum_tezgah_w5() -> None:
        and not re.search(r"(?<![\w.])(_ayr_)?esitle\(", g),
        str([c for c in komutlar if not izinli.match(c)]))
 
+    # TZ5/TZ6 (W5 inceleme): esitle_onaysiz'in GOVDESI davranisla sinanir — kaynak dilimi
+    # (TZ4) onu kapsamiyordu; Esitleyici sahte, kart/ag yok.
+    import imza as IM
+    gercek_es, gercek_ag, gercek_yukle = KE.Esitleyici, TK.ag_hazir_bekle, IM.Cihaz.__dict__["yukle"]
+    gercek_vars, eski_env = TK.VARSAYILAN_DIZIN, os.environ.get("OLCUM_CIHAZ_DIZIN")
+    cagri: list[dict] = []
+    senaryo = {"hata": None}
+
+    class SahteEs:
+        def __init__(self, taban, dizin, **kw):
+            self.dizin, self.kw = Path(dizin), kw
+            cagri.append(kw)
+
+        def esitle(self):
+            h = senaryo["hata"]
+            if h == "401" and self.kw.get("cihaz") is None:
+                raise urllib.error.HTTPError("http://x/kayit/liste", 401, "imza", {}, None)
+            if h == "kimlik" and len(cagri) == 1:
+                raise ValueError("kartin kayit AKISI degismis (kimlik 1 -> 2): Bu dizine EKLENMEZ")
+            self.dizin.mkdir(parents=True, exist_ok=True)
+            (self.dizin / KE.DOSYA).write_bytes(b"")
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        (td / "cihaz").mkdir()
+        (td / "cihaz" / "pc.json").write_text("{}", encoding="utf-8")
+        os.environ["OLCUM_CIHAZ_DIZIN"] = str(td / "cihaz")
+        KE.Esitleyici, TK.ag_hazir_bekle = SahteEs, (lambda *a, **k: True)
+        IM.Cihaz.yukle = classmethod(lambda cls, d: "CIHAZ")
+        TK.VARSAYILAN_DIZIN = td / "vars"
+        try:
+            sonuc5 = []
+            for s in (None, "401"):
+                cagri.clear()
+                senaryo["hata"] = s
+                TK.esitle_onaysiz("x", td / f"d5-{s}")
+                sonuc5.append([(k.get("onay"), k.get("istek"), k.get("cihaz")) for k in cagri])
+            ok("B72.TZ5 esitle_onaysiz GOVDESI onaysiz: duz ve imzali (401) yolda Esitleyici'ye onay/istek "
+               "geri cagirmasi VERILMEZ (kartta Go yollanmaz); imzali yolda yalniz eslesmis cihaz",
+               sonuc5 == [[(None, None, None)], [(None, None, None), (None, None, "CIHAZ")]], str(sonuc5))
+
+            senaryo["hata"] = "kimlik"
+            kul = td / "kullanici"
+            kul.mkdir()
+            (kul / "kullanici_baska_dosya.txt").write_text("dokunma", encoding="utf-8")
+            cagri.clear()
+            try:
+                TK.esitle_onaysiz("x", kul)
+                kul_hata = None
+            except (ValueError, SystemExit) as h:
+                kul_hata = str(h)
+            kul_kaldi = (kul / "kullanici_baska_dosya.txt").exists()
+            vd = TK.VARSAYILAN_DIZIN
+            vd.mkdir()
+            (vd / "eski.txt").write_text("eski", encoding="utf-8")
+            cagri.clear()
+            TK.esitle_onaysiz("x", vd)
+            vars_bastan = not (vd / "eski.txt").exists() and (vd / KE.DOSYA).exists() and len(cagri) == 2
+            ok("B72.TZ6 esitle_onaysiz AKIS/kimlik degisince kullanicinin verdigi --dizin'i SILMEZ (hata verir, "
+               "dosyalari kalir); yalniz tezgahin kendi varsayilan gecici dizinini bastan kurar",
+               kul_hata is not None and kul_kaldi and vars_bastan,
+               f"hata={kul_hata!r} kaldi={kul_kaldi} vars_bastan={vars_bastan}")
+        finally:
+            KE.Esitleyici, TK.ag_hazir_bekle, IM.Cihaz.yukle = gercek_es, gercek_ag, gercek_yukle
+            TK.VARSAYILAN_DIZIN = gercek_vars
+            if eski_env is None:
+                os.environ.pop("OLCUM_CIHAZ_DIZIN", None)
+            else:
+                os.environ["OLCUM_CIHAZ_DIZIN"] = eski_env
+
 
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
             bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle,

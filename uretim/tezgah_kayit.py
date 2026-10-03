@@ -22,7 +22,9 @@
     python tezgah_kayit.py --skop-olcum            T8 (W5): Gb surerken Gt2000 -> Gtd -> AYNI oturumda Gt3000 -> Gtd
     secenekler: --port COM6  --http olcum.local  (ya da kartin IP'si)
                 --dizin <yol>  (--plan-elle/--skop-olcum: ONAYSIZ esitleme dizini; vars. gecici dizinde
-                               olcum-tezgah-w5 — kartta onay ILERLEMEZ, kopru sonra kendi arsivine alir)
+                               olcum-tezgah-w5 — kartta onay ILERLEMEZ, kopru sonra kendi arsivine alir;
+                               kopru arsivini VERME. Kart akisi degisirse yalniz varsayilan dizin
+                               bastan kurulur, verilen --dizin SILINMEZ: hata verir)
 
 🔴 --yedek NVS'i (WiFi ve web parolalarini) icerir: DEPO DISINA yazilir
    (<calisma alani>/.yedek/olcum-karti/). Geri donus:
@@ -940,9 +942,14 @@ def plan(k, host: str) -> None:
 SEBEP_KULLANICI, SEBEP_PLAN = 1, 7
 
 
+VARSAYILAN_DIZIN = Path(tempfile.gettempdir()) / "olcum-tezgah-w5"   # tezgahin KENDI gecici dizini
+
+
 def esitle_onaysiz(host: str, dizin: Path):
-    """Onaysiz artimli esitleme -> Oturumlar. Kart AKISI degismisse (X-Kayit-Kimlik) dizin
-    bastan kurulur. Imza zorunluysa (401) PC'nin eslesmis cihaziyla imzali."""
+    """Onaysiz artimli esitleme -> Oturumlar. Kart AKISI degismisse (X-Kayit-Kimlik) ya da sira
+    GERI gittiyse yalniz tezgahin kendi VARSAYILAN_DIZIN'i bastan kurulur; kullanicinin verdigi
+    --dizin SILINMEZ (Esitleyici'nin hatasi gecer: yeni bir dizin verilmeli). Imza zorunluysa
+    (401) PC'nin eslesmis cihaziyla imzali. Esitleyici'ye ASLA onay verilmez (kartta Go yok)."""
     import shutil
     import urllib.error
     ag_hazir_bekle(host)
@@ -956,6 +963,9 @@ def esitle_onaysiz(host: str, dizin: Path):
         except ValueError as h:
             if "kimlik" not in str(h) and "GERI" not in str(h):
                 raise
+            if dizin.resolve() != VARSAYILAN_DIZIN.resolve():
+                raise ValueError(f"{h} — {dizin} kullanicinin dizini, SILINMEDI; --dizin ile yeni "
+                                 f"bir dizin ver") from h
             shutil.rmtree(dizin, ignore_errors=True)
             bir()
     except urllib.error.HTTPError as h:
@@ -1424,7 +1434,7 @@ def main() -> int:
             guvenlik(k, host)
         if "--hazirsiz" in a:
             hazirsiz(k, host, float(sec("--sure", "60")), "--doldur" in a)
-        dizin = Path(sec("--dizin", str(Path(tempfile.gettempdir()) / "olcum-tezgah-w5")))
+        dizin = Path(sec("--dizin", str(VARSAYILAN_DIZIN)))
         if "--plan-elle" in a:
             plan_elle(k, host, dizin)
         if "--skop-olcum" in a:

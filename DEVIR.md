@@ -10586,6 +10586,17 @@ köprü kayıtları sonra kendi arşivine alır.
   `1-acik-isler.md` E6'da.
 - Çevrimdışı ölçü aleti denetimleri: B72.TZ1–TZ4 (`test_kayit_esp.py`, B72 207 → 211) ve
   test_bildirim E7.1–E7.7. Bunlara 20 mutasyon (`W5:`) eklendi.
+- **İnceleme düzeltmesi (2026-10-04, 5.12.104a):** iki bulgu kapandı.
+  1. TZ4 yalnız `plan_elle`…`_ham_istek` kaynak dilimine bakıyordu. `esitle_onaysiz`'in gövdesi bu
+     dilimin dışında kalıyordu: imzalı yolda Esitleyici'ye `onay=KE.imzali_onay(...)` verilse TZ4 yine
+     yeşildi, kartta `Go` gider, köprü arşivi kayıt kaçırırdı. Yeni **TZ5** gövdeyi davranışla sınıyor:
+     sahte Esitleyici, düz ve 401 (imzalı) yolda `onay`/`istek` hep `None`.
+  2. Akış kimliği değişince ya da sıra GERİ gidince `esitle_onaysiz` verilen `--dizin`'i
+     `shutil.rmtree` ile siliyordu; köprü arşivi verilirse veri kaybolurdu. Artık yalnız tezgahın kendi
+     `VARSAYILAN_DIZIN`'i (`%TEMP%\olcum-tezgah-w5`) baştan kuruluyor. Kullanıcı dizininde Esitleyici'nin
+     hatası "SİLİNMEDİ, yeni --dizin ver" ekiyle geçiyor; yardım metni köprü arşivini vermemeyi söylüyor.
+     Bunu **TZ6** sınıyor.
+  B72 211 → 213; 4 yeni `W5:` mutasyonu (yorumcunun mutasyonu birebir dahil).
 
 ---
 
