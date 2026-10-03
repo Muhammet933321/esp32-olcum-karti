@@ -10571,9 +10571,15 @@ benim, gerekçeleri `tasarim/1-acik-isler.md` "W1 kararları"nda (WK1–WK7). İ
 kartın nokta W'sinden farklıydı (50 Hz, PF 0.5'te ~%8). Nokta oturumları zaten kartın W'sini taşıyor —
 değişmedi.
 
-**Doğrulama:** B73 25/25 (node: kayit 97, disari 25, rapor 15; vektörler `--denetle` aynı), B7 912/912
-(+1: K3c). Mutasyon `--neden W1:` 26/26 yakalandı (ayrıntı aşağıda). İki eski mutasyon kaydı bu dalın
-değiştirdiği satırlara güncellendi (B7 K3 `ei`, T3C `onDegisim`).
+**Doğrulama** (commit `296c2e2`): B73 25/25 (node: kayit 97, disari 25, rapor 15; vektörler `--denetle`
+aynı), B7 912/912 (+1: K3c; sayım kilidi 911 → 912). Zincir `--artimli` iki TAM koşu (önbellek bu ağaçta
+yoktu): 1. koşuda yalnız B22b (LittleFS görüntüsü bayat → `arayuz-uret.py`, `_fs.json` + `sw.js` SURUM)
+ve B7 sayımı kırmızı; 2. koşuda bunlar yeşil, B71 (yarıda kesildi) ve B6 (`arduino-cli` geçici dizin
+hatası) kırmızı — makine 4 ajanla paylaşılıyor; tek başına yeniden koşunca B71 362/362, B6 77/77. Firmware
+ve `kod/` değişmedi. Mutasyon `--neden W1: --paralel 2` **26/26 yakalandı**. İki eski mutasyon kaydı bu
+dalın değiştirdiği satırlara güncellendi: B7 K3 `ei` (koşuldu, yakalandı), T3C `onDegisim` (tarayıcı adımı,
+koşulmadı). Tam koşuların yeniden ürettiği `BELGELER/`, `sema3/`, `_tezgah.md`, `netlist3.net`,
+`_firmware.json` commit'e ALINMADI (satır sonu / zaman damgası gürültüsü; `_tezgah.md` sıra farkı).
 
 **Açık:** firmware V–I kaymasını AYRINTI'ya yazmıyor (sabit 152 µs kullanılıyor) · ADS takılınca PC
 hizalı W ↔ kartın `D` satırı W'si tezgahta karşılaştırılmalı (T11) · 16.38 ms'den kısa skop duraklaması
