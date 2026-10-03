@@ -11,17 +11,22 @@ Panel: http://olcum.localhost:8770 (yalniz bu bilgisayar; `pc_ayar.py` PC1).
 
 🔴 KOPRUNUN ASIL DEGERI GUZEL ARAYUZ DEGIL, ROLE OLMASI.
 
-Kopru kartin USB satir akisini N tarayiciya cogaltiyor ve PC tarafinda
-arsivliyor: tarayicilar karta degil kopruye baglanir, kartin `loop()`'u
-tarayici trafigini hic gormez. USB'de kartin WiFi'si kapali da olabilir.
+Kopru kartin satir akisini (USB ya da WiFi) N tarayiciya cogaltiyor:
+tarayicilar karta degil kopruye baglanir, kartta TEK `/akis` yuvasi tutulur.
 ⚠ (2026-10-03) Eski gerekce "kartin SSE'si tek istemcili, her HTTP istegi
   loop()'u blokluyor" artik GECERSIZ: B28'den beri web cekirdek 0'da ayri
-  gorevde, olcum cekirdek 1'de; kart en cok 4 `/akis` istemcisine (AKIS_AZAMI) hizmet
-  ediyor. Koprunun bugunku degeri: USB'den canli akis, PC'de arsiv ve
-  guvenli yerel kokenden sunulan panel. 4B: USB'de dogrulanmis kart yoksa
-  kartla WiFi'den ESLESMIS CIHAZ olarak konusur (kart_wifi.py: imzali /akis
-  ve /komut, p0 imzasiz); kart artik ikinci /akis'i reddetmiyor, `/kopru`
-  kaydi ve CORS izni kalkti (firmware A3-4B) — kopru sunucu tarafinda vekil.
+  gorevde, olcum cekirdek 1'de; kart en cok 4 `/akis` istemcisine (AKIS_AZAMI)
+  hizmet ediyor. Koprunun bugunku degeri (alt proje 4, `pc.py` tek surec):
+    * USB'de dogrulanmis kart yoksa kartla WiFi'den ESLESMIS CIHAZ olarak konusur
+      (kart_wifi.py: imzali /akis ve /komut, p0 imzasiz); kart artik ikinci
+      /akis'i reddetmiyor, `/kopru` kaydi ve CORS izni kalkti (firmware A3-4B);
+    * kartin kayitlarini arka planda diske esitler (arka_esitle.py, 4C) ve panele
+      o arsivi + kartin uclarini imzali vekil eder (vekil.py, 4D);
+    * MQTT bildirimlerine abone olup Windows bildirimi gosterir (pc_bildirim.py, 4E);
+    * paneli guvenli yerel kokenden (`olcum.localhost`, PWA kabugu 4F) sunar.
+  4G (gercek kart): 6 tarayici sekmesi + komut istemcisi kartta TEK yuva tuttu;
+  kalan 3 yuvaya kullanicinin tarayicisi + 2 dogrudan istemci, sonraki `event: dolu`.
+  Eski `.satir` gunlugu (B35) yalniz satir arsivi; kayitlarin asil arsivi 4C'ninki.
 
 ── GUVENLIK (4A, PC2) ────────────────────────────────────────────────
 Kart USB'de KIMLIK SORMAZ: USB'ye yazabilen her sey karta `Ns`/`GF!`/`p1`
@@ -45,9 +50,10 @@ Karttan gelen satir aynen `data: <satir>` olarak yayiliyor. Firmware,
 ayristiricisi bu yuzden yetiyor. `test_kopru.py` bunu bayt-bayt siniyor.
 
 ── KOMUT UCU: /komut ─────────────────────────────────────────────────
-⚠ Plan `/k` diyordu; `/komut` secildi. Kartin B22.4'te acacagi uc de
-  `/komut` olacak, yani istemci KOPRUYE mi KARTA mi bagli oldugunu
-  bilmek zorunda kalmiyor. Ayni yol, ayni yontem, ayni basliklar.
+Kartin kendi ucu da `/komut` (B22.4): istemci KOPRUYE mi KARTA mi bagli
+  oldugunu bilmek zorunda kalmiyor. Ayni yol, ayni yontem, ayni `X-Olcum`;
+  kart eslesmis cihazdan imza da bekler — kopru kendi cihaziyla imzalar
+  (panelin imza basliklarini TASIMAZ, 4D-7).
 
 ── SURUCU HAKEMI ─────────────────────────────────────────────────────
 N izleyici, BIR surucu. Jeton kimdeyse kalibrasyon/menzil/pil onda.

@@ -28,7 +28,7 @@ Bu belgeyi okuyup projeyi devralıyorsun. Sırayla:
 1. **Doğrulama zincirini koştur.** Belgede yazan her şey bu zincire dayanıyor:
    ```
    cd projeler/olcum-karti/uretim
-   python dogrula3.py          # AŞAMA 3 — GÜNCEL, B1..B25, 18/18, ~6 dk
+   python dogrula3.py          # AŞAMA 3 — GÜNCEL, 22/22 adım (ADIM_SAYISI), ~20 dk
    python dogrula2.py          # Aşama 2 — A1..A6, 6/6 geçmeli, ~70 s
    python dogrula.py           # Aşama 1 — S1..S9, 9/9 geçmeli, ~110 s
    ```
@@ -10530,6 +10530,126 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 `ham()`'ı ekliyor), `tasarim3_sabit.py` DRAM satırı, `kayit_esp.h` KM_* tanımları.
 
 ---
+
+#### 5.12.95 🟢 4J: KÖPRÜNÜN KART İSTEKLERİ ÖĞRENİLMİŞ ADRESE — TAM EŞİTLEME 24–26 s → 18.4 s (2026-10-03 akşam)
+
+Ajan, dal `4j-ag` (HEAD 9e4eb13 = main + 4G). 4G'nin açığı: Windows `olcum.local`'ı ~8 s'de bir yeniden
+çözüyor ve çözüm 2.7 s sürüyor; 4G yalnız `p0`'ı akışın karşı adresine almıştı. Kararlar spec
+"4J uygulama kararları" (4J-1…8).
+
+**Değişiklik (`kopru/kart_wifi.py`):** `WifiKart._karsi` = ad ile kurulan son bağlantının karşı ucu. Bütün
+kart istekleri (`dogrula`'nın açık `/eslestir/bilgi`'si, `akis_url`, `/akis`, `imzali_ac` → komut, `/saat`,
+eşitleme, vekil, `/bildirim/bilgi`) WifiKart'ın kendi açıcısından (`_ac`, `_KartBaglantisi`) geçer; TCP'yi
+`_baglan` kurar: önce öğrenilmiş adres (en çok 2 s), kurulamazsa BİR KEZ ad + tazeleme. URL ve `Host:`
+değişmez (kart yabancı Host'u 403 ile reddeder). `dogrula` öğrenilmiş adreste başarısızsa adresi unutur ve
+ad ile bir kez daha dener — kimlik denetimi aynen. `p0` 4G yolunda, değişmedi.
+
+**Gerçek kart ölçümü** (`A3-4B`, WiFi; karta yalnız `/eslestir/bilgi`, imzalı `/kayit/liste` `/kayit/veri`,
+`G?`, `p0`; eşitleme ONAYSIZ, geçici veri dizinine, cihaz dosyasının KOPYASIYLA — gerçek
+`%LOCALAPPDATA%\olcum-karti`'ye yazılmadı; önce = `git archive HEAD kopru`, önce/sonra dönüşümlü):
+
+| | Önce | Sonra |
+|---|---|---|
+| Tam eşitleme (2299 kayıt, 1 311 112 B, 165 imzalı istek, canlı akış açık) | 23.57 · 26.37 · 24.82 s | **18.41 · 18.35 · 18.53 s** (taban 16.5 s) |
+| İstek başı (100 ms ara dahil) | 143–160 ms | 111–112 ms |
+| İmzalı `G?` | ortanca 60–131 ms, 2.7–2.8 s takılma **6/60** | ortanca 114–127 ms, en kötü 149 ms, takılma **0/48** |
+| İmzalı `/kayit/liste` (kartta 350–600 ms) | 3.0–3.2 s takılma **5/40** | en kötü 634 ms, **0/32** |
+| `/eslestir/bilgi` | her 8'de 1–2 kez 2.75–2.8 s | yalnız sürecin ilk ad çözümü (2.8 s; bir kez 7.5 s) |
+| `p0` (akış açık, 5'er) | 20–59 ms | 22–66 ms |
+
+**Keep-alive:** ham soketle `Connection: keep-alive` — kart `HTTP/1.1 200 OK … Connection: close` ile yanıt
+verip soketi kapattı, ikinci istek 0 B. ESP32 `WebServer` keep-alive tutmuyor → yapılmadı (4J-5).
+**Sayaç kalıcılığı:** `sonraki_sayac` 3.6–4.8 ms (DPAPI 0.33 ms; gerisi mkstemp + fsync + replace); blok
+ayırma yapılmadı — kazanç %4, ve zaman tabanlı sayaçta ileri ayrılan blok aynı dosyayı kullanan ikinci
+süreci kartın 64'lük penceresinin ötesine atıp köprüyü 401'e düşürürdü (4J-6).
+**B72.A6 kararsızlığı:** aralık sahte kartın varış anından ölçülüyordu (yükte 81–82 ms); artık `imzali_ac`
+sarmalayıcısıyla İSTEMCİNİN gönderme anında, eşik 98 ms. Yalanlayıcı: tavan yarıya (50 ms).
+
+**Testler:** B72 **207/207** (+3: W14 bütün istekler öğrenilmiş adrese / ad bir kez / Host ad; W15 ölü adres →
+bir kez ad, komut tek, 401 yok, IP denemesi ≤ 2 s; W16 eski adreste yabancı cihaz → unut, ad ile doğrula,
+yabancıya yalnız açık `/eslestir/bilgi`). Bağlantı hedefi `kart_wifi._tcp_ac` kancasıyla izleniyor; sahte
+kartta ad `localhost` (Windows'ta ::1 reddi yüzünden her ad bağlantısı ~2 s). W6 ve A10'un kancaları yeni
+katmana taşındı (`w._ac`, `w._baglanti_sinifi` — eski `KW.vekilsiz_ac` / `KW.http.client.HTTPConnection`
+yaması artık bir şey ölçmezdi). B22a 172/172, `test_bildirim.py` 259/259, `gizlilik_dogrula.py` temiz.
+Mutasyon (karalama koşucusu): **4J 8/8**, **4G 13/13**, **4C 38/38** — hepsi öldü, uygulanamayan yok.
+`beklenen_sayim.json` B72 204 → 207.
+
+⚠ **Süreç:** ilk mutasyon koşusunun tabanı kırmızıydı — aynı anda gerçek kartı ölçüyordum ve ölçüm gerçek
+cihaz dosyasının sayacını ilerletti; `gercek_dizin_koru` bunu (doğru olarak) "test gerçek dizine dokundu"
+diye yakaladı. Ölçüm betiği cihaz dosyasının KOPYASINA geçirildi. Gerçek karta karşı ölçüm yapan her araç,
+paralel koşan testleri kırmamak için gerçek dizine yazmamalı.
+
+Açık: öğrenilmiş adres yalnız süreç içinde (köprü her açılışta bir kez ad çözer); `kayit_esitle.py` /
+`imza.py` komut satırı araçları eskisi gibi adla.
+
+#### 5.12.92 🟢 4G KABUL: PC UYGULAMASI GERÇEK KARTTA — Ö3, Ö5, 4 İZLEYİCİ, p0 (2026-10-03 öğleden sonra)
+
+Ajan, dal `4g-kabul`. Araç **`uretim/tezgah_pc.py`** (`--o3`, `--o5`; zincirde değil — saf yardımcıları
+B22a "4G"de, tezgah kalemi B22a listesinde). Kart `A3-4B`, WiFi, ADS takılı değil, eşleşmiş "Desktop" +
+"PC-kopru", `zorunlu=0`. Karta yalnız `?` `G?` `Gb200` `Gd` `Ga` `Gn` `p0`; flaş yazılmadı, `N?` yok.
+
+**Ö3 (11/11)** — `pc.py --usb-yok`, GERÇEK veri dizini, varsayılan ONAYLI (gerçek karta onaylı koşu):
+test oturumu 61277 "4G kabul" (`Gb200`, `Ga`, `Gn`); kayıt sürerken bir tur (+4 kayıt); köprü
+**202 s kapalı**, kart aynı oturumla kaydetti; yeniden açılınca ilk turda **59 kayıt / 40 340 B, 4.5 s**;
+`Gd` + son tur (+2): `Go` gitti, kart `X-Onay` ile doğruladı. Köprü kapatılıp kartın akışı geçici
+dizine bağımsız indirildi (2299 kayıt, 22.2 s): PC arşivi **bayt bayt aynı** (1 311 112 B, sıra
+59043–61341, `tam_ayni`). Arşivde oturum: ad, not, 1102 nokta, BİTİR sebep 1, testin 65 sırası kesintisiz.
+
+**Ö5 (14/14 ile birlikte)** — köprü geçici veri dizinli + `--onaysiz`, arada bayt kaydeden TCP rölesi
+(`KayitciVekil`). **Bulgu:** kart yabancı `Host`'u 403 "Host reddedildi" ile reddediyor (DNS yeniden
+bağlama savunması çalışıyor) → röle yalnız `Host:` satırını kartın adıyla yazar. Kayıt: 288 istek,
+1.56 MB — `/akis` 1, `/komut` 7, `/kayit/veri` 164 (bos dizinden tam eşitleme 22.6 s), `/kayit/liste` 2,
+`/pil` 39, `/kal/liste` 35, `/kunye.json` 33, `/bildirim/bilgi` 1, `/eslestir/bilgi` 6. Bellekte (DPAPI +
+`OKB1` zarfı süreç içinde çözüldü, hiçbir değer basılmadı) aranan: K, aracı uri / sunucu adı / kullanıcı /
+parola, konu öneki, yük anahtarı — ham, onaltılık (küçük/BÜYÜK), base64 (standart/URL/dolgusuz), yüzde
+kodlu: **hepsi 0**; `Authorization:` **0**; köprü konsol günlüğünde de 0. Pozitif denetim: kart kimliği
+6 kez, `/bildirim/bilgi` yanıtı `OKB1`. **Web parolası ARANMADI** (`OLCUM_PAROLA` verilmedi). Kayıt ve
+geçici dizin silindi.
+
+**4 canlı izleyici** — 6 tarayıcı sekmesi (2 başlıksız Edge × 3) + komut istemcisi köprüden akış aldı
+(sekme başına 4 s'de 78–97 `D`), köprü kartta **TEK yuva**. Kalan 3 yuvadan 1'ini kullanıcının Chrome'u
+tutuyordu (dünden beri açık; `Get-NetTCPConnection` ile ölçüldü), 2 doğrudan istemci veri aldı, sonraki
+`event: dolu`. Kapanan doğrudan istemcinin yuvası 0.2–0.45 s'de boşaldı (4B'nin açık maddesi).
+
+**p0 yük altında** — tam eşitleme + vekil (~3 istek/s) + 6 izleyici sürerken sekmeden 5/5 **204,
+45–246 ms** (köprü→kart ayağı 21–226 ms).
+
+**Bulunan ve düzeltilen kusurlar** (her biri önce kartta / testte kırmızı görüldü, `4G:` mutasyonlu):
+1. **p0 2.77 s** — Windows `olcum.local`'ı ~8 s'de bir yeniden çözüyor, çözüm 2.7 s (30 çözümde 2694 ve
+   2726 ms). Köprünün p0'ı her seferinde adı çözüyordu. Artık canlı akışın karşı adresine (`WifiKart._ip`,
+   kopunca silinir), 2 s'de yanıt yoksa ada düşer. Kartta düzeltmeden sonra 30/30 p0 28–117 ms. B72.W4b.
+2. **40 s okuma zaman aşımı hiç uygulanmıyordu** — `http.client` SSE yanıtında `HTTPConnection.sock`'u None
+   yapıyor; soket 10 s'de kalıyordu, `kapat()` okumayı kesemiyordu. Soket istekten hemen sonra tutuluyor.
+3. **`gercek_dizin_koru` canlı köprünün dosyalarını silebiliyordu** — test sırasında gerçek dizinde
+   beliren her şey "geri alınıyordu"; kullanıcının köprüsü açıkken bu, yeni `akis-<n>` arşivi / günün
+   `.satir`'ı / bildirim önbelleği demek (onaylı kayıt kartta da temizlenebilir → veri kaybı). Ö3 sırasında
+   OLDU: başka bir ajanın `test_kopru.py` koşusu köprünün yazdığı gerçek `bildirim\<kart>.okb`'yi sildi
+   (orkestratör doğruladı; köprü onu karttan yeniden alır; Ö3'ün arşivi yalnız değişti, silinmedi).
+   Artık köprü açıksa geri alma yapılmaz (iddia kırmızı kalır, sebebi yazar). B22a + mutasyon.
+4. **Tezgah hijyeni:** `olcum-edge-` öneki ortak — sızıntı sayımı başka koşunun tarayıcısını da sayıyor.
+   Araç artık yalnız kendi profillerini sayıyor. ⚠ Bu oturumda genel önekle 16 `msedge` süreci elle
+   öldürüldü; profilleri silinmişti (yetim) ama o an başka bir ağaçta `dogrula3.py --artimli` koşuyordu —
+   onun tarayıcı adımı etkilenmiş olabilir.
+
+Açık: kart ADS'siz (veri değerleri anlamsız); Ö4 PC karşılığı (PC18), USB kablo çek/tak geçişi, Başlangıç
+kısayolu — elle. İmzalı istekler ve eşitleme hâlâ her istekte adı çözüyor (keep-alive yok).
+B22a 166 → 172, B72 203 → 204 (zincir 5232 → 5239); mutasyon 4G 13/13. ⚠ Orkestratör aynı korumayı
+ayrıca düzeltiyor ("cihaz dizini dışında silme yok" + köprü açıkken geri alma yok) — `gercek_dizin_koru.denetle`
+birleştirmede çakışabilir.
+
+**ÖNERİ — `Ez1` (imza zorunluluğu), AÇILMADI, kullanıcı kararı.** İki cihaz da eşleşmiş (Desktop =
+kullanıcının tarayıcısı, PC-kopru = bu PC'nin köprüsü), köprü imzalı konuşuyor (4G'de ölçüldü). Adımlar:
+1. `python kopru/pc.py --durdur` (ya da `kopru/Kopruyu Durdur.bat`) — köprü COM portunu bıraksın.
+2. Kartın **COM yazan** soketi USB'de; seri konsol (Arduino IDE Seri Monitör ya da benzeri, 115200,
+   satır sonu `\n`). `E?` → `E zorunlu=0 misafir=0 … cihaz=2` görülmeli (iki cihaz).
+3. `Ez1` gönder; yanıtı oku; `E?` → `zorunlu=1`.
+4. Köprüyü yeniden aç (`kopru/PC Baslat.bat`); panel (köprüde ve Desktop tarayıcısında kartın kendi
+   sayfası) eskisi gibi çalışmalı.
+**Sonuç:** eşleşmemiş HER istemci kilitlenir — `/akis`, `/kayit/*`, `/pil`, `/kal/liste`, imzasız `/komut`
+401 (serbest kalanlar: `p0`, `?`, `/eslestir/*`, `/` sayfası). Eşleşmemiş telefon / başka tarayıcı canlı
+izleyemez (`Em1` misafir izleme açılırsa `/akis` ve `/pil` imzasız kalır). İmzasız HTTP kullanan tezgah
+araçları (ör. `tezgah_kayit.py`'nin `esitle()`'si: eşleşmiş cihaz kullanmıyor) 401 alır → o koşulardan önce
+USB `Ez0`. Geri alma: USB `Ez0`. Ayar bozulursa kart fail-closed (zorunlu) davranır.
 
 #### 5.12.91 🟢 3C-LISTE: İLK EŞİTLEMEDE BOŞ LİSTE (2026-10-03 öğle)
 

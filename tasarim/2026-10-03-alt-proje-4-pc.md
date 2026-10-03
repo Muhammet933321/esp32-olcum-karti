@@ -168,7 +168,7 @@ Açık (4B dışı / sonraki dilimler):
 - ~~**Kayıt verisi WiFi'den** (PC6'nın ikinci yarısı) ve eşitleyicinin aynı sayaç kilidini paylaşması 4C.~~
   4C'de yapıldı (aşağıda 4C-2).
 - `ortak/src/imza.js`'te kimlik denetimi yok (panel); kart her uçta `_i` sorgu imzasını kabul ediyor (D5 #17'nin ilk yarısı).
-- Gerçek kartta: tek `ham()` yazımının IDF günlüğüyle kesişmediği, 4 izleyici + köprü, köprünün kablo çekip takmada USB ↔ WiFi geçişi (aşağıdaki tezgah listesi orkestratörde).
+- Gerçek kartta: tek `ham()` yazımının IDF günlüğüyle kesişmediği, ~~4 izleyici + köprü~~ (**4G'de koşuldu**: köprü 1 yuva, "4G gerçek kart kabulü"), köprünün kablo çekip takmada USB ↔ WiFi geçişi (elle).
 
 ### 4C uygulama kararları (2026-10-03)
 
@@ -211,7 +211,7 @@ sürüyor (her istekte yeni TCP + ad çözümü + sayaç dosyası DPAPI + fsync)
 | 4C-11 | **`Esitleyici` ek parametreleri** (`istek`, `parca_arasi`, `uyu`, `durdu`, `onay_parca`) komut satırında eski davranışta (parça başı onay, ara yok); köprü kapanırken tur parçalar arasında durur (yazılan kalıcı kalır, onay doğrulaması atlanır) | `kayit_esitle.py` CLI ve B72.E iddiaları değişmedi |
 
 Açık (4C dışı / sonraki):
-- **Gerçek karta ilk ONAYLI koşu** (varsayılan) — onay geri alınamaz sonuç doğurabildiği için orkestratörde.
+- ~~**Gerçek karta ilk ONAYLI koşu** (varsayılan) — onay geri alınamaz sonuç doğurabildiği için orkestratörde.~~ **4G'de koşuldu** (Ö3, gerçek veri dizini): `Go` gitti, kart doğruladı; arşiv kartın akışıyla bayt bayt aynı.
 - **Köprü açıkken `kayit_esitle.py` / `imza.py` CLI'si** aynı cihaz dosyasını AYRI süreçte kullanır: sayaç
   yarışabilir (aynı ms → 401). Kural: önce `pc.py --durdur`. Süreçler arası kilit yok.
 - İstek başına PC yükü (~100 ms: yeni TCP + `olcum.local` çözümü + sayaç dosyası DPAPI/fsync): keep-alive ve
@@ -264,8 +264,8 @@ Açık (4D dışı / sonraki):
 - Köprünün sunduğu panelin kendi sürümü (sw.js SURUM) panelde gösterilmiyor.
 - WiFi'de canlı skop yakalaması hâlâ `tB → t` + ASCII dökümü; `/skop.bin` vekili yapılmadı (4B açık maddesi, kapsam dışı).
 - Yerel ağ istemcisine panelde "salt okuma" arayüzü yok (4A'dan devreden; 403 metni görünür).
-- Vekilin gerçek kartta (imzalı `/kal/liste`, `/pil`, `/kunye.json`) koşusu yapılmadı — bu dilimde karta komut / istek
-  gönderilmedi; tezgah kalemi (4G).
+- ~~Vekilin gerçek kartta (imzalı `/kal/liste`, `/pil`, `/kunye.json`) koşusu yapılmadı — bu dilimde karta komut / istek
+  gönderilmedi; tezgah kalemi (4G).~~ **4G'de koşuldu:** tam eşitleme sürerken üç uç ~1 s'de bir, hepsi 200 (Ö5 koşusu).
 
 ### 4E uygulama kararları (2026-10-03)
 
@@ -323,6 +323,67 @@ Açık (4E dışı / sonraki):
 - Ö4 PC ölçümü (yukarıda), E7 (`basladi` kaybı) gerçek aracıda yeniden gözlenmedi.
 - Yerel yol yalnız `G` satırından: kartın açılış afişi ("yeniden başladı") yerel olarak bildirilmiyor (MQTT'den geliyor).
 - `esik` yalnız MQTT'den (eşik değeri kartta); yerel `G`'nin `onaysiz` alanından türetilmedi.
+
+### 4G gerçek kart kabulü (2026-10-03)
+
+Araç `uretim/tezgah_pc.py` (`--o3`, `--o5`; zincirde değil, saf yardımcıları B22a "4G"de). Kart `A3-4B`,
+WiFi, ADS takılı değil, eşleşmiş cihazlar "Desktop" + "PC-kopru", `zorunlu=0`. Karta yalnız `?`, `G?`,
+`Gb200`, `Gd`, `Ga`, `Gn`, `p0` gitti; flaş yazılmadı. Ayrıntılı sayılar DEVIR 5.12.92.
+
+| Kalem | Sonuç |
+|---|---|
+| **Ö3** uzun kopukluk | `pc.py --usb-yok` GERÇEK veri dizini, varsayılan ONAYLI: test oturumu "4G kabul" (`Gb200`); köprü **202 s kapalı** (kart kaydetti), yeniden açılınca ilk turda **59 kayıt / 40 340 B, 4.5 s**; `Gd` + son tur: onay gitti, kart doğruladı. Köprü kapalıyken bağımsız indirme (2299 kayıt, 22.2 s): PC arşivi **bayt bayt aynı** (1 311 112 B, sıra 59043–61341). 11/11 |
+| **Ö5** trafikte sır yok | Köprü ↔ kart arasına bayt kaydeden TCP rölesi (Host satırı karta kendi adıyla yazılır — kart başka Host'u 403 ile reddediyor): 288 istek / 1.56 MB (akış, 7 komut, 164 parça tam eşitleme, vekil, `/bildirim/bilgi`). K, aracı adresi/sunucu/kullanıcı/parola, konu öneki, yük anahtarı (ham / onaltılık / base64 / yüzde kodlu) **0**, `Authorization:` **0**, köprü konsolunda da 0; pozitif denetim: kart kimliği 6 kez, `/bildirim/bilgi` yanıtı `OKB1` zarfı. Web parolası ARANMADI (`OLCUM_PAROLA` verilmedi). Kayıt silindi |
+| **4 canlı izleyici** | 6 tarayıcı sekmesi (2 başlıksız Edge) + komut istemcisi köprüden akış alıyor (her sekme 4 s'de 78–97 `D`), köprü kartta **1 yuva**; kalan 3 yuvanın 1'ini kullanıcının Chrome'u tutuyordu, 2 doğrudan istemci veri aldı, sonraki **`event: dolu`**. Kapanan doğrudan istemcinin yuvası 0.2–0.45 s'de boşaldı (4B açık maddesi) |
+| **p0 yük altında** | Tam eşitleme + vekil (~3 istek/s) + 6 izleyici sürerken sekmeden 5/5 **204, 45–246 ms** |
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4G-1 | **`p0` canlı akışın KARŞI ADRESİNE gider** (`WifiKart._ip`, akış açılınca `getpeername`, kopunca silinir); 2 s'de yanıt yoksa ada geri düşer | **Bulunan kusur:** Windows `olcum.local`'ı ~8 s'de bir yeniden çözüyor ve o çözüm 2.7 s sürüyor (30 çözümde 2694/2726 ms) — p0 panelden karta **2.77 s**'de ulaşıyordu (Ö7). Düzeltmeden sonra gerçek kartta 30/30 p0 28–117 ms. Kart kendi IP'sini Host olarak kabul ediyor. B72.W4b + 4 mutasyon. İmzalı istekler / eşitleme hâlâ adla (istek başına çözüm — açık) |
+| 4G-2 | **Akış soketi istekten hemen sonra tutulur** (`_akis_soket`) | `http.client` uzunluksuz SSE yanıtında `HTTPConnection.sock`'u None yapıyor: 4B-8'in 40 s okuma zaman aşımı HİÇ uygulanmıyordu (soket 10 s'de kalıyordu), `kapat()` bekleyen okumayı kesemiyordu. B72.W4b ölçüyor |
+| 4G-3 | **`gercek_dizin_koru` kullanıcının köprüsü açıkken geri alma YAPMAZ** (iddia yine kırmızı, sebebini söyler) | Köprü (Başlangıç kısayolu, varsayılan onaylı) de bu dizine yazar; test sırasında beliren yeni `akis-<n>` / `.satir` / bildirim önbelleği SİLİNİYORDU — onaylı kayıt kartta da temizlenebilir: veri kaybı. Ö3 sırasında oldu: başka bir koşunun `test_kopru.py`'si köprünün gerçek bildirim önbelleğini sildi. B22a + mutasyon |
+| 4G-4 | **Tezgah aracının sızıntı sayımı yalnız KENDİ Edge profillerini sayar** | `olcum-edge-` öneki ortak: başka bir koşunun tarayıcısı "sızıntı" sanılıyor (ve elle temizlik onu öldürür — bu oturumda oldu) |
+
+Açık (4G sonrası, kullanıcı):
+- `Ez1` önerildi, AÇILMADI (DEVIR 5.12.92: USB adımları + sonucu).
+- Ö4 PC karşılığı (PC18), kablo çekip takmada USB↔WiFi geçişi, Başlangıç kısayolu kurulumu — elle.
+- ~~İmzalı istek ve eşitleme her istekte `olcum.local`'ı çözüyor (keep-alive yok): 4G-1'in IP yolu genelleştirilebilir.~~
+  **4J'de yapıldı** (aşağıda): bütün kart istekleri öğrenilmiş adrese; tam eşitleme 23.6–26.4 → 18.4–18.5 s.
+
+### 4J uygulama kararları (2026-10-03) — köprünün kart isteklerinde ağ hızlandırması
+
+Ölçüm gerçek kartta (`A3-4B`, WiFi, bu PC cihaz 2; karta yalnız `/eslestir/bilgi`, imzalı `/kayit/*`, `G?`,
+`p0` — eşitleme ONAYSIZ, geçici veri dizini, cihaz dosyasının KOPYASIYLA) önce/sonra dönüşümlü, aynı makine
+yükünde. Ayrıntı DEVIR 5.12.95.
+
+| Ölçü | Önce (HEAD 9e4eb13) | Sonra (4J) |
+|---|---|---|
+| Tam eşitleme, 2299 kayıt / 1 311 112 B / 165 imzalı istek (taban 165 × 100 ms = 16.5 s) | **23.57 · 26.37 · 24.82 s** | **18.41 · 18.35 · 18.53 s** |
+| Eşitlemede istek başı (100 ms ara dahil) | 143–160 ms | 111–112 ms |
+| İmzalı komut `G?` (12'şer, 1 s arayla) | ortanca 60–131 ms; **2.7–2.8 s takılma 6/60** | ortanca 114–127 ms; en kötü **149 ms**, takılma **0/48** |
+| İmzalı `/kayit/liste` (kartta 350–600 ms sürüyor) | **3.0–3.2 s takılma 5/40** | en kötü 634 ms, takılma **0/32** |
+| `/eslestir/bilgi` | 2.75–2.80 s takılma her 8'de 1–2 | yalnız sürecin İLK ad çözümü (2.8 s; bir kez 7.5 s), sonra 30–150 ms |
+| `p0` (akış açık) | 20–59 ms | 22–66 ms (yol değişmedi) |
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4J-1 | **Bütün kart istekleri `WifiKart._karsi`'ye (öğrenilmiş adres) bağlanır**: açık `/eslestir/bilgi`, imzalı `/akis`, `/komut`, `/saat`, eşitleme `/kayit/*` `/kal/liste`, vekil, `/bildirim/bilgi` — hepsi `imzali_ac` / `dogrula` / `_akis_iste` üzerinden, TEK yer `_baglan` (`_KartBaglantisi.connect`). Adres, ad ile kurulan HER bağlantının karşı ucundan öğrenilir | Takılmanın kaynağı ağ değil Windows'un `olcum.local` yeniden çözümü (~8 s'de bir, 2.7 s; 4G). Eşitlemede ~3, her ~8 imzalı istekte 1 takılma vardı |
+| 4J-2 | **`Host:` başlığı ad olarak kalır** (URL değişmez; yalnız TCP hedefi IP) | Kart yabancı Host'u 403 ile reddeder (DNS rebinding koruması). Ad/IP ayrımı TCP katmanında kalınca imza, URL, vekil, sorgu kodlaması hiç değişmedi |
+| 4J-3 | **Öğrenilmiş adres en çok 2 s denenir; bağlantı KURULAMAZSA bir kez ad, adres tazelenir** | Yalnız bağlantı kurulamaması geri düşürür — istek henüz gönderilmemiştir: imzalı istek karta iki kez ulaşmaz (B72.W15: 401 yok, komut tek). Kart yeni IP alınca tek istek ≤ 2 s kaybeder |
+| 4J-4 | **Kimlik denetimi aynen; öğrenilmiş adreste kart doğrulanamazsa adres UNUTULUR, ad ile bir kez daha** (`dogrula`) | IP'ye körlemesine güvenilmez: eski adresi başka bir cihaz aldıysa `/eslestir/bilgi` kimliği cihaz dosyasına uymaz; ona imzalı istek gitmez (B72.W16). Her eşitleme turu ve her akış bağlantısı `dogrula`'dan geçiyor |
+| 4J-5 | **Keep-alive YOK** | Ölçüldü: kart `Connection: keep-alive` isteğine `Connection: close` ile yanıt veriyor ve soketi kapatıyor (ESP32 `WebServer`), ikinci istek 0 B. Kart tarafı değişmedi; bağlantı tutulmuyor (kartın sınırlı soketi/yuvası meşgul edilmez) |
+| 4J-6 | **Sayaç blok ayırma YAPILMADI** | Ölçüldü: `sonraki_sayac` (DPAPI 0.33 ms + mkstemp + fsync + replace) **3.6–4.8 ms** — 100 ms aralı istekte %4; asıl maliyet ağdı. Ayrıca sayaç zaman tabanlı (`max(son+1, unix_ms)`) ve kartın penceresi 64: ileriye ayrılan blok, aynı cihaz dosyasını kullanan İKİNCİ bir süreci (ör. `imza.py liste`) kopru sayacının 64 ötesine atıp köprünün isteklerini 401'e düşürürdü. Kazanç küçük, risk gerçek |
+| 4J-7 | **B72.A6 aralığı İSTEMCİNİN gönderme anında ölçer** (`imzali_ac` sarmalayıcısı), eşik 98 ms (100 ms tavanı, 2 ms saat payı) | Kartın varış anıyla ölçülünce yüklü makinede ilk isteğin varışı gecikiyor, ara 81–82 ms görünüyordu: iddia zamanlayıcıyı değil makine yükünü sınıyordu. Yalanlayıcı: tavan yarıya (50 ms) — kesin kırmızı |
+| 4J-8 | **`p0` 4G yolunda kaldı** (akışın karşı adresi `_ip`, Host IP, ≤ 2 s sonra ad; imzasız, ücretsiz) | İstenen: p0 yolu değişmesin. Ölçüm 22–66 ms |
+
+Testler: B72.W14 (bütün istekler öğrenilmiş adrese, ad bir kez, Host ad), W15 (ölü adres → bir kez ad, tek
+istek, 2 s sınırı, tazeleme), W16 (eski adreste yabancı cihaz → unut, ad ile doğrula, yabancıya imzalı istek
+yok), A6 (istemci zamanı). Bağlantı hedefi `kart_wifi._tcp_ac` kancasıyla izleniyor (sahte kartta ad
+`localhost`; Windows'ta her `localhost` bağlantısı ::1 reddi yüzünden ~2 s — gerçek kartın yavaş çözümüne
+benziyor). W6 / A10'un kancaları yeni katmana taşındı (`w._ac`, `w._baglanti_sinifi`). 8 yalanlayıcı `4J:`.
+
+Açık: öğrenilmiş adres süreç içinde (diske yazılmaz) — köprü her açılışta bir kez ad çözer (2.8 s; bir
+ölçümde 7.5 s). `kayit_esitle.py` / `imza.py` komut satırı araçları eskisi gibi adla.
 
 ## Güvenlik (kalıcı kurallar)
 

@@ -52,7 +52,24 @@ def koru() -> dict:
     return {"kok": kok, "once": once, "gecici": gecici}
 
 
-def denetle(koruma: dict, ok) -> None:
+def kopru_calisiyor(port: int = 8770) -> bool:
+    """Bu bilgisayarda GERCEK PC koprusu (pc.py) acik mi? (`/durum` imzasi: `kart` + `skop_arsiv`)"""
+    import json
+    import urllib.request
+    try:
+        acici = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with acici.open(f"http://127.0.0.1:{port}/durum", timeout=1.5) as y:
+            d = json.load(y)
+        return isinstance(d, dict) and "kart" in d and "skop_arsiv" in d
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+def denetle(koruma: dict, ok, kopru_acik=kopru_calisiyor) -> None:
+    """4G (gercek kart kabulunde bulundu): kullanicinin koprusu (Baslangic kisayolu, varsayilan
+    ONAYLI esitleme) acikken o da bu dizine YAZAR — yeni `akis-<n>` arsivi, gunun `.satir`'i,
+    bildirim onbellegi. Geri alma onlari da SILERDI (onayli kayit kartta da temizlenebilir: veri
+    kaybi). Kopru aciksa geri alma YAPILMAZ; iddia yine kirmizi ve sebebi soyler."""
     kok = koruma["kok"]
     sonra = _dokum(kok)
     once = koruma["once"]
@@ -60,7 +77,8 @@ def denetle(koruma: dict, ok) -> None:
     degisen = sorted(k for k in set(sonra) & set(once) if sonra[k] != once[k] and not sonra[k][0])
     silinen = sorted(set(once) - set(sonra))
     # Geri al: yalniz test sirasinda BELIREN dosya/dizinler (derinden sigaya); onceden olana dokunma.
-    for ad in sorted(yeni, key=lambda s: -s.count(os.sep)):
+    kopru = bool(yeni or degisen or silinen) and kopru_acik()
+    for ad in ([] if kopru else sorted(yeni, key=lambda s: -s.count(os.sep))):
         p = kok / ad
         try:
             if p.is_dir():
@@ -72,4 +90,6 @@ def denetle(koruma: dict, ok) -> None:
     ok("[!] Test kullanicinin GERCEK %LOCALAPPDATA%\\olcum-karti dizinine dokunmadi "
        "(sahte kartin cihaz dosyasi gercek dizine dusmesin; belirenler geri alindi)",
        not yeni and not degisen and not silinen,
-       f"yeni={yeni[:3]} degisen={degisen[:3]} silinen={silinen[:3]}")
+       f"yeni={yeni[:3]} degisen={degisen[:3]} silinen={silinen[:3]}"
+       + (" — GERCEK kopru acik: degisiklik onun olabilir, geri alma YAPILMADI; zinciri kopru kapaliyken "
+          "kosun (`python kopru/pc.py --durdur`)" if kopru else ""))
