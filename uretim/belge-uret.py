@@ -47,8 +47,10 @@ AG_H = (KOD / "ag.h").read_text(encoding="utf-8", errors="replace")
 _FS = BURASI / "_fs.json"
 FS = (json.loads(_FS.read_text(encoding="utf-8")) if _FS.exists()
       else {"bolum_boyut": 0, "icerik_bayt": 0})
-KOPRU_PY = (KOK / "kopru" / "kopru.py").read_text(encoding="utf-8",
-                                                  errors="replace")
+# 4A (PC1): koprunun koken sabitleri `kopru/pc_ayar.py`de (kopru.py yalniz
+# `PORT = pc_ayar.PORT` diyor; yedek porta dusme KALKTI).
+PC_AYAR_PY = (KOK / "kopru" / "pc_ayar.py").read_text(encoding="utf-8",
+                                                      errors="replace")
 
 
 def h_sabit(ad):
@@ -227,8 +229,10 @@ def main() -> int:
         "ap_onek": re.search(r'"(OLCUM-KARTI-)%02X%02X"', AG_H).group(1),
         "sta_bekle_s": h_tamsayi("AG_STA_BEKLE_MS", AG_H) / 1000.0,
         "kart_port": int(re.search(r"WebServer sunucu\((\d+)\)", INO).group(1)),
-        "kopru_port": py_sabit("PORT", KOPRU_PY),
-        "kopru_yedek": py_sabit("YEDEK_PORT", KOPRU_PY),
+        "kopru_port": py_sabit("PORT", PC_AYAR_PY),
+        "kopru_adres": "http://%s:%d" % (
+            re.search(r'^AD\s*=\s*"([^"]+)"', PC_AYAR_PY, re.M).group(1),
+            py_sabit("PORT", PC_AYAR_PY)),
         "ap_parola_n": int(re.search(r"ag_rastgele_parola\(p,\s*(\d+)\)",
                                      AG_H).group(1)),
         "fs_bolum": FS["bolum_boyut"], "fs_icerik": FS["icerik_bayt"],

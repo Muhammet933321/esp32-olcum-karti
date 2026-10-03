@@ -390,11 +390,11 @@ def baglanti_modlari(d):
           ["Wi-Fi: N0 ile kapat", "ölçüme tam hız", "USB kablo"], S3)
     _ok(g, 195, 350, 300, "USB", S4)
     _kutu(g, 305, 324, 170, 78, "BİLGİSAYAR",
-          ["kopru.py", f"port {d['kopru_port']} (yedek {d['kopru_yedek']})",
+          ["kopru/pc.py", d['kopru_adres'].replace("http://", ""),
            "ölçümleri arşivler"], S4)
-    _ok(g, 480, 350, 600, "Wi-Fi", S1)
+    _ok(g, 480, 350, 600, "--lan", S1)
     _kutu(g, 605, 324, 135, 78, "TELEFON",
-          ["tarayıcı", "PC'nin adresi", "aynı arayüz"], S1)
+          ["PC'nin IP'si", "salt okuma", "yalnız DURDUR"], S1)
     _t(g, 20, 420, "Bu kipte telefonun gördüğü sayfayı BİLGİSAYAR yayınlıyor; "
        "kart yalnızca ölçüyor.", 11, S4, kalin=True)
     return svg_kapa(g)

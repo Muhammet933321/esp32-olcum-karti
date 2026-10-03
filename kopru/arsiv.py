@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import struct
 import time
 from pathlib import Path
@@ -63,6 +64,12 @@ SKOP_IMZA = b"S3B"
 SKOP_SURUM = 1
 SKOP_BASLIK_BAYT = 32
 SKOP_AZAMI_ORNEK = 8192          # bozuk `S2` satirinin bellegi yemesine karsi
+
+# 4A inceleme: gun adi dosya yoluna giriyor. `/skop/liste?gun=` HTTP'den geliyordu:
+# Windows'ta mutlak ya da UNC bir deger (`//saldirgan/pay/x`) arsiv dizinini EZER
+# ve `exists()` SMB baglantisi acar (NTLM ozeti sizar); `..` de cozulmuyordu.
+# Yalniz `_akim_dosya`nin urettigi bicim: YYYY-AA-GG (ASCII rakam).
+GUN_DESEN = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
 
 def skop_ikili(blok: dict) -> bytes:
@@ -275,7 +282,17 @@ class Arsiv:
 
     # ── okuma / turetme ───────────────────────────────────────────────
     def gunler(self) -> list[str]:
-        return sorted(p.stem for p in self.dizin.glob("*.satir"))
+        # Elle birakilmis tarih-disi .satir (eski.satir) listeyi okunamaz yapmasin
+        return sorted(p.stem for p in self.dizin.glob("*.satir") if GUN_DESEN.fullmatch(p.stem))
+
+    def gun_yolu(self, gun: str) -> Path:
+        """Gunun dosyasi — gun YYYY-AA-GG degilse ya da yol arsivden cikiyorsa ValueError."""
+        if not isinstance(gun, str) or not GUN_DESEN.fullmatch(gun):
+            raise ValueError(f"gecersiz gun: {gun!r} (YYYY-AA-GG)")
+        yol = self.dizin / f"{gun}.satir"
+        if yol.resolve().parent != self.dizin.resolve():     # derinlemesine savunma
+            raise ValueError(f"gun arsiv disina cikiyor: {gun!r}")
+        return yol
 
     def ham_satirlar(self, gun: str | None = None):
         """Kaydedilen HAM satirlari sirayla dondur — zaman damgasi soyulmus.
@@ -287,7 +304,7 @@ class Arsiv:
         gun = gun or (self.gunler() or [None])[-1]
         if gun is None:
             return
-        yol = self.dizin / f"{gun}.satir"
+        yol = self.gun_yolu(gun)
         if not yol.exists():
             return
         with io.open(yol, encoding="utf-8") as d:
@@ -305,7 +322,7 @@ class Arsiv:
         gun = gun or (self.gunler() or [None])[-1]
         if gun is None:
             return
-        yol = self.dizin / f"{gun}.satir"
+        yol = self.gun_yolu(gun)
         if not yol.exists():
             return
         with io.open(yol, encoding="utf-8") as d:

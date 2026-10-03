@@ -7,17 +7,21 @@
 # (konsol yok, tarayici yok; cokerse iz %LOCALAPPDATA%\olcum-karti\arkaplan-hata.txt).
 # Desen stok-takip'ten: "Elektronik Stok (arka plan).lnk".
 #
-# DIKKAT: kisayol BU calisma agacindaki pc.py'yi gosterir. Birden cok calisma
-#   agaci varsa kurulumu kullanmak istediginiz agactan yapin (yol ekrana yazilir).
-# DIKKAT: arka plandaki kopru kartin COM portunu TUTAR; tezgah araclari ve
-#   yukle.py o sirada portu acamaz ("PC kopru bu portu kullaniyor - kapatin").
+# DIKKAT: kisayol BU calisma agacindaki pc.py'yi gosterir. Kurulumu ANA calisma
+#   agacindan (projeler/olcum-karti) yapin, ASLA gecici bir dal agacindan
+#   (git worktree): agac silinince kopru iz birakmadan olur. Yol ekrana yazilir.
+# DIKKAT: arka plandaki kopru kartin COM portunu TUTAR; tezgah araclari o sirada
+#   portu acamaz ("PC kopru bu portu kullaniyor - kapatin"). yukle.py bu mesaji
+#   vermez. Durdurmak icin: kopru\Kopruyu Durdur.bat (pc.py --durdur). Gorev
+#   Yoneticisi'nden pythonw.exe OLDURMEYIN: stok-takip de pythonw ile calisiyor.
 #
 # -Klasor: Baslangic yerine baska bir klasore yaz (deneme icin).
 # Yalniz ASCII: Windows PowerShell 5.1 BOM'suz dosyayi ANSI okur.
 param(
     [switch]$Kur,
     [switch]$Kaldir,
-    [string]$Klasor = ''
+    [string]$Klasor = '',
+    [switch]$Zorla
 )
 $ErrorActionPreference = 'Stop'
 
@@ -33,13 +37,21 @@ if ($Kaldir) {
     } else {
         Write-Output "  Otomatik baslatma zaten kapali."
     }
-    Write-Output "  Su an calisan kopru durmaz: Gorev Yoneticisi > Ayrintilar > pythonw.exe."
+    Write-Output "  Su an calisan kopru durmaz; durdurmak icin: kopru\Kopruyu Durdur.bat"
     exit 0
 }
 
 if (-not $Kur) {
     Write-Output "Kullanim: otomatik-baslat.ps1 -Kur | -Kaldir"
     exit 2
+}
+
+# Gecici dal agaci (git worktree) mi? Orada .git bir DOSYA, ana agacta dizin.
+# Agac silinince kisayol olu bir pc.py'yi gosterir ve kopru iz birakmadan olur.
+$gitYolu = Join-Path (Split-Path -Parent $PSScriptRoot) '.git'
+if ((Test-Path -LiteralPath $gitYolu -PathType Leaf) -and -not $Zorla) {
+    throw ("Bu bir gecici dal agaci (git worktree): $PSScriptRoot. Kisayolu ana calisma " +
+           "agacindan (projeler\olcum-karti\kopru) kurun. Yine de istiyorsaniz: -Zorla")
 }
 
 # Gercek yorumlayiciyi bul. WindowsApps'teki python.exe bir "uygulama takma adi";

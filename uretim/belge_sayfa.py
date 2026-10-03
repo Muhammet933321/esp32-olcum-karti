@@ -498,7 +498,7 @@ değişen şey <b>kim yayınlıyor</b>.</figcaption></figure>
     <td><code>http://{d['mdns']}.local</code></td></tr>
 <tr><td>Bilgisayar var, ölçüm <b>izole</b></td>
     <td><b>3 · USB köprü</b></td>
-    <td>Köprünün yazdığı adres, port {d['kopru_port']}</td></tr>
+    <td><code>{d['kopru_adres']}</code> (yalnız bu bilgisayar)</td></tr>
 </table>
 
 <div class="no"><b>USB her ölçümde kullanılamaz — ama Wi-Fi de tek
@@ -568,17 +568,23 @@ tarayıcıları <b>reddedip köprünün adresine yönlendiriyor</b> — o zaman
 kartla konuşan tek şey köprü olur. İkiden çok izleyici istiyorsanız
 3. kipi kullanın.</div>
 
-<h2>3 · USB köprü — hem bilgisayar hem telefon</h2>
+<h2>3 · USB köprü — bilgisayarda; telefon yalnız izler</h2>
 <p>Kart bilgisayara <b>USB ile</b> bağlanıyor, bilgisayarda küçük bir
-program (<code>Kopru Baslat.bat</code>) çalışıyor. O program hem
-arayüzü yayınlıyor hem ölçümleri kaydediyor.</p>
+program (<code>kopru</code> klasöründeki <code>PC Baslat.bat</code>) çalışıyor. O program hem
+arayüzü yayınlıyor hem ölçümleri kaydediyor. Durdurmak için aynı
+klasördeki <code>Kopruyu Durdur.bat</code>.</p>
 <table>
-<tr><th>Bilgisayarda</th><td>Köprü açılırken <b>adresi ekrana
-    yazıyor</b> — onu kullanın. Port {d['kopru_port']} başka bir program
-    tarafından tutuluyorsa köprü sessizce
-    {d['kopru_yedek']}'e düşer</td></tr>
-<tr><th>Telefonda</th><td>Bilgisayarın adresi — aynı Wi-Fi'da olmak
-    yeterli</td></tr>
+<tr><th>Bilgisayarda</th><td>Panel <b><code>{d['kopru_adres']}</code></b>
+    — köprü yalnız bu bilgisayarı (<code>127.0.0.1</code>) dinler, başka
+    bir cihaz bu adrese bağlanamaz. Port {d['kopru_port']} <b>sabit</b>:
+    başka bir program tutuyorsa köprü açılmaz ve bunu söyler (başka
+    porta düşmez — panelin bu bilgisayardaki ayarları adrese bağlı)</td></tr>
+<tr><th>Telefonda</th><td>Köprü <code>--lan</code> ile açılırsa
+    (<code>PC Baslat.bat --lan</code>) telefon aynı Wi-Fi'dan
+    <code>http://&lt;bilgisayarın IP'si&gt;:{d['kopru_port']}</code>
+    adresiyle <b>salt okuma</b> izler: ölçümü görür, yalnız
+    <b>DURDUR</b> (pil testini kes) gönderebilir. Komut vermek için
+    telefon karta doğrudan (1. ya da 2. kip) bağlanır</td></tr>
 <tr><th>Kartın Wi-Fi'si</th><td>Varsayılan <b>açık</b>. Ölçüme tam hız
     istiyorsanız seri konsoldan <code>N0</code> ile kapatın</td></tr>
 <tr><th>Kayıt</th><td>Her ölçüm satırı zaman damgasıyla bilgisayarda
@@ -586,7 +592,7 @@ arayüzü yayınlıyor hem ölçümleri kaydediyor.</p>
 </table>
 <p>Bu kipte <b>telefonun gördüğü sayfayı bilgisayar yayınlıyor</b>,
 kart değil. Telefon ile bilgisayar aynı anda kullanılabilir ve ikisi
-de aynı veriyi görür.</p>
+de aynı veriyi görür; komut yalnız bilgisayardaki panelden gider.</p>
 
 <h2>Telefonda uygulama gibi açmak</h2>
 <p>Tarayıcıda sayfayı açıp <b>Ana Ekrana Ekle</b> deyin.</p>

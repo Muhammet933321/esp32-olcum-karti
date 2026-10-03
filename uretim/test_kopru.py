@@ -296,8 +296,15 @@ def pc_4a_sina(gec_dizin: Path, taban: str) -> None:
     ok("PC2: yerel ag istemcisi surucu DEVRALAMIYOR", kod == 403 and k3.surucu is None, f"HTTP {kod}")
     once_t = len(k3.kart.yazilanlar)
     kod, _ = istek(lt + "/skop.bin")
-    ok("[!] PC2: yerel ag istemcisi /skop.bin ile karta YAKALAMA YAPTIRAMIYOR (`t` gitmez)",
-       kod == 403 and k3.kart.yazilanlar[once_t:] == [], f"HTTP {kod} · {k3.kart.yazilanlar[once_t:]}")
+    kod_x, _ = istek(lt + "/skop.bin", basliklar={"X-Olcum": "1", "X-Jeton": kim["jeton"] if kim else "x"})
+    # 4A inceleme: surucunun `tB`si yolda iken (skop_kurulu) yerel ag yakalamayi KAPAMAZ
+    k3.skop_hazirla()
+    kod_k, _ = _guvenli_istek(lt + "/skop.bin", zaman_asimi=3)
+    k3.skop_kurulu = False
+    ok("[!] PC2: yerel ag istemcisi /skop.bin ile karta YAKALAMA YAPTIRAMIYOR (`t` gitmez; X-Olcum'la "
+       "da), surucunun bekleyen yakalamasini da KAPAMIYOR",
+       (kod, kod_x, kod_k) == (403, 403, 403) and k3.kart.yazilanlar[once_t:] == [],
+       f"HTTP {kod}/{kod_x}/bekleyen {kod_k} · {k3.kart.yazilanlar[once_t:]}")
     s_l.shutdown()
     s_l.server_close()
 
@@ -518,10 +525,13 @@ def pc_4a_sina(gec_dizin: Path, taban: str) -> None:
         durum["kurulan"] += 1
         if not durum["var"]:
             raise RuntimeError("COM portu bulunamadi — kart takili mi?")
-        return _Sahte(["D 9.0"])
+        return _Sahte([D9])
 
+    # 4A inceleme: otomatik secimde kart KIMLIGI dogrulaniyor — sahte kart gercek
+    # bicimde `D` satiri basiyor; aday listesi kayit defterinden degil, sabit.
+    D9 = "D 9.0000 0.100000 0.90000 0.0000 0.0000000 1000 100 0 0"
     bildirim: list[str] = []
-    oto = kart_baglanti.OtoSeriKart(None, aralik=0.0, kurucu=kurucu)
+    oto = kart_baglanti.OtoSeriKart(None, aralik=0.0, kurucu=kurucu, adaylar=lambda: ["COM250"])
     oto.bildir = bildirim.append
     oto.ac()
     bos_okuma = [oto.satir_oku(0.01) for _ in range(5)]
@@ -531,15 +541,16 @@ def pc_4a_sina(gec_dizin: Path, taban: str) -> None:
     durum["var"] = True
     gelen = [oto.satir_oku(0.01) for _ in range(3)]
     ok("Kart takilinca kendiliginden baglaniyor ve satir akiyor",
-       "D 9.0" in gelen and any("baglandi" in b for b in bildirim), f"{gelen} · {bildirim[-1:]}")
+       D9 in gelen and any("baglandi" in b for b in bildirim), f"{gelen} · {bildirim[-1:]}")
     oto._kart.kopuk = True
     k_once = durum["kurulan"]
     [oto.satir_oku(0.01) for _ in range(3)]
     ok("Kart kopunca soyleniyor ve YENIDEN aciliyor",
        any("koptu" in b for b in bildirim) and durum["kurulan"] > k_once, str(bildirim))
     hata = ""
-    oto2 = kart_baglanti.OtoSeriKart(None, aralik=60.0, kurucu=lambda p: (_ for _ in ()).throw(
-        RuntimeError("COM portu bulunamadi")))
+    oto2 = kart_baglanti.OtoSeriKart(None, aralik=60.0, adaylar=lambda: ["COM250"],
+                                     kurucu=lambda p: (_ for _ in ()).throw(
+                                         RuntimeError("COM portu bulunamadi")))
     oto2.ac()
     try:
         oto2.yaz("?")
@@ -558,6 +569,451 @@ def pc_4a_sina(gec_dizin: Path, taban: str) -> None:
        len(gelen7) == 1 and "bulunamadi" in gelen7[0], str(gelen7))
     ok("Durum satiri kart baglaninca temizleniyor (eski hata yeni gelene gosterilmez)",
        oto.durum_satiri is None, str(oto.durum_satiri))
+
+
+def _bos_port() -> int:
+    import socket
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    p = s.getsockname()[1]
+    s.close()
+    return p
+
+
+def _guvenli_istek(url, veri=None, basliklar=None, yontem=None, zaman_asimi=5):
+    """`istek` + baglanti hatasi (isleyici coktu) -> (None, hata)."""
+    try:
+        return istek(url, veri, basliklar, yontem, zaman_asimi)
+    except Exception as e:                              # noqa: BLE001
+        return None, str(e).encode("utf-8", "replace")
+
+
+def pc_4a_inceleme_sina(gec_dizin: Path) -> None:
+    """4A inceleme bulgulari (2026-10-03) — her biri once KIRMIZI goruldu.
+
+    CSRF (baska kokenden <img> GET'i karta `t` yollatiyor, suruculugu kapiyordu),
+    `gun` yol gecisi / UNC, port acilisindaki yarim satirin suzgeci atlamasi,
+    yabanci CH34x aygitinin portunu ele gecirme, suzgecin yanlis pozitifleri,
+    kucuk harfli `--port`, vekil, olu tekrarin cekirdek yakmasi, yaz/kapat
+    yarisi, konsolda gorunmeyen port hatasi, kopruyu durdurma yolu.
+    """
+    import os
+    import pc as pc_mod                                     # noqa: E402
+    import pc_ayar                                          # noqa: E402
+
+    SKOP = (["S2 64 10000 0.028787 12 5000 0 1 63.530093",
+             "M f=156.250 T=0.006400000 Vpp=24.0000 n=10"]
+            + [" ".join(str((i * 37) % 4096) for i in range(j, j + 16)) for j in range(0, 64, 16)]
+            + ["E"])
+
+    # ── 1. CSRF: baska kokenden GET yan etkisiz ──────────────────────
+    print("\n--- 4A inceleme 1. Capraz koken (CSRF) ---")
+    kc = kart_baglanti.KayitKart([], yanitlar={"t": SKOP, "p0": ["* durdu"]})
+    kc.ac()
+    k = kopru_mod.Kopru(kc, gec_dizin / "arsiv_csrf")
+    threading.Thread(target=k.dongu, daemon=True).start()
+    s = _kos(k)
+    p = s.server_address[1]
+    tb = f"http://127.0.0.1:{p}"
+    yabanci = {
+        "same-site (baska port)": {"Sec-Fetch-Site": "same-site"},
+        "cross-site": {"Sec-Fetch-Site": "cross-site"},
+        "Origin baska port": {"Origin": "http://127.0.0.1:1"},
+        "Origin baska ad": {"Origin": "http://stok"},
+    }
+    sonuc = {}
+    for ad, b in yabanci.items():
+        kod_s, _ = _guvenli_istek(tb + "/skop.bin", basliklar={**b, "X-Olcum": "1"}, zaman_asimi=8)
+        kod_a, _ = _guvenli_istek(tb + "/akis", basliklar=b)
+        sonuc[ad] = (kod_s, kod_a)
+    ok("[!] CSRF: baska kokenden (Sec-Fetch-Site same-site/cross-site, yabanci Origin) /skop.bin "
+       "ve /akis 403 — karta HICBIR SEY gitmedi, surucu/jeton verilmedi",
+       all(v == (403, 403) for v in sonuc.values()) and kc.yazilanlar == []
+       and k.surucu is None and not k.jetonlar,
+       f"{sonuc} · karta={kc.yazilanlar} surucu={k.surucu} jeton={len(k.jetonlar)}")
+    kod, _ = _guvenli_istek(tb + "/skop.bin", zaman_asimi=8)
+    ok("[!] /skop.bin X-Olcum'suz (img/curl) kendi `t`sini YOLLAMIYOR: 403, karta bir sey gitmez",
+       kod == 403 and kc.yazilanlar == [], f"HTTP {kod} · {kc.yazilanlar}")
+    ayni = {"Sec-Fetch-Site": "same-origin", "Origin": f"http://olcum.localhost:{p}",
+            "Host": f"olcum.localhost:{p}"}
+    kim = kimlik_oku(tb + "/akis", basliklar=ayni)
+    kim_none = kimlik_oku(tb + "/akis", basliklar={"Sec-Fetch-Site": "none"})
+    ok("Ayni koken (same-origin, Origin = Host) ve adres cubugu (none) /akis aliyor; ilki surucu",
+       bool(kim and kim.get("surucu")) and kim_none is not None and kim_none.get("surucu") is False,
+       f"{kim} · {kim_none}")
+    jet = kim["jeton"] if kim else ""
+    kod1, govde1 = _guvenli_istek(tb + "/skop.bin", basliklar={**ayni, "X-Olcum": "1", "X-Jeton": jet},
+                                  zaman_asimi=8)
+    kod2, _ = _guvenli_istek(tb + "/skop.bin", basliklar={"X-Olcum": "1", "X-Jeton": "baskasi"},
+                             zaman_asimi=8)
+    ok("[!] /skop.bin kendi `t`si /komut'un kapisindan: X-Olcum + SURUCU jetonu 200, yabanci jeton 403",
+       kod1 == 200 and (govde1 or b"")[:3] == b"S3B" and kod2 == 403 and kc.yazilanlar == ["t"],
+       f"surucu={kod1} yabanci={kod2} · karta={kc.yazilanlar}")
+    once = list(kc.yazilanlar)
+    kod_x, _ = _guvenli_istek(tb + "/komut", b"GF!", {"X-Olcum": "1", "X-Jeton": jet,
+                                                       "Sec-Fetch-Site": "cross-site"}, "POST")
+    kod_p0, _ = _guvenli_istek(tb + "/komut", b"p0", {"X-Olcum": "1", "Sec-Fetch-Site": "cross-site",
+                                                       "Origin": "http://stok"}, "POST")
+    kod_dv, _ = _guvenli_istek(tb + "/devral", b"", {"X-Olcum": "1", "X-Jeton": jet,
+                                                      "Origin": "http://stok"}, "POST")
+    ok("[!] /komut: baska kokenden komut 403 (surucu jetonu olsa da), `p0` (DURDUR) yine GECIYOR; "
+       "/devral 403",
+       kod_x == 403 and kod_p0 == 204 and kod_dv == 403 and kc.yazilanlar[len(once):] == ["p0"],
+       f"GF!={kod_x} p0={kod_p0} devral={kod_dv} · karta={kc.yazilanlar[len(once):]}")
+
+    # ── 2. gun yol gecisi ────────────────────────────────────────────
+    print("\n--- 4A inceleme 2. `gun` parametresi (yol gecisi, UNC) ---")
+    import urllib.parse
+    dis = gec_dizin / "disarida" / "gizli.satir"
+    dis.parent.mkdir(parents=True, exist_ok=True)
+    dis.write_text("".join(f"{i}\t{x}\n" for i, x in enumerate(SKOP, 1)), encoding="utf-8")
+    (k.arsiv.dizin / "gizli.satir").write_text(dis.read_text(encoding="utf-8"), encoding="utf-8")
+    kotu = [str(dis.with_suffix("")).replace("\\", "/"), str(dis.with_suffix("")),
+            "//saldirgan.example/pay/x", "\\\\saldirgan.example\\pay\\x", "../disarida/gizli",
+            "..\\..\\x", "C:x", "gizli", "2026-1-01", "2026-10-03/../../x", "２０２６-10-03"]
+    kodlar = {}
+    for g in kotu:
+        q = urllib.parse.quote(g, safe="")
+        kodlar[g[-14:]] = (_guvenli_istek(tb + f"/skop/liste?gun={q}")[0],
+                           _guvenli_istek(tb + f"/skop/al?gun={q}&ms=1")[0])
+    ok("[!] /skop/liste ve /skop/al: gun yalniz YYYY-AA-GG — mutlak, UNC (// ve \\\\), '..', surucu, "
+       "arsivdeki tarih-disi ad 400",
+       all(v == (400, 400) for v in kodlar.values()), str(kodlar))
+    kod_iyi, govde_iyi = _guvenli_istek(tb + "/skop/liste?gun=2000-01-01")
+    ok("Gecerli bicimdeki gun 200 (kayit yoksa bos liste); tarih-disi .satir gun listesine girmiyor",
+       kod_iyi == 200 and json.loads(govde_iyi).get("kayitlar") == []
+       and "gizli" not in json.loads(govde_iyi).get("gunler", []),
+       f"HTTP {kod_iyi} {govde_iyi[:120]!r}")
+    from arsiv import Arsiv as _Arsiv
+    a = _Arsiv(gec_dizin / "arsiv_gun")
+    (a.dizin / "gizli.satir").write_text(dis.read_text(encoding="utf-8"), encoding="utf-8")
+    redler = {}
+    for g in ("gizli", str(dis.with_suffix("")), "//saldirgan.example/pay/x", "../x", "C:x"):
+        try:
+            list(a.skop_ozet(g))
+            list(a.ham_satirlar(g))
+            redler[g[-12:]] = "KABUL"
+        except ValueError:
+            redler[g[-12:]] = "ret"
+    ok("[!] Arsiv katmani da (derinlemesine savunma): tarih bicimi disindaki gun ValueError — "
+       "arsivdeki 'gizli.satir' bile okunmaz",
+       all(v == "ret" for v in redler.values()), str(redler))
+    k.calisiyor = False
+    s.shutdown()
+    s.server_close()
+    time.sleep(0.6)
+    k.durdur()
+
+    # ── 3. port acilisindaki yarim satir ─────────────────────────────
+    print("\n--- 4A inceleme 3. Acilista / yeniden baglanmada yarim satir ---")
+    sk = kart_baglanti.SeriKart("COM250")
+    parcalar = [b"q9wRt2z-Parola\r\nD 1.0 0.1 0.1 0 0 1 1 0 0\r\n"]
+    sk._ham_oku = lambda: parcalar.pop(0) if parcalar else b""
+    sk._baglanti_basladi()
+    ilk = [sk.satir_oku(0.05), sk.satir_oku(0.05)]
+    parcalar.append(b"XyZ-kuyruk\r\nK 1 2 3\r\n")
+    sk._baglanti_basladi()                 # yeniden baglanma: yine yarim satirdan
+    ikinci = [sk.satir_oku(0.05)]
+    ok("[!] SeriKart: her acilista ILK (yarim) satir ATILIYOR — parola kuyrugu satir sanilmiyor",
+       ilk == ["D 1.0 0.1 0.1 0 0 1 1 0 0", None] and ikinci == ["K 1 2 3"], f"{ilk} {ikinci}")
+
+    class _Kopabilir(kart_baglanti.KayitKart):
+        kopuk = False
+
+        def satir_oku(self, zaman_asimi=0.5):
+            s_ = super().satir_oku(zaman_asimi)
+            if s_ is None and self.kopacak:
+                self.kopuk = True
+            return s_
+
+    kartlar = []
+
+    def yeni_kart(satirlar, kopacak):
+        c = _Kopabilir(satirlar)
+        c.kopacak = kopacak
+        kartlar.append(c)
+        return c
+
+    sira = [lambda: yeni_kart(["Gizli-Parca-1", "D 2.0", "D 3.0", "   AP parolasi (yalniz USB): "], True),
+            lambda: yeni_kart(["Gizli-Kuyruk-2", "D 4.0", "D 5.0", "D 6.0"], False)]
+    oto = kart_baglanti.OtoSeriKart(None, aralik=0.0, adaylar=lambda: ["COM250"], dogrula=False,
+                                    kurucu=lambda port: sira.pop(0)() if sira else (_ for _ in ()).throw(
+                                        RuntimeError("yok")))
+    k3 = kopru_mod.Kopru(oto, gec_dizin / "arsiv_yarim")
+    yayilan: list[str] = []
+    k3.yayinla = yayilan.append
+    oto.bildir = yayilan.append
+    threading.Thread(target=k3.dongu, daemon=True).start()
+    son = time.monotonic() + 4
+    while "D 6.0" not in yayilan and time.monotonic() < son:
+        time.sleep(0.02)
+    k3.calisiyor = False
+    time.sleep(0.6)
+    k3.arsiv.kapat()
+    arsiv3 = list(k3.arsiv.ham_satirlar())
+    sizan = [x for x in yayilan + arsiv3 if "Gizli" in x]
+    ok("[!] Kopru: (yeniden) baglanti suzgec penceresini ACIYOR ve kisaltmiyor — ilk parca da, "
+       "baglanti koptuktan sonra isaretin kuyrugu da akisa/arsive GECMIYOR",
+       not sizan and "D 3.0" in yayilan and "D 6.0" in yayilan and len(kartlar) == 2,
+       f"sizan={sizan} · {[x for x in yayilan if not x.startswith('*') and not x.startswith('!')]}")
+    k3.durdur()
+
+    # ── 4. yabanci CH34x aygiti ──────────────────────────────────────
+    print("\n--- 4A inceleme 4. Port yalniz KART dogrulaninca tutuluyor ---")
+    ad = kart_baglanti.kart_adaylari({"COM3": "1A86:7523", "COM9": "1A86:55D3", "COM4": "303A:1001",
+                                      "COM5": "10C4:EA60"})
+    sec_ = kart_baglanti.kart_portu_sec({"COM3": "1A86:7523", "COM9": "1A86:55D3"})
+    ok("[!] PC3: kartin tam VID:PID'i (CH343 1A86:55D3) ONCE; iki kopru cipi varken kart PID'i secilir",
+       ad[0] == "COM9" and set(ad) == {"COM3", "COM9", "COM5"} and sec_ == "COM9", f"{ad} · {sec_}")
+
+    class _Aygit(kart_baglanti.KayitKart):
+        """Port arkasindaki aygit: `?`a yanit `soru` ile; acik/kapali izlenir."""
+
+        def __init__(self, satirlar, soru=None):
+            super().__init__(satirlar, yanitlar={"?": soru} if soru else {})
+            self.acik = True
+
+        def kapat(self):
+            self.acik = False
+
+        def yaz(self, metin):
+            if metin == "?" and "?" not in self.yanitlar:
+                self.yazilanlar.append(metin)     # yabanci aygit `?`a yanit vermez
+                return
+            super().yaz(metin)
+
+    D = "D 12.3456 0.891234 10.99881 1234.5678 0.3429355 3600000 133 0 0"
+    durumlar = {
+        "kart D satiri": _Aygit(["W (12) boot", D]),
+        "kart sessiz ama ? yanitli": _Aygit([], soru=["A menzil=NORMAL oto=1 n_kazanc=1.0"]),
+        "Arduino Hello": _Aygit(["Hello", "Hello", "D 9.0"]),
+        "sessiz aygit": _Aygit([]),
+    }
+    kimlik = {}
+    for ad_, c in durumlar.items():
+        t0 = time.monotonic()
+        tamam, gorulen = kart_baglanti.kart_kimligi(c, pasif_sn=0.3, soru_sn=0.3)
+        kimlik[ad_] = (tamam, c.yazilanlar, round(time.monotonic() - t0, 1))
+    ok("[!] PC3: kart kimligi yalniz kartin satiriyla (D / K / `?` yaniti A); Arduino/sessiz aygit DEGIL; "
+       "aygita `?` DISINDA hicbir sey yazilmaz (asla N?)",
+       [v[0] for v in kimlik.values()] == [True, True, False, False]
+       and kimlik["kart D satiri"][1] == []
+       and all(set(v[1]) <= {"?"} for v in kimlik.values()), str(kimlik))
+    aygitlar = {"COM3": _Aygit(["Hello"] * 3), "COM9": _Aygit([D, D])}
+    acilan: list[str] = []
+
+    def kurucu(port):
+        acilan.append(port)
+        c = aygitlar[port]
+        c.acik = True
+        c.ac()
+        return c
+
+    bild: list[str] = []
+    oto4 = kart_baglanti.OtoSeriKart(None, aralik=0.0, kurucu=kurucu, adaylar=lambda: ["COM3", "COM9"],
+                                     pasif_sn=0.2, soru_sn=0.2)
+    oto4.bildir = bild.append
+    oto4.ac()
+    ok("[!] PC3: yabanci aygit (COM3) acildi, kart DEGIL -> BIRAKILDI (port kapatildi); kart (COM9) tutuldu",
+       aygitlar["COM3"].acik is False and oto4.ad.startswith("kayit") and acilan == ["COM3", "COM9"]
+       and any("baglandi" in b for b in bild), f"acilan={acilan} COM3.acik={aygitlar['COM3'].acik} {bild}")
+    gelen4 = [oto4.satir_oku(0.05) for _ in range(3)]
+    ok("Dogrulamada okunan kart satirlari akistan KAYBOLMUYOR (sirayla geri veriliyor)",
+       gelen4[:2] == [D, D], str(gelen4))
+    yalniz = {"COM3": _Aygit(["Hello"] * 3)}
+    acilan2: list[str] = []
+    bild2: list[str] = []
+
+    def kurucu2(port):
+        acilan2.append(port)
+        yalniz[port].acik = True
+        yalniz[port].ac()
+        return yalniz[port]
+
+    oto5 = kart_baglanti.OtoSeriKart(None, aralik=0.0, kurucu=kurucu2, adaylar=lambda: ["COM3"],
+                                     pasif_sn=0.2, soru_sn=0.2)
+    oto5.bildir = bild2.append
+    for _ in range(4):
+        oto5.satir_oku(0.01)
+    ok("[!] PC3: yalniz yabanci aygit varken port TUTULMUYOR ve her 3 s'de yeniden ACILMIYOR "
+       "(reddedilen port aygit takili kaldikca denenmez); mesaj sebebi soyluyor",
+       oto5._kart is None and yalniz["COM3"].acik is False and acilan2 == ["COM3"]
+       and any("olcum karti" in b for b in bild2), f"acilan={acilan2} {bild2[-1:]}")
+
+    # ── 5. suzgecin yanlis pozitifleri ───────────────────────────────
+    print("\n--- 4A inceleme 5. Suzgec: yanlis pozitif yok, gizli yine duser ---")
+    gs = kopru_mod.GizliSuzgec()
+    girdi = ["* faz kalibrasyonu (us): NORMAL 0.00  YUKSEK 1.50", "D 1", "D 2",
+             "* AP parolasi kaydedildi", "  (bir sonraki acilista gecerli)", "D 3",
+             "* web parolasi: KURULU", "D 4"]
+    gecen = [x for x in girdi if gs.gecir(x)]
+    ok("Suzgec yanlis pozitifsiz: 'YUKSEK 1.50' ve '* AP parolasi kaydedildi' ve ardindaki olcum "
+       "satirlari GECIYOR", gecen == girdi, str(gecen))
+    gs = kopru_mod.GizliSuzgec()
+    gizli = ["EK 7", "a1b2c3d4e5f60718", "293a4b5c6d7e8f90", "D 1",
+             "x AP parolasi", "Pw-Sinama-77", "D 2",
+             "   AP parolasi (yal", "niz USB): Pw-Sinama-78", "D 3",
+             "AP parolas", "Pw-Sinama-79", "D 4"]
+    gecen = [x for x in gizli if gs.gecir(x)]
+    ok("[!] Daraltilan isaretler gizliyi yine yakaliyor: satir sonunda biten `EK 7`, bolunmus "
+       "'AP parolasi' / 'AP parolasi (yal' / 'AP parolas' — degerler GECMEZ",
+       not any("Sinama" in x or "a1b2" in x or "293a" in x for x in gecen), str(gecen))
+
+    # ── 6. kucuk harfli --port ───────────────────────────────────────
+    eski = kart_baglanti.portlar_vid
+    try:
+        kart_baglanti.portlar_vid = lambda: {"COM251": "303A:1001"}
+        try:
+            kart_baglanti.SeriKart("com251").ac()
+            m = "acildi?!"
+        except RuntimeError as e:
+            m = str(e)
+    finally:
+        kart_baglanti.portlar_vid = eski
+    ok("[!] PC3: `--port com251` (kucuk harf) da 303A reddine takiliyor", "303A" in m, m[:90])
+
+    # ── 7. vekil ─────────────────────────────────────────────────────
+    print("\n--- 4A inceleme 7. Vekil (HTTP_PROXY) 127.0.0.1'i saptirmiyor ---")
+
+    class _KopruKarti(kart_baglanti.KayitKart):
+        ad = "seri:COM250@115200"
+
+    k7 = kopru_mod.Kopru(_KopruKarti([]), gec_dizin / "arsiv_vekil")
+    s7 = _kos(k7)
+    p7 = s7.server_address[1]
+    eski_env = {a_: os.environ.get(a_) for a_ in ("HTTP_PROXY", "http_proxy", "NO_PROXY", "no_proxy")}
+    try:
+        for a_ in ("NO_PROXY", "no_proxy"):
+            os.environ.pop(a_, None)
+        os.environ["HTTP_PROXY"] = os.environ["http_proxy"] = f"http://127.0.0.1:{_bos_port()}"
+        urllib.request._opener = None           # ortam vekili yeniden okunsun
+        calisiyor = pc_mod.zaten_calisiyor(p7)
+        tutuyor = kart_baglanti._kopru_portu_tutuyor("COM250", (p7,))
+        m5 = kart_baglanti.acma_hatasi("COM250", 5, kopru_portlari=(p7,))
+    finally:
+        for a_, d_ in eski_env.items():
+            if d_ is None:
+                os.environ.pop(a_, None)
+            else:
+                os.environ[a_] = d_
+        urllib.request._opener = None
+    ok("[!] HTTP_PROXY tanimliyken de zaten_calisiyor ve 'kopru bu portu kullaniyor' yoklamasi "
+       "kopruyu goruyor (vekilsiz)", calisiyor and tutuyor, f"zaten={calisiyor} tutuyor={tutuyor}")
+    s7.shutdown()
+    s7.server_close()
+    k7.durdur()
+
+    # ── 8. olu tekrar bitince bekleme ────────────────────────────────
+    kk = kart_baglanti.KayitKart(["D 1"], yanitlar={"?": ["A menzil=NORMAL"]})
+    kk.ac()
+    kk.satir_oku(0.01)
+    n, t0 = 0, time.monotonic()
+    while time.monotonic() - t0 < 0.5:
+        kk.satir_oku(0.1)
+        n += 1
+    yanit = {}
+
+    def _bekleyen_okur():
+        t1 = time.monotonic()
+        yanit["s"] = kk.satir_oku(2.0)
+        yanit["t"] = time.monotonic() - t1
+
+    th = threading.Thread(target=_bekleyen_okur)
+    th.start()
+    time.sleep(0.15)
+    kk.yaz("?")
+    th.join(3)
+    ok("[!] Olu tekrar bitince satir_oku BEKLIYOR (cekirdek yakmiyor), komut yaniti beklemeyi hemen kesiyor",
+       n <= 8 and yanit.get("s") == "A menzil=NORMAL" and yanit.get("t", 9) < 0.5,
+       f"0.5 s'de {n} cagri · yanit {yanit}")
+
+    # ── 9. yaz / kapat yarisi ────────────────────────────────────────
+    olay: list[str] = []
+
+    class _Yavas(kart_baglanti.KayitKart):
+        def yaz(self, metin):
+            olay.append("yaz-bas")
+            time.sleep(0.3)
+            olay.append("yaz-son")
+
+        def kapat(self):
+            olay.append("kapat")
+
+    oto9 = kart_baglanti.OtoSeriKart("COM250", aralik=0.0, kurucu=lambda p_: _Yavas([]))
+    oto9.ac()
+    tw = threading.Thread(target=lambda: oto9.yaz("p1"))
+    tw.start()
+    time.sleep(0.08)
+    oto9.kapat()
+    tw.join(2)
+    hata9 = ""
+    try:
+        oto9.yaz("p1")
+    except Exception as e:                              # noqa: BLE001
+        hata9 = f"{type(e).__name__}: {e}"
+    ok("[!] OtoSeriKart: kapat, suren yazmayi BEKLIYOR (kapanmis taniticiya yazilmaz); sonra acik hata",
+       olay == ["yaz-bas", "yaz-son", "kapat"] and hata9.startswith("RuntimeError") and "bagli degil" in hata9,
+       f"{olay} · {hata9[:60]}")
+
+    # ── 10/11. konsol + durdurma yolu ────────────────────────────────
+    print("\n--- 4A inceleme 10. Konsolda port hatasi + kopruyu durdurma ---")
+    hp = _bos_port()
+    yazilan: list[str] = []
+    rc = {}
+
+    def _calistir():
+        rc["rc"] = pc_mod.calistir(["--port", "COM250", "--http-port", str(hp), "--tarayici-acma"],
+                                   tarayici_ac=lambda u: None, yazdir=yazilan.append)
+
+    tc = threading.Thread(target=_calistir, daemon=True)
+    tc.start()
+    son = time.monotonic() + 8
+    while not any("COM250" in y and "bulunamadi" in y for y in yazilan) and time.monotonic() < son:
+        time.sleep(0.05)
+    ok("[!] Elle --port hatasi (COM250 yok) KONSOLA da yaziliyor (yalniz /akis'e degil)",
+       any("COM250" in y and "bulunamadi" in y for y in yazilan), str(yazilan[-2:]))
+    durdu, mesaj = pc_mod.durdur(hp)
+    tc.join(6)
+    ok("[!] `pc.py --durdur` kopruyu KENDI ucundan durduruyor (pythonw.exe oldurmek gerekmiyor)",
+       durdu and not tc.is_alive() and rc.get("rc") == 0 and not pc_mod.zaten_calisiyor(hp),
+       f"{durdu} {mesaj} rc={rc}")
+    k8 = kopru_mod.Kopru(_KopruKarti([]), gec_dizin / "arsiv_kapat")
+    s8 = _kos(k8, _LanIsleyici)
+    lp = s8.server_address[1]
+    kod_lan, _ = _guvenli_istek(f"http://127.0.0.1:{lp}/kapat", b"", {"X-Olcum": "1"}, "POST")
+    s8.shutdown()
+    s8.server_close()
+    s9 = _kos(k8)
+    p9 = s9.server_address[1]
+    kod_xo, _ = _guvenli_istek(f"http://127.0.0.1:{p9}/kapat", b"", {}, "POST")
+    kod_cr, _ = _guvenli_istek(f"http://127.0.0.1:{p9}/kapat", b"", {"X-Olcum": "1",
+                                                                     "Sec-Fetch-Site": "same-site"}, "POST")
+    hala = pc_mod.zaten_calisiyor(p9)
+    s9.shutdown()
+    s9.server_close()
+    k8.durdur()
+    ok("[!] /kapat yalniz bu bilgisayardan, X-Olcum ile, ayni kokenden: yerel ag 403, basliksiz 400, "
+       "capraz 403 (kopru ayakta kaliyor)",
+       kod_lan == 403 and kod_xo == 400 and kod_cr == 403 and hala, f"lan={kod_lan} xolcum={kod_xo} "
+       f"capraz={kod_cr} ayakta={hala}")
+    ps1 = (KOK / "kopru" / "otomatik-baslat.ps1").read_text(encoding="utf-8")
+    bat = KOK / "kopru" / "Kopruyu Durdur.bat"
+    ok("Mesgul port mesaji ve kisayol araci pythonw.exe oldurtmuyor (stok-takip de pythonw); "
+       "durdurma yolunu soyluyor",
+       "kopru bu portu kullaniyor" in m5 and "pythonw" not in m5 and "--durdur" in m5
+       and "Gorev Yoneticisi >" not in ps1 and "Kopruyu Durdur" in ps1
+       and bat.is_file() and "--durdur" in bat.read_text(encoding="utf-8"),
+       m5[:110])
+
+    # ── 12. belge ────────────────────────────────────────────────────
+    bs = (BURASI / "belge_sayfa.py").read_text(encoding="utf-8")
+    bg = (BURASI / "belge_grafik.py").read_text(encoding="utf-8")
+    bu = (BURASI / "belge-uret.py").read_text(encoding="utf-8")
+    ok("Belge (ag kipleri) yeni kokeni anlatiyor: adres pc_ayar'dan, yedek porta dusme YOK, yalniz bu "
+       "bilgisayar, telefon --lan ile SALT OKUMA",
+       "kopru_yedek" not in bs + bg + bu and "pc_ayar" in bu and "kopru_adres" in bs
+       and "--lan" in bs and "salt okuma" in bs.lower() and "127.0.0.1" in bs,
+       "belge_sayfa/belge_grafik/belge-uret")
 
 
 def main() -> int:
@@ -713,7 +1169,8 @@ def main() -> int:
         + ["E"])
     kart.yanitlar["t"] = SKOP_YANIT
 
-    kod, govde, bas = istek_bas(taban + "/skop.bin", zaman_asimi=25)
+    # 4A inceleme: kopru kendi `t`sini yalniz /komut'un kapisindan yollar
+    kod, govde, bas = istek_bas(taban + "/skop.bin", basliklar={"X-Olcum": "1", "X-Jeton": surucu_jetonu}, zaman_asimi=25)
     canli_govde = govde
     ok("[!] KOPRUDE /skop.bin ucu VAR (404 degil)", kod == 200, f"HTTP {kod}")
     ok("Govde kartin imzasini tasiyor (tek ikili cozucu)",
@@ -829,7 +1286,7 @@ def main() -> int:
     # Tetikleyemeyen kart: 20 s beklemek yerine HEMEN sebep donmeli.
     kart.yanitlar["t"] = ["! tetiklenemedi"]
     t0 = time.monotonic()
-    kod, govde = istek(taban + "/skop.bin")
+    kod, govde = istek(taban + "/skop.bin", basliklar={"X-Olcum": "1", "X-Jeton": surucu_jetonu})
     gecen = time.monotonic() - t0
     ok("[!] Tetiklenemeyince HEMEN 503 (20 s beklemiyor)",
        kod == 503 and gecen < 5.0, f"HTTP {kod}, {gecen:.2f} s")
@@ -839,7 +1296,7 @@ def main() -> int:
     # Kirpik blok CIZILMIYOR: eksik dalga "olculmus" gibi gorunmemeli.
     kart.yanitlar["t"] = ["S2 64 10000 0.028787 12 5000 0 1 0.0",
                           "1 2 3 4 5 6 7 8", "E"]
-    kod, govde = istek(taban + "/skop.bin")
+    kod, govde = istek(taban + "/skop.bin", basliklar={"X-Olcum": "1", "X-Jeton": surucu_jetonu})
     ok("[!] KIRPIK blok reddediliyor (eksik dalga cizilmez)",
        kod == 503 and b"kirpik" in govde,
        f"HTTP {kod} · " + govde[:60].decode("utf-8", "replace"))
@@ -972,6 +1429,7 @@ def main() -> int:
     k2.durdur()
 
     pc_4a_sina(gec_dizin, taban)
+    pc_4a_inceleme_sina(gec_dizin)
 
     k.calisiyor = False
     time.sleep(0.25)
@@ -1001,7 +1459,9 @@ def main() -> int:
         ("4A: Baslangic kisayolu",
          "`kopru/Otomatik Baslat Kur.bat` -> oturumu kapat/ac -> pythonw arka planda, "
          "olcum.localhost:8770 acilir; kart takili degilken de acilir, takilinca akis "
-         "baslar. `Otomatik Baslatmayi Kapat.bat` kisayolu siler (kurulum kullanicinin)"),
+         "baslar. `Otomatik Baslatmayi Kapat.bat` kisayolu siler (kurulum kullanicinin). "
+         "⚠ Kurulum YALNIZ ana calisma agacindan (projeler/olcum-karti), gecici dal "
+         "agacindan degil (betik worktree'yi reddeder). Durdurma: `kopru/Kopruyu Durdur.bat`"),
         ("4A: USB kablosu cek / tak",
          "Kopru acikken kabloyu cek: akista BIR KEZ '! kopru: kart baglantisi koptu'; "
          "tak: '* kopru: kart baglandi' ve D satirlari geri gelir. ReadFile'in kopmada "

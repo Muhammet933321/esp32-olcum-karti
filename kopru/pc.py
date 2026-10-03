@@ -7,6 +7,7 @@
     python kopru/pc.py --lan              # yerel aga SALT OKUMA (yalniz p0)
     python kopru/pc.py --kayit GUN.satir --http-port 8771   # olu tekrar
     python kopru/pc.py --tarayici-acma    # tarayici acmadan
+    python kopru/pc.py --durdur           # calisan kopruyu durdur (arka plandaki de)
 
 Panel: http://olcum.localhost:8770 — yalniz bu bilgisayardan (PC1/PC2).
 
@@ -25,8 +26,12 @@ Desen stok-takip'ten (stok/konsol.py), kanitlanmis:
     acilisinda kart yoksa kisayol ise yaramaz olmasin.
 
 Baslangic kisayolu: `kopru/Otomatik Baslat Kur.bat` / `... Kapat.bat`.
-⚠ Kopru COM portunu TUTAR: kopru acikken tezgah araclari / yukle.py portu
-  acamaz ve "PC kopru bu portu kullaniyor — kapatin" der (PC3).
+⚠ Kopru COM portunu TUTAR: kopru acikken tezgah araclari portu acamaz ve
+  "PC kopru bu portu kullaniyor — kapatin" der (PC3; `kart_baglanti`
+  uzerinden acan araclar). `yukle.py` arduino-cli'yi dogrudan cagirir, o
+  mesaji VERMEZ — yuklemeden once kopruyu durdurun:
+  `kopru/Kopruyu Durdur.bat` ya da `python kopru/pc.py --durdur`.
+  ⚠ "pythonw.exe'yi oldur" DEGIL: stok-takip'in arka plan sunucusu da pythonw.
 
 Yalnizca standart kutuphane.
 """
@@ -35,8 +40,8 @@ from __future__ import annotations
 import json
 import sys
 import threading
+import time
 import traceback
-import urllib.request
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -58,11 +63,33 @@ def zaten_calisiyor(port: int = pc_ayar.PORT) -> bool:
       cozmuyor, yalniz tarayici cozuyor (pc_ayar.py).
     """
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/durum", timeout=1.5) as y:
+        with pc_ayar.yerel_istek(port, "/durum") as y:     # vekilsiz (4A inceleme)
             d = json.load(y)
     except Exception:                                       # noqa: BLE001
         return False
     return isinstance(d, dict) and "kart" in d and "skop_arsiv" in d
+
+
+def durdur(port: int = pc_ayar.PORT, bekle: float = 5.0) -> tuple[bool, str]:
+    """Calisan kopruyu KENDI ucundan (`POST /kapat`, yalniz bu bilgisayar) durdur.
+
+    4A inceleme: eskiden tek yol "Gorev Yoneticisi > pythonw.exe" idi; ayni
+    yoldan stok-takip'in arka plan sunucusu da calisiyor.
+    """
+    if not zaten_calisiyor(port):
+        return False, f"{port} portunda calisan kopru yok"
+    try:
+        with pc_ayar.yerel_istek(port, "/kapat", veri=b"", basliklar={"X-Olcum": "1"},
+                                 zaman_asimi=3.0):
+            pass
+    except Exception as e:                                  # noqa: BLE001
+        return False, f"kopru durdurulamadi: {e}"
+    son = time.monotonic() + bekle
+    while time.monotonic() < son:
+        if not zaten_calisiyor(port):
+            return True, f"kopru durduruldu ({pc_ayar.adres(port)}); COM portu serbest"
+        time.sleep(0.2)
+    return False, f"kopru {bekle:.0f} s icinde kapanmadi"
 
 
 def _secenek(arg: list[str], ad: str, varsayilan=None):
@@ -74,10 +101,10 @@ def _secenek(arg: list[str], ad: str, varsayilan=None):
     return varsayilan
 
 
-def calistir(arg: list[str], tarayici_ac=webbrowser.open) -> int:
+def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
     """Kopruyu ac ve kapanana dek hizmet et. Donus: cikis kodu."""
     if "--yardim" in arg or "-h" in arg:
-        print(YARDIM)
+        yazdir(YARDIM)
         return 0
     sessiz = "--sessiz" in arg
     lan = "--lan" in arg
@@ -85,15 +112,20 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open) -> int:
     http_port = int(_secenek(arg, "--http-port", pc_ayar.PORT))
     adres = pc_ayar.adres(http_port)
 
+    if "--durdur" in arg:
+        tamam, mesaj = durdur(http_port)
+        yazdir(mesaj)
+        return 0 if tamam else 1
+
     # ── tek kopya ────────────────────────────────────────────────────
     if zaten_calisiyor(http_port):
         if kayit:
-            print(f"{http_port} portunda kopru zaten calisiyor. Olu tekrar icin baska "
-                  f"port verin: --http-port {http_port + 1}")
+            yazdir(f"{http_port} portunda kopru zaten calisiyor. Olu tekrar icin baska "
+                   f"port verin: --http-port {http_port + 1}")
             return 2
         if sessiz:
             return 0
-        print(f"Kopru zaten calisiyor — {adres} aciliyor.")
+        yazdir(f"Kopru zaten calisiyor — {adres} aciliyor.")
         tarayici_ac(adres + "/")
         return 0
 
@@ -115,27 +147,43 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open) -> int:
             kart = kart_baglanti.OtoSeriKart(_secenek(arg, "--port"))
         kopru = kopru_mod.Kopru(kart, KOK / "kopru" / "arsiv")
         sunucu.RequestHandlerClass.kopru = kopru
-        kart.ac()
+        if not sessiz and hasattr(kart, "bildir"):
+            # 4A inceleme: kart durumu (bulunamadi / baglandi / koptu) konsola da.
+            # Eskiden yalniz /akis'e gidiyordu: `--port COM7` yanlissa konsoldaki
+            # kullanici "acildi" yazisini gorup neden veri gelmedigini bilemiyordu.
+            akisa = kart.bildir
+
+            def bildir(metin, _akisa=akisa):
+                yazdir(metin)
+                _akisa(metin)
+            kart.bildir = bildir
     except BaseException:
         sunucu.server_close()
         raise
-    threading.Thread(target=kopru.dongu, daemon=True).start()
+
+    def yukari_akis():
+        # Kart acilisi (otomatik secimde kimlik dogrulamasi saniyeler surebilir)
+        # HTTP'yi bekletmesin: ikinci kopyanin `zaten_calisiyor`u zaman asimina
+        # dusup "port baska programda" demesin.
+        kart.ac()
+        kopru.dongu()
+    threading.Thread(target=yukari_akis, daemon=True).start()
 
     if not sessiz:
-        print(f"Kopru acildi — kart: {kart.ad}")
-        print(f"  Panel (bu bilgisayar) : {adres}")
+        yazdir(f"Kopru acildi — kart: {kart.ad}")
+        yazdir(f"  Panel (bu bilgisayar) : {adres}")
         if lan:
-            print(f"  Yerel ag (SALT OKUMA) : http://{kopru_mod.lan_ip()}:{http_port}"
-                  f"   — telefonlar izler, yalniz p0 (DURDUR) gonderebilir")
-        print(f"  Arsiv                 : {kopru.arsiv.dizin}")
-        print("Kapatmak icin Ctrl+C")
+            yazdir(f"  Yerel ag (SALT OKUMA) : http://{kopru_mod.lan_ip()}:{http_port}"
+                   f"   — telefonlar izler, yalniz p0 (DURDUR) gonderebilir")
+        yazdir(f"  Arsiv                 : {kopru.arsiv.dizin}")
+        yazdir("Kapatmak icin Ctrl+C (arka plandaysa: kopru\\Kopruyu Durdur.bat)")
         if "--tarayici-acma" not in arg:
             threading.Timer(0.6, lambda: tarayici_ac(adres + "/")).start()
     try:
         sunucu.serve_forever()
     except KeyboardInterrupt:
         if not sessiz:
-            print("\nkapatiliyor…")
+            yazdir("\nkapatiliyor…")
     finally:
         kopru.durdur()
         kart.kapat()

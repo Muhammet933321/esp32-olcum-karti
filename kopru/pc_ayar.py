@@ -34,6 +34,24 @@ def adres(port: int = PORT) -> str:
     return f"http://{AD}:{port}"
 
 
+def yerel_istek(port: int, yol: str, veri: bytes | None = None, basliklar=None,
+                zaman_asimi: float = 1.5):
+    """Bu bilgisayardaki kopruye VEKILSIZ HTTP istegi (yanit nesnesi; `with` ile).
+
+    4A inceleme: `urllib.request.urlopen` ortam (HTTP_PROXY) ve Windows sistem
+    vekiline uyar; Windows'un `<local>` istisnasi 127.0.0.1'i KAPSAMIYOR. Vekil
+    acikken `zaten_calisiyor` kopruyu goremiyor, ikinci kopya "port baska
+    programda" diye cikiyordu. Kopru yalniz bu bilgisayarda: vekil hic kullanilmaz.
+    """
+    import urllib.request
+    istek = urllib.request.Request(f"http://127.0.0.1:{port}{yol}", data=veri,
+                                   method="POST" if veri is not None else "GET")
+    for ad, deger in (basliklar or {}).items():
+        istek.add_header(ad, deger)
+    acici = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    return acici.open(istek, timeout=zaman_asimi)
+
+
 def veri_dizini() -> Path:
     """Kullanici basina veri dizini (olusturmaz)."""
     elle = os.environ.get("OLCUM_PC_DIZIN")

@@ -51,8 +51,11 @@ def ok(ad: str, kosul: bool, ek: str = "") -> None:
 
 
 def istek(url, zaman_asimi=30):
+    # 4A inceleme: kopru `/skop.bin`de kendi `t`sini yalniz /komut'un kapisindan
+    # yollar (X-Olcum; surucu yokken jeton gerekmez)
+    r = urllib.request.Request(url, headers={"X-Olcum": "1"})
     try:
-        with urllib.request.urlopen(url, timeout=zaman_asimi) as y:
+        with urllib.request.urlopen(r, timeout=zaman_asimi) as y:
             return y.status, y.read(), dict(y.headers)
     except urllib.error.HTTPError as e:
         return e.code, e.read(), dict(e.headers)

@@ -30,7 +30,12 @@ yaptirabilir. Bu yuzden kopru:
     (DNS yeniden baglama: kotu bir site kendi adini 127.0.0.1'e cozdurup
     ayni koken sayilamaz);
   * E ve Q komutlarini kimseden tasimaz; `EK` anahtar satirini ve USB'ye
-    ozel parola satirlarini ne yayinlar ne arsivler (onekli/bolunmus da).
+    ozel parola satirlarini ne yayinlar ne arsivler (onekli/bolunmus da);
+  * baska KOKENDEN gelen tarayici istegini (`Sec-Fetch-Site` / `Origin`)
+    yan etkili uclarda reddeder: `<img src=".../skop.bin">` karta `t`
+    yollatamaz, `.../akis` suruculugu kapamaz (4A inceleme);
+  * `/skop.bin` kendi `t`sini yalniz `/komut`'un kapisindan gecerse yollar
+    (`X-Olcum` + surucu jetonu, `komut_izinli`).
 
 ── ROLE BAYT-SEFFAF ──────────────────────────────────────────────────
 Karttan gelen satir aynen `data: <satir>` olarak yayiliyor. Firmware,
@@ -111,9 +116,14 @@ LAN_RET = ("yerel agdan salt okuma: bu baglanti yalniz izleyebilir ve `p0` (DURD
 #  (ardindan gelen olcum satirlari bosuna kaybolmasin).
 #  Pencere disinda: harf iceren >= 24 onaltilik dizisi (anahtar parcasi) duser;
 #  16'lik kart kimligi ve uzun ondalik sayilar GECER.
-EK_DESEN = re.compile(r"EK \d")
+#  4A inceleme: isaretler DARALTILDI (yanlis pozitif 2 olcum satirini da yutuyordu):
+#  `F` yaniti "... YUKSEK 1.50" `EK \d`ye, `NA` onayi "* AP parolasi kaydedildi"
+#  `AP parolas`a takiliyordu. Firmware'in TEK EK bicimi "EK %u " (ardindan anahtar):
+#  sayidan sonra bosluk ya da satir sonu sart. AP parolasi isareti "AP parolasi
+#  (yalniz USB): " — bolunmus parcasi yalniz ardindan " (" ya da satir sonu gelirse.
+EK_DESEN = re.compile(r"EK \d+(?: |$)")
 EK_TAM = re.compile(r"EK \d+ [0-9A-Fa-f]{64}")
-USB_GIZLI = re.compile(r"\(yalniz USB\)|AP parolas", re.I)
+USB_GIZLI = re.compile(r"\(yalniz USB\)|AP parolas(?:i? *$|i \()", re.I)
 HEX_UZUN = re.compile(r"[0-9A-Fa-f]{24,}")
 GIZLI_PENCERE = 2
 
@@ -136,6 +146,14 @@ SKOP_KOMUTLARI = {"t", "tB", "ta"}
 # `osiloBekliyor` tavaniyla AYNI — arayuz vazgectikten sonra donen bir
 # yanit kullaniciya hicbir sey soylemezdi.
 SKOP_BEKLE_SN = 20.0
+
+# 4A inceleme: `?gun=` dosya yoluna giriyor — yalniz YYYY-AA-GG (yol gecisi, UNC).
+GUN_DESEN = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+CAPRAZ_RET = ("baska bir kokenden (site) gelen istek reddedildi — panel yalniz "
+              f"{pc_ayar.adres()} adresinden kullanilir")
+TETIK_RET = ("X-Olcum basligi gerekli: canli yakalama karta `t` yollatir (komut) — "
+             "panel yakalamayi `/komut` ile baslatir")
 
 
 def dongu_mu(ip: str) -> bool:
@@ -172,6 +190,25 @@ def host_gecerli(host: str | None) -> bool:
         return True
     except ValueError:
         return False
+
+
+def capraz_mi(sec_fetch_site: str | None, origin: str | None, host: str | None) -> bool:
+    """Istek BASKA bir kokenden (site) mi geliyor? (4A inceleme: CSRF)
+
+    `<img src="http://127.0.0.1:8770/skop.bin">` ozel baslik EKLEYEMEZ ama GET
+    yine de sunucuya ulasir: `X-Olcum` yalniz POST/fetch'i korur. Tarayici her
+    istege `Sec-Fetch-Site` yazar (baska port = `same-site`, baska ad =
+    `cross-site`); yalniz `same-origin` (panelin kendisi) ve `none` (adres
+    cubugu) kabul. `Origin` varsa Host ile AYNI koken olmali. Basliksiz istek
+    tarayicidan gelmiyor (curl, araclar) — kabul.
+    """
+    if sec_fetch_site is not None and sec_fetch_site.strip().lower() not in ("same-origin", "none"):
+        return True
+    if origin is not None:
+        h = (host or "").strip().lower()
+        if not h or origin.strip().lower().rstrip("/") != "http://" + h:
+            return True
+    return False
 
 
 class GizliSuzgec:
@@ -221,6 +258,9 @@ class Kopru:
         self.satir_adedi = 0
         self.arsiv_hatasi: str | None = None
         self.suzgec = GizliSuzgec()
+        # 4A inceleme: OtoSeriKart'in baglanti sayaci; 0'dan — Kopru'dan once
+        # acilmis bir baglantinin ilk satirlari da pencereye girsin
+        self._baglanti_no = 0
         # OtoSeriKart durum degisikliklerini (kart yok / baglandi / koptu)
         # akisa soyler — arsive DEGIL, olcum degil.
         if hasattr(kart, "bildir"):
@@ -327,6 +367,14 @@ class Kopru:
                 self.yayinla(f"! kopru: kart okunamadi — {e}")
                 time.sleep(1.0)
                 continue
+            # 4A inceleme: her (yeniden) baglantida pencere ACILIR, asla
+            # kisalmaz — port yarim satirdan acildiysa (SeriKart ilk parcayi
+            # zaten atiyor) ya da baglanti bir isaretten hemen sonra koptuysa
+            # kuyruk akisa / arsive gecmesin.
+            no = getattr(self.kart, "baglanti_no", 0)
+            if no != self._baglanti_no:
+                self._baglanti_no = no
+                self.suzgec.pencere = max(self.suzgec.pencere, GIZLI_PENCERE)
             if satir is None:
                 continue
             if not self.suzgec.gecir(satir):
@@ -385,17 +433,24 @@ class Kopru:
         self.skop_cozucu.sifirla()
         self.skop_kurulu = True
 
-    def skop_yakala(self, bekle: float = SKOP_BEKLE_SN) -> tuple[dict | None, str]:
+    def skop_yakala(self, bekle: float = SKOP_BEKLE_SN,
+                    tetik_izni: tuple[bool, str] | None = None) -> tuple[dict | None, str]:
         """Yakalamayi getir. (blok, hata) donduruyor.
 
         Arayuz komutu zaten yolladiysa (`skop_kurulu`) YALNIZCA bekliyor;
         yollamadiysa (curl, betik) kendisi `t` tetikliyor. Iki yolda da
         dokum `Serial`den gectigi icin yakalama ARSIVE de dusuyor —
         "geriye donuk kayit" ozelligi bunun yan urunu.
+
+        4A inceleme: kendi `t`sini yollamak bir KOMUT — `tetik_izni` (izin,
+        neden) verilmis ve izin yoksa PermissionError (HTTP 403); karta hicbir
+        sey gitmez. Bekleme yolu (komut zaten `/komut`'tan gecti) izin istemez.
         """
         with self.skop_kilit:
             kendi_tetikledi = not self.skop_kurulu
             if kendi_tetikledi:
+                if tetik_izni is not None and not tetik_izni[0]:
+                    raise PermissionError(tetik_izni[1])
                 self.skop_hazirla()
                 try:
                     self.kart.yaz("t")
@@ -445,6 +500,11 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         """4A (PC2): istek bu bilgisayardan mi? Degilse SALT OKUMA."""
         return dongu_mu(self._istemci_ip())
 
+    def _capraz(self) -> bool:
+        """4A inceleme: tarayici istegi baska bir kokenden mi? (bkz. capraz_mi)"""
+        return capraz_mi(self.headers.get("Sec-Fetch-Site"), self.headers.get("Origin"),
+                         self.headers.get("Host"))
+
     def _kapi(self) -> bool:
         """Her istekte once: Host denetimi. Reddettiyse yaniti yazmistir."""
         if not host_gecerli(self.headers.get("Host")):
@@ -474,14 +534,15 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         if not self._kapi():
             return
         yol = self.path.split("?")[0]
-        if yol == "/akis":
-            return self._akis()
         if yol == "/durum":
             return self._durum()
+        if yol in ("/akis", "/skop.bin", "/skop/liste", "/skop/al") and self._capraz():
+            # 4A inceleme (CSRF): baska kokenden <img>/<script> GET'i — surucu jetonu
+            # verilmez, karta yakalama yaptirilmaz, arsiv okunmaz
+            return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
+        if yol == "/akis":
+            return self._akis()
         if yol == "/skop.bin":
-            # 4A (PC2): canli yakalama karta `t` YOLLATIR — okuma degil, komut
-            if not self._yerel():
-                return self._yanit(403, LAN_RET.encode("utf-8"))
             return self._skop_canli()
         if yol == "/skop/liste":
             return self._skop_liste()
@@ -524,7 +585,18 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         alinan kararin aynisi (bkz. dosya basligi).
         """
         k = self.kopru
-        blok, hata = k.skop_yakala()
+        # 4A (PC2): canli yakalama karta `t` YOLLATIR — okuma degil, komut
+        if not self._yerel():
+            return self._yanit(403, LAN_RET.encode("utf-8"))
+        # 4A inceleme: kendi `t`si icin /komut'un kapisi (X-Olcum + surucu jetonu)
+        if self.headers.get("X-Olcum") != "1":
+            izin = (False, TETIK_RET)
+        else:
+            izin = k.komut_izinli("t", self._jeton(), yerel=self._yerel())
+        try:
+            blok, hata = k.skop_yakala(tetik_izni=izin)
+        except PermissionError as e:
+            return self._yanit(403, str(e).encode("utf-8"))
         if blok is None:
             return self._yanit(503, hata.encode("utf-8"))
         govde = skop_ikili(blok)
@@ -542,6 +614,8 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
     def _skop_liste(self):
         k = self.kopru
         s = self._sorgu()
+        if "gun" in s and not GUN_DESEN.fullmatch(s["gun"]):
+            return self._yanit(400, "gun YYYY-AA-GG olmali".encode("utf-8"))
         gunler = k.arsiv.gunler()
         gun = s.get("gun") or (gunler[-1] if gunler else None)
         # Gunluge yazilani okuyacagiz; henuz diske inmemis satirlar
@@ -558,6 +632,8 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         gun, ms = s.get("gun"), s.get("ms")
         if not gun or ms is None or not ms.lstrip("-").isdigit():
             return self._yanit(400, "gun ve ms gerekli".encode("utf-8"))
+        if not GUN_DESEN.fullmatch(gun):
+            return self._yanit(400, "gun YYYY-AA-GG olmali".encode("utf-8"))
         k.arsiv.flush()
         blok = k.arsiv.skop_bul(gun, int(ms))
         if blok is None:
@@ -612,6 +688,9 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
 
     # ── POST ─────────────────────────────────────────────────────────
     def do_POST(self):
+        # Govde ONCE okunuyor: erken ret yanitinda okunmamis govde Windows'ta
+        # baglantiyi RST ile koparir, istemci 400/403 yerine ConnectionAborted gorur.
+        self._govde_metin = self._govde()
         if not self._kapi():
             return
         yol = self.path.split("?")[0]
@@ -619,6 +698,8 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._komut()
         if yol == "/devral":
             return self._devral()
+        if yol == "/kapat":
+            return self._kapat()
         self._yanit(404, b"bilinmeyen uc")
 
     def _govde(self) -> str:
@@ -632,9 +713,13 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         #    kullaniciya fark ettirmeden komut gonderemiyor.
         if self.headers.get("X-Olcum") != "1":
             return self._yanit(400, "X-Olcum basligi gerekli".encode("utf-8"))
-        metin = self._govde()
+        metin = self._govde_metin
         if not metin:
             return self._yanit(400, b"bos komut")
+        # 4A inceleme: baska kokenden komut (on-ucus zaten engelliyor; derinlemesine
+        # savunma). `p0` HARIC — emniyet, her katmanda serbest.
+        if metin not in SERBEST_KOMUTLAR and self._capraz():
+            return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
         izin, neden = k.komut_izinli(metin, self._jeton(), yerel=self._yerel())
         if not izin:
             return self._yanit(403, neden.encode("utf-8"))
@@ -658,11 +743,30 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._yanit(400, "X-Olcum basligi gerekli".encode("utf-8"))
         if not self._yerel():
             return self._yanit(403, LAN_RET.encode("utf-8"))
+        if self._capraz():
+            return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
         jeton = self._jeton()
         if not jeton or not k.devral(jeton):
             return self._yanit(403, "bilinmeyen oturum".encode("utf-8"))
         k.yayinla("* kopru: surucu degisti")
         self._yanit(204)
+
+    def _kapat(self):
+        """4A inceleme: kopruyu DURDURMA yolu (`pc.py --durdur`, `Kopruyu Durdur.bat`).
+
+        Eskiden talimat "Gorev Yoneticisi > pythonw.exe" idi — ayni yoldan
+        stok-takip'in arka plan sunucusu da calisiyor, yanlisi oldurulurdu.
+        Yalniz bu bilgisayardan, `X-Olcum` ile, ayni kokenden.
+        """
+        if self.headers.get("X-Olcum") != "1":
+            return self._yanit(400, "X-Olcum basligi gerekli".encode("utf-8"))
+        if not self._yerel():
+            return self._yanit(403, LAN_RET.encode("utf-8"))
+        if self._capraz():
+            return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
+        self._yanit(204)
+        self.kopru.yayinla("* kopru: kapatiliyor (bu bilgisayardan istendi)")
+        threading.Thread(target=self.server.shutdown, daemon=True).start()
 
 
 class Sunucu(socketserver.ThreadingTCPServer):

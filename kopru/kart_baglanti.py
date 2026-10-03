@@ -31,7 +31,9 @@ Win32 seri API'si ctypes ile stdlib'den erisilebilir.
 from __future__ import annotations
 
 import ctypes
+import re
 import sys
+import threading
 import time
 from ctypes import wintypes
 
@@ -169,10 +171,21 @@ def portlari_listele() -> list[str]:
 # yanlis sokette kopru sessizce bos akis yayinliyordu.
 KOPRU_VID = {"1A86": "WCH CH34x", "10C4": "Silicon Labs CP210x", "0403": "FTDI"}
 YEREL_USB_VID = "303A"
+# 4A inceleme: kartin KENDI kopru cipi (CH343) — birden cok CH34x/CP210x varken
+# once bu denenir. Kullanicinin Arduino Nano klonlari CH340 = 1A86:7523.
+KART_USB = {"1A86:55D3": "WCH CH343 (olcum karti)"}
+
+
+def _vid(deger: str | None) -> str | None:
+    """'1A86:55D3' / '1A86' -> '1A86'; belirsiz ('1A86/303A') ya da yok -> None."""
+    if not deger or "/" in deger:
+        return None
+    return deger.split(":", 1)[0]
 
 
 def portlar_vid() -> dict[str, str | None]:
-    """TAKILI COM portlari -> USB VID (4 onaltilik, buyuk harf) ya da None.
+    """TAKILI COM portlari -> USB "VID:PID" (PID okunamazsa yalniz VID; 4 onaltilik,
+    buyuk harf) ya da None.
 
     Kayit defterinden: `Enum\\USB\\VID_xxxx&PID_yyyy\\<ornek>\\Device
     Parameters\\PortName` (FTDI: `Enum\\FTDIBUS\\VID_xxxx+...`). Enum takili
@@ -184,7 +197,6 @@ def portlar_vid() -> dict[str, str | None]:
     takili = portlari_listele()
     if sys.platform != "win32" or not takili:
         return {p: None for p in takili}
-    import re
     import winreg
     vidler: dict[str, set[str]] = {}
 
@@ -205,9 +217,10 @@ def portlar_vid() -> dict[str, str | None]:
             continue
         with a:
             for aygit in list(alt_anahtarlar(a)):
-                m = re.search(r"VID_([0-9A-Fa-f]{4})", aygit)
+                m = re.search(r"VID_([0-9A-Fa-f]{4})(?:[&+]PID_([0-9A-Fa-f]{4}))?", aygit)
                 if not m:
                     continue
+                kimlik = m.group(1).upper() + (":" + m.group(2).upper() if m.group(2) else "")
                 try:
                     b = winreg.OpenKey(a, aygit)
                 except OSError:
@@ -219,26 +232,36 @@ def portlar_vid() -> dict[str, str | None]:
                                 ad, _ = winreg.QueryValueEx(c, "PortName")
                         except OSError:
                             continue
-                        vidler.setdefault(str(ad).upper(), set()).add(m.group(1).upper())
+                        vidler.setdefault(str(ad).upper(), set()).add(kimlik)
     return {p: ("/".join(sorted(vidler[p.upper()])) if p.upper() in vidler else None)
             for p in takili}
+
+
+def kart_adaylari(portlar: dict[str, str | None]) -> list[str]:
+    """Kopru cipli portlar, kartin kendi VID:PID'i (KART_USB) ONCE. 303A / belirsiz / bilinmeyen YOK."""
+    adaylar = [p for p, v in portlar.items() if _vid(v) in KOPRU_VID]
+    return sorted(adaylar, key=lambda p: (portlar[p] not in KART_USB, p))
 
 
 def kart_portu_sec(portlar: dict[str, str | None]) -> str:
     """Kopru cipli TEK portu dondur; yoksa / birden fazlaysa ACIK hata.
 
-    303A (yerel USB) ASLA secilmez; VID'i bilinmeyen port da secilmez.
+    303A (yerel USB) ASLA secilmez; VID'i bilinmeyen port da secilmez. Birden
+    cok kopru cipi varken kartin kendi VID:PID'i (KART_USB) tek ise o secilir.
     """
     def liste():
         return ", ".join(f"{p} ({v or 'VID ?'})" for p, v in sorted(portlar.items())) or "(yok)"
 
-    adaylar = sorted(p for p, v in portlar.items() if v in KOPRU_VID)
+    adaylar = kart_adaylari(portlar)
     if len(adaylar) == 1:
         return adaylar[0]
     if len(adaylar) > 1:
+        tam = [p for p in adaylar if portlar[p] in KART_USB]
+        if len(tam) == 1:
+            return tam[0]
         raise RuntimeError(f"birden fazla kopru cipli port var: {liste()} — "
                            f"--port COMx ile secin")
-    if any(v == YEREL_USB_VID for v in portlar.values()):
+    if any(_vid(v) == YEREL_USB_VID for v in portlar.values()):
         raise RuntimeError(
             f"kart YANLIS sokete takili: yalniz yerel USB portu var ({liste()}). "
             f"VID 303A = ESP32'nin kendi USB'si, firmware orada SESSIZ. Kabloyu "
@@ -254,13 +277,67 @@ def kart_portu_bul() -> str:
     return kart_portu_sec(portlar_vid())
 
 
+def _otomatik_adaylar() -> list[str]:
+    """OtoSeriKart icin denenecek portlar (tercih sirasiyla); hic yoksa ACIK hata."""
+    portlar = portlar_vid()
+    adaylar = kart_adaylari(portlar)
+    if not adaylar:
+        kart_portu_sec(portlar)          # hic aday yok: sebebi soyleyen RuntimeError
+    return adaylar
+
+
+# ── 4A inceleme: portu TUTMADAN once kartin kimligi ──────────────────
+# Eskiden VID'i uyan ILK aygit (Arduino Nano klonu, USB-TTL) arka planda acilip
+# tutuluyordu: Arduino IDE "Access denied" aliyor, Nano'nun ciktisi kart verisi
+# diye arsivleniyor, sonra takilan gercek kart hic secilmiyordu. Kart kendiliginden
+# `D` satiri basar (rapor araligi en cok 5 s); basmazsa SERBEST `?` komutunun
+# yaniti `A menzil=...` (salt okunur, sir icermez — firmware komut_serbest).
+# 🔴 `N?` ASLA: o parolalari basar.
+_SAYI = r"-?(?:[0-9]+(?:\.[0-9]+)?|nan|inf)"
+KIMLIK_DESEN = re.compile(
+    rf"D {_SAYI}(?: {_SAYI}){{4}}(?: [0-9]+){{3,4}}|K [0-9]+ [0-9]+ [0-9]+|A menzil=(?:NORMAL|YUKSEK) .*")
+KIMLIK_TAMPON = 64
+
+
+def kart_kimligi(kart, pasif_sn: float = 2.0, soru_sn: float = 2.0) -> tuple[bool, list[str]]:
+    """Port arkasindaki aygit olcum karti mi? (tamam, okunan satirlar).
+
+    Once DINLER (`D`/`K` satiri); gelmezse yalniz `?` yollar ve `A menzil=` bekler.
+    Okunan satirlar geri verilir: dogrulama sirasinda gelen olcum kaybolmasin.
+    """
+    gorulen: list[str] = []
+
+    def dinle(sure: float) -> bool:
+        son = time.monotonic() + sure
+        while time.monotonic() < son:
+            satir = kart.satir_oku(min(0.25, max(0.01, son - time.monotonic())))
+            if getattr(kart, "kopuk", False):
+                return False
+            if satir is None:
+                continue
+            gorulen.append(satir)
+            del gorulen[:-KIMLIK_TAMPON]
+            if KIMLIK_DESEN.fullmatch(satir.strip()):
+                return True
+        return False
+
+    if dinle(pasif_sn):
+        return True, gorulen
+    try:
+        kart.yaz("?")
+    except Exception:                                       # noqa: BLE001
+        return False, gorulen
+    return dinle(soru_sn), gorulen
+
+
 def _kopru_portu_tutuyor(port: str, kopru_portlari) -> bool:
     """Bu bilgisayarda calisan PC koprusu `port`u mu tutuyor? (`/durum`'a sor)."""
     import json
-    import urllib.request
+    import pc_ayar
     for hp in kopru_portlari:
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{hp}/durum", timeout=1.5) as y:
+            # 4A inceleme: VEKILSIZ — HTTP_PROXY / sistem vekili 127.0.0.1'i saptirmasin
+            with pc_ayar.yerel_istek(hp, "/durum") as y:
                 d = json.load(y)
         except Exception:                                   # noqa: BLE001
             continue
@@ -284,8 +361,10 @@ def acma_hatasi(port: str, hata: int, kopru_portlari=None) -> str:
             import pc_ayar
             kopru_portlari = (pc_ayar.PORT,)
         if _kopru_portu_tutuyor(port, kopru_portlari):
-            return (f"{port}: PC kopru bu portu kullaniyor — kapatin (arka plandaysa: "
-                    f"Gorev Yoneticisi > pythonw.exe ya da kopru penceresinde Ctrl+C), "
+            # 4A inceleme: "pythonw.exe'yi oldur" DEMIYORUZ — stok-takip'in arka plan
+            # sunucusu da ayni yoldan pythonw; yanlisi oldurulurdu.
+            return (f"{port}: PC kopru bu portu kullaniyor — kapatin: kopru\\Kopruyu Durdur.bat "
+                    f"(ya da `python kopru/pc.py --durdur`; on plandaysa penceresinde Ctrl+C), "
                     f"sonra yeniden deneyin (WinError 5)")
         return (f"{port}: port mesgul — baska bir program tutuyor (PC koprusu, Arduino "
                 f"seri monitoru, baska bir tezgah araci?) (WinError 5)")
@@ -302,12 +381,31 @@ class SeriKart:
     """
 
     def __init__(self, port: str | None = None, baud: int = 115200):
-        self.port = port
+        # 4A inceleme: `--port com7` -> COM7 (SERIALCOMM adlari buyuk harf; kucuk
+        # harf 303A reddini sessizce atlatiyordu)
+        self.port = port.strip().upper() if port else None
         self.baud = baud
         self._h = None
         self._tampon = b""
         # 4A: ReadFile/WriteFile BASARISIZ oldu (kablo cekildi, surucu gitti).
         # Eskiden bos okuma sayilip sessizce sonsuza dek None donuyordu.
+        self.kopuk = False
+        self._hizali = True
+        # 4A inceleme: CloseHandle ile ReadFile/WriteFile ayni anda olmasin
+        # (kapanan tanitici numarasini Windows hemen baska nesneye verebilir)
+        self._kilit = threading.Lock()
+
+    def _baglanti_basladi(self) -> None:
+        """Her acilista: tampon bos, ILK satir atilacak.
+
+        🔴 4A inceleme: port satirin ORTASINDA acilabilir. Kart AP parolasini
+           "  AP parolasi (yalniz USB): " + parola + "\\r\\n" diye UC parcada basiyor;
+           port aradan acilirsa ilk okunan "satir" isaretsiz parolanin kendisiydi
+           ve suzgecten gecip akisa / arsive gidiyordu. Ilk `\\n`e kadar gelen her
+           sey atilir (en kotu ihtimalle tam bir olcum satiri kaybolur).
+        """
+        self._tampon = b""
+        self._hizali = False
         self.kopuk = False
 
     @property
@@ -321,7 +419,7 @@ class SeriKart:
             # 4A (PC3): eskiden `portlari_listele()[-1]` — yerel USB soketi
             # (303A) son siradaysa SESSIZ porta baglaniyordu.
             self.port = kart_portu_bul()
-        elif portlar_vid().get(self.port) == YEREL_USB_VID:
+        elif _vid(portlar_vid().get(self.port)) == YEREL_USB_VID:
             raise RuntimeError(f"{self.port}: VID 303A = ESP32'nin yerel USB soketi; "
                                f"firmware orada SESSIZ. 'COM' yazan sokete takin")
 
@@ -336,7 +434,7 @@ class SeriKart:
             # turudur — ayrim `acma_hatasi`nda (2 yok / 5 mesgul / kopru).
             raise RuntimeError(acma_hatasi(self.port, ctypes.get_last_error()))
         self._h = h
-        self.kopuk = False
+        self._baglanti_basladi()
 
         dcb = DCB()
         dcb.DCBlength = ctypes.sizeof(DCB)
@@ -371,19 +469,24 @@ class SeriKart:
         self._k32 = k32
 
     def kapat(self) -> None:
-        if self._h:
-            if not getattr(self, "_k32", None):
-                self._k32 = _kernel32()
-            self._k32.CloseHandle(self._h)
-        self._h = None
+        with self._kilit:
+            if self._h:
+                if not getattr(self, "_k32", None):
+                    self._k32 = _kernel32()
+                self._k32.CloseHandle(self._h)
+            self._h = None
 
     def _ham_oku(self) -> bytes:
         tampon = ctypes.create_string_buffer(4096)
         okunan = wintypes.DWORD(0)
-        if not self._k32.ReadFile(self._h, tampon, 4096,
-                                  ctypes.byref(okunan), None):
-            self.kopuk = True
-            return b""
+        with self._kilit:
+            if not self._h:
+                self.kopuk = True
+                return b""
+            if not self._k32.ReadFile(self._h, tampon, 4096,
+                                      ctypes.byref(okunan), None):
+                self.kopuk = True
+                return b""
         return tampon.raw[:okunan.value]
 
     def satir_oku(self, zaman_asimi: float = 0.5) -> str | None:
@@ -394,6 +497,9 @@ class SeriKart:
             if n >= 0:
                 satir = self._tampon[:n]
                 self._tampon = self._tampon[n + 1:]
+                if not self._hizali:
+                    self._hizali = True          # acilistaki yarim satir: AT
+                    continue
                 return satir.decode("utf-8", "replace").rstrip("\r")
             if time.monotonic() >= son:
                 return None
@@ -440,9 +546,12 @@ class SeriKart:
     def yaz(self, metin: str) -> None:
         veri = (metin + "\n").encode("utf-8")
         yazilan = wintypes.DWORD(0)
-        if not self._k32.WriteFile(self._h, veri, len(veri),
-                                   ctypes.byref(yazilan), None):
-            self.kopuk = True
+        with self._kilit:
+            if not self._h:
+                raise RuntimeError(f"{self.port}: port kapali")
+            if not self._k32.WriteFile(self._h, veri, len(veri),
+                                       ctypes.byref(yazilan), None):
+                self.kopuk = True
 
 
 def _seri_kur(port: str | None):
@@ -461,14 +570,30 @@ class OtoSeriKart:
     tekrarlasa akis her 3 s'de bir ayni hatayla dolardi.
     """
 
-    def __init__(self, port: str | None = None, aralik: float = 3.0, kurucu=None):
-        self.elle_port = port
+    # 4A inceleme: kart olmadigi anlasilan port, aygit takili kaldikca bu sure
+    # yeniden ACILMAZ (her 3 s'de Arduino'nun portunu kapmasin; cikarilinca unutulur)
+    RET_SN = 120.0
+
+    def __init__(self, port: str | None = None, aralik: float = 3.0, kurucu=None,
+                 adaylar=None, dogrula: bool | None = None,
+                 pasif_sn: float = 2.0, soru_sn: float = 2.0):
+        self.elle_port = port.strip().upper() if port else None
         self.aralik = aralik
         self.kurucu = kurucu or _seri_kur
+        self.adaylar = adaylar or _otomatik_adaylar
+        # Elle verilen port kullanicinin karari; otomatik secimde kimlik SART
+        self.dogrula = (self.elle_port is None) if dogrula is None else dogrula
+        self.pasif_sn = pasif_sn
+        self.soru_sn = soru_sn
         self.bildir = None
         self._kart = None
         self._son_deneme = -1e9
         self._son_neden = None
+        self._reddedilen: dict[str, float] = {}
+        self._bekleyen: list[str] = []
+        self._kilit = threading.Lock()
+        # Her basarili (yeniden) baglantida artar — kopru suzgec penceresini acar
+        self.baglanti_no = 0
         # Kart YOKKEN son durum satiri: sonradan baglanan tarayici da gorsun
         # (BIR KEZ yayinlanan satir o an abonesi olmayana hic ulasmazdi —
         # acilista kart yoksa panel "bos ama bagli" kalirdi). Bagliyken None.
@@ -485,28 +610,67 @@ class OtoSeriKart:
         if self.bildir:
             self.bildir(metin)
 
+    def _neden(self, metin: str) -> None:
+        if metin != self._son_neden:
+            self._son_neden = metin
+            self._soyle(f"! kopru: kart bulunamadi — {metin} (bekleniyor)")
+
     def _dene(self) -> None:
         if time.monotonic() - self._son_deneme < self.aralik:
             return
         self._son_deneme = time.monotonic()
-        try:
-            self._kart = self.kurucu(self.elle_port)
-        except RuntimeError as e:
-            if str(e) != self._son_neden:
-                self._son_neden = str(e)
-                self._soyle(f"! kopru: kart bulunamadi — {e} (bekleniyor)")
+        if self.elle_port:
+            portlar = [self.elle_port]
+        else:
+            try:
+                portlar = list(self.adaylar())
+            except RuntimeError as e:
+                self._neden(str(e))
+                return
+            simdi = time.monotonic()
+            self._reddedilen = {p: t for p, t in self._reddedilen.items()
+                                if p in portlar and t > simdi}
+            if not [p for p in portlar if p not in self._reddedilen]:
+                self._neden(f"{', '.join(portlar)}: olcum karti degil (kartin satiri gelmedi) — "
+                            f"baska bir aygit (Arduino, USB-TTL) olabilir; kart takiliysa "
+                            f"`--port COMx` ile verin")
+                return
+            portlar = [p for p in portlar if p not in self._reddedilen]
+        hata = "kart bulunamadi"
+        for port in portlar:
+            try:
+                kart = self.kurucu(port)
+            except RuntimeError as e:
+                hata = str(e)
+                continue
+            if self.dogrula:
+                tamam, gorulen = kart_kimligi(kart, self.pasif_sn, self.soru_sn)
+                if not tamam:
+                    kart.kapat()                # yabanci aygitin portu TUTULMAZ
+                    self._reddedilen[port] = time.monotonic() + self.RET_SN
+                    hata = (f"{port}: olcum karti degil ({self.pasif_sn + self.soru_sn:.0f} s'de "
+                            f"kartin satiri ya da `?` yaniti gelmedi) — port birakildi")
+                    continue
+                self._bekleyen = gorulen
+            with self._kilit:
+                self._kart = kart
+            self.baglanti_no += 1
+            self._son_neden = None
+            self._soyle(f"* kopru: kart baglandi — {kart.ad}")
             return
-        self._son_neden = None
-        self._soyle(f"* kopru: kart baglandi — {self._kart.ad}")
+        self._neden(hata)
 
     def ac(self) -> None:
         """Hata ATMAZ: kart yoksa `satir_oku` aramaya devam eder."""
         self._dene()
 
     def kapat(self) -> None:
-        if self._kart is not None:
-            self._kart.kapat()
-        self._kart = None
+        # 4A inceleme: yaz() ile ayni kilit — suren bir yazma bitmeden kapatilmaz,
+        # kapandiktan sonra yazma AttributeError degil acik hata alir
+        with self._kilit:
+            kart, self._kart = self._kart, None
+            if kart is not None:
+                kart.kapat()
 
     def satir_oku(self, zaman_asimi: float = 0.5) -> str | None:
         if self._kart is None:
@@ -514,18 +678,24 @@ class OtoSeriKart:
             if self._kart is None:
                 time.sleep(min(zaman_asimi, 0.2))
                 return None
-        satir = self._kart.satir_oku(zaman_asimi)
-        if getattr(self._kart, "kopuk", False):
-            ad = self._kart.ad
+        if self._bekleyen:
+            return self._bekleyen.pop(0)
+        kart = self._kart
+        if kart is None:
+            return None
+        satir = kart.satir_oku(zaman_asimi)
+        if getattr(kart, "kopuk", False):
+            ad = kart.ad
             self.kapat()
             self._son_deneme = time.monotonic()
             self._soyle(f"! kopru: kart baglantisi koptu ({ad}) — yeniden araniyor")
         return satir
 
     def yaz(self, metin: str) -> None:
-        if self._kart is None:
-            raise RuntimeError("kart bagli degil — USB kablosu 'COM' soketinde mi?")
-        self._kart.yaz(metin)
+        with self._kilit:
+            if self._kart is None:
+                raise RuntimeError("kart bagli degil — USB kablosu 'COM' soketinde mi?")
+            self._kart.yaz(metin)
 
 
 class KayitKart:
@@ -545,6 +715,7 @@ class KayitKart:
         self.yanitlar = dict(yanitlar or {})
         self.gecikme = gecikme
         self.yazilanlar: list[str] = []
+        self._yeni = threading.Event()
 
     @property
     def ad(self) -> str:
@@ -568,7 +739,13 @@ class KayitKart:
 
     def satir_oku(self, zaman_asimi: float = 0.5) -> str | None:
         if self._i >= len(self._satirlar):
-            return None
+            # 4A inceleme: kayit bitince BEKLE — olu tekrarda kopru dongusu bos
+            # donup bir cekirdegi %100 yakiyordu (SeriKart da zaman asimina uyar).
+            # Komut yaniti gelince (yaz) bekleme hemen kesilir.
+            self._yeni.wait(zaman_asimi)
+            self._yeni.clear()
+            if self._i >= len(self._satirlar):
+                return None
         if self.gecikme:
             time.sleep(self.gecikme)
         s = self._satirlar[self._i]
@@ -583,3 +760,4 @@ class KayitKart:
         # Yanit satirlari akisin ICINE giriyor — gercek kartta da oyle:
         # komut yaniti da `Serial.println` ile ayni tele yaziliyor.
         self._satirlar[self._i:self._i] = list(yanit)
+        self._yeni.set()

@@ -17,6 +17,8 @@
 """
 from __future__ import annotations
 
+import http.server
+import socketserver
 import sys
 import threading
 import time
@@ -35,6 +37,24 @@ from tarayici import Tarayici                              # noqa: E402
 
 UYG = "document.querySelector('#uyg')._vnode.component.proxy"
 gecti = kaldi = 0
+
+# 4A inceleme (CSRF): BASKA bir 127.0.0.1 portundan (stok-takip, bir gelistirme
+# sunucusu...) sunulan sayfa. <img> ozel baslik ekleyemez ama GET kopruye ULASIR;
+# eskiden /skop.bin karta `t` yollatiyor, /akis suruculugu ilk gelene veriyordu.
+SALDIRI = """<!doctype html><html><body>
+<img src="http://127.0.0.1:{p}/akis"><img src="http://127.0.0.1:{p}/skop.bin">
+<img src="http://olcum.localhost:{p}/akis"><img src="http://olcum.localhost:{p}/skop.bin">
+<img src="http://127.0.0.1:{p}/skop/liste?gun=//saldirgan.example/pay/x">
+<script>
+window.sonuc = [];
+const not_ = (ad) => (r) => window.sonuc.push(ad + ' ' + (r.type || r.status));
+fetch("http://127.0.0.1:{p}/skop.bin", {{mode: "no-cors"}}).then(not_("skop")).catch(e => window.sonuc.push("skop HATA"));
+fetch("http://127.0.0.1:{p}/komut", {{method: "POST", headers: {{"X-Olcum": "1"}}, body: "GF!"}})
+  .then(not_("komut")).catch(e => window.sonuc.push("komut HATA"));
+fetch("http://127.0.0.1:{p}/komut", {{method: "POST", mode: "no-cors", body: "p1"}})
+  .then(not_("komut2")).catch(e => window.sonuc.push("komut2 HATA"));
+</script></body></html>"""
+
 
 SW = (b"self.addEventListener('install', e => self.skipWaiting());\n"
       b"self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));\n")
@@ -98,8 +118,38 @@ def main() -> int:
     print(f"     kopru: {sunucu.server_address} · panel: {adres}\n")
     ok("Kopru yalniz 127.0.0.1'e bagli (gercek sunucu_kur)", sunucu.server_address[0] == "127.0.0.1",
        str(sunucu.server_address))
+    sayfa = SALDIRI.format(p=port).encode("utf-8")
+
+    class Saldiri(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(sayfa)))
+            self.end_headers()
+            self.wfile.write(sayfa)
+
+        def log_message(self, *a):
+            pass
+
+    saldiri = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Saldiri)
+    saldiri.daemon_threads = True
+    threading.Thread(target=saldiri.serve_forever, daemon=True).start()
     try:
         with Tarayici(auth_iptal=False) as t:
+            # ── 4A inceleme: once saldiri sayfasi (kopru Windows acilisinda
+            #    arka planda, panel henuz acilmamis — surucu yok) ──────────
+            t.git(f"http://127.0.0.1:{saldiri.server_address[1]}/")
+            bekle_js(t, "window.sonuc && window.sonuc.length >= 3", 8)
+            t.bekle(1.5)
+            ulasan = sorted({y for ip, h, y in gorulen if y in ("/akis", "/skop.bin", "/skop/liste")})
+            ok("[!] CSRF: baska 127.0.0.1 portundaki sayfanin <img>/fetch istekleri kopruye ULASTI "
+               "(sinama bos degil) ama karta HICBIR SEY gitmedi (`t`, GF!, p1 yok)",
+               ulasan == ["/akis", "/skop.bin", "/skop/liste"] and kart.yazilanlar == [],
+               f"ulasan={ulasan} karta={kart.yazilanlar} sayfa={t.js('JSON.stringify(window.sonuc)')}")
+            ok("[!] CSRF: saldiri sayfasi SURUCULUGU kapmadi, jeton almadi",
+               k.surucu is None and not k.jetonlar, f"surucu={k.surucu} jeton={len(k.jetonlar)}")
+            gorulen.clear()
+
             t.git(adres + "/#/canli")
             bekle_js(t, f"{UYG}.bagli && {UYG}.gecmis.length > 10", 15)
 
@@ -123,9 +173,14 @@ def main() -> int:
                f"bagli={t.js(UYG + '.bagli')} gecmis={t.js(UYG + '.gecmis.length')}")
             ok("Komut yolu: panelin `?`u kopru uzerinden KARTA ulasti",
                "?" in kart.yazilanlar, " ".join(kart.yazilanlar[:6]))
+            ok("[!] Saldiridan sonra acilan GERCEK panel surucu (rol calinmadi)",
+               t.js(f"{UYG}.surucuyum") is True and k.surucu is not None,
+               f"surucuyum={t.js(UYG + '.surucuyum')} jeton={len(k.jetonlar)}")
             hatalar = [h for h in t.hatalar() if "favicon" not in h.lower()]
             ok("Konsol hatasi yok", not hatalar, " | ".join(hatalar[:3]) or "temiz")
     finally:
+        saldiri.shutdown()
+        saldiri.server_close()
         k.calisiyor = False
         sunucu.shutdown()
         sunucu.server_close()
