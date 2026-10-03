@@ -641,7 +641,9 @@ def pc_4a_inceleme_sina(gec_dizin: Path) -> None:
        kod == 403 and kc.yazilanlar == [], f"HTTP {kod} · {kc.yazilanlar}")
     ayni = {"Sec-Fetch-Site": "same-origin", "Origin": f"http://olcum.localhost:{p}",
             "Host": f"olcum.localhost:{p}"}
-    kim = kimlik_oku(tb + "/akis", basliklar=ayni)
+    # 4I: ilk sekme ACIK kalir — kapansaydi rol (dogru olarak) ikinciye gecerdi
+    acik_ilk = _AcikAkis(tb, ayni)
+    kim = acik_ilk.kimlik()
     kim_none = kimlik_oku(tb + "/akis", basliklar={"Sec-Fetch-Site": "none"})
     ok("Ayni koken (same-origin, Origin = Host) ve adres cubugu (none) /akis aliyor; ilki surucu",
        bool(kim and kim.get("surucu")) and kim_none is not None and kim_none.get("surucu") is False,
@@ -665,6 +667,7 @@ def pc_4a_inceleme_sina(gec_dizin: Path) -> None:
        "/devral 403",
        kod_x == 403 and kod_p0 == 204 and kod_dv == 403 and kc.yazilanlar[len(once):] == ["p0"],
        f"GF!={kod_x} p0={kod_p0} devral={kod_dv} · karta={kc.yazilanlar[len(once):]}")
+    acik_ilk.kapat()
 
     # ── 2. gun yol gecisi ────────────────────────────────────────────
     print("\n--- 4A inceleme 2. `gun` parametresi (yol gecisi, UNC) ---")
@@ -1992,6 +1995,268 @@ def _guvenli_istek_bas(url, veri=None, basliklar=None, yontem=None, zaman_asimi=
         return None, str(e).encode("utf-8", "replace"), {}
 
 
+class _AcikAkis:
+    """4I: ACIK kalan `/akis` — yasayan bir sekme. Ham soketle (baglantiyi ne zaman
+    kapattigimizi biz bilelim: urllib yaniti soketi kendi tutuyor). `kimlikler` her
+    `event: kimlik` olayini varis anıyla toplar; `kapat()` sekmenin kapanmasi/yenilenmesi."""
+
+    def __init__(self, taban: str, basliklar: dict | None = None):
+        import socket
+        import urllib.parse
+        u = urllib.parse.urlsplit(taban)
+        self.s = socket.create_connection((u.hostname, u.port), timeout=10)
+        bas = {"Host": f"{u.hostname}:{u.port}", **(basliklar or {})}
+        self.s.sendall(("GET /akis HTTP/1.1\r\n" + "".join(f"{a}: {d}\r\n" for a, d in bas.items())
+                        + "\r\n").encode("utf-8"))
+        self.dosya = self.s.makefile("rb")
+        self.kod = int(self.dosya.readline().split()[1])
+        self.kimlikler: list[tuple[float, dict]] = []
+        self.kapali = False
+        threading.Thread(target=self._oku, daemon=True).start()
+
+    def _oku(self):
+        sonraki = False
+        try:
+            while True:
+                ham = self.dosya.readline()
+                if not ham:
+                    break
+                sat = ham.decode("utf-8", "replace").rstrip("\r\n")
+                if sat.startswith("event: kimlik"):
+                    sonraki = True
+                elif sat.startswith("data: ") and sonraki:
+                    self.kimlikler.append((time.monotonic(), json.loads(sat[6:])))
+                    sonraki = False
+        except Exception:                                   # noqa: BLE001
+            pass
+
+    def kimlik(self, n: int = 1, sure: float = 3.0) -> dict | None:
+        """n. kimlik olayini bekle (1 = ilk)."""
+        son = time.monotonic() + sure
+        while len(self.kimlikler) < n and time.monotonic() < son:
+            time.sleep(0.01)
+        return self.kimlikler[n - 1][1] if len(self.kimlikler) >= n else None
+
+    @property
+    def jeton(self) -> str:
+        k = self.kimlik()
+        return k["jeton"] if k else ""
+
+    def kapat(self):
+        import socket
+        if self.kapali:
+            return
+        self.kapali = True
+        try:
+            self.s.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        self.dosya.close()
+        self.s.close()
+
+
+def pc_4i_sina(gec_dizin: Path) -> None:
+    """4I — surucu sekmesi yenilenince / kapaninca rol BIRAKILIR (spec "4I uygulama kararlari").
+
+    🔴 4H'de bulundu: kopru, yenilenen ya da kapanan sekmenin surucu jetonunu tutmaya devam
+       ediyordu. EventSource baslik gonderemedigi icin yenilenen sekme YENI jeton aliyor ->
+       yalniz izleyici; acilis komutlari (`?`, `CT`, `G?`) ve kullanicinin her islemi 403
+       "surucu degil", ta ki elle devralana dek. PC uygulamasinda her yenilemede.
+    """
+    print("\n--- 4I. Surucunun akisi kapaninca rol birakilir ---")
+    kart = kart_baglanti.KayitKart([], yanitlar={"p0": ["* durdu"]})   # BOSTA: akisa satir gelmiyor
+    kart.ac()
+    k = kopru_mod.Kopru(kart, gec_dizin / "arsiv_4i")
+    s = _kos(k)
+    s_lan = _kos(k, _LanIsleyici)
+    tb = f"http://127.0.0.1:{s.server_address[1]}"
+    lb = f"http://127.0.0.1:{s_lan.server_address[1]}"
+    kom = {"X-Olcum": "1"}
+
+    def komut(metin, jeton, taban=tb):
+        return istek(taban + "/komut", metin.encode(), {**kom, "X-Jeton": jeton}, "POST")[0]
+
+    acik: list[_AcikAkis] = []
+
+    def ac(taban=tb, basliklar=None):
+        a = _AcikAkis(taban, basliklar)
+        acik.append(a)
+        return a
+
+    try:
+        # ── 1. yenileme: eski surucu kapanir, HEMEN yeni akis gelir ──────
+        a = ac()
+        ka = a.kimlik()
+        a.kapat()
+        b = ac()                     # bekleme YOK — tarayicida yenileme boyle
+        kb = b.kimlik()
+        once = len(kart.yazilanlar)
+        kodlar = {m: komut(m, b.jeton) for m in ("?", "CT", "G?")}
+        ok("[!] 4I: surucu sekme YENILENINCE yeni sekme ilk `kimlik`te SURUCU, acilis komutlari "
+           "(`?` `CT` `G?`) 204 ve karta ulasiyor",
+           bool(ka and ka["surucu"]) and bool(kb and kb["surucu"]) and k.surucu == b.jeton
+           and all(c == 204 for c in kodlar.values()) and kart.yazilanlar[once:] == ["?", "CT", "G?"],
+           f"eski={ka} yeni={kb} · {kodlar} · karta={kart.yazilanlar[once:]}")
+        ok("4I: kapanan sekmenin eski jetonu artik surucu degil (komutu 403)",
+           komut("?", ka["jeton"] if ka else "x") == 403, f"surucu={k.surucu == (ka or {}).get('jeton')}")
+
+        # ── 1b. IKINCI sekme aciktayken yenileme: rol arka sekmeye KACMAZ ───
+        # 🔴 4I incelemesinde bulundu: eski akisin isleyicisi kapanisi <= 0.5 s'de fark edip
+        #    rolu HEMEN yasayan tek yerel akisa (arka sekme) veriyordu; yenilenen sekmenin
+        #    yeni /akis'i hep ondan SONRA geliyor -> surucu yasiyor, "calma yok" -> yenilenen
+        #    sekme izleyici, acilis komutlari 403. Gecikmeler 0…1.5 s hepsinde. Yeniden
+        #    yuklenme penceresi (AKIS_DEVIR_BEKLE_S) icinde gelen yeni yerel akis rolu alir.
+        sonuc_1b = []
+        for gec in (0.0, 0.8, 1.5):
+            v = ac()
+            kv = v.kimlik()
+            b.kapat()
+            time.sleep(gec)              # eski isleyici kapanisi coktan fark etti (<= 0.5 s)
+            b = ac()
+            kb = b.kimlik()
+            kod_b = komut("?", b.jeton)
+            kod_v = komut("CT", v.jeton)
+            sonuc_1b.append((gec, bool(kv) and not kv["surucu"], bool(kb and kb["surucu"]), kod_b,
+                             kod_v, len(v.kimlikler)))
+            v.kapat()
+        time.sleep(kopru_mod.AKIS_DEVIR_BEKLE_S + 0.6)   # pencere zamanlayicisi da rolu kacirmasin
+        ok("[!] 4I: IKINCI yerel sekme aciktayken surucu YENILENINCE (yeni akis eski isleyici "
+           "fark ettikten 0 / 0.8 / 1.5 s sonra) yenilenen sekme SURUCU, `?` 204; arka sekme rol "
+           "olayi almaz, komutu 403",
+           all(x[1:] == (True, True, 204, 403, 1) for x in sonuc_1b) and k.surucu == b.jeton
+           and komut("?", b.jeton) == 204,
+           f"(gec, v izleyici, yeni surucu, ?, v CT, v olay) = {sonuc_1b}")
+
+        # ── 2. kapanan surucu: rol <= 2 s'de EN YENI yasayan yerel izleyiciye ─
+        c = ac()
+        d = ac()
+        kc, kd = c.kimlik(), d.kimlik()
+        t0 = time.monotonic()
+        b.kapat()
+        devir_ust = kopru_mod.AKIS_DEVIR_BEKLE_S + 1.5   # pencere + 0.5 s yoklama + pay
+        kd2 = d.kimlik(2, sure=devir_ust + 2.0)
+        dt = (d.kimlikler[1][0] - t0) if len(d.kimlikler) >= 2 else None
+        ok("[!] 4I: surucunun akisi kapaninca rol, yeniden yuklenme penceresi dolunca "
+           f"(<= {devir_ust:.1f} s) EN YENI yasayan yerel izleyiciye gecer, "
+           "o sekme yeniden yuklenmeden `kimlik` olayi (surucu: true, kendi jetonu) alir",
+           bool(kc and kd) and not kc["surucu"] and not kd["surucu"] and bool(kd2 and kd2["surucu"])
+           and kd2["jeton"] == d.jeton and dt is not None and dt <= devir_ust and k.surucu == d.jeton,
+           f"dt={dt if dt is None else round(dt, 3)} s · yeni={kd2}")
+        time.sleep(0.3)
+        ok("4I: devir yalniz yeni surucuye — daha eski izleyici (c) rol olayi almadi, komutu 403; "
+           "yeni surucunun komutu 204",
+           len(c.kimlikler) == 1 and komut("?", c.jeton) == 403 and komut("?", d.jeton) == 204,
+           f"c olaylari={len(c.kimlikler)}")
+
+        # ── 3. iki YASAYAN sekme: sessiz calma yok; /devral acik yol ───────
+        kodlar_c = []
+        for _ in range(4):
+            kodlar_c.append(komut("CT", c.jeton))
+            time.sleep(0.3)
+        e = ac()
+        ke = e.kimlik()
+        ok("[!] 4I: iki sekme de ACIKKEN surucu degismez — izleyicinin komutlari 403 kalir, yeni "
+           "acilan sekme izleyici (rol calinmaz)",
+           all(x == 403 for x in kodlar_c) and k.surucu == d.jeton and bool(ke) and not ke["surucu"],
+           f"izleyici={kodlar_c} · yeni={ke}")
+        kod_dv, _ = istek(tb + "/devral", b"", {**kom, "X-Jeton": c.jeton}, "POST")
+        ok("4I: acik devralma (/devral) aynen calisiyor: izleyici devralir, eski surucu 403",
+           kod_dv == 204 and komut("?", c.jeton) == 204 and komut("?", d.jeton) == 403,
+           f"devral={kod_dv}")
+
+        # ── 4. LAN: yerel ag izleyicisi ASLA surucu olmaz; p0 her zaman ────
+        for x in (d, e):
+            x.kapat()
+        lan = ac(lb)
+        kl = lan.kimlik()
+        c.kapat()                        # yasayan tek yerel sekme (surucu) kapandi
+        time.sleep(0.8)                  # isleyici fark etti; yeniden yuklenme penceresi acik
+        lan2 = ac(lb)                    # pencere icinde YENI kaydolan LAN akisi da aday degil
+        kl2 = lan2.kimlik()
+        time.sleep(kopru_mod.AKIS_DEVIR_BEKLE_S + 1.0)   # pencere zamanlayicisi da LAN'a vermesin
+        kod_l = komut("?", lan.jeton, lb)
+        kod_p0 = komut("p0", "", lb)
+        kod_p0b = komut("p0", "")
+        ok("[!] 4I: surucu kapaninca yerel AG izleyicisi rolu ALMAZ — ne acik olan, ne pencere icinde "
+           "yeni kaydolan, ne pencere dolunca (olay yok, komutu 403); `p0` (DURDUR) LAN'dan da bu "
+           "bilgisayardan da jetonsuz 204",
+           bool(kl) and not kl["surucu"] and len(lan.kimlikler) == 1 and k.surucu != lan.jeton
+           and bool(kl2) and not kl2["surucu"] and len(lan2.kimlikler) == 1 and k.surucu != lan2.jeton
+           and kod_l == 403 and kod_p0 == 204 and kod_p0b == 204,
+           f"lan olaylari={len(lan.kimlikler)}/{len(lan2.kimlikler)} yeni={kl2} ?={kod_l} "
+           f"p0={kod_p0}/{kod_p0b}")
+
+        # ── 5. CSRF: baska kokenden /akis rolu ve jetonu ALAMAZ ───────────
+        jetonlar = len(k.jetonlar)
+        kod_x = _AcikAkis(tb, {"Sec-Fetch-Site": "cross-site"})
+        acik.append(kod_x)
+        kod_o = _AcikAkis(tb, {"Origin": "http://stok"})
+        acik.append(kod_o)
+        time.sleep(0.3)
+        f = ac()
+        kf = f.kimlik()
+        ok("[!] 4I: rol bostayken baska kokenden /akis 403, jeton yok; ardindan ayni kokenden acilan "
+           "sekme SURUCU",
+           kod_x.kod == 403 and kod_o.kod == 403 and not kod_x.kimlikler and not kod_o.kimlikler
+           and len(k.jetonlar) == jetonlar + 1 and bool(kf and kf["surucu"]) and k.surucu == f.jeton,
+           f"capraz={kod_x.kod}/{kod_o.kod} jeton +{len(k.jetonlar) - jetonlar} yeni={kf}")
+    finally:
+        for x in acik:
+            x.kapat()
+        for sv in (s, s_lan):
+            sv.shutdown()
+            sv.server_close()
+
+    # ── 6. komut aninda yoklama (isleyici kopuslugu henuz fark etmeden) ──
+    import socket
+    import queue as _q
+    k2 = kopru_mod.Kopru(kart_baglanti.KayitKart([]), gec_dizin / "arsiv_4i_2")
+    j1 = k2.jeton_ver()
+    j2 = k2.jeton_ver()
+    s1, s1_karsi = socket.socketpair()
+    s2, s2_karsi = socket.socketpair()
+    q2 = _q.Queue()
+    k2.akis_kaydet(j1, s1, _q.Queue(), True)
+    k2.akis_kaydet(j2, s2, q2, True)
+    once = (k2.komut_izinli("?", j2)[0], k2.surucu == j1)
+    s1_karsi.close()                 # surucunun sekmesi kapandi; isleyicisi henuz bilmiyor
+    t_k = time.monotonic()
+    izin = k2.komut_izinli("?", j2)[0]
+    dt_k = time.monotonic() - t_k
+    olay = q2.get_nowait() if not q2.empty() else None
+    yabanci = k2.komut_izinli("?", "baskasi")[0]
+    pencere = kopru_mod.AKIS_DEVIR_BEKLE_S
+    ok("[!] 4I: surucunun soketi kapaliysa izleyicinin KOMUTU (isleyici kopusu henuz fark etmeden) "
+       "yeniden yuklenme penceresinin sonunu bekleyip rolu devralir ve 204 alir (403 degil); ona "
+       "`kimlik` gider; bilinmeyen jeton yine 403",
+       once == (False, True) and izin and k2.surucu == j2 and isinstance(olay, tuple)
+       and pencere - 0.2 <= dt_k <= pencere + 1.0
+       and olay[0] == "kimlik" and json.loads(olay[1]) == {"jeton": j2, "surucu": True} and not yabanci,
+       f"once={once} izin={izin} bekleme={dt_k:.2f} s olay={olay} yabanci={yabanci}")
+
+    # ── 6b. pencere icinde yenilenen sekme gelirse bekleyen izleyici komutu 403 ──
+    s3, s3_karsi = socket.socketpair()
+    q3 = _q.Queue()
+    j3 = k2.jeton_ver()
+    s4, s4_karsi = socket.socketpair()
+    j4 = k2.jeton_ver()
+    k2.akis_kaydet(j4, s4, _q.Queue(), True)              # acik izleyici sekme (surucu j2 yasarken)
+    s2_karsi.close()                 # surucu (j2) kapandi; pencere basliyor
+    sonuc6b: dict = {}
+    th6 = threading.Thread(target=lambda: sonuc6b.update(izin=k2.komut_izinli("CT", j4)[0]),
+                           daemon=True)
+    th6.start()
+    time.sleep(0.4)
+    k2.akis_kaydet(j3, s3, q3, True)                      # yenilenen sekme pencere icinde geldi
+    th6.join(pencere + 2.0)
+    ok("[!] 4I: pencere icinde yenilenen sekme gelirse rol ONUN; pencereyi bekleyen acik izleyicinin "
+       "komutu 403 (rol arka sekmeye kacmaz)",
+       k2.surucu == j3 and sonuc6b.get("izin") is False and not th6.is_alive(),
+       f"surucu=j3:{k2.surucu == j3} j4:{k2.surucu == j4} izin={sonuc6b}")
+    for x in (s1, s2, s3, s3_karsi, s4, s4_karsi):
+        x.close()
+
+
 def _g4e(durum: int, oturum: int) -> str:
     return f"G {durum} {oturum} 100 101 50 120 10 0 900 25000 3 400 0"
 
@@ -2522,6 +2787,7 @@ def main() -> int:
     pc_4e_sina(gec_dizin)
     pc_4g_sina()
     pc_4h_sina(gec_dizin)
+    pc_4i_sina(gec_dizin)
 
     k.calisiyor = False
     time.sleep(0.25)
