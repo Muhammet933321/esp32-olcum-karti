@@ -1447,6 +1447,15 @@ def test_kesme(kap: Path, kok: Path) -> None:
         import mutasyon as M
         from pathlib import Path
         M.sinyal_kur()
+        # Ana is parcacigi kesmeyi 2 s GEC isler: durdur'u kesilen cocugu goren ISCI kurmali.
+        # Gecikmesiz yaris makineye bagliydi — birlesme kosusunda (2026-10-03) kesme kodu
+        # denetimini kaldiran yalanlayici iki kez KACTI (ana is parcacigi hep once davrandi).
+        import signal, time as _t
+        _asil = signal.getsignal(signal.SIGBREAK)
+        def _gec(*a):
+            _t.sleep(2.0)
+            _asil(*a)
+        signal.signal(signal.SIGBREAK, _gec)
         M.AGIR = set(M.AGIR) | {{"XS"}}
         ortam = dict(os.environ, ADIM_KAYIT={str(kayit)!r}, ADIM_UYKU="30")
         r = M.mutasyonlari_kos({muts!r}, Path({str(kok)!r}), 4, ortam)
@@ -1454,7 +1463,10 @@ def test_kesme(kap: Path, kok: Path) -> None:
         print("KALAN=" + str(len(r["kalan_dizin"])))
     ''', lambda: len(list(kayit.iterdir())) >= 2)
     time.sleep(1.0)
-    sonra = [f for f in kayit.iterdir() if f.stat().st_mtime > t_kes + 0.05]
+    # Kesmeden once tam TARAYICI_AZAMI tarayici kosusu vardir (semafor); fazlasi kesmeden SONRA
+    # baslamistir. Eski olcut (mtime > t_kes + 50 ms) yeni kosuyu kaciriyordu: bekleyen isci
+    # kesmeden ~40 ms sonra baslatiyordu (birlesme kosusu 2026-10-03, yalanlayici KACTI).
+    sonra = sorted(kayit.iterdir(), key=lambda f: f.stat().st_mtime)[M.TARAYICI_AZAMI:]
     kalan = [x.name for x in kap.iterdir() if x.name.startswith(M.ISCI_ONEK)]
     ok("A5b Ctrl+C: semaforda bekleyen isciler YENI tarayici kosusu BASLATMAZ; kopyalar silinir",
        basladi and "KESILDI=True" in cikti and not sonra and not kalan and sure < 60,
