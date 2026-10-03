@@ -152,7 +152,7 @@ Tasarım `tasarim/2026-10-01-1e-mqtt-bildirim.md` (K1–K12 + "Uygulama sırası
 | E7 | İlk gerçek aracı koşusunda 16 sıfırlamadan birinin `basladi` olayı aboneye ULAŞMADI; hedefli tekrar 6/6 geldi. Kartın `olay` sayacı o an kaydedilmedi → kayıp kartta mı (uçuştaki olay + sıfırlama) aracıda mı ayırt edilemiyor | Bir sonraki tezgahta her sıfırlamadan önce `Q?` olay sayacını kaydet |
 | E3 | Eşik (`esik`) 500 binde sabit; kullanıcı ayarı yok | Gerekirse `Qe<binde>` (küçük) |
 | E4 | Olay kuyruğu RAM'de (16); kart yeniden başlarsa gönderilmemiş olaylar kaybolur (spec kapsam dışı: kalıcı kuyruk) | Bilinçli |
-| E5 | Telefon/PC bildirim arayüzü yok; PC'de yalnız `kopru/bildirim.py dinle` | Alt proje 4/5 |
+| E5 | ~~Telefon/PC bildirim arayüzü yok; PC'de yalnız `kopru/bildirim.py dinle`~~ PC: 4E'de yapıldı (köprüde MQTT aboneliği + Windows bildirimi, `tasarim/2026-10-03-alt-proje-4-pc.md` "4E"); telefon kaldı | Alt proje 5 |
 
 ## Alt proje 2 (`ortak/`) çalışırken bulunanlar (2026-10-02 gecesi)
 

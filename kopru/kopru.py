@@ -543,6 +543,8 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._durum()
         if yol == "/esitleme/durum":
             return self._esitleme_durum()
+        if yol == "/bildirim/durum":                        # 4E
+            return self._bildirim_durum()
         if yol in ("/akis", "/skop.bin", "/skop/liste", "/skop/al") and self._capraz():
             # 4A inceleme (CSRF): baska kokenden <img>/<script> GET'i — surucu jetonu
             # verilmez, karta yakalama yaptirilmaz, arsiv okunmaz
@@ -591,6 +593,18 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         es = self.kopru.esitleme
         d = es.durum() if es is not None else {
             "etkin": False, "neden": self.kopru.esitleme_neden or "esitleme kurulmadi"}
+        self._yanit(200, json.dumps(d, ensure_ascii=False).encode("utf-8"), "application/json")
+
+    # ── 4E: MQTT bildirim durumu ─────────────────────────────────────
+    def _bildirim_durum(self):
+        """4E: bildirim ipliginin durumu (salt okuma, YALNIZ bu bilgisayardan — sonraki panel bolumu
+        kullanacak): bagli mi, son olay, ac/kapa ayarlari. Araci adresi / kullanici / parola / konu
+        oneki / anahtar YOK (pc_bildirim.PcBildirim.durum)."""
+        if not self._yerel():
+            return self._yanit(403, LAN_RET.encode("utf-8"))
+        b = getattr(self.kopru, "bildirim", None)
+        d = b.durum() if b is not None else {
+            "etkin": False, "neden": getattr(self.kopru, "bildirim_neden", None) or "bildirim kurulmadi"}
         self._yanit(200, json.dumps(d, ensure_ascii=False).encode("utf-8"), "application/json")
 
     # ── skop (B35) ───────────────────────────────────────────────────

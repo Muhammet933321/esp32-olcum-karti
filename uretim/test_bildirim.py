@@ -38,6 +38,8 @@ sys.path.insert(0, str(KOK / "kopru"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gercek_dizin_koru                                   # noqa: E402
 _KORUMA = gercek_dizin_koru.koru()   # LOCALAPPDATA gecici dizine — gercek PC dizinine asla yazilmaz
+import os                                                  # noqa: E402
+os.environ["OLCUM_TOAST_YOK"] = "1"  # 4E: sinamada GERCEK Windows bildirimi / kayit defteri yazimi YOK
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -1327,6 +1329,657 @@ def bolum_sahte_araci() -> None:
     ok("CLI: bicimsiz --kullanici cikis kodu 2 ve hata mesaji", kod == 2 and "HATA" in hata.getvalue())
 
 
+# ── 4E: PC bildirimleri (pc_bildirim.py · windows_bildirim.py · bildirim_metin.py) ──────────
+class _SahteCikis:
+    """Bildirim cikisi yerine: cagrilari kaydeder (GERCEK toast YOK)."""
+    yol = "sahte"
+
+    def __init__(self):
+        self.cagri: list[tuple] = []
+
+    def goster(self, etiket, baslik, metin, sessiz=False):
+        self.cagri.append((etiket, baslik, metin, sessiz))
+
+    def kapat(self):
+        pass
+
+
+class _Saat:
+    def __init__(self, t: float = 1000.0):
+        self.t = t
+
+    def __call__(self) -> float:
+        return self.t
+
+
+def _g(durum: int, oturum: int) -> str:
+    """Kartin `G` satiri (13 alan, olcum-karti-a3.ino kayit_durum_bas)."""
+    return f"G {durum} {oturum} 100 101 50 120 10 0 900 25000 3 400 0"
+
+
+def _mantik(acik=None, dil="tr", kalici=None):
+    import pc_bildirim as PB
+    cikis, saat, yay = _SahteCikis(), _Saat(), []
+    acik = acik or {s: True for s in PB.SINIFLAR}
+    m = PB.Mantik(cikis, yayinla=yay.append, ayar=lambda: (acik, dil, None), saat=saat,
+                  duvar=lambda: 1_790_000_000.0, kalici=kalici)
+    m.mqtt_bagli_oldu(True)
+    return m, cikis, saat, yay
+
+
+def _durum4e(k: int, o: int = 7, c: int = 1, a: int = 77, t: int = 1_790_000_000, y: int = 1) -> dict:
+    if c == 0:
+        return {"c": 0, "a": a}
+    return {"c": 1, "a": a, "t": t, "k": k, "o": o, "y": y, "d": 5, "e": 0, "f": "A3-4E"}
+
+
+def _olay4e(n: int, o: str, a: int = 77, **alan) -> dict:
+    return {"n": n, "a": a, "t": 1_790_000_100, "o": o, **alan}
+
+
+def bolum_4e_metin() -> None:
+    import re
+    import bildirim_metin as BM
+    print("\n-- 4E: bildirim metinleri (TR/EN, firmware olay adlari, sozluk.js ile ayni) --")
+    h = (KOK / "kod" / "olcum-karti-a3" / "bildirim.h").read_text(encoding="utf-8")
+    olaylar = set(re.findall(r'bld__olay_ac\([^;"]*"([a-z_]+)"\)', h))
+    eksik = [o for o in sorted(olaylar)
+             if not (o in BM.OLAY_ANAHTAR and BM.METIN.get(BM.OLAY_ANAHTAR[o], {}).get("tr")
+                     and BM.METIN[BM.OLAY_ANAHTAR[o]].get("en"))]
+    ok("4E: kartin HER olay adinin (bildirim.h bld__olay_ac) TR VE EN bildirim metni var",
+       len(olaylar) >= 6 and not eksik, f"{sorted(olaylar)} eksik={eksik}")
+    yer = re.compile(r"\{([a-z_]+)\}")
+    bozuk = [k for k, v in BM.METIN.items()
+             if not (v.get("tr") and v.get("en")) or set(yer.findall(v["tr"])) != set(yer.findall(v["en"]))]
+    ok("4E: her metnin bos olmayan TR ve EN'i var, yer tutuculari iki dilde AYNI",
+       not bozuk and len(BM.METIN) > 30, f"bozuk={bozuk}")
+    soz = (KOK / "ortak" / "src" / "sozluk.js").read_text(encoding="utf-8")
+    js = {m.group(1): (m.group(2), m.group(3)) for m in re.finditer(
+        r'"((?:sebep|pil\.durum|oturum\.tur)\.[a-z0-9]+)":\s*S\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)', soz)}
+    py = {k: (v["tr"], v["en"]) for k, v in BM.METIN.items()
+          if k.startswith(("sebep.", "pil.durum.", "oturum.tur."))}
+    farkli = [k for k in py if js.get(k) != py[k]]
+    eksik_py = [k for k in js if k not in py and k != "sebep.acik"]
+    ok("4E: ortak aileler (sebep.* / pil.durum.* / oturum.tur.*) sozluk.js ile BIREBIR ayni metin",
+       len(js) >= 18 and not farkli and not eksik_py, f"farkli={farkli} eksik={eksik_py}")
+    ok("4E: metin(): dil secimi, yer tutucu, bilinmeyen anahtar ATMAZ (anahtar doner), kod_metni bilinmeyen kod",
+       BM.metin("bld.kopuk", "en", oturum=7).startswith("No news from the board") and "7" in
+       BM.metin("bld.kopuk", "tr", oturum=7) and BM.metin("yok.boyle", "tr") == "yok.boyle"
+       and BM.kod_metni("sebep.", 99, "tr") == "bilinmeyen sebep (99)"
+       and BM.kod_metni("sebep.", 5, "en") == "board restarted" and BM.metin("bld.dolu", "xx") == "Bellek doldu, kayıt durdu")
+
+
+def bolum_4e_mantik() -> None:
+    import pc_bildirim as PB
+    print("\n-- 4E: karar katmani (sahte cikis + sahte saat; ag yok) --")
+    # kopuk: yalniz kayit surerken; donunce AYNI bildirim (etiket) guncellenir
+    m, c, s, _ = _mantik()
+    m.mqtt_mesaj("durum", _durum4e(k=1, o=0))
+    m.mqtt_mesaj("durum", _durum4e(0, c=0))
+    sessiz_kayitsiz = list(c.cagri)
+    m.mqtt_mesaj("durum", _durum4e(k=2, o=7))
+    m.mqtt_mesaj("durum", _durum4e(0, c=0))
+    m.mqtt_mesaj("durum", _durum4e(0, c=0))             # retained yeniden teslim: tekrar acilmaz
+    kopuk = list(c.cagri)
+    m.mqtt_mesaj("durum", _durum4e(k=2, o=7))
+    ok("4E: vasiyet/{c:0} kayit YOKKEN bildirim YOK; kayit surerken 'Karttan haber yok' (BIR KEZ, etiket "
+       "'baglanti'); kart donunce AYNI etiketle 'yeniden baglandi — kayit suruyor'",
+       sessiz_kayitsiz == [] and len(kopuk) == 1 and kopuk[0][0] == "baglanti"
+       and "Karttan haber yok" in kopuk[0][2] and "oturum 7" in kopuk[0][2]
+       and len(c.cagri) == 2 and c.cagri[1][0] == "baglanti" and "yeniden bağlandı" in c.cagri[1][2]
+       and "kayıt sürüyor" in c.cagri[1][2] and c.cagri[0][1] == "Ölçüm kartı", str(c.cagri))
+    # ev interneti: kart yerelde gorunuyor, araci cevrimdisi diyor
+    m, c, s, _ = _mantik()
+    m.mqtt_mesaj("durum", _durum4e(k=2, o=9))
+    m.yerel_satir(_g(2, 9))
+    m.mqtt_mesaj("durum", _durum4e(0, c=0))
+    s.t += PB.YEREL_ERISIM_SN + 1
+    m.tik()
+    m.yerel_satir(_g(2, 9))
+    m.tik()
+    m.mqtt_mesaj("durum", _durum4e(k=2, o=9))
+    metinler = [x[2] for x in c.cagri]
+    ok("4E: kart yerelde gorunurken araci 'cevrimdisi' -> 'Ev interneti koptu, kart calisiyor'; yerel de "
+       "susunca AYNI bildirim 'Karttan haber yok'a, yerel donunce yine 'ev interneti'ne, kart araciya "
+       "donunce 'yeniden baglandi'ya guncellenir (hep etiket 'baglanti')",
+       len(c.cagri) == 4 and {x[0] for x in c.cagri} == {"baglanti"} and "Ev interneti koptu" in metinler[0]
+       and "Karttan haber yok" in metinler[1] and "Ev interneti koptu" in metinler[2]
+       and "yeniden bağlandı" in metinler[3], str(metinler))
+    # yalniz yerel yol (araci yok): yerel satirlar susarsa, kayit suruyorsa
+    m, c, s, _ = _mantik()
+    m.mqtt_bagli_oldu(False)
+    m.yerel_satir(_g(2, 5))
+    s.t += PB.YEREL_KOPUK_SN + 1
+    m.tik()
+    m.tik()
+    yerel_kopuk = list(c.cagri)
+    m.yerel_satir(_g(2, 5))
+    m.tik()
+    m2, c2, s2, _ = _mantik()
+    m2.mqtt_bagli_oldu(False)
+    m2.yerel_satir(_g(1, 0))
+    s2.t += PB.YEREL_KOPUK_SN + 1
+    m2.tik()
+    ok("4E: araci yokken (MQTT ayarsiz / bagli degil) kayit surerken yerel satirlar susarsa 'Karttan haber "
+       "yok' (BIR KEZ), satirlar donunce ayni bildirim 'yeniden baglandi'; kayit yokken HICBIR sey",
+       len(yerel_kopuk) == 1 and "yerel bağlantı da koptu" in yerel_kopuk[0][2] and len(c.cagri) == 2
+       and c.cagri[1][0] == "baglanti" and "yeniden bağlandı" in c.cagri[1][2] and c2.cagri == [],
+       str(c.cagri))
+    m, c, s, _ = _mantik()
+    m.mqtt_mesaj("durum", _durum4e(k=2, o=4))
+    s.t += 1
+    m.yerel_satir(_g(1, 0))
+    m.mqtt_mesaj("durum", _durum4e(0, c=0))
+    ok("4E: 'kayit suruyor mu' HANGI haber daha yeniyse ondan (araci k=2 dedikten sonra yerel G kaydin "
+       "bittigini gosterdi -> vasiyette bildirim YOK)", c.cagri == [], str(c.cagri))
+    # (a, n) yineleme
+    m, c, s, _ = _mantik()
+    m.mqtt_mesaj("olay", _olay4e(1, "deneme"))
+    m.mqtt_mesaj("olay", _olay4e(1, "deneme"))
+    m.mqtt_mesaj("olay", _olay4e(2, "kayit_bitti", sebep=1, oturum=7, nokta=321))
+    m.mqtt_mesaj("olay", _olay4e(2, "kayit_bitti", sebep=1, oturum=7, nokta=321))
+    ok("4E (PC16): MQTT icinde (a, n) ayni olay (QoS 1 yeniden teslim) TEK bildirim",
+       len(c.cagri) == 2 and "Deneme" in c.cagri[0][2] and "kullanıcı durdurdu" in c.cagri[1][2]
+       and "321" in c.cagri[1][2], str(c.cagri))
+    # yollar arasi: yerel G gecisi + MQTT kayit_bitti -> tek bildirim, ayrintili olan sessizce gunceller
+    m, c, s, _ = _mantik()
+    m.yerel_satir(_g(2, 7))
+    m.yerel_satir(_g(1, 7))
+    s.t += 3
+    m.mqtt_mesaj("olay", _olay4e(5, "kayit_bitti", sebep=1, oturum=7, nokta=321))
+    ileri = list(c.cagri)
+    m2, c2, s2, _ = _mantik()
+    m2.mqtt_mesaj("olay", _olay4e(5, "kayit_bitti", sebep=1, oturum=7, nokta=321))
+    m2.yerel_satir(_g(2, 7))
+    m2.yerel_satir(_g(1, 7))
+    ok("4E (PC16): ayni oturum sonu yerelden (G 2->1) VE MQTT'den: TEK acilir bildirim; once yerel gelirse "
+       "MQTT'deki ayrintili metin AYNI etiketi SESSIZCE gunceller; once MQTT gelirse yerel duser",
+       len(ileri) == 2 and ileri[0][0] == ileri[1][0] == "os-7" and ileri[0][3] is False
+       and ileri[1][3] is True and "Kayıt bitti (oturum 7)" == ileri[0][2] and "321" in ileri[1][2]
+       and len(c2.cagri) == 1, f"{ileri} | {c2.cagri}")
+    m, c, s, _ = _mantik()
+    m.mqtt_mesaj("olay", _olay4e(6, "kayit_bitti", sebep=2, oturum=8, nokta=9))
+    m.mqtt_mesaj("olay", _olay4e(7, "dolu"))
+    m.yerel_satir(_g(2, 8))
+    m.yerel_satir(_g(3, 8))
+    dolu = list(c.cagri)
+    m, c, s, _ = _mantik()
+    m.yerel_satir(_g(2, 7))
+    m.yerel_satir(_g(1, 7))
+    m.mqtt_mesaj("olay", _olay4e(8, "pil_bitti", durum=2, mah_milli=1234567, wh_milli=4567, sure_ms=3723000))
+    m.mqtt_mesaj("olay", _olay4e(9, "kayit_bitti", sebep=4, oturum=7, nokta=50))
+    ok("4E (PC16): bellek dolu (kayit_bitti sebep 2 + dolu + yerel G->3) TEK bildirim; pil testi bitisi "
+       "yerel bitisi SESSIZCE sonucla (mAh, Wh, sure) gunceller, ardindan gelen kayit_bitti sebep 4 DUSER",
+       len(dolu) == 1 and "Bellek doldu" in dolu[0][2] and len(c.cagri) == 2 and c.cagri[1][3] is True
+       and c.cagri[0][0] == c.cagri[1][0] and "1234,6 mAh" in c.cagri[1][2] and "4,57 Wh" in c.cagri[1][2]
+       and "1:02:03" in c.cagri[1][2], f"{dolu} | {c.cagri}")
+    m, c, s, _ = _mantik()
+    m.yerel_satir(_g(2, 7))
+    m.yerel_satir(_g(1, 7))
+    s.t += PB.PENCERE_SN + 1
+    m.mqtt_mesaj("olay", _olay4e(1, "kayit_bitti", sebep=1, oturum=7, nokta=321))
+    m.mqtt_mesaj("olay", _olay4e(2, "esik", deger=520, esik=500))
+    s.t += PB.YAKIN_SN + 1
+    m.mqtt_mesaj("olay", _olay4e(3, "esik", deger=530, esik=500))
+    ok("4E (PC16): zaman penceresi — pencere disinda gelen ayni oturum sonu YENI bildirim; esik metni "
+       "binde -> %, YAKIN_SN disinda tekrar eden esik yeni bildirim",
+       len(c.cagri) == 4 and c.cagri[1][3] is False and "%52,0" in c.cagri[2][2]
+       and "%50,0" in c.cagri[2][2] and c.cagri[3][0] != c.cagri[2][0], str(c.cagri))
+    # yeniden basladi
+    m, c, s, _ = _mantik()
+    m.mqtt_mesaj("olay", _olay4e(1, "basladi", a=90, devam=0, oturum=0))
+    sade = list(c.cagri)
+    m.mqtt_mesaj("durum", _durum4e(k=2, o=12, a=90, y=2, t=1_790_003_600))
+    m.mqtt_mesaj("olay", _olay4e(1, "basladi", a=91, devam=1, oturum=12))
+    m.mqtt_mesaj("olay", _olay4e(2, "kayit_bitti", a=91, sebep=5, oturum=12, nokta=5))
+    ok("4E: duz acilis (basladi devam=0, oturum yok) bildirim DEGIL; devam=1 'kayit kesildi ve suruyor'; "
+       "kayit_bitti sebep 5 'Pil testi kesildi' + kartin son goruldugu saat",
+       sade == [] and len(c.cagri) >= 2 and "kesildi ve sürüyor" in c.cagri[-2][2]
+       and "Pil testi kesildi" in c.cagri[-1][2] and "son haber" in c.cagri[-1][2], str(c.cagri))
+    # kacirilan (PC15)
+    with tempfile.TemporaryDirectory() as d:
+        kalici = Path(d) / "son.json"
+        m, c, s, _ = _mantik(kalici=kalici)
+        m.mqtt_mesaj("olay", _olay4e(1, "basladi", a=20, devam=0, oturum=0))
+        m.mqtt_mesaj("olay", _olay4e(2, "deneme", a=20))
+        m.mqtt_mesaj("olay", _olay4e(5, "deneme", a=20))
+        k1 = [x for x in c.cagri if x[0] == "kacirilan"]
+        m.mqtt_mesaj("olay", _olay4e(3, "deneme", a=21))
+        k2 = [x for x in c.cagri if x[0] == "kacirilan"]
+        m2, c2, _, _ = _mantik(kalici=kalici)
+        m2.mqtt_mesaj("olay", _olay4e(3, "deneme", a=21))        # onceki calismada gorulmus
+        m2.mqtt_mesaj("olay", _olay4e(6, "deneme", a=21))
+        ok("4E (PC15): (a, n) bosluklari 'N olay kacirildi' (etiket 'kacirilan', birikerek); yeni acilista "
+           "1..n-1; kopru yeniden acilinca son (a, n) diskten: gorulen DUSER, bosluk sayilir",
+           len(k1) == 1 and "2 olay" in k1[0][2] and len(k2) == 2 and "4 olay" in k2[1][2] and m.kacirilan == 4
+           and m2.kacirilan == 2 and len([x for x in c2.cagri if "Deneme" in x[2]]) == 1
+           and json.loads(kalici.read_text()) == {"a": 21, "n": 6}, f"{c.cagri} | {c2.cagri}")
+    # dil + yerel satir ayristirma
+    m, c, s, _ = _mantik(dil="en")
+    m.mqtt_mesaj("olay", _olay4e(3, "dolu"))
+    gizli = "EK 3 " + "ab" * 32
+    m.yerel_satir("G 2 7")
+    m.yerel_satir("GA 1 2 3 4")
+    m.yerel_satir(_g(2, 7) + " x")
+    m.yerel_satir(gizli)
+    ok("4E: dil 'en' -> Ingilizce metin ve baslik; yerel satirda yalniz TAM 13 alanli `G` ayristirilir, "
+       "baska satirin icerigi (ör. EK anahtar satiri) SAKLANMAZ",
+       c.cagri and c.cagri[0][1] == "Measurement board" and c.cagri[0][2] == "Storage full, recording stopped"
+       and m._yerel_g is None and "ab" * 32 not in repr(vars(m)), str(c.cagri))
+    # hata metni sinifi
+    h = ssl.SSLCertVerificationError(1, "hostname 'gizli.araci.example' doesn't match")
+    ok("4E: baglanti hatasi metni istisnadan DEGIL siniftan (TLS hatasi araci adini tasir)",
+       PB.hata_sinifi(h) == "TLS sertifika/ad denetimi" and "gizli" not in PB.hata_sinifi(h)
+       and PB.hata_sinifi(socket.gaierror(11001, "x")) == "ad cozulemedi"
+       and PB.hata_sinifi(mq.BaglantiKoptu("araci.x kapatti")) == "baglanti koptu")
+
+
+def bolum_4e_ayar() -> None:
+    import pc_ayar
+    import pc_bildirim as PB
+    print("\n-- 4E: olay basina ac/kapa (ayar.json; 4C anahtarlariyla BIRLESIR) --")
+    p = pc_ayar.veri_dizini() / pc_ayar.AYAR
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"esitleme_onay": False, "esitleme_aralik_s": 300}), encoding="utf-8")
+    try:
+        PB.ayar_yaz({"bitti": False, "kopuk": False})
+        d = json.loads(p.read_text(encoding="utf-8"))
+        acik, dil, uyari = PB.ayar_oku()
+        cikis = _SahteCikis()
+        m = PB.Mantik(cikis, saat=_Saat())
+        m.mqtt_mesaj("durum", _durum4e(k=2, o=7))
+        m.mqtt_mesaj("durum", _durum4e(0, c=0))
+        m.mqtt_mesaj("olay", _olay4e(2, "kayit_bitti", sebep=1, oturum=7, nokta=3))
+        m.mqtt_mesaj("olay", _olay4e(3, "esik", deger=600, esik=500))
+        ok("4E: ayar_yaz bildirim anahtarlarini BIRLESTIRIR (esitleme_onay / aralik aynen); kapali siniflar "
+           "(kopuk, bitti) bildirim VERMEZ, acik olan (esik) verir",
+           d.get("esitleme_onay") is False and d.get("esitleme_aralik_s") == 300
+           and d["bildirim"] == {"bitti": False, "kopuk": False} and acik["bitti"] is False
+           and acik["esik"] is True and uyari is None and len(cikis.cagri) == 1 and "Eşitlenmemiş" in
+           cikis.cagri[0][2], str(cikis.cagri))
+        PB.ayar_yaz({}, dil="en")
+        d2 = json.loads(p.read_text(encoding="utf-8"))
+        dil_en = PB.ayar_oku()[1]
+        p.write_text(json.dumps({"bildirim": {"bitti": "hayir"}}), encoding="utf-8")
+        acik2, _, uyari2 = PB.ayar_oku()
+        p.write_text("{bozuk", encoding="utf-8")
+        acik3, _, uyari3 = PB.ayar_oku()
+        yazamadi = hata_verir(lambda: PB.ayar_yaz({"bitti": True}))
+        bozuk_kaldi = p.read_text(encoding="utf-8") == "{bozuk"
+        ok("4E: dil ayari birlesir; true/false olmayan deger o sinifi ACIK sayar (+uyari); bozuk ayar.json'da "
+           "hepsi acik (+uyari) ve ayar_yaz dosyanin USTUNE YAZMAZ; bilinmeyen sinif reddedilir",
+           d2.get("bildirim_dil") == "en" and dil_en == "en" and d2["bildirim"] == {"bitti": False, "kopuk": False}
+           and acik2["bitti"] is True and uyari2 and all(acik3.values()) and uyari3 and yazamadi
+           and bozuk_kaldi and hata_verir(lambda: PB.ayar_yaz({"yok": True}))
+           and hata_verir(lambda: PB.ayar_yaz({"esik": 1})))
+    finally:
+        p.unlink(missing_ok=True)
+
+
+def bolum_4e_windows() -> None:
+    import base64
+    import windows_bildirim as WB
+    print("\n-- 4E: Windows bildirimi (WinRT toast) betigi — GERCEK toast YOK --")
+    giden: list[str] = []
+    kayit: list[int] = []
+    hatalar: list[str] = []
+    s = WB.WindowsBildirim(Path(tempfile.gettempdir()), calistir=lambda b: giden.append(b) or 0,
+                           kaydet=lambda: kayit.append(1), hata=hatalar.append)
+    kotu = "kayıt <b>&'\"; Remove-Item C:\\ -Recurse #"
+    s.goster("baglanti", "Ölçüm kartı", kotu)
+    s.goster("baglanti", "Ölçüm kartı", "ikinci", sessiz=True)
+    son = time.monotonic() + 5
+    while len(giden) < 2 and time.monotonic() < son:
+        time.sleep(0.02)
+    b64 = giden[0].split("FromBase64String('")[1].split("'")[0] if giden else ""
+    xml = base64.b64decode(b64).decode("utf-8") if b64 else ""
+    ok("4E (PC13): toast betigi — Tag/Group (yerinde guncelleme), AUMID 'OlcumKarti.Kopru', ikinci SessizPopup; "
+       "metin XML'e kacirilip YALNIZ base64 olarak girer (PowerShell komutu olarak yorumlanamaz)",
+       len(giden) == 2 and "$t.Tag='baglanti'" in giden[0] and "$t.Group='olcum'" in giden[0]
+       and "CreateToastNotifier('OlcumKarti.Kopru')" in giden[0] and "SuppressPopup=$false" in giden[0]
+       and "SuppressPopup=$true" in giden[1] and "Remove-Item" not in giden[0]
+       and "kayıt &lt;b&gt;&amp;'\"; Remove-Item" in xml and "<text>Ölçüm kartı</text>" in xml, xml[:160])
+    k = WB.komut(giden[0]) if giden else []
+    ok("4E: powershell -NoProfile -NonInteractive -EncodedCommand (UTF-16LE); kaynak adi kaydi BIR KEZ",
+       k[:1] == [str(WB.POWERSHELL)] and "-EncodedCommand" in k and "-NoProfile" in k
+       and base64.b64decode(k[-1]).decode("utf-16-le") == giden[0] and kayit == [1])
+    ok("4E: etiket/grup bicimi denetlenir ([a-z0-9-], <= 16) — gecersiz etiket betige GIRMEZ",
+       hata_verir(lambda: WB.betik("x'; kotu", "a", "b")) and hata_verir(lambda: WB.betik("a" * 17, "a", "b"))
+       and hata_verir(lambda: WB.betik("ok", "a", "b", aumid="x'y")))
+    s2 = WB.WindowsBildirim(Path(tempfile.gettempdir()), calistir=lambda b: 1, kaydet=lambda: None,
+                            hata=hatalar.append)
+    s2.goster("a1", "b", "c")
+    s2.goster("a2", "b", "c")
+    son = time.monotonic() + 5
+    while not hatalar and time.monotonic() < son:
+        time.sleep(0.02)
+    time.sleep(0.2)
+    s.kapat()
+    s2.kapat()
+    import subprocess as _sp
+    asil_run, cagrildi = _sp.run, []
+    _sp.run = lambda *a, **kw: cagrildi.append(a) or None
+    try:
+        s3 = WB.WindowsBildirim(Path(tempfile.gettempdir()))
+        s3.goster("a3", "b", "c")
+        time.sleep(0.3)
+        s3.kapat()
+    finally:
+        _sp.run = asil_run
+    y: list[str] = []
+    WB.YokBildirim(y.append).goster("x", "b", "metin")
+    ok("4E: powershell hatasi BIR KEZ soylenir; OLCUM_TOAST_YOK (sinama/zincir) iken alt surec HIC "
+       "baslatilmaz; Windows disinda bildirim durum satiri olur",
+       len(hatalar) == 1 and "powershell: 1" in hatalar[0] and s3.sinama and not cagrildi
+       and s3.gosterilen == 1 and y == ["* bildirim: metin"], f"{hatalar} {cagrildi}")
+
+
+class _Kart4E(http.server.BaseHTTPRequestHandler):
+    """Sahte kart: /eslestir/bilgi (acik) + IMZALI /bildirim/bilgi (imza dogrulanir)."""
+    kart: dict = {}
+
+    def _ham(self, kod: int, govde: bytes) -> None:
+        self.send_response(kod)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(govde)))
+        self.end_headers()
+        self.wfile.write(govde)
+
+    def do_GET(self):                                       # noqa: N802
+        k = type(self).kart
+        yol = self.path.split("?")[0]
+        if yol == "/eslestir/bilgi":
+            return self._ham(200, json.dumps({"kimlik": k["kimlik"], "acilis": k["acilis"],
+                                              "saat": 1}).encode())
+        if yol == "/bildirim/bilgi":
+            b = {a.lower(): v for a, v in self.headers.items()}
+            try:
+                sayac = int(b.get("x-sayac", "-1"))
+            except ValueError:
+                sayac = -1
+            if b.get("x-cihaz") != str(k["n"]) or b.get("x-imza") != imza.imzala(
+                    k["K"], "GET", "/bildirim/bilgi", [], k["acilis"], sayac, b""):
+                k["imzasiz"] += 1
+                return self._ham(401, b"imza")
+            k["istek"] += 1
+            if k["bilgi"] is None:
+                return self._ham(404, b"bildirim ayarlanmamis")
+            govde = bilgi_govde(k["bilgi"], K=k["K"], kimlik=k["kimlik"], n=k["n"], nonce=os.urandom(12))
+            k["son_govde"] = govde
+            return self._ham(200, govde)
+        self._ham(404, b"")
+
+    def log_message(self, *a):
+        pass
+
+
+class _Ham4E(Ham):
+    def __init__(self, host: str, port: int):                # noqa: D107 — Ham'in ayni, adresli
+        self.s = socket.create_connection((host, port), timeout=3)
+        self.ayr = mq.Ayristirici()
+        self.t_connect = 0.0
+        self._no = 0
+
+
+def _kosul(f, sure: float = 8.0) -> bool:
+    son = time.monotonic() + sure
+    while time.monotonic() < son:
+        try:
+            if f():
+                return True
+        except Exception:                                   # noqa: BLE001
+            pass
+        time.sleep(0.05)
+    return bool(f())
+
+
+def bolum_4e_iplik() -> None:
+    import kart_wifi as KW
+    import pc_bildirim as PB
+    print("\n-- 4E: MQTT ipligi — sahte araci + sahte kart (imzali /bildirim/bilgi) + gercek WifiKart --")
+    HOST, KUL = "127.83.41.7", "cihaz-sinama-4e"
+    PAROLA, PAROLA_B = "araci-sinama-parola-4e!", "araci-sinama-yeni-4e?"
+    ONEK_A, ONEK_B = "4e" * 16, "b4" * 16
+    A1, A2, A3 = bytes(range(0x30, 0x50)), bytes(range(0x60, 0x80)), bytes(range(0x90, 0xB0))
+    K4, KIMLIK4, N4, ACILIS4 = bytes(range(0x50, 0x70)), "4e4e0011aabbccdd", 2, "cd" * 16
+    araci = SA.SahteAraci(HOST, 0, {"kart": ("kart-sinama-pw", "rw"), KUL: (PAROLA, "r")}).start()
+    uri = f"mqtt://{HOST}:{araci.port}"
+    kart = {"kimlik": KIMLIK4, "acilis": ACILIS4, "K": K4, "n": N4, "istek": 0, "imzasiz": 0,
+            "son_govde": b"", "bilgi": {"u": uri, "k": KUL, "p": PAROLA, "o": ONEK_A, "a": A1.hex()}}
+    sunucu = http.server.ThreadingHTTPServer(("127.0.0.1", 0), type("_K4", (_Kart4E,), {"kart": kart}))
+    threading.Thread(target=sunucu.serve_forever, daemon=True).start()
+    tmp = Path(tempfile.mkdtemp(prefix="okb4e-"))
+    cdizin, pdizin = tmp / "cihaz", tmp / "pc"
+    cdizin.mkdir()
+    imza.Cihaz(cdizin / f"{KIMLIK4}.json", KIMLIK4, N4, K4, "pc-sinama", 0, ACILIS4).kaydet()
+
+    def yay(onek, anahtar, son, icerik, retain=False):
+        konu = f"ok/{onek}/{son}"
+        araci.yayinla(konu, bildirim.zarf_kur(anahtar, konu, icerik), 1, retain)
+
+    def kur(dizin, wifi_host):
+        cikis, durumlar = _SahteCikis(), []
+        m = PB.Mantik(cikis, yayinla=durumlar.append,
+                      ayar=lambda: ({s: True for s in PB.SINIFLAR}, "tr", None),
+                      kalici=dizin / "bildirim" / "son.json")
+        pb = PB.PcBildirim(KW.WifiKart(wifi_host, dizin=cdizin), m, yayinla=durumlar.append,
+                           veri_dizini=dizin, keepalive=5, sessizlik=999, yenile_en_az=0.3,
+                           beklemeler=(lambda n: 0.2, lambda n: 0.3))
+        return pb, m, cikis, durumlar
+
+    kart_host = f"127.0.0.1:{sunucu.server_port}"
+    cikti = io.StringIO()
+    pb = pb2 = pb3 = pb4 = None
+    try:
+        with contextlib.redirect_stdout(cikti), contextlib.redirect_stderr(cikti):
+            yay(ONEK_A, A1, "durum", _durum4e(k=2, o=7), retain=True)
+            pb, m, cikis, durumlar = kur(pdizin, kart_host)
+            pb.baslat()
+            bagli = _kosul(lambda: m.kart_cevrimici is True and m.mqtt_bagli)
+            onb = pdizin / "bildirim" / f"{KIMLIK4}.okb"
+            bag = [b for b in araci.baglantilar if b.get("kullanici") in (KUL, KUL.encode())]
+            ok("4E (PC14): kart erisilebilir + onbellek yok -> IMZALI /bildirim/bilgi (bir kez), zarf "
+               "onbellege BAYT BAYT ayni yazildi; araciya cihaz hesabiyla baglanip ok/<onek>/# abone; "
+               "retained durum cozuldu",
+               bagli and kart["istek"] == 1 and kart["imzasiz"] == 0 and onb.read_bytes() == kart["son_govde"]
+               and onb.read_bytes()[:4] == b"OKB1" and pb.durum()["bilgi"] == "karttan" and bag
+               and araci.olaylar_sec("abone", filtre=f"ok/{ONEK_A}/#"),
+               f"bagli={bagli} istek={kart['istek']} {durumlar[-3:]}")
+
+            yay(ONEK_A, A1, "olay", _olay4e(2, "kayit_bitti", sebep=1, oturum=7, nokta=321))
+            yay(ONEK_A, A1, "olay", _olay4e(2, "kayit_bitti", sebep=1, oturum=7, nokta=321))
+            gitti = _kosul(lambda: any(x[0] == "os-7" for x in cikis.cagri))
+            time.sleep(0.5)
+            ok("4E: araciya gelen olay (zarf, konu AAD) bildirime; ayni (a, n) ikinci kez bildirim DEGIL",
+               gitti and len([x for x in cikis.cagri if x[0] == "os-7"]) == 1, str(cikis.cagri))
+
+            konu_d = f"ok/{ONEK_A}/durum"
+            sim = _Ham4E(HOST, araci.port)
+            rc = sim.baglan("kart-sim", ka=30, kul="kart", par="kart-sinama-pw",
+                            will=(konu_d, bildirim.zarf_kur(A1, konu_d, {"c": 0, "a": 77}), 1, True))
+            sim.s.close()                                   # fis cekildi: araci vasiyeti yayinlar
+            kopuk = _kosul(lambda: any(x[0] == "baglanti" and "Karttan haber yok" in x[2] for x in cikis.cagri))
+            yay(ONEK_A, A1, "durum", _durum4e(k=2, o=7), retain=True)
+            geri = _kosul(lambda: any(x[0] == "baglanti" and "yeniden bağlandı" in x[2] for x in cikis.cagri))
+            ok("4E: kartin vasiyeti (araci yayinlar, {c:0}) kayit surerken 'Karttan haber yok'; kart donunce "
+               "AYNI bildirim (etiket 'baglanti') 'yeniden baglandi'",
+               rc == 0 and kopuk and geri and [x[0] for x in cikis.cagri].count("baglanti") == 2, str(cikis.cagri))
+
+            yay(ONEK_A, A1, "durum", _durum4e(k=1, o=0), retain=True)
+            _kosul(lambda: m._durum and m._durum.get("k") == 1)
+            once = len(cikis.cagri)
+            yay(ONEK_A, A1, "durum", _durum4e(0, c=0), retain=True)
+            _kosul(lambda: m.kart_cevrimici is False)
+            time.sleep(0.3)
+            sessiz = len(cikis.cagri) == once
+            yay(ONEK_A, A1, "durum", _durum4e(k=1, o=0), retain=True)
+            ok("4E: kayit YOKKEN kart cevrimdisi olursa bildirim YOK", sessiz and m.kart_cevrimici is not None)
+
+            # anahtar degisti (ayni onek): cozulemeyen mesaj -> bilgi yeniden alinir
+            kart["bilgi"] = dict(kart["bilgi"], a=A2.hex())
+            yay(ONEK_A, A2, "durum", _durum4e(k=1, o=0, t=1_790_000_500), retain=True)
+            yeni = _kosul(lambda: m._durum and m._durum.get("t") == 1_790_000_500)
+            ok("4E (PC14): cozulemeyen zarf (anahtar degisti) -> kart erisilebilir: /bildirim/bilgi YENIDEN "
+               "alindi, onbellek yeni zarf, yeni anahtarla retained durum cozuldu",
+               yeni and kart["istek"] == 2 and pb.cozulemeyen >= 1 and onb.read_bytes() == kart["son_govde"],
+               f"istek={kart['istek']} {durumlar[-3:]}")
+
+            # CONNACK 5: araci parolasi degisti
+            araci.kullanicilar[KUL] = (PAROLA_B, "r")
+            kart["bilgi"] = dict(kart["bilgi"], p=PAROLA_B)
+            araci.kapali_tut()
+            araci.ac()
+            yenilendi = _kosul(lambda: kart["istek"] == 3 and m.mqtt_bagli, 10.0)
+            ok("4E (PC14): CONNACK 5 (araci parolasi degisti) -> kart erisilebilir: bilgi yeniden alinir, "
+               "yeni parolayla baglanilir",
+               yenilendi and any("kod 5" in x for x in durumlar), f"istek={kart['istek']} {durumlar[-4:]}")
+
+            # QR!: yeni onek + anahtar — eski konu susar
+            kart["bilgi"] = dict(kart["bilgi"], o=ONEK_B, a=A3.hex())
+            yay(ONEK_B, A3, "durum", _durum4e(k=1, o=0, t=1_790_000_900), retain=True)
+            pb.sessizlik = 1.0
+            qr = _kosul(lambda: m._durum and m._durum.get("t") == 1_790_000_900, 10.0)
+            pb.sessizlik = 999
+            ok("4E: QR! (yeni onek): kart cevrimici gorunurken durum konusu sessiz -> bilgi yeniden alinir, "
+               "yeni konuya abone olunur",
+               qr and kart["istek"] == 4 and araci.olaylar_sec("abone", filtre=f"ok/{ONEK_B}/#"),
+               f"istek={kart['istek']}")
+
+            # kartta MQTT ayarli degil (404) — ayri dizin
+            kart_bilgi = kart["bilgi"]
+            kart["bilgi"] = None
+            pb4, m4, _, d4 = kur(tmp / "pc4", kart_host)
+            pb4.baslat()
+            yok = _kosul(lambda: any("ayarli degil" in x for x in d4))
+            pb4.durdur()
+            kart["bilgi"] = kart_bilgi
+            ok("4E: kartta MQTT ayarli degil (404) -> soylenir, onbellek yazilmaz, iplik olmez",
+               yok and not list((tmp / "pc4").rglob("*.okb")), str(d4[-2:]))
+
+            yayinlar = [o for o in araci.olaylar_sec("publish")]
+            ok("4E: PC araciya HICBIR SEY yayinlamadi (yalniz abone; ACL reddi yok)",
+               not yayinlar and not araci.olaylar_sec("acl_red"), str(yayinlar[:2]))
+
+            # sir taramasi (pb calisirken)
+            sirlar = [PAROLA, PAROLA_B, HOST, KUL, ONEK_A, ONEK_B, A1.hex(), A2.hex(), A3.hex(), K4.hex(),
+                      f"{HOST}:{araci.port}"]
+            ham_sirlar = [s.encode() for s in sirlar] + [A1, A2, A3, K4]
+            disk = b"".join(p.read_bytes() for p in pdizin.rglob("*") if p.is_file())
+            disk_dosya = sorted(p.relative_to(pdizin).as_posix() for p in pdizin.rglob("*") if p.is_file())
+            metin = "\n".join(durumlar) + json.dumps(pb.durum(), ensure_ascii=False) + repr(cikis.cagri)
+            ok("4E (PC14): veri dizininde, durum satirlarinda, /bildirim/durum'da, bildirim metinlerinde ve "
+               "konsolda araci adresi / kullanici / parola / konu oneki / yuk anahtari / K YOK; diskte yalniz "
+               "OKB1 zarfi + son (a, n)",
+               not [s for s in ham_sirlar if s in disk] and not [s for s in sirlar if s in metin]
+               and not [s for s in sirlar if s in cikti.getvalue()]
+               and disk_dosya == [f"bildirim/{KIMLIK4}.okb", "bildirim/son.json"],
+               f"{disk_dosya} {[s for s in sirlar if s in metin]}")
+            pb.durdur()
+            sunucu.shutdown()
+            sunucu.server_close()
+
+            # kart ERISILEMEZ: onbellekteki zarfla abone olunur
+            pb2, m2, _, d2 = kur(pdizin, kart_host)
+            pb2.baslat()
+            onbellek = _kosul(lambda: m2.kart_cevrimici is True and m2._durum.get("t") == 1_790_000_900)
+            ok("4E (PC14): kart erisilemezken (sunucu kapali) ONBELLEKTEKI zarf (K ile cozulur) kullanilir, "
+               "abone olunur",
+               onbellek and pb2.bilgi_alimi == 0 and pb2.durum()["bilgi"] == "onbellek", str(d2[-2:]))
+            pb2.durdur()
+
+            pb3, m3, _, d3 = kur(tmp / "pc3", kart_host)
+            pb3.baslat()
+            soylendi = _kosul(lambda: any("dogrulanamadi" in x for x in d3))
+            canli = pb3._is is not None and pb3._is.is_alive()
+            pb3.durdur()
+            ok("4E: onbellek yok + kart erisilemez -> soylenir, MQTT yok, iplik olmez (yeniden dener)",
+               soylendi and canli and pb3.durum()["bilgi"] == "yok" and not m3.mqtt_bagli, str(d3[-1:]))
+    finally:
+        for p in (pb, pb2, pb3, pb4):
+            if p is not None:
+                p.durdur()
+        try:
+            sunucu.shutdown()
+            sunucu.server_close()
+        except Exception:                                   # noqa: BLE001
+            pass
+        araci.stop()
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def bolum_4e_iplik_birim() -> None:
+    import kart_wifi as KW
+    import pc_bildirim as PB
+    print("\n-- 4E: ipligin kararlari (sahte saat, sahte kart/araci; ag yok) --")
+
+    class _Wifi:
+        def __init__(self):
+            self.dogrula_n = 0
+
+        def dogrula(self):
+            self.dogrula_n += 1
+            raise KW.KartDogrulanamadi("erisilemiyor")
+
+    s = _Saat()
+    m, _, _, _ = _mantik()
+    w = _Wifi()
+    durumlar: list[str] = []
+    pb = PB.PcBildirim(w, m, yayinla=durumlar.append, veri_dizini=Path(tempfile.gettempdir()) / "okb4e-yok",
+                       saat=s, yenile_en_az=60.0, sessizlik=180.0)
+    pb._b = {"uri": "mqtt://127.0.0.1:1", "kullanici": "u", "parola": "sinama-pw", "onek": "cd" * 16,
+             "anahtar": bytes(32)}
+    pb._yenile = True
+    pb._bilgi_hazirla()
+    pb._yenile = True
+    pb._bilgi_hazirla()
+    once = w.dogrula_n
+    s.t += 61
+    pb._yenile = True
+    sonra_b = pb._bilgi_hazirla()
+    ok("4E: bilgi yeniden alma en sik YENILE_EN_AZ_SN'de bir (kart dovulmez); alinamazsa eldeki bilgiyle devam",
+       once == 1 and w.dogrula_n == 2 and sonra_b is pb._b and pb._b is not None, f"{once} {w.dogrula_n}")
+    m.kart_cevrimici = False
+    s.t += 1000
+    kapali = pb._sessiz_mi(0.0)
+    m.kart_cevrimici = True
+    m.son_durum_mono = s.t - 10
+    taze = pb._sessiz_mi(0.0)
+    m.son_durum_mono = s.t - 200
+    ilk = pb._sessiz_mi(0.0)
+    pb._yenile = False
+    ikinci = pb._sessiz_mi(0.0)
+    ok("4E: durum konusu sessizligi yalniz kart CEVRIMICI gorunurken ve SESSIZLIK_SN'den uzunsa yeniden "
+       "almayi tetikler; en sik SESSIZ_YENILE_ARALIK'ta bir",
+       not kapali and not taze and ilk and pb._yenile is False and not ikinci, f"{kapali} {taze} {ilk} {ikinci}")
+
+    class _TlsHata:
+        def __init__(self, *a, **kw):
+            pass
+
+        def baglan(self):
+            raise ssl.SSLCertVerificationError(1, "certificate verify failed: Hostname mismatch, "
+                                                  "certificate is not valid for 'baska.ad.example'")
+
+        def kapat(self, nazik=True):
+            pass
+    pb2 = PB.PcBildirim(w, m, yayinla=durumlar.append, istemci=_TlsHata, saat=s)
+    pb2._b = dict(pb._b)
+    sonuc = pb2._oturum(pb2._b)
+    ok("4E: araci baglanti hatasi durum satirina SINIFIYLA yazilir (istisna metni — ad / adres — degil)",
+       sonuc is False and durumlar[-1] == "! bildirim: araciya baglanilamadi (TLS sertifika/ad denetimi) — "
+       "yeniden denenecek" and "baska.ad" not in "".join(durumlar), durumlar[-1])
+
+
+def bolum_4e() -> None:
+    bolum_4e_metin()
+    bolum_4e_mantik()
+    bolum_4e_ayar()
+    bolum_4e_windows()
+    bolum_4e_iplik_birim()
+    bolum_4e_iplik()
+
+
 def main() -> int:
     print("=" * 78)
     print("  1E  BILDIRIM ZARFI + CHACHA20-POLY1305 + MQTT ISTEMCISI + DINLEYICI")
@@ -1342,6 +1995,7 @@ def main() -> int:
     bolum_tls_yolu()
     bolum_dinleyici()
     bolum_sahte_araci()
+    bolum_4e()
     gercek_dizin_koru.denetle(_KORUMA, ok)
     print(f"\n{gecti}/{gecti + kaldi} dogrulama gecti")
     return 0 if kaldi == 0 else 1

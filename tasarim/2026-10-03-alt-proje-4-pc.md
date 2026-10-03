@@ -221,6 +221,63 @@ Açık (4C dışı / sonraki):
   2.3 s — bağlanma payı; akış önceden bağlıyken (tablo) hız boştakine eşit.
 - Panelde eşitleme durumu (4D).
 
+### 4E uygulama kararları (2026-10-03)
+
+Köprü süreci kartın MQTT bildirimlerine **yalnız abone** olup Windows bildirimi gösteriyor
+(`kopru/pc_bildirim.py`: `Mantik` saf karar katmanı + `PcBildirim` ipliği; `kopru/windows_bildirim.py`;
+metinler `kopru/bildirim_metin.py`; `pc.bildirim_kur`). Sınama: B72.Q16 = `uretim/test_bildirim.py`
+"4E" bölümleri (sahte aracı `127.83.41.7` + imzayı doğrulayan sahte kart + gerçek `WifiKart`; karar katmanı
+sahte saatle), B22a "4E" (4 iddia: `pc.py` bağlantısı, yerel satır, `/bildirim/durum`). Her iddianın `4E:`
+önekli yalanlayan mutasyonu var (59). Testte ve zincirde GERÇEK toast yok (`OLCUM_TOAST_YOK=1`, sahte çıkış).
+
+**PC13 denemesi (ölçüldü, bu PC: Windows 11 26200, PowerShell 5.1, 2026-10-03 sabahı; iki deneme bildirimi).**
+`powershell.exe -EncodedCommand` + `[Windows.UI.Notifications.ToastNotificationManager, …, ContentType =
+WindowsRuntime]` stdlib Python'dan çalışıyor: `Show()` 0.19 s (alt süreç dahil, ikinci çağrı 0.19 s),
+`Notifier.Setting = Enabled`. **Yerinde güncelleme:** aynı `Tag='deneme'` + `Group='olcum'` ile ikinci
+`Show` sonrası `History.GetHistory` **1 kayıt**; Bildirim merkezinde tek kart, yeni metin ("2/2 — aynı
+bildirim yerinde güncellendi"). **Kaynak adı:** AUMID `OlcumKarti.Kopru`, `HKCU\Software\Classes\
+AppUserModelId\OlcumKarti.Kopru` altına `DisplayName = "Ölçüm kartı"` + `IconUri` (panel ikonu) yazılınca
+Bildirim merkezinde **"Ölçüm kartı" + dalga ikonu** (ekran görüntüsüyle doğrulandı); Başlat menüsü kısayolu
+ya da paket GEREKMEDİ. **Tarayıcı / panel kapalıyken** (o an hiç `msedge` süreci yok) bildirim çıktı.
+⚠ Kullanıcıda **"Rahatsız Etmeyin" açıktı**: açılır pencere (banner) görünmedi, bildirim doğrudan Bildirim
+merkezine düştü — Windows ayarı, kod değil (tezgah kalemi: öncelikli uygulamalara "Ölçüm kartı").
+Tepsi simgesi (`Shell_NotifyIconW`) **yapılmadı**: pencere + mesaj döngüsü ister, ucuz değil; çıkış zaten
+`Kopruyu Durdur.bat` / `pc.py --durdur`. Deneme bildirimlerinden biri ("2/2") Bildirim merkezinde duruyor.
+
+**Gerçek aracı (EMQX, 2026-10-03, kart A3-4B WiFi'de, köprü kapalıyken ayrı betikle, sahte çıkış, geçici
+önbellek dizini, hiçbir sır basılmadan):** imzalı `/bildirim/bilgi` 1 kez alındı, önbellek `OKB1` zarfı,
+aracıya yalnız abone bağlanıldı, **retained `durum` 3.4 s'de çözüldü** (`c=1 k=1 f=A3-4B`), çözülemeyen
+mesaj 0; veri dizininde, durum satırlarında ve `/bildirim/durum`'da aracı adresi/kullanıcı/parola/önek/
+anahtar YOK (bellekteki değerlerle tarandı). Yayın yapılmadı, karta komut gitmedi.
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4E-1 | **Bildirim yolu WinRT toast** (`powershell.exe` alt süreci, `CREATE_NO_WINDOW`, ayrı iplik + kuyruk); kaynak adı HKCU AUMID kaydıyla (ilk bildirimde, ikon çalışma ağacından veri dizinine KOPYALANIR); metin XML'e kaçırılıp YALNIZ base64 olarak betiğe girer, etiket/grup `[a-z0-9-]{1,16}` | PC13 ölçümü. Base64: bildirim metni (kartın şifreli yükünden gelir) PowerShell komutu olarak yorumlanamaz. Geri alma: `HKCU\Software\Classes\AppUserModelId\OlcumKarti.Kopru` anahtarını silmek. Windows dışı: bildirim akışa durum satırı (`YokBildirim`) |
+| 4E-2 | **MQTT ipliği köprü sürecinde** (`pc.bildirim_kur`, `--bildirim-yok`); bilgi kartın WiFi kolundan, **canlı akış ve eşitlemeyle AYNI `Cihaz` + sayaç kilidi** (`WifiKart.dogrula` + `imzali_ac`); `--wifi-yok`'ta da kurulur (yalnız önbellekle çalışır) | 4B-12/4C-2'nin kuralı: ayrı nesne aynı ms'de aynı sayacı üretir → 401. Kart MQTT'si köprünün yukarı-akışından bağımsız |
+| 4E-3 | **PC14 önbellek:** `/bildirim/bilgi` yanıtı AYNEN `…\olcum-karti\bildirim\<kart kimliği>.okb` (fsync + atomik); açılışta ÖNCE önbellek (kart erişilemezken de abone olunur). Yeniden alma YALNIZ: (a) zarf çözülemedi, (b) CONNACK 4/5, (c) kart çevrimiçi görünürken `durum` konusu **180 s sessiz** — ve yalnız kart erişilebilirse; (a)/(b) en sık 60 s'de bir, (c) 30 dk'da bir. Erişilemezse eldeki bilgiyle devam | (c) eklendi: `QR!` **öneki de değiştirir** — eski konu yalnız susar, çözme hatası hiç olmaz (eski retained durum eski anahtarla çözülür). Kart 60 s'de bir durum yolluyor; vasiyet geldiyse sessizlik beklenen, tetiklemez |
+| 4E-4 | **Sır disiplini:** çözülmüş adres/kullanıcı/parola/önek/anahtar yalnız bellekte; hata metinleri istisnadan DEĞİL sınıftan (`hata_sinifi`: ssl hatası aracı adını taşır); her durum metni ayrıca bellekteki sırlardan arındırılır; iplik istisnayı yakalar, iz yazmaz; `/bildirim/durum` önek dahil hiçbir sır taşımaz. Diskte yalnız `OKB1` zarfı + son `(a, n)` | Ö5 kapsamı (MQTT bilgisi). Test veri dizinini, durum satırlarını, `/bildirim/durum`'u, bildirim metinlerini ve konsolu parola/adres/kullanıcı/önek/anahtar/K için tarıyor |
+| 4E-5 | **Sınıflar ve ayar:** `kopuk`, `bitti`, `dolu`, `esik`, `yeniden_basladi` (§8'in beşi) + `kacirilan`, `deneme`; `ayar.json` `"bildirim": {...}` (true/false, yoksa açık), `"bildirim_dil": "tr"|"en"`. Bozuk dosya / biçimsiz değer → o sınıf AÇIK (+ uyarı). Yazma `pc_bildirim.ayar_yaz` (CLI `python kopru/pc_bildirim.py ayar kopuk=0 dil=en`): 4C anahtarlarıyla **birleştirir**, bozuk dosyanın üstüne YAZMAZ | 4C'nin tersi güvenli taraf: kaybolan bildirim, fazla bildirimden pahalı. Panelde ayar arayüzü YOK (sonraki dilim; panelin "Bildirimler (MQTT)" metni kartın `Q` ayarı hakkında, hâlâ doğru — değişmedi) |
+| 4E-6 | **"Karttan haber yok" yalnız kayıt sürerken** (son bilinen kayıt durumu `k ∈ {2 KAYIT, 4 BEKLIYOR}`; yerel `G` satırı ile aracının `durum`'undan HANGİSİ daha yeniyse); tek bildirim, etiket `baglanti`: vasiyet/`{c:0}` → kart yerelde görünüyorsa (son kart satırı ≤ 15 s) **"Ev interneti koptu — kart çalışıyor"**, değilse "Karttan haber yok"; durum değişince AYNI bildirim güncellenir; kart dönünce "yeniden bağlandı — kayıt sürüyor/sürmüyor". Retained `{c:0}` her yeniden bağlanmada tekrar açılmaz | §8. Yerel erişim = köprünün yukarı-akışından satır gelmesi (USB ya da WiFi). Köprü açılırken retained `c:0` ve kayıt bilinmiyorsa bildirim yok |
+| 4E-7 | **Yalnız yerel yol** (aracı yok / bağlı değil / kart hiç durum yollamadı): kayıt sürerken kart satırları **20 s** susarsa "Karttan haber yok — yerel bağlantı da koptu" (aynı etiket), dönünce "yeniden bağlandı" | Kartta MQTT ayarsızken de PC uyarır |
+| 4E-8 | **PC16 yineleme:** MQTT içinde `(a, n)` (son 1024); yollar arası aile + `a` (iki tarafta biliniyorsa) + `oturum` (iki tarafta biliniyorsa; yoksa ≤ 120 s) + 15 dk pencere. Ayrıntı sırası yerel `G` geçişi (1) < `kayit_bitti`/`dolu` (2) < `pil_bitti` (3): daha ayrıntılı ikinci haber AYNI bildirimi **sessizce** (`SuppressPopup`) günceller, eşit/az ayrıntılı düşer. `kayit_bitti` sebep 2 → `dolu` sınıfı, sebep 5 → `yeniden_basladi` ("<tür> kesildi, son haber <saat>"), sebep 4 → `pil_bitti` ile birleşir | Bellek dolunca kart `kayit_bitti(2)` + `dolu` + yerel `G 3` üretir → tek bildirim. Yerel yol kartın kendiliğinden bastığı `G` satırından (yeni kanal yok); köprü `satir_oku`'yu sarar, `Kopru.dongu` değişmedi |
+| 4E-9 | **`basladi`:** yalnız `devam=1` bildirilir ("kayıt kesildi ve sürüyor"); düz açılış bildirim değil; kesilen oturum ardından gelen `kayit_bitti` sebep 5 ile | Her açılışta bildirim gürültü olurdu; spec §8 "kayıt kesildi ve sürüyor / pil testi şu saatte kesildi" |
+| 4E-10 | **PC15 kaçırılanlar:** kalıcı oturum YOK (temiz oturum, rastgele kimlik); aynı açılışta `n` boşluğu, yeni açılışta `1..n-1`, köprü yeniden açılınca diskteki son `(a, n)`'den — "N olay kaçırıldı" tek bildirim (etiket `kacirilan`, birikerek); önceki çalışmada görülen olay yeniden bildirilmez | Olayların içeriği kayıp (aracı saklamaz); ayrıntı eşitlenen kayıtlarda. EMQX'in kalıcı oturumu ölçülmeden kullanılmadı |
+| 4E-11 | **`GET /bildirim/durum`** (yalnız bu bilgisayar, yerel ağ 403): `etkin`, `bilgi` (yok/önbellek/karttan), `abone`, `kart_cevrimici`, `kayit_suruyor`, `yerel_erisim`, son mesaj/olay zamanı ve türü, `kacirilan`, `baglanti_bildirimi`, `ayar`, `dil`, `bildirim_yolu`, `mesaj` (arındırılmış). Kurulmadıysa `etkin:false` + `neden` | 4C-7 deseni; sonraki panel bölümü buradan beslenir |
+| 4E-12 | **Metinler** `bildirim_metin.py`: `sebep.*` / `pil.durum.*` / `oturum.tur.*` `ortak/src/sozluk.js` ile AYNI anahtar ve metin (test sözlüğü okuyup karşılaştırır), bildirime özgüler `bld.*`; firmware'in her olay adı (`bildirim.h`'den okunur) için TR+EN | Panel ve PC aynı kelimeyi kullansın; Python'dan JS modülü okumak yerine kopya + eşitlik testi (stdlib, derleme yok) |
+
+**PC18 (Ö4'ün PC karşılığı): hedef 10 s, kabul 15 s — ÖLÇÜLMEDİ.** Aracı parolaları yalnız kullanıcıda;
+tezgah kalemi B22a listesinde ("4E: PC'de Windows bildirimi + Ö4"): kayıt sürerken kartın fişini çek →
+"Karttan haber yok" bildirimine kadar süre (10 tekrar; aracının ilanı ~7.5 s + PC), geri tak → aynı
+bildirim "yeniden bağlandı", modem WAN'ı çek → "Ev interneti koptu", `Qt` → "Deneme bildirimi".
+
+Açık (4E dışı / sonraki):
+- Panelde bildirim bölümü (durum + aç/kapa; `POST` ucu YOK — yazma şimdilik CLI ve `ayar.json`).
+- Tepsi simgesi (çıkış menüsü) yapılmadı; "Rahatsız Etmeyin"de banner çıkmaz (kullanıcı ayarı); `scenario="urgent"`
+  denenmedi.
+- Ö4 PC ölçümü (yukarıda), E7 (`basladi` kaybı) gerçek aracıda yeniden gözlenmedi.
+- Yerel yol yalnız `G` satırından: kartın açılış afişi ("yeniden başladı") yerel olarak bildirilmiyor (MQTT'den geliyor).
+- `esik` yalnız MQTT'den (eşik değeri kartta); yerel `G`'nin `onaysiz` alanından türetilmedi.
+
 ## Güvenlik (kalıcı kurallar)
 
 - `p0` her yeni katmanda serbest (LAN salt okuma, vekil, imza zorunluluğu): her birine iddia + mutasyon.

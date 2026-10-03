@@ -34,6 +34,7 @@ sys.path.insert(0, str(KOK / "kopru"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gercek_dizin_koru                                   # noqa: E402
 _KORUMA = gercek_dizin_koru.koru()   # LOCALAPPDATA gecici dizine — gercek PC dizinine asla yazilmaz
+os.environ["OLCUM_TOAST_YOK"] = "1"  # 4E: pc.calistir GERCEK bildirim cikisiyla kosuyor — toast/kayit defteri YOK
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import kart_baglanti                                       # noqa: E402
@@ -1344,6 +1345,126 @@ def pc_4c_sina(gec_dizin: Path) -> None:
        f"{kod_c} {govde_c[:90]} rc={sonuc.get('rc')}")
 
 
+class _Cikis4E:
+    """4E: bildirim cikisi yerine kayit (GERCEK toast YOK)."""
+    yol = "sahte"
+
+    def __init__(self):
+        self.cagri: list[tuple] = []
+
+    def goster(self, etiket, baslik, metin, sessiz=False):
+        self.cagri.append((etiket, metin, sessiz))
+
+    def kapat(self):
+        pass
+
+
+def pc_4e_sina(gec_dizin: Path) -> None:
+    """4E (PC13–PC16): bildirim ipliginin pc.py baglantisi, yerel `G` satiri dinleme, /bildirim/durum.
+
+    MQTT ipligi, karar katmani ve Windows bildirim betigi B72.Q16'da (test_bildirim.py) sinaniyor."""
+    print("\n--- 4E. MQTT bildirimleri: pc.py baglantisi, yerel satir, /bildirim/durum ---")
+    import kart_wifi as KW
+    import pc
+    import pc_ayar
+    import pc_bildirim as PB
+
+    def _durum_al(url):
+        kod, govde = _guvenli_istek(url)
+        return kod, govde.decode("utf-8", "replace")
+    usb, wifi = _SahteYukari("seri:COM9@115200"), KW.WifiKart("127.0.0.1:9")
+    sec = KW.SecmeliKart(usb, wifi)
+    kop = kopru_mod.Kopru(sec, gec_dizin / "arsiv_4e")
+    sus: list[str] = []
+    yok = pc.bildirim_kur(["--bildirim-yok"], sec, kop, yazdir=sus.append)
+    neden_yok = getattr(kop, "bildirim_neden", None)
+    b1 = pc.bildirim_kur([], sec, kop, yazdir=sus.append)
+    kop_u = kopru_mod.Kopru(usb, gec_dizin / "arsiv_4e_u")
+    b2 = pc.bildirim_kur([], usb, kop_u, yazdir=sus.append, cikis=_Cikis4E())
+    ok("4E: pc.bildirim_kur — --bildirim-yok kurmaz (sebep); varsayilan kartin WiFi kolunu kullanir, cikis "
+       "Windows bildirimi (sinamada OLCUM_TOAST_YOK: alt surec yok), veri dizini %LOCALAPPDATA%\\olcum-karti; "
+       "WiFi'siz (--wifi-yok) yukari-akista da kurulur (onbellekle calisir)",
+       yok is None and neden_yok == "--bildirim-yok" and b1 is not None and b1.wifi is wifi
+       and kop.bildirim is b1 and b1.mantik.cikis.yol == ("windows" if sys.platform == "win32" else "yok")
+       and getattr(b1.mantik.cikis, "sinama", True) and b1.dizin == pc_ayar.veri_dizini() / "bildirim"
+       and b2 is not None and b2.wifi is None and any("KAPALI (--bildirim-yok)" in x for x in sus),
+       f"{yok} {neden_yok} {b1 and b1.wifi}")
+
+    # yerel satirlar: kartin satir_oku'su sarilir — Kopru.dongu degismeden G gecisi bildirime
+    kart = kart_baglanti.KayitKart([_g4e(2, 7), "D 1.0 0.5", _g4e(1, 7)], gecikme=0.0)
+    kart.ac()
+    kop_k = kopru_mod.Kopru(kart, gec_dizin / "arsiv_4e_k")
+    cikis = _Cikis4E()
+    pc.bildirim_kur([], kart, kop_k, yazdir=sus.append, cikis=cikis)
+    okunan = [kart.satir_oku(1.0) for _ in range(3)]
+    ok("4E (PC16): kartin yukari-akis satirlari (Kopru.dongu'nun okudugu) bildirim katmanina da gider — "
+       "`G` kayit -> degil gecisi YEREL 'kayit bitti' bildirimi; satirlar akisa AYNEN devam eder",
+       okunan == [_g4e(2, 7), "D 1.0 0.5", _g4e(1, 7)]
+       and [c[0] for c in cikis.cagri] == ["os-7"] and "Kayıt bitti (oturum 7)" in cikis.cagri[0][1],
+       f"{okunan} {cikis.cagri}")
+    kart.kapat()
+
+    # /bildirim/durum: yalniz bu bilgisayar, JSON, sir yok
+    b1._b = {"uri": "mqtts://gizli-araci.example:8883", "kullanici": "cihaz-sinama-b22", "parola": "sinama-pw-b22",
+             "onek": "ab" * 16, "anahtar": bytes(range(32))}
+    b1._d["mesaj"] = "! bildirim: gizli-araci.example cihaz-sinama-b22 sinama-pw-b22"
+    s1 = _kos(kop)
+    kod_d, govde_d = _durum_al(f"http://127.0.0.1:{s1.server_address[1]}/bildirim/durum")
+    s1.shutdown()
+    s1.server_close()
+    s2 = _kos(kop, _LanIsleyici)
+    kod_lan, _ = _durum_al(f"http://127.0.0.1:{s2.server_address[1]}/bildirim/durum")
+    s2.shutdown()
+    s2.server_close()
+    kop_y = kopru_mod.Kopru(usb, gec_dizin / "arsiv_4e_y")
+    pc.bildirim_kur(["--bildirim-yok"], usb, kop_y, yazdir=sus.append)
+    s3 = _kos(kop_y)
+    kod_y, govde_y = _durum_al(f"http://127.0.0.1:{s3.server_address[1]}/bildirim/durum")
+    s3.shutdown()
+    s3.server_close()
+    try:
+        dj, dy = json.loads(govde_d), json.loads(govde_y)
+    except ValueError:
+        dj, dy = {}, {}
+    sirlar = ["gizli-araci", "cihaz-sinama-b22", "sinama-pw-b22", "ab" * 16, bytes(range(32)).hex()]
+    ok("4E: GET /bildirim/durum yalniz BU BILGISAYARDAN (yerel ag 403) — etkin / abone / kart cevrimici / "
+       "son olay / ac-kapa ayarlari; kurulmadiysa etkin:false + sebep; araci adresi, kullanici, parola, "
+       "konu oneki, anahtar ve mutlak yol YOK",
+       kod_d == 200 and dj.get("etkin") is True and dj.get("abone") is False and "kart_cevrimici" in dj
+       and set(dj.get("ayar", {})) == set(PB.SINIFLAR) and kod_lan == 403 and kod_y == 200
+       and dy.get("etkin") is False and dy.get("neden") == "--bildirim-yok"
+       and not [s for s in sirlar if s in govde_d] and str(pc_ayar.veri_dizini()) not in govde_d,
+       f"{kod_d} {govde_d[:120]} lan={kod_lan} yok={govde_y[:60]}")
+
+    # pc.calistir: bildirim ipligi kurulur, baslar, /bildirim/durum'dan gorunur, durdurulunca biter
+    hp = _bos_port()
+    yazilan: list[str] = []
+    sonuc = {}
+    th = threading.Thread(target=lambda: sonuc.update(rc=pc.calistir(
+        ["--usb-yok", "--esitleme-yok", "--http-port", str(hp), "--tarayici-acma"],
+        tarayici_ac=lambda u: None, yazdir=yazilan.append)), daemon=True)
+    th.start()
+    son = time.monotonic() + 8
+    while not pc.zaten_calisiyor(hp) and time.monotonic() < son:
+        time.sleep(0.05)
+    kod_c, govde_c = _durum_al(f"http://127.0.0.1:{hp}/bildirim/durum")
+    son = time.monotonic() + 6
+    while "dogrulanamadi" not in govde_c and time.monotonic() < son:
+        time.sleep(0.1)
+        kod_c, govde_c = _durum_al(f"http://127.0.0.1:{hp}/bildirim/durum")
+    durdu, _ = pc.durdur(hp)
+    th.join(8)
+    ok("4E: pc.py bildirim ipligini KURAR ve BASLATIR (kart yoksa 'dogrulanamadi' soylenir), konsolda "
+       "'Bildirimler' satiri; durdurulunca surec kapanir",
+       kod_c == 200 and '"etkin": true' in govde_c and "dogrulanamadi" in govde_c and durdu
+       and not th.is_alive() and sonuc.get("rc") == 0 and any("Bildirimler" in x and "MQTT" in x for x in yazilan),
+       f"{kod_c} {govde_c[:100]} rc={sonuc.get('rc')}")
+
+
+def _g4e(durum: int, oturum: int) -> str:
+    return f"G {durum} {oturum} 100 101 50 120 10 0 900 25000 3 400 0"
+
+
 def main() -> int:
     print("=" * 78)
     print("  B22.3  PC KOPRUSU  (role · arsiv · surucu hakemi)")
@@ -1764,6 +1885,7 @@ def main() -> int:
     pc_4a_inceleme_sina(gec_dizin)
     pc_4b_sina(gec_dizin)
     pc_4c_sina(gec_dizin)
+    pc_4e_sina(gec_dizin)
 
     k.calisiyor = False
     time.sleep(0.25)
@@ -1814,6 +1936,15 @@ def main() -> int:
          "(spec 4C tablosu). KALAN: varsayilan ONAYLI kosu — `Go` sonrasi /kayit/liste `onay` == son sira, "
          "PC'deki kayitlar.kyt == kartin bolumu (tezgah_kayit.py --esit); USB takiliyken (SecmeliKart USB) "
          "esitlemenin WiFi'den surdugu; kart kapatilip acilinca yeniden baglanma tetigiyle <= 10 s'de tur"),
+        ("4E: PC'de Windows bildirimi + Ö4 PC karsiligi (PC18: hedef 10 s, kabul 15 s) — GERCEK aracida",
+         "Kopru ana agactan acikken (`kopru/PC Baslat.bat`; kart eslesmis, kartta MQTT ayarli) karta kayit "
+         "baslat (`Gb1000`), kartin FISINI CEK (USB + pil kapali): saniye olcerle 'Ölçüm kartı — Karttan haber "
+         "yok' bildirimine kadar gecen sure <= 10 s hedef, <= 15 s kabul (10 tekrar; aracinin ilani ~7.5 s + "
+         "PC). Karti geri tak: AYNI bildirim 'Kart yeniden bağlandı — kayıt sürüyor' olmali (Bildirim "
+         "merkezinde tek kart). Ev interneti: modemin WAN kablosunu cek (kart ve PC ayni agda): 'Ev interneti "
+         "koptu — kart çalışıyor'. `Qt` (USB) -> 'Deneme bildirimi'. ⚠ 'Rahatsız Etmeyin' aciksa acilir "
+         "pencere CIKMAZ (Bildirim merkezine duser): Ayarlar > Sistem > Bildirimler > Öncelikli bildirimler'e "
+         "'Ölçüm kartı' eklenebilir. Araci parolalari yalniz kullanicida — olcumu kullanici yapar"),
         ("p0 (DURDUR) izleyiciden de geciyor mu",
          "Surucu OLMAYAN sekmeden pil testini durdur. Gecmeli — bu bir "
          "kolaylik degil EMNIYET karari"),
