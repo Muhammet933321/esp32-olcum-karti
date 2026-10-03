@@ -3140,9 +3140,94 @@ def bolum_tezgah_w5() -> None:
                 os.environ["OLCUM_CIHAZ_DIZIN"] = eski_env
 
 
+def bolum_e6() -> None:
+    """E6 (2026-10-04): dahili yigin tanisi — kartta `QY dahili_en_az` 2504 B'a dustu; hangi
+    ayirmanin basarisiz oldugunu (Wi-Fi tamponu mu, mbedTLS mi) ayirt etmek icin QY'de en buyuk
+    blok + basarisiz ayirma sayaci, USB `QH` ile bolge dokumu + son 8 basarisiz ayirma."""
+    print("\n── B72.E6  dahili yigin tanisi: QY en buyuk blok · basarisiz ayirma halkasi · QH")
+    ino = _oku("olcum-karti-a3.ino")
+    ino_k = kod(ino)
+    st = govde(ino_k, "void setup(")
+    i_kayit = st.find("heap_caps_register_failed_alloc_callback(ayirma_hata_kaydet);")
+    sonra = [st.find(x) for x in ("ag_baslat_rf(", "guv_esp_ac(", "bildirim_baslat(", "kayit_kur(", "xTaskCreatePinnedToCore(")]
+    ok("B72.E6a basarisiz ayirma geri cagirmasi setup'ta, WiFi/guvenlik/MQTT-TLS/kayit baslamadan "
+       "(ilk gorev olusturulmadan da) ONCE ve tek yerde kaydedilir",
+       0 <= i_kayit and all(i_kayit < x for x in sonra if x >= 0) and all(x >= 0 for x in sonra)
+       and ino_k.count("heap_caps_register_failed_alloc_callback(") == 1,
+       f"kayit={i_kayit} sonrakiler={sonra}")
+    cb = govde(ino_k, "static void IRAM_ATTR ayirma_hata_kaydet(size_t boyut, uint32_t caps, const char *islev)")
+    ok("B72.E6b geri cagirma IRAM'de, BASMAZ ve ayirmaz (Serial aynasi / printf / gunluk / String yok); "
+       "her cekirdek ve ISR'den guvenli kilit (portENTER_CRITICAL_SAFE), gorev adi cagri aninda kopyalanir",
+       bool(cb) and not re.search(r"\b(Serial|printf|ets_printf|esp_rom_printf|log_\w|ESP_LOG\w*|String|"
+                                   r"malloc|calloc|heap_caps_\w+|ham)\b", cb)
+       and "portENTER_CRITICAL_SAFE(&ayirma_kilit);" in cb and "portEXIT_CRITICAL_SAFE(&ayirma_kilit);" in cb
+       and "pcTaskGetName(NULL)" in cb and "h->gorev[i] = c;" in cb)
+    dok = govde(ino_k, "static void ayirma_dokum_bas(")
+    i_y = cb.find("AyirmaHata *h = &ayirma_halka[ayirma_hata_adet % AYIRMA_HALKA];")
+    ok("B72.E6c halka 8 kayit, sayac % 8 ile doner (sayac kilit icinde, kayit yazildiktan SONRA artar); "
+       "dokum kilit altinda kopyadan en fazla 8 kaydi eskiden yeniye basar",
+       re.search(r"#define AYIRMA_HALKA 8u\b", ino_k) is not None
+       and "static AyirmaHata ayirma_halka[AYIRMA_HALKA];" in ino_k
+       and 0 <= i_y < cb.find("h->boyut = (uint32_t)boyut;") < cb.find("ayirma_hata_adet = ayirma_hata_adet + 1u;")
+       < cb.find("portEXIT_CRITICAL_SAFE(")
+       and 0 <= dok.find("portENTER_CRITICAL(&ayirma_kilit);") < dok.find("memcpy(k, ayirma_halka, sizeof(k));")
+       < dok.find("portEXIT_CRITICAL(&ayirma_kilit);")
+       and "const uint32_t n = adet < AYIRMA_HALKA ? adet : AYIRMA_HALKA;" in dok
+       and "const AyirmaHata *h = &k[no % AYIRMA_HALKA];" in dok and "const uint32_t no = adet - n + i;" in dok)
+    sk = govde(ino_k, "static void bld_seri_komut(")
+    qy = (re.search(r'"QY ([^"]*)"', sk) or [None, ""])[1]
+    adlar = re.findall(r"(\w+)=%", qy)
+    arg = sk[sk.find('"QY '):sk.find("Serial.println(t);", sk.find('"QY '))]
+    ok("B72.E6d QY: eski iki alan YERINDE, yeni dahili_en_buyuk (en buyuk serbest dahili blok) ve "
+       "ayirma_hata (acilistan beri basarisiz ayirma) SONDA, argumanlar ayni sirada",
+       adlar == ["dahili_bos", "dahili_en_az", "dahili_en_buyuk", "ayirma_hata"]
+       and 0 <= arg.find("heap_caps_get_free_size(MALLOC_CAP_INTERNAL)")
+       < arg.find("heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL)")
+       < arg.find("heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)") < arg.find("ayirma_hata_adet"),
+       f"alanlar={adlar}")
+    import importlib
+    try:
+        TB = importlib.import_module("tezgah_bildirim")
+
+        class _K:
+            def __init__(self, satirlar):
+                self.s = list(satirlar)
+
+            def yaz(self, _m):
+                pass
+
+            def satir_oku(self, _sn):
+                return self.s.pop(0) if self.s else None
+        ortak = ["Q acik=1 durum=4 (bagli) hata=0 baglanti=3 yayin=9 olay=2 kuyruk=0 dusen=0 "
+                 "el_sikisma_ms=1200 esik=900",
+                 "QA uri=mqtts://a:8883 kart=k kart_parola=var cihaz=c cihaz_parola=var onek=ab anahtar=var"]
+        yeni = TB.q_oku(_K(ortak + ["QY dahili_bos=82000 dahili_en_az=2504 dahili_en_buyuk=31000 "
+                                    "ayirma_hata=7"]), sn=0.5)
+        eski = TB.q_oku(_K(ortak + ["QY dahili_bos=82000 dahili_en_az=2504"]), sn=0.5)
+        sonuc = (yeni and (yeni["dahili_bos"], yeni["dahili_en_az"], yeni.get("dahili_en_buyuk"),
+                           yeni.get("ayirma_hata"), yeni["durum"]),
+                 eski and (eski["dahili_bos"], eski["dahili_en_az"], eski.get("dahili_en_buyuk")))
+    except Exception as e:          # noqa: BLE001 — iddia kirmiziya doner, sebep basilir
+        sonuc = repr(e)[:120]
+    ok("B72.E6e tezgah_bildirim.q_oku yeni QY satirini (4 alan) ve eski firmware'in 2 alanli satirini "
+       "cozer; K11 olcutu dahili_bos ayni kalir",
+       sonuc == ((82000, 2504, 31000, 7, 4), (82000, 2504, None)), str(sonuc))
+    kg = govde(ino_k, "void komut_sayfa(")
+    i_q = kg.find("k[0] == 'Q'")
+    kopru = (KOK / "kopru" / "kopru.py").read_text(encoding="utf-8")
+    i_h = sk.find("if (s[1] == 'H') {")
+    ok("B72.E6f QH yalniz USB: Q isleyicisinde (switch'ten once, yeni case harfi yok) bolge dokumu "
+       "heap_caps_print_heap_info(MALLOC_CAP_INTERNAL) + halka; /komut Q*'i 403 ile, kopru.py Q*'i reddeder",
+       0 <= i_h < sk.find("switch (s[1])") and "ayirma_dokum_bas();" in sk[i_h:i_h + 80]
+       and "heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);" in dok and "Serial.flush();" in dok
+       and 0 <= dok.find("Serial.flush();") < dok.find("heap_caps_print_heap_info(")
+       and 0 <= i_q < kg.find("komut_kuyruga(") and "403" in kg[i_q:i_q + 200]
+       and 'if komut.startswith("Q"):' in kopru and "QH yigin" in ino)
+
+
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
             bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle,
-            bolum_w2, bolum_tezgah_w5]
+            bolum_w2, bolum_tezgah_w5, bolum_e6]
 
 
 def main() -> int:
