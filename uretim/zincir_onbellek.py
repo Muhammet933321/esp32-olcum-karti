@@ -247,8 +247,13 @@ def iz_oku(dizin: Path) -> Iz:
 class Kapsam:
     """Hangi yol girdi/cikti sayilir, hangisi sayilmaz."""
 
-    def __init__(self, kok: Path, ek_haric: list[str] = ()):
+    def __init__(self, kok: Path, ek_haric: list[str] = (), onbellek: Path | None = None):
         self.kok = _nc(str(kok))
+        # Onbellegin KENDISI (ve atomik yazimin gecici dosyasi) hicbir adimin girdisi
+        # degil — ama adimlarin listeledigi uretim/'de duruyor. Sayilsaydi ilk tam
+        # kosudan sonra uretim/'yi listeleyen her adim (B2, B15, B73) "dizin degisti"
+        # diye kosardi (olculdu, 2026-10-03).
+        self.onbellek_ad = (onbellek or ONBELLEK_YOLU).name
         haric = [tempfile.gettempdir(), os.environ.get("TEMP", ""), os.environ.get("TMP", ""),
                  str(KANCA_DIZIN), os.environ.get("SystemRoot", r"C:\Windows"), *ek_haric]
         taban = _nc(sys.base_prefix)
@@ -286,8 +291,14 @@ class Kapsam:
                 return True
         return False
 
+    def yoksay(self, p: str) -> bool:
+        """cop + onbellek dosyalari: liste/agac imzasina girmez."""
+        return self.cop_mu(p) or os.path.basename(p).startswith(self.onbellek_ad)
+
     def sayilmaz(self, p: str) -> bool:
         n = _nc(p)
+        if os.path.basename(p).startswith(self.onbellek_ad):
+            return True
         if self.ic(p) is not None:
             return self.cop_mu(p) or n.startswith(_nc(str(KANCA_DIZIN)))
         if any(n == h or n.startswith(h + os.sep) for h in self.haric):
@@ -511,7 +522,7 @@ def _dosya_imza(p: str) -> str:
 
 def _liste_imza(p: str, kapsam: Kapsam) -> str:
     try:
-        adlar = sorted(a for a in os.listdir(p) if not kapsam.cop_mu(os.path.join(p, a)))
+        adlar = sorted(a for a in os.listdir(p) if not kapsam.yoksay(os.path.join(p, a)))
     except OSError:
         return "YOK"
     return sha_metin(*adlar)
@@ -522,10 +533,10 @@ def _agac_imza(p: str, kapsam: Kapsam) -> str:
         return "YOK"
     h = hashlib.sha256()
     for d, alt, dosyalar in os.walk(p):
-        alt[:] = sorted(x for x in alt if not kapsam.cop_mu(os.path.join(d, x)) and x != ".git")
+        alt[:] = sorted(x for x in alt if not kapsam.yoksay(os.path.join(d, x)) and x != ".git")
         for f in sorted(dosyalar):
             tam = os.path.join(d, f)
-            if kapsam.cop_mu(tam):
+            if kapsam.yoksay(tam):
                 continue
             h.update(os.path.relpath(tam, p).encode("utf-8", "replace") + b"\x00")
             h.update(_dosya_imza(tam).encode() + b"\x00")
@@ -714,7 +725,7 @@ class Zincir:
         self.izle = izle
         self.tetik = tetik
         self.ek_anahtar = tuple(ek_anahtar)
-        self.kapsam = Kapsam(self.kok)
+        self.kapsam = Kapsam(self.kok, onbellek=self.yol)
         self.veri = onbellek_oku(self.yol)
         self.sonuclar: list[Sonuc] = []
         self.tam_kosu, self.tam_sebep = True, "artimli istenmedi"
@@ -817,6 +828,18 @@ class Zincir:
         if hepsi_kostu and hepsi_yesil and genel_yesil and self.izle and self.sonuclar:
             self.veri["son_tam"] = {"zaman": self.simdi, "head": git_head(self.kok),
                                     "tetik": self._tetik_ozet()}
+        # CIKTILAR ZINCIRIN SONUNDAKI haliyle. Iki adim ayni dosyayi yazabiliyor (B3 ve B9
+        # ikisi de netlist3.net uretiyor, ikincisi birincinin uzerine): adimin kendi
+        # bitisindeki hal saklansaydi, sonraki kosuda B3 "cikti degisti" diye kosar, o da
+        # B9'u kostururdu — her kosuda ikisi de (olculdu, 2026-10-03). Bir tam kosunun
+        # BIRAKTIGI hal budur; kullanici ya da baska bir sey sonradan degistirirse yine
+        # yakalanir.
+        for kayit in self.veri["adimlar"].values():
+            try:
+                c = kayit["imza"]["cikti"]
+                kayit["imza"]["cikti"] = {q: _dosya_imza(q) for q in c}
+            except (KeyError, TypeError, AttributeError):
+                pass
         try:
             onbellek_yaz(self.yol, self.veri)
         except OSError as h:

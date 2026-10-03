@@ -6372,6 +6372,21 @@ MUTASYONLAR = [
      '_onbellek.json\n',
      '',
      'HIZ: zincir onbellegi (mutlak yollar) depoya girebilir: yapisal kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '                kayit["imza"]["cikt'
+     'i"] = {q: _dosya_imza(q) for q in c}',
+     '                pass',
+     'HIZ: ciktilar adimin kendi bitisindeki haliyle kalir (B3/B9 netlist3.net ping-pongu): B1 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '        if os.path.basename(p).startswith('
+     'self.onbellek_ad):\n            return True',
+     '        if False:\n            return True',
+     'HIZ: onbellek dosyasi girdi sayilir: B1 kirmizi (yalniz sayilmaz yolu)'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '        return self.cop_mu(p) or os.path'
+     '.basename(p).startswith(self.onbellek_ad)',
+     '        return self.cop_mu(p)',
+     'HIZ: onbellek dosyasi dizin listesine girer, ilk tam kosudan sonra listeleyen adim kosar: B1 kirmizi'),
 ]
 
 
@@ -6649,6 +6664,11 @@ class Isci:
         yakalandi = rc != 0 or simdi != taban
         s = {"i": i, "m": m, "durum": "YAKALANDI" if yakalandi else "KACTI", "rc": rc,
              "sayim": simdi}
+        if yakalandi:
+            kirmizi = [x.strip() for x in cikti.splitlines()
+                       if x.strip().startswith("[!!]") or "Traceback" in x or "KIRMIZI" in x]
+            if kirmizi:
+                s["ilk_kirmizi"] = kirmizi[0][:150]
         if agir:
             kalan = edge_kalanlar(str(self.tmp))
             if kalan:
@@ -6731,6 +6751,11 @@ def mutasyonlari_kos(secili: list, kok: Path | None = None, paralel: int = 1,
                              f"-> {'YAKALANDI' if s['durum'] == 'YAKALANDI' else 'KACTI'}")
                 if s["durum"] == "KACTI":
                     satir.append(f"        !! {neden}")
+                elif s.get("ilk_kirmizi"):
+                    # Hangi iddia oldurdu: zamanlamaya bagli bir iddia (B72.A6, yuk altinda
+                    # 81-82 ms) yuk altinda kendiliginden dusebilir — bu satir SAHTE
+                    # YAKALANDI'yi gorunur kilar.
+                    satir.append(f"        ilk kirmizi: {s['ilk_kirmizi']}")
             if s.get("sizinti"):
                 satir.append(f"        !! Edge SIZDI: {s['sizinti']} surec (olduruldu)")
             ortak.yaz(satir)

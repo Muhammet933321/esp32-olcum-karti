@@ -497,6 +497,28 @@ def sahte_zincir_proje(kap: Path) -> Path:
     ''')
     yaz(kok / "k.mjs", "export const k = 1;\n")
     yaz(kok / "veri_j.txt", "j1")
+    # L ve M AYNI dosyayi farkli icerikle yazar (B3/B9 ve netlist3.net gibi)
+    yaz(kok / "l.py", '''
+        from pathlib import Path
+        (Path(__file__).resolve().parent / "ortak_cikti.txt").write_text("L")
+        print("  1/1 dogrulama gecti")
+    ''')
+    yaz(kok / "m.py", '''
+        from pathlib import Path
+        (Path(__file__).resolve().parent / "ortak_cikti.txt").write_text("M")
+        print("  1/1 dogrulama gecti")
+    ''')
+    # N, onbellek dosyasinin DURDUGU dizini listeler (B2/B15/B73 ve uretim/ gibi)
+    (kok / "durum").mkdir()
+    yaz(kok / "durum" / "kalici.txt", "k")
+    yaz(kok / "n.py", '''
+        import os
+        from pathlib import Path
+        d = Path(__file__).resolve().parent / "durum"
+        # dizindeki HER dosyayi okur (uretim/*.json'u tarayan bir adim gibi) — onbellek dahil
+        n = sum(len((d / a).read_bytes()) > 0 for a in os.listdir(d) if (d / a).is_file())
+        print("  1/1 dogrulama gecti", n)
+    ''')
     yaz(kok / "tetik.py", "# tam kosu tetigi\n")
     return kok
 
@@ -511,7 +533,7 @@ def govde(kok: Path, betik: str):
 
 ADIMLAR_B = [("A", "a.py"), ("B", "b.py"), ("C", "c.py"), ("D", "d.py"), ("E", "e.py"),
              ("F", "f.py"), ("G", "g.py"), ("H", "h.py"), ("I", "i.py"), ("J", "j.mjs"),
-             ("K", "k.py")]
+             ("K", "k.py"), ("L", "l.py"), ("M", "m.py"), ("N", "n.py")]
 HER_ZAMAN_B = ["D", "H", "I"]
 
 
@@ -532,7 +554,9 @@ def test_artimli() -> None:
     kap.mkdir()
     try:
         kok = sahte_zincir_proje(kap)
-        yol = kap / "onbellek.json"
+        # onbellek, N'nin listeledigi dizinde (uretim/.zincir_onbellek.json gibi); ILK tam
+        # kosuda henuz yok, sonunda yaziliyor
+        yol = kok / "durum" / ".zincir_onbellek.json"
         z, s = zincir_kos(kok, yol, artimli=False)
         ok("B0 ilk (tam) kosu: K kirmizi, digerleri yesil",
            [b for b, x in s.items() if not x.tamam] == ["K"], str({b: x.tamam for b, x in s.items()}))
@@ -560,8 +584,10 @@ def test_artimli() -> None:
 
         z, s = zincir_kos(kok, yol)
         alinan = sorted(b for b, x in s.items() if x.onbellek_yas is not None)
-        ok("B1 hicbir sey degismedi -> D, H, I disindaki her adim (node dahil) onbellekten",
-           alinan == ["A", "B", "C", "E", "F", "G", "J", "K"], str(alinan))
+        ok("B1 hicbir sey degismedi -> D, H, I disindaki her adim (node dahil) onbellekten; "
+           "ayni dosyayi yazan L ve M de (cikti zincir SONUNDAKI haliyle); onbellegin durdugu "
+           "dizini listeleyen N de", alinan == ["A", "B", "C", "E", "F", "G", "J", "K", "L", "M", "N"],
+           str(alinan) + " " + str({b: x.sebep for b, x in s.items() if x.onbellek_yas is None}))
         ok("B1 onbellekten gelen adimin ciktisi (sayim satiri) aynen geri gelir",
            "1/1 dogrulama gecti" in s["A"].cikti and s["A"].tamam)
 
@@ -652,6 +678,24 @@ def test_artimli() -> None:
         ok("B8 bozuk adim kaydi -> o adim kosar (A, B)",
            s["A"].onbellek_yas is None and s["B"].onbellek_yas is None
            and s["C"].onbellek_yas is not None, f"{s['A'].sebep} | {s['B'].sebep}")
+
+        # B17: onbellek dosyasi ILK kez belirince, onun dizinini listeleyen adim (uretim/'yi
+        # listeleyen B2/B15/B73 gibi) yine onbellekten gelmeli — ilk tam kosudan hemen sonra
+        kok_n = kap / "proje_n"
+        yaz(kok_n / "n2.py", '''
+            import os
+            from pathlib import Path
+            print("  1/1 dogrulama gecti", sorted(os.listdir(Path(__file__).resolve().parent / "durum")))
+        ''')
+        (kok_n / "durum").mkdir()
+        yol_n = kok_n / "durum" / ".zincir_onbellek.json"
+        for artimli in (False, True):
+            zn = ZO.Zincir(kok=kok_n, yol=yol_n, artimli=artimli, tetik=())
+            sn = zn.kos("N2", govde(kok_n, "n2.py"))
+            zn.bitir()
+        ok("B17 ilk tam kosunun SONUNDA yazilan onbellek dosyasi, dizinini listeleyen adimi "
+           "kosturmaz", sn.onbellek_yas is not None and not zn.tam_kosu,
+           f"{zn.tam_sebep} {sn.sebep}")
 
         # B12: baska kok
         kok2 = kap / "kopya"
