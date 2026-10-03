@@ -10577,6 +10577,11 @@ Ajan (W3), kart yok. Karar `tasarim/2026-10-02-alt-proje-3-panel.md` **EU32**; a
   `sozluk.js` ≤ 19 500 B, `sozluk_ay.js` ≤ 5.5 KB, `ceviriKlPc`) ve metin iddiaları birleşik sözlük
   görünümünden (`sozlukTum`); T3H +3, T3E +1, T3F +1 gerçek tarayıcıda. 18 `W3:` yalanlayıcısı; taşınan
   anahtarları hedefleyen 10 eski mutasyon yeni dosyaya yönlendirildi.
+- **Sonuç:** B7 915/915, B73 27/27 (node 490/490), sim3_web 113/113; tarayıcı T3H 31/31, T3C 50/50,
+  T3G 31/31, T3E 38/38, T3F 34/34, T3A 16/16. Mutasyon `--neden W3:` **18/18 YAKALANDI**, yönlendirilen 10
+  eski kayıt 10/10. Zincir `--artimli`: iki koşuda B6 (`fw3_*` geçici dizini derleme sırasında silindi) ve
+  B71 (`kayit_*` geçici `.elf` yok) birer kez KALDI — ikisi de öbür koşuda / ayrı TEMP ile yeşil (B71
+  362/362); eşzamanlı dört ağacın geçici dizin çakışması, bu değişiklikle ilgisiz (firmware'e dokunulmadı).
 
 #### 5.12.99 🟢 HIZ ↔ main BİRLEŞMESİ (2026-10-03, dal `zincir-hiz`, ağaç `projeler/olcum-karti-hiz`)
 
