@@ -115,6 +115,12 @@ class WifiKart:
         self._is: threading.Thread | None = None
         self._baglanti: http.client.HTTPConnection | None = None
         self._cihaz: IM.Cihaz | None = None   # BU kartla dogrulanmis cihaz (yoksa komut yok)
+        self._ip: tuple | None = None         # 4G: canli akisin karsi adresi (p0 ad cozumu beklemesin)
+        # 4G: akisin SOKETI. `http.client` uzunluksuz (SSE) yanitta baglantiyi yanita devreder ve
+        # `HTTPConnection.sock`'u None yapar: eskiden 40 s okuma zaman asimi HIC uygulanmiyordu (soket
+        # baglanmadaki 10 s'de kaliyordu) ve kapat() bekleyen okumayi kesemiyordu. Soket istekten
+        # hemen sonra (yanittan ONCE) burada tutulur.
+        self._akis_soket: socket.socket | None = None
         # Sayac kilidi (4B-12 + 4C): akis adresi, komut, /saat VE arka plan esitlemesi AYNI Cihaz
         # nesnesini kullanir; imzanin uretimi ile istegin karta ulasmasi (yanit basi) tek kritik
         # bolgede — kart sayaclari SIRAYLA gorur (pencere 64 ms; araya giren istek eskiyi reddettirir)
@@ -138,10 +144,10 @@ class WifiKart:
 
     def kapat(self) -> None:
         self._dur.set()
-        b = self._baglanti
-        if b is not None and b.sock is not None:
+        s = self._akis_soket
+        if s is not None:
             try:
-                b.sock.shutdown(socket.SHUT_RDWR)   # bekleyen readline'i hemen birak
+                s.shutdown(socket.SHUT_RDWR)        # bekleyen readline'i hemen birak
             except OSError:
                 pass
         if self._is is not None and self._is is not threading.current_thread():
@@ -211,16 +217,31 @@ class WifiKart:
 
     # ── ic ───────────────────────────────────────────────────────────
     def _p0(self) -> None:
-        """DURDUR: imzasiz, X-Olcum'lu; kimlik/cihaz denetimine TAKILMAZ (O7)."""
-        istek = urllib.request.Request(self.taban + "/komut", data=b"p0", method="POST",
-                                       headers={"X-Olcum": "1", "Content-Type": "text/plain"})
-        try:
-            with vekilsiz_ac(istek, timeout=self.zaman_asimi) as y:
-                y.read()
-        except urllib.error.HTTPError as h:
-            raise RuntimeError(f"p0: {_hata_metni(h)}") from None
-        except OSError as e:
-            raise RuntimeError(f"p0 karta WiFi'den ulasamadi ({self.host}): {e}") from None
+        """DURDUR: imzasiz, X-Olcum'lu; kimlik/cihaz denetimine TAKILMAZ (O7).
+
+        4G (gercek kart): Windows `olcum.local`'i ~8 s'de bir YENIDEN cozuyor ve o cozum 2.7 s
+        suruyor (30 cozumde 2'si 2694/2726 ms) — p0 panelden karta 2.77 s'de ulasiyordu. Canli
+        akis baglantisinin KARSI ADRESI (`_ip`) biliniyorsa p0 once ona gider (ad cozumu yok;
+        kart kendi IP'sini Host olarak kabul ediyor); o adres yanit vermezse (kart baska IP
+        aldi) ada geri dusulur. Akis koptugunda `_ip` silinir — eski adres beklenmez."""
+        adresler = []
+        ip = self._ip
+        if ip is not None:
+            adresler.append((f"http://{ip[0]}:{ip[1]}" if ":" not in ip[0] else f"http://[{ip[0]}]:{ip[1]}", 2.0))
+        adresler.append((self.taban, self.zaman_asimi))
+        son_hata: OSError | None = None
+        for taban, sure in adresler:
+            istek = urllib.request.Request(taban + "/komut", data=b"p0", method="POST",
+                                           headers={"X-Olcum": "1", "Content-Type": "text/plain"})
+            try:
+                with vekilsiz_ac(istek, timeout=sure) as y:
+                    y.read()
+                return
+            except urllib.error.HTTPError as h:
+                raise RuntimeError(f"p0: {_hata_metni(h)}") from None
+            except OSError as e:
+                son_hata = e
+        raise RuntimeError(f"p0 karta WiFi'den ulasamadi ({self.host}): {son_hata}") from None
 
     def _soyle(self, metin: str) -> None:
         self.durum_satiri = None if metin.startswith("* ") else metin
@@ -328,8 +349,13 @@ class WifiKart:
                 y.close()
                 self._neden(f"/akis HTTP {y.status}")
                 return False
-            if baglanti.sock is not None:
-                baglanti.sock.settimeout(self.okuma_zaman_asimi)
+            soket = self._akis_soket
+            if soket is not None:
+                soket.settimeout(self.okuma_zaman_asimi)
+                try:
+                    self._ip = soket.getpeername()[:2]
+                except OSError:
+                    self._ip = None
             acildi = True
             self.baglanti_no += 1
             self.bagli = True
@@ -346,6 +372,8 @@ class WifiKart:
             if self._baglanti is baglanti:
                 self.bagli = False
                 self._baglanti = None
+                self._akis_soket = None
+                self._ip = None
             baglanti.close()
             if acildi and not self._durdu():
                 self._soyle(f"! kopru: WiFi baglantisi koptu ({self.host}) — yeniden baglaniliyor")
@@ -358,6 +386,7 @@ class WifiKart:
         try:
             baglanti.request("GET", u.path + "?" + u.query,
                              headers={"Accept": "text/event-stream", "Cache-Control": "no-cache"})
+            self._akis_soket = baglanti.sock          # getresponse() onu None yapabilir (yukarida)
             return baglanti, baglanti.getresponse(), None
         except (OSError, http.client.HTTPException) as e:
             return baglanti, None, e

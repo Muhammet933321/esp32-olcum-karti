@@ -1821,6 +1821,93 @@ def _g4e(durum: int, oturum: int) -> str:
     return f"G {durum} {oturum} 100 101 50 120 10 0 900 25000 3 400 0"
 
 
+def pc_4g_sina() -> None:
+    """4G (gercek kart kabulu): `uretim/tezgah_pc.py`'nin SAF yardimcilari cevrimdisi.
+
+    Kabulun kendisi gercek kartta (tezgah); burada olcum ARACININ yalan soylemedigi sinaniyor:
+    kayitci TCP rolesi iki yonu de kaydediyor mu, sir arayici onaltilik/base64 bicimini buluyor mu,
+    `Authorization:` sayaci harf duyarsiz mi, akis karsilastirici tek bayt farkini yakaliyor mu."""
+    print("\n--- 4G. Kabul araci (tezgah_pc.py): kayitci, sir arama, akis karsilastirma ---")
+    import base64
+    import secrets as _s
+    import tezgah_pc as T
+    import kayit_bicim as KB
+    sir = _s.token_bytes(32)
+    kullanici = "araci-kullanicisi-" + _s.token_hex(4)
+    gorulen_host: list = []
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            gorulen_host.append(self.headers.get("Host"))
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            g = b"zarf " + sir.hex().upper().encode() + b" " + base64.urlsafe_b64encode(sir).rstrip(b"=")
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(g)))
+            self.end_headers()
+            self.wfile.write(g)
+
+        def log_message(self, *a):
+            pass
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    v = T.KayitciVekil("127.0.0.1", srv.server_address[1], host_yaz="olcum.local").baslat()
+    ist = urllib.request.Request(f"http://127.0.0.1:{v.port}/komut?x=1", data=kullanici.encode(), method="POST",
+                                 headers={"authorization": "Basic eHk6eg==", "X-Olcum": "1"})
+    try:
+        govde = urllib.request.build_opener(urllib.request.ProxyHandler({})).open(ist, timeout=5).read()
+    except OSError as e:
+        govde = repr(e).encode()
+    time.sleep(0.3)
+    akislar = list(v.akislar().values())
+    istekler = v.istekler()
+    v.durdur()
+    srv.shutdown()
+    bulunan = T.kayitta_ara(akislar, {"sir": sir, "kullanici": kullanici, "yok": _s.token_bytes(16)})
+    ok("4G: kayitci TCP rolesi baytlari aynen iletir ve IKI YONU de kaydeder (istek satiri + yanit kodu); "
+       "yalniz `Host:` karta kendi adiyla gider (kart baska Host'u 403 'Host reddedildi' ile reddediyor)",
+       govde.startswith(b"zarf ") and [(x["yontem"], x["yol"], x["durum"]) for x in istekler]
+       == [("POST", "/komut?x=1", 200)] and gorulen_host == ["olcum.local"]
+       and b"Host: olcum.local\r\n" in b"".join(akislar), f"{istekler} {govde[:12]!r} host={gorulen_host}")
+    ok("4G: sir arayici kayitta BUYUK onaltilik ve dolgusuz URL-guvenli base64 bicimini (yanittan), duz "
+       "metni (istek govdesinden) bulur; olmayan sir 0",
+       bulunan["sir"]["ham"] >= 2 and bulunan["kullanici"]["sinirli"] == 1 and bulunan["yok"]["ham"] == 0,
+       str(bulunan))
+    ok("4G: `Authorization:` sayaci harf duyarsiz (kucuk harfli baslik da sayilir), govdedeki sozcuk degil",
+       T.yetki_basligi(akislar) == 1 and T.yetki_basligi([b"x authorization: y"]) == 0
+       and T.yetki_basligi([b"GET / HTTP/1.1\r\nProxy-Authorization: Basic x\r\n"]) == 1,
+       str(T.yetki_basligi(akislar)))
+    ok("4G: sinirli sayim daha uzun sozcugun parcasini ayirir ('olcum-kart' 'olcum-karti' icinde)",
+       T.kayitta_ara([b"olcum-karti olcum-kart."], {"k": "olcum-kart"})["k"] == {"ham": 2, "sinirli": 1})
+    k = [KB.kayit_paketle(3, i, 7, bytes([i]) * 8) for i in range(1, 11)]
+    tam = b"".join(k)
+    farkli = b"".join(k[:5] + [KB.kayit_paketle(3, 6, 7, bytes([99]) * 8)] + k[6:])
+    a = T.akis_karsilastir(tam, tam)
+    b = T.akis_karsilastir(b"".join(k[:8]), b"".join(k[2:]))       # arsivde eski onek, taze sonek
+    c = T.akis_karsilastir(tam, farkli)
+    d = T.akis_karsilastir(b"".join(k[:4] + k[5:]), tam)              # arsivde bir sira EKSIK
+    ok("4G: akis karsilastirici — ayni akis ayni; arsivin eski oneki / tazenin yeni soneki ortak araligi "
+       "bozmaz (sayilir); TEK kayitta farkli bayt (gecerli CRC) ve arsivde eksik sira AYNI DEGIL",
+       a["ayni"] and a["tam_ayni"] and b["ayni"] and not b["tam_ayni"] and b["yalniz_pc"] == 2
+       and b["yalniz_taze"] == 2 and b["ortak"] == 6 and not c["ayni"] and c["ortak"] == 10
+       and not d["ayni"], f"{a['ayni']} {b} {c['ayni']} {d['ayni']}")
+    # gercek_dizin_koru: kullanicinin koprusu aciksa beliren dosyalari SILMEZ (onun arsivi olabilir)
+    import tempfile as _tf
+    with _tf.TemporaryDirectory() as kd:
+        kok = Path(kd)
+        sonuc = {}
+        for ad, acik in (("acik", True), ("kapali", False)):
+            koruma = {"kok": kok, "once": gercek_dizin_koru._dokum(kok)}
+            yeni = kok / f"akis-{ad}" / "kayitlar.kyt"
+            yeni.parent.mkdir()
+            yeni.write_bytes(b"x")
+            notlar = []
+            gercek_dizin_koru.denetle(koruma, lambda a, k, e="": notlar.append((k, e)), kopru_acik=lambda a=acik: a)
+            sonuc[ad] = (yeni.exists(), notlar[0][0], "geri alma YAPILMADI" in notlar[0][1])
+    ok("4G: gercek_dizin_koru — kullanicinin koprusu ACIKKEN test sirasinda beliren dosyayi SILMEZ (koprunun "
+       "yeni arsivi olabilir; iddia yine kirmizi ve sebebini soyler); kopru kapaliyken eskisi gibi geri alir",
+       sonuc == {"acik": (True, False, True), "kapali": (False, False, False)}, str(sonuc))
+
+
 def main() -> int:
     print("=" * 78)
     print("  B22.3  PC KOPRUSU  (role · arsiv · surucu hakemi)")
@@ -2243,6 +2330,7 @@ def main() -> int:
     pc_4c_sina(gec_dizin)
     pc_4d_sina(gec_dizin)
     pc_4e_sina(gec_dizin)
+    pc_4g_sina()
 
     k.calisiyor = False
     time.sleep(0.25)
@@ -2285,13 +2373,21 @@ def main() -> int:
          "USB kablosu takili DEGILKEN `kopru/PC Baslat.bat` (ya da `python kopru/pc.py --usb-yok`: "
          "COM portu acilmaz): akista '* kopru: ... yukari-akis WiFi' + "
          "'* kopru: WiFi baglandi', D satirlari; komut (ör. `?`) imzali gider, `p0` imzasiz. Kablo "
-         "takilinca USB'ye doner ('WiFi baglantisi kapatildi'), cekilince WiFi'ye. Kopru + karta "
-         "dogrudan 3 tarayici = 4 yuva, hicbiri reddedilmez; 5. istemci `event: dolu`"),
+         "takilinca USB'ye doner ('WiFi baglantisi kapatildi'), cekilince WiFi'ye (KALAN: kablo cek/tak elle). "
+         "Kopru + karta dogrudan 3 tarayici = 4 yuva, hicbiri reddedilmez; 5. istemci `event: dolu` — 4G'de "
+         "koşuldu (`tezgah_pc.py --o5`: kopru 1 yuva, kullanicinin Chrome'u 1, dogrudan 2, sonraki dolu)"),
+        ("4G: GERCEK KART KABULU — `python uretim/tezgah_pc.py --o3` ve `--o5`",
+         "2026-10-03 A3-4B: Ö3 11/11 (kopru 202 s kapali, bosluk 59 kayit 4.5 s'de, arsiv bagimsiz indirmeyle "
+         "bayt bayt ayni 1 311 112 B), Ö5 + izleyici + p0 14/14 (kopru<->kart kaydinda K / araci bilgisi / "
+         "Authorization 0; 6 sekme 1 yuvada; p0 5/5 204 <= 246 ms). Kopru, firmware ya da kart_wifi degisince "
+         "TEKRAR kosun. ⚠ Ö3 kullanicinin GERCEK arsivine yazar ve karta ONAY yollar; Ö5 web parolasini "
+         "yalniz OLCUM_PAROLA verilirse arar. Kopru KAPALIYKEN baslatin (betik acik kopruyu reddeder)"),
         ("4C: arka plan esitlemesi gercek kartta (ONAYLI ilk kosu bekliyor)",
          "2026-10-03 A3-4B, `pc.py --usb-yok --onaysiz` (gecici OLCUM_PC_DIZIN): 2234 kayit / 1 268 956 B / "
          "son sira 61276 / 44 oturum, kartin /kayit/listesiyle ayni, 29.6 s; canli akis hizi bosta ile ayni "
-         "(spec 4C tablosu). KALAN: varsayilan ONAYLI kosu — `Go` sonrasi /kayit/liste `onay` == son sira, "
-         "PC'deki kayitlar.kyt == kartin bolumu (tezgah_kayit.py --esit); USB takiliyken (SecmeliKart USB) "
+         "(spec 4C tablosu). ONAYLI kosu 4G'de yapildi (Go gitti, kart dogruladi, PC arsivi kartin akisiyla "
+         "bayt bayt ayni). KALAN: PC'deki kayitlar.kyt == kartin FLAS bolumu (tezgah_kayit.py --esit, COM6 + "
+         "kopru kapali); USB takiliyken (SecmeliKart USB) "
          "esitlemenin WiFi'den surdugu; kart kapatilip acilinca yeniden baglanma tetigiyle <= 10 s'de tur"),
         ("4E: PC'de Windows bildirimi + Ö4 PC karsiligi (PC18: hedef 10 s, kabul 15 s) — GERCEK aracida",
          "Kopru ana agactan acikken (`kopru/PC Baslat.bat`; kart eslesmis, kartta MQTT ayarli) karta kayit "

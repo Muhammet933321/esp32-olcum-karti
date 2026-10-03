@@ -2062,6 +2062,35 @@ def bolum_kopru_wifi() -> None:
                and "X-Imza" not in kom[1] and "'X-Olcum': '1'" in kom[1],
                f"{kart.komut_imzali}")
 
+            # W4b (4G) p0 canli akisin KARSI ADRESINE gider (ad cozumu yok); o adres olmezse ada duser
+            kart.akis_tut = 2.0
+            kart.akis_bitir.clear()
+            kart.komutlar.clear()
+            kart.istekler.clear()
+            ad_host = "localhost:" + taban.rsplit(":", 1)[1]
+            w = KW.WifiKart(ad_host, dizin=cdiz, bekle=lambda sn: time.sleep(0.02))
+            w.bildir = lambda m: None
+            w.ac()
+            _bekle_kosul(lambda: w.bagli)
+            ip_bagli = w._ip
+            zaman_asimi = w._akis_soket.gettimeout() if w._akis_soket is not None else None
+            w.yaz("p0")
+            w._ip = ("127.0.0.1", 9)                    # kart baska IP almis gibi: kapali port
+            w.yaz("p0")
+            kart.akis_bitir.set()
+            w.kapat()
+            ip_kapali = w._ip
+            hostlar = [x.split("'Host': '", 1)[1].split("'", 1)[0] for x in kart.istekler
+                       if x.startswith("POST /komut") and "'Host': '" in x]
+            ok("B72.W4b (4G) p0 canli akisin KARSI ADRESINE gider (Windows `olcum.local` cozumu 2.7 s "
+               "surebiliyor — kartta p0 2.77 s'de ulasiyordu); o adres yanit vermezse ada geri duser; "
+               "akis kapaninca adres silinir; akis soketine 40 s okuma zaman asimi GERCEKTEN uygulanir "
+               "(http.client SSE yanitinda baglantinin soketini None yapiyordu: soket 10 s'de kaliyordu)",
+               ip_bagli is not None and ip_bagli[0] == "127.0.0.1" and kart.komutlar == ["p0", "p0"]
+               and hostlar[:1] == [taban.split("//", 1)[1]] and hostlar[1:] == [ad_host]
+               and ip_kapali is None and zaman_asimi == w.okuma_zaman_asimi,
+               f"zaman asimi={zaman_asimi} ip={ip_bagli} host={hostlar} komut={kart.komutlar} sonra={ip_kapali}")
+
             # W5 (R11) kartta NTP yoksa her baglantida BIR KEZ imzali /saat; NTP varsa hic
             kart.akis_tut = 0.0
             kart.saat_kaynak = 0
