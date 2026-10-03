@@ -6407,6 +6407,11 @@ MUTASYONLAR = [
      'cum-karti", "Temp")',
      'YEREL_HARIC = ("Temp",)',
      'HIZ: gercek olcum-karti da ozel LOCALAPPDATA a baglanir (kopru dosyalari silinebilir): A4 + B18 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '            kirmizi = ([x for x in'
+     ' satirlar if x.startswith("[!!]")]',
+     '            kirmizi = ([]',
+     'HIZ: YAKALANDI teshisi [!!] satirini atlar, yesil satirdaki KIRMIZI kelimesini gosterir: A1 kirmizi'),
 ]
 
 
@@ -6623,8 +6628,13 @@ class Isci:
         s = {"i": i, "m": m, "durum": "YAKALANDI" if yakalandi else "KACTI", "rc": rc,
              "sayim": simdi}
         if yakalandi:
-            kirmizi = [x.strip() for x in cikti.splitlines()
-                       if x.strip().startswith("[!!]") or "Traceback" in x or "KIRMIZI" in x]
+            # once [!!] satiri; yoksa Traceback / KIRMIZI — ama YESIL satirin metninde gecen
+            # "KIRMIZI" kelimesi DEGIL (ilk surum B72'de "[OK] ... KIRMIZI (bos yere gecmez)"
+            # satirini gosteriyordu)
+            satirlar = [x.strip() for x in cikti.splitlines()]
+            kirmizi = ([x for x in satirlar if x.startswith("[!!]")]
+                       or [x for x in satirlar if "Traceback" in x
+                           or ("KIRMIZI" in x and not x.startswith(("[OK]", "[T]")))])
             if kirmizi:
                 s["ilk_kirmizi"] = kirmizi[0][:150]
         if agir:

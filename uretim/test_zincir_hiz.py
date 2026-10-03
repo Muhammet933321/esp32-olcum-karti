@@ -117,6 +117,7 @@ if os.environ.get("ADIM_ORTAM_DENETLE"):
                   and y.parent.parent == kap.resolve()))
     sonuc.append(("junction ile arac kurulumu gorunuyor",
                   (Path(y) / "Arduino15" / "nobet.txt").read_text() == "arac"))
+print("  [OK] KIRMIZI kelimesi gecen YESIL bir satir (teshis bunu gostermemeli)")
 for ad, k in sonuc:
     print(("  [OK] " if k else "  [!!] ") + ad)
 n = sum(1 for _a, k in sonuc if k)
@@ -181,6 +182,10 @@ def test_paralel() -> None:
         t3 = time.time() - t0
         d1 = {r["i"]: r["durum"] for r in s1["sonuclar"]}
         d3 = {r["i"]: r["durum"] for r in s3["sonuclar"]}
+        ilk = {r["i"]: r.get("ilk_kirmizi", "") for r in s1["sonuclar"]}
+        ok("A1 YAKALANDI satirinin teshisi oldurenin [!!] satiri (yesil satirdaki 'KIRMIZI' "
+           "kelimesi degil)", ilk.get(1, "").startswith("[!!] veri dogru")
+           and ilk.get(5, "").startswith("[!!] v2"), str(ilk))
         ok("A1 sirali (--paralel 1) beklenen YAKALANDI/KACTI/UYGULANAMADI", d1 == BEKLENEN,
            str(d1) + (f" taban={s1['taban_kirmizi'][0]}" if s1["taban_kirmizi"] else ""))
         ok("A1 paralel (3 isci) AYNI kume", d3 == d1, f"{d3}  ({t1:.1f} s -> {t3:.1f} s)")
