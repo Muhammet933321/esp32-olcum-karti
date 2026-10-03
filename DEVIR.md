@@ -10550,6 +10550,46 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.100b 🟢 W1 İNCELEME: AYRINTILI SERİLER YENİDEN TEK KURULUM (2026-10-04, dal `w1-veri`)
+
+Ajan. İnceleme bulgusu (önemli, ölçülmüş gerileme): `296c2e2`'den sonra `ayrintiSerileri` sıralı örnek
+listesini 3–4 kez kuruyordu. Bir kez kendisi kuruyordu, bir kez `ayrintiGuc`, yakalama varsa bir kez
+de `skopSonralari` → `skopYerleri` → `olcumZamanlari`. Her kurulumda [r, k] çiftleri, sort ve map
+vardı. Ölçüm (2026-10-04, aynı sentetik 1.9 M örnek, 50 Hz, kalibrasyonlu):
+
+| | `20d3171` (W1 öncesi) | `296c2e2` (W1) | bu düzeltme |
+|---|---|---|---|
+| 1.9 M, yakalamasız | 3.0–3.5 s | 8.4 s, yığın +1.2 GB | 1.9 s, +0.46 GB |
+| 1.9 M, yakalamalı | 2.5 s, +0.54 GB | 6.4–10.4 s, +1.8 GB | 2.1 s, +0.52 GB |
+| 1.9 M, yakalamalı, 1 GB yığın | geçer | **OOM** | 2.4 s, geçer |
+| 600 k, yakalamalı, yığın sınırı | 200 MB'ta geçer | 300 MB'ta OOM | 200 MB'ta geçer |
+
+Değişiklik (karar WK8): `ayrintiOrnekler(o, true)` sıra ile sıralı listeyi verir; liste zaten
+sıralıysa kopya kurulmaz. `ayrintiGuc(o, {orn, dizi: true})` Float64Array döner, [sıra, w] çifti
+kurulmaz. `skopYerleri(o, orn)` hazır listeyi gezer, üçlü dizi kurmaz. `ayrintiSerileri` ve
+`noktaSerileri` `yerler`'i taşır; `oturumRaporu` ile `yakalamaIsaretleri` onu kullanır. Seçenekler
+yalnız JS'te: Python `kayit_bicim.py`, vektörler ve `api` eşlemesi değişmedi. Bit bit sonuç da
+değişmedi: kayit.json `ayrinti_guc`/`skop_yerleri` ve disari W1 testi aynen geçiyor.
+
+Testler (önce kırmızı, `git archive 20d3171..HEAD` kopyasında doğrulandı):
+- `disari.test` "W1-tek-kurulum": kayıtlara `t0_us` okuma sayacı takılır (`ayrintiOrnekler` kayıt
+  başına iki kez okur, başka okuyan yok). Seriler, CSV ve rapor birer kurulum yapar (eski kod 3).
+- `disari.test` "W1-bellek": 600 k örnekli yakalamalı oturum ayrı süreçte `--max-old-space-size=250`
+  ile biter (eski kod OOM).
+- `kayit.test` "W1 inceleme": ters kayıt sırasında sıralı liste, `dizi` = çiftler, `skopYerleri(o, orn)`
+  = `skopYerleri(o)`.
+- B7 K3c sayacı: grafik bir kurulum yapar, işaretler sıfır.
+
+Doğrulama: B73 25/25 (node: disari 27, kayit 98, rapor 15), B7 913/913 (+1: K3c sayacı; sayım kilidi 912 → 913). Zincir `--artimli` iki kez TAM koştu (bu ağaçta yeşil kayıt yoktu). 1. koşuda B22b kırmızıydı: LittleFS görüntüsü bayattı, `arayuz-uret.py` ile `_fs.json` ve `sw.js` SURUM yenilendi. B6 da kırmızıydı (`arduino-cli`: "cannot specify '-o' with multiple files"; firmware değişmedi, makine paylaşılıyor). 2. koşu **hepsi yeşil**: B6 77/77, B22b 113/113, "Aşama 3 doğrulandı". Üretilen `BELGELER/`, `sema3/`, `_tezgah.md`, `netlist3.net`, `_firmware.json` gürültüsü commit'e alınmadı.
+
+Mutasyon: 9 yeni `W1:` yalanlayıcısı. Eski "W yine V×A" kaydı değişen satıra taşındı.
+`--neden W1: --paralel 2` → **35/35 yakalandı** (26 eski + 9 yeni; 591 s).
+
+**Açık (O-W1b):** kayıt görünümü bir oturum için seriyi iki kez kuruyor (grafik + rapor). Bu W1'den
+önce de böyleydi; oturum başına önbellek bu dilimde yapılmadı.
+
+---
+
 #### 5.12.100 🟢 W1: PC'DE HİZALI GÜÇ + YAKALAMANIN ZAMANINDA YERİ (Y7) (2026-10-03, dal `w1-veri`)
 
 Ajan, kart ve firmware değişikliği yok. Kullanıcı "bensiz yapabileceklerinle devam et" dedi; kararlar

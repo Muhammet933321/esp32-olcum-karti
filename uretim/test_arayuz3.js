@@ -3095,6 +3095,21 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
        && h2.t[9] < is2[0].t && is2[0].t < h2.t[10] && h2.t[29] < is2[1].t && is2[1].t < h2.t[30]
        && KG.yakalamaIsaretleri(A, hA).length === 0,
        JSON.stringify(is2) + ' t9..10=' + h2.t[9] + ',' + h2.t[10] + ' t29..30=' + h2.t[29] + ',' + h2.t[30]);
+    /* W1 inceleme: ~1.9 M ornekli oturumda her yeniden kurulum saniyeler + yuzlerce MB. Sayac:
+       ayrintiOrnekler kayit basina t0_us'u IKI kez okur, baska okuyan yok. */
+    const o3 = K.oturumlariKur(kay2).get(id);
+    let okuma = 0;
+    o3.ayrinti = o3.ayrinti.map((r) => {
+      const { t0_us: t0, ...g } = r;
+      return Object.defineProperty(g, 't0_us', { get() { okuma++; return t0; }, enumerable: true });
+    });
+    const h3 = KG.grafikSerileri(o3, { kayitlar: kay2 });
+    const kGrafik = okuma / (2 * o3.ayrinti.length);
+    okuma = 0;
+    const is3 = KG.yakalamaIsaretleri(o3, h3);
+    ok('[!] W1 inceleme K3c: grafik ornek listesini BIR kez kurar, yakalama isaretleri onun yerlerini kullanir (yeniden KURMAZ)',
+       kGrafik === 1 && okuma === 0 && JSON.stringify(is3) === JSON.stringify(is2),
+       `grafik ${kGrafik} kurulum, isaretler ${okuma / (2 * o3.ayrinti.length)}`);
   }
   {
     const ok2 = KG.okumaHesapla(hA, 1450, 610);           // ters sirayla da

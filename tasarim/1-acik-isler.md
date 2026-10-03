@@ -52,6 +52,11 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
   (EN `SCOPE_CAPTURE`), rapor uyarısı `skop_bosluk` (yalnız ölçümün İÇİNE düşen yakalama), kayıt
   görünümü grafiğinde kesik dikey işaret `S<no>`.
 - **WK7** Rapor/okuma Wh'si ayrıntılıda hizalı W'den; mAh değişmedi.
+- **WK8** (inceleme düzeltmesi, DEVIR 5.12.100b) Ayrıntılı oturumda sıralı örnek listesi
+  (`ayrintiOrnekler(o, true)`) seriler başına BİR kez kurulur. Hizalı güç (`ayrintiGuc(o, {orn,
+  dizi: true})`, Float64Array) ve Y7 yerleri (`skopYerleri(o, orn)`) aynı listeyi kullanır.
+  Seriler `yerler`'i taşır; rapor ve yakalama işaretleri onu kullanır. Yeni seçenekler yalnız JS'te
+  var: Python API'si ve vektörler değişmedi, `api` eşlemesi yeni dışa açık işlev istemedi.
 
 ## Kartta / tezgahta yapılmamış doğrulamalar
 
@@ -102,6 +107,8 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 - [1C-4 M1] Planın oturumu DEVAM için yer beklerken (KDR_BEKLIYOR) her saniye etkisiz bir "bitir" isteği ve seri/SSE mesajı gidiyor; yer açılınca oturum ~1 s fazla sürüyor.
 - [1C-4] Açılışta "sürüyor" ama oturumu bilinmeyen plan (sonuç gelmeden elektrik gitti) bitti sayılır. O ms'lik pencerede açılmış bir kayıt otomatik bitmez.
 - [1C-4] Plan artık beklemiyorken geç açılan oturum sebep 7 ile kapatılır; `Gp-` yarışında yanlış sebep etiketi olabilir.
+- ~~[W1 inceleme] Hizalı W + Y7 ayrıntılı oturumda sıralı örnek listesini 3–4 kez kuruyordu: 1.9 M örnekte `ayrintiSerileri` 2.5–3.5 s → 7.4–11 s, yığın tepesi ~0.55 → 1.2–1.8 GB, 1 GB yığında yakalamalı oturum OOM.~~ **Kapandı (WK8, DEVIR 5.12.100b):** 1.9 M örnek 1.9–2.4 s, tepe 0.46–0.52 GB, 1 GB yığında 2.4 s. Bunlar W1 öncesinden de iyi. Kanıt: `disari.test` "W1-tek-kurulum" (t0_us okuma sayacı: seriler/CSV/rapor birer kurulum) ve "W1-bellek" (600 k örnek 250 MB yığında; W1 öncesi kod 200 MB'ta geçiyordu, `296c2e2` 300 MB'ta OOM), `kayit.test` "W1 inceleme", B7 K3c sayacı, mutasyon W1 inceleme 9/9.
+- [W1 inceleme] O-W1b: Kayıt görünümü bir oturum için seriyi yine iki kez kuruyor: grafik (`grafikSerileri`) ve rapor (`oturumRaporu`). Bu W1'den önce de böyleydi; artık her biri tek kurulum. Telefonda ya da WebView'da 1.9 M örnek için oturum başına önbellek (WeakMap) düşünülebilir. Oturum nesnesi eşitlemede değişebildiği için bu dilimde yapılmadı.
 - [W1] O-W1: AYRINTI kaydı V–I başlatma kaymasını taşımıyor; PC sabit 152 µs kullanıyor. I²C yükü değişirse (başka cihaz, hız) gerçek kayma kayar. Öneri: AYRINTI başına `t_kayma_us` ortalaması (biçim + firmware).
 - [1A-1, kabul] Sektörde ilk bozuk kayıttan sonrası okunamaz (yeniden senkron yok). Bilinçli tasarım.
 - [1A-1, kabul] Yavaş hızda bitmemiş noktadaki örnekler kesmede kaybolur (1/dk'da en fazla 1 dk).

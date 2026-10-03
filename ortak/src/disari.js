@@ -397,7 +397,8 @@ function kanalSec(kal, yuksek) {
  *   sira, acilis, devam (0/1), kartMs, n, bayrak: Array;  relMs (acilis capasindan, ms),
  *   gecenMs, unixMs: Float64Array (bilinmeyen NaN);  vOrt vMin vMaks iOrt iMin iMaks wOrt
  *   wMin wMaks: Float64Array (V, A, W; eksik NaN); skop: Array (W1: yakalamanin icine dustugu
- *   noktada o yakalamanin skoplar anahtari, digerlerinde 0 — skopSonralari).
+ *   noktada o yakalamanin skoplar anahtari, digerlerinde 0 — skopSonralari); yerler: kayit.js
+ *   skopYerleri (rapor/gorunum yeniden hesaplamasin).
  * araliklar[acilis] = [ilk rel, son rel] (o acilisin noktalari). eksen: zamanEkseni.
  */
 export function noktaSerileri(oturum, secenek = {}) {
@@ -410,9 +411,9 @@ export function noktaSerileri(oturum, secenek = {}) {
     adet: n, eksen, araliklar: [], sira: [], acilis: [], devam: [], kartMs: [], n: [], bayrak: [],
     relMs: new Float64Array(n), gecenMs: f(), unixMs: f(),
     vOrt: f(), vMin: f(), vMaks: f(), iOrt: f(), iMin: f(), iMaks: f(), wOrt: f(), wMin: f(), wMaks: f(),
-    skop: [],
+    skop: [], yerler: skopYerleri(oturum),
   };
-  const sonralar = skopSonralari(oturum);
+  const sonralar = skopSonralari(oturum, r.yerler);
   let onceSeg = 0;
   let onceKart = 0;
   let onceRel = 0;
@@ -457,10 +458,11 @@ export function noktaSerileri(oturum, secenek = {}) {
 }
 
 /** W1/Y7: olcum sirasi -> o siradan HEMEN ONCE biten yakalamanin skoplar anahtari
- *  (kayit.js skopYerleri `sonra`; ayni satira iki yakalama duserse ZAMANCA ilki). */
-export function skopSonralari(oturum) {
+ *  (kayit.js skopYerleri `sonra`; ayni satira iki yakalama duserse ZAMANCA ilki). yerler:
+ *  onceden hesaplanmis skopYerleri(oturum) (verilmezse burada hesaplanir). */
+export function skopSonralari(oturum, yerler = null) {
   const m = new Map();
-  for (const y of skopYerleri(oturum)) if (y.sonra !== null && !m.has(y.sonra)) m.set(y.sonra, y.sira);
+  for (const y of yerler || skopYerleri(oturum)) if (y.sonra !== null && !m.has(y.sonra)) m.set(y.sonra, y.sira);
   return m;
 }
 
@@ -486,11 +488,14 @@ const US_SARMA = IKI32 * 1000;
  * ornekBayrak, kayitBayrak, skop: Array; relUs, gecenUs, unixUs (bilinmeyen NaN), relMs:
  * Float64Array; v, i, w: Float64Array (KAO_V_HATA -> v NaN, KAO_I_HATA -> i NaN; w = HIZALI guc,
  * kayit.js ayrintiGuc — V x I DEGIL). skop: yakalamadan sonraki ilk ornekte o yakalamanin
- * skoplar anahtari, digerlerinde 0. araliklar ms.
+ * skoplar anahtari, digerlerinde 0. yerler: kayit.js skopYerleri (rapor/gorunum yeniden
+ * hesaplamasin). araliklar ms. W1 inceleme: sirali ornek listesi (ayrintiOrnekler(o, true)) BIR kez kurulur,
+ * hizali guce ve yakalama yerine gecirilir — ~1.9 M ornekte her biri yeniden kurunca yigin 1 GB'i
+ * asiyordu (disari.test W1-bellek).
  */
 export function ayrintiSerileri(oturum, secenek = {}) {
   const eksen = secenek.eksen || zamanEkseni(oturum, secenek.kayitlar || null);
-  const orn = ayrintiOrnekler(oturum).map((o, k) => [o, k]).sort((x, y) => x[0][0] - y[0][0] || x[1] - y[1]);
+  const orn = ayrintiOrnekler(oturum, true);
   const n = orn.length;
   const kal = oturum.basla ? oturum.basla.kal : null;
   const kb = ayrintiKayitBayraklari(oturum);
@@ -498,12 +503,12 @@ export function ayrintiSerileri(oturum, secenek = {}) {
   const r = {
     adet: n, eksen, araliklar: [], sira: [], acilis: [], devam: [], kartUs: [], ornekBayrak: [],
     kayitBayrak: [], skop: [], relUs: new Float64Array(n), relMs: new Float64Array(n), gecenUs: f(),
-    unixUs: f(), v: f(), i: f(), w: f(),
+    unixUs: f(), v: f(), i: f(), w: ayrintiGuc(oturum, { orn, dizi: true }),   // k. eleman = orn'un k. ornegi
+    yerler: skopYerleri(oturum, orn),
   };
-  const guc = ayrintiGuc(oturum);                 // ayni siralama (sira, kararli): k. eleman = k. ornek
-  const sonralar = skopSonralari(oturum);
+  const sonralar = skopSonralari(oturum, r.yerler);
   let onceSeg = 0;
-  orn.forEach(([[s, us, vk, ik, b, ac]], k) => {
+  orn.forEach(([s, us, vk, ik, b, ac], k) => {
     const seg = eksen.segmentler[ac] || eksen.segmentler[eksen.segmentler.length - 1];
     let rel = seg.kartMs === null ? 0 : us - seg.kartMs * 1000;
     rel = ((rel % US_SARMA) + US_SARMA) % US_SARMA;
@@ -526,8 +531,6 @@ export function ayrintiSerileri(oturum, secenek = {}) {
       if (!(b & KAO_V_HATA)) r.v[k] = volt(vk, kanalSec(kal, b & KAO_YUKSEK), true);
       if (!(b & KAO_I_HATA) && kal.sont_ohm !== 0) r.i[k] = amper(ik, kal, true);
     }
-    if (guc[k][0] !== s) throw new Error("ayrintiGuc sirasi ornek sirasiyla uyusmuyor");
-    r.w[k] = guc[k][1];
     onceSeg = ac;
   });
   return r;

@@ -295,7 +295,7 @@ export function oturumRaporu(oturum, secenek = {}) {
   }
 
   // ── skop
-  const yerler = skopYerleri(oturum);
+  const yerler = seri ? seri.yerler : skopYerleri(oturum);   // W1 inceleme: seriler hesapladi
   const yeri = new Map(yerler.map((x) => [x.sira, x]));
   uyar("skop_bosluk", yerler.filter((x) => x.once !== null && x.sonra !== null).length);
   const skopSira = [...yerler.map((x) => x.sira),

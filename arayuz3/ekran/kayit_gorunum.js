@@ -216,7 +216,7 @@ export function okumaHesapla(h, tA, tB) {
 export function yakalamaIsaretleri(oturum, h) {
   if (!h || h.tur === 'yok') return [];
   const l = [];
-  for (const y of skopYerleri(oturum)) {
+  for (const y of h.s && h.s.yerler ? h.s.yerler : skopYerleri(oturum)) {   // W1: seriler hesapladi
     const z = anZamani(h.eksen, h.araliklar, y.t_ms, y.sira, y.acilis);
     const o = z.acilis === null ? undefined : h.segOfset[z.acilis];
     if (o === null || o === undefined || z.relMs === null) continue;

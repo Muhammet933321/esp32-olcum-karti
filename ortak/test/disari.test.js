@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import * as K from "../src/kayit.js";
 import * as D from "../src/disari.js";
 import { oturumRaporu } from "../src/rapor.js";
@@ -372,6 +373,75 @@ test("W1/Y7: yakalamadan sonraki ilk satirin bayraklarinda SKOP (EN: SCOPE_CAPTU
     }
     assert.ok(v.skop_sonra.length >= 1, "vektorde yakalama yok: test bos");
   }
+});
+
+/** Ayrintili oturumun kayitlarina t0_us okuma sayaci takar. ayrintiOrnekler kayit basina t0_us'u
+ *  IKI kez okur (sarma k'si + baslangic); baska hicbir ortak/ islevi okumaz. Donus: () -> o ana dek
+ *  kac ayrintiOrnekler kurulumu oldu (sayac sifirlanir). */
+function kurulumSayaci(o) {
+  let okuma = 0;
+  o.ayrinti = o.ayrinti.map((r) => {
+    const { t0_us: t0, ...g } = r;
+    return Object.defineProperty(g, "t0_us", { get() { okuma++; return t0; }, enumerable: true });
+  });
+  const n = o.ayrinti.length;
+  return () => { const k = okuma / (2 * n); okuma = 0; return k; };
+}
+
+test("W1-tek-kurulum: ayrintiSerileri / ayrintiCsv / oturumRaporu ornek listesini BIRER kez kurar (guc + Y7 ayni listeyi kullanir)", () => {
+  const v = V.ayrinti[0];
+  const [o, kay] = oturumAl(hexten(v.veri), v.oturum);
+  assert.ok(o.skoplar.size > 0 && o.ayrinti.length > 1, "vektorde yakalama/ayrinti yok: test bos");
+  const kurulum = kurulumSayaci(o);
+  K.ayrintiOrnekler(o);
+  assert.equal(kurulum(), 1, "sayac ayrintiOrnekler'i saymiyor: test bos");
+  const s = D.ayrintiSerileri(o);
+  assert.equal(kurulum(), 1, "ayrintiSerileri");
+  assert.deepEqual(s.yerler, K.skopYerleri(o), "seri.yerler != skopYerleri");
+  kurulum();
+  D.ayrintiCsv(o);
+  assert.equal(kurulum(), 1, "ayrintiCsv");
+  oturumRaporu(o, { kayitlar: kay });
+  assert.equal(kurulum(), 1, "oturumRaporu (skopYerleri seriden gelmeli)");
+});
+
+// W1 inceleme: hizali W + Y7 eklenince ayrintiSerileri sirali ornek listesini 3-4 kez kuruyordu
+// (kendisi, ayrintiGuc, skopYerleri/olcumZamanlari): dolu 11.4 MB bolum (~1.9 M ornek) 1 GB
+// yiginda OOM, 600 k ornek 300 MB'ta OOM. W1 oncesi kod 600 k'yi 200 MB'ta bitiriyordu; sinir
+// 250 MB. Ayri surec: yigin siniri yalniz komut satirindan verilir.
+test("W1-bellek: 600 k ornekli yakalamali ayrintili oturum 250 MB yiginda ayrintiSerileri'ni bitirir", () => {
+  const N = 600000;
+  const disari = new URL("../src/disari.js", import.meta.url).href;
+  const kod = `
+    const D = await import(${JSON.stringify(disari)});
+    const N = ${N};
+    const kanal = { sifir_ham: 0, pga: 4.096, n: 1, kazanc: 1, tau: 0.0021 };
+    const kal = { normal: kanal, yuksek: kanal, i_ofset: 0, i_pga: 0.256, sont_ohm: 0.005,
+      i_duzeltme: 1, sebeke_hz: 50, faz_kal_us: [0, 0] };
+    const o = { id: 1, basla: { tur: 1, hiz_ms: 0, acilis: 1, unix_s: 1.8e9, kart_ms: 1000, ad: "", kal, kal_no: 0 },
+      bitir: null, noktalar: [], olaylar: [], devamlar: [], saatler: [], ad: "", etiketler: [],
+      notlar: new Map(), ayrinti: [], skoplar: new Map() };
+    const PER = 1300;
+    let us = 1000000;
+    for (let s = 0, r = 0; s < N; s += PER, r++) {
+      const orn = [];
+      for (let j = 0; j < PER && s + j < N; j++) orn.push([(j * 37) % 20000 - 10000, (j * 53) % 9000, j ? 500 : 0, 0]);
+      o.ayrinti.push({ ilk: s, t0_ms: Math.floor(us / 1000), t0_us: us, bayrak: 0, ornekler: orn, sira: r + 10 });
+      us += 2000 * PER + 20000;
+    }
+    o.skoplar.set(5, { no: 1, meta: { t_ms: 5000, sure_ms: 30 }, toplam: 1, t_sira: 5, acilis: 0, tam: true, kodlar: [] });
+    const r = D.ayrintiSerileri(o);
+    let w = 0;
+    for (let k = 0; k < r.adet; k++) if (Number.isFinite(r.w[k])) w++;
+    console.log(JSON.stringify({ n: r.adet, w, skop: r.skop.filter((x) => x).length }));
+  `;
+  const r = spawnSync(process.execPath, ["--max-old-space-size=250", "--input-type=module", "-e", kod],
+    { encoding: "utf8", timeout: 300000 });
+  assert.equal(r.status, 0, `cikis ${r.status}: ${(r.stderr || "").slice(-300)}`);
+  const j = JSON.parse(r.stdout.trim().split("\n").pop());
+  assert.equal(j.n, N);
+  assert.ok(j.w > N * 0.9, `hizali W yalniz ${j.w} ornekte: test bos`);
+  assert.equal(j.skop, 1, "yakalama isaretlenmedi: skop yolu kosmadi, test bos");
 });
 
 // ── skop ─────────────────────────────────────────────────────────────
