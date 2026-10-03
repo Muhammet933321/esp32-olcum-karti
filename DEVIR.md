@@ -10531,6 +10531,22 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.88 🟢 4C: ARKA PLAN DİSK ARŞİVİ (2026-10-03 sabahı)
+
+Ajan. `kopru/arka_esitle.py`: köprü süreci içinde kartın kayıtlarını WiFi'den diske eşitler — her (yeniden) bağlantıda
+ve 120 s'de bir (≥ 30 s; hatada 15 s'den ikiye katlanan, en çok 600 s; döngü başlangıçları arasında ≥ 10 s taban),
+parça ≤ 8192 B, istek başlangıçları arasında ≥ 100 ms (kart dövülmesin). Canlı akış, eşitleme ve komutlar TEK `Cihaz`
+nesnesi ve TEK sayaç kilidiyle (imzalı `/akis` adresi + istek + yanıt başlığı kilit altında — eskiden yavaş mDNS
+bağlantısı sırasında araya giren eşitleme isteği akışın sayacını geçersiz kılabiliyordu). **Onay (PC9) varsayılan
+AÇIK:** `Go<sıra>` yalnız fsync + atomik `durum.json`'dan SONRA; `--onaysiz` / `ayar.json` kapatır, okunamayan ayar
+onaysız sayılır. Arşiv `%LOCALAPPDATA%\olcum-karti\arsiv\<kart>\akis-<akış>` (akış değişince yeni dizin), eski
+`.satir` günlüğü `...\satir\` (çalışılan klasördeki `kopru/arsiv/*.satir` hedef boşsa BİR KEZ KOPYALANIR, silinmez).
+`GET /esitleme/durum` (yalnız bu bilgisayar; mutlak yol yok). **Gerçek kartta (onaysız, geçici dizin):** 2234 kayıt,
+1 268 956 B, son sıra 61276, 44 oturum — kartın `/kayit/liste`'siyle birebir; 29.6 s; altı tam eşitleme bayt bayt aynı;
+canlı akış etkilenmedi (4.9 satır/s, p95 230 ms, kayıp yok). B22a 143 → 150, B72 189 → 203; mutasyon 4C 38/38, 4B 51/51.
+Açık: köprü açıkken ayrı süreçten `kayit_esitle.py`/`imza.py` aynı cihaz dosyasını kullanırsa sayaç çakışır (önce
+`pc.py --durdur`); keep-alive yok (istek başına ~100 ms).
+
 #### 5.12.87 🟢 4B: KÖPRÜ KARTLA WiFi'DEN EŞLEŞMİŞ CİHAZ + FİRMWARE A3-4B (2026-10-03 sabahı)
 
 Ajan + benim gerçek kart sınamam. **Firmware A3-4B** (tam yedek `tam-20261003-062021.bin`): `/kopru` kaydı, kayıtlı
