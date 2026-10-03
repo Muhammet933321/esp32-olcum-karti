@@ -10571,7 +10571,7 @@ yabancıya yalnız açık `/eslestir/bilgi`). Bağlantı hedefi `kart_wifi._tcp_
 kartta ad `localhost` (Windows'ta ::1 reddi yüzünden her ad bağlantısı ~2 s). W6 ve A10'un kancaları yeni
 katmana taşındı (`w._ac`, `w._baglanti_sinifi` — eski `KW.vekilsiz_ac` / `KW.http.client.HTTPConnection`
 yaması artık bir şey ölçmezdi). B22a 172/172, `test_bildirim.py` 259/259, `gizlilik_dogrula.py` temiz.
-Mutasyon (karalama koşucusu): **4J 8/8**, **4G 13/13**, 4C MUT4C — hepsi öldü, uygulanamayan yok.
+Mutasyon (karalama koşucusu): **4J 8/8**, **4G 13/13**, **4C 38/38** — hepsi öldü, uygulanamayan yok.
 `beklenen_sayim.json` B72 204 → 207.
 
 ⚠ **Süreç:** ilk mutasyon koşusunun tabanı kırmızıydı — aynı anda gerçek kartı ölçüyordum ve ölçüm gerçek
