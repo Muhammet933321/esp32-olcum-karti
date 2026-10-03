@@ -10550,6 +10550,46 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.105 🟢 W1–W5 BİRLEŞMESİ + mDNS SERVİS DUYURUSU (2026-10-04, dal `w-birlesik`, ağaç `projeler/olcum-karti-wb`)
+
+Kullanıcı uyurken açılan beş kol (W1 veri doğruluğu · W2 firmware küçükleri · W3 açılış bütçesi · W4 mutasyon
+hijyeni · W5 kart tezgahı) her biri ayrı ağaçta yazıldı, bağımsız çürütücü inceledi, bulgular düzeltildi
+(5.12.100–5.12.104a). Birleştirme sırası W4 → W2 → W5 → W1 → W3 (W4 önce: zincirin özel TEMP'i diğerlerinin
+koşularını korusun).
+
+**Çakışmalar (hepsi kayıt dosyalarında, kodda yok):** `DEVIR.md` girişleri iki taraf da tutularak; `mutasyon.py`
+liste kayıtları birleşim; `test_kayit_esp.py` iki yeni bölüm (`bolum_w2`, `bolum_tezgah_w5`) ikisi de `BOLUMLER`'de;
+`beklenen_sayim.json` sayılar TOPLANARAK (B72 207 + W2 8 + W5 6 = 221, + W2i = 222; B7 911 + W2 1 + W1 2 + W3 4 = 918);
+`1-acik-isler.md` satır satır (E6/E7 W5'ten, E3 W2'den; Y7 W1'in kapanışı + W5'in kart ölçümü, W1'in `SKOP`
+işaretinin nokta oturumlarına da uygulandığı `noktaSerileri`'nden doğrulandı); `sw.js` / `_fs.json` birleşimden sonra
+`arayuz-uret.py` ile YENİDEN üretildi.
+
+**W2i — mDNS servis duyurusu (alt proje 5 isteği, `mobil/DEVIR-ISTEK.md` #1):** Android `.local` adını güvenilir
+çözmez, NSD ile servis tarar. Kart artık `_http._tcp` port 80 duyurur, TXT `kimlik=<16 onaltılık>` (`/eslestir/bilgi`'deki
+aynı değer; yanlış kartı bağlanmadan elemek için — asıl doğrulama yine eşleşme/imza). İki yol: AP'de `MDNS.begin`
+setup'ta kimlikten ÖNCE çalışır → `ag_mdns_kimlik` (guv_esp_ac'tan sonra, yalnız `guv_hazir` iken) duyurur; STA'da
+`MDNS.begin` ağ görevinde, kimlik o anda var → `ag__mdns_servis` duyurur. Tek duyuru bayrağı. İddia B72.W2i, mutasyon
+`W2:` ×3 (STA'da duyuru yok / TXT kimlik yok / kimlik verilmez) **YAKALANDI**.
+
+**PC'de mDNS notu (kusur değil):** bu PC'de `Resolve-DnsName olcum.local` çözemiyor; çoklu yayın sorgusu varsayılan
+olarak `vEthernet (Default Switch)`'ten çıkıyor. Wi-Fi arayüzü `IP_MULTICAST_IF` ile seçilince kart hem A kaydını
+hem tekil sorguyu yanıtlıyor. Köprü 4J IP önbelleğiyle zaten bundan etkilenmiyor.
+
+⚠ **Kartta görülen (A3-4B, 2.9 sa çalışma):** `QY dahili_en_az=2504` — dahili yığının en düşük değeri **2.5 KB**
+(W5 20.7 KB görmüştü, E6 kaydı 54–60 KB). Sebep bilinmiyor; E6 satırına işlendi, sıradaki iş.
+Salt okuma kod incelemesi (karta dokunmadan) sıralı aday verdi: (1) Arduino `WiFiGeneric.cpp` 32 dinamik TX + 32 RX
+Wi-Fi tamponu, hepsi DAHİLİ (`SPIRAM_TRY_ALLOCATE_WIFI_LWIP` kapalı) — bağlantı takılınca birikir, 7 `hata=-7`
+yeniden bağlanmayla uyumlu; (2) mbedTLS DAHİLİ (`MBEDTLS_INTERNAL_MEM_ALLOC`, 16 KB içerik tamponu) — oturum ~38–40 KB
+sürekli + el sıkışma tepesi; (3) lwIP gönderme kuyrukları (`SPIRAM_MALLOC_ALWAYSINTERNAL=4096`), yarı açık SSE
+istemcisi; (4) kalıcı dahili ayırmalar (`kayit_veri_tampon` 8 KB, SSE kuyruğu 10.5 KB). Not: ölçüt bölge
+minimumlarının TOPLAMI (RTC FAST da yığın) — gerçek eşzamanlı dip bundan da düşük olabilir. **Sıra:** önce ölçüm
+(I1 `heap_caps_print_heap_info` + en büyük blok, I2 `heap_caps_register_failed_alloc_callback` halkası `QY`'de),
+sonra F1 mbedTLS'i `mbedtls_platform_set_calloc_free` ile PSRAM'e (~40 KB kalıcı kazanç), gerekirse F2
+`WiFi.useStaticBuffers(true)`, F3 SSE yazma kısa dönerse istemciyi düşür, F4 iki tamponu PSRAM'e. F5 (2 kaçırılmış
+ping) K8 vasiyet süresiyle çelişir — kullanıcı kararı.
+
+---
+
 #### 5.12.103 🟢 W4 MUTASYON HİJYENİ (2026-10-03, dal `olcum-karti-w4-mut`)
 
 Kuru uygulama denetimi (her kaydın `eski` metni hedef dosyada var mı; test koşmadan): **önce 4 / 2077

@@ -5449,6 +5449,10 @@ void setup() {
       Serial.print(F("AYAR BOZUK -> "));
     Serial.print(guv.ayar.zorunlu ? F("imza ZORUNLU") : F("imza zorunlu DEGIL (gecis; Ez1 ile ac)"));
     Serial.print(F(" · ")); Serial.print(guv_cihaz_adet()); Serial.println(F(" cihaz · `E?`"));
+    // W2 (alt proje 5): mDNS `_http._tcp` + TXT kimlik. Ag gorevinden ONCE (STA'da o duyurur).
+    char mk[17];
+    guv_kimlik_hex(&guv, mk);
+    ag_mdns_kimlik(mk);
   }
 
   // Ozel basliklar VARSAYILAN OLARAK TOPLANMIYOR — istenmezse

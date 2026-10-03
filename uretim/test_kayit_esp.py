@@ -2991,6 +2991,31 @@ def bolum_w2() -> None:
        and "bld_esik_ayarla(&bld, bld__esik_oku());" in gor and "bld_esik_etkin = bld.esik;" in gor
        and "esik=%u" in qk and "(unsigned)bld_esik_etkin" in qk
        and ks.find("if (k[0] == 'Q')") >= 0 and "403" in ks[ks.find("if (k[0] == 'Q')"):][:120])
+    # W2i (alt proje 5 istegi, mobil/DEVIR-ISTEK #1): Android NSD `_http._tcp` tarar; TXT `kimlik`
+    # yanlis karti elemeye yarar. Iki yol da duyurmali: AP (MDNS.begin setup'ta, kimlik SONRA gelir)
+    # ve STA (MDNS.begin ag gorevinde). Kimlik ag gorevi kurulmadan ONCE yazilmali.
+    ag_k = kod(_oku("ag.h"))
+    sv = govde(ag_k, "static void ag__mdns_servis(")
+    mk = govde(ag_k, "static void ag_mdns_kimlik(")
+    sta = govde(ag_k, "static void ag_bekle_tamamla(")
+    ap = govde(ag_k, "static uint8_t ag__ap_kur(void)\n{")    # ilk eslesme on bildirim
+    kur = govde(ino_k, "void setup(")
+    i_guv, i_kim = kur.find("guv_esp_ac();"), kur.find("ag_mdns_kimlik(mk);")
+    i_hazir_degil = kur.find("if (!guv_hazir)")
+    ok("B72.W2i mDNS SERVIS duyurusu: _http._tcp:80 + TXT `kimlik` (16 onaltilik, guv_kimlik_hex); "
+       "STA ve AP yolunda MDNS.begin'den hemen sonra; kimlik guv_esp_ac'tan SONRA, guv HAZIRSA, "
+       "ag gorevi kurulmadan ONCE yazilir; tek duyuru bayragi",
+       'MDNS.addService("http", "tcp", 80)' in sv
+       and 'MDNS.addServiceTxt("http", "tcp", "kimlik", (const char *)ag_mdns_kim);' in sv
+       and "!ag_durum.mdns || !ag_mdns_kim[0] || ag_mdns_servis_var" in sv
+       and "ag_mdns_servis_var = true;" in sv and "ag__mdns_servis();" in mk
+       and all(0 <= y.find("MDNS.begin(AG_MDNS)") < y.find("ag__mdns_servis();") < y.find("ag__kip_yaz(")
+               for y in (sta, ap))
+       and ag_k.count("MDNS.begin(") == 2
+       and 0 <= i_guv < i_hazir_degil < i_kim
+       and "guv_kimlik_hex(&guv, mk);" in kur[i_hazir_degil:i_kim]
+       and 0 <= i_kim < kur.find("xTaskCreatePinnedToCore(ag_gorevi"),
+       f"guv={i_guv} kim={i_kim} servis={'addService' in sv}")
 
 
 def bolum_tezgah_w5() -> None:

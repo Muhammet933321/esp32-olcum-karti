@@ -52,6 +52,30 @@ struct AgDurum {
 static Preferences ag_nvs;
 static AgDurum ag_durum = {AG_KAPALI, "", "", "", false};
 
+/* W2 (alt proje 5 istegi): mDNS SERVIS duyurusu. Android `.local` adini guvenilir cozmez,
+   NSD ile `_http._tcp` servisi tarar; TXT `kimlik` (16 onaltilik, /eslestir/bilgi'deki ayni
+   deger) yanlis karti baglanmadan elemeye yarar — asil dogrulama yine eslesme/imza.
+   Iki yol: AP'de MDNS.begin setup'ta (ag_baslat_rf), kimlik ise ondan SONRA (guv_esp_ac) gelir
+   → ag_mdns_kimlik duyurur; STA'da MDNS.begin ag gorevinde, kimlik o anda zaten var →
+   ag__mdns_servis duyurur. Bayrak tek duyuru icin; ag gorevi kimlik yazildiktan SONRA kurulur. */
+static char ag_mdns_kim[17] = "";
+static bool ag_mdns_servis_var = false;
+
+static void ag__mdns_servis(void)
+{
+    if (!ag_durum.mdns || !ag_mdns_kim[0] || ag_mdns_servis_var) return;
+    if (MDNS.addService("http", "tcp", 80)) {
+        MDNS.addServiceTxt("http", "tcp", "kimlik", (const char *)ag_mdns_kim);
+        ag_mdns_servis_var = true;
+    }
+}
+
+static void ag_mdns_kimlik(const char kim[17])
+{
+    snprintf(ag_mdns_kim, sizeof(ag_mdns_kim), "%s", kim);
+    ag__mdns_servis();
+}
+
 static void ag_rastgele_parola(char *hedef, uint8_t n)
 {
     /* Karistirilmasi kolay karakterler (0/O, 1/l/I) BILEREK yok:
@@ -160,6 +184,7 @@ static void ag_bekle_tamamla(void)
         snprintf(ag_durum.mac, sizeof(ag_durum.mac), "%s",
                  WiFi.macAddress().c_str());
         ag_durum.mdns = MDNS.begin(AG_MDNS);
+        ag__mdns_servis();
         ag__kip_yaz(AG_STA);
         return;
     }
@@ -186,6 +211,7 @@ static uint8_t ag__ap_kur(void)
     snprintf(ag_durum.mac, sizeof(ag_durum.mac), "%s",
              WiFi.softAPmacAddress().c_str());
     ag_durum.mdns = ok && MDNS.begin(AG_MDNS);
+    ag__mdns_servis();
     ag__kip_yaz(ok ? AG_AP : AG_KAPALI);
     return ok ? AG_AP : AG_KAPALI;
 }

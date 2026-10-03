@@ -4021,6 +4021,17 @@ MUTASYONLAR = [
      "const KAYIT_SATIR_ESKI = Object.freeze({ G: Object.freeze([13]) });",
      "const KAYIT_SATIR_ESKI = Object.freeze({ G: Object.freeze([]) });",
      "W2: panel eski firmware'in 13 alanli G satirini durum saymaz (kayit gostergesi susar): B7 kirmizi"),
+    # W2i (alt proje 5 istegi): mDNS servis duyurusu + TXT kimlik
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/ag.h",
+     "        ag_durum.mdns = MDNS.begin(AG_MDNS);\n        ag__mdns_servis();\n",
+     "        ag_durum.mdns = MDNS.begin(AG_MDNS);\n",
+     "W2: STA yolunda servis duyurulmaz (ev aginda Android NSD karti bulamaz): B72.W2i kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/ag.h",
+     '        MDNS.addServiceTxt("http", "tcp", "kimlik", (const char *)ag_mdns_kim);\n', "",
+     "W2: TXT kimlik yok (telefon yanlis karti baglanmadan eleyemez): B72.W2i kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    ag_mdns_kimlik(mk);\n", "",
+     "W2: kimlik ag katmanina verilmez (servis HIC duyurulmaz): B72.W2i kirmizi"),
     # ⚠ 4A: suzgec `startswith("EK ")`ten GizliSuzgec'e tasindi; mutasyon ayni anlamda yeni satira.
     ("B22a", "test_kopru.py", "kopru/kopru.py",
      '            if not self.suzgec.gecir(satir):\n', '            if False:\n',
