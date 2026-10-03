@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import http.server
+import io
 import json
 import os
 import re
@@ -20,6 +21,8 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
+import urllib.error
 import urllib.parse
 from pathlib import Path
 
@@ -246,7 +249,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-1F"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-4B"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -531,11 +534,21 @@ def bolum_kaynak() -> None:
     km = govde(esp_k, "static void kayit__mesaj(")
     wa = _oku("web_akis.h")
     ap = [m.start() for m in re.finditer(r'getString\("ap_sifre"', ino_k)]
-    ok("B72.D0 (1D on-cesi sizinti) AP parolasi YALNIZ ham UART'a (Serial.ham): N? ve AP afisi "
-       "Serial aynasini kullanmaz — ayna her satiri /akis SSE'siyle AGA tasir",
-       "void ham(const char *s)" in wa and len(ap) >= 2
-       and all(ino_k.rfind("Serial.ham(", 0, i) > ino_k.rfind(";", 0, i) for i in ap),
-       f"{len(ap)} okuma")
+    # 4B (D5 #12 kok): eskiden iddia "her ap_sifre okumasi bir Serial.ham( cagrisinin ICINDE"
+    # diyordu; satir UC ham() ile basiliyordu ("...(yalniz USB): " + parola + "\r\n") ve araya
+    # IDF gunlugu girerse parola ISARETSIZ ayri satira dusuyordu. Artik parola TEK yerde okunur
+    # (ap_parolasi_bas), satir orada tek tamponda kurulur ve TEK ham() ile gider.
+    apb = govde(ino_k, "static void ap_parolasi_bas(")
+    ok("B72.D0 (1D on-cesi sizinti + 4B D5 #12) AP parolasi YALNIZ ham UART'a ve TEK yazimla: tek "
+       "okuma yeri ap_parolasi_bas; satir (isaret + parola + CRLF) tek tamponda, TEK Serial.ham, "
+       "aynali baski yok, tampon silinir; N? ve AP afisi onu cagirir",
+       "void ham(const char *s)" in wa and len(ap) == 1 and bool(apb)
+       and 'getString("ap_sifre"' in apb and apb.count("Serial.ham(") == 1
+       and "AP parolasi (yalniz USB): " in apb and "\\r\\n" in apb
+       and not re.search(r"Serial\.(print|println|printf|write)\(", apb)
+       and apb.find("Serial.ham(") < apb.rfind("memset(")
+       and ino_k.count("ap_parolasi_bas(") >= 3,
+       f"{len(ap)} okuma, {ino_k.count('ap_parolasi_bas(')} ad")
     pd = govde(ino_k, "static void kayit_pil_dcir(float v_oturmus) {")
     ko = govde(esp_k, "static void kayit_ornek(")
     ok("B72.Y1 (1C-1 inceleme M7) pil olayi KENDI mesaj turuyle (KM_PIL_OLAY) yalniz PIL "
@@ -594,6 +607,16 @@ class _SahteKart:
         self.gkimlik = "0011223344556677"
         self.bekleyen = None
         self.kart_kanit_boz = False
+        # 4B: kopru WiFi yukari-akisi (kart_wifi.WifiKart) icin
+        self.akis_satirlari: list[str] = []   # /akis'te `data:` olarak yollanan protokol satirlari
+        self.akis_tut = 0.0                   # satirlardan sonra akis kac s acik kalir (sonra kapanir)
+        self.akis_bitir = threading.Event()
+        self.akis_dolu = False                # kartin 4 yuvasi dolu: `event: dolu`
+        self.akis_sayisi = 0                  # 200 ile acilan /akis
+        self.saat_kaynak = 0                  # /eslestir/bilgi "saat": 0 yok, 1 ntp, 2 cihaz
+        self.saat_istekleri: list[str] = []
+        self.komut_imzali: list[tuple] = []   # (govde, imzali mi)
+        self.komut_red = 0                    # !=0: p0 disi komuta bu kodla ret
 
     def sonraki(self) -> int:
         return max((struct.unpack_from("<I", k, 4)[0] for k in self.kayitlar), default=0) + 1
@@ -700,14 +723,24 @@ def _sunucu(kart: _SahteKart):
             if u.path == "/eslestir/bilgi":
                 self._json({"surum": "OK1", "kimlik": kart.gkimlik, "acilis": kart.acilis,
                             "tuz": kart.tuz.hex(), "tur": kart.tur, "zorunlu": int(kart.imza_zorunlu),
-                            "misafir": 0, "saat": 0, "cihaz_azami": 8})
+                            "misafir": 0, "saat": kart.saat_kaynak, "cihaz_azami": 8})
                 return
             if u.path == "/akis":
+                kart.akis_sayisi += 1
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
                 self.end_headers()
+                if kart.akis_dolu:                       # gercek kart: 4 yuva doluysa
+                    self.wfile.write(b"event: dolu\ndata: 4\n\n")
+                    return
                 self.wfile.write(b'retry: 3000\n\nevent: kimlik\n'
                                  b'data: {"jeton":"abc123","surucu":true}\n\n')
+                for i, s in enumerate(list(kart.akis_satirlari)):   # gercek kartin bicimi (B22.4)
+                    self.wfile.write(f"id: {i + 1}\ndata: {s}\n\n".encode("utf-8"))
+                self.wfile.write(b": kalp\n\n")
+                self.wfile.flush()
+                if kart.akis_tut:
+                    kart.akis_bitir.wait(kart.akis_tut)
                 return
             if u.path == "/kal/liste" and kart.kal_yanit is not None:
                 tur, deger = kart.kal_yanit
@@ -777,7 +810,29 @@ def _sunucu(kart: _SahteKart):
                     kk = bytes(32)
                 self._json({"n": yeni, "kart_kanit": kk.hex()})
                 return
-            if imzali or (self.headers.get("X-Olcum") == "1" and self.headers.get("X-Jeton") == "abc123"):
+            if u.path == "/saat":                        # 1D: CIHAZ sinifi — imza ZORUNLU
+                if not imzali:
+                    self._red()
+                    return
+                if kart.saat_kaynak == 1:
+                    self.send_response(409)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                kart.saat_istekleri.append(qd.get("unix", ""))
+                self.send_response(204)
+                self.end_headers()
+                return
+            serbest = govde in ("p0", "?") and self.headers.get("X-Olcum") == "1"   # komut_serbest
+            if kart.komut_red and govde != "p0":
+                self.send_response(kart.komut_red)
+                self.send_header("Content-Length", "11")
+                self.end_headers()
+                self.wfile.write(b"reddedildi!")
+                return
+            if imzali or serbest or (self.headers.get("X-Olcum") == "1"
+                                     and self.headers.get("X-Jeton") == "abc123"):
+                kart.komut_imzali.append((govde, bool(imzali)))
                 kart.komutlar.append(govde)
                 if govde.startswith("Go"):
                     kart.onayla(int(govde[2:]))
@@ -1239,7 +1294,7 @@ def bolum_guvenlik_kart() -> None:
     esp_k, ino_k, gh_k, wa_k = kod(esp), kod(ino), kod(gh), kod(wa)
     SINIF = {"/": "GUV_ACIK", "/akis": "GUV_IZLEME", "/pil": "GUV_IZLEME",
              "/kayit/liste": "GUV_OKUMA", "/kayit/veri": "GUV_OKUMA", "/kal/liste": "GUV_OKUMA",
-             "/skop.bin": "GUV_OKUMA", "/komut": "GUV_KOMUT", "/kopru": "GUV_KOMUT",
+             "/skop.bin": "GUV_OKUMA", "/komut": "GUV_KOMUT",   # 4B: /kopru KALKTI (PC8)
              "/eslestir/bilgi": "GUV_ACIK", "/eslestir/baslat": "GUV_ACIK",
              "/eslestir/kanit": "GUV_ACIK", "/cihaz/liste": "GUV_CIHAZ",
              "/cihaz/sil": "GUV_CIHAZ", "/saat": "GUV_CIHAZ",
@@ -1270,12 +1325,20 @@ def bolum_guvenlik_kart() -> None:
 
     sk = govde(ino_k, "static void guv_seri_komut(")
     khex = [s for s in sk.splitlines() if "khex" in s]
-    ok("B72.F77 K hex'i YALNIZ ham UART'a: EK satiri Serial.ham ile; khex hicbir aynali "
-       "baskida yok; WebAkis::ham yalniz gercek porta yazar",
-       '"EK ' in sk and any("Serial.ham(" in s for s in khex)
-       and not any(("Serial.print" in s or "printf" in s) and "ham(" not in s for s in khex)
+    # 4B (D5 #12 kok): eski iddia "khex bir Serial.ham satirinda" diyordu ve satir UC ham()
+    # cagrisiyla basiliyordu (onek, hex, CRLF): araya IDF gunlugu girerse anahtar ayri satira
+    # dusuyor, kopru suzgeci onu isaretsiz goruyordu. Artik EK satiri TEK tamponda kurulur
+    # ("EK %u %s\r\n"), TEK ham() ile gider, iki tampon da silinir.
+    sp = sk[sk.find("case 'p':"):sk.find("case 'z':")]
+    ok("B72.F77 (+4B D5 #12) K hex'i YALNIZ ham UART'a ve TEK yazimla: EK satiri (onek + 64 hex + "
+       "CRLF) tek tamponda, `p` dalinda TEK Serial.ham; khex hicbir aynali baskida yok; tamponlar "
+       "silinir; WebAkis::ham yalniz gercek porta yazar",
+       '"EK %u %s\\r\\n"' in sp and sp.count("Serial.ham(") == 1
+       and not any(("Serial.print" in s or "Serial.ham" in s) for s in khex)
+       and sp.find("Serial.ham(") < sp.rfind("memset(")
        and "void ham(const char *s)" in wa_k
-       and "_besle" not in govde(wa_k, "void ham(const char *s)"))
+       and "_besle" not in govde(wa_k, "void ham(const char *s)"),
+       f"ham={sp.count('Serial.ham(')}")
     ok("B72.F82 E komutlari (z zorunlu, m misafir, p USB eslestirme, x sil, t tur olcumu, r tur "
        "yaz, ? liste) seri dagiticida", all(f"case '{c}':" in sk for c in "zmpxtr?"))
 
@@ -1287,15 +1350,19 @@ def bolum_guvenlik_kart() -> None:
        and "X-Acilis" in govde(ino_k, "static void guv__red("))
     ok("B72.F79 form kodlamali imzali POST 400 (WebServer govdeyi sorguya karistirir)",
        "x-www-form-urlencoded" in dg and "400" in dg)
-    kpg = govde(ino_k, "void kopru_sayfa(")
-    ok("B72.F81c /kopru (CORS kokeni kaydi) zorunlulukta imzasiz REDDEDILIR",
-       0 <= kpg.find("guv_kapi(GUV_KOMUT)") < kpg.find("if (!guv_imzali && guv.ayar.zorunlu)")
-       < kpg.find("kopru_adres"))
+    # 4B (PC8): eski F81c "/kopru (CORS kokeni kaydi) zorunlulukta imzasiz REDDEDILIR" KALKTI —
+    # uc yok (kopru sunucu tarafinda vekil, CORS gereksiz; sim3_web 2d/4a). Kalkan ucun
+    # isleyicisi, kaydi ve CORS on-ucusu geri gelmesin:
+    ok("B72.F81c (4B PC8) /kopru ucu, kopru adresi ve CORS on-ucus isleyicisi YOK; /akis bir "
+       "kopru kaydina bakmaz",
+       "kopru_sayfa" not in ino_k and "kopru_adres" not in ino_k and "onuc_sayfa" not in ino_k
+       and "HTTP_OPTIONS" not in ino_k and "Access-Control-Allow" not in ino_k
+       and "kopru" not in govde(ino_k, "void akis_sayfa("))
     i_n = ino_k.find("if (alt == 0 || alt == '?') {")
     ns = ino_k[i_n:ino_k.find("if (alt == 'a')", i_n)] if i_n >= 0 else ""
     ok("B72.F91 N? AP parolasini YALNIZ ham UART'a basar (Serial aynasi /akis'e tasiyordu: "
-       "ag dinleyen AP parolasini goruyordu)",
-       bool(ns) and 'Serial.ham(ag_nvs.getString("ap_sifre"' in ns
+       "ag dinleyen AP parolasini goruyordu) — 4B: tek yazimli ap_parolasi_bas uzerinden",
+       bool(ns) and "ap_parolasi_bas(" in ns and 'ap_sifre' not in ns
        and not re.search(r'Serial\.print(ln)?\(ag_nvs\.getString\("ap_sifre"', ns))
     ok("B72.F81b misafir izleme yalniz IZLEME sinifini acar",
        "sinif == GUV_IZLEME && guv.ayar.misafir" in kp and kp.count("misafir") == 1)
@@ -1389,11 +1456,11 @@ def bolum_guvenlik_kart() -> None:
     ok("B72.F101 (kart tezgahi: olcum.local cozumu ~3 s) tezgah Ep'yi SSE dinleyicisi BAGLANDIKTAN "
        "sonra gonderir; baglanmamissa 'anahtar SSE'de yok' denetimi KIRMIZI (bos yere gecmez)",
        0 <= tg2.find("bagli = ") < tg2.find("IM.esles_usb(") and "bagli and c.n" in tg2)
-    ok("B72.F88 imza basliklari toplaniyor (X-Cihaz, X-Sayac, X-Imza, Content-Type) ve CORS "
-       "on ucu izin veriyor",
+    # 4B (PC8): eski ek kosul "ve CORS on ucu (onuc_sayfa) X-Cihaz'a izin veriyor" KALKTI —
+    # capraz koken izni hic verilmiyor (kopru sunucu tarafinda vekil; F81c, sim3_web 4a).
+    ok("B72.F88 imza basliklari toplaniyor (X-Cihaz, X-Sayac, X-Imza, Content-Type)",
        toplanan is not None and all(f'"{b}"' in toplanan.group(1)
-                                    for b in ("X-Cihaz", "X-Sayac", "X-Imza", "Content-Type"))
-       and "X-Cihaz" in govde(ino_k, "void onuc_sayfa("))
+                                    for b in ("X-Cihaz", "X-Sayac", "X-Imza", "Content-Type")))
 
 
 class _SahteSeri:
@@ -1790,8 +1857,397 @@ def bolum_bildirim_kart() -> None:
             onb.write_text(f"{m[-1][0]}/{m[-1][1]}", encoding="utf-8")
 
 
+# ── B72.W · 4B kopru WiFi: eslesmis cihaz olarak imzali /akis + /komut ─────────
+def _wifi_oku(w, n: int, sure: float = 6.0) -> list:
+    """WifiKart'tan n satir (ya da sure dolana dek)."""
+    son, al = time.monotonic() + sure, []
+    while len(al) < n and time.monotonic() < son:
+        x = w.satir_oku(0.1)
+        if x is not None:
+            al.append(x)
+    return al
+
+
+def _bekle_kosul(kosul, sure: float = 6.0) -> bool:
+    son = time.monotonic() + sure
+    while time.monotonic() < son:
+        if kosul():
+            return True
+        time.sleep(0.02)
+    return kosul()
+
+
+def bolum_kopru_wifi() -> None:
+    """4B (PC5-PC7, D5 #17/#18): kopru kartla WiFi'den ESLESMIS CIHAZ olarak konusur.
+    Sahte kartin imza dogrulayicisi BAGIMSIZ (spec bicimi hmac ile yeniden yazilmis)."""
+    print("\n── B72.W  4B kopru WiFi: imzali /akis (her baglantida YENI adres) · imzali /komut · "
+          "p0 imzasiz · kart kimligi · /saat · PC5 cihaz dizini")
+    import imza as IM
+    import kart_wifi as KW
+    import kopru as KO
+    kart = _SahteKart([])
+    sunucu, taban = _sunucu(kart)
+    eski_ortam = {a: os.environ.get(a) for a in ("OLCUM_PC_DIZIN", "OLCUM_CIHAZ_DIZIN", "LOCALAPPDATA",
+                                                    "OLCUM_PAROLA")}
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            cdiz = d / "cihaz"
+            c = IM.esles(taban, "kopru", kart.parola, dizin=cdiz)
+
+            def yeni(**kw):
+                bekl = []
+                w = KW.WifiKart(taban, dizin=cdiz,
+                                bekle=lambda sn, _b=bekl: (_b.append(sn), time.sleep(0.02)), **kw)
+                durum = []
+                w.bildir = durum.append
+                return w, bekl, durum
+
+            # W1 akis satirlari BIREBIR; SSE cercevesi (kimlik, id, retry, kalp) tasinmaz
+            kart.akis_satirlari = ["D 12.3456 0.891234 10.99881 1234.5678 0.3429355 3600000 133 0",
+                                   "K 420 1503 0", "* enerji sifirlandi", "S2 1000 671 0.028787 500 5000 0 1 63.5"]
+            kart.akis_tut = 0.3
+            kart.istekler.clear()
+            w, bekl, durum = yeni()
+            w.ac()
+            al = _wifi_oku(w, 4)
+            w.kapat()
+            ok("B72.W1 WiFi yukari-akisi kartin /akis satirlarini BIREBIR ve sirayla verir; kimlik/id/"
+               "retry/kalp cercevesi satir sayilmaz; baglanti durumu `* kopru: WiFi baglandi` olarak "
+               "bildir'e (akisa/arsive DEGIL) gider",
+               al == kart.akis_satirlari and any(x.startswith("* kopru: WiFi baglandi") for x in durum)
+               and not any("jeton" in x or x.startswith(("id:", "retry", ":")) for x in al),
+               f"{al} | {durum[:3]}")
+
+            # W2 (D5 #17) her yeniden baglanmada YENI imzali adres; tekrar (401) yok; veri gelince bekleme 1 s
+            kart.akis_tut = 0.0
+            kart.ret_401 = 0
+            kart.istekler.clear()
+            once = kart.akis_sayisi
+            w, bekl, durum = yeni()
+            w.ac()
+            _bekle_kosul(lambda: kart.akis_sayisi - once >= 4)
+            w.kapat()
+            akislar = [x.split()[1] for x in kart.istekler if x.split()[1].startswith("/akis?")]
+            sayaclar = [dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(a).query)).get("_s") for a in akislar]
+            ok("B72.W2 (D5 #17) imzali /akis adresi tek kullanimlik: her yeniden baglanmada YENI adres "
+               "(farkli sayac/imza), kart hicbirini tekrar diye reddetmez; veri gelen baglantidan sonra "
+               "bekleme 1 s'ye doner",
+               len(akislar) >= 4 and len(set(akislar)) == len(akislar) and len(set(sayaclar)) == len(sayaclar)
+               and kart.ret_401 == 0 and bekl and all(b == 1.0 for b in bekl[:3]),
+               f"{len(akislar)} akis, 401={kart.ret_401}, bekleme={bekl[:5]}")
+
+            # W2b veri gelmeyen baglanti: bekleme ARTAR (1, 2, 4, 8, 16, 30 s) ve 30'da durur
+            kart.akis_satirlari = []
+            w, bekl, durum = yeni()
+            w.ac()
+            _bekle_kosul(lambda: len(bekl) >= 7)
+            w.kapat()
+            ok("B72.W2b veri gelmeyen (hemen kapanan) baglantilarda yeniden baglanma beklemesi ARTAR "
+               "(1, 2, 4, 8, 16, 30 s) ve 30 s'de durur — kartin seri web cekirdegi istek firtinasina "
+               "bogulmaz", bekl[:7] == [1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 30.0], str(bekl[:8]))
+
+            # W3 (D5 #18) kart kimligi cihaz dosyasina uymuyor: akis YOK, komut YOK, p0 VAR
+            kart.akis_satirlari = ["D 1.0"]
+            dogru_kimlik = kart.gkimlik
+            kart.gkimlik = "8899aabbccddeeff"
+            kart.istekler.clear()
+            kart.komutlar.clear()
+            kart.komut_imzali.clear()
+            w, bekl, durum = yeni(cihaz_dosyasi=c.dosya)
+            w.ac()
+            _bekle_kosul(lambda: any("DEGIL" in x for x in durum))
+            try:
+                w.yaz("A?")
+                komut_red = ""
+            except RuntimeError as e:
+                komut_red = str(e)
+            w.yaz("p0")
+            w.kapat()
+            akis_gitti = any(x.split()[1].startswith("/akis") for x in kart.istekler)
+            ok("B72.W3 (D5 #18) kartin kimligi cihaz dosyasina UYMUYORSA kopru /akis ACMAZ ve komut "
+               "GONDERMEZ (acik mesaj: hangi kimlik, hangi dosya); p0 (DURDUR) yine de imzasiz gider",
+               not akis_gitti and "dogrulanmadi" in komut_red and kart.komutlar == ["p0"]
+               and kart.komut_imzali == [("p0", False)]
+               and any("8899aabbccddeeff" in x and c.kimlik in x and "DEGIL" in x for x in durum),
+               f"akis={akis_gitti} red={komut_red[:60]!r} komut={kart.komut_imzali} durum={durum[-1:]}")
+            # W3b dizinden secimde bu kart icin cihaz dosyasi yok
+            kart.istekler.clear()
+            w, bekl, durum = yeni()
+            w.ac()
+            _bekle_kosul(lambda: any("ESLESMEMIS" in x for x in durum))
+            w.kapat()
+            ok("B72.W3b bu kartla eslesmis cihaz dosyasi yoksa /akis ACILMAZ; mesaj eslestirme komutunu "
+               "soyler (imza.py esles)",
+               not any(x.split()[1].startswith("/akis") for x in kart.istekler)
+               and any("ESLESMEMIS" in x and "imza.py esles" in x for x in durum), str(durum[-1:]))
+            kart.gkimlik = dogru_kimlik
+
+            # W4 komutlar IMZALI (jeton/parola yok); p0 imzasiz ve X-Olcum'lu
+            kart.akis_tut = 2.0
+            kart.akis_bitir.clear()
+            kart.komutlar.clear()
+            kart.komut_imzali.clear()
+            kart.istekler.clear()
+            w, bekl, durum = yeni()
+            w.ac()
+            _bekle_kosul(lambda: w.bagli)
+            w.yaz("A?")
+            w.yaz("p0")
+            kart.akis_bitir.set()
+            w.kapat()
+            kom = [x for x in kart.istekler if x.startswith("POST /komut")]
+            ok("B72.W4 WiFi'de komut IMZALI gider (X-Imza, jeton/parola yok); p0 IMZASIZ, X-Olcum'lu ve "
+               "kart dogrulanmadan da gonderilebilir (O7: p0 her katmanda serbest)",
+               kart.komut_imzali == [("A?", True), ("p0", False)] and len(kom) == 2
+               and "X-Imza" in kom[0] and "X-Jeton" not in kom[0] and "Authorization" not in kom[0]
+               and "X-Imza" not in kom[1] and "'X-Olcum': '1'" in kom[1],
+               f"{kart.komut_imzali}")
+
+            # W5 (R11) kartta NTP yoksa her baglantida BIR KEZ imzali /saat; NTP varsa hic
+            kart.akis_tut = 0.0
+            kart.saat_kaynak = 0
+            kart.saat_istekleri.clear()
+            once = kart.akis_sayisi
+            w, bekl, durum = yeni()
+            w.ac()
+            _bekle_kosul(lambda: kart.akis_sayisi - once >= 3)
+            w.kapat()
+            simdi = time.time()
+            n_bag = kart.akis_sayisi - once
+            n_saat = len(kart.saat_istekleri)
+            saat_ok = (n_saat in (n_bag, n_bag - 1, n_bag + 1) and n_saat >= 2
+                       and all(abs(int(u) - simdi) < 30 for u in kart.saat_istekleri))
+            kart.saat_kaynak = 1
+            kart.saat_istekleri.clear()
+            kart.istekler.clear()
+            w, bekl, durum = yeni()
+            w.ac()
+            _bekle_kosul(lambda: kart.akis_sayisi - once >= n_bag + 2)
+            w.kapat()
+            ok("B72.W5 (R11) kartin NTP saati yoksa kopru her baglantida BIR KEZ imzali /saat verir "
+               "(unix ~ simdi); NTP varsa /saat hic gonderilmez",
+               saat_ok and not any("/saat" in x for x in kart.istekler),
+               f"baglanti={n_bag} saat={n_saat}")
+            kart.saat_kaynak = 0
+
+            # W6 HTTPError kapatilir ve kullaniciya kodla soylenir
+            kart.akis_tut = 2.0
+            kart.akis_bitir.clear()
+            kart.komut_red = 403
+            w, bekl, durum = yeni()
+            w.ac()
+            _bekle_kosul(lambda: w.bagli)
+            kapanan = []
+            asil = KW.vekilsiz_ac
+
+            def izle(istek, timeout=None):
+                try:
+                    return asil(istek, timeout=timeout)
+                except urllib.error.HTTPError as h:
+                    eski_kapat = h.close
+                    h.close = lambda _e=eski_kapat, _k=h.code: (kapanan.append(_k), _e())
+                    raise
+            KW.vekilsiz_ac = izle
+            try:
+                w.yaz("A?")
+                mesaj = ""
+            except RuntimeError as e:
+                mesaj = str(e)
+            finally:
+                KW.vekilsiz_ac = asil
+            kart.komut_red = 0
+            kart.akis_bitir.set()
+            w.kapat()
+            ok("B72.W6 (D5 #18) kartin ret yaniti (HTTPError) KAPATILIR ve kod + govde ile soylenir",
+               "403" in mesaj and "reddedildi" in mesaj and 403 in kapanan, f"{mesaj!r} kapanan={kapanan}")
+
+            # W7 (D5 #18) imza.ac / akis_url: acilisi bilgiden alirken kimlik denetlenir; uymazsa istek YOK
+            kart.gkimlik = "8899aabbccddeeff"
+            kart.istekler.clear()
+            c2 = IM.Cihaz(d / "yok.json", c.kimlik, c.n, c.K, c.ad, c.sayac, "")
+            c2.kaydet = lambda: None
+            hatalar = []
+            for islev in (lambda: IM.ac(c2, taban, "POST", "/komut", [], b"A?"),
+                          lambda: IM.akis_url(c2, taban)):
+                try:
+                    islev()
+                    hatalar.append("GECTI")
+                except IM.KartKimligiHatasi as e:
+                    hatalar.append("kimlik" if "8899aabbccddeeff" in str(e) else str(e))
+            kart.gkimlik = dogru_kimlik
+            ok("B72.W7 (D5 #18) imza.ac ve akis_url kartin kimligini cihaz dosyasiyla karsilastirir "
+               "(acilisi /eslestir/bilgi'den alirken); uymazsa KartKimligiHatasi, imzali istek GITMEZ",
+               hatalar == ["kimlik", "kimlik"] and not any("X-Imza" in x or "_i=" in x for x in kart.istekler),
+               str(hatalar))
+            # W7b 401 + yeni acilis yolunda ilk HTTPError kapatilir
+            kapali = []
+
+            class _Gov(io.BytesIO):
+                def close(self):
+                    kapali.append(1)
+                    super().close()
+            yanitlar = [urllib.error.HTTPError(taban, 401, "imza", {"X-Acilis": "33" * 16}, _Gov(b"x")),
+                        io.BytesIO(b"tamam")]
+
+            def sahte_ac(istek, timeout=None):
+                y = yanitlar.pop(0)
+                if isinstance(y, Exception):
+                    raise y
+                return y
+            c3 = IM.Cihaz(d / "yok3.json", c.kimlik, c.n, c.K, c.ad, 0, "11" * 16)
+            c3.kaydet = lambda: None
+            IM.ac(c3, taban, "GET", "/kayit/liste", acici=sahte_ac)
+            ok("B72.W7b (D5 #18) imza.ac 401 + yeni X-Acilis yolunda ilk yaniti (HTTPError) KAPATIR",
+               kapali == [1] and c3.acilis == "33" * 16, f"kapali={kapali}")
+
+            # W8 gizli satir suzgeci WiFi'de de: EK satiri yayinlanmaz/arsivlenmez; durum satiri arsive girmez
+            kart.akis_tut = 0.5
+            kart.akis_satirlari = ["D 1.0", "EK 3 " + "ab" * 32, "W (12) wifi: x EK 4 ",
+                                   "cd" * 32, "D 2.0", "D 3.0", "D 4.0"]
+            w, bekl, durum = yeni()
+            k = KO.Kopru(w, d / "arsiv_w")
+            yay = []
+            k.yayinla = yay.append
+            w.bildir = yay.append
+            th = threading.Thread(target=k.dongu, daemon=True)
+            w.ac()
+            th.start()
+            _bekle_kosul(lambda: "D 4.0" in yay)
+            k.calisiyor = False
+            th.join(2)
+            w.kapat()
+            k.arsiv.kapat()
+            ars = list(k.arsiv.ham_satirlar())
+            # Beklenen: baglanti acilinca pencere (2 satir: D 1.0, tam EK) + bolunmus EK'nin penceresi
+            # (cd.. parcasi, D 2.0) duser; D 3.0 / D 4.0 gecer (USB'deki suzgecle AYNI kural).
+            yay_d = [x for x in yay if x.startswith("D ")]
+            ars_d = [x for x in ars if x.startswith("D ")]
+            ok("B72.W8 kopru gizli satir suzgeci WiFi yukari-akisinda da calisir: EK (tam ve bolunmus) "
+               "yayinlanmaz/arsivlenmez, olcum satirlari aynen; durum satirlari arsive GIRMEZ",
+               yay_d[:2] == ["D 3.0", "D 4.0"] and ars_d[:2] == ["D 3.0", "D 4.0"]
+               and not any("ab" * 8 in x or "cd" * 8 in x or "EK " in x for x in yay + ars)
+               and any(x.startswith("* kopru: WiFi") for x in yay)
+               and not any(x.startswith(("* kopru", "! kopru")) for x in ars),
+               f"yay={yay} ars={ars}")
+
+            # W9 (PC5) cihaz dizini depo DISINDA; ortam ile degisir; eski kopru/.cihaz BIR KEZ KOPYALANIR
+            for a in ("OLCUM_PC_DIZIN", "OLCUM_CIHAZ_DIZIN"):
+                os.environ.pop(a, None)
+            os.environ["LOCALAPPDATA"] = str(d / "yerel")
+            v1 = IM.varsayilan_dizin()
+            os.environ["OLCUM_PC_DIZIN"] = str(d / "pc")
+            v2 = IM.varsayilan_dizin()
+            os.environ["OLCUM_CIHAZ_DIZIN"] = str(d / "ozel")
+            v3 = IM.varsayilan_dizin()
+            eski_d, yeni_d = d / "agac" / ".cihaz", d / "goc"
+            eski_d.mkdir(parents=True)
+            (eski_d / f"{c.kimlik}.json").write_bytes(c.dosya.read_bytes())
+            g1 = IM.goc_et(eski_d, yeni_d)
+            g2 = IM.goc_et(eski_d, yeni_d)
+            (eski_d / "ffffffffffffffff.json").write_text("{}", encoding="utf-8")
+            g3 = IM.goc_et(eski_d, yeni_d)
+            ok("B72.W9 (PC5) cihaz dizini %LOCALAPPDATA%\\olcum-karti\\cihaz (OLCUM_PC_DIZIN / "
+               "OLCUM_CIHAZ_DIZIN ile degisir; calisma agacinda DEGIL); eski kopru/.cihaz dosyasi yeni "
+               "dizin bossa BIR KEZ KOPYALANIR (tasinmaz), sonra bir daha dokunulmaz",
+               v1 == d / "yerel" / "olcum-karti" / "cihaz" and v2 == d / "pc" / "cihaz" and v3 == d / "ozel"
+               and g1 == [f"{c.kimlik}.json"] and g2 == [] and g3 == []
+               and (eski_d / f"{c.kimlik}.json").exists()
+               and (yeni_d / f"{c.kimlik}.json").read_bytes() == c.dosya.read_bytes()
+               and IM.Cihaz.yukle(yeni_d / f"{c.kimlik}.json").K == c.K
+               and Path(IM.ESKI_DIZIN).parent == (KOK / "kopru").resolve(),
+               f"{v1} {v2} {v3} {g1} {g2} {g3}")
+
+            # W10 eslestirme: --parola-ortamdan YALNIZ istenince OLCUM_PAROLA'yi okur; basilmaz, saklanmaz
+            import contextlib
+            import getpass as _gp
+            os.environ["OLCUM_CIHAZ_DIZIN"] = str(d / "es")
+            os.environ["OLCUM_PAROLA"] = kart.parola
+            cikti = io.StringIO()
+            with contextlib.redirect_stdout(cikti), contextlib.redirect_stderr(cikti):
+                rc1 = IM.main(["esles", "--host", taban, "--ad", "kopru-2", "--parola-ortamdan"])
+            ortamda_kaldi = "OLCUM_PAROLA" in os.environ
+            dosyalar = sorted(p_.name for p_ in (d / "es").glob("*.json"))
+            metin_ok = kart.parola not in cikti.getvalue() and not any(
+                kart.parola in p_.read_text(encoding="utf-8") for p_ in (d / "es").glob("*.json"))
+            sorulan = []
+            asil_gp = _gp.getpass
+            _gp.getpass = lambda *a, **k: (sorulan.append(1), kart.parola)[1]
+            os.environ["OLCUM_PAROLA"] = "yanlis-ama-uzun-parola-1"
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    rc2 = IM.main(["esles", "--host", taban, "--ad", "kopru-3"])
+            finally:
+                _gp.getpass = asil_gp
+            os.environ.pop("OLCUM_PAROLA", None)
+            kart.istekler.clear()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                try:
+                    rc3 = IM.main(["esles", "--host", taban, "--ad", "kopru-4", "--parola-ortamdan"])
+                except SystemExit as e:
+                    rc3 = e.code
+            ok("B72.W10 (PC7) `imza.py esles --parola-ortamdan` OLCUM_PAROLA'dan eslesir, cihazi YENI "
+               "dizine yazar; parola ne ekrana ne dosyaya yazilir ve ortamdan silinir; bayrak YOKSA ortam "
+               "OKUNMAZ (getpass sorulur); bayrak var degisken yoksa karta HICBIR istek gitmeden hata",
+               rc1 == 0 and dosyalar == [f"{kart.gkimlik}.json"] and metin_ok and not ortamda_kaldi
+               and rc2 == 0 and sorulan == [1] and rc3 not in (0, None) and not kart.istekler,
+               f"rc={rc1},{rc2},{rc3} dosya={dosyalar} ortam={ortamda_kaldi} sorulan={sorulan}")
+
+            # W11 cihaz kartta silinmis: /akis 401 — acik mesaj, firtina yok
+            kart.akis_satirlari = ["D 1.0"]
+            kart.akis_tut = 0.0
+            Kc = kart.cihazlar.pop(c.n)
+            kart.ret_401 = 0
+            w, bekl, durum = yeni()
+            w.ac()
+            _bekle_kosul(lambda: len(bekl) >= 4)
+            w.kapat()
+            kart.cihazlar[c.n] = Kc
+            ok("B72.W11 kart cihazi tanimiyorsa (/akis 401) mesaj eslestirmeyi soyler, yeniden deneme "
+               "beklemesi ARTAR (istek firtinasi yok)",
+               any("401" in x and "esles" in x for x in durum) and bekl[:4] == [1.0, 2.0, 4.0, 8.0]
+               and kart.ret_401 <= len(bekl) + 1, f"401={kart.ret_401} bekleme={bekl[:5]}")
+
+            # W12 kartin 4 yuvasi dolu: `event: dolu` — acik mesaj, sonra yeniden denenir
+            kart.akis_dolu = True
+            w, bekl, durum = yeni()
+            w.ac()
+            _bekle_kosul(lambda: len(bekl) >= 2)
+            w.kapat()
+            kart.akis_dolu = False
+            ok("B72.W12 kartin canli izleyici yuvalari doluysa (`event: dolu`) kopru bunu SOYLER ve "
+               "artan beklemeyle yeniden dener", any("dolu" in x for x in durum) and bekl[:2] == [1.0, 2.0],
+               f"{durum[-1:]} {bekl[:3]}")
+
+            # W13 kapat() suresinde bitmeyen ESKI iplik (ör. mDNS cozumu) yeni akisa satir KOYAMAZ
+            w, bekl, durum = yeni()
+            eski_dur = threading.Event()
+            eski_dur.set()                                   # kapatilmis ipligin olayi
+            sonuc_13 = []
+
+            def _eski_iplik():
+                w._yerel.dur = eski_dur
+                w._koy("D eski")
+                sonuc_13.append(w._durdu())
+            t13 = threading.Thread(target=_eski_iplik)
+            t13.start()
+            t13.join(2)
+            w._koy("D yeni")                                 # bu iplik: guncel (durdurulmamis) olay
+            ok("B72.W13 durdurma olayi IPLIK BASINA: kapatilmis eski WiFi ipliginin satiri kuyruga "
+               "girmez (USB<->WiFi gecisinde eski akis yeni akisa karismaz); guncel iplik koyar",
+               sonuc_13 == [True] and w.satir_oku(0.1) == "D yeni" and w.satir_oku(0.05) is None,
+               str(sonuc_13))
+    finally:
+        for a, v in eski_ortam.items():
+            if v is None:
+                os.environ.pop(a, None)
+            else:
+                os.environ[a] = v
+        sunucu.shutdown()
+
+
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
-            bolum_guvenlik_istemci, bolum_bildirim_kart]
+            bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi]
 
 
 def main() -> int:

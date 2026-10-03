@@ -19,6 +19,12 @@ PC1 — KOKEN `http://olcum.localhost:8770`, sunucu YALNIZ 127.0.0.1'e bagli.
 PC5 — kullanici verisi depo DISINDA: `%LOCALAPPDATA%\\olcum-karti\\`
   (`OLCUM_PC_DIZIN` ile degistirilebilir). Calisma agaci degisince ya da
   `git clean`'de kaybolmaz.
+  4B: eslesmis cihaz anahtari `...\\olcum-karti\\cihaz\\` (`OLCUM_CIHAZ_DIZIN`
+  ile ayrica degistirilebilir) — eskiden `kopru/.cihaz` (calisma agaci basina:
+  baska agactan acilan kopru anahtari bulamiyordu).
+
+PC6 — kartin WiFi adresi `olcum.local` (`OLCUM_KART_HOST` ya da
+  `pc.py --kart-host` ile degisir: IP, ya da kartin kendi AP'sinde 192.168.4.1).
 """
 from __future__ import annotations
 
@@ -60,3 +66,18 @@ def veri_dizini() -> Path:
     yerel = os.environ.get("LOCALAPPDATA")
     taban = Path(yerel) if yerel else Path.home() / ".local" / "share"
     return taban / "olcum-karti"
+
+
+def cihaz_dizini() -> Path:
+    """4B (PC5): eslesmis cihaz dosyalarinin dizini (olusturmaz). Calisma aninda
+    okunur — testler ve ikinci bir kullanici ortam degiskeniyle yonlendirebilsin."""
+    elle = os.environ.get("OLCUM_CIHAZ_DIZIN")
+    return Path(elle) if elle else veri_dizini() / "cihaz"
+
+
+KART_HOST = "olcum.local"
+
+
+def kart_host() -> str:
+    """4B (PC6): kartin WiFi adresi (ad ya da IP)."""
+    return os.environ.get("OLCUM_KART_HOST") or KART_HOST

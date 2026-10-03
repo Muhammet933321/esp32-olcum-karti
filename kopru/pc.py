@@ -8,8 +8,19 @@
     python kopru/pc.py --kayit GUN.satir --http-port 8771   # olu tekrar
     python kopru/pc.py --tarayici-acma    # tarayici acmadan
     python kopru/pc.py --durdur           # calisan kopruyu durdur (arka plandaki de)
+    python kopru/pc.py --kart-host 192.168.4.1   # kartin WiFi adresi (varsayilan olcum.local)
+    python kopru/pc.py --cihaz DOSYA      # eslesmis cihaz dosyasi (yoksa kart kimligine gore)
+    python kopru/pc.py --wifi-yok         # yalniz USB (4A davranisi)
+    python kopru/pc.py --usb-yok          # yalniz WiFi: COM portu hic acilmaz (tezgah araclari kullanabilir)
 
 Panel: http://olcum.localhost:8770 — yalniz bu bilgisayardan (PC1/PC2).
+
+4B (PC6) — YUKARI-AKIS: USB'de DOGRULANMIS kart varsa canli akis ve komut USB'den;
+yoksa kartla WiFi'den ESLESMIS CIHAZ olarak (imzali /akis + /komut, p0 imzasiz;
+kart_wifi.py). Gecis akista bir durum satiriyla soylenir. Kopru once eslestirilir
+(bir kez, kartin WEB parolasiyla):
+    python kopru/imza.py esles --host olcum.local --ad <bu-PC>
+Cihaz anahtari `%LOCALAPPDATA%\\olcum-karti\\cihaz\\` altinda (PC5; DPAPI).
 
 4A bugun yalniz ROLEYI barindiriyor; arka plan eslemesi (4C) ve MQTT
 bildirimleri (4E) AYNI surece eklenecek — ikinci bir arka plan sureci
@@ -49,7 +60,9 @@ from pathlib import Path
 BURASI = Path(__file__).resolve().parent
 KOK = BURASI.parent
 sys.path.insert(0, str(BURASI))
+import imza                                               # noqa: E402
 import kart_baglanti                                      # noqa: E402
+import kart_wifi                                          # noqa: E402
 import kopru as kopru_mod                                 # noqa: E402
 import pc_ayar                                            # noqa: E402
 
@@ -101,6 +114,24 @@ def _secenek(arg: list[str], ad: str, varsayilan=None):
     return varsayilan
 
 
+def yukari_akis_kur(arg: list[str]):
+    """4B (PC6): USB (OtoSeriKart, VID + kimlik) ONCE, yoksa WiFi (WifiKart, eslesmis cihaz).
+    `--wifi-yok`: yalniz USB (4A davranisi). Kart adresi `--kart-host` > OLCUM_KART_HOST >
+    olcum.local; `--cihaz` verilmezse cihaz dosyasi kartin kimligine gore secilir."""
+    if "--wifi-yok" in arg and "--usb-yok" in arg:
+        raise RuntimeError("--wifi-yok ile --usb-yok birlikte verilemez (yukari-akis kalmaz)")
+    usb = kart_baglanti.OtoSeriKart(_secenek(arg, "--port"))
+    if "--wifi-yok" in arg:
+        return usb
+    wifi = kart_wifi.WifiKart(_secenek(arg, "--kart-host") or pc_ayar.kart_host(),
+                              cihaz_dosyasi=_secenek(arg, "--cihaz"))
+    if "--usb-yok" in arg:
+        # Yalniz WiFi: COM portu HIC acilmaz — kart USB'den beslenirken de WiFi yolu
+        # sinanabilir; tezgah araclari (yukle.py, tezgah_*.py) portu kullanabilir.
+        return wifi
+    return kart_wifi.SecmeliKart(usb, wifi)
+
+
 def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
     """Kopruyu ac ve kapanana dek hizmet et. Donus: cikis kodu."""
     if "--yardim" in arg or "-h" in arg:
@@ -144,7 +175,11 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
                         for s in Path(kayit).read_text(encoding="utf-8").splitlines()]
             kart = kart_baglanti.KayitKart(satirlar, gecikme=0.2)
         else:
-            kart = kart_baglanti.OtoSeriKart(_secenek(arg, "--port"))
+            # 4B (PC5): eski kopru/.cihaz anahtari varsa yeni yere BIR KEZ kopyala (tasima)
+            gocen = imza.goc_et()
+            if gocen and not sessiz:
+                yazdir(imza.goc_mesaji(gocen))
+            kart = yukari_akis_kur(arg)
         kopru = kopru_mod.Kopru(kart, KOK / "kopru" / "arsiv")
         sunucu.RequestHandlerClass.kopru = kopru
         if not sessiz and hasattr(kart, "bildir"):
@@ -175,6 +210,12 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
         if lan:
             yazdir(f"  Yerel ag (SALT OKUMA) : http://{kopru_mod.lan_ip()}:{http_port}"
                    f"   — telefonlar izler, yalniz p0 (DURDUR) gonderebilir")
+        if isinstance(kart, kart_wifi.SecmeliKart):
+            yazdir(f"  Kart                  : USB once; yoksa WiFi {kart.wifi.host} "
+                   f"(eslesmis cihaz: {imza.varsayilan_dizin()})")
+        elif isinstance(kart, kart_wifi.WifiKart):
+            yazdir(f"  Kart                  : YALNIZ WiFi {kart.host} (COM portu acilmaz; "
+                   f"eslesmis cihaz: {imza.varsayilan_dizin()})")
         yazdir(f"  Arsiv                 : {kopru.arsiv.dizin}")
         yazdir("Kapatmak icin Ctrl+C (arka plandaysa: kopru\\Kopruyu Durdur.bat)")
         if "--tarayici-acma" not in arg:

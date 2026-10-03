@@ -21,10 +21,31 @@ Bicimler (spec K5, K6, K9):
 Sorgu argumanlari gelis sirasiyla, ad ve deger YUZDE KODLU (RFC 3986 ayrilmamis
 karakterler aynen, gerisi %XX): boylece a="1&b=2" ile a=1&b=2 ayni metni vermez.
 
-Anahtar saklama (K13): `kopru/.cihaz/<kart kimligi>.json` (git disi). Windows'ta
+Anahtar saklama (K13 + 4B/PC5): `%LOCALAPPDATA%\\olcum-karti\\cihaz\\<kart kimligi>.json`
+(depo DISINDA; `OLCUM_CIHAZ_DIZIN` ya da `OLCUM_PC_DIZIN` ile degisir — pc_ayar).
+Eskiden `kopru/.cihaz/` (calisma agaci basina): baska bir agactan acilan kopru
+anahtari bulamiyordu, `git clean` silebiliyordu. Eski dizinde dosya varsa ve yeni
+dizin bossa `goc_et` onlari BIR KEZ KOPYALAR (tasimaz) ve soyler. Windows'ta
 `K` DPAPI ile kullanici hesabina bagli sifrelenir; baska sistemde duz + dosya
 izni 600 ve dosyada uyari. Sayac her istekte diske yazilir: yeni surec eskisinin
 altina inmez (`max(son + 1, unix_ms)`).
+
+4B — eslestirme (PC7) komut satirindan, parola getpass ile:
+    python imza.py esles --host olcum.local --ad PC-kopru
+Etkilesimsiz (betik / gercek kart sinamasi) — YALNIZ bayrakla, ortam degiskeninden.
+Degiskeni kabuk gecmisine yazmadan doldurun (PowerShell 5.1):
+    $g = Read-Host "web parolasi" -AsSecureString
+    $env:OLCUM_PAROLA = [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($g))
+    python kopru/imza.py esles --host olcum.local --ad PC-kopru --parola-ortamdan
+    Remove-Item Env:OLCUM_PAROLA
+Parola ekrana/dosyaya YAZILMAZ ve okunur okunmaz surecin ortamindan silinir.
+Bayrak yoksa ortam degiskeni OKUNMAZ (her zaman getpass sorulur).
+
+4B — D5 #18: `ac()`/`akis_url()` acilisi `/eslestir/bilgi`'den alirken kartin
+kimligini cihaz dosyasiyla karsilastirir (uymazsa `KartKimligiHatasi`, imzali
+istek gitmez); 401 + yeni `X-Acilis` yolunda ilk yaniti kapatir. `acici`
+parametresi: vekilsiz acici (kopru) verilebilir; verilmezse urllib.request.urlopen.
 """
 from __future__ import annotations
 
@@ -54,7 +75,51 @@ PAROLA_EN_AZ = 12                  # kartta GUV_PAROLA_EN_AZ — istemci de AYNI
 TUR_EN_AZ = 10_000
 TUR_EN_COK = 1_000_000
 _AYRILMAMIS = frozenset(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
-VARSAYILAN_DIZIN = Path(__file__).parent / ".cihaz"
+# 4B (PC5): eski yer — calisma agacinin icinde; yalniz goc_et okur
+ESKI_DIZIN = Path(__file__).resolve().parent / ".cihaz"
+PAROLA_ORTAM = "OLCUM_PAROLA"
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pc_ayar                                        # noqa: E402
+
+
+def varsayilan_dizin() -> Path:
+    """4B (PC5): cihaz dosyalarinin dizini — depo DISINDA (pc_ayar.cihaz_dizini)."""
+    return pc_ayar.cihaz_dizini()
+
+
+def goc_et(eski=None, yeni=None) -> list[str]:
+    """4B (PC5): eski `kopru/.cihaz/*.json` -> yeni dizin, YALNIZ yeni dizinde cihaz
+    dosyasi yoksa; KOPYALAR (eski yerinde kalir — geri donus yolu). Kopyalanan dosya
+    adlarini dondurur (bos = bir sey yapilmadi). Dosya icerigi (K) okunmaz/basilmaz."""
+    import shutil
+    eski = Path(eski or ESKI_DIZIN)
+    yeni = Path(yeni or varsayilan_dizin())
+    if not eski.is_dir() or (yeni.is_dir() and any(yeni.glob("*.json"))):
+        return []
+    adaylar = sorted(eski.glob("*.json"))
+    if not adaylar:
+        return []
+    yeni.mkdir(parents=True, exist_ok=True)
+    for a in adaylar:
+        shutil.copy2(a, yeni / a.name)
+    return [a.name for a in adaylar]
+
+
+def goc_mesaji(adlar: list[str], eski=None, yeni=None) -> str:
+    return (f"* cihaz anahtari yeni yere KOPYALANDI ({len(adlar)} dosya): {Path(eski or ESKI_DIZIN)} -> "
+            f"{Path(yeni or varsayilan_dizin())} (eskisi yerinde; artik yeni yer kullaniliyor)")
+
+
+class KartKimligiHatasi(RuntimeError):
+    """4B (D5 #18): adresteki kart, cihaz dosyasinin eslestigi kart DEGIL."""
+
+
+def kimlik_denetle(cihaz: "Cihaz", kimlik) -> None:
+    if kimlik != cihaz.kimlik:
+        raise KartKimligiHatasi(
+            f"adresteki kartin kimligi {str(kimlik)[:40]!r} — cihaz dosyasi ({cihaz.dosya.name}) "
+            f"{cihaz.kimlik} kimlikli kartla eslesmis: bu kart o DEGIL, imzali istek GONDERILMEDI")
 
 
 # ── saf cekirdek (kartla ayni bicim) ─────────────────────────────────────
@@ -202,20 +267,31 @@ def _url(taban: str, yol: str, argumanlar) -> str:
     return taban.rstrip("/") + yol + (f"?{q}" if q else "")
 
 
-def bilgi(taban: str, zaman_asimi: float = 10.0) -> dict:
-    with urllib.request.urlopen(taban.rstrip("/") + "/eslestir/bilgi", timeout=zaman_asimi) as y:
+def bilgi(taban: str, zaman_asimi: float = 10.0, acici=None) -> dict:
+    ac_ = acici or urllib.request.urlopen
+    with ac_(taban.rstrip("/") + "/eslestir/bilgi", timeout=zaman_asimi) as y:
         return json.loads(y.read().decode("utf-8"))
 
 
+def _acilis_bilgiden(cihaz: Cihaz, taban: str, zaman_asimi: float, acici) -> None:
+    """Acilis yoksa /eslestir/bilgi'den al — 4B (D5 #18): kartin kimligi cihaz dosyasina
+    UYMUYORSA KartKimligiHatasi (imzali istek gitmez)."""
+    b = bilgi(taban, zaman_asimi, acici)
+    kimlik_denetle(cihaz, b.get("kimlik"))
+    cihaz.acilis = b["acilis"]
+    cihaz.kaydet()
+
+
 def ac(cihaz: Cihaz, taban: str, yontem: str, yol: str, argumanlar=(), govde: bytes = b"",
-       zaman_asimi: float = 10.0):
+       zaman_asimi: float = 10.0, acici=None):
     """Imzali istek; urlopen gibi yanit nesnesi dondurur (`with` ile kullan).
     401 + YENI `X-Acilis` (kart yeniden basladi): acilis guncellenir, BIR KEZ
-    yeniden denenir. Acilis ayniysa (cihaz silinmis, saat/sayac sorunu) hata."""
+    yeniden denenir (ilk yanit KAPATILIR — 4B, D5 #18). Acilis ayniysa (cihaz
+    silinmis, saat/sayac sorunu) hata: HTTPError'u cagiran okuyup KAPATIR."""
     argumanlar = list(argumanlar)
+    ac_ = acici or urllib.request.urlopen
     if not cihaz.acilis:
-        cihaz.acilis = bilgi(taban, zaman_asimi)["acilis"]
-        cihaz.kaydet()
+        _acilis_bilgiden(cihaz, taban, zaman_asimi, acici)
     for deneme in (0, 1):
         b = {"X-Olcum": "1", **cihaz.basliklar(yontem, yol, argumanlar, govde)}
         if yontem == "POST":
@@ -224,10 +300,11 @@ def ac(cihaz: Cihaz, taban: str, yontem: str, yol: str, argumanlar=(), govde: by
                                        data=govde if yontem == "POST" else None,
                                        method=yontem, headers=b)
         try:
-            return urllib.request.urlopen(istek, timeout=zaman_asimi)
+            return ac_(istek, timeout=zaman_asimi)
         except urllib.error.HTTPError as h:
             yeni = h.headers.get("X-Acilis") if h.code == 401 else None
             if deneme == 0 and yeni and yeni != cihaz.acilis:
+                h.close()
                 cihaz.acilis = yeni
                 cihaz.kaydet()
                 continue
@@ -235,11 +312,11 @@ def ac(cihaz: Cihaz, taban: str, yontem: str, yol: str, argumanlar=(), govde: by
     raise RuntimeError("erisilemez")                 # pragma: no cover
 
 
-def akis_url(cihaz: Cihaz, taban: str) -> str:
-    """EventSource baslik tasiyamaz: imza `_c _s _i` sorgu argumanlarinda (kanonige girmez)."""
+def akis_url(cihaz: Cihaz, taban: str, acici=None) -> str:
+    """EventSource baslik tasiyamaz: imza `_c _s _i` sorgu argumanlarinda (kanonige girmez).
+    ⚠ TEK KULLANIMLIK (sayac): her (yeniden) baglanmada YENI adres uret (D5 #17)."""
     if not cihaz.acilis:
-        cihaz.acilis = bilgi(taban)["acilis"]
-        cihaz.kaydet()
+        _acilis_bilgiden(cihaz, taban, 10.0, acici)
     s = cihaz.sonraki_sayac()
     return (f"{taban.rstrip('/')}/akis?_c={cihaz.n}&_s={s}"
             f"&_i={imzala(cihaz.K, 'GET', '/akis', [], cihaz.acilis, s, b'')}")
@@ -301,7 +378,7 @@ def esles(taban: str, ad: str, parola: str, dizin=None, zaman_asimi: float = 30.
     if not hmac.compare_digest(bytes.fromhex(y["kart_kanit"]), kanit_kart(P, kimlik, nk, nc, n)):
         raise RuntimeError("kart kaniti YANLIS — bu kart parolayi bilmiyor (sahte kart?); "
                            "cihaz KAYDEDILMEDI")
-    c = Cihaz(Path(dizin or VARSAYILAN_DIZIN) / f"{kimlik}.json", kimlik, n,
+    c = Cihaz(Path(dizin or varsayilan_dizin()) / f"{kimlik}.json", kimlik, n,
               cihaz_anahtari(P, kimlik, nk, nc, n), ad, 0, acilis)
     c.kaydet()
     return c
@@ -333,7 +410,7 @@ def esles_usb(kart, ad: str, dizin=None, zaman_asimi: float = 5.0) -> Cihaz:
     if satir.startswith("! E"):
         raise RuntimeError(satir)
     _, n, h = satir.split()
-    c = Cihaz(Path(dizin or VARSAYILAN_DIZIN) / f"{kimlik}.json", kimlik, int(n),
+    c = Cihaz(Path(dizin or varsayilan_dizin()) / f"{kimlik}.json", kimlik, int(n),
               bytes.fromhex(h), ad, 0, "")
     c.kaydet()
     return c
@@ -342,18 +419,33 @@ def esles_usb(kart, ad: str, dizin=None, zaman_asimi: float = 5.0) -> Cihaz:
 def cihaz_bul(dizin=None, dosya=None) -> Cihaz:
     if dosya:
         return Cihaz.yukle(dosya)
-    adaylar = sorted(Path(dizin or VARSAYILAN_DIZIN).glob("*.json"))
+    adaylar = sorted(Path(dizin or varsayilan_dizin()).glob("*.json"))
     if len(adaylar) != 1:
         raise SystemExit(f"{len(adaylar)} cihaz dosyasi var — --cihaz ile sec")
     return Cihaz.yukle(adaylar[0])
 
 
-def main() -> int:
+def _parola_al(ortamdan: bool) -> str:
+    """4B: parola YALNIZ bayrak verilmisse ortamdan (OLCUM_PAROLA) — okunur okunmaz bu
+    surecin ortamindan silinir (alt surece gecmesin); bayrak yoksa ortam OKUNMAZ."""
+    if not ortamdan:
+        return getpass.getpass("kartin WEB parolasi (WiFi parolasi DEGIL; ekrana yazilmaz): ")
+    parola = os.environ.pop(PAROLA_ORTAM, "")
+    if not parola:
+        raise SystemExit(f"--parola-ortamdan verildi ama {PAROLA_ORTAM} tanimli degil (ya da bos); "
+                         "karta hicbir istek gonderilmedi")
+    return parola
+
+
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Olcum karti cihaz eslestirmesi ve imzali istekler")
     alt = ap.add_subparsers(dest="komut", required=True)
     e = alt.add_parser("esles")
     e.add_argument("--host", default="olcum.local")
     e.add_argument("--ad", required=True)
+    e.add_argument("--dizin", default=None, help="cihaz dizini (varsayilan: pc_ayar.cihaz_dizini)")
+    e.add_argument("--parola-ortamdan", action="store_true",
+                   help=f"web parolasini {PAROLA_ORTAM} ortam degiskeninden al (etkilesimsiz)")
     u = alt.add_parser("esles-usb")
     u.add_argument("--port", default=None)
     u.add_argument("--ad", required=True)
@@ -363,10 +455,16 @@ def main() -> int:
         p.add_argument("--cihaz", default=None)
         if ad == "sil":
             p.add_argument("--n", type=int, required=True)
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
+    gocen = goc_et()                                 # 4B (PC5): eski kopru/.cihaz -> yeni yer
+    if gocen:
+        print(goc_mesaji(gocen))
     if a.komut == "esles":
-        parola = getpass.getpass("kartin web parolasi (ekrana yazilmaz): ")
-        c = esles(taban_url(a.host), a.ad, parola)
+        parola = _parola_al(a.parola_ortamdan)
+        try:
+            c = esles(taban_url(a.host), a.ad, parola, dizin=a.dizin)
+        finally:
+            parola = None                            # noqa: F841 — referans birakilmasin
         print(f"eslesti: cihaz {c.n} ({c.ad}) -> {c.dosya}")
         return 0
     if a.komut == "esles-usb":

@@ -67,7 +67,8 @@ BEKLENEN_DIZELER = [
     (b"K %lu %lu %lu", "blokaj sayaci satiri"),
     (b"pil egri tamponu: ", "tampon raporu sureyi SAYIDAN turetiyor"),
     # B22.4 — her biri bir SAVUNMA DALININ derlendigini kanitliyor
-    (b"event: kopru", "kopru kayitliyken ikinci SSE istemcisi reddi"),
+    # 4B (PC8): "event: kopru" (kopru kayitliyken ikinci SSE istemcisi reddi) KALKTI —
+    #   spec §5 "4 istemci, ret kalkar"; artik BULUNMAMALI listesinde.
     (b"event: dolu", "SSE yuvasi dolu — sessiz kapatma yok"),
     (b": kalp", "SSE kalp atisi (NAT/vekil zaman asimi)"),
     (b"X-Olcum basligi gerekli", "CSRF: ozel baslik dali"),
@@ -105,6 +106,9 @@ BULUNMAMALI = [
     (b"ic RAM'de (2 saat)", "elle yazilmis tampon suresi"),
     (b"v_duzeltme", "Asama 2'nin kalibrasyon alani (artik kazanc/sifir_ham)"),
     (b"tek yonlu", "tek yonlu olcum notu"),
+    # 4B (PC8): kopru kaydi ve ikinci istemci reddi kalkti — ikilide izi kalmamali
+    (b"event: kopru", "kopru kayitliyken ikinci /akis reddi (4B'de kalkti)"),
+    (b"POST /kopru", "kok sayfadaki /kopru ucu tanitimi (4B'de kalkti)"),
 ]
 
 

@@ -605,6 +605,12 @@ class OtoSeriKart:
             return self._kart.ad
         return f"seri:{self.elle_port or '(otomatik)'} (bekleniyor)"
 
+    @property
+    def bagli(self) -> bool:
+        """4B: USB'de (otomatik secimde DOGRULANMIS) kart bagli mi — SecmeliKart USB'yi
+        WiFi'ye bunun icin yegler."""
+        return self._kart is not None
+
     def _soyle(self, metin: str) -> None:
         self.durum_satiri = None if metin.startswith("* ") else metin
         if self.bildir:

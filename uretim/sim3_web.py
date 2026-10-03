@@ -303,13 +303,22 @@ def bolum2(r):
             "id: " in INO and "akis_sira" in INO_KOD,
             "yeniden baglanmada nerede kalindigi bilinsin")
     r.kosul("  2c: `retry:` gonderiliyor", "retry: 3000" in INO)
-    r.kosul("  2d: kopru kayitliysa ikinci istemci REDDEDILIYOR",
-            "event: kopru" in INO and "kopru_canli()" in INO_KOD,
-            "kart TEK surucuye hizmet ediyor — sessiz kapanma yok")
-    r.kosul("  2d: kopru kaydi RAM'de, NVS'te DEGIL",
-            "kopru_adres" in INO_KOD
-            and not re.search(r'put\w+\(\s*"kopru', INO_KOD),
-            "koprunun adresi gecici bir gercek, kalibrasyon gibi kalici degil")
+    # 4B (PC8; spec 2026-09-29 §5 "4 istemci, ret kalkar", §10 "eskiyen iddia GEREKCESIYLE
+    #   guncellenir"): eski iki 2d iddiasi ("kopru kayitliysa ikinci istemci REDDEDILIYOR",
+    #   "kopru kaydi RAM'de") B22.6'nin TEK SURUCU kuralini kodluyordu. Kopru artik karta
+    #   eslesmis cihaz olarak (imzali /akis) baglanan SIRADAN bir istemci ve kendi
+    #   tarayicilarina sunucu tarafinda vekil — ikinci tarayiciyi reddetmenin gerekcesi kalmadi.
+    #   Yerine: ret yolu YOK, /kopru kaydi YOK; tek ret sebebi 4 yuvanin dolmasi.
+    g_akis = kod(govde(INO, "void akis_sayfa()"))
+    r.kosul("  2d: [!] kopru tarzi istemci bagliyken ikinci /akis KABUL edilir — tek ret 'yuva dolu'",
+            bool(g_akis) and "kopru" not in g_akis and g_akis.count("c.stop()") == 1
+            and g_akis.find("event: dolu") < g_akis.find("c.stop()")
+            and "kopru_canli" not in INO_KOD and "event: kopru" not in INO,
+            "spec §5: 4 canli istemci, kopru kaydina bakilmadan")
+    r.kosul("  2d: /kopru kaydi KALKTI (uc, isleyici, adres, omur)",
+            '"/kopru"' not in INO_KOD and "kopru_sayfa" not in INO_KOD
+            and "kopru_adres" not in INO_KOD and "KOPRU_OMUR_MS" not in INO_KOD,
+            "kopru sunucu tarafinda vekil — kartin koprunun kokenini bilmesi gerekmiyor")
 
 
 def bolum3(r):
@@ -333,8 +342,11 @@ def bolum3(r):
     r.kosul("  3b: ozel baslik KOMUT UCUNDA zorunlu",
             'header("X-Olcum")' in g_kom0,
             "<img>/<form> ozel baslik EKLEYEMEZ")
-    r.kosul("  3b: ozel baslik KOPRU UCUNDA da zorunlu",
-            'header("X-Olcum")' in kod(govde(INO, "void kopru_sayfa()")))
+    # 4B (PC8): "ozel baslik KOPRU UCUNDA da zorunlu" iddiasi KALKTI — uc yok (2d). Yerine
+    #   eski ucun hicbir yontemle kayitli olmadigi (OPTIONS dahil) denetleniyor.
+    r.kosul("  3b: /kopru hicbir yontemle kayitli degil (POST da OPTIONS da)",
+            not re.search(r'sunucu\.on\("/kopru"', INO_KOD),
+            "yari silinmis uc: isleyicisi gitse de kayit kalirsa derleme degil davranis bozulur")
 
     # [!] collectHeaders cagrilmazsa header() HER ZAMAN bos doner ve butun
     #    CSRF savunmasi SESSIZCE devre disi kalir.
@@ -475,14 +487,18 @@ def bolum4(r):
     r.kosul("  4a: `enableCORS` kullanilmiyor",
             "enableCORS" not in INO_KOD,
             "yerine kayitli kopru kokenine ELLE izin veriliyor")
-    r.kosul("  4a: ACAO yalnizca kayitli kopruye veriliyor",
-            "Access-Control-Allow-Origin" in INO
-            and "kopru_adres" in kod(govde(INO, "void onuc_sayfa()")),
-            "acik uclu `*` yok")
+    # 4B (PC8): eski "4a: ACAO yalnizca kayitli kopruye veriliyor" iddiasi KALKTI. Kopru
+    #   karta tarayicidan degil SUNUCU TARAFINDAN (eslesmis cihaz, imzali istek) gidiyor;
+    #   hicbir kokenin karti tarayicidan capraz okumasina gerek yok. CORS izni artik HIC
+    #   verilmiyor: ne `/akis`'te ne bir on-ucus (OPTIONS) isleyicisinde. Saldiri yuzeyi
+    #   kuculdu: kayitli kopru adresini taklit eden (ayni agdaki) bir kokene yanit okutulamaz.
+    r.kosul("  4a: [!] hicbir koken icin Access-Control-Allow-Origin verilmiyor",
+            "Access-Control-Allow" not in INO and "HTTP_OPTIONS" not in INO_KOD
+            and "onuc_sayfa" not in INO_KOD,
+            "kart tarayicidan yalniz kendi kokeninden kullanilir; kopru sunucu tarafinda vekil")
     # `ACAO: null` da yasak — sandbox'li iframe'ler de `null` kokenli.
     r.kosul("  4b: `Access-Control-Allow-Origin: null` verilmiyor",
-            'Allow-Origin"), F("null")' not in INO
-            and '"null"' not in kod(govde(INO, "void onuc_sayfa()")),
+            'Allow-Origin"), F("null")' not in INO and 'Allow-Origin: null' not in INO,
             "sandbox'li iframe'ler de null kokenli — acik kapi olurdu")
 
 

@@ -416,11 +416,16 @@ def main(argv=None) -> int:
     ap.add_argument("--parola-ortam", default="OLCUM_WEB_PAROLA",
                     help="HTTP onayi icin web parolasini tutan ortam degiskeni")
     ap.add_argument("--cihaz", help="1D: eslesmis cihaz dosyasi (imza.py esles)")
-    ap.add_argument("--cihaz-dizin", default=str(IM.VARSAYILAN_DIZIN),
-                    help="1D: --cihaz yoksa kartin kimligine uyan dosya burada aranir")
+    ap.add_argument("--cihaz-dizin", default=None,
+                    help="1D: --cihaz yoksa kartin kimligine uyan dosya burada aranir "
+                         "(4B varsayilan: pc_ayar.cihaz_dizini — LOCALAPPDATA altinda olcum-karti/cihaz)")
     a = ap.parse_args(argv)
     taban = a.http if a.http.startswith("http") else f"http://{a.http}"
-    cihaz = _cihaz_sec(taban, a.cihaz, a.cihaz_dizin)
+    if a.cihaz_dizin is None:
+        gocen = IM.goc_et()                      # 4B (PC5): eski kopru/.cihaz -> yeni yer
+        if gocen:
+            print(IM.goc_mesaji(gocen))
+    cihaz = _cihaz_sec(taban, a.cihaz, a.cihaz_dizin or IM.varsayilan_dizin())
     kart = None
     if a.port:
         import kart_baglanti

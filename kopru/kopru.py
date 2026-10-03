@@ -18,8 +18,10 @@ tarayici trafigini hic gormez. USB'de kartin WiFi'si kapali da olabilir.
   loop()'u blokluyor" artik GECERSIZ: B28'den beri web cekirdek 0'da ayri
   gorevde, olcum cekirdek 1'de; kart en cok 4 `/akis` istemcisine (AKIS_AZAMI) hizmet
   ediyor. Koprunun bugunku degeri: USB'den canli akis, PC'de arsiv ve
-  guvenli yerel kokenden sunulan panel. Kartla WiFi'den, eslesmis cihaz
-  olarak konusmasi alt proje 4B'de.
+  guvenli yerel kokenden sunulan panel. 4B: USB'de dogrulanmis kart yoksa
+  kartla WiFi'den ESLESMIS CIHAZ olarak konusur (kart_wifi.py: imzali /akis
+  ve /komut, p0 imzasiz); kart artik ikinci /akis'i reddetmiyor, `/kopru`
+  kaydi ve CORS izni kalkti (firmware A3-4B) — kopru sunucu tarafinda vekil.
 
 ── GUVENLIK (4A, PC2) ────────────────────────────────────────────────
 Kart USB'de KIMLIK SORMAZ: USB'ye yazabilen her sey karta `Ns`/`GF!`/`p1`

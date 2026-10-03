@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import http.server
 import json
+import os
 import sys
 import threading
 import time
@@ -1016,6 +1017,183 @@ def pc_4a_inceleme_sina(gec_dizin: Path) -> None:
        "belge_sayfa/belge_grafik/belge-uret")
 
 
+class _SahteYukari:
+    """4B: SecmeliKart'in USB / WiFi kolu icin sahte yukari-akis (OtoSeriKart / WifiKart yuzeyi)."""
+
+    def __init__(self, ad: str, bagli: bool = False):
+        self._ad, self.bagli = ad, bagli
+        self.host = "olcum.local"
+        self.bildir = None
+        self.durum_satiri = None
+        self.baglanti_no = 0
+        self.satirlar: list[str] = []
+        self.yazilan: list[str] = []
+        self.acildi = self.kapandi = 0
+        self.yaz_hata = None
+
+    @property
+    def ad(self) -> str:
+        return self._ad
+
+    def ac(self):
+        self.acildi += 1
+
+    def kapat(self):
+        self.kapandi += 1
+
+    def satir_oku(self, zaman_asimi=0.5):
+        if self.satirlar and (self.bagli or self._ad.startswith("wifi")):
+            return self.satirlar.pop(0)
+        time.sleep(min(zaman_asimi, 0.01))
+        return None
+
+    def yaz(self, metin):
+        if self.yaz_hata:
+            raise RuntimeError(self.yaz_hata)
+        if self._ad.startswith("seri") and not self.bagli:
+            raise RuntimeError("kart bagli degil")
+        self.yazilan.append(metin)
+
+
+def _sec_oku(k, n, sure=3.0):
+    son, al = time.monotonic() + sure, []
+    while len(al) < n and time.monotonic() < son:
+        x = k.satir_oku(0.05)
+        if x is not None:
+            al.append(x)
+    return al
+
+
+def pc_4b_sina(gec_dizin: Path) -> None:
+    """4B (PC6): USB ONCE, yoksa kartla WiFi'den eslesmis cihaz olarak — SecmeliKart + pc.py.
+
+    WifiKart'in kendisi (imzali /akis, kimlik, /saat) B72.W'de sahte karta karsi sinaniyor.
+    """
+    print("\n--- 4B. Yukari-akis secimi: USB once, yoksa WiFi (eslesmis cihaz) ---")
+    import kart_wifi as KW
+    import pc
+    usb, wifi = _SahteYukari("seri:COM9@115200", bagli=True), _SahteYukari("wifi:olcum.local (cihaz 2)")
+    usb.satirlar = ["D 1.0", "D 2.0"]
+    wifi.satirlar = ["D 9.0"]
+    k = KW.SecmeliKart(usb, wifi)
+    durum = []
+    k.bildir = durum.append
+    al = _sec_oku(k, 2)
+    ok("4B: USB'de dogrulanmis kart varken canli akis USB'den; WiFi HIC acilmaz",
+       al == ["D 1.0", "D 2.0"] and wifi.acildi == 0 and k.etkin == "usb" and k.ad.startswith("seri:"),
+       f"{al} wifi.ac={wifi.acildi}")
+    usb.bagli = False
+    no0 = k.baglanti_no
+    al = _sec_oku(k, 1)
+    ok("4B: USB'den kart gidince yukari-akis WiFi'ye GECER (WiFi acilir, satirlar ondan) ve gecis "
+       "`* kopru:` durum satiriyla SOYLENIR; baglanti numarasi artar (suzgec penceresi acilir)",
+       al == ["D 9.0"] and wifi.acildi == 1 and k.etkin == "wifi" and k.baglanti_no > no0
+       and any(x.startswith("* kopru:") and "WiFi" in x for x in durum) and k.ad.startswith("wifi:"),
+       f"{al} {durum[-1:]}")
+    k.yaz("A?")
+    ok("4B: WiFi seciliyken komut WiFi koluna gider (USB'ye degil)",
+       wifi.yazilan == ["A?"] and usb.yazilan == [], f"{wifi.yazilan} {usb.yazilan}")
+    wifi.durum_satiri = "! kopru: WiFi (olcum.local) — kart erisilemiyor"
+    usb.durum_satiri = "! kopru: kart bulunamadi — USB"
+    ok("4B: WiFi seciliyken sonradan baglanan tarayiciya WiFi'nin durum satiri gosterilir",
+       k.durum_satiri == wifi.durum_satiri, str(k.durum_satiri))
+    wifi.durum_satiri = None
+    usb.bagli = True
+    usb.satirlar = ["D 3.0"]
+    wifi.satirlar = ["D 8.0"]
+    al = _sec_oku(k, 1)
+    ok("4B: kart USB'ye geri takilinca USB'ye DONER, WiFi baglantisi KAPATILIR (ayni satirlar iki "
+       "kez arsive dusmesin) ve soylenir",
+       al == ["D 3.0"] and wifi.kapandi >= 1 and k.etkin == "usb"
+       and any("USB" in x and "kapatildi" in x for x in durum), f"{al} {durum[-1:]}")
+    k.yaz("A?")
+    ok("4B: USB seciliyken komut USB'den", usb.yazilan == ["A?"], str(usb.yazilan))
+    # p0: hicbir secimde takilmaz
+    usb.bagli = False
+    k._sec("wifi")
+    wifi.yaz_hata = "ag yok"
+    usb.bagli = True
+    k.yaz("p0")
+    p0_usb = usb.yazilan[-1:] == ["p0"]
+    usb.bagli = False
+    wifi.yaz_hata = None
+    k.yaz("p0")
+    p0_wifi = wifi.yazilan[-1:] == ["p0"]
+    wifi.yaz_hata = "ag yok"
+    try:
+        k.yaz("p0")
+        iki_red = "gecti"
+    except RuntimeError as e:
+        iki_red = str(e)
+    wifi.yaz_hata = None
+    ok("4B: p0 (DURDUR) yukari-akis seciminde TAKILMAZ: bir yol olmazsa oteki denenir; ikisi de "
+       "olmazsa acik hata", p0_usb and p0_wifi and "p0" in iki_red and "ag yok" in iki_red,
+       f"usb={p0_usb} wifi={p0_wifi} {iki_red!r}")
+
+    # Kopru + SecmeliKart: WiFi'den gelen satirlar tarayiciya USB'dekiyle AYNI bicimde; durum arsive girmez
+    usb2, wifi2 = _SahteYukari("seri:COM9@115200"), _SahteYukari("wifi:olcum.local (cihaz 2)")
+    wifi2.satirlar = list(ORNEK)
+    k2 = KW.SecmeliKart(usb2, wifi2)
+    kop = kopru_mod.Kopru(k2, gec_dizin / "arsiv_4b")
+    s = _kos(kop)
+    taban = f"http://127.0.0.1:{s.server_address[1]}"
+    sonuc = {}
+    # beklenen: 1 gecis durum satiri + ORNEK[2:] (baglanti acilinca suzgec penceresi ilk 2 satiri atar)
+    t = threading.Thread(target=lambda: sonuc.update(v=akis_oku(taban + "/akis", len(ORNEK) - 1)),
+                         daemon=True)
+    t.start()
+    _son = time.monotonic() + 5
+    while not kop.aboneler and time.monotonic() < _son:
+        time.sleep(0.01)
+    threading.Thread(target=kop.dongu, daemon=True).start()
+    t.join(10)
+    kop.calisiyor = False
+    time.sleep(0.3)
+    s.shutdown()
+    kop.arsiv.kapat()
+    gelen = sonuc.get("v", ([], None))[0]
+    olcum = [x for x in gelen if not x.startswith(("* kopru", "! kopru"))]
+    ars = list(kop.arsiv.ham_satirlar())
+    # baglanti numarasi artti -> suzgec penceresi ilk 2 satiri atar (USB ile ayni kural)
+    ok("4B: WiFi yukari-akisindan gelen satirlar tarayiciya USB'dekiyle AYNI bicimde (bayt-seffaf "
+       "`data:`) gider; gecis durum satiri akista, arsivde YOK",
+       olcum == ORNEK[2:] and any(x.startswith("* kopru:") for x in gelen)
+       and ars == ORNEK[2:] and not any("kopru" in x for x in ars),
+       f"olcum={olcum} ars={ars[:3]}")
+
+    # pc.py: yukari-akis kurulumu
+    eski = os.environ.pop("OLCUM_KART_HOST", None)
+    try:
+        a1 = pc.yukari_akis_kur([])
+        a2 = pc.yukari_akis_kur(["--kart-host", "192.168.4.1", "--cihaz", "x.json", "--port", "com7"])
+        a3 = pc.yukari_akis_kur(["--wifi-yok"])
+        a5 = pc.yukari_akis_kur(["--usb-yok", "--kart-host", "192.168.4.1"])
+        try:
+            pc.yukari_akis_kur(["--usb-yok", "--wifi-yok"])
+            ikisi = "kabul"
+        except RuntimeError:
+            ikisi = "ret"
+        os.environ["OLCUM_KART_HOST"] = "10.0.0.9"
+        a4 = pc.yukari_akis_kur([])
+    finally:
+        if eski is None:
+            os.environ.pop("OLCUM_KART_HOST", None)
+        else:
+            os.environ["OLCUM_KART_HOST"] = eski
+    ok("4B: pc.py yukari-akisi USB (OtoSeriKart) + WiFi (WifiKart, olcum.local) kurar; --kart-host / "
+       "OLCUM_KART_HOST adresi, --cihaz dosyayi verir; --wifi-yok yalniz USB (4A davranisi)",
+       isinstance(a1, KW.SecmeliKart) and isinstance(a1.usb, kart_baglanti.OtoSeriKart)
+       and isinstance(a1.wifi, KW.WifiKart) and a1.wifi.host == "olcum.local"
+       and a2.wifi.host == "192.168.4.1" and a2.wifi.cihaz_dosyasi == Path("x.json")
+       and a2.usb.elle_port == "COM7"
+       and isinstance(a3, kart_baglanti.OtoSeriKart) and a4.wifi.host == "10.0.0.9",
+       f"{type(a1).__name__} {getattr(getattr(a1, 'wifi', None), 'host', None)} {type(a3).__name__}")
+    ok("4B: pc.py --usb-yok YALNIZ WiFi kurar (COM portu hic acilmaz — kart USB'den beslenirken WiFi "
+       "yolu sinanir, tezgah araclari portu kullanabilir); --usb-yok ile --wifi-yok birlikte REDDEDILIR",
+       isinstance(a5, KW.WifiKart) and a5.host == "192.168.4.1" and ikisi == "ret",
+       f"{type(a5).__name__} {ikisi}")
+
+
 def main() -> int:
     print("=" * 78)
     print("  B22.3  PC KOPRUSU  (role · arsiv · surucu hakemi)")
@@ -1023,6 +1201,10 @@ def main() -> int:
 
     import tempfile
     gec_dizin = gecici.dizin("kopru_")
+    # 4B: pc.calistir artik USB yoksa kartla WiFi'den konusuyor — testler GERCEK karta
+    # (olcum.local) ve kullanicinin cihaz dizinine ASLA gitmesin: kapali yerel port + gecici dizin
+    os.environ["OLCUM_KART_HOST"] = "127.0.0.1:9"
+    os.environ["OLCUM_CIHAZ_DIZIN"] = str(gec_dizin / "cihaz")
 
     kart = kart_baglanti.KayitKart(
         list(ORNEK),
@@ -1430,6 +1612,7 @@ def main() -> int:
 
     pc_4a_sina(gec_dizin, taban)
     pc_4a_inceleme_sina(gec_dizin)
+    pc_4b_sina(gec_dizin)
 
     k.calisiyor = False
     time.sleep(0.25)
@@ -1466,6 +1649,13 @@ def main() -> int:
          "Kopru acikken kabloyu cek: akista BIR KEZ '! kopru: kart baglantisi koptu'; "
          "tak: '* kopru: kart baglandi' ve D satirlari geri gelir. ReadFile'in kopmada "
          "FALSE dondugu gercek CH343'te SINANMADI (OtoSeriKart sahte kartla sinaniyor)"),
+        ("4B: kopru kartla WiFi'den ESLESMIS CIHAZ olarak (firmware A3-4B)",
+         "Once bir kez `python kopru/imza.py esles --host olcum.local --ad <bu-PC>` (WEB parolasi). "
+         "USB kablosu takili DEGILKEN `kopru/PC Baslat.bat` (ya da `python kopru/pc.py --usb-yok`: "
+         "COM portu acilmaz): akista '* kopru: ... yukari-akis WiFi' + "
+         "'* kopru: WiFi baglandi', D satirlari; komut (ör. `?`) imzali gider, `p0` imzasiz. Kablo "
+         "takilinca USB'ye doner ('WiFi baglantisi kapatildi'), cekilince WiFi'ye. Kopru + karta "
+         "dogrudan 3 tarayici = 4 yuva, hicbiri reddedilmez; 5. istemci `event: dolu`"),
         ("p0 (DURDUR) izleyiciden de geciyor mu",
          "Surucu OLMAYAN sekmeden pil testini durdur. Gecmeli — bu bir "
          "kolaylik degil EMNIYET karari"),

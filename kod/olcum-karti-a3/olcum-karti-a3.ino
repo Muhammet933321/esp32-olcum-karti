@@ -2594,12 +2594,11 @@ void kok_sayfa() {
   g += F("  python uretim/arayuz-yaz.py\n\n");
   g += F("Arayuzu bilgisayardan da calistirabilirsiniz:\n");
   g += F("  python arayuz3/sunucu.py     (USB)\n");
-  g += F("  python kopru/kopru.py        (kopru — telefon icin)\n\n");
+  g += F("  python kopru/pc.py           (PC koprusu, olcum.localhost:8770)\n\n");
   g += F("Uclar:\n");
   g += F("  GET  /akis    SSE olcum akisi (tum protokol satirlari)\n");
   g += F("  GET  /pil     pil testi durumu + egri\n");
-  g += F("  POST /komut   komut (X-Olcum: 1 basligi ve jeton gerekli)\n");
-  g += F("  POST /kopru   PC koprusu kaydi\n\n");
+  g += F("  POST /komut   komut (X-Olcum: 1 basligi ve jeton gerekli)\n\n");
   g += F("Ag: ");
   g += ag_kip_adi(ag_durum.kip);
   g += F("  SSID=");   g += ag_durum.ssid;
@@ -2783,22 +2782,17 @@ void skop_bin_sayfa() {
 //   * `id:` alani = monotonik satir sirasi (yeniden baglanmada yer imi)
 //   * `retry: 3000` — tarayici ne kadar sonra denesin
 //   * 15 s'de bir `: kalp` yorum satiri (NAT / ara vekil zaman asimi)
-//   * kopru kayitliysa ikinci istemci REDDEDILIYOR ve NEREYE gidecegi
-//     soyleniyor — sessiz kapanma yok
+//   * yuvalar doluysa `event: dolu` — sessiz kapanma yok
+//
+// 4B (PC8): "kopru kayitliyken ikinci istemci REDDI" ve `/kopru` kaydi KALKTI
+//   (spec 2026-09-29 §5: 4 canli istemci, ret kalkar). PC koprusu karta
+//   ESLESMIS CIHAZ olarak (imzali /akis, imzali /komut) baglanan siradan bir
+//   istemci; kendi tarayicilarina sunucu tarafinda vekil oldugu icin kartin
+//   kopru kokenine CORS izni vermesi de gerekmiyor — hicbir kokene verilmiyor.
 #define AKIS_AZAMI 4
 static WiFiClient akis[AKIS_AZAMI];
 static uint32_t akis_dusen = 0;       // yuva bulunamayip ATILAN satir
 static uint32_t akis_son_kalp = 0;
-
-// Kopru kaydi (B22.6). RAM'de — NVS'e yazilmiyor: koprunun adresi
-// gecici bir gercek, kalibrasyon gibi kalici bir ayar degil.
-static char kopru_adres[40] = "";
-static uint32_t kopru_son_ms = 0;
-#define KOPRU_OMUR_MS 20000u
-
-static bool kopru_canli() {
-  return kopru_adres[0] && (millis() - kopru_son_ms) < KOPRU_OMUR_MS;
-}
 
 // Oturum jetonu — acilista uretiliyor. Ayni kokenden servis edilen sayfa
 // bunu `event: kimlik` ile aliyor; capraz kokenli bir sayfa `/akis`'i
@@ -2821,23 +2815,9 @@ void akis_sayfa() {
   c.println(F("Connection: keep-alive"));
   // ⚠ enableCORS(true) KULLANILMIYOR: o, Allow-Origin/Methods/Headers'in
   //   UCUNU DE `*` yapiyor (WebServer.cpp:663-667) ve boylece HERHANGI
-  //   bir sayfa yaniti OKUYABILIR — oturum jetonu sizardi. Yalnizca
-  //   kayitli kopru kokenine izin veriliyor.
-  if (kopru_adres[0]) {
-    c.print(F("Access-Control-Allow-Origin: "));
-    c.println(kopru_adres);
-  }
+  //   bir sayfa yaniti OKUYABILIR — oturum jetonu sizardi. 4B: hicbir
+  //   kokene izin verilmiyor (eskiden kayitli kopru kokenine veriliyordu).
   c.println();
-
-  if (kopru_canli()) {
-    // Kart TEK surucuye hizmet ediyor. Reddediyoruz ama NEDEN ve NEREYE
-    // gidilecegini soyluyoruz.
-    c.print(F("event: kopru\ndata: "));
-    c.print(kopru_adres);
-    c.print(F("\n\n"));
-    c.stop();
-    return;
-  }
 
   int8_t yuva = -1;
   for (int8_t i = 0; i < AKIS_AZAMI; i++) {
@@ -3308,6 +3288,18 @@ static void bld_seri_komut(const char *s) {
   Serial.println(t);
 }
 
+// 4B (D5 #12 KOK): AP parolasi satiri — "(yalniz USB)" isareti + parola + CRLF TEK
+// tamponda kurulur ve TEK ham() ile gider (N? yaniti ve AP kipindeki acilis afisi).
+// Eskiden UC ayri ham() cagrisiydi: araya IDF gunlugu girerse parola ISARETSIZ ayri
+// satira dusuyordu. YALNIZ ham UART'a: Serial aynasi her satiri /akis'e (aga) tasir
+// (B72.D0). Parola NA ile ~170 karaktere dek olabilir: String, kirpma yok.
+static void ap_parolasi_bas(const char *girinti) {
+  String s = String(girinti) + "AP parolasi (yalniz USB): "
+           + ag_nvs.getString("ap_sifre", "") + "\r\n";
+  Serial.ham(s.c_str());
+  if (s.length()) memset((void *)s.c_str(), 0, s.length());
+}
+
 // Seri `E` komutlari — YALNIZ USB (cekirdek 1). /komut 'E'yi reddeder (B72.F76),
 // kopru.py de reddeder. `Ep` anahtari YALNIZ ham UART'a basar: Serial aynasi
 // her satiri /akis SSE'sine tasir (B72.F77).
@@ -3366,11 +3358,15 @@ static void guv_seri_komut(const char *s) {
       char khex[65];
       guv__hex(K, 32, khex);
       memset(K, 0, sizeof(K));
-      snprintf(t, sizeof(t), "EK %u ", (unsigned)n);
-      Serial.ham(t);
-      Serial.ham(khex);
-      Serial.ham("\r\n");
+      /* 4B (D5 #12 KOK): satir TEK tamponda kurulur ve TEK ham() ile gider. Eskiden UC
+         ayri cagriydi (onek, hex, CRLF): araya IDF gunlugu girerse anahtar ayri satira
+         dusuyor, kopru suzgeci onu isaretsiz goruyordu. Kopru suzgeci derinlemesine
+         savunma olarak KALIYOR. */
+      char ek[80];
+      snprintf(ek, sizeof(ek), "EK %u %s\r\n", (unsigned)n, khex);
       memset(khex, 0, sizeof(khex));
+      Serial.ham(ek);
+      memset(ek, 0, sizeof(ek));
       snprintf(t, sizeof(t), "* E: USB'den cihaz %u eklendi — anahtar YALNIZ seri porta yazildi", (unsigned)n);
       Serial.println(t);
       break;
@@ -4353,39 +4349,9 @@ void komut_sayfa() {
   sunucu.send(204, "text/plain", "");
 }
 
-// Kopru kendini kaydediyor ve kalp atisiyla canli tutuyor. Kayitliyken
-// ikinci bir /akis REDDEDILIYOR: kart TEK surucuye hizmet ediyor.
-void kopru_sayfa() {
-  if (!host_gecerli()) { sunucu.send(403, "text/plain", "Host reddedildi"); return; }
-  if (!guv_kapi(GUV_KOMUT)) return;   // 1D
-  if (!guv_imzali && guv.ayar.zorunlu) { guv__red(401, "imza gerekli (zorunlu)"); return; }
-  if (sunucu.header("X-Olcum") != "1") {
-    sunucu.send(400, "text/plain", "X-Olcum basligi gerekli");
-    return;
-  }
-  String a = sunucu.arg("plain");
-  a.trim();
-  if (a.length() >= (int)sizeof(kopru_adres)) {
-    sunucu.send(400, "text/plain", "adres cok uzun");
-    return;
-  }
-  snprintf(kopru_adres, sizeof(kopru_adres), "%s", a.c_str());
-  kopru_son_ms = millis();
-  sunucu.send(204, "text/plain", "");
-}
-
-// OPTIONS: capraz koken izni YALNIZCA kayitli kopruye. Kayit yoksa
-// hicbir kokene izin verilmiyor ve preflight basarisiz oluyor — yani
-// tarayici istegi HIC gondermiyor.
-void onuc_sayfa() {
-  if (!guv_kapi(GUV_ACIK)) return;   // 1D
-  if (kopru_adres[0]) {
-    sunucu.sendHeader(F("Access-Control-Allow-Origin"), kopru_adres);
-    sunucu.sendHeader(F("Access-Control-Allow-Methods"), F("POST"));
-    sunucu.sendHeader(F("Access-Control-Allow-Headers"), F("X-Olcum, X-Jeton, Content-Type, X-Cihaz, X-Sayac, X-Imza"));
-  }
-  sunucu.send(204, "text/plain", "");
-}
+// 4B (PC8): `POST /kopru` (kopru kaydi) ve on-ucus isleyicisi (CORS izni
+// yalniz kayitli kopru kokenine) KALKTI. Capraz koken izni hic verilmiyor:
+// on-ucus basarisiz olur, tarayici capraz istegi HIC gondermez.
 
 // ───────────────────────────────────────────────── kalibrasyon ve komutlar
 //
@@ -5216,9 +5182,7 @@ void komut_calistir(const char *s) {
         /* 1D + D0: AP parolasi YALNIZ ham UART'a — Serial aynasi her satiri /akis
            SSE'sine tasiyor, parola aga cikiyordu (spec O5, B72.D0) */
         Serial.println();
-        Serial.ham("   AP parolasi (yalniz USB): ");
-        Serial.ham(ag_nvs.getString("ap_sifre", "").c_str());
-        Serial.ham("\r\n");
+        ap_parolasi_bas("   ");
         Serial.print(F("* web parolasi: "));
         Serial.println(ag_nvs.getString("web_sifre", "").length()
                        ? F("KURULU") : F("YOK — komut ucu parolasiz"));
@@ -5362,9 +5326,7 @@ static void ag_satiri_bas() {
     // okuyup telefonuna yaziyor. MAC'ten turetseydik hicbir sey korumazdi
     // (SSID zaten MAC son ekini yayinliyor).
     /* yalniz ham UART'a: afis satirlari da akis kuyruguna girer (B72.D0) */
-    Serial.ham("  AP parolasi (yalniz USB): ");
-    Serial.ham(ag_nvs.getString("ap_sifre", "").c_str());
-    Serial.ham("\r\n");
+    ap_parolasi_bas("  ");
   }
 }
 
@@ -5499,9 +5461,6 @@ void setup() {
   // ⚠ YONTEM ACIKCA yaziliyor: HTTP_ANY olsaydi `GET /komut?k=p1` de
   //   calisirdi ve <img> etiketiyle uzaktan pil desarji baslatilabilirdi.
   sunucu.on("/komut", HTTP_POST, komut_sayfa);
-  sunucu.on("/komut", HTTP_OPTIONS, onuc_sayfa);
-  sunucu.on("/kopru", HTTP_POST, kopru_sayfa);
-  sunucu.on("/kopru", HTTP_OPTIONS, onuc_sayfa);
 
   // ── B22.5: ARAYUZ LittleFS'TEN ────────────────────────────────────
   // `false` = bicimlendirme YAPMA. Bos bolum bir hata degil; goruntu

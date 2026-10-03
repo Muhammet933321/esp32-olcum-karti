@@ -217,7 +217,8 @@ def main() -> int:
     alt = ap.add_subparsers(dest="komut", required=True)
     d = alt.add_parser("dinle", help="bildirimleri dinle ve coz")
     d.add_argument("--host", default="olcum.local", help="kart (eslesmis cihazla bilgi alinir)")
-    d.add_argument("--cihaz", default=None, help="kopru/.cihaz altindaki cihaz dosyasi")
+    d.add_argument("--cihaz", default=None,
+                   help="cihaz dosyasi (varsayilan: pc_ayar.cihaz_dizini'ndeki tek dosya)")
     d.add_argument("--uri", default=None, help="elle: mqtts://host:8883 (bilgi alinmaz)")
     d.add_argument("--kullanici", default=None)
     d.add_argument("--onek", default=None, help="32 hex konu oneki")
@@ -233,6 +234,9 @@ def main() -> int:
                  "onek": a.onek, "anahtar": anahtar_oku(a.anahtar_dosya)}
         else:
             import imza
+            gocen = imza.goc_et()                # 4B (PC5): eski kopru/.cihaz -> yeni yer
+            if gocen:
+                print(imza.goc_mesaji(gocen))
             cihaz = imza.cihaz_bul(dosya=a.cihaz)
             b = bilgi_al(cihaz, imza.taban_url(a.host))
         dinle(b["uri"], b["kullanici"], b["parola"], b["onek"], b["anahtar"], sure=a.sure)
