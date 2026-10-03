@@ -702,6 +702,17 @@ def main() -> int:
             # Burada ilk esitlemenin 2. /kayit/veri istegi 12 s yanitsiz kalir.
             kart.kopar, kart.kopar_sonra = 1, 1
             t.git(taban + "/#/kayitlar")
+            # 3C-LISTE (gercek kartta 2026-10-03): yeni bir tarayicida ilk esitleme ~24 s surerken liste
+            # BOS kaliyordu — kartin dizini esitleme basinda aliniyor ama ancak esitleme bitince ekrana
+            # basiliyordu. Burada 2. /kayit/veri istegi 12 s bekletilirken (esitleme SURUYOR) bakiliyor.
+            son_bekle = time.monotonic() + 20
+            while kart.koparilan < 1 and time.monotonic() < son_bekle:
+                t.bekle(0.2)
+            t.bekle(1.5)
+            sirada = t.js(SATIRLAR_JS) or []
+            ok("[!] 3C-LISTE: esitleme SURERKEN kartin oturumlari listede (yeni tarayicida bos liste yok)",
+               kart.koparilan == 1 and len(sirada) == 6 and all(x["n"] in ("kart", "ikisi") for x in sirada),
+               f"koparilan {kart.koparilan}, satir {len(sirada)}: " + " ".join(f"{x['o']}:{x['n']}" for x in sirada))
             satir = bekle_js(t, f"document.querySelectorAll('.kl-satir').length >= 6 && {SATIRLAR_JS}"
                                 f".every(s => s.n === 'ikisi') && document.querySelectorAll('.kl-satir').length", 60.0)
             ilk_sonuc = bekle_js(t, "(document.querySelector('.kl-sonuc') || {}).textContent", 10.0) or ""

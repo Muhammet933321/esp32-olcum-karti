@@ -5117,6 +5117,10 @@ MUTASYONLAR = [
     ("T3C", "tarayici_kayitlar.py", "arayuz3/ekran/esitleme.js",
      "sonuc: { ...sonuc, yeni_kayit: yeniKayit }", "sonuc",
      "3C-SAYI: sonuc yalniz son denemenin sayisini soylerse (kartta 1846 yerine 150): T3C kirmizi"),
+    # ── 3C-LISTE (2026-10-03, gercek kart): ilk esitleme surerken liste bos kalmasin
+    ("T3C", "tarayici_kayitlar.py", "arayuz3/ekran/kayitlar.js",
+     "        await this.kartYenile();\n        /* 3C-LISTE", "        /* 3C-LISTE",
+     "3C-LISTE: kartin dizini esitleme bitene dek listeye girmezse yeni tarayicida ~24 s bos liste: T3C kirmizi"),
     # ── P0-S (2026-10-02 gece, 3H-2 guvenlik incelemesi): p0 yeniden deneme + parolasiz; test araci tamponu
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
      "      credentials: p0 ? 'omit' : 'same-origin',", "      credentials: 'same-origin',",

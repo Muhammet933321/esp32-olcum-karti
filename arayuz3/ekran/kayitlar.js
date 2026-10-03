@@ -700,6 +700,9 @@ export const KayitlarEkrani = {
       this.esitlemeNeden = null;
       try {
         await this.kartYenile();
+        /* 3C-LISTE (gercek kartta 2026-10-03): kartin dizini HEMEN listeye — yeni bir tarayicida ilk
+           esitleme ~24 s suruyor ve liste o sure boyunca BOS kaliyordu (oturumlar "yalniz kartta" gorunur). */
+        this.listeKur();
         for (let deneme = 0; deneme < 2 && this.esitlenebilir; deneme++) {
           const kimlik = this._kartListe.kimlik;
           const onay = onayIslevi({ arsiv: this.arsiv, bagli: this.bagli, gonder: this.gonder });
