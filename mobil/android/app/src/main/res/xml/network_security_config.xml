@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tasarim A5 / S5: sifresiz HTTP genel olarak KAPALI. Olcum (a): yalniz kartin adi ve kendi
+     erisim noktasi adresi izinli. Ev agindaki IP onceden bilinmedigi icin bu yapilandirmanin
+     yetip yetmedigi telefonda OLCULUR; sonuc tasarim belgesine yazilir. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">olcum.local</domain>
+        <domain includeSubdomains="false">192.168.4.1</domain>
+    </domain-config>
+</network-security-config>

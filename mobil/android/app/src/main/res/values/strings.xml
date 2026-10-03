@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Ölçüm Kartı</string>
+    <string name="title_activity_main">Ölçüm Kartı</string>
+    <string name="package_name">tr.olcumkarti.mobil</string>
+    <string name="custom_url_scheme">tr.olcumkarti.mobil</string>
+</resources>
