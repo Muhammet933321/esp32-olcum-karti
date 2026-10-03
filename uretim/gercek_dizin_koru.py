@@ -52,6 +52,23 @@ def koru() -> dict:
     return {"kok": kok, "once": once, "gecici": gecici}
 
 
+CIHAZ = "cihaz"
+
+
+def gercek_kopru_calisiyor() -> bool:
+    """Bu makinede GERCEK bir PC koprusu (127.0.0.1:8770) yanit veriyor mu. O zaman arsiv/, satir/,
+    bildirim/ dizinlerindeki degisiklikler koprunun MESRU isidir (4H'de bulundu: geri alma, calisan bir
+    koprunun bildirim onbellegini silmisti)."""
+    import urllib.request
+    try:
+        acici = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        r = urllib.request.Request("http://127.0.0.1:8770/durum", headers={"Host": "olcum.localhost:8770"})
+        with acici.open(r, timeout=1.0) as y:
+            return y.status == 200
+    except Exception:
+        return False
+
+
 def denetle(koruma: dict, ok) -> None:
     kok = koruma["kok"]
     sonra = _dokum(kok)
@@ -59,8 +76,11 @@ def denetle(koruma: dict, ok) -> None:
     yeni = sorted(set(sonra) - set(once))
     degisen = sorted(k for k in set(sonra) & set(once) if sonra[k] != once[k] and not sonra[k][0])
     silinen = sorted(set(once) - set(sonra))
-    # Geri al: yalniz test sirasinda BELIREN dosya/dizinler (derinden sigaya); onceden olana dokunma.
-    for ad in sorted(yeni, key=lambda s: -s.count(os.sep)):
+    cihazda = lambda a: a == CIHAZ or a.startswith(CIHAZ + os.sep)  # noqa: E731
+    # Geri al: YALNIZ cihaz/ altinda, test sirasinda BELIREN dosyalar (sahte kartin cihaz dosyasi buraya
+    # dusmustu; gercek kopru cihaz/'a hic yazmaz). arsiv/ satir/ bildirim/ ASLA silinmez — orada calisan
+    # gercek bir kopru mesru dosya yaratir (4H: bildirim onbellegi silinmisti).
+    for ad in sorted((a for a in yeni if cihazda(a)), key=lambda s: -s.count(os.sep)):
         p = kok / ad
         try:
             if p.is_dir():
@@ -69,7 +89,11 @@ def denetle(koruma: dict, ok) -> None:
                 p.unlink()
         except OSError:
             pass
+    kopru = gercek_kopru_calisiyor()
+    kirli_cihaz = [a for a in yeni + degisen + silinen if cihazda(a)]
+    kirli_diger = [a for a in yeni + degisen + silinen if not cihazda(a)]
     ok("[!] Test kullanicinin GERCEK %LOCALAPPDATA%\\olcum-karti dizinine dokunmadi "
-       "(sahte kartin cihaz dosyasi gercek dizine dusmesin; belirenler geri alindi)",
-       not yeni and not degisen and not silinen,
-       f"yeni={yeni[:3]} degisen={degisen[:3]} silinen={silinen[:3]}")
+       "(cihaz/'da beliren sahte cihaz dosyasi geri alindi; arsiv/satir/bildirim asla silinmez, gercek "
+       "kopru calisirken oradaki degisiklik koprunundur)",
+       not kirli_cihaz and (kopru or not kirli_diger),
+       f"cihaz={kirli_cihaz[:3]} diger={kirli_diger[:3]} gercek_kopru={kopru}")
