@@ -88,7 +88,9 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 - [1A-1] Noktacıda `watt` NaN/Inf ise `(int64_t)` dönüşümü tanımsız. Yapıştırıcı NaN'ı hata sayıp dönüşümü atlatıyor, ama `kayit_nokta.h`'de `isfinite` yok.
 - [1A-1] `kg_oku` 0/0/0 hem "yeni yok" hem "kap küçük" demek; asgari kap belgelenmeli.
 - ~~[1A-1] Python `basla_coz` / sürüm çözümü `rstrip(b"\0")` ilk NUL'dan sonraki çöpü tutar; ilk NUL'da kesilmeli.~~ **Kapandı (2026-10-02, Python + JS):** ilk NUL'da kesiliyor; vektör `surum_nul` (832), mutasyon 2/2.
-- [1A-1] "Kullanmadan önce hep sil" için mutasyon yok (inceleyici elle denedi, test ısırıyor).
+- ~~[1A-1] "Kullanmadan önce hep sil" için mutasyon yok (inceleyici elle denedi, test ısırıyor).~~ **Kapandı (W4, DEVIR 5.12.103):** mutasyon `W4: [1A-1]` eklendi, `test_kayit.py` YAKALADI.
+- ~~[zincir] Yarım/kırık bir `dogrula3.py` koşusu `_tezgah.md`'yi kısaltarak yazıyordu (W4 ağacında 122 → 81 kalem; kalem basmayan adım KIRMIZI deniyor ama liste yine yazılıyordu).~~ **Kapandı (W4, DEVIR 5.12.103):** eksik koşu eski listeyi ezmiyor; `test_zincir_hiz.py` `test_tezgah_eksik_kosu` 3/3, mutasyon `W4:` ×2 YAKALANDI.
+- ~~[zincir] Aynı anda koşan zincirlerin `cop_topla`'sı ortak `%TEMP%`'teki canlı `kayit_*`/`spice-*` dizinlerini siliyor; başka ağacın zinciri bitince B71 sessizce ölüyordu (yarım koşunun sebebi).~~ **Kapandı (W4, DEVIR 5.12.103):** `dogrula3.ozel_temp_kur` — adımlar zincirin özel TEMP'inde; `test_ozel_temp` 2/2, mutasyon `W4:` ×2 YAKALANDI. Kalan: zincir DIŞINDA tek başına koşan betikler (`python test_kayit.py`) hâlâ ortak TEMP'te; bir zincirin süpürmesi onları da vurabilir.
 - [1A-2] `--esit` yalnız "eşitlenen ⊆ flaş" denetliyor; tamlık denetimi yok.
 - [1B M3] `/kal/liste` kayıt başına ~20 `sendContent` yapıyor.
 - [1B M5] Bayat yorumlar (`kayit_oturum.h`, spec §5 "116 baytlık TEKRAR" → 118).

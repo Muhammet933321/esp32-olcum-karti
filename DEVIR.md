@@ -10550,6 +10550,33 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.103 🟢 W4 MUTASYON HİJYENİ (2026-10-03, dal `olcum-karti-w4-mut`)
+
+Kuru uygulama denetimi (her kaydın `eski` metni hedef dosyada var mı; test koşmadan): **önce 4 / 2077
+uygulanmıyor, sonra 0 / 2078.** Dördü hedef kodu değişmiş kayıtlardı, anlamı korunarak yeniden
+hedeflendi: 3A `arayuz-uret.py` (`+ ikon +`), 3C/WIG 401 metni (artık `kl.neden_imza`, PC köprüsü
+`kopru/pc.py` yolunu söylüyor), 3C (C4) `kayitlar.js` (`yerelNerede`), 4D `kart_wifi.py` `_p0` (çok satırlı
+belge dizesinin sonuna). Yeni: **W4:** [1A-1] "kullanmadan önce HEP sil" (`kg_ilerle` tabloda kaydı
+olmayan sektörü silmeden geçerse) — `test_kayit.py` kırmızı (ilk: B71.Z7). Beşi koşuldu: **5/5 YAKALANDI**.
+
+**İnceleme bulgusu (aynı gün):** bu ağaçta yarım kalmış/kırık bir zincir koşusu `uretim/_tezgah.md`'yi
+**122 kalemden 81'e** indirip yazmıştı (B71'den sonraki adımlar kalem basmamıştı; önbellekte yalnız B1…B25).
+Commit'lenseydi 41 kalem (9'u [!]) sessizce silinirdi. Dosya `git checkout` ile geri alındı. Kök sebep
+`dogrula3.tezgah_birlestir`: kalem basmayan adım ya da eksik adım sayısı KIRMIZI deniyordu ama liste YİNE
+yazılıyordu. Artık eksik koşu eski listeyi **ezmez** ("YAZILMADI: eksik koşu"). Test `test_zincir_hiz.py`
+`test_tezgah_eksik_kosu` (3 iddia, 101 → 104), mutasyon `W4:` ×2 (koşul kaldırılır / yalnız sayım kalır)
+**YAKALANDI** (W4 öneki 3/3).
+
+**Yarım koşunun sebebi de bulundu:** düzeltmeden sonraki ilk zincir koşusunda B71 yine KALDI — `test_kayit.py`
+B71.K'nın (120 elektrik kesmesi) ortasında **sessizce** öldü (traceback yok, sayım `[]`), tek başına 362/362.
+`cop_topla` → `gecici.kalintilari_sil` ORTAK `%TEMP%`'teki `kayit_*` / `spice-*` … dizinlerini canlı mı diye
+bakmadan siliyor; o anda dört kardeş ağaçta zincir koşuyordu, birinin bitişi bu ağacın ELF'lerini sildi.
+Düzeltme `dogrula3.ozel_temp_kur`: zincir ve adımları `_zincir-yerel-*/tmp`'de koşar (mutasyon işçileri
+gibi); TEMP önbellek anahtarında yok (`ZO.ORTAM_UCUCU`). Test `test_ozel_temp` (2 iddia, 104 → 106),
+mutasyon `W4:` ×2 (çağrı silinir / ortam çevrilmez) **YAKALANDI** — W4 öneki **5/5**.
+
+---
+
 #### 5.12.99 🟢 HIZ ↔ main BİRLEŞMESİ (2026-10-03, dal `zincir-hiz`, ağaç `projeler/olcum-karti-hiz`)
 
 Ajan. `main` (e6e086d: 4D–4J, 3C-LISTE, kılavuz, `gercek_dizin_koru` son kuralı, köprü 405) `zincir-hiz`'e

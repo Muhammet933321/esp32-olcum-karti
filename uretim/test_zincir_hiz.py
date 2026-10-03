@@ -864,6 +864,87 @@ def test_yapisal() -> None:
        and not any(k.cop_mu(str(KOK / p)) for p in ("kopru/arsiv/_b1", "uretim/tasarim3.py")))
 
 
+def test_tezgah_eksik_kosu() -> None:
+    """W4 (2026-10-03): yarim/kirik bir zincir kosusu `_tezgah.md`'yi 122 kalemden 81'e
+    INDIRDI (B71'den sonraki adimlar kalem basmadi, liste yine de yazildi). Commit'lenseydi
+    tezgah listesinin 41 kalemi — 9'u [!] — sessizce silinirdi. Kural: kalem basmayan bir
+    adim varsa ya da adim sayisi tutmuyorsa eski liste YERINDE KALIR."""
+    print("\n  ── tezgah listesi: eksik kosu eskiyi EZMEZ")
+    import dogrula3
+    import tezgah as T
+    kap = Path(tempfile.mkdtemp(prefix="w4tezgah_"))
+    eski_burasi = dogrula3.BURASI
+    try:
+        dogrula3.BURASI = kap
+        hedef = kap / "_tezgah.md"
+
+        def cikti(i):
+            return f"{T.BASLIK}A{i} ===\n{T.KALEM}kalem {i}\n{T.KABUL}olcut {i}\n"
+        n = dogrula3.ADIM_SAYISI
+        tam = [(f"A{i}", True, 0.0, cikti(i)) for i in range(n)]
+        sessiz = tam[:-1] + [(f"A{n - 1}", False, 0.0, "Traceback: coktu\n")]
+        eksik = tam[:-3]
+
+        hedef.write_text("ESKI LISTE\n", encoding="utf-8")
+        with open(os.devnull, "w", encoding="utf-8") as bos:
+            eski_out, sys.stdout = sys.stdout, bos
+            try:
+                h1 = dogrula3.tezgah_birlestir(sessiz)
+                k1 = hedef.read_text(encoding="utf-8")
+                h2 = dogrula3.tezgah_birlestir(eksik)
+                k2 = hedef.read_text(encoding="utf-8")
+                h3 = dogrula3.tezgah_birlestir(tam)
+                k3 = hedef.read_text(encoding="utf-8")
+            finally:
+                sys.stdout = eski_out
+        ok("W4 kalem basmayan adim varken _tezgah.md YAZILMAZ (eski liste kalir) ve KIRMIZI",
+           k1 == "ESKI LISTE\n" and any(f"A{n - 1}" in h for h in h1), repr(k1[:60]))
+        ok("W4 adim sayisi eksikken (yarim kosu) _tezgah.md YAZILMAZ ve KIRMIZI",
+           k2 == "ESKI LISTE\n" and any("ADIM_SAYISI" in h for h in h2), repr(k2[:60]))
+        ok("W4 tam kosuda liste yazilir (her adimin kalemi icinde)",
+           k3 != "ESKI LISTE\n" and all(f"kalem {i}" in k3 for i in range(n))
+           and not any(h.startswith("A") for h in h3), repr(k3[:60]))
+    finally:
+        dogrula3.BURASI = eski_burasi
+        M.guvenli_sil(kap)
+
+
+def test_ozel_temp() -> None:
+    """W4 (2026-10-03): bes agacta ayni anda kosan zincirlerin `cop_topla`'si
+    (`gecici.kalintilari_sil`) ORTAK %TEMP%'teki `kayit_*` / `spice-*` ... dizinlerini
+    canli mi diye bakmadan siliyor. Baska bir agacin zinciri bitince bu agacin B71'i
+    (test_kayit.py, ELF'leri %TEMP%/kayit_*'ta) elektrik kesme bolumunde SESSIZCE oldu:
+    cikti B71.K'da kesik, tezgah kalemi yok, sayim []. Tek basina 362/362. Kural:
+    zincirin adimlari KENDI TEMP'inde kosar (mutasyon iscileri gibi)."""
+    print("\n  ── zincir adimlari ozel TEMP'te")
+    import dogrula3
+    import tempfile as tf
+    kap = Path(tf.mkdtemp(prefix="w4temp_"))
+    eski = {k: os.environ.get(k) for k in ("TMP", "TEMP", "TMPDIR")}
+    eski_td = tf.tempdir
+    try:
+        kur = getattr(dogrula3, "ozel_temp_kur", None)
+        t = kur(kap) if kur else None
+        ortam_ok = bool(t) and all(os.environ.get(k) == str(t) for k in eski)
+        gt = tf.gettempdir()
+        ok("W4 ozel_temp_kur: TMP/TEMP/TMPDIR ve tempfile.gettempdir() ozel dizinde",
+           ortam_ok and Path(gt).resolve() == Path(t).resolve() and Path(t).is_dir()
+           and kap.resolve() in Path(t).resolve().parents, f"t={t} gettempdir={gt}")
+    finally:
+        for k, v in eski.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        tf.tempdir = eski_td
+        M.guvenli_sil(kap)
+    kaynak = (BURASI / "dogrula3.py").read_text(encoding="utf-8")
+    govde = kaynak[kaynak.index("def main("):kaynak.index("def _kos(")]
+    ok("W4 main() ozel TEMP'i Zincir kurulmadan (_kos'tan) ONCE kuruyor",
+       "ozel_temp_kur(ozel)" in govde
+       and govde.index("ozel_temp_kur(ozel)") < govde.index("return _kos("))
+
+
 # ══════════════════════════════════════════════════════════════════════
 # C) HIZ INCELEMESI (2026-10-03) — bagimsiz incelemenin olcup gosterdigi kusurlar
 # ══════════════════════════════════════════════════════════════════════
@@ -1507,6 +1588,8 @@ def main() -> int:
     print("=" * 78)
     t0 = time.time()
     test_yapisal()
+    test_tezgah_eksik_kosu()
+    test_ozel_temp()
     test_artimli()
     test_inceleme_zincir()
     test_paralel()

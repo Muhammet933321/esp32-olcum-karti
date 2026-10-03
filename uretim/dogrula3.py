@@ -350,10 +350,17 @@ def tezgah_birlestir(sonuclar) -> list[str]:
         for sat in textwrap.wrap(kabul, 68):
             print(f"      {sat}")
 
+    # 🔴 W4 (2026-10-03): yarim/kirik bir kosu (B71'den sonrasi kalem basmadi) listeyi
+    #    122 kalemden 81'e INDIRIP yazmisti; commit'lense 41 kalem sessizce silinirdi.
+    #    Eksik kosu eski listeyi EZMEZ — liste yalniz her adim kalemini bastiginda yazilir.
     hedef = BURASI / "_tezgah.md"
-    hedef.write_text(markdown(kalemler), encoding="utf-8")
     print()
-    print(f"  -> {hedef.name} yazildi ({len(kalemler)} kalem)")
+    if sessiz or len(sonuclar) != ADIM_SAYISI:
+        print(f"  -> {hedef.name} YAZILMADI: eksik kosu ({len(kalemler)} kalem toplandi); "
+              f"eski liste yerinde")
+    else:
+        hedef.write_text(markdown(kalemler), encoding="utf-8")
+        print(f"  -> {hedef.name} yazildi ({len(kalemler)} kalem)")
 
     if sessiz:
         print()
@@ -527,6 +534,24 @@ def arguman_reddi(argv: list[str]) -> str | None:
     return None
 
 
+def ozel_temp_kur(ozel: Path) -> Path:
+    """Zincirin (ve adimlarinin) TEMP'ini `ozel/tmp`'ye cevirir; dizini dondurur.
+
+    🔴 W4 (2026-10-03): `cop_topla` -> `gecici.kalintilari_sil` ORTAK %TEMP%'teki
+    `kayit_*`, `spice-*` ... dizinlerini canli mi diye bakmadan siliyor. Bes agacta
+    ayni anda zincir kosarken birinin bitisi otekinin B71'ini (ELF'leri
+    %TEMP%/kayit_*'ta) elektrik kesme bolumunde SESSIZCE oldurdu: tezgah kalemi yok,
+    sayim [], `_tezgah.md` 122 -> 81. Mutasyon iscileri zaten kendi TEMP'inde.
+    TEMP/TMP anahtarda yok (ZO.ORTAM_UCUCU), onbellek bundan etkilenmez."""
+    import tempfile
+    t = Path(ozel) / "tmp"
+    t.mkdir(parents=True, exist_ok=True)
+    for k in ("TMP", "TEMP", "TMPDIR"):
+        os.environ[k] = str(t)
+    tempfile.tempdir = None
+    return t
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     artimli = "--artimli" in argv
@@ -552,6 +577,8 @@ def main(argv: list[str] | None = None) -> int:
         yerel = ozel_ortam.yerel_kur(ozel / "yerel", os.environ.get("LOCALAPPDATA"))
         print(f"  LOCALAPPDATA: adimlar ozel dizinde ({ozel.name}); gercek "
               f"%LOCALAPPDATA%\\olcum-karti'ya dokunulmaz")
+        ozel_temp_kur(ozel)
+        print("  TEMP: adimlar ozel dizinde (baska agacin cop toplayicisi silemez)")
         return _kos(argv, artimli, kilit_yaz, izsiz, yerel)
     finally:
         ozel_ortam.guvenli_sil(ozel)
