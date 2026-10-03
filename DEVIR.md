@@ -10723,6 +10723,83 @@ köprü kayıtları sonra kendi arşivine alır.
 
 ---
 
+#### 5.12.100b 🟢 W1 İNCELEME: AYRINTILI SERİLER YENİDEN TEK KURULUM (2026-10-04, dal `w1-veri`)
+
+Ajan. İnceleme bulgusu (önemli, ölçülmüş gerileme): `296c2e2`'den sonra `ayrintiSerileri` sıralı örnek
+listesini 3–4 kez kuruyordu. Bir kez kendisi kuruyordu, bir kez `ayrintiGuc`, yakalama varsa bir kez
+de `skopSonralari` → `skopYerleri` → `olcumZamanlari`. Her kurulumda [r, k] çiftleri, sort ve map
+vardı. Ölçüm (2026-10-04, aynı sentetik 1.9 M örnek, 50 Hz, kalibrasyonlu):
+
+| | `20d3171` (W1 öncesi) | `296c2e2` (W1) | bu düzeltme |
+|---|---|---|---|
+| 1.9 M, yakalamasız | 3.0–3.5 s | 8.4 s, yığın +1.2 GB | 1.9 s, +0.46 GB |
+| 1.9 M, yakalamalı | 2.5 s, +0.54 GB | 6.4–10.4 s, +1.8 GB | 2.1 s, +0.52 GB |
+| 1.9 M, yakalamalı, 1 GB yığın | geçer | **OOM** | 2.4 s, geçer |
+| 600 k, yakalamalı, yığın sınırı | 200 MB'ta geçer | 300 MB'ta OOM | 200 MB'ta geçer |
+
+Değişiklik (karar WK8): `ayrintiOrnekler(o, true)` sıra ile sıralı listeyi verir; liste zaten
+sıralıysa kopya kurulmaz. `ayrintiGuc(o, {orn, dizi: true})` Float64Array döner, [sıra, w] çifti
+kurulmaz. `skopYerleri(o, orn)` hazır listeyi gezer, üçlü dizi kurmaz. `ayrintiSerileri` ve
+`noktaSerileri` `yerler`'i taşır; `oturumRaporu` ile `yakalamaIsaretleri` onu kullanır. Seçenekler
+yalnız JS'te: Python `kayit_bicim.py`, vektörler ve `api` eşlemesi değişmedi. Bit bit sonuç da
+değişmedi: kayit.json `ayrinti_guc`/`skop_yerleri` ve disari W1 testi aynen geçiyor.
+
+Testler (önce kırmızı, `git archive 20d3171..HEAD` kopyasında doğrulandı):
+- `disari.test` "W1-tek-kurulum": kayıtlara `t0_us` okuma sayacı takılır (`ayrintiOrnekler` kayıt
+  başına iki kez okur, başka okuyan yok). Seriler, CSV ve rapor birer kurulum yapar (eski kod 3).
+- `disari.test` "W1-bellek": 600 k örnekli yakalamalı oturum ayrı süreçte `--max-old-space-size=250`
+  ile biter (eski kod OOM).
+- `kayit.test` "W1 inceleme": ters kayıt sırasında sıralı liste, `dizi` = çiftler, `skopYerleri(o, orn)`
+  = `skopYerleri(o)`.
+- B7 K3c sayacı: grafik bir kurulum yapar, işaretler sıfır.
+
+Doğrulama: B73 25/25 (node: disari 27, kayit 98, rapor 15), B7 913/913 (+1: K3c sayacı; sayım kilidi 912 → 913). Zincir `--artimli` iki kez TAM koştu (bu ağaçta yeşil kayıt yoktu). 1. koşuda B22b kırmızıydı: LittleFS görüntüsü bayattı, `arayuz-uret.py` ile `_fs.json` ve `sw.js` SURUM yenilendi. B6 da kırmızıydı (`arduino-cli`: "cannot specify '-o' with multiple files"; firmware değişmedi, makine paylaşılıyor). 2. koşu **hepsi yeşil**: B6 77/77, B22b 113/113, "Aşama 3 doğrulandı". Üretilen `BELGELER/`, `sema3/`, `_tezgah.md`, `netlist3.net`, `_firmware.json` gürültüsü commit'e alınmadı.
+
+Mutasyon: 9 yeni `W1:` yalanlayıcısı. Eski "W yine V×A" kaydı değişen satıra taşındı.
+`--neden W1: --paralel 2` → **35/35 yakalandı** (26 eski + 9 yeni; 591 s).
+
+**Açık (O-W1b):** kayıt görünümü bir oturum için seriyi iki kez kuruyor (grafik + rapor). Bu W1'den
+önce de böyleydi; oturum başına önbellek bu dilimde yapılmadı.
+
+---
+
+#### 5.12.100 🟢 W1: PC'DE HİZALI GÜÇ + YAKALAMANIN ZAMANINDA YERİ (Y7) (2026-10-03, dal `w1-veri`)
+
+Ajan, kart ve firmware değişikliği yok. Kullanıcı "bensiz yapabileceklerinle devam et" dedi; kararlar
+benim, gerekçeleri `tasarim/1-acik-isler.md` "W1 kararları"nda (WK1–WK7). İki açık iş kapandı:
+**Y7** (ekli oturumda kayıt sırası zaman sırası değil, yakalama boşluğu ayrıntılı kayıtta bayraksız) ve
+**"PC'de W'nin hizalamalı hesabı"** (1C-2'den devredilen).
+
+| Dosya | Ne |
+|---|---|
+| `kopru/kayit_bicim.py` ⇄ `ortak/src/kayit.js` | Yakalama `acilis` alanı (kayıttan önceki DEVAM sayısı). `skop_yerleri`: META'lı her yakalama ZAMAN sırasıyla, `once`/`sonra` = boşluğun iki yanındaki ölçüm verisi (ayrıntılı: zamanı ≥ (t_ms+1) ms ilk örnek; nokta: kart_ms > t_ms). `ayrinti_guc`: kartın `o.watt` tanımı (V akım anına Lagrange, × I, şebeke RC ters kazancı) GERÇEK örnek zamanlarıyla; `VI_KAYMA_US` 152 (B29), `TAU_AKIM`. İki dil aynı aritmetik sırası, kayit.json'da bit bit |
+| `ortak/src/disari.js` | Ayrıntılı `w` = hizalı güç (V×A değil). `skop` dizisi; CSV `bayraklar`'a PC türetimi `SKOP` (EN `SCOPE_CAPTURE`), ham bayrak sütunları aynen. `anZamani` bilinen açılışı alır |
+| `ortak/src/rapor.js` | Ayrıntılı Wh hizalı W'den; yakalama tablosu zaman sırası + kendi açılışı (ham kayıt verilmeden de); uyarı `skop_bosluk` |
+| `arayuz3/ekran/kayit_gorunum.js` | Okuma Wh'si hizalı (raporla aynı); grafikte yakalama işareti `S<no>` (K3b, K3c) |
+| `uretim/ortak_vektor_kayit.py` | Yeni akış `yerlesim`; `w1_kurallar` W1.K1–K18: firmware kaynağı hâlâ bu formülle mi (olcum_al, lagrange4, TAU_AKIM), eşit aralıkta PC = firmware lagrange4 (1e-12), 50 Hz sinüste 1 ms kaymada hizalı ortalama %0.5 içinde / hizasız %4.9 sapar, yedek düğümler, kırpma, yakalama sırası/açılış/sarma |
+| `uretim/ortak_vektor_disari.py` | Bağımsız hizalı güç + yakalama yeri; akışlara kayıt sırası zaman sırası OLMAYAN yakalamalar, iki açılışa uyan (sezgide belirsiz) yakalama |
+
+**Bulgu (veriye dokunuyor):** ayrıntılı kayıtlarda PC'nin gösterdiği/aktardığı W ve Wh eskiden aynı
+örneğin V×I'sıydı: V, I'dan 152 µs (+ faz kalibrasyonu) ÖNCE örneklendiği için endüktif/kapasitif yükte
+kartın nokta W'sinden farklıydı (50 Hz, PF 0.5'te ~%8). Nokta oturumları zaten kartın W'sini taşıyor —
+değişmedi.
+
+**Doğrulama** (commit `296c2e2`): B73 25/25 (node: kayit 97, disari 25, rapor 15; vektörler `--denetle`
+aynı), B7 912/912 (+1: K3c; sayım kilidi 911 → 912). Zincir `--artimli` iki TAM koşu (önbellek bu ağaçta
+yoktu): 1. koşuda yalnız B22b (LittleFS görüntüsü bayat → `arayuz-uret.py`, `_fs.json` + `sw.js` SURUM)
+ve B7 sayımı kırmızı; 2. koşuda bunlar yeşil, B71 (yarıda kesildi) ve B6 (`arduino-cli` geçici dizin
+hatası) kırmızı — makine 4 ajanla paylaşılıyor; tek başına yeniden koşunca B71 362/362, B6 77/77. Firmware
+ve `kod/` değişmedi. Mutasyon `--neden W1: --paralel 2` **26/26 yakalandı**. İki eski mutasyon kaydı bu
+dalın değiştirdiği satırlara güncellendi: B7 K3 `ei` (koşuldu, yakalandı), T3C `onDegisim` (tarayıcı adımı,
+koşulmadı). Tam koşuların yeniden ürettiği `BELGELER/`, `sema3/`, `_tezgah.md`, `netlist3.net`,
+`_firmware.json` commit'e ALINMADI (satır sonu / zaman damgası gürültüsü; `_tezgah.md` sıra farkı).
+
+**Açık:** firmware V–I kaymasını AYRINTI'ya yazmıyor (sabit 152 µs kullanılıyor) · ADS takılınca PC
+hizalı W ↔ kartın `D` satırı W'si tezgahta karşılaştırılmalı (T11) · 16.38 ms'den kısa skop duraklaması
+kartta hâlâ işaretsiz; PC artık META'dan bulur (O listesinde kapandı).
+
+---
+
 #### 5.12.99 🟢 HIZ ↔ main BİRLEŞMESİ (2026-10-03, dal `zincir-hiz`, ağaç `projeler/olcum-karti-hiz`)
 
 Ajan. `main` (e6e086d: 4D–4J, 3C-LISTE, kılavuz, `gercek_dizin_koru` son kuralı, köprü 405) `zincir-hiz`'e

@@ -121,6 +121,13 @@ for (const a of V.akislar) {
     for (const [id, sira, py] of a.skop_ikili) {
       esit("skop_ikili", K.skopIkili(ot.get(id).skoplar.get(sira)), py, `${a.ad} ${id}/${sira}`);
     }
+    // W1: yakalamanin yeri (Y7) ve hizali guc (bit bit)
+    for (const [id, py] of a.skop_yerleri) {
+      esit("skop_yerleri", K.skopYerleri(ot.get(id)), py, `${a.ad} oturum ${id}`);
+    }
+    for (const [id, py] of a.ayrinti_guc) {
+      esit("ayrinti_guc", K.ayrintiGuc(ot.get(id)), py, `${a.ad} oturum ${id}`);
+    }
   });
 }
 
@@ -362,6 +369,36 @@ test("ayrintiOrnekler: esit uzaklikta Python round (cifte), Math.round degil", (
   const y = K.ayrintiPaketle({ ilk: 0, t0_ms: 2147484, t0_us: 352, bayrak: 0, ornekler: [[1, 2, 1, 3]] });
   const o = { devamlar: [], ayrinti: [{ ...K.ayrintiCoz(y), sira: 1 }] };
   assert.deepEqual(K.ayrintiOrnekler(o), [[0, 352 + 4, 1, 2, 3, 0]]);   // k = round(0.5) = 0
+});
+
+test("W1 inceleme: ayrintiOrnekler(o, true) sira ile sirali; ayrintiGuc {orn, dizi} ve skopYerleri(o, orn) ayni sonuc", () => {
+  let denenen = 0;
+  let skoplu = 0;
+  for (const a of V.akislar) {
+    if (a.oturumlari_kur.hata) continue;
+    for (const o of K.oturumlariKur(K.akisOnek(jsden(a.veri))[0]).values()) {
+      if (o.ayrinti.length < 2) continue;
+      // kayit sirasini ters cevir: ornekler ayrintiOrnekler'den sira DISI cikar
+      const n = o.ayrinti.length;
+      const ters = { ...o, ayrinti: o.ayrinti.map((r, k) => ({ ...r, sira: o.ayrinti[n - 1 - k].sira })) };
+      const ham = K.ayrintiOrnekler(ters).map((r) => r[0]);
+      // ortusen kayit (Y5) varsa ters sira hangi kopyanin kalacagini degistirir: karsilastirilamaz
+      if (o.ayrinti.reduce((t, r) => t + r.ornekler.length, 0) !== ham.length) continue;
+      if (ham.every((s, k) => !k || ham[k - 1] < s)) continue;
+      denenen++;
+      const orn = K.ayrintiOrnekler(ters, true);
+      assert.deepEqual(orn.map((r) => r[0]), [...ham].sort((x, y) => x - y), `${a.ad}: sira ile sirali degil`);
+      const cift = K.ayrintiGuc(ters);
+      assert.deepEqual(cift, K.ayrintiGuc(o), `${a.ad}: guc kayit sirasina bagli`);
+      assert.deepEqual(Array.from(K.ayrintiGuc(ters, { orn, dizi: true })), cift.map(([, w]) => w));
+      assert.ok(K.ayrintiGuc(ters, { orn, dizi: true }) instanceof Float64Array);
+      if (o.skoplar.size) {
+        skoplu++;
+        assert.deepEqual(K.skopYerleri(ters, orn), K.skopYerleri(o), `${a.ad}: skopYerleri orn ile farkli`);
+      }
+    }
+  }
+  assert.ok(denenen >= 2 && skoplu >= 1, `denenen ${denenen}, skoplu ${skoplu}: test bos`);
 });
 
 test("skopIkili: eksik yakalama null, tam yakalama S3B basligi", () => {

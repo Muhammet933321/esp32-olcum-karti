@@ -24,11 +24,39 @@
 | ~~Y4~~ | ~~Kalibrasyon geçmişinin `adet` anahtarı kaybolursa `kgc_ac` 1 numaranın üzerine yazar~~ | ~~Kalibrasyon geçmişinin başı sessizce ezilir. Düzeltme: `k1…k40`'ı tarayıp sayıyı yeniden kur~~ | 1B [inceleme M1] — **Kapandı (dal `1-duzeltme`):** `adet` okunamazsa k1…k40 taranır (ortadaki bozuk kayıt durdurmaz), geri yazılır. B71.C14 |
 | ~~Y5~~ | ~~Yazma hatası yolunda ayrıntılı örnek sayılmadan düşüyor (`KA_KAYIP_ONCE` + düşen yok); yeniden denemede aynı kayıt iki kez yazılabiliyor ve PC `ayrinti_ornekler` bunu ayıklamıyor~~ | ~~Nadir, ama olunca çift ya da sayılmamış örnek~~ | 1C-2 [inceleme] — **Kapandı (dal `1-duzeltme`):** yazılamayan örnek sayılır, boşluğu açan kayıt `KA_KAYIP_ONCE`; PC ayrıntı örneklerini VE noktaları sıra başına bir kez verir (yeniden deneme kopyası). B71.A11–A13 |
 | ~~Y6~~ | ~~Bozuk kalibrasyon kaydı `/kal/liste`'de sessizce atlanıyor. Doğrusu `{"no":n,"bozuk":true}`~~ | ~~PC eksik geçmişi tam sanır~~ | 1B [inceleme M2] — **Kapandı (dal `1-duzeltme`):** kart bozuk kaydı `{"no":n,"bozuk":true}` yazar; PC'de sağlam kopyası varsa o kalır (`kartta_bozuk`), yoksa bozuk işaretiyle. B72.Y6a/Y6b |
-| Y7 | Ekli oturumda (ÖLÇÜM + skop günlüğü) kayıt sırası tam zaman sırası değil. Görev noktaları mesajlardan önce boşaltıyor, ~100 ms. Yakalamanın ölçümde bıraktığı boşluk AYRINTI'da bayraksız. **Kartta ölçüldü (W5, T8):** `Gb200` + `Gt2000/3000`'de 200 ms'lik noktalar arasında en büyük boşluk 423 ms; NOKTA'da da bayrak yok | PC yakalamayı yanlış zamana koyabilir. Alt proje 2: META `t_ms` ile yerleştir | 1C-3 [inceleme] |
+| ~~Y7~~ | ~~Ekli oturumda (ÖLÇÜM + skop günlüğü) kayıt sırası tam zaman sırası değil. Görev noktaları mesajlardan önce boşaltıyor, ~100 ms. Yakalamanın ölçümde bıraktığı boşluk AYRINTI'da bayraksız~~ | ~~PC yakalamayı yanlış zamana koyabilir. Alt proje 2: META `t_ms` ile yerleştir~~ | 1C-3 [inceleme] — **Kapandı (W1, dal `w1-veri`, commit `296c2e2`, DEVIR 5.12.100):** PC yakalamayı META `t_ms` + kendi açılışıyla yerleştirir (`skop_yerleri`/`skopYerleri`, kayıt sırası değil); boşluktan sonraki ilk satır CSV'de `SKOP`, rapor `skop_bosluk`, grafikte `S<no>` (WK5–WK6). Kanıt: W1.K14–K17, kayit.json `yerlesim`, disari/rapor W1 testleri, B7 K3c · **Kartta ölçüldü (W5, T8):** `Gb200` + `Gt2000/3000`'de 200 ms'lik noktalar arasında en büyük boşluk 423 ms; W1'in `SKOP` işareti nokta oturumlarına da (`noktaSerileri`) uygulanıyor |
 
 **D0 (1D çalışmasında bulundu, bu dalda kapandı):** `N?` ve AP kipindeki açılış afişi AP WiFi
 parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle ağa taşıdığı için parola ağa
 çıkıyordu. Artık yalnız ham UART'a gidiyor (`Serial.ham`, B72.D0).
+
+**W1 kararları (2026-10-03, dal `w1-veri`, ajan; "bensiz yapabileceklerinle devam et"):**
+- **WK1** PC'nin ayrıntılı W'si kartın `o.watt` tanımıdır (`olcum_al`): V, akım örneğinin anına
+  4 düğümlü Lagrange ile taşınır, I ile çarpılır, `sebeke_hz > 0`'da iki RC'nin ters kazancı
+  (`suzgec_ters_kazanc`, kanal `tau` + `TAU_AKIM`) uygulanır. Fark: kart sabit aralık varsayar ve
+  sonucu 2 örnek geç verir; PC GERÇEK örnek zamanlarını kullanır, W'yi örneğin kendi anına koyar.
+  Nokta oturumlarında W kartın kendisi (değişmedi).
+- **WK2** V–I başlatma kayması kayıtta yok: `VI_KAYMA_US = 152` (B29, kartta ölçülen; ±20 µs ≈ 50 Hz'te
+  0.36°) + `faz_kal_us[menzil]` (örneğin menzili). Kaymayı kayda yazmak biçim + firmware değişikliği;
+  bu dilimde yapılmadı (aşağıda O-W1).
+- **WK3** Örnek damgasının `olcum_al` dönüşünde (~1.8 ms geç) olması V ve I'ya aynı: W'ye girmez. Ham
+  zaman (`kart_us`) değiştirilmez.
+- **WK4** Düğüm: k−1..k+2 aynı kesintisiz parçada (aynı açılış, ardışık 0 < dt ≤ 16 380 µs) ve V'leri
+  geçerliyse; değilse kaymanın yönündeki komşuyla doğrusal; o da yoksa V_k (hizasız). x düğüm
+  aralığına kırpılır (kartın `d` kırpması). V ya da I hatalı örnek: NaN.
+- **WK5** Yakalamanın açılışı = kayıt sırasında önündeki DEVAM sayısı (yuva yeniden başlamayı geçmez).
+  Zaman sırası (açılış, t_ms). `sonra` = istekten sonraki ilk ölçüm verisi: ayrıntılıda zamanı
+  ≥ (t_ms+1) ms (istek `loop`'ta `olcum_al`'dan ÖNCE verilir, o tur ölçmez; `t_ms` tabana yuvarlı),
+  noktada kart_ms > t_ms (yakalamanın içine düştüğü nokta).
+- **WK6** Kartın ham bayraklarına dokunulmaz: boşluk CSV `bayraklar` METNİNDE PC türetimi `SKOP`
+  (EN `SCOPE_CAPTURE`), rapor uyarısı `skop_bosluk` (yalnız ölçümün İÇİNE düşen yakalama), kayıt
+  görünümü grafiğinde kesik dikey işaret `S<no>`.
+- **WK7** Rapor/okuma Wh'si ayrıntılıda hizalı W'den; mAh değişmedi.
+- **WK8** (inceleme düzeltmesi, DEVIR 5.12.100b) Ayrıntılı oturumda sıralı örnek listesi
+  (`ayrintiOrnekler(o, true)`) seriler başına BİR kez kurulur. Hizalı güç (`ayrintiGuc(o, {orn,
+  dizi: true})`, Float64Array) ve Y7 yerleri (`skopYerleri(o, orn)`) aynı listeyi kullanır.
+  Seriler `yerler`'i taşır; rapor ve yakalama işaretleri onu kullanır. Yeni seçenekler yalnız JS'te
+  var: Python API'si ve vektörler değişmedi, `api` eşlemesi yeni dışa açık işlev istemedi.
 
 ## Kartta / tezgahta yapılmamış doğrulamalar
 
@@ -43,6 +71,7 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 | ~~T7~~ | ~~Tezgahta "plan sürerken `Gd` + `Gb`" (elle kayıt plan bitişini geçmeli) ve "DOLU'da oturumsuz pil testi + plan" durumları yok~~ | **Kapandı (W5, 2026-10-03, DEVIR 5.12.104):** `tezgah_kayit.py --plan-elle` kartta 3/3. Plan sürerken `Gd` + `Gb` hem 3 s arayla hem aynı anda denendi: planın oturumu sebep 1 ile kapandı (GP 3), elle kayıt yeni oturumda planın bitişinden 10 s sonra da sürdü. Skop günlüğü sürerken plan atlandı (GP 4). "DOLU + oturumsuz pil testi" kartta **sınanamaz**: `p1` ister (ADS ve yük yok, T5), DOLU ~1.6 sa doldurma ister. Bu durum AVR'de (B71.R) ve F70'te sınanıyor. Ölçü aleti: B72.TZ1/TZ4 | 1C-4 [inceleme M6] |
 | ~~T8~~ | ~~Tezgah `--skop`, `Gb` sürerken günlüğü ve aynı oturumda yeniden `Gt`'yi kartta sınamıyor (PC tarafı B29'da)~~ | **Kapandı (W5, DEVIR 5.12.104):** `tezgah_kayit.py --skop-olcum` kartta 1/1. `Gb200` sürerken `Gt2000` → `Gtd` → aynı oturumda `Gt3000` → `Gtd` denendi: tek ÖLÇÜM oturumu, 9 + 8 yakalama, ortanca aralıklar 2002 ve 3003 ms. Numaralar 1–17 tekrarsız, iki SKOP_KAL olayı var, noktalar kesintisiz ve ölçüm kapanmadı. Eşitlenen veride doğrulandı. Gözlem Y7'ye eklendi: noktalar arası en büyük boşluk 423 ms. Ölçü aleti: B72.TZ2–TZ4. **İnceleme (2026-10-04, 5.12.104a):** eşitlemenin onaysız olduğunu TZ4 sınamıyordu, artık `esitle_onaysiz`'in gövdesini TZ5 davranışla sınıyor. `esitle_onaysiz` verilen `--dizin`'i akış değişince siliyordu; artık yalnız varsayılan geçici dizini siliyor (TZ6) | 1C-3 |
 | T9 | B10 (kayan nokta FMA) gerçek ESP32 derleyicisiyle tekrarlanmadı | Etkisi örnek başına ≤ 1 µW; PC kartın toplamını okuyor → kabul edildi | 1A-1/1A-2 |
+| T11 | ADS takılınca: PC'nin hizalı ayrıntılı W'si ile kartın `D` satırı / nokta W'si karşılaştırılmalı (dirençli ve reaktif yük) | ADS takılı değil | W1 |
 | ~~T10~~ | ~~3A paneli karta yüklenmedi~~ **Kapandı (2026-10-02 akşam):** 3A–3D kartta, MIME+gzip doğru, Playwright ile sınandı (DEVIR 5.12.78). Kalan: ADS takılınca canlı veri + blokaj (#71 son madde) | 3A |
 
 ## Sonraki alt projelere devredilenler
@@ -53,7 +82,7 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 | ~~Cihazdan saat alma (bugün yalnız NTP; internetsiz ağda plan kurulamaz, çevrimdışı unix 0)~~ | **Kapandı:** kartta imzalı `/saat` (1D, DEVIR 5.12.72); panelden "saati ayarla" (3H-2, DEVIR 5.12.85); köprü NTP'siz kartın saatini her bağlantıda kurar (4B-9, DEVIR 5.12.87) | 1B M7, 1C-4 K4 |
 | ~~Açılıştan kaydın sürmesine 2.5–6.3 s; büyüğü `setup()`'taki WiFi beklemesi. Ağ kurulumu görev içine taşınmalı~~ | **Kapandı (1E-2, 2026-10-02):** STA beklemesi ağ görevine (`ag_bekle_tamamla`); `setup()` yalnız radyoyu açar. Kartta: sıfırlamadan ilk `D`ye 6.35 s → **1.32 s**; 20 sıfırlamada kayıt aynı oturumla sürdü. AP'ye düşüş yolu kartta sınanmadı (ev ağı kapatılmadı) | 1A-2 |
 | ~~"Pil testi kesildi" bildirimi~~ | **Kapandı (1E):** `pil_bitti` olayı `pil_durdur`'dan; kayıtsız test de bildirilir | 1C-1 |
-| PC'de W'nin hizalamalı hesabı (örnek zamanında ~1.8 ms kayma; V–I başlangıç kayması saklanmıyor) ve grafik | **2** (`ortak/`) / 3 | 1C-2 |
+| ~~PC'de W'nin hizalamalı hesabı (örnek zamanında ~1.8 ms kayma; V–I başlangıç kayması saklanmıyor) ve grafik~~ | **Kapandı (W1, dal `w1-veri`, commit `296c2e2`, DEVIR 5.12.100):** `ayrinti_guc`/`ayrintiGuc` kartın `o.watt` tanımı, gerçek örnek zamanlarıyla (WK1–WK4); CSV, rapor Wh, kayıt görünümü ve karşılaştırma bunu kullanır. Kanıt: W1.K1–K13/K18, kayit.json `ayrinti_guc`, disari W1 testi (bağımsız Python ile bit bit). Kalan: firmware kaymayı yazmıyor → sabit 152 µs (WK2); tezgah T11 | 1C-2 |
 | Eski kayda başka kalibrasyon uygulama, dönem uyarısı, "daha yeni ince ayar öner" | **2** + 3 | 1B |
 | ~~Kayıt ekranları; `G` arayüzde yok. Ayrıca ad/not web ucu, `/pil`, `PilHalka` panelden kalkması ve yakalama gösterimi~~ | **Kapandı (alt proje 3):** Kayıtlar + kayıt görünümü 3C (DEVIR 5.12.77); `G`/`GP`/`GA`/`GT` pasif durum + `Gn` 3D (5.12.78); yakalama gösterimi 3E (5.12.80); `/pil` eğrisi + `Ga` (PU7) 3F (5.12.81) | 1A-2, 1C-1, 1C-3 |
 | ~~Plan gösterimi (panel / PC / telefon)~~ | **Kapandı (panel + PC):** Canlı'da "Zamanla" formu + `GP` durumu 3D (DEVIR 5.12.78); PC aynı paneli köprüden açar (4D, 5.12.89). Telefon uygulaması alt proje 5'in kapsamı | 1C-4 |
@@ -70,7 +99,7 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 - [1B M8] Kuyruk doluysa oturumsuz kayıt kalabilir.
 - [1C-2] PSRAM ayrılamazsa `Gb0` yine kabul ediliyor; yalnız `GA` düşen sayısı gösterir.
 - [1C-2] NaN watt, ham kodu geçerli örneğe V/I hata bayrağı koyuyor.
-- [1C-2] 16.38 ms'den kısa skop duraklaması işaretlenmiyor (zaman doğru, sebep kayboluyor).
+- ~~[1C-2] 16.38 ms'den kısa skop duraklaması işaretlenmiyor (zaman doğru, sebep kayboluyor).~~ **PC tarafında kapandı (W1):** işaret kayıt bölünmesine değil META `t_ms`'ye bağlı (`skop_yerleri`), kısa duraklamanın da sonraki satırı `SKOP` alır. Kartın ham bayrağı yine yok.
 - [1C-2] İzin yarışı: ön silme sürerken bir skop yakalaması ~%5 olasılıkla 25 ms'lik duruşa denk gelir; hazır alan dolunca biter.
 - [1C-3] `Gtd`, SKOP oturumu öğrenilmeden ya da açılış taramasında gelirse kuyruktaki `KM_SKOP_BASLAT` kimsenin yazmadığı bir oturum açar; kullanıcı `Gd` demeli.
 - [1C-3] Ayar komutları pratikte çoğu an uçuştaki yakalamaya takılır. `Gt0`'da kip OTO'ya çekilirse tetiksiz yakalama kaydedilir.
@@ -78,6 +107,9 @@ parolasını `Serial` aynasıyla basıyordu. Ayna her satırı `/akis` SSE'siyle
 - [1C-4 M1] Planın oturumu DEVAM için yer beklerken (KDR_BEKLIYOR) her saniye etkisiz bir "bitir" isteği ve seri/SSE mesajı gidiyor; yer açılınca oturum ~1 s fazla sürüyor.
 - [1C-4] Açılışta "sürüyor" ama oturumu bilinmeyen plan (sonuç gelmeden elektrik gitti) bitti sayılır. O ms'lik pencerede açılmış bir kayıt otomatik bitmez.
 - [1C-4] Plan artık beklemiyorken geç açılan oturum sebep 7 ile kapatılır; `Gp-` yarışında yanlış sebep etiketi olabilir.
+- ~~[W1 inceleme] Hizalı W + Y7 ayrıntılı oturumda sıralı örnek listesini 3–4 kez kuruyordu: 1.9 M örnekte `ayrintiSerileri` 2.5–3.5 s → 7.4–11 s, yığın tepesi ~0.55 → 1.2–1.8 GB, 1 GB yığında yakalamalı oturum OOM.~~ **Kapandı (WK8, DEVIR 5.12.100b):** 1.9 M örnek 1.9–2.4 s, tepe 0.46–0.52 GB, 1 GB yığında 2.4 s. Bunlar W1 öncesinden de iyi. Kanıt: `disari.test` "W1-tek-kurulum" (t0_us okuma sayacı: seriler/CSV/rapor birer kurulum) ve "W1-bellek" (600 k örnek 250 MB yığında; W1 öncesi kod 200 MB'ta geçiyordu, `296c2e2` 300 MB'ta OOM), `kayit.test` "W1 inceleme", B7 K3c sayacı, mutasyon W1 inceleme 9/9.
+- [W1 inceleme] O-W1b: Kayıt görünümü bir oturum için seriyi yine iki kez kuruyor: grafik (`grafikSerileri`) ve rapor (`oturumRaporu`). Bu W1'den önce de böyleydi; artık her biri tek kurulum. Telefonda ya da WebView'da 1.9 M örnek için oturum başına önbellek (WeakMap) düşünülebilir. Oturum nesnesi eşitlemede değişebildiği için bu dilimde yapılmadı.
+- [W1] O-W1: AYRINTI kaydı V–I başlatma kaymasını taşımıyor; PC sabit 152 µs kullanıyor. I²C yükü değişirse (başka cihaz, hız) gerçek kayma kayar. Öneri: AYRINTI başına `t_kayma_us` ortalaması (biçim + firmware).
 - [1A-1, kabul] Sektörde ilk bozuk kayıttan sonrası okunamaz (yeniden senkron yok). Bilinçli tasarım.
 - [1A-1, kabul] Yavaş hızda bitmemiş noktadaki örnekler kesmede kaybolur (1/dk'da en fazla 1 dk).
 - [1A-1, kabul] `kart_ms` 49.7 günde sarar; tüketici SAAT kayıtlarıyla çözer.

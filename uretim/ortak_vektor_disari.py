@@ -18,6 +18,10 @@ Kapsam:
   Zaman modeli disari.js'teki belgeli kural: acilis capasi BASLA/DEVAM (unix 0 ise ayni
   acilisin SAAT'i), acilis icinde ardisik isaretli 32 bit fark; gecen = capa farki + rel.
   Enerji: acilis basina yamuk + Neumaier, bosluk > hiz x 2.5 (ayrintili > 16.38 ms) haric.
+  W1: ayrintili W = HIZALI guc (bu dosyadaki ayri kod, `hizali_guc`; kayit_bicim.ayrinti_guc'un
+  tanimi): V akim ornegi anina (zaman + VI_KAYMA_US + faz_kal_us) Lagrange'la, x I, sebeke
+  RC ters kazanci. Y7: yakalamalar META t_ms ile; kayit sirasi zaman sirasi DEGIL (akislarda
+  SKOP kaydi sonraki verilerden sonra yazilir); yakalamadan sonraki ilk satir `skop_sonra`.
 
 JSON: float repr ile (JS ayni double'i okur); sonsuz/NaN {"$f": ...}. Ondalik ayraci '.'.
 Rastgelelik kendi splitmix64'umuzden: Python surumune bagli degil.
@@ -25,6 +29,7 @@ Rastgelelik kendi splitmix64'umuzden: Python surumune bagli degil.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import math
 import struct
@@ -274,16 +279,31 @@ def olcum_akisi(r: Rng, saatsiz: bool) -> tuple[bytes, int]:
         ms = (ms + hiz + (5000 if k == 15 else 0)) & 0xFFFFFFFF   # 15'te ic bosluk
         ns.append(nokta_r(r, ms, bos=(k == 9)))
     noktalar_yaz(a, ot, 0, ns)
+    # Y7: yakalama nokta 2'nin icine duser (kart_ms 2^32 sarmasinin ustunden), kaydi 23 noktadan
+    # SONRA yazilir (kayit sirasi zaman sirasi degil)
+    a.ekle(KB.T_SKOP, ot, skop_yuk(1, (kart0 + 2500) & 0xFFFFFFFF, 80))
     if saatsiz:
         a.ekle(KB.T_SAAT, ot, struct.pack("<III", 1_790_100_000, (kart0 + 7300) & 0xFFFFFFFF, 7))
     a.ekle(KB.T_DEVAM, ot, struct.pack("<IIII", 8, 0 if saatsiz else 1_790_000_060, 5200, 23))
     ns = [nokta_r(r, 5200 + 1000 * (k + 1)) for k in range(12)]
     noktalar_yaz(a, ot, 23, ns)
+    # DEVAM'dan sonra: t_ms 8700 HEM acilis 0'in HEM acilis 1'in araligina uyar (sezgi BELIRSIZ);
+    # acilis yakalamanin kendisinden (kayitta DEVAM sayisi) — W1
+    a.ekle(KB.T_SKOP, ot, skop_yuk(2, 8700, 300))
     a.ekle(KB.T_DEVAM, ot, struct.pack("<IIII", 9, 0 if saatsiz else 1_790_000_200, 4800, 35))
     ns = [nokta_r(r, 4800 + 1000 * (k + 1)) for k in range(6)]
     noktalar_yaz(a, ot, 35, ns)
     a.ekle(KB.T_BITIR, ot, struct.pack("<IB3x", 41, 1))
     return a.bayt(), ot
+
+
+def skop_yuk(no: int, t_ms: int, sure_ms: int) -> bytes:
+    """Tek parcali, META'li yakalama (rastgelelik CEKMEZ: diger vektorler kaymasin)."""
+    meta = {"t_ms": t_ms, "sure_ms": sure_ms, "hz": 50000, "tdiv_us": 100, "adim": 0.0119140625,
+            "ofset": 63.5, "tetik": 2, "esik": 2048, "histerezis": 40, "kip": 1, "tetiklendi": 1,
+            "kenar": 0, "on_yuzde": 25, "onay": 2}
+    return KB.skop_paketle({"no": no, "ilk": 0, "toplam": 4, "parca": 0, "meta": meta,
+                            "kodlar": [100, 2048, 4000, 7]})
 
 
 def pil_akisi(r: Rng) -> tuple[bytes, int]:
@@ -320,6 +340,10 @@ def pil_akisi(r: Rng) -> tuple[bytes, int]:
 def ayrinti_akisi(r: Rng) -> tuple[bytes, int]:
     a = Akis(r.tam(300, 400))
     kal = kal_r(r)
+    # W1: hizalama yollari — normal kayma 152+55 > 0, YUKSEK 152-300 < 0; normal kanalda RC
+    # (sebeke 50 Hz: ters kazanc), yuksekte tau 0 (carpan 1)
+    kal = dataclasses.replace(kal, faz_kal_us=(55.0, -300.0),
+                              normal=dataclasses.replace(kal.normal, tau=0.0021))
     kart0 = 1_000_000
     ot = a.sira + 1
     ot = a.ekle(KB.T_BASLA, ot, basla(r, KB.OTURUM_OLCUM, 0, 1_790_900_000, kart0, 20, kal))
@@ -335,10 +359,121 @@ def ayrinti_akisi(r: Rng) -> tuple[bytes, int]:
     s = kayit(0, kart0 + 3, (kart0 + 3) * 1000 + 417, 20, 0)
     s = kayit(s, kart0 + 70, (kart0 + 70) * 1000 + 5, 15, KB.KA_SILME)            # 25+ ms duraklama
     s = kayit(s, kart0 + 140, (kart0 + 140) * 1000 + 999, 10, KB.KA_KAYIP_ONCE)
+    # Y7: yakalama (t_ms kart0+165, 30 ms); kaydi SONRAKI orneklerden sonra
+    s = kayit(s, kart0 + 200, (kart0 + 200) * 1000 + 333, 6, 0)
+    a.ekle(KB.T_SKOP, ot, skop_yuk(1, kart0 + 165, 30))
+    a.ekle(KB.T_SKOP, ot, skop_yuk(3, kart0 + 1, 1))      # verinin ONCESINDE; kaydi GEC (zaman sirasi)
     a.ekle(KB.T_DEVAM, ot, struct.pack("<IIII", 21, 1_790_900_030, 4000, s))
     s = kayit(s, 4100, 4_100_250, 12, 0)
+    s = kayit(s, 4160, 4_160_010, 5, 0)
+    a.ekle(KB.T_SKOP, ot, skop_yuk(2, 4130, 20))       # DEVAM'dan sonra: t_ms acilis 0'dan KUCUK
     a.ekle(KB.T_BITIR, ot, struct.pack("<IB3x", s, 1))
     return a.bayt(), ot
+
+
+# ── W1: hizali guc ve yakalamanin yeri (bagimsiz Python) ──────────────
+VI_KAYMA_US = 152.0                 # kartta olculen V-I baslatma kaymasi (B29)
+TAU_AKIM = f32(0.002904)            # olcum3.h TAU_AKIM
+US_M = 2**32 * 1000
+
+
+def us_fark(a: int, b: int) -> int:
+    d = (a - b) % US_M
+    return d - US_M if d >= US_M // 2 else d
+
+
+def hizali_guc(o: KB.Oturum) -> list[float]:
+    """Ornek sirasiyla hizali W. Kesintisiz parca: ayni acilis, ardisik 0 < dt <= 16 380 us.
+    Dugum: k-1..k+2 (hepsi parcada + gecerli V) yoksa kaymanin yonundeki komsu ile dogrusal,
+    o da yoksa V_k. x dugum araligina kirpilir."""
+    kal = o.basla.kal
+    orn = sorted(KB.ayrinti_ornekler(o), key=lambda x: x[0])
+    n = len(orn)
+    nan = float("nan")
+    vs = [nan if b & KB.KAO_V_HATA else KB.volt(vk, kal.yuksek if b & KB.KAO_YUKSEK else kal.normal)
+          for _s, _u, vk, _i, b, _a in orn]
+    parca, p = [0] * n, 0
+    for k in range(1, n):
+        d = us_fark(orn[k][1], orn[k - 1][1])
+        if orn[k][5] != orn[k - 1][5] or not 0 < d <= 4095 * 4:
+            p += 1
+        parca[k] = p
+
+    def g(f: float, tau: float) -> float:
+        if f <= 0 or tau <= 0:
+            return 1.0
+        w = 2 * math.pi * f * tau
+        return math.sqrt(1 + w * w)
+    f = kal.sebeke_hz
+    olc = [g(f, kn.tau) * g(f, TAU_AKIM) if f > 0 else 1.0 for kn in (kal.normal, kal.yuksek)]
+    out = []
+    for k, (_s, us, _vk, ik, b, _a) in enumerate(orn):
+        if b & KB.KAO_I_HATA or vs[k] != vs[k]:
+            out.append(nan)
+            continue
+        yk = 1 if b & KB.KAO_YUKSEK else 0
+        kay = VI_KAYMA_US + kal.faz_kal_us[yk]
+
+        def var(j: int) -> bool:
+            return 0 <= j < n and parca[j] == parca[k] and vs[j] == vs[j]
+        if all(var(j) for j in (k - 1, k + 1, k + 2)):
+            dg = [k - 1, k, k + 1, k + 2]
+        elif kay >= 0 and var(k + 1):
+            dg = [k, k + 1]
+        elif kay < 0 and var(k - 1):
+            dg = [k - 1, k]
+        else:
+            dg = [k]
+        dx = [us_fark(orn[j][1], us) for j in dg]
+        x = min(max(kay, dx[0]), dx[-1]) if kay == kay else kay
+        t = 0.0
+        for j in range(len(dg)):
+            pay = payda = 1.0
+            for m in range(len(dg)):
+                if m != j:
+                    pay *= x - dx[m]
+                    payda *= dx[j] - dx[m]
+            t += pay / payda * vs[dg[j]]
+        out.append(t * KB.amper(ik, kal) * olc[yk])
+    return out
+
+
+def olcum_zamanlari(o: KB.Oturum) -> list[tuple[int, int, int]]:
+    if o.ayrinti and not o.noktalar:
+        return [(s_, us, ac) for s_, us, _v, _i, _b, ac in sorted(KB.ayrinti_ornekler(o), key=lambda x: x[0])]
+    dv = [d["nokta_sira"] for d in o.devamlar]
+    return [(s_, p.kart_ms * 1000, sum(1 for d in dv if d <= s_))
+            for s_, p in sorted(o.noktalar, key=lambda x: x[0])]
+
+
+def yakalama_yerleri(o: KB.Oturum, kayitlar: list) -> list[dict]:
+    """Zaman sirasiyla {anahtar, acilis, t_ms, sonra}. Acilis HAM kayitlardan (yakalamanin
+    kaydindan once gelen DEVAM sayisi); sonra = ayni acilista zamani >= (t_ms+1) ms olan ilk
+    olcum verisi (dogrusal tarama)."""
+    dv = sorted(k.sira for k in kayitlar if k.tur == KB.T_DEVAM and k.oturum == o.id)
+    veri = olcum_zamanlari(o)
+    ilk, out = {}, []
+    for anahtar in sorted(o.skoplar):
+        y = o.skoplar[anahtar]
+        if y["meta"] is None:
+            continue
+        ac = sum(1 for d in dv if d < anahtar)
+        t = y["meta"]["t_ms"]
+        t0 = ilk.setdefault(ac, t)
+        sonra = next((s_ for s_, us, a in veri if a == ac and us_fark(us, (t + 1) * 1000) >= 0), None)
+        out.append(((ac, i32(t - t0), anahtar), {"anahtar": anahtar, "acilis": ac, "t_ms": t, "sonra": sonra}))
+    return [d for _, d in sorted(out, key=lambda x: x[0])]
+
+
+def yakalama_vektoru(o: KB.Oturum, veri: bytes) -> dict:
+    yer = yakalama_yerleri(o, KB.akis_coz(veri))
+    seg, _ = segmentler(o)
+    yak = []
+    for y in yer:
+        z = seg[y["acilis"]]
+        yak.append([y["anahtar"], y["acilis"],
+                    None if z["ofset"] is None else z["ofset"] + i32(y["t_ms"] - z["kart"])])
+    return {"skop_sonra": sorted(y["sonra"] for y in yer if y["sonra"] is not None), "yakalamalar": yak}
 
 
 # ── beklenen hucreler ─────────────────────────────────────────────────
@@ -349,7 +484,7 @@ def olcum_vektoru(ad: str, veri: bytes, ot: int) -> dict:
     wh = birikimli(rows, lambda r: r["w"][0], 3_600_000, bosluk)
     mah = birikimli(rows, lambda r: r["a"][0] if not math.isnan(r["v"][0]) else float("nan"), 3_600, bosluk)
     return {"ad": ad, "veri": veri.hex(), "oturum": ot, "nokta": nokta_hucreleri(rows),
-            "enerji": {"wh": jf(wh[-1]), "mah": jf(mah[-1])}}
+            "enerji": {"wh": jf(wh[-1]), "mah": jf(mah[-1])}, **yakalama_vektoru(o, veri)}
 
 
 def pil_vektoru(veri: bytes, ot: int) -> dict:
@@ -389,7 +524,9 @@ def ayrinti_vektoru(veri: bytes, ot: int) -> dict:
             if j == 0 and rk["bayrak"]:
                 ka[s] = rk["bayrak"]
     rows = []
-    for s, us, v, i, b, ac in sorted(KB.ayrinti_ornekler(o), key=lambda x: x[0]):
+    wler = hizali_guc(o)
+    tum = []                         # enerji: (acilis, rel us, v, i, w)
+    for (s, us, v, i, b, ac), w_al in zip(sorted(KB.ayrinti_ornekler(o), key=lambda x: x[0]), wler):
         z = seg[ac]
         rel = (us - z["kart"] * 1000) % M
         if rel >= M // 2:
@@ -405,8 +542,25 @@ def ayrinti_vektoru(veri: bytes, ot: int) -> dict:
         ii = float("nan") if b & KB.KAO_I_HATA else KB.amper(i, kal)
         rows.append([str(s), str(ac), str(us), "" if g is None else olcekli(g, 3),
                      "" if u is None else olcekli(u, 3), "" if u is None else iso(u),
-                     sayi_yaz(vv, 6), sayi_yaz(ii, 6), sayi_yaz(vv * ii, 6), str(b), str(ka.get(s, 0))])
-    return {"veri": veri.hex(), "oturum": ot, "satirlar": rows}
+                     sayi_yaz(vv, 6), sayi_yaz(ii, 6), sayi_yaz(w_al, 6), str(b), str(ka.get(s, 0))])
+        tum.append((ac, rel, vv, ii, w_al))
+    # enerji: acilis basina yamuk (ms), bosluk > 16.38 ms haric; Wh hizali W'den, mAh A'dan
+    wh = mah = 0.0
+    for ac in sorted({x[0] for x in tum}):
+        tw, ta, once = Toplam(), Toplam(), None
+        for _a, rel, vv, ii, w_al in (x for x in tum if x[0] == ac):
+            if math.isnan(vv) or math.isnan(ii):
+                continue
+            if once is not None and (rel - once[0]) / 1000 <= AYRINTI_BOSLUK_MS:
+                dt = (rel - once[0]) / 1000
+                if not math.isnan(w_al) and not math.isnan(once[2]):
+                    tw.ekle((once[2] + w_al) * dt / 2)
+                ta.ekle((once[1] + ii) * dt / 2)
+            once = (rel, ii, w_al)
+        wh += tw.deger / 3_600_000
+        mah += ta.deger / 3_600
+    return {"veri": veri.hex(), "oturum": ot, "satirlar": rows, "w": [jf(x) for x in wler],
+            "enerji": {"wh": jf(wh), "mah": jf(mah)}, **yakalama_vektoru(o, veri)}
 
 
 def vektorler() -> dict:
