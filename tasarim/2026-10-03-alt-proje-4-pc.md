@@ -73,7 +73,7 @@ geliştirme sunucusu sayıyor; `olcum.localhost` sayfayı sunan köprü — B7'y
 | 4A-7 | **Meşgul port mesajı `kart_baglanti.acma_hatasi`'nda** (bütün araçların açma yolu): WinError 5'te 127.0.0.1:8770/`durum`'a sorulur; köprü o portu tutuyorsa "PC kopru bu portu kullaniyor — kapatin" | Tek yerde; tezgah araçları sessizce "açılamadı" demesin. Gerçek kartta (COM6) doğrulandı |
 | 4A-8 | **`OtoSeriKart`:** köprü kart takılı değilken de açılır, port VID'den yeniden aranır (3 s), kopunca (`ReadFile`/`WriteFile` FALSE → `SeriKart.kopuk`) kapatıp yeniden arar; durum satırları akışa BİR KEZ, arşive hiç; kart yokken son durum satırı sonradan bağlanan tarayıcıya da `/akis` açılışında gönderilir | Başlangıç kısayolu kartsız açılışta ölmesin. ⚠ Gerçek kabloyu çekip takma tezgah kalemi (sahte kartla sınandı) |
 | 4A-9 | **`kopru.py`'nin `main`'i `pc.py`'ye devreder** — eski komut ve seçenekler çalışır; ön planda tarayıcı açılır (stok-takip deseni), `--tarayici-acma` ile kapanır | Tek giriş noktası; iki ayrı `main` ayrışırdı |
-| 4A-10 | **`.satir` arşivinin yeri DEĞİŞMEDİ** (`kopru/arsiv/`, gitignore'da); 4A'da depo dışına taşınan yalnız çökme izi (`%LOCALAPPDATA%\olcum-karti\arkaplan-hata.txt`, `OLCUM_PC_DIZIN`) | PC5 yeni arşivle (4C) birlikte; şimdi taşımak kullanıcının mevcut B35 arşivini "kaybolmuş" gösterirdi (PC12 onu salt okuma eski arşiv yapıyor) |
+| 4A-10 | ~~**`.satir` arşivinin yeri DEĞİŞMEDİ**~~ (4C-9'da `%LOCALAPPDATA%\olcum-karti\satir\`'a taşındı, eskisi kopyalanır) (`kopru/arsiv/`, gitignore'da); 4A'da depo dışına taşınan yalnız çökme izi (`%LOCALAPPDATA%\olcum-karti\arkaplan-hata.txt`, `OLCUM_PC_DIZIN`) | PC5 yeni arşivle (4C) birlikte; şimdi taşımak kullanıcının mevcut B35 arşivini "kaybolmuş" gösterirdi (PC12 onu salt okuma eski arşiv yapıyor) |
 | 4A-11 | **Başlangıç kısayolu araçları var, KURULMADI:** `kopru/Otomatik Baslat Kur.bat` / `Otomatik Baslatmayi Kapat.bat` → `otomatik-baslat.ps1` (gerçek `pythonw.exe` yolunu `sys.executable`'dan bulur; WindowsApps takma adı değil). Kısayol, kurulumun yapıldığı çalışma ağacının `pc.py`'sini gösterir | Kurulum kullanıcının kararı. Birden çok çalışma ağacı var — betik yolu ekrana yazar |
 | 4A-12 | **`sunucu_kur` her sunucuya özel işleyici alt sınıfı** kurar (`Isleyici.kopru` paylaşılan sınıf niteliği değil) | Aynı süreçte iki sunucu (test, ölü tekrar) birbirinin köprüsünü eziyordu |
 | 4A-13 | **`gizlilik_dogrula.py`:** düz eğik çizgili mutlak yol (her sürücü harfi + `Users`/`home`/`Muhammet`), ters eğik çizgili desenler de her sürücü harfine genişledi; gömülü parola = adı parola/sifre/password ile BİTEN alana yazılmış ≥ 4 karakterlik düz metin. Deneme değeri işareti: `sinama`/`deneme`/`test`/`ornek`/`gizli`/`dogru`/`yanlis`/`sahte`, 4+ tekrar, sözlük anahtarı (`es.parola`) ya da tam değer beyaz listesi (iki kayıt, gerekçeli); üretilmiş çapraz vektör JSON'ları atlanır (üreten `.py` taranıyor). Bulunan değer EKRANA BASILMAZ | "kart", "1234" gibi gerçek parolada da geçebilecek parçalar bilerek işaret değil. Yeni test parolası işaret sözcüğü taşımalı |
@@ -165,9 +165,61 @@ B22a "4B" (seçim + `pc.py`), B22b 2d/3b/4a, B72 D0/F74/F77/F81c/F88/F91/F25, B6
 
 Açık (4B dışı / sonraki dilimler):
 - **WiFi'de skop yakalaması** köprüde hâlâ `tB → t` + ASCII dökümü SSE'den topluyor; kartın akış kuyruğu (48 satır) büyük dökümde satır düşürürse yakalama "kırpık" (503). Kartın `/skop.bin`'ini imzalı vekil etmek PC11 / 4D.
-- **Kayıt verisi WiFi'den** (PC6'nın ikinci yarısı) ve eşitleyicinin aynı sayaç kilidini paylaşması 4C.
+- ~~**Kayıt verisi WiFi'den** (PC6'nın ikinci yarısı) ve eşitleyicinin aynı sayaç kilidini paylaşması 4C.~~
+  4C'de yapıldı (aşağıda 4C-2).
 - `ortak/src/imza.js`'te kimlik denetimi yok (panel); kart her uçta `_i` sorgu imzasını kabul ediyor (D5 #17'nin ilk yarısı).
 - Gerçek kartta: tek `ham()` yazımının IDF günlüğüyle kesişmediği, 4 izleyici + köprü, köprünün kablo çekip takmada USB ↔ WiFi geçişi (aşağıdaki tezgah listesi orkestratörde).
+
+### 4C uygulama kararları (2026-10-03)
+
+Köprü süreci kartın kayıtlarını arka planda diske eşitliyor (`kopru/arka_esitle.py`: `ArkaEsitleme`;
+`pc.esitleme_kur`). Sınama: B72.A1–A12 (sahte kart, bağımsız imza doğrulayıcı, sanal saat), B22a "4C"
+(7 iddia: `pc.py` bağlantısı, `/esitleme/durum`, `.satir` göçü). Her iddianın `4C:` önekli yalanlayan
+mutasyonu var (38).
+
+**Gerçek kartta ölçüldü (2026-10-03, A3-4B, WiFi, `--onaysız`, geçici veri dizini).** Kartta 44 oturum,
+sıra 59043–61276 (öncesi temizlenmiş, boşluk 1–59042 olarak raporlandı), 2234 kayıt, 1 268 956 B.
+Köprünün arşivi kartın `/kayit/liste`'siyle aynı: son sıra 61276, 44 oturum; farklı ayarlarla alınan altı
+tam eşitlemenin hepsi bayt bayt aynı. Kartın onayı (61276) değişmedi (onay gönderilmedi). Canlı akış
+(köprünün `/akis`'i, `D`/`K` satırları) ölçüm sırasında:
+
+| Parça arası | Süre (1.27 MB) | Akış satır/s | p95 aralık | en uzun aralık |
+|---|---|---|---|---|
+| boşta (eşitleme yok) | — | 4.7–5.1 | 208–222 ms | 213–861 ms |
+| yok (arka arkaya) | 15.6 · 18.9 · 19.7 s | 4.87 · 4.96 · 4.91 | 225–266 ms | 470–2365 ms |
+| sabit 20 ms | 28.1 s | 4.84 | 229 ms | 827 ms |
+| sabit 50 ms | 33.3 · 36.2 s | 4.93 · 4.94 | 226–233 ms | 512–2101 ms |
+| **istek başları arası ≥ 100 ms (seçilen)** | 28.5 s; uçtan uca `pc.py` 29.6 s | 4.94 | 230 ms | 2183 ms |
+
+Hiçbir düzende satır kaybı yok (hız boştakine eşit); 0.5–2.4 s'lik tekil boşluklar her düzende (ve bir kez
+boşta 861 ms) görülüyor — eşitlemeye bağlı değil. Bir imzalı istek PC tarafında zaten ~100–120 ms
+sürüyor (her istekte yeni TCP + ad çözümü + sayaç dosyası DPAPI + fsync), kartın web çekirdeği bunun
+~44 ms'inde meşgul.
+
+| # | Karar | Gerekçe / yanlışsa maliyeti |
+|---|---|---|
+| 4C-1 | **Zamanlama:** ilk tur hemen; her yukarı-akış (yeniden) bağlantısında (`baglanti_no` değişince — USB ya da WiFi); sonra **120 s**'de bir (`--esitleme-aralik` / ayar, en az **30 s**). Hata: **15 s**'den 2 katlanarak **600 s** tavan; başarıda sıfırlanır. **Mutlak taban:** iki tur BAŞLANGICI arası en az **10 s** (yeniden bağlanma fırtınası dahil). Tek iplik, tek tur = sıralı istekler | Kart en yüksek hızda (ayrıntılı kip) ~3.1 KB/s yazar: 120 s ≈ 370 KB ≈ 46 parça, birkaç saniye; olağan hızda çok daha az. 503 (`kayit mesgul`, tarama) saniyeler içinde geçer → 15 s; kart geri gelince yeniden bağlanma tetiği 10 s tabanla hemen eşitletir, tavan yalnız "kart erişilir ama eşitleme hata veriyor" (sıra geri gitti vb.) durumunu seyreltir. Sanal saatle sınanıyor (A11a–c) |
+| 4C-2 | **Aynı `Cihaz` nesnesi + aynı sayaç kilidi:** `WifiKart` cihaz dosyası başına TEK nesne tutar (`_paylasilan`; yeniden eşleştirmede n/K/kimlik değişince yenisi), `dogrula()` (bilgi → kimlik → dosya → kimlik uyuşması) akışla ortak; eşitleme bütün imzalı isteklerini `WifiKart.imzali_ac` ile kilitte yapar. **İmzalı `/akis` adresinin üretimi + isteği + yanıt başı da kilitte** (`_akis_iste`) | 4B-12'nin açığı. İki nesne aynı milisaniyede aynı sayacı üretir → kart 401 (A9, donuk saatle belirlenimci). Kilit yalnız imza üretimini kapsasaydı: yavaş bağlantıda (`olcum.local` mDNS çözümü) araya giren eşitleme isteği büyük sayaçla önce ulaşır, akışın eski sayacı 64 ms penceresinin dışında kalır → 401 (A10, 0.4 s geciktirilmiş bağlantıyla ölçülüyor). Bedel: yavaş bağlantı sırasında eşitleme bekler |
+| 4C-3 | **Parça ≤ 8192 B** (kartın `KAYIT_VERI_AZAMI`); **hız tavanı: iki parça isteğinin başlangıcı arası ≥ 100 ms** (≤ 10 istek/s, ≤ 80 KB/s) — sabit ara değil, istek zaten o kadar sürdüyse bekleme yok | Ölçüm (yukarıdaki tablo): canlı akış hiçbir düzende aksamıyor; sabit ara yalnız süreyi uzatıyor (50 ms → 2×). Tavan bugün tam eşitlemede ~%45 süre ekliyor (1.27 MB: ~20 → ~29 s; dolu 11.4 MB bölüm ~3 → ~4.5 dk), 120 s'lik olağan turda < 1 s. Korur: PC tarafı hızlanırsa (keep-alive, tek bağlantı) kartın seri web çekirdeği telefonlara / `p0`'a yine pay bırakır. Spec §11 riski ölçülerek kapatıldı |
+| 4C-4 | **Onay (PC9):** varsayılan VERİR — `Go<sira>` imzalı, ANCAK `kayitlar.kyt` fsync + atomik `durum.json`'dan SONRA (A2: kart onayı aldığı anda dosyada o sıraya kadar her bayt ve durum yazılmış), kart `X-Onay` ile doğrular. **64 parçada bir + tur sonunda** (kısa turda TEK `Go`). Kapatma: `--onaysiz` ya da `ayar.json` `"esitleme_onay": false`; ayar dosyası okunamaz / değer true-false değilse **ONAYSIZ** (güvenli taraf) ve söylenir | Her `Go` kartın akışına `* G onay istegi` satırı basıyor; parça başına onay 1.27 MB'de 155 satır + 155 istek olurdu. Onay geri alınamaz sonuç doğurabilir (kart dolunca o veri silinebilir; eşitlenmemiş telefon göremez) — şüphede onaysız. **Gerçek karta ilk onaylı koşu bu dilimde YAPILMADI** (orkestratör kararı) |
+| 4C-5 | **Arşiv yeri (PC5):** `%LOCALAPPDATA%\olcum-karti\arsiv\<kart kimliği>\akis-<akış kimliği>\` (`kayitlar.kyt`, `durum.json`, `kalibrasyon.json`, `esitle.kilit`); `OLCUM_PC_DIZIN` ile taşınır. Akış kimliği her turda imzalı `/kayit/liste`'nin `kimlik`'i; değişince (biçim / sıfırlama) YENİ alt dizin, eskisi bayt bayt yerinde, durum satırı söyler | `kayit_esitle` zaten akış kimliği değişince DURUYORDU (eski akışa eklemez); arka planda durmak yerine yeni dizin — iki akış asla karışmaz (A5). `kalibrasyon.json` akış dizininde: o akışın kayıtlarıyla birlikte okunur (NVS geçmişi biçimle silinmez; her akış dizininde bir kopya — küçük dosya) |
+| 4C-6 | **Durum satırları** `* esitleme: N yeni kayit, son sira S; onay gitti (kart dogruladi)` / `onay gitmedi (onaysiz)` / boşluk / kalibrasyon yedeği; hata/atlama `! esitleme: … — T s sonra yeniden`. Yeni kayıt yokken sessiz; aynı hata bir kez. Köprüden TARAYICILARA, `.satir` arşivine GİRMEZ (A8 — `pc.esitleme_kur` bağlantısı üzerinden) | `* kopru:` satırlarıyla aynı kural (4A-8). Her 120 s'de bir "yeni kayıt yok" panel günlüğünü doldururdu |
+| 4C-7 | **`GET /esitleme/durum`** (köprü): yalnız bu bilgisayardan (yerel ağ 403), JSON: etkin, onay, aralık, son sonuç/mesaj, son deneme/başarı (unix), yeni/toplam kayıt, son sıra, kartın son sırası, oturum sayısı, arşiv baytı, onay gitti/doğrulandı, **arşivin göreli adı** (`arsiv/<kart>/akis-<n>`), sonraki denemeye kalan s. Mutlak yol YOK. Eşitleme kurulmadıysa `etkin:false` + sebep. Panel arayüzü değişmedi (4D) | 4D'nin "bu PC" görünümü buradan beslenecek. Döngü dışı istemciye arşiv bilgisi gerekmez |
+| 4C-8 | **USB (PC6):** kayıt verisinin seri yolu yok. USB yukarı-akış etkinken de eşitleme kartı **WiFi'den** dener (kart aynı anda ağdaysa çalışır); WiFi'den doğrulanamazsa tur ATLANIR: `! esitleme: atlandi — kart yalniz USB'den erisilebilir; … (USB seri dokumu 4C-2, ertelendi)` (A7). `--wifi-yok`: eşitleme kurulmaz, sebep konsolda ve `/esitleme/durum`'da. `--esitleme-yok` kapatır | 4C-2 (seri döküm) ERTELENDİ — kullanıcı "WiFi kapalı, yalnız USB" (`N0`) durumunu isterse |
+| 4C-9 | **`.satir` günlüğü (PC12 bağlamı) taşındı:** varsayılan `%LOCALAPPDATA%\olcum-karti\satir\` (4A-10'un yerine). Açılışta yeni dizinde hiç `.satir` yoksa çalışan ağacın `kopru/arsiv/*.satir`'ı **BİR KEZ KOPYALANIR** (taşınmaz, silinmez) ve konsolda söylenir; başka dosya gitmez | Kullanıcının B35 arşivi ana ağaçta (`projeler/olcum-karti/kopru/arsiv`) — kopya: eski ağaçtaki araçlar ve geri dönüş çalışır. 4A-10'daki "kaybolmuş görünür" endişesi kopyayla yok |
+| 4C-10 | **`ayar.json`** (`%LOCALAPPDATA%\olcum-karti\`, isteğe bağlı): `esitleme_onay` (bool), `esitleme_aralik_s` (sayı); bayraklar ayarı ezer | Başlangıç kısayolu `pythonw pc.py --sessiz` çalıştırıyor: onaysız arka plan için kısayolu düzenlemek gerekmesin |
+| 4C-11 | **`Esitleyici` ek parametreleri** (`istek`, `parca_arasi`, `uyu`, `durdu`, `onay_parca`) komut satırında eski davranışta (parça başı onay, ara yok); köprü kapanırken tur parçalar arasında durur (yazılan kalıcı kalır, onay doğrulaması atlanır) | `kayit_esitle.py` CLI ve B72.E iddiaları değişmedi |
+
+Açık (4C dışı / sonraki):
+- **Gerçek karta ilk ONAYLI koşu** (varsayılan) — onay geri alınamaz sonuç doğurabildiği için orkestratörde.
+- **Köprü açıkken `kayit_esitle.py` / `imza.py` CLI'si** aynı cihaz dosyasını AYRI süreçte kullanır: sayaç
+  yarışabilir (aynı ms → 401). Kural: önce `pc.py --durdur`. Süreçler arası kilit yok.
+- İstek başına PC yükü (~100 ms: yeni TCP + `olcum.local` çözümü + sayaç dosyası DPAPI/fsync): keep-alive ve
+  sayaç yazımını seyreltmek tam eşitlemeyi ~2× hızlandırır; 4C-3 tavanı o zaman da kartı korur.
+- `--kayit` (ölü tekrar) satırları da `satir\`'a yazar (eski davranış `kopru/arsiv`) — geliştirme aracı.
+- Uçtan uca ölçümde akış eşitlemeyle AYNI anda bağlanıyordu (köprü açılışı): pencere hızı 4.29/s, en uzun
+  2.3 s — bağlanma payı; akış önceden bağlıyken (tablo) hız boştakine eşit.
+- Panelde eşitleme durumu (4D).
 
 ## Güvenlik (kalıcı kurallar)
 

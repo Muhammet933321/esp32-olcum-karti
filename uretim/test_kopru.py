@@ -1197,6 +1197,153 @@ def pc_4b_sina(gec_dizin: Path) -> None:
        f"{type(a5).__name__} {ikisi}")
 
 
+def pc_4c_sina(gec_dizin: Path) -> None:
+    """4C (PC5/PC9/PC12): arka plan esitlemesinin pc.py baglantisi, /esitleme/durum, .satir gocu.
+
+    Esitleme dongusunun kendisi (sahte karta karsi, imzali) B72.A'da sinaniyor."""
+    print("\n--- 4C. Arka plan disk arsivi: pc.py baglantisi, /esitleme/durum, .satir gocu ---")
+    import arka_esitle as AE
+    import kart_wifi as KW
+    import pc
+    import pc_ayar
+
+    def _durum_al(url):
+        kod, govde = _guvenli_istek(url)
+        return kod, govde.decode("utf-8", "replace")
+    ayar = pc_ayar.veri_dizini() / pc_ayar.AYAR
+    if ayar.exists():
+        ayar.unlink()
+    usb, wifi = _SahteYukari("seri:COM9@115200"), KW.WifiKart("127.0.0.1:9")
+    sec = KW.SecmeliKart(usb, wifi)
+    kop = kopru_mod.Kopru(sec, gec_dizin / "arsiv_4c")
+    sus: list[str] = []
+    e1 = pc.esitleme_kur([], sec, kop, yazdir=sus.append)
+    usb.baglanti_no = 7
+    sec._sec("usb")
+    ok("4C (PC5/PC9): varsayilan esitleme kartin WiFi kolunu kullanir, ONAY verir, 120 s araliklidir, "
+       "arsiv %LOCALAPPDATA%\\olcum-karti\\arsiv (OLCUM_PC_DIZIN ile), kopruye bagli; tetik yukari-akisin "
+       "baglanti numarasi, USB etkinligi SecmeliKart'tan",
+       e1 is not None and e1.wifi is wifi and e1.onay is True and e1.aralik == AE.ARALIK_SN == 120.0
+       and e1.arsiv_kok == pc_ayar.veri_dizini() / "arsiv" and kop.esitleme is e1
+       and e1._tetik() == sec.baglanti_no and e1._usb_etkin() is True and e1._is is None,
+       f"onay={getattr(e1, 'onay', None)} aralik={getattr(e1, 'aralik', None)}")
+    e2 = pc.esitleme_kur(["--onaysiz"], sec, kop, yazdir=sus.append)
+    sus.clear()
+    e3 = pc.esitleme_kur(["--esitleme-aralik", "5"], sec, kop, yazdir=sus.append)
+    e3b = pc.esitleme_kur(["--esitleme-aralik", "300"], sec, kop, yazdir=sus.append)
+    ok("4C (PC9): --onaysiz onayi KAPATIR; --esitleme-aralik verilir ama en az 30 s (daha kisasi "
+       "soylenerek 30'a cekilir — kart dovulmez)",
+       e2.onay is False and e3.aralik == AE.ARALIK_EN_AZ == 30.0 and e3b.aralik == 300.0
+       and any("cok kisa" in x for x in sus), f"{e2.onay} {e3.aralik} {e3b.aralik} {sus[-1:]}")
+    ayar.parent.mkdir(parents=True, exist_ok=True)
+    ayar.write_text('{"esitleme_onay": false, "esitleme_aralik_s": 240}', encoding="utf-8")
+    e4 = pc.esitleme_kur([], sec, kop, yazdir=sus.append)
+    sus.clear()
+    ayar.write_text("{bozuk", encoding="utf-8")
+    e5 = pc.esitleme_kur([], sec, kop, yazdir=sus.append)
+    ayar.write_text('{"esitleme_onay": "hayir"}', encoding="utf-8")
+    e5b = pc.esitleme_kur([], sec, kop, yazdir=sus.append)
+    ayar.write_text('{"esitleme_onay": true}', encoding="utf-8")
+    e5c = pc.esitleme_kur(["--onaysiz"], sec, kop, yazdir=sus.append)
+    ayar.unlink()
+    ok("4C (PC9): ayar.json `esitleme_onay: false` / `esitleme_aralik_s` uygulanir; dosya bozuk ya da "
+       "deger true/false degilse GUVENLI tarafa (ONAYSIZ) dusulur ve soylenir; --onaysiz ayari ezer",
+       e4.onay is False and e4.aralik == 240.0 and e5.onay is False and e5b.onay is False
+       and e5c.onay is False and any("okunamadi" in x and "ONAYSIZ" in x for x in sus),
+       f"{e4.onay}/{e4.aralik} {e5.onay} {e5b.onay} {sus[:1]}")
+    sus.clear()
+    kop_y = kopru_mod.Kopru(usb, gec_dizin / "arsiv_4c_y")
+    e6 = pc.esitleme_kur(["--esitleme-yok"], sec, kop, yazdir=sus.append)
+    e7 = pc.esitleme_kur([], usb, kop_y, yazdir=sus.append)
+    e8 = pc.esitleme_kur([], wifi, kopru_mod.Kopru(wifi, gec_dizin / "arsiv_4c_w"), yazdir=sus.append)
+    ok("4C (PC6): --esitleme-yok ve WiFi'siz yukari-akis (--wifi-yok: kayit verisinin seri yolu yok, "
+       "4C-2 ertelendi) esitleme KURMAZ ve sebebini soyler; yalniz WiFi (--usb-yok) kurar",
+       e6 is None and e7 is None and kop_y.esitleme is None and "4C-2" in (kop_y.esitleme_neden or "")
+       and e8 is not None and e8.wifi is wifi and any("KAPALI" in x for x in sus),
+       f"{e6} {e7} {kop_y.esitleme_neden!r}")
+
+    # /esitleme/durum: yalniz bu bilgisayar, JSON, mutlak yol yok
+    kop.esitleme = e1
+    s1 = _kos(kop)
+    t1 = f"http://127.0.0.1:{s1.server_address[1]}"
+    kod_d, govde_d = _durum_al(t1 + "/esitleme/durum")
+    s1.shutdown()
+    s1.server_close()
+    s2 = _kos(kop, _LanIsleyici)
+    kod_lan, _ = _durum_al(f"http://127.0.0.1:{s2.server_address[1]}/esitleme/durum")
+    s2.shutdown()
+    s2.server_close()
+    s3 = _kos(kop_y)
+    kod_y, govde_y = _durum_al(f"http://127.0.0.1:{s3.server_address[1]}/esitleme/durum")
+    s3.shutdown()
+    s3.server_close()
+    try:
+        dj, dy = json.loads(govde_d), json.loads(govde_y)
+    except ValueError:
+        dj, dy = {}, {}
+    ok("4C: GET /esitleme/durum yalniz BU BILGISAYARDAN (yerel ag 403) — etkin / onay / aralik / son "
+       "sonuc JSON'u; esitleme yoksa etkin:false + sebep; yanitta mutlak yol yok",
+       kod_d == 200 and dj.get("etkin") is True and dj.get("onay") is True and dj.get("sonuc") == "bekliyor"
+       and dj.get("aralik_s") == 120.0 and kod_lan == 403 and kod_y == 200 and dy.get("etkin") is False
+       and "4C-2" in dy.get("neden", "") and str(gec_dizin) not in govde_d + govde_y
+       and str(pc_ayar.veri_dizini()) not in govde_d,
+       f"{kod_d} {govde_d[:80]} lan={kod_lan} yok={govde_y[:60]}")
+
+    # .satir gocu: BIR KEZ, KOPYA, yalniz yeni dizin bossa
+    eski, yeni = gec_dizin / "agac_arsiv", gec_dizin / "satir_yeni"
+    eski.mkdir()
+    (eski / "2026-09-11.satir").write_text("1000\tD 1.0\n", encoding="utf-8")
+    (eski / "2026-09-12.satir").write_text("2000\tD 2.0\n", encoding="utf-8")
+    (eski / "not.txt").write_text("x", encoding="utf-8")
+    g1 = pc.satir_goc(eski, yeni)
+    g2 = pc.satir_goc(eski, yeni)
+    (eski / "2026-10-01.satir").write_text("3000\tD 3.0\n", encoding="utf-8")
+    g3 = pc.satir_goc(eski, yeni)
+    bos_eski = gec_dizin / "agac_bos"
+    g4 = pc.satir_goc(bos_eski, gec_dizin / "satir_yeni2")
+    ok("4C (PC12): eski .satir arsivi (calisan agacin kopru/arsiv) yeni dizin BOSSA bir kez KOPYALANIR "
+       "(tasinmaz, silinmez); sonra bir daha dokunulmaz; .satir disi dosya gitmez; varsayilan yer "
+       "%LOCALAPPDATA%\\olcum-karti\\satir",
+       g1 == ["2026-09-11.satir", "2026-09-12.satir"] and g2 == [] and g3 == [] and g4 == []
+       and all((eski / a).exists() for a in g1)
+       and all((yeni / a).read_bytes() == (eski / a).read_bytes() for a in g1)
+       and not (yeni / "not.txt").exists() and not (yeni / "2026-10-01.satir").exists()
+       and pc_ayar.satir_dizini() == pc_ayar.veri_dizini() / "satir"
+       and pc.ESKI_SATIR_DIZINI == KOK / "kopru" / "arsiv",
+       f"{g1} {g2} {g3}")
+
+    # pc.calistir: .satir gunlugu yeni yerde, esitleme baslar ve /esitleme/durum'dan gorunur
+    hp = _bos_port()
+    yazilan: list[str] = []
+    sonuc = {}
+    th = threading.Thread(target=lambda: sonuc.update(rc=pc.calistir(
+        ["--usb-yok", "--http-port", str(hp), "--tarayici-acma"], tarayici_ac=lambda u: None,
+        yazdir=yazilan.append)), daemon=True)
+    th.start()
+    son = time.monotonic() + 8
+    while not pc.zaten_calisiyor(hp) and time.monotonic() < son:
+        time.sleep(0.05)
+    kod_c, govde_c = _durum_al(f"http://127.0.0.1:{hp}/esitleme/durum")
+    son = time.monotonic() + 6
+    while '"son_deneme": null' in govde_c and time.monotonic() < son:
+        time.sleep(0.1)
+        kod_c, govde_c = _durum_al(f"http://127.0.0.1:{hp}/esitleme/durum")
+    durdu, _ = pc.durdur(hp)
+    th.join(8)
+    try:
+        dc = json.loads(govde_c)
+    except ValueError:
+        dc = {}
+    ok("4C: pc.py (--usb-yok) esitlemeyi KURAR ve BASLATIR (ilk tur hemen; kart yoksa hata sayilir), "
+       "durdurulunca iplik biter; .satir gunlugu %LOCALAPPDATA%\\olcum-karti\\satir, kayit arsivi "
+       "...\\arsiv konsolda soylenir",
+       kod_c == 200 and dc.get("etkin") is True and dc.get("son_deneme") and dc.get("sonuc") == "hata"
+       and durdu and not th.is_alive() and sonuc.get("rc") == 0
+       and any("Satir gunlugu" in x and str(pc_ayar.satir_dizini()) in x for x in yazilan)
+       and any("Kayit arsivi" in x and str(pc_ayar.arsiv_dizini()) in x and "ONAY" in x for x in yazilan),
+       f"{kod_c} {govde_c[:90]} rc={sonuc.get('rc')}")
+
+
 def main() -> int:
     print("=" * 78)
     print("  B22.3  PC KOPRUSU  (role · arsiv · surucu hakemi)")
@@ -1616,6 +1763,7 @@ def main() -> int:
     pc_4a_sina(gec_dizin, taban)
     pc_4a_inceleme_sina(gec_dizin)
     pc_4b_sina(gec_dizin)
+    pc_4c_sina(gec_dizin)
 
     k.calisiyor = False
     time.sleep(0.25)
@@ -1660,6 +1808,12 @@ def main() -> int:
          "'* kopru: WiFi baglandi', D satirlari; komut (ör. `?`) imzali gider, `p0` imzasiz. Kablo "
          "takilinca USB'ye doner ('WiFi baglantisi kapatildi'), cekilince WiFi'ye. Kopru + karta "
          "dogrudan 3 tarayici = 4 yuva, hicbiri reddedilmez; 5. istemci `event: dolu`"),
+        ("4C: arka plan esitlemesi gercek kartta (ONAYLI ilk kosu bekliyor)",
+         "2026-10-03 A3-4B, `pc.py --usb-yok --onaysiz` (gecici OLCUM_PC_DIZIN): 2234 kayit / 1 268 956 B / "
+         "son sira 61276 / 44 oturum, kartin /kayit/listesiyle ayni, 29.6 s; canli akis hizi bosta ile ayni "
+         "(spec 4C tablosu). KALAN: varsayilan ONAYLI kosu — `Go` sonrasi /kayit/liste `onay` == son sira, "
+         "PC'deki kayitlar.kyt == kartin bolumu (tezgah_kayit.py --esit); USB takiliyken (SecmeliKart USB) "
+         "esitlemenin WiFi'den surdugu; kart kapatilip acilinca yeniden baglanma tetigiyle <= 10 s'de tur"),
         ("p0 (DURDUR) izleyiciden de geciyor mu",
          "Surucu OLMAYAN sekmeden pil testini durdur. Gecmeli — bu bir "
          "kolaylik degil EMNIYET karari"),

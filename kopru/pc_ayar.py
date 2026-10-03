@@ -23,6 +23,9 @@ PC5 — kullanici verisi depo DISINDA: `%LOCALAPPDATA%\\olcum-karti\\`
   ile ayrica degistirilebilir) — eskiden `kopru/.cihaz` (calisma agaci basina:
   baska agactan acilan kopru anahtari bulamiyordu).
 
+  4C: kayit arsivi `...\\olcum-karti\\arsiv\\`, eski `.satir` gunlugu `...\\olcum-karti\\satir\\`,
+  istege bagli ayar `...\\olcum-karti\\ayar.json` (`esitleme_onay`, `esitleme_aralik_s`).
+
 PC6 — kartin WiFi adresi `olcum.local` (`OLCUM_KART_HOST` ya da
   `pc.py --kart-host` ile degisir: IP, ya da kartin kendi AP'sinde 192.168.4.1).
 """
@@ -73,6 +76,38 @@ def cihaz_dizini() -> Path:
     okunur — testler ve ikinci bir kullanici ortam degiskeniyle yonlendirebilsin."""
     elle = os.environ.get("OLCUM_CIHAZ_DIZIN")
     return Path(elle) if elle else veri_dizini() / "cihaz"
+
+
+def arsiv_dizini() -> Path:
+    """4C (PC5): kartin kayit arsivi `...\\olcum-karti\\arsiv\\<kart kimligi>\\akis-<n>\\`
+    (olusturmaz). `OLCUM_PC_DIZIN` ile birlikte yer degistirir."""
+    return veri_dizini() / "arsiv"
+
+
+def satir_dizini() -> Path:
+    """4C (PC12 baglami): koprunun eski `.satir` satir gunlugu `...\\olcum-karti\\satir\\`
+    (olusturmaz). Eskiden calisan agacin `kopru/arsiv/`i idi — `pc.satir_goc` bir kez KOPYALAR."""
+    return veri_dizini() / "satir"
+
+
+AYAR = "ayar.json"
+
+
+def ayar_oku() -> tuple[dict | None, str | None]:
+    """4C: istege bagli kullanici ayari `...\\olcum-karti\\ayar.json` (yoksa {}).
+    Donus (ayar, hata): okunamiyor / bicimsiz ise (None, sebep) — cagiran GUVENLI varsayilana
+    duser (esitleme: onaysiz)."""
+    import json
+    p = veri_dizini() / AYAR
+    if not p.exists():
+        return {}, None
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return None, f"{AYAR} okunamadi ({type(e).__name__})"
+    if not isinstance(d, dict):
+        return None, f"{AYAR} bir JSON nesnesi degil"
+    return d, None
 
 
 KART_HOST = "olcum.local"

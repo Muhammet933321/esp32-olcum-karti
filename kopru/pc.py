@@ -12,6 +12,9 @@
     python kopru/pc.py --cihaz DOSYA      # eslesmis cihaz dosyasi (yoksa kart kimligine gore)
     python kopru/pc.py --wifi-yok         # yalniz USB (4A davranisi)
     python kopru/pc.py --usb-yok          # yalniz WiFi: COM portu hic acilmaz (tezgah araclari kullanabilir)
+    python kopru/pc.py --onaysiz          # 4C: kayitlari esitle ama karta ONAY (Go) yollama
+    python kopru/pc.py --esitleme-aralik 300   # 4C: esitleme araligi (s; en az 30, varsayilan 120)
+    python kopru/pc.py --esitleme-yok     # 4C: arka plan esitlemesi kapali
 
 Panel: http://olcum.localhost:8770 — yalniz bu bilgisayardan (PC1/PC2).
 
@@ -22,9 +25,15 @@ kart_wifi.py). Gecis akista bir durum satiriyla soylenir. Kopru once eslestirili
     python kopru/imza.py esles --host olcum.local --ad <bu-PC>
 Cihaz anahtari `%LOCALAPPDATA%\\olcum-karti\\cihaz\\` altinda (PC5; DPAPI).
 
-4A bugun yalniz ROLEYI barindiriyor; arka plan eslemesi (4C) ve MQTT
-bildirimleri (4E) AYNI surece eklenecek — ikinci bir arka plan sureci
-ayni COM portu / ayni cihaz sayacini tutmasin diye (PC4).
+4C (PC5/PC9) — ARKA PLAN DISK ARSIVI ayni surecte (arka_esitle.py): kartin kayitlari
+WiFi'den, canli akisla AYNI eslesmis cihaz nesnesi ve sayac kilidiyle, `%LOCALAPPDATA%\\
+olcum-karti\\arsiv\\<kart kimligi>\\akis-<n>\\` altina; her (yeniden) baglantida ve 120 s'de bir.
+Varsayilan ONAY verir (kalici yazimdan SONRA) — `--onaysiz` ya da ayar.json
+`"esitleme_onay": false` kapatir. Durum: `GET /esitleme/durum` (yalniz bu bilgisayar).
+Eski `.satir` satir gunlugu `...\\olcum-karti\\satir\\` (eskiden calisan agacin kopru/arsiv'i;
+yeni dizin bossa BIR KEZ kopyalanir, eskisi yerinde kalir).
+MQTT bildirimleri (4E) de AYNI surece eklenecek — ikinci bir arka plan sureci ayni COM portu /
+ayni cihaz sayacini tutmasin diye (PC4).
 
 Desen stok-takip'ten (stok/konsol.py), kanitlanmis:
   * `zaten_calisiyor()` — kopru ayaktayken ikinci kopya ACILMAZ; masaustu
@@ -60,6 +69,7 @@ from pathlib import Path
 BURASI = Path(__file__).resolve().parent
 KOK = BURASI.parent
 sys.path.insert(0, str(BURASI))
+import arka_esitle                                        # noqa: E402
 import imza                                               # noqa: E402
 import kart_baglanti                                      # noqa: E402
 import kart_wifi                                          # noqa: E402
@@ -132,6 +142,78 @@ def yukari_akis_kur(arg: list[str]):
     return kart_wifi.SecmeliKart(usb, wifi)
 
 
+ESKI_SATIR_DIZINI = KOK / "kopru" / "arsiv"
+
+
+def satir_goc(eski=None, yeni=None) -> list[str]:
+    """4C: eski `.satir` gunlugu (calisan agacin kopru/arsiv) -> pc_ayar.satir_dizini(), YALNIZ
+    yeni dizinde hic `.satir` yoksa; KOPYALAR (eski yerinde kalir — kullanicinin B35 arsivi
+    silinmez, geri donus yolu). Kopyalanan dosya adlari (bos = bir sey yapilmadi)."""
+    import shutil
+    eski = Path(eski or ESKI_SATIR_DIZINI)
+    yeni = Path(yeni or pc_ayar.satir_dizini())
+    if not eski.is_dir() or (yeni.is_dir() and any(yeni.glob("*.satir"))):
+        return []
+    adaylar = sorted(eski.glob("*.satir"))
+    if not adaylar:
+        return []
+    yeni.mkdir(parents=True, exist_ok=True)
+    for a in adaylar:
+        shutil.copy2(a, yeni / a.name)
+    return [a.name for a in adaylar]
+
+
+def esitleme_kur(arg: list[str], kart, kopru, arsiv_kok=None, yazdir=print):
+    """4C (PC9): arka plan esitlemesini kur (BASLATMAZ) ve kopruye bagla (`/esitleme/durum`).
+    WiFi yukari-akisi yoksa (`--wifi-yok`, olu tekrar) ya da `--esitleme-yok` ise None.
+    Onay: varsayilan VERIR; `--onaysiz` ya da ayar.json `"esitleme_onay": false` kapatir; ayar
+    dosyasi okunamazsa GUVENLI tarafa (onaysiz) duser ve soyler. Aralik `--esitleme-aralik` >
+    ayar.json `esitleme_aralik_s` > 120 s; en az arka_esitle.ARALIK_EN_AZ."""
+    wifi = kart.wifi if isinstance(kart, kart_wifi.SecmeliKart) else (
+        kart if isinstance(kart, kart_wifi.WifiKart) else None)
+    if "--esitleme-yok" in arg or wifi is None:
+        neden = ("--esitleme-yok" if "--esitleme-yok" in arg else
+                 "WiFi yukari-akisi yok: kayit verisi yalniz WiFi'den alinir (USB seri dokumu 4C-2, "
+                 "ertelendi)")
+        kopru.esitleme_neden = neden
+        yazdir(f"  Esitleme              : KAPALI ({neden})")
+        return None
+    ayar, hata = pc_ayar.ayar_oku()
+    onay = True
+    if hata:
+        onay = False
+        yazdir(f"! esitleme: {hata} — guvenli tarafta ONAYSIZ calisiyor")
+    else:
+        deger = ayar.get("esitleme_onay", True)
+        if not isinstance(deger, bool):
+            onay = False
+            yazdir(f"! esitleme: {pc_ayar.AYAR} esitleme_onay true/false degil — ONAYSIZ calisiyor")
+        else:
+            onay = deger
+    if "--onaysiz" in arg:
+        onay = False
+    aralik = arka_esitle.ARALIK_SN
+    a_ayar = (ayar or {}).get("esitleme_aralik_s")
+    if isinstance(a_ayar, (int, float)) and not isinstance(a_ayar, bool):
+        aralik = float(a_ayar)
+    a_arg = _secenek(arg, "--esitleme-aralik")
+    if a_arg is not None:
+        try:
+            aralik = float(a_arg)
+        except ValueError:
+            raise RuntimeError(f"--esitleme-aralik sayi olmali (saniye): {a_arg!r}") from None
+    if aralik < arka_esitle.ARALIK_EN_AZ:
+        yazdir(f"! esitleme: aralik {aralik:g} s cok kisa — {arka_esitle.ARALIK_EN_AZ:.0f} s kullaniliyor "
+               "(kart dovulmesin)")
+        aralik = arka_esitle.ARALIK_EN_AZ
+    es = arka_esitle.ArkaEsitleme(
+        wifi, kopru.yayinla, Path(arsiv_kok) if arsiv_kok else pc_ayar.arsiv_dizini(), onay=onay,
+        aralik=aralik, tetik=lambda: getattr(kart, "baglanti_no", 0),
+        usb_etkin=lambda: getattr(kart, "etkin", None) == "usb")
+    kopru.esitleme = es
+    return es
+
+
 def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
     """Kopruyu ac ve kapanana dek hizmet et. Donus: cikis kodu."""
     if "--yardim" in arg or "-h" in arg:
@@ -180,8 +262,15 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
             if gocen and not sessiz:
                 yazdir(imza.goc_mesaji(gocen))
             kart = yukari_akis_kur(arg)
-        kopru = kopru_mod.Kopru(kart, KOK / "kopru" / "arsiv")
+        # 4C: eski .satir gunlugu calisma agacindan kullanici veri dizinine (BIR KEZ kopyalanir)
+        satir_gocen = satir_goc()
+        if satir_gocen and not sessiz:
+            yazdir(f"* eski .satir arsivi yeni yere KOPYALANDI ({len(satir_gocen)} dosya): "
+                   f"{ESKI_SATIR_DIZINI} -> {pc_ayar.satir_dizini()} (eskisi yerinde)")
+        kopru = kopru_mod.Kopru(kart, pc_ayar.satir_dizini())
         sunucu.RequestHandlerClass.kopru = kopru
+        esitleme = None if kayit else esitleme_kur(arg, kart, kopru,
+                                                   yazdir=(lambda *_: None) if sessiz else yazdir)
         if not sessiz and hasattr(kart, "bildir"):
             # 4A inceleme: kart durumu (bulunamadi / baglandi / koptu) konsola da.
             # Eskiden yalniz /akis'e gidiyordu: `--port COM7` yanlissa konsoldaki
@@ -203,6 +292,8 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
         kart.ac()
         kopru.dongu()
     threading.Thread(target=yukari_akis, daemon=True).start()
+    if esitleme is not None:
+        esitleme.baslat()
 
     if not sessiz:
         yazdir(f"Kopru acildi — kart: {kart.ad}")
@@ -216,7 +307,10 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
         elif isinstance(kart, kart_wifi.WifiKart):
             yazdir(f"  Kart                  : YALNIZ WiFi {kart.host} (COM portu acilmaz; "
                    f"eslesmis cihaz: {imza.varsayilan_dizin()})")
-        yazdir(f"  Arsiv                 : {kopru.arsiv.dizin}")
+        yazdir(f"  Satir gunlugu         : {kopru.arsiv.dizin}")
+        if esitleme is not None:
+            yazdir(f"  Kayit arsivi          : {esitleme.arsiv_kok} (esitleme {esitleme.aralik:.0f} s'de bir, "
+                   + ("ONAY verir — kalici yazimdan sonra)" if esitleme.onay else "ONAYSIZ)"))
         yazdir("Kapatmak icin Ctrl+C (arka plandaysa: kopru\\Kopruyu Durdur.bat)")
         if "--tarayici-acma" not in arg:
             threading.Timer(0.6, lambda: tarayici_ac(adres + "/")).start()
@@ -226,6 +320,8 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
         if not sessiz:
             yazdir("\nkapatiliyor…")
     finally:
+        if esitleme is not None:
+            esitleme.durdur()
         kopru.durdur()
         kart.kapat()
         sunucu.server_close()

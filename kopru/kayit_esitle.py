@@ -98,9 +98,22 @@ class Kilit:
 
 
 class Esitleyici:
+    """4C (kopru/arka_esitle.py) ek parametreleri — komut satirinda hepsi eski davranista:
+      istek        (yontem, yol, argumanlar) -> yanit: imzali istegi CAGIRAN yapar (kopru: WifiKart'in
+                   AYNI Cihaz nesnesi + sayac kilidi; ayri bir Cihaz sayaci yaristirirdi)
+      parca_arasi  iki /kayit/veri isteginin BASLANGICLARI arasi en kisa sure (s; istek hizi tavani) —
+                   kartin seri web cekirdegi canli akisa ve oteki istemcilere de hizmet etsin; eksik
+                   kalan `uyu` ile beklenir (istek zaten bu kadar surduyse bekleme yok)
+      durdu        () -> bool: parcalar ARASINDA bakilir; True ise (kopru kapaniyor) yazilan kalici
+                   kalir, tur biter (onay dogrulamasi / kalibrasyon atlanir)
+      onay_parca   onay N parcada bir (+ tur sonunda): her `Go` kartin akisina bir satir basar"""
+
     def __init__(self, taban_url: str, dizin, onay=None, bayt: int = 8192,
-                 zaman_asimi: float = 10.0, onay_bekle: float = 0.3, cihaz=None):
+                 zaman_asimi: float = 10.0, onay_bekle: float = 0.3, cihaz=None,
+                 istek=None, parca_arasi: float = 0.0, uyu=time.sleep, durdu=None,
+                 onay_parca: int = 1):
         self.cihaz = cihaz              # 1D: imza.Cihaz -> butun istekler imzali
+        self.istek = istek
         self.taban = taban_url.rstrip("/")
         self.dizin = Path(dizin)
         self.dizin.mkdir(parents=True, exist_ok=True)
@@ -108,6 +121,10 @@ class Esitleyici:
         self.bayt = max(bayt, EN_AZ_BAYT)
         self.zaman_asimi = zaman_asimi
         self.onay_bekle = onay_bekle
+        self.parca_arasi = parca_arasi
+        self.uyu = uyu
+        self.durdu = durdu
+        self.onay_parca = max(1, int(onay_parca))
 
     # ── durum ──
     def _durum(self) -> dict:
@@ -160,6 +177,8 @@ class Esitleyici:
     # ── ag ──
     def _ac(self, yol: str, argumanlar=()):
         """GET: eslesmisse imzali (1D, kopru/imza.py), degilse bugunku acik yol."""
+        if self.istek is not None:
+            return self.istek("GET", yol, list(argumanlar))
         if self.cihaz is not None:
             return IM.ac(self.cihaz, self.taban, "GET", yol, list(argumanlar),
                          zaman_asimi=self.zaman_asimi)
@@ -220,8 +239,19 @@ class Esitleyici:
         self._hazirla(d)
         yeni, bosluk, sonuc = 0, [], {}
         onay_x = None
+        parca = 0
+        onceki = None
         for _ in range(azami_tur):
+            if onceki is not None and self.parca_arasi:
+                kalan = self.parca_arasi - (time.monotonic() - onceki)
+                if kalan > 0:
+                    self.uyu(kalan)            # 4C: istek hizi tavani (tek istek, kart bogulmasin)
+            if self.durdu is not None and self.durdu():
+                return {"yeni_kayit": yeni, "son_sira": d["son_sira"], "bosluk": bosluk,
+                        "onay_dogrulandi": d["onaylanan"] >= d["son_sira"], "kalibrasyon": None,
+                        "durduruldu": True}
             son = d["son_sira"]
+            onceki = time.monotonic()
             govde, bas = self._getir(son + 1)
             self._kimlik_denetle(d, bas)
             onay_x = self._sayi(bas, "X-Onay")
@@ -247,7 +277,8 @@ class Esitleyici:
             d["bayt"] += len(govde)
             self._durum_yaz(d)
             yeni += len(kayitlar)
-            if self.onay:
+            parca += 1
+            if self.onay and parca % self.onay_parca == 0:
                 self.onay(d["son_sira"])       # ancak diske yazildiktan SONRA (yer acilsin)
         dogru = self._onay_dogrula(d, onay_x)
         return {"yeni_kayit": yeni, "son_sira": d["son_sira"], "bosluk": bosluk,

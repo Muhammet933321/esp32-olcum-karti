@@ -66,6 +66,11 @@ def bekleme(n: int) -> float:
     return min(BEKLE_AZAMI, BEKLE_TABAN * (2 ** min(n, 10)))
 
 
+class KartDogrulanamadi(RuntimeError):
+    """4C: adresteki kart bu PC'nin eslestigi kart olarak DOGRULANAMADI (erisilemez, bicimsiz,
+    eslesme yok, kimlik uymuyor). Metin kullaniciya soylenir."""
+
+
 def _hata_metni(h: urllib.error.HTTPError) -> str:
     """HTTPError'un govdesini oku ve KAPAT (D5 #18: kapatilmayan yanit soketi tutar)."""
     try:
@@ -110,7 +115,11 @@ class WifiKart:
         self._is: threading.Thread | None = None
         self._baglanti: http.client.HTTPConnection | None = None
         self._cihaz: IM.Cihaz | None = None   # BU kartla dogrulanmis cihaz (yoksa komut yok)
-        self._imza_kilit = threading.Lock()   # sayac: akis_url ve ac ayni Cihaz'i kullanir
+        # Sayac kilidi (4B-12 + 4C): akis adresi, komut, /saat VE arka plan esitlemesi AYNI Cihaz
+        # nesnesini kullanir; imzanin uretimi ile istegin karta ulasmasi (yanit basi) tek kritik
+        # bolgede — kart sayaclari SIRAYLA gorur (pencere 64 ms; araya giren istek eskiyi reddettirir)
+        self._imza_kilit = threading.RLock()
+        self._cihazlar: dict[Path, IM.Cihaz] = {}   # dosya -> TEK paylasilan Cihaz nesnesi
         self._son_neden: str | None = None
 
     # ── yuzey ────────────────────────────────────────────────────────
@@ -159,10 +168,7 @@ class WifiKart:
             raise RuntimeError(f"WiFi ({self.host}): kart dogrulanmadi — komut GONDERILMEDI"
                                + (f" ({self._son_neden})" if self._son_neden else ""))
         try:
-            with self._imza_kilit:
-                y = IM.ac(cihaz, self.taban, "POST", "/komut", [], metin.encode("utf-8"),
-                          self.zaman_asimi, acici=vekilsiz_ac)
-            with y:
+            with self.imzali_ac(cihaz, "POST", "/komut", [], metin.encode("utf-8")) as y:
                 y.read()
         except urllib.error.HTTPError as h:
             raise RuntimeError(f"kart komutu reddetti: {_hata_metni(h)}") from None
@@ -170,6 +176,38 @@ class WifiKart:
             raise RuntimeError(str(e)) from None
         except OSError as e:
             raise RuntimeError(f"karta WiFi'den ulasilamadi ({self.host}): {e}") from None
+
+    def imzali_ac(self, cihaz: IM.Cihaz, yontem: str, yol: str, argumanlar=(), govde: bytes = b"",
+                  zaman_asimi: float | None = None):
+        """4C: imzali istek (urlopen gibi yanit; `with` ile). Imza + istek + yanit basi SAYAC
+        KILIDINDE: canli akis, komut ve arka plan esitlemesi ayni Cihaz'in sayacini sirayla kullanir.
+        Govdeyi cagiran kilitsiz okur (kart imzayi yanit basindan once dogrulamistir)."""
+        with self._imza_kilit:
+            return IM.ac(cihaz, self.taban, yontem, yol, list(argumanlar), govde,
+                         zaman_asimi or self.zaman_asimi, acici=vekilsiz_ac)
+
+    def dogrula(self) -> tuple[IM.Cihaz, str, dict]:
+        """Adresteki karti dogrula: acik `/eslestir/bilgi` -> kimlik bicimi -> bu kart icin eslesmis
+        cihaz dosyasi -> kimlik uyusmasi; acilis tazelenir. Donus: (PAYLASILAN Cihaz, kimlik, bilgi).
+        Hata: KartDogrulanamadi (metin kullaniciya). Canli akis ve arka plan esitlemesi (4C) ayni yol."""
+        try:
+            b = IM.bilgi(self.taban, self.zaman_asimi, acici=vekilsiz_ac)
+        except urllib.error.HTTPError as h:
+            raise KartDogrulanamadi(f"/eslestir/bilgi {_hata_metni(h)} (eski firmware?)") from None
+        except (OSError, ValueError, http.client.HTTPException) as e:
+            raise KartDogrulanamadi(f"kart erisilemiyor ({e})") from None
+        kimlik, acilis = b.get("kimlik"), b.get("acilis")
+        if not (isinstance(kimlik, str) and KIMLIK_DESEN.fullmatch(kimlik)
+                and isinstance(acilis, str) and ACILIS_DESEN.fullmatch(acilis)):
+            raise KartDogrulanamadi("/eslestir/bilgi bicimsiz (kimlik/acilis) — kart degil ya da eski firmware")
+        cihaz, neden = self._cihaz_bul(kimlik)
+        if cihaz is None:
+            raise KartDogrulanamadi(neden)
+        with self._imza_kilit:
+            if cihaz.acilis != acilis:
+                cihaz.acilis = acilis
+                cihaz.kaydet()
+        return cihaz, kimlik, b
 
     # ── ic ───────────────────────────────────────────────────────────
     def _p0(self) -> None:
@@ -237,52 +275,49 @@ class WifiKart:
                               f"cihaz dosyasi yok) — `python kopru/imza.py esles --host {self.host} "
                               f"--ad <bu-PC>`")
         try:
-            c = IM.Cihaz.yukle(dosya)
+            with self._imza_kilit:                    # ayni surecteki kaydet() ile yarismasin
+                c = IM.Cihaz.yukle(dosya)
         except (OSError, ValueError, KeyError) as e:
             return None, f"cihaz dosyasi okunamadi ({dosya.name}): {e}"
         if c.kimlik != kimlik:
             return None, (f"adresteki kartin kimligi {kimlik} — cihaz dosyasi ({dosya.name}) "
                           f"{c.kimlik} kimlikli kartla eslesmis: bu kart o DEGIL, /akis acilmadi, "
                           f"komut GONDERILMEZ (p0 haric)")
-        return c, ""
+        return self._paylasilan(c), ""
+
+    def _paylasilan(self, c: IM.Cihaz) -> IM.Cihaz:
+        """4C (4B-12): ayni cihaz dosyasi icin TEK Cihaz nesnesi — akis, komut ve arka plan
+        esitlemesi ayni sayaci ilerletir. Iki nesne ayni milisaniyede AYNI sayaci uretir, kart
+        ikincisini tekrar diye reddeder (401). Dosya yeniden eslestirmeyle degismisse (n / K /
+        kimlik) yenisi alinir; sayac geri gitmez."""
+        with self._imza_kilit:
+            eski = self._cihazlar.get(c.dosya)
+            if eski is not None and (eski.kimlik, eski.n, eski.K) == (c.kimlik, c.n, c.K):
+                eski.sayac = max(eski.sayac, c.sayac)
+                return eski
+            self._cihazlar[c.dosya] = c
+            return c
 
     def _bir_baglanti(self) -> bool:
         """Bir baglanti denemesi. Donus: bu baglantida en az bir olcum satiri geldi mi."""
         try:
-            b = IM.bilgi(self.taban, self.zaman_asimi, acici=vekilsiz_ac)
-        except urllib.error.HTTPError as h:
-            self._neden(f"/eslestir/bilgi {_hata_metni(h)} (eski firmware?)")
-            return False
-        except (OSError, ValueError) as e:
-            self._neden(f"kart erisilemiyor ({e})")
-            return False
-        kimlik, acilis = b.get("kimlik"), b.get("acilis")
-        if not (isinstance(kimlik, str) and KIMLIK_DESEN.fullmatch(kimlik)
-                and isinstance(acilis, str) and ACILIS_DESEN.fullmatch(acilis)):
+            cihaz, kimlik, b = self.dogrula()
+        except KartDogrulanamadi as e:
             self._cihaz = None
-            self._neden("/eslestir/bilgi bicimsiz (kimlik/acilis) — kart degil ya da eski firmware")
+            self._neden(str(e))
             return False
-        cihaz, neden = self._cihaz_bul(kimlik)
-        if cihaz is None:
-            self._cihaz = None
-            self._neden(neden)
-            return False
-        with self._imza_kilit:
-            if cihaz.acilis != acilis:
-                cihaz.acilis = acilis
-                cihaz.kaydet()
-            url = IM.akis_url(cihaz, self.taban, acici=vekilsiz_ac)     # HER baglanmada YENI
         self._cihaz = cihaz
-        u = urllib.parse.urlsplit(url)
         if self._durdu():
             return False
-        baglanti = http.client.HTTPConnection(u.hostname, u.port or 80, timeout=self.zaman_asimi)
-        self._baglanti = baglanti
+        with self._imza_kilit:
+            url = IM.akis_url(cihaz, self.taban, acici=vekilsiz_ac)     # HER baglanmada YENI
+            # 4C: istek + yanit basi da kilitte — yavas baglantida (mDNS) araya giren esitleme
+            # istegi daha buyuk sayacla once ulasirsa kart bu adresi pencere disi diye reddederdi
+            baglanti, y, hata = self._akis_iste(url)
         acildi = False
         try:
-            baglanti.request("GET", u.path + "?" + u.query,
-                             headers={"Accept": "text/event-stream", "Cache-Control": "no-cache"})
-            y = baglanti.getresponse()
+            if hata is not None:
+                raise hata
             if y.status == 401:
                 y.close()
                 self._neden("kart imzayi reddetti (HTTP 401) — cihaz kartta silinmis olabilir; "
@@ -314,6 +349,18 @@ class WifiKart:
             baglanti.close()
             if acildi and not self._durdu():
                 self._soyle(f"! kopru: WiFi baglantisi koptu ({self.host}) — yeniden baglaniliyor")
+
+    def _akis_iste(self, url: str):
+        """/akis istegini gonder, yanit basini al. Donus (baglanti, yanit | None, hata | None)."""
+        u = urllib.parse.urlsplit(url)
+        baglanti = http.client.HTTPConnection(u.hostname, u.port or 80, timeout=self.zaman_asimi)
+        self._baglanti = baglanti
+        try:
+            baglanti.request("GET", u.path + "?" + u.query,
+                             headers={"Accept": "text/event-stream", "Cache-Control": "no-cache"})
+            return baglanti, baglanti.getresponse(), None
+        except (OSError, http.client.HTTPException) as e:
+            return baglanti, None, e
 
     def _oku(self, y) -> bool:
         """SSE cercevesini coz: `data:` satirlari (olaysiz) = kartin protokol satirlari."""
@@ -351,10 +398,7 @@ class WifiKart:
     def _saat_ver(self, cihaz: IM.Cihaz) -> None:
         """R11: kartin NTP saati yok — bu PC saati verir (imzali, CIHAZ sinifi)."""
         try:
-            with self._imza_kilit:
-                y = IM.ac(cihaz, self.taban, "POST", "/saat", [("unix", str(int(self._saat())))],
-                          b"", self.zaman_asimi, acici=vekilsiz_ac)
-            with y:
+            with self.imzali_ac(cihaz, "POST", "/saat", [("unix", str(int(self._saat())))]) as y:
                 y.read()
             self._soyle("* kopru: kartin NTP saati yok — saat bu PC'den verildi (imzali /saat)")
         except urllib.error.HTTPError as h:

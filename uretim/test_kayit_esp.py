@@ -619,6 +619,20 @@ class _SahteKart:
         self.saat_istekleri: list[str] = []
         self.komut_imzali: list[tuple] = []   # (govde, imzali mi)
         self.komut_red = 0                    # !=0: p0 disi komuta bu kodla ret
+        # 4C: arka plan esitlemesi (kopru/arka_esitle.py)
+        self.erisilemez = False               # ag kopuk: istek yanitsiz kapanir
+        self.bilgi_kod = 0                    # !=0: /eslestir/bilgi bu kodla doner (kart hazir degil)
+        self.bilgi_hata_kalan = 0             # >0: sonraki N /eslestir/bilgi 503 doner
+        self.liste_kod = 0                    # !=0: /kayit/liste bu kodla doner (kayit mesgul)
+        self.zaman = time.monotonic           # istek gunlugunun saati (sanal saat verilebilir)
+        self.zamanli: list[tuple] = []        # (zaman, yontem, yol) — her istek
+        self.onay_kanca = None                # Go<sira> karta ULASTIGI anda cagrilir (sira)
+
+    def liste(self) -> dict:
+        """Kartin /kayit/liste ozeti (yalniz esitlemenin kullandigi alanlar)."""
+        return {"surum": 1, "durum": 1, "sonraki": self.sonraki(), "onay": self.onay,
+                "kimlik": self.kimlik, "oturumlar": [{"id": 1, "tur": 1, "ilk": 1,
+                                                      "son": self.sonraki() - 1}]}
 
     def sonraki(self) -> int:
         return max((struct.unpack_from("<I", k, 4)[0] for k in self.kayitlar), default=0) + 1
@@ -676,6 +690,7 @@ def _sunucu(kart: _SahteKart):
             u = urllib.parse.urlparse(self.path)
             q = urllib.parse.parse_qsl(u.query, keep_blank_values=True)
             kart.istekler.append(f"{yontem} {self.path} {dict(self.headers)} {govde!r}")
+            kart.zamanli.append((kart.zaman(), yontem, self.path))
             qd = dict(q)
             if self.headers.get("X-Imza"):
                 n, s, im = self.headers["X-Cihaz"], self.headers["X-Sayac"], self.headers["X-Imza"]
@@ -717,10 +732,29 @@ def _sunucu(kart: _SahteKart):
             self.end_headers()
             self.wfile.write(g)
 
+        def _kod(self, kod: int):
+            self.send_response(kod)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
         def do_GET(self):
             u = urllib.parse.urlparse(self.path)
             q = urllib.parse.parse_qs(u.query)
+            if kart.erisilemez:                          # 4C: ag kopuk — yanitsiz kapanir
+                self.close_connection = True
+                return
             if self._imza("GET", b"") is False:
+                return
+            if u.path == "/eslestir/bilgi" and (kart.bilgi_kod or kart.bilgi_hata_kalan > 0):
+                if kart.bilgi_hata_kalan > 0:
+                    kart.bilgi_hata_kalan -= 1
+                self._kod(kart.bilgi_kod or 503)
+                return
+            if u.path == "/kayit/liste":                 # 4C: kartla ayni anlam (oturum dizini)
+                if kart.liste_kod:
+                    self._kod(kart.liste_kod)
+                    return
+                self._json(kart.liste())
                 return
             if u.path == "/eslestir/bilgi":
                 self._json({"surum": "OK1", "kimlik": kart.gkimlik, "acilis": kart.acilis,
@@ -788,6 +822,9 @@ def _sunucu(kart: _SahteKart):
             govde = ham.decode()
             u = urllib.parse.urlparse(self.path)
             qd = dict(urllib.parse.parse_qsl(u.query, keep_blank_values=True))
+            if kart.erisilemez:
+                self.close_connection = True
+                return
             imzali = self._imza("POST", ham)
             if imzali is False:
                 return
@@ -837,6 +874,8 @@ def _sunucu(kart: _SahteKart):
                 kart.komut_imzali.append((govde, bool(imzali)))
                 kart.komutlar.append(govde)
                 if govde.startswith("Go"):
+                    if kart.onay_kanca:
+                        kart.onay_kanca(int(govde[2:]))
                     kart.onayla(int(govde[2:]))
                 self.send_response(204)
             else:
@@ -2248,8 +2287,335 @@ def bolum_kopru_wifi() -> None:
         sunucu.shutdown()
 
 
+# ── B72.A · 4C arka plan disk arsivi: kopru icinde esitleme dongusu ───────────
+class _SanalSaat:
+    """Esitleme dongusunun saati: `bekle` zamani ilerletir, gercekte beklemez."""
+
+    def __init__(self, t: float = 1000.0):
+        self.t = t
+
+    def __call__(self) -> float:
+        return self.t
+
+    def bekle(self, sn: float) -> None:
+        self.t += sn
+        time.sleep(0)
+
+
+class _DonukSaat:
+    """imza.py'nin `time` modulu yerine: time() SABIT (ayni milisaniye), gerisi gercek.
+    Iki ayri Cihaz nesnesi ayni ms'de ayni sayaci uretir — paylasim kusurunu belirlenimci yapar."""
+
+    def __init__(self, t: float):
+        self.sabit = t
+
+    def time(self) -> float:
+        return self.sabit
+
+    def __getattr__(self, ad):
+        return getattr(time, ad)
+
+
+def _arsivdeki(kok: Path, kart_k: str, akis: int):
+    p = Path(kok) / kart_k / f"akis-{akis}" / KE.DOSYA
+    return p.read_bytes() if p.exists() else None
+
+
+def bolum_kopru_esitle() -> None:
+    """4C (PC5, PC6, PC9): kopru sureci kartin kayitlarini WiFi'den, ESLESMIS CIHAZ olarak
+    (WifiKart'in AYNI Cihaz nesnesi + sayac kilidi) arka planda diske esitler."""
+    print("\n── B72.A  4C arka plan disk arsivi: kopru icinde esitleme dongusu (WiFi, imzali, "
+          "kalici yazimdan SONRA onay, aralik + taban + artan bekleme)")
+    import imza as IM
+    import kart_wifi as KW
+    import kopru as KO
+    import arka_esitle as AE
+    import pc as PC
+    kay = _kayitlar(400)
+    kart = _SahteKart(list(kay))
+    sunucu, taban = _sunucu(kart)
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            cdiz = d / "cihaz"
+            IM.esles(taban, "kopru", kart.parola, dizin=cdiz)
+            kart.imza_zorunlu = True                     # gercek kart gibi: imzasiz okuma yok
+            gk = kart.gkimlik
+
+            def wifi_yeni(**kw):
+                return KW.WifiKart(taban, dizin=cdiz, bekle=lambda sn: time.sleep(0.02), **kw)
+
+            def es_yeni(w, kok, **kw):
+                yay: list[str] = []
+                return AE.ArkaEsitleme(w, yay.append, kok, **kw), yay
+
+            # A1 + A2 + A6: tek tur — arsiv bayt bayt, onay kalici yazimdan SONRA, parca <= 8192 + ara
+            kok = d / "arsiv"
+            anlar: list[tuple] = []
+
+            def kanca(s):
+                p = kok / gk / "akis-7"
+                veri = (p / KE.DOSYA).read_bytes() if (p / KE.DOSYA).exists() else b""
+                durum = (json.loads((p / KE.DURUM).read_text(encoding="utf-8"))
+                         if (p / KE.DURUM).exists() else {})
+                gerekli = b"".join(k for k in kart.kayitlar if struct.unpack_from("<I", k, 4)[0] <= s)
+                anlar.append((s, veri[:len(gerekli)] == gerekli, durum.get("son_sira", 0) >= s))
+            kart.onay_kanca = kanca
+            kart.zamanli.clear()
+            kart.istekler.clear()
+            kart.komutlar.clear()
+            w = wifi_yeni()
+            e, yay = es_yeni(w, kok)
+            r = e.tur()
+            ok("B72.A1 (PC9) kopru esitleme turu kartin BUTUN kayitlarini WiFi'den <kart kimligi>/akis-<akis "
+               "kimligi>/kayitlar.kyt'ye bayt bayt yazar; `* esitleme:` durum satiri yeni kayit + son sira "
+               "soyler",
+               _arsivdeki(kok, gk, 7) == b"".join(kay) and r["sonuc"] == "tamam" and r["yeni_kayit"] == 400
+               and r["son_sira"] == 400
+               and any(x.startswith("* esitleme:") and "400 yeni kayit" in x and "son sira 400" in x
+                       for x in yay), f"{ {a: r.get(a) for a in ('sonuc', 'yeni_kayit', 'son_sira', 'mesaj')} } "
+                                      f"{yay[-1:]}")
+            n_go = sum(1 for x in kart.komutlar if x.startswith("Go"))
+            ok("B72.A2 (PC9) varsayilan ONAY: Go<sira> IMZALI gider ve karta ULASTIGI anda veri diskte + "
+               "durum.json o siraya yazilmis (kalici yazimdan SONRA); kisa turda TEK Go (her Go kartin "
+               f"akisina satir basar; uzun esitlemede {AE.ONAY_PARCA} parcada bir); kart dogrular, durum "
+               "`onay gitti` der",
+               bool(anlar) and all(a[1] and a[2] for a in anlar) and anlar[-1][0] == 400 and kart.onay == 400
+               and n_go == 1
+               and ("Go400", True) in kart.komut_imzali and r.get("onay_dogrulandi") is True
+               and any("onay gitti" in x for x in yay), f"anlar={anlar[-2:]} onay={kart.onay} Go={n_go}")
+            veri_ist = [(t, dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(p).query)))
+                        for t, y, p in kart.zamanli if p.startswith("/kayit/veri")]
+            bayt = [int(q.get("bayt", "0")) for _, q in veri_ist]
+            aralar = [b[0] - a[0] for a, b in zip(veri_ist, veri_ist[1:])]
+            imzasiz = [x for x in kart.istekler if x.split()[1].startswith(("/kayit/", "/kal/"))
+                       and "X-Imza" not in x]
+            ok("B72.A6 (spec §5/§11) parca kartin tavanini asmaz (bayt <= 8192) ve iki parca isteginin "
+               "baslangici arasi en az 100 ms (istek hizi tavani <= 10/s, tek istek; spec 4C-3); "
+               "butun kayit istekleri IMZALI",
+               len(veri_ist) >= 5 and all(0 < b <= 8192 for b in bayt) and max(bayt) == AE.PARCA_BAYT
+               and min(aralar) >= 0.09 and not imzasiz,
+               f"{len(veri_ist)} parca bayt={sorted(set(bayt))} en kisa ara={min(aralar or [0]) * 1000:.0f} ms "
+               f"imzasiz={len(imzasiz)}")
+            kart.onay_kanca = None
+
+            # A3 --onaysiz: hic Go gitmez, arsiv yine tam
+            kart.onay = 0
+            kart.komutlar.clear()
+            e3, yay3 = es_yeni(w, d / "arsiv3", onay=False)
+            r3 = e3.tur()
+            ok("B72.A3 (PC9) onaysiz kipte (--onaysiz) karta HICBIR Go<sira> gitmez; arsiv yine tam; durum "
+               "`onay gitmedi (onaysiz)` der",
+               not any(x.startswith("Go") for x in kart.komutlar) and kart.onay == 0
+               and _arsivdeki(d / "arsiv3", gk, 7) == b"".join(kay) and r3["onay_gitti"] is False
+               and any("onay gitmedi" in x for x in yay3), f"komutlar={kart.komutlar[:3]} {yay3[-1:]}")
+
+            # A4 kopukluk + bosluk doldurma
+            kart.erisilemez = True
+            r4a = e.tur()
+            ek = _kayitlar(60, 401)
+            kart.kayitlar = kay + ek
+            kart.erisilemez = False
+            r4b = e.tur()
+            ok("B72.A4 (O3) ag kopukken tur HATA olur (durum satiri `! esitleme:`), kart arada kayit uretir; "
+               "geri gelince yalniz eksikler cekilir: arsiv == kartin butun kayitlari (tekrar yok)",
+               r4a["sonuc"] == "hata" and any(x.startswith("! esitleme:") for x in yay)
+               and r4b["yeni_kayit"] == 60 and _arsivdeki(kok, gk, 7) == b"".join(kay + ek),
+               f"hata={r4a.get('mesaj', '')[:60]!r} yeni={r4b.get('yeni_kayit')}")
+
+            # A5 kartin kayit akisi degisti (bicimlendi): YENI alt dizin, eskisine dokunulmaz
+            eski7 = _arsivdeki(kok, gk, 7)
+            yeni_kay = _kayitlar(10)
+            kart.kayitlar = list(yeni_kay)
+            kart.kimlik = 8
+            kart.onay = 0
+            r5 = e.tur()
+            ok("B72.A5 kartin kayit AKIS kimligi degisirse (bicimlendi / sifirlandi) yeni alt dizin "
+               "(akis-8); eski arsiv bayt bayt yerinde, iki akis KARISMAZ; durum satiri soyler",
+               _arsivdeki(kok, gk, 8) == b"".join(yeni_kay) and _arsivdeki(kok, gk, 7) == eski7
+               and r5["sonuc"] == "tamam" and r5["arsiv"] == f"arsiv/{gk}/akis-8"
+               and any("akis" in x and "degisti" in x for x in yay), f"{r5.get('arsiv')} {yay[-1:]}")
+            kart.kayitlar, kart.kimlik = list(kay), 7
+
+            # A7 kart yalniz USB'den erisilebilir: esitleme atlanir, soylenir, dizin acilmaz
+            w9 = KW.WifiKart("127.0.0.1:9", dizin=cdiz)
+            e9, yay9 = es_yeni(w9, d / "arsiv9", usb_etkin=lambda: True)
+            r9 = e9.tur()
+            ok("B72.A7 (PC6) kart WiFi'den erisilemiyor ama USB'deyse esitleme ATLANIR ve `! esitleme:` "
+               "satiri kayit verisinin yalniz WiFi'den alindigini (USB seri dokumu 4C-2, ertelendi) soyler; "
+               "arsiv dizini acilmaz",
+               r9["sonuc"] == "atlandi" and not (d / "arsiv9").exists()
+               and any(x.startswith("! esitleme:") and "USB" in x and "4C-2" in x for x in yay9),
+               f"{r9.get('sonuc')} {yay9[-1:]}")
+
+            # A8 pc.py baglantisi: durum satiri tarayicilara gider, .satir arsivine GIRMEZ
+            kart.akis_satirlari = ["D 1.0", "D 2.0", "D 3.0", "D 4.0"]
+            kart.akis_tut = 3.0
+            kart.akis_bitir.clear()
+            w8 = wifi_yeni()
+            k8 = KO.Kopru(w8, d / "satir8")
+            abone = k8.abone_ol()
+            e8 = PC.esitleme_kur([], w8, k8, arsiv_kok=d / "arsiv8", yazdir=lambda *_: None)
+            th8 = threading.Thread(target=k8.dongu, daemon=True)
+            w8.ac()
+            th8.start()
+            _bekle_kosul(lambda: w8.bagli)
+            r8 = e8.tur()
+            _bekle_kosul(lambda: k8.satir_adedi >= 2)
+            k8.calisiyor = False
+            th8.join(2)
+            kart.akis_bitir.set()
+            w8.kapat()
+            k8.arsiv.kapat()
+            gelen = []
+            while not abone.empty():
+                gelen.append(abone.get_nowait())
+            ars8 = list(k8.arsiv.ham_satirlar())
+            ok("B72.A8 (pc.esitleme_kur) `* esitleme:` durum satiri kopru uzerinden TARAYICILARA gider, "
+               ".satir arsivine GIRMEZ (olcum satirlari girer)",
+               r8["sonuc"] == "tamam" and any(x.startswith("* esitleme:") for x in gelen)
+               and any(x.startswith("D ") for x in ars8) and not any("esitleme" in x for x in ars8),
+               f"gelen={[x for x in gelen if 'esitleme' in x][:1]} ars={ars8[:3]}")
+
+            # A9 ayni Cihaz nesnesi + kilit: akis yeniden baglanirken esitleme turlari — 401 YOK
+            asil_time = IM.time
+            IM.time = _DonukSaat(time.time())
+            try:
+                kart.akis_satirlari = ["D 1.0"]
+                kart.akis_tut = 0.0
+                kart.ret_401 = 0
+                w = wifi_yeni()
+                e9b, _ = es_yeni(w, d / "arsiv_sayac")
+                once = kart.akis_sayisi
+                w.ac()
+                n_tur, son = 0, time.monotonic() + 2.5
+                while time.monotonic() < son:
+                    e9b.tur()
+                    n_tur += 1
+                w.kapat()
+            finally:
+                IM.time = asil_time
+            ok("B72.A9 (4B-12) esitleme ile canli akis AYNI Cihaz nesnesini ve sayac kilidini paylasir: "
+               "ayni milisaniyede bile tekrar sayac yok — kart hicbirini 401 ile reddetmez",
+               kart.ret_401 == 0 and kart.akis_sayisi - once >= 5 and n_tur >= 5,
+               f"401={kart.ret_401} akis={kart.akis_sayisi - once} tur={n_tur}")
+
+            # A10 imzali /akis adresi uretimi + istek + yanit basi kilitte: yavas ag (mDNS) sirasinda
+            # esitleme istegi araya girip sayaci ileri atamaz (kart pencere disi eski sayaci reddederdi)
+            istekte = threading.Event()
+            asil_bag = KW.http.client.HTTPConnection
+
+            class _Yavas(asil_bag):
+                def request(self, yontem, url, *a, **k):
+                    if url.startswith("/akis"):
+                        istekte.set()
+                        time.sleep(0.4)
+                    return super().request(yontem, url, *a, **k)
+            kart.akis_satirlari = ["D 1.0"]
+            kart.akis_tut = 2.0
+            kart.akis_bitir.clear()
+            kart.ret_401 = 0
+            KW.http.client.HTTPConnection = _Yavas
+            try:
+                w = wifi_yeni()
+                e10, _ = es_yeni(w, d / "arsiv_sira", onay=False)
+                w.ac()
+                istekte.wait(5)
+                time.sleep(0.15)
+                r10 = e10.tur()
+                _bekle_kosul(lambda: w.bagli, 3)
+                kart.akis_bitir.set()
+                w.kapat()
+                ret_a = kart.ret_401
+                # ikinci duzen: esitleme turu SURERKEN (parcalar arasi) akis yavas yeniden baglanir —
+                # esitlemenin her imzali istegi de kilitte olmali (yalniz dogrula degil)
+                kart.akis_bitir.clear()
+                istekte.clear()
+                w = wifi_yeni()
+                e10b, _ = es_yeni(w, d / "arsiv_sira2", onay=False)
+                r10b: dict = {}
+                isaret = len(kart.zamanli)
+                t10 = threading.Thread(target=lambda: r10b.update(e10b.tur()), daemon=True)
+                t10.start()
+                _bekle_kosul(lambda: any(z[2].startswith("/kayit/veri") for z in kart.zamanli[isaret:]), 5)
+                w.ac()
+                istekte.wait(5)
+                t10.join(15)
+                _bekle_kosul(lambda: w.bagli, 3)
+            finally:
+                KW.http.client.HTTPConnection = asil_bag
+            kart.akis_bitir.set()
+            w.kapat()
+            r10 = {**r10, "sonuc": r10["sonuc"] if r10b.get("sonuc") == "tamam" else "B:" + str(r10b.get("sonuc"))}
+            kart.ret_401 = max(kart.ret_401, ret_a)
+            ok("B72.A10 imzali /akis adresinin uretimi, istegi ve yanit basi esitlemeyle AYNI kilitte: "
+               "yavas baglanti (mDNS) sirasinda gelen esitleme bekler — tur baslarken de, tur SURERKEN "
+               "(parcalar arasi) de; kart akisi tekrar diye reddetmez (401 yok)",
+               istekte.is_set() and kart.ret_401 == 0 and r10["sonuc"] == "tamam",
+               f"401={kart.ret_401} tur={r10.get('sonuc')}")
+
+            # A11 taban + artan bekleme (sanal saat): yeniden baglanti firtinasi kartı bogamaz
+            def bilgi_zamanlari():
+                return [z[0] for z in kart.zamanli if z[2] == "/eslestir/bilgi"]
+            v = _SanalSaat()
+            kart.zaman = v
+            kart.bilgi_kod = 503
+            no = [0]
+
+            def firtina():
+                no[0] += 1
+                return no[0]
+            kart.zamanli.clear()
+            e11, _ = es_yeni(wifi_yeni(), d / "arsiv_t", saat=v, bekle=v.bekle, tetik=firtina)
+            e11.baslat()
+            _bekle_kosul(lambda: len(bilgi_zamanlari()) >= 7, 15)
+            e11.durdur()
+            tz = bilgi_zamanlari()
+            ar_a = [round(b - a, 3) for a, b in zip(tz, tz[1:])]
+            ok("B72.A11a hata + her an yeniden baglanti (firtina): esitleme turlari arasi EN AZ 10 s (mutlak "
+               "taban, spec 4C-1) — kart dovulmez",
+               len(ar_a) >= 6 and min(ar_a) >= 10.0 and max(ar_a) <= 10.0 + AE.YOKLA_SN + 1e-6,
+               str(ar_a[:8]))
+            kart.bilgi_kod = 0
+            kart.bilgi_hata_kalan = 3
+            kart.zamanli.clear()
+            v2 = _SanalSaat()
+            kart.zaman = v2
+            e11b, _ = es_yeni(wifi_yeni(), d / "arsiv_t2", saat=v2, bekle=v2.bekle, tetik=lambda: 1,
+                              onay=False)
+            e11b.baslat()
+            _bekle_kosul(lambda: len([z for z in kart.zamanli if z[2] == "/eslestir/bilgi"]) >= 6, 15)
+            e11b.durdur()
+            tz = [z[0] for z in kart.zamanli if z[2] == "/eslestir/bilgi"]
+            ar_b = [round(b - a, 3) for a, b in zip(tz, tz[1:])]
+            ok("B72.A11b hata sonrasi bekleme ARTAR (15, 30, 60 s), basaridan sonra normal aralik (120 s); "
+               "ilk tur hemen (spec 4C-1)",
+               len(ar_b) >= 5 and tz[0] - 1000.0 < 1.0
+               and all(abs(a - b) <= AE.YOKLA_SN + 1e-6 for a, b in zip(ar_b[:5], [15.0, 30.0, 60.0, 120.0, 120.0])),
+               str(ar_b[:6]))
+            kart.zaman = time.monotonic
+            ok("B72.A11c hata beklemesi 15, 30, 60 ... s, tavan 600 s; sabitler spec 4C-1 ile ayni (taban 10 "
+               "<= hata tabani 15 <= en kisa aralik 30 <= aralik 120 <= tavan 600 s)",
+               [AE.hata_beklemesi(n) for n in (1, 2, 3, 7, 40)] == [15.0, 30.0, 60.0, 600.0, 600.0]
+               and (AE.TABAN_SN, AE.HATA_TABAN_SN, AE.ARALIK_EN_AZ, AE.ARALIK_SN, AE.HATA_AZAMI_SN)
+               == (10.0, 15.0, 30.0, 120.0, 600.0) and AE.PARCA_ARASI_SN == 0.1 and AE.PARCA_BAYT == 8192,
+               f"{[AE.hata_beklemesi(n) for n in range(1, 9)]}")
+
+            # A12 durum ozeti (kopru /esitleme/durum): mutlak yol YOK
+            dz = e.durum()
+            metin = json.dumps(dz, ensure_ascii=False)
+            ok("B72.A12 durum ozeti (kopru /esitleme/durum) son tur, yeni kayit, son sira, onay ve arsivin "
+               "GORELI adini verir; mutlak yol (kullanici dizini) icermez",
+               dz["etkin"] is True and dz["sonuc"] == "tamam" and dz["son_sira"] == 10 and dz["onay"] is True
+               and dz["arsiv"] == f"arsiv/{gk}/akis-8" and dz["son_basari"] and "onay_gitti" in dz
+               and str(d) not in metin and str(d).replace("\\", "/") not in metin
+               and not re.search(r"[A-Za-z]:[\\/]", metin), metin[:160])
+    finally:
+        sunucu.shutdown()
+
+
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
-            bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi]
+            bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle]
 
 
 def main() -> int:

@@ -260,6 +260,9 @@ class Kopru:
         self.satir_adedi = 0
         self.arsiv_hatasi: str | None = None
         self.suzgec = GizliSuzgec()
+        # 4C: arka plan esitlemesi (arka_esitle.ArkaEsitleme) — pc.esitleme_kur baglar
+        self.esitleme = None
+        self.esitleme_neden: str | None = None
         # 4A inceleme: OtoSeriKart'in baglanti sayaci; 0'dan — Kopru'dan once
         # acilmis bir baglantinin ilk satirlari da pencereye girsin
         self._baglanti_no = 0
@@ -538,6 +541,8 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         yol = self.path.split("?")[0]
         if yol == "/durum":
             return self._durum()
+        if yol == "/esitleme/durum":
+            return self._esitleme_durum()
         if yol in ("/akis", "/skop.bin", "/skop/liste", "/skop/al") and self._capraz():
             # 4A inceleme (CSRF): baska kokenden <img>/<script> GET'i — surucu jetonu
             # verilmez, karta yakalama yaptirilmaz, arsiv okunmaz
@@ -577,6 +582,16 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             "skop_adedi": k.skop_adedi,
         }
         self._yanit(200, json.dumps(d).encode("utf-8"), "application/json")
+
+    def _esitleme_durum(self):
+        """4C: arka plan esitlemesinin son durumu (salt okuma, YALNIZ bu bilgisayardan — 4D panel
+        kullanacak). Mutlak yol yok: arsiv adi veri dizinine gorelidir."""
+        if not self._yerel():
+            return self._yanit(403, LAN_RET.encode("utf-8"))
+        es = self.kopru.esitleme
+        d = es.durum() if es is not None else {
+            "etkin": False, "neden": self.kopru.esitleme_neden or "esitleme kurulmadi"}
+        self._yanit(200, json.dumps(d, ensure_ascii=False).encode("utf-8"), "application/json")
 
     # ── skop (B35) ───────────────────────────────────────────────────
     def _skop_canli(self):
