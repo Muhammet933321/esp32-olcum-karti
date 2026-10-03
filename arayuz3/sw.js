@@ -33,7 +33,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 'use strict';
 
-const SURUM = 'b1e9e957dd0d';
+const SURUM = 'a5e8d0234997';
 const ONEK = 'olcum-kabuk-';
 const ONBELLEK = ONEK + SURUM;
 const CEVRIMDISI = '/cevrimdisi.html';

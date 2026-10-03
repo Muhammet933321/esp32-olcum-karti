@@ -24,6 +24,7 @@
      arsivini SALT OKUMA gosterir (silme yok — tek yazar kopru). Bu metinler
      ortak/src/sozluk_pc.js'te ve YALNIZ kopruda dinamik olarak iner (kartin
      Gelismis'i tek dosya kalir).
+   4H — kopruda Gelismis: kabuk surumu + bildirim bolumu (ekran/pc_kopru.js); kartta istek yok.
    NEDEN IKI ASAMALI YUKLEME: kalibrasyon gecmisi ve depolama IndexedDB zincirini
    (esitleme.js + depo_idb.js ve ortak/ modulleri, ~43 KB gzip) ister; Gelismis
    istemez. Zincir bu dosyaya DINAMIK `import()` ile gelir — Gelismis tek dosya
@@ -88,7 +89,7 @@ export const AYE_METIN = Object.freeze({
 
 /** 4D: kopruda Depolama tablosunun PC metinleri (ortak/src/sozluk_pc.js; yalniz kopruda iner). */
 export const AY_PC_METIN = Object.freeze({
-  depoPc: 'pc.ay_depo_pc', depoSalt: 'pc.ay_depo_salt', depoIpucu: 'pc.ay_depo_ipucu',
+  depoPc: 'pc.ay_depo_pc', depoSalt: 'pc.ay_depo_salt', depoIpucu: 'pc.ay_depo_ipucu', kabuk: 'pc.ay_kabuk',
 });
 
 /** Kalibrasyon kaynaginin karttan okunamama sebebi -> sozluk anahtari. */
@@ -230,6 +231,13 @@ export function kunyeCoz(v) {
   return { surum: v.surum, dosya: v.dosya, bayt: v.icerik_bayt };
 }
 
+/** 4H: esitleme.js kokenSinama ile AYNI kural (B7) — Gelismis kartta esitleme.js'i indirmez (AY2). */
+export function kopruKokeni(k) {
+  if (!k || (k.protocol !== 'http:' && k.protocol !== 'https:')) return false;
+  const h = String(k.hostname || '').toLowerCase();
+  return h === 'localhost' || h.endsWith('.localhost') || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h) || h === '[::1]' || h === '::1';
+}
+
 /* ── Vue bileseni ───────────────────────────────────────────────────── */
 
 const SABLON = `
@@ -339,10 +347,12 @@ const SABLON = `
     <dl class="ay-bilgi">
       <dt>{{ m.fw }}</dt><dd data-ay-fw :class="{ 'ay-aciklama': !afisSurum }">{{ afisSurum || m.fwYok }}</dd>
       <dt>{{ m.panel }}</dt><dd data-ay-panel aria-live="polite" :class="{ 'ay-aciklama': !kunye }">{{ panelYazi }}</dd>
+      <template v-if="kabuk"><dt>{{ pm.kabuk }}</dt><dd data-ay-kabuk>{{ kabuk }}</dd></template>
       <dt>{{ m.tasiyici }}</dt><dd data-ay-tasiyici>{{ tasiyiciYazi }}</dd>
     </dl>
     <p class="ipucu">{{ m.konsolIpucu }} <a href="#/konsol">{{ m.konsolaGit }}</a></p>
   </section>
+  <component v-if="pcBilesen" :is="pcBilesen" v-show="bolum === 'gelismis'" :kart-adres="kartAdres" :dil-secim="dil"></component>
   <section class="kart" v-show="bolum === 'gelismis'" data-ay-bolum="gelismis">
     <h2>{{ m.sifirlaBaslik }}</h2>
     <template v-if="anahtarlar.length">
@@ -389,6 +399,7 @@ export const AyarlarEkrani = {
       kunye: null, kunyeNeden: '', kunyeDenendi: false, anahtarlar: [], sifirlaOnay: false,
       /* 4D: kaynak koprunun PC arsivi mi; PC metinleri (sozluk_pc.js, yalniz kopruda iner) */
       pc: false, pcSoz: null,
+      kabuk: '', pcBilesen: null, pcKopruDenendi: false,
     };
   },
   computed: {
@@ -510,7 +521,27 @@ export const AyarlarEkrani = {
       this.sifirlaOnay = false;
       if (this.bolum === 'kal-gecmis' && !this.kalDenendi && !this.kalYukleniyor) this.kalYukle();
       if (this.bolum === 'depolama') { this.depoYukle(); this.kotaOku(); }
-      if (this.bolum === 'gelismis') { this.anahtarlarOku(); if (!this.kunyeDenendi) this.kunyeYukle(); }
+      if (this.bolum === 'gelismis') {
+        this.anahtarlarOku();
+        if (!this.kunyeDenendi) this.kunyeYukle();
+        if (!this.pcKopruDenendi) this.pcKopruKur();
+      }
+    },
+    _konum() { return globalThis.location; },
+    async _pcKopruAl() { return import('./pc_kopru.js'); },
+    /** 4H: kopruda (4D karari) kabuk + bildirim bolumu. */
+    async pcKopruKur() {
+      this.pcKopruDenendi = true;
+      if (!kopruKokeni(this._konum())) return;
+      try {
+        const { den } = await this._den();
+        await this._pcKur(den);
+        if (!this.pc) return;
+        const m = await this._pcKopruAl();
+        this.kabuk = await m.kabukAl(this.kartAdres);
+        const V = globalThis.Vue;
+        this.pcBilesen = V && typeof V.markRaw === 'function' ? V.markRaw(m.PcBildirimBolumu) : m.PcBildirimBolumu;
+      } catch (h) { this.pcKopruDenendi = false; }
     },
 
     /* ═══ AY5 — kalibrasyon gecmisi ═══════════════════════════════════ */

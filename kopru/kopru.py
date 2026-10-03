@@ -153,6 +153,24 @@ SKOP_BEKLE_SN = 20.0
 # 4A inceleme: `?gun=` dosya yoluna giriyor — yalniz YYYY-AA-GG (yol gecisi, UNC).
 GUN_DESEN = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
+# 4H: yerel ag istemcisine verilen 403'lerin ISARETI. Panel bu baslikla ham ret metni yerine
+# cevrilmis "yerel agdan salt okuma — bu PC'den ya da karta dogrudan" uyarisini gosterir. Yalniz
+# LAN_RET'li retlerde (capraz koken / surucu degil retlerinde YOK); kart bu basligi hic yollamaz.
+LAN_ISARET = ("X-Kopru-Ret", "lan")
+
+# 4H: koprunun sundugu panel kabugunun surumu (sw.js `SURUM`, arayuz-uret.py `kabuk_surumu` yazar).
+SW_SURUM = re.compile(r"^const SURUM = '([0-9a-f]{12})';$", re.M)
+
+
+def kabuk_surumu() -> str | None:
+    """4H: `/durum` `kabuk` — panel Ayarlar > Gelismis'te kartin arayuz surumunun yaninda gosterir."""
+    try:
+        m = SW_SURUM.search((ARAYUZ / "sw.js").read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    return m.group(1) if m else None
+
+
 CAPRAZ_RET = ("baska bir kokenden (site) gelen istek reddedildi — panel yalniz "
               f"{pc_ayar.adres()} adresinden kullanilir")
 TETIK_RET = ("X-Olcum basligi gerekli: canli yakalama karta `t` yollatir (komut) — "
@@ -520,14 +538,20 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return False
         return True
 
-    def _yanit(self, kod: int, govde: bytes = b"", tip="text/plain"):
+    def _yanit(self, kod: int, govde: bytes = b"", tip="text/plain", basliklar=()):
         self.send_response(kod)
         self.send_header("Content-Type", tip + "; charset=utf-8")
         self.send_header("Content-Length", str(len(govde)))
         self.send_header("Cache-Control", "no-store")
+        for ad, deger in basliklar:
+            self.send_header(ad, deger)
         self.end_headers()
         if govde:
             self.wfile.write(govde)
+
+    def _lan_ret(self, metin: str = LAN_RET):
+        """4A (PC2) yerel ag reddi — 4H: `X-Kopru-Ret: lan` isaretiyle (panel cevrilmis uyari yazar)."""
+        self._yanit(403, metin.encode("utf-8"), basliklar=(LAN_ISARET,))
 
     # ── GET ──────────────────────────────────────────────────────────
     def _sorgu(self) -> dict:
@@ -591,6 +615,8 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             # (/pil, /kal/liste, /kunye.json) gelebilir mi — ikisi de YALNIZ bu bilgisayara
             "pc_arsiv": self._yerel(),
             "vekil": self._yerel() and vekil.wifi_al(k.kart) is not None,
+            # 4H: koprunun sundugu panel kabugunun surumu (Gelismis'te kartin arayuz surumunun yaninda)
+            "kabuk": kabuk_surumu(),
         }
         self._yanit(200, json.dumps(d).encode("utf-8"), "application/json")
 
@@ -598,7 +624,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         """4C: arka plan esitlemesinin son durumu (salt okuma, YALNIZ bu bilgisayardan — 4D panel
         kullanacak). Mutlak yol yok: arsiv adi veri dizinine gorelidir."""
         if not self._yerel():
-            return self._yanit(403, LAN_RET.encode("utf-8"))
+            return self._lan_ret()
         es = self.kopru.esitleme
         d = es.durum() if es is not None else {
             "etkin": False, "neden": self.kopru.esitleme_neden or "esitleme kurulmadi"}
@@ -610,11 +636,44 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         kullanacak): bagli mi, son olay, ac/kapa ayarlari. Araci adresi / kullanici / parola / konu
         oneki / anahtar YOK (pc_bildirim.PcBildirim.durum)."""
         if not self._yerel():
-            return self._yanit(403, LAN_RET.encode("utf-8"))
+            return self._lan_ret()
         b = getattr(self.kopru, "bildirim", None)
-        d = b.durum() if b is not None else {
-            "etkin": False, "neden": getattr(self.kopru, "bildirim_neden", None) or "bildirim kurulmadi"}
+        if b is not None:
+            d = b.durum()
+        else:
+            import pc_bildirim as PB                    # 4H: kapaliyken de panel ac/kapa ayarini gorsun
+            acik, dil, uyari = PB.ayar_oku()
+            d = {"etkin": False, "neden": getattr(self.kopru, "bildirim_neden", None) or "bildirim kurulmadi",
+                 "ayar": acik, "dil": dil, "ayar_uyari": uyari}
         self._yanit(200, json.dumps(d, ensure_ascii=False).encode("utf-8"), "application/json")
+
+    def _bildirim_ayar(self):
+        """4H: panelin "Bildirimler (bu bilgisayar)" bolumu — sinif ac/kapa + bildirim dili ayar.json'a
+        BIRLESTIRILIR (pc_bildirim.ayar_yaz: oteki anahtarlar aynen, bozuk dosyanin ustune yazilmaz).
+        Kapilar /kapat ile AYNI: `X-Olcum`, yalniz bu bilgisayar, yalniz ayni koken; govde JSON ve
+        KATI (ayar_istegi_coz: yalniz bilinen siniflar / true-false / dil — sir giremez). Bildirim ipligi
+        ayari her kararda dosyadan okur: degisiklik hemen gecerli."""
+        import pc_bildirim as PB
+        if self.headers.get("X-Olcum") != "1":
+            return self._yanit(400, "X-Olcum basligi gerekli".encode("utf-8"))
+        if not self._yerel():
+            return self._lan_ret()
+        if self._capraz():
+            return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
+        if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
+            return self._yanit(415, "govde application/json olmali".encode("utf-8"))
+        try:
+            degisiklik, dil = PB.ayar_istegi_coz(self._govde_metin)
+        except ValueError as e:
+            return self._yanit(400, str(e).encode("utf-8"))
+        try:
+            PB.ayar_yaz(degisiklik, dil)
+        except (ValueError, OSError) as e:
+            metin = str(e) if isinstance(e, ValueError) else f"{pc_ayar.AYAR} yazilamadi ({type(e).__name__})"
+            return self._yanit(409, metin.encode("utf-8"))
+        acik, dil, uyari = PB.ayar_oku()
+        self._yanit(200, json.dumps({"ayar": acik, "dil": dil, "ayar_uyari": uyari}, ensure_ascii=False)
+                    .encode("utf-8"), "application/json")
 
     # ── skop (B35) ───────────────────────────────────────────────────
     def _skop_canli(self):
@@ -627,7 +686,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         k = self.kopru
         # 4A (PC2): canli yakalama karta `t` YOLLATIR — okuma degil, komut
         if not self._yerel():
-            return self._yanit(403, LAN_RET.encode("utf-8"))
+            return self._lan_ret()
         # 4A inceleme: kendi `t`si icin /komut'un kapisi (X-Olcum + surucu jetonu)
         if self.headers.get("X-Olcum") != "1":
             izin = (False, TETIK_RET)
@@ -740,6 +799,8 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._devral()
         if yol == "/kapat":
             return self._kapat()
+        if yol == "/bildirim/ayar":                         # 4H
+            return self._bildirim_ayar()
         self._yanit(404, b"bilinmeyen uc")
 
     def _govde(self) -> str:
@@ -762,7 +823,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
         izin, neden = k.komut_izinli(metin, self._jeton(), yerel=self._yerel())
         if not izin:
-            return self._yanit(403, neden.encode("utf-8"))
+            return self._lan_ret() if neden == LAN_RET else self._yanit(403, neden.encode("utf-8"))
         # Yakalama komutuysa: cozucuyu hazirla ve `tB`yi `t`ye cevir
         # (gerekcesi SKOP_KOMUTLARI'nin yaninda).
         if metin in SKOP_KOMUTLARI:
@@ -782,7 +843,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         if self.headers.get("X-Olcum") != "1":
             return self._yanit(400, "X-Olcum basligi gerekli".encode("utf-8"))
         if not self._yerel():
-            return self._yanit(403, LAN_RET.encode("utf-8"))
+            return self._lan_ret()
         if self._capraz():
             return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
         jeton = self._jeton()
@@ -801,7 +862,7 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
         if self.headers.get("X-Olcum") != "1":
             return self._yanit(400, "X-Olcum basligi gerekli".encode("utf-8"))
         if not self._yerel():
-            return self._yanit(403, LAN_RET.encode("utf-8"))
+            return self._lan_ret()
         if self._capraz():
             return self._yanit(403, CAPRAZ_RET.encode("utf-8"))
         self._yanit(204)

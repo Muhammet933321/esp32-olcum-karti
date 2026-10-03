@@ -1817,6 +1817,181 @@ def pc_4e_sina(gec_dizin: Path) -> None:
        f"{kod_c} {govde_c[:100]} rc={sonuc.get('rc')}")
 
 
+def pc_4h_sina(gec_dizin: Path) -> None:
+    """4H: panelin bildirim bolumu icin YAZMA ucu (`POST /bildirim/ayar`), yerel ag reddinin isareti
+    (`X-Kopru-Ret: lan`) ve koprunun sundugu kabugun surumu (`/durum` `kabuk`).
+
+    Kararlar tasarim/2026-10-03-alt-proje-4-pc.md "4H uygulama kararlari"."""
+    print("\n--- 4H. Bildirim ayari yazma ucu, yerel ag reddi isareti, kabuk surumu ---")
+    import pc
+    import pc_ayar
+    import pc_bildirim as PB
+
+    ayar = pc_ayar.veri_dizini() / pc_ayar.AYAR
+    ayar.parent.mkdir(parents=True, exist_ok=True)
+    kart = kart_baglanti.KayitKart([], gecikme=0.0)
+    kart.ac()
+    kop = kopru_mod.Kopru(kart, gec_dizin / "arsiv_4h")
+    pc.bildirim_kur(["--bildirim-yok"], kop.kart, kop, yazdir=lambda *_: None)
+    s = _kos(kop)
+    s_lan = _kos(kop, _LanIsleyici)
+    taban = f"http://127.0.0.1:{s.server_address[1]}"
+    taban_lan = f"http://127.0.0.1:{s_lan.server_address[1]}"
+    JSON_B = {"X-Olcum": "1", "Content-Type": "application/json"}
+
+    def post(govde, basliklar=JSON_B, t=taban):
+        veri = govde if isinstance(govde, bytes) else json.dumps(govde).encode("utf-8")
+        kod, g, b = _guvenli_istek_bas(t + "/bildirim/ayar", veri, basliklar, "POST")
+        return kod, g.decode("utf-8", "replace"), b
+
+    def yolsuz(metin: str) -> bool:
+        """Mutlak veri dizini ne duz ne JSON-kacisli (C:\\Users\\...) bicimde gecmez."""
+        d = str(pc_ayar.veri_dizini())
+        return d not in metin and json.dumps(d)[1:-1] not in metin
+
+    def lan_isareti(b: dict) -> str | None:
+        return next((v for k, v in b.items() if k.lower() == "x-kopru-ret"), None)
+
+    try:
+        # ── kapilar: yazmadan ONCE reddedilir, dosya hic olusmaz ──────────────
+        ayar.unlink(missing_ok=True)
+        k_baslik, _, _ = post({"bildirim": {"kopuk": False}}, {"Content-Type": "application/json"})
+        k_lan, g_lan, b_lan = post({"bildirim": {"kopuk": False}}, t=taban_lan)
+        k_x, _, _ = post({"bildirim": {"kopuk": False}}, {**JSON_B, "Origin": "http://evil.example"})
+        k_sfs, _, _ = post({"bildirim": {"kopuk": False}}, {**JSON_B, "Sec-Fetch-Site": "cross-site"})
+        k_tur, _, _ = post({"bildirim": {"kopuk": False}}, {"X-Olcum": "1", "Content-Type": "text/plain"})
+        k_host, _, _ = post({"bildirim": {"kopuk": False}}, {**JSON_B, "Host": "evil.example"})
+        ok("[!] 4H: POST /bildirim/ayar KAPILARI — X-Olcum yoksa 400, yerel ag 403 (+ X-Kopru-Ret: lan), baska "
+           "koken (Origin / Sec-Fetch-Site) 403, govde JSON degilse 415, taninmayan Host 403; hicbirinde "
+           "ayar.json YAZILMAZ",
+           k_baslik == 400 and k_lan == 403 and lan_isareti(b_lan) == "lan" and k_x == 403 and k_sfs == 403
+           and k_tur == 415 and k_host == 403 and not ayar.exists(),
+           f"baslik={k_baslik} lan={k_lan}/{lan_isareti(b_lan)} origin={k_x} sfs={k_sfs} tur={k_tur} host={k_host}")
+
+        # ── kati dogrulama: her biri 400, dosya degismez ──────────────────────
+        once = {"esitleme_onay": False, "esitleme_aralik_s": 300, "bildirim": {"bitti": False},
+                "kullanicinin_notu": "elle yazdim"}
+        ayar.write_text(json.dumps(once, ensure_ascii=False, indent=2), encoding="utf-8")
+        ham_once = ayar.read_bytes()
+        kotu = {
+            "bilinmeyen alan": {"bildirim": {"kopuk": False}, "parola": "sinama-pw-4h"},
+            "araci adresi": {"uri": "mqtts://sinama.example:8883"},
+            "bilinmeyen sinif": {"bildirim": {"parola": False}},
+            "bool olmayan (1)": {"bildirim": {"kopuk": 1}},
+            "bool olmayan ('false')": {"bildirim": {"kopuk": "false"}},
+            "bool olmayan (null)": {"bildirim": {"kopuk": None}},
+            "bildirim nesne degil": {"bildirim": ["kopuk"]},
+            "gecersiz dil": {"dil": "de"},
+            "dil metin degil": {"dil": 1},
+            "bos degisiklik": {},
+            "bos bildirim": {"bildirim": {}},
+            "dizi govde": [{"bildirim": {"kopuk": False}}],
+            "JSON degil": b"kopuk=0",
+            "tekrarlanan anahtar": b'{"bildirim": {"kopuk": false, "kopuk": true}}',
+            "tekrarlanan ust anahtar": b'{"dil": "en", "dil": "tr"}',
+            "NaN": b'{"bildirim": {"kopuk": NaN}}',
+            "tam buyuk ama gecerli": b'{"bildirim": {"kopuk": false}' + b" " * 600 + b"}",
+        }
+        sonuc = {ad: post(g)[0] for ad, g in kotu.items()}
+        ok("[!] 4H: KATI dogrulama — bilinmeyen alan (parola, uri), bilinmeyen sinif, true/false olmayan deger "
+           "(1, 'false', null), nesne olmayan bildirim, gecersiz dil, bos degisiklik, dizi govde, JSON olmayan "
+           "govde, tekrarlanan anahtar, NaN, 512 B'den buyuk govde -> 400; ayar.json BAYT BAYT ayni",
+           all(k == 400 for k in sonuc.values()) and ayar.read_bytes() == ham_once,
+           " ".join(f"{a}={k}" for a, k in sonuc.items() if k != 400) or "hepsi 400")
+
+        # ── birlestirme: oteki anahtarlar korunur ─────────────────────────────
+        k1, g1, _ = post({"bildirim": {"kopuk": False, "deneme": True}})
+        k2, g2, _ = post({"dil": "en"})
+        sonra = json.loads(ayar.read_text(encoding="utf-8"))
+        try:
+            y1, y2 = json.loads(g1), json.loads(g2)
+        except ValueError:
+            y1, y2 = {}, {}
+        kd, gd = _guvenli_istek(taban + "/bildirim/durum")
+        try:
+            dd = json.loads(gd)
+        except ValueError:
+            dd = {}
+        ok("[!] 4H: yazma ayar.json'a BIRLESTIRIR — esitleme_onay / esitleme_aralik_s / kullanicinin anahtari ve "
+           "onceki bildirim.bitti AYNEN kalir; yanit ve GET /bildirim/durum (bildirim ipligi kurulmamisken de) "
+           "yeni ac/kapa ve dili gosterir",
+           k1 == 200 and k2 == 200 and sonra.get("esitleme_onay") is False and sonra.get("esitleme_aralik_s") == 300
+           and sonra.get("kullanicinin_notu") == "elle yazdim"
+           and sonra.get("bildirim") == {"bitti": False, "kopuk": False, "deneme": True}
+           and sonra.get("bildirim_dil") == "en"
+           and y1.get("ayar", {}).get("kopuk") is False and y1.get("ayar", {}).get("bitti") is False
+           and y2.get("dil") == "en" and set(y2.get("ayar", {})) == set(PB.SINIFLAR)
+           and kd == 200 and dd.get("etkin") is False and dd.get("dil") == "en"
+           and dd.get("ayar", {}).get("kopuk") is False and dd.get("ayar", {}).get("esik") is True,
+           f"{k1} {k2} {sonra} durum={gd[:120]}")
+        ok("[!] 4H: SIR YOK — yazmalardan sonra ayar.json'da yalniz onceki anahtarlar + bildirim / bildirim_dil; "
+           "bildirim altinda yalniz bilinen siniflar ve true/false; reddedilen parola / araci adresi dosyada yok, "
+           "yanitlarda mutlak yol yok",
+           set(sonra) == set(once) | {"bildirim_dil"} and set(sonra["bildirim"]) <= set(PB.SINIFLAR)
+           and all(isinstance(v, bool) for v in sonra["bildirim"].values())
+           and "sinama-pw-4h" not in ayar.read_text(encoding="utf-8") and "sinama.example" not in ayar.read_text(encoding="utf-8")
+           and yolsuz(g1 + g2), str(sorted(sonra)))
+
+        # ── bozuk dosyanin uzerine yazilmaz ───────────────────────────────────
+        ayar.write_bytes(b'{"esitleme_onay": false, "bildirim": ')
+        bozuk = ayar.read_bytes()
+        kb, gb, _ = post({"bildirim": {"kopuk": True}})
+        ok("[!] 4H: ayar.json okunamiyorsa 409 ve dosya BAYT BAYT ayni (kullanicinin elle yazdigi ayar ezilmez); "
+           "mesajda mutlak yol yok",
+           kb == 409 and ayar.read_bytes() == bozuk and yolsuz(gb), f"{kb} {gb[:80]}")
+        ayar.unlink()
+
+        # ── yerel ag reddi isaretli; oteki retler isaretsiz; p0 serbest ───────
+        lan = {}
+        for ad, yol, yontem, veri, bas in (
+                ("komut", "/komut", "POST", b"?", {"X-Olcum": "1"}),
+                ("devral", "/devral", "POST", b"", {"X-Olcum": "1", "X-Jeton": "x"}),
+                ("kapat", "/kapat", "POST", b"", {"X-Olcum": "1"}),
+                ("esitleme", "/esitleme/durum", None, None, {}),
+                ("bildirim", "/bildirim/durum", None, None, {}),
+                ("arsiv", "/arsiv/liste", None, None, {}),
+                ("skop", "/skop.bin", None, None, {"X-Olcum": "1"})):
+            r = _guvenli_istek_bas(taban_lan + yol, veri, bas, yontem)
+            lan[ad] = (r[0], lan_isareti(r[2]))
+        p0 = _guvenli_istek_bas(taban_lan + "/komut", b"p0", {"X-Olcum": "1"}, "POST")
+        csrf = _guvenli_istek_bas(taban + "/komut", b"?", {"X-Olcum": "1", "Origin": "http://evil.example"}, "POST")
+        kop.surucu = "baskasi"
+        surucu_degil = _guvenli_istek_bas(taban + "/komut", b"?", {"X-Olcum": "1", "X-Jeton": "x"}, "POST")
+        kop.surucu = None
+        ok("[!] 4H: yerel ag istemcisinin 403'leri ISARETLI (X-Kopru-Ret: lan — panel cevrilmis 'salt okuma' "
+           "uyarisi gosterir): komut, devral, kapat, esitleme/durum, bildirim/durum, arsiv, skop.bin; p0 yine "
+           "serbest; baska sebepli 403 (capraz koken, surucu degil) ISARETSIZ",
+           all(v == (403, "lan") for v in lan.values()) and p0[0] == 204
+           and csrf[0] == 403 and lan_isareti(csrf[2]) is None
+           and surucu_degil[0] == 403 and lan_isareti(surucu_degil[2]) is None,
+           f"{lan} p0={p0[0]} csrf={csrf[0]}/{lan_isareti(csrf[2])} surucu={surucu_degil[0]}/{lan_isareti(surucu_degil[2])}")
+
+        # ── kabuk surumu ──────────────────────────────────────────────────────
+        import re as _re
+        sw = (KOK / "arayuz3" / "sw.js").read_text(encoding="utf-8")
+        m = _re.search(r"^const SURUM = '([0-9a-f]{12})';$", sw, _re.M)
+        kdu, gdu = _guvenli_istek(taban + "/durum")
+        try:
+            du = json.loads(gdu)
+        except ValueError:
+            du = {}
+        ok("[!] 4H: /durum `kabuk` = koprunun sundugu panel kabugunun surumu (sw.js SURUM, arayuz-uret.py yazar)",
+           kdu == 200 and m is not None and du.get("kabuk") == m.group(1), f"{du.get('kabuk')} / {m and m.group(1)}")
+    finally:
+        for x in (s, s_lan):
+            x.shutdown()
+            x.server_close()
+        ayar.unlink(missing_ok=True)
+
+
+def _guvenli_istek_bas(url, veri=None, basliklar=None, yontem=None, zaman_asimi=5):
+    """`istek_bas` + baglanti hatasi -> (None, hata, {})."""
+    try:
+        return istek_bas(url, veri, basliklar, yontem, zaman_asimi)
+    except Exception as e:                              # noqa: BLE001
+        return None, str(e).encode("utf-8", "replace"), {}
+
+
 def _g4e(durum: int, oturum: int) -> str:
     return f"G {durum} {oturum} 100 101 50 120 10 0 900 25000 3 400 0"
 
@@ -2243,6 +2418,7 @@ def main() -> int:
     pc_4c_sina(gec_dizin)
     pc_4d_sina(gec_dizin)
     pc_4e_sina(gec_dizin)
+    pc_4h_sina(gec_dizin)
 
     k.calisiyor = False
     time.sleep(0.25)

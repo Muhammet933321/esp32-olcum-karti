@@ -52,10 +52,10 @@ test("4D: panelin kullandigi HER pc. anahtari sozluk_pc.js'te; sozluk_pc.js'te k
   assert.deepEqual(Object.keys(SOZLUK_PC).filter((a) => !literal.has(a)), [], "sozluk_pc.js'te olup panelde kullanilmayan anahtar");
 });
 
-test("4D: sozluk_pc'yi STATIK ice aktaranlar yalniz Kayitlar zinciri (kayitlar.js, kayit_gorunum.js); app.js ve sozluk.js istemez", () => {
+test("4D/4H: sozluk_pc'yi STATIK ice aktaranlar yalniz Kayitlar zinciri (kayitlar.js, kayit_gorunum.js) ve yalniz kopruda inen pc_kopru.js; app.js ve sozluk.js istemez", () => {
   if (!EKRANLAR.length) return;
   const statik = EKRANLAR.filter((y) => /^import \{[^}]*\} from '\/ortak\/sozluk_pc\.js';$/m.test(yorumsuz(oku(y))));
-  assert.deepEqual(statik.map((y) => y.split("/").pop()), ["kayit_gorunum.js", "kayitlar.js"]);
+  assert.deepEqual(statik.map((y) => y.split("/").pop()), ["kayit_gorunum.js", "kayitlar.js", "pc_kopru.js"]);
   for (const y of APP) assert.doesNotMatch(yorumsuz(oku(y)), /sozluk_pc/, "app.js sozluk_pc'yi istememeli");
   assert.doesNotMatch(yorumsuz(oku("../src/sozluk.js")), /sozluk_pc/, "acilis sozlugu ek sozlugu cekmemeli");
 });

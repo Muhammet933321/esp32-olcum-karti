@@ -10531,6 +10531,39 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.93 🟢 4H: ALT PROJE 4'ÜN ARTIKLARI — PANELDE PC BİLDİRİMLERİ, YEREL AĞ UYARISI, KABUK SÜRÜMÜ (2026-10-03)
+
+Ajan, dal `4h-kalan` (ağaç `projeler/olcum-karti-4h`). Kararlar spec "4H uygulama kararları" (4H-1…4H-9). Kart
+sınanmadı, karta istek gitmedi.
+
+- **Ayarlar > Gelişmiş, YALNIZ köprüde:** "Bildirimler (bu bilgisayar)" bölümü (bağlantı durumu, son olay, 7 sınıfın
+  aç/kapası, bildirim dili) ve kartın arayüz sürümünün yanında köprünün sunduğu kabuk sürümü (`/durum` `kabuk` = sw.js
+  SURUM). Yeni modül `ekran/pc_kopru.js` yalnız dinamik; karar 4D'ninki (`kaynak() === 'pc'`), kart kökeninde ne istek
+  ne indirme (`ayarlar.js` `kopruKokeni` = `kokenSinama`, B7 eşitliği ölçüyor). Metinler `sozluk_pc.js` (+24, TR + EN).
+- **Köprüde `POST /bildirim/ayar`:** `X-Olcum`, yalnız bu bilgisayar, aynı köken, `application/json`, ≤ 512 B; yalnız
+  bilinen sınıf → true/false ve `dil`; tekrarlanan anahtar / NaN / boş değişiklik ret; `ayar.json`'a BİRLEŞTİRİR
+  (4C anahtarları ve kullanıcının anahtarları kalır), bozuk dosyada 409 ve dosyaya dokunmaz. Sır yolu yok.
+- **Yerel ağ istemcisi:** köprünün `LAN_RET`'li 403'leri artık `X-Kopru-Ret: lan` taşıyor; panel komutta ve
+  devralmada ham ASCII ret metni yerine çevrilmiş "yerel ağdan salt okuma — DURDUR (p0) her zaman geçer; komut için
+  köprünün bilgisayarı ya da karta doğrudan" der. Başka 403'ler (çapraz köken, sürücü değil) işaretsiz, eskisi gibi.
+- **Bütçe** (gzip): açılış 209 211 → 209 404; `#/skop` 250 601 → 250 794 (≤ 256 000); EU31 259 803 → 259 996
+  (≤ 262 144); `ayarlar.js` 10 692 → 11 154 (≤ 12 288); `pc_kopru.js` 3 824 (yalnız köprüde iner); kart görüntüsü
+  411 814 → 417 627 B. EN'de çevrilmemiş metin kilidi 272 (değişmedi). Yeni CSS yok.
+- **Testler:** B22a 166 → 173, B7 898 → 911 (bölüm 34), T4D 20 → 24 (gerçek köprü + Edge: seçim gerçek POST ile
+  `ayar.json`'a birleşir, GERÇEK yeniden yüklemede korunur — ilk sürüm yalnız hash değiştiriyordu, yeniden yükleme
+  sanılıyordu; LAN istemcisi `lan.localhost` + LAN IP'li işleyiciyle). B72.Q16, B22b, B73, T4A, T4F, T3H aynen yeşil.
+  Mutasyon `4H:` 37/37 (ilk koşuda biri KAÇTI: yazma yanıtına mutlak yol eklenince "yolsuz" iddiası JSON'un
+  kaçışlı ters bölülerini görmüyordu — artık düz VE JSON-kaçışlı biçimi arıyor). Zincir sayımı 5232 → 5252 (hesap;
+  `dogrula3.py` bu dilimde koşulmadı).
+- **Ev işi:** `tasarim/1-acik-isler.md`'de sonraki işlerle kapanan beş satırın üstü çizildi (D0, kimliksiz onay,
+  cihazdan saat, kayıt ekranları, plan gösterimi), her biri kanıt numarasıyla. `mutasyon.py`'de bu dilimin değiştirdiği
+  koda bakan 6 eski mutasyon (+ önceden bayatlamış 2: 3F `/pil` kaynağı, 3H `ayarlar.js` içe aktarma) güncellendi.
+- **Bulunan, düzeltilmeyen:** köprüde sayfa yeniden yüklenince sürücü jetonu kapanmış sekmede kalıyor (yeni sekme
+  izleyici, açılış komutu 403) — önceden var. `gercek_dizin_koru` aynı anda koşan GERÇEK köprünün yeni dosyalarını da
+  geri alıyor: bu dilimde bir kez gerçek `bildirim\<kart>.okb` önbelleğini sildi (köprü karttan yeniden alır); sonraki
+  koşular yalıtılmış `LOCALAPPDATA`/`TEMP` ile yapıldı (aynı anda koşan başka bir `dogrula3`'ün süpürücüsü de
+  `kopru_*` geçici dizinini koşu ortasında silmiş görünüyor).
+
 #### 5.12.91 🟢 3C-LISTE: İLK EŞİTLEMEDE BOŞ LİSTE (2026-10-03 öğle)
 
 4D+4E kartta sınanırken bulundu: yeni bir tarayıcıda Kayıtlar açılınca liste ~24 s (ilk eşitleme boyunca) BOŞ
