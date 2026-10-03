@@ -106,6 +106,10 @@ SERBEST_KOMUTLAR = {"p0"}
 # edilseydi yenilenen sekme o kadar izleyici kalirdi. Hedef: rol <= ~2 s'de bosalsin.
 AKIS_YOKLAMA_S = 0.5
 KALP_S = 15.0
+# 4I (inceleme): surucunun akislari kapaninca rol bu kadar YENIDEN YUKLENME icin bekler.
+# Yenilenen sekmenin yeni /akis'i eski isleyici kapanisi fark ettikten SONRA geliyor;
+# rol hemen yasayan arka sekmeye verilseydi yenilenen sekme izleyici kalirdi (403).
+AKIS_DEVIR_BEKLE_S = 3.0
 
 # 4A (PC2): dongu DISI istemcinin (yerel ag) ret sebebi.
 LAN_RET = ("yerel agdan salt okuma: bu baglanti yalniz izleyebilir ve `p0` (DURDUR) "
@@ -268,6 +272,10 @@ class Kopru:
         self.akislar: list[dict] = []
         self.akisli: set[str] = set()
         self._akis_no = 0
+        # 4I (inceleme): surucunun akislarinin kapali bulundugu ilk an (monotonic); None =
+        # surucu yasiyor ya da rol devredildi. Pencere (AKIS_DEVIR_BEKLE_S) icinde rol yalniz
+        # YENI kaydolan yerel akisa (yenilenen sekme) gecer, zaten acik sekmelere degil.
+        self._bosaldi: float | None = None
         self.calisiyor = False
         self.son_satir = ""
         self.satir_adedi = 0
@@ -373,22 +381,44 @@ class Kopru:
         self.surucu_yokla()
 
     def surucu_yokla(self, haric: dict | None = None) -> str | None:
-        """4I politikasi: surucunun BUTUN `/akis`lari kapandiysa rol en yeni YASAYAN yerel
-        (donguden) akisa gecer ve o akisa `kimlik` olayi gider. Aday yoksa rol bosta bekler:
+        """4I politikasi: surucunun BUTUN `/akis`lari kapandiysa rol, once YENIDEN YUKLENME
+        penceresi (AKIS_DEVIR_BEKLE_S) icinde YENI kaydolan yerel akisa (`haric`, yenilenen
+        sekme), pencere dolunca en yeni YASAYAN yerel (donguden) akisa gecer ve o akisa
+        `kimlik` olayi gider. Aday yoksa rol bosta bekler:
         sonraki yerel `/akis` ya da yasayan bir yerel sekmenin komutu alir. Surucu yasiyorsa
         HICBIR SEY olmaz (iki acik sekme arasinda sessiz calma yok; acik yol /devral).
         Hic `/akis`i olmamis jeton (arac, test) olu sayilmaz."""
+        zamanla = False
         with self.kilit:
             j = self.surucu
             if j is None or j not in self.akisli:
                 return None
             if any(b["jeton"] == j and not self.soket_kapali(b["soket"]) for b in self.akislar):
+                self._bosaldi = None
                 return None
-            adaylar = [b for b in self.akislar
-                       if b["yerel"] and b["jeton"] != j and not self.soket_kapali(b["soket"])]
-            if not adaylar:
+            simdi = time.monotonic()
+            if self._bosaldi is None:
+                self._bosaldi = simdi
+                zamanla = True
+            if (haric is not None and haric["yerel"] and haric["jeton"] != j
+                    and not self.soket_kapali(haric["soket"])):
+                # Yeni kaydolan yerel akis = yenilenen sekme (kullanicinin baktigi): hemen ona
+                yeni = haric
+            elif simdi - self._bosaldi < AKIS_DEVIR_BEKLE_S:
+                # Pencere suruyor: yenilenen sekmenin yeni /akis'i henuz gelmemis olabilir;
+                # rol acik (arka) sekmelere VERILMEZ. Pencere sonunda zamanlayici yeniden yoklar.
+                yeni = None
+            else:
+                adaylar = [b for b in self.akislar
+                           if b["yerel"] and b["jeton"] != j and not self.soket_kapali(b["soket"])]
+                yeni = max(adaylar, key=lambda b: b["no"]) if adaylar else None
+            if yeni is None:
+                if zamanla:
+                    t = threading.Timer(AKIS_DEVIR_BEKLE_S + 0.05, self.surucu_yokla)
+                    t.daemon = True
+                    t.start()
                 return None
-            yeni = max(adaylar, key=lambda b: b["no"])
+            self._bosaldi = None
             self.surucu = yeni["jeton"]
             hedef = [b for b in self.akislar if b["jeton"] == yeni["jeton"] and b is not haric]
         olay = ("kimlik", json.dumps({"jeton": yeni["jeton"], "surucu": True}))
@@ -400,11 +430,19 @@ class Kopru:
         self.yayinla("* kopru: surucu degisti")
         return yeni["jeton"]
 
+    def devir_kalan(self) -> float:
+        """Yeniden yuklenme penceresinden kalan sure (s); pencere yoksa 0."""
+        with self.kilit:
+            if self._bosaldi is None:
+                return 0.0
+            return max(0.0, AKIS_DEVIR_BEKLE_S - (time.monotonic() - self._bosaldi))
+
     def devral(self, jeton: str) -> bool:
         with self.kilit:
             if jeton not in self.jetonlar:
                 return False
             self.surucu = jeton
+            self._bosaldi = None
         return True
 
     def komut_izinli(self, komut: str, jeton: str | None,
@@ -434,6 +472,14 @@ class Kopru:
         self.surucu_yokla()
         if self.surucu_mu(jeton):
             return True, ""
+        # 4I (inceleme): yeniden yuklenme penceresi suruyorsa acik sekmenin komutu pencere
+        # sonunu bekler: yenilenen sekme gelirse rol onundur (403), gelmezse rol buna gecer.
+        kalan = self.devir_kalan()
+        if kalan > 0:
+            time.sleep(kalan + 0.05)
+            self.surucu_yokla()
+            if self.surucu_mu(jeton):
+                return True, ""
         return False, ("bu oturum SURUCU degil — komut reddedildi. "
                        "`p0` (durdur) her zaman acik.")
 

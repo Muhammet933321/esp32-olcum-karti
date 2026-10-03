@@ -10543,6 +10543,13 @@ boşta bekliyor (`None`'a düşmüyor). İki açık sekme arasında çalma yok (
 Devir 0.26–0.44 s. B22a 166 → 175, T4A 12 → 15, mutasyon `4I:` 14. Kararlar spec "4I uygulama kararları".
 Açık: kartın kendi web sunucusu dokunulmadı; iki gerçek Edge sekmesiyle ölçülmedi.
 
+**İnceleme düzeltmesi (4I-6):** ikinci yerel sekme açıkken sürücü yenilenince rol arka sekmeye kaçıyordu (eski
+işleyici kapanışı yeni `/akis`'ten ÖNCE fark ediyor; 0…1.5 s gecikmelerin hepsinde yenilenen sekme 403). Artık
+sürücünün akışları kapanınca 3 s'lik yeniden yükleme penceresi (`AKIS_DEVIR_BEKLE_S`): pencerede rol yalnız yeni
+kaydolan yerel akışa; pencere dolunca zamanlayıcı en yeni yaşayan yerel akışa verir; açık sekmenin komutu pencere
+sonunu bekler. Bedel: gerçekten kapanan sürücüde devir ~3.5 s. B22a 175 → 177, T4A yenilemesi ikinci sekme
+açıkken; mutasyon `4I:` 14 → 20, hepsi öldü. Spec 4I-6.
+
 #### 5.12.91 🟢 3C-LISTE: İLK EŞİTLEMEDE BOŞ LİSTE (2026-10-03 öğle)
 
 4D+4E kartta sınanırken bulundu: yeni bir tarayıcıda Kayıtlar açılınca liste ~24 s (ilk eşitleme boyunca) BOŞ

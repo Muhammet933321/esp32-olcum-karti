@@ -1925,18 +1925,47 @@ def pc_4i_sina(gec_dizin: Path) -> None:
         ok("4I: kapanan sekmenin eski jetonu artik surucu degil (komutu 403)",
            komut("?", ka["jeton"] if ka else "x") == 403, f"surucu={k.surucu == (ka or {}).get('jeton')}")
 
+        # ── 1b. IKINCI sekme aciktayken yenileme: rol arka sekmeye KACMAZ ───
+        # 🔴 4I incelemesinde bulundu: eski akisin isleyicisi kapanisi <= 0.5 s'de fark edip
+        #    rolu HEMEN yasayan tek yerel akisa (arka sekme) veriyordu; yenilenen sekmenin
+        #    yeni /akis'i hep ondan SONRA geliyor -> surucu yasiyor, "calma yok" -> yenilenen
+        #    sekme izleyici, acilis komutlari 403. Gecikmeler 0…1.5 s hepsinde. Yeniden
+        #    yuklenme penceresi (AKIS_DEVIR_BEKLE_S) icinde gelen yeni yerel akis rolu alir.
+        sonuc_1b = []
+        for gec in (0.0, 0.8, 1.5):
+            v = ac()
+            kv = v.kimlik()
+            b.kapat()
+            time.sleep(gec)              # eski isleyici kapanisi coktan fark etti (<= 0.5 s)
+            b = ac()
+            kb = b.kimlik()
+            kod_b = komut("?", b.jeton)
+            kod_v = komut("CT", v.jeton)
+            sonuc_1b.append((gec, bool(kv) and not kv["surucu"], bool(kb and kb["surucu"]), kod_b,
+                             kod_v, len(v.kimlikler)))
+            v.kapat()
+        time.sleep(kopru_mod.AKIS_DEVIR_BEKLE_S + 0.6)   # pencere zamanlayicisi da rolu kacirmasin
+        ok("[!] 4I: IKINCI yerel sekme aciktayken surucu YENILENINCE (yeni akis eski isleyici "
+           "fark ettikten 0 / 0.8 / 1.5 s sonra) yenilenen sekme SURUCU, `?` 204; arka sekme rol "
+           "olayi almaz, komutu 403",
+           all(x[1:] == (True, True, 204, 403, 1) for x in sonuc_1b) and k.surucu == b.jeton
+           and komut("?", b.jeton) == 204,
+           f"(gec, v izleyici, yeni surucu, ?, v CT, v olay) = {sonuc_1b}")
+
         # ── 2. kapanan surucu: rol <= 2 s'de EN YENI yasayan yerel izleyiciye ─
         c = ac()
         d = ac()
         kc, kd = c.kimlik(), d.kimlik()
         t0 = time.monotonic()
         b.kapat()
-        kd2 = d.kimlik(2, sure=4.0)
+        devir_ust = kopru_mod.AKIS_DEVIR_BEKLE_S + 1.5   # pencere + 0.5 s yoklama + pay
+        kd2 = d.kimlik(2, sure=devir_ust + 2.0)
         dt = (d.kimlikler[1][0] - t0) if len(d.kimlikler) >= 2 else None
-        ok("[!] 4I: surucunun akisi kapaninca rol <= 2 s'de EN YENI yasayan yerel izleyiciye gecer, "
+        ok("[!] 4I: surucunun akisi kapaninca rol, yeniden yuklenme penceresi dolunca "
+           f"(<= {devir_ust:.1f} s) EN YENI yasayan yerel izleyiciye gecer, "
            "o sekme yeniden yuklenmeden `kimlik` olayi (surucu: true, kendi jetonu) alir",
            bool(kc and kd) and not kc["surucu"] and not kd["surucu"] and bool(kd2 and kd2["surucu"])
-           and kd2["jeton"] == d.jeton and dt is not None and dt <= 2.0 and k.surucu == d.jeton,
+           and kd2["jeton"] == d.jeton and dt is not None and dt <= devir_ust and k.surucu == d.jeton,
            f"dt={dt if dt is None else round(dt, 3)} s · yeni={kd2}")
         time.sleep(0.3)
         ok("4I: devir yalniz yeni surucuye — daha eski izleyici (c) rol olayi almadi, komutu 403; "
@@ -1966,15 +1995,21 @@ def pc_4i_sina(gec_dizin: Path) -> None:
         lan = ac(lb)
         kl = lan.kimlik()
         c.kapat()                        # yasayan tek yerel sekme (surucu) kapandi
-        time.sleep(1.5)
+        time.sleep(0.8)                  # isleyici fark etti; yeniden yuklenme penceresi acik
+        lan2 = ac(lb)                    # pencere icinde YENI kaydolan LAN akisi da aday degil
+        kl2 = lan2.kimlik()
+        time.sleep(kopru_mod.AKIS_DEVIR_BEKLE_S + 1.0)   # pencere zamanlayicisi da LAN'a vermesin
         kod_l = komut("?", lan.jeton, lb)
         kod_p0 = komut("p0", "", lb)
         kod_p0b = komut("p0", "")
-        ok("[!] 4I: surucu kapaninca yerel AG izleyicisi rolu ALMAZ (olay yok, komutu 403); `p0` "
-           "(DURDUR) LAN'dan da bu bilgisayardan da jetonsuz 204",
+        ok("[!] 4I: surucu kapaninca yerel AG izleyicisi rolu ALMAZ — ne acik olan, ne pencere icinde "
+           "yeni kaydolan, ne pencere dolunca (olay yok, komutu 403); `p0` (DURDUR) LAN'dan da bu "
+           "bilgisayardan da jetonsuz 204",
            bool(kl) and not kl["surucu"] and len(lan.kimlikler) == 1 and k.surucu != lan.jeton
+           and bool(kl2) and not kl2["surucu"] and len(lan2.kimlikler) == 1 and k.surucu != lan2.jeton
            and kod_l == 403 and kod_p0 == 204 and kod_p0b == 204,
-           f"lan olaylari={len(lan.kimlikler)} ?={kod_l} p0={kod_p0}/{kod_p0b}")
+           f"lan olaylari={len(lan.kimlikler)}/{len(lan2.kimlikler)} yeni={kl2} ?={kod_l} "
+           f"p0={kod_p0}/{kod_p0b}")
 
         # ── 5. CSRF: baska kokenden /akis rolu ve jetonu ALAMAZ ───────────
         jetonlar = len(k.jetonlar)
@@ -2010,15 +2045,40 @@ def pc_4i_sina(gec_dizin: Path) -> None:
     k2.akis_kaydet(j2, s2, q2, True)
     once = (k2.komut_izinli("?", j2)[0], k2.surucu == j1)
     s1_karsi.close()                 # surucunun sekmesi kapandi; isleyicisi henuz bilmiyor
+    t_k = time.monotonic()
     izin = k2.komut_izinli("?", j2)[0]
+    dt_k = time.monotonic() - t_k
     olay = q2.get_nowait() if not q2.empty() else None
     yabanci = k2.komut_izinli("?", "baskasi")[0]
-    ok("[!] 4I: surucunun soketi kapaliysa izleyicinin KOMUTU rolu hemen devralir (isleyicinin "
-       "0.5 s yoklamasini beklemez) ve ona `kimlik` gider; bilinmeyen jeton yine 403",
+    pencere = kopru_mod.AKIS_DEVIR_BEKLE_S
+    ok("[!] 4I: surucunun soketi kapaliysa izleyicinin KOMUTU (isleyici kopusu henuz fark etmeden) "
+       "yeniden yuklenme penceresinin sonunu bekleyip rolu devralir ve 204 alir (403 degil); ona "
+       "`kimlik` gider; bilinmeyen jeton yine 403",
        once == (False, True) and izin and k2.surucu == j2 and isinstance(olay, tuple)
+       and pencere - 0.2 <= dt_k <= pencere + 1.0
        and olay[0] == "kimlik" and json.loads(olay[1]) == {"jeton": j2, "surucu": True} and not yabanci,
-       f"once={once} izin={izin} olay={olay} yabanci={yabanci}")
-    for x in (s1, s2, s2_karsi):
+       f"once={once} izin={izin} bekleme={dt_k:.2f} s olay={olay} yabanci={yabanci}")
+
+    # ── 6b. pencere icinde yenilenen sekme gelirse bekleyen izleyici komutu 403 ──
+    s3, s3_karsi = socket.socketpair()
+    q3 = _q.Queue()
+    j3 = k2.jeton_ver()
+    s4, s4_karsi = socket.socketpair()
+    j4 = k2.jeton_ver()
+    k2.akis_kaydet(j4, s4, _q.Queue(), True)              # acik izleyici sekme (surucu j2 yasarken)
+    s2_karsi.close()                 # surucu (j2) kapandi; pencere basliyor
+    sonuc6b: dict = {}
+    th6 = threading.Thread(target=lambda: sonuc6b.update(izin=k2.komut_izinli("CT", j4)[0]),
+                           daemon=True)
+    th6.start()
+    time.sleep(0.4)
+    k2.akis_kaydet(j3, s3, q3, True)                      # yenilenen sekme pencere icinde geldi
+    th6.join(pencere + 2.0)
+    ok("[!] 4I: pencere icinde yenilenen sekme gelirse rol ONUN; pencereyi bekleyen acik izleyicinin "
+       "komutu 403 (rol arka sekmeye kacmaz)",
+       k2.surucu == j3 and sonuc6b.get("izin") is False and not th6.is_alive(),
+       f"surucu=j3:{k2.surucu == j3} j4:{k2.surucu == j4} izin={sonuc6b}")
+    for x in (s1, s2, s3, s3_karsi, s4, s4_karsi):
         x.close()
 
 

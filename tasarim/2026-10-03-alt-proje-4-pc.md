@@ -349,6 +349,20 @@ açık izleyici panel, sürücü sekme kapanınca yeniden yüklenmeden 0.26 s'de
 Açık: kartın kendi web sunucusundaki tek-sürücü kuralına dokunulmadı (bu dilim yalnız PC köprüsü). İki gerçek
 Edge sekmesiyle (yenileme sırasında öteki sekme açıkken) ölçülmedi — B22a ham soketle, T4A tek sekme + ham soket.
 
+**4I-6 (inceleme düzeltmesi, 2026-10-03): yeniden yükleme penceresi.** İnceleme 4I-2'nin gerekçesini çürüttü:
+İKİNCİ yerel sekme açıkken sürücü yenilenince eski akışın işleyicisi kapanışı ≤ 0.5 s'de fark edip rolü HEMEN
+o arka sekmeye veriyordu; yenilenen sekmenin yeni `/akis`'i pratikte hep bundan SONRA geliyor (ölçülen gecikme
+0…1.5 s'nin hepsinde) → 4I-4 "çalma yok" → yenilenen sekme izleyici, açılış komutları 403. Karar: sürücünün
+akışları kapalı bulununca **`AKIS_DEVIR_BEKLE_S` = 3 s pencere** açılır. Pencere içinde rol yalnız YENİ kaydolan
+yerel akışa (yenilenen sekme) geçer; açık sekmelere verilmez. Pencere dolunca zamanlayıcı yeniden yoklar ve rol
+4I-2'deki gibi en yeni yaşayan yerel akışa geçer. Pencere içinde açık bir sekmenin komutu pencere sonunu bekler
+(en fazla ~3 s): yenilenen sekme gelirse 403, gelmezse rol ona geçer ve komut 204. Bedel: sürücü sekme gerçekten
+KAPATILINCA açık izleyici rolü ~3.5 s'de alır (eskiden 0.26–0.44 s). 3 s gerekçesi: yeni `/akis` panel betikleri
+yüklendikten sonra açılıyor; yerelde < 1.5 s ölçüldü, pay iki katı. Sınama: B22a 1b (ikinci sekme açıkken
+yenileme, 0 / 0.8 / 1.5 s gecikme) + 6 (komut pencereyi bekler) + 6b (pencerede yeni sekme gelirse bekleyen
+komut 403) → B22a 175 → 177; T4A'nın yenilemesi artık ikinci (ham soket) yerel sekme AÇIKKEN yapılıyor.
+Mutasyon `4I:` 14 → 20 (pencere yüzünden metni değişen üç eski mutasyon güncellendi; LAN iddiası artık pencere sonrasını da bekliyor).
+
 ## Güvenlik (kalıcı kurallar)
 
 - `p0` her yeni katmanda serbest (LAN salt okuma, vekil, imza zorunluluğu): her birine iddia + mutasyon.

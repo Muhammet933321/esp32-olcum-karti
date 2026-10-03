@@ -188,6 +188,15 @@ def main() -> int:
             # ── 4I: surucu sekme YENILENINCE rol yeni sekmeye gecer ──────
             # 🔴 4H'de bulundu: kopru eski sekmenin jetonunu tutuyordu; yenilenen sekme
             #    izleyici kaliyor, acilis komutlari (`?`, `CT`, `G?`) 403 aliyordu.
+            # 🔴 4I incelemesi: IKINCI yerel sekme aciktayken eski akisin isleyicisi kapanisi
+            #    fark edip rolu HEMEN o arka sekmeye veriyordu; yenilenen panel izleyici kalip
+            #    403 aliyordu. Yenilemeyi ikinci (izleyici) sekme ACIKKEN yap.
+            import socket as _sk0
+            arka = _sk0.create_connection(("127.0.0.1", port), timeout=10)
+            arka.sendall(f"GET /akis HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n".encode())
+            arka_dosya = arka.makefile("rb")
+            arka_dosya.readline()
+            t.bekle(0.3)
             eski = k.surucu
             komutlar.clear()
             t.cagir("Page.reload", {"ignoreCache": False})
@@ -196,14 +205,17 @@ def main() -> int:
             bekle_js(t, f"{UYG}.surucuyum === true", 3)
             t.bekle(1.5)                 # acilis komutlarinin yanitlari
             red = [(m, c) for m, c in komutlar if c != 204]
-            ok("[!] 4I: panel YENILENINCE yeni sekme SURUCU (elle devralmadan), acilis komutlari "
-               "403 almadi",
+            ok("[!] 4I: panel YENILENINCE (ikinci yerel sekme ACIKKEN) yeni sekme SURUCU (elle "
+               "devralmadan), acilis komutlari 403 almadi; rol arka sekmeye kacmadi",
                t.js(f"{UYG}.surucuyum") is True and k.surucu not in (None, eski)
                and any(m == "?" and c == 204 for m, c in komutlar) and not red,
                f"surucuyum={t.js(UYG + '.surucuyum')} degisti={k.surucu != eski} "
                f"komutlar={komutlar[:8]} red={red[:4]}")
             ok("4I: yenilemeden sonra panelde 'Komut gönderilemedi' hatasi yok",
                "403" not in str(t.js(f"{UYG}.hata") or ""), str(t.js(f"{UYG}.hata")))
+            arka.shutdown(_sk0.SHUT_RDWR)
+            arka_dosya.close()
+            arka.close()
 
             # ── 4I: ACIK izleyici panel, surucu sekme kapaninca yeniden yuklenmeden surucu ─
             # Ikinci "sekme" ham soketle (bu bilgisayardan) acilip /devral ile surucu olur;
@@ -232,11 +244,12 @@ def main() -> int:
             dosya.close()
             ikinci.close()
             t0 = time.monotonic()
-            gecti_mi = bekle_js(t, f"{UYG}.surucuyum === true", 4)
+            devir_ust = kopru_mod.AKIS_DEVIR_BEKLE_S + 1.5   # yeniden yuklenme penceresi + pay
+            gecti_mi = bekle_js(t, f"{UYG}.surucuyum === true", devir_ust + 2)
             dt = time.monotonic() - t0
             ok("[!] 4I: ACIK izleyici panel, surucu sekme kapaninca YENIDEN YUKLENMEDEN surucu olur "
-               "(`kimlik` olayi akan baglantidan; <= 2 s)",
-               kod_dv == 204 and gecti_mi is True and dt <= 2.0
+               f"(`kimlik` olayi akan baglantidan; pencere dolunca, <= {devir_ust:.1f} s)",
+               kod_dv == 204 and gecti_mi is True and dt <= devir_ust
                and k.surucu == t.js(f"{UYG}.jeton"),
                f"devral={kod_dv} dt={dt:.2f} s surucuyum={t.js(UYG + '.surucuyum')}")
             print(f"     profil: {t.profil}")
