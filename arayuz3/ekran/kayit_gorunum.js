@@ -45,7 +45,9 @@ import {
   oturumCsv, ayrintiCsv, pilCsv, skopCsv, hamDisari, csvBayt, BICIM_EXCEL_TR, BICIM_EN,
 } from '/ortak/disari.js';
 import { oturumRaporu, RAPOR_ETIKET } from '/ortak/rapor.js';
-import { ceviri, ceviriKod } from '/ortak/sozluk.js';
+import { ceviriKod } from '/ortak/sozluk.js';
+/* W3 (EU32): kl./kg./kr. metinleri acilis sozlugunde DEGIL — bu zincirle iner (sozluk_kayit.js; yoksa sozluk.js) */
+import { ceviriKayit as ceviri } from '/ortak/sozluk_kayit.js';
 import { ceviriPc } from '/ortak/sozluk_pc.js';
 import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP, skopYerleri } from '/ortak/kayit.js';
 
@@ -360,6 +362,11 @@ export const NEREDE_METIN = Object.freeze({
   kart: 'kl.nerede_kart', tarayici: 'kl.nerede_tarayici', ikisi: 'kl.nerede_ikisi', pc: 'pc.nerede',
 });
 
+/** W3: `pc.` anahtari sozluk_pc.js'ten, digerleri (kl./kg./kr. + acilis) sozluk_kayit.js zincirinden. ATMAZ. */
+export function ceviriKlPc(anahtar, dil = 'tr', d = null) {
+  return typeof anahtar === 'string' && anahtar.startsWith('pc.') ? ceviriPc(anahtar, dil, d) : ceviri(anahtar, dil, d);
+}
+
 /** Anahtar haritasini dile cevir. */
 export function metinler(harita, dil) {
   const m = {};
@@ -585,7 +592,7 @@ export const KayitGorunumu = {
       }
       s.push({ a: 'durum', etiket: m.durum,
         deger: o.bitir ? ceviriKod('sebep.', o.bitir.sebep, this.dil) : m.acik });
-      if (sat.nerede) s.push({ a: 'nerede', etiket: m.nerede, deger: ceviriPc(NEREDE_METIN[sat.nerede], this.dil) });
+      if (sat.nerede) s.push({ a: 'nerede', etiket: m.nerede, deger: ceviriKlPc(NEREDE_METIN[sat.nerede], this.dil) });
       return s;
     },
     uyarilar() {

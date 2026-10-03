@@ -206,3 +206,15 @@ etkileyenler **Y** (veri doğruluğu):
 | S8 | **AVR'de doğrulanan ölçüm matematiği kartta bit bit aynı değil:** ESP32 derlemesi `guc_olc`, `olcum_al`, `skop_gorevi`, `suzgec_ters_kazanc`'ta kayan nokta işlemlerini birleştiriyor (madd.s); B4/B5'in "AVR = kart" varsayımı bu işlevlerde geçersiz | firmware | ~~Y~~ **Kapandı (1F-2):** `.ino`'nun başında `#pragma GCC optimize ("fp-contract=off")`; B6 eskizin nesne dosyasının TAMAMINI tarar (449 kayan nokta komutu, 0 madd/msub); kartta örnek sayısı aynı (32.99), en uzun tur 7.31 → 7.19 ms |
 | S9 | `istatistik.js`: zaman dizisinde NaN aralığı sessizce kesiyor (`[0, NaN, 2]` → 1 örnek) | `ortak/src/istatistik.js` | ~~D~~ **Kapandı:** sonlu olmayan zamanlı örnek eksik sayılır |
 | S10 | Kayıt biçimi: NOT ve OLAY kayıtlarında açılış numarası yok → yeniden başlamadan sonra notun konumu tahmin; olayın açılışı ancak ham kayıtlarla bulunuyor (`oturumlariKur` DEVAM sıralarını düşürüyor); `ayrintiOrnekler` kayıt başına KA bayraklarını kaybediyor | `kayit_bicim.py` / `kayit.js` | O — biçim sürümü 3'te |
+
+## Panel açılış bütçesi (W3, 2026-10-03)
+
+Açılış kümeleri sözlük eklemeleriyle sınıra dayanmıştı (`#/skop` 250 794 / 256 000 B, eşleşmiş açılış
+259 996 / 262 144 B). Karar ve ölçüm: `tasarim/2026-10-02-alt-proje-3-panel.md` **EU32**, DEVIR 5.12.102.
+
+| # | Ne | Durum |
+|---|---|---|
+| ~~W3-1~~ | ~~Açılış bütçesinde pay yok: `#/skop` ~5 KB, eşleşmiş açılış ~2 KB; her yeni metin açılışa giriyordu~~ | **Kapandı (EU32):** Kayıtlar/Karşılaştırma (`sozluk_kayit.js`) ve Ayarlar modülünün (`sozluk_ay.js`) metinleri açılıştan çıktı. Açılış 209 404 → 199 864 B, `#/skop` 250 794 → 241 254 B, eşleşmiş açılış 259 996 → 250 456 B (gzip; B7). Büyüme kilidi: `sozluk.js` ≤ 19 500 B (B7) + B73 yerleşim iddiası (yalnız bir tembel ekranın kullandığı metin açılışta kalamaz) |
+| W3-2 | `os.` / `pl.` metinleri hâlâ açılışta (~2.6 + 3.3 KB gzip) | Bilerek: iki ekran kabuğun parçası, modül inmeden çizilir (PU1: DURDUR modülü beklemez). Ayırmak için görünüm değişiminde sözlük yükleyip yeniden çizdiren reaktif bir yol gerekir; `#/skop`'u küçültmez. Gerekirse yalnız `pl.`'nin DURDUR/okuma dışı kısmı ayrılabilir |
+| W3-3 | Eşleşmiş açılışın EU31 istisnası: bayt artık 3D sınırının altında (250 456 < 256 000) ama dosya sayısı 15 > 12 | Açık (D): dosya sayısı imza/kripto birleşmesi ister; EU31 tavanı (262 144 B) bilerek değiştirilmedi — kullanıcı kararıydı. İstenirse tavan 256 000'e çekilebilir |
+| W3-4 | Ayarlar modülü kartta artık iki dosya indirir (ayarlar.js + sozluk_ay.js, 4.6 KB) | Kabul (AY2 güncellendi): her açılışta −9.5 KB'a karşı yalnız Ayarlar'ın modül bölümleri ilk açılınca +1 istek |

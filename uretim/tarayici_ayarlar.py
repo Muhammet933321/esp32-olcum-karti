@@ -187,6 +187,12 @@ def sunucu_kur(kart):
 
 GORUNEN_JS = ("[...document.querySelectorAll('[data-ay-bolum]')].filter(e => e.offsetParent !== null)"
               ".map(e => e.dataset.ayBolum).filter((x, i, a) => a.indexOf(x) === i)")
+# EU32 (W3): tembel ekranlarin sozlukleri — hangi adimda indigi ve ekranda ham anahtar kalmadigi
+def SOZ_JS(ad: str) -> str:
+    return ("performance.getEntriesByType('resource').some(e => /\\/ortak\\/" + ad
+            + "\\.js$/.test(new URL(e.name).pathname))")
+HAM_ANAHTAR_JS = ("(() => { const m = (document.querySelector('main') || document.body).innerText"
+                  ".match(/\\b(?:ay|kl|kg|kr)\\.[a-z0-9_]{3,}/g); return m ? m.slice(0, 5) : []; })()")
 MODUL_JS = ("performance.getEntriesByType('resource').some(e => /\\/ekran\\/ayarlar\\.js$/.test(new URL(e.name).pathname))")
 ZINCIR_JS = ("performance.getEntriesByType('resource').some(e => /\\/ekran\\/(esitleme|depo_idb)\\.js$/"
              ".test(new URL(e.name).pathname))")
@@ -256,6 +262,8 @@ def main() -> int:
                and [n["m"] for n in nav][:2] == ["Bağlantı", "Ağ"], f"{gor} {[n['m'] for n in nav]}")
             ok("[!] AY2: Ayarlar modulu (ekran/ayarlar.js) eski bolumlerde INMEDI",
                t.js(MODUL_JS) is False)
+            ok("[!] EU32: acilista tembel ekran sozlukleri (ortak/sozluk_ay.js, ortak/sozluk_kayit.js) INMEDI",
+               t.js(SOZ_JS("sozluk_ay")) is False and t.js(SOZ_JS("sozluk_kayit")) is False)
             resim("0-baglanti")
 
             # ── 3. Gelismis: modul iner, IndexedDB zinciri INMEZ; kunye, firmware, tasiyici ──
@@ -268,14 +276,21 @@ def main() -> int:
                " baglanti yolu yazili",
                bilgi.get("p", "").startswith(kart.kunye["surum"] + " · ") and "afişi görülmedi" in bilgi.get("f", "")
                and bilgi.get("t") == "WiFi / köprü (akış)", json.dumps(bilgi, ensure_ascii=False))
-            ok("[!] AY2: Gelismis acilinca modul indi ama IndexedDB zinciri (esitleme.js / depo_idb.js) INMEDI (tek dosya)",
+            ok("[!] AY2: Gelismis acilinca modul indi ama IndexedDB zinciri (esitleme.js / depo_idb.js) INMEDI (modul + metinleri)",
                t.js(MODUL_JS) is True and t.js(ZINCIR_JS) is False)
+            ham_ay = t.js(HAM_ANAHTAR_JS)
+            ok("[!] EU32: Gelismis acilinca metinleri (sozluk_ay.js) modulle indi, Kayitlar'inki (sozluk_kayit.js) INMEDI;"
+               " ekranda ham ay./kl. anahtari YOK",
+               t.js(SOZ_JS("sozluk_ay")) is True and t.js(SOZ_JS("sozluk_kayit")) is False and ham_ay == [], f"{ham_ay}")
             resim("1-gelismis")
 
             # ── 2. Kayitlar: kartin kopyasi bu tarayiciya (kalibrasyon.json dahil) ──
             tikla_cdp(t, "#serit .gorunum-sekme[href='#/kayitlar']")
             bekle_js(t, "document.querySelectorAll('.kl-satir').length >= 5 && [...document.querySelectorAll('.kl-satir')]"
                         ".every(a => a.dataset.nerede === 'ikisi')", 60)
+            ham_kl = t.js(HAM_ANAHTAR_JS)
+            ok("[!] EU32: Kayitlar acilinca metinleri (sozluk_kayit.js) indi; listede ham kl./kg./kr. anahtari YOK",
+               t.js(SOZ_JS("sozluk_kayit")) is True and ham_kl == [], f"{ham_kl}")
             t.js("location.hash = '#/ayar/gelismis'")
             bekle_js(t, f"{UYG}.ayarBolum === 'gelismis'", 6)
 
