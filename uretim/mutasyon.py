@@ -6435,6 +6435,9 @@ MUTASYONLAR = [
      '        if (b.length) { parcalar.push(b); n += b.length; ofset += b.length; }',
      '        if (b.length) { parcalar.push(b.slice(0, b.length - 1)); n += b.length - 1; ofset += b.length; }',
      '4D: PC arsivinden okunan baytlar eksik — kayit acilmaz / CSV farkli'),
+    ('B22a', 'test_kopru.py', 'kopru/kopru.py',
+     '    do_PUT = do_DELETE = do_PATCH = _yalniz_okuma\n', '',
+     '4D: PUT/DELETE govdeyi okumadan 501 doner (yuk altinda RST, istemci yanit almaz): B22a kirmizi'),
     # ── 4E: MQTT aboneligi + Windows bildirimi (pc_bildirim.py, windows_bildirim.py, bildirim_metin.py; B72.Q16 = test_bildirim.py, B22a "4E") ──
     ('B72', 'test_bildirim.py', 'kopru/pc_bildirim.py',
      '            if not suruyor:\n                return\n            self._baglanti_oturum = oturum',

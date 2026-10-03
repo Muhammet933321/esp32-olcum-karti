@@ -1575,7 +1575,8 @@ def pc_4d_sina(gec_dizin: Path) -> None:
         sonra = _dokum(kok)
         ok("4D (PC10): arsiv ve vekil yollari YAZMA kabul etmez (POST/PUT/DELETE 2xx degil; vekil POST'u karta "
            "gitmez) ve butun istekler bittiginde arsiv dizini BAYT BAYT ve mtime'iyla ayni — tek yazar Python",
-           all(k is not None and not 200 <= k < 300 for k in k_yaz) and sonra == once
+           all(k is not None and not 200 <= k < 300 for k in k_yaz) and k_yaz[1] == 405 and k_yaz[2] == 405
+           and sonra == once
            and not any(y.startswith("POST /pil") for y in kart.istekler),
            f"{k_yaz} degisen={sorted(set(sonra) ^ set(once))[:3]}")
 

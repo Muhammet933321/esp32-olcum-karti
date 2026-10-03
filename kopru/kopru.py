@@ -946,6 +946,15 @@ class Isleyici(http.server.SimpleHTTPRequestHandler):
             return self._bildirim_ayar()
         self._yanit(404, b"bilinmeyen uc")
 
+    def _yalniz_okuma(self):
+        # PUT/DELETE/PATCH: kopru bunlari HIC kabul etmez. Varsayilan (BaseHTTPRequestHandler) govdeyi
+        # okumadan 501 doner; okunmamis govde Windows'ta baglantiyi RST ile kopariyor ve istemci yanit
+        # yerine ConnectionAborted goruyordu (zincirde yuk altinda 4D iddiasini kirmiziya ceviren buydu).
+        self._govde()
+        self._yanit(405, "yalniz okuma — bu uc yazma kabul etmez".encode("utf-8"))
+
+    do_PUT = do_DELETE = do_PATCH = _yalniz_okuma
+
     def _govde(self) -> str:
         n = int(self.headers.get("Content-Length") or 0)
         return self.rfile.read(n).decode("utf-8", "replace").strip()
