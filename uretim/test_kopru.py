@@ -1845,7 +1845,7 @@ def pc_4h_sina(gec_dizin: Path) -> None:
         return kod, g.decode("utf-8", "replace"), b
 
     def yolsuz(metin: str) -> bool:
-        """Mutlak veri dizini ne duz ne JSON-kacisli (C:\\Users\\...) bicimde gecmez."""
+        """Mutlak veri dizini ne duz ne JSON-kacisli (ters bolu iki katli) bicimde gecmez."""
         d = str(pc_ayar.veri_dizini())
         return d not in metin and json.dumps(d)[1:-1] not in metin
 
