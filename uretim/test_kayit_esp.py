@@ -1892,7 +1892,11 @@ def bolum_bildirim_kart() -> None:
     # onbellekli: yalniz GECEN kosu saklanir, kopru/*.py ya da testin kendisi degisirse
     # (o dosyalarin mutasyonu dahil) yeniden kosar.
     girdi = [KOK / "kopru" / a for a in ("chacha.py", "mqtt_istemci.py", "bildirim.py",
-                                        "sahte_araci.py", "imza.py")]
+                                        "sahte_araci.py", "imza.py",
+                                        # 4E: PC bildirimleri de test_bildirim.py'de sinaniyor
+                                        "pc_bildirim.py", "windows_bildirim.py", "bildirim_metin.py",
+                                        "kart_wifi.py", "pc_ayar.py")]
+    girdi += [KOK / "ortak" / "src" / "sozluk.js", KOK / "kod" / "olcum-karti-a3" / "bildirim.h"]
     girdi.append(Path(__file__).with_name("test_bildirim.py"))
     oz = hashlib.sha256(b"".join(p.read_bytes() if p.exists() else b"-" for p in girdi)).hexdigest()
     onb = Path(tempfile.gettempdir()) / f"ok_test_bildirim_{oz[:32]}.gecti"
