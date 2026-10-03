@@ -175,6 +175,7 @@ donanimi henuz kurulmadi.
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -186,6 +187,7 @@ import json
 
 import gecici
 import sayim
+import ozel_ortam
 import zincir_onbellek as ZO
 from tezgah import ayristir, markdown
 
@@ -540,7 +542,23 @@ def main(argv: list[str] | None = None) -> int:
     if izsiz and artimli:
         print("  RED: --izsiz kancasiz kosar, onbellek kuramaz; --artimli ile birlikte olmaz.")
         return 2
-    zincir = ZO.Zincir(artimli=artimli, tam="--tam" in argv, izle=not izsiz)
+    # 🔴 HIZ: adimlar OZEL bir LOCALAPPDATA gorur (ozel_ortam.py). Gercek kopru
+    #    kosarken `gercek_dizin_koru` testleri kullanicinin %LOCALAPPDATA%\olcum-karti'sinda
+    #    beliren dosyalari SILIYORDU (2026-10-03 olculdu: 4E bildirim dosyalari).
+    ust = BURASI.parent.parent
+    ozel_ortam.bayatlari_sil(ust, "_zincir-yerel-")
+    ozel = ust / f"_zincir-yerel-{os.getpid()}-{time.time_ns() % 10**9}"
+    try:
+        yerel = ozel_ortam.yerel_kur(ozel / "yerel", os.environ.get("LOCALAPPDATA"))
+        print(f"  LOCALAPPDATA: adimlar ozel dizinde ({ozel.name}); gercek "
+              f"%LOCALAPPDATA%\\olcum-karti'ya dokunulmaz")
+        return _kos(argv, artimli, kilit_yaz, izsiz, yerel)
+    finally:
+        ozel_ortam.guvenli_sil(ozel)
+
+
+def _kos(argv, artimli, kilit_yaz, izsiz, yerel) -> int:
+    zincir = ZO.Zincir(artimli=artimli, tam="--tam" in argv, izle=not izsiz, ozel_yerel=yerel)
     if artimli:
         print(f"  ARTIMLI kip: "
               f"{'TAM kosu — ' + zincir.tam_sebep if zincir.tam_kosu else 'degismeyen adimlar onbellekten'}")

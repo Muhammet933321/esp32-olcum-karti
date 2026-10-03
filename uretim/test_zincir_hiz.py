@@ -64,6 +64,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import gecici                                         # noqa: E402
 import mutasyon as M                                   # noqa: E402
+import ozel_ortam                                      # noqa: E402
 import zincir_onbellek as ZO                           # noqa: E402
 
 BURASI = Path(__file__).resolve().parent
@@ -696,6 +697,53 @@ def test_artimli() -> None:
         ok("B17 ilk tam kosunun SONUNDA yazilan onbellek dosyasi, dizinini listeleyen adimi "
            "kosturmaz", sn.onbellek_yas is not None and not zn.tam_kosu,
            f"{zn.tam_sebep} {sn.sebep}")
+
+        # B18: OZEL LOCALAPPDATA (dogrula3 adimlari gercek %LOCALAPPDATA%\\olcum-karti'yi gormez)
+        gercek = kap / "gercek_yerel"
+        yaz(gercek / "Arduino15" / "cekirdek.txt", "c1")
+        kok_y = kap / "proje_y"
+        yaz(kok_y / "y.py", '''
+            import os
+            from pathlib import Path
+            y = Path(os.environ["LOCALAPPDATA"])
+            ozel = y.name == "yerel"          # yalniz OZEL dizine yazar (gercege asla)
+            if ozel:
+                (y / "olcum-karti").mkdir(exist_ok=True)
+                (y / "olcum-karti" / "test.txt").write_text("x")
+            v = (y / "Arduino15" / "cekirdek.txt").read_text() if ozel else "?"
+            print(f"  {int(ozel)}/1 dogrulama gecti", v)
+            raise SystemExit(0 if ozel else 1)
+        ''')
+
+        def kos_y():
+            oz = kap / f"_zincir-yerel-test-{time.time_ns()}"
+            yerel = ozel_ortam.yerel_kur(oz / "yerel", str(gercek))
+            try:
+                zy = ZO.Zincir(kok=kok_y, yol=kok_y / "onb.json", artimli=True, tetik=(),
+                               ozel_yerel=yerel)
+                sy = zy.kos("Y", govde(kok_y, "y.py"))
+                zy.bitir()
+                return sy
+            finally:
+                ozel_ortam.guvenli_sil(oz)
+        s1, s2 = kos_y(), kos_y()
+        (gercek / "Arduino15" / "cekirdek.txt").write_text("c2")
+        s3 = kos_y()
+        ok("B18 adim OZEL LOCALAPPDATA'da kosar, Arduino15'i junction'dan okur, GERCEK dizine "
+           "yazmaz", s1.tamam and "c1" in s1.cikti and not (gercek / "olcum-karti").exists(),
+           s1.cikti.strip()[-80:])
+        ok("B18 her kosu BASKA ozel dizinde olsa da adim onbellekten gelir (junction yolu gercek "
+           "yola cevrilir)", s2.onbellek_yas is not None, s2.sebep)
+        ok("B18 junction arkasindaki gercek dosya degisince adim kosar",
+           s3.onbellek_yas is None and "c2" in s3.cikti, s3.sebep)
+        ok("B18 ozel dizinler silindi, junction hedefi yerinde",
+           (gercek / "Arduino15" / "cekirdek.txt").exists()
+           and not list(kap.glob("_zincir-yerel-test-*")))
+        kaynak = (BURASI / "dogrula3.py").read_text(encoding="utf-8")
+        ok("B18 dogrula3 zinciri ozel LOCALAPPDATA ile kuruyor ve sonunda siliyor",
+           "ozel_ortam.yerel_kur(" in kaynak and "ozel_yerel=yerel)" in kaynak
+           and "return _kos(argv, artimli, kilit_yaz, izsiz, yerel)" in kaynak
+           and "ozel_ortam.guvenli_sil(ozel)" in kaynak)
 
         # B12: baska kok
         kok2 = kap / "kopya"

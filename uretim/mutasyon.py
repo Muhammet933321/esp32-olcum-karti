@@ -6187,7 +6187,7 @@ MUTASYONLAR = [
      '_kur(yerel / ad, Path(gercek) / ad):',
      '                    if False:',
      "HIZ: ozel LOCALAPPDATA'da Arduino15 junction'i kurulmaz -> derleyen adimlar tabanda kirmizi: A2 kirmizi"),
-    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/ozel_ortam.py',
      '                    os.rmdir(g.path) if os'
      '.path.isdir(g.path) else os.unlink(g.path)',
      '                    [os.unlink(x.path) for x in os.scandir(g.path)]; os.rmdir(g.path)',
@@ -6278,8 +6278,8 @@ MUTASYONLAR = [
      '        pass',
      'HIZ: kurali olmayan arac girdileri sinirsiz iken adim onbellekten gelir: B5 kirmizi'),
     ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
-     '            gir, cik = _yol_argumanlari(argv, cwd)\n            for x in g'
-     'ir:\n                (g.dizin_agac if os.path.isdir(x) else g.dosya).add(x)',
+     '            gir, cik = [e(x) for x in gir], [e(x) for x in cik]\n            for '
+     'x in gir:\n                (g.dizin_agac if os.path.isdir(x) else g.dosya).add(x)',
      '            gir, cik = [], []\n            for x in gir:\n                (g.dizin_agac if os.path.isdir(x) else g.dosya).add(x)',
      'HIZ: derleyici argumanlarindaki dosyalar girdi sayilmaz: B4 kirmizi'),
     ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
@@ -6387,6 +6387,26 @@ MUTASYONLAR = [
      '.basename(p).startswith(self.onbellek_ad)',
      '        return self.cop_mu(p)',
      'HIZ: onbellek dosyasi dizin listesine girer, ilk tam kosudan sonra listeleyen adim kosar: B1 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '                    ret'
+     'urn os.path.realpath(p)',
+     '                    return p',
+     'HIZ: ozel LOCALAPPDATA junction yolu gercege cevrilmez -> adim her kosuda kosar: B18 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/zincir_onbellek.py',
+     '            ortam = dict(os.environ if o'
+     'rtam is None else ortam, **self.ek_ortam)',
+     '            pass',
+     "HIZ: zincir adimlari gercek LOCALAPPDATA'yi gorur (kopru dosyalari silinebilir): B18 kirmizi"),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/dogrula3.py',
+     '        return _kos(argv, art'
+     'imli, kilit_yaz, izsiz, yerel)',
+     '        return _kos(argv, artimli, kilit_yaz, izsiz, None)',
+     "HIZ: dogrula3 ozel LOCALAPPDATA'yi kurar ama adimlara vermez: B18 kirmizi"),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/ozel_ortam.py',
+     '                if not baglanti_k'
+     'ur(yerel / ad, Path(gercek) / ad):',
+     '                if False:',
+     "HIZ: zincirin ozel LOCALAPPDATA'sinda Arduino15 junction'i kurulmaz: B18 kirmizi"),
 ]
 
 
@@ -6435,7 +6455,9 @@ def kopyala(hedef: Path, kok: Path | None = None) -> Path:
 # BASKA bir iscinin testi kirmiziya donerdi = SAHTE "YAKALANDI" (bos iddia
 # gizlenir). Ozel LOCALAPPDATA'da yalniz arac kurulumlari gercek dizine
 # JUNCTION ile baglanir (Arduino15 = ESP32/AVR cekirdekleri, arduino = onbellek).
-YEREL_BAGLANTI = ("Arduino15", "arduino")
+# Yardimcilar `ozel_ortam.py`de — dogrula3.py de ayni ozel LOCALAPPDATA'yi kullaniyor.
+from ozel_ortam import (YEREL_BAGLANTI, baglanti_kur as _baglanti_kur,  # noqa: E402
+                        baglanti_mi as _baglanti_mi, guvenli_sil)
 TARAYICI_AZAMI = 2          # esanli basliksiz Edge kosusu (CPU aclugu -> sahte zaman asimi)
 ISCI_ONEK = "_mutp"
 
@@ -6461,65 +6483,6 @@ def sinirli(m: tuple) -> bool:
 
 def varsayilan_paralel() -> int:
     return max(1, min(4, (os.cpu_count() or 1) - 2))
-
-
-def _baglanti_mi(p) -> bool:
-    try:
-        return os.path.islink(p) or os.path.isjunction(p)
-    except OSError:
-        return False
-
-
-def guvenli_sil(kok: Path) -> bool:
-    """Dizini sil — ama icindeki JUNCTION/symlink'lerin HEDEFINE asla dokunmadan.
-
-    🔴 Ozel LOCALAPPDATA'da `Arduino15` gercek ESP32 cekirdegine junction. Bir
-    silme rutini junction'i izlerse kullanicinin araclarini siler. Once butun
-    baglantilar BAGLANTI olarak kaldirilir (os.rmdir junction'i, os.unlink
-    symlink'i), kalan yoksa agac silinir. Kaldirilamayan baglanti varsa agac
-    SILINMEZ (False) — birakmak zararsiz, yanlis silmek degil."""
-    kok = Path(kok)
-    if not kok.exists() and not _baglanti_mi(kok):
-        return True
-    if _baglanti_mi(kok):
-        try:
-            os.rmdir(kok) if os.path.isdir(kok) else os.unlink(kok)
-        except OSError:
-            return False
-        return True
-    yigin = [kok]
-    while yigin:
-        d = yigin.pop()
-        try:
-            girdiler = list(os.scandir(d))
-        except OSError:
-            continue
-        for g in girdiler:
-            if _baglanti_mi(g.path):
-                try:
-                    os.rmdir(g.path) if os.path.isdir(g.path) else os.unlink(g.path)
-                except OSError:
-                    pass
-                if _baglanti_mi(g.path) or os.path.lexists(g.path):
-                    return False
-            elif g.is_dir(follow_symlinks=False):
-                yigin.append(Path(g.path))
-    shutil.rmtree(kok, ignore_errors=True)
-    return not kok.exists()
-
-
-def _baglanti_kur(link: Path, hedef: Path) -> bool:
-    if not hedef.is_dir():
-        return False
-    try:
-        import _winapi
-        _winapi.CreateJunction(str(hedef), str(link))
-    except (ImportError, OSError):
-        try:
-            os.symlink(hedef, link, target_is_directory=True)
-        except OSError:
-            return False
-    return _baglanti_mi(link)
 
 
 def _agac_oldur(pid: int) -> None:

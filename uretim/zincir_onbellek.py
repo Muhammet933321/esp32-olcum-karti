@@ -247,19 +247,37 @@ def iz_oku(dizin: Path) -> Iz:
 class Kapsam:
     """Hangi yol girdi/cikti sayilir, hangisi sayilmaz."""
 
-    def __init__(self, kok: Path, ek_haric: list[str] = (), onbellek: Path | None = None):
+    def __init__(self, kok: Path, ek_haric: list[str] = (), onbellek: Path | None = None,
+                 ozel: Path | None = None):
         self.kok = _nc(str(kok))
+        # Adimlarin gordugu OZEL LOCALAPPDATA (ozel_ortam.py). Her kosuda BASKA bir dizin;
+        # icindeki junction'lardan (Arduino15) okunan yol GERCEK yola cevrilir (esle),
+        # yoksa sonraki kosuda "YOK" gorunup adim hep kosardi. Kalan ozel yollar (testlerin
+        # olcum-karti dizini) gecici dizin gibi sayilmaz.
+        self.ozel = _nc(str(ozel)) if ozel else None
         # Onbellegin KENDISI (ve atomik yazimin gecici dosyasi) hicbir adimin girdisi
         # degil — ama adimlarin listeledigi uretim/'de duruyor. Sayilsaydi ilk tam
         # kosudan sonra uretim/'yi listeleyen her adim (B2, B15, B73) "dizin degisti"
         # diye kosardi (olculdu, 2026-10-03).
         self.onbellek_ad = (onbellek or ONBELLEK_YOLU).name
         haric = [tempfile.gettempdir(), os.environ.get("TEMP", ""), os.environ.get("TMP", ""),
-                 str(KANCA_DIZIN), os.environ.get("SystemRoot", r"C:\Windows"), *ek_haric]
+                 str(KANCA_DIZIN), os.environ.get("SystemRoot", r"C:\Windows"), *ek_haric,
+                 *([str(ozel)] if ozel else [])]
         taban = _nc(sys.base_prefix)
         self.haric = [_nc(h) for h in haric if h]
         self.py_taban = taban
         self.py_site = _nc(os.path.join(sys.base_prefix, "Lib", "site-packages"))
+
+    def esle(self, p: str) -> str:
+        """Ozel LOCALAPPDATA altindaki yolu junction'i cozerek GERCEK yola cevir."""
+        if self.ozel and p:
+            n = _nc(p)
+            if n == self.ozel or n.startswith(self.ozel + os.sep):
+                try:
+                    return os.path.realpath(p)
+                except (OSError, ValueError):
+                    return p
+        return p
 
     def ic(self, p: str) -> str | None:
         """Depo icindeyse POSIX goreli yol, degilse None."""
@@ -383,7 +401,12 @@ def cozumle(iz: Iz, kok: Path, kokler: list[dict], kapsam: Kapsam | None = None)
     kokler: [{"komut": argv, "cwd": ...}] — dogrula3'un dogrudan actigi surecler."""
     kapsam = kapsam or Kapsam(kok)
     g = Girdiler()
-    yazilan = {_nc(p) for p in iz.yaz}
+    e = kapsam.esle
+    iz_oku = {e(p) for p in iz.oku}
+    iz_yaz = {e(p) for p in iz.yaz}
+    iz_liste = {e(p) for p in iz.liste}
+    iz_yokla = {e(p): v for p, v in iz.yokla.items()}
+    yazilan = {_nc(p) for p in iz_yaz}
 
     # 1. surec sayimi: her Python/node sureci rapor yazmali
     acilan = [dict(s, kok=False) for s in iz.surecler] + [dict(s, kok=True, iz=True) for s in kokler]
@@ -414,6 +437,7 @@ def cozumle(iz: Iz, kok: Path, kokler: list[dict], kapsam: Kapsam | None = None)
             g.arac.add(os.path.abspath(yol))
         if DERLEYICI.match(ad):
             gir, cik = _yol_argumanlari(argv, cwd)
+            gir, cik = [e(x) for x in gir], [e(x) for x in cik]
             for x in gir:
                 (g.dizin_agac if os.path.isdir(x) else g.dosya).add(x)
             g.cikti.update(cik)
@@ -437,6 +461,7 @@ def cozumle(iz: Iz, kok: Path, kokler: list[dict], kapsam: Kapsam | None = None)
             continue
         if ad in KICAD:
             gir, cik = _yol_argumanlari(argv, cwd)
+            gir, cik = [e(x) for x in gir], [e(x) for x in cik]
             for x in gir:
                 if os.path.isdir(x):
                     g.dizin_agac.add(x)
@@ -475,22 +500,22 @@ def cozumle(iz: Iz, kok: Path, kokler: list[dict], kapsam: Kapsam | None = None)
         g.her_zaman.append(f"ctypes ile yuklenen kutuphane: {d}")
 
     # 2. Python/node kayitlari
-    for p in iz.oku:
+    for p in iz_oku:
         p = pyc_kaynak(p)
         if kapsam.sayilmaz(p) or _nc(p) in yazilan:
             continue
         if os.path.isdir(p):
             continue
         g.dosya.add(os.path.abspath(p))
-    for p in iz.yaz:
+    for p in iz_yaz:
         if kapsam.sayilmaz(p) or not os.path.isfile(p):
             continue
         g.cikti.add(os.path.abspath(p))
-    for p in iz.liste:
+    for p in iz_liste:
         if kapsam.sayilmaz(p) or _nc(p) in yazilan:
             continue
         g.liste.add(os.path.abspath(p))
-    for p, v in iz.yokla.items():
+    for p, v in iz_yokla.items():
         if kapsam.sayilmaz(p) or _nc(p) in yazilan:
             continue
         # yazilan bir dizinin altindaki yoklama da (adimin kendi ciktisi) sayilmaz
@@ -638,10 +663,10 @@ def ortam_ozeti(ortam: dict | None = None) -> dict:
     return dict(sorted(s.items()))
 
 
-def genel_anahtar(baslik: str, ek_dosyalar=()) -> str:
+def genel_anahtar(baslik: str, ek_dosyalar=(), ek: str = "") -> str:
     dosyalar = [BURASI / "dogrula3.py", Path(__file__).resolve(),
                 KANCA_DIZIN / "sitecustomize.py", KANCA_DIZIN / "node_kanca.cjs", *ek_dosyalar]
-    return sha_metin(SURUM, sys.version, sys.platform, baslik,
+    return sha_metin(SURUM, sys.version, sys.platform, baslik, ek,
                      json.dumps(ortam_ozeti(), sort_keys=True),
                      *[_dosya_imza(str(p)) for p in dosyalar])
 
@@ -699,8 +724,9 @@ class Sonuc:
 class Calistir:
     """Adim govdesine verilen komut kosucusu: izli ortam + kok komut kaydi."""
 
-    def __init__(self, iz_dizin: Path | None):
+    def __init__(self, iz_dizin: Path | None, ek_ortam: dict | None = None):
         self.iz_dizin = iz_dizin
+        self.ek_ortam = dict(ek_ortam or {})
         self.kokler: list[dict] = []
 
     def __call__(self, argv, cwd=None, timeout=1800, **k) -> subprocess.CompletedProcess:
@@ -708,6 +734,8 @@ class Calistir:
         cwd = str(cwd or BURASI)
         self.kokler.append({"komut": argv, "cwd": os.path.abspath(cwd)})
         ortam = izli_ortam(self.iz_dizin) if self.iz_dizin else None
+        if self.ek_ortam:
+            ortam = dict(os.environ if ortam is None else ortam, **self.ek_ortam)
         return subprocess.run(argv, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
                               errors="replace", timeout=timeout, env=ortam, **k)
 
@@ -717,7 +745,7 @@ class Zincir:
 
     def __init__(self, kok: Path = KOK, yol: Path = ONBELLEK_YOLU, artimli: bool = False,
                  tam: bool = False, simdi: float | None = None, izle: bool = True,
-                 tetik=TAM_TETIK, ek_anahtar=()):
+                 tetik=TAM_TETIK, ek_anahtar=(), ozel_yerel: Path | None = None):
         self.kok = Path(kok).resolve()
         self.yol = Path(yol)
         self.artimli = artimli
@@ -725,7 +753,9 @@ class Zincir:
         self.izle = izle
         self.tetik = tetik
         self.ek_anahtar = tuple(ek_anahtar)
-        self.kapsam = Kapsam(self.kok, onbellek=self.yol)
+        self.ozel_yerel = Path(ozel_yerel) if ozel_yerel else None
+        self.ek_ortam = {"LOCALAPPDATA": str(self.ozel_yerel)} if self.ozel_yerel else {}
+        self.kapsam = Kapsam(self.kok, onbellek=self.yol, ozel=self.ozel_yerel)
         self.veri = onbellek_oku(self.yol)
         self.sonuclar: list[Sonuc] = []
         self.tam_kosu, self.tam_sebep = True, "artimli istenmedi"
@@ -760,7 +790,7 @@ class Zincir:
         return False, ""
 
     def kos(self, baslik: str, govde) -> Sonuc:
-        anahtar = genel_anahtar(baslik, self.ek_anahtar)
+        anahtar = genel_anahtar(baslik, self.ek_anahtar, ek=f"ozel_yerel={bool(self.ozel_yerel)}")
         kayit = self.veri["adimlar"].get(baslik)
         sebep = ""
         if self.artimli and not self.tam_kosu:
@@ -772,7 +802,7 @@ class Zincir:
                 return s
         iz_dizin = Path(tempfile.mkdtemp(prefix="olcum-zincir-iz-")) if self.izle else None
         try:
-            cal = Calistir(iz_dizin)
+            cal = Calistir(iz_dizin, self.ek_ortam)
             t0 = time.time()
             tamam, ekran, cikti = govde(cal)
             sure = time.time() - t0
