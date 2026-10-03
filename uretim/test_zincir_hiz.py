@@ -164,6 +164,7 @@ def test_paralel() -> None:
         kok = sahte_mut_proje(kap)
         sahte_yerel = kap / "gercek_yerel"
         yaz(sahte_yerel / "Arduino15" / "nobet.txt", "arac")
+        yaz(sahte_yerel / "olcum-karti" / "kopru.txt", "kullanicinin")
         # 🔴 BUTUN A testleri SAHTE bir LOCALAPPDATA ile: iscilerin junction'i GERCEK
         #    Arduino15'e (ESP32/AVR cekirdekleri) gitmesin. guvenli_sil'i bozan bir
         #    mutasyon (HIZ: junction izlenir) junction'in hedefini SILER — o hedef
@@ -192,6 +193,8 @@ def test_paralel() -> None:
         ok("A4 kopyalar ve ozel dizinler silindi", not kalan and not s3["kalan_dizin"], str(kalan))
         ok("A4 junction HEDEFI silinmedi (gercek arac kurulumu yerinde)",
            (sahte_yerel / "Arduino15" / "nobet.txt").exists())
+        ok("A4 gercek olcum-karti dizini isciye BAGLANMADI (kullanicinin dosyasi tek ve yerinde)",
+           sorted(p.name for p in (sahte_yerel / "olcum-karti").iterdir()) == ["kopru.txt"])
 
         # A3: iki esanli kosu + dogrula3'un suepurmesi.
         # 🔴 Suepurme GERCEK %TEMP%'te KOSTURULMAZ: o, kullanicinin baska bir agacta
@@ -701,6 +704,8 @@ def test_artimli() -> None:
         # B18: OZEL LOCALAPPDATA (dogrula3 adimlari gercek %LOCALAPPDATA%\\olcum-karti'yi gormez)
         gercek = kap / "gercek_yerel"
         yaz(gercek / "Arduino15" / "cekirdek.txt", "c1")
+        yaz(gercek / "Python" / "surum.txt", "3.14")
+        yaz(gercek / "olcum-karti" / "kopru.txt", "kullanicinin")
         kok_y = kap / "proje_y"
         yaz(kok_y / "y.py", '''
             import os
@@ -711,7 +716,8 @@ def test_artimli() -> None:
                 (y / "olcum-karti").mkdir(exist_ok=True)
                 (y / "olcum-karti" / "test.txt").write_text("x")
             v = (y / "Arduino15" / "cekirdek.txt").read_text() if ozel else "?"
-            print(f"  {int(ozel)}/1 dogrulama gecti", v)
+            p = (y / "Python" / "surum.txt").read_text() if ozel else "?"
+            print(f"  {int(ozel)}/1 dogrulama gecti", v, "python", p)
             raise SystemExit(0 if ozel else 1)
         ''')
 
@@ -729,8 +735,10 @@ def test_artimli() -> None:
         s1, s2 = kos_y(), kos_y()
         (gercek / "Arduino15" / "cekirdek.txt").write_text("c2")
         s3 = kos_y()
-        ok("B18 adim OZEL LOCALAPPDATA'da kosar, Arduino15'i junction'dan okur, GERCEK dizine "
-           "yazmaz", s1.tamam and "c1" in s1.cikti and not (gercek / "olcum-karti").exists(),
+        ok("B18 adim OZEL LOCALAPPDATA'da kosar; gercek dizinin HER ust dizini (Arduino15, "
+           "Python ...) junction'la gorunur; gercek olcum-karti'ya YAZMAZ",
+           s1.tamam and "c1" in s1.cikti and "python 3.14" in s1.cikti
+           and sorted(p.name for p in (gercek / "olcum-karti").iterdir()) == ["kopru.txt"],
            s1.cikti.strip()[-80:])
         ok("B18 her kosu BASKA ozel dizinde olsa da adim onbellekten gelir (junction yolu gercek "
            "yola cevrilir)", s2.onbellek_yas is not None, s2.sebep)

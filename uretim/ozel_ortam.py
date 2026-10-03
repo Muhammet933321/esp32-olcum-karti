@@ -10,9 +10,17 @@ bu iki dosyayi kullanicinin gercek dizininden SILDI. Ayni pencerede yeni bir
 arsiv akis dizini acilsaydi kartin onaylanmis kayitlari da silinirdi.
 
 Cozum: adimlar ve mutasyon iscileri `LOCALAPPDATA`'yi OZEL bir dizinde gorur.
-Orada yalniz arac kurulumlari gercek dizine JUNCTION ile baglidir
-(`Arduino15` = ESP32/AVR cekirdekleri + arduino-cli ayari, `arduino` = onbellek).
-Gercek `olcum-karti` dizini ortam degiskeniyle HIC gorunmez.
+Orada gercek LOCALAPPDATA'nin HER ust dizini JUNCTION ile baglidir — `olcum-karti`
+(izole edilen tek sey) ve `Temp` (bos, ozel) HARIC. Gercek `olcum-karti` ortam
+degiskeniyle HIC gorunmez.
+
+🔴 NEDEN HEPSI, YALNIZ Arduino15 DEGIL (2026-10-03 olculdu): ilk surum yalniz
+   Arduino15 + arduino bagliyordu. B73'un `python` diye (tam yolsuz) actigi alt
+   surec WindowsApps takma adindan gecti; Python kurulum yoneticisi calisma
+   zamanini %LOCALAPPDATA%\\Python'da aradi, BULAMADI ve ozel dizine 153 MB'lik
+   YENI bir Python 3.14 INDIRIP KURDU — zincir sessizce baska bir Python yamasiyla
+   kosuyordu. Araclarin LOCALAPPDATA'da ne aradigini tek tek bilemeyiz; kural:
+   her seyi bagla, yalniz korunani ayir.
 
 🔴 Silme `guvenli_sil` ile: junction BAGLANTI olarak kaldirilir, hedefe asla
    inilmez (kullanicinin ESP32 cekirdegi silinmesin). test_zincir_hiz A4 sinar.
@@ -24,7 +32,9 @@ import shutil
 import time
 from pathlib import Path
 
-YEREL_BAGLANTI = ("Arduino15", "arduino")
+# Junction ile BAGLANMAYANLAR (gerisi baglanir). Kendisi zaten baglanti olan girdiler
+# (ornegin "Application Data" -> LOCALAPPDATA'nin kendisi) da atlanir.
+YEREL_HARIC = ("olcum-karti", "Temp")
 
 
 def baglanti_mi(p) -> bool:
@@ -87,14 +97,20 @@ def baglanti_kur(link: Path, hedef: Path) -> bool:
 
 
 def yerel_kur(yerel: Path, gercek: str | None) -> Path:
-    """`yerel`i olustur, gercek LOCALAPPDATA'daki arac kurulumlarini junction'la bagla."""
+    """`yerel`i olustur; gercek LOCALAPPDATA'nin ust dizinlerini (YEREL_HARIC disinda)
+    junction'la bagla."""
     yerel = Path(yerel)
     yerel.mkdir(parents=True, exist_ok=True)
-    if gercek:
-        for ad in YEREL_BAGLANTI:
-            if (Path(gercek) / ad).is_dir() and not baglanti_mi(yerel / ad):
-                if not baglanti_kur(yerel / ad, Path(gercek) / ad):
-                    raise RuntimeError(f"junction kurulamadi: {yerel / ad}")
+    (yerel / "Temp").mkdir(exist_ok=True)
+    if gercek and os.path.isdir(gercek):
+        for g in sorted(os.scandir(gercek), key=lambda x: x.name):
+            ad = g.name
+            if ad in YEREL_HARIC or baglanti_mi(g.path) or not g.is_dir(follow_symlinks=False):
+                continue
+            if baglanti_mi(yerel / ad) or (yerel / ad).exists():
+                continue
+            if not baglanti_kur(yerel / ad, Path(gercek) / ad):
+                raise RuntimeError(f"junction kurulamadi: {yerel / ad}")
     return yerel
 
 

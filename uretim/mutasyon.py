@@ -6182,11 +6182,6 @@ MUTASYONLAR = [
      'ALAPPDATA"] = str(yerel)',
      '        pass',
      'HIZ: isci ozel LOCALAPPDATA kurmaz (gercek_dizin_koru esanli iscide sahte YAKALANDI): A2 kirmizi'),
-    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
-     '                    if not _baglanti'
-     '_kur(yerel / ad, Path(gercek) / ad):',
-     '                    if False:',
-     "HIZ: ozel LOCALAPPDATA'da Arduino15 junction'i kurulmaz -> derleyen adimlar tabanda kirmizi: A2 kirmizi"),
     ('HIZ', 'test_zincir_hiz.py', 'uretim/ozel_ortam.py',
      '                    os.rmdir(g.path) if os'
      '.path.isdir(g.path) else os.unlink(g.path)',
@@ -6403,10 +6398,15 @@ MUTASYONLAR = [
      '        return _kos(argv, artimli, kilit_yaz, izsiz, None)',
      "HIZ: dogrula3 ozel LOCALAPPDATA'yi kurar ama adimlara vermez: B18 kirmizi"),
     ('HIZ', 'test_zincir_hiz.py', 'uretim/ozel_ortam.py',
-     '                if not baglanti_k'
+     '            if not baglanti_k'
      'ur(yerel / ad, Path(gercek) / ad):',
-     '                if False:',
-     "HIZ: zincirin ozel LOCALAPPDATA'sinda Arduino15 junction'i kurulmaz: B18 kirmizi"),
+     '            if False:',
+     'HIZ: ozel LOCALAPPDATA (zincir + isciler) gercek dizinlere junction kurmaz: A2 + B18 kirmizi'),
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/ozel_ortam.py',
+     'YEREL_HARIC = ("ol'
+     'cum-karti", "Temp")',
+     'YEREL_HARIC = ("Temp",)',
+     'HIZ: gercek olcum-karti da ozel LOCALAPPDATA a baglanir (kopru dosyalari silinebilir): A4 + B18 kirmizi'),
 ]
 
 
@@ -6453,11 +6453,11 @@ def kopyala(hedef: Path, kok: Path | None = None) -> Path:
 # %LOCALAPPDATA%\olcum-karti'nin dokumunu once/sonra karsilastiriyor; bir
 # iscideki mutasyon oraya yazinca (B72 "yonlendirmesiz eslestirme") esanli
 # BASKA bir iscinin testi kirmiziya donerdi = SAHTE "YAKALANDI" (bos iddia
-# gizlenir). Ozel LOCALAPPDATA'da yalniz arac kurulumlari gercek dizine
-# JUNCTION ile baglanir (Arduino15 = ESP32/AVR cekirdekleri, arduino = onbellek).
+# gizlenir). Ozel LOCALAPPDATA'da gercek dizinin her ust dizini JUNCTION ile
+# baglanir — `olcum-karti` ve `Temp` HARIC (ayrinti ozel_ortam.py).
 # Yardimcilar `ozel_ortam.py`de — dogrula3.py de ayni ozel LOCALAPPDATA'yi kullaniyor.
-from ozel_ortam import (YEREL_BAGLANTI, baglanti_kur as _baglanti_kur,  # noqa: E402
-                        baglanti_mi as _baglanti_mi, guvenli_sil)
+from ozel_ortam import (baglanti_kur as _baglanti_kur,  # noqa: E402,F401
+                        baglanti_mi as _baglanti_mi, guvenli_sil, yerel_kur)
 TARAYICI_AZAMI = 2          # esanli basliksiz Edge kosusu (CPU aclugu -> sahte zaman asimi)
 ISCI_ONEK = "_mutp"
 
@@ -6581,12 +6581,7 @@ class Isci:
         yerel = self.ozel / "yerel"
         tmp.mkdir(parents=True)
         yerel.mkdir(parents=True)
-        gercek = taban_ortam.get("LOCALAPPDATA")
-        if gercek:
-            for ad in YEREL_BAGLANTI:
-                if (Path(gercek) / ad).is_dir():
-                    if not _baglanti_kur(yerel / ad, Path(gercek) / ad):
-                        raise RuntimeError(f"junction kurulamadi: {yerel / ad}")
+        yerel_kur(yerel, taban_ortam.get("LOCALAPPDATA"))
         self.tmp = tmp
         self.ortam = dict(taban_ortam)
         for k in ("TMP", "TEMP", "TMPDIR"):
