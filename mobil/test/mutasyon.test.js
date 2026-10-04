@@ -24,6 +24,12 @@ describe("mutasyon kosucusu", () => {
     expect(r.sonuc).toBe("SUPHELI");
   }, 120000);
 
+  it("bozulmamis kopyada zaten kirmizi olan test 'oldu' SAYILMAZ (taban kirmizi)", () => {
+    const r = biriniKos({ ad: "x", dosya: "src/cekirdek/sozluk_mobil.js", bul: '"Measurement Board"', koy: '""', test: "test/boyle-bir-test-yok.test.js" });
+    expect(r.sonuc).toBe("UYGULANAMADI");
+    expect(r.ayrinti).toContain("taban kirmizi");
+  }, 120000);
+
   it("deseni olmayan mutasyon UYGULANAMADI", () => {
     const r = biriniKos({ ad: "x", dosya: "src/cekirdek/sozluk_mobil.js", bul: "boyle bir dizgi yok", koy: "", test: "test/sozluk.test.js" });
     expect(r.sonuc).toBe("UYGULANAMADI");

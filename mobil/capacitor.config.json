@@ -2,5 +2,8 @@
   "appId": "tr.olcumkarti.mobil",
   "appName": "Ölçüm Kartı",
   "webDir": "dist",
-  "android": { "allowMixedContent": false }
+  "android": {
+    "allowMixedContent": false
+  },
+  "loggingBehavior": "none"
 }

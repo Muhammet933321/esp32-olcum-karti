@@ -271,6 +271,18 @@ dilimin sonunda bağımsız çürütücü; doğrulanan bulgu önce kırmızı te
    fark eder (kayıt yokken sürekli bağlantı yok).
 7. **§1 tablo** — ilk kabulde not/ad düzenleme, zamanlanmış kayıt kurma ve kalibrasyon seçimi YOK (5H).
 
+### A5 ölçümü (2026-10-04, Xiaomi M2101K7BG, Android 13) — İKİNCİ YOL kesinleşti
+
+Yapılandırma cleartext'i kapalı tutup yalnız `olcum.local` ve `192.168.4.1`'e izin verirken gerçek kartın
+ev ağındaki özel IP'sine istek **engellendi** (`NetworkSecurityPolicy.isCleartextTrafficPermitted(ip)` =
+false; ekranda `cleartext`). `olcum.local` adayı da engellendi, çünkü istek çözülen IP'ye gidiyor (A3).
+Yapılandırma adres aralığı tanımadığından onaylı ikinci yola geçildi: `network_security_config` cleartext
+AÇIK; sınır kodda — ağa çıkan tek kod `KartAg`, hedef yalnız RFC 1918 + bağlantı-yerel IPv4
+(`Hedef.kt` / `hedef.js`, ortak vektör `mobil/test/vektor/hedef.tsv`; herkese açık IP'nin reddi orada
+sabit). İkinci yolla aynı telefonda gerçek kart bulundu: `olcum.local` ile 1175 ms, önbellekten 370 ms;
+NSD duyurusu (`_http._tcp`, port 80) görüldü ve TXT `kimlik` `/eslestir/bilgi` ile aynı.
+Açık: Android 16'nın yerel ağ erişimi kuralları Honor'da ölçülecek (Ş5; kullanıcıya sorularak).
+
 ### Kullanıcının şartları (bağlayıcı)
 
 | # | Şart | Nerede sabitlenir |

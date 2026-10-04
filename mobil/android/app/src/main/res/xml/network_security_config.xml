@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Tasarim A5 / S5: sifresiz HTTP genel olarak KAPALI. Olcum (a): yalniz kartin adi ve kendi
-     erisim noktasi adresi izinli. Ev agindaki IP onceden bilinmedigi icin bu yapilandirmanin
-     yetip yetmedigi telefonda OLCULUR; sonuc tasarim belgesine yazilir. -->
+<!-- Tasarim A5 / S5 — IKINCI YOL (olculdu, 2026-10-04, Android 13): sifresiz HTTP yalniz `olcum.local`
+     ve 192.168.4.1'e izinliyken kartin ev agindaki IP'sine (ozel adres, onceden bilinmez) istek
+     "cleartext" ile ENGELLENDI; bu yapilandirma adres araligi tanimiyor.
+     Bu yuzden sifresiz HTTP burada acik, SINIR KODDA: aga cikan tek kod KartAg eklentisi ve o,
+     hedefi yalniz ozel (RFC 1918) + baglanti-yerel IPv4 adresleriyle sinirlar (ag/Hedef.kt;
+     herkese acik IP'nin reddi test/vektor/hedef.tsv ile JS ve Kotlin'de sinanir). WebView'in kendi
+     ag istegi CSP ile kapali; MQTT ayri yoldan TLS. -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false" />
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">olcum.local</domain>
-        <domain includeSubdomains="false">192.168.4.1</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>

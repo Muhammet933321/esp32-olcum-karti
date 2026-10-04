@@ -13,7 +13,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const MOBIL = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const KOK = resolve(MOBIL, "..");
-const KOPYALANMAZ = new Set(["node_modules", "dist", "android", ".gradle"]);
+// mobil/'e gore, '/' ile. android/ kaynagi KOPYALANIR (testler manifesti ve Kotlin kaynagini okur);
+// derleme ciktilari kopyalanmaz.
+const KOPYALANMAZ = ["node_modules", "dist", "android/app/build", "android/build", "android/.gradle",
+  "android/app/src/main/assets", "android/capacitor-cordova-android-plugins"];
 const BAGLANTILAR = [["ortak", join(KOK, "ortak")], ["uretim", join(KOK, "uretim")]];
 
 function secenek(ad) {
@@ -33,7 +36,10 @@ function kopyaKur() {
   const hedef = join(kok, "mobil");
   cpSync(MOBIL, hedef, {
     recursive: true,
-    filter: (kaynak) => !KOPYALANMAZ.has(kaynak.slice(MOBIL.length + 1).split(sep)[0]),
+    filter: (kaynak) => {
+      const g = kaynak.slice(MOBIL.length + 1).split(sep).join("/");
+      return !KOPYALANMAZ.some((k) => g === k || g.startsWith(k + "/"));
+    },
   });
   const baglar = [[join(hedef, "node_modules"), join(MOBIL, "node_modules")]];
   for (const [ad, asil] of BAGLANTILAR) baglar.push([join(kok, ad), asil]);
@@ -62,6 +68,9 @@ export function biriniKos(m) {
     if (!existsSync(yol)) return { sonuc: "UYGULANAMADI", ayrinti: "dosya yok" };
     const u = uygula(readFileSync(yol, "utf8"), m.bul, m.koy);
     if (u.hata) return { sonuc: "UYGULANAMADI", ayrinti: u.hata };
+    // Taban: BOZULMAMIS kopyada test yesil olmali. Degilse "oldu" yalan olurdu (ornegin kopyada
+    // eksik bir dosya yuzunden test zaten kirmizi).
+    if (testKos(k.hedef, m.test).kod !== 0) return { sonuc: "UYGULANAMADI", ayrinti: "taban kirmizi: test bozulmamis kopyada gecmiyor" };
     writeFileSync(yol, u.metin);
     const t = testKos(k.hedef, m.test);
     if (t.kod === null) return { sonuc: "UYGULANAMADI", ayrinti: "test zaman asimi / calismadi" };

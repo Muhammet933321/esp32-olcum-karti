@@ -4,7 +4,7 @@ Bu dosyayı Android oturumu yazar; paylaşılan dosyaları kendisi DEĞİŞTİRM
 
 | # | Tarih | Ne | Neden | Hangi dosya | Durum |
 |---|---|---|---|---|---|
-| 1 | 2026-10-03 | `MDNS.addService("http", "tcp", 80)` ve TXT kaydında kart kimliği (16 onaltılık) | Android `.local` adlarını güvenilir çözmez; NSD servis taraması gerekir. TXT'deki kimlik, yanlış cihazı bağlanmadan elemeye yarar (asıl doğrulama yine `/eslestir/bilgi`) | `kod/olcum-karti-a3/ag.h` (`MDNS.begin` sonrası, iki yerde) | Planlı; telefon buna bağımlı değil |
+| 1 | 2026-10-03 | `MDNS.addService("http", "tcp", 80)` ve TXT kaydında kart kimliği (16 onaltılık) | Android `.local` adlarını güvenilir çözmez; NSD servis taraması gerekir. TXT'deki kimlik, yanlış cihazı bağlanmadan elemeye yarar (asıl doğrulama yine `/eslestir/bilgi`) | `kod/olcum-karti-a3/ag.h` (`MDNS.begin` sonrası, iki yerde) | ✅ Geldi (2026-10-04): Xiaomi'de NSD ile görüldü, TXT kimliği `/eslestir/bilgi` ile aynı |
 
 ## Bilgi (istek değil)
 

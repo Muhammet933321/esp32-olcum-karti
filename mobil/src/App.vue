@@ -1,18 +1,11 @@
 <script setup>
-// 5A-1: iskelet. Paketlenmis ortak/ kodunun WebView'de calistiginin kaniti (SHA-256("abc")).
-import { IonApp, IonContent } from "@ionic/vue";
-import { hex, sha256, utf8Kodla } from "@ortak/kripto.js";
-import { ceviriMobil } from "./cekirdek/sozluk_mobil.js";
-
-const ozet = hex(sha256(utf8Kodla("abc")));
-const baslik = ceviriMobil("m.uygulama", "tr");
+// 5A-6: kabuk henuz yok; tek ekran "Karti bul". Sekmeler ve DURDUR dugmesi 5C'de.
+import { IonApp } from "@ionic/vue";
+import KartBul from "./ekran/KartBul.vue";
 </script>
 
 <template>
   <ion-app>
-    <ion-content class="ion-padding">
-      <h1>{{ baslik }}</h1>
-      <p id="ozet">{{ ozet }}</p>
-    </ion-content>
+    <KartBul />
   </ion-app>
 </template>

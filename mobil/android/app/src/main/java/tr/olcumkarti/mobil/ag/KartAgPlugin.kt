@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.security.NetworkSecurityPolicy
 import android.util.Base64
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -58,6 +59,9 @@ class KartAgPlugin : Plugin() {
             ip = adresler.filterIsInstance<Inet4Address>().mapNotNull { it.hostAddress }
                 .firstOrNull { Hedef.ozelAdres(it) } ?: throw AgHatasi("ozel-degil")
         }
+        // Ag guvenligi ayari bu adrese sifresiz HTTP'ye izin vermiyorsa bunu ACIKCA soyle (aksi halde
+        // genel bir baglanti hatasi gibi gorunur).
+        if (!NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted(ip)) throw AgHatasi("cleartext")
         val dosya = u.file ?: ""
         return Pair("http://$ip:${h.port}$dosya") { x -> ag.openConnection(x, Proxy.NO_PROXY) as HttpURLConnection }
     }
