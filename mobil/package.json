@@ -8,6 +8,7 @@
     "test": "vitest run",
     "test:ortak": "node --test ../ortak/test/",
     "mutasyon": "node mutasyon/kos.mjs",
+    "mutasyon:kotlin": "node mutasyon/kos-kotlin.mjs",
     "esitle": "vite build && cap sync android",
     "apk": "cd android && gradlew.bat assembleDebug",
     "kilit": "node araclar/kilit-temizle.mjs"

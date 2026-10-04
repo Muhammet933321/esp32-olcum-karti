@@ -206,3 +206,7 @@ Sayılar: JS 92 test, Kotlin 23 test, mutasyon 64 (hepsi ölü).
 - Gerçek kartta eşleştirme: DURULACAK — web parolasını kullanıcı Xiaomi'de kendisi girer.
 - Kotlin mutasyonları koşucuya bağlı değil (elle doğrulandı); `kos-kotlin` kipi yazılacak.
 - Görsel tasarım seçimi kullanıcıda (A / B / C; önerim A).
+
+- **Mutasyon (5B, tam koşu):** JS `5B:` 64/64 öldü. Kotlin: `mutasyon/kos-kotlin.mjs` yazıldı (tek kopya,
+  taban yeşil şartı, her mutasyon uygulanır → Gradle → geri alınır; beklenen test kırmızı değilse ŞÜPHELİ)
+  — 8/8 öldü, kopya temizlendi. Komut: `npm run mutasyon:kotlin` (Gradle ağır; başka koşu yokken).
