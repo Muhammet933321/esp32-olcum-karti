@@ -9,6 +9,7 @@ import { HedefHatasi } from "../cekirdek/hedef.js";
 import { kesifKur, KesifHatasi, yerelOnbellek } from "../cekirdek/kesif.js";
 import { ceviriMobil } from "../cekirdek/sozluk_mobil.js";
 import { webSinama } from "../cekirdek/web_sinama.js";
+import { pbkdf2Olc } from "../cekirdek/olcum.js";
 
 const dil = "tr";
 const c = (anahtar, degerler) => ceviriMobil(anahtar, dil, degerler);
@@ -26,6 +27,15 @@ async function webSina() {
   webSuruyor.value = true;
   webSonuc.value = [];
   try { webSonuc.value = await webSinama(); } finally { webSuruyor.value = false; }
+}
+
+const pbkdf2Yazi = ref("");
+async function pbkdf2Sina() {
+  const tur = Number.isInteger(sonuc.value?.bilgi?.tur) ? sonuc.value.bilgi.tur : 20000;
+  pbkdf2Yazi.value = c("m.ol.suruyor");
+  await new Promise((coz) => { requestAnimationFrame(() => setTimeout(coz, 0)); });
+  const o = pbkdf2Olc(tur);
+  pbkdf2Yazi.value = c("m.ol.pbkdf2_sonuc", { tur: o.tur, enaz: o.enAz, ortanca: o.ortanca, encok: o.enCok });
 }
 
 const SONUC = {
@@ -111,6 +121,9 @@ async function ara() {
           <ion-note slot="end">{{ c(KAYNAK[d.kaynak]) }} · {{ sonucYazi(d.sonuc) }}</ion-note>
         </ion-item>
       </ion-list>
+
+      <ion-button id="pbkdf2" expand="block" fill="outline" size="large" @click="pbkdf2Sina">{{ c("m.ol.pbkdf2") }}</ion-button>
+      <p v-if="pbkdf2Yazi" id="pbkdf2-sonuc">{{ pbkdf2Yazi }}</p>
 
       <ion-button id="websina" expand="block" fill="outline" size="large" :disabled="webSuruyor" @click="webSina">
         {{ webSuruyor ? c("m.ws.suruyor") : c("m.ws.dugme") }}

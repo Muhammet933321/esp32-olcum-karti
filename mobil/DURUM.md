@@ -307,3 +307,34 @@ Sahte kart süreci durduruldu, adb reverse kaldırıldı. Ardından **gerçek ka
 - Mutasyonlar: `5B` 124 (JS) + `5B-K` 9 (Kotlin) — ajan "hepsi öldü" dedi; kendi koşum sürüyor.
 
 **DURULDU:** gerçek kartta eşleştirme (karta 3. cihazı yazar; web parolası yalnız kullanıcıda).
+
+### 2026-10-04 (devam 10) — GERÇEK KARTTA eşleştirme ve imzalı istek
+
+- **Eşleştirme kullanıcı tarafından yapıldı** (web parolasını Xiaomi'de kendisi girdi): kartta cihaz 3 "Telefon".
+- Kurulan derleme doğrulandı ("Yükle" penceresi çıkmamıştı): paketin `lastUpdateTime` 19:25:19, APK derleme
+  19:25:01, telefondaki ve yereldeki APK boyutu aynı (8 803 617 B) → düzeltmeli derleme.
+- **Gerçek kartta imzalı istek:** imzalı `GET /kayit/liste` geçti. Uygulama öldürülüp açıldıktan sonra kart
+  önbellekteki adresten bulundu, kimlik doğrulandı, K Keystore'dan açıldı, sayaç işaretten devam etti ve imzalı
+  istek yine geçti (**52 oturum**). Karta giden uçlar: `/eslestir/bilgi` (imzasız) ve `/kayit/liste` (imzalı).
+  Komut gönderilmedi.
+- **Logcat sır taraması (gerçek kart):** eşleştirmenin yapıldığı süreç (276 satır) + yeniden başlatma sonrası
+  süreç (307 satır) `logcat_tara` ile tarandı — TEMİZ. Parola bilinmediği için desen tabanlı (imza başlıkları,
+  40+/64 onaltılık, kanıt, parola/anahtar alanları, köprü verisi, adres + yol) + kart kimliği "sır" olarak verildi.
+- **PBKDF2 süresi (Xiaomi Redmi Note 10S, WebView 153, saf JS — eşleştirmede kullanılan kod):** 20 000 tur,
+  üçer tekrar, iki koşu: **28–44 ms** (ortanca 29 ve 42 ms). Hedef < 1 s → **tutuyor, 20+ kat payla**.
+  Oranlamayla istemcinin kabul ettiği üst sınır (1 000 000 tur) ≈ 1.5–2.2 s; kartın bugünkü değeri 20 000.
+  Ölçüm düğmesi geçici olarak "Kartı bul" ekranında (`src/cekirdek/olcum.js`); Ayarlar › Gelişmiş'e taşınacak.
+- Ölçüm sırasında kart yine ağda görünmedi (ad çözülemedi; öbür oturumun testi olabilir) — uygulama
+  "Kart bu ağda bulunamadı" dedi. PBKDF2 ölçümü kart gerektirmiyor.
+- Mutasyon (kendi koşum): `5B` JS **124/124**, `5B-K` Kotlin **9/9** öldü.
+
+**5B BİTTİ.** Açık işler (bilerek bırakıldı, kullanıcı onayıyla):
+1. **Yarım eşleştirme penceresi:** ilk sayaç işareti diske yazılmış ama hata dönmüş VE geri alma silmesi de
+   başarısız VE kart o an ulaşılamıyorsa telefon eşleşmiş kalabilir. Çözüm: iki aşamalı "tamamlandı" işareti.
+2. **Art arda 401 metni:** kart 401'in sebebini başlıkta söylemediği için iki imza denemesinden sonra her
+   durumda "cihaz kartta silinmiş" denir (sayaç / saat sorunu da aynı ekrana düşer). Daha dürüst bir tür
+   ("kart isteği reddediyor") ya da firmware'den sebep başlığı — ikincisi DEVIR-ISTEK konusu olur.
+3. PBKDF2 saf JS ana iş parçacığında: 20 000 turda ~30–45 ms, sorun değil; tur çok büyürse gösterge donar.
+4. Honor'da hedef API 36+'ya çıkılırsa yerel ağ izni yeniden ölçülmeli.
+
+**Sıradaki: 5C** — A tasarımıyla kabuk + 4 sekme + DURDUR şeridi (p0 çekirdeği hazır), akış (SSE), Durum, Canlı.
