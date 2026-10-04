@@ -7958,8 +7958,8 @@ MUTASYONLAR = [
      "#if E6K_YOK\n  mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);\n#endif\n",
      "E6K: ayirici kurulumu kosullu (tanimsiz makroyla hic kurulmaz): B72.E6Fa kirmizi"),
     ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
-     '            yigin.append(None if koruma else f"#{yon} {arg}".strip())',
-     '            yigin.append(None if yon == "ifndef" else f"#{yon} {arg}".strip())',
+     '            yigin.append([f"#{yon} {arg}".strip(), koruma])',
+     '            yigin.append([f"#{yon} {arg}".strip(), yon == "ifndef"])',
      "E6K: her #ifndef baslik korumasi sayilir (#ifndef TANIMLI_DEGIL icindeki olu kod temiz gorunur): "
      "B72.E6Fi kirmizi"),
     ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
@@ -7991,6 +7991,26 @@ MUTASYONLAR = [
      "#if 0\nstatic void tls_bellek_birak(void *p) {\n  heap_caps_free(p);\n}\n#else\n"
      "static void tls_bellek_birak(void *p) {\n  if (esp_ptr_external_ram(p)) heap_caps_free(p);\n}\n#endif",
      "E6K: dogru birakici #if 0 icinde, derlenen kol dahili bloklari SIZDIRIR: B72.E6Fc kirmizi"),
+    #    (a') E6K inceleme: dosya ortasindaki '#ifndef X / #define X' ve korumanin #else kolu
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);\n",
+     "#ifndef E6K_INCELEME\n#define E6K_INCELEME\n#else\n"
+     "  akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);\n"
+     "#endif\n",
+     "E6K: PSRAM akis kuyrugu dosya ortasi 'koruma'nin #else kolunda (hic derlenmez): B72.E6Fe kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (y != (size_t)n) { akis[i].stop(); continue; }\n",
+     "#ifndef ARDUINO\n#define ARDUINO 1\n    if (y != (size_t)n) { akis[i].stop(); continue; }\n#endif\n",
+     "E6K: kisa yazmada dusurme '#ifndef ARDUINO / #define ARDUINO' icinde (arduino-cli'de olu): "
+     "B72.E6Ff kirmizi"),
+    ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
+     "            koruma = (ilk and not kaynak[:m.start()].strip()\n"
+     "                      and yon == \"ifndef\"",
+     "            koruma = (yon == \"ifndef\"",
+     "E6K: dosya ortasindaki '#ifndef X / #define X' de koruma sayilir: B72.E6Fk kirmizi"),
+    ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
+     "            yigin[-1][1] = False\n", "",
+     "E6K: korumanin #else/#elif kolu kosulsuz sayilir: B72.E6Fk kirmizi"),
     #    (b) E6F'nin kart kaniti tezgah listesinde, firmware ve DEVIR ile ayni
     ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
      '    tezgah("B72 E6F dahili yigin duzeltmesi (kartta)", E6F_TEZGAH)\n', "",

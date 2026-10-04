@@ -10751,6 +10751,32 @@ bakan ikisi yeni gövdeye yeniden hedeflendi; **`E6F:` 16/16 YAKALANDI** (351 s)
 **Kartta (yüklenince):** açılış satırı aynı; `QF boyut` bir mbedTLS hatasında artık gerçek `n*boyut`. Dalda
 bekliyor; karta yüklemek ve `main`'e almak kullanıcının/orkestratörün kararı.
 
+**İnceleme (2026-10-04, bağımsız çürütücü; 1 önemli bulgu düzeltildi, 2 küçük açık).** **Bulgu (gerçek):**
+`kosul_yigini` dosyanın HERHANGİ bir yerindeki `#ifndef X` + `#define X` çiftini başlık koruması sayıyor ve korumanın
+`#else`/`#elif` kolunu yok sayıyordu (`elif yigin and yigin[-1] is not None`). İnceleyicinin iki mutasyonu E6Fa–g'den
+kaçtı (B72 238/238, `olu=[]`): PSRAM akış kuyruğu `#ifndef E6K_INCELEME / #define E6K_INCELEME / #else / <satır> /
+#endif` içinde (hiç derlenmez) ve kısa yazmada düşürme `#ifndef ARDUINO / #define ARDUINO 1 / <satır> / #endif`
+içinde (arduino-cli `ARDUINO`'yu hep tanımlar → gerçek derlemede de ölü). E6Fi'nin yapay örneği yalnız farklı adlı
+`#ifndef Y` / `#define Z`'yi sınıyordu; docstring'in "tek istisna başlık koruması" ve "`#else` kolu da koşullu" sözü
+sınanmıyordu. **Düzeltme:** koruma yalnız dosyanın İLK yönergesi ve öncesinde yalnız boşluk varsa; korumanın kendi
+`#else`/`#elif` kolu koşullu (yalnız ikinci dahil etmede derlenir). Eskizin gerçek kaynakları etkilenmedi: 21 başlığın
+koruması hâlâ ilk yönerge (E6Fi `korumasiz=[]`), başlıklardaki `#ifndef BLD_KUYRUK` gibi varsayılan-tanım blokları artık
+koşullu sayılır ama hiçbir iddia onların içini aramıyor. **B72.E6Fk** (önce kırmızı: altı yapay örneğin hepsi `[]`
+"temiz" dönüyordu): dosya ortası `#ifndef X/#define X`, `#ifndef ARDUINO/#define ARDUINO 1`, öncesinde başka koşul olan
+koruma, korumanın `#else` (`["#ifndef X_H / #else"]`) ve `#elif` kolu, koruma içinde iç içe aynı ad çifti KOŞULLU;
+korunan gövde ve `#endif` sonrası TEMİZ. `E6K:` mutasyonları +4: inceleyicinin iki mutasyonu (E6Fe, E6Ff) + yardımcıda
+"ilk yönerge" şartını kaldırmak + koruma kolunu koşulsuz bırakmak (E6Fk); eski "her `#ifndef` koruma" mutasyonu yeni
+satıra yeniden hedeflendi. **Sayılar:** B72 238 → **239** (`beklenen_sayim.json` yalnız B72 +1). Mutasyon **`E6K:`
+21/21 YAKALANDI** (593 s; yeni dördü hedef iddiada: E6Fe, E6Ff, E6Fk ×2; ` veri=` mutasyonu 237/239 ve ilk kırmızı E6Fg — aşağıdaki açık (b)'yi doğruluyor). `dogrula3.py --artimli` **"Aşama 3 doğrulandı"** (22/22 adım, B72 239/239; `_tezgah.md` 126 kalem, değişmedi; BELGELER/şema/netlist üretim gürültüsü geri alındı). Firmware değişmedi (derleme yok). Gizlilik temiz.
+
+**Açık küçükler (düzeltilmedi):** (a) ~~`kosul_yigini` her `#ifndef X`+`#define X` çiftini koruma sayıyor~~ — yukarıdaki
+bulguyla aynı, KAPANDI (E6Fk). (b) E6K mutasyonu ` veri=` → ` tampon=` B72.E6Fj'yi yalıtmıyor: önce E6Fg kırmızıya döner
+(E6Fg'nin `kosulsuz` listesinde `Serial.print(F(" veri="));` var → `YOK`); E6Fj'nin firmware açılış satırına bağı
+(üç `Serial.print(F(...))` parçası) tek başına yük taşıdığı gösterilmedi — E6Fg'ye dokunmayan bir mutasyon (ör. yalnız
+tezgah kalemindeki satırı değiştirmek değil, firmware'de E6Fg'nin aramadığı bir parçayı değiştirmek) gerekir. (c) E6Fj'nin
+`caps` bit denetimi totoloji: `{"0x0008": 0x8, …}` testin kendi sabitlerini kendi sabitleriyle karşılaştırıyor;
+`esp_heap_caps.h`'deki `MALLOC_CAP_DMA/8BIT/INTERNAL` değerlerine ya da firmware'e bağlanmıyor.
+
 ---
 
 #### 5.12.105 🟢 W1–W5 BİRLEŞMESİ + mDNS SERVİS DUYURUSU (2026-10-04, dal `w-birlesik`, ağaç `projeler/olcum-karti-wb`)

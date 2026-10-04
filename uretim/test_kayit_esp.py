@@ -85,24 +85,31 @@ def kosul_yigini(kaynak: str, konum: int) -> list[str]:
     Metin aramasi `#if 0` / `#ifdef TANIMSIZ` icindeki OLU kodu da bulur — derlenmeyen bir
     satir iddiayi yesil tutuyordu (B72.E6Fe/E6Ff, DEVIR 5.12.106 acik kucuk b). Hangi
     kosulun dogru oldugunu bilmek derleyicinin isi; burada KOSUL VARLIGI olculur: tek
-    istisna baslik korumasi (`#ifndef X_H` + hemen ardindan `#define X_H`). `#elif`/`#else`
-    kolu da kosullu sayilir. Yorumlar ONCEDEN `kod()` ile cikmis olmali."""
-    yigin: list[str | None] = []
+    istisna baslik korumasi (`#ifndef X_H` + hemen ardindan `#define X_H`), o da YALNIZ
+    dosyanin ILK yonergesiyse (oncesinde yalniz bosluk; E6K inceleme: dosya ortasindaki
+    `#ifndef ARDUINO` + `#define ARDUINO 1` koruma sayiliyordu). `#elif`/`#else` kolu da
+    kosullu sayilir — korumanin kendi #else/#elif kolu DAHIL (yalniz ikinci dahil etmede
+    derlenir). Yorumlar ONCEDEN `kod()` ile cikmis olmali."""
+    yigin: list[list] = []  # [metin, koruma_mu]
+    ilk = True
     for m in _ONISLEMCI.finditer(kaynak):
         if m.start() >= konum:
             break
         yon, arg = m.group(1), m.group(2).strip()
         if yon in ("if", "ifdef", "ifndef"):
-            koruma = (yon == "ifndef" and re.fullmatch(r"\w+", arg) is not None
+            koruma = (ilk and not kaynak[:m.start()].strip()
+                      and yon == "ifndef" and re.fullmatch(r"\w+", arg) is not None
                       and re.match(r"\s*#[ \t]*define[ \t]+" + re.escape(arg) + r"\b",
                                    kaynak[m.end():]) is not None)
-            yigin.append(None if koruma else f"#{yon} {arg}".strip())
+            yigin.append([f"#{yon} {arg}".strip(), koruma])
         elif yon == "endif":
             if yigin:
                 yigin.pop()
-        elif yigin and yigin[-1] is not None:
-            yigin[-1] += f" / #{yon} {arg}".rstrip()
-    return [x for x in yigin if x is not None]
+        elif yigin:
+            yigin[-1][0] += f" / #{yon} {arg}".rstrip()
+            yigin[-1][1] = False
+        ilk = False
+    return [x for x, koruma in yigin if not koruma]
 
 
 def kosulsuz(kaynak: str, *parcalar: str) -> list[str]:
@@ -3466,6 +3473,29 @@ def bolum_e6f() -> None:
        and len(basliklar) >= 10 and not korumasiz,
        f"g={yigin_g} adc={kosul_yigini(ino_k, i_adc) if i_adc >= 0 else 'YOK'} "
        f"baslik={len(basliklar)} korumasiz={korumasiz}")
+    # E6K inceleme: koruma yalniz DOSYANIN ILK yonergesi (oncesinde yalniz bosluk) — eskiden
+    # dosyanin herhangi bir yerindeki `#ifndef X` + `#define X` cifti koruma sayiliyordu:
+    # `#ifndef ARDUINO / #define ARDUINO 1 / <satir>` (arduino-cli ARDUINO'yu hep tanimlar ->
+    # gercek derlemede de olu) ve korumanin `#else` kolu (yalniz ikinci dahil etmede derlenir;
+    # eskizde hic) E6Fa-g'yi yesil tutuyordu. Ayni ad cifti ve `#elif` de ayri ayri sinanir.
+    ara = "a();\n#ifndef X\n#define X\nm();\n#endif\n"
+    ard = "x();\n#ifndef ARDUINO\n#define ARDUINO 1\np();\n#endif\nr();\n"
+    once_kosul = "#if 1\n#endif\n#ifndef X_H\n#define X_H\nt();\n#endif\n"
+    kor_else = "#ifndef X_H\n#define X_H\ni();\n#else\nn();\n#endif\n"
+    kor_elif = "  \n#ifndef X_H\n#define X_H\ni();\n#elif Y\nq();\n#endif\n"
+    kor_ic = "#ifndef X_H\n#define X_H\n#ifndef D\n#define D 8\n#endif\ns();\n#ifndef E\n#define E\nu();\n#endif\n#endif\n"
+    n_y = kosul_yigini(kor_else, kor_else.find("n();"))
+    ok("B72.E6Fk baslik korumasi YALNIZ dosyanin ilk yonergesi: dosya ortasindaki "
+       "'#ifndef X / #define X' (ARDUINO dahil), oncesinde kosul olan, korumanin #else ve #elif "
+       "kolu ve koruma icindeki ic ice ayni ad cifti KOSULLU; korunan govde ve sonrasi TEMIZ",
+       len(kosulsuz(ara, "m();")) == 1 and kosulsuz(ara, "a();") == []
+       and len(kosulsuz(ard, "p();")) == 1 and kosulsuz(ard, "x();", "r();") == []
+       and len(kosulsuz(once_kosul, "t();")) == 1
+       and kosulsuz(kor_else, "i();") == [] and n_y == ["#ifndef X_H / #else"]
+       and kosulsuz(kor_elif, "i();") == [] and len(kosulsuz(kor_elif, "q();")) == 1
+       and kosulsuz(kor_ic, "s();") == [] and kosul_yigini(kor_ic, kor_ic.find("u();")) == ["#ifndef E"],
+       f"ara={kosulsuz(ara, 'm();')} ard={kosulsuz(ard, 'p();')} once={kosulsuz(once_kosul, 't();')} "
+       f"else={n_y} elif={kosulsuz(kor_elif, 'q();')} ic={kosul_yigini(kor_ic, kor_ic.find('u();'))}")
 
 
 # E6K (b): E6F'nin calisma ani kaniti yalniz DEVIR 5.12.106'nin duz yazisindaydi (acik kucuk c);
