@@ -30,3 +30,20 @@ export function pbkdf2Olc(tur, { tekrar = 3, simdi = () => performance.now() } =
     dogru: tur === 20000 ? ozet === BEKLENEN_20000 : null,
   };
 }
+
+// ACIL DURDURMA suresi (Ö7, hedef < 1 s): `durdur` (uygulama.js acilDurdur) art arda cagrilir; her
+// cagrinin suresi (dokunusun JS'e vardigi andan kartin yanitina) ve basari sayisi. p0 pil testini
+// keser; test surmuyorken zararsizdir. Aralarda kisa bekleme: kartin web cekirdegi sirayla calisir.
+export async function durdurOlc(durdur, { tekrar = 20, araMs = 250, simdi = () => performance.now(), bekle = (ms) => new Promise((c) => setTimeout(c, ms)) } = {}) {
+  const sureler = [];
+  let basari = 0;
+  for (let i = 0; i < tekrar; i++) {
+    const t0 = simdi();
+    const s = await durdur();
+    sureler.push(Math.round(simdi() - t0));
+    if (s && s.tamam === true) basari++;
+    if (i < tekrar - 1) await bekle(araMs);
+  }
+  const sirali = [...sureler].sort((a, b) => a - b);
+  return { tekrar, basari, sureler, enAz: sirali[0], ortanca: sirali[Math.floor(sirali.length / 2)], enCok: sirali[sirali.length - 1] };
+}

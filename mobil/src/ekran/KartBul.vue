@@ -9,7 +9,8 @@ import { HedefHatasi } from "../cekirdek/hedef.js";
 import { kesifKur, KesifHatasi, yerelOnbellek } from "../cekirdek/kesif.js";
 import { ceviriMobil } from "../cekirdek/sozluk_mobil.js";
 import { webSinama } from "../cekirdek/web_sinama.js";
-import { pbkdf2Olc } from "../cekirdek/olcum.js";
+import { durdurOlc, pbkdf2Olc } from "../cekirdek/olcum.js";
+import { acilDurdur } from "../cekirdek/uygulama.js";
 import { pbkdf2Gorunumu } from "./olcum_gorunum.js";
 
 const dil = "tr";
@@ -40,6 +41,14 @@ async function pbkdf2Sina() {
   pbkdf2Sonuc.value = null;
   await new Promise((coz) => { requestAnimationFrame(() => setTimeout(coz, 0)); });
   try { pbkdf2Sonuc.value = pbkdf2Gorunumu(pbkdf2Olc(tur)); } finally { pbkdf2Suruyor.value = false; }
+}
+
+const durdurSuruyor = ref(false);
+const durdurSonuc = ref(null);
+async function durdurSina() {
+  durdurSuruyor.value = true;
+  durdurSonuc.value = null;
+  try { durdurSonuc.value = await durdurOlc(acilDurdur); } finally { durdurSuruyor.value = false; }
 }
 
 const SONUC = {
@@ -124,6 +133,10 @@ async function ara() {
           <ion-note slot="end">{{ c(KAYNAK[d.kaynak]) }} · {{ sonucYazi(d.sonuc) }}</ion-note>
         </ion-item>
       </ion-list>
+
+      <ion-button id="durdur-olc" expand="block" fill="outline" size="large" :disabled="durdurSuruyor" @click="durdurSina">{{ c("m.ol.durdur") }}</ion-button>
+      <p v-if="durdurSuruyor" class="bilgi">{{ c("m.ol.suruyor") }}</p>
+      <p v-if="durdurSonuc" id="durdur-olc-sonuc" role="status">{{ c("m.ol.durdur_sonuc", { tekrar: durdurSonuc.tekrar, basari: durdurSonuc.basari, enaz: durdurSonuc.enAz, ortanca: durdurSonuc.ortanca, encok: durdurSonuc.enCok }) }}</p>
 
       <ion-button id="pbkdf2" expand="block" fill="outline" size="large" @click="pbkdf2Sina">{{ c("m.ol.pbkdf2") }}</ion-button>
       <div v-if="pbkdf2Suruyor || pbkdf2Sonuc" id="pbkdf2-sonuc" role="status">

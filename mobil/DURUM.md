@@ -402,3 +402,34 @@ Sonra 5C bağımsız çürütücü.
 
 - **Mutasyon (5C, kendi koşum):** JS `5C` önekli **82/82** öldü (akış 35 + kabuk 36 + p0 7 + keşif 4); Kotlin
   `5C-K` **3/3**. Telefonlar hâlâ USB'de değil; ölçüm kuyruğu yukarıda.
+
+## 2026-10-05 (gece) — 5C telefon ölçümleri, gerçek kart
+
+**Yetki ve kapsam kararı (benim, kullanıcı sonra onayladı):** gece gelen devir metninin 2. maddesi (firmware K1–K7,
+karta yükleme, seri port, `dogrula3.py`, push) YAPILMADI — bu oturumun ilk kurallarıyla çelişiyordu (firmware'e ve
+paylaşılan dosyalara dokunma, yükleme/seri port yasak, push yok) ve aynı kartı iki oturumun yüklemesi dün geceki
+kalibrasyonu riske atardı. Kullanıcı uyanıkken teyit etti: "2. maddeye dokunma; sabah ayrı bir firmware oturumu yapacak".
+Karta giden her şey Wi-Fi'den ve salt okuma + izinli komutlar (`G?`, `Gb1000`, `Gd`, `p0`). Kalibrasyon komutu yok.
+
+**Xiaomi (Android 13) + gerçek kart, 5C derlemesi** (kurulum doğrulandı: `lastUpdateTime` 01:48:45 / 01:53:07)
+| # | Ölçüm | Sonuç |
+|---|---|---|
+| 1 | İlk açılış (Vue bileşenleri ilk kez gerçekten çalıştı) | A tasarımlı kabuk açıldı; kart bulundu; Durum'da canlı V/A/W + küçük grafik |
+| 2 | Canlı akış | D satırları akıyor (≈ 5/s), büyük V/A/W, grafik, 60 s / 5 dk ve A / W seçicileri; kesinti grafikte BOŞLUK olarak çiziliyor |
+| 3 | Arka planda akış yuvası | PC'den açılabilen izleyici sayısı (salt okuma): uygulama önde **3**, arka planda (9 s sonra) **4**, yeniden önde **3** → telefon yuvayı bırakıyor ve geri alıyor |
+| 4 | Kısa test kaydı | Canlı'dan 1/s + "Kaydı başlat" → Durum "Kayıt sürüyor", oturum 61536, hız 1/s, süre sayıyor → "Kaydı durdur" (iki dokunuş) → "Kayıt yok". Kartın listesi (PC'den salt okuma): oturum 61536, tür 1, `hiz_ms` 1000, 32 nokta, kapalı. `Go` GÖNDERİLMEDİ (kartın onayı 61513'te kaldı). Ad verilmedi: `Ga` komutu beyaz listede yok |
+| 5 | **DURDUR (`p0`)** | Uygulama içi ölçüm, 20 tekrar: **20/20 başarılı · en az 39 ms · ortanca 146 ms · en çok 526 ms** → hedef < 1 s TUTUYOR (dokunuşun JS'e vardığı andan kartın 204'üne) |
+| 6 | PBKDF2 | 20 000 tur: 28 / 31 / 38 ms; ekranda "Sonuç başvuru değeriyle AYNI", özet `3f042897317e1125…` = Python hashlib; "Uygulama: saf JS (WebView)" |
+| 7 | Keşif | Önbellekten 109 ms; NSD duyurusundaki TXT kimliği kartınkiyle aynı (NSD 3 s penceresiyle) |
+| 8 | Klavye açıkken | DURDUR şeridi + sekmeler klavyenin ÜSTÜNDE kalıyor, görünür ve dokunulabilir; içerik alanı daralıyor ama kayıyor |
+| 9 | Tema | Sistem açık kipte açık tema, koyu kipte koyu tema; ikisi de okunaklı (geçici olarak `cmd uimode night no` → geri `yes`) |
+| 10 | Sistem yazı boyutu 1.3 | Metin büyüyor, taşma / üst üste binme yok (geçici `font_scale 1.3` → geri 1.0). Not: yapılandırma değişince uygulama yeniden kuruluyor (grafik geçmişi sıfırlanır) |
+| 11 | Logcat (kendi sürecimiz, 389 satır) | `logcat_tara` TEMİZ; `_i=` / `_s=` / `_c=` / `/akis` / `X-Imza` izi 0 |
+
+Telefonda değiştirilen ayarlar geri alındı (gece kipi: evet, yazı ölçeği 1.0); `stayon usb` açık (kullanıcı izniyle).
+
+**Gözlenen küçük kusurlar / notlar**
+- Canlı'da "Kaydı başlat" düğmesi ilk bakışta DURDUR şeridinin arkasında kalıyor gibi görünüyor; içerik kayınca tam
+  görünüyor (kusur değil, ama ilk ekrana sığacak biçimde sıkıştırılabilir).
+- Durum'daki "Kayıtların telefona eşitlenmesi yakında eklenecek." satırı 5D'ye kadar yer tutucu.
+- Birleştirmede eklenen ölçüm: Ayarlar › Gelişmiş › "DURDUR süre ölçümü (20 tekrar)" (`olcum.js` `durdurOlc`, testli).

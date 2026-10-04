@@ -62,6 +62,8 @@ export const SOZLUK_MOBIL = Object.freeze({
     "The pairing record on the phone is damaged or unreadable. Remove the pairing and pair again.",
   ),
   "m.bg.hata": S("Olmadı ({tur}).", "Failed ({tur})."),
+  "m.ol.durdur": S("DURDUR süre ölçümü (20 tekrar)", "STOP timing (20 runs)"),
+  "m.ol.durdur_sonuc": S("DURDUR {tekrar} tekrar: {basari} başarılı · en az {enaz} ms · ortanca {ortanca} ms · en çok {encok} ms", "STOP {tekrar} runs: {basari} ok · min {enaz} ms · median {ortanca} ms · max {encok} ms"),
   "m.ol.pbkdf2": S("PBKDF2 süre ölçümü", "PBKDF2 timing"),
   "m.ol.suruyor": S("Ölçülüyor…", "Measuring…"),
   "m.ol.pbkdf2_sonuc": S("PBKDF2 {tur} tur: en az {enaz} ms · ortanca {ortanca} ms · en çok {encok} ms", "PBKDF2 {tur} rounds: min {enaz} ms · median {ortanca} ms · max {encok} ms"),

@@ -4,7 +4,7 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { BEKLENEN_20000, SINAMA_PAROLASI, SINAMA_TUZU, pbkdf2Olc } from "../src/cekirdek/olcum.js";
+import { BEKLENEN_20000, SINAMA_PAROLASI, SINAMA_TUZU, durdurOlc, pbkdf2Olc } from "../src/cekirdek/olcum.js";
 
 function python(kod) {
   for (const komut of ["python", "python3", "py"]) {
@@ -42,5 +42,17 @@ describe("PBKDF2 olcumu", () => {
     expect(olcum).toMatch(/import \{ pbkdf2 \} from "@ortak\/imza\.js";/);
     const kod = (yol) => readFileSync(new URL(yol, import.meta.url), "utf8").split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n");
     for (const yol of ["../../ortak/src/kripto.js", "../../ortak/src/imza.js"]) expect(kod(yol), yol).not.toMatch(/subtle/);
+  });
+});
+
+describe("DURDUR sure olcumu", () => {
+  it("her cagrinin suresi ve basari sayisi; basarisiz cagri sayilir ama basari sayilmaz", async () => {
+    let saat = 0, n = 0;
+    const durdur = async () => { saat += 40 + n; return { tamam: n++ % 5 !== 0 }; };
+    const o = await durdurOlc(durdur, { tekrar: 10, simdi: () => saat, bekle: async () => { saat += 250; } });
+    expect(o.tekrar).toBe(10);
+    expect(o.basari).toBe(8);
+    expect(o.sureler).toEqual([40, 41, 42, 43, 44, 45, 46, 47, 48, 49]);   // aralardaki bekleme sureye GIRMEZ
+    expect([o.enAz, o.ortanca, o.enCok]).toEqual([40, 45, 49]);
   });
 });
