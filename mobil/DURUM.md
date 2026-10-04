@@ -81,3 +81,33 @@ kapsam değişikliği. Kart serbest; izinli komutlar `?` `G?` `p0` `p` `Gb`/`Gd`
 - 5A-7 bağımsız çürütücü.
 - Honor'da (Android 16) yerel ağ erişimi ölçümü — kullanıcıya sorulacak.
 - Kotlin mutasyonları (Gradle kipi) — 5B.
+
+### 2026-10-04 (devam 2) — WebView kapısı, günlük doğrulaması
+
+**Kullanıcı kararları:** Honor'a 5B bitince TEK kurulum (yalnız debug APK; "Kartı bul" + eşleştirme
+ekranı görülür, eşleştirme YAPILMAZ; ölçüm bitince APK kaldırılır ve buraya yazılır). Kartın gerçek
+adresi / ağ adı / MAC hiçbir dosyaya ve commit'e girmez ("ev ağı özel IP" denir). Gerçek kartta
+eşleştirmeden önce durulur; parolayı kullanıcı telefonda girer.
+
+**Biten**
+- **Ağa çıkan tek yol KartAg** (kullanıcı şartı): üç katman.
+  1. Yerel kapı `WebKapi.kt` — `MainActivity` her WebView isteğini (`shouldInterceptRequest`) ve her
+     gezintiyi (`shouldOverrideUrlLoading`) buradan geçirir; `https://localhost/…` ve data/blob/about
+     dışındaki her adres 403 / engel. Dış adres tarayıcıya da açtırılmaz (Capacitor'ın varsayılanı
+     dış bağlantıyı tarayıcıda açmaktı).
+  2. CSP: `default-src`/`script-src`/`connect-src 'self'`, `frame-src`/`object-src`/`base-uri`/
+     `form-action 'none'`.
+  3. Üretim kodunda `fetch`/XHR/WebSocket/EventSource çağrısı yok (kaynak testi).
+  Xiaomi'de ölçüldü (uygulama içi "WebView ağ sınaması", herkese açık örnek adrese http ve https):
+  fetch, XHR, img, script → engellendi; iframe → içeriksiz; gezinti → engellendi, uygulama yerinde kaldı.
+  Kart keşfi kapıdan sonra da çalışıyor.
+- **Köprü günlüğü kapalı — telefonda doğrulandı:** kendi sürecimizin logcat'inde (396 satır) `methodData`
+  0, adres / kimlik / `eslestir` 0.
+- Capacitor'ın çerez yöneticisi kaldırıldı (`CookieHandler.setDefault(null)`): kart bağlantıları çerez
+  taşımaz, saklamaz.
+- WebView hata ayıklaması her derlemede kapalı (`webContentsDebuggingEnabled: false`).
+- Kotlin birim testleri yeniden koştu: 15/15. JS 78 test; 5A-8 mutasyonları 7/7 öldü.
+
+**Dikkat**
+- Test dosyalarında ters eğik çizgi + b (sözcük sınırı) gibi kaçışlar iki kez kontrol karakterine döndü (kabuk + betik katmanı);
+  ikisini de `gizlilik_dogrula.py`'nin "kontrol karakteri" denetimi yakaladı. O iddiaların artık mutasyonu var.

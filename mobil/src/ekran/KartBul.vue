@@ -8,6 +8,7 @@ import { KartAg, Kesif } from "../cekirdek/eklenti.js";
 import { HedefHatasi } from "../cekirdek/hedef.js";
 import { kesifKur, KesifHatasi, yerelOnbellek } from "../cekirdek/kesif.js";
 import { ceviriMobil } from "../cekirdek/sozluk_mobil.js";
+import { webSinama } from "../cekirdek/web_sinama.js";
 
 const dil = "tr";
 const c = (anahtar, degerler) => ceviriMobil(anahtar, dil, degerler);
@@ -18,6 +19,14 @@ const sonuc = ref(null);
 const hata = ref("");
 const denenenler = ref([]);
 const duyurular = ref([]);
+
+const webSonuc = ref([]);
+const webSuruyor = ref(false);
+async function webSina() {
+  webSuruyor.value = true;
+  webSonuc.value = [];
+  try { webSonuc.value = await webSinama(); } finally { webSuruyor.value = false; }
+}
 
 const KAYNAK = { elle: "m.kb.kaynak_elle", onbellek: "m.kb.kaynak_onbellek", ad: "m.kb.kaynak_ad", nsd: "m.kb.kaynak_nsd", ap: "m.kb.kaynak_ap" };
 const HATA = {
@@ -90,6 +99,16 @@ async function ara() {
         <ion-item v-for="d in denenenler" :key="d.adres + d.kaynak">
           <ion-label>{{ d.adres }}</ion-label>
           <ion-note slot="end">{{ c(KAYNAK[d.kaynak]) }} · {{ d.sonuc }}</ion-note>
+        </ion-item>
+      </ion-list>
+
+      <ion-button id="websina" expand="block" fill="outline" size="large" :disabled="webSuruyor" @click="webSina">
+        {{ webSuruyor ? c("m.ws.suruyor") : c("m.ws.dugme") }}
+      </ion-button>
+      <ion-list id="websonuc">
+        <ion-item v-for="w in webSonuc" :key="w.yol + w.adres">
+          <ion-label>{{ w.yol }} · {{ w.adres }}</ion-label>
+          <ion-note slot="end">{{ w.sonuc }}</ion-note>
         </ion-item>
       </ion-list>
     </ion-content>

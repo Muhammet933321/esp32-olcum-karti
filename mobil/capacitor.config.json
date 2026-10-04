@@ -3,7 +3,8 @@
   "appName": "Ölçüm Kartı",
   "webDir": "dist",
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
   },
   "loggingBehavior": "none"
 }

@@ -25,6 +25,8 @@ export const SOZLUK_MOBIL = Object.freeze({
   "m.kb.txt_uyuyor": S("kartınkiyle aynı", "matches the board"),
   "m.kb.txt_uymuyor": S("UYMUYOR", "DOES NOT MATCH"),
   "m.kb.duyurular": S("Ağdaki duyurular", "Network announcements"),
+  "m.ws.dugme": S("WebView ağ sınaması", "WebView network self-test"),
+  "m.ws.suruyor": S("Sınanıyor…", "Testing…"),
   "m.kb.denenenler": S("Denenen adresler", "Addresses tried"),
   "m.kb.kaynak_elle": S("elle girilen", "entered by hand"),
   "m.kb.kaynak_onbellek": S("son bilinen adres", "last known address"),
