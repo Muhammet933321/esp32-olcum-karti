@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 
 import tr.olcumkarti.mobil.ag.KartAgPlugin;
+import tr.olcumkarti.mobil.kasa.KasaPlugin;
 import tr.olcumkarti.mobil.kesif.KesifPlugin;
 
 public class MainActivity extends BridgeActivity {
@@ -24,6 +25,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(KartAgPlugin.class);
         registerPlugin(KesifPlugin.class);
+        registerPlugin(KasaPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Capacitor butun HttpURLConnection'lara bir cerez yoneticisi takar (ve adresi gunluge yazar).

@@ -104,9 +104,23 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
     expect(JS_KAYNAK.length).toBeGreaterThan(5);
     expect(JS_KAYNAK).toContain(SINAMA_DOSYASI);
     const YASAK = /\bfetch\b|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|RTCDataChannel|importScripts|\bWorker\b|\bglobalThis\s*\[|\bwindow\s*\[|\bself\s*\[|\beval\b|new Function/;
+    // TEK istisna (5B): ortak/src/imza.js'in bekledigi ortam nesnesinin ANAHTARI. Yalniz su bicim:
+    //   { fetch: <ad>Fetch   ya da   { fetch: ag.<ad>Fetch      (deger, KartAg'a giden bir sarmalayici)
+    // Cagri, baska bir deger ya da baska bir bicim istisnaya GIRMEZ (asagida kendi sinamasi).
+    const ortamAnahtari = (kod) => kod.replace(/\{ fetch: (?:ag\.)?[a-z][A-Za-z]*Fetch\b/g, "{ ORTAM");
     for (const yol of JS_KAYNAK) {
       if (yol === SINAMA_DOSYASI || yol === RTC_KAPAT_DOSYASI) continue;
-      expect(yorumsuz(oku(yol)), yol).not.toMatch(YASAK);
+      expect(ortamAnahtari(yorumsuz(oku(yol))), yol).not.toMatch(YASAK);
+    }
+    for (const temiz of ["const o = { fetch: imzaliFetch, kaydet };", "ac(c, t, { fetch: ag.kartFetch, simdiMs });"]) {
+      expect(ortamAnahtari(temiz), temiz).not.toMatch(YASAK);
+    }
+    for (const kirli of [
+      "const o = { fetch: fetch };", "const o = { fetch: window.fetch };", "const o = { fetch };", "fetch(url);",
+      "const o = { fetch: (u) => fetch(u) };", "const o = { fetch: globalThis.fetch };", "x = { fetch: ag.kartFetch }; fetch(u);",
+      "const o = { fetch: dis.kartFetch };", "const o = { fetch: Fetch };",
+    ]) {
+      expect(ortamAnahtari(kirli), kirli).toMatch(YASAK);
     }
   });
 });
