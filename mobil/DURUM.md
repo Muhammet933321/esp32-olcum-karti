@@ -275,3 +275,35 @@ Honor DNP-NX9, Android 16 (API 36), ev Wi-Fi'sinde; hata ayıklama APK'sı (hede
 
 **Kural (kullanıcı, kalıcı):** `git stash` HİÇ kullanılmaz — stash yığını bütün çalışma ağaçlarıyla ortak;
 kenara koymak gerekirse bu dalda geçici WIP commit.
+
+### 2026-10-04 (devam 9) — 5B çürütücü düzeltmeleri bitti; gerçek eşleştirmeye HAZIR
+
+Çürütücünün 8 kanıtlı bulgusu + okuyarak verdiği 3 uyarı düzeltildi (alt ajan yazdı; testleri ben yeniden
+koştum: JS **199/199** — `test/curutucu-5b/` kanıt testleri artık regresyon testi; Kotlin **69/69**).
+
+| # | Bulgu | Düzeltme |
+|---|---|---|
+| 1 | Kart yeniden başlarken eşzamanlı isteklerin biri hariç hepsi "cihaz-silinmis" | Ölçüt isteğin İMZALANDIĞI açılış; farklıysa kimlik yeniden doğrulanır, bir kez yeniden imza |
+| 2 | "Eşleşmeyi kaldır" cihaz kartta dururken "kartta kaldırıldı" diyordu | Üç durum: kaldırıldı (yalnız 2xx) · bilinmiyor (401) · karta ulaşılamadı; üç ayrı metin |
+| 3 | 64'lük pencerenin gerisine düşen istek "cihaz-silinmis" | Aynı açılışta 401 → yeni sayaçla BİR kez yeniden imza; istek başına en çok 2 imza |
+| 4 | Yarıda kalan eşleştirmede anahtar diskte kalıyor, 32 sıfır baytla imza üretiliyordu | `cihazSakla` ya tam ya hiç; tutarsız kayıt açılışta tanınıp silinir; sıfır K ile imza yok |
+| 5 | Aynı diskte iki kasa nesnesi aynı sayacı kullanıyordu | `uygulama.js` tekil kart/kasa; Kotlin'de dosya varken EŞİT yazım da `geri` |
+| 6 | 401'deki `X-Acilis` biçim denetimsiz imzaya giriyordu; kanıt alıp yanıt vermeyen kart "anlaşılmayan yanıt" | Yalnız 32 küçük onaltılık; kanıt gittikten sonraki her biçimsiz yanıt `kart-sahte` (kullanıcı uyarılır) |
+| 7 | Sahte kasa gerçek Kotlin eklentisinden ayrışıyordu | Sahte aynı kurallara çekildi (ad ≤ 24 bayt, katı base64, Long sınırı, sıralı liste) |
+| 8 | 9 boş iddia; logcat tarayıcısı sır biçimlerini kaçırıyordu | Testler güçlendi; tarayıcı boşluklu/`0x`'li onaltılık, bayt dizisi dökümü, bölünmüş base64, URL/form/JSON kodlu parolayı yakalıyor |
+| + | Kasa bozukken / kimlik uymazken uygulama içinden çıkış yoktu; `sil` sırası; cihazdan cihaza aktarım | "Eşleşmeyi kaldır" o durumlarda da görünür; önce `.anahtar` silinir; `dataExtractionRules` (bulut yedeği + cihaz aktarımı hariç) |
+
+**Xiaomi'de düzeltmeli derlemeyle duman testi (sahte kart, adb reverse):** bulundu → eşleşti → imzalı istek →
+uygulama öldürülüp açıldı → imzalı istek yine geçti (Kotlin "eşit yazım geri" kuralıyla sayaç doğru ilerliyor) →
+eşleşme kartta ve telefonda kaldırıldı. `logcat_tara` (450 satır, sınama parolası + kimlik sır): TEMİZ.
+Sahte kart süreci durduruldu, adb reverse kaldırıldı. Ardından **gerçek kart** elle adres vermeden bulundu:
+"kart bulundu, eşleşmemiş" (salt okuma; karta komut gitmedi).
+
+**Kabul edilen / açık (düzeltme ajanının notlarından)**
+- `X-Acilis`'siz 401 ve açılışı her seferinde değişen kart: 2 imzadan sonra `cihaz-silinmis` denir.
+- Çok dar pencere: ilk işaret yazılmış ama hata dönmüş VE silme de başarısız VE kart o an ulaşılamıyorsa
+  telefon eşleşmiş kalabilir (kartta da kayıt vardır). Kapatmak iki aşamalı "tamamlandı" işareti ister.
+- `key=` deseni gerçek logcat'te gürültü yapabilir (Xiaomi'de şimdilik temiz).
+- Mutasyonlar: `5B` 124 (JS) + `5B-K` 9 (Kotlin) — ajan "hepsi öldü" dedi; kendi koşum sürüyor.
+
+**DURULDU:** gerçek kartta eşleştirme (karta 3. cihazı yazar; web parolası yalnız kullanıcıda).
