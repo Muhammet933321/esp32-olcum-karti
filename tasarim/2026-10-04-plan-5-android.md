@@ -312,3 +312,61 @@ zaman önce**, sonra yanıt hızı; kimlik `/^[0-9a-f]{16}$/` değilse aday geç
   IP döndürmesi, yönlendirme, tuhaf IP yazımı, `olcum.local` taklidi), keşifte yanlış karta bağlanma, köprüden sır
   sızması, mutasyon koşucusunun yalancı "ÖLDÜ" vermesi. Bulgu = çalışan kanıt (kırmızı test). Doğrulanan her bulgu
   önce kırmızı test, sonra düzeltme, sonra mutasyon.
+
+---
+
+# 5C — kabuk, DURDUR, akış, Durum, Canlı (2026-10-04)
+
+Görsel: aday A "Tezgah" (`mobil/tasarim-adaylari/aday-a.html`). `p0` çekirdeği hazır (`P0.kt`, `KartAg.p0`,
+`ag.p0`, `durdur.js`). İki paralel görev; ortak arayüz aşağıda BAĞLAYICI.
+
+## Ortak arayüz
+
+```js
+// src/cekirdek/akis_ayir.js (saf, Node'da sınanır) — kartın SSE satırları
+export function satirAyir(satir)   // "D ..." | "G ..." | "K ..." | "GA ..." | "GT ..." | "GP ..." | "A ..." | başka
+// -> { tur: "D", v, a, w, joule, wh, ms, ornek, menzil, adcHata }
+//  | { tur: "G", durum, oturum, ... }   (15 alan; 13 alanlı eski biçim de kabul, eksikler null)
+//  | { tur: "diger", ham }              (bilinmeyen satır ATMAZ)
+// src/cekirdek/canli.js
+export function canliKur({ kart, ag, eklenti, simdiMs })
+// -> { baslat(), durdur(),                       // akış: uygulama öndeyken açık (A6)
+//      durum(): { bagli: bool, hal: "kapali"|"baglaniyor"|"acik"|"dolu"|"hata", son: D|null, kayit: G|null, yas_ms },
+//      dinle(fn) -> birak(),                     // her D/G satırında ve hal değişiminde
+//      seri(): { t: Float64Array, v, a, w, n }   // son 5 dk halka tamponu (canlı grafik)
+//      komut(metin) }                            // imzalı POST /komut: yalnız "Gb<ms>", "Gd", "G?", "?" (başkası RED)
+```
+```kotlin
+// KartAg eklentisi: akisAc({ url }) -> { kimlik }, akisKapat({ kimlik }); olaylar notifyListeners("akis", { kimlik, satirlar: [...] })
+// ve ("akisDurum", { kimlik, hal: "acik"|"kapandi"|"dolu"|"hata", tur? }). Saf kısım ag/SseAyirici.kt (JVM'de sınanır).
+```
+Kurallar: akış adresi her (yeniden) bağlanmada YENİ imzalı (`imza.akisUrl`, `_c _s _i`); yeniden bağlanma 1, 2, 4,
+8, 16, 30 s, veri gelince 1 s'ye döner; okuma zaman aşımı 40 s (kart 15 s'de bir `: kalp`); arka plana geçince ≤ 5 s
+içinde kapanır, öne gelince açılır; `event: dolu` → hal "dolu", 10 s sonra yeniden dener; `kimlik` olayı, `id:`,
+`retry:` taşınmaz. Akış bağlantısı da Wi-Fi ağına bağlı, vekilsiz, hedef kuralından geçer; gövde sınırı YOK ama satır
+≤ 4096 B (uzunu atılır). `komut` beyaz listesi: `Gb<0|50…60000>`, `Gd`, `G?`, `?` — başka her şey ağa çıkmadan RED
+(`N`, `E`, `Q`, `k`, `GF!`, `p1`, `Go` … dahil). `p0` buradan GEÇMEZ (kendi yolu).
+
+## Görev 5C-1 (yüksek): akış — Kotlin SSE + `akis_ayir.js` + `canli.js`
+Dosyalar: `android/.../ag/{SseAyirici.kt,Akis.kt}`, `KartAgPlugin.kt` (yalnız `akisAc`/`akisKapat` ekleme),
+testleri; `src/cekirdek/{akis_ayir.js,canli.js}`; `test/{akis_ayir,canli}.test.js`; `test/yardim/kopru_sahtesi.mjs`'e
+akış desteği; `mutasyon/akis-liste.mjs`. D/G satır biçimleri `kod/olcum-karti-a3/olcum-karti-a3.ino`'dan OKUNUR.
+Testler: sahte karttan D satırları → `seri()` dolar; kart kapanır → hal "hata" → yeniden bağlanır (yeni imzalı adres,
+sayaç artar); 5. izleyici → "dolu"; arka plan → kapanır; bozuk/yarım/dev satır → atılır, çökme yok; 13 ve 15 alanlı G;
+`komut` beyaz listesi (yasak komutta sahte kartın `durum.komutlar`'ı DEĞİŞMEZ); `komut("Gb200")` imzalı gider.
+
+## Görev 5C-2 (orta): kabuk + ekranlar (A tasarımı)
+Dosyalar: `src/tema.css` (A'nın koyu + açık değişkenleri, `prefers-color-scheme`), `src/App.vue`,
+`src/yonlendirme.js`, `src/bilesen/{DurdurSeridi.vue,CanliGrafik.vue,Gosterge.vue}`, `src/ekran/{Durum.vue,Canli.vue,
+Kayitlar.vue (boş yer tutucu),Ayarlar.vue}` (Ayarlar: Bağlantı / eşleşme, Kartı bul, ölçümler — mevcut geçici ekranlar
+buraya taşınır), `src/cekirdek/sozluk_mobil.js`, testler. Şartlar: 4 sekme (Durum · Canlı · Kayıtlar · Ayarlar);
+DURDUR şeridi HER ekranda, sekmelerin üstünde, ≥ 56 px, tek dokunuş, onaysız — `durdur.js` + `uygulama.js`'ten adres
+(bağlı adres + önbellek); sonucu şeritte ("durduruldu" / "ULAŞILAMADI" kalıcı kırmızı); Esles ekranı açıkken de görünür.
+"Kaydı durdur" (kırmızı DEĞİL, çerçeveli) ile DURDUR görsel olarak ayrık. Canlı: büyük V/A/W, grafik (`@ortak/grafik.js`
+`Grafik`), 60 s / 5 dk seçici, kayıt hızı + başlat/durdur; kart yoksa "kart bu ağda değil". Durum: bağlantı + aktif
+kayıt kartı (G satırından) + eşitleme satırı (5D'ye kadar yer tutucu metin). Dokunma ≥ 48 px, kontrast ≥ 4.5:1,
+boyutlar rem. Test: kabukta DURDUR her rotada DOM'da (kaynak testi) + gömülü metin yok + sözlük.
+
+## Bitiş
+Xiaomi'de gerçek kartla: Canlı'da D satırları akıyor; `Gb1000` ile "Android test" kısa kaydı başlat → Durum'da görünür →
+`Gd`; DURDUR dokunuştan kart yanıtına süre (20 tekrar, < 1 s); arka plana alınca akış yuvası boşalıyor. Çürütücü.
