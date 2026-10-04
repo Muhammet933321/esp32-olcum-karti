@@ -10588,6 +10588,24 @@ sonra F1 mbedTLS'i `mbedtls_platform_set_calloc_free` ile PSRAM'e (~40 KB kalıc
 `WiFi.useStaticBuffers(true)`, F3 SSE yazma kısa dönerse istemciyi düşür, F4 iki tamponu PSRAM'e. F5 (2 kaçırılmış
 ping) K8 vasiyet süresiyle çelişir — kullanıcı kararı.
 
+**KARTTA (2026-10-04, `ef13288`, firmware `A3-W2` + W2i + E6; yedek `tam-20261004-025819.bin`; arayüz de yazıldı):**
+- mDNS: `_http._tcp` PTR → `olcum._http._tcp.local`, SRV `olcum.local:80`, TXT `kimlik=ba9f5c26b0337d4d` (= `E?`
+  kimliği); karta tekil sorguda VE Wi-Fi arayüzünden çoklu yayında geliyor.
+- G satırı 15 alan, açılışta `… 0 0`. `Gb1000` → `Gn<o> …` → `son_not` hemen 61508; `Gx<o>:61508` (boş = sil) →
+  61510; `Gn999999 x` → **-4**; `Gd` → durum 1.
+- `Ex257 Ex-255 Ex1x Ex!x Ex0 Ex9` hepsi `! E: Ex<1..8> ya da Ex!` ile RED; `E?` cihaz=2 değişmedi.
+- `Qe700` → `esik=700`, `baglanti=1` artmadı; `Qe99 Qe1001 Qex` RED; `Qe` → 500.
+- E6 ilk 6 dk: `ayirma_hata=0`, `QF yok`; `QH` bölge dökümü: asıl DRAM bölgesi (250 KB) `min_free 15692`, ama
+  toplam `dahili_en_az=55472` — toplam, hiç kullanılmamış 32 KB'lik DRAM bölgesini (`0x3fcf0000`, min_free 32020)
+  ve RTC FAST'ı (7760) ekliyor. **`dahili_en_az` gerçek darlığı GİZLİYOR**; okumada `QH`'nin bölge satırına bak.
+  En büyük blok 32756.
+- Blokaj: `K` sıfırla → 40 s → `K`: en uzun döngü **7526 µs**, >20 ms tur 0 (kararlı-hal ölçütü 11.4 ms). Açılıştan
+  beri 790 ms / 4 tur — denetim komutları dahil (`QH` IDF dökümü UART'a eşzamanlı basıyor; yalnız USB tanılaması).
+- Yapılmadı (web parolası gerekir, kullanıcıda): `tezgah_kayit.py --guvenlik`, `eno` rastgeleliği, `/komut Qe` 403;
+  `/saat` (kartta NTP var → 409 beklenir). `--duman` koşulmadı: seri onay köprünün henüz almadığı kayıtları onaylardı.
+- Araç notu: bu PC'de pyserial `read(n)` CH343 sürücüsünde zaman aşımını DİNLEMİYOR (n bayt dolana dek bekler);
+  `in_waiting` ile okunmalı. Tezgah araçları satır satır okuduğu için etkilenmiyor.
+
 ---
 
 #### 5.12.105a 🟡 E6 ÖLÇÜM ARACI: DAHİLİ YIĞIN TANISI (2026-10-04, dal `e6-olcum`, ağaç `projeler/olcum-karti-e6`; karta YÜKLENMEDİ)
