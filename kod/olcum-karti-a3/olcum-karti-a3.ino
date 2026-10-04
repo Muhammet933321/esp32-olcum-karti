@@ -78,6 +78,8 @@
 #include "pil_test.h"
 #include "web_satir.h"  // B22.4 — satir bolucu (AVR'de sinaniyor)
 #include "web_akis.h"   // B22.4 — Serial aynasi
+#include "web_etag.h"   // W6 — arayuz dosyalarinin ETag'i + 304 karari (AVR'de sinaniyor)
+#include <detail/mimetable.h>   // W6 — cekirdegin MIME tablosu (serveStatic ile AYNI tur)
 /* 🔴 B34 — ESP32 ADC'si DOGRUSAL DEGIL ve bu OLCULDU (2026-09-12).
    PWM+RC ile uretilen bilinen DC'ye karsi ham kod supuruldu: en kucuk
    kareler dogrusundan sapma %5..%85 araliginda ±76 kod (±61 mV), %85
@@ -267,6 +269,9 @@ static WebServer sunucu(80);
 // B22.5 — arayuz goruntusu LittleFS'te mi? Acilista bir kez ogreniliyor.
 // `kok_sayfa` bundan SONRA tanimli oldugu icin bildirim burada olmali.
 static bool fs_hazir = false;
+// W6 — goruntudeki `etag.txt` (web_etag.h bicimi), acilista bir kez PSRAM'e
+// okunuyor. nullptr = kunye yok (eski goruntu): ETag'siz, her istek 200.
+static char *etag_kunye = nullptr;
 
 // SSE satir sayaci. `skop.bin` basligi da kullaniyor (dokumun akista
 // nereye denk geldigini soyluyor), o yuzden bildirimi burada.
@@ -2570,6 +2575,93 @@ static bool guv_kapi(uint8_t sinif) {
   return false;
 }
 
+// ───────────────────────────────────────── W6: arayuz dosyalari + ETag/304
+//
+// Panel dosyalari `no-cache` (guncelleme HEMEN gorulsun) — ama ETag yokken
+// tarayicinin "degisti mi?" diye soracagi bir sey yoktu: her acilis ~90 KB
+// gzip'i BASTAN indiriyordu (DEVIR 5.12.106). Artik her dosya kunyedeki
+// ozetle ETag tasiyor, eslesen `If-None-Match` govdesiz 304 aliyor.
+// `serveStatic` yerine bu isleyici: cekirdegin ETag yolu (`enableETag`)
+// dosyanin TAMAMINI okuyor ve bos ETag'te basliksiz istege 304 veriyor
+// (gerekce web_etag.h basinda). Kapilar DEGISMEDI: statik dosyalar eskiden
+// de Basic-Auth/Host/jeton denetimsizdi (sir tasimiyorlar).
+
+// Kunyeyi bir kez bellege al. Yoksa (eski goruntu) ya da bozuksa sessizce
+// ETag'siz devam: kotu durum "her acilis tam indirme", yani W6 oncesi.
+static void etag_kunye_yukle() {
+  if (!LittleFS.exists("/etag.txt")) return;
+  File f = LittleFS.open("/etag.txt", "r");
+  if (!f) return;
+  const size_t n = f.size();
+  if (n == 0 || n > 8192) return;          // ~45 satir x 30 B; 8 KB ustu = bozuk
+  /* PSRAM'de: statik DRAM payi ~80 B (tasarim3_sabit._ESP_DRAM_SON_OLCUM) */
+  char *b = (char *)heap_caps_malloc(n + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!b) b = (char *)malloc(n + 1);
+  if (!b) return;
+  if (f.read((uint8_t *)b, n) != n) { free(b); return; }
+  b[n] = 0;
+  etag_kunye = b;
+}
+
+// Cekirdegin `StaticRequestHandler::getContentType`'i ile AYNI kural (o
+// RequestHandlersImpl.h'de, satir ici olmayan tanimlarla — eklenemez).
+static String arayuz_tur(const String &yol) {
+  using namespace mime;
+  for (int i = 0; i < (int)maxType - 1; i++)       // sonuncu (`none`) varsayilan
+    if (yol.endsWith(mimeTable[i].endsWith)) return String(mimeTable[i].mimeType);
+  return String(mimeTable[maxType - 1].mimeType);
+}
+
+// Acik dosyayi gonderir; ETag biliniyorsa onu da, eslesen If-None-Match'e
+// 304. `istek_yolu` tarayicinin istedigi yol (`/app.js`, `.gz` DEGIL).
+static void arayuz_gonder(File &f, const char *istek_yolu, const String &tur,
+                          const char *onbellek) {
+  char etag[WEB_ETAG_BOY];
+  const bool var = etag_kunye && etag_bul(etag_kunye, istek_yolu, etag);
+  sunucu.sendHeader(F("Cache-Control"), onbellek);
+  if (var) {
+    sunucu.sendHeader(F("ETag"), etag);
+    if (etag_eslesir(sunucu.header("If-None-Match").c_str(), etag)) {
+      // 304: GOVDE YOK. Content-Length 200'un gonderecegiyle AYNI olmali ya
+      // da hic olmamali (RFC 9110 8.6); cekirdek her yanita koydugu icin
+      // dosya boyu veriliyor — `0` yazmak kuralin ihlali olurdu.
+      sunucu.setContentLength(f.size());
+      sunucu.send(304, tur, String());
+      sunucu.setContentLength(CONTENT_LENGTH_NOT_SET);
+      return;
+    }
+  }
+  sunucu.streamFile(f, tur);
+}
+
+// `serveStatic`in yerine: GET, onek altindaki dosya, `<yol>.gz`e dusus
+// (Content-Encoding: gzip'i `streamFile` koyuyor), MIME ASIL yoldan.
+class ArayuzIsleyici : public RequestHandler {
+ public:
+  ArayuzIsleyici(const char *onek, const char *onbellek) : onek_(onek), onbellek_(onbellek) {}
+  bool canHandle(HTTPMethod m, const String &uri) override {
+    // Dizin istegi (`/x/`) bizim degil: `/` kok_sayfa'da, gerisi 404 (eskisi gibi).
+    return m == HTTP_GET && uri.startsWith(onek_) && !uri.endsWith("/");
+  }
+  bool canHandle(WebServer &, HTTPMethod m, const String &uri) override {
+    return canHandle(m, uri);
+  }
+  bool handle(WebServer &, HTTPMethod m, const String &uri) override {
+    if (!canHandle(m, uri)) return false;
+    String yol = uri;
+    if (!yol.endsWith(".gz") && !LittleFS.exists(yol) && LittleFS.exists(yol + ".gz")) yol += ".gz";
+    File f = LittleFS.open(yol, "r");
+    if (!f || f.isDirectory()) return false;
+    arayuz_gonder(f, uri.c_str(), arayuz_tur(uri), onbellek_);
+    f.close();
+    return true;
+  }
+
+ private:
+  const char *onek_;
+  const char *onbellek_;
+};
+
 void kok_sayfa() {
   if (!guv_kapi(GUV_ACIK)) return;   // 1D
   // 🔴 `index.htm` TUZAGI: `serveStatic` dizin istegini
@@ -2582,9 +2674,9 @@ void kok_sayfa() {
     if (f && f.size()) {
       // `streamFile` .gz uzantisini gorup Content-Encoding'i KENDISI
       // koyuyor. ⚠ index.html `immutable` OLMAMALI: yoksa arayuz
-      // guncellemesi tarayiciya HIC ulasmaz.
-      sunucu.sendHeader(F("Cache-Control"), F("no-cache"));
-      sunucu.streamFile(f, "text/html");
+      // guncellemesi tarayiciya HIC ulasmaz. W6: `no-cache` + ETag — ayni
+      // index ikinci acilista govdesiz 304, degisen index 200.
+      arayuz_gonder(f, "/index.html", String(F("text/html")), "no-cache");
       f.close();
       return;
     }
@@ -5586,8 +5678,10 @@ void setup() {
   // sunucu.header("X-Olcum") her zaman bos doner ve butun CSRF
   // savunmasi SESSIZCE devre disi kalirdi.
   const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin", "X-Cihaz", "X-Sayac", "X-Imza",
-                              "Content-Type"};   // 1D: imza basliklari
-  sunucu.collectHeaders(toplanacak, 7);
+                              "Content-Type",    // 1D: imza basliklari
+                              "If-None-Match"};  // W6: kosullu GET (toplanmazsa HIC 304 olmaz)
+  // Adet diziden: elle yazilan sayi yeni basligi sessizce disarida birakirdi.
+  sunucu.collectHeaders(toplanacak, sizeof(toplanacak) / sizeof(toplanacak[0]));
 
   /* B28: kuyruklar SUNUCUDAN ONCE kurulmali — ilk istek gorev
      baslamadan once gelebilir ve `komut_kuyruga` null kuyrukta 503
@@ -5641,14 +5735,17 @@ void setup() {
     //   Vue surumlenmis bir varlik (vue.global.prod.js), yani `immutable`
     //   guvenli: 58 KB bir kez iniyor ve tarayici bir daha SORMUYOR.
     //   Telefonda "her acilista 58 KB" ile "bir kez" arasindaki fark bu.
-    sunucu.serveStatic("/vendor/", LittleFS, "/vendor/",
-                       "max-age=31536000, immutable");
-    // Geri kalani `no-cache`: arayuz guncellemesi hemen gorulsun.
-    sunucu.serveStatic("/", LittleFS, "/", "no-cache");
+    // W6: `serveStatic` yerine ArayuzIsleyici (ayni yol/gz/MIME kurali +
+    //   kunyeden ETag + 304). Isleyiciler bir kez kurulur, hic silinmez.
+    etag_kunye_yukle();
+    sunucu.addHandler(new ArayuzIsleyici("/vendor/", "max-age=31536000, immutable"));
+    // Geri kalani `no-cache` + ETag: guncelleme hemen gorulsun, degismeyen
+    //   dosya ikinci acilista govdesiz 304.
+    sunucu.addHandler(new ArayuzIsleyici("/", "no-cache"));
   }
   // ⚠ `enableETag` KULLANILMIYOR: `calcETag` dosyanin TAMAMINI okuyup
-  //   ozet cikariyor, yani gondermek kadar bloklar ve `loop()` durur.
-  //   `immutable` ayni isi SIFIR maliyetle yapiyor.
+  //   ozet cikariyor, yani gondermek kadar bloklar ve `loop()` durur;
+  //   bos ETag'te basliksiz istege 304 verir. W6 ETag'i uretecin kunyesinden.
   // 🔴 B22.1 — K1. WebServer::handleClient() istemci YOKKEN her turda
   // `delay(1)` cagiriyor (WebServer.cpp:422-425, _nullDelay varsayilan
   // true). CONFIG_FREERTOS_HZ = 1000 oldugu icin bu vTaskDelay(1 tik):

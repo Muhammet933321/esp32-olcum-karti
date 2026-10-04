@@ -40,6 +40,13 @@
   (`kunye_hesapla`) kaynaktan uretip sunuyor. B7 surumu `_fs.json`dan node'da
   yeniden hesaplayip `panel_surum` ile karsilastiriyor (iki dil, tek kural).
 
+W6 — ETag KUNYESI: goruntuye URETILMIS bir `etag.txt` da giriyor (gzip'siz;
+  kart acilista bir kez okuyup bellege aliyor, `web_etag.h`). Satir:
+  `<istek yolu> <16 onaltilik>` — ozet GORUNTUDEKI baytlarin (gzip'liyse gzip'li
+  hali; mtime=0 oldugu icin ayni kaynak ayni ozet) sha256'sinin ilk 16'si. Kart
+  bununla ETag verir ve `If-None-Match`e 304 der; ikinci acilis govde indirmez.
+  Kunyede (`_fs.json`) `etag` olarak da duruyor; `sim3_web.py` 6q iki yonlu sinar.
+
 4F (PC17) — PWA KABUGU: manifestteki her ikon goruntuye girer (`manifest_ikonlari`,
   kartin manifesti 404'lu ikon gostermesin). `PC_KABUGU` (sw.js, cevrimdisi.html)
   GIRMEZ: kart guvenli baglam degil, service worker kullanamaz. Uretec her kosuda
@@ -144,6 +151,20 @@ def panel_kunyesi(ozet: dict, icerik_bayt: int) -> dict:
     return {"bicim": 1, "surum": panel_surumu(ozet), "dosya": len(ozet), "icerik_bayt": icerik_bayt}
 
 
+# W6: kartin acilista okudugu ETag kunyesi (goruntunun kokunde, gzip'SIZ).
+ETAG_KUNYE = "etag.txt"
+
+
+def etag_ozet(veri: bytes) -> str:
+    """Goruntudeki baytlarin ETag ozeti: sha256'nin ilk 16 onaltiligi (web_etag.h WEB_ETAG_HEX)."""
+    return hashlib.sha256(veri).hexdigest()[:16]
+
+
+def etag_kunyesi(etag: dict) -> str:
+    """`etag.txt` metni: istek yolu sirasinda `/<ad> <ozet>` + LF (web_etag.h `etag_bul`)."""
+    return "".join(f"/{ad} {etag[ad]}\n" for ad in sorted(etag))
+
+
 def kabuk_surumu() -> str:
     """4F: PC kabugunun (service worker onbellegi) surumu — panel surumuyle AYNI
     kural, kapsami panelin kaynaklari + PC kabugunun dosyalari (sw.js'in kendisi
@@ -228,6 +249,7 @@ def main() -> int:
     # 3D: dosya basina goruntudeki bayt — B7 acilis kumesinin (index + varliklar +
     # app.js'in statik ice aktarma agaci) butcesini bundan topluyor.
     bayt = {}
+    etag = {}                # W6: istek yolu -> goruntudeki baytlarin ozeti
     print(f"  {'varlik':<30} {'ham':>9} {'goruntude':>10}")
     print("  " + "-" * 52)
     for ad in goruntu_listesi():
@@ -241,6 +263,7 @@ def main() -> int:
         hedef.write_bytes(veri)
         toplam += len(veri)
         bayt[ad] = len(veri)
+        etag[ad] = etag_ozet(veri)
         print(f"  {ad:<30} {len(ham):>9} {len(veri):>10}")
     # 3H-1 (AY6): uretilmis kunye — kaynagi yok, butceye sayiliyor
     kunye = panel_kunyesi(ozet, toplam)
@@ -250,7 +273,14 @@ def main() -> int:
     gz.append("kunye.json")
     toplam += len(veri)
     bayt["kunye.json"] = len(veri)
+    etag["kunye.json"] = etag_ozet(veri)
     print(f"  {'kunye.json (uretilmis)':<30} {len(ham):>9} {len(veri):>10}")
+    # W6: ETag kunyesi — gzip'siz (kart dogrudan okuyor), kendisinin ETag'i yok
+    veri = etag_kunyesi(etag).encode("ascii")
+    (SAHNE / ETAG_KUNYE).write_bytes(veri)
+    toplam += len(veri)
+    bayt[ETAG_KUNYE] = len(veri)
+    print(f"  {ETAG_KUNYE + ' (uretilmis)':<30} {len(veri):>9} {len(veri):>10}")
     print("  " + "-" * 52)
     print(f"  {'TOPLAM':<30} {'':>9} {toplam:>10} B   "
           f"(P5 butcesi 600 KB'in %{100.0 * toplam / (600 * 1024):.0f}'i)")
@@ -276,6 +306,7 @@ def main() -> int:
         "bolum_boyut": boyut,
         "icerik_bayt": toplam,
         "bayt": bayt,
+        "etag": etag,
         "goruntu_bayt": n,
         "blok": BLOK, "sayfa": SAYFA,
     }, indent=2), encoding="utf-8", newline="\n")   # LF: depoda CRLF/LF gurultusu olmasin
