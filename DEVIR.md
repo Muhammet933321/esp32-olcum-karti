@@ -10681,8 +10681,42 @@ zaten şifresiz olduğundan sırların PSRAM'de durması yeni risk değil. Kartt
 
 **Ağ kesintisi (2026-10-04 sabah, gözlem):** ev ağının erişim noktası/interneti gidince kart `Q durum=2 (ag yok (STA
 degil))`'de kaldı; ≥ 1 dk izlendi, ağ dönmeden kullanıcı kartı USB'den telefon hotspot'una aldı (`Na/Np`, parola
-hiçbir yere yazılmadı). **Açık:** erişim noktası GERİ GELİNCE kartın kendiliğinden STA'ya döndüğü ölçülmedi; hotspot'u
-kapat-aç ile sınanacak (AP'ye düşerse kullanıcı fark etmez).
+hiçbir yere yazılmadı). ~~**Açık:** erişim noktası GERİ GELİNCE kartın kendiliğinden STA'ya döndüğü ölçülmedi~~ —
+**KAPANDI, aynı gün ölçüldü (aşağıda).**
+
+**Ağ geri dönüş tezgahı (2026-10-04 13:55–14:24, E6F, kart telefon hotspot'unda, PC ev ağında).** Hotspot telefonu
+USB hata ayıklamayla bağlandı; mobil veri `svc data`, hotspot ayarlar ekranından `uiautomator` ile kapatıp açıldı
+(depo dışı yardımcı; yalnız hotspot düğmesi, sayfa başlığı doğrulanmadan basmaz). Kartın `Q?` durumu USB'den 2 s'de
+bir izlendi; olaylar saatle eşleştirildi.
+
+| Senaryo | Fark etme | Geri gelince `bagli` |
+|---|---|---|
+| S1 mobil veri 60 s kapalı (Wi-Fi var, internet yok) | ~13 s (`durum=5`; son hata -3 = yeniden TLS denemesi) | 14 s |
+| S2 hotspot 60 s kapalı | 5 s (`durum=2 ag yok`) | 7 s |
+| S3 hotspot ~30 s kapalı | 3 s | 9 s |
+| S4 hotspot **5 dk** kapalı | 2 s | 8 s |
+
+Kart her seferinde KENDİLİĞİNDEN döndü, 5 dk'lık kesintide de kendi AP'sine düşmedi (STA'yı beklemeye devam etti);
+`baglanti` 5 → 11, yeniden başlama yok. ⚠ Sabahki "kart engellenince MQTT 90 s 'bağlı' kaldı" gözlemi İZLEYİCİ
+HATASIYDI: durum etiketi iç içe parantez (`(ag yok (STA degil))`) taşıyor, ilk izleyicinin deseni bu satırı hiç
+eşleştirmiyordu — `durum=2` görünmez oldu. Ayrı salt okuma kod incelemesi de 90 s takılabilecek bir yol bulmadı.
+İncelemenin bulduğu iki gizli kusur AÇIK (ağ testi bunları tetiklemedi): (1) soket bloklayıcı, mbedTLS katmanı
+"would block" döndürmez — tek bir takılı gönderme `SO_SNDTIMEO` 10 s'ye kadar sürebilir, 5 s'lik PINGRESP ölçütünü
+aşar (`bld__yaz` yeniden deneme dalı ölü); kısmi TLS kaydında `bld__oku` da 10 s bekleyip -7 yerine -6 der; (2) `bld`
+görevinin canlılığı dışarıdan görünmüyor (`durum=4` yalnız bağlanınca yazılır) — `Q?`'ya tur sayacı + "şu anki adım"
+eklenmeli. Sahte aracı tezgahı (`kapali_tut`) soketi KAPATIYOR; "sessiz aracı" (açık tut, yanıtlama) ve "kara delik"
+senaryosu yok.
+
+**Telefonda web paneli (2026-10-04 14:3x, Honor / Android 16, Chrome 154, kart hotspot'ta, E6F).** Panel kartın IP'sinden
+açıldı. Web parolası kullanıcıda yoktu → kullanıcının isteğiyle USB `Ns` ile YENİ 16 karakterlik parola kuruldu (değeri
+yalnız kullanıcıda; eşleşmiş cihazlar kendi anahtarlarıyla sürer) ve telefonun Basic-Auth penceresine adb ile girildi.
+CDP (adb ile `chrome_devtools_remote`, yalnız panel sekmesi) + `adb screencap` ile: 6 ekran × 3 görünüm gezildi, karta
+etki eden düğmeye BASILMADI. Sonuç: konsol hatası 0, başarısız/4xx istek 0, yatay taşma 0; Kayıtlar telefonda kartın
+kayıtlarını eşitledi (707 KB, onaysız); gerçek yeniden yüklemeyle üç görünüm doğru (`data-tema`, arka plan renkleri);
+açılış **0.57–0.67 s**, 16 istek. ⚠ Playwright'ın CDP ekran görüntüsü renk şemasını AÇIĞA zorluyor gibi — görünüm
+denetimi `adb screencap` ile yapıldı. **Küçük açık:** uygulama dosyaları `no-cache` ama ETag/Last-Modified YOK →
+her açılış ~90 KB'yi (gzip) baştan indiriyor, 304 olamıyor; `_fs.json` sürümünden ETag eklenirse ikinci açılış yalnız
+doğrulama olur (yalnız `vendor/vue` `immutable`).
 
 ---
 
