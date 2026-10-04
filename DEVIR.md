@@ -10550,6 +10550,154 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.109 🟡 AGD: AÇILIŞTA EV AĞI YOKSA AP + STA YENİDEN DENEMESİ, DÖNÜNCE AP KAPANIR (2026-10-04, dal `ag-ap-donus`, ağaç `projeler/olcum-karti-agd`; KARTA YÜKLENMEDİ)
+
+**Kartta bulunan kusur (2026-10-04, `1-acik-isler` AG1):** kayıtlı ev ağı (STA) AÇILIŞTA yoksa
+`ag_bekle_tamamla` `AG_STA_BEKLE_MS` (10 s) bekliyor, sonra `WiFi.disconnect(true)` + `ag__ap_kur()` (saf
+`WIFI_AP`) yapıyordu. Kart kendi AP'sinde **sonsuza dek** kalıyor, ev ağı dakikalar sonra dönse de STA'yı bir daha
+denemiyordu (MQTT `durum=2 'ag yok (STA degil)'`). Gerçek hayatta: elektrik kesintisinden sonra yönlendirici
+karttan yavaş açılır → kart elle sıfırlanana dek ev ağında değil, bildirim yok. Çalışırken kopma (kart zaten
+bağlıyken) SORUNSUZDU: 5.12.106'da 4 senaryo, 5 dk kesinti dahil, 7–14 s'de kendiliğinden döndü — bu yol
+DEĞİŞMEDİ. Kart başka oturumda kullanımdaydı: seri port açılmadı, karta HTTP gitmedi, yükleme yok.
+
+**SDK'da doğrulananlar (Arduino çekirdeği 3.3.11):**
+- `STA.cpp` `_onStaArduinoEvent`: `getAutoReconnect()` açıkken `NO_AP_FOUND` "yeniden bağlanılabilir" sebep →
+  her başarısız denemenin ardından HEMEN `disconnect()` + `connect()`. Yani STA kipinde sürücü aralıksız tarar
+  (çalışırken kopmanın kendiliğinden dönmesinin sebebi bu). AP+STA kipinde bu, AP'nin her taramada kanal
+  değiştirmesi demek → otomatik bağlanma AP'deyken KAPATILDI, deneme 30 s'de bir elle.
+  `first_connect` (statik) her sebepte BİR kez yeniden dener — açılıştaki 10 s içinde tüketilmiş olur.
+- `WiFiGeneric::mode(AP_STA → STA)`: `esp_wifi_set_mode` + `AP.onDisable()`; netif'ler yok edilmiyor, STA
+  yapılandırması sürücüde kalıyor. `WiFi.begin()` (argümansız) = `STA.begin(true)` → `connect()` sürücüdeki
+  yapılandırmayla; `STA.begin` başlamışsa beklemez → BLOKLAMAZ.
+- `STA.connect(...)` bağlıyken (`connected()` = iliski biti) önce `disconnect(true, 1000)` yapıyor → DHCP
+  sürerken deneme ilişkiyi KOPARIRDI: iliskiliyken (`WiFi.STA.connected()`) deneme yok.
+- mDNS: `ESPmDNS::begin` = `mdns_init` + ad; `end` = `mdns_free`. Kütüphane `espressif__mdns` 1.11.3,
+  `sdkconfig.h`'de `CONFIG_MDNS_PREDEF_NETIF_STA/AP 1`, `libespressif__mdns.a`'da `handle_system_event_for_preset`
+  (WIFI_EVENT + IP_EVENT'e kayıtlı) → AP'de kurulan mDNS, STA IP alınca STA arayüzünde de açılır, AP kapanınca
+  AP'de kapanır; servisler arayüzden bağımsız. Bu yüzden `MDNS.end()` HİÇ çağrılmıyor ve W2i'nin tek duyuru
+  bayrağı (`ag_mdns_servis_var`) geçerli kalıyor. AP'de `MDNS.begin` başarısızsa STA'da yeniden denenir.
+- MQTT (`bildirim_esp.h`) her turda `ag_durum.kip == AG_STA && WL_CONNECTED`'a, NTP (`kayit__saat`) her turda
+  `kip == AG_STA`'ya bakıyor → geçişten sonra kendiliğinden başlarlar (kaynak iddiası 5m).
+
+**Değişiklik:**
+- **`ag_karar.h` (yeni, platformsuz, yalnız `<stdint.h>`):** `AgKarar {t, evre}`, `agk_kur` / `agk_etkin` /
+  `agk_adim(simdi, bagli, iliskili)` → eylem. Evreler: `YOK` (sıfır = N0) · `BEKLE` · `AP_DENE` · `STA_PAY` ·
+  `STA` · `AP` (kayıtlı ağ yok). Eylemler: `AP_KUR` · `STA_DENE` · `STA_OLDU` · `AP_KAPAT`. `STA`/`AP`'de karar
+  yok (çalışırken kopma → sürücü). `STA_PAY`'de kopma da STA'da kalır (bir kez bağlanan kart STA'da kalır).
+  Süreler `ag.h`'de (tek kaynak): `AG_STA_BEKLE_MS 10000`, **`AG_STA_YENIDEN_MS 30000`**, **`AG_AP_PAY_MS 5000`**.
+- **`ag.h`:** `ag_baslat_rf` kararı kurar (kayıtlı ağ var/yok); yoksa saf `WIFI_AP` (eskisi gibi, deneme yok).
+  `ag_bekle_tamamla` = karar motoru `BEKLE`'den çıkana dek (100 ms). `ag__uygula`: `AP_KUR` →
+  `setAutoReconnect(false)` + `disconnect(false, false)` + `ag__ap_kur(WIFI_AP_STA)` (aynı SSID/parola/
+  192.168.4.1/sunucu/mDNS); `STA_DENE` → `WiFi.begin()`; `STA_OLDU` → `ag__sta_oldu` (otomatik bağlanma geri
+  AÇIK, ssid/ip/mac, gerekirse mDNS, servis, `kip` EN SON); `AP_KAPAT` → `WiFi.mode(WIFI_STA)`. `ag_isle()` ağ
+  görevinin döngüsünde her tur; etkin değilse sürücüyü hiç sorgulamaz. `ag_hazir` artık kip SÜRÜMÜ (her kip
+  yazımı +1) → `loop()` `Ag:` satırını her değişimde bir kez basar (açılışta AP, sonra STA).
+- **`.ino`:** `host_gecerli` AP açıkken (`getMode() & WIFI_MODE_AP`) AP'nin kendi adresini de kabul eder —
+  geçiş payında `ag_durum.ip` STA'nınkine döner, AP'deki telefon hâlâ 192.168.4.1'e soruyor (403 alırdı).
+  Saldırganın alan adı bu adreslerden biri olamaz (DNS rebinding savunması aynı). `Ag:` satırı AP'deyken
+  `(ev agi 30 s'de bir deneniyor)` ekler (süre sabitten). Yeni statik tampon YOK.
+- **Statik DRAM 81860 → 81868 (+8):** `ag_bas_ms` (4 B) yerine `AgKarar` (4 + 1 + hiza). Pay ~51 B.
+- Kullanıcı belgesi (`6-ag.html` kaynağı `belge_sayfa.py`): ev ağı sonradan gelirse kart 30 s'de bir dener,
+  kendiliğinden geçer, AP'sini 5 s sonra kapatır; bağlandıktan sonraki kopmada AP kurmaz.
+
+**Bilinen sınırlar (ölçülmedi):**
+- Tek radyo: STA ev ağına AP'den farklı kanalda bağlanınca softAP o kanala geçer → AP'deki telefon büyük
+  olasılıkla o anda düşer; 5 s'lik pay yalnız kanal aynıysa istek ortasındaki kesintiyi önler.
+- Her deneme bir kanal taraması (tahmin ~1.5–2.5 s; IDF AP+STA'da tarama arasında ana kanala döner) → AP'deki
+  istemci 30 s'de bir kısa gecikme görebilir.
+- Yanlış parola / DHCP vermeyen ağ: kart AP'de kalır, 30 s'de bir dener (zararsız). İlişki kurulmuş ama IP
+  gelmiyorsa deneme yapılmaz (IDF DHCP istemcisi kendisi dener).
+- `ag_durum.ssid/ip/mac` artık çalışırken bir kez değişiyor; çekirdek 1 (`N?`, `Ag:`) aynı anda okursa yırtık
+  metin basabilir (yalnız görüntü; `host_gecerli` aynı görevde, yarış yok).
+- `Na`/`Np` değişiklikleri yine bir sonraki AÇILIŞTA geçerli (deneme sürücüdeki yapılandırmayı kullanır).
+
+**Testler:**
+- B22b `sim3_web.py` **5m** (+17 → 144): `ag_karar.h` AVR'de (`uretim/avr/ornek_ag_karar.c`, süreler `ag.h`'den
+  `-D` ile, uyarısız), 9 senaryo 100 ms adımla: açılışta bağlanır + çalışırken kopma (karar yok) · ev ağı hiç
+  yok (AP tam 10 s'de, 30 s'de bir deneme, sonsuza dek) · 3 denemeden sonra döner (STA, AP pay sonunda kapanır,
+  sonra deneme yok, kopmada STA'da) · DHCP sürerken deneme yok · kayıtlı değil (saf AP) · sıfır durum (N0) ·
+  millis taşması · payda kopma · tam sınırda bağlanma (AP kurulmaz). Yapıştırıcı kaynaktan: süreler (≥ 20 s,
+  aralık + pay + 15 s ≤ 60 s), platformsuzluk, açılış, düşüş (radyo kapanmaz, otomatik bağlanma kapalı),
+  deneme (yalnız `WiFi.begin()`), STA olunca (otomatik bağlanma açık, alanlar kipten önce, `MDNS.end` yok),
+  AP kapatma, `ag_isle` döngüde, `Ag:` sürümü, Host, MQTT/NTP her turda. 5k'nın üç iddiası yeni yapıya taşındı.
+- B72.W2i `ag__sta_oldu` + `ag__ap_kur(wifi_mode_t)`'a taşındı (246/246).
+- Mutasyon **`AGD:` 32/32 YAKALANDI** (her iddiaya en az bir; eski kusurun kendisi iki kez: `evre = AGK_AP`,
+  `disconnect(true)`); taşınan eski 1E-2/W2 mutasyonları yeni metne güncellendi.
+- `yukle.py --derle` uyarısız. `dogrula3.py --artimli`: **"Aşama 3 doğrulandı"**, 22/22 (B22b 144/144, B72
+  246/246). Gizlilik temiz. Üretilenlerden yalnız gerçekten değişenler tutuldu (`6-ag.html` metni,
+  `4-kurulum.html` firmware boyutu, `_firmware.json`, `_tezgah.md` +1 kalem → 128); geri kalanı geri alındı.
+- Tezgah kalemi B22b "AGD" (aşağıdaki yordam).
+
+**Kart tezgahı (koşulmadı — kart kullanımda):** firmware yüklendikten sonra:
+1. Kartın kayıtlı ev ağının erişim noktasını KAPAT (yönlendirici Wi-Fi'si ya da telefon hotspot'u).
+2. Kartı sıfırla. Afiş: `Ag baglaniyor: STA ...`, ~10 s sonra `Ag: AP (kendi agi) SSID=OLCUM-KARTI-XXXX ...
+   (ev agi 30 s'de bir deneniyor)`. İsteğe bağlı: telefonu kartın AP'sine bağla, panel 192.168.4.1'de açılmalı.
+   (`N?` GÖNDERME — AP parolasını basar.)
+3. Erişim noktasını AÇ, süreyi başlat. **≤ 60 s** içinde ikinci satır `Ag: STA (ev agi) SSID=<ev> ... http://<ip>`.
+4. ~5 s sonra kartın AP adı PC'nin ağ listesinden (`netsh wlan show networks`) kalkar.
+5. `Q?` → `durum=4` (bağlı), `baglanti` arttı; ev ağında `_http._tcp` PTR → `olcum._http._tcp.local`, TXT
+   `kimlik=` (= `E?` kimliği) görünür; `http://olcum.local` açılır.
+6. Gerileme: kart STA'dayken erişim noktasını 60 s kapat-aç → 5.12.106 gibi 7–14 s'de döner, AP KURULMAZ.
+7. `K` sıfırla → AP'deyken 2 dk → `loop_azami` (ölçüm çekirdeği etkilenmemeli, ~7.5 ms).
+
+**İnceleme (2026-10-04, aynı dal; firmware DEĞİŞMEDİ, statik DRAM aynı):** gözden geçirme iki önemli bulgu
+getirdi; ikisi de gerçekti. 5m'nin AVR bölümü yalnız karar motorunu (`ag_karar.h`) koşturuyordu; `ag.h`'deki
+yapıştırıcıya yalnız alt dize iddiaları bakıyordu.
+- **(1) STA IP'sinin kaynağı sınanmıyordu.** `ag__sta_oldu`'da `WiFi.localIP()` → `WiFi.softAPIP()` mutantı
+  (bu dalın `git archive` kopyasında yeniden koşuldu): B22b **144/144 yeşil**. Bu mutantla kart ev ağına döner,
+  ama `ag_durum.ip` = 192.168.4.1 kalır. 5 s sonra AP kapanınca kartın gerçek IP'siyle gelen her istek
+  `host_gecerli`'de 403 alır, `Ag:` satırı da yanlış adres basar.
+- **(2) `ag_isle`'de `bagli` ile `iliskili`'nin yeri sınanmıyordu.** Yer değiştirme mutantında da B22b
+  **144/144 yeşil** kaldı. 5m yalnız iki alt dizenin VAR olup olmadığına bakıyordu. Bu mutantla kip, ilişki
+  kurulur kurulmaz, DHCP bitmeden STA olur ve `ag_durum.ip` = 0.0.0.0 yazılır. Çekirdek 3.3.11 `STA.cpp`'de
+  `WL_CONNECTED` yalnız `ARDUINO_EVENT_WIFI_STA_GOT_IP`'de kuruluyor (satır 183); `STA.connected()` ise ilişki
+  biti. Yani iki sinyalin anlamı gerçekten farklı.
+- **Düzeltme (test, kod değil): yapıştırıcının METNİ AVR'de, sahte sürücüyle.** `sim3_web.py`
+  `_ag_yap_kaynak()` `ag.h`'den şunları olduğu gibi kesiyor: `ag_baslat_rf`, `ag_bekle_tamamla`, `ag_isle`,
+  `ag__uygula`, `ag__sta_oldu`, `ag__ap_kur`, `ag__kip_yaz`, `ag__mdns_servis`, ayrıca `AG_*` sabitleri,
+  `AgKip`, `AgDurum` ve durum değişkenleri. Bulamadığı parça olursa kırmızı verir. Kesilen metin
+  `uretim/avr/ornek_ag_yapistirici.cpp` ile `avr-g++ -Wall -Wextra` altında, `ag_karar.h`'nin kendisiyle
+  derleniyor (W6 incelemesindeki `ornek_arayuz.cpp`'nin yolu). Tek gevşetme `-Wno-format-truncation`:
+  sahte `String`'in tamponu sabit 24 B olduğu için derleyici `ip[16]`'ya kırpma görüyor. Kartta `String`
+  yığındadır.
+  Sahte sürücü şöyle davranıyor:
+  - `begin()`'den 300 ms sonra ilişki, 2000 ms sonra IP gelir.
+  - `status()` `WL_CONNECTED`'i yalnız IP'den sonra verir.
+  - Ağ yoksa deneme düşer. Otomatik bağlanma açıksa sürücü 300 ms'de bir yeniden dener.
+  - Bağlıyken argümansız `begin()` ilişkiyi koparmaz.
+  - `WIFI_AP` kipinde STA yoktur.
+  - Zaman yalnız 100 ms'lik görev turu ve `vTaskDelay` ile ilerler, yani koşu deterministik.
+
+  Üç senaryo var:
+  - **(a)** Ev ağı açılışta yok, ilk denemeden 5 s sonra geliyor, sonra 5 dk kopuyor. Beklenen sıra tam olarak
+    şu: `M STA · B 0 · M AP+STA 10 s · P · K AP 192.168.4.1 · B 40 s · B 70 s · K STA 192.0.2.57 72.3 s ·
+    M STA 77.3 s`. Kopmada yapıştırıcıdan tek satır çıkmamalı. Sonunda kip STA, IP STA'nınki, sürücü yeniden
+    bağlanmış olmalı.
+  - **(b)** Ev ağı açılışta var: `K STA` 2.3 s'de gelmeli, AP hiç kurulmamalı. 5 dk kopmada da sessiz kalmalı.
+  - **(c)** Kayıtlı ağ yok: saf AP olmalı, ağ yayında olsa bile `begin()` hiç çağrılmamalı.
+
+  Sahte STA adresi RFC 5737 belge adresi.
+- **Kanıt:** önce iki mutant kopyada yeni iddialar kırmızı verdi (mutant 1: 146/148; (a) `K … 192.168.4.1`,
+  (b) `K 2300 … 0.0.0.0`. Mutant 2: 147/148; (a) `K 70300 …`). Temiz ağaçta B22b **148/148** (+4). İki mutant
+  `AGD:` mutasyonu olarak eklendi; `mutasyon.py --neden "AGD:" --paralel 2` → **34/34 YAKALANDI**.
+  `yukle.py --derle` uyarısız. `dogrula3.py --artimli` → "Aşama 3 doğrulandı". `beklenen_sayim.json`'da
+  yalnız B22b değişti (144 → 148).
+- **Açık bırakılan küçükler (düzeltilmedi; `1-acik-isler` AG1b):**
+  1. AP+STA'ya geçişte softAP artık radyo durdurulmadan kuruluyor. softAP başarısız olursa AP bir daha hiç
+     denenmiyor (kip KAPALI kalıyor).
+  2. DHCP kapısının gerekçesi yanlış: kullanılan argümansız `WiFi.begin()` bağlıyken bağlantıyı KOPARMAZ.
+     `ag_karar.h` yorumu, yukarıdaki "SDK'da doğrulananlar" maddesi ve 5m iddia metni bu yüzden hatalı.
+     Kapının kendisi zararsız.
+  3. 10 s'lik açılış beklemesi DHCP sürerken dolarsa `AP_KUR` yeni kurulan ilişkiyi koparıyor ve sonraki
+     deneme 30 s sonra yapılıyor. Bu bir gerileme değil, kaçan bir fırsat.
+  4. "İlişkiliyken deneme yok" kararının SDK gerekçesi de aynı sebeple yanlış (2 ile aynı kök).
+  5. Tezgah yordamının dayandığı `(ev agi 30 s'de bir deneniyor)` eki test edilmiyor: koşul değişirse ek hiç
+     basılmaz.
+  6. Kart tezgahı yordamı `host_gecerli` değişikliğini doğrulamıyor (geçiş payında AP'deki telefona 403
+     gitmemeli).
+
+---
+
 #### 5.12.107 🟢 E8: MQTT GÖREVİ — SINIRLI BLOKLAMA + CANLILIK İZİ + YANITSIZ ARACI TEZGAHI (2026-10-04, dal `e8-mqtt-canlilik`, ağaç `projeler/olcum-karti-e8`; karta YÜKLENMEDİ)
 
 5.12.106'nın ağ testi incelemesinin bulduğu iki gizli kusur (`tasarim/1-acik-isler.md` E8). Kart o sırada başka

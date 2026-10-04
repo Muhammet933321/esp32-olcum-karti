@@ -545,7 +545,12 @@ sorabilir, <b>evet</b> deyin.</p>
 <p>Kart kendi Wi-Fi'sını kurmak yerine <b>evin ağına</b> bağlanır;
 telefon ve bilgisayar zaten o ağdadır. Bağlanma {d['sta_bekle_s']:.0f}
 saniye deneniyor, olmazsa 1. kipe düşüyor — yani <b>kart hiçbir zaman
-erişilemez kalmıyor</b>.</p>
+erişilemez kalmıyor</b>. Kendi ağındayken ev ağını <b>{d['sta_yeniden_s']:.0f}
+saniyede bir yeniden dener</b>: ev ağı sonradan gelirse (ör. elektrik
+kesintisinden sonra modem karttan geç açılınca) kart kendiliğinden eve geçer,
+kendi ağını {d['ap_pay_s']:.0f} saniye sonra kapatır — sıfırlamak gerekmez.
+Kart ev ağına bir kez bağlandıktan sonra ağ koparsa kendi ağını kurmaz, ev
+ağının dönmesini bekler.</p>
 
 <h3>Ev ağını karta bir kez tanıtmak</h3>
 <p>Kartı USB ile bilgisayara takıp seri konsoldan (115200) üç komut:</p>

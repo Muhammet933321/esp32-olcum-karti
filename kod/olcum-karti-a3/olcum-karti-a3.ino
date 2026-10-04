@@ -3088,7 +3088,11 @@ static bool host_gecerli() {
   if (k >= 0) h = h.substring(0, k);
   return h == String(ag_durum.ip)
       || h.equalsIgnoreCase(F(AG_MDNS ".local"))
-      || h.equalsIgnoreCase(F(AG_MDNS));
+      || h.equalsIgnoreCase(F(AG_MDNS))
+      /* AGD: AP acikken (AP+STA: ev agi denenirken ya da STA'ya gecis payinda) AP'nin
+         kendi adresi de: kip STA olunca ag_durum.ip STA'nin, AP'deki telefon ise hala
+         192.168.4.1'e soruyor. Saldirganin alan adi bu iki adresten biri OLAMAZ. */
+      || ((WiFi.getMode() & WIFI_MODE_AP) && h == WiFi.softAPIP().toString());
 }
 
 // Parola KURULMAMISSA yetkilendirme kapali — ama acilista bu yuksek
@@ -5566,9 +5570,10 @@ void komut_isle() {
 // B22.4 + 1E-2: "Ag:" satiri — kip kesinlesince BIR KEZ. AP/KAPALI setup'ta
 // hemen belli; STA bekleniyorsa ag gorevi bitirince loop()'tan basilir.
 // Cekirdek 1 basar (Serial aynasinin tek yazari, B28).
+// AGD: kip her degistiginde (acilista AP, ev agi donunce STA) yeniden — `ag_hazir` surum.
 static uint8_t ag_satiri_basildi = 0;
 static void ag_satiri_bas() {
-  ag_satiri_basildi = 1;
+  ag_satiri_basildi = ag_hazir;
   Serial.print(F("Ag: "));
   Serial.print(ag_kip_adi(ag_durum.kip));
   if (ag_durum.kip != AG_KAPALI) {
@@ -5578,6 +5583,10 @@ static void ag_satiri_bas() {
     Serial.print(F("  MAC=")); Serial.print(ag_durum.mac);
     Serial.print(F("  http://")); Serial.print(ag_durum.ip);
     if (ag_durum.mdns) Serial.print(F("  http://" AG_MDNS ".local"));
+    if (ag_k.evre == AGK_AP_DENE) {   /* AGD: ev agi kayitli ama yok — yeniden deneniyor */
+      Serial.print(F("  (ev agi ")); Serial.print(AG_STA_YENIDEN_MS / 1000u);
+      Serial.print(F(" s'de bir deneniyor)"));
+    }
   }
   /* 🔴 Buradaki println EKSIKTI: "Ag:" satiri kapanmadigi icin cikti
      `...http://192.168.4.1Arayuz: YOK...` seklinde yapisiyordu. Adresi
@@ -5603,6 +5612,7 @@ static void ag_gorevi(void *) {
     sunucu.handleClient();
     akis_kuyrugunu_bosalt();   // olcum cekirdeginin biraktigi satirlar
     akis_kalp();               // 15 s'de bir, NAT zaman asimi icin
+    ag_isle();                 // AGD: AP'deyken ev agini yeniden dene, donunce AP'yi kapat
     ag_tur = ag_tur + 1;      // bkz. akis_tasma: tek yazar, -Wvolatile
     vTaskDelay(1);             // 1 tik = 1 ms; IDLE0 ac kalmasin
   }
@@ -5927,7 +5937,7 @@ void loop() {
      ikisi de artik cekirdek 0'daki `ag_gorevi()` icinde. Sayfa sunmak
      bu donguyu bloklamiyor. Komutlar yine BURADA calisiyor: tek yazar
      disiplini korunuyor (kalibrasyon, NVS, skop hep cekirdek 1'de). */
-  if (ag_hazir && !ag_satiri_basildi) ag_satiri_bas();   // 1E-2: STA sonucu (bir kez)
+  if (ag_hazir != ag_satiri_basildi) ag_satiri_bas();   // 1E-2 + AGD: kip degisti (STA sonucu, AP -> STA)
   komut_isle();              // seri porttan gelen komutlar
   komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
   skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu
