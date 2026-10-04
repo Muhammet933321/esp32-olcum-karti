@@ -166,3 +166,43 @@ panelinin görünümlerinden (Koyu · Açık · Ön panel) türetilir, TEK mesaj
 - `svc power stayon usb` Xiaomi'de açık bırakıldı (kullanıcı izniyle).
 
 Sayılar: JS 92 test, Kotlin 23 test, mutasyon 64 (hepsi ölü).
+
+### 2026-10-04 (devam 5) — 5B: kasa, sayaç, imzalı istek, eşleştirme ekranı
+
+**Biten (iki alt ajan yazdı; testleri ve duman testini ben yeniden koştum)**
+- Kotlin `Kasa` eklentisi: K, Keystore'daki dışa verilemez AES-256-GCM anahtarıyla sarılı
+  `files/kasa/<kimlik>.anahtar` (AAD kimliği içerir: başka kimliğin dosyası açılmaz); sayaç dosyası
+  sağlamalı, küçük değeri `geri` ile reddeder, bozuksa 0 DÖNMEZ (`bozuk`). Atomik yazım + fsync.
+  JVM testleri 36 yeni (toplam 59). 8 Kotlin mutasyonu elle doğrulandı (`mutasyon/kotlin-liste.mjs`).
+- `kasa.js`: sayaç işareti blok ayırmayla (4096), işaret istekten ÖNCE dayanıklı yazılır, açılışta
+  sayaç = işaret; kimlik başına tek cihaz nesnesi. `kart.js`: imzalı istek, her bağlantıda kimlik
+  doğrulaması, 401 + aynı açılış → `cihaz-silinmis` (K silinmez), `/saat`, eşleşmeyi kaldır.
+  `Esles.vue`: "WEB parolası — Wi-Fi parolası DEĞİL"; parola alanı istekten önce temizlenir.
+  `araclar/logcat_tara.mjs`: logcat sır tarayıcısı (imza başlıkları, 64 onaltılık, kanıt, parola,
+  köprü verisi, kimlik, adres + yol, verilen sınama sırları; değeri BASMAZ).
+- JS 148 test; `5B:` mutasyonları 64 (tam koşu sürüyor).
+- **Xiaomi'de sahte kartla duman testi (adb reverse, hata ayıklama derlemesi):** kart bulundu →
+  eşleştirme ekranı → fixture sınama parolasıyla eşleşti (Keystore sarma telefonda çalıştı) → imzalı
+  `/kayit/liste` geçti → uygulama öldürülüp yeniden açıldı → Keystore'dan K açıldı, sayaç işaretten
+  devam etti, imzalı istek yine geçti → eşleşme kartta ve telefonda kaldırıldı.
+  Kendi logcat'imiz (496 satır) `logcat_tara` ile tarandı (sınama parolası + kimlik sır olarak verildi): TEMİZ.
+
+**Kararlar**
+- Bozuk sayaç dosyasında tek kurtarma kaydı silip yeniden eşleşmek (güvenli taraf: sayaç geri gidemez).
+- `gizlilik.test.js`'e tek dar istisna: `ortam = { fetch: <ad>Fetch }` anahtarı (imza.js bu adı şart
+  koşuyor); çağrı, `window.fetch`, `{ fetch }` hâlâ kırmızı (kendi sınaması var).
+- `/saat` değeri sorgu argümanıyla gider: kartın kaynağı `arg("unix")` okuyor, imzalı gövde form olamaz.
+- Varsayılan cihaz adı "Telefon" (A12 "telefon modeli" diyordu; model okumak ayrı eklenti ister ve modeli
+  karta yazmak gereksiz iz) — kullanıcı değiştirebilir.
+- Geçici `Baglanti.vue` ekranı: kabuk 5C'de gelince kalkacak.
+
+**Honor (kullanıcı onayı: tek kurulum, yalnız debug APK, eşleştirme yok, sonra kaldır)**
+- Debug APK KURULDU. Ekran kapalı ve kilitli → ölçüm kuyruğa alındı (kilit açılmaz, ayar değiştirilmez).
+  Bekleyen: "Kartı bul" (Android 16 yerel ağ kuralları, Ş5) + eşleştirme ekranının görünümü; ardından
+  APK KALDIRILACAK ve buraya yazılacak.
+
+**Açık**
+- 5B bağımsız çürütücü (çalışıyor).
+- Gerçek kartta eşleştirme: DURULACAK — web parolasını kullanıcı Xiaomi'de kendisi girer.
+- Kotlin mutasyonları koşucuya bağlı değil (elle doğrulandı); `kos-kotlin` kipi yazılacak.
+- Görsel tasarım seçimi kullanıcıda (A / B / C; önerim A).
