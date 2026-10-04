@@ -10550,7 +10550,7 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
-#### 5.12.109 🟡 AGD: AÇILIŞTA EV AĞI YOKSA AP + STA YENİDEN DENEMESİ, DÖNÜNCE AP KAPANIR (2026-10-04, dal `ag-ap-donus`, ağaç `projeler/olcum-karti-agd`; KARTA YÜKLENMEDİ)
+#### 5.12.109 🟢 AGD: AÇILIŞTA EV AĞI YOKSA AP + STA YENİDEN DENEMESİ, DÖNÜNCE AP KAPANIR (2026-10-04, dal `ag-ap-donus`, ağaç `projeler/olcum-karti-agd`; KARTA YÜKLENMEDİ)
 
 **Kartta bulunan kusur (2026-10-04, `1-acik-isler` AG1):** kayıtlı ev ağı (STA) AÇILIŞTA yoksa
 `ag_bekle_tamamla` `AG_STA_BEKLE_MS` (10 s) bekliyor, sonra `WiFi.disconnect(true)` + `ag__ap_kur()` (saf
@@ -10695,6 +10695,18 @@ yapıştırıcıya yalnız alt dize iddiaları bakıyordu.
      basılmaz.
   6. Kart tezgahı yordamı `host_gecerli` değişikliğini doğrulamıyor (geçiş payında AP'deki telefona 403
      gitmemeli).
+
+**KARTTA (2026-10-04 20:19–20:27, `main` = `8196906`; yedek `tam-20261004-195949.bin`; PC ev ağında, "ev ağı" =
+hotspot telefonu, adb + ekran otomasyonuyla açılıp kapatıldı; kartın `Q?`/`Ag` satırları USB'den 2 s'de bir).**
+- Kart hotspot ağına ayarlanıp hotspot KAPALIYKEN yeniden başlatıldı: 10.8 s'de `Ag: AP (kendi agi) … (ev agi 30 s'de
+  bir deneniyor)`; Xiaomi'nin taramasında kartın AP'si yayında (2412 MHz, kanal 1).
+- Hotspot açıldı (20:22:18) → **26 s** sonra `Ag: STA (ev agi)`, **33 s** sonra MQTT `durum=4 bagli`
+  (30 s'lik deneme aralığının içinde). ~1 dk sonra taramada kartın AP'si YOK, yalnız hotspot (2437 MHz, kanal 6) —
+  farklı kanala geçiş sorunsuz. Eski firmware bu senaryoda sonsuza dek AP'de kalıyordu (5.12.107 AG1).
+- Gerileme (kart STA'dayken hotspot 80 s kapalı): 5 s'de `ag yok`, kesinti sırasında taramada kartın AP'si YOK
+  (çalışırken kopma AP açmıyor), hotspot açılınca 6 s'de `baglaniyor`, 8 s'de `bagli`.
+- Ölçülmedi: AP'deki bir istemcinin 30 s'lik taramalarda ne kadar sarsıldığı ve geçiş payında `host_gecerli` (bu testte
+  AP'ye bağlı istemci yoktu). Kart sonra ev ağına döndürüldü; telefonların ayarları eski hâline getirildi.
 
 ---
 
