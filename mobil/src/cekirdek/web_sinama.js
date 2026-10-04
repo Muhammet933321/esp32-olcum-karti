@@ -66,6 +66,37 @@ async function cerceveDene(adres) {
   return yuklendi ? "bos-yuklendi" : "engellendi";
 }
 
+function soketDene(adres) {
+  return new Promise((coz) => {
+    try {
+      const s = new WebSocket(adres.replace(/^http/, "ws"));
+      s.onopen = () => { s.close(); coz("GECTI"); };
+      s.onerror = () => coz("engellendi");
+      setTimeout(() => coz("engellendi"), 4000);
+    } catch {
+      coz("engellendi");
+    }
+  });
+}
+
+// WebRTC: CSP `webrtc 'block'` calisiyorsa baglanti kurulamaz ve HICBIR ICE adayi (yerel dahil) toplanmaz.
+// Ne CSP'nin oteki yonergeleri ne de yerel istek kapisi WebRTC'yi kapsar (curutucu 5A-7, G6).
+async function rtcDene() {
+  if (typeof RTCPeerConnection !== "function") return "engellendi";
+  let aday = 0;
+  try {
+    const b = new RTCPeerConnection({ iceServers: [{ urls: "stun:example.com:3478" }] });
+    b.onicecandidate = (o) => { if (o.candidate) aday++; };
+    b.createDataChannel("x");
+    await b.setLocalDescription(await b.createOffer());
+    await bekle(2500);
+    b.close();
+  } catch {
+    return "engellendi";
+  }
+  return aday === 0 ? "engellendi" : "GECTI";
+}
+
 // Gezinti: engel calisiyorsa sayfa yerinde kalir ve bu islev DONER.
 async function gezintiDene(adres) {
   window.location.href = adres;
@@ -81,7 +112,9 @@ export async function webSinama() {
     sonuc.push({ yol: "img", adres, sonuc: await resimDene(adres) });
     sonuc.push({ yol: "script", adres, sonuc: await betikDene(adres) });
     sonuc.push({ yol: "iframe", adres, sonuc: await cerceveDene(adres) });
+    sonuc.push({ yol: "websocket", adres, sonuc: await soketDene(adres) });
   }
+  sonuc.push({ yol: "webrtc", adres: "stun", sonuc: await rtcDene() });
   sonuc.push({ yol: "gezinti", adres: SINAMA_ADRESLERI[0], sonuc: await gezintiDene(SINAMA_ADRESLERI[0]) });
   return sonuc;
 }

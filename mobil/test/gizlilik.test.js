@@ -1,77 +1,113 @@
-// Gunlukte sir yok (A45). Capacitor kopru gunlugu, her eklenti cagrisinin TUM verisini (adres, imza
-// basliklari, govde; ileride Kasa'ya giden anahtar) logcat'e yazar — 2026-10-04'te telefonda goruldu:
-// `Capacitor: callback: …, pluginId: KartAg, methodName: istek, methodData: {"url": …}`.
-// Bu yuzden kopru gunlugu HER derlemede kapali olmali.
+// Gunlukte sir yok (A45) + aga cikan tek yol KartAg (A47, kullanici sarti 2026-10-04).
+// Capacitor kopru gunlugu, her eklenti cagrisinin TUM verisini (adres, imza basliklari, govde;
+// ileride Kasa'ya giden anahtar) logcat'e yazar — 2026-10-04'te telefonda goruldu. Bu yuzden kopru
+// gunlugu HER derlemede kapali olmali.
+// Kaynak taramalari ELLE yazilmis dosya listesiyle degil, src/ ve android/ AGACIYLA calisir
+// (curutucu 5A-7: listede olmayan dosyaya eklenen cagri kaciyordu).
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { join, relative } from "node:path";
 
-const oku = (yol) => readFileSync(new URL(yol, import.meta.url), "utf8");
+const KOK = fileURLToPath(new URL("..", import.meta.url));
+const oku = (yol) => readFileSync(join(KOK, yol), "utf8");
+
+function agac(dizin, sonlar) {
+  const cikti = [];
+  for (const ad of readdirSync(join(KOK, dizin))) {
+    const yol = join(dizin, ad);
+    if (statSync(join(KOK, yol)).isDirectory()) cikti.push(...agac(yol, sonlar));
+    else if (sonlar.some((s) => ad.endsWith(s))) cikti.push(relative(".", yol).split("\\").join("/"));
+  }
+  return cikti;
+}
+
+// Yorumlar taranmaz (aciklamalarda "fetch", "Log" gecer): tam satir yorumlari ve blok yorumlari atilir.
+function yorumsuz(metin) {
+  return metin.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((l) => !/^\s*(\/\/|\*)/.test(l)).join("\n");
+}
+
+const JS_KAYNAK = agac("src", [".js", ".vue"]);
+const YEREL_KAYNAK = agac("android/app/src/main/java", [".kt", ".java"]);
+// WebView'in ag yollarini BILEREK deneyen tek dosya (cihazdaki kapi olcumu).
+const SINAMA_DOSYASI = "src/cekirdek/web_sinama.js";
 
 describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
-  const csp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(oku("../index.html"))[1];
-  const yonerge = Object.fromEntries(csp.split(";").map((y) => y.trim().split(/ +/)).map(([ad, ...d]) => [ad, d]));
+  const IZINLI_YONERGELER = {
+    "default-src": ["'self'"],
+    "script-src": ["'self'"],
+    "style-src": ["'self'", "'unsafe-inline'"],
+    "img-src": ["'self'", "data:", "blob:"],
+    "connect-src": ["'self'"],
+    "frame-src": ["'none'"],
+    "object-src": ["'none'"],
+    "base-uri": ["'none'"],
+    "form-action": ["'none'"],
+    "webrtc": ["'block'"],
+  };
 
-  it("CSP: her kaynak turu yalniz paket; baglanti/cerceve/nesne/form/taban disari KAPALI", () => {
-    expect(yonerge["default-src"]).toEqual(["'self'"]);
-    expect(yonerge["script-src"]).toEqual(["'self'"]);
-    expect(yonerge["connect-src"]).toEqual(["'self'"]);
-    expect(yonerge["frame-src"]).toEqual(["'none'"]);
-    expect(yonerge["object-src"]).toEqual(["'none'"]);
-    expect(yonerge["base-uri"]).toEqual(["'none'"]);
-    expect(yonerge["form-action"]).toEqual(["'none'"]);
-    expect(yonerge["img-src"]).toEqual(["'self'", "data:", "blob:"]);
-    // Hicbir yonergede sema/alan joker'i, http(s) kaynagi ya da unsafe-eval yok.
-    expect(csp).not.toMatch(/\*|https?:|unsafe-eval/);
-    for (const [ad, d] of Object.entries(yonerge)) if (ad !== "style-src") expect(d, ad).not.toContain("'unsafe-inline'");
+  it("CSP: yonerge kumesi TAM olarak beklenen (eksik de fazla da kirmizi)", () => {
+    const m = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(oku("index.html"));
+    expect(m, "CSP meta etiketi yok").not.toBe(null);
+    const yonerge = Object.fromEntries(m[1].split(";").map((y) => y.trim().split(/ +/)).map(([ad, ...d]) => [ad, d]));
+    expect(yonerge).toEqual(IZINLI_YONERGELER);
   });
 
   it("yerel kapi: MainActivity her istegi ve gezintiyi WebKapi'den geciriyor; cerez yoneticisi kaldirilmis", () => {
-    const m = oku("../android/app/src/main/java/tr/olcumkarti/mobil/MainActivity.java");
+    const m = oku("android/app/src/main/java/tr/olcumkarti/mobil/MainActivity.java");
     const kesit = (ad) => m.slice(m.indexOf(ad), m.indexOf("}", m.indexOf("return super." + ad)));
     for (const ad of ["shouldInterceptRequest", "shouldOverrideUrlLoading"]) {
       expect(m.indexOf("return super." + ad), ad).toBeGreaterThan(0);
       expect(kesit(ad), ad).toContain("if (!WebKapi.INSTANCE.izinli(request.getUrl().toString()))");
     }
-    expect(m).toContain("bridge.setWebViewClient(");
-    expect(m).toContain("CookieHandler.setDefault(null);");
+    // Istemci KOSULSUZ takilir: satir, girintisiyle birlikte, bir deyimin BASINDA durur.
+    expect(m).toMatch(/\n {8}bridge\.setWebViewClient\(new BridgeWebViewClient\(bridge\) \{\n/);
+    expect(m).toMatch(/\n {8}CookieHandler\.setDefault\(null\);\n/);
     expect(m.indexOf("CookieHandler.setDefault(null);")).toBeGreaterThan(m.indexOf("super.onCreate("));
+    // onCreate'te kosul / erken donus yok.
+    expect(yorumsuz(m)).not.toMatch(/\bif \(saved|\breturn;/);
   });
 
   it("Capacitor: disari gezinti izni yok, karisik icerik yok, WebView hata ayiklamasi kapali", () => {
-    const k = JSON.parse(oku("../capacitor.config.json"));
+    const k = JSON.parse(oku("capacitor.config.json"));
     expect(k.server?.allowNavigation ?? []).toEqual([]);
     expect(k.android.allowMixedContent).toBe(false);
     expect(k.android.webContentsDebuggingEnabled).toBe(false);
   });
 
-  it("uretim kodunda WebView'in kendi ag cagrisi yok (fetch/XHR/WebSocket/EventSource yalniz sinama dosyasinda)", () => {
-    for (const yol of ["../src/cekirdek/ag.js", "../src/cekirdek/kesif.js", "../src/cekirdek/hedef.js", "../src/cekirdek/eklenti.js", "../src/ekran/KartBul.vue", "../src/main.js", "../src/App.vue"]) {
-      expect(oku(yol), yol).not.toMatch(/\bfetch\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon/);
+  it("src/ agacinda WebView'in kendi ag cagrisi yok (yalniz sinama dosyasi dener)", () => {
+    expect(JS_KAYNAK.length).toBeGreaterThan(5);
+    expect(JS_KAYNAK).toContain(SINAMA_DOSYASI);
+    const YASAK = /\bfetch\b|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|RTCDataChannel|importScripts|\bWorker\b|\bglobalThis\s*\[|\bwindow\s*\[|\bself\s*\[|\beval\b|new Function/;
+    for (const yol of JS_KAYNAK) {
+      if (yol === SINAMA_DOSYASI) continue;
+      expect(yorumsuz(oku(yol)), yol).not.toMatch(YASAK);
     }
   });
 });
 
 describe("gunluk ve yedek ayarlari", () => {
   it("Capacitor kopru gunlugu kapali (loggingBehavior: none)", () => {
-    expect(JSON.parse(oku("../capacitor.config.json")).loggingBehavior).toBe("none");
+    expect(JSON.parse(oku("capacitor.config.json")).loggingBehavior).toBe("none");
   });
 
   it("yedekleme kapali (A46)", () => {
-    const m = oku("../android/app/src/main/AndroidManifest.xml");
+    const m = oku("android/app/src/main/AndroidManifest.xml");
     expect(m).toContain('android:allowBackup="false"');
     expect(m).not.toContain('android:allowBackup="true"');
   });
 
   it("servis ayri surecte calismaz (S1: sayac dosyasina tek surec yazar)", () => {
-    expect(oku("../android/app/src/main/AndroidManifest.xml")).not.toMatch(/android:process\s*=/);
+    expect(oku("android/app/src/main/AndroidManifest.xml")).not.toMatch(/android:process\s*=/);
   });
 
-  it("uretim kodunda console.* ve Log.* cagrisi yok (gunluk yalniz Gunluk sarmalayicisindan)", () => {
-    for (const yol of ["../src/cekirdek/ag.js", "../src/cekirdek/kesif.js", "../src/cekirdek/hedef.js", "../src/ekran/KartBul.vue"]) {
-      expect(oku(yol), yol).not.toMatch(/console\.(log|info|warn|error|debug)/);
-    }
-    for (const yol of ["ag/KartAgPlugin.kt", "ag/HttpIstek.kt", "ag/Hedef.kt", "kesif/KesifPlugin.kt"]) {
-      expect(oku(`../android/app/src/main/java/tr/olcumkarti/mobil/${yol}`), yol).not.toMatch(/\bLog\.[a-z]\(|println\(/);
-    }
+  it("src/ agacinda console kullanimi yok", () => {
+    for (const yol of JS_KAYNAK) expect(yorumsuz(oku(yol)), yol).not.toMatch(/\bconsole\b/);
+  });
+
+  it("yerel kodda (Kotlin/Java) gunluk ve yigin izi cagrisi yok", () => {
+    expect(YEREL_KAYNAK.length).toBeGreaterThan(5);
+    const YASAK = /\bLog\s*\.\s*\w+\s*\(|\bLogger\b|printStackTrace|\bprintln\s*\(|System\s*\.\s*(out|err)|\bTimber\b/;
+    for (const yol of YEREL_KAYNAK) expect(yorumsuz(oku(yol)), yol).not.toMatch(YASAK);
   });
 });

@@ -65,6 +65,10 @@ describe("agKur / kartFetch", () => {
     expect(await turu(ag.kartFetch("http://a" + String.fromCharCode(64) + "192.168.1.5/x"))).toBe("bicim");
     expect(await turu(ag.kartFetch("http://0xC0A80101/x"))).toBe("bicim");
     expect(await turu(ag.kartFetch("http://192.168.1.5/a b"))).toBe("bicim");
+    // Yol yalniz yazdirilabilir ASCII: sekme, satir sonu, kontrol karakteri, ASCII disi harf ret.
+    for (const kotu of ["\t", "\r\nHost: x", "\u0000", "ş", " "]) {
+      expect(await turu(ag.kartFetch(`http://192.168.1.5/a${kotu}b`)), JSON.stringify(kotu)).toBe("bicim");
+    }
     expect(await turu(ag.kartFetch(null))).toBe("bicim");
     expect(await turu(ag.kartFetch(`${kart.taban}/x`, { method: "DELETE" }))).toBe("bicim");
     expect(kopru.cagrilar.length).toBe(once);

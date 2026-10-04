@@ -90,6 +90,8 @@ async function ana() {
   const neden = secenek("--neden");
   let liste = (await import(pathToFileURL(listeYolu).href)).default;
   if (neden) liste = liste.filter((m) => m.ad.startsWith(neden));
+  // Bos liste (ornegin yanlis yazilmis --neden) 'hepsi oldu' gibi gorunmesin.
+  if (liste.length === 0) { console.log('UYGULANAMADI: suzgece uyan mutasyon yok'); process.exit(1); }
   let kotu = 0;
   for (const m of liste) {
     const r = biriniKos(m);

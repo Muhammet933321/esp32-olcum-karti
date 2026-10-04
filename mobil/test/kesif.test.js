@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import http from "node:http";
 import { agKur } from "../src/cekirdek/ag.js";
 import { HedefHatasi } from "../src/cekirdek/hedef.js";
-import { kesifKur, KesifHatasi, yerelOnbellek } from "../src/cekirdek/kesif.js";
+import { kesifKur, KesifHatasi, NSD_AZAMI_ADAY, yerelOnbellek } from "../src/cekirdek/kesif.js";
 import { sahteKartAc } from "./sahte-kart/sunucu.mjs";
 import { kopruSahtesi } from "./yardim/kopru_sahtesi.mjs";
 
@@ -132,7 +132,7 @@ describe("kesif", () => {
     expect(s).toMatchObject({ adres: adres(k), kaynak: "ap" });
   });
 
-  it("NSD: bulunan servis aday olur, TXT kimligi doner; yanlis TXT kimligi istek ATILMADAN elenir", async () => {
+  it("NSD: bulunan servis aday olur, TXT kimligi doner; kimligi uyan duyuru ONCE yoklanir; herkese acik adres aday olmaz", async () => {
     const k = await kart({ kimlik: K1 });
     const baska = await kart({ kimlik: K2 });
     const eklenti = { nsdTara: async () => ({ servisler: [
@@ -143,9 +143,11 @@ describe("kesif", () => {
     ] }) };
     const s = await kur({ eklenti }).bul({ beklenenKimlik: K1 });
     expect(s).toMatchObject({ adres: adres(k), kaynak: "nsd", txtKimlik: K1, kimlik: K1 });
-    expect(kopru.cagrilar.map((c) => new URL(c.url).host)).toEqual([adres(k)]);
-    // Herkese acik adres aday bile olmaz: denenenler listesinde de gorunmez.
-    expect(s.denenenler.map((d) => d.adres)).toEqual([adres(k)]);
+    // TXT kimligi yalniz SIRALAR (uyan once); uymayan elenmez — ama herkese acik adres aday bile olmaz.
+    const yoklanan = kopru.cagrilar.map((c) => new URL(c.url).host);
+    expect(yoklanan[0]).toBe(adres(k));
+    expect([...yoklanan].sort()).toEqual([adres(k), adres(baska)].sort());
+    expect(s.denenenler.some((d) => d.adres.startsWith("8.8.8.8"))).toBe(false);
   });
 
   it("NSD eklentisi yok / hata atiyor / sacma donuyor -> akis degismez", async () => {
@@ -163,6 +165,34 @@ describe("kesif", () => {
     const h = await kur({ onbellek: ob, sabitAdaylar: [{ adres: adres(k), kaynak: "ap" }] }).bul({ beklenenKimlik: K2 }).catch((e) => e);
     expect(h.tur).toBe("kimlik-uymuyor");
     expect(kopru.cagrilar.length).toBe(1);
+  });
+
+  it("eklentinin soyledigi baglanti adresi hedef kuralindan gecmezse KULLANILMAZ (sonuc ve onbellek adayin adresi)", async () => {
+    const k = await kart({ kimlik: K1 });
+    const ob = bellekOnbellek();
+    for (const sahteAdres of ["8.8.8.8:80", "evil.example", 42, "192.168.1.5/x"]) {
+      const kartFetch = async (url, s) => { const y = await ag.kartFetch(url, s); return { ...y, adres: sahteAdres }; };
+      const s = await kesifKur({ kartFetch, yerelDongu: true, zamanAsimiMs: 500, onbellek: ob, sabitAdaylar: [{ adres: adres(k), kaynak: "ap" }] }).bul();
+      expect(s.adres, String(sahteAdres)).toBe(adres(k));
+      expect(ob.yazilan.at(-1).adres).toBe(adres(k));
+    }
+  });
+
+  it("elle adres beklenirken gelen uygun adaylardan ILK yanit veren yedek olur", async () => {
+    const sessiz = await hamSunucu(() => {});
+    acik.push(sessiz.kapat);
+    const hizli = await kart({ kimlik: K1 });
+    const yavas = await kart({ kimlik: K2 });
+    yavas.ayarla({ gecikmeMs: 200 });
+    const s = await kur({ sabitAdaylar: [{ adres: adres(yavas), kaynak: "ad" }, { adres: adres(hizli), kaynak: "ap" }] }).bul({ elle: sessiz.adres });
+    expect(s).toMatchObject({ adres: adres(hizli), kimlik: K1 });
+  });
+
+  it("NSD seli: yoklanan duyuru sayisi sinirli (NSD_AZAMI_ADAY)", async () => {
+    const servisler = Array.from({ length: 40 }, (_, i) => ({ ad: "olcum", ip: "127.0.0.1", port: 20000 + i }));
+    const h = await kur({ eklenti: { nsdTara: async () => ({ servisler }) } }).bul().catch((e) => e);
+    expect(h.tur).toBe("bulunamadi");
+    expect(kopru.cagrilar.length).toBe(NSD_AZAMI_ADAY);
   });
 
   it("yerelOnbellek: bozuk kayit = yok; yaz/oku", () => {

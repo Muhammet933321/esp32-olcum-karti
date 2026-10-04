@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { SOZLUK } from "@ortak/sozluk.js";
 import { SOZLUK_MOBIL, ceviriMobil } from "../src/cekirdek/sozluk_mobil.js";
+import { gomuluMetinler } from "./yardim/gomulu_metin.mjs";
 
 const SRC = fileURLToPath(new URL("../src", import.meta.url));
 
@@ -20,21 +21,6 @@ function dosyalar(dizin, son) {
 
 const yerTutucular = (s) => [...s.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]).sort().join(",");
 
-// <template> blogundaki duz metin dugumleri ve cevrilmesi gereken duz ozellikler.
-export function gomuluMetinler(vue) {
-  const m = /<template>([\s\S]*)<\/template>/.exec(vue);
-  if (!m) return [];
-  const sablon = m[1].replace(/<!--[\s\S]*?-->/g, "");
-  const bulunan = [];
-  for (const d of sablon.matchAll(/>([^<]+)</g)) {
-    const metin = d[1].replace(/\{\{[\s\S]*?\}\}/g, "").trim();
-    if (/\p{L}/u.test(metin)) bulunan.push(metin);
-  }
-  for (const o of sablon.matchAll(/\s(aria-label|title|placeholder|label|alt)="([^"]*)"/g)) {
-    if (/\p{L}/u.test(o[2])) bulunan.push(`${o[1]}="${o[2]}"`);
-  }
-  return bulunan;
-}
 
 describe("sozluk_mobil", () => {
   const anahtarlar = Object.keys(SOZLUK_MOBIL);
@@ -74,7 +60,16 @@ describe("ekrana gomulu metin yok", () => {
   it("ayiklayici gomulu metni ve duz ozelligi yakalar (kendi sinamasi)", () => {
     expect(gomuluMetinler("<template><p>Merhaba</p></template>")).toEqual(["Merhaba"]);
     expect(gomuluMetinler('<template><b aria-label="Dur"/></template>')).toEqual(['aria-label="Dur"']);
-    expect(gomuluMetinler('<template><p :title="c(\'m.x\')">{{ c("m.x") }} · 12</p></template>')).toEqual([]);
+    expect(gomuluMetinler('<template><p :title="c(\'m.x.y\')">{{ c("m.x.y") }} · 12</p></template>')).toEqual([]);
+    expect(gomuluMetinler("<template><b title='Dur'/></template>")).toEqual(['title="Dur"']);
+    // Curutucu 5A-7 (S1–S5): bagli ozellik, v-text, {{ }} icindeki sabit ve betikteki cumle de yakalanir.
+    expect(gomuluMetinler(`<template><b :helper-text="'Adres gir'"/></template>`).length).toBe(1);
+    expect(gomuluMetinler(`<template><b v-text="'Bulundu!'"/></template>`).length).toBe(1);
+    expect(gomuluMetinler('<template><p>{{ x + " (deneme sürümü)" }}</p></template>').length).toBe(1);
+    expect(gomuluMetinler('<script setup>\nhata.value = c("m.x.y") + " — tekrar deneyin";\n</script>').length).toBe(1);
+    // Karsilastirma belirteci, sozluk anahtari, boyut adi ve import yolu metin DEGILDIR.
+    expect(gomuluMetinler(`<template><b v-if="s.kaynak === 'nsd'" :size="'large'" :key="a + b"/></template>`)).toEqual([]);
+    expect(gomuluMetinler('<script setup>\nimport { x } from "../cekirdek/ag.js";\nconst T = { "kimlik-uymuyor": "m.kb.hata_kimlik" };\n</script>')).toEqual([]);
   });
 
   it("src/**/*.vue sablonlarinda harf iceren duz metin yok", () => {

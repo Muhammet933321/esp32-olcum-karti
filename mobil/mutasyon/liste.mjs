@@ -2,7 +2,10 @@
 //   ad    : "<dilim>: ne bozuluyor"  (--neden ONEK ile suzulur)
 //   dosya : mobil/'e gore; bul: kaynakta TAM BIR KEZ gecen dizgi; koy: yerine konan
 //   test  : vitest dosyasi (mobil/'e gore) ya da { komut: [...] }
+import curutucu from "../test/curutucu/yasayan-liste.mjs";
+
 export default [
+  ...curutucu.map((m) => ({ ...m, ad: `5A-7 ${m.ad}` })),
   {
     ad: "5A-2: sozlukte EN metni bos",
     dosya: "src/cekirdek/sozluk_mobil.js",
@@ -19,9 +22,9 @@ export default [
   },
   {
     ad: "5A-2: gomulu metin ayiklayicisi duz ozellige bakmiyor",
-    dosya: "test/sozluk.test.js",
-    bul: "u.test(o[2])) bulunan.push",
-    koy: "u.test(o[2]) && false) bulunan.push",
+    dosya: "test/yardim/gomulu_metin.mjs",
+    bul: "if (HARF.test(deger)) bulunan.push(",
+    koy: "if (false) bulunan.push(",
     test: "test/sozluk.test.js",
   },
   {
@@ -127,13 +130,6 @@ export default [
     dosya: "src/cekirdek/kesif.js",
     bul: "try { adres = hedefYazi(hedefAyir(`${s.ip}:${s.port}`, { yerelDongu })); } catch { continue; }",
     koy: "adres = `${s.ip}:${s.port}`;",
-    test: "test/kesif.test.js",
-  },
-  {
-    ad: "5A-5: yanlis TXT kimligi elenmiyor (bos istek)",
-    dosya: "src/cekirdek/kesif.js",
-    bul: "if (beklenenKimlik && txtKimlik && txtKimlik !== beklenenKimlik) continue;",
-    koy: "",
     test: "test/kesif.test.js",
   },
   {
@@ -246,6 +242,76 @@ export default [
     dosya: "src/cekirdek/kesif.js",
     bul: "    const t0 = simdi();",
     koy: '    const t0 = simdi(); fetch("http://example.com/").catch(() => {});',
+    test: "test/gizlilik.test.js",
+  },
+  {
+    ad: "5A-7: kartFetch'in kendi suresi yok (eklenti donmezse asili kalir)",
+    dosya: "src/cekirdek/ag.js",
+    bul: "sonuc = await sureli(eklenti.istek(istek), istek.zamanAsimiMs + SURE_PAYI_MS);",
+    koy: "sonuc = await eklenti.istek(istek);",
+    test: "test/curutucu/ag.curutucu.test.js",
+  },
+  {
+    ad: "5A-7: bozuk yanit govdesi ham istisna olarak cikiyor",
+    dosya: "src/cekirdek/ag.js",
+    bul: '      throw new KartAgHatasi("ic-hata");       // bozuk base64 vb.: ham istisna disari cikmaz',
+    koy: "      throw new Error(\"x\");",
+    test: "test/curutucu/ag.curutucu.test.js",
+  },
+  {
+    ad: "5A-7: URL'de ad cevresinde bosluk kabul",
+    dosya: "src/cekirdek/ag.js",
+    bul: "if (!m || /[^\\x21-\\x7e]/.test(m[1])) throw",
+    koy: "if (!m) throw",
+    test: "test/curutucu/ag.curutucu.test.js",
+  },
+  {
+    ad: "5A-7: NSD taramasinin suresi yok (tarama donmezse kesif asili)",
+    dosya: "src/cekirdek/kesif.js",
+    bul: "(await sureli(eklenti.nsdTara({ sureMs: nsdSureMs }), nsdSureMs + NSD_PAYI_MS))",
+    koy: "(await eklenti.nsdTara({ sureMs: nsdSureMs }))",
+    test: "test/curutucu/kesif.curutucu.test.js",
+  },
+  {
+    ad: "5A-7: yoklamanin kendi suresi yok (aday donmezse kesif asili)",
+    dosya: "src/cekirdek/kesif.js",
+    bul: "sureli(yokla(aday), zamanAsimiMs + TOPLAM_PAYI_MS).catch(() => ({ ...aday, sonuc: \"zaman-asimi\" })).then((s) => {",
+    koy: "yokla(aday).then((s) => {",
+    test: "test/curutucu/kesif.curutucu.test.js",
+  },
+  {
+    ad: "5A-7: TXT kimligi uymayan duyuru eleniyor (kart gizlenebilir)",
+    dosya: "src/cekirdek/kesif.js",
+    bul: "      const onceki = adaylar.get(adres);",
+    koy: "      if (beklenenKimlik && txtKimlik && txtKimlik !== beklenenKimlik) continue; const onceki = adaylar.get(adres);",
+    test: "test/curutucu/kesif.curutucu.test.js",
+  },
+  {
+    ad: "5A-7: kimligi uyan duyuru one alinmiyor",
+    dosya: "src/cekirdek/kesif.js",
+    bul: "return [...adaylar.values()].sort((a, b) => puan(a) - puan(b))",
+    koy: "return [...adaylar.values()]",
+    test: "test/curutucu/kesif.curutucu.test.js",
+  },
+  {
+    ad: "5A-7: CSP'de webrtc yasagi yok",
+    dosya: "index.html",
+    bul: "; webrtc 'block'",
+    koy: "",
+    test: "test/gizlilik.test.js",
+  },
+  {
+    ad: "5A-7: CSP'ye fazladan yonerge (worker-src) eklendi",
+    dosya: "index.html",
+    bul: "; webrtc 'block'",
+    koy: "; webrtc 'block'; worker-src blob: data:",
+    test: "test/gizlilik.test.js",
+  },
+  {
+    ad: "5A-7: CSP meta etiketi tumuyle silindi",
+    dosya: "index.html",
+    bul: 'http-equiv="Content-Security-Policy"',
+    koy: 'http-equiv="X-Yok"',
     test: "test/gizlilik.test.js",
   },
 ];

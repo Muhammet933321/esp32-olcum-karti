@@ -16,7 +16,10 @@ import java.net.HttpURLConnection
 import java.net.Inet4Address
 import java.net.Proxy
 import java.net.URL
-import java.util.concurrent.Executors
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 /**
  * Karta giden TEK ag yolu (tasarim §2.1, A3–A5). WebView kendi basina aga cikmaz (CSP).
@@ -26,44 +29,36 @@ import java.util.concurrent.Executors
  */
 @CapacitorPlugin(name = "KartAg")
 class KartAgPlugin : Plugin() {
-    private val havuz = Executors.newCachedThreadPool()
+    // Sinirli havuz: asili istekler is parcacigi biriktiremez; kuyruk dolarsa istek "mesgul" ile reddedilir.
+    private val havuz = ThreadPoolExecutor(2, 8, 30, TimeUnit.SECONDS, ArrayBlockingQueue(32))
 
     private fun wifiAgi(): Network? {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         @Suppress("DEPRECATION")
         for (ag in cm.allNetworks) {
             val y = cm.getNetworkCapabilities(ag) ?: continue
-            if (y.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return ag
+            // Wi-Fi ustundeki VPN agi da WIFI tasimasini bildirir: o ag secilirse ozel adrese giden
+            // istek tunele girer. Yalniz VPN OLMAYAN Wi-Fi agi.
+            if (y.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) && y.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)) return ag
         }
         return null
     }
 
-    /** Dogrulanmis baglanti kurucu + IP'ye cevrilmis URL. */
+    /** Dogrulanmis baglanti kurucu + IP'ye cevrilmis URL (kural: HedefCoz, JVM'de sinanir). */
     private fun hazirla(url: String): Pair<String, (URL) -> HttpURLConnection> {
-        val u = try { URL(url) } catch (e: Exception) { throw AgHatasi("bicim") }
-        if (u.protocol != "http" || u.userInfo != null) throw AgHatasi("bicim")
-        val port = if (u.port < 0) Hedef.VARSAYILAN_PORT else u.port
-        val h = try {
-            Hedef.ayir("${u.host}:$port", BuildConfig.DEBUG)
-        } catch (e: Hedef.Hata) {
-            throw AgHatasi(e.tur)
-        }
-        // Yerel dongu (yalniz hata ayiklama derlemesi, adb reverse): Wi-Fi'ye baglanmaz.
-        if (h.ad == "127.0.0.1") {
-            return Pair(url) { x -> x.openConnection(Proxy.NO_PROXY) as HttpURLConnection }
-        }
-        val ag = wifiAgi() ?: throw AgHatasi("wifi-yok")
-        var ip = h.ad
-        if (h.ad == Hedef.KART_ADI) {
-            val adresler = try { ag.getAllByName(h.ad) } catch (e: Exception) { throw AgHatasi("ad-cozulmedi") }
-            ip = adresler.filterIsInstance<Inet4Address>().mapNotNull { it.hostAddress }
-                .firstOrNull { Hedef.ozelAdres(it) } ?: throw AgHatasi("ozel-degil")
+        var ag: Network? = null
+        val c = HedefCoz.coz(url, BuildConfig.DEBUG) { ad ->
+            val a = wifiAgi() ?: throw AgHatasi("wifi-yok")
+            ag = a
+            a.getAllByName(ad).filterIsInstance<Inet4Address>().mapNotNull { it.hostAddress }
         }
         // Ag guvenligi ayari bu adrese sifresiz HTTP'ye izin vermiyorsa bunu ACIKCA soyle (aksi halde
         // genel bir baglanti hatasi gibi gorunur).
-        if (!NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted(ip)) throw AgHatasi("cleartext")
-        val dosya = u.file ?: ""
-        return Pair("http://$ip:${h.port}$dosya") { x -> ag.openConnection(x, Proxy.NO_PROXY) as HttpURLConnection }
+        if (!NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted(c.ip)) throw AgHatasi("cleartext")
+        // Yerel dongu (yalniz hata ayiklama derlemesi, adb reverse): Wi-Fi'ye baglanmaz.
+        if (c.yerelDongu) return Pair(c.url) { x -> x.openConnection(Proxy.NO_PROXY) as HttpURLConnection }
+        val wifi = ag ?: wifiAgi() ?: throw AgHatasi("wifi-yok")
+        return Pair(c.url) { x -> wifi.openConnection(x, Proxy.NO_PROXY) as HttpURLConnection }
     }
 
     @PluginMethod
@@ -76,7 +71,7 @@ class KartAgPlugin : Plugin() {
         call.getObject("basliklar")?.let { o -> for (ad in o.keys()) basliklar[ad] = o.getString(ad) ?: "" }
         val govde64 = call.getString("govde")
         if (url == null) { call.reject("bicim", "bicim"); return }
-        havuz.execute {
+        val is_ = Runnable {
             try {
                 val govde = govde64?.let { Base64.decode(it, Base64.NO_WRAP) }
                 val (hedefUrl, ac) = hazirla(url)
@@ -95,6 +90,7 @@ class KartAgPlugin : Plugin() {
                 call.reject("ic-hata", "ic-hata")
             }
         }
+        try { havuz.execute(is_) } catch (e: RejectedExecutionException) { call.reject("mesgul", "mesgul") }
     }
 
     @PluginMethod

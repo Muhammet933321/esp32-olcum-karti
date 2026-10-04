@@ -56,8 +56,10 @@ class KesifPlugin : Plugin() {
                         o.put("ad", info.serviceName)
                         o.put("ip", ip)
                         o.put("port", info.port)
-                        info.attributes["kimlik"]?.let { o.put("kimlik", String(it, Charsets.US_ASCII)) }
-                        synchronized(kilit) { bulunan["$ip:${info.port}"] = o }
+                        val kimlik = info.attributes["kimlik"]?.let { String(it, Charsets.US_ASCII) }
+                        if (kimlik != null) o.put("kimlik", kimlik)
+                        // Anahtar kimligi de icerir: ayni adresi baska kimlikle duyuran, gercek kaydi EZEMEZ.
+                        synchronized(kilit) { if (bulunan.size < AZAMI_KAYIT) bulunan["$ip:${info.port}:$kimlik"] = o }
                     }
                     synchronized(kilit) { cozuluyor = false }
                     sonrakiniCoz()
@@ -73,7 +75,7 @@ class KesifPlugin : Plugin() {
             override fun onServiceLost(info: NsdServiceInfo) {}
             override fun onServiceFound(info: NsdServiceInfo) {
                 if (!info.serviceName.lowercase().startsWith(SERVIS_ADI)) return
-                synchronized(kilit) { if (kuyruk.size < 8) kuyruk.addLast(info) }
+                synchronized(kilit) { if (kuyruk.size < AZAMI_KAYIT) kuyruk.addLast(info) }
                 sonrakiniCoz()
             }
         }
@@ -98,5 +100,6 @@ class KesifPlugin : Plugin() {
     companion object {
         const val SERVIS_TURU = "_http._tcp."
         const val SERVIS_ADI = "olcum"
+        const val AZAMI_KAYIT = 64      // kesif.js NSD_AZAMI_KAYIT ile ayni; siralama ve aday siniri orada
     }
 }

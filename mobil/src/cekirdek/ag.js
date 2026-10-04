@@ -12,8 +12,21 @@ import { hedefAyir, HedefHatasi } from "./hedef.js";
 
 export const HATA_TURLERI = Object.freeze([
   "bicim", "ozel-degil", "ad-izinsiz", "ad-cozulmedi", "wifi-yok", "zaman-asimi", "baglanti",
-  "cleartext", "govde-buyuk", "ic-hata",
+  "cleartext", "govde-buyuk", "mesgul", "ic-hata",
 ]);
+
+export const SURE_PAYI_MS = 500;
+
+// soz'u ms ile yaristirir; sure dolarsa KartAgHatasi("zaman-asimi").
+export function sureli(soz, ms) {
+  return new Promise((coz, reddet) => {
+    const t = setTimeout(() => reddet(new KartAgHatasi("zaman-asimi")), ms);
+    Promise.resolve(soz).then(
+      (v) => { clearTimeout(t); coz(v); },
+      (e) => { clearTimeout(t); reddet(e); },
+    );
+  });
+}
 
 export class KartAgHatasi extends Error {
   constructor(tur) {
@@ -48,7 +61,9 @@ function govdeBayt(govde) {
 // sessizce normallestirir; kural ham yazima uygulanmali (Kotlin tarafi da oyle yapar).
 export function urlDenetle(url, { yerelDongu = false } = {}) {
   const m = typeof url === "string" ? /^http:\/\/([^/?#]*)(\/[\x21-\x7e]*)?$/.exec(url) : null;
-  if (!m) throw new KartAgHatasi("bicim");
+  // Ad kisminda bosluk: hedefAyir kullanici girdisini kirpar, ama bir URL'nin icinde bosluk yazim
+  // hatasidir (Kotlin tarafi da reddeder).
+  if (!m || /[^\x21-\x7e]/.test(m[1])) throw new KartAgHatasi("bicim");
   try {
     return hedefAyir(m[1], { yerelDongu });
   } catch (e) {
@@ -90,13 +105,19 @@ export function agKur(eklenti, { yerelDongu = false, zamanAsimiMs = 5000, azamiG
     if (govde) istek.govde = base64Kodla(govde);
     let sonuc;
     try {
-      sonuc = await eklenti.istek(istek);
+      // Sure eklentiye EMANET edilmez: eklenti hic donmezse de cagiran asili kalmaz.
+      sonuc = await sureli(eklenti.istek(istek), istek.zamanAsimiMs + SURE_PAYI_MS);
     } catch (e) {
+      if (e instanceof KartAgHatasi) throw e;
       const tur = e && typeof e.code === "string" && HATA_TURLERI.includes(e.code) ? e.code : "ic-hata";
       throw new KartAgHatasi(tur);
     }
     if (!sonuc || !Number.isInteger(sonuc.kod)) throw new KartAgHatasi("ic-hata");
-    return yanitKur(sonuc);
+    try {
+      return yanitKur(sonuc);
+    } catch {
+      throw new KartAgHatasi("ic-hata");       // bozuk base64 vb.: ham istisna disari cikmaz
+    }
   }
 
   return { kartFetch };

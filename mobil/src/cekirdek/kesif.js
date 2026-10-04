@@ -8,6 +8,7 @@
 // kaynak: "elle" | "onbellek" | "ad" | "nsd" | "ap".   tur: "bulunamadi" | "kimlik-uymuyor".
 // Elle girilen adres hedef kuralindan gecmezse HedefHatasi (istek ATILMAZ).
 
+import { sureli } from "./ag.js";
 import { hedefAyir, hedefYazi } from "./hedef.js";
 
 export const KIMLIK_DESENI = /^[0-9a-f]{16}$/;
@@ -16,6 +17,10 @@ export const SABIT_ADAYLAR = Object.freeze([
   Object.freeze({ adres: "192.168.4.1", kaynak: "ap" }),       // kartin kendi erisim noktasi
 ]);
 const AZAMI_BILGI = 4096;
+export const NSD_AZAMI_KAYIT = 64;       // eklentiden okunan duyuru (sel korumasi)
+export const NSD_AZAMI_ADAY = 8;         // siralamadan SONRA yoklanan aday
+const NSD_PAYI_MS = 1000;
+const TOPLAM_PAYI_MS = 700;           // kartFetch'in kendi payindan (500) buyuk olmali
 
 export class KesifHatasi extends Error {
   constructor(tur, denenenler) {
@@ -57,19 +62,24 @@ export function kesifKur({
   async function nsdAdaylari(beklenenKimlik) {
     if (!eklenti || typeof eklenti.nsdTara !== "function") return [];
     let bulunan;
-    try { bulunan = (await eklenti.nsdTara({ sureMs: nsdSureMs }))?.servisler; } catch { return []; }
+    // Tarama eklentide hic donmezse de kesif asili kalmaz.
+    try { bulunan = (await sureli(eklenti.nsdTara({ sureMs: nsdSureMs }), nsdSureMs + NSD_PAYI_MS))?.servisler; } catch { return []; }
     if (!Array.isArray(bulunan)) return [];
-    const cikti = [];
-    for (const s of bulunan.slice(0, 8)) {
+    const adaylar = new Map();                            // adres -> aday (ayni adres bir kez)
+    for (const s of bulunan.slice(0, NSD_AZAMI_KAYIT)) {
       if (!s || typeof s.ip !== "string" || !Number.isInteger(s.port)) continue;
       let adres;
       try { adres = hedefYazi(hedefAyir(`${s.ip}:${s.port}`, { yerelDongu })); } catch { continue; }
       const txtKimlik = typeof s.kimlik === "string" && KIMLIK_DESENI.test(s.kimlik) ? s.kimlik : null;
-      // TXT'deki kimlik yalnizca ELEME icindir (bos istek atmamak); dogrulama yine /eslestir/bilgi.
-      if (beklenenKimlik && txtKimlik && txtKimlik !== beklenenKimlik) continue;
-      cikti.push({ adres, kaynak: "nsd", txtKimlik });
+      const onceki = adaylar.get(adres);
+      // Ayni adres icin kimligi uyan duyuru, uymayani ezer (tersi olmaz).
+      if (!onceki || (beklenenKimlik && txtKimlik === beklenenKimlik)) adaylar.set(adres, { adres, kaynak: "nsd", txtKimlik });
     }
-    return cikti;
+    // TXT kimligi DOGRULANMAMIS bir ipucudur: uymayan duyuru ELENMEZ (saldirgan gercek kartin adresini
+    // yanlis kimlikle duyurup karti gizleyebilirdi — curutucu 5A-7, K4). Yalnizca SIRALAMADA kullanilir:
+    // kimligi uyanlar once, sonra kimliksizler, en sonda uymayanlar; yoklanan aday sayisi sinirlidir.
+    const puan = (a) => (!beklenenKimlik || a.txtKimlik === beklenenKimlik ? 0 : a.txtKimlik === null ? 1 : 2);
+    return [...adaylar.values()].sort((a, b) => puan(a) - puan(b)).slice(0, NSD_AZAMI_ADAY);
   }
 
   function sabitler({ elle }) {
@@ -100,8 +110,12 @@ export function kesifKur({
         if (gorulen.has(aday.adres)) return;
         gorulen.add(aday.adres);
         bekleyen++;
-        yokla(aday).then((s) => {
-          denenenler.push({ adres: s.adres, kaynak: s.kaynak, sonuc: s.sonuc, kimlik: s.kimlik ?? null });
+        // Yoklamanin kendi suresi (kartFetch'inkine ek): hicbir aday yarisi asili birakamaz.
+        sureli(yokla(aday), zamanAsimiMs + TOPLAM_PAYI_MS).catch(() => ({ ...aday, sonuc: "zaman-asimi" })).then((s) => {
+          // Ayni karta iki yoldan (ad + IP) varildiysa listede bir kez gorunur.
+          if (!(s.sonuc === "tamam" && denenenler.some((d) => d.sonuc === "tamam" && d.adres === s.adres))) {
+            denenenler.push({ adres: s.adres, kaynak: s.kaynak, sonuc: s.sonuc, kimlik: s.kimlik ?? null });
+          }
           if (s.kaynak === "elle") {
             elleBekliyor = false;
             if (uygun(s)) kapat(s); else if (yedek) kapat(yedek);

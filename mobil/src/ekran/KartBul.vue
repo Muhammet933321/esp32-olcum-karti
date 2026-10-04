@@ -28,6 +28,15 @@ async function webSina() {
   try { webSonuc.value = await webSinama(); } finally { webSuruyor.value = false; }
 }
 
+const SONUC = {
+  tamam: "m.sonuc.tamam", "zaman-asimi": "m.sonuc.zaman_asimi", baglanti: "m.sonuc.baglanti", cleartext: "m.sonuc.cleartext",
+  "yanit-gecersiz": "m.sonuc.yanit_gecersiz", "govde-buyuk": "m.sonuc.govde_buyuk", "wifi-yok": "m.sonuc.wifi_yok",
+  "ozel-degil": "m.sonuc.ozel_degil", "ad-cozulmedi": "m.sonuc.ad_cozulmedi", mesgul: "m.sonuc.mesgul",
+};
+const sonucYazi = (tur) => c(SONUC[tur] || "m.sonuc.ic_hata");
+const WEB = { engellendi: "m.ws.engellendi", "bos-yuklendi": "m.ws.bos", GECTI: "m.ws.gecti" };
+const webYazi = (tur) => c(WEB[tur] || "m.ws.gecti");
+
 const KAYNAK = { elle: "m.kb.kaynak_elle", onbellek: "m.kb.kaynak_onbellek", ad: "m.kb.kaynak_ad", nsd: "m.kb.kaynak_nsd", ap: "m.kb.kaynak_ap" };
 const HATA = {
   bulunamadi: "m.kb.hata_bulunamadi", "kimlik-uymuyor": "m.kb.hata_kimlik", bicim: "m.kb.hata_bicim",
@@ -46,12 +55,13 @@ async function ara() {
     const yerelDongu = durum.hataAyiklama === true;
     const ag = agKur(KartAg, { yerelDongu });
     const kesif = kesifKur({ kartFetch: ag.kartFetch, eklenti: Kesif, onbellek: yerelOnbellek(localStorage), yerelDongu });
-    // Duyuru taramasi sonuctan bagimsiz gosterilir: yarisi baska bir aday kazansa da TXT kimligi gorunsun.
-    const tarama = Kesif.nsdTara({ sureMs: 1500 }).then((t) => t.servisler || [], () => []);
     const s = await kesif.bul({ elle: elle.value });
     sonuc.value = s;
     denenenler.value = s.denenenler;
-    duyurular.value = (await tarama).map((d) => ({ adres: `${d.ip}:${d.port}`, uyuyor: d.kimlik === s.kimlik }));
+    // Duyurular ayrica gosterilir (yarisi baska bir aday kazansa da TXT kimligi gorunsun). Kesfin kendi
+    // taramasi bittikten SONRA: iki es zamanli tarama eski surumlerde birbirinin cozumlemesini dusurur.
+    const tarama = await Kesif.nsdTara({ sureMs: 1500 }).then((t) => t.servisler || [], () => []);
+    duyurular.value = tarama.map((d) => ({ adres: `${d.ip}:${d.port}`, uyuyor: d.kimlik === s.kimlik }));
   } catch (e) {
     if (e instanceof KesifHatasi) denenenler.value = e.denenenler;
     const tur = e instanceof KesifHatasi || e instanceof HedefHatasi ? e.tur : "";
@@ -98,7 +108,7 @@ async function ara() {
       <ion-list id="denenenler">
         <ion-item v-for="d in denenenler" :key="d.adres + d.kaynak">
           <ion-label>{{ d.adres }}</ion-label>
-          <ion-note slot="end">{{ c(KAYNAK[d.kaynak]) }} · {{ d.sonuc }}</ion-note>
+          <ion-note slot="end">{{ c(KAYNAK[d.kaynak]) }} · {{ sonucYazi(d.sonuc) }}</ion-note>
         </ion-item>
       </ion-list>
 
@@ -108,7 +118,7 @@ async function ara() {
       <ion-list id="websonuc">
         <ion-item v-for="w in webSonuc" :key="w.yol + w.adres">
           <ion-label>{{ w.yol }} · {{ w.adres }}</ion-label>
-          <ion-note slot="end">{{ w.sonuc }}</ion-note>
+          <ion-note slot="end">{{ webYazi(w.sonuc) }}</ion-note>
         </ion-item>
       </ion-list>
     </ion-content>

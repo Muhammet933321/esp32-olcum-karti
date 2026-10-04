@@ -99,6 +99,16 @@ class HttpIstekTest {
                     c.write("HTTP/1.1 200 X\r\nConnection: close\r\n\r\n".toByteArray())
                     repeat(40) { c.write(1); c.flush(); Thread.sleep(100) }
                 }
+                "/baslik-damla" -> {
+                    // Baslik baytlarini damlatir: soket okuma suresi her baytta sifirlanir.
+                    val damla = "HTTP/1.1 200 X\r\nX-Dolgu: ${"a".repeat(60)}\r\n\r\n".toByteArray()
+                    try { for (x in damla) { c.write(x.toInt()); c.flush(); Thread.sleep(100) } } catch (_: Exception) {}
+                }
+                "/gec" -> {
+                    c.write("HTTP/1.1 200 X\r\nConnection: close\r\n\r\n".toByteArray()); c.flush()
+                    try { repeat(20) { Thread.sleep(450); c.write(1); c.flush() } } catch (_: Exception) {}
+                }
+                "/arac" -> c.yanit(200, mapOf("X-Arac" to (bas["user-agent"] ?: "yok")))
                 "/yonlendir" -> c.yanit(302, mapOf("Location" to "$taban/hedef"))
                 "/hedef" -> { hedefeVaran.incrementAndGet(); c.yanit(200) }
                 else -> c.yanit(404)
@@ -155,6 +165,28 @@ class HttpIstekTest {
         val t0 = System.nanoTime()
         assertEquals("zaman-asimi", tur { istek.yap("GET", "$taban/damla", emptyMap(), null, 500) })
         assertTrue((System.nanoTime() - t0) / 1_000_000 < 1500)
+    }
+
+    @Test
+    fun baslikDamlatanSunucuToplamSureyleKesilir() {
+        val t0 = System.nanoTime()
+        assertEquals("zaman-asimi", tur { istek.yap("GET", "$taban/baslik-damla", emptyMap(), null, 300) })
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        assertTrue("300 ms sinirli istek $ms ms surdu", ms < 900)
+    }
+
+    @Test
+    fun govdeArasindaBekleyenSunucuSurePayiIcindeKesilir() {
+        val t0 = System.nanoTime()
+        assertEquals("zaman-asimi", tur { istek.yap("GET", "$taban/gec", emptyMap(), null, 500) })
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        assertTrue("500 ms sinirli istek $ms ms surdu", ms < 800)
+    }
+
+    @Test
+    fun kullaniciAraciSabit_cagiranDegistiremez() {
+        assertEquals("olcum-mobil", istek.yap("GET", "$taban/arac", emptyMap(), null, 2000).basliklar["x-arac"])
+        assertEquals("olcum-mobil", istek.yap("GET", "$taban/arac", mapOf("user-agent" to "Xiaomi"), null, 2000).basliklar["x-arac"])
     }
 
     @Test

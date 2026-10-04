@@ -1,0 +1,15 @@
+CURUTUCU (5A-7) kanit dosyalari. Kaynak DUZELTILMEDI; buradaki her sey acigi GOSTERIR.
+
+DIKKAT: *.test.js dosyalari su an BILEREK KIRMIZI ve vitest.config.js `test/**/*.test.js` desenine
+girdigi icin `npm test` toplu kosusunu kirmiziya cevirir. Aciklar kapaninca yesile donerler; o zamana
+kadar toplu kosuda haric tutmak isteyen: `vitest run --exclude "test/curutucu/**"`.
+
+  kesif.curutucu.test.js   K1-K6  (kesif.js: asili kalma, NSD ile gizleme, cift yoklama)
+  ag.curutucu.test.js      A1-A3  (ag.js: bosluklu ad, ham DOMException, JS'te sure yok)
+  yasayan-liste.mjs        mevcut testlerin yakalamadigi 16 mutasyon:
+                           node mutasyon/kos.mjs --liste test/curutucu/yasayan-liste.mjs   -> hepsi YASIYOR
+  kotlin/Curutucu.kt       gercek Hedef.kt + HttpIstek.kt'ye karsi JVM duzenegi (Gradle KOSMAZ):
+                           bash test/curutucu/kotlin/derle.sh <dizin>/out          (derle)
+                           bash test/curutucu/kotlin/derle.sh <dizin>/out http     (H1, H2 KIRMIZI)
+  fark.mjs                 JS <-> Kotlin fark taramasi (60 bin girdi):
+                           node test/curutucu/fark.mjs <dizin> 20000
