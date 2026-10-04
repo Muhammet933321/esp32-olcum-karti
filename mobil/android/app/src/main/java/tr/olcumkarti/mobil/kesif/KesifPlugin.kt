@@ -24,7 +24,7 @@ class KesifPlugin : Plugin() {
 
     @PluginMethod
     fun nsdTara(call: PluginCall) {
-        val sure = (call.getInt("sureMs") ?: 1200).coerceIn(200, 5000).toLong()
+        val sure = (call.getInt("sureMs") ?: 3000).coerceIn(200, 5000).toLong()
         val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
         val ana = Handler(Looper.getMainLooper())
         val kilit = Any()

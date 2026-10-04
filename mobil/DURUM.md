@@ -362,3 +362,7 @@ olabilir; "bulunamadı"dan önce bir kez daha denemek).
 
 **5C ölçümleri için kullanıcı onayı:** `Gb`/`Gd` ile kısa "Android test" kaydı, 20× `p0`, canlı akış SERBEST.
 `Go` (onay) GÖNDERİLMEZ. Kart ileride ~10 dk Honor hotspot'una alınacak (AG1); o arada görünmezse kuyruğa.
+
+- **Keşif (kullanıcı kararı):** NSD tarama penceresi 1.2 s → **3 s** (`NSD_SURE_MS`; başarı bu süreyi beklemez) ve
+  "bulunamadı" demeden önce **bir kez daha** denenir (kimliği uymayan bir kart yanıt verdiyse denenmez). Testler +
+  4 mutasyon (`5C-kesif`). 5C ajanları kota sınırında yarıda kesildi; kaldıkları yerden sürdürülüyor.

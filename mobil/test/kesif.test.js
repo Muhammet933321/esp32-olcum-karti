@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import http from "node:http";
 import { agKur } from "../src/cekirdek/ag.js";
 import { HedefHatasi } from "../src/cekirdek/hedef.js";
-import { kesifKur, KesifHatasi, NSD_AZAMI_ADAY, yerelOnbellek } from "../src/cekirdek/kesif.js";
+import { kesifKur, KesifHatasi, NSD_AZAMI_ADAY, NSD_SURE_MS, yerelOnbellek } from "../src/cekirdek/kesif.js";
 import { sahteKartAc } from "./sahte-kart/sunucu.mjs";
 import { kopruSahtesi } from "./yardim/kopru_sahtesi.mjs";
 
@@ -28,7 +28,8 @@ describe("kesif", () => {
   let acik, kopru, ag;
   const kart = async (secenek) => { const k = await sahteKartAc(secenek); acik.push(() => k.kapat()); return k; };
   const adres = (k) => `127.0.0.1:${k.port}`;
-  const kur = (ek = {}) => kesifKur({ kartFetch: ag.kartFetch, yerelDongu: true, zamanAsimiMs: 500, sabitAdaylar: [], ...ek });
+  // Varsayilan olarak tek tur (yenidenDene: 0): sure olcen testler tek turu olcer; yeniden deneme ayri sinanir.
+  const kur = (ek = {}) => kesifKur({ kartFetch: ag.kartFetch, yerelDongu: true, zamanAsimiMs: 500, sabitAdaylar: [], yenidenDene: 0, ...ek });
 
   beforeEach(() => { acik = []; kopru = kopruSahtesi(); ag = agKur(kopru, { yerelDongu: true }); });
   afterEach(async () => { for (const k of acik) await k(); });
@@ -193,6 +194,49 @@ describe("kesif", () => {
     const h = await kur({ eklenti: { nsdTara: async () => ({ servisler }) } }).bul().catch((e) => e);
     expect(h.tur).toBe("bulunamadi");
     expect(kopru.cagrilar.length).toBe(NSD_AZAMI_ADAY);
+  });
+
+  it("duyuru taramasi en az 3 s ister (varsayilan) ve eklentiye o sure gider", async () => {
+    expect(NSD_SURE_MS).toBeGreaterThanOrEqual(3000);
+    const k = await kart({ kimlik: K1 });
+    const istenen = [];
+    const eklenti = { nsdTara: async (v) => { istenen.push(v.sureMs); return { servisler: [{ ad: "olcum", ip: "127.0.0.1", port: k.port, kimlik: K1 }] }; } };
+    const s = await kesifKur({ kartFetch: ag.kartFetch, yerelDongu: true, zamanAsimiMs: 500, sabitAdaylar: [], eklenti }).bul();
+    expect(s.kaynak).toBe("nsd");
+    expect(istenen).toEqual([NSD_SURE_MS]);
+  });
+
+  it("uzun tarama basariyi BEKLETMEZ: uygun aday yanit verince arama biter", async () => {
+    const k = await kart({ kimlik: K1 });
+    const eklenti = { nsdTara: () => new Promise((coz) => setTimeout(() => coz({ servisler: [] }), 1500)) };
+    const t0 = Date.now();
+    const s = await kur({ eklenti, sabitAdaylar: [{ adres: adres(k), kaynak: "ap" }] }).bul();
+    expect(s.adres).toBe(adres(k));
+    expect(Date.now() - t0).toBeLessThan(500);
+  });
+
+  it("'bulunamadi' demeden once BIR KEZ daha dener: ilk turda gorunmeyen kart ikinci turda bulunur", async () => {
+    const k = await kart({ kimlik: K1 });
+    let tur = 0;
+    const eklenti = { nsdTara: async () => ({ servisler: ++tur === 1 ? [] : [{ ad: "olcum", ip: "127.0.0.1", port: k.port, kimlik: K1 }] }) };
+    const s = await kur({ eklenti, yenidenDene: 1, yenidenBekleMs: 20 }).bul();
+    expect(s).toMatchObject({ adres: adres(k), kaynak: "nsd" });
+    expect(tur).toBe(2);
+    // Varsayilan: bir kez yeniden dener (iki tur), ucuncu tur YOK.
+    let n = 0;
+    const bos = { nsdTara: async () => { n++; return { servisler: [] }; } };
+    const h = await kesifKur({ kartFetch: ag.kartFetch, yerelDongu: true, zamanAsimiMs: 100, sabitAdaylar: [], eklenti: bos, yenidenBekleMs: 10 }).bul().catch((e) => e);
+    expect(h.tur).toBe("bulunamadi");
+    expect(n).toBe(2);
+  });
+
+  it("kimligi uymayan bir kart yanit verdiyse yeniden DENENMEZ (sonuc degismez)", async () => {
+    const yanlis = await kart({ kimlik: K2 });
+    let n = 0;
+    const eklenti = { nsdTara: async () => { n++; return { servisler: [] }; } };
+    const h = await kur({ eklenti, yenidenDene: 1, yenidenBekleMs: 10, sabitAdaylar: [{ adres: adres(yanlis), kaynak: "ap" }] }).bul({ beklenenKimlik: K1 }).catch((e) => e);
+    expect(h.tur).toBe("kimlik-uymuyor");
+    expect(n).toBe(1);
   });
 
   it("yerelOnbellek: bozuk kayit = yok; yaz/oku", () => {

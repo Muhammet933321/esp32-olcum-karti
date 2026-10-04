@@ -19,6 +19,10 @@ export const SABIT_ADAYLAR = Object.freeze([
 const AZAMI_BILGI = 4096;
 export const NSD_AZAMI_KAYIT = 64;       // eklentiden okunan duyuru (sel korumasi)
 export const NSD_AZAMI_ADAY = 8;         // siralamadan SONRA yoklanan aday
+// Duyuru taramasi EN AZ 3 s (kullanici karari 2026-10-04): 1.2 s'lik pencerede kartin duyurusu kacabiliyordu
+// (telefonda goruldu: ad cozulemedi, son bilinen adres yanit vermedi, NSD adayi hic gelmedi; kart saglamdi).
+// Basari bu sureyi BEKLEMEZ: uygun ilk aday yanit verince arama biter.
+export const NSD_SURE_MS = 3000;
 const NSD_PAYI_MS = 1000;
 const TOPLAM_PAYI_MS = 700;           // kartFetch'in kendi payindan (500) buyuk olmali
 
@@ -33,7 +37,8 @@ export class KesifHatasi extends Error {
 
 export function kesifKur({
   kartFetch, onbellek = null, eklenti = null, yerelDongu = false, zamanAsimiMs = 1500,
-  nsdSureMs = 1200, sabitAdaylar = SABIT_ADAYLAR, simdi = Date.now,
+  nsdSureMs = NSD_SURE_MS, sabitAdaylar = SABIT_ADAYLAR, simdi = Date.now,
+  yenidenDene = 1, yenidenBekleMs = 300,
 }) {
   if (typeof kartFetch !== "function") throw new TypeError("kartFetch gerekli");
 
@@ -93,9 +98,8 @@ export function kesifKur({
     return liste;
   }
 
-  async function bul({ beklenenKimlik = null, elle = null } = {}) {
-    const t0 = simdi();
-    const ilk = sabitler({ elle });                       // HedefHatasi burada atilir, istekten ONCE
+  // Tek tur: adaylar + duyuru taramasi. -> { sonuc | null, denenenler }
+  async function turAt({ beklenenKimlik, ilk }) {
     const denenenler = [];
     const gorulen = new Set();
     const uygun = (s) => s.sonuc === "tamam" && (!beklenenKimlik || s.kimlik === beklenenKimlik);
@@ -133,6 +137,19 @@ export function kesifKur({
       });
     });
 
+    return { sonuc, denenenler };
+  }
+
+  async function bul({ beklenenKimlik = null, elle = null } = {}) {
+    const t0 = simdi();
+    const ilk = sabitler({ elle });                       // HedefHatasi burada atilir, istekten ONCE
+    let { sonuc, denenenler } = await turAt({ beklenenKimlik, ilk });
+    // HICBIR aday kart olarak yanit vermediyse "bulunamadi" demeden once BIR KEZ daha denenir (gecici
+    // ag takilmasi, kacan duyuru). Bir kart yanit verip kimligi uymadiysa yeniden denenmez: sonuc degismez.
+    for (let i = 0; i < yenidenDene && !sonuc && !denenenler.some((d) => d.sonuc === "tamam"); i++) {
+      await new Promise((coz) => setTimeout(coz, yenidenBekleMs));
+      ({ sonuc, denenenler } = await turAt({ beklenenKimlik, ilk }));
+    }
     if (!sonuc) {
       const yanlis = denenenler.some((d) => d.sonuc === "tamam");
       throw new KesifHatasi(yanlis ? "kimlik-uymuyor" : "bulunamadi", denenenler);

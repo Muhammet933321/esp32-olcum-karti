@@ -63,4 +63,32 @@ export default [
     koy: 'BEKLENEN_20000 = "3f05',
     test: "test/olcum.test.js",
   },
+  {
+    ad: "5C-kesif: duyuru taramasi 3 s'den kisa",
+    dosya: "src/cekirdek/kesif.js",
+    bul: "export const NSD_SURE_MS = 3000;",
+    koy: "export const NSD_SURE_MS = 1200;",
+    test: "test/kesif.test.js",
+  },
+  {
+    ad: "5C-kesif: bulunamadi demeden once yeniden denemiyor",
+    dosya: "src/cekirdek/kesif.js",
+    bul: "for (let i = 0; i < yenidenDene && !sonuc",
+    koy: "for (let i = 0; i < 0 && !sonuc",
+    test: "test/kesif.test.js",
+  },
+  {
+    ad: "5C-kesif: kimlik uymayan kartta da yeniden deniyor",
+    dosya: "src/cekirdek/kesif.js",
+    bul: ' && !sonuc && !denenenler.some((d) => d.sonuc === "tamam"); i++)',
+    koy: " && !sonuc; i++)",
+    test: "test/kesif.test.js",
+  },
+  {
+    ad: "5C-kesif: varsayilan yeniden deneme sayisi 2",
+    dosya: "src/cekirdek/kesif.js",
+    bul: "yenidenDene = 1, yenidenBekleMs = 300,",
+    koy: "yenidenDene = 2, yenidenBekleMs = 300,",
+    test: "test/kesif.test.js",
+  },
 ];
