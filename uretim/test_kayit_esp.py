@@ -3189,9 +3189,9 @@ def bolum_e6() -> None:
        and "pcTaskGetName(NULL)" in cb and "h->gorev[i] = c;" in cb)
     dok = govde(ino_k, "static void ayirma_dokum_bas(")
     i_y = cb.find("AyirmaHata *h = &ayirma_halka[ayirma_hata_adet % AYIRMA_HALKA];")
-    ok("B72.E6c halka 8 kayit, sayac % 8 ile doner (sayac kilit icinde, kayit yazildiktan SONRA artar); "
-       "dokum kilit altinda kopyadan en fazla 8 kaydi eskiden yeniye basar",
-       re.search(r"#define AYIRMA_HALKA 8u\b", ino_k) is not None
+    ok("B72.E6c halka 4 kayit (statik DRAM %25 siniri), sayac % 4 ile doner (sayac kilit icinde, kayit yazildiktan SONRA artar); "
+       "dokum kilit altinda kopyadan en fazla AYIRMA_HALKA kaydi eskiden yeniye basar",
+       re.search(r"#define AYIRMA_HALKA 4u\b", ino_k) is not None
        and "static AyirmaHata ayirma_halka[AYIRMA_HALKA];" in ino_k
        and 0 <= i_y < cb.find("h->boyut = (uint32_t)boyut;") < cb.find("ayirma_hata_adet = ayirma_hata_adet + 1u;")
        < cb.find("portEXIT_CRITICAL_SAFE(")

@@ -3207,7 +3207,7 @@ void bildirim_bilgi_sayfa() {
 // Geri cagirma HER cekirdekten / gorevden (ISR'den bile) gelebilir: IRAM'de, BASMAZ
 // (Serial aynasi kilit alir, printf yigin ister), yalniz sayar ve halkaya yazar.
 // Gorev adi CAGRI ANINDA kopyalanir (sonradan TaskHandle cozmek silinmis TCB okuyabilir).
-#define AYIRMA_HALKA 8u
+#define AYIRMA_HALKA 4u   // 8 -> 4: statik DRAM %25 butce siniri (B6), sayac toplami ayrica tutulur
 typedef struct {
   uint32_t boyut, caps, ms;
   uint8_t cekirdek;

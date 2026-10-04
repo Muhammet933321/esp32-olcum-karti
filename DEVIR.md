@@ -10575,7 +10575,7 @@ setup'ta kimlikten ÖNCE çalışır → `ag_mdns_kimlik` (guv_esp_ac'tan sonra,
 olarak `vEthernet (Default Switch)`'ten çıkıyor. Wi-Fi arayüzü `IP_MULTICAST_IF` ile seçilince kart hem A kaydını
 hem tekil sorguyu yanıtlıyor. Köprü 4J IP önbelleğiyle zaten bundan etkilenmiyor.
 
-⚠ **Kartta görülen (A3-4B, 2.9 sa çalışma):** `QY dahili_en_az=2504` — dahili yığının en düşük değeri **2.5 KB**
+⚠ **Kartta görülen (A3-4B, 2.9 sa çalışma):** `QY dahili_en_az=2504` — dahili yığının en düşük değeri **2.5 KB**. ⚠ E6 ölçüm halkası (5.12.105a) birleşmede 8 → **4** kayda indi: 8 kayıtla statik DRAM 81 932 B = %25.003 ve B6 "RAM payı < %25" kırmızıydı; şimdi 81 836 B, pay ~80 B — sıradaki statik ekleme sınıra takılır, önce kalıcı dahili tamponlar PSRAM'e (F4)
 (W5 20.7 KB görmüştü, E6 kaydı 54–60 KB). Sebep bilinmiyor; E6 satırına işlendi, sıradaki iş.
 Salt okuma kod incelemesi (karta dokunmadan) sıralı aday verdi: (1) Arduino `WiFiGeneric.cpp` 32 dinamik TX + 32 RX
 Wi-Fi tamponu, hepsi DAHİLİ (`SPIRAM_TRY_ALLOCATE_WIFI_LWIP` kapalı) — bağlantı takılınca birikir, 7 `hata=-7`
