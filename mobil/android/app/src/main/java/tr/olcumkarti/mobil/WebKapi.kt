@@ -8,6 +8,20 @@ package tr.olcumkarti.mobil
  * Saf Kotlin: birim testinde kosar. Ayristirma elle: `java.net.URI`/`Uri` normallestirmesine guvenilmez.
  */
 object WebKapi {
+    /** WebRTC arayuzleri (src/cekirdek/rtc_kapat.js RTC_ADLARI ile AYNI liste; test karsilastirir). */
+    val RTC_ADLARI = listOf(
+        "RTCPeerConnection", "webkitRTCPeerConnection", "RTCDataChannel", "RTCSessionDescription",
+        "RTCIceCandidate", "RTCRtpSender", "RTCRtpReceiver", "RTCRtpTransceiver",
+    )
+
+    /**
+     * Belge basinda (her cercevede, sayfa betiklerinden ONCE) calisan betik: WebRTC arayuzlerini
+     * kaldirir. Olculdu: bu WebView CSP `webrtc 'block'` yonergesini uygulamiyor.
+     */
+    val RTC_KAPAT: String = RTC_ADLARI.joinToString("") {
+        "try{Object.defineProperty(window,'$it',{value:undefined,writable:false,configurable:false})}catch(e){}"
+    }
+
     private val YEREL_SEMALAR = listOf("data:", "blob:", "about:")
     private const val KOKEN = "https://localhost"
 

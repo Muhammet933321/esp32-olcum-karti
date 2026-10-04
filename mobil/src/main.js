@@ -1,3 +1,4 @@
+import "./cekirdek/rtc_kapat.js";       // ILK ice aktarim: WebRTC arayuzleri baska hicbir kod calismadan kalkar
 import { createApp } from "vue";
 import { IonicVue } from "@ionic/vue";
 import "@ionic/vue/css/core.css";

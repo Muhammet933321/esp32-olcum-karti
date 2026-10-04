@@ -314,4 +314,32 @@ export default [
     koy: 'http-equiv="X-Yok"',
     test: "test/gizlilik.test.js",
   },
+  {
+    ad: "5A-9: WebRTC kaldirma JS'te ilk ice aktarim degil",
+    dosya: "src/main.js",
+    bul: 'import "./cekirdek/rtc_kapat.js";',
+    koy: '// import "./cekirdek/rtc_kapat.js";',
+    test: "test/gizlilik.test.js",
+  },
+  {
+    ad: "5A-9: yerelde belge basi betigi eklenmiyor",
+    dosya: "android/app/src/main/java/tr/olcumkarti/mobil/MainActivity.java",
+    bul: "            WebViewCompat.addDocumentStartJavaScript(",
+    koy: "            // WebViewCompat.addDocumentStartJavaScript(",
+    test: "test/gizlilik.test.js",
+  },
+  {
+    ad: "5A-9: WebRTC arayuzu geri konabiliyor (kilitli degil)",
+    dosya: "src/cekirdek/rtc_kapat.js",
+    bul: "{ value: undefined, writable: false, configurable: false }",
+    koy: "{ value: undefined, writable: true, configurable: true }",
+    test: "test/gizlilik.test.js",
+  },
+  {
+    ad: "5A-9: Kotlin listesinde RTCPeerConnection yok",
+    dosya: "android/app/src/main/java/tr/olcumkarti/mobil/WebKapi.kt",
+    bul: '        "RTCPeerConnection", "webkitRTCPeerConnection",',
+    koy: '        "webkitRTCPeerConnection",',
+    test: "test/gizlilik.test.js",
+  },
 ];

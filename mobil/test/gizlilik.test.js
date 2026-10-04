@@ -31,6 +31,8 @@ const JS_KAYNAK = agac("src", [".js", ".vue"]);
 const YEREL_KAYNAK = agac("android/app/src/main/java", [".kt", ".java"]);
 // WebView'in ag yollarini BILEREK deneyen tek dosya (cihazdaki kapi olcumu).
 const SINAMA_DOSYASI = "src/cekirdek/web_sinama.js";
+// WebRTC arayuzlerini KALDIRAN dosya (adlari liste olarak icerir, cagirmaz).
+const RTC_KAPAT_DOSYASI = "src/cekirdek/rtc_kapat.js";
 
 describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
   const IZINLI_YONERGELER = {
@@ -68,6 +70,29 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
     expect(yorumsuz(m)).not.toMatch(/\bif \(saved|\breturn;/);
   });
 
+  it("WebRTC arayuzleri kaldiriliyor: yerelde belge basinda + JS'te ILK ice aktarim; iki liste ayni", async () => {
+    const { RTC_ADLARI, rtcKapat } = await import("../src/cekirdek/rtc_kapat.js");
+    const sahte = { RTCPeerConnection: function () {}, webkitRTCPeerConnection: function () {}, RTCDataChannel: function () {} };
+    rtcKapat(sahte);
+    for (const ad of RTC_ADLARI) {
+      expect(sahte[ad], ad).toBe(undefined);
+      expect(() => { "use strict"; sahte[ad] = function () {}; }, ad).toThrow();     // geri konamaz
+      expect(Object.getOwnPropertyDescriptor(sahte, ad).configurable, ad).toBe(false);
+    }
+    expect(RTC_ADLARI).toContain("RTCPeerConnection");
+    expect(RTC_ADLARI).toContain("webkitRTCPeerConnection");
+    // Kotlin listesi ayni adlar.
+    const kt = oku("android/app/src/main/java/tr/olcumkarti/mobil/WebKapi.kt");
+    const ktAdlar = [.../val RTC_ADLARI = listOf\(([\s\S]*?)\)/.exec(kt)[1].matchAll(/"(\w+)"/g)].map((m) => m[1]);
+    expect(ktAdlar).toEqual([...RTC_ADLARI]);
+    // Yerel: belge basi betigi KOSULSUZ (yalniz ozellik destegi kosulu) ve her kokene.
+    const m = oku("android/app/src/main/java/tr/olcumkarti/mobil/MainActivity.java");
+    expect(m).toMatch(/\n {12}WebViewCompat\.addDocumentStartJavaScript\(bridge\.getWebView\(\), WebKapi\.INSTANCE\.getRTC_KAPAT\(\), Collections\.singleton\("\*"\)\);\n/);
+    // JS: main.js'in ILK ice aktarimi.
+    const ilk = oku("src/main.js").split("\n").find((l) => l.startsWith("import "));
+    expect(ilk).toMatch(/^import "\.\/cekirdek\/rtc_kapat\.js";/);
+  });
+
   it("Capacitor: disari gezinti izni yok, karisik icerik yok, WebView hata ayiklamasi kapali", () => {
     const k = JSON.parse(oku("capacitor.config.json"));
     expect(k.server?.allowNavigation ?? []).toEqual([]);
@@ -80,7 +105,7 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
     expect(JS_KAYNAK).toContain(SINAMA_DOSYASI);
     const YASAK = /\bfetch\b|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|RTCDataChannel|importScripts|\bWorker\b|\bglobalThis\s*\[|\bwindow\s*\[|\bself\s*\[|\beval\b|new Function/;
     for (const yol of JS_KAYNAK) {
-      if (yol === SINAMA_DOSYASI) continue;
+      if (yol === SINAMA_DOSYASI || yol === RTC_KAPAT_DOSYASI) continue;
       expect(yorumsuz(oku(yol)), yol).not.toMatch(YASAK);
     }
   });

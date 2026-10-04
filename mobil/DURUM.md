@@ -146,3 +146,23 @@ kesin sayılmaz.
 - Kotlin mutasyonları: 5B.
 
 Sayılar: JS 91 test, Kotlin 23 test, mutasyon 60 (hepsi ölü).
+
+### 2026-10-04 (devam 4) — WebRTC ölçümü, 5B ve görsel tur başlıyor
+
+**Kullanıcı kuralı (kalıcı):** rutin hiçbir şey sorulmaz, beklenmez. Telefon ekranı kapalıysa
+`svc power stayon usb` + `KEYCODE_WAKEUP` (Xiaomi'de serbest); kilit PIN istiyorsa ölçüm kuyruğa alınır,
+işe devam edilir, ekran açılınca kendiliğinden koşulur. Görsel tasarım 5B ile paralel; 3 aday web
+panelinin görünümlerinden (Koyu · Açık · Ön panel) türetilir, TEK mesajla sunulur.
+
+**Ölçüm (Xiaomi, Android 13, WebView 153)**
+- `webrtc 'block'` CSP yönergesi bu WebView'de UYGULANMIYOR: sınamada WebRTC "GEÇTİ" çıktı (ICE adayı toplandı).
+- Karar: WebRTC arayüzleri kaldırılır — yerelde belge başı betiğiyle (`addDocumentStartJavaScript`, her
+  çerçeve, sayfa betiklerinden önce; `WebKapi.RTC_KAPAT`) ve JS'te uygulamanın İLK içe aktarımıyla
+  (`rtc_kapat.js`; yerel özellik yoksa yedek). İki liste testle eşit tutulur; arayüz geri konamaz
+  (yazılamaz, yapılandırılamaz). CSP yönergesi ileriki WebView'ler için duruyor.
+- Yeniden ölçüm: fetch, XHR, img, script, **WebSocket**, **WebRTC**, gezinti → engellendi; iframe içeriksiz
+  (http ve https). Kart keşfi çalışıyor (önbellekten 416 ms). Kendi logcat'imiz (463 satır): eklenti
+  verisi 0, adres/kimlik 0.
+- `svc power stayon usb` Xiaomi'de açık bırakıldı (kullanıcı izniyle).
+
+Sayılar: JS 92 test, Kotlin 23 test, mutasyon 64 (hepsi ölü).
