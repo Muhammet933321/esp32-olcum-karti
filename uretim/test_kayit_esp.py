@@ -3250,9 +3250,80 @@ def bolum_e6() -> None:
        and 'if komut.startswith("Q"):' in kopru and "QH yigin" in ino)
 
 
+def bolum_e6f() -> None:
+    """E6F (2026-10-04): dahili yigin duzeltmesi — mbedTLS ayirmalari once PSRAM'e (F1),
+    /kayit/veri tamponu ve akis kuyrugu PSRAM'e (F4), SSE kisa yazmada istemci dusurulur (F3).
+    Cekirdek sdkconfig'i MBEDTLS_INTERNAL_MEM_ALLOC=y; esp_config.h STD_CALLOC bicimi ->
+    mbedtls_platform_set_calloc_free calisma aninda gecerli (DEVIR 5.12.106, sokulerek dogrulandi)."""
+    print("\n── B72.E6F  dahili yigin duzeltmesi: mbedTLS + kalici tamponlar PSRAM'e, SSE kisa yazma")
+    ino = _oku("olcum-karti-a3.ino")
+    ino_k = kod(ino)
+    st = govde(ino_k, "void setup() {")
+    kur = "mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);"
+    i_kur = st.find(kur)
+    # mbedTLS kullanicilari setup sirasinda: Wi-Fi (WPA supplicant), guvenlik (HMAC/SHA/PBKDF2),
+    # MQTT esp-tls; ayrica kayit/ag gorevleri ve heap geri cagirmasi da ONCE kurulmaz.
+    kullanicilar = ("Serial.begin(", "heap_caps_register_failed_alloc_callback(", "ag_baslat_rf(",
+                    "guv_esp_ac(", "bildirim_baslat(", "kayit_kur(", "xTaskCreatePinnedToCore(")
+    sonra = [st.find(x) for x in kullanicilar]
+    tum_kod = ino_k + "".join(kod(_oku(p.name)) for p in sorted(KOD.glob("*.h")))
+    ok("B72.E6Fa mbedTLS ayiricisi setup'in ILK isi olarak, butun mbedTLS kullanicilarindan "
+       "(Wi-Fi, guvenlik, MQTT-TLS) ve ilk gorevden ONCE, butun eskizde TEK yerde kurulur",
+       i_kur >= 0 and st[1:].lstrip().startswith(kur)
+       and all(x >= 0 and i_kur < x for x in sonra)
+       and tum_kod.count("mbedtls_platform_set_calloc_free(") == 1,
+       f"kur={i_kur} sonrakiler={sonra}")
+    ay = govde(ino_k, "static void *tls_bellek_ayir(size_t n, size_t boyut) {")
+    ok("B72.E6Fb ayirici ONCE PSRAM (SPIRAM|8BIT), dolu/yoksa DAHILI (INTERNAL|8BIT) dener — "
+       "PSRAM'siz kartta eski davranis; tek cagri, calloc (sifirlanmis)",
+       re.sub(r"\s+", " ", ay).strip() == "{ return heap_caps_calloc_prefer(n, boyut, 2, "
+       "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); }",
+       re.sub(r"\s+", " ", ay)[:160])
+    bi = govde(ino_k, "static void tls_bellek_birak(void *p) {")
+    ok("B72.E6Fc birakici yalniz heap_caps_free(p): her yigindan (PSRAM / dahili, degisimden "
+       "once ayrilmis dahil) guvenle birakir — kosul yok, baska birakma yok",
+       re.sub(r"\s+", " ", bi).strip() == "{ heap_caps_free(p); }", re.sub(r"\s+", " ", bi)[:120])
+    ke = kod(_oku("kayit_esp.h"))
+    kk = govde(ke, "static bool kayit_kur(void)")
+    ok("B72.E6Fd /kayit/veri tamponu (8 KB) once PSRAM, yoksa dahili; ayrilamazsa kayit_kur "
+       "eskisi gibi false (kayit KAPALI) doner",
+       "kayit_veri_tampon = (uint8_t *)heap_caps_malloc_prefer(KAYIT_VERI_AZAMI, 2, "
+       "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);"
+       in re.sub(r"\s+", " ", kk)
+       and "!kayit_veri_tampon" in kk[kk.find("kayit_veri_tampon = "):]
+       and ke.count("kayit_veri_tampon = (") == 1)
+    i_ps = st.find("akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), "
+                   "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);")
+    i_yd = st.find("if (!akis_kuyrugu_q) akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));")
+    ok("B72.E6Fe akis kuyrugu PSRAM'de (xQueueCreateWithCaps), olmazsa dahili xQueueCreate; "
+       "ikisi de sunucu ve ag gorevinden ONCE; kuyruk ISR'den kullanilmaz ve hic silinmez",
+       0 <= i_ps < i_yd < st.find("sunucu.begin();") < st.find("xTaskCreatePinnedToCore(ag_gorevi")
+       and ino_k.count("akis_kuyrugu_q = xQueue") == 2
+       and not re.search(r"FromISR\s*\(\s*akis_kuyrugu_q", ino_k)
+       and not re.search(r"vQueueDelete\w*\s*\(\s*akis_kuyrugu_q", ino_k))
+    ay_g = govde(ino_k, "static void akis_yolla(const char *satir) {")
+    kl_g = govde(ino_k, "static void akis_kalp() {")
+    i_w = ay_g.find("const size_t y = akis[i].write((const uint8_t *)olay, (size_t)n);")
+    ok("B72.E6Ff SSE kisa yazma (yarim olay / lwIP bellek yok) istemciyi DUSURUR, olay ve kalp "
+       "atisinda; giden yalniz tam yazmada sayilir",
+       0 <= i_w < ay_g.find("if (y != (size_t)n) { akis[i].stop(); continue; }") < ay_g.find("giden = true;")
+       and "if (akis[i].write((const uint8_t *)KALP, sizeof(KALP) - 1u) != sizeof(KALP) - 1u) "
+           "akis[i].stop();" in kl_g
+       and ".print(" not in kl_g)
+    i_b = st.find('Serial.print(F("Bellek (E6F): tls="));')
+    ok("B72.E6Fg acilista TEK satir tasinan tamponlarin GERCEK yerini soyler: tls kurulan "
+       "ayiricidan deneme ayirmasiyla, veri/akis isaretcinin/kuyrugun kendisinden; kayit_kur'dan SONRA",
+       st.find("kayit_kur(") < st.find("void *d = mbedtls_calloc(1, 32);") < i_b
+       and "esp_ptr_external_ram(d) ? F(\"PSRAM\")" in st and "mbedtls_free(d);" in st
+       and "esp_ptr_external_ram(kayit_veri_tampon) ? F(\"PSRAM\")" in st
+       and "Serial.println(akis_psram ? F(\"PSRAM\") : F(\"dahili\"));" in st
+       and "const bool akis_psram = akis_kuyrugu_q != nullptr;" in st
+       and 0 <= i_ps < st.find("const bool akis_psram") < i_yd)
+
+
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
             bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle,
-            bolum_w2, bolum_tezgah_w5, bolum_e6]
+            bolum_w2, bolum_tezgah_w5, bolum_e6, bolum_e6f]
 
 
 def main() -> int:

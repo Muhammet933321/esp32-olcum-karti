@@ -81,7 +81,7 @@ static KayitBitirIz kayit_bitir_iz_al(void)
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
 #define KAYIT_HALKA_ORNEK 4096u     /* 1C-2 ayrintili kip: ~8 s @500/s, PSRAM (64 KB) */
-#define KAYIT_VERI_AZAMI  8192u     /* /kayit/veri tek yanit tavani (dahili RAM) */
+#define KAYIT_VERI_AZAMI  8192u     /* /kayit/veri tek yanit tavani (E6F: PSRAM, yoksa dahili) */
 #define KAYIT_WEB_BEKLE_MS 200u     /* web ucu kilidi en fazla bu kadar bekler, sonra 503 */
 
 /* cekirdek 1 -> 0 istekleri (onay BURADA DEGIL: kayit_onay_istek) */
@@ -484,8 +484,13 @@ static bool kayit_kur(void)
     kayit_sektor = (KayitSektor *)heap_caps_malloc(adet * sizeof(KayitSektor), MALLOC_CAP_SPIRAM);
     kayit_dizin = (KayitOzet *)heap_caps_malloc(KAYIT_DIZIN_KAP * sizeof(KayitOzet),
                                                  MALLOC_CAP_SPIRAM);
-    kayit_veri_tampon = (uint8_t *)heap_caps_malloc(KAYIT_VERI_AZAMI,
-                                                     MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    /* E6F (F4): 8 KB esitleme tamponu once PSRAM'de, yoksa dahili. Yalniz ag gorevi
+       (cekirdek 0) kullanir: kg_oku ya bellege esli bolumden memcpy yapar ya da
+       esp_partition_read (IDF dis bellek hedefini dahili ara tamponla okur), sonra
+       sendContent (lwIP kopyalar). ISR / DMA / onbellek kapali yol YOK. */
+    kayit_veri_tampon = (uint8_t *)heap_caps_malloc_prefer(KAYIT_VERI_AZAMI, 2,
+                                                           MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+                                                           MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     kayit_kilit = xSemaphoreCreateMutex();
     kayit_nokta_q = xQueueCreate(KAYIT_KUYRUK, sizeof(KayitNokta));
     kayit_mesaj_q = xQueueCreate(4, sizeof(KayitMesaj));

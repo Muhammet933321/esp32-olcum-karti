@@ -1620,8 +1620,8 @@ MUTASYONLAR = [
      "        /* alt sinir yok */",
      "`r1` kabul edilir: olcum dongusu satir basmaktan olcum alamaz"),
     ("B7", "test_arayuz3.js", "kod/olcum-karti-a3/olcum-karti-a3.ino",
-     "    akis[i].write((const uint8_t *)olay, (size_t)n);",
-     "    akis[i].print(olay);",
+     "    const size_t y = akis[i].write((const uint8_t *)olay, (size_t)n);",
+     "    const size_t y = akis[i].print(olay);",
      "SSE olayi yine tek parca ama print() — write() iddiasi bunu "
      "ayirt etmeli (print sonunda ek kopya, ayni sey degil)"),
     ("B7", "test_arayuz3.js", "arayuz3/sahte-kart.js",
@@ -7850,6 +7850,67 @@ MUTASYONLAR = [
     ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "  heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);\n", "",
      "E6: QH bolge bolge dokumu basmaz (RTC/DRAM ayrimi gorunmez): B72.E6f kirmizi"),
+    # ── E6F (2026-10-04): dahili yigin duzeltmesi — mbedTLS + kalici tamponlar PSRAM'e, SSE kisa yazma.
+    #    python mutasyon.py --neden "E6F:" --paralel 2
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);\n", "",
+     "E6F: ayirici hic kurulmaz (mbedTLS yine dahili yigindan ~40 KB tutar): B72.E6Fa kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);\n",
+     "  ag_baslat_rf();\n  mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);\n",
+     "E6F: bir mbedTLS kullanicisi (Wi-Fi/WPA) ayiricidan ONCE baslar: B72.E6Fa kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  ag_baslat_rf();\n",
+     "  ag_baslat_rf();\n  mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);\n",
+     "E6F: ayirici ikinci kez kurulur (hangisinin gecerli oldugu siraya kalir): B72.E6Fa kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
+     "                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);",
+     "                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT,\n"
+     "                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);",
+     "E6F: ayirici once DAHILI dener (PSRAM yalniz dahili dolunca — dip yine olusur): B72.E6Fb kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  return heap_caps_calloc_prefer(n, boyut, 2,\n"
+     "                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
+     "                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);",
+     "  return heap_caps_calloc(n, boyut, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);",
+     "E6F: yedek yok — PSRAM'siz ya da PSRAM dolu kartta Wi-Fi/TLS/imza hic ayiramaz: B72.E6Fb kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "static void tls_bellek_birak(void *p) {\n  heap_caps_free(p);\n}",
+     "static void tls_bellek_birak(void *p) {\n  if (esp_ptr_external_ram(p)) heap_caps_free(p);\n}",
+     "E6F: birakici yalniz PSRAM blogunu birakir (degisimden once / yedek yoldan dahiliye dusen "
+     "bloklar SIZAR): B72.E6Fc kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/kayit_esp.h",
+     "heap_caps_malloc_prefer(KAYIT_VERI_AZAMI, 2,\n"
+     "                                                           MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,",
+     "heap_caps_malloc_prefer(KAYIT_VERI_AZAMI, 2,\n"
+     "                                                           MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT,",
+     "E6F: /kayit/veri tamponu yine dahili (8 KB kalici dahili yigin): B72.E6Fd kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/kayit_esp.h",
+     "    kayit_veri_tampon = (uint8_t *)heap_caps_malloc_prefer(KAYIT_VERI_AZAMI, 2,\n"
+     "                                                           MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
+     "                                                           MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);",
+     "    kayit_veri_tampon = (uint8_t *)heap_caps_malloc(KAYIT_VERI_AZAMI, MALLOC_CAP_SPIRAM);",
+     "E6F: tampon yalniz PSRAM (PSRAM'siz kartta kayit tumden KAPANIR): B72.E6Fd kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);",
+     "  akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));",
+     "E6F: akis kuyrugu yine dahili (10.7 KB kalici dahili yigin): B72.E6Fe kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (!akis_kuyrugu_q) akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));\n", "",
+     "E6F: kuyrugun dahili yedegi yok (PSRAM'siz kartta /akis hic satir almaz): B72.E6Fe kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (y != (size_t)n) { akis[i].stop(); continue; }\n", "    (void)y;\n",
+     "E6F: kisa yazmada istemci kalir (bozuk akis + soketin dahili tamponu tutulur): B72.E6Ff kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (akis[i].write((const uint8_t *)KALP, sizeof(KALP) - 1u) != sizeof(KALP) - 1u) akis[i].stop();",
+     "    akis[i].write((const uint8_t *)KALP, sizeof(KALP) - 1u);",
+     "E6F: kalp atisinda kisa yazma istemciyi dusurmez: B72.E6Ff kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    Serial.print(!d ? F(\"YOK\") : esp_ptr_external_ram(d) ? F(\"PSRAM\") : F(\"dahili\"));",
+     "    Serial.print(!d ? F(\"YOK\") : psramFound() ? F(\"PSRAM\") : F(\"dahili\"));",
+     "E6F: acilis satiri tls yerini PSRAM varligindan TAHMIN eder (ayirici kurulmasa da PSRAM der): "
+     "B72.E6Fg kirmizi"),
 ]
 
 

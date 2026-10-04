@@ -10550,6 +10550,74 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.106 🟡 E6F: DAHİLİ YIĞIN DÜZELTMESİ — mbedTLS + KALICI TAMPONLAR PSRAM'E (2026-10-04, dal `e6-duzeltme`, ağaç `projeler/olcum-karti-e6f`; karta YÜKLENMEDİ)
+
+5.12.105'teki `QY dahili_en_az=2504` için hazırlanan düzeltme; kartın E6 ölçümü (QF/QH) gelmeden yazıldı, ölçüm
+sonucu gelince doğrudan yüklenmek üzere dalda bekliyor. Davranış: ölçüm, kayıt, protokol, satır biçimleri AYNI.
+
+**SDK'da doğrulananlar (Arduino çekirdeği 3.3.11 / IDF 5.5, `esp32s3-libs/3.3.11`, `qio_opi` — FQBN
+`PSRAM=opi`):** `sdkconfig.h`'de `CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC 1`, `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN 16384`,
+`MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH` kapalı, `SPIRAM_TRY_ALLOCATE_WIFI_LWIP` kapalı, `SPIRAM_MALLOC_ALWAYSINTERNAL
+4096`, `SPI_FLASH_AUTO_SUSPEND` kapalı. `mbedtls/esp_config.h`: `MBEDTLS_PLATFORM_MEMORY` + `MBEDTLS_PLATFORM_STD_CALLOC
+esp_mbedtls_mem_calloc` (makro biçimi `..._CALLOC_MACRO` DEĞİL) → `mbedtls_platform_set_calloc_free` var. Kütüphane
+sökülerek (xtensa objdump): `platform.c.obj`'de `mbedtls_calloc` bir işaretçiden çağırıyor ve `set_calloc_free` iki
+işaretçiyi yazıyor (çalışma anında geçerli); `esp_mem.c.obj`: varsayılan ayırıcı `heap_caps_calloc(n, s, 0x804 =
+INTERNAL|8BIT)`, varsayılan bırakıcı **`heap_caps_free`**; `heap_caps_calloc_prefer` sırayla dener ve başarısız ayırma
+geri çağırmasını yalnız HEPSİ başarısızsa çağırır; `heap_caps_free` kayıtlı yığın listesinde işaretçiyi içereni bulup
+bırakır (PSRAM de dahili de); `xQueueCreateWithCaps` 92 B `StaticQueue_t` + depoyu verilen caps ile ayırır, başarısızsa
+ikisini bırakıp NULL döner; `cpu.c.obj`'de `external_ram_cas_lock` (PSRAM'deki spinlock'lar için IDF'nin dış bellek
+CAS yolu); flaş işlemleri `spi_flash_disable_interrupts_caches_and_other_cpu` ile öbür çekirdeği IRAM'de bekletir;
+`esp_flash_read` hedef DRAM'de değilse 16 KB'lik dahili ara tamponla okuyup `memcpy` yapar. `initArduino`
+(nvs, log, psram) mbedTLS kullanmıyor; tek mbedTLS kopyası (`libmbedcrypto`/`libmbedtls`; `libmbedtls_2.a` yalnız
+SSL dosyaları, kendi ayırıcısı yok).
+
+- **F1** (`olcum-karti-a3.ino`, `tls_bellek_ayir`/`tls_bellek_birak` + setup'ın İLK satırı):
+  `mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak)`; ayırıcı
+  `heap_caps_calloc_prefer(n, s, 2, SPIRAM|8BIT, INTERNAL|8BIT)`, bırakıcı `heap_caps_free`. Kurulum Serial'den,
+  E6 geri çağırmasından, `ag_baslat_rf` (WPA supplicant), `guv_esp_ac` (HMAC/SHA/PBKDF2), `kayit_kur`, ilk görev ve
+  `bildirim_baslat`'tan (esp-tls) ÖNCE. Değişimden önce ayrılmış blok olsaydı da yeni bırakıcı onu doğru yığına
+  verir (eski bırakıcı zaten `heap_caps_free`); geçiş anında yarış da zararsız (iki çift de `heap_caps_*`).
+  PSRAM yoksa/doluysa dahili — eski davranış. IDF'nin resmi `CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` yerleşimiyle aynı
+  (AES/SHA DMA'sı dış bellek tamponlarını IDF'de karşılıyor), üstüne yedek yol. Beklenen kazanç: MQTT TLS oturumunun
+  ~38–40 KB'lik kalıcı payı + el sıkışma tepesi (10–20 KB) dahili yığından çıkar; Wi-Fi WPA/SAE ve guvenlik
+  bağlamları da. **Bedel:** bignum/ECDHE ve kayıt şifrelemesi PSRAM'de → el sıkışma bir miktar yavaşlar
+  (önbellekten; tahmin %10–30, ÖLÇÜLMEDİ). Düz `esp_tls_init` (`calloc`, < 4 KB → dahili) ve lwIP/Wi-Fi tamponları
+  bu değişikliğin DIŞINDA.
+- **F4** `kayit_veri_tampon` (8 KB, `/kayit/veri`) `heap_caps_malloc_prefer(..., SPIRAM|8BIT, INTERNAL|8BIT)`;
+  ayrılamazsa `kayit_kur` eskisi gibi false. Tek kullanıcı ağ görevi: `kg_oku` ya eşli bölümden `memcpy` ya
+  `esp_partition_read` (yukarıdaki ara tampon), sonra `sendContent` (lwIP kopyalar) — ISR/DMA/önbellek-kapalı yol yok.
+  Akış kuyruğu (48 × 224 B ≈ 10.7 KB) `xQueueCreateWithCaps(..., SPIRAM|8BIT)`, olmazsa `xQueueCreate`; kuyruk
+  yalnız görevlerden (çekirdek 1 `web_satir_hazir` → çekirdek 0 `akis_kuyrugunu_bosalt`), ISR'den hiç, silinmiyor.
+  Flaş yazma/silmede öbür çekirdek zaten IRAM'de duruyor; PSRAM'deki halka ve kayıt dizini de yıllardır böyle.
+- **F3** `akis_yolla` ve `akis_kalp`: `write` kısa dönerse istemci `stop()` ile düşer (NetworkClient ~10 × 1 s
+  ilerlemesiz bekledi ya da lwIP bellek bulamadı → EAGAIN; olay yarım gitti, akış zaten bozuk). Soketin dahili
+  gönderme tamponu bırakılır; EventSource `retry: 3000` + `id:` ile döner. Sayaç EKLENMEDİ (statik DRAM payı ~80 B).
+  Kalp atışı `print(F())` yerine sabit diziyle `write` (dönüş değeri için).
+- **Açılış satırı** (`kayit_kur`'dan sonra): `Bellek (E6F): tls=<PSRAM|dahili|YOK> veri=<…> akis=<PSRAM|dahili>` —
+  tls, KURULU ayırıcıdan 32 B'lık deneme ayırmasının adresinden (`esp_ptr_external_ram`); tahmin değil.
+- F2 (`WiFi.useStaticBuffers`) ve F5 (ping) YAPILMADI (görev dışı; F5 kullanıcı kararı).
+
+**Boyut:** flaş 1 418 214 → 1 418 922 (+708 B), statik DRAM **81 836 → 81 836** (değişmedi; ayırmalar yığında,
+yeni dizgiler flaşta) — `_ESP_DRAM_SON_OLCUM` aynı kaldı. Derleme uyarısız.
+
+**İddialar B72.E6Fa–g** (`test_kayit_esp.py` `bolum_e6f`, 228 → **235**): ayırıcı setup'ın ilk işi + her mbedTLS
+kullanıcısından ve ilk görevden önce + eskizde tek yer · ayırıcı tam olarak PSRAM→dahili `calloc_prefer` · bırakıcı
+yalnız `heap_caps_free(p)` · veri tamponu PSRAM→dahili, `!kayit_veri_tampon` kontrolü yerinde · akış kuyruğu
+WithCaps + dahili yedek, sunucu/ağ görevinden önce, ISR'siz, silinmez · kısa yazma düşürür (olay + kalp) · açılış
+satırı gerçek adresten. **Mutasyon `E6F:` 13** — **13/13 YAKALANDI** (327 s; "WPA ayırıcıdan önce" E6a ve E6Fa'yı birlikte kırar). Eski B7 mutasyonu (`akis_yolla` `print`) yeni satıra
+yeniden hedeflendi.
+
+**Kartta ölçülecek (yüklemeden ÖNCE `tezgah_kayit.py --yedek` ile yeni tam yedek; köprü eşitlesin):** açılışta
+`Bellek (E6F): tls=PSRAM veri=PSRAM akis=PSRAM`. Aynı koşulda birkaç saat → `Q?` + `QH`: ~250 KB'lik asıl DRAM
+bölgesinin `min_free`'si ve en büyük blok ÖNCE/SONRA (önce: 6 dk'da 15 692, uzun koşuda dip 2.5 KB;
+beklenen: ≥ ~40 KB artış), `ayirma_hata=0`, `QF yok`; `Q?` `el_sikisma_ms` (önce 0.9–2.0 s; bir miktar yavaşlama
+beklenir, > 2× ise incele); köprüyle tam eşitleme süresi (taban ~18 s); `K` sıfırla → 40 s → `K` `loop_azami`
+(taban 7.5 ms, ölçüt 11.4 ms). **Geri dönüş:** `projeler/olcum-karti`'den (`main` `deaca77`) `python
+uretim/yukle.py` — yalnız uygulama, NVS ve kayıtlar kalır; son çare tam yedek `esptool write-flash 0x0
+.yedek/olcum-karti/tam-20261004-025819.bin` (NVS + kayıt bölümünü o ana döndürür — önce eşitle).
+
+---
+
 #### 5.12.105 🟢 W1–W5 BİRLEŞMESİ + mDNS SERVİS DUYURUSU (2026-10-04, dal `w-birlesik`, ağaç `projeler/olcum-karti-wb`)
 
 Kullanıcı uyurken açılan beş kol (W1 veri doğruluğu · W2 firmware küçükleri · W3 açılış bütçesi · W4 mutasyon

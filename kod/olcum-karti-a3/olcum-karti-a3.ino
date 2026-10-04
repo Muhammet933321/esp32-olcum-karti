@@ -94,6 +94,8 @@
 #include "kayit_esp.h"  // B72 — kayit motorunun ESP32 yapistiricisi (Serial KULLANMAZ)
 #include "guvenlik_esp.h"  // 1D — eslestirme + imza yapistiricisi (Serial KULLANMAZ)
 #include "bildirim_esp.h"  // 1E — MQTT bildirimleri (Serial KULLANMAZ)
+#include <mbedtls/platform.h>    // E6F — mbedtls_platform_set_calloc_free
+#include "esp_memory_utils.h"    // E6F — esp_ptr_external_ram (acilis satiri)
 
 // 🔴 B22.4 — `Serial` AYNASI. BUTUN #include'lardan SONRA gelmeli.
 //
@@ -2855,7 +2857,12 @@ static void akis_yolla(const char *satir) {
   for (int8_t i = 0; i < AKIS_AZAMI; i++) {
     if (!akis[i]) continue;
     if (!akis[i].connected()) { akis[i].stop(); continue; }
-    akis[i].write((const uint8_t *)olay, (size_t)n);
+    /* E6F (F3): KISA yazma = olay yarim gitti (akis bundan sonra bozuk) ve
+       NetworkClient ya ~10 s ilerlemesiz bekledi ya da lwIP bellek bulamadi
+       (EAGAIN). Istemci DUSURULUR: soketin dahili gonderme tamponu birakilir,
+       EventSource `retry: 3000` ile yeniden baglanir (id: yer imiyle). */
+    const size_t y = akis[i].write((const uint8_t *)olay, (size_t)n);
+    if (y != (size_t)n) { akis[i].stop(); continue; }
     giden = true;
   }
   if (!giden) akis_dusen++;
@@ -2917,7 +2924,10 @@ static void akis_kalp() {
   if (ms - akis_son_kalp < 15000u) return;
   akis_son_kalp = ms;
   for (int8_t i = 0; i < AKIS_AZAMI; i++) {
-    if (akis[i] && akis[i].connected()) akis[i].print(F(": kalp\n\n"));
+    if (!akis[i] || !akis[i].connected()) continue;
+    static const char KALP[] = ": kalp\n\n";
+    /* E6F (F3): kisa yazma -> istemci dusurulur (akis_yolla ile ayni kural) */
+    if (akis[i].write((const uint8_t *)KALP, sizeof(KALP) - 1u) != sizeof(KALP) - 1u) akis[i].stop();
   }
 }
 
@@ -3266,6 +3276,31 @@ static void ayirma_dokum_bas() {
     Serial.println(t);
   }
   if (!n) Serial.println(F("QF yok (acilistan beri basarisiz ayirma yok)"));
+}
+
+// ═══════════════════════ E6F (F1) — mbedTLS BELLEGI ONCE PSRAM'E ═════
+// Cekirdek sdkconfig'i MBEDTLS_INTERNAL_MEM_ALLOC=y: mbedTLS'in HER ayirmasi
+// heap_caps_calloc(INTERNAL|8BIT) (esp_mem.c; libmbedcrypto'da sokulerek
+// dogrulandi, DEVIR 5.12.106). MQTT TLS oturumu 16 KB giris + 16 KB cikis kaydi
+// + baglamlar ~38-40 KB dahili yigini SUREKLI, her el sikisma +10-20 KB tutuyordu.
+// esp_config.h MBEDTLS_PLATFORM_MEMORY'yi STD_CALLOC ile (makro bicimi DEGIL)
+// tanimliyor -> mbedtls_platform_set_calloc_free calisma aninda gecerli; tek
+// mbedTLS kopyasi (Wi-Fi WPA supplicant, guvenlik_esp HMAC/PBKDF2, esp-tls) bunu
+// kullanir. Once PSRAM, dolu/yoksa dahili: PSRAM yoksa (psramFound() false)
+// eski davranis. IDF'nin resmi CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC secenegiyle ayni
+// yerlesim (AES/SHA DMA'si dis bellek tamponlarini IDF'de zaten karsiliyor).
+// Basarisiz ayirma geri cagirmasi yalniz IKI bellek de dolunca tetiklenir.
+// Birakma heap_caps_free: isaretcinin hangi yigindan geldigine kendisi bakar,
+// yani degisimden ONCE (eski ayiriciyla) ayrilmis blok da guvenle birakilir —
+// eski varsayilan birakici zaten heap_caps_free idi.
+static void *tls_bellek_ayir(size_t n, size_t boyut) {
+  return heap_caps_calloc_prefer(n, boyut, 2,
+                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
+
+static void tls_bellek_birak(void *p) {
+  heap_caps_free(p);
 }
 
 // Seri `Q` komutlari — 1E MQTT bildirimleri, YALNIZ USB (cekirdek 1). /komut ve
@@ -5468,6 +5503,10 @@ void setup() {
      (12 float), `F`, `W`, `S2` satirlarinda da var. Yapisal cozum
      (satiri tek write'a birlestirmek) WebAkis'te; bu, o gelene kadar
      olcumu koruyan ucuz onlem. */
+  /* E6F (F1): setup'in ILK isi — ilk mbedTLS kullanicisindan (ag_baslat_rf: WPA
+     supplicant; guv_esp_ac: HMAC/PBKDF2; bildirim_baslat: esp-tls) ONCE. Kurucular
+     ve initArduino mbedTLS kullanmiyor; kullansaydi da birakma guvenli (yukarida). */
+  mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);
   Serial.setTxBufferSize(8192);
   Serial.begin(115200);
   // E6: basarisiz dahili ayirmalari say — WiFi/TLS/ag gorevi baslamadan ONCE kurulu olmali
@@ -5546,7 +5585,14 @@ void setup() {
      akis 48 satir: D satiri 5/s ama skop ASCII dokumu TEK SEFERDE ~63
      satir basiyor; 24'te olculen tasma buydu. 48 x 224 B ≈ 10.7 KB. */
   komut_kuyrugu_q = xQueueCreate(KOMUT_KUYRUK, sizeof(KomutKalem));
-  akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));
+  /* E6F (F4): 10.7 KB'lik akis kuyrugu PSRAM'de (yapi + depo; IDF xQueueCreateWithCaps).
+     Yalniz gorevlerden kullanilir (ISR yok); flas yazma/silmede IDF obur cekirdegi
+     IRAM'de bekletir (SPI_FLASH_AUTO_SUSPEND kapali), PSRAM'deki kilit icin IDF'nin
+     dis bellek CAS kilidi var. Hic silinmez (vQueueDeleteWithCaps gerekmez).
+     PSRAM yoksa eski dahili kuyruk. */
+  akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  const bool akis_psram = akis_kuyrugu_q != nullptr;
+  if (!akis_kuyrugu_q) akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));
   skop_kilidi = xSemaphoreCreateMutex();
   /* B40b: yakalama gorevi. WiFi kapali olsa da kuruluyor — skop USB'de de
      calisiyor. Yigin: yakalama dongusundeki 1 KB cerceve + skop_olc;
@@ -5680,6 +5726,18 @@ void setup() {
     kayit_plan_ac();                     // 1C-4: bekleyen/suren plan NVS'ten
   } else {
     Serial.println(F("KAPALI — 'kayit' bolumu ya da bellek yok (partitions.csv ile tam yukleme)"));
+  }
+  {   /* E6F: tasinan tamponlar GERCEKTE nerede — kart dogrulasin (tek satir).
+         tls: kurulan ayiricidan bir deneme ayirmasi (mbedtls_calloc) */
+    void *d = mbedtls_calloc(1, 32);
+    Serial.print(F("Bellek (E6F): tls="));
+    Serial.print(!d ? F("YOK") : esp_ptr_external_ram(d) ? F("PSRAM") : F("dahili"));
+    mbedtls_free(d);
+    Serial.print(F(" veri="));
+    Serial.print(!kayit_veri_tampon ? F("YOK")
+                 : esp_ptr_external_ram(kayit_veri_tampon) ? F("PSRAM") : F("dahili"));
+    Serial.print(F(" akis="));
+    Serial.println(akis_psram ? F("PSRAM") : F("dahili"));
   }
 
   Serial.println(F("Cikis: D <volt> <amper> <watt> <joule> <wh> <ms> "
