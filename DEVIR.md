@@ -10603,6 +10603,32 @@ doğru ETag, 9 ret · 14 If-None-Match başlığı + NULL girdiler). Mutasyon `-
 http://<ip>/app.js` → `ETag` + `no-cache`; aynı ETag'le `If-None-Match` → `304 0`, başka etiketle → `200 <boy>`; `/`
 ETag'li ve immutable değil; telefonda ikinci açılışta Ağ sekmesinde panel dosyaları 304; `K` satırında yeni blokaj yok.
 
+**İnceleme (W6 inceleme, aynı dal):** bulgu GERÇEKTİ. W6'dan önce `.gz`'ye düşüş ve MIME seçimi çekirdeğin
+`StaticRequestHandler`'ındaydı ve 6n bunu çekirdeğin kaynağından okuyordu. W6 ikisini de `ArayuzIsleyici::handle` +
+`arayuz_tur`'a taşıdı, 6n ise yalnız alt dize arıyordu (`'yol += ".gz"'`, `(int)maxType - 1`). Önce mutasyonlar
+yazıldı ve düzeltmeden ÖNCE koşuldu; **dördü de KAÇTI** (B22b yeşil kaldı):
+`LittleFS.exists(yol + ".gz")` → `exists(yol)`: düşüş hiç olmaz, görüntüde yalnız `.gz` var → `/app.js`, `/ekran/*`,
+`/ortak/*`, `/style.css` 404, kabuk açılır ama panel ölü · `endsWith` → `startsWith`: her dosya `application/octet-stream`,
+`_streamFileCore` bu türde `Content-Encoding: gzip`'i de düşürür, ES modülleri çalışmaz · `|| f.isDirectory()` silinir:
+`/ortak` dizini dosya gibi gönderilir · `m == HTTP_GET &&` silinir: POST da panel dosyası alır.
+**Yeni 6r (+2 iddia, B22b 125 → 127):** `uretim/avr/ornek_arayuz.cpp`. `sim3_web.py` `.ino`'dan `arayuz_tur` ile
+`class ArayuzIsleyici`'yi BİREBİR kesiyor ve avr-g++ ile derliyor (`-Wall -Wextra`, uyarısız). MIME tablosu çekirdeğin
+KENDİ `detail/mimetable.cpp/.h`'si (kurulu 3.3.11, kopya değil); dosya sistemi görüntünün gerçek listesi (`_fs.json`:
+43 dosya, `gz` olanlar `.gz` adıyla, dizinler yollardan); işleyiciler `setup()`'taki kayıt sırası ve `Cache-Control`
+değerleriyle. Dağıtım çekirdeğin `_parseRequest`'i gibi: ilk `canHandle` kazanır, `handle` false ise 404 (sonrakine
+DÜŞMEZ). İnce katman (String, LittleFS, RequestHandler) yalnız işleyicinin kullandığı kadar; sanal imzalar çekirdeğin
+`RequestHandler.h`'siyle aynı (`override` uyuşmazsa derleme kırmızı). 15 istek: index/app.js/style.css/ekran/ortak/
+manifest/kunye → `.gz`, ikon → düz; MIME'ler ELLE yazıldı (tablodan türetilmedi): js `application/javascript`, css,
+html, json, png; vendor `immutable`, kök `no-cache`; `/app.js.gz` → `application/x-gzip` (çekirdekteki gibi); `/yok.js`,
+`/vendor/yok.js` (köke düşmez), `/ortak` (dizin), `/ekran/`, `POST /app.js` → hiçbir şey gönderilmez. AVR yığın payı
+ölçülüyor (403 B, ≥ 64 isteniyor) ve String taşması 0. Mutasyon `W6:` +4, **4/4 YAKALANDI** (POST'unki derleme
+uyarısıyla da: kullanılmayan `m`); `--neden W6` **21/21**. Zincir `--artimli` "Aşama 3 doğrulandı", gizlilik temiz. Firmware DEĞİŞMEDİ (derleme aynı: 81 844 B statik DRAM).
+**Düzeltilmeyen iki küçük (W6b, `1-acik-isler.md`):** (a) `If-None-Match` toplaması gereksiz — çekirdek 3.3.11
+`collectHeaders` bu başlığı kendisi ekliyor (`WebServer.cpp:1024`, `ETAG_HEADER`); `.ino` yorumu, 6q'nun "toplanıyor"
+iddiası ve iki W6 mutasyonu (toplanmaz / elle `7`) olamayacak bir arızayı iddia ediyor (mutasyonlar yine de kırmızı
+oluyor çünkü iddia metne bakıyor, davranışa değil). (b) `etag_eslesir` sonu `*` olan listeye (`"x", *`) 1 döndürüyor —
+kendi yorumu ve simetrik `*, "x"` → 0 test durumuyla çelişiyor (biçimsiz başlık; 304 zararsız ama tutarsız).
+
 ---
 
 #### 5.12.106 🟢 E6F: DAHİLİ YIĞIN DÜZELTMESİ — mbedTLS + KALICI TAMPONLAR PSRAM'E (2026-10-04, dal `e6-duzeltme`, ağaç `projeler/olcum-karti-e6f`; KARTTA)

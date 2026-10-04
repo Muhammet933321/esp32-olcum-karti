@@ -240,6 +240,131 @@ def _etag_avr(kunye: str, bul: list, esl: list):
     return uyari, kart.satirlar()
 
 
+def _tanim(kaynak: str, imza: str, sinif: bool = False) -> str:
+    """`imza`dan kapanan susluye kadar TAM tanim (sinifsa sonundaki `;` ile)."""
+    i = kaynak.find(imza)
+    g = govde(kaynak[i:], imza) if i >= 0 else ""
+    if not g:
+        return ""
+    j = kaynak.find("{", i)
+    return kaynak[i:j] + g + (";" if sinif else "")
+
+
+def _arayuz_avr(cekirdek: Path, dosyalar: list, dizinler: list, istekler: list, isleyiciler: list):
+    """W6 inceleme: kartin `arayuz_tur` + `ArayuzIsleyici` METNI AVR'de, cekirdegin
+    mimeTable'iyla. (hata/uyari satirlari, cikti satirlari) ya da None (arac yok)."""
+    import json as _json
+    import subprocess
+    import gecici
+    from avr import mega328
+    from avr.cekirdek import Cekirdek
+    from avr.elf import flash_goruntusu
+    gxx = AVR_GCC.parent / "avr-g++.exe"
+    if not gxx.exists():
+        return None
+    detay = cekirdek / "detail"
+    tur = _tanim(INO, "static String arayuz_tur(const String &yol)")
+    sinif = _tanim(INO, "class ArayuzIsleyici", sinif=True)
+    if not tur or not sinif:
+        return ["kartin metninde arayuz_tur / class ArayuzIsleyici bulunamadi"], []
+    d = gecici.dizin("olcum3_arayuz_")
+    c = _json.dumps                                  # ASCII yol/onbellek: C dize sabitiyle ayni kacislar
+    (d / "pgmspace.h").write_text("#include <avr/pgmspace.h>\n", encoding="ascii", newline="\n")
+    (d / "arayuz_kaynak.h").write_text("/* sim3_web.py: olcum-karti-a3.ino'dan BIREBIR */\n"
+                                       + tur + "\n\n" + sinif + "\n", encoding="utf-8", newline="\n")
+
+    def blob(ad, ogeler):                             # bitisik sabitler: "\0" sonrasi rakam sekizlik olmasin
+        return (f"static const char {ad}[] PROGMEM = "
+                + " ".join(c(x) + ' "\\0"' for x in ogeler) + ";")
+    kur = " ".join(f"static ArayuzIsleyici I{n}({c(o)}, {c(b)});" for n, (o, b) in enumerate(isleyiciler))
+    v = ["/* sim3_web.py uretti (W6 inceleme) */",
+         blob("DOSYALAR", dosyalar), blob("DIZINLER", dizinler),
+         blob("ISTEKLER", [f"{m} {u}" for m, u in istekler]),
+         f"#define ISLEYICI_ADET {len(isleyiciler)}u",
+         f"#define ISLEYICI_KUR {kur} static RequestHandler *const ISLEYICILER[] = "
+         "{" + ", ".join(f"&I{n}" for n in range(len(isleyiciler))) + "};", ""]
+    (d / "arayuz_vektor.h").write_text("\n".join(v), encoding="ascii", newline="\n")
+    elf = d / "ornek_arayuz.elf"
+    p = subprocess.run(
+        [str(gxx), "-mmcu=atmega328p", "-DF_CPU=16000000UL", "-Os", "-std=gnu++11",
+         "-Wall", "-Wextra", "-fno-threadsafe-statics", f"-I{d}", f"-I{detay}", "-o", str(elf),
+         str(BURASI / "avr" / "ornek_arayuz.cpp"), str(detay / "mimetable.cpp")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if p.returncode != 0:
+        return [p.stderr[-1500:] or "derlenemedi"], []
+    uyari = [x for x in p.stderr.splitlines() if "warning:" in x]
+    flash, _ = flash_goruntusu(elf)
+    kart = mega328.Kart(flash, Cekirdek)
+    for _ in range(100):
+        if b"BITTI" in kart.tx:
+            break
+        kart.cevrim_kadar_kos(2_000_000)
+    return uyari, kart.satirlar()
+
+
+def bolum6_arayuz_isleyici(r, cekirdek: Path, isleyiciler: list):
+    """W6 inceleme (6r): `.gz`e dusus + MIME + 404/dizin/POST — kartin metni AVR'de."""
+    import json
+    kunye = BURASI / "_fs.json"
+    if not kunye.exists():
+        r.bilgi("     _fs.json yok — ArayuzIsleyici AVR denetimi ATLANDI (python arayuz-uret.py).")
+        r.kosul("  6r: goruntu yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
+        return
+    k = json.loads(kunye.read_text(encoding="utf-8"))
+    gz = set(k.get("gz", []))
+    dosyalar = ["/" + a + (".gz" if a in gz else "") for a in k.get("bayt", {})]
+    dizinler = sorted({"/" + a.rsplit("/", 1)[0] for a in k.get("bayt", {}) if "/" in a})
+    ortak = next((a for a in k.get("bayt", {}) if a.startswith("ortak/")), "ortak/ozet.js")
+    onekler = [o for o, _b in isleyiciler]
+    kok = onekler.index("/") if "/" in onekler else -1
+    ven = onekler.index("/vendor/") if "/vendor/" in onekler else -1
+
+    def gs(yol):                                    # goruntude neyle duruyor
+        return "/" + yol + (".gz" if yol in gz else "")
+    JS = "application/javascript"
+    # (yontem, istek, isleyici, handle, acilan, tur) — TURLER ELLE (tarayicinin istedigi), tablodan DEGIL
+    bek = [("G", "/index.html", kok, 1, gs("index.html"), "text/html"),
+           ("G", "/app.js", kok, 1, gs("app.js"), JS),
+           ("G", "/style.css", kok, 1, gs("style.css"), "text/css"),
+           ("G", "/ekran/tema.js", kok, 1, gs("ekran/tema.js"), JS),
+           ("G", "/" + ortak, kok, 1, gs(ortak), JS),
+           ("G", "/manifest.json", kok, 1, gs("manifest.json"), "application/json"),
+           ("G", "/kunye.json", kok, 1, gs("kunye.json"), "application/json"),
+           ("G", "/ikon-180.png", kok, 1, gs("ikon-180.png"), "image/png"),
+           ("G", "/vendor/vue.global.prod.js", ven, 1, gs("vendor/vue.global.prod.js"), JS),
+           ("G", "/app.js.gz", kok, 1, "/app.js.gz", "application/x-gzip"),   # cekirdekteki gibi
+           ("G", "/yok.js", kok, 0, None, None),
+           ("G", "/vendor/yok.js", ven, 0, None, None),       # vendor 404: koke DUSMEZ
+           ("G", "/ortak", kok, 0, None, None),               # dizin
+           ("G", "/ekran/", -1, 0, None, None),               # dizin istegi: kok_sayfa/404
+           ("P", "/app.js", -1, 0, None, None)]               # yalniz GET
+    eksik = [a for _m, _u, _i, h, a, _t in bek if h and a not in dosyalar]
+    sonuc = _arayuz_avr(cekirdek, dosyalar, dizinler, [(m, u) for m, u, *_ in bek], isleyiciler)
+    if sonuc is None:
+        r.bilgi("     avr-g++ bulunamadi — ArayuzIsleyici AVR denetimi ATLANDI.")
+        r.kosul("  6r: AVR araci yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
+        return
+    uyari, sat = sonuc
+    Y = next((s.split()[1:] for s in sat if s.startswith("Y ")), None)
+    r.kosul("  6r: W6: kartin ArayuzIsleyici + arayuz_tur METNI AVR'de cekirdegin mimeTable'iyla UYARISIZ derlendi ve kostu",
+            not uyari and "BITTI" in sat and Y is not None and int(Y[0]) >= 64 and Y[1] == "0",
+            " | ".join(uyari[:2]) or (f"yigin payi {Y[0]} B, String tasmasi {Y[1]}" if Y else f"{len(sat)} satir"))
+    H = {int(p[1]): p[2:] for p in (s.split("|") for s in sat) if len(p) == 9 and p[0] == "H"}
+    kotu = list(eksik)
+    for i, (m, u, isl, h, a, t) in enumerate(bek):
+        g = H.get(i)
+        if h:
+            bekle = [str(isl), "1", "1", a, u, t, isleyiciler[isl][1]]
+        else:
+            bekle = [str(isl) if isl >= 0 else "-", "0", "0"]
+        if g is None or (g if h else g[:3]) != bekle:
+            kotu.append(f"{m} {u}: {'|'.join(g) if g else 'yok'}")
+    r.kosul("  6r: [!] W6: istek -> `.gz`e dusus + ASIL yoldan MIME (js/css/html/json/png) + dogru Cache-Control; "
+            "yok/dizin/POST/`/x/` -> isleyici GONDERMEZ",
+            len(H) == len(bek) and not kotu,
+            "; ".join(kotu[:3]) or f"{len(bek)} istek, {len(dosyalar)} goruntu dosyasi")
+
+
 def bolum6_etag(r, k, _uret):
     """W6: ETag kunyesi (uretec) + kartin ETag/304 karari (web_etag.h, AVR'de)."""
     import gzip
@@ -978,6 +1103,9 @@ def bolum6(r):
                 and "(int)maxType - 1" in _tur and "mimeTable[maxType - 1].mimeType" in _tur
                 and 'sendHeader(F("Content-Encoding"), F("gzip"))' in govde(_ws, "void WebServer::_streamFileCore("),
                 "x.js istenir, x.js.gz gonderilir, tur application/javascript kalir (W6: ArayuzIsleyici)")
+        # W6 inceleme: yukaridaki alt dize denetimi `exists(yol)` / `startsWith` gibi tek
+        #   belirteclik bozulmalari GECIRIYORDU — davranis kartin metniyle AVR'de (6r).
+        bolum6_arayuz_isleyici(r, cekirdek, [(o, b) for _i, o, b in _isleyiciler])
 
     # ── Goruntunun bayatligi ─────────────────────────────────────────
     r.kosul("  6j: uretec ve yazici var",

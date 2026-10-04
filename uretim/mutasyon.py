@@ -4351,6 +4351,24 @@ MUTASYONLAR = [
      "    return hashlib.sha256(veri).hexdigest()[:16]",
      "    return hashlib.sha256(veri).hexdigest()[:12]",
      "W6: uretecin ETag'i kartin WEB_ETAG_HEX'inden kisa: 6q kirmizi"),
+    # W6 inceleme: ArayuzIsleyici/arayuz_tur DAVRANISI (6r, AVR'de kartin metniyle).
+    #   Ilk ikisi incelemede B22b 125/125 ile SAG KALIYORDU (6n yalniz alt dize ariyordu).
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (!yol.endsWith(\".gz\") && !LittleFS.exists(yol) && LittleFS.exists(yol + \".gz\")) yol += \".gz\";",
+     "    if (!yol.endsWith(\".gz\") && !LittleFS.exists(yol) && LittleFS.exists(yol)) yol += \".gz\";",
+     "W6: `.gz`e dusus hic olmaz — goruntude yalniz .gz var, /app.js /ekran /ortak /style.css 404: 6r kirmizi"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (yol.endsWith(mimeTable[i].endsWith)) return String(mimeTable[i].mimeType);",
+     "    if (yol.startsWith(mimeTable[i].endsWith)) return String(mimeTable[i].mimeType);",
+     "W6: her dosya octet-stream (gzip basligi da duser) — ES modulleri calismaz: 6r kirmizi"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (!f || f.isDirectory()) return false;",
+     "    if (!f) return false;",
+     "W6: dizin istegi (`/ortak`) dosya gibi gonderilir: 6r kirmizi"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    return m == HTTP_GET && uri.startsWith(onek_) && !uri.endsWith(\"/\");",
+     "    return uri.startsWith(onek_) && !uri.endsWith(\"/\");",
+     "W6: POST /app.js de panel dosyasi doner (isleyici yalniz GET): 6r kirmizi"),
 
     # ── 3A · B22a (test_kopru.py): kopru ve gelistirme sunucusu /ortak/ + MIME
     ("B22a", "test_kopru.py", "kopru/kopru.py",
