@@ -1,0 +1,16 @@
+CURUTUCU (5B) kanit dosyalari. Kaynak DUZELTILMEDI; buradaki her sey acigi GOSTERIR.
+
+DIKKAT: *.test.js dosyalari BILEREK KIRMIZI ve `npx vitest run` toplu kosusunu kirmiziya cevirir.
+Haric tutmak icin: vitest run --exclude "test/curutucu-5b/**". Dosya dosya kos:
+  npx vitest run test/curutucu-5b/<dosya>
+
+  yaris.test.js        Y1-Y3  401 + ayni acilis = "cihaz-silinmis" varsayimi eszamanli isteklerde yanlis
+  kasa-yarim.test.js   S1-S3  cihazSakla yarida kalinca anahtar diskte kalir, SIFIR anahtarla imza
+                       S4     iki kasaKur ayni diskte -> ayni sayac iki kez
+  kotu-kart.test.js    O1,O3 kirmizi; O2,O4 yesil (denendi, tuttu)
+  ayrisma.test.js      A1-A2  kasa_sahtesi.mjs <-> gercek Kotlin KasaKomut
+  logcat.test.js       L1-L2  tarayicinin kacirdigi bicimler / yanlis alarmlar
+  yasayan-liste.mjs    node mutasyon/kos.mjs --liste test/curutucu-5b/yasayan-liste.mjs  -> 9/10 YASIYOR
+  kotlin/              bash test/curutucu-5b/kotlin/derle.sh <bos-dizin>   (Gradle KOSMAZ; JVM kaniti)
+  tur-olc.mjs          node test/curutucu-5b/tur-olc.mjs   (tur = 1 000 000 dayatan kartin kilitleme suresi)
+  yardim.mjs           ortak duzenek (telefon, kotu kart)

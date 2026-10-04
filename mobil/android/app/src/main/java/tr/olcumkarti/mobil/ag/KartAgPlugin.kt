@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.os.SystemClock
 import android.security.NetworkSecurityPolicy
 import android.util.Base64
 import com.getcapacitor.JSObject
@@ -91,6 +92,33 @@ class KartAgPlugin : Plugin() {
             }
         }
         try { havuz.execute(is_) } catch (e: RejectedExecutionException) { call.reject("mesgul", "mesgul") }
+    }
+
+    /**
+     * ACIL DURDURMA (A8–A11). Ortak is parcacigi havuzunu KULLANMAZ (dolu kuyruk p0'i bekletemez):
+     * kendi is parcaciklari. Imzasiz; kimlik dogrulamasi yok (taninmayan karta p0'in zarari yok).
+     */
+    @PluginMethod
+    fun p0(call: PluginCall) {
+        val dizi = call.getArray("adresler")
+        val adresler = ArrayList<String>()
+        if (dizi != null) for (i in 0 until dizi.length()) { val a = dizi.optString(i, ""); if (a.isNotEmpty()) adresler.add(a) }
+        val t0 = SystemClock.elapsedRealtime()
+        Thread({
+            val s = P0({ adres -> p0Gonder(adres) }).durdur(adresler)
+            val o = JSObject()
+            o.put("tamam", s.tamam)
+            if (s.adres != null) o.put("adres", s.adres)
+            o.put("deneme", s.deneme)
+            o.put("sureMs", SystemClock.elapsedRealtime() - t0)
+            call.resolve(o)
+        }, "p0-ana").start()
+    }
+
+    private fun p0Gonder(adres: String): Int {
+        val (url, ac) = hazirla("http://$adres/komut")
+        val basliklar = mapOf("X-Olcum" to "1", "Content-Type" to "text/plain")
+        return HttpIstek(ac).yap("POST", url, basliklar, "p0".toByteArray(Charsets.US_ASCII), P0.BAGLANTI_SURESI_MS, 1024).kod
     }
 
     @PluginMethod
