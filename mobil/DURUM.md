@@ -399,3 +399,6 @@ olabilir; "bulunamadı"dan önce bir kez daha denemek).
 6. Klavye açıkken şerit; koyu / açık tema görünümü; sistem yazı boyutu.
 7. Logcat taraması (özellikle `_i=` — imzalı akış adresi).
 Sonra 5C bağımsız çürütücü.
+
+- **Mutasyon (5C, kendi koşum):** JS `5C` önekli **82/82** öldü (akış 35 + kabuk 36 + p0 7 + keşif 4); Kotlin
+  `5C-K` **3/3**. Telefonlar hâlâ USB'de değil; ölçüm kuyruğu yukarıda.
