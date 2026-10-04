@@ -22,7 +22,8 @@ Ne olcer (kartin bildirim yolu GERCEKTEN calisiyor mu):
   - araci kesintisi: kart <= 12 s'de duser, bekleyen olay kuyrukta tutulur, araci donunce <= 70 s'de
     yeniden baglanir ve olay ulasir,
   - E8 yanitsiz araci: sessiz araci (soket acik, yanit yok) ve kara delik vekili (iletmez, kapatmaz)
-    -> kart <= 9.5 s'de kendisi kapatir, Q? hata=-7; Q? canlilik alanlari (tur, adim, ping/pong yasi),
+    -> kart <= 9.5 s'de kendisi kapatir, Q? hata=-7 (duz TCP: E8 oncesi firmware de gecer — gerileme);
+    E8'e ozgu yalniz Q? canlilik izi (tur, adim, ping/pong yasi; susma sirasinda ornekler),
   - bagliyken bos yigin >= 60 KB, Q? / SSE / seri konsolda parola YOK, /komut'tan Q 403.
 Temizlik HER ZAMAN calisir (Q0, Qu/Qk/Qp/Qc/Qd bos, test cihazi Ex<n>, araci durdurulur).
 
@@ -64,6 +65,52 @@ RAM_SINIR = 60_000
 # hemen sonraya denk gelirse 9 s'yi birkac on ms gecebilir — bu yuzden 9.0 degil.
 SESSIZ_TASARIM_S = 9.0
 SESSIZ_SINIR_S = SESSIZ_TASARIM_S + 0.5
+# E8 inceleme: bu tezgahin aracisi DUZ TCP (mqtt://). TLS kaydi yok -> "kismi kayitta okuma 10 s,
+# -6" yolu burada HIC olusmaz; sessiz araci da kara delik de geleni okuyup ACK'ler (gonderme penceresi
+# dolmaz) -> PINGREQ hemen soket tamponuna gider. E8 ONCESI firmware de PINGREQ'den 5 s sonra -7 ile
+# kapatir: "<= 9.5 s" ve "hata=-7" yanitsiz araci GERILEME denetimidir, E8'i eskisinden AYIRMAZ.
+# Bu tezgahta E8'e ozgu olan YALNIZ canlilik izi (Q? alanlari, tur artisi, susma sirasindaki ornekler).
+# 1.5 s soket tavani, kismi kaydin -7 sayilmasi ve takili PINGREQ yalniz kaynak iddialari (B72.QE8a-d).
+CANLILIK_ALANLARI = ("tur", "adim", "adim_yas", "ping_yas", "pong_yas")
+ADIM_TAKILI_MS = 1500        # BLD_SOKET_MS: E8'de bagliyken tek soket cagrisi bundan uzun suremez
+PING_BEKLER_MS = 5000 + 500  # BLD_PINGRESP_MS + tur/olcum payi: bekleyen ping bundan yasli olamaz
+
+
+def yanitsiz_hukum(ad: str, q0: dict, q: dict | None, dt: float | None) -> list[tuple[str, bool, str]]:
+    """S1/S2 kapanis hukmu (saf; kartsiz test_bildirim E8.17). Ilk iki denetim GERILEME (duz TCP'de
+    eski firmware de gecer), ucuncusu bu tezgahta E8'i eskisinden ayiran TEK denetim."""
+    e8 = (bool(q) and all(a in q0 for a in CANLILIK_ALANLARI) and all(a in q for a in CANLILIK_ALANLARI)
+          and q["tur"] > q0["tur"])
+    return [
+        (f"{ad}: kart yanitsiz baglantiyi <= {SESSIZ_SINIR_S} s icinde KENDISI kapatti (tasarim "
+         f"{SESSIZ_TASARIM_S:.0f} s = 4 s ping + 5 s PINGRESP; gerileme — duz TCP'de eski firmware de gecer)",
+         dt is not None and dt <= SESSIZ_SINIR_S, f"{dt and round(dt, 2)} s"),
+        (f"{ad}: Q? hata=-7 (PINGRESP gelmedi; araci kapatmadi), durum bagli degil (gerileme — duz TCP'de "
+         "-6'ya giden kismi TLS kaydi yolu yok, eski firmware de -7 der)",
+         bool(q) and q["hata"] == -7 and q["durum"] != 4,
+         f"hata {q and q['hata']} durum {q and q['durum']}"),
+        (f"{ad}: E8 firmware'i — Q? canlilik alanlari var ve gorev turu artti (bu tezgahta E8'i eskisinden "
+         "ayiran tek denetim)", e8,
+         f"tur {q0.get('tur')} -> {q and q.get('tur')} adim {q and q.get('adim')} "
+         f"ping_yas {q and q.get('ping_yas')} pong_yas {q and q.get('pong_yas')}"),
+    ]
+
+
+def ara_hukum(ad: str, ornekler: list[dict]) -> tuple[str, bool, str]:
+    """Susma sirasinda (kapanistan once, durum 4) alinan Q? ornekleri (saf; kartsiz E8.18): her ornekte
+    alanlar var ve adim TAKILI degil (adim_yas < ADIM_TAKILI_MS), tur her ornekte artiyor, en az bir
+    ornekte ping BEKLENIYOR (0 <= ping_yas <= PING_BEKLER_MS ve son PINGRESP son PINGREQ'den once)."""
+    tam = bool(ornekler) and all(all(a in o for a in CANLILIK_ALANLARI) for o in ornekler)
+    takili = [o for o in ornekler if tam and o["adim_yas"] >= ADIM_TAKILI_MS]
+    artan = tam and all(b["tur"] > a["tur"] for a, b in zip(ornekler, ornekler[1:]))
+    bekleyen = [o for o in ornekler if tam and 0 <= o["ping_yas"] <= PING_BEKLER_MS
+                and (o["pong_yas"] < 0 or o["pong_yas"] > o["ping_yas"])]
+    return (f"{ad}: susma sirasinda Q? ({len(ornekler)} ornek): gorev hicbir adimda TAKILI degil "
+            f"(adim_yas < {ADIM_TAKILI_MS} ms), tur artiyor, PINGREQ gitti ve PINGRESP bekleniyor "
+            "(E8 canlilik izi)",
+            tam and not takili and artan and bool(bekleyen),
+            " | ".join(f"{o.get('adim')}/{o.get('adim_yas')} tur {o.get('tur')} ping {o.get('ping_yas')} "
+                       f"pong {o.get('pong_yas')}" for o in ornekler[:8]))
 
 # (kod, metin) — `--liste` ve README gibi: gercek denetimlerle ayni sirada
 PLAN = [
@@ -92,9 +139,11 @@ PLAN = [
     ("F3", "ac() (ayni port): kart <= 70 s'de yeniden baglanir, bekleyen deneme olayi ULASIR, kuyruk 0, "
            "retained durum yeniden yazilir (c:1), PC abonesi kendiliginden geri baglanir"),
     ("S1", "E8 sessiz araci (TCP acik, yanit yok): kart <= 9.5 s'de baglantiyi kendisi kapatir, Q? hata=-7 "
-           "(PINGRESP; -6 DEGIL), tur sayaci artmaya devam eder; konus() ile <= 70 s'de geri baglanir"),
+           "(gerileme: araci duz TCP, eski firmware de gecer); E8'e ozgu: Q? canlilik alanlari, susmada gorev "
+           "takili degil + ping bekleniyor, tur artar; konus() ile <= 70 s'de geri baglanir"),
     ("S2", "E8 kara delik vekili (iki yonde iletmez, kapatmaz): kart vekil uzerinden baglanir, kes() sonrasi "
-           "<= 9.5 s'de kapatir, Q? hata=-7; aracı keepalive'la vasiyeti yayinlar; Qu eski adrese doner"),
+           "<= 9.5 s'de kapatir, Q? hata=-7 (gerileme: eski firmware de gecer) + canlilik izi; aracı "
+           "keepalive'la vasiyeti yayinlar; Qu eski adrese doner"),
     ("H1", "POST /komut 'Q?' -> 403 (Q yalniz USB)"),
     ("G1", "Seri konsol + /akis SSE metninde kart/cihaz parolasi, bildirim anahtari, tam onek YOK"),
     ("T1", "Temizlik (HER ZAMAN): Q0, Qu/Qk/Qp/Qc/Qd bos, Ex<n>, araci durur; E?/Q? baslangic durumuna doner"),
@@ -851,18 +900,22 @@ class Tezgah:
         return self.bekle(lambda: (lambda q: q if q and q["durum"] == 4 else None)(q_oku(self.k)), sn)
 
     def _yanitsiz_olc(self, ad: str, q0: dict, t0: float, kapanis) -> None:
-        """Susma ani `t0`; `kapanis()` kartin baglantiyi kapattigi olay (ya da None)."""
-        d = self.bekle(kapanis, SESSIZ_SINIR_S + 10)
+        """Susma ani `t0`; `kapanis()` kartin baglantiyi kapattigi olay (ya da None). Kapanisi beklerken
+        Q? orneklenir (yalniz durum 4 olanlar susmanin ICI sayilir); kapanis ani araci olayindan, yani
+        orneklemeden etkilenmez."""
+        son = time.monotonic() + SESSIZ_SINIR_S + 10
+        ornekler: list[dict] = []
+        d = kapanis()
+        while not d and time.monotonic() < son:
+            q_ara = q_oku(self.k, sn=2.0)
+            if q_ara and q_ara.get("durum") == 4:
+                ornekler.append(q_ara)
+            d = kapanis()
         dt = (d["t"] - t0) if d else None
         q = q_oku(self.k)                       # yeniden deneme -5'i en erken ~12 s sonra yazar
-        ok(f"{ad}: kart yanitsiz baglantiyi <= {SESSIZ_SINIR_S} s icinde KENDISI kapatti "
-           f"(tasarim {SESSIZ_TASARIM_S:.0f} s = 4 s ping + 5 s PINGRESP)",
-           dt is not None and dt <= SESSIZ_SINIR_S, f"{dt and round(dt, 2)} s")
-        ok(f"{ad}: Q? hata=-7 (PINGRESP / soket zaman asimi; -6 'araci kapatti' DEGIL), durum bagli degil, "
-           "gorev turu artiyor", bool(q) and q["hata"] == -7 and q["durum"] != 4
-           and q.get("tur", 0) > q0.get("tur", 0),
-           f"hata {q and q['hata']} durum {q and q['durum']} tur {q0.get('tur')} -> {q and q.get('tur')} "
-           f"adim {q and q.get('adim')} ping_yas {q and q.get('ping_yas')} pong_yas {q and q.get('pong_yas')}")
+        for metin, gecti_mi, ek in yanitsiz_hukum(ad, q0, q, dt):
+            ok(metin, gecti_mi, ek)
+        ok(*ara_hukum(ad, ornekler))
 
     def canlilik(self) -> None:
         print("\n── S1/S2: E8 yanitsiz araci — sessiz araci + kara delik vekili")

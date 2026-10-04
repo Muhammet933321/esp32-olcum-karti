@@ -10606,10 +10606,12 @@ PUBACK · -9 paket · -10 bozuk akış · **-11 (E8) tur > 8 s** · -100−N ara
 taramasından önce, varsayılan akışta):
 - S1 sessiz aracı → kart bağlantıyı KENDİSİ kapatır ≤ `SESSIZ_SINIR_S` = 9.5 s (tasarım 4 s ping + 5 s
   PINGRESP = 9 s; +0.5 s tur/ölçüm payı: susma anı kartın son yazmasından hemen sonraya denk gelirse 9 s birkaç on
-  ms aşılır), `Q?` `hata=-7` (-6 DEĞİL), `tur` artıyor; `konus()` → ≤ 70 s yeniden bağlı.
+  ms aşılır), `Q?` `hata=-7` (aracı kapatmadı), `tur` artıyor; `konus()` → ≤ 70 s yeniden bağlı.
 - S2 kara delik: `Qu` vekil adresine çevrilir, kart vekil üstünden bağlanır, `kes()` → ≤ 9.5 s kapatır, `hata=-7`;
   aracı keepalive (7.5 s) ile vasiyeti yayınlar; `Qu` (finally) doğrudan adrese döner, ≤ 70 s bağlı.
 - S1 başında `Q?` canlılık alanları + bağlıyken `pong_yas` ≤ 10 s.
+- ⚠ **(inceleme, aşağıda) S1/S2'nin "≤ 9.5 s" ve "`hata=-7`" denetimleri E8'İ ESKİSİNDEN AYIRMAZ** — aracı düz TCP,
+  E8 öncesi firmware de ikisini geçer. Bu tezgahta E8'e özgü olan yalnız canlılık izi.
 
 **İddialar:**
 - B72.QE8a–g (`test_kayit_esp.py` `bolum_bildirim_kart`; `B72.E8` adı onay jetonunda kullanıldığı için `QE8`), B72
@@ -10637,10 +10639,76 @@ taramasından önce, varsayılan akışta):
 - `dogrula3.py --artimli` (önbellek yoktu → TAM koşu): **"Aşama 3 doğrulandı"**, 22/22, B72 85.6 s, B6 127.9 s.
   Gizlilik temiz. Üretilen belgeler/şema geri alındı (yalnız 4-kurulum'daki firmware boyutu değişmişti).
 
-**Açık (karta yüklenince):** S1/S2'yi koş (`python uretim/tezgah_bildirim.py`, kart A3 + bu dal); gerçek EMQX'te
+**Açık (karta yüklenince):** S1/S2'yi koş (`python uretim/tezgah_bildirim.py`, kart A3 + bu dal) — kapanış
+süresi ve `-7` gerileme denetimi, E8'e özgü kanıt yalnız canlılık izi (inceleme, aşağıda); gerçek EMQX'te
 bağlıyken `Q?` `pong_yas` ve `adim` gözle (TLS'te `select` → `oku` geçişi kayıt başına); el sıkışma süresi
 değişmemeli (tavan bağlandıktan sonra). Tavanın kendisi (takılı gönderme 1.5 s'de kesilir) tezgahta
 tetiklenemiyor (pencere dolmuyor) — ancak gerçek ağ tıkanmasında `adim=yaz adim_yas` ≤ ~1.5 s görülür.
+
+**İnceleme (E8 inceleme, 2026-10-04):** bir bulgu, GERÇEK.
+- **Bulgu:** S1/S2 kart senaryoları E8 firmware'ini eskisinden ayıramıyordu. "-7, -6 değil" denetimi ve onun
+  mutasyonu kanıtladıklarından fazlasını söylüyordu.
+- **Doğrulama (kaynaktan):**
+  - Tezgahın aracısı düz TCP (`tezgah_bildirim.py`: "duz TCP; kart `mqtt://`", `Qumqtt://<vekil>`). TLS kaydı
+    yok, yani eskiden -6'ya giden "kısmi kayıt" yolu (kusur 2) burada hiç oluşmaz. Düz TCP'de `esp_tls_conn_read`
+    `select` "okunabilir" dedikten sonra eldekini döndürür.
+  - Sessiz aracı da kara delik de geleni okuyup ACK'liyor (`sahte_araci.py`: "pencere DOLMAZ"). PINGREQ hemen
+    lwIP gönderme tamponuna gider.
+  - E8 öncesi `main`'de de `bld__yaz` takılmadan yazar. Ardından `ping_bekle` denetimi (eski `bildirim_esp.h:793`)
+    5 s sonra `-7` verir. Yani eski firmware de ≤ 9 s'de, `hata=-7` ile kapatır ve iki denetimi de geçer.
+  - Eski firmware'i yalnız yeni `Q` alanlarının yokluğu kırmızı yapıyordu. O da `q.get("tur", 0) > ...` içinde,
+    `hata=-7` denetimine gömülüydü.
+  - DEVIR'in "Açık" bölümü, `1-acik-isler` E8 satırı ("Kartta kaldı: S1/S2 → hata=-7") ve mutasyon notu ("eski
+    10 s'lik okuma yolu ayirt edilmez") bunu E8'in kart kanıtı gibi sunuyordu.
+- **Önce kırmızı iddia** (`test_bildirim.py`, B72.Q16 alt süreci 282 → **285**; `beklenen_sayim.json` değişmez,
+  B72'nin kendi sayısı aynı). Üçü de önce kırmızıydı (282/285), düzeltmeden sonra 285/285.
+  - E8.17: tezgah hükmü saf `yanitsiz_hukum`. ESKİ firmware'in `Q` satırı (alan yok, `hata=-7`, 8.7 s) kapanış ve
+    -7 GERİLEME denetimlerini geçer, yalnız E8 ayırt edicisi kırmızı. E8 satırı 3/3 yeşil. -6, 9.8 s, kapanış yok
+    ve tur artmaması ayrı ayrı kırmızı.
+  - E8.18: susma sırasındaki örneklerin hükmü saf `ara_hukum`. Yeşil koşul: takılı adım yok (`adim_yas` < 1500
+    ms), tur artıyor, en az bir örnekte ping bekleniyor (`0 ≤ ping_yas ≤ 5.5 s`, son PINGRESP son PINGREQ'den
+    önce). Takılı `yaz`, bekleyen ping yok, tur durmuş, eski firmware ve boş liste kırmızı.
+  - E8.19: PLAN S1/S2 metni "-6 DEGIL"i E8 kanıtı diye sunmaz. "duz TCP / eski firmware de gecer" der ve ayırt
+    edici olarak canlılık alanlarını adlandırır.
+- **Düzeltme (`tezgah_bildirim.py`):**
+  - Hüküm üç ayrı denetim. "≤ 9.5 s" ve "`hata=-7`" adlarıyla GERİLEME (düz TCP'de eski firmware de geçer).
+    Üçüncüsü "E8 firmware'i — canlılık alanları var ve tur arttı (tek ayırt edici)".
+  - `_yanitsiz_olc` kapanışı beklerken `Q?` örnekler. Yalnız `durum 4` olanlar susmanın içi sayılır. Kapanış anı
+    aracı olayından alınır, örneklemeden etkilenmez. Örnekler `ara_hukum`'dan geçer.
+  - Modül başında kapsam notu, docstring ve PLAN metni düzeltildi.
+  - Firmware DEĞİŞMEDİ: derleme, DRAM ve B72 sayısı aynı.
+- **Kapsam (dürüstçe):**
+  - Bu tezgahta kartta kanıtlanabilen E8'e özgü şey yalnız canlılık izidir: alanlar, tur, susmada takılı adım
+    olmaması ve bekleyen ping.
+  - 1.5 s soket tavanı, kısmi kaydın -7 sayılması (yalnız TLS'te oluşur) ve takılı PINGREQ hâlâ YALNIZ kaynak
+    biçim iddiaları (B72.QE8a–d).
+  - Davranışsal kanıt için iki yol var: TLS'li bir yerel test aracısı ya da pencereyi dolduran (okumayan, küçük
+    `SO_RCVBUF`) bir vekil. Kartın trafiği küçük (4 s'de 2 B PINGREQ + 60 s'de bir durum), bu yüzden ikincisi
+    tamponu pratikte dolduramaz.
+  - Gerçek EMQX'te (TLS) ağ tıkanması hâlâ tek gözlem yeri: `adim=yaz`/`oku` ile `adim_yas` ≤ ~1.5 s.
+- **Mutasyon `E8:` +8 → 35:**
+  - "-6 kabul": notu düzeltildi, artık E8.15 + E8.17 yakalıyor.
+  - E8.17: ayırt edici alan aramaz; tur `>=`.
+  - E8.18: takılı adım 15 s'ye gevşer; PINGRESP gelmiş örnek "bekliyor" sayılır; 9 s'lik ping bekliyor sayılır;
+    tur durmuş kabul edilir.
+  - E8.15: ara örnekler hükme girmez.
+  - E8.19: PLAN yine "-6 DEGIL".
+  - Sonuç: **35/35 YAKALANDI** (953 s, `--paralel 2`).
+  - #35 (`q_oku` `adim` okumaz) yalnız ÇÖKMEYLE yakalanıyordu (E8.16 `yeni["adim"]` KeyError). E8.16 artık `.get`
+    ile okuyor ve iddiayla kırmızı (yeniden koşuldu: 1/1 YAKALANDI).
+- **Doğrulama:**
+  - `yukle.py --derle` uyarısız. Firmware dosyası değişmedi, `_firmware.json` aynı.
+  - `dogrula3.py --artimli`: **"Aşama 3 doğrulandı"**, 22/22. B72 243/243, B72.Q16 285/285.
+  - Gizlilik temiz. Üretilen belgeler, şema ve `_tezgah.md` geri alındı.
+  - Kart, seri port ve HTTP KULLANILMADI.
+- **Açık bırakılan küçükler** (düzeltilmedi, `1-acik-isler` E8 satırında):
+  - S1'in 9.5 s sınırı yaklaşık %6 olasılıkla yanlış kırmızı verir: susma sırasında 60 s'lik retained `durum`
+    yayını PINGREQ'i 4 s'ye kadar öteler.
+  - TLS'te `BLD_YAZ_MS` ve -11 sınırı, eklendikleri yavaş damla durumunu durduramaz. "Paket başına ~4.5 s" yalnız
+    düz TCP'de geçerli.
+  - İncelemenin üç yeni mutasyonu kartsız iddialardan sağ çıkıyor: pong anı, `adim_ms` sıfırlaması, tezgahın
+    "tur artıyor" denetimi. Sonuncusu artık E8.17'de saf hükümde sınanıyor (tur 600 → 600 kırmızı) ve "tur `>=`"
+    mutasyonu onu kapsıyor. Gözden geçirenin kendi mutasyon metni elde olmadığı için birebir yeniden koşulmadı.
 
 ---
 

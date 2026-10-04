@@ -2171,7 +2171,8 @@ def bolum_e8() -> None:
        "taramasindan once); olcut Q? hata == -7 ve kapanis <= SESSIZ_SINIR_S (9 s tasarim + 0.5 s pay); "
        "S2 sonunda Qu eski adrese doner",
        0 <= ca.find("self.kesinti()") < ca.find("self.canlilik()") < ca.find("self.komut_ve_sizinti()")
-       and 'q["hata"] == -7' in yo and "dt <= SESSIZ_SINIR_S" in yo
+       and "yanitsiz_hukum(ad, q0, q, dt)" in yo and "ara_hukum(ad, ornekler)" in yo
+       and 'q["hata"] == -7' in src and "dt <= SESSIZ_SINIR_S" in src
        and re.search(r"SESSIZ_TASARIM_S = 9\.0\n", src) is not None
        and "SESSIZ_SINIR_S = SESSIZ_TASARIM_S + 0.5" in src
        and "self.araci.sessiz()" in cl and "v.kes()" in cl and 'f"Qu{self.uri}"' in cl
@@ -2195,10 +2196,71 @@ def bolum_e8() -> None:
     eski = TB.q_oku(_K([q_eski, qa, qy]), sn=0.5)
     ok("E8.16 q_oku E8 Q satirini cozer (tur/adim_yas/ping_yas/pong_yas tamsayi, -1 = hic; adim metin) "
        "ve eski firmware'in satirinda bu anahtarlar YOK; eski alanlar ayni",
-       bool(yeni) and (yeni["tur"], yeni["adim"], yeni["adim_yas"], yeni["ping_yas"], yeni["pong_yas"],
-                       yeni["durum"], yeni["esik"]) == (812, "select", 31, 1200, -1, 4, 900)
+       bool(yeni) and tuple(yeni.get(x) for x in ("tur", "adim", "adim_yas", "ping_yas", "pong_yas", "durum",
+                                                   "esik")) == (812, "select", 31, 1200, -1, 4, 900)
        and bool(eski) and "tur" not in eski and "adim" not in eski and eski["el_sikisma_ms"] == 1200,
        str(yeni and {x: yeni.get(x) for x in ("tur", "adim", "adim_yas", "ping_yas", "pong_yas")}))
+
+    # E8 inceleme: tezgahin araci DUZ TCP. Eski (E8 oncesi) firmware de PINGREQ'den 5 s sonra -7 ile
+    # kapatir -> "<= 9.5 s" ve "hata=-7" E8'i eskisinden AYIRMAZ. Hukum bunu ACIKCA soylemeli: eski
+    # firmware'in satiri (canlilik alani yok) bu iki gerileme denetimini GECER, yalniz E8 ayirt edicisi
+    # kirmizi olur. Tezgahin hukmu saf islev — kartsiz burada sinanir.
+    def _q(**k):
+        d = {"acik": 1, "durum": 5, "hata": -7}
+        d.update(k)
+        return d
+    _e8 = dict(tur=900, adim="bekle", adim_yas=12, ping_yas=5040, pong_yas=9100)
+    q0_e8 = _q(durum=4, hata=0, tur=600, adim="select", adim_yas=20, ping_yas=1500, pong_yas=1480)
+    q0_eski = _q(durum=4, hata=0)
+    hk = getattr(TB, "yanitsiz_hukum", None)
+
+    def _h(q0, q, dt):
+        return [g for _m, g, _a in hk("S1", q0, q, dt)] if hk else None
+    ok("E8.17 tezgah hukmu (yanitsiz_hukum): E8 satiri 3/3 yesil; ESKI firmware'in satiri (alan yok, "
+       "hata=-7, 8.7 s) kapanis + -7 GERILEME denetimlerini GECER, yalniz E8 ayirt edicisi kirmizi "
+       "(duz TCP'de tek ayirt edici canlilik alanlari + tur artisi); -6, 9.8 s, kapanis yok, tur "
+       "artmamasi ayri ayri kirmizi",
+       hk is not None
+       and _h(q0_e8, _q(**_e8), 8.7) == [True, True, True]
+       and _h(q0_eski, _q(), 8.7) == [True, True, False]
+       and _h(q0_e8, _q(**{**_e8, "hata": -6}), 8.7) == [True, False, True]
+       and _h(q0_e8, _q(**{**_e8, "durum": 4}), 8.7)[1] is False
+       and _h(q0_e8, _q(**_e8), 9.8)[0] is False
+       and _h(q0_e8, _q(**_e8), None)[0] is False
+       and _h(q0_e8, None, 8.7) == [True, False, False]
+       and _h(q0_e8, _q(**{**_e8, "tur": 600}), 8.7) == [True, True, False],
+       str(hk and [_h(q0_e8, _q(**_e8), 8.7), _h(q0_eski, _q(), 8.7)]))
+
+    # Susma sirasindaki Q? ornekleri (kapanistan once, durum 4): gorev TAKILI degil (adim_yas <
+    # BLD_SOKET_MS), tur artiyor ve en az bir ornekte ping BEKLENIYOR (son PINGRESP son PINGREQ'den
+    # once, ping_yas <= 5 s + pay). Eski firmware'de alan yok -> kirmizi.
+    ah = getattr(TB, "ara_hukum", None)
+    o_once = dict(durum=4, tur=610, adim="select", adim_yas=20, ping_yas=2100, pong_yas=2080)
+    o_bek1 = dict(durum=4, tur=640, adim="select", adim_yas=31, ping_yas=1200, pong_yas=5300)
+    o_bek2 = dict(durum=4, tur=671, adim="bekle", adim_yas=3, ping_yas=3000, pong_yas=7100)
+
+    def _a(ornek):
+        return ah("S1", ornek)[1] if ah else None
+    ok("E8.18 tezgah ara hukmu (ara_hukum): susma sirasindaki ornekler — takili adim yok (< 1500 ms), "
+       "tur artiyor, en az birinde ping bekleniyor -> yesil; takili 'yaz' (4 s), hic bekleyen ping yok "
+       "(araci aslinda yanitliyor), tur durmus, eski firmware (alan yok), hic ornek yok -> kirmizi",
+       ah is not None and _a([o_once, o_bek1, o_bek2]) is True
+       and _a([o_once, {**o_bek1, "adim": "yaz", "adim_yas": 4000}, o_bek2]) is False
+       and _a([o_once, {**o_once, "tur": 640}]) is False
+       and _a([o_once, o_bek1, {**o_bek2, "tur": 640}]) is False
+       and _a([{"durum": 4, "hata": 0}, {"durum": 4, "hata": 0}]) is False
+       and _a([]) is False
+       and _a([o_once, {**o_bek1, "ping_yas": 9000, "pong_yas": 13000}]) is False,
+       str(ah and ah("S1", [o_once, o_bek1, o_bek2])[2]))
+
+    # Plan metni E8'e ozgu olmayan bir ayrimi IDDIA ETMEZ (inceleme bulgusu: "-6 DEGIL" eski firmware'de
+    # de dogru; tezgah duz TCP oldugu icin kismi TLS kaydi yolu hic olusmaz).
+    pm = dict(TB.PLAN)
+    ok("E8.19 PLAN S1/S2: 'duz TCP' kapsamini ve eski firmware'in de gectigini soyler, '-6 DEGIL' "
+       "ayrimini E8 kaniti diye sunmaz; ayirt edici olarak canlilik alanlarini adlandirir",
+       all("-6 DEGIL" not in pm[s] for s in ("S1", "S2"))
+       and "duz TCP" in pm["S1"] and "eski firmware" in pm["S1"] and "canlilik" in pm["S1"]
+       and "eski firmware" in pm["S2"])
 
 
 def bolum_4e() -> None:
