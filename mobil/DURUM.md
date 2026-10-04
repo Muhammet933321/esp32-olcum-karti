@@ -210,3 +210,15 @@ Sayılar: JS 92 test, Kotlin 23 test, mutasyon 64 (hepsi ölü).
 - **Mutasyon (5B, tam koşu):** JS `5B:` 64/64 öldü. Kotlin: `mutasyon/kos-kotlin.mjs` yazıldı (tek kopya,
   taban yeşil şartı, her mutasyon uygulanır → Gradle → geri alınır; beklenen test kırmızı değilse ŞÜPHELİ)
   — 8/8 öldü, kopya temizlendi. Komut: `npm run mutasyon:kotlin` (Gradle ağır; başka koşu yokken).
+
+### 2026-10-04 (devam 6) — kota sonrası devam
+
+- Kaldığım yer git günlüğü ve bu dosyadan çıkarıldı: 5B commit'li; çürütücü kota sınırında yarıda
+  kesilmişti (iki kanıt dosyası yazmıştı) → kaldığı yerden sürdürülüyor.
+- Telefon ölçümleri (WebRTC/WebSocket yasağı, köprü günlüğü, kapıdan sonra keşif) "devam 4"te yapılmıştı;
+  yeniden koşulacak tek şey yeni firmware'le (E6F) "Kartı bul".
+- ⚠ **Kart şu an ULAŞILAMIYOR:** Xiaomi'de `olcum.local` çözülmedi, NSD duyurusu yok; PC'den de ad
+  çözülmüyor (salt okuma denemesi). Uygulama doğru davrandı ("Kart bu ağda bulunamadı", üç aday listelendi,
+  asılı kalmadı). Kart geri gelince kendiliğinden yeniden denenecek. Seri porta dokunulmadı.
+- Honor: kilit açık görüldü ama ölçüm (Android 16 yerel ağ kuralı) kart olmadan anlamsız → kart gelince.
+  Debug APK Honor'da hâlâ KURULU.
