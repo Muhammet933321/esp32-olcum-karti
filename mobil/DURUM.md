@@ -446,3 +446,27 @@ Telefonda değiştirilen ayarlar geri alındı (gece kipi: evet, yazı ölçeği
 - Karar: Kotlin tarafındaki bildirim metinleri (5E) dil tercihini ayrıca okuyacak; şimdilik kapsam dışı.
 - AÇIK (3. maddenin öbür yarısı): pil testi sürerken Canlı'nın salt okuma olması — `G`/`D` satırı pil testini
   söylemiyor; aktif oturumun türü (`/kayit/liste` → `tur` 2) okunarak yapılacak. Çürütücü turu bitince.
+
+### 2026-10-05 (gece, devam 2) — 5C bağımsız çürütücü: 10 kanıtlı bulgu, düzeltme SÜRÜYOR
+
+Kanıtlar `mobil/test/curutucu-5c/` (14 JS + 10 Kotlin iddiası kırmızı; 10 mutasyonun 7'si yaşıyordu). Düzeltmeyi
+ayrı bir ajan yapıyor; bitince testleri, mutasyonları ve telefonu ben yeniden koşacağım.
+
+| # | Bulgu | Verdiğim karar |
+|---|---|---|
+| 1 | **`p0` yanlış olumlu:** kart OLMAYAN bir adresin 2xx yanıtı "durduruldu" sayılıyor ve gerçek kartın (503 sonrası) yeniden denemesi kesiliyordu | Yalnız **204** başarı; bir adresin başarısı öbür denemeleri kesmez; listedeki ilk adres "asıl" (kimliği doğrulanmış kart). Yalnız BAŞKA adres 204 verdiyse yeni durum "başka adres yanıt verdi — kartın durduğu doğrulanamadı" (kehribar, yeniden basılabilir) |
+| 2 | **Kartın IP'si değişince uygulama kartı yeniden aramıyor; DURDUR eski adrese gidiyor** (test sahte kartın durumunu elle değiştirdiği için görünmemişti) | 30 s kuralı `kart.baglan()`'ı koşulsuz çağırır. DURDUR adres listesine **`olcum.local`** eklendi (bağlı adres, önbellek, `olcum.local`, kartın AP'si). ⚠ Spec A9'un küçük genişlemesi — karar benim: ad yalnız özel adrese çözülür, `p0` imzasız ve zararsız; kazanç: IP değişse de DURDUR karta ulaşır |
+| 3 | Başarısız "Kaydı başlat"ın hızı sonraki (başkasının başlattığı) kayda yapışıyor; süre 50 kata kadar yanlış ve "~" işaretsiz | Komut reddinde silinir, 10 s ömür, yalnız o sürede görülen geçişte kullanılır |
+| 4 | Durum ekranı kart yokken eski V/A/W'yi güncelmiş gibi gösteriyor | Canlı'daki koşul Durum'a da |
+| 5 | Geri çekilme 30 s tavanına ulaşmıyor; kart kapalıyken saatte ~583 imzalı adres (her biri sayaç + kasa yazımı) | Kabuğun yeniden araması sayacı sıfırlamaz; sıfırlama "10 s kesintisiz açık" şartına; `G?` yalnız durum bilinmiyorken |
+| 6 | Şeridi koruyan testler boş (`inert`, `pointer-events: none`, sonucun gösterilmemesi, tek dokunuşla "Kaydı durdur" … yaşıyordu) | Şerit ve kayıt düğmesi mantığı saf modüllere + test; kaynak/CSS yasakları |
+| 7 | Grafik okunamayan ölçümü (ADC hatası) 0 V / NaN noktası olarak çiziyor | O kanal boşluk sayılır |
+| 8 | `p0`'da kalıcı hata (Wi-Fi yok vb.) 4 kez deneniyor (~0.9 s gecikme); art arda dokunuşta 60 eşzamanlı iş parçacığı | Kalıcı hata yeniden denenmez; süren tura bağlanılır (yeni dokunuş asla bekletilmez) |
+| 9 | `durdur.js` eşzamanlı atışta atıyor; çift dokunuşta yalnız son sonuç sayılıyor | try içinde; turlardan biri başarılıysa "durduruldu" |
+| 10 | `SseAyirici`: `kimlik` olayının verisi iki biçimde JS'e taşınabiliyor (yalnız kusurlu/kötü niyetli kartta) | Alan adları harf duyarsız; `kimlik` görülen olay tümüyle atılır |
+
+Açık bulunamayanlar: komut beyaz listesi (46 girdi), ölü DURDUR düğmesi yolu, çift akış, imzalı adres sızıntısı,
+`satirAyir` çökmesi, şablon bağlama hatası.
+
+Aynı ajan 3. maddenin öbür yarısını da yazıyor: **pil testi sürerken salt okuma** (etkin oturumun türü imzalı
+`/kayit/liste`'den; tür 2 ise kayıt düğmeleri kapalı + açıklama; ACİL DURDUR aynen).
