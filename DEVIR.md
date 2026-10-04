@@ -10550,7 +10550,7 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
-#### 5.12.106 🟡 E6F: DAHİLİ YIĞIN DÜZELTMESİ — mbedTLS + KALICI TAMPONLAR PSRAM'E (2026-10-04, dal `e6-duzeltme`, ağaç `projeler/olcum-karti-e6f`; karta YÜKLENMEDİ)
+#### 5.12.106 🟢 E6F: DAHİLİ YIĞIN DÜZELTMESİ — mbedTLS + KALICI TAMPONLAR PSRAM'E (2026-10-04, dal `e6-duzeltme`, ağaç `projeler/olcum-karti-e6f`; KARTTA)
 
 5.12.105'teki `QY dahili_en_az=2504` için hazırlanan düzeltme; kartın E6 ölçümü (QF/QH) gelmeden yazıldı, ölçüm
 sonucu gelince doğrudan yüklenmek üzere dalda bekliyor. Davranış: ölçüm, kayıt, protokol, satır biçimleri AYNI.
@@ -10666,6 +10666,23 @@ değişmedi, belge düzeltildi.
     derleme dışı kalsa iddialar yeşil kalır.
   - (c) E6F'nin tek çalışma anı kanıtı (açılış satırı `Bellek (E6F): …`, `QH` önce/sonra) tezgah listesine
     (`_tezgah.md`) girmedi, yalnız bu girişte düz yazı.
+
+**KARTA YÜKLENDİ (2026-10-04 12:4x, `main` = `4816a3e`; yedek `tam-20261004-123626.bin`; arayüz değişmedi).**
+Güvenlik açısından inceleyici sonuç döndürmedi; ben baktım: açılış satırı yalnız yer adı basar (adres/sır yok),
+mbedTLS bağlamları kendi `_free`'lerinde sıfırlar (ayırıcıdan bağımsız), uzaktan tetiklenen ayırma değişmedi, flaş
+zaten şifresiz olduğundan sırların PSRAM'de durması yeni risk değil. Kartta:
+- Açılış: `Bellek (E6F): tls=PSRAM veri=PSRAM akis=PSRAM`.
+- **Önce (A3-W2, ~9 sa, eski ev ağı + ağ kesintisi dahil):** asıl DRAM bölgesi `min_free 11452`, en büyük 36852,
+  `ayirma_hata=0`. (Aynı firmware 6. dk'da 15692 / 32756.) A3-4B'nin 2.5 KB dibi bu firmware'de görülmedi.
+- **Sonra (E6F, ~1 dk):** asıl DRAM bölgesi `min_free 95172` (+~79 KB), en büyük blok **102388**, `ayirma_hata=0`,
+  `QF yok`; `el_sikisma_ms=1048` (yavaşlama görünmüyor; önce 0.9–2.0 s); `K` 40 s: en uzun döngü **7641 µs**, >20 ms
+  tur 0. Uzun koşu ölçümü (saatler, köprü eşitlemesiyle) SIRADA — dip ve olası `QF caps=0x0008` (AES ara tamponu)
+  ancak orada görülür.
+
+**Ağ kesintisi (2026-10-04 sabah, gözlem):** ev ağının erişim noktası/interneti gidince kart `Q durum=2 (ag yok (STA
+degil))`'de kaldı; ≥ 1 dk izlendi, ağ dönmeden kullanıcı kartı USB'den telefon hotspot'una aldı (`Na/Np`, parola
+hiçbir yere yazılmadı). **Açık:** erişim noktası GERİ GELİNCE kartın kendiliğinden STA'ya döndüğü ölçülmedi; hotspot'u
+kapat-aç ile sınanacak (AP'ye düşerse kullanıcı fark etmez).
 
 ---
 
