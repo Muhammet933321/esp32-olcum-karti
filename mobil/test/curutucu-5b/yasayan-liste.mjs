@@ -1,6 +1,7 @@
-// CURUTUCU 5B: mevcut testlerin yakalamasi GEREKEN ama (iddiaya gore) yakalamadigi mutasyonlar.
-//   node mutasyon/kos.mjs --liste test/curutucu-5b/yasayan-liste.mjs
-// YASIYOR = ilgili iddia bos.
+// CURUTUCU 5B: bulundugu gun (2026-10-04) testlerin YAKALAMADIGI mutasyonlar (C3 haric hepsi yasiyordu).
+// Duzeltmeden sonra her biri icin test yazildi; liste mutasyon/liste.mjs'e "5B-C:" onekiyle katilir:
+//   node mutasyon/kos.mjs --neden 5B-C        -> hepsi OLDU olmali
+// `bul` dizgileri duzeltilmis kaynaga gore guncellendi (C8: eslesmeyiKaldir artik uc durumlu; C10: girinti).
 export default [
   {
     ad: "C1: WebView'in kendi fetch'i yapi bozma ile aliniyor ({ fetch: disFetch } = window) — 'fetch:' istisnasi yutuyor",
@@ -14,7 +15,7 @@ export default [
     dosya: "src/cekirdek/kart.js",
     bul: "      yeni.K.fill(0);\n",
     koy: "",
-    test: "test/kart.test.js",
+    test: "test/kart-5bc.test.js",
   },
   {
     ad: "C3: kimlik uymayinca baglanti dusurulmuyor (sonraki istekler ayni adrese imzali gider)",
@@ -28,35 +29,35 @@ export default [
     dosya: "src/cekirdek/kart.js",
     bul: ' && ACILIS.test(s.bilgi.acilis)) cihaz.acilis',
     koy: ") cihaz.acilis",
-    test: "test/kart.test.js",
+    test: "test/kart-5bc.test.js",
   },
   {
     ad: "C5: istek, baglanti kimligi ile cihaz kimligini karsilastirmiyor (esles/baglan yarisi)",
     dosya: "src/cekirdek/kart.js",
     bul: "if (!c || b.kimlik !== c.kimlik) throw",
     koy: "if (!c) throw",
-    test: "test/kart.test.js",
+    test: "test/kart-5bc.test.js",
   },
   {
     ad: "C6: saat ag hatasinda yeniden verilemiyor (saatVerildi geri alinmiyor)",
     dosya: "src/cekirdek/kart.js",
     bul: 'if (e instanceof KartHatasi && e.tur === "ag") b.saatVerildi = false;',
     koy: "",
-    test: "test/kart.test.js",
+    test: "test/kart-5bc.test.js",
   },
   {
     ad: "C7: Retry-After ust siniri yok (kart 99999 s bekletebilir)",
     dosya: "src/cekirdek/kart.js",
     bul: "s >= 1 && s <= BEKLE_AZAMI_S ? { saniye: s } : null",
     koy: "s >= 1 ? { saniye: s } : null",
-    test: "test/kart.test.js",
+    test: "test/kart-5bc.test.js",
   },
   {
-    ad: "C8: eslesmeyiKaldir 401'de 'kartta: true' demiyor (cihaz-silinmis esleme)",
+    ad: "C8: eslesmeyiKaldir 401'i ayirt etmiyor (kartta: null yerine false)",
     dosya: "src/cekirdek/kart.js",
-    bul: 'kartta = e instanceof KartHatasi && e.tur === "cihaz-silinmis";',
-    koy: "kartta = false;",
-    test: "test/kart.test.js",
+    bul: '        if (e instanceof KartHatasi && e.tur === "cihaz-silinmis") kartta = null;\n',
+    koy: "",
+    test: "test/kart-5bc.test.js",
   },
   {
     ad: "C9: cihazYukle hata yolunda K'yi sifirlamiyor (isaret okunamadi)",
@@ -68,8 +69,8 @@ export default [
   {
     ad: "C10: cihazSakla 'geri' kurtarmasi kalkti (disk ilerideyse saklama reddediliyor)",
     dosya: "src/cekirdek/kasa.js",
-    bul: '        if (e.tur !== "geri") throw e;\n        k.isaret = await isaretOku(kimlik);\n        if (cihaz.sayac < k.isaret) cihaz.sayac = k.isaret;',
-    koy: "        throw e;",
+    bul: '      if (e.tur !== "geri") throw e;\n      k.isaret = await isaretOku(kimlik);\n      if (cihaz.sayac < k.isaret) cihaz.sayac = k.isaret;\n    }\n  }',
+    koy: "      throw e;\n    }\n  }",
     test: "test/kasa.test.js",
   },
 ];

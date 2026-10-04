@@ -7,11 +7,11 @@
 //   await kart.esles(ad, parola)  -> { kimlik, n }
 //   await kart.istek("GET", "/kayit/liste")           -> yanit (2xx)
 //   await kart.saatVer()          -> true (verildi) | false
-//   await kart.eslesmeyiKaldir()  -> { kartta }
+//   await kart.eslesmeyiKaldir()  -> { kartta: true | false | null }   (null: kartta kalmis olabilir)
 //
 // A2: imzali istek yalnizca BU baglantida kimligi `/eslestir/bilgi` ile dogrulanmis ve kasadaki
 // kimlikle AYNI olan adrese gider. Baglanti surerken kart degisirse (401 + yeni acilis) kimlik
-// yeniden sorulur; uymuyorsa yeniden deneme ATILMAZ.
+// yeniden sorulur; uymuyorsa yeniden deneme ATILMAZ. Istek basina en cok IKI imza.
 //
 // Hata: KartHatasi(tur). Yalniz tur ve sir OLMAYAN uc sayi/ad tasir (durum, saniye, ag). Parola, K, P,
 // imza, kimlik, adres, alttaki istisnanin mesaji hata nesnesine GIRMEZ (A45).
@@ -29,6 +29,7 @@ import { KesifHatasi } from "./kesif.js";
 
 const ACILIS = /^[0-9a-f]{32}$/;
 const BEKLE_AZAMI_S = 3600;
+const IMZA_AZAMI = 2;                   // istek basina aga cikan imza sayisinin ust siniri
 
 export class KartHatasi extends Error {
   constructor(tur, ek = null) {
@@ -98,7 +99,7 @@ export function kartKur({ ag, kesif, kasa, simdiMs = Date.now }) {
   // ── imzali istek ───────────────────────────────────────────────────────
   function cevir(e) {
     if (e instanceof KartHatasi) return e;
-    // A17: 401 + AYNI acilis (yeni acilista ac() zaten bir kez yeniden denedi). K SILINMEZ.
+    // A17: yeniden imzalanan istek de 401 aldi. K SILINMEZ.
     if (e instanceof HttpHatasi) return e.durum === 401 ? new KartHatasi("cihaz-silinmis") : new KartHatasi("http", { durum: e.durum });
     if (e instanceof KartAgHatasi) return new KartHatasi("ag", { ag: e.tur });
     if (e instanceof KasaHatasi) return new KartHatasi("kasa");
@@ -111,12 +112,28 @@ export function kartKur({ ag, kesif, kasa, simdiMs = Date.now }) {
     if (!c || b.kimlik !== c.kimlik) throw new KartHatasi("eslesmemis");
     const taban = tabanAl(b);
 
-    // 401 + YENI acilis: kart yeniden baslamis OLABILIR — ya da adreste artik baska bir kart vardir.
-    // ac() yeniden denemeden once kimlik yeniden sorulur.
+    // Istek basina EN COK IKI imza (kotu kart imza toplayamasin). Ikinci imza yalniz su iki halde atilir:
+    //   * 401 + istegin IMZALANDIGI acilistan farkli X-Acilis: kart yeniden baslamis OLABILIR — ya da
+    //     adreste artik baska bir kart vardir. Kimlik yeniden sorulur; uymuyorsa yeniden imza YOK.
+    //     Olcut imzalanan acilistir, cihaz.acilis degil: es zamanli baska bir istek onu coktan
+    //     guncellemis olabilir (ac() o zaman yeniden denemez — dis dongu dener).
+    //   * 401 + AYNI acilis: istek kartin 64'luk tekrar penceresinin gerisine dusmus olabilir -> YENI
+    //     sayacla bir kez daha. O da 401 ise cihaz kartta yoktur (A17).
+    // X-Acilis 32 kucuk onaltilik degilse (kartin guv__hex bicimi) imzaya GIRMEZ.
+    let imzaSayisi = 0;
+    let yenidenImzala = false;
     async function imzaliFetch(url, secenek) {
+      const imzali = secenek.headers["X-Imza"] !== undefined;
+      const imzalanan = c.acilis;        // ac(): istekKur ile bu cagri arasinda bekleme yok
+      if (imzali && imzaSayisi >= IMZA_AZAMI) throw new KartHatasi("cihaz-silinmis");
+      if (imzali) imzaSayisi += 1;
       const y = await ag.kartFetch(url, secenek);
-      const yeni = y.status === 401 ? y.headers.get("X-Acilis") : null;
-      if (yeni && yeni !== c.acilis) {
+      yenidenImzala = false;
+      if (!imzali || y.status !== 401) return y;
+      const yeni = y.headers.get("X-Acilis");
+      if (yeni === null) return y;
+      if (!ACILIS.test(yeni)) throw new KartHatasi("kart-gecersiz");
+      if (yeni !== imzalanan) {
         const bilgiYaniti = await ag.kartFetch(`${taban}/eslestir/bilgi`, { method: "GET", headers: {} });
         let kimlik = null;
         try { kimlik = bilgiYaniti.status === 200 ? (await bilgiYaniti.json()).kimlik : null; } catch { kimlik = null; }
@@ -125,16 +142,18 @@ export function kartKur({ ag, kesif, kasa, simdiMs = Date.now }) {
           throw new KartHatasi("kimlik-uymuyor");
         }
       }
+      yenidenImzala = true;
       return y;
     }
     const ortam = { fetch: imzaliFetch, kaydet: kasa.kaydet, simdiMs };
 
-    for (let deneme = 0; ; deneme++) {
+    for (let sayacDenemesi = 0; ;) {
       try {
         return await ac(c, taban, yontem, yol, argumanlar, govde, ortam);
       } catch (e) {
         // Disk bizden ilerideydi: kasa sayaci ileri cekti, istek HIC gitmedi -> bir kez yeniden imzala.
-        if (e instanceof KasaHatasi && e.tur === "sayac-geride" && deneme === 0) continue;
+        if (e instanceof KasaHatasi && e.tur === "sayac-geride" && sayacDenemesi++ === 0) continue;
+        if (e instanceof HttpHatasi && e.durum === 401 && yenidenImzala && imzaSayisi < IMZA_AZAMI) continue;
         throw cevir(e);
       }
     }
@@ -144,9 +163,10 @@ export function kartKur({ ag, kesif, kasa, simdiMs = Date.now }) {
   function eslesHatasi(e, son) {
     if (e instanceof KartHatasi) return e;
     if (e instanceof KartAgHatasi) return new KartHatasi("ag", { ag: e.tur });
+    // Kanit GITTI (cevrimdisi parola tahmini malzemesi) ve kart 2xx dedi ama kendi kanitini veremedi
+    // (yanlis, eksik ya da bicimsiz): parolayi bilmiyor.
+    if (son && son.yol === "/eslestir/kanit" && son.durum >= 200 && son.durum < 300) return new KartHatasi("kart-sahte");
     if (e instanceof CalismaHatasi) {
-      // Kart 2xx dondu ama esles() yine de reddetti: kart kaniti yanlis (parolayi bilmiyor).
-      if (son && son.durum >= 200 && son.durum < 300) return new KartHatasi("kart-sahte");
       const tur = son ? ESLES_RET[`${son.yol} ${son.durum}`] : null;
       if (tur === "bekle") {
         const s = /^[0-9]{1,5}$/.test(son.bekle || "") ? Number(son.bekle) : NaN;
@@ -191,7 +211,8 @@ export function kartKur({ ag, kesif, kasa, simdiMs = Date.now }) {
     try {
       await kasa.cihazSakla(yeni);
     } catch {
-      // Anahtar saklanamadi: karttaki kayit yetim kalmasin (liste 8 cihazla sinirli) — elden gelen yapilir.
+      // Anahtar saklanamadi; kasa kendi yarim kaydini SILDI (cihazSakla ya tam olur ya hic).
+      // Karttaki kayit yetim kalmasin (liste 8 cihazla sinirli) — elden gelen yapilir.
       try {
         await ac(yeni, taban, "POST", "/cihaz/sil", [["n", String(yeni.n)]], new Uint8Array(0), { fetch: ag.kartFetch, simdiMs });
       } catch { /* kart ulasilamiyor: USB'den Ex<n> */ }
@@ -220,13 +241,15 @@ export function kartKur({ ag, kesif, kasa, simdiMs = Date.now }) {
 
   // ── eslesmeyi kaldir (A19) ─────────────────────────────────────────────
   async function eslesmeyiKaldir() {
+    // kartta: true = kart sildi (2xx) | false = karta sorulamadi | null = BILINMIYOR (kart 401 dedi:
+    // kayit kartta kalmis olabilir; kullaniciya ayri metin).
     let kartta = false;
     if (cihaz && baglanti) {
       try {
         await istek("POST", "/cihaz/sil", [["n", String(cihaz.n)]]);
         kartta = true;
       } catch (e) {
-        kartta = e instanceof KartHatasi && e.tur === "cihaz-silinmis";      // kartta zaten yok
+        if (e instanceof KartHatasi && e.tur === "cihaz-silinmis") kartta = null;
       }
     }
     await kasadan(async () => {

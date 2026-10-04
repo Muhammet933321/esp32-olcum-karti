@@ -9,6 +9,28 @@
 
 import { ref } from "vue";
 
+// ── Baglanti ekraninin (Baglanti.vue) kararlari — DOM'suz sinanabilsin diye burada ──────────────
+// eslesmeyiKaldir sonucu -> metin. kartta: true (kart sildi) | false (karta sorulamadi) | null (kart 401
+// dedi: kayit kartta KALMIS OLABILIR — "kartta kaldirildi" DENMEZ).
+export function kaldirMesaji(kartta) {
+  if (kartta === true) return "m.bg.kaldirildi";
+  return kartta === null ? "m.bg.kaldirildi_belirsiz" : "m.bg.kaldirildi_yerel";
+}
+
+// "Eslesmeyi kaldir" ne zaman gorunur: esliyken; adresteki kart eslesilen kart DEGILKEN (yerel kayit
+// baska turlu silinemez); kasa kaydi BOZUKKEN (baglan 'kasa' atti — tek kurtarma silip yeniden eslesmek).
+export function kaldirGorunur(baglanti, kasaBozuk) {
+  if (kasaBozuk === true) return true;
+  return Boolean(baglanti) && (baglanti.durum === "bagli" || baglanti.durum === "kimlik-uymuyor");
+}
+
+// Baglanti ekranindaki bir islemin hatasi -> { anahtar, degerler, kasaBozuk }.
+export function baglantiHatasi(e) {
+  const tur = e && typeof e.tur === "string" ? e.tur : "?";
+  if (tur === "kasa") return { anahtar: "m.bg.kasa_bozuk", degerler: null, kasaBozuk: true };
+  return { anahtar: "m.bg.hata", degerler: { tur }, kasaBozuk: false };
+}
+
 export const ESLES_HATA = Object.freeze({
   "parola-kisa": "m.es.hata_parola_kisa",
   "parola-yanlis": "m.es.hata_parola_yanlis",

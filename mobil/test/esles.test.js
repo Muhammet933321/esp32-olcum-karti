@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { KartHatasi } from "../src/cekirdek/kart.js";
 import { SOZLUK_MOBIL } from "../src/cekirdek/sozluk_mobil.js";
-import { ESLES_HATA, eslesDurumu } from "../src/ekran/esles_durum.js";
+import { ESLES_HATA, baglantiHatasi, eslesDurumu, kaldirGorunur, kaldirMesaji } from "../src/ekran/esles_durum.js";
 
 const VUE = readFileSync(fileURLToPath(new URL("../src/ekran/Esles.vue", import.meta.url)), "utf8");
 const PAROLA = "sinama-parolasi-1";
@@ -120,5 +120,47 @@ describe("Esles.vue sablonu", () => {
     expect(VUE).toMatch(/requestAnimationFrame/);
     // Dokunma alanlari >= 48 px
     expect(VUE).toMatch(/min-height: 48px/);
+  });
+});
+
+// ── Baglanti ekrani kararlari (curutucu 5B: Y3 + okuyarak verilenler) ────────
+describe("Baglanti ekrani kararlari", () => {
+  const BG = readFileSync(fileURLToPath(new URL("../src/ekran/Baglanti.vue", import.meta.url)), "utf8");
+
+  it("kaldirMesaji: 'kartta kaldirildi' YALNIZ kart sildiyse; 401 (null) icin AYRI metin; ulasilamadiysa yerel", () => {
+    expect(kaldirMesaji(true)).toBe("m.bg.kaldirildi");
+    expect(kaldirMesaji(null)).toBe("m.bg.kaldirildi_belirsiz");
+    expect(kaldirMesaji(false)).toBe("m.bg.kaldirildi_yerel");
+    expect(kaldirMesaji(undefined)).toBe("m.bg.kaldirildi_yerel");
+    const { tr, en } = SOZLUK_MOBIL["m.bg.kaldirildi_belirsiz"];
+    expect(tr).toMatch(/kartta kalmış olabilir/);
+    expect(tr).toMatch(/panelinden ya da USB/);
+    expect(en).toMatch(/may still be on the board/);
+    expect(new Set([true, null, false].map((k) => SOZLUK_MOBIL[kaldirMesaji(k)].tr)).size).toBe(3);
+  });
+
+  it("kaldirGorunur: esliyken, kimlik uymazken ve kasa bozukken GORUNUR; eslesmemis / bulunamadi / bos iken degil", () => {
+    expect(kaldirGorunur({ durum: "bagli" }, false)).toBe(true);
+    expect(kaldirGorunur({ durum: "kimlik-uymuyor" }, false)).toBe(true);
+    expect(kaldirGorunur(null, true)).toBe(true);
+    expect(kaldirGorunur({ durum: "eslesmemis" }, true)).toBe(true);
+    expect(kaldirGorunur({ durum: "eslesmemis" }, false)).toBe(false);
+    expect(kaldirGorunur({ durum: "bulunamadi" }, false)).toBe(false);
+    expect(kaldirGorunur(null, false)).toBe(false);
+  });
+
+  it("baglantiHatasi: 'kasa' -> 'kayit bozuk, kaldirip yeniden esles' metni + dugme; otekiler genel metin (yalniz TUR)", () => {
+    expect(baglantiHatasi(new KartHatasi("kasa"))).toEqual({ anahtar: "m.bg.kasa_bozuk", degerler: null, kasaBozuk: true });
+    expect(baglantiHatasi(new KartHatasi("ag", { ag: "baglanti" }))).toEqual({ anahtar: "m.bg.hata", degerler: { tur: "ag" }, kasaBozuk: false });
+    expect(baglantiHatasi(new Error("ic ayrinti"))).toEqual({ anahtar: "m.bg.hata", degerler: { tur: "?" }, kasaBozuk: false });
+    expect(baglantiHatasi(null)).toEqual({ anahtar: "m.bg.hata", degerler: { tur: "?" }, kasaBozuk: false });
+    expect(SOZLUK_MOBIL["m.bg.kasa_bozuk"].tr).toMatch(/Eşleşmeyi kaldırıp yeniden eşleş/);
+  });
+
+  it("Baglanti.vue bu kararlari kullanir (dugme kosulu, mesaj secimi, kasa hatasi)", () => {
+    expect(BG).toContain('<ion-button v-if="kaldirGorunur(baglanti, kasaBozuk)" id="bg-kaldir"');
+    expect(BG).toContain("mesaj.value = c(kaldirMesaji(s.kartta));");
+    expect(BG).toContain("const h = baglantiHatasi(e);");
+    expect(BG).toContain("if (h.kasaBozuk) { kasaBozuk.value = true; baglanti.value = null; }");
   });
 });

@@ -2,6 +2,8 @@
 //   O1 (KIRMIZI): 401'de verilen X-Acilis BICIMI denetlenmeden imzaya giriyor (32 hex degil).
 //   O2 (yesil, tuttu): surekli yeni X-Acilis veren kart istek basina en cok 2 imza alir.
 //   O3 (KIRMIZI): kanit 200 + eksik/bicimsiz kart_kanit -> 'kart-gecersiz' (kanit sizdi ama 'kart-sahte' denmiyor).
+//   O2b (duzeltmeyle eklendi): ayni acilis + yeni acilis karisik verilse de istek basina en cok 2 imza.
+// 2026-10-04: aciklar duzeltildi; bu dosya artik REGRESYON testi (hepsi yesil olmali).
 //   O4 (yesil, tuttu): parola / kanit / K hicbir hata nesnesine, durum nesnesine, kopru cagrisina (Kasa disinda) girmez.
 import { describe, it, expect, afterEach } from "vitest";
 import { ref } from "vue";
@@ -45,6 +47,30 @@ describe("curutucu 5B: kotu kart", () => {
     const e = await hata(t.kart.istek("GET", "/kayit/liste"));
     expect(e.tur).toBe("cihaz-silinmis");
     expect(kotu.imzalilar().length).toBe(2);
+  });
+
+  it("O2b: once AYNI acilisla 401 (yeni sayacla yeniden imza), sonra hep YENI acilis -> yine en cok 2 imza", async () => {
+    let n = 0;
+    const { t, kotu } = await kotuyeBagli((yol) => {
+      if (yol === "/eslestir/bilgi") return { govde: bilgiYaniti() };
+      const acilis = n++ === 0 ? bilgiYaniti().acilis : n.toString(16).padStart(32, "0");
+      return { kod: 401, basliklar: { "X-Acilis": acilis }, govde: "" };
+    });
+    const e = await hata(t.kart.istek("POST", "/komut", [], "p1"));
+    expect(e.tur).toBe("cihaz-silinmis");
+    expect(kotu.imzalilar().length).toBe(2);
+    const sayaclar = kotu.imzalilar().map((i) => i.basliklar["x-sayac"]);
+    expect(new Set(sayaclar).size).toBe(2);               // ikinci imza YENI sayacla
+  });
+
+  it("O1b: X-Acilis BUYUK harfli onaltilik ya da 31 hane -> 'kart-gecersiz', tek imza", async () => {
+    for (const kotuAcilis of ["AB".repeat(16), "ab".repeat(16).slice(1), "ab".repeat(17)]) {
+      const { t, kotu } = await kotuyeBagli((yol) => (yol === "/eslestir/bilgi"
+        ? { govde: bilgiYaniti() }
+        : { kod: 401, basliklar: { "X-Acilis": kotuAcilis }, govde: "" }));
+      expect((await hata(t.kart.istek("GET", "/kayit/liste"))).tur).toBe("kart-gecersiz");
+      expect(kotu.imzalilar().length).toBe(1);
+    }
   });
 
   it("O3: kanit yollandiktan sonra kart_kanit EKSIK gelirse de kullanici 'kart-sahte' ile uyarilmali", async () => {
@@ -94,7 +120,8 @@ describe("curutucu 5B: kotu kart", () => {
       expect(t.kasaEk.cagrilar.filter((c) => c.ad === "anahtarYaz")).toEqual([]);
       turler.push(s.hata.value.anahtar);
     }
-    expect(turler).toEqual(["m.es.hata_parola_yanlis", "m.es.hata_kart_sahte", "m.es.hata_kart_gecersiz", "m.es.hata_kart_gecersiz"]);
+    // DUZELTMEYLE GUNCELLENDI (bulgu 6): kanit gittikten sonra gelen bicimsiz 2xx ("{bozuk") de 'kart-sahte'.
+    expect(turler).toEqual(["m.es.hata_parola_yanlis", "m.es.hata_kart_sahte", "m.es.hata_kart_sahte", "m.es.hata_kart_gecersiz"]);
     expect(K1).toMatch(/^[0-9a-f]{16}$/);
   });
 });

@@ -18,8 +18,11 @@ const adlar = (bulgular) => bulgular.map((b) => b.desen);
 
 const KIRLI = {
   "imza-basligi": [`${ON}basliklar {"X-Imza":"kisa"}`, `${ON}x-sayac: 1790000000000`, `${ON}X-Cihaz=3`],
-  "imza-sorgusu": [`${ON}GET /akis?_c=1&_s=1790000000001`, `${ON}/akis?x=1&_i=ab`],
-  "onaltilik-64": [`${ON}anahtar ${HEX64}`, `${ON}${HEX64.toUpperCase()}`, `${ON}uzun ${"0a".repeat(40)} son`],
+  "imza-sorgusu": [`${ON}GET /akis?_c=1&_s=1790000000001`, `${ON}/akis?x=1&_i=ab`, "_i=ab", `${ON}_s=5`, `${ON}sorgu "_c=1"`],
+  "onaltilik-40-ozet-olabilir": [`${ON}anahtar ${HEX64}`, `${ON}${HEX64.toUpperCase()}`, `${ON}uzun ${"0a".repeat(40)} son`,
+    `${ON}kirpik ${HEX64.slice(0, 63)}`, `${ON}kirk ${"0a".repeat(20)}`],
+  "gizli-alan": [`${ON}anahtar=AAECAwQF`, `${ON}{"anahtar":"AAEC"}`, `${ON}sifre=birsey`, `${ON}Şifre: x1`, `${ON}key=abc`, `${ON}apiKey: "q"`,
+    `${ON}API_KEY=q1`, `${ON}secret = deger`],
   kanit: [`${ON}POST /eslestir/kanit?eno=1&kanit=kisa`, `${ON}{"kart_kanit": "kisa"}`],
   parola: [`${ON}parola=birsey`, `${ON}{"password": "x"}`, `${ON}Parola : deger`, `${ON}webParola="q"`],
   "kopru-gunlugu": [`10-04 11:20:31.123  4321  4321 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 9, pluginId: Kasa, methodName: anahtarYaz, methodData: {}`],
@@ -47,6 +50,12 @@ const TEMIZ = [
   // 'password' sozcugu deger olmadan
   "10-04 11:20:32.700  4321  4321 I InputMethodManager: startInput: password field focused",
   "10-04 11:20:32.800  4321  4321 I x: parola alani temizlendi",
+  // deger DEGIL: yok / null; sozcuk baska bir sozcugun parcasi; "keyCode" bir alan adi
+  "10-04 11:20:32.900  4321  4321 I x: parola: yok",
+  "10-04 11:20:32.910  4321  4321 I x: parola yok, anahtar: yok, key=null",
+  "10-04 11:20:32.920  4321  4321 I x: monkey=3 keyCode=4 KeyEvent { action=1 }",
+  // 39 onaltilik (esigin bir alti) ve satir ortasinda "x_i=" (sorgu degil)
+  `10-04 11:20:32.930  4321  4321 D x: iz ${"0a".repeat(19)}0 x_i=1`,
   "",
 ].join("\n");
 
@@ -64,7 +73,7 @@ describe("logcat_tara: tara()", () => {
 
   it("satir numarasi 1'den baslar; bulgu nesnesi degeri TASIMAZ", () => {
     const b = tara(`${TEMIZ}\n${ON}anahtar ${HEX64}\n`);
-    expect(b).toEqual([{ satir: TEMIZ.split("\n").length + 1, desen: "onaltilik-64" }]);
+    expect(b).toEqual([{ satir: TEMIZ.split("\n").length + 1, desen: "onaltilik-40-ozet-olabilir" }]);
   });
 
   it("--sir: duz, onaltilik ve base64 bicimleri (gomulu hizalamalar dahil)", () => {
@@ -91,7 +100,8 @@ describe("logcat_tara: tara()", () => {
     const satir = `${ON}{"anahtar":"${K.toString("base64")}"}`;
     expect(adlar(tara(satir, [K.toString("hex")]))).toContain("sir-1");
     expect(adlar(tara(satir, [K.toString("hex").toUpperCase()]))).toContain("sir-1");
-    expect(tara(satir, ["00".repeat(32)])).toEqual([]);
+    // Baska bir sir verilirse sir bulgusu yok; "anahtar": <deger> alani ise sirdan BAGIMSIZ alarm verir.
+    expect(adlar(tara(satir, ["00".repeat(32)]))).toEqual(["gizli-alan"]);
     // base64url alfabesi ('-' ve '_'): standart yazimda '+' ve '/' iceren bir anahtar da bulunur.
     const K2 = Buffer.from(Array.from({ length: 32 }, (_, i) => (i % 2 ? 0xff : 0xfb)));
     const url = K2.toString("base64url");
@@ -103,9 +113,9 @@ describe("logcat_tara: tara()", () => {
   it("metinCoz: UTF-16 (PowerShell yonlendirmesi) dosyasi da okunur", () => {
     const satir = `${ON}anahtar ${HEX64}\n`;
     const le = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(satir, "utf16le")]);
-    expect(adlar(tara(metinCoz(le)))).toEqual(["onaltilik-64"]);
-    expect(adlar(tara(metinCoz(Buffer.from(satir, "utf16le"))))).toEqual(["onaltilik-64"]);       // BOM'suz
-    expect(adlar(tara(metinCoz(Buffer.from(satir, "utf8"))))).toEqual(["onaltilik-64"]);
+    expect(adlar(tara(metinCoz(le)))).toEqual(["onaltilik-40-ozet-olabilir"]);
+    expect(adlar(tara(metinCoz(Buffer.from(satir, "utf16le"))))).toEqual(["onaltilik-40-ozet-olabilir"]);       // BOM'suz
+    expect(adlar(tara(metinCoz(Buffer.from(satir, "utf8"))))).toEqual(["onaltilik-40-ozet-olabilir"]);
   });
 });
 
@@ -132,7 +142,7 @@ describe("logcat_tara: komut satiri", () => {
     const r = kos(kirli, "--sir", SIR);
     expect(r.kod).toBe(1);
     const n = TEMIZ.split("\n").length;
-    expect(r.cikti).toContain(`satir ${n + 1}: onaltilik-64`);
+    expect(r.cikti).toContain(`satir ${n + 1}: onaltilik-40-ozet-olabilir`);
     expect(r.cikti).toContain(`satir ${n + 2}: kart-kimligi`);
     expect(r.cikti).toContain(`satir ${n + 3}: sir-1`);
     expect(r.cikti).toContain(`satir ${n + 4}: parola`);

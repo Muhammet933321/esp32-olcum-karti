@@ -58,12 +58,16 @@ class KasaDeposu(private val kok: File, private val sarici: Sarici, private val 
         return cikti
     }
 
-    /** Kaydi, sayaci ve o kimlige ait gecici dosyalari siler; hic kayit kalmadiysa sarma anahtarini da. */
+    /**
+     * Kaydi, sayaci ve o kimlige ait gecici dosyalari siler; hic kayit kalmadiysa sarma anahtarini da.
+     * Sira: ONCE `.anahtar`, sonra sayac ve gecici dosyalar. Silme yarida kalirsa (surec oldu, dosya silinemedi)
+     * geriye anahtarsiz bir sayac kalir (zararsiz); tersi olsaydi eski K, sayaci 0'a donmus halde yasardi.
+     */
     fun sil(kimlik: String?) {
         if (!KasaKayit.kimlikGecerli(kimlik)) throw KasaHatasi("bicim")
-        val adlar = kok.list() ?: emptyArray()
-        for (ad in adlar) {
-            if (ad.startsWith("$kimlik.") && !File(kok, ad).delete()) throw KasaHatasi("ic-hata")
+        val adlar = (kok.list() ?: emptyArray()).filter { ad -> ad.startsWith("$kimlik.") }
+        for (ad in adlar.sortedBy { if (it == kimlik + ANAHTAR_EK) 0 else 1 }) {
+            if (!File(kok, ad).delete()) throw KasaHatasi("ic-hata")
         }
         val kalan = (kok.list() ?: emptyArray()).any { it.endsWith(ANAHTAR_EK) }
         if (!kalan) {

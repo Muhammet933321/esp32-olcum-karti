@@ -16,6 +16,27 @@ export default [
     kirmizi: "SayacDosyasiTest.kucukDegerGeri_dosyaDegismez",
   },
   {
+    ad: "5B-K: sayacta ESIT yazim kabul ediliyor (ikinci yazar ayni blogu kullanir — curutucu 5B S4)",
+    dosya: KASA + "SayacDosyasi.kt",
+    bul: 'if (vardi && isaret == eski) throw KasaHatasi("geri")',
+    koy: "",
+    kirmizi: "SayacDosyasiTest.esitYazimGeri_buyukKabul",
+  },
+  {
+    ad: "5B-K: dosya yokken ilk yazim (0 dahil) 'geri' sayiliyor",
+    dosya: KASA + "SayacDosyasi.kt",
+    bul: "if (vardi && isaret == eski) throw",
+    koy: "if (isaret == eski) throw",
+    kirmizi: "SayacDosyasiTest.dosyaYokkenHerDegerIlkYazimdir_sifirDahil",
+  },
+  {
+    ad: "5B-K: sil once sayaci siliyor (yarida kalirsa eski K sayac 0 ile yasar)",
+    dosya: KASA + "KasaDeposu.kt",
+    bul: "if (it == kimlik + ANAHTAR_EK) 0 else 1",
+    koy: "if (it == kimlik + ANAHTAR_EK) 1 else 0",
+    kirmizi: "KasaDeposuTest.silOnceAnahtariSiler_yaridaKalirsaAnahtarYasamaz",
+  },
+  {
     ad: "5B-K: bozuk saglamali sayac dosyasi kabul ediliyor",
     dosya: KASA + "SayacDosyasi.kt",
     bul: 'if (satirlar[1] != saglama(satirlar[0])) throw KasaHatasi("bozuk")',

@@ -1,16 +1,25 @@
-CURUTUCU (5B) kanit dosyalari. Kaynak DUZELTILMEDI; buradaki her sey acigi GOSTERIR.
+CURUTUCU (5B) kanit dosyalari — 2026-10-04'te aciklar DUZELTILDI; buradaki *.test.js artik REGRESYON
+testidir ve `npx vitest run` toplu kosusunda YESIL olmalidir.
 
-DIKKAT: *.test.js dosyalari BILEREK KIRMIZI ve `npx vitest run` toplu kosusunu kirmiziya cevirir.
-Haric tutmak icin: vitest run --exclude "test/curutucu-5b/**". Dosya dosya kos:
-  npx vitest run test/curutucu-5b/<dosya>
-
-  yaris.test.js        Y1-Y3  401 + ayni acilis = "cihaz-silinmis" varsayimi eszamanli isteklerde yanlis
-  kasa-yarim.test.js   S1-S3  cihazSakla yarida kalinca anahtar diskte kalir, SIFIR anahtarla imza
+  yaris.test.js        Y1-Y3  401 + ayni acilis = "cihaz-silinmis" varsayimi eszamanli isteklerde yanlisti
+  kasa-yarim.test.js   S1-S3  cihazSakla yarida kalinca anahtar diskte kaliyor, SIFIR anahtarla imza atiliyordu
                        S4     iki kasaKur ayni diskte -> ayni sayac iki kez
-  kotu-kart.test.js    O1,O3 kirmizi; O2,O4 yesil (denendi, tuttu)
+  kotu-kart.test.js    O1-O4  kotu niyetli kart (+ duzeltmeyle eklenen O1b, O2b)
   ayrisma.test.js      A1-A2  kasa_sahtesi.mjs <-> gercek Kotlin KasaKomut
   logcat.test.js       L1-L2  tarayicinin kacirdigi bicimler / yanlis alarmlar
-  yasayan-liste.mjs    node mutasyon/kos.mjs --liste test/curutucu-5b/yasayan-liste.mjs  -> 9/10 YASIYOR
-  kotlin/              bash test/curutucu-5b/kotlin/derle.sh <bos-dizin>   (Gradle KOSMAZ; JVM kaniti)
+  yasayan-liste.mjs    bulundugu gun yasayan mutasyonlar (bul dizgileri duzeltilmis kaynaga gore guncel)
+  duzeltme-liste.mjs   yasayanlar + duzeltmelerin mutasyonlari; mutasyon/liste.mjs'e "5B-C:" onekiyle katilir
+                       node mutasyon/kos.mjs --neden 5B-C   -> hepsi OLDU olmali
+  kotlin/              bash test/curutucu-5b/kotlin/derle.sh <bos-dizin>   (Gradle KOSMAZ; JVM kaniti —
+                       DUZELTME ONCESI davranisi gosterir: esit sayac yazimi artik 'geri')
   tur-olc.mjs          node test/curutucu-5b/tur-olc.mjs   (tur = 1 000 000 dayatan kartin kilitleme suresi)
   yardim.mjs           ortak duzenek (telefon, kotu kart)
+
+Duzeltmeyle GUNCELLENEN beklentiler (dosyalarda "DUZELTMEYLE GUNCELLENDI / GUCLENDIRILDI" notuyla):
+  kasa-yarim S2b   "imzali istek atilmis olmali" -> artik o istek HIC atilmiyor; atilan hicbir imza sifir anahtarli degil
+  kotu-kart O4     kanit 200 + bozuk JSON: 'kart-gecersiz' -> 'kart-sahte' (kanit gittikten sonraki her bicimsiz 2xx)
+  ayrisma A1       KOTLIN.esitYazim: "tamam" -> "geri" (SayacDosyasi artik esit yazimi reddediyor)
+  ayrisma A2       + eklentiye hic cagri gitmedigi de olculuyor (sahte de artik reddettigi icin)
+  logcat L1        yalniz "sir-N" bulgusu sayiliyor (genel desenin rastlantisi sirri bulmus sayilmaz)
+  logcat L1b       + her satir KENDI deseniyle yakalaniyor
+  logcat L2        sha256 ozeti alarm vermeye DEVAM ediyor (guvenli taraf); desen adi "onaltilik-40-ozet-olabilir"

@@ -48,11 +48,23 @@ class SayacDosyasiTest {
     }
 
     @Test
-    fun esitVeBuyukKabul() {
+    fun esitYazimGeri_buyukKabul() {
+        // Esit yazim = ayni blogu ayirmis IKINCI bir yazar (curutucu 5B S4): `geri`, dosya degismez.
         sayac.yaz(5000)
-        assertEquals(5000L, sayac.yaz(5000))
+        val once = dosya.readBytes()
+        assertEquals("geri", tur { sayac.yaz(5000) })
+        assertArrayEquals(once, dosya.readBytes())
         assertEquals(5001L, sayac.yaz(5001))
         assertEquals(5001L, sayac.oku())
+        assertEquals("geri", tur { SayacDosyasi(dosya).yaz(5001) })
+    }
+
+    @Test
+    fun dosyaYokkenHerDegerIlkYazimdir_sifirDahil() {
+        assertEquals(0L, sayac.yaz(0))
+        assertTrue(dosya.exists())
+        assertEquals("geri", tur { sayac.yaz(0) })
+        assertEquals(1L, sayac.yaz(1))
     }
 
     @Test

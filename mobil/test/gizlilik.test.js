@@ -27,6 +27,8 @@ function yorumsuz(metin) {
   return metin.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((l) => !/^\s*(\/\/|\*)/.test(l)).join("\n");
 }
 
+const yorumsuzXml = (metin) => metin.replace(/<!--[^]*?-->/g, "");
+
 const JS_KAYNAK = agac("src", [".js", ".vue"]);
 const YEREL_KAYNAK = agac("android/app/src/main/java", [".kt", ".java"]);
 // WebView'in ag yollarini BILEREK deneyen tek dosya (cihazdaki kapi olcumu).
@@ -103,7 +105,10 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
   it("src/ agacinda WebView'in kendi ag cagrisi yok (yalniz sinama dosyasi dener)", () => {
     expect(JS_KAYNAK.length).toBeGreaterThan(5);
     expect(JS_KAYNAK).toContain(SINAMA_DOSYASI);
-    const YASAK = /\bfetch\b|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|RTCDataChannel|importScripts|\bWorker\b|\bglobalThis\s*\[|\bwindow\s*\[|\bself\s*\[|\beval\b|new Function/;
+    // Kuresel nesnenin ADI da yasak (curutucu 5B C1): `const { fetch: x } = window`, `window["fe" + "tch"]`,
+    // `const w = globalThis; w.fetch(...)` gibi dolayli yollar adin kendisi olmadan yazilamaz.
+    // (`self-test` gibi tireli sozcuk metindir, ad degil.)
+    const YASAK = /\bfetch\b|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|RTCDataChannel|importScripts|\bWorker\b|\bglobalThis\b|\bwindow\b|\bself\b(?!-)|\beval\b|new Function/;
     // TEK istisna (5B): ortak/src/imza.js'in bekledigi ortam nesnesinin ANAHTARI. Yalniz su bicim:
     //   { fetch: <ad>Fetch   ya da   { fetch: ag.<ad>Fetch      (deger, KartAg'a giden bir sarmalayici)
     // Cagri, baska bir deger ya da baska bir bicim istisnaya GIRMEZ (asagida kendi sinamasi).
@@ -112,13 +117,17 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
       if (yol === SINAMA_DOSYASI || yol === RTC_KAPAT_DOSYASI) continue;
       expect(ortamAnahtari(yorumsuz(oku(yol))), yol).not.toMatch(YASAK);
     }
-    for (const temiz of ["const o = { fetch: imzaliFetch, kaydet };", "ac(c, t, { fetch: ag.kartFetch, simdiMs });"]) {
+    for (const temiz of ["const o = { fetch: imzaliFetch, kaydet };", "ac(c, t, { fetch: ag.kartFetch, simdiMs });",
+      'S("WebView ağ sınaması", "WebView network self-test")', "yerelOnbellek(localStorage)"]) {
       expect(ortamAnahtari(temiz), temiz).not.toMatch(YASAK);
     }
     for (const kirli of [
       "const o = { fetch: fetch };", "const o = { fetch: window.fetch };", "const o = { fetch };", "fetch(url);",
       "const o = { fetch: (u) => fetch(u) };", "const o = { fetch: globalThis.fetch };", "x = { fetch: ag.kartFetch }; fetch(u);",
       "const o = { fetch: dis.kartFetch };", "const o = { fetch: Fetch };",
+      // curutucu 5B C1: yapi bozma ve dolayli erisim — kuresel nesnenin adi olmadan yazilamaz.
+      "const { fetch: disFetch } = window; disFetch(u);", "const { fetch: disFetch } = globalThis;", "const { fetch: disFetch } = self;",
+      "const w = window; w[ad](u);", "globalThis[\"fe\" + \"tch\"](u);", "self.postMessage(x);",
     ]) {
       expect(ortamAnahtari(kirli), kirli).toMatch(YASAK);
     }
@@ -134,6 +143,23 @@ describe("gunluk ve yedek ayarlari", () => {
     const m = oku("android/app/src/main/AndroidManifest.xml");
     expect(m).toContain('android:allowBackup="false"');
     expect(m).not.toContain('android:allowBackup="true"');
+  });
+
+  it("Android 12+: bulut yedegi VE cihazdan cihaza aktarim kurallari her alani disliyor (A46; kasa dosyalari tasinmaz)", () => {
+    const m = oku("android/app/src/main/AndroidManifest.xml");
+    // allowBackup=false Android 12+ cihazdan cihaza aktarimi ENGELLEMEZ: ayri kural dosyasi gerekir.
+    expect(m).toContain('android:dataExtractionRules="@xml/veri_cikarma"');
+    expect(m).toContain('android:fullBackupContent="false"');
+    const x = yorumsuzXml(oku("android/app/src/main/res/xml/veri_cikarma.xml"));
+    const ALANLAR = ["root", "file", "database", "sharedpref", "external"];
+    for (const bolum of ["cloud-backup", "device-transfer"]) {
+      const b = new RegExp(`<${bolum}[^>]*>([^]*?)</${bolum}>`).exec(x);
+      expect(b, bolum).not.toBe(null);
+      expect(b[1], bolum).not.toContain("<include");
+      const dislanan = [...b[1].matchAll(/<exclude domain="([a-z_]+)" path="([^"]*)"/g)].map((e) => `${e[1]} ${e[2]}`);
+      expect(dislanan, bolum).toEqual(ALANLAR.map((a) => `${a} .`));
+    }
+    expect(x).not.toContain("<include");
   });
 
   it("servis ayri surecte calismaz (S1: sayac dosyasina tek surec yazar)", () => {

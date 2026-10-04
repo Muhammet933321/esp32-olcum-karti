@@ -3,9 +3,14 @@
 //   dosya : mobil/'e gore; bul: kaynakta TAM BIR KEZ gecen dizgi; koy: yerine konan
 //   test  : vitest dosyasi (mobil/'e gore) ya da { komut: [...] }
 import curutucu from "../test/curutucu/yasayan-liste.mjs";
+import curutucu5b from "../test/curutucu-5b/duzeltme-liste.mjs";
+import p0 from "./p0-liste.mjs";
 
 export default [
   ...curutucu.map((m) => ({ ...m, ad: `5A-7 ${m.ad}` })),
+  // Curutucu 5B: yasayan mutasyonlar + duzeltmelerin mutasyonlari ("5B-C: ..." adlariyla gelir).
+  ...curutucu5b,
+  ...p0,
   {
     ad: "5A-2: sozlukte EN metni bos",
     dosya: "src/cekirdek/sozluk_mobil.js",
@@ -417,8 +422,8 @@ export default [
   {
     ad: "5B: kaydet kayitli olmayan cihaz nesnesini kabul ediyor",
     dosya: "src/cekirdek/kasa.js",
-    bul: 'if (!k || k.cihaz !== cihaz) throw new KasaHatasi("kayitsiz");',
-    koy: 'if (!k) throw new KasaHatasi("kayitsiz");',
+    bul: 'if (!k || k.cihaz !== cihaz || sifirMi(cihaz.K)) throw new KasaHatasi("kayitsiz");',
+    koy: 'if (!k || sifirMi(cihaz.K)) throw new KasaHatasi("kayitsiz");',
     test: "test/kasa.test.js",
   },
   {
@@ -468,7 +473,7 @@ export default [
   {
     ad: "5B: baglanti surerken kart degisince kimlik yeniden dogrulanmiyor",
     dosya: "src/cekirdek/kart.js",
-    bul: "      if (yeni && yeni !== c.acilis) {",
+    bul: "      if (yeni !== imzalanan) {",
     koy: "      if (false) {",
     test: "test/kart.test.js",
   },
@@ -503,7 +508,7 @@ export default [
   {
     ad: "5B: kart kaniti reddi 'kart-sahte' olarak ayirt edilmiyor",
     dosya: "src/cekirdek/kart.js",
-    bul: '      if (son && son.durum >= 200 && son.durum < 300) return new KartHatasi("kart-sahte");',
+    bul: '    if (son && son.yol === "/eslestir/kanit" && son.durum >= 200 && son.durum < 300) return new KartHatasi("kart-sahte");',
     koy: "",
     test: "test/kart.test.js",
   },
@@ -559,8 +564,8 @@ export default [
   {
     ad: "5B: 'sayac-geride' sonrasi yeniden imzalanmiyor",
     dosya: "src/cekirdek/kart.js",
-    bul: '&& e.tur === "sayac-geride" && deneme === 0) continue;',
-    koy: '&& e.tur === "sayac-geride" && deneme === 9) continue;',
+    bul: '&& e.tur === "sayac-geride" && sayacDenemesi++ === 0) continue;',
+    koy: '&& e.tur === "sayac-geride" && sayacDenemesi++ === 9) continue;',
     test: "test/kart.test.js",
   },
   {
@@ -669,10 +674,10 @@ export default [
   // ── 5B: logcat sir tarayicisi (A45) ────────────────────────────────────
   ...[
     ["imza basliklari", String.raw`re: /X-(?:Imza|Sayac|Cihaz)(?![A-Za-z0-9])/i`],
-    ["imza sorgusu (_i/_s/_c)", String.raw`re: /[?&]_[isc]=/`],
-    ["64 onaltilik", String.raw`re: /(?<![0-9A-Fa-f])[0-9A-Fa-f]{64,}(?![0-9A-Fa-f])/`],
+    ["imza sorgusu (_i/_s/_c)", String.raw`re: /(?:^|[?&\s"'(,;])_[isc]=/`],
+    ["40+ onaltilik", String.raw`re: /(?<![0-9A-Fa-f])[0-9A-Fa-f]{40,}(?![0-9A-Fa-f])/`],
     ["kanit=", String.raw`re: /kanit["']?\s*[=:]/i`],
-    ["parola + deger", String.raw`re: /(?:parola|password|passwd)[A-Za-z_]*["']?\s*[:=]\s*["']?[^\s"']/i`],
+    ["parola + deger", String.raw`re: /(?:parola|password|passwd)[A-Za-z_]*["']?\s*[:=]\s*["']?(?!(?:yok|null|none|bos|undefined)(?![A-Za-z0-9]))[^\s"']/i`],
     ["methodData", String.raw`re: /methodData/`],
     ["kart kimligi", String.raw`re: /kimlik[^0-9A-Za-z]{0,12}(?<![0-9A-Fa-f])[0-9a-f]{16}(?![0-9A-Fa-f])/i`],
     ["ozel adres + kart yolu", String.raw`re: /(?<![0-9.])(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}(?::\d{1,5})?\/(?:eslestir|komut|kayit)/`],
@@ -684,10 +689,10 @@ export default [
     test: "test/logcat_tara.test.js",
   })),
   {
-    ad: "5B: logcat tarayicisi 64 onaltiligi yalniz kucuk harfle ariyor",
+    ad: "5B: logcat tarayicisi uzun onaltiligi yalniz kucuk harfle ariyor",
     dosya: "araclar/logcat_tara.mjs",
-    bul: String.raw`(?<![0-9A-Fa-f])[0-9A-Fa-f]{64,}(?![0-9A-Fa-f])/ }`,
-    koy: String.raw`(?<![0-9A-Fa-f])[0-9a-f]{64,}(?![0-9A-Fa-f])/ }`,
+    bul: String.raw`(?<![0-9A-Fa-f])[0-9A-Fa-f]{40,}(?![0-9A-Fa-f])/ }`,
+    koy: String.raw`(?<![0-9A-Fa-f])[0-9a-f]{40,}(?![0-9A-Fa-f])/ }`,
     test: "test/logcat_tara.test.js",
   },
   {

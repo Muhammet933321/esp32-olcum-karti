@@ -181,6 +181,20 @@ class KasaDeposuTest {
     }
 
     @Test
+    fun silOnceAnahtariSiler_yaridaKalirsaAnahtarYasamaz() {
+        depo.anahtarYaz(K1, 1, "x", anahtar())
+        File(kok, "$K1.anahtar.gecici").writeText("x")
+        // Silinemeyen sayac: bos olmayan bir dizin (delete() false doner) — silme YARIDA kalir.
+        val engel = File(kok, "$K1.sayac")
+        engel.mkdirs()
+        File(engel, "dolu").writeText("x")
+        assertEquals("ic-hata", tur { depo.sil(K1) })
+        assertFalse(File(kok, "$K1.anahtar").exists())
+        assertEquals("yok", tur { depo.anahtarOku(K1) })
+        assertEquals(0, sarici.yokEtSayisi)
+    }
+
+    @Test
     fun bozukSayacSilIleKurtarilir() {
         depo.sayacYaz(K1, 5)
         File(kok, "$K1.sayac").writeText("5")

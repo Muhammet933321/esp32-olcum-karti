@@ -56,9 +56,15 @@ describe("curutucu 5B: kasa yarim / iki yazar", () => {
     await t.kart.baglan();
     await akibet(t.kart.istek("GET", "/kayit/liste"));
     const c = t.imzalilar().filter((x) => x.url.endsWith("/kayit/liste")).at(-1);
-    expect(c, "imzali istek atilmadi (acik kapanmis)").toBeTruthy();
-    const sifirla = imzaDogru(new Uint8Array(32), "GET", "/kayit/liste", [], k.durum.acilis, BigInt(c.basliklar["X-Sayac"]), Buffer.alloc(0), c.basliklar["X-Imza"]);
-    expect(sifirla).toBe(false);
+    // DUZELTMEYLE GUNCELLENDI (bulgu 4): artik o istek HIC atilmiyor (eski beklenti "atilmis olmali" idi).
+    expect(c).toBe(undefined);
+    // Atilan hicbir imzali istek (geri alma /cihaz/sil dahil) SIFIR anahtarla imzali degil.
+    expect(t.imzalilar().length).toBeGreaterThan(0);
+    for (const x of t.imzalilar()) {
+      const u = new URL(x.url);
+      const sifirla = imzaDogru(new Uint8Array(32), x.yontem, u.pathname, [...u.searchParams], k.durum.acilis, BigInt(x.basliklar["X-Sayac"]), Buffer.alloc(0), x.basliklar["X-Imza"]);
+      expect(sifirla).toBe(false);
+    }
   });
 
   it("S3: geri alma karta ULASAMAZSA yeniden baslatinca telefon sessizce ESLESMIS olmamali", async () => {

@@ -53,6 +53,14 @@ export const SOZLUK_MOBIL = Object.freeze({
   "m.bg.kaldir": S("Eşleşmeyi kaldır", "Remove pairing"),
   "m.bg.kaldirildi": S("Eşleşme kartta ve telefonda kaldırıldı.", "Pairing removed on the board and the phone."),
   "m.bg.kaldirildi_yerel": S("Eşleşme yalnız telefonda kaldırıldı (karta ulaşılamadı).", "Pairing removed on the phone only (board unreachable)."),
+  "m.bg.kaldirildi_belirsiz": S(
+    "Eşleşme telefonda kaldırıldı. Kart silmeyi onaylamadı: kayıt kartta kalmış olabilir — kartın panelinden ya da USB'den silin.",
+    "Pairing removed on the phone. The board did not confirm the removal: the entry may still be on the board — delete it from the board's panel or over USB.",
+  ),
+  "m.bg.kasa_bozuk": S(
+    "Telefondaki eşleşme kaydı bozuk ya da okunamıyor. Eşleşmeyi kaldırıp yeniden eşleş.",
+    "The pairing record on the phone is damaged or unreadable. Remove the pairing and pair again.",
+  ),
   "m.bg.hata": S("Olmadı ({tur}).", "Failed ({tur})."),
   "m.ws.dugme": S("WebView ağ sınaması", "WebView network self-test"),
   "m.ws.suruyor": S("Sınanıyor…", "Testing…"),
@@ -103,8 +111,8 @@ export const SOZLUK_MOBIL = Object.freeze({
   ),
   "m.es.hata_sure_doldu": S("Eşleştirme süresi doldu. Yeniden dene.", "Pairing timed out. Try again."),
   "m.es.hata_kart_sahte": S(
-    "Bu kart parolayı bilmiyor — senin kartın olmayabilir. Eşleştirme YAPILMADI.",
-    "This board does not know the password — it may not be your board. Pairing was NOT done.",
+    "Bu kart parolayı bilmiyor — senin kartın olmayabilir. Eşleştirme YAPILMADI. Kart senin değilse kartının web parolasını değiştir.",
+    "This board does not know the password — it may not be your board. Pairing was NOT done. If it is not your board, change your board's web password.",
   ),
   "m.es.hata_tur": S(
     "Kart güvensiz bir ayar bildirdi; sahte olabilir. Eşleştirme YAPILMADI.",

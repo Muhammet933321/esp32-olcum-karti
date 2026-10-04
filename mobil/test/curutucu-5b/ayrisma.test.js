@@ -1,5 +1,7 @@
 // CURUTUCU 5B — kasa_sahtesi.mjs ile GERCEK Kotlin KasaKomut ayni girdide ayni sonucu vermeli.
 // KOTLIN sutunu `bash test/curutucu-5b/kotlin/derle.sh <dizin>` ciktisindan (2026-10-04, JVM) aynen alindi.
+// DUZELTMEYLE GUNCELLENDI (bulgu 5b): SayacDosyasi.yaz artik dosya varken ESIT yazimi da 'geri' sayiyor
+// (SayacDosyasiTest.esitYazimGeri_buyukKabul) -> esitYazim: "tamam" -> "geri".
 import { describe, it, expect } from "vitest";
 import { kasaKur } from "../../src/cekirdek/kasa.js";
 import { kasaDiski, kasaSahtesi } from "../yardim/kasa_sahtesi.mjs";
@@ -11,7 +13,7 @@ const tur = async (soz) => { try { await soz; return "tamam"; } catch (e) { retu
 
 const KOTLIN = {
   ad25: "bicim", ad24: "tamam", adTurkce13: "bicim", dolguFazla: "bicim", dolgusuz: "tamam",
-  isaret19: "bicim", isaretBasSifir: "tamam", listeIlk: K1, esitYazim: "tamam", kucukYazim: "geri",
+  isaret19: "bicim", isaretBasSifir: "tamam", listeIlk: K1, esitYazim: "geri", kucukYazim: "geri",
 };
 
 describe("curutucu 5B: kasa sahtesi <-> Kotlin KasaKomut", () => {
@@ -37,8 +39,11 @@ describe("curutucu 5B: kasa sahtesi <-> Kotlin KasaKomut", () => {
 
   it("A2: kasa.js cihazSakla, gercek eklentinin reddedecegi adi (25+ UTF-8 bayt) kendisi reddetmeli", async () => {
     // Sahte kabul ettigi icin kasa.test.js bunu goremez; telefonda eklenti 'bicim' doner.
-    const kasa = kasaKur(kasaSahtesi(kasaDiski()));
+    const ek = kasaSahtesi(kasaDiski());
+    const kasa = kasaKur(ek);
     const cihaz = { kimlik: K1, n: 1, K: new Uint8Array(32).fill(7), ad: "ç".repeat(13), sayac: 0, acilis: "ab".repeat(16) };
     expect(await tur(kasa.cihazSakla(cihaz))).toBe("bicim");
+    // DUZELTMEYLE GUCLENDIRILDI: ret kasa.js'in KENDISINDEN gelmeli — eklentiye hic cagri gitmez (sahte de artik reddediyor).
+    expect(ek.cagrilar).toEqual([]);
   });
 });

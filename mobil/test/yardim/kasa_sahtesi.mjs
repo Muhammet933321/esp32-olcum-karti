@@ -7,10 +7,22 @@
 //   ek.azamiEszamanli -> ayni anda suren sayacYaz sayisinin en buyugu
 //   ek.bozYazim = "ic-hata"  -> bir sonraki sayacYaz bu turle reddedilir (bir kez)
 // Hata, eklenti gibi `code` = tur ile atilir. Isaretler BigInt tutulur (Kotlin'de Long).
+// GERCEK Kotlin KasaKomut ile ayni kurallar (test/curutucu-5b/ayrisma.test.js karsilastirir):
+//   ad <= 24 UTF-8 bayt · base64 java.util.Base64 gibi KATI (dolgu ya hic ya tam) · isaret Long sinirinda
+//   liste kimlige gore SIRALI · sayacYaz: dosya VARKEN isaret <= eski -> 'geri' (esit yazim = ikinci yazar)
 
 const KIMLIK = /^[0-9a-f]{16}$/;
 const ONDALIK = /^[0-9]{1,19}$/;
-const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;          // standart alfabe; dolgu istege bagli; bosluk yok
+const BASE64 = /^([A-Za-z0-9+/]*)(={0,2})$/;      // standart alfabe; bosluk yok
+const AD_AZAMI_BAYT = 24;
+const LONG_AZAMI = 9223372036854775807n;
+
+// java.util.Base64.getDecoder(): dolgu ya HIC yoktur ya da TAM gerektigi kadardir.
+function base64Kati(s) {
+  const m = BASE64.exec(s);
+  if (!m || m[1].length % 4 === 1) return false;
+  return m[2].length === 0 || m[2].length === (4 - (m[1].length % 4)) % 4;
+}
 
 function hata(tur) {
   const e = new Error(tur);
@@ -32,7 +44,8 @@ export function kasaSahtesi(disk, { yazimGecikmeMs = 0 } = {}) {
     kayit("anahtarYaz", v);
     kimlikGerek(v);
     if (!Number.isInteger(v.n) || v.n < 1 || v.n > 255 || typeof v.ad !== "string" || typeof v.anahtar !== "string") throw hata("bicim");
-    if (!BASE64.test(v.anahtar) || Buffer.from(v.anahtar, "base64").length !== 32) throw hata("bicim");
+    if (!base64Kati(v.anahtar) || Buffer.from(v.anahtar, "base64").length !== 32) throw hata("bicim");
+    if (Buffer.byteLength(v.ad, "utf8") > AD_AZAMI_BAYT) throw hata("bicim");
     disk.anahtarlar.set(v.kimlik, { n: v.n, ad: v.ad, anahtar: v.anahtar });
     return {};
   };
@@ -49,7 +62,7 @@ export function kasaSahtesi(disk, { yazimGecikmeMs = 0 } = {}) {
   ek.liste = async () => {
     kayit("liste", {});
     // Acilamayan kayit GIZLENMEZ: { kimlik, bozuk: true } (n / ad yok).
-    return { kayitlar: [...disk.anahtarlar].map(([kimlik, k]) => (k.bozuk ? { kimlik, bozuk: true } : { kimlik, n: k.n, ad: k.ad })) };
+    return { kayitlar: [...disk.anahtarlar].sort(([a], [b]) => (a < b ? -1 : 1)).map(([kimlik, k]) => (k.bozuk ? { kimlik, bozuk: true } : { kimlik, n: k.n, ad: k.ad })) };
   };
 
   ek.sil = async (v) => {
@@ -71,7 +84,7 @@ export function kasaSahtesi(disk, { yazimGecikmeMs = 0 } = {}) {
   ek.sayacYaz = async (v) => {
     kayit("sayacYaz", v);
     kimlikGerek(v);
-    if (typeof v.isaret !== "string" || !ONDALIK.test(v.isaret)) throw hata("bicim");
+    if (typeof v.isaret !== "string" || !ONDALIK.test(v.isaret) || BigInt(v.isaret) > LONG_AZAMI) throw hata("bicim");
     suren += 1;
     ek.azamiEszamanli = Math.max(ek.azamiEszamanli, suren);
     try {
@@ -80,7 +93,8 @@ export function kasaSahtesi(disk, { yazimGecikmeMs = 0 } = {}) {
       // Bozuk sayac dosyasinin USTUNE YAZILMAZ: tek kurtarma sil() + yeniden eslestirme.
       if (disk.isaretler.get(v.kimlik) === "bozuk") throw hata("bozuk");
       const yeni = BigInt(v.isaret);
-      if (yeni < (disk.isaretler.get(v.kimlik) ?? 0n)) throw hata("geri");
+      // Dosya VARKEN esit yazim da 'geri': tek yazar hep buyutur; esit deger ikinci bir yazarin isaretidir.
+      if (disk.isaretler.has(v.kimlik) && yeni <= disk.isaretler.get(v.kimlik)) throw hata("geri");
       disk.isaretler.set(v.kimlik, yeni);
       ek.sayacYazimi += 1;
       return { isaret: yeni.toString() };

@@ -7,7 +7,9 @@ import java.util.zip.CRC32
  * Imza sayacinin diskteki ISARETI (A16). Bicim: "<ondalik>\n<crc32, 8 onaltilik hane>\n".
  *  - dosya yok          -> 0
  *  - yarim / bozuk      -> `bozuk` (sessizce 0 DONULMEZ: sayac geri giderse kart istegi tekrar diye reddeder)
- *  - yazim              -> diskteki degerden kucukse `geri`; degilse dayanikli + atomik
+ *  - yazim              -> diskteki degerden kucukse `geri`; dosya VARKEN esitse de `geri`; degilse dayanikli + atomik
+ *    (tek yazar isareti hep BUYUTUR; esit deger, ayni blogu ayirmis IKINCI bir yazarin isaretidir — o yazar
+ *    `geri` gorup sayacini diskteki isarete ceker. Dosya yokken her deger ilk yazimdir.)
  * Tek yazar varsayilir (S1: yalniz Kasa eklentisi, tek is parcacigi). Saf JVM: gecici dizinde sinanir.
  */
 class SayacDosyasi(private val dosya: File) {
@@ -27,8 +29,10 @@ class SayacDosyasi(private val dosya: File) {
     /** @return yazilan isaret */
     fun yaz(isaret: Long): Long {
         if (isaret < 0) throw KasaHatasi("bicim")
+        val vardi = dosya.exists()
         val eski = oku()
         if (isaret < eski) throw KasaHatasi("geri")
+        if (vardi && isaret == eski) throw KasaHatasi("geri")
         val metin = isaret.toString()
         try {
             AtomikYazim.yaz(dosya, "$metin\n${saglama(metin)}\n".toByteArray(Charsets.US_ASCII))

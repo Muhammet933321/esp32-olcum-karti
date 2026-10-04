@@ -107,9 +107,13 @@ describe("kasa: anahtar", () => {
     c.sayac = T0 + 1_000_000;
     expect(await turu(kasa.kaydet(c))).toBe("bozuk");
     expect(disk.isaretler.get(KIMLIK)).toBe("bozuk");
-    // cihazSakla da bozuk sayacin ustune yazmaz.
-    expect(await turu(kasaKur(kasaSahtesi(disk)).cihazSakla(yeniCihaz()))).toBe("bozuk");
-    expect(disk.isaretler.get(KIMLIK)).toBe("bozuk");
+    // cihazSakla da bozuk sayacin ustune yazmaz: 'bozuk' der ve yarim kayit BIRAKMAZ (kaydi siler —
+    // bozuk sayacin tek kurtarmasi zaten sil + yeniden eslestirme). Sonraki saklama temiz baslar.
+    const ek2 = kasaSahtesi(disk);
+    expect(await turu(kasaKur(ek2).cihazSakla(yeniCihaz()))).toBe("bozuk");
+    expect(ek2.cagrilar.filter((x) => x.ad === "sayacYaz")).toEqual([]);
+    expect(disk.anahtarlar.size).toBe(0);
+    expect(disk.isaretler.has(KIMLIK)).toBe(false);
   });
 
   it("eklentiye n TAMSAYI, isaret METIN, anahtar standart base64 gider; bicimsiz cihaz 'bicim'", async () => {
@@ -123,7 +127,8 @@ describe("kasa: anahtar", () => {
     const yaz = ek.cagrilar.find((x) => x.ad === "anahtarYaz").veri;
     expect(yaz).toEqual({ kimlik: KIMLIK, n: 3, ad: "sinama telefonu", anahtar: Buffer.from(anahtar()).toString("base64") });
     for (const s of ek.cagrilar.filter((x) => x.ad === "sayacYaz")) expect(s.veri.isaret).toMatch(/^[1-9][0-9]{0,18}$/);
-    for (const kotu of [{ n: 1.5 }, { n: "3" }, { n: 0 }, { n: 256 }, { ad: 5 }, { K: new Uint8Array(31) }, { K: [...anahtar()] }, { kimlik: "KISA" }]) {
+    for (const kotu of [{ n: 1.5 }, { n: "3" }, { n: 0 }, { n: 256 }, { ad: 5 }, { K: new Uint8Array(31) }, { K: [...anahtar()] }, { kimlik: "KISA" },
+      { ad: "" }, { ad: "a".repeat(25) }, { ad: "ç".repeat(13) }, { ad: "a" + String.fromCharCode(7) + "b" }, { K: new Uint8Array(32) }]) {
       expect(await turu(kasaKur(kasaSahtesi(kasaDiski())).cihazSakla(yeniCihaz(kotu))), JSON.stringify(kotu)).toBe("bicim");
     }
   });
@@ -349,5 +354,119 @@ describe("kasa: kalici sayac (A16)", () => {
     c.acilis = "cd".repeat(16);
     await kasa.kaydet(c);
     expect(ek.cagrilar.length).toBe(once);
+  });
+});
+
+// ── curutucu 5B duzeltmeleri: kayit ya TAMDIR ya YOKTUR ─────────────────────
+describe("kasa: yarim kayit kalmaz", () => {
+  it("ilk isaret yazilamazsa cihazSakla reddeder, disk kaydi ve bellekteki nesne SILINIR", async () => {
+    const disk = kasaDiski();
+    const ek = kasaSahtesi(disk);
+    const kasa = kasaKur(ek, { simdiMs: () => T0 });
+    const c = yeniCihaz();
+    ek.bozYazim = "ic-hata";
+    expect(await turu(kasa.cihazSakla(c))).toBe("ic-hata");
+    expect(disk.anahtarlar.size).toBe(0);
+    expect(ek.cagrilar.at(-1).ad).toBe("sil");
+    expect(await kasa.cihazYukle(KIMLIK)).toBe(null);
+    c.sayac = T0 + 1;
+    expect(await turu(kasa.kaydet(c))).toBe("kayitsiz");
+    // Ayni kasa nesnesiyle yeniden saklanabilir.
+    await kasa.cihazSakla(c);
+    expect(disk.anahtarlar.size).toBe(1);
+    expect(isaret(disk)).toBeGreaterThan(0);
+  });
+
+  it("ayni kimlikte ESKI bir kayit varken yeni saklama yarida kalirsa eski K de sifirlanir (diski gitti)", async () => {
+    const disk = kasaDiski();
+    const ek = kasaSahtesi(disk);
+    const kasa = kasaKur(ek, { simdiMs: () => T0 });
+    const eski = yeniCihaz();
+    await kasa.cihazSakla(eski);
+    ek.anahtarYaz = async () => { const e = new Error("x"); e.code = "ic-hata"; throw e; };
+    expect(await turu(kasa.cihazSakla(yeniCihaz({ K: anahtar(99) })))).toBe("ic-hata");
+    expect([...eski.K].every((b) => b === 0)).toBe(true);
+    expect(disk.anahtarlar.size).toBe(0);
+    expect(await turu(kasa.kaydet(eski))).toBe("kayitsiz");
+  });
+
+  it("silme de olmazsa: yeniden baslatinca 'anahtar var, isaret 0' YARIM kayit taninir, silinir, null doner", async () => {
+    const disk = kasaDiski();
+    const ek = kasaSahtesi(disk);
+    const kasa = kasaKur(ek, { simdiMs: () => T0 });
+    const silAsil = ek.sil;
+    ek.sil = async () => { const e = new Error("x"); e.code = "ic-hata"; throw e; };
+    ek.bozYazim = "ic-hata";
+    expect(await turu(kasa.cihazSakla(yeniCihaz()))).toBe("ic-hata");      // asil hata; silme hatasi degil
+    expect(disk.anahtarlar.size).toBe(1);                                  // yarim kayit diskte kaldi
+    expect(await turu(kasa.cihazYukle(KIMLIK))).toBe("ic-hata");           // hala silinemiyor: sessizce 'var' DENMEZ
+    ek.sil = silAsil;
+    const kasa2 = kasaKur(kasaSahtesi(disk), { simdiMs: () => T0 });       // yeniden baslatildi
+    expect(await kasa2.cihazYukle(KIMLIK)).toBe(null);
+    expect(disk.anahtarlar.size).toBe(0);
+  });
+
+  it("SIFIR anahtar: cihazSakla 'bicim'; saklandiktan sonra sifirlanan K ile kaydet 'kayitsiz' (imza atilmaz)", async () => {
+    const disk = kasaDiski();
+    const ek = kasaSahtesi(disk);
+    const kasa = kasaKur(ek, { simdiMs: () => T0 });
+    expect(await turu(kasa.cihazSakla(yeniCihaz({ K: new Uint8Array(32) })))).toBe("bicim");
+    expect(ek.cagrilar).toEqual([]);
+    const c = yeniCihaz();
+    await kasa.cihazSakla(c);
+    c.K.fill(0);
+    sonrakiSayac(c, T0);
+    expect(await turu(kasa.kaydet(c))).toBe("kayitsiz");
+  });
+
+  it("cihazYukle: isaret okunamazsa cozulmus K bellekte BIRAKILMAZ (sifirlanir)", async () => {
+    const disk = kasaDiski();
+    await kasaKur(kasaSahtesi(disk), { simdiMs: () => T0 }).cihazSakla(yeniCihaz());
+    disk.isaretler.set(KIMLIK, "bozuk");
+    const sifirlanan = [];
+    const asil = Uint8Array.prototype.fill;
+    Uint8Array.prototype.fill = function fill(...a) {
+      if (this.length === 32 && a[0] === 0) sifirlanan.push([...this]);
+      return asil.apply(this, a);
+    };
+    try {
+      expect(await turu(kasaKur(kasaSahtesi(disk)).cihazYukle(KIMLIK))).toBe("bozuk");
+    } finally {
+      Uint8Array.prototype.fill = asil;
+    }
+    expect(sifirlanan).toEqual([[...anahtar()]]);          // sifirlanan dizi tam da cozulmus K idi
+  });
+
+  it("cihazSakla sirasinda ikinci bir yazar isareti ileri tasirsa ('geri') saklama YINE basarir; sayac diske cekilir", async () => {
+    const disk = kasaDiski();
+    const ek = kasaSahtesi(disk);
+    const kasa = kasaKur(ek, { simdiMs: () => T0 });
+    const ileri = BigInt(T0 + YIL_MS);
+    const yazAsil = ek.sayacYaz;
+    let ilk = true;
+    ek.sayacYaz = async (v) => {
+      if (ilk) { ilk = false; disk.isaretler.set(KIMLIK, ileri); }        // okuma ile yazim arasina giren yazar
+      return yazAsil(v);
+    };
+    const c = yeniCihaz();
+    await kasa.cihazSakla(c);
+    expect(disk.anahtarlar.size).toBe(1);
+    expect(c.sayac).toBe(Number(ileri));
+    const s = await istek(kasa, c, () => T0);
+    expect(s).toBe(Number(ileri) + 1);
+    expect(isaret(disk)).toBe(s + 4096);
+  });
+
+  it("ayni diskte IKI kasa nesnesi: ikincinin ESIT yazimi 'geri' -> 'sayac-geride'; iki nesne ayni sayaci kullanamaz", async () => {
+    const disk = kasaDiski();
+    await kasaKur(kasaSahtesi(disk), { simdiMs: () => T0 }).cihazSakla(yeniCihaz());
+    const saat = () => T0 - YIL_MS;                         // saat isaretin gerisinde
+    const a = kasaKur(kasaSahtesi(disk), { simdiMs: saat }), b = kasaKur(kasaSahtesi(disk), { simdiMs: saat });
+    const ca = await a.cihazYukle(KIMLIK), cb = await b.cihazYukle(KIMLIK);
+    const sa = await istek(a, ca, saat);
+    expect(sonrakiSayac(cb, saat())).toBe(sa);              // ayni degeri secti
+    expect(await turu(b.kaydet(cb))).toBe("sayac-geride");  // ama kullanamadi
+    const sb = await istek(b, cb, saat);
+    expect(sb).toBeGreaterThan(sa);
   });
 });

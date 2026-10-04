@@ -13,10 +13,19 @@
 // Boylece uygulama hangi anda cokerse coksun ve saat ne kadar geri alinirsa alinsin, yeniden
 // yuklenen sayac daha once kullanilmis hicbir degerin altina inmez.
 //
+// Kayit ya TAMDIR ya YOKTUR: cihazSakla yarida kalirsa (anahtar yazildi, ilk isaret yazilamadi) disk
+// kaydini ve bellekteki nesneyi siler. Silme de olmazsa geriye "anahtar var, isaret 0" kalir — tam bir
+// kaydin isareti hic 0 olamayacagi icin (ilk isaret >= blok) cihazYukle bunu tanir, siler, null doner.
+// Sifirlanmis (32 sifir bayt) K ile imza atilmaz: kaydet 'kayitsiz' der.
+// TEK kasa nesnesi (S1): uygulamada kasaKur bir kez cagrilir (cekirdek/uygulama.js). Ikinci bir yazar
+// olursa eklenti, diskteki isarete ESIT ya da kucuk yazimi 'geri' ile reddeder.
+//
 // Kimlik basina TEK cihaz nesnesi (A15): cihazYukle ayni nesneyi doner, kaydet baska nesneyi reddeder
 // (iki nesne ayni milisaniyede ayni sayaci secerdi).
 // Hata: KasaHatasi(tur) — yalniz tur; eklentinin mesaji, kimlik, anahtar tasinmaz (A45).
 //   yok | bozuk | bicim | geri | ic-hata (eklentiden)   kayitsiz | sayac-geride (buradan)
+
+import { adGecerli } from "@ortak/imza.js";
 
 const KIMLIK = /^[0-9a-f]{16}$/;
 const ISARET = /^(0|[1-9][0-9]{0,15})$/;
@@ -42,6 +51,11 @@ function base64Coz(s) {
   const b = new Uint8Array(ham.length);
   for (let i = 0; i < ham.length; i++) b[i] = ham.charCodeAt(i);
   return b;
+}
+
+function sifirMi(K) {
+  for (let i = 0; i < K.length; i++) if (K[i] !== 0) return false;
+  return true;
 }
 
 function sayacGecerli(s) {
@@ -102,6 +116,12 @@ export function kasaKur(eklenti, { simdiMs = Date.now, blok = 4096 } = {}) {
       if (K.length !== ANAHTAR_BOYU) { K.fill(0); throw new KasaHatasi("bozuk"); }
       let isaret;
       try { isaret = await isaretOku(kimlik); } catch (e) { K.fill(0); throw e; }
+      // Yarim kayit (cihazSakla yarida kalmis, silinememis): eslesme sayilmaz, temizlenir.
+      if (isaret === 0) {
+        K.fill(0);
+        await cagir("sil", { kimlik });
+        return null;
+      }
       // A16: acilista son = diskteki isaret.
       const cihaz = { kimlik, n: kayit.n, K, ad: kayit.ad, sayac: isaret, acilis: null };
       yuklu.set(kimlik, { cihaz, isaret, nesil: 0 });
@@ -113,27 +133,40 @@ export function kasaKur(eklenti, { simdiMs = Date.now, blok = 4096 } = {}) {
     return sirayla(async () => {
       if (!cihaz || typeof cihaz.kimlik !== "string" || !KIMLIK.test(cihaz.kimlik) || !(cihaz.K instanceof Uint8Array)
         || cihaz.K.length !== ANAHTAR_BOYU || !Number.isInteger(cihaz.n) || cihaz.n < 1 || cihaz.n > 255
-        || typeof cihaz.ad !== "string") throw new KasaHatasi("bicim");
+        || typeof cihaz.ad !== "string" || !adGecerli(cihaz.ad) || sifirMi(cihaz.K)) throw new KasaHatasi("bicim");
       const { kimlik } = cihaz;
-      await cagir("anahtarYaz", { kimlik, n: cihaz.n, ad: cihaz.ad, anahtar: base64Kodla(cihaz.K) });
-      const onceki = yuklu.get(kimlik);
-      if (onceki && onceki.cihaz !== cihaz) birak(kimlik);         // eski K bellekte kalmaz
-      // Ilk isaret: ayni kimlikle onceki bir eslesmenin isareti varsa onun ALTINA inilmez.
-      const diskte = await isaretOku(kimlik);
-      const k = { cihaz, isaret: diskte, nesil: 0 };
-      yuklu.set(kimlik, k);
-      if (!sayacGecerli(cihaz.sayac) || cihaz.sayac < diskte) cihaz.sayac = diskte;
-      const hedef = Math.max(diskte, cihaz.sayac, Math.floor(simdiMs())) + blok;
-      if (!Number.isSafeInteger(hedef)) throw new KasaHatasi("bicim");
       try {
-        await cagir("sayacYaz", { kimlik, isaret: String(hedef) });
-        k.isaret = hedef;
+        await yaz(cihaz, kimlik);
       } catch (e) {
-        if (e.tur !== "geri") throw e;
-        k.isaret = await isaretOku(kimlik);
-        if (cihaz.sayac < k.isaret) cihaz.sayac = k.isaret;
+        // Yarim kayit kalmaz: bellekten duser, diskten silinir (silinemezse cihazYukle tanir).
+        const kalan = yuklu.get(kimlik);
+        if (kalan && kalan.cihaz !== cihaz) kalan.cihaz.K.fill(0);       // eski nesnenin diski de gidiyor
+        yuklu.delete(kimlik);
+        try { await cagir("sil", { kimlik }); } catch { /* cihazYukle: isaret 0 -> yarim kayit */ }
+        throw e;
       }
     });
+  }
+
+  async function yaz(cihaz, kimlik) {
+    await cagir("anahtarYaz", { kimlik, n: cihaz.n, ad: cihaz.ad, anahtar: base64Kodla(cihaz.K) });
+    const onceki = yuklu.get(kimlik);
+    if (onceki && onceki.cihaz !== cihaz) birak(kimlik);         // eski K bellekte kalmaz
+    // Ilk isaret: ayni kimlikle onceki bir eslesmenin isareti varsa onun ALTINA inilmez.
+    const diskte = await isaretOku(kimlik);
+    const k = { cihaz, isaret: diskte, nesil: 0 };
+    yuklu.set(kimlik, k);
+    if (!sayacGecerli(cihaz.sayac) || cihaz.sayac < diskte) cihaz.sayac = diskte;
+    const hedef = Math.max(diskte, cihaz.sayac, Math.floor(simdiMs())) + blok;
+    if (!Number.isSafeInteger(hedef)) throw new KasaHatasi("bicim");
+    try {
+      await cagir("sayacYaz", { kimlik, isaret: String(hedef) });
+      k.isaret = hedef;
+    } catch (e) {
+      if (e.tur !== "geri") throw e;
+      k.isaret = await isaretOku(kimlik);
+      if (cihaz.sayac < k.isaret) cihaz.sayac = k.isaret;
+    }
   }
 
   // imza.js `ortam.kaydet` kancasi. Sayac, cagri ANINDA okunur (es zamanli isteklerde herkes kendi
@@ -144,7 +177,7 @@ export function kasaKur(eklenti, { simdiMs = Date.now, blok = 4096 } = {}) {
     const nesil = ilk ? ilk.nesil : 0;
     return sirayla(async () => {
       const k = cihaz ? yuklu.get(cihaz.kimlik) : null;
-      if (!k || k.cihaz !== cihaz) throw new KasaHatasi("kayitsiz");
+      if (!k || k.cihaz !== cihaz || sifirMi(cihaz.K)) throw new KasaHatasi("kayitsiz");
       if (!sayacGecerli(s) || !Number.isSafeInteger(s + blok)) throw new KasaHatasi("bicim");
       // 'geri' gorulmeden once secilmis deger: baska bir yazar onu kullanmis olabilir.
       if (nesil !== k.nesil) throw new KasaHatasi("sayac-geride");

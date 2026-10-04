@@ -5,7 +5,7 @@ import { tara } from "../../araclar/logcat_tara.mjs";
 const PAROLA = "sinama parolasi #1 ç";                 // bosluk, '#', ASCII disi: gercekci web parolasi
 const K_HEX = "00112233445566778899aabbccddeeff102132435465768798a9babbdcddfeef";
 const K = Buffer.from(K_HEX, "hex");
-const bulundu = (satir) => tara(`10-04 12:00:00.000 1234 1234 D Etiket: ${satir}`, [PAROLA, K_HEX]).length > 0;
+const bulundu = (satir) => tara(`10-04 12:00:00.000 1234 1234 D Etiket: ${satir}`, [PAROLA, K_HEX]).some((b) => b.desen.startsWith("sir-"));   // GUCLENDIRILDI: yalniz SIR bulgusu sayilir
 
 describe("curutucu 5B: logcat tarayicisi", () => {
   it("L1: bilinen sir (--sir) su bicimlerde de bulunmali", () => {
@@ -21,9 +21,22 @@ describe("curutucu 5B: logcat tarayicisi", () => {
       "parola: form kodlu (+)": encodeURIComponent(PAROLA).replace(/%20/g, "+"),
       "parola: JSON kacisli (\\u00e7)": JSON.stringify(PAROLA).replace("ç", "\\u00e7"),
       "parola: UTF-16LE onaltilik": Buffer.from(PAROLA, "utf16le").toString("hex"),
+      "K: bolunmus onaltilik, ikinci satir da logcat onlu": K_HEX.slice(0, 30) + "\n10-04 12:00:00.001 1234 1234 D Etiket: " + K_HEX.slice(30),
+      "parola: JSON tirnak kacisli": JSON.stringify(JSON.stringify(PAROLA)),
     };
     const kacan = Object.entries(bicimler).filter(([, s]) => !bulundu(s)).map(([ad]) => ad);
     expect(kacan).toEqual([]);
+    // Her bicim YALNIZ dogru sirla bulunur: baska sirlar verilince ayni satirlarda sir bulgusu yok.
+    const baska = ["sinama baska parola #2 ş", "ff".repeat(32)];
+    for (const [ad, s] of Object.entries(bicimler)) {
+      const b = tara(`10-04 12:00:00.000 1234 1234 D Etiket: ${s}`, baska).filter((x) => x.desen.startsWith("sir-"));
+      expect(b, ad).toEqual([]);
+    }
+    // Bolunmus sir ILK satirda, bir kez bildirilir.
+    const iki = tara("on\n" + K_HEX.slice(0, 30) + "\n" + K_HEX.slice(30) + "\nson", [K_HEX]).filter((x) => x.desen === "sir-1");
+    expect(iki).toEqual([{ satir: 2, desen: "sir-1" }]);
+    // Sir bir satirda TAM duruyorsa onceki satirla birlesimi ayrica bildirilmez.
+    expect(tara("on\n" + K_HEX, [K_HEX]).filter((x) => x.desen === "sir-1")).toEqual([{ satir: 2, desen: "sir-1" }]);
   });
 
   it("L1b: --sir VERILMEDEN, desenler su satirlari yakalamali", () => {
@@ -35,11 +48,20 @@ describe("curutucu 5B: logcat tarayicisi", () => {
     };
     const kacan = Object.entries(satirlar).filter(([, s]) => tara(s).length === 0).map(([ad]) => ad);
     expect(kacan).toEqual([]);
+    // DUZELTMEYLE GUCLENDIRILDI: her satir KENDI deseniyle yakalanir (baska bir desenin rastlantisiyla degil).
+    const desenler = Object.values(satirlar).map((s) => tara(s).map((b) => b.desen));
+    expect(desenler[0]).toContain("gizli-alan");
+    expect(desenler[1]).toEqual(["gizli-alan"]);
+    expect(desenler[2]).toContain("imza-sorgusu");
+    expect(desenler[3]).toEqual(["onaltilik-40-ozet-olabilir"]);
   });
 
   it("L2: zararsiz satirlar alarm vermemeli", () => {
+    // DUZELTMEYLE GUNCELLENDI (bulgu 8): sha256 ozeti alarm vermeye DEVAM eder (guvenli taraf; 64 onaltilik
+    // K / imza ile ayirt edilemez) — ama desen ADI bunu soyler.
+    expect(tara("PackageManager: digest " + "c0".repeat(32))).toEqual([{ satir: 1, desen: "onaltilik-40-ozet-olabilir" }]);
     const satirlar = {
-      "APK ozeti (sha256)": "PackageManager: digest " + "c0".repeat(32),
+      "parola yok (iki noktasiz)": "Esles: parola yok",
       "parola yok mesaji": "Esles: parola: yok",
     };
     const alarm = Object.entries(satirlar).filter(([, s]) => tara(s).length > 0).map(([ad]) => ad);

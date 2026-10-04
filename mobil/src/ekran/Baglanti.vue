@@ -5,12 +5,9 @@
 import { ref, shallowRef } from "vue";
 import { IonButton, IonContent, IonInput, IonItem, IonLabel, IonList, IonNote, IonPage } from "@ionic/vue";
 import Esles from "./Esles.vue";
-import { agKur } from "../cekirdek/ag.js";
-import { KartAg, Kasa, Kesif } from "../cekirdek/eklenti.js";
-import { kartKur } from "../cekirdek/kart.js";
-import { kasaKur } from "../cekirdek/kasa.js";
-import { kesifKur, yerelOnbellek } from "../cekirdek/kesif.js";
+import { baglantiHatasi, kaldirGorunur, kaldirMesaji } from "./esles_durum.js";
 import { ceviriMobil } from "../cekirdek/sozluk_mobil.js";
+import { kartAl } from "../cekirdek/uygulama.js";
 
 const dil = "tr";
 const c = (anahtar, degerler) => ceviriMobil(anahtar, dil, degerler);
@@ -25,31 +22,29 @@ const suruyor = ref(false);
 const baglanti = shallowRef(null);
 const eslesiyor = ref(false);
 const mesaj = ref("");
-let kart = null;
-
-async function kartAl() {
-  if (kart) return kart;
-  const d = await KartAg.wifiDurumu();
-  const yerelDongu = d.hataAyiklama === true;
-  const ag = agKur(KartAg, { yerelDongu });
-  const kesif = kesifKur({ kartFetch: ag.kartFetch, eklenti: Kesif, onbellek: yerelOnbellek(localStorage), yerelDongu });
-  kart = kartKur({ ag, kesif, kasa: kasaKur(Kasa) });
-  return kart;
-}
+const kasaBozuk = ref(false);
+// Kart / kasa nesnesi uygulamada TEKTIR (cekirdek/uygulama.js): bu ekran her acildiginda yenisi KURULMAZ.
+const kart = shallowRef(null);
 
 async function calistir(is) {
   suruyor.value = true;
   mesaj.value = "";
   try {
-    await is(await kartAl());
+    kart.value = await kartAl();
+    await is(kart.value);
   } catch (e) {
-    mesaj.value = c("m.bg.hata", { tur: typeof e?.tur === "string" ? e.tur : "?" });
+    const h = baglantiHatasi(e);
+    if (h.kasaBozuk) { kasaBozuk.value = true; baglanti.value = null; }
+    mesaj.value = c(h.anahtar, h.degerler);
   } finally {
     suruyor.value = false;
   }
 }
 
-const baglan = () => calistir(async (k) => { baglanti.value = await k.baglan({ elle: elle.value }); });
+const baglan = () => calistir(async (k) => {
+  kasaBozuk.value = false;
+  baglanti.value = await k.baglan({ elle: elle.value });
+});
 
 const dene = () => calistir(async (k) => {
   const y = await k.istek("GET", "/kayit/liste");
@@ -59,8 +54,9 @@ const dene = () => calistir(async (k) => {
 
 const kaldir = () => calistir(async (k) => {
   const s = await k.eslesmeyiKaldir();
-  mesaj.value = c(s.kartta ? "m.bg.kaldirildi" : "m.bg.kaldirildi_yerel");
+  mesaj.value = c(kaldirMesaji(s.kartta));
   baglanti.value = null;
+  kasaBozuk.value = false;
 });
 
 function eslesti() {
@@ -87,7 +83,7 @@ function eslesti() {
 
       <ion-button v-if="baglanti && baglanti.durum === 'eslesmemis'" id="bg-esles" expand="block" size="large" :disabled="suruyor" @click="eslesiyor = true">{{ c("m.bg.esles") }}</ion-button>
       <ion-button v-if="baglanti && baglanti.durum === 'bagli'" id="bg-dene" expand="block" size="large" :disabled="suruyor" @click="dene">{{ c("m.bg.dene") }}</ion-button>
-      <ion-button v-if="baglanti && baglanti.durum === 'bagli'" id="bg-kaldir" expand="block" size="large" fill="outline" :disabled="suruyor" @click="kaldir">{{ c("m.bg.kaldir") }}</ion-button>
+      <ion-button v-if="kaldirGorunur(baglanti, kasaBozuk)" id="bg-kaldir" expand="block" size="large" fill="outline" :disabled="suruyor" @click="kaldir">{{ c("m.bg.kaldir") }}</ion-button>
 
       <p v-if="mesaj" id="bg-mesaj" role="status">{{ mesaj }}</p>
     </ion-content>

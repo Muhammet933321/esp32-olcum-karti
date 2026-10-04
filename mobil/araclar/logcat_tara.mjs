@@ -4,9 +4,15 @@
 //   node araclar/logcat_tara.mjs <logcat dosyasi> [--sir <metin>]...
 //   cikis 0: temiz   1: bulgu var   2: kullanim hatasi / dosya okunamadi / bos dosya
 //
-// --sir: sinamada kullanilan bilinen sir (parola, K'nin onaltiligi ...). Duz, onaltilik ve base64
-// bicimleriyle aranir (base64'te uc hizalama: baska verinin icine gomulu olsa da bulunur). Sir
-// onaltilik yaziliysa ham baytlarinin base64'u de aranir (K, Kasa eklentisine base64 gider).
+// --sir: sinamada kullanilan bilinen sir (parola, K'nin onaltiligi ...). Aranan bicimler:
+//   * duz; URL kodlu (%XX), form kodlu ('+' = bosluk), JSON kacisli (\uXXXX, \")
+//   * onaltilik: bitisik, bosluklu, iki noktali, 0x onekli; UTF-16LE baytlarinin onaltiligi
+//   * ondalik bayt dokumu: Kotlin contentToString "[1, -2, 3]" (isaretli) ve JS "1,254,3"
+//   * base64 / base64url (uc hizalama: baska verinin icine gomulu olsa da bulunur)
+//   * yukaridakilerin IKI SATIRA bolunmus hali (76 sutunda kirilan base64, uzun onaltilik)
+// Sir onaltilik yaziliysa ham baytlari da aranir (K, Kasa eklentisine base64 gider).
+// --sir OLMADAN yalniz DESENLER calisir. "onaltilik-40-ozet-olabilir" her uzun onaltiligi yakalar:
+// APK / sertifika sha256 ozeti de alarm verir (guvenli taraf — satira bakip karar verilir).
 // Dosya UTF-8 ya da UTF-16 olabilir (PowerShell yonlendirmesi UTF-16 yazar).
 
 import { readFileSync } from "node:fs";
@@ -18,12 +24,14 @@ const SIR_EN_AZ = 6;                  // daha kisa "sir" her satirda rastlantiyl
 export const DESENLER = Object.freeze([
   // imzali istegin basliklari / sorgu bicimi (EventSource): hic gunluge dusmemeli
   { ad: "imza-basligi", re: /X-(?:Imza|Sayac|Cihaz)(?![A-Za-z0-9])/i },
-  { ad: "imza-sorgusu", re: /[?&]_[isc]=/ },
-  // 64+ onaltilik: K, P, imza, kanit
-  { ad: "onaltilik-64", re: /(?<![0-9A-Fa-f])[0-9A-Fa-f]{64,}(?![0-9A-Fa-f])/ },
+  { ad: "imza-sorgusu", re: /(?:^|[?&\s"'(,;])_[isc]=/ },
+  // 40+ onaltilik: K, P, imza, kanit — kirpilmis (63 hane) olsa da. sha256 ozeti de buraya duser.
+  { ad: "onaltilik-40-ozet-olabilir", re: /(?<![0-9A-Fa-f])[0-9A-Fa-f]{40,}(?![0-9A-Fa-f])/ },
   { ad: "kanit", re: /kanit["']?\s*[=:]/i },
-  // parola / password sozcugu ve ardindan bir DEGER
-  { ad: "parola", re: /(?:parola|password|passwd)[A-Za-z_]*["']?\s*[:=]\s*["']?[^\s"']/i },
+  // parola / password sozcugu ve ardindan bir DEGER ("yok", "null" ... deger degildir)
+  { ad: "parola", re: /(?:parola|password|passwd)[A-Za-z_]*["']?\s*[:=]\s*["']?(?!(?:yok|null|none|bos|undefined)(?![A-Za-z0-9]))[^\s"']/i },
+  // anahtar= / sifre= / secret= / key= (apiKey=, API_KEY= dahil; "monkey=" degil) ve ardindan bir DEGER
+  { ad: "gizli-alan", re: /(?:[Aa]nahtar|ANAHTAR|[SsŞş]ifre|[Ss]ecret|SECRET|(?<![A-Za-z])key|Key|KEY)["']?\s*[:=]\s*["']?(?!(?:yok|null|none|bos|undefined)(?![A-Za-z0-9]))[^\s"']/ },
   // Capacitor kopru gunlugu: her eklenti cagrisinin TUM verisi
   { ad: "kopru-gunlugu", re: /methodData/ },
   // "kimlik" sozcugunun yaninda 16 onaltilik (kart kimligi)
@@ -46,32 +54,71 @@ function base64Parcalari(bayt) {
   return parcalar;
 }
 
+// %XX dizilerini UTF-8 olarak cozer; bozuk kacis satiri DUSURMEZ (decodeURIComponent atardi).
+function yuzdeCoz(s) {
+  return s.replace(/(?:%[0-9A-Fa-f]{2})+/g, (m) => Buffer.from(m.replace(/%/g, ""), "hex").toString("utf8"));
+}
+
+// JSON / JS dizgi kacislari: \uXXXX ve \" \' \\ \/
+function kacisCoz(s) {
+  return s.replace(/\\u([0-9A-Fa-f]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\(["'\\/])/g, "$1");
+}
+
+// Satirdaki tamsayilar bayt dizisi olarak: ",0,17,254," — isaretli (-128..-1) ve isaretsiz yazim AYNI
+// bayta iner; bayt olamayacak sayi diziyi keser.
+function ondalikDokum(satir) {
+  const sayilar = satir.match(/-?\d+/g) || [];
+  return "," + sayilar.map((t) => { const n = Number(t); return n >= -128 && n <= 255 ? n & 255 : "x"; }).join(",") + ",";
+}
+
 function sirArayici(sir) {
   const bayt = Buffer.from(sir, "utf8");
   const duz = [sir];
   const kucuk = [bayt.toString("hex")];                 // satirin kucuk harfli halinde aranir
   const b64 = base64Parcalari(bayt);
+  const diziler = [bayt];                               // ondalik dokumu aranacak bayt dizileri
   if (/^(?:[0-9A-Fa-f]{2})+$/.test(sir)) {
     kucuk.push(sir.toLowerCase());
     b64.push(...base64Parcalari(Buffer.from(sir, "hex")));
+    diziler.push(Buffer.from(sir, "hex"));
+  } else {
+    kucuk.push(Buffer.from(sir, "utf16le").toString("hex"));
   }
+  const ondalik = diziler.map((b) => "," + Array.from(b).join(",") + ",");
   return (satir) => {
-    if (duz.some((d) => satir.includes(d))) return true;
+    // duz + kodlanmis metin (parola bir URL'de, form govdesinde ya da JSON dizgisinde gecebilir)
+    const metinler = [satir, yuzdeCoz(satir), yuzdeCoz(satir.replace(/\+/g, " ")), kacisCoz(satir)];
+    if (duz.some((d) => metinler.some((m) => m.includes(d)))) return true;
+    // onaltilik: ayraclar (bosluk, ':', ',', "0x") atilinca bitisik yazima iner
     const k = satir.toLowerCase();
-    if (kucuk.some((d) => k.includes(d))) return true;
+    const ayracsiz = [k, k.replace(/[^0-9a-f]/g, ""), k.replace(/0x/g, "").replace(/[^0-9a-f]/g, "")];
+    if (kucuk.some((d) => ayracsiz.some((m) => m.includes(d)))) return true;
+    const dokum = ondalikDokum(satir);
+    if (ondalik.some((d) => dokum.includes(d))) return true;
     const standart = satir.replace(/-/g, "+").replace(/_/g, "/");     // base64url -> standart alfabe
     return b64.some((d) => satir.includes(d) || standart.includes(d));
   };
 }
+
+// Logcat satir onu (threadtime: "10-04 12:00:00.000  1234  1234 D Etiket: " | brief: "D/Etiket( 1234): ").
+// Iki satira bolunmus bir deger aranirken IKINCI satirin onu atilir.
+const SATIR_ONU = /^(?:\d\d-\d\d\s+\d\d:\d\d:\d\d\.\d+\s+\d+\s+\d+\s+[VDIWEFA]\s+[^:]*:\s?|[VDIWEFA]\/[^(]*\(\s*\d+\):\s?)/;
 
 /** -> [{ satir, desen }]; satir 1'den baslar. Bulgu DEGERI tasimaz. */
 export function tara(metin, sirlar = []) {
   const arayicilar = sirlar.map((s, i) => ({ ad: `sir-${i + 1}`, var: sirArayici(s) }));
   const bulgular = [];
   const satirlar = metin.split(/\r?\n/);
+  const tek = arayicilar.map((a) => satirlar.map((s) => a.var(s)));
   for (let i = 0; i < satirlar.length; i++) {
     for (const d of DESENLER) if (d.re.test(satirlar[i])) bulgular.push({ satir: i + 1, desen: d.ad });
-    for (const a of arayicilar) if (a.var(satirlar[i])) bulgular.push({ satir: i + 1, desen: a.ad });
+    for (let j = 0; j < arayicilar.length; j++) {
+      if (tek[j][i]) { bulgular.push({ satir: i + 1, desen: arayicilar[j].ad }); continue; }
+      // Iki satira bolunmus sir: hicbir satirda tek basina yok, birlesimde var -> ILK satirda bildirilir.
+      if (i + 1 >= satirlar.length || tek[j][i + 1]) continue;
+      const birlesik = satirlar[i].trimEnd() + satirlar[i + 1].replace(SATIR_ONU, "");
+      if (arayicilar[j].var(birlesik)) bulgular.push({ satir: i + 1, desen: arayicilar[j].ad });
+    }
   }
   return bulgular;
 }
