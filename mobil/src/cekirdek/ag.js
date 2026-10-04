@@ -16,6 +16,8 @@ export const HATA_TURLERI = Object.freeze([
 ]);
 
 export const SURE_PAYI_MS = 500;
+export const P0_AZAMI_ADRES = 4;              // P0.kt AZAMI_ADRES ile ayni
+export const P0_SURE_MS = 5000;               // P0.kt TOPLAM_SURE_MS (4400) + pay: eklenti donmezse de biter
 
 // soz'u ms ile yaristirir; sure dolarsa KartAgHatasi("zaman-asimi").
 export function sureli(soz, ms) {
@@ -120,5 +122,21 @@ export function agKur(eklenti, { yerelDongu = false, zamanAsimiMs = 5000, azamiG
     }
   }
 
-  return { kartFetch };
+  // ACIL DURDURMA (A8–A11). ASLA atmaz, hicbir seyi beklemez: eklenti cagrisi bu islevin ICINDE,
+  // ilk await'ten ONCE yapilir (kilit, kuyruk, imza, kimlik dogrulamasi araya giremez). Hedef kurali
+  // yerel tarafta (HedefCoz); burada adres dogrulanmaz ki yeni bir hata yolu dogmasin.
+  function p0(adresler) {
+    const t0 = Date.now();
+    const liste = [...new Set((Array.isArray(adresler) ? adresler : []).filter((a) => typeof a === "string" && a !== ""))].slice(0, P0_AZAMI_ADRES);
+    const yok = () => ({ tamam: false, adres: null, sureMs: Date.now() - t0 });
+    if (liste.length === 0 || typeof eklenti.p0 !== "function") return Promise.resolve(yok());
+    let cagri;
+    try { cagri = eklenti.p0({ adresler: liste }); } catch { return Promise.resolve(yok()); }
+    return sureli(cagri, P0_SURE_MS).then(
+      (s) => ({ tamam: s?.tamam === true, adres: s?.tamam === true && typeof s.adres === "string" ? s.adres : null, sureMs: Date.now() - t0 }),
+      yok,
+    );
+  }
+
+  return { kartFetch, p0 };
 }
