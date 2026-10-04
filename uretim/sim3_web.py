@@ -197,6 +197,262 @@ def bolum6_pwa(r, k, _uret):
             not farkli, " ".join(farkli) or "5 ikon + manifest ayni")
 
 
+# W6: AVR derleyicisi (test_olcum3.py ile ayni arac zinciri).
+AVR_GCC = (Path.home() / "AppData/Local/Arduino15/packages/arduino/tools"
+           / "avr-gcc/7.3.0-atmel3.6.1-arduino7/bin" / "avr-gcc.exe")
+
+
+def _etag_avr(kunye: str, bul: list, esl: list):
+    """web_etag.h'yi AVR emulatorunde kostur. (uyari satirlari, cikti satirlari) ya da None."""
+    import json as _json
+    import subprocess
+    import gecici
+    from avr import mega328
+    from avr.cekirdek import Cekirdek
+    from avr.elf import flash_goruntusu
+    if not AVR_GCC.exists():
+        return None
+    d = gecici.dizin("olcum3_etag_")
+    c = _json.dumps                                  # ASCII metinde C dize sabitiyle ayni kacislar
+    v = ["/* sim3_web.py uretti (W6) */",
+         f"static const char KUNYE[] = {c(kunye)};",
+         f"#define BUL_ADET {len(bul)}u",
+         "static const char *const BUL_YOL[] = {" + ", ".join(c(y) for y in bul) + "};",
+         f"#define ESL_ADET {len(esl)}u",
+         "static const char *const ESL_INM[] = {" + ", ".join(c(a) for a, _e, _b in esl) + "};",
+         "static const char *const ESL_ETAG[] = {" + ", ".join(c(e) for _a, e, _b in esl) + "};", ""]
+    (d / "etag_vektor.h").write_text("\n".join(v), encoding="ascii", newline="\n")
+    elf = d / "ornek_etag.elf"
+    p = subprocess.run(
+        [str(AVR_GCC), "-mmcu=atmega328p", "-DF_CPU=16000000UL", "-Os", "-std=gnu11",
+         "-Wall", "-Wextra", f"-I{KOD}", f"-I{d}", "-o", str(elf),
+         str(BURASI / "avr" / "ornek_etag.c")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if p.returncode != 0:
+        return [p.stderr[-1500:] or "derlenemedi"], []
+    uyari = [x for x in p.stderr.splitlines() if "warning:" in x]
+    flash, _ = flash_goruntusu(elf)
+    kart = mega328.Kart(flash, Cekirdek)
+    for _ in range(100):
+        if b"BITTI" in kart.tx:
+            break
+        kart.cevrim_kadar_kos(2_000_000)
+    return uyari, kart.satirlar()
+
+
+def _tanim(kaynak: str, imza: str, sinif: bool = False) -> str:
+    """`imza`dan kapanan susluye kadar TAM tanim (sinifsa sonundaki `;` ile)."""
+    i = kaynak.find(imza)
+    g = govde(kaynak[i:], imza) if i >= 0 else ""
+    if not g:
+        return ""
+    j = kaynak.find("{", i)
+    return kaynak[i:j] + g + (";" if sinif else "")
+
+
+def _arayuz_avr(cekirdek: Path, dosyalar: list, dizinler: list, istekler: list, isleyiciler: list):
+    """W6 inceleme: kartin `arayuz_tur` + `ArayuzIsleyici` METNI AVR'de, cekirdegin
+    mimeTable'iyla. (hata/uyari satirlari, cikti satirlari) ya da None (arac yok)."""
+    import json as _json
+    import subprocess
+    import gecici
+    from avr import mega328
+    from avr.cekirdek import Cekirdek
+    from avr.elf import flash_goruntusu
+    gxx = AVR_GCC.parent / "avr-g++.exe"
+    if not gxx.exists():
+        return None
+    detay = cekirdek / "detail"
+    tur = _tanim(INO, "static String arayuz_tur(const String &yol)")
+    sinif = _tanim(INO, "class ArayuzIsleyici", sinif=True)
+    if not tur or not sinif:
+        return ["kartin metninde arayuz_tur / class ArayuzIsleyici bulunamadi"], []
+    d = gecici.dizin("olcum3_arayuz_")
+    c = _json.dumps                                  # ASCII yol/onbellek: C dize sabitiyle ayni kacislar
+    (d / "pgmspace.h").write_text("#include <avr/pgmspace.h>\n", encoding="ascii", newline="\n")
+    (d / "arayuz_kaynak.h").write_text("/* sim3_web.py: olcum-karti-a3.ino'dan BIREBIR */\n"
+                                       + tur + "\n\n" + sinif + "\n", encoding="utf-8", newline="\n")
+
+    def blob(ad, ogeler):                             # bitisik sabitler: "\0" sonrasi rakam sekizlik olmasin
+        return (f"static const char {ad}[] PROGMEM = "
+                + " ".join(c(x) + ' "\\0"' for x in ogeler) + ";")
+    kur = " ".join(f"static ArayuzIsleyici I{n}({c(o)}, {c(b)});" for n, (o, b) in enumerate(isleyiciler))
+    v = ["/* sim3_web.py uretti (W6 inceleme) */",
+         blob("DOSYALAR", dosyalar), blob("DIZINLER", dizinler),
+         blob("ISTEKLER", [f"{m} {u}" for m, u in istekler]),
+         f"#define ISLEYICI_ADET {len(isleyiciler)}u",
+         f"#define ISLEYICI_KUR {kur} static RequestHandler *const ISLEYICILER[] = "
+         "{" + ", ".join(f"&I{n}" for n in range(len(isleyiciler))) + "};", ""]
+    (d / "arayuz_vektor.h").write_text("\n".join(v), encoding="ascii", newline="\n")
+    elf = d / "ornek_arayuz.elf"
+    p = subprocess.run(
+        [str(gxx), "-mmcu=atmega328p", "-DF_CPU=16000000UL", "-Os", "-std=gnu++11",
+         "-Wall", "-Wextra", "-fno-threadsafe-statics", f"-I{d}", f"-I{detay}", "-o", str(elf),
+         str(BURASI / "avr" / "ornek_arayuz.cpp"), str(detay / "mimetable.cpp")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if p.returncode != 0:
+        return [p.stderr[-1500:] or "derlenemedi"], []
+    uyari = [x for x in p.stderr.splitlines() if "warning:" in x]
+    flash, _ = flash_goruntusu(elf)
+    kart = mega328.Kart(flash, Cekirdek)
+    for _ in range(100):
+        if b"BITTI" in kart.tx:
+            break
+        kart.cevrim_kadar_kos(2_000_000)
+    return uyari, kart.satirlar()
+
+
+def bolum6_arayuz_isleyici(r, cekirdek: Path, isleyiciler: list):
+    """W6 inceleme (6r): `.gz`e dusus + MIME + 404/dizin/POST — kartin metni AVR'de."""
+    import json
+    kunye = BURASI / "_fs.json"
+    if not kunye.exists():
+        r.bilgi("     _fs.json yok — ArayuzIsleyici AVR denetimi ATLANDI (python arayuz-uret.py).")
+        r.kosul("  6r: goruntu yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
+        return
+    k = json.loads(kunye.read_text(encoding="utf-8"))
+    gz = set(k.get("gz", []))
+    dosyalar = ["/" + a + (".gz" if a in gz else "") for a in k.get("bayt", {})]
+    dizinler = sorted({"/" + a.rsplit("/", 1)[0] for a in k.get("bayt", {}) if "/" in a})
+    ortak = next((a for a in k.get("bayt", {}) if a.startswith("ortak/")), "ortak/ozet.js")
+    onekler = [o for o, _b in isleyiciler]
+    kok = onekler.index("/") if "/" in onekler else -1
+    ven = onekler.index("/vendor/") if "/vendor/" in onekler else -1
+
+    def gs(yol):                                    # goruntude neyle duruyor
+        return "/" + yol + (".gz" if yol in gz else "")
+    JS = "application/javascript"
+    # (yontem, istek, isleyici, handle, acilan, tur) — TURLER ELLE (tarayicinin istedigi), tablodan DEGIL
+    bek = [("G", "/index.html", kok, 1, gs("index.html"), "text/html"),
+           ("G", "/app.js", kok, 1, gs("app.js"), JS),
+           ("G", "/style.css", kok, 1, gs("style.css"), "text/css"),
+           ("G", "/ekran/tema.js", kok, 1, gs("ekran/tema.js"), JS),
+           ("G", "/" + ortak, kok, 1, gs(ortak), JS),
+           ("G", "/manifest.json", kok, 1, gs("manifest.json"), "application/json"),
+           ("G", "/kunye.json", kok, 1, gs("kunye.json"), "application/json"),
+           ("G", "/ikon-180.png", kok, 1, gs("ikon-180.png"), "image/png"),
+           ("G", "/vendor/vue.global.prod.js", ven, 1, gs("vendor/vue.global.prod.js"), JS),
+           ("G", "/app.js.gz", kok, 1, "/app.js.gz", "application/x-gzip"),   # cekirdekteki gibi
+           ("G", "/yok.js", kok, 0, None, None),
+           ("G", "/vendor/yok.js", ven, 0, None, None),       # vendor 404: koke DUSMEZ
+           ("G", "/ortak", kok, 0, None, None),               # dizin
+           ("G", "/ekran/", -1, 0, None, None),               # dizin istegi: kok_sayfa/404
+           ("P", "/app.js", -1, 0, None, None)]               # yalniz GET
+    eksik = [a for _m, _u, _i, h, a, _t in bek if h and a not in dosyalar]
+    sonuc = _arayuz_avr(cekirdek, dosyalar, dizinler, [(m, u) for m, u, *_ in bek], isleyiciler)
+    if sonuc is None:
+        r.bilgi("     avr-g++ bulunamadi — ArayuzIsleyici AVR denetimi ATLANDI.")
+        r.kosul("  6r: AVR araci yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
+        return
+    uyari, sat = sonuc
+    Y = next((s.split()[1:] for s in sat if s.startswith("Y ")), None)
+    r.kosul("  6r: W6: kartin ArayuzIsleyici + arayuz_tur METNI AVR'de cekirdegin mimeTable'iyla UYARISIZ derlendi ve kostu",
+            not uyari and "BITTI" in sat and Y is not None and int(Y[0]) >= 64 and Y[1] == "0",
+            " | ".join(uyari[:2]) or (f"yigin payi {Y[0]} B, String tasmasi {Y[1]}" if Y else f"{len(sat)} satir"))
+    H = {int(p[1]): p[2:] for p in (s.split("|") for s in sat) if len(p) == 9 and p[0] == "H"}
+    kotu = list(eksik)
+    for i, (m, u, isl, h, a, t) in enumerate(bek):
+        g = H.get(i)
+        if h:
+            bekle = [str(isl), "1", "1", a, u, t, isleyiciler[isl][1]]
+        else:
+            bekle = [str(isl) if isl >= 0 else "-", "0", "0"]
+        if g is None or (g if h else g[:3]) != bekle:
+            kotu.append(f"{m} {u}: {'|'.join(g) if g else 'yok'}")
+    r.kosul("  6r: [!] W6: istek -> `.gz`e dusus + ASIL yoldan MIME (js/css/html/json/png) + dogru Cache-Control; "
+            "yok/dizin/POST/`/x/` -> isleyici GONDERMEZ",
+            len(H) == len(bek) and not kotu,
+            "; ".join(kotu[:3]) or f"{len(bek)} istek, {len(dosyalar)} goruntu dosyasi")
+
+
+def bolum6_etag(r, k, _uret):
+    """W6: ETag kunyesi (uretec) + kartin ETag/304 karari (web_etag.h, AVR'de)."""
+    import gzip
+    import json
+    import tempfile
+    etag = k.get("etag", {})
+    beklenen_ad = list(_uret.goruntu_listesi()) + ["kunye.json"]
+    hex16 = re.compile(r"^[0-9a-f]{16}$")
+    kotu = [a for a, e in etag.items() if not hex16.match(str(e))]
+    eksik = [a for a in beklenen_ad if a not in etag]
+    fazla = [a for a in etag if a not in beklenen_ad]
+    r.kosul("  6q: [!] W6: goruntudeki HER dosyanin ETag'i kunyede (16 kucuk onaltilik); etag.txt'in kendisi YOK",
+            bool(etag) and not kotu and not eksik and not fazla and _uret.ETAG_KUNYE not in etag,
+            " ".join(kotu + eksik + [f"{a}(fazla)" for a in fazla]) or f"{len(etag)} dosya")
+    # Ayni kaynak -> ayni ETag (gzip mtime=0) ve goruntudeki ETag bugunku kaynaginki
+    farkli = []
+    for a in beklenen_ad[:-1]:
+        bir, iki = _uret.etag_ozet(_uret.sikistir(a)[0]), _uret.etag_ozet(_uret.sikistir(a)[0])
+        if bir != iki or etag.get(a) != bir:
+            farkli.append(a)
+    _kj = gzip.compress(json.dumps(_uret.kunye_hesapla(), separators=(",", ":")).encode("utf-8"), 9, mtime=0)
+    r.kosul("  6q: [!] W6: ETag DEGISMEYEN dosyada SABIT — iki uretim ayni ozet, goruntudeki = kaynaktan hesaplanan",
+            not farkli and etag.get("kunye.json") == _uret.etag_ozet(_kj),
+            " ".join(farkli) or "kunye.json dahil")
+    # Icerik degisince ETag degisir: GERCEK `sikistir` yolu, kaynak gecici kopyaya cevrilerek
+    degismeyen = []
+    asil = _uret.kaynak_yolu
+    try:
+        with tempfile.TemporaryDirectory(prefix="olcum3_etag_") as g:
+            for ad in ("index.html", "app.js", "ortak/ozet.js"):
+                kopya = Path(g) / ad.replace("/", "_")
+                kopya.write_bytes(asil(ad).read_bytes() + b"\n")
+                _uret.kaynak_yolu = (lambda a, _ad=ad, _k=kopya: _k if a == _ad else asil(a))
+                try:
+                    if _uret.etag_ozet(_uret.sikistir(ad)[0]) == etag.get(ad):
+                        degismeyen.append(ad)
+                finally:
+                    _uret.kaynak_yolu = asil
+    except Exception as e:                                  # noqa: BLE001
+        degismeyen.append(f"hata: {e}")
+    r.kosul("  6q: [!] W6: icerik DEGISINCE ETag degisir (index.html, app.js, ortak modulu; tek bayt)",
+            not degismeyen, " ".join(degismeyen) or "uc dosyada da yeni ozet")
+    metin = _uret.etag_kunyesi(etag)
+    sinir = re.search(r"if \(n == 0 \|\| n > (\d+)\) return;", kod(govde(INO, "static void etag_kunye_yukle()")))
+    r.kosul("  6q: W6: goruntudeki etag.txt kunyeden uretilmis ve kartin okuma sinirinin altinda",
+            k.get("bayt", {}).get(_uret.ETAG_KUNYE) == len(metin.encode("ascii"))
+            and sinir is not None and len(metin) <= int(sinir.group(1)) // 2,
+            f"{len(metin)} B, sinir {sinir.group(1) if sinir else '?'} B (2x pay)")
+
+    # ── Kartin karari: web_etag.h AVR'de, uretecin GERCEK satirlariyla ─────
+    gercek = ["index.html", "app.js", "vendor/vue.global.prod.js", "kunye.json", "ikon-180.png",
+              next((a for a in beklenen_ad if a.startswith("ortak/")), "ortak/ozet.js")]
+    secme = {a: etag[a] for a in gercek if a in etag}
+    E = '"' + etag.get("app.js", "0" * 16) + '"'
+    kunye = (_uret.etag_kunyesi(secme)
+             + "/bozuk1.js 0123456789ABCDEF\n"          # buyuk harf: uretec yazmaz
+             + "/bozuk2.js 0123456789abcde\n"           # 15 hane
+             + "/bozuk3.js 0123456789abcdef0\n"         # 17 hane
+             + "/cift.js zzzz\n/cift.js 00112233445566ff\n")   # bozuk satir atlanir, ilk GECERLI kazanir
+    bul = ["/" + a for a in gercek] + ["/app.js.gz", "/app.j", "app.js", "/", "/etag.txt",
+                                        "/bozuk1.js", "/bozuk2.js", "/bozuk3.js", "/cift.js"]
+    bul_bek = ['"' + etag[a] + '"' if a in etag else None for a in gercek] + [None] * 8 + ['"00112233445566ff"']
+    esl = [(E, E, 1), ("W/" + E, E, 1), ('"0000000000000000", ' + E, E, 1),
+           (' "aaaaaaaaaaaaaaaa" ,W/' + E + ' ', E, 1), ("*", E, 1),
+           ('"0000000000000000"', E, 0), ("", E, 0), (E[:-3] + '"', E, 0), (E[:-1] + '0"', E, 0),
+           (E[1:-1], E, 0), ("W/" + E[1:-1], E, 0), ('"', E, 0), (E[:-1], E, 0), ("*, " + E, E, 0)]
+    sonuc = _etag_avr(kunye, bul, esl)
+    if sonuc is None:
+        r.bilgi("     avr-gcc bulunamadi — web_etag.h AVR denetimi ATLANDI.")
+        r.kosul("  6q: W6: AVR araci yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
+        return
+    uyari, sat = sonuc
+    r.kosul("  6q: W6: web_etag.h AVR'de UYARISIZ derlendi (-Wall -Wextra) ve sonuna kadar kostu",
+            not uyari and "BITTI" in sat, " | ".join(uyari[:2]) or f"{len(sat)} satir")
+    B = {int(p[1]): (p[2], p[3]) for p in (s.split() for s in sat) if len(p) == 4 and p[0] == "B"}
+    Es = {int(p[1]): p[2] for p in (s.split() for s in sat) if len(p) == 3 and p[0] == "E"}
+    N = next((s.split()[1:] for s in sat if s.startswith("N ")), None)
+    bul_kotu = [bul[i] for i, b in enumerate(bul_bek)
+                if B.get(i) != (("1", b) if b else ("0", "-"))]
+    r.kosul("  6q: [!] W6: etag_bul uretecin satirlarindan AYNI ETag'i (tirnakli) buluyor; .gz/onek/yolsuz/bozuk -> YOK",
+            len(B) == len(bul) and not bul_kotu,
+            " ".join(bul_kotu) or f"{len(gercek)} gercek dosya + {len(bul) - len(gercek)} ret")
+    esl_kotu = [f"{i}:{a!r}" for i, (a, _e, b) in enumerate(esl) if Es.get(i) != str(b)]
+    r.kosul("  6q: [!] W6: If-None-Match esleserse 304 (tam, W/, liste, *), eslesmezse/bos/bozuksa 200",
+            len(Es) == len(esl) and not esl_kotu and N == ["0", "0"],
+            " ".join(esl_kotu) or f"{len(esl)} baslik + NULL girdiler")
+
+
 # ═══════════════════════════════════════════════════════════════════════
 def bolum1(r):
     bolum(r, "BOLUM 1 — `Serial` AYNASI (SSE artik HER satiri tasiyor)")
@@ -670,28 +926,34 @@ def bolum6(r):
             "basarisiz bir yazma 'bos dosya sistemi'ne donusup sebebi "
             "gizlerdi; bos bolum bir HATA degil, kok_sayfa bunu SOYLUYOR")
 
-    i_vendor = g_setup.find('serveStatic("/vendor/"')
-    i_kok = g_setup.find('serveStatic("/",')
-    r.kosul("  6b: `/vendor/` statik servisi kayitli", i_vendor >= 0)
+    # W6: `serveStatic` yerine `ArayuzIsleyici` (ayni yol/gz/MIME kurali + ETag/304).
+    _kayit = re.compile(r'addHandler\(new ArayuzIsleyici\("([^"]*)",\s*"([^"]*)"\)\)')
+    _isleyiciler = [(m.start(), m.group(1), m.group(2)) for m in _kayit.finditer(g_setup)]
+    _vendor = [x for x in _isleyiciler if x[1] == "/vendor/"]
+    _kokler = [x for x in _isleyiciler if x[1] == "/"]
+    i_vendor = _vendor[0][0] if _vendor else -1
+    i_kok = _kokler[0][0] if _kokler else -1
+    r.kosul("  6b: `/vendor/` statik servisi kayitli", i_vendor >= 0 and "serveStatic" not in g_setup)
     r.kosul("  6b: `/vendor/` daha OZEL oldugu icin ONCE kayitli",
             0 <= i_vendor < i_kok,
             "sonra kayitli olsaydi `/` onu golgelerdi")
     r.kosul("  6b: vendor `immutable` (Vue bir kez iniyor)",
-            "immutable" in g_setup,
+            bool(_vendor) and "immutable" in _vendor[0][2],
             "58 KB'lik indirme telefonda her acilista tekrarlanmasin")
     # [!] index.html immutable OLMAMALI: yoksa arayuz guncellemesi
-    #    tarayiciya HIC ulasmaz.
-    kok_bolum = g_setup[i_kok:i_kok + 160] if i_kok >= 0 else ""
+    #    tarayiciya HIC ulasmaz. W6: `/index.html` istegi de bu isleyiciye dusuyor.
     r.kosul("  6b: kok servisi `no-cache` (arayuz guncellemesi gorulsun)",
-            "no-cache" in kok_bolum,
+            len(_kokler) == 1 and _kokler[0][2] == "no-cache" and len(_isleyiciler) == 2,
             "immutable olsaydi guncelleme tarayiciya hic ulasmazdi")
 
     # [!] `index.htm` TUZAGI
     g_kok = kod(govde(INO, "void kok_sayfa()"))
     r.kosul("  6c: ACIK kok isleyicisi var (index.htm tuzagi)",
-            "index.html.gz" in g_kok and "streamFile" in g_kok,
+            "index.html.gz" in g_kok
+            and re.search(r'arayuz_gonder\(f,\s*"/index\.html",\s*String\(F\("text/html"\)\),\s*"no-cache"\)',
+                          g_kok) is not None and "immutable" not in g_kok,
             "serveStatic dizin istegini `index.htm` ile karsiliyor "
-            "(RequestHandlersImpl.h:198), `index.html` DEGIL")
+            "(RequestHandlersImpl.h:198), `index.html` DEGIL; W6: no-cache + ETag, ASLA immutable")
     r.kosul("  6c: goruntu yoksa NE YAPILACAGI yaziliyor",
             "arayuz-yaz.py" in g_kok,
             "bos sayfa birakmak kullaniciyi 'calismiyor' sanisina iter")
@@ -700,6 +962,39 @@ def bolum6(r):
             "enableETag" not in INO_KOD,
             "calcETag dosyanin TAMAMINI okuyup ozet cikariyor — gondermek "
             "kadar bloklar; `immutable` ayni isi sifir maliyetle yapiyor")
+
+    # ── W6: ETag + If-None-Match -> 304 (karar web_etag.h'de, AVR'de 6q) ──
+    _top = re.search(r"toplanacak\[\]\s*=\s*\{([^}]*)\}", g_setup)
+    r.kosul("  6q: [!] W6: `If-None-Match` toplaniyor; adet DIZIDEN (elle sayi yeni basligi disarida birakirdi)",
+            _top is not None and '"If-None-Match"' in _top.group(1)
+            and "collectHeaders(toplanacak, sizeof(toplanacak) / sizeof(toplanacak[0]))" in g_setup,
+            "toplanmazsa sunucu.header() hep bos: HIC 304 olmaz, sessizce W6 oncesi")
+    g_gon = kod(govde(INO, "static void arayuz_gonder("))
+    _i_cc, _i_var = g_gon.find('sendHeader(F("Cache-Control"), onbellek)'), g_gon.find("if (var)")
+    _i_et, _i_304 = g_gon.find('sendHeader(F("ETag"), etag)'), g_gon.find("send(304, tur, String())")
+    _i_ret, _i_akis = g_gon.find("return;", _i_304), g_gon.find("streamFile(f, tur)")
+    r.kosul("  6q: [!] W6: ETag YALNIZ kunyede bulununca; 304 GOVDESIZ ve streamFile'dan ONCE doner",
+            0 <= _i_cc < _i_var < _i_et < _i_304 < _i_ret < _i_akis
+            and "etag_eslesir(sunucu.header(\"If-None-Match\").c_str(), etag)" in g_gon
+            and 0 <= g_gon.find("setContentLength(f.size())") < _i_304
+            and "etag_bul(etag_kunye, istek_yolu, etag)" in g_gon,
+            "Cache-Control 304'te de var; Content-Length 200'unki (RFC 9110 8.6), 0 degil")
+    _ai_h = govde(kod(govde(INO, "class ArayuzIsleyici")),
+                  "bool handle(WebServer &, HTTPMethod m, const String &uri)")
+    r.kosul("  6q: W6: ETag ISTEK yoluyla aranir (`/app.js`), goruntudeki `.gz` yoluyla DEGIL",
+            "arayuz_gonder(f, uri.c_str()," in _ai_h,
+            "kunye istek yolunu tutuyor; `.gz` ile aransa hicbir dosya ETag almazdi")
+    g_yk = kod(govde(INO, "static void etag_kunye_yukle()"))
+    _i_yk = g_setup.find("etag_kunye_yukle();")
+    r.kosul("  6q: W6: kunye isleyicilerden ONCE, bir kez, PSRAM'e okunuyor (statik DRAM payi ~80 B)",
+            0 <= _i_yk < i_vendor and f'"/{uretec().ETAG_KUNYE}"' in g_yk
+            and "MALLOC_CAP_SPIRAM" in g_yk and "etag_kunye = b;" in g_yk,
+            f"/{uretec().ETAG_KUNYE}; yoksa ETag'siz (W6 oncesi davranis)")
+    _hx = re.search(r"#define WEB_ETAG_HEX\s+(\d+)u", (KOD / "web_etag.h").read_text(encoding="utf-8"))
+    r.kosul("  6q: W6: kartin ETag uzunlugu uretecinkiyle AYNI (web_etag.h <-> arayuz-uret.py)",
+            _hx is not None and int(_hx.group(1)) == len(uretec().etag_ozet(b"")) == 16
+            and '#include "web_etag.h"' in INO_KOD,
+            f"{_hx.group(1) if _hx else '?'} onaltilik")
 
     # ── Toplu uclar: bitisik tampon ve blokaj ────────────────────────
     n = re.search(r"#define PIL_YANIT_NOKTA (\d+)u", INO)
@@ -774,10 +1069,10 @@ def bolum6(r):
     # `app.js` artik `<script type="module">` ve `ekran/tema.js`i import
     # ediyor; panel ileride `/ortak/*.js`i de alacak. Tarayici modul betigini
     # YALNIZCA JavaScript MIME turuyle calistirir (`text/plain` gelirse sayfa
-    # HIC acilmaz). FIRMWARE DEGISMEDI: bu istekler `serveStatic("/")`e
-    # dusuyor; MIME'i ve gzip'i CEKIRDEK belirliyor — kurulu cekirdekten
-    # okunuyor, varsayilmiyor.
-    r.kosul("  6n: `/ekran/`, `/ortak/` icin ozel isleyici YOK — kok serveStatic sunuyor",
+    # HIC acilmaz). FIRMWARE DEGISMEDI: bu istekler kok statik isleyiciye
+    # (W6'dan beri `ArayuzIsleyici("/")`) dusuyor; MIME tablosu ve gzip basligi
+    # CEKIRDEKTEN — kurulu cekirdekten okunuyor, varsayilmiyor.
+    r.kosul("  6n: `/ekran/`, `/ortak/` icin ozel isleyici YOK — kok statik isleyici sunuyor",
             '"/ortak' not in INO_KOD and '"/ekran' not in INO_KOD and i_kok >= 0)
     cekirdek = _cekirdek_webserver()
     if cekirdek is None:
@@ -796,10 +1091,21 @@ def bolum6(r):
                      "bool handle(WebServer &server, HTTPMethod requestMethod, const String &requestUri)")
         _i_tur, _i_gz = _sbt.find("getContentType(path)"), _sbt.find("pathWithGz")
         _ws = kod((cekirdek / "WebServer.cpp").read_text(encoding="utf-8", errors="replace"))
+        # W6: kartta artik `ArayuzIsleyici` sunuyor — cekirdegin kurali (MIME `.gz`
+        #   eklenmeden ONCE, ASIL yoldan; varsayilan tablonun SONUNCUSU) onda da aynen.
+        _ai = kod(govde(INO, "class ArayuzIsleyici"))
+        _ai_h = govde(_ai, "bool handle(WebServer &, HTTPMethod m, const String &uri)")
+        _tur = kod(govde(INO, "static String arayuz_tur(const String &yol)"))
         r.kosul("  6n: `.gz`e dususte MIME ASIL yoldan, Content-Encoding: gzip cekirdekten",
                 0 <= _i_tur < _i_gz
+                and "sizeof(mimeTable) / sizeof(mimeTable[0]) - 1" in _isl
+                and "arayuz_tur(uri)" in _ai_h and 'yol += ".gz"' in _ai_h
+                and "(int)maxType - 1" in _tur and "mimeTable[maxType - 1].mimeType" in _tur
                 and 'sendHeader(F("Content-Encoding"), F("gzip"))' in govde(_ws, "void WebServer::_streamFileCore("),
-                "x.js istenir, x.js.gz gonderilir, tur application/javascript kalir")
+                "x.js istenir, x.js.gz gonderilir, tur application/javascript kalir (W6: ArayuzIsleyici)")
+        # W6 inceleme: yukaridaki alt dize denetimi `exists(yol)` / `startsWith` gibi tek
+        #   belirteclik bozulmalari GECIRIYORDU — davranis kartin metniyle AVR'de (6r).
+        bolum6_arayuz_isleyici(r, cekirdek, [(o, b) for _i, o, b in _isleyiciler])
 
     # ── Goruntunun bayatligi ─────────────────────────────────────────
     r.kosul("  6j: uretec ve yazici var",
@@ -838,6 +1144,7 @@ def bolum6(r):
                 k["icerik_bayt"] < k["bolum_boyut"])
         bolum6_moduller(r, k, _uret)
         bolum6_pwa(r, k, _uret)
+        bolum6_etag(r, k, _uret)
 
 
 def main() -> int:
@@ -888,6 +1195,13 @@ def main() -> int:
          "`http://<ip>/` tam arayuzu vermeli (acik kok isleyicisi). "
          "`/vendor/vue.global.prod.js` ikinci yuklemede 304/onbellekten "
          "gelmeli — `immutable` calisiyor mu"),
+        ("W6: ETag + 304 kartta (arayuz-uret.py + arayuz-yaz.py + firmware W6 SONRASI)",
+         "`curl -sI http://<ip>/app.js` -> `ETag: \"<16 onaltilik>\"` + `Cache-Control: no-cache` + "
+         "`Content-Encoding: gzip`. Ayni ETag ile `curl -s -o NUL -w \"%{http_code} %{size_download}\" "
+         "-H \"If-None-Match: <etag>\" http://<ip>/app.js` -> `304 0`; baska bir etiketle -> `200 <boy>`. "
+         "`/` (index) de ETag tasimali ve ASLA `immutable` olmamali. Telefonda/Edge'de ikinci acilis: "
+         "Ag sekmesinde panel dosyalari 304, aktarilan ~0 B (DEVIR 5.12.108'deki tahminle karsilastir). "
+         "Olcum dongusunde yeni blokaj yok (`K` satiri, KOMUT GONDERMEDEN)"),
         ("Telefondan ilk yukleme suresi",
          "PC'de OLCULDU (B27 A4): 622 ms, 107 KB, 7 istek; ikinci acilista "
          "statik trafik 0 B (onbellek). 3 s'yi gecerse panel cikarma adimi "

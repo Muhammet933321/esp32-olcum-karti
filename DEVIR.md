@@ -10712,6 +10712,87 @@ tetiklenemiyor (pencere dolmuyor) — ancak gerçek ağ tıkanmasında `adim=yaz
 
 ---
 
+#### 5.12.108 🟡 W6: KARTIN PANEL DOSYALARINA ETag + `If-None-Match` → 304 (2026-10-04, dal `w6-etag`, ağaç `projeler/olcum-karti-w6`; KARTA YÜKLENMEDİ)
+
+5.12.106'daki telefon testinin küçük açığı: kartın LittleFS'ten sunduğu panel dosyaları `Cache-Control: no-cache`
+ama ETag/Last-Modified YOK → tarayıcının "değişti mi?" diye soracağı bir şey yok, her açılış gövdeleri baştan
+indiriyordu. Ana oturum kartı kullandığı için bu dal **kartta denenmedi** (seri port açılmadı, yükleme yok, karta
+HTTP yok); doğrulama AVR emülatöründe + kaynaktan + derlemeyle.
+
+**Ne yapıldı:**
+- **Üreteç** (`arayuz-uret.py`): görüntüye üretilmiş `etag.txt` (gzip'siz, 1 447 B, 42 satır) giriyor:
+  `/<istek yolu> <16 onaltılık>`; özet GÖRÜNTÜDEKİ baytların (gzip'liyse gzip'li hali) sha256'sının ilk 16'sı.
+  `gzip mtime=0` olduğu için aynı kaynak → aynı ETag; tek bayt değişince yeni ETag. `_fs.json`'da `etag` sözlüğü.
+- **Karar** platformsuz `web_etag.h`: `etag_bul` (yol BİREBİR — `/app.js` satırı `/app.js.gz`'ye, `/app.j`'ye ETag
+  vermez; bozuk satır — büyük harf, 15/17 hane — yok sayılır) ve `etag_eslesir` (RFC 9110 13.1.2: `*` tek başına,
+  virgüllü liste, zayıf karşılaştırma `W/"x"` == `"x"`; boş/bozuk başlık → 200, güvenli taraf).
+- **Firmware:** `serveStatic` yerine `ArayuzIsleyici` (aynı kural: GET, önek, `<yol>.gz`'ye düşüş, MIME ASIL yoldan,
+  çekirdeğin MIME tablosu `detail/mimetable.h`'den, `Content-Encoding: gzip`'i yine `streamFile` koyuyor). Kök
+  `no-cache` + ETag, `/vendor/` `immutable` + ETag; `kok_sayfa` (`/`) da aynı `arayuz_gonder`'den `no-cache` + ETag —
+  **index.html ASLA immutable değil**. 304: gövde YOK, `Cache-Control` ve `ETag` 304'te de var, `Content-Length`
+  200'ün göndereceğiyle aynı (RFC 9110 8.6 — çekirdek her yanıta koyduğu için `0` yazmak ihlal olurdu).
+  `If-None-Match` `collectHeaders`'a eklendi, adet artık dizinin kendisinden (`sizeof`) — elle `7` kalsaydı yeni
+  başlık sessizce dışarıda kalır, kart HİÇ 304 vermezdi. Künye açılışta bir kez PSRAM'e okunuyor; yoksa (eski
+  görüntü) ETag'siz = W6 öncesi davranış. Eski firmware + yeni görüntü: `etag.txt` yalnız ölü dosya.
+- **Neden çekirdeğin `enableETag(true, fn)`'i değil:** `header("If-None-Match") == etag` BİREBİR karşılaştırıyor —
+  künyede olmayan dosya için `fn` boş dönerse If-None-Match GÖNDERMEYEN her istek `"" == ""` ile **gövdesiz 304**
+  alırdı (sayfa açılmaz); ayrıca liste/`W/`/`*` bilmiyor ve 304'e Cache-Control/ETag koymuyor. Varsayılan `calcETag`
+  ise dosyanın tamamını her istekte okuyor (B22.5'in reddettiği yol).
+- **Kapılar DEĞİŞMEDİ:** statik dosyalar eskiden de Basic-Auth/Host/jeton denetimsizdi (sır taşımıyorlar); `/komut`,
+  `/akis`, imza yolları dokunulmadı.
+- **Köprü ve service worker:** `kopru/vekil.py` karta kendi isteğini atıyor (`If-None-Match` taşımıyor → hep 200) ve
+  tarayıcıya kartın ETag'ini aktarmıyor; köprünün kendi panel sunumu (yerel dosyalar, `Last-Modified`) ve `sw.js`
+  (yalnız köprüde, karta girmez) etkilenmiyor. Panelin `fetch`'leri koşullu yanıtı tarayıcı önbelleğinden 200 olarak görür.
+
+**Kazanç (görüntü künyesinden sayıldı, kartta ÖLÇÜLMEDİ):** `index.html`'in istediği varlıklar + `app.js`'in statik
+içe aktarma ağacı = 8 dosya, 200 226 B gzip; `vendor/vue` (58 361 B) zaten `immutable`. Kalan **141 865 B** (index
+25 508 · app.js 78 380 · ortak/sozluk.js 18 311 · style.css 14 731 · ekran/tema.js 2 741 · ikon 1 844 · manifest 350)
+ikinci açılışta 7 × ~170 B'lık 304 başlığına iner (≈ 1.2 KB); ekrana göre dinamik inen modüller de aynı yoldan 304.
+⚠ 5.12.106 "~90 KB" demişti — o telefondan kabaca okunmuştu; künye sayımı 141.9 KB. ⚠ Her yanıt `Connection: close`
+(çekirdek) → istek sayısı ve TCP kurulumları DEĞİŞMEZ; açılış süresindeki kazanç bayttan küçük olur (hotspot'ta 0.6 s'ydi).
+
+**Doğrulama:** B22b 113 → **125** iddia (6b/6c `ArayuzIsleyici`'ye göre yeniden yazıldı, 6n çekirdeğin MIME kuralını
+bizim işleyicide de arıyor; yeni 6q: If-None-Match toplanıyor + `sizeof` · ETag yalnız künyede bulununca, 304 gövdesiz
+ve `streamFile`'dan önce, Content-Length dosya boyu · ETag İSTEK yoluyla aranıyor · künye işleyicilerden önce PSRAM'e ·
+`WEB_ETAG_HEX` = üretecin uzunluğu · künye her görüntü dosyasını kapsıyor · değişmeyen dosyada SABİT (iki üretim, görüntü
+= kaynak) · tek bayt değişince YENİ ETag (gerçek `sikistir` yolu, kaynak geçici kopyaya çevrilerek) · `etag.txt` künyeden
+ve okuma sınırının yarısının altında · **`web_etag.h` AVR'de uyarısız + üretecin GERÇEK satırlarıyla**: 6 gerçek dosya
+doğru ETag, 9 ret · 14 If-None-Match başlığı + NULL girdiler). Mutasyon `--neden W6` **17/17 YAKALANDI**; `--adim B22b`
+54/54. Derleme uyarısız; statik DRAM 81 836 → **81 844 B** (+8: `etag_kunye` göstergesi + hiza; %24.98, < %25; künye
+1.4 KB PSRAM'de, iki işleyici yığından); flash −696 B (çekirdeğin `StaticRequestHandler`/MD5 yolu bağlanmıyor).
+
+**Kartta yapılacak (tezgah kalemi B22b "W6"):** firmware W6 + `arayuz-uret.py && arayuz-yaz.py` sonrası `curl -sI
+http://<ip>/app.js` → `ETag` + `no-cache`; aynı ETag'le `If-None-Match` → `304 0`, başka etiketle → `200 <boy>`; `/`
+ETag'li ve immutable değil; telefonda ikinci açılışta Ağ sekmesinde panel dosyaları 304; `K` satırında yeni blokaj yok.
+
+**İnceleme (W6 inceleme, aynı dal):** bulgu GERÇEKTİ. W6'dan önce `.gz`'ye düşüş ve MIME seçimi çekirdeğin
+`StaticRequestHandler`'ındaydı ve 6n bunu çekirdeğin kaynağından okuyordu. W6 ikisini de `ArayuzIsleyici::handle` +
+`arayuz_tur`'a taşıdı, 6n ise yalnız alt dize arıyordu (`'yol += ".gz"'`, `(int)maxType - 1`). Önce mutasyonlar
+yazıldı ve düzeltmeden ÖNCE koşuldu; **dördü de KAÇTI** (B22b yeşil kaldı):
+`LittleFS.exists(yol + ".gz")` → `exists(yol)`: düşüş hiç olmaz, görüntüde yalnız `.gz` var → `/app.js`, `/ekran/*`,
+`/ortak/*`, `/style.css` 404, kabuk açılır ama panel ölü · `endsWith` → `startsWith`: her dosya `application/octet-stream`,
+`_streamFileCore` bu türde `Content-Encoding: gzip`'i de düşürür, ES modülleri çalışmaz · `|| f.isDirectory()` silinir:
+`/ortak` dizini dosya gibi gönderilir · `m == HTTP_GET &&` silinir: POST da panel dosyası alır.
+**Yeni 6r (+2 iddia, B22b 125 → 127):** `uretim/avr/ornek_arayuz.cpp`. `sim3_web.py` `.ino`'dan `arayuz_tur` ile
+`class ArayuzIsleyici`'yi BİREBİR kesiyor ve avr-g++ ile derliyor (`-Wall -Wextra`, uyarısız). MIME tablosu çekirdeğin
+KENDİ `detail/mimetable.cpp/.h`'si (kurulu 3.3.11, kopya değil); dosya sistemi görüntünün gerçek listesi (`_fs.json`:
+43 dosya, `gz` olanlar `.gz` adıyla, dizinler yollardan); işleyiciler `setup()`'taki kayıt sırası ve `Cache-Control`
+değerleriyle. Dağıtım çekirdeğin `_parseRequest`'i gibi: ilk `canHandle` kazanır, `handle` false ise 404 (sonrakine
+DÜŞMEZ). İnce katman (String, LittleFS, RequestHandler) yalnız işleyicinin kullandığı kadar; sanal imzalar çekirdeğin
+`RequestHandler.h`'siyle aynı (`override` uyuşmazsa derleme kırmızı). 15 istek: index/app.js/style.css/ekran/ortak/
+manifest/kunye → `.gz`, ikon → düz; MIME'ler ELLE yazıldı (tablodan türetilmedi): js `application/javascript`, css,
+html, json, png; vendor `immutable`, kök `no-cache`; `/app.js.gz` → `application/x-gzip` (çekirdekteki gibi); `/yok.js`,
+`/vendor/yok.js` (köke düşmez), `/ortak` (dizin), `/ekran/`, `POST /app.js` → hiçbir şey gönderilmez. AVR yığın payı
+ölçülüyor (403 B, ≥ 64 isteniyor) ve String taşması 0. Mutasyon `W6:` +4, **4/4 YAKALANDI** (POST'unki derleme
+uyarısıyla da: kullanılmayan `m`); `--neden W6` **21/21**. Zincir `--artimli` "Aşama 3 doğrulandı", gizlilik temiz. Firmware DEĞİŞMEDİ (derleme aynı: 81 844 B statik DRAM).
+**Düzeltilmeyen iki küçük (W6b, `1-acik-isler.md`):** (a) `If-None-Match` toplaması gereksiz — çekirdek 3.3.11
+`collectHeaders` bu başlığı kendisi ekliyor (`WebServer.cpp:1024`, `ETAG_HEADER`); `.ino` yorumu, 6q'nun "toplanıyor"
+iddiası ve iki W6 mutasyonu (toplanmaz / elle `7`) olamayacak bir arızayı iddia ediyor (mutasyonlar yine de kırmızı
+oluyor çünkü iddia metne bakıyor, davranışa değil). (b) `etag_eslesir` sonu `*` olan listeye (`"x", *`) 1 döndürüyor —
+kendi yorumu ve simetrik `*, "x"` → 0 test durumuyla çelişiyor (biçimsiz başlık; 304 zararsız ama tutarsız).
+
+---
+
 #### 5.12.106 🟢 E6F: DAHİLİ YIĞIN DÜZELTMESİ — mbedTLS + KALICI TAMPONLAR PSRAM'E (2026-10-04, dal `e6-duzeltme`, ağaç `projeler/olcum-karti-e6f`; KARTTA)
 
 5.12.105'teki `QY dahili_en_az=2504` için hazırlanan düzeltme; kartın E6 ölçümü (QF/QH) gelmeden yazıldı, ölçüm
