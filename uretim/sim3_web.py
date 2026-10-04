@@ -284,6 +284,77 @@ def _ag_karar_avr(senaryolar: list):
     return uyari, kart.satirlar()
 
 
+def _ag_yap_kaynak() -> tuple:
+    """AGD inceleme: ag.h'den yapistiricinin METNI (yorumlar dahil, oldugu gibi).
+    (metin, eksik parcalar)."""
+    sabit = re.findall(r"^#define AG_(?!H\b)\w+[^\n]*$", AG_H, flags=re.M)
+    tek = [r"^enum AgKip \{[^\n]*$", r"^static AgDurum ag_durum = [^\n]*$",
+           r"^static char ag_mdns_kim\[17\] = [^\n]*$", r"^static bool ag_mdns_servis_var = [^\n]*$",
+           r"^static volatile uint8_t ag_hazir = [^\n]*$", r"^static AgKarar ag_k = [^\n]*$"]
+    satir = [re.search(d, AG_H, flags=re.M) for d in tek]
+    imza = ["static void ag__mdns_servis(void)", "static void ag__kip_yaz(uint8_t k)",
+            "static uint8_t ag_baslat_rf(void)", "static void ag__sta_oldu(void)",
+            "static void ag__uygula(uint8_t e)", "static void ag_bekle_tamamla(void)",
+            "static void ag_isle(void)", "static uint8_t ag__ap_kur(wifi_mode_t kip)\n{"]
+    fon = [_tanim(AG_H, i) for i in imza]
+    eksik = ([d for d, m in zip(tek, satir) if not m] + [i for i, f in zip(imza, fon) if not f]
+             + ([] if len(sabit) >= 5 else ["#define AG_*"]))
+    yapi = _tanim(AG_H, "struct AgDurum {", sinif=True)
+    if not yapi:
+        eksik.append("struct AgDurum")
+    v = ["/* sim3_web.py: kod/olcum-karti-a3/ag.h'den BIREBIR (AGD inceleme) */", *sabit,
+         '#include "ag_karar.h"', satir[0].group(0) if satir[0] else "", yapi,
+         *[m.group(0) for m in satir[1:] if m],
+         "static uint8_t ag__ap_kur(wifi_mode_t kip);", *fon]
+    return "\n\n".join(v) + "\n", eksik
+
+
+def _ag_yap_avr(senaryolar: list):
+    """AGD inceleme: kartin ag YAPISTIRICISI (ag.h metni) + ag_karar.h AVR'de, sahte
+    WiFi surucusuyla. (uyari/hata satirlari, cikti satirlari) ya da None (arac yok)."""
+    import subprocess
+    import gecici
+    from avr import mega328
+    from avr.cekirdek import Cekirdek
+    from avr.elf import flash_goruntusu
+    gxx = AVR_GCC.parent / "avr-g++.exe"
+    if not gxx.exists():
+        return None
+    metin, eksik = _ag_yap_kaynak()
+    if eksik:
+        return ["ag.h'de bulunamadi: " + ", ".join(eksik)], []
+    d = gecici.dizin("olcum3_agy_")
+    (d / "ag_yapistirici.h").write_text(metin, encoding="utf-8", newline="\n")
+    v = ["/* sim3_web.py uretti (AGD inceleme) */",
+         "typedef struct { uint8_t kimlik; uint32_t a1, a1s, a2, a2s, son; } Senaryo;",
+         f"#define SEN_ADET {len(senaryolar)}u", "static const Senaryo SEN[] = {"]
+    for x in senaryolar:
+        v.append("    {%du, %s}," % (x["kimlik"], ", ".join(
+            "%dUL" % x[a] for a in ("a1", "a1s", "a2", "a2s", "son"))))
+    v += ["};", ""]
+    (d / "ag_yap_vektor.h").write_text("\n".join(v), encoding="ascii", newline="\n")
+    elf = d / "ornek_ag_yapistirici.elf"
+    # -Wno-format-truncation: sahte String'in tamponu SABIT (24 B), derleyici onu ag_durum.ip[16]'ya
+    # snprintf'le kirpilabilir goruyor. Kartta String yigindadir (boyu derleyiciye bilinmez) ve
+    # snprintf'in kirpmasi zaten amaclanan guvenli yol; uyari sahte katmanin, kartin degil.
+    p = subprocess.run(
+        [str(gxx), "-mmcu=atmega328p", "-DF_CPU=16000000UL", "-Os", "-std=gnu++11",
+         "-Wall", "-Wextra", "-Wno-format-truncation", "-fno-threadsafe-statics",
+         f"-I{KOD}", f"-I{d}", "-o", str(elf),
+         str(BURASI / "avr" / "ornek_ag_yapistirici.cpp")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if p.returncode != 0:
+        return [p.stderr[-1500:] or "derlenemedi"], []
+    uyari = [x for x in p.stderr.splitlines() if "warning:" in x]
+    flash, _ = flash_goruntusu(elf)
+    kart = mega328.Kart(flash, Cekirdek)
+    for _ in range(400):
+        if b"BITTI" in kart.tx:
+            break
+        kart.cevrim_kadar_kos(2_000_000)
+    return uyari, kart.satirlar()
+
+
 def bolum5_ag_donus(r):
     """AGD (5.12.109): acilista ev agi yoksa AP + STA'yi yeniden dene; donunce AP kapanir.
     Kartta bulundu: eskiden AP'ye dusen kart STA'yi BIR DAHA denemiyordu (elektrik
@@ -359,6 +430,55 @@ def bolum5_ag_donus(r):
                 "iliski bitince hemen", ok, ne)
         ok, ne = bak(4, 5)
         r.kosul("  5m: AGD: ev agi kayitli degilse saf AP — hic deneme yok; sifir durumda (N0) hic eylem yok",
+                ok, ne)
+    # ── AGD inceleme: kart yapistiricisinin METNI (ag.h) AVR'de, sahte surucuyle ──
+    #    Asagidaki kaynak iddialari alt dize arar; inceleme iki mutant buldu (ag__sta_oldu
+    #    softAPIP / ag_isle bagli<->iliskili) ve ikisinde de B22b yesil kaliyordu.
+    #    Sahte surucu: iliski begin()'den 300 ms, IP 2000 ms sonra; WL_CONNECTED YALNIZ
+    #    IP'den sonra (cekirdek 3.3.11 STA.cpp, STA_GOT_IP).
+    IP_STA, IP_AP = "192.0.2.57", "192.168.4.1"                    # RFC 5737 belge adresi
+    a1 = B + Y + 5000                                              # ilk denemeden 5 s sonra gelir
+    t_ip = B + 2 * Y + 300 + 2000                                  # 2. denemede iliski + DHCP
+    a1s = t_ip + P + 80000
+    YS = [dict(ad="ev agi acilista yok, ilk denemeden 5 s sonra gelir; sonra 5 dk kopar", kimlik=1,
+               a1=a1, a1s=a1s, a2=a1s + 300000, a2s=U, son=a1s + 330000,
+               bek=[("M", 0, 1), ("B", 0), ("M", B, 3), ("P", B), ("K", B, 1, 2, IP_AP),
+                    ("B", B + Y), ("B", B + 2 * Y), ("K", t_ip, 2, 1, IP_STA), ("M", t_ip + P, 1)],
+               S=(1, IP_STA, 1, 1, 1, 1)),
+          dict(ad="ev agi acilista var; sonra 5 dk kopar", kimlik=1, a1=0, a1s=100000, a2=400000, a2s=U,
+               son=450000, bek=[("M", 0, 1), ("B", 0), ("K", 2300, 1, 1, IP_STA)], S=(1, IP_STA, 1, 1, 1, 1)),
+          dict(ad="ev agi KAYITLI DEGIL (ag yayinda olsa da)", kimlik=0, a1=0, a1s=U, a2=U, a2s=U, son=100000,
+               bek=[("M", 0, 2), ("P", 0), ("K", 0, 1, 2, IP_AP)], S=(2, IP_AP, 2, 0, 1, 1))]
+    sonuc = _ag_yap_avr(YS) if t_ip + P < a1s and 2300 < B else ([f"senaryo zamani tutarsiz: B={B}"], [])
+    if sonuc is None:
+        r.bilgi("     avr-g++ bulunamadi — ag yapistiricisi AVR denetimi ATLANDI.")
+        r.kosul("  5m: AGD inceleme: AVR araci yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
+    else:
+        uyari, sat = sonuc
+        r.kosul("  5m: AGD inceleme: kartin ag YAPISTIRICISI (ag.h METNI: ag_baslat_rf, ag_bekle_tamamla, "
+                "ag_isle, ag__uygula, ag__sta_oldu, ag__ap_kur) + ag_karar.h AVR'de sahte surucuyle UYARISIZ "
+                "derlendi ve sonuna kadar kostu", not uyari and "BITTI" in sat,
+                " | ".join(uyari[:2])[:300] or f"{len(sat)} satir")
+        G, GS = {}, {}
+        for x in (y.split() for y in sat):
+            if x and x[0] in "MBPK" and len(x) >= 3:
+                G.setdefault(int(x[1]), []).append(
+                    (x[0], *[int(z) if z.isdigit() else z for z in x[2:]]))
+            elif len(x) == 8 and x[0] == "S":
+                GS[int(x[1])] = (int(x[2]), x[3], *map(int, x[4:]))
+
+        def ybak(i):
+            ok = G.get(i, []) == YS[i]["bek"] and GS.get(i) == YS[i]["S"]
+            return ok, (YS[i]["ad"] if ok else f"#{i}: {G.get(i, [])} S={GS.get(i)}"[:300])
+        ok, ne = ybak(0)
+        r.kosul("  5m: [!] AGD inceleme: ev agi acilista yok, sonra gelir — AP+STA, 30 s'de bir begin(); kip STA "
+                "YALNIZ IP geldikten sonra ve `ag_durum.ip` STA'NIN adresi (AP'ninki ya da 0.0.0.0 degil); AP pay "
+                "sonra kapanir; calisirken 5 dk kopmada yapistirici hicbir sey yapmaz", ok, ne)
+        ok, ne = ybak(1)
+        r.kosul("  5m: AGD inceleme: ev agi acilista var — DHCP bitince STA (ip STA'nin), AP HIC kurulmaz; 5 dk "
+                "kopmada sessiz, surucu doner", ok, ne)
+        ok, ne = ybak(2)
+        r.kosul("  5m: AGD inceleme: ev agi kayitli degil — saf AP, begin() HIC cagrilmaz (ag yayinda olsa da)",
                 ok, ne)
     # ── kart yapistiricisi (ag.h + .ino) — kaynaktan ─────────────────────
     agk = (KOD / "ag_karar.h").read_text(encoding="utf-8", errors="replace")

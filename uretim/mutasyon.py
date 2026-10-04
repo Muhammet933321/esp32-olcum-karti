@@ -8399,6 +8399,16 @@ MUTASYONLAR = [
      "        if (!(ag_durum.kip == AG_STA && WiFi.status() == WL_CONNECTED)) {",
      "        if (!(ag_hazir == 1u && ag_durum.kip == AG_STA && WiFi.status() == WL_CONNECTED)) {",
      "AGD: MQTT yalniz ILK kip STA ise baglanir (AP'den donen kart bildirim gondermez): 5m MQTT/NTP kirmizi"),
+    # AGD inceleme (5.12.109): yapistiricinin METNI AVR'de sahte surucuyle (ornek_ag_yapistirici.cpp).
+    #    Iki mutant da eskiden B22b 144/144 yesil birakiyordu (iddia yalniz alt dize ariyordu).
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/ag.h",
+     "             WiFi.localIP().toString().c_str());", "             WiFi.softAPIP().toString().c_str());",
+     "AGD: STA'ya geciste ag_durum.ip AP'nin adresi (ev aginda IP ile gelen her istek 403, `Ag:` yanlis adres): "
+     "5m yapistirici AVR kirmizi"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/ag.h",
+     "agk_adim(&ag_k, millis(), WiFi.status() == WL_CONNECTED,\n                        WiFi.STA.connected() ? 1u : 0u)",
+     "agk_adim(&ag_k, millis(), WiFi.STA.connected() ? 1u : 0u,\n                        WiFi.status() == WL_CONNECTED)",
+     "AGD: ag_isle bagli/iliskili yer degistirir — kip STA DHCP bitmeden (ip 0.0.0.0) yazilir: 5m yapistirici AVR kirmizi"),
 ]
 
 
