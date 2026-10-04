@@ -18,6 +18,7 @@ export const HATA_TURLERI = Object.freeze([
 export const SURE_PAYI_MS = 500;
 export const P0_AZAMI_ADRES = 4;              // P0.kt AZAMI_ADRES ile ayni
 export const P0_SURE_MS = 5000;               // P0.kt TOPLAM_SURE_MS (4400) + pay: eklenti donmezse de biter
+export const AKIS_AC_SURE_MS = 3000;          // akisAc / akisKapat cagrisi hemen doner (baglanti kendi is parcaciginda)
 
 // soz'u ms ile yaristirir; sure dolarsa KartAgHatasi("zaman-asimi").
 export function sureli(soz, ms) {
@@ -89,7 +90,7 @@ function yanitKur(s) {
   };
 }
 
-export function agKur(eklenti, { yerelDongu = false, zamanAsimiMs = 5000, azamiGovde = 64 * 1024 } = {}) {
+export function agKur(eklenti, { yerelDongu = false, zamanAsimiMs = 5000, azamiGovde = 64 * 1024, akisAcSureMs = AKIS_AC_SURE_MS } = {}) {
   if (!eklenti || typeof eklenti.istek !== "function") throw new TypeError("eklenti.istek gerekli");
 
   async function kartFetch(url, secenek = {}) {
@@ -138,5 +139,32 @@ export function agKur(eklenti, { yerelDongu = false, zamanAsimiMs = 5000, azamiG
     );
   }
 
-  return { kartFetch, p0 };
+  // CANLI AKIS (A6, A7). Akis EventSource ile DEGIL, eklentinin kendi baglantisiyla okunur; satirlar
+  // "akis", durum "akisDurum" olayiyla gelir (dinleme: canli.js). Adres imza tasir (_c _s _i): hicbir
+  // hataya girmez, yalniz TUR doner. Hedef kurali ve yol (yalniz /akis) eklentiden ONCE denetlenir.
+  async function akisAc(url) {
+    urlDenetle(url, { yerelDongu });
+    const yol = /^http:\/\/[^/?#]*(\/[\x21-\x7e]*)?$/.exec(url)[1] || "";
+    if (yol !== "/akis" && !yol.startsWith("/akis?")) throw new KartAgHatasi("bicim");
+    if (typeof eklenti.akisAc !== "function") throw new KartAgHatasi("ic-hata");
+    let s;
+    try {
+      s = await sureli(eklenti.akisAc({ url }), akisAcSureMs);
+    } catch (e) {
+      if (e instanceof KartAgHatasi) throw e;
+      const tur = e && typeof e.code === "string" && HATA_TURLERI.includes(e.code) ? e.code : "ic-hata";
+      throw new KartAgHatasi(tur);
+    }
+    if (!s || typeof s.kimlik !== "string" || s.kimlik === "") throw new KartAgHatasi("ic-hata");
+    return { kimlik: s.kimlik };
+  }
+
+  // ASLA atmaz: kapatma bir temizliktir, hatasi cagirani ilgilendirmez.
+  async function akisKapat(kimlik) {
+    try {
+      if (typeof eklenti.akisKapat === "function") await sureli(eklenti.akisKapat({ kimlik }), akisAcSureMs);
+    } catch { /* akis zaten kapali ya da eklenti yanit vermedi */ }
+  }
+
+  return { kartFetch, p0, akisAc, akisKapat };
 }

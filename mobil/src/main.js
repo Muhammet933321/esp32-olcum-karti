@@ -5,8 +5,10 @@ import "@ionic/vue/css/core.css";
 import "@ionic/vue/css/normalize.css";
 import "@ionic/vue/css/structure.css";
 import "@ionic/vue/css/typography.css";
+import "./tema.css";
 import App from "./App.vue";
 import { ceviriMobil } from "./cekirdek/sozluk_mobil.js";
+import { yonlendiriciKur } from "./yonlendirme.js";
 
 document.title = ceviriMobil("m.uygulama", "tr");
-createApp(App).use(IonicVue).mount("#app");
+createApp(App).use(IonicVue).use(yonlendiriciKur()).mount("#app");

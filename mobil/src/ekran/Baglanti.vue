@@ -1,9 +1,10 @@
 <script setup>
-// 5B: gecici baglanti ekrani (kabuk ve sekmeler 5C'de). Kart bulunur; eslesmemisse eslestirme ekrani
-// acilir; esliyse imzali bir istekle (kayit listesi) baglanti denenir. Eslestirme YALNIZ kullanici
-// parolayi kendisi yazarsa olur.
-import { ref, shallowRef } from "vue";
-import { IonButton, IonContent, IonInput, IonItem, IonLabel, IonList, IonNote, IonPage } from "@ionic/vue";
+// Ayarlar > Kart (A42): adres, kimlik, eslesme durumu; Baglan / Esles / Eslesmeyi kaldir. Kart bulunur;
+// eslesmemisse eslestirme ekrani acilir; esliyse imzali bir istekle (kayit listesi) baglanti denenir.
+// Eslestirme YALNIZ kullanici parolayi kendisi yazarsa olur. Her islemden sonra kabuk haberdar edilir
+// (canli akis yeni duruma gore kurulur).
+import { inject, ref, shallowRef } from "vue";
+import { IonButton, IonInput, IonItem, IonLabel, IonList, IonNote } from "@ionic/vue";
 import Esles from "./Esles.vue";
 import { baglantiHatasi, kaldirGorunur, kaldirMesaji } from "./esles_durum.js";
 import { ceviriMobil } from "../cekirdek/sozluk_mobil.js";
@@ -17,12 +18,17 @@ const DURUM = {
   "kimlik-uymuyor": "m.bg.durum_kimlik",
 };
 
+const kabuk = inject("kabuk", null);
+const bildir = () => { if (kabuk) kabuk.baglantiDegisti(baglanti.value).catch(() => {}); };
+
 const elle = ref("");
 const suruyor = ref(false);
-const baglanti = shallowRef(null);
+// Ekran acilinca kabugun bildigi baglanti gorunur (Baglan'a basmadan adres / kimlik / eslesme durumu).
+const bilinen = kabuk ? kabuk.baglanti.value : null;
+const baglanti = shallowRef(bilinen && bilinen.durum !== "kasa-bozuk" ? bilinen : null);
 const eslesiyor = ref(false);
 const mesaj = ref("");
-const kasaBozuk = ref(false);
+const kasaBozuk = ref(Boolean(bilinen) && bilinen.durum === "kasa-bozuk");
 // Kart / kasa nesnesi uygulamada TEKTIR (cekirdek/uygulama.js): bu ekran her acildiginda yenisi KURULMAZ.
 const kart = shallowRef(null);
 
@@ -44,6 +50,7 @@ async function calistir(is) {
 const baglan = () => calistir(async (k) => {
   kasaBozuk.value = false;
   baglanti.value = await k.baglan({ elle: elle.value });
+  bildir();
 });
 
 const dene = () => calistir(async (k) => {
@@ -57,18 +64,22 @@ const kaldir = () => calistir(async (k) => {
   mesaj.value = c(kaldirMesaji(s.kartta));
   baglanti.value = null;
   kasaBozuk.value = false;
+  bildir();
 });
+
+// Eslestirme ekrani kart nesnesini ister: Baglan'a basilmadan (kabugun buldugu kartla) acilabilsin.
+const eslesAc = () => calistir(async () => { eslesiyor.value = true; });
 
 function eslesti() {
   eslesiyor.value = false;
   baglanti.value = { ...baglanti.value, durum: "bagli" };
+  bildir();
 }
 </script>
 
 <template>
-  <Esles v-if="eslesiyor" :kart="kart" :adres="baglanti.adres" :kimlik="baglanti.kimlik" @eslesti="eslesti" />
-  <ion-page v-else>
-    <ion-content class="ion-padding">
+  <Esles v-if="eslesiyor && kart" :kart="kart" :adres="baglanti.adres" :kimlik="baglanti.kimlik" @eslesti="eslesti" />
+  <div v-else class="ayar">
       <h1>{{ c("m.bg.baslik") }}</h1>
       <ion-item>
         <ion-input id="bg-elle" v-model="elle" :label="c('m.kb.elle')" label-placement="stacked" :placeholder="c('m.kb.elle_ornek')" inputmode="url" autocapitalize="off" />
@@ -81,11 +92,10 @@ function eslesti() {
         <ion-item v-if="baglanti.kimlik"><ion-label>{{ c("m.kb.kimlik") }}</ion-label><ion-note slot="end">{{ baglanti.kimlik }}</ion-note></ion-item>
       </ion-list>
 
-      <ion-button v-if="baglanti && baglanti.durum === 'eslesmemis'" id="bg-esles" expand="block" size="large" :disabled="suruyor" @click="eslesiyor = true">{{ c("m.bg.esles") }}</ion-button>
+      <ion-button v-if="baglanti && baglanti.durum === 'eslesmemis'" id="bg-esles" expand="block" size="large" :disabled="suruyor" @click="eslesAc">{{ c("m.bg.esles") }}</ion-button>
       <ion-button v-if="baglanti && baglanti.durum === 'bagli'" id="bg-dene" expand="block" size="large" :disabled="suruyor" @click="dene">{{ c("m.bg.dene") }}</ion-button>
       <ion-button v-if="kaldirGorunur(baglanti, kasaBozuk)" id="bg-kaldir" expand="block" size="large" fill="outline" :disabled="suruyor" @click="kaldir">{{ c("m.bg.kaldir") }}</ion-button>
 
       <p v-if="mesaj" id="bg-mesaj" role="status">{{ mesaj }}</p>
-    </ion-content>
-  </ion-page>
+  </div>
 </template>

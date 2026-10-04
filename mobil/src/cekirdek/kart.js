@@ -20,7 +20,7 @@
 //   kart-sahte | tur-sinir-disi | kart-gecersiz
 
 import {
-  CalismaHatasi, HttpHatasi, PAROLA_EN_AZ, TUR_EN_AZ, TUR_EN_COK, ac, adGecerli, esles as ortakEsles,
+  CalismaHatasi, HttpHatasi, PAROLA_EN_AZ, TUR_EN_AZ, TUR_EN_COK, ac, adGecerli, esles as ortakEsles, akisUrl as ortakAkisUrl,
 } from "@ortak/imza.js";
 import { utf8Kodla } from "@ortak/kripto.js";
 import { KartAgHatasi } from "./ag.js";
@@ -260,5 +260,19 @@ export function kartKur({ ag, kesif, kasa, simdiMs = Date.now }) {
     return { kartta };
   }
 
-  return { baglan, durum, istek, esles, saatVer, eslesmeyiKaldir };
+  // Canli akis adresi (A6): her (yeniden) baglanmada YENI imzali adres (_c _s _i sorgu argumanlari;
+  // tek kullanimlik sayac). Yalniz kimligi DOGRULANMIS, eslesmis karta. Donen adres IMZA tasir: ekrana,
+  // hata metnine, gunluge verilmez.
+  async function akisUrl() {
+    const b = baglanti, c = cihaz;
+    if (!b) throw new KartHatasi("bagli-degil");
+    if (!c || b.kimlik !== c.kimlik) throw new KartHatasi("eslesmemis");
+    try {
+      return await ortakAkisUrl(c, tabanAl(b), { fetch: ag.kartFetch, kaydet: kasa.kaydet, simdiMs });
+    } catch (e) {
+      throw cevir(e);
+    }
+  }
+
+  return { baglan, durum, istek, esles, saatVer, eslesmeyiKaldir, akisUrl };
 }

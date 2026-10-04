@@ -5,12 +5,16 @@
 import curutucu from "../test/curutucu/yasayan-liste.mjs";
 import curutucu5b from "../test/curutucu-5b/duzeltme-liste.mjs";
 import p0 from "./p0-liste.mjs";
+import akis from "./akis-liste.mjs";
+import kabuk from "./kabuk-liste.mjs";
 
 export default [
   ...curutucu.map((m) => ({ ...m, ad: `5A-7 ${m.ad}` })),
   // Curutucu 5B: yasayan mutasyonlar + duzeltmelerin mutasyonlari ("5B-C: ..." adlariyla gelir).
   ...curutucu5b,
   ...p0,
+  ...akis,
+  ...kabuk,
   {
     ad: "5A-2: sozlukte EN metni bos",
     dosya: "src/cekirdek/sozluk_mobil.js",

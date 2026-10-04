@@ -1,9 +1,10 @@
 <script setup>
-// 5B: eslestirme ekrani — gecici, sade (gorsel tasarim turu sonra). Mantik esles_durum.js'te.
+// Eslestirme ekrani (Ayarlar rotasinin ICINDE acilir: ACIL DURDUR seridi ve sekmeler yerinde kalir).
+// Mantik esles_durum.js'te.
 // Kullanim: <Esles :kart="kart" :adres="b.adres" :kimlik="b.kimlik" @eslesti="..." />
 //   kart: cekirdek/kart.js kartKur() nesnesi; baglan() "eslesmemis" dondukten sonra.
 import { watch } from "vue";
-import { IonButton, IonContent, IonInput, IonItem, IonLabel, IonList, IonNote, IonPage, IonSpinner } from "@ionic/vue";
+import { IonButton, IonInput, IonItem, IonLabel, IonList, IonNote, IonSpinner } from "@ionic/vue";
 import { ceviriMobil } from "../cekirdek/sozluk_mobil.js";
 import { eslesDurumu } from "./esles_durum.js";
 
@@ -25,8 +26,7 @@ watch(tamam, (v) => { if (v) emit("eslesti"); });
 </script>
 
 <template>
-  <ion-page>
-    <ion-content class="ion-padding">
+  <div id="es-ekran" class="ayar">
       <h1>{{ c("m.es.baslik") }}</h1>
       <p>{{ c("m.es.kart_dogru_mu") }}</p>
       <ion-list id="es-kart">
@@ -48,8 +48,7 @@ watch(tamam, (v) => { if (v) emit("eslesti"); });
       <p v-if="suruyor" id="es-ilerleme" role="status"><ion-spinner /> {{ c("m.es.suruyor_not") }}</p>
       <p v-if="hata" id="es-hata" role="alert">{{ c(hata.anahtar, hata.degerler) }}</p>
       <p v-if="tamam" id="es-tamam" role="status">{{ c("m.es.tamam") }}</p>
-    </ion-content>
-  </ion-page>
+  </div>
 </template>
 
 <style scoped>

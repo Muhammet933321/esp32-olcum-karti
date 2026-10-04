@@ -1,8 +1,8 @@
 <script setup>
-// 5A-6: "Karti bul" — gecici, sade ekran (gorsel tasarim turu sonra). Kesfin ve ag eklentisinin
-// telefonda calistiginin duman testi; her adayin sonucu gorunur (cleartext olcumu icin de).
+// Ayarlar > Gelismis: "Karti bul" (kesfin ve ag eklentisinin telefonda calistiginin duman testi; her
+// adayin sonucu gorunur), PBKDF2 olcumu ve WebView ag sinamasi.
 import { ref } from "vue";
-import { IonButton, IonContent, IonInput, IonItem, IonLabel, IonList, IonNote, IonPage } from "@ionic/vue";
+import { IonButton, IonInput, IonItem, IonLabel, IonList, IonNote } from "@ionic/vue";
 import { agKur } from "../cekirdek/ag.js";
 import { KartAg, Kesif } from "../cekirdek/eklenti.js";
 import { HedefHatasi } from "../cekirdek/hedef.js";
@@ -10,6 +10,7 @@ import { kesifKur, KesifHatasi, yerelOnbellek } from "../cekirdek/kesif.js";
 import { ceviriMobil } from "../cekirdek/sozluk_mobil.js";
 import { webSinama } from "../cekirdek/web_sinama.js";
 import { pbkdf2Olc } from "../cekirdek/olcum.js";
+import { pbkdf2Gorunumu } from "./olcum_gorunum.js";
 
 const dil = "tr";
 const c = (anahtar, degerler) => ceviriMobil(anahtar, dil, degerler);
@@ -29,13 +30,16 @@ async function webSina() {
   try { webSonuc.value = await webSinama(); } finally { webSuruyor.value = false; }
 }
 
-const pbkdf2Yazi = ref("");
+// PBKDF2 olcumu kart bulunmadan da calisir: tur varsayilani 20 000; kart bulunduysa kartin bildirdigi tur.
+const PBKDF2_VARSAYILAN_TUR = 20000;
+const pbkdf2Suruyor = ref(false);
+const pbkdf2Sonuc = ref(null);
 async function pbkdf2Sina() {
-  const tur = Number.isInteger(sonuc.value?.bilgi?.tur) ? sonuc.value.bilgi.tur : 20000;
-  pbkdf2Yazi.value = c("m.ol.suruyor");
+  const tur = Number.isInteger(sonuc.value?.bilgi?.tur) ? sonuc.value.bilgi.tur : PBKDF2_VARSAYILAN_TUR;
+  pbkdf2Suruyor.value = true;
+  pbkdf2Sonuc.value = null;
   await new Promise((coz) => { requestAnimationFrame(() => setTimeout(coz, 0)); });
-  const o = pbkdf2Olc(tur);
-  pbkdf2Yazi.value = c("m.ol.pbkdf2_sonuc", { tur: o.tur, enaz: o.enAz, ortanca: o.ortanca, encok: o.enCok });
+  try { pbkdf2Sonuc.value = pbkdf2Gorunumu(pbkdf2Olc(tur)); } finally { pbkdf2Suruyor.value = false; }
 }
 
 const SONUC = {
@@ -83,8 +87,7 @@ async function ara() {
 </script>
 
 <template>
-  <ion-page>
-    <ion-content class="ion-padding">
+  <div id="kb-ekran" class="ayar">
       <h1>{{ c("m.kb.baslik") }}</h1>
       <ion-item>
         <ion-input v-model="elle" :label="c('m.kb.elle')" label-placement="stacked" :placeholder="c('m.kb.elle_ornek')" inputmode="url" autocapitalize="off" />
@@ -123,7 +126,15 @@ async function ara() {
       </ion-list>
 
       <ion-button id="pbkdf2" expand="block" fill="outline" size="large" @click="pbkdf2Sina">{{ c("m.ol.pbkdf2") }}</ion-button>
-      <p v-if="pbkdf2Yazi" id="pbkdf2-sonuc">{{ pbkdf2Yazi }}</p>
+      <div v-if="pbkdf2Suruyor || pbkdf2Sonuc" id="pbkdf2-sonuc" role="status">
+        <p v-if="pbkdf2Suruyor">{{ c("m.ol.suruyor") }}</p>
+        <template v-if="pbkdf2Sonuc">
+          <p id="pbkdf2-sure">{{ c("m.ol.pbkdf2_sonuc", pbkdf2Sonuc.sure) }}</p>
+          <p id="pbkdf2-dogrulama" class="bilgi" :class="pbkdf2Sonuc.sinif">{{ c(pbkdf2Sonuc.dogrulama) }}</p>
+          <p id="pbkdf2-ozet" class="bilgi">{{ c("m.ol.ozet", { ozet: pbkdf2Sonuc.ozet }) }}</p>
+          <p id="pbkdf2-uygulama" class="bilgi">{{ c("m.ol.uygulama") }}</p>
+        </template>
+      </div>
 
       <ion-button id="websina" expand="block" fill="outline" size="large" :disabled="webSuruyor" @click="webSina">
         {{ webSuruyor ? c("m.ws.suruyor") : c("m.ws.dugme") }}
@@ -134,6 +145,5 @@ async function ara() {
           <ion-note slot="end">{{ webYazi(w.sonuc) }}</ion-note>
         </ion-item>
       </ion-list>
-    </ion-content>
-  </ion-page>
+  </div>
 </template>

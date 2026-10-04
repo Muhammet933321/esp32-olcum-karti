@@ -85,4 +85,25 @@ export default [
     koy: "adresler.firstOrNull()",
     kirmizi: "HedefCozTest.adCozulurVeCozulenAdresDeKuraldanGecer",
   },
+  {
+    ad: "5C-K: 4096 bayti asan SSE satiri bos satir gibi isleniyor (olay yarim veriyle dagitilir)",
+    dosya: AG + "SseAyirici.kt",
+    bul: "if (uzun) {",
+    koy: "if (false) {",
+    kirmizi: "SseAyiriciTest.satirSiniri4096Bayt_uzunSatirinOlayiAtilirSonrakiSaglam",
+  },
+  {
+    ad: "5C-K: adli olaylar (kimlik: oturum jetonu) da satir olarak JS'e tasiniyor",
+    dosya: AG + "Akis.kt",
+    bul: 'if (o.ad.isEmpty() || o.ad == "message") satirlar.add(o.veri)',
+    koy: "satirlar.add(o.veri)",
+    kirmizi: "AkisTest.kartGibiAkis_satirlarSirayla_kimlikOlayiTasinmaz_baglantiBitinceKapandi",
+  },
+  {
+    ad: "5C-K: kapat() baglantiyi kesmiyor (bloklu okuma surer, kartin yuvasi dolu kalir)",
+    dosya: AG + "Akis.kt",
+    bul: "try { baglanti?.disconnect() } catch (_: Exception) {}",
+    koy: "",
+    kirmizi: "AkisTest.kapat_blokluOkumayiHemenKeser_tekBitis_sonrasindaSatirYok",
+  },
 ];

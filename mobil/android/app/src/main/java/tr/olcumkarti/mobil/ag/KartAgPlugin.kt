@@ -17,10 +17,16 @@ import java.net.HttpURLConnection
 import java.net.Inet4Address
 import java.net.Proxy
 import java.net.URL
+import com.getcapacitor.JSArray
+import java.util.Collections
 import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Karta giden TEK ag yolu (tasarim §2.1, A3–A5). WebView kendi basina aga cikmaz (CSP).
@@ -121,11 +127,100 @@ class KartAgPlugin : Plugin() {
         return HttpIstek(ac).yap("POST", url, basliklar, "p0".toByteArray(Charsets.US_ASCII), P0.BAGLANTI_SURESI_MS, 1024).kod
     }
 
+    // ── CANLI AKIS (A6, A7) ─────────────────────────────────────────────────────────────────────
+    // Her akis kendi is parcaciginda (ortak havuzu tutmaz). Olaylar: "akis" { kimlik, satirlar } ve
+    // "akisDurum" { kimlik, hal: acik | kapandi | dolu | hata, tur?, kod? }. Adres (imza tasir) hicbir
+    // olaya girmez. Hedef kurali + Wi-Fi baglama `hazirla` ile (istek ile ayni yol).
+    private val akislar = ConcurrentHashMap<String, Akis>()
+    private val akisNo = AtomicInteger(0)
+    private val arkaPlandaKapanan: MutableSet<String> = Collections.synchronizedSet(HashSet())
+    private val akisZamanlayici = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "akis-zaman").apply { isDaemon = true } }
+    @Volatile private var arkaPlanIsi: ScheduledFuture<*>? = null
+
+    private fun akisDurumBildir(kimlik: String, hal: String, tur: String?, kod: Int) {
+        val o = JSObject()
+        o.put("kimlik", kimlik)
+        o.put("hal", hal)
+        if (tur != null) o.put("tur", tur)
+        if (kod > 0) o.put("kod", kod)
+        notifyListeners("akisDurum", o)
+    }
+
+    @PluginMethod
+    fun akisAc(call: PluginCall) {
+        val url = call.getString("url")
+        if (url == null) { call.reject("bicim", "bicim"); return }
+        if (akislar.size >= AKIS_AZAMI) { call.reject("mesgul", "mesgul"); return }
+        val kimlik = "a" + akisNo.incrementAndGet()
+        val akis = Akis({ u -> val (hedefUrl, ac) = hazirla(u); ac(URL(hedefUrl)) }, object : Akis.Dinleyici {
+            override fun satirlar(satirlar: List<String>) {
+                val dizi = JSArray()
+                for (s in satirlar) dizi.put(s)
+                val o = JSObject()
+                o.put("kimlik", kimlik)
+                o.put("satirlar", dizi)
+                notifyListeners("akis", o)
+            }
+
+            override fun durum(hal: String, tur: String?, kod: Int) {
+                if (hal != "acik") akislar.remove(kimlik)
+                akisDurumBildir(kimlik, hal, tur, kod)
+            }
+        })
+        akislar[kimlik] = akis
+        val sonuc = JSObject()
+        sonuc.put("kimlik", kimlik)
+        call.resolve(sonuc)
+        Thread({ akis.calis(url) }, "akis-$kimlik").apply { isDaemon = true }.start()
+    }
+
+    @PluginMethod
+    fun akisKapat(call: PluginCall) {
+        val kimlik = call.getString("kimlik")
+        // Soket kapatma ag isidir: cagrinin is parcaciginda degil, zamanlayicida (hemen).
+        if (kimlik != null) akislar[kimlik]?.let { a -> akisZamanlayici.execute { a.kapat() } }
+        call.resolve()
+    }
+
+    private fun akislariKapat(arkaPlan: Boolean) {
+        for ((kimlik, akis) in akislar) {
+            if (arkaPlan) arkaPlandaKapanan.add(kimlik)
+            akis.kapat()
+        }
+    }
+
+    /** Arka plan: kartin 4 akis yuvasindan birini tutmamak icin acik akislar <= 5 s icinde kapanir (A6). */
+    override fun handleOnPause() {
+        super.handleOnPause()
+        arkaPlanIsi?.cancel(false)
+        arkaPlanIsi = akisZamanlayici.schedule({ akislariKapat(true) }, ARKA_PLAN_KAPAT_MS, TimeUnit.MILLISECONDS)
+    }
+
+    /** One gelince: arka planda kapanan akislar JS'e (yeniden) bildirilir; JS yeni imzali adresle acar. */
+    override fun handleOnResume() {
+        super.handleOnResume()
+        arkaPlanIsi?.cancel(false)
+        arkaPlanIsi = null
+        val kapananlar = synchronized(arkaPlandaKapanan) { val k = ArrayList(arkaPlandaKapanan); arkaPlandaKapanan.clear(); k }
+        for (kimlik in kapananlar) akisDurumBildir(kimlik, "kapandi", null, 0)
+    }
+
+    override fun handleOnDestroy() {
+        arkaPlanIsi?.cancel(false)
+        akisZamanlayici.execute { akislariKapat(false) }
+        super.handleOnDestroy()
+    }
+
     @PluginMethod
     fun wifiDurumu(call: PluginCall) {
         val sonuc = JSObject()
         sonuc.put("wifi", wifiAgi() != null)
         sonuc.put("hataAyiklama", BuildConfig.DEBUG)
         call.resolve(sonuc)
+    }
+
+    companion object {
+        const val AKIS_AZAMI = 2                   // ayni anda acik akis (kartta 4 yuva var; uygulama 1 kullanir)
+        const val ARKA_PLAN_KAPAT_MS = 4000L       // arka plana gecince: 5 s'den ONCE
     }
 }
