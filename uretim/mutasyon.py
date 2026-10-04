@@ -7864,16 +7864,16 @@ MUTASYONLAR = [
      "  ag_baslat_rf();\n  mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);\n",
      "E6F: ayirici ikinci kez kurulur (hangisinin gecerli oldugu siraya kalir): B72.E6Fa kirmizi"),
     ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
-     "                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
-     "                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);",
-     "                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT,\n"
-     "                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);",
+     "                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
+     "                                    MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);",
+     "                                    MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT,\n"
+     "                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);",
      "E6F: ayirici once DAHILI dener (PSRAM yalniz dahili dolunca — dip yine olusur): B72.E6Fb kirmizi"),
     ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
-     "  return heap_caps_calloc_prefer(n, boyut, 2,\n"
-     "                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
-     "                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);",
-     "  return heap_caps_calloc(n, boyut, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);",
+     "  void *p = heap_caps_malloc_prefer(toplam, 2,\n"
+     "                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
+     "                                    MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);",
+     "  void *p = heap_caps_malloc(toplam, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);",
      "E6F: yedek yok — PSRAM'siz ya da PSRAM dolu kartta Wi-Fi/TLS/imza hic ayiramaz: B72.E6Fb kirmizi"),
     ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "static void tls_bellek_birak(void *p) {\n  heap_caps_free(p);\n}",
@@ -7927,6 +7927,133 @@ MUTASYONLAR = [
      "`ayirma_hata=0` (bir `QF caps=0x0008 gorev=bld` = AES DMA ara tamponu ayrılamadı",
      "`ayirma_hata=0` (bir hata = AES DMA ara tamponu ayrılamadı",
      "E6F: kartta olculecek listesi AES ara tamponu satirini saymaz: B72.E6Fh kirmizi"),
+    # ── E6K (2026-10-04): E6F'nin acik kucukleri. python mutasyon.py --neden "E6K:" --paralel 2
+    #    (a) olu onislemci kodu: iddialar yalniz DERLENEN koda bakmali
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);\n",
+     "#if 0\n"
+     "  akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);\n"
+     "#endif\n",
+     "E6K: PSRAM akis kuyrugu #if 0 ile derleme disi (kuyruk yine dahili, metin yerinde): B72.E6Fe kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (y != (size_t)n) { akis[i].stop(); continue; }\n",
+     "#ifdef E6K_HIC_TANIMLANMAZ\n    if (y != (size_t)n) { akis[i].stop(); continue; }\n#endif\n",
+     "E6K: kisa yazmada dusurme #ifdef TANIMSIZ ile derleme disi: B72.E6Ff kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/kayit_esp.h",
+     "    kayit_veri_tampon = (uint8_t *)heap_caps_malloc_prefer(KAYIT_VERI_AZAMI, 2,\n"
+     "                                                           MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
+     "                                                           MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);\n",
+     "#if 0\n"
+     "    kayit_veri_tampon = (uint8_t *)heap_caps_malloc_prefer(KAYIT_VERI_AZAMI, 2,\n"
+     "                                                           MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
+     "                                                           MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);\n"
+     "#endif\n",
+     "E6K: /kayit/veri tamponu ayirmasi #if 0 ile derleme disi (kayit hic acilmaz): B72.E6Fd kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    Serial.print(F(\"Bellek (E6F): tls=\"));\n",
+     "#if 0\n    Serial.print(F(\"Bellek (E6F): tls=\"));\n#endif\n",
+     "E6K: acilis satirinin basligi #if 0 ile derleme disi (tezgah satiri tanimaz): B72.E6Fg kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);\n",
+     "#if E6K_YOK\n  mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);\n#endif\n",
+     "E6K: ayirici kurulumu kosullu (tanimsiz makroyla hic kurulmaz): B72.E6Fa kirmizi"),
+    ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
+     '            yigin.append([f"#{yon} {arg}".strip(), koruma])',
+     '            yigin.append([f"#{yon} {arg}".strip(), yon == "ifndef"])',
+     "E6K: her #ifndef baslik korumasi sayilir (#ifndef TANIMLI_DEGIL icindeki olu kod temiz gorunur): "
+     "B72.E6Fi kirmizi"),
+    ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
+     '_ONISLEMCI = re.compile(r"^[ \\t]*#[ \\t]*(if|',
+     '_ONISLEMCI = re.compile(r"^#(if|',
+     "E6K: girintili / '#  ifdef' bicimli kosul gorulmez: B72.E6Fi kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "static void *tls_bellek_ayir(size_t n, size_t boyut) {\n  if (boyut",
+     "#if 0\n"
+     "static void *tls_bellek_ayir(size_t n, size_t boyut) {\n"
+     "  if (boyut && n > SIZE_MAX / boyut) return NULL;\n"
+     "  const size_t toplam = n * boyut;\n"
+     "  void *p = heap_caps_malloc_prefer(toplam, 2,\n"
+     "                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
+     "                                    MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);\n"
+     "  if (p) memset(p, 0, toplam);\n"
+     "  return p;\n"
+     "}\n"
+     "#else\n"
+     "static void *tls_bellek_ayir(size_t n, size_t boyut) {\n"
+     "  return heap_caps_calloc(n, boyut, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);\n"
+     "}\n"
+     "#endif\n"
+     "static void *tls_bellek_ayir_eski(size_t n, size_t boyut) {\n  if (boyut",
+     "E6K: dogru ayirici #if 0 icinde, derlenen #else kolu yine DAHILI (govde() ilk tanimi buluyordu): "
+     "B72.E6Fb kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "static void tls_bellek_birak(void *p) {\n  heap_caps_free(p);\n}",
+     "#if 0\nstatic void tls_bellek_birak(void *p) {\n  heap_caps_free(p);\n}\n#else\n"
+     "static void tls_bellek_birak(void *p) {\n  if (esp_ptr_external_ram(p)) heap_caps_free(p);\n}\n#endif",
+     "E6K: dogru birakici #if 0 icinde, derlenen kol dahili bloklari SIZDIRIR: B72.E6Fc kirmizi"),
+    #    (a') E6K inceleme: dosya ortasindaki '#ifndef X / #define X' ve korumanin #else kolu
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);\n",
+     "#ifndef E6K_INCELEME\n#define E6K_INCELEME\n#else\n"
+     "  akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);\n"
+     "#endif\n",
+     "E6K: PSRAM akis kuyrugu dosya ortasi 'koruma'nin #else kolunda (hic derlenmez): B72.E6Fe kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "    if (y != (size_t)n) { akis[i].stop(); continue; }\n",
+     "#ifndef ARDUINO\n#define ARDUINO 1\n    if (y != (size_t)n) { akis[i].stop(); continue; }\n#endif\n",
+     "E6K: kisa yazmada dusurme '#ifndef ARDUINO / #define ARDUINO' icinde (arduino-cli'de olu): "
+     "B72.E6Ff kirmizi"),
+    ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
+     "            koruma = (ilk and not kaynak[:m.start()].strip()\n"
+     "                      and yon == \"ifndef\"",
+     "            koruma = (yon == \"ifndef\"",
+     "E6K: dosya ortasindaki '#ifndef X / #define X' de koruma sayilir: B72.E6Fk kirmizi"),
+    ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
+     "            yigin[-1][1] = False\n", "",
+     "E6K: korumanin #else/#elif kolu kosulsuz sayilir: B72.E6Fk kirmizi"),
+    #    (b) E6F'nin kart kaniti tezgah listesinde, firmware ve DEVIR ile ayni
+    ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
+     '    tezgah("B72 E6F dahili yigin duzeltmesi (kartta)", E6F_TEZGAH)\n', "",
+     "E6K: E6F kalemleri tezgah listesine hic basilmaz (_tezgah.md'de yok, kanit yine duz yazida): "
+     "B72.E6Fj kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     '    Serial.print(F(" veri="));\n', '    Serial.print(F(" tampon="));\n',
+     "E6K: firmware acilis satiri degisir, tezgah kalemi eski satiri arar: B72.E6Fj kirmizi"),
+    ("B72", "test_kayit_esp.py", "uretim/test_kayit_esp.py",
+     '     "1.6 KB\'lik blok kalmamis). caps=0x080C gorev=wifi/tiT',
+     '     "1.6 KB\'lik blok kalmamis). caps=0x0808 gorev=wifi/tiT',
+     "E6K: tezgah kalemi Wi-Fi tamponunu yanlis caps ile tarif eder (QF okuyan eslestiremez): "
+     "B72.E6Fj kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     '"QF no=%lu boyut=%lu caps=0x%04lX ', '"QF no=%lu boyut=%lu caps=0x%lX ',
+     "E6K: QF caps bicimi 4 haneli degil (kalemdeki caps=0x0008 hic gorunmez, '0x8' basilir): "
+     "B72.E6Fj kirmizi"),
+    #    (c) QF boyut: ayirici gercek toplami (n*boyut) bildirir, tasmayi denetler, sifirlar
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (boyut && n > SIZE_MAX / boyut) return NULL;\n"
+     "  const size_t toplam = n * boyut;\n"
+     "  void *p = heap_caps_malloc_prefer(toplam, 2,\n"
+     "                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
+     "                                    MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);\n"
+     "  if (p) memset(p, 0, toplam);\n"
+     "  return p;\n",
+     "  return heap_caps_calloc_prefer(n, boyut, 2,\n"
+     "                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,\n"
+     "                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);\n",
+     "E6K: ayirici yine calloc_prefer (QF boyut mbedTLS hatasinda n kat kucuk): B72.E6Fb kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (p) memset(p, 0, toplam);\n", "",
+     "E6K: malloc_prefer sonrasi sifirlama yok (mbedTLS calloc sozlesmesi bozulur, cop bellek): "
+     "B72.E6Fb kirmizi"),
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "  if (boyut && n > SIZE_MAX / boyut) return NULL;\n", "",
+     "E6K: n*boyut tasma denetimi yok (tasan carpim KUCUK blok ayirir, mbedTLS tasirir): B72.E6Fb kirmizi"),
+    #    (d) kosucu: uygula satir sonlarini korumali (eski hali LF dosyayi CRLF yapiyordu)
+    ('HIZ', 'test_zincir_hiz.py', 'uretim/mutasyon.py',
+     '            p.write_text(s.replace(eski, yeni), encoding="utf-8", newline=satir'
+     '_sonu)',
+     '            p.write_text(s.replace(eski, yeni), encoding="utf-8")',
+     "E6K: uygula yine Windows metin kipinde yazar (LF dosya butunuyle CRLF, sahte YAKALANDI): A18 kirmizi"),
 ]
 
 
@@ -8158,13 +8285,19 @@ def uygula(kopya: Path, dosya: str, eski: str, yeni: str) -> bool:
     s = p.read_text(encoding="utf-8", errors="replace")
     if eski not in s:
         return False
+    # E6K (2026-10-04): satir sonu KORUNUR. read_text "\r\n"i "\n" yapar (desenler hep "\n"
+    #   ile yazili, CRLF dosyada da eslesir); eskiden write_text Windows'ta her "\n"i "\r\n"
+    #   yaziyordu -> LF dosya (depo .gitattributes: kaynak eol=lf) butunuyle CRLF oluyordu ve
+    #   `\n\}\n` gibi desenli iddialar mutasyonla ILGISIZ kirmiziya donuyordu (sahte
+    #   YAKALANDI; B7 "TEK write()" 3 kirmizi, test_zincir_hiz.py A18, DEVIR 5.12.106a).
+    satir_sonu = "\r\n" if b"\r\n" in p.read_bytes() else "\n"
     # ⚠ WINDOWS: yeni kopyalanan agaci Defender/arama dizinleyicisi
     #   tararken dosya KISA SURELI kilitli kalabiliyor ve yazma
     #   PermissionError atiyor. Kosu tam ortasinda cokuyordu (B28'de iki
     #   kez). Kusur mutasyonda degil ortamda; birkac kez denemek yeter.
     for deneme in range(5):
         try:
-            p.write_text(s.replace(eski, yeni), encoding="utf-8")
+            p.write_text(s.replace(eski, yeni), encoding="utf-8", newline=satir_sonu)
             break
         except PermissionError:
             if deneme == 4:

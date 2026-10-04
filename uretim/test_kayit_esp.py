@@ -76,6 +76,57 @@ def govde(kaynak: str, imza: str) -> str:
     return ""
 
 
+_ONISLEMCI = re.compile(r"^[ \t]*#[ \t]*(if|ifdef|ifndef|elif|else|endif)\b[ \t]*(.*)$", re.M)
+
+
+def kosul_yigini(kaynak: str, konum: int) -> list[str]:
+    """E6K: `konum`u saran ACIK onislemci kosullari, distan ice (or. ['#if 0']).
+
+    Metin aramasi `#if 0` / `#ifdef TANIMSIZ` icindeki OLU kodu da bulur — derlenmeyen bir
+    satir iddiayi yesil tutuyordu (B72.E6Fe/E6Ff, DEVIR 5.12.106 acik kucuk b). Hangi
+    kosulun dogru oldugunu bilmek derleyicinin isi; burada KOSUL VARLIGI olculur: tek
+    istisna baslik korumasi (`#ifndef X_H` + hemen ardindan `#define X_H`), o da YALNIZ
+    dosyanin ILK yonergesiyse (oncesinde yalniz bosluk; E6K inceleme: dosya ortasindaki
+    `#ifndef ARDUINO` + `#define ARDUINO 1` koruma sayiliyordu). `#elif`/`#else` kolu da
+    kosullu sayilir — korumanin kendi #else/#elif kolu DAHIL (yalniz ikinci dahil etmede
+    derlenir). Yorumlar ONCEDEN `kod()` ile cikmis olmali."""
+    yigin: list[list] = []  # [metin, koruma_mu]
+    ilk = True
+    for m in _ONISLEMCI.finditer(kaynak):
+        if m.start() >= konum:
+            break
+        yon, arg = m.group(1), m.group(2).strip()
+        if yon in ("if", "ifdef", "ifndef"):
+            koruma = (ilk and not kaynak[:m.start()].strip()
+                      and yon == "ifndef" and re.fullmatch(r"\w+", arg) is not None
+                      and re.match(r"\s*#[ \t]*define[ \t]+" + re.escape(arg) + r"\b",
+                                   kaynak[m.end():]) is not None)
+            yigin.append([f"#{yon} {arg}".strip(), koruma])
+        elif yon == "endif":
+            if yigin:
+                yigin.pop()
+        elif yigin:
+            yigin[-1][0] += f" / #{yon} {arg}".rstrip()
+            yigin[-1][1] = False
+        ilk = False
+    return [x for x, koruma in yigin if not koruma]
+
+
+def kosulsuz(kaynak: str, *parcalar: str) -> list[str]:
+    """E6K: her parca kaynakta VAR ve HER gecisi kosulsuz derleniyor mu — sorunlari dondurur
+    (bos liste = temiz). Iddia `not kosulsuz(...)` ile yazilir, sorunlar ek olarak basilir."""
+    sorun = []
+    for p in parcalar:
+        konumlar = [m.start() for m in re.finditer(re.escape(p), kaynak)]
+        if not konumlar:
+            sorun.append(f"{p[:48]!r} YOK")
+        for k in konumlar:
+            y = kosul_yigini(kaynak, k)
+            if y:
+                sorun.append(f"{p[:48]!r} {' > '.join(y)} icinde")
+    return sorun
+
+
 def bolum_tablosu(yol: Path) -> list[dict]:
     """ESP-IDF bolum CSV'si -> [{ad, tur, alt, ofset, boyut}]."""
     satirlar = []
@@ -3267,50 +3318,75 @@ def bolum_e6f() -> None:
                     "guv_esp_ac(", "bildirim_baslat(", "kayit_kur(", "xTaskCreatePinnedToCore(")
     sonra = [st.find(x) for x in kullanicilar]
     tum_kod = ino_k + "".join(kod(_oku(p.name)) for p in sorted(KOD.glob("*.h")))
+    # E6K (a): aranan satirlar DERLENEN kodda mi — `#if 0` / `#ifdef TANIMSIZ` icindeki olu
+    # kopya iddiayi yesil tutuyordu (kosul_yigini). Setup'in kendisi de kosulsuz olmali:
+    # olu bir `void setup()` once gelirse govde() onu bulurdu.
+    olu_a = kosulsuz(ino_k, kur, "void setup() {")
     ok("B72.E6Fa mbedTLS ayiricisi setup'in ILK isi olarak, butun mbedTLS kullanicilarindan "
-       "(Wi-Fi, guvenlik, MQTT-TLS) ve ilk gorevden ONCE, butun eskizde TEK yerde kurulur",
+       "(Wi-Fi, guvenlik, MQTT-TLS) ve ilk gorevden ONCE, butun eskizde TEK yerde ve "
+       "KOSULSUZ (onislemci #if disinda) kurulur",
        i_kur >= 0 and st[1:].lstrip().startswith(kur)
        and all(x >= 0 and i_kur < x for x in sonra)
-       and tum_kod.count("mbedtls_platform_set_calloc_free(") == 1,
-       f"kur={i_kur} sonrakiler={sonra}")
+       and tum_kod.count("mbedtls_platform_set_calloc_free(") == 1 and not olu_a,
+       f"kur={i_kur} sonrakiler={sonra} olu={olu_a}")
     ay = govde(ino_k, "static void *tls_bellek_ayir(size_t n, size_t boyut) {")
+    # E6K (c): heap_caps_calloc_prefer basarisiz ayirma geri cagirmasina n*size DEGIL yalniz
+    # size veriyor (libheap heap_caps_calloc_prefer sokumu: a10 = a3 = size; heap_caps_calloc
+    # `mull` ile n*size, heap_caps_malloc_prefer toplam boyu verir) -> QF boyut mbedTLS'te
+    # n kat kucuk gorunuyordu. Toplam once tasma denetimiyle hesaplanir, malloc_prefer'e
+    # verilir, sonra sifirlanir (mbedtls_calloc sozlesmesi calloc: sifirli bellek).
     ok("B72.E6Fb ayirici ONCE PSRAM (SPIRAM|8BIT), dolu/yoksa DAHILI (INTERNAL|8BIT) dener — "
-       "PSRAM'siz kartta eski davranis; tek cagri, calloc (sifirlanmis)",
-       re.sub(r"\s+", " ", ay).strip() == "{ return heap_caps_calloc_prefer(n, boyut, 2, "
-       "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); }",
-       re.sub(r"\s+", " ", ay)[:160])
+       "PSRAM'siz kartta eski davranis; tek ayirma cagrisi; n*boyut TASMADAN once denetlenir "
+       "(tasarsa NULL), basarisiz ayirmada QF boyut GERCEK toplam (malloc_prefer'e toplam gider); "
+       "bellek SIFIRLANIR (calloc sozlesmesi); tanim kosulsuz",
+       re.sub(r"\s+", " ", ay).strip() == "{ if (boyut && n > SIZE_MAX / boyut) return NULL; "
+       "const size_t toplam = n * boyut; void *p = heap_caps_malloc_prefer(toplam, 2, "
+       "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); "
+       "if (p) memset(p, 0, toplam); return p; }"
+       and not kosulsuz(ino_k, "static void *tls_bellek_ayir("),
+       re.sub(r"\s+", " ", ay)[:240] + f" olu={kosulsuz(ino_k, 'static void *tls_bellek_ayir(')}")
     bi = govde(ino_k, "static void tls_bellek_birak(void *p) {")
     ok("B72.E6Fc birakici yalniz heap_caps_free(p): her yigindan (PSRAM / dahili, degisimden "
        "once ayrilmis dahil) guvenle birakir — kosul yok, baska birakma yok",
-       re.sub(r"\s+", " ", bi).strip() == "{ heap_caps_free(p); }", re.sub(r"\s+", " ", bi)[:120])
+       re.sub(r"\s+", " ", bi).strip() == "{ heap_caps_free(p); }"
+       and not kosulsuz(ino_k, "static void tls_bellek_birak("),
+       re.sub(r"\s+", " ", bi)[:120] + f" olu={kosulsuz(ino_k, 'static void tls_bellek_birak(')}")
     ke = kod(_oku("kayit_esp.h"))
     kk = govde(ke, "static bool kayit_kur(void)")
+    olu_d = kosulsuz(ke, "kayit_veri_tampon = (uint8_t *)heap_caps_malloc_prefer(", "!kayit_veri_tampon",
+                     "static bool kayit_kur(void)")
     ok("B72.E6Fd /kayit/veri tamponu (8 KB) once PSRAM, yoksa dahili; ayrilamazsa kayit_kur "
        "eskisi gibi false (kayit KAPALI) doner",
        "kayit_veri_tampon = (uint8_t *)heap_caps_malloc_prefer(KAYIT_VERI_AZAMI, 2, "
        "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);"
        in re.sub(r"\s+", " ", kk)
        and "!kayit_veri_tampon" in kk[kk.find("kayit_veri_tampon = "):]
-       and ke.count("kayit_veri_tampon = (") == 1)
+       and ke.count("kayit_veri_tampon = (") == 1 and not olu_d, f"olu={olu_d}")
     i_ps = st.find("akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), "
                    "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);")
     i_yd = st.find("if (!akis_kuyrugu_q) akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));")
+    olu_e = kosulsuz(ino_k, "akis_kuyrugu_q = xQueueCreateWithCaps(",
+                     "if (!akis_kuyrugu_q) akis_kuyrugu_q = xQueueCreate(", "sunucu.begin();")
     ok("B72.E6Fe akis kuyrugu PSRAM'de (xQueueCreateWithCaps), olmazsa dahili xQueueCreate; "
        "ikisi de sunucu ve ag gorevinden ONCE; kuyruk ISR'den kullanilmaz ve hic silinmez",
        0 <= i_ps < i_yd < st.find("sunucu.begin();") < st.find("xTaskCreatePinnedToCore(ag_gorevi")
        and ino_k.count("akis_kuyrugu_q = xQueue") == 2
        and not re.search(r"FromISR\s*\(\s*akis_kuyrugu_q", ino_k)
-       and not re.search(r"vQueueDelete\w*\s*\(\s*akis_kuyrugu_q", ino_k))
+       and not re.search(r"vQueueDelete\w*\s*\(\s*akis_kuyrugu_q", ino_k) and not olu_e, f"olu={olu_e}")
     ay_g = govde(ino_k, "static void akis_yolla(const char *satir) {")
     kl_g = govde(ino_k, "static void akis_kalp() {")
     i_w = ay_g.find("const size_t y = akis[i].write((const uint8_t *)olay, (size_t)n);")
+    olu_f = kosulsuz(ino_k, "const size_t y = akis[i].write(", "if (y != (size_t)n) { akis[i].stop(); continue; }",
+                     "!= sizeof(KALP) - 1u) akis[i].stop();", "static void akis_yolla(", "static void akis_kalp(")
     ok("B72.E6Ff SSE kisa yazma (yarim olay / lwIP bellek yok) istemciyi DUSURUR, olay ve kalp "
        "atisinda; giden yalniz tam yazmada sayilir",
        0 <= i_w < ay_g.find("if (y != (size_t)n) { akis[i].stop(); continue; }") < ay_g.find("giden = true;")
        and "if (akis[i].write((const uint8_t *)KALP, sizeof(KALP) - 1u) != sizeof(KALP) - 1u) "
            "akis[i].stop();" in kl_g
-       and ".print(" not in kl_g)
+       and ".print(" not in kl_g and not olu_f, f"olu={olu_f}")
     i_b = st.find('Serial.print(F("Bellek (E6F): tls="));')
+    olu_g = kosulsuz(ino_k, 'Serial.print(F("Bellek (E6F): tls="));', "void *d = mbedtls_calloc(1, 32);",
+                     'Serial.print(F(" veri="));', 'Serial.print(F(" akis="));', "const bool akis_psram")
     ok("B72.E6Fg acilista TEK satir tasinan tamponlarin GERCEK yerini soyler: tls kurulan "
        "ayiricidan deneme ayirmasiyla, veri/akis isaretcinin/kuyrugun kendisinden; kayit_kur'dan SONRA",
        st.find("kayit_kur(") < st.find("void *d = mbedtls_calloc(1, 32);") < i_b
@@ -3318,7 +3394,7 @@ def bolum_e6f() -> None:
        and "esp_ptr_external_ram(kayit_veri_tampon) ? F(\"PSRAM\")" in st
        and "Serial.println(akis_psram ? F(\"PSRAM\") : F(\"dahili\"));" in st
        and "const bool akis_psram = akis_kuyrugu_q != nullptr;" in st
-       and 0 <= i_ps < st.find("const bool akis_psram") < i_yd)
+       and 0 <= i_ps < st.find("const bool akis_psram") < i_yd and not olu_g, f"olu={olu_g}")
     # E6F inceleme (2026-10-04): TLS kayit tamponlari PSRAM'e gecince esp_aes_process_dma her
     # AES (GCM/CBC) islemi icin hizasiz dis bellek ciktisina DAHILI ara tampon ayirir:
     # heap_caps_aligned_alloc(1, min(len, 1600), MALLOC_CAP_DMA) — PSRAM yigininda DMA yetenegi
@@ -3340,7 +3416,110 @@ def bolum_e6f() -> None:
        and i_e6f >= 0 and "`caps=0x0008`" in e6[:i_e6f] and "AES DMA ara tamponu" in e6[:i_e6f]
        and "`QF caps=0x0008 gorev=bld`" in e6[i_e6f:],
        f"yorum={len(ham)} B, E6 satiri={'var' if e6 else 'YOK'}")
+    # E6K (b): E6F'nin kart kaniti tezgah listesinde — ve kalemler firmware'in GERCEKTEN
+    # bastigi satirla, QF bicimiyle, okuma kilavuzuyla ve DEVIR'deki olcumle AYNI (ayrisirsa
+    # tezgahta okuyan yanlis satiri arar).
+    import inspect
+    tz = " ".join(k + " " + v for k, v in E6F_TEZGAH)
+    parca = re.findall(r'Serial\.print\(F\("(Bellek \(E6F\): tls=| veri=| akis=)"\)\);', st)
+    acilis = "".join(x + "PSRAM" for x in parca)
+    qf = re.search(r'"QF no=%lu boyut=%lu caps=(0x%0\dlX) ', ino_k)
+    # olcumler acik isler E6 satirindakiyle (kartta 2026-10-04) ayni; DEVIR.md mutasyon kopyasina
+    # girmez (mutasyon.ATLA_DOSYA), kaynak olarak kullanilmaz
+    olcum = ("11.4 KB", "95.2 KB", "102 KB")
+    # caps bitleri (esp_heap_caps.h): DMA 0x8, 8BIT 0x4, INTERNAL 0x800
+    caps = {"0x0008": 0x8, "0x080C": 0x800 | 0x8 | 0x4, "0x0804": 0x800 | 0x4}
+    ag = next((k + v for k, v in E6F_TEZGAH if "STA" in k), "")
+    ana = inspect.getsource(main)
+    ok("B72.E6Fj E6F tezgah kalemleri: acilis satiri firmware'in uc parcasindan birebir, QH "
+       "once/sonra olcumleri acik isler E6 satirindakiyle ayni, QF caps okumasi firmware bicimi + acik "
+       "isler kilavuzuyla ayni, ag geri donusu kalemi firmware'in durum adini kullanir; main() "
+       "listeyi tezgah()'a verir; hepsi ASCII",
+       parca == ["Bellek (E6F): tls=", " veri=", " akis="]
+       and acilis == "Bellek (E6F): tls=PSRAM veri=PSRAM akis=PSRAM" and acilis in tz
+       and all(x in tz and x in e6 for x in olcum) and "36.9 KB" in tz
+       and qf is not None and qf.group(1) == "0x%04lX"
+       and all(f"caps={c}" in tz and f"caps={c}" in e6 and int(c, 16) == v for c, v in caps.items())
+       and '"ag yok (STA degil)"' in ino_k and "ag yok (STA degil)" in ag and "kendiliginden" in ag
+       and ag.startswith("[!]")
+       and 'tezgah("B72 E6F dahili yigin duzeltmesi (kartta)", E6F_TEZGAH)' in ana
+       and tz.isascii(),
+       f"acilis={acilis!r} qf={qf and qf.group(1)} e6_eksik={[x for x in olcum if x not in e6]} "
+       f"kalem={len(E6F_TEZGAH)}")
+    # E6K (a): kosul_yigini/kosulsuz'un KENDISI — yanlis "temiz" demesi yukaridaki bes iddiayi
+    # sessizce bosaltir. Yapay ornekler + gercek kaynak (eskizdeki tek gercek #if ve butun
+    # basliklarin korumasi).
+    ornek = ("a();\n#if 0\nb();\n#endif\nc();\n"
+             "  #  ifdef HIC_TANIMLANMAZ\nd();\n#else\ne();\n#endif\n"
+             "#if 1\n#if 0\nf();\n#endif\ng();\n#elif X\nk();\n#endif\nh();\n"
+             "#ifndef Y\n#define Z\nj();\n#endif\n")
+    koruma = "#ifndef X_H\n#define X_H\ni();\n#endif\n"
+    i_adc = ino_k.find("adc_cali_create_scheme_curve_fitting(")
+    basliklar = {p.name: kod(_oku(p.name)) for p in sorted(KOD.glob("*.h"))}
+    korumasiz = [ad for ad, m in basliklar.items()
+                 if (g := re.match(r"\s*#ifndef (\w+)\s*#define \1\b", m)) is None
+                 or kosul_yigini(m, g.end()) != []]
+    yigin_g = kosul_yigini(ornek, ornek.find("g();"))
+    ok("B72.E6Fi kosul_yigini/kosulsuz: #if 0, bosluklu '#  ifdef TANIMSIZ' ve #else kolu, ic ice "
+       "#if, #elif kolu, koruma olmayan #ifndef KOSULLU; kosul disi ve baslik korumasi icindeki "
+       "satir TEMIZ; olmayan parca YOK; gercek eskizin tek #if'i (ADC egri kalibrasyonu) gorulur, "
+       "butun basliklarin korumasi taninir",
+       kosulsuz(ornek, "a();", "c();", "h();") == [] and kosulsuz(koruma, "i();") == []
+       and all(len(kosulsuz(ornek, x)) == 1 for x in ("b();", "d();", "e();", "f();", "g();", "k();", "j();"))
+       and kosul_yigini(ornek, ornek.find("f();")) == ["#if 1", "#if 0"]
+       and yigin_g == ["#if 1"] and kosul_yigini(ornek, ornek.find("k();")) == ["#if 1 / #elif X"]
+       and kosulsuz(ornek, "YOKTUR();") == ["'YOKTUR();' YOK"]
+       and i_adc >= 0 and kosul_yigini(ino_k, i_adc) == ["#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED"]
+       and len(basliklar) >= 10 and not korumasiz,
+       f"g={yigin_g} adc={kosul_yigini(ino_k, i_adc) if i_adc >= 0 else 'YOK'} "
+       f"baslik={len(basliklar)} korumasiz={korumasiz}")
+    # E6K inceleme: koruma yalniz DOSYANIN ILK yonergesi (oncesinde yalniz bosluk) — eskiden
+    # dosyanin herhangi bir yerindeki `#ifndef X` + `#define X` cifti koruma sayiliyordu:
+    # `#ifndef ARDUINO / #define ARDUINO 1 / <satir>` (arduino-cli ARDUINO'yu hep tanimlar ->
+    # gercek derlemede de olu) ve korumanin `#else` kolu (yalniz ikinci dahil etmede derlenir;
+    # eskizde hic) E6Fa-g'yi yesil tutuyordu. Ayni ad cifti ve `#elif` de ayri ayri sinanir.
+    ara = "a();\n#ifndef X\n#define X\nm();\n#endif\n"
+    ard = "x();\n#ifndef ARDUINO\n#define ARDUINO 1\np();\n#endif\nr();\n"
+    once_kosul = "#if 1\n#endif\n#ifndef X_H\n#define X_H\nt();\n#endif\n"
+    kor_else = "#ifndef X_H\n#define X_H\ni();\n#else\nn();\n#endif\n"
+    kor_elif = "  \n#ifndef X_H\n#define X_H\ni();\n#elif Y\nq();\n#endif\n"
+    kor_ic = "#ifndef X_H\n#define X_H\n#ifndef D\n#define D 8\n#endif\ns();\n#ifndef E\n#define E\nu();\n#endif\n#endif\n"
+    n_y = kosul_yigini(kor_else, kor_else.find("n();"))
+    ok("B72.E6Fk baslik korumasi YALNIZ dosyanin ilk yonergesi: dosya ortasindaki "
+       "'#ifndef X / #define X' (ARDUINO dahil), oncesinde kosul olan, korumanin #else ve #elif "
+       "kolu ve koruma icindeki ic ice ayni ad cifti KOSULLU; korunan govde ve sonrasi TEMIZ",
+       len(kosulsuz(ara, "m();")) == 1 and kosulsuz(ara, "a();") == []
+       and len(kosulsuz(ard, "p();")) == 1 and kosulsuz(ard, "x();", "r();") == []
+       and len(kosulsuz(once_kosul, "t();")) == 1
+       and kosulsuz(kor_else, "i();") == [] and n_y == ["#ifndef X_H / #else"]
+       and kosulsuz(kor_elif, "i();") == [] and len(kosulsuz(kor_elif, "q();")) == 1
+       and kosulsuz(kor_ic, "s();") == [] and kosul_yigini(kor_ic, kor_ic.find("u();")) == ["#ifndef E"],
+       f"ara={kosulsuz(ara, 'm();')} ard={kosulsuz(ard, 'p();')} once={kosulsuz(once_kosul, 't();')} "
+       f"else={n_y} elif={kosulsuz(kor_elif, 'q();')} ic={kosul_yigini(kor_ic, kor_ic.find('u();'))}")
 
+
+# E6K (b): E6F'nin calisma ani kaniti yalniz DEVIR 5.12.106'nin duz yazisindaydi (acik kucuk c);
+# tezgah listesine (_tezgah.md, zincir toplar) BURADAN girer. B72.E6Fj kalemleri firmware'in
+# basdigi satirlarla ve DEVIR'deki olcumlerle karsilastirir. ASCII (tezgah.py kurali).
+E6F_TEZGAH = [
+    ("E6F acilis satiri (yuklemeden sonra ilk acilis, USB seri izleyici)",
+     "'Bellek (E6F): tls=PSRAM veri=PSRAM akis=PSRAM'. 'dahili' = o tampon PSRAM bulamadi "
+     "(E6F kazanci o kalemde yok), 'YOK' = hic ayrilamadi (tls: mbedTLS calismaz; veri: kayit KAPALI)"),
+    ("E6F uzun kosu: QH asil DRAM bolgesi (saatler, kopru esitlemesi + MQTT acik)",
+     "USB'den Q? + QH: ~250 KB'lik asil DRAM bolgesinin min_free / en buyuk blok. Once (A3-W2, ~9 sa) "
+     "11.4 KB / 36.9 KB; E6F ~1 dk'da 95.2 KB / 102 KB. Kabul: saatler sonra min_free oncekinden "
+     ">= ~40 KB fazla (>= ~51 KB) ve Q? ayirma_hata=0; QY dahili_en_az 2.5 KB'a inmez"),
+    ("E6F QF okuma (QH sonundaki son 4 basarisiz ayirma)",
+     "'QF yok' beklenen. caps=0x0008 gorev=bld (boyut <= 1600) = AES DMA ara tamponu ayrilamadi, "
+     "MQTT o an koptu ve kendisi yeniden baglanir (E6F'nin bilinen bedeli; dahili DMA'li bellekte "
+     "1.6 KB'lik blok kalmamis). caps=0x080C gorev=wifi/tiT = Wi-Fi dinamik tamponu. caps=0x0804 "
+     "gorev=bld = mbedTLS: E6F'den sonra BEKLENMEZ (PSRAM de dolmus demek); boyut gercek n*boyut (E6K)"),
+    ("[!] Ag geri donusu: erisim noktasi gidip gelince kart STA'ya kendiliginden doner",
+     "seri izleyici acik; kartin bagli oldugu erisim noktasini (ev agi ya da telefon hotspot'u) "
+     "~1 dk kapat, sonra ac: kullanici hicbir sey yapmadan kart STA'ya doner (Q durumu 'ag yok "
+     "(STA degil)'den cikar, olcum.local acilir, kopru esitler). AP'ye dusup orada kalirsa ya da "
+     "5 dk'da donmezse KUSUR (2026-10-04 sabahi >= 1 dk 'ag yok'ta kaldi, donus olculmedi)"),
+]
 
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
             bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle,
@@ -3408,6 +3587,7 @@ def main() -> int:
          "elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla "
          "son ~5 s"),
     ])
+    tezgah("B72 E6F dahili yigin duzeltmesi (kartta)", E6F_TEZGAH)
     gercek_dizin_koru.denetle(_KORUMA, ok)
     print(f"\nB72: {gecti}/{gecti + kaldi} kosul gecti")
     return 0 if kaldi == 0 else 1

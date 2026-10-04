@@ -67,6 +67,9 @@ C) bagimsiz HIZ incelemesinin (2026-10-03) olcup gosterdigi kusurlar
    A14 kopru durum.json paylasim ihlalinde yeniden dener
    A15 Ctrl+C'de kalan kopya yazilir; mutasyon basina Edge sizintisi KIRMIZI
    A17 bayat _mutp* supurulur, sahibi canli olana dokunulmaz
+   A18 (E6K) uygula dosyanin satir sonlarini KORUR: Windows'ta write_text her "\n"i
+       "\r\n" yapiyordu — mutasyonun kendisi degil CRLF, `\n`e dayali iddialari da
+       kiriyordu (B7 "TEK write()" mutasyonu 1 degil 3 kirmizi; DEVIR 5.12.106a)
 """
 from __future__ import annotations
 
@@ -1582,11 +1585,33 @@ def test_kesme(kap: Path, kok: Path) -> None:
        f"cikti={cikti[-160:]!r}")
 
 
+def test_uygula_satir_sonu() -> None:
+    """A18 (E6K): mutasyon YALNIZ istenen metni degistirir — satir sonlari dahil, dosyanin geri
+    kalani BAYT BAYT ayni. Eski `uygula` Windows'ta `write_text`'in metin kipi cevirisiyle
+    butun dosyayi CRLF'ye ceviriyordu: `\\n\\}\\n` gibi desenler kullanan iddialar mutasyonla
+    ilgisiz yere kirmiziya donuyor, sahte YAKALANDI sayiliyordu (B7 'SSE olayi ... TEK
+    write()' 3 kirmizi; elle LF koruyarak bozulan kopyada 1)."""
+    print("\n  ── A18 uygula satir sonlarini korur")
+    kap = Path(tempfile.mkdtemp(prefix="olcum-hizsat-"))
+    try:
+        sonuc = {}
+        for ad, ham in (("lf", b"bir\nIKI\nuc\n"), ("crlf", b"bir\r\nIKI\r\nuc\r\n")):
+            (kap / ad).write_bytes(ham)
+            uyg = M.uygula(kap, ad, "IKI", "iki")
+            sonuc[ad] = (uyg, (kap / ad).read_bytes())
+        ok("A18 uygula LF dosyayi LF, CRLF dosyayi CRLF birakir; yalniz hedef metin degisir",
+           sonuc["lf"] == (True, b"bir\niki\nuc\n") and sonuc["crlf"] == (True, b"bir\r\niki\r\nuc\r\n"),
+           repr(sonuc))
+    finally:
+        shutil.rmtree(kap, ignore_errors=True)
+
+
 def main() -> int:
     print("=" * 78)
     print("  HIZ — artimli zincir + paralel mutasyon kosucusu (sahte projelerde)")
     print("=" * 78)
     t0 = time.time()
+    test_uygula_satir_sonu()
     test_yapisal()
     test_tezgah_eksik_kosu()
     test_ozel_temp()

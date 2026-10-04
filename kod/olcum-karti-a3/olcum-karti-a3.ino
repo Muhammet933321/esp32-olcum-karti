@@ -3303,10 +3303,23 @@ static void ayirma_dokum_bas() {
 // Birakma heap_caps_free: isaretcinin hangi yigindan geldigine kendisi bakar,
 // yani degisimden ONCE (eski ayiriciyla) ayrilmis blok da guvenle birakilir —
 // eski varsayilan birakici zaten heap_caps_free idi.
+// E6K (c): heap_caps_calloc_prefer DEGIL. O, basarisiz ayirma geri cagirmasina
+// n*size yerine yalniz `size` veriyor (libheap sokumu; heap_caps_calloc n*size,
+// heap_caps_malloc_prefer toplam boyu verir) -> QF `boyut` mbedTLS hatalarinda n kat
+// kucuk gorunurdu. Toplam tasma denetimiyle hesaplanir (tasarsa calloc gibi NULL),
+// malloc_prefer'e verilir (QF artik GERCEK istek), sonra sifirlanir: mbedTLS'in
+// sozlesmesi calloc'tur (mbedtls_config.h STD_CALLOC: "must initialize the allocated
+// buffer memory to zeroes"; calloc_base da ayni memset'i yapiyordu). Toplam 0 ise
+// malloc_prefer geri cagirmayi hic cagirmaz (sokum: boyut 0 dali); sozlesme o
+// durumda NULL'a da izin veriyor.
 static void *tls_bellek_ayir(size_t n, size_t boyut) {
-  return heap_caps_calloc_prefer(n, boyut, 2,
-                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
-                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (boyut && n > SIZE_MAX / boyut) return NULL;
+  const size_t toplam = n * boyut;
+  void *p = heap_caps_malloc_prefer(toplam, 2,
+                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+                                    MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (p) memset(p, 0, toplam);
+  return p;
 }
 
 static void tls_bellek_birak(void *p) {
