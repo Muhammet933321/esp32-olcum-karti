@@ -10684,6 +10684,73 @@ degil))`'de kaldı; ≥ 1 dk izlendi, ağ dönmeden kullanıcı kartı USB'den t
 hiçbir yere yazılmadı). **Açık:** erişim noktası GERİ GELİNCE kartın kendiliğinden STA'ya döndüğü ölçülmedi; hotspot'u
 kapat-aç ile sınanacak (AP'ye düşerse kullanıcı fark etmez).
 
+#### 5.12.106a 🟢 E6K: E6F'NİN AÇIK KÜÇÜKLERİ (a)–(c) + MUTASYON KOŞUCUSUNUN CRLF KUSURU (2026-10-04, dal `e6-kucukler`, ağaç `projeler/olcum-karti-e6k`; karta YÜKLENMEDİ)
+
+Yukarıdaki "Açık küçükler" (a)–(c) kapandı (aşağıda E6K'nın kendi harfleriyle, koddaki `E6K (a)…(d)` yorumlarıyla aynı), ayrıca B7 mutasyonunun sayım tutarsızlığının sebebi bulundu: koşucunun
+kendi kusuru. Her madde önce kırmızı görüldü, sonra düzeltildi; her yeni iddiayı yalanlayan bir `E6K:` mutasyonu var.
+
+- **(a) ölü ön işlemci kodu (yukarıdaki açık küçük (b)).** `test_kayit_esp.py`'ye `kosul_yigini(kaynak, konum)` +
+  `kosulsuz(kaynak, *parcalar)`: bir satırı saran açık `#if/#ifdef/#ifndef` (ve `#elif`/`#else` kolu) yığını. Hangi
+  koşulun doğru olduğu derleyicinin işi; burada koşulun VARLIĞI ölçülür, tek istisna başlık koruması (`#ifndef X_H` +
+  hemen ardından `#define X_H`). Yorumlar önce `kod()` ile çıkar. **Önce:** dört mutasyon eski iddialarla KAÇTI
+  (236/236 yeşil): PSRAM akış kuyruğu `#if 0` içinde, kısa yazmada düşürme `#ifdef TANIMSIZ` içinde, `/kayit/veri`
+  tamponu `#if 0` içinde, açılış satırının başlığı `#if 0` içinde. **Sonra:** E6Fa (kurulum + `void setup()`), E6Fb/E6Fc
+  (ayırıcı/bırakıcı tanımı — `#if 0` doğru tanım + `#else` yanlış tanım, `govde()` ilk tanımı bulduğu için eskiden yeşil
+  kalırdı), E6Fd, E6Fe, E6Ff, E6Fg `kosulsuz` ile; yardımcının kendisi **B72.E6Fi** (yapay örnekler: `#if 0`,
+  `#  ifdef` girintili, `#else`/`#elif` kolu, iç içe, koruma OLMAYAN `#ifndef`; gerçek eskizin tek `#if`'i
+  `ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED` görülür; 21 başlığın hepsinin koruması tanınır).
+- **(b) tezgah kalemleri (yukarıdaki açık küçük (c)).** `test_kayit_esp.py` `E6F_TEZGAH` → `tezgah("B72 E6F dahili yigin
+  duzeltmesi (kartta)", …)`, zincir `_tezgah.md`'ye taşır. Dört kalem: açılış satırı `Bellek (E6F):
+  tls=PSRAM veri=PSRAM akis=PSRAM` · uzun koşu `QH` asıl DRAM `min_free`/en büyük blok, önce 11.4 KB / 36.9 KB
+  (A3-W2, ~9 sa), E6F 1. dk 95.2 KB / 102 KB, kabul ≥ ~40 KB artış + `ayirma_hata=0` · `QF` okuma (`caps=0x0008
+  gorev=bld` AES DMA ara tamponu, `0x080C wifi/tiT` Wi-Fi tamponu, `0x0804 bld` mbedTLS — E6F'den sonra beklenmez) ·
+  **`[!]`** ağ geri dönüşü (erişim noktası gidip gelince kart kullanıcıya dokunmadan STA'ya döner; seri izleyiciyle).
+  **B72.E6Fj** kalemleri kaynağa bağlar: açılış satırı firmware'in üç `Serial.print(F(...))` parçasından birebir kurulur;
+  ölçümler `1-acik-isler.md` E6 satırındakiyle aynı (DEVIR mutasyon kopyasına girmez — `mutasyon.ATLA_DOSYA` — kaynak
+  olarak kullanılmadı); `caps=` değerleri firmware'in `0x%04lX` biçimi + E6 okuma kılavuzu + bit hesabıyla (DMA 0x8,
+  8BIT 0x4, INTERNAL 0x800) aynı; ağ kalemi firmware'in durum adını (`ag yok (STA degil)`) kullanır; `main()` listeyi
+  `tezgah()`'a verir; ASCII.
+- **(c) `QF boyut` (yukarıdaki açık küçük (a)).** `libheap.a` `heap_caps.c.obj` sökümü (xtensa-esp32s3-elf-objdump):
+  `heap_caps_calloc_prefer` başarısızlıkta `heap_caps_alloc_failed`'i `a10 = a3` = **yalnız `size`** ile çağırıyor
+  (son denenen caps ile, `size == 0` ise hiç); `heap_caps_calloc` `mull a10, a7, a3` = **`n*size`**;
+  `heap_caps_malloc_prefer` toplam boyu (`a10 = a6 = size`) ve son caps'i veriyor. `tls_bellek_ayir` artık:
+  `if (boyut && n > SIZE_MAX / boyut) return NULL;` → `toplam = n * boyut` → `heap_caps_malloc_prefer(toplam, 2,
+  SPIRAM|8BIT, INTERNAL|8BIT)` → `if (p) memset(p, 0, toplam)`. Sıfırlama ZORUNLU: `mbedtls_config.h`
+  `MBEDTLS_PLATFORM_STD_CALLOC` "It must initialize the allocated buffer memory to zeroes" (ve toplam 0'da NULL'a izin
+  veriyor); `calloc_base` da aynı memset'i yapıyordu. Davranış başka değişmedi: aynı sıra (PSRAM → dahili), aynı
+  bırakıcı; mbedTLS hatasında `QF boyut` artık gerçek istek, `caps=0x0804`. Taşmada NULL, geri çağırma yok (eskiden
+  `calloc_base` NULL döner, geri çağırmaya yalnız `size` giderdi). **B72.E6Fb** tam gövdeyi bekliyor (önce kırmızı:
+  eski `calloc_prefer` gövdesi). Derleme uyarısız; flaş 1 418 922 → **1 418 810** (−112 B), statik DRAM **81 836 →
+  81 836** (`_ESP_DRAM_SON_OLCUM` aynı).
+- **(d) B7 "TEK write()" mutasyonu: koşucu 3 kırmızı, elle 1.** Sebep `mutasyon.uygula`: `read_text` CRLF'yi `\n`
+  yapıyor, `write_text` ise Windows metin kipinde HER `\n`'i `\r\n` yazıyordu → depoda LF olan (`.gitattributes`
+  kaynak `eol=lf`) hedef dosyanın TAMAMI CRLF'ye dönüyordu. Mutasyonla ilgisiz iki iddia `\n`'e dayalı desenle kırıldı:
+  "Firmware'in HER kullanıcı komutu arayüzden erişilebilir" (komut harfi çıkarıcısı) ve "AY5 … `kal_liste_sayfa`"
+  (`/void kal_liste_sayfa\(\) \{([\s\S]*?)\n\}\n/`). Ölçüldü: aynı mutasyon `python` `write_text` ile uygulanınca elle de
+  915/918, LF korunarak 917/918. Elle koşuda 1 görülmesi LF'yi koruyan bir araçla bozulmuş kopyadandı. **Düzeltme:**
+  `uygula` dosyanın satır sonunu okur (`b"\r\n" in ham`) ve `newline=` ile aynısını yazar; **`test_zincir_hiz.py` A18**
+  (LF dosya LF, CRLF dosya CRLF kalır, yalnız hedef metin değişir; önce kırmızı: LF dosya `bir\r\niki\r\nuc\r\n`
+  oluyordu) + `E6K:` mutasyonu (eski `write_text`). Düzeltmeden sonra B7 mutasyonu 917/918, ilk kırmızı hedef iddia.
+  **Etki taraması (eski sonuçlar sahte miydi?):** E6K öncesi 2211 mutasyonun 210 (betik, dosya) çiftinin 208'i için ESKİ
+  koşucuyla "boş" mutasyon (`"\n"` → `"\n"`: içerik aynı, yalnız CRLF) koşuldu (6643 s; `dogrula3.py`'nin 2 çifti
+  tam zincir olduğu için koşulmadı). CRLF'ye duyarlı yalnız **3 çift, 4 mutasyon** çıktı: `test_arayuz3.js` ×
+  `olcum-karti-a3.ino` (B7 "`r1` kabul edilir" + "TEK write()") ve `sim3_web.py` × `arayuz3/ekran/tema.js` /
+  `arayuz3/cevrimdisi.html` (6j LittleFS görüntüsü ve 6p `sw.js SURUM` — bilerek bayt özetine bakan iddialar, her
+  bayt değişikliğinde kırmızı). Dördü düzeltilmiş koşucuyla yeniden koşuldu: **hepsi yine YAKALANDI**, artık yalnız
+  hedef iddia kırmızı (B7 ikisi 917/918; sim3_web 111/113 ve 112/113, öncekiyle aynı). Yani bugüne kadar raporlanan
+  hiçbir YAKALANDI sonucu CRLF yüzünden sahte değildi; kusur yalnız sayımı/ilk kırmızıyı bulandırıyordu. Diğer 205
+  çiftin betikleri satır sonuna duyarsız.
+
+**Sayılar:** B72 236 → **238** (E6Fi, E6Fj; E6Fa–g'ye `kosulsuz` eklendi, sayı değişmedi), `beklenen_sayim.json`
+yalnız B72 +2. `test_zincir_hiz.py` 106 → **107** (A18; zincirde değil, elle). Mutasyon **`E6K:` 17/17 YAKALANDI**
+(500 s): (a) 5 `#if` + 2 ölü tanım + 2 yardımcı (her `#ifndef`'i koruma saymak; girintili `#  ifdef`'i görmemek),
+(b) 4 (tezgah çağrısı yok · firmware açılış satırı değişir · kalemde yanlış caps · `QF` caps biçimi 4 haneli değil),
+(c) 3 (yine `calloc_prefer` · memset yok · taşma denetimi yok), (d) 1. Eski `E6F:` mutasyonlarından ayırıcı metnine
+bakan ikisi yeni gövdeye yeniden hedeflendi; **`E6F:` 16/16 YAKALANDI** (351 s). `dogrula3.py --artimli` **"Aşama 3 doğrulandı"** (yeni ağaçta önbellek yok → 22 adımın HEPSİ koştu, 22/22; B72 238/238), `_tezgah.md` 122 → 126 kalem (`[!]` 20 → 21); `BELGELER/4-kurulum.html` firmware boyu (1 418 810) ve `_firmware.json` gerçekten değişti, gerisi üretim gürültüsü geri alındı. Gizlilik temiz.
+
+**Kartta (yüklenince):** açılış satırı aynı; `QF boyut` bir mbedTLS hatasında artık gerçek `n*boyut`. Dalda
+bekliyor; karta yüklemek ve `main`'e almak kullanıcının/orkestratörün kararı.
+
 ---
 
 #### 5.12.105 🟢 W1–W5 BİRLEŞMESİ + mDNS SERVİS DUYURUSU (2026-10-04, dal `w-birlesik`, ağaç `projeler/olcum-karti-wb`)
