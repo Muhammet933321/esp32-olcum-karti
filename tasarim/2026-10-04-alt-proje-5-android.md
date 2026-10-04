@@ -179,7 +179,7 @@ tutmazsa karar kullanıcıya döner (JDK 21 kurmak sistem değişikliğidir). Ba
 | A41 | **Kayıtlar:** liste (ad, tür, tarih, süre, nerede), arama; kayıt görünümü: grafik + gezgin şeridi, parmakla aralık → alt panelde istatistik (`istatistik.js`, ham veriden), notlar (okuma), paylaş (CSV `;`+BOM, ham `.kyt`, rapor) |
 | A42 | **Ayarlar:** kart (adres, kimlik, eşleşme, eşleşmeyi kaldır) · bildirimler (anlık izleme, olaylar, izin durumu) · eşitleme (onay anahtarı, depolama, kopyayı sıfırla) · dil · tema · Gelişmiş (kendini sınama: kripto vektörleri WebView'de ve Kotlin'de; grafik ölçümü; sürümler) |
 | A43 | **Metinler sözlükte:** `ortak/src/sozluk.js` (ortak anahtarlar) + `mobil/src/sozluk_mobil.js` (telefona özel; `sozluk_pc.js` deseni), TR + EN. Kotlin tarafındaki bildirim metinleri `strings.xml` (tr, en) |
-| A44 | **Görsel tasarım ayrı tur:** 5A'dan sonra 3 aday (Durum + Canlı + kayıt görünümü, açık ve koyu), telefonda gerçek boyutta; kullanıcı seçer. Ortak şartlar: dokunma alanı ≥ 48 dp, metin kontrastı ≥ 4.5:1, sistem yazı boyutuna uyum |
+| A44 | ✅ **Seçildi (2026-10-04): aday A — "Tezgah"** (panelin Koyu görünümünden; DURDUR sekmelerin üstünde tam genişlik şerit). Adaylar `mobil/tasarim-adaylari/`. **Görsel tasarım ayrı tur:** 5A'dan sonra 3 aday (Durum + Canlı + kayıt görünümü, açık ve koyu), telefonda gerçek boyutta; kullanıcı seçer. Ortak şartlar: dokunma alanı ≥ 48 dp, metin kontrastı ≥ 4.5:1, sistem yazı boyutuna uyum |
 
 ### Gizlilik ve dağıtım
 

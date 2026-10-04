@@ -222,3 +222,36 @@ Sayılar: JS 92 test, Kotlin 23 test, mutasyon 64 (hepsi ölü).
   asılı kalmadı). Kart geri gelince kendiliğinden yeniden denenecek. Seri porta dokunulmadı.
 - Honor: kilit açık görüldü ama ölçüm (Android 16 yerel ağ kuralı) kart olmadan anlamsız → kart gelince.
   Debug APK Honor'da hâlâ KURULU.
+
+### 2026-10-04 (devam 7) — p0 çekirdeği, 5B çürütücüsü, kart döndü
+
+**Kullanıcı kararları:** görsel tasarım **A (Tezgah)** — DURDUR sekmelerin üstünde tam genişlik şerit;
+değiştirmek isterse söyler. Gerçek kartta eşleştirme çürütücü düzeltmeleri bitene kadar ERTELENDİ; web
+parolası değişti (yalnız kullanıcıda), eşleştirmeden önce haber verilecek. Kart ileride ~10 dk yeniden
+Honor'un hotspot'una alınacak (öbür oturumun testi): o arada kart görünmezse kartsız işe devam.
+
+**Biten**
+- 5C-p0 çekirdeği (kartsız): Kotlin `P0.kt` (adreslere aynı anda; 503 / ağ hatasında 150-300-450 ms ile
+  en fazla 4 deneme; kart olmayan yanıt denenmez; kendi iş parçacıkları — ortak havuz bekletemez) +
+  `KartAg.p0`; JS `ag.p0` + `durdur.js` (eklentiye basıldığı görev turunda gider; kasa/imza/kart modüllerini
+  içe aktarmaz; asla atmaz; kartın AP adresi hep listede). Kotlin 67 test; `durdur.test.js` 8; mutasyon 7/7.
+- 5B bağımsız çürütücü: 8 kanıtlı bulgu (`test/curutucu-5b/`). En ağırları: kart yeniden başlarken eşzamanlı
+  isteklerin yanlışlıkla "cihaz-silinmis" alması; yarıda kalan eşleştirmede anahtarın diskte kalıp 32 sıfır
+  baytla imza üretilmesi; iki kasa nesnesinin aynı sayacı kullanması; sahte kasa ↔ gerçek Kotlin ayrışması;
+  logcat tarayıcısının kaçırdığı sır biçimleri. Düzeltmeler SÜRÜYOR (ayrı ajan).
+
+**Kart döndü (yeni firmware) — Xiaomi'de yeniden ölçüm**
+- "Kartı bul": kartın ev ağı adresi DEĞİŞMİŞ; önbellekteki eski kayıt işe yaramadı, kart `olcum.local` ile
+  1270 ms'de bulundu; kimlik aynı; NSD duyurusu (`_http._tcp`, port 80) görüldü, TXT kimliği
+  `/eslestir/bilgi` ile aynı.
+- Not: kart ulaşılamazken (öbür oturumun ağ testi) uygulama "Kart bu ağda bulunamadı" dedi, asılı kalmadı.
+
+**Honor (Android 16)** — debug APK açıldı, arayüz çiziliyor. Telefon henüz Wi-Fi'de DEĞİL (hotspot veriyor):
+uygulama iki adayda da "Wi-Fi yok" dedi (doğru davranış: yalnız Wi-Fi ağına bağlanır, hücresele çıkmaz).
+Asıl ölçüm (yerel ağ kuralı + kartı bulma) kullanıcı Honor'u ev Wi-Fi'sine bağlayınca; sonra APK kaldırılacak.
+
+**Yeni firmware notları (5C/5D için)**
+- `Q?` satırının sonunda canlılık alanları (tur adim adim_yas ping_yas pong_yas); `G` satırı 15 alan.
+- Kart dosyaları ETag ile geliyor; `If-None-Match` eşleşirse 304 + boş gövde. `KartAg` 304'ü hata saymaz
+  (HTTP kodunu aynen döndürür); uygulama şu an `If-None-Match` göndermiyor. `imza.ac()` 2xx dışını hata
+  sayar → 5D'de koşullu istek kullanılırsa 304 ayrı ele alınacak.
