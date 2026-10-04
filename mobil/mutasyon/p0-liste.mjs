@@ -49,4 +49,18 @@ export default [
     koy: "if (degisti) { degisti(h); }",
     test: "test/durdur.test.js",
   },
+  {
+    ad: "5B-olcum: PBKDF2 dogrulama isareti hep true",
+    dosya: "src/cekirdek/olcum.js",
+    bul: "dogru: tur === 20000 ? ozet === BEKLENEN_20000 : null,",
+    koy: "dogru: true,",
+    test: "test/olcum.test.js",
+  },
+  {
+    ad: "5B-olcum: basvuru degeri bozuk",
+    dosya: "src/cekirdek/olcum.js",
+    bul: 'BEKLENEN_20000 = "3f04',
+    koy: 'BEKLENEN_20000 = "3f05',
+    test: "test/olcum.test.js",
+  },
 ];

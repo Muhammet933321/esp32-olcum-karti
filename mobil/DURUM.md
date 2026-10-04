@@ -338,3 +338,27 @@ Sahte kart süreci durduruldu, adb reverse kaldırıldı. Ardından **gerçek ka
 4. Honor'da hedef API 36+'ya çıkılırsa yerel ağ izni yeniden ölçülmeli.
 
 **Sıradaki: 5C** — A tasarımıyla kabuk + 4 sekme + DURDUR şeridi (p0 çekirdeği hazır), akış (SSE), Durum, Canlı.
+
+### 2026-10-04 (devam 11) — PBKDF2 ölçümünün doğrulanması; keşif için kural
+
+**PBKDF2 "çok hızlı" sorusu (kullanıcı):** telefonda ölçülen uygulama **saf JS** — `ortak/src/imza.js` `pbkdf2`
+→ `kripto.js` `pbkdf2HmacSha256` (WebCrypto `crypto.subtle` DEĞİL, Kotlin DEĞİL), WebView'in JS motorunda
+(JIT derlemeli V8), ana iş parçacığında. Eşleştirmede kullanılan kodun aynısı. Kart aynı işi 764 ms'de yapıyor
+çünkü 240 MHz'lik mikrodenetleyici (tur başına ~38 µs); telefonun çekirdeği JIT ile tur başına ~1.5–2 µs.
+- **Doğruluk kanıtı (sabitlendi):** `test/olcum.test.js` — aynı parola (`sinama-parolasi-olcum`) + 16 sıfır bayt tuz +
+  20 000 tur + 32 bayt için saf JS sonucu, testin o anda ÇAĞIRDIĞI Python `hashlib.pbkdf2_hmac` ile bayt bayt aynı
+  (`3f042897…464cc676`); başka turda sonuç farklı (tur gerçekten kullanılıyor); `ortak/` kripto `subtle` içermiyor.
+- Ek bağımsız kanıt zaten vardı: gerçek kartla eşleştirme BAŞARILI oldu — kart, telefonun PBKDF2'den türettiği
+  P ile hesaplanan kanıtı kabul etti ve kart kanıtı telefonda doğrulandı; P yanlış olsaydı eşleşme olmazdı.
+- Telefonda ölçüm çıktısı artık sonucu başvuru değeriyle karşılaştırıp "AYNI / YANLIŞ" diye gösterecek
+  (`pbkdf2Olc` `dogru` alanı); yeni derlemede telefonda yeniden okunacak.
+
+**Kural (kullanıcı): kart telefonda görünmezse** — önce NSD, olmazsa son bilinen IP; üç yol (NSD, `olcum.local`,
+son bilinen IP) da başarısızsa telefonun Wi-Fi'de olup olmadığı ve telefonun IP'sinin ÖZEL olup olmadığı (adresin
+kendisi değil) buraya yazılır. 19:34'teki "bulunamadı"da kart PC'den yanıt veriyordu → telefon tarafında geçici.
+⚠ O koşuda sıra şuydu: `olcum.local` → ad çözülemedi; son bilinen IP → yanıt yok; NSD adayı listede YOKTU (tarama
+1.2 s; duyuru o pencerede gelmemiş). 5C'de keşif süresi/yeniden deneme gözden geçirilecek (NSD penceresi 1.2 s kısa
+olabilir; "bulunamadı"dan önce bir kez daha denemek).
+
+**5C ölçümleri için kullanıcı onayı:** `Gb`/`Gd` ile kısa "Android test" kaydı, 20× `p0`, canlı akış SERBEST.
+`Go` (onay) GÖNDERİLMEZ. Kart ileride ~10 dk Honor hotspot'una alınacak (AG1); o arada görünmezse kuyruğa.
