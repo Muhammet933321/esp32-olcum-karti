@@ -1940,6 +1940,92 @@ def bolum_bildirim_kart() -> None:
        and "bld_deneme_islenen = (uint8_t)(bld_deneme_islenen + 1u);" in gor
        and "bld_deneme_istek = (uint8_t)(bld_deneme_istek + 1u);" in sk)
 
+    # ── E8 (2026-10-04): MQTT gorevi saglamligi — sinirli bloklama + canlilik izi (DEVIR 5.12.107)
+    def _sabit(ad: str) -> int | None:
+        m = re.search(rf"#define {ad}\s+(-?\d+)(?:UL|u)?\b", be_k)
+        return int(m.group(1)) if m else None
+    sm, ym, tm, pr_ms = _sabit("BLD_SOKET_MS"), _sabit("BLD_YAZ_MS"), _sabit("BLD_TUR_MS"), _sabit("BLD_PINGRESP_MS")
+    ss = govde(be_k, "static int bld__soket_sinirla(")
+    i_tls = bb.find("esp_tls_conn_new_sync(")
+    i_sn = bb.find("if (bld__soket_sinirla(b->tls)) {")
+    ok("B72.QE8a baglandiktan SONRA (TCP/TLS kurulunca, CONNECT yazilmadan once) soketin SO_SNDTIMEO ve "
+       "SO_RCVTIMEO'su BLD_SOKET_MS'e iner (esp-tls 10 s kurar); kurulamazsa baglanti kullanilmaz; "
+       "tek cagri + kismi yazma tavani PINGRESP olcutunun (5 s) altinda",
+       bool(sm and ym and pr_ms) and sm <= 2000 and ym + sm < pr_ms
+       and 0 <= i_tls < i_sn < bb.find("mqp_baglan(")
+       and "bld__kapat(b, 0);" in bb[i_sn:i_sn + 120] and "return BLDH_TLS;" in bb[i_sn:i_sn + 120]
+       and "setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv))" in ss
+       and "setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))" in ss
+       and "(time_t)(BLD_SOKET_MS / 1000), (suseconds_t)((BLD_SOKET_MS % 1000) * 1000)" in ss
+       and be_k.count("bld__soket_sinirla(") == 2,
+       f"soket {sm} yaz {ym} pingresp {pr_ms}")
+    yz = govde(be_k, "static int bld__yaz(BldBag *b, const uint8_t *v, size_t n)\n{")   # ileri bildirim degil
+    ok("B72.QE8b bld__yaz: ilerlemeyen her cagri (<= 0, WANT_* dahil) HATA — eski olu WANT_* yeniden deneme "
+       "dali (ikinci 10 s bekleyis) yok; kismi yazma BLD_YAZ_MS'ten sonra surdurulmez",
+       "WANT_" not in yz and "vTaskDelay" not in yz
+       and "if (k <= 0) return bld__hata(b, t0, 0, BLDH_YAZ);" in yz
+       and "if (o && millis() - bas >= BLD_YAZ_MS) return bld__hata(b, bas, 1, BLDH_YAZ);" in yz
+       and yz.find("bld__hata(b, bas, 1") < yz.find("esp_tls_conn_write("))
+    ha = govde(be_k, "static int bld__hata(")
+    ok_ = govde(be_k, "static int bld__oku(")
+    ok("B72.QE8c ping beklenirken soket ZAMAN ASIMI (cagri ~BLD_SOKET_MS surdu ya da paket suresi doldu) "
+       "-7 sayilir; araci kapattiysa (hizli hata) eski -6/-4; okuma hatasi da ayni siniflandiricidan",
+       re.sub(r"\s+", " ", ha).strip() == "{ const uint8_t zaman_asimi = sure_doldu || millis() - t0 >= "
+       "(uint32_t)(BLD_SOKET_MS - 100); return (zaman_asimi && b->ping_bekle) ? BLDH_PING : varsayilan; }"
+       and "return k > 0 ? (int)k : bld__hata(b, t0, 0, BLDH_KOPTU);" in ok_
+       and ok_.find("const uint32_t t0 = millis();") < ok_.find("esp_tls_conn_read("),
+       re.sub(r"\s+", " ", ha)[:140])
+    i_pg = gor.find("const int32_t n = mqp_ping(bld_paket, sizeof(bld_paket));")
+    pg = gor[i_pg:gor.find("if (!r) r = bld__gelen(b, 50);")]
+    ok("B72.QE8d PINGREQ YAZILMADAN once 'ping bekleniyor' (+ ping_ms): PINGREQ'in kendisi takilirsa da -7",
+       i_pg >= 0 and 0 <= pg.find("b->ping_bekle = 1;") < pg.find("bld__yaz(b, bld_paket, (size_t)n);")
+       and 0 <= pg.find("b->ping_ms = millis();") < pg.find("bld__yaz(")
+       and "if (!r) { b->ping_bekle = 1;" not in gor)
+    i_tt = gor.find("const uint32_t t_tur = millis();")
+    i_bl = gor.find("bld__durum_yaz(BLDD_BAGLI, 0);")
+    i_tc = gor.find("if (!r && millis() - t_tur > BLD_TUR_MS) r = BLDH_TUR;")
+    kodlar = [int(x) for x in re.findall(r"#define BLDH_\w+\s+(-?\d+)", be_k)]
+    ok("B72.QE8e bagli tur tavani: sure baglanma bittikten SONRA olculur (el sikismasi sayilmaz), okumadan "
+       "sonra ve kapatmadan once denetlenir; BLDH_TUR -11 tek; 5 s < BLD_TUR_MS <= 9 s",
+       0 <= i_bl < i_tt < gor.find("bld__yayinla(") and gor.find("if (!r) r = bld__gelen(b, 50);") < i_tc
+       < gor.find("if (r) {", i_tc) and re.search(r"#define BLDH_TUR\s+-11\b", be_k) is not None
+       and len(kodlar) == len(set(kodlar)) and bool(tm) and 5000 < tm <= 9000, f"tur {tm}")
+    st = re.search(r"typedef struct \{([^{}]*)\} BildirimDurum;", be_k)
+    ad = govde(be_k, "static void bld__adim(")
+    bk = govde(be_k, "static void bld__kapat(")
+    gl_ = govde(be_k, "static int bld__gelen(")
+    i_ust = gor.find("for (;;) {")
+    ok("B72.QE8f canlilik izi: her tur sayac++ ve adim 'bekle' (dongunun ILK isi); yaz/select/oku/baglan/kapat "
+       "adimlari islemden HEMEN once; ping/pong anlari; adim bayti durum'un dolgusunda (+16 B DRAM)",
+       bool(st) and re.search(r"uint8_t\s+durum;\s*uint8_t\s+adim;", st.group(1)) is not None
+       and all(f"uint32_t {x}" in st.group(1) for x in ("tur;", "adim_ms;", "ping_ms, pong_ms;"))
+       and "bld_durum.adim = a;" in ad and "bld_durum.adim_ms = t;" in ad
+       and 0 <= gor.find("bld_durum.tur++;") - i_ust < 160 and "bld_durum.adim = BLDA_BEKLE;" in gor
+       and gor.find("bld_durum.tur++;") < gor.find("if (bld_istek_yeniden) {")
+       and 0 <= yz.find("bld__adim(BLDA_YAZ);") < yz.find("esp_tls_conn_write(")
+       and 0 <= ok_.find("bld__adim(BLDA_SELECT);") < ok_.find("select(fd + 1")
+       and 0 <= ok_.find("bld__adim(BLDA_OKU);") < ok_.find("esp_tls_conn_read(")
+       and 0 <= bb.find("bld__adim(BLDA_BAGLAN);") < bb.find("esp_tls_conn_new_sync(")
+       and 0 <= bk.find("bld__adim(BLDA_KAPAT);") < bk.find("esp_tls_conn_destroy(")
+       and "bld_durum.pong_ms = t_pong;" in gl_[gl_.find("MQP_PINGRESP"):gl_.find("MQP_PUBACK")]
+       and "bld_durum.ping_ms = b->ping_ms;" in pg)
+    i_qf = sk.find('"Q acik=%u durum=%u (%s) hata=%ld baglanti=%lu yayin=%lu olay=%lu kuyruk=%lu '
+                   'dusen=%lu el_sikisma_ms=%lu esik=%u"')
+    qarg = sk[i_qf:sk.find("Serial.println(t);", i_qf)]
+    adimlar = re.search(r"adimlar\[\] = \{([^}]*)\}", sk)
+    blda = [m for m in re.findall(r"#define BLDA_(\w+)\s+(\d+)u", be_k)]
+    ok("B72.QE8g Q? satiri: eski alanlar AYNI sirada, canlilik alanlari SONDA (tur adim adim_yas ping_yas "
+       "pong_yas; hic = -1); adim adlari BLDA_* degerleriyle ayni sirada",
+       i_qf >= 0 and '" tur=%lu adim=%s adim_yas=%lu ping_yas=%ld pong_yas=%ld"' in qarg
+       and "(unsigned)bld_esik_etkin,\n" in qarg and qarg.find("(unsigned)bld_esik_etkin") < qarg.find("d.tur")
+       and "d.ping_ms ? (long)(simdi - d.ping_ms) : -1L" in qarg
+       and "d.pong_ms ? (long)(simdi - d.pong_ms) : -1L" in qarg
+       and "(unsigned long)(simdi - d.adim_ms)" in qarg
+       and bool(adimlar) and [x.strip().strip('"') for x in adimlar.group(1).split(",")]
+       == [a.lower() for a, n in sorted(blda, key=lambda x: int(x[1]))]
+       and [int(n) for _, n in sorted(blda, key=lambda x: int(x[1]))] == list(range(len(blda))),
+       f"BLDA={blda}")
+
     # PC tarafi (saf Python ChaCha20-Poly1305, MQTT istemcisi, sahte araci) — alt surec.
     # ~23 s; B72'nin her mutasyonu bunu yeniden kosmasin diye onbellekli: yalniz GECEN kosu
     # saklanir. 🔴 ANAHTAR = test_bildirim'in GERCEKTEN yukledigi depo modulleri (gecen kosunun
