@@ -241,6 +241,8 @@ def main() -> int:
         "mdns": h_metin("AG_MDNS", AG_H),
         "ap_onek": re.search(r'"(OLCUM-KARTI-)%02X%02X"', AG_H).group(1),
         "sta_bekle_s": h_tamsayi("AG_STA_BEKLE_MS", AG_H) / 1000.0,
+        "sta_yeniden_s": h_tamsayi("AG_STA_YENIDEN_MS", AG_H) / 1000.0,   # AGD
+        "ap_pay_s": h_tamsayi("AG_AP_PAY_MS", AG_H) / 1000.0,             # AGD
         "kart_port": int(re.search(r"WebServer sunucu\((\d+)\)", INO).group(1)),
         "kopru_port": py_sabit("PORT", PC_AYAR_PY),
         "kopru_adres": "http://%s:%d" % (

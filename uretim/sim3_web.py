@@ -240,6 +240,195 @@ def _etag_avr(kunye: str, bul: list, esl: list):
     return uyari, kart.satirlar()
 
 
+def _ag_sabit(ad: str) -> int:
+    """ag.h'deki sure sabiti (ms). Bulunamazsa -1 (iddia kirmiziya doner)."""
+    m = re.search(rf"#define {ad}\s+(\d+)u?\b", AG_H)
+    return int(m.group(1)) if m else -1
+
+
+def _ag_karar_avr(senaryolar: list):
+    """AGD: ag_karar.h'yi AVR emulatorunde kostur; sureler ag.h'den -D ile.
+    (uyari satirlari, cikti satirlari) ya da None (arac yok)."""
+    import subprocess
+    import gecici
+    from avr import mega328
+    from avr.cekirdek import Cekirdek
+    from avr.elf import flash_goruntusu
+    if not AVR_GCC.exists():
+        return None
+    d = gecici.dizin("olcum3_agk_")
+    v = ["/* sim3_web.py uretti (AGD) */", "#include <stdint.h>",
+         "typedef struct { uint8_t kimlik; uint32_t t0, son, b1, b1s, b2, b2s, il, ils; } Senaryo;",
+         f"#define SEN_ADET {len(senaryolar)}u", "static const Senaryo SEN[] = {"]
+    for x in senaryolar:
+        v.append("    {%du, %s}," % (x["kimlik"], ", ".join(
+            "%dUL" % x[a] for a in ("t0", "son", "b1", "b1s", "b2", "b2s", "il", "ils"))))
+    v += ["};", ""]
+    (d / "ag_vektor.h").write_text("\n".join(v), encoding="ascii", newline="\n")
+    elf = d / "ornek_ag_karar.elf"
+    tanim = [f"-D{a}={_ag_sabit(a)}u" for a in ("AG_STA_BEKLE_MS", "AG_STA_YENIDEN_MS", "AG_AP_PAY_MS")]
+    p = subprocess.run(
+        [str(AVR_GCC), "-mmcu=atmega328p", "-DF_CPU=16000000UL", "-Os", "-std=gnu11",
+         "-Wall", "-Wextra", *tanim, f"-I{KOD}", f"-I{d}", "-o", str(elf),
+         str(BURASI / "avr" / "ornek_ag_karar.c")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if p.returncode != 0:
+        return [p.stderr[-1500:] or "derlenemedi"], []
+    uyari = [x for x in p.stderr.splitlines() if "warning:" in x]
+    flash, _ = flash_goruntusu(elf)
+    kart = mega328.Kart(flash, Cekirdek)
+    for _ in range(200):
+        if b"BITTI" in kart.tx:
+            break
+        kart.cevrim_kadar_kos(2_000_000)
+    return uyari, kart.satirlar()
+
+
+def bolum5_ag_donus(r):
+    """AGD (5.12.109): acilista ev agi yoksa AP + STA'yi yeniden dene; donunce AP kapanir.
+    Kartta bulundu: eskiden AP'ye dusen kart STA'yi BIR DAHA denemiyordu (elektrik
+    kesintisinden sonra yonlendirici karttan yavas acilinca kart ev agina hic donmuyordu)."""
+    bolum(r, "BOLUM 5m — AGD: ev agi acilista yoksa AP + yeniden deneme, donunce AP kapanir")
+    B, Y, P = (_ag_sabit(a) for a in ("AG_STA_BEKLE_MS", "AG_STA_YENIDEN_MS", "AG_AP_PAY_MS"))
+    r.kosul("  5m: AGD: sureler — deneme araligi >= 20 s (her deneme bir kanal taramasi, AP o "
+            "sirada kanal degistirir) ve aralik + pay + 15 s baglanma <= 60 s (tezgah olcutu); "
+            "hepsi 100 ms'nin kati (AVR adimi)",
+            min(B, Y, P) > 0 and Y >= 20000 and Y + P + 15000 <= 60000
+            and not (B % 100 or Y % 100 or P % 100),
+            f"bekle {B} · aralik {Y} · pay {P} ms")
+    # ── karar motoru (ag_karar.h) AVR'de ─────────────────────────────────
+    AP_KUR, DENE, OLDU, KAPAT = 1, 2, 3, 4                         # AGE_*
+    E_YOK, E_DENE, E_STA, E_AP = 0, 2, 4, 5                        # AGK_* (ilgili olanlar)
+    U = 0xFFFFFFFF                                                 # "pencere yok"
+    b3 = B + 3 * Y + 1500                                          # 3 denemeden sonra baglanir
+    il, ils = B + Y - 1000, B + 2 * Y + 10000                      # DHCP suren iliski penceresi
+
+    def sen(ad, kimlik, son, A, S, t0=0, b1=U, b1s=U, b2=U, b2s=U, il_=U, ils_=U):
+        return dict(ad=ad, kimlik=kimlik, t0=t0, son=son, b1=b1, b1s=b1s, b2=b2, b2s=b2s,
+                    il=il_, ils=ils_, A=A, S=S)
+    S_ = [
+        sen("acilista 3 s'de baglanir; calisirken 60 s kopma", 1, 600000, [(3000, OLDU)], (E_STA, 0),
+            b1=3000, b1s=120000, b2=180000, b2s=U),
+        sen("ev agi hic yok", 1, B + 9 * Y + 5000,
+            [(B, AP_KUR)] + [(B + k * Y, DENE) for k in range(1, 10)], (E_DENE, 1)),
+        sen("3 denemeden sonra doner; sonra calisirken kopar", 1, b3 + 260000,
+            [(B, AP_KUR), (B + Y, DENE), (B + 2 * Y, DENE), (B + 3 * Y, DENE), (b3, OLDU), (b3 + P, KAPAT)],
+            (E_STA, 0), b1=b3, b1s=b3 + 100000, b2=b3 + 160000, b2s=U),
+        sen("iliski (DHCP) surerken deneme yok", 1, ils + Y + 10000,
+            [(B, AP_KUR), (ils, DENE), (ils + Y, DENE)], (E_DENE, 1), il_=il, ils_=ils),
+        sen("ev agi KAYITLI DEGIL (bagli girdisi yok sayilir)", 0, 100000, [], (E_AP, 0), b1=0, b1s=50000),
+        sen("sifir ilklenmis (WiFi N0)", 2, 100000, [], (E_YOK, 0), b1=0, b1s=U),
+        sen("millis tasmasi", 1, B + 2 * Y + 5000, [(B, AP_KUR), (B + Y, DENE), (B + 2 * Y, DENE)],
+            (E_DENE, 1), t0=0xFFFFFFFF - 4095),
+        sen("pay icinde kopar: yine STA'da kalir", 1, b3 + 100000,
+            [(B, AP_KUR), (B + Y, DENE), (B + 2 * Y, DENE), (B + 3 * Y, DENE), (b3, OLDU), (b3 + P, KAPAT)],
+            (E_STA, 0), b1=b3, b1s=b3 + 1500),
+        sen("tam AG_STA_BEKLE_MS aninda baglanir: AP kurulmaz", 1, B + 20000, [(B, OLDU)], (E_STA, 0),
+            b1=B, b1s=U),
+    ]
+    sonuc = _ag_karar_avr(S_)
+    if sonuc is None:
+        r.bilgi("     avr-gcc bulunamadi — ag_karar.h AVR denetimi ATLANDI.")
+        r.kosul("  5m: AGD: AVR araci yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
+    else:
+        uyari, sat = sonuc
+        r.kosul("  5m: AGD: ag_karar.h AVR'de UYARISIZ derlendi (-Wall -Wextra, sureler ag.h'den) ve sonuna "
+                "kadar kostu", not uyari and "BITTI" in sat, " | ".join(uyari[:2]) or f"{len(sat)} satir")
+        A, S = {}, {}
+        for x in (y.split() for y in sat):
+            if len(x) == 4 and x[0] == "A":
+                A.setdefault(int(x[1]), []).append((int(x[2]), int(x[3])))
+            elif len(x) == 4 and x[0] == "S":
+                S[int(x[1])] = (int(x[2]), int(x[3]))
+
+        def bak(*ix):
+            kotu = [f"#{i} {S_[i]['ad']}: {A.get(i, [])} S={S.get(i)}" for i in ix
+                    if A.get(i, []) != S_[i]["A"] or S.get(i) != S_[i]["S"]]
+            return not kotu, " ; ".join(kotu)[:300] or ", ".join(S_[i]["ad"] for i in ix)
+        ok, ne = bak(0, 8)
+        r.kosul("  5m: [!] AGD: acilista baglanirsa STA, AP HIC kurulmaz (sinirda da); calisirken kopmada "
+                "KARAR YOK (surucu doner, 5.12.106 — bozulmadi)", ok, ne)
+        ok, ne = bak(1, 6)
+        r.kosul("  5m: [!] AGD: ev agi yoksa AP tam AG_STA_BEKLE_MS'de, STA AG_STA_YENIDEN_MS'de bir yeniden "
+                "deneniyor, SONSUZA DEK (millis tasmasinda da)", ok, ne)
+        ok, ne = bak(2, 7)
+        r.kosul("  5m: [!] AGD: ev agi N denemeden sonra donerse STA; AP AG_AP_PAY_MS sonra kapanir, sonra "
+                "deneme/AP yok; payda ya da sonra kopma da STA'da kalir", ok, ne)
+        ok, ne = bak(3)
+        r.kosul("  5m: AGD: STA iliskiliyken (DHCP surerken) yeniden denenmez (connect() bagliyi KOPARIR); "
+                "iliski bitince hemen", ok, ne)
+        ok, ne = bak(4, 5)
+        r.kosul("  5m: AGD: ev agi kayitli degilse saf AP — hic deneme yok; sifir durumda (N0) hic eylem yok",
+                ok, ne)
+    # ── kart yapistiricisi (ag.h + .ino) — kaynaktan ─────────────────────
+    agk = (KOD / "ag_karar.h").read_text(encoding="utf-8", errors="replace")
+    r.kosul("  5m: AGD: karar platformsuz — ag_karar.h yalniz <stdint.h> icerir, sureleri ag.h'den alir",
+            re.findall(r'#include\s*[<"]([^>"]+)', kod(agk)) == ["stdint.h"]
+            and '#include "ag_karar.h"' in AG_KOD
+            and 0 <= AG_KOD.find("#define AG_AP_PAY_MS") < AG_KOD.find('#include "ag_karar.h"'),
+            "Arduino/WiFi baglantisi kararin icine girerse AVR'de sinanamaz")
+    rf = govde(AG_KOD, "static uint8_t ag_baslat_rf(void)")
+    uy = govde(AG_KOD, "static void ag__uygula(uint8_t e)")
+    so = govde(AG_KOD, "static void ag__sta_oldu(void)")
+    isl = govde(AG_KOD, "static void ag_isle(void)")
+
+    def dal(ad):
+        i = uy.find(f"e == {ad}")
+        j = uy.find("} else if", i + 1)
+        return uy[i:j if j > i else len(uy)] if i >= 0 else ""
+    r.kosul("  5m: AGD: acilis — karar kayitli ag VAR/YOK ile kurulur; ev agi yoksa saf AP (WIFI_AP)",
+            "agk_kur(&ag_k, ad.length() ? 1u : 0u, millis());" in rf
+            and "return ag__ap_kur(WIFI_AP);" in rf and "while" not in rf,
+            "kayitli degilken AP+STA kurulsaydi bos ada sonsuza dek tarama yapardi")
+    d_ap = dal("AGE_AP_KUR")
+    r.kosul("  5m: [!] AGD: AP'ye dusus radyoyu KAPATMIYOR — AP+STA, otomatik baglanma KAPALI (surekli "
+            "tarama AP'yi bozar), STA yapilandirmasi silinmez",
+            "WiFi.disconnect(false, false);" in d_ap
+            and 0 <= d_ap.find("WiFi.setAutoReconnect(false);") < d_ap.find("ag__ap_kur(WIFI_AP_STA)")
+            and "disconnect(true" not in AG_KOD,
+            "eski kusur: WiFi.disconnect(true) + WIFI_AP — STA bir daha hic denenmiyordu")
+    d_de = dal("AGE_STA_DENE")
+    r.kosul("  5m: AGD: yeniden deneme AP'ye dokunmaz, bloklamaz — yalniz WiFi.begin() (surucudeki yapilandirma)",
+            "WiFi.begin();" in d_de and not re.search(r"softAP|ag__ap_kur|WiFi\.mode|delay|while", d_de),
+            "her denemede AP yeniden kurulsaydi telefon her 30 s'de duserdi")
+    r.kosul("  5m: [!] AGD: STA olunca otomatik baglanma geri ACILIR (calisirken kopma yolu), ssid/ip/mac kip'ten "
+            "ONCE; mDNS yeniden kurulmaz (MDNS.end yok — servis bayragi gecerli kalir)",
+            0 <= so.find("WiFi.setAutoReconnect(true);") < so.find("ag__kip_yaz(AG_STA)")
+            and all(0 <= so.find(f"ag_durum.{a}") < so.find("ag__kip_yaz(AG_STA)") for a in ("ssid", "ip", "mac"))
+            and "if (!ag_durum.mdns) ag_durum.mdns = MDNS.begin(AG_MDNS);" in so
+            and "MDNS.end" not in AG_KOD + INO_KOD and "ag__sta_oldu();" in dal("AGE_STA_OLDU"),
+            "otomatik baglanma kapali kalsaydi calisirken kopan kart bir daha donmezdi")
+    d_ka = dal("AGE_AP_KAPAT")
+    r.kosul("  5m: AGD: pay dolunca AP kapanir (WIFI_STA) — STA'ya dokunulmaz",
+            "WiFi.mode(WIFI_STA);" in d_ka and "disconnect" not in d_ka and "begin" not in d_ka)
+    gv = govde(INO, "static void ag_gorevi(void *)")
+    gv_d = kod(gv[gv.find("for (;;)"):]) if "for (;;)" in gv else ""
+    r.kosul("  5m: AGD: ag_isle ag gorevinin DONGUSUNDE (her tur); etkin degilse surucuyu sorgulamaz; iliski "
+            "WiFi.STA.connected()'tan",
+            "ag_isle();" in gv_d
+            and 0 <= kod(isl).find("if (!agk_etkin(&ag_k)) return;") < kod(isl).find("WiFi.")
+            and "WiFi.STA.connected() ? 1u : 0u" in isl and "WiFi.status() == WL_CONNECTED" in isl,
+            "dongude olmasa kart AP'de kalirdi (eski kusur, bu kez kodda)")
+    ky = govde(AG_KOD, "static void ag__kip_yaz(uint8_t k)")
+    r.kosul("  5m: AGD: `Ag:` satiri HER kip degisiminde (AP -> STA) yeniden basilir — kip yazimi surumu artirir",
+            "ag_hazir = (uint8_t)(ag_hazir + 1u);" in ky
+            and "ag_satiri_basildi = ag_hazir;" in kod(govde(INO, "static void ag_satiri_bas()")),
+            "tek seferlik bayrakla STA'ya donus afiste HIC gorunmezdi")
+    hg = kod(govde(INO, "static bool host_gecerli()"))
+    r.kosul("  5m: AGD: AP acikken Host: AP'nin kendi adresi de kabul (gecis payinda AP'deki telefon 403 almaz)",
+            "(WiFi.getMode() & WIFI_MODE_AP) && h == WiFi.softAPIP().toString()" in hg)
+    bld = (KOD / "bildirim_esp.h").read_text(encoding="utf-8", errors="replace")
+    kes = (KOD / "kayit_esp.h").read_text(encoding="utf-8", errors="replace")
+    bg = kod(govde(bld, "static void bildirim_gorevi(void *)"))
+    kg = kod(govde(kes, "static void kayit_gorevi(void *)"))
+    r.kosul("  5m: AGD: MQTT ve NTP gecisten sonra KENDILIGINDEN baslar — kip her turda yeniden okunur",
+            "for (;;)" in bg and "for (;;)" in kg
+            and "if (!(ag_durum.kip == AG_STA && WiFi.status() == WL_CONNECTED))" in bg[bg.find("for (;;)"):]
+            and "kayit__saat();" in kg[kg.find("for (;;)"):]
+            and "if (!kayit_saat_ntp && ag_durum.kip == AG_STA)" in kod(govde(kes, "static void kayit__saat(void)")),
+            "kip acilista bir kez okunsaydi AP'den donen kart bildirim gondermezdi")
+
+
 def _tanim(kaynak: str, imza: str, sinif: bool = False) -> str:
     """`imza`dan kapanan susluye kadar TAM tanim (sinifsa sonundaki `;` ile)."""
     i = kaynak.find(imza)
@@ -799,15 +988,20 @@ def bolum5(r):
             and "ag_baslat_rf();" in govde(INO, "void setup()")
             and not re.search(r"while\s*\(\s*WiFi\.status\(\)", govde(INO, "void setup()")),
             "setup() beklerse olcum dongusu ag gelene dek (10 s'ye dek) durur")
+    # AGD: bekleme dongusu karar motoruyla (ag_karar.h); AP'ye dusus ag__uygula'da.
+    _uy = govde(AG_KOD, "static void ag__uygula(uint8_t e)")
+    _so = govde(AG_KOD, "static void ag__sta_oldu(void)")
     r.kosul("  5k: STA beklemesi ag gorevinde, SUNUCU DONGUSUNDEN ONCE; olmazsa AP'ye duser",
-            bool(_bk) and "while (WiFi.status() != WL_CONNECTED" in _bk and "ag__ap_kur()" in _bk
+            bool(_bk) and "while (ag_k.evre == AGK_BEKLE)" in _bk
+            and "ag__uygula(agk_adim(&ag_k, millis(), WiFi.status() == WL_CONNECTED" in _bk
+            and "ag__ap_kur(WIFI_AP_STA)" in _uy
             and 0 <= _gv.find("ag_bekle_tamamla();") < _gv.find("for (;;)"))
     r.kosul("  5k: kip EN SON yazilir (alanlar once): baska gorev AG_STA'yi gorunce ip/mac hazir",
-            bool(_bk) and _bk.find("ag_durum.ip") < _bk.find("ag__kip_yaz(AG_STA)")
-            and _bk.find("ag_durum.mac") < _bk.find("ag__kip_yaz(AG_STA)")
+            bool(_so) and 0 <= _so.find("ag_durum.ip") < _so.find("ag__kip_yaz(AG_STA)")
+            and 0 <= _so.find("ag_durum.mac") < _so.find("ag__kip_yaz(AG_STA)")
             and "ag_durum.kip = AG_AP" not in AG_KOD and "ag_durum.kip = AG_STA" not in AG_KOD)
-    r.kosul("  5k: STA sonucu `Ag:` satiri cekirdek 1'de bir kez basilir (loop)",
-            "if (ag_hazir && !ag_satiri_basildi) ag_satiri_bas();" in govde(INO, "void loop()"))
+    r.kosul("  5k: STA sonucu `Ag:` satiri cekirdek 1'de basilir (loop; AGD: her kip degisiminde bir kez)",
+            "if (ag_hazir != ag_satiri_basildi) ag_satiri_bas();" in govde(INO, "void loop()"))
 
     r.kosul("  5a: mDNS adi BOS DEGIL", bool(_mdns and _mdns.group(1)),
             f"http://{_mdns.group(1) if _mdns else '?'}.local")
@@ -1158,6 +1352,7 @@ def main() -> int:
     bolum3(r)
     bolum4(r)
     bolum5(r)
+    bolum5_ag_donus(r)
     bolum6(r)
     tamam = r.yazdir()
     # Bu adim FIRMWARE KAYNAGINI siniyor; asagidakilerin hicbiri kaynaktan
@@ -1167,6 +1362,13 @@ def main() -> int:
         ("Kart gercekten WiFi'ya baglaniyor mu (STA -> AP dusmesi)",
          "Acilista `Ag: STA (ev agi)` ya da `Ag: AP (kendi agi)` yazmali. "
          "10 s'de STA olmazsa AP'ye dusmeli; AP parolasi seri konsola basilir"),
+        ("AGD: acilista ev agi yoksa AP, ev agi gelince KENDILIGINDEN STA (DEVIR 5.12.109)",
+         "Kayitli erisim noktasi KAPALIYKEN karti sifirla: ~10 s sonra `Ag: AP (kendi agi) ... "
+         "(ev agi 30 s'de bir deneniyor)`. Erisim noktasini AC: <= 60 s'de ikinci satir "
+         "`Ag: STA (ev agi)`; ~5 s sonra kartin AP adi PC'nin ag listesinden kalkar; `Q?` "
+         "durum=4 (bagli); ev aginda `_http._tcp` + TXT kimlik gorunur. Calisirken kopma "
+         "(5.12.106: 7-14 s'de kendiliginden donus) DEGISMEMELI; AP'deyken panel 192.168.4.1'de "
+         "calismali (her 30 s'deki taramada kisa takilma olabilir — olculmedi)"),
         ("mDNS telefonda cozuluyor mu",
          "http://olcum.local acilmali. Android'de Chrome `.local`'i "
          "guvenilir cozmuyor (12+ ve degisken) — cozulmezse AP'nin SABIT "

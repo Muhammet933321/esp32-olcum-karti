@@ -3134,8 +3134,8 @@ def bolum_w2() -> None:
     ag_k = kod(_oku("ag.h"))
     sv = govde(ag_k, "static void ag__mdns_servis(")
     mk = govde(ag_k, "static void ag_mdns_kimlik(")
-    sta = govde(ag_k, "static void ag_bekle_tamamla(")
-    ap = govde(ag_k, "static uint8_t ag__ap_kur(void)\n{")    # ilk eslesme on bildirim
+    sta = govde(ag_k, "static void ag__sta_oldu(")          # AGD: STA sonucu (acilis + AP'den donus)
+    ap = govde(ag_k, "static uint8_t ag__ap_kur(wifi_mode_t kip)\n{")    # ilk eslesme on bildirim
     kur = govde(ino_k, "void setup(")
     i_guv, i_kim = kur.find("guv_esp_ac();"), kur.find("ag_mdns_kimlik(mk);")
     i_hazir_degil = kur.find("if (!guv_hazir)")

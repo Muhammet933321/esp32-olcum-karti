@@ -1,0 +1,85 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   ag_karar.h — AG KIP KARARI (platformsuz)  (AGD, DEVIR 5.12.109)
+
+   🔴 KARTTA BULUNAN KUSUR (2026-10-04): acilista kayitli ev agi (STA) YOKSA
+   kart AG_STA_BEKLE_MS sonra kendi AP'sine dusuyor ve STA'yi BIR DAHA
+   DENEMIYORDU — ev agi dakikalar sonra donse de. Gercek hayatta: elektrik
+   kesintisinden sonra yonlendirici karttan YAVAS acilir -> kart elle
+   sifirlanana dek ev aginda degil, bildirim yok (MQTT `durum=2`).
+   Calisirken STA kopmasi ise SORUNSUZ (surucu kendisi doner, 4 senaryo
+   olculdu, 5 dk kesinti dahil 7-14 s) — BU YOL DEGISMIYOR.
+
+   Karar:
+     kayitli ag YOK       -> saf AP (eskisi gibi), deneme yok        AGK_AP
+     kayitli ag VAR       -> AG_STA_BEKLE_MS bekle                   AGK_BEKLE
+       baglandi           -> STA, bitti                              AGK_STA
+       baglanamadi        -> AP kur (AP+STA kipinde), STA'yi
+                             AG_STA_YENIDEN_MS'de bir yeniden dene   AGK_AP_DENE
+         baglandi         -> kip STA; AP AG_AP_PAY_MS daha acik
+                             (AP'deki telefon istek ortasinda
+                             kesilmesin), sonra kapanir              AGK_STA_PAY
+         pay doldu        -> AP kapat, STA, bitti                    AGK_STA
+     AGK_STA'dan sonra kopma -> KARAR YOK: surucu doner (5.12.106).
+       AGK_STA_PAY'de kopma da ayni: STA'ya bir kez baglanan kart STA'da kalir.
+
+   Iliski kuruldu ama IP yok (DHCP surerken) yeniden denenmez: Arduino
+   `STA.connect()` bagliyken once KOPARIR, deneme DHCP'yi keserdi.
+
+   Kod burada, kart yapistiricisi `ag.h`'de; bu dosya AVR'de kosuyor
+   (uretim/avr/ornek_ag_karar.c, sim3_web.py 5m). Sureler `ag.h`'de
+   tanimli (tek kaynak) — ondan ONCE icerilmezse derlenmez.
+   ═══════════════════════════════════════════════════════════════════════ */
+#ifndef AG_KARAR_H
+#define AG_KARAR_H
+
+#include <stdint.h>
+
+#if !defined(AG_STA_BEKLE_MS) || !defined(AG_STA_YENIDEN_MS) || !defined(AG_AP_PAY_MS)
+#error "ag_karar.h: AG_STA_BEKLE_MS / AG_STA_YENIDEN_MS / AG_AP_PAY_MS once tanimlanmali (ag.h)"
+#endif
+
+/* evre — 0 = sifir ilklenmis durum (WiFi N0, gorev yok): HIC karar yok */
+enum { AGK_YOK = 0, AGK_BEKLE = 1, AGK_AP_DENE = 2, AGK_STA_PAY = 3, AGK_STA = 4, AGK_AP = 5 };
+/* eylem — yapistirici bunu uygular */
+enum { AGE_YOK = 0, AGE_AP_KUR = 1, AGE_STA_DENE = 2, AGE_STA_OLDU = 3, AGE_AP_KAPAT = 4 };
+
+typedef struct {
+    uint32_t t;        /* evrenin referans ani (ms): acilis / son deneme / baglanti */
+    uint8_t  evre;
+} AgKarar;
+
+static void agk_kur(AgKarar *k, uint8_t kimlik_var, uint32_t simdi_ms)
+{
+    k->evre = kimlik_var ? AGK_BEKLE : AGK_AP;
+    k->t = simdi_ms;
+}
+
+/* adim gerekiyor mu — degilse yapistirici surucuyu hic sorgulamaz */
+static uint8_t agk_etkin(const AgKarar *k)
+{
+    return k->evre == AGK_BEKLE || k->evre == AGK_AP_DENE || k->evre == AGK_STA_PAY;
+}
+
+/* bagli: STA'nin IP'si var (WL_CONNECTED). iliskili: STA erisim noktasina iliskili
+   (IP'li ya da DHCP bekliyor). Donus: AGE_*. `simdi - t` isaretsiz: millis tasmasi guvenli. */
+static uint8_t agk_adim(AgKarar *k, uint32_t simdi_ms, uint8_t bagli, uint8_t iliskili)
+{
+    const uint32_t gecen = simdi_ms - k->t;
+    switch (k->evre) {
+    case AGK_BEKLE:
+        if (bagli) { k->evre = AGK_STA; return AGE_STA_OLDU; }
+        if (gecen >= AG_STA_BEKLE_MS) { k->evre = AGK_AP_DENE; k->t = simdi_ms; return AGE_AP_KUR; }
+        return AGE_YOK;
+    case AGK_AP_DENE:
+        if (bagli) { k->evre = AGK_STA_PAY; k->t = simdi_ms; return AGE_STA_OLDU; }
+        if (!iliskili && gecen >= AG_STA_YENIDEN_MS) { k->t = simdi_ms; return AGE_STA_DENE; }
+        return AGE_YOK;
+    case AGK_STA_PAY:
+        if (gecen >= AG_AP_PAY_MS) { k->evre = AGK_STA; return AGE_AP_KAPAT; }
+        return AGE_YOK;
+    default:
+        return AGE_YOK;
+    }
+}
+
+#endif /* AG_KARAR_H */

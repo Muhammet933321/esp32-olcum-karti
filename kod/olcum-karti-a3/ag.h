@@ -36,6 +36,14 @@
 #define AG_ALAN "olcumag"        /* NVS ad alani — "olcum3" DEGIL */
 #define AG_MDNS "olcum"          /* http://olcum.local */
 #define AG_STA_BEKLE_MS 10000u
+/* AGD (5.12.109): acilista ev agi yoksa AP + STA'yi bu aralikla yeniden dene; baglaninca
+   AP bu kadar daha acik kalir. Karar ag_karar.h'de (platformsuz, AVR'de sinaniyor).
+   30 s: her deneme bir kanal taramasi (~2 s, AP o sirada kanal degistirir) — surekli
+   tarama AP'yi kullanilamaz yapardi; tezgah olcutu "ag acildiktan <= 60 s'de STA". */
+#define AG_STA_YENIDEN_MS 30000u
+#define AG_AP_PAY_MS 5000u
+
+#include "ag_karar.h"
 
 enum AgKip { AG_KAPALI = 0, AG_STA = 1, AG_AP = 2, AG_BAGLANIYOR = 3 };   /* 1E-2: 3 = STA bekleniyor */
 
@@ -140,64 +148,107 @@ static String ag_ap_ssid(void)
      ag_bekle_tamamla() ag gorevi, cekirdek 0: baglantiyi bekler; olmazsa AP'ye duser.
                         Bitince `ag_hazir` = 1 (cekirdek 1 "Ag:" satirini basar).
    Alanlar (ssid/ip/mac/mdns) once doldurulur, `kip` EN SON yazilir: baska gorev
-   AG_STA'yi gordugunde alanlar hazirdir. */
-static volatile uint8_t ag_hazir = 0;        /* kip kesinlesti (STA / AP / KAPALI) */
-static uint32_t ag_bas_ms = 0;
+   AG_STA'yi gordugunde alanlar hazirdir.
+
+   AGD: `ag_hazir` artik bir SURUM sayaci — her kip yazimi bir artirir; cekirdek 1
+   "Ag:" satirini her degisimde (acilis AP -> sonra STA) bir kez basar. Sifir = kip
+   henuz yazilmadi. */
+static volatile uint8_t ag_hazir = 0;        /* kip surumu (0: kesinlesmedi) */
+static AgKarar ag_k = {0, AGK_YOK};          /* AGD: yalniz ag gorevi (setup'ta kurulur) */
 
 static void ag__kip_yaz(uint8_t k)
 {
     __sync_synchronize();                    /* alanlar kip'ten ONCE gorunsun */
     ag_durum.kip = k;
     __sync_synchronize();
-    ag_hazir = 1;
+    ag_hazir = (uint8_t)(ag_hazir + 1u);     /* tek yazar: ag gorevi / setup (-Wvolatile: ++ degil) */
 }
 
-static uint8_t ag__ap_kur(void);
+static uint8_t ag__ap_kur(wifi_mode_t kip);
 
 /* setup: radyoyu ac. Donus: kip (STA'da AG_BAGLANIYOR — sonucu gorev verir). */
 static uint8_t ag_baslat_rf(void)
 {
     String ad = ag_nvs.getString("wifi_ad", "");
     String sifre = ag_nvs.getString("wifi_sifre", "");
+    agk_kur(&ag_k, ad.length() ? 1u : 0u, millis());
     if (ad.length()) {
         WiFi.mode(WIFI_STA);
         WiFi.begin(ad.c_str(), sifre.c_str());
         snprintf(ag_durum.ssid, sizeof(ag_durum.ssid), "%s", ad.c_str());
-        ag_bas_ms = millis();
         ag_durum.kip = AG_BAGLANIYOR;
         return AG_BAGLANIYOR;
     }
-    return ag__ap_kur();       /* bekleme yok: AP hemen kurulur */
+    return ag__ap_kur(WIFI_AP);   /* bekleme yok: AP hemen kurulur; ev agi yok -> deneme de yok */
 }
 
-/* ag gorevi (cekirdek 0), sunucu dongusunden ONCE: STA'yi bekle, olmazsa AP. */
+/* AGD: STA baglandi (acilista ya da AP'deyken yeniden denemede). */
+static void ag__sta_oldu(void)
+{
+    /* calisirken kopma: surucu kendisi doner (5.12.106'da olculen yol) — AP'deyken kapatilmisti */
+    WiFi.setAutoReconnect(true);
+    snprintf(ag_durum.ssid, sizeof(ag_durum.ssid), "%s", WiFi.SSID().c_str());
+    snprintf(ag_durum.ip, sizeof(ag_durum.ip), "%s",
+             WiFi.localIP().toString().c_str());
+    /* B26: surucu AYAKTA, bu MAC gercek. */
+    snprintf(ag_durum.mac, sizeof(ag_durum.mac), "%s",
+             WiFi.macAddress().c_str());
+    /* mDNS AP'de kurulduysa SURUYOR: IDF mdns'in on tanimli arayuz isleyicisi
+       (CONFIG_MDNS_PREDEF_NETIF_STA/AP) STA IP alinca STA'da, AP kapaninca AP'de
+       acar/kapatir; servisler arayuzden bagimsiz. MDNS.end() HIC cagrilmaz — servis
+       bayragi (ag_mdns_servis_var) bu yuzden gecerli kalir. AP'de basarisizsa burada
+       yeniden denenir (bayrak o durumda zaten 0). */
+    if (!ag_durum.mdns) ag_durum.mdns = MDNS.begin(AG_MDNS);
+    ag__mdns_servis();
+    ag__kip_yaz(AG_STA);
+}
+
+/* AGD: karar motorunun eylemini uygula (yalniz ag gorevi, cekirdek 0). */
+static void ag__uygula(uint8_t e)
+{
+    if (e == AGE_STA_OLDU) {
+        ag__sta_oldu();
+    } else if (e == AGE_AP_KUR) {
+        /* Eskiden WiFi.disconnect(true): radyo kapanir, STA BIR DAHA denenmezdi.
+           Simdi AP+STA: STA yapilandirmasi surucude kalir. Otomatik yeniden baglanma
+           KAPALI — NO_AP_FOUND'da surucu araliksiz tarardi (AP her taramada kanal
+           degistirir); denemeyi AG_STA_YENIDEN_MS'de bir biz yapiyoruz. */
+        WiFi.setAutoReconnect(false);
+        WiFi.disconnect(false, false);
+        (void)ag__ap_kur(WIFI_AP_STA);
+    } else if (e == AGE_STA_DENE) {
+        WiFi.begin();                 /* surucudeki yapilandirma; bloklamaz, AP'ye dokunmaz */
+    } else if (e == AGE_AP_KAPAT) {
+        WiFi.mode(WIFI_STA);          /* softAP kapanir; STA, sunucu ve mDNS surer */
+    }
+}
+
+/* ag gorevi (cekirdek 0), sunucu dongusunden ONCE: STA'yi bekle, olmazsa AP (+ deneme). */
 static void ag_bekle_tamamla(void)
 {
-    if (ag_durum.kip != AG_BAGLANIYOR) { ag_hazir = 1; return; }
-    while (WiFi.status() != WL_CONNECTED
-           && (int32_t)(millis() - (ag_bas_ms + AG_STA_BEKLE_MS)) < 0)
-        vTaskDelay(pdMS_TO_TICKS(100));
-    if (WiFi.status() == WL_CONNECTED) {
-        snprintf(ag_durum.ip, sizeof(ag_durum.ip), "%s",
-                 WiFi.localIP().toString().c_str());
-        /* B26: surucu AYAKTA, bu MAC gercek. */
-        snprintf(ag_durum.mac, sizeof(ag_durum.mac), "%s",
-                 WiFi.macAddress().c_str());
-        ag_durum.mdns = MDNS.begin(AG_MDNS);
-        ag__mdns_servis();
-        ag__kip_yaz(AG_STA);
-        return;
+    if (ag_durum.kip != AG_BAGLANIYOR) { if (!ag_hazir) ag_hazir = 1; return; }
+    while (ag_k.evre == AGK_BEKLE) {
+        ag__uygula(agk_adim(&ag_k, millis(), WiFi.status() == WL_CONNECTED, 0u));
+        if (ag_k.evre == AGK_BEKLE) vTaskDelay(pdMS_TO_TICKS(100));
     }
-    WiFi.disconnect(true);
-    (void)ag__ap_kur();
 }
 
-/* STA olmadi (ya da hic kurulmadi) -> KENDI AGIN. Kipi ag__kip_yaz ile kesinlestirir. */
-static uint8_t ag__ap_kur(void)
+/* AGD: ag gorevinin dongusunden her tur — AP'deyken STA'yi yeniden dener, baglaninca
+   pay suresinden sonra AP'yi kapatir. Etkin degilse surucuyu HIC sorgulamaz. */
+static void ag_isle(void)
+{
+    if (!agk_etkin(&ag_k)) return;
+    ag__uygula(agk_adim(&ag_k, millis(), WiFi.status() == WL_CONNECTED,
+                        WiFi.STA.connected() ? 1u : 0u));
+}
+
+/* STA olmadi (ya da hic kurulmadi) -> KENDI AGIN. Kipi ag__kip_yaz ile kesinlestirir.
+   AGD: `kip` WIFI_AP (ev agi kayitli degil) ya da WIFI_AP_STA (ev agi yeniden denenecek). */
+static uint8_t ag__ap_kur(wifi_mode_t kip)
 {
     String ap = ag_ap_ssid();
     String aps = ag_nvs.getString("ap_sifre", "");
-    WiFi.mode(WIFI_AP);
+    WiFi.mode(kip);
     bool ok = WiFi.softAP(ap.c_str(), aps.c_str());
     snprintf(ag_durum.ssid, sizeof(ag_durum.ssid), "%s", ap.c_str());
     snprintf(ag_durum.ip, sizeof(ag_durum.ip), "%s",
