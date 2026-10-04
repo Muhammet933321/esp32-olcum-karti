@@ -10718,6 +10718,20 @@ denetimi `adb screencap` ile yapıldı. **Küçük açık:** uygulama dosyaları
 her açılış ~90 KB'yi (gzip) baştan indiriyor, 304 olamıyor; `_fs.json` sürümünden ETag eklenirse ikinci açılış yalnız
 doğrulama olur (yalnız `vendor/vue` `immutable`).
 
+**Web parolası isteyen kart denetimleri + eşitleme yükü (2026-10-04 14:5x–15:1x, E6F, kart ev ağında).**
+- `tezgah_kayit.py --guvenlik` **14/14** (imzalı istek, tekrar/bozuk imza 401, yeniden başlamada X-Acilis, Ez1/Em1,
+  `/saat` NTP'de 409, yanlış parolalı eşleştirme reddi + 429, temizlik). ⚠ Tezgah imzalı `Go`'yu sınarken kartın
+  onay noktasını 61513'e ilerletti; köprü arşivi o noktaya henüz gelmedi — yalnız test oturumları (ADS takılı değil),
+  kart bölümü %12 dolu, silme yakın değil; köprü bir sonraki koşusunda arşivler.
+- W2 #6: iki `/eslestir/baslat` `eno` = 58 215 406 / 135 631 829 (> 255, ardışık değil); **parolalı eşleştirme
+  UÇTAN UCA BAŞARDI** (kart kanıtı doğrulandı; geçici dizin, test cihazı sonra USB `Ex3` ile silindi, `E?` cihaz=2).
+  Yanlış ya da çözülemeyen `eno` → **410** "bekleyen eslestirme yok" (`guv__esles_hata`, GUV_E_YOK) — 5.12.101'in
+  denetim listesindeki "404" YANLIŞTI, davranış tasarımdaki gibi. W2 #8: web'den `/komut` `Qe700` (Basic-Auth ile)
+  → **403** "Q komutlari yalniz USB".
+- Tam eşitleme, BOŞ geçici dizine, karta ONAYSIZ, eşleşmiş PC-kopru cihazıyla imzalı: **12.9 s / 13.9 s**
+  (2471 kayıt, 1.39 MB; taban 4J 18 s / 1.27 MB). İki tam eşitleme boyunca asıl DRAM `min_free` **65 336** (öncesi
+  75 780), en büyük blok 98 292, `ayirma_hata=0`, `QF yok`.
+
 ---
 
 #### 5.12.105 🟢 W1–W5 BİRLEŞMESİ + mDNS SERVİS DUYURUSU (2026-10-04, dal `w-birlesik`, ağaç `projeler/olcum-karti-wb`)
