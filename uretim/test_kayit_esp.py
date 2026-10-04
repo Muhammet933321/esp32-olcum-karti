@@ -3319,6 +3319,27 @@ def bolum_e6f() -> None:
        and "Serial.println(akis_psram ? F(\"PSRAM\") : F(\"dahili\"));" in st
        and "const bool akis_psram = akis_kuyrugu_q != nullptr;" in st
        and 0 <= i_ps < st.find("const bool akis_psram") < i_yd)
+    # E6F inceleme (2026-10-04): TLS kayit tamponlari PSRAM'e gecince esp_aes_process_dma her
+    # AES (GCM/CBC) islemi icin hizasiz dis bellek ciktisina DAHILI ara tampon ayirir:
+    # heap_caps_aligned_alloc(1, min(len, 1600), MALLOC_CAP_DMA) — PSRAM yigininda DMA yetenegi
+    # yok, ara tampon yalniz dahiliden; ayrilamazsa islem -1 doner (MQTT kopar) ve E6 geri
+    # cagirmasi QF'ye caps=0x0008 gorev=bld yazar. Bu BILEREK bir belge iddiasi (yorum + acik
+    # isler okuma kilavuzu): bulgu, kartta QF okuyanin bu satiri Wi-Fi tamponu sanmasiydi.
+    # Kanit (sokum, libmbedcrypto esp_aes_dma_core.c.obj) DEVIR 5.12.106 "inceleme".
+    ham = ino[ino.find("E6F (F1) — mbedTLS BELLEGI ONCE PSRAM'E"):ino.find("static void *tls_bellek_ayir(")]
+    acik = (KOK / "tasarim" / "1-acik-isler.md")
+    e6 = next((s for s in (acik.read_text(encoding="utf-8").splitlines() if acik.exists() else [])
+               if s.startswith("| E6 |")), "")
+    # okuma kilavuzu "Duzeltme hazir"dan ONCE, E6F'nin "Kartta"si SONRA — ikisi ayri olculur
+    i_e6f = e6.find("**Düzeltme hazır")
+    ok("B72.E6Fh F1'in bedeli yazili: AES DMA'si PSRAM'deki kayit ciktisi icin kayit basina DAHILI "
+       "ara tampon (<= 1600 B, MALLOC_CAP_DMA) ayirir, ayrilamazsa TLS -1; acik isler E6 okuma "
+       "kilavuzu QF caps=0x0008 gorev=bld'yi AES ara tamponu diye tanir ve kartta olculecekte sayar",
+       "esp_aes_process_dma" in ham and "MALLOC_CAP_DMA" in ham and "1600" in ham
+       and "caps=0x0008" in ham and "zaten karsiliyor" not in ham
+       and i_e6f >= 0 and "`caps=0x0008`" in e6[:i_e6f] and "AES DMA ara tamponu" in e6[:i_e6f]
+       and "`QF caps=0x0008 gorev=bld`" in e6[i_e6f:],
+       f"yorum={len(ham)} B, E6 satiri={'var' if e6 else 'YOK'}")
 
 
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,

@@ -7911,6 +7911,22 @@ MUTASYONLAR = [
      "    Serial.print(!d ? F(\"YOK\") : psramFound() ? F(\"PSRAM\") : F(\"dahili\"));",
      "E6F: acilis satiri tls yerini PSRAM varligindan TAHMIN eder (ayirici kurulmasa da PSRAM der): "
      "B72.E6Fg kirmizi"),
+    # E6F inceleme: AES DMA ara tamponu (kayit basina <= 1600 B dahili, caps=0x0008) belgede kalmali
+    ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
+     "// yerlesim. BEDELI (E6F inceleme, sokumle dogrulandi): SHA DMA'si PSRAM girisini\n",
+     "// yerlesim (AES/SHA DMA'si dis bellek tamponlarini IDF'de zaten karsiliyor).\n"
+     "// SHA DMA'si PSRAM girisini\n",
+     "E6F: F1 yorumu yine 'DMA dis bellegi IDF'de zaten karsiliyor' der (kayit basina dahili "
+     "ara tampon ve yeni -1 yolu gizlenir): B72.E6Fh kirmizi"),
+    ("B72", "test_kayit_esp.py", "tasarim/1-acik-isler.md",
+     "`QF` ≤ 1.6 KB `caps=0x0008` (yalnız DMA), görev `bld` → **AES DMA ara tamponu**",
+     "`QF` ≤ 1.6 KB, görev `bld` → **AES DMA ara tamponu**",
+     "E6F: okuma kilavuzu caps=0x0008'i tanimaz (kartta QF okuyan ~1.6 KB'yi Wi-Fi tamponu sanar): "
+     "B72.E6Fh kirmizi"),
+    ("B72", "test_kayit_esp.py", "tasarim/1-acik-isler.md",
+     "`ayirma_hata=0` (bir `QF caps=0x0008 gorev=bld` = AES DMA ara tamponu ayrılamadı",
+     "`ayirma_hata=0` (bir hata = AES DMA ara tamponu ayrılamadı",
+     "E6F: kartta olculecek listesi AES ara tamponu satirini saymaz: B72.E6Fh kirmizi"),
 ]
 
 

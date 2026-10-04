@@ -10577,8 +10577,9 @@ SSL dosyaları, kendi ayırıcısı yok).
   E6 geri çağırmasından, `ag_baslat_rf` (WPA supplicant), `guv_esp_ac` (HMAC/SHA/PBKDF2), `kayit_kur`, ilk görev ve
   `bildirim_baslat`'tan (esp-tls) ÖNCE. Değişimden önce ayrılmış blok olsaydı da yeni bırakıcı onu doğru yığına
   verir (eski bırakıcı zaten `heap_caps_free`); geçiş anında yarış da zararsız (iki çift de `heap_caps_*`).
-  PSRAM yoksa/doluysa dahili — eski davranış. IDF'nin resmi `CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` yerleşimiyle aynı
-  (AES/SHA DMA'sı dış bellek tamponlarını IDF'de karşılıyor), üstüne yedek yol. Beklenen kazanç: MQTT TLS oturumunun
+  PSRAM yoksa/doluysa dahili — eski davranış. IDF'nin resmi `CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` yerleşimiyle aynı,
+  üstüne yedek yol. ⚠ AES DMA'sı PSRAM'deki kayıt çıktısı için kayıt başına DAHİLİ ara tampon ayırır (≤ 1600 B,
+  `caps=0x0008`) — aşağıdaki "İnceleme". Beklenen kazanç: MQTT TLS oturumunun
   ~38–40 KB'lik kalıcı payı + el sıkışma tepesi (10–20 KB) dahili yığından çıkar; Wi-Fi WPA/SAE ve guvenlik
   bağlamları da. **Bedel:** bignum/ECDHE ve kayıt şifrelemesi PSRAM'de → el sıkışma bir miktar yavaşlar
   (önbellekten; tahmin %10–30, ÖLÇÜLMEDİ). Düz `esp_tls_init` (`calloc`, < 4 KB → dahili) ve lwIP/Wi-Fi tamponları
@@ -10612,9 +10613,59 @@ yeniden hedeflendi.
 bölgesinin `min_free`'si ve en büyük blok ÖNCE/SONRA (önce: 6 dk'da 15 692, uzun koşuda dip 2.5 KB;
 beklenen: ≥ ~40 KB artış), `ayirma_hata=0`, `QF yok`; `Q?` `el_sikisma_ms` (önce 0.9–2.0 s; bir miktar yavaşlama
 beklenir, > 2× ise incele); köprüyle tam eşitleme süresi (taban ~18 s); `K` sıfırla → 40 s → `K` `loop_azami`
-(taban 7.5 ms, ölçüt 11.4 ms). **Geri dönüş:** `projeler/olcum-karti`'den (`main` `deaca77`) `python
+(taban 7.5 ms, ölçüt 11.4 ms). Bir `QF caps=0x0008 gorev=bld` (boyut ≤ 1600) = AES DMA ara tamponu ayrılamadı, MQTT o
+anda koptu (aşağıdaki "İnceleme"). **Geri dönüş:** `projeler/olcum-karti`'den (`main` `deaca77`) `python
 uretim/yukle.py` — yalnız uygulama, NVS ve kayıtlar kalır; son çare tam yedek `esptool write-flash 0x0
 .yedek/olcum-karti/tam-20261004-025819.bin` (NVS + kayıt bölümünü o ana döndürür — önce eşitle).
+
+**İnceleme (2026-10-04, bağımsız bellek/eşzamanlılık bakışı; karta YÜKLENMEDİ):** tek önemli bulgu GERÇEK, kod
+değişmedi, belge düzeltildi.
+- **Bulgu: AES DMA ara tamponu.** Kayıt tamponları PSRAM'e geçince her AES işlemi (TLS 1.2 GCM/CBC; TLS 1.3 ve
+  ChaCha bu çekirdekte kapalı) kayıt başına DAHİLİ ara tampon ayırıyor, ve bu yeni bir hata yolu. Sökümle
+  doğrulandı (`libmbedcrypto.a`):
+  - `esp_aes_dma_core.c.obj` `esp_aes_process_dma`: çıktı `esp_ptr_external_ram` ise
+    `esp_cache_get_alignment(SPIRAM)` alınır. Çıktı bu hizaya uymuyorsa YA DA blok baytları hizanın katı değilse
+    `heap_caps_aligned_alloc(1, min(len, 0x640 = 1600), 8 = MALLOC_CAP_DMA)` çağrılır. DMA ara tampona yapılır,
+    ardından `memcpy`. Ayırma NULL dönerse çıktı `mbedtls_platform_zeroize` edilir ve işlem -1 döner.
+  - Çıktı hiç hizalı olamaz: kayıt yerinde şifreleniyor, `in_msg`/`out_msg` tampondan 8 + 5 + 8 = 21 B ötede,
+    `CONFIG_ESP32S3_DATA_CACHE_LINE_SIZE 32`. Ayrıca kayıt boyu da 32'nin katı olmak zorunda değil.
+  - GCM bu yoldan geçiyor: `esp_aes_gcm.c.obj` `U esp_aes_crypt_ctr`, `esp_aes.c.obj` `U esp_aes_process_dma`;
+    GCM donanımı ve küçük veri iyileştirmesi sdkconfig'de yok.
+  - `heap_caps_aligned_alloc` (`libheap` `heap_caps.c.obj`) başarısızlıkta `heap_caps_alloc_failed`'i çağırıyor.
+    Yani E6 geri çağırması `QF boyut<=1600 caps=0x0008 gorev=bld` yazar. Eski okuma kılavuzu bu satırı ~1.6 KB'lik
+    Wi-Fi tamponu (0x080C) sanardı.
+  - `memory_layout.c.obj` türleri: "RAM" (asıl DIRAM, öncelik 0, caps 0x0010580F) ve "DRAM" (`0x3fcf0000` 32 KB,
+    öncelik 1, 0x0010180E) DMA'lı. "SPIRAM" (0x400 / 0x00101006) ve "RTCRAM" DMA'sız. Ara tampon yalnız o iki
+    dahili bölgeden gelebilir.
+  - SHA DMA'sında bu bedel YOK: `sha.c.obj` `esp_sha_dma` PSRAM girişini `esp_ptr_dma_ext_capable` ile kabul
+    edip yalnız `esp_cache_msync` yapıyor. Ara tampon (`heap_caps_malloc` 0x80C) yalnız DMA'sız girişte.
+
+  Değişiklikten önce çıktı dahiliydi, bu yol hiç tetiklenmiyordu. **Değerlendirme:** net kazanç durur. ~33 KB
+  KALICI kayıt tamponu dahiliden çıkıyor, yerine kayıt başına ≤ 1.6 KB GEÇİCİ alan geliyor. Gönderimde lwIP pbuf'u
+  zaten dahili ve aynı boyda, alımda Wi-Fi RX tamponu da öyle. Yani yeni yol, var olan yollarla aynı eşikte (dahili
+  DMA'lı bellekte 1.6 KB'lik blok kalmaması) düşer; kopma MQTT'nin yeniden bağlanmasıyla toparlanır.
+  **Düzeltme yollarının ikisi de reddedildi:**
+  - Kayıt tamponlarını dahili tutmak kazancın kendisini geri alır.
+  - Hizalı ayırma da çözmez: hizasızlığı kayıt düzeni ve kayıt boyu belirliyor, ayırıcı değil.
+
+  Yapılanlar:
+  - `olcum-karti-a3.ino` F1 yorumu düzeltildi (eski "IDF'de zaten karşılıyor" cümlesi yanlış emniyet veriyordu).
+  - `tasarim/1-acik-isler.md` E6 okuma kılavuzuna `caps=0x0008`/`bld` = AES DMA ara tamponu eklendi, E6F
+    "Kartta" listesine de bir satır.
+  - Bu bölümün F1 maddesi ve "Kartta ölçülecek" düzeltildi.
+  - İddia **B72.E6Fh** eklendi (BİLEREK belge iddiası: yorum ve kılavuz). Mutasyon `E6F:` +3 (eski cümle geri
+    gelir · kılavuz `caps=0x0008`'i tanımaz · kartta listesi saymaz), **16/16 YAKALANDI** (369 s). B72 235 → **236**,
+    `beklenen_sayim.json` yalnız B72 +1. İddia önce kırmızı görüldü (235/236), belge düzeltilince 236/236.
+    `dogrula3.py --artimli` iki kez "Aşama 3 doğrulandı": ikinci koşu son dosyalarla, 22/22 adım yeniden.
+    Gizlilik temiz.
+  - Derleme uyarısız, flaş 1 418 922 / statik DRAM 81 836 AYNI (yalnız yorum değişti).
+- **Açık küçükler (düzeltilmedi):**
+  - (a) `heap_caps_calloc_prefer` başarısız ayırma geri çağırmasına `n*size` yerine yalnız `size` veriyor. mbedTLS
+    hatalarında E6 `QF boyut` alanı yanıltıcı (gerçek istek n kat büyük olabilir).
+  - (b) B72.E6Fe/E6Ff ölü önişlemci kodunu görmüyor: PSRAM kuyruğu ya da kısa yazmada düşürme bir `#if` ile
+    derleme dışı kalsa iddialar yeşil kalır.
+  - (c) E6F'nin tek çalışma anı kanıtı (açılış satırı `Bellek (E6F): …`, `QH` önce/sonra) tezgah listesine
+    (`_tezgah.md`) girmedi, yalnız bu girişte düz yazı.
 
 ---
 

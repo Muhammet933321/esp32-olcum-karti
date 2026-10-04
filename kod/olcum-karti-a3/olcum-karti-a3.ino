@@ -3288,7 +3288,17 @@ static void ayirma_dokum_bas() {
 // mbedTLS kopyasi (Wi-Fi WPA supplicant, guvenlik_esp HMAC/PBKDF2, esp-tls) bunu
 // kullanir. Once PSRAM, dolu/yoksa dahili: PSRAM yoksa (psramFound() false)
 // eski davranis. IDF'nin resmi CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC secenegiyle ayni
-// yerlesim (AES/SHA DMA'si dis bellek tamponlarini IDF'de zaten karsiliyor).
+// yerlesim. BEDELI (E6F inceleme, sokumle dogrulandi): SHA DMA'si PSRAM girisini
+// dogrudan okur (yalniz onbellek senkronu), ama AES DMA'si (GCM/CBC — TLS 1.2,
+// kayit yerinde sifrelenir) PSRAM'deki HIZASIZ ciktiyi (in_msg/out_msg tampondan
+// 21 B otede; onbellek satiri 32 B) dogrudan yazamaz: esp_aes_process_dma her
+// islemde heap_caps_aligned_alloc(1, min(len, 1600), MALLOC_CAP_DMA) ile DAHILI
+// ara tampon ayirip sonra kopyalar. PSRAM yigininda DMA yetenegi yok -> ara tampon
+// yalniz dahili DMA'li bolgelerden (asil DRAM, sonra 0x3fcf0000; RTC FAST degil).
+// Ayrilamazsa islem -1 (cikis sifirlanir, MQTT baglantisi duser, kart yeniden
+// baglanir) ve QF satiri `boyut<=1600 caps=0x0008 gorev=bld` olur. Net yine kazanc:
+// ~33 KB KALICI kayit tamponu dahiliden cikar, yerine kayit basina <= 1.6 KB GECICI
+// gelir (gonderimde lwIP pbuf'u da zaten dahili ve ayni boyda).
 // Basarisiz ayirma geri cagirmasi yalniz IKI bellek de dolunca tetiklenir.
 // Birakma heap_caps_free: isaretcinin hangi yigindan geldigine kendisi bakar,
 // yani degisimden ONCE (eski ayiriciyla) ayrilmis blok da guvenle birakilir —
