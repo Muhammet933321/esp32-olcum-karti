@@ -272,3 +272,6 @@ Honor DNP-NX9, Android 16 (API 36), ev Wi-Fi'sinde; hata ayıklama APK'sı (hede
   o gün yeniden ölçülmeli.
 - Geçici ekranda görsel kusur: alttaki ekran değiştirme düğmesi içerikle üst üste biniyor (yalnız geçici
   kabuk; A tasarımındaki sekmelerle kalkacak).
+
+**Kural (kullanıcı, kalıcı):** `git stash` HİÇ kullanılmaz — stash yığını bütün çalışma ağaçlarıyla ortak;
+kenara koymak gerekirse bu dalda geçici WIP commit.
