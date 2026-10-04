@@ -24,6 +24,17 @@ Neleri yapar (MQTT 3.1.1):
                DISCONNECT'te ve aracı kendi kapandiginda (`kapali_tut`) YAYINLANMAZ.
   Kesinti      `kapali_tut()` dinlemeyi birakir + butun istemcileri dusurur; `ac()` AYNI portta
                yeniden dinler (retained deposu korunur — kalici aracı gibi).
+  Sessiz       E8: `sessiz(sonra=N)` N s sonra aracı SUSAR: TCP acik kalir, gelen okunur (pencere
+               dolmaz) ama HICBIR paket gonderilmez (CONNACK, PUBACK, PINGRESP, SUBACK, iletim) ve
+               keepalive zaman asimi uygulanmaz — "yasayan ama cevap vermeyen" aracı. Kartin
+               PINGRESP olcutunu (-7) sinar; `konus()` geri alir. Susmus aracıda istemcinin
+               kapattigi baglanti `disconnect(kopus)` + vasiyet olarak gorunur (kapanis ani olcu).
+
+`KaraDelikVekil(hedef_host, hedef_port)`: araya giren seffaf TCP vekili. Normalde iki yonu
+iletir ve bir taraf kapaninca otekini kapatir; `kes()`ten sonra KARA DELIK: iki yonde de okur
+ve ATAR, hicbir soketi kapatmaz (istemci de aracı da "bagli" sanir, aracı keepalive'la vasiyeti
+yayinlar). Istemcinin kapattigi an `istemci_kapandi` olayi. ⚠ Okuyup attigi icin TCP ACK'leri
+gider: istemcinin gonderme penceresi DOLMAZ (gonderme tikanmasini degil, yanitsizligi sinar).
 
 Olay gunlugu `.olaylar` (her olay bir sozluk: `i` sira, `t` time.monotonic(), `tur`, ...):
   connect · disconnect(neden) · will_published(neden, konu, yuk, qos, retain) · publish ·
@@ -169,6 +180,10 @@ class _Baglanti:
 
     # -- yazma
     def gonder(self, veri: bytes) -> bool:
+        if self.araci.sessiz_mi():                         # E8: susmus aracı hicbir sey gondermez
+            with self.araci.kosul:
+                self.araci.yutulan += 1
+            return True
         with self._yaz_kilit:
             try:
                 self.soket.sendall(veri)
@@ -215,7 +230,8 @@ class _Baglanti:
             while self.neden is None:
                 simdi = time.monotonic()
                 if self.kayitli:
-                    if self.keepalive and simdi - son_alinan > KEEPALIVE_CARPAN * self.keepalive:
+                    if (self.keepalive and simdi - son_alinan > KEEPALIVE_CARPAN * self.keepalive
+                            and not self.araci.sessiz_mi()):   # E8: susmus aracı kimseyi dusurmez
                         self.neden_ayarla("keepalive")
                         break
                 elif simdi - basla > BAGLANTI_ZAMAN_ASIMI:
@@ -425,6 +441,8 @@ class SahteAraci:
         self._dinleyici: socket.socket | None = None
         self._kabul_thread: threading.Thread | None = None
         self._sayac = 0
+        self._sessiz_t: float | None = None                 # E8: bu andan (monotonic) sonra SUSAR
+        self.yutulan = 0                                    # E8: susarken gonderilmeyen paket sayisi
 
     # -- yasam dongusu
     def start(self) -> "SahteAraci":
@@ -505,6 +523,29 @@ class SahteAraci:
 
     def stop(self) -> None:
         self.kapali_tut()
+
+    # -- E8: sessiz aracı (TCP acik, yanit yok)
+    def sessiz(self, sonra: float = 0.0) -> float:
+        """`sonra` s sonra SUS: baglantilar acik kalir, gelen okunur/islenir, hicbir paket
+        GONDERILMEZ, keepalive ile kimse dusurulmez. Susmanin basladigi monotonic ani dondurur."""
+        if sonra < 0:
+            raise ValueError("sonra >= 0 olmali")
+        t = time.monotonic() + sonra
+        with self.kosul:
+            self._sessiz_t = t
+        self._olay("sessiz", baslangic=t)
+        return t
+
+    def konus(self) -> None:
+        """`sessiz()`i geri al (yeniden yanit verir)."""
+        with self.kosul:
+            onceki, self._sessiz_t = self._sessiz_t, None
+        if onceki is not None:
+            self._olay("konus")
+
+    def sessiz_mi(self) -> bool:
+        t = self._sessiz_t
+        return t is not None and time.monotonic() >= t
 
     def __enter__(self) -> "SahteAraci":
         return self.start()
@@ -591,6 +632,173 @@ class SahteAraci:
             self._olay("will_published", istemci=b.istemci_id, neden=neden, konu=w["konu"],
                        yuk=w["yuk"], qos=w["qos"], retain=w["retain"])
             self._dagit(w["konu"], w["yuk"], w["qos"], w["retain"])
+
+
+# ── E8: kara delik vekili ────────────────────────────────────────────────
+def _dinleyici_ac(host: str, port: int) -> socket.socket:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if os.name != "nt":                                    # Windows tuzagi: SahteAraci._dinle_ac
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        s.bind((host, port))
+    except OSError:
+        s.close()
+        raise
+    s.listen(16)
+    return s
+
+
+class KaraDelikVekil:
+    """Istemci <-> hedef (aracı) arasinda seffaf TCP vekili. `kes()`ten sonra KARA DELIK: iki
+    yonde de gelen okunur ve ATILIR, hicbir soket kapatilmaz; istemcinin (ya da hedefin) kapattigi
+    an `istemci_kapandi` / `hedef_kapandi` olayina yazilir (oteki tarafa iletilmez). `devam()`
+    iletmeye doner. Normal kipte bir taraf kapaninca oteki de kapatilir (gercek baglanti gibi).
+
+        v = KaraDelikVekil("127.0.0.1", araci.port).start(); v.port; v.kes(); ...; v.stop()
+    """
+
+    def __init__(self, hedef_host: str, hedef_port: int, host: str = "127.0.0.1", port: int = 0) -> None:
+        self.hedef = (hedef_host, hedef_port)
+        self.host, self.port = host, port
+        self.kosul = threading.Condition()
+        self.olaylar: list[dict] = []
+        self.yutulan = 0                                   # kara delikte atilan bayt
+        self._kesik = False
+        self._dur = threading.Event()
+        self._dinleyici: socket.socket | None = None
+        self._soketler: list[socket.socket] = []
+        self._iplikler: list[threading.Thread] = []
+
+    def start(self) -> "KaraDelikVekil":
+        s = _dinleyici_ac(self.host, self.port)
+        self.port = s.getsockname()[1]
+        self._dinleyici = s
+        t = threading.Thread(target=self._kabul, args=(s,), daemon=True)
+        self._iplikler.append(t)
+        t.start()
+        return self
+
+    def __enter__(self) -> "KaraDelikVekil":
+        return self.start()
+
+    def __exit__(self, *a) -> None:
+        self.stop()
+
+    def _olay(self, tur: str, **alanlar) -> dict:
+        o = {"t": time.monotonic(), "tur": tur, **alanlar}
+        with self.kosul:
+            o["i"] = len(self.olaylar)
+            self.olaylar.append(o)
+            self.kosul.notify_all()
+        return o
+
+    def olay_bekle(self, tur: str, zaman_asimi: float = 10.0, baslangic: int = 0) -> dict | None:
+        son = time.monotonic() + zaman_asimi
+        with self.kosul:
+            i = baslangic
+            while True:
+                while i < len(self.olaylar):
+                    if self.olaylar[i]["tur"] == tur:
+                        return self.olaylar[i]
+                    i += 1
+                kalan = son - time.monotonic()
+                if kalan <= 0:
+                    return None
+                self.kosul.wait(kalan)
+
+    def kes(self) -> float:
+        """Kara delik: bu andan sonra hicbir bayt iletilmez, hicbir soket kapatilmaz."""
+        with self.kosul:
+            self._kesik = True
+        return self._olay("kes")["t"]
+
+    def devam(self) -> None:
+        with self.kosul:
+            self._kesik = False
+        self._olay("devam")
+
+    def kesik(self) -> bool:
+        return self._kesik
+
+    def _kabul(self, dinleyici: socket.socket) -> None:
+        dinleyici.settimeout(0.1)
+        while not self._dur.is_set():
+            try:
+                ist, _ = dinleyici.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            try:
+                hed = socket.create_connection(self.hedef, timeout=3.0)
+            except OSError:
+                self._olay("hedef_yok")
+                ist.close()
+                continue
+            for s in (ist, hed):
+                try:
+                    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                except OSError:
+                    pass
+            with self.kosul:
+                self._soketler += [ist, hed]
+            self._olay("baglanti")
+            kapandi = threading.Event()
+            for kaynak, hedef, taraf in ((ist, hed, "istemci"), (hed, ist, "hedef")):
+                t = threading.Thread(target=self._pompa, args=(kaynak, hedef, taraf, kapandi), daemon=True)
+                self._iplikler.append(t)
+                t.start()
+
+    def _pompa(self, kaynak: socket.socket, hedef: socket.socket, taraf: str, kapandi: threading.Event) -> None:
+        kaynak.settimeout(0.1)
+        while not self._dur.is_set() and not kapandi.is_set():
+            try:
+                v = kaynak.recv(65536)
+            except socket.timeout:
+                continue
+            except OSError:
+                v = b""
+            if not v:
+                self._olay(f"{taraf}_kapandi", kesik=self._kesik)
+                if not self._kesik:                        # normal kip: kapanis iletilir
+                    kapandi.set()
+                    for s in (kaynak, hedef):
+                        try:
+                            s.shutdown(socket.SHUT_RDWR)
+                        except OSError:
+                            pass
+                        s.close()
+                return
+            if self._kesik:
+                with self.kosul:
+                    self.yutulan += len(v)
+                continue
+            try:
+                hedef.sendall(v)
+            except OSError:
+                if not self._kesik:
+                    kapandi.set()
+                    kaynak.close()
+                    return
+
+    def stop(self) -> None:
+        self._dur.set()
+        if self._dinleyici is not None:
+            try:
+                self._dinleyici.close()
+            except OSError:
+                pass
+            self._dinleyici = None
+        with self.kosul:
+            soketler, self._soketler = self._soketler, []
+        for s in soketler:
+            try:
+                s.close()
+            except OSError:
+                pass
+        for t in self._iplikler:
+            if t is not threading.current_thread():
+                t.join(2.0)
 
 
 # ── komut satiri ─────────────────────────────────────────────────────────

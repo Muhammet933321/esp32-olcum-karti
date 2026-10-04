@@ -21,6 +21,8 @@ Ne olcer (kartin bildirim yolu GERCEKTEN calisiyor mu):
   - RTS sifirlamasindan vasiyetin aracida yayinlanmasina kadar gecen sure (hedef <= 10 s, sinir 15 s),
   - araci kesintisi: kart <= 12 s'de duser, bekleyen olay kuyrukta tutulur, araci donunce <= 70 s'de
     yeniden baglanir ve olay ulasir,
+  - E8 yanitsiz araci: sessiz araci (soket acik, yanit yok) ve kara delik vekili (iletmez, kapatmaz)
+    -> kart <= 9.5 s'de kendisi kapatir, Q? hata=-7; Q? canlilik alanlari (tur, adim, ping/pong yasi),
   - bagliyken bos yigin >= 60 KB, Q? / SSE / seri konsolda parola YOK, /komut'tan Q 403.
 Temizlik HER ZAMAN calisir (Q0, Qu/Qk/Qp/Qc/Qd bos, test cihazi Ex<n>, araci durdurulur).
 
@@ -57,6 +59,11 @@ VASIYET_SINIR_S = 15.0
 DUSME_SINIR_S = 12.0
 YENIDEN_BAGLAN_SINIR_S = 70.0
 RAM_SINIR = 60_000
+# E8: yanitsiz aracıyi kart en gec 4 s (BLD_PING_MS: son yazmadan PINGREQ'e) + 5 s (BLD_PINGRESP_MS)
+# = 9 s'de fark eder; +0.5 s gorev turu (select 50 ms) ve olcum payi. Susma ani son yazmadan
+# hemen sonraya denk gelirse 9 s'yi birkac on ms gecebilir — bu yuzden 9.0 degil.
+SESSIZ_TASARIM_S = 9.0
+SESSIZ_SINIR_S = SESSIZ_TASARIM_S + 0.5
 
 # (kod, metin) — `--liste` ve README gibi: gercek denetimlerle ayni sirada
 PLAN = [
@@ -84,6 +91,10 @@ PLAN = [
     ("F2", "Kesintideyken Qt: Q? kuyruk >= 1"),
     ("F3", "ac() (ayni port): kart <= 70 s'de yeniden baglanir, bekleyen deneme olayi ULASIR, kuyruk 0, "
            "retained durum yeniden yazilir (c:1), PC abonesi kendiliginden geri baglanir"),
+    ("S1", "E8 sessiz araci (TCP acik, yanit yok): kart <= 9.5 s'de baglantiyi kendisi kapatir, Q? hata=-7 "
+           "(PINGRESP; -6 DEGIL), tur sayaci artmaya devam eder; konus() ile <= 70 s'de geri baglanir"),
+    ("S2", "E8 kara delik vekili (iki yonde iletmez, kapatmaz): kart vekil uzerinden baglanir, kes() sonrasi "
+           "<= 9.5 s'de kapatir, Q? hata=-7; aracı keepalive'la vasiyeti yayinlar; Qu eski adrese doner"),
     ("H1", "POST /komut 'Q?' -> 403 (Q yalniz USB)"),
     ("G1", "Seri konsol + /akis SSE metninde kart/cihaz parolasi, bildirim anahtari, tam onek YOK"),
     ("T1", "Temizlik (HER ZAMAN): Q0, Qu/Qk/Qp/Qc/Qd bos, Ex<n>, araci durur; E?/Q? baslangic durumuna doner"),
@@ -166,7 +177,9 @@ def komut_satirlari(k, c: str, sn: float = 1.5) -> list[str]:
 
 def q_oku(k, sn: float = 4.0) -> dict | None:
     """`Q?`: {acik, durum, hata, baglanti, yayin, olay, kuyruk, dusen, el_sikisma_ms, dahili_bos,
-    dahili_en_az, qa: {uri, kart, kart_parola, cihaz, cihaz_parola, onek, anahtar}, uyarilar: [...]}."""
+    dahili_en_az, qa: {uri, kart, kart_parola, cihaz, cihaz_parola, onek, anahtar}, uyarilar: [...]}.
+    E8 firmware'i `Q` satirinin SONUNA tur, adim (metin), adim_yas, ping_yas, pong_yas ekler (-1 = hic);
+    eski firmware'de bu anahtarlar YOKTUR (`.get` ile okuyun)."""
     k.yaz("Q?")
     son = time.monotonic() + sn
     d: dict = {"uyarilar": []}
@@ -179,6 +192,9 @@ def q_oku(k, sn: float = 4.0) -> dict | None:
             continue
         if s.startswith("Q acik="):
             d.update({a: int(b) for a, b in re.findall(r"(\w+)=(-?\d+)", s)})
+            m = re.search(r"\badim=([a-z?]+)", s)              # E8: metin alan (yoksa eski firmware)
+            if m:
+                d["adim"] = m.group(1)
         elif s.startswith("QA "):
             d["qa"] = dict(re.findall(r"(\w+)=(\S+)", s[3:]))
         elif s.startswith("QY "):
@@ -535,6 +551,7 @@ class Tezgah:
         if self.tekrar > 0:
             self.sifirlama()
         self.kesinti()
+        self.canlilik()
         self.komut_ve_sizinti()
 
     def onkosul(self) -> None:
@@ -828,6 +845,74 @@ class Tezgah:
                                       and m["icerik"].get("c") == 1), None), 20)
         ok("F3: PC abonesi kesintiden sonra KENDILIGINDEN yeniden baglandi ve kartin c:1 durumunu aldi",
            gb is not None and self.din.baglanma_sayisi >= 2, f"{self.din.baglanma_sayisi} baglanma")
+
+    # -- E8: yanitsiz araci (sessiz araci + kara delik vekili)
+    def _bagli_q(self, sn: float):
+        return self.bekle(lambda: (lambda q: q if q and q["durum"] == 4 else None)(q_oku(self.k)), sn)
+
+    def _yanitsiz_olc(self, ad: str, q0: dict, t0: float, kapanis) -> None:
+        """Susma ani `t0`; `kapanis()` kartin baglantiyi kapattigi olay (ya da None)."""
+        d = self.bekle(kapanis, SESSIZ_SINIR_S + 10)
+        dt = (d["t"] - t0) if d else None
+        q = q_oku(self.k)                       # yeniden deneme -5'i en erken ~12 s sonra yazar
+        ok(f"{ad}: kart yanitsiz baglantiyi <= {SESSIZ_SINIR_S} s icinde KENDISI kapatti "
+           f"(tasarim {SESSIZ_TASARIM_S:.0f} s = 4 s ping + 5 s PINGRESP)",
+           dt is not None and dt <= SESSIZ_SINIR_S, f"{dt and round(dt, 2)} s")
+        ok(f"{ad}: Q? hata=-7 (PINGRESP / soket zaman asimi; -6 'araci kapatti' DEGIL), durum bagli degil, "
+           "gorev turu artiyor", bool(q) and q["hata"] == -7 and q["durum"] != 4
+           and q.get("tur", 0) > q0.get("tur", 0),
+           f"hata {q and q['hata']} durum {q and q['durum']} tur {q0.get('tur')} -> {q and q.get('tur')} "
+           f"adim {q and q.get('adim')} ping_yas {q and q.get('ping_yas')} pong_yas {q and q.get('pong_yas')}")
+
+    def canlilik(self) -> None:
+        print("\n── S1/S2: E8 yanitsiz araci — sessiz araci + kara delik vekili")
+        q0 = self._bagli_q(90)
+        if not q0:
+            ok("S1: once kart bagli", False)
+            return
+        ok("S1: Q? E8 canlilik alanlari (tur, adim, adim_yas, ping_yas, pong_yas); bagliyken son PINGRESP "
+           "<= 10 s once", all(a in q0 for a in ("tur", "adim", "adim_yas", "ping_yas", "pong_yas"))
+           and 0 <= q0["pong_yas"] <= 10_000,
+           f"tur {q0.get('tur')} adim {q0.get('adim')} adim_yas {q0.get('adim_yas')} "
+           f"ping_yas {q0.get('ping_yas')} pong_yas {q0.get('pong_yas')}")
+        # S1: sessiz araci — TCP acik, gelen okunur, hicbir yanit yok, keepalive uygulanmaz
+        b0 = len(self.araci.olaylar)
+        t0 = self.araci.sessiz()
+        try:
+            self._yanitsiz_olc("S1", q0, t0, lambda: self.kart_olayi("disconnect", b0, istemci=self.kart_id))
+        finally:
+            b1 = len(self.araci.olaylar)
+            self.araci.konus()
+        c = self._bagli_q(YENIDEN_BAGLAN_SINIR_S)
+        ok(f"S1: konus(): kart <= {YENIDEN_BAGLAN_SINIR_S:.0f} s icinde yeniden BAGLI (Q? durum 4)",
+           c is not None and self.kart_baglandi(b1) is not None)
+        # S2: kara delik vekili — kart vekil uzerinden baglanir; kes() sonrasi iki yon de yutulur
+        v = SA.KaraDelikVekil(self.araci.host, self.araci.port, host=self.araci.host).start()
+        degisti = False
+        try:
+            b2 = len(self.araci.olaylar)
+            y = q_ayar(self.k, f"Qumqtt://{self.araci.host}:{v.port}")
+            degisti = "kaydedildi" in y
+            q1 = self._bagli_q(YENIDEN_BAGLAN_SINIR_S) if degisti else None
+            ok("S2: kart kara delik vekili uzerinden araciya baglandi", bool(q1) and degisti
+               and self.kart_baglandi(b2) is not None and v.olay_bekle("baglanti", 0.0) is not None, y[:40])
+            if q1:
+                seri_bosalt(self.k, 2.0)
+                b3, i3 = len(self.araci.olaylar), len(v.olaylar)
+                t0 = v.kes()
+                self._yanitsiz_olc("S2", q1, t0, lambda: next(
+                    (o for o in v.olaylar[i3:] if o["tur"] == "istemci_kapandi"), None))
+                w = self.bekle(lambda: self.kart_olayi("will_published", b3, istemci=self.kart_id), 15)
+                ok("S2: aracı kartin sesini alamadi -> keepalive (7.5 s) ile vasiyeti YAYINLADI",
+                   w is not None and w["neden"] == "keepalive", w and w["neden"])
+        finally:
+            if degisti:
+                y = q_ayar(self.k, f"Qu{self.uri}")
+                ok("S2: Qu eski (dogrudan) adrese dondu", "kaydedildi" in y, y[:40])
+            v.stop()
+        c = self._bagli_q(YENIDEN_BAGLAN_SINIR_S)
+        ok(f"S2: vekil kalkinca kart <= {YENIDEN_BAGLAN_SINIR_S:.0f} s icinde dogrudan araciya BAGLI",
+           c is not None)
 
     def komut_ve_sizinti(self) -> None:
         print("\n── H1/G1: /komut Q reddi, sizinti denetimi")

@@ -10550,6 +10550,100 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.107 🟡 E8: MQTT GÖREVİ — SINIRLI BLOKLAMA + CANLILIK İZİ + YANITSIZ ARACI TEZGAHI (2026-10-04, dal `e8-mqtt-canlilik`, ağaç `projeler/olcum-karti-e8`; karta YÜKLENMEDİ)
+
+5.12.106'nın ağ testi incelemesinin bulduğu iki gizli kusur (`tasarim/1-acik-isler.md` E8). Kart o sırada başka
+oturumda kullanımdaydı: seri port açılmadı, karta HTTP gitmedi, yükleme yok. Davranış (bağlıyken), protokol, NVS ve
+satır biçimleri aynı; yalnız `Q` satırının SONUNA alan eklendi.
+
+**Kusur (kaynaktan):** esp-tls soketi bloklayıcı bırakır ve `SO_SNDTIMEO`/`SO_RCVTIMEO`'yu `cfg.timeout_ms`'e
+(`BLD_TLS_MS` = 10 s) kurar. mbedTLS `net_sockets` "would block"u yalnız `O_NONBLOCK` sokette döndürür; bloklayıcı
+sokette zaman aşımı `NET_SEND/RECV_FAILED` olur. Sonuç: (1) tek takılı gönderme 10 s sürer, 5 s'lik PINGRESP ölçütü
+o sürede işlemez; `bld__yaz`'ın `WANT_*` yeniden deneme dalı TLS'te ölüydü, düz TCP'de (`mqtt://`, tezgah) ise
+canlıydı ve tavanın üstüne bir tavan daha bekletirdi; (2) `select` "okunabilir" deyip TLS kaydının yalnız bir
+parçası gelmişse `esp_tls_conn_read` kaydın gerisini 10 s bekler ve -7 yerine -6 der; (3) görevin canlılığı
+dışarıdan görünmüyordu (`durum=4` yalnız bağlanınca yazılır; takılı görev "bağlı" görünür).
+
+**Düzeltme (`bildirim_esp.h`):**
+- `BLD_SOKET_MS` 1500: bağlantı kurulunca (`esp_tls_conn_new_sync` başarılı, CONNECT yazılmadan önce)
+  `bld__soket_sinirla` soketin iki tavanını 1.5 s'ye indirir; kurulamazsa bağlantı kullanılmaz (-3). Bağlanma
+  aşaması (TCP + TLS el sıkışması) eskisi gibi 10 s.
+- `bld__yaz`: ilerlemeyen her çağrı (`<= 0`, `WANT_*` dahil) hata; ölü dal kaldırıldı. Kısmi yazma
+  `BLD_YAZ_MS` (3 s) dolunca sürdürülmez. Tek paket en kötü ~4.5 s (< 5 s PINGRESP).
+- `bld__hata`: çağrı ~tavan kadar sürdüyse (≥ `BLD_SOKET_MS` − 100 ms) ya da paket süresi dolduysa bu bir ZAMAN
+  AŞIMI; ping bekleniyorsa **-7** (`BLDH_PING`), değilse eski kod (-4 yazma / -6 okuma). Aracı kapattığında
+  (hızlı hata) yine -6/-4 — iki durum ayırt ediliyor.
+- PINGREQ YAZILMADAN önce `ping_bekle = 1` (+ `ping_ms`): PINGREQ'in kendisi takılırsa da -7.
+- `BLD_TUR_MS` 8000 / **yeni hata kodu `BLDH_TUR` = -11:** bağlıyken tek tur (yayınlar + ping + okuma; süre
+  bağlanma bittikten SONRA ölçülür, el sıkışması sayılmaz) 8 s'yi aşarsa bağlantı ölü. Soket çağrıları tek tek
+  sınırlı ama her çağrısı birkaç bayt ilerleyen bir damla akış (lwIP kısmi yazma döndürür, mbedTLS `flush`
+  döngüsü tekrar çağırır) turu yine uzatabilirdi. Tur başına süre ancak tur bitince ölçülür (tek takılı çağrıyı
+  kesmez — onu tavanlar keser).
+- **Canlılık izi** (`BildirimDurum`'a +16 B: `tur`, `adim_ms`, `ping_ms`, `pong_ms`; `adim` baytı `durum`'un
+  dolgusuna oturdu): her tur sayaç++ ve adım `bekle`; `baglan` (esp_tls_conn_new_sync), `yaz`, `select`, `oku`,
+  `kapat` işlemden hemen önce işaretlenir. `Q` satırının SONUNA: `tur=<n> adim=<ad> adim_yas=<ms> ping_yas=<ms>
+  pong_yas=<ms>` (hiç = -1). Okuma: `adim_yas` ~1 s'yi aşıyorsa görev o adımda TAKILI; `tur` artmıyorsa görev
+  ölü; bağlıyken `pong_yas` ≤ ~9 s olmalı.
+- `.ino`: `Q?` biçimi (eski alanlar aynı sırada). Statik DRAM **81 836 → 81 852** (+16; pay ~68 B,
+  `_ESP_DRAM_SON_OLCUM` güncellendi), flaş 1 418 922 → 1 419 498. Derleme uyarısız.
+
+**Hata kodu tablosu (Q? `hata=`):** -1 uri · -2 bellek · -3 TCP/TLS (ya da E8: soket tavanı kurulamadı) · -4
+yazma · -5 CONNACK · -6 aracı kapattı/okuma · **-7 PINGRESP yok ya da ping beklenirken soket zaman aşımı** · -8
+PUBACK · -9 paket · -10 bozuk akış · **-11 (E8) tur > 8 s** · -100−N aracı reddi.
+
+**Ölçü aletleri (PC, kartsız; `kopru/sahte_araci.py`):**
+- `SahteAraci.sessiz(sonra=N)` / `konus()`: N s sonra aracı SUSAR — TCP açık, gelen okunur ve işlenir (pencere
+  dolmaz), HİÇBİR paket gönderilmez (CONNACK, PUBACK, PINGRESP, SUBACK, iletim; `yutulan` sayılır), keepalive ile
+  kimse düşürülmez. İstemcinin kapattığı an `disconnect(kopus)` olayıdır (S1'in ölçüsü).
+- `KaraDelikVekil(hedef)`: şeffaf TCP vekili; `kes()` sonrası iki yönde gelen okunup ATILIR, hiçbir soket
+  kapatılmaz; istemci kapanışı `istemci_kapandi` (S2'nin ölçüsü), aracı tarafının kapanışı istemciye iletilmez;
+  `devam()`, normal kipte kapanış iletilir, hedef yoksa `hedef_yok`. ⚠ Okuyup attığı için TCP ACK'leri gider: kartın
+  gönderme penceresi DOLMAZ — bu tezgah yanıtsızlığı sınar, gönderme tıkanmasını (yeni 1.5 s tavanı) DEĞİL;
+  tavanın kanıtı kaynak iddiası (QE8a/b) ve gerçek ağ.
+- `tezgah_bildirim.q_oku` yeni alanları okur (`adim` metin, diğerleri tamsayı); eski firmware'de anahtarlar yok.
+
+**Kart tezgahı (KOŞULMADI — kart gerekir): `tezgah_bildirim.py` S1/S2** (kesintiden F sonra, sızıntı
+taramasından önce, varsayılan akışta):
+- S1 sessiz aracı → kart bağlantıyı KENDİSİ kapatır ≤ `SESSIZ_SINIR_S` = 9.5 s (tasarım 4 s ping + 5 s
+  PINGRESP = 9 s; +0.5 s tur/ölçüm payı: susma anı kartın son yazmasından hemen sonraya denk gelirse 9 s birkaç on
+  ms aşılır), `Q?` `hata=-7` (-6 DEĞİL), `tur` artıyor; `konus()` → ≤ 70 s yeniden bağlı.
+- S2 kara delik: `Qu` vekil adresine çevrilir, kart vekil üstünden bağlanır, `kes()` → ≤ 9.5 s kapatır, `hata=-7`;
+  aracı keepalive (7.5 s) ile vasiyeti yayınlar; `Qu` (finally) doğrudan adrese döner, ≤ 70 s bağlı.
+- S1 başında `Q?` canlılık alanları + bağlıyken `pong_yas` ≤ 10 s.
+
+**İddialar:**
+- B72.QE8a–g (`test_kayit_esp.py` `bolum_bildirim_kart`; `B72.E8` adı onay jetonunda kullanıldığı için `QE8`), B72
+  236 → **243** (`beklenen_sayim.json` yalnız B72 +7):
+  - a: tavan bağlandıktan sonra, CONNECT'ten önce, iki seçenek; tavan + kısmi yazma < PINGRESP.
+  - b: `bld__yaz`'da WANT_*/bekleme yok, her `<= 0` hata, kısmi yazma tavanı.
+  - c: `bld__hata` gövdesi birebir; okuma hatası da sınıflandırıcıdan.
+  - d: `ping_bekle` PINGREQ yazılmadan önce.
+  - e: tur tavanı bağlandıktan sonra ölçülür, okumadan sonra denetlenir, -11 tek, 5 s < `BLD_TUR_MS` ≤ 9 s.
+  - f: canlılık izi yerleri.
+  - g: `Q` biçimi, adım adları `BLDA_*` sırasında, hiç = -1.
+- `test_bildirim.py` `bolum_e8` E8.1–E8.16 (B72.Q16 alt süreci; 266 → **282**): sessiz kip (yanıtsız, açık,
+  keepalive yok, yeni CONNECT'e CONNACK yok, `konus`, `sonra=`, kapanış anı), kara delik (şeffaf, `kes` iki yönü
+  yutar, aracı keepalive'la vasiyet, kapanış iletilmez, `devam`, normal kipte iletilir, `hedef_yok`, `stop`),
+  tezgahta S1/S2'nin varlığı + ölçütü, `q_oku` yeni/eski satır.
+- **Mutasyon `E8:` 27** (firmware 18: tavan yok / yalnız gönderme / 10 s tavan / WANT_* dalı geri / kısmi yazma
+  süresiz / ping'siz -7 / okuma -6 / ping sonra / tur tavanı yok / 20 s / -10 çakışması / tur el sıkışmasından /
+  tur++ yok / `oku` işareti yok / pong yazılmaz / pong hiç -1 değil / adım adı sırası / işaretsiz yaş; PC 9: sessiz
+  yanıtlar / keepalive kapatır / `konus` etkisiz / kara delik iletir / kapanış iletilir / ölçüt 12 s / -6 kabul /
+  S1-S2 akışta yok / `adim` okunmaz) — **27/27 YAKALANDI** (785 s, `--paralel 2`).
+- ⚠ Bulunan yarış (kendi testimde): mutasyon tabanında E8.4 bir kez kırmızı — `konus()` keepalive'ı hemen yeniden
+  uygular, son paket E8.2'den eskiyse istemci PINGREQ işlenmeden düşüyordu (yük altında). Düzeltme: keepalive 2 s,
+  `konus()`'tan hemen önce taze (yanıtsız) PINGREQ. Sonra 3 paralel koşu 282/282 ×3; etkilenen 3 mutasyon yeniden
+  YAKALANDI.
+- `dogrula3.py --artimli` (önbellek yoktu → TAM koşu): **"Aşama 3 doğrulandı"**, 22/22, B72 85.6 s, B6 127.9 s.
+  Gizlilik temiz. Üretilen belgeler/şema geri alındı (yalnız 4-kurulum'daki firmware boyutu değişmişti).
+
+**Açık (karta yüklenince):** S1/S2'yi koş (`python uretim/tezgah_bildirim.py`, kart A3 + bu dal); gerçek EMQX'te
+bağlıyken `Q?` `pong_yas` ve `adim` gözle (TLS'te `select` → `oku` geçişi kayıt başına); el sıkışma süresi
+değişmemeli (tavan bağlandıktan sonra). Tavanın kendisi (takılı gönderme 1.5 s'de kesilir) tezgahta
+tetiklenemiyor (pencere dolmuyor) — ancak gerçek ağ tıkanmasında `adim=yaz adim_yas` ≤ ~1.5 s görülür.
+
+---
+
 #### 5.12.106 🟢 E6F: DAHİLİ YIĞIN DÜZELTMESİ — mbedTLS + KALICI TAMPONLAR PSRAM'E (2026-10-04, dal `e6-duzeltme`, ağaç `projeler/olcum-karti-e6f`; KARTTA)
 
 5.12.105'teki `QY dahili_en_az=2504` için hazırlanan düzeltme; kartın E6 ölçümü (QF/QH) gelmeden yazıldı, ölçüm

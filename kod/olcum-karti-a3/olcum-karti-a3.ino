@@ -3348,12 +3348,20 @@ static void bld_seri_komut(const char *s) {
       const BildirimDurum d = bildirim_durum_al();
       static const char *const adlar[] = {"kapali", "ayar eksik", "ag yok (STA degil)",
                                           "baglaniyor", "bagli", "bekliyor"};
+      /* E8: canlilik alanlari SONDA (ayristiricilar ad=deger okur): tur sayaci, gorevin su
+         anki adimi ve o adimdaki yasi (ms), son PINGREQ / PINGRESP'ten beri ms (-1 = hic) */
+      static const char *const adimlar[] = {"bekle", "baglan", "yaz", "select", "oku", "kapat"};
+      const uint32_t simdi = millis();
       snprintf(t, sizeof(t),
-               "Q acik=%u durum=%u (%s) hata=%ld baglanti=%lu yayin=%lu olay=%lu kuyruk=%lu dusen=%lu el_sikisma_ms=%lu esik=%u",
+               "Q acik=%u durum=%u (%s) hata=%ld baglanti=%lu yayin=%lu olay=%lu kuyruk=%lu dusen=%lu el_sikisma_ms=%lu esik=%u"
+               " tur=%lu adim=%s adim_yas=%lu ping_yas=%ld pong_yas=%ld",
                (unsigned)z.acik, (unsigned)d.durum, d.durum < 6u ? adlar[d.durum] : "?",
                (long)d.son_hata, (unsigned long)d.baglanti, (unsigned long)d.yayin,
                (unsigned long)d.olay, (unsigned long)d.kuyruk, (unsigned long)d.dusen,
-               (unsigned long)d.el_sikisma_ms, (unsigned)bld_esik_etkin);
+               (unsigned long)d.el_sikisma_ms, (unsigned)bld_esik_etkin,
+               (unsigned long)d.tur, d.adim < 6u ? adimlar[d.adim] : "?",
+               (unsigned long)(simdi - d.adim_ms),
+               d.ping_ms ? (long)(simdi - d.ping_ms) : -1L, d.pong_ms ? (long)(simdi - d.pong_ms) : -1L);
       Serial.println(t);
       snprintf(t, sizeof(t), "QA uri=%s kart=%s kart_parola=%s cihaz=%s cihaz_parola=%s onek=%s anahtar=%s",
                z.uri[0] ? z.uri : "-", z.kk[0] ? z.kk : "-", z.kp_var ? "var" : "yok",
