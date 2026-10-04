@@ -3200,6 +3200,74 @@ void bildirim_bilgi_sayfa() {
   memset(z, 0, sizeof(z));
 }
 
+// E6 (2026-10-04): DAHILI YIGIN TANISI. Kartta `QY dahili_en_az` 2.9 sa'te 2504 B'a
+// dustu; aday sebepler (Wi-Fi dinamik tamponlari, mbedTLS, lwIP kuyruklari) ayni
+// sayida gorunur. Ayirici veri: basarisiz ayirmanin BOYUTU + caps'i + gorevi.
+// ~1.6 KB INTERNAL|DMA (0x80C) = Wi-Fi tamponu; ~16.7 KB INTERNAL (0x804) = mbedTLS.
+// Geri cagirma HER cekirdekten / gorevden (ISR'den bile) gelebilir: IRAM'de, BASMAZ
+// (Serial aynasi kilit alir, printf yigin ister), yalniz sayar ve halkaya yazar.
+// Gorev adi CAGRI ANINDA kopyalanir (sonradan TaskHandle cozmek silinmis TCB okuyabilir).
+#define AYIRMA_HALKA 8u
+typedef struct {
+  uint32_t boyut, caps, ms;
+  uint8_t cekirdek;
+  char gorev[8];   // sonda NUL olmayabilir: "%.8s"
+} AyirmaHata;
+static AyirmaHata ayirma_halka[AYIRMA_HALKA];
+static volatile uint32_t ayirma_hata_adet = 0;
+static portMUX_TYPE ayirma_kilit = portMUX_INITIALIZER_UNLOCKED;
+
+static void IRAM_ATTR ayirma_hata_kaydet(size_t boyut, uint32_t caps, const char *islev) {
+  (void)islev;
+  const char *ad = pcTaskGetName(NULL);
+  const uint32_t ms = (uint32_t)(esp_timer_get_time() / 1000);
+  portENTER_CRITICAL_SAFE(&ayirma_kilit);
+  AyirmaHata *h = &ayirma_halka[ayirma_hata_adet % AYIRMA_HALKA];
+  h->boyut = (uint32_t)boyut;
+  h->caps = caps;
+  h->ms = ms;
+  h->cekirdek = (uint8_t)xPortGetCoreID();
+  for (unsigned i = 0; i < sizeof(h->gorev); i++) {
+    const char c = ad ? ad[i] : 0;
+    h->gorev[i] = c;
+    if (!c) break;
+  }
+  ayirma_hata_adet = ayirma_hata_adet + 1u;
+  portEXIT_CRITICAL_SAFE(&ayirma_kilit);
+}
+
+// QH: bolge bolge dahili yigin (IDF printf'i — YALNIZ ham UART, /akis'e gitmez) +
+// basarisiz ayirma halkasi (QF satirlari, eskiden yeniye). Tani komutu: Serial.flush
+// tamponu bosaltirken olcum dongusu ~0.1 s durabilir.
+static void ayirma_dokum_bas() {
+  AyirmaHata k[AYIRMA_HALKA];
+  uint32_t adet;
+  portENTER_CRITICAL(&ayirma_kilit);
+  adet = ayirma_hata_adet;
+  memcpy(k, ayirma_halka, sizeof(k));
+  portEXIT_CRITICAL(&ayirma_kilit);
+  char t[120];
+  snprintf(t, sizeof(t), "QH dahili_bos=%lu dahili_en_az=%lu dahili_en_buyuk=%lu ayirma_hata=%lu",
+           (unsigned long)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+           (unsigned long)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+           (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+           (unsigned long)adet);
+  Serial.println(t);
+  Serial.flush();
+  heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);
+  fflush(stdout);
+  const uint32_t n = adet < AYIRMA_HALKA ? adet : AYIRMA_HALKA;
+  for (uint32_t i = 0; i < n; i++) {
+    const uint32_t no = adet - n + i;   /* 0'dan sayilan hata numarasi */
+    const AyirmaHata *h = &k[no % AYIRMA_HALKA];
+    snprintf(t, sizeof(t), "QF no=%lu boyut=%lu caps=0x%04lX ms=%lu cekirdek=%u gorev=%.8s",
+             (unsigned long)no, (unsigned long)h->boyut, (unsigned long)h->caps,
+             (unsigned long)h->ms, (unsigned)h->cekirdek, h->gorev);
+    Serial.println(t);
+  }
+  if (!n) Serial.println(F("QF yok (acilistan beri basarisiz ayirma yok)"));
+}
+
 // Seri `Q` komutlari — 1E MQTT bildirimleri, YALNIZ USB (cekirdek 1). /komut ve
 // kopru.py 'Q'yu reddeder: araci parolalari aga cikmaz. Hicbir satir SIR basmaz
 // (Serial aynasi her satiri /akis SSE'sine tasir); parola komutu geri yansitilmaz.
@@ -3223,6 +3291,11 @@ static void bld_seri_komut(const char *s) {
     Serial.println(t);
     return;
   }
+  /* E6: QH yigin dokumu (Qe gibi `s[1] ==` ile; ic switch'e yeni case harfi eklenmez) */
+  if (s[1] == 'H') {
+    ayirma_dokum_bas();
+    return;
+  }
   switch (s[1]) {
     case '?': {
       BildirimOzet z;
@@ -3242,9 +3315,12 @@ static void bld_seri_komut(const char *s) {
                z.ck[0] ? z.ck : "-", z.cp_var ? "var" : "yok", z.onek_var ? z.onek8 : "-",
                z.anahtar_var ? "var" : "yok");
       Serial.println(t);
-      snprintf(t, sizeof(t), "QY dahili_bos=%lu dahili_en_az=%lu",
+      /* E6: yeni alanlar SONDA (ayristiricilar ad=deger okur, sira korunur) */
+      snprintf(t, sizeof(t), "QY dahili_bos=%lu dahili_en_az=%lu dahili_en_buyuk=%lu ayirma_hata=%lu",
                (unsigned long)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-               (unsigned long)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+               (unsigned long)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+               (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+               (unsigned long)ayirma_hata_adet);
       Serial.println(t);
       if (ag_durum.kip != AG_STA)
         Serial.println(F("* Q: MQTT yalniz ev aginda (STA) calisir — AP kipinde yok (K8)"));
@@ -4642,7 +4718,7 @@ void yardim() {
   Serial.println(F("  Gx<oturum>:<sira>[@<ms>] <metin> notu degistir (metin bos: sil) · komut <= 175 karakter"));
   Serial.println(F("  k? kalibrasyon gecmisi  kl liste  kv<no> degerler  kk<t><not> taslagi kaydet"));
   Serial.println(F("  kn<no> <not>  kt<no><t>   (t: d donanim degisti, i ince ayar, - belirtilmemis)"));
-  Serial.println(F("  Q? bildirim (MQTT) durumu  Qu<mqtts://ad:port>  Qk/Qp kart  Qc/Qd cihaz  Q1/Q0  Qt  Qv  Qe<binde> esik  (YALNIZ USB)"));
+  Serial.println(F("  Q? bildirim (MQTT) durumu  Qu<mqtts://ad:port>  Qk/Qp kart  Qc/Qd cihaz  Q1/Q0  Qt  Qv  Qe<binde> esik  QH yigin  (YALNIZ USB)"));
 }
 
 void komut_calistir(const char *s) {
@@ -5394,6 +5470,8 @@ void setup() {
      olcumu koruyan ucuz onlem. */
   Serial.setTxBufferSize(8192);
   Serial.begin(115200);
+  // E6: basarisiz dahili ayirmalari say — WiFi/TLS/ag gorevi baslamadan ONCE kurulu olmali
+  heap_caps_register_failed_alloc_callback(ayirma_hata_kaydet);
   ayar_yukle();
   {   /* 1B: kalibrasyon gecmisi — bossa bugunku Ayar3 #1 olur */
     KayitKalibrasyon k;

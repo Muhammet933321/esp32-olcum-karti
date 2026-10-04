@@ -10590,6 +10590,51 @@ ping) K8 vasiyet süresiyle çelişir — kullanıcı kararı.
 
 ---
 
+#### 5.12.105a 🟡 E6 ÖLÇÜM ARACI: DAHİLİ YIĞIN TANISI (2026-10-04, dal `e6-olcum`, ağaç `projeler/olcum-karti-e6`; karta YÜKLENMEDİ)
+
+5.12.105'teki `QY dahili_en_az=2504` için sebebi tahminle değil karttan ayırmak üzere (I1 + I2; I3 pencereli
+minimum atlandı — gerçek dipleri yakalamak için örnekleme gerekir, basit değil). Davranış değişmedi.
+
+- **I1:** `QY` satırının SONUNA `dahili_en_buyuk=` (`heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)`) ve
+  `ayirma_hata=`; eski iki alan yerinde. Ayrıştırıcılar `ad=değer` okuyor (`tezgah_bildirim.q_oku`), başka QY
+  okuyucusu yok. **`QH`** (yalnız USB; `Qe` gibi `s[1] == 'H'` ile — yeni `case` harfi yok, komut harfi
+  denetimleri etkilenmez): önce `QH dahili_bos= dahili_en_az= dahili_en_buyuk= ayirma_hata=`, sonra
+  `heap_caps_print_heap_info(MALLOC_CAP_INTERNAL)` bölge bölge (`At 0x… len … free … min_free …
+  largest_free_block …`; IDF `printf`'i — **yalnız ham UART**, `/akis`'e gitmez), sonra son 8 başarısız ayırma
+  `QF no= boyut= caps=0x…. ms= cekirdek= gorev=` (eskiden yeniye; yoksa `QF yok`). `Serial.flush()` yüzünden
+  ölçüm döngüsü `QH`'de ~0.1 s durabilir (tanı komutu). `/komut` ve `kopru.py` `Q*`'ı zaten reddediyor (403).
+- **I2:** `setup`'ta `Serial.begin`'in hemen ardından (WiFi, güvenlik, kayıt, MQTT ve ilk görevden ÖNCE)
+  `heap_caps_register_failed_alloc_callback(ayirma_hata_kaydet)`. Geri çağırma `IRAM_ATTR`, basmaz/ayırmaz;
+  `portENTER_CRITICAL_SAFE` altında halkaya {boyut, caps, `esp_timer` ms, çekirdek, görev adının ilk 8 harfi —
+  ÇAĞRI ANINDA kopyalanır, sonradan `TaskHandle` çözmek silinmiş TCB okuyabilirdi} yazar, sayaç kayıttan sonra
+  artar; dizin `sayaç % 8`. Döküm halkayı kilit altında kopyalar. RAM: +216 B DRAM, flaş +1232 B
+  (1 414 402 → 1 415 634; DRAM 81 700 → 81 916, `_ESP_DRAM_SON_OLCUM` güncellendi). Derleme uyarısız.
+- IDF ayrıntısı: düz `malloc` başarısızlığı geri çağırmaya `caps=0x1000` (MALLOC_CAP_DEFAULT) ile gelir ve
+  ancak dahili + PSRAM ikisi de dolunca düşer; açık `heap_caps_malloc`'lar kendi caps'iyle gelir.
+
+**Kartta okuma (yükledikten sonra, aynı koşulda birkaç saat):** `Q?` → `QY …` ve `QH`.
+`ayirma_hata=0` → dip hiçbir ayırmayı düşürmedi (tepe); `dahili_en_buyuk` el sıkışma için ≥ ~17 KB olmalı.
+`QF boyut≈1600 caps=0x080C` (INTERNAL|DMA|8BIT), görev `wifi`/`tiT` → **Wi-Fi dinamik tamponu** (F2/F4).
+`QF boyut≈16700 caps=0x0804` (INTERNAL|8BIT), görev `bld` → **mbedTLS** (F1: `mbedtls_platform_set_calloc_free`
+ile PSRAM). `dahili_bos` büyük, `dahili_en_buyuk` küçük → parçalanma. `QH` bölge satırlarında `min_free`'si
+sıfıra yakın bölge, toplam minimumun (bölge minimumlarının TOPLAMI) gizlediği gerçek dibi gösterir.
+
+**İddialar (B72.E6a–f, 221 → 227):** kayıt setup'ta her başlatmadan önce ve tek yerde · IRAM + basmaz + SAFE
+kilit + ad kopyası · halka 8, `% 8`, kilitli kopya · QY alan sırası · `q_oku` yeni ve eski satırı çözer
+(davranış) · `QH` switch'ten önce, bölge dökümü, `/komut` 403, `kopru.py` ret. **Mutasyon `E6:` 12** — ilk koşuda
+11/12: "döküm kilitsiz kopyalar" KAÇTI, çünkü `find()` −1 döndürünce `-1 < a < b` zinciri yine doğruydu; `0 <=`
+eklendi (E6c ve E6f'de), tekrar koşu YAKALANDI.
+
+**Birleştirme notu:** dal `w-birlesik`'in COMMIT'li hâlinden (c5e22e2) açıldı; `olcum-karti-wb`'deki
+commit'lenmemiş 5.12.105 (W2i mDNS) bu dalda yok. Çakışma beklenen yerler: bu DEVIR girişi (5.12.105'in altına
+alınmalı), `1-acik-isler.md` E6 satırı (bu daldaki hâli 5.12.105 cümlesini de içeriyor), `beklenen_sayim.json`
+B72 (W2i'nin sayısıyla TOPLANMALI), `mutasyon.py` (E6 kayıtları listenin sonunda, W2i'ninkiler W2 bloğunda).
+c5e22e2'nin kendisinde `sw.js` SURUM'u ve `_fs.json` bayattı (ilk zincir koşusunda B22b 109/113 + B7 915/918
+kırmızı, E6'dan bağımsız); `arayuz-uret.py` ile yeniden üretildi — çıkan fark `olcum-karti-wb`'deki
+commit'lenmemiş farkla BAYT BAYT aynı, birleşmede çakışmaz.
+
+---
+
 #### 5.12.103 🟢 W4 MUTASYON HİJYENİ (2026-10-03, dal `olcum-karti-w4-mut`)
 
 Kuru uygulama denetimi (her kaydın `eski` metni hedef dosyada var mı; test koşmadan): **önce 4 / 2077
