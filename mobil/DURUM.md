@@ -255,3 +255,20 @@ Asıl ölçüm (yerel ağ kuralı + kartı bulma) kullanıcı Honor'u ev Wi-Fi's
 - Kart dosyaları ETag ile geliyor; `If-None-Match` eşleşirse 304 + boş gövde. `KartAg` 304'ü hata saymaz
   (HTTP kodunu aynen döndürür); uygulama şu an `If-None-Match` göndermiyor. `imza.ac()` 2xx dışını hata
   sayar → 5D'de koşullu istek kullanılırsa 304 ayrı ele alınacak.
+
+### 2026-10-04 (devam 8) — Honor ölçümü YAPILDI, APK KALDIRILDI
+
+Honor DNP-NX9, Android 16 (API 36), ev Wi-Fi'sinde; hata ayıklama APK'sı (hedef API 34), 5B derlemesi.
+- **Yerel ağ erişimi (Ş5): ÇALIŞIYOR.** "Kartı bul" gerçek kartı `olcum.local` ile 1408 ms'de buldu; kimlik
+  aynı; NSD duyurusu görüldü, TXT kimliği `/eslestir/bilgi` ile aynı. Hiçbir izin penceresi çıkmadı;
+  şifresiz HTTP ev ağı özel IP'sine gitti (ikinci yol Android 16'da da geçerli).
+- Wi-Fi yokken (telefon hotspot veriyorken) uygulama "Wi-Fi yok" dedi ve hücresele çıkmadı.
+- Bağlantı ekranı: "kart bulundu, eşleşmemiş"; eşleştirme ekranı açıldı ve GÖRÜLDÜ (kimlik, adres, ad,
+  "WEB parolası — Wi-Fi parolası DEĞİL"). **Eşleştirme YAPILMADI**, parola alanına dokunulmadı.
+- Kendi sürecimizin logcat'i: Honor yalnız tampon başlığını verdi (uygulama satırı yok) — sır taraması
+  için Honor'da veri yok; tarama Xiaomi'de yapılıyor.
+- **APK Honor'dan KALDIRILDI** (`uninstall` → Success; paket listesinde yok). Honor'da hiçbir ayar değiştirilmedi.
+- ⚠ Hedef API 34 ile ölçüldü. Hedef API 36+'ya çıkılırsa Android'in yerel ağ izni devreye girebilir —
+  o gün yeniden ölçülmeli.
+- Geçici ekranda görsel kusur: alttaki ekran değiştirme düğmesi içerikle üst üste biniyor (yalnız geçici
+  kabuk; A tasarımındaki sekmelerle kalkacak).
