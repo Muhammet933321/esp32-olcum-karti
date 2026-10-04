@@ -5,7 +5,7 @@
 //   kart: cekirdek/kart.js kartKur() nesnesi; baglan() "eslesmemis" dondukten sonra.
 import { watch } from "vue";
 import { IonButton, IonInput, IonItem, IonLabel, IonList, IonNote, IonSpinner } from "@ionic/vue";
-import { ceviriMobil } from "../cekirdek/sozluk_mobil.js";
+import { c } from "./metin.js";
 import { eslesDurumu } from "./esles_durum.js";
 
 const props = defineProps({
@@ -15,8 +15,7 @@ const props = defineProps({
 });
 const emit = defineEmits(["eslesti"]);
 
-const dil = "tr";
-const c = (anahtar, degerler) => ceviriMobil(anahtar, dil, degerler);
+// Dil tercihi tepkisel (metin.js): Ayarlar'dan degisince bu ekran da yeniden cizilir.
 
 // Bir kare + bir gorev: ilerleme gostergesi ekrana CIZILDIKTEN sonra PBKDF2 baslar.
 const kareBekle = () => new Promise((coz) => { requestAnimationFrame(() => setTimeout(coz, 0)); });

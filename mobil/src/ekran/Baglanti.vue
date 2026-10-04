@@ -7,11 +7,10 @@ import { inject, ref, shallowRef } from "vue";
 import { IonButton, IonInput, IonItem, IonLabel, IonList, IonNote } from "@ionic/vue";
 import Esles from "./Esles.vue";
 import { baglantiHatasi, kaldirGorunur, kaldirMesaji } from "./esles_durum.js";
-import { ceviriMobil } from "../cekirdek/sozluk_mobil.js";
+import { c } from "./metin.js";
 import { kartAl } from "../cekirdek/uygulama.js";
 
-const dil = "tr";
-const c = (anahtar, degerler) => ceviriMobil(anahtar, dil, degerler);
+// Dil tercihi tepkisel (metin.js): Ayarlar'dan degisince bu ekran da yeniden cizilir.
 
 const DURUM = {
   bagli: "m.bg.durum_bagli", eslesmemis: "m.bg.durum_eslesmemis", bulunamadi: "m.bg.durum_bulunamadi",

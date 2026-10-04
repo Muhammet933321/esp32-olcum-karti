@@ -433,3 +433,16 @@ Telefonda değiştirilen ayarlar geri alındı (gece kipi: evet, yazı ölçeği
   görünüyor (kusur değil, ama ilk ekrana sığacak biçimde sıkıştırılabilir).
 - Durum'daki "Kayıtların telefona eşitlenmesi yakında eklenecek." satırı 5D'ye kadar yer tutucu.
 - Birleştirmede eklenen ölçüm: Ayarlar › Gelişmiş › "DURDUR süre ölçümü (20 tekrar)" (`olcum.js` `durdurOlc`, testli).
+
+### 2026-10-05 (gece, devam) — 3. madde: Ayarlar'da dil ve tema seçimi
+
+- Ayarlar › Görünüm: **Dil** (Türkçe / English) ve **Tema** (Sistem / Koyu / Açık). Tercih yerel depoda (`tercih`
+  anahtarı; sır değil), geçersiz değer yazılmaz, bozuk kayıt varsayılana (Türkçe + sistem) düşer.
+- Dil tepkisel: `ekran/metin.js` `c()` seçilen dili kullanır; üç eski ekrandaki sabit `"tr"` kalktı. Tema `data-tema`
+  ile; "Sistem" seçilince öznitelik kaldırılır. Tema değişince tuval grafiği yeniden çizilir (`tema-degisti` olayı).
+- Telefonda (Xiaomi): English + Açık seçilince bütün sekmeler, DURDUR ("STOP"), Canlı ekranı ve grafik anında değişti;
+  Türkçe + Sistem'e geri alındı. Testler JS **304/304**; `5C-tercih` mutasyonları 5/5 öldü.
+- Testin yakaladığı kusur: yerel depo yokken geçersiz dil/tema kabul ediliyordu → bellek deposuyla aynı kural.
+- Karar: Kotlin tarafındaki bildirim metinleri (5E) dil tercihini ayrıca okuyacak; şimdilik kapsam dışı.
+- AÇIK (3. maddenin öbür yarısı): pil testi sürerken Canlı'nın salt okuma olması — `G`/`D` satırı pil testini
+  söylemiyor; aktif oturumun türü (`/kayit/liste` → `tur` 2) okunarak yapılacak. Çürütücü turu bitince.

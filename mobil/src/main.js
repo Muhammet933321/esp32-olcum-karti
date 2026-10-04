@@ -8,7 +8,9 @@ import "@ionic/vue/css/typography.css";
 import "./tema.css";
 import App from "./App.vue";
 import { ceviriMobil } from "./cekirdek/sozluk_mobil.js";
+import { dil, tercihBaslat } from "./ekran/metin.js";
 import { yonlendiriciKur } from "./yonlendirme.js";
 
-document.title = ceviriMobil("m.uygulama", "tr");
+tercihBaslat();                       // saklanan dil / tema belgeye (ilk boyamadan once)
+document.title = ceviriMobil("m.uygulama", dil.value);
 createApp(App).use(IonicVue).use(yonlendiriciKur()).mount("#app");

@@ -7,14 +7,13 @@ import { agKur } from "../cekirdek/ag.js";
 import { KartAg, Kesif } from "../cekirdek/eklenti.js";
 import { HedefHatasi } from "../cekirdek/hedef.js";
 import { kesifKur, KesifHatasi, yerelOnbellek } from "../cekirdek/kesif.js";
-import { ceviriMobil } from "../cekirdek/sozluk_mobil.js";
+import { c } from "./metin.js";
 import { webSinama } from "../cekirdek/web_sinama.js";
 import { durdurOlc, pbkdf2Olc } from "../cekirdek/olcum.js";
 import { acilDurdur } from "../cekirdek/uygulama.js";
 import { pbkdf2Gorunumu } from "./olcum_gorunum.js";
 
-const dil = "tr";
-const c = (anahtar, degerler) => ceviriMobil(anahtar, dil, degerler);
+// Dil tercihi tepkisel (metin.js): Ayarlar'dan degisince bu ekran da yeniden cizilir.
 
 const elle = ref("");
 const araniyor = ref(false);
