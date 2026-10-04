@@ -366,3 +366,36 @@ olabilir; "bulunamadı"dan önce bir kez daha denemek).
 - **Keşif (kullanıcı kararı):** NSD tarama penceresi 1.2 s → **3 s** (`NSD_SURE_MS`; başarı bu süreyi beklemez) ve
   "bulunamadı" demeden önce **bir kez daha** denenir (kimliği uymayan bir kart yanıt verdiyse denenmez). Testler +
   4 mutasyon (`5C-kesif`). 5C ajanları kota sınırında yarıda kesildi; kaldıkları yerden sürdürülüyor.
+
+### 2026-10-04 (devam 12) — 5C birleştirildi; telefon ölçümleri KUYRUKTA
+
+**Biten (iki alt ajan yazdı, kota kesintisinden sonra kaldıkları yerden sürdürüldü; testleri ben yeniden koştum)**
+- Kabuk (A tasarımı): 4 sekme, DURDUR şeridi sekmelerin üstünde tek yerde ve koşulsuz; düğme `@click="acilDurdur"`
+  — `uygulama.js`'te modül düzeyinde hazır (kart / kasa / keşif kurulmadan). Durum, Canlı, Kayıtlar (yer tutucu),
+  Ayarlar (Bağlantı + eşleştirme + Kartı bul + ölçümler). Tema `src/tema.css` (koyu asıl, açık karşıt).
+- Akış: Kotlin `SseAyirici.kt` + `Akis.kt` + `KartAg.akisAc/akisKapat` (arka planda 4 s sonra kapanır; `kimlik`
+  olayı JS'e geçmez; satır > 4096 B atılır), `akis_ayir.js` (D, G 13/15 alan, GA, GT, GP, K, A), `canli.js` (yeniden
+  bağlanma 1…30 s, her seferinde YENİ imzalı adres, 45 s sessizlikte düşürme, komut beyaz listesi).
+- Birleştirmede eklenenler (ben): `kart.akisUrl()` (kimliği doğrulanmış + eşleşmiş karta imzalı akış adresi; adres
+  ekrana/hata metnine verilmez); `Gb` alt sınırı 50 → **20 ms** (kartın 50/s hızı; plan aralığını ben yanlış yazmıştım).
+- Sayılar: JS **296/296**, Kotlin **95/95**; derleme hatasız. Mutasyon (ajan bildirimi): akış 35/35, kabuk 36/36,
+  Kotlin 3/3 — kendi koşum sürüyor.
+
+**Alt ajanların kendi verdiği kararlar (kullanıcıya bildirildi; itiraz gelmezse kalır)**
+- "Kaydı durdur" iki dokunuş (ikinci dokunuş "Eminim, durdur", 4 s); ACİL DURDUR tek dokunuş, onaysız.
+- `G` satırı tür / hız / başlangıç anını taşımıyor → Durum kartında oturum numarası; hız bu telefonun gönderdiği
+  `Gb`'den ya da nokta artışından ("~5/s"); süre bilinmiyorsa "—".
+- Grafikte sağ eksen tek birim (A ya da W), V sol eksen.
+- Akış açılınca bir kez imzalı `G?` gönderilir (kart `G`'yi yalnız değişince basıyor). Salt okuma, izinli komut.
+- `canli.js`'te `yenidenBul` kapalı; kartı yeniden arama kabukta (`kabuk_durum.js`: bulunamazsa 15 s'de bir, akış
+  30 s hatadaysa). ⚠ İki tarafın birlikte davranışı telefonda denenmedi.
+
+**⚠ Telefonlar USB'den AYRILMIŞ** (adb'de cihaz yok, 23:45). Xiaomi'ye 5C derlemesi KURULAMADI. Kuyruk (Xiaomi bağlanınca):
+1. Kurulum + `lastUpdateTime` doğrulaması; ilk açılış (Vue bileşenleri hiçbir testte çalıştırılmadı — ilk gerçek deneme).
+2. Canlı akış gerçek kartta (D satırları, grafik); arka plana alınca yuvanın boşalması.
+3. Kısa "Android test" kaydı: `Gb1000` → Durum'da görünür → `Gd`. `Go` GÖNDERİLMEZ.
+4. DURDUR: dokunuş → kart yanıtı, 20 tekrar, hedef < 1 s.
+5. PBKDF2 çıktısında doğruluk işareti; yeni keşif süresi (NSD 3 s + bir kez yeniden deneme).
+6. Klavye açıkken şerit; koyu / açık tema görünümü; sistem yazı boyutu.
+7. Logcat taraması (özellikle `_i=` — imzalı akış adresi).
+Sonra 5C bağımsız çürütücü.
