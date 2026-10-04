@@ -10550,7 +10550,7 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
-#### 5.12.107 🟡 E8: MQTT GÖREVİ — SINIRLI BLOKLAMA + CANLILIK İZİ + YANITSIZ ARACI TEZGAHI (2026-10-04, dal `e8-mqtt-canlilik`, ağaç `projeler/olcum-karti-e8`; karta YÜKLENMEDİ)
+#### 5.12.107 🟢 E8: MQTT GÖREVİ — SINIRLI BLOKLAMA + CANLILIK İZİ + YANITSIZ ARACI TEZGAHI (2026-10-04, dal `e8-mqtt-canlilik`, ağaç `projeler/olcum-karti-e8`; karta YÜKLENMEDİ)
 
 5.12.106'nın ağ testi incelemesinin bulduğu iki gizli kusur (`tasarim/1-acik-isler.md` E8). Kart o sırada başka
 oturumda kullanımdaydı: seri port açılmadı, karta HTTP gitmedi, yükleme yok. Davranış (bağlıyken), protokol, NVS ve
@@ -10709,6 +10709,26 @@ tetiklenemiyor (pencere dolmuyor) — ancak gerçek ağ tıkanmasında `adim=yaz
   - İncelemenin üç yeni mutasyonu kartsız iddialardan sağ çıkıyor: pong anı, `adim_ms` sıfırlaması, tezgahın
     "tur artıyor" denetimi. Sonuncusu artık E8.17'de saf hükümde sınanıyor (tur 600 → 600 kırmızı) ve "tur `>=`"
     mutasyonu onu kapsıyor. Gözden geçirenin kendi mutasyon metni elde olmadığı için birebir yeniden koşulmadı.
+
+**KARTTA (2026-10-04 18:2x–18:5x, `main` = `22f7150`, E6K + E8 + W6 birlikte; yedek `tam-20261004-170707.bin`;
+arayüz görüntüsü de yazıldı).** Açılış `Bellek (E6F): tls=PSRAM …`, `Arayuz: LittleFS'te`. `Q?` sonu: `tur adim
+adim_yas ping_yas pong_yas` geliyor. `K` 40 s: en uzun döngü **7686 µs**, >20 ms tur 0.
+- **W6 kartta:** `GET /app.js` → `ETag: "cec5520b002cf29a"` (= `_fs.json` `etag["app.js"]`), `Cache-Control:
+  no-cache`, gzip; aynı etiket → **304 / 0 B**, `W/` biçimi → 304, başka etiket → 200 / 78 380 B; `/` ETag + no-cache,
+  eşleşen etiket 304; `vendor/vue` `immutable` (+ ETag).
+- **E8 gerçek ağda** (Honor hotspot'u, PC ev ağında; `Q?` 2 s'de bir, 309 örnek, canlılık alanları CSV'ye):
+  S1 mobil veri 60 s kapalı → **12 s'de `hata=-7`** (sessizlikte `pong_yas` 4.7 → 6.8 s, ardından -7; eski
+  firmware'in aynı senaryosu yalnız `durum=5 hata=-3` gösteriyordu), veri açılınca 39 s'de `bagli` (internetsiz
+  geçen sürede büyüyen yeniden deneme beklemesi — tasarım); S2 hotspot 60 s: 5 s'de `ag yok`, açılınca 7 s'de
+  `bagli`; S3 ~30 s: 2 s / 10 s; S4 **5 dk**: 2 s / 9 s. `tur` 309 örneğin hepsinde arttı (531 → 9019; görev hiç
+  takılmadı); en büyük `adim_yas` 9.5 s, `baglan` adımında (bağlanmanın 10 s sınırı içinde). **Küçük açık:**
+  yeniden bağlandıktan hemen sonra `pong_yas`/`ping_yas` önceki bağlantıdan kalan büyük değeri gösterebiliyor
+  (330 s görüldü) — bağlantı kurulurken sıfırlanmıyor; yalnız tanılama.
+- **YENİ BULGU AG1 (bu testte, kazara):** kart, ev ağı (hotspot) KAPALIYKEN yeniden başladığında 10 s bekleyip kendi
+  AP'sine düşüyor ve STA'yı BİR DAHA DENEMİYOR — hotspot 2+ dk açık kaldığı halde `durum=2 (ag yok (STA degil))`,
+  `ag.h` `ag_bekle_tamamla` → `ag__ap_kur` tek yönlü. Gerçek hayatta: elektrik kesintisinden sonra modem karttan
+  yavaş açılırsa kart elle sıfırlanana dek ev ağına dönmez, bildirim gelmez. Çalışırken kaybolan ağ ise sorunsuz
+  (yukarıdaki S2–S4). Düzeltme dalda (AGD, DEVIR 5.12.109).
 
 ---
 
