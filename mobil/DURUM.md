@@ -663,3 +663,21 @@ Sınırlar (dürüstçe): seri üretilmiş ve 2 kanallı — gerçek nokta oturu
 güncellenmesi (elle; adb çok parmak yapamıyor).
 
 **Sırada:** 5D için bağımsız çürütücü turu, sonra 5E (bildirim / MQTT).
+
+## 2026-10-05 (öğleden sonra) — 5E-1: bildirim çekirdeği (kartsız)
+
+Plan `tasarim/2026-10-04-plan-5-android.md` sonu ("# 5E": 5E-1 saf çekirdek · 5E-2 istemci + TLS · 5E-3 olay →
+bildirim kararları · 5E-4 Android kabuğu · 5E-5 gerçek kart + aracı). Kart yokken 5E-1…5E-3 yapılabilir.
+
+**5E-1 (saf Kotlin, JVM'de sınanır):** `bildirim/DuzJson.kt` (katı JSON okuyucu; JVM testinde `org.json` yok
+ve gevşek) · `bildirim/Zarf.kt` ("OKB1" zarfı: MQTT yükü ve `/bildirim/bilgi`; kripto platformun
+`ChaCha20-Poly1305`'i — kendi kripto yok) · `bildirim/MqttPaket.kt` (CONNECT / SUBSCRIBE / PUBACK / PINGREQ /
+DISCONNECT üretimi, CONNACK / SUBACK / PUBLISH ayrıştırma, akış ayrıştırıcı; PUBLISH üreten kod YOK — A32).
+
+**Kanıt:** zarf `ortak/test/vektor/kripto.json` "zarf" vektörleriyle (kart, PC ve JS ile AYNI dosya): 11 zarfın
+düz metni bayt bayt, 16 ret vektörünün hepsi reddediliyor (tür: biçim / etiket / içerik), 15 bilgi vektörü
+(çözülen + reddedilen). MQTT paketleri kartla sınanmış Python başvurusundan (`kopru/mqtt_istemci.py`, yalnız
+içe aktarıldı) üretilen `mobil/test/vektor/mqtt.json` ile aynı baytlar. Kotlin 10 yeni test; mutasyon `5E-K`
+**20/20**. Hata nesneleri sır taşımıyor (tür adı sabit; platform istisnası zincire girmiyor;
+`AraciBilgisi.toString` parolayı / adresi yazmıyor) — testli.
+Kotlin mutasyon koşucusuna `ortak/` bağlantısı eklendi (testler ortak vektörleri okuyor).

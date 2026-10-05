@@ -35,7 +35,10 @@ function kopyaKur() {
   });
   const bag = join(hedef, "node_modules");
   symlinkSync(join(MOBIL, "node_modules"), bag, "junction");
-  return { kok, hedef, bag };
+  // ortak/: Kotlin testleri ortak vektorleri okur (../../../ortak/test/vektor); mutasyon hedefi OLAMAZ.
+  const ortakBag = join(kok, "ortak");
+  symlinkSync(resolve(MOBIL, "..", "ortak"), ortakBag, "junction");
+  return { kok, hedef, bag, ortakBag };
 }
 
 function testKos(hedef) {
@@ -92,6 +95,7 @@ async function ana() {
     // Kopyadaki dosya kilitlerini birakmasi icin yalniz BU kopyada derleme yapan surecler bekletilmez:
     // Gradle sureci (daemon) kopya dizinini acik tutabilir; silme yeniden denemeli.
     try { rmdirSync(k.bag); } catch { /* yok */ }
+    try { rmdirSync(k.ortakBag); } catch { /* yok */ }
     rmSync(k.kok, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
   }
   console.log(`\n${liste.length - kotu}/${liste.length} oldu`);

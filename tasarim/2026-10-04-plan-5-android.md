@@ -413,3 +413,41 @@ Kabul: aynı sahte karttan `bellekDepo` ile eşitlenen akış = `depo.js` + saht
 
 Ayarlar › Gelişmiş › "Grafik ölçümü": 800 bin noktalık üretilmiş seri, betikli 200 kare; ortanca / p95 /
 en uzun. Xiaomi'de koşulur, sayı spec'e ve DURUM'a yazılır (Honor 5G'de).
+
+# 5E — bildirimler / MQTT (2026-10-05)
+
+Spec: A28–A38, §2.3 (kendi asgari MQTT 3.1.1 abonesi), 1E spec'i (`tasarim/2026-10-01-1e-mqtt-bildirim.md`:
+konular, zarf, durum / olay düz metinleri, vasiyet). Şartlar Ş2, Ş3 (TLS'te sertifika VE ad doğrulaması;
+aracı bilgisi hiçbir loga / hata metnine / dosyaya düşmez). Sıra, kartsız yapılabilenden karta ihtiyaç
+duyana doğru:
+
+## 5E-1 — saf çekirdek (kartsız; JVM'de sınanır)
+- `bildirim/DuzJson.kt`: katı JSON okuyucu (JVM testinde `org.json` yok ve gevşek).
+- `bildirim/Zarf.kt`: "OKB1" zarfı (`zarfAc`, `bilgiCoz` karşılığı); kripto platformun `ChaCha20-Poly1305`'i.
+  Vektör: `ortak/test/vektor/kripto.json` "zarf" (kart, PC, JS ile aynı dosya).
+- `bildirim/MqttPaket.kt`: CONNECT / SUBSCRIBE / PUBACK / PINGREQ / DISCONNECT üretimi; CONNACK / SUBACK /
+  PUBLISH ayrıştırma; akış ayrıştırıcı (paket tavanı 16 KiB). PUBLISH ÜRETEN kod yok (A32).
+  Vektör: `mobil/test/vektor/mqtt.json` (`mobil/araclar/mqtt_vektor_uret.py`, `kopru/mqtt_istemci.py`'den).
+
+## 5E-2 — istemci (kartsız; JVM'de sahte aracıyla)
+- `bildirim/MqttIstemci.kt`: soket fabrikası enjekte; CONNECT → CONNACK → SUBSCRIBE `ok/<önek>/#` QoS 1 →
+  okuma döngüsü (PUBLISH → PUBACK), keepalive 5 s, PINGRESP 7.5 s'de gelmezse "telefonun interneti" (A34).
+- `bildirim/TlsBaglanti.kt`: `SSLSocket` + sistem CA'ları + **ad doğrulaması açık**
+  (`endpointIdentificationAlgorithm = "HTTPS"`); URI yalnız `mqtts://ad:port`; şifresiz `mqtt://` RET.
+  Test: kendinden imzalı sertifikalı yerel aracıya bağlanma REDDEDİLMELİ; yanlış adlı sertifika REDDEDİLMELİ.
+- Hata türleri sabit metin; aracı adresi / kullanıcı / konu hata metnine ve loga girmez (test: sır taraması).
+
+## 5E-3 — olay → bildirim kararları (kartsız; saf)
+- `bildirim/BildirimKarar.kt`: durum makinesi — durum (retained) / olay / vasiyet / bağlantı koptu girdileri →
+  gösterilecek bildirim (kanal, sabit kimlik, metin anahtarı) ve servis kararı (sür / dur).
+  A33 "karttan haber yok" yalnız kayıt sürerken; A34 telefonun interneti; A35 yineleme (`a`, `n` + 30 s
+  anlamsal pencere); A36 "ev interneti koptu, kart çalışıyor" (yerel `/eslestir/bilgi` yoklaması).
+- Metinler `strings.xml` (tr, en) — A43.
+
+## 5E-4 — Android kabuğu (telefon gerekir; kart gerekmez)
+- Ön plan servisi (tür `connectedDevice`, reddedilirse `specialUse`), kanallar (A38), izin akışı (A37),
+  WorkManager işi (A30), `Kasa`'dan K + zarf dosyası (A31). Manifest değişiklikleri burada.
+- WebView tarafı: imzalı `/bildirim/bilgi` → zarf olduğu gibi `files/kasa/<kimlik>.zarf`; Ayarlar › Bildirimler.
+
+## 5E-5 — gerçek kart + gerçek aracı (KART GEREKİR)
+- Ö4: kayıt bitti / pil bitti / vasiyet süreleri; ekran kapalı 8 saat (5G'de Honor'da).
