@@ -4,6 +4,7 @@
 // Mantik kayit_dugme.js'te (DOM'suz sinanir): kapalilik, iki dokunus, pil testinde salt okuma.
 import { computed, inject, onBeforeUnmount, ref, watch } from "vue";
 import Ikon from "../bilesen/Ikon.vue";
+import { kayitBittiMi } from "../cekirdek/bildirim.js";
 import { izlemeSorusu } from "../cekirdek/uygulama.js";
 import { dokunus, dugmeHali, durdurOnayi } from "./kayit_dugme.js";
 import { c } from "./metin.js";
@@ -21,7 +22,9 @@ const onayci = durdurOnayi({ degisti: (bekliyor) => { onay.value = bekliyor; } }
 // Anlik izleme sorusu (kullanici karari): kayit BU telefondan baslatilinca bir kez; kaydi bekletmez.
 const soru = ref(izlemeSorusu.hal());
 const soruBirak = izlemeSorusu.dinle((h) => { soru.value = h; });
-watch(() => dugme.value.is, (is, once) => { if (once === "durdur" && is !== "durdur") izlemeSorusu.kayitBitti(); });
+// Kayit durumu kartin G satirindan: KAYIT -> BEKLIYOR "bitti" DEGIL; akis kopunca (bilinmiyor) soru kalir.
+const kayitKodu = computed(() => { const g = kabuk.akis.value.kayit; return g && Number.isInteger(g.durum) ? g.durum : null; });
+watch(kayitKodu, (yeni, once) => { if (kayitBittiMi(once, yeni)) izlemeSorusu.kayitBitti(); });
 
 async function calistir(is) {
   suruyor.value = true;

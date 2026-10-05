@@ -31,8 +31,9 @@ class IzlemeBitis(val tur: String, val kod: Int = 0, val baglandi: Boolean = fal
  * Zarf -> araci -> karar zinciri (tasarim A30–A34): kartin `/bildirim/bilgi` zarfini K ile acar, araciya TLS
  * ile baglanir, `ok/<onek>/#`'a abone olur, her mesaji kendi zarfindan cikarip `BildirimKarar`'a verir.
  *  - cozulmus araci bilgisi YALNIZ bu cagri boyunca bellekte; anahtar cikista sifirlanir
- *  - onek disi konu yok sayilir; etiketi tutmayan mesaj ATILIR ve sayilir (A32). Hic mesaj cozulemeden
- *    ATILAN_SINIR mesaj atildiysa anahtar degismistir (kartta QR!): oturum "anahtar" ile biter
+ *  - onek disi ve bilinmeyen alt konu (durum / olay disi) yok sayilir; etiketi tutmayan mesaj ATILIR ve
+ *    sayilir (A32). Hic mesaj cozulemeden ATILAN_SINIR mesaj atildiysa (tek seferlik okumada: kalici durum
+ *    cozulemediyse) anahtar degismistir (kartta QR!): oturum "anahtar" ile biter
  *  - `tekSefer` (WorkManager isi, A30): kalici durum mesaji islenince ya da `sureMs` dolunca kapanir
  *  - `karar` cagrilari `kilit` altinda (servis ayni karar nesnesine yerel haberleri baska is parcacigindan verir)
  * Saf Kotlin: baglanti fabrikasi ve saat enjekte, JVM'de sahte araciyla sinanir.
@@ -70,7 +71,12 @@ class Izleyici(
             val adres = try { AraciAdresi.coz(bilgi.uri) } catch (e: AraciHatasi) { return IzlemeBitis("adres") }
             if (dur) return IzlemeBitis("durduruldu")
             val son = simdiMs() + sureMs
-            val yol = try { baglan(adres) } catch (e: AraciHatasi) { return IzlemeBitis(if (e.tur == "tls") "tls" else "ag") }
+            val yol = try { baglan(adres) } catch (e: AraciHatasi) {
+                // Curutucu 5E B5: araciya ULASILAMIYOR ve kaydin bittigi biliniyor -> izlemeye gerek kalmadi
+                // (karar yalniz bagli oturumun tikinde verilirse internet yokken servis sonsuza dek denerdi).
+                if (!surdur()) return IzlemeBitis("gerek-kalmadi")
+                return IzlemeBitis(if (e.tur == "tls") "tls" else "ag")
+            }
             val i = MqttIstemci(yol, simdiMs)
             istemci = i
             if (dur) i.durdur()
@@ -93,14 +99,18 @@ class Izleyici(
                         baglandi()
                     },
                     mesaj = { y ->
-                        if (y.konu.startsWith(onek)) {
+                        // Yalniz kartin yayinladigi iki konu islenir ve sayilir (curutucu 5E B2): bilinmeyen alt
+                        // konuya birakilmis cop mesajlar "anahtar eskidi" saydiramaz.
+                        val kalan = if (y.konu.startsWith(onek)) y.konu.substring(onek.length) else ""
+                        if (kalan == "durum" || kalan == "olay") {
                             val icerik = try { Zarf.ac(bilgi.anahtar, y.konu, y.yuk) } catch (e: ZarfHatasi) { null }
                             if (icerik == null) {
                                 atilan++
-                                if (cozulen == 0 && atilan >= ATILAN_SINIR) bitir("anahtar")
+                                // Tek seferlik okumada (yoklama) araci yalniz BIR kalici mesaj yollar: cozulemeyen
+                                // kalici DURUM tek basina "anahtar eskidi" demektir (B1; A31).
+                                if (cozulen == 0 && (atilan >= ATILAN_SINIR || (tekSefer && kalan == "durum"))) bitir("anahtar")
                             } else {
                                 cozulen++
-                                val kalan = y.konu.substring(onek.length)
                                 synchronized(kilit) { karar.mqttMesaj(kalan, icerik) }
                                 if (kalan == "durum") durumGoruldu(icerik)
                                 if (tekSefer && kalan == "durum") bitir("durum-okundu")
@@ -123,6 +133,8 @@ class Izleyici(
             }
             return when {
                 b.tur == "durduruldu" -> IzlemeBitis(bitisTuru ?: "durduruldu", baglandi = bagli)
+                // Oturum koptu / reddedildi ve kayit bitmis: yeniden denemeye gerek yok (B5'in ikinci yarisi).
+                !surdur() -> IzlemeBitis("gerek-kalmadi", baglandi = bagli)
                 b.tur == "ret" && (b.kod == 4 || b.kod == 5) -> IzlemeBitis("kimlik-ret", b.kod, bagli)
                 else -> IzlemeBitis(b.tur, b.kod, bagli)
             }

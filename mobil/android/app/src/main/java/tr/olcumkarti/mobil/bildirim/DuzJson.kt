@@ -113,8 +113,9 @@ object DuzJson {
                                 if (i + 4 > s.length) throw JsonHatasi()
                                 var kod = 0
                                 for (j in 0 until 4) {
-                                    val h = Character.digit(s[i + j], 16)
-                                    if (h < 0) throw JsonHatasi()
+                                    // Yalniz ASCII onaltilik (Character.digit baska yazilarin rakamlarini da cozer).
+                                    val ch = s[i + j]
+                                    val h = when (ch) { in '0'..'9' -> ch - '0'; in 'a'..'f' -> ch - 'a' + 10; in 'A'..'F' -> ch - 'A' + 10; else -> throw JsonHatasi() }
                                     kod = kod * 16 + h
                                 }
                                 i += 4

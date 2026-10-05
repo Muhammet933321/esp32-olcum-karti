@@ -76,7 +76,15 @@ class KasaPlugin : Plugin() {
     @PluginMethod
     fun sil(call: PluginCall) {
         val kimlik = call.getString("kimlik")
-        kos(call) { it.sil(kimlik) }
+        kos(call) {
+            val sonuc = it.sil(kimlik)
+            // Eslesme kaldirildi: o karti izleyen servis DURUR (curutucu 5E B20) — kaldirilmis kart izlenmez,
+            // silinen ozet dosyalari yeniden olusmaz.
+            if (kimlik != null && tr.olcumkarti.mobil.bildirim.IzlemeServisi.calisanKimlik == kimlik) {
+                tr.olcumkarti.mobil.bildirim.IzlemeServisi.durdur(context)
+            }
+            sonuc
+        }
     }
 
     @PluginMethod

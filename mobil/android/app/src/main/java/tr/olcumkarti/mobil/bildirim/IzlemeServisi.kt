@@ -38,6 +38,8 @@ class IzlemeServisi : Service() {
     private val kilit = Any()
     private val uyku = Object()
     @Volatile private var dongu: IzlemeDongusu? = null
+    /** Durdurma istendi (kapat / onDestroy): is parcacigi HER adimda bakar (curutucu 5E B17). */
+    @Volatile private var durduruldu = false
     @Volatile private var izleyici: Izleyici? = null
     @Volatile private var karar: BildirimKarar? = null
     /** Karar katmani kurulmadan gelen yerel haber (servis yeni basladi): kurulunca uygulanir. */
@@ -57,6 +59,12 @@ class IzlemeServisi : Service() {
                 synchronized(kilit) {
                     val k = karar
                     if (k != null) k.yerelG(kod, oturum) else bekleyenYerel = Pair(kod, oturum)
+                }
+                // Yoklama, servisin yerel yoldan bildirdigi degisikligi yinelemesin (curutucu 5E B4).
+                try {
+                    val depo = BildirimDeposu(File(filesDir, KASA_DIZINI))
+                    depo.durumYaz(kimlik, Yoklama.ozetYerel(depo.durumOku(kimlik), kod, oturum))
+                } catch (_: Exception) {
                 }
             }
             if (is_ == null) stopSelf()                       // servis yalniz bu haber icin ayaga kalkmis: kapan
@@ -93,7 +101,8 @@ class IzlemeServisi : Service() {
             val k = BildirimKarar(
                 cikis = { gosterici.goster(it) },
                 saatS = { SystemClock.elapsedRealtime() / 1000.0 },
-                acik = { ayar.acik(it) },
+                // Ayar HER bildirimde yeniden okunur: izleme surerken kapatilan sinif hemen susar (curutucu 5E B19).
+                acik = { BildirimAyar.oku(ayarDosyasi(this)).acik(it) },
                 onceki = depo.olayOku(kimlik),
                 kaliciYaz = { a, n -> depo.olayYaz(kimlik, a, n) },
             )
@@ -105,12 +114,13 @@ class IzlemeServisi : Service() {
             val d = IzlemeDongusu(
                 oturum = { baglandi ->
                     val zarf = depo.zarfOku(kimlik)
-                    val kayit = try { kasa.anahtarOku(kimlik) } catch (e: Exception) { null }
+                    // Zarf yoksa K HIC okunmaz (curutucu 5E B21: sifirlanmadan birakiliyordu).
+                    val kayit = if (zarf == null) null else try { kasa.anahtarOku(kimlik) } catch (e: Exception) { null }
                     if (zarf == null || kayit == null) IzlemeBitis("zarf")
                     else try {
                         val i = Izleyici({ TlsBaglanti.ac(it) }, k, kilit)
                         izleyici = i
-                        if (dongu == null) i.durdur()
+                        if (durduruldu) i.durdur()
                         i.calis(kayit.anahtar, kimlik, kayit.n, zarf, baglandi = baglandi,
                             surdur = { synchronized(kilit) { k.kayitSuruyor() != false } },
                             // Yoklama (A30) servisin bildirdigini yeniden bildirmesin: ozet burada da guncellenir.
@@ -121,10 +131,11 @@ class IzlemeServisi : Service() {
                     }
                 },
                 bekle = { ms -> synchronized(uyku) { try { uyku.wait(ms) } catch (_: InterruptedException) {} } },
-                durum = { ad -> sonDurum = ad; gosterici.izlemeGuncelle(ad) },
+                durum = { ad -> if (!durduruldu) { sonDurum = ad; gosterici.izlemeGuncelle(ad) } },
             )
             dongu = d
-            yerelYoklamayiBaslat(kimlik, depo, k)
+            // Baslat -> durdur cok hizli geldiyse (onDestroy `dongu` atanmadan calistiysa) hicbir sey baslatilmaz.
+            if (durduruldu) d.durdur() else yerelYoklamayiBaslat(kimlik, depo, k)
             bitis = d.calis()
         } catch (e: Exception) {
             bitis = "ic-hata"
@@ -177,6 +188,7 @@ class IzlemeServisi : Service() {
     private fun uyandir() = synchronized(uyku) { uyku.notifyAll() }
 
     private fun kapat() {
+        durduruldu = true
         dongu?.durdur(); dongu = null
         izleyici?.durdur()
         uyandir()
@@ -185,6 +197,7 @@ class IzlemeServisi : Service() {
     }
 
     override fun onDestroy() {
+        durduruldu = true
         dongu?.durdur(); dongu = null
         izleyici?.durdur()
         uyandir()

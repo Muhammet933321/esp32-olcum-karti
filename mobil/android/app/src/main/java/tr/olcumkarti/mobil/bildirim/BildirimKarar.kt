@@ -37,6 +37,16 @@ class BildirimKarar(
     private val kaliciYaz: (a: Long, n: Long) -> Unit = { _, _ -> },
     private val pencereS: Double = PENCERE_S,
     private val yakinS: Double = YAKIN_S,
+    /**
+     * PC koprusu SUREKLI bagli; telefonda servis yalniz kayit surerken calisir (curutucu 5E B3, B11). Bu iki
+     * davranis PC'de acik, telefonda KAPALI (varsayilan); vektor testleri PC degerleriyle kosar:
+     *  - acilisBoslugu: bu calismada ILK gorulen olayin oncesindeki bosluk "kacirilan" sayilir. Telefonda
+     *    sayilmaz: servis yokken yayinlananlar (her acilisin bildirimsiz "basladi"si dahil) kacirilmis degildir.
+     *  - yerelKopukluk: yerel akis 20 s susarsa "karttan haber yok". Telefonda servise yalniz kayit durumu
+     *    DEGISINCE haber gelir; sessizlik kopukluk demek degildir.
+     */
+    private val acilisBoslugu: Boolean = false,
+    private val yerelKopukluk: Boolean = false,
 ) {
     private val goruldu = LinkedHashSet<Pair<Long, Long>>()
     private val sonN = HashMap<Long, Long>()
@@ -96,7 +106,7 @@ class BildirimKarar(
     /** Saniyede bir: yerel erisim degisti mi (kopuk <-> ev), yalniz yerel yolda kopukluk. */
     fun tik() {
         if (kartCevrimici == false) { baglantiDegerlendir(); return }
-        val yerelYol = !mqttBagli || kartCevrimici == null
+        val yerelYol = yerelKopukluk && (!mqttBagli || kartCevrimici == null)
         if (!yerelYol) return
         val ys = yerelSon
         val kopuk = ys != null && saatS() - ys > YEREL_KOPUK_S
@@ -199,7 +209,8 @@ class BildirimKarar(
             sonN[a] = maxOf(once, n)
         } else {
             val pr = onceki
-            if (sonA != null) eksik = n - 1                     // kart yeniden basladi; yeni acilisin ilk olaylari
+            if (!acilisBoslugu) eksik = 0                       // telefon: bu calismanin ilk olayi — oncesi sayilmaz
+            else if (sonA != null) eksik = n - 1                // kart yeniden basladi; yeni acilisin ilk olaylari
             else if (pr != null) eksik = if (pr.first == a) maxOf(0L, n - pr.second - 1) else n - 1
             sonN[a] = n
         }

@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
  * ~20 s). Anlik izleme KAPALIYKEN bildirimlerin tek yolu; aciksa kaydin PC'den baslatildigini fark edip
  * servisi baslatir — Android arka plandan servis baslatmayi engellerse "Kayit suruyor — izlemek icin dokun".
  * Ince kabuk: karar `Yoklama.degerlendir`de (JVM'de sinanir), protokol `Izleyici`de (tek seferlik kip).
- * Servis zaten izliyorsa is hicbir sey yapmaz. Zarfi olan kart kalmadiysa kendini iptal eder.
+ * Servisin izledigi kart atlanir (obur kartlar yoklanir). Zarfi olan kart kalmadiysa kendini iptal eder.
  * Gunluk yok (A45); hata disari cikmaz (is her zaman "basarili": sonraki 15 dakikada yeniden denenir).
  */
 class YoklamaIsi(ctx: Context, parametreler: WorkerParameters) : Worker(ctx, parametreler) {
@@ -30,13 +30,13 @@ class YoklamaIsi(ctx: Context, parametreler: WorkerParameters) : Worker(ctx, par
             val depo = BildirimDeposu(kasaDizini)
             val kimlikler = depo.kimlikler()
             if (kimlikler.isEmpty()) { iptal(uyg); return Result.success() }
-            if (IzlemeServisi.calisanKimlik != null) return Result.success()
             val ayar = BildirimAyar.oku(IzlemeServisi.ayarDosyasi(uyg))
             val gosterici = BildirimGosterici(uyg, ayar.dil)
             gosterici.kanallariKur()
             val kasa = KasaDeposu(kasaDizini, KeystoreSarici(uyg.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)))
             for (kimlik in kimlikler) {
                 if (isStopped) break
+                if (IzlemeServisi.calisanKimlik == kimlik) continue          // bu karti servis izliyor; OBUR kartlar yoklanir
                 val zarf = depo.zarfOku(kimlik) ?: continue
                 val kayit = try { kasa.anahtarOku(kimlik) } catch (e: Exception) { null }
                 if (kayit == null) { gosterici.ayarYenile(); continue }

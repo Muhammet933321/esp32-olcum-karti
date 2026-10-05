@@ -76,7 +76,7 @@ class IzleyiciTest {
     private fun kur(a: SahteAraci?, baglan: ((AraciAdresi) -> MqttBaglanti)? = null, pencere: Double = 900.0, yakin: Double = 120.0): Duzen {
         val cikan = ArrayList<Bildirim>()
         val adresler = ArrayList<AraciAdresi>()
-        val karar = BildirimKarar({ cikan.add(it) }, { (a?.ms ?: 0L) / 1000.0 }, pencereS = pencere, yakinS = yakin)
+        val karar = BildirimKarar({ cikan.add(it) }, { (a?.ms ?: 0L) / 1000.0 }, pencereS = pencere, yakinS = yakin, acilisBoslugu = true, yerelKopukluk = true)
         val i = Izleyici({ adres -> adresler.add(adres); baglan?.invoke(adres) ?: a!! }, karar, Any(), { a?.ms ?: 0L }, { "okm-sinama" })
         return Duzen(i, karar, cikan, adresler)
     }

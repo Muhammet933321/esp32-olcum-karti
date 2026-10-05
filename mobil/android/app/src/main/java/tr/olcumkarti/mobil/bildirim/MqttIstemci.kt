@@ -88,7 +88,11 @@ class MqttIstemci(
                     if (s.second == 0x80) return MqttBitis("abone-ret")
                     break
                 }
-                if (p.first shr 4 == MqttPaket.PUBLISH) bekleyenYayin.add(p)      // SUBACK'ten once gelen kalici mesaj
+                if (p.first shr 4 == MqttPaket.PUBLISH) {                         // SUBACK'ten once gelen kalici mesaj
+                    // Sinirli: SUBACK yollamadan yayin akitan araci bellegi dolduramaz (curutucu 5E B6).
+                    if (bekleyenYayin.size >= BEKLEYEN_AZAMI) return MqttBitis("bicim")
+                    bekleyenYayin.add(p)
+                }
             }
             baglandi()
 
@@ -133,5 +137,7 @@ class MqttIstemci(
         const val SESSIZLIK_MS = 7500L
         const val EL_SIKISMA_MS = 10_000L
         const val TIK_MS = 500
+        /** SUBACK beklenirken biriktirilen yayin sayisinin ust siniri. */
+        const val BEKLEYEN_AZAMI = 64
     }
 }

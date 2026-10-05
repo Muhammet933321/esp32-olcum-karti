@@ -45,6 +45,7 @@ class BildirimMetinTest {
             cikis = { b -> cikan.add(listOf(b.etiket, metin.baslik(), metin.kur(b), b.sessiz)) }, saatS = { saat },
             acik = { it !in kapali }, onceki = onceki,
             pencereS = ((s["pencere"] as Long?) ?: 900L).toDouble(), yakinS = ((s["yakin"] as Long?) ?: 120L).toDouble(),
+            acilisBoslugu = true, yerelKopukluk = true,          // PC davranisi (vektor PC'den uretildi)
         )
         for (op in s["ops"] as List<List<Any?>>) {
             when (op[0]) {

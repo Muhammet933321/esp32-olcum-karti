@@ -947,3 +947,88 @@ kaldırıldı; `paylasimUret`'teki geçmiş süzgecinin mutasyonu listeden çık
 Telefonda: yönerge açılıyor; sınama için açtığım anlık izleme yeniden KAPALI (ayar dosyasından doğrulandı).
 **Kart gelince listesine ek:** (10) A36 gerçek ağda — modemin WAN'ı çekilince "ev interneti koptu", kart kapatılınca
 15–25 s içinde "karttan haber yok"; yoklamanın kartın ölçüm döngüsüne etkisi (10 s'de bir istek).
+
+## 2026-10-05 (gece, 2) — bildirim tarafı bağımsız çürütücü turu (5E / 5F) ve düzeltmeler
+
+Çürütücü (ayrı ajan; yalnız `mobil/test/curutucu-5e/` altına yazdı) **21 bulgu** getirdi: 1 yüksek, 9 orta, 11 düşük;
+16'sı kırmızı testle, 5'i (Android'e özgü) kaynak okumasıyla. Ayrıca elle denediği 57 mutasyondan 21'i yaşıyordu.
+Ayrıntı: `mobil/test/curutucu-5e/BULGULAR.md`. Çürütemedikleri: sır sızıntısı, TLS zorunluluğu (47 sıra dışı adres),
+yalnız abone, zarf / AAD, karar katmanının PC ile eşliği, özel-IP kuralı, `zarfYaz` doğrulaması, CSV formül koruması.
+
+**Hepsi düzeltildi** (kanıt testleri artık yeşil; Kotlin kanıtları `Curutucu5eTest.kt` olarak suite'e alındı):
+- **B5 (yüksek)** internet yokken servis kayıt bitse de durmuyordu → aracıya ulaşılamıyorsa / oturum koptuysa ve
+  kaydın bittiği biliniyorsa oturum "gerek-kalmadi" ile biter (bağlıyken 10 s'lik bekleme korunur).
+- **B1** yoklama eskimiş anahtarı hiç fark etmiyordu → tek seferlik okumada çözülemeyen kalıcı DURUM tek başına "anahtar".
+- **B2** bilinmeyen alt konuya bırakılan 3 çöp mesaj izlemeyi "ayar"a düşürüyordu → yalnız `durum` / `olay` sayılır.
+- **B3** her güç çevriminden sonraki ilk kayıtta sahte "1 olay kaçırıldı" → telefonda bu çalışmanın ilk olayının
+  öncesi sayılmaz (`acilisBoslugu`, PC davranışı vektör testlerinde açık).
+- **B11** kalıcı durum yokken 20 s sonra sahte "karttan haber yok (yerel)" → telefonda yerel sessizlik kopukluk
+  sayılmaz (`yerelKopukluk`).
+- **B4** yoklama, servisin yerel yoldan bildirdiği bitişi yineliyordu → servis yerel haberde de özeti ilerletir.
+- **B12** zarf yenilemesi bir kez düşerse o bağlantıda yeniden denenmiyordu → 30 tik sonra yeniden; başarınca süren
+  kayıt için izleme yeniden başlatılır. **B13** servis hazır olmadan iletilen yerel durum 5 tik yeniden iletilir.
+  **B14** durum kimliğe bağlandı. **B15** "Aç" sürerken kayıt biterse izleme BAŞLATILMAZ.
+- **B17** başlat → durdur yarışı (`durduruldu` bayrağı her adımda) · **B18** başka kart izlenirken "başladı" denmez
+  (`baska-kart`), yoklama yalnız izlenen kartı atlar · **B19** kapatılan sınıf izleme sürerken de hemen susar ·
+  **B20** eşleşme kaldırılınca servis durur · **B21** zarf yokken K hiç okunmaz.
+- **B6** SUBACK öncesi yayın birikimi ≤ 64 · **B7** ayrıştırıcı sınırı pakete uygulanır · **B8** adres sade
+  ("ip:port") yazılır · **B9** `\u` kaçışında yalnız ASCII onaltılık · **B10** eksik alanlı durum özeti ezmez ·
+  **B16** rapor metninde satır sonu / denetim karakteri tek satıra iner.
+- Küçükler: K-5 bağlanıp hemen kopan aracıda geri çekilme sürer (kararlı oturum ≥ 30 s) · K-11 KAYIT → BEKLİYOR
+  "kayıt bitti" sayılmaz, akış kopunca soru kalır · K-12 ölü kod kaldırıldı.
+
+**Düzeltmediklerim (karar / cihaz ister):** K-2 `startForeground` atarsa sürecin düşme olasılığı (cihazda izin
+eksik / tür reddiyle doğrulanmalı — Honor'da) · K-7 kart kayıt sürerken temelli kapanırsa servis kullanıcı
+durdurana dek yaşar (vazgeçme süresi yok) · K-8 servis ile yoklamanın aynı özet dosyasına aynı anda yazması (artık
+yalnız farklı kartlarda eşzamanlı; aynı kartta yoklama atlanıyor) · K-9 yerel ağdaki biri kimliği taklit ederek
+"ev interneti koptu" yazdırabilir (yalnız bildirim metni) · K-10 yerel ağda sahte 404 zarfı sildirebilir ·
+K-13 yoklama `yeniden_basladi` sınıfını üretmez · K-15 JVM `String`'i sıfırlanamaz.
+
+**⚠ Mutasyon listelerinde sessiz eskime bulundu ve giderildi.** Koşucu, `bul` dizgisi kaynakta bulunmayan girdiyi
+"UYGULANAMADI" diye ATLAR. Yeni `node mutasyon/desen-denetle.mjs` (testleri koşmadan her girdinin deseninin tam bir
+kez geçtiğini ölçer) ilk koşuda **36 eskimiş girdi** gösterdi: 16'sı bu turun değişikliklerinden, **20'si eski
+dilimlerden** (5A, 5B, 5D — sonraki düzeltmeler desenleri kaydırmış; o dilimlerin "N/N öldü" sayıları eskiyen
+girdileri içermiyordu). Hepsi güncel koda bağlandı (`mutasyon/guncel-desen.mjs`, ada göre) ve yeniden koşuldu:
+hepsi ölüyor. **Kural:** kaynak değiştiren her dilimden sonra `desen-denetle` 0 eskimiş demeli.
+
+**Kanıt:** JS 579/579 (52 dosya), Kotlin 235+ birim testi yeşil. Mutasyon (yeniden koşu): JS — eski dilimlerden
+bağlananlar 8/8 4/4 1/1 1/1 1/1 1/1, 5D-esit 39/39, 5D-kayit 37/37, 5D-olcum 17/17, 5D-D-B11 1/1, 5E-4J 54/54,
+5F-J 33/33, 5E-C 22/22 (bir koruma gereksiz çıktı — eksi sıfırı `sayiYaz` zaten işaretsiz yazıyor — kaldırıldı);
+Kotlin — 5E-C 19/19, 5E-4K 29/29, 5E-4B 26/26, 5E-4C 19/19, 5E-4D 11/11, 5E-2K 17/17, 5E-K 19/19, 5E-3K 31/31, 5D-K (sıfırla) 1/1.
+⚠ Bir mutasyon (ayrıştırıcının paketi tampondan atmaması) testi sonsuz döngüye sokup koşuyu yarıda bıraktırdı;
+test sınırlandı (aynı paket yeniden verilirse DÜŞER). Asıl takılma istemcinin el sıkışma döngüsündeydi; o girdi gerekçesiyle listeden çıkarıldı (iddia testte duruyor).
+
+## 2026-10-05 (gece, 3) — GERÇEK KART: "kart gelince" listesi (Xiaomi Redmi Note 10S, Android 13; kart ev ağında)
+
+Kart kuralları: kalibrasyon komutu, firmware, `GF!`, `Go`, `p1` YOK; yalnız kısa test kayıtları (`Gb` → `Gd`) ve `p0`.
+Gönderilenler: 6 test kaydı (oturum 61544, 61559, 61591, 61620, 61709 + bir kısa), 20 × `p0`, imzalı okuma istekleri.
+
+| # | Ne | Sonuç |
+|---|---|---|
+| 1 | Zarfın karttan alınması | ✅ Bağlanınca kendiliğinden: `/bildirim/bilgi` → 233 B zarf K ile doğrulanıp saklandı; adres dosyası yazıldı |
+| 2 | Gerçek aracı (TLS, iki katman ad doğrulaması cihazda) | ✅ Yoklama ~3 s'de kalıcı durumu okudu; servis "Ölçüm kartı izleniyor" |
+| 3 | Kayıt başlarken soru | ✅ Telefondan `Gb` → soru çıktı → "Aç" → servis başladı, `anlik` ayarı KAPALI kaldı; "Hayır" → servis yok |
+| 4 | Kayıt bitince | ✅ 2 s içinde TEK bildirim "Kayıt bitti — kullanıcı durdurdu (oturum 61544, 213 nokta)" (yerel + MQTT birleşti, A35); servis ~12 s sonra kendini durdurdu, kalıcı bildirim kalktı. 33 dakikalık kayıtta aynısı (10046 nokta) |
+| 5 | Yoklamanın gerçek aralığı | ✅ 19:42:14 → 19:57:1x → 20:12:2x: 15 dk ± birkaç saniye (telefon şarjda) |
+| 6 | Yoklamayla "kayıt bitti" | ✅ Kayıt sürerken yoklama özeti `k:2, o:61620` yazdı; kayıt durduruldu, uygulama arka planda → sonraki yoklamada "Kayıt bitti (oturum 61620)" (durdurmadan 14.5 dk sonra) |
+| 7 | Ekran kapalı dayanma | ✅ 30 dk, telefon KİLİTLİ ve ekran kapalı (Dozing): 30/30 örnekte servis aynı süreçte ve aracıya bağlı. ⚠ Telefon USB'de şarjdaydı: gerçek Doze kısıtı yok — pilde ölçüm AÇIK |
+| 8 | Canlı akış | ✅ Gerçek ölçüm (≈ 11.23 V, 9 mA); kilit açılınca akış kendiliğinden geri geldi |
+| 9 | DURDUR yeniden ölçüm | ✅ 20/20, en az 36 ms · ortanca 61 ms · en çok 459 ms |
+| 10 | Kayıt bitince eşitleme (5D'den) | ✅ ~30 s içinde kopya 1.40 → 1.88 MB; `onaylanan: 0` (karta `Go` gitmedi) |
+| 11 | Gerçek ölçümlü kayıt + CSV (5F'ten) | ✅ Grafik ve istatistik (10046 örnek, 4.79 mAh); CSV 1.57 MB, BOM + `;` + ondalık virgül, 2.0 s'de paylaşım penceresi |
+| 12 | Kilit ekranı gizliliği | ✅ Bildirim içeriği kilit ekranında gizli ("Ölçüm Kartı · şimdi") |
+
+Logcat (yalnız kendi süreç, 971 satır): çökme yok, sır izi (aracı adresi, parola, imza, 64 hane) yok.
+
+**Öğrendiklerim:**
+- Kart kalıcı durumu durum DEĞİŞİNCE de yayınlıyor (kayıt bitince hemen `k:1`); yoksa 60 s'de bir.
+- WorkManager'ın periyodik işi `cmd jobscheduler run -f` ile ZORLANAMIYOR (iş "zamanından önce" diye erteleniyor,
+  numarası da değişiyor): yoklama yalnız doğal aralığıyla sınanabilir.
+- Ekranı görmeden dokunma tehlikeli: kullanıcı ekranı açıp başka sekmeye geçmişken körlemesine dokunuşlarım yanlış
+  ekrana gitti (zararsız çıktı). Bundan sonra her dokunuş dizisinden ÖNCE ekran görüntüsüyle doğruluyorum.
+- Telefon PIN kilitli: uyuttuktan sonra kilidi ben açamam (açmam da) — dayanma testi bu yüzden gerçek kilitle koştu.
+
+**Fiziksel işlem isteyenler (kullanıcıdan istenecek):** karttan haber yok (güç kesme) · telefonun interneti yok ·
+ev interneti koptu (A36) · IP değişimi / "başka adres yanıt verdi" · pilde (şarjsız) dayanma · kıskaçla
+yakınlaştırma · TalkBack · gerçek hedefe paylaşım · Honor (5G).
+**Kartla yapılamayan:** pil oturumunda salt okuma (`p1` yasak: PİL jaklarına yük gerekiyor).

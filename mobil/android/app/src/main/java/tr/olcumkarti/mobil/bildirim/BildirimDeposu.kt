@@ -85,8 +85,9 @@ class BildirimDeposu(private val kok: File) {
     /** Yalniz ozel IPv4 adresi yazilir (ad / herkese acik IP: ZarfHatasi("bicim")). */
     fun adresYaz(kimlik: String?, adres: String?) {
         val hedef = dosya(kimlik, ADRES_EK)
-        if (adres == null || YerelYoklama.url(adres) == null) throw ZarfHatasi("bicim")
-        try { AtomikYazim.yaz(hedef, adres.toByteArray(Charsets.US_ASCII)) } catch (e: Exception) { throw ZarfHatasi("ic-hata") }
+        // SADE yazim saklanir (curutucu 5E B8: kabul edilen ama boyu asan ham metin sonra okunamiyordu).
+        val sade = YerelYoklama.sade(adres) ?: throw ZarfHatasi("bicim")
+        try { AtomikYazim.yaz(hedef, sade.toByteArray(Charsets.US_ASCII)) } catch (e: Exception) { throw ZarfHatasi("ic-hata") }
     }
 
     /** Zarfi olan kartlar (dosya adindan; icerik acilmaz). */

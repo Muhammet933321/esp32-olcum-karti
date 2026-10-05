@@ -164,8 +164,10 @@ export function izlemeSorusuKur({ bildirim, kimlikAl }) {
     let basladi = false;
     try {
       const d = await bildirim.durum(kimlik);
+      if (k !== kusak) return;                                      // kayit bu arada bitti (curutucu 5E B15)
       if (!d.izin && d.izinGerekli) await bildirim.izinIste();      // reddedilse de izleme calisir; bildirim gorunmez
-      basladi = (await bildirim.izlemeBaslat(kimlik, { buKayit: true })).basladi;
+      if (k !== kusak) return;                                      // izin penceresi acikken kayit bitti: BASLATILMAZ
+      basladi = (await bildirim.izlemeBaslat(kimlik, { buKayit: true })).basladi === true;
     } catch { basladi = false; }
     if (k === kusak) yay(basladi ? "acildi" : "acilamadi");
   }
@@ -179,42 +181,95 @@ export function izlemeSorusuKur({ bildirim, kimlikAl }) {
   };
 }
 
+// Kayit durumu (G satirinin `durum` kodu) degisince: kayit BITTI mi? Bilinmeyen (null: akis koptu) "bitti" DEGILDIR;
+// BEKLIYOR da kayit sayilir (KAYITTA) — curutucu 5E K-11: KAYIT -> BEKLIYOR gecisinde soru kapaniyordu.
+export function kayitBittiMi(onceki, yeni) {
+  return KAYITTA.includes(onceki) && Number.isInteger(yeni) && !KAYITTA.includes(yeni);
+}
+
+// Basarisiz zarf yenilemesi bu kadar tik (~saniye) sonra yeniden denenir (curutucu 5E B12).
+export const YENILE_ARALIK_TIK = 30;
+// Servis henuz ayaga kalkmadan iletilen yerel durum en cok bu kadar tik yeniden iletilir (B13).
+export const YEREL_DENEME = 5;
+
 // Kabugun saniyelik tikinden beslenir (uygulama ONDEYKEN ve kart BAGLIYKEN):
-//   * her YENI baglantida zarf bir kez yenilenir (A31: "uygulamayi kartin aginda ac" bunu yapar)
+//   * her YENI baglantida (ve kart DEGISINCE — B14) adres yazilir, zarf yenilenir (A31); yenileme basarisizsa
+//     YENILE_ARALIK_TIK sonra yeniden denenir ve basarinca suren kayit icin izleme yeniden baslatilir (B12)
 //   * kartin kayit durumu DEGISINCE servise iletilir (A35) ve kayit suruyorsa anlik izleme baslatilir
-//     (A29 a, b — ayar kapaliysa / zarf yoksa eklenti baslatmaz)
+//     (A29 a, b — ayar kapaliysa / zarf yoksa eklenti baslatmaz); servis henuz hazir degilse durum birkac
+//     tik yeniden iletilir (B13)
 // Isler SIRAYLA kosar (zarf yazilmadan izleme baslatilmaz); hicbir hata yukari cikmaz — bildirim kusuru
 // olcum ekranini bozmaz. `son()` son yenilemenin sonucunu verir (Ayarlar gosterir).
 export function bildirimIzleyici({ bildirim }) {
-  let oncekiBagli = false;
+  let bagliKimlik = null;              // durum KIMLIGE bagli: kart degisirse her sey bastan
   let sonG = null;
   let kuyruk = Promise.resolve();
   let sonuc = null;                    // null | "yazildi" | "kartta-ayarsiz" | hata turu
+  let yenileBekle = 0;                 // yeniden denemeye kalan tik; 0 = bekleyen yok
+  let yenileSuruyor = false;
+  let yerelKalan = 0;
 
   const sirayla = (is) => { kuyruk = kuyruk.then(is).catch(() => {}); };
 
+  function sifirla() {
+    sonG = null;
+    yenileBekle = 0;
+    yerelKalan = 0;
+  }
+
+  function yenile(kimlik, yeniden) {
+    yenileSuruyor = true;
+    sirayla(async () => {
+      try { sonuc = await bildirim.yenile(); } catch (e) { sonuc = e && typeof e.tur === "string" ? e.tur : "ic-hata"; }
+      yenileSuruyor = false;
+      if (bagliKimlik !== kimlik) return;
+      if (sonuc === "yazildi" || sonuc === "kartta-ayarsiz") {
+        yenileBekle = 0;
+        if (yeniden && sonuc === "yazildi") sonG = null;       // zarf SIMDI yazildi: suren kayit icin izleme yeniden denensin
+      } else {
+        yenileBekle = YENILE_ARALIK_TIK;
+      }
+    });
+  }
+
+  function gonder(kimlik, g, durum, oturum, baslat) {
+    sirayla(async () => {
+      let basladi = false;
+      if (baslat && KAYITTA.includes(durum)) {
+        try { basladi = (await bildirim.izlemeBaslat(kimlik)).basladi === true; } catch { basladi = false; }
+      }
+      const iletildi = (await bildirim.yerel(kimlik, durum, oturum)) === true;
+      if (bagliKimlik !== kimlik || sonG !== g) return;
+      if (iletildi) yerelKalan = 0;
+      else if (basladi) yerelKalan = YEREL_DENEME;             // servis baslatildi ama henuz dinlemiyor
+    });
+  }
+
   function tik({ gorunur, bagli, kimlik, kayit, adres = null }) {
     if (!gorunur || !bagli || typeof kimlik !== "string" || !KIMLIK.test(kimlik)) {
-      oncekiBagli = false;
-      sonG = null;
+      bagliKimlik = null;
+      sifirla();
       return;
     }
-    if (!oncekiBagli) {
-      oncekiBagli = true;
+    if (bagliKimlik !== kimlik) {
+      bagliKimlik = kimlik;
+      sifirla();
       if (typeof adres === "string" && typeof bildirim.adresYaz === "function") sirayla(() => bildirim.adresYaz(kimlik, adres));
-      sirayla(async () => {
-        try { sonuc = await bildirim.yenile(); } catch (e) { sonuc = e && typeof e.tur === "string" ? e.tur : "ic-hata"; }
-      });
+      yenile(kimlik, false);
+    } else if (yenileBekle > 0 && !yenileSuruyor) {
+      yenileBekle -= 1;
+      if (yenileBekle === 0) yenile(kimlik, true);
     }
     if (!kayit || !Number.isInteger(kayit.durum) || !Number.isInteger(kayit.oturum) || kayit.durum < 0 || kayit.oturum < 0) return;
     const g = `${kayit.durum}:${kayit.oturum}`;
-    if (g === sonG) return;
-    sonG = g;
-    const { durum, oturum } = kayit;
-    sirayla(async () => {
-      if (KAYITTA.includes(durum)) await bildirim.izlemeBaslat(kimlik).catch(() => {});
-      await bildirim.yerel(kimlik, durum, oturum);
-    });
+    if (g !== sonG) {
+      sonG = g;
+      yerelKalan = 0;
+      gonder(kimlik, g, kayit.durum, kayit.oturum, true);
+    } else if (yerelKalan > 0) {
+      yerelKalan -= 1;
+      gonder(kimlik, g, kayit.durum, kayit.oturum, false);
+    }
   }
 
   return { tik, son: () => sonuc, bosalt: () => kuyruk };

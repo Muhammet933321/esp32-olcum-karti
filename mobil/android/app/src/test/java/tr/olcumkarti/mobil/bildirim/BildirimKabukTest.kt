@@ -135,6 +135,9 @@ class BildirimKabukTest {
         }
         dosya.writeText("x".repeat(2000))
         assertFalse(BildirimAyar.oku(dosya).anlik)
+        // Boyu asan dosya, icerigi GECERLI olsa da okunmaz.
+        dosya.writeText(BildirimAyar(true, emptySet(), "en").json() + " ".repeat(1024))
+        assertFalse(BildirimAyar.oku(dosya).anlik); assertEquals("tr", BildirimAyar.oku(dosya).dil)
     }
 
     @Test
@@ -151,6 +154,8 @@ class BildirimKabukTest {
         assertEquals("huawei", Uretici.sinifi("HUAWEI", "HUAWEI"))
         assertEquals("xiaomi", Uretici.sinifi("Xiaomi", "Redmi"))
         assertEquals("xiaomi", Uretici.sinifi("Xiaomi", "POCO"))
+        assertEquals("xiaomi", Uretici.sinifi("", "Redmi"))                      // marka tek basina da yeter
+        assertEquals("xiaomi", Uretici.sinifi(null, "poco"))
         assertEquals("samsung", Uretici.sinifi("samsung", "samsung"))
         assertEquals("diger", Uretici.sinifi("Google", "google"))
         assertEquals("diger", Uretici.sinifi(null, null))
@@ -161,20 +166,23 @@ class BildirimKabukTest {
 
     private class Kosu(val bitis: String, val durumlar: List<String>, val beklemeler: List<Long>, val oturumSayisi: Int)
 
-    private fun dongu(bitisler: List<IzlemeBitis>, baglanan: Set<Int> = emptySet(), beklerken: (Int, IzlemeDongusu) -> Unit = { _, _ -> }): Kosu {
+    private fun dongu(bitisler: List<IzlemeBitis>, baglanan: Set<Int> = emptySet(), kisa: Set<Int> = emptySet(), beklerken: (Int, IzlemeDongusu) -> Unit = { _, _ -> }): Kosu {
         val durumlar = ArrayList<String>()
         val beklemeler = ArrayList<Long>()
         var i = 0
+        var saat = 0L
         lateinit var d: IzlemeDongusu
         d = IzlemeDongusu(
             oturum = { baglandi ->
                 val b = bitisler[i]
-                if (i in baglanan) baglandi()
+                if (i in baglanan) { baglandi(); saat += IzlemeDongusu.KARARLI_MS }      // kararli oturum: en az 30 s surdu
+                if (i in kisa) baglandi()                                                // baglanip HEMEN kopan
                 i++
                 b
             },
             bekle = { ms -> beklemeler.add(ms); beklerken(beklemeler.size, d) },
             durum = { durumlar.add(it) },
+            simdiMs = { saat },
         )
         return Kosu(d.calis(), durumlar, beklemeler, i)
     }
@@ -195,6 +203,15 @@ class BildirimKabukTest {
         )
         assertEquals("durduruldu", k.bitis)
         assertEquals(listOf(2_000L, 5_000L, 10_000L, 2_000L, 5_000L), k.beklemeler)
+    }
+
+    @Test
+    fun dongu_baglanipHemenKopanAraci_bastanSaymaz_geriCekilmeSurer() {
+        // Curutucu 5E K-5: her seferinde baglanip hemen kopan aracida 2 s'de bir sonsuz el sikisma olmamali.
+        val koptu = { IzlemeBitis("koptu", baglandi = true) }
+        val k = dongu(listOf(koptu(), koptu(), koptu(), koptu(), koptu(), IzlemeBitis("durduruldu")), kisa = setOf(0, 1, 2, 3, 4))
+        assertEquals(listOf(2_000L, 5_000L, 10_000L, 30_000L, 60_000L), k.beklemeler)
+        assertEquals(30_000L, IzlemeDongusu.KARARLI_MS)
     }
 
     @Test

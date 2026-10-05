@@ -42,6 +42,7 @@ class BildirimKararTest {
             cikis = { b -> cikan.add(listOf(b.etiket, b.anahtar, b.degerler.mapValues { py(it.value) }, b.sessiz)) },
             saatS = { saat }, acik = { it !in kapali }, onceki = onceki, kaliciYaz = { a, n -> yazilan.add(Pair(a, n)) },
             pencereS = pencere ?: ((s["pencere"] as Long?) ?: 900L).toDouble(), yakinS = yakin ?: ((s["yakin"] as Long?) ?: 120L).toDouble(),
+            acilisBoslugu = true, yerelKopukluk = true,          // PC davranisi (vektor PC'den uretildi)
         )
         for (op in s["ops"] as List<List<Any?>>) {
             when (op[0]) {

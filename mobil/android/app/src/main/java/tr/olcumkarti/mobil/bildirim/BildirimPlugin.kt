@@ -185,6 +185,8 @@ class BildirimPlugin : Plugin() {
             !ayar().anlik && call.getBoolean("buKayit") != true -> "kapali"
             !depo.zarfVar(kimlik) -> "zarf-yok"
             IzlemeServisi.calisanKimlik == kimlik -> "calisiyor"
+            // Servis tek karti izler: baska kart izlenirken "basladi" DENMEZ (curutucu 5E B18).
+            IzlemeServisi.calisanKimlik != null -> "baska-kart"
             else -> null
         }
         if (neden == null) IzlemeServisi.baslat(context, kimlik)

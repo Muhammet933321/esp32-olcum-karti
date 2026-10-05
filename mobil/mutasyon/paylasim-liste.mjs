@@ -68,4 +68,12 @@ export default [
     bul: "return d !== null && typeof d === \"object\" && Array.isArray(d.kayitlar) ? d : null;", koy: "return d;", test: T },
   { ad: "5F-J: kayitlar: gecmis okuma hatasi paylasimi durduruyor", dosya: "src/cekirdek/kayitlar.js",
     bul: "    } catch {\n      return null;\n    }\n  }\n\n  // Paylasim (5F)", koy: "    } finally {\n    }\n  }\n\n  // Paylasim (5F)", test: T },
+  { ad: "5E-C: B16: satir sonu iceren metin rapora sahte satir sokuyor", dosya: "src/cekirdek/rapor_metin.js",
+    bul: ".replace(/\\s*[\\r\\n\\u0085\\u2028\\u2029]+\\s*/g, \" / \")", koy: "", test: "test/curutucu-5e" },
+  { ad: "5E-C: B16: denetim karakterleri rapora giriyor", dosya: "src/cekirdek/rapor_metin.js",
+    bul: ".replace(/[\\u0000-\\u001f\\u007f]/g, \" \")", koy: "", test: "test/curutucu-5e" },
+  { ad: "5E-C: J13: kodsuz deger '(null)' ile yaziliyor", dosya: "src/cekirdek/rapor_metin.js",
+    bul: "return v.kod === null || v.kod === undefined ? v.metin : `${v.metin} (${v.kod})`;", koy: "return `${v.metin} (${v.kod})`;", test: "test/curutucu-5e" },
+  { ad: "5E-C: J15: bos metin bos birakiliyor", dosya: "src/cekirdek/rapor_metin.js",
+    bul: "if (v === null || v === undefined || v === \"\") return \"—\";", koy: "if (v === null || v === undefined) return \"—\";", test: "test/curutucu-5e" },
 ];

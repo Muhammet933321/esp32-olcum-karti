@@ -18,6 +18,7 @@ class IzlemeDongusu(
     private val oturum: (baglandi: () -> Unit) -> IzlemeBitis,
     private val bekle: (ms: Long) -> Unit,
     private val durum: (String) -> Unit,
+    private val simdiMs: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     @Volatile private var dur = false
 
@@ -29,17 +30,23 @@ class IzlemeDongusu(
         var deneme = 0
         while (!dur) {
             durum("baglaniyor")
+            val bas = simdiMs()
             val b = oturum { durum("izleniyor") }
             if (dur) break
             when (b.sinif) {
                 "tamam" -> return if (b.tur == "gerek-kalmadi") "kayit-bitti" else "durduruldu"
                 "ayar" -> return "ayar"
             }
-            // Baglanip sonra kopan oturum bastan sayar: uzun sure izledikten sonraki ilk kopma HIZLI denenir.
-            deneme = if (b.baglandi) 1 else deneme + 1
+            // KARARLI bir oturumdan (baglanip en az KARARLI_MS suren) sonraki ilk kopma HIZLI denenir. Baglanip
+            // hemen kopan araci bastan SAYMAZ (curutucu 5E K-5: 2 s'de bir sonsuz TLS el sikismasi).
+            deneme = if (b.baglandi && simdiMs() - bas >= KARARLI_MS) 1 else deneme + 1
             durum(b.sinif)
             bekle(Izleyici.bekleme(b, deneme) ?: return "durduruldu")
         }
         return "durduruldu"
+    }
+
+    companion object {
+        const val KARARLI_MS = 30_000L
     }
 }

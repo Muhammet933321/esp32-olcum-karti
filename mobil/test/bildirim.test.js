@@ -485,7 +485,7 @@ describe("izleme sorusu: kayit BU telefondan baslatilinca bir kez (kullanici kar
   it("ekran: soru KATMAN degil, dugmenin altinda; kayit basarili baslayinca sorulur, bitince kapanir; metinler sozlukte", () => {
     const v = kaynak("src/ekran/KayitDugmesi.vue");
     expect(v).toMatch(/await kabuk\.kayitBaslat\(props\.hizMs\); izlemeSorusu\.kayitBasladi\(\);/);
-    expect(v).toMatch(/once === "durdur" && is !== "durdur"\) izlemeSorusu\.kayitBitti\(\)/);
+    expect(v).toMatch(/watch\(kayitKodu, \(yeni, once\) => \{ if \(kayitBittiMi\(once, yeni\)\) izlemeSorusu\.kayitBitti\(\); \}\);/);
     expect(v).toMatch(/id="izleme-soru-evet"[^>]*@click="izlemeSorusu\.evet\(\)"/);
     expect(v).toMatch(/id="izleme-soru-hayir"[^>]*@click="izlemeSorusu\.hayir\(\)"/);
     expect(v).not.toMatch(/<dialog|ion-modal|ion-alert|position:\s*fixed/);

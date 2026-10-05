@@ -131,10 +131,11 @@ object MqttPaket {
         fun bekleyen(): Int = boy
 
         fun besle(veri: ByteArray, n: Int = veri.size) {
-            if (boy + n > tampon.size) {
-                if (boy + n > azami + 5) throw MqttHatasi("buyuk")
-                tampon = tampon.copyOf(maxOf(tampon.size * 2, boy + n))
-            }
+            // Sinir PAKETE uygulanir (`sonraki`); tampon, tamamlanmamis bir paket + bir okuma tasiyabilmeli
+            // (curutucu 5E B7: sinirdaki iki paket art arda gelince gecerli akis reddediliyordu). Cagiran her
+            // beslemeden once `sonraki`yi tuketir; tuketmeden besleyen sinira takilir.
+            if (boy > azami + 5 || n > azami + 5) throw MqttHatasi("buyuk")
+            if (boy + n > tampon.size) tampon = tampon.copyOf(maxOf(tampon.size * 2, boy + n))
             System.arraycopy(veri, 0, tampon, boy, n)
             boy += n
         }

@@ -28,7 +28,8 @@ export function sayiMetni(x, dil) {
   if (!Number.isFinite(x)) return "—";
   if (Number.isInteger(x)) return String(x);
   const y = sayiYaz(x, 6, dil === "tr" ? "," : ".");
-  return y.replace(/([.,]\d*?)0+$/, "$1").replace(/[.,]$/, "");
+  const z = y.replace(/([.,]\d*?)0+$/, "$1").replace(/[.,]$/, "");
+  return z;                            // eksi sifir: sayiYaz zaten isaretsiz yazar
 }
 
 const kodlu = (v) => v !== null && typeof v === "object" && !Array.isArray(v) && typeof v.metin === "string" && Object.hasOwn(v, "kod");
@@ -39,7 +40,8 @@ function degerMetni(v, dil) {
   if (typeof v === "boolean") return ceviriMobil(v ? "m.ps.evet" : "m.ps.hayir", dil);
   if (typeof v === "number") return sayiMetni(v, dil);
   if (kodlu(v)) return v.kod === null || v.kod === undefined ? v.metin : `${v.metin} (${v.kod})`;
-  return String(v);
+  // Metin TEK satirda kalir (curutucu 5E B16): satir sonu iceren not rapora sahte "alan: deger" satiri sokamaz.
+  return String(v).replace(/\s*[\r\n\u0085\u2028\u2029]+\s*/g, " / ").replace(/[\u0000-\u001f\u007f]/g, " ");
 }
 
 function yaz(satirlar, ad, v, dil, derinlik) {
@@ -62,7 +64,6 @@ function yaz(satirlar, ad, v, dil, derinlik) {
 
 function nesne(satirlar, o, dil, derinlik) {
   for (const [k, v] of Object.entries(o)) {
-    if (derinlik === 0 && ATLA.has(k)) continue;
     yaz(satirlar, etiket(k, dil), v, dil, derinlik);
   }
 }

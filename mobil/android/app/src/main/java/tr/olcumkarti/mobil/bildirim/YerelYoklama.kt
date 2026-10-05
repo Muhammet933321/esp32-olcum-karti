@@ -36,6 +36,13 @@ class YerelYoklama(private val istek: (url: String, zamanAsimiMs: Int, azamiGovd
         /** Yoklama yalniz araci karti ACIKCA cevrimdisi dediginde (bilinmiyorken / cevrimiciyken degil). */
         fun gerekli(kartCevrimici: Boolean?): Boolean = kartCevrimici == false
 
+        /** Adresin SADE yazimi "ip:port" (Hedef.ayir'in hosgordugu on ek / bosluk / sondaki bolu olmadan); gecersizse null. */
+        fun sade(adres: String?): String? {
+            if (adres == null) return null
+            val h = try { Hedef.ayir(adres) } catch (e: Hedef.Hata) { return null }
+            return if (Hedef.ozelAdres(h.ad)) "${h.ad}:${h.port}" else null
+        }
+
         /** "ip[:port]" -> yoklanacak URL; ozel IPv4 degilse (ad dahil) null. */
         fun url(adres: String?): String? {
             if (adres == null) return null                // uzun / bicimsiz metni Hedef.ayir reddeder

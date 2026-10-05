@@ -18,7 +18,9 @@ import duzeltme5d from "./duzeltme5d-liste.mjs";
 import bildirim from "./bildirim-liste.mjs";
 import paylasim from "./paylasim-liste.mjs";
 
-export default [
+import { guncelle } from "./guncel-desen.mjs";
+
+const HAM = [
   ...curutucu.map((m) => ({ ...m, ad: `5A-7 ${m.ad}` })),
   // Curutucu 5B: yasayan mutasyonlar + duzeltmelerin mutasyonlari ("5B-C: ..." adlariyla gelir).
   ...curutucu5b,
@@ -791,3 +793,6 @@ export default [
     test: "test/logcat_tara.test.js",
   },
 ];
+
+// Kaynak degistikce eskiyen desenler guncel-desen.mjs'ten (ada gore) alinir.
+export default guncelle(HAM);

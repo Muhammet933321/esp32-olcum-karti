@@ -44,6 +44,9 @@ object Yoklama {
      */
     fun degerlendir(onceki: YoklamaDurumu?, simdi: Map<String, Any?>?, acik: (String) -> Boolean, cikis: (Bildirim) -> Unit): Sonuc {
         if (simdi == null) return Sonuc(onceki, false)
+        // Cevrimici durum mesajinda kayit durumu / oturum OKUNAMIYORSA mesaj okunamamis sayilir (curutucu 5E
+        // B10): ozet ezilmez, sonraki yoklama degisikligi yine yakalar.
+        if (BildirimKarar.pyEsit(simdi["c"], 1) && (simdi["k"] !is Long || simdi["o"] !is Long)) return Sonuc(onceki, false)
         var saat = 0.0
         var sesli = false
         val k = BildirimKarar({ if (sesli) cikis(it) }, { saat }, acik)
@@ -71,6 +74,14 @@ object Yoklama {
         BildirimKarar.pyEsit(icerik["c"], 0) -> YoklamaDurumu(onceki?.cevrimici, kopuk)
         else -> onceki
     }
+
+    /**
+     * Servis kayit durumunu YEREL akistan duydugunda (uygulama onde) ozeti ilerletir (curutucu 5E B4): servis
+     * "kayit bitti"yi yerel yoldan bildirip kapandiysa, kartin MQTT durumu hic gelmemis olsa da yoklama ayni
+     * bitisi 15 dakika sonra YENIDEN bildirmez.
+     */
+    fun ozetYerel(onceki: YoklamaDurumu?, kod: Long, oturum: Long): YoklamaDurumu =
+        YoklamaDurumu((onceki?.cevrimici ?: mapOf("c" to 1L)) + mapOf("k" to kod, "o" to oturum), onceki?.kopuk ?: false)
 
     private fun yerel(k: BildirimKarar, d: Map<String, Any?>) {
         val kod = d["k"] as? Long ?: return

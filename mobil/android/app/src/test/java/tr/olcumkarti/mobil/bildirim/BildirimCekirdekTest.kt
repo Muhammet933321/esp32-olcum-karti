@@ -218,7 +218,12 @@ class BildirimCekirdekTest {
                 val n = minOf(adim, akis.size - i)
                 a.besle(akis.copyOfRange(i, i + n))
                 i += n
-                while (true) { val p = a.sonraki() ?: break; cikan.add(MqttPaket.paket(p.first, p.second)) }
+                while (true) {
+                    val p = a.sonraki() ?: break
+                    cikan.add(MqttPaket.paket(p.first, p.second))
+                    // Paketi tampondan ATMAYAN ayristirici sonsuza dek ayni paketi verir: test asili kalmak yerine DUSER.
+                    assertTrue("ayni paket yeniden verildi", cikan.size <= paketler.size)
+                }
             }
             assertEquals("adim $adim", paketler.size, cikan.size)
             for (k in paketler.indices) assertArrayEquals("adim $adim paket $k", paketler[k], cikan[k])

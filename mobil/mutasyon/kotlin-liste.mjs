@@ -9,7 +9,9 @@ const AG = "android/app/src/main/java/tr/olcumkarti/mobil/ag/";
 const DEPO = "android/app/src/main/java/tr/olcumkarti/mobil/depo/";
 const BILDIRIM = "android/app/src/main/java/tr/olcumkarti/mobil/bildirim/";
 
-export default [
+import { guncelle } from "./guncel-desen.mjs";
+
+const HAM = [
   // ── 5F paylasim deposu ──
   { ad: "5F-K: ad denetimi yok (dizin disina yazilabilir)", dosya: "android/app/src/main/java/tr/olcumkarti/mobil/paylas/PaylasDeposu.kt",
     bul: "if (ad == null || !AD.matches(ad) || ad.contains(\"..\")) throw PaylasHatasi(\"bicim\")", koy: "if (ad == null) throw PaylasHatasi(\"bicim\")",
@@ -557,6 +559,63 @@ export default [
   { ad: "5E-4D: adres kasa silmesinin kapsamadigi adla saklaniyor", dosya: BILDIRIM + "BildirimDeposu.kt",
     bul: "const val ADRES_EK = \".adres\"", koy: "const val ADRES_EK = \"-adres\"",
     kirmizi: "YerelYoklamaTest.adresDosyasi_yalnizOzelIPv4Yazilir_bozukDosyaNull_eslesmeKalkincaSilinir" },
+  { ad: "5E-C: B1: yoklama cozulemeyen kalici durumu 'anahtar' saymiyor", dosya: BILDIRIM + "Izleyici.kt",
+    bul: " || (tekSefer && kalan == \"durum\"))) bitir(\"anahtar\")", koy: ")) bitir(\"anahtar\")",
+    kirmizi: "Curutucu5eTest.b1_yoklama_eskimisAnahtarla_ayarYenilenmeliDemeli" },
+  { ad: "5E-C: B2: bilinmeyen alt konu sayiliyor", dosya: BILDIRIM + "Izleyici.kt",
+    bul: "if (kalan == \"durum\" || kalan == \"olay\") {", koy: "if (kalan != \"\") {",
+    kirmizi: "Curutucu5eTest.b2_ucSahteMesaj_gecerliDurumdanOnceGelirse_izlemeAyaraDusmemeli" },
+  { ad: "5E-C: B5: araciya ulasilamayinca kayit durumuna bakilmiyor", dosya: BILDIRIM + "Izleyici.kt",
+    bul: "                if (!surdur()) return IzlemeBitis(\"gerek-kalmadi\")\n", koy: "",
+    kirmizi: "Curutucu5eTest.b5_internetYokkenKayitBittiyse_donguBitmeli" },
+  { ad: "5E-C: K09: olay mesaji 'durum goruldu' sayiliyor", dosya: BILDIRIM + "Izleyici.kt",
+    bul: "if (kalan == \"durum\") durumGoruldu(icerik)", koy: "durumGoruldu(icerik)",
+    kirmizi: "Curutucu5eEkTest.k09_olayMesaji_durumGorulduSayilmaz" },
+  { ad: "5E-C: B3: telefonda ilk olayin oncesi 'kacirilan' sayiliyor", dosya: BILDIRIM + "BildirimKarar.kt",
+    bul: "            if (!acilisBoslugu) eksik = 0                       // telefon: bu calismanin ilk olayi — oncesi sayilmaz\n            else if (sonA != null)", koy: "            if (sonA != null)",
+    kirmizi: "Curutucu5eTest.b3_yeniAcilistaIlkIzlenenKayit_kacirilanBildirimiCikmamali" },
+  { ad: "5E-C: B3: ayni calismadaki bosluk da sayilmiyor", dosya: BILDIRIM + "BildirimKarar.kt",
+    bul: "            eksik = maxOf(0L, n - once - 1)\n", koy: "            eksik = 0L\n",
+    kirmizi: "Curutucu5eEkTest.b3_ayniCalismadakiBosluk_yineSayilir_pcDavranisiAcilabilir" },
+  { ad: "5E-C: B11: telefonda yerel sessizlik kopukluk sayiliyor", dosya: BILDIRIM + "BildirimKarar.kt",
+    bul: "val yerelYol = yerelKopukluk && (!mqttBagli || kartCevrimici == null)", koy: "val yerelYol = (!mqttBagli || kartCevrimici == null)",
+    kirmizi: "Curutucu5eTest.b11_kaliciDurumYokken_yerelGdenYirmiSaniyeSonra_kopukDenmemeli" },
+  { ad: "5E-C: B10: eksik alanli durum ozeti eziyor", dosya: BILDIRIM + "Yoklama.kt",
+    bul: "        if (BildirimKarar.pyEsit(simdi[\"c\"], 1) && (simdi[\"k\"] !is Long || simdi[\"o\"] !is Long)) return Sonuc(onceki, false)\n", koy: "",
+    kirmizi: "Curutucu5eTest.b10_eksikAlanliDurum_kayitDurumuOzettenSilinmemeli" },
+  { ad: "5E-C: B4: yerel haber ozeti ilerletmiyor", dosya: BILDIRIM + "Yoklama.kt",
+    bul: "YoklamaDurumu((onceki?.cevrimici ?: mapOf(\"c\" to 1L)) + mapOf(\"k\" to kod, \"o\" to oturum), onceki?.kopuk ?: false)", koy: "YoklamaDurumu(onceki?.cevrimici ?: mapOf(\"c\" to 1L), onceki?.kopuk ?: false)",
+    kirmizi: "Curutucu5eTest.b4_servisinYerelYoldanBildirdigiBitis_yoklamadaYinelenmemeli" },
+  { ad: "5E-C: B4: yerel haber 'haber yok' bayragini siliyor", dosya: BILDIRIM + "Yoklama.kt",
+    bul: "+ mapOf(\"k\" to kod, \"o\" to oturum), onceki?.kopuk ?: false)", koy: "+ mapOf(\"k\" to kod, \"o\" to oturum), false)",
+    kirmizi: "Curutucu5eEkTest.b4_ozetYerel_kayitDurumuIlerler_digerAlanlarKorunur_ilkHaberdeDeCalisir" },
+  { ad: "5E-C: B6: SUBACK oncesi yayin birikimi sinirsiz", dosya: BILDIRIM + "MqttIstemci.kt",
+    bul: "                    if (bekleyenYayin.size >= BEKLEYEN_AZAMI) return MqttBitis(\"bicim\")\n", koy: "",
+    kirmizi: "Curutucu5eTest.b6_subacktenOnceYayinSeli_bellektekiBirikimSinirliOlmali" },
+  { ad: "5E-C: K05: ilk paketin CONNACK oldugu denetlenmiyor", dosya: BILDIRIM + "MqttIstemci.kt",
+    bul: "            if (c.first shr 4 != MqttPaket.CONNACK) return MqttBitis(\"bicim\")\n", koy: "",
+    kirmizi: "Curutucu5eEkTest.k05_connackYerineBaskaPaket_bicim" },
+  { ad: "5E-C: B7: tampon siniri okuma payi birakmiyor", dosya: BILDIRIM + "MqttPaket.kt",
+    bul: "if (boy > azami + 5 || n > azami + 5) throw MqttHatasi(\"buyuk\")", koy: "if (boy + n > azami + 5) throw MqttHatasi(\"buyuk\")",
+    kirmizi: "Curutucu5eTest.b7_azamiBoydaIkiPaket_4096lukOkumalarla_buyukDenmemeli" },
+  { ad: "5E-C: B9: \\u kacisinda ASCII olmayan rakam kabul", dosya: BILDIRIM + "DuzJson.kt",
+    bul: "val h = when (ch) { in '0'..'9' -> ch - '0'; in 'a'..'f' -> ch - 'a' + 10; in 'A'..'F' -> ch - 'A' + 10; else -> throw JsonHatasi() }", koy: "val h = Character.digit(ch, 16); if (h < 0) throw JsonHatasi()",
+    kirmizi: "Curutucu5eTest.b9_json_uKacisindaYalnizAsciiOnaltilik" },
+  { ad: "5E-C: B8: adres ham haliyle yaziliyor (okunamaz)", dosya: BILDIRIM + "BildirimDeposu.kt",
+    bul: "AtomikYazim.yaz(hedef, sade.toByteArray(Charsets.US_ASCII))", koy: "AtomikYazim.yaz(hedef, adres!!.toByteArray(Charsets.US_ASCII))",
+    kirmizi: "Curutucu5eTest.b8_yazilanAdres_okunabilmeli" },
+  { ad: "5E-C: K16: ayar dosyasinda boy siniri yok", dosya: BILDIRIM + "BildirimDeposu.kt",
+    bul: "if (dosya.isFile && dosya.length() <= 1024)", koy: "if (dosya.isFile)",
+    kirmizi: "BildirimKabukTest.ayar_yazOku_gidisDonus_bozukVeGecersizAlanlarAyiklanir" },
+  { ad: "5E-C: K18: Redmi / Poco markasi taninmiyor", dosya: BILDIRIM + "BildirimDeposu.kt",
+    bul: "\"xiaomi\" in u || \"redmi\" in u || \"poco\" in u -> \"xiaomi\"", koy: "\"xiaomi\" in u -> \"xiaomi\"",
+    kirmizi: "BildirimKabukTest.ureticiSinifi_pilYonergesiIcin_modelSizdirmaz" },
+  { ad: "5E-C: K26: anahtar boyu denetlenmiyor", dosya: BILDIRIM + "Zarf.kt",
+    bul: "if (anahtar.size != ANAHTAR || veri.size < EN_AZ) throw ZarfHatasi(\"bicim\")", koy: "if (veri.size < EN_AZ) throw ZarfHatasi(\"bicim\")",
+    kirmizi: "Curutucu5eEkTest.k26_zarfCoz_anahtarBoyuTutmazsaBicim_etiketDegil" },
+  { ad: "5E-C: K-5: baglanip hemen kopan oturum bastan sayiyor", dosya: BILDIRIM + "IzlemeDongusu.kt",
+    bul: "deneme = if (b.baglandi && simdiMs() - bas >= KARARLI_MS) 1 else deneme + 1", koy: "deneme = if (b.baglandi) 1 else deneme + 1",
+    kirmizi: "BildirimKabukTest.dongu_baglanipHemenKopanAraci_bastanSaymaz_geriCekilmeSurer" },
   // ── 5E-2 MQTT istemcisi ve TLS (S2) ──
   { ad: "5E-2K: TLS'te ad dogrulamasi el sikismada KAPALI (yanlis adli sertifika kabul edilir)", dosya: BILDIRIM + "TlsBaglanti.kt",
     bul: "                p.endpointIdentificationAlgorithm = \"HTTPS\"\n", koy: "",
@@ -664,12 +723,13 @@ export default [
   { ad: "5E-K: MQTT ayristirici tampon siniri yok", dosya: BILDIRIM + "MqttPaket.kt",
     bul: "                if (boy + n > azami + 5) throw MqttHatasi(\"buyuk\")\n", koy: "",
     kirmizi: "BildirimCekirdekTest.mqtt_ayristirici_parcaliAkis_buyukPaketReddi" },
-  { ad: "5E-K: MQTT ayristirici islenen paketi tampondan atmiyor", dosya: BILDIRIM + "MqttPaket.kt",
-    bul: "            boy -= son\n", koy: "",
-    kirmizi: "BildirimCekirdekTest.mqtt_ayristirici_parcaliAkis_buyukPaketReddi" },
+  // CIKARILDI (2026-10-05): "5E-K: MQTT ayristirici islenen paketi tampondan atmiyor" — bu degisiklik istemcinin
+  // el sikisma dongusunu SONSUZA sokuyor (ayni CONNACK yeniden verilir); kosucu zaman asimina dusuyor ve asili
+  // kalan Gradle sureci sonraki mutasyonlarin kopyasini kilitliyor. Iddia testte acikca duruyor:
+  // BildirimCekirdekTest.mqtt_ayristirici_parcaliAkis_buyukPaketReddi ("ayni paket yeniden verildi").
   { ad: "5E-K: MQTT kalan uzunluk 4 bayti asinca reddedilmiyor", dosya: BILDIRIM + "MqttPaket.kt",
     bul: "        if (i >= 4) throw MqttHatasi(\"bicim\")\n", koy: "",
-    kirmizi: "BildirimCekirdekTest.mqtt_uzunlukVeDize" },
+    kirmizi: "BildirimCekirdekTest.mqtt_ayristirici_parcaliAkis_buyukPaketReddi" },
   { ad: "5D-K: sifirla durum.json'i once siliyor (yarida kalirsa kopya sessizce sifirdan sayilir)", dosya: DEPO + "KartDepo.kt",
     bul: "dosyalar.sortedBy { if (it.name == DURUM) 1 else 0 }", koy: "dosyalar.sortedBy { if (it.name == DURUM) 0 else 1 }",
     kirmizi: "KartDepoTest.sifirla_durumEnSonSilinir_yaridaKalirsaDurumYerinde" },
@@ -743,3 +803,6 @@ export default [
     kirmizi: "SseAyiriciTest.kimlikOlayininVerisiHicbirYoldanTasinmaz",
   },
 ];
+
+// Kaynak degistikce eskiyen desenler guncel-desen.mjs'ten (ada gore) alinir.
+export default guncelle(HAM);
