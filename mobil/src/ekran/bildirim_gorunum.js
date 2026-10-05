@@ -47,11 +47,13 @@ export function bildirimGorunumu(d, { kimlik = null, son = null } = {}) {
   if (!d) return null;
   const zarf = d.zarf === true;
   let ayar = zarf ? "m.bl.zarf_var" : "m.bl.zarf_yok";
-  if (!zarf && son === "kartta-ayarsiz") ayar = "m.bl.kartta_ayarsiz";
+  // Kart "ayarli degil" dedi: zarf DURUYORSA bu da soylenir (silinmez — K-10), kullanici uyarilir.
+  const ayarsiz = son === "kartta-ayarsiz";
+  if (ayarsiz) ayar = zarf ? "m.bl.kartta_ayarsiz_zarf" : "m.bl.kartta_ayarsiz";
   if (kimlik === null) ayar = "m.bl.kart_yok";
   return {
     ayar,
-    ayarUyari: !zarf,
+    ayarUyari: !zarf || (ayarsiz && kimlik !== null),
     izin: d.izin ? "m.bl.izin_var" : "m.bl.izin_yok",
     izinIste: !d.izin && d.izinGerekli === true,
     anlik: d.anlik === true,

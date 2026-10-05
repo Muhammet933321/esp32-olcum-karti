@@ -69,8 +69,9 @@ export function bildirimKur({ kartAl, eklenti }) {
     } catch (e) {
       const tur = e && typeof e.tur === "string" ? e.tur : "";
       if (tur === "http" && e.durum === 404) {
-        // Kartta MQTT bildirimi ayarli degil: eldeki zarf artik gecersiz (eski araci bilgisiyle baglanilmasin).
-        await cagir("zarfSil", { kimlik: d.kimlik });
+        // Kartta MQTT bildirimi ayarli degil. Eldeki zarfa DOKUNULMAZ (kullanici karari, 2026-10-05; curutucu 5E
+        // K-10): bu yanitin govdesi imzasizdir — yerel agda araya giren biri sahte 404 ile bildirimleri sessizce
+        // kapatabilirdi. Zarf yalniz kullanicinin acik islemiyle degisir: basarili yenileme ya da eslesmenin kaldirilmasi.
         return "kartta-ayarsiz";
       }
       throw new BildirimHatasi(tur === "ag" || tur === "cihaz-silinmis" || tur === "bagli-degil" || tur === "eslesmemis" ? tur : "kart");

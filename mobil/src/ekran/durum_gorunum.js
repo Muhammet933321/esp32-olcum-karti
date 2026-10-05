@@ -181,7 +181,7 @@ export function kayitSuresi(izleme, simdiMs) {
 // (kullanici, 2026-10-05): sure sayaci son verinin aninda DONAR, rozet "Kayit suruyordu" olur ve `sonVeri`
 // ("son veri X sn once") dolar — ilerleyen bir sayac kaydin surdugunu sandirir.
 export function kayitGorunumu(kayit, izleme, simdiMs, { taze = true, sonGorulmeMs = null } = {}) {
-  const sonVeri = taze ? null : gecenYaz(Number.isFinite(sonGorulmeMs) ? simdiMs - sonGorulmeMs : NaN);
+  const sonVeri = taze ? null : gecenYaz(Number.isFinite(sonGorulmeMs) ? Math.max(0, simdiMs - sonGorulmeMs) : NaN);
   // Donmus saat: son verinin ani (bilinmiyorsa sure HIC gosterilmez).
   const saat = taze ? simdiMs : (Number.isFinite(sonGorulmeMs) ? Math.min(simdiMs, sonGorulmeMs) : null);
   const durum = gAlan(kayit, "durum");
@@ -215,8 +215,11 @@ export function kayitGorunumu(kayit, izleme, simdiMs, { taze = true, sonGorulmeM
 // Baglanti satiri (Durum) ve ust cubuktaki cip.
 //   { anahtar, sinif: "iyi" | "uyari" | "", gecen, esles, yeniden }
 export function baglantiGorunumu({ baglanti, araniyor = false, akis = null, sonGorulmeMs = null, simdiMs = 0 }) {
-  const gecen = sonGorulmeMs === null ? null : gecenYaz(simdiMs - sonGorulmeMs);
-  const sonuc = (anahtar, sinif, ek = null) => ({ anahtar, sinif, gecen, esles: false, yeniden: false, ...ek });
+  // "Son gorulme" yalniz veri GELMIYORKEN yazilir (kullanici, 2026-10-05): veri akarken satir saniyede bir
+  // "0 sn once" gosterip kayboluyordu (veri tikler arasinda gelince yas eksi cikiyor, satir siliniyordu).
+  // Saat tikten geride kalmissa yas 0 sayilir — satir bir gorunup bir kaybolmaz.
+  const yas = Number.isFinite(sonGorulmeMs) ? gecenYaz(Math.max(0, simdiMs - sonGorulmeMs)) : null;
+  const sonuc = (anahtar, sinif, ek = null) => ({ anahtar, sinif, gecen: yas, esles: false, yeniden: false, ...ek });
   if (!baglanti) return sonuc(araniyor ? "m.dr.araniyor" : "m.dr.ulasilamiyor", "", { yeniden: !araniyor });
   switch (baglanti.durum) {
     case "eslesmemis": return sonuc("m.dr.eslesmemis", "uyari", { esles: true });
@@ -226,8 +229,8 @@ export function baglantiGorunumu({ baglanti, araniyor = false, akis = null, sonG
     default: return sonuc(araniyor ? "m.dr.araniyor" : "m.dr.ulasilamiyor", "", { yeniden: !araniyor });
   }
   const hal = akis ? akis.hal : "kapali";
-  if (akis && akis.hazir === false) return sonuc("m.dr.bu_agda", "iyi");       // akis modulu yok: baglanti yine de var
-  if (hal === "acik") return sonuc("m.dr.bu_agda", "iyi");
+  if (akis && akis.hazir === false) return sonuc("m.dr.bu_agda", "iyi", { gecen: null });       // akis modulu yok: baglanti yine de var
+  if (hal === "acik") return sonuc("m.dr.bu_agda", "iyi", { gecen: null });
   if (hal === "dolu") return sonuc("m.cn.dolu", "uyari");
   if (hal === "hata") return sonuc("m.dr.ulasilamiyor", "uyari", { yeniden: true });
   // Akis acik ama veri gelmiyor (kart kapanmis / agdan dusmus olabilir): "bagli" DENMEZ.

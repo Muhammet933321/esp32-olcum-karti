@@ -241,6 +241,10 @@ export const SOZLUK_MOBIL = Object.freeze({
     "Kartta internet bildirimi ayarlı değil (kartın USB'sinden ayarlanır).",
     "Internet notifications are not set up on the board (configured over the board's USB).",
   ),
+  "m.bl.kartta_ayarsiz_zarf": S(
+    "Kart, internet bildiriminin ayarlı olmadığını söyledi. Telefondaki önceki ayar duruyor (silinmedi).",
+    "The board says internet notifications are not set up. The previous setup on this phone was kept (not deleted).",
+  ),
   "m.bl.kart_yok": S("Kart bilinmiyor — önce kartla eşleş.", "Board unknown — pair with the board first."),
   "m.bl.yenile": S("Karttan yenile", "Refresh from the board"),
   "m.bl.yenileniyor": S("Karttan alınıyor…", "Fetching from the board…"),

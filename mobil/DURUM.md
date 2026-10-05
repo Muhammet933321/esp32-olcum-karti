@@ -1144,3 +1144,34 @@ turda: kayıt sürerken gücü kes → "Kayıt sürüyordu", süre sabit, "son v
 sürerken şerit (p1 yasak) · K-2 (`startForeground` reddi — Honor) · pilde (şarjsız) dayanma · A36 gerçek ortamda ·
 TalkBack / en büyük yazı boyutu · 5G release imzası (anahtar yaklaşımı — önce sorulacak) · K-15 (JVM `String`
 sıfırlanamaz — düzeltilemez, belgelendi).
+
+## 2026-10-05 (gece, 7) — K-10, K-9 kararı, yanıp sönen "son görülme"; ÇÜRÜTÜCÜ TURU YARIM (devir notu)
+
+**Kullanıcı kararları:** önceki bölümdeki kendi kararlarım ONAYLANDI · **K-10: 404'te zarf silinmez** · **K-9: kabul
+edildi, firmware'e devredildi** (`1-acik-isler.md` K10; uygulamada değişiklik yok).
+
+**K-10 (yapıldı):** `bildirim.yenile()` kart 404 derse yalnız "kartta-ayarsiz" döner; zarfa dokunmaz. JS tarafında
+`zarfSil` çağıran hiçbir yol kalmadı (test kaynakta arıyor). Zarf dururken Ayarlar "Kart, internet bildiriminin
+ayarlı olmadığını söyledi. Telefondaki önceki ayar duruyor (silinmedi)." yazar ve uyarı rengindedir. Zarf yalnız
+başarılı yenilemeyle yazılır, eşleşme kaldırılınca yerel taraf siler. Mutasyon K10 5/5, 5E-4J 52/52.
+
+**"Son görülme 0 sn" yanıp sönmesi (kullanıcı bildirdi, yapıldı):** Durum'daki bağlantı satırı veri akarken saniyede
+bir "son görülme 0 sn önce" gösterip kayboluyordu (veri tikler arasında gelince yaş eksi çıkıyor, satır siliniyordu).
+Artık veri AKARKEN "son görülme" hiç yazılmaz; veri gelmiyorken yazılır ve yaş eksiyse 0 sayılır (kaybolmaz). Aynı
+kıskaç kayıt kartındaki "son veri" satırına da kondu. DG mutasyonları 47/47 (4 yeni).
+
+**Kanıt:** JS 606/606, `desen-denetle` 857 girdi 0 eskimiş. Kotlin'e bu bölümde dokunulmadı.
+
+**YARIM KALAN (devralan için):**
+1. **Bağımsız çürütücü turu 6 BİTMEDİ** (oturum kotası; ajan durduruldu, rapor yazılmadı). Kapsamı: sayaç dondurma,
+   "son görülme", K-7, K-8, K-13, K-10. Ajanın yarım keşif dosyaları commit'lenmedi, çalışma ağacında duruyor:
+   `test/curutucu-6/sayac.test.js`, `android/app/src/test/java/tr/olcumkarti/mobil/curutucu6/Curutucu6Test.kt` —
+   DOĞRULANMADI; kırmızıysa ya gerçek bulgu ya yarım testtir, bakıp karar ver (ya da silip turu baştan koş).
+   Ajana verilen inceleme soruları: kilit sırası / kilitlenme (`kilit`, `uyku`, `DURUM_KILIDI`, `AtomikYazim`),
+   `degistir` istisna atarsa, `Vazgecme` yeniden bağlanmada korunuyor mu ve yoklama vazgeçen servisi döngüye sokuyor
+   mu, sentetik olayın `onceki.kopuk` / `a`'sız özetlerde çift bildirim üretmesi, arka plan `yenile`'nin zarfı
+   200 + çöp gövdeyle bozup bozamayacağı, donmuş sayacın yeni kayıtta eski süreyi göstermesi.
+2. **Bu bölümün sürümü telefona KURULMADI** (Xiaomi'de bir önceki sürüm var: sayaç dondurma + K-7/8/13). Kurmak için:
+   `npm run esitle` → `cd android && gradlew.bat assembleDebug` → `adb -s <seri> install -r …app-debug.apk`.
+3. Kullanıcıyı bekleyenler (YAPILMAYACAK): Honor, release imzası, fiziksel testler (donmuş sayacın güç kesmede
+   görülmesi dahil).

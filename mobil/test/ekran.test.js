@@ -112,8 +112,22 @@ describe("Durum: baglanti satiri", () => {
   const bagli = { durum: "bagli", adres: "192.168.1.7:80", kimlik: "0123456789abcdef" };
 
   it("bu agda / ulasilamiyor + son gorulme / araniyor", () => {
-    expect(baglantiGorunumu({ baglanti: bagli, akis: { hazir: true, hal: "acik" }, sonGorulmeMs: 8000, simdiMs: 10000 }))
-      .toMatchObject({ anahtar: "m.dr.bu_agda", sinif: "iyi", gecen: { anahtar: "m.dr.once_sn", degerler: { n: 2 } }, esles: false, yeniden: false });
+    // Veri AKARKEN "son gorulme" yazilmaz (saniyede bir "0 sn once" gorunup kayboluyordu — kullanici, 2026-10-05).
+    for (const [son, simdi] of [[8000, 10000], [10000, 10000], [10400, 10000], [null, 10000]]) {
+      expect(baglantiGorunumu({ baglanti: bagli, akis: { hazir: true, hal: "acik" }, sonGorulmeMs: son, simdiMs: simdi }))
+        .toMatchObject({ anahtar: "m.dr.bu_agda", sinif: "iyi", gecen: null, esles: false, yeniden: false });
+    }
+    expect(baglantiGorunumu({ baglanti: bagli, akis: { hazir: false, hal: "kapali" }, sonGorulmeMs: 8000, simdiMs: 10000 }).gecen).toBe(null);
+    // Veri gelmiyorken yazilir; saat tikten GERIDEYSE (veri tikler arasinda geldi) satir kaybolmaz: 0 sn.
+    for (const hal of ["eski", "hata", "baglaniyor", "dolu"]) {
+      expect(baglantiGorunumu({ baglanti: bagli, akis: { hazir: true, hal }, sonGorulmeMs: 8000, simdiMs: 10000 }).gecen, hal).toEqual({ anahtar: "m.dr.once_sn", degerler: { n: 2 } });
+      expect(baglantiGorunumu({ baglanti: bagli, akis: { hazir: true, hal }, sonGorulmeMs: 10400, simdiMs: 10000 }).gecen, hal).toEqual({ anahtar: "m.dr.once_sn", degerler: { n: 0 } });
+    }
+    expect(baglantiGorunumu({ baglanti: null, sonGorulmeMs: 8000, simdiMs: 10000 }).gecen).toEqual({ anahtar: "m.dr.once_sn", degerler: { n: 2 } });
+    expect(baglantiGorunumu({ baglanti: bagli, akis: { hazir: true, hal: "eski" }, sonGorulmeMs: null, simdiMs: 10000 }).gecen).toBe(null);
+    // Kayit kartindaki "son veri" de ayni: saat gerideyken kaybolmaz.
+    expect(kayitGorunumu({ tur: "G", durum: 1, oturum: 0, doluluk: 1, onaysiz: 1 }, null, 10000, { taze: false, sonGorulmeMs: 10400 }).sonVeri)
+      .toEqual({ anahtar: "m.dr.once_sn", degerler: { n: 0 } });
     expect(baglantiGorunumu({ baglanti: bagli, akis: { hazir: true, hal: "hata" } })).toMatchObject({ anahtar: "m.dr.ulasilamiyor", yeniden: true });
     expect(baglantiGorunumu({ baglanti: bagli, akis: { hazir: true, hal: "dolu" } }).anahtar).toBe("m.cn.dolu");
     expect(baglantiGorunumu({ baglanti: bagli, akis: { hazir: true, hal: "baglaniyor" } }).anahtar).toBe("m.cn.baglaniyor");

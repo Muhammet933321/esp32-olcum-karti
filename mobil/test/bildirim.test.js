@@ -69,10 +69,18 @@ describe("bildirim.yenile: zarf karttan imzali istekle alinir, ACILMADAN saklani
     expect(await turu(b.yenile())).toBe("bagli-degil");
   });
 
-  it("404: kartta ayarli degil -> eldeki zarf SILINIR, 'kartta-ayarsiz'; baska HTTP hatasinda zarfa DOKUNULMAZ", async () => {
+  it("404: kartta ayarli degil -> 'kartta-ayarsiz', eldeki zarfa DOKUNULMAZ (K-10); baska HTTP hatasinda da", async () => {
     const d = duzen({ istek: async () => { throw Object.assign(new Error("x"), { tur: "http", durum: 404 }); } });
     expect(await d.b.yenile()).toBe("kartta-ayarsiz");
-    expect(d.cagrilar).toEqual([["zarfSil", { kimlik: KIMLIK }]]);
+    expect(d.cagrilar).toEqual([]);                                          // ne silme ne yazma
+    // Zarfi JS tarafindan silen HICBIR yol yok: yalniz basarili yenileme yazar, eslesme kalkinca yerel taraf siler.
+    for (const f of ["src/cekirdek/bildirim.js", "src/cekirdek/uygulama.js", "src/ekran/BildirimAyar.vue", "src/ekran/kabuk_durum.js"]) {
+      expect(readFileSync(new URL("../" + f, import.meta.url), "utf8"), f).not.toMatch(/zarfSil/);
+    }
+    // 404 govdesi zarf gibi gorunse de YAZILMAZ.
+    const sahte = duzen({ istek: async () => { throw Object.assign(new Error("x"), { tur: "http", durum: 404, govde: new Uint8Array(233) }); } });
+    expect(await sahte.b.yenile()).toBe("kartta-ayarsiz");
+    expect(sahte.cagrilar).toEqual([]);
     for (const [hata, beklenen] of [
       [{ tur: "http", durum: 500 }, "kart"], [{ tur: "http", durum: 403 }, "kart"], [{ tur: "ag", ag: "zaman-asimi" }, "ag"],
       [{ tur: "cihaz-silinmis" }, "cihaz-silinmis"], [{ tur: "kasa" }, "kart"], [{}, "kart"],
@@ -169,7 +177,7 @@ describe("bildirim.durum / ayarYaz: eklenti verisi alan alan suzulur", () => {
     const eklenti = kaynak("android/app/src/main/java/tr/olcumkarti/mobil/bildirim/BildirimPlugin.kt");
     const js = kaynak("src/cekirdek/bildirim.js");
     const cagrilan = [...js.matchAll(/cagir\("([A-Za-z]+)"/g)].map((m) => m[1]);
-    expect(new Set(cagrilan).size).toBe(12);
+    expect(new Set(cagrilan).size).toBe(11);                 // zarfSil artik JS'ten CAGRILMAZ (K-10)
     for (const ad of cagrilan) expect(eklenti, ad).toMatch(new RegExp(`@PluginMethod\\s+fun ${ad}\\(`));
   });
 });
@@ -321,7 +329,12 @@ describe("Ayarlar › Bildirimler gorunumu (saf)", () => {
     expect(bildirimGorunumu(D, { kimlik: KIMLIK })).toMatchObject({ ayar: "m.bl.zarf_var", ayarUyari: false });
     expect(bildirimGorunumu({ ...D, zarf: false }, { kimlik: KIMLIK })).toMatchObject({ ayar: "m.bl.zarf_yok", ayarUyari: true });
     expect(bildirimGorunumu({ ...D, zarf: false }, { kimlik: KIMLIK, son: "kartta-ayarsiz" }).ayar).toBe("m.bl.kartta_ayarsiz");
-    expect(bildirimGorunumu(D, { kimlik: KIMLIK, son: "kartta-ayarsiz" }).ayar).toBe("m.bl.zarf_var");   // zarf varsa eski sonuc gosterilmez
+    // Zarf DURURKEN kart "ayarli degil" dediyse (zarf silinmez — K-10) bu ayrica soylenir ve uyaridir.
+    expect(bildirimGorunumu(D, { kimlik: KIMLIK, son: "kartta-ayarsiz" })).toMatchObject({ ayar: "m.bl.kartta_ayarsiz_zarf", ayarUyari: true });
+    expect(bildirimGorunumu(D, { kimlik: KIMLIK, son: "yazildi" })).toMatchObject({ ayar: "m.bl.zarf_var", ayarUyari: false });
+    expect(bildirimGorunumu(D, { kimlik: KIMLIK, son: "ag" })).toMatchObject({ ayar: "m.bl.zarf_var", ayarUyari: false });
+    expect(bildirimGorunumu(D, { kimlik: null, son: "kartta-ayarsiz" }).ayar).toBe("m.bl.kart_yok");
+    expect(SOZLUK_MOBIL["m.bl.kartta_ayarsiz_zarf"].tr).toMatch(/silinmedi/);
   });
 
   it("izin dugmesi yalniz izin YOK ve istenebilirken; pil yalniz anlik izleme ACIKKEN konu edilir (A37)", () => {
