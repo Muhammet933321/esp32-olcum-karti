@@ -171,6 +171,20 @@ describe("kabuk: serit gorunurlugu uctan uca", () => {
     s.k.kapat();
   });
 
+  it("GERCEK ZAMANLAMA: veri ve /pil yaniti tikler ARASINDA gelir (saat tikten ileridedir) — yine gizlenir", async () => {
+    // Telefonda bulunan kusur (2026-10-05): kural "simdi"yi son tikten aliyordu; veri tikten SONRA geldigi icin
+    // veri yasi eksi cikiyor, "saat geri gitti" korumasi seridi HEP gorunur tutuyordu.
+    const s = kabuk();
+    await s.k.ac(); s.veri(G(1)); await s.tik();
+    for (let i = 0; i < 4; i++) { s.saat.ms += 200; s.veri(); }              // tikten sonra 200 ms arayla dort satir
+    expect(s.k.seritGorunur()).toBe(false);
+    s.saat.ms += 150;                                                        // tik gelmeden biraz daha
+    expect(s.k.seritGorunur()).toBe(false);
+    s.saat.ms += 6000;                                                       // veri kesildi, TIK DE gelmedi: yine de gorunur
+    expect(s.k.seritGorunur()).toBe(true);
+    s.k.kapat();
+  });
+
   it("pil testi suruyorsa (CALISIYOR) gorunur kalir", async () => {
     const s = kabuk({ pilYanit: () => "CALISIYOR" });
     await s.k.ac(); s.veri(G(2, 77)); await s.tik(); s.veri();

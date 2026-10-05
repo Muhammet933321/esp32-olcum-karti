@@ -76,4 +76,6 @@ export default [
   { ad: "DG: eslesmemis kartta da /pil isteniyor", dosya: K,
     bul: 'if (!gorunur || !b || b.durum !== "bagli") { if (pilSonIstek', koy: "if (!gorunur || !b) { if (pilSonIstek", test: T },
   { ad: "DG: kabuk serite oturum turunu vermiyor", dosya: K, bul: "      pil: pil.value, oturumTuru: oturumTuru.value, simdiMs: t,\n", koy: "      pil: pil.value, oturumTuru: null, simdiMs: t,\n", test: T },
+  { ad: "DG: kabuk kurala son tikin saatini veriyor (canli saat degil)", dosya: K,
+    bul: "    const t = Math.max(simdi.value, simdiMs());\n    return durdurGorunur({", koy: "    const t = simdi.value;\n    return durdurGorunur({", test: T },
 ];

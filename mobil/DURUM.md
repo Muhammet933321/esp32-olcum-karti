@@ -1070,3 +1070,26 @@ düzeyinde sınanıyor), biri arka plan geçişiydi (kabuk artık arka plana ge�
 Koşucunun kopyasına `kod/` SALT OKUNUR bağlandı (test kartın durum adlarını firmware kaynağından doğruluyor).
 Telefonda: kart kapalıyken şerit görünüyor. **Kart açıkken şeridin gizlenmesi ve "Veri gelmiyor" süresi henüz
 telefonda ölçülmedi** (kart kapalı).
+
+## 2026-10-05 (gece, 5) — gerçek kartta: şerit, "veri gelmiyor" ve A testi (güç kesme)
+
+**Telefonda bulunan kusur (benim):** yeni şerit kuralı kart açıkken de şeridi gizlemiyordu. Sebep: kural "şimdi"yi
+saniyelik tikten alıyordu; veri ve `/pil` yanıtı tikler ARASINDA geldiği için yaşlar eksi çıkıyor, "saat geri
+gitti" korumam şeridi hep görünür tutuyordu. Birim testlerim saati yalnız tikte ilerlettiği için yakalamadı
+(yeşil test bir şey kanıtlamadı). Düzeltme: kural CANLI saati kullanır; önce kusuru yeniden üreten kırmızı test
+yazıldı ("veri tikler arasında gelir"), mutasyonu eklendi (öldü). Kartın `/pil` yanıtı PC'den okunarak doğrulandı
+(`durum=BEKLEMEDE`, 167 bayt; imzasız okunabildi — kartta zorunluluk kapalı).
+
+**Gerçek kartta ölçülenler (Redmi Note 10S; kayıt 62292 + "bu kayıt için" anlık izleme):**
+| Ne | Sonuç |
+|---|---|
+| Kart açık, pil testi yok | ✅ Şerit GİZLİ (boşta da, ölçüm kaydı sürerken de) |
+| Kartın gücü kesildi (22:20:01–03) | ✅ "Karttan haber yok — kayıt sürüyordu (oturum 62292)" 22:20:10'da: **7–9 s** (hedef 10, kabul 15); uyarı kanalı |
+| Ekran | ✅ "Veri gelmiyor · son görülme N sn önce" (eskiden 40 s "bağlı" kalıyordu), rakamlar silindi, şerit GERİ GELDİ |
+| Güç geri verildi (ağa dönüş 22:21:34) | ✅ 4 s sonra AYNI bildirim "Kart yeniden bağlandı — kayıt sürüyor"; ayrıca "Kart yeniden başladı — kayıt kesildi ve sürüyor"; ekran kendiliğinden "Bu ağda", şerit yeniden gizli |
+| Kayıt durduruldu | ✅ "Kayıt bitti — kullanıcı durdurdu (oturum 62292, 565 nokta)"; servis 11 s'de kapandı |
+Logcat: çökme ve sır izi yok.
+
+**Küçük gözlemler (düzeltilmedi):** veri gelmezken Durum'daki kayıt süresi sayacı saymayı sürdürüyor ("Kayıt
+sürüyor 00:01:44") — durum bilinmiyorken dondurulabilir. Telefonun Wi-Fi'ı B testinden kapalı kalmıştı; kart
+"ulaşılamıyor" görünmesinin sebebi buydu (telefonun ağ ayarına ben dokunmuyorum).

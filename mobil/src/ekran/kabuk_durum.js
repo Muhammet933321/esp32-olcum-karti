@@ -130,7 +130,10 @@ export function kabukDurumu({
   // ACIL DURDUR seridi gorunur mu? (pil testinin surmedigi KESIN degilse evet.)
   function seritGorunur() {
     const b = baglanti.value;
-    const t = simdi.value;
+    // CANLI saat: veri ve /pil yaniti tikler ARASINDA gelir; "simdi" son tikten alinirsa yaslar eksi cikar ve
+    // serit hep gorunur kalirdi (telefonda bulundu, 2026-10-05). `simdi.value` okunur ki tepkisellik her tikte
+    // yeniden hesaplatsin (veri kesilince de).
+    const t = Math.max(simdi.value, simdiMs());
     return durdurGorunur({
       bagli: Boolean(b) && b.durum === "bagli", akisHal: akis.value.hal,
       veriYasMs: sonGorulme.value === null ? null : t - sonGorulme.value,
