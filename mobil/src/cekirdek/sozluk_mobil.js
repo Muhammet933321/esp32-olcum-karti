@@ -164,6 +164,7 @@ export const SOZLUK_MOBIL = Object.freeze({
   // ── Durum (ekran/Durum.vue, ekran/durum_gorunum.js)
   "m.dr.bu_agda": S("Bu ağda", "On this network"),
   "m.dr.ulasilamiyor": S("Ulaşılamıyor", "Unreachable"),
+  "m.dr.veri_yok": S("Veri gelmiyor", "No data"),
   "m.dr.araniyor": S("Kart aranıyor…", "Looking for the board…"),
   "m.dr.eslesmemis": S("Kart bulundu, bu telefon eşleşmemiş", "Board found, this phone is not paired"),
   "m.dr.kasa_bozuk": S("Telefondaki eşleşme kaydı okunamıyor", "The pairing record on the phone is unreadable"),

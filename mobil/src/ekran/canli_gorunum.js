@@ -38,6 +38,7 @@ export function canliHali({ baglanti, araniyor = false, akis = null }) {
     case "acik": return sonuc("m.dr.bu_agda", "iyi", { akiyor: true, komut: true });
     case "dolu": return sonuc("m.cn.dolu", "uyari", { komut: true });     // izleyemiyoruz ama komut yolu ayri
     case "hata": return sonuc("m.cn.kart_yok", "uyari");
+    case "eski": return sonuc("m.dr.veri_yok", "uyari", { komut: true });     // veri gelmiyor; komut yolu yine denenebilir
     default: return sonuc("m.cn.baglaniyor", "");
   }
 }

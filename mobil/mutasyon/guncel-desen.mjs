@@ -73,6 +73,15 @@ export const GUNCEL = {
   "5E-4D: adres dosyasina gecersiz adres yaziliyor": { bul: "val sade = YerelYoklama.sade(adres) ?: throw ZarfHatasi(\"bicim\")", koy: "val sade = adres ?: throw ZarfHatasi(\"bicim\")" },
   "5E-2K: SUBACK'ten once gelen kalici mesaj atiliyor": { bul: "                    bekleyenYayin.add(p)\n", koy: "" },
   "5E-K: MQTT ayristirici tampon siniri yok": { bul: "            if (boy > azami + 5 || n > azami + 5) throw MqttHatasi(\"buyuk\")\n", koy: "" },
+  // 2026-10-05: serit artik kosullu (v-if="seritGorunur") — kullanici karari
+  "5C-kabuk: DURDUR seridi yonlendirici cikisinin icine alindi": {
+    bul: '<main id="icerik" class="icerik"><router-view /></main>\n    <DurdurSeridi v-if="seritGorunur" />',
+    koy: '<main id="icerik" class="icerik"><router-view /><DurdurSeridi v-if="seritGorunur" /></main>',
+  },
+  "5C-kabuk: DURDUR seridi sekmelerin altina indi": { bul: '    <DurdurSeridi v-if="seritGorunur" />\n', koy: "" },
+  "5C-kabuk: serit yalniz kart bagliyken gorunuyor": {
+    bul: '<DurdurSeridi v-if="seritGorunur" />', koy: '<DurdurSeridi v-if="seritGorunur && kabuk.baglanti.value" />',
+  },
 };
 
 // Listeyi guncel desenlerle dondurur (ada gore; eslesmeyen girdi oldugu gibi kalir).

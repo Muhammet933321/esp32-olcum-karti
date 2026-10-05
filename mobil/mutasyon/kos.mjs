@@ -17,8 +17,9 @@ const KOK = resolve(MOBIL, "..");
 // derleme ciktilari kopyalanmaz.
 const KOPYALANMAZ = ["node_modules", "dist", "android/app/build", "android/build", "android/.gradle",
   "android/app/src/main/assets", "android/capacitor-cordova-android-plugins"];
+// kod: firmware kaynagi SALT OKUNUR (testler kartin sabit adlarini oradan dogrular); mutasyon hedefi OLAMAZ.
 // arayuz3: panelin SAF kayit yardimcilari @panel ile ice aktarilir (5D-3); mutasyon hedefi OLAMAZ.
-const BAGLANTILAR = [["ortak", join(KOK, "ortak")], ["uretim", join(KOK, "uretim")], ["arayuz3", join(KOK, "arayuz3")]];
+const BAGLANTILAR = [["ortak", join(KOK, "ortak")], ["uretim", join(KOK, "uretim")], ["arayuz3", join(KOK, "arayuz3")], ["kod", join(KOK, "kod")]];
 
 function secenek(ad) {
   const i = process.argv.indexOf(ad);

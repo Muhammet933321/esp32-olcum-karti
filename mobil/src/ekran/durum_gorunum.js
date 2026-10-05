@@ -224,5 +224,7 @@ export function baglantiGorunumu({ baglanti, araniyor = false, akis = null, sonG
   if (hal === "acik") return sonuc("m.dr.bu_agda", "iyi");
   if (hal === "dolu") return sonuc("m.cn.dolu", "uyari");
   if (hal === "hata") return sonuc("m.dr.ulasilamiyor", "uyari", { yeniden: true });
+  // Akis acik ama veri gelmiyor (kart kapanmis / agdan dusmus olabilir): "bagli" DENMEZ.
+  if (hal === "eski") return sonuc("m.dr.veri_yok", "uyari", { yeniden: true });
   return sonuc("m.cn.baglaniyor", "");
 }

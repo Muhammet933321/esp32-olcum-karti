@@ -17,6 +17,7 @@
 
 import { ref, shallowRef } from "vue";
 import { DURDUR_KOMUTU, hizKomutu } from "./canli_gorunum.js";
+import { PIL_BILINMIYOR, PIL_YOKLAMA_MS, akisHali, durdurGorunur } from "../cekirdek/pil_durum.js";
 import { KDR, gAlan, gorunenOlcum, kayitIzle, oturumTuruBul } from "./durum_gorunum.js";
 
 const AKIS_YOK = Object.freeze({ hazir: null, hal: "kapali", bagli: false, son: null, kayit: null });
@@ -40,7 +41,7 @@ export class KabukHatasi extends Error {
 export const ESITLEME_YOK = Object.freeze({ hazir: null, hal: "bos", sonMs: null, yeni: 0, sonSira: null, bosluk: 0, bekleyen: 0, hata: null, sifirlaOner: false, onayli: false });
 
 export function kabukDurumu({
-  kartAl, canliAl, esitlemeAl = null, bildirimIzle = null, belge = null, simdiMs = Date.now,
+  kartAl, canliAl, esitlemeAl = null, bildirimIzle = null, pilOku = null, belge = null, simdiMs = Date.now,
   araliKur = (fn, ms) => setInterval(fn, ms), araliSil = (no) => clearInterval(no),
 }) {
   const baglanti = shallowRef(null);
@@ -52,6 +53,8 @@ export function kabukDurumu({
   const cizim = ref(0);                 // her yeni olcumde artar: grafikler bunu izler
   const oturumTuru = ref(null);         // etkin kaydin turu (1 olcum, 2 pil, 3 skop) | null = bilinmiyor
   const esitleme = shallowRef(ESITLEME_YOK);   // kayit esitlemesinin durumu (5D); hazir: null bilinmiyor / false yok / true
+  // Kartin pil testi durumu (son `/pil` okumasi): ACIL DURDUR seridinin gorunurlugu buna bagli (pil_durum.js).
+  const pil = shallowRef(PIL_BILINMIYOR);
 
   let gorunur = false;
   let canli = null;
@@ -66,6 +69,10 @@ export function kabukDurumu({
   let esit = null;                      // esitleme dongusu (tembel kurulur)
   let esitKuruluyor = false;
   let oncekiBagli = false;
+  let pilSonIstek = null;               // son /pil isteginin ani; null = bu baglantida hic okunmadi
+  let pilSuruyor = false;
+  let pilKusak = 0;                     // baglanti / kayit durumu degisince artar: suren okumanin sonucu ATILIR
+  let sonKayitIzi = null;               // son G satirinin "durum:oturum" izi
 
   const ozet = (b) => (b ? { durum: b.durum, adres: b.adres || null, kimlik: b.kimlik || null } : null);
 
@@ -76,6 +83,9 @@ export function kabukDurumu({
     if (!d) return;
     const t = simdiMs();
     akis.value = { hazir: true, hal: d.hal, bagli: d.bagli === true, son: gorunenOlcum(d.hal, d.son), kayit: d.kayit || null };
+    // Kayit durumu DEGISTI: pil testi baslamis / bitmis olabilir -> yeni okuma gelene dek BILINMIYOR (serit gorunur).
+    const iz = d.kayit ? `${gAlan(d.kayit, "durum")}:${gAlan(d.kayit, "oturum")}` : null;
+    if (iz !== sonKayitIzi) { sonKayitIzi = iz; pilGecersiz(); }
     if (d.son && d.son !== sonOlcum) {
       sonOlcum = d.son;
       sonGorulme.value = t;
@@ -93,6 +103,39 @@ export function kabukDurumu({
       if (izleme.value && izleme.value.durum === KDR.KAYIT) bekleyenHiz = null;
       turIzle(d.kayit);
     }
+  }
+
+  function pilGecersiz() {
+    pilKusak += 1;
+    pilSonIstek = null;
+    if (pil.value !== PIL_BILINMIYOR) pil.value = PIL_BILINMIYOR;
+  }
+
+  // Saniyede bir: kart BAGLI ve uygulama ONDEYKEN pil durumu PIL_YOKLAMA_MS'de bir (ve gecersiz kilininca hemen)
+  // okunur. Okunamazsa BILINMIYOR kalir. Bagli degilken / arka planda durum BILINMIYOR.
+  function pilTik(t) {
+    if (typeof pilOku !== "function") return;
+    const b = baglanti.value;
+    if (!gorunur || !b || b.durum !== "bagli") { if (pilSonIstek !== null || pil.value !== PIL_BILINMIYOR) pilGecersiz(); return; }
+    if (pilSuruyor || (pilSonIstek !== null && t - pilSonIstek < PIL_YOKLAMA_MS)) return;
+    pilSonIstek = t;
+    pilSuruyor = true;
+    const kusak = pilKusak;
+    Promise.resolve().then(pilOku).then(
+      (durum) => { if (kusak === pilKusak) pil.value = typeof durum === "string" ? { durum, okunduMs: simdiMs() } : PIL_BILINMIYOR; },
+      () => { if (kusak === pilKusak) pil.value = PIL_BILINMIYOR; },
+    ).finally(() => { pilSuruyor = false; });
+  }
+
+  // ACIL DURDUR seridi gorunur mu? (pil testinin surmedigi KESIN degilse evet.)
+  function seritGorunur() {
+    const b = baglanti.value;
+    const t = simdi.value;
+    return durdurGorunur({
+      bagli: Boolean(b) && b.durum === "bagli", akisHal: akis.value.hal,
+      veriYasMs: sonGorulme.value === null ? null : t - sonGorulme.value,
+      pil: pil.value, oturumTuru: oturumTuru.value, simdiMs: t,
+    });
   }
 
   // Kayit surerken oturum numarasi degisince BIR kez: etkin oturumun turu (pil testi mi?) sorulur.
@@ -174,6 +217,7 @@ export function kabukDurumu({
     // A22: arka planda yeni esitleme turu baslamaz (bekleyen "kayit bitti" turu dahil).
     if (esit && typeof esit.gorunurluk === "function") esit.gorunurluk(false);
     if (zamanlayici) { araliSil(zamanlayici); zamanlayici = null; }
+    pilGecersiz();                      // arka planda pil durumu izlenmez: donunce yeniden okunur
     akisKapat();
   }
 
@@ -238,8 +282,15 @@ export function kabukDurumu({
   function tik() {
     const t = simdiMs();
     simdi.value = t;
+    // Akis "acik" gorunse de veri VERI_ESKI_MS'dir gelmiyorsa hal "eski": durum, akisin TCP zaman asimina (~40 s)
+    // degil SON VERININ YASINA bagli (kullanici, 2026-10-05). Yeni veri gelince guncelle() "acik"a dondurur.
+    if (akisHali(akis.value.hal, sonGorulme.value, t) === "eski") {
+      akis.value = { ...akis.value, hal: "eski", bagli: false, son: null };
+      if (hataBasi === null) hataBasi = t;      // kart adres degistirmis olabilir: yeniden arama saati baslar
+    }
     esitlemeTik();
     bildirimTik();
+    pilTik(t);
     if (!gorunur || araniyor.value || mesgul > 0) return;
     const b = baglanti.value;
     if ((!b || b.durum === "bulunamadi") && t - sonDeneme >= YENIDEN_DENE_MS) { yenidenBaglan(); return; }
@@ -323,7 +374,7 @@ export function kabukDurumu({
   }
 
   return {
-    baglanti, araniyor, akis, sonGorulme, simdi, izleme, cizim, oturumTuru, esitleme,
+    baglanti, araniyor, akis, sonGorulme, simdi, izleme, cizim, oturumTuru, esitleme, pil, seritGorunur,
     ac, kapat, birak, yenidenBaglan, baglantiDegisti, kayitBaslat, kayitDurdur, seri, gorunurlukDegisti, mesgulYap,
     simdiEsitle, kopyaSifirla,
   };

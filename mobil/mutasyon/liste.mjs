@@ -17,6 +17,7 @@ import curutucu5d from "../test/curutucu-5d/yasayan-liste.mjs";
 import duzeltme5d from "./duzeltme5d-liste.mjs";
 import bildirim from "./bildirim-liste.mjs";
 import paylasim from "./paylasim-liste.mjs";
+import durdurGorunur from "./durdur-gorunur-liste.mjs";
 
 import { guncelle } from "./guncel-desen.mjs";
 
@@ -33,6 +34,7 @@ const HAM = [
   // Curutucu 5D: bulundugunda YASAYAN mutasyonlar (artik olmeli; "C5D-Y…" adlariyla) + duzeltmelerin mutasyonlari.
   ...bildirim,
   ...paylasim,
+  ...durdurGorunur,
   ...curutucu5d,
   ...duzeltme5d,
   ...p0,

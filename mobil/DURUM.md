@@ -1032,3 +1032,41 @@ Logcat (yalnız kendi süreç, 971 satır): çökme yok, sır izi (aracı adresi
 ev interneti koptu (A36) · IP değişimi / "başka adres yanıt verdi" · pilde (şarjsız) dayanma · kıskaçla
 yakınlaştırma · TalkBack · gerçek hedefe paylaşım · Honor (5G).
 **Kartla yapılamayan:** pil oturumunda salt okuma (`p1` yasak: PİL jaklarına yük gerekiyor).
+
+## 2026-10-05 (gece, 4) — kullanıcının fiziksel testleri + iki değişiklik
+
+**Kullanıcının sonuçları:**
+- **A (güç kesme):** canlı ekranda "son görülme" sayacı çalıştı ama durum 40 s "bağlı" kaldı, ancak 40. saniyede
+  "bağlanıyor"a düştü → YANILTICI (aşağıda düzeltildi). O sırada kayıt sürmüyordu: "karttan haber yok" bildirimi
+  çıkmaması doğru (A33: yalnız kayıt sürerken). Bildirim süresi ölçümü kayıt + izleme açıkken yeniden yapılacak.
+- **B (telefonun interneti):** internet gidince anında "ulaşılamıyor" — doğru.
+- **C (ev interneti koptu) ve D (pilde dayanma): KULLANICI ATLADI.** A36 yerel yoklaması ve şarjsız (gerçek Doze)
+  dayanma gerçek ortamda ölçülmedi; yalnız birim testleri var.
+
+**Değişiklik 1 — bağlantı durumu SON VERİNİN YAŞINA bağlı (kullanıcı):** akış "açık" görünse de 5 s'dir hiç satır
+gelmediyse hal `eski`: çip ve Durum "Veri gelmiyor · son görülme X sn önce" der, rakamlar silinir, "Yeniden dene"
+çıkar; ilk yeni satırda kendiliğinden düzelir. Eşik 5 s: akış saniyede ~5 satır yollar (25 kat pay; Wi-Fi'ın kısa
+takılmaları titretmez). Akışın TCP okuma zaman aşımına (~40 s) DOKUNULMADI — o yalnız yeniden bağlanmayı tetikler;
+durum artık ona bağlı değil. Veri eskiyince "kartı yeniden ara" saati de başlar (adres değişmiş olabilir).
+
+**Değişiklik 2 — ACİL DURDUR şeridi koşullu (kullanıcı kararı; spec A8 güncellendi):** `p0`'ın kestiği tek şey
+kartın yükü (Q1), o da yalnız pil testinde çalışır. Kural (`cekirdek/pil_durum.js`, saf):
+- pil testinin SÜRMEDİĞİ kesin biliniyorsa şerit GİZLİ; sürüyorsa ya da BİLİNMİYORSA görünür (şüphede göster).
+- "Kesin" = hepsi birden: kart bağlı (eşleşmiş) · akış açık · son veri ≤ 5 s · kartın pil durumu okunmuş, tanınan
+  ve `CALISIYOR` değil · o okuma ≤ 45 s eski · etkin oturum pil oturumu değil.
+- Kaynak: kartın kendi durumu — imzalı `GET /pil?sira=2147483647` (yalnız durum satırları, nokta yok). Benim kararlarım:
+  30 s'de bir okunur (daha sık değil: her istek kartın ölçüm döngüsünü biraz meşgul eder); kayıt durumu (G satırı)
+  HER değiştiğinde durum hemen "bilinmiyor" olur ve yeniden okunur (pil testi çoğunlukla bir pil oturumu açar →
+  G değişir); okuma hatası / tanınmayan yanıt / arka plan / bağlantı kopması = bilinmiyor.
+- ⚠ Kalan pencere: OTURUMSUZ bir pil testi başka yerden (PC paneli) başlatılırsa G değişmez; şerit en geç 30 s
+  sonraki okumada geri gelir. Bu süreyi kısaltmak için ya yoklama sıklaşmalı ya da kart pil durumunu akışa
+  koymalı (firmware işi — `DEVIR-ISTEK`'e yazılabilir; şimdilik 30 s'yi kabul ettim).
+- Eski kural ("şerit hiçbir v-if ile gizlenemez") testte TEK izinli koşula çevrildi: `v-if="seritGorunur"`.
+
+**Kanıt:** JS 600/600 (yeni `test/durdur_gorunur.test.js`: 20 ayrı "bilinmiyor" hâlinin her birinde görünür;
+kabukla uçtan uca 12 senaryo). Mutasyon DG 35/35 ("bilinmiyorsa gizle" ailesinin 14'ü dahil), 5C-kabuk 36/36.
+İlk koşuda 30/36: dört test eksikti (eklendi), biri kabukta gereksiz çıkan bir yoldu (listeden çıkarıldı; kural
+düzeyinde sınanıyor), biri arka plan geçişiydi (kabuk artık arka plana geçerken pil durumunu hemen unutuyor).
+Koşucunun kopyasına `kod/` SALT OKUNUR bağlandı (test kartın durum adlarını firmware kaynağından doğruluyor).
+Telefonda: kart kapalıyken şerit görünüyor. **Kart açıkken şeridin gizlenmesi ve "Veri gelmiyor" süresi henüz
+telefonda ölçülmedi** (kart kapalı).

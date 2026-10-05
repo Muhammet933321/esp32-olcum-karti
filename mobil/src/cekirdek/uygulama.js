@@ -14,6 +14,7 @@ import { durdurKur } from "./durdur.js";
 import { KART_ADI } from "./hedef.js";
 import { Bildirim, KartAg, KartDepo, Kasa, Kesif, Paylas } from "./eklenti.js";
 import { onayOku, onayYaz } from "./esitleme_ayar.js";
+import { PIL_SIRA, PIL_YOLU, pilDurumuCoz } from "./pil_durum.js";
 import { paylasKur } from "./paylas.js";
 import { kartKur } from "./kart.js";
 import { kasaKur } from "./kasa.js";
@@ -208,6 +209,13 @@ export const izlemeSorusu = izlemeSorusuKur({
 export async function bildirimKimligi() {
   try { const d = (await kartAl()).durum(); if (d && typeof d.kimlik === "string") return d.kimlik; } catch { /* son kimlige dus */ }
   return sonKimlik();
+}
+
+// Kartin pil testi durumu (ACIL DURDUR seridinin gorunurlugu icin): imzali `GET /pil` — yalniz durum satirlari
+// (nokta istenmez). Donus: durum adi | null (okunamadi / taninmadi). Hata yukari CIKAR (kabuk BILINMIYOR sayar).
+export async function pilOku() {
+  const yanit = await (await kartAl()).istek("GET", PIL_YOLU, [["sira", PIL_SIRA]]);
+  return pilDurumuCoz(await yanit.text());
 }
 
 // ── paylasim (5F: cekirdek/paylas.js; dosya uygulamanin onbellegine yazilir, Android'in paylasim penceresi acilir) ──

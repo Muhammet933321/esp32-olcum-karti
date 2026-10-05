@@ -45,11 +45,14 @@ describe("kabuk: ACIL DURDUR seridi", () => {
 
   it("serit kabukta, yonlendirici cikisinin DISINDA ve sekmelerin HEMEN ustunde (kaynak sirasi)", () => {
     const s = sablon(APP);
-    expect(s).toMatch(/<main id="icerik" class="icerik"><router-view \/><\/main>\s*<DurdurSeridi \/>\s*<nav id="sekmeler" class="sekme"/);
+    expect(s).toMatch(/<main id="icerik" class="icerik"><router-view \/><\/main>\s*<DurdurSeridi v-if="seritGorunur" \/>\s*<nav id="sekmeler" class="sekme"/);
     expect(s.match(/<DurdurSeridi\b/g).length).toBe(1);
     expect(s.match(/<router-view\b/g).length).toBe(1);
-    // Kosula bagli degil: hicbir v-if / v-show seridi gizleyemez.
-    expect(s).not.toMatch(/<DurdurSeridi[^>]*v-(if|show)/);
+    // TEK kosul: pil_durum.js'in kurali (kullanici karari 2026-10-05: pil testinin surmedigi KESIN ise gizli).
+    // Baska hicbir v-if / v-show seridi gizleyemez; kosul dogrudan kabugun kuralina baglidir.
+    expect(s.match(/<DurdurSeridi[^>]*>/)[0]).toBe('<DurdurSeridi v-if="seritGorunur" />');
+    expect(APP).toContain("const seritGorunur = computed(() => kabuk.seritGorunur());");
+    expect(APP.match(/seritGorunur\b/g).length).toBe(3);                 // tanim + kabuk cagrisi + sablon; baska yerde degismez
     expect(sablon(SERIT)).not.toMatch(/v-show|<div id="durdur-seridi"[^>]*v-if|<button id="durdur"[^>]*(v-if|:disabled|disabled)/);
   });
 
@@ -61,11 +64,11 @@ describe("kabuk: ACIL DURDUR seridi", () => {
       return kaynak.slice(i, kaynak.indexOf(">", i) + 1);
     };
     const ETIKETLER = [
-      etiket(sablon(APP), '<div id="kabuk"'), etiket(sablon(APP), "<DurdurSeridi"),
+      etiket(sablon(APP), '<div id="kabuk"'),
       etiket(sablon(SERIT), '<div id="durdur-seridi"'), etiket(sablon(SERIT), '<button id="durdur"'),
     ];
     for (const e of ETIKETLER) expect(e, e).not.toMatch(YASAK);
-    expect(ETIKETLER[2]).toBe('<div id="durdur-seridi" class="serit">');
+    expect(ETIKETLER[1]).toBe('<div id="durdur-seridi" class="serit">');
     // Belgenin kendisi (index.html) de uygulama kokunu kapatmaz.
     const belge = readFileSync(join(SRC, "..", "index.html"), "utf8");
     expect(belge).not.toMatch(/\binert\b|aria-hidden/);
