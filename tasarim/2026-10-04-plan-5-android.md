@@ -449,5 +449,10 @@ duyana doğru:
   WorkManager işi (A30), `Kasa`'dan K + zarf dosyası (A31). Manifest değişiklikleri burada.
 - WebView tarafı: imzalı `/bildirim/bilgi` → zarf olduğu gibi `files/kasa/<kimlik>.zarf`; Ayarlar › Bildirimler.
 
+**Durum (2026-10-05):** 5E-4 üçe bölündü. **4a** (`Izleyici`: zarf → aracı → karar, saf) ve **4b** (yeniden bağlanma
+döngüsü, zarf/ayar deposu, servis, gösterici, eklenti, Ayarlar › Bildirimler) BİTTİ. **4c AÇIK:** WorkManager işi
+(A30: 15 dk'da bir tek seferlik okuma — `Izleyici.calis(tekSefer = true)` hazır), A29 (c) "kayıt sürüyor — izlemek
+için dokun", A36 servisin imzasız `/eslestir/bilgi` yoklaması, Honor yönerge ekranı (A37).
+
 ## 5E-5 — gerçek kart + gerçek aracı (KART GEREKİR)
 - Ö4: kayıt bitti / pil bitti / vasiyet süreleri; ekran kapalı 8 saat (5G'de Honor'da).

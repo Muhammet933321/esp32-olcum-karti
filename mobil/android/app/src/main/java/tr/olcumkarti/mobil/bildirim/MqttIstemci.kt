@@ -44,7 +44,7 @@ class MqttIstemci(
         dur = true
     }
 
-    fun calis(istemciId: String, kullanici: String?, parola: String?, filtre: String, baglandi: () -> Unit, mesaj: (Yayin) -> Unit): MqttBitis {
+    fun calis(istemciId: String, kullanici: String?, parola: String?, filtre: String, baglandi: () -> Unit, mesaj: (Yayin) -> Unit, tik: () -> Unit = {}): MqttBitis {
         val ayristirici = MqttPaket.Ayristirici()
         val tampon = ByteArray(4096)
         var sonGiden = simdiMs()
@@ -103,6 +103,8 @@ class MqttIstemci(
             for (p in bekleyenYayin) yayinIsle(p)?.let { return it }
 
             while (!dur) {
+                tik()                                  // en gec TIK_MS'de bir (cagiranin saat isleri)
+                if (dur) break
                 val simdi = simdiMs()
                 if (pingZamani >= 0 && simdi - pingZamani >= SESSIZLIK_MS) return MqttBitis("sessiz")
                 if (pingZamani < 0 && simdi - sonGiden >= KEEPALIVE_S * 1000L) {

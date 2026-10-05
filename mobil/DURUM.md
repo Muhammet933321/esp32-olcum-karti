@@ -785,3 +785,49 @@ almadıysa bildirilmez; kapalı sınıf "koptu" ve "kaçırılan" için de susar
 yazılması yaşıyordu, test eklendi). JS 487/487, Kotlin birim testleri yeşil.
 Son derleme Xiaomi'de (Redmi Note 10S, Android 13): açılıyor, logcat taramasında çökme / JS hatası / sır izi yok.
 ⚠ Bildirim paketi henüz hiçbir yerden ÇAĞRILMIYOR (servis, kanal, izin = 5E-4); kurulu sürümde davranış değişmedi.
+
+## 2026-10-05 (akşamüstü) — 5E-4 (kartsız): izleyici, bildirim kabuğu, Ayarlar › Bildirimler
+
+**5E-4a — `bildirim/Izleyici.kt` (saf):** zarf → aracı → karar zinciri. Kartın `/bildirim/bilgi` zarfını K ile açar,
+adresi denetler (yalnız `mqtts://`), abone olur, her mesajı kendi zarfından (AAD = konu adı) çıkarıp
+`BildirimKarar`'a verir. Çözülmüş aracı bilgisi yalnız çağrı boyunca bellekte, anahtar çıkışta sıfırlanır.
+Etiketi tutmayan mesaj atılır ve sayılır (A32); hiç mesaj çözülemeden 3 mesaj atılırsa "anahtar" (kartta `QR!`).
+Tek seferlik okuma (A30): kalıcı durum okununca ya da 20 s'de kapanır. **Kayıt bitince durma (A28):** `surdur`
+10 s kesintisiz "hayır" derse oturum "gerek-kalmadi" ile biter — hemen değil, çünkü "kayıt bitti" olayının
+ayrıntısı durumdan sonra gelebilir. Bitiş SABİT tür adı + sınıf (`ayar / internet / guven / araci / tamam`).
+20 test (sahte aracı, sanal saat; biri karar vektöründeki senaryoyu aracı üzerinden yürütüp aynı bildirimleri alıyor).
+
+**5E-4b — kabuk:**
+- `IzlemeDongusu.kt` (saf): yeniden bağlanma. İnternet yokken 2/5/10/30/60 s, bağlanıp kopan baştan sayar;
+  ayar hatasında (zarf / adres / CONNACK 4-5 / anahtar) DENEMEZ (A31); güven ve aracı hatası 1/5/15 dk.
+- `BildirimDeposu.kt` (saf): `files/kasa/<kimlik>.zarf` (zarf OLDUĞU GİBİ; biçimi tutmayan yazılmaz) +
+  `<kimlik>.olay` (son olay a, n). Kasa dizininde: eşleşme kaldırılınca `KasaDeposu.sil` bunları da siler (test).
+  `BildirimAyar` (`files/bildirim/ayar.json`): anlık izleme, kapalı sınıflar, dil. `Kanal`: uyarı (haber yok,
+  bellek doldu, eşik) / bilgi / izleme (A38).
+- Android: `IzlemeServisi` (ön plan, tür `connectedDevice`; aynı süreç, sayaca dokunmaz, günlük yok),
+  `BildirimGosterici` (kanallar; etiket = Android bildirim etiketi → aynı etiket günceller; kilit ekranında içerik
+  gizli), `BildirimPlugin` (`zarfYaz` yazmadan önce K ile açıp denetler; çözülmüş içerik köprüye GİTMEZ).
+- WebView: `cekirdek/bildirim.js` zarfı imzalı `GET /bildirim/bilgi` ile alır, AÇMADAN eklentiye verir; 404'te
+  eldeki zarf silinir. `bildirimIzleyici` kabuğun tikinden: yeni bağlantıda zarf bir kez yenilenir, kayıt durumu
+  değişince servise iletilir (A35), kayıt sürüyorsa izleme başlatılır (A29 a, b).
+- Ayarlar › Bildirimler: ayar durumu + "Karttan yenile", bildirim izni (açıklamasıyla), anlık izleme anahtarı,
+  pil kısıtlaması (yalnız anlık izleme açıkken, nedeni yazılarak — A37), 7 olay anahtarı, deneme bildirimi.
+
+**Verdiğim kararlar (onayına sunulur):**
+1. **Anlık izleme varsayılan KAPALI** (kalıcı bildirim + pil muafiyeti isteyen şey kullanıcı açmadan başlamaz).
+2. **Kapalıyken bugün HİÇ bildirim gelmez** — 15 dk'lık yoklama (A30, WorkManager) henüz yazılmadı; ekran bunu
+   açıkça söylüyor ("Kapalıyken bildirim gelmez"). Sıradaki iş bu.
+3. Manifest'e eklenen izinler: `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`,
+   `CHANGE_NETWORK_STATE` (connectedDevice türünün Android 14+ ön koşulu), `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`
+   (sistem penceresi; karar kullanıcının).
+4. Ayar hatasında servis durur ve kalıcı OLMAYAN "bildirim ayarı yenilenmeli" bildirimi bırakır.
+
+**Kanıt:** JS 513/513 (yeni `test/bildirim.test.js` 26), Kotlin birim testleri yeşil (IzleyiciTest 20,
+BildirimKabukTest 13). Mutasyon: 5E-4K 29/29, 5E-4J 33/33 (ilk koşuda 32/33 — "eşleşmemiş kart bağlı sayılıyor"
+yaşıyordu, test eklendi), 5E-4B 26/26 (ilk koşuda 25/26 — boyu fazla olan son-olay dosyası okunuyordu, test eklendi).
+**Telefonda (Redmi Note 10S, Android 13):** Ayarlar › Bildirimler açılıyor; "İzin ver" Android'in kendi penceresini
+açtı (izni geliştirme telefonunda VERDİM — yalnız kendi uygulamamız, geri alınabilir); "Deneme bildirimi göster"
+bildirimi `bilgi` kanalında gösterdi; logcat'te çökme / sır izi yok.
+**Kartsız DOĞRULANAMAYAN (5E-5):** gerçek zarfın alınması, servisin gerçek aracıya bağlanması, kayıt bitince
+kendini durdurması, vasiyet süresi, ekran kapalıyken dayanma; A36 yerel yoklaması (servis `/eslestir/bilgi`'yi
+henüz yoklamıyor — yalnız uygulama öndeyken gelen yerel haber var).

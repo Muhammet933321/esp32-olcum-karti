@@ -3,19 +3,21 @@
 // ACIL DURDUR seridi BURADA, yonlendirici cikisinin DISINDA ve sekmelerin HEMEN ustunde: her rotada,
 // eslestirme ekrani acikken de gorunur (A8). Ekranlar seridi KENDILERI koymaz (test/kabuk.test.js).
 // Uygulamada katman acan bilesen (iletisim kutusu, kayan pencere) KULLANILMAZ: seridi hicbir sey ortmez.
-import { computed, onBeforeUnmount, onMounted, provide, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import DurdurSeridi from "./bilesen/DurdurSeridi.vue";
 import Ikon from "./bilesen/Ikon.vue";
-import { canliAl, esitlemeAl, kartAl } from "./cekirdek/uygulama.js";
+import { bildirimAl, bildirimIzle, canliAl, esitlemeAl, kartAl } from "./cekirdek/uygulama.js";
 import { VARSAYILAN_HIZ_MS } from "./ekran/canli_gorunum.js";
 import { baglantiGorunumu } from "./ekran/durum_gorunum.js";
 import { kabukDurumu } from "./ekran/kabuk_durum.js";
-import { c } from "./ekran/metin.js";
+import { c, dil } from "./ekran/metin.js";
 import { SEKMELER, sekmeBul } from "./ekran/sekmeler.js";
 
-const kabuk = kabukDurumu({ kartAl, canliAl, esitlemeAl, belge: document });
+const kabuk = kabukDurumu({ kartAl, canliAl, esitlemeAl, bildirimIzle, belge: document });
 provide("kabuk", kabuk);
+// Bildirim dili = uygulamanin dili (servis kendi baglaminda calisir; ayar dosyasindan okur).
+watch(dil, (d) => { bildirimAl().ayarYaz({ dil: d }).catch(() => {}); }, { immediate: true });
 provide("kayitHizi", ref(VARSAYILAN_HIZ_MS));     // Durum ve Canli ayni secimi kullanir
 
 const rota = useRoute();

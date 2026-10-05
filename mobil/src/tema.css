@@ -181,3 +181,10 @@ h1, h2, h3, p { margin: 0; }
 .ayar ion-button { min-height: var(--dokunma); margin: 0; }
 .ayar ion-item { --min-height: var(--dokunma); }
 .ayar ion-list { border: 1px solid var(--kenar-c); border-radius: var(--r); padding: 0; overflow: hidden; }
+
+/* Ayarlar › Bildirimler: olay anahtarlari (satir = ad + Acik/Kapali; dokunma alani dugmenin tamami) */
+.kart b.uyari { color: var(--uyari); }
+.anahtarlar { display: grid; gap: .5rem; }
+.anahtar-satir { display: flex; justify-content: space-between; align-items: center; gap: 1rem; text-align: left; height: auto; padding-top: .5rem; padding-bottom: .5rem; }
+.anahtar-satir b { flex: none; font-family: var(--mono); color: var(--vurgu); }
+.anahtar-satir[aria-checked="false"] b { color: var(--soluk); }

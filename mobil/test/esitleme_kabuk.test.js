@@ -273,6 +273,6 @@ describe("ekran baglantilari (kaynak)", () => {
     expect(u).toContain("depoAl: (kimlik) => d.depoKur(KartDepo, kimlik),");
     expect(u).toContain("onayAcik: esitlemeOnayi,");
     expect(u).not.toMatch(/^import .*esitleme\.js/m);            // acilis paketine statik girmez
-    expect(kaynak("App.vue")).toContain("kabukDurumu({ kartAl, canliAl, esitlemeAl, belge: document })");
+    expect(kaynak("App.vue")).toContain("kabukDurumu({ kartAl, canliAl, esitlemeAl, bildirimIzle, belge: document })");
   });
 });

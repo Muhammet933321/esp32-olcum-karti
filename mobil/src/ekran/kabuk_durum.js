@@ -40,7 +40,7 @@ export class KabukHatasi extends Error {
 export const ESITLEME_YOK = Object.freeze({ hazir: null, hal: "bos", sonMs: null, yeni: 0, sonSira: null, bosluk: 0, bekleyen: 0, hata: null, sifirlaOner: false, onayli: false });
 
 export function kabukDurumu({
-  kartAl, canliAl, esitlemeAl = null, belge = null, simdiMs = Date.now,
+  kartAl, canliAl, esitlemeAl = null, bildirimIzle = null, belge = null, simdiMs = Date.now,
   araliKur = (fn, ms) => setInterval(fn, ms), araliSil = (no) => clearInterval(no),
 }) {
   const baglanti = shallowRef(null);
@@ -208,6 +208,16 @@ export function kabukDurumu({
     oncekiBagli = gorunur && bagli;
   }
 
+  // Bildirim (5E-4): yeni baglantida zarf yenilenir, kayit durumu degisince servise iletilir. Bildirim
+  // kusuru kabugu ASLA bozmaz.
+  function bildirimTik() {
+    if (!bildirimIzle) return;
+    const b = baglanti.value;
+    try {
+      bildirimIzle.tik({ gorunur, bagli: Boolean(b) && b.durum === "bagli", kimlik: b ? b.kimlik : null, kayit: akis.value.kayit });
+    } catch { /* bildirim yok sayilir */ }
+  }
+
   // "Simdi esitle": ASLA atmaz; esitleme yoksa null.
   async function simdiEsitle() {
     if (!esit) await esitlemeKur();
@@ -229,6 +239,7 @@ export function kabukDurumu({
     const t = simdiMs();
     simdi.value = t;
     esitlemeTik();
+    bildirimTik();
     if (!gorunur || araniyor.value || mesgul > 0) return;
     const b = baglanti.value;
     if ((!b || b.durum === "bulunamadi") && t - sonDeneme >= YENIDEN_DENE_MS) { yenidenBaglan(); return; }

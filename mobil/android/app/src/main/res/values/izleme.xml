@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Anlik izleme servisinin ve bildirim kanallarinin metinleri (telefona ozel; A28, A31, A34, A38).
+     Kart haberlerinin metinleri bildirim.xml'de (PC sozlugunden uretilir). Ingilizcesi values-en/izleme.xml. -->
+<resources>
+    <string name="kanal_izleme">İzleme</string>
+    <string name="kanal_uyari">Uyarılar</string>
+    <string name="kanal_bilgi">Kayıt bilgileri</string>
+    <string name="izleme_baglaniyor">Bildirim sunucusuna bağlanılıyor…</string>
+    <string name="izleme_izleniyor">Ölçüm kartı izleniyor</string>
+    <string name="izleme_internet">Telefonun interneti yok — kart izlenemiyor</string>
+    <string name="izleme_guven">Güvenli bağlantı kurulamadı — kart izlenemiyor</string>
+    <string name="izleme_araci">Bildirim sunucusu bağlantıyı kabul etmedi — yeniden denenecek</string>
+    <string name="izleme_ayar">Bildirim ayarı yenilenmeli — uygulamayı kartın ağında aç</string>
+    <string name="izleme_deneme_yerel">Deneme bildirimi — bu telefonda bildirimler görünüyor</string>
+</resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kanal_izleme">Monitoring</string>
+    <string name="kanal_uyari">Alerts</string>
+    <string name="kanal_bilgi">Recording info</string>
+    <string name="izleme_baglaniyor">Connecting to the notification server…</string>
+    <string name="izleme_izleniyor">Monitoring the measurement board</string>
+    <string name="izleme_internet">Phone has no internet — the board cannot be monitored</string>
+    <string name="izleme_guven">Secure connection failed — the board cannot be monitored</string>
+    <string name="izleme_araci">The notification server refused the connection — will retry</string>
+    <string name="izleme_ayar">Notification settings need refreshing — open the app on the board\'s network</string>
+    <string name="izleme_deneme_yerel">Test notification — notifications show on this phone</string>
+</resources>

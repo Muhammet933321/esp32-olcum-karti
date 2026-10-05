@@ -15,6 +15,7 @@ import kayitlar from "./kayitlar-liste.mjs";
 import grafikOlcum from "./grafik-olcum-liste.mjs";
 import curutucu5d from "../test/curutucu-5d/yasayan-liste.mjs";
 import duzeltme5d from "./duzeltme5d-liste.mjs";
+import bildirim from "./bildirim-liste.mjs";
 
 export default [
   ...curutucu.map((m) => ({ ...m, ad: `5A-7 ${m.ad}` })),
@@ -27,6 +28,7 @@ export default [
   ...kayitlar,
   ...grafikOlcum,
   // Curutucu 5D: bulundugunda YASAYAN mutasyonlar (artik olmeli; "C5D-Y…" adlariyla) + duzeltmelerin mutasyonlari.
+  ...bildirim,
   ...curutucu5d,
   ...duzeltme5d,
   ...p0,

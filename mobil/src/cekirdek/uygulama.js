@@ -9,9 +9,10 @@
 // Kurulum yarida kalirsa (eklenti yanit vermedi) soz saklanmaz: sonraki cagri yeniden dener.
 
 import { agKur } from "./ag.js";
+import { bildirimIzleyici, bildirimKur } from "./bildirim.js";
 import { durdurKur } from "./durdur.js";
 import { KART_ADI } from "./hedef.js";
-import { KartAg, KartDepo, Kasa, Kesif } from "./eklenti.js";
+import { Bildirim, KartAg, KartDepo, Kasa, Kesif } from "./eklenti.js";
 import { onayOku, onayYaz } from "./esitleme_ayar.js";
 import { kartKur } from "./kart.js";
 import { kasaKur } from "./kasa.js";
@@ -183,6 +184,23 @@ export function kayitlarAl() {
     yeni.catch(() => { if (kayitlarSoz === yeni) kayitlarSoz = null; });
   }
   return kayitlarSoz;
+}
+
+// ── bildirimler (5E-4: cekirdek/bildirim.js; zarf ACILMADAN eklentiye gider) ──
+let bildirimNesnesi = null;
+
+export function bildirimAl() {
+  if (!bildirimNesnesi) bildirimNesnesi = bildirimKur({ kartAl, eklenti: Bildirim });
+  return bildirimNesnesi;
+}
+
+// Kabugun saniyelik tikine verilir (kabukDurumu({ bildirimIzle })).
+export const bildirimIzle = bildirimIzleyici({ bildirim: { yenile: () => bildirimAl().yenile(), izlemeBaslat: (k) => bildirimAl().izlemeBaslat(k), yerel: (k, d, o) => bildirimAl().yerel(k, d, o) } });
+
+// Bildirim ayarinin baktigi kart: bagli olan, yoksa son baglanilan.
+export async function bildirimKimligi() {
+  try { const d = (await kartAl()).durum(); if (d && typeof d.kimlik === "string") return d.kimlik; } catch { /* son kimlige dus */ }
+  return sonKimlik();
 }
 
 export function canliAl() {
