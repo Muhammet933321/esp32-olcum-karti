@@ -96,11 +96,11 @@ class BildirimKararTest {
     }
 
     @Test
-    fun telefonPencereleri_A35_varsayilan30Saniye() {
-        assertEquals(30.0, BildirimKarar.PENCERE_S, 0.0)
-        assertEquals(30.0, BildirimKarar.YAKIN_S, 0.0)
-        // Varsayilan kurucuyla (telefon): yerel "bitti"den 20 s sonra gelen MQTT ayrintisi AYNI bildirimi gunceller,
-        // 31 s sonra gelen AYRI bildirim olur.
+    fun telefonPencereleri_pcIleAyni_900Ve120Saniye() {
+        assertEquals(900.0, BildirimKarar.PENCERE_S, 0.0)
+        assertEquals(120.0, BildirimKarar.YAKIN_S, 0.0)
+        // Varsayilan kurucuyla (telefon): yerel "bitti"den 899 s sonra gelen MQTT ayrintisi AYNI bildirimi gunceller
+        // (15 dakikalik yoklama bu kadar gec getirebilir), 901 s sonra gelen AYRI bildirim olur.
         fun kur(gecikme: Double): List<Pair<String, Boolean>> {
             var saat = 0.0
             val cikan = ArrayList<Pair<String, Boolean>>()
@@ -110,8 +110,8 @@ class BildirimKararTest {
             k.mqttMesaj("olay", mapOf("n" to 1L, "a" to 3L, "o" to "kayit_bitti", "sebep" to 1L, "oturum" to 53L, "nokta" to 9L))
             return cikan
         }
-        assertEquals(listOf(Pair("bld.kayit_bitti_yerel", false), Pair("bld.kayit_bitti", true)), kur(20.0))
-        assertEquals(listOf(Pair("bld.kayit_bitti_yerel", false), Pair("bld.kayit_bitti", false)), kur(31.0))
+        assertEquals(listOf(Pair("bld.kayit_bitti_yerel", false), Pair("bld.kayit_bitti", true)), kur(899.0))
+        assertEquals(listOf(Pair("bld.kayit_bitti_yerel", false), Pair("bld.kayit_bitti", false)), kur(901.0))
     }
 
     @Test

@@ -67,3 +67,20 @@ export function okumaTablosu(ok) {
     wh: ok.enerji ? sayiYaz(ok.enerji.wh, 3) : "—",
   };
 }
+
+// ── paylasim (5F) ──
+const PAYLASIM = {
+  csv_tr: "m.ps.csv_tr", csv_en: "m.ps.csv_en", ayrinti_tr: "m.ps.ayrinti_tr", ayrinti_en: "m.ps.ayrinti_en",
+  pil_tr: "m.ps.pil_tr", pil_en: "m.ps.pil_en", ham: "m.ps.ham", rapor: "m.ps.rapor",
+};
+const PAYLASIM_HATA = { "cok-buyuk": "m.ps.hata_buyuk", bos: "m.ps.hata_bos", mesgul: "m.ps.hata_mesgul" };
+
+// Islemcinin verdigi turler -> dugmeler (bilinmeyen tur gosterilmez).
+export function paylasimDugmeleri(turler) {
+  return (Array.isArray(turler) ? turler : []).filter((t) => Object.hasOwn(PAYLASIM, t)).map((t) => ({ tur: t, anahtar: PAYLASIM[t] }));
+}
+
+export function paylasimHatasi(tur) {
+  const t = typeof tur === "string" ? tur : "?";
+  return Object.hasOwn(PAYLASIM_HATA, t) ? { anahtar: PAYLASIM_HATA[t], degerler: null } : { anahtar: "m.ps.hata_genel", degerler: { tur: t } };
+}

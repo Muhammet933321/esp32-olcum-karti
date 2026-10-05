@@ -75,10 +75,18 @@ class BildirimGosterici(ctx: Context, dil: String) {
 
     /** Izleme "ayar" ile bitti: kalici degil, dokununca uygulama acilir (A31). */
     fun ayarYenile() {
-        gonder(AYAR_ETIKETI, KART_NO, kur(Kanal.BILGI, dilli.getString(R.string.izleme_ayar)).setAutoCancel(true).build())
+        // Yoklama her 15 dakikada yeniden gosterebilir: yalniz ILK seferde ses.
+        gonder(AYAR_ETIKETI, KART_NO, kur(Kanal.BILGI, dilli.getString(R.string.izleme_ayar)).setAutoCancel(true).setOnlyAlertOnce(true).build())
     }
 
     fun ayarYenileKaldir() = yonetici.cancel(AYAR_ETIKETI, KART_NO)
+
+    /** A29 c: kayit suruyor ama Android arka plandan servis baslatmaya izin vermedi — dokununca uygulama acilir. */
+    fun izlemeDokun() {
+        gonder(DOKUN_ETIKETI, KART_NO, kur(Kanal.BILGI, dilli.getString(R.string.izleme_dokun)).setAutoCancel(true).setOnlyAlertOnce(true).build())
+    }
+
+    fun izlemeDokunKaldir() = yonetici.cancel(DOKUN_ETIKETI, KART_NO)
 
     private fun gonder(etiket: String?, no: Int, n: Notification) {
         try { yonetici.notify(etiket, no, n) } catch (_: SecurityException) {}      // izin yok: sessizce duser
@@ -88,6 +96,7 @@ class BildirimGosterici(ctx: Context, dil: String) {
         const val IZLEME_NO = 1
         const val KART_NO = 2
         const val AYAR_ETIKETI = "ayar"
+        const val DOKUN_ETIKETI = "dokun"
 
         fun izlemeMetni(durum: String): Int = when (durum) {
             "izleniyor" -> R.string.izleme_izleniyor

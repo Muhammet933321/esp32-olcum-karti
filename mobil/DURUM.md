@@ -831,3 +831,87 @@ bildirimi `bilgi` kanalında gösterdi; logcat'te çökme / sır izi yok.
 **Kartsız DOĞRULANAMAYAN (5E-5):** gerçek zarfın alınması, servisin gerçek aracıya bağlanması, kayıt bitince
 kendini durdurması, vasiyet süresi, ekran kapalıyken dayanma; A36 yerel yoklaması (servis `/eslestir/bilgi`'yi
 henüz yoklamıyor — yalnız uygulama öndeyken gelen yerel haber var).
+
+## 2026-10-05 (akşam) — kullanıcı kararları, 5E-4c (yoklama), kayıt başlarken soru, 5F (paylaşım, erişilebilirlik)
+
+**Kullanıcı kararları (2026-10-05):** (1) anlık izleme varsayılan KAPALI, ama telefondan kayıt başlatılırken bir kez
+"bu kayıt için anlık izleme açılsın mı?" sorulsun · (2) beş izin onaylı · (3) ayar hatasında servisin durması ve
+"ayar yenilenmeli" bildirimi onaylı · (4) birleştirme penceresi PC ile aynı (900 / 120 s).
+
+**(4) Pencere 900 / 120 s** — `BildirimKarar.PENCERE_S / YAKIN_S`. Spec A35'in 30 s'si bu kararla değişti (spec dosyası
+paylaşılan dosya değil ama metnini değiştirmedim; karar burada ve kodun yorumunda yazılı).
+
+**(1) Kayıt başlarken soru** — `cekirdek/bildirim.js` `izlemeSorusuKur`, `KayitDugmesi.vue`. Verdiğim alt kararlar:
+- Soru kaydı BEKLETMEZ: kayıt başlar, soru düğmenin altında satır içi çıkar (katman değil — ACİL DURDUR şeridi
+  örtülmez; uygulamada katman açan bileşen kuralı zaten var).
+- "Aç" = YALNIZ bu kayıt için (`buKayit`): ayar kapalı kalır, kayıt bitince servis kendini durdurur.
+- SORULMAZ: anlık izleme zaten açıksa, servis çalışıyorsa, bildirim ayarı (zarf) yoksa — izlenemeyecek kayıt için
+  soru sormak yanıltıcı olurdu.
+- "Bir kez" = her kayıt başlatmada bir kez (kayıt başına). "Hayır" o kayıt için kapatır.
+- Bulduğum kusur: dil yazımı (`ayarYaz({dil})`) anlık izleme kapalıyken çalışan servisi DURDURUYORDU → artık yalnız
+  ayar açıktan kapalıya çekilince durur.
+
+**5E-4c — 15 dakikalık yoklama (A29 c, A30):** `Yoklama.kt` (saf) + `YoklamaIsi.kt` (WorkManager, 15 dk, ağ varken).
+Olay mesajları kalıcı değil; uygulama kapalıyken biten kayıt, kalıcı DURUM mesajının iki yoklama arasında
+DEĞİŞMESİNDEN anlaşılır: kayıt sürüyordu → sürmüyor / oturum değişti = "kayıt bitti" (bellek dolduysa "bellek
+doldu"); kayıt sürerken aracı "kart çevrimdışı" diyor = "karttan haber yok"; dönünce aynı bildirim "yeniden bağlandı".
+Karar `BildirimKarar`'ın KENDİSİYLE verilir (önceki özet sessizce yeniden oynatılır) → metin, etiket, sınıf anlık
+izlemeyle aynı. Özet `files/kasa/<kimlik>.durum` (yalnız c, a, t, k, o, y — ölçüm değeri yok). Servis de aynı özeti
+günceller: yoklama servisin bildirdiğini yinelemez. Anlık izleme açıksa ve kayıt sürüyorsa servisi başlatır;
+Android izin vermezse "Kayıt sürüyor — anlık izlemek için dokun". Zarfı olan kart kalmayınca iş kendini iptal eder.
+Yeni bağımlılık: `androidx.work:work-runtime:2.9.1`. Ayarlar metni: "Kapalıyken bildirimler 15 dakikaya kadar gecikebilir."
+⚠ Sınır: yoklama "kayıt bitti"yi oturum numarasıyla bildirir; bitiş sebebi / nokta sayısı (olay ayrıntısı) yalnız
+anlık izlemede gelir. Pil testi sonucu (mAh / Wh) da öyle.
+
+**5F — paylaşım (A41):** kayıt görünümünde "Paylaş": CSV Excel-TR, CSV EN, (ayrıntılı / pil CSV'leri), ham `.kyt`,
+rapor (metin). Dosya Worker'da üretilir; CSV ve ham kayıt panelin `disariUret`'i KOPYALANMADAN içe aktarılarak —
+PC'nin ürettiğiyle bayt bayt aynı (test). Rapor = ortak `oturumRaporu` + `cekirdek/rapor_metin.js` (yalnız yazar;
+etiketler sözlükten, uygulamanın dilinde). `Paylas` eklentisi dosyayı `cache/paylas/`'a yazar, Android'in paylaşım
+penceresini açar; alıcı yalnız o dosyayı, okuma izniyle görür.
+- **Güvenlik sıkılaştırması:** `file_paths.xml` Capacitor şablonundaki `external-path "."` + `cache-path "."`
+  yerine YALNIZ `cache/paylas/` (kasa ve kayıt kopyası bu sağlayıcıyla hiçbir uygulamaya verilemez — test).
+- Dosya adı JS'te ve Kotlin'de aynı desenle denetlenir; her paylaşım başında ve uygulama açılırken eski dosya silinir.
+- Sınırlar: üretilen dosya ≤ 48 MB (aşarsa "ham kaydı paylaş"), eklenti ≤ 64 MB, parça 512 KiB.
+- ⚠ Rapor kalibrasyon geçmişi OLMADAN üretiliyor ("geçmiş verilmedi" yazar); kalibrasyon kopyasının alan adları
+  (pga, kazanc, tau …) teknik adlarıyla duruyor. Skop yakalaması CSV'si telefonda yok (skop görünümü de yok).
+
+**5F — erişilebilirlik geçişi:** `test/erisilebilirlik.test.js` kuralları HER `.vue` dosyasında ölçer (yeni ekran
+kendiliğinden kapsanır): her düğmenin adı ve `type`'ı, anahtar / seçenek durumu, tuval ve giriş etiketleri, hata
+satırlarının `role="alert"`'i, rem yazı boyutları (en küçük 12 px eşdeğeri), odak görünürlüğü, hareket azaltma,
+belge dili. **İki gerçek eksik bulundu ve düzeltildi:** hiç `:focus-visible` stili yoktu (klavye / anahtar
+erişiminde odak görünmüyordu) · Ö6 ölçümünün hata satırı ekran okuyucuya duyurulmuyordu.
+**İngilizce:** sözlük testleri her anahtarın tr + en karşılığını zaten ölçüyor; uygulama adı için `values-en/strings.xml`
+eklendi ("Measurement Board"). TalkBack ile ELLE dinleme yapılmadı (aşağıda).
+
+**Telefonda (Redmi Note 10S, Android 13):** Paylaş bölümü görünüyor; "Rapor (metin)" Android'in paylaşım penceresini
+açtı, `cache/paylas/`'ta tek dosya (2.5 kB, okunaklı) oluştu; hedef SEÇMEDİM (dosya hiçbir uygulamaya gitmedi).
+Logcat'te çökme yok. Zarf olmadığı için yoklama işi kurulmadı (beklenen).
+
+### Kart gelince (tek liste — önceki bölümlerdekiler dahil)
+1. **Zarf:** "Karttan yenile" gerçek kartta (200 → yazıldı; kartta MQTT ayarsızsa 404 → "kartta ayarlı değil").
+2. **Anlık izleme uçtan uca (5E-5, Ö4):** servis gerçek aracıya bağlanıyor mu (TLS'in ikinci katmanı — Android'in ad
+   doğrulayıcısı — yalnız cihazda çalışır); kayıt bitti / pil bitti bildirimi; kayıt bitince servisin ~10 s sonra
+   kendini durdurması; güç kesilince "karttan haber yok" süresi (hedef 10 s, kabul 15 s); telefonun interneti
+   kesilince "telefonun interneti yok" (kart alarmı DEĞİL) ve geri gelince hemen bağlanma.
+3. **Kayıt başlarken soru:** telefondan `Gb` → soru çıkıyor → "Aç" → servis başlıyor, ayar kapalı kalıyor.
+4. **Yoklama:** uygulama kapalıyken biten kayıt ≤ 15 dk'da bildiriliyor mu; servis + yoklama birlikteyken çift
+   bildirim yok; Doze'da gerçek aralık (WorkManager erteleyebilir) — ölçülüp dürüstçe yazılacak.
+5. **Yerel + MQTT birleştirme (A35):** uygulama öndeyken biten kayıt TEK bildirim.
+6. **A36:** "ev interneti koptu, kart çalışıyor" — servisin imzasız `/eslestir/bilgi` yoklaması henüz YOK.
+7. **5D'den:** eşitlemenin "kayıt bitince" tetiklenmesi · IP değişince yeniden bulma · "başka adres yanıt verdi" ·
+   pil oturumunda salt okuma · kıskaçla yakınlaştırma (elle).
+8. **Paylaşım:** gerçek ölçümlü (ADC'li) kayıtta CSV'nin Excel'de açılması; büyük kayıtta süre.
+9. **Honor (5G, önce sor):** Android 16 yerel ağ izni, ön plan servisi türü `connectedDevice` kabulü, pil yöneticisi,
+   ekran kapalı 8 saat.
+
+### Kartsız ama ELLE yapılacak (ben yapamam)
+- TalkBack açıkken ekranların dinlenmesi; sistem yazı boyutu en büyükteyken taşma.
+- Paylaşım penceresinden gerçek bir hedefe (Drive, e-posta) gönderip dosyanın açılması.
+
+### Açık kalan (kartsız yazılabilir, bu turda yapılmadı)
+- A36 servis yoklaması · A37 Honor yönerge ekranı · 5E için bağımsız çürütücü turu · raporda kalibrasyon geçmişi.
+
+**Kanıt (bu bölüm):** JS 550/550 (49 dosya), Kotlin birim testleri yeşil. Mutasyon: 5E-4C (yoklama) 19/19 — ilk koşuda
+17/20: ikisi için test eklendi, biri derleyicinin zaten yakaladığı değişiklikti (listeden çıkarıldı); soru 12/12;
+5F-J (paylaşım, JS) 28/28 — ilk koşuda 27/28 (boy sınırı; sınır sınanabilir yapıldı); 5F-K (paylaşım deposu) 11/11;
+pencere sabiti 1/1.

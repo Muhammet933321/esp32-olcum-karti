@@ -27,7 +27,7 @@ class Bildirim(val etiket: String, val sinif: String, val anahtar: String, val d
  *  - olay: (a, n) ile yineleme ayiklanir; bosluklardan KACIRILAN olay sayilir
  *  - yollar arasi yineleme (A35): (aile, a, oturum) + zaman penceresi; daha ayrintili ikinci haber ayni
  *    bildirimi SESSIZCE gunceller, daha az ayrintili olani duser
- * Pencereler kurucudan: telefonda tasarimin 30 s'si (A35); vektor testinde PC'nin degerleri (900 / 120 s).
+ * Pencereler kurucudan; varsayilan PC'nin degerleri (900 / 120 s — kullanici karari, 2026-10-05).
  */
 class BildirimKarar(
     private val cikis: (Bildirim) -> Unit,
@@ -294,9 +294,13 @@ class BildirimKarar(
         const val KDR_DOLU = 3L
         const val YEREL_ERISIM_S = 15.0          // son yerel haber bundan yeniyse kart "yerelde gorunuyor"
         const val YEREL_KOPUK_S = 20.0           // yalniz yerel yol: bu kadar haber gelmezse "karttan haber yok"
-        /** Tasarim A35: yollar arasi yineleme penceresi 30 s. (PC: 900 s / oturumu bilinmeyenler 120 s.) */
-        const val PENCERE_S = 30.0
-        const val YAKIN_S = 30.0
+        /**
+         * Yollar arasi yineleme penceresi: PC ile AYNI (900 s; oturumu bilinmeyen haberler 120 s). Tasarimin
+         * 30 s'si (A35) kullanici karariyla degisti (2026-10-05): 15 dakikalik yoklama ayni olayi 30 s'den
+         * SONRA da getirebilir; cift bildirim olmasin.
+         */
+        const val PENCERE_S = 900.0
+        const val YAKIN_S = 120.0
         const val AN_AZAMI = 1024
 
         /** Python `_tamsayi`: int (bool DEGIL). JSON'dan Long gelir; 5.0 (Double) tamsayi SAYILMAZ. */

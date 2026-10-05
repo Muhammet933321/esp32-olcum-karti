@@ -12,4 +12,5 @@
     <string name="izleme_araci">Bildirim sunucusu bağlantıyı kabul etmedi — yeniden denenecek</string>
     <string name="izleme_ayar">Bildirim ayarı yenilenmeli — uygulamayı kartın ağında aç</string>
     <string name="izleme_deneme_yerel">Deneme bildirimi — bu telefonda bildirimler görünüyor</string>
+    <string name="izleme_dokun">Kayıt sürüyor — anlık izlemek için dokun</string>
 </resources>

@@ -63,6 +63,7 @@ class Izleyici(
         k: ByteArray, kimlik: String, n: Int, zarf: ByteArray,
         tekSefer: Boolean = false, sureMs: Long = TEK_SEFER_MS, baglandi: () -> Unit = {},
         surdur: () -> Boolean = { true },
+        durumGoruldu: (Map<String, Any?>) -> Unit = {},
     ): IzlemeBitis {
         val bilgi = try { Zarf.bilgiCoz(k, kimlik, n, zarf) } catch (e: ZarfHatasi) { return IzlemeBitis("zarf") }
         try {
@@ -101,6 +102,7 @@ class Izleyici(
                                 cozulen++
                                 val kalan = y.konu.substring(onek.length)
                                 synchronized(kilit) { karar.mqttMesaj(kalan, icerik) }
+                                if (kalan == "durum") durumGoruldu(icerik)
                                 if (tekSefer && kalan == "durum") bitir("durum-okundu")
                             }
                         }

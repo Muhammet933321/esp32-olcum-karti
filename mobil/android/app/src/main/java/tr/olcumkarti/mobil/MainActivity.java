@@ -26,6 +26,7 @@ import tr.olcumkarti.mobil.depo.KartDepo;
 import tr.olcumkarti.mobil.depo.KartDepoPlugin;
 import tr.olcumkarti.mobil.kasa.KasaPlugin;
 import tr.olcumkarti.mobil.kesif.KesifPlugin;
+import tr.olcumkarti.mobil.paylas.PaylasPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -35,6 +36,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(KasaPlugin.class);
         registerPlugin(KartDepoPlugin.class);
         registerPlugin(BildirimPlugin.class);
+        registerPlugin(PaylasPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Capacitor butun HttpURLConnection'lara bir cerez yoneticisi takar (ve adresi gunluge yazar).

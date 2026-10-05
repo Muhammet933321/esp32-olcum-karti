@@ -188,3 +188,10 @@ h1, h2, h3, p { margin: 0; }
 .anahtar-satir { display: flex; justify-content: space-between; align-items: center; gap: 1rem; text-align: left; height: auto; padding-top: .5rem; padding-bottom: .5rem; }
 .anahtar-satir b { flex: none; font-family: var(--mono); color: var(--vurgu); }
 .anahtar-satir[aria-checked="false"] b { color: var(--soluk); }
+
+/* Kayit baslatilinca sorulan anlik izleme sorusu: katman DEGIL, dugmenin altinda satir ici (serit ortulmez) */
+.soru { display: grid; gap: .5rem; padding: .75rem; border: 1px solid var(--kenar-koyu); border-radius: var(--r); background: var(--kart); }
+.soru-dugmeler { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+
+/* Klavye / anahtar erisimi (A44): odaktaki denetim HER temada gorunur. Dokunmada (fare / parmak) cikmaz. */
+:focus-visible { outline: 3px solid var(--vurgu); outline-offset: 2px; }

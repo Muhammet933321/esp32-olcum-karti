@@ -111,8 +111,9 @@ export function bildirimKur({ kartAl, eklenti }) {
     pilMuafiyetiIste: async () => (await cagir("pilMuafiyetiIste")).pilMuaf === true,
     deneme: async () => (await cagir("deneme")).izin === true,
     // { basladi, neden }: neden "" | "kapali" (anlik izleme kapali) | "zarf-yok" | "calisiyor"
-    izlemeBaslat: async (kimlik) => {
-      const y = await cagir("izlemeBaslat", { kimlik: kimlikli(kimlik) });
+    // buKayit: anlik izleme ayari KAPALI olsa da yalniz bu kayit icin baslat (kullanici soruya "ac" dedi).
+    izlemeBaslat: async (kimlik, { buKayit = false } = {}) => {
+      const y = await cagir("izlemeBaslat", buKayit === true ? { kimlik: kimlikli(kimlik), buKayit: true } : { kimlik: kimlikli(kimlik) });
       return { basladi: y.basladi === true, neden: typeof y.neden === "string" && TUR.test(y.neden) ? y.neden : "" };
     },
     izlemeDurdur: async () => { await cagir("izlemeDurdur"); },
@@ -120,6 +121,53 @@ export function bildirimKur({ kartAl, eklenti }) {
       if (!Number.isInteger(kod) || !Number.isInteger(oturum) || kod < 0 || oturum < 0) throw new BildirimHatasi("bicim");
       return (await cagir("yerel", { kimlik: kimlikli(kimlik), durum: kod, oturum })).iletildi === true;
     },
+  };
+}
+
+// Kayit BU TELEFONDAN baslatilinca BIR kez sorulan soru (kullanici karari, 2026-10-05): anlik izleme
+// varsayilan kapali kalir; "bu kayit icin acilsin mi?" Soru kaydi BEKLETMEZ (kayit coktan basladi).
+//   hal: "yok" | "soruluyor" | "aciliyor" | "acildi" | "acilamadi"
+// Sorulmaz: anlik izleme zaten acik (izleyici kendisi baslatir), servis calisiyor, bildirim ayari
+// (zarf) yok — izlenemeyecek kayit icin soru sorulmaz. Hicbir hata yukari cikmaz.
+export function izlemeSorusuKur({ bildirim, kimlikAl }) {
+  let hal = "yok";
+  let kimlik = null;
+  let kusak = 0;                       // kayit bitti / yeni kayit: suren islem sonucunu YAZMASIN
+  const dinleyenler = new Set();
+  const yay = (yeni) => { if (yeni !== hal) { hal = yeni; for (const fn of dinleyenler) { try { fn(hal); } catch { /* dinleyen */ } } } };
+
+  async function kayitBasladi() {
+    const k = ++kusak;
+    yay("yok");
+    try {
+      const id = await kimlikAl();
+      if (typeof id !== "string" || !KIMLIK.test(id)) return;
+      const d = await bildirim.durum(id);
+      if (k !== kusak || d.anlik || d.calisiyor || !d.zarf) return;
+      kimlik = id;
+      yay("soruluyor");
+    } catch { /* soru sorulmaz */ }
+  }
+
+  async function evet() {
+    if (hal !== "soruluyor") return;
+    const k = kusak;
+    yay("aciliyor");
+    let basladi = false;
+    try {
+      const d = await bildirim.durum(kimlik);
+      if (!d.izin && d.izinGerekli) await bildirim.izinIste();      // reddedilse de izleme calisir; bildirim gorunmez
+      basladi = (await bildirim.izlemeBaslat(kimlik, { buKayit: true })).basladi;
+    } catch { basladi = false; }
+    if (k === kusak) yay(basladi ? "acildi" : "acilamadi");
+  }
+
+  return {
+    kayitBasladi, evet,
+    hayir: () => { if (hal === "soruluyor") yay("yok"); },
+    kayitBitti: () => { kusak += 1; yay("yok"); },
+    hal: () => hal,
+    dinle(fn) { dinleyenler.add(fn); return () => dinleyenler.delete(fn); },
   };
 }
 

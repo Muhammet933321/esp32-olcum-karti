@@ -11,6 +11,7 @@ import java.nio.ByteBuffer
  *   `<kimlik>.zarf` : kartin `/bildirim/bilgi` yaniti, OLDUGU GIBI (K ile sifreli; A31). Cozulmus araci
  *                     bilgisi diske HIC yazilmaz.
  *   `<kimlik>.olay` : islenen son olayin (acilis, sira) cifti — yeniden baslayinca kacirilan olay sayimi icin.
+ *   `<kimlik>.durum`: yoklama ozeti (YoklamaDurumu) — iki yoklama arasinda neyin degistigini bulmak icin.
  * Kimlik dosya adina gider: her islemden once 16 kucuk onaltilik hane oldugu denetlenir.
  * Hata `ZarfHatasi("bicim")`; yol / icerik hata metnine girmez. Saf JVM.
  */
@@ -58,6 +59,20 @@ class BildirimDeposu(private val kok: File) {
         try { AtomikYazim.yaz(hedef, ByteBuffer.allocate(16).putLong(a).putLong(n).array()) } catch (_: Exception) {}
     }
 
+    /** Yoklama ozeti (`<kimlik>.durum`); yoksa / bozuksa null. */
+    fun durumOku(kimlik: String?): YoklamaDurumu? {
+        val d = dosya(kimlik, DURUM_EK)
+        if (!d.isFile || d.length() > DURUM_AZAMI) return null
+        return YoklamaDurumu.coz(try { d.readText(Charsets.UTF_8) } catch (e: Exception) { null })
+    }
+
+    /** Yazilamazsa SESSIZCE gecer (en kotu sonuc: bir bildirimin yinelenmesi). */
+    fun durumYaz(kimlik: String?, durum: YoklamaDurumu?) {
+        val hedef = dosya(kimlik, DURUM_EK)
+        if (durum == null) return
+        try { AtomikYazim.yaz(hedef, durum.json().toByteArray(Charsets.UTF_8)) } catch (_: Exception) {}
+    }
+
     /** Zarfi olan kartlar (dosya adindan; icerik acilmaz). */
     fun kimlikler(): List<String> =
         (kok.list() ?: emptyArray()).filter { it.endsWith(ZARF_EK) }.map { it.removeSuffix(ZARF_EK) }.filter { KasaKayit.kimlikGecerli(it) }.sorted()
@@ -65,6 +80,8 @@ class BildirimDeposu(private val kok: File) {
     companion object {
         const val ZARF_EK = ".zarf"
         const val OLAY_EK = ".olay"
+        const val DURUM_EK = ".durum"
+        const val DURUM_AZAMI = 512
         /** Kartin yaniti birkac yuz bayt; bundan buyugu zarf degildir. */
         const val ZARF_AZAMI = 2048
     }

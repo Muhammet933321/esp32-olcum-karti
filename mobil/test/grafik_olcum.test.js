@@ -177,7 +177,7 @@ describe("ekran baglantisi (kaynak)", () => {
     // Tuval olcum boyunca GORUNUR ve gercek boyda (hidden / display:none degil); gecersiz olcum ayri soylenir.
     expect(g).toContain('<canvas v-if="suruyor" id="go-tuval" ref="tuval" class="grafik buyuk" role="img"');
     expect(g).not.toMatch(/<canvas[^>]*\bhidden\b/);
-    expect(g).toContain('<p v-if="sonuc.gecersiz" id="go-gecersiz" class="bilgi hata">{{ c("m.go.gecersiz") }}</p>');
+    expect(g).toContain('<p v-if="sonuc.gecersiz" id="go-gecersiz" class="bilgi hata" role="alert">{{ c("m.go.gecersiz") }}</p>');
     expect(kaynak("ekran/Ayarlar.vue")).toContain('<section v-if="gelismis" id="ay-grafik-olcum" class="kart"><GrafikOlcum /></section>');
   });
 

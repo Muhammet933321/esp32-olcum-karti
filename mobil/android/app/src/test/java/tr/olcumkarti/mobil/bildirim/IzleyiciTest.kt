@@ -249,8 +249,10 @@ class IzleyiciTest {
         val a = araci(listOf(yayin("durum", DURUM_KAYITTA, kalici = true)))
         val d = kur(a)
         val bas = a.ms
-        val b = d.izleyici.calis(K, KIMLIK, N, bilgiZarfi(), tekSefer = true)
+        var gorulen: Map<String, Any?>? = null
+        val b = d.izleyici.calis(K, KIMLIK, N, bilgiZarfi(), tekSefer = true, durumGoruldu = { gorulen = it })
         assertEquals("durum-okundu", b.tur); assertEquals("tamam", b.sinif); assertTrue(b.baglandi)
+        assertEquals(DURUM_KAYITTA, gorulen)                                               // yoklama bunu karsilastirir (A30)
         assertEquals(true, d.karar.kayitSuruyor())
         assertEquals(0L, a.ms - bas)                                                       // beklemeden
         assertEquals(MqttPaket.DISCONNECT, a.turler().last())

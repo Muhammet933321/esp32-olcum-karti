@@ -108,10 +108,19 @@ export function kayitlarKur({ istemci, kartAl, depoAl, sonKimlik = () => null })
     try { return await istemci.cagir("okuma", { oturum: no, tA, tB }); } catch (e) { throw hata(e); }
   }
 
+  // Paylasim (5F): EKRANDAKI kartin kopyasindan; okuma ile ayni kural.
+  async function disariKos(is, arguman) {
+    if (gorunenKimlik === null) return null;
+    if ((await hazirla(gorunenKimlik)) === null) return null;
+    try { return await istemci.cagir(is, arguman); } catch (e) { throw hata(e); }
+  }
+
   return {
     liste: (secenek) => sirayla(() => listeKos(secenek)),
     oturum: (no) => sirayla(() => oturumKos(no)),
     okuma: (no, tA, tB) => sirayla(() => okumaKos(no, tA, tB)),
+    disariTurleri: (no) => sirayla(() => disariKos("disariTurleri", { oturum: no })),
+    disari: (no, tur, dil) => sirayla(() => disariKos("disari", { oturum: no, tur, dil })),
     bosalt() { yuklenen = null; gorunenKimlik = null; },
   };
 }

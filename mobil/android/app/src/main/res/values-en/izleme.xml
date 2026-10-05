@@ -10,4 +10,5 @@
     <string name="izleme_araci">The notification server refused the connection — will retry</string>
     <string name="izleme_ayar">Notification settings need refreshing — open the app on the board\'s network</string>
     <string name="izleme_deneme_yerel">Test notification — notifications show on this phone</string>
+    <string name="izleme_dokun">A recording is running — tap to monitor it live</string>
 </resources>

@@ -68,6 +68,7 @@ class IzlemeServisi : Service() {
             stopSelf(); return START_NOT_STICKY
         }
         gosterici.ayarYenileKaldir()
+        gosterici.izlemeDokunKaldir()
         calisanKimlik = kimlik
         sonDurum = "baglaniyor"
         agiDinle()
@@ -103,7 +104,9 @@ class IzlemeServisi : Service() {
                         izleyici = i
                         if (dongu == null) i.durdur()
                         i.calis(kayit.anahtar, kimlik, kayit.n, zarf, baglandi = baglandi,
-                            surdur = { synchronized(kilit) { k.kayitSuruyor() != false } })
+                            surdur = { synchronized(kilit) { k.kayitSuruyor() != false } },
+                            // Yoklama (A30) servisin bildirdigini yeniden bildirmesin: ozet burada da guncellenir.
+                            durumGoruldu = { d -> depo.durumYaz(kimlik, Yoklama.ozet(depo.durumOku(kimlik), d, synchronized(kilit) { k.baglanti != null })) })
                     } finally {
                         izleyici = null
                         kayit.anahtar.fill(0)

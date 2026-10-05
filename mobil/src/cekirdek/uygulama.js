@@ -9,11 +9,12 @@
 // Kurulum yarida kalirsa (eklenti yanit vermedi) soz saklanmaz: sonraki cagri yeniden dener.
 
 import { agKur } from "./ag.js";
-import { bildirimIzleyici, bildirimKur } from "./bildirim.js";
+import { bildirimIzleyici, bildirimKur, izlemeSorusuKur } from "./bildirim.js";
 import { durdurKur } from "./durdur.js";
 import { KART_ADI } from "./hedef.js";
-import { Bildirim, KartAg, KartDepo, Kasa, Kesif } from "./eklenti.js";
+import { Bildirim, KartAg, KartDepo, Kasa, Kesif, Paylas } from "./eklenti.js";
 import { onayOku, onayYaz } from "./esitleme_ayar.js";
+import { paylasKur } from "./paylas.js";
 import { kartKur } from "./kart.js";
 import { kasaKur } from "./kasa.js";
 import { kesifKur, yerelOnbellek } from "./kesif.js";
@@ -197,10 +198,24 @@ export function bildirimAl() {
 // Kabugun saniyelik tikine verilir (kabukDurumu({ bildirimIzle })).
 export const bildirimIzle = bildirimIzleyici({ bildirim: { yenile: () => bildirimAl().yenile(), izlemeBaslat: (k) => bildirimAl().izlemeBaslat(k), yerel: (k, d, o) => bildirimAl().yerel(k, d, o) } });
 
+// Kayit bu telefondan baslatilinca sorulan "bu kayit icin anlik izleme acilsin mi?" (tekil; Durum ve Canli ayni soruyu gosterir).
+export const izlemeSorusu = izlemeSorusuKur({
+  bildirim: { durum: (k) => bildirimAl().durum(k), izinIste: () => bildirimAl().izinIste(), izlemeBaslat: (k, s) => bildirimAl().izlemeBaslat(k, s) },
+  kimlikAl: () => bildirimKimligi(),
+});
+
 // Bildirim ayarinin baktigi kart: bagli olan, yoksa son baglanilan.
 export async function bildirimKimligi() {
   try { const d = (await kartAl()).durum(); if (d && typeof d.kimlik === "string") return d.kimlik; } catch { /* son kimlige dus */ }
   return sonKimlik();
+}
+
+// ── paylasim (5F: cekirdek/paylas.js; dosya uygulamanin onbellegine yazilir, Android'in paylasim penceresi acilir) ──
+let paylasNesnesi = null;
+
+export function paylasAl() {
+  if (!paylasNesnesi) paylasNesnesi = paylasKur({ eklenti: Paylas });
+  return paylasNesnesi;
 }
 
 export function canliAl() {

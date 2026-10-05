@@ -1,6 +1,7 @@
 <script setup>
 // Kayit gorunumu (A26, A41): tek oturumun grafigi (ortak/src/grafik.js `Grafik`: kiskacla yakinlastir,
-// surukle), GORUNEN aralikta istatistik (ham veriden, Worker'da) ve notlar (okuma). Paylasim 5F'de.
+// surukle), GORUNEN aralikta istatistik (ham veriden, Worker'da), notlar (okuma) ve PAYLASIM (5F: CSV /
+// ham .kyt / rapor — dosya Worker'da uretilir, Android'in paylasim penceresi acilir).
 // Veri: cekirdek/kayitlar.js; seriler ve piramitleri Worker'dan hazir gelir.
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -8,9 +9,9 @@ import { Grafik } from "@ortak/grafik.js";
 import { gorunurluk } from "@panel/kayit_gorunum.js";
 import Ikon from "../bilesen/Ikon.vue";
 import { temaDinle } from "../bilesen/tema_dinle.js";
-import { kayitlarAl } from "../cekirdek/uygulama.js";
-import { SAG_EKSENLER, okumaTablosu, satirGorunumu } from "./kayitlar_gorunum.js";
-import { c } from "./metin.js";
+import { kayitlarAl, paylasAl } from "../cekirdek/uygulama.js";
+import { SAG_EKSENLER, okumaTablosu, paylasimDugmeleri, paylasimHatasi, satirGorunumu } from "./kayitlar_gorunum.js";
+import { c, dil, yaz } from "./metin.js";
 
 const rota = useRoute();
 const yonlendirici = useRouter();
@@ -30,6 +31,25 @@ let temaBirak = null;
 let kaynak = null;
 let gecikme = null;
 let okumaNo = 0;
+const turler = ref([]);                 // paylasilabilir turler (oturuma gore)
+const paylasilan = ref(null);           // uretilmekte olan tur | null
+const paylasHata = ref(null);
+const dugmeler = computed(() => paylasimDugmeleri(turler.value));
+
+async function paylas(tur) {
+  if (paylasilan.value !== null || !kaynak) return;
+  paylasilan.value = tur;
+  paylasHata.value = null;
+  try {
+    const d = await kaynak.disari(oturumNo, tur, dil.value);
+    if (!d) throw Object.assign(new Error("bos"), { tur: "bos" });
+    await paylasAl().gonder(d);
+  } catch (e) {
+    paylasHata.value = paylasimHatasi(e && e.tur);
+  } finally {
+    paylasilan.value = null;
+  }
+}
 
 function seriler() {
   return gorunurluk(veri.value.seriler, { v: true, sag: sag.value, zarf: true });
@@ -64,6 +84,7 @@ onMounted(async () => {
     const g = Number.isInteger(oturumNo) ? await kaynak.oturum(oturumNo) : null;
     if (g === null) { hal.value = "yok"; return; }
     veri.value = g;
+    try { turler.value = (await kaynak.disariTurleri(oturumNo)) || []; } catch { turler.value = []; }
     if (g.tur === "yok") { hal.value = "bos"; return; }
     if (g.gecerli === 0) { hal.value = "olcumsuz"; return; }   // noktalar var, hepsi "okunamadi" bayrakli
     hal.value = "hazir";
@@ -136,6 +157,17 @@ onBeforeUnmount(() => {
         <div><span class="et">{{ c("m.kg.wh") }}</span><b class="mono">{{ tablo.wh }}</b></div>
       </div>
       <p class="bilgi">{{ c("m.kg.ornek", { n: tablo.adet }) }}</p>
+    </article>
+
+    <article v-if="dugmeler.length" id="kg-paylas" class="kart">
+      <div class="kb"><h2>{{ c("m.ps.baslik") }}</h2></div>
+      <div class="anahtarlar">
+        <button v-for="d in dugmeler" :key="d.tur" type="button" class="dugme" :data-tur="d.tur" :disabled="paylasilan !== null" @click="paylas(d.tur)">
+          <Ikon ad="paylas" />{{ paylasilan === d.tur ? c("m.ps.hazirlaniyor") : c(d.anahtar) }}
+        </button>
+      </div>
+      <p class="bilgi">{{ c("m.ps.not") }}</p>
+      <p v-if="paylasHata" id="kg-paylas-hata" class="bilgi hata" role="alert">{{ yaz(paylasHata) }}</p>
     </article>
 
     <article v-if="veri && veri.notlar.length" id="kg-notlar" class="kart">

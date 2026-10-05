@@ -37,6 +37,11 @@ class BildirimPlugin : Plugin() {
     private val kasaDizini: File by lazy { File(context.filesDir, IzlemeServisi.KASA_DIZINI) }
     private val depo: BildirimDeposu by lazy { BildirimDeposu(kasaDizini) }
 
+    /** Uygulama acilirken: zarfi olan kart varsa 15 dakikalik yoklama kurulu olsun (A30). */
+    override fun load() {
+        try { sira.execute { try { if (depo.kimlikler().isNotEmpty()) YoklamaIsi.kur(context) } catch (_: Exception) {} } } catch (_: Exception) {}
+    }
+
     private fun kos(call: PluginCall, islem: () -> JSObject) {
         try {
             sira.execute {
@@ -80,6 +85,7 @@ class BildirimPlugin : Plugin() {
             kayit.anahtar.fill(0)
         }
         depo.zarfYaz(kimlik, zarf)
+        YoklamaIsi.kur(context)
         BildirimGosterici(context, ayar().dil).ayarYenileKaldir()
         JSObject().put("yazildi", true)
     }
@@ -87,6 +93,7 @@ class BildirimPlugin : Plugin() {
     @PluginMethod
     fun zarfSil(call: PluginCall) = kos(call) {
         depo.zarfSil(kimlik(call))
+        if (depo.kimlikler().isEmpty()) YoklamaIsi.iptal(context)
         JSObject().put("silindi", true)
     }
 
@@ -114,7 +121,9 @@ class BildirimPlugin : Plugin() {
         val kapali = call.getArray("kapali")?.toList<Any?>()?.filterIsInstance<String>()?.filter { it in BildirimAyar.SINIFLAR }?.toSet() ?: eski.kapali
         val yeni = BildirimAyar(anlik, kapali, dil)
         BildirimAyar.yaz(IzlemeServisi.ayarDosyasi(context), yeni)
-        if (!yeni.anlik && IzlemeServisi.calisanKimlik != null) IzlemeServisi.durdur(context)
+        // Yalniz anlik izleme ACIKTAN KAPALIYA cekilince durdurulur: dil / sinif yazimi "bu kayit icin" baslatilmis
+        // izlemeyi kesmez.
+        if (eski.anlik && !yeni.anlik && IzlemeServisi.calisanKimlik != null) IzlemeServisi.durdur(context)
         JSObject().put("anlik", yeni.anlik)
     }
 
@@ -143,12 +152,15 @@ class BildirimPlugin : Plugin() {
         }
     }
 
-    /** Anlik izlemeyi baslatir (A29 a, b): ayar acik, izin ve zarf varsa. Neden baslamadigi `neden`de. */
+    /**
+     * Anlik izlemeyi baslatir (A29 a, b): ayar acik ve zarf varsa. `buKayit`: ayar KAPALI olsa da yalniz bu kayit
+     * icin (kullanici kayit baslatirken soruya "ac" dedi). Neden baslamadigi `neden`de.
+     */
     @PluginMethod
     fun izlemeBaslat(call: PluginCall) = kos(call) {
         val kimlik = kimlik(call)
         val neden = when {
-            !ayar().anlik -> "kapali"
+            !ayar().anlik && call.getBoolean("buKayit") != true -> "kapali"
             !depo.zarfVar(kimlik) -> "zarf-yok"
             IzlemeServisi.calisanKimlik == kimlik -> "calisiyor"
             else -> null

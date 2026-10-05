@@ -10,17 +10,24 @@
 //   await i.isle("liste", { kart, arama, tur }) // -> [satir]   (kart: /kayit/liste govdesi | null)
 //   await i.isle("oturum", { oturum })          // -> { tur, adet, t0, t1, seriler, baslik, notlar } | null
 //   await i.isle("okuma", { oturum, tA, tB })   // -> { dt, v, i, w, enerji } | null
+//   await i.isle("disariTurleri", { oturum })   // -> ["csv_tr", "csv_en", "ham", "rapor"] | null   (5F)
+//   await i.isle("disari", { oturum, tur, dil }) // -> { ad, mime, bayt: Uint8Array } | null
 //
 // Dosyanin sonundaki YARIM kayit (esitleme o an yaziyor olabilir) sessizce disarida kalir
 // (akisOnek); gecerli on ek cozulur. Bos / olmayan dosya: bos liste.
 import { akisOnek, oturumlariKur } from "@ortak/kayit.js";
 import { ozetKur } from "@ortak/ozet.js";
 import { zamanYazi } from "@ortak/grafik.js";
-import { grafikSerileri, notListesi, okumaHesapla, tarihYaz } from "@panel/kayit_gorunum.js";
+import { oturumRaporu } from "@ortak/rapor.js";
+import { disariTurleri, disariUret, dosyaAdi, grafikSerileri, notListesi, okumaHesapla, tarihYaz } from "@panel/kayit_gorunum.js";
 import { listeBirlestir, satirSuz } from "@panel/kayitlar.js";
+import { raporMetni } from "./rapor_metin.js";
 
 export const TURLER = Object.freeze(["hepsi", "olcum", "pil", "skop"]);
 export const YEREL_NEREDE = "telefon";
+// Paylasilan dosyanin ust siniri: bundan buyugu kopruden (base64) gecirilmez — ham kayit oner.
+export const DISARI_AZAMI = 48 * 1024 * 1024;
+export const RAPOR_TURU = "rapor";
 
 // Sure yazisi SANIYE cozunurlugunde (telefon ekrani dar; panel milisaniye yazar).
 const sureYaz = (ms) => (Number.isFinite(ms) ? zamanYazi(ms, 1000) : null);
@@ -122,6 +129,29 @@ export function aralikOkuma(veri, oturumNo, tA, tB) {
   };
 }
 
+// Oturumun paylasilabilir turleri: panelin disa aktarma turleri (CSV Excel-TR / EN, ham .kyt) + rapor metni.
+export function paylasimTurleri(veri, oturumNo) {
+  const o = veri ? veri.oturumlar.get(oturumNo) : null;
+  return o ? [...disariTurleri(o), RAPOR_TURU] : null;
+}
+
+// Paylasilacak dosya: { ad, mime, bayt }. CSV ve ham kayit panelin urettigiyle BAYT BAYT ayni
+// (`disariUret` kopyalanmadan ice aktarilir); rapor ortak `oturumRaporu`nun duz metni. Saf.
+export function paylasimUret(veri, oturumNo, tur, dil = "tr", azami = DISARI_AZAMI) {
+  const o = veri ? veri.oturumlar.get(oturumNo) : null;
+  if (!o || !paylasimTurleri(veri, oturumNo).includes(tur)) return null;
+  let d;
+  if (tur === RAPOR_TURU) {
+    const metin = raporMetni(oturumRaporu(o, { kayitlar: veri.kayitlar, dil: dil === "en" ? "en" : "tr" }), dil === "en" ? "en" : "tr");
+    d = { ad: dosyaAdi(o, "rapor", "txt"), mime: "text/plain;charset=utf-8", bayt: new TextEncoder().encode(metin) };
+  } else {
+    d = disariUret(tur, o, veri.kayitlar);
+  }
+  if (!d || !(d.bayt instanceof Uint8Array)) return null;
+  if (d.bayt.length > azami) throw new KayitVeriHatasi("cok-buyuk");
+  return { ad: d.ad, mime: d.mime, bayt: d.bayt };
+}
+
 // Mesaj islemcisi: Worker'da ve yedekte AYNI. Durum (cozulmus veri) islemcinin icinde kalir.
 export function islemciKur({ getir }) {
   if (typeof getir !== "function") throw new TypeError("getir gerekli");
@@ -145,6 +175,10 @@ export function islemciKur({ getir }) {
         return oturumGorunumu(veri, a.oturum);
       case "okuma":
         return aralikOkuma(veri, a.oturum, a.tA, a.tB);
+      case "disariTurleri":
+        return paylasimTurleri(veri, a.oturum);
+      case "disari":
+        return paylasimUret(veri, a.oturum, a.tur, a.dil);
       default:
         throw new KayitVeriHatasi("bicim");
     }

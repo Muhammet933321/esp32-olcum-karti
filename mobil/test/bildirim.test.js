@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  BILGI_YOLU, BildirimHatasi, DILLER, KAYITTA, SINIFLAR, ZARF_AZAMI, ZARF_EN_AZ, bildirimIzleyici, bildirimKur,
+  BILGI_YOLU, BildirimHatasi, DILLER, KAYITTA, SINIFLAR, ZARF_AZAMI, ZARF_EN_AZ, bildirimIzleyici, bildirimKur, izlemeSorusuKur,
 } from "../src/cekirdek/bildirim.js";
 import { SOZLUK_MOBIL } from "../src/cekirdek/sozluk_mobil.js";
 import { KDR } from "../src/ekran/durum_gorunum.js";
@@ -378,7 +378,7 @@ describe("Ayarlar › Bildirimler gorunumu (saf)", () => {
     }
     expect(SOZLUK_MOBIL["m.bl.pil_not"].tr).toMatch(/ekran kapalıyken/);
     expect(SOZLUK_MOBIL["m.bl.izin_not"].tr).toMatch(/çalışır ama bildirim göstermez/);
-    expect(SOZLUK_MOBIL["m.bl.anlik_not"].tr).toMatch(/Kapalıyken bildirim gelmez/);
+    expect(SOZLUK_MOBIL["m.bl.anlik_not"].tr).toMatch(/Kapalıyken bildirimler 15 dakikaya kadar gecikebilir/);
   });
 
   it("ekran: izin ve pil dugmeleri ACIKLAMASIYLA birlikte; araci bilgisi gosteren alan yok", () => {
@@ -389,5 +389,122 @@ describe("Ayarlar › Bildirimler gorunumu (saf)", () => {
     expect(sablon).not.toMatch(/uri|kullanici|parola|onek|mqtt|adres/i);
     expect(sablon.match(/role="switch"/g).length).toBe(2);                 // anlik izleme + olay anahtarlari (v-for)
     expect(kaynak("src/ekran/Ayarlar.vue")).toMatch(/<section id="ay-bildirim" class="kart"><BildirimAyar \/><\/section>/);
+  });
+});
+
+describe("izleme sorusu: kayit BU telefondan baslatilinca bir kez (kullanici karari 2026-10-05)", () => {
+  const D = { zarf: true, izin: true, izinGerekli: true, pilMuaf: false, calisiyor: false, izleme: "durduruldu", anlik: false, kapali: [], dil: "tr" };
+  function soru({ durum = D, basladi = true, kimlik = KIMLIK, atar = null } = {}) {
+    const olay = [];
+    const haller = [];
+    const bildirim = {
+      durum: async (k) => { olay.push(["durum", k]); if (atar === "durum") throw new Error("x"); return typeof durum === "function" ? durum() : durum; },
+      izinIste: async () => { olay.push("izinIste"); return false; },
+      izlemeBaslat: async (k, s) => { olay.push(["baslat", k, s]); if (atar === "baslat") throw new Error("x"); return { basladi, neden: basladi ? "" : "zarf-yok" }; },
+    };
+    const s = izlemeSorusuKur({ bildirim, kimlikAl: async () => kimlik });
+    s.dinle((h) => haller.push(h));
+    return { s, olay, haller };
+  }
+
+  it("anlik izleme KAPALI + zarf var: sorulur; 'ac' -> yalniz bu kayit icin baslatilir (ayar DEGISMEZ)", async () => {
+    const { s, olay, haller } = soru();
+    expect(s.hal()).toBe("yok");
+    await s.kayitBasladi();
+    expect(s.hal()).toBe("soruluyor");
+    await s.evet();
+    expect(s.hal()).toBe("acildi");
+    expect(haller).toEqual(["soruluyor", "aciliyor", "acildi"]);
+    expect(olay).toEqual([["durum", KIMLIK], ["durum", KIMLIK], ["baslat", KIMLIK, { buKayit: true }]]);
+  });
+
+  it("'hayir' -> soru kapanir, hicbir sey baslatilmaz; soru sorulmamisken evet / hayir etkisiz", async () => {
+    const { s, olay } = soru();
+    await s.evet(); s.hayir();
+    expect(olay).toEqual([]);
+    await s.kayitBasladi();
+    s.hayir();
+    expect(s.hal()).toBe("yok");
+    await s.evet();
+    expect(olay.filter((o) => Array.isArray(o) && o[0] === "baslat")).toEqual([]);
+  });
+
+  it("SORULMAZ: anlik izleme zaten acik / servis calisiyor / bildirim ayari (zarf) yok / kart bilinmiyor / durum okunamadi", async () => {
+    for (const secenek of [{ durum: { ...D, anlik: true } }, { durum: { ...D, calisiyor: true } }, { durum: { ...D, zarf: false } }, { kimlik: null }, { kimlik: "KOTU" }, { atar: "durum" }]) {
+      const { s } = soru(secenek);
+      await s.kayitBasladi();
+      expect(s.hal(), JSON.stringify(secenek)).toBe("yok");
+    }
+  });
+
+  it("izin yoksa once izin istenir; reddedilse de izleme baslatilir", async () => {
+    const { s, olay } = soru({ durum: { ...D, izin: false } });
+    await s.kayitBasladi();
+    await s.evet();
+    expect(olay.slice(2)).toEqual(["izinIste", ["baslat", KIMLIK, { buKayit: true }]]);
+    expect(s.hal()).toBe("acildi");
+    const eski = soru({ durum: { ...D, izin: false, izinGerekli: false } });      // Android 12 ve oncesi: izin penceresi yok
+    await eski.s.kayitBasladi(); await eski.s.evet();
+    expect(eski.olay).not.toContain("izinIste");
+  });
+
+  it("baslatilamazsa 'acilamadi' (hata yukari cikmaz); kayit bitince soru da sonuc da kalkar", async () => {
+    for (const secenek of [{ basladi: false }, { atar: "baslat" }]) {
+      const { s } = soru(secenek);
+      await s.kayitBasladi();
+      await s.evet();
+      expect(s.hal()).toBe("acilamadi");
+      s.kayitBitti();
+      expect(s.hal()).toBe("yok");
+    }
+    const { s } = soru();
+    await s.kayitBasladi();
+    s.kayitBitti();
+    expect(s.hal()).toBe("yok");
+  });
+
+  it("kayit bittikten sonra biten 'ac' islemi sonucu YAZMAZ; yeni kayit yeniden sorar", async () => {
+    let coz;
+    const bekle = new Promise((c) => { coz = c; });
+    const olay = [];
+    const s = izlemeSorusuKur({
+      bildirim: { durum: async () => D, izinIste: async () => true, izlemeBaslat: async () => { olay.push("baslat"); await bekle; return { basladi: true, neden: "" }; } },
+      kimlikAl: async () => KIMLIK,
+    });
+    await s.kayitBasladi();
+    const e = s.evet();
+    await new Promise((c) => setTimeout(c, 0));
+    s.kayitBitti();
+    coz();
+    await e;
+    expect(s.hal()).toBe("yok");
+    await s.kayitBasladi();
+    expect(s.hal()).toBe("soruluyor");
+  });
+
+  it("ekran: soru KATMAN degil, dugmenin altinda; kayit basarili baslayinca sorulur, bitince kapanir; metinler sozlukte", () => {
+    const v = kaynak("src/ekran/KayitDugmesi.vue");
+    expect(v).toMatch(/await kabuk\.kayitBaslat\(props\.hizMs\); izlemeSorusu\.kayitBasladi\(\);/);
+    expect(v).toMatch(/once === "durdur" && is !== "durdur"\) izlemeSorusu\.kayitBitti\(\)/);
+    expect(v).toMatch(/id="izleme-soru-evet"[^>]*@click="izlemeSorusu\.evet\(\)"/);
+    expect(v).toMatch(/id="izleme-soru-hayir"[^>]*@click="izlemeSorusu\.hayir\(\)"/);
+    expect(v).not.toMatch(/<dialog|ion-modal|ion-alert|position:\s*fixed/);
+    for (const a of ["m.bl.soru", "m.bl.soru_evet", "m.bl.soru_hayir", "m.bl.soru_acildi", "m.bl.soru_acilamadi"]) {
+      expect(v).toContain(`"${a}"`);
+      expect(SOZLUK_MOBIL[a].tr.length).toBeGreaterThan(1);
+      expect(SOZLUK_MOBIL[a].en.length).toBeGreaterThan(1);
+    }
+    expect(SOZLUK_MOBIL["m.bl.soru"].tr).toMatch(/Bu kayıt için anlık izleme açılsın mı\?/);
+    // Eklenti: buKayit yalniz ACIKCA true ise ayari asar; ayar yazimi "bu kayit icin" izlemeyi kesmez.
+    const kt = kaynak("android/app/src/main/java/tr/olcumkarti/mobil/bildirim/BildirimPlugin.kt");
+    expect(kt).toContain('!ayar().anlik && call.getBoolean("buKayit") != true -> "kapali"');
+    expect(kt).toContain("if (eski.anlik && !yeni.anlik && IzlemeServisi.calisanKimlik != null) IzlemeServisi.durdur(context)");
+  });
+
+  it("izlemeBaslat: buKayit yalniz istenince gider", async () => {
+    const d = duzen();
+    await d.b.izlemeBaslat(KIMLIK, { buKayit: true });
+    await d.b.izlemeBaslat(KIMLIK, { buKayit: "evet" });
+    expect(d.cagrilar).toEqual([["izlemeBaslat", { kimlik: KIMLIK, buKayit: true }], ["izlemeBaslat", { kimlik: KIMLIK }]]);
   });
 });
