@@ -17,12 +17,14 @@ const props = defineProps({
 
 const kabuk = inject("kabuk");
 const tuval = ref(null);
+const bos = ref(true);                  // gosterilecek olcum yok: tuval gizlenir (yer tutar, eksen yazisi cizilmez)
 let grafik = null;
 let temaBirak = null;
 
 function ciz() {
   if (!grafik) return;
   const p = pencereSerileri(kabuk.seri(), props.pencereS * 1000, props.sagEksen);
+  bos.value = p.n === 0;
   grafik.secenek.zamanKokeni = p.sonT;          // x ekseni "simdi"ye gore (eksi sureler)
   grafik.veriAyarla(p.seriler);
 }
@@ -42,5 +44,5 @@ watch(() => [kabuk.cizim.value, props.pencereS, props.sagEksen], ciz);
 </script>
 
 <template>
-  <canvas ref="tuval" class="grafik" :class="{ kucuk }" role="img" :aria-label="etiket"></canvas>
+  <canvas ref="tuval" class="grafik" :class="{ kucuk, bos }" role="img" :aria-label="etiket"></canvas>
 </template>

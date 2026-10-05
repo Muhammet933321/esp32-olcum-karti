@@ -262,7 +262,9 @@ describe("ekran baglantilari (kaynak)", () => {
     const u = kaynak("cekirdek/uygulama.js");
     expect(u).toContain("isciKur: w.kayitIsciKur,");
     expect(u).toContain("return v.islemciKur({ getir: o.yerelOku });");
-    expect(u).toContain("sonKimlik: () => { const k2 = yerelOnbellek(localStorage).oku(); return k2 ? k2.kimlik : null; },");
+    expect(u).toContain("try { const k = yerelOnbellek(localStorage).oku(); return k ? k.kimlik : null; } catch { return null; }");
+    expect(u.match(/^ {4}sonKimlik,$/gm).length).toBe(2);              // esitleme (sifirlama) ve kayitlar
+    expect(u).toContain("if (kimlik === null) kimlik = sonKimlik();");    // Ayarlar'in kopya boyutu da kartsiz calisir
     expect(u).not.toMatch(/^import .*(kayitlar|kayit_veri|kayit_istemci|isci_kur|depo_oku)\.js/m);
   });
 });

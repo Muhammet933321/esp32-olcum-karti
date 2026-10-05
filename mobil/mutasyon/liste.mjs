@@ -12,6 +12,7 @@ import duzeltme5c from "./duzeltme5c-liste.mjs";
 import depo from "./depo-liste.mjs";
 import esitleme from "./esitleme-liste.mjs";
 import kayitlar from "./kayitlar-liste.mjs";
+import grafikOlcum from "./grafik-olcum-liste.mjs";
 
 export default [
   ...curutucu.map((m) => ({ ...m, ad: `5A-7 ${m.ad}` })),
@@ -22,6 +23,7 @@ export default [
   ...depo,
   ...esitleme,
   ...kayitlar,
+  ...grafikOlcum,
   ...p0,
   ...akis,
   ...kabuk,

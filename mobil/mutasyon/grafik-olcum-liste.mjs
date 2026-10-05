@@ -1,0 +1,37 @@
+// 5D-4 — Ö6 grafik olcumu. Kosum (mobil/ icinden): node mutasyon/kos.mjs --neden 5D-olcum
+const G = "src/cekirdek/grafik_olcum.js";
+const T = "test/grafik_olcum.test.js";
+
+export default [
+  { ad: "5D-olcum: nokta sayisi 800 bin degil (olcum kolaylasir)", dosya: G, bul: "export const NOKTA = 800000;", koy: "export const NOKTA = 80000;", test: T },
+  { ad: "5D-olcum: kare sayisi 200 degil", dosya: G, bul: "export const KARE = 200;", koy: "export const KARE = 20;", test: T },
+  { ad: "5D-olcum: olcut 33 ms degil", dosya: G, bul: "export const OLCUT_MS = 33;", koy: "export const OLCUT_MS = 50;", test: T },
+  { ad: "5D-olcum: olcut cizim suresine uygulanıyor (kare araligina degil)", dosya: G,
+    bul: "gecti: a !== null && a.p95 < OLCUT_MS,", koy: "gecti: c !== null && c.p95 < OLCUT_MS,", test: T },
+  { ad: "5D-olcum: sinirdaki deger (33.0) geciyor", dosya: G,
+    bul: "gecti: a !== null && a.p95 < OLCUT_MS,", koy: "gecti: a !== null && a.p95 <= OLCUT_MS,", test: T },
+  { ad: "5D-olcum: p95 yerine ortanca yaziliyor", dosya: G,
+    bul: "p95: yuvarla(yuzde(0.95))", koy: "p95: yuvarla(yuzde(0.5))", test: T },
+  { ad: "5D-olcum: en uzun kare gizleniyor (p95 yaziliyor)", dosya: G,
+    bul: "enUzun: yuvarla(s[s.length - 1]) };", koy: "enUzun: yuvarla(yuzde(0.95)) };", test: T },
+  { ad: "5D-olcum: sureler siralanmadan yuzdelik aliniyor", dosya: G,
+    bul: ".sort((a, b) => a - b);", koy: ";", test: T },
+  { ad: "5D-olcum: animasyon karesi beklenmiyor (kare araligi = cizim suresi)", dosya: G,
+    bul: "    cizim.push(simdi() - c0);\n    await kareBekle();", koy: "    cizim.push(simdi() - c0);", test: T },
+  { ad: "5D-olcum: pencere ayarlanmadan ciziliyor (hep ayni kare)", dosya: G,
+    bul: "    grafik.durumAyarla({ t0, t1 });\n", koy: "", test: T },
+  { ad: "5D-olcum: iptal edilen olcum sonuc diye donuyor", dosya: G,
+    bul: "    if (iptal()) return null;", koy: "    if (iptal()) break;", test: T },
+  { ad: "5D-olcum: betik yakinlasmiyor (hep tam pencere: ham veri hic cizilmez)", dosya: G,
+    bul: "ekle(m0, tam * Math.pow(dar / tam, k / (ceyrek - 1 || 1)));", koy: "ekle(m0, tam);", test: T },
+  { ad: "5D-olcum: betik kaydirmiyor", dosya: G,
+    bul: "ekle(m0 + (k + 1) * dar * 0.4, dar);", koy: "ekle(m0, dar);", test: T },
+  { ad: "5D-olcum: pencere aralik disina tasiyor", dosya: G,
+    bul: "const t0 = Math.min(son - g, Math.max(bas, merkez - g / 2));", koy: "const t0 = merkez - g / 2;", test: T },
+  { ad: "5D-olcum: seride tek orneklik sicrama yok", dosya: G,
+    bul: " + (k % 50021 === 0 ? 1.5 : 0)", koy: "", test: T },
+  { ad: "5D-olcum: seri her cagrida farkli (rastgele)", dosya: G,
+    bul: "let tohum = 12345;", koy: "let tohum = (Date.now() + Math.random() * 1e9) >>> 0;", test: T },
+  { ad: "5D-olcum: canli grafik veri yokken eksen yazisi ciziyor", dosya: "src/bilesen/CanliGrafik.vue",
+    bul: "  bos.value = p.n === 0;\n", koy: "", test: T },
+];

@@ -9,7 +9,8 @@
 //   e.durum()  -> { hal, sonMs, yeni, sonSira, bosluk, bekleyen, hata, sifirlaOner, onayli }
 //                 hal: "bos" | "esitleniyor" | "tamam" | "hata"
 //   e.dinle(fn) -> birak()
-//   await e.sifirla();          // "kopyayi sifirla" (A23): bu kartin telefondaki kopyasi silinir
+//   await e.sifirla();          // "kopyayi sifirla" (A23): bu kartin telefondaki kopyasi silinir (kart
+//                               // bagli degilse `sonKimlik()`: son baglanilan kart)
 //
 // Kurallar:
 //   * Varsayilan ONAYSIZ (A21): `onayAcik()` true DEGILSE karta `Go` HIC gitmez. Aciksa onay yalniz
@@ -51,7 +52,7 @@ export function hataTuru(e) {
 }
 
 export function esitlemeKur({
-  kartAl, depoAl, onayAcik = () => false, simdiMs = Date.now,
+  kartAl, depoAl, onayAcik = () => false, sonKimlik = () => null, simdiMs = Date.now,
   bekle = (ms) => new Promise((c) => setTimeout(c, ms)), aralikMs = ARALIK_MS, istekAraMs = ISTEK_ARA_MS,
 }) {
   if (typeof kartAl !== "function" || typeof depoAl !== "function") throw new TypeError("kartAl ve depoAl gerekli");
@@ -144,8 +145,10 @@ export function esitlemeKur({
     if (suren) { try { await suren; } catch { /* kos atmaz */ } }
     const kart = await kartAl();
     const d = kart.durum();
-    const kimlik = d && typeof d.kimlik === "string" ? d.kimlik : null;
-    if (kimlik === null) throw Object.assign(new Error("bagli-degil"), { name: "KartHatasi", tur: "bagli-degil" });
+    // Kart bagli degilken de (disarida) sifirlanabilir: kimlik son baglanilan karttan.
+    let kimlik = d && typeof d.kimlik === "string" ? d.kimlik : null;
+    if (kimlik === null) { try { kimlik = sonKimlik(); } catch { kimlik = null; } }
+    if (typeof kimlik !== "string") throw Object.assign(new Error("bagli-degil"), { name: "KartHatasi", tur: "bagli-degil" });
     await (await depoAl(kimlik)).sifirla();
     sonDeneme = null;
     yay({ ...BOS });

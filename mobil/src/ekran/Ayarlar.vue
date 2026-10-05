@@ -5,6 +5,7 @@
 import { ref } from "vue";
 import Baglanti from "./Baglanti.vue";
 import EsitlemeAyar from "./EsitlemeAyar.vue";
+import GrafikOlcum from "./GrafikOlcum.vue";
 import KartBul from "./KartBul.vue";
 import { c, dil, tema, tercihSec } from "./metin.js";
 import { DILLER, TEMALAR } from "./tercih.js";
@@ -39,5 +40,6 @@ const TEMA_ADI = { sistem: "m.ay.tema_sistem", koyu: "m.ay.tema_koyu", acik: "m.
       {{ gelismis ? c("m.ay.gelismis_gizle") : c("m.ay.gelismis_goster") }}
     </button>
     <section v-if="gelismis" id="ay-gelismis-icerik" class="kart"><KartBul /></section>
+    <section v-if="gelismis" id="ay-grafik-olcum" class="kart"><GrafikOlcum /></section>
   </div>
 </template>

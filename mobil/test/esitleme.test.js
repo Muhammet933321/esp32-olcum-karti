@@ -165,6 +165,26 @@ describe("esitleme — bosluk sayimi", () => {
   });
 });
 
+describe("esitleme — kart yokken sifirlama", () => {
+  it("kart BAGLI DEGILKEN de kopya sifirlanir: kimlik son baglanilan karttan (telefonda goruldu: 'Kart bilinmiyor')", async () => {
+    const { k, t, ek, e } = await duzenek({ kayitSayisi: 20 });
+    await e.simdi();
+    expect(ek.dosya(K1)).not.toBe(null);
+    await k.kapat();
+    kapat = [];
+    const bagsiz = { durum: () => ({ durum: "bagli-degil", adres: null, kimlik: null }) };
+    const e2 = esitlemeKur({ kartAl: async () => bagsiz, depoAl: (kimlik) => depoKur(ek, kimlik), sonKimlik: () => K1 });
+    await e2.sifirla();
+    expect(ek.dosya(K1)).toBe(null);
+    // Hic kart bilinmiyorsa: hata (sessizce "silindi" DEMEZ).
+    for (const sonKimlik of [undefined, () => null, () => { throw new Error("x"); }]) {
+      const e3 = esitlemeKur({ kartAl: async () => bagsiz, depoAl: () => { throw new Error("cagrilmamali"); }, ...(sonKimlik ? { sonKimlik } : {}) });
+      await expect(e3.sifirla()).rejects.toMatchObject({ tur: "bagli-degil" });
+    }
+    void t;
+  });
+});
+
 describe("esitleme — hata halleri (ASLA atmaz)", () => {
   it("hataTuru (saf)", () => {
     expect(hataTuru(new EsitlemeHatasi("x"))).toEqual({ tur: "kopya-uyusmuyor", sifirlaOner: true });

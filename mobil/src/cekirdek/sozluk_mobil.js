@@ -267,6 +267,15 @@ export const SOZLUK_MOBIL = Object.freeze({
   "m.ky.bulunamadi": S("Aramaya uyan kayıt yok.", "No recordings match."),
   "m.ky.kart_yok": S("Kart bu ağda değil: liste telefondaki kopyadan.", "Board not on this network: list is from the copy on the phone."),
   "m.ky.hata": S("Kayıtlar okunamadı ({tur}).", "Could not read recordings ({tur})."),
+  // ── Grafik olcumu (ekran/GrafikOlcum.vue; Ö6, A27)
+  "m.go.baslat": S("Grafik ölçümü (800 bin nokta)", "Chart benchmark (800k points)"),
+  "m.go.suruyor": S("Ölçülüyor: 200 yakınlaştırma / kaydırma karesi…", "Measuring: 200 zoom / pan frames…"),
+  "m.go.hata": S("Grafik ölçümü yapılamadı.", "The chart benchmark failed."),
+  "m.go.gecti": S("GEÇTİ: kare aralığı p95 {p95} ms (ölçüt < {olcut} ms)", "PASS: frame interval p95 {p95} ms (limit < {olcut} ms)"),
+  "m.go.kaldi": S("KALDI: kare aralığı p95 {p95} ms (ölçüt < {olcut} ms)", "FAIL: frame interval p95 {p95} ms (limit < {olcut} ms)"),
+  "m.go.ozet": S("{nokta} nokta · {kare} kare · hazırlık {hazirlik} ms", "{nokta} points · {kare} frames · setup {hazirlik} ms"),
+  "m.go.aralik": S("kare aralığı: ortanca {ortanca} · p95 {p95} · en uzun {enUzun} ms", "frame interval: median {ortanca} · p95 {p95} · max {enUzun} ms"),
+  "m.go.cizim": S("çizim süresi: ortanca {ortanca} · p95 {p95} · en uzun {enUzun} ms", "draw time: median {ortanca} · p95 {p95} · max {enUzun} ms"),
   // ── Kayit gorunumu (ekran/Kayit.vue)
   "m.kg.geri": S("Kayıtlar", "Recordings"),
   "m.kg.yok": S("Bu oturum telefondaki kopyada yok.", "This session is not in the copy on the phone."),

@@ -619,3 +619,47 @@ sürükleme ile istatistiğin güncellendiğini gör → logcat taraması. Osilo
 yok" der (yakalama görünümü 5H'de).
 
 **Sırada:** 5D-4 (Ö6 grafik ölçüm aracı: 800 bin nokta, p95 < 33 ms), sonra 5D için bağımsız çürütücü turu.
+
+## 2026-10-05 (öğlen) — kartsız doğrulama, 5D-3'ün telefon kontrolü, 5D-4 (Ö6) ölçümü
+
+Kullanıcı donanımı söktü; kart (ESP) YOK, yalnız Xiaomi bağlı. Kartsız yapılabilenler yapıldı.
+
+**5D-3'ün yarım kalan telefon kontrolü (kart yok = "dışarıda" hali, gerçek cihazda):**
+- Kayıtlar listesi telefondaki kopyadan geldi (hepsi "Telefonda", üstte "Kart bu ağda değil: liste
+  telefondaki kopyadan"); kayıt görünümü açıldı. Pil oturumu (61514) grafiği çizildi (3.7 V, ~1 A);
+  ADC'siz oturum "170 noktanın hiçbirinde geçerli ölçüm yok" dedi; osiloskop oturumu "çizilecek ölçüm yok"
+  (yakalama görünümü 5H).
+- **Kartsız ACİL DURDUR (gerçek cihazda ilk kez):** dokunuştan 1 s sonra "gönderiliyor", 7 s içinde kalıcı
+  kırmızı "ULAŞILAMADI — kart durdurulamadı. Yükü elle kes" (beklenen tavan ~4.4 s; tam süre ölçülmedi).
+- Logcat taraması temiz.
+
+**Kartsızken görülen iki kusur (düzeltildi, önce kırmızı test):**
+1. Ayarlar › Eşitleme "Kart bilinmiyor" diyordu ve "Kopyayı sıfırla" çalışmıyordu: kopyanın hangi karta ait
+   olduğu yalnız BAĞLI karttan okunuyordu. Artık son bağlanılan karttan (keşif önbelleği) da bilinir —
+   telefonda doğrulandı: kartsızken "1.40 MB".
+2. Durum'daki küçük canlı grafik veri yokken anlamsız zaman etiketleri çiziyordu → veri yokken tuval gizlenir.
+
+**5D-4 — Ö6 grafik ölçümü (A27).** Ayarlar › Gelişmiş › "Grafik ölçümü (800 bin nokta)":
+`src/cekirdek/grafik_olcum.js` (belirlenimci seri + betik: yakınlaş 1/2000'e → sağa kaydır → sola kaydır →
+uzaklaş; 200 kare) + `GrafikOlcum.vue`. İki süre yazılır: **kare aralığı** (art arda animasyon kareleri;
+ölçüt buna uygulanır) ve **çizim süresi** (`ciz()` çağrısı).
+
+| Xiaomi Redmi Note 10S (Android 13), 800 000 nokta × 2 kanal, 200 kare | 1. koşu | 2. koşu |
+|---|---|---|
+| kare aralığı ortanca / p95 / en uzun (ms) | 16.6 / 18.1 / 259.4 ⚠ | 16.6 / **17.9** / 22.4 |
+| çizim süresi ortanca / p95 / en uzun (ms) | 1.6 / 4.0 / 7.2 | 2.7 / 4.2 / 5.6 |
+| hazırlık (piramit dahil, ms) | 67 | 132 |
+
+**Sonuç: ölçüt (p95 < 33 ms) GEÇTİ**; ekran 60 Hz'de kilitli (ortanca 16.6 ms), çizimin kendisi ~2–4 ms.
+⚠ 1. koşudaki 259 ms'lik tek kare benim hatam: ölçüm sürerken ekranı adb ile kaydırdım. 2. koşu dokunmadan.
+Sınırlar (dürüstçe): seri üretilmiş ve 2 kanallı — gerçek nokta oturumunda 9 seri var (ort + min + maks × 3,
+6'sı görünür); ölçüm betikle, parmakla değil; Honor'da ölçülmedi (5G).
+
+**Kanıt:** JS **457/457** (39 dosya), Kotlin yeşil. Mutasyon: `5D-olcum` 17/17, yeni iki kartsız mutasyon 2/2
+(5D toplam: depo 16 · esit 39 · kayit 37 · olcum 17 · Kotlin 11).
+
+**Kart gelince yapılacaklar:** eşitleme "kayıt bitince" tetiklemesi (kısa test kaydıyla) · kayıt görünümünde
+"Kart + telefon" / "eksik" halleri · IP değişiminde yeniden bulma · kıskaçla yakınlaştırmada istatistiğin
+güncellenmesi (elle; adb çok parmak yapamıyor).
+
+**Sırada:** 5D için bağımsız çürütücü turu, sonra 5E (bildirim / MQTT).

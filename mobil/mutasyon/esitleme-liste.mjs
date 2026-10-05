@@ -44,6 +44,8 @@ export default [
     bul: "return liste.filter((b) => Array.isArray(b) && b[0] > 1).length;", koy: "return liste.length;", test: T },
   { ad: "5D-esit: gercek bosluk sayilmiyor", dosya: E,
     bul: "        bosluk: bosluklar(s.bosluk),", koy: "        bosluk: 0,", test: T },
+  { ad: "5D-esit: kart yokken kopya sifirlanamiyor (son kimlik kullanilmiyor)", dosya: E,
+    bul: "    if (kimlik === null) { try { kimlik = sonKimlik(); } catch { kimlik = null; } }\n    if (typeof kimlik", koy: "    if (typeof kimlik", test: T },
   { ad: "5D-esit: parca 8192 B degil", dosya: E,
     bul: "export const PARCA_BAYT = 8192;", koy: "export const PARCA_BAYT = 1100;", test: T },
   // ── kabuk ve ekran baglantisi (test/esitleme_kabuk.test.js) ──

@@ -76,6 +76,8 @@ export default [
     bul: "    if (no !== sira) return;              // daha yeni bir istek var: eski yanit ekrani EZMEZ\n", koy: "", test: TK },
   { ad: "5D-kayit: alt rotada ust sekme bulunmuyor (baslik 'Durum')", dosya: "src/ekran/sekmeler.js",
     bul: "const asil = Object.hasOwn(ALT_ROTALAR, ad) ? ALT_ROTALAR[ad] : ad;", koy: "const asil = ad;", test: TK },
+  { ad: "5D-kayit: Ayarlar'in kopya boyutu kartsizken 'bilinmiyor'", dosya: "src/cekirdek/uygulama.js",
+    bul: "  if (kimlik === null) kimlik = sonKimlik();\n", koy: "", test: TK },
   // ── yerel okuma (A24) ──
   { ad: "5D-kayit: yerelOku adresi denetlemeden istek yapiyor", dosya: O,
     bul: 'if (typeof url !== "string" || !DEPO_ADRESI.test(url)) throw new DepoOkuHatasi("bicim");', koy: "", test: TG },

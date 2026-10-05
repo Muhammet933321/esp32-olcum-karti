@@ -119,6 +119,7 @@ async function esitlemeKurulum() {
     kartAl,
     depoAl: (kimlik) => d.depoKur(KartDepo, kimlik),
     onayAcik: esitlemeOnayi,                     // A21: varsayilan KAPALI; her turda yeniden okunur
+    sonKimlik,
   });
 }
 
@@ -139,13 +140,20 @@ export function esitlemeOnayiYaz(acik) {
   try { return onayYaz(localStorage, acik); } catch { return false; }
 }
 
-// Ayarlar'in depolama satiri: bagli / eslesmis kartin kopyasinin boyutu. Kart bilinmiyorsa null.
+// Son baglanilan kartin kimligi (kesif onbellegi): kart bu agda degilken kopyasi bununla bulunur.
+function sonKimlik() {
+  try { const k = yerelOnbellek(localStorage).oku(); return k ? k.kimlik : null; } catch { return null; }
+}
+
+// Ayarlar'in depolama satiri: bagli kartin — o yoksa son baglanilan kartin — kopyasinin boyutu.
+// Hic kart bilinmiyorsa null.
 export async function kopyaBoyutu() {
-  const kart = await kartAl();
-  const d = kart.durum();
-  if (!d || typeof d.kimlik !== "string") return null;
+  let kimlik = null;
+  try { const d = (await kartAl()).durum(); kimlik = d && typeof d.kimlik === "string" ? d.kimlik : null; } catch { kimlik = null; }
+  if (kimlik === null) kimlik = sonKimlik();
+  if (typeof kimlik !== "string") return null;
   const { depoKur } = await import("./depo.js");
-  return depoKur(KartDepo, d.kimlik).boyutlar();
+  return depoKur(KartDepo, kimlik).boyutlar();
 }
 
 // ── kayitlar (5D-3: cekirdek/kayitlar.js + kayit_istemci.js; cozme Web Worker'da) ──
@@ -164,7 +172,7 @@ async function kayitlarKurulum() {
   return k.kayitlarKur({
     istemci, kartAl,
     depoAl: (kimlik) => d.depoKur(KartDepo, kimlik),
-    sonKimlik: () => { const k2 = yerelOnbellek(localStorage).oku(); return k2 ? k2.kimlik : null; },
+    sonKimlik,
   });
 }
 
