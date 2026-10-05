@@ -1,0 +1,2196 @@
+{
+ "aciklama": "kopru/pc_bildirim.py Mantik'ten uretildi (mobil/araclar/bildirim_karar_vektor_uret.py); elle duzenleme",
+ "senaryolar": [
+  {
+   "ad": "vasiyet_kayit_surerken_kopuk_sonra_geri",
+   "ops": [
+    [
+     "bagli",
+     true
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "tik"
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 0,
+      "a": 3
+     }
+    ],
+    [
+     "tik"
+    ],
+    [
+     "tik"
+    ],
+    [
+     "saat",
+     30
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "tik"
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "baglanti",
+      "bld.kopuk",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.geri_kayit",
+      {
+       "oturum": "53"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": true
+    }
+   }
+  },
+  {
+   "ad": "vasiyet_kayit_yokken_sessiz",
+   "ops": [
+    [
+     "bagli",
+     true
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 1,
+      "o": 0,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 0,
+      "a": 3
+     }
+    ],
+    [
+     "tik"
+    ],
+    [
+     "saat",
+     5
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 1,
+      "o": 0,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "geri_geldi_kayit_bitmis",
+   "ops": [
+    [
+     "bagli",
+     true
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 0,
+      "a": 3
+     }
+    ],
+    [
+     "saat",
+     40
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 1,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "baglanti",
+      "bld.kopuk",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.geri",
+      {},
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "ev_interneti_kart_yerelde",
+   "ops": [
+    [
+     "bagli",
+     true
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "yerel_gor"
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 0,
+      "a": 3
+     }
+    ],
+    [
+     "tik"
+    ],
+    [
+     "saat",
+     10
+    ],
+    [
+     "yerel_gor"
+    ],
+    [
+     "tik"
+    ],
+    [
+     "saat",
+     16
+    ],
+    [
+     "tik"
+    ],
+    [
+     "saat",
+     2
+    ],
+    [
+     "yerel_gor"
+    ],
+    [
+     "tik"
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "baglanti",
+      "bld.ev_interneti",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.kopuk",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.ev_interneti",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.geri_kayit",
+      {
+       "oturum": "53"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": true
+    }
+   }
+  },
+  {
+   "ad": "bekliyor_durumu_da_kayit_sayilir_ve_py_esitligi",
+   "ops": [
+    [
+     "bagli",
+     true
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": true,
+      "a": 3,
+      "t": 1790000000,
+      "k": 4.0,
+      "o": 60,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 0.0,
+      "a": 3
+     }
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1.0,
+      "a": 3,
+      "t": 1790000000,
+      "k": 4,
+      "o": 60,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "baglanti",
+      "bld.kopuk",
+      {
+       "oturum": "60"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.geri_kayit",
+      {
+       "oturum": "60"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": true
+    }
+   }
+  },
+  {
+   "ad": "olay_yineleme_ve_bosluk",
+   "ops": [
+    [
+     "bagli",
+     true
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 2,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 6,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 4,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 9,
+      "a": 3,
+      "t": 1790000100,
+      "o": "esik",
+      "deger": 612,
+      "esik": 600
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "de-t1",
+      "bld.deneme",
+      {},
+      false
+     ],
+     [
+      "de-t2",
+      "bld.deneme",
+      {},
+      false
+     ],
+     [
+      "kacirilan",
+      "bld.kacirilan",
+      {
+       "adet": "3"
+      },
+      false
+     ],
+     [
+      "de-t3",
+      "bld.deneme",
+      {},
+      false
+     ],
+     [
+      "de-t4",
+      "bld.deneme",
+      {},
+      false
+     ],
+     [
+      "kacirilan",
+      "bld.kacirilan",
+      {
+       "adet": "5"
+      },
+      false
+     ],
+     [
+      "es-t5",
+      "bld.esik",
+      {
+       "deger": "SAYI(612,10,1)",
+       "esik": "SAYI(600,10,1)"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 5,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": null
+    }
+   }
+  },
+  {
+   "ad": "kart_yeniden_basladi_yeni_acilis",
+   "ops": [
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 5,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 3,
+      "a": 4,
+      "t": 1790000100,
+      "o": "basladi",
+      "devam": 1,
+      "oturum": 70
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 4,
+      "a": 4,
+      "t": 1790000100,
+      "o": "basladi",
+      "devam": 0,
+      "oturum": 70
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 5,
+      "t": 1790000100,
+      "o": "basladi",
+      "devam": 1
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "de-t1",
+      "bld.deneme",
+      {},
+      false
+     ],
+     [
+      "kacirilan",
+      "bld.kacirilan",
+      {
+       "adet": "2"
+      },
+      false
+     ],
+     [
+      "bs-4",
+      "bld.basladi_devam",
+      {
+       "oturum": "70"
+      },
+      false
+     ],
+     [
+      "bs-5",
+      "bld.basladi_devam",
+      {
+       "oturum": "?"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 2,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": null
+    }
+   }
+  },
+  {
+   "ad": "onceki_calismadan_kalan",
+   "onceki": [
+    3,
+    7
+   ],
+   "ops": [
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 6,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 7,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 10,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 8,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "kacirilan",
+      "bld.kacirilan",
+      {
+       "adet": "2"
+      },
+      false
+     ],
+     [
+      "de-t1",
+      "bld.deneme",
+      {},
+      false
+     ],
+     [
+      "de-t2",
+      "bld.deneme",
+      {},
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 2,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": null
+    }
+   }
+  },
+  {
+   "ad": "onceki_baska_acilis",
+   "onceki": [
+    2,
+    40
+   ],
+   "ops": [
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 3,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 4,
+      "a": 3,
+      "t": 1790000100,
+      "o": "dolu"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "kacirilan",
+      "bld.kacirilan",
+      {
+       "adet": "2"
+      },
+      false
+     ],
+     [
+      "de-t1",
+      "bld.deneme",
+      {},
+      false
+     ],
+     [
+      "ot-t2",
+      "bld.dolu",
+      {},
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 2,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": null
+    }
+   }
+  },
+  {
+   "ad": "kayit_bitti_sebepler",
+   "ops": [
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 81,
+      "y": 2,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 1,
+      "oturum": 80,
+      "nokta": 1200
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 2,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 2,
+      "oturum": 81
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 3,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 5,
+      "oturum": 81
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 4,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 5,
+      "oturum": 82
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 5,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 7,
+      "oturum": 83
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 6,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": null,
+      "oturum": 84,
+      "nokta": null
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 7,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 3
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "os-50",
+      "bld.kayit_bitti",
+      {
+       "oturum": "80",
+       "sebep": "KOD(sebep.1)",
+       "nokta": "1200"
+      },
+      false
+     ],
+     [
+      "os-51",
+      "bld.dolu_oturum",
+      {
+       "oturum": "81"
+      },
+      false
+     ],
+     [
+      "os-52",
+      "bld.kesildi",
+      {
+       "oturum": "82",
+       "tur": "KOD(oturum.tur.1)",
+       "saat": "EK(bld.kesildi_saat,SAAT(1790000000))"
+      },
+      false
+     ],
+     [
+      "os-53",
+      "bld.kayit_bitti",
+      {
+       "oturum": "83",
+       "sebep": "KOD(sebep.7)",
+       "nokta": "?"
+      },
+      false
+     ],
+     [
+      "os-54",
+      "bld.kayit_bitti",
+      {
+       "oturum": "84",
+       "sebep": "KOD(sebep.None)",
+       "nokta": "?"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": true
+    }
+   }
+  },
+  {
+   "ad": "kesildi_son_gorulme_yokken",
+   "ops": [
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 0,
+      "k": 2,
+      "o": 90,
+      "y": 3,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 5,
+      "oturum": 90
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "os-5a",
+      "bld.kesildi",
+      {
+       "oturum": "90",
+       "tur": "KOD(oturum.tur.3)",
+       "saat": ""
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": true
+    }
+   }
+  },
+  {
+   "ad": "pil_bitti_ve_esik_ve_dolu",
+   "ops": [
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "pil_bitti",
+      "durum": 2,
+      "mah_milli": 2415300,
+      "wh_milli": 8950,
+      "sure_ms": 5400000
+     }
+    ],
+    [
+     "saat",
+     200
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 2,
+      "a": 3,
+      "t": 1790000100,
+      "o": "pil_bitti",
+      "durum": null,
+      "mah_milli": "x",
+      "wh_milli": null,
+      "sure_ms": -5
+     }
+    ],
+    [
+     "saat",
+     200
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 3,
+      "a": 3,
+      "t": 1790000100,
+      "o": "dolu"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 4,
+      "a": 3,
+      "t": 1790000100,
+      "o": "esik",
+      "deger": null,
+      "esik": 600
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 5,
+      "a": 3,
+      "t": 1790000100,
+      "o": "bilinmeyen_olay"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "ot-t1",
+      "bld.pil_bitti",
+      {
+       "durum": "KOD(pil.durum.2)",
+       "mah": "SAYI(2415300,1000,1)",
+       "wh": "SAYI(8950,1000,2)",
+       "sure": "SURE(5400000)"
+      },
+      false
+     ],
+     [
+      "ot-t2",
+      "bld.pil_bitti",
+      {
+       "durum": "KOD(pil.durum.None)",
+       "mah": "SAYI(x,1000,1)",
+       "wh": "SAYI(None,1000,2)",
+       "sure": "SURE(-5)"
+      },
+      false
+     ],
+     [
+      "ot-t3",
+      "bld.dolu",
+      {},
+      false
+     ],
+     [
+      "es-t4",
+      "bld.esik",
+      {
+       "deger": "SAYI(None,10,1)",
+       "esik": "SAYI(600,10,1)"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": null
+    }
+   }
+  },
+  {
+   "ad": "yerel_bitti_sonra_mqtt_ayrinti_sessiz_guncelleme",
+   "ops": [
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "yerel",
+     1,
+     53
+    ],
+    [
+     "saat",
+     3
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 1,
+      "oturum": 53,
+      "nokta": 77
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 2,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 1,
+      "oturum": 53,
+      "nokta": 77
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "os-35",
+      "bld.kayit_bitti_yerel",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "os-35",
+      "bld.kayit_bitti",
+      {
+       "oturum": "53",
+       "sebep": "KOD(sebep.1)",
+       "nokta": "77"
+      },
+      true
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "mqtt_once_sonra_yerel_dusuyor",
+   "ops": [
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 1,
+      "oturum": 53,
+      "nokta": 5
+     }
+    ],
+    [
+     "saat",
+     2
+    ],
+    [
+     "yerel",
+     1,
+     53
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "os-35",
+      "bld.kayit_bitti",
+      {
+       "oturum": "53",
+       "sebep": "KOD(sebep.1)",
+       "nokta": "5"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "yerel_dolu_ve_oturum_degisimi",
+   "ops": [
+    [
+     "yerel",
+     2,
+     10
+    ],
+    [
+     "yerel",
+     3,
+     10
+    ],
+    [
+     "yerel",
+     2,
+     11
+    ],
+    [
+     "yerel",
+     2,
+     12
+    ],
+    [
+     "yerel",
+     4,
+     12
+    ],
+    [
+     "yerel",
+     1,
+     12
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "os-a",
+      "bld.dolu_oturum",
+      {
+       "oturum": "10"
+      },
+      false
+     ],
+     [
+      "os-b",
+      "bld.kayit_bitti_yerel",
+      {
+       "oturum": "11"
+      },
+      false
+     ],
+     [
+      "os-c",
+      "bld.kayit_bitti_yerel",
+      {
+       "oturum": "12"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "pencere_dolunca_yeni_bildirim",
+   "pencere": 900,
+   "ops": [
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "yerel",
+     1,
+     53
+    ],
+    [
+     "saat",
+     901
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 1,
+      "oturum": 53,
+      "nokta": 1
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "os-35",
+      "bld.kayit_bitti_yerel",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "os-35",
+      "bld.kayit_bitti",
+      {
+       "oturum": "53",
+       "sebep": "KOD(sebep.1)",
+       "nokta": "1"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "oturumsuz_haber_yakin_pencere",
+   "yakin": 120,
+   "ops": [
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "yerel",
+     1,
+     53
+    ],
+    [
+     "saat",
+     100
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "pil_bitti",
+      "durum": 1,
+      "mah_milli": 1000,
+      "wh_milli": 3700,
+      "sure_ms": 60000
+     }
+    ],
+    [
+     "saat",
+     130
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 2,
+      "a": 3,
+      "t": 1790000100,
+      "o": "dolu"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "os-35",
+      "bld.kayit_bitti_yerel",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "os-35",
+      "bld.pil_bitti",
+      {
+       "durum": "KOD(pil.durum.1)",
+       "mah": "SAYI(1000,1000,1)",
+       "wh": "SAYI(3700,1000,2)",
+       "sure": "SURE(60000)"
+      },
+      true
+     ],
+     [
+      "ot-t2",
+      "bld.dolu",
+      {},
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "telefon_pencereleri_30s",
+   "pencere": 30,
+   "yakin": 30,
+   "ops": [
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "yerel",
+     1,
+     53
+    ],
+    [
+     "saat",
+     20
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 1,
+      "oturum": 53,
+      "nokta": 9
+     }
+    ],
+    [
+     "yerel",
+     2,
+     54
+    ],
+    [
+     "yerel",
+     1,
+     54
+    ],
+    [
+     "saat",
+     31
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 2,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 1,
+      "oturum": 54,
+      "nokta": 9
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "os-35",
+      "bld.kayit_bitti_yerel",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "os-35",
+      "bld.kayit_bitti",
+      {
+       "oturum": "53",
+       "sebep": "KOD(sebep.1)",
+       "nokta": "9"
+      },
+      true
+     ],
+     [
+      "os-36",
+      "bld.kayit_bitti_yerel",
+      {
+       "oturum": "54"
+      },
+      false
+     ],
+     [
+      "os-36",
+      "bld.kayit_bitti",
+      {
+       "oturum": "54",
+       "sebep": "KOD(sebep.1)",
+       "nokta": "9"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "sinif_kapali",
+   "kapali": [
+    "bitti",
+    "kopuk"
+   ],
+   "ops": [
+    [
+     "bagli",
+     true
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "yerel",
+     1,
+     53
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 1,
+      "oturum": 53,
+      "nokta": 4
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 2,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 2,
+      "oturum": 54
+     }
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 55,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 0,
+      "a": 3
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 5,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "os-36",
+      "bld.dolu_oturum",
+      {
+       "oturum": "54"
+      },
+      false
+     ],
+     [
+      "kacirilan",
+      "bld.kacirilan",
+      {
+       "adet": "2"
+      },
+      false
+     ],
+     [
+      "de-t3",
+      "bld.deneme",
+      {},
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 2,
+     "baglanti": null,
+     "kart_cevrimici": false,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "bitti_kapali_dolu_acik_guncelleme_ilk_kez_sesli",
+   "kapali": [
+    "bitti"
+   ],
+   "ops": [
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "yerel",
+     1,
+     53
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "t": 1790000100,
+      "o": "kayit_bitti",
+      "sebep": 2,
+      "oturum": 53
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "os-35",
+      "bld.dolu_oturum",
+      {
+       "oturum": "53"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "yalniz_yerel_yol_kopuk_ve_geri",
+   "ops": [
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "tik"
+    ],
+    [
+     "saat",
+     21
+    ],
+    [
+     "tik"
+    ],
+    [
+     "tik"
+    ],
+    [
+     "saat",
+     5
+    ],
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "tik"
+    ],
+    [
+     "saat",
+     25
+    ],
+    [
+     "tik"
+    ],
+    [
+     "yerel",
+     1,
+     53
+    ],
+    [
+     "tik"
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "baglanti",
+      "bld.kopuk_yerel",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.geri_kayit",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.kopuk_yerel",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "os-35",
+      "bld.kayit_bitti_yerel",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.geri",
+      {},
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": false
+    }
+   }
+  },
+  {
+   "ad": "yerel_yol_kayit_yokken_sessiz_ve_mqtt_varken_yok",
+   "ops": [
+    [
+     "yerel",
+     1,
+     53
+    ],
+    [
+     "saat",
+     30
+    ],
+    [
+     "tik"
+    ],
+    [
+     "bagli",
+     true
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "saat",
+     30
+    ],
+    [
+     "tik"
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": true
+    }
+   }
+  },
+  {
+   "ad": "yerel_kopuk_sonra_araci_cevrimdisi_diyor",
+   "ops": [
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "saat",
+     21
+    ],
+    [
+     "tik"
+    ],
+    [
+     "bagli",
+     true
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 0,
+      "a": 3
+     }
+    ],
+    [
+     "tik"
+    ],
+    [
+     "yerel_gor"
+    ],
+    [
+     "tik"
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "baglanti",
+      "bld.kopuk_yerel",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.ev_interneti",
+      {
+       "oturum": "53"
+      },
+      false
+     ],
+     [
+      "baglanti",
+      "bld.geri_kayit",
+      {
+       "oturum": "53"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": true
+    }
+   }
+  },
+  {
+   "ad": "bicimsiz_olaylar_yok_sayilir",
+   "ops": [
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": "1",
+      "a": 3,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3.0,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": true,
+      "a": 3,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3,
+      "o": 5
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 3
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {}
+    ],
+    [
+     "mqtt",
+     "baska",
+     {
+      "c": 1
+     }
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 2
+     }
+    ],
+    [
+     "mqtt",
+     "durum",
+     {}
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 2,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "de-t1",
+      "bld.deneme",
+      {},
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": null
+    }
+   }
+  },
+  {
+   "ad": "yerel_ve_durum_hangisi_yeniyse",
+   "ops": [
+    [
+     "bagli",
+     true
+    ],
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "saat",
+     5
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 1,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 0,
+      "a": 3
+     }
+    ],
+    [
+     "saat",
+     5
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 1,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "saat",
+     1
+    ],
+    [
+     "yerel",
+     2,
+     53
+    ],
+    [
+     "saat",
+     20
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 0,
+      "a": 3
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "baglanti",
+      "bld.kopuk",
+      {
+       "oturum": "53"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": "kopuk",
+     "kart_cevrimici": false,
+     "kayit_suruyor": true
+    }
+   }
+  }
+ ]
+}

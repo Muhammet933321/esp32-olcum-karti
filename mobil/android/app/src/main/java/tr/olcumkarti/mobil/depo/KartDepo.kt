@@ -25,7 +25,11 @@ class DepoHatasi(val tur: String) : Exception(tur)
  *  - Kimlik yalniz 16 kucuk onaltilik hane: dosya yolu baska hicbir girdiden kurulmaz.
  * Saf Kotlin (Android sinifi yok): JVM'de sinanir. Es zamanlilik cagiranin isi (eklenti tek is parcacigi).
  */
-class KartDepo(private val kok: File, private val simdi: () -> Calendar = { Calendar.getInstance() }) {
+class KartDepo @JvmOverloads constructor(
+    private val kok: File,
+    private val simdi: () -> Calendar = { Calendar.getInstance() },
+    private val sil: (File) -> Boolean = { it.delete() },      // test: silme sirasini / yarida kalmayi gozlemek icin
+) {
 
     private fun dizin(kimlik: String?): File {
         if (kimlik == null || !KIMLIK.matches(kimlik)) throw DepoHatasi("bicim")
@@ -121,8 +125,11 @@ class KartDepo(private val kok: File, private val simdi: () -> Calendar = { Cale
     fun sifirla(kimlik: String?) {
         val d = dizin(kimlik)
         val dosyalar = d.listFiles() ?: return
-        for (f in dosyalar) if (!f.delete() && f.exists()) throw DepoHatasi("yazilamadi")
-        if (!d.delete() && d.exists()) throw DepoHatasi("yazilamadi")
+        // Sira ONEMLI: once veri, EN SON durum.json. Yarida kalirsa (durum var, veri yok / kisa) esitleyici
+        // "depo kisa" der ve DURUR. Tersi (veri var, durum yok) durumu sifirdan saydirir ve kartin akisi
+        // 1. siradan baslamiyorsa eldeki dosyayi SESSIZCE 0'a kirptirirdi.
+        for (f in dosyalar.sortedBy { if (it.name == DURUM) 1 else 0 }) if (!sil(f) && f.exists()) throw DepoHatasi("yazilamadi")
+        if (!sil(d) && d.exists()) throw DepoHatasi("yazilamadi")
     }
 
     /** Depolama satiri (Ayarlar): veri boyu + dizinin toplam boyu + arsiv sayisi. */

@@ -268,6 +268,8 @@ export const SOZLUK_MOBIL = Object.freeze({
   "m.ky.bos": S("Telefonda henüz kayıt yok. Kart bu ağdayken kendiliğinden eşitlenir.", "No recordings on the phone yet. They sync automatically when the board is on this network."),
   "m.ky.bulunamadi": S("Aramaya uyan kayıt yok.", "No recordings match."),
   "m.ky.kart_yok": S("Kart bu ağda değil: liste telefondaki kopyadan.", "Board not on this network: list is from the copy on the phone."),
+  "m.ky.kart_okunamadi": S("Kartın listesi okunamadı: liste telefondaki kopyadan.", "Could not read the board's list: showing the copy on the phone."),
+  "m.ky.kart_eslesmemis": S("Kartla eşleşilmemiş: liste telefondaki kopyadan.", "Not paired with the board: showing the copy on the phone."),
   "m.ky.hata": S("Kayıtlar okunamadı ({tur}).", "Could not read recordings ({tur})."),
   // ── Grafik olcumu (ekran/GrafikOlcum.vue; Ö6, A27)
   "m.go.baslat": S("Grafik ölçümü (800 bin nokta)", "Chart benchmark (800k points)"),

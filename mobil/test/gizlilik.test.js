@@ -246,7 +246,9 @@ describe("A24: yerel akitmanin MainActivity'ye baglanmasi (curutucu 5D Y13, Y14)
     expect(m).toContain("File dosya = kimlik == null ? null");
     expect(m.match(/new FileInputStream\(/g).length).toBe(1);
     expect(m).toContain("new FileInputStream(dosya)");
-    expect(m.match(/, 404, "Yok",/g).length).toBe(2);
+    expect(m.match(/, 404, "Yok",/g).length).toBe(1);
+    // Dosya var ama acilamadiysa 404 ("bos kopya") DEGIL 500: yerelOku "okunamadi" der (kopya varken "kayit yok" denmez).
+    expect(m).toContain('return new WebResourceResponse("text/plain", "utf-8", 500, "Okunamadi", basliklar,');
     const d = yorumsuz(oku("android/app/src/main/java/tr/olcumkarti/mobil/depo/DepoYolu.kt"));
     expect(d).toContain('fun dosyaKimligi(url: String?, yontem: String?): String? = if (yontem == "GET") kimlik(url) else null');
   });

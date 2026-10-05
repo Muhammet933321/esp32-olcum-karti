@@ -726,3 +726,40 @@ düzeltmeleri geri alan `5D-D` **17/17**, Kotlin `5D-K` **14/14**. Koşucu bu tu
 gereksiz olduğunu da gösterdi (aynı işi `simdi()`'deki tek kapı yapıyordu) → kaldırıldı; "silme sürerken elle
 eşitleme" için ayrı test eklendi (ilk yazdığım test o yolu ölçmüyordu). JS son sayı **486/486**.
 Son derleme Xiaomi'de; Kayıtlar açılıyor, logcat taraması temiz.
+
+## 2026-10-05 (öğlen) — 5E-2 ve 5E-3 (kartsız): MQTT istemcisi, TLS, bildirim karar katmanı
+
+**5E-2 — `bildirim/MqttIstemci.kt`:** asgari MQTT 3.1.1 abonesi (tek iş parçacığı, bloklu). CONNECT → CONNACK →
+SUBSCRIBE (QoS 1) → okuma; QoS 1 yayına önce PUBACK sonra işleyici; keepalive 5 s; PINGREQ'ten sonra 7.5 s
+hiçbir paket gelmezse "sessiz" (A34: telefonun interneti — kart alarmı değil). Oturumun bitişi SABİT tür adıyla
+döner (`durduruldu / koptu / sessiz / ret + kod / abone-ret / bicim / zaman-asimi`); adres, kullanıcı, konu
+hiçbir alana girmez. PUBLISH göndermez (A32). 12 test, sahte aracı + SANAL saatle (gerçek bekleme yok).
+
+**`bildirim/TlsBaglanti.kt` (kullanıcı şartı Ş2):** sertifika zinciri sistem güven deposuyla VE ana bilgisayar adı
+sertifikayla doğrulanır; kapatan seçenek yok. Ad doğrulaması iki katman (el sıkışmada
+`endpointIdentificationAlgorithm = "HTTPS"` + platformun ad doğrulayıcısı). Adres yalnız `mqtts://ad[:port]`:
+şifresiz `mqtt://`, `ws(s)://`, kullanıcı bilgisi, yol, IP adresi, tek etiketli ad reddedilir.
+**Kanıt gerçek TLS el sıkışmasıyla** (127.0.0.1'de yerel sunucu; sertifikalar test başında JDK `keytool`'uyla
+geçici dizinde üretilir, depoya girmez): güvenilmeyen sertifika RET · güvenilen ama YANLIŞ adlı sertifika RET
+(ikinci katman bilerek devre dışıyken — reddi yapan el sıkışma katmanı) · doğru ad bağlanır · ikinci katman
+"hayır" derse RET. ⚠ İkinci katman (Android'in ad doğrulayıcısı) yalnız cihazda çalışır; JVM'de yerine sahte
+konur — gerçek aracıyla 5E-5'te ölçülecek.
+
+**5E-3 — `bildirim/BildirimKarar.kt`:** PC'nin kartla ve gerçek aracıyla sınanmış karar mantığının
+(`kopru/pc_bildirim.py` `Mantik`) birebir taşınması: vasiyet yalnız kayıt sürerken "karttan haber yok" (A33),
+kart yerelde görünüyorsa "ev interneti koptu" (A36), dönünce aynı bildirim güncellenir; olaylarda (a, n) ile
+yineleme ayıklama ve kaçırılan sayımı; yollar arası yineleme (A35) — daha ayrıntılı ikinci haber aynı bildirimi
+SESSİZCE günceller. Metin burada kurulmaz (anahtar + değerler; metin `strings.xml`'de — 5E-4).
+**Kanıt:** `mobil/test/vektor/bildirim_karar.json` Python başvurusundan üretildi
+(`mobil/araclar/bildirim_karar_vektor_uret.py`; başvuru yalnız içe aktarılır, gerçek ayar dizinine dokunmaz):
+**25 senaryo / 66 bildirim, Kotlin hepsinde aynı diziyi ve aynı son durumu veriyor.**
+
+⚠ **Onayına sunulan karar (A35):** spec "30 s pencere" diyor; PC 900 s (oturumu bilinen) / 120 s (bilinmeyen)
+kullanıyor. Telefonda varsayılanı spec'e uydurdum (30 / 30 s); pencereler kurucu parametresi ve vektör
+eşdeğerliği PC değerleriyle sınanıyor. 30 s kısa kalabilir: yerel "kayıt bitti"den 31 s sonra gelen MQTT
+ayrıntısı İKİNCİ bir bildirim olur (testte gösterildi). PC'nin değerlerine geçmek tek satır — sen karar ver.
+
+**Çürütücünün kanıtsız şüphelerinden kapatılanlar:** yerel dosya VAR ama açılamıyorsa artık 500 (ekran
+"okunamadı" der; eskiden 404 = "boş kopya") · `KartDepo.sifirla` `durum.json`'ı EN SON siler (yarıda kalırsa
+eşitleyici durur; tersi kopyayı sessizce sıfırlatırdı — JVM testi) · Kayıtlar'ın notu bağlantı durumuna göre
+("kartın listesi okunamadı" / "kartla eşleşilmemiş" / "kart bu ağda değil").

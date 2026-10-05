@@ -80,7 +80,8 @@ public class MainActivity extends BridgeActivity {
             }
             return new WebResourceResponse("application/octet-stream", null, 200, "OK", basliklar, new FileInputStream(dosya));
         } catch (Exception e) {
-            return new WebResourceResponse("text/plain", "utf-8", 404, "Yok", basliklar, new ByteArrayInputStream(new byte[0]));
+            // Dosya VAR ama acilamadi (G/C hatasi): 404 "bos kopya" demek olurdu — 500: ekran "okunamadi" der.
+            return new WebResourceResponse("text/plain", "utf-8", 500, "Okunamadi", basliklar, new ByteArrayInputStream(new byte[0]));
         }
     }
 }

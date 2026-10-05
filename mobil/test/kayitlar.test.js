@@ -12,7 +12,7 @@ import { depoKur } from "../src/cekirdek/depo.js";
 import { depoAdresi, kayitIstemciKur } from "../src/cekirdek/kayit_istemci.js";
 import { islemciKur, oturumGorunumu, veriKur } from "../src/cekirdek/kayit_veri.js";
 import { KayitlarHatasi, kayitlarKur } from "../src/cekirdek/kayitlar.js";
-import { SAG_EKSENLER, TUR_SECENEKLERI, okumaTablosu, satirGorunumu, sayiYaz } from "../src/ekran/kayitlar_gorunum.js";
+import { SAG_EKSENLER, TUR_SECENEKLERI, kartNotu, okumaTablosu, satirGorunumu, sayiYaz } from "../src/ekran/kayitlar_gorunum.js";
 import { ALT_ROTALAR, SEKMELER, sekmeBul } from "../src/ekran/sekmeler.js";
 import { Akis, ikiOturum } from "./yardim/akis_ornek.mjs";
 import { depoSahtesi } from "./yardim/depo_sahtesi.mjs";
@@ -233,6 +233,16 @@ describe("gorunum yardimcilari (saf)", () => {
     // Liste anahtari akis + oturum; eski akistan kalan satir isaretlenir (curutucu 5D B9).
     expect(satirGorunumu({ ...s, anahtar: "7:41", eskiKart: true })).toMatchObject({ anahtar: "7:41", eskiKart: true });
     expect(satirGorunumu({ ...s, anahtar: "", eskiKart: 1 })).toMatchObject({ anahtar: "41", eskiKart: false });
+  });
+
+  it("kartNotu: dizin listeye katilmadiysa NEDENI soylenir (kart agdayken 'bu agda degil' denmez)", () => {
+    expect(kartNotu({ durum: "bagli" }, true)).toBe(null);
+    expect(kartNotu(null, true)).toBe(null);
+    expect(kartNotu({ durum: "bagli" }, false)).toBe("m.ky.kart_okunamadi");
+    for (const d of ["eslesmemis", "kimlik-uymuyor", "kasa-bozuk"]) expect(kartNotu({ durum: d }, false), d).toBe("m.ky.kart_eslesmemis");
+    for (const b of [null, undefined, {}, { durum: "bulunamadi" }, { durum: "bagli-degil" }, { durum: 5 }]) expect(kartNotu(b, false)).toBe("m.ky.kart_yok");
+    expect(kartNotu({ durum: "bagli" }, 1)).toBe("m.ky.kart_okunamadi");            // yalniz kesin true "katildi" demek
+    for (const a of ["m.ky.kart_okunamadi", "m.ky.kart_eslesmemis", "m.ky.kart_yok"]) expect(SOZLUK_MOBIL[a], a).toBeDefined();
   });
 
   it("okumaTablosu ve sayiYaz: sabit hane, sonlu olmayan '—'", () => {

@@ -34,6 +34,16 @@ export function satirGorunumu(s) {
   };
 }
 
+// Listenin ustundeki not: kartin dizini listeye KATILMADIYSA nedenini soyler. Dizin katildiysa null.
+//   kart bagli ama dizin okunamadi -> "okunamadi" · agda ama eslesmemis -> "eslesmemis" · yoksa "bu agda degil"
+export function kartNotu(baglanti, kartVar) {
+  if (kartVar === true) return null;
+  const durum = baglanti && typeof baglanti.durum === "string" ? baglanti.durum : null;
+  if (durum === "bagli") return "m.ky.kart_okunamadi";
+  if (durum === "eslesmemis" || durum === "kimlik-uymuyor" || durum === "kasa-bozuk") return "m.ky.kart_eslesmemis";
+  return "m.ky.kart_yok";
+}
+
 // Sag eksende gosterilecek buyukluk: "akim" | "guc". Iki birim tek eksende olmaz (eksen yazisi yalan soylerdi).
 export const SAG_EKSENLER = Object.freeze([
   Object.freeze({ deger: "akim", anahtar: "m.cn.akim" }),

@@ -16,7 +16,7 @@ class KartDepoTest {
     private val K = "0123456789abcdef"
 
     private fun depo(saat: Calendar? = null): KartDepo =
-        if (saat == null) KartDepo(File(gecici.root, "kart")) else KartDepo(File(gecici.root, "kart")) { saat }
+        if (saat == null) KartDepo(File(gecici.root, "kart")) else KartDepo(File(gecici.root, "kart"), { saat })
 
     private fun tur(islem: () -> Unit): String? = try { islem(); null } catch (e: DepoHatasi) { e.tur }
 
@@ -161,6 +161,26 @@ class KartDepoTest {
         assertArrayEquals(byteArrayOf(9), d.veriOku(oteki, 0, 10))
         d.sifirla(K)                                                    // yokken sifirlamak hata degil
         assertEquals(0L, d.boyutlar(K)["toplam"])
+    }
+
+    @Test
+    fun sifirla_durumEnSonSilinir_yaridaKalirsaDurumYerinde() {
+        val sira = ArrayList<String>()
+        var izin = Int.MAX_VALUE
+        val d = KartDepo(File(gecici.root, "kart"), { Calendar.getInstance() }) { f ->
+            if (izin-- <= 0) false else { sira.add(f.name); f.delete() }
+        }
+        d.durumYaz(K, byteArrayOf(1)); d.veriEkle(K, byteArrayOf(2)); d.kalYaz(K, byteArrayOf(3)); d.kalArsivle(K, byteArrayOf(4))
+        d.sifirla(K)
+        assertEquals(5, sira.size)
+        assertEquals("durum.json", sira[3])                       // dosyalarin SONUNCUSU
+        assertEquals(K, sira[4])                                  // ardindan dizin
+        // Yarida kalan silme: iki dosya gitti, ucuncude hata. durum.json YERINDE (esitleyici "depo kisa" der, durur).
+        d.durumYaz(K, byteArrayOf(1)); d.veriEkle(K, byteArrayOf(2)); d.kalYaz(K, byteArrayOf(3))
+        izin = 2
+        assertEquals("yazilamadi", tur { d.sifirla(K) })
+        assertArrayEquals(byteArrayOf(1), d.durumOku(K))
+        assertEquals(0L, d.veriBoyu(K))
     }
 
     @Test

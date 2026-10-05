@@ -6,7 +6,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import Ikon from "../bilesen/Ikon.vue";
 import { kayitlarAl } from "../cekirdek/uygulama.js";
-import { TUR_SECENEKLERI, satirGorunumu } from "./kayitlar_gorunum.js";
+import { TUR_SECENEKLERI, kartNotu, satirGorunumu } from "./kayitlar_gorunum.js";
 import { c } from "./metin.js";
 
 const kabuk = inject("kabuk");
@@ -18,6 +18,7 @@ const hal = ref("yukleniyor");          // yukleniyor | hazir | hata
 const hataTuru = ref("");
 const kartVar = ref(false);
 const gorunen = computed(() => satirlar.value.map(satirGorunumu));
+const not = computed(() => kartNotu(kabuk.baglanti.value, kartVar.value));
 let sira = 0;
 let gecikme = null;
 
@@ -65,7 +66,7 @@ watch(() => [kabuk.esitleme.value.sonMs, kabuk.baglanti.value && kabuk.baglanti.
     <p v-if="hal === 'yukleniyor'" id="ky-hal" class="bilgi" role="status">{{ c("m.ky.yukleniyor") }}</p>
     <p v-else-if="hal === 'hata'" id="ky-hal" class="bilgi hata" role="alert">{{ c("m.ky.hata", { tur: hataTuru }) }}</p>
     <p v-else-if="gorunen.length === 0" id="ky-hal" class="bilgi" role="status">{{ c(arama || tur !== "hepsi" ? "m.ky.bulunamadi" : "m.ky.bos") }}</p>
-    <p v-if="hal === 'hazir' && !kartVar" id="ky-kart-yok" class="bilgi">{{ c("m.ky.kart_yok") }}</p>
+    <p v-if="hal === 'hazir' && not" id="ky-kart-yok" class="bilgi">{{ c(not) }}</p>
 
     <ul id="ky-liste" class="liste">
       <li v-for="s in gorunen" :key="s.anahtar">
