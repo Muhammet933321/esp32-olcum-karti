@@ -13,6 +13,8 @@ import depo from "./depo-liste.mjs";
 import esitleme from "./esitleme-liste.mjs";
 import kayitlar from "./kayitlar-liste.mjs";
 import grafikOlcum from "./grafik-olcum-liste.mjs";
+import curutucu5d from "../test/curutucu-5d/yasayan-liste.mjs";
+import duzeltme5d from "./duzeltme5d-liste.mjs";
 
 export default [
   ...curutucu.map((m) => ({ ...m, ad: `5A-7 ${m.ad}` })),
@@ -24,6 +26,9 @@ export default [
   ...esitleme,
   ...kayitlar,
   ...grafikOlcum,
+  // Curutucu 5D: bulundugunda YASAYAN mutasyonlar (artik olmeli; "C5D-Y…" adlariyla) + duzeltmelerin mutasyonlari.
+  ...curutucu5d,
+  ...duzeltme5d,
   ...p0,
   ...akis,
   ...kabuk,

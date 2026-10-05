@@ -6,6 +6,7 @@
 //   await e.simdi();            // elle "Simdi esitle" — ASLA atmaz; suren esitleme varsa ONA baglanir
 //   e.tik({ gorunur, bagli });  // saniyede bir (kabuk): 60 s'de bir kendiliginden (A22)
 //   e.baglandi(); e.kayitBitti();   // olay tetikleyicileri (A22) — hemen bir tur
+//   e.gorunurluk(false / true);     // uygulama arkaya / one gecti: arkadayken YENI tur baslamaz
 //   e.durum()  -> { hal, sonMs, yeni, sonSira, bosluk, bekleyen, hata, sifirlaOner, onayli }
 //                 hal: "bos" | "esitleniyor" | "tamam" | "hata"
 //   e.dinle(fn) -> birak()
@@ -61,6 +62,11 @@ export function esitlemeKur({
   let sonDeneme = null;                 // son esitleme DENEMESININ baslangici (basarisiz olsa da)
   let sonIstek = null;
   let tekrar = false;                   // suren tur sirasinda olay geldi: bitince BIR tur daha
+  let gorunur = true;                   // uygulama onde mi (A22): arkadayken YENI tur baslamaz
+  let sifirlaniyor = false;             // "kopyayi sifirla" suruyor: o sirada tur baslamaz
+
+  // A21: ayar HER kullanimda yeniden okunur; okunamazsa (atarsa) KAPALI sayilir.
+  const onayli = () => { try { return onayAcik() === true; } catch { return false; } };
   const dinleyenler = new Set();
 
   function yay(parca) {
@@ -91,8 +97,8 @@ export function esitlemeKur({
 
   async function kos() {
     sonDeneme = simdiMs();
-    const onayli = onayAcik() === true;
-    yay({ hal: "esitleniyor", hata: null, sifirlaOner: false, onayli });
+    const turOnayli = onayli();
+    yay({ hal: "esitleniyor", hata: null, sifirlaOner: false, onayli: turOnayli });
     try {
       const kart = await kartAl();
       const d = kart.durum();
@@ -101,8 +107,13 @@ export function esitlemeKur({
       const e = new Esitleyici({
         tabanUrl: "http://kart", depo, bayt: PARCA_BAYT,
         istek: (_taban, yol, argumanlar) => kartIstek(kart, "GET", yol, argumanlar, new Uint8Array(0)),
-        onay: onayli
-          ? async (sira) => { const y = await kartIstek(kart, "POST", "/komut", [], new TextEncoder().encode(`Go${sira}`)); await y.arrayBuffer(); }
+        // Kullanici anahtari tur SURERKEN kapatirsa o andan sonra Go GITMEZ: her gonderimden once yeniden bakilir.
+        onay: turOnayli
+          ? async (sira) => {
+            if (!onayli()) return;
+            const y = await kartIstek(kart, "POST", "/komut", [], new TextEncoder().encode(`Go${sira}`));
+            await y.arrayBuffer();
+          }
           : null,
       });
       const s = await e.esitle();
@@ -117,32 +128,53 @@ export function esitlemeKur({
   }
 
   function simdi() {
-    if (!suren) {
-      suren = kos().finally(() => {
-        suren = null;
-        if (tekrar) { tekrar = false; simdi(); }
-      });
-    }
+    if (suren) return suren;
+    if (sifirlaniyor) return Promise.resolve(hal);          // sifirlama bitmeden tur baslamaz
+    suren = kos().finally(() => {
+      suren = null;
+      // Ek tur bayragi arkaya gecince (gorunurluk) ve sifirlama baslarken SILINIR; o hallerde olay da
+      // bayrak koyamaz. Burada kalmissa uygulama onde ve sifirlama yok demektir.
+      if (tekrar) { tekrar = false; simdi(); }
+    });
     return suren;
   }
 
   // Olay (baglandi / kayit bitti): suren tur olaydan ONCE baslamis olabilir ve kaydin sonunu
-  // gormemis olabilir — o bitince bir tur daha kosar.
+  // gormemis olabilir — o bitince bir tur daha kosar. Arka planda olay yok sayilir; sifirlama surerken
+  // simdi() zaten tur baslatmaz.
   function olay() {
+    if (!gorunur) return;
     if (suren) tekrar = true;
     else simdi();
   }
 
   // Saniyede bir: gorunur + bagli ise ve son denemeden aralikMs gectiyse (ya da hic denenmediyse) bir tur.
-  function tik({ gorunur, bagli }) {
-    if (!gorunur || !bagli || suren) return false;
+  function tik({ gorunur: onde, bagli }) {
+    if (!onde || !bagli || suren || sifirlaniyor) return false;
     if (sonDeneme !== null && simdiMs() - sonDeneme < aralikMs) return false;
     simdi();
     return true;
   }
 
+  // Uygulama one / arkaya gecti (kabuk bildirir). Arkaya gecince bekleyen ek tur SILINIR; suren tur
+  // kendi parcasini bitirir (yarida kesilse de Esitleyici kaldigi yerden surdurur).
+  function gorunurluk(onde) {
+    gorunur = onde === true;
+    if (!gorunur) tekrar = false;
+  }
+
   async function sifirla() {
-    if (suren) { try { await suren; } catch { /* kos atmaz */ } }
+    if (sifirlaniyor) throw Object.assign(new Error("mesgul"), { name: "KartHatasi", tur: "mesgul" });
+    sifirlaniyor = true;                // bundan sonra simdi() tur BASLATMAZ (ek tur dahil)
+    try {
+      while (suren) { try { await suren; } catch { /* kos atmaz */ } }
+      await sifirlaKos();
+    } finally {
+      sifirlaniyor = false;
+    }
+  }
+
+  async function sifirlaKos() {
     const kart = await kartAl();
     const d = kart.durum();
     // Kart bagli degilken de (disarida) sifirlanabilir: kimlik son baglanilan karttan.
@@ -155,7 +187,7 @@ export function esitlemeKur({
   }
 
   return {
-    simdi, tik, sifirla,
+    simdi, tik, sifirla, gorunurluk,
     baglandi: olay,
     kayitBitti: olay,
     durum: () => hal,

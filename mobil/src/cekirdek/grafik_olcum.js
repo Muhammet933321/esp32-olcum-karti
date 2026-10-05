@@ -32,10 +32,14 @@ export function seriUret(n = NOKTA) {
   return { t, v, i };
 }
 
+// Gercek bir nokta oturumunun EKRANDAKI yuku: V ve I icin ortalama + min / maks zarflari = 6 gorunen seri
+// (kayit gorunumunde guc gizlidir). Zarflar ortalamadan sabit kayik uretilir (ayni nokta sayisi, ayri dizi).
 export function grafikSerileri(seri) {
+  const kaydir = (y, d) => { const z = new Float64Array(y.length); for (let k = 0; k < y.length; k++) z[k] = y[k] + d; return z; };
+  const kanal = (ad, y, birim, renk, eksen, zarf) => ({ ad, t: seri.t, y, birim, renk, eksen, ...(zarf ? { zarf: true, kalinlik: 0.75 } : {}) });
   return [
-    { ad: "V", t: seri.t, y: seri.v, birim: "V", renk: "volt", eksen: "sol" },
-    { ad: "I", t: seri.t, y: seri.i, birim: "A", renk: "amper", eksen: "sag" },
+    kanal("V", seri.v, "V", "volt", "sol", false), kanal("V min", kaydir(seri.v, -0.1), "V", "volt", "sol", true), kanal("V maks", kaydir(seri.v, 0.1), "V", "volt", "sol", true),
+    kanal("I", seri.i, "A", "amper", "sag", false), kanal("I min", kaydir(seri.i, -0.05), "A", "amper", "sag", true), kanal("I maks", kaydir(seri.i, 0.05), "A", "amper", "sag", true),
   ];
 }
 
@@ -74,7 +78,7 @@ export function ozetle(sureler) {
 export async function grafikOlc({ grafik, seriler, kareler, simdi, kareBekle, iptal = () => false }) {
   const h0 = simdi();
   grafik.veriAyarla(seriler);
-  grafik.ciz();
+  let bosKare = grafik.ciz() ? 0 : 1;        // ciz() plan dondurmediyse HICBIR SEY cizilmemistir (tuval 0 x 0)
   const hazirlikMs = simdi() - h0;
   const cizim = [], aralik = [];
   await kareBekle();
@@ -83,7 +87,7 @@ export async function grafikOlc({ grafik, seriler, kareler, simdi, kareBekle, ip
     if (iptal()) return null;
     grafik.durumAyarla({ t0, t1 });
     const c0 = simdi();
-    grafik.ciz();
+    if (!grafik.ciz()) bosKare += 1;
     cizim.push(simdi() - c0);
     await kareBekle();
     const simdiki = simdi();
@@ -93,6 +97,9 @@ export async function grafikOlc({ grafik, seriler, kareler, simdi, kareBekle, ip
   const c = ozetle(cizim), a = ozetle(aralik);
   return {
     nokta: seriler.length ? seriler[0].t.length : 0, kare: kareler.length, hazirlikMs: Math.round(hazirlikMs),
-    cizim: c, aralik: a, gecti: a !== null && a.p95 < OLCUT_MS,
+    cizim: c, aralik: a,
+    // Tek bir kare bile cizilmediyse olcum GECERSIZDIR: "GECTI" denmez (bos tuval her olcutu gecer).
+    gecersiz: bosKare > 0, bosKare,
+    gecti: bosKare === 0 && a !== null && a.p95 < OLCUT_MS,
   };
 }

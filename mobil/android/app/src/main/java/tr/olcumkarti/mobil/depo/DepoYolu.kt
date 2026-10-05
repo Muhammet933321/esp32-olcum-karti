@@ -14,6 +14,12 @@ object DepoYolu {
     /** Depo adresi mi (bicimi yanlis olsa da)? Oyleyse istek Capacitor'in dosya sunucusuna BIRAKILMAZ. */
     fun depoAdresi(url: String?): Boolean = url != null && url.startsWith(ON_EK)
 
+    /**
+     * Bu istek icin dosyasi verilecek kartin kimligi; verilmeyecekse null (404). Yalniz GET ve yalniz TAM
+     * bicimli adres: POST / PUT / HEAD / DELETE ile dosya VERILMEZ.
+     */
+    fun dosyaKimligi(url: String?, yontem: String?): String? = if (yontem == "GET") kimlik(url) else null
+
     /** Gecerli depo adresinden kart kimligi; degilse null. */
     fun kimlik(url: String?): String? = if (url == null) null else BICIM.matchEntire(url)?.groupValues?.get(1)
 }

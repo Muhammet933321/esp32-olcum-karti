@@ -32,10 +32,11 @@ export function kayitIstemciKur({ isciKur = null, yedekKur }) {
   let isciDenendi = false;
   let yedek = null;
   let no = 0;
+  let kusak = 0;                        // islemci (isci / yedek) her degistiginde artar: YUKLU VERI GITTI demektir
   const bekleyen = new Map();
 
   function isciBirak() {
-    if (isci) { try { isci.terminate(); } catch { /* zaten bitmis */ } }
+    if (isci) { try { isci.terminate(); } catch { /* zaten bitmis */ } kusak += 1; }
     isci = null;
     for (const [, b] of bekleyen) b.reddet(new KayitIstemciHatasi("ic-hata"));
     bekleyen.clear();
@@ -89,5 +90,7 @@ export function kayitIstemciKur({ isciKur = null, yedekKur }) {
     });
   }
 
-  return { cagir, kapat: isciBirak, isciVar: () => isci !== null };
+  // kusak(): cagiran, yukledigi verinin hala ISLEMCIDE durup durmadigini bununla anlar (isci cokunce
+  // yedek islemci BOS baslar).
+  return { cagir, kapat: isciBirak, isciVar: () => isci !== null, kusak: () => kusak };
 }

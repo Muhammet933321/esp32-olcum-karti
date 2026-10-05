@@ -19,6 +19,9 @@ export function satirGorunumu(s) {
   const tur = Object.hasOwn(TUR, s.tur) ? TUR[s.tur] : TUR.bilinmeyen;
   const nerede = Object.hasOwn(NEREDE, s.nerede) ? NEREDE[s.nerede] : NEREDE.telefon;
   return {
+    // Liste anahtari AKIS + oturum: kartin akisi degistiyse ayni numarali iki oturum ayri satirdir.
+    anahtar: typeof s.anahtar === "string" && s.anahtar !== "" ? s.anahtar : String(s.oturum),
+    eskiKart: s.eskiKart === true,
     oturum: s.oturum,
     ad: typeof s.ad === "string" && s.ad !== "" ? s.ad : null,      // null: "Oturum #N" (m.ky.adsiz)
     tur, nerede,

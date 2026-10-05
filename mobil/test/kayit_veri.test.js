@@ -124,6 +124,16 @@ describe("oturumGorunumu ve aralikOkuma (A26, A41)", () => {
     expect(kopya.seriler[0].y[59]).toBeCloseTo(17.375, 9);
   });
 
+  it("'zaman tahmini' isareti seri bilgisinden tasinir (curutucu 5D Y6)", () => {
+    const v = veriKur(ikiOturum().bayt, AKIS_KIMLIK);
+    expect(oturumGorunumu(v, a).tahmini).toBe(false);
+    const h = v.onbellek.get(a);
+    v.onbellek.set(a, { ...h, tahmini: [false, true] });     // kart yeniden baslamis, ikinci parcanin yeri tahmini
+    expect(oturumGorunumu(v, a).tahmini).toBe(true);
+    v.onbellek.set(a, { ...h, tahmini: [] });
+    expect(oturumGorunumu(v, a).tahmini).toBe(false);
+  });
+
   it("olmayan oturum / bos veri: null", () => {
     expect(oturumGorunumu(veri, 12345)).toBe(null);
     expect(oturumGorunumu(null, a)).toBe(null);
@@ -176,6 +186,23 @@ describe("islemci (Worker ve yedek AYNI kod)", () => {
     expect((await i.isle("okuma", { oturum: a, tA: 1000, tB: 10000 })).v.adet).toBe(10);
     await i.isle("bosalt");
     expect(await i.isle("liste", {})).toEqual([]);
+  });
+
+  it("yeniden yuklemede oturum onbellegi BAYAT kalmaz: buyuyen oturumun yeni noktalari gorunur (curutucu 5D Y7)", async () => {
+    const kur = (adet) => { const ak = new Akis(100); const id = ak.basla(); ak.noktalar(id, { adet, v0: 10, dv: 0.125 }); return { bayt: ak.bayt(), id }; };
+    const kisa = kur(40), uzun = kur(80);
+    expect(kisa.id).toBe(uzun.id);
+    let dosya = kisa.bayt;
+    const i = islemciKur({ getir: async () => dosya });
+    await i.isle("yukle", { url: "/x" });
+    expect((await i.isle("oturum", { oturum: kisa.id })).adet).toBe(40);
+    expect((await i.isle("okuma", { oturum: kisa.id, tA: 0, tB: 1e9 })).v.adet).toBe(40);
+    dosya = uzun.bayt;                                         // esitleme ayni oturuma 40 nokta daha ekledi
+    await i.isle("yukle", { url: "/x" });
+    expect((await i.isle("oturum", { oturum: kisa.id })).adet).toBe(80);
+    expect((await i.isle("okuma", { oturum: kisa.id, tA: 0, tB: 1e9 })).v.adet).toBe(80);
+    // Iki AYRI veri nesnesi onbellegi paylasmaz.
+    expect(veriKur(kisa.bayt).onbellek).not.toBe(veriKur(uzun.bayt).onbellek);
   });
 
   it("dosya okunamazsa 'okunamadi' ve ESKI veri yerinde kalir; getir null donerse bos kopya; bilinmeyen is 'bicim'", async () => {

@@ -68,7 +68,7 @@ watch(() => [kabuk.esitleme.value.sonMs, kabuk.baglanti.value && kabuk.baglanti.
     <p v-if="hal === 'hazir' && !kartVar" id="ky-kart-yok" class="bilgi">{{ c("m.ky.kart_yok") }}</p>
 
     <ul id="ky-liste" class="liste">
-      <li v-for="s in gorunen" :key="s.oturum">
+      <li v-for="s in gorunen" :key="s.anahtar">
         <button type="button" class="satir" :aria-disabled="!s.acilabilir" @click="ac(s)">
           <span class="satir-ust">
             <b>{{ s.ad === null ? c("m.ky.adsiz", { n: s.oturum }) : s.ad }}</b>
@@ -79,6 +79,7 @@ watch(() => [kabuk.esitleme.value.sonMs, kabuk.baglanti.value && kabuk.baglanti.
             <span v-if="s.tarih" class="mono">{{ s.tarih }}</span>
             <span v-if="s.sure" class="mono">{{ s.sure }}</span>
             <span v-if="s.kayitta" class="rozet uyari">{{ c("m.ky.kayitta") }}</span>
+            <span v-if="s.eskiKart" class="rozet uyari">{{ c("m.ky.eski_kart") }}</span>
           </span>
           <span v-if="!s.acilabilir" class="satir-not">{{ c("m.ky.once_esitle") }}</span>
           <span v-else-if="s.eksik" class="satir-not">{{ c("m.ky.eksik") }}</span>

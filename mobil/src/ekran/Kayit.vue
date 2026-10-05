@@ -2,7 +2,7 @@
 // Kayit gorunumu (A26, A41): tek oturumun grafigi (ortak/src/grafik.js `Grafik`: kiskacla yakinlastir,
 // surukle), GORUNEN aralikta istatistik (ham veriden, Worker'da) ve notlar (okuma). Paylasim 5F'de.
 // Veri: cekirdek/kayitlar.js; seriler ve piramitleri Worker'dan hazir gelir.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Grafik } from "@ortak/grafik.js";
 import { gorunurluk } from "@panel/kayit_gorunum.js";
@@ -18,7 +18,9 @@ const oturumNo = Number(rota.params.oturum);
 const tuval = ref(null);
 const hal = ref("yukleniyor");          // yukleniyor | hazir | bos | olcumsuz | yok | hata
 const hataTuru = ref("");
-const veri = ref(null);
+// shallowRef: seriler ve piramitleri Vue Proxy'sine SARILMAZ (Grafik her karede yuz binlerce kez erisir;
+// derin tepkili kapta cizim ~7 kat yavasliyordu — curutucu 5D B7).
+const veri = shallowRef(null);
 const sag = ref("akim");
 const okuma = ref(null);
 const baslik = computed(() => (veri.value && veri.value.baslik ? satirGorunumu(veri.value.baslik) : null));
@@ -51,6 +53,7 @@ function pencereDegisti(durum) {
 
 function tumunuGoster() {
   if (!grafik || !veri.value) return;
+  if (gecikme !== null) { clearTimeout(gecikme); gecikme = null; }   // bekleyen ESKI pencere tabloyu ezmesin
   grafik.durumAyarla({ t0: veri.value.t0, t1: veri.value.t1 });
   okumaIste(veri.value.t0, veri.value.t1);
 }

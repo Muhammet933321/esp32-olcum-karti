@@ -142,6 +142,41 @@ describe("kayitlar — liste", () => {
     expect((await s.k.liste()).satirlar.length).toBe(2);
   });
 
+  it("KART degisince kopya yeniden cozulur: boy ve akis kimligi AYNI olsa da baska kartin listesi gosterilmez (curutucu 5D Y4)", async () => {
+    const K2 = "fedcba9876543210";
+    const kur = (ad) => { const ak = new Akis(100); const id = ak.basla(); ak.noktalar(id, { adet: 5 }); ak.ad(id, ad); ak.bitir(id, 5); return ak.bayt(); };
+    const b1 = kur("kart-bir"), b2 = kur("kart-iki");
+    expect(b1.length).toBe(b2.length);                         // on kosul: AYNI boy
+    const s = await duzenek({ bayt: b1 });
+    const d2 = depoKur(s.ek, K2);
+    await d2.veriEkle(b2);
+    await d2.durumYaz({ son_sira: 1, bayt: b2.length, onaylanan: 0, kimlik: 7 });   // AYNI akis kimligi
+    const okunan = [];
+    const istemci = kayitIstemciKur({ isciKur: null, yedekKur: () => islemciKur({ getir: async (url) => { okunan.push(url); return s.ek.dosya(url.includes(K2) ? K2 : K); } }) });
+    const k = kayitlarKur({ istemci, kartAl: async () => s.kart, depoAl: (kimlik) => depoKur(s.ek, kimlik) });
+    expect((await k.liste()).satirlar[0].ad).toBe("kart-bir");
+    s.kart.d = { durum: "bagli", adres: "192.168.1.9:80", kimlik: K2 };
+    const l2 = await k.liste();
+    expect(l2.kimlik).toBe(K2);
+    expect(l2.satirlar[0].ad).toBe("kart-iki");
+    expect(okunan).toEqual([depoAdresi(K), depoAdresi(K2)]);
+  });
+
+  it("kopyanin AKIS kimligi isciye gider: kartin guncel akisi baskaysa telefondaki satirlar 'eski akis' isaretlenir, 'Kart + telefon' DENMEZ (curutucu 5D Y5)", async () => {
+    const { bayt, a } = ikiOturum();
+    // Telefondaki kopya akis 7'den; kart bicimlenmis, guncel akisi 8 ve AYNI numarali bir oturumu var.
+    const dz = { kimlik: 8, aktif: 0, oturumlar: [{ id: a, tur: 1, hiz_ms: 1000, unix_s: 1790009000, nokta: 3, durum: 2, son: 200 }] };
+    const s = await duzenek({ bayt, dizinYaniti: dz });
+    const l = await s.k.liste();
+    const ayni = l.satirlar.filter((x) => x.oturum === a);
+    expect(ayni.map((x) => [x.nerede, x.eskiKart]).sort()).toEqual([["kart", false], ["telefon", true]]);
+    expect(new Set(l.satirlar.map((x) => x.anahtar)).size).toBe(l.satirlar.length);
+    expect(l.satirlar.some((x) => x.nerede === "ikisi")).toBe(false);
+    // Akis ayniysa (7): birlesir.
+    const s2 = await duzenek({ bayt: null, dizinYaniti: { ...dz, kimlik: 7 } });
+    expect((await s2.k.liste()).satirlar.find((x) => x.oturum === a)).toMatchObject({ nerede: "ikisi", eskiKart: false });
+  });
+
   it("art arda cagrilar SIRAYLA kosar: dosya ayni anda iki kez cozulmez", async () => {
     const { bayt } = ikiOturum();
     const s = await duzenek({ bayt });
@@ -186,7 +221,7 @@ describe("kayitlar — oturum ve okuma", () => {
 describe("gorunum yardimcilari (saf)", () => {
   it("satirGorunumu: ad / tur / nerede anahtarlari; yalniz telefonda kopyasi olan acilabilir", () => {
     const s = { oturum: 41, tur: "olcum", ad: "Akü şarj", nerede: "ikisi", tarih: "2026-09-23 10:00:00", sure: "00:01:00", durum: "bitti", eksik: false, yerelde: true };
-    expect(satirGorunumu(s)).toEqual({ oturum: 41, ad: "Akü şarj", tur: "m.ky.tur_olcum", nerede: "m.ky.nerede_ikisi", neredeSinif: "iyi", tarih: "2026-09-23 10:00:00", sure: "00:01:00", kayitta: false, eksik: false, acilabilir: true });
+    expect(satirGorunumu(s)).toEqual({ anahtar: "41", eskiKart: false, oturum: 41, ad: "Akü şarj", tur: "m.ky.tur_olcum", nerede: "m.ky.nerede_ikisi", neredeSinif: "iyi", tarih: "2026-09-23 10:00:00", sure: "00:01:00", kayitta: false, eksik: false, acilabilir: true });
     expect(satirGorunumu({ ...s, ad: null, nerede: "kart", yerelde: false, durum: "kayitta", eksik: true, tarih: null, sure: null })).toMatchObject({ ad: null, nerede: "m.ky.nerede_kart", neredeSinif: "uyari", kayitta: true, eksik: true, acilabilir: false, tarih: null, sure: null });
     expect(satirGorunumu({ ...s, nerede: "telefon" })).toMatchObject({ nerede: "m.ky.nerede_telefon", neredeSinif: "" });
     for (const [tur, anahtar] of [["ayrinti", "m.ky.tur_ayrinti"], ["pil", "m.ky.tur_pil"], ["skop", "m.ky.tur_skop"], ["bilinmeyen", "m.ky.tur_bilinmeyen"], ["toString", "m.ky.tur_bilinmeyen"], [undefined, "m.ky.tur_bilinmeyen"]]) {
@@ -195,6 +230,9 @@ describe("gorunum yardimcilari (saf)", () => {
     expect(satirGorunumu({ ...s, nerede: "constructor" }).nerede).toBe("m.ky.nerede_telefon");
     expect(satirGorunumu({ ...s, ad: "" }).ad).toBe(null);
     expect(satirGorunumu({ ...s, yerelde: 1 }).acilabilir).toBe(false);
+    // Liste anahtari akis + oturum; eski akistan kalan satir isaretlenir (curutucu 5D B9).
+    expect(satirGorunumu({ ...s, anahtar: "7:41", eskiKart: true })).toMatchObject({ anahtar: "7:41", eskiKart: true });
+    expect(satirGorunumu({ ...s, anahtar: "", eskiKart: 1 })).toMatchObject({ anahtar: "41", eskiKart: false });
   });
 
   it("okumaTablosu ve sayiYaz: sabit hane, sonlu olmayan '—'", () => {

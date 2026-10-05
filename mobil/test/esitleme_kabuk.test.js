@@ -174,16 +174,17 @@ describe("esitlemeGorunumu (saf)", () => {
     expect(esitlemeGorunumu(E(), BAGLI)).toMatchObject({ anahtar: "m.es.bekliyor", dugme: true, sinif: "" });
     expect(esitlemeGorunumu(E(), null)).toMatchObject({ anahtar: "m.es.kart_yok", dugme: false });
     expect(esitlemeGorunumu(E(), { durum: "eslesmemis" })).toMatchObject({ anahtar: "m.es.kart_yok", dugme: false });
-    expect(esitlemeGorunumu(E({ hal: "esitleniyor" }), BAGLI)).toMatchObject({ anahtar: "m.es.suruyor", suruyor: true, dugme: false });
+    expect(esitlemeGorunumu(E({ hal: "esitleniyor" }), BAGLI)).toMatchObject({ anahtar: "m.es.kopya_suruyor", suruyor: true, dugme: false });
     expect(esitlemeGorunumu(E({ hazir: null }), BAGLI)).toMatchObject({ anahtar: "m.es.bekliyor" });   // henuz kurulmadi
   });
 
   it("tamam: 'guncel' + gecen dakika; bekleyen / bosluk ikinci satirda", () => {
     expect(esitlemeGorunumu(E({ hal: "tamam", sonMs: 1000 }), BAGLI, 1000 + 59999)).toMatchObject({ anahtar: "m.es.tamam_simdi", degerler: null, sinif: "iyi", ek: null, dugme: true });
-    expect(esitlemeGorunumu(E({ hal: "tamam", sonMs: 1000 }), BAGLI, 1000 + 60000)).toMatchObject({ anahtar: "m.es.tamam", degerler: { dk: 1 } });
+    expect(esitlemeGorunumu(E({ hal: "tamam", sonMs: 1000 }), BAGLI, 1000 + 60000)).toMatchObject({ anahtar: "m.es.kopya_tamam", degerler: { dk: 1 } });
     expect(esitlemeGorunumu(E({ hal: "tamam", sonMs: 1000 }), BAGLI, 1000 + 7 * 60000 + 5)).toMatchObject({ degerler: { dk: 7 } });
     expect(esitlemeGorunumu(E({ hal: "tamam", sonMs: 5000 }), BAGLI, 1000)).toMatchObject({ anahtar: "m.es.tamam_simdi" });   // saat geri gitti: eksi dakika yok
-    expect(esitlemeGorunumu(E({ hal: "tamam", sonMs: 1, bekleyen: 3, bosluk: 1 }), BAGLI, 1).ek).toBe("m.es.bekleyen");
+    // Kartta telefonun alamadigi daha yeni kayit varsa ust satir "guncel" DEMEZ (curutucu 5D B10).
+    expect(esitlemeGorunumu(E({ hal: "tamam", sonMs: 1, bekleyen: 3, bosluk: 1 }), BAGLI, 1)).toMatchObject({ anahtar: "m.es.kopya_geride", sinif: "uyari", ek: "m.es.bekleyen", degerler: null });
     expect(esitlemeGorunumu(E({ hal: "tamam", sonMs: 1, bosluk: 2 }), BAGLI, 1).ek).toBe("m.es.bosluk");
     // Kart koptuysa: kopya hala "guncel" (son esitlemedeki haliyle) ama dugme kapali.
     expect(esitlemeGorunumu(E({ hal: "tamam", sonMs: 1 }), null, 1)).toMatchObject({ anahtar: "m.es.tamam_simdi", dugme: false });
@@ -191,7 +192,7 @@ describe("esitlemeGorunumu (saf)", () => {
 
   it("hata: bilinen tur kendi metniyle, bilinmeyen genel metinle (tur degeriyle); sifirla onerisi", () => {
     const beklenen = {
-      "bagli-degil": "m.es.hata_bagli_degil", ag: "m.es.hata_ag", mesgul: "m.es.hata_mesgul", "kopya-uyusmuyor": "m.es.hata_kopya",
+      "bagli-degil": "m.es.kopya_hata_bagli_degil", ag: "m.es.kopya_hata_ag", mesgul: "m.es.hata_mesgul", "kopya-uyusmuyor": "m.es.hata_kopya",
       "depo-bozuk": "m.es.hata_kopya", depo: "m.es.hata_depo", "yanit-bozuk": "m.es.hata_yanit", "cihaz-silinmis": "m.es.hata_silinmis",
     };
     for (const [tur, anahtar] of Object.entries(beklenen)) {
@@ -205,7 +206,7 @@ describe("esitlemeGorunumu (saf)", () => {
   });
 
   it("kullanilan butun anahtarlar sozlukte ve yer tutuculari dolu", () => {
-    for (const a of ["m.es.tamam", "m.es.hata_genel", "m.es.sifirla_hata"]) {
+    for (const a of ["m.es.kopya_tamam", "m.es.hata_genel", "m.es.sifirla_hata"]) {
       expect(SOZLUK_MOBIL[a].tr).toMatch(/\{(dk|tur)\}/);
       expect(SOZLUK_MOBIL[a].en).toMatch(/\{(dk|tur)\}/);
     }

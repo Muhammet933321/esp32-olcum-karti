@@ -72,8 +72,8 @@ public class MainActivity extends BridgeActivity {
         HashMap<String, String> basliklar = new HashMap<>();
         basliklar.put("Cache-Control", "no-store");
         try {
-            String kimlik = DepoYolu.INSTANCE.kimlik(url);
-            File dosya = kimlik == null || !"GET".equals(yontem) ? null
+            String kimlik = DepoYolu.INSTANCE.dosyaKimligi(url, yontem);
+            File dosya = kimlik == null ? null
                     : new KartDepo(new File(getFilesDir(), KartDepoPlugin.DIZIN), Calendar::getInstance).veriDosyasi(kimlik);
             if (dosya == null) {
                 return new WebResourceResponse("text/plain", "utf-8", 404, "Yok", basliklar, new ByteArrayInputStream(new byte[0]));

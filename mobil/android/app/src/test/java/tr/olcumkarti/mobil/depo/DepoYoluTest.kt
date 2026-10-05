@@ -35,6 +35,17 @@ class DepoYoluTest {
     }
 
     @Test
+    fun dosyaYalnizGetIleVerilir() {
+        val u = "https://localhost/_depo/$K/kayitlar.kyt"
+        assertEquals(K, DepoYolu.dosyaKimligi(u, "GET"))
+        for (y in listOf("POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "get", "Get", "", null, "GET ")) {
+            assertNull("$y", DepoYolu.dosyaKimligi(u, y))
+        }
+        assertNull(DepoYolu.dosyaKimligi("https://localhost/_depo/$K/durum.json", "GET"))
+        assertNull(DepoYolu.dosyaKimligi(null, "GET"))
+    }
+
+    @Test
     fun depoOnEkiTasiyanBozukAdresDosyaSunucusunaBirakilmaz() {
         assertTrue(DepoYolu.depoAdresi("https://localhost/_depo/../kasa/x"))
         assertTrue(DepoYolu.depoAdresi("https://localhost/_depo/"))

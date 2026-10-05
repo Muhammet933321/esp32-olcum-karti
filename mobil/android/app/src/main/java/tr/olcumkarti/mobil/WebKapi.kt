@@ -37,6 +37,13 @@ object WebKapi {
         val sonraki = u[KOKEN.length]
         if (sonraki != '/' && sonraki != '?' && sonraki != '#') return false
         // Ters egik cizgi ve kontrol karakteri: ayristirici farklarina kapi birakma.
-        return u.none { it == '\\' || it.code < 0x20 }
+        if (u.any { it == '\\' || it.code < 0x20 }) return false
+        // Capacitor'in dosya / icerik on ekleri (`/_capacitor_file_/<mutlak yol>`, `/_capacitor_content_/…`)
+        // uygulamanin okuyabildigi HER dosyayi verir (kasa, durum.json): KAPALI. Uygulama convertFileSrc
+        // kullanmaz; ham kayit dosyasi yalniz DepoYolu'nun dar adresinden okunur. Yuzde kacisi yolda
+        // (parcadan once) hic kabul edilmez: `/%5Fcapacitor_file_/` gibi kacisli bicimler de boylece duser.
+        val yol = kucuk.substringBefore('#')
+        if (yol.contains('%') || yol.contains("/_capacitor_")) return false
+        return true
     }
 }

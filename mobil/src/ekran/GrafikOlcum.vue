@@ -47,7 +47,8 @@ onBeforeUnmount(() => { birakildi = true; });
   <p v-if="suruyor" id="go-suruyor" class="bilgi" role="status">{{ c("m.go.suruyor") }}</p>
   <p v-if="hata" id="go-hata" class="bilgi hata" role="alert">{{ c("m.go.hata") }}</p>
   <div v-if="sonuc" id="go-sonuc" role="status">
-    <p class="bilgi" :class="{ uyari: !sonuc.gecti }">{{ c(sonuc.gecti ? "m.go.gecti" : "m.go.kaldi", { olcut: OLCUT_MS, p95: sonuc.aralik.p95 }) }}</p>
+    <p v-if="sonuc.gecersiz" id="go-gecersiz" class="bilgi hata">{{ c("m.go.gecersiz") }}</p>
+    <p v-else class="bilgi" :class="{ uyari: !sonuc.gecti }">{{ c(sonuc.gecti ? "m.go.gecti" : "m.go.kaldi", { olcut: OLCUT_MS, p95: sonuc.aralik.p95 }) }}</p>
     <p class="bilgi mono">{{ c("m.go.ozet", { nokta: sonuc.nokta, kare: sonuc.kare, hazirlik: sonuc.hazirlikMs }) }}</p>
     <p class="bilgi mono">{{ c("m.go.aralik", sonuc.aralik) }}</p>
     <p class="bilgi mono">{{ c("m.go.cizim", sonuc.cizim) }}</p>

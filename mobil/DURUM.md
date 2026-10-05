@@ -681,3 +681,48 @@ içe aktarıldı) üretilen `mobil/test/vektor/mqtt.json` ile aynı baytlar. Kot
 **20/20**. Hata nesneleri sır taşımıyor (tür adı sabit; platform istisnası zincire girmiyor;
 `AraciBilgisi.toString` parolayı / adresi yazmıyor) — testli.
 Kotlin mutasyon koşucusuna `ortak/` bağlantısı eklendi (testler ortak vektörleri okuyor).
+
+## 2026-10-05 (öğleden sonra) — 5D bağımsız çürütücü: 13 kanıtlı bulgu, hepsi düzeltildi
+
+Kanıtlar `mobil/test/curutucu-5d/` (15 kırmızı JS testi + 4 kırmızı Kotlin iddiası; 30 aday mutasyonun 14'ü
+yaşıyordu). Ayrıntı `test/curutucu-5d/BULGULAR.md`. Çürütücü kaynaklara dokunmadı; düzeltmeleri ben yaptım.
+
+| # | Bulgu | Düzeltme |
+|---|---|---|
+| B1 | **5D'de benim getirdiğim gerileme:** eşitleme metinleri eşleştirme ekranının aynı adlı 4 sözlük anahtarını EZMİŞTİ (eşleştirme başarısında "Telefondaki kopya güncel · {dk} dk önce" çıkıyordu) | Eşitleme anahtarları yeniden adlandırıldı (`m.es.kopya_*`); kaynak metninde yinelenen anahtar testi |
+| B2 | Worker çökünce yedek işlemci boş başlıyor, liste "telefonda kayıt yok" diyordu | İstemcide kuşak sayacı; işlemci değiştiyse dosya yeniden yüklenir |
+| B3 | **A21:** onay anahtarı tur SÜRERKEN kapatılırsa `Go` tur sonuna dek gidiyordu (kartta geri alınamaz) | Ayar her `Go`'dan önce yeniden okunur |
+| B4 | Tur sürerken olay geldiyse "Kopyayı sıfırla" hata veriyordu | Sıfırlama bayrağı: o sırada tur başlamaz; süren tur beklenir |
+| B5 | **A22:** arka plana geçince bekleyen ek tur yine başlıyordu | Kabuk eşitlemeye görünürlüğü bildirir; arkadayken yeni tur yok |
+| B6 | "Tümünü göster"den sonra tablo eski pencerenin istatistiğini gösterebiliyordu | Bekleyen zamanlayıcı silinir |
+| B7 | Kayıt ekranı serileri derin tepkili kapta tutuyordu: çizim ~7 kat yavaş; Ö6 aracı bunu ölçmüyordu | `shallowRef`; Ö6 artık gerçek ekran yükünü çizer (6 seri: V, I + min/maks zarfları) |
+| B8 | Ö6 hiçbir şey çizilmeden "GEÇTİ" diyebiliyordu (tuval 0×0) | Her karede çizim planı denetlenir; biri boşsa "ölçüm GEÇERSİZ" |
+| B9 | Kartın akışı değişince aynı numaralı iki oturum ayırt edilemiyordu (yinelenen liste anahtarı) | Anahtar akış + oturum; "Eski kayıt akışı" rozeti |
+| B10 | Kartta alınamayan daha yeni kayıt varken satır yeşil "kopya güncel" diyordu | Ayrı metin ("kopya kartın gerisinde"), uyarı rengi |
+| B11 | Aralık istatistiği o an yüklü dosyadan hesaplanıyordu (araya başka kart girerse yanlış kart) | Okuma, açılan oturumun kartıyla ve kuyrukta |
+| B12 | `onayAcik()` atarsa `simdi()` reddediyordu | Okuma `try` içinde; atarsa KAPALI |
+| B13 | **Güvenlik (5D öncesinden):** WebView kapısı Capacitor'ın `/_capacitor_file_/…` ön ekini geçiriyordu — WebView'de kod çalıştırabilen biri özel dizindeki her dosyayı (kasa dahil) okuyabilirdi | `WebKapi` bu ön ekleri ve yoldaki yüzde kaçışını reddeder (uygulama onları kullanmıyor); test |
+
+Yaşayan 14 mutasyon için testler eklendi (sıfırlamadan sonra 60 s kuralı · `bekleyen`in ekrana taşınması · kart
+/ akış kimliği · bayat oturum önbelleği · ölçümün tam seri kümesi · `depo_oku.js` kalıbının kendisi · muaf üç
+dosyada dinamik içe aktarma / görsel isteği yasağı · `MainActivity`'de yerel akıtmanın bağlanması ve yalnız GET).
+"Yalnız GET" denetimi saf Kotlin'e taşındı (`DepoYolu.dosyaKimligi`, JVM testli).
+
+**Kanıt:** JS **485/485** (46 dosya; çürütücünün 18 testi artık regresyon testi), Kotlin yeşil, çürütücünün
+Kotlin kanıtı 6/6.
+
+**Ö6 yeniden ölçüldü (Xiaomi, düzeltilmiş araç: 800 000 nokta × 6 seri, 200 kare, dokunmadan):** kare aralığı
+ortanca 16.6 / **p95 19.8** / en uzun 22.4 ms · çizim ortanca 4.6 / p95 7.4 / en uzun 9.5 ms · hazırlık 137 ms →
+ölçüt (p95 < 33 ms) GEÇTİ. Önceki 2 serili sayılar (p95 17.9 ms) gerçek ekranı temsil etmiyordu.
+Telefonda ayrıca: kapı sıkılaştırıldıktan sonra uygulama, Kayıtlar ve kayıt görünümü çalışıyor.
+
+**Çürütücünün kanıtsız şüphelerinden açık bırakılanlar** (BULGULAR.md'de): yerel dosyanın eklentiyle eşgüdümsüz
+okunması · `depoYaniti` G/Ç hatasında 404 → "boş kopya" · `KartDepo.sifirla` atomik değil · eşleşme kaldırılınca
+kopya silinmiyor / sorulmuyor (A19) · eşleşmemiş kartta "kart bu ağda değil" metni · Ö6'da karenin iki kez
+çizilmesi. A19 kalemi ürün davranışı; diğerleri sağlamlık — sıradaki turda ele alınacak.
+
+**Mutasyon (düzeltmelerden sonra):** çürütücünün yaşayan listesi **13/13 öldü** (14.'sü Kotlin'e taşındı),
+düzeltmeleri geri alan `5D-D` **17/17**, Kotlin `5D-K` **14/14**. Koşucu bu turda benim eklediğim üç korumanın
+gereksiz olduğunu da gösterdi (aynı işi `simdi()`'deki tek kapı yapıyordu) → kaldırıldı; "silme sürerken elle
+eşitleme" için ayrı test eklendi (ilk yazdığım test o yolu ölçmüyordu). JS son sayı **486/486**.
+Son derleme Xiaomi'de; Kayıtlar açılıyor, logcat taraması temiz.

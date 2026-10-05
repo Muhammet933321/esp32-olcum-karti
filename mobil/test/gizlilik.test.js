@@ -114,7 +114,9 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
     // Kuresel nesnenin ADI da yasak (curutucu 5B C1): `const { fetch: x } = window`, `window["fe" + "tch"]`,
     // `const w = globalThis; w.fetch(...)` gibi dolayli yollar adin kendisi olmadan yazilamaz.
     // (`self-test` gibi tireli sozcuk metindir, ad degil.)
-    const YASAK = /\bfetch\b|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|RTCDataChannel|importScripts|\bWorker\b|\bglobalThis\b|\bwindow\b|\bself\b(?!-)|\beval\b|new Function/;
+    // Curutucu 5D (Y11, Y12): degiskenden dinamik ice aktarma (`import(url)`), gorsel / ses / oge uzerinden istek
+    // (`new Image().src = …`, `createElement`) de yasak. SABIT metinli `import("./x.js")` serbest (paket ici dosya).
+    const YASAK = /\bfetch\b|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|RTCDataChannel|importScripts|\bWorker\b|\bglobalThis\b|\bwindow\b|\bself\b(?!-)|\beval\b|new Function|\bImage\b|\bAudio\b|createElement|\.src\s*=|\bimport\s*\((?!\s*["'])/;
     // TEK istisna (5B): ortak/src/imza.js'in bekledigi ortam nesnesinin ANAHTARI. Yalniz su bicim:
     //   { fetch: <ad>Fetch   ya da   { fetch: ag.<ad>Fetch      (deger, KartAg'a giden bir sarmalayici)
     // Cagri, baska bir deger ya da baska bir bicim istisnaya GIRMEZ (asagida kendi sinamasi).
@@ -124,7 +126,8 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
       expect(ortamAnahtari(yorumsuz(oku(yol))), yol).not.toMatch(YASAK);
     }
     for (const temiz of ["const o = { fetch: imzaliFetch, kaydet };", "ac(c, t, { fetch: ag.kartFetch, simdiMs });",
-      'S("WebView ağ sınaması", "WebView network self-test")', "yerelOnbellek(localStorage)"]) {
+      'S("WebView ağ sınaması", "WebView network self-test")', "yerelOnbellek(localStorage)",
+      'const m = await import("./kayit_veri.js");', "component: () => import('./ekran/Kayit.vue')"]) {
       expect(ortamAnahtari(temiz), temiz).not.toMatch(YASAK);
     }
     for (const kirli of [
@@ -134,6 +137,7 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
       // curutucu 5B C1: yapi bozma ve dolayli erisim — kuresel nesnenin adi olmadan yazilamaz.
       "const { fetch: disFetch } = window; disFetch(u);", "const { fetch: disFetch } = globalThis;", "const { fetch: disFetch } = self;",
       "const w = window; w[ad](u);", "globalThis[\"fe\" + \"tch\"](u);", "self.postMessage(x);",
+      "await import(arguman.url);", "import(yol)", "new Image().src = url;", "g.src = adres;", "document.createElement(\"script\")", "new Audio(u)",
     ]) {
       expect(ortamAnahtari(kirli), kirli).toMatch(YASAK);
     }
@@ -141,7 +145,8 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
 });
 
 describe("A24: yerel dosya okuma ve Worker — genel yasagin DAR istisnalari", () => {
-  const YASAK_DIGER = /XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|RTCDataChannel|importScripts|\bglobalThis\b|\bwindow\b|\beval\b|new Function/;
+  // Muaf uc dosyada da: baska ag yolu, dinamik ice aktarma (sabit metinli olsa bile), gorsel / oge istegi YOK.
+  const YASAK_DIGER = /XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|RTCDataChannel|importScripts|\bglobalThis\b|\bwindow\b|\beval\b|new Function|\bImage\b|\bAudio\b|createElement|\.src\s*=|\bimport\s*\(|\bnavigator\b|\blocation\b/;
 
   it("uc dosya da kaynak agacinda; baska hicbir dosya muaf degil", () => {
     for (const d of A24_DOSYALARI) expect(JS_KAYNAK, d).toContain(d);
@@ -155,6 +160,9 @@ describe("A24: yerel dosya okuma ve Worker — genel yasagin DAR istisnalari", (
     expect(k.indexOf("DEPO_ADRESI.test(url)")).toBeGreaterThan(0);
     expect(k.indexOf("DEPO_ADRESI.test(url)")).toBeLessThan(k.indexOf("fetch(url"));
     expect(k).toContain('if (typeof url !== "string" || !DEPO_ADRESI.test(url)) throw new DepoOkuHatasi("bicim");');
+    // Kalibin KENDISI sabit (curutucu 5D Y10: seceneklerle genisletilen kalip eski "kotu adres" listesinden geciyordu).
+    expect(k).toContain("export const DEPO_ADRESI = /^\\/_depo\\/[0-9a-f]{16}\\/kayitlar\\.kyt$/;");
+    expect(k.match(/DEPO_ADRESI/g).length).toBe(2);           // tanim + tek kullanim
     expect(k).not.toMatch(YASAK_DIGER);
     expect(k).not.toMatch(/\bWorker\b|\bself\b/);
     expect(k).not.toMatch(/^import /m);                       // bagimliligi yok: adres baska yerden gelemez
@@ -196,6 +204,8 @@ describe("A24: yerel dosya okuma ve Worker — genel yasagin DAR istisnalari", (
         `/_depo/${K}/kayitlar.kyt#a`, `/_depo/${K}/../${K}/kayitlar.kyt`, "/_depo/../kasa/x", `/_depo/0123456789ABCDEF/kayitlar.kyt`,
         `https://localhost/_depo/${K}/kayitlar.kyt`, `//evil.example/_depo/${K}/kayitlar.kyt`, `http://192.168.1.7/_depo/${K}/kayitlar.kyt`,
         `/_depo/${K}/kayitlar.kyt\n`, ` /_depo/${K}/kayitlar.kyt`, `/_depo/${K}/kayitlarXkyt`, "http://192.168.1.7/kayit/veri",
+        "/_capacitor_file_/data/user/0/x/files/kasa/a.bin", `/_capacitor_file_/_depo/${K}/kayitlar.kyt`, "/_capacitor_content_/media/1",
+        "http://10.0.0.1/", `http://10.0.0.1/_depo/${K}/kayitlar.kyt`, "https://example.com/", "data:text/plain,x", "blob:https://localhost/1",
       ];
       for (const u of kotu) await expect(yerelOku(u), String(u)).rejects.toMatchObject({ tur: "bicim" });
       expect(cagrilar.length).toBe(0);
@@ -215,6 +225,30 @@ describe("A24: yerel dosya okuma ve Worker — genel yasagin DAR istisnalari", (
     } finally {
       globalThis.fetch = asil;
     }
+  });
+});
+
+describe("A24: yerel akitmanin MainActivity'ye baglanmasi (curutucu 5D Y13, Y14)", () => {
+  it("depo on ekli HER istek depoYaniti'na gider (Capacitor'in dosya sunucusuna BIRAKILMAZ) ve kapi denetiminden SONRA", () => {
+    const m = yorumsuz(oku("android/app/src/main/java/tr/olcumkarti/mobil/MainActivity.java"));
+    const kapi = m.indexOf("if (!WebKapi.INSTANCE.izinli(request.getUrl().toString())) {");
+    const depo = m.indexOf("if (DepoYolu.INSTANCE.depoAdresi(url)) return depoYaniti(url, request.getMethod());");
+    const devret = m.indexOf("return super.shouldInterceptRequest(view, request);");
+    expect(kapi).toBeGreaterThan(0);
+    expect(depo).toBeGreaterThan(kapi);
+    expect(devret).toBeGreaterThan(depo);
+    expect(m.match(/super\.shouldInterceptRequest/g).length).toBe(1);
+  });
+
+  it("dosya yalniz DepoYolu.dosyaKimligi (GET + tam bicim) izin verirse acilir; baska her halde 404", () => {
+    const m = yorumsuz(oku("android/app/src/main/java/tr/olcumkarti/mobil/MainActivity.java"));
+    expect(m).toContain("String kimlik = DepoYolu.INSTANCE.dosyaKimligi(url, yontem);");
+    expect(m).toContain("File dosya = kimlik == null ? null");
+    expect(m.match(/new FileInputStream\(/g).length).toBe(1);
+    expect(m).toContain("new FileInputStream(dosya)");
+    expect(m.match(/, 404, "Yok",/g).length).toBe(2);
+    const d = yorumsuz(oku("android/app/src/main/java/tr/olcumkarti/mobil/depo/DepoYolu.kt"));
+    expect(d).toContain('fun dosyaKimligi(url: String?, yontem: String?): String? = if (yontem == "GET") kimlik(url) else null');
   });
 });
 

@@ -28,8 +28,15 @@ describe("Ö6 sabitleri ve seri", () => {
     expect(sicrama).toBe(1);                               // k = 50021
     for (const n of [0, 1, 1.5, -5, "8"]) expect(() => seriUret(n)).toThrow(RangeError);
     const s = grafikSerileri(a);
-    expect(s.map((x) => [x.ad, x.eksen, x.renk])).toEqual([["V", "sol", "volt"], ["I", "sag", "amper"]]);
-    expect(s[0].t).toBe(s[1].t);
+    // Gercek nokta oturumunun EKRANDAKI yuku: V ve I icin ort + min / maks zarflari = 6 seri (curutucu 5D B7, Y8).
+    expect(s.map((x) => [x.ad, x.eksen, x.renk, x.zarf === true])).toEqual([
+      ["V", "sol", "volt", false], ["V min", "sol", "volt", true], ["V maks", "sol", "volt", true],
+      ["I", "sag", "amper", false], ["I min", "sag", "amper", true], ["I maks", "sag", "amper", true],
+    ]);
+    expect(s.every((x) => x.t === s[0].t && x.y.length === 100000)).toBe(true);
+    expect(new Set(s.map((x) => x.y)).size).toBe(6);                // alti AYRI dizi (zarflar kopya degil)
+    expect(s[1].y[5]).toBeCloseTo(a.v[5] - 0.1, 9);
+    expect(s[5].y[5]).toBeCloseTo(a.i[5] + 0.05, 9);
   });
 });
 
@@ -86,14 +93,14 @@ describe("ozetle", () => {
 });
 
 describe("grafikOlc (sahte saat ve sahte grafik)", () => {
-  function duzenek({ cizimMs = () => 4, kareMs = () => 16, hazirlikMs = 120 } = {}) {
+  function duzenek({ cizimMs = () => 4, kareMs = () => 16, hazirlikMs = 120, planVar = () => true } = {}) {
     const saat = { ms: 1000 };
     const olay = [];
     let kare = -1;
     const grafik = {
       veriAyarla(s) { olay.push(["veri", s.length]); saat.ms += hazirlikMs; },
       durumAyarla(d) { kare += 1; olay.push(["durum", d.t0, d.t1]); },
-      ciz() { olay.push("ciz"); if (kare >= 0) saat.ms += cizimMs(kare); },
+      ciz() { olay.push("ciz"); if (kare >= 0) saat.ms += cizimMs(kare); return planVar(kare) ? { seriler: [] } : null; },
     };
     const kareBekle = async () => { olay.push("bekle"); if (kare >= 0) saat.ms += kareMs(kare); };
     return { saat, olay, grafik, kareBekle, simdi: () => saat.ms };
@@ -108,9 +115,9 @@ describe("grafikOlc (sahte saat ve sahte grafik)", () => {
       nokta: 1000, kare: 20, hazirlikMs: 120,
       cizim: { ortanca: 4, p95: 4, enUzun: 30 },
       aralik: { ortanca: 20, p95: 20, enUzun: 70 },          // aralik = cizim + bekleme (16 + 4; 7. karede 40 + 30)
-      gecti: true,
+      gecersiz: false, bosKare: 0, gecti: true,
     });
-    expect(d.olay.slice(0, 3)).toEqual([["veri", 2], "ciz", "bekle"]);
+    expect(d.olay.slice(0, 3)).toEqual([["veri", 6], "ciz", "bekle"]);
     expect(d.olay.filter((o) => Array.isArray(o) && o[0] === "durum").map((o) => [o[1], o[2]])).toEqual(kareler);
     expect(d.olay.slice(3, 9)).toEqual([["durum", kareler[0][0], kareler[0][1]], "ciz", "bekle", ["durum", kareler[1][0], kareler[1][1]], "ciz", "bekle"]);
   });
@@ -125,6 +132,18 @@ describe("grafikOlc (sahte saat ve sahte grafik)", () => {
     const s = await grafikOlc({ grafik: tek.grafik, seriler, kareler, simdi: tek.simdi, kareBekle: tek.kareBekle });
     expect(s.gecti).toBe(true);
     expect(s.aralik.enUzun).toBe(504);
+  });
+
+  it("hicbir sey CIZILMEDIYSE (ciz() plan dondurmedi: tuval 0 x 0) olcum GECERSIZ — sureler iyi olsa da GECTI denmez", async () => {
+    const hepsi = duzenek({ planVar: () => false });
+    const s = await grafikOlc({ grafik: hepsi.grafik, seriler, kareler, simdi: hepsi.simdi, kareBekle: hepsi.kareBekle });
+    expect(s).toMatchObject({ gecersiz: true, bosKare: 21, gecti: false });
+    expect(s.aralik.p95).toBeLessThan(33);                  // sure olcutu tek basina "gecerdi"
+    // Tek bir bos kare bile olcumu gecersiz kilar; ilk (hazirlik) cizimi de sayilir.
+    const tek = duzenek({ planVar: (k) => k !== 9 });
+    expect(await grafikOlc({ grafik: tek.grafik, seriler, kareler, simdi: tek.simdi, kareBekle: tek.kareBekle })).toMatchObject({ gecersiz: true, bosKare: 1, gecti: false });
+    const ilk = duzenek({ planVar: (k) => k >= 0 });
+    expect(await grafikOlc({ grafik: ilk.grafik, seriler, kareler, simdi: ilk.simdi, kareBekle: ilk.kareBekle })).toMatchObject({ gecersiz: true, bosKare: 1 });
   });
 
   it("iptal edilirse null doner (yarim olcum sonuc diye YAZILMAZ)", async () => {
@@ -151,7 +170,14 @@ describe("ekran baglantisi (kaynak)", () => {
     expect(g).toContain("simdi: () => performance.now(), kareBekle, iptal: () => birakildi,");
     expect(g).toContain("grafik = new Grafik(tuval.value, { zamanKokeni: 0 });");
     expect(g).toContain("kareler: kareBetigi(seri.t[0], seri.t[NOKTA - 1], KARE),");
+    // Olculen yuk TAM seri kumesi (6 seri); dilimleme / suzme yok (curutucu 5D Y8).
+    expect(g).toContain("grafik, seriler: grafikSerileri(seri), kareler:");
+    expect(g).toContain("const seri = seriUret(NOKTA);");
     expect(g).toContain("if (grafik) grafik.yokEt();");
+    // Tuval olcum boyunca GORUNUR ve gercek boyda (hidden / display:none degil); gecersiz olcum ayri soylenir.
+    expect(g).toContain('<canvas v-if="suruyor" id="go-tuval" ref="tuval" class="grafik buyuk" role="img"');
+    expect(g).not.toMatch(/<canvas[^>]*\bhidden\b/);
+    expect(g).toContain('<p v-if="sonuc.gecersiz" id="go-gecersiz" class="bilgi hata">{{ c("m.go.gecersiz") }}</p>');
     expect(kaynak("ekran/Ayarlar.vue")).toContain('<section v-if="gelismis" id="ay-grafik-olcum" class="kart"><GrafikOlcum /></section>');
   });
 

@@ -185,6 +185,92 @@ describe("esitleme — kart yokken sifirlama", () => {
   });
 });
 
+describe("esitleme — sifirlama ve 'bekleyen' (curutucu 5D Y1–Y3)", () => {
+  it("sifirladan sonra 60 s kurali SIFIRLANIR: ilk tikte kopya yeniden iner", async () => {
+    const saat = { ms: 1_000_000 };
+    const { ek, e } = await duzenek({ kayitSayisi: 20, secenek: { simdiMs: () => saat.ms } });
+    await e.simdi();
+    expect(e.tik({ gorunur: true, bagli: true })).toBe(false);          // 60 s dolmadi
+    await e.sifirla();
+    expect(ek.dosya(K1)).toBe(null);
+    expect(e.tik({ gorunur: true, bagli: true })).toBe(true);           // sifirlama saati sifirladi
+    for (let i = 0; i < 200 && e.durum().hal !== "tamam"; i++) await new Promise((r) => setTimeout(r, 5));
+    expect(Buffer.from(ek.dosya(K1)).equals(akisKur(1, 20))).toBe(true);
+  });
+
+  it("tur SURERKEN sifirla: turun bitmesini bekler, sonra siler (yarim tur kopyayi geri yazmaz); o sirada tur baslamaz", async () => {
+    const { k, ek, e, durumlar } = await duzenek({ kayitSayisi: 300 });
+    k.ayarla({ gecikmeMs: 10 });
+    const tur = e.simdi();
+    await new Promise((r) => setTimeout(r, 25));
+    expect(e.durum().hal).toBe("esitleniyor");
+    const sil = e.sifirla();
+    // Sifirlama surerken: elle / olay / tik yeni tur BASLATMAZ; ikinci sifirlama 'mesgul'.
+    expect(e.tik({ gorunur: true, bagli: true })).toBe(false);
+    e.kayitBitti();
+    await expect(e.sifirla()).rejects.toMatchObject({ tur: "mesgul" });
+    await tur;
+    // Ilk tur bitti, sifirlama HENUZ surerken elle "Simdi esitle": yeni tur BASLAMAZ (depo kilidi sifirlamayi dusururdu).
+    const turSayisi = () => durumlar.filter((h) => h === "esitleniyor").length;
+    const once = turSayisi();
+    const elle = e.simdi();
+    expect(turSayisi()).toBe(once);
+    await elle;
+    await sil;
+    expect(ek.dosya(K1)).toBe(null);                                    // tur bittikten SONRA silindi
+    expect(e.durum()).toMatchObject({ hal: "bos", sonSira: null });
+    await new Promise((r) => setTimeout(r, 60));
+    expect(e.durum().hal).toBe("bos");                                  // "kayit bitti" olayi tur BASLATMADI
+  });
+
+  it("silme SURERKEN (depo siliniyor) elle 'Simdi esitle' yeni tur BASLATMAZ; silme bitince kopya gercekten bos", async () => {
+    const { t, ek } = await duzenek({ kayitSayisi: 30 });
+    let birak;
+    const kapi = new Promise((c) => { birak = c; });
+    let silmeBasladi = false;
+    // Depo: sifirla() bir kapida bekler (yavas disk) — o aralikta baslayan bir tur kilidi alir ve silme duserdi.
+    const depoAl = (kimlik) => {
+      const d = depoKur(ek, kimlik);
+      return { ...d, sifirla: async () => { silmeBasladi = true; await kapi; return d.sifirla(); } };
+    };
+    const haller = [];
+    const e = esitlemeKur({ kartAl: async () => t.kart, depoAl, istekAraMs: 0 });
+    e.dinle((d) => haller.push(d.hal));
+    await e.simdi();
+    expect(ek.dosya(K1)).not.toBe(null);
+    const sil = e.sifirla();
+    for (let i = 0; i < 100 && !silmeBasladi; i++) await new Promise((r) => setTimeout(r, 2));
+    expect(silmeBasladi).toBe(true);
+    const once = haller.filter((h) => h === "esitleniyor").length;
+    const elle = await e.simdi();                                       // silme surerken
+    expect(haller.filter((h) => h === "esitleniyor").length).toBe(once);
+    expect(elle.hal).toBe("tamam");                                     // eldeki durum doner, tur kosmaz
+    expect(e.tik({ gorunur: true, bagli: true })).toBe(false);
+    birak();
+    await sil;                                                          // 'mesgul' ile DUSMEZ
+    expect(ek.dosya(K1)).toBe(null);
+    expect(e.durum().hal).toBe("bos");
+  });
+
+  it("kart 'daha yeni sira var ama veri yok' derse (bos govde + ileri X-Sonraki-Sira) `bekleyen` ekrana tasinir", async () => {
+    const { t, ek } = await duzenek({ kayitSayisi: 10 });
+    // Kartin yaniti yolda degisir: 10. kayittan sonra govde bos, sonraki sira 15 (4 kayit okunamiyor).
+    const kart = {
+      durum: () => t.kart.durum(),
+      istek: async (yontem, yol, arg, govde) => {
+        const y = await t.kart.istek(yontem, yol, arg, govde);
+        if (yol !== "/kayit/veri") return y;
+        const b = new Uint8Array(await y.arrayBuffer());
+        const basliklar = new Headers(y.headers);
+        if (b.length === 0) basliklar.set("X-Sonraki-Sira", "15");
+        return new Response(b, { status: 200, headers: basliklar });
+      },
+    };
+    const e2 = esitlemeKur({ kartAl: async () => kart, depoAl: (kimlik) => depoKur(ek, kimlik), istekAraMs: 0 });
+    expect(await e2.simdi()).toMatchObject({ hal: "tamam", sonSira: 10, bekleyen: 4 });
+  });
+});
+
 describe("esitleme — hata halleri (ASLA atmaz)", () => {
   it("hataTuru (saf)", () => {
     expect(hataTuru(new EsitlemeHatasi("x"))).toEqual({ tur: "kopya-uyusmuyor", sifirlaOner: true });

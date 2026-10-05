@@ -24,7 +24,9 @@ export class KayitlarHatasi extends Error {
 
 export function kayitlarKur({ istemci, kartAl, depoAl, sonKimlik = () => null }) {
   if (!istemci || typeof kartAl !== "function" || typeof depoAl !== "function") throw new TypeError("istemci, kartAl, depoAl gerekli");
-  let yuklenen = null;                  // { kimlik, akisKimlik, boy }
+  let yuklenen = null;                  // { kimlik, akisKimlik, boy, kusak }
+  let gorunenKimlik = null;             // kayit gorunumunun actigi oturumun KART kimligi (okuma bununla)
+  const kusak = () => (typeof istemci.kusak === "function" ? istemci.kusak() : 0);
   let suren = null;
 
   const hata = (e) => new KayitlarHatasi(e && typeof e.tur === "string" ? e.tur : "ic-hata");
@@ -55,14 +57,15 @@ export function kayitlarKur({ istemci, kartAl, depoAl, sonKimlik = () => null })
       // Durum dosyasi bozuksa kopya yine de gosterilir (salt okuma); boy okunamadiysa hata.
       if (!(e && e.tur === "bozuk")) throw hata(e);
     }
-    if (!yuklenen || yuklenen.kimlik !== kimlik || yuklenen.boy !== boy || yuklenen.akisKimlik !== akisKimlik) {
+    // Islemci degistiyse (isci coktu -> yedek) yuklu veri GITMISTIR: yeniden yuklenir.
+    if (!yuklenen || yuklenen.kimlik !== kimlik || yuklenen.boy !== boy || yuklenen.akisKimlik !== akisKimlik || yuklenen.kusak !== kusak()) {
       try {
         await istemci.cagir("yukle", { url, akisKimlik });
       } catch (e) {
         yuklenen = null;
         throw hata(e);
       }
-      yuklenen = { kimlik, akisKimlik, boy };
+      yuklenen = { kimlik, akisKimlik, boy, kusak: kusak() };
     }
     return { kimlik, bayt: boy };
   }
@@ -91,16 +94,24 @@ export function kayitlarKur({ istemci, kartAl, depoAl, sonKimlik = () => null })
 
   async function oturumKos(no) {
     const k = await kartDurumu();
-    if ((await hazirla(k.kimlik)) === null) return null;
+    const h = await hazirla(k.kimlik);
+    if (h === null) return null;
+    gorunenKimlik = h.kimlik;
     try { return await istemci.cagir("oturum", { oturum: no }); } catch (e) { throw hata(e); }
+  }
+
+  // Aralik istatistigi EKRANDAKI kartin kopyasindan: araya baska kartin listesi girdiyse (ya da isci
+  // coktuyse) dosya yeniden yuklenir. Kuyrukta SIRAYLA (liste / oturum ile ic ice gecmez).
+  async function okumaKos(no, tA, tB) {
+    if (gorunenKimlik === null) return null;
+    if ((await hazirla(gorunenKimlik)) === null) return null;
+    try { return await istemci.cagir("okuma", { oturum: no, tA, tB }); } catch (e) { throw hata(e); }
   }
 
   return {
     liste: (secenek) => sirayla(() => listeKos(secenek)),
     oturum: (no) => sirayla(() => oturumKos(no)),
-    async okuma(no, tA, tB) {
-      try { return await istemci.cagir("okuma", { oturum: no, tA, tB }); } catch (e) { throw hata(e); }
-    },
-    bosalt() { yuklenen = null; },
+    okuma: (no, tA, tB) => sirayla(() => okumaKos(no, tA, tB)),
+    bosalt() { yuklenen = null; gorunenKimlik = null; },
   };
 }

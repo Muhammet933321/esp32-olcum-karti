@@ -163,6 +163,7 @@ export function kabukDurumu({
 
   async function ac() {
     gorunur = true;
+    if (esit && typeof esit.gorunurluk === "function") esit.gorunurluk(true);
     if (!zamanlayici) zamanlayici = araliKur(tik, TIK_MS);
     if (!baglanti.value || baglanti.value.durum === "bulunamadi") await ara();
     await akisAc();
@@ -170,6 +171,8 @@ export function kabukDurumu({
 
   function kapat() {
     gorunur = false;
+    // A22: arka planda yeni esitleme turu baslamaz (bekleyen "kayit bitti" turu dahil).
+    if (esit && typeof esit.gorunurluk === "function") esit.gorunurluk(false);
     if (zamanlayici) { araliSil(zamanlayici); zamanlayici = null; }
     akisKapat();
   }
@@ -183,6 +186,7 @@ export function kabukDurumu({
       e.dinle((d) => { esitleme.value = { hazir: true, ...d }; });
       esitleme.value = { hazir: true, ...e.durum() };
       esit = e;
+      if (typeof e.gorunurluk === "function") e.gorunurluk(gorunur);
     } catch {
       esitleme.value = { ...ESITLEME_YOK, hazir: false };
     } finally {
