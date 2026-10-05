@@ -1,0 +1,160 @@
+package tr.olcumkarti.mobil.curutucu6
+
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import tr.olcumkarti.mobil.bildirim.AraciHatasi
+import tr.olcumkarti.mobil.bildirim.Bildirim
+import tr.olcumkarti.mobil.bildirim.BildirimKarar
+import tr.olcumkarti.mobil.bildirim.IzlemeDongusu
+import tr.olcumkarti.mobil.bildirim.Izleyici
+import tr.olcumkarti.mobil.bildirim.Vazgecme
+import tr.olcumkarti.mobil.bildirim.Yoklama
+import tr.olcumkarti.mobil.bildirim.YoklamaDurumu
+import tr.olcumkarti.mobil.bildirim.Zarf
+
+/**
+ * Curutucu 6 (2026-10-05): K-7 / K-13 degisikliklerinin KIRMIZI kanitlari. Ayrinti: mobil/test/curutucu-6/BULGULAR.md.
+ * Uretim kodu duzelince yesile donerler. Ag yok, Android sinifi yok.
+ */
+class Curutucu6Test {
+    private val SAAT = 60 * 60 * 1000L
+    private val BOS = 1L
+    private val KAYIT = 2L
+
+    private fun durum(k: Long, o: Long, a: Long = 3, y: Long = 1): Map<String, Any?> =
+        mapOf("c" to 1L, "a" to a, "t" to 1790000000L, "k" to k, "o" to o, "y" to y, "d" to 5L, "e" to 0L)
+
+    /** IzlemeServisi.calis'in kurdugu duzen: karar + `durumGoruldu` (IzlemeServisi.kt:129-132) + sonradan yoklama. */
+    private class Servis {
+        val cikan = ArrayList<Bildirim>()
+        var saatS = 0.0
+        val karar = BildirimKarar({ cikan.add(it) }, { saatS })
+        var ozet: YoklamaDurumu? = null
+
+        /** Izleyici.kt:114-115: once karar, sonra durumGoruldu -> depo.durumGuncelle { Yoklama.ozet(it, d, kopuk) }. */
+        fun mqttDurum(d: Map<String, Any?>) {
+            karar.mqttMesaj("durum", d)
+            ozet = Yoklama.ozet(ozet, d, karar.baglanti != null)
+        }
+
+        /** Servis durduktan sonraki 15 dakikalik yoklama (YoklamaIsi.kt:53-57). */
+        fun yoklama(simdi: Map<String, Any?>) {
+            ozet = Yoklama.degerlendir(ozet, simdi, { true }, { cikan.add(it) }).durum
+        }
+    }
+
+    // ── C6-1 ────────────────────────────────────────────────────────────────────────────────────
+    @Test
+    fun c6_1_servisOlayiKacirdiysa_kayitBitti_HIC_bildirilmez() {
+        val s = Servis()
+        s.karar.mqttBagliOldu(true)
+        s.mqttDurum(durum(KAYIT, 81))                          // anlik izleme: kayit suruyor
+        // Telefonun interneti 2 dakika yok (servis "internet" durumunda, yeniden deniyor). O arada kayit bitti:
+        // kartin "kayit_bitti" OLAYI kalici degil -> kacti. Telefon donunce yalniz KALICI durum gelir.
+        s.karar.mqttBagliOldu(false); s.saatS += 120.0; s.karar.mqttBagliOldu(true)
+        s.mqttDurum(durum(BOS, 81))
+        assertEquals("servis kaydin bittigini BILIYOR (10 s sonra kendini durdurur)", false, s.karar.kayitSuruyor())
+        s.saatS += 900.0
+        s.yoklama(durum(BOS, 81))                              // servis durdu; sonraki yoklama
+        s.yoklama(durum(BOS, 81))
+        assertTrue("kayit bitti ama ne servis ne yoklama bildirdi (ozet sessizce ilerledi)", s.cikan.isNotEmpty())
+    }
+
+    @Test
+    fun c6_1_servisOlayiKacirdiysa_pilTestininYenidenBaslamaylaKesildigi_HIC_bildirilmez() {
+        val s = Servis()
+        s.karar.mqttBagliOldu(true)
+        s.mqttDurum(durum(KAYIT, 81, a = 3, y = 2))            // pil oturumu izleniyor
+        // Elektrik kesildi: kart da ev yonlendiricisi de yeniden basladi. Telefon (Wi-Fi) araciya kartTAN SONRA
+        // dondu -> kartin acilis olaylari ("basladi", "kayit_bitti sebep 5") kacti.
+        s.karar.mqttBagliOldu(false); s.saatS += 180.0; s.karar.mqttBagliOldu(true)
+        s.mqttDurum(durum(BOS, 0, a = 4))
+        assertEquals(false, s.karar.kayitSuruyor())
+        s.saatS += 900.0
+        s.yoklama(durum(BOS, 0, a = 4))
+        // Anlik izleme KAPALI olsaydi yoklama (K-13) "yeniden basladi ... kesildi" derdi:
+        val yalnizYoklama = ArrayList<Bildirim>()
+        Yoklama.degerlendir(YoklamaDurumu(durum(KAYIT, 81, a = 3, y = 2), false), durum(BOS, 0, a = 4), { true }, { yalnizYoklama.add(it) })
+        assertEquals(listOf("bld.kesildi"), yalnizYoklama.map { it.anahtar })
+        assertTrue("anlik izleme ACIKKEN ayni olay hic bildirilmedi", s.cikan.isNotEmpty())
+    }
+
+    // ── C6-6 ────────────────────────────────────────────────────────────────────────────────────
+    private fun yoklamaAnahtarlari(onceki: YoklamaDurumu?, simdi: Map<String, Any?>): List<String> {
+        val cikan = ArrayList<Bildirim>()
+        Yoklama.degerlendir(onceki, simdi, { true }, { cikan.add(it) })
+        return cikan.map { it.anahtar }
+    }
+
+    @Test
+    fun c6_6_ozetYerel_eskiAcilisNumarasiniYeniOturumaTasir_sahteYenidenBasladi() {
+        // Ozet MQTT'den: acilis 3, kayit yok.
+        var ozet = Yoklama.ozet(null, durum(BOS, 0, a = 3, y = 0), false)
+        // Ev interneti kesik. Kart kapatilip acildi (acilis 4) — kayit YOKKEN. Sonra kullanici telefondan (yerel agda)
+        // kayit baslatti: servis bunu YEREL yoldan duydu (IzlemeServisi.kt:66 ozetYerel); MQTT durumu hic gelmedi.
+        ozet = Yoklama.ozetYerel(ozet, KAYIT, 83)
+        // Servis oldu (uretici pil yoneticisi). Internet dondu; 15 dakikalik yoklama kartin durumunu okudu:
+        // ayni kayit (83) suruyor. Kart bu kayit SIRASINDA hic yeniden baslamadi.
+        assertEquals("kayit sirasinda yeniden baslama OLMADI", emptyList<String>(), yoklamaAnahtarlari(ozet, durum(KAYIT, 83, a = 4)))
+    }
+
+    @Test
+    fun c6_6_ozetYerel_eskiOturumTurunuYeniOturumaTasir_olcumKaydinaPilKesildiDenir() {
+        // Ozet MQTT'den: pil oturumu 81 (tur 2) suruyor.
+        var ozet = Yoklama.ozet(null, durum(KAYIT, 81, a = 3, y = 2), false)
+        // Sonrasi yalniz YEREL yoldan duyuldu (araci yok): pil testi bitti, yeni bir kayit (83) basladi.
+        ozet = Yoklama.ozetYerel(ozet, BOS, 0)
+        ozet = Yoklama.ozetYerel(ozet, KAYIT, 83)
+        // Uygulama kapandi. Kayit 83 bitti; sonra kart yeniden basladi (acilis 4). Yoklama:
+        // 83'un turu BILINMIYOR (hic okunmadi) — Yoklama.kt:93 "olcum oturumu ... siradan kayit bitti".
+        assertEquals(listOf("bld.kayit_bitti_yerel"), yoklamaAnahtarlari(ozet, durum(BOS, 0, a = 4, y = 0)))
+    }
+
+    // ── C6-2 ────────────────────────────────────────────────────────────────────────────────────
+    private val K =ByteArray(32) { (it * 7 + 1).toByte() }
+    private val KIMLIK = "0123456789abcdef"
+    private val N = 3
+
+    private fun bilgiZarfi(): ByteArray {
+        val nonce = ByteArray(12).also { it[0] = 1 }
+        val c = Cipher.getInstance("ChaCha20-Poly1305")
+        c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(K, "ChaCha20"), IvParameterSpec(nonce))
+        c.updateAAD(Zarf.bilgiAad(KIMLIK, N))
+        val duz = "{\"u\":\"mqtts://araci.sinama.example:8883\",\"k\":\"\",\"p\":\"\",\"o\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"a\":\"" + "ab".repeat(32) + "\"}"
+        return Zarf.SIHIR + nonce + c.doFinal(duz.toByteArray(Charsets.UTF_8))
+    }
+
+    @Test
+    fun c6_2_telefonAraciyaBagliDegilken_vazgecmeSuresiIsler_servisKayitBittiDiyeDurur() {
+        var ms = 0L
+        val kilit = Any()
+        val k = BildirimKarar({}, { ms / 1000.0 })
+        val vazgecme = Vazgecme()
+        // IzlemeServisi.kt:127 ile AYNI ifade (saat yerine `ms`).
+        val surdur = { synchronized(kilit) { k.kayitSuruyor() != false && !vazgecme.doldu(k.kartCevrimici, ms) } }
+
+        // Bagliyken: kayit suruyor; kart bir an cevrimdisi goruldu (vasiyet).
+        k.mqttBagliOldu(true)
+        k.mqttMesaj("durum", durum(KAYIT, 81))
+        k.mqttMesaj("durum", mapOf("c" to 0L))
+        assertTrue(surdur())
+        // Hemen ardindan TELEFONUN interneti gitti (ucak kipi / kapsama yok). Kart bir dakika sonra dondu ve kayit
+        // suruyor — telefon bunu BILEMEZ: araciya bagli degil.
+        k.mqttBagliOldu(false)
+        val zarf = bilgiZarfi()
+        lateinit var dongu: IzlemeDongusu
+        dongu = IzlemeDongusu(
+            oturum = { _ -> Izleyici({ throw AraciHatasi("ag") }, k, kilit, { ms }).calis(K, KIMLIK, N, zarf, surdur = surdur) },
+            bekle = { w -> ms += w; if (ms > 8 * SAAT) dongu.durdur() },
+            durum = {},
+            simdiMs = { ms },
+        )
+        // Beklenen: internet donene dek denemeyi SURDURUR (testte 8. saatte durdurulur -> "durduruldu").
+        // Olan: 6. saatte "kayit-bitti" ile kendiliginden biter (DURUM.md: "durum bilinmiyorken sure dolmus SAYILMAZ").
+        assertEquals("durduruldu", dongu.calis())
+    }
+}

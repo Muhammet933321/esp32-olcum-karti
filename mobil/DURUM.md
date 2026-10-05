@@ -1175,3 +1175,14 @@ kıskaç kayıt kartındaki "son veri" satırına da kondu. DG mutasyonları 47/
    `npm run esitle` → `cd android && gradlew.bat assembleDebug` → `adb -s <seri> install -r …app-debug.apk`.
 3. Kullanıcıyı bekleyenler (YAPILMAYACAK): Honor, release imzası, fiziksel testler (donmuş sayacın güç kesmede
    görülmesi dahil).
+
+## 2026-10-05 (gece, 8) — devralan oturum: çürütücü 6 kapatıldı (ertelendi), sürüm telefona kuruldu
+
+Kullanıcı: "kusursuz olmasına gerek yok, sağlıklı kullanılabilir olsun, az token". Çürütücü 6'nın yarım JS testi
+4 kırmızı verdi; dördü de donmuş sayacın GÖRÜNTÜ kenar durumu, kullanımı bozmuyor → **ERTELENDİ, düzeltilmedi**:
+- C6-3: veri gelmezken "Yeniden dene" sayacı/"son veri" yaşını sıfırlıyor (sayaç 00:00:10 yerine 00:00:40).
+- C6-4: veri kesildikten sonra eşik dolana dek (~5 s) sayaç ilerleyip sonra son veriye GERİ sarıyor (11…15 → 10).
+- C6-5: veri yokken başlamış kayıt, veri dönünce "şimdi başladı" sayılıyor (basMs uyduruluyor, null olmalı).
+Testler suite dışına taşındı: `mobil/ertelenen-curutucu-6/*.bekliyor` (yeniden `test/` ve `src/test/...`'e
+alınınca kırmızı olacaklar — düzeltme turunda oradan başla). Kotlin dosyası (Curutucu6Test.kt) hiç koşulmadı.
+Çürütücünün öbür soruları (kilit sırası, Vazgecme, çift bildirim, 200+çöp gövde) incelenmedi — AÇIK.
