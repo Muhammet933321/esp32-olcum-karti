@@ -12,11 +12,16 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.net.CookieHandler;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 
 import tr.olcumkarti.mobil.ag.KartAgPlugin;
+import tr.olcumkarti.mobil.depo.DepoYolu;
+import tr.olcumkarti.mobil.depo.KartDepo;
 import tr.olcumkarti.mobil.depo.KartDepoPlugin;
 import tr.olcumkarti.mobil.kasa.KasaPlugin;
 import tr.olcumkarti.mobil.kesif.KesifPlugin;
@@ -48,6 +53,10 @@ public class MainActivity extends BridgeActivity {
                     return new WebResourceResponse("text/plain", "utf-8", 403, "Engellendi",
                             new HashMap<>(), new ByteArrayInputStream(new byte[0]));
                 }
+                // Ham kayit dosyasi (A24): aga cikmaz, uygulamanin ozel dizininden akitilir. Yalniz GET ve
+                // yalniz TAM bicimli adres (DepoYolu); depo on ekini tasiyan baska her istek 404.
+                String url = request.getUrl().toString();
+                if (DepoYolu.INSTANCE.depoAdresi(url)) return depoYaniti(url, request.getMethod());
                 return super.shouldInterceptRequest(view, request);
             }
 
@@ -57,5 +66,21 @@ public class MainActivity extends BridgeActivity {
                 return super.shouldOverrideUrlLoading(view, request);
             }
         });
+    }
+
+    private WebResourceResponse depoYaniti(String url, String yontem) {
+        HashMap<String, String> basliklar = new HashMap<>();
+        basliklar.put("Cache-Control", "no-store");
+        try {
+            String kimlik = DepoYolu.INSTANCE.kimlik(url);
+            File dosya = kimlik == null || !"GET".equals(yontem) ? null
+                    : new KartDepo(new File(getFilesDir(), KartDepoPlugin.DIZIN), Calendar::getInstance).veriDosyasi(kimlik);
+            if (dosya == null) {
+                return new WebResourceResponse("text/plain", "utf-8", 404, "Yok", basliklar, new ByteArrayInputStream(new byte[0]));
+            }
+            return new WebResourceResponse("application/octet-stream", null, 200, "OK", basliklar, new FileInputStream(dosya));
+        } catch (Exception e) {
+            return new WebResourceResponse("text/plain", "utf-8", 404, "Yok", basliklar, new ByteArrayInputStream(new byte[0]));
+        }
     }
 }

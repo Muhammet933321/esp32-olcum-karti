@@ -9,6 +9,10 @@ export const SEKMELER = Object.freeze([
 
 export const ILK_YOL = SEKMELER[0].yol;
 
+// Sekmenin ALTINDAKI rotalar (rota adi -> sekme adi): baslik ve secili sekme ust sekmeninkidir.
+export const ALT_ROTALAR = Object.freeze({ kayit: "kayitlar" });
+
 export function sekmeBul(ad) {
-  return SEKMELER.find((s) => s.ad === ad) || SEKMELER[0];
+  const asil = Object.hasOwn(ALT_ROTALAR, ad) ? ALT_ROTALAR[ad] : ad;
+  return SEKMELER.find((s) => s.ad === asil) || SEKMELER[0];
 }

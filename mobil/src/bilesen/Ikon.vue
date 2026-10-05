@@ -14,5 +14,7 @@ defineProps({ ad: { type: String, required: true } });
     <template v-else-if="ad === 'esitle'"><path d="M5 10a7 7 0 0 1 12-4l2 2M19 14a7 7 0 0 1-12 4l-2-2" /><path d="M19 4v4h-4M5 20v-4h4" /></template>
     <template v-else-if="ad === 'tamam'"><path d="M5 12.5l4.5 4.5L19 7.5" /></template>
     <template v-else-if="ad === 'uyari'"><path d="M12 4l9 16H3z" /><path d="M12 10v4M12 17h.01" /></template>
+    <template v-else-if="ad === 'ileri'"><path d="M9 5l7 7-7 7" /></template>
+    <template v-else-if="ad === 'geri'"><path d="M15 5l-7 7 7 7" /></template>
   </svg>
 </template>

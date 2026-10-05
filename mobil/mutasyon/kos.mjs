@@ -17,7 +17,8 @@ const KOK = resolve(MOBIL, "..");
 // derleme ciktilari kopyalanmaz.
 const KOPYALANMAZ = ["node_modules", "dist", "android/app/build", "android/build", "android/.gradle",
   "android/app/src/main/assets", "android/capacitor-cordova-android-plugins"];
-const BAGLANTILAR = [["ortak", join(KOK, "ortak")], ["uretim", join(KOK, "uretim")]];
+// arayuz3: panelin SAF kayit yardimcilari @panel ile ice aktarilir (5D-3); mutasyon hedefi OLAMAZ.
+const BAGLANTILAR = [["ortak", join(KOK, "ortak")], ["uretim", join(KOK, "uretim")], ["arayuz3", join(KOK, "arayuz3")]];
 
 function secenek(ad) {
   const i = process.argv.indexOf(ad);

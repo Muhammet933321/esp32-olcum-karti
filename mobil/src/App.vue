@@ -37,7 +37,7 @@ onBeforeUnmount(() => { kabuk.birak(); });
     <main id="icerik" class="icerik"><router-view /></main>
     <DurdurSeridi />
     <nav id="sekmeler" class="sekme" :aria-label="c('m.sk.gezinme')">
-      <router-link v-for="s in SEKMELER" :id="'sekme-' + s.ad" :key="s.ad" :to="s.yol"><Ikon :ad="s.ikon" /><span>{{ c(s.baslik) }}</span></router-link>
+      <router-link v-for="s in SEKMELER" :id="'sekme-' + s.ad" :key="s.ad" :to="s.yol" :class="{ secili: sekme.ad === s.ad }"><Ikon :ad="s.ikon" /><span>{{ c(s.baslik) }}</span></router-link>
     </nav>
   </div>
 </template>

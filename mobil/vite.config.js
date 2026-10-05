@@ -4,11 +4,19 @@ import { fileURLToPath } from "node:url";
 
 // ortak/ TEK KOPYA: ice aktarilir, kopyalanmaz, duzenlenmez (tasarim §3).
 const ortak = fileURLToPath(new URL("../ortak/src", import.meta.url));
+// Panelin SAF kayit yardimcilari (arayuz3/ekran/kayit_gorunum.js, kayitlar.js) kopyalanmadan ice aktarilir;
+// o dosyalar ortak modulleri "/ortak/..." diye cagirir.
+const panel = fileURLToPath(new URL("../arayuz3/ekran", import.meta.url));
+const TAKMA_ADLAR = [
+  { find: "@ortak", replacement: ortak },
+  { find: "@panel", replacement: panel },
+  { find: /^\/ortak\//, replacement: ortak + "/" },
+];
 
 export default defineConfig({
   base: "./",
   plugins: [vue()],
-  resolve: { alias: { "@ortak": ortak } },
+  resolve: { alias: TAKMA_ADLAR },
   server: { fs: { allow: [".."] } },
   build: { target: "chrome100", outDir: "dist", emptyOutDir: true },
 });

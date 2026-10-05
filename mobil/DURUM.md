@@ -571,3 +571,51 @@ kalibrasyon bayt bayt aynı; yarım kuyruk kırpılıyor, tam kayıt ileri sarı
 tetikleme (kayıt başlatmadım) · depolama dolu hali.
 
 Sırada 5D-3: Kayıtlar listesi + kayıt görünümü (ham dosya WebView'e yerel akıtmayla, çözme Worker'da).
+
+## 2026-10-05 (sabah, devam) — 5D-3: Kayıtlar listesi ve kayıt görünümü
+
+**Ne var:** Kayıtlar sekmesi telefondaki kopyadan liste (ad, tür, tarih, süre, "nerede: Kartta / Telefonda /
+Kart + telefon"), arama (ad · etiket · not · #numara) ve tür süzgeci; satıra dokununca kayıt görünümü: `ortak`
+`Grafik` (kıskaç + sürükleme), sağ eksen Akım/Güç, **görünen aralığın** istatistiği (ort / en az / en çok,
+mAh, Wh — ham veriden) ve notlar. Kart bağlı değilken de çalışır (son bağlanılan kartın kopyası).
+
+**Nasıl (A24):** ham dosya köprüden base64 ile DEĞİL, `https://localhost/_depo/<kimlik>/kayitlar.kyt` yerel
+adresinden okunur — ağa çıkmaz: `MainActivity` isteği yakalar, dosyayı özel dizinden akıtır (`DepoYolu.kt`
+biçimi tam eşlemeyle denetler; yalnız GET; başka her `_depo/` isteği 404). Çözme, oturum kurma, seriler ve
+özet piramidi Web Worker'da (`src/isci/kayit_isci.js`); Worker kurulamazsa aynı kod ana iş parçacığında.
+
+**Kararlarım:**
+1. **Panelin saf kayıt yardımcıları kopyalanmadan içe aktarılıyor** (`@panel` = `arayuz3/ekran`:
+   `grafikSerileri`, `okumaHesapla`, `listeBirlestir`, `satirSuz` …): PC ve telefon aynı kayıtta aynı sayıyı
+   verir, ~300 satır ince mantık ikinci kez yazılmadı. Bedeli: panel o dosyaları değiştirirse telefonun
+   testleri kırmızıya döner. `arayuz3/`'e DOKUNULMADI; `ortak/`'a taşıma isteği `DEVIR-ISTEK.md` #2.
+2. **"Ağa çıkan tek yol KartAg" testine dar istisna:** `src/` içinde `fetch` / `Worker` / `self` yasağı
+   sürüyor; yalnız üç dosya muaf ve her biri kendi dar kuralıyla denetleniyor — `depo_oku.js` (tek `fetch`,
+   adres kalıbı `^/_depo/<16 onaltılık>/kayitlar.kyt$` denetlenmeden istek yok, çerezsiz, yönlendirmesiz),
+   `isci_kur.js` (tek `new Worker`, sabit paket içi betik), `kayit_isci.js` (yalnız `self.onmessage` /
+   `postMessage`, kendi `fetch`'i yok). Yerel katmanda `WebKapi` paket dışı her adresi yine engelliyor.
+   Bu, onaylı A24'ün uygulanışı; güvenlik sınırı değişmedi ama testi ben gevşettiğim için ayrıca yazıyorum.
+3. İstatistik **görünen aralık** için (imleç çifti değil): telefonda aralığı parmakla yakınlaştırıp
+   kaydırarak seçmek doğal; panelin imleçleri dar ekranda zor.
+4. Yalnız kartta olan oturum açılmaz ("önce eşitle"); süre yazısı saniye çözünürlüğünde.
+
+**Gerçek kartın verisiyle (Xiaomi) görülenler:**
+- Liste gerçek oturumları adlarıyla gösterdi; oturum 61536 açıldı: grafik ve istatistik (11.224 V ort,
+  32 örnek, 31 s) canlı değerlerle tutarlı.
+- **Boş grafik kusuru:** eski bir test oturumu boş grafik + "0 örnek" gösterdi. Sebep veri: o oturum ADC
+  takılı değilken kaydedilmiş (her noktada "V ve I okunamadı" bayrağı). Kod doğruydu ama ekran sessizdi →
+  artık "bu oturumdaki N noktanın hiçbirinde geçerli ölçüm yok" diyor (`gecerli` sayımı + test + mutasyon).
+- Alt rotada başlık "Durum" çıkıyordu ve sekme seçili görünmüyordu → düzeltildi (`ALT_ROTALAR`).
+
+**Kanıt:** JS **444/444** (38 dosya), Kotlin birim testleri yeşil. Mutasyon `5D-kayit` **36/36** (ilk koşuda
+2 yaşayan mutasyon gereksiz iki korumayı gösterdi; korumalar kaldırıldı), Kotlin `DepoYolu` **3/3**.
+Mutasyon koşucusu kopyasına `arayuz3/` bağlantısı eklendi (yoksa panel içe aktarımı kopyada koşmuyordu ve
+bütün mutasyonlar "taban kırmızı" çıkıyordu).
+
+**⚠ YARIM KALDI (kullanıcı donanımı söktü, 2026-10-05 ~09:30):** son derleme (ADC'siz oturum mesajı, başlık
+düzeltmesi sonrası küçük değişiklikler) telefona KURULAMADI; telefonda en son kurulu sürüm bir önceki.
+Yapılacaklar: yeniden kur → ADC'siz oturumda yeni mesajı gör → pil ve osiloskop oturumlarını aç → kıskaç /
+sürükleme ile istatistiğin güncellendiğini gör → logcat taraması. Osiloskop oturumu şimdilik "çizilecek ölçüm
+yok" der (yakalama görünümü 5H'de).
+
+**Sırada:** 5D-4 (Ö6 grafik ölçüm aracı: 800 bin nokta, p95 < 33 ms), sonra 5D için bağımsız çürütücü turu.

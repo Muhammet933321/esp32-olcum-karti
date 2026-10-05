@@ -35,6 +35,12 @@ const YEREL_KAYNAK = agac("android/app/src/main/java", [".kt", ".java"]);
 const SINAMA_DOSYASI = "src/cekirdek/web_sinama.js";
 // WebRTC arayuzlerini KALDIRAN dosya (adlari liste olarak icerir, cagirmaz).
 const RTC_KAPAT_DOSYASI = "src/cekirdek/rtc_kapat.js";
+// A24 (5D-3): ham kayit dosyasinin YEREL okunmasi ve arka planda cozulmesi. Uc dosya, her birinin
+// icerigi asagida AYRICA ve DAR denetlenir (genel yasaktan muaf, kendi kuralina tabi).
+const DEPO_OKU_DOSYASI = "src/cekirdek/depo_oku.js";      // tek `fetch`: yalniz /_depo/<kimlik>/kayitlar.kyt
+const ISCI_KUR_DOSYASI = "src/cekirdek/isci_kur.js";      // tek `new Worker`: yalniz paketteki kendi betigimiz
+const ISCI_DOSYASI = "src/isci/kayit_isci.js";            // Worker kabugu: `self.onmessage` / `self.postMessage`
+const A24_DOSYALARI = [DEPO_OKU_DOSYASI, ISCI_KUR_DOSYASI, ISCI_DOSYASI];
 
 describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
   const IZINLI_YONERGELER = {
@@ -114,7 +120,7 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
     // Cagri, baska bir deger ya da baska bir bicim istisnaya GIRMEZ (asagida kendi sinamasi).
     const ortamAnahtari = (kod) => kod.replace(/\{ fetch: (?:ag\.)?[a-z][A-Za-z]*Fetch\b/g, "{ ORTAM");
     for (const yol of JS_KAYNAK) {
-      if (yol === SINAMA_DOSYASI || yol === RTC_KAPAT_DOSYASI) continue;
+      if (yol === SINAMA_DOSYASI || yol === RTC_KAPAT_DOSYASI || A24_DOSYALARI.includes(yol)) continue;
       expect(ortamAnahtari(yorumsuz(oku(yol))), yol).not.toMatch(YASAK);
     }
     for (const temiz of ["const o = { fetch: imzaliFetch, kaydet };", "ac(c, t, { fetch: ag.kartFetch, simdiMs });",
@@ -130,6 +136,84 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
       "const w = window; w[ad](u);", "globalThis[\"fe\" + \"tch\"](u);", "self.postMessage(x);",
     ]) {
       expect(ortamAnahtari(kirli), kirli).toMatch(YASAK);
+    }
+  });
+});
+
+describe("A24: yerel dosya okuma ve Worker — genel yasagin DAR istisnalari", () => {
+  const YASAK_DIGER = /XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|RTCDataChannel|importScripts|\bglobalThis\b|\bwindow\b|\beval\b|new Function/;
+
+  it("uc dosya da kaynak agacinda; baska hicbir dosya muaf degil", () => {
+    for (const d of A24_DOSYALARI) expect(JS_KAYNAK, d).toContain(d);
+    expect(A24_DOSYALARI.length).toBe(3);
+  });
+
+  it("depo_oku.js: TEK fetch, adres bicimi denetlendikten SONRA, cerezsiz ve yonlendirmesiz; baska ag yolu yok", () => {
+    const k = yorumsuz(oku(DEPO_OKU_DOSYASI));
+    expect(k.match(/\bfetch\b/g).length).toBe(1);
+    expect(k).toContain('fetch(url, { cache: "no-store", credentials: "omit", redirect: "error" })');
+    expect(k.indexOf("DEPO_ADRESI.test(url)")).toBeGreaterThan(0);
+    expect(k.indexOf("DEPO_ADRESI.test(url)")).toBeLessThan(k.indexOf("fetch(url"));
+    expect(k).toContain('if (typeof url !== "string" || !DEPO_ADRESI.test(url)) throw new DepoOkuHatasi("bicim");');
+    expect(k).not.toMatch(YASAK_DIGER);
+    expect(k).not.toMatch(/\bWorker\b|\bself\b/);
+    expect(k).not.toMatch(/^import /m);                       // bagimliligi yok: adres baska yerden gelemez
+  });
+
+  it("isci_kur.js: TEK Worker, betik paketteki kendi dosyamiz (sabit yol); fetch / self yok", () => {
+    const k = yorumsuz(oku(ISCI_KUR_DOSYASI));
+    expect(k.match(/\bWorker\b/g).length).toBe(1);
+    expect(k).toContain('new Worker(new URL("../isci/kayit_isci.js", import.meta.url), { type: "module" })');
+    expect(k).not.toMatch(YASAK_DIGER);
+    expect(k).not.toMatch(/\bfetch\b|\bself\b/);
+    expect(k).not.toMatch(/^import /m);
+  });
+
+  it("kayit_isci.js: self yalniz onmessage / postMessage; fetch YOK (okuma depo_oku.js'ten); Worker kurmaz", () => {
+    const k = yorumsuz(oku(ISCI_DOSYASI));
+    const selfKullanimlari = k.match(/\bself\b\.?\w*/g);
+    expect([...new Set(selfKullanimlari)].sort()).toEqual(["self.onmessage", "self.postMessage"]);
+    expect(k).toContain("const islemci = islemciKur({ getir: yerelOku });");
+    expect(k).not.toMatch(YASAK_DIGER);
+    expect(k).not.toMatch(/\bfetch\b|\bWorker\b/);
+    expect(k.match(/^import .*$/gm)).toEqual([
+      'import { yerelOku } from "../cekirdek/depo_oku.js";',
+      'import { islemciKur } from "../cekirdek/kayit_veri.js";',
+    ]);
+  });
+
+  it("yerelOku: bicime uymayan adreste istek HIC yapilmaz; uyan adreste TEK istek, govde bayt bayt", async () => {
+    const { DEPO_ADRESI, yerelOku } = await import("../src/cekirdek/depo_oku.js");
+    const { depoAdresi } = await import("../src/cekirdek/kayit_istemci.js");
+    const cagrilar = [];
+    const asil = globalThis.fetch;
+    let yanit = () => new Response(new Uint8Array([1, 2, 255]), { status: 200 });
+    globalThis.fetch = async (...a) => { cagrilar.push(a); return yanit(); };
+    try {
+      const K = "0123456789abcdef";
+      const kotu = [
+        null, undefined, 5, "", "/", `/_depo/${K}`, `/_depo/${K}/`, `/_depo/${K}/durum.json`, `/_depo/${K}/kayitlar.kyt?x=1`,
+        `/_depo/${K}/kayitlar.kyt#a`, `/_depo/${K}/../${K}/kayitlar.kyt`, "/_depo/../kasa/x", `/_depo/0123456789ABCDEF/kayitlar.kyt`,
+        `https://localhost/_depo/${K}/kayitlar.kyt`, `//evil.example/_depo/${K}/kayitlar.kyt`, `http://192.168.1.7/_depo/${K}/kayitlar.kyt`,
+        `/_depo/${K}/kayitlar.kyt\n`, ` /_depo/${K}/kayitlar.kyt`, `/_depo/${K}/kayitlarXkyt`, "http://192.168.1.7/kayit/veri",
+      ];
+      for (const u of kotu) await expect(yerelOku(u), String(u)).rejects.toMatchObject({ tur: "bicim" });
+      expect(cagrilar.length).toBe(0);
+      expect([...(await yerelOku(depoAdresi(K)))]).toEqual([1, 2, 255]);
+      expect(cagrilar).toEqual([[`/_depo/${K}/kayitlar.kyt`, { cache: "no-store", credentials: "omit", redirect: "error" }]]);
+      expect(DEPO_ADRESI.test(depoAdresi(K))).toBe(true);     // istemcinin urettigi adres = okuyucunun kabul ettigi
+      yanit = () => new Response(null, { status: 404 });
+      expect((await yerelOku(depoAdresi(K))).length).toBe(0);  // henuz esitlenmemis: bos kopya
+      for (const kod of [403, 500, 206, 204]) {
+        yanit = () => new Response(null, { status: kod });
+        await expect(yerelOku(depoAdresi(K)), String(kod)).rejects.toMatchObject({ tur: "okunamadi" });
+      }
+      globalThis.fetch = async () => { throw new TypeError("gizli yol /data/user/0"); };
+      const h = await yerelOku(depoAdresi(K)).catch((e) => e);
+      expect(h.tur).toBe("okunamadi");
+      expect(h.message).not.toContain("gizli");
+    } finally {
+      globalThis.fetch = asil;
     }
   });
 });

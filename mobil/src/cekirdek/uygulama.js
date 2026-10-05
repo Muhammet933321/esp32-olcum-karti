@@ -148,6 +148,35 @@ export async function kopyaBoyutu() {
   return depoKur(KartDepo, d.kimlik).boyutlar();
 }
 
+// ── kayitlar (5D-3: cekirdek/kayitlar.js + kayit_istemci.js; cozme Web Worker'da) ──
+let kayitlarSoz = null;
+
+async function kayitlarKurulum() {
+  const [k, i, d, w] = await Promise.all([import("./kayitlar.js"), import("./kayit_istemci.js"), import("./depo.js"), import("./isci_kur.js")]);
+  const istemci = i.kayitIstemciKur({
+    isciKur: w.kayitIsciKur,
+    // Worker kurulamazsa ayni islemci ana is parcaciginda: dosya yine YEREL adresten (depo_oku.js) okunur.
+    yedekKur: async () => {
+      const [v, o] = await Promise.all([import("./kayit_veri.js"), import("./depo_oku.js")]);
+      return v.islemciKur({ getir: o.yerelOku });
+    },
+  });
+  return k.kayitlarKur({
+    istemci, kartAl,
+    depoAl: (kimlik) => d.depoKur(KartDepo, kimlik),
+    sonKimlik: () => { const k2 = yerelOnbellek(localStorage).oku(); return k2 ? k2.kimlik : null; },
+  });
+}
+
+export function kayitlarAl() {
+  if (!kayitlarSoz) {
+    const yeni = kayitlarKurulum();
+    kayitlarSoz = yeni;
+    yeni.catch(() => { if (kayitlarSoz === yeni) kayitlarSoz = null; });
+  }
+  return kayitlarSoz;
+}
+
 export function canliAl() {
   if (!canliSoz) {
     const yeni = canliKurulum();

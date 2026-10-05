@@ -16,6 +16,8 @@ export function yonlendiriciKur() {
     routes: [
       { path: "/", redirect: ILK_YOL },
       ...SEKMELER.map((s) => ({ path: s.yol, name: s.ad, component: EKRANLAR[s.ad] })),
+      // Kayit gorunumu (A41): Kayitlar sekmesinin ALTINDA; tembel yuklenir (grafik + panel yardimcilari).
+      { path: "/kayitlar/:oturum(\\d+)", name: "kayit", component: () => import("./ekran/Kayit.vue") },
       { path: "/:bilinmeyen(.*)*", redirect: ILK_YOL },
     ],
   });

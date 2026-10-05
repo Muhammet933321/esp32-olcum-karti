@@ -132,6 +132,16 @@ export default [
   { ad: "5D-K: sifirla dizini birakiyor", dosya: DEPO + "KartDepo.kt",
     bul: "        if (!d.delete() && d.exists()) throw DepoHatasi(\"yazilamadi\")\n    }\n\n    /** Depolama", koy: "    }\n\n    /** Depolama",
     kirmizi: "KartDepoTest.sifirla_yalnizOKartinDosyalari_sonraBos" },
+  // ── 5D-3 yerel dosya akitma (DepoYolu) ──
+  { ad: "5D-K: depo adresi buyuk harfli kimligi kabul ediyor (dosya sistemi ayni dizine gidebilir)", dosya: DEPO + "DepoYolu.kt",
+    bul: "([0-9a-f]{16})/kayitlar", koy: "([0-9a-fA-F]{16})/kayitlar",
+    kirmizi: "DepoYoluTest.baskaHerBicimReddedilir" },
+  { ad: "5D-K: depo adresi tam esleme yerine icinde arama yapiyor", dosya: DEPO + "DepoYolu.kt",
+    bul: "BICIM.matchEntire(url)", koy: "BICIM.find(url)",
+    kirmizi: "DepoYoluTest.baskaHerBicimReddedilir" },
+  { ad: "5D-K: depo on ekini tasiyan bozuk adres dosya sunucusuna birakiliyor", dosya: DEPO + "DepoYolu.kt",
+    bul: "fun depoAdresi(url: String?): Boolean = url != null && url.startsWith(ON_EK)", koy: "fun depoAdresi(url: String?): Boolean = kimlik(url) != null",
+    kirmizi: "DepoYoluTest.depoOnEkiTasiyanBozukAdresDosyaSunucusunaBirakilmaz" },
   // ── 5C curutucu duzeltmeleri (DURUM 2026-10-05, bulgu 1, 8, 10) ─────────
   {
     ad: "5C-KD: p0'da her 2xx basari sayiliyor (kart olmayan adres 'durduruldu' der)",
