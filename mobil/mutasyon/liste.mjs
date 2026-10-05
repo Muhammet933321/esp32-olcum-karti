@@ -9,6 +9,8 @@ import akis from "./akis-liste.mjs";
 import kabuk from "./kabuk-liste.mjs";
 import curutucu5c from "../test/curutucu-5c/yasayan-liste.mjs";
 import duzeltme5c from "./duzeltme5c-liste.mjs";
+import depo from "./depo-liste.mjs";
+import esitleme from "./esitleme-liste.mjs";
 
 export default [
   ...curutucu.map((m) => ({ ...m, ad: `5A-7 ${m.ad}` })),
@@ -16,6 +18,8 @@ export default [
   ...curutucu5b,
   ...curutucu5c,
   ...duzeltme5c,
+  ...depo,
+  ...esitleme,
   ...p0,
   ...akis,
   ...kabuk,

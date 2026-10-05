@@ -4,6 +4,7 @@
 // acilir: ACIL DURDUR seridi ve sekmeler o sirada da yerinde kalir.
 import { ref } from "vue";
 import Baglanti from "./Baglanti.vue";
+import EsitlemeAyar from "./EsitlemeAyar.vue";
 import KartBul from "./KartBul.vue";
 import { c, dil, tema, tercihSec } from "./metin.js";
 import { DILLER, TEMALAR } from "./tercih.js";
@@ -17,6 +18,9 @@ const TEMA_ADI = { sistem: "m.ay.tema_sistem", koyu: "m.ay.tema_koyu", acik: "m.
   <div class="ekran">
     <h2 class="bolum-baslik">{{ c("m.ay.kart") }}</h2>
     <section id="ay-kart" class="kart"><Baglanti /></section>
+
+    <h2 class="bolum-baslik">{{ c("m.ay.esitleme") }}</h2>
+    <section id="ay-esitleme" class="kart"><EsitlemeAyar /></section>
 
     <h2 class="bolum-baslik">{{ c("m.ay.gorunum") }}</h2>
     <section id="ay-gorunum" class="kart">

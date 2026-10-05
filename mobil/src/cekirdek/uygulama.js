@@ -11,7 +11,8 @@
 import { agKur } from "./ag.js";
 import { durdurKur } from "./durdur.js";
 import { KART_ADI } from "./hedef.js";
-import { KartAg, Kasa, Kesif } from "./eklenti.js";
+import { KartAg, KartDepo, Kasa, Kesif } from "./eklenti.js";
+import { onayOku, onayYaz } from "./esitleme_ayar.js";
 import { kartKur } from "./kart.js";
 import { kasaKur } from "./kasa.js";
 import { kesifKur, yerelOnbellek } from "./kesif.js";
@@ -106,6 +107,45 @@ async function canliKurulum() {
   const [modul, p] = await Promise.all([yukle(), parcalar()]);
   if (!modul || typeof modul.canliKur !== "function") throw new UygulamaHatasi("canli-yok");
   return modul.canliKur({ kart: p.kart, ag: p.ag, eklenti: KartAg, simdiMs: Date.now, yenidenBul: true });
+}
+
+// ── kayit esitleme (5D: cekirdek/esitleme.js + depo.js) ──────────────────
+// Tembel ice aktarma: ortak/src/esitle.js + kayit.js acilis paketine girmez.
+let esitlemeSoz = null;
+
+async function esitlemeKurulum() {
+  const [e, d] = await Promise.all([import("./esitleme.js"), import("./depo.js")]);
+  return e.esitlemeKur({
+    kartAl,
+    depoAl: (kimlik) => d.depoKur(KartDepo, kimlik),
+    onayAcik: esitlemeOnayi,                     // A21: varsayilan KAPALI; her turda yeniden okunur
+  });
+}
+
+export function esitlemeAl() {
+  if (!esitlemeSoz) {
+    const yeni = esitlemeKurulum();
+    esitlemeSoz = yeni;
+    yeni.catch(() => { if (esitlemeSoz === yeni) esitlemeSoz = null; });
+  }
+  return esitlemeSoz;
+}
+
+export function esitlemeOnayi() {
+  try { return onayOku(localStorage); } catch { return false; }
+}
+
+export function esitlemeOnayiYaz(acik) {
+  try { return onayYaz(localStorage, acik); } catch { return false; }
+}
+
+// Ayarlar'in depolama satiri: bagli / eslesmis kartin kopyasinin boyutu. Kart bilinmiyorsa null.
+export async function kopyaBoyutu() {
+  const kart = await kartAl();
+  const d = kart.durum();
+  if (!d || typeof d.kimlik !== "string") return null;
+  const { depoKur } = await import("./depo.js");
+  return depoKur(KartDepo, d.kimlik).boyutlar();
 }
 
 export function canliAl() {

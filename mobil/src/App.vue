@@ -7,14 +7,14 @@ import { computed, onBeforeUnmount, onMounted, provide, ref } from "vue";
 import { useRoute } from "vue-router";
 import DurdurSeridi from "./bilesen/DurdurSeridi.vue";
 import Ikon from "./bilesen/Ikon.vue";
-import { canliAl, kartAl } from "./cekirdek/uygulama.js";
+import { canliAl, esitlemeAl, kartAl } from "./cekirdek/uygulama.js";
 import { VARSAYILAN_HIZ_MS } from "./ekran/canli_gorunum.js";
 import { baglantiGorunumu } from "./ekran/durum_gorunum.js";
 import { kabukDurumu } from "./ekran/kabuk_durum.js";
 import { c } from "./ekran/metin.js";
 import { SEKMELER, sekmeBul } from "./ekran/sekmeler.js";
 
-const kabuk = kabukDurumu({ kartAl, canliAl, belge: document });
+const kabuk = kabukDurumu({ kartAl, canliAl, esitlemeAl, belge: document });
 provide("kabuk", kabuk);
 provide("kayitHizi", ref(VARSAYILAN_HIZ_MS));     // Durum ve Canli ayni secimi kullanir
 

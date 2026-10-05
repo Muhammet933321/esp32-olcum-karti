@@ -66,6 +66,45 @@ export function oturumKilidi(tur) {
   return { saltOkuma: false, rozet: null, aciklama: null };
 }
 
+// ── kayit esitlemesi (A20–A23) ───────────────────────────────────────────
+// Hata turu -> metin anahtari. Listede olmayan tur genel metne duser (tur degeriyle).
+const ESIT_HATA = Object.freeze({
+  "bagli-degil": "m.es.hata_bagli_degil",
+  ag: "m.es.hata_ag",
+  mesgul: "m.es.hata_mesgul",
+  "kopya-uyusmuyor": "m.es.hata_kopya",
+  "depo-bozuk": "m.es.hata_kopya",
+  depo: "m.es.hata_depo",
+  "yanit-bozuk": "m.es.hata_yanit",
+  "cihaz-silinmis": "m.es.hata_silinmis",
+});
+
+// kabuk.esitleme + baglanti -> { anahtar, degerler, sinif, suruyor, dugme, sifirlaOner, ek }
+//   dugme: "Simdi esitle" basilabilir mi (kart BAGLI ve esitleme surmuyor)
+//   ek: ikinci satir (uyari) anahtari | null
+export function esitlemeGorunumu(e, baglanti, simdiMs = 0) {
+  const bagli = Boolean(baglanti) && baglanti.durum === "bagli";
+  const sonuc = (anahtar, sinif = "", ek = null) => ({
+    anahtar, degerler: null, sinif, suruyor: false, dugme: bagli, sifirlaOner: false, ek: null, ...ek,
+  });
+  if (!e || e.hazir === false) return sonuc("m.es.yok", "", { dugme: false });
+  if (e.hal === "esitleniyor") return sonuc("m.es.suruyor", "", { suruyor: true, dugme: false });
+  if (e.hal === "hata") {
+    const bilinen = Object.hasOwn(ESIT_HATA, e.hata) ? ESIT_HATA[e.hata] : null;
+    return sonuc(bilinen || "m.es.hata_genel", "uyari", {
+      degerler: bilinen ? null : { tur: typeof e.hata === "string" ? e.hata : "?" },
+      sifirlaOner: e.sifirlaOner === true,
+      ek: e.sifirlaOner === true ? "m.es.sifirla_oner" : null,
+    });
+  }
+  if (e.hal === "tamam") {
+    const dk = e.sonMs === null ? 0 : Math.max(0, Math.floor((simdiMs - e.sonMs) / 60000));
+    const ek = e.bekleyen > 0 ? "m.es.bekleyen" : (e.bosluk > 0 ? "m.es.bosluk" : null);
+    return sonuc(dk === 0 ? "m.es.tamam_simdi" : "m.es.tamam", "iyi", { degerler: dk === 0 ? null : { dk }, ek });
+  }
+  return sonuc(bagli ? "m.es.bekliyor" : "m.es.kart_yok");
+}
+
 const iki = (n) => String(n).padStart(2, "0");
 
 // ms -> "01:24:10" (saat 24'u gecebilir)

@@ -1,13 +1,13 @@
 <script setup>
 // Durum (A39): baglanti + eslesme + aktif kayit karti (kartin G satirindan) + kayit dugmesi +
-// esitleme satiri (5D'ye kadar yer tutucu). Kararlar durum_gorunum.js'te (DOM'suz sinanir).
+// esitleme satiri + "Simdi esitle" (5D). Kararlar durum_gorunum.js'te (DOM'suz sinanir).
 import { computed, inject } from "vue";
 import { useRouter } from "vue-router";
 import CanliGrafik from "../bilesen/CanliGrafik.vue";
 import Ikon from "../bilesen/Ikon.vue";
 import KayitDugmesi from "./KayitDugmesi.vue";
 import { BIRIM, canliHali } from "./canli_gorunum.js";
-import { baglantiGorunumu, kayitGorunumu, olcumYazilari, oturumKilidi, YOK } from "./durum_gorunum.js";
+import { baglantiGorunumu, esitlemeGorunumu, kayitGorunumu, olcumYazilari, oturumKilidi, YOK } from "./durum_gorunum.js";
 import { c, yaz } from "./metin.js";
 import { sekmeBul } from "./sekmeler.js";
 
@@ -24,6 +24,7 @@ const kayit = computed(() => kayitGorunumu(kabuk.akis.value.kayit, kabuk.izleme.
 const hal = computed(() => canliHali({ baglanti: kabuk.baglanti.value, araniyor: kabuk.araniyor.value, akis: kabuk.akis.value }));
 const olcum = computed(() => olcumYazilari(hal.value.akiyor ? kabuk.akis.value.son : null));
 const kilit = computed(() => oturumKilidi(kabuk.oturumTuru.value));
+const esit = computed(() => esitlemeGorunumu(kabuk.esitleme.value, kabuk.baglanti.value, kabuk.simdi.value));
 const hizYazi = computed(() => (kayit.value.hiz ? (kayit.value.hiz.yaklasik ? "~" : "") + yaz(kayit.value.hiz) : YOK));
 const yuzdeYaz = (y) => (y === null ? YOK : c("m.dr.yuzde", { n: y }));
 const en = (y) => ({ width: (y === null ? 0 : y) + "%" });
@@ -63,6 +64,10 @@ const ayarlaraGit = () => yonlendirici.push(sekmeBul("ayarlar").yol);
 
     <KayitDugmesi :hiz-ms="hiz" />
 
-    <div id="dr-esitleme" class="esit"><Ikon ad="esitle" /><span>{{ c("m.dr.esitleme_yakinda") }}</span></div>
+    <div id="dr-esitleme" class="esit" :class="esit.sinif" role="status">
+      <Ikon ad="esitle" /><span>{{ c(esit.anahtar, esit.degerler) }}</span>
+    </div>
+    <p v-if="esit.ek" id="dr-esitleme-ek" class="bilgi uyari">{{ c(esit.ek) }}</p>
+    <button id="dr-esitle" type="button" class="dugme" :disabled="!esit.dugme" @click="kabuk.simdiEsitle()">{{ c("m.es.simdi") }}</button>
   </div>
 </template>

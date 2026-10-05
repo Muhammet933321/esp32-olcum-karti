@@ -5,3 +5,4 @@ import { registerPlugin } from "@capacitor/core";
 export const KartAg = registerPlugin("KartAg");
 export const Kesif = registerPlugin("Kesif");
 export const Kasa = registerPlugin("Kasa");
+export const KartDepo = registerPlugin("KartDepo");

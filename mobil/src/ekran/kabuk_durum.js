@@ -1,7 +1,7 @@
 // Kabugun ortak durumu: kart baglantisi + canli akis (A6, A39, A40). App.vue BIR kez kurar ve
 // ekranlara `provide("kabuk", ...)` ile verir; ekranlar kart / canli nesnesini kendileri KURMAZ.
 //
-//   const k = kabukDurumu({ kartAl, canliAl, belge: document });
+//   const k = kabukDurumu({ kartAl, canliAl, esitlemeAl, belge: document });
 //   k.ac();                      // uygulama acildi / one geldi: karti bul, eslesmisse akisi ac
 //   k.kapat();                   // arka plana gecti: akis HEMEN kapanir (kartta 4 akis yuvasi var)
 //   k.birak();                   // dinleyiciler ve zamanlayici kalkar
@@ -9,6 +9,9 @@
 //   k.mesgulYap(true / false)    // suren kullanici islemi (eslestirme): o sirada kart yeniden ARANMAZ
 //   k.kayitBaslat(hizMs) / k.kayitDurdur()  -> Promise (reddederse hata turuyle)
 //   k.seri()                     // canli.seri() | null
+//   k.esitleme (ref)             // kayit esitlemesinin durumu (A20–A23): uygulama ondeyken, baglaninca,
+//                                // kayit bitince ve 60 s'de bir kendiliginden; k.simdiEsitle() elle
+//   k.kopyaSifirla()             // telefondaki kopyayi siler (A23)
 //
 // ACIL DURDUR buradan GECMEZ (kendi yolu: cekirdek/uygulama.js acilDurdur).
 
@@ -34,8 +37,10 @@ export class KabukHatasi extends Error {
   }
 }
 
+export const ESITLEME_YOK = Object.freeze({ hazir: null, hal: "bos", sonMs: null, yeni: 0, sonSira: null, bosluk: 0, bekleyen: 0, hata: null, sifirlaOner: false, onayli: false });
+
 export function kabukDurumu({
-  kartAl, canliAl, belge = null, simdiMs = Date.now,
+  kartAl, canliAl, esitlemeAl = null, belge = null, simdiMs = Date.now,
   araliKur = (fn, ms) => setInterval(fn, ms), araliSil = (no) => clearInterval(no),
 }) {
   const baglanti = shallowRef(null);
@@ -46,6 +51,7 @@ export function kabukDurumu({
   const izleme = shallowRef(null);
   const cizim = ref(0);                 // her yeni olcumde artar: grafikler bunu izler
   const oturumTuru = ref(null);         // etkin kaydin turu (1 olcum, 2 pil, 3 skop) | null = bilinmiyor
+  const esitleme = shallowRef(ESITLEME_YOK);   // kayit esitlemesinin durumu (5D); hazir: null bilinmiyor / false yok / true
 
   let gorunur = false;
   let canli = null;
@@ -57,6 +63,9 @@ export function kabukDurumu({
   let sonDeneme = 0;
   let hataBasi = null;
   let zamanlayici = null;
+  let esit = null;                      // esitleme dongusu (tembel kurulur)
+  let esitKuruluyor = false;
+  let oncekiBagli = false;
 
   const ozet = (b) => (b ? { durum: b.durum, adres: b.adres || null, kimlik: b.kimlik || null } : null);
 
@@ -79,6 +88,8 @@ export function kabukDurumu({
       // Bekleyen hiz yalniz TAZE ise ve kaydin basladigini GORDUYSEK (BOS -> KAYIT) o kayda aittir.
       const bizim = bekleyenHiz !== null && t - bekleyenHiz.t <= HIZ_OMRU_MS && onceki !== null && onceki.durum === KDR.BOS;
       izleme.value = kayitIzle(onceki, d.kayit, t, bizim ? bekleyenHiz.ms : null);
+      // Kayit BITTI (KAYIT -> baska hal): son kayitlar hemen telefona alinir (A22).
+      if (esit && onceki && onceki.durum === KDR.KAYIT && izleme.value && izleme.value.durum !== KDR.KAYIT) esit.kayitBitti();
       if (izleme.value && izleme.value.durum === KDR.KAYIT) bekleyenHiz = null;
       turIzle(d.kayit);
     }
@@ -163,9 +174,57 @@ export function kabukDurumu({
     akisKapat();
   }
 
+  // Esitleme dongusu ilk gerektiginde kurulur; modul yoksa / yuklenemezse `hazir: false`.
+  async function esitlemeKur() {
+    if (esit || esitKuruluyor || typeof esitlemeAl !== "function") return;
+    esitKuruluyor = true;
+    try {
+      const e = await esitlemeAl();
+      e.dinle((d) => { esitleme.value = { hazir: true, ...d }; });
+      esitleme.value = { hazir: true, ...e.durum() };
+      esit = e;
+    } catch {
+      esitleme.value = { ...ESITLEME_YOK, hazir: false };
+    } finally {
+      esitKuruluyor = false;
+    }
+  }
+
+  // Saniyede bir: uygulama ondeyken ve kart BAGLI (eslesmis) iken. Yeni baglantida hemen, sonra 60 s'de bir.
+  function esitlemeTik() {
+    const b = baglanti.value;
+    const bagli = Boolean(b) && b.durum === "bagli";
+    if (!esit) {
+      if (gorunur && bagli) esitlemeKur();
+      oncekiBagli = false;               // kurulunca "yeni baglanti" sayilsin
+      return;
+    }
+    if (gorunur && bagli && !oncekiBagli) esit.baglandi();
+    else esit.tik({ gorunur, bagli });
+    oncekiBagli = gorunur && bagli;
+  }
+
+  // "Simdi esitle": ASLA atmaz; esitleme yoksa null.
+  async function simdiEsitle() {
+    if (!esit) await esitlemeKur();
+    return esit ? esit.simdi() : null;
+  }
+
+  // "Kopyayi sifirla" (A23). Hata TUR olarak atilir.
+  async function kopyaSifirla() {
+    if (!esit) await esitlemeKur();
+    if (!esit) throw new KabukHatasi("esitleme-yok");
+    try {
+      await esit.sifirla();
+    } catch (e) {
+      throw new KabukHatasi(e && typeof e.tur === "string" ? e.tur : "?");
+    }
+  }
+
   function tik() {
     const t = simdiMs();
     simdi.value = t;
+    esitlemeTik();
     if (!gorunur || araniyor.value || mesgul > 0) return;
     const b = baglanti.value;
     if ((!b || b.durum === "bulunamadi") && t - sonDeneme >= YENIDEN_DENE_MS) { yenidenBaglan(); return; }
@@ -249,7 +308,8 @@ export function kabukDurumu({
   }
 
   return {
-    baglanti, araniyor, akis, sonGorulme, simdi, izleme, cizim, oturumTuru,
+    baglanti, araniyor, akis, sonGorulme, simdi, izleme, cizim, oturumTuru, esitleme,
     ac, kapat, birak, yenidenBaglan, baglantiDegisti, kayitBaslat, kayitDurdur, seri, gorunurlukDegisti, mesgulYap,
+    simdiEsitle, kopyaSifirla,
   };
 }

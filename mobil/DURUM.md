@@ -532,3 +532,42 @@ değişmişti; mutasyon yeni satıra uyarlandı ve tek başına koşuldu → öl
   yine hemen gider.
 
 JS 357/357, Kotlin yeşil. 5D planı `tasarim/2026-10-04-plan-5-android.md` sonunda (5D-1…5D-4).
+
+## 2026-10-05 (sabah) — 5D-1 ve 5D-2: kayıtlar telefona eşitleniyor
+
+Plan: `tasarim/2026-10-04-plan-5-android.md` sonu (5D-1 depo · 5D-2 döngü · 5D-3 Kayıtlar/grafik · 5D-4 Ö6).
+
+**5D-1 — depo.** `android/.../depo/KartDepo.kt` (saf, JVM'de sınanır) + `KartDepoPlugin.kt` (tek iş parçacığı,
+bayt base64, hata TÜR adıyla) + `src/cekirdek/depo.js` (`esitle.js` DEPO arayüzü). Dosyalar PC ile aynı:
+`files/kart/<kimlik>/kayitlar.kyt`, `durum.json`, `kalibrasyon.json` (+ zaman damgalı arşiv). Ekleme `fsync`'ten
+sonra döner; durum/kalibrasyon atomik (geçici dosya → yeniden adlandırma); kimlik yalnız 16 onaltılık hane.
+Kararlarım: bozuk `durum.json` "boş depo" SAYILMAZ (`DepoHatasi("bozuk")` — yoksa eşitleyici baştan yazıp
+kopyanın üstüne binerdi) · kilit süreç içi ve kimliğe bağlı · eşitleme sürerken "sıfırla" reddedilir.
+
+**5D-2 — döngü.** `src/cekirdek/esitleme.js`: iş `ortak/src/esitle.js` `Esitleyici`'de (tek kopya); burada ne
+zaman koşacağı. Uygulama öndeyken: bağlanınca, kayıt bitince, 60 s'de bir, elle "Şimdi eşitle"; arka planda
+yok (A22). İstek başları arası ≥ 100 ms, parça 8192 B, bütün istekler imzalı ve `kart.istek` üzerinden.
+**Varsayılan ONAYSIZ (A21):** ayar yalnız kesin `"1"` ise açık; anahtar Ayarlar › Eşitleme'de, açıklamasıyla.
+Tur sürerken gelen olay (kayıt bitti) tur bitince BİR tur daha koşturur (kaydın sonu 60 s beklemesin).
+Hata ekrana tür olarak çıkar; kopya kartla bağdaşmıyorsa (akış kimliği değişti, dosya kısa, durum bozuk)
+"Kopyayı sıfırla" önerilir (A23; iki dokunuş; yalnız telefondaki kopya silinir).
+
+**Kanıt:** JS **404/404** (36 dosya), Kotlin birim testleri yeşil. Mutasyon: `5D-depo` 16/16, `5D-K` 8/8,
+`5D-esit` 38/38. Eşdeğerlik: aynı sahte karttan `bellekDepo`'ya ve dosya deposuna eşitlenen akış, durum ve
+kalibrasyon bayt bayt aynı; yarım kuyruk kırpılıyor, tam kayıt ileri sarılıyor, kısa dosyada duruyor.
+
+**Xiaomi + gerçek kart (ev ağı özel IP, Wi-Fi; yalnız salt okuma uçları, `Go` YOK):**
+- İlk eşitleme kendiliğinden başladı: **1 397 844 B ≈ 40 s** (2501 kayıt). Canlı akış o sırada akmaya devam etti.
+- Telefondaki dosya bilgisayara çekilip `ortak/src/kayit.js` ile çözüldü: CRC'ler geçerli, sıralar kesintisiz;
+  PC arşiviyle örtüşen **2471 kaydın hepsi bayt bayt aynı** (telefon 30 kayıt daha yeni). Çekilen kopya silindi.
+- `durum.json`'da `onaylanan: 0`; kartın onay noktası değişmedi (onay kapalı).
+- "Kopyayı sıfırla": ilk dokunuşta silinmedi, ikincide silindi, ardından kendiliğinden baştan indi (aynı boy).
+- Logcat taraması temiz (1091 satır, 0 sır).
+- **Gerçek kartta bulunan kusur:** ilk eşitlemede "kopyada boşluk kaldı" uyarısı çıkıyordu — kartın akışı
+  1'den başlamıyor (eski kayıtlar onaylanıp silinmiş), bu olağan. Düzeltme: 1'den başlayan boşluk sayılmaz
+  (`bosluklar()`); önce kırmızı test, sonra düzeltme + 2 mutasyon. Sahte kart hep 1'den başladığı için görünmemişti.
+
+**Telefonda DENENMEYEN:** onay AÇIK yol (`Go` karta gider — yasak; yalnız sahte kartla sınandı) · kayıt bitince
+tetikleme (kayıt başlatmadım) · depolama dolu hali.
+
+Sırada 5D-3: Kayıtlar listesi + kayıt görünümü (ham dosya WebView'e yerel akıtmayla, çözme Worker'da).

@@ -6,6 +6,7 @@
 // fsync'in kalkmasi JVM testinde gozlenemez (elektrik kesmesi gerekir): bilerek listede YOK.
 const KASA = "android/app/src/main/java/tr/olcumkarti/mobil/kasa/";
 const AG = "android/app/src/main/java/tr/olcumkarti/mobil/ag/";
+const DEPO = "android/app/src/main/java/tr/olcumkarti/mobil/depo/";
 
 export default [
   {
@@ -106,6 +107,31 @@ export default [
     koy: "",
     kirmizi: "AkisTest.kapat_blokluOkumayiHemenKeser_tekBitis_sonrasindaSatirYok",
   },
+  // ── 5D-1 KartDepo ──
+  { ad: "5D-K: kimlik bicimi denetlenmiyor (yol kacisi)", dosya: DEPO + "KartDepo.kt",
+    bul: "if (kimlik == null || !KIMLIK.matches(kimlik)) throw DepoHatasi(\"bicim\")", koy: "if (kimlik == null) throw DepoHatasi(\"bicim\")",
+    kirmizi: "KartDepoTest.kimlikYalniz16OnaltilikHane_yolKacisiYok" },
+  { ad: "5D-K: ekleme dosyanin ustune yaziyor (sona eklemiyor)", dosya: DEPO + "KartDepo.kt",
+    bul: "FileOutputStream(f, true).use { a ->", koy: "FileOutputStream(f, false).use { a ->",
+    kirmizi: "KartDepoTest.ekle_sonaEkler_boyDoner_parcaliOkumaAyniBaytlar" },
+  { ad: "5D-K: okuma bas konumuna gitmiyor", dosya: DEPO + "KartDepo.kt",
+    bul: "                r.seek(bas)\n", koy: "",
+    kirmizi: "KartDepoTest.ekle_sonaEkler_boyDoner_parcaliOkumaAyniBaytlar" },
+  { ad: "5D-K: kirpma dosya boyunu degistirmiyor", dosya: DEPO + "KartDepo.kt",
+    bul: "                r.setLength(n)\n", koy: "",
+    kirmizi: "KartDepoTest.kirp_kisaltir_uzatirsaSifirDoldurur" },
+  { ad: "5D-K: durum gecici dosyaya degil dogrudan hedefe yaziliyor (yarim durum gorulebilir)", dosya: DEPO + "KartDepo.kt",
+    bul: "val g = File(hedef.parentFile, hedef.name + GECICI_EK)", koy: "val g = File(hedef.parentFile, hedef.name)",
+    kirmizi: "KartDepoTest.durumVeKalibrasyon_atomik_geciciKalintiOkumayiEtkilemez" },
+  { ad: "5D-K: arsiv ayni adin ustune yaziyor", dosya: DEPO + "KartDepo.kt",
+    bul: "while (File(d, ad).exists()) {", koy: "while (false) {",
+    kirmizi: "KartDepoTest.arsiv_zamanDamgaliAd_cakismadaNumara_icerikAyni" },
+  { ad: "5D-K: okuma tavani yok", dosya: DEPO + "KartDepo.kt",
+    bul: "if (bas < 0 || azami < 1 || azami > OKUMA_AZAMI) throw DepoHatasi(\"bicim\")", koy: "if (bas < 0 || azami < 1) throw DepoHatasi(\"bicim\")",
+    kirmizi: "KartDepoTest.sinirlar_okumaYazmaKirpma" },
+  { ad: "5D-K: sifirla dizini birakiyor", dosya: DEPO + "KartDepo.kt",
+    bul: "        if (!d.delete() && d.exists()) throw DepoHatasi(\"yazilamadi\")\n    }\n\n    /** Depolama", koy: "    }\n\n    /** Depolama",
+    kirmizi: "KartDepoTest.sifirla_yalnizOKartinDosyalari_sonraBos" },
   // ── 5C curutucu duzeltmeleri (DURUM 2026-10-05, bulgu 1, 8, 10) ─────────
   {
     ad: "5C-KD: p0'da her 2xx basari sayiliyor (kart olmayan adres 'durduruldu' der)",
