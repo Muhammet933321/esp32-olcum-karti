@@ -1093,3 +1093,54 @@ Logcat: çökme ve sır izi yok.
 **Küçük gözlemler (düzeltilmedi):** veri gelmezken Durum'daki kayıt süresi sayacı saymayı sürdürüyor ("Kayıt
 sürüyor 00:01:44") — durum bilinmiyorken dondurulabilir. Telefonun Wi-Fi'ı B testinden kapalı kalmıştı; kart
 "ulaşılamıyor" görünmesinin sebebi buydu (telefonun ağ ayarına ben dokunmuyorum).
+
+## 2026-10-05 (gece, 6) — sayaç dondurma + çürütücüden kalan kartsız üç kalem (K-7, K-8, K-13)
+
+**Kullanıcı kararları (A testinden sonra):** 30 s'lik pil penceresi şimdilik KABUL (tam çözüm firmware işi, K8 —
+dokunulmadı) · 1.76 V (Vref) ve 11.2 V (yalnız USB) okumaları için uygulamaya bir şey eklenmedi (firmware notu K9).
+
+**1. Veri gelmezken kayıt süresi sayacı DONAR (kullanıcı isteği).** `kayitGorunumu` artık tazelik (`akış hali ==
+"acik"`) ve son verinin anını alıyor. Veri gelmiyorken: süre son verinin anında donar, rozet "Kayıt sürüyor" yerine
+**"Kayıt sürüyordu"** (uyarı rengi) olur, kartın altında **"Veri gelmiyor: bu, son bilinen durum — son veri N sn
+önce"** yazar. Kendi kararlarım: (a) rozeti de değiştirdim — donmuş bir sayacın yanında "sürüyor" demek aynı
+yanılgıyı sürdürürdü; (b) son verinin anı bilinmiyorsa süre hiç gösterilmez ("—"), uydurulmaz; (c) satır kayıt
+YOKKEN de yazılır (bellek/eşitlenmemiş yüzdeleri de son bilinen değerdir). Canlı ekranında kayıt süresi yok,
+orada değişiklik gerekmedi. Kanıt: 5 yeni test (biri kabukla uçtan uca), DG mutasyonları 43/43 (7 yeni).
+
+**2. K-13 — yoklama "kart yeniden başladı"yı artık söylüyor.** Kart iki yoklama ARASINDA yeniden başladıysa
+(açılış numarası değişti) ve kayıt sürüyorduysa: aynı oturum sürüyorsa "yeniden başladı — kayıt kesildi ve
+sürüyor"; pil/skop oturumu artık sürmüyorsa "yeniden başladı — … kesildi" (eskiden sıradan "kayıt bitti"
+deniyordu). Karar katmanına kartın o açılışta yayınladığı (kalıcı olmayan) olayın karşılığı verilir → metin,
+sınıf ve etiket anlık izlemeyle AYNI (testte servis etiketiyle karşılaştırılıyor). Kendi kararım: ölçüm oturumu
+(tür 1) yeniden başlamadan sonra bitmişse sıradan "kayıt bitti" kalır — ölçüm açılışta sürer, bitiş sonradan
+olmuştur. Kırmızı test önce yazıldı (2 kırmızı). Mutasyon K13 8/8.
+
+**3. K-8 — özet dosyasına eşzamanlı yazım.** (a) `AtomikYazim.yaz` tek kilit altında (geçici dosya adı sabit; iki
+yazar birbirinin yarım dosyasını taşıyabiliyordu). (b) Özetin oku-değiştir-yaz'ı tek parça:
+`BildirimDeposu.durumGuncelle`; servis (iki yer) ve yoklama yalnız bunu kullanıyor (kaynak testi eski kalıbın
+kalmadığını ölçüyor). Kilit sırası: servisin karar kilidi özet kilidinden ÖNCE alınıp bırakılır, iç içe alınmaz.
+Mutasyon K8 4/4 (kilitsiz yazım 8 iş parçacıklı testte ölüyor).
+
+**4. K-7 — vazgeçme süresi (kendi kararım: 6 saat).** Aracı kartı kesintisiz 6 saat "çevrimdışı" diyorsa anlık
+izleme kendini durdurur (`Vazgecme`, saf Kotlin). Gerekçe: kart kayıt sürerken temelli kapanırsa servis ve kalıcı
+bildirimi kullanıcı durdurana dek yaşıyordu. Bir şey kaybolmaz: "karttan haber yok" bildirimi durur, 15 dakikalık
+yoklama dönüşü bildirir ve kayıt sürüyorsa izlemeyi yeniden başlatır. Kart bir an çevrimiçi görülürse süre
+sıfırlanır; durum bilinmiyorken (telefonun interneti yok) süre dolmuş SAYILMAZ. Süre uzun tutuldu ki uzun bir
+elektrik/ağ kesintisinde "anında geri geldi" bildirimi kaybolmasın. Bilinen küçük kusur: bu yolla durunca
+Ayarlar'daki son durum "kayıt bitti" yazar (ayrı metin eklenmedi). Mutasyon K7 7/7.
+
+**Kanıt (bu bölüm):** JS 606/606 (53 dosya), Kotlin birim testleri yeşil, `desen-denetle` 850 girdi 0 eskimiş,
+gizlilik kapısı temiz. Yeni sürüm Xiaomi'de kurulu; açılış ekran görüntüsüyle doğrulandı (kart bağlı, şerit
+gizli, çökme yok).
+
+**Kullanıcıya bırakılan KARARLAR (düzeltmedim — onaylı davranışı değiştirir):**
+- **K-10:** kart "bildirim ayarlı değil" (404) derse telefondaki zarf siliniyor; yerel ağda araya giren biri sahte
+  404 ile bildirimleri sessizce kapatabilir. Seçenek: 404'te zarfı silme, yalnız "kartta ayarlı değil" göster.
+- **K-9:** yerel ağdaki biri kart kimliğini taklit ederek "karttan haber yok" yerine "ev interneti koptu, kart
+  çalışıyor" yazdırabilir (yalnız metin). Seçenek: yerel yoklamayı imzalı bir uca çevirmek (firmware ister).
+
+**Hâlâ açık (kart / telefon / kullanıcı ister):** donmuş sayacın gerçek güç kesmede görülmesi (bir sonraki fiziksel
+turda: kayıt sürerken gücü kes → "Kayıt sürüyordu", süre sabit, "son veri N sn önce" artıyor mu) · pil testi
+sürerken şerit (p1 yasak) · K-2 (`startForeground` reddi — Honor) · pilde (şarjsız) dayanma · A36 gerçek ortamda ·
+TalkBack / en büyük yazı boyutu · 5G release imzası (anahtar yaklaşımı — önce sorulacak) · K-15 (JVM `String`
+sıfırlanamaz — düzeltilemez, belgelendi).

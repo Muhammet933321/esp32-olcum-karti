@@ -176,4 +176,61 @@ class YoklamaTest {
         tr.olcumkarti.mobil.kasa.KasaDeposu(kok, sarici).sil(kimlik)
         assertNull(d.durumOku(kimlik))
     }
+
+    // ── curutucu 5E K-13: kart yoklamalar ARASINDA yeniden basladiysa (acilis `a` degisti) ──
+    @Test
+    fun kartYenidenBasladi_ayniOturumSuruyor_yenidenBasladiBirKez_servisleAyniEtiket() {
+        val k = kos(YoklamaDurumu(durum(KAYIT, 81, a = 3), false), durum(KAYIT, 81, a = 4))
+        assertEquals(listOf("bld.basladi_devam"), k.anahtarlar)
+        assertEquals("yeniden_basladi", k.cikan[0].sinif)
+        assertEquals(81L, k.cikan[0].degerler["oturum"])
+        assertTrue(k.sonuc.kayitSuruyor)
+        assertEquals(4L, k.sonuc.durum!!.cevrimici!!["a"])
+        // Ozet ilerledi: sonraki yoklama ayni seyi YINELEMEZ.
+        assertEquals(emptyList<String>(), kos(k.sonuc.durum, durum(KAYIT, 81, a = 4)).anahtarlar)
+        // Servis ayni olayi kartin KENDI olay mesajindan bildirir: etiket ayni olmali (Android ayni bildirimi gunceller).
+        val servis = ArrayList<Bildirim>()
+        BildirimKarar({ servis.add(it) }, { 0.0 }).mqttMesaj("olay", mapOf("n" to 7L, "a" to 4L, "o" to "basladi", "devam" to 1L, "oturum" to 81L))
+        assertEquals(servis[0].etiket, k.cikan[0].etiket)
+        // Sinif kapaliysa cikmaz; BEKLIYOR (4) de "suruyor" sayilir.
+        assertEquals(emptyList<String>(), kos(YoklamaDurumu(durum(KAYIT, 81, a = 3), false), durum(KAYIT, 81, a = 4), setOf("yeniden_basladi")).anahtarlar)
+        assertEquals(listOf("bld.basladi_devam"), kos(YoklamaDurumu(durum(KAYIT, 81, a = 3), false), durum(BEKLIYOR, 81, a = 4)).anahtarlar)
+    }
+
+    @Test
+    fun acilisDegismediyse_yaDaKayitSurmuyorduysa_yenidenBasladiDenmez() {
+        assertEquals(emptyList<String>(), kos(YoklamaDurumu(durum(KAYIT, 81, a = 3), false), durum(KAYIT, 81, a = 3)).anahtarlar)
+        assertEquals(emptyList<String>(), kos(YoklamaDurumu(durum(BOS, 81, a = 3), false), durum(BOS, 81, a = 4)).anahtarlar)
+        // Kayit SURMUYORDU: pil turunde de, ayni oturum numarasi sonradan kayda gecse de bir sey denmez.
+        assertEquals(emptyList<String>(), kos(YoklamaDurumu(durum(BOS, 81, a = 3) + mapOf("y" to 2L), false), durum(BOS, 81, a = 4)).anahtarlar)
+        assertEquals(emptyList<String>(), kos(YoklamaDurumu(durum(BOS, 81, a = 3), false), durum(KAYIT, 81, a = 4)).anahtarlar)
+        // Kayit yoktu, yeniden basladiktan SONRA yeni kayit acildi: "devam" degil (yoklama baslangic bildirmez).
+        assertEquals(emptyList<String>(), kos(YoklamaDurumu(durum(BOS, 81, a = 3), false), durum(KAYIT, 82, a = 4)).anahtarlar)
+        // Acilis numarasi okunamiyorsa (eski ozet / eksik alan) karar verilmez.
+        assertEquals(emptyList<String>(), kos(YoklamaDurumu(durum(KAYIT, 81, a = 3) - "a", false), durum(KAYIT, 81, a = 4)).anahtarlar)
+        assertEquals(emptyList<String>(), kos(YoklamaDurumu(durum(KAYIT, 81, a = 3), false), durum(KAYIT, 81, a = 4) - "a").anahtarlar)
+    }
+
+    @Test
+    fun pilYaDaSkopOturumuYenidenBaslamaylaKesildi_kesildiDenir_olcumOturumuSiradanBiter() {
+        // Pil (tur 2) ve skop (tur 3) oturumu yeniden baslamada SURMEZ (sebep 5): "kayit bitti" degil "kesildi".
+        for (tur in listOf(2L, 3L)) {
+            val k = kos(YoklamaDurumu(durum(KAYIT, 81, a = 3) + mapOf("y" to tur), false), durum(BOS, 81, a = 4))
+            assertEquals("tur $tur", listOf("bld.kesildi"), k.anahtarlar)
+            assertEquals("yeniden_basladi", k.cikan[0].sinif)
+            assertFalse(k.cikan[0].sessiz)
+            assertFalse(k.sonuc.kayitSuruyor)
+            assertEquals(emptyList<String>(), kos(k.sonuc.durum, durum(BOS, 81, a = 4)).anahtarlar)
+        }
+        // Kesilen oturumun ardindan YENI bir kayit acilmis olsa da eski oturum "kesildi".
+        assertEquals(listOf("bld.kesildi"), kos(YoklamaDurumu(durum(KAYIT, 81, a = 3) + mapOf("y" to 2L), false), durum(KAYIT, 82, a = 4)).anahtarlar)
+        // Olcum oturumu (tur 1) yeniden baslamada SURER; bittiyse bu siradan bitistir.
+        assertEquals(listOf("bld.kayit_bitti_yerel"), kos(YoklamaDurumu(durum(KAYIT, 81, a = 3), false), durum(BOS, 81, a = 4)).anahtarlar)
+        // Acilis degismediyse pil oturumu da siradan biter.
+        assertEquals(listOf("bld.kayit_bitti_yerel"), kos(YoklamaDurumu(durum(KAYIT, 81, a = 3) + mapOf("y" to 2L), false), durum(BOS, 81, a = 3)).anahtarlar)
+        // "Son haber" saati ONCEKI yoklamanin saatidir (kartin kesilmeden onceki son haberi), yenisinin degil.
+        val eski = durum(KAYIT, 81, a = 3) + mapOf("y" to 2L, "t" to 1790000100L)
+        val saat = kos(YoklamaDurumu(eski, false), durum(BOS, 81, a = 4) + mapOf("t" to 1790009999L)).cikan[0].degerler["saat"]
+        assertEquals(1790000100L, (saat as SaatEki).unix)
+    }
 }

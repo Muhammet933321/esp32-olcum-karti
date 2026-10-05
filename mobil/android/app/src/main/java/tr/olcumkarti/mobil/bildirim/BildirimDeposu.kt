@@ -74,6 +74,15 @@ class BildirimDeposu(private val kok: File) {
         try { AtomikYazim.yaz(hedef, durum.json().toByteArray(Charsets.UTF_8)) } catch (_: Exception) {}
     }
 
+    /**
+     * Ozeti OKU-DEGISTIR-YAZ, tek kilit altinda (curutucu 5E K-8): servis ile yoklama ayni ozeti ayni anda
+     * guncellerse biri otekinin yazdigini eski okumasiyla EZMESIN. `degistir` null donerse ozet degismez.
+     * Kilit surec capinda (depo nesnesi her cagiranda yeni kurulur). Icinde baska kilit ALINMAZ.
+     */
+    fun durumGuncelle(kimlik: String?, degistir: (YoklamaDurumu?) -> YoklamaDurumu?) = synchronized(DURUM_KILIDI) {
+        durumYaz(kimlik, degistir(durumOku(kimlik)))
+    }
+
     /** Kartin son baglanilan YEREL adresi (A36 yoklamasi icin); gecersizse / yoksa null. */
     fun adresOku(kimlik: String?): String? {
         val d = dosya(kimlik, ADRES_EK)
@@ -98,6 +107,7 @@ class BildirimDeposu(private val kok: File) {
         const val ZARF_EK = ".zarf"
         const val OLAY_EK = ".olay"
         const val DURUM_EK = ".durum"
+        private val DURUM_KILIDI = Any()
         const val ADRES_EK = ".adres"
         const val DURUM_AZAMI = 512
         /** Kartin yaniti birkac yuz bayt; bundan buyugu zarf degildir. */

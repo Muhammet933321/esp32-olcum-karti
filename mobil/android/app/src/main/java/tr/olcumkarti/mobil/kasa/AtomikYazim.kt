@@ -10,13 +10,16 @@ import java.nio.file.StandardOpenOption
 /**
  * Dayanikli, atomik dosya yazimi: gecici dosya -> fsync -> atomik yeniden adlandirma -> dizin fsync.
  * Yarida kesilirse hedef ya ESKI ya YENI icerigin tamamidir; gecici dosya kalintisi okumayi etkilemez.
+ * Gecici dosyanin adi SABIT oldugu icin yazimlar TEK TEK yapilir (curutucu 5E K-8): iki is parcacigi ayni
+ * hedefe ayni anda yazarsa biri otekinin yarim gecici dosyasini tasiyabilirdi. Uygulama tek surec (servis
+ * ayri surecte calismaz), dosyalar kucuk — tek kilit yeter.
  */
 internal object AtomikYazim {
     const val GECICI_EK = ".gecici"
 
     fun gecici(hedef: File): File = File(hedef.parentFile, hedef.name + GECICI_EK)
 
-    fun yaz(hedef: File, veri: ByteArray) {
+    fun yaz(hedef: File, veri: ByteArray) = synchronized(this) {
         val dizin = hedef.parentFile ?: throw KasaHatasi("ic-hata")
         dizin.mkdirs()
         val g = gecici(hedef)

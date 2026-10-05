@@ -49,9 +49,13 @@ class YoklamaIsi(ctx: Context, parametreler: WorkerParameters) : Worker(ctx, par
                     kayit.anahtar.fill(0)
                 }
                 if (bitis.sinif == "ayar") { gosterici.ayarYenile(); continue }
-                val s = Yoklama.degerlendir(depo.durumOku(kimlik), okunan, { ayar.acik(it) }) { gosterici.goster(it) }
-                depo.durumYaz(kimlik, s.durum)
-                if (s.kayitSuruyor && ayar.anlik) {
+                var kayitSuruyor = false
+                depo.durumGuncelle(kimlik) { onceki ->
+                    val s = Yoklama.degerlendir(onceki, okunan, { ayar.acik(it) }) { gosterici.goster(it) }
+                    kayitSuruyor = s.kayitSuruyor
+                    s.durum
+                }
+                if (kayitSuruyor && ayar.anlik) {
                     try { IzlemeServisi.baslat(uyg, kimlik) } catch (e: Exception) { gosterici.izlemeDokun() }      // A29 c
                 }
             }

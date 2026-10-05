@@ -58,8 +58,9 @@ object Yoklama {
         saat = ARALIK_S                                    // eski yerel haber "kart yerelde gorunuyor" SAYILMASIN (A36)
         if (eski != null && onceki.kopuk) k.mqttMesaj("durum", mapOf("c" to 0L))      // SESSIZ: zaten bildirilmisti
         sesli = true
-        k.mqttMesaj("durum", simdi)
         val cevrimici = BildirimKarar.pyEsit(simdi["c"], 1)
+        if (cevrimici && eski != null) yenidenBasladi(k, eski, simdi)      // yeni durumdan ONCE: "son haber" eski saat kalsin
+        k.mqttMesaj("durum", simdi)
         if (cevrimici) yerel(k, simdi)
         val yeni = if (cevrimici) YoklamaDurumu(simdi, false) else YoklamaDurumu(eski, k.baglanti != null)
         return Sonuc(yeni, cevrimici && k.kayitSuruyor() == true)
@@ -83,6 +84,24 @@ object Yoklama {
     fun ozetYerel(onceki: YoklamaDurumu?, kod: Long, oturum: Long): YoklamaDurumu =
         YoklamaDurumu((onceki?.cevrimici ?: mapOf("c" to 1L)) + mapOf("k" to kod, "o" to oturum), onceki?.kopuk ?: false)
 
+    /**
+     * Kart iki yoklama ARASINDA yeniden basladiysa (acilis numarasi `a` degisti) ve o sirada kayit suruyorduysa
+     * (curutucu 5E K-13): kartin o acilista yayinladigi — kalici OLMAYAN — olay mesajinin karsiligi karar
+     * katmanina verilir; metin, sinif (`yeniden_basladi`) ve etiket anlik izlemeyle AYNI olur.
+     *   ayni oturum suruyor                     -> "yeniden basladi, kayit suruyor"
+     *   pil / skop oturumu artik surmuyor        -> "yeniden basladi, ... kesildi" (bu turler acilista SURMEZ)
+     *   olcum oturumu artik surmuyor             -> siradan "kayit bitti" (olcum acilista surer; sonradan bitmistir)
+     */
+    private fun yenidenBasladi(k: BildirimKarar, eski: Map<String, Any?>, simdi: Map<String, Any?>) {
+        val ea = eski["a"] as? Long ?: return
+        val ya = simdi["a"] as? Long ?: return
+        val eo = eski["o"] as? Long ?: return
+        if (ea == ya || eski["k"] !in BildirimKarar.KAYITTA) return
+        val suruyor = simdi["k"] in BildirimKarar.KAYITTA && simdi["o"] == eo
+        if (suruyor) k.mqttMesaj("olay", mapOf("n" to 1L, "a" to ya, "o" to "basladi", "devam" to 1L, "oturum" to eo))
+        else if (eski["y"] in KESILEN_TURLER) k.mqttMesaj("olay", mapOf("n" to 1L, "a" to ya, "o" to "kayit_bitti", "sebep" to 5L, "oturum" to eo))
+    }
+
     private fun yerel(k: BildirimKarar, d: Map<String, Any?>) {
         val kod = d["k"] as? Long ?: return
         val oturum = d["o"] as? Long ?: return
@@ -91,4 +110,7 @@ object Yoklama {
 
     /** Yeniden oynatilan durum ile yeni durum arasina konan sanal sure (yerel erisim penceresinden buyuk). */
     private const val ARALIK_S = 1000.0
+
+    /** Yeniden baslamada SURMEYEN oturum turleri: pil (2), skop (3) — kart bunlari "sebep 5" ile kapatir. */
+    private val KESILEN_TURLER = setOf<Any?>(2L, 3L)
 }

@@ -63,7 +63,7 @@ class IzlemeServisi : Service() {
                 // Yoklama, servisin yerel yoldan bildirdigi degisikligi yinelemesin (curutucu 5E B4).
                 try {
                     val depo = BildirimDeposu(File(filesDir, KASA_DIZINI))
-                    depo.durumYaz(kimlik, Yoklama.ozetYerel(depo.durumOku(kimlik), kod, oturum))
+                    depo.durumGuncelle(kimlik) { Yoklama.ozetYerel(it, kod, oturum) }
                 } catch (_: Exception) {
                 }
             }
@@ -111,6 +111,7 @@ class IzlemeServisi : Service() {
                 bekleyenYerel?.let { k.yerelG(it.first, it.second) }
                 bekleyenYerel = null
             }
+            val vazgecme = Vazgecme()
             val d = IzlemeDongusu(
                 oturum = { baglandi ->
                     val zarf = depo.zarfOku(kimlik)
@@ -122,9 +123,13 @@ class IzlemeServisi : Service() {
                         izleyici = i
                         if (durduruldu) i.durdur()
                         i.calis(kayit.anahtar, kimlik, kayit.n, zarf, baglandi = baglandi,
-                            surdur = { synchronized(kilit) { k.kayitSuruyor() != false } },
+                            // Kayit bittiyse YA DA kart 6 saattir cevrimdisiysa (K-7) izlemeye gerek kalmaz.
+                            surdur = { synchronized(kilit) { k.kayitSuruyor() != false && !vazgecme.doldu(k.kartCevrimici, SystemClock.elapsedRealtime()) } },
                             // Yoklama (A30) servisin bildirdigini yeniden bildirmesin: ozet burada da guncellenir.
-                            durumGoruldu = { d -> depo.durumYaz(kimlik, Yoklama.ozet(depo.durumOku(kimlik), d, synchronized(kilit) { k.baglanti != null })) })
+                            durumGoruldu = { d ->
+                                val kopuk = synchronized(kilit) { k.baglanti != null }      // ozet kilidinden ONCE (kilit sirasi)
+                                depo.durumGuncelle(kimlik) { Yoklama.ozet(it, d, kopuk) }
+                            })
                     } finally {
                         izleyici = null
                         kayit.anahtar.fill(0)
