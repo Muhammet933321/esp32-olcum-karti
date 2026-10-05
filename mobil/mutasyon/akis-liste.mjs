@@ -51,7 +51,7 @@ export default [
   },
   {
     ad: "5C-akis: veri gelince bekleme 1 s'ye donmuyor",
-    dosya: CANLI, bul: "    deneme = 0;                        // veri geldi", koy: "    // veri geldi", test: T_CANLI,
+    dosya: CANLI, bul: "      acikMs = simdiMs();", koy: "      acikMs = null;", test: T_CANLI,
   },
   {
     ad: "5C-akis: dolu kartta 10 s yerine 1 s sonra deneniyor",
@@ -127,7 +127,7 @@ export default [
   },
   {
     ad: "5C-akis: Gb araligi (0 | 50…60000) denetlenmiyor",
-    dosya: CANLI, bul: "return ms === 0 || (ms >= GB_EN_AZ_MS && ms <= GB_EN_COK_MS);", koy: "return true;", test: T_CANLI,
+    dosya: CANLI, bul: "return GB_HIZLARI.includes(Number(m[1]));", koy: "return true;", test: T_CANLI,
   },
   // ── ag.js akis sarmalayicisi ──
   {

@@ -41,6 +41,31 @@ export function olcumYazilari(son) {
   };
 }
 
+// Ekranda gosterilecek olcum: akis AKMIYORSA (hata / baglaniyor / dolu / kapali) eski olcum GOSTERILMEZ.
+export function gorunenOlcum(hal, son) {
+  return hal === "acik" && son && typeof son === "object" ? son : null;
+}
+
+// ── etkin oturumun turu (A40: pil testi surerken salt okuma) ─────────────
+// G / D satiri oturum turunu soylemez; imzali GET /kayit/liste'nin `oturumlar` dizisinden okunur.
+export const OTURUM_TURU = Object.freeze({ OLCUM: 1, PIL: 2, SKOP: 3 });
+
+// /kayit/liste govdesi + oturum no -> tur | null (bilinmiyor: liste bozuk, oturum yok, tur sayi degil).
+export function oturumTuruBul(liste, oturum) {
+  if (!liste || typeof liste !== "object" || !Array.isArray(liste.oturumlar) || !Number.isInteger(oturum)) return null;
+  const kayit = liste.oturumlar.find((o) => o && typeof o === "object" && o.id === oturum);
+  return kayit && Number.isInteger(kayit.tur) ? kayit.tur : null;
+}
+
+// tur -> { saltOkuma, rozet, aciklama }. Yalniz PIL TESTI kayit komutlarini kapatir (kart o sirada
+// Gb / Gd'yi reddeder; test karttan ya da panelden yonetilir). Tur BILINMIYORSA (null: okunamadi)
+// dugmeler ACIK kalir — kart zaten reddeder. ACIL DURDUR bu kilitten ETKILENMEZ.
+export function oturumKilidi(tur) {
+  if (tur === OTURUM_TURU.PIL) return { saltOkuma: true, rozet: "m.dr.pil_testi", aciklama: "m.dr.pil_salt_okuma" };
+  if (tur === OTURUM_TURU.SKOP) return { saltOkuma: false, rozet: "m.dr.skop_gunlugu", aciklama: null };
+  return { saltOkuma: false, rozet: null, aciklama: null };
+}
+
 const iki = (n) => String(n).padStart(2, "0");
 
 // ms -> "01:24:10" (saat 24'u gecebilir)

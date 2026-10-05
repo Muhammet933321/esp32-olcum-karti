@@ -6,8 +6,8 @@ import { useRouter } from "vue-router";
 import CanliGrafik from "../bilesen/CanliGrafik.vue";
 import Ikon from "../bilesen/Ikon.vue";
 import KayitDugmesi from "./KayitDugmesi.vue";
-import { BIRIM } from "./canli_gorunum.js";
-import { baglantiGorunumu, kayitGorunumu, olcumYazilari, YOK } from "./durum_gorunum.js";
+import { BIRIM, canliHali } from "./canli_gorunum.js";
+import { baglantiGorunumu, kayitGorunumu, olcumYazilari, oturumKilidi, YOK } from "./durum_gorunum.js";
 import { c, yaz } from "./metin.js";
 import { sekmeBul } from "./sekmeler.js";
 
@@ -20,7 +20,10 @@ const bag = computed(() => baglantiGorunumu({
   sonGorulmeMs: kabuk.sonGorulme.value, simdiMs: kabuk.simdi.value,
 }));
 const kayit = computed(() => kayitGorunumu(kabuk.akis.value.kayit, kabuk.izleme.value, kabuk.simdi.value));
-const olcum = computed(() => olcumYazilari(kabuk.akis.value.son));
+// Akis akmiyorken (kart yok / baglaniyor) rakamlar ESKI olcumu gostermez: Canli ile AYNI kosul.
+const hal = computed(() => canliHali({ baglanti: kabuk.baglanti.value, araniyor: kabuk.araniyor.value, akis: kabuk.akis.value }));
+const olcum = computed(() => olcumYazilari(hal.value.akiyor ? kabuk.akis.value.son : null));
+const kilit = computed(() => oturumKilidi(kabuk.oturumTuru.value));
 const hizYazi = computed(() => (kayit.value.hiz ? (kayit.value.hiz.yaklasik ? "~" : "") + yaz(kayit.value.hiz) : YOK));
 const yuzdeYaz = (y) => (y === null ? YOK : c("m.dr.yuzde", { n: y }));
 const en = (y) => ({ width: (y === null ? 0 : y) + "%" });
@@ -41,6 +44,7 @@ const ayarlaraGit = () => yonlendirici.push(sekmeBul("ayarlar").yol);
     <article id="dr-kayit" class="kart">
       <div class="kb">
         <span class="rozet" :class="kayit.sinif">{{ c(kayit.rozet, kayit.rozetDeger) }}</span>
+        <span v-if="kilit.rozet" id="dr-oturum-turu" class="rozet uyari">{{ c(kilit.rozet) }}</span>
         <span v-if="kayit.suruyor" class="sure mono">{{ kayit.sure }}</span>
       </div>
       <div v-if="kayit.var" class="ikili">

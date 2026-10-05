@@ -3,8 +3,8 @@ export default [
   {
     ad: "5C-p0: durdur() eklentiye gitmeden once bir gorev turu bekliyor",
     dosya: "src/cekirdek/durdur.js",
-    bul: "    const soz = p0(hedefler);",
-    koy: "    const soz = Promise.resolve().then(() => p0(hedefler));",
+    bul: "      soz = p0(hedefler);                         // ILK is",
+    koy: "      soz = Promise.resolve().then(() => p0(hedefler)); // ILK is",
     test: "test/durdur.test.js",
   },
   {
@@ -17,8 +17,8 @@ export default [
   {
     ad: "5C-p0: kartin erisim noktasi adresi listede yok",
     dosya: "src/cekirdek/durdur.js",
-    bul: "[...(Array.isArray(liste) ? liste : []), KART_AP_ADRESI]",
-    koy: "[...(Array.isArray(liste) ? liste : [])]",
+    bul: "[...liste, KART_AP_ADRESI]",
+    koy: "[...liste]",
     test: "test/durdur.test.js",
   },
   {
@@ -28,18 +28,13 @@ export default [
     koy: "    );",
     test: "test/durdur.test.js",
   },
-  {
-    ad: "5C-p0: eski (gec gelen) sonuc durumu eziyor",
-    dosya: "src/cekirdek/durdur.js",
-    bul: '(s) => { if (no === sira) bildir(',
-    koy: '(s) => { if (true) bildir(',
-    test: "test/durdur.test.js",
-  },
+  // 'eski (gec gelen) sonuc durumu eziyor': durdur.js artik sira numarasi tutmuyor (turlarin EN IYI sonucu);
+  // ayni iddianin mutasyonu duzeltme5c-liste.mjs'te (5C-D9).
   {
     ad: "5C-p0: adresler() atarsa durdurma da atiyor",
     dosya: "src/cekirdek/durdur.js",
-    bul: "    try { liste = adresler(); } catch { liste = []; }",
-    koy: "    liste = adresler();",
+    bul: "    } catch { liste = []; asil = null; }",
+    koy: "    } catch (e) { throw e; }",
     test: "test/durdur.test.js",
   },
   {

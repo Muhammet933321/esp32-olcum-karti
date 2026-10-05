@@ -153,6 +153,10 @@ export const SOZLUK_MOBIL = Object.freeze({
   "m.dd.etiket": S("Acil durdur: yükü kes", "Emergency stop: cut the load"),
   "m.dd.gonderiliyor": S("Durdurma gönderiliyor…", "Sending stop…"),
   "m.dd.durduruldu": S("Durduruldu: kart yükü kesti.", "Stopped: the board cut the load."),
+  "m.dd.baska_yanit": S(
+    "Başka bir adres yanıt verdi — kartın durduğu doğrulanamadı. Yükü kontrol et, yeniden dene.",
+    "Another address answered — could not confirm the board stopped. Check the load, try again.",
+  ),
   "m.dd.ulasilamadi": S(
     "ULAŞILAMADI — kart durdurulamadı. Yükü elle kes, sonra yeniden dene.",
     "UNREACHABLE — the board was not stopped. Cut the load by hand, then try again.",
@@ -175,6 +179,12 @@ export const SOZLUK_MOBIL = Object.freeze({
   "m.dr.bellek": S("Kart belleği", "Board memory"),
   "m.dr.esitlenmemis": S("Eşitlenmemiş", "Not synced"),
   "m.dr.yuzde": S("%{n}", "{n}%"),
+  "m.dr.pil_testi": S("Pil testi sürüyor", "Battery test running"),
+  "m.dr.skop_gunlugu": S("Osiloskop günlüğü", "Scope log"),
+  "m.dr.pil_salt_okuma": S(
+    "Pil testi karttan ya da panelden yönetilir. Acil durumda DURDUR.",
+    "The battery test is controlled from the board or the panel. In an emergency use STOP.",
+  ),
   "m.dr.esitleme_yakinda": S("Kayıtların telefona eşitlenmesi yakında eklenecek.", "Syncing recordings to the phone is coming soon."),
   // ── Canli (ekran/Canli.vue, ekran/canli_gorunum.js)
   "m.cn.gerilim": S("Gerilim", "Voltage"),

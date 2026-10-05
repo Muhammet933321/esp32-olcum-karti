@@ -238,7 +238,7 @@ export default [
   {
     ad: "5C-kabuk: secilen hiz yeni oturuma yazilmiyor",
     dosya: "src/ekran/kabuk_durum.js",
-    bul: "    bekleyenHiz = hizMs;\n",
+    bul: "    bekleyenHiz = bekleyen;\n",
     koy: "",
     test: EKRAN,
   },

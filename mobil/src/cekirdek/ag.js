@@ -39,6 +39,18 @@ export class KartAgHatasi extends Error {
   }
 }
 
+// Eklentinin p0 yaniti -> { tamam, adres, basarili, sureMs }. `basarili`: 204 veren adresler — yalniz
+// GONDERILEN listedekiler sayilir (eklenti baska bir adres uyduramaz). Eski eklenti (yalniz `adres`)
+// tek ogeli liste olur. Saf.
+export function p0Sonucu(s, gonderilen, sureMs) {
+  const tamam = Boolean(s) && s.tamam === true;
+  const ham = tamam && Array.isArray(s.basarili) ? s.basarili : [];
+  const basarili = [...new Set(ham.filter((a) => typeof a === "string" && gonderilen.includes(a)))];
+  const adres = tamam && typeof s.adres === "string" ? s.adres : null;
+  if (adres !== null && gonderilen.includes(adres) && !basarili.includes(adres)) basarili.push(adres);
+  return { tamam, adres: adres !== null ? adres : (basarili[0] ?? null), basarili, sureMs };
+}
+
 function base64Kodla(b) {
   let s = "";
   for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
@@ -129,12 +141,12 @@ export function agKur(eklenti, { yerelDongu = false, zamanAsimiMs = 5000, azamiG
   function p0(adresler) {
     const t0 = Date.now();
     const liste = [...new Set((Array.isArray(adresler) ? adresler : []).filter((a) => typeof a === "string" && a !== ""))].slice(0, P0_AZAMI_ADRES);
-    const yok = () => ({ tamam: false, adres: null, sureMs: Date.now() - t0 });
+    const yok = () => ({ tamam: false, adres: null, basarili: [], sureMs: Date.now() - t0 });
     if (liste.length === 0 || typeof eklenti.p0 !== "function") return Promise.resolve(yok());
     let cagri;
     try { cagri = eklenti.p0({ adresler: liste }); } catch { return Promise.resolve(yok()); }
     return sureli(cagri, P0_SURE_MS).then(
-      (s) => ({ tamam: s?.tamam === true, adres: s?.tamam === true && typeof s.adres === "string" ? s.adres : null, sureMs: Date.now() - t0 }),
+      (s) => p0Sonucu(s, liste, Date.now() - t0),
       yok,
     );
   }
@@ -166,5 +178,13 @@ export function agKur(eklenti, { yerelDongu = false, zamanAsimiMs = 5000, azamiG
     } catch { /* akis zaten kapali ya da eklenti yanit vermedi */ }
   }
 
-  return { kartFetch, p0, akisAc, akisKapat };
+  // Onceki sayfa yuklemesinden (WebView yeniden yuklendi) yerelde acik kalmis akislarin HEPSI kapanir:
+  // kartin 4 yuvasindan birini sahipsiz tutmasinlar. ASLA atmaz.
+  async function akislariKapat() {
+    try {
+      if (typeof eklenti.akisKapat === "function") await sureli(eklenti.akisKapat({ hepsi: true }), akisAcSureMs);
+    } catch { /* eklenti yanit vermedi */ }
+  }
+
+  return { kartFetch, p0, akisAc, akisKapat, akislariKapat };
 }

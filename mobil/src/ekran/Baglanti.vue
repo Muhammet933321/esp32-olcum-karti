@@ -3,7 +3,7 @@
 // eslesmemisse eslestirme ekrani acilir; esliyse imzali bir istekle (kayit listesi) baglanti denenir.
 // Eslestirme YALNIZ kullanici parolayi kendisi yazarsa olur. Her islemden sonra kabuk haberdar edilir
 // (canli akis yeni duruma gore kurulur).
-import { inject, ref, shallowRef } from "vue";
+import { inject, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { IonButton, IonInput, IonItem, IonLabel, IonList, IonNote } from "@ionic/vue";
 import Esles from "./Esles.vue";
 import { baglantiHatasi, kaldirGorunur, kaldirMesaji } from "./esles_durum.js";
@@ -27,6 +27,10 @@ const bilinen = kabuk ? kabuk.baglanti.value : null;
 const baglanti = shallowRef(bilinen && bilinen.durum !== "kasa-bozuk" ? bilinen : null);
 const eslesiyor = ref(false);
 const mesaj = ref("");
+// Eslestirme ekrani acikken kabuk karti yeniden ARAMAZ (kart.baglan() suren eslestirmeyi bozardi).
+const mesgulYap = (v) => { if (kabuk && typeof kabuk.mesgulYap === "function") kabuk.mesgulYap(v); };
+watch(eslesiyor, (v) => mesgulYap(v));
+onBeforeUnmount(() => { if (eslesiyor.value) mesgulYap(false); });
 const kasaBozuk = ref(Boolean(bilinen) && bilinen.durum === "kasa-bozuk");
 // Kart / kasa nesnesi uygulamada TEKTIR (cekirdek/uygulama.js): bu ekran her acildiginda yenisi KURULMAZ.
 const kart = shallowRef(null);

@@ -6,7 +6,7 @@ import http from "node:http";
 import { akisUrl } from "@ortak/imza.js";
 import { agKur, KartAgHatasi } from "../src/cekirdek/ag.js";
 import {
-  CanliHatasi, DOLU_BEKLE_MS, SERI_SURE_MS, SESSIZ_MS, YENIDEN_BUL_HER, YENIDEN_MS, canliKur, komutGecerli,
+  CanliHatasi, DOLU_BEKLE_MS, GB_HIZLARI, KARARLI_MS, KAYIT_ESKI_MS, SERI_SURE_MS, SESSIZ_MS, YENIDEN_BUL_HER, YENIDEN_MS, canliKur, komutGecerli,
 } from "../src/cekirdek/canli.js";
 import { kartKur } from "../src/cekirdek/kart.js";
 import { kasaKur } from "../src/cekirdek/kasa.js";
@@ -61,7 +61,7 @@ function dunya({ kartDurumu = "bagli", kartAkisUrl = false, ...secenek } = {}) {
     ...(kartAkisUrl ? {} : { akisUrlAl: urlUret }), ...secenek,
   });
   return {
-    d, canli, kart,
+    d, canli, kart, ag,
     bekleyenler: () => isler.map((k) => k.ms).sort((x, y) => x - y),
     async ilerlet(ms) {
       const hedef = simdi + ms;
@@ -172,19 +172,95 @@ describe("canli: akis durum makinesi (elle saat)", () => {
     expect(w.d.urlSayisi).toBe(w.d.acilan.length);
   });
 
-  it("veri gelince bekleme 1 s'ye doner; yalniz 'acik' olmak donmez", async () => {
+  it("bekleme yalniz akis KARARLI_MS kesintisiz ACIK kaldiysa 1 s'ye doner; 'acik' olmak / tek satir dondurmez", async () => {
+    expect(KARARLI_MS).toBe(10000);
     const w = await acikDunya();
     w.durumOlayi("a1", "kapandi");
     await w.ilerlet(1000);
-    w.durumOlayi("a2", "acik");                                  // acildi ama veri yok
+    w.durumOlayi("a2", "acik");                                  // acildi, veri de geldi — ama hemen kapandi
+    w.satirOlayi("a2", D1);
     w.durumOlayi("a2", "hata", { tur: "zaman-asimi" });
     expect(w.bekleyenler()).toEqual([2000]);
     await w.ilerlet(2000);
     w.durumOlayi("a3", "acik");
     w.satirOlayi("a3", D1);
+    await w.ilerlet(KARARLI_MS - 1);                             // 10 s'ye 1 ms kala koptu: geri cekilme SURER
     w.durumOlayi("a3", "kapandi");
     expect(w.canli.durum()).toMatchObject({ hal: "hata", sebep: "kapandi" });
+    expect(w.bekleyenler()).toEqual([4000]);
+    await w.ilerlet(4000);
+    w.durumOlayi("a4", "acik");
+    await w.ilerlet(KARARLI_MS);                                 // kararli: sonraki kopmada 1 s'den
+    w.durumOlayi("a4", "kapandi");
     expect(w.bekleyenler()).toEqual([1000]);
+  });
+
+  it("baslat({ koru: true }) geri cekilme sayacini SIFIRLAMAZ; duz baslat sifirlar", async () => {
+    const w = await acikDunya();
+    w.durumOlayi("a1", "kapandi");
+    await w.ilerlet(1000);
+    w.durumOlayi("a2", "kapandi");
+    expect(w.bekleyenler()).toEqual([2000]);
+    w.canli.durdur();
+    w.canli.baslat({ koru: true });
+    await bosalt();
+    w.durumOlayi("a3", "kapandi");
+    expect(w.bekleyenler()).toEqual([4000]);
+    w.canli.durdur();
+    w.canli.baslat();
+    await bosalt();
+    w.durumOlayi("a4", "kapandi");
+    expect(w.bekleyenler()).toEqual([1000]);
+  });
+
+  it("G? yalniz kayit durumu BILINMIYORKEN sorulur: G satiri tazeyse yeniden acilista sorulmaz, 60 s'den eskiyse sorulur", async () => {
+    expect(KAYIT_ESKI_MS).toBe(60000);
+    const w = await acikDunya();
+    await bosalt();
+    expect(w.d.istekler.length).toBe(1);                         // ilk acilis: bilinmiyor
+    w.satirOlayi("a1", G13);
+    w.durumOlayi("a1", "kapandi");
+    await w.ilerlet(1000);
+    w.durumOlayi("a2", "acik");
+    await bosalt();
+    expect(w.d.istekler.length).toBe(1);                         // taze: sorulmadi
+    await w.ilerlet(KAYIT_ESKI_MS);
+    w.durumOlayi("a2", "kapandi");
+    await w.ilerlet(1000);
+    w.durumOlayi("a3", "acik");
+    await bosalt();
+    expect(w.d.istekler.length).toBe(2);                         // eskidi: yeniden soruldu
+    expect(new TextDecoder().decode(w.d.istekler[1][3])).toBe("G?");
+  });
+
+  it("ilk baslat'ta onceki sayfa yuklemesinin akislari BIR kez kapatilir (ag.akislariKapat)", async () => {
+    const w = dunya();
+    let n = 0;
+    w.ag.akislariKapat = () => { n += 1; return Promise.reject(new Error("x")); };   // reddetse de akis acilir
+    w.canli.baslat();
+    await bosalt();
+    expect(n).toBe(1);
+    expect(w.d.acilan.length).toBe(1);
+    w.canli.durdur();
+    w.canli.baslat();
+    await bosalt();
+    expect(n).toBe(1);
+  });
+
+  it("seri: ADC okunamayan kanal NaN (veri yok), iki kanal da yoksa / sayi sonlu degilse nokta GIRMEZ", async () => {
+    const w = await acikDunya();
+    w.satirOlayi("a1",
+      "D 12.0000 1.000000 12.00000 10.0000 0.0027778 1 1 0 0",
+      "D 1.7157 2.000000 3.43000 10.0000 0.0027778 2 2 0 1",      // gerilim okunamadi
+      "D 12.0000 0.000000 0.00000 10.0000 0.0027778 3 3 0 2",      // akim okunamadi
+      "D 0.0000 0.000000 0.00000 10.0000 0.0027778 4 4 0 3",       // ikisi de yok
+      "D nan nan nan 10.0000 0.0027778 5 5 0 0",
+      "D 12.0000 1.000000 inf 10.0000 0.0027778 6 6 0 0");
+    const s = w.canli.seri();
+    expect(s.n).toBe(4);
+    expect(Array.from(s.v)).toEqual([12, NaN, 12, 12]);
+    expect(Array.from(s.a)).toEqual([1, 2, NaN, 1]);
+    expect(Array.from(s.w)).toEqual([12, NaN, NaN, NaN]);
   });
 
   it("dolu: hal 'dolu', TAM 10 s sonra yeniden dener (yeni adresle)", async () => {
@@ -430,15 +506,16 @@ describe("canli: akis durum makinesi (elle saat)", () => {
 });
 
 describe("canli: komut beyaz listesi", () => {
-  const IZINLI = ["Gb0", "Gb20", "Gb50", "Gb200", "Gb1000", "Gb60000", "Gd", "G?", "?"];
+  const IZINLI = ["Gb0", "Gb20", "Gb100", "Gb200", "Gb1000", "Gb10000", "Gb60000", "Gd", "G?", "?"];
   const YASAK = [
     "p0", "p1", "p", "N?", "Ns", "Nasinama", "E?", "Ex1", "Q?", "Q1", "k?", "kk", "GF!", "Go61276", "Gt0", "Gtd", "Gp-", "Gp?", "Ga1 ad",
-    "Gb", "Gb19", "Gb1", "Gb60001", "Gb100000", "Gb050", "Gb00", "Gb-5", "Gb5.5", "Gb200 ", " Gb200", "Gb200\n", "Gb200\nN?", "Gb200;N?",
+    "Gb", "Gb19", "Gb1", "Gb21", "Gb50", "Gb250", "Gb59999", "Gb60001", "Gb100000", "Gb050", "Gb00", "Gb-5", "Gb5.5", "Gb200 ", " Gb200", "Gb200\n", "Gb200\nN?", "Gb200;N?",
     "gd", "GD", "Gd ", "Gd\n", "G??", "??", "? ", "", " ", "s0.005", "m1", "t", "r20", "z",
     null, undefined, 5, {}, ["Gd"],
   ];
 
-  it("komutGecerli: yalniz Gb<0|50…60000>, Gd, G?, ?", () => {
+  it("komutGecerli: yalniz Gb<kartin kabul ettigi hizlar>, Gd, G?, ?", () => {
+    expect([...GB_HIZLARI]).toEqual([0, 20, 100, 200, 1000, 10000, 60000]);
     for (const k of IZINLI) expect(komutGecerli(k), String(k)).toBe(true);
     for (const k of YASAK) expect(komutGecerli(k), String(k)).toBe(false);
   });

@@ -100,9 +100,13 @@ class KartAgPlugin : Plugin() {
         try { havuz.execute(is_) } catch (e: RejectedExecutionException) { call.reject("mesgul", "mesgul") }
     }
 
+    // Suren bir p0 turu varken gelen dokunus AYNI tura baglanir (P0Tur): is parcacigi birikmez.
+    private val p0Tur = P0Tur(P0({ adres -> p0Gonder(adres) }))
+
     /**
      * ACIL DURDURMA (A8–A11). Ortak is parcacigi havuzunu KULLANMAZ (dolu kuyruk p0'i bekletemez):
      * kendi is parcaciklari. Imzasiz; kimlik dogrulamasi yok (taninmayan karta p0'in zarari yok).
+     * Donus: { tamam, adres?, basarili: [204 veren adresler], deneme, sureMs }. Ilk adres "asil"dir.
      */
     @PluginMethod
     fun p0(call: PluginCall) {
@@ -110,15 +114,17 @@ class KartAgPlugin : Plugin() {
         val adresler = ArrayList<String>()
         if (dizi != null) for (i in 0 until dizi.length()) { val a = dizi.optString(i, ""); if (a.isNotEmpty()) adresler.add(a) }
         val t0 = SystemClock.elapsedRealtime()
-        Thread({
-            val s = P0({ adres -> p0Gonder(adres) }).durdur(adresler)
+        p0Tur.durdur(adresler) { s ->
+            val basarili = JSArray()
+            for (a in s.basarili) basarili.put(a)
             val o = JSObject()
             o.put("tamam", s.tamam)
             if (s.adres != null) o.put("adres", s.adres)
+            o.put("basarili", basarili)
             o.put("deneme", s.deneme)
             o.put("sureMs", SystemClock.elapsedRealtime() - t0)
             call.resolve(o)
-        }, "p0-ana").start()
+        }
     }
 
     private fun p0Gonder(adres: String): Int {
@@ -177,6 +183,12 @@ class KartAgPlugin : Plugin() {
     @PluginMethod
     fun akisKapat(call: PluginCall) {
         val kimlik = call.getString("kimlik")
+        // hepsi: WebView yeniden yuklendiyse onceki sayfanin akislari sahipsiz kalmistir. Kapanacaklar
+        // SIMDI (cagri aninda) belirlenir: bu cagridan SONRA acilan akis etkilenmez.
+        if (call.getBoolean("hepsi", false) == true) {
+            val eskiler = ArrayList(akislar.values)
+            akisZamanlayici.execute { for (a in eskiler) a.kapat() }
+        }
         // Soket kapatma ag isidir: cagrinin is parcaciginda degil, zamanlayicida (hemen).
         if (kimlik != null) akislar[kimlik]?.let { a -> akisZamanlayici.execute { a.kapat() } }
         call.resolve()

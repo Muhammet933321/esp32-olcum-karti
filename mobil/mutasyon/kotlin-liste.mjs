@@ -106,4 +106,47 @@ export default [
     koy: "",
     kirmizi: "AkisTest.kapat_blokluOkumayiHemenKeser_tekBitis_sonrasindaSatirYok",
   },
+  // ── 5C curutucu duzeltmeleri (DURUM 2026-10-05, bulgu 1, 8, 10) ─────────
+  {
+    ad: "5C-KD: p0'da her 2xx basari sayiliyor (kart olmayan adres 'durduruldu' der)",
+    dosya: AG + "P0.kt",
+    bul: "if (kod == BASARI_KODU) return deneme",
+    koy: "if (kod in 200..299) return deneme",
+    kirmizi: "P0Test.yalniz204Basaridir_baska2xxBasariDegilVeYenidenDenenmez",
+  },
+  {
+    ad: "5C-KD: baska adresin basarisi beklemeyi bitiriyor (asil kartin yeniden denemesi sonuca girmez)",
+    dosya: AG + "P0.kt",
+    bul: "if (adres == asil) bitti.countDown()",
+    koy: "bitti.countDown()",
+    kirmizi: "P0Test.baskaAdresinBasarisiAsilKartinYenidenDenemesiniKesmez",
+  },
+  {
+    ad: "5C-KD: kalici hata (Wi-Fi yok) da yeniden deneniyor",
+    dosya: AG + "P0.kt",
+    bul: "if (e.tur in KALICI_HATALAR) return 0",
+    koy: "",
+    kirmizi: "P0Test.kaliciHataYenidenDenenmez_geciciHataDenenir",
+  },
+  {
+    ad: "5C-KD: suren p0 turuna baglanilmiyor (her dokunus yeni is parcaciklari acar)",
+    dosya: AG + "P0.kt",
+    bul: "if (b != null && surenAdresler == adresler) {",
+    koy: "if (b != null && surenAdresler == null) {",
+    kirmizi: "P0Test.surenTuraBaglanir_yeniIsParcacigiAcmaz_turBitinceYeniTurBaslar",
+  },
+  {
+    ad: "5C-KD: SSE alan adi harfe duyarli ('Event: kimlik' varsayilan olay olur, jeton tasinir)",
+    dosya: AG + "SseAyirici.kt",
+    bul: "when (alan.lowercase()) {",
+    koy: "when (alan) {",
+    kirmizi: "SseAyiriciTest.alanAdlariBuyukKucukHarfeDuyarsiz",
+  },
+  {
+    ad: "5C-KD: kimlik olayinda ad degisince veri tasiniyor (gizli isareti konmuyor)",
+    dosya: AG + "SseAyirici.kt",
+    bul: "                    gizli = true\n",
+    koy: "",
+    kirmizi: "SseAyiriciTest.kimlikOlayininVerisiHicbirYoldanTasinmaz",
+  },
 ];

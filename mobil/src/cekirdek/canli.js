@@ -3,6 +3,7 @@
 //
 //   const canli = canliKur({ kart, ag, eklenti, simdiMs });
 //   canli.baslat();  canli.durdur();            // one gelince / arka plana gecince (cagiran: kabuk)
+//   canli.baslat({ koru: true });               // geri cekilme sayaci SIFIRLANMAZ (kabugun yeniden aramasi)
 //   canli.durum()   -> { bagli, hal, sebep, kod, son, kayit, yas_ms, ayrinti }
 //        hal: "kapali" | "baglaniyor" | "acik" | "dolu" | "hata";  bagli = (hal === "acik")
 //        sebep (yalniz hal "hata"): TUR adi — bagli-degil | eslesmemis | baglanti | zaman-asimi | http |
@@ -10,8 +11,9 @@
 //        son: son D satiri | null;  kayit: son G satiri | null;  yas_ms: son D'den beri gecen sure | null
 //        ayrinti: { K, GA, GT, GP, A } — gorulen son satirlar
 //   canli.dinle(fn) -> birak()                  // fn(durum()): her D / G satirinda ve hal degisiminde
-//   canli.seri()    -> { t, v, a, w, n }        // Float64Array; t = telefon saati (ms), eskiden yeniye
-//   await canli.komut("Gb1000")                 // yalniz Gb<0|50…60000>, Gd, G?, ? — baskasi CanliHatasi("komut-yasak")
+//   canli.seri()    -> { t, v, a, w, n }        // Float64Array; t = telefon saati (ms), eskiden yeniye.
+//        NaN = o kanalda VERI YOK (ADC okunamadi): grafik o noktayi cizmez (canli_gorunum.js pencereSerileri)
+//   await canli.komut("Gb1000")                 // yalniz Gb<kartin hizlari>, Gd, G?, ? — baskasi CanliHatasi("komut-yasak")
 //
 // Akis EventSource ile DEGIL: KartAg eklentisi kendi baglantisiyla okur, satirlar "akis", durum
 // "akisDurum" olayiyla gelir. Her (yeniden) baglanmada adres YENIDEN imzalanir (tek kullanimlik sayac).
@@ -28,9 +30,14 @@ export const SERI_SURE_MS = 300000;
 export const SERI_KAPASITE = 16384;             // 5 dk x en hizli rapor (20 ms) = 15000 nokta
 export const OLAY_SATIR_AZAMI = 256;
 export const YENIDEN_BUL_HER = 3;
-// Kartin kabul ettigi en hizli ozetli kayit 50/s = 20 ms (kaynak: kayit hizlari 0, 20, 100, 200, 1000, …).
-export const GB_EN_AZ_MS = 20;
-export const GB_EN_COK_MS = 60000;
+// Kartin KABUL ETTIGI kayit araliklari (ms; kaynak: kayit__hiz_gecerli). 0 = ayrintili kip. Baska
+// aralik karta HIC gitmez.
+export const GB_HIZLARI = Object.freeze([0, 20, 100, 200, 1000, 10000, 60000]);
+// Geri cekilme (1, 2, 4 … 30 s) ancak akis bu kadar KESINTISIZ acik kaldiysa bastan baslar: baglantiyi
+// kabul edip tek satir yollayip kapatan kart 1 s dongusune (her turda imza + kasa yazimi) sokamaz.
+export const KARARLI_MS = 10000;
+// Kayit durumu (G satiri) bu kadar eskiyse BILINMIYOR sayilir ve akis acilinca `G?` ile sorulur.
+export const KAYIT_ESKI_MS = 60000;
 
 const BEKLEYEN_AZAMI = 64;
 const TUR_DESENI = /^[a-z][a-z0-9-]{0,31}$/;
@@ -49,8 +56,7 @@ export function komutGecerli(metin) {
   if (metin === "Gd" || metin === "G?" || metin === "?") return true;
   const m = typeof metin === "string" ? GB_DESENI.exec(metin) : null;
   if (!m) return false;
-  const ms = Number(m[1]);
-  return ms === 0 || (ms >= GB_EN_AZ_MS && ms <= GB_EN_COK_MS);
+  return GB_HIZLARI.includes(Number(m[1]));
 }
 
 function turAl(e) {
@@ -75,7 +81,9 @@ export function canliKur({
   let bekleyen = null;                 // akisAc donene kadar gelen olaylar
   let deneme = 0, ardisik = 0;
   let yenidenZ = null, bekciZ = null, dinleniyor = false;
-  let son = null, sonMs = 0, kayit = null;
+  let son = null, sonMs = 0, kayit = null, kayitMs = 0;
+  let acikMs = null;                   // akisin "acik" oldugu an (kararlilik olcusu); kapaliyken null
+  let temizlendi = false;              // onceki sayfa yuklemesinin akislari bir kez kapatildi mi
   const ayrinti = {};
   const dinleyiciler = new Set();
 
@@ -111,11 +119,17 @@ export function canliKur({
   }
 
   // ── halka tampon ───────────────────────────────────────────────────────
+  // adc_hata bit0: gerilim, bit1: akim okunamadi -> o kanal ve guc VERI YOK (NaN). Iki kanal da
+  // yoksa (ya da sayilar sonlu degilse) nokta tampona HIC girmez.
   function seriEkle(d) {
+    const hata = Number.isInteger(d.adcHata) ? d.adcHata : 0;
+    const v = (hata & 1) === 0 && Number.isFinite(d.v) ? d.v : NaN;
+    const a = (hata & 2) === 0 && Number.isFinite(d.a) ? d.a : NaN;
+    if (Number.isNaN(v) && Number.isNaN(a)) return;
     hT[yaz] = simdiMs();
-    hV[yaz] = d.v;
-    hA[yaz] = d.a;
-    hW[yaz] = d.w;
+    hV[yaz] = v;
+    hA[yaz] = a;
+    hW[yaz] = !Number.isNaN(v) && !Number.isNaN(a) && Number.isFinite(d.w) ? d.w : NaN;
     yaz = (yaz + 1) % kap;
     if (adet < kap) adet += 1;
   }
@@ -178,6 +192,11 @@ export function canliKur({
 
   function dustu(yeniSebep, yeniKod = null) {
     bekciBirak();
+    if (acikMs !== null && simdiMs() - acikMs >= KARARLI_MS) {   // akis kararliydi: sonraki kopmada 1 s'den
+      deneme = 0;
+      ardisik = 0;
+    }
+    acikMs = null;
     halYap("hata", yeniSebep, yeniKod);
     const ms = YENIDEN_MS[Math.min(deneme, YENIDEN_MS.length - 1)];
     deneme += 1;
@@ -197,6 +216,7 @@ export function canliKur({
       bildir();
     } else if (s.tur === "G") {
       kayit = s;
+      kayitMs = simdiMs();
       bildir();
     } else if (s.tur !== "diger") {
       ayrinti[s.tur] = s;
@@ -215,8 +235,6 @@ export function canliKur({
   function olayAkis(veri) {
     if (!bizimMi("akis", veri) || !Array.isArray(veri.satirlar)) return;
     bekciKur();
-    deneme = 0;                        // veri geldi: sonraki kopmada 1 s'den baslanir
-    ardisik = 0;
     const n = Math.min(veri.satirlar.length, OLAY_SATIR_AZAMI);
     for (let i = 0; i < n; i++) satirIsle(veri.satirlar[i]);
   }
@@ -226,11 +244,16 @@ export function canliKur({
     if (veri.hal === "acik") {
       if (hal === "acik") return;
       bekciKur();
+      acikMs = simdiMs();
       halYap("acik");
-      // Kart G satirini yalniz degisince / kayitta basar: guncel kayit durumu bir kez sorulur.
-      Promise.resolve().then(() => kart.istek("POST", "/komut", [], kodla("G?"))).catch(() => {});
+      // Kart G satirini yalniz degisince / kayitta basar: kayit durumu BILINMIYORSA (hic gorulmedi ya da
+      // eskidi) sorulur. Her acilista degil: her soru bir imza + kasa yazimidir.
+      if (kayit === null || simdiMs() - kayitMs >= KAYIT_ESKI_MS) {
+        Promise.resolve().then(() => kart.istek("POST", "/komut", [], kodla("G?"))).catch(() => {});
+      }
     } else if (veri.hal === "dolu") {
       akisKimlik = null;
+      acikMs = null;
       bekciBirak();
       halYap("dolu");
       yenidenKur(DOLU_BEKLE_MS, false);
@@ -299,12 +322,21 @@ export function canliKur({
     for (const o of saklanan) (o.ad === "akis" ? olayAkis : olayDurum)(o.veri);
   }
 
-  function baslat() {
+  function baslat({ koru = false } = {}) {
     if (istenen) return;
     istenen = true;
-    deneme = 0;
-    ardisik = 0;
+    if (!koru) {
+      deneme = 0;
+      ardisik = 0;
+    }
     dinlemeyiKur();
+    if (!temizlendi) {                 // WebView yeniden yuklendiyse eski akislar yerelde acik kalmis olabilir
+      temizlendi = true;
+      try {
+        const p = typeof ag.akislariKapat === "function" ? ag.akislariKapat() : null;
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch { /* temizlik: hatasi akisi etkilemez */ }
+    }
     baglan(false);
   }
 
@@ -317,6 +349,7 @@ export function canliKur({
     const k = akisKimlik;
     akisKimlik = null;
     bekleyen = null;
+    acikMs = null;
     if (k !== null) kapatSessiz(k);
     halYap("kapali");
   }

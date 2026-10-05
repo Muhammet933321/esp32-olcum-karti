@@ -4,17 +4,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { DURDURULDU_SURE_MS, seritGorunumu, seritSuresi } from "../src/bilesen/durdur_gorunum.js";
+import { DURDURULDU_SURE_MS, seritGorunumu, seritIzleyici, seritSuresi } from "../src/bilesen/durdur_gorunum.js";
 import { SOZLUK_MOBIL } from "../src/cekirdek/sozluk_mobil.js";
 import { ILK_YOL, SEKMELER, sekmeBul } from "../src/ekran/sekmeler.js";
 
-const sayim = vi.hoisted(() => ({ wifi: 0, p0: [] }));
+const sayim = vi.hoisted(() => ({ wifi: 0, p0: [], p0Yanit: null }));
 
 vi.mock("../src/cekirdek/eklenti.js", () => ({
   KartAg: {
     wifiDurumu: async () => { sayim.wifi += 1; return { hataAyiklama: false }; },
     istek: async () => { throw new Error("kullanilmaz"); },
-    p0: (v) => { sayim.p0.push(v.adresler); return new Promise(() => {}); },
+    p0: (v) => { sayim.p0.push(v.adresler); return sayim.p0Yanit ? Promise.resolve(sayim.p0Yanit) : new Promise(() => {}); },
   },
   Kesif: { ara: async () => ({ servisler: [] }) },
   Kasa: {
@@ -51,6 +51,43 @@ describe("kabuk: ACIL DURDUR seridi", () => {
     // Kosula bagli degil: hicbir v-if / v-show seridi gizleyemez.
     expect(s).not.toMatch(/<DurdurSeridi[^>]*v-(if|show)/);
     expect(sablon(SERIT)).not.toMatch(/v-show|<div id="durdur-seridi"[^>]*v-if|<button id="durdur"[^>]*(v-if|:disabled|disabled)/);
+  });
+
+  it("serit ve atalari dokunusa / okumaya KAPATILAMAZ: inert, aria-hidden, disabled, v-if, v-show, .once yok", () => {
+    const YASAK = /\binert\b|aria-hidden|\bdisabled\b|v-if|v-else|v-show|\.once\b|\.self\b|v-once|tabindex="-1"/;
+    const etiket = (kaynak, bas) => {
+      const i = kaynak.indexOf(bas);
+      expect(i, bas).toBeGreaterThanOrEqual(0);
+      return kaynak.slice(i, kaynak.indexOf(">", i) + 1);
+    };
+    const ETIKETLER = [
+      etiket(sablon(APP), '<div id="kabuk"'), etiket(sablon(APP), "<DurdurSeridi"),
+      etiket(sablon(SERIT), '<div id="durdur-seridi"'), etiket(sablon(SERIT), '<button id="durdur"'),
+    ];
+    for (const e of ETIKETLER) expect(e, e).not.toMatch(YASAK);
+    expect(ETIKETLER[2]).toBe('<div id="durdur-seridi" class="serit">');
+    // Belgenin kendisi (index.html) de uygulama kokunu kapatmaz.
+    const belge = readFileSync(join(SRC, "..", "index.html"), "utf8");
+    expect(belge).not.toMatch(/\binert\b|aria-hidden/);
+    // Kabuk ACILISTA baslar: kart aranir, akis acilir (onMounted bos kalamaz).
+    expect(APP).toContain("onMounted(() => { kabuk.gorunurlukDegisti(); });");
+  });
+
+  it("tema.css: .serit / .durdur kurallarinda dokunusu ya da gorunurlugu kapatan bildirim YOK", () => {
+    const css = oku("tema.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const KAPATAN = /pointer-events|display:\s*none|visibility|opacity|clip-path|transform:\s*scale\(0|(?:^|[\s;{])(?:max-)?height:\s*0/;
+    const kurallar = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => [m[1].trim(), m[2]]);
+    // .serit-durum (sonuc satiri) ayri bir ogedir; burada yalniz seridin kendisi, dugme ve kabuk aranir.
+    const ilgili = kurallar.filter(([secici]) => /(\.serit|\.durdur|\.kabuk|#durdur|#kabuk)(?![-\w])/.test(secici));
+    expect(ilgili.map((k) => k[0])).toEqual(expect.arrayContaining([".kabuk", ".serit", ".durdur"]));
+    for (const [secici, govde] of ilgili) expect(govde, secici).not.toMatch(KAPATAN);
+  });
+
+  it("serit bileseni sonucu saf izleyiciyle gosterir: her hal ref'e yazilir, zamanlayici durdur_gorunum.js'te", () => {
+    expect(SERIT).toContain("const izleyici = seritIzleyici({ goster: (yeni) => { hal.value = yeni; } });");
+    expect(SERIT).toContain("const birak = durdurDinle(izleyici.al);");
+    expect(yorumsuz(SERIT)).not.toMatch(/setTimeout|setInterval/);
+    expect(sablon(SERIT)).toContain('<p v-if="gorunum.anahtar" id="durdur-durum" class="serit-durum" :class="gorunum.sinif" :role="gorunum.rol" aria-live="assertive">');
   });
 
   it("serit TEK yerde: ekranlar ve rotalar onu kendileri koymaz; her sekme ayri ekran", () => {
@@ -98,7 +135,7 @@ describe("kabuk: ACIL DURDUR seridi", () => {
 });
 
 describe("kabuk: durdurma mantigi (uygulama.js)", () => {
-  beforeEach(() => { sayim.wifi = 0; sayim.p0 = []; vi.resetModules(); });
+  beforeEach(() => { sayim.wifi = 0; sayim.p0 = []; sayim.p0Yanit = null; vi.resetModules(); });
   afterEach(() => { vi.unstubAllGlobals(); });
 
   it("acilDurdur modul yuklenir yuklenmez calisir: kart KURULMADAN, ayni gorev turunda eklentiye gider", async () => {
@@ -108,7 +145,7 @@ describe("kabuk: durdurma mantigi (uygulama.js)", () => {
     const birak = u.durdurDinle((h) => haller.push(h));
     expect(u.durdurDurumu()).toBe("bos");
     u.acilDurdur();                                  // BEKLENMIYOR
-    expect(sayim.p0).toEqual([["192.168.1.7:80", "192.168.4.1"]]);
+    expect(sayim.p0).toEqual([["192.168.1.7:80", "olcum.local", "192.168.4.1"]]);
     expect(sayim.wifi).toBe(0);                      // kart / kasa / kesif kurulmadi
     expect(u.durdurDurumu()).toBe("gonderiliyor");
     expect(haller).toEqual(["gonderiliyor"]);
@@ -125,19 +162,44 @@ describe("kabuk: durdurma mantigi (uygulama.js)", () => {
       vi.stubGlobal("localStorage", depo);
       const u = await import("../src/cekirdek/uygulama.js");
       u.acilDurdur();
-      expect(sayim.p0).toEqual([["192.168.4.1"]]);
+      expect(sayim.p0).toEqual([["olcum.local", "192.168.4.1"]]);
     }
   });
 
-  it("durdurAdresleri (saf): bagli adres ONCE, sonra onbellek; ayni adres bir kez; bozuk girdi atmaz", async () => {
+  it("durdurAdresleri (saf): bagli adres ONCE, sonra onbellek, sonra kartin ADI; ayni adres bir kez; bozuk girdi atmaz", async () => {
     vi.stubGlobal("localStorage", { getItem: () => null });
     const { durdurAdresleri } = await import("../src/cekirdek/uygulama.js");
-    expect(durdurAdresleri("192.168.1.7:80", { adres: "192.168.1.9:80", kimlik: "x" })).toEqual(["192.168.1.7:80", "192.168.1.9:80"]);
-    expect(durdurAdresleri("192.168.1.7:80", { adres: "192.168.1.7:80" })).toEqual(["192.168.1.7:80"]);
-    expect(durdurAdresleri(null, { adres: "192.168.1.9:80" })).toEqual(["192.168.1.9:80"]);
-    expect(durdurAdresleri("192.168.1.7:80", null)).toEqual(["192.168.1.7:80"]);
-    expect(durdurAdresleri(undefined, undefined)).toEqual([]);
-    expect(durdurAdresleri(5, { adres: "" })).toEqual([]);
+    const AD = "olcum.local";                    // IP degismisse de karta giden yol (curutucu 5C, bulgu 2)
+    expect(durdurAdresleri("192.168.1.7:80", { adres: "192.168.1.9:80", kimlik: "x" })).toEqual(["192.168.1.7:80", "192.168.1.9:80", AD]);
+    expect(durdurAdresleri("192.168.1.7:80", { adres: "192.168.1.7:80" })).toEqual(["192.168.1.7:80", AD]);
+    expect(durdurAdresleri(null, { adres: "192.168.1.9:80" })).toEqual(["192.168.1.9:80", AD]);
+    expect(durdurAdresleri("192.168.1.7:80", null)).toEqual(["192.168.1.7:80", AD]);
+    expect(durdurAdresleri(undefined, undefined)).toEqual([AD]);
+    expect(durdurAdresleri(5, { adres: "" })).toEqual([AD]);
+    expect(durdurAdresleri(AD, { adres: AD })).toEqual([AD]);
+    // Erisim noktasi adresiyle birlikte en cok 4: eklentinin siniri (P0.kt AZAMI_ADRES) hicbirini kesmez.
+    const { P0_AZAMI_ADRES } = await import("../src/cekirdek/ag.js");
+    expect(durdurAdresleri("192.168.1.7:80", { adres: "192.168.1.9:80" }).length + 1).toBeLessThanOrEqual(P0_AZAMI_ADRES);
+  });
+
+  it("asil (bagli) adres biliniyorken yalniz BASKA adres 204 verdiyse 'baska-yanit'; asil verdiyse 'durduruldu'", async () => {
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {} });
+    const u = await import("../src/cekirdek/uygulama.js");
+    // Kart kurulmadan (asil bilinmiyor): herhangi bir adresin 204'u "durduruldu".
+    sayim.p0Yanit = { tamam: true, adres: "192.168.4.1", basarili: ["192.168.4.1"] };
+    await u.acilDurdur();
+    expect(u.durdurDurumu()).toBe("durduruldu");
+    const kart = await u.kartAl();
+    kart.durum = () => ({ durum: "bagli", adres: "192.168.1.20:80", kimlik: "0123456789abcdef" });
+    await u.acilDurdur();
+    expect(sayim.p0.at(-1)[0]).toBe("192.168.1.20:80");            // asil adres listenin BASINDA
+    expect(u.durdurDurumu()).toBe("baska-yanit");
+    sayim.p0Yanit = { tamam: true, adres: "192.168.1.20:80", basarili: ["192.168.4.1", "192.168.1.20:80"] };
+    await u.acilDurdur();
+    expect(u.durdurDurumu()).toBe("durduruldu");
+    sayim.p0Yanit = { tamam: false, basarili: [] };
+    await u.acilDurdur();
+    expect(u.durdurDurumu()).toBe("ulasilamadi");
   });
 
   it("kart kurulduktan sonra BAGLI adres de listeye girer (es zamanli okunur)", async () => {
@@ -146,13 +208,13 @@ describe("kabuk: durdurma mantigi (uygulama.js)", () => {
     const kart = await u.kartAl();
     kart.durum = () => ({ durum: "bagli", adres: "192.168.1.20:80", kimlik: "0123456789abcdef" });
     u.acilDurdur();
-    expect(sayim.p0).toEqual([["192.168.1.20:80", "192.168.4.1"]]);
+    expect(sayim.p0).toEqual([["192.168.1.20:80", "olcum.local", "192.168.4.1"]]);
     // Onbellek deposuna ERISILEMESE de (erisim atiyor) bagli adres kaybolmaz.
     vi.unstubAllGlobals();
     Object.defineProperty(globalThis, "localStorage", { configurable: true, get() { throw new Error("depo yok"); } });
     try {
       u.acilDurdur();
-      expect(sayim.p0[1]).toEqual(["192.168.1.20:80", "192.168.4.1"]);
+      expect(sayim.p0[1]).toEqual(["192.168.1.20:80", "olcum.local", "192.168.4.1"]);
     } finally {
       delete globalThis.localStorage;
     }
@@ -181,8 +243,59 @@ describe("serit gorunumu (A10)", () => {
     expect(DURDURULDU_SURE_MS).toBeGreaterThanOrEqual(2000);
     expect(seritSuresi("ulasilamadi")).toBe(0);            // kendiliginden SILINMEZ
     expect(seritSuresi("gonderiliyor")).toBe(0);
+    // Baska bir adres yanit verdi: KALICI kehribar uyari, kirmizi "ulasilamadi" ile ayni sey DEGIL.
+    expect(seritGorunumu("baska-yanit")).toMatchObject({ anahtar: "m.dd.baska_yanit", sinif: "baska-yanit", kalici: true, rol: "alert" });
+    expect(seritSuresi("baska-yanit")).toBe(0);
+    expect(SOZLUK_MOBIL["m.dd.baska_yanit"].tr).toMatch(/doğrulanamadı/);
+    expect(/\n\.serit-durum\.baska-yanit \{([^}]*)\}/.exec(oku("tema.css"))[1]).toMatch(/color: var\(--uyari\); background: var\(--uyari-zemin\)/);
     expect(SOZLUK_MOBIL["m.dd.ulasilamadi"].tr).toMatch(/^ULAŞILAMADI/);
     expect(SOZLUK_MOBIL["m.dd.ulasilamadi"].en).toMatch(/^UNREACHABLE/);
+  });
+});
+
+describe("serit izleyicisi (dinleyici + zamanlayici, DOM'suz)", () => {
+  function duzenek() {
+    const gosterilen = [];
+    const isler = [];
+    const iz = seritIzleyici({
+      goster: (h) => gosterilen.push(h),
+      zamanla: (fn, ms) => { const k = { fn, ms }; isler.push(k); return k; },
+      zamaniBirak: (k) => { const i = isler.indexOf(k); if (i >= 0) isler.splice(i, 1); },
+    });
+    return { iz, gosterilen, isler, kos: () => { const k = isler.shift(); k.fn(); } };
+  }
+
+  it("her hal HEMEN gosterilir; ULASILAMADI ve 'baska-yanit' KALICI: zamanlayici hic kurulmaz", () => {
+    const d = duzenek();
+    for (const hal of ["gonderiliyor", "ulasilamadi", "baska-yanit"]) {
+      d.iz.al(hal);
+      expect(d.gosterilen.at(-1)).toBe(hal);
+      expect(d.isler, hal).toEqual([]);
+    }
+    expect(d.gosterilen).toEqual(["gonderiliyor", "ulasilamadi", "baska-yanit"]);
+  });
+
+  it("'durduruldu' DURDURULDU_SURE_MS sonra sakinlesir (bos); o arada gelen yeni hal silinmez", () => {
+    const d = duzenek();
+    d.iz.al("durduruldu");
+    expect(d.isler.map((k) => k.ms)).toEqual([DURDURULDU_SURE_MS]);
+    d.kos();
+    expect(d.gosterilen).toEqual(["durduruldu", "bos"]);
+    // Sure dolmadan yeniden basildi ve ulasilamadi: eski zamanlayici iptal, kirmizi uyari KALIR.
+    d.iz.al("durduruldu");
+    d.iz.al("gonderiliyor");
+    expect(d.isler).toEqual([]);
+    d.iz.al("ulasilamadi");
+    expect(d.isler).toEqual([]);
+    expect(d.gosterilen.at(-1)).toBe("ulasilamadi");
+  });
+
+  it("birak: bekleyen silme iptal olur", () => {
+    const d = duzenek();
+    d.iz.al("durduruldu");
+    d.iz.birak();
+    expect(d.isler).toEqual([]);
+    expect(() => seritIzleyici({})).toThrow(TypeError);
   });
 });
 

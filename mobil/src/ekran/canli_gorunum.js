@@ -54,8 +54,25 @@ export function kayitDugmesi(kayit) {
 
 const BOS = Object.freeze({ seriler: Object.freeze([]), sonT: 0, n: 0 });
 
+// (t, y) -> sonlu olmayan y'lerin cikarildigi (t, y). Hepsi sonluysa AYNI diziler doner (kopya yok).
+export function verisizleriAt(t, y) {
+  let gecerli = 0;
+  for (let i = 0; i < y.length; i++) if (Number.isFinite(y[i])) gecerli += 1;
+  if (gecerli === y.length) return { t, y };
+  const t2 = new Float64Array(gecerli), y2 = new Float64Array(gecerli);
+  for (let i = 0, k = 0; i < y.length; i++) {
+    if (!Number.isFinite(y[i])) continue;
+    t2[k] = t[i];
+    y2[k] = y[i];
+    k += 1;
+  }
+  return { t: t2, y: y2 };
+}
+
 // canli.seri() -> son `pencereMs`'lik grafik serileri (ortak/src/grafik.js bicimi).
-// seri: { t: Float64Array (ms, artan), v, a, w, n } — ilk n oge gecerli. Uc kanal AYNI t dizisini paylasir.
+// seri: { t: Float64Array (ms, artan), v, a, w, n } — ilk n oge gecerli. Uc kanal AYNI t dizisini paylasir;
+// bir kanalda NaN = o an VERI YOK (ADC okunamadi): o noktalar kanalin KENDI t / y dizisinden cikarilir
+// (grafik boslugu zaman araligindan tanir: boslukMs), cizgi 0'a ya da uydurma degere inmez.
 // Sag eksen TEK birim (A ya da W): iki birim tek eksende eksen yazisini yalanci yapardi.
 export function pencereSerileri(seri, pencereMs, sagEksen = "a") {
   const n = seri && Number.isInteger(seri.n) ? Math.min(seri.n, seri.t ? seri.t.length : 0) : 0;
@@ -68,7 +85,10 @@ export function pencereSerileri(seri, pencereMs, sagEksen = "a") {
     if (seri.t[orta] < sonT - pencereMs) bas = orta + 1; else son = orta;
   }
   const t = seri.t.subarray(bas, n);
-  const kanal = (ad, alan, renk, eksen, gizli) => ({ ad, t, y: seri[alan].subarray(bas, n), birim: ad, renk, eksen, boslukMs: 2500, gizli });
+  const kanal = (ad, alan, renk, eksen, gizli) => {
+    const d = verisizleriAt(t, seri[alan].subarray(bas, n));
+    return { ad, t: d.t, y: d.y, birim: ad, renk, eksen, boslukMs: 2500, gizli };
+  };
   return {
     sonT,
     n: n - bas,

@@ -7,11 +7,15 @@ import curutucu5b from "../test/curutucu-5b/duzeltme-liste.mjs";
 import p0 from "./p0-liste.mjs";
 import akis from "./akis-liste.mjs";
 import kabuk from "./kabuk-liste.mjs";
+import curutucu5c from "../test/curutucu-5c/yasayan-liste.mjs";
+import duzeltme5c from "./duzeltme5c-liste.mjs";
 
 export default [
   ...curutucu.map((m) => ({ ...m, ad: `5A-7 ${m.ad}` })),
   // Curutucu 5B: yasayan mutasyonlar + duzeltmelerin mutasyonlari ("5B-C: ..." adlariyla gelir).
   ...curutucu5b,
+  ...curutucu5c,
+  ...duzeltme5c,
   ...p0,
   ...akis,
   ...kabuk,

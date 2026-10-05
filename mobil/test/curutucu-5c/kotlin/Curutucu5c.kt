@@ -74,13 +74,14 @@ fun main() {
             try { Thread.sleep(800) } finally { canli.decrementAndGet() }
             throw AgHatasi("zaman-asimi")
         }
-        val isler = ArrayList<Thread>()
+        // Eklentinin GERCEK yolu: tek P0Tur (KartAgPlugin.p0Tur). Suren tura baglanilir.
+        val tur = P0Tur(P0(gonder, { }))
+        val bitti = java.util.concurrent.CountDownLatch(20)
         for (i in 0 until 20) {
-            val t = Thread { P0(gonder).durdur(listOf("a", "b", "c"), 100) }
-            t.start(); isler.add(t)
+            tur.durdur(listOf("a", "b", "c")) { bitti.countDown() }
             Thread.sleep(20)
         }
-        for (t in isler) t.join()
+        bitti.await(15, java.util.concurrent.TimeUnit.SECONDS)
         Thread.sleep(300)
         println("K4 durdur'lar dondu; hala calisan gonder=${canli.get()} es zamanli azami=${azami.get()}")
         iddia("K4 art arda dokunusta es zamanli p0 baglantisi sinirli olmali (<= 12)", azami.get() <= 12,

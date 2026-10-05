@@ -1,25 +1,20 @@
 <script setup>
 // ACIL DURDUR seridi (A8–A11). Kabukta (App.vue) TEK yerde, sekmelerin hemen ustunde durur.
 // Dokunus isleyicisi DOGRUDAN acilDurdur'dur: onay yok, bekleme yok, yonlendirme yok, kart nesnesi
-// beklenmez. Sonuc seridin icinde: gonderiliyor / durduruldu (birkac saniye) / ULASILAMADI (kalici).
+// beklenmez. Sonuc seridin icinde: gonderiliyor / durduruldu (birkac saniye) / ULASILAMADI ve "baska adres yanit verdi" (kalici).
 // Dugme hicbir halde kapanmaz — her zaman yeniden basilabilir.
 import { computed, onBeforeUnmount, ref } from "vue";
 import Ikon from "./Ikon.vue";
-import { seritGorunumu, seritSuresi } from "./durdur_gorunum.js";
+import { seritGorunumu, seritIzleyici } from "./durdur_gorunum.js";
 import { acilDurdur, durdurDinle, durdurDurumu } from "../cekirdek/uygulama.js";
 import { c } from "../ekran/metin.js";
 
 const hal = ref(durdurDurumu());
 const gorunum = computed(() => seritGorunumu(hal.value));
-let silme = 0;
-
-const birak = durdurDinle((yeni) => {
-  clearTimeout(silme);
-  hal.value = yeni;
-  const sure = seritSuresi(yeni);
-  if (sure > 0) silme = setTimeout(() => { if (hal.value === yeni) hal.value = "bos"; }, sure);
-});
-onBeforeUnmount(() => { clearTimeout(silme); birak(); });
+// Zamanlayici mantigi durdur_gorunum.js'te (DOM'suz sinanir): kalici haller kendiliginden silinmez.
+const izleyici = seritIzleyici({ goster: (yeni) => { hal.value = yeni; } });
+const birak = durdurDinle(izleyici.al);
+onBeforeUnmount(() => { izleyici.birak(); birak(); });
 </script>
 
 <template>

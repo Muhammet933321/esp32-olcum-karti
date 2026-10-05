@@ -26,7 +26,8 @@ class SseAyiriciTest {
     @Test
     fun olayAdiTasinir_sonrakiOlaydaSifirlanir() {
         assertEquals(listOf("dolu|4", "|D 1"), ayir("event: dolu\ndata: 4\n\ndata: D 1\n\n"))
-        assertEquals(listOf("kimlik|{\"jeton\":\"x\"}"), ayir("event: kimlik\ndata: {\"jeton\":\"x\"}\n\n"))
+        // `kimlik` olayi (oturum jetonu): adiyla ama BOS veriyle cikar (curutucu 5C, bulgu 10).
+        assertEquals(listOf("kimlik|"), ayir("event: kimlik\ndata: {\"jeton\":\"x\"}\n\n"))
     }
 
     @Test
@@ -69,7 +70,8 @@ class SseAyiriciTest {
         val parca = ArrayList<SseOlay>()
         for (b in metin.toByteArray(Charsets.UTF_8)) parca.addAll(a.besle(byteArrayOf(b)))
         assertEquals(tek, ozet(parca))
-        assertEquals(listOf("kimlik|{\"jeton\":\"abc\"}", "|D 12.0000 0.5 şğü", "|G 1"), tek)
+        // kimlik olayi ADIYLA ama BOS veriyle dagitilir (jeton tasinmaz)
+        assertEquals(listOf("kimlik|", "|D 12.0000 0.5 şğü", "|G 1"), tek)
     }
 
     @Test
@@ -110,5 +112,32 @@ class SseAyiriciTest {
     fun bastakiBomAtilir() {
         val b = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + "data: D 1\n\n".toByteArray()
         assertEquals(listOf("|D 1"), ozet(SseAyirici().besle(b)))
+    }
+
+    @Test
+    fun kimlikOlayininVerisiHicbirYoldanTasinmaz() {
+        val JETON = "JETON-SINAMA"
+        val girdiler = listOf(
+            "event: kimlik\ndata: $JETON\n\n",
+            "data: $JETON\nevent: kimlik\n\n",                                   // veri addan ONCE
+            "event: kimlik\ndata: $JETON\nevent: message\ndata: D 1 2 3\n\n",    // bos satirsiz ad degisimi
+            "event: kimlik\nevent:\ndata: $JETON\n\n",
+            "event: kimlik \ndata: $JETON\n\n",
+            "event:KIMLIK\ndata: $JETON\n\n",
+        )
+        for (g in girdiler) {
+            val olaylar = SseAyirici().besle(g.toByteArray(Charsets.UTF_8))
+            assertEquals(g, listOf("kimlik|"), ozet(olaylar))
+        }
+        // Sonraki olay etkilenmez.
+        assertEquals(listOf("kimlik|", "|D 1"), ayir("event: kimlik\ndata: $JETON\n\ndata: D 1\n\n"))
+    }
+
+    @Test
+    fun alanAdlariBuyukKucukHarfeDuyarsiz() {
+        assertEquals(listOf("kimlik|"), ayir("Event: kimlik\ndata: JETON-SINAMA\n\n"))
+        assertEquals(listOf("kimlik|"), ayir("EVENT: kimlik\nDATA: JETON-SINAMA\n\n"))
+        assertEquals(listOf("dolu|4"), ayir("Event: dolu\nData: 4\n\n"))
+        assertEquals(listOf("|D 1"), ayir("DATA: D 1\n\n"))
     }
 }

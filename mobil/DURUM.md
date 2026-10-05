@@ -470,3 +470,40 @@ Açık bulunamayanlar: komut beyaz listesi (46 girdi), ölü DURDUR düğmesi yo
 
 Aynı ajan 3. maddenin öbür yarısını da yazıyor: **pil testi sürerken salt okuma** (etkin oturumun türü imzalı
 `/kayit/liste`'den; tür 2 ise kayıt düğmeleri kapalı + açıklama; ACİL DURDUR aynen).
+
+### 2026-10-05 (gece, devam 3) — 5C çürütücü düzeltmeleri BİTTİ; pil testinde salt okuma; telefonda yeniden ölçüldü
+
+Düzeltme ajanı kota sınırında yarıda kesilmişti; diskte bıraktığı iş incelendi, eksikleri tamamlandı, hepsi
+yeniden koşuldu. On bulgunun onu da (yukarıdaki tablo) ve pil testinde salt okuma yazıldı.
+
+**Kanıt (hepsini ben koştum):**
+- JS **356/356** (33 dosya; `test/curutucu-5c/` kanıt testleri artık regresyon testi), Kotlin birim testleri yeşil
+  (103 test), Kotlin kanıt düzeneği `test/curutucu-5c/kotlin/` **10/10** (K4 eklentinin gerçek yolu `P0Tur` ile).
+- Mutasyon: JS `--neden 5C` **118/118** (eski 5C listeleri + çürütücünün yaşayan listesi + yeni
+  `mutasyon/duzeltme5c-liste.mjs`, 26 mutasyon), Kotlin `--neden 5C` **9/9** (6'sı yeni: `5C-KD`).
+  Yol üstünde bulunanlar: eski listelerde 7 + çürütücü listesinde 4 mutasyon kod taşındığı için UYGULANAMADI
+  oluyordu (yeni yerlerine uyarlandı); "reddedilen Gb'nin hızı unutulmuyor" mutasyonu YAŞIYORDU → test eklendi.
+- Ajanın bıraktığı tek kırmızı: `SseAyiriciTest.baytBaytBeslemeAyniSonucuVerir` eski davranışı (kimlik olayının
+  verisi taşınır) bekliyordu → yeni kurala (ad var, veri BOŞ) göre düzeltildi.
+- **Xiaomi + gerçek kart (ev ağı özel IP, Wi-Fi):** yeni derleme kuruldu (kurulum zamanı doğrulandı); kart
+  önbellekten bulundu, canlı akış akıyor; ACİL DURDUR tek dokunuş → "Durduruldu: kart yükü kesti."; DURDUR
+  ölçümü **20/20, en az 36 · ortanca 142 · en çok 286 ms** (önceki 39 / 146 / 526); logcat taraması temiz
+  (649 satır, 0 sır). Karta yalnız `p0` ve salt okuma gitti; kayıt başlatılmadı, `Go` yok, kalibrasyon komutu yok.
+
+**Pil testinde salt okuma (A40):** G/D satırı oturum türünü söylemediği için kayıt sürerken oturum numarası
+değişince BİR kez imzalı `GET /kayit/liste` okunur. Tür 2 (pil) → "Kaydı başlat/durdur" kapalı + açıklama +
+rozet; tür 3 (skop günlüğü) → yalnız rozet; tür okunamadıysa düğmeler AÇIK kalır (kart zaten reddeder — karar
+benim: okunamayan liste yüzünden kayıt durdurulamaz hale gelmesin). ACİL DURDUR kilitten etkilenmez.
+⚠ Gerçek kartta pil oturumuyla DENENMEDİ (`p1` yasak, yük yok) — yalnız sahte kabukla sınandı.
+
+**Bu turda kendim verdiğim kararlar:**
+1. DURDUR adres listesi: bağlı adres (asıl), önbellek, `olcum.local`, kartın AP'si — A9'un küçük genişlemesi
+   (yukarıda gerekçesiyle). Onay bekliyor.
+2. Yeni şerit durumu "başka adres yanıt verdi — kartın durduğu doğrulanamadı" (kehribar, kalıcı).
+3. `Gb` yalnız kartın kabul ettiği hızlarla gider (0, 20, 100, 200, 1000, 10000, 60000 ms); başkası karta gitmez.
+4. WebView yeniden yüklenince önceki sayfanın yerelde açık kalmış akışları kapatılır (kartın 4 yuvası için).
+5. Eşleştirme sürerken kabuk kartı kendiliğinden yeniden aramaz.
+
+**Telefonda ÖLÇÜLMEYENLER (sabah / sonraki tur):** kartın IP'si değişince yeniden bulma ve "başka adres yanıt
+verdi" hali (kartın ağını değiştirmek gerekir); Wi-Fi kapalıyken DURDUR'un hemen "ULAŞILAMADI" demesi (telefonun
+Wi-Fi ayarına dokunmadım — JVM testinde < 300 ms); pil oturumunda salt okuma.

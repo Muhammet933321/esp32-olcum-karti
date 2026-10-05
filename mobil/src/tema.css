@@ -93,6 +93,7 @@ h1, h2, h3, p { margin: 0; }
 .durdur:active { filter: brightness(.85); }
 .serit-durum { margin-top: .375rem; min-height: 1.5rem; display: flex; align-items: center; justify-content: center; gap: .375rem; font-size: .875rem; font-weight: 600; color: var(--yazi); text-align: center; }
 .serit-durum.ulasilamadi { color: var(--durdur-yazi); background: var(--durdur); border-radius: var(--r); padding: .375rem .625rem; letter-spacing: .02em; }
+.serit-durum.baska-yanit { color: var(--uyari); background: var(--uyari-zemin); border: 1px solid var(--kenar-koyu); border-radius: var(--r); padding: .375rem .625rem; }
 .serit-durum.durduruldu { color: var(--iyi); }
 .serit-durum .ik { width: 1.25rem; height: 1.25rem; }
 

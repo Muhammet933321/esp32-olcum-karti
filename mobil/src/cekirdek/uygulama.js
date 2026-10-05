@@ -10,6 +10,7 @@
 
 import { agKur } from "./ag.js";
 import { durdurKur } from "./durdur.js";
+import { KART_ADI } from "./hedef.js";
 import { KartAg, Kasa, Kesif } from "./eklenti.js";
 import { kartKur } from "./kart.js";
 import { kasaKur } from "./kasa.js";
@@ -42,22 +43,25 @@ export function kartAl() {
 }
 
 // ── ACIL DURDUR (A8–A11) ─────────────────────────────────────────────────
-// Adres kaynagi SAF ve ESZAMANLI: bagli adres (kart kuruluysa) + kesif onbellegindeki son adres.
-// Bozuk / eksik girdi ATMAZ; ayni adres bir kez. Kartin erisim noktasi adresini durdur.js ekler.
+// Adres kaynagi SAF ve ESZAMANLI. Sira: BAGLI adres (bu baglantida kimligi dogrulanmis kart — "asil"),
+// kesif onbellegindeki son adres, kartin adi (olcum.local: IP degismisse de karta gider; ad yalniz ozel
+// adrese cozulur, p0 imzasizdir). Bozuk / eksik girdi ATMAZ; ayni adres bir kez. Kartin erisim noktasi
+// adresini durdur.js ekler: toplam en cok 4 adres (ag.js P0_AZAMI_ADRES).
 export function durdurAdresleri(bagliAdres, onbellekKaydi) {
   const cikti = [];
-  for (const a of [bagliAdres, onbellekKaydi && onbellekKaydi.adres]) {
+  for (const a of [bagliAdres, onbellekKaydi && onbellekKaydi.adres, KART_ADI]) {
     if (typeof a === "string" && a !== "" && !cikti.includes(a)) cikti.push(a);
   }
   return cikti;
 }
 
+// { liste, asil }: asil = bagli adres (yoksa null — o zaman hicbir adres "asil" degildir).
 function adresler() {
   let bagli = null;
   let kayit = null;
   try { bagli = kurulu ? kurulu.durum().adres : null; } catch { bagli = null; }
   try { kayit = yerelOnbellek(localStorage).oku(); } catch { kayit = null; }
-  return durdurAdresleri(bagli, kayit);
+  return { liste: durdurAdresleri(bagli, kayit), asil: typeof bagli === "string" && bagli !== "" ? bagli : null };
 }
 
 const durdurDinleyenler = new Set();
@@ -101,7 +105,7 @@ async function canliKurulum() {
   if (typeof yukle !== "function") throw new UygulamaHatasi("canli-yok");
   const [modul, p] = await Promise.all([yukle(), parcalar()]);
   if (!modul || typeof modul.canliKur !== "function") throw new UygulamaHatasi("canli-yok");
-  return modul.canliKur({ kart: p.kart, ag: p.ag, eklenti: KartAg, simdiMs: Date.now });
+  return modul.canliKur({ kart: p.kart, ag: p.ag, eklenti: KartAg, simdiMs: Date.now, yenidenBul: true });
 }
 
 export function canliAl() {

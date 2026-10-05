@@ -7,6 +7,11 @@ class SseOlay(val ad: String, val veri: String)
  * Bayt akisindan SSE olaylari (A6, A7). Saf: Android sinifi yok, JVM'de sinanir.
  *  - satir sonu LF, CRLF ya da yalniz CR; yarim satir sonraki beslemede tamamlanir
  *  - `data:` satirlari bos satirda olay olur (cok satirli veri yeni satirla birlesir); `event:` olayin adi
+ *  - alan adlari buyuk / kucuk harfe DUYARSIZ okunur (`Event:` de olay adidir): kart oyle yazmaz, ama
+ *    ad taninmazsa olay "varsayilan" sayilir ve verisi JS'e tasinirdi
+ *  - bir olayda `kimlik` adi GORULDUYSE (oturum jetonu tasir) o olayin verisi TUMUYLE atilir: bos satir
+ *    gelmeden baska bir `event:` gelse de onceki / sonraki `data:` tasinmaz. Olay `kimlik` adiyla ve
+ *    BOS veriyle dagitilir (akisin acildigi anlasilsin)
  *  - `id:`, `retry:`, yorum (`: kalp`) ve bilinmeyen alanlar olaya GIRMEZ
  *  - satir > SATIR_AZAMI bayt: satir ATILIR ve icinde bulundugu olay dagitilmaz (yarim veri tasinmaz);
  *    tampon hicbir zaman SATIR_AZAMI'yi asmaz. Olayin toplam verisi > VERI_AZAMI ise olay atilir.
@@ -21,6 +26,7 @@ class SseAyirici {
     private val veri = StringBuilder()
     private var veriVar = false
     private var bozuk = false
+    private var gizli = false           // bu olayda `kimlik` adi goruldu: verisi tasinmaz
 
     fun tamponBoyu(): Int = boy
 
@@ -58,11 +64,13 @@ class SseAyirici {
             return
         }
         if (s.isEmpty()) {
-            if (veriVar && !bozuk) cikti.add(SseOlay(ad, veri.toString()))
+            if (gizli) cikti.add(SseOlay(GIZLI_OLAY, ""))
+            else if (veriVar && !bozuk) cikti.add(SseOlay(ad, veri.toString()))
             ad = ""
             veri.setLength(0)
             veriVar = false
             bozuk = false
+            gizli = false
             return
         }
         if (s[0] == ':') return                 // yorum (kalp atisi)
@@ -70,19 +78,28 @@ class SseAyirici {
         val alan = if (k < 0) s else s.substring(0, k)
         var deger = if (k < 0) "" else s.substring(k + 1)
         if (deger.startsWith(" ")) deger = deger.substring(1)
-        when (alan) {
+        when (alan.lowercase()) {
             "data" -> {
+                if (gizli) return
                 if (veriVar) veri.append('\n')
                 veriVar = true
                 if (veri.length + deger.length > VERI_AZAMI) bozuk = true else veri.append(deger)
             }
-            "event" -> ad = deger
+            "event" -> {
+                ad = deger
+                if (deger.trim().lowercase() == GIZLI_OLAY) {
+                    gizli = true
+                    veri.setLength(0)           // adtan ONCE gelen veri de atilir
+                }
+            }
         }
     }
 
     companion object {
         const val SATIR_AZAMI = 4096
         const val VERI_AZAMI = 8192
+        /** Verisi hicbir zaman tasinmayan olay (kartin oturum jetonu). */
+        const val GIZLI_OLAY = "kimlik"
         private const val LF = '\n'.code.toByte()
         private const val CR = '\r'.code.toByte()
     }

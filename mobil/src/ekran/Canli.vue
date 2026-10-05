@@ -7,7 +7,7 @@ import CanliGrafik from "../bilesen/CanliGrafik.vue";
 import Gosterge from "../bilesen/Gosterge.vue";
 import KayitDugmesi from "./KayitDugmesi.vue";
 import { BIRIM, HIZLAR, PENCERELER, SAG_EKSENLER, canliHali, kayitDugmesi } from "./canli_gorunum.js";
-import { olcumYazilari } from "./durum_gorunum.js";
+import { olcumYazilari, oturumKilidi } from "./durum_gorunum.js";
 import { c } from "./metin.js";
 import { sekmeBul } from "./sekmeler.js";
 
@@ -18,6 +18,7 @@ const yonlendirici = useRouter();
 const hal = computed(() => canliHali({ baglanti: kabuk.baglanti.value, araniyor: kabuk.araniyor.value, akis: kabuk.akis.value }));
 const olcum = computed(() => olcumYazilari(hal.value.akiyor ? kabuk.akis.value.son : null));
 const kayitSuruyor = computed(() => kayitDugmesi(kabuk.akis.value.kayit).is === "durdur");
+const kilit = computed(() => oturumKilidi(kabuk.oturumTuru.value));
 const pencereS = ref(PENCERELER[0].s);
 const sagEksen = ref(SAG_EKSENLER[0]);
 
@@ -28,6 +29,7 @@ const ayarlaraGit = () => yonlendirici.push(sekmeBul("ayarlar").yol);
   <div class="ekran">
     <p v-if="!hal.akiyor" id="cn-hal" class="bilgi" :class="hal.sinif" role="status">{{ c(hal.anahtar) }}</p>
     <button v-if="hal.esles" id="cn-esles" type="button" class="dugme ana" @click="ayarlaraGit">{{ c("m.dr.esles") }}</button>
+    <p v-if="kilit.rozet" id="cn-oturum-turu"><span class="rozet uyari">{{ c(kilit.rozet) }}</span></p>
 
     <div id="cn-degerler" class="kart sikisik">
       <Gosterge :etiket="c('m.cn.gerilim')" :deger="olcum.v" :birim="BIRIM.v" renk="renk-v" />
@@ -52,7 +54,7 @@ const ayarlaraGit = () => yonlendirici.push(sekmeBul("ayarlar").yol);
     <div>
       <span class="et alan-et">{{ c("m.cn.hiz") }}</span>
       <div id="cn-hiz" class="secim" role="radiogroup" :aria-label="c('m.cn.hiz')">
-        <button v-for="h in HIZLAR" :key="h.ms" type="button" role="radio" :aria-checked="hiz === h.ms" :disabled="kayitSuruyor" @click="hiz = h.ms">{{ h.yazi }}</button>
+        <button v-for="h in HIZLAR" :key="h.ms" type="button" role="radio" :aria-checked="hiz === h.ms" :disabled="kayitSuruyor || kilit.saltOkuma" @click="hiz = h.ms">{{ h.yazi }}</button>
       </div>
     </div>
 

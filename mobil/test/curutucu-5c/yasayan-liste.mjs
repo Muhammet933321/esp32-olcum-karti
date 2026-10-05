@@ -4,6 +4,8 @@
 const KABUK = "test/kabuk.test.js";
 const EKRAN = "test/ekran.test.js";
 
+// C3, C4, C8, C10: duzeltmede mantik saf modullere tasindi (durdur_gorunum.js, kayit_dugme.js);
+// ayni mutasyonlar yeni yerleriyle mutasyon/duzeltme5c-liste.mjs'te (5C-D6).
 export default [
   {
     ad: "5C-C1: serit 'inert' (dokunulamaz, okunamaz) yapildi — v-if / disabled deseni bunu gormuyor",
@@ -17,20 +19,6 @@ export default [
     dosya: "src/tema.css",
     bul: ".serit { flex: none; position: relative;",
     koy: ".serit { pointer-events: none; flex: none; position: relative;",
-    test: KABUK,
-  },
-  {
-    ad: "5C-C3: ULASILAMADI hemen siliniyor (kalici degil) — silme zamanlayicisi her halde kuruluyor",
-    dosya: "src/bilesen/DurdurSeridi.vue",
-    bul: "if (sure > 0) silme = setTimeout",
-    koy: "if (sure >= 0) silme = setTimeout",
-    test: KABUK,
-  },
-  {
-    ad: "5C-C4: serit sonucu hic gostermiyor (hal guncellenmiyor)",
-    dosya: "src/bilesen/DurdurSeridi.vue",
-    bul: "  hal.value = yeni;\n",
-    koy: "",
     test: KABUK,
   },
   {
@@ -55,24 +43,10 @@ export default [
     test: EKRAN,
   },
   {
-    ad: "5C-C8: kayit dugmesi 'kapali' halde (dolu / hata / tariyor) basilabiliyor",
-    dosya: "src/ekran/KayitDugmesi.vue",
-    bul: "!hal.komut || dugme.is === 'kapali'",
-    koy: "!hal.komut",
-    test: EKRAN,
-  },
-  {
     ad: "5C-C9: kabuk acilista hicbir sey yapmiyor (kart aranmiyor, akis acilmiyor)",
     dosya: "src/App.vue",
     bul: "onMounted(() => { kabuk.gorunurlukDegisti(); });",
     koy: "onMounted(() => {});",
     test: KABUK,
-  },
-  {
-    ad: "5C-C10: 'Kaydi durdur' tek dokunusla durduruyor (onay adimi yok)",
-    dosya: "src/ekran/KayitDugmesi.vue",
-    bul: "  if (!onay.value) {",
-    koy: "  if (false) {",
-    test: EKRAN,
   },
 ];
