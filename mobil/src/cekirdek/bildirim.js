@@ -21,6 +21,7 @@ export const KAYITTA = Object.freeze([2, 4]);
 
 const KIMLIK = /^[0-9a-f]{16}$/;
 const TUR = /^[a-z][a-z-]{0,23}$/;
+export const URETICILER = Object.freeze(["honor", "huawei", "xiaomi", "samsung", "diger"]);
 const IZLEME_DURUMLARI = new Set(["baglaniyor", "izleniyor", "internet", "guven", "araci", "kayit-bitti", "ayar", "durduruldu", "ic-hata"]);
 
 export class BildirimHatasi extends Error {
@@ -94,6 +95,7 @@ export function bildirimKur({ kartAl, eklenti }) {
       anlik: y.anlik === true,
       kapali: SINIFLAR.filter((s) => Array.isArray(y.kapali) && y.kapali.includes(s)),
       dil: DILLER.includes(y.dil) ? y.dil : "tr",
+      uretici: URETICILER.includes(y.uretici) ? y.uretici : "diger",
     };
   }
 
@@ -110,6 +112,7 @@ export function bildirimKur({ kartAl, eklenti }) {
     izinIste: async () => (await cagir("izinIste")).izin === true,
     pilMuafiyetiIste: async () => (await cagir("pilMuafiyetiIste")).pilMuaf === true,
     deneme: async () => (await cagir("deneme")).izin === true,
+    uygulamaAyarlariAc: async () => { await cagir("uygulamaAyarlariAc"); },
     // { basladi, neden }: neden "" | "kapali" (anlik izleme kapali) | "zarf-yok" | "calisiyor"
     // buKayit: anlik izleme ayari KAPALI olsa da yalniz bu kayit icin baslat (kullanici soruya "ac" dedi).
     izlemeBaslat: async (kimlik, { buKayit = false } = {}) => {
@@ -117,6 +120,11 @@ export function bildirimKur({ kartAl, eklenti }) {
       return { basladi: y.basladi === true, neden: typeof y.neden === "string" && TUR.test(y.neden) ? y.neden : "" };
     },
     izlemeDurdur: async () => { await cagir("izlemeDurdur"); },
+    // Kartin dogrulanmis yerel adresi (A36: servis araci "cevrimdisi" derken bu adresi imzasiz yoklar).
+    adresYaz: async (kimlik, adres) => {
+      if (typeof adres !== "string" || adres.length === 0 || adres.length > 21) throw new BildirimHatasi("bicim");
+      await cagir("adresYaz", { kimlik: kimlikli(kimlik), adres });
+    },
     yerel: async (kimlik, kod, oturum) => {
       if (!Number.isInteger(kod) || !Number.isInteger(oturum) || kod < 0 || oturum < 0) throw new BildirimHatasi("bicim");
       return (await cagir("yerel", { kimlik: kimlikli(kimlik), durum: kod, oturum })).iletildi === true;
@@ -185,7 +193,7 @@ export function bildirimIzleyici({ bildirim }) {
 
   const sirayla = (is) => { kuyruk = kuyruk.then(is).catch(() => {}); };
 
-  function tik({ gorunur, bagli, kimlik, kayit }) {
+  function tik({ gorunur, bagli, kimlik, kayit, adres = null }) {
     if (!gorunur || !bagli || typeof kimlik !== "string" || !KIMLIK.test(kimlik)) {
       oncekiBagli = false;
       sonG = null;
@@ -193,6 +201,7 @@ export function bildirimIzleyici({ bildirim }) {
     }
     if (!oncekiBagli) {
       oncekiBagli = true;
+      if (typeof adres === "string" && typeof bildirim.adresYaz === "function") sirayla(() => bildirim.adresYaz(kimlik, adres));
       sirayla(async () => {
         try { sonuc = await bildirim.yenile(); } catch (e) { sonuc = e && typeof e.tur === "string" ? e.tur : "ic-hata"; }
       });

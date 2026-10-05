@@ -4,11 +4,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  BILGI_YOLU, BildirimHatasi, DILLER, KAYITTA, SINIFLAR, ZARF_AZAMI, ZARF_EN_AZ, bildirimIzleyici, bildirimKur, izlemeSorusuKur,
+  BILGI_YOLU, BildirimHatasi, DILLER, URETICILER, KAYITTA, SINIFLAR, ZARF_AZAMI, ZARF_EN_AZ, bildirimIzleyici, bildirimKur, izlemeSorusuKur,
 } from "../src/cekirdek/bildirim.js";
 import { SOZLUK_MOBIL } from "../src/cekirdek/sozluk_mobil.js";
 import { KDR } from "../src/ekran/durum_gorunum.js";
-import { bildirimGorunumu, hataMetni, sinifCevir } from "../src/ekran/bildirim_gorunum.js";
+import { bildirimGorunumu, hataMetni, pilYonergesi, sinifCevir } from "../src/ekran/bildirim_gorunum.js";
 import { kabukDurumu } from "../src/ekran/kabuk_durum.js";
 
 const kaynak = (yol) => readFileSync(fileURLToPath(new URL(`../${yol}`, import.meta.url)), "utf8");
@@ -29,7 +29,7 @@ function duzen({ kartDurum = { durum: "bagli", adres: "192.168.1.7:80", kimlik: 
     },
   };
   const eklenti = {};
-  for (const ad of ["zarfYaz", "zarfSil", "durum", "ayarYaz", "izinIste", "pilMuafiyetiIste", "deneme", "izlemeBaslat", "izlemeDurdur", "yerel"]) {
+  for (const ad of ["uygulamaAyarlariAc", "adresYaz", "zarfYaz", "zarfSil", "durum", "ayarYaz", "izinIste", "pilMuafiyetiIste", "deneme", "izlemeBaslat", "izlemeDurdur", "yerel"]) {
     eklenti[ad] = async (veri) => {
       cagrilar.push([ad, veri]);
       if (eklentiRed[ad]) throw eklentiRed[ad];
@@ -123,12 +123,12 @@ describe("bildirim.durum / ayarYaz: eklenti verisi alan alan suzulur", () => {
     } });
     expect(await d.b.durum(KIMLIK)).toEqual({
       zarf: true, izin: false, izinGerekli: true, pilMuaf: false, calisiyor: true, izleme: "izleniyor", anlik: true,
-      kapali: ["bitti", "deneme"], dil: "en",
+      kapali: ["bitti", "deneme"], dil: "en", uretici: "diger",
     });
     expect(d.cagrilar).toEqual([["durum", { kimlik: KIMLIK }]]);
     const bos = duzen({ durum: { izleme: "<script>", dil: "de", kapali: "bitti" } });
     expect(await bos.b.durum("KOTU")).toEqual({
-      zarf: false, izin: false, izinGerekli: false, pilMuaf: false, calisiyor: false, izleme: "durduruldu", anlik: false, kapali: [], dil: "tr",
+      zarf: false, izin: false, izinGerekli: false, pilMuaf: false, calisiyor: false, izleme: "durduruldu", anlik: false, kapali: [], dil: "tr", uretici: "diger",
     });
     expect(bos.cagrilar).toEqual([["durum", {}]]);
   });
@@ -169,7 +169,7 @@ describe("bildirim.durum / ayarYaz: eklenti verisi alan alan suzulur", () => {
     const eklenti = kaynak("android/app/src/main/java/tr/olcumkarti/mobil/bildirim/BildirimPlugin.kt");
     const js = kaynak("src/cekirdek/bildirim.js");
     const cagrilan = [...js.matchAll(/cagir\("([A-Za-z]+)"/g)].map((m) => m[1]);
-    expect(new Set(cagrilan).size).toBe(10);
+    expect(new Set(cagrilan).size).toBe(12);
     for (const ad of cagrilan) expect(eklenti, ad).toMatch(new RegExp(`@PluginMethod\\s+fun ${ad}\\(`));
   });
 });
@@ -281,10 +281,10 @@ describe("kabuk: bildirim izleyicisi saniyelik tikten beslenir; kusuru kabugu bo
     const s = kabuk();
     await s.k.ac();
     s.tik();
-    expect(s.tikler.at(-1)).toEqual({ gorunur: true, bagli: true, kimlik: KIMLIK, kayit: null });
+    expect(s.tikler.at(-1)).toEqual({ gorunur: true, bagli: true, kimlik: KIMLIK, adres: "192.168.1.7:80", kayit: null });
     s.yay({ hal: "acik", kayit: { tur: "G", durum: 2, oturum: 53 } });
     s.tik();
-    expect(s.tikler.at(-1)).toEqual({ gorunur: true, bagli: true, kimlik: KIMLIK, kayit: { tur: "G", durum: 2, oturum: 53 } });
+    expect(s.tikler.at(-1)).toEqual({ gorunur: true, bagli: true, kimlik: KIMLIK, adres: "192.168.1.7:80", kayit: { tur: "G", durum: 2, oturum: 53 } });
     s.k.kapat();
   });
 
@@ -506,5 +506,87 @@ describe("izleme sorusu: kayit BU telefondan baslatilinca bir kez (kullanici kar
     await d.b.izlemeBaslat(KIMLIK, { buKayit: true });
     await d.b.izlemeBaslat(KIMLIK, { buKayit: "evet" });
     expect(d.cagrilar).toEqual([["izlemeBaslat", { kimlik: KIMLIK, buKayit: true }], ["izlemeBaslat", { kimlik: KIMLIK }]]);
+  });
+});
+
+describe("A36: kartin yerel adresi servise verilir (servis araci 'cevrimdisi' derken imzasiz yoklar)", () => {
+  it("yeni baglantida adres ZARFTAN ONCE yazilir; adres yoksa yazilmaz; hata sonraki isi durdurmaz", async () => {
+    const olay = [];
+    const bildirim = {
+      adresYaz: async (k, a) => { olay.push(["adres", k, a]); throw new Error("x"); },
+      yenile: async () => { olay.push("yenile"); return "yazildi"; },
+      izlemeBaslat: async () => ({ basladi: false, neden: "kapali" }), yerel: async () => true,
+    };
+    const i = bildirimIzleyici({ bildirim });
+    i.tik({ gorunur: true, bagli: true, kimlik: KIMLIK, adres: "192.168.1.7:80", kayit: null });
+    i.tik({ gorunur: true, bagli: true, kimlik: KIMLIK, adres: "192.168.1.7:80", kayit: null });
+    await i.bosalt();
+    expect(olay).toEqual([["adres", KIMLIK, "192.168.1.7:80"], "yenile"]);
+    const adressiz = [];
+    const j = bildirimIzleyici({ bildirim: { ...bildirim, adresYaz: async () => { adressiz.push("adres"); }, yenile: async () => { adressiz.push("yenile"); return "yazildi"; } } });
+    j.tik({ gorunur: true, bagli: true, kimlik: KIMLIK, adres: null, kayit: null });
+    await j.bosalt();
+    expect(adressiz).toEqual(["yenile"]);
+  });
+
+  it("adresYaz: bos / uzun / metin olmayan adres ve gecersiz kimlik eklentiye GITMEZ", async () => {
+    const d = duzen();
+    await d.b.adresYaz(KIMLIK, "192.168.1.7:80");
+    for (const a of ["", "x".repeat(22), null, 5]) expect(await turu(d.b.adresYaz(KIMLIK, a))).toBe("bicim");
+    expect(await turu(d.b.adresYaz("KOTU", "192.168.1.7"))).toBe("bicim");
+    expect(d.cagrilar).toEqual([["adresYaz", { kimlik: KIMLIK, adres: "192.168.1.7:80" }]]);
+  });
+});
+
+describe("A37: pil yoneticisi yonergesi (Honor ve digerleri)", () => {
+  it("uretici sinifi eklentiden suzulerek gelir; bilinmeyen 'diger'", async () => {
+    for (const [gelen, beklenen] of [["honor", "honor"], ["xiaomi", "xiaomi"], ["HONOR", "diger"], ["<b>", "diger"], [undefined, "diger"], [5, "diger"]]) {
+      const d = duzen({ durum: { uretici: gelen } });
+      expect((await d.b.durum(KIMLIK)).uretici).toBe(beklenen);
+    }
+    expect(URETICILER).toEqual(["honor", "huawei", "xiaomi", "samsung", "diger"]);
+    const d = duzen();
+    await d.b.uygulamaAyarlariAc();
+    expect(d.cagrilar).toEqual([["uygulamaAyarlariAc", {}]]);
+  });
+
+  it("her uretici sinifinin adimlari var, hepsi sozlukte (tr + en); Honor: otomatik yonet KAPALI + uc izin ACIK", () => {
+    for (const u of URETICILER) {
+      const y = pilYonergesi(u);
+      expect(y.uretici).toBe(u);
+      expect(y.adimlar.length).toBeGreaterThanOrEqual(2);
+      expect(y.ozel).toBe(u !== "diger");
+      for (const a of y.adimlar) {
+        expect(SOZLUK_MOBIL[a].tr.length, a).toBeGreaterThan(10);
+        expect(SOZLUK_MOBIL[a].en.length, a).toBeGreaterThan(10);
+      }
+    }
+    expect(pilYonergesi("yok-boyle")).toEqual(pilYonergesi("diger"));
+    expect(pilYonergesi(undefined).ozel).toBe(false);
+    const honor = pilYonergesi("honor").adimlar.map((a) => SOZLUK_MOBIL[a].tr).join(" ");
+    expect(honor).toMatch(/Uygulama başlatma/);
+    expect(honor).toMatch(/"Otomatik yönet"i KAPAT/);
+    expect(honor).toMatch(/Otomatik başlatma, İkincil başlatma, Arka planda çalıştır/);
+    expect(pilYonergesi("huawei").adimlar).toEqual(pilYonergesi("honor").adimlar);
+    expect(pilYonergesi("xiaomi").adimlar).not.toEqual(pilYonergesi("honor").adimlar);
+    // Adim listesi disaridan degistirilemez (kopya doner).
+    pilYonergesi("honor").adimlar.push("x");
+    expect(pilYonergesi("honor").adimlar.length).toBe(4);
+  });
+
+  it("gorunum yonergeyi tasir; ekran: yalniz anlik izleme acikken, nedeniyle; ayar sayfasini KULLANICI degistirir", () => {
+    const D = { zarf: true, izin: true, izinGerekli: true, pilMuaf: true, calisiyor: false, izleme: "durduruldu", anlik: true, kapali: [], dil: "tr", uretici: "honor" };
+    expect(bildirimGorunumu(D, { kimlik: KIMLIK }).yonerge.uretici).toBe("honor");
+    expect(bildirimGorunumu({ ...D, uretici: undefined }, { kimlik: KIMLIK }).yonerge.uretici).toBe("diger");
+    const v = kaynak("src/ekran/BildirimAyar.vue");
+    const pil = v.slice(v.indexOf('<template v-if="g.pilGoster">'));
+    expect(pil).toMatch(/id="bl-yonerge"[^>]*:aria-expanded="yonergeAcik"[^>]*aria-controls="bl-yonerge-icerik"/);
+    expect(pil).toMatch(/m\.bl\.yn_neden[^]*<ol class="adimlar">[^]*m\.bl\.yn_not[^]*id="bl-ayarlari-ac"/);
+    expect(SOZLUK_MOBIL["m.bl.yn_not"].tr).toMatch(/uygulama değiştiremez/);
+    const kt = kaynak("android/app/src/main/java/tr/olcumkarti/mobil/bildirim/BildirimPlugin.kt");
+    expect(kt).toContain("Settings.ACTION_APPLICATION_DETAILS_SETTINGS");
+    expect(kt).toContain('.put("uretici", Uretici.sinifi(Build.MANUFACTURER, Build.BRAND))');
+    // Model / surum WebView'e gitmez.
+    expect(kt).not.toMatch(/Build\.(MODEL|DEVICE|PRODUCT|SERIAL|FINGERPRINT|DISPLAY)|VERSION\.RELEASE/);
   });
 });

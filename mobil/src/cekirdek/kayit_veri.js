@@ -11,7 +11,8 @@
 //   await i.isle("oturum", { oturum })          // -> { tur, adet, t0, t1, seriler, baslik, notlar } | null
 //   await i.isle("okuma", { oturum, tA, tB })   // -> { dt, v, i, w, enerji } | null
 //   await i.isle("disariTurleri", { oturum })   // -> ["csv_tr", "csv_en", "ham", "rapor"] | null   (5F)
-//   await i.isle("disari", { oturum, tur, dil }) // -> { ad, mime, bayt: Uint8Array } | null
+//   await i.isle("disari", { oturum, tur, dil, kal }) // -> { ad, mime, bayt: Uint8Array } | null
+//                                                // kal: kalibrasyon gecmisi (kalibrasyon.json nesnesi) | null — rapor icin
 //
 // Dosyanin sonundaki YARIM kayit (esitleme o an yaziyor olabilir) sessizce disarida kalir
 // (akisOnek); gecerli on ek cozulur. Bos / olmayan dosya: bos liste.
@@ -137,12 +138,17 @@ export function paylasimTurleri(veri, oturumNo) {
 
 // Paylasilacak dosya: { ad, mime, bayt }. CSV ve ham kayit panelin urettigiyle BAYT BAYT ayni
 // (`disariUret` kopyalanmadan ice aktarilir); rapor ortak `oturumRaporu`nun duz metni. Saf.
-export function paylasimUret(veri, oturumNo, tur, dil = "tr", azami = DISARI_AZAMI) {
+// Kalibrasyon gecmisi (telefondaki kalibrasyon.json): { kayitlar: [...] } bicimindeyse o, degilse null.
+export function kalGecmisi(kal) {
+  return kal !== null && typeof kal === "object" && !Array.isArray(kal) && Array.isArray(kal.kayitlar) ? kal : null;
+}
+
+export function paylasimUret(veri, oturumNo, tur, dil = "tr", azami = DISARI_AZAMI, kal = null) {
   const o = veri ? veri.oturumlar.get(oturumNo) : null;
   if (!o || !paylasimTurleri(veri, oturumNo).includes(tur)) return null;
   let d;
   if (tur === RAPOR_TURU) {
-    const metin = raporMetni(oturumRaporu(o, { kayitlar: veri.kayitlar, dil: dil === "en" ? "en" : "tr" }), dil === "en" ? "en" : "tr");
+    const metin = raporMetni(oturumRaporu(o, { kalibrasyonGecmisi: kalGecmisi(kal), kayitlar: veri.kayitlar, dil: dil === "en" ? "en" : "tr" }), dil === "en" ? "en" : "tr");
     d = { ad: dosyaAdi(o, "rapor", "txt"), mime: "text/plain;charset=utf-8", bayt: new TextEncoder().encode(metin) };
   } else {
     d = disariUret(tur, o, veri.kayitlar);
@@ -178,7 +184,7 @@ export function islemciKur({ getir }) {
       case "disariTurleri":
         return paylasimTurleri(veri, a.oturum);
       case "disari":
-        return paylasimUret(veri, a.oturum, a.tur, a.dil);
+        return paylasimUret(veri, a.oturum, a.tur, a.dil, DISARI_AZAMI, a.kal === undefined ? null : a.kal);
       default:
         throw new KayitVeriHatasi("bicim");
     }

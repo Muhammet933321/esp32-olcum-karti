@@ -7,15 +7,22 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import tr.olcumkarti.mobil.ag.HttpIstek
 import tr.olcumkarti.mobil.kasa.KasaDeposu
 import tr.olcumkarti.mobil.kasa.KasaKayit
 import tr.olcumkarti.mobil.kasa.KeystoreSarici
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.Proxy
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 /**
  * ANLIK IZLEME servisi (tasarim A28–A34): yalniz kayit surerken calisir; kalici bildirim "Olcum karti
@@ -37,6 +44,7 @@ class IzlemeServisi : Service() {
     @Volatile private var bekleyenYerel: Pair<Long, Long>? = null
     private var is_: Thread? = null
     private var agGeriBildirimi: ConnectivityManager.NetworkCallback? = null
+    private var yerelYoklayici: ScheduledExecutorService? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -116,6 +124,7 @@ class IzlemeServisi : Service() {
                 durum = { ad -> sonDurum = ad; gosterici.izlemeGuncelle(ad) },
             )
             dongu = d
+            yerelYoklamayiBaslat(kimlik, depo, k)
             bitis = d.calis()
         } catch (e: Exception) {
             bitis = "ic-hata"
@@ -123,6 +132,38 @@ class IzlemeServisi : Service() {
         sonDurum = bitis
         if (bitis == "ayar") gosterici.ayarYenile()
         kapat()
+    }
+
+    /** VPN olmayan Wi-Fi agi (KartAg ile ayni kural): ozel adrese giden istek tunele girmesin. */
+    private fun wifiAgi(): Network? {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        @Suppress("DEPRECATION")
+        for (ag in cm.allNetworks) {
+            val y = cm.getNetworkCapabilities(ag) ?: continue
+            if (y.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) && y.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)) return ag
+        }
+        return null
+    }
+
+    /**
+     * A36: araci karti cevrimdisi dedigi surece 10 s'de bir IMZASIZ `/eslestir/bilgi` — kart yerelde gorunuyorsa
+     * bildirim "ev interneti koptu, kart calisiyor" olur (karar BildirimKarar'da; burasi yalniz haber verir).
+     */
+    private fun yerelYoklamayiBaslat(kimlik: String, depo: BildirimDeposu, k: BildirimKarar) {
+        val yoklama = YerelYoklama { url, sure, azami ->
+            val wifi = wifiAgi() ?: throw IllegalStateException()
+            HttpIstek { x -> wifi.openConnection(x, Proxy.NO_PROXY) as HttpURLConnection }.yap("GET", url, emptyMap(), null, sure, azami)
+        }
+        val y = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "yerel-yoklama") }
+        yerelYoklayici = y
+        y.scheduleWithFixedDelay({
+            try {
+                if (YerelYoklama.gerekli(synchronized(kilit) { k.kartCevrimici }) && yoklama.kartGorunuyor(kimlik, depo.adresOku(kimlik))) {
+                    synchronized(kilit) { k.yerelGoruldu() }
+                }
+            } catch (_: Exception) {
+            }
+        }, YerelYoklama.ARALIK_MS, YerelYoklama.ARALIK_MS, TimeUnit.MILLISECONDS)
     }
 
     private fun agiDinle() {
@@ -151,6 +192,7 @@ class IzlemeServisi : Service() {
             try { (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(g) } catch (_: Exception) {}
         }
         agGeriBildirimi = null
+        yerelYoklayici?.shutdownNow(); yerelYoklayici = null
         karar = null
         calisanKimlik = null
         if (sonDurum !in BITIS_DURUMLARI) sonDurum = "durduruldu"

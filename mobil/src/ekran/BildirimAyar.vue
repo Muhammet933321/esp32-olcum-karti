@@ -14,6 +14,7 @@ const mesgul = ref(false);
 const yenileniyor = ref(false);       // yalniz karttan yenileme surerken (dugmenin yazisi)
 const sonuc = ref(null);              // { anahtar, degerler } | null
 const hata = ref(null);
+const yonergeAcik = ref(false);
 let zamanlayici = null;
 
 const g = computed(() => bildirimGorunumu(durum.value, { kimlik: kimlik.value, son: son.value }));
@@ -53,6 +54,7 @@ const izinIste = () => yap(async () => { await bildirimAl().izinIste(); });
 const pilIste = () => yap(async () => { await bildirimAl().pilMuafiyetiIste(); });
 const anlikCevir = () => yap(async () => { await bildirimAl().ayarYaz({ anlik: !durum.value.anlik }); });
 const sinifDegistir = (sinif) => yap(async () => { await bildirimAl().ayarYaz({ kapali: sinifCevir(durum.value.kapali, sinif) }); });
+const ayarlariAc = () => yap(async () => { await bildirimAl().uygulamaAyarlariAc(); });
 const deneme = () => yap(async () => ({ anahtar: (await bildirimAl().deneme()) ? "m.bl.deneme_tamam" : "m.bl.deneme_izin_yok" }));
 
 onMounted(() => {
@@ -90,6 +92,17 @@ onBeforeUnmount(() => { if (zamanlayici !== null) clearInterval(zamanlayici); })
         <p class="bilgi">{{ c("m.bl.pil_not") }}</p>
         <button id="bl-pil-iste" type="button" class="dugme" :disabled="mesgul" @click="pilIste">{{ c("m.bl.pil_iste") }}</button>
       </template>
+      <button id="bl-yonerge" type="button" class="dugme" :aria-expanded="yonergeAcik" aria-controls="bl-yonerge-icerik" @click="yonergeAcik = !yonergeAcik">
+        {{ yonergeAcik ? c("m.bl.yn_gizle") : c("m.bl.yn_goster") }}
+      </button>
+      <div v-if="yonergeAcik" id="bl-yonerge-icerik" class="soru">
+        <p class="bilgi">{{ c("m.bl.yn_neden") }}</p>
+        <ol class="adimlar">
+          <li v-for="a in g.yonerge.adimlar" :key="a">{{ c(a) }}</li>
+        </ol>
+        <p class="bilgi">{{ c("m.bl.yn_not") }}</p>
+        <button id="bl-ayarlari-ac" type="button" class="dugme" :disabled="mesgul" @click="ayarlariAc">{{ c("m.bl.yn_ac") }}</button>
+      </div>
       <span class="et alan-et">{{ c("m.bl.izleme") }}</span>
       <b id="bl-izleme" :class="{ uyari: g.izlemeUyari }">{{ c(g.izleme) }}</b>
     </template>

@@ -196,7 +196,7 @@ export function bildirimAl() {
 }
 
 // Kabugun saniyelik tikine verilir (kabukDurumu({ bildirimIzle })).
-export const bildirimIzle = bildirimIzleyici({ bildirim: { yenile: () => bildirimAl().yenile(), izlemeBaslat: (k) => bildirimAl().izlemeBaslat(k), yerel: (k, d, o) => bildirimAl().yerel(k, d, o) } });
+export const bildirimIzle = bildirimIzleyici({ bildirim: { adresYaz: (k, a) => bildirimAl().adresYaz(k, a), yenile: () => bildirimAl().yenile(), izlemeBaslat: (k) => bildirimAl().izlemeBaslat(k), yerel: (k, d, o) => bildirimAl().yerel(k, d, o) } });
 
 // Kayit bu telefondan baslatilinca sorulan "bu kayit icin anlik izleme acilsin mi?" (tekil; Durum ve Canli ayni soruyu gosterir).
 export const izlemeSorusu = izlemeSorusuKur({

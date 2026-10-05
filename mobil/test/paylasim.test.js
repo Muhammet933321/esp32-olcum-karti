@@ -7,7 +7,7 @@ import { BICIM_EN, BICIM_EXCEL_TR, csvBayt, hamDisari, oturumCsv } from "@ortak/
 import { akisCoz, oturumlariKur } from "@ortak/kayit.js";
 import { oturumRaporu } from "@ortak/rapor.js";
 import { disariUret } from "@panel/kayit_gorunum.js";
-import { DISARI_AZAMI, KayitVeriHatasi, RAPOR_TURU, islemciKur, paylasimTurleri, paylasimUret, veriKur } from "../src/cekirdek/kayit_veri.js";
+import { DISARI_AZAMI, KayitVeriHatasi, RAPOR_TURU, islemciKur, kalGecmisi, paylasimTurleri, paylasimUret, veriKur } from "../src/cekirdek/kayit_veri.js";
 import { kayitlarKur } from "../src/cekirdek/kayitlar.js";
 import { AD_DESENI, PARCA, PaylasHatasi, paylasKur } from "../src/cekirdek/paylas.js";
 import { raporMetni, sayiMetni } from "../src/cekirdek/rapor_metin.js";
@@ -114,7 +114,7 @@ describe("paylasimUret: dosya panelin urettigiyle AYNI (hesap tek kopya)", () =>
     expect(await k.disariTurleri(101)).toEqual(["ham"]);
     expect((await k.disari(101, "ham", "en")).ad).toBe("kayit-1.kyt");
     expect(cagrilar.map((c) => c[0])).toEqual(["yukle", "oturum", "disariTurleri", "disari"]);
-    expect(cagrilar.at(-1)[1]).toEqual({ oturum: 101, tur: "ham", dil: "en" });
+    expect(cagrilar.at(-1)[1]).toEqual({ oturum: 101, tur: "ham", dil: "en", kal: null });
     const atan = kayitlarKur({
       istemci: { cagir: async (is) => { if (is === "disari") throw new KayitVeriHatasi("cok-buyuk"); return {}; }, kusak: () => 0 },
       kartAl: async () => ({ durum: () => null }), depoAl: () => ({ veriBoyu: async () => 1, durumOku: async () => null }), sonKimlik: () => "0123456789abcdef",
@@ -268,5 +268,74 @@ describe("paylasim: ekran ve Android baglantisi", () => {
     // JS ve Kotlin ayni ad desenini kullanir.
     expect(kaynak("android/app/src/main/java/tr/olcumkarti/mobil/paylas/PaylasDeposu.kt")).toContain('Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\\\\.(csv|kyt|txt)$")');
     expect(AD_DESENI.source).toBe("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\\.(csv|kyt|txt)$");
+  });
+});
+
+describe("rapor: kalibrasyon gecmisi telefondaki kopyadan (esitlemenin yazdigi kalibrasyon.json)", () => {
+  const { bayt, a } = ikiOturum();
+  const v = veriKur(bayt, 7);
+  // Ornek akisin oturumu kal_no 2 ve KAL (yardim/akis_ornek.mjs) kopyasini tasir.
+  const KAL = {
+    normal: { n: 1, pga: 4096, kazanc: 1, sifir_ham: 0, tau: 0 }, yuksek: { n: 2, pga: 4096, kazanc: 1, sifir_ham: 0, tau: 0 },
+    i_ofset: 0, i_pga: 32, sont_ohm: 1, i_duzeltme: 1, sebeke_hz: 50, faz_kal_us: [0, 0],
+  };
+  const gecmis = (ek = {}) => ({ kayitlar: [{ no: 1, tur: 1, kaynak: 1, not: "eski", kal: KAL }, { no: 2, tur: 1, kaynak: 1, not: "tezgah kalibrasyonu", kal: KAL, ...ek }] });
+  const metinAl = (kal, dil = "tr") => metin(paylasimUret(v, a, "rapor", dil, DISARI_AZAMI, kal).bayt);
+
+  it("gecmis verilince oturumun kalibrasyon kaydi BULUNUR (notuyla); verilmeyince 'gecmis verilmedi'", () => {
+    const yok = metinAl(null);
+    expect(yok).toContain("Geçmişteki durumu: kalibrasyon geçmişi verilmedi (gecmis_yok)");
+    const var_ = metinAl(gecmis());
+    expect(var_).toContain("  Kalibrasyon no: 2\n");
+    expect(var_).toMatch(/Geçmişteki durumu: [^\n]*\(bulundu\)/);
+    expect(var_).toContain("tezgah kalibrasyonu");
+    expect(var_).not.toContain("eski");                                     // baska numaranin kaydi rapora girmez
+    expect(var_).toBe(raporMetni(oturumRaporu(v.oturumlar.get(a), { kalibrasyonGecmisi: gecmis(), kayitlar: v.kayitlar, dil: "tr" }), "tr"));
+    expect(metinAl(gecmis(), "en")).toMatch(/\(bulundu\)/);
+  });
+
+  it("gecmiste o numara yoksa 'yok'; bicimsiz gecmis yok sayilir (paylasim durmaz)", () => {
+    expect(metinAl({ kayitlar: [{ no: 9, tur: 1, kaynak: 1, kal: KAL }] })).toMatch(/Geçmişteki durumu: [^\n]*\(yok\)/);
+    for (const bozuk of [{}, [], "x", 5, { kayitlar: "x" }, { kayitlar: null }]) {
+      expect(kalGecmisi(bozuk)).toBe(null);
+      expect(metinAl(bozuk)).toContain("(gecmis_yok)");
+    }
+    expect(kalGecmisi(gecmis())).not.toBe(null);
+    // Gecmis yalniz RAPORU etkiler: CSV ve ham kayit ayni baytlar.
+    expect(paylasimUret(v, a, "csv_tr", "tr", DISARI_AZAMI, gecmis()).bayt).toEqual(paylasimUret(v, a, "csv_tr").bayt);
+  });
+
+  it("islemci `kal` argumanini rapora tasir", async () => {
+    const i = islemciKur({ getir: async () => bayt });
+    await i.isle("yukle", { url: "/_depo/0123456789abcdef/kayitlar.kyt", akisKimlik: 7 });
+    expect(metin((await i.isle("disari", { oturum: a, tur: "rapor", dil: "tr", kal: gecmis() })).bayt)).toMatch(/\(bulundu\)/);
+    expect(metin((await i.isle("disari", { oturum: a, tur: "rapor", dil: "tr" })).bayt)).toContain("(gecmis_yok)");
+  });
+
+  it("kayitlar: gecmis ekrandaki kartin deposundan okunur; yok / bozuk / okunamayan -> null (paylasim surer)", async () => {
+    const kod = (o) => new TextEncoder().encode(JSON.stringify(o));
+    async function kos(kalOku) {
+      const cagrilar = [];
+      const kimlikler = [];
+      const k = kayitlarKur({
+        istemci: { cagir: async (is, arg) => { cagrilar.push([is, arg]); return is === "disari" ? { ad: "kayit-1-rapor.txt", mime: "text/plain", bayt: new Uint8Array([1]) } : {}; }, kusak: () => 0 },
+        kartAl: async () => ({ durum: () => null }),
+        depoAl: (kimlik) => { kimlikler.push(kimlik); return { veriBoyu: async () => 10, durumOku: async () => ({ kimlik: 7 }), kalOku }; },
+        sonKimlik: () => "0123456789abcdef",
+      });
+      await k.oturum(101);
+      await k.disari(101, "rapor", "tr");
+      return { kal: cagrilar.at(-1)[1].kal, kimlikler };
+    }
+    const iyi = await kos(async () => kod(gecmis()));
+    expect(iyi.kal).toEqual(gecmis());
+    expect(new Set(iyi.kimlikler)).toEqual(new Set(["0123456789abcdef"]));
+    expect((await kos(async () => null)).kal).toBe(null);
+    expect((await kos(async () => new Uint8Array(0))).kal).toBe(null);
+    expect((await kos(async () => new TextEncoder().encode("{bozuk"))).kal).toBe(null);
+    expect((await kos(async () => kod({ kayitlar: "x" }))).kal).toBe(null);
+    expect((await kos(async () => kod([1, 2]))).kal).toBe(null);
+    expect((await kos(async () => new Uint8Array([0xff, 0xfe, 0x7b]))).kal).toBe(null);     // gecersiz UTF-8
+    expect((await kos(async () => { throw Object.assign(new Error("x"), { tur: "bozuk" }); })).kal).toBe(null);
   });
 });

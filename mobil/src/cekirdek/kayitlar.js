@@ -108,6 +108,20 @@ export function kayitlarKur({ istemci, kartAl, depoAl, sonKimlik = () => null })
     try { return await istemci.cagir("okuma", { oturum: no, tA, tB }); } catch (e) { throw hata(e); }
   }
 
+  // Raporun kalibrasyon bolumu icin: ekrandaki kartin telefondaki kalibrasyon gecmisi (esitleme yazar).
+  // Yoksa / okunamiyorsa / bozuksa null — rapor "gecmis verilmedi" der; paylasim bu yuzden DURMAZ.
+  async function kalOku() {
+    if (gorunenKimlik === null) return null;
+    try {
+      const b = await (await depoAl(gorunenKimlik)).kalOku();
+      if (!b || b.length === 0) return null;
+      const d = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(b));
+      return d !== null && typeof d === "object" && Array.isArray(d.kayitlar) ? d : null;
+    } catch {
+      return null;
+    }
+  }
+
   // Paylasim (5F): EKRANDAKI kartin kopyasindan; okuma ile ayni kural.
   async function disariKos(is, arguman) {
     if (gorunenKimlik === null) return null;
@@ -120,7 +134,7 @@ export function kayitlarKur({ istemci, kartAl, depoAl, sonKimlik = () => null })
     oturum: (no) => sirayla(() => oturumKos(no)),
     okuma: (no, tA, tB) => sirayla(() => okumaKos(no, tA, tB)),
     disariTurleri: (no) => sirayla(() => disariKos("disariTurleri", { oturum: no })),
-    disari: (no, tur, dil) => sirayla(() => disariKos("disari", { oturum: no, tur, dil })),
+    disari: (no, tur, dil) => sirayla(async () => disariKos("disari", { oturum: no, tur, dil, kal: await kalOku() })),
     bosalt() { yuklenen = null; gorunenKimlik = null; },
   };
 }

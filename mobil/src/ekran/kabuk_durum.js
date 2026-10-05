@@ -214,7 +214,7 @@ export function kabukDurumu({
     if (!bildirimIzle) return;
     const b = baglanti.value;
     try {
-      bildirimIzle.tik({ gorunur, bagli: Boolean(b) && b.durum === "bagli", kimlik: b ? b.kimlik : null, kayit: akis.value.kayit });
+      bildirimIzle.tik({ gorunur, bagli: Boolean(b) && b.durum === "bagli", kimlik: b ? b.kimlik : null, adres: b ? b.adres : null, kayit: akis.value.kayit });
     } catch { /* bildirim yok sayilir */ }
   }
 

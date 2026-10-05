@@ -19,6 +19,22 @@ const HATA = {
   adres: "m.bl.hata_adres",
 };
 
+// Pil yoneticisi yonergesi (A37): Android'in pil muafiyeti YETMEYEBILIR — bazi ureticilerin kendi pil yoneticisi
+// arka plandaki uygulamayi yine de kapatir. Adimlar ureticiye gore; menu adlari surume gore degisebilir (not).
+const YONERGE = {
+  honor: ["m.bl.yn_honor_1", "m.bl.yn_honor_2", "m.bl.yn_honor_3", "m.bl.yn_honor_4"],
+  huawei: ["m.bl.yn_honor_1", "m.bl.yn_honor_2", "m.bl.yn_honor_3", "m.bl.yn_honor_4"],
+  xiaomi: ["m.bl.yn_xiaomi_1", "m.bl.yn_xiaomi_2", "m.bl.yn_xiaomi_3"],
+  samsung: ["m.bl.yn_samsung_1", "m.bl.yn_samsung_2"],
+  diger: ["m.bl.yn_diger_1", "m.bl.yn_diger_2"],
+};
+
+// uretici sinifi -> { adimlar: [anahtar], ozel: uretici taninan biri mi }
+export function pilYonergesi(uretici) {
+  const u = Object.hasOwn(YONERGE, uretici) ? uretici : "diger";
+  return { uretici: u, adimlar: [...YONERGE[u]], ozel: u !== "diger" };
+}
+
 // Hata turu -> { anahtar, degerler } (bilinmeyen tur genel metne, turun ADIYLA).
 export function hataMetni(tur) {
   const t = typeof tur === "string" ? tur : "?";
@@ -43,6 +59,7 @@ export function bildirimGorunumu(d, { kimlik = null, son = null } = {}) {
     pilGoster: d.anlik === true,
     pil: d.pilMuaf ? "m.bl.pil_muaf" : "m.bl.pil_kisitli",
     pilIste: d.anlik === true && !d.pilMuaf,
+    yonerge: pilYonergesi(d.uretici),
     izleme: Object.hasOwn(IZLEME, d.izleme) ? IZLEME[d.izleme] : IZLEME.durduruldu,
     izlemeUyari: ["internet", "guven", "araci", "ayar", "ic-hata"].includes(d.izleme),
     siniflar: SINIFLAR.map((s) => ({ sinif: s, anahtar: SINIF[s], acik: !d.kapali.includes(s) })),

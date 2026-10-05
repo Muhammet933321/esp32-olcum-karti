@@ -11,6 +11,7 @@ import java.nio.ByteBuffer
  *   `<kimlik>.zarf` : kartin `/bildirim/bilgi` yaniti, OLDUGU GIBI (K ile sifreli; A31). Cozulmus araci
  *                     bilgisi diske HIC yazilmaz.
  *   `<kimlik>.olay` : islenen son olayin (acilis, sira) cifti — yeniden baslayinca kacirilan olay sayimi icin.
+ *   `<kimlik>.adres`: kartin son baglanilan yerel adresi (ozel IPv4) — servisin A36 yoklamasi icin.
  *   `<kimlik>.durum`: yoklama ozeti (YoklamaDurumu) — iki yoklama arasinda neyin degistigini bulmak icin.
  * Kimlik dosya adina gider: her islemden once 16 kucuk onaltilik hane oldugu denetlenir.
  * Hata `ZarfHatasi("bicim")`; yol / icerik hata metnine girmez. Saf JVM.
@@ -73,6 +74,21 @@ class BildirimDeposu(private val kok: File) {
         try { AtomikYazim.yaz(hedef, durum.json().toByteArray(Charsets.UTF_8)) } catch (_: Exception) {}
     }
 
+    /** Kartin son baglanilan YEREL adresi (A36 yoklamasi icin); gecersizse / yoksa null. */
+    fun adresOku(kimlik: String?): String? {
+        val d = dosya(kimlik, ADRES_EK)
+        if (!d.isFile || d.length() > YerelYoklama.ADRES_AZAMI) return null
+        val a = try { d.readText(Charsets.US_ASCII) } catch (e: Exception) { return null }
+        return if (YerelYoklama.url(a) != null) a else null
+    }
+
+    /** Yalniz ozel IPv4 adresi yazilir (ad / herkese acik IP: ZarfHatasi("bicim")). */
+    fun adresYaz(kimlik: String?, adres: String?) {
+        val hedef = dosya(kimlik, ADRES_EK)
+        if (adres == null || YerelYoklama.url(adres) == null) throw ZarfHatasi("bicim")
+        try { AtomikYazim.yaz(hedef, adres.toByteArray(Charsets.US_ASCII)) } catch (e: Exception) { throw ZarfHatasi("ic-hata") }
+    }
+
     /** Zarfi olan kartlar (dosya adindan; icerik acilmaz). */
     fun kimlikler(): List<String> =
         (kok.list() ?: emptyArray()).filter { it.endsWith(ZARF_EK) }.map { it.removeSuffix(ZARF_EK) }.filter { KasaKayit.kimlikGecerli(it) }.sorted()
@@ -81,6 +97,7 @@ class BildirimDeposu(private val kok: File) {
         const val ZARF_EK = ".zarf"
         const val OLAY_EK = ".olay"
         const val DURUM_EK = ".durum"
+        const val ADRES_EK = ".adres"
         const val DURUM_AZAMI = 512
         /** Kartin yaniti birkac yuz bayt; bundan buyugu zarf degildir. */
         const val ZARF_AZAMI = 2048
@@ -120,6 +137,23 @@ class BildirimAyar(val anlik: Boolean = false, val kapali: Set<String> = emptySe
 
         fun yaz(dosya: File, ayar: BildirimAyar) {
             try { AtomikYazim.yaz(dosya, ayar.json().toByteArray(Charsets.UTF_8)) } catch (e: Exception) { throw ZarfHatasi("ic-hata") }
+        }
+    }
+}
+
+/**
+ * Telefon ureticisinin SINIFI (A37): pil yoneticisi yonergesi buna gore secilir. WebView'e yalniz bu sinif
+ * gider — model / surum / seri GITMEZ.
+ */
+object Uretici {
+    fun sinifi(uretici: String?, marka: String?): String {
+        val u = ((uretici ?: "") + " " + (marka ?: "")).lowercase()
+        return when {
+            "honor" in u -> "honor"
+            "huawei" in u -> "huawei"
+            "xiaomi" in u || "redmi" in u || "poco" in u -> "xiaomi"
+            "samsung" in u -> "samsung"
+            else -> "diger"
         }
     }
 }

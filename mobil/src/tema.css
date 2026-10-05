@@ -195,3 +195,6 @@ h1, h2, h3, p { margin: 0; }
 
 /* Klavye / anahtar erisimi (A44): odaktaki denetim HER temada gorunur. Dokunmada (fare / parmak) cikmaz. */
 :focus-visible { outline: 3px solid var(--vurgu); outline-offset: 2px; }
+
+/* Pil yoneticisi yonergesi: numarali adimlar */
+.adimlar { margin: 0; padding-left: 1.25rem; display: grid; gap: .5rem; font-size: .9375rem; }

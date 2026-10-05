@@ -144,6 +144,19 @@ class BildirimKabukTest {
         assertEquals(setOf("izleme", "uyari", "bilgi"), setOf(Kanal.IZLEME, Kanal.UYARI, Kanal.BILGI))
     }
 
+    @Test
+    fun ureticiSinifi_pilYonergesiIcin_modelSizdirmaz() {
+        assertEquals("honor", Uretici.sinifi("HONOR", "HONOR"))
+        assertEquals("honor", Uretici.sinifi("HUAWEI", "honor"))                 // eski Honor'lar ureticiyi Huawei bildirir
+        assertEquals("huawei", Uretici.sinifi("HUAWEI", "HUAWEI"))
+        assertEquals("xiaomi", Uretici.sinifi("Xiaomi", "Redmi"))
+        assertEquals("xiaomi", Uretici.sinifi("Xiaomi", "POCO"))
+        assertEquals("samsung", Uretici.sinifi("samsung", "samsung"))
+        assertEquals("diger", Uretici.sinifi("Google", "google"))
+        assertEquals("diger", Uretici.sinifi(null, null))
+        assertEquals("diger", Uretici.sinifi("", ""))
+    }
+
     // ── yeniden baglanma dongusu (A28, A31, A34) ────────────────────────────────────────────────
 
     private class Kosu(val bitis: String, val durumlar: List<String>, val beklemeler: List<Long>, val oturumSayisi: Int)

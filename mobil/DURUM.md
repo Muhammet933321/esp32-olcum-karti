@@ -915,3 +915,35 @@ Logcat'te çökme yok. Zarf olmadığı için yoklama işi kurulmadı (beklenen)
 17/20: ikisi için test eklendi, biri derleyicinin zaten yakaladığı değişiklikti (listeden çıkarıldı); soru 12/12;
 5F-J (paylaşım, JS) 28/28 — ilk koşuda 27/28 (boy sınırı; sınır sınanabilir yapıldı); 5F-K (paylaşım deposu) 11/11;
 pencere sabiti 1/1.
+
+## 2026-10-05 (gece) — kartsız açıklar: A36 yerel yoklama, A37 pil yöneticisi yönergesi, raporda kalibrasyon geçmişi
+
+Kullanıcı önceki alt kararları onayladı (soru kaydı bekletmez, kayıt başına bir kez, zarf yoksa sorulmaz).
+
+**(1) A36 — "ev interneti koptu, kart çalışıyor":** `bildirim/YerelYoklama.kt` (saf) + servis içinde 10 s'lik
+zamanlayıcı. Aracı kartı AÇIKÇA çevrimdışı dediği sürece (yalnız o zaman — kartın ölçüm döngüsü boşuna meşgul
+edilmesin) imzasız `GET /eslestir/bilgi`; yanıttaki kimlik eşleşilen kartınkiyle TAM eşitse `yerelGoruldu` →
+karar katmanı bildirimi "ev interneti koptu" yapar, 15 s görülmezse yeniden "karttan haber yok". Kararlarım:
+- Adres: WebView'in doğruladığı son adres, her yeni bağlantıda `files/kasa/<kimlik>.adres`'e yazılır (yalnız özel /
+  bağlantı-yerel IPv4 — `ag/Hedef` kuralı; ad çözülmez; diskte değiştirilmiş herkese açık adres OKUNMAZ).
+- İstek VPN olmayan Wi-Fi ağına bağlı, vekilsiz (KartAg ile aynı kural); zaman aşımı 2 s, yanıt ≤ 1 KiB.
+- Spec "kimlik + açılış değeri" diyor; yalnız KİMLİK karşılaştırılıyor: `/eslestir/bilgi`'nin açılışı rastgele 32
+  onaltılık, durum mesajının `a` alanı sayaç — karşılaştırılabilir değiller.
+- ⚠ Kart adresi değiştiyse (DHCP) servis kartı göremez → bildirim "karttan haber yok" kalır (yanlış güven vermez).
+
+**(2) A37 — pil yöneticisi yönergesi:** Ayarlar › Bildirimler'de (anlık izleme açıkken) "Telefonun pil yöneticisi —
+adımları göster": neden gerektiği + üreticiye göre numaralı adımlar (Honor/Huawei 4, Xiaomi 3, Samsung 2, diğer 2) +
+"Uygulama ayarlarını aç" (yalnız sistem sayfasını açar; hiçbir ayarı DEĞİŞTİRMEZ). Eklenti WebView'e yalnız üretici
+SINIFINI verir (model / sürüm gitmez — test). ⚠ **Honor adımları cihazda DOĞRULANMADI** (Honor'a dokunmadan önce
+soracağım); menü adları MagicOS sürümüne göre değişebilir, ekran bunu söylüyor. Xiaomi'de ekran görüldü.
+
+**(3) Raporda kalibrasyon geçmişi:** paylaşılan rapor artık telefondaki `kalibrasyon.json`'ı (eşitlemenin yazdığı)
+kullanıyor: oturumun kalibrasyon kaydı bulunur (notuyla), yoksa "yok"; dosya yok / bozuk / okunamıyorsa rapor
+"geçmiş verilmedi" der ve paylaşım DURMAZ. CSV ve ham kayıt etkilenmez (test).
+
+**Kanıt:** JS 559/559, Kotlin birim testleri yeşil (YerelYoklamaTest 6). Mutasyon: 5E-4D 11/11, JS tarafı 14/14.
+Koşucu iki korumanın GEREKSİZ olduğunu gösterdi (aynı işi başka kapı yapıyor): `YerelYoklama.url`'deki boy denetimi
+kaldırıldı; `paylasimUret`'teki geçmiş süzgecinin mutasyonu listeden çıkarıldı (işlev doğrudan sınanıyor).
+Telefonda: yönerge açılıyor; sınama için açtığım anlık izleme yeniden KAPALI (ayar dosyasından doğrulandı).
+**Kart gelince listesine ek:** (10) A36 gerçek ağda — modemin WAN'ı çekilince "ev interneti koptu", kart kapatılınca
+15–25 s içinde "karttan haber yok"; yoklamanın kartın ölçüm döngüsüne etkisi (10 s'de bir istek).

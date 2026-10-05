@@ -90,6 +90,13 @@ class BildirimPlugin : Plugin() {
         JSObject().put("yazildi", true)
     }
 
+    /** WebView'in dogruladigi kartin yerel adresi (A36: servis bu adresi imzasiz yoklar). */
+    @PluginMethod
+    fun adresYaz(call: PluginCall) = kos(call) {
+        depo.adresYaz(kimlik(call), call.getString("adres"))
+        JSObject().put("yazildi", true)
+    }
+
     @PluginMethod
     fun zarfSil(call: PluginCall) = kos(call) {
         depo.zarfSil(kimlik(call))
@@ -111,6 +118,7 @@ class BildirimPlugin : Plugin() {
             .put("anlik", a.anlik)
             .put("kapali", JSArray(BildirimAyar.SINIFLAR.filter { !a.acik(it) }))
             .put("dil", a.dil)
+            .put("uretici", Uretici.sinifi(Build.MANUFACTURER, Build.BRAND))
     }
 
     @PluginMethod
@@ -147,6 +155,20 @@ class BildirimPlugin : Plugin() {
                 activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + context.packageName)))
             }
             call.resolve(JSObject().put("pilMuaf", pilMuaf()))
+        } catch (e: Exception) {
+            call.reject("ic-hata", "ic-hata")
+        }
+    }
+
+    /**
+     * Bu uygulamanin SISTEM ayar sayfasini acar (A37: pil yoneticisi / otomatik baslatma yonergesinin ilk adimi).
+     * Hicbir ayari DEGISTIRMEZ; degisikligi kullanici yapar.
+     */
+    @PluginMethod
+    fun uygulamaAyarlariAc(call: PluginCall) {
+        try {
+            activity.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
+            call.resolve(JSObject().put("acildi", true))
         } catch (e: Exception) {
             call.reject("ic-hata", "ic-hata")
         }
