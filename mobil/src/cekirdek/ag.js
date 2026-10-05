@@ -138,13 +138,15 @@ export function agKur(eklenti, { yerelDongu = false, zamanAsimiMs = 5000, azamiG
   // ACIL DURDURMA (A8–A11). ASLA atmaz, hicbir seyi beklemez: eklenti cagrisi bu islevin ICINDE,
   // ilk await'ten ONCE yapilir (kilit, kuyruk, imza, kimlik dogrulamasi araya giremez). Hedef kurali
   // yerel tarafta (HedefCoz); burada adres dogrulanmaz ki yeni bir hata yolu dogmasin.
-  function p0(adresler) {
+  // secenek.asil: bu baglantida dogrulanmis kartin adresi (listenin BASINDAYSA eklenti onu bekler);
+  // yoksa / basta degilse eklenti ILK 204'u sonuc sayar (cozulemeyen olcum.local sonucu bekletmez).
+  function p0(adresler, { asil = null } = {}) {
     const t0 = Date.now();
     const liste = [...new Set((Array.isArray(adresler) ? adresler : []).filter((a) => typeof a === "string" && a !== ""))].slice(0, P0_AZAMI_ADRES);
     const yok = () => ({ tamam: false, adres: null, basarili: [], sureMs: Date.now() - t0 });
     if (liste.length === 0 || typeof eklenti.p0 !== "function") return Promise.resolve(yok());
     let cagri;
-    try { cagri = eklenti.p0({ adresler: liste }); } catch { return Promise.resolve(yok()); }
+    try { cagri = eklenti.p0({ adresler: liste, asilVar: typeof asil === "string" && asil !== "" && liste[0] === asil }); } catch { return Promise.resolve(yok()); }
     return sureli(cagri, P0_SURE_MS).then(
       (s) => p0Sonucu(s, liste, Date.now() - t0),
       yok,

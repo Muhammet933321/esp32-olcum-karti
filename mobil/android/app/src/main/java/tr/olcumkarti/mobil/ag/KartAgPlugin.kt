@@ -114,7 +114,9 @@ class KartAgPlugin : Plugin() {
         val adresler = ArrayList<String>()
         if (dizi != null) for (i in 0 until dizi.length()) { val a = dizi.optString(i, ""); if (a.isNotEmpty()) adresler.add(a) }
         val t0 = SystemClock.elapsedRealtime()
-        p0Tur.durdur(adresler) { s ->
+        // asilVar: ilk adres bu baglantida dogrulanmis kart mi (JS soyler). Degilse ilk 204 sonuctur.
+        val asilVar = call.getBoolean("asilVar", true) != false
+        p0Tur.durdur(adresler, asilVar) { s ->
             val basarili = JSArray()
             for (a in s.basarili) basarili.put(a)
             val o = JSObject()

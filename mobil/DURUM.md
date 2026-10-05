@@ -507,3 +507,28 @@ benim: okunamayan liste yüzünden kayıt durdurulamaz hale gelmesin). ACİL DUR
 **Telefonda ÖLÇÜLMEYENLER (sabah / sonraki tur):** kartın IP'si değişince yeniden bulma ve "başka adres yanıt
 verdi" hali (kartın ağını değiştirmek gerekir); Wi-Fi kapalıyken DURDUR'un hemen "ULAŞILAMADI" demesi (telefonun
 Wi-Fi ayarına dokunmadım — JVM testinde < 300 ms); pil oturumunda salt okuma.
+
+### 2026-10-05 (sabah) — kararlar onaylandı; mutasyon yeniden koşuldu; `olcum.local` çözülemezse beklenmez
+
+**Onay (kullanıcının yapıştırdığı mesajla):** dört karar da onaylandı — DURDUR listesinde `olcum.local`,
+kehribar "başka adres yanıt verdi", tür okunamazsa düğmeler açık, `Gb` yalnız izinli hızlarla.
+
+**1. JS 5C mutasyonu yeniden koşuldu:** tam koşu 119/120 (tek kalan UYGULANAMADI: `ag.js`'in o satırı bu turda
+değişmişti; mutasyon yeni satıra uyarlandı ve tek başına koşuldu → öldü) = **120/120**. Kotlin 5C **10/10**.
+Önceki turda listeden çıkardığım "eski sonuç durumu eziyor" mutasyonunun iddiasını 5C-D9 koruyor.
+
+**2. `olcum.local` çözülemezse DURDUR öteki adresleri beklemez — testle gösterildi, bir kusur bulundu:**
+- Gönderme her adrese kendi iş parçacığında aynı anda başlıyor: ad çözümü 2 s asılıyken öteki adreslere
+  istek < 200 ms'de gidiyor (`P0Test.adCozulemezseOtekiAdreslerBeklemez_asilVarken`). Asıl (bağlı) adres
+  204 verince sonuç da < 500 ms'de dönüyor.
+- **Kusur:** kart henüz bulunmamışken (bağlı adres yok) liste `olcum.local` ile BAŞLIYORDU ve eklenti ilk
+  adresi "asıl" sayıp SONUCU onun bitmesine bağlıyordu — komut karta hemen gidiyor ama şerit, ad çözümü
+  düşene dek (en kötü ~4.4 s) "gönderiliyor"da kalıyordu. Düzeltme: JS eklentiye `asilVar` söyler (asıl
+  adres biliniyor VE listenin başında mı); değilse eklenti İLK 204'ü sonuç sayar. Testler:
+  `P0Test.adCozulemezseOtekiAdreslerBeklemez_asilYokken`, `asilYokkenTurAyriSayilir`, JS `durdur.test.js`
+  ("olcum.local cozulemiyor / asili …"). Mutasyon: 2 JS (`5C-D-AD`) + 1 Kotlin, hepsi öldü.
+- Kalan, bilinen sınır: asıl adres biliniyor ama ÖLÜYSE (IP değişmiş) sonuç bütün denemeler bitince / 4.4 s
+  dolunca döner — "kartın durduğu doğrulanamadı" demek için asılın sonucunu bilmek gerekir. Komutun kendisi
+  yine hemen gider.
+
+JS 357/357, Kotlin yeşil. 5D planı `tasarim/2026-10-04-plan-5-android.md` sonunda (5D-1…5D-4).

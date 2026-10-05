@@ -184,6 +184,60 @@ class P0Test {
         assertTrue((System.nanoTime() - t0) / 1_000_000 < 300)
     }
 
+    // olcum.local cozulemiyor / cozumu ASILI (Android'de .local cogu zaman calismaz): oteki adresler
+    // BEKLEMEZ — ne gonderme ne sonuc.
+    @Test
+    fun adCozulemezseOtekiAdreslerBeklemez_asilVarken() {
+        val gonderildi = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        val t0 = System.nanoTime()
+        val p = P0({ adres ->
+            gonderildi.putIfAbsent(adres, (System.nanoTime() - t0) / 1_000_000)
+            if (adres == "olcum.local") { Thread.sleep(2000); throw AgHatasi("ad-cozulmedi") }
+            Thread.sleep(40); 204
+        }, { Thread.sleep(it) })
+        val s = p.durdur(listOf("kart", "olcum.local", "ap"))
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        assertTrue(s.tamam)
+        assertEquals("kart", s.adres)
+        assertTrue("sonuc ad cozumunu bekledi: $ms ms", ms < 500)
+        for (a in listOf("kart", "olcum.local", "ap")) assertTrue("$a gec gonderildi: ${gonderildi[a]} ms", (gonderildi[a] ?: 9999) < 200)
+    }
+
+    @Test
+    fun adCozulemezseOtekiAdreslerBeklemez_asilYokken() {
+        // Kart henuz bulunmadi (bagli adres yok): liste adla BASLAR. Ad "asil" SAYILMAZ; ilk 204 sonuctur.
+        val gonderildi = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        val t0 = System.nanoTime()
+        val p = P0({ adres ->
+            gonderildi.putIfAbsent(adres, (System.nanoTime() - t0) / 1_000_000)
+            if (adres == "olcum.local") { Thread.sleep(2000); throw AgHatasi("ad-cozulmedi") }
+            Thread.sleep(40); 204
+        }, { Thread.sleep(it) })
+        val s = p.durdur(listOf("olcum.local", "ap"), asilVar = false)
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        assertTrue(s.tamam)
+        assertEquals("ap", s.adres)
+        assertTrue("sonuc ad cozumunu bekledi: $ms ms", ms < 500)
+        assertTrue((gonderildi["ap"] ?: 9999) < 200)
+        // asilVar = true (ilk adres asil) olsaydi sonuc ad cozumunu BEKLERDI: fark olculur.
+        val t1 = System.nanoTime()
+        val bekleyen = P0({ adres -> if (adres == "olcum.local") { Thread.sleep(600); throw AgHatasi("ozel-degil") } else 204 }, { })
+            .durdur(listOf("olcum.local", "ap"))
+        assertTrue(bekleyen.tamam)
+        assertTrue((System.nanoTime() - t1) / 1_000_000 >= 550)
+    }
+
+    @Test
+    fun asilYokkenTurAyriSayilir() {
+        val p0 = P0({ adres -> if (adres == "yavas") { Thread.sleep(500); 503 } else 204 }, { })
+        val tur = P0Tur(p0)
+        val bitti = java.util.concurrent.CountDownLatch(1)
+        val t0 = System.nanoTime()
+        tur.durdur(listOf("yavas", "ap"), false) { s -> if (s.tamam && s.adres == "ap") bitti.countDown() }
+        assertTrue(bitti.await(300, java.util.concurrent.TimeUnit.MILLISECONDS))
+        assertTrue((System.nanoTime() - t0) / 1_000_000 < 300)
+    }
+
     @Test
     fun hepsiBasarisiz_tamamYanlis_veToplamSureyiAsmaz() {
         val p = P0({ throw AgHatasi("baglanti") }, { })

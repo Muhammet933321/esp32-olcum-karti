@@ -51,6 +51,20 @@ export default [
     koy: "ham",
     test: DURDUR,
   },
+  {
+    ad: "5C-D-AD: asil bilinmiyorken de eklentiye 'asil var' deniyor (cozulemeyen olcum.local sonucu bekletir)",
+    dosya: "src/cekirdek/ag.js",
+    bul: 'asilVar: typeof asil === "string" && asil !== "" && liste[0] === asil',
+    koy: "asilVar: true",
+    test: DURDUR,
+  },
+  {
+    ad: "5C-D-AD: durdur.js asil adresi ag katmanina vermiyor",
+    dosya: "src/cekirdek/durdur.js",
+    bul: "soz = p0(hedefler, { asil });",
+    koy: "soz = p0(hedefler);",
+    test: DURDUR,
+  },
   // ── bulgu 2: IP degisimi ─────────────────────────────────────────────────
   {
     ad: "5C-D2: 30 s kurali karti KOSULSUZ aramiyor (kart 'bagli' gorunuyorsa kesif kosmaz)",

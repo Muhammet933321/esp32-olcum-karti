@@ -3,15 +3,15 @@ export default [
   {
     ad: "5C-p0: durdur() eklentiye gitmeden once bir gorev turu bekliyor",
     dosya: "src/cekirdek/durdur.js",
-    bul: "      soz = p0(hedefler);                         // ILK is",
-    koy: "      soz = Promise.resolve().then(() => p0(hedefler)); // ILK is",
+    bul: "      soz = p0(hedefler, { asil });               // ILK is",
+    koy: "      soz = Promise.resolve().then(() => p0(hedefler, { asil })); // ILK is",
     test: "test/durdur.test.js",
   },
   {
     ad: "5C-p0: ag.p0 eklentiye gitmeden once bekliyor",
     dosya: "src/cekirdek/ag.js",
-    bul: "    try { cagri = eklenti.p0({ adresler: liste }); } catch { return Promise.resolve(yok()); }",
-    koy: "    cagri = Promise.resolve().then(() => eklenti.p0({ adresler: liste }));",
+    bul: "    try { cagri = eklenti.p0({ adresler: liste, asilVar: typeof asil === \"string\" && asil !== \"\" && liste[0] === asil }); } catch { return Promise.resolve(yok()); }",
+    koy: "    cagri = Promise.resolve().then(() => eklenti.p0({ adresler: liste, asilVar: liste[0] === asil }));",
     test: "test/durdur.test.js",
   },
   {

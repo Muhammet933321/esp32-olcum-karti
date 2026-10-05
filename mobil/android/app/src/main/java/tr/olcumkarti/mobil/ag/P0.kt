@@ -15,6 +15,9 @@ import java.util.concurrent.atomic.AtomicInteger
  *    yanit verdiyse gercek kartin yeniden denemesi surer).
  *  - Listedeki ILK adres "asil"dir (bu baglantida kimligi dogrulanmis kart): o 204 verince HEMEN
  *    donulur. Asil basarisizsa butun denemeler bitince / toplam sure dolunca donulur.
+ *  - Asil adres BILINMIYORSA (`asilVar = false`: kart bu baglantida henuz dogrulanmadi) ILK 204 sonuctur:
+ *    listenin basindaki `olcum.local` cozulemezse / cozumu asili kalirsa oteki adresin yaniti BEKLEMEZ.
+ *  - Gonderme her adrese kendi is parcaciginda, AYNI ANDA baslar: bir adresin ad cozumu otekini geciktirmez.
  * Yeniden deneme (P0-S, DEVIR 5.12.84): 503 ya da GECICI ag hatasinda 150 / 300 / 450 ms arayla, adres
  * basina en fazla 4 deneme. KALICI hata (Wi-Fi yok, adres kurala uymuyor …) yeniden DENENMEZ.
  * Saf Kotlin: gonderme ve bekleme enjekte, JVM'de sinanir.
@@ -48,7 +51,7 @@ class P0(
     }
 
     /** Butun adreslere AYNI ANDA. Asil (ilk) adres 204 verince hemen; yoksa hepsi bitince / sure dolunca. */
-    fun durdur(adresler: List<String>, toplamSureMs: Long = TOPLAM_SURE_MS): Sonuc {
+    fun durdur(adresler: List<String>, toplamSureMs: Long = TOPLAM_SURE_MS, asilVar: Boolean = true): Sonuc {
         val tekil = adresler.distinct().take(AZAMI_ADRES)
         if (tekil.isEmpty()) return Sonuc(false, null, 0)
         val asil = tekil[0]
@@ -63,7 +66,7 @@ class P0(
                     if (d > 0) {
                         basarili.add(adres)
                         ilkDeneme.compareAndSet(0, d)
-                        if (adres == asil) bitti.countDown()
+                        if (!asilVar || adres == asil) bitti.countDown()
                     }
                 } finally {
                     if (kalan.decrementAndGet() == 0) bitti.countDown()
@@ -100,26 +103,28 @@ class P0Tur(
 ) {
     private val kilit = Any()
     private var surenAdresler: List<String>? = null
+    private var surenAsilVar = true
     private var bekleyenler: ArrayList<(P0.Sonuc) -> Unit>? = null
 
-    fun durdur(adresler: List<String>, bitince: (P0.Sonuc) -> Unit) {
+    fun durdur(adresler: List<String>, asilVar: Boolean = true, bitince: (P0.Sonuc) -> Unit) {
         val benim = arrayListOf(bitince)
         var izlenen = false
         synchronized(kilit) {
             val b = bekleyenler
-            if (b != null && surenAdresler == adresler) {
+            if (b != null && surenAdresler == adresler && surenAsilVar == asilVar) {
                 b.add(bitince)                            // suren tura baglan
                 return
             }
             if (b == null) {
                 surenAdresler = adresler
+                surenAsilVar = asilVar
                 bekleyenler = benim
                 izlenen = true
             }
             // Suren tur BASKA adreslere gidiyorsa: bu cagri kendi (izlenmeyen) turunu kosar.
         }
         calistir(Runnable {
-            val s = try { p0.durdur(adresler) } catch (e: RuntimeException) { P0.Sonuc(false, null, 0) }
+            val s = try { p0.durdur(adresler, asilVar = asilVar) } catch (e: RuntimeException) { P0.Sonuc(false, null, 0) }
             val hedefler = synchronized(kilit) {
                 if (izlenen) {
                     bekleyenler = null

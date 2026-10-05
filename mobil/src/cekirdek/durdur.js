@@ -60,7 +60,7 @@ export function durdurKur({ p0, adresler, degisti = null }) {
     suren += 1;
     let soz;
     try {
-      soz = p0(hedefler);                         // ILK is: eklenti cagrisi, hicbir bekleme olmadan
+      soz = p0(hedefler, { asil });               // ILK is: eklenti cagrisi, hicbir bekleme olmadan
     } catch {
       bitti(null, asil);                          // eklenti koprusu atti: dokunus isleyicisine istisna CIKMAZ
       return Promise.resolve(YOK);

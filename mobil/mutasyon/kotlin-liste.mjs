@@ -117,9 +117,16 @@ export default [
   {
     ad: "5C-KD: baska adresin basarisi beklemeyi bitiriyor (asil kartin yeniden denemesi sonuca girmez)",
     dosya: AG + "P0.kt",
-    bul: "if (adres == asil) bitti.countDown()",
+    bul: "if (!asilVar || adres == asil) bitti.countDown()",
     koy: "bitti.countDown()",
     kirmizi: "P0Test.baskaAdresinBasarisiAsilKartinYenidenDenemesiniKesmez",
+  },
+  {
+    ad: "5C-KD: asil yokken de ilk adres bekleniyor (cozulemeyen olcum.local sonucu bekletir)",
+    dosya: AG + "P0.kt",
+    bul: "p0.durdur(adresler, asilVar = asilVar) } catch",
+    koy: "p0.durdur(adresler) } catch",
+    kirmizi: "P0Test.asilYokkenTurAyriSayilir",
   },
   {
     ad: "5C-KD: kalici hata (Wi-Fi yok) da yeniden deneniyor",
@@ -131,7 +138,7 @@ export default [
   {
     ad: "5C-KD: suren p0 turuna baglanilmiyor (her dokunus yeni is parcaciklari acar)",
     dosya: AG + "P0.kt",
-    bul: "if (b != null && surenAdresler == adresler) {",
+    bul: "if (b != null && surenAdresler == adresler && surenAsilVar == asilVar) {",
     koy: "if (b != null && surenAdresler == null) {",
     kirmizi: "P0Test.surenTuraBaglanir_yeniIsParcacigiAcmaz_turBitinceYeniTurBaslar",
   },

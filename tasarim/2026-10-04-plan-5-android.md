@@ -370,3 +370,46 @@ boyutlar rem. Test: kabukta DURDUR her rotada DOM'da (kaynak testi) + gömülü 
 ## Bitiş
 Xiaomi'de gerçek kartla: Canlı'da D satırları akıyor; `Gb1000` ile "Android test" kısa kaydı başlat → Durum'da görünür →
 `Gd`; DURDUR dokunuştan kart yanıtına süre (20 tekrar, < 1 s); arka plana alınca akış yuvası boşalıyor. Çürütücü.
+
+# 5D — kayıt eşitleme, Kayıtlar, grafik (2026-10-05)
+
+Spec: A20–A27, §2.2. Dört alt dilim; her biri kendi testleri + mutasyonlarıyla, sırayla.
+
+## 5D-1 — `KartDepo` (Kotlin) + `depo.js`
+
+Dosyalar `files/kart/<kimlik>/`: `kayitlar.kyt`, `durum.json`, `kalibrasyon.json`, `kalibrasyon-<zaman>.json`.
+
+- `depo/KartDepo.kt` (saf, JVM'de sınanır): `veriBoyu` · `veriOku(bas, azami)` (parça parça) · `veriEkle(b)`
+  (ekle + `fsync`; dönmeden kalıcı) · `veriKirp(n)` (+ `fsync`) · `durumOku/Yaz` (atomik: `AtomikYazim`) ·
+  `kalOku/Yaz` (atomik) · `kalArsivle` (zaman damgalı, çakışmada `-1`, `-2`) · `sifirla` ("kopyayı sıfırla") ·
+  `boyutlar` (depolama satırı). Kimlik yalnız 16 onaltılık hane (yol kaçışı yok). Hata TÜR adıyla.
+- `depo/KartDepoPlugin.kt`: ince kabuk, TEK iş parçacığında sıralı (Kasa deseni). Köprüden bayt base64.
+- `src/cekirdek/depo.js`: `esitle.js` DEPO arayüzü — `depoKur(eklenti, kimlik)`; `kilitAl` süreç içi
+  (tek WebView); `veriOku(bas)` 256 KiB'lik parçaları birleştirir.
+- `test/yardim/depo_sahtesi.mjs`: eklentinin Node sahtesi (gerçek dosyalarla) — JS testleri ve duman için.
+
+Kabul: aynı sahte karttan `bellekDepo` ile eşitlenen akış = `depo.js` + sahte eklentiyle eşitlenen akış
+(bayt bayt, durum dahil); Kotlin'de yarım yazma / kırpma / atomik durum testleri.
+
+## 5D-2 — eşitleme döngüsü (A20–A23)
+
+- `src/cekirdek/esitleme.js`: `esitlemeKur({ kart, depoAl, simdiMs, zamanla })` → `simdi()` (elle),
+  `baglandi()`, `kayitBitti()`, 60 s zamanlayıcı (yalnız uygulama öndeyken), `durum()` / `dinle()`.
+  Tek seferde TEK eşitleme (depo kilidi + süren söze bağlanma). `istek` = `kart.istek` (imzalı),
+  istek başları arası ≥ 100 ms. **`onay: null` varsayılan (A21)**; anahtar Ayarlar'da, açıklamasıyla.
+- Hata halleri: akış kimliği değişti / depo kısa → "kopyayı sıfırla" önerisi (A23); ağ hatası → sonraki tur.
+- Kabuk: Durum'daki yer tutucu satır gerçek eşitleme durumuna döner; "Şimdi eşitle".
+
+## 5D-3 — Kayıtlar ve kayıt görünümü (A24–A26, A41)
+
+- Ham dosya WebView'e köprüden base64 ile DEĞİL: `WebKapi` yerel bir yolu (`/_depo/<kimlik>/kayitlar.kyt`)
+  dosyadan akıtır (yalnız GET, yalnız o iki dosya adı, `Range` yok); `fetch` → `ArrayBuffer`.
+- `src/isci/kayit_isci.js` (Web Worker): `akisCoz` + `oturumlariKur` + seri + `ozetKur`; ana iş parçacığına
+  aktarılabilir tamponlarla.
+- `Kayitlar.vue`: liste (ad, tür, tarih, süre, nerede: kart / telefon / ikisi), arama.
+- `Kayit.vue`: `Grafik` + gezgin, aralık istatistiği (`istatistik.js`), notlar (okuma). Paylaşım 5F'de.
+
+## 5D-4 — Ö6 ölçüm aracı (A27)
+
+Ayarlar › Gelişmiş › "Grafik ölçümü": 800 bin noktalık üretilmiş seri, betikli 200 kare; ortanca / p95 /
+en uzun. Xiaomi'de koşulur, sayı spec'e ve DURUM'a yazılır (Honor 5G'de).

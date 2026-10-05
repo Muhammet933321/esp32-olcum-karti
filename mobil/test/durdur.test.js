@@ -29,7 +29,7 @@ function p0Sahtesi({ baglantiMs = 800 } = {}) {
     }
     return 0;
   }
-  function p0({ adresler }) {
+  function p0({ adresler, asilVar = true }) {
     cagrilar.push(adresler);
     return new Promise((coz) => {
       let kalan = adresler.length, bitti = false;
@@ -43,7 +43,7 @@ function p0Sahtesi({ baglantiMs = 800 } = {}) {
       for (const a of adresler) {
         adresiDene(a).then((d) => {
           if (d > 0) basarili.push(a);
-          if (d > 0 && a === adresler[0]) bitir();
+          if (d > 0 && (!asilVar || a === adresler[0])) bitir();   // asil yoksa ILK 204 sonuctur
           if (--kalan === 0) bitir();
         });
       }
@@ -134,6 +134,50 @@ describe("p0 — acil durdurma", () => {
     expect(s).toMatchObject({ tamam: true, adres: asil, basarili: [asil] });
     expect(k.durum.komutlar).toEqual(["p0"]);
     expect(d.durum()).toBe("durduruldu");
+  });
+
+  it("olcum.local cozulemiyor / asili: asil BILINMIYORKEN eklentiye asilVar=false gider ve sonuc ILK 204'te doner", async () => {
+    const k = await kart();
+    const ap = `127.0.0.1:${k.port}`;
+    // Sahte eklenti: "olcum.local" 1.5 s asili kalir (ad cozumu), sonra basarisiz; oteki adres hemen 204.
+    const gorulen = [];
+    const eklenti = {
+      istek: async () => ({}),
+      p0: (v) => {
+        gorulen.push(v);
+        return new Promise((coz) => {
+          const basarili = [];
+          let kalan = v.adresler.length, bitti = false;
+          const bitir = () => { if (!bitti) { bitti = true; coz(basarili.length ? { tamam: true, adres: basarili[0], basarili: [...basarili] } : { tamam: false, basarili: [] }); } };
+          for (const a of v.adresler) {
+            const sonuc = a === "olcum.local" ? new Promise((c) => setTimeout(() => c(false), 1500)) : Promise.resolve(true);
+            sonuc.then((ok) => {
+              if (ok) basarili.push(a);
+              if (ok && (!v.asilVar || a === v.adresler[0])) bitir();
+              if (--kalan === 0) bitir();
+            });
+          }
+        });
+      },
+    };
+    // Kart henuz bulunmadi: liste adla BASLAR, asil yok.
+    const d = durdurKur({ p0: agKur(eklenti).p0, adresler: () => ({ liste: ["olcum.local", ap], asil: null }) });
+    const t0 = Date.now();
+    const s = await d.durdur();
+    expect(Date.now() - t0).toBeLessThan(500);
+    expect(gorulen[0]).toEqual({ adresler: ["olcum.local", ap, KART_AP_ADRESI], asilVar: false });
+    expect(s).toMatchObject({ tamam: true, adres: ap });
+    expect(d.durum()).toBe("durduruldu");
+    // Asil biliniyor ve listenin basinda: asilVar=true; asil hemen 204 verir, ad cozumu yine BEKLENMEZ.
+    const d2 = durdurKur({ p0: agKur(eklenti).p0, adresler: () => ({ liste: [ap, "olcum.local"], asil: ap }) });
+    const t1 = Date.now();
+    await d2.durdur();
+    expect(Date.now() - t1).toBeLessThan(500);
+    expect(gorulen[1]).toEqual({ adresler: [ap, "olcum.local", KART_AP_ADRESI], asilVar: true });
+    expect(d2.durum()).toBe("durduruldu");
+    // "asil" listenin basinda DEGILSE eklentiye asil var denmez (eklenti yanlis adresi beklemez).
+    await agKur(eklenti).p0(["olcum.local", ap], { asil: ap });
+    expect(gorulen[2].asilVar).toBe(false);
   });
 
   it("asil adres yanit vermedi, BASKA bir kart 204 verdi -> 'baska-yanit' (durduruldu DEGIL); asil bilinmiyorsa 'durduruldu'", async () => {
