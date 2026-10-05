@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- URETILDI: mobil/araclar/bildirim_metin_uret.py (kaynak: kopru/bildirim_metin.py). Elle duzenleme. -->
+<resources>
+    <string name="bld_basladi_devam" translatable="true">The board restarted — the recording was interrupted and continues (session {oturum})</string>
+    <string name="bld_baslik" translatable="true">Measurement board</string>
+    <string name="bld_deneme" translatable="true">Test notification — the notification path works</string>
+    <string name="bld_dolu" translatable="true">Storage full, recording stopped</string>
+    <string name="bld_dolu_oturum" translatable="true">Storage full, recording stopped (session {oturum})</string>
+    <string name="bld_esik" translatable="true">Unsynced data {deger}% (threshold {esik}%) — sync the recordings</string>
+    <string name="bld_ev_interneti" translatable="true">Home internet is down — the board is working, recording continues (session {oturum})</string>
+    <string name="bld_geri" translatable="true">The board is back — no recording is running</string>
+    <string name="bld_geri_kayit" translatable="true">The board is back — recording continues (session {oturum})</string>
+    <string name="bld_kacirilan" translatable="true">{adet} events were missed (while this phone was not connected) — details are on the Recordings screen once recordings sync</string>
+    <string name="bld_kayit_bitti" translatable="true">Recording finished — {sebep} (session {oturum}, {nokta} points)</string>
+    <string name="bld_kayit_bitti_yerel" translatable="true">Recording finished (session {oturum})</string>
+    <string name="bld_kesildi" translatable="true">The board restarted — {tur} was interrupted (session {oturum}){saat}</string>
+    <string name="bld_kesildi_saat" translatable="true">, last heard {saat}</string>
+    <string name="bld_kopuk" translatable="true">No news from the board — a recording was running (session {oturum})</string>
+    <string name="bld_kopuk_yerel" translatable="true">No news from the board — a recording was running (session {oturum}); the local link is down too</string>
+    <string name="bld_pil_bitti" translatable="true">Battery test finished — {durum}: {mah} mAh, {wh} Wh, duration {sure}</string>
+    <string name="oturum_tur_1" translatable="true">Measurement recording</string>
+    <string name="oturum_tur_2" translatable="true">Battery test</string>
+    <string name="oturum_tur_3" translatable="true">Oscilloscope log</string>
+    <string name="oturum_tur_bilinmeyen" translatable="true">Unknown session type ({kod})</string>
+    <string name="pil_durum_0" translatable="true">idle</string>
+    <string name="pil_durum_1" translatable="true">running</string>
+    <string name="pil_durum_2" translatable="true">finished (cut-off voltage reached)</string>
+    <string name="pil_durum_3" translatable="true">stopped by user</string>
+    <string name="pil_durum_4" translatable="true">error</string>
+    <string name="pil_durum_bilinmeyen" translatable="true">unknown state ({kod})</string>
+    <string name="sebep_1" translatable="true">stopped by user</string>
+    <string name="sebep_2" translatable="true">storage full</string>
+    <string name="sebep_3" translatable="true">error</string>
+    <string name="sebep_4" translatable="true">battery test finished</string>
+    <string name="sebep_5" translatable="true">board restarted</string>
+    <string name="sebep_6" translatable="true">another session started</string>
+    <string name="sebep_7" translatable="true">scheduled duration elapsed</string>
+    <string name="sebep_bilinmeyen" translatable="true">unknown reason ({kod})</string>
+</resources>

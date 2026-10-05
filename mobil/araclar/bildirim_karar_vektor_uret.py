@@ -185,6 +185,12 @@ S = [
         ["mqtt", "olay", {"n": True, "a": 3, "o": "deneme"}], ["mqtt", "olay", {"n": 1, "a": 3, "o": 5}],
         ["mqtt", "olay", {"n": 1, "a": 3}], ["mqtt", "olay", {}], ["mqtt", "baska", {"c": 1}],
         ["mqtt", "durum", {"c": 2}], ["mqtt", "durum", {}], ["mqtt", "olay", olay(2, "deneme")]]},
+    {"ad": "basladi_devamsiz_bildirilmez", "ops": [
+        ["mqtt", "olay", olay(1, "basladi", a=9, devam=0, oturum=5)], ["mqtt", "olay", olay(2, "basladi", a=9)],
+        ["mqtt", "olay", olay(1, "basladi", a=10, devam=None)], ["mqtt", "olay", olay(2, "basladi", a=10, devam=True, oturum=6)]]},
+    {"ad": "kopuk_ve_kacirilan_siniflari_kapali", "kapali": ["kopuk", "kacirilan"], "ops": [
+        ["bagli", True], ["mqtt", "durum", KAYITTA], ["mqtt", "durum", {"c": 0, "a": 3}], ["tik"], ["saat", 30],
+        ["mqtt", "durum", KAYITTA], ["mqtt", "olay", olay(5, "deneme")], ["mqtt", "olay", olay(9, "dolu")]]},
     {"ad": "yerel_ve_durum_hangisi_yeniyse", "ops": [
         ["bagli", True], ["yerel", 2, 53], ["saat", 5], ["mqtt", "durum", durum(k=1, o=53)], ["mqtt", "durum", {"c": 0, "a": 3}],
         ["saat", 5], ["mqtt", "durum", durum(k=1, o=53)], ["saat", 1], ["yerel", 2, 53], ["saat", 20],

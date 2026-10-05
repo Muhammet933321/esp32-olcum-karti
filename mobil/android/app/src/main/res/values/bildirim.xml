@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- URETILDI: mobil/araclar/bildirim_metin_uret.py (kaynak: kopru/bildirim_metin.py). Elle duzenleme. -->
+<resources>
+    <string name="bld_basladi_devam" translatable="true">Kart yeniden başladı — kayıt kesildi ve sürüyor (oturum {oturum})</string>
+    <string name="bld_baslik" translatable="true">Ölçüm kartı</string>
+    <string name="bld_deneme" translatable="true">Deneme bildirimi — bildirim yolu çalışıyor</string>
+    <string name="bld_dolu" translatable="true">Bellek doldu, kayıt durdu</string>
+    <string name="bld_dolu_oturum" translatable="true">Bellek doldu, kayıt durdu (oturum {oturum})</string>
+    <string name="bld_esik" translatable="true">Eşitlenmemiş veri %{deger} (eşik %{esik}) — kayıtları eşitleyin</string>
+    <string name="bld_ev_interneti" translatable="true">Ev interneti koptu — kart çalışıyor, kayıt sürüyor (oturum {oturum})</string>
+    <string name="bld_geri" translatable="true">Kart yeniden bağlandı — kayıt sürmüyor</string>
+    <string name="bld_geri_kayit" translatable="true">Kart yeniden bağlandı — kayıt sürüyor (oturum {oturum})</string>
+    <string name="bld_kacirilan" translatable="true">{adet} olay kaçırıldı (bu telefon bağlı değilken) — ayrıntılar kayıtlar eşitlenince Kayıtlar ekranında</string>
+    <string name="bld_kayit_bitti" translatable="true">Kayıt bitti — {sebep} (oturum {oturum}, {nokta} nokta)</string>
+    <string name="bld_kayit_bitti_yerel" translatable="true">Kayıt bitti (oturum {oturum})</string>
+    <string name="bld_kesildi" translatable="true">Kart yeniden başladı — {tur} kesildi (oturum {oturum}){saat}</string>
+    <string name="bld_kesildi_saat" translatable="true">, son haber {saat}</string>
+    <string name="bld_kopuk" translatable="true">Karttan haber yok — kayıt sürüyordu (oturum {oturum})</string>
+    <string name="bld_kopuk_yerel" translatable="true">Karttan haber yok — kayıt sürüyordu (oturum {oturum}); yerel bağlantı da koptu</string>
+    <string name="bld_pil_bitti" translatable="true">Pil testi bitti — {durum}: {mah} mAh, {wh} Wh, süre {sure}</string>
+    <string name="oturum_tur_1" translatable="true">Ölçüm kaydı</string>
+    <string name="oturum_tur_2" translatable="true">Pil testi</string>
+    <string name="oturum_tur_3" translatable="true">Osiloskop günlüğü</string>
+    <string name="oturum_tur_bilinmeyen" translatable="true">Bilinmeyen oturum türü ({kod})</string>
+    <string name="pil_durum_0" translatable="true">beklemede</string>
+    <string name="pil_durum_1" translatable="true">çalışıyor</string>
+    <string name="pil_durum_2" translatable="true">bitti (kesme gerilimine ulaşıldı)</string>
+    <string name="pil_durum_3" translatable="true">kullanıcı durdurdu</string>
+    <string name="pil_durum_4" translatable="true">hata</string>
+    <string name="pil_durum_bilinmeyen" translatable="true">bilinmeyen durum ({kod})</string>
+    <string name="sebep_1" translatable="true">kullanıcı durdurdu</string>
+    <string name="sebep_2" translatable="true">bellek doldu</string>
+    <string name="sebep_3" translatable="true">hata</string>
+    <string name="sebep_4" translatable="true">pil testi bitti</string>
+    <string name="sebep_5" translatable="true">kart yeniden başladı</string>
+    <string name="sebep_6" translatable="true">başka oturum başladı</string>
+    <string name="sebep_7" translatable="true">planlı süre doldu</string>
+    <string name="sebep_bilinmeyen" translatable="true">bilinmeyen sebep ({kod})</string>
+</resources>

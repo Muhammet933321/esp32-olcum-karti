@@ -1,0 +1,1019 @@
+{
+ "aciklama": "kopru/pc_bildirim.py Mantik'in GERCEK metin ciktisi (mobil/araclar/bildirim_metin_uret.py); elle duzenleme",
+ "utc_fark_dk": 180,
+ "senaryolar": [
+  {
+   "ad": "vasiyet_kayit_surerken_kopuk_sonra_geri",
+   "tr": [
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Karttan haber yok — kayıt sürüyordu (oturum 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Kart yeniden bağlandı — kayıt sürüyor (oturum 53)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "baglanti",
+     "Measurement board",
+     "No news from the board — a recording was running (session 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "The board is back — recording continues (session 53)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "vasiyet_kayit_yokken_sessiz",
+   "tr": [],
+   "en": []
+  },
+  {
+   "ad": "geri_geldi_kayit_bitmis",
+   "tr": [
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Karttan haber yok — kayıt sürüyordu (oturum 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Kart yeniden bağlandı — kayıt sürmüyor",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "baglanti",
+     "Measurement board",
+     "No news from the board — a recording was running (session 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "The board is back — no recording is running",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "ev_interneti_kart_yerelde",
+   "tr": [
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Ev interneti koptu — kart çalışıyor, kayıt sürüyor (oturum 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Karttan haber yok — kayıt sürüyordu (oturum 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Ev interneti koptu — kart çalışıyor, kayıt sürüyor (oturum 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Kart yeniden bağlandı — kayıt sürüyor (oturum 53)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "baglanti",
+     "Measurement board",
+     "Home internet is down — the board is working, recording continues (session 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "No news from the board — a recording was running (session 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "Home internet is down — the board is working, recording continues (session 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "The board is back — recording continues (session 53)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "bekliyor_durumu_da_kayit_sayilir_ve_py_esitligi",
+   "tr": [
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Karttan haber yok — kayıt sürüyordu (oturum 60)",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Kart yeniden bağlandı — kayıt sürüyor (oturum 60)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "baglanti",
+     "Measurement board",
+     "No news from the board — a recording was running (session 60)",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "The board is back — recording continues (session 60)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "olay_yineleme_ve_bosluk",
+   "tr": [
+    [
+     "de-t1",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ],
+    [
+     "de-t2",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ],
+    [
+     "kacirilan",
+     "Ölçüm kartı",
+     "3 olay kaçırıldı (bu telefon bağlı değilken) — ayrıntılar kayıtlar eşitlenince Kayıtlar ekranında",
+     false
+    ],
+    [
+     "de-t3",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ],
+    [
+     "de-t4",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ],
+    [
+     "kacirilan",
+     "Ölçüm kartı",
+     "5 olay kaçırıldı (bu telefon bağlı değilken) — ayrıntılar kayıtlar eşitlenince Kayıtlar ekranında",
+     false
+    ],
+    [
+     "es-t5",
+     "Ölçüm kartı",
+     "Eşitlenmemiş veri %61,2 (eşik %60,0) — kayıtları eşitleyin",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "de-t1",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ],
+    [
+     "de-t2",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ],
+    [
+     "kacirilan",
+     "Measurement board",
+     "3 events were missed (while this phone was not connected) — details are on the Recordings screen once recordings sync",
+     false
+    ],
+    [
+     "de-t3",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ],
+    [
+     "de-t4",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ],
+    [
+     "kacirilan",
+     "Measurement board",
+     "5 events were missed (while this phone was not connected) — details are on the Recordings screen once recordings sync",
+     false
+    ],
+    [
+     "es-t5",
+     "Measurement board",
+     "Unsynced data 61.2% (threshold 60.0%) — sync the recordings",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "kart_yeniden_basladi_yeni_acilis",
+   "tr": [
+    [
+     "de-t1",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ],
+    [
+     "kacirilan",
+     "Ölçüm kartı",
+     "2 olay kaçırıldı (bu telefon bağlı değilken) — ayrıntılar kayıtlar eşitlenince Kayıtlar ekranında",
+     false
+    ],
+    [
+     "bs-4",
+     "Ölçüm kartı",
+     "Kart yeniden başladı — kayıt kesildi ve sürüyor (oturum 70)",
+     false
+    ],
+    [
+     "bs-5",
+     "Ölçüm kartı",
+     "Kart yeniden başladı — kayıt kesildi ve sürüyor (oturum ?)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "de-t1",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ],
+    [
+     "kacirilan",
+     "Measurement board",
+     "2 events were missed (while this phone was not connected) — details are on the Recordings screen once recordings sync",
+     false
+    ],
+    [
+     "bs-4",
+     "Measurement board",
+     "The board restarted — the recording was interrupted and continues (session 70)",
+     false
+    ],
+    [
+     "bs-5",
+     "Measurement board",
+     "The board restarted — the recording was interrupted and continues (session ?)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "onceki_calismadan_kalan",
+   "tr": [
+    [
+     "kacirilan",
+     "Ölçüm kartı",
+     "2 olay kaçırıldı (bu telefon bağlı değilken) — ayrıntılar kayıtlar eşitlenince Kayıtlar ekranında",
+     false
+    ],
+    [
+     "de-t1",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ],
+    [
+     "de-t2",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "kacirilan",
+     "Measurement board",
+     "2 events were missed (while this phone was not connected) — details are on the Recordings screen once recordings sync",
+     false
+    ],
+    [
+     "de-t1",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ],
+    [
+     "de-t2",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "onceki_baska_acilis",
+   "tr": [
+    [
+     "kacirilan",
+     "Ölçüm kartı",
+     "2 olay kaçırıldı (bu telefon bağlı değilken) — ayrıntılar kayıtlar eşitlenince Kayıtlar ekranında",
+     false
+    ],
+    [
+     "de-t1",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ],
+    [
+     "ot-t2",
+     "Ölçüm kartı",
+     "Bellek doldu, kayıt durdu",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "kacirilan",
+     "Measurement board",
+     "2 events were missed (while this phone was not connected) — details are on the Recordings screen once recordings sync",
+     false
+    ],
+    [
+     "de-t1",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ],
+    [
+     "ot-t2",
+     "Measurement board",
+     "Storage full, recording stopped",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "kayit_bitti_sebepler",
+   "tr": [
+    [
+     "os-50",
+     "Ölçüm kartı",
+     "Kayıt bitti — kullanıcı durdurdu (oturum 80, 1200 nokta)",
+     false
+    ],
+    [
+     "os-51",
+     "Ölçüm kartı",
+     "Bellek doldu, kayıt durdu (oturum 81)",
+     false
+    ],
+    [
+     "os-52",
+     "Ölçüm kartı",
+     "Kart yeniden başladı — Ölçüm kaydı kesildi (oturum 82), son haber 2026-09-21 17:13",
+     false
+    ],
+    [
+     "os-53",
+     "Ölçüm kartı",
+     "Kayıt bitti — planlı süre doldu (oturum 83, ? nokta)",
+     false
+    ],
+    [
+     "os-54",
+     "Ölçüm kartı",
+     "Kayıt bitti — bilinmeyen sebep (None) (oturum 84, ? nokta)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "os-50",
+     "Measurement board",
+     "Recording finished — stopped by user (session 80, 1200 points)",
+     false
+    ],
+    [
+     "os-51",
+     "Measurement board",
+     "Storage full, recording stopped (session 81)",
+     false
+    ],
+    [
+     "os-52",
+     "Measurement board",
+     "The board restarted — Measurement recording was interrupted (session 82), last heard 2026-09-21 17:13",
+     false
+    ],
+    [
+     "os-53",
+     "Measurement board",
+     "Recording finished — scheduled duration elapsed (session 83, ? points)",
+     false
+    ],
+    [
+     "os-54",
+     "Measurement board",
+     "Recording finished — unknown reason (None) (session 84, ? points)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "kesildi_son_gorulme_yokken",
+   "tr": [
+    [
+     "os-5a",
+     "Ölçüm kartı",
+     "Kart yeniden başladı — Osiloskop günlüğü kesildi (oturum 90)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "os-5a",
+     "Measurement board",
+     "The board restarted — Oscilloscope log was interrupted (session 90)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "pil_bitti_ve_esik_ve_dolu",
+   "tr": [
+    [
+     "ot-t1",
+     "Ölçüm kartı",
+     "Pil testi bitti — bitti (kesme gerilimine ulaşıldı): 2415,3 mAh, 8,95 Wh, süre 1:30:00",
+     false
+    ],
+    [
+     "ot-t2",
+     "Ölçüm kartı",
+     "Pil testi bitti — bilinmeyen durum (None): ? mAh, ? Wh, süre ?",
+     false
+    ],
+    [
+     "ot-t3",
+     "Ölçüm kartı",
+     "Bellek doldu, kayıt durdu",
+     false
+    ],
+    [
+     "es-t4",
+     "Ölçüm kartı",
+     "Eşitlenmemiş veri %? (eşik %60,0) — kayıtları eşitleyin",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "ot-t1",
+     "Measurement board",
+     "Battery test finished — finished (cut-off voltage reached): 2415.3 mAh, 8.95 Wh, duration 1:30:00",
+     false
+    ],
+    [
+     "ot-t2",
+     "Measurement board",
+     "Battery test finished — unknown state (None): ? mAh, ? Wh, duration ?",
+     false
+    ],
+    [
+     "ot-t3",
+     "Measurement board",
+     "Storage full, recording stopped",
+     false
+    ],
+    [
+     "es-t4",
+     "Measurement board",
+     "Unsynced data ?% (threshold 60.0%) — sync the recordings",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "yerel_bitti_sonra_mqtt_ayrinti_sessiz_guncelleme",
+   "tr": [
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Kayıt bitti (oturum 53)",
+     false
+    ],
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Kayıt bitti — kullanıcı durdurdu (oturum 53, 77 nokta)",
+     true
+    ]
+   ],
+   "en": [
+    [
+     "os-35",
+     "Measurement board",
+     "Recording finished (session 53)",
+     false
+    ],
+    [
+     "os-35",
+     "Measurement board",
+     "Recording finished — stopped by user (session 53, 77 points)",
+     true
+    ]
+   ]
+  },
+  {
+   "ad": "mqtt_once_sonra_yerel_dusuyor",
+   "tr": [
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Kayıt bitti — kullanıcı durdurdu (oturum 53, 5 nokta)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "os-35",
+     "Measurement board",
+     "Recording finished — stopped by user (session 53, 5 points)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "yerel_dolu_ve_oturum_degisimi",
+   "tr": [
+    [
+     "os-a",
+     "Ölçüm kartı",
+     "Bellek doldu, kayıt durdu (oturum 10)",
+     false
+    ],
+    [
+     "os-b",
+     "Ölçüm kartı",
+     "Kayıt bitti (oturum 11)",
+     false
+    ],
+    [
+     "os-c",
+     "Ölçüm kartı",
+     "Kayıt bitti (oturum 12)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "os-a",
+     "Measurement board",
+     "Storage full, recording stopped (session 10)",
+     false
+    ],
+    [
+     "os-b",
+     "Measurement board",
+     "Recording finished (session 11)",
+     false
+    ],
+    [
+     "os-c",
+     "Measurement board",
+     "Recording finished (session 12)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "pencere_dolunca_yeni_bildirim",
+   "tr": [
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Kayıt bitti (oturum 53)",
+     false
+    ],
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Kayıt bitti — kullanıcı durdurdu (oturum 53, 1 nokta)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "os-35",
+     "Measurement board",
+     "Recording finished (session 53)",
+     false
+    ],
+    [
+     "os-35",
+     "Measurement board",
+     "Recording finished — stopped by user (session 53, 1 points)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "oturumsuz_haber_yakin_pencere",
+   "tr": [
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Kayıt bitti (oturum 53)",
+     false
+    ],
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Pil testi bitti — çalışıyor: 1,0 mAh, 3,70 Wh, süre 0:01:00",
+     true
+    ],
+    [
+     "ot-t2",
+     "Ölçüm kartı",
+     "Bellek doldu, kayıt durdu",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "os-35",
+     "Measurement board",
+     "Recording finished (session 53)",
+     false
+    ],
+    [
+     "os-35",
+     "Measurement board",
+     "Battery test finished — running: 1.0 mAh, 3.70 Wh, duration 0:01:00",
+     true
+    ],
+    [
+     "ot-t2",
+     "Measurement board",
+     "Storage full, recording stopped",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "telefon_pencereleri_30s",
+   "tr": [
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Kayıt bitti (oturum 53)",
+     false
+    ],
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Kayıt bitti — kullanıcı durdurdu (oturum 53, 9 nokta)",
+     true
+    ],
+    [
+     "os-36",
+     "Ölçüm kartı",
+     "Kayıt bitti (oturum 54)",
+     false
+    ],
+    [
+     "os-36",
+     "Ölçüm kartı",
+     "Kayıt bitti — kullanıcı durdurdu (oturum 54, 9 nokta)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "os-35",
+     "Measurement board",
+     "Recording finished (session 53)",
+     false
+    ],
+    [
+     "os-35",
+     "Measurement board",
+     "Recording finished — stopped by user (session 53, 9 points)",
+     true
+    ],
+    [
+     "os-36",
+     "Measurement board",
+     "Recording finished (session 54)",
+     false
+    ],
+    [
+     "os-36",
+     "Measurement board",
+     "Recording finished — stopped by user (session 54, 9 points)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "sinif_kapali",
+   "tr": [
+    [
+     "os-36",
+     "Ölçüm kartı",
+     "Bellek doldu, kayıt durdu (oturum 54)",
+     false
+    ],
+    [
+     "kacirilan",
+     "Ölçüm kartı",
+     "2 olay kaçırıldı (bu telefon bağlı değilken) — ayrıntılar kayıtlar eşitlenince Kayıtlar ekranında",
+     false
+    ],
+    [
+     "de-t3",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "os-36",
+     "Measurement board",
+     "Storage full, recording stopped (session 54)",
+     false
+    ],
+    [
+     "kacirilan",
+     "Measurement board",
+     "2 events were missed (while this phone was not connected) — details are on the Recordings screen once recordings sync",
+     false
+    ],
+    [
+     "de-t3",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "bitti_kapali_dolu_acik_guncelleme_ilk_kez_sesli",
+   "tr": [
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Bellek doldu, kayıt durdu (oturum 53)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "os-35",
+     "Measurement board",
+     "Storage full, recording stopped (session 53)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "yalniz_yerel_yol_kopuk_ve_geri",
+   "tr": [
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Karttan haber yok — kayıt sürüyordu (oturum 53); yerel bağlantı da koptu",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Kart yeniden bağlandı — kayıt sürüyor (oturum 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Karttan haber yok — kayıt sürüyordu (oturum 53); yerel bağlantı da koptu",
+     false
+    ],
+    [
+     "os-35",
+     "Ölçüm kartı",
+     "Kayıt bitti (oturum 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Kart yeniden bağlandı — kayıt sürmüyor",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "baglanti",
+     "Measurement board",
+     "No news from the board — a recording was running (session 53); the local link is down too",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "The board is back — recording continues (session 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "No news from the board — a recording was running (session 53); the local link is down too",
+     false
+    ],
+    [
+     "os-35",
+     "Measurement board",
+     "Recording finished (session 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "The board is back — no recording is running",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "yerel_yol_kayit_yokken_sessiz_ve_mqtt_varken_yok",
+   "tr": [],
+   "en": []
+  },
+  {
+   "ad": "yerel_kopuk_sonra_araci_cevrimdisi_diyor",
+   "tr": [
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Karttan haber yok — kayıt sürüyordu (oturum 53); yerel bağlantı da koptu",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Ev interneti koptu — kart çalışıyor, kayıt sürüyor (oturum 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Kart yeniden bağlandı — kayıt sürüyor (oturum 53)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "baglanti",
+     "Measurement board",
+     "No news from the board — a recording was running (session 53); the local link is down too",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "Home internet is down — the board is working, recording continues (session 53)",
+     false
+    ],
+    [
+     "baglanti",
+     "Measurement board",
+     "The board is back — recording continues (session 53)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "bicimsiz_olaylar_yok_sayilir",
+   "tr": [
+    [
+     "de-t1",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "de-t1",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "basladi_devamsiz_bildirilmez",
+   "tr": [
+    [
+     "bs-a",
+     "Ölçüm kartı",
+     "Kart yeniden başladı — kayıt kesildi ve sürüyor (oturum 6)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "bs-a",
+     "Measurement board",
+     "The board restarted — the recording was interrupted and continues (session 6)",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "kopuk_ve_kacirilan_siniflari_kapali",
+   "tr": [
+    [
+     "de-t1",
+     "Ölçüm kartı",
+     "Deneme bildirimi — bildirim yolu çalışıyor",
+     false
+    ],
+    [
+     "ot-t2",
+     "Ölçüm kartı",
+     "Bellek doldu, kayıt durdu",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "de-t1",
+     "Measurement board",
+     "Test notification — the notification path works",
+     false
+    ],
+    [
+     "ot-t2",
+     "Measurement board",
+     "Storage full, recording stopped",
+     false
+    ]
+   ]
+  },
+  {
+   "ad": "yerel_ve_durum_hangisi_yeniyse",
+   "tr": [
+    [
+     "baglanti",
+     "Ölçüm kartı",
+     "Karttan haber yok — kayıt sürüyordu (oturum 53)",
+     false
+    ]
+   ],
+   "en": [
+    [
+     "baglanti",
+     "Measurement board",
+     "No news from the board — a recording was running (session 53)",
+     false
+    ]
+   ]
+  }
+ ]
+}

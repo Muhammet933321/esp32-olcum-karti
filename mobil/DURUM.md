@@ -763,3 +763,25 @@ ayrıntısı İKİNCİ bir bildirim olur (testte gösterildi). PC'nin değerleri
 "okunamadı" der; eskiden 404 = "boş kopya") · `KartDepo.sifirla` `durum.json`'ı EN SON siler (yarıda kalırsa
 eşitleyici durur; tersi kopyayı sessizce sıfırlatırdı — JVM testi) · Kayıtlar'ın notu bağlantı durumuna göre
 ("kartın listesi okunamadı" / "kartla eşleşilmemiş" / "kart bu ağda değil").
+
+## 2026-10-05 (öğleden sonra) — 5E-3 metin katmanı (kartsız)
+
+**`bildirim/BildirimMetin.kt`:** `Bildirim` (anahtar + değerler) → ekranda görünecek cümle. Saf Kotlin; şablonu
+`sozluk(anahtar)` verir (Android'de `strings.xml`). Sayı yarım-çift yuvarlanır (Python biçimlemesiyle aynı),
+tr'de ondalık virgül; süre `s:dd:ss`; bilinmeyen kod "bilinmeyen … (kod)"; değeri olmayan alan "?".
+
+**Şablonlar üretiliyor, elle yazılmıyor:** `mobil/araclar/bildirim_metin_uret.py` PC'nin sözlüğünden
+`res/values/bildirim.xml` (tr) ve `res/values-en/bildirim.xml` (en) üretir; telefona özel yalnız iki söz var
+("bu telefon" / "this phone" — PC'den söz edilmez). Aynı üreteç PC'nin GERÇEK cümlelerini
+`mobil/test/vektor/bildirim_metin.json`'a yazar.
+**Kanıt:** 27 senaryo × 2 dil, Kotlin PC ile aynı etiketi, başlığı, cümleyi ve sessizliği veriyor. Tek bilinçli
+fark: PC bilinmeyen kodda Python'un `None` yazısını basıyor, telefon "?" (PC'deki kusur, `DEVIR-ISTEK`'e gerek
+görmedim — kart bugün kodsuz olay yollamıyor).
+
+**Karar vektörü 25 → 27 senaryo / 69 bildirim** (5E-3K'da yaşayan iki mutasyon için: `basladi` olayı `devam`
+almadıysa bildirilmez; kapalı sınıf "koptu" ve "kaçırılan" için de susar).
+
+**Mutasyon (Kotlin):** 5E-3K **31/31**, 5E-3M **12/12** (ilk koşuda 11/12 — ham `null` değerin "null" diye
+yazılması yaşıyordu, test eklendi). JS 487/487, Kotlin birim testleri yeşil.
+Son derleme Xiaomi'de (Redmi Note 10S, Android 13): açılıyor, logcat taramasında çökme / JS hatası / sır izi yok.
+⚠ Bildirim paketi henüz hiçbir yerden ÇAĞRILMIYOR (servis, kanal, izin = 5E-4); kurulu sürümde davranış değişmedi.

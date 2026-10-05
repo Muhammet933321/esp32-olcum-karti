@@ -2094,6 +2094,174 @@
    }
   },
   {
+   "ad": "basladi_devamsiz_bildirilmez",
+   "ops": [
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 9,
+      "t": 1790000100,
+      "o": "basladi",
+      "devam": 0,
+      "oturum": 5
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 2,
+      "a": 9,
+      "t": 1790000100,
+      "o": "basladi"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 1,
+      "a": 10,
+      "t": 1790000100,
+      "o": "basladi",
+      "devam": null
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 2,
+      "a": 10,
+      "t": 1790000100,
+      "o": "basladi",
+      "devam": true,
+      "oturum": 6
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "bs-a",
+      "bld.basladi_devam",
+      {
+       "oturum": "6"
+      },
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 0,
+     "baglanti": null,
+     "kart_cevrimici": null,
+     "kayit_suruyor": null
+    }
+   }
+  },
+  {
+   "ad": "kopuk_ve_kacirilan_siniflari_kapali",
+   "kapali": [
+    "kopuk",
+    "kacirilan"
+   ],
+   "ops": [
+    [
+     "bagli",
+     true
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 0,
+      "a": 3
+     }
+    ],
+    [
+     "tik"
+    ],
+    [
+     "saat",
+     30
+    ],
+    [
+     "mqtt",
+     "durum",
+     {
+      "c": 1,
+      "a": 3,
+      "t": 1790000000,
+      "k": 2,
+      "o": 53,
+      "y": 1,
+      "d": 5,
+      "e": 0,
+      "f": "A3-test"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 5,
+      "a": 3,
+      "t": 1790000100,
+      "o": "deneme"
+     }
+    ],
+    [
+     "mqtt",
+     "olay",
+     {
+      "n": 9,
+      "a": 3,
+      "t": 1790000100,
+      "o": "dolu"
+     }
+    ]
+   ],
+   "beklenen": {
+    "bildirimler": [
+     [
+      "de-t1",
+      "bld.deneme",
+      {},
+      false
+     ],
+     [
+      "ot-t2",
+      "bld.dolu",
+      {},
+      false
+     ]
+    ],
+    "son": {
+     "kacirilan": 3,
+     "baglanti": null,
+     "kart_cevrimici": true,
+     "kayit_suruyor": true
+    }
+   }
+  },
+  {
    "ad": "yerel_ve_durum_hangisi_yeniyse",
    "ops": [
     [

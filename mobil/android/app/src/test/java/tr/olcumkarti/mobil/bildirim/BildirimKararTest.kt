@@ -59,7 +59,7 @@ class BildirimKararTest {
 
     @Test
     fun pythonBasvurusuylaAyniBildirimDizisi_butunSenaryolar() {
-        assertTrue(vektor.size >= 25)
+        assertTrue(vektor.size >= 27)
         var toplam = 0
         for (s in vektor) {
             val ad = s["ad"] as String
