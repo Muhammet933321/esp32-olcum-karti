@@ -177,13 +177,19 @@ export function kayitSuresi(izleme, simdiMs) {
 //   { var: false, rozet: "m.dr.kayit_bilinmiyor" }                 G satiri yok
 //   { var: true, suruyor: false, rozet: "kayit.durum.<n>" ... }     kayit yok / dolu / hata ...
 //   { var: true, suruyor: true, rozet: "cn.kayit_suruyor", sure, hiz, doluluk, onaysiz, oturum }
-export function kayitGorunumu(kayit, izleme, simdiMs) {
+// Veri GELMIYORKEN (taze: false — akis acik degil / veri eski) kart SON BILINEN durumu gosterir ve bunu soyler
+// (kullanici, 2026-10-05): sure sayaci son verinin aninda DONAR, rozet "Kayit suruyordu" olur ve `sonVeri`
+// ("son veri X sn once") dolar — ilerleyen bir sayac kaydin surdugunu sandirir.
+export function kayitGorunumu(kayit, izleme, simdiMs, { taze = true, sonGorulmeMs = null } = {}) {
+  const sonVeri = taze ? null : gecenYaz(Number.isFinite(sonGorulmeMs) ? simdiMs - sonGorulmeMs : NaN);
+  // Donmus saat: son verinin ani (bilinmiyorsa sure HIC gosterilmez).
+  const saat = taze ? simdiMs : (Number.isFinite(sonGorulmeMs) ? Math.min(simdiMs, sonGorulmeMs) : null);
   const durum = gAlan(kayit, "durum");
   if (durum === null) {
-    return { var: false, suruyor: false, rozet: "m.dr.kayit_bilinmiyor", sinif: "sakin", sure: YOK, hiz: null, doluluk: null, onaysiz: null, oturum: null };
+    return { var: false, suruyor: false, rozet: "m.dr.kayit_bilinmiyor", sinif: "sakin", sure: YOK, hiz: null, doluluk: null, onaysiz: null, oturum: null, sonVeri: null };
   }
   const ortak = {
-    var: true,
+    var: true, sonVeri,
     doluluk: yuzde(gAlan(kayit, "doluluk", "doluluk_binde")),
     onaysiz: yuzde(gAlan(kayit, "onaysiz", "onaysiz_binde")),
   };
@@ -199,8 +205,8 @@ export function kayitGorunumu(kayit, izleme, simdiMs) {
   }
   const uyan = izleme && izleme.durum === KDR.KAYIT && izleme.oturum === gAlan(kayit, "oturum") ? izleme : null;
   return {
-    ...ortak, suruyor: true, rozet: "cn.kayit_suruyor", rozetDeger: null, sinif: "",
-    sure: sureYaz(kayitSuresi(uyan, simdiMs)),
+    ...ortak, suruyor: true, rozet: taze ? "cn.kayit_suruyor" : "m.dr.kayit_suruyordu", rozetDeger: null, sinif: taze ? "" : "uyari",
+    sure: saat === null ? YOK : sureYaz(kayitSuresi(uyan, saat)),
     hiz: uyan && uyan.hizMs !== null ? hizYaz(uyan.hizMs, uyan.olculen) : null,
     oturum: gAlan(kayit, "oturum"),
   };

@@ -19,7 +19,10 @@ const bag = computed(() => baglantiGorunumu({
   baglanti: kabuk.baglanti.value, araniyor: kabuk.araniyor.value, akis: kabuk.akis.value,
   sonGorulmeMs: kabuk.sonGorulme.value, simdiMs: kabuk.simdi.value,
 }));
-const kayit = computed(() => kayitGorunumu(kabuk.akis.value.kayit, kabuk.izleme.value, kabuk.simdi.value));
+// Veri gelmiyorken (akis acik degil / veri eski) kart son bilinen durumu DONDURUR ve "son veri X once" der.
+const kayit = computed(() => kayitGorunumu(kabuk.akis.value.kayit, kabuk.izleme.value, kabuk.simdi.value, {
+  taze: kabuk.akis.value.hal === "acik", sonGorulmeMs: kabuk.sonGorulme.value,
+}));
 // Akis akmiyorken (kart yok / baglaniyor) rakamlar ESKI olcumu gostermez: Canli ile AYNI kosul.
 const hal = computed(() => canliHali({ baglanti: kabuk.baglanti.value, araniyor: kabuk.araniyor.value, akis: kabuk.akis.value }));
 const olcum = computed(() => olcumYazilari(hal.value.akiyor ? kabuk.akis.value.son : null));
@@ -48,6 +51,7 @@ const ayarlaraGit = () => yonlendirici.push(sekmeBul("ayarlar").yol);
         <span v-if="kilit.rozet" id="dr-oturum-turu" class="rozet uyari">{{ c(kilit.rozet) }}</span>
         <span v-if="kayit.suruyor" class="sure mono">{{ kayit.sure }}</span>
       </div>
+      <p v-if="kayit.sonVeri" id="dr-son-veri" class="bilgi uyari" role="status">{{ c("m.dr.son_veri") }} {{ c(kayit.sonVeri.anahtar, kayit.sonVeri.degerler) }}</p>
       <div v-if="kayit.var" class="ikili">
         <div v-if="kayit.suruyor"><span class="et">{{ c("m.dr.oturum") }}</span><b class="mono">{{ kayit.oturum }}</b></div>
         <div v-if="kayit.suruyor"><span class="et">{{ c("m.cn.hiz") }}</span><b class="mono">{{ hizYazi }}</b></div>

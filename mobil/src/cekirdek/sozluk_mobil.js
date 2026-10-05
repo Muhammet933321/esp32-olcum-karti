@@ -171,6 +171,8 @@ export const SOZLUK_MOBIL = Object.freeze({
   "m.dr.esles": S("Eşleş (Ayarlar)", "Pair (Settings)"),
   "m.dr.yeniden": S("Yeniden dene", "Try again"),
   "m.dr.son_gorulme": S("son görülme", "last seen"),
+  "m.dr.son_veri": S("Veri gelmiyor: bu, son bilinen durum — son veri", "No data: this is the last known state — last data"),
+  "m.dr.kayit_suruyordu": S("Kayıt sürüyordu", "Recording was running"),
   "m.dr.once_sn": S("{n} sn önce", "{n} s ago"),
   "m.dr.once_dk": S("{n} dk önce", "{n} min ago"),
   "m.dr.once_sa": S("{n} sa önce", "{n} h ago"),

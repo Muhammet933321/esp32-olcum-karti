@@ -11,7 +11,7 @@ import {
 } from "../src/cekirdek/pil_durum.js";
 import { SOZLUK_MOBIL } from "../src/cekirdek/sozluk_mobil.js";
 import { canliHali } from "../src/ekran/canli_gorunum.js";
-import { baglantiGorunumu } from "../src/ekran/durum_gorunum.js";
+import { baglantiGorunumu, kayitGorunumu, kayitIzle } from "../src/ekran/durum_gorunum.js";
 import { kabukDurumu } from "../src/ekran/kabuk_durum.js";
 
 const kaynak = (yol) => readFileSync(fileURLToPath(new URL(`../${yol}`, import.meta.url)), "utf8");
@@ -332,6 +332,66 @@ describe("kabuk: serit gorunurlugu uctan uca", () => {
     await s.tik(); s.veri();
     expect(s.k.pil.value.durum).toBe("CALISIYOR");
     expect(s.k.seritGorunur()).toBe(true);
+    s.k.kapat();
+  });
+});
+
+describe("veri gelmiyorken kayit karti: sayac DONAR, 'son veri X once' yazar (kullanici, 2026-10-05)", () => {
+  const G2 = { tur: "G", durum: 2, oturum: 81, doluluk: 160, onaysiz: 40 };
+  const izleme = kayitIzle(null, G2, T - 100_000, 200);                     // kayit 100 s once goruldu
+
+  it("taze veri: sayac ilerler, rozet 'Kayit suruyor', 'son veri' YOK", () => {
+    const a = kayitGorunumu(G2, izleme, T, { taze: true, sonGorulmeMs: T - 200 });
+    const b = kayitGorunumu(G2, izleme, T + 5000, { taze: true, sonGorulmeMs: T + 4800 });
+    expect(a).toMatchObject({ suruyor: true, rozet: "cn.kayit_suruyor", sinif: "", sonVeri: null });
+    expect(b.sure).not.toBe(a.sure);
+    expect(kayitGorunumu(G2, izleme, T)).toMatchObject({ rozet: "cn.kayit_suruyor", sonVeri: null });     // secenek verilmezse taze sayilir
+  });
+
+  it("veri gelmiyor: sure SON VERININ aninda donar; rozet 'Kayit suruyordu' (uyari); son veri yasi ilerler", () => {
+    const son = T - 3000;
+    const donmus = kayitGorunumu(G2, izleme, son, { taze: true, sonGorulmeMs: son }).sure;
+    const a = kayitGorunumu(G2, izleme, T + 10_000, { taze: false, sonGorulmeMs: son });
+    const b = kayitGorunumu(G2, izleme, T + 70_000, { taze: false, sonGorulmeMs: son });
+    expect(a.sure).toBe(donmus);
+    expect(b.sure).toBe(donmus);                                             // 60 s sonra da AYNI
+    expect(a).toMatchObject({ suruyor: true, rozet: "m.dr.kayit_suruyordu", sinif: "uyari", oturum: 81 });
+    expect(a.sonVeri).toEqual({ anahtar: "m.dr.once_sn", degerler: { n: 13 } });
+    expect(b.sonVeri).toEqual({ anahtar: "m.dr.once_dk", degerler: { n: 1 } });
+  });
+
+  it("son veri ani bilinmiyorsa sure gosterilmez; kayit yokken de 'son veri' yazilir; G yoksa hicbiri", () => {
+    const a = kayitGorunumu(G2, izleme, T, { taze: false, sonGorulmeMs: null });
+    expect(a.sure).toBe("—");
+    expect(a.sonVeri).toBe(null);
+    const bos = kayitGorunumu({ tur: "G", durum: 1, oturum: 0, doluluk: 160, onaysiz: 40 }, null, T, { taze: false, sonGorulmeMs: T - 8000 });
+    expect(bos).toMatchObject({ suruyor: false, rozet: "m.dr.kayit_yok" });
+    expect(bos.sonVeri).toEqual({ anahtar: "m.dr.once_sn", degerler: { n: 8 } });
+    expect(kayitGorunumu(null, null, T, { taze: false, sonGorulmeMs: T - 8000 })).toMatchObject({ var: false, sonVeri: null });
+  });
+
+  it("Durum ekrani: tazelik akisin halinden ('acik'), son veri ani kabuktan; satir yalniz veri gelmiyorken", () => {
+    const v = kaynak("src/ekran/Durum.vue");
+    expect(v).toContain('taze: kabuk.akis.value.hal === "acik", sonGorulmeMs: kabuk.sonGorulme.value,');
+    expect(v).toMatch(/<p v-if="kayit\.sonVeri" id="dr-son-veri" class="bilgi uyari" role="status">/);
+    expect(SOZLUK_MOBIL["m.dr.kayit_suruyordu"]).toEqual({ tr: "Kayıt sürüyordu", en: "Recording was running" });
+    expect(SOZLUK_MOBIL["m.dr.son_veri"].tr).toMatch(/son bilinen durum — son veri$/);
+  });
+
+  it("kabukla: veri kesilince 6. saniyeden sonra sayac durur, veri donunce yeniden ilerler", async () => {
+    const s = kabuk();
+    await s.k.ac(); s.veri(G(1)); await s.tik(); s.veri(G(2, 81)); await s.tik(); s.veri();
+    const g = () => kayitGorunumu(s.k.akis.value.kayit, s.k.izleme.value, s.k.simdi.value, { taze: s.k.akis.value.hal === "acik", sonGorulmeMs: s.k.sonGorulme.value });
+    for (let i = 0; i < 3; i++) { await s.tik(); s.veri(); }
+    expect(g()).toMatchObject({ rozet: "cn.kayit_suruyor", sonVeri: null });
+    for (let i = 0; i < 6; i++) await s.tik();                               // veri kesildi
+    const donmus = g();
+    expect(donmus.rozet).toBe("m.dr.kayit_suruyordu");
+    for (let i = 0; i < 20; i++) await s.tik();
+    expect(g().sure).toBe(donmus.sure);
+    expect(g().sonVeri).toEqual({ anahtar: "m.dr.once_sn", degerler: { n: 26 } });
+    s.veri();                                                                // kart geri geldi
+    expect(g()).toMatchObject({ rozet: "cn.kayit_suruyor", sonVeri: null });
     s.k.kapat();
   });
 });
