@@ -336,6 +336,7 @@ const GORUNUMLER = [
 const KB_METIN = Object.freeze({
   ad: 'kb.ad', gezinme: 'kb.gezinme', menuAc: 'kb.menu_ac', menuKapat: 'kb.menu_kapat',
   cevrimdisi: 'kb.cevrimdisi', baglan: 'kb.baglan', kes: 'kb.kes',
+  baglantiBilgi: 'kb.baglanti', baglantiIpucu: 'kb.baglanti_ipucu',
   esitlenmemisYok: 'kb.esitlenmemis_yok', surumIpucu: 'kb.surum_ipucu',
   icerigeGec: 'kb.icerige_gec', esitlenmemisBagliDegil: 'kb.esitlenmemis_bagli_degil', pilCalisiyor: 'kb.pil_calisiyor',
 });
@@ -971,6 +972,19 @@ createApp({
          metin bu yuzden burada. */
       errorComponent: { template: '<p class="hata">Kayıtlar ekranı yüklenemedi (modül inmedi) — kart yeniden başlıyor olabilir; birkaç saniye sonra sayfayı yenileyin.</p>' },
     }),
+    /* 2026-10-06: "ⓘ Baglanti" penceresi — KAPALI baslar, ilk acilista iner (resimler
+       ortak/baglanti_veri.js'te, ~100 KB; acilis butcesine girmez). */
+    'baglanti-bilgi': defineAsyncComponent({
+      loader: () => import('./ekran/baglanti.js').then((m) => m.BaglantiBilgi),
+      errorComponent: {
+        template: '<p class="hata">{{ metin }}</p>',
+        data() {
+          let depo = null;
+          try { depo = window.localStorage; } catch (e) { depo = null; }
+          return { metin: ceviri('kb.baglanti_yuklenemedi', dilSec(depo)) };
+        },
+      },
+    }),
     /* 3G: Karsilastirma ekrani da ilk acilista iner (ayni desen, ayni gerekce). */
     'karsilastir-ekran': defineAsyncComponent({
       loader: () => import('./ekran/karsilastir.js').then((m) => m.KarsilastirEkrani),
@@ -1041,6 +1055,7 @@ createApp({
       canliBilgi: null,            // ekran/canli.js: {lejant, pencere, okuma, donmus}
       donmus: false,               // D3: "dondur" — imlec + yakinlastirma
       sagEksen: 'akim',            // K1 (ekran/canli.js): sag eksen tek birim
+      bilgi: '',                   // acik "Baglanti" penceresi: '' | 'canli' | 'skop' | 'pil'
       /* 2026-10-06: kanal basina oto / 0'dan / elle (grafik.js olcekUygula; eksen eslemesi
          canli.js'te — grafik.js acilista INMEZ, burada ham kayit) */
       yOlcek: { v: { kip: 'oto', min: '', maks: '' }, akim: { kip: 'oto', min: '', maks: '' },
@@ -2167,6 +2182,15 @@ createApp({
 
     /* ═══ 3D — KABUK (D1) ═══════════════════════════════════════════════ */
     metin(anahtar, degiskenler = null) { return ceviri(anahtar, this.dil, degiskenler); },
+    bilgiAc(ekran) { this.bilgi = this.bilgi === ekran ? '' : ekran; },
+    /* Kapaninca odak dugmeye doner (Esc / x ile kapatan klavye kullanicisi yerini kaybetmesin). */
+    bilgiKapat(ekran) {
+      this.bilgi = '';
+      this.$nextTick(() => {
+        const d = document.querySelector(`[data-bilgi="${ekran}"]`);
+        if (d) d.focus();
+      });
+    },
     /* Cekmece (<= 900 px). Acilinca odak etkin baglantiya; Esc ya da secim kapatir,
        Esc'te odak menu dugmesine doner (klavye kullanicisi yerini kaybetmesin). */
     cekmeceAc() {

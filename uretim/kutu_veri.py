@@ -2067,6 +2067,122 @@ KULLANIM = [
      "tavan {sarj_tavani}"),
 ]
 
+# ── panelin "ⓘ Bağlantı" penceresi (2026-10-06 kullanici: "hangi olcumde hangi prob nereye
+# takilmali emin olamiyorum") ────────────────────────────────────────────────────────────
+# TEK KAYNAK: uretim/baglanti.py bundan ortak/src/baglanti_veri.js'i (on panel resmi + metin)
+# uretir ve KULLANIM kurallariyla celismedigini olcer. Jaklar PANEL_ON ref'leri; `kablolar`
+# (jak, hedef ucu) — hedef ucu cizimdeki nokta: devre +/−, yuk +/−, kaynak +/−, pil +/−,
+# direnc (pilin + ucundan gelen direncin ote ucu), sinyal, toprak, ic (CAL → SKOP kisa kablo).
+# Metinler (tr, en); {normal} {yuksek} {akim} {skop} {pil_akim} kutu.menziller()'den.
+BAGLANTI_REHBER = [
+    {"kimlik": "gerilim", "ekran": "canli", "menzil": 0, "hedef": "devre",
+     "baslik": ("Gerilim", "Voltage"),
+     "kablolar": [("J1.1", "devre+"), ("J1.2", "devre-")],
+     "satirlar": [
+         ("<b>V</b> (kırmızı) → ölçülen noktanın <b>+</b>'sı, <b>COM</b> (siyah) → devrenin <b>−</b>'si.",
+          "<b>V</b> (red) → the point to measure (<b>+</b>), <b>COM</b> (black) → circuit <b>−</b>."),
+         ("Devreye <b>paralel</b> bağlanır; hiçbir teli kesme.",
+          "Connect in <b>parallel</b>; do not cut any wire."),
+         ("Menzil {normal} (<code>n</code>). Daha yüksekse <b>Yüksek gerilim</b> sekmesi.",
+          "Range {normal} (<code>n</code>). Higher? See the <b>High voltage</b> tab."),
+         ("Hiçbir şey bağlı değilken ~1.7 V görünmesi normal: boş giriş iç referansa çekili.",
+          "~1.7 V with nothing connected is normal: the open input sits at the internal reference."),
+     ],
+     "uyari": None},
+    {"kimlik": "hv", "ekran": "canli", "menzil": 1, "hedef": "devre",
+     "baslik": ("Yüksek gerilim", "High voltage"),
+     "kablolar": [("J2.1", "devre+"), ("J1.2", "devre-")],
+     "satirlar": [
+         ("<b>HV</b> (sarı) → <b>+</b>, <b>COM</b> (siyah) → <b>−</b>. Menzil {yuksek} (<code>y</code>).",
+          "<b>HV</b> (yellow) → <b>+</b>, <b>COM</b> (black) → <b>−</b>. Range {yuksek} (<code>y</code>)."),
+         ("<b>V</b> jakına bu gerilimi verme — yalnız HV.",
+          "Never put this voltage on the <b>V</b> jack — HV only."),
+     ],
+     "uyari": ("<b>Tek el kuralı.</b> USB'yi bilgisayara TAKMA, Wi-Fi'den bak (COM = USB toprağı). Şebekeye "
+               "bağlı devrede KULLANMA: kutu yalnız yüzen (pil / DC-DC) devreler için.",
+               "<b>One-hand rule.</b> Do NOT plug USB into a PC, watch over Wi-Fi (COM = USB ground). Never "
+               "on mains-referenced circuits: the box is for floating (battery / DC-DC) circuits only.")},
+    {"kimlik": "akim", "ekran": "canli", "menzil": None, "hedef": "akim",
+     "baslik": ("Akım", "Current"),
+     "kablolar": [("J3.1", "yuk-"), ("J3.2", "kaynak-")],
+     "satirlar": [
+         ("Akım ölçmek için akım kutunun <b>içinden</b> geçmeli (seri): devrenin bir telini kesip iki ucunu "
+          "kutuya takarsın. <b>Yük</b> = akımını ölçtüğün şey (lamba, motor, devre); <b>kaynak</b> = onu "
+          "besleyen pil / güç kaynağı.",
+          "To measure current it must flow <b>through</b> the box (series): cut one wire and plug both ends "
+          "into the box. <b>Load</b> = what you measure (lamp, motor, circuit); <b>source</b> = the battery / "
+          "supply feeding it."),
+         ("Kesilen tel <b>eksi (−)</b> tel: yükün <b>−</b>'si → <b>YÜK 1</b>, kaynağın <b>−</b>'si → "
+          "<b>YÜK 2</b>. <b>+</b> tel olduğu gibi kalır, kutuya girmez.",
+          "The cut wire is the <b>negative (−)</b> one: load <b>−</b> → <b>YÜK 1</b>, source <b>−</b> → "
+          "<b>YÜK 2</b>. The <b>+</b> wire stays as is and does not enter the box."),
+         ("Neden eksi: kutunun ölçüm toprağı (COM) içeride YÜK 2'ye bağlı. + tele koyarsan gerilim okuması "
+          "bozulur, USB takılıysa kaynağı kısa devre edebilir.",
+          "Why negative: the box's measuring ground (COM) is tied to YÜK 2 inside. On the + wire voltage "
+          "readings go wrong and, with USB plugged in, it can short the source."),
+         ("Sürekli en fazla {akim}; kısa süre de olsa 10 A'i geçme.",
+          "At most {akim} continuous; never exceed 10 A, even briefly."),
+     ],
+     "uyari": ("<b>COM'a krokodil TAKMA</b> — COM zaten YÜK 2. Devrenin eksisine takarsan şönt baypas olur: "
+               "okuma düşer, ince kablo ısınır.",
+               "<b>Do NOT clip anything to COM</b> — COM already is YÜK 2. On the circuit's negative it bypasses "
+               "the shunt: the reading drops and thin wires heat up.")},
+    {"kimlik": "guc", "ekran": "canli", "menzil": None, "hedef": "guc",
+     "baslik": ("Güç (W, Wh)", "Power (W, Wh)"),
+     "kablolar": [("J1.1", "yuk+"), ("J3.1", "yuk-"), ("J3.2", "kaynak-")],
+     "satirlar": [
+         ("Akım bağlantısını kur (eksi tel kesilir: yükün − → YÜK 1, kaynağın − → YÜK 2), ayrıca <b>V</b>'yi "
+          "yükün <b>+</b> ucuna bağla (resimdeki nokta).",
+          "Wire the current path (cut the negative wire: load − → YÜK 1, source − → YÜK 2) and also connect "
+          "<b>V</b> to the load's <b>+</b> (the dot in the picture)."),
+         ("COM'a tel takma: içeride YÜK 2'ye bağlı. Kart W ve Wh'yi kendisi hesaplar.",
+          "No wire on COM: it is tied to YÜK 2 inside. The board computes W and Wh itself."),
+     ],
+     "uyari": None},
+    {"kimlik": "pil", "ekran": "pil", "menzil": None, "hedef": "pil",
+     "baslik": ("Pil testi", "Battery test"),
+     "kablolar": [("J7.1", "direnc"), ("J7.2", "pil-"), ("J1.1", "pil+")],
+     "satirlar": [
+         ("Pilin <b>+</b> ucuna <b>iki tel</b> bağla (resimdeki nokta): biri <b>V</b>'ye, öbürü yük "
+          "direncine; direncin öbür ucu → <b>PİL 1</b>.",
+          "Attach <b>two wires</b> to battery <b>+</b> (the dot in the picture): one to <b>V</b>, the other "
+          "to the load resistor; the resistor's other end → <b>PİL 1</b>."),
+         ("Pilin <b>−</b>'si → <b>PİL 2</b>. YÜK jakları boş, COM'a tel takma.",
+          "Battery <b>−</b> → <b>PİL 2</b>. Leave the YÜK jacks empty, no wire on COM."),
+         ("Direnç: akım = pil V ÷ R, en fazla {pil_akim} A (18650 için 3.3 Ω 11 W ≈ 1.1 A). Pil ≤ 31 V ise "
+          "menzil <code>n</code>, üstü <code>y</code>.",
+          "Resistor: current = battery V ÷ R, at most {pil_akim} A (18650: 3.3 Ω 11 W ≈ 1.1 A). Battery ≤ 31 V: "
+          "range <code>n</code>, above: <code>y</code>."),
+     ],
+     "uyari": ("<b>Pilin + ucu hiçbir PİL jakına doğrudan takılmaz</b> ve kutupları KARIŞTIRMA: ters pilde akım "
+               "Q1'in gövde diyodundan akar, kart KESEMEZ. 'Ters bağlı' uyarısında kabloyu hemen çıkar.",
+               "<b>Battery + never goes straight into a PİL jack</b>, and do NOT swap polarity: a reversed "
+               "battery drives current through Q1's body diode and the board CANNOT stop it. On a 'reversed' "
+               "warning, unplug at once.")},
+    {"kimlik": "skop", "ekran": "skop", "menzil": None, "hedef": "sinyal",
+     "baslik": ("Osiloskop", "Oscilloscope"),
+     "kablolar": [("J4.1", "sinyal"), ("J1.2", "toprak")],
+     "satirlar": [
+         ("<b>SKOP</b> (kırmızı) → sinyal, <b>COM</b> (siyah) → sinyalin toprağı.",
+          "<b>SKOP</b> (red) → signal, <b>COM</b> (black) → signal ground."),
+         ("Aralık {skop}; eksi taraf daha geniş.",
+          "Range {skop}; the negative side is wider."),
+     ],
+     "uyari": None},
+    {"kimlik": "cal", "ekran": "skop", "menzil": None, "hedef": "ic",
+     "baslik": ("Kendini dene (CAL)", "Self-test (CAL)"),
+     "kablolar": [("CAL", "ic"), ("J4.1", "ic")],
+     "satirlar": [
+         ("<b>CAL</b> ile <b>SKOP</b> arasına kısa bir kablo tak; dışarıdan bir şey gerekmez (COM içeride ortak).",
+          "Put a short cable between <b>CAL</b> and <b>SKOP</b>; nothing external needed (COM is shared inside)."),
+         ("Aşağıdaki <b>Kalibrasyon çıkışı</b>'ndan frekans seç (ör. 1 kHz): ~2.7 V'luk kare dalga görünmeli "
+          "(3.3 V değil — 22 kΩ seri direnç).",
+          "Pick a frequency under <b>Calibration output</b> (e.g. 1 kHz): a ~2.7 V square wave should appear "
+          "(not 3.3 V — 22 kΩ series resistor)."),
+     ],
+     "uyari": None},
+]
+
 # ── malzeme: stoktan cikacaklar / alinacaklar ──────────────────────────
 # stok: envanter sorgusu (ad, kategori) — uretec kaydi bulursa "stoktan",
 # bulamazsa "alinacak" tablosuna koyar; elle "al" yazilmaz (B50h: TO-220

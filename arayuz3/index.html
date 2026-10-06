@@ -176,6 +176,10 @@
 
   <div class="baslik">
     <h1>{{ m.baslik }}</h1>
+    <button type="button" class="bilgi-dugme" data-bilgi="canli" :aria-expanded="bilgi === 'canli' ? 'true' : 'false'"
+            :title="m.baglantiIpucu" @click="bilgiAc('canli')">ⓘ {{ m.baglantiBilgi }}</button>
+    <baglanti-bilgi v-if="bilgi === 'canli'" ekran="canli" :dil="dil" :menzil="menzil"
+                    @kapat="bilgiKapat('canli')"></baglanti-bilgi>
     <span v-if="menzil !== null" class="etiket">{{ menzilAd }} {{ menzilKisa }}</span>
     <span v-if="kayitAktif" class="kayit-durum">
       <span class="kayit-nokta"></span>{{ m.kayitSuruyor }} · <span class="mono">{{ kayitSureYazi }}</span><template
@@ -453,6 +457,10 @@
 
   <div class="baslik">
     <h1>{{ os.baslik }}</h1>
+    <button type="button" class="bilgi-dugme" data-bilgi="skop" :aria-expanded="bilgi === 'skop' ? 'true' : 'false'"
+            :title="m.baglantiIpucu" @click="bilgiAc('skop')">ⓘ {{ m.baglantiBilgi }}</button>
+    <baglanti-bilgi v-if="bilgi === 'skop'" ekran="skop" :dil="dil" :menzil="menzil"
+                    @kapat="bilgiKapat('skop')"></baglanti-bilgi>
     <span class="etiket">{{ os.altBaslik }}</span>
   </div>
 
@@ -1259,6 +1267,10 @@
 
   <div class="baslik">
     <h1>{{ pl.baslik }}</h1>
+    <button type="button" class="bilgi-dugme" data-bilgi="pil" :aria-expanded="bilgi === 'pil' ? 'true' : 'false'"
+            :title="m.baglantiIpucu" @click="bilgiAc('pil')">ⓘ {{ m.baglantiBilgi }}</button>
+    <baglanti-bilgi v-if="bilgi === 'pil'" ekran="pil" :dil="dil" :menzil="menzil"
+                    @kapat="bilgiKapat('pil')"></baglanti-bilgi>
     <span class="etiket" data-pil="durum">{{ pilDurumYazi }}</span>
     <span v-if="pilOturum" class="etiket" data-pil="oturum">{{ pilOturumYazi }}</span>
     <button type="button" class="pil-dur" data-pil="durdur" :title="pl.durdurIpucu" @click="pilDurdurKomut">{{ pl.durdur }}</button>

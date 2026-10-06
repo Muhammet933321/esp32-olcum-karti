@@ -470,6 +470,101 @@ def main() -> int:
             ok("OLCEK: 'Otomatik'e donunce dar otomatik olcek geri gelir",
                bool(geri) and geri["sol"][0] > 11, json.dumps(geri))
 
+            # ── 2c. "ⓘ Baglanti" penceresi (2026-10-06): neyi nereye takacagin — kutunun on paneli ──
+            YUKLU = "performance.getEntriesByType('resource').some(e => /baglanti(_veri)?\\.js/.test(e.name))"
+            bas = t.js(f"({{acik: !!document.querySelector('.baglanti-bilgi'), yuklu: {YUKLU},"
+                       " dugme: (document.querySelector('[data-bilgi=canli]') || {}).textContent,"
+                       " exp: (document.querySelector('[data-bilgi=canli]') || {getAttribute: () => null}).getAttribute('aria-expanded')})")
+            ok("[!] BAGLANTI: pencere KAPALI baslar, resimler ACILISTA INMEZ (baglanti*.js istenmedi), dugme var",
+               bas["acik"] is False and bas["yuklu"] is False and "Bağlantı" in (bas["dugme"] or "")
+               and bas["exp"] == "false", json.dumps(bas, ensure_ascii=False))
+            BOY = ("(() => { const p = document.querySelector('.bb-pencere'); if (!p) return null;"
+                   " const r = p.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })()")
+            baslik_h0 = t.js("document.querySelector('main.gorunum:not([style*=\"none\"]) .baslik').getBoundingClientRect().height")
+            t.js("document.querySelector('[data-bilgi=canli]').click()")
+            ac = bekle_js(t, "(() => { const b = document.querySelector('.baglanti-bilgi[data-baglanti=canli]');"
+                             " const s = b && b.querySelector('svg[data-sema]'); return s && {sema: s.dataset.sema,"
+                             " sekme: [...b.querySelectorAll('[data-bb-sekme]')].map(x => x.dataset.bbSekme),"
+                             " parlak: [...s.querySelectorAll('g[data-kul=\"1\"]')].map(g => g.dataset.jak),"
+                             " exp: document.querySelector('[data-bilgi=canli]').getAttribute('aria-expanded'),"
+                             " metin: b.querySelector('.bb-metin').textContent}; })()", 6)
+            ok("[!] BAGLANTI: dugmeyle acilir — Canli'da 4 sekme (gerilim/HV/akim/guc), varsayilan GERILIM: "
+               "panelde V + COM parlak, talimat metni var",
+               bool(ac) and ac["sema"] == "gerilim" and ac["sekme"] == ["gerilim", "hv", "akim", "guc"]
+               and sorted(ac["parlak"]) == ["J1.1", "J1.2"] and ac["exp"] == "true" and "COM" in ac["metin"],
+               json.dumps(ac, ensure_ascii=False)[:300])
+            pop = t.js("(() => { const a = document.querySelector('.bb-arka'); const p = document.querySelector('.bb-pencere');"
+                       " if (!a || !p) return null; const r = p.getBoundingClientRect(); return {"
+                       " sabit: getComputedStyle(a).position, ebeveyn: a.parentElement === document.body,"
+                       " rol: p.getAttribute('role'), modal: p.getAttribute('aria-modal'),"
+                       " ortaX: Math.abs((r.left + r.right) / 2 - innerWidth / 2) < 2,"
+                       " ortaY: Math.abs((r.top + r.bottom) / 2 - innerHeight / 2) < 2,"
+                       " kaydirma: document.body.style.overflow,"
+                       " odak: document.activeElement && document.activeElement.dataset.bb}; })()")
+            baslik_h1 = t.js("document.querySelector('main.gorunum:not([style*=\"none\"]) .baslik').getBoundingClientRect().height")
+            ok("[!] BAGLANTI: POPUP — ekranin ortasinda sabit kalici pencere (role=dialog, aria-modal), sayfa duzeni "
+               "KAYMAZ (baslik ayni yukseklikte), arka sayfa kaymaz, odak pencerede (kullanici: 'ekstra yer olarak cikiyor')",
+               bool(pop) and pop["sabit"] == "fixed" and pop["ebeveyn"] and pop["rol"] == "dialog"
+               and pop["modal"] == "true" and pop["ortaX"] and pop["ortaY"] and pop["kaydirma"] == "hidden"
+               and pop["odak"] == "kapat" and abs(baslik_h1 - baslik_h0) < 1,
+               json.dumps({"pop": pop, "baslik": [baslik_h0, baslik_h1]}))
+            boylar = {}
+            for sek in ("gerilim", "hv", "akim", "guc"):
+                t.js(f"document.querySelector('[data-bb-sekme={sek}]').click()")
+                bekle_js(t, f"!!document.querySelector('.baglanti-bilgi svg[data-sema={sek}]')", 3)
+                boylar[sek] = t.js(BOY)
+            t.js("document.querySelector('[data-bb-sekme=akim]').click()")
+            ak = bekle_js(t, "(() => { const s = document.querySelector('.baglanti-bilgi svg[data-sema=akim]');"
+                             " return s && {parlak: [...s.querySelectorAll('g[data-kul=\"1\"]')].map(g => g.dataset.jak),"
+                             " uyari: (document.querySelector('.baglanti-bilgi .bb-uyari') || {}).textContent || ''}; })()", 3)
+            ok("BAGLANTI: Akim sekmesi — YUK 1 + YUK 2 parlak, COM DEGIL; 'COM'a takma' uyarisi gorunur",
+               bool(ak) and sorted(ak["parlak"]) == ["J3.1", "J3.2"] and "COM" in ak["uyari"],
+               json.dumps(ak, ensure_ascii=False)[:200])
+            resim("2c-baglanti-akim")
+            t.js("(() => { const a = document.querySelector('.bb-arka'); a.dispatchEvent(new MouseEvent('click', {bubbles: true})); })()")
+            arka = bekle_js(t, "!document.querySelector('.baglanti-bilgi') && document.body.style.overflow === ''", 3)
+            ok("BAGLANTI: arka plana tiklamak kapatir, sayfa kaydirmasi geri gelir", arka is True,
+               str(t.js("document.body.style.overflow")))
+            t.js("document.querySelector('[data-bilgi=canli]').click()")
+            bekle_js(t, "!!document.querySelector('.baglanti-bilgi svg[data-sema]')", 3)
+            t.js("window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))")
+            kap = bekle_js(t, "!document.querySelector('.baglanti-bilgi') && document.activeElement"
+                              " && document.activeElement.dataset.bilgi === 'canli'", 3)
+            ok("BAGLANTI: Esc kapatir, odak dugmeye doner", kap is True,
+               str(t.js("document.activeElement && document.activeElement.outerHTML.slice(0, 80)")))
+            # kart HV menzilindeyse pencere HV sekmesiyle acilir
+            t.js(f"{UYG}.menzil = 1; document.querySelector('[data-bilgi=canli]').click()")
+            hv = bekle_js(t, "(() => { const s = document.querySelector('.baglanti-bilgi svg[data-sema]');"
+                             " return s && s.dataset.sema; })()", 3)
+            ok("[!] BAGLANTI: kart HV menzilindeyken (menzil 1) pencere HV sekmesiyle acilir (V'ye yuksek gerilim "
+               "verilmesin)", hv == "hv", str(hv))
+            t.js("document.querySelector('[data-bb=kapat]').click()")
+            ekr = {}
+            for ekran, sema, sekme in (("skop", "skop", 2), ("pil", "pil", 0)):
+                t.js(f"{UYG}.gorunum = '{ekran}'")
+                bekle_js(t, f"!!document.querySelector('[data-bilgi={ekran}]') && "
+                            f"document.querySelector('[data-bilgi={ekran}]').offsetParent !== null", 4)
+                t.js(f"document.querySelector('[data-bilgi={ekran}]').click()")
+                ekr[ekran] = bekle_js(t, f"(() => {{ const b = document.querySelector('.baglanti-bilgi[data-baglanti={ekran}]');"
+                                         " const s = b && b.querySelector('svg[data-sema]'); return s && {sema: s.dataset.sema,"
+                                         " sekme: b.querySelectorAll('[data-bb-sekme]').length,"
+                                         " parlak: [...s.querySelectorAll('g[data-kul=\"1\"]')].map(g => g.dataset.jak).sort()}; })()", 4)
+                boylar[ekran] = t.js(BOY)
+                if ekran == "pil":
+                    resim("2c-baglanti-pil")
+                t.js("document.querySelector('[data-bb=kapat]').click()")
+            t.js(f"{UYG}.gorunum = 'canli'")
+            ok("BAGLANTI: Osiloskop (SKOP + COM, 2 sekme: skop/CAL) ve Pil testi (PIL 1 + PIL 2 + V, sekmesiz) "
+               "pencereleri de acilir",
+               (ekr.get("skop") or {}).get("sema") == "skop" and ekr["skop"]["sekme"] == 2
+               and ekr["skop"]["parlak"] == ["J1.2", "J4.1"]
+               and (ekr.get("pil") or {}).get("sema") == "pil" and ekr["pil"]["sekme"] == 0
+               and ekr["pil"]["parlak"] == ["J1.1", "J7.1", "J7.2"], json.dumps(ekr))
+            ok("[!] BAGLANTI: pencere boyutu STANDART — 4 Canli sekmesi, Osiloskop ve Pil testi BIREBIR ayni "
+               "(kullanici: 'kimi cok buyuk kimi kucuk')",
+               len(boylar) == 6 and all(boylar.values()) and len({tuple(v) for v in boylar.values()}) == 1,
+               json.dumps(boylar))
+
             # ── 3. kayit denetimi (D4) + aktif kayit (D6) ─────────────────
             n0 = len(kart.komutlar)
             t.js(deger_yaz(".kd-hiz select", "1000", "change"))
