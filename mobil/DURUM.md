@@ -1186,3 +1186,5 @@ Kullanıcı: "kusursuz olmasına gerek yok, sağlıklı kullanılabilir olsun, a
 Testler suite dışına taşındı: `mobil/ertelenen-curutucu-6/*.bekliyor` (yeniden `test/` ve `src/test/...`'e
 alınınca kırmızı olacaklar — düzeltme turunda oradan başla). Kotlin dosyası (Curutucu6Test.kt) hiç koşulmadı.
 Çürütücünün öbür soruları (kilit sırası, Vazgecme, çift bildirim, 200+çöp gövde) incelenmedi — AÇIK.
+
+- 2026-10-06: kullanıcı isteğiyle aynı debug APK **Honor DNP-NX9**'a da kuruldu; açılıyor, çökme kaydı yok. Eşleştirme kullanıcıda (web parolası). Honor ölçümleri (5G) yapılmadı.
