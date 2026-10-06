@@ -38,7 +38,8 @@
       eski gorunumu geri koyar (localStorage'a dokunulmaz).
    ═══════════════════════════════════════════════════════════════════════ */
 
-import { Grafik, imlecOkuma, zamanYazi, cssRenk, yerlesim, seriHazirla } from '/ortak/grafik.js';
+import { Grafik, imlecOkuma, zamanYazi, cssRenk, yerlesim, seriHazirla, yOlcekNormal, yOlcekEksen }
+  from '/ortak/grafik.js';
 import { enerji } from '/ortak/istatistik.js';
 import {
   zamanEkseni, noktaSerileri, ayrintiSerileri, anZamani, noktaBoslukMs, AYRINTI_BOSLUK_MS,
@@ -322,11 +323,22 @@ export function okumaJson(ok) {
   return JSON.stringify(ok, (k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
 }
 
+/* Ölçek tercihi Canlı ile ORTAK (`olcum.yOlcek`, app.js ayarOku ile aynı JSON). */
+function olcekOku() {
+  try { return yOlcekNormal(JSON.parse(localStorage.getItem('olcum.yOlcek'))); } catch (e) { return yOlcekNormal(null); }
+}
+function olcekYaz(v) {
+  try { localStorage.setItem('olcum.yOlcek', JSON.stringify(v)); } catch (e) { /* ozel kip: yalniz bu oturum */ }
+  try { window.dispatchEvent(new Event('olcum-yolcek')); } catch (e) { /* olay yoksa Canli acilista okur */ }
+}
+
 /* ── metinler (sozluk anahtarlari; C8) ──────────────────────────────── */
 export const KG_METIN = Object.freeze({
   geri: 'kg.geri', rapor: 'kg.rapor', raporKapat: 'kg.rapor_kapat', yazdir: 'kg.yazdir',
   baslik: 'kg.baslik', raporBaslik: 'kg.rapor_baslik', grafik: 'kg.grafik', gerilim: 'kg.gerilim',
   sagEksen: 'kg.sag_eksen', akim: 'kg.akim', guc: 'kg.guc', yok: 'kg.yok', zarf: 'kg.zarf',
+  olcekSol: 'kg.olcek_sol', olcekSag: 'kg.olcek_sag', olcekOto: 'kg.olcek_oto', olcekSifir: 'kg.olcek_sifir',
+  olcekElle: 'kg.olcek_elle', olcekEnAz: 'kg.olcek_en_az', olcekEnCok: 'kg.olcek_en_cok',
   tumu: 'kg.tumu', imlecSil: 'kg.imlec_sil', grafikEtiket: 'kg.grafik_etiket',
   gezginEtiket: 'kg.gezgin_etiket', grafikIpucu: 'kg.grafik_ipucu', imlecYok: 'kg.imlec_yok',
   notlar: 'kg.notlar', genelNot: 'kg.genel_not', notIpucu: 'kg.not_ipucu', pil: 'kg.pil',
@@ -418,6 +430,28 @@ const SABLON = `
           <option value="guc">{{ m.guc }}</option>
           <option value="yok">{{ m.yok }}</option>
         </select>
+      </label>
+      <label v-if="goster.v">{{ m.olcekSol }}
+        <select data-olcek="sol" v-model="yOlcek.v.kip" style="width:auto">
+          <option value="oto">{{ m.olcekOto }}</option>
+          <option value="sifir">{{ m.olcekSifir }}</option>
+          <option value="elle">{{ m.olcekElle }}</option>
+        </select>
+        <template v-if="yOlcek.v.kip === 'elle'">
+          <input type="number" step="any" v-model="yOlcek.v.min" :placeholder="m.olcekEnAz" :aria-label="m.olcekEnAz" style="width:5.5em">
+          <input type="number" step="any" v-model="yOlcek.v.maks" :placeholder="m.olcekEnCok" :aria-label="m.olcekEnCok" style="width:5.5em">
+        </template>
+      </label>
+      <label v-if="goster.sag !== 'yok'">{{ m.olcekSag }}
+        <select data-olcek="sag" v-model="yOlcek[goster.sag].kip" style="width:auto">
+          <option value="oto">{{ m.olcekOto }}</option>
+          <option value="sifir">{{ m.olcekSifir }}</option>
+          <option value="elle">{{ m.olcekElle }}</option>
+        </select>
+        <template v-if="yOlcek[goster.sag].kip === 'elle'">
+          <input type="number" step="any" v-model="yOlcek[goster.sag].min" :placeholder="m.olcekEnAz" :aria-label="m.olcekEnAz" style="width:5.5em">
+          <input type="number" step="any" v-model="yOlcek[goster.sag].maks" :placeholder="m.olcekEnCok" :aria-label="m.olcekEnCok" style="width:5.5em">
+        </template>
       </label>
       <label v-if="zarfVar"><input type="checkbox" v-model="goster.zarf"> {{ m.zarf }}</label>
       <span class="bosluk"></span>
@@ -542,7 +576,7 @@ export const KayitGorunumu = {
   },
   template: SABLON,
   data() {
-    return { goster: { v: true, sag: 'akim', zarf: true }, okuma: null, pencereJson: '', hata: '',
+    return { goster: { v: true, sag: 'akim', zarf: true }, yOlcek: olcekOku(), okuma: null, pencereJson: '', hata: '',
       duyuru: '', yakalamaSinir: YAKALAMA_SINIR };
   },
   created() {
@@ -701,8 +735,9 @@ export const KayitGorunumu = {
     },
   },
   watch: {
-    goster: { deep: true, handler() { this.gorunurlukUygula(); } },
-    etkin(v) { if (v) this.$nextTick(() => this.ciz()); },
+    goster: { deep: true, handler() { this.gorunurlukUygula(); this.ciz(); } },
+    yOlcek: { deep: true, handler(v) { olcekYaz(v); this.ciz(); } },
+    etkin(v) { if (v) { this.olcekTazele(); this.$nextTick(() => this.ciz()); } },
     rapor() { this.$nextTick(() => this.ciz()); },
   },
   mounted() {
@@ -712,6 +747,9 @@ export const KayitGorunumu = {
     this._gozcu = new MutationObserver(() => this.ciz());
     this._gozcu.observe(document.documentElement, { attributes: true, attributeFilter: ['data-tema'] });
     this._boyut = () => this.ciz();
+    /* Bilesen acik kalirken Canli'da degisen olcek (ayni sekme: 'olcum-yolcek' olayi) */
+    this._olcekDinle = () => this.olcekTazele();
+    window.addEventListener('olcum-yolcek', this._olcekDinle);
     this._once = () => this.yazdirmaOncesi();
     this._sonra = () => this.yazdirmaSonrasi();
     window.addEventListener('resize', this._boyut);
@@ -729,6 +767,7 @@ export const KayitGorunumu = {
     if (this._duyuruZaman) clearTimeout(this._duyuruZaman);
     if (this._gozcu) this._gozcu.disconnect();
     window.removeEventListener('resize', this._boyut);
+    window.removeEventListener('olcum-yolcek', this._olcekDinle);
     window.removeEventListener('beforeprint', this._once);
     window.removeEventListener('afterprint', this._sonra);
     if (this._g) this._g.yokEt();
@@ -748,6 +787,7 @@ export const KayitGorunumu = {
       const t = this.$refs.tuval;
       const gz = this.$refs.gezgin;
       this._g = markRaw(new Grafik(t, { renk: this.renkCozucu(t), zamanKokeni: 0, gerilim: 'V', akim: 'I',
+        yOlcek: yOlcekEksen(this.yOlcek, this.goster.sag),
         isaretler: yakalamaIsaretleri(this.oturum, this._h), onDegisim: (d) => this.degisti(d) }));
       this._gz = markRaw(new Grafik(gz, { gezgin: true, renk: this.renkCozucu(gz),
         onDegisim: (d) => { if (this._g) this._g.durumAyarla({ t0: d.t0, t1: d.t1 }); this.pencereYaz(); } }));
@@ -789,7 +829,13 @@ export const KayitGorunumu = {
       this.pencereJson = JSON.stringify({ t0: d.t0, t1: d.t1, veriT0: d.veriT0, veriT1: d.veriT1,
         imlecA: d.imlecA, imlecB: d.imlecB, alanX: alan.x, alanW: alan.w });
     },
+    /* Ortak anahtardan yeniden oku; ayniysa atama yok (olay dongusu kurulmaz). */
+    olcekTazele() {
+      const y = olcekOku();
+      if (JSON.stringify(y) !== JSON.stringify(this.yOlcek)) this.yOlcek = y;
+    },
     ciz() {
+      if (this._g) this._g.secenek.yOlcek = yOlcekEksen(this.yOlcek, this.goster.sag);
       if (this._g) this._g.ciz();
       if (this._gz) this._gz.ciz();
       this.pencereYaz();

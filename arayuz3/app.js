@@ -343,6 +343,8 @@ const CN_METIN = Object.freeze({
   baslik: 'cn.baslik', okumalar: 'cn.okumalar', gerilim: 'cn.gerilim', akim: 'cn.akim', guc: 'cn.guc',
   enerji: 'cn.enerji', enerjiIpucu: 'cn.enerji_ipucu', onSaniyeYok: 'cn.on_saniye_yok',
   grafik: 'cn.grafik', grafikEtiket: 'cn.grafik_etiket', sagEksen: 'cn.sag_eksen', sagAkim: 'cn.sag_akim',
+  olcekSol: 'cn.olcek_sol', olcekSag: 'cn.olcek_sag', olcekOto: 'cn.olcek_oto', olcekSifir: 'cn.olcek_sifir',
+  olcekElle: 'cn.olcek_elle', olcekEnAz: 'cn.olcek_en_az', olcekEnCok: 'cn.olcek_en_cok',
   sagGuc: 'cn.sag_guc', sagYok: 'cn.sag_yok', pencere: 'cn.pencere', yenileme: 'cn.yenileme',
   dondur: 'cn.dondur', canliyaDon: 'cn.canliya_don', donmusIpucu: 'cn.donmus_ipucu', veriYok: 'cn.veri_yok',
   yukleniyor: 'cn.yukleniyor', yuklenemedi: 'cn.yuklenemedi', kanalVeriYok: 'cn.kanal_veri_yok',
@@ -1039,6 +1041,10 @@ createApp({
       canliBilgi: null,            // ekran/canli.js: {lejant, pencere, okuma, donmus}
       donmus: false,               // D3: "dondur" — imlec + yakinlastirma
       sagEksen: 'akim',            // K1 (ekran/canli.js): sag eksen tek birim
+      /* 2026-10-06: kanal basina oto / 0'dan / elle (grafik.js olcekUygula; eksen eslemesi
+         canli.js'te — grafik.js acilista INMEZ, burada ham kayit) */
+      yOlcek: { v: { kip: 'oto', min: '', maks: '' }, akim: { kip: 'oto', min: '', maks: '' },
+        guc: { kip: 'oto', min: '', maks: '' } },
       /* 3D (D1): sol serit dar ekranda (<= 900 px) cekmece. */
       cekmeceAcik: false,
       /* D8: dil (3H secicisi gelene dek localStorage `olcum.dil`; 3C ile ayni anahtar) */
@@ -2007,6 +2013,14 @@ createApp({
     /* 3D (ekran/canli.js K1): sag eksen tek birim — Akim YA DA Guc. Eski
        `gosterI` / `gosterW` tercihi ilk acilista buna cevriliyor. */
     sagEksen(v) { this.grafikCiz(); this.ayarYaz('sagEksen', v); },
+    yOlcek: {
+      deep: true,
+      handler(v) {
+        this.grafikCiz();
+        this.ayarYaz('yOlcek', v);
+        try { window.dispatchEvent(new Event('olcum-yolcek')); } catch (e) { /* Kayitlar acilista okur */ }
+      },
+    },
     sontSecim(v) { this.ayarYaz('sontSecim', v); },
     /* B27 A2: rapor araligi tercihi — sakla ve bagliysa karta uygula.
        Kartin yaniti (`* rapor araligi N ms`) kartRapor'u gunceller. */
@@ -2071,6 +2085,7 @@ createApp({
        ?demo'da DEĞİL — orada taşıyıcı USB ya da sahte kart. */
     this.kopruyuAlgila().then(() => { if (this.otomatikBaglanmali()) this.baglan(); });
     window.addEventListener('resize', () => { this.genislikDegisti(); this.grafikCiz(); this.osiloCiz(); this.pilCiz(); });
+    window.addEventListener('olcum-yolcek', () => this.yOlcekOku());
     window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); this.skopRotaIsle(); });
     window.addEventListener('hashchange', () => { this.ayarBolum = ayarBolumCoz(location.hash); });
     window.addEventListener('mousemove', (e) => this.surukHareket(e));
@@ -2514,6 +2529,7 @@ createApp({
     canliDurumu() {
       return {
         gecmis: this.gecmis, pencereS: this.pencere, gosterV: this.gosterV, sagEksen: this.sagEksen,
+        yOlcek: this.yOlcek,
         taban: (veri) => this.olcekTabani(veri), aralikMs: this.sonAralik > 0 ? this.sonAralik : this.raporMs,
         donmus: this.donmus,
       };
@@ -2794,6 +2810,7 @@ createApp({
       const eskiW = this.ayarOku('gosterW', true);
       const sag = this.ayarOku('sagEksen', eskiI ? 'akim' : eskiW ? 'guc' : 'yok');
       this.sagEksen = ['akim', 'guc', 'yok'].includes(sag) ? sag : 'akim';
+      this.yOlcekOku();
       this.sontSecim = this.ayarOku('sontSecim', this.sontSecim);
       this.sebekeHz = this.ayarOku('sebekeHz', this.sebekeHz);
       this.raporMs = this.ayarOku('raporMs', this.raporMs);
@@ -4488,6 +4505,18 @@ createApp({
        kesiyor (G2); gurultu tabani `enAzAralik` (B45 korunuyor — olcekTabani);
        "tepe / veri yok" lejanti HTML'de (ekran/canli.js canliLejant).
        Canli gizliyken (baska ekran) cizilmiyor — geri donunce watch.gorunum ciziyor. */
+    /* Kayitlar ekrani ayni anahtari yaziyor ('olcum-yolcek' olayi) — ikisi ayni kalsin.
+       Elle sinirlar gecersizse grafik.js otomatige dusuyor; burada yalniz kip denetlenir. */
+    yOlcekOku() {
+      const k = this.ayarOku('yOlcek', null);
+      for (const a of ['v', 'akim', 'guc']) {
+        const x = k && k[a];
+        const y = this.yOlcek[a];
+        if (!x || !['oto', 'sifir', 'elle'].includes(x.kip)) continue;
+        if (x.kip === y.kip && x.min === y.min && x.maks === y.maks) continue;
+        this.yOlcek[a] = { kip: x.kip, min: x.min ?? '', maks: x.maks ?? '' };
+      }
+    },
     grafikCiz() {
       if (!this._canli || this.gorunum !== 'canli') return;
       this._canli.ciz(this.canliDurumu());

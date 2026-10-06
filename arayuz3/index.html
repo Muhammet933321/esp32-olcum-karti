@@ -322,6 +322,28 @@
           <option value="yok">{{ m.sagYok }}</option>
         </select>
       </label>
+      <label v-if="gosterV">{{ m.olcekSol }}:
+        <select data-olcek="sol" v-model="yOlcek.v.kip" style="width:auto">
+          <option value="oto">{{ m.olcekOto }}</option>
+          <option value="sifir">{{ m.olcekSifir }}</option>
+          <option value="elle">{{ m.olcekElle }}</option>
+        </select>
+        <template v-if="yOlcek.v.kip === 'elle'">
+          <input type="number" step="any" v-model="yOlcek.v.min" :placeholder="m.olcekEnAz" :aria-label="m.olcekEnAz" style="width:5.5em">
+          <input type="number" step="any" v-model="yOlcek.v.maks" :placeholder="m.olcekEnCok" :aria-label="m.olcekEnCok" style="width:5.5em">
+        </template>
+      </label>
+      <label v-if="sagEksen !== 'yok'">{{ m.olcekSag }}:
+        <select data-olcek="sag" v-model="yOlcek[sagEksen].kip" style="width:auto">
+          <option value="oto">{{ m.olcekOto }}</option>
+          <option value="sifir">{{ m.olcekSifir }}</option>
+          <option value="elle">{{ m.olcekElle }}</option>
+        </select>
+        <template v-if="yOlcek[sagEksen].kip === 'elle'">
+          <input type="number" step="any" v-model="yOlcek[sagEksen].min" :placeholder="m.olcekEnAz" :aria-label="m.olcekEnAz" style="width:5.5em">
+          <input type="number" step="any" v-model="yOlcek[sagEksen].maks" :placeholder="m.olcekEnCok" :aria-label="m.olcekEnCok" style="width:5.5em">
+        </template>
+      </label>
       <div class="bosluk"></div>
       <label title="Kart bu aralıkta bir D satırı yollar; her nokta o aralığın ortalaması. Sadece sürücü değiştirebilir.">{{ m.yenileme }}:
         <select v-model.number="raporMs" style="width:auto"

@@ -15,7 +15,8 @@ import {
   guzelAdim, guzelAdimlar, zamanAdimi, zamanAdimlari, eksenAraligi, zamanYazi, sayiYazi,
   yerlesim, pencereHesapla, cizimPlani, lejantOgeleri, tipikAralik, durumKur, durumBirlestir,
   pencereKirp, yakinlastir, etkilesim, enYakinOrnek, imlecOkuma, seriHazirla, cssRenk,
-  planUygula, Grafik, xSayiEkseni, sayiAdimlari, xYazici, isaretListesi,
+  planUygula, Grafik, xSayiEkseni, sayiAdimlari, xYazici, isaretListesi, olcekUygula,
+  yOlcekNormal, yOlcekEksen,
 } from '../src/grafik.js';
 
 // ── yardımcılar ─────────────────────────────────────────────────────────────
@@ -1546,4 +1547,89 @@ test('3G desen: seri.desen seri çizgisinin komutuna ve ctx.setLineDash\'e geçe
   const p2 = cizimPlani([seriHazirla({ ad: 'X', t, y, renk: 'volt', desen: [] })], durumKur([seriHazirla({ ad: 'X', t, y })]), { w: 800, h: 240 }, {});
   assert.ok(p2.komutlar.filter((c) => c.rol === 'seri').every((c) => c.desen === undefined));
   g.yokEt();
+});
+
+
+// ── Kullanıcı ölçeği (yOlcek, 2026-10-06): otomatik / 0'dan / elle ─────────────────
+test('yOlcek: verilmezse ve "oto"da otomatik ölçek AYNEN (geriye uyum)', () => {
+  const n = 500;
+  const t = new Float64Array(n).map((_, i) => i * 100);
+  const y = new Float64Array(n).map((_, i) => 1.7 + 0.03 * Math.sin(i / 7));
+  const d = durumKur([{ t }]);
+  const seri = [seriHazirla({ ad: 'V', t, y, birim: 'V' })];
+  const yok = pencereHesapla(seri, d, { w: 800, h: 300 }).eksenler.sol;
+  const oto = pencereHesapla(seri, d, { w: 800, h: 300 }, { yOlcek: { sol: { kip: 'oto' } } }).eksenler.sol;
+  assert.deepEqual([oto.min, oto.maks], [yok.min, yok.maks]);
+  assert.ok(yok.min > 1.6 && yok.maks < 1.8, 'otomatik dar ölçek (kullanıcının şikâyeti) duruyor');
+});
+
+test('yOlcek elle: eksen tam verilen [min, maks]; veri taşsa da değişmez', () => {
+  const n = 500;
+  const t = new Float64Array(n).map((_, i) => i * 100);
+  const y = new Float64Array(n).map((_, i) => 1.7 + 0.03 * Math.sin(i / 7));
+  y[100] = 12; // ölçek dışı sıçrama: kırpılır, ölçeği büyütmez
+  const d = durumKur([{ t }]);
+  const e = pencereHesapla([seriHazirla({ ad: 'V', t, y, birim: 'V' })], d, { w: 800, h: 300 },
+    { yOlcek: { sol: { kip: 'elle', min: 0, maks: 10 } } }).eksenler.sol;
+  assert.deepEqual([e.min, e.maks], [0, 10]);
+  assert.ok(e.degerler.includes(0) && e.degerler.includes(10), 'adımlar elle sınırlara oturuyor');
+});
+
+test("yOlcek 0'dan: pozitif veride alt sınır TAM 0, üst otomatik; negatif veride üst TAM 0", () => {
+  const n = 500;
+  const t = new Float64Array(n).map((_, i) => i * 100);
+  const yp = new Float64Array(n).map((_, i) => 1.7 + 0.03 * Math.sin(i / 7));
+  const d = durumKur([{ t }]);
+  const p = pencereHesapla([seriHazirla({ ad: 'V', t, y: yp, birim: 'V' })], d, { w: 800, h: 300 },
+    { yOlcek: { sol: { kip: 'sifir' } } }).eksenler.sol;
+  assert.equal(p.min, 0);
+  assert.ok(p.maks > 1.73 && p.maks < 1.9, `üst uç otomatik + pay: ${p.maks}`);
+  const yn = new Float64Array(n).map((_, i) => -2 - Math.sin(i / 7));
+  const q = pencereHesapla([seriHazirla({ ad: 'V', t, y: yn, birim: 'V' })], d, { w: 800, h: 300 },
+    { yOlcek: { sol: { kip: 'sifir' } } }).eksenler.sol;
+  assert.equal(q.maks, 0);
+  assert.ok(q.min < -3);
+});
+
+test('yOlcek: sol ve sağ eksen AYRI; geçersiz elle değer (boş, maks ≤ min, metin) otomatiğe düşer', () => {
+  const n = 500;
+  const t = new Float64Array(n).map((_, i) => i * 100);
+  const v = new Float64Array(n).map(() => 5);
+  const a = new Float64Array(n).map((_, i) => 0.1 + 0.01 * Math.sin(i));
+  const d = durumKur([{ t }]);
+  const seriler = [seriHazirla({ ad: 'V', t, y: v, birim: 'V', eksen: 'sol' }),
+    seriHazirla({ ad: 'A', t, y: a, birim: 'A', eksen: 'sag' })];
+  const oto = pencereHesapla(seriler, d, { w: 800, h: 300 }).eksenler;
+  const k = pencereHesapla(seriler, d, { w: 800, h: 300 }, { yOlcek: { sol: { kip: 'elle', min: 0, maks: 30 } } }).eksenler;
+  assert.deepEqual([k.sol.min, k.sol.maks], [0, 30]);
+  assert.deepEqual([k.sag.min, k.sag.maks], [oto.sag.min, oto.sag.maks], 'sol ayar sağ ekseni etkilemiyor');
+  for (const kotu of [{ min: '', maks: 10 }, { min: 5, maks: 5 }, { min: 8, maks: 2 }, { min: 'a', maks: 3 }]) {
+    const e = pencereHesapla(seriler, d, { w: 800, h: 300 }, { yOlcek: { sol: { kip: 'elle', ...kotu } } }).eksenler.sol;
+    assert.deepEqual([e.min, e.maks], [oto.sol.min, oto.sol.maks], JSON.stringify(kotu));
+  }
+  assert.deepEqual(olcekUygula(1, 2, NaN, NaN, { kip: 'sifir' }), [1, 2], 'veri yokken 0\'dan otomatiğe düşer');
+});
+
+test('yOlcek Grafik sınıfından da geçiyor (secenek.yOlcek → plan)', () => {
+  const g = new Grafik(sahteKanvas(600, 240), { renk: () => '#000' });
+  g.secenek.yOlcek = { sol: { kip: 'elle', min: -1, maks: 1 } };
+  assert.deepEqual(g._planSecenek().yOlcek, { sol: { kip: 'elle', min: -1, maks: 1 } });
+});
+
+test('yOlcekNormal: bozuk / eski kayit varsayilana; gecerli kip ve sayilar korunur', () => {
+  const bos = { kip: 'oto', min: '', maks: '' };
+  assert.deepEqual(yOlcekNormal(null), { v: bos, akim: bos, guc: bos });
+  assert.deepEqual(yOlcekNormal('cop'), { v: bos, akim: bos, guc: bos });
+  const n = yOlcekNormal({ v: { kip: 'elle', min: 0, maks: 10 }, akim: { kip: 'uydurma', min: 1 }, guc: { kip: 'sifir', min: 'x' } });
+  assert.deepEqual(n.v, { kip: 'elle', min: 0, maks: 10 });
+  assert.deepEqual(n.akim, { kip: 'oto', min: 1, maks: '' });
+  assert.deepEqual(n.guc, { kip: 'sifir', min: '', maks: '' });
+});
+
+test('yOlcekEksen: sol = V, sag = secili kanal (akim/guc), "yok"ta sag bos', () => {
+  const k = { v: { kip: 'elle' }, akim: { kip: 'sifir' }, guc: { kip: 'oto' } };
+  assert.deepEqual(yOlcekEksen(k, 'akim'), { sol: k.v, sag: k.akim });
+  assert.deepEqual(yOlcekEksen(k, 'guc'), { sol: k.v, sag: k.guc });
+  assert.deepEqual(yOlcekEksen(k, 'yok'), { sol: k.v, sag: null });
+  assert.equal(yOlcekEksen(null, 'akim'), null);
 });

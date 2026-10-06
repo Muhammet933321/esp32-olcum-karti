@@ -884,6 +884,10 @@ def main() -> int:
                t.js("document.querySelectorAll('.kl-kopya').length") == 2)
 
             # ── 6. kayit gorunumu: tuval, gercek fare ile iki imlec ──────
+            # Y olcegi Canli ile ORTAK (olcum.yOlcek): Canli'da secilen '0'dan' burada da gelmeli
+            # (Canli'nin yazdigi gibi: anahtar + ayni sekme olayi; bilesen zaten acik olabilir)
+            t.js("localStorage.setItem('olcum.yOlcek', JSON.stringify({v: {kip: 'sifir', min: '', maks: ''}}));"
+                 " window.dispatchEvent(new Event('olcum-yolcek'))")
             t.js(f"location.hash = '#/kayit/{no['A']}@{eski_kimlik}'")
             bekle_js(t, "!!document.querySelector('canvas.kg-grafik') && !!document.querySelector('.kg-tuval').dataset.pencere")
             odak = bekle_js(t, "document.activeElement && document.activeElement.classList.contains('kg-baslik')"
@@ -901,6 +905,33 @@ def main() -> int:
             ok("[!] Kayit acilinca tuval GERCEKTEN cizili (--volt ve --amper pikselleri), en gec 8 s",
                bool(px) and px[0] > 80 and px[1] > 80,
                f"volt {px and px[0]} amper {px and px[1]}, {time.monotonic() - t_cizim:.2f} s")
+            # ⚠ Canli'nin (gizli) secicileri de DOM'da ve ONCE geliyor: Kayit bolumune daralt.
+            KG = "document.querySelector('.kg-tuval').closest('section')"
+            ol = t.js(f"(() => {{ const k = {KG}; return {{sol: k.querySelector('select[data-olcek=sol]').value,"
+                      f" sag: k.querySelector('select[data-olcek=sag]').value}}; }})()")
+            t.js(f"(() => {{ const e = {KG}.querySelector('select[data-olcek=sag]'); e.value = 'elle';"
+                 " e.dispatchEvent(new Event('change')); })()")
+            bekle_js(t, f"{KG}.querySelectorAll('[data-olcek=sag] ~ input').length === 2", 3)
+            t.js(f"(() => {{ const k = {KG}.querySelectorAll('[data-olcek=sag] ~ input');"
+                 " for (const [el, v] of [[k[0], '0'], [k[1], '2']]) { el.value = v;"
+                 " el.dispatchEvent(new Event('input', {bubbles: true})); } })()")
+            kay = bekle_js(t, f"(() => {{ const k = JSON.parse(localStorage.getItem('olcum.yOlcek') || '{{}}');"
+                              f" return k.akim && k.akim.maks === 2 && {UYG}.yOlcek.akim.maks === 2 && k; }})()", 3)
+            ok("[!] OLCEK: kayit gorunumu Canli'nin olcek tercihini okur ('0'dan'); sag eksen 'Elle 0–2' ORTAK anahtara"
+               " yazilir ve Canli'ya (app.yOlcek) ayni sekmede gecer",
+               ol == {"sol": "sifir", "sag": "oto"} and bool(kay) and kay["v"]["kip"] == "sifir"
+               and kay["akim"] == {"kip": "elle", "min": 0, "maks": 2}, json.dumps({"ol": ol, "kay": kay}))
+            # gorunum ACIKKEN Canli'dan gelen degisim (anahtar + 'olcum-yolcek' olayi) hemen uygulanir
+            t.js("(() => { const k = JSON.parse(localStorage.getItem('olcum.yOlcek'));"
+                 " k.v = {kip: 'elle', min: 0, maks: 20}; localStorage.setItem('olcum.yOlcek', JSON.stringify(k));"
+                 " window.dispatchEvent(new Event('olcum-yolcek')); })()")
+            canli_gelen = bekle_js(t, f"{KG}.querySelector('select[data-olcek=sol]').value === 'elle'", 3)
+            ok("OLCEK: acik kayit gorunumu Canli'daki olcek degisimini (olay) aninda alir",
+               canli_gelen is True, t.js(f"{KG}.querySelector('select[data-olcek=sol]').value"))
+            t.js(f"for (const ad of ['sol', 'sag']) {{ const e = {KG}.querySelector('select[data-olcek=' + ad + ']');"
+                 " e.value = 'oto'; e.dispatchEvent(new Event('change')); }")
+            t.bekle(0.3)
+            t.js("localStorage.removeItem('olcum.yOlcek')")
             t.js("document.querySelector('canvas.kg-grafik').scrollIntoView({block: 'center'})")
             t.bekle(0.3)
             r = t.js("(() => { const c = document.querySelector('canvas.kg-grafik'); const b = c.getBoundingClientRect();"

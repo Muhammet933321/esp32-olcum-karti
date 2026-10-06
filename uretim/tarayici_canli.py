@@ -447,6 +447,29 @@ def main() -> int:
             ok("D3: lejant (HTML) V ve I icin 'tepe …'", len(lej or []) == 2 and all("tepe" in x for x in lej), str(lej))
             resim("1-canli-koyu")
 
+            # ── 2b. Y ekseni olcegi (2026-10-06): oto / 0'dan / elle, kanal basina, hatirlanir ──
+            EKS = f"(() => {{ const e = {UYG}._canli.g.sonPlan.eksenler; return {{sol: [e.sol.min, e.sol.maks],"\
+                  f" sag: e.sag ? [e.sag.min, e.sag.maks] : null}}; }})()"
+            oto = t.js(EKS)
+            t.js(deger_yaz("select[data-olcek=sol]", "elle", "change"))
+            bekle_js(t, "document.querySelectorAll('[data-olcek=sol] ~ input').length === 2", 3)
+            t.js("(() => { const k = document.querySelectorAll('[data-olcek=sol] ~ input');"
+                 " for (const [el, v] of [[k[0], '0'], [k[1], '10']]) { el.value = v;"
+                 " el.dispatchEvent(new Event('input', {bubbles: true})); } })()")
+            elle = bekle_js(t, f"(({EKS}).sol + '') === '0,10' && ({EKS})", 3)
+            kayit = t.js("localStorage.getItem('olcum.yOlcek')")
+            ok("[!] OLCEK: sol eksen 'Elle 0–10' -> eksen TAM [0, 10], sag eksen otomatikte kalir, tercih kaydedildi",
+               bool(elle) and elle["sag"] == oto["sag"] and (json.loads(kayit or "{}").get("v") or {}) == {"kip": "elle", "min": 0, "maks": 10},
+               json.dumps({"oto": oto, "elle": elle, "kayit": kayit}))
+            t.js(deger_yaz("select[data-olcek=sol]", "sifir", "change"))
+            sif = bekle_js(t, f"({EKS}).sol[0] === 0 && ({EKS})", 3)
+            ok("OLCEK: '0'dan' -> alt sinir 0, ust otomatik (sahte kart ~12 V)",
+               bool(sif) and sif["sol"][1] > 12.1 and sif["sol"][1] < 15, json.dumps(sif))
+            t.js(deger_yaz("select[data-olcek=sol]", "oto", "change"))
+            geri = bekle_js(t, f"({EKS}).sol[0] > 1 && ({EKS})", 3)
+            ok("OLCEK: 'Otomatik'e donunce dar otomatik olcek geri gelir",
+               bool(geri) and geri["sol"][0] > 11, json.dumps(geri))
+
             # ── 3. kayit denetimi (D4) + aktif kayit (D6) ─────────────────
             n0 = len(kart.komutlar)
             t.js(deger_yaz(".kd-hiz select", "1000", "change"))

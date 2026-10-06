@@ -176,6 +176,54 @@ export function eksenAraligi(enk, enb, pay = PAY) {
   return [enk - aralik * pay, enb + aralik * pay];
 }
 
+/**
+ * KULLANICI ÖLÇEĞİ (yOlcek, 2026-10-06 kullanıcı isteği): eksen başına
+ *   { kip: 'oto' }                      — otomatik (eksenAraligi + enAz), varsayılan
+ *   { kip: 'sifir' }                    — 0 her zaman eksende; uzak uç otomatik (+%5 pay)
+ *   { kip: 'elle', min, maks }          — sabit; geçersizse (sayı değil / maks ≤ min) otomatiğe düşer
+ * Veri sınırın dışına taşarsa çizim alanı kırpar (cizimPlani 'kirp'). SAF fonksiyon.
+ */
+export function olcekUygula(otoMin, otoMaks, veriMin, veriMaks, ayar) {
+  const kip = ayar && ayar.kip;
+  if (kip === 'elle') {
+    const a = Number(ayar.min);
+    const b = Number(ayar.maks);
+    if (ayar.min !== '' && ayar.maks !== '' && Number.isFinite(a) && Number.isFinite(b) && b > a) return [a, b];
+    return [otoMin, otoMaks];
+  }
+  if (kip === 'sifir' && Number.isFinite(veriMin) && Number.isFinite(veriMaks)) {
+    const lo = Math.min(veriMin, 0);
+    const hi = Math.max(veriMaks, 0);
+    let [min, maks] = eksenAraligi(lo, hi);
+    if (lo === 0) min = 0;
+    if (hi === 0) maks = 0;
+    if (!(maks > min)) maks = min + 1;
+    return [min, maks];
+  }
+  return [otoMin, otoMaks];
+}
+
+/**
+ * Ölçek tercihi kanal başına saklanır (`olcum.yOlcek` = { v, akim, guc }): sağ eksen
+ * akımdan güce geçince akımın elle sınırları güce taşınmaz. `yOlcekNormal` bozuk /
+ * eski kaydı varsayılana çeker; `yOlcekEksen` kaydı eksen adlarına (sol/sag) eşler.
+ */
+export function yOlcekNormal(kayit) {
+  const s = {};
+  const sayi = (x) => (x === '' || x === null || x === undefined || !Number.isFinite(Number(x)) ? '' : x);
+  for (const k of ['v', 'akim', 'guc']) {
+    const a = kayit && typeof kayit === 'object' ? kayit[k] : null;
+    const kip = a && ['oto', 'sifir', 'elle'].includes(a.kip) ? a.kip : 'oto';
+    s[k] = { kip, min: a ? sayi(a.min) : '', maks: a ? sayi(a.maks) : '' };
+  }
+  return s;
+}
+
+export function yOlcekEksen(kayit, sagEksen) {
+  if (!kayit) return null;
+  return { sol: kayit.v || null, sag: sagEksen && sagEksen !== 'yok' ? kayit[sagEksen] || null : null };
+}
+
 const iki = (v) => (v < 10 ? '0' : '') + v;
 
 /**
@@ -326,6 +374,10 @@ export function pencereHesapla(seriler, durum, boyut, secenek = {}) {
       const orta = (min + maks) / 2;
       min = orta - e.enAz / 2;
       maks = orta + e.enAz / 2;
+    }
+    const ayar = secenek.yOlcek && secenek.yOlcek[ad];
+    if (ayar && ayar.kip && ayar.kip !== 'oto') {
+      [min, maks] = olcekUygula(min, maks, bos ? e.komsuK : e.enk, bos ? e.komsuB : e.enb, ayar);
     }
     const { adim, degerler } = guzelAdimlar(min, maks, hedefY);
     sonuc.eksenler[ad] = { min, maks, adim, degerler, birim: e.birim };
@@ -1152,7 +1204,7 @@ export class Grafik {
 
   _planSecenek() {
     return { gezgin: this.gezgin, kenar: this.secenek.kenar, zamanKokeni: this.secenek.zamanKokeni,
-      xEksen: this.secenek.xEksen, isaretler: this.secenek.isaretler };
+      xEksen: this.secenek.xEksen, isaretler: this.secenek.isaretler, yOlcek: this.secenek.yOlcek };
   }
 
   _boyut() {
