@@ -6284,6 +6284,18 @@ MUTASYONLAR = [
     ("B72", "test_kayit_esp.py", "kopru/imza.py",
      '    parola = os.environ.pop(PAROLA_ORTAM, "")', '    parola = os.environ.get(PAROLA_ORTAM, "")',
      "4B: parola surecin ortaminda kalir (alt surece gecer): W10 kirmizi"),
+    # Kart kapali / erisilemiyor (2026-10-06): panel ayakta ama kartin kendisi yok
+    ("T3D", "tarayici_canli.py", "arayuz3/app.js",
+     "      if (this.kartYokNeden) return 'yok';\n", "",
+     "KART-YOK: koprunun 'kart erisilemiyor' satiri 5 s bekletilirse kirmizi"),
+    ("T3D", "tarayici_canli.py", "arayuz3/app.js",
+     "      if (son && t - son < KART_SESSIZ_MS) return 'bagli';", "      return 'bagli';",
+     "KART-YOK: kart sustugunda rozet/uyari cikmazsa (eski 'Cevrimici' kusuru) kirmizi"),
+    ("T3D", "tarayici_canli.py", "arayuz3/app.js",
+     "      if ((y && y.status === 502) || uyg.kartDurum === 'yok'\n"
+     "          || /erisilemiyor|dogrulanmadi|bulunamadi|bagli degil|GONDERILMEDI/.test(neden)) {",
+     "      if (false) {",
+     "KART-YOK: kart yokken komut hatasi teknik 502 govdesiyle kalirsa kirmizi"),
     # Konsolsuz PC uygulamasi + bildirim alani simgesi (2026-10-06)
     ("B22a", "test_kopru.py", "kopru/pc.py",
      "            threading.Thread(target=sunucu.shutdown, daemon=True).start()", "            pass",

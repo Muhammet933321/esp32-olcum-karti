@@ -262,6 +262,13 @@ const TasiyiciAkis = {
       /* Sunucunun SEBEBİNİ göster — "403" tek başına kullanıcıya
          "neden olmadı" sorusunun cevabını vermiyor. */
       const neden = y ? await y.text().catch(() => '') : '';
+      /* Kart kapali / erisilemiyor (kopru 502): teknik govde yerine sade metin; ayrinti olaylarda */
+      if ((y && y.status === 502) || uyg.kartDurum === 'yok'
+          || /erisilemiyor|dogrulanmadi|bulunamadi|bagli degil|GONDERILMEDI/.test(neden)) {
+        uyg.olayEkle('! komut' + (y ? ' (' + y.status + ')' : '') + (neden ? ': ' + neden : ''), 'unlem');
+        uyg.hata = uyg.metin('kb.komut_kart_yok');
+        return;
+      }
       uyg.hata = (await uyg.lanUyarisi(y)) || ('Komut gönderilemedi'
                + (y ? ' (' + y.status + ')' : ' — bağlantı yok')
                + (neden ? ': ' + neden : ''));
@@ -336,6 +343,8 @@ const GORUNUMLER = [
 const KB_METIN = Object.freeze({
   ad: 'kb.ad', gezinme: 'kb.gezinme', menuAc: 'kb.menu_ac', menuKapat: 'kb.menu_kapat',
   cevrimdisi: 'kb.cevrimdisi', baglan: 'kb.baglan', kes: 'kb.kes',
+  kopruCalisiyor: 'kb.kopru_calisiyor', kartYokBaslik: 'kb.kart_yok_baslik', kartYokIpucu: 'kb.kart_yok_ipucu',
+  kartYokKendi: 'kb.kart_yok_kendi',
   baglantiBilgi: 'kb.baglanti', baglantiIpucu: 'kb.baglanti_ipucu',
   esitlenmemisYok: 'kb.esitlenmemis_yok', surumIpucu: 'kb.surum_ipucu',
   icerigeGec: 'kb.icerige_gec', esitlenmemisBagliDegil: 'kb.esitlenmemis_bagli_degil', pilCalisiyor: 'kb.pil_calisiyor',
@@ -344,6 +353,7 @@ const CN_METIN = Object.freeze({
   baslik: 'cn.baslik', okumalar: 'cn.okumalar', gerilim: 'cn.gerilim', akim: 'cn.akim', guc: 'cn.guc',
   enerji: 'cn.enerji', enerjiIpucu: 'cn.enerji_ipucu', onSaniyeYok: 'cn.on_saniye_yok',
   grafik: 'cn.grafik', grafikEtiket: 'cn.grafik_etiket', sagEksen: 'cn.sag_eksen', sagAkim: 'cn.sag_akim',
+  kartKapaliGrafik: 'cn.kart_kapali',
   olcekSol: 'cn.olcek_sol', olcekSag: 'cn.olcek_sag', olcekOto: 'cn.olcek_oto', olcekSifir: 'cn.olcek_sifir',
   olcekElle: 'cn.olcek_elle', olcekEnAz: 'cn.olcek_en_az', olcekEnCok: 'cn.olcek_en_cok',
   sagGuc: 'cn.sag_guc', sagYok: 'cn.sag_yok', pencere: 'cn.pencere', yenileme: 'cn.yenileme',
@@ -514,6 +524,11 @@ const ADS_PGA_V = 0.256;
 /* B27 A2 — RAPOR ARALIGI secenekleri (ms). Kartin `r<ms>` siniri 20..5000;
    menu bilerek daha dar: 50 ms altinda grafik noktasi degil gurultu
    gorunur, 1 s ustunde arayuz "koptu" hissi verir. */
+/* 2026-10-06 (kullanici: "ESP kapali ama solda cevrimici yaziyor"): kartin kendisi bu kadar
+   sure SUSARSA (D satiri yok) ya da kopru "kart erisilemiyor" derse kart YOK sayilir. En yavas
+   rapor 1 s; kart bagliyken bu surede en az 5 D satiri gelir. */
+const KART_SESSIZ_MS = 5000;
+
 const RAPOR_SECENEKLERI = [
   { ms: 50,   ad: '20 / s' },
   { ms: 100,  ad: '10 / s' },
@@ -1066,6 +1081,9 @@ createApp({
       dil: 'tr',
       afisSurum: '',               // D1: acilis afisinin asama/surum metni (gorulduyse)
       kopruda: false,              // D1: sayfa PC koprusu uzerinden (kopruYokla /durum)
+      kartYokNeden: '',            // koprunun son "! kopru: ... erisilemiyor" satiri (D gelince silinir)
+      kopruYol: '',                // kopru karta hangi yoldan bagli: 'usb' | 'wifi' | ''
+      bagliZaman: 0,               // panel tasiyiciya baglandigi an (ilk D icin bekleme penceresi)
       kopruVekil: false,           // 4D (PC11): kopru kartin /pil'ini imzali vekil eder (/durum vekil)
       /* ── 3D — KAYIT DURUMU (pasif; D4-D7) ── */
       kayit: { g: null, ga: null, gt: null, gp: null },
@@ -1332,6 +1350,42 @@ createApp({
       if (a === 'demo') return 'demo';
       if (a === 'seri') return 'usb';
       return this.kopruda ? 'kopru' : 'wifi';
+    },
+    /** Kartin KENDISI: 'bagli' | 'bekleniyor' | 'yok' | 'kapali' (panel tasiyiciya bagli degil).
+        Kopru ayaktayken panel "cevrimici"; asil soru kart veri gonderiyor mu. */
+    kartDurum() {
+      if (!this.bagli) return 'kapali';
+      if (this.baglantiKipi === 'demo') return 'bagli';
+      const t = this.saatTik || Date.now();
+      const son = this._sonDZaman || 0;
+      /* kopru "erisilemiyor" dediyse ve O ANDAN SONRA D gelmediyse (D gelince silinir): hemen yok */
+      if (this.kartYokNeden) return 'yok';
+      if (son && t - son < KART_SESSIZ_MS) return 'bagli';
+      if (this.osiloBekliyor || this.skopIkiliBekle) return 'bagli';   // yakalamada ADS susabilir
+      if (!son && t - (this.bagliZaman || t) < KART_SESSIZ_MS) return 'bekleniyor';
+      return 'yok';
+    },
+    rozetSinif() { return { bagli: 'acik', bekleniyor: 'bekle', yok: 'yok', kapali: 'kapali' }[this.kartDurum]; },
+    rozetYazi() {
+      const d = this.kartDurum;
+      if (d === 'kapali') return this.m.cevrimdisi;
+      if (d === 'yok') return this.metin('kb.kart_yok');
+      if (d === 'bekleniyor') return this.metin('kb.kart_baglaniyor');
+      const yol = this.baglantiKipi === 'kopru' ? this.kopruYol : this.baglantiKipi;
+      const ad = { usb: 'kb.kip_usb', wifi: 'kb.kip_wifi', demo: 'kb.kip_demo' }[yol];
+      return ad ? this.metin('kb.kart_bagli', { yol: this.metin(ad) }) : this.metin('kb.kart_bagli_yolsuz');
+    },
+    kartYokGoster() { return this.kartDurum === 'yok' && ['canli', 'skop', 'pil'].includes(this.gorunum); },
+    kartYokSon() {
+      const son = this._sonDZaman || 0;
+      if (!son) return this.metin('kb.kart_yok_hic');
+      const sn = Math.max(0, Math.round(((this.saatTik || Date.now()) - son) / 1000));
+      const once = sn < 60 ? this.metin('kb.once_sn', { n: sn })
+        : sn < 3600 ? this.metin('kb.once_dk', { n: Math.floor(sn / 60) })
+          : this.metin('kb.once_sa', { n: Math.floor(sn / 3600) });
+      const z = new Date(son);
+      const saat = [z.getHours(), z.getMinutes(), z.getSeconds()].map((x) => String(x).padStart(2, '0')).join(':');
+      return this.metin('kb.kart_yok_son', { saat, once });
     },
     baglantiYazi() {
       if (!this.bagli) return this.m.cevrimdisi;
@@ -2012,7 +2066,13 @@ createApp({
     pilAcik(v) { if (v) this.pilModYukle(); },
     pilEksen(v) { this.ayarYaz('pilEksen', v); this.pilCiz(); },
     /* WIG: baglanti kopunca silahli onay duser (bagli degilken komut zaten gitmez). */
-    bagli(v) { if (!v) this.onay = null; },
+    bagli(v) {
+      if (!v) this.onay = null;
+      this.bagliZaman = v ? Date.now() : 0;
+      this.kartYokNeden = '';
+    },
+    /* kart geri geldi: "komut gonderilmedi" bandi kendiliginden kalksin */
+    kartDurum(v) { if (v === 'bagli' && this.hata === this.metin('kb.komut_kart_yok')) this.hata = ''; },
     /* WIG: donmus imlec okumasi degisti -> gecikmeli duyuru */
     canliOkuma(v) { this.canliOkumaDegisti(v); },
     /* 3D: Canli ilk kez gorunur oldu -> grafik modulunu indir (bir kez). */
@@ -2447,6 +2507,17 @@ createApp({
     },
     /** `!` satiri (D7: olay). Bir kayit komutundan hemen sonra gelen `! G…` o komutun
      *  REDDI: denetimin yaninda oldugu gibi gosterilir (D4). */
+    /** Koprunun yukari-akis durum satirlari: hangi yoldan bagli / kart erisilemiyor. */
+    kopruDurumSatiri(s) {
+      if (s[0] === '*') {
+        if (/WiFi baglandi/.test(s)) { this.kopruYol = 'wifi'; this.kartYokNeden = ''; }
+        else if (/kart baglandi|yukari-akis USB/.test(s)) { this.kopruYol = 'usb'; this.kartYokNeden = ''; }
+        return;
+      }
+      if (/erisilemiyor|bulunamadi|koptu|dogrulanmadi|reddetti|acilamadi|HTTP \d|yuvalari dolu/.test(s)) {
+        this.kartYokNeden = s;
+      }
+    },
     unlemSatiri(satir) {
       this.olayEkle(satir, 'unlem');
       if (/^! ?G\b/.test(satir) && Date.now() - this.kayitKomutZamani < RET_PENCERESI_MS) {
@@ -3220,6 +3291,7 @@ createApp({
         else if (this.kartMs) this.sonAralik = yeniMs - this.kartMs;
         this.kartMs = yeniMs;
         this._sonDZaman = Date.now();
+        if (this.kartYokNeden) this.kartYokNeden = '';
         this.ornekAdet = p.length >= 8 ? parseInt(p[7], 10) : 0;
         /* 9. alan Asama 3'te eklendi: hangi gerilim KANALI etkin.
            0 = NORMAL (+-32.4 V), 1 = YUKSEK (+-613.7 V).
@@ -3297,6 +3369,7 @@ createApp({
         this.kayit.gt = { ...this.kayit.gt, etkin: 0,
           ...(gd ? { yakalama: Number(gd[1]), yazilamayan: Number(gd[2]) } : {}) };
       }
+      if (satir.startsWith('! kopru:') || satir.startsWith('* kopru:')) this.kopruDurumSatiri(satir);
       if (satir.startsWith('!')) {
         this.osiloBekliyor = false; this.skopIkiliBekle = false; this.skopIkiliOlcum = null;
         this.unlemSatiri(satir);          // 3D: D7 olay + D4 kayit komutunun reddi

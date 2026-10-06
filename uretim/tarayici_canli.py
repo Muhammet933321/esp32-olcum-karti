@@ -413,9 +413,9 @@ def main() -> int:
                        " esit: document.querySelector('#serit .serit-alt').textContent.trim(),"
                        " gorunur: getComputedStyle(document.querySelector('#serit')).visibility,"
                        " ust: getComputedStyle(document.querySelector('.ust')).display})")
-            ok("[!] D1/KR6: sol serit — 7 baglanti (3G: Karsilastirma), Canli etkin, 'Cevrimici · WiFi', yer, ust cubuk gizli",
+            ok("[!] D1/KR6: sol serit — 7 baglanti (3G: Karsilastirma), Canli etkin, 'Kart bağlı · WiFi' (kartin KENDISI), yer, ust cubuk gizli",
                ser["ad"] == ["Canlı", "Osiloskop", "Pil testi", "Kayıtlar", "Karşılaştırma", "Ayarlar", "Konsol"]
-               and (ser["etkin"] or "").strip() == "Canlı" and ser["rozet"] == "Çevrimiçi · WiFi"
+               and (ser["etkin"] or "").strip() == "Canlı" and ser["rozet"] == "Kart bağlı · WiFi"
                and AD in ser["alt"] and ser["gorunur"] == "visible" and ser["ust"] == "none", json.dumps(ser, ensure_ascii=False))
             ok("[!] D1: alt bilgi = G satirinin `onaysiz`i (sahte kart binde 45 -> %4.5)",
                bekle_js(t, "document.querySelector('#serit .serit-alt').textContent.trim() === 'Eşitlenmemiş: %4.5'", 5) is True,
@@ -564,6 +564,49 @@ def main() -> int:
                "(kullanici: 'kimi cok buyuk kimi kucuk')",
                len(boylar) == 6 and all(boylar.values()) and len({tuple(v) for v in boylar.values()}) == 1,
                json.dumps(boylar))
+
+            # ── 2d. Kart kapali / erisilemiyor (2026-10-06): panel ayakta ama kartin KENDISI yok ──
+            KDUR = ("(() => { const r = document.querySelector('#serit [data-kart-durum]');"
+                   " const b = document.querySelector('[data-kart-yok]');"
+                   " return {rozet: r.textContent.trim(), sinif: r.className, uyari: b ? b.textContent.replace(/\\s+/g, ' ').trim() : null}; })()")
+            once = t.js(KDUR)
+            kart.duraklat = True
+            t0k = time.monotonic()
+            yok = bekle_js(t, f"(({KDUR}).uyari && ({KDUR}))", 9)
+            dt = time.monotonic() - t0k
+            ok("[!] KART-YOK: kart susunca (D satiri yok) <= ~6 s'de rozet 'Kart kapalı / ulaşılamıyor' (kirmizi) ve ekranda "
+               "uyari: neden + son veri zamani + ne yapilacagi (PİL anahtari, Wi-Fi, COM soketi)",
+               once["uyari"] is None and once["rozet"] == "Kart bağlı · WiFi" and bool(yok)
+               and yok["rozet"] == "Kart kapalı / ulaşılamıyor" and "yok" in yok["sinif"].split()
+               and "Kart kapalı ya da ulaşılamıyor." in yok["uyari"] and "Son veri" in yok["uyari"]
+               and "PİL anahtarı" in yok["uyari"] and "COM soketinde" in yok["uyari"] and 4.0 <= dt <= 7.5,
+               json.dumps({"once": once, "yok": yok, "dt": round(dt, 2)}, ensure_ascii=False))
+            # 502 komut hatasi: teknik govde yerine sade metin, ayrinti olaylarda
+            t.js("window.__fetch = window.fetch; window.fetch = async () => new Response("
+                 "'karta yazilamadi: WiFi (olcum.local): kart dogrulanmadi — komut GONDERILMEDI (kart erisilemiyor (x))',"
+                 " {status: 502});")
+            t.js(f"{UYG}.hata = ''; {UYG}.gonder('?')")
+            hk = bekle_js(t, f"{UYG}.hata", 3)
+            t.js("window.fetch = window.__fetch")
+            olay = t.js("[...document.querySelectorAll('[data-olaylar] .olay')].map(o => o.textContent.trim()).slice(0, 3)")
+            ok("KART-YOK: kart yokken komut hatasi SADE: 'komut gönderilmedi' (502 / getaddrinfo govdesi ekranda DEGIL; "
+               "ayrinti son olaylarda)",
+               hk == "Kart kapalı ya da ulaşılamıyor — komut gönderilmedi." and any("502" in o for o in (olay or [])),
+               json.dumps({"hata": hk, "olay": olay}, ensure_ascii=False)[:300])
+            kart.duraklat = False
+            geri = bekle_js(t, f"(!({KDUR}).uyari && ({KDUR}).rozet === 'Kart bağlı · WiFi' && {UYG}.hata === '')", 5)
+            ok("[!] KART-YOK: kart geri gelince (ilk D satiri) uyari ve komut hatasi kendiliginden KALKAR, rozet yesil",
+               geri is True, json.dumps(t.js(KDUR), ensure_ascii=False))
+            # koprunun "kart erisilemiyor" satiri 5 s beklemeden gosterir
+            kart.duraklat = True
+            kart.yay("! kopru: WiFi (olcum.local) — kart erisilemiyor (<urlopen error [Errno 11001] getaddrinfo failed>)")
+            t0k = time.monotonic()
+            hizli = bekle_js(t, f"!!({KDUR}).uyari", 4)
+            dt2 = time.monotonic() - t0k
+            kart.duraklat = False
+            bekle_js(t, f"!({KDUR}).uyari", 5)
+            ok("KART-YOK: kopru 'kart erisilemiyor' derse uyari 5 s susma esigini BEKLEMEDEN (< 3 s) cikar",
+               hizli is True and dt2 < 3.0, f"{dt2:.2f} s")
 
             # ── 3. kayit denetimi (D4) + aktif kayit (D6) ─────────────────
             n0 = len(kart.komutlar)

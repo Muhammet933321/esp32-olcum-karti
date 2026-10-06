@@ -242,6 +242,15 @@ body {
 }
 .rozet.acik { background: var(--iyi-zemin); color: var(--iyi); border-color: transparent; }
 .rozet.kapali { background: var(--zemin-2); color: var(--cok-soluk); }
+.rozet.bekle { background: color-mix(in srgb, var(--amper) 12%, transparent); color: var(--amper); border-color: transparent; }
+.rozet.yok { background: var(--uyari-zemin); color: var(--uyari); border-color: transparent; }
+.rozet-alt { flex-basis: 100%; font-size: 11px; color: var(--cok-soluk); }
+.kart-yok {
+  margin-bottom: 16px; padding: 12px 14px; border-radius: var(--yuvarlak-sm); font-size: 14px; line-height: 1.5;
+  background: var(--uyari-zemin); color: var(--uyari); border-left: 4px solid var(--uyari);
+}
+.kart-yok-ipucu { margin-top: 4px; color: var(--yazi); }
+.kart-yok-alt { margin-top: 2px; font-size: 12px; color: var(--soluk); }
 .nokta { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 /* Canlı akış: nokta yavaşça soluyor. Tek hareket bu — "veri geliyor"
    bilgisini metin tekrar etmeden veriyor. */
