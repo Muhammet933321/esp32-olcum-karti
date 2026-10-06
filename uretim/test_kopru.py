@@ -1137,6 +1137,42 @@ def pc_4b_sina(gec_dizin: Path) -> None:
        "olmazsa acik hata", p0_usb and p0_wifi and "p0" in iki_red and "ag yok" in iki_red,
        f"usb={p0_usb} wifi={p0_wifi} {iki_red!r}")
 
+    # 2026-10-06 (kullanici: "kablosuzda degerler 3-4 s gec geliyor"): WiFi seciliyken USB HER
+    # satirdan once yoklaniyordu. Gercek OtoSeriKart kart yokken zaman asimini UYUR (min(t, 0.2));
+    # 50 ms x her satir = saniyede en cok 20 satir. 50 ms yenileme 20 D/s + kayitta 1 G/s -> her
+    # saniye +50 ms birikir (kartta olculdu: 75 s'de 3.9 s), 20 ms yenilemede cok daha hizli.
+    class _UyuyanUsb(_SahteYukari):
+        takildi = False
+
+        def satir_oku(self, zaman_asimi=0.5):
+            if self.takildi:                             # OtoSeriKart gibi: kart ANCAK yoklamada bulunur
+                self.bagli = True
+                return super().satir_oku(zaman_asimi)
+            time.sleep(min(zaman_asimi, 0.2))            # OtoSeriKart: kart yokken bekler
+            return None
+    usb3, wifi3 = _UyuyanUsb("seri:COM9@115200"), _SahteYukari("wifi:olcum.local (cihaz 2)")
+    wifi3.satirlar = [f"D {i}" for i in range(400)]
+    k3 = KW.SecmeliKart(usb3, wifi3)
+    t0 = time.monotonic()
+    al3 = _sec_oku(k3, 400, sure=30.0)
+    hiz = len(al3) / max(1e-6, time.monotonic() - t0)
+    ok("4B: [!] WiFi seciliyken USB her satirda DEGIL, araliklarla yoklanir: kuyruktaki 400 satir "
+       "saniyede >= 200 hizla okunur (eskiden USB'nin 50 ms bekleyisi yuzunden 20/s; 50 ms yenilemede "
+       "kayit sirasinda gecikme surekli BUYUYORDU)",
+       al3 == [f"D {i}" for i in range(400)] and hiz >= 200, f"{len(al3)} satir, {hiz:.0f}/s")
+    usb3.satirlar = ["D usb"]
+    wifi3.satirlar = [f"W {i}" for i in range(3000)]    # WiFi'de hep satir var: yoklama yine de olmali
+    usb3.takildi = True
+    t0 = time.monotonic()
+    al4 = []
+    while time.monotonic() - t0 < 3.0 and "D usb" not in al4:
+        x = k3.satir_oku(0.05)
+        if x is not None:
+            al4.append(x)
+    ok("4B: WiFi akisi hic durmasa da USB araliklarla yoklanir: takilan kart <= 1 s icinde bulunur, "
+       "USB'ye gecilir", "D usb" in al4 and k3.etkin == "usb" and time.monotonic() - t0 <= 1.0,
+       f"{len(al4)} satir, {time.monotonic() - t0:.2f} s, {k3.etkin}")
+
     # Kopru + SecmeliKart: WiFi'den gelen satirlar tarayiciya USB'dekiyle AYNI bicimde; durum arsive girmez
     usb2, wifi2 = _SahteYukari("seri:COM9@115200"), _SahteYukari("wifi:olcum.local (cihaz 2)")
     wifi2.satirlar = list(ORNEK)

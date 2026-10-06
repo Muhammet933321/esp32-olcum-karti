@@ -6254,6 +6254,12 @@ MUTASYONLAR = [
      "4B: parola surecin ortaminda kalir (alt surece gecer): W10 kirmizi"),
     # SecmeliKart + pc.py (B22a)
     ("B22a", "test_kopru.py", "kopru/kart_wifi.py",
+     "        if simdi >= self._usb_yokla_t:", "        if True:",
+     "4B: GECIKME — WiFi'de USB her satirdan once yoklanirsa saniyede 20 satir; canli degerler birikir"),
+    ("B22a", "test_kopru.py", "kopru/kart_wifi.py",
+     "            self._usb_yokla_t = simdi + self.USB_YOKLA_ARALIK_SN", "            self._usb_yokla_t = simdi + 30.0",
+     "4B: GECIKME — USB yoklamasi seyrekligi asiri: WiFi akisi surerken takilan kart bulunmaz"),
+    ("B22a", "test_kopru.py", "kopru/kart_wifi.py",
      '        return bool(getattr(self.usb, "bagli", False))', "        return False",
      "4B: USB'de dogrulanmis kart varken de WiFi kullanilir (USB onceligi yok, PC6)"),
     ("B22a", "test_kopru.py", "kopru/kart_wifi.py",
