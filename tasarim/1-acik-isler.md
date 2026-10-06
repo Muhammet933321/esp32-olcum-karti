@@ -223,3 +223,39 @@ Açılış kümeleri sözlük eklemeleriyle sınıra dayanmıştı (`#/skop` 250
 | W3-2 | `os.` / `pl.` metinleri hâlâ açılışta (~2.6 + 3.3 KB gzip) | Bilerek: iki ekran kabuğun parçası, modül inmeden çizilir (PU1: DURDUR modülü beklemez). Ayırmak için görünüm değişiminde sözlük yükleyip yeniden çizdiren reaktif bir yol gerekir; `#/skop`'u küçültmez. Gerekirse yalnız `pl.`'nin DURDUR/okuma dışı kısmı ayrılabilir |
 | W3-3 | Eşleşmiş açılışın EU31 istisnası: bayt artık 3D sınırının altında (250 456 < 256 000) ama dosya sayısı 15 > 12 | Açık (D): dosya sayısı imza/kripto birleşmesi ister; EU31 tavanı (262 144 B) bilerek değiştirilmedi — kullanıcı kararıydı. İstenirse tavan 256 000'e çekilebilir |
 | W3-4 | Ayarlar modülü kartta artık iki dosya indirir (ayarlar.js + sozluk_ay.js, 4.6 KB) | Kabul (AY2 güncellendi): her açılışta −9.5 KB'a karşı yalnız Ayarlar'ın modül bölümleri ilk açılınca +1 istek |
+
+## Kutuda ilk kalibrasyon (12.x, 2026-10-05) — firmware'e dönenler
+
+Kart kutuda, gerçek yük ve gerçek ön uçla ilk kez kalibre edilirken bulundu (firmware `A3-W2`).
+
+- **K1 · Hızlı yol ve skop Vref'i NOMİNAL varsayıyor.** `hizli_olcekle()` ve `SKOP_VOLT_OFSET`
+  `VREF_NOMINAL` (1.7153 V) kullanıyor; bu kartta gerçek Vref **1.771 V** (R8/H9). Sonuç: hızlı akım
+  yolunda **+3.34 A** sabit ofset (`(1.771−1.7153)/4.7/0.003563`, `w` çıktısı I_ort 4.29 A, gerçek 0.95 A
+  — sayı birebir tutuyor) ve skopta **~+2 V** DC kayma (×SKOP_ORAN−1). ADS yolları etkilenmiyor (sıfır
+  kalibrasyonu yutuyor). Öneri: Vref'i ADS ile ÖLÇ (U7 A1/A3 = VREF_ADS, R36 1 kΩ) ya da `w`/skop için
+  sıfır kalibrasyon komutu; NVS'e yaz. Kapı 7 (12.6, PF) bu düzelmeden anlamlı geçmez.
+- **K2 · `sebeke_hz` varsayılanı 50 Hz → DC güç ×1.82.** `tipler3.h` `a->sebeke_hz = 50.0f`; DC yükte
+  `D` satırı W'si V·I'nın 1.82 katı (6.34 W, gerçek 3.48 W). Kullanıcı yalnız DC ölçüyor (şebeke yok);
+  kartta `f0` verildi. Varsayılan 0 olmalı ya da arayüz bunu açıkça göstermeli.
+- **K3 · Skop M satırı gürültüye dayanıksız.** ESP32 ADC σ≈11 kod + tekil ±60–150 kod sıçramalar; M satırı
+  min/max ve histerezissiz kenar sayımı kullandığı için aynı 1 kHz CAL verisinde f 313…1143 Hz, Vpp 8.5–11.7 V
+  (gerçek ~2.5 V). Ham veri temiz (tam 20 örnek periyot). Yüzdelik seviye + histerezis gerekir.
+- **K4 · Akım ADS'i RDY çipten çipe değişiyor.** Üç modülden biri kusurluydu (±0.256'da ¼ okuyor), biri RDY
+  üretmiyor (ALRT sağlam, `baslangic=YUKSEK`). RDY'siz döngü ~160/s'e düşüyor; şimdi RDY'li modül U6'da.
+- **K5 · HV kazancı kalibre edilmedi** (≥31 V kaynak yok; 24 V'ta −%2.5). İki yalıtılmış kaynak seri ile `y`+`g`.
+- **K6 · Vref tamponu (U3A) çıkışı girişten ~37 mV farklı** — iki LM358'de aynı, besleme doğru; kök neden
+  açık (C2/C3 100 nF doğrudan çıkışta → salınım şüphesi, osiloskopsuz kanıtlanmadı). K1'i büyütüyor.
+- **K7 · Pil testi kesmesi TEK örneğe bakıyor.** `pil_kesmeli_mi(o.volt, …)` her örnekte `v <= kesme_v`.
+  12.7'de buck elle kısılırken 200 ms ortalamaları 3.65 V'tayken (kesme 3.50) test kesildi — muhtemelen
+  potun anlık sıçraması tek bir örneği eşiğin altına düşürdü. Gerçek pilde nadir ama tek bir bozuk örnek
+  (I²C, menzil geçişi) testi erken bitirir. Öneri: N ardışık örnek ya da süzülmüş gerilim (ör. 100 ms).
+- **K8 · Pil testi durumu canlı akışta yok.** Android'de DURDUR şeridi artık yalnız pil testi sürerken (ya da durum
+  bilinmezken) görünüyor (kullanıcı kararı 2026-10-05). Oturum açmayan bir pil testi PC'den başlatılırsa telefon bunu
+  `/pil` yoklamasıyla en geç 30 s sonra fark ediyor. Tam çözüm: pil durumunu (çalışıyor/bitti) canlı akış satırına koymak.
+- **K9 · "Yalnız USB, PİL kapalı" kipi geçerli bir ölçüm kipi değil ama kart ölçüyor gibi görünüyor.** PİL kapalıyken
+  kart USB'den besleniyor (analog taraf devkit'in 5V'u üzerinden); V jakı boşken okuma ~11 V (PİL açıkken ~1.7 V = Vref).
+  Arayüz bu kipi bilmiyor ve sayıları normalmiş gibi gösteriyor. Firmware 5V barası/±12 V'u ölçebiliyorsa "analog besleme
+  yetersiz" uyarısı vermeli.
+- **K10 · Yerel yoklama ucu imzasız (Android K-9).** Yerel ağdaki biri kart kimliğini taklit ederek telefona
+  "karttan haber yok" yerine "ev interneti koptu, kart çalışıyor" yazdırabilir (etkisi yalnız bildirim metni).
+  Kapatmak için yerel yoklamanın imzalı bir uca (ya da imzalı yanıta) dönmesi gerekir.

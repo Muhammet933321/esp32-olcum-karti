@@ -1798,11 +1798,15 @@ ADIMLAR = [
                  "Ya da ≥2.6 A yoluyla 5 mΩ takılıyken doğrudan <code>i</code> ver: o zaman şöntün gerçek değeri "
                  "kazanca girer, <code>s</code>'ye dokunma."]},
         {"no": "12.3", "baslik": "Kapı 4 — NORMAL gerilim", "tur": "kapi", "kapi": [4],
-         "yap": ["<code>n</code>; V boşta <code>z</code>; bilinen gerilimi (tezgah beslemesi 5–12 V — kutunun "
+         "yap": ["<code>n</code>; <b>V jakını kısa bir kabloyla COM'a bağla</b> (gerçek 0 V) ve <code>z</code>, "
+                 "sonra kabloyu çıkar. ⚠ Boştaki V jakında <code>z</code> verme: giriş havada kalır ve okuma "
+                 "Vref civarına (~1.5 V) oturur; sıfır o noktaya kurulursa bütün okumalar o kadar kayar "
+                 "(2026-10-04 kartta: boşta 1.456 V, kısa devrede −0.23 V). Bilinen gerilimi (tezgah beslemesi 5–12 V — kutunun "
                  "kendi pili DEĞİL, 12.2 kuralı) V–COM'a ver, multimetreyle kıyasla, "
                  "<code>g&lt;ölçülen&gt;</code>; ters bağla: işaret değişmeli."]},
         {"no": "12.4", "baslik": "Kapı 5 — YÜKSEK gerilim", "tur": "kapi", "kapi": [5],
-         "yap": ["<code>y</code>; önce 12 V (tezgah beslemesi), sonra 24 V (WCT'nin kendi çıkışı). Kutu "
+         "yap": ["<code>y</code>; önce <b>HV jakını kısa bir kabloyla COM'a bağla</b>, <code>z</code>, kabloyu "
+                 "çıkar (12.3'teki gibi; boştayken sıfırlama yapma). Sonra 12 V (tezgah beslemesi), sonra 24 V (WCT'nin kendi çıkışı). Kutu "
                  "B58'den beri yalnız kendi pilinden çalışıyor: WCT kutuya bağlı değil, burada serbestçe "
                  "test kaynağı olur. (Eski düzende WCT kutuyu beslerdi ve eksisi −12 rayıydı — o kural kalktı.)",
                  "Kazanç kalibrasyonu ≥31 V ister: iki <b>yalıtılmış</b> kaynağı seri bağla (varsa) ya da HV "
@@ -1810,8 +1814,9 @@ ADIMLAR = [
         {"no": "12.5", "baslik": "Kapı 6 — osiloskop", "tur": "kapi", "kapi": [6],
          "yap": ["Sinyal kaynağı: kartın CAL çıkışı — seri konsolda <code>X&lt;hz&gt;</code> "
                  "ile aç, <code>x</code> ile kapat; panelde <b>CAL jakı → SKOP jakı</b> kısa kablo (COM zaten "
-                 "ortak). <code>t</code> komutlarıyla yakala; kare dalga ve frekans görünmeli (genlik ≈3.3 V, "
-                 "1 kΩ seri ile ≤ %1 düşük)."]},
+                 "ortak). <code>t</code> komutlarıyla yakala; kare dalga ve frekans görünmeli. Genlik 3.3 V DEĞİL "
+                 "≈2.7 V görünür: CAL'in 22 kΩ seri direnci ile skop girişinin ~103 kΩ'u (R20 100 kΩ + R23 2.7 kΩ) "
+                 "bölücü kurar, 103/125 ≈ %82 (eski '1 kΩ seri, ≤ %1' notu B55g'de 22 kΩ'a geçilince eskidi)."]},
         {"no": "12.6", "baslik": "Kapı 7 — hızlı akım yolu", "tur": "kapi", "kapi": [7],
          "yap": ["Dirençsel yük (tezgah beslemesi + 3.3 Ω, 12.2 kuralı) YÜK'ten; <code>w</code> → PF ≈ 1."]},
         {"no": "12.7", "baslik": "Kapı 8 — pil testi", "tur": "kapi", "kapi": [8],
@@ -1878,10 +1883,10 @@ ADIMLAR = [
                  "USB yuvasının yanına: ⚠ HV varken USB'yi çıkar.",
                  "Kabloları kablo bağıyla topla; HV kablosu tek başına ve diğerlerinden "
                  "≥ 20 mm.",
-                 "<b>Kutu prensibi:</b> kutunun kendi parçaları yapıştırılır; içine giren "
-                 "hiçbir parça yapıştırılmaz — <b>tek istisna 18650 yuvaları</b> (sıcak silikon). "
-                 "Başka kaba geçerken vidaları ve kablo bağlarını sök, konnektörleri ayır, yuvaları "
-                 "ısı tabancasıyla ısıtıp kaldır."],
+                 "<b>Kutu prensibi:</b> değerli parçalar (kartlar, ESP32, şönt, Q1) yapıştırılmaz; "
+                 "18650 yuvaları, modüller (MT1, MT2, B0505S), 680 µF, KL ve sigorta şeritleri sıcak "
+                 "silikonla tutuyor. Başka kaba geçerken vidaları ve kablo bağlarını sök, konnektörleri "
+                 "ayır; silikonlu parçaları izopropil alkol damlatıp plastik kartla kaldır."],
          "kontrol": ["Kutuyu salla: içeride oynayan bir şey yok.",
                      "Kapak henüz açık: içeride unutulan alet, tel kırpıntısı, vida yok."]},
         {"no": "14.2", "baslik": "Kapağı tak ve cıvatala", "tur": "taban", "kapak": True, "kapanis": True,
