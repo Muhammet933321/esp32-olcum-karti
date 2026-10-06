@@ -98,6 +98,7 @@
 #include "bildirim_esp.h"  // 1E — MQTT bildirimleri (Serial KULLANMAZ)
 #include <mbedtls/platform.h>    // E6F — mbedtls_platform_set_calloc_free
 #include "esp_memory_utils.h"    // E6F — esp_ptr_external_ram (acilis satiri)
+#include "ag_komut.h"     // coklu ag (2026-10-06) — N komutlarinin cekirdek 1 yazicilari
 
 // 🔴 B22.4 — `Serial` AYNASI. BUTUN #include'lardan SONRA gelmeli.
 //
@@ -5429,6 +5430,10 @@ void komut_calistir(const char *s) {
      *   Na<ssid>    ev agi adi        Np<parola>  ev agi parolasi
      *   NA<parola>  AP parolasi (>=8) Ns<parola>  web parolasi
      *   N1 / N0     agi ac / kapat
+     * COKLU AG (2026-10-06, tasarim/2026-10-06-coklu-ag.md):
+     *   Nl  kayitli aglar (NL satirlari)   Nt  tara (NT satirlari, ag gorevi)
+     *   Na<ad> listeye ekle/sec (8)        Np<parola> son Na'nin parolasi
+     *   Nx<i> sil   No<i> oncelik ac/kapa   Ng<i> bu aga gec (20 s'de olmazsa geri)
      *
      * ⚠ Hepsi NVS'te AYRI ad alaninda ("olcumag"). `Ayar3` BUYUMUYOR,
      *   yani AYAR3_IMZA bumplanmiyor, yani KALIBRASYON SIFIRLANMIYOR.
@@ -5446,8 +5451,13 @@ void komut_calistir(const char *s) {
         Serial.print(F("  IP="));        Serial.print(ag_durum.ip);
         Serial.print(F("  mDNS="));
         Serial.println(ag_durum.mdns ? F(AG_MDNS ".local") : F("yok"));
-        Serial.print(F("* ev agi: "));
-        Serial.print(ag_nvs.getString("wifi_ad", "(kurulmadi)"));
+        Serial.print(F("* kayitli aglar: "));
+        {
+          AglKayit k[AGL_AZAMI];
+          ag__liste_oku(k);
+          Serial.print(agl_adet(k)); Serial.print(F("/")); Serial.print(AGL_AZAMI);
+          Serial.print(F(" (Nl ile listele)"));
+        }
         /* 1D + D0: AP parolasi YALNIZ ham UART'a — Serial aynasi her satiri /akis
            SSE'sine tasiyor, parola aga cikiyordu (spec O5, B72.D0) */
         Serial.println();
@@ -5457,10 +5467,65 @@ void komut_calistir(const char *s) {
                        ? F("KURULU") : F("YOK — komut ucu parolasiz"));
         break;
       }
-      if (alt == 'a') { ag_nvs.putString("wifi_ad", deg);
-                        Serial.print(F("* ev agi adi: ")); Serial.println(deg); }
-      else if (alt == 'p') { ag_nvs.putString("wifi_sifre", deg);
-                        Serial.println(F("* ev agi parolasi kaydedildi")); }
+      if (alt == 'l') { ag_liste_bas(); break; }
+      if (alt == 't') { ag_istek_tara = 1; Serial.println(F("* ag: taraniyor (~3 s)")); break; }
+      if (alt == 'a') {                                   /* CA12: ekle / guncelle / sec */
+        AglKayit k[AGL_AZAMI];
+        ag__liste_oku(k);
+        if (!agl_ad_gecerli(deg)) { Serial.println(F("! Na: ag adi 1..32 karakter")); break; }
+        const int8_t yeni = agl_bul(k, deg) < 0;
+        const int8_t i = agl_ekle(k, deg);
+        if (i < 0) { Serial.println(F("! Na: liste DOLU (8) — once Nx<no> ile birini silin")); break; }
+        char h[4];
+        if (yeni) {                                       /* yeni kayit: parola bos (acik ag), oncelik 0 */
+          ag__anahtar(h, (uint8_t)i, 'p'); ag_nvs.putString(h, "");
+          ag__anahtar(h, (uint8_t)i, 'o'); ag_nvs.putUChar(h, 0);
+        }
+        ag__anahtar(h, (uint8_t)i, 'a'); ag_nvs.putString(h, deg);   /* ad EN SON: yarim kayit dolu sayilmaz */
+        ag_secili = i;
+        Serial.print(F("* ag listesi: ")); Serial.print(i); Serial.print(' '); Serial.print(deg);
+        Serial.println(yeni ? F(" eklendi — parola icin Np<parola>") : F(" secildi"));
+        break;
+      }
+      if (alt == 'p') {
+        if (!agl_parola_gecerli(deg)) { Serial.println(F("! Np: parola bos ya da 8..63 karakter")); break; }
+        AglKayit k[AGL_AZAMI];
+        ag__liste_oku(k);
+        const int8_t i = (ag_secili >= 0 && k[ag_secili].dolu) ? ag_secili : agl_ilk(k, -1);
+        if (i < 0) { Serial.println(F("! Np: once Na<ag adi>")); break; }
+        char h[4];
+        ag__anahtar(h, (uint8_t)i, 'p'); ag_nvs.putString(h, deg);
+        Serial.print(F("* ag listesi: ")); Serial.print(i); Serial.print(' '); Serial.print(k[i].ad);
+        Serial.println(F(" parolasi kaydedildi"));
+        break;
+      }
+      if (alt == 'x' || alt == 'o' || alt == 'g') {
+        AglKayit k[AGL_AZAMI];
+        ag__liste_oku(k);
+        const int no = (deg[0] >= '0' && deg[0] <= '9' && deg[1] == 0) ? deg[0] - '0' : -1;
+        if (no < 0 || no >= (int)AGL_AZAMI || !k[no].dolu) {
+          Serial.println(F("! N: gecersiz kayit no — Nl ile listeleyin")); break;
+        }
+        char h[4];
+        if (alt == 'x') {                                 /* CA11: bagli ag silinse de baglanti surer */
+          const AglKayit eski = k[no];
+          (void)agl_sil(k, (int8_t)no);
+          ag__anahtar(h, (uint8_t)no, 'a'); ag_nvs.remove(h);
+          ag__anahtar(h, (uint8_t)no, 'p'); ag_nvs.remove(h);
+          ag__anahtar(h, (uint8_t)no, 'o'); ag_nvs.remove(h);
+          if (ag_secili == no) ag_secili = -1;
+          Serial.print(F("* ag listesi: ")); Serial.print(no); Serial.print(' '); Serial.print(eski.ad);
+          Serial.println(F(" silindi"));
+        } else if (alt == 'o') {
+          ag__anahtar(h, (uint8_t)no, 'o'); ag_nvs.putUChar(h, k[no].oncelik ? 0 : 1);
+          Serial.print(F("* ag listesi: ")); Serial.print(no); Serial.print(' '); Serial.print(k[no].ad);
+          Serial.println(k[no].oncelik ? F(" oncelik 0") : F(" oncelik 1"));
+        } else {
+          ag_istek_gecis = (int8_t)no;                    /* CA7: ag gorevi tarar, gorunuyorsa gecer */
+          Serial.print(F("* ag: ")); Serial.print(k[no].ad); Serial.println(F(" araniyor"));
+        }
+        break;
+      }
       else if (alt == 'A') {
         if (strlen(deg) < 8) { Serial.println(F("! NA: WPA2 en az 8 karakter ister")); break; }
         ag_nvs.putString("ap_sifre", deg);
@@ -5484,7 +5549,7 @@ void komut_calistir(const char *s) {
         ag_nvs.putUChar("acik", alt == '1');
         Serial.println(alt == '1' ? F("* ag ACIK") : F("* ag KAPALI"));
       }
-      else { Serial.println(F("! N: N? Na<ssid> Np<parola> NA<ap> Ns<web> N1 N0")); break; }
+      else { Serial.println(F("! N: N? Nl Nt Na<ad> Np<parola> Nx<no> No<no> Ng<no> NA<ap> Ns<web> N1 N0")); break; }
       Serial.println(F("  (bir sonraki acilista gecerli)"));
       break;
     }
@@ -5572,6 +5637,7 @@ void komut_isle() {
 // Cekirdek 1 basar (Serial aynasinin tek yazari, B28).
 // AGD: kip her degistiginde (acilista AP, ev agi donunce STA) yeniden — `ag_hazir` surum.
 static uint8_t ag_satiri_basildi = 0;
+
 static void ag_satiri_bas() {
   ag_satiri_basildi = ag_hazir;
   Serial.print(F("Ag: "));
@@ -5938,6 +6004,7 @@ void loop() {
      bu donguyu bloklamiyor. Komutlar yine BURADA calisiyor: tek yazar
      disiplini korunuyor (kalibrasyon, NVS, skop hep cekirdek 1'de). */
   if (ag_hazir != ag_satiri_basildi) ag_satiri_bas();   // 1E-2 + AGD: kip degisti (STA sonucu, AP -> STA)
+  ag_sonuclari_bas();        // coklu ag: tarama listesi / gecis mesaji (ag gorevi yazdi)
   komut_isle();              // seri porttan gelen komutlar
   komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
   skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu

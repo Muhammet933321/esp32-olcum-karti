@@ -1147,8 +1147,8 @@
     <h2>Ağ — kartı kablosuz yapma</h2>
 
     <p class="ipucu">
-      <strong>Sıra:</strong> kartı <em>USB ile</em> bağlayın, ağ bilgilerini
-      buradan girin, kartı yeniden başlatın. Kart önce ev ağına bağlanmayı
+      <strong>Sıra:</strong> kartı <em>USB ile</em> bağlayın, ağı aşağıdan
+      listeye ekleyin (en çok 8). Kart açılışta kayıtlı ağlardan birine bağlanmayı
       dener; 10 saniyede olmazsa <strong>kendi ağını kurar</strong>
       (<code>OLCUM-KARTI-XXXX</code>). AP parolası ilk açılışta rastgele
       üretilip <strong>seri konsola yazılır</strong> — oradan okuyun.
@@ -1159,19 +1159,61 @@
       tercihen <b>USB ile</b> yapın.
     </p>
 
+
+    <!-- coklu ag (2026-10-06, tasarim/2026-10-06-coklu-ag.md): kayitli aglar + tarama + gecis -->
+    <h3 style="margin-top:14px">{{ ay.agKayitli }}</h3>
+    <p class="ipucu">{{ ay.agKural }}</p>
+    <div class="satir" style="margin-top:8px">
+      <button data-ag-yenile @click="agListeIste" :disabled="!bagli">{{ ay.agYenile }}</button>
+      <button data-ag-tara @click="agTara" :disabled="!bagli || agTaraniyor">{{ agTaraniyor ? ay.agTaraniyor : ay.agTara }}</button>
+    </div>
+    <ul v-if="agListe.length" class="ag-liste" data-ag-liste>
+      <li v-for="a in agListe" :key="a.no" :data-ag-no="a.no">
+        <span class="ag-ad">{{ a.ad }}</span>
+        <span v-if="a.bagli" class="rozet acik" data-ag-bagli>{{ ay.agBagli }}</span>
+        <span v-if="a.oncelik" class="etiket" data-ag-oncelikli>{{ ay.agOncelikli }}</span>
+        <span class="bosluk"></span>
+        <template v-if="!a.bagli">
+          <button v-if="onay !== 'agGec' + a.no" :data-onay-ac="'agGec' + a.no" @click="onayIste('agGec' + a.no)"
+                  :disabled="!bagli">{{ ay.agGec }}</button>
+          <template v-else>
+            <button class="birincil" :data-onay="'agGec' + a.no" @click="agGec(a.no)" :disabled="!bagli">{{ ay.agGecEmin }}</button>
+            <button @click="onayVazgec('agGec' + a.no)">{{ ay.agVazgec }}</button>
+          </template>
+        </template>
+        <button :data-ag-oncelik="a.no" @click="agOncelik(a.no)" :disabled="!bagli">{{ a.oncelik ? ay.agOncelikKaldir : ay.agOncelikYap }}</button>
+        <button v-if="onay !== 'agSil' + a.no" :data-onay-ac="'agSil' + a.no" @click="onayIste('agSil' + a.no)"
+                :disabled="!bagli">{{ ay.agSil }}</button>
+        <template v-else>
+          <button class="tehlike" :data-onay="'agSil' + a.no" @click="agSil(a.no)" :disabled="!bagli">{{ ay.agSilEmin }}</button>
+          <button @click="onayVazgec('agSil' + a.no)">{{ ay.agVazgec }}</button>
+        </template>
+      </li>
+    </ul>
+    <p v-else class="ipucu" data-ag-liste-yok>{{ ay.agListeYok }}</p>
+    <p class="ipucu">{{ ay.agGecIpucu }}</p>
+    <div v-if="agTarama.length" data-ag-tarama style="margin-top:8px">
+      <p class="ipucu">{{ ay.agGorunen }}</p>
+      <div class="ag-tarama">
+        <button v-for="g in agTarama" :key="g.ad" type="button" :data-ag-gorunen="g.ad" @click="agSsid = g.ad">
+          {{ g.ad }} <span class="mono">{{ g.rssi + ' dBm' }}</span><span v-if="g.kayitli" :title="ay.agKayitli"> ✓</span>
+        </button>
+      </div>
+    </div>
+
     <div class="satir" style="margin-top:12px">
       <div class="alan">
         <!-- WIG: SSID birebir eşleşmeli (büyük/küçük harf, sondaki boşluk): telefon
              klavyesinin otomatik büyük harfi / düzeltmesi KAPALI. -->
-        <label for="ayar-ssid">Ev ağı adı (SSID)</label>
+        <label for="ayar-ssid">Eklenecek ağın adı (SSID)</label>
         <input id="ayar-ssid" type="text" name="ssid" autocomplete="off" autocapitalize="off"
                autocorrect="off" spellcheck="false" v-model="agSsid" @keyup.enter="agSsidGonder">
       </div>
-      <button @click="agSsidGonder" :disabled="!bagli || !agSsid">Ağ adını yaz</button>
+      <button @click="agSsidGonder" :disabled="!bagli || !agSsid">Listeye ekle</button>
       <div class="alan">
         <!-- WIG: new-password — parola yöneticisi bunu giriş formu sanıp kart kökeninin
              kayıtlı parolasını doldurmasın. Boş parola GİTMEZ (kart ev ağına bağlanamazdı). -->
-        <label for="ayar-wifi-parola">Ev ağı parolası</label>
+        <label for="ayar-wifi-parola">Bu ağın parolası</label>
         <input id="ayar-wifi-parola" type="password" name="wifi-parola" autocomplete="new-password"
                v-model="agSifre" @keyup.enter="agSifreGonder">
       </div>
@@ -1209,7 +1251,7 @@
     </div>
 
     <p class="ipucu">
-      Değişiklikler <strong>bir sonraki açılışta</strong> geçerli. Ağ
+      Listeye eklenen ağ <strong>bir sonraki bağlantı denemesinde</strong> geçerli; “Bu ağa geç” hemen. Ağ
       ayarları kalibrasyondan <em>ayrı</em> saklanıyor — WiFi parolası
       değiştirmek kalibrasyonu silmez.
     </p>

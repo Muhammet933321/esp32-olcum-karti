@@ -19,8 +19,14 @@
                              (AP'deki telefon istek ortasinda
                              kesilmesin), sonra kapanir              AGK_STA_PAY
          pay doldu        -> AP kapat, STA, bitti                    AGK_STA
-     AGK_STA'dan sonra kopma -> KARAR YOK: surucu doner (5.12.106).
-       AGK_STA_PAY'de kopma da ayni: STA'ya bir kez baglanan kart STA'da kalir.
+     AGK_STA'dan sonra KISA kopma -> karar yok: surucu doner (5.12.106, 7-14 s).
+     COKLU AG (2026-10-06, CA6): STA'da AG_STA_KOPUK_MS (90 s) kesik -> AP kur + yeniden
+       dene (AGK_AP_DENE): kart acikken baska yere tasininca eski agi sonsuza dek beklemez;
+       yapistirici her denemede tarayip baska kayitli agi da dener.
+     GECIS (CA7, `Ng`): yalniz AGK_STA'dan. agk_gecis -> AGK_GECIS (yapistirici yeni aga
+       begin); AG_GECIS_MS'de baglanirsa STA, olmazsa AGE_GERI (onceki aga begin) ->
+       AGK_GERI; o da AG_GECIS_MS'de olmazsa AP + yeniden deneme. `bagli` GECIS/GERI'de
+       yapistiricinin "HEDEF aga bagli" bilgisidir (eski baglanti sayilmaz).
 
    Iliski kuruldu ama IP yok (DHCP surerken) yeniden denenmez: Arduino
    `STA.connect()` bagliyken once KOPARIR, deneme DHCP'yi keserdi.
@@ -34,14 +40,16 @@
 
 #include <stdint.h>
 
-#if !defined(AG_STA_BEKLE_MS) || !defined(AG_STA_YENIDEN_MS) || !defined(AG_AP_PAY_MS)
-#error "ag_karar.h: AG_STA_BEKLE_MS / AG_STA_YENIDEN_MS / AG_AP_PAY_MS once tanimlanmali (ag.h)"
+#if !defined(AG_STA_BEKLE_MS) || !defined(AG_STA_YENIDEN_MS) || !defined(AG_AP_PAY_MS)     || !defined(AG_STA_KOPUK_MS) || !defined(AG_GECIS_MS)
+#error "ag_karar.h: AG_STA_BEKLE_MS / AG_STA_YENIDEN_MS / AG_AP_PAY_MS / AG_STA_KOPUK_MS / AG_GECIS_MS once tanimlanmali (ag.h)"
 #endif
 
 /* evre — 0 = sifir ilklenmis durum (WiFi N0, gorev yok): HIC karar yok */
-enum { AGK_YOK = 0, AGK_BEKLE = 1, AGK_AP_DENE = 2, AGK_STA_PAY = 3, AGK_STA = 4, AGK_AP = 5 };
+enum { AGK_YOK = 0, AGK_BEKLE = 1, AGK_AP_DENE = 2, AGK_STA_PAY = 3, AGK_STA = 4, AGK_AP = 5,
+       AGK_GECIS = 6, AGK_GERI = 7 };
 /* eylem — yapistirici bunu uygular */
-enum { AGE_YOK = 0, AGE_AP_KUR = 1, AGE_STA_DENE = 2, AGE_STA_OLDU = 3, AGE_AP_KAPAT = 4 };
+enum { AGE_YOK = 0, AGE_AP_KUR = 1, AGE_STA_DENE = 2, AGE_STA_OLDU = 3, AGE_AP_KAPAT = 4,
+       AGE_GERI = 5 };
 
 typedef struct {
     uint32_t t;        /* evrenin referans ani (ms): acilis / son deneme / baglanti */
@@ -57,7 +65,18 @@ static void agk_kur(AgKarar *k, uint8_t kimlik_var, uint32_t simdi_ms)
 /* adim gerekiyor mu — degilse yapistirici surucuyu hic sorgulamaz */
 static uint8_t agk_etkin(const AgKarar *k)
 {
-    return k->evre == AGK_BEKLE || k->evre == AGK_AP_DENE || k->evre == AGK_STA_PAY;
+    return k->evre == AGK_BEKLE || k->evre == AGK_AP_DENE || k->evre == AGK_STA_PAY
+        || k->evre == AGK_STA || k->evre == AGK_GECIS || k->evre == AGK_GERI;
+}
+
+/* CA7: "bu aga gec" — yalniz STA'dayken (AP'deyken yapistirici sonraki denemeyi o aga yonlendirir).
+   Donus 1: gecis basladi (yapistirici yeni aga begin etmeli). */
+static uint8_t agk_gecis(AgKarar *k, uint32_t simdi_ms)
+{
+    if (k->evre != AGK_STA) return 0;
+    k->evre = AGK_GECIS;
+    k->t = simdi_ms;
+    return 1;
 }
 
 /* bagli: STA'nin IP'si var (WL_CONNECTED). iliskili: STA erisim noktasina iliskili
@@ -67,7 +86,7 @@ static uint8_t agk_adim(AgKarar *k, uint32_t simdi_ms, uint8_t bagli, uint8_t il
     const uint32_t gecen = simdi_ms - k->t;
     switch (k->evre) {
     case AGK_BEKLE:
-        if (bagli) { k->evre = AGK_STA; return AGE_STA_OLDU; }
+        if (bagli) { k->evre = AGK_STA; k->t = simdi_ms; return AGE_STA_OLDU; }
         if (gecen >= AG_STA_BEKLE_MS) { k->evre = AGK_AP_DENE; k->t = simdi_ms; return AGE_AP_KUR; }
         return AGE_YOK;
     case AGK_AP_DENE:
@@ -75,7 +94,19 @@ static uint8_t agk_adim(AgKarar *k, uint32_t simdi_ms, uint8_t bagli, uint8_t il
         if (!iliskili && gecen >= AG_STA_YENIDEN_MS) { k->t = simdi_ms; return AGE_STA_DENE; }
         return AGE_YOK;
     case AGK_STA_PAY:
-        if (gecen >= AG_AP_PAY_MS) { k->evre = AGK_STA; return AGE_AP_KAPAT; }
+        if (gecen >= AG_AP_PAY_MS) { k->evre = AGK_STA; k->t = simdi_ms; return AGE_AP_KAPAT; }
+        return AGE_YOK;
+    case AGK_STA:                               /* CA6: t = son BAGLI an */
+        if (bagli) { k->t = simdi_ms; return AGE_YOK; }
+        if (gecen >= AG_STA_KOPUK_MS) { k->evre = AGK_AP_DENE; k->t = simdi_ms; return AGE_AP_KUR; }
+        return AGE_YOK;
+    case AGK_GECIS:                             /* CA7: hedef aga AG_GECIS_MS */
+        if (bagli) { k->evre = AGK_STA; k->t = simdi_ms; return AGE_STA_OLDU; }
+        if (gecen >= AG_GECIS_MS) { k->evre = AGK_GERI; k->t = simdi_ms; return AGE_GERI; }
+        return AGE_YOK;
+    case AGK_GERI:                              /* onceki aga AG_GECIS_MS; olmazsa AP + deneme */
+        if (bagli) { k->evre = AGK_STA; k->t = simdi_ms; return AGE_STA_OLDU; }
+        if (gecen >= AG_GECIS_MS) { k->evre = AGK_AP_DENE; k->t = simdi_ms; return AGE_AP_KUR; }
         return AGE_YOK;
     default:
         return AGE_YOK;

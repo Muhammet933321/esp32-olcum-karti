@@ -259,3 +259,21 @@ Kart kutuda, gerçek yük ve gerçek ön uçla ilk kez kalibre edilirken bulundu
 - **K10 · Yerel yoklama ucu imzasız (Android K-9).** Yerel ağdaki biri kart kimliğini taklit ederek telefona
   "karttan haber yok" yerine "ev interneti koptu, kart çalışıyor" yazdırabilir (etkisi yalnız bildirim metni).
   Kapatmak için yerel yoklamanın imzalı bir uca (ya da imzalı yanıta) dönmesi gerekir.
+
+## Çoklu Wi-Fi ağı (A3-CA, 2026-10-07) — kalanlar
+
+Tasarım `tasarim/2026-10-06-coklu-ag.md`, DEVIR 5.12.110. Kartta geçiş, geri dönüş, taşıma, tarama
+ölçüldü.
+
+- **CA-1 · Uzun kopma (CA6) kartta ölçülmedi.** Kart hotspot'tayken hotspot kapatılınca 90 s sonra kendi
+  ağı + diğer kayıtlı ağa dönüş — tezgah kalemi (B22b). Emülatörde (5m) sınanıyor.
+- **CA-2 · Açılışta iki ağ görünürken seçim** kartta ölçülmedi (tezgah kalemi): en son bağlanılan
+  bağlanırsa kalır; o yoksa tarama diğerini seçer.
+- **CA-3 · Android uygulaması** `N` komutlarını / Ayarlar → Ağ listesini henüz göstermiyor (dal
+  `5-android`); bu panel değişikliği oraya taşınmalı.
+- **CA-4 · Statik DRAM payı ~36 B** (81 884 / 81 920). Bir sonraki statik ekleme sınıra takılır — önce
+  kalıcı dahili tamponları PSRAM'e taşı (E6 notu).
+- **CA-5 · Kart Wi-Fi'deyken `Np` düz metin gider** (kartta TLS yok; panel uyarıyor). Ağ ekleme tercihen
+  USB'den; imzalı istek gövdesi şifreli değil.
+- **CA-6 · `ag_kip_adi` "STA (ev agi)" diyor** — artık hotspot da olabilir; `Ag:` satırını ayrıştıran
+  araçlar (tezgah, panel) yüzünden bilerek değiştirilmedi.

@@ -1362,3 +1362,13 @@ canvas.kr-grafik:focus-visible { outline: 2px solid var(--vurgu); outline-offset
   background: var(--uyari-zemin); color: var(--uyari);
 }
 @media (max-width: 860px) { .bb-govde { grid-template-columns: minmax(0, 1fr); } .bb-sema { max-width: 470px; } }
+
+/* ── coklu ag (Ayarlar > Ag): kayitli aglar + gorunen aglar ── */
+.ag-liste { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.ag-liste li {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px;
+  border: 1px solid var(--kenar-c); border-radius: var(--yuvarlak-sm);
+}
+.ag-liste .ag-ad { font-weight: 600; overflow-wrap: anywhere; }
+.ag-tarama { display: flex; flex-wrap: wrap; gap: 6px; }
+.ag-tarama button { font-size: 13px; padding: 4px 10px; }

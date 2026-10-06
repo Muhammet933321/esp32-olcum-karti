@@ -10550,6 +10550,58 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.110 🟢 ÇOKLU WiFi AĞI (8) + "BU AĞA GEÇ" + DHCP CİHAZ ADI (2026-10-06/07, dal `grafik-olcek`, firmware `A3-CA`, KARTTA)
+
+Kullanıcı: "Kartı birden fazla ağ hatırlayacak şekilde yapamaz mıyız? 4-5 belki daha fazla" ve "ev ağına
+bağlandı, sonra hotspotumu açtım — panelden hotspota geçmesini tetikleyebilir miyim?". Tasarım
+`tasarim/2026-10-06-coklu-ag.md` (CA1–CA13), sohbette onaylandı ("bu sistem çok güzel bunu uygula").
+
+**Ne yapıldı**
+* `ag_liste.h` (YENİ, platformsuz): en çok 8 kayıt; seçim = kayıtlı VE görünen, önce öncelikli, sonra
+  güçlü RSSI, aynı adda en güçlü erişim noktası (CA3); başarısız adaydan SONRAKİ denenir, döngüsel (CA4);
+  ad 1..32 bayt, parola boş ya da 8..63 (CA13). AVR'de: `uretim/avr/ornek_ag_liste.c`, sim3_web **5n**.
+* `ag_karar.h`: **uzun kopma** — STA'da `AG_STA_KOPUK_MS` (90 s) kesik → AP + yeniden deneme (CA6;
+  eskiden STA'ya bir kez bağlanan kart sonsuza dek o ağı beklerdi); **geçiş** — `agk_gecis` (yalnız
+  STA'dan) → AGK_GECIS (`AG_GECIS_MS` 20 s) → olmazsa AGE_GERI (önceki ağ) → AGK_GERI → olmazsa AP (CA7).
+  STA artık ETKİN (uzun kopma izleniyor): 5m senaryolarının S'si `(STA, 1)`.
+* `ag.h` yapıştırıcı: NVS `w<i>a/p/o` + `w_son`; **taşıma** (CA2) — `w0a` yoksa eski `wifi_ad/wifi_sifre`
+  yuva 0'a, ad EN SON, eski anahtarlar silinmez. Setup taramasız ilk tahmin (`agl_ilk`: en son bağlanılan);
+  `ag_bekle_tamamla` ≥ 2 kayıtta tarar (bağlı değilse en iyi adaya geçer). Yeniden deneme: TEK kayıtta
+  eski yol (`WiFi.begin()`), çoklu kayıtta ASYNC tarama → `ag__tarama_isle` seçer. Çekirdek 1 → 0 istek
+  bayrakları (`ag_istek_tara`, `ag_istek_gecis`), 0 → 1 sonuç tamponu + sürüm (CA10). GECIS/GERI'de
+  `bagli` = HEDEF ağa bağlı (ad gecis başında kopyalanır; her turda NVS okumaz — ilk sürüm okuyordu).
+  **DHCP cihaz adı** = `ag_ap_ssid()` (OLCUM-KARTI-XXXX), `WiFi.mode`'dan ÖNCE — kullanıcı: telefon
+  hotspotunda "bilinmiyor" sonra "esp32s3-..." görünüyordu.
+* ⚠ Statik DRAM: yeni tamponlar statik olunca 82 604 B (%25.2) — sınır %25 (81 920). Tarama listesi +
+  mesaj + geçiş adları tek `AgCok` yapısında, `ag_yukle`'de PSRAM'e (yoksa yığın): 81 884 B.
+* `ag_komut.h` (YENİ): çekirdek 1 yazıcıları (`NL`, `NT`, geçiş mesajı). ⚠ `.ino`'nun BAŞINA koyulunca
+  Arduino'nun otomatik ön bildirimleri kayıt türlerinden önce girip derlemeyi kırdı — ayrı başlık, bütün
+  include'lardan sonra.
+* `.ino` `N`: `Nl` `Nt` `Na<ad>` (ekle/seç) `Np<parola>` (son Na) `Nx<no>` `No<no>` `Ng<no>`; `N?` artık
+  "kayıtlı ağlar n/8". Parola HİÇBİR çıktıda yok (CA9).
+* Panel Ayarlar → Ağ: kayıtlı ağlar (bağlı / öncelikli), Listeyi yenile, Ağları tara (RSSI, ✓ kayıtlı,
+  tıkla → ad kutuya), Öncelikli yap, Sil (iki aşamalı), **Bu ağa geç** (iki aşamalı). Bölüm açılınca
+  komut GİTMEZ (AY5). Açılış sözlüğü bütçesi (19 500 B gzip) dar: metinler kısaltıldı, 19 492 B.
+* Kılavuz `6-ag.html` (belge_sayfa.py): "bağlandıktan sonra ağ koparsa kendi ağını kurmaz" artık YANLIŞTI
+  → 90 s kuralı + çoklu ağ tablosu; sayılar `ag.h`/`ag_liste.h`'den.
+
+**Kartta (2026-10-07 gece, kullanıcıyla; yedek `.yedek/olcum-karti/tam-20261007-000640.bin`)**
+* Taşıma: `NL 0 0 1 ev ağı` — eski kayıt yuva 0'da, bağlı. Hotspot `Na`+`Np` ile eklendi.
+* `Nt`: 14 ağ, RSSI'li, kayıtlılar işaretli (~4.5 s). UTF-8 SSID (ç, ğ) bayt bayt doğru.
+* `Ng1` ev ağı → hotspot: 7–13 s · `Ng0` geri: anında · hotspot parolası YANLIŞKEN `Ng1`: 20 s sonra
+  "gecis olmadi — ev agina donuluyor", ev ağında STA. NVS yazmaları ve tarama ölçüm döngüsünü
+  bloklamıyor (`K` en uzun tur değişmedi; tek 0.8 s tur açılışta, taşıma yazmasında).
+* ⚠ ÖLÇÜLMEDİ: CA6 (kart açıkken ağ kaybolur → 90 s sonra AP → diğer ağ) — tezgah kalemi (B22b).
+
+**Tuzak (bu oturum):** Python `Path.write_text` Windows'ta `\n`'i `\r\n` yapıyor. Git LF'ye çevirdiği
+için commit'ler bozulmadı, ama `.ino`'yu `\n}\n` ile tarayan testler (`test_arayuz3.js` AY5, komut
+denetimi) çalışma kopyasında KIRMIZIYA döndü. Yama betikleri `write_bytes` / `newline="\n"` kullanmalı.
+
+**Doğrulama:** sim3_web 5m (karar + yapıştırıcı, yeni senaryolar) + 5n (liste) yeşil; test_arayuz3
+918/918; tarayici_canli 59/59 (COKLU-AG ×6); mutasyon COKLU-AG 12/12.
+
+---
+
 #### 5.12.109 🟢 AGD: AÇILIŞTA EV AĞI YOKSA AP + STA YENİDEN DENEMESİ, DÖNÜNCE AP KAPANIR (2026-10-04, dal `ag-ap-donus`, ağaç `projeler/olcum-karti-agd`; KARTA YÜKLENMEDİ)
 
 **Kartta bulunan kusur (2026-10-04, `1-acik-isler` AG1):** kayıtlı ev ağı (STA) AÇILIŞTA yoksa

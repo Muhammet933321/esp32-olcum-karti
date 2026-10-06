@@ -12,7 +12,10 @@
  * kimlik: 1 = ev agi kayitli, 0 = kayitli degil, 2 = agk_kur HIC cagrilmadi
  * (sifir ilklenmis durum: WiFi N0).
  *
- * Cikti:  A <i> <ms> <eylem>       eylem != AGE_YOK olan her adim (ms: goreli)
+ * gec: bu goreli anda agk_gecis cagrilir (coklu ag CA7; yoksa 0xFFFFFFFF).
+ *
+ * Cikti:  G <i> <ms> <0/1>          agk_gecis donusu
+ *         A <i> <ms> <eylem>       eylem != AGE_YOK olan her adim (ms: goreli)
  *         S <i> <evre> <etkin>     senaryo sonu
  */
 #include <avr/io.h>
@@ -56,6 +59,10 @@ int main(void)
         AgKarar k = {0, AGK_YOK};
         if (s->kimlik != 2u) agk_kur(&k, s->kimlik, s->t0);
         for (uint32_t r = 0; r <= s->son; r += 100u) {
+            if (r == s->gec) {               /* coklu ag CA7: "bu aga gec" bu anda istenir */
+                const uint8_t g = agk_gecis(&k, s->t0 + r);
+                metin("G "); sayi(i); metin(" "); sayi(r); metin(" "); sayi(g); metin("\r\n");
+            }
             const uint8_t bagli = icinde(r, s->b1, s->b1s) || icinde(r, s->b2, s->b2s);
             const uint8_t ilis = bagli || icinde(r, s->il, s->ils);
             const uint8_t e = agk_adim(&k, s->t0 + r, bagli, ilis);

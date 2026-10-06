@@ -150,10 +150,17 @@ class SahteWiFi {
     }
     bool softAP(const char *, const char *) { olay("P"); metin("\r\n"); return (g_mod & WIFI_AP) != 0; }
     void setAutoReconnect(bool b) { g_oto = b; }
+    bool setHostname(const char *) { return true; }
     bool disconnect(bool, bool) { g_deniyor = g_iliski = g_ip = false; return true; }
     IPAddress localIP() { dunya(); return IPAddress(g_ip ? "192.0.2.57" : "0.0.0.0"); }
     IPAddress softAPIP() { return IPAddress((g_mod & WIFI_AP) ? "192.168.4.1" : "0.0.0.0"); }
     String SSID() { dunya(); return String(g_iliski ? "sinama-agi" : ""); }
+    /* coklu ag: tek kayitli agda yapistirici TARAMAZ (eski yol) — tarama cagrilirsa iz birakir */
+    int16_t scanNetworks(bool) { olay("T"); metin("\r\n"); return 0; }
+    int16_t scanComplete() { return 0; }
+    String SSID(uint8_t) { return String(""); }
+    int32_t RSSI(uint8_t) { return 0; }
+    void scanDelete() {}
     String macAddress() { return String("02:00:00:00:00:01"); }
     String softAPmacAddress() { return String("02:00:00:00:00:02"); }
 };
@@ -170,12 +177,19 @@ static SahteMDNS MDNS;
 
 class SahtePreferences {
  public:
-    String getString(const char *a, const char *) { return String(strcmp(a, "wifi_ad") == 0 && g_s->kimlik ? "sinama-agi" : ""); }
+    /* coklu ag: kayit yuva 0'da (w0a), tasima sonrasi hali; eski wifi_ad artik okunmaz */
+    String getString(const char *a, const char *) { return String(strcmp(a, "w0a") == 0 && g_s->kimlik ? "sinama-agi" : ""); }
+    uint8_t getUChar(const char *, uint8_t v) { return v; }
+    int8_t getChar(const char *a, int8_t v) { return strcmp(a, "w_son") == 0 && g_s->kimlik ? 0 : v; }
+    size_t putChar(const char *, int8_t) { return 1; }
 };
 static SahtePreferences ag_nvs;
 
 static String ag_ap_ssid(void) { return String("OLCUM-KARTI-0102"); }
 
+/* coklu ag: ag_liste.h'nin liste DUZENLEME fonksiyonlari (agl_ekle/agl_sil) yapistiricida degil,
+   .ino'nun komutlarinda (cekirdek 1) kullaniliyor — burada kullanilmamalari beklenen durum */
+#pragma GCC diagnostic ignored "-Wunused-function"
 #include "ag_yapistirici.h"     /* kartin METNI (ag.h'den kesilmis) */
 
 /* ── kosu ──────────────────────────────────────────────────────────── */

@@ -509,6 +509,12 @@ function dilUygula(dil, gorunum) {
 /* AY7 (P7): Ayarlar'in yeni metinleri sozlukten (`ay.`). */
 const AY_METIN = Object.freeze({
   bolumler: 'ay.bolumler', dil: 'ay.dil', dilIpucu: 'ay.dil_ipucu', dilEksik: 'ay.dil_eksik',
+  agKayitli: 'ay.ag_kayitli', agKural: 'ay.ag_kural', agYenile: 'ay.ag_yenile', agTara: 'ay.ag_tara',
+  agTaraniyor: 'ay.ag_taraniyor', agListeYok: 'ay.ag_liste_yok', agBagli: 'ay.ag_bagli',
+  agOncelikli: 'ay.ag_oncelikli', agGec: 'ay.ag_gec', agGecEmin: 'ay.ag_gec_emin',
+  agOncelikYap: 'ay.ag_oncelik_yap', agOncelikKaldir: 'ay.ag_oncelik_kaldir', agSil: 'ay.ag_sil',
+  agSilEmin: 'ay.ag_sil_emin', agVazgec: 'ay.ag_vazgec', agGorunen: 'ay.ag_gorunen',
+  agGecIpucu: 'ay.ag_gec_ipucu',
 });
 /* 3D (D1): ESKİ ADRES `#/olcum` (B27'den beri Ölçüm sekmesi) Canlı'ya düşer:
    bilinmeyen her adres varsayılana gider ve varsayılan Canlı. Ayrı bir takma
@@ -1245,6 +1251,11 @@ createApp({
       sifirlaOnay: false,
       agSsid: '',
       agSifre: '',
+      /* coklu ag: kartin NL / NT satirlarindan (parola YOK — kart basmaz). Yalniz istenince
+         (Listeyi yenile / Tara): Ayarlar karta kendiliginden komut gondermez (AY5). */
+      agListe: [],                 // { no, ad, oncelik, bagli }
+      agTarama: [],                // { ad, rssi, kayitli }
+      agTaraniyor: false,
       agWebSifre: '',
       kalibV: '', kalibA: '',
       elleKomut: '',
@@ -3370,6 +3381,8 @@ createApp({
           ...(gd ? { yakalama: Number(gd[1]), yazilamayan: Number(gd[2]) } : {}) };
       }
       if (satir.startsWith('! kopru:') || satir.startsWith('* kopru:')) this.kopruDurumSatiri(satir);
+      if (satir.startsWith('NL ') || satir.startsWith('NT ')) this.agSatiri(satir);
+      else if (satir.startsWith('* ag listesi:') && /eklendi|silindi|oncelik|kaydedildi/.test(satir)) this.agListeDegisti();
       if (satir.startsWith('!')) {
         this.osiloBekliyor = false; this.skopIkiliBekle = false; this.skopIkiliOlcum = null;
         this.unlemSatiri(satir);          // 3D: D7 olay + D4 kayit komutunun reddi
@@ -3424,6 +3437,28 @@ createApp({
       this.agWebSifre = '';
     },
     agWebKorumaKaldir() { this.gonder('Ns'); },
+    /* ── coklu ag (2026-10-06): Nl / Nt / Nx / No / Ng ── */
+    agListeIste() { this._agListeYeni = []; this.gonder('Nl'); },
+    agTara() { this._agTaramaYeni = []; this.agTaraniyor = true; this.gonder('Nt'); },
+    async agEylem(k) { await this.gonder(k); },          // kartin "* ag listesi:" satiri listeyi tazeler
+    agSil(no) { this.agEylem('Nx' + no); },
+    agOncelik(no) { this.agEylem('No' + no); },
+    agGec(no) { this.gonder('Ng' + no); },
+    /* NL <no> <oncelik> <bagli> <ad> · NL bitti <n> · NT <rssi> <no|-> <ad> · NT bitti <n> */
+    agSatiri(s) {
+      let m;
+      if (s.startsWith('NL bitti')) { this.agListe = this._agListeYeni || []; this._agListeYeni = []; return; }
+      if (s.startsWith('NT bitti')) {
+        this.agTarama = this._agTaramaYeni || []; this._agTaramaYeni = []; this.agTaraniyor = false; return;
+      }
+      if ((m = /^NL (\d) ([01]) ([01]) (.+)$/.exec(s))) {
+        (this._agListeYeni = this._agListeYeni || []).push({ no: Number(m[1]), oncelik: m[2] === '1', bagli: m[3] === '1', ad: m[4] });
+      } else if ((m = /^NT (-?\d+) (\d|-) (.+)$/.exec(s))) {
+        (this._agTaramaYeni = this._agTaramaYeni || []).push({ rssi: Number(m[1]), kayitli: m[2] !== '-', ad: m[3] });
+      }
+    },
+    /* kart bir liste degisikligini soyledi (ekle/sil/oncelik/parola): liste acikken tazele */
+    agListeDegisti() { if (this.agListe.length && !(this._agListeYeni || []).length) this.agListeIste(); },
 
     /* Köprüden sürücülüğü devral. Yetki sunucuda; arayüz yalnızca
        durumu gösteriyor ve devri istiyor — politikayı İKİ YERDE

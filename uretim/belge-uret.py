@@ -242,6 +242,10 @@ def main() -> int:
         "ap_onek": re.search(r'"(OLCUM-KARTI-)%02X%02X"', AG_H).group(1),
         "sta_bekle_s": h_tamsayi("AG_STA_BEKLE_MS", AG_H) / 1000.0,
         "sta_yeniden_s": h_tamsayi("AG_STA_YENIDEN_MS", AG_H) / 1000.0,   # AGD
+        # coklu ag (2026-10-06): uzun kopma, gecis suresi, kayitli ag siniri — kaynaktan
+        "sta_kopuk_s": h_tamsayi("AG_STA_KOPUK_MS", AG_H) / 1000.0,
+        "gecis_s": h_tamsayi("AG_GECIS_MS", AG_H) / 1000.0,
+        "agl_azami": h_tamsayi("AGL_AZAMI", (KOD / "ag_liste.h").read_text(encoding="utf-8")),
         "ap_pay_s": h_tamsayi("AG_AP_PAY_MS", AG_H) / 1000.0,             # AGD
         "kart_port": int(re.search(r"WebServer sunucu\((\d+)\)", INO).group(1)),
         "kopru_port": py_sabit("PORT", PC_AYAR_PY),
