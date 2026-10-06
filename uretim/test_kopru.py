@@ -2452,6 +2452,106 @@ def pc_4g_sina() -> None:
        f"ozel={koruma.get('ozel')} {notlar3[:1]}")
 
 
+def pc_tepsi_sina(gec_dizin: Path) -> None:
+    """2026-10-06: konsolsuz PC uygulamasi + bildirim alani simgesi (kopru/tepsi.py).
+    Kullanici: 'CMD acik kaliyor ... kapattigimda baglanti kapaniyor; simgeden kapatilabilsin'."""
+    print("\n--- Tepsi. Konsolsuz PC uygulamasi: bildirim alani simgesi (cift tik panel, sag tik Kapat) ---")
+    import pc
+    import tepsi
+
+    class _K:                                      # SecmeliKart yuzeyi: etkin + alt yolun bagli'si
+        def __init__(self, etkin, usb=False, wifi=False):
+            self.etkin = etkin
+            self.usb = type("U", (), {"bagli": usb})()
+            self.wifi = type("W", (), {"bagli": wifi})()
+    ip = [tepsi.ipucu_metni(*tepsi.kart_durumu(_K("usb", usb=True))),
+          tepsi.ipucu_metni(*tepsi.kart_durumu(_K("wifi", wifi=True))),
+          tepsi.ipucu_metni(*tepsi.kart_durumu(_K("wifi", wifi=False))),
+          tepsi.ipucu_metni(*tepsi.kart_durumu(_K(None)))]
+    ok("Tepsi: ipucu baglanti yolunu SOYLER (USB / Wi-Fi / kart araniyor) ve <= 127 karakter",
+       ip == ["Ölçüm Kartı — USB'den bağlı", "Ölçüm Kartı — Wi-Fi'den bağlı",
+              "Ölçüm Kartı — kart aranıyor", "Ölçüm Kartı — kart aranıyor"]
+       and all(len(x) <= tepsi.IPUCU_AZAMI for x in ip), str(ip))
+    ok("Tepsi: simge konsolsuz kiplerde (--sessiz, --arka) ya da --tepsi ile; --tepsi-yok kapatir; konsolda YOK",
+       pc.tepsi_istenir(["--sessiz"]) and pc.tepsi_istenir(["--arka"]) and pc.tepsi_istenir(["--tepsi"])
+       and not pc.tepsi_istenir([]) and not pc.tepsi_istenir(["--arka", "--tepsi-yok"]))
+
+    class _SahteTepsi:
+        son = None
+
+        def __init__(self, ipucu_al, paneli_ac, kapat):
+            self.ipucu_al, self.paneli_ac, self.kapat = ipucu_al, paneli_ac, kapat
+            self.basladi = self.durdu = False
+            _SahteTepsi.son = self
+
+        def baslat(self):
+            self.basladi = True
+            return True
+
+        def durdur(self):
+            self.durdu = True
+
+    satir = gec_dizin / "tepsi.satir"
+    satir.write_text("".join(f"12:00:00.000\tD 1.0{i} 0.1 0.1 0 0 {1000 + i} 1 0 0\n" for i in range(5)),
+                     encoding="utf-8")
+    hp = _bos_port()
+    acilan: list[str] = []
+    sonuc = {}
+    th = threading.Thread(target=lambda: sonuc.update(rc=pc.calistir(
+        ["--kayit", str(satir), "--http-port", str(hp), "--arka"], tarayici_ac=acilan.append,
+        yazdir=lambda *_: None, tepsi_kur=_SahteTepsi)), daemon=True)
+    th.start()
+    son = time.monotonic() + 8
+    while not (pc.zaten_calisiyor(hp) and acilan) and time.monotonic() < son:
+        time.sleep(0.05)
+    st = _SahteTepsi.son
+    ok("[!] Tepsi: --arka (masaustu kisayolu) kopruyu konsolsuz acar, panel tarayicida ACILIR ve simge kurulur; "
+       "ipucu kartin durumundan",
+       pc.zaten_calisiyor(hp) and acilan == [pc.pc_ayar.adres(hp) + "/"] and st is not None and st.basladi
+       and st.ipucu_al().startswith("Ölçüm Kartı — "), f"acilan={acilan} simge={st and st.ipucu_al()}")
+    rc2 = pc.calistir(["--http-port", str(hp), "--arka"], tarayici_ac=acilan.append, yazdir=lambda *_: None)
+    ok("Tepsi: kopru calisirken kisayola tekrar basmak ikinci kopya ACMAZ, yalniz paneli acar (--arka)",
+       rc2 == 0 and acilan[-1:] == [pc.pc_ayar.adres(hp) + "/"] and len(acilan) == 2, str(acilan))
+    if st:
+        st.paneli_ac()
+    ok("Tepsi: simgede 'Paneli ac' (cift tik) paneli tarayicida acar", len(acilan) == 3, str(acilan))
+    t0 = time.monotonic()
+    if st:
+        st.kapat()
+    th.join(6)
+    ok("[!] Tepsi: simgede 'Kapat' kopruyu DUZGUNCE durdurur (calistir 0 ile doner, port bosalir, simge kaldirilir)",
+       not th.is_alive() and sonuc.get("rc") == 0 and not pc.zaten_calisiyor(hp) and st is not None and st.durdu,
+       f"rc={sonuc.get('rc')} {time.monotonic() - t0:.2f} s, simge durdu={st and st.durdu}")
+
+    if sys.platform != "win32":
+        ok("Tepsi: (Windows degil — gercek simge sinanmadi)", True)
+        return
+    # GERCEK bildirim alani: simge eklenir, cift tik / menu komutlari, ipucu tazelenir, kalkar
+    import ctypes
+    olay: list[str] = []
+    durum = {"m": "Ölçüm Kartı — kart aranıyor"}
+    gt = tepsi.Tepsi(lambda: durum["m"], lambda: olay.append("panel"), lambda: olay.append("kapat"),
+                     tazele_ms=150)
+    eklendi = gt.baslat()
+    u = ctypes.WinDLL("user32")
+    u.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+    if gt.hwnd:
+        u.PostMessageW(gt.hwnd, 0x8001, 1, 0x0203)       # WM_SIMGE + WM_LBUTTONDBLCLK
+    durum["m"] = "Ölçüm Kartı — Wi-Fi'den bağlı"
+    son = time.monotonic() + 3
+    while (gt.son_ipucu != durum["m"] or "panel" not in olay) and time.monotonic() < son:
+        time.sleep(0.05)
+    gt.komut(tepsi.KOMUT_KAPAT)
+    ok("[!] Tepsi: GERCEK Windows simgesi eklenir; cift tik paneli, menu 'Kapat' kapatmayi cagirir; ipucu "
+       "kart durumu degisince tazelenir",
+       eklendi and gt.eklendi and olay == ["panel", "kapat"] and gt.son_ipucu == durum["m"] and gt.hata is None,
+       f"eklendi={eklendi} olay={olay} ipucu={gt.son_ipucu!r} hata={gt.hata}")
+    gt.durdur()
+    ok("Tepsi: durdurulunca simge bildirim alanindan KALKAR, iplik biter",
+       not gt.eklendi and gt._iplik is not None and not gt._iplik.is_alive() and gt.hata is None,
+       f"eklendi={gt.eklendi} hata={gt.hata}")
+
+
 def main() -> int:
     print("=" * 78)
     print("  B22.3  PC KOPRUSU  (role · arsiv · surucu hakemi)")
@@ -2877,6 +2977,7 @@ def main() -> int:
     pc_4g_sina()
     pc_4h_sina(gec_dizin)
     pc_4i_sina(gec_dizin)
+    pc_tepsi_sina(gec_dizin)
 
     k.calisiyor = False
     time.sleep(0.25)

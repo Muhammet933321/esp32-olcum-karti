@@ -150,9 +150,14 @@ kullanmadığınız bir kayıt (ör. aynı bilgisayarın önceki eşleşmesi) va
 kendi numaranızı (eşleştirme çıktısındaki <code>cihaz N</code>) silmeyin.</p>
 
 <h2>2 · Başlatmak</h2>
-<p><code>projeler\olcum-karti\kopru\PC Baslat.bat</code> dosyasına <b>çift tıklayın</b>.
-Bir konsol penceresi açılır, birkaç saniye sonra tarayıcıda panel gelir:
-<b><code>http://olcum.localhost:8770</code></b>.</p>
+<p>Masaüstündeki <b>Ölçüm Kartı</b> kısayoluna çift tıklayın (<code>pythonw kopru\pc.py
+--arka</code>, <code>projeler\olcum-karti</code> klasöründe). <b>Konsol penceresi açılmaz</b>;
+birkaç saniye sonra tarayıcıda panel gelir: <b><code>http://olcum.localhost:8770</code></b>. Köprü arka planda
+çalışır ve ekranın sağ altındaki <b>bildirim alanında</b> (gizli simgeler ^) Ölçüm Kartı simgesi
+durur: üzerine gelince bağlantı yolunu yazar (USB / Wi-Fi / kart aranıyor), <b>çift tık</b>
+paneli açar, <b>sağ tık → Kapat</b> köprüyü durdurur.</p>
+<p>Ne olup bittiğini görmek isterseniz <code>projeler\olcum-karti\kopru\PC Baslat.bat</code>
+ile konsollu açın (hata ayıklamak için):</p>
 <table>
 <tr><th>Konsolda</th><td><code>Kopru acildi — kart: …</code>, panel adresi, kayıt arşivinin
     klasörü ve bildirim durumu yazar. Pencere açık kaldıkça köprü çalışır</td></tr>
@@ -245,7 +250,7 @@ python kopru/pc_bildirim.py ayar dil=en</pre>
 <code>"kopru\PC Baslat.bat" --onaysiz</code> ya da <code>python kopru/pc.py --onaysiz</code>
 (<code>projeler\olcum-karti</code> klasöründe). Köprü zaten çalışıyorsa yeni seçenek
 uygulanmaz — önce durdurun.</p>
-<table><tr><th>Seçenek</th><th>Ne yapar</th></tr><tr><td><code>--sessiz</code></td><td>Arka plan kipi: konsol yok, tarayıcı açılmaz (otomatik başlatma bunu kullanır). Çökerse iz <code>arkaplan-hata.txt</code>'ye yazılır</td></tr><tr><td><code>--durdur</code></td><td>Çalışan köprüyü (arka plandakini de) durdurur — <code>Kopruyu Durdur.bat</code> bunu çağırır</td></tr><tr><td><code>--tarayici-acma</code></td><td>Köprü açılır ama tarayıcı açılmaz</td></tr><tr><td><code>--usb-yok</code></td><td>Yalnız WiFi: COM portu <b>hiç açılmaz</b>. Köprü açıkken firmware yüklemek, tezgah araçlarını ya da Arduino Seri Monitörü'nü kullanmak için</td></tr><tr><td><code>--wifi-yok</code></td><td>Yalnız USB. Kayıt arşivi (eşitleme) bu kipte çalışmaz — kayıt verisi yalnız WiFi'den alınır</td></tr><tr><td><code>--port</code></td><td>COM portunu elle verir (ör. <code>--port COM6</code>); verilmezse köprü kartın USB köprü çipinden (CH343) kendisi bulur</td></tr><tr><td><code>--kart-host</code></td><td>Kartın WiFi adresi (varsayılan <code>olcum.local</code>). Kartın kendi ağındayken <code>--kart-host 192.168.4.1</code>, ya da kartın IP'si</td></tr><tr><td><code>--cihaz</code></td><td>Eşleşmiş cihaz dosyasını elle seçer (iki kart varsa); verilmezse kartın kimliğine göre bulunur</td></tr><tr><td><code>--onaysiz</code></td><td>Kayıtları diske eşitler ama karta <b>onay göndermez</b> (aşağıda “Onay ne demek”)</td></tr><tr><td><code>--esitleme-aralik</code></td><td>Eşitleme aralığı, saniye (varsayılan 120, en az 30)</td></tr><tr><td><code>--esitleme-yok</code></td><td>Arka plan eşitlemesi kapalı (canlı izleme ve komutlar çalışır)</td></tr><tr><td><code>--bildirim-yok</code></td><td>MQTT aboneliği ve Windows bildirimleri kapalı</td></tr><tr><td><code>--lan</code></td><td>Yerel ağdaki telefonlar <code>http://&lt;bilgisayarın IP'si&gt;:8770</code> adresinden <b>yalnız izler</b>; tek izinli komut DURDUR (<code>p0</code>)</td></tr></table>
+<table><tr><th>Seçenek</th><th>Ne yapar</th></tr><tr><td><code>--sessiz</code></td><td>Arka plan kipi: konsol yok, tarayıcı açılmaz (otomatik başlatma bunu kullanır); bildirim alanında simge olur. Çökerse iz <code>arkaplan-hata.txt</code>'ye yazılır</td></tr><tr><td><code>--arka</code></td><td>Masaüstü kısayolunun kipi (<code>pythonw</code>): konsol yok ama panel tarayıcıda <b>açılır</b>; bildirim alanında simge — çift tık panel, sağ tık <b>Kapat</b></td></tr><tr><td><code>--tepsi</code></td><td>Konsollu açılışta da bildirim alanı simgesini göster</td></tr><tr><td><code>--tepsi-yok</code></td><td>Bildirim alanı simgesi olmasın (<code>--sessiz</code> / <code>--arka</code> ile de)</td></tr><tr><td><code>--durdur</code></td><td>Çalışan köprüyü (arka plandakini de) durdurur — <code>Kopruyu Durdur.bat</code> bunu çağırır</td></tr><tr><td><code>--tarayici-acma</code></td><td>Köprü açılır ama tarayıcı açılmaz</td></tr><tr><td><code>--usb-yok</code></td><td>Yalnız WiFi: COM portu <b>hiç açılmaz</b>. Köprü açıkken firmware yüklemek, tezgah araçlarını ya da Arduino Seri Monitörü'nü kullanmak için</td></tr><tr><td><code>--wifi-yok</code></td><td>Yalnız USB. Kayıt arşivi (eşitleme) bu kipte çalışmaz — kayıt verisi yalnız WiFi'den alınır</td></tr><tr><td><code>--port</code></td><td>COM portunu elle verir (ör. <code>--port COM6</code>); verilmezse köprü kartın USB köprü çipinden (CH343) kendisi bulur</td></tr><tr><td><code>--kart-host</code></td><td>Kartın WiFi adresi (varsayılan <code>olcum.local</code>). Kartın kendi ağındayken <code>--kart-host 192.168.4.1</code>, ya da kartın IP'si</td></tr><tr><td><code>--cihaz</code></td><td>Eşleşmiş cihaz dosyasını elle seçer (iki kart varsa); verilmezse kartın kimliğine göre bulunur</td></tr><tr><td><code>--onaysiz</code></td><td>Kayıtları diske eşitler ama karta <b>onay göndermez</b> (aşağıda “Onay ne demek”)</td></tr><tr><td><code>--esitleme-aralik</code></td><td>Eşitleme aralığı, saniye (varsayılan 120, en az 30)</td></tr><tr><td><code>--esitleme-yok</code></td><td>Arka plan eşitlemesi kapalı (canlı izleme ve komutlar çalışır)</td></tr><tr><td><code>--bildirim-yok</code></td><td>MQTT aboneliği ve Windows bildirimleri kapalı</td></tr><tr><td><code>--lan</code></td><td>Yerel ağdaki telefonlar <code>http://&lt;bilgisayarın IP'si&gt;:8770</code> adresinden <b>yalnız izler</b>; tek izinli komut DURDUR (<code>p0</code>)</td></tr></table>
 
 <h2>6 · Windows açılışında otomatik başlatma</h2>
 <table>
@@ -266,6 +271,7 @@ bir dosyayı gösterir ve köprü iz bırakmadan açılmaz. Betik geçici dal kl
 
 <h2>7 · Durdurmak</h2>
 <table>
+<tr><th>Simgeden</th><td>Bildirim alanındaki Ölçüm Kartı simgesine <b>sağ tık → Kapat</b></td></tr>
 <tr><th>Her durumda</th><td><code>kopru\Kopruyu Durdur.bat</code> (arka plandakini de
     durdurur)</td></tr>
 <tr><th>Pencerede açtıysanız</th><td>Konsol penceresinde <b>Ctrl+C</b></td></tr>

@@ -35,8 +35,12 @@ ALT = "Köprü · bilgisayarda arşiv · Windows bildirimleri — kurmak, başla
 # Kilavuzun anlattigi pc.py secenekleri. Her biri pc.py'nin KODUNDA (docstring disinda)
 # bir dize olarak bulunmali; koddaki her secenek de ya burada ya HARIC'te (gerekceli).
 SECENEKLER = [
-    ("--sessiz", "Arka plan kipi: konsol yok, tarayıcı açılmaz (otomatik başlatma bunu kullanır). "
-                 "Çökerse iz <code>arkaplan-hata.txt</code>'ye yazılır"),
+    ("--sessiz", "Arka plan kipi: konsol yok, tarayıcı açılmaz (otomatik başlatma bunu kullanır); "
+                 "bildirim alanında simge olur. Çökerse iz <code>arkaplan-hata.txt</code>'ye yazılır"),
+    ("--arka", "Masaüstü kısayolunun kipi (<code>pythonw</code>): konsol yok ama panel tarayıcıda "
+               "<b>açılır</b>; bildirim alanında simge — çift tık panel, sağ tık <b>Kapat</b>"),
+    ("--tepsi", "Konsollu açılışta da bildirim alanı simgesini göster"),
+    ("--tepsi-yok", "Bildirim alanı simgesi olmasın (<code>--sessiz</code> / <code>--arka</code> ile de)"),
     ("--durdur", "Çalışan köprüyü (arka plandakini de) durdurur — <code>Kopruyu Durdur.bat</code> "
                  "bunu çağırır"),
     ("--tarayici-acma", "Köprü açılır ama tarayıcı açılmaz"),
@@ -295,9 +299,14 @@ kullanmadığınız bir kayıt (ör. aynı bilgisayarın önceki eşleşmesi) va
 kendi numaranızı (eşleştirme çıktısındaki <code>cihaz N</code>) silmeyin.</p>
 
 <h2>2 · Başlatmak</h2>
-<p><code>projeler\\olcum-karti\\kopru\\PC Baslat.bat</code> dosyasına <b>çift tıklayın</b>.
-Bir konsol penceresi açılır, birkaç saniye sonra tarayıcıda panel gelir:
-<b><code>{v['adres']}</code></b>.</p>
+<p>Masaüstündeki <b>Ölçüm Kartı</b> kısayoluna çift tıklayın (<code>pythonw kopru\\pc.py
+--arka</code>, <code>projeler\\olcum-karti</code> klasöründe). <b>Konsol penceresi açılmaz</b>;
+birkaç saniye sonra tarayıcıda panel gelir: <b><code>{v['adres']}</code></b>. Köprü arka planda
+çalışır ve ekranın sağ altındaki <b>bildirim alanında</b> (gizli simgeler ^) Ölçüm Kartı simgesi
+durur: üzerine gelince bağlantı yolunu yazar (USB / Wi-Fi / kart aranıyor), <b>çift tık</b>
+paneli açar, <b>sağ tık → Kapat</b> köprüyü durdurur.</p>
+<p>Ne olup bittiğini görmek isterseniz <code>projeler\\olcum-karti\\kopru\\PC Baslat.bat</code>
+ile konsollu açın (hata ayıklamak için):</p>
 <table>
 <tr><th>Konsolda</th><td><code>Kopru acildi — kart: …</code>, panel adresi, kayıt arşivinin
     klasörü ve bildirim durumu yazar. Pencere açık kaldıkça köprü çalışır</td></tr>
@@ -411,6 +420,7 @@ bir dosyayı gösterir ve köprü iz bırakmadan açılmaz. Betik geçici dal kl
 
 <h2>7 · Durdurmak</h2>
 <table>
+<tr><th>Simgeden</th><td>Bildirim alanındaki Ölçüm Kartı simgesine <b>sağ tık → Kapat</b></td></tr>
 <tr><th>Her durumda</th><td><code>kopru\\Kopruyu Durdur.bat</code> (arka plandakini de
     durdurur)</td></tr>
 <tr><th>Pencerede açtıysanız</th><td>Konsol penceresinde <b>Ctrl+C</b></td></tr>
