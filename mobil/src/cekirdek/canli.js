@@ -11,6 +11,7 @@
 //        son: son D satiri | null;  kayit: son G satiri | null;  yas_ms: son D'den beri gecen sure | null
 //        ayrinti: { K, GA, GT, GP, A } — gorulen son satirlar
 //   canli.dinle(fn) -> birak()                  // fn(durum()): her D / G satirinda ve hal degisiminde
+//   canli.hamDinle(fn) -> birak()               // fn(satir): akisin HER ham satiri (5P telefon ortami, panelin satirIsle'si)
 //   canli.seri()    -> { t, v, a, w, n }        // Float64Array; t = telefon saati (ms), eskiden yeniye.
 //        NaN = o kanalda VERI YOK (ADC okunamadi): grafik o noktayi cizmez (canli_gorunum.js pencereSerileri)
 //   await canli.komut("Gb1000")                 // yalniz Gb<kartin hizlari>, Gd, G?, ? — baskasi CanliHatasi("komut-yasak")
@@ -116,6 +117,23 @@ export function canliKur({
     if (typeof fn !== "function") throw new TypeError("dinleyici islev olmali");
     dinleyiciler.add(fn);
     return () => { dinleyiciler.delete(fn); };
+  }
+
+  // 5P (telefon ortami): akisin HAM satirlari, gelis sirasiyla — panelin tek ayristiricisi (satirIsle) icin.
+  // Yalniz BIZIM akisimizin satirlari (bizimMi'den gecenler) ve olay basina en cok OLAY_SATIR_AZAMI.
+  const hamDinleyiciler = new Set();
+
+  function hamDinle(fn) {
+    if (typeof fn !== "function") throw new TypeError("dinleyici islev olmali");
+    hamDinleyiciler.add(fn);
+    return () => { hamDinleyiciler.delete(fn); };
+  }
+
+  function hamYay(metin) {
+    if (typeof metin !== "string" || hamDinleyiciler.size === 0) return;
+    for (const fn of [...hamDinleyiciler]) {
+      try { fn(metin); } catch { /* dinleyicinin hatasi akisi etkilemez */ }
+    }
   }
 
   // ── halka tampon ───────────────────────────────────────────────────────
@@ -236,7 +254,10 @@ export function canliKur({
     if (!bizimMi("akis", veri) || !Array.isArray(veri.satirlar)) return;
     bekciKur();
     const n = Math.min(veri.satirlar.length, OLAY_SATIR_AZAMI);
-    for (let i = 0; i < n; i++) satirIsle(veri.satirlar[i]);
+    for (let i = 0; i < n; i++) {
+      satirIsle(veri.satirlar[i]);
+      hamYay(veri.satirlar[i]);
+    }
   }
 
   function olayDurum(veri) {
@@ -360,5 +381,5 @@ export function canliKur({
     return true;
   }
 
-  return { baslat, durdur, durum, dinle, seri, komut };
+  return { baslat, durdur, durum, dinle, hamDinle, seri, komut };
 }

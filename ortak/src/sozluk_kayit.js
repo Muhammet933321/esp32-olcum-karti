@@ -78,6 +78,7 @@ export const SOZLUK_KAYIT = Object.freeze({
   "kl.nerede_kart": S("yalnız kartta", "on the board only"),
   "kl.nerede_tarayici": S("yalnız bu tarayıcıda", "in this browser only"),
   "kl.nerede_ikisi": S("ikisinde", "in both"),
+  "kl.nerede_telefon": S("yalnız bu telefonda", "on this phone only"),
   "kl.durum_kayitta": S("kaydediliyor", "recording"),
   "kl.durum_acik": S("açık", "open"),
   "kl.durum_bitti": S("bitti", "finished"),
@@ -96,6 +97,9 @@ export const SOZLUK_KAYIT = Object.freeze({
   "kl.arsiv_onay_uyari": S("Arşiv açılırsa karta “aldım” onayı gider ve kart, yer gerekince bu kayıtları silebilir — tek kopya bu tarayıcıda kalır. Emin misiniz?",
     "If archiving is on, “received” acknowledgements go to the board and it may delete these recordings when it needs space — the only copy stays in this browser. Are you sure?"),
   "kl.arsiv_eminim": S("Eminim, bu tarayıcı arşiv", "Yes, this browser is the archive"),
+  // 5P (K10): telefonda yerel kopya Android'in (esitler, onaylar, sifirlar)
+  "kl.telefon_kopya": S("Kopya bu telefonda; eşitlemeyi ve karta onayı uygulama yürütür. Boyut ve sıfırlama: Ayarlar › Bu telefon › Eşitleme.",
+    "The copy is on this phone; the app runs syncing and acknowledgements. Size and reset: Settings › This phone › Sync."),
   "kl.yalniz_kartta": S("Bu kayıt yalnız kartta — önce eşitleyin.", "This recording is only on the board — sync first."),
   "kl.bulunamadi": S("Kayıt bulunamadı (#{oturum}).", "Recording not found (#{oturum})."),
   "kl.listeye_don": S("← Kayıtlar", "← Recordings"),

@@ -2,12 +2,22 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="viewport-fit=cover, width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; webrtc 'block'">
+  <meta name="theme-color" content="#101821">
   <title>Ölçüm Kartı</title>
+  <!-- 5P (P1): bu sayfa PC panelinin (arayuz3/) kabugu. Kok sablon ve ekran sablonlari derlemede
+       render'a cevrilir (araclar/panel_paketle.mjs) — CSP'de unsafe-eval YOK, satir ici betik YOK.
+       Yer tutucular derlemede dolar: on-boya / bekci = DIS klasik betikler (src/on_boya.js,
+       src/acilis_bekci.js), acilmadi = arayuz3/index.html'in #acilmadi kutusu (onclick'siz).
+       Gorunum ilk boyamadan ONCE (stil dosyasindan once) — yanip sonme yok. -->
+  <!-- panel:on-boya -->
+  <link rel="stylesheet" href="../arayuz3/style.css">
 </head>
 <body>
-  <div id="app"></div>
-  <script type="module" src="/src/main.js"></script>
+  <div id="uyg" v-cloak></div>
+  <!-- panel:acilmadi -->
+  <!-- panel:bekci -->
+  <script type="module" src="/src/giris.js"></script>
 </body>
 </html>

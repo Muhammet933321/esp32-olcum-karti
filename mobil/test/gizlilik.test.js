@@ -41,6 +41,9 @@ const DEPO_OKU_DOSYASI = "src/cekirdek/depo_oku.js";      // tek `fetch`: yalniz
 const ISCI_KUR_DOSYASI = "src/cekirdek/isci_kur.js";      // tek `new Worker`: yalniz paketteki kendi betigimiz
 const ISCI_DOSYASI = "src/isci/kayit_isci.js";            // Worker kabugu: `self.onmessage` / `self.postMessage`
 const A24_DOSYALARI = [DEPO_OKU_DOSYASI, ISCI_KUR_DOSYASI, ISCI_DOSYASI];
+// 5P (P1): telefon girisi — panel (arayuz3/) kuresel `Vue` bekliyor, ortam (src/ortam) kuresel nesneyi
+// parametre alir; giris.js'teki TEK `const KURESEL = globalThis;` satiri genel yasaktan muaf.
+const GIRIS_DOSYASI = "src/giris.js";
 
 describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
   const IZINLI_YONERGELER = {
@@ -121,9 +124,12 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
     //   { fetch: <ad>Fetch   ya da   { fetch: ag.<ad>Fetch      (deger, KartAg'a giden bir sarmalayici)
     // Cagri, baska bir deger ya da baska bir bicim istisnaya GIRMEZ (asagida kendi sinamasi).
     const ortamAnahtari = (kod) => kod.replace(/\{ fetch: (?:ag\.)?[a-z][A-Za-z]*Fetch\b/g, "{ ORTAM");
+    // 5P (P1) DAR istisna: giris.js'te YALNIZ bu tam satir (baska hicbir dosya, baska hicbir bicim degil —
+    // "giris.js kuresel nesne" sinamasi).
+    const kureselVue = (yol, kod) => (yol === GIRIS_DOSYASI ? kod.replace(/^const KURESEL = globalThis;$/m, "const KURESEL = KURESEL_NESNE;") : kod);
     for (const yol of JS_KAYNAK) {
       if (yol === SINAMA_DOSYASI || yol === RTC_KAPAT_DOSYASI || A24_DOSYALARI.includes(yol)) continue;
-      expect(ortamAnahtari(yorumsuz(oku(yol))), yol).not.toMatch(YASAK);
+      expect(ortamAnahtari(kureselVue(yol, yorumsuz(oku(yol)))), yol).not.toMatch(YASAK);
     }
     for (const temiz of ["const o = { fetch: imzaliFetch, kaydet };", "ac(c, t, { fetch: ag.kartFetch, simdiMs });",
       'S("WebView ağ sınaması", "WebView network self-test")', "yerelOnbellek(localStorage)",
@@ -141,6 +147,17 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
     ]) {
       expect(ortamAnahtari(kirli), kirli).toMatch(YASAK);
     }
+  });
+});
+
+describe("5P (P1): giris.js kuresel nesne — genel yasagin DAR istisnasi", () => {
+  it("kuresel nesnenin adi giris.js'te TAM bir kez (`const KURESEL = globalThis;`); ona yalniz Vue yazilir, ortama verilir", () => {
+    expect(JS_KAYNAK).toContain(GIRIS_DOSYASI);
+    const k = yorumsuz(oku(GIRIS_DOSYASI));
+    expect(k.match(/\bglobalThis\b|\bwindow\b|\bself\b(?!-)/g)).toEqual(["globalThis"]);
+    expect(k).toMatch(/^const KURESEL = globalThis;$/m);
+    expect(k.match(/\bKURESEL\b[^;\n]*/g)).toEqual(["KURESEL = globalThis", "KURESEL.Vue = Vue", "KURESEL })"]);
+    expect(k).toMatch(/^import \* as Vue from "vue";$/m);
   });
 });
 

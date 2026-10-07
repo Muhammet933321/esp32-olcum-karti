@@ -6,6 +6,7 @@
 //   await kart.baglan({ elle })   -> { durum: "bagli" | "eslesmemis" | "bulunamadi" | "kimlik-uymuyor", adres, kimlik, bilgi }
 //   await kart.esles(ad, parola)  -> { kimlik, n }
 //   await kart.istek("GET", "/kayit/liste")           -> yanit (2xx)
+//   await kart.istek("GET", "/skop.bin", [], undefined, { azamiGovde, zamanAsimiMs, hamYanit })   (5P; hepsi istege bagli)
 //   await kart.saatVer()          -> true (verildi) | false
 //   await kart.eslesmeyiKaldir()  -> { kartta: true | false | null }   (null: kartta kalmis olabilir)
 //
@@ -106,7 +107,14 @@ export function kartKur({ ag, kesif, kasa, simdiMs = Date.now }) {
     return new KartHatasi("ic-hata");
   }
 
-  async function istek(yontem, yol, argumanlar = [], govde = new Uint8Array(0)) {
+  // 5P: `ek` (istege bagli) — { azamiGovde, zamanAsimiMs }: bu istegin yanit tavani / suresi (kartFetch'e
+  // gecer; imzaya girmez). { hamYanit: true }: 401 DISI HTTP hatasinda atmak yerine yaniti (govdesiyle)
+  // doner — panelin fetch sozlesmesi icin (Response.ok = false). 401 kurallari (A17) aynen gecerli.
+  async function istek(yontem, yol, argumanlar = [], govde = new Uint8Array(0), ek = null) {
+    const fetchEk = {};
+    if (ek && Number.isSafeInteger(ek.azamiGovde) && ek.azamiGovde > 0) fetchEk.azamiGovde = ek.azamiGovde;
+    if (ek && Number.isSafeInteger(ek.zamanAsimiMs) && ek.zamanAsimiMs > 0) fetchEk.zamanAsimiMs = ek.zamanAsimiMs;
+    const hamYanit = Boolean(ek) && ek.hamYanit === true;
     const b = baglanti, c = cihaz;
     if (!b) throw new KartHatasi("bagli-degil");
     if (!c || b.kimlik !== c.kimlik) throw new KartHatasi("eslesmemis");
@@ -127,7 +135,7 @@ export function kartKur({ ag, kesif, kasa, simdiMs = Date.now }) {
       const imzalanan = c.acilis;        // ac(): istekKur ile bu cagri arasinda bekleme yok
       if (imzali && imzaSayisi >= IMZA_AZAMI) throw new KartHatasi("cihaz-silinmis");
       if (imzali) imzaSayisi += 1;
-      const y = await ag.kartFetch(url, secenek);
+      const y = await ag.kartFetch(url, Object.keys(fetchEk).length ? { ...secenek, ...fetchEk } : secenek);
       yenidenImzala = false;
       if (!imzali || y.status !== 401) return y;
       const yeni = y.headers.get("X-Acilis");
@@ -154,6 +162,7 @@ export function kartKur({ ag, kesif, kasa, simdiMs = Date.now }) {
         // Disk bizden ilerideydi: kasa sayaci ileri cekti, istek HIC gitmedi -> bir kez yeniden imzala.
         if (e instanceof KasaHatasi && e.tur === "sayac-geride" && sayacDenemesi++ === 0) continue;
         if (e instanceof HttpHatasi && e.durum === 401 && yenidenImzala && imzaSayisi < IMZA_AZAMI) continue;
+        if (hamYanit && e instanceof HttpHatasi && e.durum !== 401 && e.yanit) return e.yanit;
         throw cevir(e);
       }
     }

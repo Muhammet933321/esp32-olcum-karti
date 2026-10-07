@@ -34,7 +34,7 @@ import { sayiYaz, metinHucre, csvBayt, BASAMAK, BICIM_EXCEL_TR, BICIM_EN } from 
 import { ceviriKayit as ceviri } from '/ortak/sozluk_kayit.js';
 import {
   grafikSerileri, okumaHesapla, oturumTuru, metinler, sureYaz, okumaJson, TUR_METIN,
-  sayiYaz as sayiGoster,
+  sayiYaz as sayiGoster, dosyaVer,
 } from './kayit_gorunum.js';
 import { EsitlemeDenetcisi, dilOku } from './esitleme.js';
 import { KR_AZAMI, KR_TURLER, karsilastirRotaYaz } from './kayitlar.js';
@@ -762,14 +762,8 @@ export const KarsilastirEkrani = {
         this.hata = this.m.disariHata + ' ' + ((h && h.message) || h);
         return;
       }
-      const url = URL.createObjectURL(new Blob([bayt], { type: 'text/csv;charset=utf-8' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = karsilastirDosyaAdi(kip, kanal, dil);
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      dosyaVer(karsilastirDosyaAdi(kip, kanal, dil), 'text/csv;charset=utf-8', bayt)
+        .catch((h) => { this.hata = this.m.disariHata + ' ' + ((h && h.message) || h); });
     },
   },
 };

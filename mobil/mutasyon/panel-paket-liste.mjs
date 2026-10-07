@@ -1,0 +1,111 @@
+// 5P P1 mutasyonlari (derleme hatti: araclar/panel_paketle.mjs, giris / on_boya / acilis_bekci, index.html).
+// Ana listeye (liste.mjs) dahil edilir. Her girdi test/panel_paket.test.js'in (ya da gizlilik.test.js'in)
+// bir iddiasini YALANLAR; test kirmiziya donmeli.
+const T = "test/panel_paket.test.js";
+export default [
+  {
+    ad: "5P-P1: derlenemeyen template: sessizce birakiliyor",
+    dosya: "araclar/panel_paketle.mjs",
+    bul: "  if (derlenemeyen.length) {",
+    koy: "  if (false) {",
+    test: T,
+  },
+  {
+    ad: "5P-P1: const ile verilen sablon (SABLON) cozulmuyor",
+    dosya: "araclar/panel_paketle.mjs",
+    bul: "      if (tanim.length === 1 && tanim[0].tur === \"const\") {",
+    koy: "      if (false) {",
+    test: T,
+  },
+  {
+    ad: "5P-P1: kok render enjekte edilmiyor",
+    dosya: "araclar/panel_paketle.mjs",
+    bul: "    s.appendLeft(arg.start + 1, \" render: __kokRender,\");",
+    koy: "",
+    test: T,
+  },
+  {
+    ad: "5P-P1: createApp sayisi denetlenmiyor",
+    dosya: "araclar/panel_paketle.mjs",
+    bul: "    if (cagri.length !== 1) throw",
+    koy: "    if (cagri.length < 1) throw",
+    test: T,
+  },
+  {
+    ad: "5P-P1: #uyg kapanisi derinlik saymadan ilk </div>",
+    dosya: "araclar/panel_paketle.mjs",
+    bul: "    else derinlik++;",
+    koy: "",
+    test: T,
+  },
+  {
+    ad: "5P-P1: #acilmadi'nin onclick'i birakiliyor (CSP'de olu dugme)",
+    dosya: "araclar/panel_paketle.mjs",
+    bul: "  kutu = kutu.replace(YENILE_ONCLICK, \" data-yenile\");",
+    koy: "",
+    test: T,
+  },
+  {
+    ad: "5P-P1: DOM sablonu tuzak dedektoru baglamadaki buyuk harfi gormuyor",
+    dosya: "araclar/panel_paketle.mjs",
+    bul: "      if (/^(?::|@|#|v-)/.test(n) && /[A-Z]/.test(n)) bulgular.push",
+    koy: "      if (false) bulgular.push",
+    test: T,
+  },
+  {
+    ad: "5P-P1: sablon yorumlari vnode oluyor (PC uretim varsayilanindan farkli)",
+    dosya: "araclar/panel_paketle.mjs",
+    bul: "cacheHandlers: true, comments: false,",
+    koy: "cacheHandlers: true, comments: true,",
+    test: T,
+  },
+  {
+    ad: "5P-P1: tema betigi stil dosyasindan SONRA (yanip sonme)",
+    dosya: "index.html",
+    bul: "  <!-- panel:on-boya -->\n  <link rel=\"stylesheet\" href=\"../arayuz3/style.css\">",
+    koy: "  <link rel=\"stylesheet\" href=\"../arayuz3/style.css\">\n  <!-- panel:on-boya -->",
+    test: T,
+  },
+  {
+    ad: "5P-P1: on_boya.js Ön panel secimini tanimiyor (tema.js'ten ayristi)",
+    dosya: "src/on_boya.js",
+    bul: " || v === 'onpanel') secim = v;",
+    koy: ") secim = v;",
+    test: T,
+  },
+  {
+    ad: "5P-P1: on_boya.js sistem tercihini ters okuyor",
+    dosya: "src/on_boya.js",
+    bul: "matchMedia('(prefers-color-scheme: light)')",
+    koy: "matchMedia('(prefers-color-scheme: dark)')",
+    test: T,
+  },
+  {
+    ad: "5P-P1: bekci betik hatasini yakalama asamasinda dinlemiyor",
+    dosya: "src/acilis_bekci.js",
+    bul: "  }, true);",
+    koy: "  });",
+    test: T,
+  },
+  {
+    ad: "5P-P1: Yenile dugmesi dinleyicisiz",
+    dosya: "src/acilis_bekci.js",
+    bul: "  if (dugme) dugme.addEventListener('click', function () { location.reload(); });",
+    koy: "",
+    test: T,
+  },
+  {
+    ad: "5P-P1: panel ortamdan ONCE yukleniyor",
+    dosya: "src/giris.js",
+    bul: "  const ortamYukle = ORTAM_MODULU[\"./ortam/index.js\"];",
+    koy: "  await import(\"../../arayuz3/app.js\");\n  const ortamYukle = ORTAM_MODULU[\"./ortam/index.js\"];",
+    test: T,
+  },
+  {
+    ad: "5P-P1: giris.js kuresel nesneye ikinci bir sey yaziyor",
+    dosya: "src/giris.js",
+    bul: "KURESEL.Vue = Vue;",
+    koy: "KURESEL.Vue = Vue;\nKURESEL.x = 1;",
+    test: "test/gizlilik.test.js",
+  },
+];

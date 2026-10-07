@@ -24,6 +24,9 @@
    ve kopya silme YOK (C1 sebebi 'pc'). Kart kokeninde (olcum.local, IP)
    bu karar ICIN hicbir istek gitmez; kaynak 'tarayici' (IndexedDB) —
    kartin sundugu panelin davranisi degismedi.
+   5P (K10) — TELEFONDA (`globalThis.__olcumOrtam`, kurucuya enjekte): kaynak 'telefon'; akislar /
+   depo / esitleme Android'in (ortam.akislar, ortam.depo, ortam.esitle — kopyayi tek yazar Android
+   tutar, panel yalniz okur), kopya silme YOK, kopru sorusu YOK.
    ⚠ Bu dosyada Vue YOK. Agir veri (kayitlar, oturumlar) bilesene markRaw
      ile gider — reaktif vekil yuz binlerce noktada paneli kilitlerdi.
    ═══════════════════════════════════════════════════════════════════════ */
@@ -156,8 +159,8 @@ export function kalJsonCoz(b) {
 
 /** 4D: sayfa kopru kokeninden mi acilmis olabilir (dongu adi / adresi)? Yalniz o zaman `/durum`
  *  sorulur. Kart (olcum.local, IP) ASLA — kartin sundugu panel bu karar icin istek atmaz. */
-export function kokenSinama(konum) {
-  if (!konum || (konum.protocol !== 'http:' && konum.protocol !== 'https:')) return false;
+export function kokenSinama(konum, ortam = globalThis.__olcumOrtam) {
+  if (ortam || !konum || (konum.protocol !== 'http:' && konum.protocol !== 'https:')) return false;
   const h = String(konum.hostname || '').toLowerCase();
   return h === 'localhost' || h.endsWith('.localhost') || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)
     || h === '[::1]' || h === '::1';
@@ -177,16 +180,18 @@ export class EsitlemeDenetcisi {
   /** kartAdres: app.js kartAdres (taban oneki); istek: app.js kartIstek (3H-2 ES4 — TEK istek
    *  katmani: eslesmisse imzali; verilmezse bugunku yol fetch(kartAdres)); zamanAsimiMs: istek basina.
    *  4D: kaynak ('pc' | 'tarayici'; verilmezse kendisi bulur), konum (location) ve pcYukle (depo_pc
-   *  modulu) testte verilir. */
+   *  modulu) testte verilir. 5P: ortam (telefon) varsa kaynak 'telefon'. */
   constructor({ kartAdres, istek = null, zamanAsimiMs = 10000, bekle = uyu, kaynak = null,
-    konum = globalThis.location, pcYukle = () => import('./depo_pc.js') } = {}) {
+    konum = globalThis.location, pcYukle = () => import('./depo_pc.js'), ortam = globalThis.__olcumOrtam || null } = {}) {
     if (typeof kartAdres !== 'function') throw new TypeError('kartAdres islevi gerekli');
     this.kartAdres = kartAdres;
     this._katman = typeof istek === 'function' ? istek : null;
     this.zamanAsimiMs = zamanAsimiMs;
     this._bekle = bekle;
     this._onbellek = new Map();          // kimlik -> {bayt, kayitlar, oturumlar, sonSira, kal}
-    this._kaynakSoz = kaynak === 'pc' || kaynak === 'tarayici' ? Promise.resolve(kaynak) : null;
+    this._ortam = ortam || null;
+    this._kaynakSoz = this._ortam ? Promise.resolve('telefon')
+      : kaynak === 'pc' || kaynak === 'tarayici' ? Promise.resolve(kaynak) : null;
     this._konum = konum;
     this._pcYukle = pcYukle;
     this._pc = new Map();                // 4D: akis kimligi -> /arsiv/liste ogesi
@@ -234,7 +239,9 @@ export class EsitlemeDenetcisi {
 
   /** Akisin deposu: kopruda PC arsivi (salt okuma), degilse bu tarayicinin IndexedDB'si. */
   async _depo(kimlik) {
-    if (await this.kaynak() !== 'pc') return idbDepo(await vtAc(), kimlik);
+    const k = await this.kaynak();
+    if (k === 'telefon') return this._ortam.depo(kimlik);
+    if (k !== 'pc') return idbDepo(await vtAc(), kimlik);
     if (!this._pc.has(kimlik)) await this._pcListe();
     const a = this._pc.get(kimlik);
     if (!a) throw new Error(`PC arsivinde akis yok: ${kimlik}`);
@@ -256,7 +263,8 @@ export class EsitlemeDenetcisi {
 
   /** Tek ag kapisi: istek katmani (varsa) ya da bugunku yol. */
   _getir(yol, secenekler) {
-    return this._katman ? this._katman(yol, secenekler) : fetch(this.kartAdres(yol), secenekler);
+    if (this._katman) return this._katman(yol, secenekler);
+    return this._ortam ? this._ortam.istek(yol, secenekler) : fetch(this.kartAdres(yol), secenekler);
   }
 
   _sinyal() {
@@ -303,7 +311,12 @@ export class EsitlemeDenetcisi {
    */
   async esitle({ kimlik, onay = null, ilerleme = null } = {}) {
     /* 4D: PC arsivi SALT OKUMA — tek yazar kopru; panel hicbir sey yazmaz, karta onay yollamaz */
-    if (await this.kaynak() === 'pc') return { durum: 'pc', mesaj: 'PC arsivini kopru esitler' };
+    const kaynak = await this.kaynak();
+    if (kaynak === 'pc') return { durum: 'pc', mesaj: 'PC arsivini kopru esitler' };
+    /* 5P: Android esitleyicisi (onayi "Bu telefon da onaylar" ayari verir, panelin arsiv secimi degil) */
+    if (kaynak === 'telefon') {
+      try { return await this._ortam.esitle({ kimlik, ilerleme }); } finally { this._onbellek.delete(kimlik); }
+    }
     let vt;
     try {
       vt = await vtAc();
@@ -341,7 +354,9 @@ export class EsitlemeDenetcisi {
 
   /** Bu tarayicidaki akislarin ozetleri (veri yok). 4D: kopruda PC arsivinin akislari (pc: true). */
   async akislar() {
-    if (await this.kaynak() === 'pc') {
+    const k = await this.kaynak();
+    if (k === 'telefon') return this._ortam.akislar();
+    if (k === 'pc') {
       return [...(await this._pcListe()).values()].map((a) => ({ kimlik: a.akis, kart: a.kart, bayt: a.bayt,
         durum: a.durum, olusma: a.degisim * 1000, guncelleme: a.degisim * 1000, kalVar: a.kal, pc: true,
         oturum: a.oturum }));
@@ -377,7 +392,9 @@ export class EsitlemeDenetcisi {
   }
 
   async akisSil(kimlik) {
-    if (await this.kaynak() === 'pc') throw new CalismaHatasi('PC arsivi salt okuma: kopyayi kopru tutar');
+    const k = await this.kaynak();
+    if (k === 'pc') throw new CalismaHatasi('PC arsivi salt okuma: kopyayi kopru tutar');
+    if (k === 'telefon') throw new CalismaHatasi('Telefon kopyasi salt okuma: Ayarlar > Bu telefon > Esitleme sifirlar');
     this._onbellek.delete(kimlik);
     await akisSil(await vtAc(), kimlik);
   }

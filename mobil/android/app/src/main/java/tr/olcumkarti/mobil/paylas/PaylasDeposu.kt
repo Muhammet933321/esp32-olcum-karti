@@ -10,7 +10,7 @@ class PaylasHatasi(val tur: String) : Exception(tur)
  * Paylasilacak dosyanin gecici deposu (tasarim A41; 5F): uygulamanin ONBELLEGINDE tek dizin (`cache/paylas/`).
  * WebView dosyayi parca parca verir: `baslat` (dizini BOSALTIR — onceki paylasimin dosyasi kalmaz) -> `yaz`…
  * -> `bitir` (boy denetimi). Dosya adi disaridan gelir ve dosya sistemine gider: yalniz harf / rakam / . _ -
- * ve bilinen uzanti (csv, kyt, txt); ".." ve dizin ayraci yok. Toplam boy sinirli. Saf JVM.
+ * ve bilinen uzanti (csv, kyt, txt; 5P: rapor icin html, pdf); ".." ve dizin ayraci yok. Toplam boy sinirli. Saf JVM.
  */
 class PaylasDeposu(private val kok: File) {
     private var acik: String? = null
@@ -56,10 +56,10 @@ class PaylasDeposu(private val kok: File) {
     }
 
     companion object {
-        val AD = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\\.(csv|kyt|txt)$")
+        val AD = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\\.(csv|kyt|txt|html|pdf)$")
         /** WebView 512 KiB'lik parcalar yollar; pay birakilir. */
         const val PARCA_AZAMI = 1 shl 20
         const val AZAMI = 64L * 1024 * 1024
-        val MIMELER = setOf("text/csv", "text/plain", "application/octet-stream")
+        val MIMELER = setOf("text/csv", "text/plain", "application/octet-stream", "text/html", "application/pdf")
     }
 }

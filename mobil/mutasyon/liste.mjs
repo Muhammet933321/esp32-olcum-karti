@@ -18,6 +18,7 @@ import duzeltme5d from "./duzeltme5d-liste.mjs";
 import bildirim from "./bildirim-liste.mjs";
 import paylasim from "./paylasim-liste.mjs";
 import durdurGorunur from "./durdur-gorunur-liste.mjs";
+import panelPaket from "./panel-paket-liste.mjs";
 
 import { guncelle } from "./guncel-desen.mjs";
 
@@ -35,6 +36,7 @@ const HAM = [
   ...bildirim,
   ...paylasim,
   ...durdurGorunur,
+  ...panelPaket,
   ...curutucu5d,
   ...duzeltme5d,
   ...p0,

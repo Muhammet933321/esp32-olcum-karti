@@ -52,6 +52,26 @@ import { ceviriKayit as ceviri } from '/ortak/sozluk_kayit.js';
 import { ceviriPc } from '/ortak/sozluk_pc.js';
 import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP, skopYerleri } from '/ortak/kayit.js';
 
+/* 5P: telefon ortami (app.js ile ayni kanca; yoksa null — PC/kart/kopru yolu AYNEN). */
+const ORTAM = globalThis.__olcumOrtam || null;
+
+/** K11: kullaniciya dosya — app.js dosyaVer'in IKIZI (govde bayt bayt ayni, B7; Karsilastirma da bunu
+ *  kullanir). Tarayicida Blob + a.download; telefonda ORTAM.dosyaVer (Android Paylas). */
+export async function dosyaVer(ad, mime, bayt) {
+  if (ORTAM) {
+    return ORTAM.dosyaVer({ ad, mime, bayt: typeof bayt === 'string' ? new TextEncoder().encode(bayt) : bayt });
+  }
+  const url = URL.createObjectURL(new Blob([bayt], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = ad;
+  const kok = document.body;
+  if (kok) kok.appendChild(a);
+  a.click();
+  if (kok) a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 /* ── SAF yardimcilar (B7 node'da sinar) ─────────────────────────────── */
 
 /** Oturumun ekran turu: olcum · ayrinti · pil · skop · bilinmeyen. */
@@ -369,9 +389,11 @@ export const TUR_METIN = Object.freeze({
   bilinmeyen: 'kl.tur_bilinmeyen',
 });
 
-/* 4D: 'pc' — kayit koprunun PC arsivinden (salt okuma); metni sozluk_pc.js'te (ceviriPc). */
+/* 4D: 'pc' — kayit koprunun PC arsivinden (salt okuma); metni sozluk_pc.js'te (ceviriPc).
+   5P: 'telefon' — telefonun kopyasi (Android esitler). */
 export const NEREDE_METIN = Object.freeze({
   kart: 'kl.nerede_kart', tarayici: 'kl.nerede_tarayici', ikisi: 'kl.nerede_ikisi', pc: 'pc.nerede',
+  telefon: 'kl.nerede_telefon',
 });
 
 /** W3: `pc.` anahtari sozluk_pc.js'ten, digerleri (kl./kg./kr. + acilis) sozluk_kayit.js zincirinden. ATMAZ. */
@@ -871,25 +893,28 @@ export const KayitGorunumu = {
         return;
       }
       if (!d) { this.hata = this.m.disariHata; return; }
-      const url = URL.createObjectURL(new Blob([d.bayt], { type: d.mime }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = d.ad;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      dosyaVer(d.ad, d.mime, d.bayt).catch((h) => { this.hata = this.m.disariHata + ' ' + ((h && h.message) || h); });
     },
-    yazdir() { window.print(); },
+    /* 5P (K12): telefonda Android yazdirma (PDF dahil); acik gorunum (K6) cagri boyunca elle — WebView
+       beforeprint atarsa ikinci kez uygulanmaz (_elleYazdir). */
+    async yazdir() {
+      if (!ORTAM) { window.print(); return; }
+      this.yazdirmaOncesi();
+      this._elleYazdir = true;
+      try { await ORTAM.yazdir(); } catch (h) { this.hata = (h && h.message) || String(h); } finally {
+        this._elleYazdir = false;
+        this.yazdirmaSonrasi();
+      }
+    },
     yazdirmaOncesi() {                                            // K6
-      if (!this.rapor) return;
+      if (!this.rapor || this._elleYazdir) return;
       const k = document.documentElement;
       this._eskiTema = k.getAttribute('data-tema');
       k.setAttribute('data-tema', 'acik');
       this.ciz();
     },
     yazdirmaSonrasi() {
-      if (this._eskiTema === undefined || this._eskiTema === null) return;
+      if (this._elleYazdir || this._eskiTema === undefined || this._eskiTema === null) return;
       document.documentElement.setAttribute('data-tema', this._eskiTema);
       this._eskiTema = null;
       this.ciz();

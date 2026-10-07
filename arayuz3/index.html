@@ -132,6 +132,14 @@
     </div>
     <button class="acil-dur" @click="pilDurdurKomut" aria-label="Pil testini durdur">DURDUR</button>
   </div>
+  <div v-else-if="acilTelefon" class="acil" data-acil-telefon>
+    <!-- 5P (K9): yalniz telefonda — pil testinin SURMEDIGI kesin degilse (bilinmiyor) de DURDUR elde -->
+    <div class="acil-bilgi">
+      <span class="acil-nokta" aria-hidden="true"></span>
+      <span><b>{{ metin('oturum.tur.2') }}</b>: {{ metin('pl.bilinmiyor') }}</span>
+    </div>
+    <button class="acil-dur" @click="pilDurdurKomut" :title="metin('pl.durdur_ipucu')">{{ metin('pl.durdur') }}</button>
+  </div>
 
   <!-- Gezinme (B27 A1 → 3D D1) yukarıdaki şeritte: tek sayfa, görünüm = adres
        (#/canli …; eski #/olcum da Canlı); geri tuşu çalışır. Görünümler
@@ -155,6 +163,7 @@
     Kart bir bilgisayara bağlı. Sınırsız geçmiş ve çoklu izleyici için
     arayüzü <a :href="kopruAdresi">{{ kopruAdresi }}</a> üzerinden açın.
   </div>
+  <div v-if="uyari" class="uyari" role="status">{{ uyari }}</div>
   <div v-if="hata" class="hata" role="alert">{{ hata }}</div>
   <!-- 2026-10-06: kart kapali / erisilemiyor — panel (ya da kopru) ayakta olsa da kartin KENDISI yok -->
   <div v-if="kartYokGoster" class="kart-yok" role="alert" data-kart-yok>

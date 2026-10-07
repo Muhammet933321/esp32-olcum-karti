@@ -101,7 +101,8 @@ const KAL_NEDEN = Object.freeze({
   usb: 'ay.kal_neden_usb', demo: 'ay.kal_neden_demo', taban: 'ay.kal_neden_taban',
   kopru: 'pc.ay_kal_neden_kopru',     // 4D: koprunun vekili karta WiFi'den ulasamadi (502)
 });
-const TASIYICI_METIN = Object.freeze({ seri: 'ay.tas_seri', akis: 'ay.tas_akis', demo: 'ay.tas_demo' });
+const TASIYICI_METIN = Object.freeze({ seri: 'ay.tas_seri', akis: 'ay.tas_akis', demo: 'ay.tas_demo',
+  telefon: 'ay.tas_telefon' });
 
 export function metinler(harita, dil) {
   const m = {};
@@ -234,9 +235,10 @@ export function kunyeCoz(v) {
   return { surum: v.surum, dosya: v.dosya, bayt: v.icerik_bayt };
 }
 
-/** 4H: esitleme.js kokenSinama ile AYNI kural (B7) — Gelismis kartta esitleme.js'i indirmez (AY2). */
-export function kopruKokeni(k) {
-  if (!k || (k.protocol !== 'http:' && k.protocol !== 'https:')) return false;
+/** 4H: esitleme.js kokenSinama ile AYNI kural (B7) — Gelismis kartta esitleme.js'i indirmez (AY2).
+ *  5P (K5): telefon ortaminda (https://localhost) kopru DEGIL. */
+export function kopruKokeni(k, ortam = globalThis.__olcumOrtam) {
+  if (ortam || !k || (k.protocol !== 'http:' && k.protocol !== 'https:')) return false;
   const h = String(k.hostname || '').toLowerCase();
   return h === 'localhost' || h.endsWith('.localhost') || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h) || h === '[::1]' || h === '::1';
 }
@@ -356,6 +358,9 @@ const SABLON = `
     <p class="ipucu">{{ m.konsolIpucu }} <a href="#/konsol">{{ m.konsolaGit }}</a></p>
   </section>
   <component v-if="pcBilesen" :is="pcBilesen" v-show="bolum === 'gelismis'" :kart-adres="kartAdres" :dil-secim="dil"></component>
+  <!-- 5P (K13): "Bu telefon" — bileseni Android verir (ORTAM.ayarBolumu) -->
+  <component v-if="telBilesen" :is="telBilesen" v-show="bolum === 'telefon'" :dil-secim="dil"></component>
+  <p v-if="telHata" v-show="bolum === 'telefon'" class="hata" data-ay-tel-hata>{{ telHataMetni }}</p>
   <section class="kart" v-show="bolum === 'gelismis'" data-ay-bolum="gelismis">
     <h2>{{ m.sifirlaBaslik }}</h2>
     <template v-if="anahtarlar.length">
@@ -403,6 +408,7 @@ export const AyarlarEkrani = {
       /* 4D: kaynak koprunun PC arsivi mi; PC metinleri (sozluk_pc.js, yalniz kopruda iner) */
       pc: false, pcSoz: null,
       kabuk: '', pcBilesen: null, pcKopruDenendi: false,
+      telefon: false, telBilesen: null, telHata: '',   // 5P: kaynak telefon kopyasi mi; Bu telefon bileseni
     };
   },
   computed: {
@@ -424,7 +430,7 @@ export const AyarlarEkrani = {
           zaman: zamanYaz(this.kalYerel.zaman) || '—' }));
       }
       if (this.kalKaynak === 'yerel' && this.kalYerel) {
-        p.push(ceviri('ay.kal_kaynak_yerel', this.dil, { kimlik: this.kalYerel.kimlik,
+        p.push(ceviri(this.telefon ? 'ay.kal_kaynak_telefon' : 'ay.kal_kaynak_yerel', this.dil, { kimlik: this.kalYerel.kimlik,
           zaman: zamanYaz(this.kalYerel.zaman) || '—' }));
       }
       if (this.kalNeden) {
@@ -470,6 +476,7 @@ export const AyarlarEkrani = {
       return ceviri('ay.panel_yok', this.dil, { neden: this.kunyeNeden || '—' });
     },
     tasiyiciYazi() { return ceviri(TASIYICI_METIN[this.tasiyici] || this.tasiyici, this.dil); },
+    telHataMetni() { return ceviri('ay.telefon_hata', this.dil, { mesaj: this.telHata }); },
     sifirlaAciklama() { return ceviri('ay.sifirla_aciklama', this.dil, { n: this.anahtarlar.length }); },
     sifirlaEminim() { return ceviri('ay.sifirla_eminim', this.dil, { n: this.anahtarlar.length }); },
   },
@@ -490,7 +497,9 @@ export const AyarlarEkrani = {
     async _pcSozlukAl() { return import('/ortak/sozluk_pc.js'); },
     /** 4D: denetcinin kaynagi kopru (PC arsivi) mi; oyleyse PC metinlerini indir. */
     async _pcKur(den) {
-      this.pc = typeof den.kaynak === 'function' && (await den.kaynak()) === 'pc';
+      const k = typeof den.kaynak === 'function' ? await den.kaynak() : null;
+      this.pc = k === 'pc';
+      this.telefon = k === 'telefon';
       if (this.pc && !this.pcSoz) {
         try { this.pcSoz = Object.freeze({ ...(await this._pcSozlukAl()).SOZLUK_PC }); } catch (h) { this.pcSoz = null; }
       }
@@ -524,6 +533,7 @@ export const AyarlarEkrani = {
       this.sifirlaOnay = false;
       if (this.bolum === 'kal-gecmis' && !this.kalDenendi && !this.kalYukleniyor) this.kalYukle();
       if (this.bolum === 'depolama') { this.depoYukle(); this.kotaOku(); }
+      if (this.bolum === 'telefon' && !this.telBilesen) this.telefonKur();
       if (this.bolum === 'gelismis') {
         this.anahtarlarOku();
         if (!this.kunyeDenendi) this.kunyeYukle();
@@ -531,6 +541,18 @@ export const AyarlarEkrani = {
       }
     },
     _konum() { return globalThis.location; },
+    _ortam() { return globalThis.__olcumOrtam || null; },
+    /** 5P (K13): Bu telefon bolumu — bileseni ortam verir, pcKopruKur deseniyle (markRaw) baglanir. */
+    async telefonKur() {
+      const ortam = this._ortam();
+      if (!ortam) return;
+      this.telHata = '';
+      try {
+        const B = await ortam.ayarBolumu();
+        const V = globalThis.Vue;
+        this.telBilesen = V && typeof V.markRaw === 'function' ? V.markRaw(B) : B;
+      } catch (h) { this.telHata = (h && h.message) || String(h); }
+    },
     async _pcKopruAl() { return import('./pc_kopru.js'); },
     /** 4H: kopruda (4D karari) kabuk + bildirim bolumu. */
     async pcKopruKur() {
@@ -606,7 +628,7 @@ export const AyarlarEkrani = {
       const { den } = await this._den();
       const akislar = [...await den.akislar()].sort((a, b) => (b.olusma || 0) - (a.olusma || 0));
       let oku = (k) => den.kalBaytlari(k);
-      if (!this.pc) {
+      if (!this.pc && !this.telefon) {                  // 5P: telefon kopyasi Android'de (ortam.depo)
         const idb = await this._idbAl();
         const vt = await idb.vtAc();
         oku = (k) => idb.idbDepo(vt, k).kalOku();

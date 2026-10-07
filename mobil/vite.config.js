@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+import panelPaketle from "./araclar/panel_paketle.mjs";
 import { fileURLToPath } from "node:url";
 
 // ortak/ TEK KOPYA: ice aktarilir, kopyalanmaz, duzenlenmez (tasarim §3).
@@ -15,7 +16,9 @@ const TAKMA_ADLAR = [
 
 export default defineConfig({
   base: "./",
-  plugins: [vue()],
+  // panelPaketle: PC panelinin sablonlarini derlemede render'a cevirir (CSP: unsafe-eval yok; 5P K1).
+  // vue(): eski .vue dosyalari (P6 silene dek) ve Vue derleme bayraklari.
+  plugins: [panelPaketle(), vue()],
   resolve: { alias: TAKMA_ADLAR },
   server: { fs: { allow: [".."] } },
   build: { target: "chrome100", outDir: "dist", emptyOutDir: true },

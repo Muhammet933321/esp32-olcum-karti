@@ -36,6 +36,30 @@
 import { TEMALAR, temaKur } from './ekran/tema.js';
 import { ceviri, ceviriKod } from '/ortak/sozluk.js';
 
+/* 5P — TELEFON ORTAMI (tasarim/2026-10-07-5p-panel-telefonda.md K5-K14; sozlesme plan-5p.md).
+   Android uygulamasi paneli yuklemeden ONCE `globalThis.__olcumOrtam`u kurar; varsa panel telefon
+   kipinde: tasiyici `telefon`, kart istekleri / p0 / dosya / yazdirma ortamdan, kopru / servis
+   iscisi / tarayici eslestirmesi dallari ATLANIR. YOKSA (PC, kart, kopru) hicbir yol degismez:
+   her dal `if (ORTAM)` ile baslar. Panel ortamin YALNIZ sozlesmedeki adlarini kullanir (B7). */
+const ORTAM = globalThis.__olcumOrtam || null;
+
+/** K11: kullaniciya dosya — TEK yol (ekran/kayit_gorunum.js'teki ikizi bayt bayt ayni govde, B7).
+ *  Tarayicida Blob + a.download; telefonda ORTAM.dosyaVer (Android Paylas). bayt: dizge | Uint8Array. */
+async function dosyaVer(ad, mime, bayt) {
+  if (ORTAM) {
+    return ORTAM.dosyaVer({ ad, mime, bayt: typeof bayt === 'string' ? new TextEncoder().encode(bayt) : bayt });
+  }
+  const url = URL.createObjectURL(new Blob([bayt], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = ad;
+  const kok = document.body;
+  if (kok) kok.appendChild(a);
+  a.click();
+  if (kok) a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 /* 3C: `defineAsyncComponent` — Kayitlar ekrani (ekran/kayitlar.js ve onun
    /ortak/ modulleri) ancak ekran ILK acilinca iner (dinamik `import()`):
    karttan her dosya istegi olcum dongusunu blokluyor ve acilis istekleri
@@ -312,6 +336,8 @@ const TASIYICILAR = {
   akis: TasiyiciAkis,
   demo: TasiyiciSahte,
 };
+/* 5P (K6): telefonun imzali akisi + komutu (Android). Secicide YOK, kendiliginden secilir, saklanmaz. */
+if (ORTAM) TASIYICILAR.telefon = ORTAM.tasiyici;
 
 /* ═══ B27 Aşama 1 — GÖRÜNÜMLER ═══════════════════════════════════════
    Tek sayfa, hash yönlendirme (#/olcum …). stok-takip'teki desenle aynı:
@@ -429,18 +455,23 @@ const AYAR_BOLUMLERI = Object.freeze([
   Object.freeze({ id: 'dil-gorunum', ad: 'ay.b_dil_gorunum', mod: false }),
   Object.freeze({ id: 'gelismis', ad: 'ay.b_gelismis', mod: true }),
 ]);
-const AYAR_VARSAYILAN = 'baglanti';
+/* 5P (K13/K14): telefonda ilk bolum "Bu telefon" (ORTAM.ayarBolumu; ekran/ayarlar.js baglar); Baglanti,
+   Eslestirme ve Depolama'nin karsiliklari orada, listede YOKLAR. Ortam yoksa liste AYNEN. */
+const AYAR_TELEFONDA_YOK = Object.freeze(['baglanti', 'eslestirme', 'depolama']);
+const AYAR_ETKIN = ORTAM ? Object.freeze([Object.freeze({ id: 'telefon', ad: 'ay.b_telefon', mod: true }),
+  ...AYAR_BOLUMLERI.filter((b) => !AYAR_TELEFONDA_YOK.includes(b.id))]) : AYAR_BOLUMLERI;
+const AYAR_VARSAYILAN = AYAR_ETKIN[0].id;
 
 /** `#/ayar/<id>` -> bolum id; `#/ayar`, bilinmeyen ya da baska adres -> AYAR_VARSAYILAN. */
 function ayarBolumCoz(hash) {
   const m = /^#?\/?ayar\/([a-z-]+)\/?$/.exec(String(hash || ''));
-  const b = m ? AYAR_BOLUMLERI.find((x) => x.id === m[1]) : null;
+  const b = m ? AYAR_ETKIN.find((x) => x.id === m[1]) : null;
   return b ? b.id : AYAR_VARSAYILAN;
 }
 
 /** Bu bolum tembel modulde mi (ekran/ayarlar.js). */
 function ayarBolumModul(id) {
-  const b = AYAR_BOLUMLERI.find((x) => x.id === id);
+  const b = AYAR_ETKIN.find((x) => x.id === id);
   return !!(b && b.mod);
 }
 
@@ -1043,7 +1074,7 @@ createApp({
       /* B22.2: hangi taşıyıcı etkin. `tasiyici` ve `yetenek` bundan
          türetiliyor (computed), böylece kip değişince panel görünürlüğü
          kendiliğinden güncelleniyor. */
-      tasiyiciAdi: 'seri',
+      tasiyiciAdi: ORTAM ? 'telefon' : 'seri',
       kartTaban: '',        // '' = aynı köken; PC'den karta bağlanırken dolu
       kopruAdresi: '',      // kart "köprü şurada" derse
       /* PC köprüsünde N izleyici, BIR sürücü. Kart doğrudan bağlıysa
@@ -1052,6 +1083,7 @@ createApp({
       surucuyum: true,
       bagli: false,
       hata: '',
+      uyari: '',            // 5P: tasiyicinin hata olmayan durumu (telefonda akis dolu: baska izleyici / PC koprusu)
       menzil: null,       // 0 NORMAL, 1 YUKSEK, null bilinmiyor
       gorunum: hashtenGorunum(),   // B27 Aşama 1: #/olcum #/skop #/pil #/ayar #/konsol
       gorunumler: GORUNUMLER,
@@ -1288,6 +1320,7 @@ createApp({
       pilSonMs: null,              // kartin son noktasinin ms'i (testin basindan) — "gecen sure"
       pilTazeZaman: 0,             // son /pil (ya da B) yanitinin tarayici zamani
       pilBayat: true,              // durum degisti ama son hali alinmadi (PL4: sekme acilinca bir kez)
+      pilDurumBilinen: false,      // 5P (K9): bu baglantida kart pil durumunu soyledi (pilDurumAyarla)
       sayfaGorunur: true,          // PL4: belge gorunur mu (visibilitychange)
       pilAcik: hashtenGorunum() === 'pil',   // ekran/pil.js ilk gorunurlukte iner
       pilModDurum: 'bekliyor',     // 'bekliyor' | 'yukleniyor' | 'hazir' | 'yuklenemedi'
@@ -1849,7 +1882,7 @@ createApp({
     pl() { return metinHaritasi(PL_METIN, this.dil); },
     /* ── 3H-1 — Ayarlar (AY2/AY3) ── */
     ay() { return metinHaritasi(AY_METIN, this.dil); },
-    ayarBolumListesi() { return AYAR_BOLUMLERI.map((b) => ({ id: b.id, ad: ceviri(b.ad, this.dil) })); },
+    ayarBolumListesi() { return AYAR_ETKIN.map((b) => ({ id: b.id, ad: ceviri(b.ad, this.dil) })); },
     dilSecenekleri() { return DILLER.map((d) => ({ id: d.id, ad: ceviri(d.ad, d.id) })); },
     /** Tembel Ayarlar modulu gerekli mi: Ayarlar gorunur VE secili bolum modulde. */
     ayarModGerekli() { return this.gorunum === 'ayar' && ayarBolumModul(this.ayarBolum); },
@@ -1859,6 +1892,16 @@ createApp({
     eslesmeUyariMetni() { return this.eslesmeUyari ? ceviri(this.eslesmeUyari.anahtar, this.dil, this.eslesmeUyari.d) : ''; },
     eslesmeGit() { return ceviri('es.uyari_git', this.dil); },
     pilCalisiyor() { return this.pilDurum === 'CALISIYOR'; },
+    /** 5P (K9): pil testi suruyor mu — true | false (bu baglantida kart soyledi) | null (bilinmiyor). */
+    pilSuruyorBilgi() {
+      if (this.pilDurum === 'CALISIYOR') return true;
+      return this.bagli && this.pilDurumBilinen ? false : null;
+    },
+    /** 5P (K9): telefonda acil serit suphede de gorunur (karar ORTAM.serit'in; hata = gorunur). */
+    acilTelefon() {
+      if (!ORTAM) return false;
+      try { return !!ORTAM.serit(this.pilSuruyorBilgi); } catch (e) { return true; }
+    },
     pilHazirKesme() { return PIL_HAZIR_KESME; },
     /** PL2 okuma kartlari — HER kartin degeri ve KAYNAGI (PU8). mAh / Wh KARTIN sayaclari
      *  (her ornekte birikir, DCIR darbesi haric) — tarayici hesaplamaz. */
@@ -2130,7 +2173,7 @@ createApp({
     /* Tasiyici degisince ONCE mevcut baglantiyi kapat — akis acikken
        seriye gecmek iki kaynagin ayni ayristiriciyi beslemesi demek. */
     async tasiyiciAdi(v, eski) {
-      this.ayarYaz('tasiyici', v);
+      if (v !== 'telefon') this.ayarYaz('tasiyici', v);   // 5P (K6): telefon saklanmaz
       const acik = this.bagliTasiyici;
       if (this.bagli && acik && acik !== v && TASIYICILAR[acik]) {
         await TASIYICILAR[acik].kapat(this);
@@ -2219,6 +2262,8 @@ createApp({
           gezgin = (typeof navigator !== 'undefined' ? navigator : null),
           konum = (typeof location !== 'undefined' ? location : null),
           belge = (typeof document !== 'undefined' ? document : null)) {
+      /* 5P (K5): telefonda kabuk APK'da — kayit da eski kaydi silme de YOK (localhost kopru sanilmasin) */
+      if (ORTAM) { this._sw = { uygun: false, durum: 'atlandi' }; return; }
       const sw = gezgin && 'serviceWorker' in gezgin ? gezgin.serviceWorker : null;
       const uygun = swKaydiUygun({ guvenli: !!pencere && pencere.isSecureContext === true, swVar: !!sw, konum });
       this._sw = { uygun, durum: uygun ? 'bekliyor' : 'atlandi' };
@@ -2783,12 +2828,14 @@ createApp({
        (eslesmeBildir). Ekranlar fetch'i kendileri imzalamaz: `kartIstek` prop/secenek alir.
        ⚠ `p0` buraya GIRMEZ (TasiyiciAkis.gonder, EMNIYET). */
     async kartIstek(yol, sec) {
+      if (ORTAM) return ORTAM.istek(yol, sec || {});      // 5P (K7): Android'in imzali istegi
       const ist = await this.eslesmeHazirla();
       if (!ist) return fetch(this.kartAdres(yol), sec);
       return ist.istek(yol, sec || {}, () => fetch(this.kartAdres(yol), sec));
     },
     /** Imzali yol var mi: cihaz kaydi yoksa null (modul INMEZ); varsa TEK istemci. */
     eslesmeHazirla() {
+      if (ORTAM) return Promise.resolve(null);            // 5P (K7): anahtar Keystore'da, tarayici yolu kapali
       if (!this._esKarar) {
         this._esKarar = cihazKaydiVar()
           .then((v) => {
@@ -2864,6 +2911,7 @@ createApp({
        ⚠ Kullanici bir kez SECMISSE dokunulmuyor: otomatik algilama
        tercihi EZMEZ. */
     otomatikBaglanmali() {
+      if (ORTAM) return !this.bagli;                       // 5P: uygulama acilinca karta baglanir
       const k = (typeof location !== 'undefined') ? location : null;
       if (!k || k.protocol === 'file:') return false;
       if (/^(localhost|127\.0\.0\.1|\[::1\])$/i.test(k.hostname)) return false;
@@ -2872,6 +2920,7 @@ createApp({
     },
 
     async kopruyuAlgila() {
+      if (ORTAM) return;                                   // 5P (K5): https://localhost kopru DEGIL
       if (this.ayarOku('tasiyici', null) !== null) return;
 
       /* 🔴 B26: SAYFAYI KART SUNUYORSA DA 'akis' SEÇ.
@@ -2907,7 +2956,7 @@ createApp({
     },
 
     tercihleriYukle() {
-      this.tasiyiciAdi = this.ayarOku('tasiyici', this.tasiyiciAdi);
+      this.tasiyiciAdi = ORTAM ? 'telefon' : this.ayarOku('tasiyici', this.tasiyiciAdi);
       this.kartTaban = this.ayarOku('kartTaban', this.kartTaban);
       this.pencere = this.ayarOku('pencere', this.pencere);
       this.gosterV = this.ayarOku('gosterV', this.gosterV);
@@ -3037,6 +3086,7 @@ createApp({
        nasıl çalıştığını değil. */
     async baglan() {
       this.hata = '';
+      this.pilDurumBilinen = false;      // 5P (K9): bu baglantida kart soyleyene dek bilinmiyor
       try {
         await this.tasiyici.ac(this);
         this.bagli = true;
@@ -3074,6 +3124,7 @@ createApp({
       const ad = e && e.name;
       if (ad === 'NotFoundError') return '';
       const mesaj = (e && e.message) || String(e);
+      if (ORTAM) return mesaj;           // 5P: telefon tasiyicisi sebebi ve care'yi kendisi yazar (kablo yok)
       if (ad === 'InvalidStateError' || ad === 'NetworkError') {
         return 'Bağlanamadı: ' + mesaj + ' — port başka bir program (Arduino seri monitör, tezgah betiği) '
           + 'tarafından kullanılıyor olabilir; onu kapatıp yeniden bağlanın.';
@@ -3086,6 +3137,7 @@ createApp({
       this.bagli = false;
       this.bagliTasiyici = null;
       this.pilBayat = true;              // 3F: yeniden baglaninca pil durumu yeniden sorulur
+      this.pilDurumBilinen = false;
       this.kaydet('— bağlantı kesildi —');
     },
 
@@ -3094,7 +3146,18 @@ createApp({
     async gonder(metin) {
       this.onay = null;                  // WIG: baska bir komut silahli onayi dusurur
       this.kaydet(metin, true);
+      /* 5P (K8): telefonda p0 Android'in DURDUR kanalindan (ayri is parcacigi, imzasiz; asla reddetmez) */
+      if (ORTAM && metin === 'p0') {
+        let tamam = false;
+        try { tamam = await ORTAM.p0(); } catch (e) { tamam = false; }
+        if (!tamam) this.hata = this.metin('kb.komut_kart_yok');
+        return;
+      }
       await this.tasiyici.gonder(this, metin);
+      /* 5P: kayit baslatildi -> Android "anlik izleme" sorusu (beklenmez, hatasi panele dokunmaz) */
+      if (ORTAM && /^Gb/.test(metin)) {
+        try { Promise.resolve(ORTAM.komutGitti(metin)).catch(() => {}); } catch (e) { /* yut */ }
+      }
     },
 
     // ─────────────────────────────────────────────── satır ayrıştırma
@@ -3750,6 +3813,7 @@ createApp({
      *  son hal alınmadıysa (`bayat`) Pil sekmesi görünürse BİR `/pil`, değilse sekme açılınca;
      *  sonra kayıt kaynağı (PU11). */
     pilDurumAyarla(yeni, yoklamadan = false) {
+      this.pilDurumBilinen = true;
       const eski = this.pilDurum;
       this.pilDurum = yeni;
       if (eski === yeni) return;
@@ -4008,22 +4072,15 @@ createApp({
         satir.push(n.bosluk ? (n.sira + ',,,,1')
                             : [n.sira, n.ms, n.v, n.i, 0].join(','));
       }
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(
-        new Blob([satir.join('\n')], { type: 'text/csv' }));
-      a.download = 'pil-testi.csv';
-      a.click();
-      URL.revokeObjectURL(a.href);
+      dosyaVer('pil-testi.csv', 'text/csv', satir.join('\n')).catch((h) => this.dosyaHatasi(h));
     },
+    /** 5P (K11): dosya verilemedi (telefonda Paylas hatasi) — sebep hata seridinde. */
+    dosyaHatasi(h) { this.hata = String((h && h.message) || h); },
     /** PL6: pil CSV'si KAYITTAN (3C `pilCsv`: noktalar + DCIR satırları, Excel-TR). */
     pilKayitCsv() {
       const r = this._pilKayit;
       if (!r || typeof r.csv !== 'function' || typeof document === 'undefined') return;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([r.csv('tr')], { type: 'text/csv' }));
-      a.download = 'pil-oturum-' + r.ozet.oturum + '.csv';
-      a.click();
-      URL.revokeObjectURL(a.href);
+      dosyaVer('pil-oturum-' + r.ozet.oturum + '.csv', 'text/csv', r.csv('tr')).catch((h) => this.dosyaHatasi(h));
     },
     /* ── 3F — eğri modülü (ekran/pil.js; PL3) ── */
     async pilModYukle() {
@@ -4211,6 +4268,7 @@ createApp({
          kanıtı. Ayrı bir "köprü müsün" ucu ikinci bir gerçek kaynağı
          olurdu. Hata durumunda SESSİZCE kapalı kalıyor — arşiv bir ek
          özellik, yokluğu ölçümü etkilemiyor. */
+      if (ORTAM) { this._kopruBilindi = true; return; }   // 5P (K5): telefonda kopru yok, /durum sorulmaz
       try {
         const y = await fetch(this.kartAdres('/durum'), { cache: 'no-store', credentials: 'omit' });   /* Basic-Auth onbellegi tasinmasin */
         if (!y.ok) { this.skopArsivVar = false; this.kopruda = false; this.kopruVekil = false; return; }
@@ -4562,14 +4620,8 @@ createApp({
         const h = (x) => (Number.isNaN(x) ? '' : String(x));   // B27 A2: veri yok = boş hücre
         satirlar.push(`${g.t.toFixed(3)};${h(g.v)};${h(g.i)};${h(g.w)}`.replace(/\./g, ','));
       }
-      const bl = new Blob(['﻿' + satirlar.join('\r\n')],
-                          { type: 'text/csv;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(bl);
-      a.download = 'olcum-' + new Date().toISOString().slice(0, 19)
-                     .replace(/[:T]/g, '-') + '.csv';
-      a.click();
-      URL.revokeObjectURL(a.href);
+      dosyaVer('olcum-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv',
+        'text/csv;charset=utf-8', '﻿' + satirlar.join('\r\n')).catch((h) => this.dosyaHatasi(h));
     },
 
     // ─────────────────────────────────────────────── çizim

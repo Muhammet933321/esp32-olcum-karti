@@ -8,3 +8,5 @@ export const Kasa = registerPlugin("Kasa");
 export const KartDepo = registerPlugin("KartDepo");
 export const Bildirim = registerPlugin("Bildirim");
 export const Paylas = registerPlugin("Paylas");
+// 5P (K12): rapor yazdirma / PDF olarak kaydetme — yazdir({ ad }) (Kotlin YazdirPlugin, WebView.createPrintDocumentAdapter).
+export const Yazdir = registerPlugin("Yazdir");

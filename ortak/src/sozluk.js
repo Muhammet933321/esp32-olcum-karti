@@ -9,8 +9,7 @@
 //   YALNIZ kabugun app.js AY_METIN / AYAR_BOLUMLERI / DILLER ve birden cok ekranin ortaklari; ekran/ayarlar.js'in
 //   kendi metinleri sozluk_ay.js'te, EU32); es.<ad>
 //   (3H-2: yalniz kabugunkiler; Eslestirme ekraninin metinleri acilisa girmesin diye sozluk_es.js, EU30).
-//   EU32 (W3): tembel ekran zincirlerinin YALNIZ kendi kullandigi metinler kendi sozluklerinde (sozluk_kayit.js:
-//   Kayitlar / kayit gorunumu / Karsilastirma; sozluk_ay.js: Ayarlar modulu) — acilis kumesi ve #/skop kucuk kalsin.
+//   EU32 (W3): tembel ekranin YALNIZ kendi metni kendi sozlugunde (acilis ve #/skop kucuk kalsin).
 //   os./pl. burada KALIR: Osiloskop ve Pil ekranlari kabugun (app.js + index.html) parcasi, modul inmeden de
 //   cizilir (PL: DURDUR ve okumalar modulu BEKLEMEZ, PU1). Ekranlar
 //   anahtari DUZ METIN sabitiyle yazar (KL_METIN / KG_METIN), "kullanilmayan anahtar yok" denetimi
@@ -695,6 +694,7 @@ export const SOZLUK = Object.freeze({
   "ay.b_kal_gecmis": S("Kalibrasyon geçmişi", "Calibration history"),
   "ay.b_depolama": S("Depolama", "Storage"),
   "ay.b_dil_gorunum": S("Dil ve görünüm", "Language and appearance"),
+  "ay.b_telefon": S("Bu telefon", "This phone"),   // 5P (K13): yalniz telefon kipinde
   "ay.b_gelismis": S("Gelişmiş", "Advanced"),
   "ay.dil": S("Dil", "Language"),
   /* coklu ag (2026-10-06, tasarim/2026-10-06-coklu-ag.md) — Ayarlar > Ag */

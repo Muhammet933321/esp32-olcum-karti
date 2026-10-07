@@ -265,9 +265,11 @@ describe("paylasim: ekran ve Android baglantisi", () => {
     expect(kt).not.toMatch(/FLAG_GRANT_WRITE_URI_PERMISSION|ACTION_VIEW|http/);
     expect(kt).toContain('const val DIZIN = "paylas"');
     expect(kaynak("android/app/src/main/AndroidManifest.xml")).toMatch(/android:name="androidx\.core\.content\.FileProvider"[^>]*android:exported="false"/);
-    // JS ve Kotlin ayni ad desenini kullanir.
-    expect(kaynak("android/app/src/main/java/tr/olcumkarti/mobil/paylas/PaylasDeposu.kt")).toContain('Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\\\\.(csv|kyt|txt)$")');
-    expect(AD_DESENI.source).toBe("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\\.(csv|kyt|txt)$");
+    // JS ve Kotlin ayni ad desenini kullanir (5P K11/K12: + html, pdf).
+    expect(kaynak("android/app/src/main/java/tr/olcumkarti/mobil/paylas/PaylasDeposu.kt")).toContain('Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\\\\.(csv|kyt|txt|html|pdf)$")');
+    expect(AD_DESENI.source).toBe("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\\.(csv|kyt|txt|html|pdf)$");
+    // MIME kumesi de Kotlin MIMELER ile ayni.
+    expect(kaynak("android/app/src/main/java/tr/olcumkarti/mobil/paylas/PaylasDeposu.kt")).toContain('setOf("text/csv", "text/plain", "application/octet-stream", "text/html", "application/pdf")');
   });
 });
 

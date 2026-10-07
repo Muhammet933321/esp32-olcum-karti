@@ -31,7 +31,7 @@ class PaylasDeposuTest {
     fun adDosyaSisteminegider_gecersizAdHerIslemdeReddedilir_dizinDisinaYazilmaz() {
         val d = PaylasDeposu(kok())
         val kotu = listOf(null, "", "../kasa/x.csv", "..\\x.csv", "a/b.csv", "kayit.exe", "kayit.csv.sh", "kayit..csv", ".gizli.csv", "kayit 1.csv",
-            "kayıt.csv", "a".repeat(90) + ".csv", "kayit.CSV", "kayit")
+            "kayıt.csv", "a".repeat(90) + ".csv", "kayit.CSV", "kayit", "rapor.htm", "rapor.PDF", "rapor.html.exe", "rapor.js")
         for (ad in kotu) {
             assertEquals(ad, "bicim", turu { d.baslat(ad) })
             assertEquals(ad, "bicim", turu { d.yaz(ad, byteArrayOf(1)) })
@@ -39,7 +39,7 @@ class PaylasDeposuTest {
         }
         assertFalse(kok().exists())
         assertFalse(File(gecici.root, "onbellek/kasa").exists())
-        for (ad in listOf("kayit-5.kyt", "kayit-5-rapor.txt", "kayit-101-aku-sarj-en.csv", "a.csv")) { d.baslat(ad); d.yaz(ad, byteArrayOf(1)); d.bitir(ad, 1) }
+        for (ad in listOf("kayit-5.kyt", "kayit-5-rapor.txt", "kayit-101-aku-sarj-en.csv", "a.csv", "kayit-5-rapor.html", "kayit-5-rapor.pdf")) { d.baslat(ad); d.yaz(ad, byteArrayOf(1)); d.bitir(ad, 1) }
     }
 
     @Test
@@ -95,6 +95,6 @@ class PaylasDeposuTest {
         assertEquals("cok-buyuk", turu { d.yaz("kayit-1.csv", ByteArray(1)) })
         assertEquals(0, kok().list()!!.size)
         assertEquals("sira", turu { d.yaz("kayit-1.csv", ByteArray(1)) })
-        assertTrue(PaylasDeposu.MIMELER == setOf("text/csv", "text/plain", "application/octet-stream"))
+        assertTrue(PaylasDeposu.MIMELER == setOf("text/csv", "text/plain", "application/octet-stream", "text/html", "application/pdf"))
     }
 }

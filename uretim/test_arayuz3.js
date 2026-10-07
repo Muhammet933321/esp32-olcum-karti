@@ -4806,9 +4806,13 @@ console.log('\n--- 28. Pil testi (3F) ---');
   /* ── (a) KABLOLAMA + DUZEN ──────────────────────────────────────── */
   {
     const dur = (pm.match(/<button[^>]*data-pil="durdur"[^>]*>/) || [])[0] || '';
+    /* 5P (K9): telefonun "bilinmiyor" seridi acil seridin v-else-if'i (yalniz ORTAM varken) — ucuncu DURDUR
+       YALNIZ orada ve onaysiz; PC'nin iki DURDUR'u (acil serit + Pil sekmesi) AYNEN sayilir. */
+    const telSerit = (html.match(/<div v-if="pilDurum === 'CALISIYOR'" class="acil">[\s\S]*?<\/button>\s*<\/div>\s*(<div v-else-if="acilTelefon" class="acil" data-acil-telefon>[\s\S]*?<\/button>\s*<\/div>)/) || [])[1] || '';
     ok('[!] EMNIYET-P0 (PL1): Pil sekmesinin DURDUR`u pilDurdurKomut`u TEK tikla cagirir; :disabled YOK, v-if/v-show YOK (her zaman gorunur)',
        /@click="pilDurdurKomut"/.test(dur) && !/:disabled|disabled|v-if|v-show|onayIste/.test(dur)
-       && (html.match(/@click="pilDurdurKomut"/g) || []).length === 2, dur);
+       && (html.replace(telSerit, '').match(/@click="pilDurdurKomut"/g) || []).length === 2
+       && (telSerit.match(/@click="pilDurdurKomut"/g) || []).length === 1 && !/disabled|onayIste/.test(telSerit), dur);
     ok('[!] EMNIYET-P0 (PU1): `p0` yolu modulu BEKLEMEZ — pilDurdurKomut ve acil serit app.js`te; ekran/pil.js `p0` gondermez',
        /pilDurdurKomut\(\) \{ this\.gonder\('p0'\); \}/.test(appKaynak) && !/p0/.test(yorumsuz(pilKaynak).replace(/'pl\.[a-z_]+'/g, ''))
        && govdeIcinde(appKaynak, 'pilModYukle', "import('./ekran/pil.js')"));
@@ -8354,6 +8358,371 @@ console.log('\n--- 34. 4H: panel PC koprusunde (bildirim bolumu, yerel ag uyaris
        && /salt okuma/i.test(tr) && /bu bilgisayar/i.test(tr) && /olcum\.local/.test(tr) && /read-only/i.test(en) && /p0/.test(tr)
        && isaretsiz === 'Komut gönderilemedi (403): bu oturum SURUCU degil — komut reddedildi.' && yuklenen === 3,
        `${tr} | ${en} | ${dv} | ${isaretsiz}`);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   35. 5P — PANEL TELEFONDA (globalThis.__olcumOrtam; tasarim/2026-10-07-5p-panel-telefonda.md K5-K14)
+   Android uygulamasi paneli gomer ve ONCE ortami kurar (sozlesme: tasarim/2026-10-07-plan-5p.md).
+   (a) ortam YOKKEN panel bugunku yoldan: tasiyicilar seri/akis/demo, ayar bolumleri aynen, serit kurali aynen.
+   (b) panelin kullandigi ortam adlari sozlesmenin ALT KUMESI; kanca yalniz okunur.
+   (c) kullaniciya dosya TEK yoldan (dosyaVer): a.download / createObjectURL yalniz onun govdesinde; app.js ile
+       ekran/kayit_gorunum.js'teki ikiz govde bayt bayt ayni; tarayici yolu ad / bayt / MIME'yi AYNEN verir.
+   (d) TELEFON KIPI (app.js ayri bir vm baglaminda, sahte ortamla): tasiyici `telefon` (saklanmaz), kopru /
+       servis iscisi / tarayici eslestirmesi YOK, kart istekleri ortam.istek'ten, p0 ortam.p0'dan (onaysiz, tek
+       cagri), Gb -> komutGitti (atsa da panel etkilenmez), serit ortam.serit(true|false|null), dosya
+       ortam.dosyaVer'den, Ayarlar ilk bolum "Bu telefon" (Baglanti / Eslestirme / Depolama yok) —
+       ve BUTUN bunlar boyunca fetch SAYISI 0.
+   (e) esitleme.js kaynak 'telefon': akislar / depo / esitle ortamdan, onay panelden GITMEZ, kopya silme ret,
+       kopru sorusu yok (kokenSinama false), fetch 0.
+   (f) ayarlar.js: kopruKokeni ortamda false; "Bu telefon" bileseni ortam.ayarBolumu'ndan (hata metniyle);
+       Kayitlar: telefon kopyasi (nerede 'telefon'), arsiv onayi ve kopya silme telefonda YOK.
+   Gercek WebView acilisi mobil/ tarafinda (P1 basliksiz tarayici testi + cihaz kabulu).
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 35. 5P: panel telefonda (globalThis.__olcumOrtam) ---');
+{
+  const SOZLESME = ['ad', 'surum', 'tasiyici', 'istek', 'p0', 'serit', 'akislar', 'depo', 'esitle', 'dosyaVer', 'yazdir',
+    'ayarBolumu', 'komutGitti'];
+  const SZa = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const tumKod = kodKaynaklari.map((k) => ({ ad: k.ad, kod: yorumsuz(k.kaynak) }));
+  const html5 = yorumsuz(htmlKaynak);
+
+  /* ── (a) ortam YOKKEN ─────────────────────────────────────────────── */
+  {
+    const u0 = ornek();
+    ok('[!] 5P (a): ortam YOKKEN TASIYICILAR tam olarak seri/akis/demo, varsayilan seri, ayar bolumleri AYNEN (varsayilan Baglanti), telefon seridi kapali',
+       vm.runInContext('Object.keys(TASIYICILAR).join()', sandbox) === 'seri,akis,demo'
+       && vm.runInContext('ORTAM', sandbox) === null && u0.tasiyiciAdi === 'seri'
+       && vm.runInContext('AYAR_ETKIN === AYAR_BOLUMLERI && AYAR_VARSAYILAN', sandbox) === 'baglanti'
+       && u0.ayarBolumListesi.map((b) => b.id).join() === 'baglanti,ag,eslestirme,kalibrasyon,kal-gecmis,depolama,dil-gorunum,gelismis'
+       && u0.acilTelefon === false,
+       vm.runInContext('Object.keys(TASIYICILAR).join()', sandbox));
+  }
+
+  /* ── (b) sozlesme ─────────────────────────────────────────────────── */
+  {
+    const kullanilan = new Map();
+    for (const k of tumKod) {
+      for (const m of k.kod.matchAll(/\b(?:ORTAM|ortam|_ortam)\??\.([A-Za-z_$][\w$]*)/g)) {
+        if (!kullanilan.has(m[1])) kullanilan.set(m[1], new Set());
+        kullanilan.get(m[1]).add(k.ad);
+      }
+    }
+    const disari = [...kullanilan.keys()].filter((a) => !SOZLESME.includes(a));
+    const gerekli = ['tasiyici', 'istek', 'p0', 'serit', 'komutGitti', 'dosyaVer', 'yazdir', 'ayarBolumu', 'akislar', 'depo', 'esitle'];
+    const yazma = tumKod.filter((k) => /__olcumOrtam\s*=(?!=)/.test(k.kod)).map((k) => k.ad);
+    const okuma = tumKod.filter((k) => /globalThis\.__olcumOrtam\b/.test(k.kod)).map((k) => k.ad);
+    ok('[!] 5P (b): panelin kullandigi ortam adlari sozlesmenin ALT KUMESI (ve gerekli her ad gercekten kullaniliyor); kanca yalniz OKUNUR (globalThis.__olcumOrtam), panel onu yazmaz',
+       disari.length === 0 && gerekli.every((a) => kullanilan.has(a)) && yazma.length === 0
+       && ['app.js', 'ekran/esitleme.js', 'ekran/ayarlar.js', 'ekran/kayit_gorunum.js'].every((a) => okuma.includes(a))
+       && !/__olcumOrtam/.test(html5),
+       disari.length ? 'sozlesme disi: ' + disari.join(' ') : [...kullanilan.entries()].map(([a, f]) => a + '@' + [...f].join('+')).join(' '));
+  }
+
+  /* ── (c) dosyaVer ─────────────────────────────────────────────────── */
+  const govdeAraligi = (kod, imza) => {
+    const i = kod.indexOf(imza);
+    if (i < 0) return null;
+    const j = kod.indexOf('{', kod.indexOf(')', i));
+    let d = 0;
+    for (let k = j; k < kod.length; k++) {
+      if (kod[k] === '{') d++;
+      else if (kod[k] === '}') { d--; if (d === 0) return [j, k + 1]; }
+    }
+    return null;
+  };
+  {
+    const tanimlar = tumKod.filter((k) => /\bfunction dosyaVer\(/.test(k.kod));
+    const govdeler = tanimlar.map((k) => { const r = govdeAraligi(k.kod, 'function dosyaVer('); return r ? k.kod.slice(r[0], r[1]) : ''; });
+    const kacak = [];
+    for (const k of tumKod) {
+      const r = govdeAraligi(k.kod, 'function dosyaVer(');
+      for (const m of k.kod.matchAll(/\.download\b|createObjectURL\(/g)) {
+        if (!r || m.index < r[0] || m.index > r[1]) kacak.push(k.ad + ':' + m[0]);
+      }
+    }
+    const ekranKod = (ad) => (tumKod.find((k) => k.ad === ad) || { kod: '' }).kod;
+    const ekranGovde = (ad, yontem) => { const kod = ekranKod(ad); const r = govdeAraligi(kod, '\n    ' + yontem + '('); return r ? kod.slice(r[0], r[1]) : ''; };
+    ok('[!] 5P (c) K11: dosya TEK yoldan — a.download / createObjectURL YALNIZ dosyaVer govdesinde; iki tanim (app.js acilista, ekran/kayit_gorunum.js tembel) govdesi BAYT BAYT ayni; bes uretici onu cagiriyor',
+       kacak.length === 0 && tanimlar.map((k) => k.ad).join() === 'app.js,ekran/kayit_gorunum.js'
+       && govdeler.length === 2 && govdeler[0] === govdeler[1] && /ORTAM\.dosyaVer\(/.test(govdeler[0]) && /a\.download = ad/.test(govdeler[0])
+       && ['pilCsvIndir', 'pilKayitCsv', 'csvIndir'].every((y) => govdeIcinde(appKaynak, y, 'dosyaVer('))
+       && /dosyaVer\(d\.ad, d\.mime, d\.bayt\)/.test(ekranGovde('ekran/kayit_gorunum.js', 'indir'))
+       && /dosyaVer\(karsilastirDosyaAdi\(kip, kanal, dil\)/.test(ekranGovde('ekran/karsilastir.js', 'indir')),
+       kacak.join(' ') || tanimlar.map((k) => k.ad).join(' '));
+    /* tarayici yolu (ortamsiz): ad, MIME ve bayt (BOM dahil) bugunkuyle ayni */
+    const eski = { URL: sandbox.URL, Blob: sandbox.Blob, document: sandbox.document };
+    const bloblar = [];
+    const ogeler = [];
+    sandbox.URL = { createObjectURL: (b) => { bloblar.push(b); return 'blob:' + bloblar.length; }, revokeObjectURL() {} };
+    sandbox.Blob = class { constructor(p, o) { this.parcalar = p; this.type = o && o.type; } };
+    sandbox.document = { ...eski.document, body: { appendChild() {} },
+      createElement: () => { const a = { click() { a.tik = (a.tik || 0) + 1; }, remove() {} }; ogeler.push(a); return a; } };
+    const u = ornek();
+    u.gecmis = [{ t: 1.5, v: 2, i: NaN, w: 3 }];
+    u.pilNokta = [{ sira: 1, ms: 10, v: 3.7, i: 0.5 }, { sira: 2, bosluk: true }];
+    u.csvIndir();
+    u.pilCsvIndir();
+    Object.assign(sandbox, eski);
+    const b0 = bloblar[0] || { parcalar: [''] };
+    const b1 = bloblar[1] || { parcalar: [''] };
+    ok('[!] 5P (c): ortamsiz dosyaVer tarayici yolu — Canli CSV olcum-<tarih>.csv, text/csv;charset=utf-8, BOM + ";" + ondalik virgul, NaN bos; pil CSV pil-testi.csv text/csv; tiklanan baglanti',
+       ogeler.length === 2 && /^olcum-\d{4}-\d\d-\d\d-\d\d-\d\d-\d\d\.csv$/.test(ogeler[0].download) && ogeler[0].tik === 1
+       && b0.type === 'text/csv;charset=utf-8' && b0.parcalar[0] === '﻿saniye;volt;amper;watt\r\n1,500;2;;3'
+       && ogeler[1].download === 'pil-testi.csv' && b1.type === 'text/csv'
+       && b1.parcalar[0] === 'sira,ms,volt,amper,bosluk\n1,10,3.7,0.5,0\n2,,,,1',
+       JSON.stringify({ ad: ogeler.map((a) => a.download), tur: bloblar.map((b) => b.type) }));
+  }
+
+  /* ── (d) TELEFON KIPI: app.js ayri baglamda, sahte ortamla ───────────── */
+  {
+    const iz = { istek: [], p0: 0, serit: [], komut: [], dosya: [], ayar: 0, yazdir: 0, giden: [], ac: 0, kapat: 0 };
+    const ORT = {
+      ad: 'telefon', surum: 1,
+      tasiyici: { ad: 'telefon', yetenek: { ad: 'telefon', komut: 'hepsi', skop: 'ikili', skop_azami: 4000, gecmis_s: 86400,
+        cok_istemci: false, surucu: false },
+      destekli() { return true; }, async ac() { iz.ac++; }, async kapat() { iz.kapat++; }, async gonder(u, m) { iz.giden.push(m); } },
+      async istek(yol, sec) { iz.istek.push([yol, sec]); return { ok: true, status: 200, text: async () => '' }; },
+      async p0() { iz.p0++; if (ORT.p0Atar) throw new Error('kanal'); return ORT.p0Sonuc; },
+      serit(p) { iz.serit.push(p); return p !== false; },
+      async akislar() { return []; }, async depo() { return {}; }, async esitle() { return { durum: 'tamam' }; },
+      async dosyaVer(d) { iz.dosya.push(d); return true; }, async yazdir() { iz.yazdir++; },
+      async ayarBolumu() { iz.ayar++; return { name: 'BuTelefon' }; },
+      komutGitti(m) { iz.komut.push(m); throw new Error('izleme sorusu patladi'); },
+      p0Sonuc: true, p0Atar: false,
+    };
+    let secT = null;
+    let fetchSayisi = 0;
+    let idbSayisi = 0;
+    const sw = { kayit: 0, sil: 0 };
+    const yazilan = [];
+    let kayitliTasiyici = true;                       // tercihte 'akis' (eski secim) — telefonu EZMEMELI
+    const sandboxT = {
+      Vue: { createApp(o) { secT = o; return { mount() { return {}; } }; },
+             defineAsyncComponent(y) { return { __asenkron: true, yukleyici: y }; } },
+      navigator: { serial: {}, serviceWorker: { register() { sw.kayit++; return Promise.resolve(); },
+        getRegistrations() { sw.sil++; return Promise.resolve([]); } } },
+      window: { addEventListener() {}, devicePixelRatio: 1, isSecureContext: true },
+      document: { documentElement: {}, readyState: 'complete',
+        createElement: () => { throw new Error('telefonda DOM indirmesi YOK'); } },
+      getComputedStyle: () => ({ getPropertyValue: () => '#000' }),
+      setTimeout: () => 0, console, TextEncoder,
+      fetch: () => { fetchSayisi++; return Promise.reject(new Error('telefonda fetch YOK')); },
+      location: { protocol: 'https:', hostname: 'localhost', host: 'localhost', search: '', hash: '' },
+      localStorage: { getItem: (a) => (a === 'olcum.tasiyici' && kayitliTasiyici ? '"akis"' : null), setItem: (a) => { yazilan.push(a); }, removeItem() {} },
+      get indexedDB() { idbSayisi++; return undefined; },
+      __olcumOrtam: ORT,
+    };
+    vm.createContext(sandboxT);
+    for (const g of ICE_AKTARILAN) for (const ad of g.adlar) sandboxT[ad] = sandbox[ad];
+    let kurulum = '';
+    try { vm.runInContext('"use strict"; ' + appBetik, sandboxT, { filename: 'app.js (telefon)' }); } catch (h) { kurulum = h.message; }
+    const T = (ifade) => { try { return vm.runInContext(ifade, sandboxT); } catch (h) { return undefined; } };
+    const ornekT = () => {
+      const o = Object.assign({}, secT.data());
+      Object.assign(o, secT.methods);
+      o.$nextTick = () => {};
+      o.$refs = {};
+      o.grafikCiz = () => {};
+      o.osiloCiz = () => {};
+      for (const [ad, fn] of Object.entries(secT.computed || {})) Object.defineProperty(o, ad, { get: fn.bind(o) });
+      return o;
+    };
+    ok('[!] 5P (d) K6: telefon kipinde TASIYICILAR + telefon (ortamin tasiyicisi AYNEN), acilis tasiyicisi telefon; ayar bolumleri: Bu telefon ILK, Baglanti / Eslestirme / Depolama YOK (K14); #/ayar ve gizli bolumun adresi -> Bu telefon',
+       !kurulum && !!secT && T('Object.keys(TASIYICILAR).join()') === 'seri,akis,demo,telefon' && T('TASIYICILAR.telefon') === ORT.tasiyici
+       && secT.data().tasiyiciAdi === 'telefon'
+       && T('AYAR_ETKIN.map((b) => b.id).join()') === 'telefon,ag,kalibrasyon,kal-gecmis,dil-gorunum,gelismis'
+       && T('ayarBolumCoz("#/ayar")') === 'telefon' && T('ayarBolumCoz("#/ayar/baglanti")') === 'telefon'
+       && T('ayarBolumCoz("#/ayar/eslestirme")') === 'telefon' && T('ayarBolumCoz("#/ayar/depolama")') === 'telefon'
+       && T('ayarBolumCoz("#/ayar/ag")') === 'ag' && T('ayarBolumModul("telefon")') === true,
+       kurulum || String(T('Object.keys(TASIYICILAR).join()')));
+    if (secT) {
+      SONRA.push(async () => {
+        const u = ornekT();
+        u.tercihleriYukle();                          // localStorage 'akis' diyor — telefon EZILMEZ
+        await secT.watch.tasiyiciAdi.call(u, 'telefon', 'seri');
+        const listeAd = u.ayarBolumListesi[0];
+        kayitliTasiyici = false;                      // tercih yokken kopruyuAlgila /durum'u sorardi
+        await u.kopruyuAlgila();
+        const otoBagliDegil = u.otomatikBaglanmali();
+        u.swKur(sandboxT.window, sandboxT.navigator, sandboxT.location, sandboxT.document);
+        u._kopruBilindi = false;
+        await u.kopruYokla();
+        await u.kartIstek('/pil?sira=3', { cache: 'no-store' });
+        await u.kartIstek('/kunye.json');
+        const ist = await u.eslesmeHazirla();
+        ok('[!] 5P (d) K5/K7: telefonda tasiyici saklanmaz ve tercih onu ezmez; kopru algilama / /durum / servis iscisi (kayit da eski kaydi silme de) / tarayici eslestirmesi YOK; kendiliginden baglanir; kart istekleri ortam.istek (yol + sorgu, secenekler aynen)',
+           u.tasiyiciAdi === 'telefon' && u.tasiyici === ORT.tasiyici && !yazilan.includes('olcum.tasiyici')
+           && listeAd.id === 'telefon' && listeAd.ad === SZa.ceviri('ay.b_telefon', 'tr') && SZa.ceviri('ay.b_telefon', 'en') === 'This phone'
+           && otoBagliDegil === true && sw.kayit === 0 && sw.sil === 0 && u._sw.durum === 'atlandi'
+           && u._kopruBilindi === true && u.kopruda === false && ist === null && idbSayisi === 0
+           && iz.istek.length === 2 && iz.istek[0][0] === '/pil?sira=3' && iz.istek[0][1].cache === 'no-store'
+           && iz.istek[1][0] === '/kunye.json' && typeof iz.istek[1][1] === 'object' && fetchSayisi === 0,
+           JSON.stringify({ t: u.tasiyiciAdi, yazilan, sw, kb: u._kopruBilindi, istek: iz.istek.map((x) => x[0]), fetchSayisi, idbSayisi }));
+        u.bagli = true;
+        const otoBagli = u.otomatikBaglanmali();
+        u.hata = '';
+        await u.gonder('p0');
+        const p0Tek = iz.p0 === 1 && iz.giden.length === 0 && u.hata === '';
+        ORT.p0Sonuc = false;
+        await u.gonder('p0');
+        const p0Yok = u.hata === SZa.ceviri('kb.komut_kart_yok', 'tr');
+        ORT.p0Atar = true;
+        u.hata = '';
+        let atti = null;
+        try { await u.gonder('p0'); } catch (h) { atti = h; }
+        const p0Atti = atti === null && u.hata === SZa.ceviri('kb.komut_kart_yok', 'tr') && iz.p0 === 3;
+        ORT.p0Atar = false; ORT.p0Sonuc = true;
+        u.pilDurdurKomut();                            // acil serit / Pil sekmesi: tek tik, beklemeden p0
+        const p0Serit = iz.p0 === 4;
+        await u.gonder('Gb200');
+        await u.gonder('?');
+        await u.gonder('Gd');
+        ok('[!] 5P (d) K8: telefonda p0 ortam.p0`dan — TEK cagri, tasiyiciya / fetch`e GITMEZ, onaysiz (pilDurdurKomut tek tik); kart 204 demezse ya da kanal atarsa panel ATMAZ ve "komut gitmedi" der; Gb -> tasiyici + komutGitti (atsa da panel etkilenmez), baska komut komutGitti DEGIL; baglaninca kendiliginden baglanmaz',
+           p0Tek && p0Yok && p0Atti && p0Serit && otoBagli === false && iz.giden.join() === 'Gb200,?,Gd' && iz.komut.join() === 'Gb200'
+           && fetchSayisi === 0,
+           JSON.stringify({ p0: iz.p0, giden: iz.giden, komut: iz.komut, hata: u.hata }));
+        /* K9 serit: true | false | null */
+        const s = [];
+        u.bagli = false; u.pilDurum = 'BEKLEMEDE'; u.pilDurumBilinen = false;
+        s.push([u.pilSuruyorBilgi, u.acilTelefon]);
+        u.bagli = true;
+        s.push([u.pilSuruyorBilgi, u.acilTelefon]);
+        u.pilDurumAyarla('BEKLEMEDE');
+        s.push([u.pilSuruyorBilgi, u.acilTelefon]);
+        u.pilDurumAyarla('CALISIYOR');
+        s.push([u.pilSuruyorBilgi, u.acilTelefon]);
+        await u.kes();
+        u.pilDurum = 'BEKLEMEDE';
+        s.push([u.pilSuruyorBilgi, u.acilTelefon]);
+        const eskiSerit = ORT.serit;
+        ORT.serit = () => { throw new Error('x'); };
+        const atarsa = u.acilTelefon;
+        ORT.serit = eskiSerit;
+        ok('[!] 5P (d) K9: acil serit karari ortam.serit(pilSuruyor) — baglanti yok / kart soylemedi: null (gorunur), kart BEKLEMEDE dedi: false (gizli), CALISIYOR: true; kesilince yeniden bilinmiyor; serit atarsa GORUNUR',
+           JSON.stringify(s) === JSON.stringify([[null, true], [null, true], [false, false], [true, true], [null, true]])
+           && atarsa === true && iz.kapat === 1,
+           JSON.stringify(s));
+        /* K11: dosya ortamdan (Paylas) — bayt Uint8Array, DOM indirmesi yok */
+        u.gecmis = [{ t: 1.5, v: 2, i: NaN, w: 3 }];
+        u.csvIndir();
+        await T('dosyaVer')('a.csv', 'text/csv', 'x;ç');
+        const d0 = iz.dosya[0] || {};
+        const d1 = iz.dosya[1] || {};
+        const bayt = (x) => (x && typeof x.length === 'number' ? Buffer.from(x).toString('hex') : 'yok');
+        ok('[!] 5P (d) K11: telefonda dosya ortam.dosyaVer`den ({ad, mime, bayt: Uint8Array}); Canli CSV ayni ad / MIME / bayt (BOM EF BB BF dahil); DOM indirmesi YOK; fetch 0',
+           iz.dosya.length === 2 && /^olcum-\d{4}-\d\d-\d\d-\d\d-\d\d-\d\d\.csv$/.test(d0.ad) && d0.mime === 'text/csv;charset=utf-8'
+           && bayt(d0.bayt) === Buffer.from('﻿saniye;volt;amper;watt\r\n1,500;2;;3', 'utf8').toString('hex')
+           && d1.ad === 'a.csv' && d1.mime === 'text/csv' && bayt(d1.bayt) === Buffer.from('x;ç', 'utf8').toString('hex')
+           && fetchSayisi === 0,
+           JSON.stringify({ ad: iz.dosya.map((d) => d.ad), hata: u.hata }));
+        /* ilk acilis: #/ayar -> Bu telefon bolumu ve modulu */
+        sandboxT.location.hash = '#/ayar';
+        const d = secT.data();
+        sandboxT.location.hash = '';
+        ok('[!] 5P (d) K13: telefonda #/ayar ilk acilista Bu telefon bolumunu ve Ayarlar modulunu acar; index.html`de telefon seridi acil seridin v-else-if`i (onaysiz DURDUR, sozluk metni)',
+           d.ayarBolum === 'telefon' && d.ayarModAcik === true
+           && /<div v-if="pilDurum === 'CALISIYOR'" class="acil">[\s\S]*?<\/button>\s*<\/div>\s*<div v-else-if="acilTelefon" class="acil" data-acil-telefon>[\s\S]*?@click="pilDurdurKomut"[\s\S]*?\{\{ metin\('pl\.durdur'\) \}\}<\/button>/.test(html5),
+           `${d.ayarBolum}/${d.ayarModAcik}`);
+      });
+    }
+  }
+
+  /* ── (e) esitleme.js kaynak 'telefon' ─────────────────────────────── */
+  SONRA.push(async () => {
+    const ES = require(path.join(ARAYUZ, 'ekran', 'esitleme.js'));
+    const IM = require(path.join(KOK, 'ortak', 'src', 'imza.js'));
+    const izE = { istek: [], esitle: [], depo: [], akislar: 0 };
+    const depoT = { kart: 'k1', async veriBoyu() { return 0; }, async veriOku() { return new Uint8Array(0); },
+      async kalOku() { return null; }, async durumOku() { return { son_sira: 0 }; } };
+    const ortE = {
+      async istek(y) { izE.istek.push(y); return { status: 200, text: async () => JSON.stringify({ kimlik: 7, oturumlar: [] }) }; },
+      async akislar() { izE.akislar++; return [{ kimlik: 7, kart: 'k1', bayt: 0, durum: null, olusma: 1, guncelleme: 1, kalVar: false, telefon: true }]; },
+      async depo(k) { izE.depo.push(k); return depoT; },
+      async esitle(a) { izE.esitle.push(a); return { durum: 'tamam', sonuc: { yeni_kayit: 2, son_sira: 9 }, bayt: 10 }; },
+    };
+    const eskiF = globalThis.fetch;
+    let fetchE = 0;
+    globalThis.fetch = () => { fetchE++; return Promise.reject(new Error('fetch YOK')); };
+    let r = {};
+    try {
+      const konum = { protocol: 'https:', hostname: 'localhost' };
+      const den = new ES.EsitlemeDenetcisi({ kartAdres: (y) => y, ortam: ortE, konum });
+      const ilerleme = () => {};
+      r.kaynak = await den.kaynak();
+      r.akislar = (await den.akislar()).map((a) => a.kimlik).join();
+      r.veri = (await den.akisVerisi(7)).kart;
+      r.kal = await den.kalBaytlari(7);
+      r.liste = (await den.kartListesi()).durum;
+      r.es = await den.esitle({ kimlik: 7, onay: async () => {}, ilerleme });
+      r.esArg = izE.esitle[0] ? Object.keys(izE.esitle[0]).sort().join() : '';
+      r.ilerlemeAyni = !!izE.esitle[0] && izE.esitle[0].ilerleme === ilerleme;
+      r.durum = await den.esitlemeDurumu();
+      try { await den.akisSil(7); r.sil = 'silindi'; } catch (h) { r.sil = h instanceof IM.CalismaHatasi ? 'calisma' : String(h); }
+      const katmanli = new ES.EsitlemeDenetcisi({ kartAdres: (y) => y, ortam: ortE, istek: async (y) => { r.katman = y; return { status: 200, text: async () => '{}' }; } });
+      await katmanli.kartListesi();
+      r.koken = [ES.kokenSinama(konum, ortE), ES.kokenSinama(konum)];
+      const ortamsiz = new ES.EsitlemeDenetcisi({ kartAdres: (y) => y, konum: { protocol: 'http:', hostname: 'olcum.local' } });
+      r.ortamsiz = await ortamsiz.kaynak();
+    } catch (h) { r.hata = String(h && h.stack || h); }
+    globalThis.fetch = eskiF;
+    ok('[!] 5P (e) K10: esitleme.js telefon kaynagi — akislar / depo / esitle ortamdan (onay panelden GITMEZ, ilerleme aynen), kartin dizini ortam.istek (katman verilirse katman), esitlemeDurumu null, kopya silme CalismaHatasi, kokenSinama ortamda false; ortamsiz kaynak AYNEN tarayici; fetch 0',
+       r.kaynak === 'telefon' && r.akislar === '7' && r.veri === 'k1' && r.kal === null && r.liste === 'tamam'
+       && r.es && r.es.durum === 'tamam' && r.es.sonuc.yeni_kayit === 2 && r.esArg === 'ilerleme,kimlik' && r.ilerlemeAyni
+       && r.durum === null && r.sil === 'calisma' && r.katman === '/kayit/liste' && izE.istek.join() === '/kayit/liste'
+       && izE.depo.length >= 2 && izE.depo.every((k) => k === 7)
+       && JSON.stringify(r.koken) === '[false,true]' && r.ortamsiz === 'tarayici' && fetchE === 0 && !r.hata,
+       r.hata || JSON.stringify({ ...r, es: r.es && r.es.durum, fetchE }));
+  });
+
+  /* ── (f) Ayarlar + Kayitlar ───────────────────────────────────────── */
+  SONRA.push(async () => {
+    const AY = require(path.join(ARAYUZ, 'ekran', 'ayarlar.js'));
+    const KLx = require(path.join(ARAYUZ, 'ekran', 'kayitlar.js'));
+    const KGx = require(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'));
+    const KYs = require(path.join(KOK, 'ortak', 'src', 'sozluk_kayit.js'));
+    const yap = (ek) => {
+      const o = Object.assign({}, AY.AyarlarEkrani.data.call({}), AY.AyarlarEkrani.methods,
+        { bolum: 'telefon', etkin: true, dilSecim: 'tr', tasiyici: 'telefon', kartAdres: (y) => y, $nextTick: (f) => f && f() }, ek);
+      for (const [ad, fn] of Object.entries(AY.AyarlarEkrani.computed)) Object.defineProperty(o, ad, { get: fn.bind(o), configurable: true });
+      return o;
+    };
+    const BIL = { name: 'BuTelefon' };
+    const o1 = yap({ _ortam: () => ({ ayarBolumu: async () => BIL }) });
+    o1.bolumAcildi();
+    await new Promise((c) => setImmediate(c));
+    const o2 = yap({ _ortam: () => ({ ayarBolumu: async () => { throw new Error('modul yok'); } }) });
+    await o2.telefonKur();
+    const o3 = yap({});
+    await o3.telefonKur();
+    const o4 = yap({});
+    await o4._pcKur({ kaynak: async () => 'telefon' });
+    const T = AY.AyarlarEkrani.template;
+    const loc = { protocol: 'http:', hostname: 'olcum.localhost' };
+    ok('[!] 5P (f) K13: Ayarlar "Bu telefon" — bolum acilinca bilesen ortam.ayarBolumu`ndan (sablonda dil-secim ile), hata metniyle (TR + EN), ortamsiz hicbir sey; tasiyici yazisi "Telefon"; denetci kaynagi telefon -> telefon kopyasi (pc degil); kopruKokeni ortamda false',
+       !!o1.telBilesen && o1.telBilesen.name === 'BuTelefon' && o1.telHata === '' && o2.telBilesen === null && /modul yok/.test(o2.telHataMetni)
+       && /Bu telefon/.test(o2.telHataMetni) && o3.telBilesen === null && o3.telHata === ''
+       && /<component v-if="telBilesen" :is="telBilesen" v-show="bolum === 'telefon'" :dil-secim="dil"><\/component>/.test(T)
+       && o1.tasiyiciYazi === 'Telefon (imzalı Wi-Fi)' && o4.telefon === true && o4.pc === false
+       && AY.kopruKokeni(loc, {}) === false && AY.kopruKokeni(loc) === true,
+       JSON.stringify({ b: o1.telBilesen, h: o2.telHataMetni, t: o1.tasiyiciYazi }));
+    const KT = KLx.KayitlarEkrani.template;
+    const Kx = require(path.join(KOK, 'ortak', 'src', 'kayit.js'));
+    const tek = Kx.kayitPaketle(Kx.T_NOKTA, 101, 5, new Uint8Array(4 + 36));
+    const yerel = { kimlik: 9, kart: 'k', bayt: tek.length, oturumlar: Kx.oturumlariKur(Kx.akisOnek(tek)[0]), sonSira: new Map() };
+    let sat = [];
+    try { sat = KLx.listeBirlestir({ kart: null, yereller: [yerel], yerelNerede: 'telefon' }); } catch (h) { sat = []; }
+    ok('[!] 5P (f) K10: Kayitlar telefonda — yerel kopya "yalniz bu telefonda", arsiv onayi ve kopya listesi / silme YOK, bilgi satiri Bu telefon > Esitleme`yi gosterir; PC sablonu (pc / tarayici dallari) AYNEN',
+       /<label v-if="kartKimlik !== null && !telefon" class="kl-arsiv">/.test(KT) && /<section class="kart" v-if="kopyalar\.length && !telefon">/.test(KT)
+       && /<option v-if="telefon" value="telefon">/.test(KT) && /<p v-if="telefon" class="ipucu" data-kl-telefon>/.test(KT)
+       && KGx.NEREDE_METIN.telefon === 'kl.nerede_telefon' && KYs.ceviriKayit('kl.nerede_telefon', 'tr') === 'yalnız bu telefonda'
+       && /Bu telefon/.test(KYs.ceviriKayit('kl.telefon_kopya', 'tr')) && /This phone/.test(KYs.ceviriKayit('kl.telefon_kopya', 'en'))
+       && sat.length === 1 && sat[0].nerede === 'telefon',
+       JSON.stringify(sat.map((s) => s.nerede)));
+    const kgKod = yorumsuz(fs.readFileSync(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'), 'utf8'));
+    ok('[!] 5P (f) K12: rapor Yazdir — ortamsiz window.print() AYNEN; telefonda once acik gorunum (yazdirmaOncesi), ORTAM.yazdir(), sonra geri (WebView beforeprint ikinci kez uygulamaz)',
+       /async yazdir\(\) \{\s*if \(!ORTAM\) \{ window\.print\(\); return; \}\s*this\.yazdirmaOncesi\(\);\s*this\._elleYazdir = true;\s*try \{ await ORTAM\.yazdir\(\);[\s\S]*?finally \{\s*this\._elleYazdir = false;\s*this\.yazdirmaSonrasi\(\);/.test(kgKod)
+       && /yazdirmaOncesi\(\) \{[^\n]*\n\s*if \(!this\.rapor \|\| this\._elleYazdir\) return;/.test(kgKod));
   });
 }
 

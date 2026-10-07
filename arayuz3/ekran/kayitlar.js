@@ -31,6 +31,8 @@
    3G (KR1): satirlarda karsilastirma secim kutusu (yalniz bu tarayicidaki
    kopyasi olan, grafigi olan oturum; en cok KR_AZAMI), "Karsilastir" ->
    `#/karsilastir/<no>@<kimlik>,…` (ekran/karsilastir.js).
+   5P (K10) — TELEFONDA kaynak 'telefon': yerel kopya telefonun (nerede 'telefon'); "Esitle" Android
+   esitleyicisini tetikler; panelin arsiv onayi ve kopya listesi / silme YOK (Bu telefon > Esitleme).
    ⚠ Saf fonksiyonlar Vue'suz (B7 node'da sinar); bilesen globalThis.Vue'yu
      yalniz calisirken kullanir.
    ═══════════════════════════════════════════════════════════════════════ */
@@ -279,6 +281,7 @@ export const KL_METIN = Object.freeze({
   listeyeDon: 'kl.listeye_don', yukleniyor: 'kl.yukleniyor', ipucu: 'kl.ipucu',
   turSec: 'kl.tur_sec', neredeSec: 'kl.nerede_sec', liste: 'kl.liste',
   arsivOnayUyari: 'kl.arsiv_onay_uyari', arsivEminim: 'kl.arsiv_eminim',
+  telefonKopya: 'kl.telefon_kopya',     // 5P
 });
 
 /* 4D: PC koprusundeki metinler (`pc.` ailesi, ortak/src/sozluk_pc.js — acilis sozlugunde degil). */
@@ -357,9 +360,10 @@ const SABLON = `
         <p v-if="pc && pcDurumMetni" class="ipucu" data-kl-pc-durum>{{ pcDurumMetni }}</p>
       </div>
       <p v-if="pc" class="ipucu" data-kl-pc-salt>{{ pm.salt }}</p>
+      <p v-if="telefon" class="ipucu" data-kl-telefon>{{ m.telefonKopya }}</p>
       <!-- WIG: arsivi ACMAK iki asamali (karta geri alinamaz "aldim" onaylari gider, kart
            kayitlari silebilir); kapatmak aninda. -->
-      <label v-if="kartKimlik !== null" class="kl-arsiv">
+      <label v-if="kartKimlik !== null && !telefon" class="kl-arsiv">
         <input type="checkbox" :checked="arsiv || arsivOnay" @change="arsivDegisti($event.target.checked)"> {{ m.arsiv }}
       </label>
       <p v-if="arsivOnay" class="uyari kl-arsiv-onay">{{ m.arsivOnayUyari }}
@@ -368,7 +372,7 @@ const SABLON = `
           <button type="button" class="kl-arsiv-vazgec" @click="arsivVazgec">{{ m.vazgec }}</button>
         </span>
       </p>
-      <p v-if="kartKimlik !== null" class="ipucu">{{ m.arsivAciklama }}</p>
+      <p v-if="kartKimlik !== null && !telefon" class="ipucu">{{ m.arsivAciklama }}</p>
     </section>
 
     <section class="kart">
@@ -387,7 +391,8 @@ const SABLON = `
           <option v-if="pc" value="pc">{{ neredeAdi('pc') }}</option>
           <template v-else>
             <option value="kart">{{ neredeAdi('kart') }}</option>
-            <option value="tarayici">{{ neredeAdi('tarayici') }}</option>
+            <option v-if="telefon" value="telefon">{{ neredeAdi('telefon') }}</option>
+            <option v-else value="tarayici">{{ neredeAdi('tarayici') }}</option>
             <option value="ikisi">{{ neredeAdi('ikisi') }}</option>
           </template>
         </select>
@@ -428,7 +433,7 @@ const SABLON = `
       <p v-if="!gorunenSatirlar.length" class="ipucu kl-bos">{{ satirlar.length ? m.bosSuzgec : m.bos }}</p>
     </section>
 
-    <section class="kart" v-if="kopyalar.length">
+    <section class="kart" v-if="kopyalar.length && !telefon">
       <h2>{{ pc ? pm.kopyalar : m.kopyalar }}</h2>
       <div class="kl-kopya" v-for="k in kopyalar" :key="k.kimlik" :data-kimlik="k.kimlik">
         <span class="kl-kopya-metin">{{ k.metin }}</span>
@@ -474,6 +479,7 @@ export const KayitlarEkrani = {
       secili: null, seciliAnahtar: '', seciliHata: '', seciliKartta: false, yukleniyor: false,
       secim: [],                 // 3G (KR1): [{anahtar, oturum, kimlik}] — secim sirasi = renk sirasi
       pc: false, pcDurum: null, pcOzetMetin: '',  // 4D: kaynak koprunun PC arsivi mi; koprunun /esitleme/durum'u
+      telefon: false,            // 5P: kaynak telefonun kopyasi (Android esitler)
     };
   },
   created() {
@@ -601,7 +607,9 @@ export const KayitlarEkrani = {
       this._calisiyor = true;
       try {
         /* 4D: once kaynak (kopruda PC arsivi) — kart kokeninde bu karar istek atmaz */
-        this.pc = (await this._den.kaynak()) === 'pc';
+        const kaynak = await this._den.kaynak();
+        this.pc = kaynak === 'pc';
+        this.telefon = kaynak === 'telefon';
         await this.yereliYukle();
         if (this.pc) this.pcDurumYukle();
         if (this.uygunluk.uygun) {
@@ -665,7 +673,8 @@ export const KayitlarEkrani = {
       const yereller = [...this._yereller];
       /* guncel akisi one al, kalanini yeniden eskiye */
       yereller.sort((a, b) => (b.olusma || 0) - (a.olusma || 0));
-      this.satirlar = listeBirlestir({ kart: this._kartListe, yereller, yerelNerede: this.pc ? 'pc' : 'tarayici' });
+      this.satirlar = listeBirlestir({ kart: this._kartListe, yereller,
+        yerelNerede: this.pc ? 'pc' : this.telefon ? 'telefon' : 'tarayici' });
       this.pcOzetMetin = this.pc ? pcOzetYazi(yereller, this.dil) : '';
       /* 3G: listeden dusen ya da artik secilemeyen (kopyasi silinen) oturum secimden cikar */
       this.secim = this.secim.filter((x) => this.satirlar.some((s) => s.anahtar === x.anahtar
