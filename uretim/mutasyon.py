@@ -1294,6 +1294,10 @@ MUTASYONLAR = [
     ("B22b", "sim3_web.py", "kod/olcum-karti-a3/ag.h",
      '#define AG_MDNS "olcum"', '#define AG_MDNS ""',
      "mDNS adi bosalirsa http://olcum.local cozulmez"),
+    ("B22b", "sim3_web.py", "kod/olcum-karti-a3/ag_komut.h",
+     'o.print(F("NL bitti "));', 'Serial.print(F("NL bitti "));',
+     "makrodan ONCE dahil edilen baslikta Serial: satir WiFi akisina GITMEZ (2026-10-07 telefonda: "
+     "Nl / Nt listesi WiFi'de bostu) — 1a 'proje basliklari Serial. CAGIRMAZ' kirmizi"),
     # 🔴 B39 — SIR SIZINTISI DENETIMI ILK YAYINDAN BERI KORDU. Desenin
     #    basindaki `\b` bir heredoc yamasinda GERCEK backspace (0x08)
     #    olarak yazilmisti; regex hicbir kaynakla eslesemiyordu ve 5c her
@@ -3988,7 +3992,7 @@ MUTASYONLAR = [
      '  const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin", "X-Cihaz", "X-Sayac", "X-Imza",', '  const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin", "X-Cihaz", "X-Sayac",',
      '1D: X-Imza toplanmazsa her imzali istek imzasiz sanilir: F88 kirmizi'),
     ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/kayit_esp.h",
-     '#define KAYIT_FW_SURUM    "A3-CA"', '#define KAYIT_FW_SURUM    "A3-4B"',
+     '#define KAYIT_FW_SURUM    "A3-CA2"', '#define KAYIT_FW_SURUM    "A3-CA"',
      "1D: surum adi degismezse PC eski firmware'i ayirt edemez: F25 kirmizi (W2: A3-W2)"),
     # ── W2 (2026-10-03): firmware kucukleri — G son_not, /saat, Ex<n>, rastgele eno, Qe, noktaci
     ("B71", "test_kayit.py", "kod/olcum-karti-a3/kayit_nokta.h",

@@ -932,6 +932,21 @@ def bolum1(r):
             i_tanim > son_include,
             "once gelirse kutuphane basliklarindaki Serial de yeniden adlanir")
 
+    # [!] 2026-10-07 (telefonda bulundu): makrodan ONCE dahil edilen proje basligindaki `Serial.`
+    # GERCEK UART'a gider, aynaya / WiFi akisina HIC gitmez. ag_komut.h (Nl / Nt / "bu aga gec"
+    # sonuclari) boyleydi: USB'de liste geliyor, WiFi'de (telefon, PC koprusu WiFi'de) bos kaliyordu.
+    # Kural: bu basliklar Serial'i adiyla CAGIRMAZ; yazicilar cikisi parametre (Print &) olarak alir.
+    def _yorumsuz(m):
+        m = re.sub(r"/\*.*?\*/", "", m, flags=re.S)
+        return re.sub(r"//[^\n]*", "", m)
+    kirli = []
+    for ad in re.findall(r'^#include "([^"]+\.h)"', INO[:i_tanim], re.M):
+        yol = KOD / ad
+        if yol.exists() and re.search(r"\bSerial\s*\.", _yorumsuz(yol.read_text(encoding="utf-8"))):
+            kirli.append(ad)
+    r.kosul("  1a: makrodan ONCE dahil edilen proje basliklari `Serial.` CAGIRMAZ (WiFi'ye gitmezdi)",
+            not kirli, ", ".join(kirli) or "hepsi temiz")
+
     # Nesne olusturulurken `Serial` HALA gercek nesne olmali.
     i_nesne = INO.find("WebAkis CIKIS(Serial)")
     r.kosul("  1a: CIKIS nesnesi makrodan ONCE olusturuluyor",

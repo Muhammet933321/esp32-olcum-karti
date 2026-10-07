@@ -10550,6 +10550,31 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.111 🟢 A3-CA2: AĞ LİSTESİ / TARAMA WiFi'DE BOŞTU — `ag_komut.h` AYNAYI ATLIYORDU (2026-10-07, KARTTA)
+
+**Bulgu (kullanıcı, telefonda):** Ayarlar → Ağ'da kayıtlı ağ yok, "Ağları tara" sonuçsuz. Telefondan imzalı
+`Nl`/`Nt`: akışa yalnız `* ag: taraniyor` düştü; `NL …`, `NL bitti`, `NT …` HİÇ gelmedi. USB'de hepsi vardı
+(5.12.110'un kart denemeleri USB'deydi — gözden kaçtı).
+
+**Kök sebep:** `ag_komut.h` (5.12.110'da otomatik ön bildirim derleme hatası yüzünden ayrılan yazıcılar)
+`.ino`'da `#define Serial CIKIS`'tan ÖNCE dahil ediliyor; içindeki `Serial.` GERÇEK UART'a gidiyor, aynaya
+(→ `/akis`) hiç gitmiyordu. Etkilenen: `Nl` listesi, `Nt` sonuçları, `Ng` geçiş/geri dönüş mesajları — yani
+WiFi'deki her istemci (telefon, kart paneli, köprü WiFi'deyken).
+
+**Düzeltme:** `ag_liste_bas(Print &o)`, `ag_sonuclari_bas(Print &o)`; `.ino` (makrodan sonra) `Serial` = ayna
+verir. Makroyu başlıkların altına taşımak `sim3_web` 1a'yı ("`#define Serial` bütün include'lardan SONRA")
+bozardı.
+
+**Yeni iddia (genel kural):** `sim3_web` 1a — makrodan ÖNCE dahil edilen proje başlıklarının hiçbiri (yorumlar
+hariç) `Serial.` çağırmaz. Eskiden kural yalnız tek tek başlıklar için yazılmıştı (kayit_esp, guvenlik_esp).
+Mutasyon B22b (`o.print` → `Serial.print`) yakalandı. Firmware `A3-CA2` (F25 + mutasyonu güncel).
+
+**Kartta:** yedek `.yedek/olcum-karti/tam-20261007-200427.bin`; yükleme sonrası WiFi akışında `NL` (2 + bitti)
+ve `NT` (tarama, bitti) görüldü; Xiaomi'deki uygulamada Ayarlar → Ağ: 2 kayıtlı (1 bağlı), tarama 12 ağ.
+Zincir TAM yeşil (5424). ⚠ Yan bulgu: `git filter-branch --tree-filter` ana klasörde dosyaları farklı satır
+sonlarıyla çıkardı (git temiz görür) → panel görüntüsü özetleri (`sim3_web` 6j/6p/6q) kırmızı; takip edilen
+dosyalar silinip `git checkout -- .` ile düzeldi.
+
 #### 5.12.110 🟢 ÇOKLU WiFi AĞI (8) + "BU AĞA GEÇ" + DHCP CİHAZ ADI (2026-10-06/07, dal `grafik-olcek`, firmware `A3-CA`, KARTTA)
 
 Kullanıcı: "Kartı birden fazla ağ hatırlayacak şekilde yapamaz mıyız? 4-5 belki daha fazla" ve "ev ağına

@@ -76,7 +76,7 @@ static KayitBitirIz kayit_bitir_iz_al(void)
 #include "kayit_plan.h"           /* 1C-4: zamanlanmis kayit karar mantigi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-CA"     /* CA: coklu WiFi agi (8) + Ng gecis (2026-10-06); W2: G satirina son_not + mesaj_dusen, Qe esigi, rastgele eno, /saat ve Ex tam cozum; 4B: /kopru kalkti; 1F skop; 1E MQTT */
+#define KAYIT_FW_SURUM    "A3-CA2"    /* CA2: ag_komut.h yazicilari aynaya (Nl/Nt/gecis mesajlari WiFi akisinda, 2026-10-07); CA: coklu WiFi agi (8) + Ng gecis (2026-10-06); W2: G satirina son_not + mesaj_dusen, Qe esigi, rastgele eno, /saat ve Ex tam cozum; 4B: /kopru kalkti; 1F skop; 1E MQTT */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */

@@ -304,7 +304,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-CA"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-CA2"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",

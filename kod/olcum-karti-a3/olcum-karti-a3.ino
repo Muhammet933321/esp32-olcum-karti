@@ -5467,7 +5467,7 @@ void komut_calistir(const char *s) {
                        ? F("KURULU") : F("YOK — komut ucu parolasiz"));
         break;
       }
-      if (alt == 'l') { ag_liste_bas(); break; }
+      if (alt == 'l') { ag_liste_bas(Serial); break; }
       if (alt == 't') { ag_istek_tara = 1; Serial.println(F("* ag: taraniyor (~3 s)")); break; }
       if (alt == 'a') {                                   /* CA12: ekle / guncelle / sec */
         AglKayit k[AGL_AZAMI];
@@ -6004,7 +6004,7 @@ void loop() {
      bu donguyu bloklamiyor. Komutlar yine BURADA calisiyor: tek yazar
      disiplini korunuyor (kalibrasyon, NVS, skop hep cekirdek 1'de). */
   if (ag_hazir != ag_satiri_basildi) ag_satiri_bas();   // 1E-2 + AGD: kip degisti (STA sonucu, AP -> STA)
-  ag_sonuclari_bas();        // coklu ag: tarama listesi / gecis mesaji (ag gorevi yazdi)
+  ag_sonuclari_bas(Serial);  // coklu ag: tarama listesi / gecis mesaji (ag gorevi yazdi)
   komut_isle();              // seri porttan gelen komutlar
   komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
   skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu
