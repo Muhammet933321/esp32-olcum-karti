@@ -626,7 +626,11 @@ def d_blokaj_sayaci(c):
 
     if _canli_port(c):
         bs = _on_silme_bekle(c)
-        c.s.bilgi(f"bosta silme durdu ({bs} s beklendi) — olcum simdi (1C-2)")
+        if bs is None:
+            c.s.bilgi("`G?` yaniti cozulemedi — bosta on silme BEKLENEMEDI; kararli hal "
+                      "silme surerken olculebilir (~25 ms azami kusur DEGIL, 1C-2)")
+        else:
+            c.s.bilgi(f"bosta silme durdu ({bs} s beklendi) — olcum simdi (1C-2)")
 
     sifir = c.k.sor("K", r"^\* blokaj sayaclari sifirlandi", zaman_asimi=3.0)
     if not c.s.ok("`K` sayaclari sifirliyor (eski degeri basarak)",
@@ -666,19 +670,27 @@ def d_blokaj_sayaci(c):
            f"atlanan {atlanan} ms — enerji sayaci icin ASIL onemli olan bu")
 
 
+# `G` durum satiri: A3-W2'den beri 15 alan (son_not + mesaj_dusen SONA eklendi), A3-4B ve
+# oncesi 13; baska sayi RET. sil_adet iki bicimde de ayni yerde (G'den sonra 11.). W2 inceleme:
+# desen 13'te kalmisti -> yeni satir eslesmiyor, bekleyis aninda bitiyordu (B72.W2h).
+G_DESEN = r"^G(?: -?\d+){13}(?: -?\d+ -?\d+)?\s*$"
+G_SIL_ADET = 11
+
+
 def _on_silme_bekle(c, azami_sn: float = 1800.0):
     """1C-2 son inceleme: kart BOSTA sektor siler — acilistan/esitlemeden sonra
     onayli sektorleri onceden (hazir alan, en fazla 480) ve GF! sonrasi eski
     sektorleri (temizlik, dolu bolumde ~24 dk); ikisi de 500 ms'de bir, dolu
     sektor ~25 ms IKI cekirdegi durdurur. Kararli hal bu surerken olculurse
     azami ~25 ms cikar — kusur degil, olcum zamani. `G` satirindaki silme
-    sayaci (sil_adet) 3 s boyunca artmayana dek bekler; doner: bekleme (s)."""
+    sayaci (sil_adet) 3 s boyunca artmayana dek bekler; doner: bekleme (s), `G` satiri
+    cozulemezse None (cagiran bunu SESLI soyler)."""
     onceki, t0 = None, time.time()
     while time.time() - t0 < azami_sn:
-        s = c.k.sor("G?", r"^G( -?\d+){13}\s*$", zaman_asimi=3.0)
+        s = c.k.sor("G?", G_DESEN, zaman_asimi=3.0)
         if not s:
             return None
-        sil = int(s[0].split()[11])
+        sil = int(s[0].split()[G_SIL_ADET])
         if sil == onceki:
             return round(time.time() - t0)
         onceki = sil

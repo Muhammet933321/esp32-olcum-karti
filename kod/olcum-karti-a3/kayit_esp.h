@@ -76,12 +76,12 @@ static KayitBitirIz kayit_bitir_iz_al(void)
 #include "kayit_plan.h"           /* 1C-4: zamanlanmis kayit karar mantigi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-4B"     /* 4B: /kopru kaydi + ikinci /akis reddi kalkti, sir satirlari tek yazim; 1F skop; 1E MQTT */
+#define KAYIT_FW_SURUM    "A3-CA"     /* CA: coklu WiFi agi (8) + Ng gecis (2026-10-06); W2: G satirina son_not + mesaj_dusen, Qe esigi, rastgele eno, /saat ve Ex tam cozum; 4B: /kopru kalkti; 1F skop; 1E MQTT */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
 #define KAYIT_HALKA_ORNEK 4096u     /* 1C-2 ayrintili kip: ~8 s @500/s, PSRAM (64 KB) */
-#define KAYIT_VERI_AZAMI  8192u     /* /kayit/veri tek yanit tavani (dahili RAM) */
+#define KAYIT_VERI_AZAMI  8192u     /* /kayit/veri tek yanit tavani (E6F: PSRAM, yoksa dahili) */
 #define KAYIT_WEB_BEKLE_MS 200u     /* web ucu kilidi en fazla bu kadar bekler, sonra 503 */
 
 /* cekirdek 1 -> 0 istekleri (onay BURADA DEGIL: kayit_onay_istek) */
@@ -118,6 +118,7 @@ typedef struct {
     uint32_t skop_hata;                       /* 1C-3: gorevin yazamadigi yakalama */
     uint32_t plan_no, plan_ot;                /* Y2: acilis kaniti (kyn__plan_kanit) */
     uint8_t  tarandi;                         /* 1E: acilis taramasi bitti (kayit_m.hazir) */
+    int32_t  son_not;                         /* W2: son NOT kaydinin sirasi (> 0), KG_* ya da 0 */
 } KayitDurum;
 
 /* olcum_al'in son HAM ornegi — ikisi de cekirdek 1: olcum_al yazar, loop okur */
@@ -144,6 +145,10 @@ static portMUX_TYPE  kayit_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static volatile uint32_t kayit_kuyruk_dusen = 0;   /* cekirdek 1 yazar */
 static volatile uint32_t kayit_mesaj_dusen = 0;    /* 1C-1: istek kuyrugunda dusen (cekirdek 1) */
+/* W2 (1C-1): son Ga/Ge/Gn/Gx'in sonucu — kyn_not donusu: > 0 NOT kaydinin sirasi (sonraki
+   `Gx<oturum>:<sira>` onu hedefler), < 0 KG_* (yazilamadi), 0 acilistan beri yok. Cekirdek 0
+   yazar (kilit altinda), G satiri basar. */
+static int32_t kayit_son_not = 0;
 /* 1C-2 ayrintili kip: cekirdek 1 -> 0 ornek halkasi (kayit_halka.h, kilitsiz) */
 static KayitHalka   kayit_halka;
 static KayitOrnek  *kayit_halka_t = nullptr;
@@ -302,6 +307,7 @@ static void kayit__durum_guncelle(void)
     t.plan_no = kayit_m.plan_kanit_no;
     t.plan_ot = kayit_m.plan_kanit_ot;
     t.tarandi = kayit_m.hazir ? 1u : 0u;
+    t.son_not = kayit_son_not;
     portENTER_CRITICAL(&kayit_mux);
     t.nesil = kayit_durum.nesil
             + ((t.durum != kayit_durum.durum || t.oturum != kayit_durum.oturum) ? 1u : 0u);
@@ -357,7 +363,7 @@ static void kayit__mesaj(const KayitMesaj *m)
         (void)kyn_pil_bitir(&kayit_m, m->yuk, m->n, m->sebep);
         break;
     case KM_NOT:
-        (void)kyn_not(&kayit_m, m->yuk, m->n);
+        kayit_son_not = kyn_not(&kayit_m, m->yuk, m->n);   /* W2: sira G satirinda */
         break;
     case KM_PLAN_BITIR: {      /* 1C-4: YALNIZ planin oturumu etkinse (arada Gd + Gb olduysa
                                   yeni oturuma dokunma). Sebep mesajda: 7 sure doldu, 1 Gp- */
@@ -478,8 +484,13 @@ static bool kayit_kur(void)
     kayit_sektor = (KayitSektor *)heap_caps_malloc(adet * sizeof(KayitSektor), MALLOC_CAP_SPIRAM);
     kayit_dizin = (KayitOzet *)heap_caps_malloc(KAYIT_DIZIN_KAP * sizeof(KayitOzet),
                                                  MALLOC_CAP_SPIRAM);
-    kayit_veri_tampon = (uint8_t *)heap_caps_malloc(KAYIT_VERI_AZAMI,
-                                                     MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    /* E6F (F4): 8 KB esitleme tamponu once PSRAM'de, yoksa dahili. Yalniz ag gorevi
+       (cekirdek 0) kullanir: kg_oku ya bellege esli bolumden memcpy yapar ya da
+       esp_partition_read (IDF dis bellek hedefini dahili ara tamponla okur), sonra
+       sendContent (lwIP kopyalar). ISR / DMA / onbellek kapali yol YOK. */
+    kayit_veri_tampon = (uint8_t *)heap_caps_malloc_prefer(KAYIT_VERI_AZAMI, 2,
+                                                           MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+                                                           MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     kayit_kilit = xSemaphoreCreateMutex();
     kayit_nokta_q = xQueueCreate(KAYIT_KUYRUK, sizeof(KayitNokta));
     kayit_mesaj_q = xQueueCreate(4, sizeof(KayitMesaj));

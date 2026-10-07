@@ -13,6 +13,8 @@ Son bolum tezgah aracı `kopru/sahte_araci.py`'yi sinar (kimlik, ACL, retained, 
 QoS 1, keepalive zaman asimi -> vasiyet, ani kopus -> vasiyet, DISCONNECT -> vasiyet YOK,
 ayni kimlikle takeover, kesinti + ayni portta yeniden acma). Sahte aracı kartin vasiyet/keepalive
 davranisini olcen tezgahin (uretim/tezgah_bildirim.py) olcu aleti: kendisi once burada sinaniyor.
+E8 bolumu: sahte aracinin "sessiz" kipi (soket acik, yanit yok) ve `KaraDelikVekil` (iletmeyen,
+kapatmayan vekil) — tezgahin S1/S2 senaryolari (kart -7 ile <= 9.5 s) icin; kart GEREKMEZ.
 
 SinanMAYAN: gercek TLS (sertifika/ad denetimi) ve gercek aracı (HiveMQ) — tezgah kalemi.
 """
@@ -1971,6 +1973,296 @@ def bolum_4e_iplik_birim() -> None:
        "yeniden denenecek" and "baska.ad" not in "".join(durumlar), durumlar[-1])
 
 
+def bolum_e7() -> None:
+    """E7 (W5): `tezgah_bildirim.py --basladi`'nin olcu aleti — kayip kartta mi aracida mi."""
+    print("\n-- E7: basladi kaybi siniflandirici (tezgah_bildirim) --")
+    import re
+    import pc_ayar
+    import tezgah_bildirim as TB
+    oz = "ok/" + ONEK + "/olay"
+
+    def m(a, o="basladi", konu=oz, icerik=True):
+        return {"konu": konu, "icerik": ({"o": o, "a": a, "n": 1} if icerik else None)}
+    gelen = TB.basladi_gelenler([m(11), m(12, o="kayit_bitti"), m(13, konu="ok/" + ONEK + "/durum"),
+                                 m(14, icerik=False), m(15), m(15)], oz)
+    ok("E7.1 basladi_gelenler: yalniz olay konusundaki COZULMUS basladi (durum/baska olay/cozulemeyen "
+       "disarida), tekrar korunur", gelen == [11, 15, 15], str(gelen))
+    q1, q0 = {"olay": 1, "kuyruk": 0}, {"olay": 0, "kuyruk": 1}
+    s = TB.basladi_siniflandir(10, [q1, q0, q1, None, q0], [11, 14, 15, 10, 99], 15)
+    ok("E7.2 siniflar: acilis a0+i; gelen -> ulasti (Q? olay 0 olsa da: PUBACK Q?'den SONRA geldi); "
+       "gelmeyen + olay 0 -> kartta_kaldi; gelmeyen + olay >= 1 -> aracida_kayip; Q? yok -> belirsiz",
+       s == [(11, "ulasti"), (12, "kartta_kaldi"), (13, "aracida_kayip"), (14, "ulasti"), (15, "ulasti")]
+       and TB.basladi_siniflandir(10, [None], [], 11) == [(11, "belirsiz")], str(s))
+    ok("E7.3 acilis numaralari sifirlamalarla eslesmiyorsa (son_a != a0 + n) HEPSI belirsiz — "
+       "kayip 'aracida' diye yanlis yazilmaz",
+       TB.basladi_siniflandir(10, [q1, q1], [11], 13) == [(11, "belirsiz"), (12, "belirsiz")])
+    k = TB.basladi_karar
+    ok("E7.4 karar: kayip yok / kartta / aracida / ikisinde / belirsiz",
+       [k([(1, "ulasti")]), k([(1, "ulasti"), (2, "kartta_kaldi")]), k([(1, "aracida_kayip")]),
+        k([(1, "kartta_kaldi"), (2, "aracida_kayip")]), k([(1, "ulasti"), (2, "belirsiz")]), k([])]
+       == ["kayip yok", "kayip kartta", "kayip aracida", "kayip ikisinde", "belirsiz", "belirsiz"])
+    # pc_bilgi_onbellek: PC'nin 4E onbellegini YALNIZ OKUR (guard: gecici dizinler)
+    cdiz, vdiz = pc_ayar.cihaz_dizini(), pc_ayar.veri_dizini()
+    imza.Cihaz(cdiz / f"{KIMLIK}.json", KIMLIK, CIHAZ_N, K_CIHAZ, "e7-sinama", 0, "").kaydet()
+    (vdiz / "bildirim").mkdir(parents=True, exist_ok=True)
+    (vdiz / "bildirim" / f"{KIMLIK}.okb").write_bytes(bilgi_govde(IYI_BILGI))
+
+    def dokum():
+        return sorted((str(p), p.stat().st_mtime_ns, p.stat().st_size)
+                      for kok in (cdiz, vdiz) for p in kok.rglob("*") if p.is_file())
+    once = dokum()
+    b = TB.pc_bilgi_onbellek()
+    ok("E7.5 pc_bilgi_onbellek PC'nin sifreli onbellegini cozer (cihaz anahtari) ve HICBIR dosyaya "
+       "yazmaz (cihaz sayaci dahil)",
+       bool(b) and b["onek"] == ONEK and b["kullanici"] == "cihaz" and dokum() == once,
+       f"{bool(b)} degisti={dokum() != once}")
+    (vdiz / "bildirim" / f"{KIMLIK}.okb").unlink()
+    (cdiz / f"{KIMLIK}.json").unlink()
+    ok("E7.6 onbellek yoksa None (tezgah 'kopruyu bir kez calistirin' der, karta istek ATMAZ)",
+       TB.pc_bilgi_onbellek() is None)
+    src = (BURASI / "tezgah_bildirim.py").read_text(encoding="utf-8")
+    g = src[src.find("def basladi_kaybi("):src.find("# ── tezgah ──")]
+    ana = src[src.find("    if a.basladi:"):src.find("    t = Tezgah(")]
+    ok("E7.7 --basladi kartin bildirim ayarina DOKUNMAZ: yalniz Q? okunur (Q komutu yazilmaz, Tezgah "
+       "akisi ve temizligi KURULMAZ), karta imzali istek yok",
+       bool(g) and "q_ayar(" not in g and "imzali(" not in g and "IM.ac(" not in g
+       and not re.search(r'yaz\(\s*f?"Q(?!\?)', g) and "Tezgah(" not in ana and ".temizlik(" not in ana
+       and "return" in ana)
+
+
+PINGREQ_P = bytes([0xC0, 0x00])
+
+
+def _pong(h: "Ham", zaman: float) -> bool | None:
+    """PINGREQ gonder: True = PINGRESP geldi, False = yanit yok (soket ACIK), None = soket kapandi."""
+    h.gonder(PINGREQ_P)
+    try:
+        son = time.monotonic() + zaman
+        while (kalan := son - time.monotonic()) > 0:
+            p = h.paket(kalan)
+            if p is not None and p[0] >> 4 == 13:
+                return True
+        return False
+    except EOFError:
+        return None
+
+
+def bolum_e8() -> None:
+    """E8 (2026-10-04): kartin yanitsiz araci tezgahinin (tezgah_bildirim S1/S2) olcu aletleri —
+    sessiz araci ve kara delik vekili — once BURADA, kartsiz sinanir."""
+    print("\n-- E8: sessiz araci + kara delik vekili (tezgah_bildirim S1/S2'nin olcu aleti) --")
+    a = SA.SahteAraci("127.0.0.1", 0, SA_KUL).start()
+    try:
+        h = Ham(a.port)
+        ok("E8.1 normal: CONNECT -> CONNACK 0, PINGREQ -> PINGRESP",
+           h.baglan("e8-a", ka=2, kul="kart", par="kpw-1") == 0 and _pong(h, 1.0) is True)
+        b0 = len(a.olaylar)
+        t0 = a.sessiz()
+        cevap = _pong(h, 1.0)
+        time.sleep(2.2)                                    # > 1.5 x keepalive(2 s) toplam
+        p, kapandi = h.bosalt(0.6)
+        ok("E8.2 sessiz(): PINGREQ yanitsiz, soket ACIK (EOF yok), keepalive (1.5 x 2 s) asilsa da "
+           "dusurulmez; gonderilmeyen paket sayilir, 'sessiz' olayi baslangic aniyla",
+           cevap is False and not p and not kapandi and a.bagli_istemciler() == ["e8-a"]
+           and a.yutulan >= 1 and not a.olaylar_sec("disconnect", b0)
+           and (a.olay_bekle("sessiz", 0.0, b0) or {}).get("baslangic") == t0,
+           f"cevap={cevap} paket={len(p)} kapandi={kapandi} yutulan={a.yutulan}")
+        h2 = Ham(a.port)
+        ok("E8.3 sessizken yeni CONNECT'e CONNACK gelmez, soket kapanmaz",
+           h2.baglan("e8-b", ka=30, kul="kart", par="kpw-1") == -1 and h2.bosalt(0.3) == ([], False))
+        # konus() keepalive'i hemen yeniden uygular: son paket E8.2'den eskiyse h ANINDA duserdi (yuk
+        # altinda yaris, paralel mutasyonda goruldu) -> once taze bir PINGREQ (yanitsiz) yolla
+        on = _pong(h, 0.2)
+        a.konus()
+        ok("E8.4 konus(): PINGRESP geri gelir; keepalive yeniden uygulanir (susunca 1.5 x 2 s'de duser)",
+           on is False and _pong(h, 1.5) is True
+           and a.olay_bekle("disconnect", 6.0, b0, istemci="e8-a", neden="keepalive") is not None)
+        b1 = len(a.olaylar)
+        t1 = a.sessiz(sonra=1.5)                           # yuk altinda (paralel mutasyon) pay
+        once = _pong(h2, 1.0)                              # h2 hic CONNACK almadi ama kayitli
+        time.sleep(max(0.0, t1 - time.monotonic()) + 0.1)
+        sonra = _pong(h2, 0.5)
+        ok("E8.5 sessiz(sonra=1.5): susma ani gelecekte; oncesinde yanit var, sonrasinda yok",
+           abs(t1 - (a.olay_bekle("sessiz", 0.0, b1) or {}).get("t", 0) - 1.5) < 0.1
+           and once is True and sonra is False, f"once={once} sonra={sonra}")
+        t_kapat = time.monotonic()
+        h2.s.close()
+        d = a.olay_bekle("disconnect", 2.0, b1, istemci="e8-b")
+        ok("E8.6 susmus araci istemcinin kapattigi ani gorur (disconnect 'kopus' <= 1 s; vasiyetsiz "
+           "istemcide vasiyet yok) — tezgah S1 kartin kapanis anini BOYLE olcer",
+           d is not None and d["neden"] == "kopus" and d["t"] - t_kapat <= 1.0
+           and not a.olaylar_sec("will_published", b1),
+           f"{d and d['neden']} {d and round(d['t'] - t_kapat, 3)} s")
+        ok("E8.7 sessiz(sonra < 0) ValueError", hata_verir(lambda: a.sessiz(-1.0)))
+        a.konus()
+        h.s.close()
+    finally:
+        a.stop()
+
+    a = SA.SahteAraci("127.0.0.1", 0, SA_KUL).start()
+    v = SA.KaraDelikVekil("127.0.0.1", a.port).start()
+    try:
+        h = Ham(v.port)
+        h5 = Ham(v.port)
+        ok("E8.8 vekil seffaf: vekil uzerinden CONNECT -> CONNACK, PINGRESP; araci istemcileri gorur",
+           h.baglan("e8-v", ka=1, kul="kart", par="kpw-1", will=("ok/e8/durum", b"OLU", 1, True)) == 0
+           and h5.baglan("e8-x", ka=30, kul="kart", par="kpw-1") == 0
+           and _pong(h, 1.0) is True and a.bagli_istemciler() == ["e8-v", "e8-x"] and v.port != a.port
+           and v.olay_bekle("baglanti", 0.0) is not None)
+        b0, i0 = len(a.olaylar), len(v.olaylar)
+        t0 = v.kes()
+        cevap = _pong(h, 1.0)
+        w = a.olay_bekle("will_published", 3.0, b0, istemci="e8-v")
+        p, kapandi = h.bosalt(0.5)
+        hk = v.olay_bekle("hedef_kapandi", 0.5, i0)
+        ok("E8.9 kes(): iki yon de YUTULUR — istemci yanit alamaz ama soketi ACIK; araci istemciden hicbir "
+           "sey alamaz -> keepalive (1.5 x 1 s) ile vasiyeti yayinlar ve kapatir; vekil bu kapanisi "
+           "istemciye ILETMEZ",
+           cevap is False and not kapandi and not p and w is not None and w["neden"] == "keepalive"
+           and w["t"] - t0 >= 1.0 and v.yutulan >= len(PINGREQ_P) and v.kesik()
+           and hk is not None and hk["kesik"] is True,
+           f"cevap={cevap} kapandi={kapandi} vasiyet={w and w['neden']} yutulan={v.yutulan}")
+        i1 = len(v.olaylar)
+        t_kapat = time.monotonic()
+        h5.s.close()
+        k = v.olay_bekle("istemci_kapandi", 2.0, i1)
+        time.sleep(0.5)
+        ok("E8.10 kara delikte istemcinin kapattigi an vekilde 'istemci_kapandi' (kesik=True, <= 1 s) — "
+           "tezgah S2 kartin kapanis anini BOYLE olcer; kapanis araciya ILETILMEZ (araci hala bagli sanir)",
+           k is not None and k["kesik"] is True and k["t"] - t_kapat <= 1.0
+           and "e8-x" in a.bagli_istemciler() and not a.olaylar_sec("disconnect", b0, istemci="e8-x"),
+           f"{k and round(k['t'] - t_kapat, 3)} s, araci {a.bagli_istemciler()}")
+        h.s.close()
+        v.devam()
+        h3 = Ham(v.port)
+        ok("E8.11 devam(): vekil yeniden iletir (yeni baglanti CONNACK + PINGRESP)",
+           h3.baglan("e8-w", ka=30, kul="kart", par="kpw-1") == 0 and _pong(h3, 1.0) is True)
+        i1 = len(v.olaylar)
+        a.kapali_tut()
+        _, kapandi3 = h3.bosalt(2.0)
+        ok("E8.12 normal kipte araci kapaninca kapanis istemciye ILETILIR (EOF), olay hedef_kapandi",
+           kapandi3 and v.olay_bekle("hedef_kapandi", 1.0, i1) is not None)
+        i2 = len(v.olaylar)
+        h4 = socket.create_connection(("127.0.0.1", v.port), timeout=3)
+        h4.settimeout(8)                                   # Windows'ta kapali porta baglanti ~2 s'de reddedilir
+        try:
+            eof = h4.recv(1) == b""
+        except ConnectionError:
+            eof = True
+        except OSError:                                    # zaman asimi: vekil kapatmadi
+            eof = False
+        h4.close()
+        ok("E8.13 hedef dinlemiyorsa vekil istemciyi kapatir ('hedef_yok')",
+           eof and v.olay_bekle("hedef_yok", 4.0, i2) is not None)
+    finally:
+        v.stop()
+        a.stop()
+    ok("E8.14 stop(): vekil artik baglanti kabul etmez",
+       hata_verir(lambda: socket.create_connection(("127.0.0.1", v.port), timeout=1), OSError))
+    # tezgah S1/S2: kart gerekir (zincirde KOSMAZ) — burada yalniz akisin VARLIGI ve olcutu
+    import re
+    import tezgah_bildirim as TB
+    plan = [k for k, _ in TB.PLAN]
+    src = (BURASI / "tezgah_bildirim.py").read_text(encoding="utf-8")
+    cl = src[src.find("    def canlilik(self) -> None:"):src.find("    def komut_ve_sizinti(")]
+    yo = src[src.find("    def _yanitsiz_olc("):src.find("    def canlilik(self) -> None:")]
+    ca = src[src.find("    def calistir(self) -> None:"):src.find("    def onkosul(self)")]
+    ok("E8.15 tezgah_bildirim: S1 sessiz araci + S2 kara delik akista (kesintiden sonra, sizinti "
+       "taramasindan once); olcut Q? hata == -7 ve kapanis <= SESSIZ_SINIR_S (9 s tasarim + 0.5 s pay); "
+       "S2 sonunda Qu eski adrese doner",
+       0 <= ca.find("self.kesinti()") < ca.find("self.canlilik()") < ca.find("self.komut_ve_sizinti()")
+       and "yanitsiz_hukum(ad, q0, q, dt)" in yo and "ara_hukum(ad, ornekler)" in yo
+       and 'q["hata"] == -7' in src and "dt <= SESSIZ_SINIR_S" in src
+       and re.search(r"SESSIZ_TASARIM_S = 9\.0\n", src) is not None
+       and "SESSIZ_SINIR_S = SESSIZ_TASARIM_S + 0.5" in src
+       and "self.araci.sessiz()" in cl and "v.kes()" in cl and 'f"Qu{self.uri}"' in cl
+       and 0 <= cl.find("finally:") < cl.find('f"Qu{self.uri}"')
+       and "S1" in plan and plan.index("S2") == plan.index("S1") + 1 < plan.index("H1"))
+
+    class _K:
+        def __init__(self, satirlar):
+            self.s = list(satirlar)
+
+        def yaz(self, _m):
+            pass
+
+        def satir_oku(self, _sn):
+            return self.s.pop(0) if self.s else None
+    q_eski = ("Q acik=1 durum=4 (bagli) hata=0 baglanti=3 yayin=9 olay=2 kuyruk=0 dusen=0 "
+              "el_sikisma_ms=1200 esik=900")
+    qa = "QA uri=mqtts://a:8883 kart=k kart_parola=var cihaz=c cihaz_parola=var onek=ab anahtar=var"
+    qy = "QY dahili_bos=82000 dahili_en_az=2504 dahili_en_buyuk=31000 ayirma_hata=0"
+    yeni = TB.q_oku(_K([q_eski + " tur=812 adim=select adim_yas=31 ping_yas=1200 pong_yas=-1", qa, qy]), sn=0.5)
+    eski = TB.q_oku(_K([q_eski, qa, qy]), sn=0.5)
+    ok("E8.16 q_oku E8 Q satirini cozer (tur/adim_yas/ping_yas/pong_yas tamsayi, -1 = hic; adim metin) "
+       "ve eski firmware'in satirinda bu anahtarlar YOK; eski alanlar ayni",
+       bool(yeni) and tuple(yeni.get(x) for x in ("tur", "adim", "adim_yas", "ping_yas", "pong_yas", "durum",
+                                                   "esik")) == (812, "select", 31, 1200, -1, 4, 900)
+       and bool(eski) and "tur" not in eski and "adim" not in eski and eski["el_sikisma_ms"] == 1200,
+       str(yeni and {x: yeni.get(x) for x in ("tur", "adim", "adim_yas", "ping_yas", "pong_yas")}))
+
+    # E8 inceleme: tezgahin araci DUZ TCP. Eski (E8 oncesi) firmware de PINGREQ'den 5 s sonra -7 ile
+    # kapatir -> "<= 9.5 s" ve "hata=-7" E8'i eskisinden AYIRMAZ. Hukum bunu ACIKCA soylemeli: eski
+    # firmware'in satiri (canlilik alani yok) bu iki gerileme denetimini GECER, yalniz E8 ayirt edicisi
+    # kirmizi olur. Tezgahin hukmu saf islev — kartsiz burada sinanir.
+    def _q(**k):
+        d = {"acik": 1, "durum": 5, "hata": -7}
+        d.update(k)
+        return d
+    _e8 = dict(tur=900, adim="bekle", adim_yas=12, ping_yas=5040, pong_yas=9100)
+    q0_e8 = _q(durum=4, hata=0, tur=600, adim="select", adim_yas=20, ping_yas=1500, pong_yas=1480)
+    q0_eski = _q(durum=4, hata=0)
+    hk = getattr(TB, "yanitsiz_hukum", None)
+
+    def _h(q0, q, dt):
+        return [g for _m, g, _a in hk("S1", q0, q, dt)] if hk else None
+    ok("E8.17 tezgah hukmu (yanitsiz_hukum): E8 satiri 3/3 yesil; ESKI firmware'in satiri (alan yok, "
+       "hata=-7, 8.7 s) kapanis + -7 GERILEME denetimlerini GECER, yalniz E8 ayirt edicisi kirmizi "
+       "(duz TCP'de tek ayirt edici canlilik alanlari + tur artisi); -6, 9.8 s, kapanis yok, tur "
+       "artmamasi ayri ayri kirmizi",
+       hk is not None
+       and _h(q0_e8, _q(**_e8), 8.7) == [True, True, True]
+       and _h(q0_eski, _q(), 8.7) == [True, True, False]
+       and _h(q0_e8, _q(**{**_e8, "hata": -6}), 8.7) == [True, False, True]
+       and _h(q0_e8, _q(**{**_e8, "durum": 4}), 8.7)[1] is False
+       and _h(q0_e8, _q(**_e8), 9.8)[0] is False
+       and _h(q0_e8, _q(**_e8), None)[0] is False
+       and _h(q0_e8, None, 8.7) == [True, False, False]
+       and _h(q0_e8, _q(**{**_e8, "tur": 600}), 8.7) == [True, True, False],
+       str(hk and [_h(q0_e8, _q(**_e8), 8.7), _h(q0_eski, _q(), 8.7)]))
+
+    # Susma sirasindaki Q? ornekleri (kapanistan once, durum 4): gorev TAKILI degil (adim_yas <
+    # BLD_SOKET_MS), tur artiyor ve en az bir ornekte ping BEKLENIYOR (son PINGRESP son PINGREQ'den
+    # once, ping_yas <= 5 s + pay). Eski firmware'de alan yok -> kirmizi.
+    ah = getattr(TB, "ara_hukum", None)
+    o_once = dict(durum=4, tur=610, adim="select", adim_yas=20, ping_yas=2100, pong_yas=2080)
+    o_bek1 = dict(durum=4, tur=640, adim="select", adim_yas=31, ping_yas=1200, pong_yas=5300)
+    o_bek2 = dict(durum=4, tur=671, adim="bekle", adim_yas=3, ping_yas=3000, pong_yas=7100)
+
+    def _a(ornek):
+        return ah("S1", ornek)[1] if ah else None
+    ok("E8.18 tezgah ara hukmu (ara_hukum): susma sirasindaki ornekler — takili adim yok (< 1500 ms), "
+       "tur artiyor, en az birinde ping bekleniyor -> yesil; takili 'yaz' (4 s), hic bekleyen ping yok "
+       "(araci aslinda yanitliyor), tur durmus, eski firmware (alan yok), hic ornek yok -> kirmizi",
+       ah is not None and _a([o_once, o_bek1, o_bek2]) is True
+       and _a([o_once, {**o_bek1, "adim": "yaz", "adim_yas": 4000}, o_bek2]) is False
+       and _a([o_once, {**o_once, "tur": 640}]) is False
+       and _a([o_once, o_bek1, {**o_bek2, "tur": 640}]) is False
+       and _a([{"durum": 4, "hata": 0}, {"durum": 4, "hata": 0}]) is False
+       and _a([]) is False
+       and _a([o_once, {**o_bek1, "ping_yas": 9000, "pong_yas": 13000}]) is False,
+       str(ah and ah("S1", [o_once, o_bek1, o_bek2])[2]))
+
+    # Plan metni E8'e ozgu olmayan bir ayrimi IDDIA ETMEZ (inceleme bulgusu: "-6 DEGIL" eski firmware'de
+    # de dogru; tezgah duz TCP oldugu icin kismi TLS kaydi yolu hic olusmaz).
+    pm = dict(TB.PLAN)
+    ok("E8.19 PLAN S1/S2: 'duz TCP' kapsamini ve eski firmware'in de gectigini soyler, '-6 DEGIL' "
+       "ayrimini E8 kaniti diye sunmaz; ayirt edici olarak canlilik alanlarini adlandirir",
+       all("-6 DEGIL" not in pm[s] for s in ("S1", "S2"))
+       and "duz TCP" in pm["S1"] and "eski firmware" in pm["S1"] and "canlilik" in pm["S1"]
+       and "eski firmware" in pm["S2"])
+
+
 def bolum_4e() -> None:
     bolum_4e_metin()
     bolum_4e_mantik()
@@ -1996,6 +2288,8 @@ def main() -> int:
     bolum_dinleyici()
     bolum_sahte_araci()
     bolum_4e()
+    bolum_e7()
+    bolum_e8()
     gercek_dizin_koru.denetle(_KORUMA, ok)
     print(f"\n{gecti}/{gecti + kaldi} dogrulama gecti")
     return 0 if kaldi == 0 else 1

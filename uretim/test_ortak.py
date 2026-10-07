@@ -73,6 +73,20 @@ def vektorler() -> None:
            (r.stdout + r.stderr).strip().splitlines()[-1][:160] if (r.stdout + r.stderr).strip() else "")
 
 
+def baglanti() -> None:
+    print("\n── B73.B  panelin 'Bağlantı' penceresi: ön panel resmi + talimat VERİDEN (uretim/baglanti.py)")
+    r = subprocess.run([sys.executable, "baglanti.py", "--denetle"], cwd=BURASI, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace", timeout=600)
+    cik = r.stdout + r.stderr
+    for s in cik.splitlines():
+        if s.lstrip().startswith("[!!]"):
+            print("        " + s.strip()[:200])
+    m = re.search(r"baglanti: (\d+)/(\d+) kosul gecti", cik)
+    ok("B73.B1 baglanti.py --denetle: resim panel verisiyle ayni, kurallar KULLANIM'la celismiyor, "
+       "ortak/src/baglanti_veri.js GUNCEL", r.returncode == 0 and bool(m) and m.group(1) == m.group(2),
+       m.group(0) if m else cik.strip()[-160:])
+
+
 def node_testleri(moduller: list[str]) -> None:
     print("\n── B73.N  node --test (JS == vektorler == RFC)")
     try:
@@ -104,6 +118,7 @@ def node_testleri(moduller: list[str]) -> None:
 def main() -> int:
     moduller = yapi()
     vektorler()
+    baglanti()
     node_testleri(moduller)
     tezgah("B73 ortak/ (JS hesap kodu)", [
         ("Kartin GERCEK akisi JS ile de ayni cozuluyor mu",

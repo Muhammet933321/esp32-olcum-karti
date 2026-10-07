@@ -10550,6 +10550,1146 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.110 🟢 ÇOKLU WiFi AĞI (8) + "BU AĞA GEÇ" + DHCP CİHAZ ADI (2026-10-06/07, dal `grafik-olcek`, firmware `A3-CA`, KARTTA)
+
+Kullanıcı: "Kartı birden fazla ağ hatırlayacak şekilde yapamaz mıyız? 4-5 belki daha fazla" ve "ev ağına
+bağlandı, sonra hotspotumu açtım — panelden hotspota geçmesini tetikleyebilir miyim?". Tasarım
+`tasarim/2026-10-06-coklu-ag.md` (CA1–CA13), sohbette onaylandı ("bu sistem çok güzel bunu uygula").
+
+**Ne yapıldı**
+* `ag_liste.h` (YENİ, platformsuz): en çok 8 kayıt; seçim = kayıtlı VE görünen, önce öncelikli, sonra
+  güçlü RSSI, aynı adda en güçlü erişim noktası (CA3); başarısız adaydan SONRAKİ denenir, döngüsel (CA4);
+  ad 1..32 bayt, parola boş ya da 8..63 (CA13). AVR'de: `uretim/avr/ornek_ag_liste.c`, sim3_web **5n**.
+* `ag_karar.h`: **uzun kopma** — STA'da `AG_STA_KOPUK_MS` (90 s) kesik → AP + yeniden deneme (CA6;
+  eskiden STA'ya bir kez bağlanan kart sonsuza dek o ağı beklerdi); **geçiş** — `agk_gecis` (yalnız
+  STA'dan) → AGK_GECIS (`AG_GECIS_MS` 20 s) → olmazsa AGE_GERI (önceki ağ) → AGK_GERI → olmazsa AP (CA7).
+  STA artık ETKİN (uzun kopma izleniyor): 5m senaryolarının S'si `(STA, 1)`.
+* `ag.h` yapıştırıcı: NVS `w<i>a/p/o` + `w_son`; **taşıma** (CA2) — `w0a` yoksa eski `wifi_ad/wifi_sifre`
+  yuva 0'a, ad EN SON, eski anahtarlar silinmez. Setup taramasız ilk tahmin (`agl_ilk`: en son bağlanılan);
+  `ag_bekle_tamamla` ≥ 2 kayıtta tarar (bağlı değilse en iyi adaya geçer). Yeniden deneme: TEK kayıtta
+  eski yol (`WiFi.begin()`), çoklu kayıtta ASYNC tarama → `ag__tarama_isle` seçer. Çekirdek 1 → 0 istek
+  bayrakları (`ag_istek_tara`, `ag_istek_gecis`), 0 → 1 sonuç tamponu + sürüm (CA10). GECIS/GERI'de
+  `bagli` = HEDEF ağa bağlı (ad gecis başında kopyalanır; her turda NVS okumaz — ilk sürüm okuyordu).
+  **DHCP cihaz adı** = `ag_ap_ssid()` (OLCUM-KARTI-XXXX), `WiFi.mode`'dan ÖNCE — kullanıcı: telefon
+  hotspotunda "bilinmiyor" sonra "esp32s3-..." görünüyordu.
+* ⚠ Statik DRAM: yeni tamponlar statik olunca 82 604 B (%25.2) — sınır %25 (81 920). Tarama listesi +
+  mesaj + geçiş adları tek `AgCok` yapısında, `ag_yukle`'de PSRAM'e (yoksa yığın): 81 884 B.
+* `ag_komut.h` (YENİ): çekirdek 1 yazıcıları (`NL`, `NT`, geçiş mesajı). ⚠ `.ino`'nun BAŞINA koyulunca
+  Arduino'nun otomatik ön bildirimleri kayıt türlerinden önce girip derlemeyi kırdı — ayrı başlık, bütün
+  include'lardan sonra.
+* `.ino` `N`: `Nl` `Nt` `Na<ad>` (ekle/seç) `Np<parola>` (son Na) `Nx<no>` `No<no>` `Ng<no>`; `N?` artık
+  "kayıtlı ağlar n/8". Parola HİÇBİR çıktıda yok (CA9).
+* Panel Ayarlar → Ağ: kayıtlı ağlar (bağlı / öncelikli), Listeyi yenile, Ağları tara (RSSI, ✓ kayıtlı,
+  tıkla → ad kutuya), Öncelikli yap, Sil (iki aşamalı), **Bu ağa geç** (iki aşamalı). Bölüm açılınca
+  komut GİTMEZ (AY5). Açılış sözlüğü bütçesi (19 500 B gzip) dar: metinler kısaltıldı, 19 492 B.
+* Kılavuz `6-ag.html` (belge_sayfa.py): "bağlandıktan sonra ağ koparsa kendi ağını kurmaz" artık YANLIŞTI
+  → 90 s kuralı + çoklu ağ tablosu; sayılar `ag.h`/`ag_liste.h`'den.
+
+**Kartta (2026-10-07 gece, kullanıcıyla; yedek `.yedek/olcum-karti/tam-20261007-000640.bin`)**
+* Taşıma: `NL 0 0 1 ev ağı` — eski kayıt yuva 0'da, bağlı. Hotspot `Na`+`Np` ile eklendi.
+* `Nt`: 14 ağ, RSSI'li, kayıtlılar işaretli (~4.5 s). UTF-8 SSID (ç, ğ) bayt bayt doğru.
+* `Ng1` ev ağı → hotspot: 7–13 s · `Ng0` geri: anında · hotspot parolası YANLIŞKEN `Ng1`: 20 s sonra
+  "gecis olmadi — ev agina donuluyor", ev ağında STA. NVS yazmaları ve tarama ölçüm döngüsünü
+  bloklamıyor (`K` en uzun tur değişmedi; tek 0.8 s tur açılışta, taşıma yazmasında).
+* ⚠ ÖLÇÜLMEDİ: CA6 (kart açıkken ağ kaybolur → 90 s sonra AP → diğer ağ) — tezgah kalemi (B22b).
+
+**Tuzak (bu oturum):** Python `Path.write_text` Windows'ta `\n`'i `\r\n` yapıyor. Git LF'ye çevirdiği
+için commit'ler bozulmadı, ama `.ino`'yu `\n}\n` ile tarayan testler (`test_arayuz3.js` AY5, komut
+denetimi) çalışma kopyasında KIRMIZIYA döndü. Yama betikleri `write_bytes` / `newline="\n"` kullanmalı.
+
+**Doğrulama:** sim3_web 5m (karar + yapıştırıcı, yeni senaryolar) + 5n (liste) yeşil; test_arayuz3
+918/918; tarayici_canli 59/59 (COKLU-AG ×6); mutasyon COKLU-AG 12/12.
+
+---
+
+#### 5.12.109 🟢 AGD: AÇILIŞTA EV AĞI YOKSA AP + STA YENİDEN DENEMESİ, DÖNÜNCE AP KAPANIR (2026-10-04, dal `ag-ap-donus`, ağaç `projeler/olcum-karti-agd`; KARTA YÜKLENMEDİ)
+
+**Kartta bulunan kusur (2026-10-04, `1-acik-isler` AG1):** kayıtlı ev ağı (STA) AÇILIŞTA yoksa
+`ag_bekle_tamamla` `AG_STA_BEKLE_MS` (10 s) bekliyor, sonra `WiFi.disconnect(true)` + `ag__ap_kur()` (saf
+`WIFI_AP`) yapıyordu. Kart kendi AP'sinde **sonsuza dek** kalıyor, ev ağı dakikalar sonra dönse de STA'yı bir daha
+denemiyordu (MQTT `durum=2 'ag yok (STA degil)'`). Gerçek hayatta: elektrik kesintisinden sonra yönlendirici
+karttan yavaş açılır → kart elle sıfırlanana dek ev ağında değil, bildirim yok. Çalışırken kopma (kart zaten
+bağlıyken) SORUNSUZDU: 5.12.106'da 4 senaryo, 5 dk kesinti dahil, 7–14 s'de kendiliğinden döndü — bu yol
+DEĞİŞMEDİ. Kart başka oturumda kullanımdaydı: seri port açılmadı, karta HTTP gitmedi, yükleme yok.
+
+**SDK'da doğrulananlar (Arduino çekirdeği 3.3.11):**
+- `STA.cpp` `_onStaArduinoEvent`: `getAutoReconnect()` açıkken `NO_AP_FOUND` "yeniden bağlanılabilir" sebep →
+  her başarısız denemenin ardından HEMEN `disconnect()` + `connect()`. Yani STA kipinde sürücü aralıksız tarar
+  (çalışırken kopmanın kendiliğinden dönmesinin sebebi bu). AP+STA kipinde bu, AP'nin her taramada kanal
+  değiştirmesi demek → otomatik bağlanma AP'deyken KAPATILDI, deneme 30 s'de bir elle.
+  `first_connect` (statik) her sebepte BİR kez yeniden dener — açılıştaki 10 s içinde tüketilmiş olur.
+- `WiFiGeneric::mode(AP_STA → STA)`: `esp_wifi_set_mode` + `AP.onDisable()`; netif'ler yok edilmiyor, STA
+  yapılandırması sürücüde kalıyor. `WiFi.begin()` (argümansız) = `STA.begin(true)` → `connect()` sürücüdeki
+  yapılandırmayla; `STA.begin` başlamışsa beklemez → BLOKLAMAZ.
+- `STA.connect(...)` bağlıyken (`connected()` = iliski biti) önce `disconnect(true, 1000)` yapıyor → DHCP
+  sürerken deneme ilişkiyi KOPARIRDI: iliskiliyken (`WiFi.STA.connected()`) deneme yok.
+- mDNS: `ESPmDNS::begin` = `mdns_init` + ad; `end` = `mdns_free`. Kütüphane `espressif__mdns` 1.11.3,
+  `sdkconfig.h`'de `CONFIG_MDNS_PREDEF_NETIF_STA/AP 1`, `libespressif__mdns.a`'da `handle_system_event_for_preset`
+  (WIFI_EVENT + IP_EVENT'e kayıtlı) → AP'de kurulan mDNS, STA IP alınca STA arayüzünde de açılır, AP kapanınca
+  AP'de kapanır; servisler arayüzden bağımsız. Bu yüzden `MDNS.end()` HİÇ çağrılmıyor ve W2i'nin tek duyuru
+  bayrağı (`ag_mdns_servis_var`) geçerli kalıyor. AP'de `MDNS.begin` başarısızsa STA'da yeniden denenir.
+- MQTT (`bildirim_esp.h`) her turda `ag_durum.kip == AG_STA && WL_CONNECTED`'a, NTP (`kayit__saat`) her turda
+  `kip == AG_STA`'ya bakıyor → geçişten sonra kendiliğinden başlarlar (kaynak iddiası 5m).
+
+**Değişiklik:**
+- **`ag_karar.h` (yeni, platformsuz, yalnız `<stdint.h>`):** `AgKarar {t, evre}`, `agk_kur` / `agk_etkin` /
+  `agk_adim(simdi, bagli, iliskili)` → eylem. Evreler: `YOK` (sıfır = N0) · `BEKLE` · `AP_DENE` · `STA_PAY` ·
+  `STA` · `AP` (kayıtlı ağ yok). Eylemler: `AP_KUR` · `STA_DENE` · `STA_OLDU` · `AP_KAPAT`. `STA`/`AP`'de karar
+  yok (çalışırken kopma → sürücü). `STA_PAY`'de kopma da STA'da kalır (bir kez bağlanan kart STA'da kalır).
+  Süreler `ag.h`'de (tek kaynak): `AG_STA_BEKLE_MS 10000`, **`AG_STA_YENIDEN_MS 30000`**, **`AG_AP_PAY_MS 5000`**.
+- **`ag.h`:** `ag_baslat_rf` kararı kurar (kayıtlı ağ var/yok); yoksa saf `WIFI_AP` (eskisi gibi, deneme yok).
+  `ag_bekle_tamamla` = karar motoru `BEKLE`'den çıkana dek (100 ms). `ag__uygula`: `AP_KUR` →
+  `setAutoReconnect(false)` + `disconnect(false, false)` + `ag__ap_kur(WIFI_AP_STA)` (aynı SSID/parola/
+  192.168.4.1/sunucu/mDNS); `STA_DENE` → `WiFi.begin()`; `STA_OLDU` → `ag__sta_oldu` (otomatik bağlanma geri
+  AÇIK, ssid/ip/mac, gerekirse mDNS, servis, `kip` EN SON); `AP_KAPAT` → `WiFi.mode(WIFI_STA)`. `ag_isle()` ağ
+  görevinin döngüsünde her tur; etkin değilse sürücüyü hiç sorgulamaz. `ag_hazir` artık kip SÜRÜMÜ (her kip
+  yazımı +1) → `loop()` `Ag:` satırını her değişimde bir kez basar (açılışta AP, sonra STA).
+- **`.ino`:** `host_gecerli` AP açıkken (`getMode() & WIFI_MODE_AP`) AP'nin kendi adresini de kabul eder —
+  geçiş payında `ag_durum.ip` STA'nınkine döner, AP'deki telefon hâlâ 192.168.4.1'e soruyor (403 alırdı).
+  Saldırganın alan adı bu adreslerden biri olamaz (DNS rebinding savunması aynı). `Ag:` satırı AP'deyken
+  `(ev agi 30 s'de bir deneniyor)` ekler (süre sabitten). Yeni statik tampon YOK.
+- **Statik DRAM 81860 → 81868 (+8):** `ag_bas_ms` (4 B) yerine `AgKarar` (4 + 1 + hiza). Pay ~51 B.
+- Kullanıcı belgesi (`6-ag.html` kaynağı `belge_sayfa.py`): ev ağı sonradan gelirse kart 30 s'de bir dener,
+  kendiliğinden geçer, AP'sini 5 s sonra kapatır; bağlandıktan sonraki kopmada AP kurmaz.
+
+**Bilinen sınırlar (ölçülmedi):**
+- Tek radyo: STA ev ağına AP'den farklı kanalda bağlanınca softAP o kanala geçer → AP'deki telefon büyük
+  olasılıkla o anda düşer; 5 s'lik pay yalnız kanal aynıysa istek ortasındaki kesintiyi önler.
+- Her deneme bir kanal taraması (tahmin ~1.5–2.5 s; IDF AP+STA'da tarama arasında ana kanala döner) → AP'deki
+  istemci 30 s'de bir kısa gecikme görebilir.
+- Yanlış parola / DHCP vermeyen ağ: kart AP'de kalır, 30 s'de bir dener (zararsız). İlişki kurulmuş ama IP
+  gelmiyorsa deneme yapılmaz (IDF DHCP istemcisi kendisi dener).
+- `ag_durum.ssid/ip/mac` artık çalışırken bir kez değişiyor; çekirdek 1 (`N?`, `Ag:`) aynı anda okursa yırtık
+  metin basabilir (yalnız görüntü; `host_gecerli` aynı görevde, yarış yok).
+- `Na`/`Np` değişiklikleri yine bir sonraki AÇILIŞTA geçerli (deneme sürücüdeki yapılandırmayı kullanır).
+
+**Testler:**
+- B22b `sim3_web.py` **5m** (+17 → 144): `ag_karar.h` AVR'de (`uretim/avr/ornek_ag_karar.c`, süreler `ag.h`'den
+  `-D` ile, uyarısız), 9 senaryo 100 ms adımla: açılışta bağlanır + çalışırken kopma (karar yok) · ev ağı hiç
+  yok (AP tam 10 s'de, 30 s'de bir deneme, sonsuza dek) · 3 denemeden sonra döner (STA, AP pay sonunda kapanır,
+  sonra deneme yok, kopmada STA'da) · DHCP sürerken deneme yok · kayıtlı değil (saf AP) · sıfır durum (N0) ·
+  millis taşması · payda kopma · tam sınırda bağlanma (AP kurulmaz). Yapıştırıcı kaynaktan: süreler (≥ 20 s,
+  aralık + pay + 15 s ≤ 60 s), platformsuzluk, açılış, düşüş (radyo kapanmaz, otomatik bağlanma kapalı),
+  deneme (yalnız `WiFi.begin()`), STA olunca (otomatik bağlanma açık, alanlar kipten önce, `MDNS.end` yok),
+  AP kapatma, `ag_isle` döngüde, `Ag:` sürümü, Host, MQTT/NTP her turda. 5k'nın üç iddiası yeni yapıya taşındı.
+- B72.W2i `ag__sta_oldu` + `ag__ap_kur(wifi_mode_t)`'a taşındı (246/246).
+- Mutasyon **`AGD:` 32/32 YAKALANDI** (her iddiaya en az bir; eski kusurun kendisi iki kez: `evre = AGK_AP`,
+  `disconnect(true)`); taşınan eski 1E-2/W2 mutasyonları yeni metne güncellendi.
+- `yukle.py --derle` uyarısız. `dogrula3.py --artimli`: **"Aşama 3 doğrulandı"**, 22/22 (B22b 144/144, B72
+  246/246). Gizlilik temiz. Üretilenlerden yalnız gerçekten değişenler tutuldu (`6-ag.html` metni,
+  `4-kurulum.html` firmware boyutu, `_firmware.json`, `_tezgah.md` +1 kalem → 128); geri kalanı geri alındı.
+- Tezgah kalemi B22b "AGD" (aşağıdaki yordam).
+
+**Kart tezgahı (koşulmadı — kart kullanımda):** firmware yüklendikten sonra:
+1. Kartın kayıtlı ev ağının erişim noktasını KAPAT (yönlendirici Wi-Fi'si ya da telefon hotspot'u).
+2. Kartı sıfırla. Afiş: `Ag baglaniyor: STA ...`, ~10 s sonra `Ag: AP (kendi agi) SSID=OLCUM-KARTI-XXXX ...
+   (ev agi 30 s'de bir deneniyor)`. İsteğe bağlı: telefonu kartın AP'sine bağla, panel 192.168.4.1'de açılmalı.
+   (`N?` GÖNDERME — AP parolasını basar.)
+3. Erişim noktasını AÇ, süreyi başlat. **≤ 60 s** içinde ikinci satır `Ag: STA (ev agi) SSID=<ev> ... http://<ip>`.
+4. ~5 s sonra kartın AP adı PC'nin ağ listesinden (`netsh wlan show networks`) kalkar.
+5. `Q?` → `durum=4` (bağlı), `baglanti` arttı; ev ağında `_http._tcp` PTR → `olcum._http._tcp.local`, TXT
+   `kimlik=` (= `E?` kimliği) görünür; `http://olcum.local` açılır.
+6. Gerileme: kart STA'dayken erişim noktasını 60 s kapat-aç → 5.12.106 gibi 7–14 s'de döner, AP KURULMAZ.
+7. `K` sıfırla → AP'deyken 2 dk → `loop_azami` (ölçüm çekirdeği etkilenmemeli, ~7.5 ms).
+
+**İnceleme (2026-10-04, aynı dal; firmware DEĞİŞMEDİ, statik DRAM aynı):** gözden geçirme iki önemli bulgu
+getirdi; ikisi de gerçekti. 5m'nin AVR bölümü yalnız karar motorunu (`ag_karar.h`) koşturuyordu; `ag.h`'deki
+yapıştırıcıya yalnız alt dize iddiaları bakıyordu.
+- **(1) STA IP'sinin kaynağı sınanmıyordu.** `ag__sta_oldu`'da `WiFi.localIP()` → `WiFi.softAPIP()` mutantı
+  (bu dalın `git archive` kopyasında yeniden koşuldu): B22b **144/144 yeşil**. Bu mutantla kart ev ağına döner,
+  ama `ag_durum.ip` = 192.168.4.1 kalır. 5 s sonra AP kapanınca kartın gerçek IP'siyle gelen her istek
+  `host_gecerli`'de 403 alır, `Ag:` satırı da yanlış adres basar.
+- **(2) `ag_isle`'de `bagli` ile `iliskili`'nin yeri sınanmıyordu.** Yer değiştirme mutantında da B22b
+  **144/144 yeşil** kaldı. 5m yalnız iki alt dizenin VAR olup olmadığına bakıyordu. Bu mutantla kip, ilişki
+  kurulur kurulmaz, DHCP bitmeden STA olur ve `ag_durum.ip` = 0.0.0.0 yazılır. Çekirdek 3.3.11 `STA.cpp`'de
+  `WL_CONNECTED` yalnız `ARDUINO_EVENT_WIFI_STA_GOT_IP`'de kuruluyor (satır 183); `STA.connected()` ise ilişki
+  biti. Yani iki sinyalin anlamı gerçekten farklı.
+- **Düzeltme (test, kod değil): yapıştırıcının METNİ AVR'de, sahte sürücüyle.** `sim3_web.py`
+  `_ag_yap_kaynak()` `ag.h`'den şunları olduğu gibi kesiyor: `ag_baslat_rf`, `ag_bekle_tamamla`, `ag_isle`,
+  `ag__uygula`, `ag__sta_oldu`, `ag__ap_kur`, `ag__kip_yaz`, `ag__mdns_servis`, ayrıca `AG_*` sabitleri,
+  `AgKip`, `AgDurum` ve durum değişkenleri. Bulamadığı parça olursa kırmızı verir. Kesilen metin
+  `uretim/avr/ornek_ag_yapistirici.cpp` ile `avr-g++ -Wall -Wextra` altında, `ag_karar.h`'nin kendisiyle
+  derleniyor (W6 incelemesindeki `ornek_arayuz.cpp`'nin yolu). Tek gevşetme `-Wno-format-truncation`:
+  sahte `String`'in tamponu sabit 24 B olduğu için derleyici `ip[16]`'ya kırpma görüyor. Kartta `String`
+  yığındadır.
+  Sahte sürücü şöyle davranıyor:
+  - `begin()`'den 300 ms sonra ilişki, 2000 ms sonra IP gelir.
+  - `status()` `WL_CONNECTED`'i yalnız IP'den sonra verir.
+  - Ağ yoksa deneme düşer. Otomatik bağlanma açıksa sürücü 300 ms'de bir yeniden dener.
+  - Bağlıyken argümansız `begin()` ilişkiyi koparmaz.
+  - `WIFI_AP` kipinde STA yoktur.
+  - Zaman yalnız 100 ms'lik görev turu ve `vTaskDelay` ile ilerler, yani koşu deterministik.
+
+  Üç senaryo var:
+  - **(a)** Ev ağı açılışta yok, ilk denemeden 5 s sonra geliyor, sonra 5 dk kopuyor. Beklenen sıra tam olarak
+    şu: `M STA · B 0 · M AP+STA 10 s · P · K AP 192.168.4.1 · B 40 s · B 70 s · K STA 192.0.2.57 72.3 s ·
+    M STA 77.3 s`. Kopmada yapıştırıcıdan tek satır çıkmamalı. Sonunda kip STA, IP STA'nınki, sürücü yeniden
+    bağlanmış olmalı.
+  - **(b)** Ev ağı açılışta var: `K STA` 2.3 s'de gelmeli, AP hiç kurulmamalı. 5 dk kopmada da sessiz kalmalı.
+  - **(c)** Kayıtlı ağ yok: saf AP olmalı, ağ yayında olsa bile `begin()` hiç çağrılmamalı.
+
+  Sahte STA adresi RFC 5737 belge adresi.
+- **Kanıt:** önce iki mutant kopyada yeni iddialar kırmızı verdi (mutant 1: 146/148; (a) `K … 192.168.4.1`,
+  (b) `K 2300 … 0.0.0.0`. Mutant 2: 147/148; (a) `K 70300 …`). Temiz ağaçta B22b **148/148** (+4). İki mutant
+  `AGD:` mutasyonu olarak eklendi; `mutasyon.py --neden "AGD:" --paralel 2` → **34/34 YAKALANDI**.
+  `yukle.py --derle` uyarısız. `dogrula3.py --artimli` → "Aşama 3 doğrulandı". `beklenen_sayim.json`'da
+  yalnız B22b değişti (144 → 148).
+- **Açık bırakılan küçükler (düzeltilmedi; `1-acik-isler` AG1b):**
+  1. AP+STA'ya geçişte softAP artık radyo durdurulmadan kuruluyor. softAP başarısız olursa AP bir daha hiç
+     denenmiyor (kip KAPALI kalıyor).
+  2. DHCP kapısının gerekçesi yanlış: kullanılan argümansız `WiFi.begin()` bağlıyken bağlantıyı KOPARMAZ.
+     `ag_karar.h` yorumu, yukarıdaki "SDK'da doğrulananlar" maddesi ve 5m iddia metni bu yüzden hatalı.
+     Kapının kendisi zararsız.
+  3. 10 s'lik açılış beklemesi DHCP sürerken dolarsa `AP_KUR` yeni kurulan ilişkiyi koparıyor ve sonraki
+     deneme 30 s sonra yapılıyor. Bu bir gerileme değil, kaçan bir fırsat.
+  4. "İlişkiliyken deneme yok" kararının SDK gerekçesi de aynı sebeple yanlış (2 ile aynı kök).
+  5. Tezgah yordamının dayandığı `(ev agi 30 s'de bir deneniyor)` eki test edilmiyor: koşul değişirse ek hiç
+     basılmaz.
+  6. Kart tezgahı yordamı `host_gecerli` değişikliğini doğrulamıyor (geçiş payında AP'deki telefona 403
+     gitmemeli).
+
+**KARTTA (2026-10-04 20:19–20:27, `main` = `8196906`; yedek `tam-20261004-195949.bin`; PC ev ağında, "ev ağı" =
+hotspot telefonu, adb + ekran otomasyonuyla açılıp kapatıldı; kartın `Q?`/`Ag` satırları USB'den 2 s'de bir).**
+- Kart hotspot ağına ayarlanıp hotspot KAPALIYKEN yeniden başlatıldı: 10.8 s'de `Ag: AP (kendi agi) … (ev agi 30 s'de
+  bir deneniyor)`; Xiaomi'nin taramasında kartın AP'si yayında (2412 MHz, kanal 1).
+- Hotspot açıldı (20:22:18) → **26 s** sonra `Ag: STA (ev agi)`, **33 s** sonra MQTT `durum=4 bagli`
+  (30 s'lik deneme aralığının içinde). ~1 dk sonra taramada kartın AP'si YOK, yalnız hotspot (2437 MHz, kanal 6) —
+  farklı kanala geçiş sorunsuz. Eski firmware bu senaryoda sonsuza dek AP'de kalıyordu (5.12.107 AG1).
+- Gerileme (kart STA'dayken hotspot 80 s kapalı): 5 s'de `ag yok`, kesinti sırasında taramada kartın AP'si YOK
+  (çalışırken kopma AP açmıyor), hotspot açılınca 6 s'de `baglaniyor`, 8 s'de `bagli`.
+- Ölçülmedi: AP'deki bir istemcinin 30 s'lik taramalarda ne kadar sarsıldığı ve geçiş payında `host_gecerli` (bu testte
+  AP'ye bağlı istemci yoktu). Kart sonra ev ağına döndürüldü; telefonların ayarları eski hâline getirildi.
+
+---
+
+#### 5.12.107 🟢 E8: MQTT GÖREVİ — SINIRLI BLOKLAMA + CANLILIK İZİ + YANITSIZ ARACI TEZGAHI (2026-10-04, dal `e8-mqtt-canlilik`, ağaç `projeler/olcum-karti-e8`; karta YÜKLENMEDİ)
+
+5.12.106'nın ağ testi incelemesinin bulduğu iki gizli kusur (`tasarim/1-acik-isler.md` E8). Kart o sırada başka
+oturumda kullanımdaydı: seri port açılmadı, karta HTTP gitmedi, yükleme yok. Davranış (bağlıyken), protokol, NVS ve
+satır biçimleri aynı; yalnız `Q` satırının SONUNA alan eklendi.
+
+**Kusur (kaynaktan):** esp-tls soketi bloklayıcı bırakır ve `SO_SNDTIMEO`/`SO_RCVTIMEO`'yu `cfg.timeout_ms`'e
+(`BLD_TLS_MS` = 10 s) kurar. mbedTLS `net_sockets` "would block"u yalnız `O_NONBLOCK` sokette döndürür; bloklayıcı
+sokette zaman aşımı `NET_SEND/RECV_FAILED` olur. Sonuç: (1) tek takılı gönderme 10 s sürer, 5 s'lik PINGRESP ölçütü
+o sürede işlemez; `bld__yaz`'ın `WANT_*` yeniden deneme dalı TLS'te ölüydü, düz TCP'de (`mqtt://`, tezgah) ise
+canlıydı ve tavanın üstüne bir tavan daha bekletirdi; (2) `select` "okunabilir" deyip TLS kaydının yalnız bir
+parçası gelmişse `esp_tls_conn_read` kaydın gerisini 10 s bekler ve -7 yerine -6 der; (3) görevin canlılığı
+dışarıdan görünmüyordu (`durum=4` yalnız bağlanınca yazılır; takılı görev "bağlı" görünür).
+
+**Düzeltme (`bildirim_esp.h`):**
+- `BLD_SOKET_MS` 1500: bağlantı kurulunca (`esp_tls_conn_new_sync` başarılı, CONNECT yazılmadan önce)
+  `bld__soket_sinirla` soketin iki tavanını 1.5 s'ye indirir; kurulamazsa bağlantı kullanılmaz (-3). Bağlanma
+  aşaması (TCP + TLS el sıkışması) eskisi gibi 10 s.
+- `bld__yaz`: ilerlemeyen her çağrı (`<= 0`, `WANT_*` dahil) hata; ölü dal kaldırıldı. Kısmi yazma
+  `BLD_YAZ_MS` (3 s) dolunca sürdürülmez. Tek paket en kötü ~4.5 s (< 5 s PINGRESP).
+- `bld__hata`: çağrı ~tavan kadar sürdüyse (≥ `BLD_SOKET_MS` − 100 ms) ya da paket süresi dolduysa bu bir ZAMAN
+  AŞIMI; ping bekleniyorsa **-7** (`BLDH_PING`), değilse eski kod (-4 yazma / -6 okuma). Aracı kapattığında
+  (hızlı hata) yine -6/-4 — iki durum ayırt ediliyor.
+- PINGREQ YAZILMADAN önce `ping_bekle = 1` (+ `ping_ms`): PINGREQ'in kendisi takılırsa da -7.
+- `BLD_TUR_MS` 8000 / **yeni hata kodu `BLDH_TUR` = -11:** bağlıyken tek tur (yayınlar + ping + okuma; süre
+  bağlanma bittikten SONRA ölçülür, el sıkışması sayılmaz) 8 s'yi aşarsa bağlantı ölü. Soket çağrıları tek tek
+  sınırlı ama her çağrısı birkaç bayt ilerleyen bir damla akış (lwIP kısmi yazma döndürür, mbedTLS `flush`
+  döngüsü tekrar çağırır) turu yine uzatabilirdi. Tur başına süre ancak tur bitince ölçülür (tek takılı çağrıyı
+  kesmez — onu tavanlar keser).
+- **Canlılık izi** (`BildirimDurum`'a +16 B: `tur`, `adim_ms`, `ping_ms`, `pong_ms`; `adim` baytı `durum`'un
+  dolgusuna oturdu): her tur sayaç++ ve adım `bekle`; `baglan` (esp_tls_conn_new_sync), `yaz`, `select`, `oku`,
+  `kapat` işlemden hemen önce işaretlenir. `Q` satırının SONUNA: `tur=<n> adim=<ad> adim_yas=<ms> ping_yas=<ms>
+  pong_yas=<ms>` (hiç = -1). Okuma: `adim_yas` ~1 s'yi aşıyorsa görev o adımda TAKILI; `tur` artmıyorsa görev
+  ölü; bağlıyken `pong_yas` ≤ ~9 s olmalı.
+- `.ino`: `Q?` biçimi (eski alanlar aynı sırada). Statik DRAM **81 836 → 81 852** (+16; pay ~68 B,
+  `_ESP_DRAM_SON_OLCUM` güncellendi), flaş 1 418 922 → 1 419 498. Derleme uyarısız.
+
+**Hata kodu tablosu (Q? `hata=`):** -1 uri · -2 bellek · -3 TCP/TLS (ya da E8: soket tavanı kurulamadı) · -4
+yazma · -5 CONNACK · -6 aracı kapattı/okuma · **-7 PINGRESP yok ya da ping beklenirken soket zaman aşımı** · -8
+PUBACK · -9 paket · -10 bozuk akış · **-11 (E8) tur > 8 s** · -100−N aracı reddi.
+
+**Ölçü aletleri (PC, kartsız; `kopru/sahte_araci.py`):**
+- `SahteAraci.sessiz(sonra=N)` / `konus()`: N s sonra aracı SUSAR — TCP açık, gelen okunur ve işlenir (pencere
+  dolmaz), HİÇBİR paket gönderilmez (CONNACK, PUBACK, PINGRESP, SUBACK, iletim; `yutulan` sayılır), keepalive ile
+  kimse düşürülmez. İstemcinin kapattığı an `disconnect(kopus)` olayıdır (S1'in ölçüsü).
+- `KaraDelikVekil(hedef)`: şeffaf TCP vekili; `kes()` sonrası iki yönde gelen okunup ATILIR, hiçbir soket
+  kapatılmaz; istemci kapanışı `istemci_kapandi` (S2'nin ölçüsü), aracı tarafının kapanışı istemciye iletilmez;
+  `devam()`, normal kipte kapanış iletilir, hedef yoksa `hedef_yok`. ⚠ Okuyup attığı için TCP ACK'leri gider: kartın
+  gönderme penceresi DOLMAZ — bu tezgah yanıtsızlığı sınar, gönderme tıkanmasını (yeni 1.5 s tavanı) DEĞİL;
+  tavanın kanıtı kaynak iddiası (QE8a/b) ve gerçek ağ.
+- `tezgah_bildirim.q_oku` yeni alanları okur (`adim` metin, diğerleri tamsayı); eski firmware'de anahtarlar yok.
+
+**Kart tezgahı (KOŞULMADI — kart gerekir): `tezgah_bildirim.py` S1/S2** (kesintiden F sonra, sızıntı
+taramasından önce, varsayılan akışta):
+- S1 sessiz aracı → kart bağlantıyı KENDİSİ kapatır ≤ `SESSIZ_SINIR_S` = 9.5 s (tasarım 4 s ping + 5 s
+  PINGRESP = 9 s; +0.5 s tur/ölçüm payı: susma anı kartın son yazmasından hemen sonraya denk gelirse 9 s birkaç on
+  ms aşılır), `Q?` `hata=-7` (aracı kapatmadı), `tur` artıyor; `konus()` → ≤ 70 s yeniden bağlı.
+- S2 kara delik: `Qu` vekil adresine çevrilir, kart vekil üstünden bağlanır, `kes()` → ≤ 9.5 s kapatır, `hata=-7`;
+  aracı keepalive (7.5 s) ile vasiyeti yayınlar; `Qu` (finally) doğrudan adrese döner, ≤ 70 s bağlı.
+- S1 başında `Q?` canlılık alanları + bağlıyken `pong_yas` ≤ 10 s.
+- ⚠ **(inceleme, aşağıda) S1/S2'nin "≤ 9.5 s" ve "`hata=-7`" denetimleri E8'İ ESKİSİNDEN AYIRMAZ** — aracı düz TCP,
+  E8 öncesi firmware de ikisini geçer. Bu tezgahta E8'e özgü olan yalnız canlılık izi.
+
+**İddialar:**
+- B72.QE8a–g (`test_kayit_esp.py` `bolum_bildirim_kart`; `B72.E8` adı onay jetonunda kullanıldığı için `QE8`), B72
+  236 → **243** (`beklenen_sayim.json` yalnız B72 +7):
+  - a: tavan bağlandıktan sonra, CONNECT'ten önce, iki seçenek; tavan + kısmi yazma < PINGRESP.
+  - b: `bld__yaz`'da WANT_*/bekleme yok, her `<= 0` hata, kısmi yazma tavanı.
+  - c: `bld__hata` gövdesi birebir; okuma hatası da sınıflandırıcıdan.
+  - d: `ping_bekle` PINGREQ yazılmadan önce.
+  - e: tur tavanı bağlandıktan sonra ölçülür, okumadan sonra denetlenir, -11 tek, 5 s < `BLD_TUR_MS` ≤ 9 s.
+  - f: canlılık izi yerleri.
+  - g: `Q` biçimi, adım adları `BLDA_*` sırasında, hiç = -1.
+- `test_bildirim.py` `bolum_e8` E8.1–E8.16 (B72.Q16 alt süreci; 266 → **282**): sessiz kip (yanıtsız, açık,
+  keepalive yok, yeni CONNECT'e CONNACK yok, `konus`, `sonra=`, kapanış anı), kara delik (şeffaf, `kes` iki yönü
+  yutar, aracı keepalive'la vasiyet, kapanış iletilmez, `devam`, normal kipte iletilir, `hedef_yok`, `stop`),
+  tezgahta S1/S2'nin varlığı + ölçütü, `q_oku` yeni/eski satır.
+- **Mutasyon `E8:` 27** (firmware 18: tavan yok / yalnız gönderme / 10 s tavan / WANT_* dalı geri / kısmi yazma
+  süresiz / ping'siz -7 / okuma -6 / ping sonra / tur tavanı yok / 20 s / -10 çakışması / tur el sıkışmasından /
+  tur++ yok / `oku` işareti yok / pong yazılmaz / pong hiç -1 değil / adım adı sırası / işaretsiz yaş; PC 9: sessiz
+  yanıtlar / keepalive kapatır / `konus` etkisiz / kara delik iletir / kapanış iletilir / ölçüt 12 s / -6 kabul /
+  S1-S2 akışta yok / `adim` okunmaz) — **27/27 YAKALANDI** (785 s, `--paralel 2`).
+- ⚠ Bulunan yarış (kendi testimde): mutasyon tabanında E8.4 bir kez kırmızı — `konus()` keepalive'ı hemen yeniden
+  uygular, son paket E8.2'den eskiyse istemci PINGREQ işlenmeden düşüyordu (yük altında). Düzeltme: keepalive 2 s,
+  `konus()`'tan hemen önce taze (yanıtsız) PINGREQ. Sonra 3 paralel koşu 282/282 ×3; etkilenen 3 mutasyon yeniden
+  YAKALANDI.
+- `dogrula3.py --artimli` (önbellek yoktu → TAM koşu): **"Aşama 3 doğrulandı"**, 22/22, B72 85.6 s, B6 127.9 s.
+  Gizlilik temiz. Üretilen belgeler/şema geri alındı (yalnız 4-kurulum'daki firmware boyutu değişmişti).
+
+**Açık (karta yüklenince):** S1/S2'yi koş (`python uretim/tezgah_bildirim.py`, kart A3 + bu dal) — kapanış
+süresi ve `-7` gerileme denetimi, E8'e özgü kanıt yalnız canlılık izi (inceleme, aşağıda); gerçek EMQX'te
+bağlıyken `Q?` `pong_yas` ve `adim` gözle (TLS'te `select` → `oku` geçişi kayıt başına); el sıkışma süresi
+değişmemeli (tavan bağlandıktan sonra). Tavanın kendisi (takılı gönderme 1.5 s'de kesilir) tezgahta
+tetiklenemiyor (pencere dolmuyor) — ancak gerçek ağ tıkanmasında `adim=yaz adim_yas` ≤ ~1.5 s görülür.
+
+**İnceleme (E8 inceleme, 2026-10-04):** bir bulgu, GERÇEK.
+- **Bulgu:** S1/S2 kart senaryoları E8 firmware'ini eskisinden ayıramıyordu. "-7, -6 değil" denetimi ve onun
+  mutasyonu kanıtladıklarından fazlasını söylüyordu.
+- **Doğrulama (kaynaktan):**
+  - Tezgahın aracısı düz TCP (`tezgah_bildirim.py`: "duz TCP; kart `mqtt://`", `Qumqtt://<vekil>`). TLS kaydı
+    yok, yani eskiden -6'ya giden "kısmi kayıt" yolu (kusur 2) burada hiç oluşmaz. Düz TCP'de `esp_tls_conn_read`
+    `select` "okunabilir" dedikten sonra eldekini döndürür.
+  - Sessiz aracı da kara delik de geleni okuyup ACK'liyor (`sahte_araci.py`: "pencere DOLMAZ"). PINGREQ hemen
+    lwIP gönderme tamponuna gider.
+  - E8 öncesi `main`'de de `bld__yaz` takılmadan yazar. Ardından `ping_bekle` denetimi (eski `bildirim_esp.h:793`)
+    5 s sonra `-7` verir. Yani eski firmware de ≤ 9 s'de, `hata=-7` ile kapatır ve iki denetimi de geçer.
+  - Eski firmware'i yalnız yeni `Q` alanlarının yokluğu kırmızı yapıyordu. O da `q.get("tur", 0) > ...` içinde,
+    `hata=-7` denetimine gömülüydü.
+  - DEVIR'in "Açık" bölümü, `1-acik-isler` E8 satırı ("Kartta kaldı: S1/S2 → hata=-7") ve mutasyon notu ("eski
+    10 s'lik okuma yolu ayirt edilmez") bunu E8'in kart kanıtı gibi sunuyordu.
+- **Önce kırmızı iddia** (`test_bildirim.py`, B72.Q16 alt süreci 282 → **285**; `beklenen_sayim.json` değişmez,
+  B72'nin kendi sayısı aynı). Üçü de önce kırmızıydı (282/285), düzeltmeden sonra 285/285.
+  - E8.17: tezgah hükmü saf `yanitsiz_hukum`. ESKİ firmware'in `Q` satırı (alan yok, `hata=-7`, 8.7 s) kapanış ve
+    -7 GERİLEME denetimlerini geçer, yalnız E8 ayırt edicisi kırmızı. E8 satırı 3/3 yeşil. -6, 9.8 s, kapanış yok
+    ve tur artmaması ayrı ayrı kırmızı.
+  - E8.18: susma sırasındaki örneklerin hükmü saf `ara_hukum`. Yeşil koşul: takılı adım yok (`adim_yas` < 1500
+    ms), tur artıyor, en az bir örnekte ping bekleniyor (`0 ≤ ping_yas ≤ 5.5 s`, son PINGRESP son PINGREQ'den
+    önce). Takılı `yaz`, bekleyen ping yok, tur durmuş, eski firmware ve boş liste kırmızı.
+  - E8.19: PLAN S1/S2 metni "-6 DEGIL"i E8 kanıtı diye sunmaz. "duz TCP / eski firmware de gecer" der ve ayırt
+    edici olarak canlılık alanlarını adlandırır.
+- **Düzeltme (`tezgah_bildirim.py`):**
+  - Hüküm üç ayrı denetim. "≤ 9.5 s" ve "`hata=-7`" adlarıyla GERİLEME (düz TCP'de eski firmware de geçer).
+    Üçüncüsü "E8 firmware'i — canlılık alanları var ve tur arttı (tek ayırt edici)".
+  - `_yanitsiz_olc` kapanışı beklerken `Q?` örnekler. Yalnız `durum 4` olanlar susmanın içi sayılır. Kapanış anı
+    aracı olayından alınır, örneklemeden etkilenmez. Örnekler `ara_hukum`'dan geçer.
+  - Modül başında kapsam notu, docstring ve PLAN metni düzeltildi.
+  - Firmware DEĞİŞMEDİ: derleme, DRAM ve B72 sayısı aynı.
+- **Kapsam (dürüstçe):**
+  - Bu tezgahta kartta kanıtlanabilen E8'e özgü şey yalnız canlılık izidir: alanlar, tur, susmada takılı adım
+    olmaması ve bekleyen ping.
+  - 1.5 s soket tavanı, kısmi kaydın -7 sayılması (yalnız TLS'te oluşur) ve takılı PINGREQ hâlâ YALNIZ kaynak
+    biçim iddiaları (B72.QE8a–d).
+  - Davranışsal kanıt için iki yol var: TLS'li bir yerel test aracısı ya da pencereyi dolduran (okumayan, küçük
+    `SO_RCVBUF`) bir vekil. Kartın trafiği küçük (4 s'de 2 B PINGREQ + 60 s'de bir durum), bu yüzden ikincisi
+    tamponu pratikte dolduramaz.
+  - Gerçek EMQX'te (TLS) ağ tıkanması hâlâ tek gözlem yeri: `adim=yaz`/`oku` ile `adim_yas` ≤ ~1.5 s.
+- **Mutasyon `E8:` +8 → 35:**
+  - "-6 kabul": notu düzeltildi, artık E8.15 + E8.17 yakalıyor.
+  - E8.17: ayırt edici alan aramaz; tur `>=`.
+  - E8.18: takılı adım 15 s'ye gevşer; PINGRESP gelmiş örnek "bekliyor" sayılır; 9 s'lik ping bekliyor sayılır;
+    tur durmuş kabul edilir.
+  - E8.15: ara örnekler hükme girmez.
+  - E8.19: PLAN yine "-6 DEGIL".
+  - Sonuç: **35/35 YAKALANDI** (953 s, `--paralel 2`).
+  - #35 (`q_oku` `adim` okumaz) yalnız ÇÖKMEYLE yakalanıyordu (E8.16 `yeni["adim"]` KeyError). E8.16 artık `.get`
+    ile okuyor ve iddiayla kırmızı (yeniden koşuldu: 1/1 YAKALANDI).
+- **Doğrulama:**
+  - `yukle.py --derle` uyarısız. Firmware dosyası değişmedi, `_firmware.json` aynı.
+  - `dogrula3.py --artimli`: **"Aşama 3 doğrulandı"**, 22/22. B72 243/243, B72.Q16 285/285.
+  - Gizlilik temiz. Üretilen belgeler, şema ve `_tezgah.md` geri alındı.
+  - Kart, seri port ve HTTP KULLANILMADI.
+- **Açık bırakılan küçükler** (düzeltilmedi, `1-acik-isler` E8 satırında):
+  - S1'in 9.5 s sınırı yaklaşık %6 olasılıkla yanlış kırmızı verir: susma sırasında 60 s'lik retained `durum`
+    yayını PINGREQ'i 4 s'ye kadar öteler.
+  - TLS'te `BLD_YAZ_MS` ve -11 sınırı, eklendikleri yavaş damla durumunu durduramaz. "Paket başına ~4.5 s" yalnız
+    düz TCP'de geçerli.
+  - İncelemenin üç yeni mutasyonu kartsız iddialardan sağ çıkıyor: pong anı, `adim_ms` sıfırlaması, tezgahın
+    "tur artıyor" denetimi. Sonuncusu artık E8.17'de saf hükümde sınanıyor (tur 600 → 600 kırmızı) ve "tur `>=`"
+    mutasyonu onu kapsıyor. Gözden geçirenin kendi mutasyon metni elde olmadığı için birebir yeniden koşulmadı.
+
+**KARTTA (2026-10-04 18:2x–18:5x, `main` = `22f7150`, E6K + E8 + W6 birlikte; yedek `tam-20261004-170707.bin`;
+arayüz görüntüsü de yazıldı).** Açılış `Bellek (E6F): tls=PSRAM …`, `Arayuz: LittleFS'te`. `Q?` sonu: `tur adim
+adim_yas ping_yas pong_yas` geliyor. `K` 40 s: en uzun döngü **7686 µs**, >20 ms tur 0.
+- **W6 kartta:** `GET /app.js` → `ETag: "cec5520b002cf29a"` (= `_fs.json` `etag["app.js"]`), `Cache-Control:
+  no-cache`, gzip; aynı etiket → **304 / 0 B**, `W/` biçimi → 304, başka etiket → 200 / 78 380 B; `/` ETag + no-cache,
+  eşleşen etiket 304; `vendor/vue` `immutable` (+ ETag).
+- **E8 gerçek ağda** (Honor hotspot'u, PC ev ağında; `Q?` 2 s'de bir, 309 örnek, canlılık alanları CSV'ye):
+  S1 mobil veri 60 s kapalı → **12 s'de `hata=-7`** (sessizlikte `pong_yas` 4.7 → 6.8 s, ardından -7; eski
+  firmware'in aynı senaryosu yalnız `durum=5 hata=-3` gösteriyordu), veri açılınca 39 s'de `bagli` (internetsiz
+  geçen sürede büyüyen yeniden deneme beklemesi — tasarım); S2 hotspot 60 s: 5 s'de `ag yok`, açılınca 7 s'de
+  `bagli`; S3 ~30 s: 2 s / 10 s; S4 **5 dk**: 2 s / 9 s. `tur` 309 örneğin hepsinde arttı (531 → 9019; görev hiç
+  takılmadı); en büyük `adim_yas` 9.5 s, `baglan` adımında (bağlanmanın 10 s sınırı içinde). **Küçük açık:**
+  yeniden bağlandıktan hemen sonra `pong_yas`/`ping_yas` önceki bağlantıdan kalan büyük değeri gösterebiliyor
+  (330 s görüldü) — bağlantı kurulurken sıfırlanmıyor; yalnız tanılama.
+- **YENİ BULGU AG1 (bu testte, kazara):** kart, ev ağı (hotspot) KAPALIYKEN yeniden başladığında 10 s bekleyip kendi
+  AP'sine düşüyor ve STA'yı BİR DAHA DENEMİYOR — hotspot 2+ dk açık kaldığı halde `durum=2 (ag yok (STA degil))`,
+  `ag.h` `ag_bekle_tamamla` → `ag__ap_kur` tek yönlü. Gerçek hayatta: elektrik kesintisinden sonra modem karttan
+  yavaş açılırsa kart elle sıfırlanana dek ev ağına dönmez, bildirim gelmez. Çalışırken kaybolan ağ ise sorunsuz
+  (yukarıdaki S2–S4). Düzeltme dalda (AGD, DEVIR 5.12.109).
+
+---
+
+#### 5.12.108 🟡 W6: KARTIN PANEL DOSYALARINA ETag + `If-None-Match` → 304 (2026-10-04, dal `w6-etag`, ağaç `projeler/olcum-karti-w6`; KARTA YÜKLENMEDİ)
+
+5.12.106'daki telefon testinin küçük açığı: kartın LittleFS'ten sunduğu panel dosyaları `Cache-Control: no-cache`
+ama ETag/Last-Modified YOK → tarayıcının "değişti mi?" diye soracağı bir şey yok, her açılış gövdeleri baştan
+indiriyordu. Ana oturum kartı kullandığı için bu dal **kartta denenmedi** (seri port açılmadı, yükleme yok, karta
+HTTP yok); doğrulama AVR emülatöründe + kaynaktan + derlemeyle.
+
+**Ne yapıldı:**
+- **Üreteç** (`arayuz-uret.py`): görüntüye üretilmiş `etag.txt` (gzip'siz, 1 447 B, 42 satır) giriyor:
+  `/<istek yolu> <16 onaltılık>`; özet GÖRÜNTÜDEKİ baytların (gzip'liyse gzip'li hali) sha256'sının ilk 16'sı.
+  `gzip mtime=0` olduğu için aynı kaynak → aynı ETag; tek bayt değişince yeni ETag. `_fs.json`'da `etag` sözlüğü.
+- **Karar** platformsuz `web_etag.h`: `etag_bul` (yol BİREBİR — `/app.js` satırı `/app.js.gz`'ye, `/app.j`'ye ETag
+  vermez; bozuk satır — büyük harf, 15/17 hane — yok sayılır) ve `etag_eslesir` (RFC 9110 13.1.2: `*` tek başına,
+  virgüllü liste, zayıf karşılaştırma `W/"x"` == `"x"`; boş/bozuk başlık → 200, güvenli taraf).
+- **Firmware:** `serveStatic` yerine `ArayuzIsleyici` (aynı kural: GET, önek, `<yol>.gz`'ye düşüş, MIME ASIL yoldan,
+  çekirdeğin MIME tablosu `detail/mimetable.h`'den, `Content-Encoding: gzip`'i yine `streamFile` koyuyor). Kök
+  `no-cache` + ETag, `/vendor/` `immutable` + ETag; `kok_sayfa` (`/`) da aynı `arayuz_gonder`'den `no-cache` + ETag —
+  **index.html ASLA immutable değil**. 304: gövde YOK, `Cache-Control` ve `ETag` 304'te de var, `Content-Length`
+  200'ün göndereceğiyle aynı (RFC 9110 8.6 — çekirdek her yanıta koyduğu için `0` yazmak ihlal olurdu).
+  `If-None-Match` `collectHeaders`'a eklendi, adet artık dizinin kendisinden (`sizeof`) — elle `7` kalsaydı yeni
+  başlık sessizce dışarıda kalır, kart HİÇ 304 vermezdi. Künye açılışta bir kez PSRAM'e okunuyor; yoksa (eski
+  görüntü) ETag'siz = W6 öncesi davranış. Eski firmware + yeni görüntü: `etag.txt` yalnız ölü dosya.
+- **Neden çekirdeğin `enableETag(true, fn)`'i değil:** `header("If-None-Match") == etag` BİREBİR karşılaştırıyor —
+  künyede olmayan dosya için `fn` boş dönerse If-None-Match GÖNDERMEYEN her istek `"" == ""` ile **gövdesiz 304**
+  alırdı (sayfa açılmaz); ayrıca liste/`W/`/`*` bilmiyor ve 304'e Cache-Control/ETag koymuyor. Varsayılan `calcETag`
+  ise dosyanın tamamını her istekte okuyor (B22.5'in reddettiği yol).
+- **Kapılar DEĞİŞMEDİ:** statik dosyalar eskiden de Basic-Auth/Host/jeton denetimsizdi (sır taşımıyorlar); `/komut`,
+  `/akis`, imza yolları dokunulmadı.
+- **Köprü ve service worker:** `kopru/vekil.py` karta kendi isteğini atıyor (`If-None-Match` taşımıyor → hep 200) ve
+  tarayıcıya kartın ETag'ini aktarmıyor; köprünün kendi panel sunumu (yerel dosyalar, `Last-Modified`) ve `sw.js`
+  (yalnız köprüde, karta girmez) etkilenmiyor. Panelin `fetch`'leri koşullu yanıtı tarayıcı önbelleğinden 200 olarak görür.
+
+**Kazanç (görüntü künyesinden sayıldı, kartta ÖLÇÜLMEDİ):** `index.html`'in istediği varlıklar + `app.js`'in statik
+içe aktarma ağacı = 8 dosya, 200 226 B gzip; `vendor/vue` (58 361 B) zaten `immutable`. Kalan **141 865 B** (index
+25 508 · app.js 78 380 · ortak/sozluk.js 18 311 · style.css 14 731 · ekran/tema.js 2 741 · ikon 1 844 · manifest 350)
+ikinci açılışta 7 × ~170 B'lık 304 başlığına iner (≈ 1.2 KB); ekrana göre dinamik inen modüller de aynı yoldan 304.
+⚠ 5.12.106 "~90 KB" demişti — o telefondan kabaca okunmuştu; künye sayımı 141.9 KB. ⚠ Her yanıt `Connection: close`
+(çekirdek) → istek sayısı ve TCP kurulumları DEĞİŞMEZ; açılış süresindeki kazanç bayttan küçük olur (hotspot'ta 0.6 s'ydi).
+
+**Doğrulama:** B22b 113 → **125** iddia (6b/6c `ArayuzIsleyici`'ye göre yeniden yazıldı, 6n çekirdeğin MIME kuralını
+bizim işleyicide de arıyor; yeni 6q: If-None-Match toplanıyor + `sizeof` · ETag yalnız künyede bulununca, 304 gövdesiz
+ve `streamFile`'dan önce, Content-Length dosya boyu · ETag İSTEK yoluyla aranıyor · künye işleyicilerden önce PSRAM'e ·
+`WEB_ETAG_HEX` = üretecin uzunluğu · künye her görüntü dosyasını kapsıyor · değişmeyen dosyada SABİT (iki üretim, görüntü
+= kaynak) · tek bayt değişince YENİ ETag (gerçek `sikistir` yolu, kaynak geçici kopyaya çevrilerek) · `etag.txt` künyeden
+ve okuma sınırının yarısının altında · **`web_etag.h` AVR'de uyarısız + üretecin GERÇEK satırlarıyla**: 6 gerçek dosya
+doğru ETag, 9 ret · 14 If-None-Match başlığı + NULL girdiler). Mutasyon `--neden W6` **17/17 YAKALANDI**; `--adim B22b`
+54/54. Derleme uyarısız; statik DRAM 81 836 → **81 844 B** (+8: `etag_kunye` göstergesi + hiza; %24.98, < %25; künye
+1.4 KB PSRAM'de, iki işleyici yığından); flash −696 B (çekirdeğin `StaticRequestHandler`/MD5 yolu bağlanmıyor).
+
+**Kartta yapılacak (tezgah kalemi B22b "W6"):** firmware W6 + `arayuz-uret.py && arayuz-yaz.py` sonrası `curl -sI
+http://<ip>/app.js` → `ETag` + `no-cache`; aynı ETag'le `If-None-Match` → `304 0`, başka etiketle → `200 <boy>`; `/`
+ETag'li ve immutable değil; telefonda ikinci açılışta Ağ sekmesinde panel dosyaları 304; `K` satırında yeni blokaj yok.
+
+**İnceleme (W6 inceleme, aynı dal):** bulgu GERÇEKTİ. W6'dan önce `.gz`'ye düşüş ve MIME seçimi çekirdeğin
+`StaticRequestHandler`'ındaydı ve 6n bunu çekirdeğin kaynağından okuyordu. W6 ikisini de `ArayuzIsleyici::handle` +
+`arayuz_tur`'a taşıdı, 6n ise yalnız alt dize arıyordu (`'yol += ".gz"'`, `(int)maxType - 1`). Önce mutasyonlar
+yazıldı ve düzeltmeden ÖNCE koşuldu; **dördü de KAÇTI** (B22b yeşil kaldı):
+`LittleFS.exists(yol + ".gz")` → `exists(yol)`: düşüş hiç olmaz, görüntüde yalnız `.gz` var → `/app.js`, `/ekran/*`,
+`/ortak/*`, `/style.css` 404, kabuk açılır ama panel ölü · `endsWith` → `startsWith`: her dosya `application/octet-stream`,
+`_streamFileCore` bu türde `Content-Encoding: gzip`'i de düşürür, ES modülleri çalışmaz · `|| f.isDirectory()` silinir:
+`/ortak` dizini dosya gibi gönderilir · `m == HTTP_GET &&` silinir: POST da panel dosyası alır.
+**Yeni 6r (+2 iddia, B22b 125 → 127):** `uretim/avr/ornek_arayuz.cpp`. `sim3_web.py` `.ino`'dan `arayuz_tur` ile
+`class ArayuzIsleyici`'yi BİREBİR kesiyor ve avr-g++ ile derliyor (`-Wall -Wextra`, uyarısız). MIME tablosu çekirdeğin
+KENDİ `detail/mimetable.cpp/.h`'si (kurulu 3.3.11, kopya değil); dosya sistemi görüntünün gerçek listesi (`_fs.json`:
+43 dosya, `gz` olanlar `.gz` adıyla, dizinler yollardan); işleyiciler `setup()`'taki kayıt sırası ve `Cache-Control`
+değerleriyle. Dağıtım çekirdeğin `_parseRequest`'i gibi: ilk `canHandle` kazanır, `handle` false ise 404 (sonrakine
+DÜŞMEZ). İnce katman (String, LittleFS, RequestHandler) yalnız işleyicinin kullandığı kadar; sanal imzalar çekirdeğin
+`RequestHandler.h`'siyle aynı (`override` uyuşmazsa derleme kırmızı). 15 istek: index/app.js/style.css/ekran/ortak/
+manifest/kunye → `.gz`, ikon → düz; MIME'ler ELLE yazıldı (tablodan türetilmedi): js `application/javascript`, css,
+html, json, png; vendor `immutable`, kök `no-cache`; `/app.js.gz` → `application/x-gzip` (çekirdekteki gibi); `/yok.js`,
+`/vendor/yok.js` (köke düşmez), `/ortak` (dizin), `/ekran/`, `POST /app.js` → hiçbir şey gönderilmez. AVR yığın payı
+ölçülüyor (403 B, ≥ 64 isteniyor) ve String taşması 0. Mutasyon `W6:` +4, **4/4 YAKALANDI** (POST'unki derleme
+uyarısıyla da: kullanılmayan `m`); `--neden W6` **21/21**. Zincir `--artimli` "Aşama 3 doğrulandı", gizlilik temiz. Firmware DEĞİŞMEDİ (derleme aynı: 81 844 B statik DRAM).
+**Düzeltilmeyen iki küçük (W6b, `1-acik-isler.md`):** (a) `If-None-Match` toplaması gereksiz — çekirdek 3.3.11
+`collectHeaders` bu başlığı kendisi ekliyor (`WebServer.cpp:1024`, `ETAG_HEADER`); `.ino` yorumu, 6q'nun "toplanıyor"
+iddiası ve iki W6 mutasyonu (toplanmaz / elle `7`) olamayacak bir arızayı iddia ediyor (mutasyonlar yine de kırmızı
+oluyor çünkü iddia metne bakıyor, davranışa değil). (b) `etag_eslesir` sonu `*` olan listeye (`"x", *`) 1 döndürüyor —
+kendi yorumu ve simetrik `*, "x"` → 0 test durumuyla çelişiyor (biçimsiz başlık; 304 zararsız ama tutarsız).
+
+---
+
+#### 5.12.106 🟢 E6F: DAHİLİ YIĞIN DÜZELTMESİ — mbedTLS + KALICI TAMPONLAR PSRAM'E (2026-10-04, dal `e6-duzeltme`, ağaç `projeler/olcum-karti-e6f`; KARTTA)
+
+5.12.105'teki `QY dahili_en_az=2504` için hazırlanan düzeltme; kartın E6 ölçümü (QF/QH) gelmeden yazıldı, ölçüm
+sonucu gelince doğrudan yüklenmek üzere dalda bekliyor. Davranış: ölçüm, kayıt, protokol, satır biçimleri AYNI.
+
+**SDK'da doğrulananlar (Arduino çekirdeği 3.3.11 / IDF 5.5, `esp32s3-libs/3.3.11`, `qio_opi` — FQBN
+`PSRAM=opi`):** `sdkconfig.h`'de `CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC 1`, `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN 16384`,
+`MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH` kapalı, `SPIRAM_TRY_ALLOCATE_WIFI_LWIP` kapalı, `SPIRAM_MALLOC_ALWAYSINTERNAL
+4096`, `SPI_FLASH_AUTO_SUSPEND` kapalı. `mbedtls/esp_config.h`: `MBEDTLS_PLATFORM_MEMORY` + `MBEDTLS_PLATFORM_STD_CALLOC
+esp_mbedtls_mem_calloc` (makro biçimi `..._CALLOC_MACRO` DEĞİL) → `mbedtls_platform_set_calloc_free` var. Kütüphane
+sökülerek (xtensa objdump): `platform.c.obj`'de `mbedtls_calloc` bir işaretçiden çağırıyor ve `set_calloc_free` iki
+işaretçiyi yazıyor (çalışma anında geçerli); `esp_mem.c.obj`: varsayılan ayırıcı `heap_caps_calloc(n, s, 0x804 =
+INTERNAL|8BIT)`, varsayılan bırakıcı **`heap_caps_free`**; `heap_caps_calloc_prefer` sırayla dener ve başarısız ayırma
+geri çağırmasını yalnız HEPSİ başarısızsa çağırır; `heap_caps_free` kayıtlı yığın listesinde işaretçiyi içereni bulup
+bırakır (PSRAM de dahili de); `xQueueCreateWithCaps` 92 B `StaticQueue_t` + depoyu verilen caps ile ayırır, başarısızsa
+ikisini bırakıp NULL döner; `cpu.c.obj`'de `external_ram_cas_lock` (PSRAM'deki spinlock'lar için IDF'nin dış bellek
+CAS yolu); flaş işlemleri `spi_flash_disable_interrupts_caches_and_other_cpu` ile öbür çekirdeği IRAM'de bekletir;
+`esp_flash_read` hedef DRAM'de değilse 16 KB'lik dahili ara tamponla okuyup `memcpy` yapar. `initArduino`
+(nvs, log, psram) mbedTLS kullanmıyor; tek mbedTLS kopyası (`libmbedcrypto`/`libmbedtls`; `libmbedtls_2.a` yalnız
+SSL dosyaları, kendi ayırıcısı yok).
+
+- **F1** (`olcum-karti-a3.ino`, `tls_bellek_ayir`/`tls_bellek_birak` + setup'ın İLK satırı):
+  `mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak)`; ayırıcı
+  `heap_caps_calloc_prefer(n, s, 2, SPIRAM|8BIT, INTERNAL|8BIT)`, bırakıcı `heap_caps_free`. Kurulum Serial'den,
+  E6 geri çağırmasından, `ag_baslat_rf` (WPA supplicant), `guv_esp_ac` (HMAC/SHA/PBKDF2), `kayit_kur`, ilk görev ve
+  `bildirim_baslat`'tan (esp-tls) ÖNCE. Değişimden önce ayrılmış blok olsaydı da yeni bırakıcı onu doğru yığına
+  verir (eski bırakıcı zaten `heap_caps_free`); geçiş anında yarış da zararsız (iki çift de `heap_caps_*`).
+  PSRAM yoksa/doluysa dahili — eski davranış. IDF'nin resmi `CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` yerleşimiyle aynı,
+  üstüne yedek yol. ⚠ AES DMA'sı PSRAM'deki kayıt çıktısı için kayıt başına DAHİLİ ara tampon ayırır (≤ 1600 B,
+  `caps=0x0008`) — aşağıdaki "İnceleme". Beklenen kazanç: MQTT TLS oturumunun
+  ~38–40 KB'lik kalıcı payı + el sıkışma tepesi (10–20 KB) dahili yığından çıkar; Wi-Fi WPA/SAE ve guvenlik
+  bağlamları da. **Bedel:** bignum/ECDHE ve kayıt şifrelemesi PSRAM'de → el sıkışma bir miktar yavaşlar
+  (önbellekten; tahmin %10–30, ÖLÇÜLMEDİ). Düz `esp_tls_init` (`calloc`, < 4 KB → dahili) ve lwIP/Wi-Fi tamponları
+  bu değişikliğin DIŞINDA.
+- **F4** `kayit_veri_tampon` (8 KB, `/kayit/veri`) `heap_caps_malloc_prefer(..., SPIRAM|8BIT, INTERNAL|8BIT)`;
+  ayrılamazsa `kayit_kur` eskisi gibi false. Tek kullanıcı ağ görevi: `kg_oku` ya eşli bölümden `memcpy` ya
+  `esp_partition_read` (yukarıdaki ara tampon), sonra `sendContent` (lwIP kopyalar) — ISR/DMA/önbellek-kapalı yol yok.
+  Akış kuyruğu (48 × 224 B ≈ 10.7 KB) `xQueueCreateWithCaps(..., SPIRAM|8BIT)`, olmazsa `xQueueCreate`; kuyruk
+  yalnız görevlerden (çekirdek 1 `web_satir_hazir` → çekirdek 0 `akis_kuyrugunu_bosalt`), ISR'den hiç, silinmiyor.
+  Flaş yazma/silmede öbür çekirdek zaten IRAM'de duruyor; PSRAM'deki halka ve kayıt dizini de yıllardır böyle.
+- **F3** `akis_yolla` ve `akis_kalp`: `write` kısa dönerse istemci `stop()` ile düşer (NetworkClient ~10 × 1 s
+  ilerlemesiz bekledi ya da lwIP bellek bulamadı → EAGAIN; olay yarım gitti, akış zaten bozuk). Soketin dahili
+  gönderme tamponu bırakılır; EventSource `retry: 3000` + `id:` ile döner. Sayaç EKLENMEDİ (statik DRAM payı ~80 B).
+  Kalp atışı `print(F())` yerine sabit diziyle `write` (dönüş değeri için).
+- **Açılış satırı** (`kayit_kur`'dan sonra): `Bellek (E6F): tls=<PSRAM|dahili|YOK> veri=<…> akis=<PSRAM|dahili>` —
+  tls, KURULU ayırıcıdan 32 B'lık deneme ayırmasının adresinden (`esp_ptr_external_ram`); tahmin değil.
+- F2 (`WiFi.useStaticBuffers`) ve F5 (ping) YAPILMADI (görev dışı; F5 kullanıcı kararı).
+
+**Boyut:** flaş 1 418 214 → 1 418 922 (+708 B), statik DRAM **81 836 → 81 836** (değişmedi; ayırmalar yığında,
+yeni dizgiler flaşta) — `_ESP_DRAM_SON_OLCUM` aynı kaldı. Derleme uyarısız.
+
+**İddialar B72.E6Fa–g** (`test_kayit_esp.py` `bolum_e6f`, 228 → **235**): ayırıcı setup'ın ilk işi + her mbedTLS
+kullanıcısından ve ilk görevden önce + eskizde tek yer · ayırıcı tam olarak PSRAM→dahili `calloc_prefer` · bırakıcı
+yalnız `heap_caps_free(p)` · veri tamponu PSRAM→dahili, `!kayit_veri_tampon` kontrolü yerinde · akış kuyruğu
+WithCaps + dahili yedek, sunucu/ağ görevinden önce, ISR'siz, silinmez · kısa yazma düşürür (olay + kalp) · açılış
+satırı gerçek adresten. **Mutasyon `E6F:` 13** — **13/13 YAKALANDI** (327 s; "WPA ayırıcıdan önce" E6a ve E6Fa'yı birlikte kırar). Eski B7 mutasyonu (`akis_yolla` `print`) yeni satıra
+yeniden hedeflendi.
+
+**Kartta ölçülecek (yüklemeden ÖNCE `tezgah_kayit.py --yedek` ile yeni tam yedek; köprü eşitlesin):** açılışta
+`Bellek (E6F): tls=PSRAM veri=PSRAM akis=PSRAM`. Aynı koşulda birkaç saat → `Q?` + `QH`: ~250 KB'lik asıl DRAM
+bölgesinin `min_free`'si ve en büyük blok ÖNCE/SONRA (önce: 6 dk'da 15 692, uzun koşuda dip 2.5 KB;
+beklenen: ≥ ~40 KB artış), `ayirma_hata=0`, `QF yok`; `Q?` `el_sikisma_ms` (önce 0.9–2.0 s; bir miktar yavaşlama
+beklenir, > 2× ise incele); köprüyle tam eşitleme süresi (taban ~18 s); `K` sıfırla → 40 s → `K` `loop_azami`
+(taban 7.5 ms, ölçüt 11.4 ms). Bir `QF caps=0x0008 gorev=bld` (boyut ≤ 1600) = AES DMA ara tamponu ayrılamadı, MQTT o
+anda koptu (aşağıdaki "İnceleme"). **Geri dönüş:** `projeler/olcum-karti`'den (`main` `deaca77`) `python
+uretim/yukle.py` — yalnız uygulama, NVS ve kayıtlar kalır; son çare tam yedek `esptool write-flash 0x0
+.yedek/olcum-karti/tam-20261004-025819.bin` (NVS + kayıt bölümünü o ana döndürür — önce eşitle).
+
+**İnceleme (2026-10-04, bağımsız bellek/eşzamanlılık bakışı; karta YÜKLENMEDİ):** tek önemli bulgu GERÇEK, kod
+değişmedi, belge düzeltildi.
+- **Bulgu: AES DMA ara tamponu.** Kayıt tamponları PSRAM'e geçince her AES işlemi (TLS 1.2 GCM/CBC; TLS 1.3 ve
+  ChaCha bu çekirdekte kapalı) kayıt başına DAHİLİ ara tampon ayırıyor, ve bu yeni bir hata yolu. Sökümle
+  doğrulandı (`libmbedcrypto.a`):
+  - `esp_aes_dma_core.c.obj` `esp_aes_process_dma`: çıktı `esp_ptr_external_ram` ise
+    `esp_cache_get_alignment(SPIRAM)` alınır. Çıktı bu hizaya uymuyorsa YA DA blok baytları hizanın katı değilse
+    `heap_caps_aligned_alloc(1, min(len, 0x640 = 1600), 8 = MALLOC_CAP_DMA)` çağrılır. DMA ara tampona yapılır,
+    ardından `memcpy`. Ayırma NULL dönerse çıktı `mbedtls_platform_zeroize` edilir ve işlem -1 döner.
+  - Çıktı hiç hizalı olamaz: kayıt yerinde şifreleniyor, `in_msg`/`out_msg` tampondan 8 + 5 + 8 = 21 B ötede,
+    `CONFIG_ESP32S3_DATA_CACHE_LINE_SIZE 32`. Ayrıca kayıt boyu da 32'nin katı olmak zorunda değil.
+  - GCM bu yoldan geçiyor: `esp_aes_gcm.c.obj` `U esp_aes_crypt_ctr`, `esp_aes.c.obj` `U esp_aes_process_dma`;
+    GCM donanımı ve küçük veri iyileştirmesi sdkconfig'de yok.
+  - `heap_caps_aligned_alloc` (`libheap` `heap_caps.c.obj`) başarısızlıkta `heap_caps_alloc_failed`'i çağırıyor.
+    Yani E6 geri çağırması `QF boyut<=1600 caps=0x0008 gorev=bld` yazar. Eski okuma kılavuzu bu satırı ~1.6 KB'lik
+    Wi-Fi tamponu (0x080C) sanardı.
+  - `memory_layout.c.obj` türleri: "RAM" (asıl DIRAM, öncelik 0, caps 0x0010580F) ve "DRAM" (`0x3fcf0000` 32 KB,
+    öncelik 1, 0x0010180E) DMA'lı. "SPIRAM" (0x400 / 0x00101006) ve "RTCRAM" DMA'sız. Ara tampon yalnız o iki
+    dahili bölgeden gelebilir.
+  - SHA DMA'sında bu bedel YOK: `sha.c.obj` `esp_sha_dma` PSRAM girişini `esp_ptr_dma_ext_capable` ile kabul
+    edip yalnız `esp_cache_msync` yapıyor. Ara tampon (`heap_caps_malloc` 0x80C) yalnız DMA'sız girişte.
+
+  Değişiklikten önce çıktı dahiliydi, bu yol hiç tetiklenmiyordu. **Değerlendirme:** net kazanç durur. ~33 KB
+  KALICI kayıt tamponu dahiliden çıkıyor, yerine kayıt başına ≤ 1.6 KB GEÇİCİ alan geliyor. Gönderimde lwIP pbuf'u
+  zaten dahili ve aynı boyda, alımda Wi-Fi RX tamponu da öyle. Yani yeni yol, var olan yollarla aynı eşikte (dahili
+  DMA'lı bellekte 1.6 KB'lik blok kalmaması) düşer; kopma MQTT'nin yeniden bağlanmasıyla toparlanır.
+  **Düzeltme yollarının ikisi de reddedildi:**
+  - Kayıt tamponlarını dahili tutmak kazancın kendisini geri alır.
+  - Hizalı ayırma da çözmez: hizasızlığı kayıt düzeni ve kayıt boyu belirliyor, ayırıcı değil.
+
+  Yapılanlar:
+  - `olcum-karti-a3.ino` F1 yorumu düzeltildi (eski "IDF'de zaten karşılıyor" cümlesi yanlış emniyet veriyordu).
+  - `tasarim/1-acik-isler.md` E6 okuma kılavuzuna `caps=0x0008`/`bld` = AES DMA ara tamponu eklendi, E6F
+    "Kartta" listesine de bir satır.
+  - Bu bölümün F1 maddesi ve "Kartta ölçülecek" düzeltildi.
+  - İddia **B72.E6Fh** eklendi (BİLEREK belge iddiası: yorum ve kılavuz). Mutasyon `E6F:` +3 (eski cümle geri
+    gelir · kılavuz `caps=0x0008`'i tanımaz · kartta listesi saymaz), **16/16 YAKALANDI** (369 s). B72 235 → **236**,
+    `beklenen_sayim.json` yalnız B72 +1. İddia önce kırmızı görüldü (235/236), belge düzeltilince 236/236.
+    `dogrula3.py --artimli` iki kez "Aşama 3 doğrulandı": ikinci koşu son dosyalarla, 22/22 adım yeniden.
+    Gizlilik temiz.
+  - Derleme uyarısız, flaş 1 418 922 / statik DRAM 81 836 AYNI (yalnız yorum değişti).
+- **Açık küçükler (düzeltilmedi):**
+  - (a) `heap_caps_calloc_prefer` başarısız ayırma geri çağırmasına `n*size` yerine yalnız `size` veriyor. mbedTLS
+    hatalarında E6 `QF boyut` alanı yanıltıcı (gerçek istek n kat büyük olabilir).
+  - (b) B72.E6Fe/E6Ff ölü önişlemci kodunu görmüyor: PSRAM kuyruğu ya da kısa yazmada düşürme bir `#if` ile
+    derleme dışı kalsa iddialar yeşil kalır.
+  - (c) E6F'nin tek çalışma anı kanıtı (açılış satırı `Bellek (E6F): …`, `QH` önce/sonra) tezgah listesine
+    (`_tezgah.md`) girmedi, yalnız bu girişte düz yazı.
+
+**KARTA YÜKLENDİ (2026-10-04 12:4x, `main` = `4816a3e`; yedek `tam-20261004-123626.bin`; arayüz değişmedi).**
+Güvenlik açısından inceleyici sonuç döndürmedi; ben baktım: açılış satırı yalnız yer adı basar (adres/sır yok),
+mbedTLS bağlamları kendi `_free`'lerinde sıfırlar (ayırıcıdan bağımsız), uzaktan tetiklenen ayırma değişmedi, flaş
+zaten şifresiz olduğundan sırların PSRAM'de durması yeni risk değil. Kartta:
+- Açılış: `Bellek (E6F): tls=PSRAM veri=PSRAM akis=PSRAM`.
+- **Önce (A3-W2, ~9 sa, eski ev ağı + ağ kesintisi dahil):** asıl DRAM bölgesi `min_free 11452`, en büyük 36852,
+  `ayirma_hata=0`. (Aynı firmware 6. dk'da 15692 / 32756.) A3-4B'nin 2.5 KB dibi bu firmware'de görülmedi.
+- **Sonra (E6F, ~1 dk):** asıl DRAM bölgesi `min_free 95172` (+~79 KB), en büyük blok **102388**, `ayirma_hata=0`,
+  `QF yok`; `el_sikisma_ms=1048` (yavaşlama görünmüyor; önce 0.9–2.0 s); `K` 40 s: en uzun döngü **7641 µs**, >20 ms
+  tur 0. Uzun koşu ölçümü (saatler, köprü eşitlemesiyle) SIRADA — dip ve olası `QF caps=0x0008` (AES ara tamponu)
+  ancak orada görülür.
+
+**Ağ kesintisi (2026-10-04 sabah, gözlem):** ev ağının erişim noktası/interneti gidince kart `Q durum=2 (ag yok (STA
+degil))`'de kaldı; ≥ 1 dk izlendi, ağ dönmeden kullanıcı kartı USB'den telefon hotspot'una aldı (`Na/Np`, parola
+hiçbir yere yazılmadı). ~~**Açık:** erişim noktası GERİ GELİNCE kartın kendiliğinden STA'ya döndüğü ölçülmedi~~ —
+**KAPANDI, aynı gün ölçüldü (aşağıda).**
+
+**Ağ geri dönüş tezgahı (2026-10-04 13:55–14:24, E6F, kart telefon hotspot'unda, PC ev ağında).** Hotspot telefonu
+USB hata ayıklamayla bağlandı; mobil veri `svc data`, hotspot ayarlar ekranından `uiautomator` ile kapatıp açıldı
+(depo dışı yardımcı; yalnız hotspot düğmesi, sayfa başlığı doğrulanmadan basmaz). Kartın `Q?` durumu USB'den 2 s'de
+bir izlendi; olaylar saatle eşleştirildi.
+
+| Senaryo | Fark etme | Geri gelince `bagli` |
+|---|---|---|
+| S1 mobil veri 60 s kapalı (Wi-Fi var, internet yok) | ~13 s (`durum=5`; son hata -3 = yeniden TLS denemesi) | 14 s |
+| S2 hotspot 60 s kapalı | 5 s (`durum=2 ag yok`) | 7 s |
+| S3 hotspot ~30 s kapalı | 3 s | 9 s |
+| S4 hotspot **5 dk** kapalı | 2 s | 8 s |
+
+Kart her seferinde KENDİLİĞİNDEN döndü, 5 dk'lık kesintide de kendi AP'sine düşmedi (STA'yı beklemeye devam etti);
+`baglanti` 5 → 11, yeniden başlama yok. ⚠ Sabahki "kart engellenince MQTT 90 s 'bağlı' kaldı" gözlemi İZLEYİCİ
+HATASIYDI: durum etiketi iç içe parantez (`(ag yok (STA degil))`) taşıyor, ilk izleyicinin deseni bu satırı hiç
+eşleştirmiyordu — `durum=2` görünmez oldu. Ayrı salt okuma kod incelemesi de 90 s takılabilecek bir yol bulmadı.
+İncelemenin bulduğu iki gizli kusur AÇIK (ağ testi bunları tetiklemedi): (1) soket bloklayıcı, mbedTLS katmanı
+"would block" döndürmez — tek bir takılı gönderme `SO_SNDTIMEO` 10 s'ye kadar sürebilir, 5 s'lik PINGRESP ölçütünü
+aşar (`bld__yaz` yeniden deneme dalı ölü); kısmi TLS kaydında `bld__oku` da 10 s bekleyip -7 yerine -6 der; (2) `bld`
+görevinin canlılığı dışarıdan görünmüyor (`durum=4` yalnız bağlanınca yazılır) — `Q?`'ya tur sayacı + "şu anki adım"
+eklenmeli. Sahte aracı tezgahı (`kapali_tut`) soketi KAPATIYOR; "sessiz aracı" (açık tut, yanıtlama) ve "kara delik"
+senaryosu yok.
+
+**Telefonda web paneli (2026-10-04 14:3x, Honor / Android 16, Chrome 154, kart hotspot'ta, E6F).** Panel kartın IP'sinden
+açıldı. Web parolası kullanıcıda yoktu → kullanıcının isteğiyle USB `Ns` ile YENİ 16 karakterlik parola kuruldu (değeri
+yalnız kullanıcıda; eşleşmiş cihazlar kendi anahtarlarıyla sürer) ve telefonun Basic-Auth penceresine adb ile girildi.
+CDP (adb ile `chrome_devtools_remote`, yalnız panel sekmesi) + `adb screencap` ile: 6 ekran × 3 görünüm gezildi, karta
+etki eden düğmeye BASILMADI. Sonuç: konsol hatası 0, başarısız/4xx istek 0, yatay taşma 0; Kayıtlar telefonda kartın
+kayıtlarını eşitledi (707 KB, onaysız); gerçek yeniden yüklemeyle üç görünüm doğru (`data-tema`, arka plan renkleri);
+açılış **0.57–0.67 s**, 16 istek. ⚠ Playwright'ın CDP ekran görüntüsü renk şemasını AÇIĞA zorluyor gibi — görünüm
+denetimi `adb screencap` ile yapıldı. **Küçük açık:** uygulama dosyaları `no-cache` ama ETag/Last-Modified YOK →
+her açılış ~90 KB'yi (gzip) baştan indiriyor, 304 olamıyor; `_fs.json` sürümünden ETag eklenirse ikinci açılış yalnız
+doğrulama olur (yalnız `vendor/vue` `immutable`).
+
+**Web parolası isteyen kart denetimleri + eşitleme yükü (2026-10-04 14:5x–15:1x, E6F, kart ev ağında).**
+- `tezgah_kayit.py --guvenlik` **14/14** (imzalı istek, tekrar/bozuk imza 401, yeniden başlamada X-Acilis, Ez1/Em1,
+  `/saat` NTP'de 409, yanlış parolalı eşleştirme reddi + 429, temizlik). ⚠ Tezgah imzalı `Go`'yu sınarken kartın
+  onay noktasını 61513'e ilerletti; köprü arşivi o noktaya henüz gelmedi — yalnız test oturumları (ADS takılı değil),
+  kart bölümü %12 dolu, silme yakın değil; köprü bir sonraki koşusunda arşivler.
+- W2 #6: iki `/eslestir/baslat` `eno` = 58 215 406 / 135 631 829 (> 255, ardışık değil); **parolalı eşleştirme
+  UÇTAN UCA BAŞARDI** (kart kanıtı doğrulandı; geçici dizin, test cihazı sonra USB `Ex3` ile silindi, `E?` cihaz=2).
+  Yanlış ya da çözülemeyen `eno` → **410** "bekleyen eslestirme yok" (`guv__esles_hata`, GUV_E_YOK) — 5.12.101'in
+  denetim listesindeki "404" YANLIŞTI, davranış tasarımdaki gibi. W2 #8: web'den `/komut` `Qe700` (Basic-Auth ile)
+  → **403** "Q komutlari yalniz USB".
+- Tam eşitleme, BOŞ geçici dizine, karta ONAYSIZ, eşleşmiş PC-kopru cihazıyla imzalı: **12.9 s / 13.9 s**
+  (2471 kayıt, 1.39 MB; taban 4J 18 s / 1.27 MB). İki tam eşitleme boyunca asıl DRAM `min_free` **65 336** (öncesi
+  75 780), en büyük blok 98 292, `ayirma_hata=0`, `QF yok`.
+
+#### 5.12.106a 🟢 E6K: E6F'NİN AÇIK KÜÇÜKLERİ (a)–(c) + MUTASYON KOŞUCUSUNUN CRLF KUSURU (2026-10-04, dal `e6-kucukler`, ağaç `projeler/olcum-karti-e6k`; karta YÜKLENMEDİ)
+
+Yukarıdaki "Açık küçükler" (a)–(c) kapandı (aşağıda E6K'nın kendi harfleriyle, koddaki `E6K (a)…(d)` yorumlarıyla aynı), ayrıca B7 mutasyonunun sayım tutarsızlığının sebebi bulundu: koşucunun
+kendi kusuru. Her madde önce kırmızı görüldü, sonra düzeltildi; her yeni iddiayı yalanlayan bir `E6K:` mutasyonu var.
+
+- **(a) ölü ön işlemci kodu (yukarıdaki açık küçük (b)).** `test_kayit_esp.py`'ye `kosul_yigini(kaynak, konum)` +
+  `kosulsuz(kaynak, *parcalar)`: bir satırı saran açık `#if/#ifdef/#ifndef` (ve `#elif`/`#else` kolu) yığını. Hangi
+  koşulun doğru olduğu derleyicinin işi; burada koşulun VARLIĞI ölçülür, tek istisna başlık koruması (`#ifndef X_H` +
+  hemen ardından `#define X_H`). Yorumlar önce `kod()` ile çıkar. **Önce:** dört mutasyon eski iddialarla KAÇTI
+  (236/236 yeşil): PSRAM akış kuyruğu `#if 0` içinde, kısa yazmada düşürme `#ifdef TANIMSIZ` içinde, `/kayit/veri`
+  tamponu `#if 0` içinde, açılış satırının başlığı `#if 0` içinde. **Sonra:** E6Fa (kurulum + `void setup()`), E6Fb/E6Fc
+  (ayırıcı/bırakıcı tanımı — `#if 0` doğru tanım + `#else` yanlış tanım, `govde()` ilk tanımı bulduğu için eskiden yeşil
+  kalırdı), E6Fd, E6Fe, E6Ff, E6Fg `kosulsuz` ile; yardımcının kendisi **B72.E6Fi** (yapay örnekler: `#if 0`,
+  `#  ifdef` girintili, `#else`/`#elif` kolu, iç içe, koruma OLMAYAN `#ifndef`; gerçek eskizin tek `#if`'i
+  `ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED` görülür; 21 başlığın hepsinin koruması tanınır).
+- **(b) tezgah kalemleri (yukarıdaki açık küçük (c)).** `test_kayit_esp.py` `E6F_TEZGAH` → `tezgah("B72 E6F dahili yigin
+  duzeltmesi (kartta)", …)`, zincir `_tezgah.md`'ye taşır. Dört kalem: açılış satırı `Bellek (E6F):
+  tls=PSRAM veri=PSRAM akis=PSRAM` · uzun koşu `QH` asıl DRAM `min_free`/en büyük blok, önce 11.4 KB / 36.9 KB
+  (A3-W2, ~9 sa), E6F 1. dk 95.2 KB / 102 KB, kabul ≥ ~40 KB artış + `ayirma_hata=0` · `QF` okuma (`caps=0x0008
+  gorev=bld` AES DMA ara tamponu, `0x080C wifi/tiT` Wi-Fi tamponu, `0x0804 bld` mbedTLS — E6F'den sonra beklenmez) ·
+  **`[!]`** ağ geri dönüşü (erişim noktası gidip gelince kart kullanıcıya dokunmadan STA'ya döner; seri izleyiciyle).
+  **B72.E6Fj** kalemleri kaynağa bağlar: açılış satırı firmware'in üç `Serial.print(F(...))` parçasından birebir kurulur;
+  ölçümler `1-acik-isler.md` E6 satırındakiyle aynı (DEVIR mutasyon kopyasına girmez — `mutasyon.ATLA_DOSYA` — kaynak
+  olarak kullanılmadı); `caps=` değerleri firmware'in `0x%04lX` biçimi + E6 okuma kılavuzu + bit hesabıyla (DMA 0x8,
+  8BIT 0x4, INTERNAL 0x800) aynı; ağ kalemi firmware'in durum adını (`ag yok (STA degil)`) kullanır; `main()` listeyi
+  `tezgah()`'a verir; ASCII.
+- **(c) `QF boyut` (yukarıdaki açık küçük (a)).** `libheap.a` `heap_caps.c.obj` sökümü (xtensa-esp32s3-elf-objdump):
+  `heap_caps_calloc_prefer` başarısızlıkta `heap_caps_alloc_failed`'i `a10 = a3` = **yalnız `size`** ile çağırıyor
+  (son denenen caps ile, `size == 0` ise hiç); `heap_caps_calloc` `mull a10, a7, a3` = **`n*size`**;
+  `heap_caps_malloc_prefer` toplam boyu (`a10 = a6 = size`) ve son caps'i veriyor. `tls_bellek_ayir` artık:
+  `if (boyut && n > SIZE_MAX / boyut) return NULL;` → `toplam = n * boyut` → `heap_caps_malloc_prefer(toplam, 2,
+  SPIRAM|8BIT, INTERNAL|8BIT)` → `if (p) memset(p, 0, toplam)`. Sıfırlama ZORUNLU: `mbedtls_config.h`
+  `MBEDTLS_PLATFORM_STD_CALLOC` "It must initialize the allocated buffer memory to zeroes" (ve toplam 0'da NULL'a izin
+  veriyor); `calloc_base` da aynı memset'i yapıyordu. Davranış başka değişmedi: aynı sıra (PSRAM → dahili), aynı
+  bırakıcı; mbedTLS hatasında `QF boyut` artık gerçek istek, `caps=0x0804`. Taşmada NULL, geri çağırma yok (eskiden
+  `calloc_base` NULL döner, geri çağırmaya yalnız `size` giderdi). **B72.E6Fb** tam gövdeyi bekliyor (önce kırmızı:
+  eski `calloc_prefer` gövdesi). Derleme uyarısız; flaş 1 418 922 → **1 418 810** (−112 B), statik DRAM **81 836 →
+  81 836** (`_ESP_DRAM_SON_OLCUM` aynı).
+- **(d) B7 "TEK write()" mutasyonu: koşucu 3 kırmızı, elle 1.** Sebep `mutasyon.uygula`: `read_text` CRLF'yi `\n`
+  yapıyor, `write_text` ise Windows metin kipinde HER `\n`'i `\r\n` yazıyordu → depoda LF olan (`.gitattributes`
+  kaynak `eol=lf`) hedef dosyanın TAMAMI CRLF'ye dönüyordu. Mutasyonla ilgisiz iki iddia `\n`'e dayalı desenle kırıldı:
+  "Firmware'in HER kullanıcı komutu arayüzden erişilebilir" (komut harfi çıkarıcısı) ve "AY5 … `kal_liste_sayfa`"
+  (`/void kal_liste_sayfa\(\) \{([\s\S]*?)\n\}\n/`). Ölçüldü: aynı mutasyon `python` `write_text` ile uygulanınca elle de
+  915/918, LF korunarak 917/918. Elle koşuda 1 görülmesi LF'yi koruyan bir araçla bozulmuş kopyadandı. **Düzeltme:**
+  `uygula` dosyanın satır sonunu okur (`b"\r\n" in ham`) ve `newline=` ile aynısını yazar; **`test_zincir_hiz.py` A18**
+  (LF dosya LF, CRLF dosya CRLF kalır, yalnız hedef metin değişir; önce kırmızı: LF dosya `bir\r\niki\r\nuc\r\n`
+  oluyordu) + `E6K:` mutasyonu (eski `write_text`). Düzeltmeden sonra B7 mutasyonu 917/918, ilk kırmızı hedef iddia.
+  **Etki taraması (eski sonuçlar sahte miydi?):** E6K öncesi 2211 mutasyonun 210 (betik, dosya) çiftinin 208'i için ESKİ
+  koşucuyla "boş" mutasyon (`"\n"` → `"\n"`: içerik aynı, yalnız CRLF) koşuldu (6643 s; `dogrula3.py`'nin 2 çifti
+  tam zincir olduğu için koşulmadı). CRLF'ye duyarlı yalnız **3 çift, 4 mutasyon** çıktı: `test_arayuz3.js` ×
+  `olcum-karti-a3.ino` (B7 "`r1` kabul edilir" + "TEK write()") ve `sim3_web.py` × `arayuz3/ekran/tema.js` /
+  `arayuz3/cevrimdisi.html` (6j LittleFS görüntüsü ve 6p `sw.js SURUM` — bilerek bayt özetine bakan iddialar, her
+  bayt değişikliğinde kırmızı). Dördü düzeltilmiş koşucuyla yeniden koşuldu: **hepsi yine YAKALANDI**, artık yalnız
+  hedef iddia kırmızı (B7 ikisi 917/918; sim3_web 111/113 ve 112/113, öncekiyle aynı). Yani bugüne kadar raporlanan
+  hiçbir YAKALANDI sonucu CRLF yüzünden sahte değildi; kusur yalnız sayımı/ilk kırmızıyı bulandırıyordu. Diğer 205
+  çiftin betikleri satır sonuna duyarsız.
+
+**Sayılar:** B72 236 → **238** (E6Fi, E6Fj; E6Fa–g'ye `kosulsuz` eklendi, sayı değişmedi), `beklenen_sayim.json`
+yalnız B72 +2. `test_zincir_hiz.py` 106 → **107** (A18; zincirde değil, elle). Mutasyon **`E6K:` 17/17 YAKALANDI**
+(500 s): (a) 5 `#if` + 2 ölü tanım + 2 yardımcı (her `#ifndef`'i koruma saymak; girintili `#  ifdef`'i görmemek),
+(b) 4 (tezgah çağrısı yok · firmware açılış satırı değişir · kalemde yanlış caps · `QF` caps biçimi 4 haneli değil),
+(c) 3 (yine `calloc_prefer` · memset yok · taşma denetimi yok), (d) 1. Eski `E6F:` mutasyonlarından ayırıcı metnine
+bakan ikisi yeni gövdeye yeniden hedeflendi; **`E6F:` 16/16 YAKALANDI** (351 s). `dogrula3.py --artimli` **"Aşama 3 doğrulandı"** (yeni ağaçta önbellek yok → 22 adımın HEPSİ koştu, 22/22; B72 238/238), `_tezgah.md` 122 → 126 kalem (`[!]` 20 → 21); `BELGELER/4-kurulum.html` firmware boyu (1 418 810) ve `_firmware.json` gerçekten değişti, gerisi üretim gürültüsü geri alındı. Gizlilik temiz.
+
+**Kartta (yüklenince):** açılış satırı aynı; `QF boyut` bir mbedTLS hatasında artık gerçek `n*boyut`. Dalda
+bekliyor; karta yüklemek ve `main`'e almak kullanıcının/orkestratörün kararı.
+
+**İnceleme (2026-10-04, bağımsız çürütücü; 1 önemli bulgu düzeltildi, 2 küçük açık).** **Bulgu (gerçek):**
+`kosul_yigini` dosyanın HERHANGİ bir yerindeki `#ifndef X` + `#define X` çiftini başlık koruması sayıyor ve korumanın
+`#else`/`#elif` kolunu yok sayıyordu (`elif yigin and yigin[-1] is not None`). İnceleyicinin iki mutasyonu E6Fa–g'den
+kaçtı (B72 238/238, `olu=[]`): PSRAM akış kuyruğu `#ifndef E6K_INCELEME / #define E6K_INCELEME / #else / <satır> /
+#endif` içinde (hiç derlenmez) ve kısa yazmada düşürme `#ifndef ARDUINO / #define ARDUINO 1 / <satır> / #endif`
+içinde (arduino-cli `ARDUINO`'yu hep tanımlar → gerçek derlemede de ölü). E6Fi'nin yapay örneği yalnız farklı adlı
+`#ifndef Y` / `#define Z`'yi sınıyordu; docstring'in "tek istisna başlık koruması" ve "`#else` kolu da koşullu" sözü
+sınanmıyordu. **Düzeltme:** koruma yalnız dosyanın İLK yönergesi ve öncesinde yalnız boşluk varsa; korumanın kendi
+`#else`/`#elif` kolu koşullu (yalnız ikinci dahil etmede derlenir). Eskizin gerçek kaynakları etkilenmedi: 21 başlığın
+koruması hâlâ ilk yönerge (E6Fi `korumasiz=[]`), başlıklardaki `#ifndef BLD_KUYRUK` gibi varsayılan-tanım blokları artık
+koşullu sayılır ama hiçbir iddia onların içini aramıyor. **B72.E6Fk** (önce kırmızı: altı yapay örneğin hepsi `[]`
+"temiz" dönüyordu): dosya ortası `#ifndef X/#define X`, `#ifndef ARDUINO/#define ARDUINO 1`, öncesinde başka koşul olan
+koruma, korumanın `#else` (`["#ifndef X_H / #else"]`) ve `#elif` kolu, koruma içinde iç içe aynı ad çifti KOŞULLU;
+korunan gövde ve `#endif` sonrası TEMİZ. `E6K:` mutasyonları +4: inceleyicinin iki mutasyonu (E6Fe, E6Ff) + yardımcıda
+"ilk yönerge" şartını kaldırmak + koruma kolunu koşulsuz bırakmak (E6Fk); eski "her `#ifndef` koruma" mutasyonu yeni
+satıra yeniden hedeflendi. **Sayılar:** B72 238 → **239** (`beklenen_sayim.json` yalnız B72 +1). Mutasyon **`E6K:`
+21/21 YAKALANDI** (593 s; yeni dördü hedef iddiada: E6Fe, E6Ff, E6Fk ×2; ` veri=` mutasyonu 237/239 ve ilk kırmızı E6Fg — aşağıdaki açık (b)'yi doğruluyor). `dogrula3.py --artimli` **"Aşama 3 doğrulandı"** (22/22 adım, B72 239/239; `_tezgah.md` 126 kalem, değişmedi; BELGELER/şema/netlist üretim gürültüsü geri alındı). Firmware değişmedi (derleme yok). Gizlilik temiz.
+
+**Açık küçükler (düzeltilmedi):** (a) ~~`kosul_yigini` her `#ifndef X`+`#define X` çiftini koruma sayıyor~~ — yukarıdaki
+bulguyla aynı, KAPANDI (E6Fk). (b) E6K mutasyonu ` veri=` → ` tampon=` B72.E6Fj'yi yalıtmıyor: önce E6Fg kırmızıya döner
+(E6Fg'nin `kosulsuz` listesinde `Serial.print(F(" veri="));` var → `YOK`); E6Fj'nin firmware açılış satırına bağı
+(üç `Serial.print(F(...))` parçası) tek başına yük taşıdığı gösterilmedi — E6Fg'ye dokunmayan bir mutasyon (ör. yalnız
+tezgah kalemindeki satırı değiştirmek değil, firmware'de E6Fg'nin aramadığı bir parçayı değiştirmek) gerekir. (c) E6Fj'nin
+`caps` bit denetimi totoloji: `{"0x0008": 0x8, …}` testin kendi sabitlerini kendi sabitleriyle karşılaştırıyor;
+`esp_heap_caps.h`'deki `MALLOC_CAP_DMA/8BIT/INTERNAL` değerlerine ya da firmware'e bağlanmıyor.
+
+---
+
+#### 5.12.105 🟢 W1–W5 BİRLEŞMESİ + mDNS SERVİS DUYURUSU (2026-10-04, dal `w-birlesik`, ağaç `projeler/olcum-karti-wb`)
+
+Kullanıcı uyurken açılan beş kol (W1 veri doğruluğu · W2 firmware küçükleri · W3 açılış bütçesi · W4 mutasyon
+hijyeni · W5 kart tezgahı) her biri ayrı ağaçta yazıldı, bağımsız çürütücü inceledi, bulgular düzeltildi
+(5.12.100–5.12.104a). Birleştirme sırası W4 → W2 → W5 → W1 → W3 (W4 önce: zincirin özel TEMP'i diğerlerinin
+koşularını korusun).
+
+**Çakışmalar (hepsi kayıt dosyalarında, kodda yok):** `DEVIR.md` girişleri iki taraf da tutularak; `mutasyon.py`
+liste kayıtları birleşim; `test_kayit_esp.py` iki yeni bölüm (`bolum_w2`, `bolum_tezgah_w5`) ikisi de `BOLUMLER`'de;
+`beklenen_sayim.json` sayılar TOPLANARAK (B72 207 + W2 8 + W5 6 = 221, + W2i = 222; B7 911 + W2 1 + W1 2 + W3 4 = 918);
+`1-acik-isler.md` satır satır (E6/E7 W5'ten, E3 W2'den; Y7 W1'in kapanışı + W5'in kart ölçümü, W1'in `SKOP`
+işaretinin nokta oturumlarına da uygulandığı `noktaSerileri`'nden doğrulandı); `sw.js` / `_fs.json` birleşimden sonra
+`arayuz-uret.py` ile YENİDEN üretildi.
+
+**W2i — mDNS servis duyurusu (alt proje 5 isteği, `mobil/DEVIR-ISTEK.md` #1):** Android `.local` adını güvenilir
+çözmez, NSD ile servis tarar. Kart artık `_http._tcp` port 80 duyurur, TXT `kimlik=<16 onaltılık>` (`/eslestir/bilgi`'deki
+aynı değer; yanlış kartı bağlanmadan elemek için — asıl doğrulama yine eşleşme/imza). İki yol: AP'de `MDNS.begin`
+setup'ta kimlikten ÖNCE çalışır → `ag_mdns_kimlik` (guv_esp_ac'tan sonra, yalnız `guv_hazir` iken) duyurur; STA'da
+`MDNS.begin` ağ görevinde, kimlik o anda var → `ag__mdns_servis` duyurur. Tek duyuru bayrağı. İddia B72.W2i, mutasyon
+`W2:` ×3 (STA'da duyuru yok / TXT kimlik yok / kimlik verilmez) **YAKALANDI**.
+
+**PC'de mDNS notu (kusur değil):** bu PC'de `Resolve-DnsName olcum.local` çözemiyor; çoklu yayın sorgusu varsayılan
+olarak `vEthernet (Default Switch)`'ten çıkıyor. Wi-Fi arayüzü `IP_MULTICAST_IF` ile seçilince kart hem A kaydını
+hem tekil sorguyu yanıtlıyor. Köprü 4J IP önbelleğiyle zaten bundan etkilenmiyor.
+
+⚠ **Kartta görülen (A3-4B, 2.9 sa çalışma):** `QY dahili_en_az=2504` — dahili yığının en düşük değeri **2.5 KB**. ⚠ E6 ölçüm halkası (5.12.105a) birleşmede 8 → **4** kayda indi: 8 kayıtla statik DRAM 81 932 B = %25.003 ve B6 "RAM payı < %25" kırmızıydı; şimdi 81 836 B, pay ~80 B — sıradaki statik ekleme sınıra takılır, önce kalıcı dahili tamponlar PSRAM'e (F4)
+(W5 20.7 KB görmüştü, E6 kaydı 54–60 KB). Sebep bilinmiyor; E6 satırına işlendi, sıradaki iş.
+Salt okuma kod incelemesi (karta dokunmadan) sıralı aday verdi: (1) Arduino `WiFiGeneric.cpp` 32 dinamik TX + 32 RX
+Wi-Fi tamponu, hepsi DAHİLİ (`SPIRAM_TRY_ALLOCATE_WIFI_LWIP` kapalı) — bağlantı takılınca birikir, 7 `hata=-7`
+yeniden bağlanmayla uyumlu; (2) mbedTLS DAHİLİ (`MBEDTLS_INTERNAL_MEM_ALLOC`, 16 KB içerik tamponu) — oturum ~38–40 KB
+sürekli + el sıkışma tepesi; (3) lwIP gönderme kuyrukları (`SPIRAM_MALLOC_ALWAYSINTERNAL=4096`), yarı açık SSE
+istemcisi; (4) kalıcı dahili ayırmalar (`kayit_veri_tampon` 8 KB, SSE kuyruğu 10.5 KB). Not: ölçüt bölge
+minimumlarının TOPLAMI (RTC FAST da yığın) — gerçek eşzamanlı dip bundan da düşük olabilir. **Sıra:** önce ölçüm
+(I1 `heap_caps_print_heap_info` + en büyük blok, I2 `heap_caps_register_failed_alloc_callback` halkası `QY`'de),
+sonra F1 mbedTLS'i `mbedtls_platform_set_calloc_free` ile PSRAM'e (~40 KB kalıcı kazanç), gerekirse F2
+`WiFi.useStaticBuffers(true)`, F3 SSE yazma kısa dönerse istemciyi düşür, F4 iki tamponu PSRAM'e. F5 (2 kaçırılmış
+ping) K8 vasiyet süresiyle çelişir — kullanıcı kararı.
+
+**KARTTA (2026-10-04, `ef13288`, firmware `A3-W2` + W2i + E6; yedek `tam-20261004-025819.bin`; arayüz de yazıldı):**
+- mDNS: `_http._tcp` PTR → `olcum._http._tcp.local`, SRV `olcum.local:80`, TXT `kimlik=ba9f5c26b0337d4d` (= `E?`
+  kimliği); karta tekil sorguda VE Wi-Fi arayüzünden çoklu yayında geliyor.
+- G satırı 15 alan, açılışta `… 0 0`. `Gb1000` → `Gn<o> …` → `son_not` hemen 61508; `Gx<o>:61508` (boş = sil) →
+  61510; `Gn999999 x` → **-4**; `Gd` → durum 1.
+- `Ex257 Ex-255 Ex1x Ex!x Ex0 Ex9` hepsi `! E: Ex<1..8> ya da Ex!` ile RED; `E?` cihaz=2 değişmedi.
+- `Qe700` → `esik=700`, `baglanti=1` artmadı; `Qe99 Qe1001 Qex` RED; `Qe` → 500.
+- E6 ilk 6 dk: `ayirma_hata=0`, `QF yok`; `QH` bölge dökümü: asıl DRAM bölgesi (250 KB) `min_free 15692`, ama
+  toplam `dahili_en_az=55472` — toplam, hiç kullanılmamış 32 KB'lik DRAM bölgesini (`0x3fcf0000`, min_free 32020)
+  ve RTC FAST'ı (7760) ekliyor. **`dahili_en_az` gerçek darlığı GİZLİYOR**; okumada `QH`'nin bölge satırına bak.
+  En büyük blok 32756.
+- Blokaj: `K` sıfırla → 40 s → `K`: en uzun döngü **7526 µs**, >20 ms tur 0 (kararlı-hal ölçütü 11.4 ms). Açılıştan
+  beri 790 ms / 4 tur — denetim komutları dahil (`QH` IDF dökümü UART'a eşzamanlı basıyor; yalnız USB tanılaması).
+- Yapılmadı (web parolası gerekir, kullanıcıda): `tezgah_kayit.py --guvenlik`, `eno` rastgeleliği, `/komut Qe` 403;
+  `/saat` (kartta NTP var → 409 beklenir). `--duman` koşulmadı: seri onay köprünün henüz almadığı kayıtları onaylardı.
+- Araç notu: bu PC'de pyserial `read(n)` CH343 sürücüsünde zaman aşımını DİNLEMİYOR (n bayt dolana dek bekler);
+  `in_waiting` ile okunmalı. Tezgah araçları satır satır okuduğu için etkilenmiyor.
+
+---
+
+#### 5.12.105a 🟡 E6 ÖLÇÜM ARACI: DAHİLİ YIĞIN TANISI (2026-10-04, dal `e6-olcum`, ağaç `projeler/olcum-karti-e6`; karta YÜKLENMEDİ)
+
+5.12.105'teki `QY dahili_en_az=2504` için sebebi tahminle değil karttan ayırmak üzere (I1 + I2; I3 pencereli
+minimum atlandı — gerçek dipleri yakalamak için örnekleme gerekir, basit değil). Davranış değişmedi.
+
+- **I1:** `QY` satırının SONUNA `dahili_en_buyuk=` (`heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)`) ve
+  `ayirma_hata=`; eski iki alan yerinde. Ayrıştırıcılar `ad=değer` okuyor (`tezgah_bildirim.q_oku`), başka QY
+  okuyucusu yok. **`QH`** (yalnız USB; `Qe` gibi `s[1] == 'H'` ile — yeni `case` harfi yok, komut harfi
+  denetimleri etkilenmez): önce `QH dahili_bos= dahili_en_az= dahili_en_buyuk= ayirma_hata=`, sonra
+  `heap_caps_print_heap_info(MALLOC_CAP_INTERNAL)` bölge bölge (`At 0x… len … free … min_free …
+  largest_free_block …`; IDF `printf`'i — **yalnız ham UART**, `/akis`'e gitmez), sonra son 8 başarısız ayırma
+  `QF no= boyut= caps=0x…. ms= cekirdek= gorev=` (eskiden yeniye; yoksa `QF yok`). `Serial.flush()` yüzünden
+  ölçüm döngüsü `QH`'de ~0.1 s durabilir (tanı komutu). `/komut` ve `kopru.py` `Q*`'ı zaten reddediyor (403).
+- **I2:** `setup`'ta `Serial.begin`'in hemen ardından (WiFi, güvenlik, kayıt, MQTT ve ilk görevden ÖNCE)
+  `heap_caps_register_failed_alloc_callback(ayirma_hata_kaydet)`. Geri çağırma `IRAM_ATTR`, basmaz/ayırmaz;
+  `portENTER_CRITICAL_SAFE` altında halkaya {boyut, caps, `esp_timer` ms, çekirdek, görev adının ilk 8 harfi —
+  ÇAĞRI ANINDA kopyalanır, sonradan `TaskHandle` çözmek silinmiş TCB okuyabilirdi} yazar, sayaç kayıttan sonra
+  artar; dizin `sayaç % 8`. Döküm halkayı kilit altında kopyalar. RAM: +216 B DRAM, flaş +1232 B
+  (1 414 402 → 1 415 634; DRAM 81 700 → 81 916, `_ESP_DRAM_SON_OLCUM` güncellendi). Derleme uyarısız.
+- IDF ayrıntısı: düz `malloc` başarısızlığı geri çağırmaya `caps=0x1000` (MALLOC_CAP_DEFAULT) ile gelir ve
+  ancak dahili + PSRAM ikisi de dolunca düşer; açık `heap_caps_malloc`'lar kendi caps'iyle gelir.
+
+**Kartta okuma (yükledikten sonra, aynı koşulda birkaç saat):** `Q?` → `QY …` ve `QH`.
+`ayirma_hata=0` → dip hiçbir ayırmayı düşürmedi (tepe); `dahili_en_buyuk` el sıkışma için ≥ ~17 KB olmalı.
+`QF boyut≈1600 caps=0x080C` (INTERNAL|DMA|8BIT), görev `wifi`/`tiT` → **Wi-Fi dinamik tamponu** (F2/F4).
+`QF boyut≈16700 caps=0x0804` (INTERNAL|8BIT), görev `bld` → **mbedTLS** (F1: `mbedtls_platform_set_calloc_free`
+ile PSRAM). `dahili_bos` büyük, `dahili_en_buyuk` küçük → parçalanma. `QH` bölge satırlarında `min_free`'si
+sıfıra yakın bölge, toplam minimumun (bölge minimumlarının TOPLAMI) gizlediği gerçek dibi gösterir.
+
+**İddialar (B72.E6a–f, 221 → 227):** kayıt setup'ta her başlatmadan önce ve tek yerde · IRAM + basmaz + SAFE
+kilit + ad kopyası · halka 8, `% 8`, kilitli kopya · QY alan sırası · `q_oku` yeni ve eski satırı çözer
+(davranış) · `QH` switch'ten önce, bölge dökümü, `/komut` 403, `kopru.py` ret. **Mutasyon `E6:` 12** — ilk koşuda
+11/12: "döküm kilitsiz kopyalar" KAÇTI, çünkü `find()` −1 döndürünce `-1 < a < b` zinciri yine doğruydu; `0 <=`
+eklendi (E6c ve E6f'de), tekrar koşu YAKALANDI.
+
+**Birleştirme notu:** dal `w-birlesik`'in COMMIT'li hâlinden (c5e22e2) açıldı; `olcum-karti-wb`'deki
+commit'lenmemiş 5.12.105 (W2i mDNS) bu dalda yok. Çakışma beklenen yerler: bu DEVIR girişi (5.12.105'in altına
+alınmalı), `1-acik-isler.md` E6 satırı (bu daldaki hâli 5.12.105 cümlesini de içeriyor), `beklenen_sayim.json`
+B72 (W2i'nin sayısıyla TOPLANMALI), `mutasyon.py` (E6 kayıtları listenin sonunda, W2i'ninkiler W2 bloğunda).
+c5e22e2'nin kendisinde `sw.js` SURUM'u ve `_fs.json` bayattı (ilk zincir koşusunda B22b 109/113 + B7 915/918
+kırmızı, E6'dan bağımsız); `arayuz-uret.py` ile yeniden üretildi — çıkan fark `olcum-karti-wb`'deki
+commit'lenmemiş farkla BAYT BAYT aynı, birleşmede çakışmaz.
+
+---
+
+#### 5.12.103 🟢 W4 MUTASYON HİJYENİ (2026-10-03, dal `olcum-karti-w4-mut`)
+
+Kuru uygulama denetimi (her kaydın `eski` metni hedef dosyada var mı; test koşmadan): **önce 4 / 2077
+uygulanmıyor, sonra 0 / 2078.** Dördü hedef kodu değişmiş kayıtlardı, anlamı korunarak yeniden
+hedeflendi: 3A `arayuz-uret.py` (`+ ikon +`), 3C/WIG 401 metni (artık `kl.neden_imza`, PC köprüsü
+`kopru/pc.py` yolunu söylüyor), 3C (C4) `kayitlar.js` (`yerelNerede`), 4D `kart_wifi.py` `_p0` (çok satırlı
+belge dizesinin sonuna). Yeni: **W4:** [1A-1] "kullanmadan önce HEP sil" (`kg_ilerle` tabloda kaydı
+olmayan sektörü silmeden geçerse) — `test_kayit.py` kırmızı (ilk: B71.Z7). Beşi koşuldu: **5/5 YAKALANDI**.
+
+**İnceleme bulgusu (aynı gün):** bu ağaçta yarım kalmış/kırık bir zincir koşusu `uretim/_tezgah.md`'yi
+**122 kalemden 81'e** indirip yazmıştı (B71'den sonraki adımlar kalem basmamıştı; önbellekte yalnız B1…B25).
+Commit'lenseydi 41 kalem (9'u [!]) sessizce silinirdi. Dosya `git checkout` ile geri alındı. Kök sebep
+`dogrula3.tezgah_birlestir`: kalem basmayan adım ya da eksik adım sayısı KIRMIZI deniyordu ama liste YİNE
+yazılıyordu. Artık eksik koşu eski listeyi **ezmez** ("YAZILMADI: eksik koşu"). Test `test_zincir_hiz.py`
+`test_tezgah_eksik_kosu` (3 iddia, 101 → 104), mutasyon `W4:` ×2 (koşul kaldırılır / yalnız sayım kalır)
+**YAKALANDI** (W4 öneki 3/3).
+
+**Yarım koşunun sebebi de bulundu:** düzeltmeden sonraki ilk zincir koşusunda B71 yine KALDI — `test_kayit.py`
+B71.K'nın (120 elektrik kesmesi) ortasında **sessizce** öldü (traceback yok, sayım `[]`), tek başına 362/362.
+`cop_topla` → `gecici.kalintilari_sil` ORTAK `%TEMP%`'teki `kayit_*` / `spice-*` … dizinlerini canlı mı diye
+bakmadan siliyor; o anda dört kardeş ağaçta zincir koşuyordu, birinin bitişi bu ağacın ELF'lerini sildi.
+Düzeltme `dogrula3.ozel_temp_kur`: zincir ve adımları `_zincir-yerel-*/tmp`'de koşar (mutasyon işçileri
+gibi); TEMP önbellek anahtarında yok (`ZO.ORTAM_UCUCU`). Test `test_ozel_temp` (2 iddia, 104 → 106),
+mutasyon `W4:` ×2 (çağrı silinir / ortam çevrilmez) **YAKALANDI** — W4 öneki **5/5**.
+
+---
+
+#### 5.12.101a 🟢 W2 inceleme: `tezgah_kart` / `tezgah_blokaj` 15 alanlı `G` satırını bekleyebiliyor (2026-10-04, dal `w2-fw`)
+
+Ajan (W2), inceleme bulgusu. 5.12.101'deki "bütün G ayrıştırıcıları geriye uyumlu" listesi EKSİKTİ: kararlı-hal
+blokaj ölçümünden önce boşta ön silmeyi bekleyen iki araç (`tezgah_kart._on_silme_bekle`, `tezgah_blokaj`'ın
+`main` içi döngüsü) `G?` yanıtını `^G( -?\d+){13}\s*$` ile arıyordu. A3-W2'nin 15 alanlı satırı eşleşmez →
+`tezgah_kart` hemen None döner ("None s beklendi"), `tezgah_blokaj` "boşta silme durdu" deyip çıkar; ikisi de
+`loop_azami`'yi 500 ms / ~25 ms ön silme sürerken ölçer — 1C-2'nin önlediği sahte kırmızı. Kart listesinin 9.
+maddesi (blokaj aynı sınıfta mı) yanıltıcı olurdu. B72.W2c yalnız `pc_bildirim`, `tezgah_kayit`, `tezgah_pc`'yi
+kapsıyordu.
+
+- İki modülde `G_DESEN` = 13 alan + isteğe bağlı 2 (`son_not`, `mesaj_dusen`); 14/16 RET. `G_SIL_ADET = 11`
+  (iki biçimde aynı yer).
+- `tezgah_blokaj`: bekleyiş `on_silme_bekle(k, azami_sn)` işlevine çıktı. Çözülemeyen `G`'de eskiden "durdu"
+  deyip ölçüyordu; artık None döner ve iki araç da "`G?` yanıtı çözülemedi — ön silme BEKLENEMEDİ" uyarısı basar.
+- **B72.W2h** (davranış, kaynak metni değil): sanal saat + sahte kart; `sil_adet` 5, 9, 9 → 15 ve 13 alanda
+  6 s / 3 sorgu, 14 ve 16 alanda None / 1 sorgu, iki modülde. İlk koşu kırmızıydı (`tezgah_kart` 15 → None,
+  `on_silme_bekle` yok), düzeltmeden sonra yeşil. B72 214 → **215** (sayım kilidi güncellendi).
+- Mutasyonlar (B72): iki modülde deseni 13'e geri çevirmek, `tezgah_blokaj`'da None yolunu eski "durdu"ya
+  bağlamak.
+
+**Doğrulama:** `dogrula3.py --artimli` **22/22** (`mutasyon.py` değiştiği için zincir kendisi TAM koştu; ilk koşuda B6 derlemesi `arduino-cli` geçici dosyası kaybolunca düştü — `…AP.cpp.libsdetect.d: No such file`, koddan bağımsız; yeniden koşu yeşil, B72 215/215) · `mutasyon.py --neden "W2:" --paralel 2` **21/21 YAKALANDI** (1606 s; yeni üçü B72.W2h'de) · uygulanamayan yok · `gizlilik_dogrula.py` temiz. Karta dokunulmadı.
+
+---
+
+#### 5.12.101 🟢 W2: FİRMWARE KÜÇÜKLERİ — G `son_not`, `/saat` + `Ex` tam çözüm, rastgele `eno`, `Qe` eşiği (2026-10-03, dal `w2-fw`, firmware `A3-W2`)
+
+Ajan (W2). Ağaç `projeler/olcum-karti-w2-fw`, `main` 20d3171'den. Push yok. **Karta YÜKLENMEDİ** (yükleme
+tam yedekten sonra orkestratörün işi; kart listesi aşağıda). `1-acik-isler.md`'de yedi satırın üstü çizildi.
+
+- **G satırı (1C-1 + M9):** `G`'nin SONUNA iki alan: `son_not` (son Ga/Ge/Gn/Gx'in NOT kaydının sırası =
+  `kyn_not` dönüşü; `Gx<oturum>:<sıra>` bunu hedefler; < 0 KG_*, 0 = açılıştan beri yok) ve `mesaj_dusen`
+  (istek kuyruğunda düşen). `son_not` değişince G hemen basılır — `nesil` ARTMAZ, çünkü `nesil` noktacıyı
+  yeniden başlatır (`kayit__nesil`), kayıt sürerken yarım nokta kaybolurdu. **Geriye uyum:** panel
+  (`KAYIT_SATIR_ESKI`), `pc_bildirim._G_DESEN`, `tezgah_kayit`/`tezgah_pc.g_coz` eski 13 alanlı satırı da durum
+  sayar (14 alan RET); eski satırda yeni alanlar nesnede yok. Panelde `son_not`'u GÖSTEREN bir öğe yok (açık).
+- **Noktacı (1A-1 D):** `kn_ornek` sonlu olmayan watt'ı (NaN, ±Inf) kendisi V+I hatalı sayar; `(int64_t)`
+  dönüşümü yapılmaz. Yapıştırıcının aynı kuralı duruyor; başlık ona güvenmiyor.
+- **`ky_nokta` (1A-1 O):** tampon doluyken boşaltma yine başarısızsa reddedilen nokta `dusen`'e sayılır.
+- **D5 #10 `/saat`:** `guv_saat_coz` — yalnız rakam, ≤ 10 hane, 32 bit taşmasız, 1 700 000 000 ≤ unix <
+  4 102 444 800 (2100-01-01); dışı 400. Eskiden `strtoul("-1")` = 2106.
+- **D5 #11 `Ex<n>`:** `guv_cihaz_no_coz` önce TAM çözer: yalnız `!` (tek başına) ya da 1..8. `Ex257`
+  (uint8 kesimi), `Ex-255` (atoi), `Ex!x`, `Ex4294967297` (32 bit taşması) RET.
+- **D5 #14 `eno`:** rastgele 31 bit (`uint32`, 0 ve önceki hariç), yanıtta `%lu`; kanıt ucu `guv_sayi_coz` ile
+  TAM çözer (eskiden `(uint8_t)toInt()`), çözülemeyen 0 = hiçbir bekleyene uymaz. Yanlış numara bekleyeni
+  TÜKETMEZ (zaten öyleydi; artık tahmin 2^-31). İstemciler (`imza.py`, `imza.js`) değişmeden uyumlu (JSON
+  tamsayısı, < 2^31).
+- **E3 `Qe<binde>`:** 100..1000, boş = varsayılan 500 (anahtar silinir); YALNIZ USB (`/komut` Q'yu 403 ile
+  zaten reddediyor); NVS `mqtt`/`esik`; görev yeni eşiği **bağlantıyı kesmeden** alır (istek/işlenen
+  sayaçları; `bld_istek_yeniden` yeniden bağlanırdı); açılışta NVS'ten. `Q?` satırına `esik=` (etkin eşik).
+  Karar: `bld_esik_ayarla` olay numarasını, kuyruğu ve `esik_kurulu`yu KORUR — eşiği indirmek zaten
+  bildirilmiş doluluğu tekrar bildirmez, eşiğin altına inmiş (bildirilmemiş) dolulukta hemen bildirir;
+  yükseltmek histerezisle yeniden kurar. Alt sınır 100 = `BLD_ESIK_GERI` (daha alçak eşik yalnız tam
+  eşitlemede yeniden kurulurdu).
+- `KAYIT_FW_SURUM` **`A3-W2`** (B72.F25 + mutasyonu güncellendi).
+
+**Derleme:** `yukle.py --derle` uyarısız. Flaş 1 412 758 → **1 414 402 B (+1 644)**, DRAM 81 684 →
+**81 700 B (+16)** → `_ESP_DRAM_SON_OLCUM` gerekçesiyle güncellendi.
+
+**İddialar:** B71 362 → **369** (P7 NaN/Inf, Y15 dolu tampon + yazma hatası, U20 `/saat`, U21 `Ex`, U22 `eno`,
+Q21 `Qe` ayrıştırıcı, Q22 çalışırken eşik) · B72 207 → **214** (W2a–W2g) · B7 911 → **912** (G geriye uyum).
+AVR donanımı: NOKTACI S6, YAZICI O5 (emüle NOR yazma arızası `NOR_ARIZA_YAZ = 1`, iki kez), GUV aşama 3
+`a3_coz` + `a3_eno`, BILDIRIM `s_esik_ayar` (yığın payı 678 B).
+
+**Doğrulama:** `dogrula3.py --artimli` **22/22** (ilk koşu B22b'de kırmızıydı: `app.js` değişince LittleFS
+görüntüsü ve `sw.js` SURUM bayat — `python arayuz-uret.py` ile yenilendi) · `mutasyon.py --neden W2 --paralel 2`
+**18/18 YAKALANDI** (2331 s) · `--neden "1D: surum adi"` **1/1** · uygulanamayan yok. ⚠ B7 yalanlayıcısı
+(`KAYIT_SATIR_ESKI` boş) ilk kırmızıyı D1'de veriyor ve sayım BOŞ dönüyor: B7'nin başka iddiaları da 13
+alanlı (eski biçim) G satırı besliyor, ayrıştırıcı onu reddedince test çöküyor — yakalandı, ama W2 iddiasından
+önce. `gizlilik_dogrula.py` temiz.
+
+**Gerçek kart listesi (A3-W2 yüklendikten sonra; `N?` GÖNDERME):**
+1. `G?` → `G` satırı 15 alan, son ikisi `0 0`; `GA`/`GT`/`GP` değişmedi. Afiş/kayıt BAŞLA sürümü `A3-W2`
+   (eşitlenen kayıtta), MQTT durumunda `"f":"A3-W2"`.
+2. `Gb1000` → G'de oturum `<o>`; `Gn<o> deneme` → G satırı HEMEN gelir, `son_not` > 0; eşitlenen dosyada o sırada
+   NOT kaydı var; `Gx<o>:<son_not> ` (boş metin) notu siler; `Gn999999 x` → `son_not` = -4 (KG_YOK). `Gd`.
+3. Kayıt sürerken G periyodu bozulmadı (saniyede bir) ve `D` satırında örnekleme hızı değişmedi;
+   `tezgah_kayit.py --pil` (Ga/Ge/Gn/Gx) ve `--duman` yeşil.
+4. Panel (kartın kendi paneli, Playwright): Canlı'da kayıt durumu ve konsol G satırını gösteriyor; köprü
+   açıkken kayıt bitince "kayıt bitti" yerel PC bildirimi geliyor (`pc_bildirim` yeni G'yi durum sayıyor).
+5. USB: `E?` (cihaz sayısını not et) → `Ex257`, `Ex-255`, `Ex1x`, `Ex!x`, `Ex0`, `Ex9` hepsi `! E: Ex<1..8>…`
+   ve `E?` cihaz sayısı AYNI. (`Ex1`/`Ex!` DENEME — gerçek cihazları siler.)
+6. Eşleştirme: `tezgah_kayit.py --guvenlik` yeşil; `/eslestir/baslat`
+   yanıtındaki `eno` > 255 ve ardışık iki başlatmada +1 değil; yanlış `eno` ile `/eslestir/kanit` 404 (YOK),
+   ardından doğru `eno` + doğru kanıt hâlâ KABUL. Köprü (`imza.py`) ve panel (`imza.js`) eşleştirmesi uçtan uca.
+7. `/saat` (yalnız NTP'siz kartta; NTP varsa 409 beklenir): imzalı POST `unix=-1` → 400, `unix=4102444800` → 400,
+   `unix=17000000000` → 400, geçerli `unix` → 204 ve `E?` `saat=2`.
+8. `Q?` → `esik=500`; `Qe700` → `* Q: esik 700 binde`, `Q?` `esik=700` ve `baglanti` sayacı ARTMADI (bağlantı
+   kopmadı); RTS sıfırlaması sonrası `esik=700` kalıcı; `Qe99`, `Qe1001`, `Qex` RET; `Qe` → 500 (varsayılan);
+   `/komut` ile `Qe700` → 403. MQTT bağlıyken (EMQX) `Qe` sonrası `QY dahili_en_az` ≥ 54 KB (E6 sınıfı).
+9. Blokaj: `tezgah_kart.py --sifirla` kararlı-hal `loop_azami` öncekiyle aynı sınıfta (G satırı 2 alan uzadı).
+
+**Açık:** panelde `son_not` gösterimi / Gx kısayolu yok · `ky_nokta` reddinden sonraki noktaya `KN_KAYIP_ONCE`
+bayrağı yok · D5 #15/#17/#18/#19 ve #8 hâlâ açık · E3 için PC/panel arayüzü yok (yalnız USB).
+
+---
+
+#### 5.12.104 🟢 W5 KART TEZGAHI: T7 · T8 · E7 (2026-10-03, dal `w5-tezgah`)
+
+Ajan, gerçek kartta (COM6, A3-4B, ADS takılı değil). Push yok. Kart ayarına dokunulmadı: yalnız
+`G?`, `Gb`, `Gd`, `Gp…`, `Gt…`, `Ga` ve `Q?` (salt okunur). Eşitleme ONAYSIZ: kartta onay ilerlemedi,
+köprü kayıtları sonra kendi arşivine alır.
+
+- **T7 — `tezgah_kayit.py --plan-elle` 3/3.** Plan sürerken `Gd`, ardından `Gb200` iki zamanlamayla
+  denendi: 3 s arayla ve aynı anda. İkisinde de `Gd` planın oturumunu kapattı (GP 3, plan oturumuyla).
+  `Gb` yeni bir oturum açtı ve bu kayıt planın bitişinden 10 s sonra hâlâ sürüyordu. Kayıt yalnız
+  `Gd` ile kapandı (sebep 1), içinde PLAN olayı yok. Ek senaryo: skop günlüğü (SKOP oturumu)
+  sürerken planın başlangıcı geldi. Plan atlandı (GP 4), günlük bölünmedi. "DOLU'da oturumsuz pil testi + plan"
+  kartta denenemez: `p1` ister (ADS ve yük yok, `p1` reddedilir — T5) ve ~1.6 sa doldurma ister. Bu
+  durum AVR'de (B71.R) ve F70'te sınanıyor.
+- **T8 — `--skop-olcum` 1/1.** `Gb200` sürerken `Gt2000` (9 yakalama), `Gtd`, 8 s sonra AYNI oturumda
+  `Gt3000` (8 yakalama), `Gtd`, `Gd`. Sonuç: tek ÖLÇÜM oturumu, iki parti, ortanca aralıklar 2002 ve
+  3003 ms. Yakalama numaraları 1–17 tekrarsız ve artan (`Gt` sıfırlamıyor). İki `SKOP_KAL` olayı var,
+  269 nokta kesintisiz, hepsi S3B'ye çevriliyor. İki `Gtd` de ölçümü kapatmadı. Gözlem (Y7 ile ilgili):
+  yakalama sırasında 200 ms'lik noktalar arasında en büyük boşluk **423 ms** — yakalama ölçümde
+  boşluk bırakıyor, NOKTA'da bayrağı yok.
+- **E7 — `tezgah_bildirim.py --basladi N` (gerçek aracı EMQX, PC'nin 4E önbelleğiyle abone, karta
+  imzalı istek yok).** Her sıfırlamadan hemen önce `Q? olay` okundu: bu sayaç o açılışta PUBACK'i
+  alınmış olay sayısıdır, `basladi` her zaman ilk olaydır. Sonuçlar:
+  - `--kip bagli` (ilk koşunun zamanlaması: bağlanınca 0–3 s): **15/16 ulaştı.** Tek kayıpta kart
+    "bağlı" görünüyordu ama `olay=0 kuyruk=1` idi.
+  - `--kip rastgele` (afişten 2–15 s sonra): 8/16 ulaştı. 8 kaybın hepsi `olay=0`'dı.
+
+  Toplam 32 açılışta PUBACK alınmış **23/23 `basladi` aboneye ulaştı**, aracıda kayıp **0**. Bütün
+  kayıplar kartta. Sıfırlama, olay RAM kuyruğundayken ya da uçuştayken geldi. Bağlantı kurulduktan
+  sonra birkaç saniye bu pencere açık kalabiliyor. Bu, E4'ün bilinçli kararı (kalıcı kuyruk yok).
+  Abone kesintisizdi; açılış numaraları sıfırlamalarla birebir eşleşti (a0 + 16).
+- **Yan gözlem (E6):** `QY dahili_en_az` 3 ayrı sıfırlamada 59.5, 61.7 ve 42.8 KB çıktı; 42.8 KB
+  bağlandıktan sonra düştü. E7'nin son açılışında 20.7 KB görüldü; o açılışta yalnız `Q?`/`G?` gitti,
+  köprü kapalıydı. E6'nın "54–60 KB" değeri iyimser kalıyor. Nedeni ayrılmadı; ayrıntı
+  `1-acik-isler.md` E6'da.
+- Çevrimdışı ölçü aleti denetimleri: B72.TZ1–TZ4 (`test_kayit_esp.py`, B72 207 → 211) ve
+  test_bildirim E7.1–E7.7. Bunlara 20 mutasyon (`W5:`) eklendi.
+- **İnceleme düzeltmesi (2026-10-04, 5.12.104a):** iki bulgu kapandı.
+  1. TZ4 yalnız `plan_elle`…`_ham_istek` kaynak dilimine bakıyordu. `esitle_onaysiz`'in gövdesi bu
+     dilimin dışında kalıyordu: imzalı yolda Esitleyici'ye `onay=KE.imzali_onay(...)` verilse TZ4 yine
+     yeşildi, kartta `Go` gider, köprü arşivi kayıt kaçırırdı. Yeni **TZ5** gövdeyi davranışla sınıyor:
+     sahte Esitleyici, düz ve 401 (imzalı) yolda `onay`/`istek` hep `None`.
+  2. Akış kimliği değişince ya da sıra GERİ gidince `esitle_onaysiz` verilen `--dizin`'i
+     `shutil.rmtree` ile siliyordu; köprü arşivi verilirse veri kaybolurdu. Artık yalnız tezgahın kendi
+     `VARSAYILAN_DIZIN`'i (`%TEMP%\olcum-tezgah-w5`) baştan kuruluyor. Kullanıcı dizininde Esitleyici'nin
+     hatası "SİLİNMEDİ, yeni --dizin ver" ekiyle geçiyor; yardım metni köprü arşivini vermemeyi söylüyor.
+     Bunu **TZ6** sınıyor.
+  B72 211 → 213; 4 yeni `W5:` mutasyonu (yorumcunun mutasyonu birebir dahil).
+
+---
+
+#### 5.12.100b 🟢 W1 İNCELEME: AYRINTILI SERİLER YENİDEN TEK KURULUM (2026-10-04, dal `w1-veri`)
+
+Ajan. İnceleme bulgusu (önemli, ölçülmüş gerileme): `296c2e2`'den sonra `ayrintiSerileri` sıralı örnek
+listesini 3–4 kez kuruyordu. Bir kez kendisi kuruyordu, bir kez `ayrintiGuc`, yakalama varsa bir kez
+de `skopSonralari` → `skopYerleri` → `olcumZamanlari`. Her kurulumda [r, k] çiftleri, sort ve map
+vardı. Ölçüm (2026-10-04, aynı sentetik 1.9 M örnek, 50 Hz, kalibrasyonlu):
+
+| | `20d3171` (W1 öncesi) | `296c2e2` (W1) | bu düzeltme |
+|---|---|---|---|
+| 1.9 M, yakalamasız | 3.0–3.5 s | 8.4 s, yığın +1.2 GB | 1.9 s, +0.46 GB |
+| 1.9 M, yakalamalı | 2.5 s, +0.54 GB | 6.4–10.4 s, +1.8 GB | 2.1 s, +0.52 GB |
+| 1.9 M, yakalamalı, 1 GB yığın | geçer | **OOM** | 2.4 s, geçer |
+| 600 k, yakalamalı, yığın sınırı | 200 MB'ta geçer | 300 MB'ta OOM | 200 MB'ta geçer |
+
+Değişiklik (karar WK8): `ayrintiOrnekler(o, true)` sıra ile sıralı listeyi verir; liste zaten
+sıralıysa kopya kurulmaz. `ayrintiGuc(o, {orn, dizi: true})` Float64Array döner, [sıra, w] çifti
+kurulmaz. `skopYerleri(o, orn)` hazır listeyi gezer, üçlü dizi kurmaz. `ayrintiSerileri` ve
+`noktaSerileri` `yerler`'i taşır; `oturumRaporu` ile `yakalamaIsaretleri` onu kullanır. Seçenekler
+yalnız JS'te: Python `kayit_bicim.py`, vektörler ve `api` eşlemesi değişmedi. Bit bit sonuç da
+değişmedi: kayit.json `ayrinti_guc`/`skop_yerleri` ve disari W1 testi aynen geçiyor.
+
+Testler (önce kırmızı, `git archive 20d3171..HEAD` kopyasında doğrulandı):
+- `disari.test` "W1-tek-kurulum": kayıtlara `t0_us` okuma sayacı takılır (`ayrintiOrnekler` kayıt
+  başına iki kez okur, başka okuyan yok). Seriler, CSV ve rapor birer kurulum yapar (eski kod 3).
+- `disari.test` "W1-bellek": 600 k örnekli yakalamalı oturum ayrı süreçte `--max-old-space-size=250`
+  ile biter (eski kod OOM).
+- `kayit.test` "W1 inceleme": ters kayıt sırasında sıralı liste, `dizi` = çiftler, `skopYerleri(o, orn)`
+  = `skopYerleri(o)`.
+- B7 K3c sayacı: grafik bir kurulum yapar, işaretler sıfır.
+
+Doğrulama: B73 25/25 (node: disari 27, kayit 98, rapor 15), B7 913/913 (+1: K3c sayacı; sayım kilidi 912 → 913). Zincir `--artimli` iki kez TAM koştu (bu ağaçta yeşil kayıt yoktu). 1. koşuda B22b kırmızıydı: LittleFS görüntüsü bayattı, `arayuz-uret.py` ile `_fs.json` ve `sw.js` SURUM yenilendi. B6 da kırmızıydı (`arduino-cli`: "cannot specify '-o' with multiple files"; firmware değişmedi, makine paylaşılıyor). 2. koşu **hepsi yeşil**: B6 77/77, B22b 113/113, "Aşama 3 doğrulandı". Üretilen `BELGELER/`, `sema3/`, `_tezgah.md`, `netlist3.net`, `_firmware.json` gürültüsü commit'e alınmadı.
+
+Mutasyon: 9 yeni `W1:` yalanlayıcısı. Eski "W yine V×A" kaydı değişen satıra taşındı.
+`--neden W1: --paralel 2` → **35/35 yakalandı** (26 eski + 9 yeni; 591 s).
+
+**Açık (O-W1b):** kayıt görünümü bir oturum için seriyi iki kez kuruyor (grafik + rapor). Bu W1'den
+önce de böyleydi; oturum başına önbellek bu dilimde yapılmadı.
+
+---
+
+#### 5.12.100 🟢 W1: PC'DE HİZALI GÜÇ + YAKALAMANIN ZAMANINDA YERİ (Y7) (2026-10-03, dal `w1-veri`)
+
+Ajan, kart ve firmware değişikliği yok. Kullanıcı "bensiz yapabileceklerinle devam et" dedi; kararlar
+benim, gerekçeleri `tasarim/1-acik-isler.md` "W1 kararları"nda (WK1–WK7). İki açık iş kapandı:
+**Y7** (ekli oturumda kayıt sırası zaman sırası değil, yakalama boşluğu ayrıntılı kayıtta bayraksız) ve
+**"PC'de W'nin hizalamalı hesabı"** (1C-2'den devredilen).
+
+| Dosya | Ne |
+|---|---|
+| `kopru/kayit_bicim.py` ⇄ `ortak/src/kayit.js` | Yakalama `acilis` alanı (kayıttan önceki DEVAM sayısı). `skop_yerleri`: META'lı her yakalama ZAMAN sırasıyla, `once`/`sonra` = boşluğun iki yanındaki ölçüm verisi (ayrıntılı: zamanı ≥ (t_ms+1) ms ilk örnek; nokta: kart_ms > t_ms). `ayrinti_guc`: kartın `o.watt` tanımı (V akım anına Lagrange, × I, şebeke RC ters kazancı) GERÇEK örnek zamanlarıyla; `VI_KAYMA_US` 152 (B29), `TAU_AKIM`. İki dil aynı aritmetik sırası, kayit.json'da bit bit |
+| `ortak/src/disari.js` | Ayrıntılı `w` = hizalı güç (V×A değil). `skop` dizisi; CSV `bayraklar`'a PC türetimi `SKOP` (EN `SCOPE_CAPTURE`), ham bayrak sütunları aynen. `anZamani` bilinen açılışı alır |
+| `ortak/src/rapor.js` | Ayrıntılı Wh hizalı W'den; yakalama tablosu zaman sırası + kendi açılışı (ham kayıt verilmeden de); uyarı `skop_bosluk` |
+| `arayuz3/ekran/kayit_gorunum.js` | Okuma Wh'si hizalı (raporla aynı); grafikte yakalama işareti `S<no>` (K3b, K3c) |
+| `uretim/ortak_vektor_kayit.py` | Yeni akış `yerlesim`; `w1_kurallar` W1.K1–K18: firmware kaynağı hâlâ bu formülle mi (olcum_al, lagrange4, TAU_AKIM), eşit aralıkta PC = firmware lagrange4 (1e-12), 50 Hz sinüste 1 ms kaymada hizalı ortalama %0.5 içinde / hizasız %4.9 sapar, yedek düğümler, kırpma, yakalama sırası/açılış/sarma |
+| `uretim/ortak_vektor_disari.py` | Bağımsız hizalı güç + yakalama yeri; akışlara kayıt sırası zaman sırası OLMAYAN yakalamalar, iki açılışa uyan (sezgide belirsiz) yakalama |
+
+**Bulgu (veriye dokunuyor):** ayrıntılı kayıtlarda PC'nin gösterdiği/aktardığı W ve Wh eskiden aynı
+örneğin V×I'sıydı: V, I'dan 152 µs (+ faz kalibrasyonu) ÖNCE örneklendiği için endüktif/kapasitif yükte
+kartın nokta W'sinden farklıydı (50 Hz, PF 0.5'te ~%8). Nokta oturumları zaten kartın W'sini taşıyor —
+değişmedi.
+
+**Doğrulama** (commit `296c2e2`): B73 25/25 (node: kayit 97, disari 25, rapor 15; vektörler `--denetle`
+aynı), B7 912/912 (+1: K3c; sayım kilidi 911 → 912). Zincir `--artimli` iki TAM koşu (önbellek bu ağaçta
+yoktu): 1. koşuda yalnız B22b (LittleFS görüntüsü bayat → `arayuz-uret.py`, `_fs.json` + `sw.js` SURUM)
+ve B7 sayımı kırmızı; 2. koşuda bunlar yeşil, B71 (yarıda kesildi) ve B6 (`arduino-cli` geçici dizin
+hatası) kırmızı — makine 4 ajanla paylaşılıyor; tek başına yeniden koşunca B71 362/362, B6 77/77. Firmware
+ve `kod/` değişmedi. Mutasyon `--neden W1: --paralel 2` **26/26 yakalandı**. İki eski mutasyon kaydı bu
+dalın değiştirdiği satırlara güncellendi: B7 K3 `ei` (koşuldu, yakalandı), T3C `onDegisim` (tarayıcı adımı,
+koşulmadı). Tam koşuların yeniden ürettiği `BELGELER/`, `sema3/`, `_tezgah.md`, `netlist3.net`,
+`_firmware.json` commit'e ALINMADI (satır sonu / zaman damgası gürültüsü; `_tezgah.md` sıra farkı).
+
+**Açık:** firmware V–I kaymasını AYRINTI'ya yazmıyor (sabit 152 µs kullanılıyor) · ADS takılınca PC
+hizalı W ↔ kartın `D` satırı W'si tezgahta karşılaştırılmalı (T11) · 16.38 ms'den kısa skop duraklaması
+kartta hâlâ işaretsiz; PC artık META'dan bulur (O listesinde kapandı).
+
+---
+
+---
+
+#### 5.12.102 🟢 W3: PANEL AÇILIŞ BÜTÇESİNE PAY — TEMBEL EKRAN SÖZLÜKLERİ (2026-10-03, dal `w3-butce`)
+
+Ajan (W3), kart yok. Karar `tasarim/2026-10-02-alt-proje-3-panel.md` **EU32**; açık işler
+`tasarim/1-acik-isler.md` "Panel açılış bütçesi" (W3-1 kapandı, W3-2…4).
+
+- **Ne taşındı:** yalnız TEMBEL zincirlerin kendi kullandığı metinler. `ortak/src/sozluk_kayit.js` (200
+  anahtar: `kl.`/`kg.`/`kr.`; `kayit_gorunum.js` statik alır, Kayıtlar ve Karşılaştırma onu zaten
+  alıyor) ve `ortak/src/sozluk_ay.js` (95 anahtar: `ekran/ayarlar.js`). Ayrım elle değil: anahtarı
+  hangi dosyaların dizge olarak yazdığına bakan betik (B73 `dizgeler` çözücüsü); birden çok ekranın ya
+  da kabuğun kullandığı her metin açılışta kaldı. `ceviriKayit`/`ceviriAy` = önce kendi sözlüğü, yoksa
+  `sozluk.js`; ekranlar `import { ceviriKayit as ceviri }` ile (çağrılar değişmedi).
+- **Tuzak (bulundu, düzeltildi):** Kayıtlar `NEREDE_METIN` / `nedenMetni` / kopya satırı `pc.` ve `kl.`
+  anahtarlarını KARIŞIK `ceviriPc`'ye veriyordu; `ceviriPc` yalnız açılış sözlüğüne düştüğü için taşımadan
+  sonra "nerede" sütunu `kl.nerede_kart` yazardı → `kayit_gorunum.js` `ceviriKlPc` (B7 iddiası + T3H'nin
+  "ekranda ham anahtar yok" denetimi).
+- **`os.`/`pl.` bilerek kaldı:** iki ekran kabuğun parçası (app.js + index.html), modül inmeden çizilir;
+  Pil'in DURDUR'u modülü beklemez (PU1). `os.`'u taşımak `#/skop`'u küçültmezdi.
+- **Ölçüm (B7, gzip):** `sozluk.js` 27 727 → 18 187 B · açılış kümesi 209 404 → **199 864** · Canlı ile
+  açılış 238 403 → 228 863 · `#/skop` 250 794 → **241 254** (pay 5.2 → 14.7 KB) · `#/pil` 240 732 →
+  231 192 · eşleşmiş açılış (EU31) 259 996 → **250 456** (3D'nin 256 000'inin de altında; 15 dosya
+  istisnası sürüyor) · `#/ayar/depolama` 265 232 → 260 358 · kart görüntüsü 417 627 → 421 545 B.
+  Bedel: Ayarlar modülü iki dosya (AY2 güncellendi), görüntü +3.9 KB.
+- **İddialar:** B73 `ortak/test/sozluk_kayit.test.js` + `sozluk_ay.test.js` (yerleşim iki yönde, statik
+  içe aktaranlar, ATMAZ geri düşme); B7 +4 (tembel sözlükler açılış/#/skop/#/pil/eşleşmiş açılışta yok,
+  `sozluk.js` ≤ 19 500 B, `sozluk_ay.js` ≤ 5.5 KB, `ceviriKlPc`) ve metin iddiaları birleşik sözlük
+  görünümünden (`sozlukTum`); T3H +3, T3E +1, T3F +1 gerçek tarayıcıda. 18 `W3:` yalanlayıcısı; taşınan
+  anahtarları hedefleyen 10 eski mutasyon yeni dosyaya yönlendirildi.
+- **Sonuç:** B7 915/915, B73 27/27 (node 490/490), sim3_web 113/113; tarayıcı T3H 31/31, T3C 50/50,
+  T3G 31/31, T3E 38/38, T3F 34/34, T3A 16/16. Mutasyon `--neden W3:` **18/18 YAKALANDI**, yönlendirilen 10
+  eski kayıt 10/10. Zincir `--artimli`: iki koşuda B6 (`fw3_*` geçici dizini derleme sırasında silindi) ve
+  B71 (`kayit_*` geçici `.elf` yok) birer kez KALDI — ikisi de öbür koşuda / ayrı TEMP ile yeşil (B71
+  362/362); eşzamanlı dört ağacın geçici dizin çakışması, bu değişiklikle ilgisiz (firmware'e dokunulmadı).
+
 #### 5.12.99 🟢 HIZ ↔ main BİRLEŞMESİ (2026-10-03, dal `zincir-hiz`, ağaç `projeler/olcum-karti-hiz`)
 
 Ajan. `main` (e6e086d: 4D–4J, 3C-LISTE, kılavuz, `gercek_dizin_koru` son kuralı, köprü 405) `zincir-hiz`'e

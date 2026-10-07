@@ -19,6 +19,7 @@
  *   * Toplamlar tam sayi: kod int32 (65535 x 32768 sigar), guc int64
  *     mikrowatt. float toplam uzun aralikta hassasiyet yerdi.
  */
+#include <math.h>
 #include "kayit_bicim.h"
 
 #define KN_HATA_V 0x01u   /* kn_ornek `hata`: gerilim ADS'i okunamadi */
@@ -129,6 +130,10 @@ static inline uint8_t kn_ornek(KayitNoktaci *k, uint32_t simdi_ms, uint8_t menzi
         k->bas_ms = simdi_ms;
         k->bayrak |= KN_DURAKLAMA;
     }
+    /* W2 (1A-1 D): NaN/Inf watt (int64_t)'e cevrilemez (tanimsiz davranis) —
+       ornek HATALI sayilir, istatistige girmez. Yapistirici da ayni kurali
+       uyguluyor (kayit_esp.h kayit_ornek); bu baslik ona guvenmez. */
+    if (!isfinite(watt)) hata |= (uint8_t)(KN_HATA_V | KN_HATA_I);
     k->menzil = menzil;
     k->ornek_var = 1u;
     k->bayrak |= ek;

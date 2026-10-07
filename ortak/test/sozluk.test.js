@@ -8,6 +8,10 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import * as K from "../src/kayit.js";
 import { SOZLUK, DILLER, ceviri, ceviriKod } from "../src/sozluk.js";
+/* EU32 (W3): tembel ekran zincirlerinin kendi metinleri ayri sozluklerde; "ters yon" denetimleri birlesimde arar,
+   yerlesim kurallari (hangi anahtar nerede) sozluk_kayit.test.js / sozluk_ay.test.js'te. */
+import { SOZLUK_KAYIT } from "../src/sozluk_kayit.js";
+import { SOZLUK_AY } from "../src/sozluk_ay.js";
 import { KOLONLAR, BAYRAKLAR } from "../src/disari.js";
 import { RAPOR_ETIKET, ALAN_ETIKET } from "../src/rapor.js";
 import { dizgeler } from "./dizgeler.js";
@@ -148,14 +152,16 @@ test("kullanilmayan anahtar YOK (disari.js + rapor.js + panel ekranlari kaynagin
   assert.deepEqual(kullanilmayan, []);
 });
 
-test("3C: panel ekranlarinin kullandigi HER kl./kg. anahtari sozlukte (ters yon)", () => {
+const TUM = Object.freeze({ ...SOZLUK, ...SOZLUK_KAYIT, ...SOZLUK_AY });
+
+test("3C: panel ekranlarinin kullandigi HER kl./kg. anahtari sozlukte (ters yon; acilis + sozluk_kayit.js)", () => {
   if (!EKRANLAR.length) return;
   const { literal } = dizgeler(EKRANLAR.map(oku).join("\n"));
   const kullanilan = [...literal].filter((s) => /^(kl|kg)\.[a-z0-9_]+$/.test(s));
   assert.ok(kullanilan.length >= 60, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
-  const eksik = kullanilan.filter((a) => !(a in SOZLUK));
+  const eksik = kullanilan.filter((a) => !(a in TUM));
   assert.deepEqual(eksik, []);
-  const aile = Object.keys(SOZLUK).filter((a) => /^(kl|kg)\./.test(a));
+  const aile = Object.keys(TUM).filter((a) => /^(kl|kg)\./.test(a));
   assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup ekranda kullanilmayan kl./kg. anahtari");
 });
 
@@ -202,12 +208,12 @@ test("3G: karsilastirmanin (ekran/karsilastir.js + kayitlar.js) kullandigi HER k
   const { literal } = dizgeler(EKRANLAR.map(oku).join("\n"));
   const kullanilan = [...literal].filter((s) => /^kr\.[a-z0-9_]+$/.test(s));
   assert.ok(kullanilan.length >= 50, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
-  assert.deepEqual(kullanilan.filter((a) => !(a in SOZLUK)), []);
-  const aile = Object.keys(SOZLUK).filter((a) => /^kr\./.test(a));
+  assert.deepEqual(kullanilan.filter((a) => !(a in TUM)), []);
+  const aile = Object.keys(TUM).filter((a) => /^kr\./.test(a));
   assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup panelde kullanilmayan kr. anahtari");
   /* KR3: disarida kalma sebepleri kullaniciya "dışarıda" der; CSV oneki iki dilde ASCII */
-  assert.match(SOZLUK["kr.disari"].tr, /dışarıda/);
-  assert.match(SOZLUK["kr.csv_onek"].tr + SOZLUK["kr.csv_onek"].en, /^[a-z]+$/);
+  assert.match(TUM["kr.disari"].tr, /dışarıda/);
+  assert.match(TUM["kr.csv_onek"].tr + TUM["kr.csv_onek"].en, /^[a-z]+$/);
 });
 
 /* 3H-1: Ayarlar (app.js AY_METIN / AYAR_BOLUMLERI / DILLER + ekran/ayarlar.js AYE_METIN / KAL_ALANLARI) */
@@ -216,11 +222,11 @@ test("3H: ayarlarin (app.js + ekran/ayarlar.js) kullandigi HER ay. anahtari sozl
   const { literal } = dizgeler([...APP, ...EKRANLAR].map(oku).join("\n"));
   const kullanilan = [...literal].filter((s) => /^ay\.[a-z0-9_]+$/.test(s));
   assert.ok(kullanilan.length >= 60, `yalniz ${kullanilan.length} anahtar bulundu — cozucu kaciriyor`);
-  assert.deepEqual(kullanilan.filter((a) => !(a in SOZLUK)), []);
-  const aile = Object.keys(SOZLUK).filter((a) => /^ay\./.test(a));
+  assert.deepEqual(kullanilan.filter((a) => !(a in TUM)), []);
+  const aile = Object.keys(TUM).filter((a) => /^ay\./.test(a));
   assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "sozlukte olup panelde kullanilmayan ay. anahtari");
   /* AY5: degerler tablosunun 17 alani (firmware'in /kal/liste JSON'u; B7 alan yollarini firmware'den sinar) */
-  assert.equal(Object.keys(SOZLUK).filter((a) => a.startsWith("ay.kd_")).length, 17);
+  assert.equal(Object.keys(TUM).filter((a) => a.startsWith("ay.kd_")).length, 17);
   /* AY3: dil adlari kendi dillerinde (endonim) — iki dilde de ayni */
   assert.equal(SOZLUK["ay.dil_tr"].tr, "Türkçe");
   assert.equal(SOZLUK["ay.dil_tr"].en, "Türkçe");
@@ -237,8 +243,8 @@ test("3H-2: acilis sozlugundeki es. anahtarlarinin HEPSI app.js'te kullaniliyor 
   assert.ok(aile.length >= 4 && aile.length <= 8, `${aile.length} es. anahtari acilista`);
   assert.deepEqual(aile.filter((a) => !literal.has(a)), [], "acilis sozlugunde olup app.js'te kullanilmayan es. anahtari");
   /* AU10 + ES2: "tarayici ayarlarini sifirla" eslestirmeye dokunmaz ve bunu SOYLER */
-  assert.match(SOZLUK["ay.sifirla_aciklama"].tr, /eşleştirmesi/);
-  assert.match(SOZLUK["ay.sifirla_aciklama"].en, /pairing/);
+  assert.match(TUM["ay.sifirla_aciklama"].tr, /eşleştirmesi/);
+  assert.match(TUM["ay.sifirla_aciklama"].en, /pairing/);
 });
 
 test("yer tutucular iki dilde ayni", () => {

@@ -541,9 +541,15 @@ class SecmeliKart:
     """
 
     USB_YOKLA_SN = 0.05
+    # 🔴 WiFi seciliyken USB EN SIK bu aralikla yoklanir — her satirda DEGIL. OtoSeriKart kart
+    #    yokken zaman asimini uyuyor: her satirdan once 50 ms = saniyede en cok 20 satir. 50 ms
+    #    yenilemede kart 20 D/s + kayitta 1 G/s yolluyor, fark kuyrukta birikip canli degerleri
+    #    dakikalarca geciktiriyordu (2026-10-06, kartta olculdu: 75 s'de 3.9 s ve buyuyor).
+    USB_YOKLA_ARALIK_SN = 0.5
 
     def __init__(self, usb, wifi=None):
         self.usb, self.wifi = usb, wifi
+        self._usb_yokla_t = 0.0
         self.bildir = None
         self._etkin: str | None = None
         self._gecis = 0
@@ -607,11 +613,15 @@ class SecmeliKart:
             return self.usb.satir_oku(zaman_asimi)
         if self.wifi is None:
             return self.usb.satir_oku(zaman_asimi)
-        # USB'yi yokla (OtoSeriKart kendi araligiyla arar; bulup dogrularsa bagli olur)
-        s = self.usb.satir_oku(min(zaman_asimi, self.USB_YOKLA_SN))
-        if self._usb_bagli():
-            self._sec("usb")
-            return s
+        # USB'yi yokla (OtoSeriKart kendi araligiyla arar; bulup dogrularsa bagli olur) —
+        # USB_YOKLA_ARALIK_SN'de bir; aradaki satirlar beklemeden WiFi kuyrugundan
+        simdi = time.monotonic()
+        if simdi >= self._usb_yokla_t:
+            self._usb_yokla_t = simdi + self.USB_YOKLA_ARALIK_SN
+            s = self.usb.satir_oku(min(zaman_asimi, self.USB_YOKLA_SN))
+            if self._usb_bagli():
+                self._sec("usb")
+                return s
         self._sec("wifi")
         return self.wifi.satir_oku(zaman_asimi)
 

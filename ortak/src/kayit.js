@@ -583,8 +583,12 @@ const IKI32 = 4294967296;
 /** Oturumun ayrintili ornekleri: [[sira, us, v_kod, i_kod, bayrak, acilis], ...].
  *  us = t0_us + 4 x (dt4 toplami), o acilistaki micros(); 32 bit sarmasi t0_ms'den
  *  cozulur. acilis: 0 = BASLA'nin acilisi, n = n. DEVAM'dan sonrasi. Ayni sira iki
- *  kayitta olabilir (Y5): her sira BIR kez, ilk kopyasiyla. us < 2^53: Number yeter. */
-export function ayrintiOrnekler(o) {
+ *  kayitta olabilir (Y5): her sira BIR kez, ilk kopyasiyla. us < 2^53: Number yeter.
+ *  siraIle (yalniz JS, W1 inceleme): true -> sira ile sirali (Python'un
+ *  sorted(ayrinti_ornekler(o), key=sira)'si); bu liste ayrintiGuc / skopYerleri'ne `orn`
+ *  diye verilirse yeniden kurulmaz. */
+export function ayrintiOrnekler(o, siraIle = false) {
+  if (siraIle) return ayrintiSirali(o);
   const devam = o.devamlar.map((d) => d.nokta_sira).sort((x, y) => x - y);
   const cikti = [];
   const gorulen = new Set();
@@ -641,6 +645,180 @@ export function unixZaman(s) {
   return s ? new Date(s * 1000) : null;
 }
 
+// ── W1: PC hesaplari — yakalamanin yeri (Y7) ve hizali guc ────────────
+// kopru/kayit_bicim.py ile AYNI aritmetik SIRASI (capraz vektor, bit bit). Gerekce Python'da.
+export const US_SARMA = IKI32 * 1000;       // millis() 32 bit sarmasinin mikrosaniyesi
+export const AYRINTI_BOSLUK_US = 4095 * 4;  // dt4 12 bit x 4 us: kart yeni AYRINTI kaydi acar
+export const VI_KAYMA_US = 152.0;           // B29: kartta olculen V-I baslatma kaymasi (kayitta YOK)
+export const TAU_AKIM = Math.fround(0.002904);   // olcum3.h TAU_AKIM (float32)
+
+/** x mod m, [-m/2, m/2) araligina: isaretli sarma farki (m cift, x/m tamsayi). */
+function isaretli(x, m) {
+  let r = ((x % m) + m) % m;
+  if (r >= m / 2) r -= m;
+  return r;
+}
+
+/** ayrintiOrnekler, sira ile sirali (Python sorted(..., key=sira); sira tekil — ayrintiOrnekler
+ *  ayni siraya ikinci ornek vermez — yani kararli siralamayla ayni). Cogu zaman zaten sirali:
+ *  o zaman kopya kurulmaz. W1 inceleme: ~1.9 M ornekli oturumda bu liste BIR kez kurulur ve
+ *  gucDizi / skopYerleri'ne gecirilir (her biri yeniden kurunca 1 GB yigin asiliyordu). */
+function ayrintiSirali(o) {
+  const orn = ayrintiOrnekler(o);
+  for (let k = 1; k < orn.length; k++) {
+    if (orn[k][0] < orn[k - 1][0]) return orn.sort((x, y) => x[0] - y[0]);
+  }
+  return orn;
+}
+
+/** Olcum verisini sira ile gez: f(sira, zaman_us, acilis) (Python _olcum_zamanlari). Ayrintili
+ *  oturumda `orn` (ayrintiSirali) verilirse yeniden kurulmaz; ara uclu dizi kurulmaz. */
+function olcumZamanlariGez(o, orn, f) {
+  if (o.ayrinti.length && !o.noktalar.length) {
+    for (const r of orn || ayrintiSirali(o)) f(r[0], r[1], r[5]);
+    return;
+  }
+  const dv = o.devamlar.map((d) => d.nokta_sira).sort((x, y) => x - y);
+  for (const [s, p] of [...o.noktalar].sort((x, y) => x[0] - y[0])) {
+    let ac = 0;
+    for (const d of dv) if (d <= s) ac++;
+    f(s, p.kart_ms * 1000, ac);
+  }
+}
+
+/** Python bisect.bisect_left */
+function bisectSol(a, x) {
+  let lo = 0;
+  let hi = a.length;
+  while (lo < hi) {
+    const orta = Math.floor((lo + hi) / 2);
+    if (a[orta] < x) lo = orta + 1;
+    else hi = orta;
+  }
+  return lo;
+}
+
+/** Y7: META'li her yakalamanin olcumdeki YERI, ZAMAN sirasiyla: [{sira, no, acilis, t_ms,
+ *  sure_ms, once, sonra}]. sonra = istekten (t_ms) SONRAKI ilk olcum verisinin sirasi (ayrintili:
+ *  zamani >= (t_ms+1) x 1000 us; nokta: kart_ms > t_ms), once = ayni acilista ondan onceki;
+ *  yoksa null. Siralama (acilis, t_ms'nin acilisin ilk yakalamasina isaretli 32 bit farki, sira).
+ *  META'siz yakalama listede YOK. Ayrinti: kopru/kayit_bicim.py skop_yerleri. orn (yalniz JS):
+ *  ayrintili oturumda onceden kurulmus ayrintiOrnekler(o, true) (verilmezse burada kurulur). */
+export function skopYerleri(o, orn = null) {
+  if (!o.skoplar.size) return [];
+  const gruplar = new Map();
+  olcumZamanlariGez(o, orn, (s, us, ac) => {
+    let g = gruplar.get(ac);
+    if (!g) {
+      g = { us0: us, sira: [], rel: [] };
+      gruplar.set(ac, g);
+    }
+    g.sira.push(s);
+    g.rel.push(isaretli(us - g.us0, US_SARMA));
+  });
+  const ilkT = new Map();
+  const yerler = [];
+  for (const sira of [...o.skoplar.keys()].sort((x, y) => x - y)) {
+    const y = o.skoplar.get(sira);
+    const m = y.meta;
+    if (m === null) continue;
+    const ac = y.acilis;
+    if (!ilkT.has(ac)) ilkT.set(ac, m.t_ms);
+    const t0 = ilkT.get(ac);
+    let once = null;
+    let sonra = null;
+    const g = gruplar.get(ac);
+    if (g) {
+      const j = bisectSol(g.rel, isaretli((m.t_ms + 1) * 1000 - g.us0, US_SARMA));
+      sonra = j < g.sira.length ? g.sira[j] : null;
+      once = j > 0 ? g.sira[j - 1] : null;
+    }
+    yerler.push([[ac, isaretli(m.t_ms - t0, IKI32), sira],
+      { sira, no: y.no, acilis: ac, t_ms: m.t_ms, sure_ms: m.sure_ms, once, sonra }]);
+  }
+  yerler.sort((x, z) => x[0][0] - z[0][0] || x[0][1] - z[0][1] || x[0][2] - z[0][2]);
+  return yerler.map(([, d]) => d);
+}
+
+/** olcum3.h suzgec_ters_kazanc, float64 (Python _suzgec_ters_kazanc ile ayni sira). */
+function suzgecTersKazanc(f, tau) {
+  if (f <= 0 || tau <= 0) return 1.0;
+  const w = 2 * Math.PI * f * tau;
+  return Math.sqrt(1 + w * w);
+}
+
+/** dx dugumlerinden (us) gecen polinomun x'teki degeri (Python _lagrange ile ayni sira). */
+function lagrange(dx, y, x) {
+  let t = 0.0;
+  for (let j = 0; j < dx.length; j++) {
+    let pay = 1.0;
+    let payda = 1.0;
+    for (let m = 0; m < dx.length; m++) {
+      if (m !== j) {
+        pay *= x - dx[m];
+        payda *= dx[j] - dx[m];
+      }
+    }
+    t += pay / payda * y[j];
+  }
+  return t;
+}
+
+/** Ayrintili ornek basina HIZALI guc: [[sira, w], ...] ornek sirasiyla (capraz vektor bicimi).
+ *  Yalniz JS secenekleri (W1 inceleme, ~1.9 M ornekte cift dizisi kurmamak icin): orn =
+ *  onceden kurulmus ayrintiOrnekler(o, true); dizi: true -> Float64Array (k. eleman = orn'un k.
+ *  ornegi), [sira, w] ciftleri kurulmaz. */
+export function ayrintiGuc(o, { orn = null, dizi = false } = {}) {
+  if (orn === null) orn = ayrintiSirali(o);
+  const w = gucDizi(o, orn);
+  return dizi ? w : orn.map((r, k) => [r[0], w[k]]);
+}
+
+/** Hizali guc, Float64Array (k. eleman = orn'un k. ornegi). Kartin o.watt'iyla ayni tanim
+ *  (V akim anina Lagrange ile tasinir, x I, sebeke_hz > 0 ise RC ters kazanci), GERCEK ornek
+ *  zamanlariyla. Dugum/yedek kurallari: kopru/kayit_bicim.py ayrinti_guc. */
+function gucDizi(o, orn) {
+  const kal = o.basla ? o.basla.kal : null;
+  const n = orn.length;
+  const out = new Float64Array(n).fill(NaN);
+  if (!kal) return out;
+  const v = new Float64Array(n);
+  for (let k = 0; k < n; k++) {
+    const b = orn[k][4];
+    v[k] = b & KAO_V_HATA ? NaN : volt(orn[k][2], b & KAO_YUKSEK ? kal.yuksek : kal.normal, true);
+  }
+  const f = kal.sebeke_hz;
+  const olcek = [kal.normal, kal.yuksek].map((k) => (f > 0 ? suzgecTersKazanc(f, k.tau) * suzgecTersKazanc(f, TAU_AKIM) : 1.0));
+  const bagli = (a) => {
+    const d = isaretli(orn[a + 1][1] - orn[a][1], US_SARMA);
+    return orn[a][5] === orn[a + 1][5] && d > 0 && d <= AYRINTI_BOSLUK_US;
+  };
+  const gecerli = (a) => v[a] === v[a];
+  for (let k = 0; k < n; k++) {
+    const [, us, , ik, b] = orn[k];
+    if ((b & KAO_I_HATA) || !gecerli(k)) continue;     // out[k] NaN kalir
+    const yk = b & KAO_YUKSEK ? 1 : 0;
+    const kayma = VI_KAYMA_US + kal.faz_kal_us[yk];
+    let dugum;
+    if (k >= 1 && k + 2 < n && bagli(k - 1) && bagli(k) && bagli(k + 1)
+        && gecerli(k - 1) && gecerli(k + 1) && gecerli(k + 2)) {
+      dugum = [k - 1, k, k + 1, k + 2];
+    } else if (kayma >= 0 && k + 1 < n && bagli(k) && gecerli(k + 1)) {
+      dugum = [k, k + 1];
+    } else if (kayma < 0 && k >= 1 && bagli(k - 1) && gecerli(k - 1)) {
+      dugum = [k - 1, k];
+    } else {
+      dugum = [k];
+    }
+    const dx = dugum.map((j) => isaretli(orn[j][1] - us, US_SARMA));
+    let x = kayma;
+    if (x < dx[0]) x = dx[0];
+    if (x > dx[dx.length - 1]) x = dx[dx.length - 1];
+    out[k] = lagrange(dx, dugum.map((j) => v[j]), x) * amper(ik, kal, true) * olcek[yk];
+  }
+  return out;
+}
+
 // ── oturumlar ────────────────────────────────────────────────────────
 function yeniOturum(id) {
   return {
@@ -657,7 +835,7 @@ function yeniOturum(id) {
     etiketler: [],           // en son NOT(etiket), virgulden
     notlar: new Map(),       // NOT kaydinin sirasi -> {nokta_ms, metin}
     ayrinti: [],             // ayrintiCoz + sira
-    skoplar: new Map(),      // 0. parcanin (ya da yetim parcanin) SIRASI -> {no, meta, toplam, t_sira, tam, kodlar}
+    skoplar: new Map(),      // 0. parcanin (ya da yetim parcanin) SIRASI -> {no, meta, toplam, t_sira, acilis, tam, kodlar}
   };
 }
 
@@ -762,7 +940,9 @@ export function oturumlariKur(kayitlar) {
       let y = acik.get(k.oturum);
       if (p.parca === 0 || y === undefined || y.no !== p.no
           || y.toplam !== p.toplam || p.ilk !== y._sonraki) {
-        y = { no: p.no, meta: null, toplam: p.toplam, t_sira: k.sira, _parca: new Map(), _sonraki: 0 };
+        // W1/Y7: acilis = oturumda bu kayittan ONCE gelen DEVAM sayisi (yakalama yazildigi acilisa ait)
+        y = { no: p.no, meta: null, toplam: p.toplam, t_sira: k.sira, acilis: o.devamlar.length,
+          _parca: new Map(), _sonraki: 0 };
         o.skoplar.set(k.sira, y);
         acik.set(k.oturum, y);
       }

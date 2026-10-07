@@ -78,6 +78,8 @@
 #include "pil_test.h"
 #include "web_satir.h"  // B22.4 — satir bolucu (AVR'de sinaniyor)
 #include "web_akis.h"   // B22.4 — Serial aynasi
+#include "web_etag.h"   // W6 — arayuz dosyalarinin ETag'i + 304 karari (AVR'de sinaniyor)
+#include <detail/mimetable.h>   // W6 — cekirdegin MIME tablosu (serveStatic ile AYNI tur)
 /* 🔴 B34 — ESP32 ADC'si DOGRUSAL DEGIL ve bu OLCULDU (2026-09-12).
    PWM+RC ile uretilen bilinen DC'ye karsi ham kod supuruldu: en kucuk
    kareler dogrusundan sapma %5..%85 araliginda ±76 kod (±61 mV), %85
@@ -94,6 +96,9 @@
 #include "kayit_esp.h"  // B72 — kayit motorunun ESP32 yapistiricisi (Serial KULLANMAZ)
 #include "guvenlik_esp.h"  // 1D — eslestirme + imza yapistiricisi (Serial KULLANMAZ)
 #include "bildirim_esp.h"  // 1E — MQTT bildirimleri (Serial KULLANMAZ)
+#include <mbedtls/platform.h>    // E6F — mbedtls_platform_set_calloc_free
+#include "esp_memory_utils.h"    // E6F — esp_ptr_external_ram (acilis satiri)
+#include "ag_komut.h"     // coklu ag (2026-10-06) — N komutlarinin cekirdek 1 yazicilari
 
 // 🔴 B22.4 — `Serial` AYNASI. BUTUN #include'lardan SONRA gelmeli.
 //
@@ -265,6 +270,9 @@ static WebServer sunucu(80);
 // B22.5 — arayuz goruntusu LittleFS'te mi? Acilista bir kez ogreniliyor.
 // `kok_sayfa` bundan SONRA tanimli oldugu icin bildirim burada olmali.
 static bool fs_hazir = false;
+// W6 — goruntudeki `etag.txt` (web_etag.h bicimi), acilista bir kez PSRAM'e
+// okunuyor. nullptr = kunye yok (eski goruntu): ETag'siz, her istek 200.
+static char *etag_kunye = nullptr;
 
 // SSE satir sayaci. `skop.bin` basligi da kullaniyor (dokumun akista
 // nereye denk geldigini soyluyor), o yuzden bildirimi burada.
@@ -2568,6 +2576,93 @@ static bool guv_kapi(uint8_t sinif) {
   return false;
 }
 
+// ───────────────────────────────────────── W6: arayuz dosyalari + ETag/304
+//
+// Panel dosyalari `no-cache` (guncelleme HEMEN gorulsun) — ama ETag yokken
+// tarayicinin "degisti mi?" diye soracagi bir sey yoktu: her acilis ~90 KB
+// gzip'i BASTAN indiriyordu (DEVIR 5.12.106). Artik her dosya kunyedeki
+// ozetle ETag tasiyor, eslesen `If-None-Match` govdesiz 304 aliyor.
+// `serveStatic` yerine bu isleyici: cekirdegin ETag yolu (`enableETag`)
+// dosyanin TAMAMINI okuyor ve bos ETag'te basliksiz istege 304 veriyor
+// (gerekce web_etag.h basinda). Kapilar DEGISMEDI: statik dosyalar eskiden
+// de Basic-Auth/Host/jeton denetimsizdi (sir tasimiyorlar).
+
+// Kunyeyi bir kez bellege al. Yoksa (eski goruntu) ya da bozuksa sessizce
+// ETag'siz devam: kotu durum "her acilis tam indirme", yani W6 oncesi.
+static void etag_kunye_yukle() {
+  if (!LittleFS.exists("/etag.txt")) return;
+  File f = LittleFS.open("/etag.txt", "r");
+  if (!f) return;
+  const size_t n = f.size();
+  if (n == 0 || n > 8192) return;          // ~45 satir x 30 B; 8 KB ustu = bozuk
+  /* PSRAM'de: statik DRAM payi ~80 B (tasarim3_sabit._ESP_DRAM_SON_OLCUM) */
+  char *b = (char *)heap_caps_malloc(n + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!b) b = (char *)malloc(n + 1);
+  if (!b) return;
+  if (f.read((uint8_t *)b, n) != n) { free(b); return; }
+  b[n] = 0;
+  etag_kunye = b;
+}
+
+// Cekirdegin `StaticRequestHandler::getContentType`'i ile AYNI kural (o
+// RequestHandlersImpl.h'de, satir ici olmayan tanimlarla — eklenemez).
+static String arayuz_tur(const String &yol) {
+  using namespace mime;
+  for (int i = 0; i < (int)maxType - 1; i++)       // sonuncu (`none`) varsayilan
+    if (yol.endsWith(mimeTable[i].endsWith)) return String(mimeTable[i].mimeType);
+  return String(mimeTable[maxType - 1].mimeType);
+}
+
+// Acik dosyayi gonderir; ETag biliniyorsa onu da, eslesen If-None-Match'e
+// 304. `istek_yolu` tarayicinin istedigi yol (`/app.js`, `.gz` DEGIL).
+static void arayuz_gonder(File &f, const char *istek_yolu, const String &tur,
+                          const char *onbellek) {
+  char etag[WEB_ETAG_BOY];
+  const bool var = etag_kunye && etag_bul(etag_kunye, istek_yolu, etag);
+  sunucu.sendHeader(F("Cache-Control"), onbellek);
+  if (var) {
+    sunucu.sendHeader(F("ETag"), etag);
+    if (etag_eslesir(sunucu.header("If-None-Match").c_str(), etag)) {
+      // 304: GOVDE YOK. Content-Length 200'un gonderecegiyle AYNI olmali ya
+      // da hic olmamali (RFC 9110 8.6); cekirdek her yanita koydugu icin
+      // dosya boyu veriliyor — `0` yazmak kuralin ihlali olurdu.
+      sunucu.setContentLength(f.size());
+      sunucu.send(304, tur, String());
+      sunucu.setContentLength(CONTENT_LENGTH_NOT_SET);
+      return;
+    }
+  }
+  sunucu.streamFile(f, tur);
+}
+
+// `serveStatic`in yerine: GET, onek altindaki dosya, `<yol>.gz`e dusus
+// (Content-Encoding: gzip'i `streamFile` koyuyor), MIME ASIL yoldan.
+class ArayuzIsleyici : public RequestHandler {
+ public:
+  ArayuzIsleyici(const char *onek, const char *onbellek) : onek_(onek), onbellek_(onbellek) {}
+  bool canHandle(HTTPMethod m, const String &uri) override {
+    // Dizin istegi (`/x/`) bizim degil: `/` kok_sayfa'da, gerisi 404 (eskisi gibi).
+    return m == HTTP_GET && uri.startsWith(onek_) && !uri.endsWith("/");
+  }
+  bool canHandle(WebServer &, HTTPMethod m, const String &uri) override {
+    return canHandle(m, uri);
+  }
+  bool handle(WebServer &, HTTPMethod m, const String &uri) override {
+    if (!canHandle(m, uri)) return false;
+    String yol = uri;
+    if (!yol.endsWith(".gz") && !LittleFS.exists(yol) && LittleFS.exists(yol + ".gz")) yol += ".gz";
+    File f = LittleFS.open(yol, "r");
+    if (!f || f.isDirectory()) return false;
+    arayuz_gonder(f, uri.c_str(), arayuz_tur(uri), onbellek_);
+    f.close();
+    return true;
+  }
+
+ private:
+  const char *onek_;
+  const char *onbellek_;
+};
+
 void kok_sayfa() {
   if (!guv_kapi(GUV_ACIK)) return;   // 1D
   // 🔴 `index.htm` TUZAGI: `serveStatic` dizin istegini
@@ -2580,9 +2675,9 @@ void kok_sayfa() {
     if (f && f.size()) {
       // `streamFile` .gz uzantisini gorup Content-Encoding'i KENDISI
       // koyuyor. ⚠ index.html `immutable` OLMAMALI: yoksa arayuz
-      // guncellemesi tarayiciya HIC ulasmaz.
-      sunucu.sendHeader(F("Cache-Control"), F("no-cache"));
-      sunucu.streamFile(f, "text/html");
+      // guncellemesi tarayiciya HIC ulasmaz. W6: `no-cache` + ETag — ayni
+      // index ikinci acilista govdesiz 304, degisen index 200.
+      arayuz_gonder(f, "/index.html", String(F("text/html")), "no-cache");
       f.close();
       return;
     }
@@ -2855,7 +2950,12 @@ static void akis_yolla(const char *satir) {
   for (int8_t i = 0; i < AKIS_AZAMI; i++) {
     if (!akis[i]) continue;
     if (!akis[i].connected()) { akis[i].stop(); continue; }
-    akis[i].write((const uint8_t *)olay, (size_t)n);
+    /* E6F (F3): KISA yazma = olay yarim gitti (akis bundan sonra bozuk) ve
+       NetworkClient ya ~10 s ilerlemesiz bekledi ya da lwIP bellek bulamadi
+       (EAGAIN). Istemci DUSURULUR: soketin dahili gonderme tamponu birakilir,
+       EventSource `retry: 3000` ile yeniden baglanir (id: yer imiyle). */
+    const size_t y = akis[i].write((const uint8_t *)olay, (size_t)n);
+    if (y != (size_t)n) { akis[i].stop(); continue; }
     giden = true;
   }
   if (!giden) akis_dusen++;
@@ -2917,7 +3017,10 @@ static void akis_kalp() {
   if (ms - akis_son_kalp < 15000u) return;
   akis_son_kalp = ms;
   for (int8_t i = 0; i < AKIS_AZAMI; i++) {
-    if (akis[i] && akis[i].connected()) akis[i].print(F(": kalp\n\n"));
+    if (!akis[i] || !akis[i].connected()) continue;
+    static const char KALP[] = ": kalp\n\n";
+    /* E6F (F3): kisa yazma -> istemci dusurulur (akis_yolla ile ayni kural) */
+    if (akis[i].write((const uint8_t *)KALP, sizeof(KALP) - 1u) != sizeof(KALP) - 1u) akis[i].stop();
   }
 }
 
@@ -2986,7 +3089,11 @@ static bool host_gecerli() {
   if (k >= 0) h = h.substring(0, k);
   return h == String(ag_durum.ip)
       || h.equalsIgnoreCase(F(AG_MDNS ".local"))
-      || h.equalsIgnoreCase(F(AG_MDNS));
+      || h.equalsIgnoreCase(F(AG_MDNS))
+      /* AGD: AP acikken (AP+STA: ev agi denenirken ya da STA'ya gecis payinda) AP'nin
+         kendi adresi de: kip STA olunca ag_durum.ip STA'nin, AP'deki telefon ise hala
+         192.168.4.1'e soruyor. Saldirganin alan adi bu iki adresten biri OLAMAZ. */
+      || ((WiFi.getMode() & WIFI_MODE_AP) && h == WiFi.softAPIP().toString());
 }
 
 // Parola KURULMAMISSA yetkilendirme kapali — ama acilista bu yuksek
@@ -3076,7 +3183,8 @@ void eslestir_baslat_sayfa() {
   if (!guv_kapi(GUV_ACIK)) return;
   if (!guv_hazir) { sunucu.send(503, "text/plain", "guvenlik hazir degil (NVS)"); return; }
   if (sunucu.header("X-Olcum") != "1") { sunucu.send(400, "text/plain", "X-Olcum basligi gerekli"); return; }
-  uint8_t nc[16], nk[16], eno = 0;
+  uint8_t nc[16], nk[16];
+  uint32_t eno = 0;   /* W2 (D5 #14): rastgele 31 bit */
   if (guv__hexten(sunucu.arg("nc").c_str(), nc, 16)) {
     sunucu.send(400, "text/plain", "nc: 32 hex karakter");
     return;
@@ -3088,7 +3196,7 @@ void eslestir_baslat_sayfa() {
   if (r) { guv__esles_hata(r); return; }
   char t[96], h[33];
   guv__hex(nk, 16, h);
-  snprintf(t, sizeof(t), "{\"eno\":%u,\"nk\":\"%s\"}", (unsigned)eno, h);
+  snprintf(t, sizeof(t), "{\"eno\":%lu,\"nk\":\"%s\"}", (unsigned long)eno, h);
   sunucu.send(200, "application/json", t);
 }
 
@@ -3102,7 +3210,10 @@ void eslestir_kanit_sayfa() {
     sunucu.send(400, "text/plain", "kanit: 64 hex karakter");
     return;
   }
-  const uint8_t eno = (uint8_t)sunucu.arg("eno").toInt();
+  /* W2 (D5 #14): TAM cozum; cozulemeyen numara 0 kalir = hicbir bekleyene uymaz (YOK) —
+     eskiden (uint8_t)toInt() 257'yi 1'e kesiyordu */
+  uint32_t eno = 0;
+  (void)guv_sayi_coz(sunucu.arg("eno").c_str(), 1UL, GUV_ENO_AZAMI, &eno);
   guv_kilit();
   const int r = guv_esles_kanit(&guv, eno, kanit, millis(), kayit__unix(), &n, kk);
   guv_birak();
@@ -3159,8 +3270,11 @@ void saat_sayfa() {
   if (!guv_kapi(GUV_CIHAZ)) return;
   if (sunucu.header("X-Olcum") != "1") { sunucu.send(400, "text/plain", "X-Olcum basligi gerekli"); return; }
   if (guv_saat_ntp) { sunucu.send(409, "text/plain", "kartin NTP saati var — cihaz saati kullanilmaz"); return; }
-  const uint32_t u = strtoul(sunucu.arg("unix").c_str(), nullptr, 10);
-  if (u < 1700000000UL) { sunucu.send(400, "text/plain", "unix >= 1700000000 olmali"); return; }
+  uint32_t u = 0;   /* W2 (D5 #10): TAM cozum + ust sinir (strtoul "-1"i 2106 yapiyordu) */
+  if (guv_saat_coz(sunucu.arg("unix").c_str(), &u)) {
+    sunucu.send(400, "text/plain", "unix: yalniz rakam, 1700000000 <= unix < 4102444800");
+    return;
+  }
   struct timeval tv;
   tv.tv_sec = (time_t)u;
   tv.tv_usec = 0;
@@ -3193,6 +3307,122 @@ void bildirim_bilgi_sayfa() {
   memset(z, 0, sizeof(z));
 }
 
+// E6 (2026-10-04): DAHILI YIGIN TANISI. Kartta `QY dahili_en_az` 2.9 sa'te 2504 B'a
+// dustu; aday sebepler (Wi-Fi dinamik tamponlari, mbedTLS, lwIP kuyruklari) ayni
+// sayida gorunur. Ayirici veri: basarisiz ayirmanin BOYUTU + caps'i + gorevi.
+// ~1.6 KB INTERNAL|DMA (0x80C) = Wi-Fi tamponu; ~16.7 KB INTERNAL (0x804) = mbedTLS.
+// Geri cagirma HER cekirdekten / gorevden (ISR'den bile) gelebilir: IRAM'de, BASMAZ
+// (Serial aynasi kilit alir, printf yigin ister), yalniz sayar ve halkaya yazar.
+// Gorev adi CAGRI ANINDA kopyalanir (sonradan TaskHandle cozmek silinmis TCB okuyabilir).
+#define AYIRMA_HALKA 4u   // 8 -> 4: statik DRAM %25 butce siniri (B6), sayac toplami ayrica tutulur
+typedef struct {
+  uint32_t boyut, caps, ms;
+  uint8_t cekirdek;
+  char gorev[8];   // sonda NUL olmayabilir: "%.8s"
+} AyirmaHata;
+static AyirmaHata ayirma_halka[AYIRMA_HALKA];
+static volatile uint32_t ayirma_hata_adet = 0;
+static portMUX_TYPE ayirma_kilit = portMUX_INITIALIZER_UNLOCKED;
+
+static void IRAM_ATTR ayirma_hata_kaydet(size_t boyut, uint32_t caps, const char *islev) {
+  (void)islev;
+  const char *ad = pcTaskGetName(NULL);
+  const uint32_t ms = (uint32_t)(esp_timer_get_time() / 1000);
+  portENTER_CRITICAL_SAFE(&ayirma_kilit);
+  AyirmaHata *h = &ayirma_halka[ayirma_hata_adet % AYIRMA_HALKA];
+  h->boyut = (uint32_t)boyut;
+  h->caps = caps;
+  h->ms = ms;
+  h->cekirdek = (uint8_t)xPortGetCoreID();
+  for (unsigned i = 0; i < sizeof(h->gorev); i++) {
+    const char c = ad ? ad[i] : 0;
+    h->gorev[i] = c;
+    if (!c) break;
+  }
+  ayirma_hata_adet = ayirma_hata_adet + 1u;
+  portEXIT_CRITICAL_SAFE(&ayirma_kilit);
+}
+
+// QH: bolge bolge dahili yigin (IDF printf'i — YALNIZ ham UART, /akis'e gitmez) +
+// basarisiz ayirma halkasi (QF satirlari, eskiden yeniye). Tani komutu: Serial.flush
+// tamponu bosaltirken olcum dongusu ~0.1 s durabilir.
+static void ayirma_dokum_bas() {
+  AyirmaHata k[AYIRMA_HALKA];
+  uint32_t adet;
+  portENTER_CRITICAL(&ayirma_kilit);
+  adet = ayirma_hata_adet;
+  memcpy(k, ayirma_halka, sizeof(k));
+  portEXIT_CRITICAL(&ayirma_kilit);
+  char t[120];
+  snprintf(t, sizeof(t), "QH dahili_bos=%lu dahili_en_az=%lu dahili_en_buyuk=%lu ayirma_hata=%lu",
+           (unsigned long)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+           (unsigned long)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+           (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+           (unsigned long)adet);
+  Serial.println(t);
+  Serial.flush();
+  heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);
+  fflush(stdout);
+  const uint32_t n = adet < AYIRMA_HALKA ? adet : AYIRMA_HALKA;
+  for (uint32_t i = 0; i < n; i++) {
+    const uint32_t no = adet - n + i;   /* 0'dan sayilan hata numarasi */
+    const AyirmaHata *h = &k[no % AYIRMA_HALKA];
+    snprintf(t, sizeof(t), "QF no=%lu boyut=%lu caps=0x%04lX ms=%lu cekirdek=%u gorev=%.8s",
+             (unsigned long)no, (unsigned long)h->boyut, (unsigned long)h->caps,
+             (unsigned long)h->ms, (unsigned)h->cekirdek, h->gorev);
+    Serial.println(t);
+  }
+  if (!n) Serial.println(F("QF yok (acilistan beri basarisiz ayirma yok)"));
+}
+
+// ═══════════════════════ E6F (F1) — mbedTLS BELLEGI ONCE PSRAM'E ═════
+// Cekirdek sdkconfig'i MBEDTLS_INTERNAL_MEM_ALLOC=y: mbedTLS'in HER ayirmasi
+// heap_caps_calloc(INTERNAL|8BIT) (esp_mem.c; libmbedcrypto'da sokulerek
+// dogrulandi, DEVIR 5.12.106). MQTT TLS oturumu 16 KB giris + 16 KB cikis kaydi
+// + baglamlar ~38-40 KB dahili yigini SUREKLI, her el sikisma +10-20 KB tutuyordu.
+// esp_config.h MBEDTLS_PLATFORM_MEMORY'yi STD_CALLOC ile (makro bicimi DEGIL)
+// tanimliyor -> mbedtls_platform_set_calloc_free calisma aninda gecerli; tek
+// mbedTLS kopyasi (Wi-Fi WPA supplicant, guvenlik_esp HMAC/PBKDF2, esp-tls) bunu
+// kullanir. Once PSRAM, dolu/yoksa dahili: PSRAM yoksa (psramFound() false)
+// eski davranis. IDF'nin resmi CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC secenegiyle ayni
+// yerlesim. BEDELI (E6F inceleme, sokumle dogrulandi): SHA DMA'si PSRAM girisini
+// dogrudan okur (yalniz onbellek senkronu), ama AES DMA'si (GCM/CBC — TLS 1.2,
+// kayit yerinde sifrelenir) PSRAM'deki HIZASIZ ciktiyi (in_msg/out_msg tampondan
+// 21 B otede; onbellek satiri 32 B) dogrudan yazamaz: esp_aes_process_dma her
+// islemde heap_caps_aligned_alloc(1, min(len, 1600), MALLOC_CAP_DMA) ile DAHILI
+// ara tampon ayirip sonra kopyalar. PSRAM yigininda DMA yetenegi yok -> ara tampon
+// yalniz dahili DMA'li bolgelerden (asil DRAM, sonra 0x3fcf0000; RTC FAST degil).
+// Ayrilamazsa islem -1 (cikis sifirlanir, MQTT baglantisi duser, kart yeniden
+// baglanir) ve QF satiri `boyut<=1600 caps=0x0008 gorev=bld` olur. Net yine kazanc:
+// ~33 KB KALICI kayit tamponu dahiliden cikar, yerine kayit basina <= 1.6 KB GECICI
+// gelir (gonderimde lwIP pbuf'u da zaten dahili ve ayni boyda).
+// Basarisiz ayirma geri cagirmasi yalniz IKI bellek de dolunca tetiklenir.
+// Birakma heap_caps_free: isaretcinin hangi yigindan geldigine kendisi bakar,
+// yani degisimden ONCE (eski ayiriciyla) ayrilmis blok da guvenle birakilir —
+// eski varsayilan birakici zaten heap_caps_free idi.
+// E6K (c): heap_caps_calloc_prefer DEGIL. O, basarisiz ayirma geri cagirmasina
+// n*size yerine yalniz `size` veriyor (libheap sokumu; heap_caps_calloc n*size,
+// heap_caps_malloc_prefer toplam boyu verir) -> QF `boyut` mbedTLS hatalarinda n kat
+// kucuk gorunurdu. Toplam tasma denetimiyle hesaplanir (tasarsa calloc gibi NULL),
+// malloc_prefer'e verilir (QF artik GERCEK istek), sonra sifirlanir: mbedTLS'in
+// sozlesmesi calloc'tur (mbedtls_config.h STD_CALLOC: "must initialize the allocated
+// buffer memory to zeroes"; calloc_base da ayni memset'i yapiyordu). Toplam 0 ise
+// malloc_prefer geri cagirmayi hic cagirmaz (sokum: boyut 0 dali); sozlesme o
+// durumda NULL'a da izin veriyor.
+static void *tls_bellek_ayir(size_t n, size_t boyut) {
+  if (boyut && n > SIZE_MAX / boyut) return NULL;
+  const size_t toplam = n * boyut;
+  void *p = heap_caps_malloc_prefer(toplam, 2,
+                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+                                    MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (p) memset(p, 0, toplam);
+  return p;
+}
+
+static void tls_bellek_birak(void *p) {
+  heap_caps_free(p);
+}
+
 // Seri `Q` komutlari — 1E MQTT bildirimleri, YALNIZ USB (cekirdek 1). /komut ve
 // kopru.py 'Q'yu reddeder: araci parolalari aga cikmaz. Hicbir satir SIR basmaz
 // (Serial aynasi her satiri /akis SSE'sine tasir); parola komutu geri yansitilmaz.
@@ -3200,6 +3430,27 @@ static void bld_seri_komut(const char *s) {
   char t[360];   /* QA satiri: uri 127 + iki kullanici 63 + sabitler */
   const char *alan = nullptr, *ad = nullptr;
   uint8_t azami = 0;
+  /* W2 (E3): Qe<binde> kullanici esigi (bos = varsayilan). Alt komut `s[1] == 'e'` ile,
+     ic switch DEGIL (komut harfi denetimi butun `case` satirlarini topluyor). */
+  if (s[1] == 'e') {
+    uint16_t e = 0;
+    if (bld_esik_coz(s + 2, &e)) {
+      snprintf(t, sizeof(t), "! Q: Qe<%u..%u> esitlenmemis binde esigi (bos = varsayilan %u)",
+               (unsigned)BLD_ESIK_EN_AZ, (unsigned)BLD_ESIK_EN_COK, (unsigned)BLD_ESIK_VARSAYILAN);
+      Serial.println(t);
+      return;
+    }
+    if (bildirim_esik_yaz(e)) { Serial.println(F("! Q: NVS'e yazilamadi")); return; }
+    snprintf(t, sizeof(t), "* Q: esik %u binde%s (baglanti kesilmez)",
+             (unsigned)(e ? e : BLD_ESIK_VARSAYILAN), e ? "" : " (varsayilan)");
+    Serial.println(t);
+    return;
+  }
+  /* E6: QH yigin dokumu (Qe gibi `s[1] ==` ile; ic switch'e yeni case harfi eklenmez) */
+  if (s[1] == 'H') {
+    ayirma_dokum_bas();
+    return;
+  }
   switch (s[1]) {
     case '?': {
       BildirimOzet z;
@@ -3207,21 +3458,32 @@ static void bld_seri_komut(const char *s) {
       const BildirimDurum d = bildirim_durum_al();
       static const char *const adlar[] = {"kapali", "ayar eksik", "ag yok (STA degil)",
                                           "baglaniyor", "bagli", "bekliyor"};
+      /* E8: canlilik alanlari SONDA (ayristiricilar ad=deger okur): tur sayaci, gorevin su
+         anki adimi ve o adimdaki yasi (ms), son PINGREQ / PINGRESP'ten beri ms (-1 = hic) */
+      static const char *const adimlar[] = {"bekle", "baglan", "yaz", "select", "oku", "kapat"};
+      const uint32_t simdi = millis();
       snprintf(t, sizeof(t),
-               "Q acik=%u durum=%u (%s) hata=%ld baglanti=%lu yayin=%lu olay=%lu kuyruk=%lu dusen=%lu el_sikisma_ms=%lu",
+               "Q acik=%u durum=%u (%s) hata=%ld baglanti=%lu yayin=%lu olay=%lu kuyruk=%lu dusen=%lu el_sikisma_ms=%lu esik=%u"
+               " tur=%lu adim=%s adim_yas=%lu ping_yas=%ld pong_yas=%ld",
                (unsigned)z.acik, (unsigned)d.durum, d.durum < 6u ? adlar[d.durum] : "?",
                (long)d.son_hata, (unsigned long)d.baglanti, (unsigned long)d.yayin,
                (unsigned long)d.olay, (unsigned long)d.kuyruk, (unsigned long)d.dusen,
-               (unsigned long)d.el_sikisma_ms);
+               (unsigned long)d.el_sikisma_ms, (unsigned)bld_esik_etkin,
+               (unsigned long)d.tur, d.adim < 6u ? adimlar[d.adim] : "?",
+               (unsigned long)(simdi - d.adim_ms),
+               d.ping_ms ? (long)(simdi - d.ping_ms) : -1L, d.pong_ms ? (long)(simdi - d.pong_ms) : -1L);
       Serial.println(t);
       snprintf(t, sizeof(t), "QA uri=%s kart=%s kart_parola=%s cihaz=%s cihaz_parola=%s onek=%s anahtar=%s",
                z.uri[0] ? z.uri : "-", z.kk[0] ? z.kk : "-", z.kp_var ? "var" : "yok",
                z.ck[0] ? z.ck : "-", z.cp_var ? "var" : "yok", z.onek_var ? z.onek8 : "-",
                z.anahtar_var ? "var" : "yok");
       Serial.println(t);
-      snprintf(t, sizeof(t), "QY dahili_bos=%lu dahili_en_az=%lu",
+      /* E6: yeni alanlar SONDA (ayristiricilar ad=deger okur, sira korunur) */
+      snprintf(t, sizeof(t), "QY dahili_bos=%lu dahili_en_az=%lu dahili_en_buyuk=%lu ayirma_hata=%lu",
                (unsigned long)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-               (unsigned long)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+               (unsigned long)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+               (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+               (unsigned long)ayirma_hata_adet);
       Serial.println(t);
       if (ag_durum.kip != AG_STA)
         Serial.println(F("* Q: MQTT yalniz ev aginda (STA) calisir — AP kipinde yok (K8)"));
@@ -3277,7 +3539,7 @@ static void bld_seri_komut(const char *s) {
       return;
     }
     default:
-      Serial.println(F("! Q: Q? durum · Qu<mqtts://ad:port> · Qk/Qp kart kullanici/parola · Qc/Qd cihaz kullanici/parola · Q1/Q0 · Qt deneme · Qv sinama · QR! yeni anahtar"));
+      Serial.println(F("! Q: Q? durum · Qu<mqtts://ad:port> · Qk/Qp kart kullanici/parola · Qc/Qd cihaz kullanici/parola · Q1/Q0 · Qt deneme · Qv sinama · QR! yeni anahtar · Qe<binde> esik"));
       return;
   }
   const int r = bildirim_ayar_metin(alan, s + 2, azami);
@@ -3329,8 +3591,9 @@ static void guv_seri_komut(const char *s) {
       break;
     }
     case 'x': {
-      const uint8_t n = (s[2] == '!') ? 0u : (uint8_t)atoi(s + 2);
-      if (s[2] != '!' && (n < 1 || n > GUV_CIHAZ_AZAMI)) {
+      /* W2 (D5 #11): once TAM coz, sonra sil — (uint8_t)atoi Ex257/Ex-255'i cihaz 1 yapiyordu */
+      uint8_t n = 0;
+      if (guv_cihaz_no_coz(s + 2, &n)) {
         Serial.println(F("! E: Ex<1..8> ya da Ex! (hepsi)"));
         break;
       }
@@ -3515,10 +3778,15 @@ static void kayit_basla_doldur(KayitBasla *b, uint32_t hiz) {
 }
 
 /* G <durum> <oturum> <nokta> <sonraki> <onay> <doluluk%o> <onaysiz%o> <dusen>
-     <yaz_azami_us> <sil_azami_us> <sil_adet> <tarama_ms> <son_hata>
-   Kayit surerken saniyede bir, durum degisince HEMEN; `G?` ile istenince. */
+     <yaz_azami_us> <sil_azami_us> <sil_adet> <tarama_ms> <son_hata> <son_not> <mesaj_dusen>
+   Kayit surerken saniyede bir, durum degisince HEMEN; `G?` ile istenince.
+   W2: son iki alan SONA eklendi (A3-W2; eski firmware 13 alan basar, ayristiricilar ikisini
+   de kabul eder): son_not = son Ga/Ge/Gn/Gx'in NOT kaydi sirasi (> 0; Gx bu sirayi
+   hedefler), < 0 KG_* hata, 0 yok — degisince HEMEN basilir (nesil DEGIL: nesil
+   noktaciyi yeniden baslatir); mesaj_dusen = istek kuyrugunda dusen (1C-1 M9). */
 static void kayit_durum_bas(bool zorla) {
   static uint32_t son_ms = 0, son_nesil = 0xFFFFFFFFu;
+  static int32_t son_not = 0;
   if (!kayit_bolum) {
     if (zorla) Serial.println(F("! G: kayit bolumu yok (partitions.csv ile tam yukleme)"));
     return;
@@ -3526,17 +3794,19 @@ static void kayit_durum_bas(bool zorla) {
   uint32_t ms = millis();
   KayitDurum d = kayit_durum_al();
   bool periyot = d.durum == KDR_KAYIT && (ms - son_ms) >= 1000u;
-  if (!zorla && d.nesil == son_nesil && !periyot) return;
+  if (!zorla && d.nesil == son_nesil && !periyot && d.son_not == son_not) return;
   son_ms = ms;
   son_nesil = d.nesil;
-  char t[176];
-  snprintf(t, sizeof(t), "G %u %lu %lu %lu %lu %u %u %lu %lu %lu %lu %lu %ld",
+  son_not = d.son_not;
+  char t[200];
+  snprintf(t, sizeof(t), "G %u %lu %lu %lu %lu %u %u %lu %lu %lu %lu %lu %ld %ld %lu",
            (unsigned)d.durum, (unsigned long)d.oturum, (unsigned long)d.nokta_sira,
            (unsigned long)d.sonraki_sira, (unsigned long)d.onay,
            (unsigned)d.doluluk_binde, (unsigned)d.onaysiz_binde,
            (unsigned long)d.dusen, (unsigned long)d.yaz_azami_us,
            (unsigned long)d.sil_azami_us, (unsigned long)d.sil_adet,
-           (unsigned long)d.tarama_ms, (long)d.son_hata);
+           (unsigned long)d.tarama_ms, (long)d.son_hata, (long)d.son_not,
+           (unsigned long)kayit_mesaj_dusen);
   Serial.println(t);
 }
 
@@ -4611,7 +4881,7 @@ void yardim() {
   Serial.println(F("  Gx<oturum>:<sira>[@<ms>] <metin> notu degistir (metin bos: sil) · komut <= 175 karakter"));
   Serial.println(F("  k? kalibrasyon gecmisi  kl liste  kv<no> degerler  kk<t><not> taslagi kaydet"));
   Serial.println(F("  kn<no> <not>  kt<no><t>   (t: d donanim degisti, i ince ayar, - belirtilmemis)"));
-  Serial.println(F("  Q? bildirim (MQTT) durumu  Qu<mqtts://ad:port>  Qk/Qp kart  Qc/Qd cihaz  Q1/Q0  Qt  Qv  (YALNIZ USB)"));
+  Serial.println(F("  Q? bildirim (MQTT) durumu  Qu<mqtts://ad:port>  Qk/Qp kart  Qc/Qd cihaz  Q1/Q0  Qt  Qv  Qe<binde> esik  QH yigin  (YALNIZ USB)"));
 }
 
 void komut_calistir(const char *s) {
@@ -5160,6 +5430,10 @@ void komut_calistir(const char *s) {
      *   Na<ssid>    ev agi adi        Np<parola>  ev agi parolasi
      *   NA<parola>  AP parolasi (>=8) Ns<parola>  web parolasi
      *   N1 / N0     agi ac / kapat
+     * COKLU AG (2026-10-06, tasarim/2026-10-06-coklu-ag.md):
+     *   Nl  kayitli aglar (NL satirlari)   Nt  tara (NT satirlari, ag gorevi)
+     *   Na<ad> listeye ekle/sec (8)        Np<parola> son Na'nin parolasi
+     *   Nx<i> sil   No<i> oncelik ac/kapa   Ng<i> bu aga gec (20 s'de olmazsa geri)
      *
      * ⚠ Hepsi NVS'te AYRI ad alaninda ("olcumag"). `Ayar3` BUYUMUYOR,
      *   yani AYAR3_IMZA bumplanmiyor, yani KALIBRASYON SIFIRLANMIYOR.
@@ -5177,8 +5451,13 @@ void komut_calistir(const char *s) {
         Serial.print(F("  IP="));        Serial.print(ag_durum.ip);
         Serial.print(F("  mDNS="));
         Serial.println(ag_durum.mdns ? F(AG_MDNS ".local") : F("yok"));
-        Serial.print(F("* ev agi: "));
-        Serial.print(ag_nvs.getString("wifi_ad", "(kurulmadi)"));
+        Serial.print(F("* kayitli aglar: "));
+        {
+          AglKayit k[AGL_AZAMI];
+          ag__liste_oku(k);
+          Serial.print(agl_adet(k)); Serial.print(F("/")); Serial.print(AGL_AZAMI);
+          Serial.print(F(" (Nl ile listele)"));
+        }
         /* 1D + D0: AP parolasi YALNIZ ham UART'a — Serial aynasi her satiri /akis
            SSE'sine tasiyor, parola aga cikiyordu (spec O5, B72.D0) */
         Serial.println();
@@ -5188,10 +5467,65 @@ void komut_calistir(const char *s) {
                        ? F("KURULU") : F("YOK — komut ucu parolasiz"));
         break;
       }
-      if (alt == 'a') { ag_nvs.putString("wifi_ad", deg);
-                        Serial.print(F("* ev agi adi: ")); Serial.println(deg); }
-      else if (alt == 'p') { ag_nvs.putString("wifi_sifre", deg);
-                        Serial.println(F("* ev agi parolasi kaydedildi")); }
+      if (alt == 'l') { ag_liste_bas(); break; }
+      if (alt == 't') { ag_istek_tara = 1; Serial.println(F("* ag: taraniyor (~3 s)")); break; }
+      if (alt == 'a') {                                   /* CA12: ekle / guncelle / sec */
+        AglKayit k[AGL_AZAMI];
+        ag__liste_oku(k);
+        if (!agl_ad_gecerli(deg)) { Serial.println(F("! Na: ag adi 1..32 karakter")); break; }
+        const int8_t yeni = agl_bul(k, deg) < 0;
+        const int8_t i = agl_ekle(k, deg);
+        if (i < 0) { Serial.println(F("! Na: liste DOLU (8) — once Nx<no> ile birini silin")); break; }
+        char h[4];
+        if (yeni) {                                       /* yeni kayit: parola bos (acik ag), oncelik 0 */
+          ag__anahtar(h, (uint8_t)i, 'p'); ag_nvs.putString(h, "");
+          ag__anahtar(h, (uint8_t)i, 'o'); ag_nvs.putUChar(h, 0);
+        }
+        ag__anahtar(h, (uint8_t)i, 'a'); ag_nvs.putString(h, deg);   /* ad EN SON: yarim kayit dolu sayilmaz */
+        ag_secili = i;
+        Serial.print(F("* ag listesi: ")); Serial.print(i); Serial.print(' '); Serial.print(deg);
+        Serial.println(yeni ? F(" eklendi — parola icin Np<parola>") : F(" secildi"));
+        break;
+      }
+      if (alt == 'p') {
+        if (!agl_parola_gecerli(deg)) { Serial.println(F("! Np: parola bos ya da 8..63 karakter")); break; }
+        AglKayit k[AGL_AZAMI];
+        ag__liste_oku(k);
+        const int8_t i = (ag_secili >= 0 && k[ag_secili].dolu) ? ag_secili : agl_ilk(k, -1);
+        if (i < 0) { Serial.println(F("! Np: once Na<ag adi>")); break; }
+        char h[4];
+        ag__anahtar(h, (uint8_t)i, 'p'); ag_nvs.putString(h, deg);
+        Serial.print(F("* ag listesi: ")); Serial.print(i); Serial.print(' '); Serial.print(k[i].ad);
+        Serial.println(F(" parolasi kaydedildi"));
+        break;
+      }
+      if (alt == 'x' || alt == 'o' || alt == 'g') {
+        AglKayit k[AGL_AZAMI];
+        ag__liste_oku(k);
+        const int no = (deg[0] >= '0' && deg[0] <= '9' && deg[1] == 0) ? deg[0] - '0' : -1;
+        if (no < 0 || no >= (int)AGL_AZAMI || !k[no].dolu) {
+          Serial.println(F("! N: gecersiz kayit no — Nl ile listeleyin")); break;
+        }
+        char h[4];
+        if (alt == 'x') {                                 /* CA11: bagli ag silinse de baglanti surer */
+          const AglKayit eski = k[no];
+          (void)agl_sil(k, (int8_t)no);
+          ag__anahtar(h, (uint8_t)no, 'a'); ag_nvs.remove(h);
+          ag__anahtar(h, (uint8_t)no, 'p'); ag_nvs.remove(h);
+          ag__anahtar(h, (uint8_t)no, 'o'); ag_nvs.remove(h);
+          if (ag_secili == no) ag_secili = -1;
+          Serial.print(F("* ag listesi: ")); Serial.print(no); Serial.print(' '); Serial.print(eski.ad);
+          Serial.println(F(" silindi"));
+        } else if (alt == 'o') {
+          ag__anahtar(h, (uint8_t)no, 'o'); ag_nvs.putUChar(h, k[no].oncelik ? 0 : 1);
+          Serial.print(F("* ag listesi: ")); Serial.print(no); Serial.print(' '); Serial.print(k[no].ad);
+          Serial.println(k[no].oncelik ? F(" oncelik 0") : F(" oncelik 1"));
+        } else {
+          ag_istek_gecis = (int8_t)no;                    /* CA7: ag gorevi tarar, gorunuyorsa gecer */
+          Serial.print(F("* ag: ")); Serial.print(k[no].ad); Serial.println(F(" araniyor"));
+        }
+        break;
+      }
       else if (alt == 'A') {
         if (strlen(deg) < 8) { Serial.println(F("! NA: WPA2 en az 8 karakter ister")); break; }
         ag_nvs.putString("ap_sifre", deg);
@@ -5215,7 +5549,7 @@ void komut_calistir(const char *s) {
         ag_nvs.putUChar("acik", alt == '1');
         Serial.println(alt == '1' ? F("* ag ACIK") : F("* ag KAPALI"));
       }
-      else { Serial.println(F("! N: N? Na<ssid> Np<parola> NA<ap> Ns<web> N1 N0")); break; }
+      else { Serial.println(F("! N: N? Nl Nt Na<ad> Np<parola> Nx<no> No<no> Ng<no> NA<ap> Ns<web> N1 N0")); break; }
       Serial.println(F("  (bir sonraki acilista gecerli)"));
       break;
     }
@@ -5301,9 +5635,11 @@ void komut_isle() {
 // B22.4 + 1E-2: "Ag:" satiri — kip kesinlesince BIR KEZ. AP/KAPALI setup'ta
 // hemen belli; STA bekleniyorsa ag gorevi bitirince loop()'tan basilir.
 // Cekirdek 1 basar (Serial aynasinin tek yazari, B28).
+// AGD: kip her degistiginde (acilista AP, ev agi donunce STA) yeniden — `ag_hazir` surum.
 static uint8_t ag_satiri_basildi = 0;
+
 static void ag_satiri_bas() {
-  ag_satiri_basildi = 1;
+  ag_satiri_basildi = ag_hazir;
   Serial.print(F("Ag: "));
   Serial.print(ag_kip_adi(ag_durum.kip));
   if (ag_durum.kip != AG_KAPALI) {
@@ -5313,6 +5649,10 @@ static void ag_satiri_bas() {
     Serial.print(F("  MAC=")); Serial.print(ag_durum.mac);
     Serial.print(F("  http://")); Serial.print(ag_durum.ip);
     if (ag_durum.mdns) Serial.print(F("  http://" AG_MDNS ".local"));
+    if (ag_k.evre == AGK_AP_DENE) {   /* AGD: ev agi kayitli ama yok — yeniden deneniyor */
+      Serial.print(F("  (ev agi ")); Serial.print(AG_STA_YENIDEN_MS / 1000u);
+      Serial.print(F(" s'de bir deneniyor)"));
+    }
   }
   /* 🔴 Buradaki println EKSIKTI: "Ag:" satiri kapanmadigi icin cikti
      `...http://192.168.4.1Arayuz: YOK...` seklinde yapisiyordu. Adresi
@@ -5338,6 +5678,7 @@ static void ag_gorevi(void *) {
     sunucu.handleClient();
     akis_kuyrugunu_bosalt();   // olcum cekirdeginin biraktigi satirlar
     akis_kalp();               // 15 s'de bir, NAT zaman asimi icin
+    ag_isle();                 // AGD: AP'deyken ev agini yeniden dene, donunce AP'yi kapat
     ag_tur = ag_tur + 1;      // bkz. akis_tasma: tek yazar, -Wvolatile
     vTaskDelay(1);             // 1 tik = 1 ms; IDLE0 ac kalmasin
   }
@@ -5361,8 +5702,14 @@ void setup() {
      (12 float), `F`, `W`, `S2` satirlarinda da var. Yapisal cozum
      (satiri tek write'a birlestirmek) WebAkis'te; bu, o gelene kadar
      olcumu koruyan ucuz onlem. */
+  /* E6F (F1): setup'in ILK isi — ilk mbedTLS kullanicisindan (ag_baslat_rf: WPA
+     supplicant; guv_esp_ac: HMAC/PBKDF2; bildirim_baslat: esp-tls) ONCE. Kurucular
+     ve initArduino mbedTLS kullanmiyor; kullansaydi da birakma guvenli (yukarida). */
+  mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);
   Serial.setTxBufferSize(8192);
   Serial.begin(115200);
+  // E6: basarisiz dahili ayirmalari say — WiFi/TLS/ag gorevi baslamadan ONCE kurulu olmali
+  heap_caps_register_failed_alloc_callback(ayirma_hata_kaydet);
   ayar_yukle();
   {   /* 1B: kalibrasyon gecmisi — bossa bugunku Ayar3 #1 olur */
     KayitKalibrasyon k;
@@ -5418,14 +5765,20 @@ void setup() {
       Serial.print(F("AYAR BOZUK -> "));
     Serial.print(guv.ayar.zorunlu ? F("imza ZORUNLU") : F("imza zorunlu DEGIL (gecis; Ez1 ile ac)"));
     Serial.print(F(" · ")); Serial.print(guv_cihaz_adet()); Serial.println(F(" cihaz · `E?`"));
+    // W2 (alt proje 5): mDNS `_http._tcp` + TXT kimlik. Ag gorevinden ONCE (STA'da o duyurur).
+    char mk[17];
+    guv_kimlik_hex(&guv, mk);
+    ag_mdns_kimlik(mk);
   }
 
   // Ozel basliklar VARSAYILAN OLARAK TOPLANMIYOR — istenmezse
   // sunucu.header("X-Olcum") her zaman bos doner ve butun CSRF
   // savunmasi SESSIZCE devre disi kalirdi.
   const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin", "X-Cihaz", "X-Sayac", "X-Imza",
-                              "Content-Type"};   // 1D: imza basliklari
-  sunucu.collectHeaders(toplanacak, 7);
+                              "Content-Type",    // 1D: imza basliklari
+                              "If-None-Match"};  // W6: kosullu GET (toplanmazsa HIC 304 olmaz)
+  // Adet diziden: elle yazilan sayi yeni basligi sessizce disarida birakirdi.
+  sunucu.collectHeaders(toplanacak, sizeof(toplanacak) / sizeof(toplanacak[0]));
 
   /* B28: kuyruklar SUNUCUDAN ONCE kurulmali — ilk istek gorev
      baslamadan once gelebilir ve `komut_kuyruga` null kuyrukta 503
@@ -5433,7 +5786,14 @@ void setup() {
      akis 48 satir: D satiri 5/s ama skop ASCII dokumu TEK SEFERDE ~63
      satir basiyor; 24'te olculen tasma buydu. 48 x 224 B ≈ 10.7 KB. */
   komut_kuyrugu_q = xQueueCreate(KOMUT_KUYRUK, sizeof(KomutKalem));
-  akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));
+  /* E6F (F4): 10.7 KB'lik akis kuyrugu PSRAM'de (yapi + depo; IDF xQueueCreateWithCaps).
+     Yalniz gorevlerden kullanilir (ISR yok); flas yazma/silmede IDF obur cekirdegi
+     IRAM'de bekletir (SPI_FLASH_AUTO_SUSPEND kapali), PSRAM'deki kilit icin IDF'nin
+     dis bellek CAS kilidi var. Hic silinmez (vQueueDeleteWithCaps gerekmez).
+     PSRAM yoksa eski dahili kuyruk. */
+  akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  const bool akis_psram = akis_kuyrugu_q != nullptr;
+  if (!akis_kuyrugu_q) akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));
   skop_kilidi = xSemaphoreCreateMutex();
   /* B40b: yakalama gorevi. WiFi kapali olsa da kuruluyor — skop USB'de de
      calisiyor. Yigin: yakalama dongusundeki 1 KB cerceve + skop_olc;
@@ -5472,14 +5832,17 @@ void setup() {
     //   Vue surumlenmis bir varlik (vue.global.prod.js), yani `immutable`
     //   guvenli: 58 KB bir kez iniyor ve tarayici bir daha SORMUYOR.
     //   Telefonda "her acilista 58 KB" ile "bir kez" arasindaki fark bu.
-    sunucu.serveStatic("/vendor/", LittleFS, "/vendor/",
-                       "max-age=31536000, immutable");
-    // Geri kalani `no-cache`: arayuz guncellemesi hemen gorulsun.
-    sunucu.serveStatic("/", LittleFS, "/", "no-cache");
+    // W6: `serveStatic` yerine ArayuzIsleyici (ayni yol/gz/MIME kurali +
+    //   kunyeden ETag + 304). Isleyiciler bir kez kurulur, hic silinmez.
+    etag_kunye_yukle();
+    sunucu.addHandler(new ArayuzIsleyici("/vendor/", "max-age=31536000, immutable"));
+    // Geri kalani `no-cache` + ETag: guncelleme hemen gorulsun, degismeyen
+    //   dosya ikinci acilista govdesiz 304.
+    sunucu.addHandler(new ArayuzIsleyici("/", "no-cache"));
   }
   // ⚠ `enableETag` KULLANILMIYOR: `calcETag` dosyanin TAMAMINI okuyup
-  //   ozet cikariyor, yani gondermek kadar bloklar ve `loop()` durur.
-  //   `immutable` ayni isi SIFIR maliyetle yapiyor.
+  //   ozet cikariyor, yani gondermek kadar bloklar ve `loop()` durur;
+  //   bos ETag'te basliksiz istege 304 verir. W6 ETag'i uretecin kunyesinden.
   // 🔴 B22.1 — K1. WebServer::handleClient() istemci YOKKEN her turda
   // `delay(1)` cagiriyor (WebServer.cpp:422-425, _nullDelay varsayilan
   // true). CONFIG_FREERTOS_HZ = 1000 oldugu icin bu vTaskDelay(1 tik):
@@ -5568,6 +5931,18 @@ void setup() {
   } else {
     Serial.println(F("KAPALI — 'kayit' bolumu ya da bellek yok (partitions.csv ile tam yukleme)"));
   }
+  {   /* E6F: tasinan tamponlar GERCEKTE nerede — kart dogrulasin (tek satir).
+         tls: kurulan ayiricidan bir deneme ayirmasi (mbedtls_calloc) */
+    void *d = mbedtls_calloc(1, 32);
+    Serial.print(F("Bellek (E6F): tls="));
+    Serial.print(!d ? F("YOK") : esp_ptr_external_ram(d) ? F("PSRAM") : F("dahili"));
+    mbedtls_free(d);
+    Serial.print(F(" veri="));
+    Serial.print(!kayit_veri_tampon ? F("YOK")
+                 : esp_ptr_external_ram(kayit_veri_tampon) ? F("PSRAM") : F("dahili"));
+    Serial.print(F(" akis="));
+    Serial.println(akis_psram ? F("PSRAM") : F("dahili"));
+  }
 
   Serial.println(F("Cikis: D <volt> <amper> <watt> <joule> <wh> <ms> "
                    "<ornek> <menzil> <durum>"));
@@ -5628,7 +6003,8 @@ void loop() {
      ikisi de artik cekirdek 0'daki `ag_gorevi()` icinde. Sayfa sunmak
      bu donguyu bloklamiyor. Komutlar yine BURADA calisiyor: tek yazar
      disiplini korunuyor (kalibrasyon, NVS, skop hep cekirdek 1'de). */
-  if (ag_hazir && !ag_satiri_basildi) ag_satiri_bas();   // 1E-2: STA sonucu (bir kez)
+  if (ag_hazir != ag_satiri_basildi) ag_satiri_bas();   // 1E-2 + AGD: kip degisti (STA sonucu, AP -> STA)
+  ag_sonuclari_bas();        // coklu ag: tarama listesi / gecis mesaji (ag gorevi yazdi)
   komut_isle();              // seri porttan gelen komutlar
   komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
   skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu

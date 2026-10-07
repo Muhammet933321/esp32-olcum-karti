@@ -70,7 +70,8 @@ test("4D: icerik — PC arsivi salt okuma, onay durumu acik yazilir (iki dilde)"
 test("ceviriPc: pc. metni secili dilde; acilis sozlugundeki anahtarlar da cevrilir; bilinmeyen anahtar kendisi; atmaz", () => {
   assert.equal(ceviriPc("pc.nerede", "en"), SOZLUK_PC["pc.nerede"].en);
   assert.equal(ceviriPc("pc.nerede"), SOZLUK_PC["pc.nerede"].tr);
-  for (const a of ["kl.yenile", "kl.nerede_kart"]) {
+  /* EU32: kl.yenile / kl.nerede_kart sozluk_kayit.js'e gecti; acilista kalan ortak kl. metinleri */
+  for (const a of ["kl.vazgec", "kl.sil"]) {
     assert.equal(ceviriPc(a, "en"), SOZLUK[a].en, a);
     assert.equal(ceviriPc(a, "tr"), SOZLUK[a].tr, a);
   }

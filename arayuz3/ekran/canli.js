@@ -31,7 +31,7 @@
    K5 Imlec rengi temanin `--yazi`si (3C K5 ile ayni).
    ═══════════════════════════════════════════════════════════════════════ */
 
-import { Grafik, cssRenk } from '/ortak/grafik.js';
+import { Grafik, cssRenk, yOlcekEksen } from '/ortak/grafik.js';
 
 /** Kanallar: gecmis alani, grafik adi/birimi, renk belirteci, eksen. */
 export const CANLI_KANALLAR = Object.freeze([
@@ -197,6 +197,7 @@ export class CanliGrafik {
       const basT = n ? gecmis[n - 1].t - pencereMs / 1000 : 0;
       this._kur(gecmis.slice(pencereBasi(gecmis, basT)), d, secim);
     }
+    this.g.secenek.yOlcek = yOlcekEksen(d.yOlcek, d.sagEksen);
     this.g.ciz();
     return this._bildir();
   }

@@ -67,14 +67,14 @@
   ],
   "B22a PC koprusu (role + arsiv + surucu hakemi)": [
     [
-      192,
-      192
+      202,
+      202
     ]
   ],
   "B22b Kart web katmani (ayna + SSE + komut ucu)": [
     [
-      113,
-      113
+      163,
+      163
     ]
   ],
   "B25 Kart bringup kosucusu (kayitli kart)": [
@@ -85,20 +85,20 @@
   ],
   "B71 Kayit motoru (bicim + gunluk + elektrik kesme)": [
     [
-      362,
-      362
+      369,
+      369
     ]
   ],
   "B72 Kayit firmware + esitleme (tablo + kaynak + sahte kart)": [
     [
-      207,
-      207
+      246,
+      246
     ]
   ],
   "B73 ortak/ (JS hesap kodu, capraz vektorler)": [
     [
-      25,
-      25
+      29,
+      29
     ]
   ],
   "B3  Sema (ERC + netlist)": [
@@ -125,8 +125,8 @@
   ],
   "B7  Arayuz + komut denetimi": [
     [
-      911,
-      911
+      918,
+      918
     ]
   ],
   "B9  Malzeme + kurulum kilavuzu": [

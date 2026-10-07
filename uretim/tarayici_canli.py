@@ -116,8 +116,55 @@ class Kart:
         self.yay(AFIS)
         self.ms0 = 500 - 200 * self.k
 
+    # coklu ag (2026-10-06): kartin N komutlarinin satir bicimi (kod/olcum-karti-a3/ag_komut.h + .ino N)
+    ag = [{"ad": "Ev-agi", "o": 0}, {"ad": "Is-yeri", "o": 0}, None, None, None, None, None, None]
+    ag_bagli = 0
+    ag_secili = -1
+
+    def ag_komut(self, k: str) -> list[str]:
+        a, d = k[1:2], k[2:]
+        L = self.ag
+        if a == "l":
+            return ([f"NL {i} {x['o']} {1 if i == self.ag_bagli else 0} {x['ad']}" for i, x in enumerate(L) if x]
+                    + [f"NL bitti {sum(1 for x in L if x)}"])
+        if a == "t":
+            kay = {x["ad"]: i for i, x in enumerate(L) if x}
+            gor = [(-40, "Telefon-hotspot"), (-51, "Ev-agi"), (-70, "Komsu")]
+            return (["* ag: taraniyor (~3 s)"] + [f"NT {r_} {kay.get(ad, '-')} {ad}" for r_, ad in gor]
+                    + [f"NT bitti {len(gor)}"])
+        if a == "a":
+            i = next((j for j, x in enumerate(L) if x and x["ad"] == d), None)
+            yeni = i is None
+            if yeni:
+                i = next((j for j, x in enumerate(L) if not x), None)
+                if i is None:
+                    return ["! Na: liste DOLU (8) — once Nx<no> ile birini silin"]
+                L[i] = {"ad": d, "o": 0}
+            self.ag_secili = i
+            return [f"* ag listesi: {i} {d} " + ("eklendi — parola icin Np<parola>" if yeni else "secildi")]
+        if a == "p":                                   # parola ASLA geri basilmaz (kart da basmaz)
+            i = self.ag_secili if self.ag_secili >= 0 and L[self.ag_secili] else 0
+            return [f"* ag listesi: {i} {L[i]['ad']} parolasi kaydedildi"]
+        if a in ("x", "o", "g"):
+            i = int(d) if d.isdigit() else -1
+            if not (0 <= i < 8 and L[i]):
+                return ["! N: gecersiz kayit no — Nl ile listeyin"]
+            ad = L[i]["ad"]
+            if a == "x":
+                L[i] = None
+                return [f"* ag listesi: {i} {ad} silindi"]
+            if a == "o":
+                L[i]["o"] ^= 1
+                return [f"* ag listesi: {i} {ad} oncelik {L[i]['o']}"]
+            self.ag_bagli = i
+            return [f"* ag: {ad} araniyor", f"* ag: {ad} deneniyor — 20 s'de olmazsa onceki aga donulur",
+                    f"* ag: {ad} agina gecildi — IP 10.0.0.9"]
+        return ["! N: N? Nl Nt Na<ad> Np<parola> Nx<no> No<no> Ng<no> NA<ap> Ns<web> N1 N0"]
+
     def komut(self, k: str) -> list[str]:
         self.komutlar.append(k)
+        if k.startswith("N"):
+            return self.ag_komut(k)
         if k == "?":
             return ["A menzil=NORMAL oto=1 n_kazanc=1.000000 n_sifir=0 y_kazanc=1.000000 y_sifir=0 "
                     "sont=0.100000 i_duz=1.000000 i_ofset=0 rapor=200"]
@@ -413,9 +460,9 @@ def main() -> int:
                        " esit: document.querySelector('#serit .serit-alt').textContent.trim(),"
                        " gorunur: getComputedStyle(document.querySelector('#serit')).visibility,"
                        " ust: getComputedStyle(document.querySelector('.ust')).display})")
-            ok("[!] D1/KR6: sol serit — 7 baglanti (3G: Karsilastirma), Canli etkin, 'Cevrimici · WiFi', yer, ust cubuk gizli",
+            ok("[!] D1/KR6: sol serit — 7 baglanti (3G: Karsilastirma), Canli etkin, 'Kart bağlı · WiFi' (kartin KENDISI), yer, ust cubuk gizli",
                ser["ad"] == ["Canlı", "Osiloskop", "Pil testi", "Kayıtlar", "Karşılaştırma", "Ayarlar", "Konsol"]
-               and (ser["etkin"] or "").strip() == "Canlı" and ser["rozet"] == "Çevrimiçi · WiFi"
+               and (ser["etkin"] or "").strip() == "Canlı" and ser["rozet"] == "Kart bağlı · WiFi"
                and AD in ser["alt"] and ser["gorunur"] == "visible" and ser["ust"] == "none", json.dumps(ser, ensure_ascii=False))
             ok("[!] D1: alt bilgi = G satirinin `onaysiz`i (sahte kart binde 45 -> %4.5)",
                bekle_js(t, "document.querySelector('#serit .serit-alt').textContent.trim() === 'Eşitlenmemiş: %4.5'", 5) is True,
@@ -446,6 +493,230 @@ def main() -> int:
             lej = t.js("[...document.querySelectorAll('.lejant > span')].map(s => s.textContent.trim())")
             ok("D3: lejant (HTML) V ve I icin 'tepe …'", len(lej or []) == 2 and all("tepe" in x for x in lej), str(lej))
             resim("1-canli-koyu")
+
+            # ── 2b. Y ekseni olcegi (2026-10-06): oto / 0'dan / elle, kanal basina, hatirlanir ──
+            EKS = f"(() => {{ const e = {UYG}._canli.g.sonPlan.eksenler; return {{sol: [e.sol.min, e.sol.maks],"\
+                  f" sag: e.sag ? [e.sag.min, e.sag.maks] : null}}; }})()"
+            oto = t.js(EKS)
+            t.js(deger_yaz("select[data-olcek=sol]", "elle", "change"))
+            bekle_js(t, "document.querySelectorAll('[data-olcek=sol] ~ input').length === 2", 3)
+            t.js("(() => { const k = document.querySelectorAll('[data-olcek=sol] ~ input');"
+                 " for (const [el, v] of [[k[0], '0'], [k[1], '10']]) { el.value = v;"
+                 " el.dispatchEvent(new Event('input', {bubbles: true})); } })()")
+            elle = bekle_js(t, f"(({EKS}).sol + '') === '0,10' && ({EKS})", 3)
+            kayit = t.js("localStorage.getItem('olcum.yOlcek')")
+            ok("[!] OLCEK: sol eksen 'Elle 0–10' -> eksen TAM [0, 10], sag eksen otomatikte kalir, tercih kaydedildi",
+               bool(elle) and elle["sag"] == oto["sag"] and (json.loads(kayit or "{}").get("v") or {}) == {"kip": "elle", "min": 0, "maks": 10},
+               json.dumps({"oto": oto, "elle": elle, "kayit": kayit}))
+            t.js(deger_yaz("select[data-olcek=sol]", "sifir", "change"))
+            sif = bekle_js(t, f"({EKS}).sol[0] === 0 && ({EKS})", 3)
+            ok("OLCEK: '0'dan' -> alt sinir 0, ust otomatik (sahte kart ~12 V)",
+               bool(sif) and sif["sol"][1] > 12.1 and sif["sol"][1] < 15, json.dumps(sif))
+            t.js(deger_yaz("select[data-olcek=sol]", "oto", "change"))
+            geri = bekle_js(t, f"({EKS}).sol[0] > 1 && ({EKS})", 3)
+            ok("OLCEK: 'Otomatik'e donunce dar otomatik olcek geri gelir",
+               bool(geri) and geri["sol"][0] > 11, json.dumps(geri))
+
+            # ── 2c. "ⓘ Baglanti" penceresi (2026-10-06): neyi nereye takacagin — kutunun on paneli ──
+            YUKLU = "performance.getEntriesByType('resource').some(e => /baglanti(_veri)?\\.js/.test(e.name))"
+            bas = t.js(f"({{acik: !!document.querySelector('.baglanti-bilgi'), yuklu: {YUKLU},"
+                       " dugme: (document.querySelector('[data-bilgi=canli]') || {}).textContent,"
+                       " exp: (document.querySelector('[data-bilgi=canli]') || {getAttribute: () => null}).getAttribute('aria-expanded')})")
+            ok("[!] BAGLANTI: pencere KAPALI baslar, resimler ACILISTA INMEZ (baglanti*.js istenmedi), dugme var",
+               bas["acik"] is False and bas["yuklu"] is False and "Bağlantı" in (bas["dugme"] or "")
+               and bas["exp"] == "false", json.dumps(bas, ensure_ascii=False))
+            BOY = ("(() => { const p = document.querySelector('.bb-pencere'); if (!p) return null;"
+                   " const r = p.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })()")
+            baslik_h0 = t.js("document.querySelector('main.gorunum:not([style*=\"none\"]) .baslik').getBoundingClientRect().height")
+            t.js("document.querySelector('[data-bilgi=canli]').click()")
+            ac = bekle_js(t, "(() => { const b = document.querySelector('.baglanti-bilgi[data-baglanti=canli]');"
+                             " const s = b && b.querySelector('svg[data-sema]'); return s && {sema: s.dataset.sema,"
+                             " sekme: [...b.querySelectorAll('[data-bb-sekme]')].map(x => x.dataset.bbSekme),"
+                             " parlak: [...s.querySelectorAll('g[data-kul=\"1\"]')].map(g => g.dataset.jak),"
+                             " exp: document.querySelector('[data-bilgi=canli]').getAttribute('aria-expanded'),"
+                             " metin: b.querySelector('.bb-metin').textContent}; })()", 6)
+            ok("[!] BAGLANTI: dugmeyle acilir — Canli'da 4 sekme (gerilim/HV/akim/guc), varsayilan GERILIM: "
+               "panelde V + COM parlak, talimat metni var",
+               bool(ac) and ac["sema"] == "gerilim" and ac["sekme"] == ["gerilim", "hv", "akim", "guc"]
+               and sorted(ac["parlak"]) == ["J1.1", "J1.2"] and ac["exp"] == "true" and "COM" in ac["metin"],
+               json.dumps(ac, ensure_ascii=False)[:300])
+            pop = t.js("(() => { const a = document.querySelector('.bb-arka'); const p = document.querySelector('.bb-pencere');"
+                       " if (!a || !p) return null; const r = p.getBoundingClientRect(); return {"
+                       " sabit: getComputedStyle(a).position, ebeveyn: a.parentElement === document.body,"
+                       " rol: p.getAttribute('role'), modal: p.getAttribute('aria-modal'),"
+                       " ortaX: Math.abs((r.left + r.right) / 2 - innerWidth / 2) < 2,"
+                       " ortaY: Math.abs((r.top + r.bottom) / 2 - innerHeight / 2) < 2,"
+                       " kaydirma: document.body.style.overflow,"
+                       " odak: document.activeElement && document.activeElement.dataset.bb}; })()")
+            baslik_h1 = t.js("document.querySelector('main.gorunum:not([style*=\"none\"]) .baslik').getBoundingClientRect().height")
+            ok("[!] BAGLANTI: POPUP — ekranin ortasinda sabit kalici pencere (role=dialog, aria-modal), sayfa duzeni "
+               "KAYMAZ (baslik ayni yukseklikte), arka sayfa kaymaz, odak pencerede (kullanici: 'ekstra yer olarak cikiyor')",
+               bool(pop) and pop["sabit"] == "fixed" and pop["ebeveyn"] and pop["rol"] == "dialog"
+               and pop["modal"] == "true" and pop["ortaX"] and pop["ortaY"] and pop["kaydirma"] == "hidden"
+               and pop["odak"] == "kapat" and abs(baslik_h1 - baslik_h0) < 1,
+               json.dumps({"pop": pop, "baslik": [baslik_h0, baslik_h1]}))
+            boylar = {}
+            for sek in ("gerilim", "hv", "akim", "guc"):
+                t.js(f"document.querySelector('[data-bb-sekme={sek}]').click()")
+                bekle_js(t, f"!!document.querySelector('.baglanti-bilgi svg[data-sema={sek}]')", 3)
+                boylar[sek] = t.js(BOY)
+            t.js("document.querySelector('[data-bb-sekme=akim]').click()")
+            ak = bekle_js(t, "(() => { const s = document.querySelector('.baglanti-bilgi svg[data-sema=akim]');"
+                             " return s && {parlak: [...s.querySelectorAll('g[data-kul=\"1\"]')].map(g => g.dataset.jak),"
+                             " uyari: (document.querySelector('.baglanti-bilgi .bb-uyari') || {}).textContent || ''}; })()", 3)
+            ok("BAGLANTI: Akim sekmesi — YUK 1 + YUK 2 parlak, COM DEGIL; 'COM'a takma' uyarisi gorunur",
+               bool(ak) and sorted(ak["parlak"]) == ["J3.1", "J3.2"] and "COM" in ak["uyari"],
+               json.dumps(ak, ensure_ascii=False)[:200])
+            resim("2c-baglanti-akim")
+            t.js("(() => { const a = document.querySelector('.bb-arka'); a.dispatchEvent(new MouseEvent('click', {bubbles: true})); })()")
+            arka = bekle_js(t, "!document.querySelector('.baglanti-bilgi') && document.body.style.overflow === ''", 3)
+            ok("BAGLANTI: arka plana tiklamak kapatir, sayfa kaydirmasi geri gelir", arka is True,
+               str(t.js("document.body.style.overflow")))
+            t.js("document.querySelector('[data-bilgi=canli]').click()")
+            bekle_js(t, "!!document.querySelector('.baglanti-bilgi svg[data-sema]')", 3)
+            t.js("window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))")
+            kap = bekle_js(t, "!document.querySelector('.baglanti-bilgi') && document.activeElement"
+                              " && document.activeElement.dataset.bilgi === 'canli'", 3)
+            ok("BAGLANTI: Esc kapatir, odak dugmeye doner", kap is True,
+               str(t.js("document.activeElement && document.activeElement.outerHTML.slice(0, 80)")))
+            # kart HV menzilindeyse pencere HV sekmesiyle acilir
+            t.js(f"{UYG}.menzil = 1; document.querySelector('[data-bilgi=canli]').click()")
+            hv = bekle_js(t, "(() => { const s = document.querySelector('.baglanti-bilgi svg[data-sema]');"
+                             " return s && s.dataset.sema; })()", 3)
+            ok("[!] BAGLANTI: kart HV menzilindeyken (menzil 1) pencere HV sekmesiyle acilir (V'ye yuksek gerilim "
+               "verilmesin)", hv == "hv", str(hv))
+            t.js("document.querySelector('[data-bb=kapat]').click()")
+            ekr = {}
+            for ekran, sema, sekme in (("skop", "skop", 2), ("pil", "pil", 0)):
+                t.js(f"{UYG}.gorunum = '{ekran}'")
+                bekle_js(t, f"!!document.querySelector('[data-bilgi={ekran}]') && "
+                            f"document.querySelector('[data-bilgi={ekran}]').offsetParent !== null", 4)
+                t.js(f"document.querySelector('[data-bilgi={ekran}]').click()")
+                ekr[ekran] = bekle_js(t, f"(() => {{ const b = document.querySelector('.baglanti-bilgi[data-baglanti={ekran}]');"
+                                         " const s = b && b.querySelector('svg[data-sema]'); return s && {sema: s.dataset.sema,"
+                                         " sekme: b.querySelectorAll('[data-bb-sekme]').length,"
+                                         " parlak: [...s.querySelectorAll('g[data-kul=\"1\"]')].map(g => g.dataset.jak).sort()}; })()", 4)
+                boylar[ekran] = t.js(BOY)
+                if ekran == "pil":
+                    resim("2c-baglanti-pil")
+                t.js("document.querySelector('[data-bb=kapat]').click()")
+            t.js(f"{UYG}.gorunum = 'canli'")
+            ok("BAGLANTI: Osiloskop (SKOP + COM, 2 sekme: skop/CAL) ve Pil testi (PIL 1 + PIL 2 + V, sekmesiz) "
+               "pencereleri de acilir",
+               (ekr.get("skop") or {}).get("sema") == "skop" and ekr["skop"]["sekme"] == 2
+               and ekr["skop"]["parlak"] == ["J1.2", "J4.1"]
+               and (ekr.get("pil") or {}).get("sema") == "pil" and ekr["pil"]["sekme"] == 0
+               and ekr["pil"]["parlak"] == ["J1.1", "J7.1", "J7.2"], json.dumps(ekr))
+            ok("[!] BAGLANTI: pencere boyutu STANDART — 4 Canli sekmesi, Osiloskop ve Pil testi BIREBIR ayni "
+               "(kullanici: 'kimi cok buyuk kimi kucuk')",
+               len(boylar) == 6 and all(boylar.values()) and len({tuple(v) for v in boylar.values()}) == 1,
+               json.dumps(boylar))
+
+            # ── 2d. Kart kapali / erisilemiyor (2026-10-06): panel ayakta ama kartin KENDISI yok ──
+            KDUR = ("(() => { const r = document.querySelector('#serit [data-kart-durum]');"
+                   " const b = document.querySelector('[data-kart-yok]');"
+                   " return {rozet: r.textContent.trim(), sinif: r.className, uyari: b ? b.textContent.replace(/\\s+/g, ' ').trim() : null}; })()")
+            once = t.js(KDUR)
+            kart.duraklat = True
+            t0k = time.monotonic()
+            yok = bekle_js(t, f"(({KDUR}).uyari && ({KDUR}))", 9)
+            dt = time.monotonic() - t0k
+            ok("[!] KART-YOK: kart susunca (D satiri yok) <= ~6 s'de rozet 'Kart kapalı / ulaşılamıyor' (kirmizi) ve ekranda "
+               "uyari: neden + son veri zamani + ne yapilacagi (PİL anahtari, Wi-Fi, COM soketi)",
+               once["uyari"] is None and once["rozet"] == "Kart bağlı · WiFi" and bool(yok)
+               and yok["rozet"] == "Kart kapalı / ulaşılamıyor" and "yok" in yok["sinif"].split()
+               and "Kart kapalı ya da ulaşılamıyor." in yok["uyari"] and "Son veri" in yok["uyari"]
+               and "PİL anahtarı" in yok["uyari"] and "COM soketinde" in yok["uyari"] and 4.0 <= dt <= 7.5,
+               json.dumps({"once": once, "yok": yok, "dt": round(dt, 2)}, ensure_ascii=False))
+            # 502 komut hatasi: teknik govde yerine sade metin, ayrinti olaylarda
+            t.js("window.__fetch = window.fetch; window.fetch = async () => new Response("
+                 "'karta yazilamadi: WiFi (olcum.local): kart dogrulanmadi — komut GONDERILMEDI (kart erisilemiyor (x))',"
+                 " {status: 502});")
+            t.js(f"{UYG}.hata = ''; {UYG}.gonder('?')")
+            hk = bekle_js(t, f"{UYG}.hata", 3)
+            t.js("window.fetch = window.__fetch")
+            olay = t.js("[...document.querySelectorAll('[data-olaylar] .olay')].map(o => o.textContent.trim()).slice(0, 3)")
+            ok("KART-YOK: kart yokken komut hatasi SADE: 'komut gönderilmedi' (502 / getaddrinfo govdesi ekranda DEGIL; "
+               "ayrinti son olaylarda)",
+               hk == "Kart kapalı ya da ulaşılamıyor — komut gönderilmedi." and any("502" in o for o in (olay or [])),
+               json.dumps({"hata": hk, "olay": olay}, ensure_ascii=False)[:300])
+            kart.duraklat = False
+            geri = bekle_js(t, f"(!({KDUR}).uyari && ({KDUR}).rozet === 'Kart bağlı · WiFi' && {UYG}.hata === '')", 5)
+            ok("[!] KART-YOK: kart geri gelince (ilk D satiri) uyari ve komut hatasi kendiliginden KALKAR, rozet yesil",
+               geri is True, json.dumps(t.js(KDUR), ensure_ascii=False))
+            # koprunun "kart erisilemiyor" satiri 5 s beklemeden gosterir
+            kart.duraklat = True
+            kart.yay("! kopru: WiFi (olcum.local) — kart erisilemiyor (<urlopen error [Errno 11001] getaddrinfo failed>)")
+            t0k = time.monotonic()
+            hizli = bekle_js(t, f"!!({KDUR}).uyari", 4)
+            dt2 = time.monotonic() - t0k
+            kart.duraklat = False
+            bekle_js(t, f"!({KDUR}).uyari", 5)
+            ok("KART-YOK: kopru 'kart erisilemiyor' derse uyari 5 s susma esigini BEKLEMEDEN (< 3 s) cikar",
+               hizli is True and dt2 < 3.0, f"{dt2:.2f} s")
+
+            # ── 2e. Coklu ag (2026-10-06): Ayarlar > Ag — liste, tara, ekle, oncelik, sil, gec ──
+            t.js("location.hash = '#/ayar/ag'")
+            bekle_js(t, f"{UYG}.ayarBolum === 'ag' && !!document.querySelector('[data-ag-yenile]')", 5)
+            n_once = len(kart.komutlar)
+            t.bekle(0.5)
+            AGL = ("[...document.querySelectorAll('[data-ag-liste] li')].map(l => ({no: +l.dataset.agNo,"
+                   " ad: l.querySelector('.ag-ad').textContent.trim(), b: !!l.querySelector('[data-ag-bagli]'),"
+                   " o: !!l.querySelector('[data-ag-oncelikli]')}))")
+            ok("[!] COKLU-AG: bolum acilinca karta KENDILIGINDEN komut gitmez (AY5) — liste 'Listeyi yenile' bekler",
+               not any(x.startswith("N") for x in kart.komutlar[n_once:])
+               and t.js("!!document.querySelector('[data-ag-liste-yok]')") is True, str(kart.komutlar[n_once:]))
+            t.js("document.querySelector('[data-ag-yenile]').click()")
+            l1 = bekle_js(t, f"(({AGL}).length === 2) && ({AGL})", 4)
+            ok("[!] COKLU-AG: 'Listeyi yenile' -> Nl; kayitli aglar ad + BAGLI isaretiyle listelenir",
+               l1 == [{"no": 0, "ad": "Ev-agi", "b": True, "o": False}, {"no": 1, "ad": "Is-yeri", "b": False, "o": False}],
+               json.dumps(l1, ensure_ascii=False))
+            t.js("document.querySelector('[data-ag-tara]').click()")
+            gor = bekle_js(t, "(() => { const b = [...document.querySelectorAll('[data-ag-gorunen]')];"
+                              " return b.length === 3 && b.map(x => x.textContent.replace(/\\s+/g, ' ').trim()); })()", 4)
+            t.js("document.querySelector('[data-ag-gorunen=\"Telefon-hotspot\"]').click()")
+            ssid = bekle_js(t, "document.querySelector('#ayar-ssid').value === 'Telefon-hotspot'", 3)
+            ok("COKLU-AG: 'Tara' -> Nt; gorunen aglar RSSI ve 'kayitli' isaretiyle; birine tiklamak adi kutuya yazar",
+               bool(gor) and gor[0].startswith("Telefon-hotspot -40 dBm") and "✓" in gor[1] and ssid is True,
+               json.dumps(gor, ensure_ascii=False))
+            t.js("[...document.querySelectorAll('[data-ay-bolum=ag] button')].find(b => b.textContent.trim() === 'Listeye ekle').click()")
+            l2 = bekle_js(t, f"(({AGL}).length === 3) && ({AGL})", 4)
+            t.js("(() => { const p = document.querySelector('#ayar-wifi-parola'); p.value = 'gizli-sinama-parolasi';"
+                 " p.dispatchEvent(new Event('input')); })()")
+            t.js("[...document.querySelectorAll('[data-ay-bolum=ag] button')].find(b => b.textContent.trim() === 'Parolayı yaz').click()")
+            bekle_js(t, "document.querySelector('#ayar-wifi-parola').value === ''", 3)
+            gizli = t.js("document.body.innerText.includes('gizli-sinama-parolasi')"
+                         f" || JSON.stringify({UYG}.agListe).includes('gizli-sinama-parolasi')")
+            ok("[!] COKLU-AG: ekle (Na) listeyi kendiliginden tazeler (3 kayit); parola (Np) gider, kutu bosalir ve "
+               "parola sayfada HICBIR yerde gorunmez",
+               bool(l2) and l2[2]["ad"] == "Telefon-hotspot" and gizli is False
+               and "Np" + "gizli-sinama-parolasi" in kart.komutlar, json.dumps(l2, ensure_ascii=False))
+            t.js("document.querySelector('[data-ag-oncelik=\"2\"]').click()")
+            l3 = bekle_js(t, f"(() => {{ const l = {AGL}; return l.length === 3 && l[2].o && l; }})()", 4)
+            t.js("document.querySelector('[data-onay-ac=\"agSil1\"]').click()")
+            sil_silahli = bekle_js(t, "!!document.querySelector('[data-onay=\"agSil1\"]')", 3)
+            n_sil = sum(1 for x in kart.komutlar if x.startswith("Nx"))
+            t.js("document.querySelector('[data-onay=\"agSil1\"]').click()")
+            l4 = bekle_js(t, f"(() => {{ const l = {AGL}; return l.length === 2 && !l.some(x => x.no === 1) && l; }})()", 4)
+            ok("[!] COKLU-AG: oncelik (No) isaretlenir; SIL IKI ASAMALI (ilk tik silmez), onayla Nx gider ve kayit listeden duser",
+               bool(l3) and bool(sil_silahli) and n_sil == 0 and bool(l4) and "Nx1" in kart.komutlar,
+               json.dumps({"l3": l3, "l4": l4}, ensure_ascii=False))
+            ng_once = [x for x in kart.komutlar if x.startswith("Ng")]
+            onaysiz = t.js("!document.querySelector('[data-onay=\"agGec2\"]') && !!document.querySelector('[data-onay-ac=\"agGec2\"]')")
+            t.js("(document.querySelector('[data-onay-ac=\"agGec2\"]') || {click() {}}).click()")
+            bekle_js(t, "!!document.querySelector('[data-onay=\"agGec2\"]')", 3)
+            ilk_tik = [x for x in kart.komutlar if x.startswith("Ng")] == ng_once
+            t.js("(document.querySelector('[data-onay=\"agGec2\"]') || {click() {}}).click()")
+            t.js("document.querySelector('[data-ag-yenile]').click()")
+            l5 = bekle_js(t, f"(() => {{ const l = {AGL}; return l.length === 2 && l.find(x => x.no === 2 && x.b) && l; }})()", 4)
+            ok("[!] COKLU-AG: 'Bu aga gec' IKI ASAMALI (ilk tik gondermez); onayla Ng<no> gider, bagli olan ag degisir; "
+               "bagli satirda 'gec' dugmesi yok",
+               onaysiz is True and ilk_tik and "Ng2" in kart.komutlar and bool(l5)
+               and t.js("!document.querySelector('[data-ag-no=\"2\"] [data-onay-ac=\"agGec2\"]')") is True,
+               json.dumps(l5, ensure_ascii=False))
+            resim("2e-coklu-ag")
+            t.js("location.hash = '#/canli'")
+            bekle_js(t, f"{UYG}.gorunum === 'canli'", 4)
 
             # ── 3. kayit denetimi (D4) + aktif kayit (D6) ─────────────────
             n0 = len(kart.komutlar)

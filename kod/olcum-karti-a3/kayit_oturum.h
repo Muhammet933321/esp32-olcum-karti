@@ -249,7 +249,13 @@ static inline int ky_nokta(KayitYazici *y, const KayitNokta *p, uint32_t simdi_m
     if (y->basla.oturum_turu == KAYIT_OTURUM_SKOP) return KG_YOK;   /* 1C-3: yalniz yakalama */
     if (y->yuk_nokta >= KAYIT_TAMPON_NOKTA) {
         int r = ky_bosalt(y);
-        if (r) return r;
+        if (r) {
+            /* W2 (1A-1 O): tampon dolu ve bosaltilamadi (KG_HATA sonrasi yeniden deneme de
+               basarisiz, ya da DOLU): bu nokta YAZILAMADI — sayilir (Y5'in ayrintili
+               ornekteki karsiligi). DOLU'da ky__dolu tampondakileri zaten saydi. */
+            y->dusen++;
+            return r;
+        }
     }
     kayit_nokta_paketle(p, y->yuk + 4 + (uint32_t)y->yuk_nokta * KAYIT_NOKTA_BAYT);
     if (!y->yuk_nokta) y->yuk_ilk_ms = simdi_ms;

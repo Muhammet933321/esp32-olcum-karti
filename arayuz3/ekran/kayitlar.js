@@ -36,11 +36,11 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import { zamanEkseni } from '/ortak/disari.js';
-import { ceviri } from '/ortak/sozluk.js';
+import { ceviriKayit as ceviri } from '/ortak/sozluk_kayit.js';
 import { ceviriPc } from '/ortak/sozluk_pc.js';
 import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP } from '/ortak/kayit.js';
 import {
-  KayitGorunumu, oturumTuru, metinler, sureYaz, tarihYaz, TUR_METIN, NEREDE_METIN,
+  KayitGorunumu, oturumTuru, metinler, sureYaz, tarihYaz, TUR_METIN, NEREDE_METIN, ceviriKlPc,
 } from './kayit_gorunum.js';
 import {
   EsitlemeDenetcisi, esitlemeUygunlugu, onayIslevi, arsivOku, arsivYaz, dilOku,
@@ -500,7 +500,7 @@ export const KayitlarEkrani = {
         hata: 'nedenHata', akis: 'nedenAkis', kilit: 'nedenKilit', depo: 'nedenDepo' };
       const anahtar = n === 'pcdepo' ? 'pc.kl_neden_arsiv' : KL_METIN[harita[n] || 'nedenHata'];
       const mesaj = this.esitlemeNeden === n ? this.esitlemeMesaj : this.kartMesaj;
-      return ceviriPc(anahtar, this.dil, { mesaj: mesaj || '—' });
+      return ceviriKlPc(anahtar, this.dil, { mesaj: mesaj || '—' });
     },
     kartOzet() {
       const k = this.kartOzetVeri;
@@ -569,7 +569,7 @@ export const KayitlarEkrani = {
   },
   methods: {
     turAdi(t) { return ceviri(TUR_METIN[t] || TUR_METIN.bilinmeyen, this.dil); },
-    neredeAdi(n) { return ceviriPc(NEREDE_METIN[n], this.dil); },
+    neredeAdi(n) { return ceviriKlPc(NEREDE_METIN[n], this.dil); },
     durumAdi(d) { return this.m[{ kayitta: 'durumKayitta', acik: 'durumAcik', bitti: 'durumBitti' }[d]]; },
     sure(ms) { return sureYaz(ms); },
     baslangic(s) { return tarihYaz(s.unix) || this.m.saatsiz; },
@@ -672,7 +672,7 @@ export const KayitlarEkrani = {
         && secilebilir(s, { seciliMi: true }).uygun));
       const guncel = this._kartListe ? this._kartListe.kimlik : null;
       this.kopyalar = yereller.map((y, i) => ({ kimlik: y.kimlik, guncel: this.pc ? i === 0 : y.kimlik === guncel,
-        metin: ceviriPc(this.pc ? 'pc.kl_kopya_satir' : KL_METIN.kopyaSatir, this.dil, { kimlik: y.kimlik,
+        metin: ceviriKlPc(this.pc ? 'pc.kl_kopya_satir' : KL_METIN.kopyaSatir, this.dil, { kimlik: y.kimlik,
           kart: y.kart || '—', boyut: baytYaz(y.bayt), son: y.durum ? y.durum.son_sira : 0, oturum: y.oturumlar.size }) }));
     },
     async yenile() {

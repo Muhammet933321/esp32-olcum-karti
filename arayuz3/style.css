@@ -242,6 +242,15 @@ body {
 }
 .rozet.acik { background: var(--iyi-zemin); color: var(--iyi); border-color: transparent; }
 .rozet.kapali { background: var(--zemin-2); color: var(--cok-soluk); }
+.rozet.bekle { background: color-mix(in srgb, var(--amper) 12%, transparent); color: var(--amper); border-color: transparent; }
+.rozet.yok { background: var(--uyari-zemin); color: var(--uyari); border-color: transparent; }
+.rozet-alt { flex-basis: 100%; font-size: 11px; color: var(--cok-soluk); }
+.kart-yok {
+  margin-bottom: 16px; padding: 12px 14px; border-radius: var(--yuvarlak-sm); font-size: 14px; line-height: 1.5;
+  background: var(--uyari-zemin); color: var(--uyari); border-left: 4px solid var(--uyari);
+}
+.kart-yok-ipucu { margin-top: 4px; color: var(--yazi); }
+.kart-yok-alt { margin-top: 2px; font-size: 12px; color: var(--soluk); }
 .nokta { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 /* Canlı akış: nokta yavaşça soluyor. Tek hareket bu — "veri geliyor"
    bilgisini metin tekrar etmeden veriyor. */
@@ -1315,3 +1324,51 @@ canvas.kr-grafik:focus-visible { outline: 2px solid var(--vurgu); outline-offset
 .es-form .alan .ipucu { margin: 0; }
 .es-mod .kart h2 + .ipucu { margin-top: 0; }
 .es-mod .kl-rozet { white-space: nowrap; }
+
+/* ── "ⓘ Bağlantı" penceresi (ekran/baglanti.js; resim ortak/baglanti_veri.js) ──
+   Ortada SABİT boyutlu kalıcı pencere: boyut içerikten bağımsız, her sekmede aynı (kullanıcı:
+   "boyutları farklı, standart olsun"); sığmayan içerik pencerenin İÇİNDE kayar. */
+.bilgi-dugme {
+  font: inherit; font-size: 13px; padding: 3px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--kenar-koyu); background: transparent; color: var(--soluk);
+}
+.bilgi-dugme:hover, .bilgi-dugme[aria-expanded="true"] { color: var(--vurgu); border-color: var(--vurgu); }
+.bb-arka {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px;
+  background: color-mix(in srgb, var(--zemin) 72%, transparent);
+}
+.bb-pencere {
+  width: min(920px, calc(100vw - 32px)); height: min(620px, calc(100dvh - 32px));
+  margin: 0; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: var(--golge-2);
+}
+.baglanti-bilgi .bb-ust { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; margin-bottom: 12px; flex: none; }
+.baglanti-bilgi h2 { margin: 0; font-size: 16px; }
+.bb-sekmeler { display: flex; gap: 6px; flex-wrap: wrap; }
+.bb-sekmeler button {
+  font: inherit; font-size: 13px; padding: 4px 10px; border-radius: var(--yuvarlak-sm); cursor: pointer;
+  border: 1px solid var(--kenar-c); background: transparent; color: var(--soluk);
+}
+.bb-sekmeler button.secili { background: var(--vurgu-zemin); color: var(--vurgu); border-color: var(--vurgu); }
+.bb-kapat { font-size: 22px; line-height: 1; padding: 2px 8px; border: 0; background: transparent; color: var(--soluk); cursor: pointer; }
+.bb-govde {
+  flex: 1; min-height: 0; overflow: auto;
+  display: grid; grid-template-columns: 470px minmax(0, 1fr); gap: 18px; align-items: start;
+}
+.bb-sema svg { display: block; width: 100%; height: auto; }
+.bb-metin ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; line-height: 1.45; }
+.bb-uyari {
+  margin: 12px 0 0; padding: 8px 10px; border-radius: var(--yuvarlak-sm); font-size: 13px; line-height: 1.45;
+  background: var(--uyari-zemin); color: var(--uyari);
+}
+@media (max-width: 860px) { .bb-govde { grid-template-columns: minmax(0, 1fr); } .bb-sema { max-width: 470px; } }
+
+/* ── coklu ag (Ayarlar > Ag): kayitli aglar + gorunen aglar ── */
+.ag-liste { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.ag-liste li {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px;
+  border: 1px solid var(--kenar-c); border-radius: var(--yuvarlak-sm);
+}
+.ag-liste .ag-ad { font-weight: 600; overflow-wrap: anywhere; }
+.ag-tarama { display: flex; flex-wrap: wrap; gap: 6px; }
+.ag-tarama button { font-size: 13px; padding: 4px 10px; }

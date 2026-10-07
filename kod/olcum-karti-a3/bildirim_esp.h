@@ -54,6 +54,13 @@
 #define BLD_TLS_MS       10000
 #define BLD_DENEME_EN_AZ 2000UL   /* yeniden baglanma: 2, 4, 8 ... 60 s */
 #define BLD_DENEME_EN_COK 60000UL
+/* E8 (2026-10-04): BAGLIYKEN tek bir soket cagrisinin tavani. esp-tls soketi bloklayici
+   birakir ve SO_SNDTIMEO/SO_RCVTIMEO'yu cfg.timeout_ms'e (10 s) kurar; mbedTLS katmani
+   bloklayici sokette "would block" DONDURMEZ -> tek takili gonderme/kismi TLS kaydi 10 s
+   surer, 5 s'lik PINGRESP olcutunu asardi. Baglandiktan sonra iki tavan da bu degere iner. */
+#define BLD_SOKET_MS     1500
+#define BLD_YAZ_MS       3000UL   /* E8: bir paketin kismi yazmalari bundan sonra surdurulmez */
+#define BLD_TUR_MS       8000UL   /* E8: bagliyken tek gorev turu (yayin + ping + okuma) tavani */
 #define BLD_PAKET        640u     /* CONNECT (iki 95'lik alan + vasiyet) sigar */
 #define BLD_ZARF         (4u + 12u + BLD_MESAJ + 16u)
 
@@ -77,18 +84,31 @@
 #define BLDH_YAZ     -4
 #define BLDH_CONNACK -5           /* sure doldu */
 #define BLDH_KOPTU   -6           /* araci kapatti / okuma hatasi */
-#define BLDH_PING    -7           /* PINGRESP gelmedi */
+#define BLDH_PING    -7           /* PINGRESP gelmedi; E8: ping beklenirken soket zaman asimi da */
 #define BLDH_PUBACK  -8
 #define BLDH_PAKET   -9           /* paket kurulamadi (alan uzun) */
 #define BLDH_BOZUK   -10          /* gelen akis MQTT degil */
+#define BLDH_TUR     -11          /* E8: bagliyken tek tur BLD_TUR_MS'i asti (soket ilerliyor ama cok yavas) */
 #define BLDH_RED     -100         /* -100 - CONNACK kodu (5 = yetkisiz, 4 = kullanici/parola) */
+
+/* E8: gorevin su anki adimi (Q? `adim=` + `adim_yas=`): yas ~1 s'yi asiyorsa gorev o adimda TAKILI */
+#define BLDA_BEKLE   0u           /* tur arasi / bekleme (vTaskDelay) */
+#define BLDA_BAGLAN  1u           /* TCP/TLS kurulumu (esp_tls_conn_new_sync, en cok BLD_TLS_MS) */
+#define BLDA_YAZ     2u
+#define BLDA_SELECT  3u
+#define BLDA_OKU     4u
+#define BLDA_KAPAT   5u
 
 typedef struct {
     uint8_t  durum;
+    uint8_t  adim;                /* E8: BLDA_* (dolguya oturur, yapi buyumez) */
     int32_t  son_hata;
     uint32_t baglanti, yayin, olay, dusen, kuyruk;
     uint32_t bagli_ms;            /* son baglanma ani (millis) */
     uint32_t el_sikisma_ms;       /* son TLS + CONNACK suresi */
+    uint32_t tur;                 /* E8: gorev dongusu sayaci (artiyorsa gorev yasiyor) */
+    uint32_t adim_ms;             /* E8: `adim`in basladigi an (millis) */
+    uint32_t ping_ms, pong_ms;    /* E8: son PINGREQ / PINGRESP ani (0 = hic) */
 } BildirimDurum;
 
 static BildirimDurum bld_durum = {};
@@ -136,6 +156,16 @@ static void bld__durum_yaz(uint8_t d, int32_t h)
     portENTER_CRITICAL(&bld_mux);
     bld_durum.durum = d;
     if (h) bld_durum.son_hata = h;
+    portEXIT_CRITICAL(&bld_mux);
+}
+
+/* E8: canlilik izi (YALNIZ bildirim gorevi yazar; Q? cekirdek 1'de kopyayla okur) */
+static void bld__adim(uint8_t a)
+{
+    const uint32_t t = millis();
+    portENTER_CRITICAL(&bld_mux);
+    bld_durum.adim = a;
+    bld_durum.adim_ms = t;
     portEXIT_CRITICAL(&bld_mux);
 }
 
@@ -192,6 +222,7 @@ typedef struct {
     uint8_t onek[16];
     uint8_t anahtar[32];
     uint8_t onek_var, anahtar_var;
+    uint16_t esik;                /* W2 (E3): `Qe` binde; 0 / gecersiz = varsayilan */
 } BildirimAyar;
 
 static void bld__ayar_oku(BildirimAyar *a)
@@ -205,6 +236,7 @@ static void bld__ayar_oku(BildirimAyar *a)
     p.getString("ck", a->ck, sizeof(a->ck));
     p.getString("cp", a->cp, sizeof(a->cp));
     a->acik = p.getUChar("acik", 0);
+    a->esik = p.getUShort("esik", 0);
     a->onek_var = p.getBytes("onek", a->onek, 16) == 16u;
     a->anahtar_var = p.getBytes("anahtar", a->anahtar, 32) == 32u;
     p.end();
@@ -238,6 +270,34 @@ static int bildirim_ayar_metin(const char *anahtar, const char *deger, uint8_t a
     if (n != strlen(deger) && deger[0]) return -1;
     bld_istek_yeniden = 1;
     return 0;
+}
+
+/* W2 (E3): `Qe<binde>` (cekirdek 1, YALNIZ USB). 0 = anahtari sil (varsayilan). Gorev yeni
+   esigi BAGLANTIYI KESMEDEN alir (bld_istek_yeniden degil: istek/islenen sayaclari). */
+static volatile uint8_t bld_esik_istek = 0, bld_esik_islenen = 0;
+static volatile uint16_t bld_esik_etkin = BLD_ESIK_VARSAYILAN;   /* gorev yazar, Q? okur */
+
+static int bildirim_esik_yaz(uint16_t binde)
+{
+    Preferences p;
+    int r = 0;
+    if (!p.begin(BLD_NVS, false)) return -1;
+    if (binde) r = p.putUShort("esik", binde) == 2u ? 0 : -1;
+    else if (p.isKey("esik") && !p.remove("esik")) r = -1;
+    p.end();
+    bld_esik_istek = (uint8_t)(bld_esik_istek + 1u);   /* yalniz cekirdek 1 yazar */
+    return r;
+}
+
+static uint16_t bld__esik_oku(void)
+{
+    Preferences p;
+    uint16_t e = 0;
+    if (p.begin(BLD_NVS, true)) {
+        e = p.getUShort("esik", 0);
+        p.end();
+    }
+    return e;
 }
 
 static int bildirim_ayar_acik(uint8_t acik)
@@ -372,6 +432,7 @@ static int bld__zarfla(const char *konu, const char *json);
 static void bld__kapat(BldBag *b, uint8_t nazik)
 {
     if (b->tls) {
+        bld__adim(BLDA_KAPAT);
         if (nazik) {
             bld_vasiyet_json(kayit_durum_al().acilis, bld_json, sizeof(bld_json));
             const int z = bld__zarfla(b->konu_durum, bld_json);
@@ -390,16 +451,30 @@ static void bld__kapat(BldBag *b, uint8_t nazik)
     b->ping_bekle = 0;
 }
 
+/* E8: bir soket cagrisi basarisiz oldu. Cagri soket tavanina (BLD_SOKET_MS) yakin surduyse
+   ya da paketin suresi dolduysa bu bir ZAMAN ASIMI'dir: PINGREQ yanit beklerken (ya da
+   gonderilirken) karsi taraf susmus demektir -> -7 (aracinin kapattigi -6/-4'ten ayri). */
+static int bld__hata(const BldBag *b, uint32_t t0, uint8_t sure_doldu, int varsayilan)
+{
+    const uint8_t zaman_asimi = sure_doldu || millis() - t0 >= (uint32_t)(BLD_SOKET_MS - 100);
+    return (zaman_asimi && b->ping_bekle) ? BLDH_PING : varsayilan;
+}
+
+/* Bloklayici sokette esp_tls_conn_write ilerlemezse SO_SNDTIMEO (BLD_SOKET_MS) sonunda <= 0
+   doner: mbedTLS "would block"u yalniz O_NONBLOCK sokette verir, duz TCP'de EAGAIN da bu
+   tavanda gelir -> WANT_* ile yeniden denemek (eski dal) ikinci bir tavan kadar daha bekletirdi.
+   Her <= 0 = hata; kismi yazma BLD_YAZ_MS'e kadar surdurulur. */
 static int bld__yaz(BldBag *b, const uint8_t *v, size_t n)
 {
     size_t o = 0;
-    const uint32_t son = millis() + 5000UL;
+    const uint32_t bas = millis();
+    bld__adim(BLDA_YAZ);
     while (o < n) {
+        if (o && millis() - bas >= BLD_YAZ_MS) return bld__hata(b, bas, 1, BLDH_YAZ);
+        const uint32_t t0 = millis();
         const ssize_t k = esp_tls_conn_write(b->tls, v + o, n - o);
-        if (k > 0) { o += (size_t)k; continue; }
-        if ((k == ESP_TLS_ERR_SSL_WANT_READ || k == ESP_TLS_ERR_SSL_WANT_WRITE)
-            && (int32_t)(millis() - son) < 0) { vTaskDelay(1); continue; }
-        return BLDH_YAZ;
+        if (k <= 0) return bld__hata(b, t0, 0, BLDH_YAZ);
+        o += (size_t)k;
     }
     b->gonder_ms = millis();
     return 0;
@@ -415,13 +490,29 @@ static int bld__oku(BldBag *b, uint32_t bekle_ms, uint8_t *t, size_t n)
         FD_ZERO(&r);
         FD_SET(fd, &r);
         struct timeval tv = { (time_t)(bekle_ms / 1000u), (suseconds_t)((bekle_ms % 1000u) * 1000u) };
+        bld__adim(BLDA_SELECT);
         const int s = select(fd + 1, &r, nullptr, nullptr, &tv);
         if (s < 0) return BLDH_KOPTU;
         if (s == 0) return 0;
     }
+    /* select "okunabilir" dedi ama TLS kaydinin yalniz bir parcasi gelmis olabilir: mbedTLS
+       kaydin geri kalanini SO_RCVTIMEO (BLD_SOKET_MS) kadar bekler (eskiden 10 s, -6). */
+    const uint32_t t0 = millis();
+    bld__adim(BLDA_OKU);
     const ssize_t k = esp_tls_conn_read(b->tls, t, n);
     if (k == ESP_TLS_ERR_SSL_WANT_READ || k == ESP_TLS_ERR_SSL_WANT_WRITE) return 0;
-    return k > 0 ? (int)k : BLDH_KOPTU;
+    return k > 0 ? (int)k : bld__hata(b, t0, 0, BLDH_KOPTU);
+}
+
+/* E8: baglandiktan SONRA tek gonderme/alma tavani BLD_SOKET_MS (esp-tls 10 s kurmustu). */
+static int bld__soket_sinirla(esp_tls_t *tls)
+{
+    int fd = -1;
+    if (esp_tls_get_conn_sockfd(tls, &fd) != ESP_OK || fd < 0) return -1;
+    struct timeval tv = { (time_t)(BLD_SOKET_MS / 1000), (suseconds_t)((BLD_SOKET_MS % 1000) * 1000) };
+    if (setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) != 0) return -1;
+    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) != 0) return -1;
+    return 0;
 }
 
 static int bld__zarfla(const char *konu, const char *json)
@@ -447,7 +538,12 @@ static int bld__baglan(BldBag *b, uint32_t acilis)
     b->tls = esp_tls_init();
     if (!b->tls) return BLDH_BELLEK;
     b->sifreli = tls;
+    bld__adim(BLDA_BAGLAN);
     if (esp_tls_conn_new_sync(ad, (int)strlen(ad), port, &cfg, b->tls) != 1) {
+        bld__kapat(b, 0);
+        return BLDH_TLS;
+    }
+    if (bld__soket_sinirla(b->tls)) {              /* E8: tavan kurulamadiysa baglanti kullanilmaz */
         bld__kapat(b, 0);
         return BLDH_TLS;
     }
@@ -536,8 +632,13 @@ static int bld__gelen(BldBag *b, uint32_t bekle_ms)
         if (p < 0) return BLDH_BOZUK;
         if (p != 1) continue;
         const uint8_t tip = mqp_tip(&b->ok);
-        if (tip == MQP_PINGRESP) b->ping_bekle = 0;
-        else if (tip == MQP_PUBACK && b->ucusta && mqp_puback_pid(&b->ok) == (int32_t)b->ucusta) {
+        if (tip == MQP_PINGRESP) {
+            b->ping_bekle = 0;
+            const uint32_t t_pong = millis();
+            portENTER_CRITICAL(&bld_mux);
+            bld_durum.pong_ms = t_pong;                /* E8: Q? pong_yas */
+            portEXIT_CRITICAL(&bld_mux);
+        } else if (tip == MQP_PUBACK && b->ucusta && mqp_puback_pid(&b->ok) == (int32_t)b->ucusta) {
             bld_kuyruk_at(&bld);
             b->ucusta = 0;
             portENTER_CRITICAL(&bld_mux);
@@ -599,14 +700,28 @@ static void bildirim_gorevi(void *)
     uint8_t durum_zorla = 0, kuruldu = 0;
     bld_kur(&bld, 500u);
     for (;;) {
+        {   /* E8: canlilik — her tur sayac artar, adim "bekle"ye doner */
+            const uint32_t t = millis();
+            portENTER_CRITICAL(&bld_mux);
+            bld_durum.tur++;
+            bld_durum.adim = BLDA_BEKLE;
+            bld_durum.adim_ms = t;
+            portEXIT_CRITICAL(&bld_mux);
+        }
         if (bld_istek_yeniden) {
             bld_istek_yeniden = 0;
             if (b->tls) bld__kapat(b, 1);
             bld__ayar_sil(&bld_ayar);
             bld__ayar_oku(&bld_ayar);
+            bld_esik_ayarla(&bld, bld_ayar.esik);          /* W2 (E3): NVS'teki kullanici esigi */
             deneme_ms = millis();
             geri = BLD_DENEME_EN_AZ;
         }
+        if (bld_esik_islenen != bld_esik_istek) {          /* W2 (E3): Qe — baglanti kesilmez */
+            bld_esik_islenen = bld_esik_istek;
+            bld_esik_ayarla(&bld, bld__esik_oku());
+        }
+        bld_esik_etkin = bld.esik;
         if (!bld_ayar.acik) {
             bld__durum_yaz(BLDD_KAPALI, 0);
             vTaskDelay(pdMS_TO_TICKS(500));
@@ -658,6 +773,7 @@ static void bildirim_gorevi(void *)
             bld__durum_yaz(BLDD_BAGLI, 0);
         }
         int r = 0;
+        const uint32_t t_tur = millis();             /* E8: bagli turun suresi (BLD_TUR_MS) */
         /* durum (retained, QoS 0): baglaninca, degisince, 60 s'de bir */
         if (gv && (durum_zorla || bld_durum_gerek(&bld, &g, millis()))) {
             bld_durum_json(&g, KAYIT_FW_SURUM, bld_json, sizeof(bld_json));
@@ -677,10 +793,18 @@ static void bildirim_gorevi(void *)
         if (!r && b->ping_bekle && millis() - b->ping_ms > BLD_PINGRESP_MS) r = BLDH_PING;
         if (!r && !b->ping_bekle && millis() - b->gonder_ms >= BLD_PING_MS) {
             const int32_t n = mqp_ping(bld_paket, sizeof(bld_paket));
+            /* E8: ping YAZILMADAN once "bekliyor": PINGREQ'in kendisi takilirsa da -7 */
+            b->ping_bekle = 1;
+            b->ping_ms = millis();
+            portENTER_CRITICAL(&bld_mux);
+            bld_durum.ping_ms = b->ping_ms;          /* E8: Q? ping_yas */
+            portEXIT_CRITICAL(&bld_mux);
             r = bld__yaz(b, bld_paket, (size_t)n);
-            if (!r) { b->ping_bekle = 1; b->ping_ms = millis(); }
         }
         if (!r) r = bld__gelen(b, 50);
+        /* E8: soket cagrilari tek tek BLD_SOKET_MS ile sinirli, ama ilerleyen bir damla akis
+           (her cagri birkac bayt) turu yine uzatabilir: bir tur > BLD_TUR_MS ise baglanti olu */
+        if (!r && millis() - t_tur > BLD_TUR_MS) r = BLDH_TUR;
         if (r) {
             bld__kapat(b, 0);
             bld__durum_yaz(BLDD_BEKLIYOR, r);

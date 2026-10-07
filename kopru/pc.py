@@ -2,7 +2,10 @@
 """PC UYGULAMASI — olcum kartinin bu bilgisayardaki TEK ana sureci (alt proje 4).
 
     python kopru/pc.py                    # kopruyu ac + paneli tarayicida ac
-    pythonw kopru/pc.py --sessiz          # arka plan: konsol yok, tarayici yok
+    pythonw kopru/pc.py --sessiz          # arka plan: konsol yok, tarayici yok (+ tepsi simgesi)
+    pythonw kopru/pc.py --arka            # MASAUSTU KISAYOLU: konsol yok, panel tarayicida acilir,
+                                          #   bildirim alaninda simge (cift tik panel, sag tik Kapat)
+    python kopru/pc.py --tepsi-yok        # bildirim alani simgesi olmasin
     python kopru/pc.py --port COM7        # portu elle ver (yoksa VID'den)
     python kopru/pc.py --lan              # yerel aga SALT OKUMA (yalniz p0)
     python kopru/pc.py --kayit GUN.satir --http-port 8771   # olu tekrar
@@ -82,6 +85,7 @@ import kart_wifi                                          # noqa: E402
 import kopru as kopru_mod                                 # noqa: E402
 import pc_ayar                                            # noqa: E402
 import pc_bildirim                                        # noqa: E402  (4E)
+import tepsi as tepsi_mod                                  # noqa: E402  (bildirim alani simgesi)
 
 YARDIM = __doc__
 
@@ -245,12 +249,21 @@ def bildirim_kur(arg: list[str], kart, kopru, yazdir=print, cikis=None, veri_diz
     return pb
 
 
-def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
-    """Kopruyu ac ve kapanana dek hizmet et. Donus: cikis kodu."""
+def tepsi_istenir(arg: list[str]) -> bool:
+    """Konsolsuz kiplerde (--sessiz / --arka) ya da --tepsi ile bildirim alani simgesi; --tepsi-yok kapatir.
+    Kullanici (2026-10-06): konsol penceresi kapaninca kopru de kapaniyordu; kapatma simgeden."""
+    return ("--sessiz" in arg or "--arka" in arg or "--tepsi" in arg) and "--tepsi-yok" not in arg
+
+
+def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print, tepsi_kur=None) -> int:
+    """Kopruyu ac ve kapanana dek hizmet et. Donus: cikis kodu.
+    `tepsi_kur`: testler sahte simge verir (varsayilan tepsi.Tepsi)."""
     if "--yardim" in arg or "-h" in arg:
         yazdir(YARDIM)
         return 0
-    sessiz = "--sessiz" in arg
+    # --arka = masaustu kisayolu: --sessiz gibi konsolsuz (hata dosyaya) ama panel tarayicida ACILIR
+    arka = "--arka" in arg
+    sessiz = "--sessiz" in arg or arka
     lan = "--lan" in arg
     kayit = _secenek(arg, "--kayit")
     http_port = int(_secenek(arg, "--http-port", pc_ayar.PORT))
@@ -267,7 +280,7 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
             yazdir(f"{http_port} portunda kopru zaten calisiyor. Olu tekrar icin baska "
                    f"port verin: --http-port {http_port + 1}")
             return 2
-        if sessiz:
+        if sessiz and not arka:
             return 0
         yazdir(f"Kopru zaten calisiyor — {adres} aciliyor.")
         tarayici_ac(adres + "/")
@@ -350,14 +363,25 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
             yazdir(f"  Bildirimler           : MQTT (yalniz abone) + {bildirim.mantik.cikis.yol} "
                    f"— durum {adres}/bildirim/durum")
         yazdir("Kapatmak icin Ctrl+C (arka plandaysa: kopru\\Kopruyu Durdur.bat)")
-        if "--tarayici-acma" not in arg:
-            threading.Timer(0.6, lambda: tarayici_ac(adres + "/")).start()
+    if (not sessiz or arka) and "--tarayici-acma" not in arg:
+        threading.Timer(0.6, lambda: tarayici_ac(adres + "/")).start()
+    simge = None
+    if tepsi_istenir(arg):
+        def _kapat():
+            # simge ipliginden: shutdown serve_forever bitene dek BEKLER — ayri iplikte
+            threading.Thread(target=sunucu.shutdown, daemon=True).start()
+        simge = (tepsi_kur or tepsi_mod.Tepsi)(
+            lambda: tepsi_mod.ipucu_metni(*tepsi_mod.kart_durumu(kart)),
+            lambda: tarayici_ac(adres + "/"), _kapat)
+        simge.baslat()
     try:
         sunucu.serve_forever()
     except KeyboardInterrupt:
         if not sessiz:
             yazdir("\nkapatiliyor…")
     finally:
+        if simge is not None:
+            simge.durdur()
         if esitleme is not None:
             esitleme.durdur()
         if bildirim is not None:                            # 4E
@@ -370,7 +394,7 @@ def calistir(arg: list[str], tarayici_ac=webbrowser.open, yazdir=print) -> int:
 
 def main(arg: list[str] | None = None) -> int:
     arg = sys.argv[1:] if arg is None else list(arg)
-    if "--sessiz" not in arg:
+    if "--sessiz" not in arg and "--arka" not in arg:
         try:
             return calistir(arg)
         except RuntimeError as e:

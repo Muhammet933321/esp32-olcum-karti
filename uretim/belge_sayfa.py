@@ -545,17 +545,34 @@ sorabilir, <b>evet</b> deyin.</p>
 <p>Kart kendi Wi-Fi'sını kurmak yerine <b>evin ağına</b> bağlanır;
 telefon ve bilgisayar zaten o ağdadır. Bağlanma {d['sta_bekle_s']:.0f}
 saniye deneniyor, olmazsa 1. kipe düşüyor — yani <b>kart hiçbir zaman
-erişilemez kalmıyor</b>.</p>
+erişilemez kalmıyor</b>. Kendi ağındayken ev ağını <b>{d['sta_yeniden_s']:.0f}
+saniyede bir yeniden dener</b>: ev ağı sonradan gelirse (ör. elektrik
+kesintisinden sonra modem karttan geç açılınca) kart kendiliğinden eve geçer,
+kendi ağını {d['ap_pay_s']:.0f} saniye sonra kapatır — sıfırlamak gerekmez.
+Bağlıyken ağ kısa süre koparsa kart kendiliğinden geri bağlanır;
+<b>{d['sta_kopuk_s']:.0f} saniyeden uzun</b> koparsa (ör. kartı başka yere
+götürdünüz) kendi ağını kurar ve kayıtlı ağları yeniden dener.</p>
 
-<h3>Ev ağını karta bir kez tanıtmak</h3>
-<p>Kartı USB ile bilgisayara takıp seri konsoldan (115200) üç komut:</p>
+<h3>Ağları karta tanıtmak (en çok {d['agl_azami']} ağ)</h3>
+<p>Kart <b>{d['agl_azami']} ağa kadar</b> hatırlar (ev, iş yeri, telefonun
+hotspot'u …). Açılışta en son bağlandığı ağı dener; o yoksa görünen kayıtlı
+ağlardan <b>öncelikli</b> olanı, sonra sinyali en güçlü olanı seçer. En kolayı
+panelde <b>Ayarlar → Ağ</b>: listeyi yenile, ağları tara, ekle, öncelik ver,
+sil, <b>“Bu ağa geç”</b>. Aynısı seri konsoldan (115200):</p>
 <table>
-<tr><th><code>Na<i>AğAdı</i></code></th><td>Wi-Fi adı (SSID)</td></tr>
-<tr><th><code>Np<i>parola</i></code></th><td>Wi-Fi parolası</td></tr>
-<tr><th><code>N</code></th><td>Durumu yazdırır: kip, SSID, IP, mDNS</td></tr>
+<tr><th><code>Na<i>AğAdı</i></code> + <code>Np<i>parola</i></code></th><td>Listeye ekle (aynı ad varsa
+    seçer; <code>Np</code> son eklenenin parolasını yazar)</td></tr>
+<tr><th><code>Nl</code> · <code>Nt</code></th><td>Kayıtlı ağları listele · çevredeki ağları tara
+    (parola hiçbir çıktıda yok)</td></tr>
+<tr><th><code>Ng<i>no</i></code></th><td><b>Bu ağa geç:</b> kart önce ağı arar, görünmüyorsa
+    ayrılmaz; {d['gecis_s']:.0f} saniyede bağlanamazsa önceki ağa döner</td></tr>
+<tr><th><code>No<i>no</i></code> · <code>Nx<i>no</i></code></th><td>Öncelik aç/kapa · sil (bağlı ağı
+    silmek bağlantıyı koparmaz)</td></tr>
+<tr><th><code>N</code></th><td>Durumu yazdırır: kip, SSID, IP, mDNS, kayıtlı ağ sayısı</td></tr>
 </table>
-<p>Kaydedildikten sonra kartı yeniden başlatın. Ayarlar kartın kalıcı
-belleğinde durur; bir daha girmeniz gerekmez.</p>
+<p>Ayarlar kartın kalıcı belleğinde durur; bir daha girmeniz gerekmez. Kart
+telefonun hotspot listesinde kendi ağının adıyla (<code>OLCUM-KARTI-XXXX</code>)
+görünür.</p>
 
 <table>
 <tr><th>Adres</th><td><code>http://{d['mdns']}.local</code></td></tr>

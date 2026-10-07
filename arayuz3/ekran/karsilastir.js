@@ -31,7 +31,7 @@
 
 import { Grafik, cssRenk, yerlesim, seriHazirla } from '/ortak/grafik.js';
 import { sayiYaz, metinHucre, csvBayt, BASAMAK, BICIM_EXCEL_TR, BICIM_EN } from '/ortak/disari.js';
-import { ceviri } from '/ortak/sozluk.js';
+import { ceviriKayit as ceviri } from '/ortak/sozluk_kayit.js';
 import {
   grafikSerileri, okumaHesapla, oturumTuru, metinler, sureYaz, okumaJson, TUR_METIN,
   sayiYaz as sayiGoster,

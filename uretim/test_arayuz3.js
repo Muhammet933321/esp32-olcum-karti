@@ -30,6 +30,18 @@ const APP = path.join(ARAYUZ, 'app.js');
 const HTML = path.join(ARAYUZ, 'index.html');
 const INO = path.join(KOK, 'kod', 'olcum-karti-a3', 'olcum-karti-a3.ino');
 
+/* EU32 (W3): tembel ekran zincirlerinin metinleri ayri sozluklerde (ortak/src/sozluk_kayit.js: Kayitlar /
+   kayit gorunumu / Karsilastirma; sozluk_ay.js: Ayarlar modulu). Bir METNIN icerigini sinayan iddialar anahtari
+   hangi sozlukte olursa olsun bulsun diye BIRLESIK gorunum; hangi anahtarin ACILISTA oldugu ayri iddialarda
+   (EU30/EU32) ve ortak/test/sozluk_{kayit,ay}.test.js'te olculur. */
+function sozlukTum() {
+  const SZa = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const KY = require(path.join(KOK, 'ortak', 'src', 'sozluk_kayit.js'));
+  const AYs = require(path.join(KOK, 'ortak', 'src', 'sozluk_ay.js'));
+  const SOZLUK = Object.freeze({ ...SZa.SOZLUK, ...KY.SOZLUK_KAYIT, ...AYs.SOZLUK_AY });
+  return { ...SZa, SOZLUK, ceviri: (a, d, v) => SZa.sozluktenCeviri(SOZLUK, a, d, v) };
+}
+
 // ── Vue taklidi
 let secenekler = null;
 const sandbox = {
@@ -2692,7 +2704,7 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
   const D = src('disari.js');
   const R = src('rapor.js');
   const IM = src('imza.js');
-  const SZ = src('sozluk.js');
+  const SZ = sozlukTum();
   const ek = (ad) => require(path.join(ARAYUZ, 'ekran', ad));
   const KL = ek('kayitlar.js');
   const KG = ek('kayit_gorunum.js');
@@ -2765,6 +2777,19 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
      ES.hataSinifla(new IM.HttpHatasi(401, null, '/kayit/veri')).durum === 'imza'
      && ES.hataSinifla(new IM.HttpHatasi(500, null, '/kayit/veri')).durum === 'hata'
      && ES.hataSinifla(new TypeError('Failed to fetch')).durum === 'ag');
+  {
+    /* EU32 (W3): kl. metinleri sozluk_kayit.js'e gecti; Kayitlar'in pc./kl. KARISIK haritalari (NEREDE_METIN,
+       nedenMetni, kopya satiri) ceviriKlPc ile cevrilir — ceviriPc yalniz acilis sozlugune dustugu icin
+       kl.nerede_kart ekrana HAM anahtar olarak cikardi. */
+    const KY = src('sozluk_kayit.js');
+    const PCs = src('sozluk_pc.js');
+    const f = KG.ceviriKlPc || (() => '');
+    const nm = Object.values(KG.NEREDE_METIN || {});
+    ok('[!] EU32: ceviriKlPc — kl. metni sozluk_kayit.js, pc. metni sozluk_pc.js (iki dilde); NEREDE_METIN`in hicbiri ham anahtar degil',
+       f('kl.nerede_kart', 'en') === KY.SOZLUK_KAYIT['kl.nerede_kart'].en && f('pc.nerede', 'tr') === PCs.SOZLUK_PC['pc.nerede'].tr
+       && nm.length >= 4 && nm.every((a) => ['tr', 'en'].every((d) => f(a, d) && !/^(kl|pc)\./.test(f(a, d)))),
+       nm.map((a) => f(a, 'en')).join(' | '));
+  }
   {
     const metin = SZ.ceviri('kl.neden_imza', 'tr');
     /* WIG: eski metin olmayan bir ayara ("Ayarlar'da (3H)") gonderiyordu. 4D: 3H-2'den beri panel
@@ -3063,6 +3088,55 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
        `${e.wh} ~ ${r.enerji.wh}`);
   }
   {
+    /* W1/Y7 (K3c): yakalama isaretleri ZAMANINDA (META t_ms) — yakalamanin kaydi SONRAKI
+       orneklerden sonra yazilir (kayit sirasi zaman sirasi degil); DEVAM'dan sonraki yakalama
+       KENDI acilisinin ofsetinde. */
+    let sira = 0;
+    const ham = [];
+    const ekle = (tur, ot_, yuk) => { sira++; ham.push(K.kayitPaketle(tur, sira, ot_, yuk)); return sira; };
+    const id = ekle(K.T_BASLA, 1, K.baslaPaketle({ oturum_turu: 1, kal_bicim: 1, hiz_ms: 0, unix_s: 1790005000,
+      kart_ms: 400000, acilis: 3, surum: 'A3-W1', kal: KAL, kal_no: 2 }));
+    const ayr = (ilk, ms, n) => ekle(K.T_AYRINTI, id, K.ayrintiPaketle({ ilk, t0_ms: ms, t0_us: ms * 1000, bayrak: 0,
+      ornekler: Array.from({ length: n }, (_, k) => [1000 + k, 200 + k, k ? 500 : 0, 0]) }));
+    const skop = (no, t) => ekle(K.T_SKOP, id, K.skopPaketle({ no, ilk: 0, toplam: 2, parca: 0, kodlar: [1, 2],
+      meta: { t_ms: t, sure_ms: 30, hz: 1000, tdiv_us: 1000, adim: 0.03, ofset: 1.5, tetik: 0, esik: 2048,
+        histerezis: 8, kip: 0, tetiklendi: 1, kenar: 0, on_yuzde: 25, onay: 2 } }));
+    ayr(0, 400010, 10);                  // 400010..400028 ms
+    ayr(10, 400070, 10);                 // yakalama 400030 + 30 ms
+    skop(1, 400030);                     // kaydi SONRAKI orneklerden sonra
+    ekle(K.T_DEVAM, id, u32(4, 1790005002, 1000, 20));
+    ayr(20, 1010, 10);
+    ayr(30, 1070, 10);
+    skop(2, 1035);
+    ekle(K.T_BITIR, id, bitir(40, 1));
+    const b2 = new Uint8Array(ham.reduce((x, h) => x + h.length, 0));
+    ham.reduce((x, h) => { b2.set(h, x); return x + h.length; }, 0);
+    const kay2 = K.akisCoz(b2);
+    const o2 = K.oturumlariKur(kay2).get(id);
+    const h2 = KG.grafikSerileri(o2, { kayitlar: kay2 });
+    const is2 = KG.yakalamaIsaretleri(o2, h2);
+    ok('[!] W1/Y7 K3c: yakalama isareti iki ornegin ARASINDA (META t_ms), DEVAM sonrasi kendi acilisinda; "S<no>"',
+       is2.length === 2 && is2[0].metin === 'S1' && is2[1].metin === 'S2' && is2[0].t === 30 && is2[1].t === 2035
+       && h2.t[9] < is2[0].t && is2[0].t < h2.t[10] && h2.t[29] < is2[1].t && is2[1].t < h2.t[30]
+       && KG.yakalamaIsaretleri(A, hA).length === 0,
+       JSON.stringify(is2) + ' t9..10=' + h2.t[9] + ',' + h2.t[10] + ' t29..30=' + h2.t[29] + ',' + h2.t[30]);
+    /* W1 inceleme: ~1.9 M ornekli oturumda her yeniden kurulum saniyeler + yuzlerce MB. Sayac:
+       ayrintiOrnekler kayit basina t0_us'u IKI kez okur, baska okuyan yok. */
+    const o3 = K.oturumlariKur(kay2).get(id);
+    let okuma = 0;
+    o3.ayrinti = o3.ayrinti.map((r) => {
+      const { t0_us: t0, ...g } = r;
+      return Object.defineProperty(g, 't0_us', { get() { okuma++; return t0; }, enumerable: true });
+    });
+    const h3 = KG.grafikSerileri(o3, { kayitlar: kay2 });
+    const kGrafik = okuma / (2 * o3.ayrinti.length);
+    okuma = 0;
+    const is3 = KG.yakalamaIsaretleri(o3, h3);
+    ok('[!] W1 inceleme K3c: grafik ornek listesini BIR kez kurar, yakalama isaretleri onun yerlerini kullanir (yeniden KURMAZ)',
+       kGrafik === 1 && okuma === 0 && JSON.stringify(is3) === JSON.stringify(is2),
+       `grafik ${kGrafik} kurulum, isaretler ${okuma / (2 * o3.ayrinti.length)}`);
+  }
+  {
     const ok2 = KG.okumaHesapla(hA, 1450, 610);           // ters sirayla da
     const v = nsA.vOrt;
     const ort = (v[3] + v[4] + v[5] + v[6]) / 4;   // [610, 1450] icindeki ornekler: t 800..1400 (sira 3..6)
@@ -3229,7 +3303,7 @@ console.log('\n--- 25. Canli + kabuk + kayit denetimi (3D) ---');
   const html = yorumsuz(htmlKaynak);
   const kod = yorumsuz(appKaynak);
   const css = cssOku();
-  const SZ = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const SZ = sozlukTum();
   const GR = require(path.join(KOK, 'ortak', 'src', 'grafik.js'));
   const CN = require(path.join(ARAYUZ, 'ekran', 'canli.js'));
   const ESx = require(path.join(ARAYUZ, 'ekran', 'esitleme.js'));
@@ -3340,6 +3414,22 @@ console.log('\n--- 25. Canli + kabuk + kayit denetimi (3D) ---');
        kayitSatiriCoz('G 2 61 24337') === null && kayitSatiriCoz('G 2 61 24337 50012 49000 310 45 0 2900 1300 4 300 0 9') === null
        && kayitSatiriCoz('G 2 61 x 50012 49000 310 45 0 2900 1300 4 300 0') === null
        && kayitSatiriCoz('GX 1 2 3 4') === null && kayitSatiriCoz('Gerilim 1') === null);
+    /* W2 (A3-W2): G'ye son_not + mesaj_dusen SONA eklendi. Eski firmware'in 13 alanli satiri
+       (kartta A3-4B) hala DURUM: kayit gostergesi yeni panel + eski kartta susmamali. */
+    const ESKI = al('KAYIT_SATIR_ESKI');
+    const eskiG = kayitSatiriCoz('G 2 61 24337 50012 49000 310 45 0 2900 1300 4 300 0');
+    const yeniG = kayitSatiriCoz('G 2 61 24337 50012 49000 310 45 0 2900 1300 4 300 0 50020 3');
+    const hataG = kayitSatiriCoz('G 2 61 24337 50012 49000 310 45 0 2900 1300 4 300 0 -1 0');
+    ok('[!] W2: G GERIYE UYUMLU — eski firmware satiri (13 alan) cozulur, son_not/mesaj_dusen nesnede YOK; '
+       + 'yeni satir (15) ikisini tasir, son_not eksi (KG_*) olabilir; aradaki 14 alan RET; eski sayi '
+       + 'firmware alan sayisindan KUCUK (yeni alanlar SONDA)',
+       !!eskiG && eskiG.son_hata === 0 && eskiG.nokta === 24337 && !('son_not' in eskiG) && !('mesaj_dusen' in eskiG)
+       && !!yeniG && yeniG.son_not === 50020 && yeniG.mesaj_dusen === 3 && yeniG.son_hata === 0
+       && !!hataG && hataG.son_not === -1
+       && Array.isArray(ESKI.G) && ESKI.G.length > 0 && ESKI.G.every((n) => n > 0 && n < fwSatir.G.n)
+       && KS.G.slice(0, 13).join(',') === 'durum,oturum,nokta,sonraki,onay,doluluk,onaysiz,dusen,yaz_azami_us,sil_azami_us,sil_adet,tarama_ms,son_hata'
+       && ['GA', 'GT', 'GP'].every((t) => kayitSatiriCoz(t + ' 1') === null),
+       JSON.stringify({ eskiG, yeniG, hataG, ESKI }));
   }
   {
     const KDR = al('KDR');
@@ -3773,7 +3863,7 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
   const css = cssOku();
   const cssKod = css.replace(/\/\*[\s\S]*?\*\//g, '');
   const kod = yorumsuz(appKaynak);
-  const SZ = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const SZ = sozlukTum();
   const KLm = require(path.join(ARAYUZ, 'ekran', 'kayitlar.js'));
   const KGm = require(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'));
   const TEMAm = require(path.join(ARAYUZ, 'ekran', 'tema.js'));
@@ -4265,7 +4355,7 @@ console.log('\n--- 26. Osiloskop (3E) ---');
   const KGx = require(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'));
   const Kx = require(path.join(KOK, 'ortak', 'src', 'kayit.js'));
   const SKx = require(path.join(KOK, 'ortak', 'src', 'skop.js'));
-  const SZx = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const SZx = sozlukTum();
   const osKaynak = fs.readFileSync(path.join(ARAYUZ, 'ekran', 'osiloskop.js'), 'utf8');
   const skopMain = html.match(/<main class="gorunum" v-show="gorunum === 'skop'">([\s\S]*?)<\/main>/);
   const sm = skopMain ? skopMain[1] : '';
@@ -4694,7 +4784,7 @@ console.log('\n--- 28. Pil testi (3F) ---');
   const PL = require(path.join(ARAYUZ, 'ekran', 'pil.js'));
   const Kx = require(path.join(KOK, 'ortak', 'src', 'kayit.js'));
   const Dx = require(path.join(KOK, 'ortak', 'src', 'disari.js'));
-  const SZx = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const SZx = sozlukTum();
   const pilKaynak = fs.readFileSync(path.join(ARAYUZ, 'ekran', 'pil.js'), 'utf8');
   const pilH = fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'pil_test.h'), 'utf8');
   const pm = (html.match(/<main class="gorunum" v-show="gorunum === 'pil'">([\s\S]*?)<\/main>/) || [])[1] || '';
@@ -5275,7 +5365,7 @@ console.log('\n--- 29. Karsilastirma (3G) ---');
   const PLx = require(path.join(ARAYUZ, 'ekran', 'pil.js'));
   const Kx = require(path.join(KOK, 'ortak', 'src', 'kayit.js'));
   const Dx = require(path.join(KOK, 'ortak', 'src', 'disari.js'));
-  const SZx = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const SZx = sozlukTum();
   const GRx = require(path.join(KOK, 'ortak', 'src', 'grafik.js'));
   const krKaynak = fs.readFileSync(path.join(ARAYUZ, 'ekran', 'karsilastir.js'), 'utf8');
   const klKaynak = fs.readFileSync(path.join(ARAYUZ, 'ekran', 'kayitlar.js'), 'utf8');
@@ -5738,7 +5828,7 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
   const html = yorumsuz(htmlKaynak);
   const css = cssOku();
   const al = (ad) => { try { return vm.runInContext(ad, sandbox); } catch (e) { return undefined; } };
-  const SZx = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const SZx = sozlukTum();
   const ESx = require(path.join(ARAYUZ, 'ekran', 'esitleme.js'));
   const KLx = require(path.join(ARAYUZ, 'ekran', 'kayitlar.js'));
   const KRx = require(path.join(ARAYUZ, 'ekran', 'karsilastir.js'));
@@ -5912,11 +6002,13 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
          ':tasiyici="tasiyiciAdi"', ':bagli="bagli"', ':afis-surum="afisSurum"', ':dil-secim="dil"', ":etkin=\"gorunum === 'ayar'\""]
          .every((x) => ekr[1].includes(x)), ekr ? ekr[1] : 'yok');
 
-    /* butce: ayarlar.js ACILISTA inmez; statik agaci yalniz sozluk (zaten acilista); IndexedDB zinciri DINAMIK */
+    /* butce: ayarlar.js ACILISTA inmez; statik agaci acilis kumesi + KENDI sozlugu (EU32: sozluk_ay.js — ekranin
+       metinleri acilistan cikti, Gelismis artik IKI dosya indirir: ayarlar.js + sozluk_ay.js); IndexedDB zinciri DINAMIK */
     const statik = iceAktarmaGrafigi().map((x) => x.goruntu);
     const ayAgac = iceAktarmaGrafigi(ayYolu).map((x) => x.goruntu);
-    ok('[!] AY2: ekran/ayarlar.js ACILISTA inmiyor; kendi statik agaci yalniz acilis kumesindeki dosyalar (Gelismis tek dosya ekler)',
-       !statik.includes('ekran/ayarlar.js') && ayAgac.length > 0 && ayAgac.every((x) => statik.includes(x)), ayAgac.join(' '));
+    const ayEk = ayAgac.filter((x) => !statik.includes(x));
+    ok('[!] AY2 / EU32: ekran/ayarlar.js ACILISTA inmiyor; kendi statik agaci acilis kumesi + YALNIZ ortak/sozluk_ay.js (Gelismis iki dosya ekler: modul + metinleri)',
+       !statik.includes('ekran/ayarlar.js') && ayAgac.length > 0 && ayEk.join(' ') === 'ortak/sozluk_ay.js', ayAgac.join(' '));
     /* 4H: ./pc_kopru.js da dinamik ama IndexedDB zinciri DEGIL (yalniz kopruda, Gelismis'te) — bolum 34 */
     const dinamik = [...ayKod.matchAll(/import\('(\.\/[a-z_]+\.js)'\)/g)].map((m) => m[1]).filter((d) => d !== './pc_kopru.js').sort();
     const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
@@ -5931,6 +6023,9 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
     }
     const dinBayt = [...dinAgac].reduce((n, a) => n + (Number.isFinite(by[a]) ? by[a] : NaN), 0);
     const ayBayt = by['ekran/ayarlar.js'];
+    const aySozBayt = by['ortak/sozluk_ay.js'];
+    ok('[!] EU32: ortak/sozluk_ay.js (Ayarlar modulunun metinleri) <= 5.5 KB gzip ve kunyede; ayarlar.js + sozluk_ay.js <= 17 KB gzip',
+       aySozBayt > 0 && aySozBayt <= 5632 && ayBayt + aySozBayt <= 17 * 1024, `sozluk_ay.js ${aySozBayt} B · toplam ${ayBayt + aySozBayt} B`);
     ok('[!] AY4/AY5: IndexedDB zinciri ayarlar.js`e DINAMIK (yalniz esitleme.js + depo_idb.js), <= 6 dosya ve <= 48 KB gzip; ayarlar.js <= 12 KB gzip',
        dinamik.join(' ') === './depo_idb.js ./esitleme.js' && dinAgac.size > 0 && dinAgac.size <= 6 && dinBayt > 0 && dinBayt <= 48 * 1024
        && ayBayt > 0 && ayBayt <= 12 * 1024, `${[...dinAgac].join(' ')} · ${dinBayt} B · ayarlar.js ${ayBayt} B`);
@@ -5938,7 +6033,7 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
       .filter((x, i, a) => a.indexOf(x) === i).reduce((n, a) => n + (by[a] || 0), 0);
     /* Bilgi (iddia DEGIL — Kayitlar'in dogrudan acilisinda da kural yok, 3G KU1): dogrudan
        #/ayar/depolama acilisi = acilis kumesi (<= 250 KB, yukaridaki iddialar) + bu iki sinir. */
-    console.log(`     #/ayar/depolama ile dogrudan acilis: ${statikBayt} + ${ayBayt} + ${dinBayt} = ${statikBayt + ayBayt + dinBayt} B gzip`);
+    console.log(`     #/ayar/depolama ile dogrudan acilis: ${statikBayt} + ${ayBayt} + ${aySozBayt} + ${dinBayt} = ${statikBayt + ayBayt + aySozBayt + dinBayt} B gzip`);
   }
 
   /* ── (b) DIL (AY3) ──────────────────────────────────────────────── */
@@ -7296,6 +7391,26 @@ console.log('\n--- 31. Eslestirme (3H-2) ---');
       ok('[!] EU31: ESLESMIS tarayicinin Canli ile acilisi <= 262 144 B gzip ve <= 15 dosya (3D sinirinin eslesmis istisnasi; buyume kilitli)',
          toplam > 0 && toplam <= ES_ACILIS_TAVAN && hepsi.size <= ES_ACILIS_DOSYA,
          `${a0} + ${c0} + ${e0} = ${toplam} B (%${(100 * toplam / 256000).toFixed(1)} / 3D 256000), ${hepsi.size} dosya`);
+      /* EU32 (W3, 2026-10-03): tembel ekran zincirlerinin YALNIZ kendi kullandigi metinleri acilis sozlugunden
+         ayrildi (sozluk_kayit.js: Kayitlar / kayit gorunumu / Karsilastirma; sozluk_ay.js: Ayarlar modulu).
+         Kazanc ancak bu dosyalar acilisa, #/skop'a, #/pil'e ve eslesmis acilisa GIRMEZSE gercek: iddia. */
+      const zin = (ad) => [ad, ...iceAktarmaGrafigi(path.join(ARAYUZ, ad)).map((g) => g.goruntu)];
+      const skopK = new Set([...acK, ...zin('ekran/osiloskop.js')]);
+      const pilK = new Set([...acK, ...zin('ekran/pil.js')]);
+      const tembel = ['ortak/sozluk_kayit.js', 'ortak/sozluk_ay.js'];
+      const kayitZ = zin('ekran/kayitlar.js');
+      const krZ = zin('ekran/karsilastir.js');
+      const ayZ = zin('ekran/ayarlar.js');
+      ok('[!] EU32: tembel ekran sozlukleri (sozluk_kayit.js, sozluk_ay.js) acilis kumesinde, #/skop ve #/pil acilisinda, eslesmis acilista YOK; sozluk_kayit yalniz Kayitlar / Karsilastirma, sozluk_ay yalniz Ayarlar zincirinde',
+         tembel.every((x) => !acK.has(x) && !skopK.has(x) && !pilK.has(x) && !hepsi.has(x) && by[x] > 0)
+         && kayitZ.includes('ortak/sozluk_kayit.js') && krZ.includes('ortak/sozluk_kayit.js') && !ayZ.includes('ortak/sozluk_kayit.js')
+         && ayZ.includes('ortak/sozluk_ay.js') && !kayitZ.includes('ortak/sozluk_ay.js') && !krZ.includes('ortak/sozluk_ay.js'),
+         tembel.map((x) => `${x} ${by[x]} B`).join(' · '));
+      /* Buyume kilidi: W3 oncesi acilis sozlugu 27 727 B gzip, sonrasi 18 187 B. Tavan kabugun yeni metinlerine
+         ~1.3 KB pay birakir; asilirsa once yeni metin tembel bir ekranin sozlugune gidebilir mi diye bakilir. */
+      const SOZ_ACILIS_TAVAN = 19500;
+      ok('[!] EU32: acilis sozlugu (ortak/sozluk.js) <= 19 500 B gzip (W3 oncesi 27 727 B; ekran metinleri acilisa geri donerse kirmizi)',
+         by['ortak/sozluk.js'] > 0 && by['ortak/sozluk.js'] <= SOZ_ACILIS_TAVAN, `${by['ortak/sozluk.js']} B`);
     }
   }
 }
@@ -7723,7 +7838,7 @@ console.log('\n--- 33. 4D: panel PC koprusunde (PC arsivi salt okuma, vekil, esk
   const ESI = src('esitle.js');
   const IM = src('imza.js');
   const SZP = src('sozluk_pc.js');
-  const SZ = src('sozluk.js');
+  const SZ = sozlukTum();
   const kaynak = (ad) => fs.readFileSync(path.join(ARAYUZ, 'ekran', ad), 'utf8');
   const html = yorumsuz(htmlKaynak);
 
@@ -8030,7 +8145,7 @@ console.log('\n--- 33. 4D: panel PC koprusunde (PC arsivi salt okuma, vekil, esk
    34. 4H — PANEL PC KOPRUSUNDE: bildirim bolumu, yerel ag uyarisi, kabuk surumu
    Kararlar tasarim/2026-10-03-alt-proje-4-pc.md "4H uygulama kararlari".
    (a) Gelismis kopru bolumu YALNIZ kopruda: kart kokeninde HICBIR istek / indirme yok
-       (AY2: Gelismis tek dosya); kopruda 4D'nin karari (/durum pc_arsiv) — yerel ag istemcisi YOK.
+       (AY2: Gelismis yalniz modul + metinleri, EU32); kopruda 4D'nin karari (/durum pc_arsiv) — yerel ag istemcisi YOK.
    (b) ekran/pc_kopru.js YALNIZ dinamik: acilista, ayarlar.js'in statik agacinda yok; app.js onu
        yalniz koprunun isaretli 403'unde ister.
    (c) bildirim bolumu: GET /bildirim/durum, POST /bildirim/ayar (X-Olcum, JSON, yalniz degisen alan),
@@ -8102,7 +8217,7 @@ console.log('\n--- 34. 4H: panel PC koprusunde (bildirim bolumu, yerel ag uyaris
   SONRA.push(async () => {
     const kart = ayarYap({ konum: KART_KONUM });
     await fetchIle(kart.__f, async () => { kart.bolumAcildi(); await (kart.pcKopruKur ? kart.pcKopruKur() : null); });
-    ok('[!] 4H (a): KART kokeninde Gelismis kopru bolumu icin HICBIR istek yok, esitleme.js ve pc_kopru.js INMEZ (AY2 tek dosya); bolum ve kabuk satiri yok',
+    ok('[!] 4H (a): KART kokeninde Gelismis kopru bolumu icin HICBIR istek yok, esitleme.js ve pc_kopru.js INMEZ (AY2: yalniz modul + sozluk_ay.js); bolum ve kabuk satiri yok',
        typeof kart.pcKopruKur === 'function' && kart.__iz.es === 0 && kart.__iz.pk === 0 && kart.__iz.fetch.length === 0
        && !kart.pcBilesen && !kart.kabuk, JSON.stringify(kart.__iz));
     const kopru = ayarYap({ konum: KOPRU_KONUM });

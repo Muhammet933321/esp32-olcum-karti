@@ -23,6 +23,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import urllib.error
 import urllib.parse
 from pathlib import Path
@@ -73,6 +74,57 @@ def govde(kaynak: str, imza: str) -> str:
             if derinlik == 0:
                 return kaynak[j:k + 1]
     return ""
+
+
+_ONISLEMCI = re.compile(r"^[ \t]*#[ \t]*(if|ifdef|ifndef|elif|else|endif)\b[ \t]*(.*)$", re.M)
+
+
+def kosul_yigini(kaynak: str, konum: int) -> list[str]:
+    """E6K: `konum`u saran ACIK onislemci kosullari, distan ice (or. ['#if 0']).
+
+    Metin aramasi `#if 0` / `#ifdef TANIMSIZ` icindeki OLU kodu da bulur — derlenmeyen bir
+    satir iddiayi yesil tutuyordu (B72.E6Fe/E6Ff, DEVIR 5.12.106 acik kucuk b). Hangi
+    kosulun dogru oldugunu bilmek derleyicinin isi; burada KOSUL VARLIGI olculur: tek
+    istisna baslik korumasi (`#ifndef X_H` + hemen ardindan `#define X_H`), o da YALNIZ
+    dosyanin ILK yonergesiyse (oncesinde yalniz bosluk; E6K inceleme: dosya ortasindaki
+    `#ifndef ARDUINO` + `#define ARDUINO 1` koruma sayiliyordu). `#elif`/`#else` kolu da
+    kosullu sayilir — korumanin kendi #else/#elif kolu DAHIL (yalniz ikinci dahil etmede
+    derlenir). Yorumlar ONCEDEN `kod()` ile cikmis olmali."""
+    yigin: list[list] = []  # [metin, koruma_mu]
+    ilk = True
+    for m in _ONISLEMCI.finditer(kaynak):
+        if m.start() >= konum:
+            break
+        yon, arg = m.group(1), m.group(2).strip()
+        if yon in ("if", "ifdef", "ifndef"):
+            koruma = (ilk and not kaynak[:m.start()].strip()
+                      and yon == "ifndef" and re.fullmatch(r"\w+", arg) is not None
+                      and re.match(r"\s*#[ \t]*define[ \t]+" + re.escape(arg) + r"\b",
+                                   kaynak[m.end():]) is not None)
+            yigin.append([f"#{yon} {arg}".strip(), koruma])
+        elif yon == "endif":
+            if yigin:
+                yigin.pop()
+        elif yigin:
+            yigin[-1][0] += f" / #{yon} {arg}".rstrip()
+            yigin[-1][1] = False
+        ilk = False
+    return [x for x, koruma in yigin if not koruma]
+
+
+def kosulsuz(kaynak: str, *parcalar: str) -> list[str]:
+    """E6K: her parca kaynakta VAR ve HER gecisi kosulsuz derleniyor mu — sorunlari dondurur
+    (bos liste = temiz). Iddia `not kosulsuz(...)` ile yazilir, sorunlar ek olarak basilir."""
+    sorun = []
+    for p in parcalar:
+        konumlar = [m.start() for m in re.finditer(re.escape(p), kaynak)]
+        if not konumlar:
+            sorun.append(f"{p[:48]!r} YOK")
+        for k in konumlar:
+            y = kosul_yigini(kaynak, k)
+            if y:
+                sorun.append(f"{p[:48]!r} {' > '.join(y)} icinde")
+    return sorun
 
 
 def bolum_tablosu(yol: Path) -> list[dict]:
@@ -252,7 +304,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-4B"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-CA"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -1888,6 +1940,92 @@ def bolum_bildirim_kart() -> None:
        and "bld_deneme_islenen = (uint8_t)(bld_deneme_islenen + 1u);" in gor
        and "bld_deneme_istek = (uint8_t)(bld_deneme_istek + 1u);" in sk)
 
+    # ── E8 (2026-10-04): MQTT gorevi saglamligi — sinirli bloklama + canlilik izi (DEVIR 5.12.107)
+    def _sabit(ad: str) -> int | None:
+        m = re.search(rf"#define {ad}\s+(-?\d+)(?:UL|u)?\b", be_k)
+        return int(m.group(1)) if m else None
+    sm, ym, tm, pr_ms = _sabit("BLD_SOKET_MS"), _sabit("BLD_YAZ_MS"), _sabit("BLD_TUR_MS"), _sabit("BLD_PINGRESP_MS")
+    ss = govde(be_k, "static int bld__soket_sinirla(")
+    i_tls = bb.find("esp_tls_conn_new_sync(")
+    i_sn = bb.find("if (bld__soket_sinirla(b->tls)) {")
+    ok("B72.QE8a baglandiktan SONRA (TCP/TLS kurulunca, CONNECT yazilmadan once) soketin SO_SNDTIMEO ve "
+       "SO_RCVTIMEO'su BLD_SOKET_MS'e iner (esp-tls 10 s kurar); kurulamazsa baglanti kullanilmaz; "
+       "tek cagri + kismi yazma tavani PINGRESP olcutunun (5 s) altinda",
+       bool(sm and ym and pr_ms) and sm <= 2000 and ym + sm < pr_ms
+       and 0 <= i_tls < i_sn < bb.find("mqp_baglan(")
+       and "bld__kapat(b, 0);" in bb[i_sn:i_sn + 120] and "return BLDH_TLS;" in bb[i_sn:i_sn + 120]
+       and "setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv))" in ss
+       and "setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))" in ss
+       and "(time_t)(BLD_SOKET_MS / 1000), (suseconds_t)((BLD_SOKET_MS % 1000) * 1000)" in ss
+       and be_k.count("bld__soket_sinirla(") == 2,
+       f"soket {sm} yaz {ym} pingresp {pr_ms}")
+    yz = govde(be_k, "static int bld__yaz(BldBag *b, const uint8_t *v, size_t n)\n{")   # ileri bildirim degil
+    ok("B72.QE8b bld__yaz: ilerlemeyen her cagri (<= 0, WANT_* dahil) HATA — eski olu WANT_* yeniden deneme "
+       "dali (ikinci 10 s bekleyis) yok; kismi yazma BLD_YAZ_MS'ten sonra surdurulmez",
+       "WANT_" not in yz and "vTaskDelay" not in yz
+       and "if (k <= 0) return bld__hata(b, t0, 0, BLDH_YAZ);" in yz
+       and "if (o && millis() - bas >= BLD_YAZ_MS) return bld__hata(b, bas, 1, BLDH_YAZ);" in yz
+       and yz.find("bld__hata(b, bas, 1") < yz.find("esp_tls_conn_write("))
+    ha = govde(be_k, "static int bld__hata(")
+    ok_ = govde(be_k, "static int bld__oku(")
+    ok("B72.QE8c ping beklenirken soket ZAMAN ASIMI (cagri ~BLD_SOKET_MS surdu ya da paket suresi doldu) "
+       "-7 sayilir; araci kapattiysa (hizli hata) eski -6/-4; okuma hatasi da ayni siniflandiricidan",
+       re.sub(r"\s+", " ", ha).strip() == "{ const uint8_t zaman_asimi = sure_doldu || millis() - t0 >= "
+       "(uint32_t)(BLD_SOKET_MS - 100); return (zaman_asimi && b->ping_bekle) ? BLDH_PING : varsayilan; }"
+       and "return k > 0 ? (int)k : bld__hata(b, t0, 0, BLDH_KOPTU);" in ok_
+       and ok_.find("const uint32_t t0 = millis();") < ok_.find("esp_tls_conn_read("),
+       re.sub(r"\s+", " ", ha)[:140])
+    i_pg = gor.find("const int32_t n = mqp_ping(bld_paket, sizeof(bld_paket));")
+    pg = gor[i_pg:gor.find("if (!r) r = bld__gelen(b, 50);")]
+    ok("B72.QE8d PINGREQ YAZILMADAN once 'ping bekleniyor' (+ ping_ms): PINGREQ'in kendisi takilirsa da -7",
+       i_pg >= 0 and 0 <= pg.find("b->ping_bekle = 1;") < pg.find("bld__yaz(b, bld_paket, (size_t)n);")
+       and 0 <= pg.find("b->ping_ms = millis();") < pg.find("bld__yaz(")
+       and "if (!r) { b->ping_bekle = 1;" not in gor)
+    i_tt = gor.find("const uint32_t t_tur = millis();")
+    i_bl = gor.find("bld__durum_yaz(BLDD_BAGLI, 0);")
+    i_tc = gor.find("if (!r && millis() - t_tur > BLD_TUR_MS) r = BLDH_TUR;")
+    kodlar = [int(x) for x in re.findall(r"#define BLDH_\w+\s+(-?\d+)", be_k)]
+    ok("B72.QE8e bagli tur tavani: sure baglanma bittikten SONRA olculur (el sikismasi sayilmaz), okumadan "
+       "sonra ve kapatmadan once denetlenir; BLDH_TUR -11 tek; 5 s < BLD_TUR_MS <= 9 s",
+       0 <= i_bl < i_tt < gor.find("bld__yayinla(") and gor.find("if (!r) r = bld__gelen(b, 50);") < i_tc
+       < gor.find("if (r) {", i_tc) and re.search(r"#define BLDH_TUR\s+-11\b", be_k) is not None
+       and len(kodlar) == len(set(kodlar)) and bool(tm) and 5000 < tm <= 9000, f"tur {tm}")
+    st = re.search(r"typedef struct \{([^{}]*)\} BildirimDurum;", be_k)
+    ad = govde(be_k, "static void bld__adim(")
+    bk = govde(be_k, "static void bld__kapat(")
+    gl_ = govde(be_k, "static int bld__gelen(")
+    i_ust = gor.find("for (;;) {")
+    ok("B72.QE8f canlilik izi: her tur sayac++ ve adim 'bekle' (dongunun ILK isi); yaz/select/oku/baglan/kapat "
+       "adimlari islemden HEMEN once; ping/pong anlari; adim bayti durum'un dolgusunda (+16 B DRAM)",
+       bool(st) and re.search(r"uint8_t\s+durum;\s*uint8_t\s+adim;", st.group(1)) is not None
+       and all(f"uint32_t {x}" in st.group(1) for x in ("tur;", "adim_ms;", "ping_ms, pong_ms;"))
+       and "bld_durum.adim = a;" in ad and "bld_durum.adim_ms = t;" in ad
+       and 0 <= gor.find("bld_durum.tur++;") - i_ust < 160 and "bld_durum.adim = BLDA_BEKLE;" in gor
+       and gor.find("bld_durum.tur++;") < gor.find("if (bld_istek_yeniden) {")
+       and 0 <= yz.find("bld__adim(BLDA_YAZ);") < yz.find("esp_tls_conn_write(")
+       and 0 <= ok_.find("bld__adim(BLDA_SELECT);") < ok_.find("select(fd + 1")
+       and 0 <= ok_.find("bld__adim(BLDA_OKU);") < ok_.find("esp_tls_conn_read(")
+       and 0 <= bb.find("bld__adim(BLDA_BAGLAN);") < bb.find("esp_tls_conn_new_sync(")
+       and 0 <= bk.find("bld__adim(BLDA_KAPAT);") < bk.find("esp_tls_conn_destroy(")
+       and "bld_durum.pong_ms = t_pong;" in gl_[gl_.find("MQP_PINGRESP"):gl_.find("MQP_PUBACK")]
+       and "bld_durum.ping_ms = b->ping_ms;" in pg)
+    i_qf = sk.find('"Q acik=%u durum=%u (%s) hata=%ld baglanti=%lu yayin=%lu olay=%lu kuyruk=%lu '
+                   'dusen=%lu el_sikisma_ms=%lu esik=%u"')
+    qarg = sk[i_qf:sk.find("Serial.println(t);", i_qf)]
+    adimlar = re.search(r"adimlar\[\] = \{([^}]*)\}", sk)
+    blda = [m for m in re.findall(r"#define BLDA_(\w+)\s+(\d+)u", be_k)]
+    ok("B72.QE8g Q? satiri: eski alanlar AYNI sirada, canlilik alanlari SONDA (tur adim adim_yas ping_yas "
+       "pong_yas; hic = -1); adim adlari BLDA_* degerleriyle ayni sirada",
+       i_qf >= 0 and '" tur=%lu adim=%s adim_yas=%lu ping_yas=%ld pong_yas=%ld"' in qarg
+       and "(unsigned)bld_esik_etkin,\n" in qarg and qarg.find("(unsigned)bld_esik_etkin") < qarg.find("d.tur")
+       and "d.ping_ms ? (long)(simdi - d.ping_ms) : -1L" in qarg
+       and "d.pong_ms ? (long)(simdi - d.pong_ms) : -1L" in qarg
+       and "(unsigned long)(simdi - d.adim_ms)" in qarg
+       and bool(adimlar) and [x.strip().strip('"') for x in adimlar.group(1).split(",")]
+       == [a.lower() for a, n in sorted(blda, key=lambda x: int(x[1]))]
+       and [int(n) for _, n in sorted(blda, key=lambda x: int(x[1]))] == list(range(len(blda))),
+       f"BLDA={blda}")
+
     # PC tarafi (saf Python ChaCha20-Poly1305, MQTT istemcisi, sahte araci) — alt surec.
     # ~23 s; B72'nin her mutasyonu bunu yeniden kosmasin diye onbellekli: yalniz GECEN kosu
     # saklanir. 🔴 ANAHTAR = test_bildirim'in GERCEKTEN yukledigi depo modulleri (gecen kosunun
@@ -2831,8 +2969,647 @@ def bolum_kopru_esitle() -> None:
         sunucu.shutdown()
 
 
+def bolum_w2() -> None:
+    """W2 (2026-10-03): firmware kucukleri — G satirinda son_not + mesaj_dusen (geriye uyumlu
+    ayristiricilar), /saat ve Ex<n> TAM cozum, rastgele eno, Qe esigi. Platformsuz mantik
+    B71'de (U20-U22, Q21-Q22); burada karta baglanmasi ve PC/tezgah ayristiricilari."""
+    print("\n── B72.W2  firmware kucukleri: G son_not · /saat · Ex · eno · Qe")
+    ino, ke, be = _oku("olcum-karti-a3.ino"), _oku("kayit_esp.h"), _oku("bildirim_esp.h")
+    ino_k, ke_k, be_k = kod(ino), kod(ke), kod(be)
+    gb = govde(ino_k, "static void kayit_durum_bas(")
+    bicim = (re.search(r'snprintf\(t, sizeof\(t\), "G ([^"]*)"', gb) or [None, ""])[1]
+    n_fw = bicim.count("%")
+    i = ino.find("static void kayit_durum_bas(")
+    yorum = (re.findall(r"/\*((?:(?!\*/).)*)\*/\s*$", ino[:i], re.S) or [""])[-1]
+    adlar = re.findall(r"<(\w+?)(?:%o)?>", yorum[yorum.find("G <"):])
+    arg = gb[gb.find('"G '):gb.find("Serial.println(t)")]
+    dg = govde(ke_k, "static void kayit__durum_guncelle(")
+    ok("B72.W2a G satiri SONA iki alan: son_not (son Ga/Ge/Gn/Gx'in NOT kaydi sirasi, kyn_not "
+       "donusu) ve mesaj_dusen (1C-1 M9: istek kuyrugunda dusen); protokol yorumu ve snprintf 15 "
+       "alan, ilk 13 ESKI sirada",
+       n_fw == 15 and adlar[-2:] == ["son_not", "mesaj_dusen"] and len(adlar) == 15
+       and adlar[12] == "son_hata"
+       and "kayit_son_not = kyn_not(&kayit_m, m->yuk, m->n);" in govde(ke_k, "static void kayit__mesaj(")
+       and "t.son_not = kayit_son_not;" in dg
+       and arg.find("d.son_hata") < arg.find("d.son_not") < arg.find("kayit_mesaj_dusen"),
+       f"alan={n_fw} adlar={adlar[-3:]}")
+    ok("B72.W2b son_not DEGISINCE G hemen basilir; nesil ARTMAZ (nesil noktaciyi yeniden "
+       "baslatir: kayit_kn_nesil)",
+       "d.son_not == son_not" in gb and "son_not = d.son_not;" in gb
+       and "son_not" not in dg[dg.find("t.nesil ="):dg.find("kayit_durum = t;")])
+    import importlib
+    sys.path.insert(0, str(KOK / "kopru"))
+    PB = importlib.import_module("pc_bildirim")
+    fw_satir = "G " + " ".join(str(k * 3 - 7) for k in range(n_fw))
+    eski = "G " + " ".join(str(k) for k in range(13))
+    yanlis = ["G " + " ".join("1" for _ in range(n)) for n in (12, 14, 16)]
+    tz = {}
+    for ad in ("tezgah_kayit", "tezgah_pc"):
+        try:
+            tz[ad] = importlib.import_module(ad)
+        except Exception as e:          # noqa: BLE001 — iddia kirmiziya doner, sebep basilir
+            tz[ad] = e
+    tz_ok = all(not isinstance(m, Exception) and m.G_ALAN == adlar
+                and m.g_coz(fw_satir) == dict(zip(adlar, (k * 3 - 7 for k in range(n_fw))))
+                and m.g_coz(eski) == dict(zip(adlar[:13], range(13)))
+                and all(m.g_coz(y) is None for y in yanlis) for m in tz.values())
+    ok("B72.W2c PC ayristiricilari GERIYE UYUMLU: pc_bildirim (yerel G -> 'kayit bitti' "
+       "bildirimi), tezgah_kayit ve tezgah_pc firmware bicimli satiri (15) VE eski firmware "
+       "satirini (13) kabul eder; 12/14/16 RET; tezgah alan adlari firmware yorumundaki adlar",
+       PB.G_ALAN == n_fw and bool(PB._G_DESEN.fullmatch(fw_satir)) and bool(PB._G_DESEN.fullmatch(eski))
+       and not any(PB._G_DESEN.fullmatch(y) for y in yanlis) and tz_ok,
+       f"PB.G_ALAN={PB.G_ALAN} tezgah={ {k: (type(v).__name__ if isinstance(v, Exception) else 'ok') for k, v in tz.items()} }")
+
+    # W2h (inceleme): tezgah_kart / tezgah_blokaj kararli hali olcmeden once `G` satirinin silme
+    # sayaci (sil_adet) durana dek bekler (1C-2). Desen 13 alanda kalmisti -> 15 alanli A3-W2
+    # satiri hic eslesmiyor, bekleyis HEMEN bitiyor ve loop_azami bosta on silme surerken olculuyordu.
+    # Davranisla sinanir: sanal saat + sahte kart; sil_adet 5, 9, 9 -> iki 3 s bekleyis (6 s).
+    i_sil = adlar.index("sil_adet")
+
+    def g_sil(n: int, sil: int) -> str:
+        return "G " + " ".join(str(sil if j == i_sil else j % 3) for j in range(n))
+
+    class _Saat:
+        def __init__(self) -> None:
+            self.t = 0.0
+
+        def time(self) -> float:
+            return self.t
+
+        monotonic = time
+
+        def sleep(self, d: float) -> None:
+            self.t += d
+
+    class _KartSor:                       # tezgah_kart: c.k.sor(komut, desen) -> eslesen satirlar
+        def __init__(self, satirlar) -> None:
+            self.q, self.n = list(satirlar), 0
+
+        def sor(self, komut, desen, zaman_asimi=3.0, adet=1):
+            self.n += 1
+            s = self.q.pop(0) if self.q else None
+            return [s] if komut == "G?" and s and re.compile(desen).search(s.rstrip()) else []
+
+    class _KartSatir:                     # tezgah_blokaj: k.yaz + k.satir_oku (ham satirlar)
+        def __init__(self, satirlar, saat) -> None:
+            self.q, self.bekleyen, self.saat, self.n = list(satirlar), [], saat, 0
+
+        def yaz(self, komut) -> None:
+            if komut == "G?":
+                self.n += 1
+                if self.q:
+                    self.bekleyen.append(self.q.pop(0))
+
+        def satir_oku(self, zaman_asimi=0.3):
+            if self.bekleyen:
+                return self.bekleyen.pop(0)
+            self.saat.t += zaman_asimi
+            return None
+
+    def bekle_dene(mod, ad, n):
+        saat, eski_time = _Saat(), mod.time
+        satirlar = [g_sil(n, 5), g_sil(n, 9), g_sil(n, 9)]
+        mod.time = saat
+        try:
+            if ad == "tezgah_kart":
+                kk = _KartSor(satirlar)
+                r = mod._on_silme_bekle(types.SimpleNamespace(k=kk), azami_sn=60.0)
+            else:
+                kk = _KartSatir(satirlar, saat)
+                r = mod.on_silme_bekle(kk, azami_sn=60.0)
+        finally:
+            mod.time = eski_time
+        return r, kk.n
+
+    bek = {}
+    for ad in ("tezgah_kart", "tezgah_blokaj"):
+        try:
+            m = importlib.import_module(ad)
+            bek[ad] = {n: bekle_dene(m, ad, n) for n in (n_fw, 13, 14, 16)}
+        except Exception as e:          # noqa: BLE001 — iddia kirmiziya doner, sebep basilir
+            bek[ad] = repr(e)[:120]
+    bek_ok = all(isinstance(v, dict)
+                 and all(v[n][0] is not None and abs(v[n][0] - 6) < 0.5 and v[n][1] == 3 for n in (n_fw, 13))
+                 and all(v[n][0] is None and v[n][1] == 1 for n in (14, 16))
+                 for v in bek.values())
+    ok("B72.W2h tezgah_kart._on_silme_bekle ve tezgah_blokaj.on_silme_bekle (kararli hal blokaj "
+       "olcumunden once bosta on silmeyi bekler, 1C-2) firmware bicimli (15) VE eski (13) G satirinda "
+       "sil_adet DURANA dek bekler (5, 9, 9 -> 6 s, 3 sorgu); 14/16 alan cozulmez -> None (sessiz "
+       "'durdu' degil)", bek_ok, str(bek)[:300])
+
+    st = govde(ino_k, "void saat_sayfa(")
+    ok("B72.W2d (D5 #10) /saat unix'i guv_saat_coz ile TAM cozer (rakam disi, tasma, ust sinir "
+       "2100 -> 400); strtoul YOK; settimeofday ancak cozumden SONRA",
+       "guv_saat_coz(sunucu.arg(\"unix\").c_str(), &u)" in st and "strtoul" not in st
+       and 0 <= st.find("guv_saat_coz") < st.find("settimeofday"))
+    sk = govde(ino_k, "static void guv_seri_komut(")
+    sx = sk[sk.find("case 'x':"):sk.find("case 'p':")]
+    ok("B72.W2e (D5 #11) Ex<n> once guv_cihaz_no_coz ile TAM cozulur, SONRA silinir; atoi/kesme "
+       "YOK (Ex257 / Ex-255 cihaz 1'i silmez)",
+       0 <= sx.find("guv_cihaz_no_coz(s + 2, &n)") < sx.find("guv_cihaz_sil(") and "atoi" not in sx)
+    kb, kk = govde(ino_k, "void eslestir_baslat_sayfa("), govde(ino_k, "void eslestir_kanit_sayfa(")
+    ok("B72.W2f (D5 #14) eslestirme numarasi uint32 (rastgele 31 bit): baslat %lu ile basar, kanit "
+       "guv_sayi_coz(1..GUV_ENO_AZAMI) ile TAM cozer (uint8 kesimi / toInt YOK; cozulemeyen 0 = YOK)",
+       "uint32_t eno = 0;" in kb and '\\"eno\\":%lu' in kb and "(unsigned long)eno" in kb
+       and 'guv_sayi_coz(sunucu.arg("eno").c_str(), 1UL, GUV_ENO_AZAMI, &eno)' in kk
+       and "toInt" not in kk and "uint8_t eno" not in kb + kk)
+    qk = govde(ino_k, "static void bld_seri_komut(")
+    qe = qk[qk.find("if (s[1] == 'e')"):qk.find("switch (s[1])")]
+    ey = govde(be_k, "static int bildirim_esik_yaz(")
+    gor = govde(be_k, "static void bildirim_gorevi(")
+    ks = govde(ino_k, "void komut_sayfa(")
+    ok("B72.W2g (E3) Qe<binde>: bld_esik_coz ile TAM cozulur, NVS'e (`mqtt`/`esik`) yazilir; "
+       "gorev esigi BAGLANTIYI KESMEDEN alir (istek/islenen sayaci, bld_istek_yeniden DEGIL); "
+       "acilista NVS'ten; Q? `esik=` etkin esigi basar; /komut Q'yu 403 ile reddeder (YALNIZ USB)",
+       0 <= qe.find("bld_esik_coz(s + 2, &e)") < qe.find("bildirim_esik_yaz(e)")
+       and 'p.putUShort("esik", binde)' in ey and "bld_esik_istek" in ey and "bld_istek_yeniden" not in ey
+       and 'a->esik = p.getUShort("esik", 0);' in govde(be_k, "static void bld__ayar_oku(")
+       and "bld_esik_ayarla(&bld, bld_ayar.esik);" in gor
+       and "bld_esik_ayarla(&bld, bld__esik_oku());" in gor and "bld_esik_etkin = bld.esik;" in gor
+       and "esik=%u" in qk and "(unsigned)bld_esik_etkin" in qk
+       and ks.find("if (k[0] == 'Q')") >= 0 and "403" in ks[ks.find("if (k[0] == 'Q')"):][:120])
+    # W2i (alt proje 5 istegi, mobil/DEVIR-ISTEK #1): Android NSD `_http._tcp` tarar; TXT `kimlik`
+    # yanlis karti elemeye yarar. Iki yol da duyurmali: AP (MDNS.begin setup'ta, kimlik SONRA gelir)
+    # ve STA (MDNS.begin ag gorevinde). Kimlik ag gorevi kurulmadan ONCE yazilmali.
+    ag_k = kod(_oku("ag.h"))
+    sv = govde(ag_k, "static void ag__mdns_servis(")
+    mk = govde(ag_k, "static void ag_mdns_kimlik(")
+    sta = govde(ag_k, "static void ag__sta_oldu(")          # AGD: STA sonucu (acilis + AP'den donus)
+    ap = govde(ag_k, "static uint8_t ag__ap_kur(wifi_mode_t kip)\n{")    # ilk eslesme on bildirim
+    kur = govde(ino_k, "void setup(")
+    i_guv, i_kim = kur.find("guv_esp_ac();"), kur.find("ag_mdns_kimlik(mk);")
+    i_hazir_degil = kur.find("if (!guv_hazir)")
+    ok("B72.W2i mDNS SERVIS duyurusu: _http._tcp:80 + TXT `kimlik` (16 onaltilik, guv_kimlik_hex); "
+       "STA ve AP yolunda MDNS.begin'den hemen sonra; kimlik guv_esp_ac'tan SONRA, guv HAZIRSA, "
+       "ag gorevi kurulmadan ONCE yazilir; tek duyuru bayragi",
+       'MDNS.addService("http", "tcp", 80)' in sv
+       and 'MDNS.addServiceTxt("http", "tcp", "kimlik", (const char *)ag_mdns_kim);' in sv
+       and "!ag_durum.mdns || !ag_mdns_kim[0] || ag_mdns_servis_var" in sv
+       and "ag_mdns_servis_var = true;" in sv and "ag__mdns_servis();" in mk
+       and all(0 <= y.find("MDNS.begin(AG_MDNS)") < y.find("ag__mdns_servis();") < y.find("ag__kip_yaz(")
+               for y in (sta, ap))
+       and ag_k.count("MDNS.begin(") == 2
+       and 0 <= i_guv < i_hazir_degil < i_kim
+       and "guv_kimlik_hex(&guv, mk);" in kur[i_hazir_degil:i_kim]
+       and 0 <= i_kim < kur.find("xTaskCreatePinnedToCore(ag_gorevi"),
+       f"guv={i_guv} kim={i_kim} servis={'addService' in sv}")
+
+
+def bolum_tezgah_w5() -> None:
+    """W5 (2026-10-03): T7/T8 kart tezgahinin (tezgah_kayit.py --plan-elle / --skop-olcum) SAF
+    denetimleri. Olcu aleti yalan soylemesin: her bozuk senaryo kirmizi olmali."""
+    print("\n--- W5. Tezgah T7/T8 denetimleri (tezgah_kayit.py, cevrimdisi) ---")
+    from types import SimpleNamespace as NS
+    import tezgah_kayit as TK
+
+    def oturum(oid, tur=KB.OTURUM_OLCUM, sebep=1, olaylar=(), ms=range(0, 40_001, 200), skop=None):
+        o = KB.Oturum(oid, basla=NS(oturum_turu=tur))
+        o.bitir = None if sebep is None else {"nokta_adedi": 0, "sebep": sebep}
+        o.olaylar = [{"tur": t} for t in olaylar]
+        o.noktalar = [(i, NS(kart_ms=m)) for i, m in enumerate(ms)]
+        o.skoplar = skop or {}
+        return o
+    plan = oturum(5, olaylar=[KB.KO_PLAN])
+    elle = oturum(6)
+    ot = {5: plan, 6: elle}
+    iyi = TK.plan_elle_denetle(ot, 5, 6, 40)
+    bozuk = {
+        "elle sebep 7 (plan kesti)": ({5: plan, 6: oturum(6, sebep=7)}, 5, 6, 40),
+        "ayni oturum": ({5: plan}, 5, 5, 40),
+        "elle PLAN olayi (benimsedi)": ({5: plan, 6: oturum(6, olaylar=[KB.KO_PLAN])}, 5, 6, 40),
+        "plan sebep 7 (Gd kapatmadi)": ({5: oturum(5, sebep=7, olaylar=[KB.KO_PLAN]), 6: elle}, 5, 6, 40),
+        "plan PLAN olaysiz": ({5: oturum(5), 6: elle}, 5, 6, 40),
+        "elle kisa (plan bitisinde kesildi)": ({5: plan, 6: oturum(6, ms=range(0, 20_001, 200))}, 5, 6, 40),
+        "elle oturum yok": ({5: plan}, 5, 6, 40),
+    }
+    kacan = [ad for ad, (o2, a, b, s) in bozuk.items() if not TK.plan_elle_denetle(o2, a, b, s)]
+    ok("B72.TZ1 T7 plan_elle_denetle: dogru senaryo bos; elle kaydin plan bitisinde kesilmesi, yeni oturum "
+       "acilmamasi, planin elle kaydi benimsemesi, Gd'nin planin oturumunu kapatmamasi ve eksik oturum "
+       "KIRMIZI", iyi == [] and not kacan, f"iyi={iyi} kacan={kacan}")
+
+    def yk(sira, no, t, tam=True, meta=True):
+        return {"no": no, "meta": {"t_ms": t} if meta else None, "tam": tam, "t_sira": sira}
+    sk = {10 + i: yk(10 + i, i + 1, 1000 + 2000 * i) for i in range(6)}
+    sk.update({30 + i: yk(30 + i, 7 + i, 30_000 + 3000 * i) for i in range(5)})
+    p = TK.skop_partileri({**sk, 20: yk(20, 99, 0, meta=False)}, 6000)
+    ok("B72.TZ2 skop_partileri: META istek anlari arasi > ayir_ms yeni parti; META'siz yakalama yeni parti "
+       "ACMAZ (oncekine eklenir); kayit sirasiyla",
+       [len(x) for x in p] == [7, 5] and p[0][-1]["no"] == 99, str([len(x) for x in p]))
+    kal = [KB.KO_SKOP_KAL, KB.KO_SKOP_KAL]
+    h, bilgi = TK.skop_ekli_denetle(oturum(7, olaylar=kal, skop=sk), [2000, 3000], 6000)
+
+    def degis(i, **alan):
+        d = {k: dict(v) for k, v in sk.items()}
+        d[i].update(alan)
+        return d
+    tek = {k: v for k, v in sk.items() if k < 30}
+    bozuk2 = {
+        "numara tekrari (Gt sifirladi)": oturum(7, olaylar=kal, skop=degis(30, no=3)),
+        "tam degil": oturum(7, olaylar=kal, skop=degis(12, tam=False)),
+        "aralik yanlis": oturum(7, olaylar=kal, skop={k: (yk(k, v["no"], 1000 + 4000 * (k - 10)) if k < 30
+                                                           else v) for k, v in sk.items()}),
+        "tek parti": oturum(7, olaylar=kal, skop=tek),
+        "tek SKOP_KAL": oturum(7, olaylar=kal[:1], skop=sk),
+        "SKOP oturumu": oturum(7, tur=KB.OTURUM_SKOP, olaylar=kal, skop=sk),
+        "Gtd oturumu kapatti (bitir yok)": oturum(7, sebep=None, olaylar=kal, skop=sk),
+        "nokta boslugu": oturum(7, olaylar=kal, skop=sk, ms=range(0, 40_001, 200)),
+    }
+    bozuk2["nokta boslugu"].noktalar = [(i if i < 50 else i + 3, n) for i, n in bozuk2["nokta boslugu"].noktalar]
+    kacan2 = [ad for ad, o2 in bozuk2.items() if not TK.skop_ekli_denetle(o2, [2000, 3000], 6000)[0]]
+    ok("B72.TZ3 T8 skop_ekli_denetle: iki Gt'li dogru oturum bos (parti 6+5, ortanca 2000/3000); numara "
+       "tekrari, tam olmayan, yanlis aralik, eksik parti, eksik SKOP_KAL, SKOP oturumu, kapanmamis oturum "
+       "ve nokta boslugu KIRMIZI",
+       h == [] and bilgi["parti"] == [6, 5] and bilgi["ortanca_ms"] == [2000, 3000] and not kacan2,
+       f"h={h} {bilgi.get('parti')} kacan={kacan2}")
+    src = (BURASI / "tezgah_kayit.py").read_text(encoding="utf-8")
+    g = src[src.find("def plan_elle("):src.find("def _ham_istek(")]
+    komutlar = re.findall(r'(?:komut\(k,|k\.yaz\()\s*f?"([^"]*)"', g)
+    izinli = re.compile(r"^(Gd|Gb\d+|Gp[+\-?].*|Gt(\d+|d|\{a\})|Ga\{oid\} .*|G\?)(\\n)?$")
+    ok("B72.TZ4 --plan-elle/--skop-olcum yalniz izinli komutlari yollar (G?, Gb, Gd, Gp, Gt, Ga; p1/GF!/"
+       "N/k/E/Q YOK) ve esitleme ONAYSIZ (Go/seri_onay yok: kartta onay ilerlemez)",
+       bool(komutlar) and all(izinli.match(c) for c in komutlar) and "seri_onay" not in g
+       and "esitle_onaysiz(" in g and "Go" not in "".join(komutlar)
+       and not re.search(r"(?<![\w.])(_ayr_)?esitle\(", g),
+       str([c for c in komutlar if not izinli.match(c)]))
+
+    # TZ5/TZ6 (W5 inceleme): esitle_onaysiz'in GOVDESI davranisla sinanir — kaynak dilimi
+    # (TZ4) onu kapsamiyordu; Esitleyici sahte, kart/ag yok.
+    import imza as IM
+    gercek_es, gercek_ag, gercek_yukle = KE.Esitleyici, TK.ag_hazir_bekle, IM.Cihaz.__dict__["yukle"]
+    gercek_vars, eski_env = TK.VARSAYILAN_DIZIN, os.environ.get("OLCUM_CIHAZ_DIZIN")
+    cagri: list[dict] = []
+    senaryo = {"hata": None}
+
+    class SahteEs:
+        def __init__(self, taban, dizin, **kw):
+            self.dizin, self.kw = Path(dizin), kw
+            cagri.append(kw)
+
+        def esitle(self):
+            h = senaryo["hata"]
+            if h == "401" and self.kw.get("cihaz") is None:
+                raise urllib.error.HTTPError("http://x/kayit/liste", 401, "imza", {}, None)
+            if h == "kimlik" and len(cagri) == 1:
+                raise ValueError("kartin kayit AKISI degismis (kimlik 1 -> 2): Bu dizine EKLENMEZ")
+            self.dizin.mkdir(parents=True, exist_ok=True)
+            (self.dizin / KE.DOSYA).write_bytes(b"")
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        (td / "cihaz").mkdir()
+        (td / "cihaz" / "pc.json").write_text("{}", encoding="utf-8")
+        os.environ["OLCUM_CIHAZ_DIZIN"] = str(td / "cihaz")
+        KE.Esitleyici, TK.ag_hazir_bekle = SahteEs, (lambda *a, **k: True)
+        IM.Cihaz.yukle = classmethod(lambda cls, d: "CIHAZ")
+        TK.VARSAYILAN_DIZIN = td / "vars"
+        try:
+            sonuc5 = []
+            for s in (None, "401"):
+                cagri.clear()
+                senaryo["hata"] = s
+                TK.esitle_onaysiz("x", td / f"d5-{s}")
+                sonuc5.append([(k.get("onay"), k.get("istek"), k.get("cihaz")) for k in cagri])
+            ok("B72.TZ5 esitle_onaysiz GOVDESI onaysiz: duz ve imzali (401) yolda Esitleyici'ye onay/istek "
+               "geri cagirmasi VERILMEZ (kartta Go yollanmaz); imzali yolda yalniz eslesmis cihaz",
+               sonuc5 == [[(None, None, None)], [(None, None, None), (None, None, "CIHAZ")]], str(sonuc5))
+
+            senaryo["hata"] = "kimlik"
+            kul = td / "kullanici"
+            kul.mkdir()
+            (kul / "kullanici_baska_dosya.txt").write_text("dokunma", encoding="utf-8")
+            cagri.clear()
+            try:
+                TK.esitle_onaysiz("x", kul)
+                kul_hata = None
+            except (ValueError, SystemExit) as h:
+                kul_hata = str(h)
+            kul_kaldi = (kul / "kullanici_baska_dosya.txt").exists()
+            vd = TK.VARSAYILAN_DIZIN
+            vd.mkdir()
+            (vd / "eski.txt").write_text("eski", encoding="utf-8")
+            cagri.clear()
+            TK.esitle_onaysiz("x", vd)
+            vars_bastan = not (vd / "eski.txt").exists() and (vd / KE.DOSYA).exists() and len(cagri) == 2
+            ok("B72.TZ6 esitle_onaysiz AKIS/kimlik degisince kullanicinin verdigi --dizin'i SILMEZ (hata verir, "
+               "dosyalari kalir); yalniz tezgahin kendi varsayilan gecici dizinini bastan kurar",
+               kul_hata is not None and kul_kaldi and vars_bastan,
+               f"hata={kul_hata!r} kaldi={kul_kaldi} vars_bastan={vars_bastan}")
+        finally:
+            KE.Esitleyici, TK.ag_hazir_bekle, IM.Cihaz.yukle = gercek_es, gercek_ag, gercek_yukle
+            TK.VARSAYILAN_DIZIN = gercek_vars
+            if eski_env is None:
+                os.environ.pop("OLCUM_CIHAZ_DIZIN", None)
+            else:
+                os.environ["OLCUM_CIHAZ_DIZIN"] = eski_env
+
+
+def bolum_e6() -> None:
+    """E6 (2026-10-04): dahili yigin tanisi — kartta `QY dahili_en_az` 2504 B'a dustu; hangi
+    ayirmanin basarisiz oldugunu (Wi-Fi tamponu mu, mbedTLS mi) ayirt etmek icin QY'de en buyuk
+    blok + basarisiz ayirma sayaci, USB `QH` ile bolge dokumu + son 8 basarisiz ayirma."""
+    print("\n── B72.E6  dahili yigin tanisi: QY en buyuk blok · basarisiz ayirma halkasi · QH")
+    ino = _oku("olcum-karti-a3.ino")
+    ino_k = kod(ino)
+    st = govde(ino_k, "void setup(")
+    i_kayit = st.find("heap_caps_register_failed_alloc_callback(ayirma_hata_kaydet);")
+    sonra = [st.find(x) for x in ("ag_baslat_rf(", "guv_esp_ac(", "bildirim_baslat(", "kayit_kur(", "xTaskCreatePinnedToCore(")]
+    ok("B72.E6a basarisiz ayirma geri cagirmasi setup'ta, WiFi/guvenlik/MQTT-TLS/kayit baslamadan "
+       "(ilk gorev olusturulmadan da) ONCE ve tek yerde kaydedilir",
+       0 <= i_kayit and all(i_kayit < x for x in sonra if x >= 0) and all(x >= 0 for x in sonra)
+       and ino_k.count("heap_caps_register_failed_alloc_callback(") == 1,
+       f"kayit={i_kayit} sonrakiler={sonra}")
+    cb = govde(ino_k, "static void IRAM_ATTR ayirma_hata_kaydet(size_t boyut, uint32_t caps, const char *islev)")
+    ok("B72.E6b geri cagirma IRAM'de, BASMAZ ve ayirmaz (Serial aynasi / printf / gunluk / String yok); "
+       "her cekirdek ve ISR'den guvenli kilit (portENTER_CRITICAL_SAFE), gorev adi cagri aninda kopyalanir",
+       bool(cb) and not re.search(r"\b(Serial|printf|ets_printf|esp_rom_printf|log_\w|ESP_LOG\w*|String|"
+                                   r"malloc|calloc|heap_caps_\w+|ham)\b", cb)
+       and "portENTER_CRITICAL_SAFE(&ayirma_kilit);" in cb and "portEXIT_CRITICAL_SAFE(&ayirma_kilit);" in cb
+       and "pcTaskGetName(NULL)" in cb and "h->gorev[i] = c;" in cb)
+    dok = govde(ino_k, "static void ayirma_dokum_bas(")
+    i_y = cb.find("AyirmaHata *h = &ayirma_halka[ayirma_hata_adet % AYIRMA_HALKA];")
+    ok("B72.E6c halka 4 kayit (statik DRAM %25 siniri), sayac % 4 ile doner (sayac kilit icinde, kayit yazildiktan SONRA artar); "
+       "dokum kilit altinda kopyadan en fazla AYIRMA_HALKA kaydi eskiden yeniye basar",
+       re.search(r"#define AYIRMA_HALKA 4u\b", ino_k) is not None
+       and "static AyirmaHata ayirma_halka[AYIRMA_HALKA];" in ino_k
+       and 0 <= i_y < cb.find("h->boyut = (uint32_t)boyut;") < cb.find("ayirma_hata_adet = ayirma_hata_adet + 1u;")
+       < cb.find("portEXIT_CRITICAL_SAFE(")
+       and 0 <= dok.find("portENTER_CRITICAL(&ayirma_kilit);") < dok.find("memcpy(k, ayirma_halka, sizeof(k));")
+       < dok.find("portEXIT_CRITICAL(&ayirma_kilit);")
+       and "const uint32_t n = adet < AYIRMA_HALKA ? adet : AYIRMA_HALKA;" in dok
+       and "const AyirmaHata *h = &k[no % AYIRMA_HALKA];" in dok and "const uint32_t no = adet - n + i;" in dok)
+    sk = govde(ino_k, "static void bld_seri_komut(")
+    qy = (re.search(r'"QY ([^"]*)"', sk) or [None, ""])[1]
+    adlar = re.findall(r"(\w+)=%", qy)
+    arg = sk[sk.find('"QY '):sk.find("Serial.println(t);", sk.find('"QY '))]
+    ok("B72.E6d QY: eski iki alan YERINDE, yeni dahili_en_buyuk (en buyuk serbest dahili blok) ve "
+       "ayirma_hata (acilistan beri basarisiz ayirma) SONDA, argumanlar ayni sirada",
+       adlar == ["dahili_bos", "dahili_en_az", "dahili_en_buyuk", "ayirma_hata"]
+       and 0 <= arg.find("heap_caps_get_free_size(MALLOC_CAP_INTERNAL)")
+       < arg.find("heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL)")
+       < arg.find("heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)") < arg.find("ayirma_hata_adet"),
+       f"alanlar={adlar}")
+    import importlib
+    try:
+        TB = importlib.import_module("tezgah_bildirim")
+
+        class _K:
+            def __init__(self, satirlar):
+                self.s = list(satirlar)
+
+            def yaz(self, _m):
+                pass
+
+            def satir_oku(self, _sn):
+                return self.s.pop(0) if self.s else None
+        ortak = ["Q acik=1 durum=4 (bagli) hata=0 baglanti=3 yayin=9 olay=2 kuyruk=0 dusen=0 "
+                 "el_sikisma_ms=1200 esik=900",
+                 "QA uri=mqtts://a:8883 kart=k kart_parola=var cihaz=c cihaz_parola=var onek=ab anahtar=var"]
+        yeni = TB.q_oku(_K(ortak + ["QY dahili_bos=82000 dahili_en_az=2504 dahili_en_buyuk=31000 "
+                                    "ayirma_hata=7"]), sn=0.5)
+        eski = TB.q_oku(_K(ortak + ["QY dahili_bos=82000 dahili_en_az=2504"]), sn=0.5)
+        sonuc = (yeni and (yeni["dahili_bos"], yeni["dahili_en_az"], yeni.get("dahili_en_buyuk"),
+                           yeni.get("ayirma_hata"), yeni["durum"]),
+                 eski and (eski["dahili_bos"], eski["dahili_en_az"], eski.get("dahili_en_buyuk")))
+    except Exception as e:          # noqa: BLE001 — iddia kirmiziya doner, sebep basilir
+        sonuc = repr(e)[:120]
+    ok("B72.E6e tezgah_bildirim.q_oku yeni QY satirini (4 alan) ve eski firmware'in 2 alanli satirini "
+       "cozer; K11 olcutu dahili_bos ayni kalir",
+       sonuc == ((82000, 2504, 31000, 7, 4), (82000, 2504, None)), str(sonuc))
+    kg = govde(ino_k, "void komut_sayfa(")
+    i_q = kg.find("k[0] == 'Q'")
+    kopru = (KOK / "kopru" / "kopru.py").read_text(encoding="utf-8")
+    i_h = sk.find("if (s[1] == 'H') {")
+    ok("B72.E6f QH yalniz USB: Q isleyicisinde (switch'ten once, yeni case harfi yok) bolge dokumu "
+       "heap_caps_print_heap_info(MALLOC_CAP_INTERNAL) + halka; /komut Q*'i 403 ile, kopru.py Q*'i reddeder",
+       0 <= i_h < sk.find("switch (s[1])") and "ayirma_dokum_bas();" in sk[i_h:i_h + 80]
+       and "heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);" in dok and "Serial.flush();" in dok
+       and 0 <= dok.find("Serial.flush();") < dok.find("heap_caps_print_heap_info(")
+       and 0 <= i_q < kg.find("komut_kuyruga(") and "403" in kg[i_q:i_q + 200]
+       and 'if komut.startswith("Q"):' in kopru and "QH yigin" in ino)
+
+
+def bolum_e6f() -> None:
+    """E6F (2026-10-04): dahili yigin duzeltmesi — mbedTLS ayirmalari once PSRAM'e (F1),
+    /kayit/veri tamponu ve akis kuyrugu PSRAM'e (F4), SSE kisa yazmada istemci dusurulur (F3).
+    Cekirdek sdkconfig'i MBEDTLS_INTERNAL_MEM_ALLOC=y; esp_config.h STD_CALLOC bicimi ->
+    mbedtls_platform_set_calloc_free calisma aninda gecerli (DEVIR 5.12.106, sokulerek dogrulandi)."""
+    print("\n── B72.E6F  dahili yigin duzeltmesi: mbedTLS + kalici tamponlar PSRAM'e, SSE kisa yazma")
+    ino = _oku("olcum-karti-a3.ino")
+    ino_k = kod(ino)
+    st = govde(ino_k, "void setup() {")
+    kur = "mbedtls_platform_set_calloc_free(tls_bellek_ayir, tls_bellek_birak);"
+    i_kur = st.find(kur)
+    # mbedTLS kullanicilari setup sirasinda: Wi-Fi (WPA supplicant), guvenlik (HMAC/SHA/PBKDF2),
+    # MQTT esp-tls; ayrica kayit/ag gorevleri ve heap geri cagirmasi da ONCE kurulmaz.
+    kullanicilar = ("Serial.begin(", "heap_caps_register_failed_alloc_callback(", "ag_baslat_rf(",
+                    "guv_esp_ac(", "bildirim_baslat(", "kayit_kur(", "xTaskCreatePinnedToCore(")
+    sonra = [st.find(x) for x in kullanicilar]
+    tum_kod = ino_k + "".join(kod(_oku(p.name)) for p in sorted(KOD.glob("*.h")))
+    # E6K (a): aranan satirlar DERLENEN kodda mi — `#if 0` / `#ifdef TANIMSIZ` icindeki olu
+    # kopya iddiayi yesil tutuyordu (kosul_yigini). Setup'in kendisi de kosulsuz olmali:
+    # olu bir `void setup()` once gelirse govde() onu bulurdu.
+    olu_a = kosulsuz(ino_k, kur, "void setup() {")
+    ok("B72.E6Fa mbedTLS ayiricisi setup'in ILK isi olarak, butun mbedTLS kullanicilarindan "
+       "(Wi-Fi, guvenlik, MQTT-TLS) ve ilk gorevden ONCE, butun eskizde TEK yerde ve "
+       "KOSULSUZ (onislemci #if disinda) kurulur",
+       i_kur >= 0 and st[1:].lstrip().startswith(kur)
+       and all(x >= 0 and i_kur < x for x in sonra)
+       and tum_kod.count("mbedtls_platform_set_calloc_free(") == 1 and not olu_a,
+       f"kur={i_kur} sonrakiler={sonra} olu={olu_a}")
+    ay = govde(ino_k, "static void *tls_bellek_ayir(size_t n, size_t boyut) {")
+    # E6K (c): heap_caps_calloc_prefer basarisiz ayirma geri cagirmasina n*size DEGIL yalniz
+    # size veriyor (libheap heap_caps_calloc_prefer sokumu: a10 = a3 = size; heap_caps_calloc
+    # `mull` ile n*size, heap_caps_malloc_prefer toplam boyu verir) -> QF boyut mbedTLS'te
+    # n kat kucuk gorunuyordu. Toplam once tasma denetimiyle hesaplanir, malloc_prefer'e
+    # verilir, sonra sifirlanir (mbedtls_calloc sozlesmesi calloc: sifirli bellek).
+    ok("B72.E6Fb ayirici ONCE PSRAM (SPIRAM|8BIT), dolu/yoksa DAHILI (INTERNAL|8BIT) dener — "
+       "PSRAM'siz kartta eski davranis; tek ayirma cagrisi; n*boyut TASMADAN once denetlenir "
+       "(tasarsa NULL), basarisiz ayirmada QF boyut GERCEK toplam (malloc_prefer'e toplam gider); "
+       "bellek SIFIRLANIR (calloc sozlesmesi); tanim kosulsuz",
+       re.sub(r"\s+", " ", ay).strip() == "{ if (boyut && n > SIZE_MAX / boyut) return NULL; "
+       "const size_t toplam = n * boyut; void *p = heap_caps_malloc_prefer(toplam, 2, "
+       "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); "
+       "if (p) memset(p, 0, toplam); return p; }"
+       and not kosulsuz(ino_k, "static void *tls_bellek_ayir("),
+       re.sub(r"\s+", " ", ay)[:240] + f" olu={kosulsuz(ino_k, 'static void *tls_bellek_ayir(')}")
+    bi = govde(ino_k, "static void tls_bellek_birak(void *p) {")
+    ok("B72.E6Fc birakici yalniz heap_caps_free(p): her yigindan (PSRAM / dahili, degisimden "
+       "once ayrilmis dahil) guvenle birakir — kosul yok, baska birakma yok",
+       re.sub(r"\s+", " ", bi).strip() == "{ heap_caps_free(p); }"
+       and not kosulsuz(ino_k, "static void tls_bellek_birak("),
+       re.sub(r"\s+", " ", bi)[:120] + f" olu={kosulsuz(ino_k, 'static void tls_bellek_birak(')}")
+    ke = kod(_oku("kayit_esp.h"))
+    kk = govde(ke, "static bool kayit_kur(void)")
+    olu_d = kosulsuz(ke, "kayit_veri_tampon = (uint8_t *)heap_caps_malloc_prefer(", "!kayit_veri_tampon",
+                     "static bool kayit_kur(void)")
+    ok("B72.E6Fd /kayit/veri tamponu (8 KB) once PSRAM, yoksa dahili; ayrilamazsa kayit_kur "
+       "eskisi gibi false (kayit KAPALI) doner",
+       "kayit_veri_tampon = (uint8_t *)heap_caps_malloc_prefer(KAYIT_VERI_AZAMI, 2, "
+       "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);"
+       in re.sub(r"\s+", " ", kk)
+       and "!kayit_veri_tampon" in kk[kk.find("kayit_veri_tampon = "):]
+       and ke.count("kayit_veri_tampon = (") == 1 and not olu_d, f"olu={olu_d}")
+    i_ps = st.find("akis_kuyrugu_q = xQueueCreateWithCaps(48, sizeof(AkisKalem), "
+                   "MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);")
+    i_yd = st.find("if (!akis_kuyrugu_q) akis_kuyrugu_q = xQueueCreate(48, sizeof(AkisKalem));")
+    olu_e = kosulsuz(ino_k, "akis_kuyrugu_q = xQueueCreateWithCaps(",
+                     "if (!akis_kuyrugu_q) akis_kuyrugu_q = xQueueCreate(", "sunucu.begin();")
+    ok("B72.E6Fe akis kuyrugu PSRAM'de (xQueueCreateWithCaps), olmazsa dahili xQueueCreate; "
+       "ikisi de sunucu ve ag gorevinden ONCE; kuyruk ISR'den kullanilmaz ve hic silinmez",
+       0 <= i_ps < i_yd < st.find("sunucu.begin();") < st.find("xTaskCreatePinnedToCore(ag_gorevi")
+       and ino_k.count("akis_kuyrugu_q = xQueue") == 2
+       and not re.search(r"FromISR\s*\(\s*akis_kuyrugu_q", ino_k)
+       and not re.search(r"vQueueDelete\w*\s*\(\s*akis_kuyrugu_q", ino_k) and not olu_e, f"olu={olu_e}")
+    ay_g = govde(ino_k, "static void akis_yolla(const char *satir) {")
+    kl_g = govde(ino_k, "static void akis_kalp() {")
+    i_w = ay_g.find("const size_t y = akis[i].write((const uint8_t *)olay, (size_t)n);")
+    olu_f = kosulsuz(ino_k, "const size_t y = akis[i].write(", "if (y != (size_t)n) { akis[i].stop(); continue; }",
+                     "!= sizeof(KALP) - 1u) akis[i].stop();", "static void akis_yolla(", "static void akis_kalp(")
+    ok("B72.E6Ff SSE kisa yazma (yarim olay / lwIP bellek yok) istemciyi DUSURUR, olay ve kalp "
+       "atisinda; giden yalniz tam yazmada sayilir",
+       0 <= i_w < ay_g.find("if (y != (size_t)n) { akis[i].stop(); continue; }") < ay_g.find("giden = true;")
+       and "if (akis[i].write((const uint8_t *)KALP, sizeof(KALP) - 1u) != sizeof(KALP) - 1u) "
+           "akis[i].stop();" in kl_g
+       and ".print(" not in kl_g and not olu_f, f"olu={olu_f}")
+    i_b = st.find('Serial.print(F("Bellek (E6F): tls="));')
+    olu_g = kosulsuz(ino_k, 'Serial.print(F("Bellek (E6F): tls="));', "void *d = mbedtls_calloc(1, 32);",
+                     'Serial.print(F(" veri="));', 'Serial.print(F(" akis="));', "const bool akis_psram")
+    ok("B72.E6Fg acilista TEK satir tasinan tamponlarin GERCEK yerini soyler: tls kurulan "
+       "ayiricidan deneme ayirmasiyla, veri/akis isaretcinin/kuyrugun kendisinden; kayit_kur'dan SONRA",
+       st.find("kayit_kur(") < st.find("void *d = mbedtls_calloc(1, 32);") < i_b
+       and "esp_ptr_external_ram(d) ? F(\"PSRAM\")" in st and "mbedtls_free(d);" in st
+       and "esp_ptr_external_ram(kayit_veri_tampon) ? F(\"PSRAM\")" in st
+       and "Serial.println(akis_psram ? F(\"PSRAM\") : F(\"dahili\"));" in st
+       and "const bool akis_psram = akis_kuyrugu_q != nullptr;" in st
+       and 0 <= i_ps < st.find("const bool akis_psram") < i_yd and not olu_g, f"olu={olu_g}")
+    # E6F inceleme (2026-10-04): TLS kayit tamponlari PSRAM'e gecince esp_aes_process_dma her
+    # AES (GCM/CBC) islemi icin hizasiz dis bellek ciktisina DAHILI ara tampon ayirir:
+    # heap_caps_aligned_alloc(1, min(len, 1600), MALLOC_CAP_DMA) — PSRAM yigininda DMA yetenegi
+    # yok, ara tampon yalniz dahiliden; ayrilamazsa islem -1 doner (MQTT kopar) ve E6 geri
+    # cagirmasi QF'ye caps=0x0008 gorev=bld yazar. Bu BILEREK bir belge iddiasi (yorum + acik
+    # isler okuma kilavuzu): bulgu, kartta QF okuyanin bu satiri Wi-Fi tamponu sanmasiydi.
+    # Kanit (sokum, libmbedcrypto esp_aes_dma_core.c.obj) DEVIR 5.12.106 "inceleme".
+    ham = ino[ino.find("E6F (F1) — mbedTLS BELLEGI ONCE PSRAM'E"):ino.find("static void *tls_bellek_ayir(")]
+    acik = (KOK / "tasarim" / "1-acik-isler.md")
+    e6 = next((s for s in (acik.read_text(encoding="utf-8").splitlines() if acik.exists() else [])
+               if s.startswith("| E6 |")), "")
+    # okuma kilavuzu "Duzeltme hazir"dan ONCE, E6F'nin "Kartta"si SONRA — ikisi ayri olculur
+    i_e6f = e6.find("**Düzeltme hazır")
+    ok("B72.E6Fh F1'in bedeli yazili: AES DMA'si PSRAM'deki kayit ciktisi icin kayit basina DAHILI "
+       "ara tampon (<= 1600 B, MALLOC_CAP_DMA) ayirir, ayrilamazsa TLS -1; acik isler E6 okuma "
+       "kilavuzu QF caps=0x0008 gorev=bld'yi AES ara tamponu diye tanir ve kartta olculecekte sayar",
+       "esp_aes_process_dma" in ham and "MALLOC_CAP_DMA" in ham and "1600" in ham
+       and "caps=0x0008" in ham and "zaten karsiliyor" not in ham
+       and i_e6f >= 0 and "`caps=0x0008`" in e6[:i_e6f] and "AES DMA ara tamponu" in e6[:i_e6f]
+       and "`QF caps=0x0008 gorev=bld`" in e6[i_e6f:],
+       f"yorum={len(ham)} B, E6 satiri={'var' if e6 else 'YOK'}")
+    # E6K (b): E6F'nin kart kaniti tezgah listesinde — ve kalemler firmware'in GERCEKTEN
+    # bastigi satirla, QF bicimiyle, okuma kilavuzuyla ve DEVIR'deki olcumle AYNI (ayrisirsa
+    # tezgahta okuyan yanlis satiri arar).
+    import inspect
+    tz = " ".join(k + " " + v for k, v in E6F_TEZGAH)
+    parca = re.findall(r'Serial\.print\(F\("(Bellek \(E6F\): tls=| veri=| akis=)"\)\);', st)
+    acilis = "".join(x + "PSRAM" for x in parca)
+    qf = re.search(r'"QF no=%lu boyut=%lu caps=(0x%0\dlX) ', ino_k)
+    # olcumler acik isler E6 satirindakiyle (kartta 2026-10-04) ayni; DEVIR.md mutasyon kopyasina
+    # girmez (mutasyon.ATLA_DOSYA), kaynak olarak kullanilmaz
+    olcum = ("11.4 KB", "95.2 KB", "102 KB")
+    # caps bitleri (esp_heap_caps.h): DMA 0x8, 8BIT 0x4, INTERNAL 0x800
+    caps = {"0x0008": 0x8, "0x080C": 0x800 | 0x8 | 0x4, "0x0804": 0x800 | 0x4}
+    ag = next((k + v for k, v in E6F_TEZGAH if "STA" in k), "")
+    ana = inspect.getsource(main)
+    ok("B72.E6Fj E6F tezgah kalemleri: acilis satiri firmware'in uc parcasindan birebir, QH "
+       "once/sonra olcumleri acik isler E6 satirindakiyle ayni, QF caps okumasi firmware bicimi + acik "
+       "isler kilavuzuyla ayni, ag geri donusu kalemi firmware'in durum adini kullanir; main() "
+       "listeyi tezgah()'a verir; hepsi ASCII",
+       parca == ["Bellek (E6F): tls=", " veri=", " akis="]
+       and acilis == "Bellek (E6F): tls=PSRAM veri=PSRAM akis=PSRAM" and acilis in tz
+       and all(x in tz and x in e6 for x in olcum) and "36.9 KB" in tz
+       and qf is not None and qf.group(1) == "0x%04lX"
+       and all(f"caps={c}" in tz and f"caps={c}" in e6 and int(c, 16) == v for c, v in caps.items())
+       and '"ag yok (STA degil)"' in ino_k and "ag yok (STA degil)" in ag and "kendiliginden" in ag
+       and ag.startswith("[!]")
+       and 'tezgah("B72 E6F dahili yigin duzeltmesi (kartta)", E6F_TEZGAH)' in ana
+       and tz.isascii(),
+       f"acilis={acilis!r} qf={qf and qf.group(1)} e6_eksik={[x for x in olcum if x not in e6]} "
+       f"kalem={len(E6F_TEZGAH)}")
+    # E6K (a): kosul_yigini/kosulsuz'un KENDISI — yanlis "temiz" demesi yukaridaki bes iddiayi
+    # sessizce bosaltir. Yapay ornekler + gercek kaynak (eskizdeki tek gercek #if ve butun
+    # basliklarin korumasi).
+    ornek = ("a();\n#if 0\nb();\n#endif\nc();\n"
+             "  #  ifdef HIC_TANIMLANMAZ\nd();\n#else\ne();\n#endif\n"
+             "#if 1\n#if 0\nf();\n#endif\ng();\n#elif X\nk();\n#endif\nh();\n"
+             "#ifndef Y\n#define Z\nj();\n#endif\n")
+    koruma = "#ifndef X_H\n#define X_H\ni();\n#endif\n"
+    i_adc = ino_k.find("adc_cali_create_scheme_curve_fitting(")
+    basliklar = {p.name: kod(_oku(p.name)) for p in sorted(KOD.glob("*.h"))}
+    korumasiz = [ad for ad, m in basliklar.items()
+                 if (g := re.match(r"\s*#ifndef (\w+)\s*#define \1\b", m)) is None
+                 or kosul_yigini(m, g.end()) != []]
+    yigin_g = kosul_yigini(ornek, ornek.find("g();"))
+    ok("B72.E6Fi kosul_yigini/kosulsuz: #if 0, bosluklu '#  ifdef TANIMSIZ' ve #else kolu, ic ice "
+       "#if, #elif kolu, koruma olmayan #ifndef KOSULLU; kosul disi ve baslik korumasi icindeki "
+       "satir TEMIZ; olmayan parca YOK; gercek eskizin tek #if'i (ADC egri kalibrasyonu) gorulur, "
+       "butun basliklarin korumasi taninir",
+       kosulsuz(ornek, "a();", "c();", "h();") == [] and kosulsuz(koruma, "i();") == []
+       and all(len(kosulsuz(ornek, x)) == 1 for x in ("b();", "d();", "e();", "f();", "g();", "k();", "j();"))
+       and kosul_yigini(ornek, ornek.find("f();")) == ["#if 1", "#if 0"]
+       and yigin_g == ["#if 1"] and kosul_yigini(ornek, ornek.find("k();")) == ["#if 1 / #elif X"]
+       and kosulsuz(ornek, "YOKTUR();") == ["'YOKTUR();' YOK"]
+       and i_adc >= 0 and kosul_yigini(ino_k, i_adc) == ["#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED"]
+       and len(basliklar) >= 10 and not korumasiz,
+       f"g={yigin_g} adc={kosul_yigini(ino_k, i_adc) if i_adc >= 0 else 'YOK'} "
+       f"baslik={len(basliklar)} korumasiz={korumasiz}")
+    # E6K inceleme: koruma yalniz DOSYANIN ILK yonergesi (oncesinde yalniz bosluk) — eskiden
+    # dosyanin herhangi bir yerindeki `#ifndef X` + `#define X` cifti koruma sayiliyordu:
+    # `#ifndef ARDUINO / #define ARDUINO 1 / <satir>` (arduino-cli ARDUINO'yu hep tanimlar ->
+    # gercek derlemede de olu) ve korumanin `#else` kolu (yalniz ikinci dahil etmede derlenir;
+    # eskizde hic) E6Fa-g'yi yesil tutuyordu. Ayni ad cifti ve `#elif` de ayri ayri sinanir.
+    ara = "a();\n#ifndef X\n#define X\nm();\n#endif\n"
+    ard = "x();\n#ifndef ARDUINO\n#define ARDUINO 1\np();\n#endif\nr();\n"
+    once_kosul = "#if 1\n#endif\n#ifndef X_H\n#define X_H\nt();\n#endif\n"
+    kor_else = "#ifndef X_H\n#define X_H\ni();\n#else\nn();\n#endif\n"
+    kor_elif = "  \n#ifndef X_H\n#define X_H\ni();\n#elif Y\nq();\n#endif\n"
+    kor_ic = "#ifndef X_H\n#define X_H\n#ifndef D\n#define D 8\n#endif\ns();\n#ifndef E\n#define E\nu();\n#endif\n#endif\n"
+    n_y = kosul_yigini(kor_else, kor_else.find("n();"))
+    ok("B72.E6Fk baslik korumasi YALNIZ dosyanin ilk yonergesi: dosya ortasindaki "
+       "'#ifndef X / #define X' (ARDUINO dahil), oncesinde kosul olan, korumanin #else ve #elif "
+       "kolu ve koruma icindeki ic ice ayni ad cifti KOSULLU; korunan govde ve sonrasi TEMIZ",
+       len(kosulsuz(ara, "m();")) == 1 and kosulsuz(ara, "a();") == []
+       and len(kosulsuz(ard, "p();")) == 1 and kosulsuz(ard, "x();", "r();") == []
+       and len(kosulsuz(once_kosul, "t();")) == 1
+       and kosulsuz(kor_else, "i();") == [] and n_y == ["#ifndef X_H / #else"]
+       and kosulsuz(kor_elif, "i();") == [] and len(kosulsuz(kor_elif, "q();")) == 1
+       and kosulsuz(kor_ic, "s();") == [] and kosul_yigini(kor_ic, kor_ic.find("u();")) == ["#ifndef E"],
+       f"ara={kosulsuz(ara, 'm();')} ard={kosulsuz(ard, 'p();')} once={kosulsuz(once_kosul, 't();')} "
+       f"else={n_y} elif={kosulsuz(kor_elif, 'q();')} ic={kosul_yigini(kor_ic, kor_ic.find('u();'))}")
+
+
+# E6K (b): E6F'nin calisma ani kaniti yalniz DEVIR 5.12.106'nin duz yazisindaydi (acik kucuk c);
+# tezgah listesine (_tezgah.md, zincir toplar) BURADAN girer. B72.E6Fj kalemleri firmware'in
+# basdigi satirlarla ve DEVIR'deki olcumlerle karsilastirir. ASCII (tezgah.py kurali).
+E6F_TEZGAH = [
+    ("E6F acilis satiri (yuklemeden sonra ilk acilis, USB seri izleyici)",
+     "'Bellek (E6F): tls=PSRAM veri=PSRAM akis=PSRAM'. 'dahili' = o tampon PSRAM bulamadi "
+     "(E6F kazanci o kalemde yok), 'YOK' = hic ayrilamadi (tls: mbedTLS calismaz; veri: kayit KAPALI)"),
+    ("E6F uzun kosu: QH asil DRAM bolgesi (saatler, kopru esitlemesi + MQTT acik)",
+     "USB'den Q? + QH: ~250 KB'lik asil DRAM bolgesinin min_free / en buyuk blok. Once (A3-W2, ~9 sa) "
+     "11.4 KB / 36.9 KB; E6F ~1 dk'da 95.2 KB / 102 KB. Kabul: saatler sonra min_free oncekinden "
+     ">= ~40 KB fazla (>= ~51 KB) ve Q? ayirma_hata=0; QY dahili_en_az 2.5 KB'a inmez"),
+    ("E6F QF okuma (QH sonundaki son 4 basarisiz ayirma)",
+     "'QF yok' beklenen. caps=0x0008 gorev=bld (boyut <= 1600) = AES DMA ara tamponu ayrilamadi, "
+     "MQTT o an koptu ve kendisi yeniden baglanir (E6F'nin bilinen bedeli; dahili DMA'li bellekte "
+     "1.6 KB'lik blok kalmamis). caps=0x080C gorev=wifi/tiT = Wi-Fi dinamik tamponu. caps=0x0804 "
+     "gorev=bld = mbedTLS: E6F'den sonra BEKLENMEZ (PSRAM de dolmus demek); boyut gercek n*boyut (E6K)"),
+    ("[!] Ag geri donusu: erisim noktasi gidip gelince kart STA'ya kendiliginden doner",
+     "seri izleyici acik; kartin bagli oldugu erisim noktasini (ev agi ya da telefon hotspot'u) "
+     "~1 dk kapat, sonra ac: kullanici hicbir sey yapmadan kart STA'ya doner (Q durumu 'ag yok "
+     "(STA degil)'den cikar, olcum.local acilir, kopru esitler). AP'ye dusup orada kalirsa ya da "
+     "5 dk'da donmezse KUSUR (2026-10-04 sabahi >= 1 dk 'ag yok'ta kaldi, donus olculmedi)"),
+]
+
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
-            bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle]
+            bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle,
+            bolum_w2, bolum_tezgah_w5, bolum_e6, bolum_e6f]
 
 
 def main() -> int:
@@ -2896,6 +3673,7 @@ def main() -> int:
          "elle 5 kez: kurtarma hatasiz, kayit DEVAM ile surer, kayip en fazla "
          "son ~5 s"),
     ])
+    tezgah("B72 E6F dahili yigin duzeltmesi (kartta)", E6F_TEZGAH)
     gercek_dizin_koru.denetle(_KORUMA, ok)
     print(f"\nB72: {gecti}/{gecti + kaldi} kosul gecti")
     return 0 if kaldi == 0 else 1

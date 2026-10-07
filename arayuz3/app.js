@@ -262,6 +262,13 @@ const TasiyiciAkis = {
       /* Sunucunun SEBEBİNİ göster — "403" tek başına kullanıcıya
          "neden olmadı" sorusunun cevabını vermiyor. */
       const neden = y ? await y.text().catch(() => '') : '';
+      /* Kart kapali / erisilemiyor (kopru 502): teknik govde yerine sade metin; ayrinti olaylarda */
+      if ((y && y.status === 502) || uyg.kartDurum === 'yok'
+          || /erisilemiyor|dogrulanmadi|bulunamadi|bagli degil|GONDERILMEDI/.test(neden)) {
+        uyg.olayEkle('! komut' + (y ? ' (' + y.status + ')' : '') + (neden ? ': ' + neden : ''), 'unlem');
+        uyg.hata = uyg.metin('kb.komut_kart_yok');
+        return;
+      }
       uyg.hata = (await uyg.lanUyarisi(y)) || ('Komut gönderilemedi'
                + (y ? ' (' + y.status + ')' : ' — bağlantı yok')
                + (neden ? ': ' + neden : ''));
@@ -336,6 +343,9 @@ const GORUNUMLER = [
 const KB_METIN = Object.freeze({
   ad: 'kb.ad', gezinme: 'kb.gezinme', menuAc: 'kb.menu_ac', menuKapat: 'kb.menu_kapat',
   cevrimdisi: 'kb.cevrimdisi', baglan: 'kb.baglan', kes: 'kb.kes',
+  kopruCalisiyor: 'kb.kopru_calisiyor', kartYokBaslik: 'kb.kart_yok_baslik', kartYokIpucu: 'kb.kart_yok_ipucu',
+  kartYokKendi: 'kb.kart_yok_kendi',
+  baglantiBilgi: 'kb.baglanti', baglantiIpucu: 'kb.baglanti_ipucu',
   esitlenmemisYok: 'kb.esitlenmemis_yok', surumIpucu: 'kb.surum_ipucu',
   icerigeGec: 'kb.icerige_gec', esitlenmemisBagliDegil: 'kb.esitlenmemis_bagli_degil', pilCalisiyor: 'kb.pil_calisiyor',
 });
@@ -343,6 +353,9 @@ const CN_METIN = Object.freeze({
   baslik: 'cn.baslik', okumalar: 'cn.okumalar', gerilim: 'cn.gerilim', akim: 'cn.akim', guc: 'cn.guc',
   enerji: 'cn.enerji', enerjiIpucu: 'cn.enerji_ipucu', onSaniyeYok: 'cn.on_saniye_yok',
   grafik: 'cn.grafik', grafikEtiket: 'cn.grafik_etiket', sagEksen: 'cn.sag_eksen', sagAkim: 'cn.sag_akim',
+  kartKapaliGrafik: 'cn.kart_kapali',
+  olcekSol: 'cn.olcek_sol', olcekSag: 'cn.olcek_sag', olcekOto: 'cn.olcek_oto', olcekSifir: 'cn.olcek_sifir',
+  olcekElle: 'cn.olcek_elle', olcekEnAz: 'cn.olcek_en_az', olcekEnCok: 'cn.olcek_en_cok',
   sagGuc: 'cn.sag_guc', sagYok: 'cn.sag_yok', pencere: 'cn.pencere', yenileme: 'cn.yenileme',
   dondur: 'cn.dondur', canliyaDon: 'cn.canliya_don', donmusIpucu: 'cn.donmus_ipucu', veriYok: 'cn.veri_yok',
   yukleniyor: 'cn.yukleniyor', yuklenemedi: 'cn.yuklenemedi', kanalVeriYok: 'cn.kanal_veri_yok',
@@ -496,6 +509,12 @@ function dilUygula(dil, gorunum) {
 /* AY7 (P7): Ayarlar'in yeni metinleri sozlukten (`ay.`). */
 const AY_METIN = Object.freeze({
   bolumler: 'ay.bolumler', dil: 'ay.dil', dilIpucu: 'ay.dil_ipucu', dilEksik: 'ay.dil_eksik',
+  agKayitli: 'ay.ag_kayitli', agKural: 'ay.ag_kural', agYenile: 'ay.ag_yenile', agTara: 'ay.ag_tara',
+  agTaraniyor: 'ay.ag_taraniyor', agListeYok: 'ay.ag_liste_yok', agBagli: 'ay.ag_bagli',
+  agOncelikli: 'ay.ag_oncelikli', agGec: 'ay.ag_gec', agGecEmin: 'ay.ag_gec_emin',
+  agOncelikYap: 'ay.ag_oncelik_yap', agOncelikKaldir: 'ay.ag_oncelik_kaldir', agSil: 'ay.ag_sil',
+  agSilEmin: 'ay.ag_sil_emin', agVazgec: 'ay.ag_vazgec', agGorunen: 'ay.ag_gorunen',
+  agGecIpucu: 'ay.ag_gec_ipucu',
 });
 /* 3D (D1): ESKİ ADRES `#/olcum` (B27'den beri Ölçüm sekmesi) Canlı'ya düşer:
    bilinmeyen her adres varsayılana gider ve varsayılan Canlı. Ayrı bir takma
@@ -511,6 +530,11 @@ const ADS_PGA_V = 0.256;
 /* B27 A2 — RAPOR ARALIGI secenekleri (ms). Kartin `r<ms>` siniri 20..5000;
    menu bilerek daha dar: 50 ms altinda grafik noktasi degil gurultu
    gorunur, 1 s ustunde arayuz "koptu" hissi verir. */
+/* 2026-10-06 (kullanici: "ESP kapali ama solda cevrimici yaziyor"): kartin kendisi bu kadar
+   sure SUSARSA (D satiri yok) ya da kopru "kart erisilemiyor" derse kart YOK sayilir. En yavas
+   rapor 1 s; kart bagliyken bu surede en az 5 D satiri gelir. */
+const KART_SESSIZ_MS = 5000;
+
 const RAPOR_SECENEKLERI = [
   { ms: 50,   ad: '20 / s' },
   { ms: 100,  ad: '10 / s' },
@@ -555,11 +579,15 @@ function hashtenGorunum() {
      firmware'in biçimiyle sınıyor (Vue'suz). */
 const KAYIT_SATIRLARI = Object.freeze({
   G: Object.freeze(['durum', 'oturum', 'nokta', 'sonraki', 'onay', 'doluluk', 'onaysiz', 'dusen',
-    'yaz_azami_us', 'sil_azami_us', 'sil_adet', 'tarama_ms', 'son_hata']),
+    'yaz_azami_us', 'sil_azami_us', 'sil_adet', 'tarama_ms', 'son_hata', 'son_not', 'mesaj_dusen']),
   GA: Object.freeze(['hazir_sektor', 'ayrintili_ornek', 'dusen_ornek', 'kayit_ici_silme']),
   GT: Object.freeze(['etkin', 'aralik_ms', 'yakalama', 'yazilamayan']),
   GP: Object.freeze(['durum', 'bas_unix', 'sure_s', 'hiz_ms', 'oturum']),
 });
+/* W2 (A3-W2): firmware alanları SONA ekler; ESKİ firmware'in satırı da durumdur. Burada
+   satır türü başına eski alan SAYILARI (yalnız bunlar ya da tam liste kabul; arası değil).
+   Eski satırda eksik alanlar nesnede YOK (undefined). G: A3-4B ve öncesi 13 alan. */
+const KAYIT_SATIR_ESKI = Object.freeze({ G: Object.freeze([13]) });
 /* kayit_yonet.h KDR_* ve kayit_plan.h PLAN_* (B7 karşılaştırıyor). */
 const KDR = Object.freeze({ TARIYOR: 0, BOS: 1, KAYIT: 2, DOLU: 3, BEKLIYOR: 4, HATA: 5 });
 const PLAN = Object.freeze({ YOK: 0, BEKLIYOR: 1, SURUYOR: 2, BITTI: 3, ATLANDI: 4, KACIRILDI: 5,
@@ -586,13 +614,17 @@ const RET_PENCERESI_MS = 5000;
 /* millis() 32 bit: 49.7 günde sarar (yeniden başlama SAYILMAZ). */
 const MILLIS_TUR = 4294967296;
 
-/** `G` / `GA` / `GT` / `GP` satırı -> {tur, <alan>: sayı}; değilse null. */
+/** `G` / `GA` / `GT` / `GP` satırı -> {tur, <alan>: sayı}; değilse null. Eski firmware'in
+ *  kısa satırı (KAYIT_SATIR_ESKI) da çözülür; sondaki yeni alanlar o zaman nesnede yok. */
 function kayitSatiriCoz(satir) {
   const p = String(satir === null || satir === undefined ? '' : satir).trim().split(/\s+/);
   const alanlar = Object.prototype.hasOwnProperty.call(KAYIT_SATIRLARI, p[0]) ? KAYIT_SATIRLARI[p[0]] : null;
-  if (!alanlar || p.length !== alanlar.length + 1) return null;
+  if (!alanlar) return null;
+  const n = p.length - 1;
+  const eski = Object.prototype.hasOwnProperty.call(KAYIT_SATIR_ESKI, p[0]) ? KAYIT_SATIR_ESKI[p[0]] : [];
+  if (n !== alanlar.length && !eski.includes(n)) return null;
   const o = { tur: p[0] };
-  for (let k = 0; k < alanlar.length; k++) {
+  for (let k = 0; k < n; k++) {
     if (!/^-?\d{1,10}$/.test(p[k + 1])) return null;
     o[alanlar[k]] = Number(p[k + 1]);
   }
@@ -961,6 +993,19 @@ createApp({
          metin bu yuzden burada. */
       errorComponent: { template: '<p class="hata">Kayıtlar ekranı yüklenemedi (modül inmedi) — kart yeniden başlıyor olabilir; birkaç saniye sonra sayfayı yenileyin.</p>' },
     }),
+    /* 2026-10-06: "ⓘ Baglanti" penceresi — KAPALI baslar, ilk acilista iner (resimler
+       ortak/baglanti_veri.js'te, ~100 KB; acilis butcesine girmez). */
+    'baglanti-bilgi': defineAsyncComponent({
+      loader: () => import('./ekran/baglanti.js').then((m) => m.BaglantiBilgi),
+      errorComponent: {
+        template: '<p class="hata">{{ metin }}</p>',
+        data() {
+          let depo = null;
+          try { depo = window.localStorage; } catch (e) { depo = null; }
+          return { metin: ceviri('kb.baglanti_yuklenemedi', dilSec(depo)) };
+        },
+      },
+    }),
     /* 3G: Karsilastirma ekrani da ilk acilista iner (ayni desen, ayni gerekce). */
     'karsilastir-ekran': defineAsyncComponent({
       loader: () => import('./ekran/karsilastir.js').then((m) => m.KarsilastirEkrani),
@@ -1031,12 +1076,20 @@ createApp({
       canliBilgi: null,            // ekran/canli.js: {lejant, pencere, okuma, donmus}
       donmus: false,               // D3: "dondur" — imlec + yakinlastirma
       sagEksen: 'akim',            // K1 (ekran/canli.js): sag eksen tek birim
+      bilgi: '',                   // acik "Baglanti" penceresi: '' | 'canli' | 'skop' | 'pil'
+      /* 2026-10-06: kanal basina oto / 0'dan / elle (grafik.js olcekUygula; eksen eslemesi
+         canli.js'te — grafik.js acilista INMEZ, burada ham kayit) */
+      yOlcek: { v: { kip: 'oto', min: '', maks: '' }, akim: { kip: 'oto', min: '', maks: '' },
+        guc: { kip: 'oto', min: '', maks: '' } },
       /* 3D (D1): sol serit dar ekranda (<= 900 px) cekmece. */
       cekmeceAcik: false,
       /* D8: dil (3H secicisi gelene dek localStorage `olcum.dil`; 3C ile ayni anahtar) */
       dil: 'tr',
       afisSurum: '',               // D1: acilis afisinin asama/surum metni (gorulduyse)
       kopruda: false,              // D1: sayfa PC koprusu uzerinden (kopruYokla /durum)
+      kartYokNeden: '',            // koprunun son "! kopru: ... erisilemiyor" satiri (D gelince silinir)
+      kopruYol: '',                // kopru karta hangi yoldan bagli: 'usb' | 'wifi' | ''
+      bagliZaman: 0,               // panel tasiyiciya baglandigi an (ilk D icin bekleme penceresi)
       kopruVekil: false,           // 4D (PC11): kopru kartin /pil'ini imzali vekil eder (/durum vekil)
       /* ── 3D — KAYIT DURUMU (pasif; D4-D7) ── */
       kayit: { g: null, ga: null, gt: null, gp: null },
@@ -1198,6 +1251,11 @@ createApp({
       sifirlaOnay: false,
       agSsid: '',
       agSifre: '',
+      /* coklu ag: kartin NL / NT satirlarindan (parola YOK — kart basmaz). Yalniz istenince
+         (Listeyi yenile / Tara): Ayarlar karta kendiliginden komut gondermez (AY5). */
+      agListe: [],                 // { no, ad, oncelik, bagli }
+      agTarama: [],                // { ad, rssi, kayitli }
+      agTaraniyor: false,
       agWebSifre: '',
       kalibV: '', kalibA: '',
       elleKomut: '',
@@ -1303,6 +1361,42 @@ createApp({
       if (a === 'demo') return 'demo';
       if (a === 'seri') return 'usb';
       return this.kopruda ? 'kopru' : 'wifi';
+    },
+    /** Kartin KENDISI: 'bagli' | 'bekleniyor' | 'yok' | 'kapali' (panel tasiyiciya bagli degil).
+        Kopru ayaktayken panel "cevrimici"; asil soru kart veri gonderiyor mu. */
+    kartDurum() {
+      if (!this.bagli) return 'kapali';
+      if (this.baglantiKipi === 'demo') return 'bagli';
+      const t = this.saatTik || Date.now();
+      const son = this._sonDZaman || 0;
+      /* kopru "erisilemiyor" dediyse ve O ANDAN SONRA D gelmediyse (D gelince silinir): hemen yok */
+      if (this.kartYokNeden) return 'yok';
+      if (son && t - son < KART_SESSIZ_MS) return 'bagli';
+      if (this.osiloBekliyor || this.skopIkiliBekle) return 'bagli';   // yakalamada ADS susabilir
+      if (!son && t - (this.bagliZaman || t) < KART_SESSIZ_MS) return 'bekleniyor';
+      return 'yok';
+    },
+    rozetSinif() { return { bagli: 'acik', bekleniyor: 'bekle', yok: 'yok', kapali: 'kapali' }[this.kartDurum]; },
+    rozetYazi() {
+      const d = this.kartDurum;
+      if (d === 'kapali') return this.m.cevrimdisi;
+      if (d === 'yok') return this.metin('kb.kart_yok');
+      if (d === 'bekleniyor') return this.metin('kb.kart_baglaniyor');
+      const yol = this.baglantiKipi === 'kopru' ? this.kopruYol : this.baglantiKipi;
+      const ad = { usb: 'kb.kip_usb', wifi: 'kb.kip_wifi', demo: 'kb.kip_demo' }[yol];
+      return ad ? this.metin('kb.kart_bagli', { yol: this.metin(ad) }) : this.metin('kb.kart_bagli_yolsuz');
+    },
+    kartYokGoster() { return this.kartDurum === 'yok' && ['canli', 'skop', 'pil'].includes(this.gorunum); },
+    kartYokSon() {
+      const son = this._sonDZaman || 0;
+      if (!son) return this.metin('kb.kart_yok_hic');
+      const sn = Math.max(0, Math.round(((this.saatTik || Date.now()) - son) / 1000));
+      const once = sn < 60 ? this.metin('kb.once_sn', { n: sn })
+        : sn < 3600 ? this.metin('kb.once_dk', { n: Math.floor(sn / 60) })
+          : this.metin('kb.once_sa', { n: Math.floor(sn / 3600) });
+      const z = new Date(son);
+      const saat = [z.getHours(), z.getMinutes(), z.getSeconds()].map((x) => String(x).padStart(2, '0')).join(':');
+      return this.metin('kb.kart_yok_son', { saat, once });
     },
     baglantiYazi() {
       if (!this.bagli) return this.m.cevrimdisi;
@@ -1983,7 +2077,13 @@ createApp({
     pilAcik(v) { if (v) this.pilModYukle(); },
     pilEksen(v) { this.ayarYaz('pilEksen', v); this.pilCiz(); },
     /* WIG: baglanti kopunca silahli onay duser (bagli degilken komut zaten gitmez). */
-    bagli(v) { if (!v) this.onay = null; },
+    bagli(v) {
+      if (!v) this.onay = null;
+      this.bagliZaman = v ? Date.now() : 0;
+      this.kartYokNeden = '';
+    },
+    /* kart geri geldi: "komut gonderilmedi" bandi kendiliginden kalksin */
+    kartDurum(v) { if (v === 'bagli' && this.hata === this.metin('kb.komut_kart_yok')) this.hata = ''; },
     /* WIG: donmus imlec okumasi degisti -> gecikmeli duyuru */
     canliOkuma(v) { this.canliOkumaDegisti(v); },
     /* 3D: Canli ilk kez gorunur oldu -> grafik modulunu indir (bir kez). */
@@ -1999,6 +2099,14 @@ createApp({
     /* 3D (ekran/canli.js K1): sag eksen tek birim — Akim YA DA Guc. Eski
        `gosterI` / `gosterW` tercihi ilk acilista buna cevriliyor. */
     sagEksen(v) { this.grafikCiz(); this.ayarYaz('sagEksen', v); },
+    yOlcek: {
+      deep: true,
+      handler(v) {
+        this.grafikCiz();
+        this.ayarYaz('yOlcek', v);
+        try { window.dispatchEvent(new Event('olcum-yolcek')); } catch (e) { /* Kayitlar acilista okur */ }
+      },
+    },
     sontSecim(v) { this.ayarYaz('sontSecim', v); },
     /* B27 A2: rapor araligi tercihi — sakla ve bagliysa karta uygula.
        Kartin yaniti (`* rapor araligi N ms`) kartRapor'u gunceller. */
@@ -2063,6 +2171,7 @@ createApp({
        ?demo'da DEĞİL — orada taşıyıcı USB ya da sahte kart. */
     this.kopruyuAlgila().then(() => { if (this.otomatikBaglanmali()) this.baglan(); });
     window.addEventListener('resize', () => { this.genislikDegisti(); this.grafikCiz(); this.osiloCiz(); this.pilCiz(); });
+    window.addEventListener('olcum-yolcek', () => this.yOlcekOku());
     window.addEventListener('hashchange', () => { this.gorunum = hashtenGorunum(); this.skopRotaIsle(); });
     window.addEventListener('hashchange', () => { this.ayarBolum = ayarBolumCoz(location.hash); });
     window.addEventListener('mousemove', (e) => this.surukHareket(e));
@@ -2144,6 +2253,15 @@ createApp({
 
     /* ═══ 3D — KABUK (D1) ═══════════════════════════════════════════════ */
     metin(anahtar, degiskenler = null) { return ceviri(anahtar, this.dil, degiskenler); },
+    bilgiAc(ekran) { this.bilgi = this.bilgi === ekran ? '' : ekran; },
+    /* Kapaninca odak dugmeye doner (Esc / x ile kapatan klavye kullanicisi yerini kaybetmesin). */
+    bilgiKapat(ekran) {
+      this.bilgi = '';
+      this.$nextTick(() => {
+        const d = document.querySelector(`[data-bilgi="${ekran}"]`);
+        if (d) d.focus();
+      });
+    },
     /* Cekmece (<= 900 px). Acilinca odak etkin baglantiya; Esc ya da secim kapatir,
        Esc'te odak menu dugmesine doner (klavye kullanicisi yerini kaybetmesin). */
     cekmeceAc() {
@@ -2400,6 +2518,17 @@ createApp({
     },
     /** `!` satiri (D7: olay). Bir kayit komutundan hemen sonra gelen `! G…` o komutun
      *  REDDI: denetimin yaninda oldugu gibi gosterilir (D4). */
+    /** Koprunun yukari-akis durum satirlari: hangi yoldan bagli / kart erisilemiyor. */
+    kopruDurumSatiri(s) {
+      if (s[0] === '*') {
+        if (/WiFi baglandi/.test(s)) { this.kopruYol = 'wifi'; this.kartYokNeden = ''; }
+        else if (/kart baglandi|yukari-akis USB/.test(s)) { this.kopruYol = 'usb'; this.kartYokNeden = ''; }
+        return;
+      }
+      if (/erisilemiyor|bulunamadi|koptu|dogrulanmadi|reddetti|acilamadi|HTTP \d|yuvalari dolu/.test(s)) {
+        this.kartYokNeden = s;
+      }
+    },
     unlemSatiri(satir) {
       this.olayEkle(satir, 'unlem');
       if (/^! ?G\b/.test(satir) && Date.now() - this.kayitKomutZamani < RET_PENCERESI_MS) {
@@ -2506,6 +2635,7 @@ createApp({
     canliDurumu() {
       return {
         gecmis: this.gecmis, pencereS: this.pencere, gosterV: this.gosterV, sagEksen: this.sagEksen,
+        yOlcek: this.yOlcek,
         taban: (veri) => this.olcekTabani(veri), aralikMs: this.sonAralik > 0 ? this.sonAralik : this.raporMs,
         donmus: this.donmus,
       };
@@ -2786,6 +2916,7 @@ createApp({
       const eskiW = this.ayarOku('gosterW', true);
       const sag = this.ayarOku('sagEksen', eskiI ? 'akim' : eskiW ? 'guc' : 'yok');
       this.sagEksen = ['akim', 'guc', 'yok'].includes(sag) ? sag : 'akim';
+      this.yOlcekOku();
       this.sontSecim = this.ayarOku('sontSecim', this.sontSecim);
       this.sebekeHz = this.ayarOku('sebekeHz', this.sebekeHz);
       this.raporMs = this.ayarOku('raporMs', this.raporMs);
@@ -3171,6 +3302,7 @@ createApp({
         else if (this.kartMs) this.sonAralik = yeniMs - this.kartMs;
         this.kartMs = yeniMs;
         this._sonDZaman = Date.now();
+        if (this.kartYokNeden) this.kartYokNeden = '';
         this.ornekAdet = p.length >= 8 ? parseInt(p[7], 10) : 0;
         /* 9. alan Asama 3'te eklendi: hangi gerilim KANALI etkin.
            0 = NORMAL (+-32.4 V), 1 = YUKSEK (+-613.7 V).
@@ -3248,6 +3380,9 @@ createApp({
         this.kayit.gt = { ...this.kayit.gt, etkin: 0,
           ...(gd ? { yakalama: Number(gd[1]), yazilamayan: Number(gd[2]) } : {}) };
       }
+      if (satir.startsWith('! kopru:') || satir.startsWith('* kopru:')) this.kopruDurumSatiri(satir);
+      if (satir.startsWith('NL ') || satir.startsWith('NT ')) this.agSatiri(satir);
+      else if (satir.startsWith('* ag listesi:') && /eklendi|silindi|oncelik|kaydedildi/.test(satir)) this.agListeDegisti();
       if (satir.startsWith('!')) {
         this.osiloBekliyor = false; this.skopIkiliBekle = false; this.skopIkiliOlcum = null;
         this.unlemSatiri(satir);          // 3D: D7 olay + D4 kayit komutunun reddi
@@ -3302,6 +3437,28 @@ createApp({
       this.agWebSifre = '';
     },
     agWebKorumaKaldir() { this.gonder('Ns'); },
+    /* ── coklu ag (2026-10-06): Nl / Nt / Nx / No / Ng ── */
+    agListeIste() { this._agListeYeni = []; this.gonder('Nl'); },
+    agTara() { this._agTaramaYeni = []; this.agTaraniyor = true; this.gonder('Nt'); },
+    async agEylem(k) { await this.gonder(k); },          // kartin "* ag listesi:" satiri listeyi tazeler
+    agSil(no) { this.agEylem('Nx' + no); },
+    agOncelik(no) { this.agEylem('No' + no); },
+    agGec(no) { this.gonder('Ng' + no); },
+    /* NL <no> <oncelik> <bagli> <ad> · NL bitti <n> · NT <rssi> <no|-> <ad> · NT bitti <n> */
+    agSatiri(s) {
+      let m;
+      if (s.startsWith('NL bitti')) { this.agListe = this._agListeYeni || []; this._agListeYeni = []; return; }
+      if (s.startsWith('NT bitti')) {
+        this.agTarama = this._agTaramaYeni || []; this._agTaramaYeni = []; this.agTaraniyor = false; return;
+      }
+      if ((m = /^NL (\d) ([01]) ([01]) (.+)$/.exec(s))) {
+        (this._agListeYeni = this._agListeYeni || []).push({ no: Number(m[1]), oncelik: m[2] === '1', bagli: m[3] === '1', ad: m[4] });
+      } else if ((m = /^NT (-?\d+) (\d|-) (.+)$/.exec(s))) {
+        (this._agTaramaYeni = this._agTaramaYeni || []).push({ rssi: Number(m[1]), kayitli: m[2] !== '-', ad: m[3] });
+      }
+    },
+    /* kart bir liste degisikligini soyledi (ekle/sil/oncelik/parola): liste acikken tazele */
+    agListeDegisti() { if (this.agListe.length && !(this._agListeYeni || []).length) this.agListeIste(); },
 
     /* Köprüden sürücülüğü devral. Yetki sunucuda; arayüz yalnızca
        durumu gösteriyor ve devri istiyor — politikayı İKİ YERDE
@@ -4480,6 +4637,18 @@ createApp({
        kesiyor (G2); gurultu tabani `enAzAralik` (B45 korunuyor — olcekTabani);
        "tepe / veri yok" lejanti HTML'de (ekran/canli.js canliLejant).
        Canli gizliyken (baska ekran) cizilmiyor — geri donunce watch.gorunum ciziyor. */
+    /* Kayitlar ekrani ayni anahtari yaziyor ('olcum-yolcek' olayi) — ikisi ayni kalsin.
+       Elle sinirlar gecersizse grafik.js otomatige dusuyor; burada yalniz kip denetlenir. */
+    yOlcekOku() {
+      const k = this.ayarOku('yOlcek', null);
+      for (const a of ['v', 'akim', 'guc']) {
+        const x = k && k[a];
+        const y = this.yOlcek[a];
+        if (!x || !['oto', 'sifir', 'elle'].includes(x.kip)) continue;
+        if (x.kip === y.kip && x.min === y.min && x.maks === y.maks) continue;
+        this.yOlcek[a] = { kip: x.kip, min: x.min ?? '', maks: x.maks ?? '' };
+      }
+    },
     grafikCiz() {
       if (!this._canli || this.gorunum !== 'canli') return;
       this._canli.ciz(this.canliDurumu());

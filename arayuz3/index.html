@@ -80,8 +80,8 @@
     </button>
     <span class="ust-ad">{{ m.ad }}</span>
     <div class="baglanti" :inert="cekmeceAcik">
-      <span class="rozet" role="status" :class="bagli ? 'acik' : 'kapali'">
-        <span class="nokta" aria-hidden="true"></span>{{ baglantiYazi }}
+      <span class="rozet" role="status" :class="rozetSinif" data-kart-durum>
+        <span class="nokta" aria-hidden="true"></span>{{ rozetYazi }}
       </span>
       <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">{{ m.baglan }}</button>
     </div>
@@ -94,11 +94,12 @@
       <span class="serit-alt-ad" :title="afisSurum ? '' : m.surumIpucu">{{ seritAlt }}</span>
     </div>
     <div class="baglanti">
-      <span class="rozet" role="status" :class="bagli ? 'acik' : 'kapali'">
-        <span class="nokta" aria-hidden="true"></span>{{ baglantiYazi }}
+      <span class="rozet" role="status" :class="rozetSinif" data-kart-durum>
+        <span class="nokta" aria-hidden="true"></span>{{ rozetYazi }}
       </span>
       <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">{{ m.baglan }}</button>
       <button v-else @click="kes">{{ m.kes }}</button>
+      <span v-if="kopruda && bagli" class="rozet-alt" data-kopru-alt>{{ m.kopruCalisiyor }}</span>
     </div>
     <nav class="gorunum-nav" :aria-label="m.gezinme">
       <a v-for="g in gorunumler" :key="g.id"
@@ -155,6 +156,12 @@
     arayüzü <a :href="kopruAdresi">{{ kopruAdresi }}</a> üzerinden açın.
   </div>
   <div v-if="hata" class="hata" role="alert">{{ hata }}</div>
+  <!-- 2026-10-06: kart kapali / erisilemiyor — panel (ya da kopru) ayakta olsa da kartin KENDISI yok -->
+  <div v-if="kartYokGoster" class="kart-yok" role="alert" data-kart-yok>
+    <b>{{ m.kartYokBaslik }}</b> <span data-kart-yok-son>{{ kartYokSon }}</span>
+    <div class="kart-yok-ipucu">{{ m.kartYokIpucu }}</div>
+    <div class="kart-yok-alt">{{ m.kartYokKendi }}</div>
+  </div>
   <!-- 3H-2 (ES4): kart bu tarayicinin eslestirmesini tanimiyorsa istekler imzasiz yoldan
        gidiyor — sessizce degil: her gorunumde, Eslestirme bolumune baglantiyla. -->
   <div v-if="eslesmeUyariMetni" class="uyari" role="alert" data-es-uyari>{{ eslesmeUyariMetni }} <a href="#/ayar/eslestirme">{{ eslesmeGit }}</a></div>
@@ -176,6 +183,10 @@
 
   <div class="baslik">
     <h1>{{ m.baslik }}</h1>
+    <button type="button" class="bilgi-dugme" data-bilgi="canli" :aria-expanded="bilgi === 'canli' ? 'true' : 'false'"
+            :title="m.baglantiIpucu" @click="bilgiAc('canli')">ⓘ {{ m.baglantiBilgi }}</button>
+    <baglanti-bilgi v-if="bilgi === 'canli'" ekran="canli" :dil="dil" :menzil="menzil"
+                    @kapat="bilgiKapat('canli')"></baglanti-bilgi>
     <span v-if="menzil !== null" class="etiket">{{ menzilAd }} {{ menzilKisa }}</span>
     <span v-if="kayitAktif" class="kayit-durum">
       <span class="kayit-nokta"></span>{{ m.kayitSuruyor }} · <span class="mono">{{ kayitSureYazi }}</span><template
@@ -322,6 +333,28 @@
           <option value="yok">{{ m.sagYok }}</option>
         </select>
       </label>
+      <label v-if="gosterV">{{ m.olcekSol }}:
+        <select data-olcek="sol" v-model="yOlcek.v.kip" style="width:auto">
+          <option value="oto">{{ m.olcekOto }}</option>
+          <option value="sifir">{{ m.olcekSifir }}</option>
+          <option value="elle">{{ m.olcekElle }}</option>
+        </select>
+        <template v-if="yOlcek.v.kip === 'elle'">
+          <input type="number" step="any" v-model="yOlcek.v.min" :placeholder="m.olcekEnAz" :aria-label="m.olcekEnAz" style="width:5.5em">
+          <input type="number" step="any" v-model="yOlcek.v.maks" :placeholder="m.olcekEnCok" :aria-label="m.olcekEnCok" style="width:5.5em">
+        </template>
+      </label>
+      <label v-if="sagEksen !== 'yok'">{{ m.olcekSag }}:
+        <select data-olcek="sag" v-model="yOlcek[sagEksen].kip" style="width:auto">
+          <option value="oto">{{ m.olcekOto }}</option>
+          <option value="sifir">{{ m.olcekSifir }}</option>
+          <option value="elle">{{ m.olcekElle }}</option>
+        </select>
+        <template v-if="yOlcek[sagEksen].kip === 'elle'">
+          <input type="number" step="any" v-model="yOlcek[sagEksen].min" :placeholder="m.olcekEnAz" :aria-label="m.olcekEnAz" style="width:5.5em">
+          <input type="number" step="any" v-model="yOlcek[sagEksen].maks" :placeholder="m.olcekEnCok" :aria-label="m.olcekEnCok" style="width:5.5em">
+        </template>
+      </label>
       <div class="bosluk"></div>
       <label title="Kart bu aralıkta bir D satırı yollar; her nokta o aralığın ortalaması. Sadece sürücü değiştirebilir.">{{ m.yenileme }}:
         <select v-model.number="raporMs" style="width:auto"
@@ -347,7 +380,7 @@
       <canvas ref="grafik" class="canli-grafik" role="img" :aria-label="m.grafikEtiket"></canvas>
       <p v-if="canliDurum === 'yuklenemedi'" class="hata tuval-ust">{{ m.yuklenemedi }}</p>
       <p v-else-if="canliDurum !== 'hazir'" class="tuval-ust">{{ m.yukleniyor }}</p>
-      <p v-else-if="!gecmis.length" class="tuval-ust">{{ m.veriYok }}</p>
+      <p v-else-if="!gecmis.length" class="tuval-ust">{{ kartDurum === 'yok' ? m.kartKapaliGrafik : m.veriYok }}</p>
     </div>
     <p v-if="donmus" class="ipucu">{{ m.donmusIpucu }}</p>
     <!-- WIG: imleç okuması klavyeyle (A/B, Shift+ok) de değişiyor; ızgara canlı bölge
@@ -431,6 +464,10 @@
 
   <div class="baslik">
     <h1>{{ os.baslik }}</h1>
+    <button type="button" class="bilgi-dugme" data-bilgi="skop" :aria-expanded="bilgi === 'skop' ? 'true' : 'false'"
+            :title="m.baglantiIpucu" @click="bilgiAc('skop')">ⓘ {{ m.baglantiBilgi }}</button>
+    <baglanti-bilgi v-if="bilgi === 'skop'" ekran="skop" :dil="dil" :menzil="menzil"
+                    @kapat="bilgiKapat('skop')"></baglanti-bilgi>
     <span class="etiket">{{ os.altBaslik }}</span>
   </div>
 
@@ -1110,8 +1147,8 @@
     <h2>Ağ — kartı kablosuz yapma</h2>
 
     <p class="ipucu">
-      <strong>Sıra:</strong> kartı <em>USB ile</em> bağlayın, ağ bilgilerini
-      buradan girin, kartı yeniden başlatın. Kart önce ev ağına bağlanmayı
+      <strong>Sıra:</strong> kartı <em>USB ile</em> bağlayın, ağı aşağıdan
+      listeye ekleyin (en çok 8). Kart açılışta kayıtlı ağlardan birine bağlanmayı
       dener; 10 saniyede olmazsa <strong>kendi ağını kurar</strong>
       (<code>OLCUM-KARTI-XXXX</code>). AP parolası ilk açılışta rastgele
       üretilip <strong>seri konsola yazılır</strong> — oradan okuyun.
@@ -1122,19 +1159,61 @@
       tercihen <b>USB ile</b> yapın.
     </p>
 
+
+    <!-- coklu ag (2026-10-06, tasarim/2026-10-06-coklu-ag.md): kayitli aglar + tarama + gecis -->
+    <h3 style="margin-top:14px">{{ ay.agKayitli }}</h3>
+    <p class="ipucu">{{ ay.agKural }}</p>
+    <div class="satir" style="margin-top:8px">
+      <button data-ag-yenile @click="agListeIste" :disabled="!bagli">{{ ay.agYenile }}</button>
+      <button data-ag-tara @click="agTara" :disabled="!bagli || agTaraniyor">{{ agTaraniyor ? ay.agTaraniyor : ay.agTara }}</button>
+    </div>
+    <ul v-if="agListe.length" class="ag-liste" data-ag-liste>
+      <li v-for="a in agListe" :key="a.no" :data-ag-no="a.no">
+        <span class="ag-ad">{{ a.ad }}</span>
+        <span v-if="a.bagli" class="rozet acik" data-ag-bagli>{{ ay.agBagli }}</span>
+        <span v-if="a.oncelik" class="etiket" data-ag-oncelikli>{{ ay.agOncelikli }}</span>
+        <span class="bosluk"></span>
+        <template v-if="!a.bagli">
+          <button v-if="onay !== 'agGec' + a.no" :data-onay-ac="'agGec' + a.no" @click="onayIste('agGec' + a.no)"
+                  :disabled="!bagli">{{ ay.agGec }}</button>
+          <template v-else>
+            <button class="birincil" :data-onay="'agGec' + a.no" @click="agGec(a.no)" :disabled="!bagli">{{ ay.agGecEmin }}</button>
+            <button @click="onayVazgec('agGec' + a.no)">{{ ay.agVazgec }}</button>
+          </template>
+        </template>
+        <button :data-ag-oncelik="a.no" @click="agOncelik(a.no)" :disabled="!bagli">{{ a.oncelik ? ay.agOncelikKaldir : ay.agOncelikYap }}</button>
+        <button v-if="onay !== 'agSil' + a.no" :data-onay-ac="'agSil' + a.no" @click="onayIste('agSil' + a.no)"
+                :disabled="!bagli">{{ ay.agSil }}</button>
+        <template v-else>
+          <button class="tehlike" :data-onay="'agSil' + a.no" @click="agSil(a.no)" :disabled="!bagli">{{ ay.agSilEmin }}</button>
+          <button @click="onayVazgec('agSil' + a.no)">{{ ay.agVazgec }}</button>
+        </template>
+      </li>
+    </ul>
+    <p v-else class="ipucu" data-ag-liste-yok>{{ ay.agListeYok }}</p>
+    <p class="ipucu">{{ ay.agGecIpucu }}</p>
+    <div v-if="agTarama.length" data-ag-tarama style="margin-top:8px">
+      <p class="ipucu">{{ ay.agGorunen }}</p>
+      <div class="ag-tarama">
+        <button v-for="g in agTarama" :key="g.ad" type="button" :data-ag-gorunen="g.ad" @click="agSsid = g.ad">
+          {{ g.ad }} <span class="mono">{{ g.rssi + ' dBm' }}</span><span v-if="g.kayitli" :title="ay.agKayitli"> ✓</span>
+        </button>
+      </div>
+    </div>
+
     <div class="satir" style="margin-top:12px">
       <div class="alan">
         <!-- WIG: SSID birebir eşleşmeli (büyük/küçük harf, sondaki boşluk): telefon
              klavyesinin otomatik büyük harfi / düzeltmesi KAPALI. -->
-        <label for="ayar-ssid">Ev ağı adı (SSID)</label>
+        <label for="ayar-ssid">Eklenecek ağın adı (SSID)</label>
         <input id="ayar-ssid" type="text" name="ssid" autocomplete="off" autocapitalize="off"
                autocorrect="off" spellcheck="false" v-model="agSsid" @keyup.enter="agSsidGonder">
       </div>
-      <button @click="agSsidGonder" :disabled="!bagli || !agSsid">Ağ adını yaz</button>
+      <button @click="agSsidGonder" :disabled="!bagli || !agSsid">Listeye ekle</button>
       <div class="alan">
         <!-- WIG: new-password — parola yöneticisi bunu giriş formu sanıp kart kökeninin
              kayıtlı parolasını doldurmasın. Boş parola GİTMEZ (kart ev ağına bağlanamazdı). -->
-        <label for="ayar-wifi-parola">Ev ağı parolası</label>
+        <label for="ayar-wifi-parola">Bu ağın parolası</label>
         <input id="ayar-wifi-parola" type="password" name="wifi-parola" autocomplete="new-password"
                v-model="agSifre" @keyup.enter="agSifreGonder">
       </div>
@@ -1172,7 +1251,7 @@
     </div>
 
     <p class="ipucu">
-      Değişiklikler <strong>bir sonraki açılışta</strong> geçerli. Ağ
+      Listeye eklenen ağ <strong>bir sonraki bağlantı denemesinde</strong> geçerli; “Bu ağa geç” hemen. Ağ
       ayarları kalibrasyondan <em>ayrı</em> saklanıyor — WiFi parolası
       değiştirmek kalibrasyonu silmez.
     </p>
@@ -1237,6 +1316,10 @@
 
   <div class="baslik">
     <h1>{{ pl.baslik }}</h1>
+    <button type="button" class="bilgi-dugme" data-bilgi="pil" :aria-expanded="bilgi === 'pil' ? 'true' : 'false'"
+            :title="m.baglantiIpucu" @click="bilgiAc('pil')">ⓘ {{ m.baglantiBilgi }}</button>
+    <baglanti-bilgi v-if="bilgi === 'pil'" ekran="pil" :dil="dil" :menzil="menzil"
+                    @kapat="bilgiKapat('pil')"></baglanti-bilgi>
     <span class="etiket" data-pil="durum">{{ pilDurumYazi }}</span>
     <span v-if="pilOturum" class="etiket" data-pil="oturum">{{ pilOturumYazi }}</span>
     <button type="button" class="pil-dur" data-pil="durdur" :title="pl.durdurIpucu" @click="pilDurdurKomut">{{ pl.durdur }}</button>
