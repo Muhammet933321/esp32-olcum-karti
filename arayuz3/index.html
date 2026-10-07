@@ -403,6 +403,8 @@
       </template>
       <p v-else class="ipucu">{{ m.imlecYok }}</p>
     </div>
+    <!-- 2026-10-07: okuma izgarasinin aciklamasi (modul grafik dondurulunca iner; ekran/imlec_aciklama.js) -->
+    <imlec-aciklama v-if="donmus" kip="canli" :dil="dil"></imlec-aciklama>
     <div class="satir" style="margin-top:12px">
       <!-- WIG: etiket durumu zaten söylüyor ("Dondur" ↔ "Canlıya dön"); aria-pressed
            ile birlikte "Canlıya dön, basılı" çelişkisi okunuyordu. -->
@@ -1497,7 +1499,7 @@
        karta "aldım" onayı yalnız "bu tarayıcı arşivdir" seçiliyse (C3). -->
   <main class="gorunum" v-show="gorunum === 'kayitlar'">
     <kayitlar-ekran v-if="kayitlarAcik" :kart-adres="kartAdres" :kart-istek="kartIstek" :kart-taban="kartTaban"
-                    :tasiyici="tasiyiciAdi" :bagli="bagli" :gonder="gonder"
+                    :tasiyici="tasiyiciAdi" :bagli="bagli" :gonder="gonder" :kayit-duzen="kayitDuzenGonder"
                     :etkin="gorunum === 'kayitlar'" :dil-secim="dil"></kayitlar-ekran>
   </main><!-- /kayitlar -->
 

@@ -51,6 +51,7 @@ import { ceviriKod } from '/ortak/sozluk.js';
 import { ceviriKayit as ceviri } from '/ortak/sozluk_kayit.js';
 import { ceviriPc } from '/ortak/sozluk_pc.js';
 import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP, skopYerleri } from '/ortak/kayit.js';
+import { ImlecAciklama } from './imlec_aciklama.js';
 
 /* 5P: telefon ortami (app.js ile ayni kanca; yoksa null — PC/kart/kopru yolu AYNEN). */
 const ORTAM = globalThis.__olcumOrtam || null;
@@ -352,6 +353,130 @@ function olcekYaz(v) {
   try { window.dispatchEvent(new Event('olcum-yolcek')); } catch (e) { /* olay yoksa Canli acilista okur */ }
 }
 
+/* ── 2026-10-07: AD / ETIKET / COP KUTUSU (kart komutlari Ga / Ge) ────
+   Kart oturuma ad ve etiket listesini NOT kaydi olarak yazar (firmware kayit_not_ayir; `Ga<no> <ad>`,
+   `Ge<no> <e1, e2>`; bos metin = sil). Son hali eşitlemeden sonra oturumlariKur kurar (ortak/kayit.js:
+   etiketler virgulden, kenar bosluklari atilir). Kayit TEK TEK silinemez (kartin gunlugu yalniz eklenir):
+   "Sil" = ayrilmis `silindi` etiketi (COP KUTUSU), "Geri al" = onu cikarmak; veri kart dolana / bicimlenene
+   dek kartta durur. Metin kurali Gn ile AYNI (app.js kayitNotKomutu): kartin SESSIZCE attigi karakter
+   (", \, denetim) ve 120 bayti asan metin REDDEDILIR; komut <= 175 bayt. Sinirlar app.js ile ayni (B7). */
+export const SILINDI_ETIKETI = 'silindi';
+export const KOMUT_AZAMI_BAYT = 175;
+export const NOT_METIN_AZAMI_BAYT = 120;
+const KART_ATAR = /[\u0022\u005c\u0000-\u001f\u007f]/;   // \u0022 cift tirnak, \u005c ters bolu (app.js kayitNotKomutu ile ayni)
+
+/** UTF-8 bayt sayisi (kartin String::length()'i; app.js utf8Bayt ile ayni). */
+export function utf8Bayt(s) {
+  let n = 0;
+  for (const ch of String(s)) {
+    const c = ch.codePointAt(0);
+    n += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+  }
+  return n;
+}
+
+/** Ayrilmis cop etiketi mi (buyuk/kucuk harf ve kenar boslugu fark etmez). */
+export function silindiEtiketiMi(e) {
+  return String(e === null || e === undefined ? '' : e).trim().toLowerCase() === SILINDI_ETIKETI;
+}
+
+/** Oturum cop kutusunda mi (etiket listesinde `silindi`). */
+export function silindiMi(etiketler) {
+  return Array.isArray(etiketler) && etiketler.some(silindiEtiketiMi);
+}
+
+/** Rozet olarak gosterilecek etiketler: ayrilmis `silindi` HARIC (onun yerine cop durumu gosterilir). */
+export function gorunenEtiketler(etiketler) {
+  return Array.isArray(etiketler) ? etiketler.filter((e) => !silindiEtiketiMi(e)) : [];
+}
+
+/** Kullanicinin yazdigi etiket alani -> liste (virgulle; bos ve tekrar atilir, sira korunur). */
+export function etiketAyir(giris) {
+  const l = [];
+  for (const p of String(giris === null || giris === undefined ? '' : giris).replace(/[\r\n\t]+/g, ' ').split(',')) {
+    const e = p.trim();
+    if (e && !l.includes(e)) l.push(e);
+  }
+  return l;
+}
+
+function komutDenetle(komut) {
+  const bayt = utf8Bayt(komut);
+  return bayt > KOMUT_AZAMI_BAYT ? { hata: 'kg.hata_komut_uzun', bayt } : { komut };
+}
+
+function oturumGecerli(oturum) { return Number.isInteger(oturum) && oturum > 0; }
+
+/** Ad: `Ga<oturum> <ad>`; bos ad = adi sil (`Ga<oturum>`). Donus {komut} | {hata, bayt?}. */
+export function adKomutu(oturum, ad) {
+  if (!oturumGecerli(oturum)) return { hata: 'kg.hata_oturum' };
+  const m = String(ad === null || ad === undefined ? '' : ad).replace(/[\r\n\t]+/g, ' ').trim();
+  if (KART_ATAR.test(m)) return { hata: 'kg.hata_karakter' };
+  const bayt = utf8Bayt(m);
+  if (bayt > NOT_METIN_AZAMI_BAYT) return { hata: 'kg.hata_ad_uzun', bayt };
+  return komutDenetle('Ga' + oturum + (m ? ' ' + m : ''));
+}
+
+/** Etiket listesi: `Ge<oturum> <e1, e2>` (liste YERINE gecer); bos liste = etiketleri sil. `silindi`
+ *  yalniz cop islemi (izinCop) koyabilir — kullanici yazarsa kg.hata_silindi_ayrilmis. */
+export function etiketKomutu(oturum, etiketler, { izinCop = false } = {}) {
+  if (!oturumGecerli(oturum)) return { hata: 'kg.hata_oturum' };
+  const l = [];
+  for (const ham of Array.isArray(etiketler) ? etiketler : []) {
+    const e = String(ham === null || ham === undefined ? '' : ham).replace(/[\r\n\t]+/g, ' ').trim();
+    if (!e) continue;
+    if (e.includes(',')) return { hata: 'kg.hata_etiket_virgul' };
+    if (KART_ATAR.test(e)) return { hata: 'kg.hata_karakter' };
+    if (silindiEtiketiMi(e) && !izinCop) return { hata: 'kg.hata_silindi_ayrilmis' };
+    if (!l.includes(e)) l.push(e);
+  }
+  const metin = l.join(', ');
+  const bayt = utf8Bayt(metin);
+  if (bayt > NOT_METIN_AZAMI_BAYT) return { hata: 'kg.hata_etiket_uzun', bayt };
+  return komutDenetle('Ge' + oturum + (metin ? ' ' + metin : ''));
+}
+
+/** Cop kutusu: sil -> mevcut etiketler + `silindi`; geri al -> mevcut etiketlerden YALNIZ `silindi` cikar.
+ *  Digeri korunur (Ge listeyi DEGISTIRIR — eksik yazilan etiket kaybolurdu). */
+export function copKomutu(oturum, etiketler, sil) {
+  const kalan = gorunenEtiketler(etiketler);
+  return etiketKomutu(oturum, sil ? [...kalan, SILINDI_ETIKETI] : kalan, { izinCop: true });
+}
+
+/** Duzenleme formu -> gonderilecek komutlar (yalniz DEGISENLER; once ad). Cop durumu korunur.
+ *  Donus {komutlar: [..]} | {hata, bayt?}. Hicbir sey degismediyse komutlar bos. */
+export function duzenKomutlari(oturum, { ad = '', etiket = '' } = {}, mevcut = { ad: null, etiketler: [] }) {
+  const komutlar = [];
+  const yeniAd = String(ad === null || ad === undefined ? '' : ad).replace(/[\r\n\t]+/g, ' ').trim();
+  if (yeniAd !== String(mevcut.ad || '')) {
+    const k = adKomutu(oturum, yeniAd);
+    if (k.hata) return k;
+    komutlar.push(k.komut);
+  }
+  const eski = Array.isArray(mevcut.etiketler) ? mevcut.etiketler : [];
+  const yeni = etiketAyir(etiket);
+  const gorunen = gorunenEtiketler(eski);
+  if (yeni.join('\n') !== gorunen.join('\n')) {
+    if (yeni.some(silindiEtiketiMi)) return { hata: 'kg.hata_silindi_ayrilmis' };
+    const cop = silindiMi(eski);
+    const k = etiketKomutu(oturum, cop ? [...yeni, SILINDI_ETIKETI] : yeni, { izinCop: cop });
+    if (k.hata) return k;
+    komutlar.push(k.komut);
+  }
+  return { komutlar };
+}
+
+/** Kartin yaniti (app.js kayitDuzenGonder) -> {tur: 'tamam'|'hata', anahtar, satir?}. */
+export function duzenYanitMetni(r) {
+  const d = r && r.durum;
+  if (d === 'tamam') return { tur: 'tamam', anahtar: 'kg.duzen_tamam' };
+  if (d === 'ret') return { tur: 'hata', anahtar: 'kg.duzen_ret', satir: r.satir || '' };
+  if (d === 'yanitsiz') return { tur: 'hata', anahtar: 'kg.duzen_yanitsiz' };
+  if (d === 'bagli_degil') return { tur: 'hata', anahtar: 'kg.duzen_bagli_degil' };
+  if (d === 'mesgul') return { tur: 'hata', anahtar: 'kg.duzen_mesgul' };
+  return { tur: 'hata', anahtar: 'kg.duzen_gitmedi', satir: (r && r.satir) || '—' };
+}
+
 /* ── metinler (sozluk anahtarlari; C8) ──────────────────────────────── */
 export const KG_METIN = Object.freeze({
   geri: 'kg.geri', rapor: 'kg.rapor', raporKapat: 'kg.rapor_kapat', yazdir: 'kg.yazdir',
@@ -378,6 +503,12 @@ export const KG_METIN = Object.freeze({
   osiloskoptaAc: 'kg.osiloskopta_ac',
   disariHata: 'kg.disari_hata', herOrnek: 'kg.her_ornek',
   veriYok: 'kg.veri_yok', dahaFazla: 'kg.daha_fazla',
+  /* 2026-10-07: ad / etiket / cop kutusu */
+  duzenBaslik: 'kg.duzen_baslik', duzenAd: 'kg.duzen_ad', duzenEtiket: 'kg.duzen_etiket',
+  duzenEtiketOrnek: 'kg.duzen_etiket_ornek', duzenIpucu: 'kg.duzen_ipucu', duzenKaydet: 'kg.duzen_kaydet',
+  duzenGonderiliyor: 'kg.duzen_gonderiliyor', duzenDegisiklikYok: 'kg.duzen_degisiklik_yok',
+  copBanner: 'kg.cop_banner', copSil: 'kg.cop_sil', copEminim: 'kg.cop_eminim', copVazgec: 'kl.vazgec',
+  copUyari: 'kg.cop_uyari', copGeriAl: 'kg.cop_geri_al', copIpucu: 'kg.cop_ipucu',
 });
 
 /** WIG: rapor disinda yakalama tablosu bu kadar satirla baslar ("daha fazla" 100'er ekler):
@@ -435,7 +566,46 @@ const SABLON = `
     <div class="kg-etiketler" v-if="etiketler.length">
       <span class="kg-etiket" v-for="e in etiketler" :key="e">{{ e }}</span>
     </div>
+    <!-- 2026-10-07: ayrilmis "silindi" etiketi rozet DEGIL — cop durumu bu satirda (Geri al ile) -->
+    <p v-if="copte" class="uyari kg-cop" data-kg-cop>{{ m.copBanner }}
+      <button v-if="!rapor" type="button" class="yazdirma-yok" data-kg-geri-al @click="copIslem(false)"
+              :disabled="!duzenAcik || gonderiliyor">{{ m.copGeriAl }}</button>
+    </p>
     <p v-for="u in uyarilar" :key="u" class="uyari">{{ u }}</p>
+  </section>
+
+  <!-- 2026-10-07: ad / etiket (Ga / Ge) + cop kutusu. Kart bagli VE kayit bagli kartin akisindaysa acik;
+       sonucu kartin satiri soyler ("* G not kuyrukta" / "! G…"); son hali esitlemeden sonra gorunur. -->
+  <section class="kart yazdirma-yok kg-duzen" v-if="!rapor" data-kg-duzen>
+    <h2>{{ m.duzenBaslik }}</h2>
+    <div class="kg-duzen-alanlar">
+      <label>{{ m.duzenAd }}
+        <input type="text" v-model="duzenAd" data-kg-duzen-ad :disabled="!duzenAcik || gonderiliyor"
+               autocomplete="off" spellcheck="false" @keydown.enter.prevent="duzenKaydet"></label>
+      <label>{{ m.duzenEtiket }}
+        <input type="text" v-model="duzenEtiket" data-kg-duzen-etiket :disabled="!duzenAcik || gonderiliyor"
+               :placeholder="m.duzenEtiketOrnek" autocomplete="off" spellcheck="false" @keydown.enter.prevent="duzenKaydet"></label>
+    </div>
+    <p class="ipucu">{{ m.duzenIpucu }}</p>
+    <div class="dugme-grup">
+      <button type="button" class="birincil" data-kg-duzen-kaydet @click="duzenKaydet"
+              :disabled="!duzenAcik || gonderiliyor">{{ gonderiliyor ? m.duzenGonderiliyor : m.duzenKaydet }}</button>
+      <template v-if="!copte">
+        <button v-if="!copOnay" type="button" data-kg-sil @click="copOnayIste" :disabled="!duzenAcik || gonderiliyor">{{ m.copSil }}</button>
+        <template v-else>
+          <button type="button" class="tehlike" data-kg-sil-eminim @click="copIslem(true)" :disabled="!duzenAcik || gonderiliyor">{{ m.copEminim }}</button>
+          <button type="button" data-kg-sil-vazgec @click="copVazgec">{{ m.copVazgec }}</button>
+        </template>
+      </template>
+      <button v-else type="button" data-kg-geri-al-2 @click="copIslem(false)" :disabled="!duzenAcik || gonderiliyor">{{ m.copGeriAl }}</button>
+    </div>
+    <p v-if="copOnay" class="uyari">{{ m.copUyari }}</p>
+    <p class="ipucu">{{ m.copIpucu }}</p>
+    <p v-if="duzenNedenMetni" class="ipucu" data-kg-duzen-neden>{{ duzenNedenMetni }}</p>
+    <div aria-live="polite">
+      <p v-if="duzenMesaj" :class="duzenMesaj.tur === 'hata' ? 'uyari' : 'ipucu'" data-kg-duzen-sonuc
+         :data-tur="duzenMesaj.tur">{{ duzenMesaj.metin }}</p>
+    </div>
   </section>
 
   <section class="kart" v-if="!grafikVar && !notlar.length && !pilOzet && !yakalamalar.length">
@@ -496,6 +666,7 @@ const SABLON = `
       </div>
       <p v-else class="ipucu">{{ m.imlecYok }}</p>
     </div>
+    <imlec-aciklama kip="kayit" :dil="dil"></imlec-aciklama>
   </section>
 
   <section class="kart" v-if="notlar.length">
@@ -587,6 +758,7 @@ const vueAl = () => globalThis.Vue;
 
 export const KayitGorunumu = {
   name: 'KayitGorunumu',
+  components: { 'imlec-aciklama': ImlecAciklama },
   props: {
     veri: { type: Object, required: true },     // markRaw {oturum, kayitlar, kimlik, kal, satir}
     rapor: { type: Boolean, default: false },
@@ -595,11 +767,21 @@ export const KayitGorunumu = {
     listeAdresi: { type: String, default: '#/kayitlar' },
     kayitAdresi: { type: String, default: '' },
     raporAdresi: { type: String, default: '' },
+    /* 2026-10-07: app.js kayitDuzenGonder (Kayitlar uzerinden): komut -> Promise<{durum, satir?}> */
+    kayitDuzen: { type: Function, default: null },
+    /* '' = duzenlenebilir; degilse sebebin sozluk anahtari (Kayitlar duzenNedeni) */
+    duzenNeden: { type: String, default: 'kg.duzen_bagli_degil' },
+    /* Kayitlar'in tuttugu son sonuc (esitleme bileseni yeniden kurunca mesaj kaybolmasin) */
+    duzenBildirim: { type: Object, default: null },
   },
+  emits: ['degisti'],
   template: SABLON,
   data() {
+    const o = this.veri && this.veri.oturum ? this.veri.oturum : { ad: null, etiketler: [] };
     return { goster: { v: true, sag: 'akim', zarf: true }, yOlcek: olcekOku(), okuma: null, pencereJson: '', hata: '',
-      duyuru: '', yakalamaSinir: YAKALAMA_SINIR };
+      duyuru: '', yakalamaSinir: YAKALAMA_SINIR,
+      duzenAd: o.ad || '', duzenEtiket: gorunenEtiketler(o.etiketler).join(', '), gonderiliyor: false,
+      copOnay: false, duzenSonuc: null };
   },
   created() {
     /* Agir veri reaktif DEGIL (markRaw / bilesen alani). */
@@ -622,7 +804,20 @@ export const KayitGorunumu = {
       const t = ceviri(TUR_METIN[this.tur], this.dil);
       return this.oturum.ad ? this.oturum.ad : `${t} #${this.oturum.id}`;
     },
-    etiketler() { return [...this.oturum.etiketler]; },
+    etiketler() { return gorunenEtiketler(this.oturum.etiketler); },
+    copte() { return silindiMi(this.oturum.etiketler); },
+    duzenAcik() { return !this.duzenNeden && typeof this.kayitDuzen === 'function'; },
+    duzenNedenMetni() {
+      if (this.duzenAcik) return '';
+      return ceviri(this.duzenNeden || 'kg.duzen_bagli_degil', this.dil);
+    },
+    /** Kendi sonucu; yoksa Kayitlar'in sakladigi (eşitlemeden sonra yeniden kurulunca). */
+    duzenMesaj() {
+      const s = this.duzenSonuc || this.duzenBildirim;
+      if (!s) return null;
+      const azami = s.anahtar === 'kg.hata_komut_uzun' ? KOMUT_AZAMI_BAYT : NOT_METIN_AZAMI_BAYT;
+      return { tur: s.tur, metin: ceviri(s.anahtar, this.dil, { satir: s.satir || '', bayt: s.bayt === undefined ? '—' : s.bayt, azami }) };
+    },
     raporVeri() {
       if (!this.rapor && this.tur !== 'pil' && !this.oturum.skoplar.size) return null;
       return oturumRaporu(this.oturum, { kalibrasyonGecmisi: this.veri.kal, kayitlar: this.veri.kayitlar, dil: this.dil });
@@ -877,6 +1072,65 @@ export const KayitGorunumu = {
       if (!this._g || n.x === null) return;
       this._g.durumAyarla(notPenceresi(this._g.durum, n.x));
       this.degisti(this._g.durum);
+    },
+    /* ── 2026-10-07: ad / etiket / cop kutusu ── */
+    /** Komutlari SIRAYLA gonderir; ilk basarisizda durur. Sonuc duzenSonuc'ta; basarida 'degisti'. */
+    async _duzenGonder(komutlar) {
+      if (!this.duzenAcik || this.gonderiliyor) return false;
+      if (!komutlar.length) {
+        this.duzenSonuc = { tur: 'bilgi', anahtar: 'kg.duzen_degisiklik_yok' };
+        return false;
+      }
+      this.gonderiliyor = true;
+      this.duzenSonuc = null;
+      let r = null;
+      try {
+        for (const k of komutlar) {
+          try { r = await this.kayitDuzen(k); } catch (h) { r = { durum: 'gitmedi', satir: String((h && h.message) || h) }; }
+          if (!r || r.durum !== 'tamam') break;
+        }
+      } finally {
+        this.gonderiliyor = false;
+      }
+      const y = duzenYanitMetni(r);
+      this.duzenSonuc = y;
+      if (y.tur === 'tamam') this.$emit('degisti', { oturum: this.oturum.id, kimlik: this.veri.kimlik, sonuc: y });
+      return y.tur === 'tamam';
+    },
+    duzenKaydet() {
+      const d = duzenKomutlari(this.oturum.id, { ad: this.duzenAd, etiket: this.duzenEtiket },
+        { ad: this.oturum.ad, etiketler: this.oturum.etiketler });
+      if (d.hata) {
+        this.duzenSonuc = { tur: 'hata', anahtar: d.hata, bayt: d.bayt };
+        return Promise.resolve(false);
+      }
+      return this._duzenGonder(d.komutlar);
+    },
+    /** WIG: Sil IKI ASAMALI — ilki yalniz onayi sorar (odak "Eminim"e). */
+    copOnayIste() {
+      this.copOnay = true;
+      this._odakla('[data-kg-sil-eminim]');
+    },
+    copVazgec() {
+      this.copOnay = false;
+      this._odakla('[data-kg-sil]');
+    },
+    /** sil true: `silindi` ekle (yalniz onaydan sonra); false: geri al. Diger etiketler korunur. */
+    copIslem(sil) {
+      if (sil && !this.copOnay) return Promise.resolve(false);
+      this.copOnay = false;
+      const k = copKomutu(this.oturum.id, this.oturum.etiketler, !!sil);
+      if (k.hata) {
+        this.duzenSonuc = { tur: 'hata', anahtar: k.hata, bayt: k.bayt };
+        return Promise.resolve(false);
+      }
+      return this._duzenGonder([k.komut]);
+    },
+    _odakla(secici) {
+      this.$nextTick(() => {
+        const e = this.$el && typeof this.$el.querySelector === 'function' ? this.$el.querySelector(secici) : null;
+        if (e && typeof e.focus === 'function') e.focus();
+      });
     },
     /** 3E (OS6): yakalamanin osiloskop adresi (kimlik HER ZAMAN yazilir: eski kart kopyasinda da dogru akis). */
     skopAdresi(sira) {

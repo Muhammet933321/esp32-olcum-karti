@@ -20,9 +20,21 @@
                              kesilmesin), sonra kapanir              AGK_STA_PAY
          pay doldu        -> AP kapat, STA, bitti                    AGK_STA
      AGK_STA'dan sonra KISA kopma -> karar yok: surucu doner (5.12.106, 7-14 s).
-     COKLU AG (2026-10-06, CA6): STA'da AG_STA_KOPUK_MS (90 s) kesik -> AP kur + yeniden
+     COKLU AG (2026-10-06, CA6): STA'da AG_STA_KOPUK_MS (30 s) kesik -> AP kur + yeniden
        dene (AGK_AP_DENE): kart acikken baska yere tasininca eski agi sonsuza dek beklemez;
        yapistirici her denemede tarayip baska kayitli agi da dener.
+       2026-10-07 (kullanici karari; kartta hotspot kapatilinca ev agina ~2:30'da geciyordu,
+       90 s + 30 s + baglanma): kesik 90 -> 30 s ve bu yolda ILK deneme HEMEN (AP_KUR'dan
+       sonraki adim), sonrakiler yine AG_STA_YENIDEN_MS'de bir (her deneme ~2 s kanal taramasi,
+       AP kullanilabilir kalmali). Uygulama: t bir deneme araligi GERIYE alinir ("deneme vadesi
+       gelmis"); isaretsiz fark tasmada da dogru. Beklenen: kopma -> ilk deneme ~30 s, tipik
+       gecis ~40 s, en kotu ~70 s (ilk taramada gorunmeyen ag bir sonraki denemeye kalir).
+       ACILIS (AGK_BEKLE) ve GERI yolunda ilk deneme HEMEN DEGIL, AG_STA_YENIDEN_MS sonra:
+       ikisinde de kayitli aglar az once denendi (acilista ag_bekle_tamamla tarayip en iyi
+       adayi 10 s denedi; GERI'de hedef + onceki 20'ser s) — hemen bir tarama ayni bilgiyi
+       yineler ve TAM AP ayaga kalkarken (telefon baglanmaya calisirken) kanali degistirir.
+       Kopma yolunda ise 30 s boyunca surucu yalniz ESKI agi denedi, baska kayitli agi hic
+       taramadi: ilk tarama yeni bilgidir.
      GECIS (CA7, `Ng`): yalniz AGK_STA'dan. agk_gecis -> AGK_GECIS (yapistirici yeni aga
        begin); AG_GECIS_MS'de baglanirsa STA, olmazsa AGE_GERI (onceki aga begin) ->
        AGK_GERI; o da AG_GECIS_MS'de olmazsa AP + yeniden deneme. `bagli` GECIS/GERI'de
@@ -52,7 +64,8 @@ enum { AGE_YOK = 0, AGE_AP_KUR = 1, AGE_STA_DENE = 2, AGE_STA_OLDU = 3, AGE_AP_K
        AGE_GERI = 5 };
 
 typedef struct {
-    uint32_t t;        /* evrenin referans ani (ms): acilis / son deneme / baglanti */
+    uint32_t t;        /* evrenin referans ani (ms): acilis / son deneme / baglanti
+                          (CA6 kopma yolunda AP_DENE'ye girerken bir aralik geride: ilk deneme hemen) */
     uint8_t  evre;
 } AgKarar;
 
@@ -98,7 +111,8 @@ static uint8_t agk_adim(AgKarar *k, uint32_t simdi_ms, uint8_t bagli, uint8_t il
         return AGE_YOK;
     case AGK_STA:                               /* CA6: t = son BAGLI an */
         if (bagli) { k->t = simdi_ms; return AGE_YOK; }
-        if (gecen >= AG_STA_KOPUK_MS) { k->evre = AGK_AP_DENE; k->t = simdi_ms; return AGE_AP_KUR; }
+        /* 2026-10-07: t bir aralik geride -> sonraki adimda ilk deneme (yukaridaki not) */
+        if (gecen >= AG_STA_KOPUK_MS) { k->evre = AGK_AP_DENE; k->t = simdi_ms - AG_STA_YENIDEN_MS; return AGE_AP_KUR; }
         return AGE_YOK;
     case AGK_GECIS:                             /* CA7: hedef aga AG_GECIS_MS */
         if (bagli) { k->evre = AGK_STA; k->t = simdi_ms; return AGE_STA_OLDU; }

@@ -551,7 +551,8 @@ kesintisinden sonra modem karttan geç açılınca) kart kendiliğinden eve geç
 kendi ağını {d['ap_pay_s']:.0f} saniye sonra kapatır — sıfırlamak gerekmez.
 Bağlıyken ağ kısa süre koparsa kart kendiliğinden geri bağlanır;
 <b>{d['sta_kopuk_s']:.0f} saniyeden uzun</b> koparsa (ör. kartı başka yere
-götürdünüz) kendi ağını kurar ve kayıtlı ağları yeniden dener.</p>
+götürdünüz) kendi ağını kurar ve kayıtlı ağları <b>hemen</b>, sonra
+{d['sta_yeniden_s']:.0f} saniyede bir yeniden dener.</p>
 
 <h3>Ağları karta tanıtmak (en çok {d['agl_azami']} ağ)</h3>
 <p>Kart <b>{d['agl_azami']} ağa kadar</b> hatırlar (ev, iş yeri, telefonun

@@ -43,9 +43,11 @@
 #define AG_STA_YENIDEN_MS 30000u
 #define AG_AP_PAY_MS 5000u
 /* Coklu ag (2026-10-06, tasarim/2026-10-06-coklu-ag.md): STA bu kadar kesik kalirsa AP + yeniden
-   deneme (CA6; > olculen surucu donusu 7-14 s ve 5m'nin 60 s kopma senaryosu). "Bu aga gec":
-   hedefe bu kadar, olmazsa onceki aga bu kadar (CA7). */
-#define AG_STA_KOPUK_MS 90000u
+   deneme (CA6). Kullanici karari 2026-10-07: 90 s cok yavasti — kartta hotspot kapatilinca ev
+   agina ~2:30'da gecti (90 s + 30 s ilk deneme + baglanma). 30 s: hala olculen surucu donusunden
+   (7-14 s) buyuk, 5m'nin 20 s kopma senaryosu AP kurmaz; AP kurulunca ILK deneme hemen
+   (ag_karar.h). "Bu aga gec": hedefe bu kadar, olmazsa onceki aga bu kadar (CA7). */
+#define AG_STA_KOPUK_MS 30000u
 #define AG_GECIS_MS 20000u
 
 #include "ag_karar.h"
@@ -343,7 +345,8 @@ static void ag__uygula(uint8_t e)
         /* Eskiden WiFi.disconnect(true): radyo kapanir, STA BIR DAHA denenmezdi.
            Simdi AP+STA: STA yapilandirmasi surucude kalir. Otomatik yeniden baglanma
            KAPALI — NO_AP_FOUND'da surucu araliksiz tarardi (AP her taramada kanal
-           degistirir); denemeyi AG_STA_YENIDEN_MS'de bir biz yapiyoruz. */
+           degistirir); denemeyi AG_STA_YENIDEN_MS'de bir biz yapiyoruz (CA6 kopma yolunda
+           ilki hemen, sonraki adimda — ag_karar.h). */
         WiFi.setAutoReconnect(false);
         WiFi.disconnect(false, false);
         (void)ag__ap_kur(WIFI_AP_STA);

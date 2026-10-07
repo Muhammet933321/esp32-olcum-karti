@@ -304,7 +304,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-CA2"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-CA3"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -3603,8 +3603,10 @@ E6F_TEZGAH = [
     ("[!] Ag geri donusu: erisim noktasi gidip gelince kart STA'ya kendiliginden doner",
      "seri izleyici acik; kartin bagli oldugu erisim noktasini (ev agi ya da telefon hotspot'u) "
      "~1 dk kapat, sonra ac: kullanici hicbir sey yapmadan kart STA'ya doner (Q durumu 'ag yok "
-     "(STA degil)'den cikar, olcum.local acilir, kopru esitler). AP'ye dusup orada kalirsa ya da "
-     "5 dk'da donmezse KUSUR (2026-10-04 sabahi >= 1 dk 'ag yok'ta kaldi, donus olculmedi)"),
+     "(STA degil)'den cikar, olcum.local acilir, kopru esitler). A3-CA3'ten beri (2026-10-07) 30 s'den "
+     "uzun kopmada kart once kendi agini kurar (beklenen) ve kayitli aglari 30 s'de bir dener: erisim "
+     "noktasi acildiktan sonra <= ~40 s'de STA. AP'de kalirsa ya da 5 dk'da donmezse KUSUR (2026-10-04 "
+     "sabahi >= 1 dk 'ag yok'ta kaldi, donus olculmedi)"),
 ]
 
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,

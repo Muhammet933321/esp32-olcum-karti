@@ -43,6 +43,7 @@ import { ceviriPc } from '/ortak/sozluk_pc.js';
 import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP } from '/ortak/kayit.js';
 import {
   KayitGorunumu, oturumTuru, metinler, sureYaz, tarihYaz, TUR_METIN, NEREDE_METIN, ceviriKlPc,
+  silindiMi, gorunenEtiketler, copKomutu, duzenYanitMetni, NOT_METIN_AZAMI_BAYT,
 } from './kayit_gorunum.js';
 import {
   EsitlemeDenetcisi, esitlemeUygunlugu, onayIslevi, arsivOku, arsivYaz, dilOku,
@@ -117,7 +118,7 @@ export function yerelSatir(kimlik, o, yerelSon = 0) {
   if (tur === 'ayrinti') nokta = o.ayrinti.reduce((n, r) => n + r.ornekler.length, 0);
   if (tur === 'skop') nokta = o.skoplar.size;
   return {
-    kimlik, oturum: o.id, tur, ad: o.ad, etiketler: [...o.etiketler],
+    kimlik, oturum: o.id, tur, ad: o.ad, etiketler: [...o.etiketler], silindi: silindiMi(o.etiketler),
     notlar: [...o.notlar.values()].map((n) => n.metin),
     unix: o.basla ? o.basla.unix_s : 0, sureMs: oturumSuresiMs(o), nokta,
     yerelde: true, kartta: false, bitti: !!o.bitir, sebep: o.bitir ? o.bitir.sebep : null,
@@ -128,7 +129,7 @@ export function yerelSatir(kimlik, o, yerelSon = 0) {
 /** Kart dizini girdisi -> satir alanlari. */
 export function kartSatiri(kimlik, k) {
   return {
-    kimlik, oturum: k.id, tur: kartTuru(k.tur, k.hiz_ms), ad: null, etiketler: [], notlar: [],
+    kimlik, oturum: k.id, tur: kartTuru(k.tur, k.hiz_ms), ad: null, etiketler: [], silindi: false, notlar: [],
     unix: k.unix_s || 0, sureMs: null, nokta: Number.isFinite(k.nokta) ? k.nokta : null,
     yerelde: false, kartta: true, bitti: k.durum === 2, sebep: null, yerelSon: 0,
     kartSon: k.son || 0, kartDurum: k.durum, basiSilindi: !!k.basi_silindi,
@@ -182,7 +183,7 @@ export function listeBirlestir({ kart = null, yereller = [], yerelNerede = 'tara
       durum: kayitta ? 'kayitta' : s.bitti ? 'bitti' : 'acik',
       grup: akisSira.indexOf(s.kimlik),
       adres: rotaYaz({ oturum: s.oturum, kimlik: s.kimlik === varsayilan ? null : s.kimlik }),
-      aramaMetni: metinSadele([s.ad || '', ...s.etiketler, ...s.notlar].join(' ')),
+      aramaMetni: metinSadele([s.ad || '', ...gorunenEtiketler(s.etiketler), ...s.notlar].join(' ')),
     };
   });
   return cikti.sort((a, b) => a.grup - b.grup || b.oturum - a.oturum);
@@ -200,10 +201,12 @@ export function aramaUyar(s, p) {
   return s.aramaMetni.includes(p);
 }
 
-/** Arama (bosluklu parcalarin HEPSI) + tur + nerede suzgeci. */
+/** Arama (bosluklu parcalarin HEPSI) + tur + nerede suzgeci. 2026-10-07 COP KUTUSU: `silindi` etiketli
+ *  oturum her turde GIZLI; yalniz tur 'silinen' (Cop kutusu) onlari — ve yalniz onlari — gosterir. */
 export function satirSuz(satirlar, { arama = '', tur = 'hepsi', nerede = 'hepsi' } = {}) {
   const parcalar = metinSadele(arama).split(/\s+/).filter(Boolean);
-  return satirlar.filter((s) => (tur === 'hepsi' || turGrubu(s.tur) === tur)
+  const cop = tur === 'silinen';
+  return satirlar.filter((s) => !!s.silindi === cop && (cop || tur === 'hepsi' || turGrubu(s.tur) === tur)
     && (nerede === 'hepsi' || s.nerede === nerede)
     && parcalar.every((p) => aramaUyar(s, p)));
 }
@@ -231,6 +234,7 @@ export const KR_TURLER = Object.freeze(['olcum', 'ayrinti', 'pil']);
  */
 export function secilebilir(satir, { seciliMi = false, adet = 0 } = {}) {
   if (!satir || !satir.yerelde) return { uygun: false, sebep: 'kr.sec_kartta' };
+  if (satir.silindi) return { uygun: false, sebep: 'kr.sec_silindi' };    // 2026-10-07: cop kutusunda
   if (satir.tur === 'skop') return { uygun: false, sebep: 'kr.sec_skop' };
   if (!KR_TURLER.includes(satir.tur) || !(satir.nokta > 0)) return { uygun: false, sebep: 'kr.sec_bos' };
   if (!seciliMi && adet >= KR_AZAMI) return { uygun: false, sebep: 'kr.sec_dolu' };
@@ -282,7 +286,28 @@ export const KL_METIN = Object.freeze({
   turSec: 'kl.tur_sec', neredeSec: 'kl.nerede_sec', liste: 'kl.liste',
   arsivOnayUyari: 'kl.arsiv_onay_uyari', arsivEminim: 'kl.arsiv_eminim',
   telefonKopya: 'kl.telefon_kopya',     // 5P
+  turSilinen: 'kl.tur_silinen', geriAl: 'kg.cop_geri_al',     // 2026-10-07: cop kutusu
 });
+
+/** 2026-10-07: ad / etiket / cop komutu basarili olunca esitlemeden once bu kadar beklenir (kart NOT kaydini
+ *  cekirdek 0'da yazar; hemen esitlemek onu bir tur kacirabilir). */
+export const DUZEN_ESITLE_MS = 1500;
+
+/** 2026-10-07: kartin bu akisina yazilabilir mi — '' ya da sebebin sozluk anahtari. Kart (Ga/Ge) oturumu
+ *  NUMARASIYLA bulur: baska bir akisin (eski kart / bicimlenmeden onceki kopya) numarasi bagli kartta BASKA bir
+ *  oturumdur, o yuzden yalniz bagli kartin GUNCEL akisi. aktif: tarayicida / telefonda `/kayit/liste` kimligi,
+ *  kopruda koprunun son esitledigi akis (pcAkisCoz); bilinmiyorsa null. */
+export function duzenNedeni({ duzenVar = false, bagli = false, aktif = null, kimlik = null } = {}) {
+  if (!duzenVar || !bagli) return 'kg.duzen_bagli_degil';
+  if (aktif === null || aktif === undefined) return 'kg.duzen_kart_bilinmiyor';
+  return kimlik === aktif ? '' : 'kg.duzen_baska_kart';
+}
+
+/** 4D kopru: `/esitleme/durum`'un `arsiv` alani ("arsiv/<kart>/akis-<kimlik>") -> akis kimligi | null. */
+export function pcAkisCoz(d) {
+  const m = d && typeof d.arsiv === 'string' ? /akis-(\d+)$/.exec(d.arsiv) : null;
+  return m ? Number(m[1]) : null;
+}
 
 /* 4D: PC koprusundeki metinler (`pc.` ailesi, ortak/src/sozluk_pc.js — acilis sozlugunde degil). */
 export const KL_PC_METIN = Object.freeze({
@@ -327,7 +352,8 @@ const SABLON = `
   <template v-if="rota.oturum !== null">
     <kayit-gorunumu v-if="secili" :key="seciliAnahtar" :veri="secili" :rapor="rota.rapor" :etkin="etkin"
       :dil="dil" :liste-adresi="'#/kayitlar'" :kayit-adresi="kayitAdresi(false)"
-      :rapor-adresi="kayitAdresi(true)"></kayit-gorunumu>
+      :rapor-adresi="kayitAdresi(true)" :kayit-duzen="kayitDuzen" :duzen-neden="seciliDuzenNedeni"
+      :duzen-bildirim="seciliBildirim" @degisti="duzenDegisti"></kayit-gorunumu>
     <section v-else class="kart">
       <a class="kg-geri" href="#/kayitlar">{{ m.listeyeDon }}</a>
       <p v-if="yukleniyor" class="ipucu">{{ m.yukleniyor }}</p>
@@ -385,6 +411,7 @@ const SABLON = `
           <option value="olcum">{{ turAdi('olcum') }}</option>
           <option value="pil">{{ turAdi('pil') }}</option>
           <option value="skop">{{ turAdi('skop') }}</option>
+          <option value="silinen">{{ m.turSilinen }}</option>
         </select>
         <select v-model="neredeSuzgec" :aria-label="m.neredeSec">
           <option value="hepsi">{{ m.neredeHepsi }}</option>
@@ -398,6 +425,7 @@ const SABLON = `
         </select>
       </div>
       <p class="ipucu">{{ m.ipucu }}</p>
+      <p v-if="copSayisi && turSuzgec !== 'silinen'" class="ipucu" data-kl-cop-sayi>{{ copSayiMetni }}</p>
       <!-- 3G (KR1): karsilastirma secimi. Kutu baglantinin DISINDA (ic ice etkilesimli oge yok);
            secilemeyen satirin kutusu kapali ve SEBEBI etiketinde (KR5). -->
       <div class="kl-karsilastir" v-if="satirlar.length">
@@ -425,10 +453,17 @@ const SABLON = `
               <span v-if="s.eksik" class="kl-rozet kl-dikkat">{{ m.eksik }}</span>
               <span v-if="s.eskiKart" class="kl-rozet kl-dikkat">{{ m.eskiKart }}</span>
               <span v-if="s.basiSilindi" class="kl-rozet">{{ m.basiSilindi }}</span>
-              <span v-for="e in s.etiketler" :key="e" class="kl-rozet kl-etiket">{{ e }}</span>
+              <span v-for="e in gorunen(s.etiketler)" :key="e" class="kl-rozet kl-etiket">{{ e }}</span>
             </span>
           </a>
+          <!-- 2026-10-07: cop kutusundaki satir — Geri al baglantinin DISINDA (ic ice etkilesimli oge yok) -->
+          <button v-if="s.silindi" type="button" class="kl-geri-al" :data-kl-geri-al="s.anahtar"
+                  :disabled="!!satirDuzenNedeni(s) || duzenGonderiliyor" :title="satirDuzenNedeniMetni(s)"
+                  :aria-label="geriAlEtiketi(s)" @click="copGeriAl(s)">{{ m.geriAl }}</button>
         </div>
+      </div>
+      <div aria-live="polite">
+        <p v-if="bildirimMetni" :class="bildirim.tur === 'hata' ? 'uyari' : 'ipucu'" data-kl-duzen-sonuc>{{ bildirimMetni }}</p>
       </div>
       <p v-if="!gorunenSatirlar.length" class="ipucu kl-bos">{{ satirlar.length ? m.bosSuzgec : m.bos }}</p>
     </section>
@@ -463,6 +498,8 @@ export const KayitlarEkrani = {
     tasiyici: { type: String, default: 'akis' },
     bagli: { type: Boolean, default: false },
     gonder: { type: Function, default: null },
+    /* 2026-10-07: app.js kayitDuzenGonder — ad / etiket / cop komutu (Ga / Ge) + kartin yaniti */
+    kayitDuzen: { type: Function, default: null },
     etkin: { type: Boolean, default: true },
     /* 3H (AY3): kabugun secili dili — degisince ANINDA (yeniden yukleme yok). */
     dilSecim: { type: String, default: null },
@@ -480,6 +517,8 @@ export const KayitlarEkrani = {
       secim: [],                 // 3G (KR1): [{anahtar, oturum, kimlik}] — secim sirasi = renk sirasi
       pc: false, pcDurum: null, pcOzetMetin: '',  // 4D: kaynak koprunun PC arsivi mi; koprunun /esitleme/durum'u
       telefon: false,            // 5P: kaynak telefonun kopyasi (Android esitler)
+      bildirim: null,            // 2026-10-07: son ad/etiket/cop sonucu {oturumAnahtar, tur, anahtar, satir?, bayt?}
+      duzenGonderiliyor: false,
     };
   },
   created() {
@@ -522,6 +561,21 @@ export const KayitlarEkrani = {
       return satirSuz(this.satirlar, { arama: this.arama, tur: this.turSuzgec, nerede: this.neredeSuzgec });
     },
     km() { return metinler(KL_KR_METIN, this.dil); },
+    /* 2026-10-07: cop kutusu + duzenleme */
+    copSayisi() { return this.satirlar.filter((s) => s.silindi).length; },
+    copSayiMetni() { return ceviri('kl.cop_sayi', this.dil, { n: this.copSayisi }); },
+    aktifAkis() { return this.pc ? pcAkisCoz(this.pcDurum) : this.kartKimlik; },
+    seciliDuzenNedeni() { return this.secili ? this.satirDuzenNedeni({ kimlik: this.secili.kimlik }) : 'kg.duzen_bagli_degil'; },
+    seciliBildirim() {
+      const b = this.bildirim;
+      return b && this.secili && b.oturumAnahtar === `${this.secili.kimlik}:${this.secili.oturum.id}` ? b : null;
+    },
+    bildirimMetni() {
+      const b = this.bildirim;
+      if (!b) return '';
+      return ceviri(b.anahtar, this.dil, { satir: b.satir || '', bayt: b.bayt === undefined ? '—' : b.bayt,
+        azami: NOT_METIN_AZAMI_BAYT });
+    },
     /* 4D */
     pm() {
       const m = {};
@@ -595,6 +649,58 @@ export const KayitlarEkrani = {
       this.secim = [...this.secim, { anahtar: s.anahtar, oturum: s.oturum, kimlik: s.kimlik }];
     },
     secimTemizle() { this.secim = []; },
+    /* ── 2026-10-07: cop kutusu + ad / etiket ── */
+    gorunen(etiketler) { return gorunenEtiketler(etiketler); },
+    satirDuzenNedeni(s) {
+      return duzenNedeni({ duzenVar: typeof this.kayitDuzen === 'function', bagli: this.bagli, aktif: this.aktifAkis,
+        kimlik: s ? s.kimlik : null });
+    },
+    satirDuzenNedeniMetni(s) {
+      const n = this.satirDuzenNedeni(s);
+      return n ? ceviri(n, this.dil) : '';
+    },
+    geriAlEtiketi(s) {
+      const ad = s.ad || `${ceviri(TUR_METIN[s.tur] || TUR_METIN.bilinmeyen, this.dil)} #${s.oturum}`;
+      return ceviri('kl.cop_geri_al_etiket', this.dil, { ad });
+    },
+    /** Cop kutusundaki satiri geri al: etiketlerden YALNIZ `silindi` cikar (copKomutu). */
+    async copGeriAl(s) {
+      if (this.duzenGonderiliyor || this.satirDuzenNedeni(s)) return false;
+      const oturumAnahtar = `${s.kimlik}:${s.oturum}`;
+      const k = copKomutu(s.oturum, s.etiketler, false);
+      if (k.hata) {
+        this.bildirim = { oturumAnahtar, tur: 'hata', anahtar: k.hata, bayt: k.bayt };
+        return false;
+      }
+      this.duzenGonderiliyor = true;
+      let r = null;
+      try {
+        r = await this.kayitDuzen(k.komut);
+      } catch (h) {
+        r = { durum: 'gitmedi', satir: String((h && h.message) || h) };
+      } finally {
+        this.duzenGonderiliyor = false;
+      }
+      const y = duzenYanitMetni(r);
+      this.bildirim = { oturumAnahtar, ...y };
+      if (y.tur === 'tamam') await this.duzenDegisti({ oturum: s.oturum, kimlik: s.kimlik });
+      return y.tur === 'tamam';
+    },
+    /** Kart ad / etiket / cop komutunu kaydetti: kopru kendisi esitler (2 dk), digerinde kisa bekleyip esitle. */
+    async duzenDegisti(e) {
+      const oturumAnahtar = `${e.kimlik}:${e.oturum}`;
+      if (this.pc) {
+        this.bildirim = { oturumAnahtar, tur: 'tamam', anahtar: 'kg.duzen_pc' };
+        return;
+      }
+      this.bildirim = { oturumAnahtar, tur: 'tamam', anahtar: 'kg.duzen_tamam' };
+      if (!this.esitlenebilir) return;
+      await (this._bekle || ((ms) => new Promise((coz) => setTimeout(coz, ms))))(DUZEN_ESITLE_MS);
+      await this.esitle();
+      if (!this.esitlemeNeden && this.bildirim && this.bildirim.oturumAnahtar === oturumAnahtar) {
+        this.bildirim = { oturumAnahtar, tur: 'tamam', anahtar: 'kg.duzen_esitlendi' };
+      }
+    },
     kayitAdresi(rapor) {
       const s = this.satirlar.find((x) => x.oturum === this.rota.oturum
         && x.kimlik === (this.secili ? this.secili.kimlik : null));

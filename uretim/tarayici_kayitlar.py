@@ -31,6 +31,7 @@ import hashlib
 import http.server
 import json
 import math
+import re
 import shutil
 import struct
 import sys
@@ -238,6 +239,21 @@ class Kart(T._SahteKart):
         self.kopar = 0
         self.koparilan = 0
         self.kopar_sonra = 0     # kopma ancak bu kadar BASARILI /kayit/veri isteginden sonra
+        self.not_reddet = False  # 2026-10-07: Ga / Ge kartin kuyrugu doluymus gibi REDDEDILIR
+
+    def not_komutu(self, govde: str) -> str:
+        """2026-10-07: `Ga<no> <ad>` / `Ge<no> <etiketler>` — firmware kayit_not_ayir + kyn_not: NOT kaydi
+        (baslik oturumu 0, hedef = oturum) akisin SONUNA eklenir; satir kartinkiyle ayni."""
+        m = re.match(r"^G([ae])(\d+)(?: (.*))?$", govde, re.S)
+        if not m or int(m.group(2)) == 0:
+            return "! G: oturum numarasi gerekli (yalniz rakam, 0 degil)\n"
+        if self.not_reddet:
+            return "! G: istek kuyrugu dolu\n"
+        alan = KB.KNT_AD if m.group(1) == "a" else KB.KNT_ETIKET
+        metin = (m.group(3) or "").encode("utf-8")[:120]
+        self.kayitlar.append(KB.kayit_paketle(KB.T_NOT, self.sonraki(), 0,
+                                              KB.not_paketle(int(m.group(2)), alan, 0, 0, metin)))
+        return "* G not kuyrukta (verilmemis oturuma yazilmaz; sonuc esitlenen dosyada)\n"
 
     def dizin(self) -> dict:
         oz: dict[int, dict] = {}
@@ -387,6 +403,8 @@ def sunucu_kur(kart: Kart):
                     kart.komutlar.append(govde)
                     kart.onayla(int(govde[2:]))
                     cevap = f"* G onay istegi {int(govde[2:])}\n"
+                elif govde.startswith(("Ga", "Ge")):
+                    cevap = kart.not_komutu(govde)
             self._gonder(200, cevap.encode())
 
     class Sunucu(http.server.ThreadingHTTPServer):
@@ -1156,6 +1174,95 @@ def main() -> int:
                and r.get("kal") == '{"a":1}' and r.get("arsiv1") != r.get("arsiv2")
                and r.get("kilit") == "CalismaHatasi" and r.get("silindi") is True
                and r.get("webLocks") is False and r.get("guvenli") is False, json.dumps(r)[:300])
+
+            # ── 12a. 2026-10-07: ad / etiket (Ga / Ge), cop kutusu, imlec aciklamasi ──
+            H = no["H"]
+            k0 = len(kart.tum_komutlar)
+
+            def giris(secici: str, deger: str) -> None:
+                t.js("(() => { const i = document.querySelector(%s); i.value = %s;"
+                     " i.dispatchEvent(new Event('input')); })()" % (json.dumps(secici), json.dumps(deger)))
+
+            def tikla(secici: str) -> None:
+                t.js("document.querySelector(%s).click()" % json.dumps(secici))
+
+            # 401 evresinden sonra kartin dizini bilinmiyor (duzenleme "Yenile'ye basin" der): once Yenile
+            t.js("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Yenile').click()")
+            bekle_js(t, "!!document.querySelector('.kl-esitle') && !document.querySelector('.kl-esitle').disabled")
+            t.js(f"location.hash = '#/kayit/{H}'")
+            ilk = bekle_js(t, "!!document.querySelector('[data-kg-duzen-ad]') && !document.querySelector('[data-kg-duzen-ad]').disabled"
+                              " && [document.querySelector('[data-kg-duzen-ad]').value, document.querySelector('[data-kg-duzen-etiket]').value]")
+            ok("[!] AE: kayit gorunumunde 'Adı ve etiketleri düzenle' — guncel kartin kaydinda ACIK, ad ve etiketler dolu gelir",
+               ilk == ["yeni kart H", ""], str(ilk))
+            # imlec aciklamasi: kapali baslar, dugmeyle acilir, kipin satirlari
+            kapali = t.js("!document.querySelector('.imlec-aciklama-liste') && document.querySelector('.imlec-aciklama-dugme')"
+                          ".getAttribute('aria-expanded')")
+            tikla(".imlec-aciklama-dugme")
+            ac = bekle_js(t, "!!document.querySelector('.imlec-aciklama-liste') && ({n: document.querySelectorAll("
+                             "'.imlec-aciklama-liste dt').length, m: document.querySelector('.imlec-aciklama-liste').textContent,"
+                             " e: document.querySelector('.imlec-aciklama-dugme').getAttribute('aria-expanded')})")
+            ok("[!] IA: 'ⓘ Bu değerler ne demek?' KAPALI baslar; tiklayinca kayit kipinin 10 satiri (terim + aciklama), aria-expanded",
+               kapali == "false" and bool(ac) and ac["n"] == 10 and "İşaretli" in ac["m"] and "Ölçülen süre A–B" in ac["m"]
+               and ac["e"] == "true", str(ac)[:200])
+            giris("[data-kg-duzen-ad]", "Yeniden adlandırıldı")
+            giris("[data-kg-duzen-etiket]", "deneme, ölçüm")
+            tikla("[data-kg-duzen-kaydet]")
+            ad_yeni = bekle_js(t, "document.querySelector('.kg-ad').textContent === 'Yeniden adlandırıldı'"
+                                  " && (document.querySelector('[data-kg-duzen-sonuc]') || {textContent: ''}).textContent.includes('eşitlendi')"
+                                  " && [...document.querySelectorAll('.kg-etiket')].map(e => e.textContent).join(',')", 20.0)
+            sonuc = t.js("(document.querySelector('[data-kg-duzen-sonuc]') || {}).textContent || ''")
+            ok("[!] AE: Kaydet `Ga` sonra `Ge` gonderir (kartin yaniti beklenir); kendiliginden esitlenir, baslik ve rozetler KARTTAN gelen hal",
+               kart.tum_komutlar[k0:] == [f"Ga{H} Yeniden adlandırıldı", f"Ge{H} deneme, ölçüm"]
+               and ad_yeni == "deneme,ölçüm" and "eşitlendi" in sonuc,
+               f"{kart.tum_komutlar[k0:]} · {ad_yeni} · {sonuc!r}")
+            kart.not_reddet = True
+            giris("[data-kg-duzen-ad]", "Reddedilecek")
+            tikla("[data-kg-duzen-kaydet]")
+            ret = bekle_js(t, "(document.querySelector('[data-kg-duzen-sonuc][data-tur=\"hata\"]') || {}).textContent")
+            kart.not_reddet = False
+            ok("[!] AE: kartin reddi (`! G…`) kullaniciya satiriyla gosterilir; ad degismedi",
+               bool(ret) and "Kart reddetti: ! G: istek kuyrugu dolu" in ret
+               and t.js("document.querySelector('.kg-ad').textContent") == "Yeniden adlandırıldı", str(ret))
+            # cop kutusu: iki asamali Sil
+            k1 = len(kart.tum_komutlar)
+            tikla("[data-kg-sil]")
+            eminim = bekle_js(t, "!!document.querySelector('[data-kg-sil-eminim]') && document.activeElement"
+                                 " === document.querySelector('[data-kg-sil-eminim]')", 4)
+            ok("[!] CK: Sil IKI ASAMALI — ilk tik karta bir sey yollamaz, odak 'Eminim'e",
+               bool(eminim) and len(kart.tum_komutlar) == k1)
+            tikla("[data-kg-sil-eminim]")
+            cop = bekle_js(t, "!!document.querySelector('[data-kg-cop]') && [...document.querySelectorAll('.kg-etiket')]"
+                              ".map(e => e.textContent).join(',')", 20.0)
+            ok("[!] CK: Eminim -> `Ge<no> deneme, ölçüm, silindi`; esitlemeden sonra 'çöp kutusunda' banner'i, `silindi` ROZET DEGIL",
+               kart.tum_komutlar[k1:] == [f"Ge{H} deneme, ölçüm, silindi"] and cop == "deneme,ölçüm", f"{kart.tum_komutlar[k1:]} {cop!r}")
+            t.js("location.hash = '#/kayitlar'")
+            bekle_js(t, "document.querySelectorAll('.kl-satir').length > 0")
+            gizli = t.js(f"{SATIRLAR_JS}.every(s => !(s.o === {H} && s.k === 9))")
+            sayi = t.js("(document.querySelector('[data-kl-cop-sayi]') || {}).textContent || ''")
+            silinen = suz(0, "silinen")
+            sec = t.js(f"(() => {{ const i = document.querySelector('[data-kl-sec=\"9:{H}\"]'); return i ? [i.disabled,"
+                       f" i.getAttribute('aria-label')] : null; }})()")
+            ok("[!] CK: listede cop kutusundaki kayit GIZLI ('1 kayıt çöp kutusunda'); Tür → Çöp kutusu yalniz onu gosterir; Karsilastirma secemez",
+               gizli is True and "1 kayıt çöp kutusunda" in sayi and silinen == [H] and bool(sec) and sec[0] is True
+               and "çöp kutusunda" in (sec[1] or ""), f"{sayi!r} {silinen} {sec}")
+            k2 = len(kart.tum_komutlar)
+            tikla(f"[data-kl-geri-al=\"9:{H}\"]")
+            bos = bekle_js(t, f"{SATIRLAR_JS}.length === 0 && !!document.querySelector('[data-kl-duzen-sonuc]')"
+                              f" && document.querySelector('[data-kl-duzen-sonuc]').textContent.includes('eşitlendi')"
+                              f" && document.querySelector('[data-kl-duzen-sonuc]').textContent", 20.0)
+            geri = suz(0, "hepsi")
+            rozet = t.js(f"{SATIRLAR_JS}.filter(s => s.o === {H} && s.k === 9).map(s => s.m)")
+            ok("[!] CK: satirdaki Geri al YALNIZ `silindi`yi cikarir (`Ge<no> deneme, ölçüm`); esitlenince cop bosalir, kayit listeye doner",
+               kart.tum_komutlar[k2:] == [f"Ge{H} deneme, ölçüm"] and bool(bos) and "eşitlendi" in bos and H in geri
+               and bool(rozet) and "ölçüm" in rozet[0] and "silindi" not in rozet[0], f"{kart.tum_komutlar[k2:]} {bos!r} {rozet}")
+            # eski akistaki (baska kart) kayit: duzenleme KAPALI, sebep yazili
+            t.js(f"location.hash = '#/kayit/{no['A']}@{eski_kimlik}'")
+            neden = bekle_js(t, "!!document.querySelector('[data-kg-duzen-neden]') && document.querySelector('[data-kg-duzen-kaydet]').disabled"
+                                " && document.querySelector('[data-kg-sil]').disabled && document.querySelector('[data-kg-duzen-neden]').textContent")
+            ok("[!] AE: eski kart kopyasindaki kayit DUZENLENEMEZ (oturum numarasi bagli kartta baska kayit); sebep yazili",
+               bool(neden) and "şu anki kayıtlarından değil" in neden and len(kart.tum_komutlar) == k2 + 1, str(neden))
+            t.js("location.hash = '#/kayitlar'")
+            bekle_js(t, "document.querySelectorAll('.kl-satir').length > 0")
 
             # ── 12b. C8: Ingilizce (3H secicisi gelene dek localStorage) ──
             t.js("localStorage.setItem('olcum.dil', JSON.stringify('en'))")

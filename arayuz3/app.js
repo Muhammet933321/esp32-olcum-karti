@@ -1037,6 +1037,12 @@ createApp({
         },
       },
     }),
+    /* 2026-10-07: "ⓘ Bu değerler ne demek?" — imlec okumasinin aciklamasi (kayit gorunumu ve Karsilastirma
+       ile AYNI bilesen). Canli'da yalniz grafik DONDURULUNCA (okuma izgarasi o zaman var) iner; metinleri
+       ortak/sozluk_imlec.js'te (acilis sozlugunde degil). Inmezse yalniz dugme gorunmez (okuma calisir). */
+    'imlec-aciklama': defineAsyncComponent({
+      loader: () => import('./ekran/imlec_aciklama.js').then((m) => m.ImlecAciklama),
+    }),
     /* 3G: Karsilastirma ekrani da ilk acilista iner (ayni desen, ayni gerekce). */
     'karsilastir-ekran': defineAsyncComponent({
       loader: () => import('./ekran/karsilastir.js').then((m) => m.KarsilastirEkrani),
@@ -2440,6 +2446,43 @@ createApp({
       return this.kayitKomut(k.komut);
     },
     kayitDurdur() { return this.kayitKomut('Gd'); },
+    /** 2026-10-07: kayit gorunumu / Kayitlar'dan ad, etiket ve cop kutusu (`Ga` / `Ge`; Kayitlar'a prop).
+     *  YALNIZ bu iki alt komut gecer (komut ekran modulunde kuruluyor; burada tavan + bicim yeniden denetlenir).
+     *  Kartin yaniti BEKLENIR: `* G not kuyrukta` -> tamam, `! G…` -> ret (satir oldugu gibi), RET_PENCERESI_MS
+     *  icinde hicbiri -> yanitsiz. Ayni anda tek istek (yanitlar sirasiz eslesmesin). */
+    async kayitDuzenGonder(komut) {
+      const d = kayitKomutuDenetle(String(komut === null || komut === undefined ? '' : komut));
+      if (d.hata || !/^G[ae][1-9]\d*(?: |$)/.test(d.komut)) return { durum: 'gitmedi', satir: d.hata || 'Ga / Ge' };
+      if (!this.bagli) return { durum: 'bagli_degil' };
+      if (this._duzenBekleyen) return { durum: 'mesgul' };
+      const sonuc = new Promise((coz) => {
+        this._duzenBekleyen = { coz, zaman: setTimeout(() => this.kayitDuzenBitir({ durum: 'yanitsiz' }), RET_PENCERESI_MS) };
+      });
+      const oncekiHata = this.hata;
+      this.hata = '';
+      try {
+        await this.gonder(d.komut);
+      } catch (e) {
+        this.kayitDuzenBitir({ durum: 'gitmedi', satir: String((e && e.message) || e) });
+      }
+      /* tasiyici basarisizligi atmiyor, `hata`ya yaziyor (akis: 403/502, kopru erisilemiyor) */
+      if (this.hata) this.kayitDuzenBitir({ durum: 'gitmedi', satir: String(this.hata) });
+      else this.hata = oncekiHata;
+      return sonuc;
+    },
+    kayitDuzenBitir(r) {
+      const b = this._duzenBekleyen;
+      if (!b) return;
+      this._duzenBekleyen = null;
+      clearTimeout(b.zaman);
+      b.coz(r);
+    },
+    /** Kartin `G` not satirlari — yalniz bekleyen bir duzenleme varken (satirIsle'den, PASIF). */
+    kayitDuzenSatiri(satir) {
+      if (!this._duzenBekleyen) return;
+      if (/^\* G not kuyrukta/.test(satir)) this.kayitDuzenBitir({ durum: 'tamam' });
+      else if (/^! ?G\b/.test(satir)) this.kayitDuzenBitir({ durum: 'ret', satir });
+    },
     notAcDegistir() { this.notAcik = !this.notAcik; this.planAcik = false; },
     async notEkle() {
       /* WIG: istek surerken ikinci basis/Enter IKINCI bir NOT kaydi yazdirmasin */
@@ -3440,6 +3483,8 @@ createApp({
       this.kaydet(satir);
       /* 3F (PL4): kartin pil satirlari PASIF — basladi / bitti / durduruldu / ret / B satiri */
       this.pilSatiri(satir);
+      /* 2026-10-07: kayit gorunumunun ad / etiket / cop komutunun yaniti */
+      this.kayitDuzenSatiri(satir);
       /* 3E (OS5): `GT` yalniz `G?` ile basiliyor; gunlugun KENDILIGINDEN durdugunu (Gd, oturum
          kapandi, oturum acilamadi) kartin kendi satiri soyluyor — yoklama yok (D5). */
       const gd = /^\* G osiloskop gunlugu durdu: (\d+) yakalama, (\d+) yazilamayan/.exec(satir);

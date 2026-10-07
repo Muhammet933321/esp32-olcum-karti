@@ -10550,6 +10550,27 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.112 🟢 A3-CA3 HIZLI AĞ GEÇİŞİ + İMLEÇ AÇIKLAMASI + KAYDA AD/ETİKET + ÇÖP KUTUSU (2026-10-07)
+
+**Kullanıcı (Honor hotspot testi):** hotspot kapatılınca kart ev ağına ~2:30'da geçti — "1 dk uygun olabilir".
+İmleç tablosundaki alanların ne olduğu belli değil; kayda ad verilemiyor, kayıt silinemiyor.
+Kararları (kullanıcı seçti): geçiş = **30 s kopma eşiği + ilk deneme hemen**; silme = **çöp kutusu**.
+
+- **A3-CA3 (`ag.h`, `ag_karar.h`):** `AG_STA_KOPUK_MS` 90 → 30 s; YALNIZ kopma yolunda (CA6) AP kurulunca
+  ilk STA denemesi bir adım sonra (eskiden +30 s). Açılış ve başarısız `Ng` (GERI) yolu değişmedi (gerekçe
+  `ag_karar.h` başında: orada kayıtlı ağlar az önce denendi). Emülatörde kopma → ilk deneme 30.1 s; beklenen
+  geçiş ~40 s, en kötü ~70 s. sim3_web 5m: 20 s kopma AP KURMAZ, 60 s kopma senaryosu (14), zaman çizgisi
+  iddiası; mutasyon CA-HIZ 4/4. ⚠ Kartta ÖLÇÜLMEDİ (CA-1).
+- **İmleç açıklaması:** `ekran/imlec_aciklama.js` + tembel sözlük `sozluk_imlec.js` (Canlı donunca, kayıt
+  görünümü, Karşılaştırma): değerler en yakın gerçek örnek; "ort" düz örnek ortalaması; Yük / Enerji
+  işaretli yamuk integrali, boşluk üzerinden integral yok.
+- **Kayda ad / etiket:** kayıt görünümünde `Ga` / `Ge` (yalnız değişen), kartın yanıtı beklenir (`* G not
+  kuyrukta` / `! G…` / 5 s), başarıda eşitleme; yalnız bağlı kartın GÜNCEL akışındaki kayıt.
+- **Çöp kutusu:** `Ge<no> <etiketler>,silindi` (iki adım), Geri al yalnız `silindi`'yi çıkarır; liste
+  varsayılan gizler, Tür → "Çöp kutusu"; `silindi` rozet / arama metni değil; Karşılaştırma'ya seçilemez.
+  Veri kartta kalır (flaş günlüğü yalnız ekler; bellek dolunca en eski üstüne yazılır).
+- B7 951, tarayıcı kayıtlar 61 / canlı 60, mutasyon KD 16/16.
+
 #### 5.12.111 🟢 A3-CA2: AĞ LİSTESİ / TARAMA WiFi'DE BOŞTU — `ag_komut.h` AYNAYI ATLIYORDU (2026-10-07, KARTTA)
 
 **Bulgu (kullanıcı, telefonda):** Ayarlar → Ağ'da kayıtlı ağ yok, "Ağları tara" sonuçsuz. Telefondan imzalı

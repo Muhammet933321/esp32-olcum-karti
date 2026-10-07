@@ -265,8 +265,13 @@ Kart kutuda, gerçek yük ve gerçek ön uçla ilk kez kalibre edilirken bulundu
 Tasarım `tasarim/2026-10-06-coklu-ag.md`, DEVIR 5.12.110. Kartta geçiş, geri dönüş, taşıma, tarama
 ölçüldü.
 
-- **CA-1 · Uzun kopma (CA6) kartta ölçülmedi.** Kart hotspot'tayken hotspot kapatılınca 90 s sonra kendi
-  ağı + diğer kayıtlı ağa dönüş — tezgah kalemi (B22b). Emülatörde (5m) sınanıyor.
+- **CA-1 · Uzun kopma (CA6) — yeni zamanlama kartta ölçülmedi.** A3-CA2'de kullanıcı ölçtü: hotspot
+  kapatılınca ev ağına **~2:30**'da geçti (90 s + 30 s ilk deneme + bağlanma) — çok yavaş. **2026-10-07
+  (A3-CA3, kullanıcı kararı):** kopma eşiği 90 → **30 s**, kopma yolunda ilk deneme **hemen** (sonra 30 s'de
+  bir). Beklenen: kopma → ilk deneme ~30 s, geçiş tipik ~40 s, en kötü ~70 s; hedef ≤ ~60 s. Emülatörde
+  (5m) zaman çizelgesi sınanıyor (kopma → ilk deneme ≤ 35 s, 20 s kopma AP kurmaz); **kartta
+  kronometreyle ölçülecek** (tezgah kalemi B22b). Ayrıca bakılacak: 30 s'lik kısa kopmalarda (ör. ev
+  yönlendiricisi yeniden başlarken) AP gereksiz yere kalkıyor mu — sürücü dönüşü ölçümde 7–14 s'ydi.
 - **CA-2 · Açılışta iki ağ görünürken seçim** kartta ölçülmedi (tezgah kalemi): en son bağlanılan
   bağlanırsa kalır; o yoksa tarama diğerini seçer.
 - **CA-3 · Android uygulaması** `N` komutlarını / Ayarlar → Ağ listesini henüz göstermiyor (dal

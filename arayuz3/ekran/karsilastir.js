@@ -39,6 +39,7 @@ import {
 import { EsitlemeDenetcisi, dilOku } from './esitleme.js';
 import { KR_AZAMI, KR_TURLER, karsilastirRotaYaz } from './kayitlar.js';
 import { mahEkseni, mahYazi } from './pil.js';
+import { ImlecAciklama } from './imlec_aciklama.js';
 
 /* ── sabitler ───────────────────────────────────────────────────────── */
 
@@ -386,6 +387,7 @@ const SABLON = `
         </template>
         <p v-else class="ipucu">{{ m.imlecYok }}</p>
       </div>
+      <imlec-aciklama kip="kr" :dil="dil"></imlec-aciklama>
     </section>
 
     <section class="kart">
@@ -404,6 +406,7 @@ const vueAl = () => globalThis.Vue;
 
 export const KarsilastirEkrani = {
   name: 'KarsilastirEkrani',
+  components: { 'imlec-aciklama': ImlecAciklama },
   props: {
     kartAdres: { type: Function, required: true },
     etkin: { type: Boolean, default: true },

@@ -8736,6 +8736,269 @@ console.log('\n--- 35. 5P: panel telefonda (globalThis.__olcumOrtam) ---');
   });
 }
 
+/* ═══ 2026-10-07 — IMLEC ACIKLAMASI · AD / ETIKET (Ga / Ge) · COP KUTUSU ═══════════════════════
+   Kullanici: (1) okuma izgarasindaki A, B, ΔT, V A/B, ΔV, A ORT, YÜK, ENERJİ ne demek — "ⓘ" aciklama,
+   TEK bilesen uc yerde (Canli / kayit / Karsilastirma), metinleri tembel sozlukte (sozluk_imlec.js);
+   (2) kayit gorunumunden ad + etiket (kartin Ga / Ge komutlari, sonucu kartin satiri);
+   (3) tek kayit karttan silinemez -> "Sil" = ayrilmis `silindi` etiketi (cop kutusu), "Geri al" onu
+   cikarir; liste onlari gizler, "Cop kutusu" suzgeci gosterir, Karsilastirma secemez. */
+{
+  SONRA.push(async () => {
+    const IA = require(path.join(ARAYUZ, 'ekran', 'imlec_aciklama.js'));
+    const SI = require(path.join(KOK, 'ortak', 'src', 'sozluk_imlec.js'));
+    const SZa = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+    const KYs = require(path.join(KOK, 'ortak', 'src', 'sozluk_kayit.js'));
+    const IST = require(path.join(KOK, 'ortak', 'src', 'istatistik.js'));
+    const KGx = require(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'));
+    const KLx = require(path.join(ARAYUZ, 'ekran', 'kayitlar.js'));
+    const KRx = require(path.join(ARAYUZ, 'ekran', 'karsilastir.js'));
+    const Kx = require(path.join(KOK, 'ortak', 'src', 'kayit.js'));
+    const al = (ad) => vm.runInContext(ad, sandbox);
+    const html = yorumsuz(htmlKaynak);
+    const canliMain = (html.match(/<main class="gorunum" v-show="gorunum === 'canli'">([\s\S]*?)<\/main>/) || [])[1] || '';
+    const bil = (B, props = {}) => {
+      const o = Object.assign({}, props);
+      Object.assign(o, B.data ? B.data.call(o) : {});
+      Object.assign(o, B.methods || {});
+      o.$nextTick = (f) => { if (f) f(); return Promise.resolve(); };
+      o.$el = null;
+      o.$emit = (ad, d) => { (o._yayin = o._yayin || []).push([ad, d]); };
+      for (const [ad, fn] of Object.entries(B.computed || {})) Object.defineProperty(o, ad, { get: fn.bind(o), configurable: true });
+      return o;
+    };
+
+    /* ── (1) aciklama ── */
+    const kipler = Object.keys(IA.IMLEC_ACIKLAMA_SATIR);
+    const tumAnahtar = kipler.flatMap((k) => IA.IMLEC_ACIKLAMA_SATIR[k].flat());
+    const enSatir = IA.imlecAciklamaSatirlari('canli', 'en');
+    ok('[!] IA1: imlec aciklamasi uc kipte (canli / kayit / kr); her satirin terimi VE aciklamasi sozluk_imlec.js`te TR + EN; satirlar secili dilde; bilinmeyen kip -> kayit',
+       kipler.join() === 'canli,kayit,kr' && tumAnahtar.every((a) => a in SI.SOZLUK_IMLEC && SI.SOZLUK_IMLEC[a].tr && SI.SOZLUK_IMLEC[a].en)
+       && enSatir.length === IA.IMLEC_ACIKLAMA_SATIR.canli.length && enSatir.every((s) => s.metin === SI.SOZLUK_IMLEC[s.a].en)
+       && JSON.stringify(IA.imlecAciklamaSatirlari('yok', 'tr')) === JSON.stringify(IA.imlecAciklamaSatirlari('kayit', 'tr')),
+       `${tumAnahtar.length} anahtar`);
+    /* Terimler EKRANIN etiketleriyle ayni (etiket degisir, aciklama eskirse kirmizi) */
+    const t = (a, d) => SI.SOZLUK_IMLEC[a][d];
+    const ayni = (a, b, s) => ['tr', 'en'].every((d) => t(a, d) === s[b][d]);
+    ok('[!] IA2: aciklamanin terimleri ekrandaki etiketlerle AYNI (Canli cn.okuma_dt / _dv / _ort_i; kayit kg.okuma_sure; Karsilastirma kr.fark) — her kipin satirlari ekranin gosterdigi alanlar',
+       ayni('ia.t_dt', 'cn.okuma_dt', SZa.SOZLUK) && ayni('ia.t_dv', 'cn.okuma_dv', SZa.SOZLUK) && ayni('ia.t_ort_i', 'cn.okuma_ort_i', SZa.SOZLUK)
+       && ayni('ia.t_sure', 'kg.okuma_sure', KYs.SOZLUK_KAYIT) && ayni('ia.t_fark', 'kr.fark', KYs.SOZLUK_KAYIT)
+       && IA.IMLEC_ACIKLAMA_SATIR.canli.map((x) => x[1]).join() === 'ia.ab_canli,ia.dt,ia.deger,ia.dv,ia.ort_i,ia.yuk,ia.enerji,ia.bosluk'
+       && IA.IMLEC_ACIKLAMA_SATIR.kayit.some((x) => x[1] === 'ia.minmaks') && IA.IMLEC_ACIKLAMA_SATIR.kayit.some((x) => x[1] === 'ia.sure')
+       && !IA.IMLEC_ACIKLAMA_SATIR.kr.some((x) => x[1] === 'ia.sure'));
+    /* Metin FORMULU soyluyor: integral isaretli (enerji() eksi akimda eksi mAh), ortalama zaman agirliksiz
+       (istatistik() ornek ortalamasi), bosluk ustunden integral yok (boslukMs) */
+    const tt = Float64Array.of(0, 1800000, 3600000);
+    const e = IST.enerji(tt, Float64Array.of(2, 2, 2), Float64Array.of(-1, -1, -1), 0, 3600000);
+    const eb = IST.enerji(Float64Array.of(0, 1000, 5000), Float64Array.of(1, 1, 1), Float64Array.of(1, 1, 1), 0, 5000, { boslukMs: 2000 });
+    const is = IST.istatistik(Float64Array.of(0, 1, 1000), Float64Array.of(0, 0, 3));
+    ok('[!] IA3: aciklama formulle tutarli — Yuk/Enerji ISARETLI integral (eksi akim -> eksi mAh/Wh), ortalama ornek ortalamasi (zaman agirliksiz), bosluk integrale girmez',
+       Math.abs(e.mah + 1000) < 1e-9 && Math.abs(e.wh + 2) < 1e-9 && /İşaretli/.test(t('ia.yuk', 'tr')) && /Signed/.test(t('ia.yuk', 'en'))
+       && is.ort === 1 && /Zaman ağırlıklı değil/.test(t('ia.ort', 'tr')) && /Zaman ağırlıklı değil/.test(t('ia.ort_i', 'tr'))
+       && Math.abs(eb.sureS - 1) < 1e-9 && /integral alınmaz/.test(t('ia.bosluk', 'tr')) && /V × I/.test(t('ia.enerji', 'tr')),
+       JSON.stringify({ e, eb, ort: is.ort }));
+    const yuk = secenekler.components && secenekler.components['imlec-aciklama'];
+    const kgT = KGx.KayitGorunumu.template;
+    const krT = KRx.KarsilastirEkrani.template;
+    ok('[!] IA4: TEK bilesen uc yerde — Canli`da yalniz dondurulunca (app.js async bilesen, ekran/imlec_aciklama.js), kayit gorunumu kip="kayit", Karsilastirma kip="kr" (statik, ayni nesne); KAPALI baslar, dugme aria-expanded',
+       !!yuk && yuk.__asenkron === true && /import\('\.\/ekran\/imlec_aciklama\.js'\)\.then\(\(m\) => m\.ImlecAciklama\)/.test(String(yuk.yukleyici.loader))
+       && /<imlec-aciklama v-if="donmus" kip="canli" :dil="dil"><\/imlec-aciklama>/.test(canliMain)
+       && /<imlec-aciklama kip="kayit" :dil="dil"><\/imlec-aciklama>/.test(kgT) && /<imlec-aciklama kip="kr" :dil="dil"><\/imlec-aciklama>/.test(krT)
+       && KGx.KayitGorunumu.components['imlec-aciklama'] === IA.ImlecAciklama && KRx.KarsilastirEkrani.components['imlec-aciklama'] === IA.ImlecAciklama
+       && IA.ImlecAciklama.data().acik === false && /:aria-expanded="acik \? 'true' : 'false'"/.test(IA.ImlecAciklama.template));
+    {
+      const by = fs.existsSync(path.join(KOK, 'uretim', '_fs.json')) ? JSON.parse(fs.readFileSync(path.join(KOK, 'uretim', '_fs.json'), 'utf8')).bayt || {} : {};
+      const acilis = iceAktarmaGrafigi().map((g) => g.goruntu);
+      const canliZ = iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'canli.js')).map((g) => g.goruntu);
+      const iaZ = ['ekran/imlec_aciklama.js', ...iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'imlec_aciklama.js')).map((g) => g.goruntu)];
+      const ek = iaZ.filter((x) => !acilis.includes(x));
+      const ekBayt = ek.reduce((n, a) => n + (Number.isFinite(by[a]) ? by[a] : NaN), 0);
+      const klZ = iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'kayitlar.js')).map((g) => g.goruntu);
+      ok('[!] IA5: aciklama ACILISTA ve Canli zincirinde YOK (acilis sozlugu butcesi); dondurunca yalniz modul + sozluk_imlec.js iner, <= 4.5 KB gzip (kunyede); Kayitlar zincirinde var',
+         !acilis.includes('ekran/imlec_aciklama.js') && !acilis.includes('ortak/sozluk_imlec.js') && !canliZ.includes('ortak/sozluk_imlec.js')
+         && ek.slice().sort().join(' ') === 'ekran/imlec_aciklama.js ortak/sozluk_imlec.js' && ekBayt > 0 && ekBayt <= 4608
+         && klZ.includes('ekran/imlec_aciklama.js') && klZ.includes('ortak/sozluk_imlec.js'),
+         `${ek.join(' ')} · ${ekBayt} B`);
+    }
+
+    /* ── (2) ad / etiket komutlari (saf) ── */
+    const A = KGx;
+    const s60 = 'ş'.repeat(60);
+    ok('[!] AE1: sinirlar app.js ve firmware ile AYNI (komut 175 bayt, metin 120 bayt = KAYIT_NOT_METIN); kayit_not_ayir a / e alt komutlarini taniyor',
+       A.KOMUT_AZAMI_BAYT === al('KOMUT_AZAMI_BAYT') && A.NOT_METIN_AZAMI_BAYT === al('NOT_METIN_AZAMI_BAYT')
+       && /#define KAYIT_NOT_METIN 120u/.test(fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'kayit_bicim.h'), 'utf8'))
+       && /if \(a == 'a'\) k->alan = KNT_AD;\s*else if \(a == 'e'\) k->alan = KNT_ETIKET;/.test(fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'kayit_bicim.h'), 'utf8'))
+       && [0x22, 0x5c, 0x00, 0x1f, 0x7f, 0x41].map((c) => A.adKomutu(1, 'a' + String.fromCharCode(c)).hata || 'ok').join() === 'kg.hata_karakter,kg.hata_karakter,kg.hata_karakter,kg.hata_karakter,kg.hata_karakter,ok');
+    const ad1 = A.adKomutu(12, '  Akü\tşarj  ');
+    ok('[!] AE2: adKomutu — `Ga<no> <ad>` (sekme/satir bosluga, kenarlar kirpilir); bos ad = `Ga<no>` (sil); 120 bayt gecer, 121 bayt (UTF-8) REDDEDILIR; gecersiz oturum',
+       ad1.komut === 'Ga12 Akü şarj' && A.adKomutu(12, '').komut === 'Ga12' && A.adKomutu(12, '   ').komut === 'Ga12'
+       && A.adKomutu(3, s60).komut === 'Ga3 ' + s60 && A.adKomutu(3, s60 + 'x').hata === 'kg.hata_ad_uzun' && A.adKomutu(3, s60 + 'x').bayt === 121
+       && A.adKomutu(0, 'x').hata === 'kg.hata_oturum' && A.adKomutu(1.5, 'x').hata === 'kg.hata_oturum' && A.adKomutu('3', 'x').hata === 'kg.hata_oturum',
+       JSON.stringify(ad1));
+    ok('[!] AE3: etiketKomutu — liste `, ` ile (Ge listeyi DEGISTIRIR), tekrar/bos atilir; bos = `Ge<no>`; virgullu etiket, kartin attigi karakter, KULLANICININ `silindi`si ve 120 bayti asan liste REDDEDILIR',
+       A.etiketKomutu(12, ['akü', ' şarj ', '', 'akü']).komut === 'Ge12 akü, şarj' && A.etiketKomutu(12, []).komut === 'Ge12'
+       && A.etiketKomutu(12, ['a,b']).hata === 'kg.hata_etiket_virgul' && A.etiketKomutu(12, ['a"']).hata === 'kg.hata_karakter'
+       && A.etiketKomutu(12, ['Silindi']).hata === 'kg.hata_silindi_ayrilmis' && A.etiketKomutu(12, ['silindi'], { izinCop: true }).komut === 'Ge12 silindi'
+       && A.etiketKomutu(12, ['x'.repeat(60), 'y'.repeat(59)]).hata === 'kg.hata_etiket_uzun' && A.etiketKomutu(12, ['x'.repeat(60), 'y'.repeat(58)]).komut.length === 4 + 1 + 120
+       && JSON.stringify(A.etiketAyir(' akü, şarj ,,akü,\n12V ')) === '["akü","şarj","12V"]');
+    const d0 = A.duzenKomutlari(5, { ad: 'Kayıt', etiket: 'akü, şarj' }, { ad: 'Kayıt', etiketler: ['akü', 'şarj'] });
+    const d1 = A.duzenKomutlari(5, { ad: 'Yeni', etiket: 'akü' }, { ad: 'Eski', etiketler: ['akü'] });
+    const d2 = A.duzenKomutlari(5, { ad: '', etiket: 'akü, 12V' }, { ad: 'Eski', etiketler: ['akü', 'silindi'] });
+    const d3 = A.duzenKomutlari(5, { ad: 'x', etiket: 'akü, silindi' }, { ad: 'x', etiketler: ['akü'] });
+    ok('[!] AE4: duzenKomutlari — yalniz DEGISENLER gider (once ad); degisiklik yoksa bos; copteki kaydin etiket duzenlemesi `silindi`yi KORUR; kullanici silindi yazarsa ret',
+       d0.komutlar.length === 0 && d1.komutlar.join('|') === 'Ga5 Yeni' && d2.komutlar.join('|') === 'Ga5|Ge5 akü, 12V, silindi'
+       && d3.hata === 'kg.hata_silindi_ayrilmis', JSON.stringify([d0, d1, d2, d3]));
+
+    /* ── (3) cop kutusu (saf + oturumlariKur ile gidis-donus) ── */
+    const sil = A.copKomutu(7, ['akü', '12V'], true);
+    const geri = A.copKomutu(7, ['akü', ' Silindi', '12V', 'silindi'], false);
+    const kur = (metinler) => {
+      let sira = 100;
+      const parca = [Kx.kayitPaketle(Kx.T_NOKTA, sira++, 7, new Uint8Array(4 + 36))];
+      for (const m of metinler) parca.push(Kx.kayitPaketle(Kx.T_NOT, sira++, 0, Kx.notPaketle(7, Kx.KNT_ETIKET, 0, 0, new TextEncoder().encode(m))));
+      const b = new Uint8Array(parca.reduce((n, x) => n + x.length, 0));
+      let o = 0;
+      for (const x of parca) { b.set(x, o); o += x.length; }
+      return Kx.oturumlariKur(Kx.akisOnek(b)[0]).get(7);
+    };
+    const met = (k) => k.komut.replace(/^Ge7 ?/, '');
+    const oSil = kur(['akü, 12V', met(sil)]);
+    const oGeri = kur(['akü, 12V', met(sil), met(A.copKomutu(7, oSil.etiketler, false))]);
+    ok('[!] CK1: Sil = mevcut etiketler + `silindi` (Ge7 akü, 12V, silindi); Geri al YALNIZ silindi`yi (her yazimi) cikarir, digerleri SIRASIYLA kalir; ikinci Sil tekrar eklemez; karttan gecen NOT kaydindan oturumlariKur ayni durumu kurar',
+       sil.komut === 'Ge7 akü, 12V, silindi' && geri.komut === 'Ge7 akü, 12V' && A.copKomutu(7, ['silindi'], true).komut === 'Ge7 silindi'
+       && A.copKomutu(7, [], false).komut === 'Ge7' && A.silindiMi(oSil.etiketler) && !A.silindiMi(oGeri.etiketler)
+       && JSON.stringify(oGeri.etiketler) === '["akü","12V"]' && JSON.stringify(A.gorunenEtiketler(oSil.etiketler)) === '["akü","12V"]',
+       JSON.stringify({ sil, geri, oSil: oSil && oSil.etiketler, oGeri: oGeri && oGeri.etiketler }));
+    const yer = (id, et) => ({ kimlik: 9, oturum: id, tur: 'olcum', ad: null, etiketler: et, silindi: A.silindiMi(et), notlar: [], nokta: 5,
+      yerelde: true, nerede: 'tarayici', aramaMetni: KLx.metinSadele(A.gorunenEtiketler(et).join(' ')) });
+    const sat = [yer(1, ['akü']), yer(2, ['akü', 'silindi']), yer(3, [])];
+    const no = (l) => l.map((s) => s.oturum).join();
+    ok('[!] CK2: liste — `silindi`li oturum her tur suzgecinde GIZLI, "Cop kutusu" (tur silinen) YALNIZ onlari gosterir; aramada `silindi` gecmez; Karsilastirma secemez (kr.sec_silindi, TR + EN)',
+       no(KLx.satirSuz(sat)) === '1,3' && no(KLx.satirSuz(sat, { tur: 'olcum' })) === '1,3' && no(KLx.satirSuz(sat, { tur: 'silinen' })) === '2'
+       && no(KLx.satirSuz(sat, { tur: 'silinen', arama: 'akü' })) === '2' && no(KLx.satirSuz(sat, { tur: 'silinen', arama: 'silindi' })) === ''
+       && KLx.secilebilir(sat[1]).sebep === 'kr.sec_silindi' && KLx.secilebilir(sat[0]).uygun
+       && KYs.ceviriKayit('kr.sec_silindi', 'en') !== 'kr.sec_silindi' && KYs.SOZLUK_KAYIT['kl.tur_silinen'].en === 'Trash');
+    {
+      const Kk = Kx;
+      const tek = Kk.kayitPaketle(Kk.T_NOKTA, 101, 4, new Uint8Array(4 + 36));
+      const n1 = Kk.kayitPaketle(Kk.T_NOT, 102, 0, Kk.notPaketle(4, Kk.KNT_ETIKET, 0, 0, new TextEncoder().encode('ölçüm, silindi')));
+      const b = new Uint8Array(tek.length + n1.length); b.set(tek); b.set(n1, tek.length);
+      const yerel = { kimlik: 9, kart: 'k', bayt: b.length, oturumlar: Kk.oturumlariKur(Kk.akisOnek(b)[0]), sonSira: new Map() };
+      const l = KLx.listeBirlestir({ kart: null, yereller: [yerel] });
+      ok('[!] CK3: listeBirlestir satiri `silindi` alanini oturumun etiketlerinden kurar (kart dizini satiri silindi:false); arama metninde silindi YOK; rozet sablonu gorunen(s.etiketler), Geri al dugmesi baglantinin DISINDA ve yalniz copteki satirda; tur secicide "silinen"; cop sayaci',
+         l.length === 1 && l[0].silindi === true && !/silindi/.test(l[0].aramaMetni) && KLx.kartSatiri(1, { id: 2, tur: 1 }).silindi === false
+         && /<span v-for="e in gorunen\(s\.etiketler\)" :key="e" class="kl-rozet kl-etiket">/.test(KLx.KayitlarEkrani.template)
+         && /<\/a>\s*<!--[^>]*-->\s*<button v-if="s\.silindi" type="button" class="kl-geri-al" :data-kl-geri-al="s\.anahtar"/.test(KLx.KayitlarEkrani.template)
+         && /<option value="silinen">\{\{ m\.turSilinen \}\}<\/option>/.test(KLx.KayitlarEkrani.template)
+         && /data-kl-cop-sayi/.test(KLx.KayitlarEkrani.template), JSON.stringify(l.map((x) => [x.silindi, x.aramaMetni])));
+    }
+    ok('[!] CK4: duzenNedeni — kart bagli DEGIL / duzen islevi yok -> bagli_degil; bagli kartin akisi BILINMIYOR -> kart_bilinmiyor; baska akis (eski kart / bicim oncesi) -> baska_kart; ayni akis -> \'\'; kopruda akis /esitleme/durum arsiv yolundan',
+       KLx.duzenNedeni({ duzenVar: true, bagli: false, aktif: 9, kimlik: 9 }) === 'kg.duzen_bagli_degil'
+       && KLx.duzenNedeni({ duzenVar: false, bagli: true, aktif: 9, kimlik: 9 }) === 'kg.duzen_bagli_degil'
+       && KLx.duzenNedeni({ duzenVar: true, bagli: true, aktif: null, kimlik: 9 }) === 'kg.duzen_kart_bilinmiyor'
+       && KLx.duzenNedeni({ duzenVar: true, bagli: true, aktif: 8, kimlik: 9 }) === 'kg.duzen_baska_kart'
+       && KLx.duzenNedeni({ duzenVar: true, bagli: true, aktif: 9, kimlik: 9 }) === ''
+       && KLx.pcAkisCoz({ arsiv: 'arsiv/ba9f/akis-3995957410' }) === 3995957410 && KLx.pcAkisCoz({ arsiv: null }) === null && KLx.pcAkisCoz(null) === null);
+
+    /* ── kayit gorunumu bileseni (Vue'suz) ── */
+    const oturum = (et, ad = 'Deneme') => ({ id: 7, ad, etiketler: et, notlar: new Map(), skoplar: new Map(), noktalar: [], ayrinti: [], basla: null, bitir: null });
+    const giden = [];
+    const kd = (yanit) => async (k) => { giden.push(k); return yanit; };
+    const KGb = KGx.KayitGorunumu;
+    const g1 = bil(KGb, { veri: { oturum: oturum(['akü']), kimlik: 9 }, dil: 'tr', rapor: false, duzenNeden: '', kayitDuzen: kd({ durum: 'tamam' }) });
+    const ilk = await g1.copIslem(true);              // onaysiz: gitmez
+    g1.copOnayIste();
+    const ikinci = await g1.copIslem(true);
+    const g2 = bil(KGb, { veri: { oturum: oturum(['akü', 'silindi']), kimlik: 9 }, dil: 'en', rapor: false, duzenNeden: '',
+      kayitDuzen: kd({ durum: 'ret', satir: '! G: oturum numarasi gerekli (yalniz rakam, 0 degil)' }) });
+    await g2.copIslem(false);
+    const g3 = bil(KGb, { veri: { oturum: oturum(['akü']), kimlik: 9 }, dil: 'tr', rapor: false, duzenNeden: 'kg.duzen_baska_kart', kayitDuzen: kd({ durum: 'tamam' }) });
+    const n3 = giden.length;
+    g3.duzenAd = 'Yeni ad';
+    await g3.duzenKaydet();
+    ok('[!] CK5: kayit gorunumu — Sil IKI ASAMALI (onaysiz copIslem karta GITMEZ), onayla `Ge7 akü, silindi` + "degisti"; copteki kayit: rozette silindi YOK, banner + Geri al `Ge7 akü`; kartin reddi satiriyla (EN); duzenNeden varken HICBIR komut gitmez ve sebep yazilir',
+       ilk === false && ikinci === true && giden[0] === 'Ge7 akü, silindi' && g1._yayin && g1._yayin[0][0] === 'degisti'
+       && g1.duzenMesaj.tur === 'tamam' && g2.copte === true && JSON.stringify(g2.etiketler) === '["akü"]' && g2.duzenEtiket === 'akü'
+       && giden[1] === 'Ge7 akü' && g2.duzenMesaj.tur === 'hata' && /^The board rejected it: ! G: oturum/.test(g2.duzenMesaj.metin)
+       && giden.length === n3 && g3.duzenAcik === false && /başka bir kart/.test(g3.duzenNedenMetni),
+       JSON.stringify({ giden, m1: g1.duzenMesaj, m2: g2.duzenMesaj }));
+    const g4 = bil(KGb, { veri: { oturum: oturum(['akü'], 'Eski'), kimlik: 9 }, dil: 'tr', rapor: false, duzenNeden: '', kayitDuzen: kd({ durum: 'tamam' }) });
+    g4.duzenAd = 'Yeni'; g4.duzenEtiket = 'akü, 12V';
+    const n4 = giden.length;
+    await g4.duzenKaydet();
+    const g5 = bil(KGb, { veri: { oturum: oturum(['akü'], 'Eski'), kimlik: 9 }, dil: 'tr', rapor: false, duzenNeden: '', kayitDuzen: kd({ durum: 'tamam' }) });
+    g5.duzenAd = 'x'.repeat(121);
+    const n5 = giden.length;
+    await g5.duzenKaydet();
+    ok('[!] CK6: Kaydet — Ga sonra Ge SIRAYLA (ilk basarisizda durur); 121 baytlik ad karta GITMEZ, bayt ve sinir mesajda; sablon: duzen bolumu rapor DISINDA, girisler etiketli (label), Sil "Eminim" tehlike sinifli, cop banner data-kg-cop',
+       giden.slice(n4).join('|') === 'Ga7 Yeni|Ge7 akü, 12V' && giden.length === n5 + 0 && g5.duzenMesaj.tur === 'hata' && /121/.test(g5.duzenMesaj.metin) && /120/.test(g5.duzenMesaj.metin)
+       && /<section class="kart yazdirma-yok kg-duzen" v-if="!rapor" data-kg-duzen>/.test(kgT)
+       && /<label>\{\{ m\.duzenAd \}\}\s*<input type="text" v-model="duzenAd"/.test(kgT) && /<label>\{\{ m\.duzenEtiket \}\}\s*<input type="text" v-model="duzenEtiket"/.test(kgT)
+       && /class="tehlike" data-kg-sil-eminim @click="copIslem\(true\)"/.test(kgT) && /<p v-if="copte" class="uyari kg-cop" data-kg-cop>/.test(kgT),
+       JSON.stringify({ giden: giden.slice(n4), m5: g5.duzenMesaj }));
+
+    /* ── app.js: kayitDuzenGonder (kartin yaniti beklenir) ── */
+    const u = ornek();
+    const gid = [];
+    u.bagli = true;
+    u.gonder = async (k) => { gid.push(k); };
+    const p1 = u.kayitDuzenGonder('Ge7 akü, silindi');
+    await Promise.resolve();
+    const mesgul = await u.kayitDuzenGonder('Ga7 x');
+    u.satirIsle('* G not kuyrukta (verilmemis oturuma yazilmaz; sonuc esitlenen dosyada)');
+    const r1 = await p1;
+    const p2 = u.kayitDuzenGonder('Ga7 x');
+    await Promise.resolve();
+    u.satirIsle('! G: oturum numarasi gerekli (yalniz rakam, 0 degil)');
+    const r2 = await p2;
+    /* Gd / tavani asan komut GITMEMELI; giderse yanit beklenirdi — zamanlayici elle tetiklenir (askida kalmasin) */
+    const eskiZ = sandbox.setTimeout;
+    const zk = [];
+    sandbox.setTimeout = (fn) => { zk.push(fn); return zk.length; };
+    let r3;
+    let r4;
+    try {
+      const p3 = u.kayitDuzenGonder('Gd');
+      await Promise.resolve();
+      zk.splice(0).forEach((f) => f());
+      r3 = await p3;
+      const p4 = u.kayitDuzenGonder('Ga7 ' + 'x'.repeat(200));
+      await Promise.resolve();
+      zk.splice(0).forEach((f) => f());
+      r4 = await p4;
+    } finally {
+      sandbox.setTimeout = eskiZ;
+    }
+    u.bagli = false;
+    const r5 = await u.kayitDuzenGonder('Ga7 x');
+    u.satirIsle('* G not kuyrukta (verilmemis oturuma yazilmaz; sonuc esitlenen dosyada)');   // bekleyen yok: yok sayilir
+    ok('[!] CK7: app.js kayitDuzenGonder — yalniz Ga / Ge gider (Gd ve tavani asan GITMEZ); kartin `* G not kuyrukta` satiri -> tamam, `! G…` -> ret (satir oldugu gibi); ayni anda tek istek (mesgul); bagli degilse gitmez; Kayitlar`a :kayit-duzen ile verilir',
+       r1.durum === 'tamam' && mesgul.durum === 'mesgul' && r2.durum === 'ret' && /oturum numarasi/.test(r2.satir)
+       && r3.durum === 'gitmedi' && r4.durum === 'gitmedi' && r5.durum === 'bagli_degil' && gid.join('|') === 'Ge7 akü, silindi|Ga7 x'
+       && /<kayitlar-ekran[^>]*:kayit-duzen="kayitDuzenGonder"/.test(html),
+       JSON.stringify({ r1, mesgul, r2, r3, r4, r5, gid }));
+
+    /* ── Kayitlar: copGeriAl + esitleme ── */
+    const KLb = KLx.KayitlarEkrani;
+    const kl = bil(KLb, { dilSecim: 'tr', bagli: true, kayitDuzen: kd({ durum: 'tamam' }), kartAdres: (y) => y });
+    kl.kartKimlik = 9; kl.pc = false;
+    let esitlendi = 0;
+    kl._bekle = async () => {};
+    kl.esitle = async () => { esitlendi++; };
+    Object.defineProperty(kl, 'esitlenebilir', { get: () => true, configurable: true });
+    const n6 = giden.length;
+    const s2 = { kimlik: 9, oturum: 2, tur: 'olcum', ad: null, etiketler: ['akü', 'silindi'], silindi: true };
+    const ok1 = await kl.copGeriAl(s2);
+    const bild = kl.bildirim;
+    const yabanci = await kl.copGeriAl({ ...s2, kimlik: 8 });
+    kl.pc = true; kl.pcDurum = { arsiv: 'arsiv/k/akis-9' };
+    const ok2 = await kl.copGeriAl(s2);
+    ok('[!] CK8: Kayitlar "Geri al" (cop kutusu satiri) — `Ge2 akü` gider, sonra kisa bekleyip eşitler, sonuc "eşitlendi"; baska akistaki satir GITMEZ; kopruda eşitleme yok (kopru 2 dk), sonuc kg.duzen_pc',
+       ok1 === true && giden[n6] === 'Ge2 akü' && esitlendi === 1 && bild.anahtar === 'kg.duzen_esitlendi' && yabanci === false
+       && ok2 === true && esitlendi === 1 && kl.bildirim.anahtar === 'kg.duzen_pc' && giden.length === n6 + 2,
+       JSON.stringify({ giden: giden.slice(n6), esitlendi, bild, b2: kl.bildirim }));
+  });
+}
+
 /* Asenkron iddialar OZETTEN ONCE — sayilsinlar diye. Kuyruk bu
    fonksiyonun govdesinde (bolum 13) dolduruluyor; bosaltma burada,
    ozetin hemen oncesinde. */

@@ -1009,6 +1009,29 @@ canvas.kg-gezgin { height: 44px; margin-top: 6px; cursor: ew-resize; }
   display: flex; flex-direction: column; gap: 2px; min-width: 0;
 }
 .kg-okuma-oge .kpi-deger { overflow-wrap: anywhere; }
+/* 2026-10-07: "ⓘ Bu değerler ne demek?" — okuma ızgarasının açıklaması (Canlı, kayıt, Karşılaştırma) */
+.imlec-aciklama { margin-top: 10px; }
+button.imlec-aciklama-dugme { font-size: 12.5px; padding: 5px 10px; }
+.imlec-aciklama-liste {
+  margin: 8px 0 0; padding: 0; display: flex; flex-direction: column;
+  border: 1px solid var(--kenar-c); border-radius: var(--yuvarlak-sm); overflow: hidden;
+}
+.imlec-aciklama-satir {
+  display: grid; grid-template-columns: minmax(110px, 180px) 1fr; gap: 4px 12px;
+  padding: 7px 11px; background: var(--kart); border-top: 1px solid var(--kenar-c);
+}
+.imlec-aciklama-satir:first-child { border-top: 0; }
+.imlec-aciklama-satir dt { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--yazi); overflow-wrap: anywhere; }
+.imlec-aciklama-satir dd { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--soluk); min-width: 0; }
+@media (max-width: 620px) {
+  .imlec-aciklama-satir { grid-template-columns: 1fr; }
+}
+/* 2026-10-07: kaydın adı / etiketleri + çöp kutusu */
+.kg-duzen-alanlar { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 14px; }
+.kg-duzen-alanlar label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--soluk); min-width: 0; }
+.kg-duzen .dugme-grup { margin-top: 12px; }
+.kg-cop { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.kl-geri-al { flex: 0 0 auto; align-self: center; }
 .kg-notlar { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .kg-not {
   display: flex; gap: 10px; align-items: baseline; width: 100%; text-align: left;

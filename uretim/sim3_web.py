@@ -468,37 +468,45 @@ def bolum5_ag_donus(r):
     K, G = _ag_sabit("AG_STA_KOPUK_MS"), _ag_sabit("AG_GECIS_MS")   # coklu ag CA6 / CA7
     E_YOK, E_DENE, E_STA, E_AP = 0, 2, 4, 5                        # AGK_* (ilgili olanlar)
     U = 0xFFFFFFFF                                                 # "pencere yok"
+    ADIM = 100                                                     # AVR senaryo adimi (ms)
     b3 = B + 3 * Y + 1500                                          # 3 denemeden sonra baglanir
     il, ils = B + Y - 1000, B + 2 * Y + 10000                      # DHCP suren iliski penceresi
+    # 2026-10-07 (kullanici karari): CA6 kopma yolunda AP kurulunca ILK deneme HEMEN (bir adim
+    # sonra), sonrakiler Y'de bir. Acilis (BEKLE) ve GERI yolunda ilk deneme Y sonra (degismedi).
+    # Kopmalar: 20 s (surucu 7-14 s'de doner -> AP YOK) ve 60 s (eskiden 90 s'ye yetmez, karar
+    # yoktu; artik K'de AP + hemen deneme, ag donunce STA + pay) — ikisi de bilincli.
+    k20 = 20000                                                    # kisa kopma (surucu doner)
 
     def sen(ad, kimlik, son, A, S, t0=0, b1=U, b1s=U, b2=U, b2s=U, il_=U, ils_=U, gec=U, Gb=None):
         return dict(ad=ad, kimlik=kimlik, t0=t0, son=son, b1=b1, b1s=b1s, b2=b2, b2s=b2s,
                     il=il_, ils=ils_, gec=gec, A=A, S=S, Gb=Gb)
     # coklu ag: STA artik ETKIN (uzun kopma izlenir) — STA'da biten senaryolarin S'si (E_STA, 1)
     S_ = [
-        sen("acilista 3 s'de baglanir; calisirken 60 s kopma", 1, 600000, [(3000, OLDU)], (E_STA, 1),
-            b1=3000, b1s=120000, b2=180000, b2s=U),
+        sen("acilista 3 s'de baglanir; calisirken 20 s kopma (surucu doner, AP YOK)", 1, 600000, [(3000, OLDU)],
+            (E_STA, 1), b1=3000, b1s=120000, b2=120000 + k20, b2s=U),
         sen("ev agi hic yok", 1, B + 9 * Y + 5000,
             [(B, AP_KUR)] + [(B + k * Y, DENE) for k in range(1, 10)], (E_DENE, 1)),
-        sen("3 denemeden sonra doner; sonra calisirken kopar", 1, b3 + 260000,
+        sen("3 denemeden sonra doner; sonra calisirken 20 s kopar", 1, b3 + 260000,
             [(B, AP_KUR), (B + Y, DENE), (B + 2 * Y, DENE), (B + 3 * Y, DENE), (b3, OLDU), (b3 + P, KAPAT)],
-            (E_STA, 1), b1=b3, b1s=b3 + 100000, b2=b3 + 160000, b2s=U),
+            (E_STA, 1), b1=b3, b1s=b3 + 100000, b2=b3 + 100000 + k20, b2s=U),
         sen("iliski (DHCP) surerken deneme yok", 1, ils + Y + 10000,
             [(B, AP_KUR), (ils, DENE), (ils + Y, DENE)], (E_DENE, 1), il_=il, ils_=ils),
         sen("ev agi KAYITLI DEGIL (bagli girdisi yok sayilir)", 0, 100000, [], (E_AP, 0), b1=0, b1s=50000),
         sen("sifir ilklenmis (WiFi N0)", 2, 100000, [], (E_YOK, 0), b1=0, b1s=U),
         sen("millis tasmasi", 1, B + 2 * Y + 5000, [(B, AP_KUR), (B + Y, DENE), (B + 2 * Y, DENE)],
             (E_DENE, 1), t0=0xFFFFFFFF - 4095),
-        sen("pay icinde kopar ve donmez: pay biter (STA), AG_STA_KOPUK_MS sonra AP + deneme (CA6)", 1,
+        sen("pay icinde kopar ve donmez: pay biter (STA), AG_STA_KOPUK_MS sonra AP + HEMEN deneme (CA6)", 1,
             b3 + P + K + Y + 1000,
             [(B, AP_KUR), (B + Y, DENE), (B + 2 * Y, DENE), (B + 3 * Y, DENE), (b3, OLDU), (b3 + P, KAPAT),
-             (b3 + P + K, AP_KUR), (b3 + P + K + Y, DENE)],
+             (b3 + P + K, AP_KUR), (b3 + P + K + ADIM, DENE), (b3 + P + K + ADIM + Y, DENE)],
             (E_DENE, 1), b1=b3, b1s=b3 + 1500),
         sen("tam AG_STA_BEKLE_MS aninda baglanir: AP kurulmaz", 1, B + 20000, [(B, OLDU)], (E_STA, 1),
             b1=B, b1s=U),
         # ── coklu ag (2026-10-06) ──
-        sen("CA6 STA'da uzun kopma: son bagli andan AG_STA_KOPUK_MS sonra AP + deneme", 1, 19900 + K + Y + 1000,
-            [(3000, OLDU), (19900 + K, AP_KUR), (19900 + K + Y, DENE)], (E_DENE, 1), b1=3000, b1s=20000),
+        sen("CA6 STA'da uzun kopma: son bagli andan AG_STA_KOPUK_MS sonra AP, ILK deneme bir adim sonra, "
+            "sonraki Y sonra", 1, 19900 + K + Y + 1000,
+            [(3000, OLDU), (19900 + K, AP_KUR), (19900 + K + ADIM, DENE), (19900 + K + ADIM + Y, DENE)],
+            (E_DENE, 1), b1=3000, b1s=20000),
         sen("CA7 gecis: hedefe 4 s'de baglanir -> STA", 1, 120000, [(3000, OLDU), (54000, OLDU)], (E_STA, 1),
             b1=3000, b1s=50000, b2=54000, b2s=U, gec=50000, Gb=[(50000, 1)]),
         sen("CA7 gecis olmadi: AG_GECIS_MS sonra ONCEKI aga (GERI), 2 s'de doner -> STA", 1, 50000 + G + 60000,
@@ -509,6 +517,12 @@ def bolum5_ag_donus(r):
             (E_DENE, 1), b1=3000, b1s=50000, gec=50000, Gb=[(50000, 1)]),
         sen("CA7 AP'deyken gecis REDDEDILIR (yapistirici sonraki denemeyi yonlendirir)", 1, B + Y + 500,
             [(B, AP_KUR), (B + Y, DENE)], (E_DENE, 1), gec=B + 1000, Gb=[(B + 1000, 0)]),
+        # 2026-10-07: eskiden (K 90 s) bu kopmada karar yoktu (surucu beklenirdi); artik K'de AP + hemen deneme
+        sen("CA6 60 s kopma: K'de AP + HEMEN deneme, ag donunce STA, AP pay sonra kapanir", 1, 240000,
+            [(3000, OLDU), (119900 + K, AP_KUR)]
+            + [(x, DENE) for x in (119900 + K + ADIM + j * Y for j in range(8)) if x < 180000]
+            + [(180000, OLDU), (180000 + P, KAPAT)],
+            (E_STA, 1), b1=3000, b1s=120000, b2=180000, b2s=U),
     ]
     sonuc = _ag_karar_avr(S_)
     if sonuc is None:
@@ -533,8 +547,8 @@ def bolum5_ag_donus(r):
                     or Gd.get(i, []) != (S_[i]["Gb"] or [])]
             return not kotu, " ; ".join(kotu)[:300] or ", ".join(S_[i]["ad"] for i in ix)
         ok, ne = bak(0, 8)
-        r.kosul("  5m: [!] AGD: acilista baglanirsa STA, AP HIC kurulmaz (sinirda da); calisirken KISA (60 s) "
-                "kopmada karar yok (surucu doner, 5.12.106 — bozulmadi)", ok, ne)
+        r.kosul("  5m: [!] AGD: acilista baglanirsa STA, AP HIC kurulmaz (sinirda da); calisirken KISA (20 s) "
+                "kopmada karar yok (surucu 7-14 s'de doner, 5.12.106 — bozulmadi)", ok, ne)
         ok, ne = bak(1, 6)
         r.kosul("  5m: [!] AGD: ev agi yoksa AP tam AG_STA_BEKLE_MS'de, STA AG_STA_YENIDEN_MS'de bir yeniden "
                 "deneniyor, SONSUZA DEK (millis tasmasinda da)", ok, ne)
@@ -548,12 +562,30 @@ def bolum5_ag_donus(r):
         ok, ne = bak(4, 5)
         r.kosul("  5m: AGD: ev agi kayitli degilse saf AP — hic deneme yok; sifir durumda (N0) hic eylem yok",
                 ok, ne)
-        r.kosul("  5m: coklu ag: sureler — AG_STA_KOPUK_MS > 60 s kopma senaryosu ve olculen surucu donusu "
-                "(7-14 s); AG_GECIS_MS 10..30 s; hepsi 100 ms'nin kati",
-                K > 60000 and 10000 <= G <= 30000 and not (K % 100 or G % 100), f"kopuk {K} · gecis {G} ms")
-        ok, ne = bak(9)
-        r.kosul("  5m: [!] coklu ag CA6: STA'da AG_STA_KOPUK_MS kesik kalan kart AP kurar ve yeniden dener "
+        r.kosul("  5m: coklu ag: sureler — AG_STA_KOPUK_MS > 20 s kisa kopma senaryosu ve olculen surucu donusu "
+                "(7-14 s), kopma -> ilk deneme <= 35 s (2026-10-07 kullanici karari, 90 s cok yavasti); "
+                "AG_GECIS_MS 10..30 s; hepsi 100 ms'nin kati",
+                k20 < K and 14000 < K and K + ADIM <= 35000 and 10000 <= G <= 30000
+                and not (K % 100 or G % 100), f"kopuk {K} · gecis {G} ms")
+        ok, ne = bak(9, 14)
+        r.kosul("  5m: [!] coklu ag CA6: STA'da AG_STA_KOPUK_MS kesik kalan kart AP kurar ve ILK denemeyi HEMEN "
+                "(bir adim sonra), sonrakileri AG_STA_YENIDEN_MS'de bir yapar; 60 s kopmada ag donunce STA "
                 "(baska yere tasinan kart eski agi sonsuza dek beklemez)", ok, ne)
+
+        def zaman(i, son_bagli):
+            """CA6 zaman cizelgesi — CIKTIDAN (sabitlerden degil): (AP_KUR, ilk deneme, ikinci deneme)
+            son bagli andan goreli."""
+            a = A.get(i, [])
+            ap = next((t for t, e in a if e == AP_KUR and t > son_bagli), None)
+            de = [t for t, e in a if e == DENE and ap is not None and t >= ap]
+            return tuple(None if x is None else x - son_bagli for x in (ap, *(de + [None, None])[:2]))
+        z9, z14 = zaman(9, 19900), zaman(14, 119900)
+        r.kosul("  5m: [!] coklu ag CA6 zaman cizelgesi (AVR ciktisindan): kopma -> AP = AG_STA_KOPUK_MS, "
+                "kopma -> ilk deneme <= 35 s (en kotu gecis ~70 s: ilk taramada gorunmeyen ag ikinci denemeye), "
+                "ilk deneme AP'den bir adim sonra, ikinci deneme ilkinden tam AG_STA_YENIDEN_MS sonra",
+                None not in z9 and z9[0] == K and z9[1] <= 35000 and z9[1] - z9[0] == ADIM
+                and z9[2] - z9[1] == Y and z14[:2] == z9[:2],
+                f"#9 kopma->AP {z9[0]} · ilk deneme {z9[1]} · ikinci {z9[2]} ms; #14 {z14[:2]}")
         ok, ne = bak(10, 11, 12)
         r.kosul("  5m: [!] coklu ag CA7 'bu aga gec': hedefe baglanirsa STA; AG_GECIS_MS'de olmazsa ONCEKI aga "
                 "doner (GERI); o da olmazsa AP + deneme — kart panelden kaybedilmez", ok, ne)
@@ -571,21 +603,23 @@ def bolum5_ag_donus(r):
     KP = _ag_sabit("AG_STA_KOPUK_MS")
 
     def kopma(son_bagli, donus, surum):
-        """CA6: son bagli andan KP sonra AP+STA, Y'de bir begin; ag `donus`ta gelir -> donusten sonraki ilk
-        begin'den 300 ms iliski + 2000 ms IP -> STA, P sonra AP kapanir."""
+        """CA6: son bagli andan KP sonra AP+STA, ILK begin bir tur (100 ms) sonra (2026-10-07), sonra Y'de
+        bir; ag `donus`ta gelir -> donusten sonraki ilk begin'den 300 ms iliski + 2000 ms IP -> STA, P sonra
+        AP kapanir."""
         t_ap = son_bagli + KP
-        b_ = [t_ap + k * Y for k in range(1, 40)]
+        b_ = [t_ap + ADIM + k * Y for k in range(0, 40)]
         ilk = next(x for x in b_ if x + 300 >= donus)
         ip = ilk + 300 + 2000                        # sahte surucu: begin + 300 ms iliski + 2 s DHCP
         return ([("M", t_ap, 3), ("P", t_ap), ("K", t_ap, surum, 2, IP_AP)] + [("B", x) for x in b_ if x <= ilk]
                 + [("K", ip, surum + 1, 1, IP_STA), ("M", ip + P, 1)])
-    YS = [dict(ad="ev agi acilista yok, ilk denemeden 5 s sonra gelir; sonra 5 dk kopar (CA6: 90 s sonra AP)",
+    YS = [dict(ad="ev agi acilista yok, ilk denemeden 5 s sonra gelir; sonra 5 dk kopar (CA6: 30 s sonra AP, "
+                  "hemen deneme)",
                kimlik=1, a1=a1, a1s=a1s, a2=a1s + 300000, a2s=U, son=a1s + 330000,
                bek=[("M", 0, 1), ("B", 0), ("M", B, 3), ("P", B), ("K", B, 1, 2, IP_AP),
                     ("B", B + Y), ("B", B + 2 * Y), ("K", t_ip, 2, 1, IP_STA), ("M", t_ip + P, 1)]
                + kopma(a1s - 100, a1s + 300000, 3),
                S=(1, IP_STA, 1, 1, 1, 1)),
-          dict(ad="ev agi acilista var; sonra 5 dk kopar (CA6: 90 s sonra AP, donunce STA)", kimlik=1,
+          dict(ad="ev agi acilista var; sonra 5 dk kopar (CA6: 30 s sonra AP + hemen deneme, donunce STA)", kimlik=1,
                a1=0, a1s=100000, a2=400000, a2s=U, son=450000,
                bek=[("M", 0, 1), ("B", 0), ("K", 2300, 1, 1, IP_STA)] + kopma(99900, 400000, 2),
                S=(1, IP_STA, 1, 1, 1, 1)),
@@ -615,7 +649,8 @@ def bolum5_ag_donus(r):
         ok, ne = ybak(0)
         r.kosul("  5m: [!] AGD inceleme: ev agi acilista yok, sonra gelir — AP+STA, 30 s'de bir begin(); kip STA "
                 "YALNIZ IP geldikten sonra ve `ag_durum.ip` STA'NIN adresi (AP'ninki ya da 0.0.0.0 degil); AP pay "
-                "sonra kapanir; calisirken 5 dk kopmada AG_STA_KOPUK_MS sonra AP + deneme, ag donunce STA (coklu ag CA6)",
+                "sonra kapanir; calisirken 5 dk kopmada AG_STA_KOPUK_MS sonra AP + HEMEN begin (sonra 30 s'de bir), "
+                "ag donunce STA (coklu ag CA6)",
                 ok, ne)
         ok, ne = ybak(1)
         r.kosul("  5m: AGD inceleme: ev agi acilista var — DHCP bitince STA (ip STA'nin), AP kurulmaz; 5 dk "
@@ -1644,8 +1679,9 @@ def main() -> int:
     # cikmiyorlardi (B23.1'in duzelttigi kusur).
     tezgah("B22b Kart web katmani", [
         ("[!] Coklu ag CA6: kart acikken bagli ag KAYBOLUR (tasarim/2026-10-06-coklu-ag.md)",
-         "Kart telefonun hotspotundayken hotspotu KAPAT: ~90 s sonra `Ag: AP (kendi agi)`, sonra 30 s icinde "
-         "goruyorsa diger kayitli aga (ev agi) `Ag: STA`; kendi agi 5 s sonra kalkar. 2026-10-07'de kartta Ng "
+         "Kart telefonun hotspotundayken hotspotu KAPAT: ~30 s sonra `Ag: AP (kendi agi)` ve HEMEN tarama; "
+         "goruyorsa diger kayitli aga (ev agi) `Ag: STA` — kronometreyle kapatmadan STA'ya hedef <= ~60 s "
+         "(tipik ~40 s; firmware A3-CA3, 2026-10-07; A3-CA2'de ~2:30 olculdu); kendi agi 5 s sonra kalkar. 2026-10-07'de kartta Ng "
          "gecisi (7-13 s), geri gecis ve yanlis parolada 20 s'de geri donus OLCULDU; bu yol olculmedi"),
         ("Coklu ag: iki kayitli ag gorunurken ACILIS secimi",
          "Iki ag da acikken karti sifirla: setup en son baglanilani dener (w_son); baglanirsa kalir. "

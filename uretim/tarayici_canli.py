@@ -887,6 +887,14 @@ def main() -> int:
             p4 = json.loads(t.js("document.querySelector('.canli-tuval').dataset.pencere"))
             ok("[!] D3: donmusken tekerlek YAKINLASTIRIYOR (pencere daraldi)", (p4["t1"] - p4["t0"]) < 0.8 * (p3["t1"] - p3["t0"]),
                f"{p3['t1'] - p3['t0']:.0f} -> {p4['t1'] - p4['t0']:.0f} ms")
+            # 2026-10-07: "ⓘ Bu değerler ne demek?" — modul DONDURUNCA iner (async bilesen), kapali baslar
+            ia = bekle_js(t, "!!document.querySelector('[data-imlec-aciklama=canli] .imlec-aciklama-dugme')"
+                             " && !document.querySelector('.imlec-aciklama-liste')", 6)
+            t.js("document.querySelector('[data-imlec-aciklama=canli] .imlec-aciklama-dugme').click()")
+            ias = bekle_js(t, "!!document.querySelector('.imlec-aciklama-liste') && [...document.querySelectorAll("
+                              "'.imlec-aciklama-liste dt')].map(d => d.textContent)", 4)
+            ok("[!] IA: Canli dondurulunca 'ⓘ Bu değerler ne demek?' gelir (kapali); acilinca okumanin alanlari (A · B, Δt, ΔV, A ort, Yük, Enerji)",
+               bool(ia) and bool(ias) and len(ias) == 8 and "A ort" in ias and "Yük (mAh)" in ias and "Enerji (Wh)" in ias, str(ias))
             resim("3-canli-donmus")
             t.js("document.querySelector('[data-kd=dondur]').click()")
             bekle_js(t, "(() => { const d = JSON.parse(document.querySelector('.canli-tuval').dataset.pencere); return !d.donmus; })()", 4)
