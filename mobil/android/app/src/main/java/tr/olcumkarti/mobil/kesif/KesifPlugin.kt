@@ -22,6 +22,32 @@ import java.net.Inet4Address
 @CapacitorPlugin(name = "Kesif")
 class KesifPlugin : Plugin() {
 
+    /**
+     * Telefonun ayakta paylasim arayuzleri (hotspot): { aglar: [{ ad, ip, onek }], wifi }. Kesif, istemci
+     * Wi-Fi YOKKEN (telefon hotspot sahibi) bu alt agi kisa sureli yoklar — NSD bu arayuzu taramiyor,
+     * olcum.local cozulmuyor (Honor'da olculdu, 2026-10-07).
+     */
+    @PluginMethod
+    fun yerelAglar(call: PluginCall) {
+        val dizi = com.getcapacitor.JSArray()
+        for (a in tr.olcumkarti.mobil.ag.YerelAg.arayuzler()) {
+            val o = JSObject()
+            o.put("ad", a.ad); o.put("ip", a.ip); o.put("onek", a.onek)
+            dizi.put(o)
+        }
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        @Suppress("DEPRECATION")
+        val wifi = cm.allNetworks.any { n ->
+            val y = cm.getNetworkCapabilities(n)
+            y != null && y.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+                && y.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+        }
+        val s = JSObject()
+        s.put("aglar", dizi)
+        s.put("wifi", wifi)
+        call.resolve(s)
+    }
+
     @PluginMethod
     fun nsdTara(call: PluginCall) {
         val sure = (call.getInt("sureMs") ?: 3000).coerceIn(200, 5000).toLong()

@@ -64,8 +64,12 @@ class KartAgPlugin : Plugin() {
         if (!NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted(c.ip)) throw AgHatasi("cleartext")
         // Yerel dongu (yalniz hata ayiklama derlemesi, adb reverse): Wi-Fi'ye baglanmaz.
         if (c.yerelDongu) return Pair(c.url) { x -> x.openConnection(Proxy.NO_PROXY) as HttpURLConnection }
-        val wifi = ag ?: wifiAgi() ?: throw AgHatasi("wifi-yok")
-        return Pair(c.url) { x -> wifi.openConnection(x, Proxy.NO_PROXY) as HttpURLConnection }
+        val wifi = ag ?: wifiAgi()
+        if (wifi != null) return Pair(c.url) { x -> wifi.openConnection(x, Proxy.NO_PROXY) as HttpURLConnection }
+        // Telefon hotspot SAHIBI (istemci Wi-Fi agi yok): hedef telefonun paylasim arayuzunun alt
+        // agindaysa dogrudan bagli — cekirdek oraya yonlendirir, mobil veriye cikmaz (YerelAg).
+        if (YerelAg.paylasimda(c.ip)) return Pair(c.url) { x -> x.openConnection(Proxy.NO_PROXY) as HttpURLConnection }
+        throw AgHatasi("wifi-yok")
     }
 
     @PluginMethod
@@ -229,6 +233,8 @@ class KartAgPlugin : Plugin() {
     fun wifiDurumu(call: PluginCall) {
         val sonuc = JSObject()
         sonuc.put("wifi", wifiAgi() != null)
+        // hotspot sahibi: istemci Wi-Fi yok ama paylasim arayuzu ayakta (kart onun alt aginda olabilir)
+        sonuc.put("paylasim", YerelAg.arayuzler().isNotEmpty())
         sonuc.put("hataAyiklama", BuildConfig.DEBUG)
         call.resolve(sonuc)
     }

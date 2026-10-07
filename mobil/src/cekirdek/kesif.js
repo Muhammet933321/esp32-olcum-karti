@@ -5,7 +5,11 @@
 //   const s = await k.bul({ beklenenKimlik, elle });
 //   -> { adres, kimlik, bilgi, kaynak, sureMs, txtKimlik, denenenler }   | KesifHatasi(tur, denenenler)
 //
-// kaynak: "elle" | "onbellek" | "ad" | "nsd" | "ap".   tur: "bulunamadi" | "kimlik-uymuyor".
+// kaynak: "elle" | "onbellek" | "ad" | "nsd" | "ap" | "paylasim".   tur: "bulunamadi" | "kimlik-uymuyor".
+//
+// PAYLASIM (2026-10-07, Honor): telefon hotspot SAHIBIYKEN istemci Wi-Fi yok; olcum.local cozulmez, NSD
+// paylasim arayuzunu taramaz, son adres eski agda kalir. Oteki adaylar bosa cikinca ve YALNIZ istemci
+// Wi-Fi yokken, eklentinin bildirdigi paylasim alt agi (en genis /22) kisa sureli yoklanir.
 // Elle girilen adres hedef kuralindan gecmezse HedefHatasi (istek ATILMAZ).
 
 import { sureli } from "./ag.js";
@@ -25,6 +29,8 @@ export const NSD_AZAMI_ADAY = 8;         // siralamadan SONRA yoklanan aday
 export const NSD_SURE_MS = 3000;
 const NSD_PAYI_MS = 1000;
 const TOPLAM_PAYI_MS = 700;           // kartFetch'in kendi payindan (500) buyuk olmali
+export const PAYLASIM_EN_GENIS_ONEK = 22;   // en cok 1022 konak
+export const PAYLASIM_PARALEL = 24;         // ayni anda yoklanan adres
 
 export class KesifHatasi extends Error {
   constructor(tur, denenenler) {
@@ -38,15 +44,15 @@ export class KesifHatasi extends Error {
 export function kesifKur({
   kartFetch, onbellek = null, eklenti = null, yerelDongu = false, zamanAsimiMs = 1500,
   nsdSureMs = NSD_SURE_MS, sabitAdaylar = SABIT_ADAYLAR, simdi = Date.now,
-  yenidenDene = 1, yenidenBekleMs = 300,
+  yenidenDene = 1, yenidenBekleMs = 300, paylasimPort = 80, paylasimZamanAsimiMs = 800,
 }) {
   if (typeof kartFetch !== "function") throw new TypeError("kartFetch gerekli");
 
   // Bir adayi yokla -> { adres (IP:port — eklentinin baglandigi), kimlik, bilgi } | hata turu (metin).
-  async function yokla(aday) {
+  async function yokla(aday, sure = zamanAsimiMs) {
     let y;
     try {
-      y = await kartFetch(`http://${aday.adres}/eslestir/bilgi`, { method: "GET", headers: {}, zamanAsimiMs, azamiGovde: AZAMI_BILGI });
+      y = await kartFetch(`http://${aday.adres}/eslestir/bilgi`, { method: "GET", headers: {}, zamanAsimiMs: sure, azamiGovde: AZAMI_BILGI });
     } catch (e) {
       return { ...aday, sonuc: typeof e?.tur === "string" ? e.tur : "ic-hata" };
     }
@@ -85,6 +91,54 @@ export function kesifKur({
     // kimligi uyanlar once, sonra kimliksizler, en sonda uymayanlar; yoklanan aday sayisi sinirlidir.
     const puan = (a) => (!beklenenKimlik || a.txtKimlik === beklenenKimlik ? 0 : a.txtKimlik === null ? 1 : 2);
     return [...adaylar.values()].sort((a, b) => puan(a) - puan(b)).slice(0, NSD_AZAMI_ADAY);
+  }
+
+  // "a.b.c.d" <-> 32 bit (isaretsiz). Bicim disi -> null.
+  const ipSayi = (ip) => {
+    const p = typeof ip === "string" ? ip.split(".") : [];
+    if (p.length !== 4 || !p.every((x) => /^\d{1,3}$/.test(x) && Number(x) <= 255)) return null;
+    return p.reduce((n, x) => n * 256 + Number(x), 0);
+  };
+  const sayiIp = (n) => [24, 16, 8, 0].map((k) => Math.floor(n / 2 ** k) % 256).join(".");
+
+  // Paylasim alt aginin adresleri (telefonun kendisi haric). Istemci Wi-Fi varsa ya da eklenti yoksa: [].
+  async function paylasimAdresleri() {
+    if (!eklenti || typeof eklenti.yerelAglar !== "function") return [];
+    let d;
+    try { d = await sureli(eklenti.yerelAglar(), 1000); } catch { return []; }
+    if (!d || d.wifi !== false || !Array.isArray(d.aglar)) return [];
+    const adresler = [];
+    for (const a of d.aglar.slice(0, 4)) {
+      const n = ipSayi(a && a.ip);
+      const onek = a && a.onek;
+      if (n === null || !Number.isInteger(onek) || onek < PAYLASIM_EN_GENIS_ONEK || onek > 30) continue;
+      const boy = 2 ** (32 - onek);
+      const ag = n - (n % boy);
+      for (let h = ag + 1; h < ag + boy - 1; h++) if (h !== n) adresler.push(sayiIp(h));
+    }
+    return adresler;
+  }
+
+  // Paylasim alt agini PAYLASIM_PARALEL'lik dalgalarla yokla; ilk uygun kartta durur.
+  async function paylasimTara(beklenenKimlik) {
+    const ipler = await paylasimAdresleri();
+    const denenenler = [];
+    let bulunan = null;
+    let i = 0;
+    const isci = async () => {
+      while (!bulunan && i < ipler.length) {
+        const ip = ipler[i++];
+        let adres;
+        try { adres = hedefYazi(hedefAyir(paylasimPort === 80 ? ip : `${ip}:${paylasimPort}`, { yerelDongu })); } catch { continue; }
+        const s = await sureli(yokla({ adres, kaynak: "paylasim" }, paylasimZamanAsimiMs), paylasimZamanAsimiMs + TOPLAM_PAYI_MS)
+          .catch(() => ({ adres, kaynak: "paylasim", sonuc: "zaman-asimi" }));
+        if (s.sonuc !== "tamam") continue;
+        denenenler.push({ adres: s.adres, kaynak: "paylasim", sonuc: "tamam", kimlik: s.kimlik });
+        if (!beklenenKimlik || s.kimlik === beklenenKimlik) bulunan = bulunan || s;
+      }
+    };
+    if (ipler.length) await Promise.all(Array.from({ length: Math.min(PAYLASIM_PARALEL, ipler.length) }, isci));
+    return { sonuc: bulunan, denenenler, sayi: ipler.length };
   }
 
   function sabitler({ elle }) {
@@ -149,6 +203,15 @@ export function kesifKur({
     for (let i = 0; i < yenidenDene && !sonuc && !denenenler.some((d) => d.sonuc === "tamam"); i++) {
       await new Promise((coz) => setTimeout(coz, yenidenBekleMs));
       ({ sonuc, denenenler } = await turAt({ beklenenKimlik, ilk }));
+    }
+    // Hotspot sahibi: oteki adaylarin HICBIRI kart olarak yanit vermediyse paylasim alt agi.
+    if (!sonuc && !denenenler.some((d) => d.sonuc === "tamam")) {
+      const p = await paylasimTara(beklenenKimlik);
+      if (p.sayi) {
+        sonuc = p.sonuc;
+        denenenler = [...denenenler, ...p.denenenler];
+        if (!p.denenenler.length) denenenler.push({ adres: `${p.sayi} adres`, kaynak: "paylasim", sonuc: "bulunamadi", kimlik: null });
+      }
     }
     if (!sonuc) {
       const yanlis = denenenler.some((d) => d.sonuc === "tamam");

@@ -73,7 +73,8 @@ async function ara() {
   duyurular.value = [];
   try {
     const durum = await KartAg.wifiDurumu();
-    if (!durum.wifi && !durum.hataAyiklama) { hata.value = c(HATA["wifi-yok"]); return; }
+    // hotspot sahibi (paylasim): istemci Wi-Fi yok ama kart telefonun kendi alt aginda olabilir
+    if (!durum.wifi && !durum.paylasim && !durum.hataAyiklama) { hata.value = c(HATA["wifi-yok"]); return; }
     const yerelDongu = durum.hataAyiklama === true;
     const ag = agKur(KartAg, { yerelDongu });
     const kesif = kesifKur({ kartFetch: ag.kartFetch, eklenti: Kesif, onbellek: yerelOnbellek(localStorage), yerelDongu });

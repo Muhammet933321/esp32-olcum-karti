@@ -252,3 +252,54 @@ describe("kesif", () => {
     expect(ob.oku()).toEqual({ adres: "192.168.1.7", kimlik: K1, ms: 3 });
   });
 });
+
+// Telefon hotspot SAHIBIYKEN (2026-10-07, Honor): istemci Wi-Fi yok, olcum.local cozulmez, NSD paylasim
+// arayuzunu taramaz, son adres eski agda. Kart paylasim alt aginda — kesif o alt agi kisa sureli yoklar.
+describe("kesif — hotspot sahibi (paylasim alt agi)", () => {
+  let acik, kopru, ag;
+  const kart = async (secenek) => { const k = await sahteKartAc(secenek); acik.push(() => k.kapat()); return k; };
+  const kur = (ek = {}) => kesifKur({ kartFetch: ag.kartFetch, yerelDongu: true, zamanAsimiMs: 500, sabitAdaylar: [], yenidenDene: 0, ...ek });
+  const eklentiKur = (aglar, wifi = false) => {
+    const e = { cagri: 0, nsdTara: async () => ({ servisler: [] }), yerelAglar: async () => { e.cagri++; return { wifi, aglar }; } };
+    return e;
+  };
+
+  beforeEach(() => { acik = []; kopru = kopruSahtesi(); ag = agKur(kopru, { yerelDongu: true }); });
+  afterEach(async () => { for (const k of acik) await k(); });
+
+  it("istemci Wi-Fi yokken oteki adaylar bosa cikarsa paylasim alt agini tarar ve karti bulur", async () => {
+    const k = await kart({ kimlik: K1 });
+    const e = eklentiKur([{ ad: "wlan2", ip: "127.0.0.2", onek: 29 }]);
+    const s = await kur({ eklenti: e, paylasimPort: k.port }).bul({ beklenenKimlik: K1 });
+    expect(s).toMatchObject({ adres: `127.0.0.1:${k.port}`, kimlik: K1, kaynak: "paylasim" });
+  });
+
+  it("istemci Wi-Fi VARSA paylasim taramasi yapilmaz (ev aginda kart kapaliyken yuzlerce istek yok)", async () => {
+    const k = await kart({ kimlik: K1 });
+    const e = eklentiKur([{ ad: "wlan0", ip: "127.0.0.2", onek: 29 }], true);
+    await expect(kur({ eklenti: e, paylasimPort: k.port }).bul({ beklenenKimlik: K1 })).rejects.toBeInstanceOf(KesifHatasi);
+  });
+
+  it("cok genis alt ag (onek < 22) taranmaz", async () => {
+    const k = await kart({ kimlik: K1 });
+    const e = eklentiKur([{ ad: "wlan2", ip: "127.0.0.2", onek: 16 }]);
+    await expect(kur({ eklenti: e, paylasimPort: k.port }).bul({ beklenenKimlik: K1 })).rejects.toBeInstanceOf(KesifHatasi);
+  });
+
+  it("paylasimda kimligi uymayan kart secilmez", async () => {
+    const k = await kart({ kimlik: K2 });
+    const e = eklentiKur([{ ad: "wlan2", ip: "127.0.0.2", onek: 29 }]);
+    const h = await kur({ eklenti: e, paylasimPort: k.port }).bul({ beklenenKimlik: K1 }).catch((x) => x);
+    expect(h).toBeInstanceOf(KesifHatasi);
+    expect(h.tur).toBe("kimlik-uymuyor");
+  });
+
+  it("onbellekteki adres yanit verirse paylasim taramasi HIC cagrilmaz", async () => {
+    const k = await kart({ kimlik: K1 });
+    const e = eklentiKur([{ ad: "wlan2", ip: "127.0.0.2", onek: 29 }]);
+    const ob = { oku: () => ({ adres: `127.0.0.1:${k.port}`, kimlik: K1, ms: 1 }), yaz: () => {} };
+    const s = await kur({ eklenti: e, onbellek: ob, paylasimPort: k.port }).bul({ beklenenKimlik: K1 });
+    expect(s.kaynak).toBe("onbellek");
+    expect(e.cagri).toBe(0);
+  });
+});
