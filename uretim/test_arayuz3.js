@@ -8599,6 +8599,16 @@ console.log('\n--- 35. 5P: panel telefonda (globalThis.__olcumOrtam) ---');
         ORT.serit = () => { throw new Error('x'); };
         const atarsa = u.acilTelefon;
         ORT.serit = eskiSerit;
+        /* Telefonda bulundu (2026-10-07, Xiaomi): ortamin karari (Android'in /pil + akis tazeligi) Vue'nun
+           GORMEDIGI durumdan geliyor; computed ilk "gorunur"u onbellekleyip kart BEKLEMEDE dedikten sonra da
+           seridi gosteriyordu. Bu adimin Vue taklidi computed'i onbelleklemez — kural metinden olculur:
+           acilTelefon saniyelik saati (saatTik) OKUMALI ki her saniye yeniden sorulsun. */
+        const acilGovde = (appKaynak.match(/\n    acilTelefon\(\) \{([\s\S]*?)\n    \},/) || [])[1] || '';
+        ok('[!] 5P (d) K9: acilTelefon her saniye yeniden hesaplanir (saatTik okunur) — ortamin karari reaktif degil',
+           /this\.saatTik/.test(acilGovde), acilGovde.trim().slice(0, 200));
+        /* Telefonda bulundu (2026-10-07): pil egrisi "bu baglantida egri yok" diyordu — telefon /pil'i
+           imzali istekle (ORTAM.istek) okuyabilir; kaynak 'http' olmali (kartin kendi WiFi'si gibi). */
+        ok('[!] 5P (d) K7: telefonda pil durumu/egrisi /pil`den (pilKaynak http)', u.pilKaynak === 'http', String(u.pilKaynak));
         ok('[!] 5P (d) K9: acil serit karari ortam.serit(pilSuruyor) — baglanti yok / kart soylemedi: null (gorunur), kart BEKLEMEDE dedi: false (gizli), CALISIYOR: true; kesilince yeniden bilinmiyor; serit atarsa GORUNUR',
            JSON.stringify(s) === JSON.stringify([[null, true], [null, true], [false, false], [true, true], [null, true]])
            && atarsa === true && iz.kapat === 1,

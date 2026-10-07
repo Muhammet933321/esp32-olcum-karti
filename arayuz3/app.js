@@ -1877,6 +1877,7 @@ createApp({
     pilKaynak() {
       const a = this.bagliTasiyici || this.tasiyiciAdi;
       if (a === 'demo') return 'demo';
+      if (a === 'telefon') return 'http';     // 5P (K7): telefon /pil'i imzali istekle okur
       return a === 'akis' && (!this.kopruda || this.kopruVekil) ? 'http' : 'satir';
     },
     pl() { return metinHaritasi(PL_METIN, this.dil); },
@@ -1900,6 +1901,10 @@ createApp({
     /** 5P (K9): telefonda acil serit suphede de gorunur (karar ORTAM.serit'in; hata = gorunur). */
     acilTelefon() {
       if (!ORTAM) return false;
+      /* Ortamin karari (Android: /pil + akis tazeligi) Vue'nun gormedigi durumdan gelir; saniyelik saat
+         okunmazsa computed ilk "gorunur"u onbellekliyordu (telefonda bulundu: kart BEKLEMEDE dedikten
+         sonra da serit kalmisti). */
+      void this.saatTik;
       try { return !!ORTAM.serit(this.pilSuruyorBilgi); } catch (e) { return true; }
     },
     pilHazirKesme() { return PIL_HAZIR_KESME; },

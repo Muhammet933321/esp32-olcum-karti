@@ -1372,3 +1372,8 @@ canvas.kr-grafik:focus-visible { outline: 2px solid var(--vurgu); outline-offset
 .ag-liste .ag-ad { font-weight: 600; overflow-wrap: anywhere; }
 .ag-tarama { display: flex; flex-wrap: wrap; gap: 6px; }
 .ag-tarama button { font-size: 13px; padding: 4px 10px; }
+
+/* 5P: fareye ozgu ipucu dokunmatik ekranda (telefon) anlamsiz */
+@media (hover: none) {
+  .fare-ipucu { display: none; }
+}
