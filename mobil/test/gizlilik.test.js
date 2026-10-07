@@ -99,8 +99,8 @@ describe("aga cikan tek yol KartAg (WebView kapisi)", () => {
     // Yerel: belge basi betigi KOSULSUZ (yalniz ozellik destegi kosulu) ve her kokene.
     const m = oku("android/app/src/main/java/tr/olcumkarti/mobil/MainActivity.java");
     expect(m).toMatch(/\n {12}WebViewCompat\.addDocumentStartJavaScript\(bridge\.getWebView\(\), WebKapi\.INSTANCE\.getRTC_KAPAT\(\), Collections\.singleton\("\*"\)\);\n/);
-    // JS: main.js'in ILK ice aktarimi.
-    const ilk = oku("src/main.js").split("\n").find((l) => l.startsWith("import "));
+    // JS: giris.js'in (uygulamanin tek girisi; 5P P6'da main.js silindi) ILK ice aktarimi.
+    const ilk = oku("src/giris.js").split("\n").find((l) => l.startsWith("import "));
     expect(ilk).toMatch(/^import "\.\/cekirdek\/rtc_kapat\.js";/);
   });
 

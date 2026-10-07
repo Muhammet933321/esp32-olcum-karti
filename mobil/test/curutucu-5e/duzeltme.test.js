@@ -151,8 +151,10 @@ describe("kayit bitti mi (K-11)", () => {
     expect(kayitBittiMi(2, undefined)).toBe(false);
     expect(kayitBittiMi(1, 3)).toBe(false);
     expect(kayitBittiMi(null, 1)).toBe(false);
-    const v = kaynak("src/ekran/KayitDugmesi.vue");
-    expect(v).toMatch(/const g = kabuk\.akis\.value\.kayit; return g && Number\.isInteger\(g\.durum\) \? g\.durum : null;/);
+    // Telefon ortaminin arka plani soruyu kayit bitince kapatir (5P P6'dan once KayitDugmesi.vue).
+    const v = kaynak("src/ortam/arka_plan.js");
+    expect(v).toContain('const kod = tamsayi(g, "durum");');
+    expect(v).toContain("if (izlemeSorusu && kayitBittiMi(oncekiKod, kod))");
   });
 });
 

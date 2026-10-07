@@ -1,9 +1,9 @@
-// CURUTUCU 5C — yeniden baglanma firtinasi: GERCEK canliKur (+ GERCEK kabukDurumu), sahte kart / ag / eklenti,
+// CURUTUCU 5C — yeniden baglanma firtinasi: GERCEK canliKur (+ GERCEK arka plan; 5P P6'dan once kabukDurumu), sahte kart / ag / eklenti,
 // sahte saat. Olculen: imzali akis adresi sayisi (her biri tek kullanimlik sayac + kasaya YAZIM) ve imzali
 // `G?` istekleri. A6: "yeniden baglanma 1, 2, 4, 8, 16, 30 s".
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { canliKur } from "../../src/cekirdek/canli.js";
-import { kabukDurumu } from "../../src/ekran/kabuk_durum.js";
+import { arkaPlanKur } from "../../src/ortam/arka_plan.js";
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -50,8 +50,10 @@ describe("curutucu 5C: yeniden baglanma firtinasi", () => {
     });
     const canli = canliKur({ kart: s.kart, ag: s.ag, eklenti: s.eklenti });
     const kartNesnesi = { ...s.kart, baglan: async () => ({ durum: "bagli", adres: "192.168.1.7:80", kimlik: "0123456789abcdef", bilgi: {} }) };
-    const k = kabukDurumu({ kartAl: async () => kartNesnesi, canliAl: async () => canli, belge: null });
-    await k.ac();
+    // Telefon ortaminin arka plani (eski kabugun yerine): ondeyken + panel akis isterken akis acik.
+    const k = arkaPlanKur({ kartAl: async () => kartNesnesi, canliAl: async () => canli, belge: null });
+    k.baslat();
+    k.akisIste(true);
     await vi.advanceTimersByTimeAsync(3600000);
     k.birak();
     const aralar = s.sayim.anlar.slice(1).map((t, i) => Math.round((t - s.sayim.anlar[i]) / 1000));

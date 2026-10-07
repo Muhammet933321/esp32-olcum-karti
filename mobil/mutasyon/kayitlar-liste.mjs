@@ -61,21 +61,7 @@ export default [
     bul: '      if (!(e && e.tur === "bozuk")) throw hata(e);', koy: "      throw hata(e);", test: TK },
   { ad: "5D-kayit: art arda cagrilar ayni anda kosuyor (dosya iki kez cozulur)", dosya: K,
     bul: "    const yeni = onceki.catch(() => {}).then(is);", koy: "    const yeni = is();", test: TK },
-  // ── gorunum ──
-  { ad: "5D-kayit: yalniz kartta olan oturum da acilabilir gorunuyor", dosya: G,
-    bul: "    acilabilir: s.yerelde === true,", koy: "    acilabilir: true,", test: TK },
-  { ad: "5D-kayit: bilinmeyen tur prototip adina gidiyor", dosya: G,
-    bul: "const tur = Object.hasOwn(TUR, s.tur) ? TUR[s.tur] : TUR.bilinmeyen;", koy: "const tur = TUR[s.tur] || TUR.bilinmeyen;", test: TK },
-  { ad: "5D-kayit: sonlu olmayan sayi 'NaN' yaziliyor", dosya: G,
-    bul: 'return Number.isFinite(x) ? x.toFixed(hane) : "—";', koy: "return Number(x).toFixed(hane);", test: TK },
-  { ad: "5D-kayit: Kayit ekrani ADC'siz oturumda bos grafik ciziyor", dosya: "src/ekran/Kayit.vue",
-    bul: '    if (g.gecerli === 0) { hal.value = "olcumsuz"; return; }', koy: "", test: TK },
-  { ad: "5D-kayit: eski okuma yaniti yenisini eziyor", dosya: "src/ekran/Kayit.vue",
-    bul: "    if (no === okumaNo) okuma.value = ok;", koy: "    okuma.value = ok;", test: TK },
-  { ad: "5D-kayit: Kayitlar'da eski liste yaniti yeni aramayi eziyor", dosya: "src/ekran/Kayitlar.vue",
-    bul: "    if (no !== sira) return;              // daha yeni bir istek var: eski yanit ekrani EZMEZ\n", koy: "", test: TK },
-  { ad: "5D-kayit: alt rotada ust sekme bulunmuyor (baslik 'Durum')", dosya: "src/ekran/sekmeler.js",
-    bul: "const asil = Object.hasOwn(ALT_ROTALAR, ad) ? ALT_ROTALAR[ad] : ad;", koy: "const asil = ad;", test: TK },
+  // ── uygulama baglantisi ──
   { ad: "5D-kayit: Ayarlar'in kopya boyutu kartsizken 'bilinmiyor'", dosya: "src/cekirdek/uygulama.js",
     bul: "  if (kimlik === null) kimlik = sonKimlik();\n", koy: "", test: TK },
   // ── yerel okuma (A24) ──

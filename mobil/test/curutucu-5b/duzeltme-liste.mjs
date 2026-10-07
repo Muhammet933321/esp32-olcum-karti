@@ -160,10 +160,10 @@ const liste = [
     test: "test/uygulama.test.js",
   },
   {
-    ad: "S4: Baglanti ekrani kendi kasasini kuruyor",
-    dosya: "src/ekran/Baglanti.vue",
-    bul: "    kart.value = await kartAl();",
-    koy: "    kart.value = kartKur({ ag: null, kesif: null, kasa: kasaKur(null) });",
+    ad: "S4: Bu telefon (kart_bolum.js; once Baglanti ekrani) kendi kasasini kuruyor",
+    dosya: "src/telefon/kart_bolum.js",
+    bul: 'import { ESLES_HATA, baglantiHatasi, kaldirGorunur, kaldirMesaji } from "../ekran/esles_durum.js";\n',
+    koy: 'import { ESLES_HATA, baglantiHatasi, kaldirGorunur, kaldirMesaji } from "../ekran/esles_durum.js";\nconst yedekKart = () => kartKur({ ag: null, kesif: null, kasa: kasaKur(null) });\n',
     test: "test/uygulama.test.js",
   },
   // ── bulgu 7: sahte <-> Kotlin ──────────────────────────────────────────
@@ -353,10 +353,10 @@ const liste = [
     test: "test/esles.test.js",
   },
   {
-    ad: "9a: Baglanti.vue dugme kosulunda kararlari kullanmiyor",
-    dosya: "src/ekran/Baglanti.vue",
-    bul: '<ion-button v-if="kaldirGorunur(baglanti, kasaBozuk)" id="bg-kaldir"',
-    koy: `<ion-button v-if="baglanti && baglanti.durum === 'bagli'" id="bg-kaldir"`,
+    ad: "9a: Bu telefon › Kart (kart_bolum.js; once Baglanti.vue) dugme kosulunda kararlari kullanmiyor",
+    dosya: "src/telefon/kart_bolum.js",
+    bul: "    kaldirAcik() { return kaldirGorunur(this.baglanti, this.kasaBozuk); },",
+    koy: '    kaldirAcik() { return Boolean(this.baglanti) && this.baglanti.durum === "bagli"; },',
     test: "test/esles.test.js",
   },
   {

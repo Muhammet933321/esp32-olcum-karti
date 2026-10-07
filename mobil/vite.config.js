@@ -17,7 +17,7 @@ const TAKMA_ADLAR = [
 export default defineConfig({
   base: "./",
   // panelPaketle: PC panelinin sablonlarini derlemede render'a cevirir (CSP: unsafe-eval yok; 5P K1).
-  // vue(): eski .vue dosyalari (P6 silene dek) ve Vue derleme bayraklari.
+  // vue(): "Bu telefon" bolumunun .vue dosyalari (src/telefon/) ve Vue derleme bayraklari.
   plugins: [panelPaketle(), vue()],
   resolve: { alias: TAKMA_ADLAR },
   server: { fs: { allow: [".."] } },

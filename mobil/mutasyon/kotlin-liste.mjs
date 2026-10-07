@@ -20,7 +20,7 @@ const HAM = [
     bul: " || ad.contains(\"..\")) throw PaylasHatasi(\"bicim\")", koy: ") throw PaylasHatasi(\"bicim\")",
     kirmizi: "PaylasDeposuTest.adDosyaSisteminegider_gecersizAdHerIslemdeReddedilir_dizinDisinaYazilmaz" },
   { ad: "5F-K: her uzanti kabul", dosya: "android/app/src/main/java/tr/olcumkarti/mobil/paylas/PaylasDeposu.kt",
-    bul: "\\.(csv|kyt|txt)$\")", koy: "\\.[a-z]+$\")",
+    bul: "\\.(csv|kyt|txt|html|pdf)$\")", koy: "\\.[a-z]+$\")",
     kirmizi: "PaylasDeposuTest.adDosyaSisteminegider_gecersizAdHerIslemdeReddedilir_dizinDisinaYazilmaz" },
   { ad: "5F-K: baslat onceki dosyayi silmiyor", dosya: "android/app/src/main/java/tr/olcumkarti/mobil/paylas/PaylasDeposu.kt",
     bul: "        val hedef = dosya(ad)\n        temizle()\n", koy: "        val hedef = dosya(ad)\n",

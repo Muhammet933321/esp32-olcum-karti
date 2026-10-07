@@ -31,11 +31,6 @@ export default [
     bul: "tahmini: Array.isArray(h.tahmini) && h.tahmini.some(Boolean),", koy: "tahmini: false,", test: TUMU },
   { ad: "C5D-Y7: yeniden yuklemede eski oturum onbellegi kaliyor (buyuyen oturumda bayat grafik / istatistik)", dosya: V,
     bul: "uyari: oturumlar.uyarilar.length, onbellek: new Map(),", koy: "uyari: oturumlar.uyarilar.length, onbellek: (veriKur.onb ||= new Map()),", test: TUMU },
-  // ── Ö6 olcumu ──
-  { ad: "C5D-Y8: Ö6 olcumu tek kanal ciziyor (yuk yariya iner, ekranda yine 800 bin yazar)", dosya: GO,
-    bul: "seriler: grafikSerileri(seri),", koy: "seriler: grafikSerileri(seri).slice(0, 1),", test: TUMU },
-  { ad: "C5D-Y9: Ö6 olcumunun tuvali gizli (hicbir sey cizilmez, 'GECTI' cikar)", dosya: GO,
-    bul: 'class="grafik buyuk" role="img" :aria-label="c(\'m.go.baslat\')"', koy: 'class="grafik buyuk" hidden role="img" :aria-label="c(\'m.go.baslat\')"', test: TUMU },
   // ── A24: gizlilik testinin dar istisnalari (uc muaf dosya) ve yerel akitma ──
   { ad: "C5D-Y10: yerelOku Capacitor'in dosya on ekini ve 10.x agini da kabul ediyor (testin 'kotu' listesinde yok)", dosya: O,
     bul: "export const DEPO_ADRESI = /^\\/_depo\\/[0-9a-f]{16}\\/kayitlar\\.kyt$/;",

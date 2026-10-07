@@ -12,7 +12,6 @@ const KART_ISTEK = '    const b = baglanti, c = cihaz;\n    if (!b) throw new Ka
 const AG_HATA = 'sonuc = await sureli(eklenti.istek(istek), istek.zamanAsimiMs + SURE_PAYI_MS);\n    } catch (e) {\n      if (e instanceof KartAgHatasi) throw e;\n      const tur = e && typeof e.code === "string" && HATA_TURLERI.includes(e.code) ? e.code : "ic-hata";';
 const TIK = "    if (!onde || !bagli || suren || sifirlaniyor) return false;";
 const YUKLENEN = "if (!yuklenen || yuklenen.kimlik !== kimlik || yuklenen.boy !== boy || yuklenen.akisKimlik !== akisKimlik || yuklenen.kusak !== kusak()) {";
-const GECTI = "gecti: bosKare === 0 && a !== null && a.p95 < OLCUT_MS,";
 
 export const GUNCEL = {
   "5A-7 G1: Log.wtf": { bul: KARTAG_URL, koy: KARTAG_URL + '; android.util.Log.wtf("KartAg", url)' },
@@ -40,14 +39,8 @@ export const GUNCEL = {
   "5D-esit: her simdi() yeni tur baslatiyor": { bul: "    if (suren) return suren;\n    if (sifirlaniyor)", koy: "    if (sifirlaniyor)" },
   "5D-esit: tik arka planda da esitliyor": { bul: TIK, koy: "    if (!bagli || suren || sifirlaniyor) return false;" },
   "5D-esit: tik kart bagli degilken de esitliyor": { bul: TIK, koy: "    if (!onde || suren || sifirlaniyor) return false;" },
-  "5D-esit: gorunum — esitleme surerken dugme acik": {
-    bul: 'return sonuc("m.es.kopya_suruyor", "", { suruyor: true, dugme: false });',
-    koy: 'return sonuc("m.es.kopya_suruyor", "", { suruyor: true });',
-  },
   "5D-kayit: dosya her listede yeniden cozuluyor": { bul: YUKLENEN, koy: "if (true) {" },
   "5D-kayit: akis kimligi degisince yeniden cozulmuyor": { bul: " || yuklenen.akisKimlik !== akisKimlik || yuklenen.kusak", koy: " || yuklenen.kusak" },
-  "5D-olcum: olcut cizim suresine uygulan": { bul: GECTI, koy: "gecti: bosKare === 0 && c !== null && c.p95 < OLCUT_MS," },
-  "5D-olcum: sinirdaki deger (33.0) geciyor": { bul: GECTI, koy: "gecti: bosKare === 0 && a !== null && a.p95 <= OLCUT_MS," },
   "5D-D-B11: okuma ekrandaki kartin kopyasini": {
     bul: '    if ((await hazirla(gorunenKimlik)) === null) return null;\n    try { return await istemci.cagir("okuma", { oturum: no, tA, tB }); }',
     koy: '    try { return await istemci.cagir("okuma", { oturum: no, tA, tB }); }',
@@ -73,15 +66,6 @@ export const GUNCEL = {
   "5E-4D: adres dosyasina gecersiz adres yaziliyor": { bul: "val sade = YerelYoklama.sade(adres) ?: throw ZarfHatasi(\"bicim\")", koy: "val sade = adres ?: throw ZarfHatasi(\"bicim\")" },
   "5E-2K: SUBACK'ten once gelen kalici mesaj atiliyor": { bul: "                    bekleyenYayin.add(p)\n", koy: "" },
   "5E-K: MQTT ayristirici tampon siniri yok": { bul: "            if (boy > azami + 5 || n > azami + 5) throw MqttHatasi(\"buyuk\")\n", koy: "" },
-  // 2026-10-05: serit artik kosullu (v-if="seritGorunur") — kullanici karari
-  "5C-kabuk: DURDUR seridi yonlendirici cikisinin icine alindi": {
-    bul: '<main id="icerik" class="icerik"><router-view /></main>\n    <DurdurSeridi v-if="seritGorunur" />',
-    koy: '<main id="icerik" class="icerik"><router-view /><DurdurSeridi v-if="seritGorunur" /></main>',
-  },
-  "5C-kabuk: DURDUR seridi sekmelerin altina indi": { bul: '    <DurdurSeridi v-if="seritGorunur" />\n', koy: "" },
-  "5C-kabuk: serit yalniz kart bagliyken gorunuyor": {
-    bul: '<DurdurSeridi v-if="seritGorunur" />', koy: '<DurdurSeridi v-if="seritGorunur && kabuk.baglanti.value" />',
-  },
 };
 
 // Listeyi guncel desenlerle dondurur (ada gore; eslesmeyen girdi oldugu gibi kalir).

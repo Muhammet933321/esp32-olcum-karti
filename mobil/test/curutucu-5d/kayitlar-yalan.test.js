@@ -2,15 +2,13 @@
 // Istemci GERCEK (kayit_istemci.js), islemci GERCEK (kayit_veri.js); Worker yerine ayni islemciyi saran
 // sahte bir isci (mesaj protokolu src/isci/kayit_isci.js ile ayni); depo: depo.js + eklenti sahtesi.
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { depoKur } from "../../src/cekirdek/depo.js";
 import { kayitIstemciKur } from "../../src/cekirdek/kayit_istemci.js";
 import { islemciKur, listeKur, veriKur } from "../../src/cekirdek/kayit_veri.js";
 import { kayitlarKur } from "../../src/cekirdek/kayitlar.js";
-import { satirGorunumu } from "../../src/ekran/kayitlar_gorunum.js";
 import { Akis, ikiOturum } from "../yardim/akis_ornek.mjs";
 import { depoSahtesi } from "../yardim/depo_sahtesi.mjs";
 
@@ -93,16 +91,14 @@ describe("curutucu 5D — Kayitlar", () => {
     const kartDizini = { kimlik: 9, aktif: 0, oturumlar: [{ id: a, tur: 1, hiz_ms: 1000, unix_s: 1790009999, nokta: 5, durum: 2, son: 300 }] };
     const satirlar = listeKur(veriKur(bayt, 7), { kart: kartDizini });
     expect(satirlar.filter((s) => s.oturum === a).length).toBe(2);          // on kosul: iki AYRI kayit, ayni numara
-    const gorunen = satirlar.map(satirGorunumu);
-    // Kayitlar.vue'nun v-for anahtari (kaynaktan okunur) gorunen satirlarda TEKIL olmali (Vue: yinelenen anahtar = bozuk guncelleme).
-    const vue = readFileSync(fileURLToPath(new URL("../../src/ekran/Kayitlar.vue", import.meta.url)), "utf8");
-    const alan = /<li v-for="s in gorunen" :key="s\.(\w+)">/.exec(vue)[1];
-    const anahtarlar = gorunen.map((s) => s[alan]);
-    expect(new Set(anahtarlar).size, `:key="s.${alan}" -> ${JSON.stringify(anahtarlar)}`).toBe(anahtarlar.length);
-    // Eski karttan kalan satir ekranda isaretli olmali (panel: 'kl.eski_kart' rozeti); telefonda bilgi gorunume hic gecmiyor.
-    const eski = gorunen.filter((s, i) => satirlar[i].eskiKart === true);
+    // Liste anahtari (kayit_veri.js `anahtar` = akis:oturum) TEKIL olmali: panel / eski ekran v-for'u bununla kurar
+    // (yinelenen anahtar = bozuk guncelleme). 5P (P6): eski Kayitlar.vue ve satirGorunumu silindi; kural veride.
+    const anahtarlar = satirlar.map((s) => s.anahtar);
+    expect(new Set(anahtarlar).size, JSON.stringify(anahtarlar)).toBe(anahtarlar.length);
+    // Eski karttan kalan satir isaretli (panel: 'kl.eski_kart' rozeti).
+    const eski = satirlar.filter((s) => s.eskiKart === true);
     expect(eski.length).toBe(2);
-    for (const s of eski) expect(s.eskiKart, "satirGorunumu eskiKart'i tasimiyor").toBe(true);
+    for (const s of eski) expect(typeof s.anahtar === "string" && s.anahtar.length > 0, "eski satirin anahtari yok").toBe(true);
   });
 
   it("aralik istatistigi (okuma) EKRANDAKI kartin kopyasindan hesaplanir: araya baska kartin listesi girse de", async () => {

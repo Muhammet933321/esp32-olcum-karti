@@ -1,4 +1,5 @@
-// Eslestirme ekrani (A12, A13): durum mantigi (esles_durum.js) + sablonun parola alani kurallari.
+// Eslestirme (A12, A13): durum mantigi (esles_durum.js). Parola alaninin sablon kurallari artik
+// Bu telefon › Kart bolumunde (test/telefon_bolum.test.js); 5P (P6) eski Esles.vue / Baglanti.vue'yu sildi.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -6,7 +7,6 @@ import { KartHatasi } from "../src/cekirdek/kart.js";
 import { SOZLUK_MOBIL } from "../src/cekirdek/sozluk_mobil.js";
 import { ESLES_HATA, baglantiHatasi, eslesDurumu, kaldirGorunur, kaldirMesaji } from "../src/ekran/esles_durum.js";
 
-const VUE = readFileSync(fileURLToPath(new URL("../src/ekran/Esles.vue", import.meta.url)), "utf8");
 const PAROLA = "sinama-parolasi-1";
 const kareYok = async () => {};
 
@@ -92,17 +92,7 @@ describe("eslesDurumu", () => {
   });
 });
 
-describe("Esles.vue sablonu", () => {
-  const parolaAlani = /<ion-input\b[^>]*id="es-parola"[^>]*>/.exec(VUE)?.[0] ?? "";
-
-  it("parola alani: gizli, otomatik doldurma / duzeltme / buyuk harf / yazim denetimi kapali", () => {
-    expect(parolaAlani).not.toBe("");
-    for (const oz of ['type="password"', 'autocomplete="off"', 'autocapitalize="off"', 'autocorrect="off"', ':spellcheck="false"',
-      'v-model="parola"', ":label=\"c('m.es.parola')\"", ':disabled="suruyor"']) {
-      expect(parolaAlani, oz).toContain(oz);
-    }
-  });
-
+describe("parola etiketi", () => {
   it("etiket acikca WEB parolasi der — Wi-Fi parolasi DEGIL (TR ve EN)", () => {
     const { tr, en } = SOZLUK_MOBIL["m.es.parola"];
     expect(tr).toMatch(/WEB parolası/);
@@ -110,22 +100,11 @@ describe("Esles.vue sablonu", () => {
     expect(en).toMatch(/WEB password/);
     expect(en).toMatch(/NOT the Wi-Fi password/);
   });
-
-  it("kartin kimligi ve adresi gorunur; ilerleme gostergesi ve hata bolgesi var; durum mantigi esles_durum.js'ten", () => {
-    expect(VUE).toMatch(/\{\{ kimlik \}\}/);
-    expect(VUE).toMatch(/\{\{ adres \}\}/);
-    expect(VUE).toMatch(/<ion-spinner\b/);
-    expect(VUE).toMatch(/id="es-hata" role="alert"/);
-    expect(VUE).toContain("eslesDurumu(props.kart");
-    expect(VUE).toMatch(/requestAnimationFrame/);
-    // Dokunma alanlari >= 48 px
-    expect(VUE).toMatch(/min-height: 48px/);
-  });
 });
 
 // ── Baglanti ekrani kararlari (curutucu 5B: Y3 + okuyarak verilenler) ────────
 describe("Baglanti ekrani kararlari", () => {
-  const BG = readFileSync(fileURLToPath(new URL("../src/ekran/Baglanti.vue", import.meta.url)), "utf8");
+  const BG = readFileSync(fileURLToPath(new URL("../src/telefon/kart_bolum.js", import.meta.url)), "utf8");
 
   it("kaldirMesaji: 'kartta kaldirildi' YALNIZ kart sildiyse; 401 (null) icin AYRI metin; ulasilamadiysa yerel", () => {
     expect(kaldirMesaji(true)).toBe("m.bg.kaldirildi");
@@ -157,10 +136,10 @@ describe("Baglanti ekrani kararlari", () => {
     expect(SOZLUK_MOBIL["m.bg.kasa_bozuk"].tr).toMatch(/Eşleşmeyi kaldırıp yeniden eşleş/);
   });
 
-  it("Baglanti.vue bu kararlari kullanir (dugme kosulu, mesaj secimi, kasa hatasi)", () => {
-    expect(BG).toContain('<ion-button v-if="kaldirGorunur(baglanti, kasaBozuk)" id="bg-kaldir"');
-    expect(BG).toContain("mesaj.value = c(kaldirMesaji(s.kartta));");
+  it("Bu telefon › Kart (kart_bolum.js) bu kararlari kullanir (dugme kosulu, mesaj secimi, kasa hatasi)", () => {
+    expect(BG).toContain("kaldirAcik() { return kaldirGorunur(this.baglanti, this.kasaBozuk); },");
+    expect(BG).toContain("this.mesaj = { anahtar: kaldirMesaji(s.kartta), degerler: null };");
     expect(BG).toContain("const h = baglantiHatasi(e);");
-    expect(BG).toContain("if (h.kasaBozuk) { kasaBozuk.value = true; baglanti.value = null; }");
+    expect(BG).toContain("if (h.kasaBozuk) { this.kasaBozuk = true; this.baglanti = null; }");
   });
 });

@@ -12,13 +12,13 @@ import duzeltme5c from "./duzeltme5c-liste.mjs";
 import depo from "./depo-liste.mjs";
 import esitleme from "./esitleme-liste.mjs";
 import kayitlar from "./kayitlar-liste.mjs";
-import grafikOlcum from "./grafik-olcum-liste.mjs";
 import curutucu5d from "../test/curutucu-5d/yasayan-liste.mjs";
 import duzeltme5d from "./duzeltme5d-liste.mjs";
 import bildirim from "./bildirim-liste.mjs";
 import paylasim from "./paylasim-liste.mjs";
 import durdurGorunur from "./durdur-gorunur-liste.mjs";
 import panelPaket from "./panel-paket-liste.mjs";
+import ortam from "./ortam-liste.mjs";
 
 import { guncelle } from "./guncel-desen.mjs";
 
@@ -31,12 +31,13 @@ const HAM = [
   ...depo,
   ...esitleme,
   ...kayitlar,
-  ...grafikOlcum,
   // Curutucu 5D: bulundugunda YASAYAN mutasyonlar (artik olmeli; "C5D-Y…" adlariyla) + duzeltmelerin mutasyonlari.
   ...bildirim,
   ...paylasim,
   ...durdurGorunur,
   ...panelPaket,
+  // 5P (P3): telefon ortami (src/ortam/*).
+  ...ortam,
   ...curutucu5d,
   ...duzeltme5d,
   ...p0,
@@ -45,15 +46,15 @@ const HAM = [
   {
     ad: "5A-2: sozlukte EN metni bos",
     dosya: "src/cekirdek/sozluk_mobil.js",
-    bul: '"Measurement Board"',
+    bul: '"This phone"',
     koy: '""',
     test: "test/sozluk.test.js",
   },
   {
     ad: "5A-2: sablonda gomulu metin",
-    dosya: "src/ekran/KartBul.vue",
-    bul: '<h1>{{ c("m.kb.baslik") }}</h1>',
-    koy: "<h1>Kartı bul</h1>",
+    dosya: "src/telefon/KartBolumu.vue",
+    bul: `<h2 id="bt-kart-baslik">{{ t('m.ay.kart') }}</h2>`,
+    koy: '<h2 id="bt-kart-baslik">Kart</h2>',
     test: "test/sozluk.test.js",
   },
   {
@@ -143,8 +144,16 @@ const HAM = [
   {
     ad: "5A-5: kimlik karsilastirmasi kalkti (yanlis karta baglanir)",
     dosya: "src/cekirdek/kesif.js",
-    bul: "(!beklenenKimlik || s.kimlik === beklenenKimlik)",
-    koy: "true",
+    bul: 'const uygun = (s) => s.sonuc === "tamam" && (!beklenenKimlik || s.kimlik === beklenenKimlik);',
+    koy: 'const uygun = (s) => s.sonuc === "tamam" && true;',
+    test: "test/kesif.test.js",
+  },
+  {
+    // 2026-10-07: erisim noktasi (hotspot) alt agi taramasi ayni kimlik kuralini kendi dongusunde uygular.
+    ad: "5A-5: kimlik karsilastirmasi kalkti (paylasim alt agi taramasi)",
+    dosya: "src/cekirdek/kesif.js",
+    bul: "        if (!beklenenKimlik || s.kimlik === beklenenKimlik) bulunan = bulunan || s;",
+    koy: "        bulunan = bulunan || s;",
     test: "test/kesif.test.js",
   },
   {
@@ -185,8 +194,8 @@ const HAM = [
   {
     ad: "5A-5: bilgi govdesi siniri kalkti",
     dosya: "src/cekirdek/kesif.js",
-    bul: "zamanAsimiMs, azamiGovde: AZAMI_BILGI });",
-    koy: "zamanAsimiMs, azamiGovde: 64 * 1024 * 1024 });",
+    bul: "zamanAsimiMs: sure, azamiGovde: AZAMI_BILGI });",
+    koy: "zamanAsimiMs: sure, azamiGovde: 64 * 1024 * 1024 });",
     test: "test/kesif.test.js",
   },
   {
@@ -352,7 +361,7 @@ const HAM = [
   },
   {
     ad: "5A-9: WebRTC kaldirma JS'te ilk ice aktarim degil",
-    dosya: "src/main.js",
+    dosya: "src/giris.js",
     bul: 'import "./cekirdek/rtc_kapat.js";',
     koy: '// import "./cekirdek/rtc_kapat.js";',
     test: "test/gizlilik.test.js",
@@ -666,17 +675,17 @@ const HAM = [
   },
   {
     ad: "5B: parola alani gizli degil (type=password yok)",
-    dosya: "src/ekran/Esles.vue",
-    bul: 'type="password" ',
-    koy: "",
-    test: "test/esles.test.js",
+    dosya: "src/telefon/KartBolumu.vue",
+    bul: 'id="bt-parola" ref="parola" type="password" ',
+    koy: 'id="bt-parola" ref="parola" ',
+    test: "test/telefon_bolum.test.js",
   },
   {
     ad: "5B: parola alaninda otomatik doldurma acik",
-    dosya: "src/ekran/Esles.vue",
-    bul: 'autocomplete="off" ',
-    koy: "",
-    test: "test/esles.test.js",
+    dosya: "src/telefon/KartBolumu.vue",
+    bul: 'name="web-parolasi" autocomplete="off" ',
+    koy: 'name="web-parolasi" ',
+    test: "test/telefon_bolum.test.js",
   },
   {
     ad: "5B: parola etiketi 'Wi-Fi parolasi DEGIL' demiyor",

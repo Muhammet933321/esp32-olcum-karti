@@ -1,5 +1,5 @@
-// 5D-3 — Kayitlar ve kayit gorunumu: veri kaynagi (cekirdek/kayitlar.js), gorunum yardimcilari, ekran
-// baglantilari. Istemci GERCEK (yedek yolu: islemci ana is parcaciginda), depo: depo.js + eklenti sahtesi
+// 5D-3 — Kayitlar: veri kaynagi (cekirdek/kayitlar.js) ve uygulama.js baglantisi. 5P (P6): eski Ionic
+// Kayitlar / Kayit ekranlari ve gorunum yardimcilari (kayitlar_gorunum.js) silindi; telefonda panelin Kayitlar'i. Istemci GERCEK (yedek yolu: islemci ana is parcaciginda), depo: depo.js + eklenti sahtesi
 // (gercek dosyalar), kart SAHTE nesne.
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -12,8 +12,6 @@ import { depoKur } from "../src/cekirdek/depo.js";
 import { depoAdresi, kayitIstemciKur } from "../src/cekirdek/kayit_istemci.js";
 import { islemciKur, oturumGorunumu, veriKur } from "../src/cekirdek/kayit_veri.js";
 import { KayitlarHatasi, kayitlarKur } from "../src/cekirdek/kayitlar.js";
-import { SAG_EKSENLER, TUR_SECENEKLERI, kartNotu, okumaTablosu, satirGorunumu, sayiYaz } from "../src/ekran/kayitlar_gorunum.js";
-import { ALT_ROTALAR, SEKMELER, sekmeBul } from "../src/ekran/sekmeler.js";
 import { Akis, ikiOturum } from "./yardim/akis_ornek.mjs";
 import { depoSahtesi } from "./yardim/depo_sahtesi.mjs";
 
@@ -218,94 +216,7 @@ describe("kayitlar — oturum ve okuma", () => {
   });
 });
 
-describe("gorunum yardimcilari (saf)", () => {
-  it("satirGorunumu: ad / tur / nerede anahtarlari; yalniz telefonda kopyasi olan acilabilir", () => {
-    const s = { oturum: 41, tur: "olcum", ad: "Akü şarj", nerede: "ikisi", tarih: "2026-09-23 10:00:00", sure: "00:01:00", durum: "bitti", eksik: false, yerelde: true };
-    expect(satirGorunumu(s)).toEqual({ anahtar: "41", eskiKart: false, oturum: 41, ad: "Akü şarj", tur: "m.ky.tur_olcum", nerede: "m.ky.nerede_ikisi", neredeSinif: "iyi", tarih: "2026-09-23 10:00:00", sure: "00:01:00", kayitta: false, eksik: false, acilabilir: true });
-    expect(satirGorunumu({ ...s, ad: null, nerede: "kart", yerelde: false, durum: "kayitta", eksik: true, tarih: null, sure: null })).toMatchObject({ ad: null, nerede: "m.ky.nerede_kart", neredeSinif: "uyari", kayitta: true, eksik: true, acilabilir: false, tarih: null, sure: null });
-    expect(satirGorunumu({ ...s, nerede: "telefon" })).toMatchObject({ nerede: "m.ky.nerede_telefon", neredeSinif: "" });
-    for (const [tur, anahtar] of [["ayrinti", "m.ky.tur_ayrinti"], ["pil", "m.ky.tur_pil"], ["skop", "m.ky.tur_skop"], ["bilinmeyen", "m.ky.tur_bilinmeyen"], ["toString", "m.ky.tur_bilinmeyen"], [undefined, "m.ky.tur_bilinmeyen"]]) {
-      expect(satirGorunumu({ ...s, tur }).tur, String(tur)).toBe(anahtar);
-    }
-    expect(satirGorunumu({ ...s, nerede: "constructor" }).nerede).toBe("m.ky.nerede_telefon");
-    expect(satirGorunumu({ ...s, ad: "" }).ad).toBe(null);
-    expect(satirGorunumu({ ...s, yerelde: 1 }).acilabilir).toBe(false);
-    // Liste anahtari akis + oturum; eski akistan kalan satir isaretlenir (curutucu 5D B9).
-    expect(satirGorunumu({ ...s, anahtar: "7:41", eskiKart: true })).toMatchObject({ anahtar: "7:41", eskiKart: true });
-    expect(satirGorunumu({ ...s, anahtar: "", eskiKart: 1 })).toMatchObject({ anahtar: "41", eskiKart: false });
-  });
-
-  it("kartNotu: dizin listeye katilmadiysa NEDENI soylenir (kart agdayken 'bu agda degil' denmez)", () => {
-    expect(kartNotu({ durum: "bagli" }, true)).toBe(null);
-    expect(kartNotu(null, true)).toBe(null);
-    expect(kartNotu({ durum: "bagli" }, false)).toBe("m.ky.kart_okunamadi");
-    for (const d of ["eslesmemis", "kimlik-uymuyor", "kasa-bozuk"]) expect(kartNotu({ durum: d }, false), d).toBe("m.ky.kart_eslesmemis");
-    for (const b of [null, undefined, {}, { durum: "bulunamadi" }, { durum: "bagli-degil" }, { durum: 5 }]) expect(kartNotu(b, false)).toBe("m.ky.kart_yok");
-    expect(kartNotu({ durum: "bagli" }, 1)).toBe("m.ky.kart_okunamadi");            // yalniz kesin true "katildi" demek
-    for (const a of ["m.ky.kart_okunamadi", "m.ky.kart_eslesmemis", "m.ky.kart_yok"]) expect(SOZLUK_MOBIL[a], a).toBeDefined();
-  });
-
-  it("okumaTablosu ve sayiYaz: sabit hane, sonlu olmayan '—'", () => {
-    expect([sayiYaz(11.2244, 3), sayiYaz(0, 2), sayiYaz(NaN, 2), sayiYaz(null, 1), sayiYaz(Infinity, 1)]).toEqual(["11.224", "0.00", "—", "—", "—"]);
-    const k = (ort, min, maks, birim) => ({ birim, adet: 32, ort, min, maks, rms: ort });
-    const t = okumaTablosu({ dt: 31000, sure: "00:00:31", v: k(11.2244, 11.185, 11.272, "V"), i: k(0.0091, 0, 0.018, "A"), w: k(0.1, 0, 0.2, "W"), enerji: { wh: 0.00088, mah: 0.0731 } });
-    expect(t).toEqual({ sure: "00:00:31", adet: 32, mah: "0.07", wh: "0.001", satirlar: [
-      { anahtar: "m.cn.gerilim", birim: "V", ort: "11.224", min: "11.185", maks: "11.272" },
-      { anahtar: "m.cn.akim", birim: "A", ort: "0.009", min: "0.000", maks: "0.018" },
-      { anahtar: "m.cn.guc", birim: "W", ort: "0.10", min: "0.00", maks: "0.20" },
-    ] });
-    expect(okumaTablosu(null)).toBe(null);
-    expect(okumaTablosu({ sure: null, v: null, i: k(null, null, null, "A"), w: null, enerji: null })).toEqual({ sure: "—", adet: 32, mah: "—", wh: "—", satirlar: [{ anahtar: "m.cn.akim", birim: "A", ort: "—", min: "—", maks: "—" }] });
-  });
-
-  it("secenek listeleri ve sozluk: her anahtar sozlukte; alt rota ust sekmenin basligini tasir", () => {
-    expect(TUR_SECENEKLERI.map((t) => t.deger)).toEqual(["hepsi", "olcum", "pil", "skop"]);
-    expect(SAG_EKSENLER.map((e) => e.deger)).toEqual(["akim", "guc"]);
-    for (const a of [...TUR_SECENEKLERI.map((t) => t.anahtar), "m.ky.tur_ayrinti", "m.ky.tur_pil", "m.ky.tur_skop", "m.ky.nerede_kart", "m.kg.olcumsuz", "m.ky.adsiz"]) {
-      expect(SOZLUK_MOBIL[a], a).toBeDefined();
-    }
-    expect(SOZLUK_MOBIL["m.ky.yakinda"]).toBeUndefined();
-    expect(ALT_ROTALAR).toEqual({ kayit: "kayitlar" });
-    expect(sekmeBul("kayit").ad).toBe("kayitlar");
-    expect(sekmeBul("kayitlar").ad).toBe("kayitlar");
-    expect(sekmeBul("toString")).toBe(SEKMELER[0]);
-    expect(sekmeBul(undefined)).toBe(SEKMELER[0]);
-  });
-});
-
-describe("ekran baglantilari (kaynak)", () => {
-  it("rota: kayit gorunumu yalniz SAYISAL oturumla, tembel yuklenir; ust sekme secili gorunur", () => {
-    const y = kaynak("yonlendirme.js");
-    expect(y).toContain('{ path: "/kayitlar/:oturum(\\\\d+)", name: "kayit", component: () => import("./ekran/Kayit.vue") },');
-    expect(y).not.toMatch(/^import Kayit from/m);
-    expect(kaynak("App.vue")).toContain(':class="{ secili: sekme.ad === s.ad }"');
-    expect(kaynak("tema.css")).toContain('.sekme a.secili, .sekme a[aria-current="page"] {');
-  });
-
-  it("Kayitlar: satira dokunus yalniz acilabilir oturumu acar; eski yanit yeni aramayi EZMEZ; esitleme bitince yenilenir", () => {
-    const k = kaynak("ekran/Kayitlar.vue");
-    expect(k).toContain("if (s.acilabilir) yonlendirici.push(`/kayitlar/${s.oturum}`);");
-    expect(k).toContain("if (no !== sira) return;              // daha yeni bir istek var: eski yanit ekrani EZMEZ");
-    expect(k).toContain("watch(() => [kabuk.esitleme.value.sonMs, kabuk.baglanti.value && kabuk.baglanti.value.durum], yenile);");
-    expect(k).toMatch(/<button type="button" class="satir" :aria-disabled="!s\.acilabilir" @click="ac\(s\)">/);
-    expect(k).toContain('<input id="ky-arama" v-model="arama" class="arama" type="search"');
-  });
-
-  it("Kayit: grafik ortak Grafik sinifiyla; istatistik GORUNEN aralikta ve gecikmeli; gecerli olcum yoksa acikca soyler", () => {
-    const k = kaynak("ekran/Kayit.vue");
-    expect(k).toContain('import { Grafik } from "@ortak/grafik.js";');
-    expect(k).toContain("grafik = new Grafik(el, { zamanKokeni: 0, onDegisim: pencereDegisti });");
-    expect(k).toContain("gecikme = setTimeout(() => { gecikme = null; okumaIste(durum.t0, durum.t1); }, 150);");
-    expect(k).toContain("if (no === okumaNo) okuma.value = ok;");
-    expect(k).toContain('if (g.gecerli === 0) { hal.value = "olcumsuz"; return; }');
-    expect(k).toContain("if (grafik) grafik.yokEt();");
-    expect(k).toMatch(/<canvas id="kg-grafik" ref="tuval" class="grafik buyuk dokun" role="img" :aria-label=/);
-    const css = kaynak("tema.css");
-    expect(css).toContain(".grafik.dokun { pointer-events: auto; }");
-    expect(/\n\.satir \{([^}]*)\}/.exec(css)[1]).toContain("min-height: var(--dokunma)");
-    expect(/\n\.arama \{([^}]*)\}/.exec(css)[1]).toContain("min-height: var(--dokunma)");
-  });
-
+describe("uygulama baglantisi (kaynak)", () => {
   it("uygulama: kayit modulleri tembel; Worker yoksa yedek AYNI okuyucuyla (depo_oku.js); son kimlik kesif onbelleginden", () => {
     const u = kaynak("cekirdek/uygulama.js");
     expect(u).toContain("isciKur: w.kayitIsciKur,");

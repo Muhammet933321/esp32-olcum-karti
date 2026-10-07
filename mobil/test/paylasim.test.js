@@ -12,7 +12,6 @@ import { kayitlarKur } from "../src/cekirdek/kayitlar.js";
 import { AD_DESENI, PARCA, PaylasHatasi, paylasKur } from "../src/cekirdek/paylas.js";
 import { raporMetni, sayiMetni } from "../src/cekirdek/rapor_metin.js";
 import { SOZLUK_MOBIL } from "../src/cekirdek/sozluk_mobil.js";
-import { paylasimDugmeleri, paylasimHatasi } from "../src/ekran/kayitlar_gorunum.js";
 import { ikiOturum } from "./yardim/akis_ornek.mjs";
 
 const kaynak = (yol) => readFileSync(fileURLToPath(new URL(`../${yol}`, import.meta.url)), "utf8");
@@ -231,30 +230,7 @@ describe("paylas: dosya eklentiye parca parca", () => {
   });
 });
 
-describe("paylasim: ekran ve Android baglantisi", () => {
-  it("dugmeler: bilinen turler sirayla, bilinmeyen gosterilmez; hata metinleri", () => {
-    expect(paylasimDugmeleri(["csv_tr", "csv_en", "yok", "ham", "rapor"]).map((d) => d.tur)).toEqual(["csv_tr", "csv_en", "ham", "rapor"]);
-    expect(paylasimDugmeleri(null)).toEqual([]);
-    expect(paylasimHatasi("cok-buyuk").anahtar).toBe("m.ps.hata_buyuk");
-    expect(paylasimHatasi("bos").anahtar).toBe("m.ps.hata_bos");
-    expect(paylasimHatasi("ic-hata")).toEqual({ anahtar: "m.ps.hata_genel", degerler: { tur: "ic-hata" } });
-    const hepsi = ["csv_tr", "csv_en", "ayrinti_tr", "ayrinti_en", "pil_tr", "pil_en", "ham", "rapor"];
-    for (const d of paylasimDugmeleri(hepsi)) {
-      expect(SOZLUK_MOBIL[d.anahtar].tr.length).toBeGreaterThan(1);
-      expect(SOZLUK_MOBIL[d.anahtar].en.length).toBeGreaterThan(1);
-    }
-    expect(paylasimDugmeleri(hepsi).length).toBe(8);
-    expect(SOZLUK_MOBIL["m.ps.hata_buyuk"].tr).toMatch(/\.kyt/);
-  });
-
-  it("Kayit.vue: dosya islemciden (uygulamanin dilinde) alinir, paylas eklentisine verilir; uretim surerken dugmeler kapali", () => {
-    const v = kaynak("src/ekran/Kayit.vue");
-    expect(v).toMatch(/const d = await kaynak\.disari\(oturumNo, tur, dil\.value\);/);
-    expect(v).toMatch(/await paylasAl\(\)\.gonder\(d\);/);
-    expect(v).toMatch(/:disabled="paylasilan !== null" @click="paylas\(d\.tur\)"/);
-    expect(v).toMatch(/if \(paylasilan\.value !== null \|\| !kaynak\) return;/);
-  });
-
+describe("paylasim: Android baglantisi", () => {
   it("FileProvider YALNIZ cache/paylas/ dizinini acar; eklenti dosyayi okuma izniyle ve secici pencereyle verir", () => {
     const x = kaynak("android/app/src/main/res/xml/file_paths.xml").replace(/<!--[^]*?-->/g, "");
     expect([...x.matchAll(/<([a-z-]+-path)\s+name="[^"]*"\s+path="([^"]*)"/g)].map((m) => `${m[1]} ${m[2]}`)).toEqual(["cache-path paylas/"]);

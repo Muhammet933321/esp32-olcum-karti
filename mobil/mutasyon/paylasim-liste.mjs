@@ -1,5 +1,11 @@
 // 5F — paylasim. Kosum (mobil/ icinden): node mutasyon/kos.mjs --neden 5F-J
 const T = "test/paylasim.test.js";
+// gonder()'in denetim blogu (src/cekirdek/paylas.js). genisTurDenetle (5P) ad / '..' / MIME-uzanti uyumunu YENIDEN
+// denetler: tek satiri silen mutasyon esdeger kalirdi — her mutasyon blogun tamamini kendi eksigiyle degistirir.
+const AD_SATIRI = '    if (typeof ad !== "string" || !AD_DESENI.test(ad) || ad.includes("..")) throw new PaylasHatasi("bicim");\n';
+const MIME_SATIRI = '    if (typeof mime !== "string" || !MIME.test(mime)) throw new PaylasHatasi("bicim");\n';
+const GENIS_SATIRI = '    if (genisTurDenetle(ad, mime) === null) throw new PaylasHatasi("bicim");      // MIME uzantiya uymali\n';
+const DENETIM = AD_SATIRI + MIME_SATIRI + GENIS_SATIRI;
 
 export default [
   { ad: "5F-J: paylasim: oturuma uymayan tur uretiliyor", dosya: "src/cekirdek/kayit_veri.js",
@@ -19,11 +25,13 @@ export default [
   { ad: "5F-J: kayitlar: paylasim hatasi TUR olarak cikmiyor", dosya: "src/cekirdek/kayitlar.js",
     bul: "    try { return await istemci.cagir(is, arguman); } catch (e) { throw hata(e); }\n  }\n\n  return {", koy: "    try { return await istemci.cagir(is, arguman); } catch (e) { return null; }\n  }\n\n  return {", test: T },
   { ad: "5F-J: paylas: ad denetimi yok", dosya: "src/cekirdek/paylas.js",
-    bul: "if (typeof ad !== \"string\" || !AD_DESENI.test(ad) || ad.includes(\"..\")) throw new PaylasHatasi(\"bicim\");\n", koy: "", test: T },
+    bul: DENETIM, koy: MIME_SATIRI, test: T },
   { ad: "5F-J: paylas: '..' iceren ad kabul", dosya: "src/cekirdek/paylas.js",
-    bul: " || ad.includes(\"..\")) throw new PaylasHatasi(\"bicim\");", koy: ") throw new PaylasHatasi(\"bicim\");", test: T },
+    bul: DENETIM,
+    koy: AD_SATIRI.replace(' || ad.includes("..")', "") + MIME_SATIRI + GENIS_SATIRI.replace("genisTurDenetle(ad, mime)", 'genisTurDenetle(ad.split("..").join("."), mime)'),
+    test: T },
   { ad: "5F-J: paylas: mime denetimi yok", dosya: "src/cekirdek/paylas.js",
-    bul: "    if (typeof mime !== \"string\" || !MIME.test(mime)) throw new PaylasHatasi(\"bicim\");\n", koy: "", test: T },
+    bul: DENETIM, koy: AD_SATIRI, test: T },
   { ad: "5F-J: paylas: bos dosya gonderiliyor", dosya: "src/cekirdek/paylas.js",
     bul: "if (!(bayt instanceof Uint8Array) || bayt.length === 0) throw new PaylasHatasi(\"bos\");", koy: "if (!(bayt instanceof Uint8Array)) throw new PaylasHatasi(\"bos\");", test: T },
   { ad: "5F-J: paylas: es zamanli ikinci paylasim engellenmiyor", dosya: "src/cekirdek/paylas.js",
@@ -54,10 +62,6 @@ export default [
     bul: "    if (v.length === 0) { satirlar.push(`${bas}${ad}: —`); return; }\n", koy: "", test: T },
   { ad: "5F-J: rapor: mantiksal deger true/false yaziliyor", dosya: "src/cekirdek/rapor_metin.js",
     bul: "  if (typeof v === \"boolean\") return ceviriMobil(v ? \"m.ps.evet\" : \"m.ps.hayir\", dil);\n", koy: "", test: T },
-  { ad: "5F-J: gorunum: bilinmeyen tur dugme oluyor", dosya: "src/ekran/kayitlar_gorunum.js",
-    bul: ".filter((t) => Object.hasOwn(PAYLASIM, t)).map((t) => ({ tur: t, anahtar: PAYLASIM[t] }));", koy: ".map((t) => ({ tur: t, anahtar: PAYLASIM[t] }));", test: T },
-  { ad: "5F-J: gorunum: 'cok buyuk' genel hata metniyle", dosya: "src/ekran/kayitlar_gorunum.js",
-    bul: "const PAYLASIM_HATA = { \"cok-buyuk\": \"m.ps.hata_buyuk\", ", koy: "const PAYLASIM_HATA = { ", test: T },
   { ad: "5F-J: rapor: kalibrasyon gecmisi rapora verilmiyor", dosya: "src/cekirdek/kayit_veri.js",
     bul: "kalibrasyonGecmisi: kalGecmisi(kal), kayitlar:", koy: "kalibrasyonGecmisi: null, kayitlar:", test: T },
   { ad: "5F-J: islemci: kal argumani tasinmiyor", dosya: "src/cekirdek/kayit_veri.js",

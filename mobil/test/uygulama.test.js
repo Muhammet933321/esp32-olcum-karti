@@ -74,9 +74,12 @@ describe("uygulama: tek kart nesnesi", () => {
     expect(cagiranlar).toEqual({ kartKur: ["cekirdek/uygulama.js"], kasaKur: ["cekirdek/uygulama.js"] });
   });
 
-  it("Baglanti.vue kart nesnesini kartAl'dan alir", () => {
-    const vue = readFileSync(join(SRC, "ekran", "Baglanti.vue"), "utf8");
-    expect(vue).toContain('import { kartAl } from "../cekirdek/uygulama.js";');
-    expect(vue).toContain("kart.value = await kartAl();");
+  it("Bu telefon (telefon/baglam.js) ve telefon ortami kart nesnesini kartAl'dan alir", () => {
+    // 5P (P6): eski Baglanti.vue silindi; kartla konusan canli yollar bunlar.
+    const baglam = readFileSync(join(SRC, "telefon", "baglam.js"), "utf8");
+    expect(baglam).toMatch(/import \{[^}]*\bkartAl\b[^}]*\} from "\.\.\/cekirdek\/uygulama\.js";/);
+    expect(baglam).toMatch(/^ {4}kartAl,$/m);
+    const ortam = readFileSync(join(SRC, "ortam", "index.js"), "utf8");
+    expect(ortam).toMatch(/import \{[^}]*\bkartAl\b[^}]*\} from "\.\.\/cekirdek\/uygulama\.js";/);
   });
 });

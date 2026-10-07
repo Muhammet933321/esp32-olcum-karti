@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { T_NOKTA, kayitPaketle } from "../../../ortak/src/kayit.js";
 import { depoKur } from "../../src/cekirdek/depo.js";
 import { esitlemeKur } from "../../src/cekirdek/esitleme.js";
-import { kabukDurumu } from "../../src/ekran/kabuk_durum.js";
+import { arkaPlanKur } from "../../src/ortam/arka_plan.js";
 import { depoSahtesi } from "../yardim/depo_sahtesi.mjs";
 import { K1, bekle, eslesmis } from "../curutucu-5b/yardim.mjs";
 
@@ -87,16 +87,17 @@ describe("curutucu 5D — A22: arka planda esitleme yok", () => {
     d.k.ayarla({ gecikmeMs: 15 });
     const canli = { baslat() {}, durdur() {}, durum: () => ({ bagli: false, hal: "kapali", son: null, kayit: null }), dinle: () => () => {}, seri: () => null, komut: async () => true };
     const aralik = { fn: null };
-    const kabuk = kabukDurumu({
+    // Telefon ortaminin arka plani (5P P6'dan once kabukDurumu): ayni esitleme tetikleme kurallari.
+    const kabuk = arkaPlanKur({
       kartAl: async () => d.t.kart, canliAl: async () => canli, esitlemeAl: async () => d.e, belge: null,
       araliKur: (fn) => { aralik.fn = fn; return 1; }, araliSil: () => { aralik.fn = null; },
     });
     await kabuk.ac();
-    expect(kabuk.baglanti.value.durum).toBe("bagli");
+    expect(kabuk.durum().baglanti.durum).toBe("bagli");
     aralik.fn(); await bekle(5);         // esitleme kurulur
     aralik.fn(); await bekle(5);         // "baglandi": ilk tur basladi
     expect(d.e.durum().hal).toBe("esitleniyor");
-    d.e.kayitBitti();                    // kabuk bunu canli akistan gelen KAYIT -> BOS gecisinde cagirir
+    d.e.kayitBitti();                    // arka plan bunu canli akistan gelen KAYIT -> BOS gecisinde cagirir
     kabuk.kapat();                       // ARKA PLAN
     const kapanistaTur = d.haller.filter((h) => h === "esitleniyor").length;
     for (let i = 0; i < 300; i++) {

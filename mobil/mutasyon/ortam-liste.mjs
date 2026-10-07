@@ -1,5 +1,5 @@
 // 5P P3 mutasyonlari (telefon ortami: src/ortam/*, cekirdege eklenen kucuk yollar). Kosum (mobil/ icinden):
-//   node mutasyon/kos.mjs --liste mutasyon/ortam-liste.mjs
+//   node mutasyon/kos.mjs --liste mutasyon/ortam-liste.mjs   (mutasyon/liste.mjs'e de katilir: --neden 5P-P3)
 // Her girdi test/ortam_*.test.js'in bir iddiasini YALANLAR; test kirmiziya donmeli.
 const TAS = "test/ortam_tasiyici.test.js";
 const IST = "test/ortam_istek.test.js";

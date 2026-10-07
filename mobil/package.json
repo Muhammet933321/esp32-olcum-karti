@@ -10,16 +10,13 @@
     "mutasyon": "node mutasyon/kos.mjs",
     "mutasyon:kotlin": "node mutasyon/kos-kotlin.mjs",
     "esitle": "vite build && cap sync android",
-    "apk": "cd android && gradlew.bat assembleDebug",
+    "apk": "cd android && .\\gradlew.bat assembleDebug",
     "kilit": "node araclar/kilit-temizle.mjs"
   },
   "dependencies": {
     "@capacitor/android": "6.2.2",
     "@capacitor/core": "6.2.2",
-    "@ionic/vue": "8.8.19",
-    "@ionic/vue-router": "8.8.19",
-    "vue": "3.5.43",
-    "vue-router": "4.6.4"
+    "vue": "3.5.43"
   },
   "devDependencies": {
     "@capacitor/cli": "6.2.2",

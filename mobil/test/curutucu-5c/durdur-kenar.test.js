@@ -2,7 +2,12 @@
 import { describe, it, expect } from "vitest";
 import { durdurKur } from "../../src/cekirdek/durdur.js";
 import { komutGecerli, canliKur } from "../../src/cekirdek/canli.js";
-import { hizKomutu, HIZLAR } from "../../src/ekran/canli_gorunum.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+// Telefonda kaydi PANEL baslatir (arayuz3/app.js KAYIT_HIZLARI -> `Gb<ms>`; 5P P6'dan once canli_gorunum.js HIZLAR).
+const PANEL = readFileSync(fileURLToPath(new URL("../../../arayuz3/app.js", import.meta.url)), "utf8");
+const PANEL_HIZLARI = JSON.parse(`[${/const KAYIT_HIZLARI = Object\.freeze\(\[([^\]]*)\]\);/.exec(PANEL)[1]}]`);
 
 describe("curutucu 5C: durdur.js", () => {
   it("'ASLA reddetmez': p0 ESZAMANLI atarsa da durdur() atmamali ve hal 'ulasilamadi' olmali", () => {
@@ -58,17 +63,18 @@ describe("curutucu 5C: komut beyaz listesi (ACIK ARANDI)", () => {
     expect(giden).toEqual([]);
   });
 
-  it("izinli komut karta AYNI baytlarla gider; ekranin kurdugu her hiz komutu beyaz listede", async () => {
+  it("izinli komut karta AYNI baytlarla gider; panelin kurdugu her hiz komutu beyaz listede", async () => {
     const giden = [];
     const kart = { durum: () => ({ durum: "bagli" }), istek: async (y, yol, a, govde) => { giden.push([y, yol, Array.from(govde)]); return {}; } };
     const canli = canliKur({ kart, ag: { akisAc: async () => ({ kimlik: "a1" }), akisKapat: async () => {} }, eklenti: { addListener: () => {} } });
     await canli.komut("Gb1000");
     expect(giden).toEqual([["POST", "/komut", [71, 98, 49, 48, 48, 48]]]);
-    for (const h of HIZLAR) expect(komutGecerli(hizKomutu(h.ms))).toBe(true);
+    expect(PANEL_HIZLARI.length).toBeGreaterThan(3);
+    for (const h of PANEL_HIZLARI) expect(komutGecerli(`Gb${h}`), `Gb${h}`).toBe(true);
   });
 
   it("beyaz liste kartin KABUL ETMEDIGI araliklari da geciriyor (plan: Gb<0|50…60000>; kart: 0,20,100,200,1000,10000,60000)", () => {
-    // Bilgi amacli: yorum (canli.js GB_EN_AZ_MS) ile plan metni ayrisiyor; ekran yalniz HIZLAR'i kullandigi icin etkisi yok.
+    // Bilgi amacli: yorum (canli.js GB_EN_AZ_MS) ile plan metni ayrisiyor; panel yalniz KAYIT_HIZLARI'ni kullandigi icin etkisi yok.
     const gecen = ["Gb21", "Gb37", "Gb59999", "Gb20"].filter(komutGecerli);
     console.log(`[beyaz-liste] kartin hiz listesinde olmayip gecen: ${gecen.join(" ")}`);
     expect(gecen.length).toBeGreaterThan(0);                   // yesil: belgelenen gevseklik

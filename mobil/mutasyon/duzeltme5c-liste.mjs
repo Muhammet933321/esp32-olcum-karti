@@ -67,13 +67,6 @@ export default [
   },
   // ── bulgu 2: IP degisimi ─────────────────────────────────────────────────
   {
-    ad: "5C-D2: 30 s kurali karti KOSULSUZ aramiyor (kart 'bagli' gorunuyorsa kesif kosmaz)",
-    dosya: "src/ekran/kabuk_durum.js",
-    bul: "await ara({ zorla: true });",
-    koy: "await ara({ zorla: false });",
-    test: DUGME,
-  },
-  {
     ad: "5C-D2: durdur adreslerinde olcum.local yok",
     dosya: "src/cekirdek/uygulama.js",
     bul: "for (const a of [bagliAdres, onbellekKaydi && onbellekKaydi.adres, KART_ADI]) {",
@@ -86,29 +79,6 @@ export default [
     bul: 'asil: typeof bagli === "string" && bagli !== "" ? bagli : null',
     koy: "asil: null",
     test: KABUK,
-  },
-  // ── bulgu 3: bekleyen hiz ────────────────────────────────────────────────
-  {
-    ad: "5C-D3: bekleyen hizin omru yok (eski Gb'nin hizi cok sonraki kayda yapisir)",
-    dosya: "src/ekran/kabuk_durum.js",
-    bul: "t - bekleyenHiz.t <= HIZ_OMRU_MS && ",
-    koy: "",
-    test: DUGME,
-  },
-  {
-    ad: "5C-D3: reddedilen Gb'nin hizi unutulmuyor",
-    dosya: "src/ekran/kabuk_durum.js",
-    bul: "if (bekleyenHiz === bekleyen) bekleyenHiz = null; throw e;",
-    koy: "throw e;",
-    test: DUGME,
-  },
-  // ── bulgu 4: eski olcum ──────────────────────────────────────────────────
-  {
-    ad: "5C-D4: akis akmiyorken de son olcum ekrana veriliyor",
-    dosya: "src/ekran/durum_gorunum.js",
-    bul: 'return hal === "acik" && son && typeof son === "object" ? son : null;',
-    koy: 'return son && typeof son === "object" ? son : null;',
-    test: DUGME,
   },
   // ── bulgu 5: geri cekilme ────────────────────────────────────────────────
   {
@@ -132,42 +102,6 @@ export default [
     koy: "if (true) {",
     test: CANLI,
   },
-  // ── bulgu 6: serit ve kayit dugmesi ──────────────────────────────────────
-  {
-    ad: "5C-D6: ULASILAMADI kendiliginden siliniyor (kalici degil)",
-    dosya: "src/bilesen/durdur_gorunum.js",
-    bul: 'return hal === "durduruldu" ? DURDURULDU_SURE_MS : 0;',
-    koy: "return DURDURULDU_SURE_MS;",
-    test: KABUK,
-  },
-  {
-    ad: "5C-D6: serit yeni hali gostermiyor",
-    dosya: "src/bilesen/durdur_gorunum.js",
-    bul: "    gosterilen = yeni;\n    goster(yeni);",
-    koy: "    gosterilen = yeni;",
-    test: KABUK,
-  },
-  {
-    ad: "5C-D6: kayit dugmesi 'kapali' halde (dolu / hata / tariyor) basilabiliyor",
-    dosya: "src/ekran/kayit_dugme.js",
-    bul: "suruyor === true || !komutYolu || durumKapali || kilit.saltOkuma",
-    koy: "suruyor === true || !komutYolu || kilit.saltOkuma",
-    test: DUGME,
-  },
-  {
-    ad: "5C-D6: 'Kaydi durdur' tek dokunusla durduruyor (onay adimi yok)",
-    dosya: "src/ekran/kayit_dugme.js",
-    bul: '  if (hal.is === "durdur") return onayci.bas() ? "durdur" : null;',
-    koy: '  if (hal.is === "durdur") return "durdur";',
-    test: DUGME,
-  },
-  {
-    ad: "5C-D6: kapali dugmenin dokunusu is yapiyor",
-    dosya: "src/ekran/kayit_dugme.js",
-    bul: "  if (!hal || hal.kapali) return null;",
-    koy: "  if (!hal) return null;",
-    test: DUGME,
-  },
   // ── bulgu 7: grafikte veri yok ───────────────────────────────────────────
   {
     ad: "5C-D7: gerilim okunamazken (adc_hata bit0) deger grafige giriyor",
@@ -175,41 +109,5 @@ export default [
     bul: "const v = (hata & 1) === 0 && Number.isFinite(d.v) ? d.v : NaN;",
     koy: "const v = Number.isFinite(d.v) ? d.v : NaN;",
     test: CANLI,
-  },
-  {
-    ad: "5C-D7: NaN noktalar seriden cikarilmiyor (cizgi NaN / 0'a iner)",
-    dosya: "src/ekran/canli_gorunum.js",
-    bul: "    const d = verisizleriAt(t, seri[alan].subarray(bas, n));",
-    koy: "    const d = { t, y: seri[alan].subarray(bas, n) };",
-    test: DUGME,
-  },
-  // ── pil testinde salt okuma (A40) ────────────────────────────────────────
-  {
-    ad: "5C-D-PIL: pil testi surerken kayit dugmeleri acik",
-    dosya: "src/ekran/durum_gorunum.js",
-    bul: 'if (tur === OTURUM_TURU.PIL) return { saltOkuma: true,',
-    koy: 'if (tur === OTURUM_TURU.PIL) return { saltOkuma: false,',
-    test: DUGME,
-  },
-  {
-    ad: "5C-D-PIL: tur BILINMIYORKEN dugmeler kapaniyor (liste okunamazsa kayit durdurulamaz)",
-    dosya: "src/ekran/durum_gorunum.js",
-    bul: "  return { saltOkuma: false, rozet: null, aciklama: null };",
-    koy: "  return { saltOkuma: true, rozet: null, aciklama: null };",
-    test: DUGME,
-  },
-  {
-    ad: "5C-D-PIL: oturum turu baska oturumun kaydindan okunuyor",
-    dosya: "src/ekran/durum_gorunum.js",
-    bul: 'o && typeof o === "object" && o.id === oturum',
-    koy: 'o && typeof o === "object"',
-    test: DUGME,
-  },
-  {
-    ad: "5C-D-PIL: kayit bitince tur sifirlanmiyor (sonraki olcum kaydi 'pil testi' gorunur)",
-    dosya: "src/ekran/kabuk_durum.js",
-    bul: "      turSorulan = null;\n      oturumTuru.value = null;\n      return;",
-    koy: "      return;",
-    test: DUGME,
   },
 ];

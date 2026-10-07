@@ -7,9 +7,8 @@ import {
   BILGI_YOLU, BildirimHatasi, DILLER, URETICILER, KAYITTA, SINIFLAR, ZARF_AZAMI, ZARF_EN_AZ, bildirimIzleyici, bildirimKur, izlemeSorusuKur,
 } from "../src/cekirdek/bildirim.js";
 import { SOZLUK_MOBIL } from "../src/cekirdek/sozluk_mobil.js";
-import { KDR } from "../src/ekran/durum_gorunum.js";
+import { KDR } from "../src/cekirdek/akis_ayir.js";
 import { bildirimGorunumu, hataMetni, pilYonergesi, sinifCevir } from "../src/ekran/bildirim_gorunum.js";
-import { kabukDurumu } from "../src/ekran/kabuk_durum.js";
 
 const kaynak = (yol) => readFileSync(fileURLToPath(new URL(`../${yol}`, import.meta.url)), "utf8");
 const KIMLIK = "0123456789abcdef";
@@ -74,7 +73,7 @@ describe("bildirim.yenile: zarf karttan imzali istekle alinir, ACILMADAN saklani
     expect(await d.b.yenile()).toBe("kartta-ayarsiz");
     expect(d.cagrilar).toEqual([]);                                          // ne silme ne yazma
     // Zarfi JS tarafindan silen HICBIR yol yok: yalniz basarili yenileme yazar, eslesme kalkinca yerel taraf siler.
-    for (const f of ["src/cekirdek/bildirim.js", "src/cekirdek/uygulama.js", "src/ekran/BildirimAyar.vue", "src/ekran/kabuk_durum.js"]) {
+    for (const f of ["src/cekirdek/bildirim.js", "src/cekirdek/uygulama.js", "src/telefon/BildirimBolumu.vue", "src/telefon/bildirim_bolum.js", "src/ortam/arka_plan.js"]) {
       expect(readFileSync(new URL("../" + f, import.meta.url), "utf8"), f).not.toMatch(/zarfSil/);
     }
     // 404 govdesi zarf gibi gorunse de YAZILMAZ.
@@ -259,64 +258,6 @@ describe("bildirimIzleyici: kabugun tikinden (A29, A31, A35)", () => {
   });
 });
 
-describe("kabuk: bildirim izleyicisi saniyelik tikten beslenir; kusuru kabugu bozmaz", () => {
-  function kabuk({ atar = false, baglanDurum = "bagli" } = {}) {
-    const tikler = [];
-    let hal = "kapali", kayit = null, dinleyen = null;
-    const kart = {
-      d: { durum: "bagli-degil", adres: null, kimlik: null },
-      durum() { return this.d; },
-      async baglan() { this.d = { durum: baglanDurum, adres: "192.168.1.7:80", kimlik: KIMLIK }; return { ...this.d, bilgi: {} }; },
-      async istek() { return { json: async () => ({ oturumlar: [] }) }; },
-    };
-    const canli = {
-      baslat() { hal = "baglaniyor"; }, durdur() { hal = "kapali"; },
-      durum: () => ({ bagli: hal === "acik", hal, son: null, kayit, yas_ms: 0 }),
-      dinle(fn) { dinleyen = fn; return () => { dinleyen = null; }; }, seri: () => null, komut: async () => true,
-    };
-    const aralik = { fn: null };
-    const k = kabukDurumu({
-      kartAl: async () => kart, canliAl: async () => canli,
-      bildirimIzle: { tik: (d) => { tikler.push(d); if (atar) throw new Error("bildirim bozuk"); } },
-      belge: null, simdiMs: () => 1000000,
-      araliKur: (fn) => { aralik.fn = fn; return 1; }, araliSil: () => { aralik.fn = null; },
-    });
-    const yay = (yeni) => { ({ hal = hal, kayit = kayit } = yeni); if (dinleyen) dinleyen(); };
-    return { k, tikler, tik: () => aralik.fn(), yay };
-  }
-
-  it("her tikte { gorunur, bagli, kimlik, kayit }: baglanmadan once bagli degil, sonra kimlik ve G satiriyla", async () => {
-    const s = kabuk();
-    await s.k.ac();
-    s.tik();
-    expect(s.tikler.at(-1)).toEqual({ gorunur: true, bagli: true, kimlik: KIMLIK, adres: "192.168.1.7:80", kayit: null });
-    s.yay({ hal: "acik", kayit: { tur: "G", durum: 2, oturum: 53 } });
-    s.tik();
-    expect(s.tikler.at(-1)).toEqual({ gorunur: true, bagli: true, kimlik: KIMLIK, adres: "192.168.1.7:80", kayit: { tur: "G", durum: 2, oturum: 53 } });
-    s.k.kapat();
-  });
-
-  it("eslesmemis kart 'bagli' SAYILMAZ (imzali istek atilamaz: zarf istenmez, izleme baslatilmaz)", async () => {
-    const s = kabuk({ baglanDurum: "eslesmemis" });
-    await s.k.ac();
-    s.tik();
-    expect(s.tikler.at(-1)).toMatchObject({ gorunur: true, bagli: false, kimlik: KIMLIK });
-    s.k.kapat();
-  });
-
-  it("izleyici atarsa kabuk tiki SURER (saat ilerler, hata disari cikmaz); bildirimIzle verilmezse de calisir", async () => {
-    const s = kabuk({ atar: true });
-    await s.k.ac();
-    expect(() => s.tik()).not.toThrow();
-    expect(s.k.simdi.value).toBe(1000000);
-    expect(s.tikler.length).toBe(1);
-    s.k.kapat();
-    const kaynakKabuk = kaynak("src/ekran/kabuk_durum.js");
-    expect(kaynakKabuk).toMatch(/bildirimIzle = null/);
-    expect(kaynak("src/App.vue")).toMatch(/kabukDurumu\(\{[^}]*bildirimIzle[^}]*\}\)/);
-  });
-});
-
 describe("Ayarlar › Bildirimler gorunumu (saf)", () => {
   const D = { zarf: true, izin: true, izinGerekli: true, pilMuaf: true, calisiyor: false, izleme: "durduruldu", anlik: false, kapali: [], dil: "tr" };
 
@@ -381,7 +322,9 @@ describe("Ayarlar › Bildirimler gorunumu (saf)", () => {
     }
     for (const izleme of ["baglaniyor", "izleniyor", "internet", "guven", "araci", "kayit-bitti", "ayar", "ic-hata"]) anahtarlar.add(bildirimGorunumu({ ...D, izleme }, { kimlik: KIMLIK }).izleme);
     for (const t of ["bagli-degil", "ag", "cihaz-silinmis", "etiket", "adres", "x"]) anahtarlar.add(hataMetni(t).anahtar);
-    for (const m of kaynak("src/ekran/BildirimAyar.vue").matchAll(/"(m\.bl\.[a-z_]+)"/g)) anahtarlar.add(m[1]);
+    for (const f of ["src/telefon/BildirimBolumu.vue", "src/telefon/bildirim_bolum.js"]) {
+      for (const m of kaynak(f).matchAll(/["'](m\.bl\.[a-z_]+)["']/g)) anahtarlar.add(m[1]);
+    }
     anahtarlar.add("m.ay.bildirim");
     expect(anahtarlar.size).toBeGreaterThan(40);
     for (const a of anahtarlar) {
@@ -394,14 +337,13 @@ describe("Ayarlar › Bildirimler gorunumu (saf)", () => {
     expect(SOZLUK_MOBIL["m.bl.anlik_not"].tr).toMatch(/Kapalıyken bildirimler 15 dakikaya kadar gecikebilir/);
   });
 
-  it("ekran: izin ve pil dugmeleri ACIKLAMASIYLA birlikte; araci bilgisi gosteren alan yok", () => {
-    const v = kaynak("src/ekran/BildirimAyar.vue");
-    expect(v).toMatch(/m\.bl\.izin_not[^]*id="bl-izin-iste"/);
-    expect(v).toMatch(/m\.bl\.pil_not[^]*id="bl-pil-iste"/);
+  it("ekran (Bu telefon › Bildirimler): izin ve pil dugmeleri ACIKLAMASIYLA birlikte; araci bilgisi gosteren alan yok", () => {
+    const v = kaynak("src/telefon/BildirimBolumu.vue");
+    expect(v).toMatch(/data-bt-bl-izin-iste[^]*m\.bl\.izin_not/);
+    expect(v).toMatch(/m\.bl\.pil_not[^]*data-bt-bl-pil-iste/);
     const sablon = v.slice(v.indexOf("<template>"));
     expect(sablon).not.toMatch(/uri|kullanici|parola|onek|mqtt|adres/i);
     expect(sablon.match(/role="switch"/g).length).toBe(2);                 // anlik izleme + olay anahtarlari (v-for)
-    expect(kaynak("src/ekran/Ayarlar.vue")).toMatch(/<section id="ay-bildirim" class="kart"><BildirimAyar \/><\/section>/);
   });
 });
 
@@ -495,13 +437,8 @@ describe("izleme sorusu: kayit BU telefondan baslatilinca bir kez (kullanici kar
     expect(s.hal()).toBe("soruluyor");
   });
 
-  it("ekran: soru KATMAN degil, dugmenin altinda; kayit basarili baslayinca sorulur, bitince kapanir; metinler sozlukte", () => {
-    const v = kaynak("src/ekran/KayitDugmesi.vue");
-    expect(v).toMatch(/await kabuk\.kayitBaslat\(props\.hizMs\); izlemeSorusu\.kayitBasladi\(\);/);
-    expect(v).toMatch(/watch\(kayitKodu, \(yeni, once\) => \{ if \(kayitBittiMi\(once, yeni\)\) izlemeSorusu\.kayitBitti\(\); \}\);/);
-    expect(v).toMatch(/id="izleme-soru-evet"[^>]*@click="izlemeSorusu\.evet\(\)"/);
-    expect(v).toMatch(/id="izleme-soru-hayir"[^>]*@click="izlemeSorusu\.hayir\(\)"/);
-    expect(v).not.toMatch(/<dialog|ion-modal|ion-alert|position:\s*fixed/);
+  it("ekran (telefon ortami, soru_cizim.js): soru metinleri sozlukte; eklenti buKayit'i yalniz acikca true ise kullanir", () => {
+    const v = kaynak("src/ortam/soru_cizim.js");
     for (const a of ["m.bl.soru", "m.bl.soru_evet", "m.bl.soru_hayir", "m.bl.soru_acildi", "m.bl.soru_acilamadi"]) {
       expect(v).toContain(`"${a}"`);
       expect(SOZLUK_MOBIL[a].tr.length).toBeGreaterThan(1);
@@ -591,10 +528,10 @@ describe("A37: pil yoneticisi yonergesi (Honor ve digerleri)", () => {
     const D = { zarf: true, izin: true, izinGerekli: true, pilMuaf: true, calisiyor: false, izleme: "durduruldu", anlik: true, kapali: [], dil: "tr", uretici: "honor" };
     expect(bildirimGorunumu(D, { kimlik: KIMLIK }).yonerge.uretici).toBe("honor");
     expect(bildirimGorunumu({ ...D, uretici: undefined }, { kimlik: KIMLIK }).yonerge.uretici).toBe("diger");
-    const v = kaynak("src/ekran/BildirimAyar.vue");
+    const v = kaynak("src/telefon/BildirimBolumu.vue");
     const pil = v.slice(v.indexOf('<template v-if="g.pilGoster">'));
-    expect(pil).toMatch(/id="bl-yonerge"[^>]*:aria-expanded="yonergeAcik"[^>]*aria-controls="bl-yonerge-icerik"/);
-    expect(pil).toMatch(/m\.bl\.yn_neden[^]*<ol class="adimlar">[^]*m\.bl\.yn_not[^]*id="bl-ayarlari-ac"/);
+    expect(pil).toMatch(/data-bt-bl-yonerge[^>]*:aria-expanded="yonergeAcik \? 'true' : 'false'"[^>]*aria-controls="bt-bl-yonerge"/);
+    expect(pil).toMatch(/m\.bl\.yn_neden[^]*<ol class="bt-adimlar">[^]*m\.bl\.yn_not[^]*data-bt-bl-ayarlari-ac/);
     expect(SOZLUK_MOBIL["m.bl.yn_not"].tr).toMatch(/uygulama değiştiremez/);
     const kt = kaynak("android/app/src/main/java/tr/olcumkarti/mobil/bildirim/BildirimPlugin.kt");
     expect(kt).toContain("Settings.ACTION_APPLICATION_DETAILS_SETTINGS");

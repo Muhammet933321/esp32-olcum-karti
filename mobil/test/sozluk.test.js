@@ -50,8 +50,8 @@ describe("sozluk_mobil", () => {
   });
 
   it("ceviriMobil atmaz; dil secer; ortak sozluge duser", () => {
-    expect(ceviriMobil("m.uygulama", "tr")).toBe("Ölçüm Kartı");
-    expect(ceviriMobil("m.uygulama", "en")).toBe("Measurement Board");
+    expect(ceviriMobil("m.bt.baslik", "tr")).toBe("Bu telefon");
+    expect(ceviriMobil("m.bt.baslik", "en")).toBe("This phone");
     expect(() => ceviriMobil("m.yok.boyle.anahtar", "tr")).not.toThrow();
   });
 });

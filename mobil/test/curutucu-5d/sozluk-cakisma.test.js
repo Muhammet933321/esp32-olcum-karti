@@ -16,14 +16,14 @@ describe("curutucu 5D — sozluk", () => {
     expect([...sayim].filter(([, n]) => n > 1).map(([a]) => a)).toEqual([]);
   });
 
-  it("eslestirme ekrani (Esles.vue) kendi metnini gosterir: 'Eslestirildi', esitleme cumlesi DEGIL", () => {
-    // Esles.vue bu iki anahtari kullaniyor (kaynakta dogrulanir), beklenen metinler eslestirmeye aittir.
-    const e = oku("ekran/Esles.vue");
-    expect(e).toContain('c("m.es.tamam")');
-    expect(e).toContain('c("m.es.suruyor")');
+  it("eslestirme (Bu telefon › Kart, KartBolumu.vue) kendi metnini gosterir: 'Eslestirildi', esitleme cumlesi DEGIL", () => {
+    // KartBolumu.vue bu iki anahtari kullaniyor (kaynakta dogrulanir; 5P P6'dan once Esles.vue), beklenen metinler eslestirmeye aittir.
+    const e = oku("telefon/KartBolumu.vue");
+    expect(e).toContain("t('m.es.tamam')");
+    expect(e).toContain("t('m.es.suruyor')");
     const tamam = ceviriMobil("m.es.tamam", "tr");
     const suruyor = ceviriMobil("m.es.suruyor", "tr");
-    expect(tamam).not.toContain("{dk}");                  // Esles.vue deger vermez: ham yer tutucu ekrana cikar
+    expect(tamam).not.toContain("{dk}");                  // bolum deger vermez: ham yer tutucu ekrana cikar
     expect(tamam).not.toMatch(/kopya/i);
     expect(suruyor).not.toMatch(/Kayıtlar|telefona alınıyor/);
   });

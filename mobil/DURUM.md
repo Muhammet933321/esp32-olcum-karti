@@ -1188,3 +1188,53 @@ alınınca kırmızı olacaklar — düzeltme turunda oradan başla). Kotlin dos
 Çürütücünün öbür soruları (kilit sırası, Vazgecme, çift bildirim, 200+çöp gövde) incelenmedi — AÇIK.
 
 - 2026-10-06: kullanıcı isteğiyle aynı debug APK **Honor DNP-NX9**'a da kuruldu; açılıyor, çökme kaydı yok. Eşleştirme kullanıcıda (web parolası). Honor ölçümleri (5G) yapılmadı.
+
+## 2026-10-07 — 5P: panel telefonda
+
+Tasarım `tasarim/2026-10-07-5p-panel-telefonda.md`, plan `tasarim/2026-10-07-plan-5p.md` (P1–P6).
+
+**Ne değişti**
+- APK artık PC panelini (`arayuz3/`) açıyor: giriş `index.html` → `src/giris.js` → telefon ortamı + `arayuz3/app.js`.
+  Şablonlar derlemede render'a çevriliyor (`araclar/panel_paketle.mjs`; CSP'de `unsafe-eval` yok).
+- **Telefon ortamı** (`src/ortam/`): taşıyıcı (imzalı akış), istek yolu, arka plan (eski kabuğun işleri: kart arama,
+  akış, eşitleme, bildirim tikleri, `/pil` yoklaması), telefondaki kopyadan Kayıtlar, `Paylas` / `Yazdir` eklentileri.
+- **Bu telefon** bölümü (`src/telefon/`): Kart (bağlan / eşleş / kaldır / cihaz listesi), Eşitleme, Bildirimler,
+  Gelişmiş — panelin Ayarlar'ında.
+- **Yazdir**: rapor yazdırma Android yazdırma penceresini açıyor (açık tema), sonra tema geri dönüyor.
+- **P6 temizliği:** eski Ionic arayüzü silindi — `main.js`, `App.vue`, `yonlendirme.js`, `tema.css`,
+  `ekran/*.vue` (12), `ekran/` yardımcıları (canli/durum/kabuk/kayit_dugme/kayitlar gorunum, metin, sekmeler,
+  tercih), `bilesen/` (6), `cekirdek/grafik_olcum.js`: 31 dosya. `ekran/`'da yalnız `Bu telefon`un kullandığı dört
+  modül kaldı (`esles_durum`, `bildirim_gorunum`, `esitleme_ayar_gorunum`, `olcum_gorunum`). `@ionic/vue`,
+  `@ionic/vue-router`, `vue-router` kaldırıldı (`npm run kilit` koşuldu). Sözlükten kullanılmayan 153 anahtar
+  silindi (378 → 225; `sozluk.test.js` "her anahtar kullanılıyor" kuralı istiyor). `npm run apk` Windows'ta
+  çalışıyor (`.\gradlew.bat`). `ertelenen-curutucu-6/sayac.test.js.bekliyor` silindi (eski Durum sayacı yok).
+- Testler: yalnız ölü modülü sınayanlar silindi (`kayit_dugme`, `grafik_olcum`, `tercih`, çürütücü 5D'den dört);
+  karışık olanlarda canlı kısım kaldı. Eski kabuğu kullanan regresyonlar (`curutucu-5c/firtina`, `ip-degisti`,
+  `curutucu-5d/esitleme-kenar` A22) **arka plana** (`ortam/arka_plan.js`) taşındı; kural testleri (erişilebilirlik,
+  gömülü metin, gizlilik) kalan `.vue`'ları tarıyor. Kural mutasyonları (gömülü metin S1–S5, 5A-2, parola alanı,
+  5A-9, G4) `telefon/KartBolumu.vue` / `giris.js`'e taşındı; `ortam-liste.mjs` ana listeye katıldı.
+
+**Kanıt:** JS 58 dosya / 601 test (önce 65 / 744) · Kotlin 256/256 · `test_arayuz3.js` 934/934 ·
+`acilis.py --dist dist` 25/25 · `desen-denetle` 758 girdi 0 eskimiş · etkilenen mutasyonlar 246/246 (paylaş
+modülünde 5P'nin `genisTurDenetle` satırı üç mutasyonu eşdeğer yapmıştı — desen üç satırlık bloğa çevrildi) ·
+Kotlin `5F-K: her uzanti kabul` 1/1.
+
+**Xiaomi'de gerçek kartla doğrulandı (entegre eden oturum):**
+- Canlı V/A/W Wi-Fi'den imzalı akışla ~440 örnek/s.
+- Osiloskop tek yakalama (`/skop.bin` + M satırı).
+- Pil testi sayfası + `/pil` http kaynağı.
+- Kayıtlar telefondaki kopyadan (64 oturum), kayıt görünümü.
+- CSV dışa aktarma Android paylaşım penceresini doğru adla açıyor; rapor yazdırma Android yazdırma penceresini
+  açık temayla açıyor, tema geri dönüyor.
+- Kayıt başlat → "anlık izleme" sorusu → durdur (iki adım) → kayıt bitince yeni oturum telefona eşitlendi.
+- ACİL DURDUR: p0 49 ms, `true`.
+- Bu telefon › Kart: eşleşmiş ve bağlı; Kalibrasyon bölümü; Konsol.
+
+**Cihazda bulunup düzeltilenler:** şeridin computed önbelleği, `pilKaynak`, metin, dokunma ipucu.
+
+**Açık**
+- Honor kabulü yapılmadı.
+- Karşılaştırma, Ağ, bildirimler cihazda denenmedi.
+- Tuval grafiklerinde iki parmakla yakınlaştırma / sürükleme elle denenmedi.
+- Release imzası (A48) hâlâ açık.
+- `npm audit`: `@capacitor/cli` → `tar` (1 yüksek, 1 kritik; yalnız geliştirme aracı, APK'ya girmez) — önceden vardı.

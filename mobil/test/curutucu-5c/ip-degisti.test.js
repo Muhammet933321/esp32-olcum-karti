@@ -1,6 +1,6 @@
 // CURUTUCU 5C — kartin IP'si degisince (DHCP, yonlendirici yeniden basladi, kart AP'den ev agina dondu):
-// GERCEK kartKur + GERCEK kabukDurumu. Iddia (kabuk_durum.js YENIDEN_ARA_MS yorumu): "akis bu kadar
-// suredir hatadaysa kart yeniden ARANIR (adresi degismis olabilir)".
+// GERCEK kartKur + GERCEK arka plan (src/ortam/arka_plan.js; 5P P6'dan once kabukDurumu). Iddia (arka_plan.js
+// YENIDEN_ARA_MS yorumu): "akis bu kadar suredir hatadaysa kart yeniden ARANIR (adresi degismis olabilir)".
 // Var olan test (ekran.test.js "akis uzun sure hatadaysa karti yeniden arar") sahte kartin durumunu ELLE
 // "bagli-degil" yapiyor (`s.kart.d = …`); gercek kart.js ag hatasinda baglantiyi HIC dusurmez.
 import { describe, it, expect, vi } from "vitest";
@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { KartAgHatasi } from "../../src/cekirdek/ag.js";
 import { kartKur } from "../../src/cekirdek/kart.js";
 import { durdurAdresleri } from "../../src/cekirdek/uygulama.js";
-import { YENIDEN_ARA_MS, kabukDurumu } from "../../src/ekran/kabuk_durum.js";
+import { YENIDEN_ARA_MS, arkaPlanKur } from "../../src/ortam/arka_plan.js";
 
 const KIMLIK = "0123456789abcdef";
 const ESKI = "192.168.1.7:80";
@@ -50,12 +50,14 @@ function duzenek() {
   };
   const saat = { ms: 1000000 };
   const aralik = { fn: null };
-  const k = kabukDurumu({
+  const k = arkaPlanKur({
     kartAl: async () => kart, canliAl: async () => canli, belge: null, simdiMs: () => saat.ms,
     araliKur: (fn) => { aralik.fn = fn; return 1; }, araliSil: () => { aralik.fn = null; },
   });
+  // Ondeyken + panel akis isterken (telefon ortami): ac() karti arar, akisIste(true) akisi acar.
+  const ac = async () => { await k.ac(); k.akisIste(true); await bekle(); await bekle(); };
   const yay = (yeniHal) => { hal = yeniHal; if (dinleyen) dinleyen(); };
-  return { k, kart, yer, aramalar, saat, aralik, yay };
+  return { k, ac, kart, yer, aramalar, saat, aralik, yay };
 }
 
 const bekle = () => new Promise((c) => setTimeout(c, 0));
@@ -63,8 +65,8 @@ const bekle = () => new Promise((c) => setTimeout(c, 0));
 describe("curutucu 5C: kartin adresi degisti", () => {
   it("akis 5 dakikadir hatada: kart YENIDEN aranmali ve yeni adres bulunmali", async () => {
     const s = duzenek();
-    await s.k.ac();
-    expect(s.k.baglanti.value).toMatchObject({ durum: "bagli", adres: ESKI });
+    await s.ac();
+    expect(s.k.durum().baglanti).toMatchObject({ durum: "bagli", adres: ESKI });
     s.yay("acik");
 
     s.yer.ip = YENI;                          // kart artik baska adreste
@@ -77,12 +79,12 @@ describe("curutucu 5C: kartin adresi degisti", () => {
     }
     // KIRMIZI: kesif yalniz acilista bir kez calisti; kabuk kart.durum()'un "bagli" demesine guvendi.
     expect(s.aramalar.length, "kesif.bul cagri sayisi").toBeGreaterThanOrEqual(2);
-    expect(s.k.baglanti.value.adres).toBe(YENI);
+    expect(s.k.durum().baglanti.adres).toBe(YENI);
   });
 
   it("ayni durumda ACIL DURDUR'un adres listesi kartin YENI adresini icermeli", async () => {
     const s = duzenek();
-    await s.k.ac();
+    await s.ac();
     s.yay("acik");
     s.yer.ip = YENI;
     for (let i = 0; i < 10; i++) {
