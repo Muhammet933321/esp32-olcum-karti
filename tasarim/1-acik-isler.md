@@ -277,3 +277,24 @@ Tasarım `tasarim/2026-10-06-coklu-ag.md`, DEVIR 5.12.110. Kartta geçiş, geri 
   USB'den; imzalı istek gövdesi şifreli değil.
 - **CA-6 · `ag_kip_adi` "STA (ev agi)" diyor** — artık hotspot da olabilir; `Ag:` satırını ayrıştıran
   araçlar (tezgah, panel) yüzünden bilerek değiştirilmedi.
+
+## 5P — panel telefonda (2026-10-07) — kalanlar
+
+Tasarım `2026-10-07-5p-panel-telefonda.md`, ilerleme `mobil/DURUM.md`. Xiaomi + gerçek kartta geçti: canlı,
+osiloskop yakalama, pil sayfası (`/pil` http), Kayıtlar (telefon kopyası) + kayıt görünümü, CSV → Paylaş,
+rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşitleme, ACİL DURDUR (p0 49 ms).
+
+- **5P-1 Honor kabulü** (asıl telefon, Android 16, hotspot sahibi): aynı tur; kart Honor'un hotspot'undayken.
+- **5P-2 telefonda denenmeyenler:** Karşılaştırma, Ayarlar → Ağ (yalnız okuma: `Nl`/`Nt`), bildirimler
+  (izleyici ve MQTT yeni kabukla), grafiklerde parmakla yakınlaştırma/kaydırma (K19), TalkBack.
+- **5P-3 debug APK'da WebView incelenebilir:** `webContentsDebuggingEnabled: false` olsa da Android hata
+  ayıklanabilir uygulamada WebView incelemesini açıyor (adb + USB hata ayıklaması gerekir). Çözüm imzalı
+  sürüm derlemesi = A48 (açık).
+- **5P-4 yazdırma teması:** `Yazdir` pencere kapanınca döner (onFinish); panel temayı ancak o zaman geri alır —
+  Xiaomi'de doğru (PDF açık tema), başka yazdırma hizmetleriyle denenmedi.
+- **5P-5 uygulama sürümü:** `@capacitor/app` yok → Gelişmiş'te sürüm `package.json`'dan.
+- **5P-6 telefon kopyası** yalnız bağlı + son bağlanılan kart (KartDepo dizin listelemiyor); panel 256 KB
+  base64 parçalarla okur — çok büyük kopyada yavaş olabilir (ölçülmedi).
+- **5P-7 Kotlin `Akis`** yalnız `dolu`'yu tanır; kart 4B'den beri `kopru` olayı göndermiyor (4 istemci) — sorun
+  yok, kart davranışı değişirse bakılacak.
+
