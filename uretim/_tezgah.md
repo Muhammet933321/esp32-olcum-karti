@@ -231,60 +231,67 @@ Bu 22 kalem `[!]` ile isaretli: kart calisir calismaz, digerlerinden ONCE.
 | 109 | E6F QF okuma (QH sonundaki son 4 basarisiz ayirma) | 'QF yok' beklenen. caps=0x0008 gorev=bld (boyut <= 1600) = AES DMA ara tamponu ayrilamadi, MQTT o an koptu ve kendisi yeniden baglanir (E6F'nin bilinen bedeli; dahili DMA'li bellekte 1.6 KB'lik blok kalmamis). caps=0x080C gorev=wifi/tiT = Wi-Fi dinamik tamponu. caps=0x0804 gorev=bld = mbedTLS: E6F'den sonra BEKLENMEZ (PSRAM de dolmus demek); boyut gercek n*boyut (E6K) |
 | 110 | [!] Ag geri donusu: erisim noktasi gidip gelince kart STA'ya kendiliginden doner | seri izleyici acik; kartin bagli oldugu erisim noktasini (ev agi ya da telefon hotspot'u) ~1 dk kapat, sonra ac: kullanici hicbir sey yapmadan kart STA'ya doner (Q durumu 'ag yok (STA degil)'den cikar, olcum.local acilir, kopru esitler). A3-CA3'ten beri (2026-10-07) 30 s'den uzun kopmada kart once kendi agini kurar (beklenen) ve kayitli aglari 30 s'de bir dener: erisim noktasi acildiktan sonra <= ~40 s'de STA. AP'de kalirsa ya da 5 dk'da donmezse KUSUR (2026-10-04 sabahi >= 1 dk 'ag yok'ta kaldi, donus olculmedi) |
 
+## B72 CA-4 statik DRAM payi: skop tamponlari PSRAM'de (kartta)
+
+| # | Olcum | Kabul olcutu |
+|---|---|---|
+| 111 | CA-4 acilis satiri (yuklemeden sonra ilk acilis, USB seri izleyici) | 'Bellek (CA-4): skop=PSRAM'. 'dahili' = PSRAM yok/dolu (16 KB dahili yigindan, statik kazanc acilista geri verildi); 'YOK' = osiloskop KAPALI (her yakalama reddedilir) |
+| 112 | CA-4 osiloskop PSRAM tamponuyla (tb ve Gt0, /skop.bin) | tezgah_blokaj.py --skop + panel Osiloskop: yakalama, tetik yeri (idx == on), M satiri ve /skop.bin oncekiyle ayni; skop gorevi yigin dibi (C satiri skop_yigin_dip) degismez; K satiri loop_azami ve D satiri ornekleme hizi (~500/s) oncekiyle ayni |
+
 ## B73 ortak/ (JS hesap kodu)
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 111 | Kartin GERCEK akisi JS ile de ayni cozuluyor mu | tezgah_kayit.py --esit ile esitlenen kayit.bin'i hem kopru/kayit_bicim.py hem ortak/src/kayit.js ile coz; oturumlar, noktalar, volt/amper bit bit ayni |
-| 112 | [!] Telefonda PBKDF2 suresi (Capacitor WebView) | 20 000 tur; spec 'telefonda < 1 s' (yazilim-sistemi §13). Node'daki sure telefonu temsil etmez |
+| 113 | Kartin GERCEK akisi JS ile de ayni cozuluyor mu | tezgah_kayit.py --esit ile esitlenen kayit.bin'i hem kopru/kayit_bicim.py hem ortak/src/kayit.js ile coz; oturumlar, noktalar, volt/amper bit bit ayni |
+| 114 | [!] Telefonda PBKDF2 suresi (Capacitor WebView) | 20 000 tur; spec 'telefonda < 1 s' (yazilim-sistemi §13). Node'daki sure telefonu temsil etmez |
 
 ## B3 Sema
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 113 | Kurulan kart SEMAYLA ayni mi | Netlist yalnizca semayi dogruluyor; lehimlenen kart baska olabilir. Olcum: her dugumu ohmmetrenin sureklilik kipiyle netliste karsi tek tek gec |
-| 114 | Polarite: elektrolitik ve diyot yonleri | ERC yon hatasi YAKALAMAZ. Olcum: montajdan ONCE her kutuplu parcayi gozle dogrula — enerji verdikten sonra elektrolitik geri donusu yok |
+| 115 | Kurulan kart SEMAYLA ayni mi | Netlist yalnizca semayi dogruluyor; lehimlenen kart baska olabilir. Olcum: her dugumu ohmmetrenin sureklilik kipiyle netliste karsi tek tek gec |
+| 116 | Polarite: elektrolitik ve diyot yonleri | ERC yon hatasi YAKALAMAZ. Olcum: montajdan ONCE her kutuplu parcayi gozle dogrula — enerji verdikten sonra elektrolitik geri donusu yok |
 
 ## B4/B5 Olcum matematigi
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 115 | ESP32'nin gercek ADC gurultusu ve INL'i | Sabit gerilimde 1000 ornek al, standart sapmayi olc. Skop cozunurlugu (28.8 mV) bu gurultunun altinda kalmali |
-| 116 | Gercek ADS1115 ofset (+-3 LSB) ve kazanc (%0.15) hatasi | Kalibrasyon SONRASI bilinen iki noktada olc. Kalan hata veri sayfasi sinirlarinin icinde mi |
-| 117 | ESP32 ADC'sinin gercek TAM OLCEGI | 3.1 V nominal ama yongaya gore degisiyor; skop volt/adim dogrudan buna bagli |
+| 117 | ESP32'nin gercek ADC gurultusu ve INL'i | Sabit gerilimde 1000 ornek al, standart sapmayi olc. Skop cozunurlugu (28.8 mV) bu gurultunun altinda kalmali |
+| 118 | Gercek ADS1115 ofset (+-3 LSB) ve kazanc (%0.15) hatasi | Kalibrasyon SONRASI bilinen iki noktada olc. Kalan hata veri sayfasi sinirlarinin icinde mi |
+| 119 | ESP32 ADC'sinin gercek TAM OLCEGI | 3.1 V nominal ama yongaya gore degisiyor; skop volt/adim dogrudan buna bagli |
 
 ## B6 Firmware derleme + ikili
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 118 | I2C gercekten calisiyor mu | `#` komutu -> `I2C: 0x48 0x49`. Ikisi de gorunmuyorsa adres pinleri ya da cekme direncleri yanlis |
-| 119 | Menzil gecisi gercek gerilimde puruzsuz mu | Yavas artan bir gerilimde NORMAL->YUKSEK gecisini izle. Sicrama varsa histerezis yetersiz |
-| 120 | PSRAM kartta gercekten var mi | Acilista `PSRAM: 8192 KB` yazmali. `YOK` yazarsa hedef2.py'de PSRAM=opi yerine PSRAM=enabled (quad) denenecek |
+| 120 | I2C gercekten calisiyor mu | `#` komutu -> `I2C: 0x48 0x49`. Ikisi de gorunmuyorsa adres pinleri ya da cekme direncleri yanlis |
+| 121 | Menzil gecisi gercek gerilimde puruzsuz mu | Yavas artan bir gerilimde NORMAL->YUKSEK gecisini izle. Sicrama varsa histerezis yetersiz |
+| 122 | PSRAM kartta gercekten var mi | Acilista `PSRAM: 8192 KB` yazmali. `YOK` yazarsa hedef2.py'de PSRAM=opi yerine PSRAM=enabled (quad) denenecek |
 
 ## B7 Arayuz
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 121 | [!] Arayuz tarayicida GERCEKTEN dogru gorunuyor mu | Bu adim Vue`yu TAKLIT ediyor; sayfa hic render edilmiyor. B22.0`da arayuz zincir 15/15 yesilken tarayicida HIC acilmiyordu. `python arayuz3/sunucu.py` -> konsolda 0 hata, ham {{ }} yok |
-| 122 | J7/J3 baypas uyarisi KIRMIZI seritli gorunuyor mu | Emniyet uyarisi govde metninden ayirt edilebilmeli. B22.0 oncesi `.uyari` sinifi hic tanimli degildi ve duz paragraf olarak cikiyordu |
-| 123 | Osiloskop iki yoldan da AYNI cizimi veriyor mu | USB`de ASCII, WiFi`de ikili (/skop.bin) yol kullaniliyor. Ayni sinyalde iki kip AYNI dalgayi cizmeli; farkliysa cozuculerden biri yanlis (endian, olcek ya da ofset) |
-| 124 | Telefonda Ana Ekrana Ekle | iPhone: adres cubugu OLMADAN, kendi ikonuyla acilmali. Android: kisayol Chrome sekmesinde acilir — bu beklenen davranis, gercek PWA kurulumu HTTPS istiyor |
+| 123 | [!] Arayuz tarayicida GERCEKTEN dogru gorunuyor mu | Bu adim Vue`yu TAKLIT ediyor; sayfa hic render edilmiyor. B22.0`da arayuz zincir 15/15 yesilken tarayicida HIC acilmiyordu. `python arayuz3/sunucu.py` -> konsolda 0 hata, ham {{ }} yok |
+| 124 | J7/J3 baypas uyarisi KIRMIZI seritli gorunuyor mu | Emniyet uyarisi govde metninden ayirt edilebilmeli. B22.0 oncesi `.uyari` sinifi hic tanimli degildi ve duz paragraf olarak cikiyordu |
+| 125 | Osiloskop iki yoldan da AYNI cizimi veriyor mu | USB`de ASCII, WiFi`de ikili (/skop.bin) yol kullaniliyor. Ayni sinyalde iki kip AYNI dalgayi cizmeli; farkliysa cozuculerden biri yanlis (endian, olcek ya da ofset) |
+| 126 | Telefonda Ana Ekrana Ekle | iPhone: adres cubugu OLMADAN, kendi ikonuyla acilmali. Android: kisayol Chrome sekmesinde acilir — bu beklenen davranis, gercek PWA kurulumu HTTPS istiyor |
 
 ## B9 Malzeme listesi
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 125 | [!] Direnc adetleri SAYIM degil goz karari | envanter.csv'nin direnc adetleri yaklasik (CLAUDE.md). Listede yeter gorunen bir deger tezgahta bitebilir. Olcum: montajdan ONCE kritik degerleri say |
-| 126 | Kayitta gorunmeyen parca GERCEKTEN yok mu | Bobin/cekirdek ve modul alanlari KISMEN girildi. 'kayitta yok' = 'elde yok' DEGIL. Olcum: kutuya bak |
-| 127 | Parcalarin gercek degerleri etiketiyle ayni mi | Ozellikle HV bolucusundeki 4.9 M ohm zinciri. Olcum: lehimlemeden once her direnci ohmmetreyle gec |
+| 127 | [!] Direnc adetleri SAYIM degil goz karari | envanter.csv'nin direnc adetleri yaklasik (CLAUDE.md). Listede yeter gorunen bir deger tezgahta bitebilir. Olcum: montajdan ONCE kritik degerleri say |
+| 128 | Kayitta gorunmeyen parca GERCEKTEN yok mu | Bobin/cekirdek ve modul alanlari KISMEN girildi. 'kayitta yok' = 'elde yok' DEGIL. Olcum: kutuya bak |
+| 129 | Parcalarin gercek degerleri etiketiyle ayni mi | Ozellikle HV bolucusundeki 4.9 M ohm zinciri. Olcum: lehimlemeden once her direnci ohmmetreyle gec |
 
 ## B48 Yerlesim plani
 
 | # | Olcum | Kabul olcutu |
 |---|---|---|
-| 128 | [!] BJT/TL431/7912 bacak sirasi multimetrenin diyot kademesiyle | Plan E-B-C (2N2222-331), C-B-E (BC557), REF-A-K (TL431), GND-VI-VO (7912) varsayiyor. Semadaki Q2 sembolu BC547 (C-B-E); yanlis sira transistoru YARI calistirir, sessiz kusur |
-| 129 | Plaket ped capi kumpasla | Kacak yolu hesabi lehimli iletken capini 1.54 mm aliyor. Olculen buyukse yerlesim3_veri/tasarim3_sabit guncellenip denetim yeniden kosulacak (HV kartinda pay +1.97 mm) |
-| 130 | Sigorta klipsi, 68uF ve C18 bacak araliklari | Ayak izleri tahmin: klips cifti 6 adim, 68uF 1 adim / 8 mm govde, C18 film 6 adim. Parcayi plakete oturt, delikleri say; uymayan varsa plan yeniden uretilecek (--yol-uret) |
-| 131 | Her adimin sonunda bakir sureklilik (ohmmetre) | Plan acik/kisa devre olmadigini GEOMETRIDEN kanitliyor; soguk lehim ve lehim koprusunu kanitlayamaz. Her adimda kilavuzun KAPI olcumunden once komsu pedler arasi kisa, ag iclerinde sureklilik |
+| 130 | [!] BJT/TL431/7912 bacak sirasi multimetrenin diyot kademesiyle | Plan E-B-C (2N2222-331), C-B-E (BC557), REF-A-K (TL431), GND-VI-VO (7912) varsayiyor. Semadaki Q2 sembolu BC547 (C-B-E); yanlis sira transistoru YARI calistirir, sessiz kusur |
+| 131 | Plaket ped capi kumpasla | Kacak yolu hesabi lehimli iletken capini 1.54 mm aliyor. Olculen buyukse yerlesim3_veri/tasarim3_sabit guncellenip denetim yeniden kosulacak (HV kartinda pay +1.97 mm) |
+| 132 | Sigorta klipsi, 68uF ve C18 bacak araliklari | Ayak izleri tahmin: klips cifti 6 adim, 68uF 1 adim / 8 mm govde, C18 film 6 adim. Parcayi plakete oturt, delikleri say; uymayan varsa plan yeniden uretilecek (--yol-uret) |
+| 133 | Her adimin sonunda bakir sureklilik (ohmmetre) | Plan acik/kisa devre olmadigini GEOMETRIDEN kanitliyor; soguk lehim ve lehim koprusunu kanitlayamaz. Her adimda kilavuzun KAPI olcumunden once komsu pedler arasi kisa, ag iclerinde sureklilik |
 
-**Toplam 131 kalem, 22 tanesi ilk gun.**
+**Toplam 133 kalem, 22 tanesi ilk gun.**

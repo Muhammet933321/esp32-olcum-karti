@@ -304,7 +304,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-PT1"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-PT2"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -3645,9 +3645,78 @@ E6F_TEZGAH = [
      "sabahi >= 1 dk 'ag yok'ta kaldi, donus olculmedi)"),
 ]
 
+def bolum_ca4() -> None:
+    """CA-4 (2026-10-08): statik DRAM %25 sinirina 28 B kalmisti (81 892 / 81 920). En buyuk iki
+    statik sembol — skop_veri + skop_gecici (2 x 8000 B) — acilista TEK blok olarak once PSRAM'e,
+    yoksa dahili yigina ayriliyor. Bayt payi B6 olcuyor (`ESP_DRAM_ASGARI_PAY`); burasi tasimanin
+    KAYNAK kurallarini: statik dizi geri gelmez, ayirma sirasi PSRAM -> dahili, ayirma yakalama
+    gorevinden ONCE, ayrilamazsa yakalama reddedilir, acilis satiri gercek yeri soyler."""
+    print("\n── B72.CA4  statik DRAM payi: skop tamponlari PSRAM'e")
+    ino = _oku("olcum-karti-a3.ino")
+    ino_k = kod(ino)
+    st = govde(ino_k, "void setup() {")
+    ay = govde(ino_k, "static void skop_tampon_ayir() {")
+    kur = govde(ino_k, "void skop_kur() {")
+    yk = govde(ino_k, "static uint8_t skop_yakala()")
+    ayir = ("uint16_t *t = (uint16_t *)heap_caps_malloc_prefer( (size_t)2u * SKOP_AZAMI_ADET * "
+            "sizeof(uint16_t), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, "
+            "MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);")
+    tum_kod = ino_k + "".join(kod(_oku(p.name)) for p in sorted(KOD.glob("*.h")))
+    olu_a = kosulsuz(ino_k, "static uint16_t *skop_veri = nullptr;",
+                     "static uint16_t *skop_gecici = nullptr;", "skop_tampon_ayir();")
+    ok("B72.CA4a skop_veri/skop_gecici ISARETCI (statik dizi YOK, eskizin hicbir yerinde); "
+       "tek blok once PSRAM, yoksa dahili (heap_caps_malloc_prefer), ikinci yari skop_gecici; "
+       "ayrilamazsa ikisi de nullptr",
+       not re.search(r"\bskop_(veri|gecici)\s*\[\s*SKOP_AZAMI_ADET\s*\]", tum_kod)
+       and len(re.findall(r"\bskop_veri\s*=", tum_kod)) == 2      # bildirim + ayirma
+       and len(re.findall(r"\bskop_gecici\s*=", tum_kod)) == 2
+       and ayir in re.sub(r"\s+", " ", ay)
+       and 0 <= ay.find("if (!t) return;") < ay.find("skop_veri = t;")
+       < ay.find("skop_gecici = t + SKOP_AZAMI_ADET;")
+       and "free(" not in ay and not olu_a, f"olu={olu_a}")
+    i_ayir = st.find("skop_kur();")
+    i_gorev = st.find('xTaskCreatePinnedToCore(skop_gorevi, "skop"')
+    ok("B72.CA4b tamponlar skop_kur'un ILK isi, skop_kur yakalama gorevinden ve sunucudan "
+       "(/skop.bin) ONCE; ayirma kodu tek yerde",
+       kur[1:].lstrip().startswith("skop_tampon_ayir();")
+       and 0 <= i_ayir < i_gorev < st.find("sunucu.begin();")
+       and tum_kod.count("skop_tampon_ayir();") == 1
+       and tum_kod.count("SKOP_AZAMI_ADET * sizeof(uint16_t)") == 1,
+       f"skop_kur@{i_ayir} gorev@{i_gorev}")
+    i_red = yk.find("if (!skop_veri || !skop_gecici) return SKOP_SONUC_HATA;")
+    ok("B72.CA4c tampon yoksa skop_yakala kilidi ALMADAN ve ADC'ye dokunmadan reddeder "
+       "(skop_adet 0 kalir: /skop.bin, dokum, gunluk yalniz basarili yakalamadan sonra okur)",
+       0 <= i_red < yk.find("xSemaphoreTake(skop_kilidi") < yk.find("skop_veri[w] = v;")
+       and i_red < yk.find("adc_baslat()") and yk.find("skop_adet = dolu;") > yk.find("skop_veri[w] = v;"),
+       f"red@{i_red}")
+    i_b = st.find('Serial.print(F("Bellek (CA-4): skop="));')
+    olu_d = kosulsuz(ino_k, 'Serial.print(F("Bellek (CA-4): skop="));')
+    ok("B72.CA4d acilis satiri `Bellek (CA-4): skop=<PSRAM|dahili|YOK>` isaretcinin KENDISINDEN, "
+       "E6F satirindan sonra",
+       st.find('Serial.print(F(" akis="));') < i_b
+       and 'esp_ptr_external_ram(skop_veri) ? F("PSRAM") : F("dahili")' in st[i_b:i_b + 300]
+       and '!skop_veri ? F("YOK' in st[i_b:i_b + 200] and not olu_d, f"olu={olu_d}")
+    tz = " ".join(k + " " + v for k, v in CA4_TEZGAH)
+    bas = re.findall(r'Serial\.print\(F\("(Bellek \(CA-4\): skop=)"\)\);', st)
+    ok("B72.CA4e CA-4 tezgah kalemi firmware'in bastigi satirla AYNI; ASCII",
+       len(bas) == 1 and bas[0] + "PSRAM" in tz and tz.isascii(),
+       f"satir={bas} kalem={len(CA4_TEZGAH)}")
+
+
+# CA-4: kartta dogrulanacaklar (zincir _tezgah.md'ye toplar). ASCII.
+CA4_TEZGAH = [
+    ("CA-4 acilis satiri (yuklemeden sonra ilk acilis, USB seri izleyici)",
+     "'Bellek (CA-4): skop=PSRAM'. 'dahili' = PSRAM yok/dolu (16 KB dahili yigindan, statik "
+     "kazanc acilista geri verildi); 'YOK' = osiloskop KAPALI (her yakalama reddedilir)"),
+    ("CA-4 osiloskop PSRAM tamponuyla (tb ve Gt0, /skop.bin)",
+     "tezgah_blokaj.py --skop + panel Osiloskop: yakalama, tetik yeri (idx == on), M satiri ve "
+     "/skop.bin oncekiyle ayni; skop gorevi yigin dibi (C satiri skop_yigin_dip) degismez; "
+     "K satiri loop_azami ve D satiri ornekleme hizi (~500/s) oncekiyle ayni"),
+]
+
 BOLUMLER = [bolum_tablo, bolum_kaynak, bolum_esitle, bolum_guvenlik_py, bolum_guvenlik_kart,
             bolum_guvenlik_istemci, bolum_bildirim_kart, bolum_kopru_wifi, bolum_kopru_esitle,
-            bolum_w2, bolum_tezgah_w5, bolum_e6, bolum_e6f]
+            bolum_w2, bolum_tezgah_w5, bolum_e6, bolum_e6f, bolum_ca4]
 
 
 def main() -> int:
@@ -3712,6 +3781,7 @@ def main() -> int:
          "son ~5 s"),
     ])
     tezgah("B72 E6F dahili yigin duzeltmesi (kartta)", E6F_TEZGAH)
+    tezgah("B72 CA-4 statik DRAM payi: skop tamponlari PSRAM'de (kartta)", CA4_TEZGAH)
     gercek_dizin_koru.denetle(_KORUMA, ok)
     print(f"\nB72: {gecti}/{gecti + kaldi} kosul gecti")
     return 0 if kaldi == 0 else 1

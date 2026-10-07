@@ -76,7 +76,7 @@ static KayitBitirIz kayit_bitir_iz_al(void)
 #include "kayit_plan.h"           /* 1C-4: zamanlanmis kayit karar mantigi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-PT1"    /* PT1: pil testi — EMA kesme, 5 s OCV evresi (KN_OCV), Pr kayit hizi (PIL oturumunda her ornek = AYRINTI + 1/s nokta), Pd DCIR ac/kapa (2026-10-07); CA3: STA kopmasinda AP 90 -> 30 s + ilk deneme hemen (2026-10-07); CA2: ag_komut.h yazicilari aynaya (Nl/Nt/gecis mesajlari WiFi akisinda, 2026-10-07); CA: coklu WiFi agi (8) + Ng gecis (2026-10-06); W2: G satirina son_not + mesaj_dusen, Qe esigi, rastgele eno, /saat ve Ex tam cozum; 4B: /kopru kalkti; 1F skop; 1E MQTT */
+#define KAYIT_FW_SURUM    "A3-PT2"    /* PT2: CA-4 — skop tamponlari (16 KB) statik DRAM'den PSRAM'e, acilis satiri `Bellek (CA-4): skop=` (2026-10-08); PT1: pil testi — EMA kesme, 5 s OCV evresi (KN_OCV), Pr kayit hizi (PIL oturumunda her ornek = AYRINTI + 1/s nokta), Pd DCIR ac/kapa (2026-10-07); CA3: STA kopmasinda AP 90 -> 30 s + ilk deneme hemen (2026-10-07); CA2: ag_komut.h yazicilari aynaya (Nl/Nt/gecis mesajlari WiFi akisinda, 2026-10-07); CA: coklu WiFi agi (8) + Ng gecis (2026-10-06); W2: G satirina son_not + mesaj_dusen, Qe esigi, rastgele eno, /saat ve Ex tam cozum; 4B: /kopru kalkti; 1F skop; 1E MQTT */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */

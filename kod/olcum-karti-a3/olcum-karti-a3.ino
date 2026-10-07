@@ -794,7 +794,7 @@ Okuma3 olcum_al() {
 // Artık gerçek osiloskoplardaki gibi saniye/bölme seçiliyor.
 static const uint32_t SKOP_HZ_AZAMI   = 83333;  // SOC_ADC_SAMPLE_FREQ_THRES_HIGH
 static const uint32_t SKOP_HZ_ASGARI  = 611;    // SOC_ADC_SAMPLE_FREQ_THRES_LOW
-static const uint16_t SKOP_AZAMI_ADET = 4000;   // 2 x 8 kB SRAM
+static const uint16_t SKOP_AZAMI_ADET = 4000;   // 2 x 8 kB — CA-4: PSRAM'de (skop_tampon_ayir)
 // SKOP_TAVAN artik olcum2.h icinde: SKOP_ADC_TAVAN / SKOP_VOLT_ADIM
 static const uint8_t  SKOP_KANAL      = 3;      // GPIO4 = ADC1_CH3
 static const uint8_t  SKOP_BOLME      = 10;     // ekranda yatay bölme sayısı
@@ -861,8 +861,18 @@ static void adc_durdur(void) {
     adc_continuous_stop(skop_kulp);
     skop_calisiyor = false;
 }
-static uint16_t skop_veri[SKOP_AZAMI_ADET];
-static uint16_t skop_gecici[SKOP_AZAMI_ADET];
+/* CA-4 (2026-10-08): STATIK DRAM SINIRI. Iki 8 KB'lik dizi statik DRAM'in en buyuk iki
+   sembolu idi (81 892 B, %25 siniri 81 920 B — pay 28 B; sonraki statik ekleme sinira
+   takiliyordu). Artik TEK blok (2 x 8000 B) acilista `skop_tampon_ayir` ile once PSRAM,
+   yoksa dahili yigin; ayrilamazsa ikisi de nullptr kalir, `skop_yakala` reddeder
+   (SKOP_SONUC_HATA) ve `skop_adet` 0 kalir — /skop.bin, dokum, gunluk ve olcum yalniz
+   basarili yakalamadan (skop_adet > 0) sonra okur. Neden guvenli: yalniz gorevlerden
+   (skop gorevi cekirdek 1, /skop.bin cekirdek 0) kullaniliyor — ISR/IRAM yok, DMA degil
+   (ADC surucusunun kendi DMA tamponu dahili; buraya CPU kopyaliyor), olcum dongusunun
+   sicak yolu degil (yakalama surerken ADS zaten susuyor). Acilis satiri
+   `Bellek (CA-4): skop=PSRAM`. */
+static uint16_t *skop_veri = nullptr;     /* SKOP_AZAMI_ADET ornek */
+static uint16_t *skop_gecici = nullptr;   /* ayni blogun ikinci yarisi */
 static uint16_t skop_adet = 0;        // son yakalamadaki örnek sayısı
 static uint16_t skop_tetik_idx = 0;   // tetik örneğinin dizideki yeri
 static uint32_t skop_hz = 0;          // son yakalamanın gerçek hızı
@@ -968,7 +978,21 @@ static void skop_cali_kur() {
     }
 }
 
+/* CA-4 (2026-10-08): skop tamponlari (tek blok) once PSRAM, yoksa dahili; ikisi de
+   olmazsa nullptr (skop KAPALI, acilis satiri `skop=YOK`). Bir kez, gorev kurulmadan
+   ONCE (setup -> skop_kur); hic birakilmaz. */
+static void skop_tampon_ayir() {
+    if (skop_veri) return;
+    uint16_t *t = (uint16_t *)heap_caps_malloc_prefer(
+        (size_t)2u * SKOP_AZAMI_ADET * sizeof(uint16_t), 2,
+        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!t) return;
+    skop_veri = t;
+    skop_gecici = t + SKOP_AZAMI_ADET;
+}
+
 void skop_kur() {
+    skop_tampon_ayir();
     skop_cali_kur();
     adc_continuous_handle_cfg_t k = {};
     k.max_store_buf_size = 8192;
@@ -1140,6 +1164,7 @@ static uint8_t skop_yakala()
     skop_taban_coz(skop_ayar.tdiv, &hz, &n);
 
     if (!skop_kulp) return SKOP_SONUC_HATA;
+    if (!skop_veri || !skop_gecici) return SKOP_SONUC_HATA;   /* CA-4: tampon ayrilamadi */
     if (skop_kilidi && xSemaphoreTake(skop_kilidi, 0) != pdTRUE)
         return SKOP_SONUC_KILIT;          /* /skop.bin okunuyor */
     if (!skop_hiz_ayarla(hz)) { skop_kilidi_birak(); return SKOP_SONUC_HATA; }
@@ -5986,6 +6011,11 @@ void setup() {
     Serial.print(F(" akis="));
     Serial.println(akis_psram ? F("PSRAM") : F("dahili"));
   }
+  /* CA-4 (2026-10-08): skop tamponlari (16 KB) statik DRAM'den cikti — GERCEK yeri,
+     isaretcinin kendisinden. YOK = PSRAM ve dahili yigin ikisi de vermedi: skop KAPALI. */
+  Serial.print(F("Bellek (CA-4): skop="));
+  Serial.println(!skop_veri ? F("YOK — osiloskop KAPALI")
+                 : esp_ptr_external_ram(skop_veri) ? F("PSRAM") : F("dahili"));
 
   Serial.println(F("Cikis: D <volt> <amper> <watt> <joule> <wh> <ms> "
                    "<ornek> <menzil> <durum>"));

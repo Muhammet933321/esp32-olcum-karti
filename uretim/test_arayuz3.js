@@ -8953,6 +8953,14 @@ console.log('\n--- 35. 5P: panel telefonda (globalThis.__olcumOrtam) ---');
         /* Telefonda bulundu (2026-10-07): pil egrisi "bu baglantida egri yok" diyordu — telefon /pil'i
            imzali istekle (ORTAM.istek) okuyabilir; kaynak 'http' olmali (kartin kendi WiFi'si gibi). */
         ok('[!] 5P (d) K7: telefonda pil durumu/egrisi /pil`den (pilKaynak http)', u.pilKaynak === 'http', String(u.pilKaynak));
+        /* Honor'da goruldu (2026-10-07): kart-yok uyarisi telefonda "USB kablosu COM soketinde mi?" diyordu —
+           telefona USB ile kart baglanmaz (K1 kapsam disi). Acilis sozlugu dolu (19 500 B): yeni anahtar yerine
+           ayni metnin ilk iki parcasi; sozlukte TR ve EN UC parca (" · ") olmali, sonuncusu USB. */
+        const ipT = String(u.kartYokIpucuMetni || '');
+        const parca = (d) => String((sozlukTum().SOZLUK['kb.kart_yok_ipucu'] || {})[d] || '').split(' · ');
+        ok('[!] 5P (d): telefonda kart-yok ipucu USB / COM DEMEZ; sozlukte TR/EN uc parca, sonuncusu USB',
+           ipT.length > 0 && !/USB|COM/.test(ipT) && ['tr', 'en'].every((d) => parca(d).length === 3 && /USB/.test(parca(d)[2])),
+           ipT);
         ok('[!] 5P (d) K9: acil serit karari ortam.serit(pilSuruyor) — baglanti yok / kart soylemedi: null (gorunur), kart BEKLEMEDE dedi: false (gizli), CALISIYOR: true; kesilince yeniden bilinmiyor; serit atarsa GORUNUR',
            JSON.stringify(s) === JSON.stringify([[null, true], [null, true], [false, false], [true, true], [null, true]])
            && atarsa === true && iz.kapat === 1,

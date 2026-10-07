@@ -150,7 +150,7 @@ test("ptGorunum: hiz secenekleri, sure yazisi (dayanagi ile), her ornek uyarisi,
   assert.match(g.sure, /^At this rate up to ~\d+ h of recording \(board's free recording space ~6\.0 MB\)\.$/);
   assert.match(g.desteklenmiyor, /A3-PT1/);
   assert.equal(g.evre, "Measuring OCV (load off) — first 5 s");
-  for (const v of Object.values(P.ptGorunum(D()))) if (typeof v === "string") assert.doesNotMatch(v, /pt\./, "ham anahtar");
+  for (const v of Object.values(P.ptGorunum(D()))) if (typeof v === "string") assert.doesNotMatch(v, /\bpt\./, "ham anahtar");
 });
 
 test("ptGorunum: farkli ayar (yalniz test surerken), OCV lejanti (yalniz bant varken), DCIR kapali", () => {

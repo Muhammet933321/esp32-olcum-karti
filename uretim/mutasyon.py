@@ -3992,7 +3992,7 @@ MUTASYONLAR = [
      '  const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin", "X-Cihaz", "X-Sayac", "X-Imza",', '  const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin", "X-Cihaz", "X-Sayac",',
      '1D: X-Imza toplanmazsa her imzali istek imzasiz sanilir: F88 kirmizi'),
     ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/kayit_esp.h",
-     '#define KAYIT_FW_SURUM    "A3-PT1"', '#define KAYIT_FW_SURUM    "A3-CA3"',
+     '#define KAYIT_FW_SURUM    "A3-PT2"', '#define KAYIT_FW_SURUM    "A3-PT1"',
      "1D: surum adi degismezse PC eski firmware'i ayirt edemez: F25 kirmizi (W2: A3-W2)"),
     # ── W2 (2026-10-03): firmware kucukleri — G son_not, /saat, Ex<n>, rastgele eno, Qe, noktaci
     ("B71", "test_kayit.py", "kod/olcum-karti-a3/kayit_nokta.h",
@@ -8735,6 +8735,44 @@ MUTASYONLAR = [
      'for (const b of (secenek && secenek.bantlar) || []) {',
      'for (const b of []) {',
      'PTP: grafik.js bantlari cizmezse (OCV evresi gorunmez) grafik PT7 testi kirmizi'),
+    # ── CA-4 (2026-10-08): statik DRAM payi — skop tamponlari PSRAM'e, bayt payi kilidi.
+    #    python mutasyon.py --neden "DRAM:" --paralel 4   (B6 olanlar derler, ~3 dk/mutasyon)
+    ('B6', 'test_firmware3.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino',
+     '    uint16_t *t = (uint16_t *)heap_caps_malloc_prefer(',
+     '    static uint16_t statik[2u * SKOP_AZAMI_ADET];\n'
+     '    uint16_t *t = statik; (void)(uint16_t *)heap_caps_malloc_prefer(',
+     'DRAM: skop tamponu yeniden STATIK olursa (+16 KB .bss, pay 20 B) B6 CA-4 bayt payi kirmizi'),
+    ('B6', 'test_firmware3.py', 'uretim/tasarim3_sabit.py',
+     'ESP_DRAM_ASGARI_PAY = 4096 ', 'ESP_DRAM_ASGARI_PAY = 20000 ',
+     'DRAM: pay iddiasi sabite gercekten bakiyor (olculen pay 16 KB < 20 000): B6 CA-4 kirmizi, esitlik yesil'),
+    ('B6', 'test_firmware3.py', 'uretim/tasarim3_sabit.py',
+     'ESP_DRAM_ASGARI_PAY = 4096 ', 'ESP_DRAM_ASGARI_PAY = 0 ',
+     'DRAM: kilit sessizce gevsetilirse (pay 0) B6 CA-4 kirmizi'),
+    ('B6', 'test_firmware3.py', 'uretim/tasarim3_sabit.py',
+     'ESP_DRAM_SINIR = ESP_DRAM_TOPLAM // 4 ', 'ESP_DRAM_SINIR = ESP_DRAM_TOPLAM // 3 ',
+     'DRAM: sinir %25 yerine %33 olursa pay sisar: B6 CA-4 kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino',
+     '    if (!skop_veri || !skop_gecici) return SKOP_SONUC_HATA;   /* CA-4: tampon ayrilamadi */\n', '',
+     'DRAM: tampon yokken yakalama reddedilmezse nullptr\'a yazar (PSRAM + dahili yok): CA4c kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino',
+     '        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);',
+     '        MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);',
+     'DRAM: ayirma once DAHILI denerse 16 KB statik yerine dahili yigindan gider (kazanc yok): CA4a kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino',
+     '    skop_gecici = t + SKOP_AZAMI_ADET;', '    skop_gecici = t;',
+     'DRAM: iki tampon ayni yarida ortusurse halka acma kendi uzerine yazar: CA4a kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino',
+     '    skop_tampon_ayir();\n    skop_cali_kur();', '    skop_cali_kur();',
+     'DRAM: tampon hic ayrilmazsa osiloskop sessizce KAPALI: CA4b kirmizi'),
+    ('B72', 'test_kayit_esp.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino',
+     '  Serial.print(F("Bellek (CA-4): skop="));\n', '',
+     'DRAM: acilis satiri tamponun yerini soylemezse kartta PSRAM/dahili/YOK ayrimi gorunmez: CA4d kirmizi'),
+    # ── 5P kart-yok ipucu (2026-10-08): telefonda USB / COM parcasi gosterilmez
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js',
+     "      return ORTAM ? String(t).split(' · ').slice(0, 2).join(' · ') : t;",
+     "      return t;",
+     "KYI: telefonda kart-yok ipucu yine 'USB kablosu COM soketinde mi?' der (telefona kart USB ile baglanmaz): "
+     "'telefonda kart-yok ipucu USB / COM DEMEZ' kirmizi"),
 ]
 
 

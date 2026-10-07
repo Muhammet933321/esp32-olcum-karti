@@ -1,7 +1,7 @@
 {
   "kaynak": {
-    "index.html": "6841fa956a33c7db4bf8832d54e1b491ed35efaf7027f865020962786564ec0b",
-    "app.js": "8810301975969275ac876cd81368f6b1030ce6d832829a66a052e118f608fdf1",
+    "index.html": "5960ea5d677548a0b2fb9e3b0a797915bd66f2933528e94c7c7f6db181b0cdc1",
+    "app.js": "c45aefd41ae009c6afa72f7d61bcb1ec37e2f44362baff2928d5a99d5e59a783",
     "style.css": "008fb2e7ef8e51648b1b7d51452278015236a1389699f438a1a2e3f6a18e4c43",
     "vendor/vue.global.prod.js": "220ffd8a70f6161104efbf08802375364d9e4579f2552ba412cf80437f1692fe",
     "manifest.json": "1d1e636601e367d580c787576ae5b0b1c9683b09c31bb2e436c855f025d244fe",
@@ -47,7 +47,7 @@
     "ortak/sozluk_pil.js": "4ea7b1ac1a1bac1bbc1d1ce9311bc5ab47d86e604cb3fd639a1a92943499bf6d",
     "ortak/zarf.js": "bd91be6fade85e82be49b8cdbccf447e4997c7949c561eff5559830fbe5f67c4"
   },
-  "panel_surum": "4818f5767d5b",
+  "panel_surum": "d14bf5f80497",
   "gz": [
     "index.html",
     "app.js",
@@ -94,10 +94,10 @@
   ],
   "ofset": "0x310000",
   "bolum_boyut": 1572864,
-  "icerik_bayt": 469339,
+  "icerik_bayt": 469286,
   "bayt": {
-    "index.html": 27194,
-    "app.js": 84755,
+    "index.html": 27197,
+    "app.js": 84699,
     "style.css": 15798,
     "vendor/vue.global.prod.js": 58361,
     "manifest.json": 350,
@@ -146,8 +146,8 @@
     "etag.txt": 1644
   },
   "etag": {
-    "index.html": "fe9a2df7628675f1",
-    "app.js": "22c385db82828ed5",
+    "index.html": "2a588992b658f4ea",
+    "app.js": "e4dcdc557fd56a2f",
     "style.css": "cc6ec7034687b9b8",
     "vendor/vue.global.prod.js": "ece9955399aeaa08",
     "manifest.json": "e7123653fdc16268",
@@ -192,7 +192,7 @@
     "ortak/sozluk_pc.js": "b7a09b47e21fbfe3",
     "ortak/sozluk_pil.js": "f8ad8c7431b1a2a1",
     "ortak/zarf.js": "0eb0d7867f117c16",
-    "kunye.json": "934bebdcdc6d8ba3"
+    "kunye.json": "f4d15077bc89bbb7"
   },
   "goruntu_bayt": 1572864,
   "blok": 4096,

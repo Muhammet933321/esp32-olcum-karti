@@ -262,6 +262,16 @@ def main() -> int:
     # geri gelmesi gorunmez olurdu.
     ok("RAM payi yeterli (< %25)", mr is not None and int(mr.group(2)) < 25,
        f"%{mr.group(2)}" if mr else "AYRISTIRILAMADI")
+    # CA-4 (2026-10-08): yuzde TAMSAYI — 81 919 B de "%24" ve yesil; pay 28 B'ye inmisti ve
+    #   hicbir iddia gormuyordu. Bayt olarak kilit: sinirin en az 4 KB altinda. Kirmiziysa
+    #   kalici dahili tamponu PSRAM'e tasi (tasarim3_sabit.ESP_DRAM_ASGARI_PAY yorumu).
+    #   Esitlik iddiasindan ONCE: statik tampon geri gelirse ilk kirmizi BU olur.
+    pay = T.ESP_DRAM_SINIR - int(mr.group(1)) if mr else None
+    ok(f"CA-4: statik DRAM %25 sinirinin ({T.ESP_DRAM_SINIR} B) en az "
+       f"{T.ESP_DRAM_ASGARI_PAY} B altinda",
+       pay is not None and T.ESP_DRAM_SINIR == 81920 and T.ESP_DRAM_ASGARI_PAY >= 4096
+       and pay >= T.ESP_DRAM_ASGARI_PAY,
+       f"olculen {mr.group(1)} B, pay {pay} B" if mr else "AYRISTIRILAMADI")
 
     # 🔴 `tasarim3_sabit.ESP_DRAM_KULLANILAN` bir OLCUMDUR ve elle tutulunca
     #    bayatladi: 51 084'te dondu, gercek 71 420 B. B21'in pil tamponu

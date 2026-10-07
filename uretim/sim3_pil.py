@@ -261,9 +261,12 @@ def bolum5(r):
             f"en kotu tek katki {en_buyuk:.3e} pC << {2**63-1:.3e}")
 
     alt(r, "5b · Yetisme tamponu ic RAM'e sigiyor mu")
-    bos = T.ESP_DRAM_TOPLAM - T.ESP_DRAM_KULLANILAN
+    # CA-4 (2026-10-08): ic tampon PSRAM YOKKEN kullaniliyor; o durumda skop tamponlari da
+    # (statik degil artik) dahili yigindan gelir — bos DRAM'den dusulur.
+    bos = T.ESP_DRAM_TOPLAM - T.ESP_DRAM_KULLANILAN - T.SKOP_TAMPON_BAYT
     r.bilgi(f"     ESP32-S3 DRAM toplam   : {T.ESP_DRAM_TOPLAM/1024:.0f} KB")
     r.bilgi(f"     Firmware kullaniyor    : {T.ESP_DRAM_KULLANILAN/1024:.0f} KB")
+    r.bilgi(f"     Skop (PSRAM yokken)    : {T.SKOP_TAMPON_BAYT/1024:.0f} KB")
     r.bilgi(f"     Bos                    : {bos/1024:.0f} KB")
     r.bilgi(f"     B21 tamponu ({T.PIL_TAMPON_S/3600:.0f} saat @ "
             f"{T.PIL_KAYIT_HZ:.0f} Hz) : {T.PIL_TAMPON_BAYT/1024:.0f} KB")

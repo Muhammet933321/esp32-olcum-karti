@@ -1093,7 +1093,7 @@ createApp({
       surucuyum: true,
       bagli: false,
       hata: '',
-      uyari: '',            // 5P: tasiyicinin hata olmayan durumu (telefonda akis dolu: baska izleyici / PC koprusu)
+      uyari: '',            // 5P: tasiyici uyarisi
       menzil: null,       // 0 NORMAL, 1 YUKSEK, null bilinmiyor
       gorunum: hashtenGorunum(),   // B27 Aşama 1: #/olcum #/skop #/pil #/ayar #/konsol
       gorunumler: GORUNUMLER,
@@ -1889,7 +1889,7 @@ createApp({
     pilKaynak() {
       const a = this.bagliTasiyici || this.tasiyiciAdi;
       if (a === 'demo') return 'demo';
-      if (a === 'telefon') return 'http';     // 5P (K7): telefon /pil'i imzali istekle okur
+      if (a === 'telefon') return 'http';     // 5P K7
       return a === 'akis' && (!this.kopruda || this.kopruVekil) ? 'http' : 'satir';
     },
     pl() { return metinHaritasi(PL_METIN, this.dil); },
@@ -1911,11 +1911,14 @@ createApp({
       return this.bagli && this.pilDurumBilinen ? false : null;
     },
     /** 5P (K9): telefonda acil serit suphede de gorunur (karar ORTAM.serit'in; hata = gorunur). */
+    /* 5P: telefonda USB parcasi yok */
+    kartYokIpucuMetni() {
+      const t = this.m.kartYokIpucu;
+      return ORTAM ? String(t).split(' · ').slice(0, 2).join(' · ') : t;
+    },
     acilTelefon() {
       if (!ORTAM) return false;
-      /* Ortamin karari (Android: /pil + akis tazeligi) Vue'nun gormedigi durumdan gelir; saniyelik saat
-         okunmazsa computed ilk "gorunur"u onbellekliyordu (telefonda bulundu: kart BEKLEMEDE dedikten
-         sonra da serit kalmisti). */
+      /* ortamin karari reaktif degil: saat okunur */
       void this.saatTik;
       try { return !!ORTAM.serit(this.pilSuruyorBilgi); } catch (e) { return true; }
     },

@@ -168,7 +168,7 @@
   <!-- 2026-10-06: kart kapali / erisilemiyor — panel (ya da kopru) ayakta olsa da kartin KENDISI yok -->
   <div v-if="kartYokGoster" class="kart-yok" role="alert" data-kart-yok>
     <b>{{ m.kartYokBaslik }}</b> <span data-kart-yok-son>{{ kartYokSon }}</span>
-    <div class="kart-yok-ipucu">{{ m.kartYokIpucu }}</div>
+    <div class="kart-yok-ipucu">{{ kartYokIpucuMetni }}</div>
     <div class="kart-yok-alt">{{ m.kartYokKendi }}</div>
   </div>
   <!-- 3H-2 (ES4): kart bu tarayicinin eslestirmesini tanimiyorsa istekler imzasiz yoldan

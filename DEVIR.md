@@ -10550,6 +10550,18 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.114 🟢 A3-PT2: STATİK DRAM PAYI 28 B → 16 KB (CA-4) + TELEFONDA KART-YOK İPUCU (2026-10-08 gecesi)
+
+Kullanıcı yatarken: "daha sonrası için planlanmış ama şimdi yapabileceğin şeyler varsa hallet".
+- **CA-4:** en büyük iki .bss sembolü `skop_veri` + `skop_gecici` (2 × 8000 B) işaretçi oldu; tek 16 000 B blok
+  `skop_tampon_ayir()` ile `skop_kur()`'un ilk işi olarak `heap_caps_malloc_prefer(SPIRAM, INTERNAL)`. PSRAM yoksa
+  dahili; ikisi de yoksa `skop_yakala` kilit almadan ve ADC'ye dokunmadan HATA (osiloskop kapalı). Sıcak yol
+  (`hizli_v/i`) ve `bld` yerinde. Statik DRAM 81 892 → **65 900 B** (sınır 81 920, pay 16 020); `test_firmware3`
+  payı BAYT olarak kilitliyor (≥ 4096; eski "< %25" tamsayı yüzdeydi, 81 919'u da geçirirdi). Açılış satırı
+  `Bellek (CA-4): skop=PSRAM|dahili|YOK`. Mutasyon DRAM 9/9.
+- **Telefonda kart-yok ipucu:** "USB kablosu COM soketinde mi?" parçası telefon kipinde gösterilmez (açılış
+  sözlüğü dolu → aynı metnin ilk iki parçası; B7 sözlükte üç parça olduğunu sınar). Mutasyon KYI 1/1.
+
 #### 5.12.113 🟢 A3-PT1 PİL TESTİ: ORTALAMALI KESME + 5 s OCV + SEÇİLİR KAYIT HIZI + DCIR AÇ/KAPA (2026-10-07/08)
 
 **Kullanıcı:** 3.3 Ω 11 W taş direnç, 18650, kesme 3 V → test 2 s'de bitiyor. Kayıttan (oturum 64108/64114):

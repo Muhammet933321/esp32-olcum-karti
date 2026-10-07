@@ -274,10 +274,17 @@ Tasarım `tasarim/2026-10-06-coklu-ag.md`, DEVIR 5.12.110. Kartta geçiş, geri 
   yönlendiricisi yeniden başlarken) AP gereksiz yere kalkıyor mu — sürücü dönüşü ölçümde 7–14 s'ydi.
 - **CA-2 · Açılışta iki ağ görünürken seçim** kartta ölçülmedi (tezgah kalemi): en son bağlanılan
   bağlanırsa kalır; o yoksa tarama diğerini seçer.
-- **CA-3 · Android uygulaması** `N` komutlarını / Ayarlar → Ağ listesini henüz göstermiyor (dal
-  `5-android`); bu panel değişikliği oraya taşınmalı.
-- **CA-4 · Statik DRAM payı ~36 B** (81 884 / 81 920). Bir sonraki statik ekleme sınıra takılır — önce
-  kalıcı dahili tamponları PSRAM'e taşı (E6 notu).
+- ~~**CA-3 · Android uygulaması** `N` komutlarını / Ayarlar → Ağ listesini henüz göstermiyor (dal
+  `5-android`); bu panel değişikliği oraya taşınmalı.~~ **KAPANDI (5P, 2026-10-07):** panel telefonda; Xiaomi'de
+  Ayarlar → Ağ 2 kayıtlı / 12 tarama (A3-CA2 sonrası).
+- ~~**CA-4 · Statik DRAM payı ~36 B** (81 884 / 81 920). Bir sonraki statik ekleme sınıra takılır — önce
+  kalıcı dahili tamponları PSRAM'e taşı (E6 notu).~~ **Kapandı (2026-10-08, A3-PT2, karta YÜKLENMEDİ):**
+  `skop_veri` + `skop_gecici` (2 × 8000 B, statik DRAM'in en büyük iki sembolü) tek blok olarak açılışta
+  önce PSRAM'e, yoksa dahili yığına (`skop_tampon_ayir`); ikisi de olmazsa osiloskop KAPALI (yakalama
+  reddedilir). Statik DRAM **81 892 → 65 900 B**, pay 28 B → **16 020 B**. B6 artık payı BAYTla kilitliyor
+  (`tasarim3_sabit.ESP_DRAM_ASGARI_PAY` = 4096; eski "< %25" tamsayı yüzdeydi, 81 919 B'yi de geçirirdi);
+  B72.CA4a–e kaynak kuralları. **Kartta:** açılışta `Bellek (CA-4): skop=PSRAM`; osiloskop (tb, Gt0,
+  `/skop.bin`) ve ölçüm hızı/`loop_azami` öncekiyle aynı (tezgah kalemi "B72 CA-4").
 - **CA-5 · Kart Wi-Fi'deyken `Np` düz metin gider** (kartta TLS yok; panel uyarıyor). Ağ ekleme tercihen
   USB'den; imzalı istek gövdesi şifreli değil.
 - **CA-6 · `ag_kip_adi` "STA (ev agi)" diyor** — artık hotspot da olabilir; `Ag:` satırını ayrıştıran
@@ -302,4 +309,15 @@ rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşit
   base64 parçalarla okur — çok büyük kopyada yavaş olabilir (ölçülmedi).
 - **5P-7 Kotlin `Akis`** yalnız `dolu`'yu tanır; kart 4B'den beri `kopru` olayı göndermiyor (4 istemci) — sorun
   yok, kart davranışı değişirse bakılacak.
+
+## Pil testi PT (A3-PT1/PT2, 2026-10-08) — kalanlar
+
+- **PT-1 kartta gerçek pille ölçülmedi:** 3.3 Ω + 18650 ile OCV evresi (5 s), ortalamalı kesme, hız seçici, DCIR
+  kapalı — kullanıcının sabah testi. Kullanıcının pili ~1.2 Ω yol direnci gösteriyordu (OCV 4.11 → 3.13 V @ 0.82 A).
+- **PT-2 USB B satırında evre / hız / dcir yok:** USB'de A3-PT1 BASLADI metninden tanınır; hız/DCIR uyuşmazlık
+  denetimi yalnız `/pil` yolunda.
+- **PT-3 rapor (rapor.js)** PT alanlarını yazmıyor (açılış sözlüğünde yer yok); kayıt görünümü gösteriyor.
+- **PT-4 açılış bütçesi:** EU31 262 122 / 262 144 B, açılış sözlüğü ~19 493 / 19 500 B — yeni açılış metni tembel
+  modüle; bütçe kararı gerekebilir.
+- **CA-1 (A3-CA3)** hotspot kapatma süresi kartta ölçülmedi (CA2'de 2:30; hedef < 1 dk).
 
