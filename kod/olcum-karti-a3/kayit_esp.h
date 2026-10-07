@@ -76,7 +76,7 @@ static KayitBitirIz kayit_bitir_iz_al(void)
 #include "kayit_plan.h"           /* 1C-4: zamanlanmis kayit karar mantigi (platformsuz) */
 #include "nvs.h"                  /* nvs_get_stats */
 
-#define KAYIT_FW_SURUM    "A3-CA3"    /* CA3: STA kopmasinda AP 90 -> 30 s + ilk deneme hemen (2026-10-07); CA2: ag_komut.h yazicilari aynaya (Nl/Nt/gecis mesajlari WiFi akisinda, 2026-10-07); CA: coklu WiFi agi (8) + Ng gecis (2026-10-06); W2: G satirina son_not + mesaj_dusen, Qe esigi, rastgele eno, /saat ve Ex tam cozum; 4B: /kopru kalkti; 1F skop; 1E MQTT */
+#define KAYIT_FW_SURUM    "A3-PT1"    /* PT1: pil testi — EMA kesme, 5 s OCV evresi (KN_OCV), Pr kayit hizi (PIL oturumunda her ornek = AYRINTI + 1/s nokta), Pd DCIR ac/kapa (2026-10-07); CA3: STA kopmasinda AP 90 -> 30 s + ilk deneme hemen (2026-10-07); CA2: ag_komut.h yazicilari aynaya (Nl/Nt/gecis mesajlari WiFi akisinda, 2026-10-07); CA: coklu WiFi agi (8) + Ng gecis (2026-10-06); W2: G satirina son_not + mesaj_dusen, Qe esigi, rastgele eno, /saat ve Ex tam cozum; 4B: /kopru kalkti; 1F skop; 1E MQTT */
 #define KAYIT_ALT_TUR     0x40      /* partitions.csv: kayit, data, 0x40 */
 #define KAYIT_DIZIN_KAP   64u
 #define KAYIT_KUYRUK      256u      /* nokta; 50/s'de ~5 s flas beklemesini yutar */
@@ -587,12 +587,15 @@ static void kayit__nesil(uint32_t simdi, uint8_t menzil)
     KayitDurum d = kayit_durum_al();
     if (d.nesil == kayit_kn_nesil) return;
     kayit_kn_nesil = d.nesil;
-    kayit_kn_aktif = (d.durum == KDR_KAYIT && d.hiz_ms) ? 1u : 0u;
+    /* PT4: PIL oturumunda hiz 0 = her ornek (AYRINTI) VE 1/s nokta — ikisi birden */
+    kayit_kn_aktif = (d.durum == KDR_KAYIT && (d.hiz_ms || d.tur == KAYIT_OTURUM_PIL)) ? 1u : 0u;
     kayit_ayr_aktif = (d.durum == KDR_KAYIT && !d.hiz_ms) ? 1u : 0u;
     kayit_kn_tur = (d.durum == KDR_KAYIT) ? d.tur : 0u;
     if (d.tur == KAYIT_OTURUM_SKOP) kayit_kn_aktif = 0u;    /* 1C-3: yalniz yakalama */
-    if (d.tur != KAYIT_OTURUM_OLCUM) kayit_ayr_aktif = 0u;  /* 1C-3: SKOP hiz 0 = her tetik */
-    if (kayit_kn_aktif) kn_baslat(&kayit_kn, d.hiz_ms, simdi, menzil);
+    if (d.tur != KAYIT_OTURUM_OLCUM && d.tur != KAYIT_OTURUM_PIL)
+        kayit_ayr_aktif = 0u;                              /* 1C-3: SKOP hiz 0 = her tetik */
+    if (kayit_kn_aktif)
+        kn_baslat(&kayit_kn, d.hiz_ms ? d.hiz_ms : KAYIT_PIL_AYR_NOKTA_MS, simdi, menzil);
 }
 
 /* Her ornekte (loop, olcum_al'dan sonra). `ek`: ornege ait bayrak (KN_DCIR). */
@@ -621,9 +624,11 @@ static void kayit_ornek(float watt, uint32_t simdi, uint8_t ek)
         if (ksi_ornek(&kayit_ksi, ks, o.us, simdi))       /* kural: kayit_halka.h, B71.H4 */
             o.bayrak = (uint8_t)(o.bayrak | KO_SILME_ONCE);
         ksi_itildi(&kayit_ksi, ks, (uint8_t)(kh_it(&kayit_halka, &o) && (o.bayrak & KO_SILME_ONCE)));
-        return;                                /* doluysa sayilir + sonraki KO_KAYIP_ONCE */
+        /* doluysa sayilir + sonraki KO_KAYIP_ONCE. DONMEZ: PT4 PIL'de noktaci da calisir
+           (OLCUM ayrintili kipte kayit_kn_aktif 0, asagida doner) */
+    } else {
+        ksi_esitle(&kayit_ksi, kayit_g.kirli_sil);   /* ayrintili degil: isaret birikmesin */
     }
-    ksi_esitle(&kayit_ksi, kayit_g.kirli_sil);   /* ayrintili degil: isaret birikmesin */
     if (!kayit_kn_aktif) return;
     if (kn_ornek(&kayit_kn, simdi, kayit_ham.menzil, kayit_ham.ham_v, kayit_ham.ham_i,
                  watt, hata, kayit_ham.v_doydu, kn_ek_suz(kayit_kn_tur, ek), &c))

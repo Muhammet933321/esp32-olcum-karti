@@ -17,8 +17,10 @@ ciktilari — gercek kart gibi `/komut` 204 doner, cikti YALNIZ akistan) + `/kom
 + `/kayit/liste` `/kayit/veri` `/kal/liste` (tarayici_kayitlar.Kart = B72.E'nin sahtesi,
 icinde testin PIL oturumu: PIL_AYAR, noktalar, 4 DCIR olayi, PIL_SONUC, BITIR sebep 4).
 
-Pil testi OYNATILIR: OCV -> desarj (noktalar test adim adim acar) -> DCIR anlari (kartin
-kurali: n x 300 200 ms) -> kesme (BITTI satiri + G) -> sonuc. Beklenen degerler SAYFADAN
+Pil testi OYNATILIR: OCV evresi (PT2: ilk 5 nokta yuk KAPALI, I = 0, KN_OCV) -> desarj (noktalar test
+adim adim acar) -> DCIR anlari (kartin kurali: 5000 + n x 300 200 ms; zamanlayici yuk acilinca) -> kesme
+(BITTI satiri + G) -> sonuc. PT (A3-PT1): `Pr<hz>` / `Pd<0|1>` FIRMWARE'in onay / ret metinleriyle; `/pil`
+basliginda `evre=` `kayit_hz=` `dcir=`; DCIR yalniz `Pd1` ile (varsayilan KAPALI). Beklenen degerler SAYFADAN
 DEGIL: mAh / Wh / DCIR sahte kartin kendi sayilari, mAh ekseni sonu bagimsiz Python yamuk
 integrali (sayfanin aldigi metin degerlerinden).
 
@@ -77,6 +79,7 @@ def ok(ad: str, kosul: bool, ek: str = "") -> bool:
 KESME = 3.2
 OCV = 4.10
 DCIR_ARALIK, DCIR_DARBE = 300000, 200          # pil_test.h
+OCV_MS = 5000                                  # pil_test.h PIL_OCV_MS (PT2)
 
 
 def gerilim(k: int) -> float:
@@ -90,6 +93,11 @@ def senaryo() -> dict:
     k = 0
     while True:
         ms = 1000 * (k + 1)
+        if ms <= OCV_MS:                    # PT2: OCV evresi — yuk KAPALI, birikim yok
+            noktalar.append((ms, OCV, 0.0))
+            sayac.append((mah, wh))
+            k += 1
+            continue
         v = gerilim(k)
         i = v / (4.0 + 0.0004 * k)          # yuk direnci isinip artiyor: I egrisi V'den ayrisir
         mah += i * 1000 / 3600
@@ -97,8 +105,8 @@ def senaryo() -> dict:
         noktalar.append((ms, v, i))
         sayac.append((mah, wh))
         n = len(dcir) + 1
-        if ms >= n * (DCIR_ARALIK + DCIR_DARBE):
-            dcir.append({"no": n, "nokta": k, "t_ms": n * (DCIR_ARALIK + DCIR_DARBE), "r_ani": 0.040 + 0.002 * n,
+        if ms >= OCV_MS + n * (DCIR_ARALIK + DCIR_DARBE):
+            dcir.append({"no": n, "nokta": k, "t_ms": OCV_MS + n * (DCIR_ARALIK + DCIR_DARBE), "r_ani": 0.040 + 0.002 * n,
                          "r_otr": 0.055 + 0.002 * n, "mah": mah, "wh": wh, "v_once": v, "i_once": i})
         if v <= KESME:
             break
@@ -119,7 +127,7 @@ def kayit_akisi():
                                             "kayit_hz": 1.0}))
     ns = []
     for ms, v, i in SEN["noktalar"]:
-        ns.append(TK.nokta(100000 + ms, v / 0.002625 + 12, i / 7.8125e-5 + 5, v * i))
+        ns.append(TK.nokta(100000 + ms, v / 0.002625 + 12, i / 7.8125e-5 + 5, v * i, KB.KN_OCV if ms <= OCV_MS else 0))
     sinir = [0] + [d["nokta"] + 1 for d in SEN["dcir"]] + [len(ns)]
     for j in range(len(sinir) - 1):
         a.noktalar(ot, sinir[j], ns[sinir[j]:sinir[j + 1]])
@@ -155,6 +163,8 @@ class Kart(TK.Kart):
         self.ret = None                # p1'in reddi (satir)
         self.kesme_bozuk = False       # PU4: BASLADI satiri istenenden farkli kesme soyler
         self.g = [1, 0, 0]             # durum oturum nokta
+        self.hz = 1                    # PT3: kayit hizi (0 = her ornek)
+        self.dcir = 0                  # PT5: DCIR (varsayilan KAPALI)
 
     def yay(self, satir: str) -> None:
         with self.kilit:
@@ -169,7 +179,14 @@ class Kart(TK.Kart):
         return SEN["sayac"][self.acik - 1] if self.acik else (0.0, 0.0)
 
     def dcir_n(self) -> int:
-        return sum(1 for d in SEN["dcir"] if d["nokta"] < self.acik) if self.durum != "BEKLEMEDE" else 0
+        if self.durum == "BEKLEMEDE" or not self.dcir:
+            return 0
+        return sum(1 for d in SEN["dcir"] if d["nokta"] < self.acik)
+
+    def evre(self) -> str:
+        """PT2: test suruyor ve son nokta OCV evresinde (yuk henuz acilmadi)."""
+        son = SEN["noktalar"][self.acik - 1][0] if self.acik else 0
+        return "ocv" if self.durum == "CALISIYOR" and son < OCV_MS else "yuk"
 
     def pil_govde(self, sira: int) -> str:
         n = self.acik
@@ -183,7 +200,7 @@ class Kart(TK.Kart):
                  f"ocv={OCV if self.durum != 'BEKLEMEDE' else 0:.4f}", f"vson={vson:.4f}", f"kesme={self.kesme:.3f}",
                  f"dcir_ani={son['r_ani'] if son else 0:.5f}", f"dcir_otr={son['r_otr'] if son else 0:.5f}",
                  f"dcir_n={dn}", f"sira={n}", f"ilk_sira={bas}", f"kalan={n - bas - adet}",
-                 f"coulomb={mah * 3.6:.3f}", "--"]
+                 f"coulomb={mah * 3.6:.3f}", f"evre={self.evre()}", f"kayit_hz={self.hz:.2f}", f"dcir={self.dcir}", "--"]
         for ms, v, i in SEN["noktalar"][bas:bas + adet]:
             satir.append(f"{ms},{v:.4f},{i:.6f}")
         return chr(10).join(satir) + chr(10)
@@ -211,7 +228,21 @@ class Kart(TK.Kart):
         if k in ("G", "G?"):
             return [self.g_satiri(), "GA 480 0 0 0", "GT 0 0 0 0", "GP 0 0 0 0 0"]
         if k == "P":
-            return [f"* pil kesme gerilimi {self.kesme:.3f} V · kayit 1.00 Hz · azami sure 24 saat"]
+            # A3-PT1 bicimi (firmware `P`): hiz 0'da " Hz (her ornek)"; DCIR en sonda
+            return [f"* pil kesme gerilimi {self.kesme:.3f} V · kayit {self.hz:.2f} Hz{'' if self.hz else ' (her ornek)'}"
+                    f" · azami sure 24 saat · DCIR {'acik' if self.dcir else 'kapali'}"]
+        if k[:2] in ("Pr", "Pd"):            # PT3 / PT5 (firmware metinleri)
+            if self.durum == "CALISIYOR":
+                return ["! P: pil testi suruyor — once p0"]
+            if k[1] == "r":
+                if k[2:] not in ("0", "1", "5", "20", "50"):
+                    return ["! Pr: 0 (her ornek), 1, 5, 20 ya da 50 olmali"]
+                self.hz = int(k[2:])
+                return [f"* pil kayit hizi {self.hz} /s" if self.hz else "* pil kayit hizi her ornek (ayrintili kayit + 1/s nokta)"]
+            if k[2:] not in ("0", "1"):
+                return ["! Pd: Pd1 (ac) ya da Pd0 (kapat)"]
+            self.dcir = int(k[2:])
+            return ["* pil DCIR olcumu ACIK (5 dk'da bir 200 ms yuk kesilir)" if self.dcir else "* pil DCIR olcumu KAPALI"]
         if k.startswith("P"):
             try:
                 v = float(k[1:])
@@ -232,7 +263,7 @@ class Kart(TK.Kart):
             self.sonraki_oturum += 1
             self.g = [2, self.oturum, 0]
             kesme = 3.0 if self.kesme_bozuk else self.kesme
-            return [f"* pil testi BASLADI — OCV {OCV:.4f} V, kesme {kesme:.3f} V",
+            return [f"* pil testi BASLADI — OCV {OCV:.4f} V, kesme {kesme:.3f} V; once {OCV_MS // 1000} s yuksuz (OCV), sonra yuk",
                     "* pil testi kaydi istendi (oturum turu PIL; olcum kaydi aciksa kapanir) — sonuc G satirinda",
                     self.g_satiri()]
         if k == "p0":
@@ -562,24 +593,93 @@ def main() -> int:
             deger_yaz(t, "[data-pil=kesme]", "3.0")
             n1 = len(kart.komut_listesi)
             tikla(t, "[data-pil=baslat]")
-            k1 = komut_bekle(t, kart, n1, 1)
+            k1 = komut_bekle(t, kart, n1, 3)
             ret = bekle_js(t, "(() => { const e = document.querySelector('[data-pil=uyari]'); return e && e.dataset.tur === 'kart' && e.textContent.trim(); })()", 5)
             hata = t.js("(() => { const e = [...document.querySelectorAll('main.gorunum p.hata')].find(x => x.textContent.includes('Pil testi:')); return e && e.textContent.replace(/[ ]+/g, ' ').trim(); })()")
-            ok("[!] PL5 (E9): kesme kartinkiyle ayniysa `P` GITMEZ, yalniz `p1`; kartin reddi OLDUGU GIBI, hata sozlukten",
-               k1 == ["p1"] and ret == "Kart reddetti: ! pil testi REDDEDILDI: gerilim zaten kesmenin altinda"
+            ok("[!] PL5 (E9) + PT7: kesme kartinkiyle ayniysa `P` GITMEZ — `Pr1`, `Pd0` (VARSAYILAN), `p1`; kartin reddi OLDUGU GIBI, hata sozlukten",
+               k1 == ["Pr1", "Pd0", "p1"] and ret == "Kart reddetti: ! pil testi REDDEDILDI: gerilim zaten kesmenin altinda"
                and bool(hata) and "gerilim zaten kesme geriliminin altında" in hata, f"{k1} · {ret} · {hata}")
             kart.ret = None
             kart.durum, kart.hata = "BEKLEMEDE", "-"
 
+            # ── 3b. PT: kayit hizi 20/s + DCIR KAPALI -> Pr20, Pd0, p1; OCV evresi, sonra yuk ──
+            form = t.js("(() => { const s = document.querySelector('[data-pil=hiz]'); const c = document.querySelector('[data-pil=dcir-ac]');"
+                        " return s && c && {secenek: [...s.options].map(o => o.textContent.trim()), hiz: s.value, dcir: c.checked,"
+                        " sure: document.querySelector('[data-pil=hiz-sure]').textContent.trim(),"
+                        " uyari: !!document.querySelector('[data-pil=hiz-uyari]')}; })()")
+            ok("[!] PT7: formda kayit hizi (1/s · 5/s · 20/s · 50/s · Her ornek) ve DCIR kutusu; VARSAYILAN 1/s + DCIR KAPALI; tahmini sure yazili, her ornek uyarisi yok",
+               bool(form) and form["secenek"] == ["1/s", "5/s", "20/s", "50/s", "Her örnek (~400/s)"] and form["hiz"] == "1"
+               and form["dcir"] is False and form["sure"].startswith("Bu hızda en çok ~") and form["uyari"] is False,
+               json.dumps(form, ensure_ascii=False))
+            t.js("(() => { const s = document.querySelector('[data-pil=hiz]'); s.value = s.options[4].value; s.dispatchEvent(new Event('change')); })()")
+            her = bekle_js(t, "(() => { const e = document.querySelector('[data-pil=hiz-uyari]'); return e && e.textContent.trim(); })()", 3)
+            sure_her = t.js("document.querySelector('[data-pil=hiz-sure]').textContent.trim()")
+            t.js("(() => { const s = document.querySelector('[data-pil=hiz]'); s.value = s.options[2].value; s.dispatchEvent(new Event('change')); })()")
+            t.bekle(0.3)
+            ok("[!] PT7: her ornek secilince ~1 sa uyarisi ve kisa sure; 20/s'ye donunce uyari kalkar",
+               bool(her) and "1 saatte" in her and "~1." in sure_her and " sa " in sure_her
+               and t.js("!document.querySelector('[data-pil=hiz-uyari]')") is True, f"{her} · {sure_her}")
+            kart.sonraki_oturum = 99      # bu deneme kaydi kartin akisinda YOK (asil test oturumu `ot` kalsin)
+            n1b = len(kart.komut_listesi)
+            tikla(t, "[data-pil=baslat]")
+            k1b = komut_bekle(t, kart, n1b, 3)
+            bekle_js(t, f"{UYG}.pilDurum === 'CALISIYOR'", 6)
+            evre0 = bekle_js(t, "(() => { const e = document.querySelector('[data-pil=evre]'); return e && e.offsetParent !== null && e.textContent.trim(); })()", 4)
+            kart.ilerle(3)
+            bekle_js(t, f"{UYG}.pilNokta.length === 3", 8)
+            evre1 = t.js("(() => { const e = document.querySelector('[data-pil=evre]'); return e && e.textContent.trim(); })()")
+            dk = t.js("(() => { const e = document.querySelector('[data-pil=dcir-kapali]'); return e && e.textContent.trim(); })()")
+            tablo_yok = t.js("!document.querySelector('.pil-dcir-tablo')")
+            ok("[!] PT7 + PT2: `Pr20`, `Pd0`, `p1` (kesme ayni: P yok); test baslar baslamaz OCV seridi (BASLADI, yoklama beklenmez) ve /pil evre=ocv'de kalir; DCIR KAPALI karti tablo yerine",
+               k1b == ["Pr20", "Pd0", "p1"] and evre0 == "OCV ölçülüyor (yük kapalı) — ilk 5 s" and evre1 == evre0
+               and dk == "Bu testte iç direnç ölçümü kapalı — yük hiç kesilmiyor." and tablo_yok is True
+               and t.js(f"{UYG}.pilKartHz") == 20 and t.js(f"{UYG}.pilKartDcir") == 0,
+               f"{k1b} · {evre0} · {dk}")
+            kart.ilerle(5)
+            bekle_js(t, f"{UYG}.pilNokta.length === 8 && !document.querySelector('[data-pil=evre]')", 8)
+            t.js("document.querySelector('canvas.pil-grafik').scrollIntoView({block: 'center'})")
+            t.bekle(0.5)
+            bant = t.js(f"(() => {{ const p = {UYG}._pilGrafik.g.sonPlan; return p.komutlar.filter(k => k.rol === 'bant').map(k => k.tur === 'yazi' ? k.metin : 'dolgu'); }})()")
+            lej = t.js("(() => { const e = document.querySelector('[data-pil=lejant-ocv]'); return e && e.textContent.trim(); })()")
+            ok("[!] PT2/PT7: yuk acilinca (/pil evre=yuk) OCV seridi KALKAR; egride OCV evresi saydam bant + 'OCV' etiketi, lejantta aciklamasi",
+               t.js("!document.querySelector('[data-pil=evre]')") is True and bant == ["dolgu", "OCV"] and lej == "OCV · yük kapalı ilk 5 s",
+               f"{bant} · {lej}")
+            resim("0-pil-ocv-evresi")
+            n1c = len(kart.komut_listesi)
+            tikla(t, "[data-pil=durdur]")
+            komut_bekle(t, kart, n1c, 1)
+            bekle_js(t, f"{UYG}.pilDurum === 'DURDURULDU'", 5)
+            kart.durum, kart.acik, kart.g = "BEKLEMEDE", 0, [1, 0, 0]
+            kart.sonraki_oturum = ot
+            # A3-PT1 `P` satiri (hiz 0: "Hz (her ornek)", DCIR sonda): panel YALNIZ kesmeyi okur, Pr/Pd onayi sanmaz
+            kart.hz, kart.kesme = 0, 3.25
+            with kart.kilit:
+                psat = kart.komut("P")[0]
+                kart.komut_listesi.pop()
+            kart.yay(psat)
+            pk = bekle_js(t, f"{UYG}.pilKesme === 3.25", 4)
+            kart.hz, kart.kesme = 20, 3.0
+            with kart.kilit:                 # kilit yeniden girilmez: yay() disarida
+                psat2 = kart.komut("P")[0]
+                kart.komut_listesi.pop()
+            kart.yay(psat2)
+            pk2 = bekle_js(t, f"{UYG}.pilKesme === 3", 4)
+            ok("[!] PT: A3-PT1 `P` satiri (`· kayit 0.00 Hz (her ornek) · azami sure 24 saat · DCIR kapali`) kesmeyi verir; uyari / hata yok",
+               bool(pk) and bool(pk2) and psat.endswith("kayit 0.00 Hz (her ornek) · azami sure 24 saat · DCIR kapali")
+               and t.js(f"{UYG}.pilUyari") is None and t.js(f"{UYG}.pilDurum") == "DURDURULDU", psat)
+
             # ── 4. baslat: P<v> + onay -> p1 -> G'de PIL oturumu -> Ga ─────────
             deger_yaz(t, "[data-pil=kesme]", "3,2")
             deger_yaz(t, "[data-pil=ad]", "18650 #3 — deneme")
+            t.js("(() => { const s = document.querySelector('[data-pil=hiz]'); s.value = s.options[0].value; s.dispatchEvent(new Event('change')); })()")
+            t.js("document.querySelector('[data-pil=dcir-ac]').click()")      # PT5: DCIR bu testte ACIK
+            t.bekle(0.2)
             n2 = len(kart.komut_listesi)
             tikla(t, "[data-pil=baslat]")
-            k2 = komut_bekle(t, kart, n2, 3)
+            k2 = komut_bekle(t, kart, n2, 5)
             bekle_js(t, f"{UYG}.pilDurum === 'CALISIYOR' && {UYG}.pilOturum && {UYG}.pilOturum.no === {ot}", 6)
-            ok("[!] PL5 + PU4: Baslat -> `P3.2` (virgul ondalik), kartin onayindan SONRA `p1`; PIL oturumu G'den, ad `Ga<oturum>`",
-               k2 == ["P3.2", "p1", f"Ga{ot} 18650 #3 — deneme"] and t.js(f"{UYG}.pilOturum.no") == ot
+            ok("[!] PL5 + PU4 + PT7: Baslat -> `Pr1`, `Pd1` (DCIR isaretli), `P3.2` (virgul ondalik), kartin onayindan SONRA `p1`; PIL oturumu G'den, ad `Ga<oturum>`",
+               k2 == ["Pr1", "Pd1", "P3.2", "p1", f"Ga{ot} 18650 #3 — deneme"] and t.js(f"{UYG}.pilOturum.no") == ot
                and t.js("document.querySelector('[data-pil=oturum]').textContent.trim()") == f"Kayıt #{ot}", " | ".join(k2))
             acil = t.js("(() => { const a = document.querySelector('.acil'); return a && a.offsetParent !== null && a.textContent.replace(/[ ]+/g, ' ').trim(); })()")
             ok("[!] Acil serit test basladiginda HER gorunumde (BASLADI satirindan, yoklama beklenmeden)",
@@ -603,8 +703,8 @@ def main() -> int:
             bekle_js(t, f"{UYG}.pilNokta.length === 340 && {UYG}.pilDcirListe.length === 1", 8)
             d1 = SEN["dcir"][0]
             tb = dcir_tablo(t)
-            ok("[!] PU10: DCIR 1 tabloda — an kartin kuralindan (00:05:00), R ani / oturmus mΩ, mAh yoklama aninda (≈)",
-               len(tb) == 1 and tb[0][:4] == ["R1", "00:05:00", f"{d1['r_ani'] * 1000:.1f} mΩ", f"{d1['r_otr'] * 1000:.1f} mΩ"]
+            ok("[!] PU10 + PT2: DCIR 1 tabloda — an kartin kuralindan (OCV evresi + 5 dk: 00:05:05), R ani / oturmus mΩ, mAh yoklama aninda (≈)",
+               len(tb) == 1 and tb[0][:4] == ["R1", "00:05:05", f"{d1['r_ani'] * 1000:.1f} mΩ", f"{d1['r_otr'] * 1000:.1f} mΩ"]
                and tb[0][4].startswith("≈ "), str(tb))
 
             # ── 6. sekme gizli (baska gorunum) ve belge gizli: yoklama DURUR ──
@@ -622,8 +722,8 @@ def main() -> int:
             tb = dcir_tablo(t)
             d3 = SEN["dcir"][2]
             ok("[!] PU10: sekme donunce kalan noktalar (150'lik parcalarla, ayni yoklamada) geldi; aradaki DCIR 2 'gorulmedi' (—), DCIR 3 degerli",
-               len(tb) == 3 and tb[1][2:] == ["—", "—", "—"] and tb[1][1] == "00:10:00"
-               and tb[2][:3] == ["R3", "00:15:00", f"{d3['r_ani'] * 1000:.1f} mΩ"]
+               len(tb) == 3 and tb[1][2:] == ["—", "—", "—"] and tb[1][1] == "00:10:05"
+               and tb[2][:3] == ["R3", "00:15:05", f"{d3['r_ani'] * 1000:.1f} mΩ"]
                and bool(t.js("!!document.querySelector('[data-pil=dcir-gorulmedi]')")), str(tb))
             gorunurluk(t, True)
             t.bekle(0.5)
@@ -759,10 +859,10 @@ def main() -> int:
             deger_yaz(t, "[data-pil=kesme]", "3.5")
             n4 = len(kart.komut_listesi)
             tikla(t, "[data-pil=baslat]")
-            k4 = komut_bekle(t, kart, n4, 3)
+            k4 = komut_bekle(t, kart, n4, 5)
             uy4 = bekle_js(t, "(() => { const e = document.querySelector('[data-pil=uyari]'); return e && e.dataset.tur === 'panel' && e.textContent.trim(); })()", 5)
             ok("[!] PU4: kart testi istenenden FARKLI kesmeyle baslattiysa panel HEMEN `p0` yollar ve soyler",
-               k4[:3] == ["P3.5", "p1", "p0"] and bool(uy4) and "3.000 V" in uy4 and "3.500 V" in uy4 and "p0" in uy4, f"{k4} · {uy4}")
+               k4[:5] == ["Pr1", "Pd1", "P3.5", "p1", "p0"] and bool(uy4) and "3.000 V" in uy4 and "3.500 V" in uy4 and "p0" in uy4, f"{k4} · {uy4}")
             kart.kesme_bozuk = False
             bekle_js(t, f"{UYG}.pilDurum === 'DURDURULDU'", 5)
             deger_yaz(t, "[data-pil=kesme]", "")
@@ -772,10 +872,10 @@ def main() -> int:
             t.js("location.hash = '#/canli'")
             t.bekle(0.5)
             tikla(t, ".acil .acil-dur")
-            k5 = komut_bekle(t, kart, n5, 2)
+            k5 = komut_bekle(t, kart, n5, 4)
             bekle_js(t, "!document.querySelector('.acil')", 5)
-            ok("[!] PL1: kesme bos -> kartin kesmesiyle (P yok) `p1`; acil seritteki DURDUR (baska sekmede) tek tikla `p0`, serit kalkti",
-               k5[:2] == ["p1", "p0"] and t.js(f"{UYG}.pilDurum") == "DURDURULDU", str(k5))
+            ok("[!] PL1: kesme bos -> kartin kesmesiyle (P yok; hiz / DCIR secimi hatirlandi: Pr1, Pd1) `p1`; acil seritteki DURDUR (baska sekmede) tek tikla `p0`, serit kalkti",
+               k5[:4] == ["Pr1", "Pd1", "p1", "p0"] and t.js(f"{UYG}.pilDurum") == "DURDURULDU", str(k5))
 
             # ── 13. konsol ────────────────────────────────────────────────
             hatalar = t.hatalar_tum()

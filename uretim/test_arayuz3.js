@@ -4828,11 +4828,13 @@ console.log('\n--- 28. Pil testi (3F) ---');
     const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
     if (fs.existsSync(kunyeYolu)) {
       const b = JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')).bayt || {};
-      /* zincir = Pil sekmesinin acilisa EKLEDIGI dosyalar (sozluk.js zaten acilista iner) */
-      const zincir = ['ekran/pil.js', ...pilAgac].filter((a) => !statik.includes(a));
+      /* zincir = Pil sekmesinin acilisa EKLEDIGI dosyalar (sozluk.js zaten acilista iner). PT7: + ortak/sozluk_pil.js
+         (PilPt'nin metin + hesabi; pil.js PilPt kurulunca DINAMIK indirir — Pil sekmesinde hep iner, sayilir) */
+      const zincir = ['ekran/pil.js', ...pilAgac, 'ortak/sozluk_pil.js'].filter((a) => !statik.includes(a));
       const top = zincir.reduce((n, a) => n + (Number.isFinite(b[a]) ? b[a] : NaN), 0);
-      ok('Pil zinciri (modul + acilista inmeyen statik agaci) gzip <= 40 KB, <= 4 dosya ve kunyede (goruntude) var',
-         top > 0 && top <= 40 * 1024 && zincir.length <= 4, `${top} B · ${zincir.join(' ')}`);
+      ok('Pil zinciri (modul + acilista inmeyen statik agaci + PT7 sozlugu) gzip <= 40 KB, <= 5 dosya ve kunyede (goruntude) var; sozluk_pil.js <= 5 KB',
+         top > 0 && top <= 40 * 1024 && zincir.length <= 5 && b['ortak/sozluk_pil.js'] > 0 && b['ortak/sozluk_pil.js'] <= 5120,
+         `${top} B · ${zincir.join(' ')} · sozluk_pil ${b['ortak/sozluk_pil.js']} B`);
       const acilisK = new Set(['index.html']);
       for (const m of html.matchAll(/(?:^|\s)(?:href|src)="([^"]+)"/gm)) {
         if (!/^(https?:|data:|#|mailto:)/.test(m[1])) acilisK.add(m[1]);
@@ -5021,7 +5023,7 @@ console.log('\n--- 28. Pil testi (3F) ---');
       basladi: O('* pil testi BASLADI — OCV 4.1523 V, kesme 3.000 V'), bitti: O('* pil testi BITTI — 2034.56 mAh, 7.4321 Wh'),
       dur: O('* pil testi DURDURULDU, yuk kesildi'), red: O('! pil testi REDDEDILDI: TERS POLARITE'),
       kay: O('! pil testi KAYDEDILMIYOR — kayit bellegi dolu (esitle + onayla)'), kes: O('* pil kesme gerilimi 10.500 V'),
-      kesP: O('* pil kesme gerilimi 3.000 V · kayit 1.00 Hz · azami sure 24 saat'), ret: O('! pil: osiloskop gunlugu suruyor — once Gtd'),
+      kesP: O('* pil kesme gerilimi 3.000 V · kayit 1.00 Hz · azami sure 24 saat · DCIR kapali'), ret: O('! pil: osiloskop gunlugu suruyor — once Gtd'),
       retP: O("! P: 0.5 ile 38.5 V arasi olmali (ust sinir MOSFET Vdss'inden)"), yabanci: O('* pil'), g: O('G 2 5 1 2 3 4 5 6 7 8 9 10 11'),
     };
     ok('[!] pilSatirOlayi: firmware bicimindeki satirlar dogru turde ve sayida; yabanci satir null',
@@ -5045,14 +5047,19 @@ console.log('\n--- 28. Pil testi (3F) ---');
     const sayfa = (ino.match(/void pil_sayfa\(\) \{[\s\S]*?\n\}/) || [''])[0];
     const fwAlan = [...sayfa.matchAll(/F\("(?:\\n)?([a-z_]+)="\)/g)].map((m) => m[1]);
     const okunan = [...new Set([...govdeMetni(appKaynak, 'pilYokla').matchAll(/\ba\.([a-z_]+)\b/g)].map((m) => m[1]))];
-    ok('[!] /pil: pilYokla`nin okudugu HER anahtar firmware`in pil_sayfa`sinda var (durum, mah, dcir_n, sira, ilk_sira, kalan …)',
-       fwAlan.length === 14 && okunan.length >= 13 && okunan.every((a) => fwAlan.includes(a)), `fw: ${fwAlan.join(',')} · okunan: ${okunan.join(',')}`);
+    ok('[!] /pil: pilYokla`nin okudugu HER anahtar firmware`in pil_sayfa`sinda var (durum, mah, dcir_n, sira, ilk_sira, kalan …; PT6: evre, kayit_hz, dcir SONDA)',
+       fwAlan.length === 17 && okunan.length >= 16 && okunan.every((a) => fwAlan.includes(a))
+       && fwAlan.slice(14).join() === 'evre,kayit_hz,dcir' && ['evre', 'kayit_hz', 'dcir'].every((a) => okunan.includes(a)),
+       `fw: ${fwAlan.join(',')} · okunan: ${okunan.join(',')}`);
     const dA = Number((/#define PIL_DCIR_ARALIK_MS (\d+)u/.exec(pilH) || [])[1]);
     const dD = Number((/#define PIL_DCIR_MS\s+(\d+)u/.exec(pilH) || [])[1]);
     const an = al('pilDcirAniMs');
-    ok('[!] PU5/PU10: DCIR araligi ve darbesi pil_test.h derleme sabitleriyle ayni; n. anin zamani n x (aralik + darbe) (kartin kurali: darbe son darbenin BITISINDEN sonra)',
-       dA === al('PIL_DCIR_ARALIK_MS') && dD === al('PIL_DCIR_DARBE_MS') && an(1) === 300200 && an(3) === 900600 && Number.isNaN(an(0))
-       && /pil\.son_dcir_ms = ms;/.test(ino) && /ms - pil\.son_dcir_ms >= \(uint32_t\)\(PIL_DCIR_ARALIK_MS\)/.test(ino), `${dA} ${dD}`);
+    const ocvMs = Number((/#define PIL_OCV_MS\s+(\d+)u/.exec(pilH) || [])[1]);
+    ok('[!] PU5/PU10 + PT2: DCIR araligi, darbesi ve OCV evresi pil_test.h derleme sabitleriyle ayni; n. anin zamani [OCV +] n x (aralik + darbe) (kartin kurali: darbe son darbenin BITISINDEN sonra, zamanlayici YUK ACILINCA baslar)',
+       dA === al('PIL_DCIR_ARALIK_MS') && dD === al('PIL_DCIR_DARBE_MS') && ocvMs === al('PIL_OCV_MS') && ocvMs === 5000
+       && an(1) === 300200 && an(3) === 900600 && Number.isNaN(an(0)) && an(1, ocvMs) === 305200 && an(3, ocvMs) === 905600
+       && /p->son_dcir_ms = ms;\s*\/\* DCIR zamanlayicisi yuk acilinca baslar/.test(pilH)
+       && /ms - p->son_dcir_ms >= \(uint32_t\)\(PIL_DCIR_ARALIK_MS\)/.test(pilH), `${dA} ${dD} ${ocvMs}`);
     ok('[!] PU5: DCIR araligi icin firmware`de KOMUT YOK (derleme sabiti) — panel salt okur gosterir, gonderen kod yok',
        !/case 'D'[\s\S]{0,200}PIL_DCIR/.test(ino) && !/pil_dcir_aralik\s*=/.test(ino) && /\{\{ pilDcirAralikYazi \}\}/.test(pm)
        && /\{\{ pl\.dcirSabit \}\}/.test(pm));
@@ -5075,11 +5082,18 @@ console.log('\n--- 28. Pil testi (3F) ---');
        && A(7, 'a' + String.fromCharCode(7)).hata === 'pl.hata_ad_karakter' && A(7, uzun).hata === 'pl.hata_ad_uzun' && A(7, uzun).bayt === 122
        && A(7, 'ş'.repeat(60)).komut === 'Ga7 ' + 'ş'.repeat(60));
     /* akis: kesme kartinkiyle ayni -> yalniz p1; farkli -> P + ONAY -> p1; onay gelmezse p1 GITMEZ */
+    /* PT7: Pr / Pd'ye kartin (A3-PT1) onay satirlari — metinler FIRMWARE'IN (c bolumu ino'da arar) */
+    const ptOnay = (c) => (c[1] === 'r' ? (c === 'Pr0' ? '* pil kayit hizi her ornek (ayrintili kayit + 1/s nokta)' : `* pil kayit hizi ${c.slice(2)} /s`)
+      : c === 'Pd1' ? "* pil DCIR olcumu ACIK (5 dk'da bir 200 ms yuk kesilir)" : '* pil DCIR olcumu KAPALI');
     const yap = (kesmeKart, giris, onaylar = true) => {
       const u = ornek();
       const giden = [];
       u.bagli = true; u.pilKesmeBilinen = true; u.pilKesme = kesmeKart; u.pilKesmeGiris = giris;
-      u.gonder = async (c) => { giden.push(c); if (onaylar && c[0] === 'P') u.satirIsle(`* pil kesme gerilimi ${Number(c.slice(1)).toFixed(3)} V`); };
+      u.gonder = async (c) => {
+        giden.push(c);
+        if (c[0] === 'P' && (c[1] === 'r' || c[1] === 'd')) u.satirIsle(ptOnay(c));
+        else if (onaylar && c[0] === 'P') u.satirIsle(`* pil kesme gerilimi ${Number(c.slice(1)).toFixed(3)} V`);
+      };
       return { u, giden };
     };
     const a1 = yap(3.0, '');
@@ -5098,16 +5112,17 @@ console.log('\n--- 28. Pil testi (3F) ---');
       sandbox.setTimeout = eskiZ;
       VD.now = eskiN;
       ok('[!] PL5 + PU4: bos giris = kartin kesmesi (yalniz p1); farkli kesme -> `P3.2`, kartin ONAYINDAN sonra `p1`; onay gelmezse p1 GITMEZ, sebep yazili',
-         r1 === true && a1.giden.join() === 'p1' && r2 === true && a2.giden.join() === 'P3.2,p1' && r3 === false && a3.giden.join() === 'P3.2'
+         r1 === true && a1.giden.join() === 'Pr1,Pd0,p1' && r2 === true && a2.giden.join() === 'Pr1,Pd0,P3.2,p1' && r3 === false
+         && a3.giden.join() === 'Pr1,Pd0,P3.2'
          && /onaylamadı/.test(a3.u.pilUyari.metin) && a3.u.pilUyari.tur === 'panel',
          JSON.stringify([a1.giden, a2.giden, a3.giden, a3.u.pilUyari]));
       /* PU4: kart baska kesmeyle baslattiysa p0 */
       a2.u.satirIsle('* pil testi BASLADI — OCV 4.1000 V, kesme 3.000 V');
       ok('[!] PU4: kart testi ISTENENDEN farkli kesmeyle baslattiysa panel HEMEN `p0` yollar ve soyler (yanlis kesmeyle desarj pili bitirir)',
-         a2.giden.join() === 'P3.2,p1,p0' && a2.u.pilUyari.tur === 'panel' && /3\.000 V/.test(a2.u.pilUyari.metin) && /3\.200 V/.test(a2.u.pilUyari.metin),
+         a2.giden.join() === 'Pr1,Pd0,P3.2,p1,p0' && a2.u.pilUyari.tur === 'panel' && /3\.000 V/.test(a2.u.pilUyari.metin) && /3\.200 V/.test(a2.u.pilUyari.metin),
          a2.giden.join());
       a1.u.satirIsle('* pil testi BASLADI — OCV 4.1000 V, kesme 3.000 V');
-      ok('PU4: istenenle ayni kesmede p0 GITMEZ', a1.giden.join() === 'p1' && a1.u.pilUyari === null);
+      ok('PU4: istenenle ayni kesmede p0 GITMEZ', a1.giden.join() === 'Pr1,Pd0,p1' && a1.u.pilUyari === null);
     });
     const b = yap(3.0, '40');
     const c = yap(3.0, '3.0');
@@ -5336,6 +5351,335 @@ console.log('\n--- 28. Pil testi (3F) ---');
        && sayfa.indexOf('durum=CALISIYOR') === 0 && /\n--\n\d+,\d+\.\d{4},\d+\.\d{6}\n/.test(sayfa)
        && O(b[0]).tur === 'durum' && O(dur[0]).tur === 'durduruldu' && O(zaten[0]).tur === 'calismiyor',
        JSON.stringify({ kes, bas, b }));
+  }
+
+  /* ── (i) PT — PIL TESTI IYILESTIRMESI (tasarim/2026-10-07-pil-iyilestirme.md, PT2–PT7) ──────────
+     app.js durumu tutar ve Pr -> Pd -> P -> p1 gonderir; form, OCV / DCIR gosterimi ekran/pil.js PilPt (sablonu
+     telefon paketinde derlenir); metin + hesap ortak/sozluk_pil.js (PilPt DINAMIK indirir). Acilis (EU31 / #/skop),
+     KU1 ve #/pil 13 dosya sinirlari tasmiyor. */
+  {
+    const SP = require(path.join(KOK, 'ortak', 'src', 'sozluk_pil.js'));
+    const SK = require(path.join(ARAYUZ, 'sahte-kart.js'));
+    const O = al('pilSatirOlayi');
+    /* PilPt'nin Vue'suz ornegi (sozluk inmis gibi: s = ortak/sozluk_pil.js) */
+    const ptOrnek = (kip, d) => {
+      const o = { kip, d, s: SP, olaylar: [], $emit(a, v) { this.olaylar.push([a, v]); } };
+      for (const [ad, f] of Object.entries(PL.PilPt.computed)) {
+        Object.defineProperty(o, ad, { get: (typeof f === 'function' ? f : f.get).bind(o), set: f.set ? f.set.bind(o) : undefined });
+      }
+      return o;
+    };
+    /* firmware metinleri: panelin tanidigi PT satirlari ino'da birebir */
+    const ptMetin = ['* pil kayit hizi ', "* pil DCIR olcumu ACIK (5 dk'da bir 200 ms yuk kesilir)", '* pil DCIR olcumu KAPALI',
+      '! Pr: 0 (her ornek), 1, 5, 20 ya da 50 olmali', '! Pd: Pd1 (ac) ya da Pd0 (kapat)', '! P: pil testi suruyor — once p0',
+      'her ornek (ayrintili kayit + 1/s nokta)', ' s yuksuz (OCV), sonra yuk'];
+    const ptYok = ptMetin.filter((m) => !ino.includes(m));
+    ok('[!] PT7: Pr / Pd onay ve ret satirlari FIRMWARE`de birebir; panel onaylari `ayar`, retleri `ret` sayiyor (kesme / test satirlari karismiyor)',
+       ptYok.length === 0 && O('* pil kayit hizi 20 /s').tur === 'ayar' && O('* pil kayit hizi her ornek (ayrintili kayit + 1/s nokta)').tur === 'ayar'
+       && O('* pil DCIR olcumu KAPALI').tur === 'ayar' && O('! Pr: 0 (her ornek), 1, 5, 20 ya da 50 olmali').tur === 'ret'
+       && O('! Pd: Pd1 (ac) ya da Pd0 (kapat)').tur === 'ret' && O('! P: pil testi suruyor — once p0').tur === 'ret'
+       && O('* pil kesme gerilimi 3.000 V').tur === 'kesme' && O('* pil testi kaydi istendi (oturum turu PIL)') === null
+       && O('* pil testi BASLADI — OCV 4.1100 V, kesme 3.000 V; once 5 s yuksuz (OCV), sonra yuk').tur === 'basladi',
+       ptYok.join(' | ') || `${ptMetin.length} metin`);
+    /* A3-PT1 `P` (argumansiz) satiri: panel yalniz KESMEYI okur — `ayar` (Pr/Pd onayi) sanmaz; bicim firmware'den */
+    const pGovdePT = (ino.match(/Serial\.print\(F\("\* pil kesme gerilimi "\)\);[\s\S]{0,700}?F\("kapali"\)\);/) || [''])[0];
+    const pSat = (hz, dc) => `* pil kesme gerilimi 3.250 V · kayit ${hz.toFixed(2)} Hz${hz ? '' : ' (her ornek)'} · azami sure 24 saat · DCIR ${dc}`;
+    ok('[!] PT: A3-PT1 `P` satiri (`kayit <hz> Hz[ (her ornek)] · azami sure <s> saat · DCIR acik|kapali`) firmware`in sirasiyla; panel KESMEYI dogru okur, Pr/Pd onayi SAYMAZ',
+       /F\(" V · kayit "\)[\s\S]*F\(" Hz \(her ornek\)"\)[\s\S]*F\(" · azami sure "\)[\s\S]*F\(" saat · DCIR "\)/.test(pGovdePT)
+       && O(pSat(0, 'kapali')).tur === 'kesme' && O(pSat(0, 'kapali')).v === 3.25 && O(pSat(20, 'acik')).v === 3.25
+       && (() => { const u = ornek(); u.pilKomutZamani = Date.now(); u.satirIsle(pSat(0, 'kapali'));
+         return u.pilKesme === 3.25 && u.pilKesmeBilinen === true && u._pilAyarYanit === undefined && u.pilUyari === null; })(),
+       pGovdePT.replace(/\s+/g, ' ').slice(0, 200));
+    /* hiz secenekleri: firmware'in pil_hz_izinli kumesi; sabitler firmware'den */
+    const izin = (/static uint8_t pil_hz_izinli\(uint32_t hz\)\s*\{\s*return \(uint8_t\)\(([^;]*)\);/.exec(pilH) || ['', ''])[1];
+    const prKabul = [...izin.matchAll(/hz == (\d+)u/g)].map((m) => Number(m[1])).sort((a, b) => a - b);
+    const N = SP.kayitHizNormal;
+    ok('[!] PT3: hiz secenekleri firmware`in pil_hz_izinli kumesiyle AYNI (1 · 5 · 20 · 50 · 0 = her ornek); bos / bozuk / listede olmayan tercih -> 1/s ("" ve null "her ornek" DEGIL); PIL_OCV_MS pil_test.h`le ayni',
+       [...SP.PIL_KAYIT_HIZLARI].join() === '1,5,20,50,0' && [...SP.PIL_KAYIT_HIZLARI].sort((a, b) => a - b).join() === prKabul.join()
+       && N(0) === 0 && N('20') === 20 && N(50) === 50 && ['', null, undefined, 'x', 7, -1, 0.2, true, '  '].every((x) => N(x) === 1)
+       && SP.PIL_OCV_MS === Number((/#define PIL_OCV_MS\s+(\d+)u/.exec(pilH) || [])[1]) && SP.PIL_OCV_MS === al('PIL_OCV_MS'),
+       `fw: ${prKabul.join(',')}`);
+    const u0 = ornek();
+    ok('[!] PT5/PT7: app.js VARSAYILANI 1/s ve DCIR KAPALI (bilesen inmese de bu gider); PT durumu bos',
+       u0.pilKayitHz === 1 && u0.pilDcirAcik === false && u0.pilPtDestek === null && u0.pilEvre === '' && u0.pilIstenen === null);
+    /* kayit yeri tahmini: sabitler firmware'in bolum ve kayit boylarindan */
+    const part = fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'partitions.csv'), 'utf8');
+    const bolum = parseInt((/^kayit,\s*data,\s*0x40,\s*0x[0-9A-Fa-f]+,\s*(0x[0-9A-Fa-f]+)/m.exec(part) || [])[1], 16);
+    const kot = fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'kayit_oturum.h'), 'utf8');
+    const kbh = fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'kayit_bicim.h'), 'utf8');
+    const azYuk = Number((/#define KAYIT_AZAMI_YUK (\d+)u/.exec(kot) || [])[1]);
+    const nB = Number((/#define KAYIT_NOKTA_BAYT\s+(\d+)u/.exec(kbh + kot) || [])[1]) || 36;
+    const aB = Number((/#define KAYIT_AYRINTI_ORNEK\s+(\d+)u/.exec(kbh) || [])[1]);
+    const aBas = Number((/#define KAYIT_AYRINTI_BAS\s+(\d+)u/.exec(kbh) || [])[1]);
+    const S = SP.kayitSuresiS;
+    const sHer = S(0, bolum) / 3600;
+    const s1 = S(1, bolum) / 3600;
+    const s50 = S(50, bolum) / 3600;
+    ok('[!] PT4/PT7: tahmini azami sure — bolum partitions.csv`den, nokta / ayrinti kayit boylari kayit_oturum.h + kayit_bicim.h`den; her ornek ~1 sa (0.9…1.6), 1/s > 24 sa, hiz arttikca kisalir; bos yer G`nin onaysiz payindan',
+       bolum === SP.KAYIT_BOLUM_BAYT && azYuk === 1012 && aB === 6 && aBas === 16
+       && Math.abs(SP.PIL_NOKTA_BAYT - (azYuk + 16) / Math.floor((azYuk - 4) / nB)) < 1e-12
+       && Math.abs(SP.PIL_AYRINTI_BAYT - (azYuk + 16) / Math.floor((azYuk - aBas) / aB)) < 1e-12
+       && sHer > 0.9 && sHer < 1.6 && s1 > 24 && s50 < s1 / 40 && s50 > sHer && S(1, 0) === 0
+       && SP.bosKayitBayt({ onaysiz: 500 }) === bolum / 2 && SP.bosKayitBayt(null) === null && SP.bosKayitBayt({}) === null
+       && SP.bosKayitBayt({ onaysiz: 1200 }) === 0 && JSON.stringify(SP.sureKisa(4739)) === '{"anahtar":"pt.saat","n":"1.3"}'
+       && SP.sureKisa(1800).n === '30' && SP.sureKisa(400000).n === '111',
+       `her ornek ${sHer.toFixed(2)} sa · 1/s ${s1.toFixed(0)} sa · 50/s ${s50.toFixed(2)} sa`);
+    /* form (PilPt kip form): etiketler, sure yazisi, her ornek uyarisi, kalicilik, olaylar */
+    const d1 = ornek();
+    d1.kayit.g = null;
+    d1.pilKayitHz = 0;
+    const f1 = ptOrnek('form', d1);
+    const yaziBolum = f1.g.sure;
+    const uyariHer = f1.g.uyariHer;
+    d1.kayit.g = { onaysiz: 250 };
+    d1.pilKayitHz = 1;
+    const yaziKart = f1.g.sure;
+    const sec = f1.g.hizlar;
+    const ls = new Map();
+    const sahteLS = { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)) };
+    const eskiD = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', { value: sahteLS, configurable: true, writable: true });
+    f1.hz = '20';
+    f1.dcir = 1;
+    const yazilan = [ls.get('olcum.pilKayitHz'), ls.get('olcum.pilDcir')];
+    if (eskiD) Object.defineProperty(globalThis, 'localStorage', eskiD);
+    else delete globalThis.localStorage;
+    const sab = PL.PilPt.template;
+    const yok = ptOrnek('form', d1);
+    yok.s = null;
+    ok('[!] PT7 (form): secenekler 1/s … "Her ornek (~400/s)"; sure yazisi dayanagini soyler (kartin bos yeri / bolum); her ornek UYARISI yalniz her ornekte; secim app.js`e olayla gider ve tarayicida hatirlanir; sozluk inmeden form YOK; alanlar etiketli',
+       sec.map((x) => x.v).join() === '1,5,20,50,0' && sec[1].ad === '5/s' && sec[4].ad === 'Her örnek (~400/s)'
+       && /^Bu hızda en çok ~1\.\d sa kayıt \(11\.9 MB kayıt bölümüne göre/.test(yaziBolum) && /~\d+ sa kayıt \(kartın boş kayıt yeri ~8\.9 MB\)\.$/.test(yaziKart)
+       && /1 saatte/.test(uyariHer) && f1.g.uyariHer === '' && yok.g === null
+       && JSON.stringify(f1.olaylar) === '[["hz",20],["dcir",true]]' && yazilan.join() === '20,true'
+       && /<p v-if="g\.uyariHer" class="uyari" data-pil="hiz-uyari">/.test(sab) && /<label for="pil-hiz">\{\{ g\.hizEtiket \}\}<\/label>/.test(sab)
+       && /<select id="pil-hiz" v-model="hz" data-pil="hiz">/.test(sab) && /<template v-if="g && kip === 'form'">/.test(sab)
+       && /<input id="pil-dcir" type="checkbox" v-model="dcir" data-pil="dcir-ac"[^>]*>\s*<label for="pil-dcir"[^>]*>\{\{ g\.dcirEtiket \}\}<\/label>/.test(sab)
+       && /<pil-pt kip="form" :d="\$data" @hz="pilKayitHz = \$event" @dcir="pilDcirAcik = \$event"><\/pil-pt>/.test(pm)
+       && !/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(sab), `${yaziBolum} · ${yaziKart}`);
+    /* sira: Pr -> Pd -> P -> p1; ret -> p1 YOK; eski firmware -> Pr/Pd YOK */
+    const pt = (ayar = {}) => {
+      const u = ornek();
+      const giden = [];
+      u.bagli = true; u.pilKesmeBilinen = true; u.pilKesme = 3.0; u.pilKesmeGiris = '3.2';
+      Object.assign(u, ayar);
+      u.gonder = async (c) => {
+        giden.push(c);
+        if (c === u._ret) { u.satirIsle(u._retSatir); return; }
+        if (c[0] === 'P' && (c[1] === 'r' || c[1] === 'd')) u.satirIsle(c[1] === 'r' ? `* pil kayit hizi ${c.slice(2)} /s` : '* pil DCIR olcumu KAPALI');
+        else if (c[0] === 'P') u.satirIsle(`* pil kesme gerilimi ${Number(c.slice(1)).toFixed(3)} V`);
+      };
+      return { u, giden };
+    };
+    const v1 = pt();
+    const v2 = pt({ pilKayitHz: 0, pilDcirAcik: true });
+    const v3 = pt({ _ret: 'Pr20', _retSatir: '! Pr: 0 (her ornek), 1, 5, 20 ya da 50 olmali', pilKayitHz: 20 });
+    const v4 = pt({ pilPtDestek: false, pilKayitHz: 50 });
+    SONRA.push(async () => {
+      const r1 = await v1.u.pilBaslat();
+      const r2 = await v2.u.pilBaslat();
+      const r3 = await v3.u.pilBaslat();
+      const r4 = await v4.u.pilBaslat();
+      ok('[!] PT7: Baslat -> `Pr1`, `Pd0` (VARSAYILAN), sonra `P3.2` + onay, sonra `p1`; her ornek + DCIR acik -> `Pr0`, `Pd1`; istenen ayar saklanir',
+         r1 === true && v1.giden.join() === 'Pr1,Pd0,P3.2,p1' && r2 === true && v2.giden.join() === 'Pr0,Pd1,P3.2,p1'
+         && JSON.stringify(v1.u.pilIstenen) === '{"hz":1,"dcir":false}' && JSON.stringify(v2.u.pilIstenen) === '{"hz":0,"dcir":true}',
+         JSON.stringify([v1.giden, v2.giden]));
+      ok('[!] PT7: kart `Pr`yi reddederse `Pd`, `P`, `p1` GITMEZ; kartin satiri OLDUGU GIBI (pl.kart_reddetti)',
+         r3 === false && v3.giden.join() === 'Pr20' && v3.u.pilUyari.tur === 'kart' && v3.u.pilIstenen === null
+         && v3.u.pilUyari.metin === 'Kart reddetti: ! Pr: 0 (her ornek), 1, 5, 20 ya da 50 olmali', JSON.stringify([v3.giden, v3.u.pilUyari]));
+      ok('[!] PT7: `/pil` PT alanlarini tasimayan (A3-PT1 oncesi) karta Pr / Pd GITMEZ (eski kart `Pr`yi `P` sanip reddederdi); test kesmeyle baslar',
+         r4 === true && v4.giden.join() === 'P3.2,p1' && v4.u.pilIstenen === null, v4.giden.join());
+    });
+    /* /pil basligi, OCV evresi */
+    const e = ornek();
+    e.bagli = true; e.tasiyiciAdi = 'akis'; e.bagliTasiyici = 'akis';
+    const yanitPt = (ek, n = 2) => ['durum=CALISIYOR', 'hata=-', 'mah=0.0000', 'wh=0.000000', 'ocv=4.1100', 'vson=4.1100', 'kesme=3.000',
+      'dcir_ani=0.00000', 'dcir_otr=0.00000', 'dcir_n=0', `sira=${n}`, 'ilk_sira=0', `kalan=0`, 'coulomb=0.000', ...ek, '--',
+      ...Array.from({ length: n }, (_, k) => `${1000 * (k + 1)},4.1100,0.000000`)].join(String.fromCharCode(10)) + String.fromCharCode(10);
+    SONRA.push(async () => {
+      const eskiF = sandbox.fetch;
+      sandbox.fetch = async () => ({ ok: true, status: 200, text: async () => yanitPt(['evre=ocv', 'kayit_hz=1.00', 'dcir=0']) });
+      e.satirIsle('* pil testi BASLADI — OCV 4.1100 V, kesme 3.000 V; once 5 s yuksuz (OCV), sonra yuk');
+      const basta = { evre: e.pilEvre, destek: e.pilPtDestek };
+      await e.pilYokla();
+      const ocv1 = { evre: e.pilEvre, gor: e.pilOcvEvresi, destek: e.pilPtDestek, hz: e.pilKartHz, dcir: e.pilKartDcir, kapali: e.pilDcirKapali };
+      sandbox.fetch = async () => ({ ok: true, status: 200, text: async () => yanitPt(['evre=yuk', 'kayit_hz=0.00', 'dcir=1'], 6) });
+      await e.pilYokla();
+      const ocv2 = { evre: e.pilEvre, gor: e.pilOcvEvresi, hz: e.pilKartHz, dcir: e.pilKartDcir, kapali: e.pilDcirKapali };
+      const eski = ornek();
+      eski.bagli = true; eski.tasiyiciAdi = 'akis'; eski.bagliTasiyici = 'akis';
+      sandbox.fetch = async () => ({ ok: true, status: 200, text: async () => yanitPt([]) });
+      await eski.pilYokla();
+      sandbox.fetch = eskiF;
+      const okumalar = govdeMetni(appKaynak, 'pilYokla');
+      ok('[!] PT2/PT6: BASLADI`daki "yuksuz (OCV)" A3-PT1`i tanitir ve evreyi OCV yapar (yoklama beklenmez); /pil evre=ocv -> OCV seridi GORUNUR, evre=yuk -> kalkar; kayit_hz / dcir okunur; PT alansiz /pil -> eski firmware',
+         basta.evre === 'ocv' && basta.destek === true && ocv1.evre === 'ocv' && ocv1.gor === true && ocv1.hz === 1 && ocv1.dcir === 0
+         && ocv1.kapali === true && ocv2.evre === 'yuk' && ocv2.gor === false && ocv2.hz === 0 && ocv2.dcir === 1 && ocv2.kapali === false
+         && eski.pilPtDestek === false && /a\.evre/.test(okumalar) && /a\.kayit_hz/.test(okumalar) && /a\.dcir\b/.test(okumalar)
+         && /<pil-pt v-if="pilOcvEvresi" kip="evre" :d="\$data"><\/pil-pt>/.test(pm),
+         JSON.stringify({ basta, ocv1, ocv2 }));
+    });
+    const w = ornek();
+    w.satirIsle('* pil testi BASLADI — OCV 4.1100 V, kesme 3.000 V');
+    const eskiBas = { evre: w.pilEvre, destek: w.pilPtDestek };
+    const z = ornek();
+    z.pilPtDestek = true;
+    z.satirIsle('* pil testi BASLADI — OCV 4.1100 V, kesme 3.000 V; once 5 s yuksuz (OCV), sonra yuk');
+    z.pilSonMs = 6000;
+    const usbGecti = z.pilOcvEvresi;
+    z.satirIsle('* pil testi DURDURULDU, yuk kesildi');
+    ok('[!] PT2: eski BASLADI evreyi OCV YAPMAZ; USB`de (yalniz B satiri) OCV seridi kartin saati PIL_OCV_MS`i gecince kalkar; test bitince evre ve istenen ayar duser',
+       eskiBas.evre === '' && eskiBas.destek === null && usbGecti === false && z.pilEvre === '' && z.pilIstenen === null);
+    /* farkli ayar uyarisi + evre / lejant / DCIR metinleri (PilPt) */
+    const fd = ornek();
+    fd.pilDurum = 'CALISIYOR';
+    fd.pilIstenen = { hz: 20, dcir: true };
+    const fk = ptOrnek('fark', fd);
+    fd.pilKartHz = 1; fd.pilKartDcir = 1;
+    const fark1 = fk.g.fark;
+    fd.pilKartHz = 20; fd.pilKartDcir = 0;
+    const fark2 = fk.g.fark;
+    fd.pilKartDcir = 1;
+    const fark3 = fk.g.fark;
+    fd.pilKartHz = 0; fd.pilIstenen = { hz: 1, dcir: true };
+    const fark4 = fk.g.fark;
+    fd.pilDurum = 'BITTI';
+    const fark5 = fk.g.fark;
+    ok('[!] PT7: kart istenenden farkli hiz / DCIR`la calisiyorsa (yalniz test surerken) uyari — test DURDURULMAZ (emniyet degil); sablonda yeri var',
+       fark1 === 'Kart testi istenenden farklı ayarla sürdürüyor: kayıt 1/s (istenen 20/s).'
+       && fark2 === 'Kart testi istenenden farklı ayarla sürdürüyor: DCIR kapalı (istenen açık).' && fark3 === ''
+       && fark4 === 'Kart testi istenenden farklı ayarla sürdürüyor: kayıt Her örnek (~400/s) (istenen 1/s).' && fark5 === ''
+       && SP.ayarFarki(null, 1, 0) === null && /<pil-pt v-if="pilCalisiyor && pilIstenen" kip="fark" :d="\$data"><\/pil-pt>/.test(pm)
+       && /<p v-else-if="g && kip === 'fark' && g\.fark" class="uyari" data-pil="ayar-fark">\{\{ g\.fark \}\}<\/p>/.test(sab),
+       JSON.stringify({ fark1, fark2, fark4 }));
+    const ld = ornek();
+    const lj = ptOrnek('lejant', ld);
+    const lej0 = lj.g.lejant;
+    ld.pilPtDestek = true; ld.pilNokta = [{ sira: 0, ms: 1000, v: 4, i: 0 }];
+    const lej1 = lj.g.lejant;
+    ld.pilKayitOzet = { oturum: 3, ocv: null };
+    const lej2 = lj.g.lejant;
+    ld.pilKayitOzet = { oturum: 3, ocv: [0, 5000] };
+    ok('[!] PT7: egrinin OCV lejanti yalniz bant varken (canlida A3-PT1 + nokta, kayitta KN_OCV araligi); OCV seridi metni sozluk_pil`den',
+       lej0 === '' && lej1 === 'OCV · yük kapalı ilk 5 s' && lej2 === '' && lj.g.lejant === lej1
+       && ptOrnek('evre', ld).g.evre === 'OCV ölçülüyor (yük kapalı) — ilk 5 s'
+       && /<p v-else-if="g && kip === 'evre'" data-pil="evre" role="status"/.test(sab) && /\{\{ g\.evre \}\}/.test(sab)
+       && /<pil-pt kip="lejant" :d="\$data"><\/pil-pt>/.test(pm) && !/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(sab));
+    /* DCIR kapali gosterimi */
+    const g = ornek();
+    const once = g.pilDcirKapali;
+    g.pilKartDcir = 0;
+    const canli = g.pilDcirKapali;
+    g.pilKayitOzet = { oturum: 4, kimlik: 1, dcir: [], ayar: { kesme_v: 3, ocv: 4.1, dcir_aralik_ms: 300000, dcir_ms: 200 } };
+    const kayitAcik = g.pilDcirKapali;
+    g.pilKayitOzet = { oturum: 4, kimlik: 1, dcir: [], ayar: { kesme_v: 3, ocv: 4.1, dcir_aralik_ms: 0, dcir_ms: 200 } };
+    ok('[!] PT5: DCIR KAPALI — canlida /pil dcir=0, kayitta PIL_AYAR dcir_aralik_ms 0 -> tablo YERINE "kapali" metni (PilPt), aralik "kapalı"; bilinmiyorsa eski gorunum',
+       once === false && canli === true && kayitAcik === false && g.pilDcirKapali === true
+       && /<pil-pt v-if="pilDcirKapali" kip="dcir" :d="\$data"><\/pil-pt>\s*<template v-else>/.test(pm)
+       && /<pil-pt v-if="pilDcirKapali" kip="kapali" :d="\$data"><\/pil-pt><template v-else>\{\{ pilDcirAralikYazi \}\}<\/template>/.test(pm)
+       && ptOrnek('dcir', g).g.dcirKapali === 'Bu testte iç direnç ölçümü kapalı — yük hiç kesilmiyor.'
+       && ptOrnek('kapali', g).g.kapali === 'kapalı');
+    /* yerlesim: PilPt ekran/pil.js'te (sablon telefon paketinde derlenir), metin + hesap ortak/sozluk_pil.js'te — PilPt kurulunca DINAMIK */
+    ok('[!] PT7 (EU32 / KU1 / acilis butcesi): PilPt ekran/pil.js`te (app.js defineAsyncComponent, Pil sekmesinde); metin + hesabi ortak/sozluk_pil.js — YALNIZ PilPt DINAMIK indirir (Karsilastirma pil.js`i indirir, sozlugu degil); acilis grafiginde ve app.js`te YOK; her pt. anahtari sozlugun kendi hesabinda',
+       /'pil-pt': defineAsyncComponent\(\{ loader: \(\) => import\('\.\/ekran\/pil\.js'\)\.then\(\(m\) => m\.PilPt\) \}\)/.test(appKaynak)
+       && /import\('\/ortak\/sozluk_pil\.js'\)/.test(pilKaynak) && !/from '\/ortak\/sozluk_pil\.js'/.test(pilKaynak)
+       && !/sozluk_pil/.test(yorumsuz(appKaynak)) && !iceAktarmaGrafigi().map((x) => x.goruntu).includes('ortak/sozluk_pil.js')
+       && !iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'pil.js')).map((x) => x.goruntu).includes('ortak/sozluk_pil.js')
+       && (() => { const k = fs.readFileSync(path.join(KOK, 'ortak', 'src', 'sozluk_pil.js'), 'utf8'); const h = k.slice(k.indexOf('// ── hesap'));
+         return Object.keys(SP.SOZLUK_PIL).every((a) => h.includes(`'${a}'`) || h.includes(`"${a}"`)); })());
+    /* OCV bandi (pil.js) */
+    ok('[!] PT2/PT7: ekran/pil.js KN_OCV ortak/kayit.js ile ayni; OCV bandi zaman ekseninde [t0, t1], mAh ekseninde en yakin orneklerin x`i; canlida A3-PT1 kartinda [0, PIL_OCV_MS]',
+       PL.KN_OCV === Kx.KN_OCV && Kx.KN_OCV === 0x80
+       && JSON.stringify(PL.ocvBantlari([0, 5000], { t: Float64Array.of(1000, 5000, 6000) })) === '[{"t0":0,"t1":5000,"metin":"OCV"}]'
+       && JSON.stringify(PL.ocvBantlari([0, 5000], { t: Float64Array.of(1000, 5000, 6000) }, Float64Array.of(0, 0.5, 1))) === '[{"t0":0,"t1":0.5,"metin":"OCV"}]'
+       && PL.ocvBantlari(null, { t: Float64Array.of(1) }).length === 0 && PL.ocvBantlari([5, 5], { t: Float64Array.of(1) }).length === 0
+       && govdeIcinde(appKaynak, 'pilCiz', 'ocv: !k && this.pilPtDestek ? [0, PIL_OCV_MS] : null'));
+    {
+      /* kayit kaynagi: KN_OCV noktalari -> ozet.ocv / r.ocv; DCIR kapali */
+      let sira = 0;
+      const ham = [];
+      const ekle = (tur, ot, yuk) => { sira++; ham.push(Kx.kayitPaketle(tur, sira, ot, yuk)); return sira; };
+      const kanal = (n) => ({ n, pga: 4.096, kazanc: 1, sifir_ham: 12, tau: 0 });
+      const kal = { normal: kanal(21), yuksek: kanal(201), i_ofset: 5, i_pga: 0.256, sont_ohm: 0.1, i_duzeltme: 1, sebeke_hz: 0, faz_kal_us: [0, 0] };
+      const ot = ekle(Kx.T_BASLA, 1, Kx.baslaPaketle({ oturum_turu: 2, kal_bicim: 1, hiz_ms: 1000, unix_s: 1790300000, kart_ms: 100000,
+        acilis: 3, surum: 'A3-PT1', kal, kal_no: 2 }));
+      ekle(Kx.T_OLAY, ot, Kx.olayPaketle({ tur: Kx.KO_PIL_AYAR, kart_ms: 100001, kesme_v: 3, ocv: 4.1, azami_s: 86400,
+        dcir_aralik_ms: 0, dcir_ms: 200, kayit_hz: 1 }));
+      const nk = (ms, b) => Kx.noktaPaketle({ kart_ms: 100000 + ms, n: 40, bayrak: b, v_ort_kod: 4.1 / 0.002625 + 12, v_min_kod: 0,
+        v_maks_kod: 0, i_ort_kod: 5, i_min_kod: 0, i_maks_kod: 0, w_ort: 0, w_min: 0, w_maks: 0 });
+      const ns = [1000, 2000, 3000, 4000, 5000, 6000, 7000].map((ms) => nk(ms, ms <= 5000 ? Kx.KN_OCV : 0));
+      const y = new Uint8Array(4 + 36 * ns.length);
+      ns.forEach((b, k) => y.set(b, 4 + 36 * k));
+      ekle(Kx.T_NOKTA, ot, y);
+      let n = 0;
+      for (const h of ham) n += h.length;
+      const bayt = new Uint8Array(n);
+      let a0 = 0;
+      for (const h of ham) { bayt.set(h, a0); a0 += h.length; }
+      const kayitlar = Kx.akisCoz(bayt);
+      const r = PL.pilKayitKur(Kx.oturumlariKur(kayitlar).get(ot), { disari: Dx, kayitlar, kimlik: 21 });
+      ok('[!] PT2/PT5: kayit kaynagi — OCV bandi KN_OCV noktalarindan (ilk nokta hiz_ms once basladi: [0, 5000]), ozette de; PIL_AYAR dcir_aralik_ms 0 -> dcirKapali',
+         !r.hata && JSON.stringify(r.ocv) === '[0,5000]' && JSON.stringify(r.ozet.ocv) === '[0,5000]' && r.ozet.dcirKapali === true,
+         JSON.stringify({ ocv: r.ocv, dk: r.ozet.dcirKapali }));
+      /* PT4: her ornek pil oturumu (BASLA hiz_ms 0, noktalar PIL_AYR_NOKTA_MS'de bir + AYRINTI) — kayit gorunumu */
+      const KG = require(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'));
+      const ot2 = ekle(Kx.T_BASLA, sira + 1, Kx.baslaPaketle({ oturum_turu: 2, kal_bicim: 1, hiz_ms: 0, unix_s: 1790300100, kart_ms: 200000,
+        acilis: 3, surum: 'A3-PT1', kal, kal_no: 2 }));
+      ekle(Kx.T_OLAY, ot2, Kx.olayPaketle({ tur: Kx.KO_PIL_AYAR, kart_ms: 200001, kesme_v: 3, ocv: 4.1, azami_s: 86400,
+        dcir_aralik_ms: 300000, dcir_ms: 200, kayit_hz: 0 }));
+      for (let p = 0; p < 5; p++) {
+        ekle(Kx.T_AYRINTI, ot2, Kx.ayrintiPaketle({ ilk: p * 140, t0_ms: 200000 + p * 1400, t0_us: (200000 + p * 1400) * 1000, bayrak: 0,
+          ornekler: Array.from({ length: 140 }, (_, j) => [1574, p * 140 + j < 500 ? 5 : 1200, j ? 2500 : 0, 0]) }));
+      }
+      const ns2 = [1000, 2000, 3000, 4000, 5000, 6000, 7000].map((ms) => Kx.noktaPaketle({ kart_ms: 200000 + ms, n: 400,
+        bayrak: ms <= 5000 ? Kx.KN_OCV : 0, v_ort_kod: 1574, v_min_kod: 0, v_maks_kod: 0, i_ort_kod: 5, i_min_kod: 0, i_maks_kod: 0,
+        w_ort: 0, w_min: 0, w_maks: 0 }));
+      const y2 = new Uint8Array(4 + 36 * ns2.length);
+      ns2.forEach((b2, k) => y2.set(b2, 4 + 36 * k));
+      ekle(Kx.T_NOKTA, ot2, y2);
+      let n2 = 0;
+      for (const h of ham) n2 += h.length;
+      const bayt2 = new Uint8Array(n2);
+      let a2 = 0;
+      for (const h of ham) { bayt2.set(h, a2); a2 += h.length; }
+      const kayitlar2 = Kx.akisCoz(bayt2);
+      const o2 = Kx.oturumlariKur(kayitlar2).get(ot2);
+      const h2 = KG.grafikSerileri(o2, { kayitlar: kayitlar2 });
+      const hn = KG.grafikSerileri(Kx.oturumlariKur(kayitlar2).get(ot), { kayitlar: kayitlar2 });
+      ok('[!] PT4/PT7 (kayit gorunumu): her ornek pil oturumunun grafigi AYRINTI orneklerinden (700 ornek, 1/s noktalar degil), OCV bandi KN_OCV noktalarindan [0, 5000] (hiz_ms 0: PIL_AYR_NOKTA_MS); disari aktarmada ayrintili CSV de var; nokta pil oturumunda bant [0, 5000], ayrintili CSV yok',
+         Kx.PIL_AYR_NOKTA_MS === 1000 && Dx.noktaAralikMs(o2) === 1000 && Dx.noktaBoslukMs(o2) === 2500
+         && h2.tur === 'ayrinti' && h2.adet === 700 && JSON.stringify(h2.ocv) === '[[0,5000]]'
+         && JSON.stringify(KG.ocvBantlari(h2)) === '[{"t0":0,"t1":5000,"metin":"OCV"}]'
+         && KG.disariTurleri(o2).join() === 'pil_tr,pil_en,ayrinti_tr,ayrinti_en,ham'
+         && hn.tur === 'nokta' && JSON.stringify(hn.ocv) === '[[0,5000]]' && KG.disariTurleri(Kx.oturumlariKur(kayitlar2).get(ot)).join() === 'pil_tr,pil_en,ham'
+         && /bantlar: ocvBantlari\(this\._h\)/.test(fs.readFileSync(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'), 'utf8')),
+         JSON.stringify({ tur: h2.tur, adet: h2.adet, ocv: h2.ocv, hn: hn.ocv }));
+    }
+    /* demo karti: PT komutlari ve /pil alanlari, OCV evresi */
+    const pr = SK.komut('Pr20');
+    const prX = SK.komut('Pr7');
+    const pd = SK.komut('Pd1');
+    const pdX = SK.komut('Pd2');
+    const pn = SK.komut('P');
+    SK.komut('Pd0');
+    SK.komut('Pr1');
+    SK.komut('p0');
+    const bas = SK.komut('p1');
+    SK.pilTik(100000);
+    SK.pilTik(100050);                    // 50 ms x 30 = 1.5 s: OCV evresinde
+    const sOcv = SK.pilSayfa(0);
+    const prSur = SK.komut('Pr5');
+    SK.pilTik(100300);                    // +7.5 s: yuk acildi
+    const sYuk = SK.pilSayfa(0);
+    SK.komut('p0');
+    const alan = (s, a) => (new RegExp('(?:^|\\n)' + a + '=([^\\n]*)').exec(s) || [])[1];
+    ok('[!] PT (demo karti): Pr / Pd / P / BASLADI metinleri FIRMWARE`in; test surerken Pr reddi; /pil evre=ocv -> yuk, kayit_hz, dcir; OCV evresinde akim 0',
+       pr[0] === '* pil kayit hizi 20 /s' && prX[0] === '! Pr: 0 (her ornek), 1, 5, 20 ya da 50 olmali' && ino.includes(prX[0])
+       && pd[0] === "* pil DCIR olcumu ACIK (5 dk'da bir 200 ms yuk kesilir)" && pdX[0] === '! Pd: Pd1 (ac) ya da Pd0 (kapat)' && ino.includes(pdX[0])
+       && /· DCIR acik$/.test(pn[0]) && O(pn[0]).tur === 'kesme' && O(bas[0]).tur === 'basladi' && /; once 5 s yuksuz \(OCV\), sonra yuk$/.test(bas[0])
+       && prSur[0] === '! P: pil testi suruyor — once p0' && ino.includes(prSur[0])
+       && alan(sOcv, 'evre') === 'ocv' && alan(sOcv, 'kayit_hz') === '1.00' && alan(sOcv, 'dcir') === '0' && /\n1000,\d\.\d{4},0\.000000\n/.test(sOcv)
+       && alan(sYuk, 'evre') === 'yuk', JSON.stringify({ pr, pd, pn, sOcv: sOcv.slice(0, 400) }));
   }
 }
 

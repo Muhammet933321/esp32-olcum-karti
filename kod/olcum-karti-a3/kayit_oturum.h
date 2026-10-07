@@ -243,9 +243,34 @@ static inline int ky_ayrinti_ornek(KayitYazici *y, const KayitOrnek *o, uint32_t
     return KG_TAMAM;
 }
 
+/* PT4: her ornek kipindeki PIL oturumunun noktasi (1/s). Tampon ornekler icin: once
+   bekleyen ornekler yazilir (kayit sirasi ~ zaman sirasi), nokta TEK BASINA bir NOKTA
+   kaydina gider; sira uzayi ORTAK (nokta, onceki orneklerden sonraki sirayi alir). */
+static inline int ky__nokta_tek(KayitYazici *y, const KayitNokta *p)
+{
+    uint8_t b[4u + KAYIT_NOKTA_BAYT];
+    int r = ky_ayrinti_bosalt(y);
+    if (!r) {
+        kayit_y32(b, y->nokta_sira);
+        kayit_nokta_paketle(p, b + 4);
+        r = ky__kayit(y, KAYIT_T_NOKTA, b, (uint16_t)sizeof(b));
+        if (!r) {
+            y->nokta_sira++;
+            return KG_TAMAM;
+        }
+        r = ky__dolu(y, r);
+    }
+    y->dusen++;                /* bu nokta YAZILAMADI (W2 sayimi) */
+    return r;
+}
+
 static inline int ky_nokta(KayitYazici *y, const KayitNokta *p, uint32_t simdi_ms)
 {
-    if (!y->oturum || y->ayrinti) return KG_YOK;
+    if (!y->oturum) return KG_YOK;
+    if (y->ayrinti) {          /* ayrintili OLCUM'de nokta YOK; PIL'de 1/s (PT4) */
+        if (y->basla.oturum_turu != KAYIT_OTURUM_PIL) return KG_YOK;
+        return ky__nokta_tek(y, p);
+    }
     if (y->basla.oturum_turu == KAYIT_OTURUM_SKOP) return KG_YOK;   /* 1C-3: yalniz yakalama */
     if (y->yuk_nokta >= KAYIT_TAMPON_NOKTA) {
         int r = ky_bosalt(y);
@@ -309,7 +334,8 @@ static inline int32_t ky_baslat(KayitYazici *y, const KayitBasla *b)
     y->yuk_nokta = 0u;
     y->son_hata = 0;
     y->ayrinti = (uint8_t)(b->hiz_ms == 0u);   /* 1C-2: hiz 0 = her ornek */
-    if (b->oturum_turu != KAYIT_OTURUM_OLCUM) y->ayrinti = 0u;   /* 1C-3: SKOP hiz 0 = her tetik */
+    if (b->oturum_turu != KAYIT_OTURUM_OLCUM && b->oturum_turu != KAYIT_OTURUM_PIL)
+        y->ayrinti = 0u;       /* 1C-3: SKOP hiz 0 = her tetik; PT4: PIL hiz 0 = her ornek */
     y->a_adet = 0u;
     y->a_bayrak = 0u;
     y->a_kayip = 0u;
@@ -369,12 +395,13 @@ static inline int ky_skop(KayitYazici *y, const KayitSkopMeta *m, const uint16_t
 }
 
 /* 1C-1: oturum OLAYI (pil ayari, DCIR, pil sonucu). Once tamponda bekleyen
-   noktalar yazilir: kayit sirasi zaman sirasiyla ayni kalir. */
+   noktalar (PT4: ve ayrintili ornekler) yazilir: kayit sirasi zaman sirasiyla ayni kalir. */
 static inline int ky_olay(KayitYazici *y, const uint8_t *yuk, uint16_t n)
 {
     int r;
     if (!y->oturum) return KG_YOK;
     r = ky_bosalt(y);
+    if (!r) r = ky_ayrinti_bosalt(y);
     if (r) return r;           /* DOLU ise ky__dolu BITIR'i zaten yazdi */
     r = ky__kayit(y, KAYIT_T_OLAY, yuk, n);
     return r ? ky__dolu(y, r) : KG_TAMAM;

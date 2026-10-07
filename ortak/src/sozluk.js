@@ -97,6 +97,7 @@ export const SOZLUK = Object.freeze({
   "bayrak.duraklama": S("DURAKLAMA", "PAUSE"),
   "bayrak.kayip_once": S("KAYIP_ONCE", "LOSS_BEFORE"),
   "bayrak.dcir": S("DCIR", "DCIR"),
+  "bayrak.ocv": S("OCV", "OCV"),
   "bayrak.silme": S("SILME", "FLASH_ERASE"),
   "bayrak.skop": S("SKOP", "SCOPE_CAPTURE"),      // W1: PC turetir (yakalamadan sonraki ilk satir)
 
@@ -634,8 +635,8 @@ export const SOZLUK = Object.freeze({
   "pl.ocv": S("Açık devre gerilimi (OCV)", "Open-circuit voltage (OCV)"),
   "pl.dcir_aralik": S("DCIR aralığı", "DCIR interval"),
   "pl.dcir_aralik_deger": S("her {dk} dk · {ms} ms darbe", "every {dk} min · {ms} ms pulse"),
-  "pl.dcir_sabit": S("DCIR aralığı ve darbesi kartta sabit (firmware sabiti; panelden değişmez, kapatılamaz).",
-    "The DCIR interval and pulse are fixed on the board (firmware constant; cannot be changed or disabled from the panel)."),
+  "pl.dcir_sabit": S("Aralık ve darbe firmware sabiti; ölçüm formdan açılır (varsayılan kapalı).",
+    "Interval and pulse are firmware constants; the form turns it on (off by default)."),
   "pl.basla": S("Yeni test", "New test"),
   "pl.kesme_gir": S("Kesme gerilimi, V (0.5 … 38.5)", "Cut-off voltage, V (0.5 … 38.5)"),
   "pl.kesme_yer": S("kartta {v}", "board: {v}"),

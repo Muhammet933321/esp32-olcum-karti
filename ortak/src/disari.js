@@ -67,7 +67,9 @@
 //            yamuk, bosluk haric — rapor enerjisiyle son satirda AYNI sayi); DCIR satirinda
 //            nokta sutunlari bos, dcir_* sutunlari (kartin olcumu; dcir_mAh/Wh kartin o ana
 //            kadarki sayaci). DCIR, zamani <= olan noktalardan SONRA gelir. PIL_AYAR /
-//            PIL_SONUC CSV'de YOK (tek seferlik): rapor.js'te.
+//            PIL_SONUC CSV'de YOK (tek seferlik): rapor.js'te. PT2: OCV on evresinin noktalari (yuk KAPALI)
+//            `bayrak`ta KN_OCV (0x80), `bayraklar`da "OCV" — yeni SUTUN YOK (Python arsiv.py ile ayni sutunlar).
+//            PT4 her ornek pil oturumunun AYRINTI ornekleri ayrintiCsv ile (ayri dosya).
 // skopCsv    tam yakalama: ornek, t_s (tetige gore: (i - tetik)/hz), kod, v_V = kod*adim -
 //            ofset (META; arayuz kodVolt'un kalibrasyonsuz yolu). Eksik yakalama: null.
 // hamDisari  oturumun kayitlari (oturum no'lu + hedefi bu oturum olan NOT'lar), kayit
@@ -81,9 +83,9 @@
 
 import {
   volt, amper, ayrintiOrnekler, ayrintiGuc, skopYerleri, kayitPaketle, T_NOT,
-  KN_YUKSEK, KN_V_HATA, KN_I_HATA, KN_V_DOYDU, KN_DURAKLAMA, KN_KAYIP_ONCE, KN_DCIR,
+  KN_YUKSEK, KN_V_HATA, KN_I_HATA, KN_V_DOYDU, KN_DURAKLAMA, KN_KAYIP_ONCE, KN_DCIR, KN_OCV,
   KAO_YUKSEK, KAO_V_HATA, KAO_I_HATA, KAO_V_DOYDU, KA_KAYIP_ONCE, KA_SILME, KO_DCIR,
-  T_DEVAM,
+  T_DEVAM, OTURUM_PIL, PIL_AYR_NOKTA_MS,
 } from "./kayit.js";
 import { ceviri } from "./sozluk.js";
 import { MS_SAAT, AMS_MAH } from "./istatistik.js";
@@ -105,7 +107,7 @@ export const SKOP_BAYRAK_AD = "bayrak.skop";
 export const BAYRAKLAR = Object.freeze({
   nokta: Object.freeze([[KN_YUKSEK, "bayrak.yuksek"], [KN_V_HATA, "bayrak.v_hata"],
     [KN_I_HATA, "bayrak.i_hata"], [KN_V_DOYDU, "bayrak.v_doydu"], [KN_DURAKLAMA, "bayrak.duraklama"],
-    [KN_KAYIP_ONCE, "bayrak.kayip_once"], [KN_DCIR, "bayrak.dcir"]]),
+    [KN_KAYIP_ONCE, "bayrak.kayip_once"], [KN_DCIR, "bayrak.dcir"], [KN_OCV, "bayrak.ocv"]]),
   ornek: Object.freeze([[KAO_YUKSEK, "bayrak.yuksek"], [KAO_V_HATA, "bayrak.v_hata"],
     [KAO_I_HATA, "bayrak.i_hata"], [KAO_V_DOYDU, "bayrak.v_doydu"]]),
   kayit: Object.freeze([[KA_KAYIP_ONCE, "bayrak.kayip_once"], [KA_SILME, "bayrak.silme"]]),
@@ -457,6 +459,32 @@ export function noktaSerileri(oturum, secenek = {}) {
   return r;
 }
 
+/**
+ * PT7: bayragin (or. KN_OCV) KESINTISIZ nokta dizileri -> x araliklari [[t0, t1], ...] (grafigin bandi).
+ * Nokta kendi araliginin SONUNDA damgali (kart_ms = noktanin bittigi an): dizinin ilk noktasi k ise
+ * t0 = t[k - 1] (onceki noktanin bittigi an); oturumun ilk noktasiysa t0 = t[0] - ilkPayMs (hiz_ms;
+ * pil oturumunda ~0 = BASLA). t1 = dizinin son noktasi. t azalmayan olmali (grafik x'i); NaN t'li
+ * nokta diziyi KESER. Bayragi tasimayan oturumda bos dizi.
+ */
+export function bayrakAraliklari(t, bayrak, bit, ilkPayMs = 0) {
+  const l = [];
+  const n = Math.min(t ? t.length : 0, bayrak ? bayrak.length : 0);
+  let bas = -1;
+  const kapat = (son) => {
+    if (bas < 0) return;
+    const t0 = bas > 0 ? t[bas - 1] : t[0] - (Number.isFinite(ilkPayMs) && ilkPayMs > 0 ? ilkPayMs : 0);
+    if (Number.isFinite(t0) && t[son] > t0) l.push([t0, t[son]]);
+    bas = -1;
+  };
+  for (let k = 0; k < n; k++) {
+    const var_ = (bayrak[k] & bit) !== 0 && Number.isFinite(t[k]);
+    if (var_ && bas < 0) bas = k;
+    if (!var_) kapat(k - 1);
+  }
+  kapat(n - 1);
+  return l;
+}
+
 /** W1/Y7: olcum sirasi -> o siradan HEMEN ONCE biten yakalamanin skoplar anahtari
  *  (kayit.js skopYerleri `sonra`; ayni satira iki yakalama duserse ZAMANCA ilki). yerler:
  *  onceden hesaplanmis skopYerleri(oturum) (verilmezse burada hesaplanir). */
@@ -703,10 +731,18 @@ function birikimli(relMs, acilis, a, bosluk, bolen) {
   return cikti;
 }
 
-/** Nokta oturumunun bosluk esigi (ms): hiz_ms x 2.5; hiz bilinmiyorsa sonsuz. */
+/** Nokta oturumunun bosluk esigi (ms): hiz_ms x 2.5; hiz bilinmiyorsa sonsuz. PT4: her ornek PIL oturumunda
+ *  (hiz_ms 0) noktalar PIL_AYR_NOKTA_MS'de bir — esik onun 2.5 kati. */
 export function noktaBoslukMs(oturum) {
-  const h = oturum.basla ? oturum.basla.hiz_ms : 0;
+  const h = noktaAralikMs(oturum);
   return h > 0 ? h * NOKTA_BOSLUK_KAT : Infinity;
+}
+
+/** Noktalarin araligi (ms): BASLA hiz_ms; her ornek PIL oturumunda (hiz_ms 0) PIL_AYR_NOKTA_MS; bilinmiyorsa 0. */
+export function noktaAralikMs(oturum) {
+  const b = oturum.basla;
+  if (!b) return 0;
+  return b.hiz_ms > 0 ? b.hiz_ms : b.oturum_turu === OTURUM_PIL ? PIL_AYR_NOKTA_MS : 0;
 }
 
 /**

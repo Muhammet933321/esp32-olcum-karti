@@ -356,7 +356,29 @@ static void kalgec_oturum_bildir(uint32_t no, uint32_t once);
 static void kayit_pil_baslat();                 /* 1C-1: tanimlari kayit blogunda */
 static void kayit_pil_dcir(float v_oturmus);
 static void kayit_pil_bitir(uint8_t sebep);
-static float pil_dcir_v_ani = 0.0f;             /* 1C-1: darbenin ilk ornegindeki V (DCIR olayi) */
+/* PT5: DCIR darbesi ac/kapa (`Pd1`/`Pd0`), VARSAYILAN KAPALI. Ayar3'te DEGIL (Ayar3
+   buyurse AYAR3_IMZA degisir, kalibrasyon sifirlanir): ayri NVS ad alani, ag.h gibi.
+   Darbenin ilk ornegindeki V (eski pil_dcir_v_ani) artik PilTest.dcir_v_ani. */
+#define PIL_NVS "pilayar"
+static uint8_t pil_dcir_ayar = 0;
+
+static void pil_ayar_yukle() {
+  Preferences p;
+  pil_dcir_ayar = 0;
+  if (!p.begin(PIL_NVS, true)) return;     /* ad alani yok = hic ayarlanmamis: KAPALI */
+  pil_dcir_ayar = p.getUChar("dcir", 0) ? 1u : 0u;
+  p.end();
+}
+
+static bool pil_dcir_yaz(uint8_t acik) {
+  Preferences p;
+  if (!p.begin(PIL_NVS, false)) return false;
+  const size_t n = p.putUChar("dcir", acik ? 1u : 0u);
+  p.end();
+  if (n != 1u) return false;
+  pil_dcir_ayar = acik ? 1u : 0u;
+  return true;
+}
 
 void ayar_kaydet() {
   ayar.imza = AYAR3_IMZA;
@@ -2410,88 +2432,69 @@ static void pil_baslat() {
     Serial.println(pil_hata_metni(h));
     return;
   }
-  pil_sifirla(&pil);
   pil_halka_sifirla(&pil_halka);
-  pil.v_bas = o.volt;              // OCV (yuk yokken)
-  pil.durum = PIL_CALISIYOR;
-  pil.baslama_ms = millis();
-  pil.son_kayit_ms = pil.baslama_ms;
-  pil.son_dcir_ms = pil.baslama_ms;
-  pil_yuk(true);
+  /* PT2: yuk KAPALI kalir — ilk PIL_OCV_MS boyunca OCV evresi (noktalar KN_OCV ile
+     kaydedilir, kesme denetlenmez); pil_adim 5 s sonra PILA_YUK_AC ister. */
+  pil_baslat_kur(&pil, millis(), o.volt, pil_dcir_ayar);   /* durum CALISIYOR, evre OCV */
   Serial.print(F("* pil testi BASLADI — OCV "));
   Serial.print(o.volt, 4);
   Serial.print(F(" V, kesme "));
   Serial.print(ayar.pil_kesme_v, 3);
-  Serial.println(F(" V"));
+  Serial.print(F(" V; once "));
+  Serial.print(PIL_OCV_MS / 1000u);
+  Serial.println(F(" s yuksuz (OCV), sonra yuk"));
   kayit_pil_baslat();              /* 1C-1: her kabul edilen test kendi oturumunda */
 }
 
-// Her olcumden sonra cagriliyor. Durum makinesi + kayit + DCIR.
+// Kayit noktacisinin bu ornege koydugu ek bayrak: DCIR darbesi (yuk kapali) ya da
+// PT2 OCV evresi (yuk henuz acilmadi). Ornek pil_isle'den ONCE kaydediliyor: evre
+// degisimi bir SONRAKI ornekte gorunur — olcum aninda yuk gercekten oyleydi.
+static uint8_t pil_kayit_bayrak() {
+  return (uint8_t)((pil.dcir_icinde ? KN_DCIR : 0u) | (pil_ocv_evresinde(&pil) ? KN_OCV : 0u));
+}
+
+// Her olcumden sonra cagriliyor. Karar pil_test.h pil_adim'da (platformsuz, AVR'de
+// sinaniyor: sim3_pil.py bolum 7); burada yalniz yan etkiler.
 static void pil_isle(const Okuma3 &o, uint32_t dt_us) {
   if (pil.durum != PIL_CALISIYOR) return;
-  uint32_t ms = millis();
+  PilParam a;
+  a.kesme_v = ayar.pil_kesme_v;
+  a.azami_s = ayar.pil_azami_s;
+  a.halka_ms = pil_halka_ms(ayar.pil_kayit_hz);
+  const uint8_t e = pil_adim(&pil, &pil_halka, &a, millis(), o.volt, o.amper, o.watt, dt_us);
 
   // --- emniyet: azami sure
-  if (ayar.pil_azami_s && (ms - pil.baslama_ms) / 1000UL > ayar.pil_azami_s) {
+  if (e & PILA_SURE) {
     pil_durdur(PIL_HATA, PILH_SURE);
     Serial.println(F("! pil testi: azami sure asildi, yuk kesildi"));
     return;
   }
-
-  // --- DCIR darbesi icindeysek
-  if (pil.dcir_icinde) {
-    if (ms - pil.dcir_bas_ms == 0) return;      // ilk tur, henuz olcum yok
-    if (pil.dcir_ani == 0.0f) {
-      // darbeden SONRAKI ILK ornek — "ani" deger. dcir_ani darbe basinda 0'a
-      // cekiliyor. (Eskiden `dcir_sayisi == 0 ||` de vardi: ILK darbede her
-      // ornekte dogruydu, ani deger darbenin SON orneginden geliyordu.)
-      pil.dcir_ani = pil_dcir(pil.dcir_v_once, o.volt, pil.dcir_i_once);
-      pil_dcir_v_ani = o.volt;
-    }
-    if (ms - pil.dcir_bas_ms >= (uint32_t)(PIL_DCIR_MS)) {
-      pil.dcir_oturmus = pil_dcir(pil.dcir_v_once, o.volt, pil.dcir_i_once);
-      pil.dcir_sayisi++;
-      pil.dcir_icinde = 0;
-      pil.son_dcir_ms = ms;
-      pil_yuk(true);
-      kayit_pil_dcir(o.volt);                    /* 1C-1: yuk geri acildiktan SONRA */
-    }
-    return;                                      // darbe boyunca BIRIKTIRME
+  // --- PT2: OCV evresi bitti
+  if (e & PILA_YUK_AC) {
+    pil_yuk(true);
+    Serial.print(F("* pil testi: OCV evresi bitti ("));
+    Serial.print(o.volt, 4);
+    Serial.println(F(" V), yuk ACILDI"));
   }
-
-  // --- normal birikim
-  pil.yuk_pC = yuk_ekle3(pil.yuk_pC, o.amper, dt_us);
-  pil.enerji_pJ = enerji_ekle3(pil.enerji_pJ, o.watt, dt_us);
-  pil.v_son = o.volt;
-
-  // --- egri kaydi
-  uint32_t kayit_ms = (uint32_t)(1000.0f / (ayar.pil_kayit_hz > 0.01f
-                                            ? ayar.pil_kayit_hz : 1.0f));
-  if (ms - pil.son_kayit_ms >= kayit_ms) {
-    pil_halka_ekle(&pil_halka, ms - pil.baslama_ms, o.volt, o.amper);
-    pil.son_kayit_ms = ms;
+  // --- DCIR darbesi bitti
+  if (e & PILA_DCIR_BITTI) {
+    pil_yuk(true);
+    kayit_pil_dcir(o.volt);                    /* 1C-1: yuk geri acildiktan SONRA */
   }
-
-  // --- KESME
-  if (pil_kesmeli_mi(o.volt, ayar.pil_kesme_v)) {
+  // --- KESME (PT1: EMA ile)
+  if (e & PILA_BITTI) {
     pil_durdur(PIL_BITTI, PILH_YOK);
     Serial.print(F("* pil testi BITTI — "));
     Serial.print(yuk_mAh3(pil.yuk_pC), 2);
     Serial.print(F(" mAh, "));
     Serial.print(enerji_wh3(pil.enerji_pJ), 4);
-    Serial.println(F(" Wh"));
+    Serial.print(F(" Wh, ortalama "));
+    Serial.print(pil.v_ema, 4);
+    Serial.println(F(" V"));
     return;
   }
-
-  // --- DCIR darbesi zamani mi
-  if (ms - pil.son_dcir_ms >= (uint32_t)(PIL_DCIR_ARALIK_MS)) {
-    pil.dcir_v_once = o.volt;
-    pil.dcir_i_once = o.amper;
-    pil.dcir_ani = 0.0f;
-    pil.dcir_icinde = 1;
-    pil.dcir_bas_ms = ms;
-    pil_yuk(false);
-  }
+  // --- DCIR darbesi basladi
+  if (e & PILA_DCIR_BAS) pil_yuk(false);
 }
 
 // ───────────────────────────────────────────────── HTTP
@@ -2788,6 +2791,10 @@ void pil_sayfa() {
   g += F("\nilk_sira="); g += String(ilk_sira);   // > istenen ise BOSLUK var
   g += F("\nkalan=");   g += String(kalan - n);
   g += F("\ncoulomb="); g += String(yuk_coulomb3(pil.yuk_pC), 3);
+  // PT6: eski alanlar AYNEN; yenileri sona. evre=ocv yalniz test surerken yuk acilmadan.
+  g += F("\nevre=");    g += pil_ocv_evresinde(&pil) ? F("ocv") : F("yuk");
+  g += F("\nkayit_hz="); g += String(ayar.pil_kayit_hz, 2);   // 0 = her ornek
+  g += F("\ndcir=");    g += pil_dcir_ayar ? '1' : '0';
   g += F("\n--\n");
   // sonra: ms,V,I  (her satir bir nokta) — ~1 KB'lik parcalar halinde
   for (uint32_t k = 0; k < n; k++) {
@@ -3814,12 +3821,10 @@ static void kayit_durum_bas(bool zorla) {
 // Durum makinesi kayit_yonet.h'de (B71.PL). Buradan yalniz TEK mesajlar gider;
 // hicbiri beklemez: p0 yolu (pil_durdur) kuyruga ya da kayit kilidine TAKILMAZ.
 
+/* PT3/PT4: pil oturumunun BASLA hiz_ms'i. 0 = her ornek: AYRINTI kayitlari + noktalar
+   1/s (KAYIT_PIL_AYR_NOKTA_MS, kayit_esp.h kayit__nesil). Kural pil_test.h'de. */
 static uint32_t pil_kayit_hiz_ms() {
-  float hz = ayar.pil_kayit_hz > 0.01f ? ayar.pil_kayit_hz : 1.0f;
-  float ms = 1000.0f / hz + 0.5f;
-  if (ms < 100.0f) ms = 100.0f;
-  if (ms > 60000.0f) ms = 60000.0f;
-  return (uint32_t)ms;
+  return pil_nokta_ms(ayar.pil_kayit_hz);
 }
 
 /* p1 KABUL edildi: pil oturumu (K4). Kayit acilamazsa test YINE surer (K5). */
@@ -3845,9 +3850,9 @@ static void kayit_pil_baslat() {
   a.kesme_v = ayar.pil_kesme_v;
   a.ocv = pil.v_bas;
   a.azami_s = ayar.pil_azami_s;
-  a.dcir_aralik_ms = PIL_DCIR_ARALIK_MS;
+  a.dcir_aralik_ms = pil.dcir_acik ? PIL_DCIR_ARALIK_MS : 0u;   /* PT5: 0 = KAPALI */
   a.dcir_ms = PIL_DCIR_MS;
-  a.kayit_hz = ayar.pil_kayit_hz;
+  a.kayit_hz = ayar.pil_kayit_hz;                 /* PT3: 0 = her ornek */
   m.n = kayit_olay_ayar_paketle(millis(), &a, m.yuk);
   if (kayit_mesaj_gonder(&m))
     Serial.println(F("* pil testi kaydi istendi (oturum turu PIL; olcum kaydi aciksa kapanir) — sonuc G satirinda"));
@@ -3865,7 +3870,7 @@ static void kayit_pil_dcir(float v_oturmus) {
   d.no = pil.dcir_sayisi;
   d.v_once = pil.dcir_v_once;
   d.i_once = pil.dcir_i_once;
-  d.v_ani = pil_dcir_v_ani;
+  d.v_ani = pil.dcir_v_ani;
   d.v_oturmus = v_oturmus;
   d.r_ani = pil.dcir_ani;
   d.r_oturmus = pil.dcir_oturmus;
@@ -3891,7 +3896,7 @@ static void kayit_pil_bitir(uint8_t sebep) {
   s.mah = yuk_mAh3(pil.yuk_pC);
   s.wh = enerji_wh3(pil.enerji_pJ);
   s.ocv = pil.v_bas;
-  s.v_son = pil.v_son;
+  s.v_son = pil.ema_hazir ? pil.v_ema : pil.v_son;   /* PT1: kesme anini temsil eden EMA */
   s.sure_ms = pil.bitis_ms - pil.baslama_ms;
   s.dcir_sayisi = pil.dcir_sayisi;
   m->n = kayit_olay_sonuc_paketle(millis(), &s, m->yuk);
@@ -4862,6 +4867,7 @@ void yardim() {
   Serial.println(F("  f<Hz> sebeke frekansi (0=DC, olcek duzeltmesi)"));
   Serial.println(F("  F<us> faz kalibrasyonu us (direncli yukle), F goster"));
   Serial.println(F("  P<volt> pil kesme   p1/p0 pil testi baslat/durdur   p durum"));
+  Serial.println(F("  Pr<hz> pil kayit hizi (0 her ornek|1|5|20|50)   Pd1/Pd0 pil DCIR ac/kapa   P ayarlar"));
   Serial.println(F("  K blokaj sayaclarini sifirla (eski degeri basar)"));
   Serial.println(F("  r<ms> rapor araligi 20..5000 ms (D satiri sikligi), r goster"));
   Serial.println(F("  X<hz> kalibrasyon cikisi (GPIO10, %50 kare), X0 kapatir"));
@@ -5329,9 +5335,45 @@ void komut_calistir(const char *s) {
         Serial.print(ayar.pil_kesme_v, 3);
         Serial.print(F(" V · kayit "));
         Serial.print(ayar.pil_kayit_hz, 2);
-        Serial.print(F(" Hz · azami sure "));
+        Serial.print(pil_nokta_ms(ayar.pil_kayit_hz) ? F(" Hz") : F(" Hz (her ornek)"));
+        Serial.print(F(" · azami sure "));
         Serial.print(ayar.pil_azami_s / 3600UL);
-        Serial.println(F(" saat"));
+        Serial.print(F(" saat · DCIR "));
+        Serial.println(pil_dcir_ayar ? F("acik") : F("kapali"));
+        break;
+      }
+      /* PT3 `Pr<hz>` kayit hizi (0 = her ornek, 1, 5, 20, 50) · PT5 `Pd1`/`Pd0` DCIR.
+         Test SURERKEN reddedilir: PIL_AYAR olayi ve oturumun hiz_ms'i baslangicta yazildi. */
+      if (s[1] == 'r' || s[1] == 'd') {
+        if (pil_testi_suruyor()) {
+          Serial.println(F("! P: pil testi suruyor — once p0"));
+          break;
+        }
+        if (s[1] == 'r') {
+          uint32_t hz = 0;
+          const uint8_t r = pil_pr_ayir(s + 2, &hz);
+          if (r) {
+            Serial.println(F("! Pr: 0 (her ornek), 1, 5, 20 ya da 50 olmali"));
+            break;
+          }
+          ayar.pil_kayit_hz = (float)hz;
+          ayar_kaydet();
+          Serial.print(F("* pil kayit hizi "));
+          if (hz) { Serial.print(hz); Serial.println(F(" /s")); }
+          else Serial.println(F("her ornek (ayrintili kayit + 1/s nokta)"));
+          break;
+        }
+        const uint8_t d = pil_pd_ayir(s + 2);
+        if (d > 1u) {
+          Serial.println(F("! Pd: Pd1 (ac) ya da Pd0 (kapat)"));
+          break;
+        }
+        if (!pil_dcir_yaz(d)) {
+          Serial.println(F("! Pd: NVS'e yazilamadi"));
+          break;
+        }
+        Serial.println(d ? F("* pil DCIR olcumu ACIK (5 dk'da bir 200 ms yuk kesilir)")
+                         : F("* pil DCIR olcumu KAPALI"));
         break;
       }
       float v = atof(s + 1);
@@ -5739,6 +5781,7 @@ void setup() {
   pinMode(PIN_PIL_KAPI, OUTPUT);
   digitalWrite(PIN_PIL_KAPI, LOW);
   pil_sifirla(&pil);
+  pil_ayar_yukle();   // PT5: DCIR ac/kapa (NVS `pilayar`, varsayilan KAPALI)
   // Halka tamponu burada DEGIL, PSRAM durumu ogrenildikten sonra
   // ayriliyor (asagida). pil_halka statik oldugu icin nokta=nullptr,
   // kapasite=0; pil_halka_ekle bu durumu zaten koruyor.
@@ -5891,7 +5934,7 @@ void setup() {
   // diyor). Sayi degisince metin kendiliginden dogru kalsin.
   Serial.print(F("  pil egri tamponu: "));
   if (pil_halka.kapasite) {
-    const float hz = ayar.pil_kayit_hz > 0.01f ? ayar.pil_kayit_hz : 1.0f;
+    const float hz = 1000.0f / (float)pil_halka_ms(ayar.pil_kayit_hz);   /* PT4: en cok 20/s */
     Serial.print(pil_halka.kapasite);
     Serial.print(F(" nokta = "));
     Serial.print((float)pil_halka.kapasite / hz / 3600.0f, 2);
@@ -6056,7 +6099,7 @@ void loop() {
   }
 
   Okuma3 o = olcum_al();
-  kayit_ornek(o.watt, millis(), pil.dcir_icinde ? KN_DCIR : 0u);   // B72 noktaci; 1C-1 DCIR bayragi
+  kayit_ornek(o.watt, millis(), pil_kayit_bayrak());   // B72 noktaci; 1C-1 KN_DCIR + PT2 KN_OCV
   // Guc ORNEK BASINA carpilir: ort(VxI) != ort(V) x ort(I).
   // B27/K1: iki ciften biri okunamadiysa watt COP — enerjiye katma.
   // (Ornek yine sayiliyor ve D basiliyor; arayuz `durum` alanindan

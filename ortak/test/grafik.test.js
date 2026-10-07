@@ -1508,6 +1508,45 @@ test('3F isaretler: pencere içindeki her işaret t\'de kesik dikey çizgi + eti
   assert.deepEqual(isaretListesi(undefined), []);
 });
 
+// ── PT7: aralık bantları — pil eğrisinde OCV evresi ──
+test('PT7 bantlar: [t0, t1] pencereye kırpılıp saydam dolgu + etiket; seri çizgilerinin ALTINDA; geçersiz / dışarıdaki çizilmez; gezginde yok', () => {
+  const n = 601;
+  const t = new Float64Array(n).map((_, i) => i * 1000);
+  const y = new Float64Array(n).map((_, i) => 4 - i / 1000);
+  const s = [seriHazirla({ ad: 'V', t, y, birim: 'V', renk: 'volt' })];
+  const d = durumBirlestir(durumKur(s), { t0: 100000, t1: 500000 });
+  const bantlar = [{ t0: 0, t1: 150000, metin: 'OCV' }, { t0: 550000, t1: 560000, metin: 'X' }, { t0: 5, t1: 5 },
+    { t0: NaN, t1: 9 }, { t0: 200000, t1: 300000 }];
+  const plan = cizimPlani(s, d, { w: 800, h: 240 }, { zamanKokeni: 0, bantlar });
+  const dk = plan.komutlar.filter((k) => k.rol === 'bant' && k.tur === 'dikdortgen');
+  const yazi = plan.komutlar.filter((k) => k.rol === 'bant' && k.tur === 'yazi');
+  assert.equal(dk.length, 2, 'pencere disindaki ve gecersiz bant cizilmez');
+  const tx = (v) => plan.alan.x + (v - plan.x.t0) * plan.alan.w / (plan.x.t1 - plan.x.t0);
+  assert.ok(Math.abs(dk[0].x - tx(plan.x.t0)) < 1e-9 && Math.abs(dk[0].x + dk[0].w - tx(150000)) < 1e-9, 'pencereye kirpildi');
+  assert.equal(dk[0].y, plan.alan.y);
+  assert.equal(dk[0].h, plan.alan.h);
+  assert.equal(dk[0].dolgu, 'soluk');
+  assert.ok(dk[0].saydamlik > 0 && dk[0].saydamlik < 0.5);
+  assert.equal(dk[1].dolgu, 'soluk');
+  assert.deepEqual(yazi.map((k) => k.metin), ['OCV']);
+  const ib = plan.komutlar.indexOf(dk[0]);
+  const is = plan.komutlar.findIndex((k) => k.rol === 'seri');
+  assert.ok(ib > 0 && ib < is, 'bant seri cizgisinden ONCE (altinda)');
+  assert.equal(cizimPlani(s, d, { w: 800, h: 240 }, {}).komutlar.some((k) => k.rol === 'bant'), false);
+  const k = sahteKanvas(800, 240);
+  const g = new Grafik(k, { pencere: { devicePixelRatio: 1 }, zamanKokeni: 0, bantlar: [{ t0: 0, t1: 5000, metin: 'OCV' }] });
+  g.veriAyarla([{ ad: 'V', t: Float64Array.from(t.subarray(0, 50)), y: Float64Array.from(y.subarray(0, 50)), birim: 'V', renk: 'volt' }]);
+  assert.ok(g.ciz().komutlar.some((c) => c.rol === 'bant') && k.ctx.yazilar.some((w) => w.metin === 'OCV'));
+  g.secenek.bantlar = [];
+  assert.equal(g.ciz().komutlar.some((c) => c.rol === 'bant'), false);
+  g.yokEt();
+  const kg = sahteKanvas(800, 60);
+  const gz = new Grafik(kg, { pencere: { devicePixelRatio: 1 }, gezgin: true, bantlar: [{ t0: 0, t1: 5000, metin: 'OCV' }] });
+  gz.veriAyarla([{ ad: 'V', t: Float64Array.from(t.subarray(0, 50)), y: Float64Array.from(y.subarray(0, 50)), birim: 'V', renk: 'volt' }]);
+  assert.equal(gz.ciz().komutlar.some((c) => c.rol === 'bant'), false);
+  gz.yokEt();
+});
+
 test('3F isaretler: Grafik sınıfı seçeneği plana geçiriyor, sonradan değişebiliyor; gezginde yok', () => {
   const k = sahteKanvas(800, 240);
   const t = Float64Array.from({ length: 100 }, (_, i) => i * 1000);

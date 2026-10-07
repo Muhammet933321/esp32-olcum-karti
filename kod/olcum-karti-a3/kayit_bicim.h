@@ -70,6 +70,12 @@
 #define KN_DURAKLAMA   0x10u  /* bu noktadan once/icinde olcum durdu */
 #define KN_KAYIP_ONCE  0x20u  /* bundan ONCEKI noktalar kuyrukta dustu */
 #define KN_DCIR        0x40u  /* 1C-1: en az bir ornek DCIR darbesinde (yuk KAPALI) */
+#define KN_OCV         0x80u  /* PT2: en az bir ornek OCV evresinde (p1'den sonra 5 s yuk KAPALI) */
+
+/* PT4: PIL oturumunda hiz_ms 0 = HER ORNEK — AYRINTI kayitlari (ÖLCUM'deki gibi) ARTI
+   bu aralikla NOKTA kayitlari (ozet/eksen). Ikisi AYNI sira uzayini paylasir: nokta
+   tek basina bir NOKTA kaydinda, ondan once bekleyen ornekler yazilir. */
+#define KAYIT_PIL_AYR_NOKTA_MS 1000u
 
 /* BITIR sebepleri */
 #define KB_SEBEP_KULLANICI 1u

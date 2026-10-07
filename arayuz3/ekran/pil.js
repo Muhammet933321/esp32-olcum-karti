@@ -29,6 +29,8 @@ export const OTURUM_PIL = 2;
 export const KO_PIL_AYAR = 1;
 export const KO_DCIR = 2;
 export const KO_PIL_SONUC = 3;
+/* PT2: OCV on evresinin noktalari (yuk KAPALI) — kayit.js KN_OCV (B7 karsilastiriyor). */
+export const KN_OCV = 0x80;
 /* Canli nokta araligi bilinmiyorsa (kart 1 Hz kaydediyor) bosluk esigi bunun 2.5 kati. */
 export const CANLI_ARALIK_MS = 1000;
 export const BOSLUK_KAT = 2.5;
@@ -155,6 +157,19 @@ export function dcirIsaretleri(dcir, seri, x = null) {
 }
 
 /**
+ * PT7 — OCV bandi (grafik.js `bantlar`): ocv = [t0, t1] (ms, testin basindan; kayitta KN_OCV noktalarindan,
+ * canlida [0, PIL_OCV_MS]). Zaman ekseninde aynen; mAh ekseninde uclara EN YAKIN orneklerin x'i (OCV'de
+ * yuk akimi ~0: bant mAh ~0'da dar kalir). Etiket "OCV" (G8: simge, dil metni degil). Veri yoksa bos.
+ */
+export function ocvBantlari(ocv, seri, x = null) {
+  if (!Array.isArray(ocv) || ocv.length !== 2 || !(ocv[1] > ocv[0]) || !seri || !seri.t.length) return [];
+  if (!x) return [{ t0: ocv[0], t1: ocv[1], metin: 'OCV' }];
+  const a = enYakin(seri.t, ocv[0]);
+  const b = enYakin(seri.t, ocv[1]);
+  return a >= 0 && b >= 0 && x[b] > x[a] ? [{ t0: x[a], t1: x[b], metin: 'OCV' }] : [];
+}
+
+/**
  * Imlec okumasi (grafik.js imlecOkuma) -> satirlar [{ad, d, renk}]. Zaman ekseninde A–B
  * araliginin mAh / Wh'si grafik.js'in HAM integrali (tarayici); mAh ekseninde fark dogrudan x.
  */
@@ -189,7 +204,8 @@ function renkCozucu(eleman, pencere) {
 
 /**
  * Pil egrisi (grafik.js; P3 tek cekirdek). `ciz(d)`: her yeni nokta / DCIR / eksen / tema
- * degisiminde. d = { nokta (canli), kayit (pilKaydiAc sonucu | null), eksen, dcir, dil }.
+ * degisiminde. d = { nokta (canli), kayit (pilKaydiAc sonucu | null), eksen, dcir, dil, ocv (canli OCV
+ * bandi [t0, t1] ms | null; kayitta kayit.ocv) }.
  * Kullanici yakinlastirmadiysa pencere verinin SONUNU izler; yakinlastirdiysa (pencere veri
  * sonunda degilse) yeni nokta pencereyi ve imlecleri BOZMAZ.
  * `degisti(bilgi)`: {var, n, eksen, eksenUyari, xSon (mAh eksen sonu), okuma (satirlar | null)}.
@@ -213,8 +229,9 @@ export class PilGrafik {
     const bosluk = kayit ? kayit.boslukMs : BOSLUK_KAT * CANLI_ARALIK_MS;
     const istenen = d.eksen === 'mah' ? 'mah' : 'zaman';
     const dcir = d.dcir || [];
+    const ocv = kayit ? kayit.ocv || null : d.ocv || null;     // PT7: OCV bandi [t0, t1] ms
     const anahtar = `${kayit ? 'k' + kayit.ozet.oturum : 'c'}:${seri.t.length}:${seri.t.length ? seri.t[seri.t.length - 1] : 0}`
-      + `:${istenen}:${dcir.map((x) => x.no + (Number.isFinite(x.tMs) ? '' : '?')).join(',')}`;
+      + `:${istenen}:${dcir.map((x) => x.no + (Number.isFinite(x.tMs) ? '' : '?')).join(',')}:${ocv ? ocv.join('-') : ''}`;
     if (anahtar !== this._anahtar) {
       const once = this._son;
       const p = pilSerileri(seri, { eksen: istenen, boslukMs: bosluk });
@@ -225,6 +242,7 @@ export class PilGrafik {
       const sonda = !ayniKaynak || !(dur.veriT1 > dur.veriT0) || (dur.t1 >= dur.veriT1 - 1e-9 && dur.t0 <= dur.veriT0 + 1e-9);
       this.g.secenek.xEksen = p.eksen === 'mah' ? { tur: 'sayi', yazi: mahYazi } : undefined;
       this.g.secenek.isaretler = dcirIsaretleri(dcir, seri, p.x);
+      this.g.secenek.bantlar = ocvBantlari(ocv, seri, p.x);
       this.g.veriAyarla(p.seriler, { koru: !sonda });
       this._son = { kaynak: kayit ? 'k' + kayit.ozet.oturum : 'c', eksen: p.eksen, eksenUyari: p.eksenUyari,
         n: seri.t.length, xSon: p.x && p.x.length ? p.x[p.x.length - 1] : NaN };
@@ -282,17 +300,22 @@ export function pilKayitKur(oturum, { disari, kayitlar = null, kimlik = null, di
   const a = olaylar.find((o) => o.tur === KO_PIL_AYAR);
   const so = olaylar.filter((o) => o.tur === KO_PIL_SONUC).pop();
   const sebep = oturum.bitir ? oturum.bitir.sebep : null;
+  /* PT2: OCV evresi kaydin KN_OCV noktalarindan (ilk nokta: hiz_ms onceden basladi); yoksa null */
+  const ocvAr = typeof disari.bayrakAraliklari === 'function'
+    ? disari.bayrakAraliklari(seri.t, s.bayrak, KN_OCV, disari.noktaAralikMs(oturum)) : [];
   const ozet = {
     oturum: oturum.id, kimlik, ad: oturum.ad || null, n: s.adet,
     ayar: a ? { kesme_v: a.kesme_v, ocv: a.ocv, azami_s: a.azami_s, dcir_aralik_ms: a.dcir_aralik_ms,
       dcir_ms: a.dcir_ms, kayit_hz: a.kayit_hz } : null,
+    dcirKapali: a ? a.dcir_aralik_ms === 0 : null,          // PT5: PIL_AYAR dcir_aralik_ms 0 = kapali
+    ocv: ocvAr.length ? ocvAr[0] : null,                     // PT2: OCV evresi [t0, t1] ms (yoksa null)
     sonuc: so ? { durum: so.durum, hata: so.hata, mah: so.mah, wh: so.wh, ocv: so.ocv, v_son: so.v_son,
       sure_ms: so.sure_ms, dcir_sayisi: so.dcir_sayisi,
       durumMetin: ceviriKod('pil.durum.', so.durum, dil), hataMetin: ceviriKod('pil.hata.', so.hata, dil) } : null,
     sebep, sebepMetin: sebep === null ? '' : ceviriKod('sebep.', sebep, dil),
     dcir,
   };
-  return { seri, boslukMs: disari.noktaBoslukMs(oturum), ozet };
+  return { seri, boslukMs: disari.noktaBoslukMs(oturum), ozet, ocv: ocvAr.length ? ocvAr[0] : null };
 }
 
 async function denetci(kartAdres, denetciKur, kartIstek = null) {
@@ -367,3 +390,45 @@ export async function pilKaydiEsitle({ kartAdres = (y) => y, kartIstek = null, k
   const onay = es.onayIslevi({ arsiv: es.arsivOku(kimlik), bagli, gonder });
   return den.esitle({ kimlik, onay });
 }
+
+/* PT7 (tasarim/2026-10-07-pil-iyilestirme.md): kayit hizi + DCIR secimi, OCV seridi / lejanti, DCIR kapali, farkli
+   ayar. `<pil-pt kip=… :d="$data">` (app.js). Metin ve hesap ortak/sozluk_pil.js'te — bilesen ilk kurulunca DINAMIK
+   (Karsilastirma bu modulu statik indirir ama formu kullanmaz: KU1); inene dek hicbir sey cizilmez. */
+const PT_SABLON = `
+<template v-if="g && kip === 'form'">
+  <div class="alan"><label for="pil-hiz">{{ g.hizEtiket }}</label>
+    <select id="pil-hiz" v-model="hz" data-pil="hiz"><option v-for="h in g.hizlar" :key="h.v" :value="h.v">{{ h.ad }}</option></select></div>
+  <p class="ipucu" data-pil="hiz-sure">{{ g.sure }}</p>
+  <p v-if="g.uyariHer" class="uyari" data-pil="hiz-uyari">{{ g.uyariHer }}</p>
+  <div class="alan" style="flex-direction: row; align-items: center; gap: 8px">
+    <input id="pil-dcir" type="checkbox" v-model="dcir" data-pil="dcir-ac" style="width: auto; margin: 0">
+    <label for="pil-dcir" style="font-size: 14px; color: var(--yazi)">{{ g.dcirEtiket }}</label></div>
+  <p class="ipucu">{{ g.dcirIpucu }}</p>
+  <p v-if="g.desteklenmiyor" class="uyari" data-pil="pt-yok">{{ g.desteklenmiyor }}</p>
+</template>
+<p v-else-if="g && kip === 'evre'" data-pil="evre" role="status"
+   style="margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; border-left: 3px solid var(--soluk); background: var(--kart); font-weight: 600">{{ g.evre }}</p>
+<p v-else-if="g && kip === 'fark' && g.fark" class="uyari" data-pil="ayar-fark">{{ g.fark }}</p>
+<span v-else-if="g && kip === 'lejant' && g.lejant" data-pil="lejant-ocv"><i style="height: 10px; background: var(--soluk); opacity: 0.35"></i>{{ g.lejant }}</span>
+<p v-else-if="g && kip === 'dcir'" class="ipucu" data-pil="dcir-kapali">{{ g.dcirKapali }}</p>
+<template v-else-if="g && kip === 'kapali'">{{ g.kapali }}</template>`;
+
+export const PilPt = {
+  name: 'PilPt',
+  props: { kip: String, d: Object },
+  emits: ['hz', 'dcir'],
+  template: PT_SABLON,
+  data() { return { s: null }; },
+  created() {
+    import('/ortak/sozluk_pil.js').then((s) => {
+      this.s = s;
+      if (this.kip === 'form') s.tercihVer(this.d, (a, v) => this.$emit(a, v));
+    }).catch(() => { /* sozluk inmedi: secenekler gizli, baslatma varsayilani gonderir */ });
+  },
+  computed: {
+    g() { return this.s ? this.s.ptGorunum(this.d) : null; },
+    hz: { get() { return this.d.pilKayitHz; }, set(v) { this.$emit('hz', this.s.tercih('pilKayitHz', this.s.kayitHizNormal(v))); } },
+    dcir: { get() { return this.d.pilDcirAcik; }, set(v) { this.$emit('dcir', this.s.tercih('pilDcir', !!v)); } },
+  },
+};
+

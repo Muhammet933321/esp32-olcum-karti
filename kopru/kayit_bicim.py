@@ -41,6 +41,11 @@ KAO_YUKSEK, KAO_V_HATA, KAO_I_HATA, KAO_V_DOYDU = 0x1, 0x2, 0x4, 0x8   # ornek b
 KN_YUKSEK, KN_V_HATA, KN_I_HATA = 0x01, 0x02, 0x04
 KN_V_DOYDU, KN_DURAKLAMA, KN_KAYIP_ONCE = 0x08, 0x10, 0x20
 KN_DCIR = 0x40         # 1C-1: en az bir ornek DCIR darbesinde (yuk KAPALI)
+KN_OCV = 0x80          # PT2: en az bir ornek OCV evresinde (p1'den sonra 5 s yuk KAPALI)
+# PT4: PIL oturumunda hiz_ms 0 = her ornek: AYRINTI kayitlari ARTI bu aralikla NOKTA
+# kayitlari (ikisi ayni sira uzayinda; o.ayrinti VE o.noktalar dolu). PIL_AYAR olayinda
+# kayit_hz 0 = her ornek, dcir_aralik_ms 0 = DCIR KAPALI (PT5).
+PIL_AYR_NOKTA_MS = 1000
 SEBEP = {1: "kullanici", 2: "bellek doldu", 3: "hata", 4: "pil testi bitti",
          5: "kart yeniden basladi", 6: "baska oturum basladi", 7: "planli sure doldu"}
 OTURUM_OLCUM = 1
@@ -621,7 +626,7 @@ class Oturum:
     ad: str | None = None                                 # 1C-1: en son NOT(ad)
     etiketler: list[str] = field(default_factory=list)    # en son NOT(etiket), virgulden
     notlar: dict[int, dict] = field(default_factory=dict)  # NOT kaydinin sirasi -> not
-    ayrinti: list[dict] = field(default_factory=list)     # 1C-2: ayrinti_coz + "sira"
+    ayrinti: list[dict] = field(default_factory=list)     # 1C-2: ayrinti_coz + "sira" (PT4: PIL'de de)
     skoplar: dict[int, dict] = field(default_factory=dict)  # 1C-3: 0. parcanin (ya da yetim
                                                             # parcanin) SIRASI -> {no, meta,
                                                             # toplam, kodlar, tam, t_sira,

@@ -255,6 +255,7 @@ static void bicim_1c1(void)
     }
     metin("KN "); ondalik(KN_DCIR); yaz(' ');
     ondalik(KN_YUKSEK | KN_V_HATA | KN_I_HATA | KN_V_DOYDU | KN_DURAKLAMA | KN_KAYIP_ONCE);
+    yaz(' '); ondalik(KN_OCV); yaz(' '); ondalik(KAYIT_PIL_AYR_NOKTA_MS);   /* PT2 / PT4 */
     satir();
 }
 
@@ -1572,9 +1573,9 @@ static void senaryo(void)
         /* Y1: kayitsiz pil testinin DCIR olayi / KN_DCIR noktasi olcum oturumuna DUSMEZ */
         n = kayit_olay_dcir_paketle(t_ms, &d, ly);
         sayi("OYO", kyn_olay(&m, KAYIT_OTURUM_PIL, ly, n));
-        sayi("EKO", kn_ek_suz(KAYIT_OTURUM_OLCUM, (uint8_t)(KN_DCIR | 0x01u)));
-        sayi("EKP", kn_ek_suz(KAYIT_OTURUM_PIL, (uint8_t)(KN_DCIR | 0x01u)));
-        sayi("EKY", kn_ek_suz(0u, (uint8_t)(KN_DCIR | 0x01u)));
+        sayi("EKO", kn_ek_suz(KAYIT_OTURUM_OLCUM, (uint8_t)(KN_DCIR | KN_OCV | 0x01u)));
+        sayi("EKP", kn_ek_suz(KAYIT_OTURUM_PIL, (uint8_t)(KN_DCIR | KN_OCV | 0x01u)));
+        sayi("EKY", kn_ek_suz(0u, (uint8_t)(KN_DCIR | KN_OCV | 0x01u)));
         dr("L3a");
         sayi("NA1", not_yaz((uint32_t)pil, KNT_AD, 0u, 0u, "ilk ad"));
         sayi("NA2", not_yaz((uint32_t)pil, KNT_AD, 0u, 0u, "son ad"));
@@ -1607,6 +1608,52 @@ static void senaryo(void)
         kyn_adim(&m, g.sonraki_sira - 1u, t_ms, 0u);
         dr("L5b");
         break;
+    case 6: {                /* PT4 (ayri flas): PIL oturumu hiz 0 = her ornek (AYRINTI)
+                                ARTI 1/s nokta; ilk 2 nokta KN_OCV; DCIR olayi ornekler
+                                arasinda; sonra OLCUM hiz 0 (nokta YOK) ve SKOP hiz 0 */
+        static const KayitPilAyar a6 = { 3.0f, 4.1875f, 86400UL, 0UL, 200u, 0.0f };
+        KayitOrnek o;
+        KayitNokta p;
+        uint32_t k;
+        int r6;
+        basla_tur(&b, 0u, KAYIT_OTURUM_PIL);
+        pil = kyn_baslat(&m, &b, t_ms, 0u);
+        sayi("PIL6", pil);
+        sayi("AYR6", y.ayrinti);
+        n = kayit_olay_ayar_paketle(t_ms, &a6, ly);
+        sayi("OA6", kyn_olay(&m, KAYIT_OTURUM_PIL, ly, n));
+        for (k = 0u; k < 300u; k++) {
+            o.us = 2000000UL + 2500UL * k;
+            o.ms = o.us / 1000u;
+            o.v = (int16_t)(1000 + (int16_t)k);
+            o.i = (int16_t)(-(int16_t)k);
+            o.bayrak = 0u;
+            r6 = ky_ayrinti_ornek(&y, &o, o.ms);
+            if (r6) sayi("AH6", r6);
+            if (k % 50u == 49u) {
+                nokta_uret(k, &p);
+                p.bayrak = (uint8_t)(k < 100u ? KN_OCV : 0u);
+                sayi("NK6", ky_nokta(&y, &p, o.ms));
+            }
+            if (k == 120u) {
+                n = kayit_olay_dcir_paketle(o.ms, &d, ly);
+                sayi("OD6", kyn_olay(&m, KAYIT_OTURUM_PIL, ly, n));
+            }
+        }
+        n = kayit_olay_sonuc_paketle(t_ms, &s, ly);
+        sayi("PB6", kyn_pil_bitir(&m, ly, n, KB_SEBEP_PIL));
+        basla_tur(&b, 0u, KAYIT_OTURUM_OLCUM);
+        sayi("OLC6", kyn_baslat(&m, &b, t_ms, 0u));
+        sayi("AYO6", y.ayrinti);
+        nokta_uret(0u, &p);
+        sayi("NKO6", ky_nokta(&y, &p, t_ms));   /* ayrintili OLCUM'de nokta YOK */
+        basla_tur(&b, 0u, KAYIT_OTURUM_SKOP);
+        sayi("SKP6", kyn_baslat(&m, &b, t_ms, 0u));
+        sayi("AYS6", y.ayrinti);                /* SKOP hiz 0 = her tetik, ayrinti DEGIL */
+        sayi("DUR6", kyn_durdur(&m));
+        dr("L6");
+        break;
+    }
     default:
         break;
     }

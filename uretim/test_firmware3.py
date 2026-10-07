@@ -66,6 +66,10 @@ BEKLENEN_DIZELER = [
     (b"FABRIKA AYARLARI yuklendi", "fabrika sifirlama dali (kurtarma yolu)"),
     (b"K %lu %lu %lu", "blokaj sayaci satiri"),
     (b"pil egri tamponu: ", "tampon raporu sureyi SAYIDAN turetiyor"),
+    (b"! Pr: 0 (her ornek), 1, 5, 20 ya da 50 olmali", "PT3 Pr reddi dali"),
+    (b"* pil DCIR olcumu KAPALI", "PT5 Pd0 dali"),
+    (b"pilayar", "PT5 DCIR ayarinin NVS ad alani"),
+    (b"OCV evresi bitti", "PT2 OCV evresinden yuke gecis dali"),
     # B22.4 — her biri bir SAVUNMA DALININ derlendigini kanitliyor
     # 4B (PC8): "event: kopru" (kopru kayitliyken ikinci SSE istemcisi reddi) KALKTI —
     #   spec §5 "4 istemci, ret kalkar"; artik BULUNMAMALI listesinde.

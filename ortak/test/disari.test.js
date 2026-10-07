@@ -553,3 +553,55 @@ test("zamanEkseni: kart_ms 2^32 sarmasi acilis icinde ardisik farkla acilir", ()
   assert.deepEqual([...s.gecenMs], [1000, 2000, 3000]);
   assert.deepEqual([...s.unixMs].map((x) => Number.isNaN(x)), [true, true, true], "unix 0 = bilinmiyor");
 });
+
+// ── PT (2026-10-07): OCV on evresi (KN_OCV), her ornek pil oturumu (AYRINTI) ──
+test("PT2: bayrakAraliklari — KN_OCV'li kesintisiz nokta dizisi [onceki noktanin sonu (ilkse t0 - hiz), son nokta]; NaN t keser", () => {
+  const t = Float64Array.of(1000, 2000, 3000, 4000, 5000, 6000, 7000);
+  const b = [0x80, 0x80, 0x80, 0x80, 0x80, 0, 0x81];
+  assert.deepEqual(D.bayrakAraliklari(t, b, K.KN_OCV, 1000), [[0, 5000], [6000, 7000]]);
+  assert.deepEqual(D.bayrakAraliklari(t, b, K.KN_OCV), [[1000, 5000], [6000, 7000]]);
+  assert.deepEqual(D.bayrakAraliklari(t, [0, 0, 0x80, 0x80, 0, 0, 0], K.KN_OCV, 1000), [[2000, 4000]]);
+  assert.deepEqual(D.bayrakAraliklari(t, new Array(7).fill(0), K.KN_OCV, 1000), []);
+  assert.deepEqual(D.bayrakAraliklari(Float64Array.of(1000, NaN, 3000), [0x80, 0x80, 0x80], K.KN_OCV, 1000), [[0, 1000]]);
+  assert.deepEqual(D.bayrakAraliklari(Float64Array.of(1000), [0x80], K.KN_OCV), [], "tek nokta, pay yok: bos aralik");
+  assert.deepEqual(D.bayrakAraliklari(null, null, K.KN_OCV), []);
+});
+
+test("PT2: pilCsv — OCV noktalari bayrak 128 + bayraklar 'OCV' (EN 'OCV'); yeni SUTUN YOK; diger bayraklarla birlikte adlandirilir", () => {
+  const a = new Akis(300);
+  const id = a.ekle(K.T_BASLA, 301, BASLA(K.OTURUM_PIL, 1000, 1790000000, 10000, 4));
+  a.ekle(K.T_NOKTA, id, birlestir(u32(0), K.noktaPaketle(P(11000, 32, 0, 0, K.KN_OCV)),
+    K.noktaPaketle(P(12000, 32, 0, 0, K.KN_OCV | K.KN_YUKSEK)), K.noktaPaketle(P(13000, 30, 1000, 2.5))));
+  a.ekle(K.T_BITIR, id, bitirYuk(3, 4));
+  const [o] = oturumAl(a.bayt(), id);
+  for (const [bicim, dil] of [[D.BICIM_EXCEL_TR, "tr"], [D.BICIM_EN, "en"]]) {
+    const s = csvAyristir(D.pilCsv(o, bicim), bicim.ayrac);
+    const bas = s[0];
+    assert.equal(bas.length, D.KOLONLAR.pil.length, "sutun sayisi degismedi");
+    const ib = bas.indexOf(ceviri("csv.bayrak", dil));
+    const ia = bas.indexOf(ceviri("csv.bayraklar", dil));
+    assert.deepEqual(s.slice(1).map((r) => [r[ib], r[ia]]), [["128", "OCV"], ["129", `${ceviri("bayrak.yuksek", dil)}|OCV`], ["0", ""]]);
+  }
+  assert.equal(D.bayrakAdlari(K.KN_OCV | K.KN_DCIR, D.BAYRAKLAR.nokta, "en"), "DCIR|OCV");
+});
+
+test("PT4: her ornek pil oturumu (noktalar + AYRINTI) — ikisi de cozulur; pilCsv noktalardan, ayrintiCsv orneklerden", () => {
+  const a = new Akis(400);
+  const id = a.ekle(K.T_BASLA, 401, BASLA(K.OTURUM_PIL, 1000, 1790000000, 10000, 5));
+  a.ekle(K.T_OLAY, id, K.olayPaketle({ tur: K.KO_PIL_AYAR, kart_ms: 10001, kesme_v: 3, ocv: 4.1, azami_s: 3600,
+    dcir_aralik_ms: 0, dcir_ms: 200, kayit_hz: 0 }));
+  a.ekle(K.T_AYRINTI, id, K.ayrintiPaketle({ ilk: 0, t0_ms: 10000, t0_us: 10000000, bayrak: 0,
+    ornekler: [[32, 0, 0, 0], [32, 0, 625, 0], [31, 1024, 625, 0]] }));
+  a.ekle(K.T_NOKTA, id, birlestir(u32(0), K.noktaPaketle(P(11000, 32, 0, 0, K.KN_OCV))));
+  a.ekle(K.T_BITIR, id, bitirYuk(1, 1));
+  const [o, kay] = oturumAl(a.bayt(), id);
+  assert.equal(o.noktalar.length, 1);
+  assert.equal(o.ayrinti.length, 1);
+  const ay = o.olaylar.find((x) => x.tur === K.KO_PIL_AYAR);
+  assert.equal(ay.dcir_aralik_ms, 0, "PT5: DCIR kapali = dcir_aralik_ms 0");
+  assert.equal(ay.kayit_hz, 0, "PT3: 0 = her ornek");
+  assert.equal(csvAyristir(D.pilCsv(o, { ...D.BICIM_EN, kayitlar: kay }), ",").length, 2, "pil CSV: baslik + 1 nokta");
+  const ac = csvAyristir(D.ayrintiCsv(o, { ...D.BICIM_EN, kayitlar: kay }), ",");
+  assert.equal(ac.length, 4, "ayrinti CSV: baslik + 3 ornek");
+  assert.deepEqual(ac.slice(1).map((r) => r[3]), ["10000000", "10002500", "10005000"], "kart_us = t0_us + 4 x dt4");
+});

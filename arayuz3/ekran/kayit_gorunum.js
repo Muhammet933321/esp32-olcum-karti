@@ -32,6 +32,10 @@
    K5 Imlec rengi temanin YAZI rengi (`--yazi`): uc gorunumde de zemine
       karsi en yuksek karsitlik ve uc kanal renginden ayri. grafik.js'in
       `imlec` yedegi sabit bir renk; burada belirtece baglaniyor.
+   K7 (PT7) Pil oturumu: OCV on evresinin noktalari (KN_OCV) grafikte saydam bant "OCV"; "her ornek"
+      kipinin pil oturumunda (PT4: 1/s noktalar + AYRINTI) grafik AYRINTI orneklerinden (ayrintili
+      oturumla ayni yol), bant noktalarin araligindan. DCIR kapali (PIL_AYAR dcir_aralik_ms 0) ise ozet
+      "DCIR: kapalı" der, bos tablo yok.
    K6 Rapor yazdirilirken (beforeprint) gecici olarak ACIK gorunum: koyu
       zemin kagida basilmaz, koyu temanin acik yazisi beyaz kagitta okunmaz.
       Yeni renk TANIMLANMIYOR — mevcut Acik takim kullaniliyor; afterprint
@@ -43,14 +47,14 @@ import { Grafik, imlecOkuma, zamanYazi, cssRenk, yerlesim, seriHazirla, yOlcekNo
 import { enerji } from '/ortak/istatistik.js';
 import {
   zamanEkseni, noktaSerileri, ayrintiSerileri, anZamani, noktaBoslukMs, AYRINTI_BOSLUK_MS,
-  oturumCsv, ayrintiCsv, pilCsv, skopCsv, hamDisari, csvBayt, BICIM_EXCEL_TR, BICIM_EN,
+  oturumCsv, ayrintiCsv, pilCsv, skopCsv, hamDisari, csvBayt, BICIM_EXCEL_TR, BICIM_EN, bayrakAraliklari, noktaAralikMs,
 } from '/ortak/disari.js';
 import { oturumRaporu, RAPOR_ETIKET } from '/ortak/rapor.js';
 import { ceviriKod } from '/ortak/sozluk.js';
 /* W3 (EU32): kl./kg./kr. metinleri acilis sozlugunde DEGIL — bu zincirle iner (sozluk_kayit.js; yoksa sozluk.js) */
 import { ceviriKayit as ceviri } from '/ortak/sozluk_kayit.js';
 import { ceviriPc } from '/ortak/sozluk_pc.js';
-import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP, skopYerleri } from '/ortak/kayit.js';
+import { OTURUM_OLCUM, OTURUM_PIL, OTURUM_SKOP, KN_OCV, skopYerleri } from '/ortak/kayit.js';
 import { ImlecAciklama } from './imlec_aciklama.js';
 
 /* 5P: telefon ortami (app.js ile ayni kanca; yoksa null — PC/kart/kopru yolu AYNEN). */
@@ -143,14 +147,26 @@ export function xEkseni(acilis, relMs, araliklar, eksen, boslukMs) {
  */
 export function grafikSerileri(oturum, { kayitlar = null } = {}) {
   const eksen = zamanEkseni(oturum, kayitlar);
-  const ayr = oturum.ayrinti.length > 0 && oturum.noktalar.length === 0;
+  /* K7 (PT4): her ornek pil oturumu — noktalar (1/s) + AYRINTI; grafik ayrinti orneklerinden */
+  const pil = !!oturum.basla && oturum.basla.oturum_turu === OTURUM_PIL;
+  const ayr = oturum.ayrinti.length > 0 && (oturum.noktalar.length === 0 || pil);
   if (!ayr && !oturum.noktalar.length) {
-    return { tur: 'yok', seriler: [], eksen, araliklar: [], acilis: [], segOfset: [0], tahmini: [], adet: 0 };
+    return { tur: 'yok', seriler: [], eksen, araliklar: [], acilis: [], segOfset: [0], tahmini: [], adet: 0, ocv: [] };
   }
   const s = ayr ? ayrintiSerileri(oturum, { eksen }) : noktaSerileri(oturum, { eksen });
   const boslukMs = ayr ? AYRINTI_BOSLUK_MS : noktaBoslukMs(oturum);
   const x = xEkseni(s.acilis, s.relMs, s.araliklar, eksen, boslukMs);
   const t = x.t;
+  /* K7 (PT2): OCV bandi KN_OCV noktalarindan, bu grafigin x'inde (ayrintida noktalar ayni capalara gore) */
+  let ocv = [];
+  if (pil && oturum.noktalar.length) {
+    const ns = ayr ? noktaSerileri(oturum, { eksen }) : s;
+    const nx = Float64Array.from(ns.relMs, (r, k) => {
+      const o = x.segOfset[ns.acilis[k]];
+      return o === null || o === undefined ? NaN : o + r;
+    });
+    ocv = bayrakAraliklari(nx, ns.bayrak, KN_OCV, noktaAralikMs(oturum));
+  }
   const kanal = (ad, y, birim, renk, eksenAd, enAz, zarf = false) => ({
     ad, t, y, birim, renk, eksen: eksenAd, boslukMs, enAzAralik: enAz,
     ...(zarf ? { zarf: true, kalinlik: 0.75 } : {}),
@@ -171,7 +187,12 @@ export function grafikSerileri(oturum, { kayitlar = null } = {}) {
   }
   return { tur: ayr ? 'ayrinti' : 'nokta', seriler, t, eksen, araliklar: s.araliklar, acilis: s.acilis,
     segOfset: x.segOfset, tahmini: x.tahmini, duzeltilen: x.duzeltilen, boslukMs, adet: s.adet, s,
-    birler: new Float64Array(s.adet).fill(1) };
+    birler: new Float64Array(s.adet).fill(1), ocv };
+}
+
+/** K7 (PT2): grafik.js `bantlar` — OCV evresi araliklari saydam bant, etiket "OCV" (simge; G8). */
+export function ocvBantlari(h) {
+  return h && Array.isArray(h.ocv) ? h.ocv.map(([t0, t1]) => ({ t0, t1, metin: 'OCV' })) : [];
 }
 
 /** K4 gorunurluk: V (sol), sag eksen 'akim' | 'guc' | 'yok', zarf (min/maks). */
@@ -296,6 +317,7 @@ export function disariTurleri(oturum) {
   if (tur === 'olcum') d.push('csv_tr', 'csv_en');
   if (tur === 'ayrinti') d.push('ayrinti_tr', 'ayrinti_en');
   if (tur === 'pil') d.push('pil_tr', 'pil_en');
+  if (tur === 'pil' && oturum.ayrinti.length) d.push('ayrinti_tr', 'ayrinti_en');   // K7 (PT4): her ornek
   d.push('ham');
   return d;
 }
@@ -503,6 +525,9 @@ export const KG_METIN = Object.freeze({
   osiloskoptaAc: 'kg.osiloskopta_ac',
   disariHata: 'kg.disari_hata', herOrnek: 'kg.her_ornek',
   veriYok: 'kg.veri_yok', dahaFazla: 'kg.daha_fazla',
+  /* K7 (PT): pil oturumunun kayit hizi, DCIR durumu, OCV evresi */
+  kayitHizi: 'kg.kayit_hizi', dcirDurum: 'kg.dcir_durum', kapali: 'kg.kapali', ocvEvre: 'kg.ocv_evre',
+  dcirKapali: 'kg.dcir_kapali',
   /* 2026-10-07: ad / etiket / cop kutusu */
   duzenBaslik: 'kg.duzen_baslik', duzenAd: 'kg.duzen_ad', duzenEtiket: 'kg.duzen_etiket',
   duzenEtiketOrnek: 'kg.duzen_etiket_ornek', duzenIpucu: 'kg.duzen_ipucu', duzenKaydet: 'kg.duzen_kaydet',
@@ -689,6 +714,7 @@ const SABLON = `
         <span class="kpi-ad">{{ k.etiket }}</span><span class="kpi-deger">{{ k.deger }}</span>
       </div>
     </div>
+    <p v-if="pilOzet.dcirKapali" class="ipucu" data-kg-dcir-kapali>{{ m.dcirKapali }}</p>
     <div class="kg-tablo-sarmal" v-if="pilOzet.dcir.length">
       <table class="kg-tablo">
         <thead><tr><th v-for="b in pilOzet.dcirBaslik" :key="b">{{ b }}</th></tr></thead>
@@ -893,7 +919,14 @@ export const KayitGorunumu = {
       if (p.ayar) {
         kpi.push({ a: 'kv', etiket: al('kesme_v'), deger: sayiYaz(p.ayar.kesme_v, 3) });
         kpi.push({ a: 'ocv', etiket: al('ocv'), deger: sayiYaz(p.ayar.ocv, 3) });
+        /* K7 (PT3/PT5): kayit hizi (0 = her ornek) ve DCIR durumu */
+        const hz = p.ayar.kayit_hz;
+        kpi.push({ a: 'hz', etiket: this.m.kayitHizi,
+          deger: hz === 0 ? this.m.herOrnek : Number.isFinite(hz) ? Number(hz.toFixed(2)) + '/s' : '—' });
+        if (p.ayar.dcir_aralik_ms === 0) kpi.push({ a: 'dcir', etiket: this.m.dcirDurum, deger: this.m.kapali });
       }
+      const ocv = this._h && this._h.ocv && this._h.ocv.length ? this._h.ocv[0] : null;
+      if (ocv) kpi.push({ a: 'ocve', etiket: this.m.ocvEvre, deger: sureYaz(ocv[1] - ocv[0]) });
       if (p.sonuc) {
         kpi.push({ a: 'dr', etiket: al('durum'), deger: p.sonuc.durumMetin });
         kpi.push({ a: 'mah', etiket: al('mah'), deger: sayiYaz(p.sonuc.mah, 1) });
@@ -905,7 +938,7 @@ export const KayitGorunumu = {
       const dcirBaslik = ['no', 'v_once', 'i_once', 'r_ani', 'r_oturmus', 'mah'].map(al);
       const dcir = p.dcir.map((d) => ({ no: d.no, hucre: [String(d.no), sayiYaz(d.v_once, 3), sayiYaz(d.i_once, 3),
         sayiYaz(d.r_ani, 4), sayiYaz(d.r_oturmus, 4), sayiYaz(d.mah, 1)] }));
-      return { kpi, dcir, dcirBaslik };
+      return { kpi, dcir, dcirBaslik, dcirKapali: !!(p.ayar && p.ayar.dcir_aralik_ms === 0) };
     },
     yakalamalar() {
       const r = this.raporVeri;
@@ -1005,7 +1038,8 @@ export const KayitGorunumu = {
       const gz = this.$refs.gezgin;
       this._g = markRaw(new Grafik(t, { renk: this.renkCozucu(t), zamanKokeni: 0, gerilim: 'V', akim: 'I',
         yOlcek: yOlcekEksen(this.yOlcek, this.goster.sag),
-        isaretler: yakalamaIsaretleri(this.oturum, this._h), onDegisim: (d) => this.degisti(d) }));
+        isaretler: yakalamaIsaretleri(this.oturum, this._h), bantlar: ocvBantlari(this._h),
+        onDegisim: (d) => this.degisti(d) }));
       this._gz = markRaw(new Grafik(gz, { gezgin: true, renk: this.renkCozucu(gz),
         onDegisim: (d) => { if (this._g) this._g.durumAyarla({ t0: d.t0, t1: d.t1 }); this.pencereYaz(); } }));
       this.gorunurlukUygula(false);

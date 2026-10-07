@@ -56,12 +56,12 @@ static inline void kn__sifirla(KayitNoktaci *k)
     k->bekleyen = 0u;
 }
 
-/* Y1 (1C-1 inceleme M7): ornegin KN_DCIR bayragi YALNIZ PIL oturumunda kalir.
+/* Y1 (1C-1 inceleme M7): ornegin KN_DCIR (ve PT2 KN_OCV) bayragi YALNIZ PIL oturumunda kalir.
    Kayitsiz kalan pil testi (tarama sirasinda p1, kuyruk dolu) surerken acik ya
    da DEVAM almis bir OLCUM oturumu DCIR isaretli nokta almaz; diger bitler aynen. */
 static inline uint8_t kn_ek_suz(uint8_t oturum_turu, uint8_t ek)
 {
-    return oturum_turu == KAYIT_OTURUM_PIL ? ek : (uint8_t)(ek & (uint8_t)~KN_DCIR);
+    return oturum_turu == KAYIT_OTURUM_PIL ? ek : (uint8_t)(ek & (uint8_t)~(KN_DCIR | KN_OCV));
 }
 
 static inline void kn_baslat(KayitNoktaci *k, uint32_t hiz_ms, uint32_t simdi_ms,

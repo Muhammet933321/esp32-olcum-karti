@@ -72,8 +72,10 @@ struct Ayar3 {
     /* -- B21 (pil kapasite testi) ------------------------------------
      * pil_kesme_v : desarj bu gerilime inince MOSFET KAPANIR. Li-ion
      *   icin 3.0 V, kursun asit icin 10.5 V tipik. Kullanici giriyor.
-     * pil_kayit_hz: egri kayit hizi (0.2 / 1 / 5). Olcum hizi DEGIL —
-     *   olcum 665 Sa/s, bu yalnizca KAC ORNEGIN bir noktada toplandigi.
+     * pil_kayit_hz: egri kayit hizi. Olcum hizi DEGIL — yalnizca KAC
+     *   ORNEGIN bir noktada toplandigi. PT3 (2026-10-07): `Pr` 0/1/5/20/50,
+     *   0 = HER ORNEK (pil_test.h pil_nokta_ms); eski 0.2 okunur. Alan
+     *   BUYUMEDI: AYAR3_IMZA ayni, kalibrasyon sifirlanmaz.
      * pil_azami_s : azami test suresi (emniyet zaman asimi). 0 = kapali
      *   DEGIL, en az bir sinir olmali; varsayilan 24 saat. */
     float    pil_kesme_v;

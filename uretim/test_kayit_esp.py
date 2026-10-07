@@ -304,7 +304,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-CA3"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-PT1"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -316,19 +316,27 @@ def bolum_kaynak() -> None:
     ok("B72.F27 kabul edilen p1 pil kaydini acar (kayit_pil_baslat, test CALISIYOR'a "
        "gectikten sonra); reddedilen p1 ACMAZ",
        bool(red) and "kayit_pil_baslat" not in red
-       and 0 <= pb.find("pil.durum = PIL_CALISIYOR") < pb.find("kayit_pil_baslat()"))
+       and 0 <= pb.find("pil_baslat_kur(&pil,") < pb.find("kayit_pil_baslat()"))
     pd = govde(ino_k, "static void pil_durdur(")
     ok("B72.F28 pil_durdur YUKU HER SEYDEN ONCE keser; kayit mesaji ondan SONRA "
        "(p0 kayit kuyruguna/kilidine takilmaz)",
        pd.lstrip("{ \r\n\t").startswith("pil_yuk(false)")
        and 0 <= pd.find("pil_yuk(false)") < pd.find("kayit_pil_bitir("))
     pi = govde(ino_k, "static void pil_isle(")
-    a = pi.find("pil.dcir_sayisi++")
-    ok("B72.F29 her DCIR darbesi bitince olay kaydi (kayit_pil_dcir) — darbe sonu blogunda",
-       a >= 0 and "kayit_pil_dcir(" in pi[a:pi.find("}", a)])
+    ph_k = kod(_oku("pil_test.h"))
+    pa = govde(ph_k, "static uint8_t pil_adim(")
+    a = pa.find("p->dcir_sayisi++")
+    b = pi.find("(e & PILA_DCIR_BITTI)")
+    ok("B72.F29 her DCIR darbesi bitince olay kaydi (kayit_pil_dcir) — darbe sonu blogunda "
+       "(PT: karar pil_test.h pil_adim'da PILA_DCIR_BITTI, .ino o istekte olayi yollar)",
+       a >= 0 and "return PILA_DCIR_BITTI;" in pa[a:pa.find("}", a) + 1]
+       and b >= 0 and "kayit_pil_dcir(" in pi[b:pi.find("}", b)])
     lp = govde(ino_k, "void loop() {")
-    ok("B72.F30 noktaci DCIR darbesindeki ornekleri KN_DCIR ile isaretler",
-       "kayit_ornek(o.watt, millis(), pil.dcir_icinde ? KN_DCIR : 0u)" in lp)
+    kb = govde(ino_k, "static uint8_t pil_kayit_bayrak() {")
+    ok("B72.F30 noktaci DCIR darbesindeki ornekleri KN_DCIR, (PT2) OCV evresindekileri KN_OCV "
+       "ile isaretler",
+       "kayit_ornek(o.watt, millis(), pil_kayit_bayrak())" in lp
+       and "pil.dcir_icinde ? KN_DCIR : 0u" in kb and "pil_ocv_evresinde(&pil) ? KN_OCV : 0u" in kb)
     kk2 = govde(ino_k, "static void kayit_komut(")
     ok("B72.F31 pil testi surerken Gb ve Gd REDDEDILIR (kayit testle baslar/biter); p0 "
        "hala jetonsuz serbest",
@@ -373,15 +381,42 @@ def bolum_kaynak() -> None:
        "kapaniyor ya da ret halinde acik kalip nokta yaziyordu)",
        "pil.durum == PIL_CALISIYOR" in pk and "zaten suruyor" in pk)
     ok("B72.F39 DCIR 'ani' degeri darbenin ILK orneginden (ilk darbede de): kosul "
-       "dcir_sayisi'na bakmaz (B21'den kalma hata; 1C-1 bunu flasa yaziyordu)",
-       "pil.dcir_sayisi == 0 ||" not in pi and "if (pil.dcir_ani == 0.0f) {" in pi)
+       "dcir_sayisi'na bakmaz (B21'den kalma hata; 1C-1 bunu flasa yaziyordu; PT: pil_adim)",
+       "dcir_sayisi == 0 ||" not in pa and "if (p->dcir_ani == 0.0f) {" in pa
+       and "p->dcir_v_ani = v;" in pa[pa.find("if (p->dcir_ani == 0.0f) {"):])
+    # ── PT (2026-10-07): pil testi iyilestirmesi — kayit yapistiricisi ──
+    kn_ = govde(esp_k, "static void kayit__nesil(")
+    ok("B72.PT1 (PT4) PIL oturumunda hiz 0: halka (her ornek) VE noktaci (1/s, "
+       "KAYIT_PIL_AYR_NOKTA_MS) birlikte; OLCUM hiz 0'da noktaci yok; SKOP'ta ayrinti yok",
+       "(d.hiz_ms || d.tur == KAYIT_OTURUM_PIL)" in kn_
+       and "if (d.tur != KAYIT_OTURUM_OLCUM && d.tur != KAYIT_OTURUM_PIL)" in kn_
+       and "d.hiz_ms ? d.hiz_ms : KAYIT_PIL_AYR_NOKTA_MS" in kn_
+       and "if (d.tur == KAYIT_OTURUM_SKOP) kayit_kn_aktif = 0u;" in kn_)
+    ko = govde(esp_k, "static void kayit_ornek(")
+    i_ayr = ko.find("if (kayit_ayr_aktif) {")
+    i_kh = ko.find("kh_it(&kayit_halka, &o)")
+    i_es = ko.find("} else {", i_kh)
+    ok("B72.PT2 (PT4) kayit_ornek ayrintili kipte ornegi halkaya iter ve DONMEZ: noktaci "
+       "aktifse (PIL) ayni ornegi noktaciya da verir (OLCUM'de noktaci kapali, doner)",
+       0 <= i_ayr < i_kh < i_es < ko.find("ksi_esitle(", i_es)
+       < ko.find("if (!kayit_kn_aktif) return;", i_es) < ko.find("kn_ornek(&kayit_kn")
+       and "return" not in ko[i_kh:i_es])
+    kp2 = govde(ino_k, "static void kayit_pil_baslat() {")
+    kh = govde(ino_k, "static uint32_t pil_kayit_hiz_ms() {")
+    bt2 = govde(ino_k, "static void kayit_pil_bitir(uint8_t sebep) {")
+    ok("B72.PT3 PIL_AYAR olayi: dcir_aralik_ms DCIR kapaliyken 0 (PT5), kayit_hz 0 = her "
+       "ornek; oturum hizi pil_nokta_ms'ten (0 = ayrintili); PIL_SONUC v_son EMA (PT1)",
+       "a.dcir_aralik_ms = pil.dcir_acik ? PIL_DCIR_ARALIK_MS : 0u;" in kp2
+       and "kayit_basla_doldur(&m.basla, pil_kayit_hiz_ms())" in kp2
+       and "return pil_nokta_ms(ayar.pil_kayit_hz);" in kh
+       and "s.v_son = pil.ema_hazir ? pil.v_ema : pil.v_son;" in bt2)
     # ── 1C-2: ayrintili kip (davranis B71.A/H/Z'de, burada yapistirici) ──
     hg = govde(ino_k, "static bool kayit__hiz_gecerli(")
     ok("B72.F40 Gb0 = ayrintili kip (her ornek) kabul edilir ve yardimda yaziyor",
        "h == 0" in hg and "0 = her ornek" in ino)
     ko = govde(esp_k, "static void kayit_ornek(")
     ok("B72.F41 ayrintili oturumda loop her ornegi zamaniyla (micros) halkaya iter; noktaci "
-       "o zaman calismaz",
+       "o zaman calismaz (OLCUM; PT4: PIL'de 1/s surer — B72.PT2)",
        "kayit_ayr_aktif" in ko and "kh_it(&kayit_halka, &o)" in ko and "o.us = micros()" in ko
        and 0 <= ko.find("kayit_ayr_aktif") < ko.find("kayit_kn_aktif) return"))
     kg2 = govde(esp_k, "static void kayit_gorevi(")
@@ -478,10 +513,11 @@ def bolum_kaynak() -> None:
        and "kayit_skop_hata" in ksk)
     ns = govde(esp_k, "static void kayit__nesil(")
     dg2 = govde(esp_k, "static void kayit__durum_guncelle(")
-    ok("B72.F56 SKOP oturumunda noktaci KAPALI, ayrintili yalniz OLCUM'de (hiz 0 = her tetik); "
-       "durum oturum turunu tasir",
+    ok("B72.F56 SKOP oturumunda noktaci KAPALI, ayrintili yalniz OLCUM'de (PT4: ve PIL'de) "
+       "(SKOP hiz 0 = her tetik); durum oturum turunu tasir",
        "if (d.tur == KAYIT_OTURUM_SKOP) kayit_kn_aktif = 0u;" in ns
-       and "if (d.tur != KAYIT_OTURUM_OLCUM) kayit_ayr_aktif = 0u;" in ns
+       and re.search(r"if \(d\.tur != KAYIT_OTURUM_OLCUM && d\.tur != KAYIT_OTURUM_PIL\)\s*"
+                     r"kayit_ayr_aktif = 0u;", ns) is not None
        and ns.find("kayit_ayr_aktif = 0u") < ns.find("kn_baslat(")
        and "t.tur = kayit_y.oturum ? kayit_y.basla.oturum_turu : 0u;" in dg2)
     gt = govde(ino_k, "static void kayit_gt_bas(")

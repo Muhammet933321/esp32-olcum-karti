@@ -234,6 +234,9 @@ def main() -> int:
         "sk_f0": T.SK_F0, "f_sinir": F_SINIR,
         "pil_azami_v": PIL_AZAMI_V, "pil_akim": T.PIL_AKIM_SOGUTUCUSUZ,
         "dcir_ms": T.PIL_DCIR_DARBE_S * 1000,
+        # PT (2026-10-07): OCV evresi ve kesme ortalamasi pil_test.h'den — elle yazilmaz
+        "pil_ocv_s": int(re.search(r"#define PIL_OCV_MS\s+(\d+)u", PIL_H).group(1)) / 1000,
+        "pil_tau_s": int(re.search(r"#define PIL_KESME_TAU_MS\s+(\d+)u", PIL_H).group(1)) / 1000,
         "tau_v": TAU_V, "tau_i": TAU_I, "t_yaz": T_YAZ,
         "gurultu_ort": T.ADS_GURULTU[NORMAL["pga"]] * NORMAL["N"]
                        / math.sqrt(RAPOR_MS / 1000.0 * SPS),

@@ -28,6 +28,10 @@ export const KAO_YUKSEK = 0x1, KAO_V_HATA = 0x2, KAO_I_HATA = 0x4, KAO_V_DOYDU =
 export const KN_YUKSEK = 0x01, KN_V_HATA = 0x02, KN_I_HATA = 0x04;
 export const KN_V_DOYDU = 0x08, KN_DURAKLAMA = 0x10, KN_KAYIP_ONCE = 0x20;
 export const KN_DCIR = 0x40;
+export const KN_OCV = 0x80;          // PT2: nokta pil testinin OCV on evresinde (yuk KAPALI, ilk 5 s)
+// PT4: PIL oturumunda hiz_ms 0 = her ornek: AYRINTI kayitlari ARTI bu aralikla NOKTA kayitlari (ikisi ayni
+// sira uzayinda; o.ayrinti VE o.noktalar dolu). PIL_AYAR'da kayit_hz 0 = her ornek, dcir_aralik_ms 0 = DCIR KAPALI.
+export const PIL_AYR_NOKTA_MS = 1000;
 export const SEBEP = new Map([
   [1, "kullanici"], [2, "bellek doldu"], [3, "hata"], [4, "pil testi bitti"],
   [5, "kart yeniden basladi"], [6, "baska oturum basladi"], [7, "planli sure doldu"],

@@ -401,13 +401,21 @@ const SahteKart = (() => {
      Firmware'in `p1` / `p0` / `p` / `P` komutlari, kendiliginden bastigi satirlar ve
      `/pil` govdesi (pil_sayfa) — METINLER FIRMWARE'IN (B7 her birini ino'da arar).
      Zaman HIZLANDIRILMIS (PIL_HIZ kat): DCIR (5 dk) ve kesme demo icinde gorulsun.
-     Pil modeli: 2000 mAh Li-ion, 3.9 ohm yuk, 80 mohm ic direnc — demo, kanit DEGIL. */
+     Pil modeli: 2000 mAh Li-ion, 3.9 ohm yuk, 80 mohm ic direnc — demo, kanit DEGIL.
+     PT (A3-PT1, tasarim/2026-10-07-pil-iyilestirme.md): `Pr<hz>` (1 · 5 · 20 · 50 · 0 = her ornek), `Pd1` / `Pd0`
+     (DCIR, varsayilan KAPALI), OCV on evresi (p1'den sonra PIL_OCV_MS yuk KAPALI: I = 0, mAh birikmez, DCIR
+     zamanlayicisi yuk acilinca baslar), `/pil` basliginda `evre=` `kayit_hz=` `dcir=`. Demo egri halkasi hiz
+     ne olursa olsun 1 Hz (sadelestirme). */
   const PIL_HIZ = 30;
   const PIL_AZAMI_V = 38.5;
   const PIL_DCIR_ARALIK_MS = 300000;
   const PIL_DCIR_MS = 200;
+  const PIL_OCV_MS = 5000;
+  const PIL_HIZLAR = [1, 5, 20, 50, 0];
   const pil = { durum: 'BEKLEMEDE', hata: '-', kesme: 3.0, ocv: 0, vson: 0, mah: 0, wh: 0, coulomb: 0,
-                dcirAni: 0, dcirOtr: 0, dcirN: 0, nokta: [], tMs: 0, sonDemo: 0, sonKayit: 0, sonDcir: 0, bitisMs: 0 };
+                dcirAni: 0, dcirOtr: 0, dcirN: 0, nokta: [], tMs: 0, sonDemo: 0, sonKayit: 0, sonDcir: 0, bitisMs: 0,
+                kayitHz: 1, dcir: 0 };
+  const pilEvre = () => (pil.durum === 'CALISIYOR' && pil.tMs < PIL_OCV_MS ? 'ocv' : 'yuk');
   const pilOcv = (q) => 4.15 - 0.85 * q - 0.45 * Math.pow(q, 8);
   function pilAn() {
     const q = Math.min(1.2, pil.mah / 2000);
@@ -428,9 +436,23 @@ const SahteKart = (() => {
     return cikti;
   }
   function pilKomut(k) {
+    if (k[0] === 'P' && k[1] === 'r') {           // PT3: kayit hizi
+      const h = /^\d{1,2}$/.test(k.slice(2)) ? Number(k.slice(2)) : NaN;
+      if (pil.durum === 'CALISIYOR') return ['! P: pil testi suruyor — once p0'];
+      if (!PIL_HIZLAR.includes(h)) return ['! Pr: 0 (her ornek), 1, 5, 20 ya da 50 olmali'];
+      pil.kayitHz = h;
+      return [h ? `* pil kayit hizi ${h} /s` : '* pil kayit hizi her ornek (ayrintili kayit + 1/s nokta)'];
+    }
+    if (k[0] === 'P' && k[1] === 'd') {           // PT5: DCIR ac/kapa
+      if (pil.durum === 'CALISIYOR') return ['! P: pil testi suruyor — once p0'];
+      if (k !== 'Pd0' && k !== 'Pd1') return ['! Pd: Pd1 (ac) ya da Pd0 (kapat)'];
+      pil.dcir = k === 'Pd1' ? 1 : 0;
+      return [pil.dcir ? "* pil DCIR olcumu ACIK (5 dk'da bir 200 ms yuk kesilir)" : '* pil DCIR olcumu KAPALI'];
+    }
     if (k[0] === 'P') {
       if (k.length === 1) {
-        return [`* pil kesme gerilimi ${pil.kesme.toFixed(3)} V · kayit 1.00 Hz · azami sure 24 saat`];
+        return [`* pil kesme gerilimi ${pil.kesme.toFixed(3)} V · kayit ${pil.kayitHz.toFixed(2)} Hz${pil.kayitHz ? '' : ' (her ornek)'}`
+          + ` · azami sure 24 saat · DCIR ${pil.dcir ? 'acik' : 'kapali'}`];
       }
       const v = parseFloat(k.slice(1));
       if (!(v >= 0.5) || !(v <= PIL_AZAMI_V)) return ["! P: 0.5 ile 38.5 V arasi olmali (ust sinir MOSFET Vdss'inden)"];
@@ -442,7 +464,7 @@ const SahteKart = (() => {
       if (pil.durum === 'CALISIYOR') return ['! pil testi zaten suruyor — yeniden baslatmak icin once p0'];
       Object.assign(pil, { durum: 'CALISIYOR', hata: '-', ocv: 4.15, vson: 4.15, mah: 0, wh: 0, coulomb: 0, dcirAni: 0,
         dcirOtr: 0, dcirN: 0, nokta: [], tMs: 0, sonDemo: 0, sonKayit: 0, sonDcir: 0, bitisMs: 0 });
-      const cikti = [`* pil testi BASLADI — OCV ${pil.ocv.toFixed(4)} V, kesme ${pil.kesme.toFixed(3)} V`];
+      const cikti = [`* pil testi BASLADI — OCV ${pil.ocv.toFixed(4)} V, kesme ${pil.kesme.toFixed(3)} V; once ${PIL_OCV_MS / 1000} s yuksuz (OCV), sonra yuk`];
       /* 1C-1: her kabul edilen test kendi PIL oturumunda (acik olcum kaydi kapanir) */
       kayitBaslat(1000);
       kayit.pil = true;
@@ -464,8 +486,10 @@ const SahteKart = (() => {
     const adim = 100;
     for (let t = 0; t < dt; t += adim) {
       pil.tMs += adim;
-      const a = pilAn();
-      if (pil.tMs - pil.sonDcir >= PIL_DCIR_ARALIK_MS) {
+      const ocv = pil.tMs <= PIL_OCV_MS;         // PT2: on evre — yuk KAPALI
+      const a = ocv ? { v: pilOcv(Math.min(1.2, pil.mah / 2000)), i: 0 } : pilAn();
+      if (ocv) pil.sonDcir = pil.tMs;            // DCIR zamanlayicisi yuk acilinca baslar
+      if (!ocv && pil.dcir && pil.tMs - pil.sonDcir >= PIL_DCIR_ARALIK_MS) {
         pil.dcirN++;
         pil.dcirAni = 0.062 + 0.03 * pil.mah / 2000;
         pil.dcirOtr = pil.dcirAni * 1.35;
@@ -480,7 +504,7 @@ const SahteKart = (() => {
         pil.nokta.push({ ms: pil.tMs, v: a.v, i: a.i });
         pil.sonKayit = pil.tMs;
       }
-      if (a.v <= pil.kesme) {
+      if (!ocv && a.v <= pil.kesme) {
         cikti.push(`* pil testi BITTI — ${pil.mah.toFixed(2)} mAh, ${pil.wh.toFixed(4)} Wh`, ...pilDurdur('BITTI', '-'));
         break;
       }
@@ -496,7 +520,8 @@ const SahteKart = (() => {
     const l = [`durum=${pil.durum}`, `hata=${pil.hata}`, `mah=${pil.mah.toFixed(4)}`, `wh=${pil.wh.toFixed(6)}`,
       `ocv=${pil.ocv.toFixed(4)}`, `vson=${pil.vson.toFixed(4)}`, `kesme=${pil.kesme.toFixed(3)}`,
       `dcir_ani=${pil.dcirAni.toFixed(5)}`, `dcir_otr=${pil.dcirOtr.toFixed(5)}`, `dcir_n=${pil.dcirN}`,
-      `sira=${n}`, `ilk_sira=${bas}`, `kalan=${n - bas - adet}`, `coulomb=${pil.coulomb.toFixed(3)}`, '--'];
+      `sira=${n}`, `ilk_sira=${bas}`, `kalan=${n - bas - adet}`, `coulomb=${pil.coulomb.toFixed(3)}`,
+      `evre=${pilEvre()}`, `kayit_hz=${pil.kayitHz.toFixed(2)}`, `dcir=${pil.dcir}`, '--'];
     for (let k = bas; k < bas + adet; k++) {
       const q = pil.nokta[k];
       l.push(`${q.ms},${q.v.toFixed(4)},${q.i.toFixed(6)}`);

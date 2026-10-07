@@ -217,6 +217,13 @@ export const SOZLUK_KAYIT = Object.freeze({
   "kg.yakalama": S("Yakalama", "Captures"),
   "kg.hiz": S("Kayıt aralığı", "Recording interval"),
   "kg.her_ornek": S("her örnek (ayrıntılı kip)", "every sample (detailed mode)"),
+  // PT (2026-10-07): pil oturumunun kayit hizi, DCIR durumu ve OCV on evresi (kayit gorunumu K7)
+  "kg.kayit_hizi": S("Kayıt hızı", "Recording rate"),
+  "kg.dcir_durum": S("İç direnç (DCIR)", "Internal resistance (DCIR)"),
+  "kg.kapali": S("kapalı", "off"),
+  "kg.dcir_kapali": S("Bu testte iç direnç ölçümü kapalıydı — yük hiç kesilmedi, DCIR tablosu yok.",
+    "Internal-resistance measurement was off in this test — the load was never cut, no DCIR table."),
+  "kg.ocv_evre": S("OCV evresi (yük kapalı)", "OCV phase (load off)"),
   "kg.firmware": S("Firmware", "Firmware"),
   "kg.kal_no": S("Kalibrasyon", "Calibration"),
   "kg.durum": S("Durum", "Status"),

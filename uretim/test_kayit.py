@@ -519,9 +519,13 @@ def _bicim_1c1(s: dict) -> None:
        "tasmasi, 0 oturum/sira REDDEDILIR — strtoul hepsini kabul ediyordu); Gn metni "
        "zorunlu; Gx ':' + sira; '@' sonrasi rakam",
        nk == beklenen_nk, str({j: v for j, v in nk.items() if beklenen_nk.get(j) != v}))
-    kn = (s.get("KN") or ["0", "0"])
+    kn = (s.get("KN") or ["0", "0", "0", "0"]) + ["0", "0"]
     ok("B71.B19 KN_DCIR (0x40) diger nokta bayraklariyla CAKISMAZ; Python'da ayni",
        int(kn[0]) == 0x40 == KB.KN_DCIR and not (int(kn[0]) & int(kn[1])), str(kn))
+    ok("B71.B19b (PT2) KN_OCV = 0x80 (son bos bit), DCIR ve digerleriyle CAKISMAZ; PT4 her "
+       "ornek kipindeki PIL noktasinin araligi 1000 ms; Python'da ayni",
+       int(kn[2]) == 0x80 == KB.KN_OCV and not (int(kn[2]) & (int(kn[0]) | int(kn[1])))
+       and int(kn[3]) == 1000 == KB.PIL_AYR_NOKTA_MS, str(kn))
     tur = [int(x) for x in (s.get("TUR") or [])]
     ok("B71.B20 yeni turler C == Python: OLAY 7, NOT 8 (AZAMI >= 8), PIL oturumu 2, sebepler "
        "4/5/6; bicim surumu 2 KALDI (BASLA baytlari degismedi)",
@@ -1660,12 +1664,82 @@ def bolum_pil() -> None:
        and p4.bitir["sebep"] == 5 and not p4.devamlar,
        f"L5a={l5a} L5b={l5b} bitir={p4 and p4.bitir} devam={p4 and p4.devamlar}")
     ok("B71.PL8 (Y1, 1C-1 inceleme M7: kayitsiz pil testi) olcum oturumu acikken hedefi PIL "
-       "olan olay YAZILMAZ (KG_YOK), olcum oturumunda olay yok; KN_DCIR noktada YALNIZ PIL "
-       "oturumunda kalir (baska bitler korunur)",
+       "olan olay YAZILMAZ (KG_YOK), olcum oturumunda olay yok; KN_DCIR ve (PT2) KN_OCV "
+       "noktada YALNIZ PIL oturumunda kalir (baska bitler korunur)",
        _say(c3, "OYO") == -4 and o3 is not None and not o3.olaylar
-       and _say(c3, "EKO") == 0x01 and _say(c3, "EKP") == 0x41 and _say(c3, "EKY") == 0x01,
+       and _say(c3, "EKO") == 0x01 and _say(c3, "EKP") == 0xC1 and _say(c3, "EKY") == 0x01,
        f"OYO={_say(c3, 'OYO')} olay={o3 and o3.olaylar} EKO={_say(c3, 'EKO')} "
        f"EKP={_say(c3, 'EKP')} EKY={_say(c3, 'EKY')}")
+    _pil_her_ornek(elf)
+
+
+def _pil_her_ornek(elf: Path) -> None:
+    """PT4 (2026-10-07): PIL oturumunda hiz 0 = her ornek. AYRINTI kayitlari (OLCUM'deki
+    gibi) ARTI 1/s NOKTA (ozet/eksen, ilk ikisi KN_OCV); ikisi ayni sira uzayinda, kayit
+    sirasi = sira sirasi (nokta once bekleyen ornekleri, olay da ornekleri bosaltir).
+    ornek_kayit.c SENARYO_PIL asama 6, AYRI flas: 300 ornek (v = 1000 + k, 2.5 ms),
+    k = 49, 99, ... 299'da nokta, k = 120'de DCIR olayi."""
+    fl = NorFlas(SEKTOR * PIL_SEKTOR, sektor=SEKTOR)
+    fl.nvs["t_rast"] = 5
+    (c6,) = _yonet(fl, elf, [6])
+    kay, bozuk = KB.flas_coz(bytes(fl.bellek), SEKTOR)
+    ot = KB.oturumlari_kur(kay)
+    pil6 = _say(c6, "PIL6")
+    o = ot.get(pil6)
+    nk6 = [int(a[0]) for a in alanlar(c6, "NK6")]
+    ok("B71.PL9 (PT4) PIL oturumu hiz 0: yazici AYRINTILI; her nokta, olay ve bitir YAZILDI "
+       "(KG_TAMAM), ornekte hata yok; PIL_AYAR'da dcir_aralik_ms 0 (PT5 KAPALI) ve kayit_hz 0 "
+       "(her ornek) cozulur",
+       o is not None and _say(c6, "AYR6") == 1 and nk6 == [0] * 6
+       and [_say(c6, a) for a in ("OA6", "OD6", "PB6")] == [0, 0, 0] and not alanlar(c6, "AH6")
+       and o.basla is not None and o.basla.hiz_ms == 0 and o.basla.oturum_turu == KB.OTURUM_PIL
+       and [x["tur"] for x in o.olaylar] == [KB.KO_PIL_AYAR, KB.KO_DCIR, KB.KO_PIL_SONUC]
+       and o.olaylar[0]["dcir_aralik_ms"] == 0 and o.olaylar[0]["kayit_hz"] == 0.0,
+       f"AYR6={_say(c6, 'AYR6')} NK6={nk6} olay={o and [x['tur'] for x in o.olaylar]} "
+       f"ayar={o and o.olaylar and o.olaylar[0]}")
+    orn = KB.ayrinti_ornekler(o) if o else []
+    ok("B71.PL10 (PT4) pil oturumundaki 300 ornegin HEPSI ayrinti_ornekler'de: kod ve "
+       "mikrosaniye birebir (o.ayrinti dolu), bayrak/kayip yok",
+       [r[2] for r in orn] == [1000 + k for k in range(300)]
+       and [r[1] for r in orn] == [2_000_000 + 2500 * k for k in range(300)]
+       and [r[3] for r in orn] == [-k for k in range(300)] and all(r[4] == 0 for r in orn),
+       f"{len(orn)} ornek")
+    nok = sorted(o.noktalar) if o else []
+    sira_o = {r[2] - 1000: r[0] for r in orn}
+    ok("B71.PL11 (PT4) 6 nokta (1/s), ilk ikisi KN_OCV; noktanin sirasi kendinden ONCEKI "
+       "orneklerden buyuk, SONRAKILERDEN kucuk; ornek + nokta siralari AYRIK ve birlikte "
+       "0 .. BITIR.nokta_adedi - 1",
+       len(nok) == 6 and [n.bayrak for _, n in nok] == [KB.KN_OCV, KB.KN_OCV, 0, 0, 0, 0]
+       and all(sira_o[50 * j + 49] < sj < sira_o.get(50 * j + 50, 1 << 30)
+               for j, (sj, _) in enumerate(nok))
+       and bool(o.bitir) and sorted([r[0] for r in orn] + [sj for sj, _ in nok])
+       == list(range(o.bitir["nokta_adedi"])) and o.bitir["sebep"] == 4,
+       f"nokta={[(sj, n.bayrak) for sj, n in nok]} bitir={o and o.bitir}")
+    veri = []
+    for k in _oturum_kayitlari(kay, pil6):
+        if k.tur == KB.T_NOKTA:
+            veri.append(("N", k.sira, [struct.unpack_from("<I", k.yuk)[0]]))
+        elif k.tur == KB.T_AYRINTI:
+            a = KB.ayrinti_coz(k.yuk)
+            veri.append(("A", k.sira, [a["ilk"] + j for j in range(len(a["ornekler"]))]))
+        elif k.tur == KB.T_OLAY and KB.olay_coz(k.yuk)["tur"] == KB.KO_DCIR:
+            veri.append(("D", k.sira, []))
+    duz = [x for _, _, v in veri for x in v]
+    dcir = next((i for i, (t, _, _) in enumerate(veri) if t == "D"), None)
+    once = [x for _, _, v in veri[:dcir or 0] for x in v]
+    sonra = [x for _, _, v in veri[(dcir or 0) + 1:] for x in v]
+    ok("B71.PL12 (PT4) kayit sirasi = sira sirasi (NOKTA ve AYRINTI kayitlari arka arkaya "
+       "artan): nokta oncesindeki ornekler kendinden ONCE yazildi; DCIR olayi k <= 120 "
+       "orneklerinden SONRA, k >= 121'den ONCE (olay ayrintiyi bosaltir); flas temiz",
+       duz == sorted(duz) == list(range(len(duz))) and dcir is not None
+       and max(once) == sira_o[120] and min(sonra) > sira_o[120] and bozuk == 0
+       and bitir_payi_korunur(bytes(fl.bellek)),
+       f"dcir={dcir} once_son={once and max(once)} k120={sira_o.get(120)} bozuk={bozuk}")
+    ok("B71.PL13 (PT4) OLCUM hiz 0 hala ayrintili ve NOKTA ALMAZ (KG_YOK); SKOP hiz 0 "
+       "ayrintili DEGIL (her tetik)",
+       _say(c6, "AYO6") == 1 and _say(c6, "NKO6") == -4 and _say(c6, "AYS6") == 0
+       and _say(c6, "OLC6") > pil6 and _say(c6, "SKP6") > _say(c6, "OLC6"),
+       f"AYO6={_say(c6, 'AYO6')} NKO6={_say(c6, 'NKO6')} AYS6={_say(c6, 'AYS6')}")
 
 
 # ── B71.C · kalibrasyon gecmisi (kalgec.h) ───────────────────────────

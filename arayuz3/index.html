@@ -1353,6 +1353,8 @@
        ayrıştırılıp tüm KPI'lar 0 gösteriliyordu. -->
   <p v-if="pilHataMetni" class="uyari" role="alert">Pil verisi alınamıyor: {{ pilHataMetni }}</p>
   <p v-if="pilKayitYok" class="uyari" data-pil="kayit-yok">{{ pilKayitYokYazi }}</p>
+  <pil-pt v-if="pilOcvEvresi" kip="evre" :d="$data"></pil-pt>
+  <pil-pt v-if="pilCalisiyor && pilIstenen" kip="fark" :d="$data"></pil-pt>
 
   <!-- PL2 okuma kartları — PU8: her değerin kaynağı altında yazılı -->
   <section class="olcumler pil-okumalar" :aria-label="pl.okumalar">
@@ -1393,6 +1395,7 @@
       <span><i style="background: var(--volt)"></i>V · {{ pl.gerilim }}</span>
       <span><i style="background: var(--amper)"></i>I · {{ pl.akim }}</span>
       <span><i class="lejant-kesik"></i>R1, R2 … · {{ pl.dcir }}</span>
+      <pil-pt kip="lejant" :d="$data"></pil-pt>
     </div>
     <div class="tuval-sarmal pil-tuval">
       <canvas ref="pilTuval" class="pil-grafik" role="img" :aria-label="pl.grafikEtiket"></canvas>
@@ -1435,6 +1438,8 @@
          kayıt yüklenince kaydın DCIR olayları -->
     <div class="kart" data-pil="dcir">
       <h2>{{ pl.dcir }}</h2>
+      <pil-pt v-if="pilDcirKapali" kip="dcir" :d="$data"></pil-pt>
+      <template v-else>
       <div class="kpi"><span class="kpi-ad">{{ pilDcirSonYazi }}</span>
         <span class="kpi-deger">{{ pilDcirYazi }}</span></div>
       <div v-if="pilDcirTablo.length" class="kg-tablo-sarmal">
@@ -1449,6 +1454,7 @@
       <p v-else class="ipucu">{{ pl.dcirYok }}</p>
       <p v-if="pilDcirGorulmeyen" class="ipucu" data-pil="dcir-gorulmedi">{{ pl.dcirGorulmedi }}</p>
       <p class="ipucu">{{ pl.dcirIpucu }}</p>
+      </template>
     </div>
 
     <!-- PL5: test parametreleri + başlatma formu. DCIR aralığı kartta DERLEME SABİTİ (komutu
@@ -1458,7 +1464,7 @@
       <div class="pil-kpiler">
         <div class="kpi"><span class="kpi-ad">{{ pl.ocv }}</span><span class="kpi-deger" data-pil="ocv">{{ pilOcvYazi }}</span></div>
         <div class="kpi"><span class="kpi-ad">{{ pl.kesme }}</span><span class="kpi-deger">{{ pilKesmeYazi }}</span></div>
-        <div class="kpi"><span class="kpi-ad">{{ pl.dcirAralik }}</span><span class="kpi-deger">{{ pilDcirAralikYazi }}</span></div>
+        <div class="kpi"><span class="kpi-ad">{{ pl.dcirAralik }}</span><span class="kpi-deger"><pil-pt v-if="pilDcirKapali" kip="kapali" :d="$data"></pil-pt><template v-else>{{ pilDcirAralikYazi }}</template></span></div>
       </div>
       <p class="ipucu">{{ pl.dcirSabit }}</p>
       <form v-if="!pilCalisiyor" class="pil-form" data-pil="form" @submit.prevent="pilBaslat">
@@ -1471,6 +1477,7 @@
         <div class="pil-hazir" role="group" :aria-label="pl.hazir">
           <button v-for="h in pilHazirKesme" :key="h.v" type="button" data-pil="hazir" @click="pilHazirSec(h.v)">{{ metin(h.ad) }}</button>
         </div>
+        <pil-pt kip="form" :d="$data" @hz="pilKayitHz = $event" @dcir="pilDcirAcik = $event"></pil-pt>
         <div class="alan">
           <label for="pil-ad">{{ pl.ad }}</label>
           <input id="pil-ad" type="text" v-model="pilAd" autocomplete="off" data-pil="ad">

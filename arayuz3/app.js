@@ -885,6 +885,8 @@ const PIL_HAZIR_KESME = Object.freeze([
 /* Bir `/pil` yanitinda kalan nokta varsa (yeniden baglanma dolgusu) ayni yoklamada en cok bu kadar istek. */
 const PIL_DOLGU_AZAMI = 100;
 const PIL_SAKLA = 'olcum.pil.son';
+const PIL_OCV_MS = 5000;
+const PIL_AYAR_ONAY_MS = 1500;
 
 /** PL5: kesme girisi -> `P<v>`; kartin `P` kuraliyla AYNI sinir (0.5 … PIL_AZAMI_V). Virgul ondalik olur. */
 function pilKesmeKomutu(giris) {
@@ -917,7 +919,7 @@ function pilYoklamaKosulu({ bagli = false, gorunum = '', gorunur = true, durum =
  * Kartin pil satirlari (pil_baslat / pil_isle / `p` / `P` komutlari; metinler FIRMWARE'in, B7
  * her birini ino'da arar). Donus {tur, …} ya da null:
  *   basladi {ocv, kesme} · bitti {mah, wh} · durduruldu · calismiyor · sure · reddedildi {hata}
- *   kaydedilmiyor {neden} · kesme {v} · ret (diger `! pil…` / `! P:` reddi) · durum (B satiri)
+ *   kaydedilmiyor {neden} · kesme {v} · ayar (Pr / Pd onayi) · ret (diger `! pil…` / `! P…:`) · durum (B satiri)
  */
 function pilSatirOlayi(satir) {
   const s = String(satir === null || satir === undefined ? '' : satir).trim();
@@ -934,7 +936,8 @@ function pilSatirOlayi(satir) {
   if (m) return { tur: 'kaydedilmiyor', neden: m[1] };
   m = /^\* pil kesme gerilimi ([\d.]+) V/.exec(s);
   if (m) return { tur: 'kesme', v: Number(m[1]) };
-  if (/^! (pil|P:)/.test(s)) return { tur: 'ret' };
+  if (/^\* pil (?!testi|kesme)/.test(s)) return { tur: 'ayar' };
+  if (/^! (pil|P[rd]?:)/.test(s)) return { tur: 'ret' };
   const b = pilBSatiriCoz(s);
   return b ? { tur: 'durum', ...b } : null;
 }
@@ -960,8 +963,8 @@ function pilSureYaz(ms) {
 
 /** PU10: n. DCIR darbesinin testin basindan zamani (ms): kartin kurali — darbe son darbenin
  *  BITISINDEN PIL_DCIR_ARALIK_MS sonra baslar, PIL_DCIR_DARBE_MS surer (± dongu suresi). */
-function pilDcirAniMs(no) {
-  return Number.isInteger(no) && no > 0 ? no * (PIL_DCIR_ARALIK_MS + PIL_DCIR_DARBE_MS) : NaN;
+function pilDcirAniMs(no, ocvMs = 0) {     // PT2: zamanlayici yuk acilinca (A3-PT1'de OCV evresinden sonra)
+  return Number.isInteger(no) && no > 0 ? ocvMs + no * (PIL_DCIR_ARALIK_MS + PIL_DCIR_DARBE_MS) : NaN;
 }
 
 /** PU10: DCIR tablosu satirlari. Girdi [{no, tMs, rAni, rOtr, mah, yaklasik, gorulmedi}] (ohm, mAh).
@@ -1043,6 +1046,7 @@ createApp({
     'imlec-aciklama': defineAsyncComponent({
       loader: () => import('./ekran/imlec_aciklama.js').then((m) => m.ImlecAciklama),
     }),
+    'pil-pt': defineAsyncComponent({ loader: () => import('./ekran/pil.js').then((m) => m.PilPt) }),   // PT7
     /* 3G: Karsilastirma ekrani da ilk acilista iner (ayni desen, ayni gerekce). */
     'karsilastir-ekran': defineAsyncComponent({
       loader: () => import('./ekran/karsilastir.js').then((m) => m.KarsilastirEkrani),
@@ -1344,6 +1348,8 @@ createApp({
       pilKayitDurum: '',           // '' | 'yukleniyor' | 'esitleniyor' | 'yok' | 'hata'
       pilKayitMesaj: '',
       pilDuyuru: '',               // PL7: durum degisimi duyurusu (aria-live)
+      /* PT: form (ekran/pil.js PilPt), kartin bildirdigi (/pil); destek false = eski firmware */
+      pilKayitHz: 1, pilDcirAcik: false, pilEvre: '', pilKartHz: null, pilKartDcir: null, pilPtDestek: null, pilIstenen: null,
       saatTik: 0,                  // saniyelik saat (acil seritteki degerin yasi); setTimeout zinciri
     };
   },
@@ -1951,6 +1957,11 @@ createApp({
       return pilDcirSatirlari(this.pilKayitOzet ? this.pilKayitOzet.dcir : this.pilDcirListe);
     },
     pilDcirGorulmeyen() { return !this.pilKayitOzet && this.pilDcirListe.some((d) => d.gorulmedi); },
+    pilOcvEvresi() { return this.pilCalisiyor && this.pilEvre === 'ocv' && !(this.pilSonMs >= PIL_OCV_MS); },
+    pilDcirKapali() {
+      const a = this.pilKayitOzet && this.pilKayitOzet.ayar;
+      return a ? a.dcir_aralik_ms === 0 : this.pilKartDcir === 0;
+    },
     pilOturumYazi() {
       if (!this.pilOturum) return '';
       return this.metin(this.pilOturum.gorulmedi ? 'pl.oturum_tahmin' : 'pl.oturum_no', { no: this.pilOturum.no });
@@ -2130,6 +2141,7 @@ createApp({
     /* 3F: Pil sekmesi ilk kez gorunur oldu -> egri modulu (bir kez). */
     pilAcik(v) { if (v) this.pilModYukle(); },
     pilEksen(v) { this.ayarYaz('pilEksen', v); this.pilCiz(); },
+    pilPtDestek() { this.pilCiz(); },
     /* WIG: baglanti kopunca silahli onay duser (bagli degilken komut zaten gitmez). */
     bagli(v) {
       if (!v) this.onay = null;
@@ -3796,6 +3808,7 @@ createApp({
           durum: a.durum || '-', hata: a.hata || '-', mah: parseFloat(a.mah), wh: parseFloat(a.wh),
           coulomb: parseFloat(a.coulomb), ocv: parseFloat(a.ocv), vson: parseFloat(a.vson), kesme: parseFloat(a.kesme),
           dcirAni: parseFloat(a.dcir_ani), dcirOtr: parseFloat(a.dcir_otr), dcirN: parseInt(a.dcir_n, 10), sira: kartSira,
+          pil: true, evre: a.evre, kayitHz: parseFloat(a.kayit_hz), dcirKart: a.dcir,
         }, true);
         /* 🔴 BOŞLUK: kart istediğimiz noktayı artık tutmuyorsa `ilk_sira`
            istediğimizden BÜYÜK döner. Bunu SAKLAMIYORUZ — işaretliyoruz. */
@@ -3840,6 +3853,12 @@ createApp({
       this.pilDcirOtr = sayi(a.dcirOtr, 0);
       this.pilDcirN = sayi(a.dcirN, 0);
       this.pilSira = sayi(a.sira, 0);
+      if (a.pil) {       // PT6: /pil basligi — evre= yoksa eski firmware (A3-PT1 oncesi)
+        this.pilPtDestek = a.evre !== undefined;
+        this.pilEvre = a.evre || '';
+        this.pilKartHz = sayi(a.kayitHz, null);
+        this.pilKartDcir = a.dcirKart ? +a.dcirKart : null;
+      }
       this.pilKesmeBilinen = true;
       this.pilTazeZaman = Date.now();
       this.pilBayat = false;
@@ -3853,8 +3872,9 @@ createApp({
       const son = l.reduce((x, d) => Math.max(x, d.no), 0);
       if (!(n > son)) return;
       const yeni = l.slice();
-      for (let k = son + 1; k < n; k++) yeni.push({ no: k, tMs: pilDcirAniMs(k), gorulmedi: true });
-      yeni.push({ no: n, tMs: pilDcirAniMs(n), rAni, rOtr, mah, yaklasik: true });
+      const ocv = this.pilPtDestek ? PIL_OCV_MS : 0;
+      for (let k = son + 1; k < n; k++) yeni.push({ no: k, tMs: pilDcirAniMs(k, ocv), gorulmedi: true });
+      yeni.push({ no: n, tMs: pilDcirAniMs(n, ocv), rAni, rOtr, mah, yaklasik: true });
       this.pilDcirListe = yeni;
       this.pilSakla();
       this.pilCiz();
@@ -3875,6 +3895,8 @@ createApp({
         this._pilKayitDenendi = null;
       }
       if (eski === 'CALISIYOR') {
+        this.pilEvre = '';
+        this.pilIstenen = null;
         this.pilDuyuru = this.metin('pl.duyuru_bitti', { durum: this.pilDurumYazi });
         this.pilOturumBekle = null;
         if (yoklamadan) {
@@ -3950,6 +3972,8 @@ createApp({
         this.pilKesmeBilinen = true;
         this.pilTazeZaman = Date.now();
         this.pilSonMs = 0;
+        if (/yuksuz/.test(satir)) this.pilPtDestek = true;   // PT2: A3-PT1 once yuksuz OCV evresi
+        this.pilEvre = this.pilPtDestek ? 'ocv' : '';
         this.pilDurumAyarla('CALISIYOR');
         /* PU4: kartın BAŞLATTIĞI kesme bu panelin istediği değil → yük HEMEN kesilir. Yanlış
            kesmeyle deşarj (ör. kurşun-asit 3 V'a kadar) pili bitirir. */
@@ -3989,9 +4013,11 @@ createApp({
         this._pilKesmeOnay = o.v;
         return;
       }
+      if (o.tur === 'ayar') { this._pilAyarYanit = o; return; }   // PT: Pr / Pd onayi
       /* PL5 (E9): komuttan sonraki 5 s içinde gelen `! pil…` / `! P:` o komutun reddi — OLDUĞU GİBİ */
       if (o.tur === 'ret' && Date.now() - this.pilKomutZamani < RET_PENCERESI_MS) {
         this.pilUyari = { tur: 'kart', metin: this.metin('pl.kart_reddetti', { satir }) };
+        this._pilAyarYanit = o;
       }
     },
     /** BAŞLADI görüldü: yerel kopya, DCIR listesi, oturum ve kayıt kaynağı baştan (PU12). PİL
@@ -4073,6 +4099,14 @@ createApp({
       this.pilUyari = null;
       this.pilBaslatiliyor = true;
       try {
+        /* PT7: once Pr, Pd (onay beklenir, ret -> p1 GITMEZ) */
+        const hz = this.pilKayitHz;
+        if (this.pilPtDestek !== false) {
+          for (const c of ['Pr' + hz, 'Pd' + (this.pilDcirAcik ? 1 : 0)]) {
+            if ((await this.pilAyarGonder(c)).tur === 'ret') return false;
+          }
+          this.pilIstenen = { hz, dcir: !!this.pilDcirAcik };
+        }
         if (!this.pilKesmeBilinen || Math.abs(k.v - this.pilKesme) > 0.0006) {
           this.pilKesmeGiris = String(k.v);
           const v = await this.pilKesmeGonder();
@@ -4093,6 +4127,16 @@ createApp({
       }
     },
     pilDurdurKomut() { this.gonder('p0'); },
+    /** PT7: Pr / Pd -> kartin onayi ya da reddi (en cok PIL_AYAR_ONAY_MS); yanitsiz {} (/pil dogrular). */
+    async pilAyarGonder(c) {
+      this._pilAyarYanit = null;
+      this.pilKomutZamani = Date.now();
+      await this.gonder(c);
+      for (const son = Date.now() + PIL_AYAR_ONAY_MS; !this._pilAyarYanit && Date.now() < son;) {
+        await new Promise((coz) => setTimeout(coz, 50));
+      }
+      return this._pilAyarYanit || {};
+    },
     /** PL5: kesme gerilimini karta yaz (`P<v>`, NVS). Geçersizse komut GİTMEZ, sebep alanın
      *  yanında (WIG; eskiden en üstteki genel kutudaydı). Dönüş gönderilen v ya da null. */
     pilKesmeGonder() {
@@ -4156,7 +4200,7 @@ createApp({
       if (!this._pilGrafik || this.gorunum !== 'pil') return;
       const k = this._pilKayit;
       this._pilGrafik.ciz({ nokta: this.pilNokta, kayit: k, eksen: this.pilEksen,
-        dcir: k ? k.ozet.dcir : this.pilDcirListe, dil: this.dil });
+        dcir: k ? k.ozet.dcir : this.pilDcirListe, dil: this.dil, ocv: !k && this.pilPtDestek ? [0, PIL_OCV_MS] : null });
     },
     pilImlecTemizle() { if (this._pilGrafik) this._pilGrafik.imlecTemizle(); },
     /** PU11: test sürmüyor ve oturum biliniyorsa (Pil sekmesi görünürken) kaydı bir kez aç. */

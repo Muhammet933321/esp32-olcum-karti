@@ -319,7 +319,7 @@ saniyede {sek(d['sps'])} örnek ve <b>iç direnç</b> ölçümü.</p>
   <div><span>En yüksek pil gerilimi</span><b>{d['pil_azami_v']:.1f} V</b></div>
   <div><span>En yüksek akım</span><b>{d['pil_akim']:.2f} A</b></div>
   <div><span>Kapasite tavanı</span><b>{sek(d['mah_tavan']/1000)} Ah</b></div>
-  <div><span>Kayıt</span><b>saniyede 1 nokta</b></div>
+  <div><span>Kayıt</span><b>1, 5, 20, 50/s ya da her örnek</b></div>
 </div>
 
 <h2>Nasıl kullanılır</h2>
@@ -328,8 +328,12 @@ saniyede {sek(d['sps'])} örnek ve <b>iç direnç</b> ölçümü.</p>
 <li>Pilin (+) ucunu <b>V girişine</b>, direnç üzerinden (−) ucunu
     <b>J7</b>'ye bağlayın</li>
 <li>Arayüzde <b>kesme gerilimini</b> girin (Li-ion 3.0 V)</li>
-<li><b>Testi başlat</b>'a basın — gerisi kendiliğinden</li>
+<li><b>Testi başlat</b>'a basın — kart önce {d['pil_ocv_s']:.0f} s yükü bağlamadan
+    pilin boştaki gerilimini (<b>OCV</b>) kaydeder, sonra yükü açar; gerisi
+    kendiliğinden</li>
 </ol>
+<p>Kesme tek bir anlık okumaya değil, gerilimin {d['pil_tau_s']:.0f} saniyelik
+<b>kayan ortalamasına</b> bakar: yük altındaki gürültü testi erken bitirmez.</p>
 <div class="no"><b>⚠ Yükü J7'ye bağlayın, J3'e değil.</b> J3 doğrudan
 ölçüme gider; oraya bağlarsanız <b>otomatik kesme çalışmaz</b> ve pil
 aşırı boşalır. Kart bunu başlangıçta denetleyip testi reddediyor, ama
@@ -364,8 +368,8 @@ farklı şeyler: mAh pilin <i>yükünü</i>, Wh yaptığı <i>işi</i>
 anlatır.</figcaption></figure>
 
 <h2>İç direnç — ZB2L3'ün yapamadığı</h2>
-<p>Kart 5 dakikada bir yükü {d['dcir_ms']:.0f} ms kesip gerilimin ne kadar
-sıçradığına bakıyor. Bu, pilin <b>iç direncini</b> veriyor — ve iç direnç
+<p><b>İç direnç ölçümü</b> açıksa (varsayılan <b>kapalı</b>) kart 5 dakikada
+bir yükü {d['dcir_ms']:.0f} ms kesip gerilimin ne kadar sıçradığına bakıyor. Bu, pilin <b>iç direncini</b> veriyor — ve iç direnç
 pil sağlığının en iyi göstergesi.</p>
 <figure>{G.pil_dcir(nok)}
 <figcaption>Pil boşaldıkça iç direnç yükseliyor. <b>Yaşlanan bir pilde bu

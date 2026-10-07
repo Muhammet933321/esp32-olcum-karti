@@ -502,6 +502,14 @@ export function cizimPlani(seriler, durum, boyut, secenek = {}) {
         komutlar.push({ tur: 'dikdortgen', rol: 'secim', x: tx(sa), y: alan.y, w: tx(sb) - tx(sa), h: alan.h, dolgu: 'imlec', saydamlik: 0.07 });
       }
     }
+    /* PT7 `secenek.bantlar` [{t0, t1, metin?}]: [t0, t1] saydam bant (serilerin altinda) + etiket (simge; G8) */
+    for (const b of (secenek && secenek.bantlar) || []) {
+      const ba = Math.max(b.t0, x0);
+      const bb = Math.min(b.t1, x1);
+      if (!(bb > ba)) continue;
+      komutlar.push({ tur: 'dikdortgen', rol: 'bant', x: tx(ba), y: alan.y, w: tx(bb) - tx(ba), h: alan.h, dolgu: 'soluk', saydamlik: 0.14 });
+      if (b.metin) komutlar.push({ tur: 'yazi', rol: 'bant', x: tx(ba) + 3, y: alan.y + 2, metin: b.metin, renk: 'soluk', hiza: 'left', taban: 'top' });
+    }
   }
 
   komutlar.push({ tur: 'kirp', x: alan.x, y: alan.y, w: alan.w, h: alan.h });
@@ -1204,7 +1212,7 @@ export class Grafik {
 
   _planSecenek() {
     return { gezgin: this.gezgin, kenar: this.secenek.kenar, zamanKokeni: this.secenek.zamanKokeni,
-      xEksen: this.secenek.xEksen, isaretler: this.secenek.isaretler, yOlcek: this.secenek.yOlcek };
+      xEksen: this.secenek.xEksen, isaretler: this.secenek.isaretler, bantlar: this.secenek.bantlar, yOlcek: this.secenek.yOlcek };
   }
 
   _boyut() {

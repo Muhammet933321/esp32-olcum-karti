@@ -30,6 +30,10 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 BURASI = Path(__file__).parent
 KOK = BURASI.parent
+_KOD = KOK / "kod" / "olcum-karti-a3"
+PH = (_KOD / "pil_test.h").read_text(encoding="utf-8", errors="replace")
+INO = (_KOD / "olcum-karti-a3.ino").read_text(encoding="utf-8", errors="replace")
+TIP = (_KOD / "tipler3.h").read_text(encoding="utf-8", errors="replace")
 
 
 def bolum(r, baslik):
@@ -360,6 +364,240 @@ def bolum6(r):
             f"`24u*3600u` SESSIZCE 20864'e dusuyordu")
 
 
+# ═══════════════════════════════════════════════════════════════════════
+#  BOLUM 7 — PT (2026-10-07): DURUM MAKINESI AVR EMULATORUNDE
+# ═══════════════════════════════════════════════════════════════════════
+
+AVR_GXX = (Path.home() / "AppData/Local/Arduino15/packages/arduino/tools"
+           / "avr-gcc/7.3.0-atmel3.6.1-arduino7/bin/avr-g++.exe")
+
+
+def _pil_avr():
+    """pil_test.h'yi (pil_adim) AVR'de kostur. (uyari, satirlar) ya da None (arac yok).
+    -Wno-unused-function: olcum3.h'nin bu harness'in cagirmadigi static fonksiyonlari
+    (kalibrasyon, Lagrange) C++'ta uyari verir; kartin kodunda hepsi kullaniliyor."""
+    import subprocess
+    import gecici
+    from avr import mega328
+    from avr.cekirdek import Cekirdek
+    from avr.elf import flash_goruntusu
+    if not AVR_GXX.exists():
+        return None
+    elf = gecici.dizin("pil_") / "ornek_pil.elf"
+    p = subprocess.run(
+        [str(AVR_GXX), "-mmcu=atmega328p", "-DF_CPU=16000000UL", "-Os", "-std=gnu++11",
+         "-Wall", "-Wextra", "-Wno-unused-function", "-fno-threadsafe-statics",
+         f"-I{KOK / 'kod' / 'olcum-karti-a3'}", "-o", str(elf),
+         str(BURASI / "avr" / "ornek_pil.cpp"), "-lm"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if p.returncode != 0:
+        return [p.stderr[-1500:] or "derlenemedi"], []
+    uyari = [x for x in p.stderr.splitlines() if "warning:" in x]
+    kart = mega328.Kart(flash_goruntusu(elf)[0], Cekirdek)
+    for _ in range(200):
+        if b"BITTI" in kart.tx:
+            break
+        kart.cevrim_kadar_kos(2_000_000)
+    return uyari, kart.satirlar()
+
+
+def bolum7(r):
+    bolum(r, "BOLUM 7 — PT: KESME (EMA) · OCV EVRESI · DCIR AC/KAPA · KAYIT HIZI (AVR)")
+    r.bilgi("  Kullanicinin 18650 testi (3.3 ohm, kesme 3 V) 2 s'de BITTI: kesme TEK ANLIK")
+    r.bilgi("  ornekte veriliyordu, yuk altindaki ±0.12 V gurultunun ilk dibi kesti.")
+    r.bilgi("  Kararlar tasarim/2026-10-07-pil-iyilestirme.md PT1-PT5. Kartin pil_adim'i")
+    r.bilgi("  AVR'de kosuyor; beklenenler ANALITIK.")
+    sonuc = _pil_avr()
+    if sonuc is None:
+        r.bilgi("     avr-g++ bulunamadi — pil_test.h AVR denetimi ATLANDI.")
+        r.kosul("  7: AVR araci yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
+        return
+    uyari, sat = sonuc
+    r.kosul("  7: pil_test.h AVR'de UYARISIZ derlendi (-Wall -Wextra) ve sonuna kadar kostu",
+            not uyari and "BITTI" in sat, " | ".join(uyari[:2])[:300] or f"{len(sat)} satir")
+    S: dict[str, list[list[int]]] = {}
+    for x in sat:
+        p = x.split()
+        if p and p[0].startswith("S"):
+            try:
+                S.setdefault(p[0], []).append([int(v) for v in p[1:]])
+            except ValueError:
+                pass
+    bas = 1000                                    # ornek_pil.cpp BAS_MS
+    tau = int(re.search(r"#define PIL_KESME_TAU_MS\s+(\d+)u", PH).group(1))
+    ocv_ms = int(re.search(r"#define PIL_OCV_MS\s+(\d+)u", PH).group(1))
+    r.kosul("  7: tau 1 s, OCV evresi 5 s (PT1/PT2 karari)", (tau, ocv_ms) == (1000, 5000),
+            f"tau {tau} ms, OCV {ocv_ms} ms")
+
+    alt(r, "7a · PT1: gurultulu V (ortalama kesmenin 0.10 V ustu, dipler 0.15 V alti) KESMEZ")
+    s1 = (S.get("S1") or [[-1] * 6])[0]
+    yuk = bas + ocv_ms
+    r.kosul("  7a: 20 s yukte KESME YOK, test suruyor; EMA ortalamada (3.100 V +- 5 mV)",
+            s1[0] == 0 and s1[3] == 1 and abs(s1[4] - 31000) <= 50,
+            f"kesme {s1[0]}, durum {s1[3]}, EMA {s1[4] / 1e4:.4f} V")
+    r.kosul("  7a: [!] ayni dizide TEK ORNEK kurali ilk dipte keserdi (eski kusurun kaniti)",
+            s1[1] > 0 and s1[5] == 28500 and 0 < s1[2] - yuk <= 50,
+            f"{s1[1]} dip (en dip {s1[5] / 1e4:.3f} V), ilki yuk acildiktan "
+            f"{s1[2] - yuk} ms sonra")
+
+    alt(r, "7b · PT1: ortalama 3.10 -> 2.95 V (kesme 3.00) ~1.1 tau'da KESER")
+    s2 = (S.get("S2") or [[-1] * 5])[0]
+    beklenen = tau * math.log(0.15 / 0.05)        # e^(-t/tau) = (2.95-3.00)/(2.95-3.10) -> 1/3
+    dt = s2[0] - s2[1]
+    r.kosul("  7b: basamaktan sonra 1-2 tau icinde, analitik tau ln3 = 1.099 s'ye +- 0.1 s",
+            tau <= dt <= 2 * tau and abs(dt - beklenen) <= 100,
+            f"{dt} ms (analitik {beklenen:.0f} ms)")
+    r.kosul("  7b: karar EMA'dan (kesme aninda EMA <= 3.000 V ve 20 mV'tan yakin), anlik V "
+            "o anda 2.70 V — PIL_SONUC v_son EMA'yi yazar",
+            2.98e4 <= s2[2] <= 3.0e4 and s2[4] == 27000,
+            f"EMA {s2[2] / 1e4:.4f} V, anlik {s2[4] / 1e4:.4f} V")
+
+    alt(r, "7c · PT2: OCV evresi — 5 s yuk KAPALI, noktalar isaretli, kesme yok, sonra yuk")
+    s3a = S.get("S3a") or []
+    s3 = (S.get("S3") or [[-1] * 7])[0]
+    r.kosul("  7c: OCV evresinde (V 2.0 = kesmenin ALTI) her saniye ornek isaretli (KN_OCV "
+            "kosulu) ve test SURUYOR",
+            [x[0] for x in s3a] == [2000, 3000, 4000, 5000, 6000]
+            and all(x[1:] == [1, 1] for x in s3a), str(s3a))
+    r.kosul("  7c: yuk TAM 5 s'de BIR KEZ acilir; OCV'de 0.8 A gorulse de mAh BIRIKMEZ; "
+            "/pil egrisine 5 nokta",
+            s3[0] == bas + ocv_ms and s3[1] == 1 and s3[2] == 0 and s3[3] == 5,
+            f"yuk_ac {s3[0]} ms x{s3[1]}, yuk_pC {s3[2]}, egri {s3[3]} nokta")
+    r.kosul("  7c: yukte V hemen kesmenin altinda (2.9 V) ama kesme TAM 1 tau sonra, bir kez",
+            s3[4] == s3[0] + tau and s3[5] == 1, f"kesme {s3[4]} ms x{s3[5]}")
+    r.kosul("  7c: son isaretli ornek yukun acildigi ornek (olculurken yuk kapaliydi)",
+            s3[6] == s3[0], f"son OCV ornegi {s3[6]} ms")
+    s3b = (S.get("S3b") or [[-1, -1, -1]])[0]
+    r.kosul("  7c: OCV evresinde p0: isaret (KN_OCV, /pil evre=ocv) test durunca BITER, evre "
+            "alani OCV'de kalsa bile",
+            s3b == [1, 0, 1], str(s3b))
+
+    alt(r, "7d · PT5: DCIR KAPALI -> darbe YOK; ACIK -> 5 dk'da bir, eskisi gibi")
+    s4 = {x[0]: x for x in S.get("S4") or []}
+    k, a = s4.get(0, [0] + [-1] * 9), s4.get(1, [1] + [-1] * 9)
+    r.kosul("  7d: DCIR kapaliyken 650 s'de HIC darbe yok (yuk hic kesilmez), kesme yok",
+            k[1:4] == [0, 0, 0] and k[4] == 0 and k[7] == 0, str(k))
+    r.kosul("  7d: DCIR acikken 650 s'de 2 darbe; ilki yuk acildiktan TAM 300 s sonra "
+            "(zamanlayici yukle baslar)",
+            a[1:5] == [2, 2, 300000, 2], str(a[1:5]))
+    r.kosul("  7d: R = (4.0 - 3.6) / 1.0 = 0.400 ohm (ani ve oturmus); ani V darbenin ilk "
+            "orneginden; darbe EMA'yi oynatmaz, kesme yok",
+            a[5] == 4000 and a[6] == 4000 and a[9] == 40000 and a[8] == 36000 and a[7] == 0,
+            f"r_ani {a[5] / 1e4} r_otr {a[6] / 1e4} v_ani {a[9] / 1e4} EMA {a[8] / 1e4}")
+
+    alt(r, "7e · emniyet: azami sure baslangictan (OCV dahil)")
+    s5 = (S.get("S5") or [[-1, -1]])[0]
+    r.kosul("  7e: azami 7 s -> 8. saniyede bir kez PILA_SURE", s5 == [8000, 1], str(s5))
+
+    alt(r, "7f · PT3/PT4: kayit hizi -> nokta araligi / canli egri araligi")
+    s6 = S.get("S6") or []
+    # satir: hz x 100, nokta_ms, halka_ms (ornek_pil.cpp s6 sirasi; 0.001 x 100 -> 0)
+    bek = [[0, 0, 50], [100, 1000, 1000], [500, 200, 200], [2000, 50, 50], [5000, 20, 50],
+           [20, 5000, 5000], [0, 60000, 60000], [100000, 20, 50], [-100, 1000, 1000]]
+    r.kosul("  7f: 0 = her ornek (nokta 0, egri 50 ms = 20/s); 1/5/20/50 -> 1000/200/50/20 ms; "
+            "eski 0.2 -> 5 s; egri en cok 20/s; 0.001 -> 60 s, 1000 -> 20 ms siniri; eksi -> 1/s",
+            s6 == bek, str(s6))
+    r.kosul("  7f: NaN (bozuk ayar) varsayilan 1/s",
+            (S.get("S6n") or [[]])[0] == [1000, 1000], str(S.get("S6n")))
+
+    alt(r, "7g · Pr / Pd ayristiricilari")
+    s7 = {x[0]: x[1:] for x in S.get("S7") or []}
+    # ornek_pil.cpp vektorleri: 0 1 5 20 50 | 2 10 100 | "" -1 " 5" 5x 05 00 0050 4294967297 "20 "
+    bek7 = {0: [0, 0], 1: [0, 1], 2: [0, 5], 3: [0, 20], 4: [0, 50]}
+    bek7.update({j: [2, 999] for j in (5, 6, 7)})
+    bek7.update({j: [1, 999] for j in range(8, 17)})
+    r.kosul("  7g: Pr yalniz 0/1/5/20/50; listede olmayan sayi 'izinsiz' (2); bos, isaret, "
+            "bosluk, harf, bastaki sifir, 4+ hane 'bicim' (1); hatada hz YAZILMAZ",
+            s7 == bek7, str({j: v for j, v in s7.items() if bek7.get(j) != v} or len(s7)))
+    s8 = [x[1] for x in sorted(S.get("S8") or [])]
+    r.kosul("  7g: Pd yalniz '0' / '1'; bos, 2, 01, sondaki bosluk, harf REDDEDILIR",
+            s8 == [0, 1, 255, 255, 255, 255, 255], str(s8))
+    r.kosul("  7g: izinli hizlar tam olarak {0, 1, 5, 20, 50}",
+            (S.get("S9") or [[]])[0] == [0, 1, 5, 20, 50], str(S.get("S9")))
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  BOLUM 8 — PT: FIRMWARE YAPISTIRICISI (.ino) karari UYGULUYOR mu
+# ═══════════════════════════════════════════════════════════════════════
+
+def _govde(metin: str, bas: str) -> str:
+    """`bas` ile baslayan fonksiyonun { } govdesi ('' yoksa)."""
+    i = metin.find(bas)
+    if i < 0:
+        return ""
+    j = metin.find("{", i)
+    d = 0
+    for k in range(j, len(metin)):
+        d += {"{": 1, "}": -1}.get(metin[k], 0)
+        if d == 0:
+            return metin[j:k + 1]
+    return ""
+
+
+def bolum8(r):
+    bolum(r, "BOLUM 8 — PT: .ino pil_adim'in isteklerini UYGULUYOR mu")
+    ino = INO
+    pi = _govde(ino, "static void pil_isle(")
+    eylem = {}
+    for bit in ("PILA_SURE", "PILA_YUK_AC", "PILA_DCIR_BITTI", "PILA_BITTI", "PILA_DCIR_BAS"):
+        i = pi.find(f"(e & {bit})")
+        eylem[bit] = pi[i:pi.find("}", i) + 1] if i >= 0 else ""
+    r.kosul("  8: pil_isle karari pil_adim'dan alir (tek kaynak, AVR'de sinanan kod)",
+            "pil_adim(&pil, &pil_halka, &a, millis()" in pi and "pil_kesmeli_mi" not in pi)
+    r.kosul("  8: SURE -> pil_durdur(PIL_HATA, PILH_SURE); BITTI -> pil_durdur(PIL_BITTI)",
+            "pil_durdur(PIL_HATA, PILH_SURE)" in eylem["PILA_SURE"]
+            and "pil_durdur(PIL_BITTI, PILH_YOK)" in eylem["PILA_BITTI"])
+    r.kosul("  8: YUK_AC -> MOSFET AC; DCIR_BITTI -> MOSFET AC + DCIR olayi; DCIR_BAS -> KAPAT",
+            "pil_yuk(true)" in eylem["PILA_YUK_AC"]
+            and "pil_yuk(true)" in eylem["PILA_DCIR_BITTI"]
+            and "kayit_pil_dcir(" in eylem["PILA_DCIR_BITTI"]
+            and "pil_yuk(false)" in eylem["PILA_DCIR_BAS"])
+    pb = _govde(ino, "static void pil_baslat() {")
+    r.kosul("  8: [!] p1 kabulunde yuk ACILMAZ (OCV evresi); kurulum pil_baslat_kur ile, "
+            "DCIR ayari teste kopyalanir",
+            "pil_yuk(true)" not in pb
+            and "pil_baslat_kur(&pil, millis(), o.volt, pil_dcir_ayar)" in pb
+            and 0 <= pb.find("pil_baslatilabilir(") < pb.find("pil_baslat_kur("))
+    kb = _govde(ino, "static uint8_t pil_kayit_bayrak() {")
+    lp = _govde(ino, "void loop() {")
+    r.kosul("  8: kayit noktacisi OCV evresindeki ornekleri KN_OCV, darbedekileri KN_DCIR ile "
+            "isaretler",
+            "pil_ocv_evresinde(&pil) ? KN_OCV" in kb and "pil.dcir_icinde ? KN_DCIR" in kb
+            and "kayit_ornek(o.watt, millis(), pil_kayit_bayrak())" in lp)
+    i_p = ino.find("    case 'P': {")
+    pk = ino[i_p:ino.find("    case 'p': {", i_p)]
+    r.kosul("  8: Pr/Pd test SURERKEN reddedilir (oturumun hizi ve PIL_AYAR baslangicta yazildi)",
+            0 <= pk.find("pil_testi_suruyor()") < pk.find("pil_pr_ayir(")
+            and pk.find("pil_testi_suruyor()") < pk.find("pil_pd_ayir("))
+    r.kosul("  8: Pr ayristiricidan gecer ve KALICI (ayar.pil_kayit_hz + ayar_kaydet); Ayar3 "
+            "BUYUMEDI (alan ayni, AYAR3_IMZA 0xC0F6)",
+            re.search(r"pil_pr_ayir\(s \+ 2, &hz\);\s*if \(r\) \{", pk) is not None
+            and re.search(r"ayar\.pil_kayit_hz = \(float\)hz;\s*ayar_kaydet\(\);", pk) is not None
+            and "float    pil_kayit_hz;" in TIP and "#define AYAR3_IMZA 0xC0F6u" in TIP)
+    yz = _govde(ino, "static bool pil_dcir_yaz(")
+    yk = _govde(ino, "static void pil_ayar_yukle() {")
+    st = _govde(ino, "void setup() {")
+    r.kosul("  8: Pd KALICI ayri NVS ad alaninda (pilayar/dcir, u8); acilista okunur, "
+            "VARSAYILAN KAPALI; yazilamazsa ayar degismez",
+            '#define PIL_NVS "pilayar"' in ino and 'putUChar("dcir"' in yz
+            and 0 <= yz.find("if (n != 1u) return false;") < yz.find("pil_dcir_ayar =")
+            and 'getUChar("dcir", 0)' in yk and "static uint8_t pil_dcir_ayar = 0;" in ino
+            and "  pil_ayar_yukle();" in st
+            and "pil_dcir_yaz(d)" in pk and "pil_pd_ayir(s + 2)" in pk)
+    p0 = pk[:pk.find("float v = atof")]
+    r.kosul("  8: `P` satiri kayit hizini (0'da 'her ornek') ve DCIR'i da yaziyor",
+            "ayar.pil_kayit_hz" in p0 and "her ornek" in p0 and "DCIR" in p0
+            and "pil_dcir_ayar" in p0)
+    r.kosul("  8: yardimda Pr / Pd var", "Pr<hz>" in ino and "Pd1/Pd0" in ino)
+    ps = _govde(ino, "void pil_sayfa() {")
+    son = ps.find('F("\\n--\\n")')
+    r.kosul("  8: /pil eski alanlar AYNEN, sona evre=ocv|yuk, kayit_hz=, dcir=0|1 (PT6)",
+            all(0 <= ps.find(f'F("\\n{a}=")') < son for a in ("evre", "kayit_hz", "dcir"))
+            and 0 <= ps.find('F("\\ncoulomb=")') < ps.find('F("\\nevre=")')
+            and 'pil_ocv_evresinde(&pil) ? F("ocv") : F("yuk")' in ps
+            and "pil_dcir_ayar ? '1' : '0'" in ps)
+
+
 def main() -> int:
     r = spice.Rapor()
     r.bilgi("")
@@ -372,6 +610,8 @@ def main() -> int:
     bolum4(r)
     bolum5(r)
     bolum6(r)
+    bolum7(r)
+    bolum8(r)
     tamam = r.yazdir()
     tezgah("B21 Pil kapasite testi", [
         ("[!] FAILSAFE — kart calisirken RESET at",
@@ -393,6 +633,10 @@ def main() -> int:
          "~11.8 V beklenir. Dususe Rds(on) buyur, MOSFET isinir"),
         ("Tas direncin gercek degeri ve isinmasi",
          "4.7-7.5 ohm / 10 W. Elle olc; 30 dk desarjda sicakligina bak"),
+        ("[PT] 18650 + 3.3 ohm, kesme 3.0 V (kullanicinin 2 s'de biten testi)",
+         "Once 5 s yuksuz (OCV, /pil evre=ocv), sonra yuk; test SAATLER surmeli, 2 s'de "
+         "bitmemeli. Bitiste PIL_SONUC v_son ~3.0 V (EMA), anlik dip degil. Pd0'da yuk hic "
+         "kesilmez; Pr0'da kayitta AYRINTI ornekleri + 1/s nokta"),
         ("Sarj yonunde test",
          "Sayac ISARETLI ama sarj kaynagi yok — mAh geri saymali. "
          "Kaynak bulununca denenecek"),

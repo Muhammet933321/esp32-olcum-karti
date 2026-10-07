@@ -10550,6 +10550,27 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.113 🟢 A3-PT1 PİL TESTİ: ORTALAMALI KESME + 5 s OCV + SEÇİLİR KAYIT HIZI + DCIR AÇ/KAPA (2026-10-07/08)
+
+**Kullanıcı:** 3.3 Ω 11 W taş direnç, 18650, kesme 3 V → test 2 s'de bitiyor. Kayıttan (oturum 64108/64114):
+OCV 4.11 V, yükte 3.13 V / 0.82 A, V saniye içinde ±0.12 V (I ±0.01 A), bitiş `durum=2`, `v_son` 2.99 V.
+**Kök sebep:** `pil_isle()` kesmeyi TEK ANLIK örnekte veriyordu. (Pil + kablo yolu ~1.2 Ω — kullanıcıya
+bildirildi, kart kusuru değil.) Tasarım `tasarim/2026-10-07-pil-iyilestirme.md` PT1–PT8 (kullanıcı onayı).
+
+- **PT1:** karar platformsuz `pil_adim()`'da (pil_test.h), kesme üstel ortalamayla (τ 1 s, yük açıkken ≥ 1 τ);
+  AVR'de: gürültülü V kesmez, ortalama basamağı 1.10 s'de keser. PIL_SONUC `v_son` = ortalama.
+- **PT2:** `p1` → yük 5 s KAPALI (OCV evresi), noktalar `KN_OCV` (0x80) bayraklı, mAh birikmez, kesme yok.
+- **PT3/PT4:** `Pr<hz>` (0 her örnek, 1, 5, 20, 50; Ayar3 BÜYÜMEDİ, imza 0xC0F6); her örnekte pil oturumunda
+  AYRINTI kayıtları + 1/s nokta, ortak sıra uzayı.
+- **PT5:** `Pd1`/`Pd0`, NVS `pilayar`/`dcir`, varsayılan KAPALI; kapalıyken PIL_AYAR `dcir_aralik_ms 0`.
+- **PT6:** `/pil` `evre=ocv|yuk`, `kayit_hz=`, `dcir=`. Test sürerken `Pr`/`Pd` reddedilir.
+- **PT7 (panel):** form hız seçici + tahmini süre + DCIR kutusu (kapalı); `Pr`→`Pd`→`P`→`p1`, ret `p1`'i
+  durdurur, eski firmware'e Pr/Pd gitmez; OCV şeridi + eğride OCV bandı; kayıt görünümünde OCV gölgesi, her örnek
+  pil oturumu AYRINTI'dan.
+- Testler: B21 63, B71 376, B72 249, B6 81 (0 uyarı), B7 970, ortak 528, B73 31, tarayıcı pil 39;
+  mutasyon PT 33/33 + güncellenen 13/13 + PTP 19/19. Statik DRAM 81 892 (sınıra 28 B).
+  ⚠ Açılış bütçesi neredeyse dolu: EU31 262 122 / 262 144 B, `#/pil` 13/13 dosya.
+
 #### 5.12.112 🟢 A3-CA3 HIZLI AĞ GEÇİŞİ + İMLEÇ AÇIKLAMASI + KAYDA AD/ETİKET + ÇÖP KUTUSU (2026-10-07)
 
 **Kullanıcı (Honor hotspot testi):** hotspot kapatılınca kart ev ağına ~2:30'da geçti — "1 dk uygun olabilir".
