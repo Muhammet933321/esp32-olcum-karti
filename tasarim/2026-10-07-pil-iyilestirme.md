@@ -23,3 +23,19 @@ kullanıcıya bildirildi; kart kusuru değil.)
 | PT6 | `/pil` başlığına `evre=ocv|yuk`, `kayit_hz=`, `dcir=0|1` eklenir (eski alanlar aynen). |
 | PT7 | Panel Pil testi formu: kesme (var), **Kayıt hızı** seçici (1/s · 5/s · 20/s · 50/s · her örnek) + seçilen hızda tahmini azami kayıt süresi, **İç direnç ölçümü** onay kutusu (varsayılan kapalı). Başlatırken `Pr…`, `Pd…`, `P<v>`, sonra `p1`. Grafik: OCV evresi ayırt edici (gölge/etiket "OCV"), DCIR kapalıyken DCIR tablosu "kapalı" der. Kayıt görünümü: KN_OCV noktaları ve pil oturumundaki AYRINTI örnekleri çizilir. |
 | PT8 | Firmware sürümü `A3-PT1`. |
+
+## Hat direnci telafisi (HT) — 2026-10-08, kullanıcı onayı ("tamamdır öyleyse uygula")
+
+**Bulgu:** pil testinde kart 3.793 V / 1.128 A okurken multimetre pil kutuplarında 3.966 V (fark 0.173 V;
+ofset −31 mV + kutu içi PİL 2→COM ~45 mΩ + harici eksi hat/temaslar). COM ayrı algı hattı OLAMAZ (kutuda COM =
+PİL 2 = kart GND; ikinci tel akım yolunun paraleli olur). Kullanıcı seçti: sıfır ayarı + yazılım telafisi + kablo.
+
+| # | Karar |
+|---|---|
+| HT1 | Komut `Ph<mohm>` tamsayı 0…1000 (mΩ). Yanıt `* pil hat direnci <n> mOhm`, ret `! Ph: 0..1000 mOhm`. Test SÜRERKEN de kabul edilir ve HEMEN uygulanır (multimetre yardımcısı testin içinde çalışır). NVS `pilayar` anahtar `hat` (u16), varsayılan 0. `P` satırına ` · hat <n> mOhm` eklenir. |
+| HT2 | Uygulama YALNIZ pil testinin gerilimine: `V_pil = V + I × R` (I amper, R ohm). Kesme EMA'sı, `/pil` başlığındaki `v`/`vson`, `/pil` eğri halkası ve USB `B` satırının gerilim alanları DÜZELTİLMİŞ (biçim aynı). `/pil` başlığına `hat_mohm=` ve `v_ham=` (anlık ham) eklenir. D satırı (Canlı), ölçüm oturumları, skop, akım her yerde HAM — değişmez. R = 0 iken bugünküyle bayt bayt aynı. |
+| HT3 | Kayıt: NOKTA ve AYRINTI ham kodları AYNEN (biçim değişmez). Yeni OLAY türü **KO_PIL_HAT = 6** `{kart_ms, hat_mohm}`: test başlarken (R > 0 ise) ve test sürerken her `Ph` değişiminde yazılır. Çözücüler (Python `kopru/kayit_bicim.py`, JS `ortak/src/kayit.js`) olayı tanır; kayıt görünümü / CSV / rapor her noktanın düzeltilmiş gerilimini o ANDA geçerli R ile hesaplar (`V + I × R`), ham sütun da kalır. Eski çözücü bilinmeyen olayı yok sayar (S6). |
+| HT4 | PIL_SONUC `v_son` = düzeltilmiş EMA (kesme anı). |
+| HT5 | Panel (Pil testi): "Hat direnci" satırı (mΩ, elle girilebilir) + **"Multimetreyle düzelt"** (yalnız test sürerken ve I ≥ 0.1 A): `R_yeni = R_eski + (V_multimetre − V_gösterilen) / I`, 0…1000 mΩ'a kırpılır, `Ph` ile gönderilir, kartın onayı beklenir. Canlı kartlarda düzeltilmiş + küçük "ham" değer. Kayıt görünümü özetinde "hat direnci telafisi: n mΩ" (değiştiyse kaç kez). |
+| HT6 | Firmware `A3-PT3`. |
+
