@@ -936,8 +936,8 @@ function pilSatirOlayi(satir) {
   if (m) return { tur: 'kaydedilmiyor', neden: m[1] };
   m = /^\* pil kesme gerilimi ([\d.]+) V/.exec(s);
   if (m) return { tur: 'kesme', v: Number(m[1]) };
-  if (/^\* pil (?!testi|kesme)/.test(s)) return { tur: 'ayar' };
-  if (/^! (pil|P[rd]?:)/.test(s)) return { tur: 'ret' };
+  if (/^\* pil (?!testi|kesme)/.test(s)) return { tur: 'ayar', s };
+  if (/^! (pil|P[rdh]?:)/.test(s)) return { tur: 'ret', s };
   const b = pilBSatiriCoz(s);
   return b ? { tur: 'durum', ...b } : null;
 }
@@ -1349,7 +1349,7 @@ createApp({
       pilKayitMesaj: '',
       pilDuyuru: '',               // PL7: durum degisimi duyurusu (aria-live)
       /* PT: form (ekran/pil.js PilPt), kartin bildirdigi (/pil); destek false = eski firmware */
-      pilKayitHz: 1, pilDcirAcik: false, pilEvre: '', pilKartHz: null, pilKartDcir: null, pilPtDestek: null, pilIstenen: null,
+      pilKayitHz: 1, pilDcirAcik: false, pilEvre: '', pilKartHz: null, pilKartDcir: null, pilPtDestek: null, pilIstenen: null, pilHat: null,
       saatTik: 0,                  // saniyelik saat (acil seritteki degerin yasi); setTimeout zinciri
     };
   },
@@ -1933,8 +1933,9 @@ createApp({
       const bayatS = this.pilTazeZaman ? Math.max(0, Math.round((simdi - this.pilTazeZaman) / 1000)) : null;
       const sayac = (k ? m.kaynakKayit : this.pilKesmeBilinen
         ? (surerken && bayatS !== null && bayatS > 10 ? this.metin('pl.kaynak_sayac_bayat', { s: bayatS }) : m.kaynakSayac) : '');
+      const r = this.pilHat / 1e3 || 0;
       const v = surerken
-        ? { d: this.voltGecersiz || this.veriYok ? '—' : this.bicim(this.volt, 3), k: m.kaynakCanli }
+        ? { d: this.voltGecersiz || this.veriYok || r && this.amperGecersiz ? '—' : this.bicim(this.volt + (r && this.amper * r), 3), k: m.kaynakCanli }
         : k ? { d: this.bicim(k.v_son, 3), k: m.kaynakKayit }
           : this.pilKesmeBilinen && this.pilVson ? { d: this.bicim(this.pilVson, 3), k: m.kaynakSon } : { d: '—', k: '' };
       const i = surerken
@@ -3807,6 +3808,7 @@ createApp({
           await this.pilYerelSifirla();
           continue;
         }
+        this.pilHat = a.hat_mohm;
         this.pilDurumYaz({
           durum: a.durum || '-', hata: a.hata || '-', mah: parseFloat(a.mah), wh: parseFloat(a.wh),
           coulomb: parseFloat(a.coulomb), ocv: parseFloat(a.ocv), vson: parseFloat(a.vson), kesme: parseFloat(a.kesme),

@@ -70,6 +70,11 @@
 //            PIL_SONUC CSV'de YOK (tek seferlik): rapor.js'te. PT2: OCV on evresinin noktalari (yuk KAPALI)
 //            `bayrak`ta KN_OCV (0x80), `bayraklar`da "OCV" — yeni SUTUN YOK (Python arsiv.py ile ayni sutunlar).
 //            PT4 her ornek pil oturumunun AYRINTI ornekleri ayrintiCsv ile (ayri dosya).
+//            HT3: oturumda KO_PIL_HAT olayi VARSA (yalniz o zaman) SONA uc sutun: v_pil_V (V_ort + I_ort x R, R o
+//            satirin aninda gecerli hat direnci; DCIR satirinda bos), w_pil_W (pilin verdigi guc W_ort + I_ort^2 x R —
+//            nokta yaklasimi: ornek basina I^2'nin ortalamasi kayitta yok) ve hat_mohm; o zaman `enerji_Wh` w_pil'den
+//            (kartin pil Wh kurali). v/w ort-min-maks sutunlari HAM kalir. ayrintiCsv'de ayni (ornek basina, kesin).
+//            Olay yoksa tablo BAYT BAYT eskisi. Basliklar sabit (HT_KOLON): acilis sozlugu dolu (EU32).
 // skopCsv    tam yakalama: ornek, t_s (tetige gore: (i - tetik)/hz), kod, v_V = kod*adim -
 //            ofset (META; arayuz kodVolt'un kalibrasyonsuz yolu). Eksik yakalama: null.
 // hamDisari  oturumun kayitlari (oturum no'lu + hedefi bu oturum olan NOT'lar), kayit
@@ -85,7 +90,7 @@ import {
   volt, amper, ayrintiOrnekler, ayrintiGuc, skopYerleri, kayitPaketle, T_NOT,
   KN_YUKSEK, KN_V_HATA, KN_I_HATA, KN_V_DOYDU, KN_DURAKLAMA, KN_KAYIP_ONCE, KN_DCIR, KN_OCV,
   KAO_YUKSEK, KAO_V_HATA, KAO_I_HATA, KAO_V_DOYDU, KA_KAYIP_ONCE, KA_SILME, KO_DCIR,
-  T_DEVAM, OTURUM_PIL, PIL_AYR_NOKTA_MS,
+  T_DEVAM, OTURUM_PIL, PIL_AYR_NOKTA_MS, KO_PIL_HAT, pilVDuzelt, pilWDuzelt,
 } from "./kayit.js";
 import { ceviri } from "./sozluk.js";
 import { MS_SAAT, AMS_MAH } from "./istatistik.js";
@@ -661,14 +666,15 @@ export function ayrintiCsv(oturum, secenek = {}) {
   const s = ayrintiSerileri(oturum, secenek);
   const kartMs = s.kartUs.map((u) => u / 1000);
   const notlar = notYerlestir(oturum, s.eksen, s.araliklar, { acilis: s.acilis, relMs: s.relMs, kartMs });
-  let c = y.bas() + y.baslik(KOLONLAR.ayrinti);
+  const ht = hatSutun(y, hatDuzeltV(oturum, s.kartUs.map((u) => Math.floor(u / 1000)), s.v, s.i, s.w));   // HT3: olay yoksa sutun YOK
+  let c = y.bas() + baslikEk(y.baslik(KOLONLAR.ayrinti), ht.baslik, y.b.satirSonu);
   for (let k = 0; k < s.adet; k++) {
     const g = s.gecenUs[k];
     const u = s.unixUs[k];
     const ms = Number.isFinite(u) ? ciftBol(u, 1000) : null;
     const adlar = adlarSkop([bayrakAdlari(s.ornekBayrak[k], BAYRAKLAR.ornek, y.b.dil),
       bayrakAdlari(s.kayitBayrak[k], BAYRAKLAR.kayit, y.b.dil)].filter((x) => x).join("|"), s.skop[k], y.b.dil);
-    c += y.satir([
+    c += satirEk(y.satir([
       y.tam(s.sira[k]), y.tam(s.acilis[k]), y.tam(s.devam[k]), y.tam(s.kartUs[k]),
       Number.isFinite(g) ? y.olcekli(g, BASAMAK.ayrinti_ms) : "",
       ms === null ? "" : y.olcekli(ms, BASAMAK.unix_s),
@@ -676,7 +682,7 @@ export function ayrintiCsv(oturum, secenek = {}) {
       y.sayi(s.v[k], BASAMAK.V), y.sayi(s.i[k], BASAMAK.A), y.sayi(s.w[k], BASAMAK.W),
       y.tam(s.ornekBayrak[k]), y.tam(s.kayitBayrak[k]), y.metin(adlar),
       notHucre(y, notlar, k),
-    ]);
+    ]), ht.hucre(k), y.b.satirSonu);
   }
   return c;
 }
@@ -745,6 +751,70 @@ export function noktaAralikMs(oturum) {
   return b.hiz_ms > 0 ? b.hiz_ms : b.oturum_turu === OTURUM_PIL ? PIL_AYR_NOKTA_MS : 0;
 }
 
+// ── HT3: hat direnci telafisi ─────────────────────────────────────────────────────
+/** HT3 CSV sutunlari (yalniz KO_PIL_HAT olayli oturumda, tablonun SONUNDA). */
+export const HT_KOLON = Object.freeze({ tr: Object.freeze(["v_pil_V", "w_pil_W", "hat_mohm"]),
+  en: Object.freeze(["v_cell_V", "p_cell_W", "lead_mohm"]) });
+
+/**
+ * HT3: PIL oturumunda pil kutuplarindaki gerilim — satir basina (kartMs: satirin kart_ms'i; ayrintili ornekte us // 1000)
+ * o ANDA gecerli hat direnciyle V + I x R. R kayit.js pilHatMohmAt ile AYNI kural (kayit sirasiyla zamani <= an olan SON
+ * KO_PIL_HAT; yoksa 0) — burada olaylar BIR kez suzulur (her ornekte siralama yok); gerilim pilVDuzelt (R = 0 iken HAM
+ * AYNEN). Olay YOKSA ya da PIL oturumu degilse null: cagiran HAM'i kullanir (grafik / CSV / rapor bugunku gibi).
+ * w verilirse pilin VERDIGI guc pilWDuzelt (w + I^2 x R; kartin pil Wh kurali) da: donus w (yoksa null).
+ * Donus {v, w: Float64Array | null, mohm: Float64Array, ozet: {ilk (ilk satirdaki R), son (son olayin R'si), degisim}}.
+ */
+export function hatDuzeltV(oturum, kartMs, v, i, w = null) {
+  if (!oturum.basla || oturum.basla.oturum_turu !== OTURUM_PIL) return null;   // olcum / skop oturumu: HAM
+  const l = oturum.olaylar.filter((o) => o.tur === KO_PIL_HAT && "hat_mohm" in o).sort((a, b) => a.sira - b.sira);
+  if (!l.length) return null;
+  const n = v.length;
+  const vd = new Float64Array(n);
+  const wd = w ? new Float64Array(n) : null;
+  const mohm = new Float64Array(n);
+  const an = (t) => {
+    let r = 0;
+    for (const o of l) if (fark32(t, o.kart_ms) >= 0) r = o.hat_mohm;
+    return r;
+  };
+  for (let k = 0; k < n; k++) {
+    mohm[k] = an(kartMs[k]);
+    vd[k] = pilVDuzelt(v[k], i[k], mohm[k]);
+    if (wd) wd[k] = pilWDuzelt(w[k], i[k], mohm[k]);
+  }
+  /* ozet: ilk satirdaki R; o andan SONRAKI olaylarda deger kac kez degisti (test basindaki olay degisim sayilmaz) */
+  const ilk = n ? mohm[0] : 0;
+  let r = ilk;
+  let degisim = 0;
+  for (const o of l) {
+    if (n && fark32(kartMs[0], o.kart_ms) >= 0) continue;
+    if (o.hat_mohm !== r) degisim++;
+    r = o.hat_mohm;
+  }
+  return { v: vd, w: wd, mohm, ozet: { ilk, son: l[l.length - 1].hat_mohm, degisim } };
+}
+
+/** HT3: CSV'nin ek basligi ve satir hucreleri (olay yoksa bos: tablo degismez). */
+function hatSutun(y, h) {
+  if (!h) return { baslik: "", hucre: () => "", bos: "" };
+  const a = y.b.ayrac;
+  return {
+    baslik: a + (HT_KOLON[y.b.dil] || HT_KOLON.tr).map((s) => y.metin(s)).join(a),
+    hucre: (k) => a + y.sayi(h.v[k], BASAMAK.V) + a + y.sayi(h.w[k], BASAMAK.W) + a + y.tam(h.mohm[k]),
+    bos: a + a + a,
+  };
+}
+
+/** Basliga ek sutun (satir sonundan once). */
+function baslikEk(baslik, ek, satirSonu) {
+  return ek ? baslik.slice(0, baslik.length - satirSonu.length) + ek + satirSonu : baslik;
+}
+
+/** Satira ek hucreler (satir sonundan once). */
+function satirEk(satir, ek, satirSonu) {
+  return ek ? satir.slice(0, satir.length - satirSonu.length) + ek + satirSonu : satir;
+}
+
 /**
  * Pil oturumu -> CSV metni: nokta satirlari + DCIR satirlari zaman sirasinda (dosya basi).
  * mAh = ∫A dt, Wh = ∫W dt (kartin W'si), birikimli, bosluk ve acilis siniri haric.
@@ -752,16 +822,18 @@ export function noktaAralikMs(oturum) {
 export function pilCsv(oturum, secenek = {}) {
   const y = yazici(secenek);
   const s = noktaSerileri(oturum, secenek);
+  const hd = hatDuzeltV(oturum, s.kartMs, s.vOrt, s.iOrt, s.wOrt);   // HT3: olay yoksa null -> sutun YOK, Wh HAM
+  const ht = hatSutun(y, hd);
   const notlar = notYerlestir(oturum, s.eksen, s.araliklar, s);
   const bosluk = noktaBoslukMs(oturum);
   // mAh: gecerli ornek = v ve i NaN degil (istatistik.enerji ile ayni kosul)
   const iMaskeli = s.iOrt.map((x, k) => (s.vOrt[k] === s.vOrt[k] ? x : NaN));
   const mah = birikimli(s.relMs, s.acilis, iMaskeli, bosluk, AMS_MAH);
-  const wh = birikimli(s.relMs, s.acilis, s.wOrt, bosluk, MS_SAAT);
+  const wh = birikimli(s.relMs, s.acilis, hd ? hd.w : s.wOrt, bosluk, MS_SAAT);
   const dcir = oturum.olaylar.filter((o) => o.tur === KO_DCIR && "no" in o)
     .sort((a, b) => a.sira - b.sira)
     .map((o) => ({ o, z: anZamani(s.eksen, s.araliklar, o.kart_ms, o.sira) }));
-  const nokta = (k) => y.satir([
+  const nokta = (k) => satirEk(y.satir([
     y.metin(ceviri("csv.kayit.nokta", y.b.dil)),
     y.tam(s.sira[k]), y.tam(s.acilis[k]), y.tam(s.devam[k]), y.tam(s.kartMs[k]),
     ...zamanHucreleri(y, s.gecenMs[k], s.unixMs[k]),
@@ -770,8 +842,8 @@ export function pilCsv(oturum, secenek = {}) {
     "", "", "", "", "", "", "", "", "",
     y.tam(s.bayrak[k]), y.metin(adlarSkop(bayrakAdlari(s.bayrak[k], BAYRAKLAR.nokta, y.b.dil), s.skop[k], y.b.dil)),
     notHucre(y, notlar, k),
-  ]);
-  const olay = ({ o, z }) => y.satir([
+  ]), ht.hucre(k), y.b.satirSonu);
+  const olay = ({ o, z }) => satirEk(y.satir([
     y.metin(ceviri("csv.kayit.dcir", y.b.dil)),
     "", y.tam(z.acilis), "", y.tam(o.kart_ms),
     ...zamanHucreleri(y, z.gecenMs, z.unixMs),
@@ -782,8 +854,8 @@ export function pilCsv(oturum, secenek = {}) {
     y.sayi(o.r_ani, BASAMAK.ohm), y.sayi(o.r_oturmus, BASAMAK.ohm),
     y.sayi(o.mah, BASAMAK.mAh), y.sayi(o.wh, BASAMAK.Wh),
     "", "", "",
-  ]);
-  let c = y.bas() + y.baslik(KOLONLAR.pil);
+  ]), ht.bos, y.b.satirSonu);
+  let c = y.bas() + baslikEk(y.baslik(KOLONLAR.pil), ht.baslik, y.b.satirSonu);
   let j = 0;
   const once = (d, k) => d.z.acilis !== null
     && (d.z.acilis < s.acilis[k] || (d.z.acilis === s.acilis[k] && d.z.relMs < s.relMs[k]));

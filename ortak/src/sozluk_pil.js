@@ -41,6 +41,12 @@ export const SOZLUK_PIL = Object.freeze({
     "The board runs the test with other settings than requested: recording {kart} (requested {istenen})."),
   "pt.farkli_dcir": S("Kart testi istenenden farklı ayarla sürdürüyor: DCIR {kart} (istenen {istenen}).",
     "The board runs the test with other settings than requested: DCIR {kart} (requested {istenen})."),
+  // ── HT5: hat direnci ozeti (duzeltici: ekran/pil_hat.js + sozluk_hat.js, istenince iner)
+  "pt.hat": S("Hat direnci", "Lead resistance"),
+  "pt.hat_n": S("{n} mΩ", "{n} mΩ"),
+  "pt.hat_sifir": S("0 mΩ — telafi yok", "0 mΩ — no compensation"),
+  "pt.hat_ac": S("Ayarla…", "Adjust…"),
+  "pt.hat_ham": S("ham {v} V", "raw {v} V"),
 });
 
 /** Pil testi iyilestirmesinin metni (yalniz bu sozluk). ATMAZ; bilinmeyen anahtar kendisi. */
@@ -147,5 +153,24 @@ export function ptGorunum(d) {
     lejant: bant ? t("pt.lejant_ocv", { s: ocvS }) : "",
     dcirKapali: t("pt.dcir_kapali"),
     kapali: t("pt.kapali"),
+  };
+}
+
+// ── HT5 (2026-10-08): hat direnci OZETI — app.js pilHat = `/pil` hat_mohm (yoksa eski firmware / USB: GIZLI, Ph GITMEZ)
+// ve V kartinda kucuk "ham" (app.js V'yi V + I x R ile duzeltir). Duzeltici ekran/pil_hat.js'te, istenince iner.
+/** `/pil` hat_mohm dizgesi -> mΩ; alan yoksa / bozuksa null. */
+export function hatMohm(h) {
+  return typeof h === "string" && /^\d{1,4}$/.test(h) && +h <= 1000 ? +h : null;
+}
+
+/** HT5: PilPt kip 'hat' / 'ham'. u: app ($root: pilHat, pilDurum, volt, voltGecersiz, amperGecersiz, veriYok, dil). */
+export function htGorunum(u) {
+  const r = hatMohm(u.pilHat);
+  if (r === null) return { hat: null, ham: "" };
+  const t = (k, v = null) => ceviriPil(k, u.dil, v);
+  const canli = u.pilDurum === "CALISIYOR" && !u.voltGecersiz && !u.amperGecersiz && !u.veriYok && Number.isFinite(u.volt);
+  return {
+    hat: { r, etiket: t("pt.hat"), deger: r ? t("pt.hat_n", { n: r }) : t("pt.hat_sifir"), ac: t("pt.hat_ac") },
+    ham: r > 0 && canli ? t("pt.hat_ham", { v: u.volt.toFixed(3) }) : "",
   };
 }

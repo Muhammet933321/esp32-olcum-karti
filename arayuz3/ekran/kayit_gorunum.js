@@ -36,6 +36,11 @@
       kipinin pil oturumunda (PT4: 1/s noktalar + AYRINTI) grafik AYRINTI orneklerinden (ayrintili
       oturumla ayni yol), bant noktalarin araligindan. DCIR kapali (PIL_AYAR dcir_aralik_ms 0) ise ozet
       "DCIR: kapalı" der, bos tablo yok.
+   K8 (HT3) Pil oturumunda KO_PIL_HAT varsa V (grafik, imlec okumasi, Karsilastirma, rapor istatistigi) pil
+      kutuplarindan: V + I x R, R o ANDA gecerli hat direnci (disari.hatDuzeltV; nokta min/maks ayni I_ort x R
+      kaydirmasiyla). HAM gerilim cizilmez ama okumada "V ham" satiri; ozette "Hat direnci telafisi". W ve Wh pilin
+      VERDIGI gucten (w + I^2 x R, kartin pil Wh kurali; noktada W_ort + I_ort^2 x R). Olay yoksa her sey bugunku
+      gibi (HAM). mAh HAM (akim duzeltilmez).
    K6 Rapor yazdirilirken (beforeprint) gecici olarak ACIK gorunum: koyu
       zemin kagida basilmaz, koyu temanin acik yazisi beyaz kagitta okunmaz.
       Yeni renk TANIMLANMIYOR — mevcut Acik takim kullaniliyor; afterprint
@@ -48,6 +53,7 @@ import { enerji } from '/ortak/istatistik.js';
 import {
   zamanEkseni, noktaSerileri, ayrintiSerileri, anZamani, noktaBoslukMs, AYRINTI_BOSLUK_MS,
   oturumCsv, ayrintiCsv, pilCsv, skopCsv, hamDisari, csvBayt, BICIM_EXCEL_TR, BICIM_EN, bayrakAraliklari, noktaAralikMs,
+  hatDuzeltV,
 } from '/ortak/disari.js';
 import { oturumRaporu, RAPOR_ETIKET } from '/ortak/rapor.js';
 import { ceviriKod } from '/ortak/sozluk.js';
@@ -153,7 +159,15 @@ export function grafikSerileri(oturum, { kayitlar = null } = {}) {
   if (!ayr && !oturum.noktalar.length) {
     return { tur: 'yok', seriler: [], eksen, araliklar: [], acilis: [], segOfset: [0], tahmini: [], adet: 0, ocv: [] };
   }
-  const s = ayr ? ayrintiSerileri(oturum, { eksen }) : noktaSerileri(oturum, { eksen });
+  let s = ayr ? ayrintiSerileri(oturum, { eksen }) : noktaSerileri(oturum, { eksen });
+  /* K8 (HT3): pil kutuplarindaki V (olay yoksa null: HAM aynen) */
+  const hat = pil ? hatDuzeltV(oturum, ayr ? s.kartUs.map((u) => Math.floor(u / 1000)) : s.kartMs, ayr ? s.v : s.vOrt, ayr ? s.i : s.iOrt, ayr ? s.w : s.wOrt) : null;
+  if (hat && ayr) s = { ...s, v: hat.v, vHam: s.v, w: hat.w, wHam: s.w };
+  if (hat && !ayr) {
+    const kay = (d, h, o) => Float64Array.from(d, (x, k) => x + (h[k] - o[k]));
+    s = { ...s, vOrt: hat.v, vMin: kay(s.vMin, hat.v, s.vOrt), vMaks: kay(s.vMaks, hat.v, s.vOrt), vHam: s.vOrt,
+      wOrt: hat.w, wMin: kay(s.wMin, hat.w, s.wOrt), wMaks: kay(s.wMaks, hat.w, s.wOrt), wHam: s.wOrt };
+  }
   const boslukMs = ayr ? AYRINTI_BOSLUK_MS : noktaBoslukMs(oturum);
   const x = xEkseni(s.acilis, s.relMs, s.araliklar, eksen, boslukMs);
   const t = x.t;
@@ -185,9 +199,10 @@ export function grafikSerileri(oturum, { kayitlar = null } = {}) {
       kanal('W maks', s.wMaks, 'W', 'watt', 'sag', 0.01, true),
     ];
   }
+  if (hat) seriler.push({ ...kanal('V ham', s.vHam, 'V', 'volt', 'sol', 0.01), yalnizOkuma: true });   // K8: cizilmez
   return { tur: ayr ? 'ayrinti' : 'nokta', seriler, t, eksen, araliklar: s.araliklar, acilis: s.acilis,
     segOfset: x.segOfset, tahmini: x.tahmini, duzeltilen: x.duzeltilen, boslukMs, adet: s.adet, s,
-    birler: new Float64Array(s.adet).fill(1), ocv };
+    birler: new Float64Array(s.adet).fill(1), ocv, hat: hat ? hat.ozet : null };
 }
 
 /** K7 (PT2): grafik.js `bantlar` — OCV evresi araliklari saydam bant, etiket "OCV" (simge; G8). */
@@ -195,12 +210,18 @@ export function ocvBantlari(h) {
   return h && Array.isArray(h.ocv) ? h.ocv.map(([t0, t1]) => ({ t0, t1, metin: 'OCV' })) : [];
 }
 
+/** K8 (HT3): ozetteki hat direnci yazisi — "n mΩ", degistiyse "n mΩ (k kez değişti; başta m mΩ)". */
+export function hatYazi(ht, dil = 'tr') {
+  if (!ht) return '';
+  return ht.degisim ? ceviri('kg.hat_degisti', dil, { n: ht.son, k: ht.degisim, ilk: ht.ilk }) : ceviri('kg.hat_n', dil, { n: ht.son });
+}
+
 /** K4 gorunurluk: V (sol), sag eksen 'akim' | 'guc' | 'yok', zarf (min/maks). */
 export function gorunurluk(seriler, { v = true, sag = 'akim', zarf = true } = {}) {
   return seriler.map((s) => {
     const kok = s.ad.split(' ')[0];
     let gizli = kok === 'V' ? !v : kok === 'I' ? sag !== 'akim' : kok === 'W' ? sag !== 'guc' : false;
-    if (s.zarf && !zarf) gizli = true;
+    if ((s.zarf && !zarf) || s.yalnizOkuma) gizli = true;
     return { ...s, gizli };
   });
 }
@@ -251,7 +272,7 @@ export function okumaHesapla(h, tA, tB) {
       maks: mx && mx.istat ? mx.istat.maks : ist ? ist.maks : NaN,
     };
   };
-  return { tA: ok.tA, tB: ok.tB, dt: ok.dt, v: kanal('V'), i: kanal('I'), w: kanal('W'),
+  return { tA: ok.tA, tB: ok.tB, dt: ok.dt, v: kanal('V'), i: kanal('I'), w: kanal('W'), vHam: kanal('V ham'),
     dV: ok.dV, ortI: ok.ortI, enerji: aralikEnerji(h, ok.tA, ok.tB) };
 }
 
@@ -528,6 +549,8 @@ export const KG_METIN = Object.freeze({
   /* K7 (PT): pil oturumunun kayit hizi, DCIR durumu, OCV evresi */
   kayitHizi: 'kg.kayit_hizi', dcirDurum: 'kg.dcir_durum', kapali: 'kg.kapali', ocvEvre: 'kg.ocv_evre',
   dcirKapali: 'kg.dcir_kapali',
+  /* K8 (HT3): hat direnci telafisi */
+  hat: 'kg.hat', vHam: 'kg.v_ham',
   /* 2026-10-07: ad / etiket / cop kutusu */
   duzenBaslik: 'kg.duzen_baslik', duzenAd: 'kg.duzen_ad', duzenEtiket: 'kg.duzen_etiket',
   duzenEtiketOrnek: 'kg.duzen_etiket_ornek', duzenIpucu: 'kg.duzen_ipucu', duzenKaydet: 'kg.duzen_kaydet',
@@ -901,6 +924,10 @@ export const KayitGorunumu = {
         }
       };
       kanal(o.v, 4, true);
+      if (o.vHam) {                                   // K8 (HT3): HAM gerilim yalniz okumada
+        s.push({ a: 'vha', etiket: `${m.vHam} (A)`, deger: sayiYaz(o.vHam.a, 4) + ' V' });
+        s.push({ a: 'vhb', etiket: `${m.vHam} (B)`, deger: sayiYaz(o.vHam.b, 4) + ' V' });
+      }
       kanal(o.i, 5, true);
       kanal(o.w, 4, false);
       if (o.enerji) {
@@ -927,6 +954,8 @@ export const KayitGorunumu = {
       }
       const ocv = this._h && this._h.ocv && this._h.ocv.length ? this._h.ocv[0] : null;
       if (ocv) kpi.push({ a: 'ocve', etiket: this.m.ocvEvre, deger: sureYaz(ocv[1] - ocv[0]) });
+      const ht = this._h && this._h.hat;              // K8 (HT3)
+      if (ht) kpi.push({ a: 'hat', etiket: this.m.hat, deger: hatYazi(ht, this.dil) });
       if (p.sonuc) {
         kpi.push({ a: 'dr', etiket: al('durum'), deger: p.sonuc.durumMetin });
         kpi.push({ a: 'mah', etiket: al('mah'), deger: sayiYaz(p.sonuc.mah, 1) });

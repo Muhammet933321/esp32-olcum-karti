@@ -10550,6 +10550,27 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.115 🟢 A3-PT3: PİL TESTİ HAT DİRENCİ TELAFİSİ (HT) (2026-10-08)
+
+**Teşhis (kullanıcı + kart, adım adım):** kart 2.99 V / 0.8 A okurken pil kutupları 4.0 V. Multimetre:
+eksi hat 0.71 V (yuva ucu + klips 0.17, ince krokodil 0.54), V probu akım taşıyan noktada 0.15, kutu içi PİL 2→COM
+0.036 (~45 mΩ). Kalın silikon kablo + muz fiş, V probu yuva diline → fark 1.0 → 0.17 V. Ayrıca kutunun KENDİ
+pili zayıfken V kanalı gürültüsü 190–206 mV (kısa devre girişte) → pil değişince 4.1 mV (DC-DC'ler sınırda
+çalışınca VREF/±12 V titriyordu). 1.1 A'de tam test 1204 mAh / 65.6 dk (ZB2LC 1455 — akımı/kesmesi farklı);
+akımda ±20 mA basamaklar (+ yol temasları), 27.4 dk'da V algı temasında kopma (EMA kesmeyi korudu).
+**COM ayrı algı hattı OLAMAZ** (kutuda COM = PİL 2 = kart GND).
+
+**HT (tasarım `2026-10-07-pil-iyilestirme.md` HT1–HT6, kullanıcı onayı):** `Ph<mΩ>` 0…1000 (NVS `pilayar/hat`,
+test sürerken de, hemen); YALNIZ pil yolunda `V_pil = V + I·R` ve `W_pil = W + I²·R` (`pil_adim` başı; EMA kesme,
+`/pil`, B, PIL_SONUC v_son/wh, DCIR, MQTT); D satırı / Canlı enerji / ölçüm / skop / akım HAM; R=0'da karar izi
+PT2 ile bit bit aynı (`IZ_PT2`). Olay **KO_PIL_HAT = 6** (12 B, `hat_mohm` u32 @8; başlangıçta R>0 ise + her
+değişimde); çözücüler (`pil_hat_mohm_at`, `pil_v_duzelt`, `pil_w_duzelt` + JS ikizleri, çapraz vektör 867).
+Panel: Pil testi "Hat direnci" + "Multimetreyle düzelt" (I ≥ 0.1 A, `R += (V_mm − V)/I`), V kartında "ham";
+kayıt görünümü / CSV (yalnız HT olaylı oturumda `v_pil_V;w_pil_W;hat_mohm`) / rapor / karşılaştırma düzeltilmiş.
+Testler: B21 85, B71 382, B72 259, B6 85 (0 uyarı, DRAM 65 908), B7 989, ortak 547, B73 32, tarayıcı pil 44;
+mutasyon HT 35/35, HTP 23/23 (5'i ilk koşuda kaçtı: `disari_hat.test.js` B73'te HİÇ koşulmuyordu — testler
+`disari.test.js`'e taşındı).
+
 #### 5.12.114 🟢 A3-PT2: STATİK DRAM PAYI 28 B → 16 KB (CA-4) + TELEFONDA KART-YOK İPUCU (2026-10-08 gecesi)
 
 Kullanıcı yatarken: "daha sonrası için planlanmış ama şimdi yapabileceğin şeyler varsa hallet".

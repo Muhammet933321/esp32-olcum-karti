@@ -70,6 +70,9 @@ BEKLENEN_DIZELER = [
     (b"* pil DCIR olcumu KAPALI", "PT5 Pd0 dali"),
     (b"pilayar", "PT5 DCIR ayarinin NVS ad alani"),
     (b"OCV evresi bitti", "PT2 OCV evresinden yuke gecis dali"),
+    (b"! Ph: 0..1000 mOhm", "HT1 Ph reddi dali"),
+    (b"* pil hat direnci ", "HT1 Ph onayi dali"),
+    (b"hat direnci olayi kuyrukta DUSTU", "HT3 KO_PIL_HAT olayi gonderimi"),
     # B22.4 — her biri bir SAVUNMA DALININ derlendigini kanitliyor
     # 4B (PC8): "event: kopru" (kopru kayitliyken ikinci SSE istemcisi reddi) KALKTI —
     #   spec §5 "4 istemci, ret kalkar"; artik BULUNMAMALI listesinde.

@@ -4,16 +4,9 @@
 //   sebep.<kod>  oturum.tur.<kod>  olay.<kod>  pil.durum.<kod>  pil.hata.<kod>
 //   kal.tur.<kod>  kal.kaynak.<kod>  kal.durum.<ad>   (+ her ailede <onek>bilinmeyen: {kod})
 //   bayrak.<ad>  csv.<sutun>  csv.kayit.<tur>  rapor.<alan>  alan.<olay alani>  uyari.<kod>
-//   kl.<ad> (web paneli: Kayitlar ile Ayarlar'in ORTAK metinleri — EU32)  kg./kr. → sozluk_kayit.js;
-//   os.<ad> (web paneli: Osiloskop, 3E — app.js OS_METIN + ekran/osiloskop.js); ay.<ad> (web paneli: Ayarlar —
-//   YALNIZ kabugun app.js AY_METIN / AYAR_BOLUMLERI / DILLER ve birden cok ekranin ortaklari; ekran/ayarlar.js'in
-//   kendi metinleri sozluk_ay.js'te, EU32); es.<ad>
-//   (3H-2: yalniz kabugunkiler; Eslestirme ekraninin metinleri acilisa girmesin diye sozluk_es.js, EU30).
-//   EU32 (W3): tembel ekranin YALNIZ kendi metni kendi sozlugunde (acilis ve #/skop kucuk kalsin).
-//   os./pl. burada KALIR: Osiloskop ve Pil ekranlari kabugun (app.js + index.html) parcasi, modul inmeden de
-//   cizilir (PL: DURDUR ve okumalar modulu BEKLEMEZ, PU1). Ekranlar
-//   anahtari DUZ METIN sabitiyle yazar (KL_METIN / KG_METIN), "kullanilmayan anahtar yok" denetimi
-//   arayuz3/ekran/*.js'i de tarar (test/sozluk.test.js).
+//   kl.<ad> (Kayitlar + Ayarlar ortagi)  os./pl. (Osiloskop / Pil: kabugun parcasi, modul inmeden cizilir — PU1)
+//   ay./es. YALNIZ kabugunkiler. EU30/EU32: tembel ekranin kendi metni kendi sozlugunde (sozluk_kayit / _ay / _es /
+//   _pil / _hat …). Ekranlar anahtari DUZ METIN sabitiyle yazar; "kullanilmayan anahtar yok" ekranlari da tarar.
 // Birimler SI ve dile gore DEGISMEZ (V, A, W, ohm, mAh, Wh, s, ms). CSV basliklari iki dilde
 // de kucuk ASCII snake_case + birim soneki (kopru/arsiv.py D_BASLIK uslubu; Excel/pandas dostu).
 //
@@ -54,6 +47,7 @@ export const SOZLUK = Object.freeze({
   "olay.3": S("Pil testi sonucu", "Battery test result"),
   "olay.4": S("Osiloskop kalibrasyon eğrisi", "Oscilloscope calibration curve"),
   "olay.5": S("Zamanlanmış kayıt", "Scheduled recording"),
+  "olay.6": S("Pil testi hat direnci", "Battery test lead resistance"),
   "olay.bilinmeyen": S("Bilinmeyen olay ({kod})", "Unknown event ({kod})"),
 
   // ── pil testi durum / hata (pil_test.h PilDurum / PilHata)

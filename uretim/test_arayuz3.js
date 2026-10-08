@@ -5047,9 +5047,10 @@ console.log('\n--- 28. Pil testi (3F) ---');
     const sayfa = (ino.match(/void pil_sayfa\(\) \{[\s\S]*?\n\}/) || [''])[0];
     const fwAlan = [...sayfa.matchAll(/F\("(?:\\n)?([a-z_]+)="\)/g)].map((m) => m[1]);
     const okunan = [...new Set([...govdeMetni(appKaynak, 'pilYokla').matchAll(/\ba\.([a-z_]+)\b/g)].map((m) => m[1]))];
-    ok('[!] /pil: pilYokla`nin okudugu HER anahtar firmware`in pil_sayfa`sinda var (durum, mah, dcir_n, sira, ilk_sira, kalan …; PT6: evre, kayit_hz, dcir SONDA)',
-       fwAlan.length === 17 && okunan.length >= 16 && okunan.every((a) => fwAlan.includes(a))
-       && fwAlan.slice(14).join() === 'evre,kayit_hz,dcir' && ['evre', 'kayit_hz', 'dcir'].every((a) => okunan.includes(a)),
+    ok('[!] /pil: pilYokla`nin okudugu HER anahtar firmware`in pil_sayfa`sinda var (durum, mah, dcir_n, sira, ilk_sira, kalan …; PT6: evre, kayit_hz, dcir; HT2: hat_mohm, v_ham SONDA)',
+       fwAlan.length === 19 && okunan.length >= 17 && okunan.every((a) => fwAlan.includes(a))
+       && fwAlan.slice(14, 17).join() === 'evre,kayit_hz,dcir' && ['evre', 'kayit_hz', 'dcir', 'hat_mohm'].every((a) => okunan.includes(a))
+       && fwAlan.slice(17).join() === 'hat_mohm,v_ham',
        `fw: ${fwAlan.join(',')} · okunan: ${okunan.join(',')}`);
     const dA = Number((/#define PIL_DCIR_ARALIK_MS (\d+)u/.exec(pilH) || [])[1]);
     const dD = Number((/#define PIL_DCIR_MS\s+(\d+)u/.exec(pilH) || [])[1]);
@@ -5676,10 +5677,298 @@ console.log('\n--- 28. Pil testi (3F) ---');
     ok('[!] PT (demo karti): Pr / Pd / P / BASLADI metinleri FIRMWARE`in; test surerken Pr reddi; /pil evre=ocv -> yuk, kayit_hz, dcir; OCV evresinde akim 0',
        pr[0] === '* pil kayit hizi 20 /s' && prX[0] === '! Pr: 0 (her ornek), 1, 5, 20 ya da 50 olmali' && ino.includes(prX[0])
        && pd[0] === "* pil DCIR olcumu ACIK (5 dk'da bir 200 ms yuk kesilir)" && pdX[0] === '! Pd: Pd1 (ac) ya da Pd0 (kapat)' && ino.includes(pdX[0])
-       && /· DCIR acik$/.test(pn[0]) && O(pn[0]).tur === 'kesme' && O(bas[0]).tur === 'basladi' && /; once 5 s yuksuz \(OCV\), sonra yuk$/.test(bas[0])
+       && /· DCIR acik · hat 0 mOhm$/.test(pn[0]) && O(pn[0]).tur === 'kesme' && O(bas[0]).tur === 'basladi' && /; once 5 s yuksuz \(OCV\), sonra yuk$/.test(bas[0])
        && prSur[0] === '! P: pil testi suruyor — once p0' && ino.includes(prSur[0])
        && alan(sOcv, 'evre') === 'ocv' && alan(sOcv, 'kayit_hz') === '1.00' && alan(sOcv, 'dcir') === '0' && /\n1000,\d\.\d{4},0\.000000\n/.test(sOcv)
        && alan(sYuk, 'evre') === 'yuk', JSON.stringify({ pr, pd, pn, sOcv: sOcv.slice(0, 400) }));
+  }
+  /* ── (j) HT — HAT DIRENCI TELAFISI (tasarim/2026-10-07-pil-iyilestirme.md HT1–HT5) ──────────────────────────
+     Kart pil testinin gerilimini V + I x R ile duzeltir; D satiri (Canli), olcum oturumlari, skop ve akim HAM.
+     Panel: app.js yalniz `/pil` hat_mohm'u (pilHat) tutar ve Pil sekmesinin V kartini AYNI formulle duzeltir (R = 0
+     iken HAM AYNEN); ozet + "ham" PilPt (sozluk_pil), duzeltici ekran/pil_hat.js + ortak/sozluk_hat.js ("Ayarla…"ya
+     basinca iner). Kayit: KO_PIL_HAT (ortak/kayit.js + disari.hatDuzeltV) -> grafik / rapor / CSV pil kutuplarindan. */
+  {
+    const SH = require(path.join(KOK, 'ortak', 'src', 'sozluk_hat.js'));
+    const SP = require(path.join(KOK, 'ortak', 'src', 'sozluk_pil.js'));
+    const SK = require(path.join(ARAYUZ, 'sahte-kart.js'));
+    const KG = require(path.join(ARAYUZ, 'ekran', 'kayit_gorunum.js'));
+    const O = al('pilSatirOlayi');
+    const hatKaynak = fs.readFileSync(path.join(ARAYUZ, 'ekran', 'pil_hat.js'), 'utf8');
+    const sab = PL.PilPt.template;
+    /* firmware metinleri + sinirlar */
+    const htMetin = ['* pil hat direnci ', '! Ph: 0..1000 mOhm', 'F(" · hat ")', 'F("\\nhat_mohm=")', 'F("\\nv_ham=")'];
+    const htYok = htMetin.filter((m) => !ino.includes(m));
+    const azami = Number((/#define PIL_HAT_AZAMI_MOHM\s+(\d+)u/.exec(pilH) || [])[1]);
+    const onay = O('* pil hat direnci 85 mOhm');
+    const ret = O('! Ph: 0..1000 mOhm');
+    ok('[!] HT1: `Ph` onay / ret satirlari, `P` satirinin ` · hat` eki ve /pil `hat_mohm=` `v_ham=` FIRMWARE`de; panel onayi `ayar` (satiriyla), reddi `ret` (satiriyla) sayar; ` · hat` ekli P satiri KESMEYI verir; azami 1000 mΩ pil_test.h ile ayni',
+       htYok.length === 0 && onay.tur === 'ayar' && onay.s === '* pil hat direnci 85 mOhm' && ret.tur === 'ret' && ret.s === '! Ph: 0..1000 mOhm'
+       && O('* pil kesme gerilimi 3.000 V · kayit 1.00 Hz · azami sure 24 saat · DCIR kapali · hat 85 mOhm').v === 3
+       && azami === 1000 && SH.PIL_HAT_AZAMI_MOHM === azami,
+       htYok.join(' | ') || JSON.stringify({ onay, ret }));
+    /* elle giris: kartin pil_ph_ayir kurali (rakam, bastaki sifir yok, en cok 4 hane, <= 1000) */
+    const G = SH.hatGiris;
+    ok('[!] HT1: elle giris kartin pil_ph_ayir kuraliyla — 0 · 7 · 85 · 1000 gecer; 1001 · 050 · 00 · -5 · 8.5 · 85mΩ · bos · null REDDEDILIR (karta GITMEZ)',
+       [['0', 0], ['7', 7], [' 85 ', 85], ['1000', 1000], [85, 85]].every(([x, n]) => G(x).mohm === n)
+       && ['1001', '050', '00', '-5', '8.5', '85mΩ', '', '  ', null, undefined, '10000', {}].every((x) => G(x).hata === 'ht.hata_giris')
+       && /static uint8_t pil_ph_ayir\(const char \*s, uint16_t \*mohm\)/.test(pilH) && /if \(s\[0\] == '0' && s\[1\]\) return 1u;/.test(pilH));
+    /* R = 0 iken Pil sekmesinin V karti BIT BIT eskisi; R > 0: V + I x R (kartin pil_v_duzelt'i); I gecersizse — */
+    const vKart = (hat, volt, amper, ads = 0) => {
+      const u = ornek();
+      u.bagli = true; u.pilDurum = 'CALISIYOR'; u.pilHat = hat; u.volt = volt; u.amper = amper; u.adsDurum = ads; u.gecmis = [1];
+      return u.pilOkumalar[0].deger;
+    };
+    const ornekler = [[3.793, 1.128], [4.1, -0.002], [0, 0], [-0, 0.5], [12.3456, NaN], [3.7, Infinity], [1e-9, 2]];
+    const eski = (v) => (Number.isFinite(v) ? v.toFixed(3) : '—');
+    const sifirAyni = ornekler.every(([v, i]) => [undefined, null, '0', '', 'x'].every((h) => vKart(h, v, i) === eski(v)));
+    const sifirGecersiz = [undefined, '0'].every((h) => vKart(h, 3.8, 1, 2) === '3.800' && vKart(h, 3.8, 1, 1) === '—');
+    ok('[!] HT2 (R = 0 AYNI): hat_mohm yok / 0 / bozuk iken V karti BIT BIT eskisi (I NaN / sonsuz / gecersiz olsa bile; -0 dahil)',
+       sifirAyni && sifirGecersiz, JSON.stringify(ornekler.map(([v, i]) => vKart('0', v, i))));
+    ok('[!] HT2: R > 0 iken V karti pil kutuplarindan V + I x R (3.793 V, 1.128 A, 153 mΩ -> 3.966 V); I gecersizse "—"; kayit / son V (kartin duzeltilmis vson) dokunulmaz',
+       vKart('153', 3.793, 1.128) === '3.966' && vKart('153', 3.793, 1.128, 2) === '—' && vKart('1000', 3.0, 0.5) === '3.500'
+       && (() => { const u = ornek(); u.pilHat = '153'; u.pilDurum = 'BITTI'; u.pilKesmeBilinen = true; u.pilVson = 3.9;
+         return u.pilOkumalar[0].deger === '3.900'; })()
+       && Math.abs(SH.hatDuzelt(3.793, 1.128, 153) - Kx.pilVDuzelt(3.793, 1.128, 153)) === 0 && SH.hatDuzelt(4, NaN, 0) === 4);
+    /* Canli / olcum / skop R'YI KULLANMAZ: pilHat yalniz pilOkumalar'da (+ veri + pilYokla); Canli'nin V'si HAM */
+    const kod = yorumsuz(appKaynak);
+    const hatYer = [...kod.matchAll(/pilHat\b/g)].length;
+    const cu = ornek();
+    cu.pilHat = '500'; cu.pilDurum = 'CALISIYOR';
+    cu.satirIsle('D 3.7930 1.128000 4.27850 1.2340 0.0003428 45678 172 0');
+    const ekranlar = ['canli.js', 'osiloskop.js', 'karsilastir.js', 'kayitlar.js'].map((a) => fs.readFileSync(path.join(ARAYUZ, 'ekran', a), 'utf8'));
+    ok('[!] HT2: Canli / olcum / skop R`YI KULLANMAZ — app.js`te pilHat YALNIZ veri + pilYokla + pilOkumalar (3 yer); D satirindan sonra `volt` / `watt` HAM (3.793 V, 4.2785 W), Canli / Osiloskop / Karsilastirma / Kayitlar ekranlari hat_mohm / pilHat okumaz',
+       hatYer === 3 && govdeIcinde(appKaynak, 'pilOkumalar', 'this.pilHat / 1e3') && govdeIcinde(appKaynak, 'pilYokla', 'this.pilHat = a.hat_mohm')
+       && Math.abs(cu.volt - 3.793) < 1e-12 && Math.abs(cu.amper - 1.128) < 1e-12 && Math.abs(cu.watt - 4.2785) < 1e-12
+       && ekranlar.every((k) => !/pilHat|hat_mohm|hatDuzelt|KO_PIL_HAT/.test(k)), `pilHat ${hatYer} yer`);
+    /* PilPt ozet + ham: eski firmware (hat_mohm yok) -> HICBIR SEY; R 0 -> "telafi yok", ham yok; R > 0 + test -> ham */
+    const kok = (o) => ({ dil: 'tr', pilHat: undefined, pilDurum: 'CALISIYOR', volt: 3.793, amper: 1.128, voltGecersiz: false,
+      amperGecersiz: false, veriYok: false, ...o });
+    const g0 = SP.htGorunum(kok({}));
+    const g1 = SP.htGorunum(kok({ pilHat: '0' }));
+    const g2 = SP.htGorunum(kok({ pilHat: '153' }));
+    const g3 = SP.htGorunum(kok({ pilHat: '153', pilDurum: 'BITTI' }));
+    ok('[!] HT5: eski firmware / USB (hat_mohm yok) -> ozet, "Ayarla…" ve "ham" YOK (Ph gonderilecek yer yok); R 0 -> "0 mΩ — telafi yok", ham yok; R > 0 + test -> "ham 3.793 V" (D satirinin HAM V`si); test bitince ham yok; sablon ve yerlesim',
+       g0.hat === null && g0.ham === '' && g1.hat.deger === '0 mΩ — telafi yok' && g1.ham === '' && g1.hat.ac === 'Ayarla…'
+       && g2.hat.deger === '153 mΩ' && g2.hat.r === 153 && g2.ham === 'ham 3.793 V' && g3.ham === ''
+       && SP.htGorunum(kok({ pilHat: '153', dil: 'en' })).hat.etiket === 'Lead resistance'
+       && SP.hatMohm('1001') === null && SP.hatMohm('85') === 85 && SP.hatMohm(85) === null
+       && /<div v-else-if="g && kip === 'hat' && g\.hat" class="pil-form" data-pil="hat">/.test(sab)
+       && /<component v-if="duz" :is="duz" :r="g\.hat\.r"><\/component>\s*<button v-else type="button" @click="duzAc" data-pil="hat-ac">/.test(sab)
+       && /<div v-else-if="g && kip === 'ham' && g\.ham" class="alt-bilgi" data-pil="ham">\{\{ g\.ham \}\}<\/div>/.test(sab)
+       && /<pil-pt v-if="o\.a === 'v'" kip="ham"><\/pil-pt>/.test(pm) && /\{\{ pl\.dcirSabit \}\}<\/p>\s*<pil-pt kip="hat"><\/pil-pt>/.test(pm),
+       JSON.stringify({ g1: g1.hat, g2: g2.ham }));
+    /* duzeltici TEMBEL: acilista, #/pil acilisinda ve Karsilastirmada YOK; yalniz PilPt'nin "Ayarla…"si indirir */
+    const kunyeYolu = path.join(KOK, 'uretim', '_fs.json');
+    const by = fs.existsSync(kunyeYolu) ? JSON.parse(fs.readFileSync(kunyeYolu, 'utf8')).bayt || {} : {};
+    const hatZ = ['ekran/pil_hat.js', ...iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'pil_hat.js')).map((g) => g.goruntu)];
+    const pilAgacHt = iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'pil.js')).map((g) => g.goruntu);
+    const hatBayt = ['ekran/pil_hat.js', 'ortak/sozluk_hat.js'].reduce((n, a) => n + (by[a] || NaN), 0);
+    ok('[!] HT5 (butce): duzeltici (ekran/pil_hat.js + ortak/sozluk_hat.js) acilis grafiginde, pil.js`in statik agacinda ve app.js`te YOK; YALNIZ PilPt "Ayarla…" ile DINAMIK; kendi agaci yalniz sozluk_hat + sozluk; <= 6 KB gzip (kunyede)',
+       /import\('\.\/pil_hat\.js'\)/.test(yorumsuz(pilKaynak)) && !pilAgacHt.includes('ekran/pil_hat.js') && !pilAgacHt.includes('ortak/sozluk_hat.js')
+       && !iceAktarmaGrafigi().map((x) => x.goruntu).some((x) => /pil_hat|sozluk_hat/.test(x)) && !/pil_hat|sozluk_hat/.test(kod)
+       && hatZ.slice(1).sort().join() === 'ortak/sozluk.js,ortak/sozluk_hat.js' && hatBayt > 0 && hatBayt <= 6144
+       && /from '\/ortak\/sozluk_hat\.js'/.test(hatKaynak) && !/sozluk_pil/.test(yorumsuz(hatKaynak)),
+       `${hatZ.join(' ')} · ${hatBayt} B`);
+    /* multimetre: R_yeni = R_eski + (V_mm − V_gosterilen) / I, 0…1000'e kirpilir; I >= 0.1 A */
+    const Or = SH.hatOneri;
+    ok('[!] HT5: multimetre formulu R_yeni = R_eski + (V_mm − V_gosterilen) / I (mΩ, yuvarlanir): 50 mΩ, 3.9475 V gosterilen, 3.976 V multimetre, 0.95 A -> 80 mΩ; 0…1000`e KIRPILIR (kirpildi isaretli); I < 0.1 A ya da sayi olmayan -> null',
+       Or(50, 3.976, 3.9475, 0.95).yeni === 80 && Or(50, 3.976, 3.9475, 0.95).kirpildi === false
+       && Or(0, 3.966, 3.793, 1.128).yeni === 153 && Or(900, 5.0, 3.8, 1.0).yeni === 1000 && Or(900, 5.0, 3.8, 1.0).kirpildi === true
+       && Or(900, 5.0, 3.8, 1.0).ham === 2100 && Or(10, 3.0, 3.5, 1.0).yeni === 0 && Or(10, 3.0, 3.5, 1.0).ham === -490
+       && Or(50, 3.976, 3.9475, 0.099) === null && Or(50, NaN, 3.9, 1) === null && Or(50, 3.9, 3.9, Infinity) === null
+       && SH.mmGiris('3,966') === 3.966 && SH.mmGiris('3.9660') === 3.966 && ['', '0', '-3', '39', 'abc', '3,9,6', null].every((x) => SH.mmGiris(x) === null));
+    /* akis (sahte $root): elle Ph, multimetre (tek onay), ret, sessizlik, bagli degil, kosul */
+    const kokAkis = (yanit, o = {}) => {
+      const giden = [];
+      const u = { dil: 'tr', bagli: true, pilHat: '50', pilDurum: 'CALISIYOR', volt: 3.9, amper: 0.95, voltGecersiz: false,
+        amperGecersiz: false, veriYok: false, pilBaslatiliyor: false, ...o,
+        async pilAyarGonder(c) { giden.push(c); return yanit(c); } };
+      return { u, giden };
+    };
+    const y0 = () => ({ hatGiris: '', mmGiris: '', oneri: null, mesgul: false, sonuc: null });
+    const kabul = (c) => ({ tur: 'ayar', s: `* pil hat direnci ${c.slice(2)} mOhm` });
+    SONRA.push(async () => {
+      const a = kokAkis(kabul);
+      const y = y0();
+      y.hatGiris = '050';
+      const r0 = await SH.hatIslem(a.u, y, 'yaz', 50);
+      const s0 = y.sonuc && y.sonuc.a;
+      y.hatGiris = '120';
+      const r1 = await SH.hatIslem(a.u, y, 'yaz', 50);
+      const m1 = SH.hatGorunum(a.u, y).sonuc;
+      y.mmGiris = '3,976';
+      await SH.hatIslem(a.u, y, 'oner', 50);
+      const oneri = SH.hatGorunum(a.u, y).oneri;
+      const gitmedi = a.giden.length;
+      const r2 = await SH.hatIslem(a.u, y, 'gonder', 50);
+      ok('[!] HT5: elle `Ph` — gecersiz (050) GITMEZ, sebep yazilir; 120 -> `Ph120`, kart onayi -> "Kart onayladı" ve app`in pilHat`i hemen 120; multimetre (3,976 V, gosterilen = V + I x R = 3.9475 V, 0.95 A) -> oneri 80 mΩ, TEK onaydan once GITMEZ, "Gönder" -> `Ph80`',
+         r0 === false && s0 === 'ht.hata_giris' && r1 === true && a.giden[0] === 'Ph120' && m1 === 'Kart onayladı: hat direnci 120 mΩ.'
+         && a.u.pilHat === '80' && gitmedi === 1 && /^Yeni hat direnci 80 mΩ \(şimdi 50 mΩ\): gösterilen 3\.947 V, multimetre 3\.976 V, akım 0\.950 A\. Karta gönderilsin mi\?$/.test(oneri)
+         && r2 === true && a.giden.join() === 'Ph120,Ph80' && y.oneri === null && y.mmGiris === '',
+         JSON.stringify({ giden: a.giden, oneri, m1 }));
+      const b = kokAkis(() => ({ tur: 'ret', s: '! Ph: 0..1000 mOhm' }));
+      const yb = y0();
+      yb.hatGiris = '900';
+      const rb = await SH.hatIslem(b.u, yb, 'yaz', 50);
+      const c = kokAkis(() => ({}));
+      const yc = y0();
+      yc.hatGiris = '70';
+      const rc = await SH.hatIslem(c.u, yc, 'yaz', 50);
+      const d = kokAkis(() => ({ tur: 'ayar', s: '* pil kayit hizi 20 /s' }));
+      const yd = y0();
+      yd.hatGiris = '70';
+      const rd = await SH.hatIslem(d.u, yd, 'yaz', 50);
+      const e = kokAkis(kabul, { bagli: false });
+      const ye = y0();
+      ye.hatGiris = '70';
+      const re = await SH.hatIslem(e.u, ye, 'yaz', 50);
+      ok('[!] HT5: kartin reddi OLDUGU GIBI ("Kart reddetti: ! Ph: …"), sessizlik ve BASKA onay (Pr) "yanıt vermedi" (pilHat DEGISMEZ), bagli degilken GITMEZ',
+         rb === false && SH.hatGorunum(b.u, yb).sonuc === 'Kart reddetti: ! Ph: 0..1000 mOhm' && b.u.pilHat === '50'
+         && rc === false && yc.sonuc.a === 'ht.yanitsiz' && c.u.pilHat === '50' && rd === false && yd.sonuc.a === 'ht.yanitsiz' && d.u.pilHat === '50'
+         && re === false && e.giden.length === 0 && ye.sonuc.a === 'ht.bagli_degil' && SH.hatGorunum(b.u, yb).sonucHata === true);
+      const f1 = kokAkis(kabul, { amper: 0.05 });
+      const f2 = kokAkis(kabul, { pilDurum: 'BITTI' });
+      const f3 = kokAkis(kabul, { amperGecersiz: true });
+      const kosul = [];
+      for (const f of [f1, f2, f3]) {
+        const yf = y0();
+        yf.mmGiris = '3.9';
+        await SH.hatIslem(f.u, yf, 'oner', 50);
+        kosul.push(yf.oneri === null && yf.sonuc.a === 'ht.kosul' && f.giden.length === 0 && SH.hatGorunum(f.u, yf).mmAcik === false);
+      }
+      const yk = y0();
+      yk.mmGiris = 'abc';
+      await SH.hatIslem(kokAkis(kabul).u, yk, 'oner', 50);
+      ok('[!] HT5: "Multimetreyle düzelt" yalniz test surerken ve I >= 0.1 A (0.05 A / bitmis test / akim gecersiz -> kapali, oneri YOK, gonderim YOK); gecersiz multimetre degeri sebebiyle reddedilir; sablonda alan etiketli, dugme mmAcik`a bagli',
+         kosul.every(Boolean) && yk.sonuc.a === 'ht.hata_mm' && yk.oneri === null
+         && SH.hatGorunum(kokAkis(kabul).u, y0()).mmAcik === true
+         && /<label for="pil-mm">\{\{ g\.mm \}\}<\/label>/.test(hatKaynak) && /:disabled="!g\.mmAcik \|\| g\.mesgul" @click="ht\('oner'\)"/.test(hatKaynak)
+         && /<label for="pil-hat">\{\{ g\.giris \}\}<\/label>/.test(hatKaynak) && /@click="ht\('gonder'\)"/.test(hatKaynak),
+         JSON.stringify(kosul));
+    });
+    /* /pil: hat_mohm -> pilHat; eski /pil (alan yok) -> undefined (ozellik gizli) */
+    SONRA.push(async () => {
+      const eskiF = sandbox.fetch;
+      const bas = (ek) => ['durum=CALISIYOR', 'hata=-', 'mah=0.0000', 'wh=0.000000', 'ocv=4.1100', 'vson=4.1100', 'kesme=3.000',
+        'dcir_ani=0.00000', 'dcir_otr=0.00000', 'dcir_n=0', 'sira=0', 'ilk_sira=0', 'kalan=0', 'coulomb=0.000',
+        'evre=yuk', 'kayit_hz=1.00', 'dcir=0', ...ek, '--'].join(String.fromCharCode(10)) + String.fromCharCode(10);
+      const yeni = ornek();
+      yeni.bagli = true; yeni.tasiyiciAdi = 'akis'; yeni.bagliTasiyici = 'akis';
+      sandbox.fetch = async () => ({ ok: true, status: 200, text: async () => bas(['hat_mohm=153', 'v_ham=3.7930']) });
+      await yeni.pilYokla();
+      const eskiK = ornek();
+      eskiK.bagli = true; eskiK.tasiyiciAdi = 'akis'; eskiK.bagliTasiyici = 'akis';
+      sandbox.fetch = async () => ({ ok: true, status: 200, text: async () => bas([]) });
+      await eskiK.pilYokla();
+      sandbox.fetch = eskiF;
+      ok('[!] HT2/HT5: /pil hat_mohm=153 -> pilHat "153" (ozet + V karti); A3-PT3 oncesi /pil (alan yok) -> pilHat undefined: ozellik GIZLI, V karti HAM',
+         yeni.pilHat === '153' && eskiK.pilHat === undefined && SP.htGorunum({ ...kok({}), pilHat: eskiK.pilHat }).hat === null,
+         JSON.stringify({ yeni: yeni.pilHat, eski: eskiK.pilHat }));
+    });
+    /* kayit: KO_PIL_HAT -> egri / grafik / ozet pil kutuplarindan; olay yoksa HAM AYNEN; olcum oturumunda HIC */
+    {
+      let sira = 0;
+      const ham = [];
+      const ekle = (tur, ot, yuk) => { sira++; ham.push(Kx.kayitPaketle(tur, sira, ot, yuk)); return ot; };
+      const kanal = (n) => ({ n, pga: 4.096, kazanc: 1, sifir_ham: 12, tau: 0 });
+      const kal = { normal: kanal(21), yuksek: kanal(201), i_ofset: 5, i_pga: 0.256, sont_ohm: 0.1, i_duzeltme: 1, sebeke_hz: 0, faz_kal_us: [0, 0] };
+      const nk = (ms) => Kx.noktaPaketle({ kart_ms: ms, n: 40, bayrak: 0, v_ort_kod: 1500, v_min_kod: 1490, v_maks_kod: 1510,
+        i_ort_kod: 30000, i_min_kod: 29000, i_maks_kod: 31000, w_ort: 0, w_min: 0, w_maks: 0 });   // ~2.3 A: I^2 x R Wh'de gorunur
+      const oturumKur = (ot, tur, olaylar) => {
+        ekle(Kx.T_BASLA, ot, Kx.baslaPaketle({ oturum_turu: tur, kal_bicim: 1, hiz_ms: 1000, unix_s: 1790300000,
+          kart_ms: 100000, acilis: 3, surum: 'A3-PT3', kal, kal_no: 2 }));
+        for (const [ms, mohm] of olaylar) ekle(Kx.T_OLAY, ot, Kx.olayPaketle({ tur: Kx.KO_PIL_HAT, kart_ms: ms, hat_mohm: mohm }));
+        const ns = [101000, 102000, 103000, 104000].map(nk);
+        const y = new Uint8Array(4 + 36 * ns.length);
+        ns.forEach((b, k) => y.set(b, 4 + 36 * k));
+        ekle(Kx.T_NOKTA, ot, y);
+        return ot;
+      };
+      const otHat = oturumKur(31, 2, [[100000, 50], [102500, 80]]);
+      const otYok = oturumKur(32, 2, []);
+      const otOlc = oturumKur(33, 1, [[100000, 50]]);
+      let n = 0;
+      for (const h of ham) n += h.length;
+      const bayt = new Uint8Array(n);
+      let a0 = 0;
+      for (const h of ham) { bayt.set(h, a0); a0 += h.length; }
+      const kayitlar = Kx.akisCoz(bayt);
+      const ots = Kx.oturumlariKur(kayitlar);
+      const s = Dx.noktaSerileri(ots.get(otHat), { kayitlar });
+      const bek = Array.from(s.vOrt, (v, k) => Kx.pilVDuzelt(v, s.iOrt[k], [50, 50, 80, 80][k]));
+      const r = PL.pilKayitKur(ots.get(otHat), { disari: Dx, kayitlar, kimlik: 21 });
+      const rYok = PL.pilKayitKur(ots.get(otYok), { disari: Dx, kayitlar, kimlik: 21 });
+      const h = KG.grafikSerileri(ots.get(otHat), { kayitlar });
+      const hYok = KG.grafikSerileri(ots.get(otYok), { kayitlar });
+      const hOlc = KG.grafikSerileri(ots.get(otOlc), { kayitlar });
+      const vSeri = (x) => x.seriler.find((q) => q.ad === 'V');
+      const sYok = Dx.noktaSerileri(ots.get(otYok), { kayitlar });
+      const sOlc = Dx.noktaSerileri(ots.get(otOlc), { kayitlar });
+      const ayni = (p, q) => p.length === q.length && Array.from(p).every((x, k) => Object.is(x, q[k]));
+      const okuma = KG.okumaHesapla(h, h.t[0], h.t[3]);
+      const gor = KG.gorunurluk(h.seriler, { v: true, sag: 'akim', zarf: true }).find((q) => q.ad === 'V ham');
+      ok('[!] HT3 (kayit): KO_PIL_HAT (12 B, u32 hat_mohm — kayit_bicim.h ile ayni) -> her nokta o ANDA gecerli R ile V + I x R (50 mΩ, 102.5 s`den sonra 80 mΩ); Pil sekmesinin kayit egrisi + kayit gorunumu grafigi duzeltilmis, "V ham" yalniz okumada (cizilmez); ozet {ilk 50, son 80, 1 kez}',
+         Kx.olayPaketle({ tur: Kx.KO_PIL_HAT, kart_ms: 1, hat_mohm: 85 }).length === 12 && /#define KO_PIL_HAT\s+6u/.test(fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'kayit_bicim.h'), 'utf8'))
+         && ayni(r.seri.v, bek) && ayni(vSeri(h).y, bek) && ayni(h.seriler.find((q) => q.ad === 'V ham').y, s.vOrt)
+         && gor && gor.gizli === true && okuma.vHam && Object.is(okuma.vHam.a, s.vOrt[0])
+         && JSON.stringify(r.ozet.hat) === '{"ilk":50,"son":80,"degisim":1}' && JSON.stringify(h.hat) === '{"ilk":50,"son":80,"degisim":1}'
+         && KG.hatYazi(h.hat) === '80 mΩ (1 kez değişti; başta 50 mΩ)' && KG.hatYazi({ ilk: 50, son: 50, degisim: 0 }, 'en') === '50 mΩ',
+         JSON.stringify({ bek, hat: h.hat }));
+      const wBek = Array.from(s.wOrt, (w, k) => Kx.pilWDuzelt(w, s.iOrt[k], [50, 50, 80, 80][k]));
+      const wSeri = (x) => x.seriler.find((q) => q.ad === 'W');
+      const okW = KG.okumaHesapla(h, h.t[0], h.t[3]).enerji;
+      const okWY = KG.okumaHesapla(hYok, hYok.t[0], hYok.t[3]).enerji;
+      ok('[!] HT2 (W / Wh, butunlestirici karari): KO_PIL_HAT`li PIL oturumunda W pilin VERDIGI guc W + I^2 x R (kartin pil Wh kurali, kayit.js pilWDuzelt); imlec Wh`i de ondan (artar), mAh AYNI; olaysiz pil ve OLCUM oturumunda W HAM AYNEN',
+         ayni(wSeri(h).y, wBek) && !ayni(wBek, s.wOrt) && okW.wh > okWY.wh && okW.mah === okWY.mah
+         && ayni(wSeri(hYok).y, sYok.wOrt) && ayni(wSeri(hOlc).y, sOlc.wOrt)
+         && Kx.pilWDuzelt(3.0, 1.0, 200) === 3.2 && Kx.pilWDuzelt(3.0, NaN, 0) === 3.0 && Object.is(Kx.pilWDuzelt(-0, 2, 0), -0),
+         JSON.stringify({ wBek, wh: okW.wh, whY: okWY.wh }));
+      ok('[!] HT3 (R = 0 / olay yok AYNI): olaysiz pil oturumunda egri, grafik, ozet ve okuma HAM AYNEN (V ham serisi YOK, hat null); OLCUM oturumuna (olay olsa bile) telafi UYGULANMAZ',
+         ayni(rYok.seri.v, sYok.vOrt) && rYok.ozet.hat === null && ayni(vSeri(hYok).y, sYok.vOrt) && !hYok.seriler.some((q) => q.ad === 'V ham')
+         && hYok.hat === null && ayni(vSeri(hOlc).y, sOlc.vOrt) && hOlc.hat === null && !hOlc.seriler.some((q) => q.ad === 'V ham')
+         && KG.okumaHesapla(hYok, hYok.t[0], hYok.t[3]).vHam === null);
+      const cH = Dx.pilCsv(ots.get(otHat), { ...Dx.BICIM_EXCEL_TR, kayitlar });
+      const cY = Dx.pilCsv(ots.get(otYok), { ...Dx.BICIM_EXCEL_TR, kayitlar });
+      const satir = cH.split('\r\n');
+      const sY = cY.split('\r\n');
+      ok('[!] HT3 (CSV): KO_PIL_HAT varsa SONA `v_pil_V;w_pil_W;hat_mohm` (EN: v_cell_V, p_cell_W, lead_mohm), enerji_Wh pilin verdigi gucten (Wh artar); HAM V/W sutunlari AYNEN; olay yoksa baslik KOLONLAR.pil`in kendisi (yeni sutun YOK)',
+         satir[0].endsWith(';not;v_pil_V;w_pil_W;hat_mohm') && sY[0].endsWith(';not') && satir[0].startsWith(sY[0])
+         && satir[1].endsWith(';50') && satir[4].endsWith(';80') && satir[1].split(';').length === sY[1].split(';').length + 3
+         && (() => { const j = sY[0].split(';').indexOf('enerji_Wh'); const w = sY[0].split(';').indexOf('w_ort_W');
+           const a = satir[4].split(';'); const b = sY[4].split(';');
+           return j > 0 && w > 0 && Number(a[j].replace(',', '.')) > Number(b[j].replace(',', '.')) && a[w] === b[w]; })()
+         && Dx.pilCsv(ots.get(otHat), { ...Dx.BICIM_EN, kayitlar }).split('\r\n')[0].endsWith(',note,v_cell_V,p_cell_W,lead_mohm'),
+         satir[0].slice(-60));
+      const rp = require(path.join(KOK, 'ortak', 'src', 'rapor.js')).oturumRaporu(ots.get(otHat), { kayitlar });
+      const rpY = require(path.join(KOK, 'ortak', 'src', 'rapor.js')).oturumRaporu(ots.get(otYok), { kayitlar });
+      ok('[!] HT3 (rapor): gerilim ve GUC istatistigi + Wh pilden (V + I x R, W + I^2 x R), HAM `vHam` / `wHam`da, `pil.hat` ozeti; mAh HAM (iki oturumda ayni); olaysiz oturumda alanlar YOK',
+         Math.abs(rp.istatistik.v.ort - bek.reduce((x, y) => x + y, 0) / 4) < 1e-12 && rp.istatistik.vHam && Math.abs(rp.istatistik.vHam.ort - rpY.istatistik.v.ort) < 1e-12
+         && Math.abs(rp.istatistik.w.ort - wBek.reduce((x, y) => x + y, 0) / 4) < 1e-12 && Math.abs(rp.istatistik.wHam.ort - rpY.istatistik.w.ort) < 1e-12
+         && JSON.stringify(rp.pil.hat) === '{"ilk":50,"son":80,"degisim":1}' && !('vHam' in rpY.istatistik) && !('wHam' in rpY.istatistik) && !('hat' in rpY.pil)
+         && rp.enerji.wh > rpY.enerji.wh && rp.enerji.mah === rpY.enerji.mah);
+    }
+    /* demo karti: Ph (test surerken de), P eki, /pil alanlari, duzeltilmis vson */
+    SK.komut('p0');
+    const p1 = SK.komut('Ph150');
+    const pX = SK.komut('Ph1001');
+    const p0X = SK.komut('Ph050');
+    const pP = SK.komut('P');
+    SK.komut('p1');
+    SK.pilTik(200000);
+    SK.pilTik(200400);                    // 400 ms x 30 = 12 s: yuk acik
+    const sur = SK.komut('Ph80');
+    SK.pilTik(200420);
+    const sayfaHt = SK.pilSayfa(0);
+    SK.komut('p0');
+    SK.komut('Ph0');
+    const alanHt = (a) => (new RegExp('(?:^|\\n)' + a + '=([^\\n]*)').exec(sayfaHt) || [])[1];
+    const vHam = Number(alanHt('v_ham'));
+    const vson = Number(alanHt('vson'));
+    ok('[!] HT (demo karti): `Ph` onay / ret metinleri FIRMWARE`in, test SURERKEN de kabul; `P` satiri ` · hat <n> mOhm` ile biter; /pil sonda hat_mohm, v_ham; vson = v_ham + I x R (pil kutuplari)',
+       p1[0] === '* pil hat direnci 150 mOhm' && pX[0] === '! Ph: 0..1000 mOhm' && p0X[0] === pX[0] && ino.includes(pX[0])
+       && / · hat 150 mOhm$/.test(pP[0]) && sur[0] === '* pil hat direnci 80 mOhm'
+       && /\ndcir=\d\nhat_mohm=80\nv_ham=\d+\.\d{4}\n--\n/.test(sayfaHt) && vson > vHam && vson - vHam < 0.2,
+       JSON.stringify({ p1, pP, sur, vHam, vson }));
   }
 }
 

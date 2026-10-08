@@ -49,7 +49,7 @@ function enumDegerleri(metin, ad) {
 const AILELER = [
   { onek: "sebep.", kodlar: tanimlar(BICIM_H, "KB_SEBEP_"), js: [...K.SEBEP.keys()] },
   { onek: "oturum.tur.", kodlar: tanimlar(BICIM_H, "KAYIT_OTURUM_"), js: [K.OTURUM_OLCUM, K.OTURUM_PIL, K.OTURUM_SKOP] },
-  { onek: "olay.", kodlar: tanimlar(BICIM_H, "KO_"), js: [K.KO_PIL_AYAR, K.KO_DCIR, K.KO_PIL_SONUC, K.KO_SKOP_KAL, K.KO_PLAN] },
+  { onek: "olay.", kodlar: tanimlar(BICIM_H, "KO_"), js: [K.KO_PIL_AYAR, K.KO_DCIR, K.KO_PIL_SONUC, K.KO_SKOP_KAL, K.KO_PLAN, K.KO_PIL_HAT] },
   { onek: "pil.durum.", kodlar: enumDegerleri(PIL_H, "PilDurum") },
   { onek: "pil.hata.", kodlar: enumDegerleri(PIL_H, "PilHata") },
   { onek: "kal.tur.", kodlar: tanimlar(KALGEC_H, "KGT_") },

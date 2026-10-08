@@ -54,6 +54,7 @@ OTURUM_SKOP = 3        # 1C-3: osiloskop gunlugu; hiz_ms = aralik (0 = her tetik
 KO_PIL_AYAR, KO_DCIR, KO_PIL_SONUC = 1, 2, 3
 KO_SKOP_KAL = 4        # 1C-3: skop ADC'nin eFuse egrisi, 17 x i16 mV
 KO_PLAN = 5            # 1C-4: zamanlanmis kayit (bas_unix, sure_s, hiz_ms, plan_no)
+KO_PIL_HAT = 6         # HT3: pil testinin hat direnci (mOhm); noktalar HAM, PC duzeltir
 KNT_AD, KNT_ETIKET, KNT_NOT = 1, 2, 3
 NOT_METIN = 120
 KAL_BICIM = 1
@@ -78,6 +79,7 @@ _OLAY = {                                          # tur -> (yapi, alan adlari)
                    ("durum", "hata", "mah", "wh", "ocv", "v_son", "sure_ms", "dcir_sayisi")),
     KO_SKOP_KAL: (struct.Struct("<17h"), ("mv",)),   # tek alan: 17 elemanli liste
     KO_PLAN: (struct.Struct("<IIII"), ("bas_unix", "sure_s", "hiz_ms", "plan_no")),
+    KO_PIL_HAT: (struct.Struct("<I"), ("hat_mohm",)),
 }
 _NOT_BAS = struct.Struct("<IB3xII")                # hedef, alan, nokta_ms, degistirir
 _AYRINTI_BAS = struct.Struct("<IIIHBx")            # ilk, t0_ms, t0_us, adet, bayrak
@@ -87,7 +89,7 @@ _SKOP_META = struct.Struct("<IIIIffHHH5Bx")
 _SKOP_META_AD = ("t_ms", "sure_ms", "hz", "tdiv_us", "adim", "ofset", "tetik", "esik",
                  "histerezis", "kip", "tetiklendi", "kenar", "on_yuzde", "onay")
 assert _NOKTA.size == NOKTA_BAYT
-assert [_OLAY_BAS.size + y.size for y, _ in _OLAY.values()] == [32, 44, 36, 42, 24]
+assert [_OLAY_BAS.size + y.size for y, _ in _OLAY.values()] == [32, 44, 36, 42, 24, 12]
 assert _SKOP_BAS.size == 12 and _SKOP_META.size == 36
 assert _NOT_BAS.size == 16
 assert _AYRINTI_BAS.size == 16 and _AYRINTI_ORNEK.size == 6
@@ -454,6 +456,41 @@ def amper(kod: float, kal: Kalibrasyon) -> float:
     if isinstance(kod, int):
         d = _kirp(d)
     return d * (kal.i_pga / ADS_SAYIM) / kal.sont_ohm * kal.i_duzeltme
+
+
+# ── HT: pil testinin hat direnci telafisi ─────────────────────────────
+# tasarim/2026-10-07-pil-iyilestirme.md HT2/HT3. Kart NOKTA/AYRINTI'ya HAM kodu yazar;
+# KO_PIL_HAT olayi R'nin degistigi ani soyler. PIL oturumunda her noktanin PIL gerilimi o
+# ANDA gecerli R ile: V_pil = V + I x R. Yalniz PIL oturumu (olcum oturumunda olay yok).
+def pil_v_duzelt(v: float, i: float, hat_mohm: float) -> float:
+    """pil_test.h pil_v_duzelt (float64): R > 0 ise v + i x R (ohm), degilse v AYNEN
+    (I NaN olsa bile — R 0 iken hicbir deger degismez)."""
+    if not hat_mohm > 0:
+        return v
+    return v + i * (hat_mohm / 1000.0)
+
+
+def pil_w_duzelt(w: float, i: float, hat_mohm: float) -> float:
+    """pil_test.h pil_w_duzelt (float64): pilin VERDIGI guc V_pil x I = w + I^2 x R (ohm);
+    R > 0 degilse w AYNEN. Pil testinin Wh'i (kartin sayaci) bununla birikir; NOKTA'nin
+    w_ort'u HAM (kartin o.watt'i) — PC pil Wh'ini yeniden kurarsa bu kurali uygular.
+    JS ikizi ortak/src/kayit.js pilWDuzelt (capraz vektor: uretim/ortak_vektor_kayit.py)."""
+    if not hat_mohm > 0:
+        return w
+    return w + i * i * (hat_mohm / 1000.0)
+
+
+def pil_hat_mohm_at(o, kart_ms: int) -> int:
+    """`kart_ms` aninda gecerli hat direnci (mOhm): zamani kart_ms'den ONCE ya da AYNI an
+    olan SON KO_PIL_HAT olayi (kayit sirasiyla); yoksa 0 (eski kayit / R hic girilmedi).
+    Nokta icin noktanin kart_ms'i (BITTIGI an), ayrintili ornek icin us // 1000. PIL
+    oturumu yeniden baslamada SURMEZ (tek acilis); millis sarmasi isaretli farkla."""
+    r = 0
+    for d in sorted(o.olaylar, key=lambda x: x["sira"]):
+        if (d["tur"] == KO_PIL_HAT and "hat_mohm" in d
+                and _isaretli(kart_ms - d["kart_ms"], 2**32) >= 0):
+            r = d["hat_mohm"]
+    return r
 
 
 def unix_zaman(s: int) -> datetime | None:

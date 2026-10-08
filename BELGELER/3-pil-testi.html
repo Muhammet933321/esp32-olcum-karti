@@ -86,6 +86,23 @@ saniyede 665 örnek ve <b>iç direnç</b> ölçümü.</p>
 </ol>
 <p>Kesme tek bir anlık okumaya değil, gerilimin 1 saniyelik
 <b>kayan ortalamasına</b> bakar: yük altındaki gürültü testi erken bitirmez.</p>
+
+<h2>Kablo ve temas düşümü (hat direnci)</h2>
+<p>Kart pilin gerilimini kutunun içinde ölçer. Akımın geçtiği eksi hatta (kutu içi
+PİL 2 → COM bağlantısı, kablo, krokodil temasları) küçük bir direnç vardır ve yük
+altında pil olduğundan <b>düşük</b> görünür: 1.13 A'de 0.15 Ω yaklaşık
+<b>0.17 V</b> demek. COM ayrı bir ölçüm teli olarak kullanılamaz (kutuda PİL 2 ile
+aynı nokta); bunun yerine kart bu <b>hat direncini</b> (0–1000 mΩ) bilip pil testinin
+gerilimini <b>V + I × R</b> olarak düzeltir. Kısa ve kalın kablo düşümü zaten azaltır.</p>
+<ol>
+<li>Test sürerken (akım en az 0.1 A) multimetreyi pilin <b>kendi kutuplarına</b> tutun</li>
+<li>Panelde <b>Multimetreyle düzelt</b>'e multimetrenin gösterdiğini yazın — kart
+    direnci hesaplayıp hemen uygular (elle: <code>Ph150</code> = 150 mΩ)</li>
+</ol>
+<p class="kucuk">Düzeltme <b>yalnız pil testinin gerilimine</b> uygulanır (kesme, eğri,
+sonuç). Canlı ekran, ölçüm kayıtları, osiloskop ve akım her zaman ham ölçümdür.
+Kayıtta ölçüm ham kalır, direncin değiştiği an kayda yazılır ve Kayıtlar her noktayı o
+andaki dirençle gösterir. Varsayılan 0 = düzeltme yok.</p>
 <div class="no"><b>⚠ Yükü J7'ye bağlayın, J3'e değil.</b> J3 doğrudan
 ölçüme gider; oraya bağlarsanız <b>otomatik kesme çalışmaz</b> ve pil
 aşırı boşalır. Kart bunu başlangıçta denetleyip testi reddediyor, ama

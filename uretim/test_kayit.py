@@ -320,6 +320,96 @@ def bolum_bicim() -> None:
     _bicim_1c2(s)
     _bicim_1c3(s)
     _bicim_1c4(s)
+    _bicim_ht(s)
+
+
+def _guvenli(f):
+    """f() ya da istisnada None — bozuk cozucu iddiayi KIRMIZI yapsin, testi cokertmesin."""
+    try:
+        return f()
+    except Exception:            # noqa: BLE001
+        return None
+
+
+def _bicim_ht(s: dict) -> None:
+    """HT (2026-10-08): pil testinin hat direnci — OLAY KO_PIL_HAT + PC duzeltmesi
+    (ornek_kayit.c bicim_1c4 ile AYNI girdiler)."""
+    import importlib.util
+    c = bytes.fromhex(s["HAT"][0]) if s.get("HAT") else b""
+    ko = getattr(KB, "KO_PIL_HAT", -1)
+    d = {"tur": ko, "kart_ms": 4000000123, "hat_mohm": 153}
+    ht = [int(x) for x in (s.get("HATT") or [])]
+    ok("B71.HT1 OLAY PIL_HAT (8 B olay basi + u32 hat_mohm = 12 B, tur 6) C == Python; coz; "
+       "en buyuk olay (44 B) degismedi",
+       len(c) == 12 and ko == 6 and ht == [6, 12, 44] and c == _guvenli(lambda: KB.olay_paketle(d))
+       and _guvenli(lambda: KB.olay_coz(c)) == d and c[8:12] == (153).to_bytes(4, "little"), f"{c.hex()} {ht}")
+    # S6: HT'den ONCEKI cozucu tur 6'yi tanimiyor — olay ATILMAZ, "ham" ile kalir, oturum
+    # ve noktalar ayni kurulur (eski PC / eski panel yeni firmware'in kaydini okuyabilir)
+    spec = importlib.util.spec_from_file_location("kb_eski", KB.__file__)
+    eski = importlib.util.module_from_spec(spec)
+    sys.modules["kb_eski"] = eski              # dataclass modulunu sys.modules'ta arar
+    try:
+        spec.loader.exec_module(eski)
+    finally:
+        sys.modules.pop("kb_eski", None)
+    eski._OLAY.pop(eski.KO_PIL_HAT, None)
+    b = basla_uret(1000)
+    hat = lambda ms, m: struct.pack("<B3xII", 6, ms, m)     # C bicimi (HT1), Python'dan bagimsiz
+    nok = lambda ms: KB.nokta_paketle(KB.Nokta(ms, 10, 0, 100.0, 90, 110, 200.0, 190, 210,
+                                                 1.0, 0.9, 1.1))
+    akis = [KB.kayit_paketle(KB.T_BASLA, 1, 9, KB.basla_paketle(b)),
+            KB.kayit_paketle(KB.T_OLAY, 2, 9, hat(1000, 150)),
+            KB.kayit_paketle(KB.T_NOKTA, 3, 9, struct.pack("<I", 0) + nok(2000)),
+            KB.kayit_paketle(KB.T_OLAY, 4, 9, hat(5000, 0)),
+            KB.kayit_paketle(KB.T_NOKTA, 5, 9, struct.pack("<I", 1) + nok(6000)),
+            KB.kayit_paketle(KB.T_OLAY, 6, 9, hat(8000, 200)),
+            KB.kayit_paketle(KB.T_NOKTA, 7, 9, struct.pack("<I", 2) + nok(9000))]
+    kay = KB.akis_coz(b"".join(akis))
+    o, oe = KB.oturumlari_kur(kay).get(9), eski.oturumlari_kur(eski.akis_coz(b"".join(akis))).get(9)
+    ok("B71.HT2 (S6) eski cozucu bilinmeyen olay 6'yi 'ham' ile tutar (atmaz, cokmez); oturum "
+       "ve noktalar yeni cozucuyle AYNI",
+       o is not None and oe is not None
+       and [x.get("ham") for x in oe.olaylar] == [(150).to_bytes(4, "little"), bytes(4),
+                                                  (200).to_bytes(4, "little")]
+       and [x.get("hat_mohm") for x in o.olaylar] == [150, 0, 200]
+       and [(sr, dataclasses.astuple(p)) for sr, p in oe.noktalar]
+       == [(sr, dataclasses.astuple(p)) for sr, p in o.noktalar] and len(o.noktalar) == 3,
+       f"{oe and [x.get('ham') for x in oe.olaylar]}")
+    at = getattr(KB, "pil_hat_mohm_at", None)
+    dz = getattr(KB, "pil_v_duzelt", None)
+    zam = [999, 1000, 2000, 4999, 5000, 6000, 7999, 8000, 9000]
+    r = [_guvenli(lambda: at(o, t)) for t in zam] if at and o else []
+    ok("B71.HT3 pil_hat_mohm_at: o ANDA gecerli R = zamani <= t olan SON olay (olaydan ONCE "
+       "0, degisim aninda yeni deger, oncesine UYGULANMAZ); olaysiz oturum 0",
+       r == [0, 150, 150, 150, 0, 0, 0, 200, 200] and at is not None
+       and at(KB.Oturum(1), 5000) == 0,
+       str(r))
+    o2 = KB.Oturum(2)
+    o2.olaylar = [{"tur": ko, "kart_ms": 2**32 - 10, "hat_mohm": 50, "sira": 3},
+                  {"tur": KB.KO_DCIR, "kart_ms": 2**32 - 5, "sira": 4}]
+    ok("B71.HT4 millis sarmasi: 2^32-10'daki olay sarmadan SONRAKI noktaya (t = 5) gecer, "
+       "oncekine (2^32-20) gecmez; baska olaylar yok sayilir",
+       at is not None and at(o2, 5) == 50 and at(o2, 2**32 - 20) == 0
+       and at(o2, 2**32 - 10) == 50)
+    nan = float("nan")
+    p0 = sorted(o.noktalar)[0][1] if o else None
+    v0 = KB.volt(p0.v_ort_kod, b.kal.normal) if p0 else nan
+    i0 = KB.amper(p0.i_ort_kod, b.kal) if p0 else nan
+    ok("B71.HT5 pil_v_duzelt = V + I x R (ohm); R 0 iken V AYNEN (I NaN olsa bile); nokta "
+       "V/I'si HAM koddan, duzeltme o anki R ile (nokta 2000 ms: 150 mOhm)",
+       dz is not None and abs(dz(3.793, 1.128, 153) - 3.965584) < 1e-9
+       and dz(3.0, nan, 0) == 3.0 and dz(3.0, 1.0, 0) == 3.0
+       and abs(dz(v0, i0, at(o, p0.kart_ms)) - (v0 + i0 * 0.150)) < 1e-12 and v0 == v0,
+       f"v0 {v0} i0 {i0}")
+    wz = getattr(KB, "pil_w_duzelt", None)
+    ok("B71.HT6 pil_w_duzelt: pilin verdigi guc V_pil x I = w + I^2 x R (kartin pil Wh "
+       "kurali, sim3_pil 9d); R 0 iken w AYNEN (I NaN olsa bile); V_pil x I ile ayni",
+       wz is not None and _guvenli(lambda: wz(3.0, 1.0, 200) == 3.0 + 0.2
+                                    and wz(3.0, nan, 0) == 3.0
+                                    and abs(wz(3.793 * 1.128, 1.128, 153)
+                                            - dz(3.793, 1.128, 153) * 1.128) < 1e-12
+                                    and abs(wz(-3.7 * 0.5, -0.5, 100)
+                                            - dz(3.7, -0.5, 100) * -0.5) < 1e-12) is True)
 
 
 def _bicim_1c4(s: dict) -> None:

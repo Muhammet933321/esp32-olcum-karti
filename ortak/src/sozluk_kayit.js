@@ -224,6 +224,11 @@ export const SOZLUK_KAYIT = Object.freeze({
   "kg.dcir_kapali": S("Bu testte iç direnç ölçümü kapalıydı — yük hiç kesilmedi, DCIR tablosu yok.",
     "Internal-resistance measurement was off in this test — the load was never cut, no DCIR table."),
   "kg.ocv_evre": S("OCV evresi (yük kapalı)", "OCV phase (load off)"),
+  // HT3 (2026-10-08): hat direnci telafisi (kayit gorunumu K8) — V pil kutuplarindan (V + I x R)
+  "kg.hat": S("Hat direnci telafisi", "Lead-resistance compensation"),
+  "kg.hat_n": S("{n} mΩ", "{n} mΩ"),
+  "kg.hat_degisti": S("{n} mΩ ({k} kez değişti; başta {ilk} mΩ)", "{n} mΩ (changed {k} times; {ilk} mΩ at start)"),
+  "kg.v_ham": S("V ham", "V raw"),
   "kg.firmware": S("Firmware", "Firmware"),
   "kg.kal_no": S("Kalibrasyon", "Calibration"),
   "kg.durum": S("Durum", "Status"),

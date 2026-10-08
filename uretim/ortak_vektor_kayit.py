@@ -171,6 +171,8 @@ def olay_r(r: Rng, tur: int, ms: int) -> dict:
     if tur == KB.KO_PLAN:
         return {"tur": tur, "kart_ms": ms, "bas_unix": r.tam(1_700_000_000, 1_900_000_000),
                 "sure_s": r.tam(0, 30 * 86400), "hiz_ms": r.tam(0, 60000), "plan_no": r.tam(1, 99)}
+    if tur == KB.KO_PIL_HAT:
+        return {"tur": tur, "kart_ms": ms, "hat_mohm": r.tam(0, 1000)}
     raise ValueError(tur)
 
 
@@ -643,6 +645,37 @@ def akis_kisa_kayitlar() -> tuple[str, bytes]:
     return "kisa_kayitlar", bytes(a.b)
 
 
+def akis_pil_hat() -> tuple[str, bytes]:
+    """HT3 (2026-10-08): PIL oturumunda hat direnci olaylari (KO_PIL_HAT, 12 B): test basinda R, test
+    icinde degisim — millis sarmasinin IKI yaninda (isaretli 32 bit fark) —, ayni deger, uzun olay
+    (fazlasi atilir) ve kisa olay (ham: R'ye girmez). Ayri tohum: diger akislar degismez."""
+    r = Rng(0x2A1A)
+    a = Akis()
+    o, s = 8, 2**32
+    b = dataclasses.replace(basla_r(r, KB.OTURUM_PIL, 1000, kal_no=3), kart_ms=s - 2500)
+    a.k(KB.T_BASLA, o, KB.basla_paketle(b))
+    a.k(KB.T_OLAY, o, KB.olay_paketle(olay_r(r, KB.KO_PIL_AYAR, s - 2499)))
+    a.k(KB.T_OLAY, o, KB.olay_paketle({"tur": KB.KO_PIL_HAT, "kart_ms": s - 2499, "hat_mohm": 50}))
+    a.k(KB.T_NOKTA, o, nokta_yuk(0, [nokta_r(r, s - 1500), nokta_r(r, s - 500)]))
+    a.k(KB.T_OLAY, o, KB.olay_paketle({"tur": KB.KO_PIL_HAT, "kart_ms": s - 400, "hat_mohm": 80}))
+    a.k(KB.T_NOKTA, o, nokta_yuk(2, [nokta_r(r, 500), nokta_r(r, 1500)]))
+    a.k(KB.T_OLAY, o, KB.olay_paketle({"tur": KB.KO_PIL_HAT, "kart_ms": 1000, "hat_mohm": 80}))        # ayni deger
+    a.k(KB.T_OLAY, o, KB.olay_paketle({"tur": KB.KO_PIL_HAT, "kart_ms": 2000, "hat_mohm": 0}) + r.bayt(4))
+    a.k(KB.T_OLAY, o, struct.pack("<B3xI", KB.KO_PIL_HAT, 2100) + r.bayt(3))                     # kisa: ham
+    a.k(KB.T_NOKTA, o, nokta_yuk(4, [nokta_r(r, 2500)]))
+    a.k(KB.T_OLAY, o, KB.olay_paketle(olay_r(r, KB.KO_PIL_SONUC, 2600)))
+    a.k(KB.T_BITIR, o, struct.pack("<IB3x", 5, 4))
+    return "pil_hat", bytes(a.b)
+
+
+def _hat_anlari(o) -> list[int]:
+    """pil_hat_mohm_at'in sinandigi anlar: her nokta, her olayin kendisi ve +-1 ms, sarma uclari."""
+    t = {p.kart_ms for _, p in o.noktalar} | {0, 2**32 - 1}
+    for d in o.olaylar:
+        t |= {d["kart_ms"], (d["kart_ms"] - 1) % 2**32, (d["kart_ms"] + 1) % 2**32}
+    return sorted(t)
+
+
 def akis_bilinmeyen_oturum() -> tuple[str, bytes]:
     """S6: oturum numarali bilinmeyen tur oturum ACMAZ ve oturum SIRASINI etkilemez: 50'nin
     ilk kaydi bilinmeyen tur ama ilk VERI kaydi 51'inkinden sonra -> sira [51, 50]; yalniz
@@ -987,6 +1020,10 @@ def akis_vektoru(ad: str, veri: bytes) -> dict:
     # W1: yakalamanin yeri (Y7) ve hizali guc — yalniz ilgili oturumlar
     d["skop_yerleri"] = [[i, j(KB.skop_yerleri(o))] for i, o in ot.items() if o.skoplar]
     d["ayrinti_guc"] = [[i, j(KB.ayrinti_guc(o))] for i, o in ot.items() if o.ayrinti]
+    # HT3: hat direnci — yalniz KO_PIL_HAT olayli oturum varsa (eski akislarin vektoru bayt bayt ayni)
+    hat = [(i, o) for i, o in ot.items() if any(x["tur"] == KB.KO_PIL_HAT for x in o.olaylar)]
+    if hat:
+        d["pil_hat_mohm_at"] = [[i, [[t, KB.pil_hat_mohm_at(o, t)] for t in _hat_anlari(o)]] for i, o in hat]
     return d
 
 
@@ -1079,6 +1116,24 @@ def vakalar() -> list[dict]:
     vaka("skop_paketle", {"no": 2, "ilk": 4, "toplam": 8, "parca": 1, "meta": None,
                           "kodlar": [9, 8, 7, 6]})
     vaka("skop_paketle", {"no": 3, "ilk": 0, "toplam": 0, "parca": 2, "meta": None, "kodlar": []})
+    # HT3: KO_PIL_HAT (12 B) ve pil_v_duzelt — ayri tohum: onceki vakalar degismez
+    rh = Rng(0x2A1B)
+    y = KB.olay_paketle(olay_r(rh, KB.KO_PIL_HAT, rh.tam(0, 2**32 - 1)))
+    vaka("olay_coz", y)
+    vaka("olay_coz", y[:-1])                             # kisa: ham
+    vaka("olay_coz", y + rh.bayt(3))                     # uzun: fazlasi atilir
+    vaka("olay_paketle", olay_r(rh, KB.KO_PIL_HAT, rh.tam(0, 2**32 - 1)))
+    vaka("olay_paketle", {"tur": KB.KO_PIL_HAT, "kart_ms": 1, "hat_mohm": -1})          # struct.error
+    for v, i, h in ((3.793, 1.128, 153), (3.793, 1.128, 0), (4.1, float("nan"), 0), (4.1, float("nan"), 5),
+                    (-0.0, 1.0, 0), (3.0, 0.5, -3), (3.0, 0.5, float("nan")), (3.0, -0.25, 1000),
+                    (2.5, 0.75, 1), (12.0, float("inf"), 0),
+                    (3.2542, 2.5122, 559), (1.2249, 2.5759, 202)):   # i x (R / 1000) != (i x R) / 1000: aritmetik SIRASI
+        vaka("pil_v_duzelt", v, i, h)
+    # HT2 (butunlestirici karari): pilin verdigi guc w + I^2 x R — son ikisi aritmetik SIRASINI ayirt eder
+    for w, i, h in ((3.793 * 1.128, 1.128, 153), (4.0, 1.0, 0), (4.0, float("nan"), 0), (4.0, float("nan"), 5),
+                    (-0.0, 1.0, 0), (3.0, 0.5, -3), (3.0, 0.5, float("nan")), (-1.85, -0.5, 100),
+                    (12.0, float("inf"), 0), (7.3408, 2.1328, 993), (8.3464, 1.4824, 737)):
+        vaka("pil_w_duzelt", w, i, h)
     return out
 
 
@@ -1149,7 +1204,7 @@ def kurallar() -> list[str]:
         KB.T_NOKTA: [nokta_yuk(0, [nokta_r(r, 1), nokta_r(r, 2)])],
         KB.T_DEVAM: [struct.pack("<IIII", 2, 3, 4, 5)], KB.T_BITIR: [struct.pack("<IB3x", 6, 1)],
         KB.T_SAAT: [struct.pack("<III", 7, 8, 9)],
-        KB.T_OLAY: [KB.olay_paketle(olay_r(r, t, 10)) for t in (1, 2, 3, 4, 5)],
+        KB.T_OLAY: [KB.olay_paketle(olay_r(r, t, 10)) for t in (1, 2, 3, 4, 5, 6)],
         KB.T_AYRINTI: [ayrinti_yuk(r, 0, 1, 1000, 0, 3)],
         KB.T_SKOP: [skop_yuk(r, 1, 0, 4, 0, 4), skop_yuk(r, 1, 4, 8, 1, 4)],
     }
@@ -1230,7 +1285,7 @@ def vektorler() -> dict:
             akis_skop(), akis_skop_nan(), akis_coklu(), akis_utf8(), akis_ozel_float(),
             akis_rastgele(0x2A10, 70), akis_rastgele(0x2A11, 70)] + akis_bozuklar() + [
         akis_uzun_kayitlar(), akis_kisa_kayitlar(), akis_bilinmeyen_oturum(), akis_surum_nul(),
-        akis_yerlesim()]
+        akis_yerlesim(), akis_pil_hat()]
     crc_v = [{"veri": j(b"123456789"), "onceki": 0, "cikti": KB.crc(b"123456789")},
              {"veri": j(b""), "onceki": 0x12345678, "cikti": KB.crc(b"", 0x12345678)}]
     for _ in range(12):

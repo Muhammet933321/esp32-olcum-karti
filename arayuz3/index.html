@@ -1362,6 +1362,7 @@
       <div class="ad">{{ o.ad }}</div>
       <div class="deger" :class="{ gecersiz: o.deger === '—' }">{{ o.deger }}<span class="birim">{{ o.deger === '—' ? '' : o.birim }}</span></div>
       <div class="alt-bilgi" data-pil="kaynak">{{ o.kaynak }}</div>
+      <pil-pt v-if="o.a === 'v'" kip="ham"></pil-pt>
     </div>
   </section>
 
@@ -1467,6 +1468,7 @@
         <div class="kpi"><span class="kpi-ad">{{ pl.dcirAralik }}</span><span class="kpi-deger"><pil-pt v-if="pilDcirKapali" kip="kapali" :d="$data"></pil-pt><template v-else>{{ pilDcirAralikYazi }}</template></span></div>
       </div>
       <p class="ipucu">{{ pl.dcirSabit }}</p>
+      <pil-pt kip="hat"></pil-pt>
       <form v-if="!pilCalisiyor" class="pil-form" data-pil="form" @submit.prevent="pilBaslat">
         <h3 class="pil-form-baslik">{{ pl.basla }}</h3>
         <div class="alan">

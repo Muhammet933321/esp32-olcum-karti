@@ -475,17 +475,22 @@ static inline uint8_t kayit_metin_kopyala(char *d, const char *s, uint8_t azami)
  *    KO_PIL_SONUC (36 B) 8 u8 durum · 9 u8 hata · 10 u16 0 · 12 f32 mah ·
  *                 16 f32 wh · 20 f32 ocv · 24 f32 v_son · 28 u32 sure_ms ·
  *                 32 u32 dcir_sayisi
+ *    KO_PIL_HAT   (12 B) 8 u32 hat_mohm  (HT3, 2026-10-08: pil testinin hat direnci; test
+ *                 baslarken R > 0 ise ve test SURERKEN her `Ph`te. Noktalar HAM kalir:
+ *                 PC her noktayi o anda gecerli R ile duzeltir, V_pil = V + I x R)
  * Volt/amper KALIBRE (kartin o anki hesabi); ham kod noktalarda. */
 #define KO_PIL_AYAR  1u
 #define KO_DCIR      2u
 #define KO_PIL_SONUC 3u
 #define KO_PLAN      5u   /* 1C-4: 8 u32 bas_unix · 12 u32 sure_s · 16 u32 hiz_ms · 20 u32 plan_no */
 #define KO_SKOP_KAL  4u   /* 1C-3: 8 i16 mv[17] — skop ADC'nin eFuse egrisi (kal_mv_tab) */
+#define KO_PIL_HAT   6u   /* HT3: 8 u32 hat_mohm (0..1000) */
 #define KAYIT_OLAY_AYAR_BAYT  32u
 #define KAYIT_OLAY_DCIR_BAYT  44u
 #define KAYIT_OLAY_SONUC_BAYT 36u
 #define KAYIT_OLAY_SKOP_KAL_BAYT 42u
 #define KAYIT_OLAY_PLAN_BAYT  24u
+#define KAYIT_OLAY_HAT_BAYT   12u
 #define KAYIT_SKOP_KAL_N      17u
 #define KAYIT_OLAY_AZAMI      44u
 
@@ -557,6 +562,14 @@ static inline uint16_t kayit_olay_plan_paketle(uint32_t kart_ms, const KayitPlan
     kayit_y32(p + 16, o->hiz_ms);
     kayit_y32(p + 20, o->plan_no);
     return (uint16_t)KAYIT_OLAY_PLAN_BAYT;
+}
+
+/* HT3: pil testinin hat direnci (mOhm) — o andan itibaren gecerli */
+static inline uint16_t kayit_olay_hat_paketle(uint32_t kart_ms, uint32_t hat_mohm, uint8_t *p)
+{
+    kayit__olay_bas(p, (uint8_t)KO_PIL_HAT, kart_ms);
+    kayit_y32(p + 8, hat_mohm);
+    return (uint16_t)KAYIT_OLAY_HAT_BAYT;
 }
 
 /* Y2: PLAN olayinin plan numarasi (kayit_olay_plan_paketle'nin tersi, tek alan) */

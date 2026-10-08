@@ -290,7 +290,9 @@ export function pilKayitKur(oturum, { disari, kayitlar = null, kimlik = null, di
   if (!oturum) return { hata: 'pl.hata_kayit_yok', d: {} };
   if (!oturum.basla || oturum.basla.oturum_turu !== OTURUM_PIL) return { hata: 'pl.hata_kayit_tur', d: { no: oturum.id } };
   const s = disari.noktaSerileri(oturum, { kayitlar });
-  const seri = { t: Float64Array.from(s.relMs), v: Float64Array.from(s.vOrt), i: Float64Array.from(s.iOrt) };
+  /* HT3: KO_PIL_HAT varsa egri pil kutuplarindan (V + I x R, canli /pil egrisi gibi); yoksa HAM aynen */
+  const hat = typeof disari.hatDuzeltV === 'function' ? disari.hatDuzeltV(oturum, s.kartMs, s.vOrt, s.iOrt) : null;
+  const seri = { t: Float64Array.from(s.relMs), v: Float64Array.from(hat ? hat.v : s.vOrt), i: Float64Array.from(s.iOrt) };
   const olaylar = [...oturum.olaylar].sort((a, b) => a.sira - b.sira);
   const dcir = olaylar.filter((o) => o.tur === KO_DCIR && 'no' in o).map((o) => {
     const z = disari.anZamani(s.eksen, s.araliklar, o.kart_ms, o.sira);
@@ -313,7 +315,7 @@ export function pilKayitKur(oturum, { disari, kayitlar = null, kimlik = null, di
       sure_ms: so.sure_ms, dcir_sayisi: so.dcir_sayisi,
       durumMetin: ceviriKod('pil.durum.', so.durum, dil), hataMetin: ceviriKod('pil.hata.', so.hata, dil) } : null,
     sebep, sebepMetin: sebep === null ? '' : ceviriKod('sebep.', sebep, dil),
-    dcir,
+    dcir, hat: hat ? hat.ozet : null,
   };
   return { seri, boslukMs: disari.noktaBoslukMs(oturum), ozet, ocv: ocvAr.length ? ocvAr[0] : null };
 }
@@ -411,14 +413,21 @@ const PT_SABLON = `
 <p v-else-if="g && kip === 'fark' && g.fark" class="uyari" data-pil="ayar-fark">{{ g.fark }}</p>
 <span v-else-if="g && kip === 'lejant' && g.lejant" data-pil="lejant-ocv"><i style="height: 10px; background: var(--soluk); opacity: 0.35"></i>{{ g.lejant }}</span>
 <p v-else-if="g && kip === 'dcir'" class="ipucu" data-pil="dcir-kapali">{{ g.dcirKapali }}</p>
-<template v-else-if="g && kip === 'kapali'">{{ g.kapali }}</template>`;
+<template v-else-if="g && kip === 'kapali'">{{ g.kapali }}</template>
+<div v-else-if="g && kip === 'hat' && g.hat" class="pil-form" data-pil="hat">
+  <div class="kpi"><span class="kpi-ad">{{ g.hat.etiket }}</span><span class="kpi-deger" data-pil="hat-deger">{{ g.hat.deger }}</span></div>
+  <component v-if="duz" :is="duz" :r="g.hat.r"></component>
+  <button v-else type="button" @click="duzAc" data-pil="hat-ac">{{ g.hat.ac }}</button>
+</div>
+<div v-else-if="g && kip === 'ham' && g.ham" class="alt-bilgi" data-pil="ham">{{ g.ham }}</div>`;
 
 export const PilPt = {
   name: 'PilPt',
   props: { kip: String, d: Object },
   emits: ['hz', 'dcir'],
   template: PT_SABLON,
-  data() { return { s: null }; },
+  /* HT5 (kip hat / ham): ozet sozluk_pil htGorunum; duzeltici (ekran/pil_hat.js) "Ayarla…"ya basinca iner */
+  data() { return { s: null, duz: null }; },
   created() {
     import('/ortak/sozluk_pil.js').then((s) => {
       this.s = s;
@@ -426,9 +435,15 @@ export const PilPt = {
     }).catch(() => { /* sozluk inmedi: secenekler gizli, baslatma varsayilani gonderir */ });
   },
   computed: {
-    g() { return this.s ? this.s.ptGorunum(this.d) : null; },
+    g() { return !this.s ? null : this.kip === 'hat' || this.kip === 'ham' ? this.s.htGorunum(this.$root) : this.s.ptGorunum(this.d); },
     hz: { get() { return this.d.pilKayitHz; }, set(v) { this.$emit('hz', this.s.tercih('pilKayitHz', this.s.kayitHizNormal(v))); } },
     dcir: { get() { return this.d.pilDcirAcik; }, set(v) { this.$emit('dcir', this.s.tercih('pilDcir', !!v)); } },
+  },
+  methods: {
+    duzAc() {
+      const V = globalThis.Vue;
+      return import('./pil_hat.js').then((m) => { this.duz = V && V.markRaw ? V.markRaw(m.PilHat) : m.PilHat; }, () => {});
+    },
   },
 };
 

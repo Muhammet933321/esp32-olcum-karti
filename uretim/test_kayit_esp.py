@@ -304,7 +304,7 @@ def bolum_kaynak() -> None:
        "kgc_dolmak_uzere(&kalgec)" in ub and "kalgec_uyari_bas()" in st)
     ok("B72.F25 firmware surum adi her bicim eklemesiyle DEGISIR (1C-1: OLAY/NOT kayitlari; "
        "PC/tezgah eski firmware'den ayirt eder)",
-       re.search(r'#define KAYIT_FW_SURUM\s+"A3-PT2"', esp_k) is not None)
+       re.search(r'#define KAYIT_FW_SURUM\s+"A3-PT3"', esp_k) is not None)
     tg = govde(ino_k, "static void kalgec_taslak_guncelle() {")
     ok("B72.F26 etkin kalibrasyon (degerlerin gecmisteki numarasi) tek taramayla bulunur; "
        "`k?`, afis ve /kal/liste onu gosterir",
@@ -410,6 +410,41 @@ def bolum_kaynak() -> None:
        and "kayit_basla_doldur(&m.basla, pil_kayit_hiz_ms())" in kp2
        and "return pil_nokta_ms(ayar.pil_kayit_hz);" in kh
        and "s.v_son = pil.ema_hazir ? pil.v_ema : pil.v_son;" in bt2)
+    # ── HT (2026-10-08): hat direnci telafisi — kayit yapistiricisi. Karar/uygulama
+    #    sim3_pil.py bolum 9 (AVR + .ino izolasyonu), bicim test_kayit.py B71.HT ──
+    kh2 = govde(ino_k, "static void kayit_pil_hat() {")
+    ok("B72.HT1 KO_PIL_HAT olayi {kart_ms, o anki hat_mohm} YALNIZ PIL oturumuna (KM_PIL_OLAY, "
+       "Y1); kayit bolumu yoksa susar; dusen mesaj basilir",
+       "m.tur = KM_PIL_OLAY;" in kh2
+       and "m.n = kayit_olay_hat_paketle(millis(), pil_hat_mohm, m.yuk);" in kh2
+       and 0 <= kh2.find("if (!kayit_bolum) return;") < kh2.find("kayit_mesaj_gonder(&m)")
+       and "DUSTU" in kh2)
+    i_gon = kp2.find("if (kayit_mesaj_gonder(&m)) {")
+    i_els = kp2.find("} else", i_gon)
+    ok("B72.HT2 test baslarken olay YALNIZ R > 0 ise ve BASLAT mesaji kuyruga GIRDIYSE "
+       "(oturum + PIL_AYAR'dan sonra); R = 0'da kayit HT'den onceki gibi",
+       0 <= i_gon < kp2.find("if (pil_hat_mohm) kayit_pil_hat();") < i_els
+       and kp2.count("kayit_pil_hat()") == 1)
+    i_P = ino_k.find("case 'P': {")
+    pP = ino_k[i_P:ino_k.find("case 'p': {", i_P)]
+    ph_ = pP[pP.find("if (s[1] == 'h') {"):pP.find("if (s[1] == 'r' || s[1] == 'd') {")]
+    ok("B72.HT3 test SURERKEN kabul edilen HER `Ph` bir olay yazar (NVS'e yazildiktan ve "
+       "R degistikten SONRA); ret ya da test yokken olay yok",
+       0 <= ph_.find("pil_hat_yaz(mohm)") < ph_.find("if (pil_testi_suruyor()) kayit_pil_hat();")
+       and ph_.count("kayit_pil_hat()") == 1
+       and ph_.find("pil_ph_ayir(s + 2, &mohm)") < ph_.find("pil_hat_yaz(mohm)"))
+    rx = re.compile(r"\b(pil_hat_mohm|pil_hat_ohm|pil_v_duzelt|hat_ohm|v_ham)\b")
+    ko_h = govde(esp_k, "static void kayit_ornek(")
+    ok("B72.HT4 NOKTA/AYRINTI HAM kod ayni: kayit_esp.h (noktaci, halka, kayit_ham) hat "
+       "direncini HIC bilmiyor; ornek olcum_al'in ham kodundan",
+       not rx.search(esp_k) and "kayit_ham" in ko_h
+       and not rx.search(kod(_oku("kayit_nokta.h")) + kod(_oku("kayit_oturum.h"))))
+    ok("B72.HT5 PIL_SONUC v_son = DUZELTILMIS EMA (pil_adim EMA'yi PIL geriliminden kurar — "
+       "sim3_pil 9b); DCIR olayi PIL gerilimiyle",
+       "s.v_son = pil.ema_hazir ? pil.v_ema : pil.v_son;" in bt2
+       and "kayit_pil_dcir(v_pil);" in ino_k
+       and "v = pil_v_duzelt(v, i, a->hat_ohm);" in pa
+       and pa.find("v = pil_v_duzelt(v, i, a->hat_ohm);") < pa.find("p->v_ema = v;"))
     # ── 1C-2: ayrintili kip (davranis B71.A/H/Z'de, burada yapistirici) ──
     hg = govde(ino_k, "static bool kayit__hiz_gecerli(")
     ok("B72.F40 Gb0 = ayrintili kip (her ornek) kabul edilir ve yardimda yaziyor",

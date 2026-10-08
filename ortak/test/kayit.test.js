@@ -128,6 +128,10 @@ for (const a of V.akislar) {
     for (const [id, py] of a.ayrinti_guc) {
       esit("ayrinti_guc", K.ayrintiGuc(ot.get(id)), py, `${a.ad} oturum ${id}`);
     }
+    // HT3: hat direnci (yalniz KO_PIL_HAT olayli oturumu olan akista)
+    for (const [id, py] of a.pil_hat_mohm_at ?? []) {
+      esit("pil_hat_mohm_at", py.map(([t]) => [t, K.pilHatMohmAt(ot.get(id), t)]), py, `${a.ad} oturum ${id}`);
+    }
   });
 }
 

@@ -308,6 +308,11 @@ static void bicim_1c4(void)
     n = kayit_olay_plan_paketle(424242UL, &po, o);
     metin("PLAN "); hexdizi(o, n); satir();
     metin("SEB7 "); ondalik(KB_SEBEP_PLAN); satir();
+    /* HT3: pil testinin hat direnci olayi */
+    n = kayit_olay_hat_paketle(4000000123UL, 153u, o);
+    metin("HAT "); hexdizi(o, n); satir();
+    metin("HATT "); ondalik(KO_PIL_HAT); yaz(' '); ondalik(KAYIT_OLAY_HAT_BAYT); yaz(' ');
+    ondalik(KAYIT_OLAY_AZAMI); satir();
 }
 
 static void senaryo(void)

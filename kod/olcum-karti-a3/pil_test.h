@@ -62,6 +62,17 @@ enum PilHata : uint8_t {
 #define PIL_OCV_MS         5000u   /* PT2: p1 kabulunden sonra yuk KAPALI evre */
 #define PIL_HALKA_EN_AZ_MS 50u     /* PT4: /pil canli egrisi (RAM halkasi) en cok 20/s */
 
+/* ─────────────────────────────────── HT (2026-10-08) — hat direnci telafisi
+ * tasarim/2026-10-07-pil-iyilestirme.md HT1-HT6. Kart gerilimi kutu icinde olcer; akim
+ * yolundaki eksi hat (PIL 2 -> COM ~45 mOhm + harici kablo + temaslar) pil kutuplarindaki
+ * gerilimi I x R kadar DUSUK gosterir (kullanicinin olcumu: kart 3.793 V, multimetre
+ * 3.966 V, 1.128 A). COM ayri algi hatti olamaz (COM = PIL 2 = kart GND). Kullanici `Ph`
+ * ile R girer; YALNIZ pil testinin gerilimi (ve Wh: V_pil x I) duzeltilir: V_pil = V + I x R (pil_adim'in
+ * basinda — kesme EMA'si, v_son, /pil egrisi, DCIR hep PIL gerilimiyle). D satiri, olcum
+ * oturumlari, skop ve akim HAM kalir. R = 0 (varsayilan) iken HAM deger AYNEN gecer:
+ * sim3_pil.py bolum 9 karar izini HT'den onceki koda bit bit karsilastirir. */
+#define PIL_HAT_AZAMI_MOHM 1000u
+
 /* evre (yalniz PIL_CALISIYOR'da anlamli). Sifir = YUK: sifirlanmis yapi OCV demez. */
 #define PIL_EVRE_YUK 0u
 #define PIL_EVRE_OCV 1u
@@ -162,6 +173,7 @@ typedef struct {
     float    v_ema;        /* PT1: yuk altindaki gerilimin EMA'si (tau PIL_KESME_TAU_MS) */
     float    dcir_v_ani;   /* darbenin ilk ornegindeki V (DCIR olayi; eskiden .ino'da) */
     uint32_t yuk_bas_ms;   /* PT2: yukun acildigi an (kesme bundan 1 tau sonra) */
+    float    v_ham;        /* HT2: son ornegin HAM gerilimi (/pil v_ham=); v_son duzeltilmis */
 } PilTest;
 
 static void pil_sifirla(PilTest *p)
@@ -183,6 +195,7 @@ static void pil_sifirla(PilTest *p)
     p->dcir_i_once = p->dcir_v_once = 0.0f;
     p->v_ema = p->dcir_v_ani = 0.0f;
     p->yuk_bas_ms = 0;
+    p->v_ham = 0.0f;
 }
 
 /* Baslatma denetimi — SAF fonksiyon, AVR emulatorunde sinanabiliyor.
@@ -278,6 +291,41 @@ static uint8_t pil_pd_ayir(const char *s)
     return (uint8_t)(s[0] - '0');
 }
 
+/* HT1 `Ph<mohm>` argumani (s = 'h'den sonrasi): yalniz rakam, bastaki sifir yok ("0"
+   haric), en cok 4 hane, 0..PIL_HAT_AZAMI_MOHM. Donus 0 tamam (*mohm yazilir), 1 bicim,
+   2 aralik disi. */
+static uint8_t pil_ph_ayir(const char *s, uint16_t *mohm)
+{
+    uint32_t v = 0u;
+    uint8_t n = 0u;
+    if (!s || !*s) return 1u;
+    if (s[0] == '0' && s[1] != 0) return 1u;
+    for (; *s; s++, n++) {
+        if (*s < '0' || *s > '9' || n >= 4u) return 1u;
+        v = v * 10u + (uint32_t)(*s - '0');
+    }
+    if (v > PIL_HAT_AZAMI_MOHM) return 2u;
+    *mohm = (uint16_t)v;
+    return 0u;
+}
+
+/* HT2: pil kutuplarindaki gerilim. R <= 0 (ya da NaN): HAM deger AYNEN — I NaN olsa bile
+   (v + NaN x 0 = NaN olurdu); R = 0 iken hicbir cikti degismez. */
+static float pil_v_duzelt(float v, float i, float r_ohm)
+{
+    if (!(r_ohm > 0.0f)) return v;
+    return v + i * r_ohm;
+}
+
+/* HT2 (butunlestirici karari 2026-10-08): pilin VERDIGI guc V_pil x I = V x I + I^2 x R —
+   pil testinin Wh sayaci bununla birikir (hatta yanan enerji de pilden cikti). R <= 0 / NaN:
+   w AYNEN. Olcumun (Canli) enerji sayaci enerji_biriktir(o.watt) HAM kalir. */
+static float pil_w_duzelt(float w, float i, float r_ohm)
+{
+    if (!(r_ohm > 0.0f)) return w;
+    return w + i * i * r_ohm;
+}
+
 /* ─────────────────────────────────── PT1/PT2: durum makinesi (her olcumde)
  * PT1 ust. kayan ortalama: a = dt / (tau + dt). Tek dip (~0.15 V, birkac ms)
  * EMA'yi mV duzeyinde oynatir; ortalama kesmenin altina inince ~1.1 tau'da keser. */
@@ -291,14 +339,17 @@ typedef struct {
     float    kesme_v;
     uint32_t azami_s;      /* 0 = sinirsiz; BASLANGICTAN sayilir (OCV evresi dahil) */
     uint32_t halka_ms;     /* /pil egrisine nokta araligi (pil_halka_ms) */
+    float    hat_ohm;      /* HT2: hat direnci (ohm); 0 = telafi YOK. Her cagrida .ino'nun
+                              o anki ayari: test SURERKEN degisirse o ornekten itibaren gecer */
 } PilParam;
 
 /* p1 kabul edildi (pil_baslatilabilir gecti). Yuk KAPALI kalir: once OCV evresi. */
 static void pil_baslat_kur(PilTest *p, uint32_t ms, float v_bos, uint8_t dcir_acik)
 {
     pil_sifirla(p);
-    p->v_bas = v_bos;              /* OCV (yuk yokken) */
+    p->v_bas = v_bos;              /* OCV (yuk yokken; .ino HT2 ile duzeltilmisini verir) */
     p->v_son = v_bos;
+    p->v_ham = v_bos;              /* .ino HAM olcumu ayrica yazar */
     p->durum = PIL_CALISIYOR;
     p->evre = PIL_EVRE_OCV;
     p->dcir_acik = dcir_acik ? 1u : 0u;
@@ -325,6 +376,11 @@ static uint8_t pil_adim(PilTest *p, PilHalka *h, const PilParam *a, uint32_t ms,
                         float v, float i, float w, uint32_t dt_us)
 {
     if (p->durum != PIL_CALISIYOR) return 0u;
+
+    /* --- HT2: bundan sonra her yerde PIL gerilimi (kesme, v_son, egri, DCIR); ham /pil'e */
+    p->v_ham = v;
+    v = pil_v_duzelt(v, i, a->hat_ohm);
+    w = pil_w_duzelt(w, i, a->hat_ohm);          /* Wh: pilin verdigi enerji */
 
     /* --- emniyet: azami sure (baslangictan) */
     if (a->azami_s && (ms - p->baslama_ms) / 1000UL > a->azami_s) return PILA_SURE;

@@ -414,7 +414,7 @@ def bolum7(r):
     if sonuc is None:
         r.bilgi("     avr-g++ bulunamadi — pil_test.h AVR denetimi ATLANDI.")
         r.kosul("  7: AVR araci yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
-        return
+        return None
     uyari, sat = sonuc
     r.kosul("  7: pil_test.h AVR'de UYARISIZ derlendi (-Wall -Wextra) ve sonuna kadar kostu",
             not uyari and "BITTI" in sat, " | ".join(uyari[:2])[:300] or f"{len(sat)} satir")
@@ -517,6 +517,7 @@ def bolum7(r):
             s8 == [0, 1, 255, 255, 255, 255, 255], str(s8))
     r.kosul("  7g: izinli hizlar tam olarak {0, 1, 5, 20, 50}",
             (S.get("S9") or [[]])[0] == [0, 1, 5, 20, 50], str(S.get("S9")))
+    return S
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -559,7 +560,8 @@ def bolum8(r):
     r.kosul("  8: [!] p1 kabulunde yuk ACILMAZ (OCV evresi); kurulum pil_baslat_kur ile, "
             "DCIR ayari teste kopyalanir",
             "pil_yuk(true)" not in pb
-            and "pil_baslat_kur(&pil, millis(), o.volt, pil_dcir_ayar)" in pb
+            and "pil_baslat_kur(&pil, millis(), pil_v_duzelt(o.volt, o.amper, pil_hat_ohm()), "
+                "pil_dcir_ayar)" in pb
             and 0 <= pb.find("pil_baslatilabilir(") < pb.find("pil_baslat_kur("))
     kb = _govde(ino, "static uint8_t pil_kayit_bayrak() {")
     lp = _govde(ino, "void loop() {")
@@ -601,6 +603,195 @@ def bolum8(r):
             and "pil_dcir_ayar ? '1' : '0'" in ps)
 
 
+# ═══════════════════════════════════════════════════════════════════════
+#  BOLUM 9 — HT: HAT DIRENCI TELAFISI (yalniz pil testinin gerilimi)
+# ═══════════════════════════════════════════════════════════════════════
+
+# ornek_pil.cpp S0: S1-S5'in karar izi (her pil_adim donusu + zaman + durum bitleri).
+# HT'den ONCEKI pil_test.h (A3-PT2) ile 2026-10-08'de olculdu. R = 0 (varsayilan) iken
+# HT'li kod AYNI izi uretmeli — kullanicinin sarti: "diger yerleri bozma".
+IZ_PT2 = 1953899180
+
+# R'ye (hat direnci) dokunan isimler. Bunlar .ino'da YALNIZ pil yolunda gecebilir.
+_HT_AD = re.compile(r"\b(pil_hat_mohm|pil_hat_ohm|pil_hat_yaz|pil_v_duzelt|pil_w_duzelt|hat_ohm|v_ham|"
+                    r"kayit_pil_hat|pil_ph_ayir)\b")
+_HT_IZINLI = {"pil_ayar_yukle", "pil_hat_yaz", "pil_hat_ohm", "pil_baslat", "pil_isle",
+              "pil_sayfa", "kayit_pil_hat", "kayit_pil_baslat"}
+_FONK = re.compile(r"^(?:static\s+|inline\s+|void\s+|bool\s+|float\s+|int\s+|uint\w+\s+|"
+                   r"const\s+|\w+\s*\*\s*|\w+\s+)+(\w+)\s*\([^;{}]*\)\s*\{", re.M)
+
+
+def _ht_yerler(metin: str) -> list[tuple[str, int]]:
+    """_HT_AD'in her gecisi: (icinde bulundugu ust duzey fonksiyon ya da 'GENEL', konum)."""
+    basliklar = [(m.start(), m.group(1), m.end() - 1) for m in _FONK.finditer(metin)]
+    yer = []
+    for m in _HT_AD.finditer(metin):
+        ad = "GENEL"
+        onceki = [b for b in basliklar if b[0] < m.start()]
+        if onceki:
+            _, f, ac = onceki[-1]
+            d = 0
+            for k in range(ac, len(metin)):
+                d += {"{": 1, "}": -1}.get(metin[k], 0)
+                if d == 0:
+                    break
+            if m.start() < k:
+                ad = f
+        yer.append((ad, m.start()))
+    return yer
+
+
+def bolum9(r, S):
+    bolum(r, "BOLUM 9 — HT: HAT DIRENCI TELAFISI (V_pil = V + I x R, YALNIZ pil testi)")
+    r.bilgi("  Kart 3.793 V / 1.128 A okurken multimetre pil kutuplarinda 3.966 V: eksi hat")
+    r.bilgi("  (PIL 2 -> COM + kablo + temas) I x R dusuruyor. Kararlar tasarim/2026-10-07-")
+    r.bilgi("  pil-iyilestirme.md HT1-HT6. Kullanici sarti: R = 0 iken HER CIKTI bugunku;")
+    r.bilgi("  Canli D satiri, olcum oturumlari, skop ve akim HER ZAMAN ham.")
+    if S is None:
+        r.kosul("  9: AVR araci yoksa bu ACIKCA soyleniyor", True, "sessiz atlama degil")
+    else:
+        alt(r, "9a · R = 0: karar dizisi HT'den onceki kodla BIT BIT ayni")
+        s0 = (S.get("S0") or [[-1]])[0]
+        r.kosul("  9a: [!] S1-S5'in her pil_adim cagrisinin donusu, zamani, EMA / v_son / mAh / "
+                "DCIR bitleri ve egri noktalari PT2 izine esit (R = 0 varsayilan)",
+                s0 == [IZ_PT2], f"iz {s0} (PT2: {IZ_PT2})")
+        s12 = (S.get("S12") or [[-1] * 6])[0]
+        r.kosul("  9a: pil_v_duzelt R = 0 / eksi / NaN iken HAM degeri bit bit dondurur — I NaN "
+                "olsa bile (v + NaN x 0 = NaN olurdu)",
+                s12[:4] == [1, 1, 1, 1], str(s12[:4]))
+
+        alt(r, "9b · R = 150 mOhm, I = 1.13 A: kesme PIL gerilimiyle (V + 0.17 V)")
+        s10 = {x[0]: x for x in S.get("S10") or []}
+        z, h = s10.get(0, [0] + [-1] * 9), s10.get(150, [150] + [-1] * 9)
+        r.kosul("  9b: ayni ham dizi (ortalama 2.88 V, kesme 3.00) R = 0'da 1 tau'da (1000 ms) "
+                "KESER — telafisiz hali",
+                z[1:3] == [1, 1000] and z[3] <= 30000, f"kesme x{z[1]} @ {z[2]} ms, EMA {z[3] / 1e4}")
+        r.kosul("  9b: [!] R = 150 mOhm'da 20 s'de KESMEZ: EMA 2.88 + 1.13 x 0.15 = 3.0495 V "
+                "(+- 5 mV) — kesmenin 50 mV USTU",
+                h[1:3] == [0, 0] and abs(h[3] - 30495) <= 50, f"kesme x{h[1]}, EMA {h[3] / 1e4}")
+        r.kosul("  9b: v_son ve /pil egri noktasi DUZELTILMIS (ham + 0.1695 V), v_ham ve egri "
+                "akimi HAM (1.13 A); R = 0'da v_son = v_ham",
+                abs(h[4] - h[5] - 1695) <= 1 and h[5] == h[6] and h[7] == h[4]
+                and h[8] == 11300000 and z[4] == z[5] and z[7] == z[4] and z[8] == 11300000,
+                f"R150 v_son {h[4]} v_ham {h[5]} egri {h[7]} I {h[8]} | R0 v_son {z[4]} "
+                f"v_ham {z[5]}")
+
+        alt(r, "9c · test SURERKEN R 150 -> 0: o ORNEKTEN itibaren gecer, oncesine dokunmaz")
+        s11 = (S.get("S11") or [[-1] * 7])[0]
+        ana = 1000.0 * math.log(0.1695 / 0.05)          # EMA 3.1195 -> 2.95, kesme 3.00
+        r.kosul("  9c: degisimden ONCE kesme yok (PIL gerilimi 3.1195 V); degisimden SONRA "
+                "analitik tau ln(0.1695/0.05) = 1.22 s'de (+- 30 ms) bir kez keser",
+                s11[0] == 0 and s11[1] == 1 and 0 < s11[2] and abs(s11[2] - ana) <= 30
+                and s11[3] == 31195 and s11[6] <= 30000,
+                f"once {s11[0]}, kesme x{s11[1]} @ +{s11[2]} ms (analitik {ana:.0f}), "
+                f"EMA once {s11[3] / 1e4}")
+        r.kosul("  9c: egri: degisimden onceki nokta duzeltilmis (3.1195), sonraki HAM (2.95)",
+                s11[4] == 31195 and s11[5] == 29500, f"{s11[4]} -> {s11[5]}")
+
+        alt(r, "9d · formul, DCIR ve Ph ayristirici")
+        r.kosul("  9d: kullanicinin olcumu: 3.793 V + 1.128 A x 153 mOhm = 3.9656 V (multimetre "
+                "3.966); sarj yonunde (I < 0) cikarilir",
+                s12[4:] == [39656, 36204], str(s12[4:]))
+        s4h = (S.get("S4h") or [[-1] * 10])[0]
+        r.kosul("  9d: DCIR PIL geriliminden: R_dcir = (4.0 - (3.6 + 1.0 x 0.1)) / 1.0 = 0.300 "
+                "ohm (hat direnci DCIR'den DUSER); EMA 3.7, darbe zamani ayni",
+                s4h == [1, 2, 2, 300000, 2, 3000, 3000, 0, 37000, 40000], str(s4h))
+        s14 = {x[0]: x[1:] for x in S.get("S14") or []}
+        r.kosul("  9d: [!] Wh pilin VERDIGI enerjiyle (V_pil x I = V x I + I^2 x R): 3.0 V / 2 A / "
+                "10 s -> R 0'da 16.667 mWh, R 200 mOhm'da (6 + 4 x 0.2) x 10 / 3600 = 18.889 mWh; mAh "
+                "ikisinde AYNI (akim ham); pil_w_duzelt R = 0 + I NaN'da w bit bit",
+                s14.get(0) == [166667, 55556, 1] and s14.get(200) == [188889, 55556, 1], str(s14))
+        s13 = {x[0]: x[1:] for x in S.get("S13") or []}
+        bek = {0: [0, 0], 1: [0, 150], 2: [0, 1000], 3: [0, 1], 4: [2, 999]}
+        bek.update({j: [1, 999] for j in range(5, 15)})
+        r.kosul("  9d: Ph yalniz rakam 0..1000 (1001 'aralik', bos/isaret/bosluk/harf/bastaki "
+                "sifir/5 hane 'bicim'); hatada deger YAZILMAZ",
+                s13 == bek, str({j: v for j, v in s13.items() if bek.get(j) != v} or len(s13)))
+
+    alt(r, "9e · .ino: R YALNIZ pil yolunda (D satiri, olcum oturumu, skop, akim HAM)")
+    ino = INO
+    yer = _ht_yerler(ino)
+    i_p = ino.find("    case 'P': {")
+    j_p = ino.find("    case 'p': {", i_p)
+    disari = [(f, ino.count("\n", 0, k) + 1) for f, k in yer
+              if f not in _HT_IZINLI and not (i_p <= k < j_p)
+              and not (f == "GENEL" and ino.startswith("static uint16_t pil_hat_mohm = 0;", k - 16))]
+    r.kosul("  9e: [!] R'ye dokunan her isim (pil_hat_mohm, pil_v_duzelt, hat_ohm, v_ham, ...) "
+            "YALNIZ pil fonksiyonlarinda + `P` komutunda; loop / D satiri / kayit / skop / "
+            "web akisinda YOK",
+            len(yer) >= 15 and not disari, f"{len(yer)} gecis; disarida {disari[:4]}")
+    baska = []
+    for ad in ("olcum3.h", "kayit_esp.h", "kayit_nokta.h", "kayit_oturum.h", "kayit_yonet.h",
+               "kayit_halka.h", "skop_olc.h", "web_akis.h", "web_satir.h", "tipler3.h"):
+        if _HT_AD.search((_KOD / ad).read_text(encoding="utf-8", errors="replace")):
+            baska.append(ad)
+    r.kosul("  9e: olcum (olcum3.h), kayit yazicisi/noktaci/halka, skop, web akisi ve Ayar3 "
+            "R'yi HIC bilmiyor (NOKTA/AYRINTI ham kodu ayni)", not baska, str(baska))
+    lp = _govde(ino, "void loop() {")
+    pi = _govde(ino, "static void pil_isle(")
+    r.kosul("  9e: D satiri HAM ortalamadan (v_top += o.volt, i_top += o.amper); kayit ornegi "
+            "ham; pil_isle `o`yu degistiremez (const)",
+            "v_top += o.volt;" in lp and "i_top += o.amper;" in lp
+            and "kayit_ornek(o.watt, millis(), pil_kayit_bayrak())" in lp
+            and "static void pil_isle(const Okuma3 &o, uint32_t dt_us)" in ino
+            and '"D %.4f %.6f' in lp)
+    r.kosul("  9e: [!] Canli enerji sayaci HAM (enerji_biriktir(o.watt)); pil Wh'i yalniz "
+            "pil_adim'da duzeltilir (pil_isle ham o.watt verir) ve /pil wh, B satiri, PIL_SONUC, "
+            "DCIR olayi, bildirim hep pil.enerji_pJ'den",
+            "if (!ads_hata) enerji_biriktir(o.watt);" in lp
+            and "millis(), o.volt, o.amper, o.watt, dt_us)" in pi
+            and "    w = pil_w_duzelt(w, i, a->hat_ohm);" in PH
+            and 0 <= PH.find("    w = pil_w_duzelt(w, i, a->hat_ohm);")
+            < PH.find("p->enerji_pJ = enerji_ekle3(p->enerji_pJ, w, dt_us);")
+            and ino.count("enerji_wh3(pil.enerji_pJ)") == 6)
+    r.kosul("  9e: pil_isle her ornekte o anki R'yi verir (Ph HEMEN gecer); DCIR olayi ve "
+            "mesaj PIL gerilimiyle",
+            0 <= pi.find("a.hat_ohm = pil_hat_ohm();") < pi.find("pil_adim(&pil, &pil_halka, &a")
+            and "const float v_pil = pil_v_duzelt(o.volt, o.amper, a.hat_ohm);" in pi
+            and "kayit_pil_dcir(v_pil);" in pi and "o.volt" not in pi.replace(
+                "pil_v_duzelt(o.volt, o.amper, a.hat_ohm)", "").replace(
+                "millis(), o.volt, o.amper, o.watt", ""))
+    pb = _govde(ino, "static void pil_baslat() {")
+    r.kosul("  9e: p1: baslatma denetimi HAM olcumle; OCV PIL gerilimi, v_ham ham; BASLADI "
+            "satiri v_bas'i yazar",
+            "pil_baslatilabilir(o.volt, o.amper, ayar.pil_kesme_v)" in pb
+            and "pil.v_ham = o.volt;" in pb and "Serial.print(pil.v_bas, 4);" in pb)
+
+    alt(r, "9f · Ph komutu, NVS, P satiri, /pil (HT1/HT2)")
+    pk = ino[i_p:j_p]
+    ph = pk[pk.find("if (s[1] == 'h') {"):pk.find("if (s[1] == 'r' || s[1] == 'd') {")]
+    r.kosul("  9f: [!] Ph test SURERKEN de kabul edilir (Pr/Pd reddinden ONCE), yanit/ret "
+            "metinleri tasarimdaki gibi; NVS'e yazilamazsa deger degismez",
+            0 <= pk.find("if (s[1] == 'h') {") < pk.find("if (s[1] == 'r' || s[1] == 'd') {")
+            and "pil_testi_suruyor()" not in ph[:max(0, ph.find("pil_hat_yaz(mohm)"))]
+            and "break" not in ph[:max(0, ph.find("pil_ph_ayir("))]
+            and 'F("! Ph: 0..1000 mOhm")' in ph and 'F("* pil hat direnci ")' in ph
+            and 'F(" mOhm")' in ph and "pil_ph_ayir(s + 2, &mohm)" in ph
+            and 0 <= ph.find("pil_hat_yaz(mohm)") < ph.find('F("* pil hat direnci ")'))
+    yz = _govde(ino, "static bool pil_hat_yaz(")
+    yk = _govde(ino, "static void pil_ayar_yukle() {")
+    r.kosul("  9f: KALICI: NVS pilayar/hat (u16), varsayilan 0, bozuk (> 1000) kayit 0 = "
+            "telafi yok; yazilamazsa RAM degismez",
+            'putUShort("hat", mohm)' in yz and 0 <= yz.find("if (n != 2u) return false;")
+            < yz.find("pil_hat_mohm = mohm;") and 'getUShort("hat", 0)' in yk
+            and "h <= PIL_HAT_AZAMI_MOHM ? h : 0u" in yk
+            and "static uint16_t pil_hat_mohm = 0;" in ino
+            and "#define PIL_HAT_AZAMI_MOHM 1000u" in PH)
+    p0 = pk[:pk.find("if (s[1] == 'h') {")]
+    r.kosul("  9f: `P` satirinin SONUNA ' · hat <n> mOhm' (eski alanlar ayni sirada)",
+            0 <= p0.find('F(" saat · DCIR ")') < p0.find('F(" · hat ")')
+            < p0.find("Serial.print(pil_hat_mohm);") < p0.find('Serial.println(F(" mOhm"));'))
+    ps = _govde(ino, "void pil_sayfa() {")
+    son = ps.find('F("\\n--\\n")')
+    r.kosul("  9f: /pil eski alanlar AYNEN, dcir='den sonra hat_mohm= (o anki R) ve v_ham= "
+            "(son ornegin HAMI); ocv/vson/egri PIL gerilimi",
+            0 <= ps.find('F("\\ndcir=")') < ps.find('F("\\nhat_mohm=")')
+            < ps.find('F("\\nv_ham=")') < son
+            and "String(pil_hat_mohm)" in ps and "String(pil.v_ham, 4)" in ps
+            and "String(pil.v_son, 4)" in ps and "String(q.v, 4)" in ps)
+    r.kosul("  9f: yardimda Ph<mohm>", "Ph<mohm>" in ino)
+
+
 def main() -> int:
     r = spice.Rapor()
     r.bilgi("")
@@ -613,8 +804,9 @@ def main() -> int:
     bolum4(r)
     bolum5(r)
     bolum6(r)
-    bolum7(r)
+    S = bolum7(r)
     bolum8(r)
+    bolum9(r, S)
     tamam = r.yazdir()
     tezgah("B21 Pil kapasite testi", [
         ("[!] FAILSAFE — kart calisirken RESET at",
@@ -640,6 +832,11 @@ def main() -> int:
          "Once 5 s yuksuz (OCV, /pil evre=ocv), sonra yuk; test SAATLER surmeli, 2 s'de "
          "bitmemeli. Bitiste PIL_SONUC v_son ~3.0 V (EMA), anlik dip degil. Pd0'da yuk hic "
          "kesilmez; Pr0'da kayitta AYRINTI ornekleri + 1/s nokta"),
+        ("[HT] Hat direnci telafisi — multimetreyle `Ph`",
+         "Pil testi surerken (I >= 0.1 A) multimetreyi pilin KENDI kutuplarina tut: R = "
+         "(V_multimetre - V_kart) / I, `Ph<mohm>`. Sonra /pil vson multimetreyle +-10 mV, "
+         "v_ham degismemis; Canli D satiri ve akim AYNI kalmali (telafi yalniz pil testinde). "
+         "Kullanicinin olcumu: kart 3.793 V, multimetre 3.966 V, 1.128 A -> ~153 mOhm"),
         ("Sarj yonunde test",
          "Sayac ISARETLI ama sarj kaynagi yok — mAh geri saymali. "
          "Kaynak bulununca denenecek"),

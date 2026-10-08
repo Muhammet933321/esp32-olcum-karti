@@ -20,7 +20,9 @@ icinde testin PIL oturumu: PIL_AYAR, noktalar, 4 DCIR olayi, PIL_SONUC, BITIR se
 Pil testi OYNATILIR: OCV evresi (PT2: ilk 5 nokta yuk KAPALI, I = 0, KN_OCV) -> desarj (noktalar test
 adim adim acar) -> DCIR anlari (kartin kurali: 5000 + n x 300 200 ms; zamanlayici yuk acilinca) -> kesme
 (BITTI satiri + G) -> sonuc. PT (A3-PT1): `Pr<hz>` / `Pd<0|1>` FIRMWARE'in onay / ret metinleriyle; `/pil`
-basliginda `evre=` `kayit_hz=` `dcir=`; DCIR yalniz `Pd1` ile (varsayilan KAPALI). Beklenen degerler SAYFADAN
+basliginda `evre=` `kayit_hz=` `dcir=`; DCIR yalniz `Pd1` ile (varsayilan KAPALI). HT (A3-PT3): `Ph<mohm>`
+(test surerken de), `/pil` sonunda `hat_mohm=` `v_ham=` (kart.hat None = eski firmware: alan YOK), `P` satiri
+` · hat <n> mOhm` ile biter; Canli D satiri HAM (`kart.d_yay`). Beklenen degerler SAYFADAN
 DEGIL: mAh / Wh / DCIR sahte kartin kendi sayilari, mAh ekseni sonu bagimsiz Python yamuk
 integrali (sayfanin aldigi metin degerlerinden).
 
@@ -165,11 +167,19 @@ class Kart(TK.Kart):
         self.g = [1, 0, 0]             # durum oturum nokta
         self.hz = 1                    # PT3: kayit hizi (0 = her ornek)
         self.dcir = 0                  # PT5: DCIR (varsayilan KAPALI)
+        self.hat = None                # HT1: hat direnci mOhm; None = eski firmware (/pil'de alan yok, Ph bilinmez)
+        self.ph_ret = False            # HT: kart Ph'yi reddetsin (ret yolunu sinamak icin)
+        self.d_ms = 0
 
     def yay(self, satir: str) -> None:
         with self.kilit:
             for q in self.istemciler:
                 q.put(satir)
+
+    def d_yay(self, v: float, i: float) -> None:
+        """Canli D satiri (firmware bicimi, HAM V/I): D v a w j wh ms ornek menzil durum."""
+        self.d_ms += 200
+        self.yay(f"D {v:.4f} {i:.6f} {v * i:.5f} 0.0000 0.0000000 {self.d_ms} 172 0 0")
 
     def g_satiri(self) -> str:
         d, o, n = self.g
@@ -200,7 +210,11 @@ class Kart(TK.Kart):
                  f"ocv={OCV if self.durum != 'BEKLEMEDE' else 0:.4f}", f"vson={vson:.4f}", f"kesme={self.kesme:.3f}",
                  f"dcir_ani={son['r_ani'] if son else 0:.5f}", f"dcir_otr={son['r_otr'] if son else 0:.5f}",
                  f"dcir_n={dn}", f"sira={n}", f"ilk_sira={bas}", f"kalan={n - bas - adet}",
-                 f"coulomb={mah * 3.6:.3f}", f"evre={self.evre()}", f"kayit_hz={self.hz:.2f}", f"dcir={self.dcir}", "--"]
+                 f"coulomb={mah * 3.6:.3f}", f"evre={self.evre()}", f"kayit_hz={self.hz:.2f}", f"dcir={self.dcir}"]
+        if self.hat is not None:             # HT2: o anki R + son ornegin HAMI (vson duzeltilmis)
+            i_son = SEN["noktalar"][n - 1][2] if n else 0.0
+            satir += [f"hat_mohm={self.hat}", f"v_ham={vson - i_son * self.hat / 1000:.4f}"]
+        satir.append("--")
         for ms, v, i in SEN["noktalar"][bas:bas + adet]:
             satir.append(f"{ms},{v:.4f},{i:.6f}")
         return chr(10).join(satir) + chr(10)
@@ -230,7 +244,13 @@ class Kart(TK.Kart):
         if k == "P":
             # A3-PT1 bicimi (firmware `P`): hiz 0'da " Hz (her ornek)"; DCIR en sonda
             return [f"* pil kesme gerilimi {self.kesme:.3f} V · kayit {self.hz:.2f} Hz{'' if self.hz else ' (her ornek)'}"
-                    f" · azami sure 24 saat · DCIR {'acik' if self.dcir else 'kapali'}"]
+                    f" · azami sure 24 saat · DCIR {'acik' if self.dcir else 'kapali'}"
+                    + ("" if self.hat is None else f" · hat {self.hat} mOhm")]
+        if k[:2] == "Ph" and self.hat is not None:   # HT1 (firmware metinleri; test surerken de, hemen)
+            if self.ph_ret or not re.fullmatch(r"0|[1-9][0-9]{0,3}", k[2:]) or int(k[2:]) > 1000:
+                return ["! Ph: 0..1000 mOhm"]
+            self.hat = int(k[2:])
+            return [f"* pil hat direnci {self.hat} mOhm"]
         if k[:2] in ("Pr", "Pd"):            # PT3 / PT5 (firmware metinleri)
             if self.durum == "CALISIYOR":
                 return ["! P: pil testi suruyor — once p0"]
@@ -698,6 +718,77 @@ def main() -> int:
                ok_["mah"]["d"] == f"{mah:.1f}mAh" and ok_["wh"]["d"] == f"{wh:.3f}Wh" and ok_["mah"]["k"] == "kartın sayacı (her örnek)"
                and ok_["sure"]["d"] == "00:00:40" and ok_["sure"]["k"] == "kartın saati (son nokta)"
                and ok_["v"]["k"] == "canlı (kartın D satırı)", json.dumps(ok_, ensure_ascii=False))
+
+            # ── 5b. HT: hat direnci (eski firmware gizli -> alan gelince ozet; elle Ph; multimetre; ret; I esigi) ──
+            HAT_JS = ("performance.getEntriesByType('resource').map(e => new URL(e.name).pathname)"
+                      ".filter(p => /pil_hat\\.js$|sozluk_hat\\.js$/.test(p))")
+            kart.d_yay(3.9, 0.95)
+            bekle_js(t, "(() => { const e = document.querySelector('[data-pil-okuma=v] .deger'); return e && e.textContent.trim() === '3.900V'; })()", 4)
+            eski_fw = t.js("({hat: !!document.querySelector('[data-pil=hat]'), ham: !!document.querySelector('[data-pil=ham]'),"
+                           " v: document.querySelector('[data-pil-okuma=v] .deger').textContent.trim()})")
+            ok("[!] HT5: eski firmware (/pil'de hat_mohm YOK) -> hat direnci ozeti / duzeltici / 'ham' YOK; V karti Canli D satirinin HAM degeri",
+               eski_fw == {"hat": False, "ham": False, "v": "3.900V"}, json.dumps(eski_fw, ensure_ascii=False))
+            kart.hat = 0
+            ozet0 = bekle_js(t, "(() => { const e = document.querySelector('[data-pil=hat-deger]'); return e && e.textContent.trim(); })()", 6)
+            hat_once = t.js(HAT_JS)
+            ok("[!] HT5: /pil hat_mohm=0 gelince 'Hat direnci: 0 mΩ — telafi yok' + 'Ayarla…'; R 0 iken V karti AYNEN (3.900), 'ham' YOK; duzeltici modulu (pil_hat.js, sozluk_hat.js) HENUZ INMEDI",
+               ozet0 == "0 mΩ — telafi yok" and t.js("document.querySelector('[data-pil=hat-ac]').textContent.trim()") == "Ayarla…"
+               and okumalar(t)["v"]["d"] == "3.900V" and t.js("!document.querySelector('[data-pil=ham]')") is True and hat_once == [],
+               f"{ozet0} · {hat_once}")
+            tikla(t, "[data-pil=hat-ac]")
+            bekle_js(t, "!!document.querySelector('[data-pil=hat-giris]')", 6)
+            hat_sonra = sorted(set(t.js(HAT_JS)))
+            nh = len(kart.komut_listesi)
+            deger_yaz(t, "[data-pil=hat-giris]", "050")
+            tikla(t, "[data-pil=hat-yaz]")
+            s0 = bekle_js(t, "(() => { const e = document.querySelector('[data-pil=hat-sonuc]'); return e && e.textContent.trim(); })()", 3)
+            gitmedi = len(kart.komut_listesi) == nh
+            deger_yaz(t, "[data-pil=hat-giris]", "50")
+            tikla(t, "[data-pil=hat-yaz]")
+            kh = komut_bekle(t, kart, nh, 1)
+            s1 = bekle_js(t, "(() => { const e = document.querySelector('[data-pil=hat-sonuc]'); return e && e.textContent.includes('onayladı') && e.textContent.trim(); })()", 4)
+            v50 = bekle_js(t, "(() => { const e = document.querySelector('[data-pil-okuma=v] .deger'); return e && e.textContent.trim() === '3.947V' && e.textContent.trim(); })()", 4)
+            ham50 = t.js("(() => { const e = document.querySelector('[data-pil-okuma=v] [data-pil=ham]'); return e && e.textContent.trim(); })()")
+            ok("[!] HT5: 'Ayarla…' duzeltici modulunu SIMDI indirir (pil_hat.js + sozluk_hat.js); gecersiz '050' karta GITMEZ (sebep yazili); '50' -> `Ph50`, kartin onayi; V karti hemen pil kutuplarindan 3.9 + 0.95 x 0.050 = 3.947 V, altinda 'ham 3.900 V'",
+               hat_sonra == sorted(["/ekran/pil_hat.js", "/ortak/sozluk_hat.js"]) and gitmedi and s0 == "Hat direnci 0 ile 1000 arasında tam sayı (mΩ) olmalı." and kh == ["Ph50"]
+               and s1 == "Kart onayladı: hat direnci 50 mΩ." and v50 == "3.947V" and ham50 == "ham 3.900 V",
+               f"{hat_sonra} · {s0} · {kh} · {s1} · {v50} · {ham50}")
+            # multimetre: pil kutuplarinda 3.976 V -> R = 50 + (3.976 - 3.9475) / 0.95 = 80 mΩ, TEK onay
+            nm = len(kart.komut_listesi)
+            deger_yaz(t, "[data-pil=hat-mm]", "3,976")
+            tikla(t, "[data-pil=hat-duzelt]")
+            oneri = bekle_js(t, "(() => { const e = document.querySelector('[data-pil=hat-oneri]'); return e && e.textContent.trim(); })()", 3)
+            onaysiz = len(kart.komut_listesi) == nm
+            tikla(t, "[data-pil=hat-gonder]")
+            km = komut_bekle(t, kart, nm, 1)
+            v80 = bekle_js(t, "(() => { const e = document.querySelector('[data-pil-okuma=v] .deger'); return e && e.textContent.trim() === '3.976V' && e.textContent.trim(); })()", 4)
+            ozet80 = bekle_js(t, "(() => { const e = document.querySelector('[data-pil=hat-deger]'); return e && e.textContent.trim() === '80 mΩ' && e.textContent.trim(); })()", 4)
+            ok("[!] HT5: 'Multimetreyle düzelt' (3,976 V) -> oneri 80 mΩ (formul + degerler yazili), ONAYDAN ONCE karta bir sey GITMEZ; 'Gönder' -> `Ph80`; V karti 3.976 (multimetreyle ayni), ozet 80 mΩ",
+               bool(oneri) and oneri.startswith("Yeni hat direnci 80 mΩ (şimdi 50 mΩ): gösterilen 3.947 V, multimetre 3.976 V, akım 0.950 A.")
+               and onaysiz and km == ["Ph80"] and v80 == "3.976V" and ozet80 == "80 mΩ",
+               f"{oneri} · {km} · {v80} · {ozet80}")
+            # kartin reddi OLDUGU GIBI; I < 0.1 A -> multimetre duzeltmesi KAPALI
+            kart.ph_ret = True
+            nr = len(kart.komut_listesi)
+            deger_yaz(t, "[data-pil=hat-giris]", "90")
+            tikla(t, "[data-pil=hat-yaz]")
+            kr = komut_bekle(t, kart, nr, 1)
+            sr = bekle_js(t, "(() => { const e = document.querySelector('[data-pil=hat-sonuc]'); return e && e.textContent.includes('reddetti') && e.textContent.trim(); })()", 4)
+            kart.ph_ret = False
+            kart.d_yay(3.9, 0.05)
+            kapali = bekle_js(t, "document.querySelector('[data-pil=hat-duzelt]').disabled && document.querySelector('[data-pil=hat-mm]').disabled", 4)
+            ipucu = t.js("document.querySelector('[data-pil=hat-mm-ipucu]').textContent.trim()")
+            kart.d_yay(3.9, 0.95)
+            acik = bekle_js(t, "!document.querySelector('[data-pil=hat-duzelt]').disabled", 4)
+            ok("[!] HT5: kartin reddi OLDUGU GIBI ('Kart reddetti: ! Ph: 0..1000 mOhm'), ozet degismez (80 mΩ); I 0.05 A iken multimetre alani ve dugmesi KAPALI (sebep yazili), 0.95 A'de yine acik",
+               kr == ["Ph90"] and sr == "Kart reddetti: ! Ph: 0..1000 mOhm"
+               and t.js("document.querySelector('[data-pil=hat-deger]').textContent.trim()") == "80 mΩ"
+               and kapali is True and "yalnız test sürerken ve akım ≥ 0,1 A" in ipucu and acik is True,
+               f"{kr} · {sr} · {ipucu}")
+            resim("1b-pil-hat-direnci")
+            t.js("document.querySelector('[data-pil=hat]').scrollIntoView({block: 'center'})")
+            t.bekle(0.3)
+            resim("1c-pil-hat-duzeltici")
             # DCIR 1 gorulur
             kart.ilerle(300)
             bekle_js(t, f"{UYG}.pilNokta.length === 340 && {UYG}.pilDcirListe.length === 1", 8)

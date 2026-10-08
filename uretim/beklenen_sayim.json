@@ -55,8 +55,8 @@
   ],
   "B21 Pil kapasite testi (anahtar + kapi + tampon)": [
     [
-      63,
-      63
+      85,
+      85
     ]
   ],
   "B58f Kutu besleme zinciri (zaman benzetimi)": [
@@ -85,20 +85,20 @@
   ],
   "B71 Kayit motoru (bicim + gunluk + elektrik kesme)": [
     [
-      376,
-      376
+      382,
+      382
     ]
   ],
   "B72 Kayit firmware + esitleme (tablo + kaynak + sahte kart)": [
     [
-      254,
-      254
+      259,
+      259
     ]
   ],
   "B73 ortak/ (JS hesap kodu, capraz vektorler)": [
     [
-      31,
-      31
+      32,
+      32
     ]
   ],
   "B3  Sema (ERC + netlist)": [
@@ -119,14 +119,14 @@
       7
     ],
     [
-      82,
-      82
+      85,
+      85
     ]
   ],
   "B7  Arayuz + komut denetimi": [
     [
-      971,
-      971
+      989,
+      989
     ]
   ],
   "B9  Malzeme + kurulum kilavuzu": [

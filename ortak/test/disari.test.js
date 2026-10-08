@@ -605,3 +605,167 @@ test("PT4: her ornek pil oturumu (noktalar + AYRINTI) — ikisi de cozulur; pilC
   assert.equal(ac.length, 4, "ayrinti CSV: baslik + 3 ornek");
   assert.deepEqual(ac.slice(1).map((r) => r[3]), ["10000000", "10002500", "10005000"], "kart_us = t0_us + 4 x dt4");
 });
+
+
+// ── HT3 (2026-10-08) — hat direnci telafisi, ortak/ tarafi: kayit.js KO_PIL_HAT cozumu + pilVDuzelt / pilHatMohmAt
+// (Python kopru/kayit_bicim.py pil_v_duzelt / pil_hat_mohm_at karsiligi), disari.js hatDuzeltV (grafik / CSV / rapor
+// ortak hesabi; her satirda pilHatMohmAt ile AYNI R), pilCsv / ayrintiCsv ek sutunlari (YALNIZ olay varsa) ve rapor.js.
+// Olaysiz oturumun CSV'si Python vektorleriyle bayt bayt ayni kaldi: disari.test.js (degismedi) bunu olcuyor.
+// (Blok kapsami: bu dosyanin yardimcilariyla ad carpismasin.)
+{
+  const kanal = (n) => ({ n, pga: 4.096, kazanc: 1, sifir_ham: 12, tau: 0 });
+  const KAL = { normal: kanal(21), yuksek: kanal(201), i_ofset: 5, i_pga: 0.256, sont_ohm: 0.1, i_duzeltme: 1, sebeke_hz: 0,
+    faz_kal_us: [0, 0] };
+
+  /** PIL (ya da tur) oturumu: BASLA (kart_ms 100000) + olaylar [kart_ms, mohm] + noktalar (kart_ms listesi) + istege bagli AYRINTI. */
+  function akis({ tur = K.OTURUM_PIL, olaylar = [], noktalar = [101000, 102000, 103000, 104000], ayrinti = null, sonra = [] } = {}) {
+    const ot = 7;
+    let sira = 0;
+    const p = [];
+    const ekle = (t, yuk) => { sira++; p.push(K.kayitPaketle(t, sira, ot, yuk)); };
+    ekle(K.T_BASLA, K.baslaPaketle({ oturum_turu: tur, kal_bicim: 1, hiz_ms: ayrinti ? 0 : 1000, unix_s: 1790300000,
+      kart_ms: 100000, acilis: 3, surum: "A3-PT3", kal: KAL, kal_no: 2 }));
+    for (const [ms, mohm] of olaylar) ekle(K.T_OLAY, K.olayPaketle({ tur: K.KO_PIL_HAT, kart_ms: ms, hat_mohm: mohm }));
+    if (ayrinti) ekle(K.T_AYRINTI, K.ayrintiPaketle(ayrinti));
+    const ns = noktalar.map((ms, k) => K.noktaPaketle({ kart_ms: ms, n: 40, bayrak: 0, v_ort_kod: 1500 + 7 * k, v_min_kod: 1490,
+      v_maks_kod: 1510, i_ort_kod: 30000 + 3 * k, i_min_kod: 390, i_maks_kod: 410, w_ort: 1.5, w_min: 1, w_maks: 2 }));
+    const y = new Uint8Array(4 + 36 * ns.length);
+    ns.forEach((b, k) => y.set(b, 4 + 36 * k));
+    if (ns.length) ekle(K.T_NOKTA, y);
+    for (const [ms, mohm] of sonra) ekle(K.T_OLAY, K.olayPaketle({ tur: K.KO_PIL_HAT, kart_ms: ms, hat_mohm: mohm }));
+    const n = p.reduce((a, x) => a + x.length, 0);
+    const b = new Uint8Array(n);
+    let a = 0;
+    for (const x of p) { b.set(x, a); a += x.length; }
+    const kayitlar = K.akisCoz(b);
+    return { o: K.oturumlariKur(kayitlar).get(ot), kayitlar };
+  }
+
+  test("KO_PIL_HAT: 12 B (8 B baslik + u32 hat_mohm, kayit_bicim.h kayit_olay_hat_paketle); cozum, kisa olay ham, fazlasi atilir", () => {
+    const y = K.olayPaketle({ tur: K.KO_PIL_HAT, kart_ms: 0x01020304, hat_mohm: 153 });
+    assert.equal(K.KO_PIL_HAT, 6);
+    assert.deepEqual([...y], [6, 0, 0, 0, 4, 3, 2, 1, 153, 0, 0, 0]);
+    assert.deepEqual(K.olayCoz(y), { tur: 6, kart_ms: 0x01020304, hat_mohm: 153 });
+    assert.deepEqual(K.olayCoz(K.olayPaketle({ tur: 6, kart_ms: 1, hat_mohm: 1000 }).subarray(0, 10)).ham.length, 2);
+    const uzun = new Uint8Array(16);
+    uzun.set(y);
+    assert.equal(K.olayCoz(uzun).hat_mohm, 153);
+  });
+
+  test("pilVDuzelt: R > 0 ise v + i x (R / 1000), degilse v AYNEN (I NaN olsa bile)", () => {
+    assert.equal(K.pilVDuzelt(3.793, 1.128, 153), 3.793 + 1.128 * (153 / 1000));
+    assert.equal(K.pilVDuzelt(3.793, NaN, 0), 3.793);
+    assert.ok(Number.isNaN(K.pilVDuzelt(3.793, NaN, 1)));
+    for (const r of [0, -1, NaN, undefined]) assert.ok(Object.is(K.pilVDuzelt(-0, 2, r), -0));
+  });
+
+  test("pilHatMohmAt: zamani <= an olan SON olay (kayit sirasiyla); yoksa 0; ayni an dahil; isaretli 32 bit fark", () => {
+    const { o } = akis({ olaylar: [[100000, 50], [102500, 80]] });
+    assert.deepEqual([99999, 100000, 101000, 102499, 102500, 104000].map((t) => K.pilHatMohmAt(o, t)), [0, 50, 50, 50, 80, 80]);
+    /* millis sarmasi: olay 2^32 - 10'da, an 5'te (sarmadan sonra) -> gecerli */
+    const s = { olaylar: [{ tur: 6, kart_ms: 2 ** 32 - 10, hat_mohm: 9, sira: 1 }] };
+    assert.equal(K.pilHatMohmAt(s, 5), 9);
+    assert.equal(K.pilHatMohmAt(s, 2 ** 32 - 11), 0);
+    /* kayit sirasi esas (Python ile ayni): sonraki sirada ama ONCEKI zamanli olay kazanir */
+    const t = { olaylar: [{ tur: 6, kart_ms: 200, hat_mohm: 1, sira: 5 }, { tur: 6, kart_ms: 100, hat_mohm: 2, sira: 9 },
+      { tur: 6, kart_ms: 400, hat_mohm: 3, sira: 7 }, { tur: 2, kart_ms: 50, no: 1, sira: 1 }] };
+    assert.equal(K.pilHatMohmAt(t, 300), 2);
+    assert.equal(K.pilHatMohmAt({ olaylar: [] }, 300), 0);
+  });
+
+  test("hatDuzeltV: olay yoksa null; her satirin R'si pilHatMohmAt ile AYNI, V pilVDuzelt ile BIT BIT; ozet {ilk, son, degisim}", () => {
+    assert.equal(D.hatDuzeltV(akis().o, [1], [1], [1]), null);
+    for (const olaylar of [[[100000, 50]], [[100000, 50], [102500, 80]], [[101500, 0], [103000, 120], [103000, 7]], [[90000, 1000]]]) {
+      const { o, kayitlar } = akis({ olaylar });
+      const s = D.noktaSerileri(o, { kayitlar });
+      const h = D.hatDuzeltV(o, s.kartMs, s.vOrt, s.iOrt);
+      s.kartMs.forEach((t, k) => {
+        const r = K.pilHatMohmAt(o, t);
+        assert.equal(h.mohm[k], r);
+        assert.ok(Object.is(h.v[k], K.pilVDuzelt(s.vOrt[k], s.iOrt[k], r)));
+      });
+    }
+    const ozet = (olaylar, sonra = []) => D.hatDuzeltV(akis({ olaylar, sonra }).o, [101000, 104000], [1, 1], [1, 1]).ozet;
+    assert.deepEqual(ozet([[100000, 50]]), { ilk: 50, son: 50, degisim: 0 }, "testin basindaki olay degisim sayilmaz");
+    assert.deepEqual(ozet([[100000, 50], [102500, 80]]), { ilk: 50, son: 80, degisim: 1 });
+    assert.deepEqual(ozet([[102000, 30]]), { ilk: 0, son: 30, degisim: 1 }, "R 0 ile basladi, test icinde girildi");
+    assert.deepEqual(ozet([[100000, 50], [102000, 50], [103000, 60]]), { ilk: 50, son: 60, degisim: 1 }, "ayni deger degisim degil");
+    assert.deepEqual(ozet([[100000, 30], [100500, 50]]), { ilk: 50, son: 50, degisim: 0 }, "ilk satirdan ONCEKI olaylar degisim degil");
+  });
+
+  test("pilCsv: olay yoksa ek sutun YOK; varsa SONA v_pil_V + w_pil_W + hat_mohm (EN v_cell_V, p_cell_W, lead_mohm); enerji_Wh w_pil'den; diger hucreler AYNEN", () => {
+    const ayni = akis();
+    const hat = akis({ olaylar: [[100000, 50], [102500, 80]] });
+    const bicim = { ...D.BICIM_EXCEL_TR };
+    const cY = D.pilCsv(ayni.o, { ...bicim, kayitlar: ayni.kayitlar }).split("\r\n");
+    const cH = D.pilCsv(hat.o, { ...bicim, kayitlar: hat.kayitlar }).split("\r\n");
+    assert.equal(cY.length, cH.length);
+    assert.equal(cH[0], cY[0] + ";v_pil_V;w_pil_W;hat_mohm");
+    const s = D.noktaSerileri(hat.o, { kayitlar: hat.kayitlar });
+    const whSut = cY[0].split(";").indexOf("enerji_Wh");
+    let whTop = 0;
+    const sinir = D.noktaBoslukMs(hat.o);
+    for (let k = 1; k < cY.length - 1; k++) {
+      const h = cH[k].split(";");
+      const y = cY[k].split(";");
+      const ek = h.slice(y.length);
+      const r = [50, 50, 80, 80][k - 1];
+      assert.equal(ek[2], String(r));
+      assert.equal(ek[0], D.sayiYaz(K.pilVDuzelt(s.vOrt[k - 1], s.iOrt[k - 1], r), D.BASAMAK.V, ","));
+      const wp = K.pilWDuzelt(s.wOrt[k - 1], s.iOrt[k - 1], r);
+      assert.equal(ek[1], D.sayiYaz(wp, D.BASAMAK.W, ","));
+      /* enerji_Wh: w_pil'in yamuk integrali (1 s araliklar); onceki her hucre AYNEN */
+      if (k > 1) whTop += (K.pilWDuzelt(s.wOrt[k - 2], s.iOrt[k - 2], [50, 50, 80, 80][k - 2]) + wp) * (s.relMs[k - 1] - s.relMs[k - 2]) / 2 / 3600000;
+      assert.ok(Math.abs(Number(h[whSut].replace(",", ".")) - whTop) < 1e-6, `Wh ${k}: ${h[whSut]} ~ ${whTop}`);
+      assert.deepEqual(h.slice(0, y.length).filter((_, j) => j !== whSut), y.filter((_, j) => j !== whSut), `satir ${k}`);
+      assert.ok(sinir > 0);
+    }
+    assert.equal(cH[cH.length - 1], "");
+    const en = D.pilCsv(hat.o, { ...D.BICIM_EN, kayitlar: hat.kayitlar }).split("\r\n")[0];
+    assert.ok(en.endsWith(",note,v_cell_V,p_cell_W,lead_mohm"), en.slice(-40));
+  });
+
+  test("ayrintiCsv (her ornek pil oturumu): olay varsa ornek basina v_pil_V + hat_mohm (us // 1000 aninda); yoksa tablo ayni", () => {
+    const ayrinti = { ilk: 0, t0_ms: 100100, t0_us: 100100000, bayrak: 0,
+      ornekler: Array.from({ length: 6 }, (_, j) => [1500 + j, 400, j ? 250 : 0, 0]) };   // 1 ms arayla 100.100 … 100.105 s
+    const ayni = akis({ ayrinti, noktalar: [] });
+    const hat = akis({ ayrinti, noktalar: [], olaylar: [[100102, 40]] });
+    const cY = D.ayrintiCsv(ayni.o, { ...D.BICIM_EXCEL_TR, kayitlar: ayni.kayitlar }).split("\r\n");
+    const cH = D.ayrintiCsv(hat.o, { ...D.BICIM_EXCEL_TR, kayitlar: hat.kayitlar }).split("\r\n");
+    assert.equal(cH[0], cY[0] + ";v_pil_V;w_pil_W;hat_mohm");
+    assert.deepEqual(cH.slice(1, -1).map((x) => x.split(";").pop()), ["0", "0", "40", "40", "40", "40"]);
+    const s = D.ayrintiSerileri(hat.o, { kayitlar: hat.kayitlar });
+    const hd = D.hatDuzeltV(hat.o, s.kartUs.map((u) => Math.floor(u / 1000)), s.v, s.i, s.w);
+    assert.ok(Object.is(hd.v[3], K.pilVDuzelt(s.v[3], s.i[3], 40)) && hd.v[0] === s.v[0]);
+    assert.ok(Object.is(hd.w[3], K.pilWDuzelt(s.w[3], s.i[3], 40)) && Object.is(hd.w[0], s.w[0]));
+    assert.equal(D.hatDuzeltV(hat.o, [100100], [1], [1]).w, null, "w verilmezse null");
+  });
+
+  test("rapor: olay varsa V / W istatistigi ve Wh pilden (vHam, wHam, pil.hat); mAh HAM; olay yoksa alan YOK; olcum oturumu HAM", () => {
+    const hat = akis({ olaylar: [[100000, 50], [102500, 80]] });
+    const ayni = akis();
+    const r = oturumRaporu(hat.o, { kayitlar: hat.kayitlar });
+    const rY = oturumRaporu(ayni.o, { kayitlar: ayni.kayitlar });
+    const s = D.noktaSerileri(hat.o, { kayitlar: hat.kayitlar });
+    const bek = Array.from(s.vOrt, (v, k) => K.pilVDuzelt(v, s.iOrt[k], [50, 50, 80, 80][k]));
+    assert.ok(Math.abs(r.istatistik.v.ort - bek.reduce((a, b) => a + b, 0) / 4) < 1e-12);
+    assert.deepEqual(r.istatistik.vHam, rY.istatistik.v);
+    assert.deepEqual(r.pil.hat, { ilk: 50, son: 80, degisim: 1 });
+    assert.ok(!("vHam" in rY.istatistik) && !("wHam" in rY.istatistik) && !("hat" in rY.pil));
+    assert.deepEqual(r.istatistik.wHam, rY.istatistik.w);
+    const wp = Array.from(s.wOrt, (w, k) => K.pilWDuzelt(w, s.iOrt[k], [50, 50, 80, 80][k]));
+    assert.ok(Math.abs(r.istatistik.w.ort - wp.reduce((a, b) => a + b, 0) / 4) < 1e-12);
+    const whBek = [1, 2, 3].reduce((a, k) => a + (wp[k - 1] + wp[k]) * (s.relMs[k] - s.relMs[k - 1]) / 2, 0) / 3600000;
+    assert.ok(Math.abs(r.enerji.wh - whBek) < 1e-12 && r.enerji.wh > rY.enerji.wh, `${r.enerji.wh} ~ ${whBek}`);
+    assert.equal(r.enerji.mah, rY.enerji.mah);
+    assert.deepEqual(r.istatistik.i, rY.istatistik.i);
+    const olc = akis({ tur: K.OTURUM_OLCUM, olaylar: [[100000, 50]] });
+    const olcY = akis({ tur: K.OTURUM_OLCUM });
+    const ro = oturumRaporu(olc.o, { kayitlar: olc.kayitlar });
+    /* olcum oturumunda KO_PIL_HAT olmaz (kart yazmaz); olsa BILE telafi uygulanmaz (yalniz PIL oturumu) */
+    assert.deepEqual(ro.istatistik, oturumRaporu(olcY.o, { kayitlar: olcY.kayitlar }).istatistik);
+    assert.equal(D.hatDuzeltV(olc.o, [101000], [1], [1]), null);
+    const cO = D.oturumCsv(olc.o, { kayitlar: olc.kayitlar });
+    assert.equal(cO, D.oturumCsv(olcY.o, { kayitlar: olcY.kayitlar }), "olcum CSV'si ayni");
+  });
+}

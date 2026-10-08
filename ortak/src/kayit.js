@@ -42,6 +42,7 @@ export const OTURUM_SKOP = 3;
 export const KO_PIL_AYAR = 1, KO_DCIR = 2, KO_PIL_SONUC = 3;
 export const KO_SKOP_KAL = 4;
 export const KO_PLAN = 5;
+export const KO_PIL_HAT = 6;        // HT3: pil testinin hat direnci (mOhm); noktalar HAM, PC duzeltir
 export const KNT_AD = 1, KNT_ETIKET = 2, KNT_NOT = 3;
 export const NOT_METIN = 120;
 export const KAL_BICIM = 1;
@@ -210,6 +211,7 @@ const OLAY = new Map([                      // tur -> [yapi, alan adlari]
     ["durum", "hata", "mah", "wh", "ocv", "v_son", "sure_ms", "dcir_sayisi"]]],
   [KO_SKOP_KAL, [yapi("<17h"), ["mv"]]],    // tek alan: 17 elemanli liste
   [KO_PLAN, [yapi("<IIII"), ["bas_unix", "sure_s", "hiz_ms", "plan_no"]]],
+  [KO_PIL_HAT, [yapi("<I"), ["hat_mohm"]]],
 ]);
 const S_NOT_BAS = yapi("<IB3xII");          // hedef, alan, nokta_ms, degistirir
 const S_AYRINTI_BAS = yapi("<IIIHBx");      // ilk, t0_ms, t0_us, adet, bayrak
@@ -224,7 +226,7 @@ function dogrula(kosul, ne) {
   if (!kosul) throw new Error("kayit.js boyut denetimi: " + ne);
 }
 dogrula(S_NOKTA.boyut === NOKTA_BAYT, "NOKTA");
-dogrula([...OLAY.values()].map(([y]) => S_OLAY_BAS.boyut + y.boyut).join() === "32,44,36,42,24", "OLAY");
+dogrula([...OLAY.values()].map(([y]) => S_OLAY_BAS.boyut + y.boyut).join() === "32,44,36,42,24,12", "OLAY");
 dogrula(S_SKOP_BAS.boyut === 12 && S_SKOP_META.boyut === 36, "SKOP");
 dogrula(S_NOT_BAS.boyut === 16, "NOT");
 dogrula(S_AYRINTI_BAS.boyut === 16 && S_AYRINTI_ORNEK.boyut === 6, "AYRINTI");
@@ -645,6 +647,38 @@ export function amper(kod, kal, tamsayi) {
 }
 
 /** 0 = kartin saati bilinmiyordu: null (1970 tarihi URETILMEZ). */
+// ── HT: pil testinin hat direnci telafisi ─────────────────────────────
+// tasarim/2026-10-07-pil-iyilestirme.md HT2/HT3. Kart NOKTA/AYRINTI'ya HAM kodu yazar; KO_PIL_HAT olayi R'nin
+// degistigi ani soyler. PIL oturumunda her noktanin PIL gerilimi o ANDA gecerli R ile: V_pil = V + I x R.
+/** pil_test.h pil_v_duzelt (float64): R > 0 ise v + i x R (ohm), degilse v AYNEN (I NaN olsa bile). */
+export function pilVDuzelt(v, i, hatMohm) {
+  if (!(hatMohm > 0)) return v;
+  return v + i * (hatMohm / 1000.0);
+}
+
+/** pil_test.h pil_w_duzelt (float64): pilin VERDIGI guc V_pil x I = w + I^2 x R (ohm); R > 0 degilse w AYNEN
+ *  (I NaN olsa bile). NOKTA / AYRINTI w'si HAM (kartin o.watt'i); pil Wh'i bu kuralla. */
+export function pilWDuzelt(w, i, hatMohm) {
+  if (!(hatMohm > 0)) return w;
+  return w + i * i * (hatMohm / 1000.0);
+}
+
+/** `kartMs` aninda gecerli hat direnci (mOhm): zamani kartMs'den ONCE ya da AYNI an olan SON KO_PIL_HAT olayi
+ *  (kayit sirasiyla); yoksa 0. Nokta icin noktanin kart_ms'i, ayrintili ornek icin us // 1000. Isaretli 32 bit fark. */
+export function pilHatMohmAt(o, kartMs) {
+  let r = 0;
+  for (const d of [...o.olaylar].sort((x, y) => x.sira - y.sira)) {
+    if (d.tur === KO_PIL_HAT && "hat_mohm" in d && isaretli32(kartMs - d.kart_ms) >= 0) r = d.hat_mohm;
+  }
+  return r;
+}
+
+/** x mod 2^32, [-2^31, 2^31) araligina (Python _isaretli(x, 2**32)). */
+function isaretli32(x) {
+  const m = ((x % IKI32) + IKI32) % IKI32;
+  return m >= IKI32 / 2 ? m - IKI32 : m;
+}
+
 export function unixZaman(s) {
   return s ? new Date(s * 1000) : null;
 }

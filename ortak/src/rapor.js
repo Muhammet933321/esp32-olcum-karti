@@ -25,6 +25,11 @@
 //    Olcumun icine dusen yakalama (oncesinde ve sonrasinda veri var) uyari `skop_bosluk`.
 //  * Kalibrasyon: cevrim HER ZAMAN oturumun kendi kopyasiyla (kopya); kal_no gecmiste aranir.
 //    Gecmis kaydi sifir ofsetleri haric (kalgec.h kgc__iz) kopyayla ayni degilse 'kal_farkli'.
+//  * HT3 (hat direnci): oturumda KO_PIL_HAT olayi VARSA gerilim istatistigi pil kutuplarindan (disari.hatDuzeltV:
+//    V + I x R, R o ANDA gecerli; nokta min/maks ayni I_ort x R kaydirmasiyla), HAM'i `istatistik.vHam`da; `pil.hat`
+//    = {ilk, son, degisim} (mΩ). W istatistigi ve Wh pilin VERDIGI gucten (w + I^2 x R; kartin pil Wh kurali; nokta
+//    oturumunda W_ort + I_ort^2 x R yaklasimi, min/maks ayni kaydirmayla), HAM `istatistik.wHam`da. mAh HAM (akim
+//    duzeltilmez). Olay yoksa rapor bugunkuyle AYNI (alan da yok).
 
 import {
   OTURUM_PIL, KO_PIL_AYAR, KO_DCIR, KO_PIL_SONUC, skopYerleri,
@@ -34,7 +39,7 @@ import {
 import { istatistik, enerji } from "./istatistik.js";
 import { ceviri, ceviriKod } from "./sozluk.js";
 import {
-  zamanEkseni, noktaSerileri, ayrintiSerileri, anZamani, noktaBoslukMs, AYRINTI_BOSLUK_MS,
+  zamanEkseni, noktaSerileri, ayrintiSerileri, anZamani, noktaBoslukMs, AYRINTI_BOSLUK_MS, hatDuzeltV,
 } from "./disari.js";
 
 export const RAPOR_SURUM = 1;
@@ -201,6 +206,7 @@ export function oturumRaporu(oturum, secenek = {}) {
   let bosluk = { adet: 0, ms: 0 };
   let araliklar;
   let satir;   // {acilis, relMs, gecenMs, unixMs, adet}
+  let hat = null;   // HT3: hatDuzeltV (KO_PIL_HAT yoksa null)
   if (ayrintili) {
     seri = ayrintiSerileri(oturum, { eksen });
     araliklar = seri.araliklar;
@@ -209,10 +215,17 @@ export function oturumRaporu(oturum, secenek = {}) {
     satir = { acilis: seri.acilis, relMs: seri.relMs, gecenMs: gecen, unixMs: unix, adet: seri.adet };
     ist = { v: kanal(seri.v, seri.v, seri.v, seri.sira, gecen), i: kanal(seri.i, seri.i, seri.i, seri.sira, gecen),
       w: kanal(seri.w, seri.w, seri.w, seri.sira, gecen) };
+    hat = hatDuzeltV(oturum, seri.kartUs.map((u) => Math.floor(u / 1000)), seri.v, seri.i, seri.w);
+    if (hat) {
+      ist.vHam = ist.v;
+      ist.v = kanal(hat.v, hat.v, hat.v, seri.sira, gecen);
+      ist.wHam = ist.w;
+      ist.w = kanal(hat.w, hat.w, hat.w, seri.sira, gecen);
+    }
     const birler = new Float64Array(seri.adet).fill(1);
     for (const [p, q] of acilisParcalari(seri.acilis)) {
       const t = seri.relMs.subarray(p, q);
-      const ew = enerji(t, seri.w.subarray(p, q), birler.subarray(p, q),
+      const ew = enerji(t, (hat ? hat.w : seri.w).subarray(p, q), birler.subarray(p, q),
         -Infinity, Infinity, { boslukMs: AYRINTI_BOSLUK_MS });
       const ei = enerji(t, seri.v.subarray(p, q), seri.i.subarray(p, q),
         -Infinity, Infinity, { boslukMs: AYRINTI_BOSLUK_MS });
@@ -237,10 +250,18 @@ export function oturumRaporu(oturum, secenek = {}) {
       i: kanal(seri.iOrt, seri.iMin, seri.iMaks, seri.sira, seri.gecenMs),
       w: kanal(seri.wOrt, seri.wMin, seri.wMaks, seri.sira, seri.gecenMs),
     };
+    hat = hatDuzeltV(oturum, seri.kartMs, seri.vOrt, seri.iOrt, seri.wOrt);
+    if (hat) {
+      const kay = (d, h, o) => Float64Array.from(d, (x, k) => x + (h[k] - o[k]));
+      ist.vHam = ist.v;
+      ist.v = kanal(hat.v, kay(seri.vMin, hat.v, seri.vOrt), kay(seri.vMaks, hat.v, seri.vOrt), seri.sira, seri.gecenMs);
+      ist.wHam = ist.w;
+      ist.w = kanal(hat.w, kay(seri.wMin, hat.w, seri.wOrt), kay(seri.wMaks, hat.w, seri.wOrt), seri.sira, seri.gecenMs);
+    }
     const sinir = noktaBoslukMs(oturum);
     for (const [p, q] of acilisParcalari(seri.acilis)) {
       const t = seri.relMs.subarray(p, q);
-      const ew = enerji(t, seri.wOrt.subarray(p, q), new Float64Array(q - p).fill(1),
+      const ew = enerji(t, (hat ? hat.w : seri.wOrt).subarray(p, q), new Float64Array(q - p).fill(1),
         -Infinity, Infinity, { boslukMs: sinir });
       const ei = enerji(t, seri.vOrt.subarray(p, q), seri.iOrt.subarray(p, q),
         -Infinity, Infinity, { boslukMs: sinir });
@@ -292,6 +313,7 @@ export function oturumRaporu(oturum, secenek = {}) {
       dcir: pilOlay.filter((o) => o.tur === KO_DCIR).map((o) => ({ sira: o.sira, ...olayAlanlari(o),
         kartMs: o.kart_ms, ...an(anZamani(eksen, araliklar, o.kart_ms, o.sira)) })),
     };
+    if (hat) pil.hat = hat.ozet;
   }
 
   // ── skop

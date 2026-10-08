@@ -405,7 +405,9 @@ const SahteKart = (() => {
      PT (A3-PT1, tasarim/2026-10-07-pil-iyilestirme.md): `Pr<hz>` (1 · 5 · 20 · 50 · 0 = her ornek), `Pd1` / `Pd0`
      (DCIR, varsayilan KAPALI), OCV on evresi (p1'den sonra PIL_OCV_MS yuk KAPALI: I = 0, mAh birikmez, DCIR
      zamanlayicisi yuk acilinca baslar), `/pil` basliginda `evre=` `kayit_hz=` `dcir=`. Demo egri halkasi hiz
-     ne olursa olsun 1 Hz (sadelestirme). */
+     ne olursa olsun 1 Hz (sadelestirme).
+     HT (A3-PT3): `Ph<mohm>` (0…1000, test surerken de), pil testinin gerilimi V + I x R (kesme, vson, egri, B satiri);
+     `/pil` basliginda `hat_mohm=` `v_ham=` (son ornegin HAMI); `P` satirinin sonunda ` · hat <n> mOhm`. D satiri HAM. */
   const PIL_HIZ = 30;
   const PIL_AZAMI_V = 38.5;
   const PIL_DCIR_ARALIK_MS = 300000;
@@ -414,7 +416,7 @@ const SahteKart = (() => {
   const PIL_HIZLAR = [1, 5, 20, 50, 0];
   const pil = { durum: 'BEKLEMEDE', hata: '-', kesme: 3.0, ocv: 0, vson: 0, mah: 0, wh: 0, coulomb: 0,
                 dcirAni: 0, dcirOtr: 0, dcirN: 0, nokta: [], tMs: 0, sonDemo: 0, sonKayit: 0, sonDcir: 0, bitisMs: 0,
-                kayitHz: 1, dcir: 0 };
+                kayitHz: 1, dcir: 0, hat: 0, vHam: 0 };
   const pilEvre = () => (pil.durum === 'CALISIYOR' && pil.tMs < PIL_OCV_MS ? 'ocv' : 'yuk');
   const pilOcv = (q) => 4.15 - 0.85 * q - 0.45 * Math.pow(q, 8);
   function pilAn() {
@@ -436,6 +438,12 @@ const SahteKart = (() => {
     return cikti;
   }
   function pilKomut(k) {
+    if (k[0] === 'P' && k[1] === 'h') {           // HT1: hat direnci (test surerken de; hemen)
+      const h = k.slice(2);
+      if (!/^(0|[1-9]\d{0,3})$/.test(h) || Number(h) > 1000) return ['! Ph: 0..1000 mOhm'];
+      pil.hat = Number(h);
+      return [`* pil hat direnci ${pil.hat} mOhm`];
+    }
     if (k[0] === 'P' && k[1] === 'r') {           // PT3: kayit hizi
       const h = /^\d{1,2}$/.test(k.slice(2)) ? Number(k.slice(2)) : NaN;
       if (pil.durum === 'CALISIYOR') return ['! P: pil testi suruyor — once p0'];
@@ -452,7 +460,7 @@ const SahteKart = (() => {
     if (k[0] === 'P') {
       if (k.length === 1) {
         return [`* pil kesme gerilimi ${pil.kesme.toFixed(3)} V · kayit ${pil.kayitHz.toFixed(2)} Hz${pil.kayitHz ? '' : ' (her ornek)'}`
-          + ` · azami sure 24 saat · DCIR ${pil.dcir ? 'acik' : 'kapali'}`];
+          + ` · azami sure 24 saat · DCIR ${pil.dcir ? 'acik' : 'kapali'} · hat ${pil.hat} mOhm`];
       }
       const v = parseFloat(k.slice(1));
       if (!(v >= 0.5) || !(v <= PIL_AZAMI_V)) return ["! P: 0.5 ile 38.5 V arasi olmali (ust sinir MOSFET Vdss'inden)"];
@@ -462,7 +470,7 @@ const SahteKart = (() => {
     if (k[1] === '1') {
       if (gunluk.etkin) return ['! pil: osiloskop gunlugu suruyor — once Gtd'];
       if (pil.durum === 'CALISIYOR') return ['! pil testi zaten suruyor — yeniden baslatmak icin once p0'];
-      Object.assign(pil, { durum: 'CALISIYOR', hata: '-', ocv: 4.15, vson: 4.15, mah: 0, wh: 0, coulomb: 0, dcirAni: 0,
+      Object.assign(pil, { durum: 'CALISIYOR', hata: '-', ocv: 4.15, vson: 4.15, vHam: 4.15, mah: 0, wh: 0, coulomb: 0, dcirAni: 0,
         dcirOtr: 0, dcirN: 0, nokta: [], tMs: 0, sonDemo: 0, sonKayit: 0, sonDcir: 0, bitisMs: 0 });
       const cikti = [`* pil testi BASLADI — OCV ${pil.ocv.toFixed(4)} V, kesme ${pil.kesme.toFixed(3)} V; once ${PIL_OCV_MS / 1000} s yuksuz (OCV), sonra yuk`];
       /* 1C-1: her kabul edilen test kendi PIL oturumunda (acik olcum kaydi kapanir) */
@@ -499,12 +507,14 @@ const SahteKart = (() => {
       pil.mah += a.i * adim / 3600;
       pil.wh += a.v * a.i * adim / 3.6e6;
       pil.coulomb = pil.mah * 3.6;
-      pil.vson = a.v;
+      pil.vHam = a.v;
+      const v = pil.hat ? a.v + a.i * pil.hat / 1000 : a.v;   // HT2: pil kutuplari (R = 0: HAM aynen)
+      pil.vson = v;
       if (pil.tMs - pil.sonKayit >= 1000) {
-        pil.nokta.push({ ms: pil.tMs, v: a.v, i: a.i });
+        pil.nokta.push({ ms: pil.tMs, v, i: a.i });
         pil.sonKayit = pil.tMs;
       }
-      if (!ocv && a.v <= pil.kesme) {
+      if (!ocv && v <= pil.kesme) {
         cikti.push(`* pil testi BITTI — ${pil.mah.toFixed(2)} mAh, ${pil.wh.toFixed(4)} Wh`, ...pilDurdur('BITTI', '-'));
         break;
       }
@@ -521,7 +531,8 @@ const SahteKart = (() => {
       `ocv=${pil.ocv.toFixed(4)}`, `vson=${pil.vson.toFixed(4)}`, `kesme=${pil.kesme.toFixed(3)}`,
       `dcir_ani=${pil.dcirAni.toFixed(5)}`, `dcir_otr=${pil.dcirOtr.toFixed(5)}`, `dcir_n=${pil.dcirN}`,
       `sira=${n}`, `ilk_sira=${bas}`, `kalan=${n - bas - adet}`, `coulomb=${pil.coulomb.toFixed(3)}`,
-      `evre=${pilEvre()}`, `kayit_hz=${pil.kayitHz.toFixed(2)}`, `dcir=${pil.dcir}`, '--'];
+      `evre=${pilEvre()}`, `kayit_hz=${pil.kayitHz.toFixed(2)}`, `dcir=${pil.dcir}`,
+      `hat_mohm=${pil.hat}`, `v_ham=${pil.vHam.toFixed(4)}`, '--'];
     for (let k = bas; k < bas + adet; k++) {
       const q = pil.nokta[k];
       l.push(`${q.ms},${q.v.toFixed(4)},${q.i.toFixed(6)}`);
