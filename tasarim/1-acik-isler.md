@@ -297,7 +297,8 @@ osiloskop yakalama, pil sayfası (`/pil` http), Kayıtlar (telefon kopyası) + k
 rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşitleme, ACİL DURDUR (p0 49 ms).
 
 - **5P-1 Honor kabulü** (asıl telefon, Android 16, hotspot sahibi): aynı tur; kart Honor'un hotspot'undayken.
-- **5P-2 telefonda denenmeyenler:** Karşılaştırma, Ayarlar → Ağ (yalnız okuma: `Nl`/`Nt`), bildirimler
+- **5P-2 (2026-10-08 gecesi Xiaomi + gerçek kart: Karşılaştırma 2 kayıt, kayda ad ver / geri al, çöp kutusu
+  taşı / geri al, Ayarlar → Ağ liste + tarama GEÇTİ)** kalan denenmeyenler: bildirimler
   (izleyici ve MQTT yeni kabukla), grafiklerde parmakla yakınlaştırma/kaydırma (K19), TalkBack.
 - **5P-3 debug APK'da WebView incelenebilir:** `webContentsDebuggingEnabled: false` olsa da Android hata
   ayıklanabilir uygulamada WebView incelemesini açıyor (adb + USB hata ayıklaması gerekir). Çözüm imzalı
@@ -320,4 +321,6 @@ rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşit
 - **PT-4 açılış bütçesi:** EU31 262 122 / 262 144 B, açılış sözlüğü ~19 493 / 19 500 B — yeni açılış metni tembel
   modüle; bütçe kararı gerekebilir.
 - **CA-1 (A3-CA3)** hotspot kapatma süresi kartta ölçülmedi (CA2'de 2:30; hedef < 1 dk).
-
+- **PT-5 kart A3-PT2'de (2026-10-08 03:00):** açılış `Bellek (CA-4): skop=PSRAM`, `QH` ayirma_hata=0; skop yakalaması
+  A3-PT1 ile A/B aynı (Vort −46.4 V — o an girişte kullanıcının bağlantısı vardı, V kanalı 11.2 V). Kartın kendi
+  paneli yazıldı (`/kunye.json` d14bf5f80497).
