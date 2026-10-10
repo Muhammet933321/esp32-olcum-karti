@@ -53,6 +53,8 @@ import yerlesim3 as Y                                     # noqa: E402
 import yerlesim3_adim as AD                               # noqa: E402
 import yerlesim3_belge as B                               # noqa: E402
 import yerlesim3_veri as V                                # noqa: E402
+import kutu_en as KE                                      # noqa: E402
+from belge_dil import DILLER, cikis_yolu, dil_baglantisi  # noqa: E402
 
 BELGE = KOK / "BELGELER" / "8-kutu.html"
 JAK_ARASI_EN_AZ = 20.0      # mm — 4 mm muzlu fisin govdesi + parmak payi
@@ -5376,6 +5378,13 @@ def arayuz_html(nl, parcalar) -> tuple[str, dict]:
 
 
 def yaz(nl, parcalar, hedef: Path) -> None:
+    """Yalniz Turkce sayfa (eski giris noktasi; main() iki dili birlikte yazar)."""
+    hedef.parent.mkdir(parents=True, exist_ok=True)
+    hedef.write_text(sayfa_uret(nl, parcalar), encoding="utf-8")
+
+
+def sayfa_uret(nl, parcalar) -> str:
+    """Turkce sayfa (ana metin). Ingilizcesi bundan cevrilir: ingilizce()."""
     global _BILGI_STOK, _BILGI_BICIM
     stok = B.Stok()
     _BILGI_STOK = stok                                  # B57: kartlardaki "Stok" satiri
@@ -5584,7 +5593,7 @@ __JS_3B__
     sayfa = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Kutu ve panel — Ölçüm Kartı</title><style>{B.stil()}{ek_stil}</style></head><body>
-<div class="kutu">{MN.serit('8-kutu.html')}
+<div class="kutu">{MN.serit(BELGE.name)[:-len("</nav>")] + dil_baglantisi(BELGE.name, "tr") + "</nav>"}
 <h1>Kutu ve panel</h1>
 <p class="alt">Çubuktan kutu, panel delikleri, şönt ve Q1, jaklar, kablolar — alt adım alt adım,
 her birinin çizimi ve 3B görünümüyle. Sonunda hangi ölçümü nereden yapacağın yazıyor.</p>
@@ -5609,8 +5618,128 @@ aynı sayılardan üretiliyor.</p>
     kartsiz = sorted({html_unescape(k) for k in re.findall(r'data-bi="([^"]+)"', sayfa)} - set(gomulu))
     if kartsiz:
         raise AssertionError(f"belgede karti olmayan parca anahtari: {kartsiz[:5]}")
-    hedef.parent.mkdir(parents=True, exist_ok=True)
-    hedef.write_text(sayfa, encoding="utf-8")
+    return sayfa
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  BELGE DILI — Ingilizce sayfa (BELGELER/en/8-kutu.html) ve denetimi
+# ═══════════════════════════════════════════════════════════════════════
+def _nav_en() -> str:
+    """Ingilizce gezinme seridi (+ Turkceye donus baglantisi)."""
+    try:
+        nav = MN.serit(BELGE.name, dil="en")
+    except TypeError:                                   # belge_menu henuz tek dilli
+        nav = MN.serit(BELGE.name)
+        for d, a in MN.MENU:
+            nav = re.sub(rf'(href="{re.escape(d)}"[^>]*>){re.escape(a)}</a>',
+                         lambda m: m.group(1) + KE.MENU_EN.get(d, a) + "</a>", nav, count=1)
+    return nav[:-len("</nav>")] + dil_baglantisi(BELGE.name, "en") + "</nav>"
+
+
+def _gorunur(sayfa: str) -> list[str]:
+    """Ingilizce sayfanin GORUNUR metinleri: metin dugumleri, aria-label/title,
+    alt adim basliklari, parca kartlari, 3B adlar ve JS arayuz dizgileri.
+    Atlananlar: <style>, <code> (dosya adi, komut), lang="tr" ogeler (panelin
+    ozgun etiketi, envanter kaydi — ceviri degil VERI), data-* anahtarlari,
+    makine verisi (application/json)."""
+    from html.parser import HTMLParser
+
+    class Ayir(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.yigin, self.out = [], []
+
+        def handle_starttag(self, et, nit):
+            n = dict(nit)
+            atla = et in ("style", "code", "script") or n.get("lang") == "tr"
+            if not (atla or any(x for _e, x in self.yigin)):
+                self.out += [n[k] for k in KE.CEVRILEN_OZELLIK if n.get(k)]
+            if et not in ("br", "img", "meta", "link", "input", "hr", "wbr", "rect", "circle",
+                          "line", "polyline", "polygon", "path"):
+                self.yigin.append((et, atla))
+
+        def handle_startendtag(self, et, nit):
+            n = dict(nit)
+            if not any(x for _e, x in self.yigin):
+                self.out += [n[k] for k in KE.CEVRILEN_OZELLIK if n.get(k)]
+
+        def handle_endtag(self, et):
+            for i in range(len(self.yigin) - 1, -1, -1):
+                if self.yigin[i][0] == et:
+                    del self.yigin[i:]
+                    break
+
+        def handle_data(self, veri):
+            if not any(x for _e, x in self.yigin):
+                self.out.append(veri)
+
+    p = Ayir()
+    p.feed(sayfa)
+    p.close()
+    out = p.out
+    js = re.search(r"<script>\n\(function\(\)\{.*?</script>", sayfa, re.S).group(0)
+    S = json.loads(re.search(r"var S = (\[.*?\]);\n", js, re.S).group(1))
+    out += [x["b"] for x in S] + [x["ab"] for x in S]
+    BI = json.loads(re.search(r"var BILGI = (\{.*?\});\n", js, re.S).group(1).replace("<\\/", "</"))
+    for b in BI.values():
+        out += [b["t"], b["s"], b.get("n", "")]
+        for r in b.get("r", []):
+            out.append(r[0])
+            if not (r[0] == "Stock" and KE.STOK_DUZ.match(r[1])):
+                out.append(r[1])
+    SA = json.loads(re.search(r"var SAHNE = (\[.*?\]);\n", js, re.S).group(1))
+    out += [b.get("ad", "") for b in SA]
+    # JS kodundaki dizgi sabitleri (veri tablolari cikarildiktan sonra)
+    kod = re.sub(r"var (S|BILGI|SAHNE) = .*?;\n", "", js, flags=re.S)
+    kod = re.sub(r"^\s*//.*$", "", kod, flags=re.M)
+    out += [m.group(2) for m in re.finditer(r"(['\"])((?:\\.|(?!\1).)*)\1", kod)]
+    # dizgi DISINDAKI kod da: veriye bagli bir desen (ör. /\(iç\)$/) cevrilen adla ayrisirsa
+    kod = re.sub(r"(['\"])((?:\\.|(?!\1).)*)\1", "", re.sub(r"//[^\n]*", "", kod))
+    out += re.findall(r"\S*[çğıöşüÇĞİÖŞÜ]\S*", kod)
+    return out
+
+
+def ingilizce(tr: str) -> tuple[str, Y.Denetim]:
+    """Turkce sayfadan Ingilizce sayfa + dil denetimi (ayri sayac: ana denetimin
+    iddia sayisi degismez)."""
+    print("\n  === BELGE DILI (TR ana, EN ceviri: kutu_en.py) ===")
+    DD = Y.Denetim()
+    en, C = KE.sayfa_cevir(tr, _nav_en())
+    eksik = list(C.eksik)
+    DD.kosul("Sayfadaki her Turkce metin biriminin Ingilizce karsiligi var (kutu_en.SOZLUK)",
+             not eksik and not KE.CIFT,
+             (f"{len(eksik)} eksik: " + " | ".join(repr(k[:60]) for k in eksik[:4]) if eksik else "")
+             + (f" · {len(KE.CIFT)} cift anahtar: {KE.CIFT[:3]}" if KE.CIFT else ""))
+    yer = [k for k, v in KE.METIN.items() if KE.yer_tutucular(k) != KE.yer_tutucular(v)]
+    DD.kosul("Yer tutucular ({0}, {ad}, {S0}) iki dilde ayni", not yer,
+             " | ".join(repr(k[:50]) for k in yer[:4]))
+    etk = sorted({x for v in KE.METIN.values() for x in re.findall(r"«([^»]*)»", v)} - set(KE.ETIKET))
+    DD.kosul("«panel etiketi» isaretleri ETIKET tablosunda", not etk, str(etk[:5]))
+    tr_harfli = [k for k, v in KE.METIN.items()
+                 if KE.TR_HARF.search(re.sub(r"«[^»]*»|\{[^{}]*\}", "", v)) and v != k]
+    DD.kosul("Cevirilerde (« » disinda) Turkceye ozgu harf yok", not tr_harfli,
+             " | ".join(repr(KE.METIN[k][:50]) for k in tr_harfli[:4]))
+    DD.kosul("JS arayuz metinlerinin hepsi betikte bulundu ve cevrildi", not C.yer_hata,
+             " | ".join(C.yer_hata[:3]))
+    kullanilan_etiket = {x for k in C.kullanilan for x in re.findall(r"«([^»]*)»", KE.METIN[k])}
+    DD.kosul("Panel etiketleri ilk geciste kutudaki ozgun yazisiyla (parantez icinde) veriliyor",
+             kullanilan_etiket <= C.etiket_gorulen, str(sorted(kullanilan_etiket - C.etiket_gorulen)))
+    kelime = sorted({k for parca in _gorunur(en)
+                     for k in re.findall(r"[^\s<>()\[\]{},.;:!?\"'“”‘’«»/—–=+*|`]+", parca)
+                     if KE.TR_HARF.search(k) and k not in KE.TR_IZIN})
+    DD.kosul("Ingilizce sayfada Turkceye ozgu harf iceren gorunur metin yok (izin listesi: kutu_en.TR_IZIN)",
+             not kelime, f"{len(kelime)} kelime: " + ", ".join(kelime[:12]) if kelime else "")
+    kacak = sorted(set(re.findall(r"\{S?\d+\}|«[^»]*»", en)))
+    DD.kosul("Ingilizce sayfada doldurulmamis yer tutucu ya da «isaret» kalmadi", not kacak, str(kacak[:5]))
+    DD.kosul("Ingilizce sayfa lang=\"en\" ve Turkce esine baglanti veriyor",
+             '<html lang="en">' in en and dil_baglantisi(BELGE.name, "en") in en)
+    artik = sorted(set(KE.METIN) - C.kullanilan)
+    if artik:
+        # bilgi, kirmizi degil: envanterle (yerelde) cikan satirlar ya da Turkcesi degismis metnin eski cevirisi
+        print(f"       bilgi: {len(artik)} ceviri bu kosuda kullanilmadi: "
+              + " | ".join(repr(s[:40]) for s in artik[:3]))
+    print(f"  {DD.gecti}/{DD.gecti + DD.kaldi} dil dogrulamasi gecti")
+    return en, DD
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -5627,8 +5756,16 @@ def main() -> int:
     print(f"  {D.gecti}/{D.gecti + D.kaldi} dogrulama gecti"
           + ("  ⚠ EKSIK KOSU: envanter okunamadi, 7 · STOK bolumu atlandi" if STOK_ATLANDI else ""))
     if D.kaldi == 0 and not a.belge_yok:
-        yaz(nl, parcalar, BELGE)
-        print(f"  belge: {BELGE.relative_to(KOK)}")
+        sayfalar = {"tr": sayfa_uret(nl, parcalar)}
+        sayfalar["en"], DD = ingilizce(sayfalar["tr"])
+        # Turkce sayfa cevirilere bagli degil: her zaman yazilir. Ingilizce
+        # yalnizca dil denetimi gecerse (yarim cevrilmis sayfa yazilmaz).
+        for dil in DILLER:
+            if dil == "tr" or DD.kaldi == 0:
+                yol = cikis_yolu(BELGE.parent, BELGE.name, dil)
+                yol.write_text(sayfalar[dil], encoding="utf-8")
+                print(f"  belge: {yol.relative_to(KOK).as_posix()}")
+        return 0 if DD.kaldi == 0 else 1
     return 0 if D.kaldi == 0 else 1
 
 
