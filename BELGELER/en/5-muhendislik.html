@@ -1,0 +1,143 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Engineering — Measurement Board</title><style>
+:root{color-scheme:light dark;
+  --yz:#fcfcfb; --yz2:#f4f3f0; --cizgi:#e2e0da;
+  --m1:#0b0b0b; --m2:#52514e; --m3:#77756d;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --iyi:#0a7d3f; --uyari:#b25e00; --kotu:#b3261e;}
+@media (prefers-color-scheme:dark){:root:not([data-tema="acik"]){
+  --yz:#1a1a19; --yz2:#232322; --cizgi:#3a3a37;
+  --m1:#ffffff; --m2:#c3c2b7; --m3:#9a988e;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --iyi:#4ec27d; --uyari:#e0a350; --kotu:#f2837a;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--yz);color:var(--m1);
+  font:16px/1.65 -apple-system,"Segoe UI",Roboto,sans-serif;}
+.kutu{max-width:960px;margin:0 auto;padding:32px 22px 80px}
+h1{font-size:30px;line-height:1.25;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:21px;margin:44px 0 4px;letter-spacing:-.01em;
+   padding-top:18px;border-top:1px solid var(--cizgi)}
+h3{font-size:16px;margin:26px 0 6px;color:var(--m2);
+   text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+p{margin:10px 0}
+.alt{color:var(--m2);font-size:15px;margin:0 0 26px}
+.ust{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px;font-size:14px}
+.ust a{color:var(--m2);text-decoration:none;padding:5px 11px;
+  border:1px solid var(--cizgi);border-radius:99px}
+.ust a:hover{color:var(--m1);border-color:var(--m3)}
+.ust a.bu{background:var(--m1);color:var(--yz);border-color:var(--m1)}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--cizgi)}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+   color:var(--m3);font-weight:600}
+td.s,th.s{text-align:right;font-variant-numeric:tabular-nums}
+.kart{background:var(--yz2);border:1px solid var(--cizgi);
+  border-radius:12px;padding:16px 18px;margin:14px 0}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;margin:16px 0}
+.kpi div{background:var(--yz2);border:1px solid var(--cizgi);
+  border-radius:10px;padding:12px 14px}
+.kpi b{display:block;font-size:24px;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--m2);text-transform:uppercase;
+  letter-spacing:.05em}
+.uy{border-left:3px solid var(--uyari);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+.ok{border-left:3px solid var(--iyi);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+.no{border-left:3px solid var(--kotu);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+figure{margin:22px 0}
+figcaption{font-size:14px;color:var(--m2);margin-top:8px}
+svg{max-width:100%;height:auto;display:block}
+code{background:var(--yz2);padding:1px 6px;border-radius:5px;
+  font:14px/1 ui-monospace,Consolas,monospace}
+.kucuk{font-size:14px;color:var(--m2)}
+.rozet{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;
+  background:var(--yz2);border:1px solid var(--cizgi);color:var(--m2)}
+pre{background:var(--yz2);border:1px solid var(--cizgi);border-radius:8px;
+  padding:10px 14px;margin:10px 0;overflow-x:auto;white-space:pre;
+  font:14px/1.5 ui-monospace,Consolas,monospace}
+.ust a.dil{margin-left:auto}
+</style></head><body>
+<div class="kutu"><nav class="ust"><a href="index.html">Start</a><a href="1-ne-yapabilir.html">What it can do</a><a href="2-olcumler.html">Measurements</a><a href="3-pil-testi.html">Battery test</a><a href="6-ag.html">Connecting</a><a href="9-pc-uygulamasi.html">PC app</a><a href="2-malzemeler.html">Parts</a><a href="4-kurulum.html">Assembly</a><a href="7-yerlesim.html">Layout</a><a href="8-kutu.html">Enclosure</a><a href="5-muhendislik.html" class='bu'>Engineering</a><a class="dil" href="../5-muhendislik.html" lang="tr">Türkçe</a></nav>
+<h1>Engineering</h1><p class="alt">How it works — optional reading</p>
+
+<p>This page explains <b>how it works</b>. You don't need it to use the
+board — it's for the curious.</p>
+
+<h2>Signal path</h2>
+<table>
+<tr><th>Stage</th><th>What it does</th></tr>
+<tr><td>Voltage divider</td>
+    <td>Brings ±614 V down to a level the ADC can see. The
+    bottom of the divider goes to a <b>reference voltage</b>, not to ground —
+    that's where the bidirectional range comes from</td></tr>
+<tr><td>Shunt + Kelvin</td>
+    <td>Turns current into voltage; the sense leads are routed
+    <b>separately</b> from the current path, so solder resistance doesn't get
+    into the measurement</td></tr>
+<tr><td>Anti-aliasing filter</td>
+    <td>The <b>same</b> time constant on both channels (2.86 ms /
+    2.90 ms). If they differed, the power error on reactive
+    loads would be huge</td></tr>
+<tr><td>16-bit ADC ×2</td>
+    <td>Voltage and current are sampled <b>simultaneously</b> in single-shot
+    mode; the remaining 95 µs skew is removed in software</td></tr>
+<tr><td>Power calculation</td>
+    <td>Product <b>per sample</b>: avg(V×I). <b>Not</b> avg(V)×avg(I) —
+    on a switching load that gives the wrong answer</td></tr>
+</table>
+
+<h2>Why these numbers</h2>
+<table>
+<tr><td>Sample rate 665/s</td>
+    <td>The ADC's 860/s plus the I2C write-read time. Single-shot mode buys
+    simultaneity at the cost of
+    23% of the rate</td></tr>
+<tr><td>Filter 56 Hz</td>
+    <td>Must stay below half the sample rate, otherwise high-frequency
+    components fold into the band and <b>can't be undone</b></td></tr>
+<tr><td>Valid band 40–70 Hz</td>
+    <td>The phase calibration stores a fixed delay, but what it corrects is a
+    phase difference that changes with frequency. The two only match near the
+    calibration frequency</td></tr>
+<tr><td>Battery ≤ 38.5 V</td>
+    <td>With the switch off, the whole battery sits across the MOSFET; the
+    55 V part was given a 70% margin</td></tr>
+</table>
+
+<h2>Verification</h2>
+<p>The whole design is tested on the computer. Every claim is backed by
+<b>a test you can run</b>; no number is typed in by hand.</p>
+<div class="kpi">
+  <div><span>Verification steps</span><b>22</b></div>
+  <div><span>Automated checks</span><b>900+</b></div>
+  <div><span>Circuit simulation</span><b>ngspice</b></div>
+  <div><span>Firmware</span><b>runs in an emulator</b></div>
+</div>
+<p>The measurement maths runs as <b>the real firmware code</b> on a
+bit-exact verified processor emulator — so what gets tested is the very code
+that will run on the board.</p>
+<p>On top of that, every new claim goes through <b>mutation testing</b>: the
+relevant constant is deliberately broken and the test is shown to turn red. If
+it doesn't, the claim is empty and gets deleted.</p>
+
+<div class="uy"><b>The chain verifies the design, not a built
+board.</b> Real component tolerances, temperature drift, leakage on the
+perfboard and noise can only be measured on the bench.</div>
+
+<h2>Where the details are</h2>
+<p>The full record of design decisions, the defects found and the reasoning
+behind them is in <code>DEVIR.md</code> (at the root of the repository, two
+folders above this one). It is the engineering log — in Turkish, 250 KB and
+chronological.</p>
+
+<p class="kucuk" style="margin-top:60px;border-top:1px solid var(--cizgi);
+ padding-top:14px">This page was generated by
+ <code>uretim/belge-uret.py</code> — every number here is computed from the
+ design files, none is typed in by hand. The board is built and working; the
+ values here are design values, the ones measured on the board are in the
+ README.</p>
+</div></body></html>

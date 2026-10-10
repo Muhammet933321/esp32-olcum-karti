@@ -28,38 +28,68 @@ import html as _html
 import re
 from pathlib import Path
 
+from belge_dil import M, sec
+
 DOSYA = "9-pc-uygulamasi.html"
-BASLIK = "PC uygulaması"
-ALT = "Köprü · bilgisayarda arşiv · Windows bildirimleri — kurmak, başlatmak, kullanmak"
+BASLIK = M("PC uygulaması", "PC app")
+ALT = M("Köprü · bilgisayarda arşiv · Windows bildirimleri — kurmak, başlatmak, kullanmak",
+        "Bridge · archive on this computer · Windows notifications — install, start, use")
 
 # Kilavuzun anlattigi pc.py secenekleri. Her biri pc.py'nin KODUNDA (docstring disinda)
 # bir dize olarak bulunmali; koddaki her secenek de ya burada ya HARIC'te (gerekceli).
 SECENEKLER = [
-    ("--sessiz", "Arka plan kipi: konsol yok, tarayıcı açılmaz (otomatik başlatma bunu kullanır); "
-                 "bildirim alanında simge olur. Çökerse iz <code>arkaplan-hata.txt</code>'ye yazılır"),
-    ("--arka", "Masaüstü kısayolunun kipi (<code>pythonw</code>): konsol yok ama panel tarayıcıda "
-               "<b>açılır</b>; bildirim alanında simge — çift tık panel, sağ tık <b>Kapat</b>"),
-    ("--tepsi", "Konsollu açılışta da bildirim alanı simgesini göster"),
-    ("--tepsi-yok", "Bildirim alanı simgesi olmasın (<code>--sessiz</code> / <code>--arka</code> ile de)"),
-    ("--durdur", "Çalışan köprüyü (arka plandakini de) durdurur — <code>Kopruyu Durdur.bat</code> "
-                 "bunu çağırır"),
-    ("--tarayici-acma", "Köprü açılır ama tarayıcı açılmaz"),
-    ("--usb-yok", "Yalnız WiFi: COM portu <b>hiç açılmaz</b>. Köprü açıkken firmware yüklemek, "
-                  "tezgah araçlarını ya da Arduino Seri Monitörü'nü kullanmak için"),
-    ("--wifi-yok", "Yalnız USB. Kayıt arşivi (eşitleme) bu kipte çalışmaz — kayıt verisi yalnız "
-                   "WiFi'den alınır"),
-    ("--port", "COM portunu elle verir (ör. <code>--port COM6</code>); verilmezse köprü kartın "
-               "USB köprü çipinden (CH343) kendisi bulur"),
-    ("--kart-host", "Kartın WiFi adresi (varsayılan <code>{kart_host}</code>). Kartın kendi ağındayken "
-                    "<code>--kart-host 192.168.4.1</code>, ya da kartın IP'si"),
-    ("--cihaz", "Eşleşmiş cihaz dosyasını elle seçer (iki kart varsa); verilmezse kartın kimliğine "
-                "göre bulunur"),
-    ("--onaysiz", "Kayıtları diske eşitler ama karta <b>onay göndermez</b> (aşağıda “Onay ne demek”)"),
-    ("--esitleme-aralik", "Eşitleme aralığı, saniye (varsayılan {aralik:.0f}, en az {aralik_en_az:.0f})"),
-    ("--esitleme-yok", "Arka plan eşitlemesi kapalı (canlı izleme ve komutlar çalışır)"),
-    ("--bildirim-yok", "MQTT aboneliği ve Windows bildirimleri kapalı"),
-    ("--lan", "Yerel ağdaki telefonlar <code>http://&lt;bilgisayarın IP'si&gt;:{port}</code> adresinden "
-              "<b>yalnız izler</b>; tek izinli komut DURDUR (<code>p0</code>)"),
+    ("--sessiz", M("Arka plan kipi: konsol yok, tarayıcı açılmaz (otomatik başlatma bunu kullanır); "
+                   "bildirim alanında simge olur. Çökerse iz <code>arkaplan-hata.txt</code>'ye yazılır",
+                   "Background mode: no console, no browser (autostart uses this); an icon sits in the "
+                   "notification area. If it crashes, the trace goes to <code>arkaplan-hata.txt</code>")),
+    ("--arka", M("Masaüstü kısayolunun kipi (<code>pythonw</code>): konsol yok ama panel tarayıcıda "
+                 "<b>açılır</b>; bildirim alanında simge — çift tık panel, sağ tık <b>Kapat</b>",
+                 "Desktop shortcut mode (<code>pythonw</code>): no console, but the panel <b>opens</b> in "
+                 "the browser; notification-area icon — double-click opens the panel, right-click "
+                 "<b>Quit</b>")),
+    ("--tepsi", M("Konsollu açılışta da bildirim alanı simgesini göster",
+                  "Show the notification-area icon in console mode too")),
+    ("--tepsi-yok", M("Bildirim alanı simgesi olmasın (<code>--sessiz</code> / <code>--arka</code> ile de)",
+                      "No notification-area icon (also with <code>--sessiz</code> / <code>--arka</code>)")),
+    ("--durdur", M("Çalışan köprüyü (arka plandakini de) durdurur — <code>Kopruyu Durdur.bat</code> "
+                   "bunu çağırır",
+                   "Stops the running bridge (the background one too) — <code>Kopruyu Durdur.bat</code> "
+                   "calls this")),
+    ("--tarayici-acma", M("Köprü açılır ama tarayıcı açılmaz", "The bridge starts but no browser opens")),
+    ("--usb-yok", M("Yalnız WiFi: COM portu <b>hiç açılmaz</b>. Köprü açıkken firmware yüklemek, "
+                    "tezgah araçlarını ya da Arduino Seri Monitörü'nü kullanmak için",
+                    "WiFi only: the COM port is <b>never opened</b>. For uploading firmware, running the "
+                    "bench tools or using the Arduino Serial Monitor while the bridge is running")),
+    ("--wifi-yok", M("Yalnız USB. Kayıt arşivi (eşitleme) bu kipte çalışmaz — kayıt verisi yalnız "
+                     "WiFi'den alınır",
+                     "USB only. The recording archive (sync) does not work in this mode — recording data "
+                     "is fetched over WiFi only")),
+    ("--port", M("COM portunu elle verir (ör. <code>--port COM6</code>); verilmezse köprü kartın "
+                 "USB köprü çipinden (CH343) kendisi bulur",
+                 "Sets the COM port by hand (e.g. <code>--port COM6</code>); otherwise the bridge finds "
+                 "the board by its USB bridge chip (CH343)")),
+    ("--kart-host", M("Kartın WiFi adresi (varsayılan <code>{kart_host}</code>). Kartın kendi ağındayken "
+                      "<code>--kart-host 192.168.4.1</code>, ya da kartın IP'si",
+                      "The board's WiFi address (default <code>{kart_host}</code>). On the board's own "
+                      "network use <code>--kart-host 192.168.4.1</code>, or give the board's IP")),
+    ("--cihaz", M("Eşleşmiş cihaz dosyasını elle seçer (iki kart varsa); verilmezse kartın kimliğine "
+                  "göre bulunur",
+                  "Picks the paired-device file by hand (if you have two boards); otherwise it is found "
+                  "from the board's identity")),
+    ("--onaysiz", M("Kayıtları diske eşitler ama karta <b>onay göndermez</b> (aşağıda “Onay ne demek”)",
+                    "Syncs recordings to disk but sends <b>no acknowledgement</b> to the board (see "
+                    "“What does acknowledgement mean?” below)")),
+    ("--esitleme-aralik", M("Eşitleme aralığı, saniye (varsayılan {aralik:.0f}, en az {aralik_en_az:.0f})",
+                            "Sync interval in seconds (default {aralik:.0f}, minimum {aralik_en_az:.0f})")),
+    ("--esitleme-yok", M("Arka plan eşitlemesi kapalı (canlı izleme ve komutlar çalışır)",
+                         "Background sync off (live view and commands still work)")),
+    ("--bildirim-yok", M("MQTT aboneliği ve Windows bildirimleri kapalı",
+                         "MQTT subscription and Windows notifications off")),
+    ("--lan", M("Yerel ağdaki telefonlar <code>http://&lt;bilgisayarın IP'si&gt;:{port}</code> adresinden "
+                "<b>yalnız izler</b>; tek izinli komut DURDUR (<code>p0</code>)",
+                "Phones on the local network can <b>only watch</b>, at "
+                "<code>http://&lt;this computer's IP&gt;:{port}</code>; the only command allowed is STOP "
+                "(<code>p0</code>)")),
 ]
 # Kodda olup kilavuzda anlatilmayanlar — GEREKCELI. Yeni bir secenek eklenip buraya da
 # kilavuza da yazilmazsa B9 kirmizi.
@@ -72,17 +102,29 @@ HARIC = {
 
 # Bildirim siniflari — pc_bildirim.SINIFLAR ile BIREBIR (fazla/eksik kirmizi).
 BILDIRIM = [
-    ("kopuk", "Karttan haber yok / Ev interneti koptu",
-     "Yalnız <b>kayıt sürerken</b>. Kart yerelde (USB ya da WiFi) hâlâ görünüyorsa “Ev interneti "
-     "koptu — kart çalışıyor”. Kart dönünce <b>aynı bildirim</b> “yeniden bağlandı” olur. Kartın "
-     "MQTT ayarı yoksa: kayıt sürerken kart {yerel_kopuk:.0f} s susarsa"),
-    ("bitti", "Kayıt / pil testi bitti", "Kayıt durdu, planlı süre doldu, pil testi bitti"),
-    ("dolu", "Kartın belleği doldu", "Kayıt yer kalmadığı için durdu"),
-    ("esik", "Eşik aşıldı", "Kartta kurulu eşik"),
-    ("yeniden_basladi", "Kart yeniden başladı",
-     "Kayıt kesildi ve sürüyor, ya da kesildi — son haberin saatiyle"),
-    ("kacirilan", "N olay kaçırıldı", "Köprü kapalıyken ya da bağlantı yokken kaçan olayların sayısı"),
-    ("deneme", "Deneme bildirimi", "USB'den <code>Qt</code> gönderilince — yolun çalıştığını sınamak için"),
+    ("kopuk", M("Karttan haber yok / Ev interneti koptu", "No news from the board / Home internet is down"),
+     M("Yalnız <b>kayıt sürerken</b>. Kart yerelde (USB ya da WiFi) hâlâ görünüyorsa “Ev interneti "
+       "koptu — kart çalışıyor”. Kart dönünce <b>aynı bildirim</b> “yeniden bağlandı” olur. Kartın "
+       "MQTT ayarı yoksa: kayıt sürerken kart {yerel_kopuk:.0f} s susarsa",
+       "Only <b>while a recording is running</b>. If the board is still visible locally (USB or WiFi) it "
+       "says “Home internet is down — the board is working”. When the board comes back, <b>the same "
+       "notification</b> turns into “the board is back”. Without the board's MQTT settings: when the "
+       "board goes silent for {yerel_kopuk:.0f} s during a recording")),
+    ("bitti", M("Kayıt / pil testi bitti", "Recording / battery test finished"),
+     M("Kayıt durdu, planlı süre doldu, pil testi bitti",
+       "Recording stopped, scheduled duration elapsed, battery test finished")),
+    ("dolu", M("Kartın belleği doldu", "Board storage full"),
+     M("Kayıt yer kalmadığı için durdu", "Recording stopped because there is no space left")),
+    ("esik", M("Eşik aşıldı", "Threshold crossed"), M("Kartta kurulu eşik", "The threshold set on the board")),
+    ("yeniden_basladi", M("Kart yeniden başladı", "Board restarted"),
+     M("Kayıt kesildi ve sürüyor, ya da kesildi — son haberin saatiyle",
+       "The recording was interrupted and continues, or was interrupted — with the time last heard")),
+    ("kacirilan", M("N olay kaçırıldı", "N events missed"),
+     M("Köprü kapalıyken ya da bağlantı yokken kaçan olayların sayısı",
+       "How many events were missed while the bridge was off or had no connection")),
+    ("deneme", M("Deneme bildirimi", "Test notification"),
+     M("USB'den <code>Qt</code> gönderilince — yolun çalıştığını sınamak için",
+       "When <code>Qt</code> is sent over USB — to check that the path works")),
 ]
 
 # Kullaniciyi bana yollayan kalip — kutu.py'deki SORAN ile ayni aile (+ "claude").
@@ -145,6 +187,10 @@ def veri(kok: Path) -> dict:
         """Panel sozlugundeki Turkce metin (kilavuz paneldeki adi AYNEN soylesin)."""
         return _bul(r'"' + re.escape(anahtar) + r'":\s*S\("([^"]+)"', kaynak, ad_)
 
+    def _en(anahtar: str, kaynak: str, ad_: str) -> str:
+        """Ayni anahtarin Ingilizce metni (EN sayfa paneldeki Ingilizce adi soyler)."""
+        return _bul(r'"' + re.escape(anahtar) + r'":\s*S\("[^"]+",\s*"([^"]+)"', kaynak, ad_)
+
     ad =_bul(r'^AD\s*=\s*"([^"]+)"', pa, "pc_ayar.py")
     port = int(_bul(r"^PORT\s*=\s*(\d+)", pa, "pc_ayar.py"))
     v = {
@@ -183,34 +229,44 @@ def veri(kok: Path) -> dict:
                            for s in re.findall(r"'([a-z_]+)'", _bul(
                                r"BILDIRIM_SINIFLARI\s*=\s*Object\.freeze\(\[([^\]]*)\]", pk,
                                "pc_kopru.js"))},
+        # EN sayfa icin ayni panel adlarinin Ingilizcesi (sozluk S("tr", "en") ikinci dizesi)
+        "panel_gelismis_en": _en("ay.b_gelismis", so, "sozluk.js"),
+        "panel_bolum_en": _en("pc.bl_baslik", sp, "sozluk_pc.js"),
+        "panel_dil_en": _en("pc.bl_dil", sp, "sozluk_pc.js"),
     }
+    v["panel_sinif_ad_en"] = {s: _en(f"pc.bl_s_{s}", sp, "sozluk_pc.js") for s in v["panel_sinif_ad"]}
     return v
 
 
 # ═══════════════════════════════════════════════════════════ sayfa
 
-def _secenek_tablosu(v: dict) -> str:
+def _secenek_tablosu(v: dict, dil: str = "tr") -> str:
     satir = "".join(
-        f"<tr><td><code>{s}</code></td><td>{a.format(**v)}</td></tr>" for s, a in SECENEKLER)
-    return f"<table><tr><th>Seçenek</th><th>Ne yapar</th></tr>{satir}</table>"
+        f"<tr><td><code>{s}</code></td><td>{sec(a, dil).format(**v)}</td></tr>" for s, a in SECENEKLER)
+    bas = sec(M("<th>Seçenek</th><th>Ne yapar</th>", "<th>Option</th><th>What it does</th>"), dil)
+    return f"<table><tr>{bas}</tr>{satir}</table>"
 
 
-def _bildirim_tablosu(v: dict) -> str:
+def _bildirim_tablosu(v: dict, dil: str = "tr") -> str:
+    ad = v["panel_sinif_ad_en"] if dil == "en" else v["panel_sinif_ad"]
     satir = "".join(
-        f"<tr><td><b>{b}</b></td><td>{a.format(**v)}</td>"
-        f"<td>{_html.escape(v['panel_sinif_ad'].get(s, '—'))}</td><td><code>{s}</code></td></tr>"
+        f"<tr><td><b>{sec(b, dil)}</b></td><td>{sec(a, dil).format(**v)}</td>"
+        f"<td>{_html.escape(ad.get(s, '—'))}</td><td><code>{s}</code></td></tr>"
         for s, b, a in BILDIRIM)
-    return ("<table><tr><th>Bildirim</th><th>Ne zaman</th><th>Paneldeki kutu</th>"
-            f"<th>Komut satırı adı</th></tr>{satir}</table>")
+    bas = sec(M("<th>Bildirim</th><th>Ne zaman</th><th>Paneldeki kutu</th><th>Komut satırı adı</th>",
+                "<th>Notification</th><th>When</th><th>Panel checkbox</th><th>Command-line name</th>"), dil)
+    return f"<table><tr>{bas}</tr>{satir}</table>"
 
 
-def govde(v: dict) -> str:
+def govde(v: dict, dil: str = "tr") -> str:
     vd = f"%LOCALAPPDATA%\\{v['veri_ad']}"
     cihaz, arsiv, satir = "cihaz", "arsiv", "satir"
     for a in (cihaz, arsiv, satir):
         if a not in v["alt"]:
             raise RuntimeError(f"belge_pc: pc_ayar.py'de '{a}' alt dizini yok: {v['alt']}")
     onay = "AÇIK" if v["onay_varsayilan"] else "KAPALI"
+    if dil == "en":
+        return _govde_en(v, vd, cihaz, arsiv, satir)
     return f"""
 <div class="kpi">
   <div><span>Panel adresi</span><b style="font-size:17px">{v['ad']}:{v['port']}</b></div>
@@ -542,6 +598,355 @@ karta erişemez.</p>
     yazar — hepsini tanıyor musunuz bakın</td></tr>
 <tr><th>4</th><td><code>Ez1</code> gönderin. Geri almak: <code>Ez0</code></td></tr>
 <tr><th>5</th><td>Seri Monitör'ü kapatıp köprüyü yeniden başlatın</td></tr>
+</table>
+"""
+
+
+def _govde_en(v: dict, vd: str, cihaz: str, arsiv: str, satir: str) -> str:
+    """govde()'nin Ingilizcesi: ayni tablolar/satirlar/hucreler, ayni sayilar (TR sayfa denetlenir).
+    Diskteki Turkce adlar (klasor, dosya, kisayol) <code> icinde aynen kalir, yaninda aciklanir."""
+    onay = "on" if v["onay_varsayilan"] else "off"
+    gel, bol, bdil = v["panel_gelismis_en"], v["panel_bolum_en"], v["panel_dil_en"]
+    return f"""
+<div class="kpi">
+  <div><span>Panel address</span><b style="font-size:17px">{v['ad']}:{v['port']}</b></div>
+  <div><span>Recording sync</span><b>every {v['aralik']:.0f} s</b></div>
+  <div><span>Board acknowledgement</span><b>default {onay}</b></div>
+  <div><span>Data folder</span><b style="font-size:17px">{v['veri_ad']}</b></div>
+</div>
+
+<p>The <b>PC app</b> is a single program that sits between the board and this computer
+(<code>kopru/pc.py</code>; the “bridge”). It does three jobs:</p>
+<table>
+<tr><th>Job</th><th>What it means</th></tr>
+<tr><td><b>Bridge</b></td><td>Opens the board's panel on this computer at <code>{v['adres']}</code>.
+    Live measurements and commands go <b>over USB if the board is on USB</b>, otherwise
+    <b>over WiFi</b>. The panel is the same one the board serves itself</td></tr>
+<tr><td><b>Archive</b></td><td>Copies the board's recordings <b>over WiFi</b> to this computer's
+    disk — on every connection and every {v['aralik']:.0f} seconds. The panel's <b>Recordings</b>
+    screen shows this copy</td></tr>
+<tr><td><b>Notifications</b></td><td>If the board sends notifications to the internet (MQTT), the
+    bridge listens and shows them as <b>Windows notifications</b> — even with the browser closed</td></tr>
+</table>
+<div class="ok"><b>The master copy is on the board.</b> The computer only keeps a copy. The board
+measures and records with the bridge off, too; when the bridge starts it fetches whatever is
+missing by itself.</div>
+
+<h2>1 · First setup — introducing this computer to the board once</h2>
+<p>For the bridge to talk to the board over WiFi, this computer must be <b>paired</b> with the
+board. This is done <b>once</b>; the key stays on this computer, stored encrypted and tied to
+your Windows account.</p>
+<table>
+<tr><th>You need</th><td>Python installed (<code>python</code> or <code>py</code>) ·
+    the board on your home network, with <code>http://{v['kart_host']}</code> opening in a browser ·
+    the board's <b>web password</b> (at least {v['parola_en_az']} characters)</td></tr>
+</table>
+
+<h3>Step 0 — already paired?</h3>
+<p>Type <code>{vd}\\{cihaz}</code> into the File Explorer address bar and press Enter
+(<code>{cihaz}</code> = device). If it holds a <code>.json</code> file with a 16-character
+letters-and-digits name, this computer is <b>already paired</b>: do the check in Step 4 and go on
+to section 2. If the folder does not exist or is empty, carry on.</p>
+
+<h3>Step 1 — stop the bridge if it is running</h3>
+<p>Double-click <code>projeler\\olcum-karti\\kopru\\Kopruyu Durdur.bat</code> (“stop bridge”).
+If it says <code>calisan kopru yok</code> (no bridge running), that is fine. (The pairing tool and the
+bridge use the same key file; if both run at once the board may take the requests for replays and
+reject them.)</p>
+
+<h3>Step 2 — run the command</h3>
+<p>Open the <code>projeler\\olcum-karti</code> folder in File Explorer, type <code>cmd</code> in the
+address bar and press Enter. In the window that opens:</p>
+<pre>python kopru/imza.py esles --host {v['kart_host']} --ad PC-kopru</pre>
+<p><code>--ad</code> is this computer's name in the board's list (at most {v['ad_azami']} bytes,
+anything you like). If <code>python</code> is not found, type the same command with <code>py</code>.
+If the board is on its own network (not joined to your home network), connect the computer to the
+board's network and use <code>--host 192.168.4.1</code>.</p>
+
+<h3>Step 3 — the password prompt</h3>
+<p>This prompt appears (it asks for the board's WEB password, NOT the WiFi password, and says it
+is not echoed):</p>
+<pre>{_html.escape(v['parola_istemi'])}</pre>
+<p>Type the board's <b>web password</b> and press Enter. <b>Nothing appears</b> on screen as you
+type — that is normal, your keystrokes are going through. The password never goes over the network
+and is not saved anywhere.</p>
+
+<div class="no"><b>Web password ≠ WiFi password.</b> The board has three separate passwords; this
+one asks for <b>the web password only</b>:
+<table>
+<tr><th>Password</th><th>What for</th><th>How it is set</th></tr>
+<tr><td><b>Web password</b> ✔</td><td>Giving commands in the board's panel, and pairing. At least
+    {v['parola_en_az']} characters</td><td>Over USB: <code>Ns&lt;password&gt;</code></td></tr>
+<tr><td>WiFi password</td><td>The board joining <b>your home network</b> (your router's password)</td>
+    <td>Over USB: <code>Np&lt;password&gt;</code></td></tr>
+<tr><td>AP password</td><td>A phone joining <b>the board's own network</b></td>
+    <td>The board generates it</td></tr>
+</table>
+The PC bridge has <b>no password of its own</b>: <code>{v['adres']}</code> never asks for a
+password.</div>
+
+<p><b>On success</b> the last line looks like this (the number and folder will differ):</p>
+<pre>eslesti: cihaz 3 (PC-kopru) -&gt; ...\\{v['veri_ad']}\\{cihaz}\\&lt;board ID&gt;.json</pre>
+<p>If you get an error, see the <a href="#sorun">Troubleshooting</a> table below.</p>
+
+<h3>Step 4 — check the board's list</h3>
+<pre>python kopru/imza.py liste --host {v['kart_host']}</pre>
+<p>This prints the board's paired devices (like <code>"ad":"PC-kopru"</code>). If the name you gave
+is in the list, setup is done. The board holds at most <b>{v['cihaz_azami']}</b> devices; if there
+is an old entry you no longer use (e.g. an earlier pairing of the same computer), delete it with
+<code>python kopru/imza.py sil --host {v['kart_host']} --n &lt;number&gt;</code> — do not delete
+your own number (<code>cihaz N</code> in the pairing output).</p>
+
+<h2>2 · Starting</h2>
+<p>Double-click the <code>Ölçüm Kartı</code> shortcut on the desktop (<code>pythonw kopru\\pc.py
+--arka</code>, in the <code>projeler\\olcum-karti</code> folder). <b>No console window opens</b>;
+after a few seconds the panel appears in the browser: <b><code>{v['adres']}</code></b>. The bridge
+runs in the background and its icon sits in the <b>notification area</b> at the bottom right of the
+screen (Show hidden icons ^): hovering shows the connection path (USB / Wi-Fi / searching for the
+board), <b>double-click</b> opens the panel, <b>right-click → Quit</b> stops the bridge.</p>
+<p>If you want to see what is going on, start it with a console via
+<code>projeler\\olcum-karti\\kopru\\PC Baslat.bat</code> (“PC start”; for debugging):</p>
+<table>
+<tr><th>In the console</th><td><code>Kopru acildi — kart: …</code> (bridge started — board: …), the
+    panel address, the recording archive folder and the notification status. The bridge runs as long
+    as the window stays open</td></tr>
+<tr><th>Board on USB</th><td>Use the board's USB socket marked <b>COM</b>; the bridge finds the board
+    by itself. If the board is not plugged in it connects over WiFi and switches to USB once plugged
+    in</td></tr>
+<tr><th>Already running</th><td>No second copy starts; only the browser opens</td></tr>
+<tr><th>Address</th><td>Opens only from this computer. Port {v['port']} is fixed; if another program
+    holds it, the bridge does not start and says so</td></tr>
+</table>
+<p class="kucuk">The old <code>Kopru Baslat.bat</code> in the repository root opens the same program.</p>
+
+<h3>Installing as an app (Edge)</h3>
+<p>With the panel open, click the <b>“App available”</b> install icon at the right of Edge's
+address bar, or <b>Settings and more (⋯) → Apps → Install this site as an app</b>. The panel then
+opens in its own window, with its icon in the Start menu and on the taskbar. While the bridge is off
+this window shows the <b>“Bridge not running”</b> page and returns to the panel by itself once the
+bridge starts.</p>
+
+<h2>3 · Everyday use</h2>
+<table>
+<tr><th>In the panel</th><th>When served by the bridge</th></tr>
+<tr><td><b>Live</b></td><td>Measurements and commands; over USB if the board is on USB, otherwise
+    over WiFi</td></tr>
+<tr><td><b>Recordings</b></td><td>The list comes <b>from the archive on this computer</b> (“on this PC
+    (bridge archive)”). Charts, export, reports and Compare work as usual. The panel never writes to
+    or deletes from this archive</td></tr>
+<tr><td><b>Battery test</b></td><td>The curve comes from the board over WiFi (if the bridge cannot
+    reach the board over WiFi, only the current status)</td></tr>
+<tr><td><b>Settings → Calibration history</b></td><td>From the board; if the board is unreachable,
+    from the copy on this computer (the source line says which)</td></tr>
+<tr><td><b>Settings → Storage</b></td><td>Summary of the archive on this computer — read-only</td></tr>
+<tr><td><b>Oscilloscope → Legacy archive</b></td><td>Captures in the bridge's old line log
+    (read-only)</td></tr>
+<tr><td><b>Settings → Pairing</b></td><td><b>Not used</b> with the bridge — the bridge pairs with the
+    command in section 1</td></tr>
+<tr><td><b>Settings → {gel}</b></td><td>The “{bol}” section (section 4) and the version of the panel
+    the bridge serves — both only with the bridge</td></tr>
+</table>
+
+<h3>Sync status line</h3>
+<p>A single line on the Recordings screen:
+<i>“Bridge sync: last success … · N new record(s) in the last round · board's last sequence … ·
+acknowledgements on”</i>. On an error it gives the reason and how many seconds until the next try.
+If the board is on USB only (not on WiFi) the round is <b>skipped</b>: recording data is fetched over
+WiFi only.</p>
+
+<div class="uy"><b>What does acknowledgement mean?</b> Once the bridge has <b>written</b> the
+recordings <b>to disk for good</b>, it tells the board “these are copied” (default {onay}). When the
+board's storage fills up it deletes only old recordings that have been <b>copied somewhere</b>;
+uncopied data is never deleted. So with acknowledgement on, the board may delete old recordings
+copied to this computer when it needs space — they stay on this computer, but <b>a phone that has
+not synced yet</b> can no longer see them. If you do not want that, turn acknowledgement off:
+<code>PC Baslat.bat --onaysiz</code>, or permanently by writing
+<code>{{"esitleme_onay": false}}</code> into <code>{vd}\\{v['ayar_ad']}</code> (takes effect when
+the bridge restarts). With acknowledgement off (and no other device acknowledging), the board stops
+recording when full and sends a notification.</div>
+
+<h2>4 · Notifications</h2>
+<p>The bridge listens to the notifications the board sends to the internet (it only listens, it
+never publishes) and shows Windows notifications. The source name is <code>{v['gorunen_ad']}</code>
+(“Measurement board”). For this, the board's notification (MQTT) settings must have been made over
+USB; otherwise only “no news from the board” (the local path) works.</p>
+{_bildirim_tablosu(v, "en")}
+<p>All are <b>on</b> by default. There are two ways to switch them; both write to the same settings
+file (<code>{v['ayar_ad']}</code>) and need no bridge restart.</p>
+<table>
+<tr><th>From the panel</th><td><b>Settings → {gel} → “{bol}”</b>. Shows the connection state
+    (connected to the broker, board online), the last event, an on/off checkbox for each
+    notification and the <b>“{bdil}”</b> choice; every click is saved at once. The section appears
+    only in the panel opened by the bridge (<code>{v['adres']}</code>) — not on the board's own page
+    and not in a panel opened from another device on the local network</td></tr>
+<tr><th>From the command line</th><td><code>0</code> off, <code>1</code> on:
+<pre>python kopru/pc_bildirim.py ayar esik=0 kacirilan=0
+python kopru/pc_bildirim.py ayar dil=en</pre>
+    Status (subscribed or not, when the last message came): <code>python kopru/pc_bildirim.py durum</code></td></tr>
+</table>
+<table>
+<tr><th>Test</th><td>Start the bridge with <code>PC Baslat.bat --usb-yok</code>, send <code>Qt</code>
+    to the board from the Arduino IDE Serial Monitor (115200) → a “Test notification” should
+    arrive</td></tr>
+<tr><th>Do not disturb</th><td>When on, notifications do not pop up and only land in the
+    Notification center. To let them through, open Windows Settings → System → Notifications →
+    Set priority notifications and add <code>{v['gorunen_ad']}</code></td></tr>
+<tr><th>Source name registration</th><td>On the first notification, Windows gets
+    <code>HKCU\\{v['aumid_anahtar']}\\{v['aumid']}</code> (name + icon; no admin rights needed). To
+    remove it: <code>reg delete "HKCU\\{v['aumid_anahtar']}\\{v['aumid']}" /f</code>
+    — while notifications stay on it is written again with the next notification</td></tr>
+</table>
+
+<h2>5 · Options</h2>
+<p>To pass an option, from the command line:
+<code>"kopru\\PC Baslat.bat" --onaysiz</code> or <code>python kopru/pc.py --onaysiz</code>
+(in the <code>projeler\\olcum-karti</code> folder). If the bridge is already running, the new option
+is not applied — stop it first.</p>
+{_secenek_tablosu(v, "en")}
+
+<h2>6 · Autostart when Windows starts</h2>
+<table>
+<tr><th>Install</th><td><code>projeler\\olcum-karti\\kopru\\Otomatik Baslat Kur.bat</code>
+    (“install autostart”) — puts a <code>{v['kisayol']}</code> shortcut into the Startup folder.
+    The bridge then starts <b>in the background</b> at every sign-in (<code>--sessiz</code>: no window,
+    no browser)</td></tr>
+<tr><th>Remove</th><td><code>Otomatik Baslatmayi Kapat.bat</code> (“turn off autostart”, same
+    folder). It does not stop a bridge that is running — <code>Kopruyu Durdur.bat</code> does</td></tr>
+<tr><th>Settings</th><td>The background bridge takes no options; for acknowledgement and interval use
+    <code>{v['ayar_ad']}</code> (<code>"esitleme_onay"</code>,
+    <code>"esitleme_aralik_s"</code>)</td></tr>
+</table>
+<div class="no"><b>Install only from the main folder:</b> <code>projeler\\olcum-karti</code>. Do not
+install from temporary branch folders (<code>olcum-karti-…</code>): once that folder is deleted the
+shortcut points at a missing file and the bridge silently fails to start. The script refuses to run
+from a temporary branch folder anyway.</div>
+
+<h2>7 · Stopping</h2>
+<table>
+<tr><th>From the icon</th><td>Right-click the <code>Ölçüm Kartı</code> icon in the notification area
+    <b>→ Quit</b></td></tr>
+<tr><th>In any case</th><td><code>kopru\\Kopruyu Durdur.bat</code> (stops the background one
+    too)</td></tr>
+<tr><th>If started in a window</th><td><b>Ctrl+C</b> in the console window</td></tr>
+<tr><th>From the command line</th><td><code>python kopru/pc.py --durdur</code></td></tr>
+</table>
+<div class="uy"><b>Do not end <code>pythonw.exe</code> from Task Manager:</b> the stock-keeping
+program runs under the same name, and you may close the wrong one.<br>
+The bridge holds the board's COM port. Stop the bridge <b>before uploading firmware</b>, and before
+using the bench tools, the Arduino Serial Monitor or <code>imza.py</code> — or start the bridge with
+<code>--usb-yok</code> (then it never holds the port).</div>
+
+<h2 id="sorun">8 · Troubleshooting</h2>
+<table>
+<tr><th>What you see</th><th>Cause</th><th>What to do</th></tr>
+<tr><td><code>{v['port']} portu baska bir program tarafindan kullaniliyor (kopru degil)</code></td>
+    <td>Another program on this computer holds port {v['port']} (the message says: not the bridge)</td>
+    <td>Close that program. Do not move to another port: the panel's settings on this computer are
+    tied to the address</td></tr>
+<tr><td>A tool says: <code>PC kopru bu portu kullaniyor — kapatin</code></td>
+    <td>The bridge holds the board's COM port</td>
+    <td><code>Kopruyu Durdur.bat</code>, then <code>PC Baslat.bat</code> again when you are done;
+    or start the bridge with <code>--usb-yok</code></td></tr>
+<tr><td><code>kart dogrulanmadi</code> … <code>ESLESMEMIS</code></td>
+    <td>This computer is not paired with this board (board not verified: unpaired)</td>
+    <td>Section 1</td></tr>
+<tr><td><code>kart dogrulanmadi</code> … <code>bu kart o DEGIL</code></td>
+    <td>A different board answers at <code>{v['kart_host']}</code> (two boards, or a name clash)</td>
+    <td>Start with the right board's IP: <code>--kart-host &lt;IP&gt;</code>; if you will use that
+    board too, pair it as well. The bridge sends no commands to a board whose identity does not
+    match</td></tr>
+<tr><td><code>kart imzayi reddetti (HTTP 401)</code></td>
+    <td>This computer's entry was deleted on the board</td>
+    <td>Stop the bridge and redo section 1</td></tr>
+<tr><td>Pairing says <code>403 kanit yanlis (parola?)</code></td>
+    <td>Wrong password — usually the WiFi password was typed</td>
+    <td>Try again with the web password. Each wrong try doubles the board's lockout time (at most
+    ~4 min): if you see <code>429</code>, wait</td></tr>
+<tr><td>Pairing says <code>403 web parolasi yok ya da {v['parola_en_az']} karakterden kisa</code></td>
+    <td>No web password is set on the board, or it is too short</td>
+    <td>Over USB: <code>Ns&lt;at least {v['parola_en_az']} characters&gt;</code> (Arduino Serial
+    Monitor, 115200; with the bridge stopped)</td></tr>
+<tr><td>Pairing says <code>409 cihaz listesi dolu</code></td>
+    <td>{v['cihaz_azami']} devices are registered on the board (device list full)</td>
+    <td>Delete one you do not use (section 1, Step 4; or over USB <code>Ex&lt;n&gt;</code>)</td></tr>
+<tr><td>I do not know the web password</td><td>—</td>
+    <td>Password-free USB pairing: stop the bridge, and with the board on USB and its WiFi on run
+    <code>python kopru/imza.py esles-usb --ad PC-kopru</code></td></tr>
+<tr><td>The board's panel (<code>{v['kart_host']}</code>) asks for a password</td>
+    <td>That is the board's own panel; it wants the board's <b>web password</b></td>
+    <td>The bridge's panel (<code>{v['adres']}</code>) never asks for a password</td></tr>
+<tr><td>Recordings empty, the line says <code>atlandi</code> (skipped) or an error</td>
+    <td>The board is not on WiFi, there is no pairing, or the bridge was started with
+    <code>--wifi-yok</code>/<code>--esitleme-yok</code></td>
+    <td>Turn on the board's WiFi (over USB <code>N1</code>) and check the pairing; the reason on the
+    line tells you which</td></tr>
+<tr><td>No notifications arrive</td>
+    <td>The board has no notification settings, the bridge runs with <code>--bildirim-yok</code>, that
+    class is off, or Do not disturb is on</td>
+    <td>Settings → {gel} → “{bol}” (connection state, unticked box)
+    or <code>python kopru/pc_bildirim.py durum</code> (<code>etkin</code>, <code>abone</code>,
+    <code>mesaj</code>: enabled, subscribed, message); then the test in section 4. “No news from the
+    board” only comes while a recording is running</td></tr>
+<tr><td>On a phone (<code>--lan</code>) the command buttons do nothing</td>
+    <td>Connections from the local network are <b>read-only</b>; only STOP gets through</td>
+    <td>For commands from a phone, connect to the board's own address (<a href="6-ag.html">Connecting</a>)</td></tr>
+<tr><td>“Bridge not running” instead of the panel</td><td>The bridge is off</td>
+    <td><code>PC Baslat.bat</code>; the page comes back by itself</td></tr>
+<tr><td>Did not start in the background</td><td>Crash trace</td>
+    <td>The last line of <code>{vd}\\arkaplan-hata.txt</code> gives the reason;
+    starting in a window with <code>PC Baslat.bat</code> shows the same error on screen</td></tr>
+</table>
+
+<h2>9 · Where the files are, what can be deleted</h2>
+<p>Everything is <b>outside</b> the repository, under <code>{vd}\\</code> (can be typed into the File
+Explorer address bar). Stop the bridge before deleting anything.</p>
+<table>
+<tr><th>What</th><th>Contents</th><th>If deleted</th></tr>
+<tr><td><code>{cihaz}\\</code></td><td>Pairing key (device; encrypted, tied to your Windows account)</td>
+    <td><b>Do not delete.</b> If deleted you must pair again; the old entry stays on the board</td></tr>
+<tr><td><code>{arsiv}\\</code></td><td>Copy of the board's recordings (archive; board → stream folders)</td>
+    <td><b>Careful:</b> with acknowledgement on, the board may have deleted some of these — this may
+    be the only copy. A stream folder you no longer need can be deleted</td></tr>
+<tr><td><code>{satir}\\</code></td><td>The bridge's daily line log (live measurement lines;
+    Oscilloscope → Legacy archive reads from here)</td>
+    <td>Can be deleted; recordings (<code>{arsiv}\\</code>) are not affected, the captures in Legacy
+    archive go</td></tr>
+<tr><td><code>{v['bildirim_alt']}\\</code></td><td>Encrypted notification-info cache</td>
+    <td>Safe; fetched again while the board is reachable</td></tr>
+<tr><td><code>{v['ayar_ad']}</code></td><td>Optional settings</td>
+    <td>Safe; defaults come back (acknowledgement {onay}, {v['aralik']:.0f} s, all
+    notifications on)</td></tr>
+<tr><td><code>arkaplan-hata.txt</code></td><td>Last crash trace</td><td>Safe</td></tr>
+</table>
+<p class="kucuk">To move the folder, use the <code>{v['veri_ortam']}</code> environment variable.</p>
+
+<h2>10 · Security notes</h2>
+<table>
+<tr><th>STOP always works</th><td><code>p0</code>, which stops a battery test, needs no password,
+    signature or pairing; it is the same on the bridge, on a phone (<code>--lan</code>) and on the
+    board</td></tr>
+<tr><th>Passwords</th><td>Type the web password only at <code>imza.py</code>'s prompt (not echoed)
+    or into the Pairing form in the board's panel. <b>Never on the command line, in a file, in a chat
+    or in a screenshot.</b> The bridge does not store the password</td></tr>
+<tr><th>Local network</th><td>By default the bridge listens on this computer only; even with
+    <code>--lan</code> phones can only watch</td></tr>
+<tr><th>E and Q commands</th><td>Pairing and notification settings change only from the <b>USB
+    serial console</b>; the bridge never forwards them to the board</td></tr>
+</table>
+
+<h3>Optional: making signatures mandatory (<code>Ez1</code>)</h3>
+<p>By default the board also accepts unsigned requests (the older password path)
+(<code>E?</code> → <code>zorunlu=0</code>, mandatory=0). With <code>Ez1</code> the board accepts
+requests <b>only from paired devices</b> (STOP is still free).
+<b>It is not required</b>; it only makes sense once every device you use (this computer, phones,
+browsers — Settings → Pairing) is paired, otherwise an unpaired device cannot reach the board.</p>
+<table>
+<tr><th>1</th><td><code>Kopruyu Durdur.bat</code> (or start the bridge with <code>--usb-yok</code>)</td></tr>
+<tr><th>2</th><td>Arduino IDE → Tools → Port: the board's COM port → Serial Monitor, 115200 baud</td></tr>
+<tr><th>3</th><td>Send <code>E?</code>: it prints <code>zorunlu=0</code> and the list of paired
+    devices — check that you recognise them all</td></tr>
+<tr><th>4</th><td>Send <code>Ez1</code>. To undo: <code>Ez0</code></td></tr>
+<tr><th>5</th><td>Close the Serial Monitor and restart the bridge</td></tr>
 </table>
 """
 

@@ -29,6 +29,21 @@ MENU = [("index.html", "Başla"),
         ("8-kutu.html", "Kutu"),
         ("5-muhendislik.html", "Mühendislik")]
 
+# Ingilizce serit etiketleri (BELGELER/en/). Panel adlari `ortak/src/sozluk.js`
+# ile ayni ("Battery test", "Measurement Board"). Yeni sayfa MENU'ye eklenirse
+# buraya da eklenmeli; eksikse Turkce etiket kullanilir (test_belge_dil yakalar).
+MENU_EN = {"index.html": "Start",
+           "1-ne-yapabilir.html": "What it can do",
+           "2-olcumler.html": "Measurements",
+           "3-pil-testi.html": "Battery test",
+           "6-ag.html": "Connecting",
+           "9-pc-uygulamasi.html": "PC app",
+           "2-malzemeler.html": "Parts",
+           "4-kurulum.html": "Assembly",
+           "7-yerlesim.html": "Layout",
+           "8-kutu.html": "Enclosure",
+           "5-muhendislik.html": "Engineering"}
+
 # Bagimsiz belgeler icin (kendi CSS'i olan sayfalar) satir ici bicim.
 _BAG = ("color:inherit;text-decoration:none;padding:5px 11px;"
         "border:1px solid currentColor;border-radius:99px;opacity:.65")
@@ -36,15 +51,23 @@ _BU = ("text-decoration:none;padding:5px 11px;border-radius:99px;"
        "border:1px solid currentColor;font-weight:600")
 
 
-def serit(dosya: str, gomulu: bool = False) -> str:
-    """Gezinme seridi. `gomulu`: kendi CSS'i olmayan bagimsiz sayfa."""
+def _menu(dil: str) -> list:
+    if dil == "en":
+        return [(d, MENU_EN.get(d, a)) for d, a in MENU]
+    return MENU
+
+
+def serit(dosya: str, gomulu: bool = False, dil: str = "tr") -> str:
+    """Gezinme seridi. `gomulu`: kendi CSS'i olmayan bagimsiz sayfa.
+    `dil`: "en" ise Ingilizce etiketler (adresler ayni — en/ klasoru icinde)."""
+    menu = _menu(dil)
     if gomulu:
         ic = "".join(
             f'<a href="{d}" style="{_BU if d == dosya else _BAG}">{a}</a>'
-            for d, a in MENU)
+            for d, a in menu)
         return ('<nav style="display:flex;gap:8px;flex-wrap:wrap;'
                 f'margin:0 0 22px;font-size:14px">{ic}</nav>')
     ic = "".join(
         f'<a href="{d}"{" class=\'bu\'" if d == dosya else ""}>{a}</a>'
-        for d, a in MENU)
+        for d, a in menu)
     return f'<nav class="ust">{ic}</nav>'

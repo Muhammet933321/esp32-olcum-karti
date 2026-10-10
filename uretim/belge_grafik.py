@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import math
 
+from belge_dil import M, sec  # noqa: F401
+
 S1, S2, S3, S4 = "#2a78d6", "#eb6834", "#1baf7a", "#eda100"
 
 
@@ -65,16 +67,18 @@ def cizgi(g, noktalar, px, py, renk, kal=2):
 
 # ══════════════════════════════════════════════════════════ MENZILLER
 
-def menzil(T, NORMAL, HV, SKOP_ADIM):
+def menzil(T, NORMAL, HV, SKOP_ADIM, dil="tr"):
     g = svg_ac(880, 320)
-    satir = [("Gerilim · NORMAL", NORMAL["adim"], NORMAL["fs_sim"], "V", S1),
-             ("Gerilim · YÜKSEK", HV["adim"], HV["fs_sim"], "V", S1),
-             ("Osiloskop", SKOP_ADIM,
+    satir = [(sec(M("Gerilim · NORMAL", "Voltage · NORMAL"), dil), NORMAL["adim"], NORMAL["fs_sim"], "V", S1),
+             (sec(M("Gerilim · YÜKSEK", "Voltage · HIGH"), dil), HV["adim"], HV["fs_sim"], "V", S1),
+             (sec(M("Osiloskop", "Oscilloscope"), dil), SKOP_ADIM,
               max(abs(T.SKOP_MENZIL_EKSI), T.SKOP_MENZIL_ARTI), "V", S3)]
     for r in T.SONT_SECENEK:
         m = min(T.ADS_AKIM_KIRPMA / r, T.SONT_AKIM_ISIL[r])
         a = (T.ADS_AKIM_KIRPMA / T.ADS_SAYIM) / r
         ad = f"Akım · {r:g} Ω" if r >= 1 else f"Akım · {r*1e3:.0f} mΩ"
+        if dil == "en":
+            ad = ad.replace("Akım", "Current")
         satir.append((ad, a, m, "A", S2))
     lo, hi = 1e-7, 1e3
 
@@ -100,15 +104,19 @@ def menzil(T, NORMAL, HV, SKOP_ADIM):
                  else f"{adim*1e3:.2f} mV")
         _t(g, x2 + 9, y + 4, f"{kucuk} → {mak:.4g} {bir}", 11, "var(--m2)")
         y += 31
-    _t(g, 470, 300, "en küçük ayırt edilebilir adım  →  en büyük değer "
-       "(logaritmik ölçek)", 12, "var(--m2)", "middle")
+    _t(g, 470, 300, sec(M("en küçük ayırt edilebilir adım  →  en büyük değer "
+                          "(logaritmik ölçek)",
+                          "smallest resolvable step  →  largest value "
+                          "(logarithmic scale)"), dil), 12, "var(--m2)", "middle")
     return svg_kapa(g)
 
 
 # ══════════════════════════════════════════════════════════ OSILOSKOP
 
 def skop_ekrani(bolme, hz_azami, hz_asgari, skop_adim, tdiv_us=100,
-                baslik="20 kHz SMPS anahtarlama"):
+                baslik=None, dil="tr"):
+    if baslik is None:
+        baslik = sec(M("20 kHz SMPS anahtarlama", "20 kHz SMPS switching"), dil)
     w, h = 880, 350
     g = svg_ac(w, h)
     x0, y0, gw, gh = 62, 24, 760, 250
@@ -154,11 +162,15 @@ def skop_ekrani(bolme, hz_azami, hz_asgari, skop_adim, tdiv_us=100,
         _t(g, px(i * tdiv), y0 + gh + 18, f"{i*tdiv*1e6:.0f} µs", anc="middle")
     for v in (0, 12, 24):
         _t(g, x0 - 8, py(v) + 4, f"{v} V", anc="end")
-    _t(g, x0, y0 + gh + 40,
+    _t(g, x0, y0 + gh + 40, sec(M(
        f"{tdiv_us} µs/bölme · {hz/1e3:.1f} kSa/s · {n} örnek · "
-       f"dikey adım {skop_adim*1e3:.1f} mV", 12, "var(--m2)")
+       f"dikey adım {skop_adim*1e3:.1f} mV",
+       f"{tdiv_us} µs/div · {hz/1e3:.1f} kSa/s · {n} samples · "
+       f"vertical step {skop_adim*1e3:.1f} mV"), dil), 12, "var(--m2)")
     _t(g, x0 + gw - 6, y0 + 20, baslik, 12, S3, "end", True)
-    _t(g, x0 + gw - 6, y0 + 36, "yükselme kenarındaki çalma görünüyor",
+    _t(g, x0 + gw - 6, y0 + 36, sec(M("yükselme kenarındaki çalma görünüyor",
+                                     "ringing on the rising edge is visible"),
+                                   dil),
        11, "var(--m3)", "end")
     return svg_kapa(g)
 
@@ -185,12 +197,14 @@ def pil_egrisi(v0, vkes, ah, R, r_ic=0.055):
     return nok
 
 
-def pil_zaman(nok):
+def pil_zaman(nok, dil="tr"):
     g = svg_ac(880, 320)
     x0, y0, w, h = 66, 20, 690, 226
     tmax = max(1e-6, nok[-1][0])
     px, py = eksen(g, x0, y0, w, h, 0, tmax, 2.8, 4.3,
-                   "süre (saat)", "gerilim (V)", " sa", " V",
+                   sec(M("süre (saat)", "time (hours)"), dil),
+                   sec(M("gerilim (V)", "voltage (V)"), dil),
+                   sec(M(" sa", " h"), dil), " V",
                    xbic="{:.1f}", ybic="{:.1f}")
     cizgi(g, [(t, v) for t, v, _, _ in nok], px, py, S1, 2)
     imin = min(n[2] for n in nok) * 0.75
@@ -200,32 +214,38 @@ def pil_zaman(nok):
         return y0 + h - (i - imin) / (imax - imin) * h
 
     cizgi(g, [(t, i) for t, _, i, _ in nok], px, py2, S2, 2)
-    _t(g, x0 + w + 8, py(nok[-1][1]) + 4, "gerilim", 12, S1, kalin=True)
+    _t(g, x0 + w + 8, py(nok[-1][1]) + 4, sec(M("gerilim", "voltage"), dil),
+       12, S1, kalin=True)
     _t(g, x0 + w + 8, py(nok[-1][1]) + 20, f"{nok[-1][1]:.2f} V")
-    _t(g, x0 + w + 8, py2(nok[-1][2]) + 4, "akım", 12, S2, kalin=True)
+    _t(g, x0 + w + 8, py2(nok[-1][2]) + 4, sec(M("akım", "current"), dil),
+       12, S2, kalin=True)
     _t(g, x0 + w + 8, py2(nok[-1][2]) + 20, f"{nok[-1][2]*1000:.0f} mA")
     return svg_kapa(g)
 
 
-def pil_mah(nok):
+def pil_mah(nok, dil="tr"):
     g = svg_ac(880, 320)
     x0, y0, w, h = 66, 20, 700, 226
     mmax = nok[-1][3]
     px, py = eksen(g, x0, y0, w, h, 0, mmax, 2.8, 4.3,
-                   "çekilen kapasite (mAh)", "gerilim (V)", "", " V",
+                   sec(M("çekilen kapasite (mAh)", "capacity drawn (mAh)"), dil),
+                   sec(M("gerilim (V)", "voltage (V)"), dil), "", " V",
                    xbic="{:.0f}", ybic="{:.1f}")
     cizgi(g, [(m, v) for _, v, _, m in nok], px, py, S1, 2)
-    _t(g, x0 + w + 8, py(nok[-1][1]) + 4, "deşarj", 12, S1, kalin=True)
+    _t(g, x0 + w + 8, py(nok[-1][1]) + 4, sec(M("deşarj", "discharge"), dil),
+       12, S1, kalin=True)
     _t(g, x0 + w + 8, py(nok[-1][1]) + 20, f"{mmax:.0f} mAh")
     return svg_kapa(g)
 
 
-def pil_birikim(nok):
+def pil_birikim(nok, dil="tr"):
     g = svg_ac(880, 300)
     tmax = nok[-1][0]
     x0, y0, w, h = 66, 20, 310, 195
     px, py = eksen(g, x0, y0, w, h, 0, tmax, 0, nok[-1][3],
-                   "süre (saat)", "kapasite (mAh)", " sa", "", 4,
+                   sec(M("süre (saat)", "time (hours)"), dil),
+                   sec(M("kapasite (mAh)", "capacity (mAh)"), dil),
+                   sec(M(" sa", " h"), dil), "", 4,
                    "{:.1f}", "{:.0f}")
     cizgi(g, [(t, m) for t, _, _, m in nok], px, py, S3, 2)
     _t(g, x0 + 10, y0 + 18, f"{nok[-1][3]:.0f} mAh", 13, S3, kalin=True)
@@ -235,14 +255,16 @@ def pil_birikim(nok):
         whs.append((nok[k][0], wh))
     x1 = 505
     px2, py2 = eksen(g, x1, y0, w, h, 0, tmax, 0, max(wh, 1e-6),
-                     "süre (saat)", "enerji (Wh)", " sa", "", 4,
+                     sec(M("süre (saat)", "time (hours)"), dil),
+                     sec(M("enerji (Wh)", "energy (Wh)"), dil),
+                     sec(M(" sa", " h"), dil), "", 4,
                      "{:.1f}", "{:.1f}")
     cizgi(g, whs, px2, py2, S4, 2)
     _t(g, x1 + 10, y0 + 18, f"{wh:.2f} Wh", 13, S4, kalin=True)
     return svg_kapa(g)
 
 
-def pil_dcir(nok):
+def pil_dcir(nok, dil="tr"):
     """Ic direnc SoC'ye gore — pil sagligi gostergesi."""
     g = svg_ac(880, 300)
     x0, y0, w, h = 66, 20, 700, 205
@@ -254,22 +276,27 @@ def pil_dcir(nok):
         pts.append((m, r * 1000))
     ymax = max(p[1] for p in pts) * 1.15
     px, py = eksen(g, x0, y0, w, h, 0, mmax, 0, ymax,
-                   "çekilen kapasite (mAh)", "iç direnç (mΩ)", "", "", 4,
+                   sec(M("çekilen kapasite (mAh)", "capacity drawn (mAh)"), dil),
+                   sec(M("iç direnç (mΩ)", "internal resistance (mΩ)"), dil),
+                   "", "", 4,
                    "{:.0f}", "{:.0f}")
     cizgi(g, pts, px, py, S2, 2)
     for m, r in pts[::10]:
         g.append(f'<circle cx="{px(m):.1f}" cy="{py(r):.1f}" r="4" '
                  f'fill="{S2}" stroke="var(--yz)" stroke-width="2"/>')
-    _t(g, x0 + w + 8, py(pts[-1][1]) + 4, "iç direnç", 12, S2, kalin=True)
-    _t(g, x0 + 10, y0 + 16,
+    _t(g, x0 + w + 8, py(pts[-1][1]) + 4, sec(M("iç direnç", "int. res."), dil),
+       12, S2, kalin=True)
+    _t(g, x0 + 10, y0 + 16, sec(M(
        "pil boşaldıkça iç direnç yükselir — yaşlanan pilde eğri yukarı kayar",
+       "internal resistance rises as the cell empties — an aging cell's "
+       "curve shifts up"), dil),
        11, "var(--m3)")
     return svg_kapa(g)
 
 
 # ══════════════════════════════════════════════════════════ HIZLAR
 
-def hizlar(kalemler):
+def hizlar(kalemler, dil="tr"):
     g = svg_ac(880, 260)
     lo, hi = 0.5, 2e5
 
@@ -289,16 +316,19 @@ def hizlar(kalemler):
                  f'stroke="{renk}" stroke-width="2" opacity="0.3"/>')
         g.append(f'<circle cx="{px(v):.1f}" cy="{y}" r="7" fill="{renk}" '
                  f'stroke="var(--yz)" stroke-width="2"/>')
-        _t(g, 254, y + 4, ad, 12, "var(--m1)", "end")
+        _t(g, 254, y + 4, sec(ad, dil), 12, "var(--m1)", "end")
         s = f"{v:,.0f}".replace(",", " ") if v >= 10 else f"{v:g}"
-        _t(g, px(v) + 14, y + 4, f"{s} örnek/s", 11, "var(--m2)")
+        en = f"{s} sample/s" if v == 1 else f"{s} samples/s"
+        _t(g, px(v) + 14, y + 4, sec(M(f"{s} örnek/s", en), dil),
+           11, "var(--m2)")
         y += 34
-    _t(g, 530, 250, "saniyede kaç örnek (logaritmik ölçek)", 12,
+    _t(g, 530, 250, sec(M("saniyede kaç örnek (logaritmik ölçek)",
+                          "samples per second (logarithmic scale)"), dil), 12,
        "var(--m2)", "middle")
     return svg_kapa(g)
 
 
-def canli_olcum(sebeke_hz=50.0):
+def canli_olcum(sebeke_hz=50.0, dil="tr"):
     """Arayuzun canli gosterdigi V/I/W — reaktif yuk ornegi."""
     g = svg_ac(880, 300)
     x0, y0, w, h = 66, 20, 700, 205
@@ -313,19 +343,26 @@ def canli_olcum(sebeke_hz=50.0):
         isl.append((t * 1000, i))
         ws.append((t * 1000, v * i))
     px, py = eksen(g, x0, y0, w, h, 0, 2 * T_ * 1000, -45, 45,
-                   "zaman (ms)", "gerilim (V) · akım (A) · güç (W)", " ms", "",
+                   sec(M("zaman (ms)", "time (ms)"), dil),
+                   sec(M("gerilim (V) · akım (A) · güç (W)",
+                         "voltage (V) · current (A) · power (W)"), dil), " ms", "",
                    6, "{:.0f}", "{:.0f}")
     cizgi(g, [(t, w_ / 1.2) for t, w_ in ws], px, py, S4, 2)
     cizgi(g, vs, px, py, S1, 2)
     cizgi(g, [(t, i * 12) for t, i in isl], px, py, S2, 2)
-    _t(g, x0 + w + 8, py(24) + 4, "gerilim", 12, S1, kalin=True)
+    _t(g, x0 + w + 8, py(24) + 4, sec(M("gerilim", "voltage"), dil), 12, S1,
+       kalin=True)
     _t(g, x0 + w + 8, py(24) + 19, "±24 V")
-    _t(g, x0 + w + 8, py(-12) + 4, "akım", 12, S2, kalin=True)
+    _t(g, x0 + w + 8, py(-12) + 4, sec(M("akım", "current"), dil), 12, S2,
+       kalin=True)
     _t(g, x0 + w + 8, py(-12) + 19, "±1.6 A")
-    _t(g, x0 + w + 8, py(38) + 4, "güç", 12, S4, kalin=True)
-    _t(g, x0 + w + 8, py(38) + 19, "ort. 19 W")
-    _t(g, x0 + 10, y0 + 16,
+    _t(g, x0 + w + 8, py(38) + 4, sec(M("güç", "power"), dil), 12, S4,
+       kalin=True)
+    _t(g, x0 + w + 8, py(38) + 19, sec(M("ort. 19 W", "avg. 19 W"), dil))
+    _t(g, x0 + 10, y0 + 16, sec(M(
        "akım gerilimden 60° geride (PF ≈ 0.5) — kart bunu doğru ölçüyor",
+       "current lags voltage by 60° (PF ≈ 0.5) — the board measures this "
+       "correctly"), dil),
        11, "var(--m3)")
     return svg_kapa(g)
 
@@ -347,12 +384,63 @@ def _ok(g, x1, y, x2, etiket, renk, kesik=False):
     _t(g, (x1 + x2) / 2, y - 8, etiket, 11, renk, "middle", kalin=True)
 
 
-def baglanti_modlari(d):
+_t0, _kutu0 = _t, _kutu
+
+# baglanti_modlari'nin Ingilizce metinleri (Turkce metin -> EN).
+# Kutu genislikleri sabit: EN metinler TR'den uzun olmayacak sekilde secildi.
+BAGLANTI_EN = {
+    "1 · Yalnız kart — bilgisayar YOK": "1 · Board only — NO computer",
+    "ÖLÇÜM KARTI": "MEASUREMENT BOARD",
+    "kendi Wi-Fi ağı": "its own Wi-Fi network",
+    "TELEFON": "PHONE",
+    "tarayıcı": "browser",
+    "ya da 192.168.4.1": "or 192.168.4.1",
+    "Kart arayüzü kendi belleğinden sunuyor":
+        "UI served from the board's own memory",
+    "Bilgisayar gerekmez.": "No computer needed.",
+    "2 · Kart ev ağında — telefon ve PC aynı Wi-Fi'da":
+        "2 · Board on home network — phone and PC on the same Wi-Fi",
+    "ev Wi-Fi'sına bağlanır": "joins home Wi-Fi",
+    "BİLGİSAYAR": "COMPUTER",
+    "İkisi de doğrudan karta bağlanır.": "Both connect directly to the board.",
+    "her biri ölçümü yavaşlatır.": "each one slows measurement down.",
+    "Köprü kayıtlıysa kart doğrudan": "If a bridge is registered, the board",
+    "bağlananları köprüye yönlendirir.": "redirects direct clients to it.",
+    "3 · USB köprü — İZOLE OLMAYAN ÖLÇÜMDE KULLANMA":
+        "3 · USB bridge — DO NOT USE FOR NON-ISOLATED MEASUREMENT",
+    "Wi-Fi: N0 ile kapat": "Wi-Fi: off with N0",
+    "ölçüme tam hız": "full measuring speed",
+    "USB kablo": "USB cable",
+    "ölçümleri arşivler": "archives readings",
+    "PC'nin IP'si": "the PC's IP",
+    "salt okuma": "read-only",
+    "yalnız DURDUR": "STOP only",
+    "Bu kipte telefonun gördüğü sayfayı BİLGİSAYAR yayınlıyor; "
+    "kart yalnızca ölçüyor.":
+        "In this mode the COMPUTER serves the page the phone sees; "
+        "the board only measures.",
+}
+
+
+def baglanti_modlari(d, dil="tr"):
     """Kartin uc baglanti kipi — kullanicinin ilk sorusunun cevabi.
 
     Sayilarin hepsi `d`'den; bu cizimde ELLE yazilmis deger yok.
     """
     g = svg_ac(760, 430)
+    if dil == "en":
+        # Yalniz bu cizim icin metin cevirisi; geometri ayni kalir.
+        def tt(s):
+            return BAGLANTI_EN.get(s, s)
+
+        def _t(g, x, y, s, *a, **k):  # noqa: F811
+            return _t0(g, x, y, tt(s), *a, **k)
+
+        def _kutu(g, x, y, w, h, baslik, alt, *a, **k):  # noqa: F811
+            return _kutu0(g, x, y, w, h, tt(baslik), [tt(s) for s in alt],
+                          *a, **k)
+    else:
+        _t, _kutu = _t0, _kutu0
 
     _t(g, 20, 22, "1 · Yalnız kart — bilgisayar YOK", 13, "var(--m1)",
        kalin=True)
@@ -370,7 +458,8 @@ def baglanti_modlari(d):
     _t(g, 20, 160, "2 · Kart ev ağında — telefon ve PC aynı Wi-Fi'da", 13,
        "var(--m1)", kalin=True)
     _kutu(g, 20, 172, 170, 78, "ÖLÇÜM KARTI",
-          ["ev Wi-Fi'sına bağlanır", f"{d['sta_bekle_s']:.0f} s içinde",
+          ["ev Wi-Fi'sına bağlanır", sec(M(f"{d['sta_bekle_s']:.0f} s içinde",
+                                           f"within {d['sta_bekle_s']:.0f} s"), dil),
            f"port {d['kart_port']}"], S3)
     _ok(g, 195, 200, 320, "Wi-Fi", S3)
     _kutu(g, 325, 172, 150, 50, "TELEFON", [], S1)
@@ -378,7 +467,8 @@ def baglanti_modlari(d):
     g.append(f'<line x1="195" y1="211" x2="317" y2="257" stroke="{S3}" '
              f'stroke-width="2"/>')
     _t(g, 490, 196, "İkisi de doğrudan karta bağlanır.", 11, "var(--m3)")
-    _t(g, 490, 214, f"En çok {d['akis_azami']} tarayıcı izleyebilir —", 11, S2,
+    _t(g, 490, 214, sec(M(f"En çok {d['akis_azami']} tarayıcı izleyebilir —",
+                          f"Up to {d['akis_azami']} browsers can watch —"), dil), 11, S2,
        kalin=True)
     _t(g, 490, 230, "her biri ölçümü yavaşlatır.", 11, S2, kalin=True)
     _t(g, 490, 252, "Köprü kayıtlıysa kart doğrudan", 11, "var(--m3)")
