@@ -10550,6 +10550,79 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.119 🟡 BÜTÜNLEŞİK DAL: SK1 DÜZELTME + İKİ DİLLİ BELGELER (2026-10-10, bulut oturumu, dal `butunlesik`)
+
+**Ne birleşti.** Taban `sk1-duzeltme` (5.12.117–5.12.118: A3-SK2, EU31 açılış bütçesi). Üstüne sırayla, her biri ayrı
+`--no-ff` birleştirme commit'i: `iki-dil-cekirdek` (BELGELER/en 1…6, 9 + index, README.en.md, GELISTIRICI.tr.md,
+`test_belge_dil.py`; tabanındaki `readme-yeni` de geldi), `iki-dil-yerlesim` (EN 7-yerlesim, `yerlesim3_en.py`),
+`iki-dil-kutu` (EN 8-kutu, `kutu_en.py`). Kaynak dallar ve `main` değişmedi.
+
+**Çakışmalar.** Git düzeyinde çakışma ÇIKMADI. `uretim/belge_dil.py` üç dalda BİREBİR aynı (sha256 `29f90b3c…`).
+Üretilen dosyalar elle çözülmedi, birleşik kaynaktan yeniden üretildi:
+- 4-kurulum / 6-ag (TR+EN): `sk1-duzeltme`'nin `_firmware.json`'u (1 430 870 B) ve `_fs.json`'u (471 KB, %31) iki dile
+  de geçti (dalda TR sayfa 468 KB'ta bayattı, EN tabanı 467 KB / 1 430 282 B'tı).
+- 7-yerlesim, 8-kutu: çekirdeğin `.ust a.dil{margin-left:auto}` kuralı (STIL) iki dile de girdi. **Envanter
+  (`stok-takip/envanter.csv`) bulutta yok:** yeniden üretim TR 7-yerlesim'in "Stokta" sütununu, TR/EN 8-kutu'nun stok
+  kayıtlarını düşürürdü. Bu sayfalar dalların envanterli hâliyle korunup yalnız o CSS satırı eklendi; EN 8-kutu'nun
+  sonraki çeviri farkı token düzeyinde 3-yollu birleştirmeyle (envantersiz eski→yeni çıktı farkı, çakışma 0) uygulandı.
+  2-malzemeler gövdesi de envantere bağlı; `belge-uret.py` bulutta bir sarmalayıcıyla gövde korunarak koşturuldu.
+- `test_belge_dil.py`: 7/8 için "EN eşi yoksa ATLA" yolu kaldırıldı (artık kırmızı) + yeni kural: her TR/EN sayfanın
+  ilk `<nav>`'ı `belge_menu.MENU`'nün hepsine (index + 1…9) gidiyor. Mutasyonla sınandı. 57 → **79/79**.
+- Dizinler (TR/EN `index.html` belge tablosu) ve `README.en.md` 7/8 bağlantıları zaten doğruydu; dokunulmadı.
+
+**İngilizce tutarlılık (ayrı commit, kaynakta).** Panel terimleri `ortak/src/sozluk.js` esas:
+
+| kavram (TR) | bulunan | seçilen |
+|---|---|---|
+| kutu | enclosure (menü, 1–7, 9) / box (8-kutu, 142 yer) | **enclosure** (stok saklama kutusu: storage box) |
+| KAPI | GATE (4, 7) / Gate {n}, gates, gate measurement (4 özet, 8) | **GATE / GATEs** (MOSFET gate'ine dokunulmadı) |
+| krokodil | crocodile clip (3, 7) / alligator clip (8) | **crocodile clip** |
+| AÇ / KAPA | ON / OFF (etiket) / ON/OFF (8, 3 yer) | etiket **ON / OFF**; anahtar anlamında "on/off switch" |
+| PİL 2 (etiket) | BATTERY 2 (8) / `<code>PİL 2</code>` çevrilmemiş (3) | **BATTERY 2 (PİL 2)** ilk geçişte, sonra BATTERY 2 |
+| born jak | banana jack / banana socket (8, 1 yer) | **banana jack** |
+| kayıt | recording (sozluk) / curve log (1, 2) | **recording** |
+| envanter kaydı | stock record(s) (2) / inventory (8) | **stock record(s)** |
+| zaten tutarlı | şönt = shunt · alt adım = sub-step · delikli plaket = perfboard · çubuk = stick (tongue depressor) · köprü = bridge (PC bridge / USB bridge) · oturum = session · sıfır = zero · kalibrasyon = calibration · YÜK/GÜÇ/ŞARJ/SKOP = LOAD/POWER/CHARGE/SCOPE · V, COM, CAL, HV aynen | — |
+
+7-yerlesim'deki `SKOP`, `SKOP_GIRIS` AĞ ADI (çevrilmez). Sayı, parça kodu, koordinat değişmedi; TR sayfalar değişmedi.
+
+**Koşulan denetimler (bulut).** `test_belge_dil.py` **79/79** · `yerlesim3.py` **52/52** + BELGE DİLİ **2/2** ·
+`kutu.py` **2365/2365** (envanter yok: 7 · STOK bölümü atlandı) + dil **9/9** · `belge-uret.py` PC kılavuzu **15/15** ·
+`baglanti.py` **12/12**, ardından `ortak/src/baglanti_veri.js` DEĞİŞMEDİ (`git diff --exit-code` temiz) ·
+`test_ortak.py` **33/33** · `test_arayuz3.js` **998/998** · `test_skop_olcum.py` A6 **72/72** · `test_skop_suz.py`
+**31/31** · `sim3_skop.py` **94/94** · `gizlilik_dogrula.py` temiz. avr-gcc: Ubuntu `gcc-avr` 7.3.0 (Atmel 3.7.0),
+betiklerin Windows yoluna ev klasöründe sembolik bağla (depo dışı); ngspice: Ubuntu `libngspice0`, `spice.py`'nin DLL
+yolu depo dışı bir sarmalayıcıyla değiştirildi (KiCad'in ngspice'inden sürüm farkı olabilir).
+`dogrula3.py --artimli` (avr-gcc kurulmadan önce koştu) B1…B73'ü koştu, **B3'te durdu** (`kicad-cli.exe` yok, istisna):
+B1 89/89 · B2 31/31 · B11 22/23 (B11-6 envanter) · B17 31/31 · B20 77/78 (1a-bis: ESP32 çekirdeğinin WebServer kaynağı yok)
+· B21 56/56 (AVR denetimi atlandı) · B58f 31/31 · B22a 197/201 (PC3 ×4: `SeriKart` yalnız Windows) · B22b 136/138
+(6p ikonlar / 6q ETag: Linux zlib ↔ zlib-ng, 5.12.118'deki not; ESP32 çekirdeği yok → AVR/MIME atlandı) · B25 50/50 ·
+B72 257/259 (P1/P2: çekirdeğin `huge_app.csv`'si yok) · B73 32/33 (V.skop: avr-gcc yok; kurulunca 33/33). Kırmızıların
+HEPSİ ortamdan; gerçek kusur görülmedi. B3 ve sonrası (B4/B5, B6, B7, B9 zincir içinde) koşmadı — B9'un betikleri
+yukarıda tek tek koşuldu.
+
+**Koşulamayanlar (ortam).** kicad-cli (B3, B9'un netlist tazelemesi), arduino-cli / ESP32 çekirdeği (B6 derleme, `_firmware.json`),
+mklittlefs (`arayuz-uret.py`), Edge (`kutu_ipucu_test.py --dil en`), envanter (`stok-takip/envanter.csv`: B9 stok,
+TR 7-yerlesim "Stokta" sütunu, 8-kutu stok kayıtları, 2-malzemeler gövdesi).
+
+**Sayım kilidi YAZILMADI** (`beklenen_sayim.json`). İddia sayısı değişen adımlar: **B9** yeni özet satırı `yerlesim3.py` BELGE DİLİ **2/2** (kilit `[3,15,52,2421]` → `[3,15,52,2,2421]`
+beklenir; `kutu.py`'nin "9/9 dil dogrulamasi" satırı `sayim.DESEN`'e uymuyor, sayılmaz) · **B73** 32 → 33
+(`sozluk_skop`, 5.12.118) · **B7** `test_arayuz3.js` 989 → 998 (5.12.118) · **B6** `test_skop_olcum.py` "A6: 72/72" satırı (5.12.118: 45 → 72, artık B6'da da koşuyor).
+B20 78 / B22a 201 / B22b 138 / B21 56 bulut sayıları kilitten farklı ama ortama bağlı (atlanan alt denetimler); yerel
+tam koşuda doğrulanmalı.
+
+**Yerelde kalan iş.**
+1. Envanterle yeniden üret: `python uretim/belge-uret.py`, `kurulum3-uret.py`, `yerlesim3.py`, `kutu.py` — TR/EN
+   2-malzemeler, 7-yerlesim, 8-kutu'nun envanterli hâli üreteçten bayt bayt gelmeli (bulutta korunan hâlle aynı
+   beklenir; fark çıkarsa üretecinki doğrudur).
+2. `python uretim/arayuz-uret.py` (mklittlefs; Windows zlib-ng — 5.12.118'deki not) ve tam zincir
+   `python uretim/dogrula3.py`, sonra `--sayim-kilidi-yaz` (yukarıdaki adımlar).
+3. Firmware A3-SK2'yi derleyip karta yükle; `_firmware.json` → 4-kurulum künyesi yenilenir.
+4. `python uretim/kutu_ipucu_test.py --dil en` (Edge gerekiyor) ve İngilizce ekran görüntüleri
+   (`gorsel/readme/en/GEREKENLER.md`).
+
+---
+
 #### 5.12.118 🟡 SK1 DÜZELTME: EU31 AÇILIŞ BÜTÇESİ + SK-1 ÖLÇÜM EŞİKLERİ (2026-10-10, bulut oturumu, dal `sk1-duzeltme`)
 
 **İş 1 — açılış bütçesi (EU31 kırmızıydı, 262 381 / 262 144 B).** Süzgeç menüsü ve onun metinleri açılış paketinden
