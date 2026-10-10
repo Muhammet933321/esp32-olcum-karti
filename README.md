@@ -12,7 +12,7 @@ Tek kutuda voltmetre · ampermetre · wattmetre · enerji sayacı · osiloskop �
   <a href="#kendin-yap">Nasıl yapılır</a> ·
   <a href="#uygulamalar">Uygulamalar</a> ·
   <a href="#hızlı-başlangıç">Hızlı başlangıç</a> ·
-  <a href="GELISTIRICI.md">Geliştirici notları</a> ·
+  <a href="GELISTIRICI.tr.md">Geliştirici notları</a> ·
   <a href="LICENSE">MIT lisansı</a>
 </p>
 
@@ -180,7 +180,7 @@ flowchart LR
    python yukle.py                                  # derle + yükle
    python arayuz-uret.py && python arayuz-yaz.py    # paneli kartın belleğine yaz
    ```
-   `arduino-cli` ve ESP32 çekirdeği gerekir; Arduino IDE ayarları [GELISTIRICI.md](GELISTIRICI.md)'de.
+   `arduino-cli` ve ESP32 çekirdeği gerekir; Arduino IDE ayarları [GELISTIRICI.tr.md](GELISTIRICI.tr.md)'de.
 3. **Ev Wi-Fi'sine tanıt** — seri konsolu 115200 baud ile aç ve yaz: `Na<ağ adı>`, ardından `Np<Wi-Fi parolası>`.
    Kart 8 ağa kadar hatırlar; sonradan panelde **Ayarlar → Ağ**'dan eklenir ve seçilir. Bilinen ağ yoksa
    kart kendi ağını açar (`OLCUM-KARTI-xxxx`, adres `192.168.4.1`). Ayrıntı: [Bağlanma](BELGELER/6-ag.html).
@@ -229,10 +229,10 @@ python mutasyon.py           # testler bozulan kodu yakalıyor mu
 | `kopru/` | PC uygulaması (yalnız Python standart kütüphanesi) |
 | `mobil/` | Android uygulaması (Capacitor) |
 | `sema3/` | KiCad şeması |
-| `BELGELER/` | kullanıcı rehberleri — üretiliyor, elle düzenlenmez |
+| `BELGELER/` | kullanıcı rehberleri (İngilizcesi `BELGELER/en/`'de) — üretiliyor, elle düzenlenmez |
 | `uretim/` | doğrulama zinciri, benzetimler, belge üreteçleri |
 
-Ayrıntılar: [GELISTIRICI.md](GELISTIRICI.md) · mühendislik günlüğü [DEVIR.md](DEVIR.md) (Türkçe, uzun).
+Ayrıntılar: [GELISTIRICI.tr.md](GELISTIRICI.tr.md) (İngilizcesi: [GELISTIRICI.md](GELISTIRICI.md)) · mühendislik günlüğü [DEVIR.md](DEVIR.md) (Türkçe, uzun).
 
 ---
 

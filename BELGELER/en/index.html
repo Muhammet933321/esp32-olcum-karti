@@ -1,0 +1,130 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Measurement Board — Measurement Board</title><style>
+:root{color-scheme:light dark;
+  --yz:#fcfcfb; --yz2:#f4f3f0; --cizgi:#e2e0da;
+  --m1:#0b0b0b; --m2:#52514e; --m3:#77756d;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --iyi:#0a7d3f; --uyari:#b25e00; --kotu:#b3261e;}
+@media (prefers-color-scheme:dark){:root:not([data-tema="acik"]){
+  --yz:#1a1a19; --yz2:#232322; --cizgi:#3a3a37;
+  --m1:#ffffff; --m2:#c3c2b7; --m3:#9a988e;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --iyi:#4ec27d; --uyari:#e0a350; --kotu:#f2837a;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--yz);color:var(--m1);
+  font:16px/1.65 -apple-system,"Segoe UI",Roboto,sans-serif;}
+.kutu{max-width:960px;margin:0 auto;padding:32px 22px 80px}
+h1{font-size:30px;line-height:1.25;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:21px;margin:44px 0 4px;letter-spacing:-.01em;
+   padding-top:18px;border-top:1px solid var(--cizgi)}
+h3{font-size:16px;margin:26px 0 6px;color:var(--m2);
+   text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+p{margin:10px 0}
+.alt{color:var(--m2);font-size:15px;margin:0 0 26px}
+.ust{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px;font-size:14px}
+.ust a{color:var(--m2);text-decoration:none;padding:5px 11px;
+  border:1px solid var(--cizgi);border-radius:99px}
+.ust a:hover{color:var(--m1);border-color:var(--m3)}
+.ust a.bu{background:var(--m1);color:var(--yz);border-color:var(--m1)}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--cizgi)}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+   color:var(--m3);font-weight:600}
+td.s,th.s{text-align:right;font-variant-numeric:tabular-nums}
+.kart{background:var(--yz2);border:1px solid var(--cizgi);
+  border-radius:12px;padding:16px 18px;margin:14px 0}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;margin:16px 0}
+.kpi div{background:var(--yz2);border:1px solid var(--cizgi);
+  border-radius:10px;padding:12px 14px}
+.kpi b{display:block;font-size:24px;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--m2);text-transform:uppercase;
+  letter-spacing:.05em}
+.uy{border-left:3px solid var(--uyari);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+.ok{border-left:3px solid var(--iyi);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+.no{border-left:3px solid var(--kotu);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+figure{margin:22px 0}
+figcaption{font-size:14px;color:var(--m2);margin-top:8px}
+svg{max-width:100%;height:auto;display:block}
+code{background:var(--yz2);padding:1px 6px;border-radius:5px;
+  font:14px/1 ui-monospace,Consolas,monospace}
+.kucuk{font-size:14px;color:var(--m2)}
+.rozet{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;
+  background:var(--yz2);border:1px solid var(--cizgi);color:var(--m2)}
+pre{background:var(--yz2);border:1px solid var(--cizgi);border-radius:8px;
+  padding:10px 14px;margin:10px 0;overflow-x:auto;white-space:pre;
+  font:14px/1.5 ui-monospace,Consolas,monospace}
+.ust a.dil{margin-left:auto}
+</style></head><body>
+<div class="kutu"><nav class="ust"><a href="index.html" class='bu'>Start</a><a href="1-ne-yapabilir.html">What it can do</a><a href="2-olcumler.html">Measurements</a><a href="3-pil-testi.html">Battery test</a><a href="6-ag.html">Connecting</a><a href="9-pc-uygulamasi.html">PC app</a><a href="2-malzemeler.html">Parts</a><a href="4-kurulum.html">Assembly</a><a href="7-yerlesim.html">Layout</a><a href="8-kutu.html">Enclosure</a><a href="5-muhendislik.html">Engineering</a><a class="dil" href="../index.html" lang="tr">Türkçe</a></nav>
+<h1>Measurement Board</h1><p class="alt">Voltmeter · ammeter · wattmeter · energy meter · oscilloscope · battery tester</p>
+
+<div class="kpi">
+  <div><span>Voltage</span><b>±32 / ±614 V</b></div>
+  <div><span>Current</span><b>±9.5 A</b></div>
+  <div><span>Sample rate</span><b>665 /s</b></div>
+  <div><span>Oscilloscope</span><b>83 kSa/s</b></div>
+</div>
+
+<p>This board is a <b>voltmeter</b>, <b>ammeter</b>, <b>wattmeter</b>,
+<b>energy meter</b>, <b>oscilloscope</b> and <b>battery capacity tester</b>.
+You use it from a browser: <b>straight from your phone</b>, or by plugging it
+into a computer over USB and working from there — see
+<a href="6-ag.html">Connecting</a>.</p>
+
+<h2>Which page should I read?</h2>
+<table>
+<tr><th>Page</th><th>What's in it</th></tr>
+<tr><td><a href="1-ne-yapabilir.html"><b>What it can do</b></a></td>
+    <td>Everything the board can do: ranges, speeds, example
+        screens. <b>Start here.</b></td></tr>
+<tr><td><a href="2-olcumler.html"><b>Measurements</b></a></td>
+    <td>What it measures, how finely, how often, and where the limits are</td></tr>
+<tr><td><a href="3-pil-testi.html"><b>Battery test</b></a></td>
+    <td>Which batteries we can test, at what current, and how long it takes —
+        with charts</td></tr>
+<tr><td><a href="6-ag.html"><b>Connecting</b></a></td>
+    <td>Whether to reach the board from a phone or a computer, which address,
+        which mode <b>in which situation</b></td></tr>
+<tr><td><a href="9-pc-uygulamasi.html"><b>PC app</b></a></td>
+    <td>The bridge on your computer: first pairing, starting it, archiving
+        recordings on the computer, Windows notifications, autostart,
+        troubleshooting</td></tr>
+<tr><td><a href="2-malzemeler.html"><b>Parts</b></a></td>
+    <td>Every part you need, what you already have and what to buy</td></tr>
+<tr><td><a href="4-kurulum.html"><b>Assembly</b></a></td>
+    <td>Step-by-step build guide</td></tr>
+<tr><td><a href="7-yerlesim.html"><b>Layout</b></a></td>
+    <td><b>Assembly starts here.</b> Sub-step by sub-step, like a LEGO manual:
+        which part goes in which hole, where each trace and wire runs, what each
+        step needs, and a GATE measurement — illustrated</td></tr>
+<tr><td><a href="8-kutu.html"><b>Enclosure</b></a></td>
+    <td><b>After the boards are done.</b> Panel holes, the shunt and load path, Q1,
+        jacks, cables — step by step, with checks; at the end, which measurement
+        to take from where</td></tr>
+<tr><td><a href="../sema.pdf"><b>Schematic (PDF)</b></a></td>
+    <td>The full circuit schematic</td></tr>
+<tr><td><a href="5-muhendislik.html"><b>Engineering</b></a></td>
+    <td>How it works, design decisions, verification — <span
+        class="rozet">optional</span></td></tr>
+</table>
+
+<div class="uy"><b>The board is being built.</b> The Measurement Board runs on
+the ESP32; the ADS modules are not fitted yet, so the readings don't mean
+anything yet. The whole design has been verified on the computer (a
+22-step chain, more than a thousand automated checks). The values
+on these pages are <b>what the design promises</b>; the ones still to be measured
+on the bench are marked individually.</div>
+
+<p class="kucuk" style="margin-top:60px;border-top:1px solid var(--cizgi);
+ padding-top:14px">This page was generated by
+ <code>uretim/belge-uret.py</code> — every number here is computed from the
+ design files, none is typed in by hand. The board is being assembled (the ESP32
+ runs, the ADS modules are not fitted yet); the values are what the design
+ promises.</p>
+</div></body></html>

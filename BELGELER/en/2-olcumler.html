@@ -1,0 +1,188 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Measurements — Measurement Board</title><style>
+:root{color-scheme:light dark;
+  --yz:#fcfcfb; --yz2:#f4f3f0; --cizgi:#e2e0da;
+  --m1:#0b0b0b; --m2:#52514e; --m3:#77756d;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --iyi:#0a7d3f; --uyari:#b25e00; --kotu:#b3261e;}
+@media (prefers-color-scheme:dark){:root:not([data-tema="acik"]){
+  --yz:#1a1a19; --yz2:#232322; --cizgi:#3a3a37;
+  --m1:#ffffff; --m2:#c3c2b7; --m3:#9a988e;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --iyi:#4ec27d; --uyari:#e0a350; --kotu:#f2837a;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--yz);color:var(--m1);
+  font:16px/1.65 -apple-system,"Segoe UI",Roboto,sans-serif;}
+.kutu{max-width:960px;margin:0 auto;padding:32px 22px 80px}
+h1{font-size:30px;line-height:1.25;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:21px;margin:44px 0 4px;letter-spacing:-.01em;
+   padding-top:18px;border-top:1px solid var(--cizgi)}
+h3{font-size:16px;margin:26px 0 6px;color:var(--m2);
+   text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+p{margin:10px 0}
+.alt{color:var(--m2);font-size:15px;margin:0 0 26px}
+.ust{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px;font-size:14px}
+.ust a{color:var(--m2);text-decoration:none;padding:5px 11px;
+  border:1px solid var(--cizgi);border-radius:99px}
+.ust a:hover{color:var(--m1);border-color:var(--m3)}
+.ust a.bu{background:var(--m1);color:var(--yz);border-color:var(--m1)}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--cizgi)}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+   color:var(--m3);font-weight:600}
+td.s,th.s{text-align:right;font-variant-numeric:tabular-nums}
+.kart{background:var(--yz2);border:1px solid var(--cizgi);
+  border-radius:12px;padding:16px 18px;margin:14px 0}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;margin:16px 0}
+.kpi div{background:var(--yz2);border:1px solid var(--cizgi);
+  border-radius:10px;padding:12px 14px}
+.kpi b{display:block;font-size:24px;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--m2);text-transform:uppercase;
+  letter-spacing:.05em}
+.uy{border-left:3px solid var(--uyari);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+.ok{border-left:3px solid var(--iyi);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+.no{border-left:3px solid var(--kotu);background:var(--yz2);
+  padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:15px}
+figure{margin:22px 0}
+figcaption{font-size:14px;color:var(--m2);margin-top:8px}
+svg{max-width:100%;height:auto;display:block}
+code{background:var(--yz2);padding:1px 6px;border-radius:5px;
+  font:14px/1 ui-monospace,Consolas,monospace}
+.kucuk{font-size:14px;color:var(--m2)}
+.rozet{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;
+  background:var(--yz2);border:1px solid var(--cizgi);color:var(--m2)}
+pre{background:var(--yz2);border:1px solid var(--cizgi);border-radius:8px;
+  padding:10px 14px;margin:10px 0;overflow-x:auto;white-space:pre;
+  font:14px/1.5 ui-monospace,Consolas,monospace}
+.ust a.dil{margin-left:auto}
+</style></head><body>
+<div class="kutu"><nav class="ust"><a href="index.html">Start</a><a href="1-ne-yapabilir.html">What it can do</a><a href="2-olcumler.html" class='bu'>Measurements</a><a href="3-pil-testi.html">Battery test</a><a href="6-ag.html">Connecting</a><a href="9-pc-uygulamasi.html">PC app</a><a href="2-malzemeler.html">Parts</a><a href="4-kurulum.html">Assembly</a><a href="7-yerlesim.html">Layout</a><a href="8-kutu.html">Enclosure</a><a href="5-muhendislik.html">Engineering</a><a class="dil" href="../2-olcumler.html" lang="tr">Türkçe</a></nav>
+<h1>Measurements</h1><p class="alt">What it measures, how precisely, how often</p>
+
+<p>This page answers "what, how precisely, and how often".</p>
+
+<h2>Voltage</h2>
+<p>There are two ranges and the board switches between them
+<b>automatically</b>. Both are <b>bidirectional</b> — it reads negative voltage
+too.</p>
+<table>
+<tr><th>Range</th><th class="s">Measures up to</th><th class="s">Step</th>
+    <th class="s">Per second</th></tr>
+<tr><td><b>NORMAL</b></td><td class="s">±32.4 V</td>
+    <td class="s">1.042 mV</td>
+    <td class="s">665</td></tr>
+<tr><td><b>HIGH</b></td><td class="s">±613.7 V</td>
+    <td class="s">18.78 mV</td>
+    <td class="s">665</td></tr>
+</table>
+<div class="no"><b>⚠ 615 V is lethal.</b> The high range is for mains and
+above. It connects through a separate, marked input, and while that input is in
+use nobody touches the board.</div>
+
+<h2>Current</h2>
+<p>You pick the range by changing the shunt. Small shunt = large current,
+large shunt = fine resolution.</p>
+<table>
+<tr><th>Fitted shunt</th><th class="s">Measures up to</th><th class="s">Step</th>
+    <th>Limited by</th></tr><tr><td>10 Ω</td><td class='s'>±0.026 A</td><td class='s'>0.8 µA</td><td>ADC</td></tr><tr><td>1 Ω</td><td class='s'>±0.256 A</td><td class='s'>7.8 µA</td><td>ADC</td></tr><tr><td>100 mΩ</td><td class='s'>±2.560 A</td><td class='s'>78.1 µA</td><td>ADC</td></tr><tr><td>15 mΩ</td><td class='s'>±3.359 A</td><td class='s'>520.8 µA</td><td>shunt heating</td></tr><tr><td>5 mΩ</td><td class='s'>±9.500 A</td><td class='s'>1562.5 µA</td><td>shunt heating</td></tr></table>
+<p class="kucuk">The 15 mΩ shunt <b>needs a Kelvin connection</b> — the solder
+joints have about the same resistance as the shunt itself.</p>
+
+<h2>Power and energy</h2>
+<table>
+<tr><td>Power</td><td class="s">±5.8 kW</td>
+    <td>voltage × current, <b>signed</b> (negative = feeding back)</td></tr>
+<tr><td>Energy</td><td class="s">±2 562 Wh</td>
+    <td>at 25 W it doesn't overflow for 102 hours</td></tr>
+<tr><td>Charge (battery test)</td><td class="s">±2 562 Ah</td>
+    <td><b>counts down</b> in the charging direction</td></tr>
+</table>
+<div class="uy"><b>Power measurement is valid in the 40–70 Hz band.</b>
+The board is calibrated at mains frequency (50/60 Hz) and the calibration no
+longer holds outside that band. That is why the <code>f</code> setting stops at
+100 Hz. When measuring DC, set it to <b>DC</b> — otherwise power
+reads 82% high (the interface warns you about this).</div>
+
+<h2>Oscilloscope</h2>
+<table>
+<tr><th>Time base</th><th class="s">Sample rate</th>
+    <th class="s">Window</th><th class="s">Samples</th></tr><tr><td>100 µs</td><td class='s'>83.33 kSa/s</td><td class='s'>1 ms</td><td class='s'>100</td></tr><tr><td>200 µs</td><td class='s'>83.33 kSa/s</td><td class='s'>2 ms</td><td class='s'>167</td></tr><tr><td>500 µs</td><td class='s'>83.33 kSa/s</td><td class='s'>5 ms</td><td class='s'>417</td></tr><tr><td>1 ms</td><td class='s'>83.33 kSa/s</td><td class='s'>10 ms</td><td class='s'>833</td></tr><tr><td>2 ms</td><td class='s'>50.00 kSa/s</td><td class='s'>20 ms</td><td class='s'>1000</td></tr><tr><td>5 ms</td><td class='s'>20.00 kSa/s</td><td class='s'>50 ms</td><td class='s'>1000</td></tr><tr><td>10 ms</td><td class='s'>10.00 kSa/s</td><td class='s'>100 ms</td><td class='s'>1000</td></tr><tr><td>20 ms</td><td class='s'>5.00 kSa/s</td><td class='s'>200 ms</td><td class='s'>1000</td></tr><tr><td>50 ms</td><td class='s'>2.00 kSa/s</td><td class='s'>500 ms</td><td class='s'>1000</td></tr><tr><td>100 ms</td><td class='s'>1.00 kSa/s</td><td class='s'>1000 ms</td><td class='s'>1000</td></tr><tr><td>200 ms</td><td class='s'>0.61 kSa/s</td><td class='s'>2000 ms</td><td class='s'>1222</td></tr><tr><td>500 ms</td><td class='s'>0.61 kSa/s</td><td class='s'>5000 ms</td><td class='s'>3055</td></tr></table>
+<table>
+<tr><td>Vertical range</td>
+    <td class="s">-63.5 … +46.8 V</td></tr>
+<tr><td>Vertical step</td><td class="s">28.8 mV</td></tr>
+<tr><td>Bandwidth</td><td class="s">16.5 kHz</td></tr>
+</table>
+<p class="kucuk">The oscilloscope channel is for <b>waveform shape</b>. Take
+measurements that need numeric precision from the wattmeter path — that one is
+16-bit, this one 12-bit.</p>
+
+<h2>Sample rate — what it means</h2>
+<figure><svg viewBox="0 0 880 260" role="img" width="880" height="260">
+<line x1="291.3" y1="28" x2="291.3" y2="212" stroke="var(--cizgi)"/>
+<text x="291.3" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">1</text>
+<line x1="388.6" y1="28" x2="388.6" y2="212" stroke="var(--cizgi)"/>
+<text x="388.6" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">10</text>
+<line x1="485.9" y1="28" x2="485.9" y2="212" stroke="var(--cizgi)"/>
+<text x="485.9" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">100</text>
+<line x1="583.1" y1="28" x2="583.1" y2="212" stroke="var(--cizgi)"/>
+<text x="583.1" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">1 000</text>
+<line x1="680.4" y1="28" x2="680.4" y2="212" stroke="var(--cizgi)"/>
+<text x="680.4" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">10 000</text>
+<line x1="777.7" y1="28" x2="777.7" y2="212" stroke="var(--cizgi)"/>
+<text x="777.7" y="229.0" text-anchor="middle" font-size="10" fill="var(--m3)">100 000</text>
+<line x1="262" y1="46" x2="565.9" y2="46" stroke="#2a78d6" stroke-width="2" opacity="0.3"/>
+<circle cx="565.9" cy="46" r="7" fill="#2a78d6" stroke="var(--yz)" stroke-width="2"/>
+<text x="254.0" y="50.0" text-anchor="end" font-size="12" fill="var(--m1)">Wattmeter (V·I·W·mAh)</text>
+<text x="579.9" y="50.0" text-anchor="start" font-size="11" fill="var(--m2)">665 samples/s</text>
+<line x1="262" y1="80" x2="770.0" y2="80" stroke="#1baf7a" stroke-width="2" opacity="0.3"/>
+<circle cx="770.0" cy="80" r="7" fill="#1baf7a" stroke="var(--yz)" stroke-width="2"/>
+<text x="254.0" y="84.0" text-anchor="end" font-size="12" fill="var(--m1)">Oscilloscope — fastest</text>
+<text x="784.0" y="84.0" text-anchor="start" font-size="11" fill="var(--m2)">83 333 samples/s</text>
+<line x1="262" y1="114" x2="562.3" y2="114" stroke="#1baf7a" stroke-width="2" opacity="0.3"/>
+<circle cx="562.3" cy="114" r="7" fill="#1baf7a" stroke="var(--yz)" stroke-width="2"/>
+<text x="254.0" y="118.0" text-anchor="end" font-size="12" fill="var(--m1)">Oscilloscope — slowest</text>
+<text x="576.3" y="118.0" text-anchor="start" font-size="11" fill="var(--m2)">611 samples/s</text>
+<line x1="262" y1="148" x2="740.7" y2="148" stroke="#eb6834" stroke-width="2" opacity="0.3"/>
+<circle cx="740.7" cy="148" r="7" fill="#eb6834" stroke="var(--yz)" stroke-width="2"/>
+<text x="254.0" y="152.0" text-anchor="end" font-size="12" fill="var(--m1)">Fast current (waveform)</text>
+<text x="754.7" y="152.0" text-anchor="start" font-size="11" fill="var(--m2)">41 666 samples/s</text>
+<line x1="262" y1="182" x2="291.3" y2="182" stroke="#eda100" stroke-width="2" opacity="0.3"/>
+<circle cx="291.3" cy="182" r="7" fill="#eda100" stroke="var(--yz)" stroke-width="2"/>
+<text x="254.0" y="186.0" text-anchor="end" font-size="12" fill="var(--m1)">Battery test curve log</text>
+<text x="305.3" y="186.0" text-anchor="start" font-size="11" fill="var(--m2)">1 sample/s</text>
+<text x="530.0" y="250.0" text-anchor="middle" font-size="12" fill="var(--m2)">samples per second (logarithmic scale)</text>
+</svg>
+<figcaption>The wattmeter path samples 665 times a second.
+By default the value on screen refreshes every 200 ms
+(selectable from 50 ms to 1 s in the panel), and each refresh is the average of
+133 measurements — which suppresses noise by a factor of
+12.</figcaption></figure>
+
+<h2>Resolution is not the same as accuracy</h2>
+<table>
+<tr><th></th><th>What it means</th><th>On this board</th></tr>
+<tr><td><b>Step</b></td><td>The smallest digit it can read</td>
+    <td class="s">1.04 mV</td></tr>
+<tr><td><b>Noise</b></td><td>How much the reading wanders with a steady input</td>
+    <td class="s">0.039 mV</td></tr>
+<tr><td><b>Accuracy</b></td><td>How close it is to the true value</td>
+    <td>as good as the calibration reference (±0.8%)</td></tr>
+</table>
+<p>The board can see a 0.04 mV <i>change</i>, but it can't say "this voltage is
+exactly 12.000 V" — to say that you need a reference more accurate than the
+board. In practice: <b>excellent for comparisons and trends; for absolute
+calibration, as good as your multimeter.</b></p>
+
+<p class="kucuk" style="margin-top:60px;border-top:1px solid var(--cizgi);
+ padding-top:14px">This page was generated by
+ <code>uretim/belge-uret.py</code> — every number here is computed from the
+ design files, none is typed in by hand. The board is being assembled (the ESP32
+ runs, the ADS modules are not fitted yet); the values are what the design
+ promises.</p>
+</div></body></html>

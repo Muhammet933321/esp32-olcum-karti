@@ -1,13 +1,13 @@
 # Ölçüm Kartı — developer notes
 
-> **Geliştirici notları.** Bu dosya projenin eski İngilizce tanıtımıdır (2026-09), donanım kurulmadan
-> önce yazıldı; mühendislik ve doğrulama ayrıntıları için duruyor. Kullanıcı tanıtımı:
-> [README.md](README.md) (Türkçe) · [README.en.md](README.en.md) (English).
+> **Türkçe:** [GELISTIRICI.tr.md](GELISTIRICI.tr.md). This file is the project's earlier English
+> introduction (2026-09), kept for the engineering and verification details. User introduction:
+> [README.en.md](README.en.md) (English) · [README.md](README.md) (Turkish).
 
 > **Read this first — what has changed since this was written (2026-10).**
 > The hardware **is built and running**: the analog board on perfboard, both ADS1115s fitted, the box
-> assembled, battery tests run on real 18650 cells. Sentences below that say "not built
-> yet" or "never measured" describe the state in 2026-09. Measured on the real board: about
+> assembled, battery tests run on real 18650 cells. Sentences below that described the
+> unbuilt state of 2026-09 have been brought up to date or marked *(2026-09)*. Measured on the real board: about
 > **500 Sa/s** (not the 665 Sa/s design figure), current limited to **9.5 A** continuous by the
 > load path. Since then the project gained on-board logging (11 MB on flash, power-loss safe),
 > a Windows PC app (`kopru/pc.py`, archive + notifications) and an Android app (`mobil/`).
@@ -23,14 +23,15 @@ over USB.
 > every number from the design files, so they cannot drift. This file is
 > written by hand.
 
-> **Language note.** Everything except this file and [README.en.md](README.en.md)
-> is in **Turkish**: code comments, the web interface (which also has an English
-> option), the serial console, the engineering journal ([`DEVIR.md`](DEVIR.md)),
-> the user documentation ([`BELGELER/`](BELGELER)) and the bench list.
+> **Language note.** The project was built in **Turkish**: code comments, the
+> serial console, the engineering journal ([`DEVIR.md`](DEVIR.md)) and the bench
+> list are Turkish. The web interface has an English option, the user guides have
+> English versions in [`BELGELER/en/`](BELGELER/en), and this file has a Turkish
+> translation, [GELISTIRICI.tr.md](GELISTIRICI.tr.md).
 >
 > ℹ️ The `BELGELER/*.html` pages are **generated documents meant to be opened
 > in a browser** — GitHub shows them as source. Clone the repo (or download the
-> ZIP) and open `BELGELER/index.html` locally.
+> ZIP) and open `BELGELER/en/index.html` locally.
 
 ---
 
@@ -40,9 +41,9 @@ over USB.
 |---|---|---|
 | **Voltage** — normal channel | ±32.4 V | bidirectional, referenced to an internal VREF |
 | **Voltage** — high channel | ±613.7 V | 4.9 MΩ divider chain |
-| **Current** | up to ±11.55 A | four shunt options: 10 / 1 / 0.1 / 0.015 Ω |
+| **Current** | ±9.5 A continuous | 5 mΩ shunt fitted; the load path sets the limit. The design allowed up to ±11.55 A with four shunt options (10 / 1 / 0.1 / 0.015 Ω) |
 | **Power · energy** | V × I, signed | true power with per-range phase calibration |
-| **Sample rate** | **665 Sa/s** | two ADCs started back-to-back; the residual ~95 µs skew is removed in software |
+| **Sample rate** | **~500 Sa/s** measured | 665 Sa/s was the design figure (see the table further down). Two ADCs started back-to-back; the residual ~95 µs skew is removed in software |
 | **Oscilloscope** | −63.5 … +46.8 V | 611 – 83 333 Sa/s, 28.8 mV step |
 | **Battery test** | ≤ 38.5 V, 6.55 A | mAh **and** Wh, discharge curve, DC internal resistance |
 
@@ -55,8 +56,8 @@ to fix.
 ## Three ways to connect
 
 The board has no screen. It is used from a browser, and there are three paths
-— all showing the same interface. Full explanation (in Turkish, with a
-diagram) in [`BELGELER/6-ag.html`](BELGELER/6-ag.html).
+— all showing the same interface. Full explanation, with a diagram, in
+[`BELGELER/en/6-ag.html`](BELGELER/en/6-ag.html).
 
 | # | Mode | Address | When |
 |---|---|---|---|
@@ -86,17 +87,17 @@ send `N0` over the serial console if you want the measurement loop left alone.
 | [`sema3/`](sema3) | KiCad schematic — the design of record |
 | [`arayuz3/`](arayuz3) | Web interface (Vue 3, no build step, vendored locally) |
 | [`kopru/`](kopru) | PC bridge — serial↔SSE relay, disk archive, driver arbitration. Python standard library only |
-| [`BELGELER/`](BELGELER) | **User documentation, generated** — HTML + PDF. Start at `index.html` |
+| [`BELGELER/`](BELGELER) | **User documentation, generated** — HTML + PDF. Start at `index.html`; English pages in [`BELGELER/en/`](BELGELER/en) |
 | [`uretim/`](uretim) | The verification chain, simulations, generators and the hardware bring-up harness |
-| [`uretim/_tezgah.md`](uretim/_tezgah.md) | **Generated** — everything that must be measured once the hardware exists |
+| [`uretim/_tezgah.md`](uretim/_tezgah.md) | **Generated** — the bench list: everything that has to be measured on the real hardware |
 | [`DEVIR.md`](DEVIR.md) | Engineering journal. Long, chronological, Turkish — the record of how every decision was reached |
 | [`arsiv/`](arsiv) | Earlier stages (ATmega328P, then a first ESP32 revision), each with its own chain |
 
 ## Building one
 
-1. **Parts** — [`BELGELER/2-malzemeler.html`](BELGELER/2-malzemeler.html) is
+1. **Parts** — [`BELGELER/en/2-malzemeler.html`](BELGELER/en/2-malzemeler.html) is
    generated from the schematic, so it can't drift from the design.
-2. **Assembly** — [`BELGELER/4-kurulum.html`](BELGELER/4-kurulum.html): seven
+2. **Assembly** — [`BELGELER/en/4-kurulum.html`](BELGELER/en/4-kurulum.html): seven
    steps, each ending in a measurement gate you must pass before continuing.
    ⚠️ **There is no PCB in this repository** — no gerbers, no layout. The board
    is built on perfboard by hand, and the guide is written for that. The
@@ -122,16 +123,17 @@ send `N0` over the serial console if you want the measurement loop left alone.
    into a LittleFS image and flashes it at offset `0x310000`.
 5. **PC bridge (optional)** — double-click `Kopru Baslat.bat`.
 
-**Footprint:** firmware **1 067 423 B**, which is 33 % of the 3 MB `huge_app`
+**Footprint** *(2026-09)*: firmware **1 067 423 B**, which is 33 % of the 3 MB `huge_app`
 application partition (not of the 16 MB flash), plus **71 420 B RAM (21 %)**.
 The interface is **93 753 B** — 7 assets, 6 of them gzip-precompressed (the
 PNG icon is stored raw) — inside a 917 504 B LittleFS partition.
 
-## When the hardware arrives
+## Bring-up harness
 
-The design is verified but nothing has been built. There is a runnable
-bring-up harness for the day the board shows up — it automates everything
-that does not need a multimeter:
+The design was verified before anything was built, so a runnable bring-up
+harness was written for the day the board showed up. It has been run on the
+real board since (DEVIR.md, from B26 on), and it automates everything that
+does not need a multimeter:
 
 ```bash
 cd uretim
@@ -149,8 +151,9 @@ on the HTTP side CSRF, token, `p0`-always-free and the Host allowlist. Every
 expected string is read from the firmware source, so it cannot drift.
 
 It reads `loop_azami_us` from the board and compares it against the
-**20 000 µs** threshold — the single measurement that decides whether the
-sampling loop moves to its own core.
+**20 000 µs** threshold — the measurement that decided the dual-core split.
+On the real board it did: the web and network work now runs on core 0 and the
+sampling loop has core 1 to itself.
 
 🔴 **The harness never drives a load.** Starting a battery discharge is not
 something a test script may do on its own; that check stays manual.
@@ -171,12 +174,12 @@ checked by a chain of runnable steps rather than by review:
 
 ```bash
 cd uretim
-python dogrula3.py     # current stage — 18 steps, ~6 min
+python dogrula3.py     # current stage (18 steps, ~6 min in 2026-09)
 python dogrula2.py     # archived stage 2
 python dogrula.py      # archived stage 1
 ```
 
-**18 steps.** Circuit behaviour is simulated with **ngspice**;
+**18 steps** *(2026-09; the chain prints the current count)*. Circuit behaviour is simulated with **ngspice**;
 the firmware's measurement math is executed as *real compiled code* inside a
 bit-verified **AVR emulator**; the schematic is checked node by node from the
 netlist (ERC only says "connected", not "correct"); the firmware is compiled
@@ -225,17 +228,18 @@ dependencies** that only appear when the project is run from a clean tree.
 
 ## What this repo does *not* prove
 
-Everything here is computation and simulation. The board has never been built.
-The chain therefore ends by generating **[`uretim/_tezgah.md`](uretim/_tezgah.md)** —
-Every item is written next to the code that *cannot* verify it, with an
-acceptance criterion, and the ones marked for the first day are listed at the
-top. Among them:
+The chain is computation and simulation: it verifies the design and the code,
+not the board. The board has been built since, but the chain cannot see it, so
+it ends by generating **[`uretim/_tezgah.md`](uretim/_tezgah.md)**. Every
+item is written next to the code that *cannot* verify it, with an acceptance
+criterion, and the ones marked for the first day are listed at the top. Among them:
 
 - the `+3V3` rail being back-fed through the clamps when USB is unplugged while
   the ±12 V supply is on — expected rail **1.670 V**, i.e. **1930 mV** of
   headroom below the ESP32's 3.60 V limit. (Before the B18 fix it was 18 mV;
   if you measure anything near 3.6 V a series resistor is missing.)
-- the sample count in the live data line: is it really ~133 per 200 ms?
+- the sample count in the live data line: is it really ~133 per 200 ms? (On the
+  real board it is ~100, i.e. ~500 Sa/s — see the table above.)
 - the battery-test failsafe: reset the board mid-discharge and confirm the load
   actually disconnects
 - whether the interface renders correctly in a real browser at all
@@ -264,13 +268,17 @@ fresh clone — both are handled with an explicit message rather than a crash:
   the chain goes red** — it stops before declaring its bench items, and that
   check is separate from the count lock, so `--sayim-kilidi-yaz` does not
   silence it. Everything the inventory step would tell you is already in
-  [`BELGELER/2-malzemeler.html`](BELGELER/2-malzemeler.html).
+  [`BELGELER/en/2-malzemeler.html`](BELGELER/en/2-malzemeler.html).
 
 Tool paths are currently hard-coded for Windows (`C:\Program Files\KiCad\10.0\bin`).
 
 ## Safety
 
 ### Electrical — this is the part that can kill you
+
+> The rule for the finished box ([README.en.md](README.en.md#safety)) is simpler
+> and stricter: **do not connect it to mains (220 V) at all** — measure only
+> circuits powered by batteries and DC-DC converters. The analysis below explains why.
 
 **615 V is lethal, and this board is not isolated.** With USB connected, the
 board's ground is your computer's ground — connect it to a mains-referenced
@@ -318,5 +326,5 @@ The vendored Vue 3.5.13 in `arayuz3/vendor/` is MIT as well, credited in the
 same file.
 
 ⚠️ The licence disclaims warranty, and that matters more than usual here: this
-is a **615 V instrument whose design has never been built or measured**. You
-are responsible for your own safety.
+is a **hand-built, non-isolated instrument that can measure 615 V**. You are
+responsible for your own safety.

@@ -28,6 +28,7 @@
 
 # GitHub'in dil istatistigi: uretilen ve vendor edilen dosyalar sayilmasin
 BELGELER/*.html            linguist-generated=true
+BELGELER/en/*.html         linguist-generated=true
 arsiv/**                   linguist-vendored=true
 arayuz3/vendor/**          linguist-vendored=true
 uretim/_tezgah.md          linguist-generated=true
