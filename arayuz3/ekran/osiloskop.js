@@ -41,6 +41,91 @@ export const HARMONIK_ADET = 5;
 export const SPEKTRUM_BIRIMLER = Object.freeze(['v', 'dbv']);
 export const SPEKTRUM_PENCERELER = Object.freeze(['hann', 'dikdortgen']);
 
+/* ── ON SUZGEC MENUSU (SK1) ─────────────────────────────────────────────
+   Tetik kumesindeki "Süzgeç: Açık / Ham" (`tf1` / `tf0`; kart `T … suz=` ile bildirir, app.js
+   satirIsle `skopSuz`'u gunceller). Durum ve komut app.js'te ($root); menu ve metinleri tembel:
+   eslesmis acilisin butcesi (EU31) icin index.html / acilis sozlugunden buraya tasindi (5.12.118).
+   Metinler ortak/sozluk_skop.js — bilesen ilk kurulunca DINAMIK (#/skop acilisi 14 dosyada);
+   inene dek menu cizilmez, kart varsayilani (ACIK) gecerli. */
+export const SkopSuz = {
+  name: 'SkopSuz',
+  data() { return { s: null }; },
+  created() { import('/ortak/sozluk_skop.js').then((s) => { this.s = s; }).catch(() => {}); },
+  methods: { m(a) { return this.s.ceviriSkop(a, this.$root.dil); } },
+  template: `<label v-if="s" class="skop-alan">
+  <span>{{ m('sz.suzgec') }}</span>
+  <select v-model.number="$root.skopSuz" @change="$root.skopKomut('tf' + $root.skopSuz)" :disabled="!$root.bagli" :title="m('sz.ipucu')">
+    <option :value="1">{{ m('sz.acik') }}</option>
+    <option :value="0">{{ m('sz.ham') }}</option>
+  </select>
+</label>`,
+};
+
+/* ── ESKI SKOP ARSIVI (B35; 4D PC12) ──────────────────────────────────────
+   Kopru satir gunlugundeki (4C'den beri kullanici veri dizini, olcum-karti/satir) yakalamalar;
+   salt okuma, donusturulmez. Kartin kendi osiloskop gunlukleri (1C-3) Kayitlar'da — iki arsiv
+   karismasin diye baslik "eski arsiv". Durum, liste ve komutlar app.js'te (r = $root); burada
+   yalniz sablon; metinler ortak/sozluk_skop.js (DINAMIK, SkopSuz ile ayni). Tembel (5.12.118): eslesmis
+   acilisin butcesi (EU31) icin index.html'den ve acilis sozlugunden tasindi.
+   🔴 GERIYE DONUK KAYIT. YALNIZ PC koprusune bagliyken gorunur (index.html: v-if="skopArsivVar"):
+      kayit koprunun diskinde, tarayicida degil. Kart dogrudan bagliyken bolum HIC cizilmez — olmayan
+      bir ozelligi olu dugme olarak gostermek bu projenin daha once yaptigi hata (DEVIR 4.15).
+   ⚠ Rozet degistiricisi `uyari` DEGIL: `.uyari` emniyet uyarisinin kirmizi seritli kutu stili, rozet
+      onun icine dusup buton gibi gorunuyordu. "serbest kosu" da hata degil, normal bir tetik kipi.
+   Kirpik kayit SESSIZ kalmaz: eksik dalga "olculmus" gibi gorunmesin — listedeki TEK vurgulu isaret. */
+export const SkopArsiv = {
+  name: 'SkopArsiv',
+  data() { return { s: null }; },
+  created() { import('/ortak/sozluk_skop.js').then((s) => { this.s = s; }).catch(() => {}); },
+  computed: { r() { return this.$root; } },
+  methods: { m(a) { return this.s.ceviriSkop(a, this.r.dil); } },
+  template: `<section v-if="s" class="kart">
+  <h2 data-skop-eski-arsiv>{{ m('sz.eski_arsiv') }}</h2>
+  <p class="ipucu">{{ m('sz.eski_arsiv_ipucu') }}</p>
+
+  <div class="satir" style="margin-bottom:10px;gap:8px;align-items:center">
+    <label v-if="r.skopGunler.length > 1" style="font-size:12px;color:var(--soluk)">
+      Gün
+      <select v-model="r.skopGun" @change="r.skopKayitlariYukle(r.skopGun)"
+              style="width:auto">
+        <option v-for="g in r.skopGunler" :key="g" :value="g">{{ g }}</option>
+      </select>
+    </label>
+    <button @click="r.skopKayitlariYukle(r.skopGun)" :disabled="r.skopKayitMesgul">
+      {{ r.skopKayitMesgul ? 'Yükleniyor…' : 'Yenile' }}
+    </button>
+    <span class="ipucu" style="margin:0">
+      {{ r.skopKayitlar.length }} kayıt<template v-if="r.skopGun"> · {{ r.skopGun }}</template>
+    </span>
+  </div>
+
+  <p v-if="!r.skopKayitlar.length" class="ipucu">
+    Henüz kayıt yok — <strong>Yakala</strong>'ya bastığında buraya düşecek.
+  </p>
+
+  <div v-else class="kayit-listesi">
+    <button v-for="k in r.skopKayitlar" :key="k.gun + '/' + k.ms"
+            class="kayit" :class="{ acik: r.skopAcikKayit
+              && r.skopAcikKayit.gun === k.gun && r.skopAcikKayit.ms === k.ms }"
+            :disabled="r.skopKayitMesgul" @click="r.skopKayitAc(k)">
+      <span class="kayit-zaman">{{ r.skopZaman(k.ms) }}</span>
+      <span class="kayit-bilgi">
+        {{ k.adet }} örnek · {{ (k.hz / 1000).toFixed(2) }} kSa/s
+      </span>
+      <span class="kayit-etiket">
+        {{ k.tetiklendi ? 'tetiklendi' : 'serbest koşu' }}
+      </span>
+      <span v-if="!k.tam" class="kayit-etiket dikkat">kırpık</span>
+    </button>
+  </div>
+
+  <p class="ipucu">
+    Zaman damgası <strong>köprü açıldıktan sonra</strong> geçen süre —
+    duvar saati değil. Bir kaydı açmak kartı hiç meşgul etmez.
+  </p>
+</section>`,
+};
+
 /* ── ROTA (OS6) ─────────────────────────────────────────────────────── */
 
 /** Hash -> {oturum, sira, kimlik}; kayitli yakalama rotasi degilse null. */

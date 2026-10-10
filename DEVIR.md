@@ -10550,6 +10550,40 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.118 🟡 SK1 DÜZELTME: EU31 AÇILIŞ BÜTÇESİ + SK-1 ÖLÇÜM EŞİKLERİ (2026-10-10, bulut oturumu, dal `sk1-duzeltme`)
+
+**İş 1 — açılış bütçesi (EU31 kırmızıydı, 262 381 / 262 144 B).** Süzgeç menüsü ve onun metinleri açılış paketinden
+osiloskop ekranıyla gelen tembel kısma taşındı; yetmedi (pay 18 B eksi kalırdı — SK1'den önce de pay yalnız 22 B'tı),
+eski skop arşivi (B35, yalnız PC köprüsünde görünen bölüm) de taşındı:
+- `ekran/osiloskop.js`'e iki bileşen: `SkopSuz` (Tetik kümesi, `tf0/tf1`) ve `SkopArsiv` (şablon; durum, liste ve
+  komutlar app.js'te, `$root`). app.js'te `defineAsyncComponent` ile AYNI modülden; index.html'de
+  `v-if="skopDurum === 'hazir'"` — ekran modülü inmeden çizilmezler, yani açılışta `osiloskop.js` İNMEZ (yalnız
+  `<skop-suz>` yazılsaydı Vue onu her açılışta indirirdi; mutasyonla kilitli).
+- Metinler yeni tembel sözlükte `ortak/src/sozluk_skop.js` (`sz.` ailesi: suzgec, acik, ham, ipucu, eski_arsiv,
+  eski_arsiv_ipucu); `os.suz*` ve `os.eski_arsiv*` açılış sözlüğünden ve `OS_METIN`'den çıktı. Bileşenler sözlüğü
+  DİNAMİK indirir (`#/skop` açılışı 14 dosyanın sınırında, statik içe aktarma 15 yapardı). Test:
+  `ortak/test/sozluk_skop.test.js` (5; pil/imlec sözlüklerinin kuralları + taşınan anahtarlar açılışa dönmez).
+- `devral()`'daki `CT` yeniden isteği yerinde kaldı (davranış; 22b iddiası onu `devral` gövdesinde arıyor).
+
+| ölçü | önce | sonra | sınır |
+|---|---|---|---|
+| EU31 eşleşmiş açılış (acilis + Canlı + istemci) | 262 381 B | **261 007 B** (pay 1 137 B) | 262 144 B |
+| açılış sözlüğü `ortak/sozluk.js` | 19 304 B | **19 011 B** | 19 500 B |
+| `#/skop` açılışı | 253 153 B · 14 dosya | 253 671 B · 14 dosya | 256 000 B · 14 |
+| osiloskop zinciri | — | 44 211 B · 6 dosya | 48 KB · 6 |
+| AY3 (EN'de çevrilmemiş) | 272 | 272 | kilit 272 |
+
+⚠ **Gzip baytları zlib'e bağlı:** `_fs.json` Windows CPython'un zlib-ng'siyle üretiliyor; Linux zlib'i aynı dosyaya
+dosya başına ±150 B farklı sayı veriyor (43 dosyanın 38'i). Bulutta `arayuz-uret.py` koşamadı (mklittlefs yok);
+`_fs.json` + `sw.js` aynı fonksiyonlarla, `zlib_ng.gzip_ng` ile üretildi — değişmemiş 43 dosyanın 43'ü kayıttaki
+baytla BİREBİR aynı çıktı. `goruntu_bayt` önceki değer (bölüm boyutu). Yerelde `python uretim/arayuz-uret.py`
+yeniden koşulunca aynı sayılar beklenir.
+
+Testler: `test_arayuz3.js` 998/998 (22b menü iddiası tembel bileşene + Tetik kümesindeki `<skop-suz v-if>`'e;
+B35/4D arşiv iddiaları `SkopArsiv` şablonuna bağlandı), `test_ortak.py` 33/33, `sim3_web.py` 162/162 (zlib-ng ile;
+Linux zlib'iyle 6p/6q ortamdan kırmızı). Mutasyonlar: taşınan 7 girdi yeni yere bağlandı + 2 yeni (`<skop-suz>`
+v-if'siz; `os.suzgec` açılış sözlüğüne geri) — hepsi YAKALANDI.
+
 #### 5.12.117 🟢 A3-SK1: OSİLOSKOP ÖN SÜZGECİ — İKİ KAT MEDYAN-3 + ORTALAMA + HIZ PLANI (2026-10-10, KARTTA)
 
 **Bulgu (README için gerçek yakalama alınırken):** kutudaki kartta skop izi iğnelerle dolu. CAL çıkışı (3.3 V, 22 kΩ)

@@ -189,6 +189,13 @@ const ekranKaynaklari = (fs.existsSync(EKRAN) ? fs.readdirSync(EKRAN) : [])
   .filter((a) => a.endsWith('.js')).sort()
   .map((a) => ({ ad: 'ekran/' + a, kaynak: fs.readFileSync(path.join(EKRAN, a), 'utf8') }));
 const kodKaynaklari = [{ ad: 'app.js', kaynak: appKaynak }].concat(ekranKaynaklari);
+/* 5.12.118: osiloskobun TEMBEL parcalari (Suzgec menusu, eski skop arsivi) index.html'den ekran/osiloskop.js'in
+   bilesenlerine (SkopSuz / SkopArsiv) tasindi — EU31 acilis butcesi. Sablonlarini sinayan iddialar bunu okur. */
+const bilesenSablonu = (ad) => {
+  const k = (ekranKaynaklari.find((e) => e.ad === 'ekran/osiloskop.js') || {}).kaynak || '';
+  const m = new RegExp('export const ' + ad + ' = \\{[\\s\\S]*?template: `([\\s\\S]*?)`,\\n\\};').exec(k);
+  return m ? m[1] : '';
+};
 
 /* Sayfanin BAGLADIGI stil dosyalari — elle liste degil. Bir stil dosyasi
    eklenir/cikarilirsa butun CSS iddialari kendiliginden onu izler. */
@@ -1859,8 +1866,11 @@ console.log('\n--- 16. Skop arsivi (geriye donuk kayit) ---');
 
   /* [!] Olu dugme YOK: arsiv bolumu yalnizca kopru kipinde ciziliyor.
      DEVIR 4.15 tam olarak bunun tersiydi — calismayan bir dugme. */
+  const arsiv = bilesenSablonu('SkopArsiv');
   ok('[!] Kayit bolumu YALNIZCA kopru kipinde ciziliyor',
-     /<section class="kart" v-if="skopArsivVar">/.test(html),
+     /<skop-arsiv v-if="skopArsivVar && skopDurum === 'hazir'"><\/skop-arsiv>/.test(html)
+     && (html.match(/<skop-arsiv\b/g) || []).length === 1 && /^<section v-if="s" class="kart">/.test(arsiv)
+     && /'skop-arsiv': defineAsyncComponent\(\{ loader: \(\) => import\('\.\/ekran\/osiloskop\.js'\)\.then\(\(m\) => m\.SkopArsiv\) \}\)/.test(appKaynak),
      'kart dogrudan bagliyken kayit yok — olu dugme gosterilmiyor');
 
   /* [!] Canli mi arsiv mi: tuvalde SOYLENMELI. */
@@ -1889,18 +1899,18 @@ console.log('\n--- 16. Skop arsivi (geriye donuk kayit) ---');
 
   /* Kirpik kayit SESSIZ kalmiyor — eksik dalga "olculmus" gorunmemeli. */
   ok('[!] Kirpik kayit listede isaretleniyor',
-     /v-if="!k\.tam"[\s\S]{0,120}kırpık/.test(html),
+     /v-if="!k\.tam"[\s\S]{0,120}kırpık/.test(arsiv),
      'eksik dalga sessizce tam gorunmemeli');
   /* ⚠ `.uyari` bu projede emniyet uyarisinin KUTU stili; rozete
      uygulaninca rozet butona benziyor (tarayici goruntusunde yakalandi).
      Kayit rozetleri kendi degistiricisini kullaniyor. */
   ok('Kayit rozetleri emniyet-uyarisi sinifini KULLANMIYOR',
-     !/class="kayit-etiket[^"]*\buyari\b/.test(html) &&
-     !/kayit-etiket"[^>]*:class="\{ uyari/.test(html),
+     /class="kayit-etiket/.test(arsiv) && [html, arsiv].every((h) => !/class="kayit-etiket[^"]*\buyari\b/.test(h) &&
+     !/kayit-etiket"[^>]*:class="\{ uyari/.test(h)),
      'emniyet uyarisi stili rozete bulasmamali');
   /* Zaman damgasi DUVAR SAATI DEGIL; oyle gosterilip yanlis okunmasin. */
   ok('Zaman damgasinin ne oldugu yaziyor (duvar saati degil)',
-     html.includes('köprü açıldıktan') &&
+     arsiv.includes('köprü açıldıktan') &&
      govdeIcinde(appKaynak, 'skopZaman', 'Math.floor(ms / 1000)'));
 
   /* 🔴 KOPRUDE ASCII, KARTTA IKILI — AYNI VERIYI IKI KEZ TASIMA.
@@ -2420,11 +2430,21 @@ console.log('\n--- 22b. Skop on suzgeci (SK1) ---');
      'yoksa arayuz kartta olmayan suzgeci "acik" diye gosterirdi');
   u.satirIsle(T(5));
   ok('SK1 Gecersiz suz degeri yok sayiliyor', u.skopSuz === 0);
-  ok('[!] SK1 Menu `tf<suz>` gonderiyor, iki secenek var, etiket sozlukten',
-     /v-model\.number="skopSuz" @change="skopKomut\('tf' \+ skopSuz\)"/.test(htmlKaynak)
-     && /<option :value="1">\{\{ os\.suzAcik \}\}<\/option>/.test(htmlKaynak)
-     && /<option :value="0">\{\{ os\.suzHam \}\}<\/option>/.test(htmlKaynak)
-     && /\{\{ os\.suzgec \}\}/.test(htmlKaynak) && /:title="os\.suzIpucu"/.test(htmlKaynak));
+  /* 5.12.118: menu TEMBEL — ekran/osiloskop.js SkopSuz (metinleri ortak/sozluk_skop.js, dinamik); Tetik kumesinde
+     ekran modulu inince (skopDurum 'hazir') cizilir. Durum ($root.skopSuz) ve komut (skopKomut) app.js'te. */
+  const suz = bilesenSablonu('SkopSuz');
+  const tetik = (yorumsuz(htmlKaynak).match(/<fieldset class="kart skop-kume" data-kume="tetik">([\s\S]*?)<\/fieldset>/) || [])[1] || '';
+  const SKS = require(path.join(KOK, 'ortak', 'src', 'sozluk_skop.js'));
+  ok('[!] SK1 Menu `tf<suz>` gonderiyor, iki secenek var, etiket sozlukten (tembel bilesen, Tetik kumesinde)',
+     /v-model\.number="\$root\.skopSuz" @change="\$root\.skopKomut\('tf' \+ \$root\.skopSuz\)"/.test(suz)
+     && /:disabled="!\$root\.bagli"/.test(suz)
+     && /<option :value="1">\{\{ m\('sz\.acik'\) \}\}<\/option>/.test(suz)
+     && /<option :value="0">\{\{ m\('sz\.ham'\) \}\}<\/option>/.test(suz)
+     && /\{\{ m\('sz\.suzgec'\) \}\}/.test(suz) && /:title="m\('sz\.ipucu'\)"/.test(suz)
+     && /<skop-suz v-if="skopDurum === 'hazir'"><\/skop-suz>/.test(tetik)
+     && /'skop-suz': defineAsyncComponent\(\{ loader: \(\) => import\('\.\/ekran\/osiloskop\.js'\)\.then\(\(m\) => m\.SkopSuz\) \}\)/.test(appKaynak)
+     && SKS.ceviriSkop('sz.suzgec', 'tr') === 'Süzgeç' && SKS.ceviriSkop('sz.ham', 'en') === 'Raw',
+     tetik ? '' : 'Tetik kumesi bulunamadi');
   const SK3 = require(path.join(ARAYUZ, 'sahte-kart.js'));
   ok('SK1 Sahte kart `tf0` -> T satirinda suz=0, `tf1` -> suz=1',
      /\bsuz=0\b/.test(SK3.komut('tf0')[0]) && /\bsuz=1\b/.test(SK3.komut('tf1')[0]));
@@ -8811,13 +8831,15 @@ console.log('\n--- 33. 4D: panel PC koprusunde (PC arsivi salt okuma, vekil, esk
 
   /* ── (f) PC12: eski skop arsivi ────────────────────────────────────── */
   {
-    const bolum = (html.match(/<section class="kart" v-if="skopArsivVar">([\s\S]*?)<\/section>/) || [])[1] || '';
-    const tr = SZ.ceviri('os.eski_arsiv_ipucu', 'tr');
+    /* 5.12.118: bolum tembel bilesen (ekran/osiloskop.js SkopArsiv), metinleri ortak/sozluk_skop.js */
+    const bolum = bilesenSablonu('SkopArsiv');
+    const SKS = require(path.join(KOK, 'ortak', 'src', 'sozluk_skop.js'));
+    const tr = SKS.ceviriSkop('sz.eski_arsiv_ipucu', 'tr');
     ok('[!] 4D (PC12): skop arsivi kopruda "ESKI ARSIV" basligi altinda (sozlukten, TR + EN), salt okuma ve donusturulmez yazar, yeri bayat `kopru/arsiv` DEGIL (4C: olcum-karti/satir); kartin kendi skop gunlukleri Kayitlar\'da',
-       /<h2 data-skop-eski-arsiv>\{\{ os\.eskiArsiv \}\}<\/h2>/.test(bolum) && /\{\{ os\.eskiArsivIpucu \}\}/.test(bolum)
-       && !/kopru\/arsiv/.test(bolum) && /^Eski arşiv/.test(SZ.ceviri('os.eski_arsiv', 'tr')) && /^Legacy archive/.test(SZ.ceviri('os.eski_arsiv', 'en'))
+       /<h2 data-skop-eski-arsiv>\{\{ m\('sz\.eski_arsiv'\) \}\}<\/h2>/.test(bolum) && /\{\{ m\('sz\.eski_arsiv_ipucu'\) \}\}/.test(bolum)
+       && !/kopru\/arsiv/.test(bolum) && /^Eski arşiv/.test(SKS.ceviriSkop('sz.eski_arsiv', 'tr')) && /^Legacy archive/.test(SKS.ceviriSkop('sz.eski_arsiv', 'en'))
        && /Salt okuma, dönüştürülmez/.test(tr) && /olcum-karti\/satir/.test(tr) && /Kayıtlar/.test(tr) && !/kopru\/arsiv/.test(tr),
-       SZ.ceviri('os.eski_arsiv', 'tr'));
+       SKS.ceviriSkop('sz.eski_arsiv', 'tr'));
   }
 }
 

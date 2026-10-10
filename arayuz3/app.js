@@ -840,7 +840,7 @@ const OS_METIN = Object.freeze({
   zamanTabani: 'os.zaman_tabani', hizlandir: 'os.hizlandir', yavaslat: 'os.yavaslat', tetik: 'os.tetik',
   tetikKip: 'os.tetik_kip', kipOto: 'os.kip_oto', kipNormal: 'os.kip_normal', kipTek: 'os.kip_tek',
   kenar: 'os.kenar', kenarYukselen: 'os.kenar_yukselen', kenarDusen: 'os.kenar_dusen', seviye: 'os.seviye',
-  onTetik: 'os.on_tetik', onay: 'os.onay', suzgec: 'os.suzgec', suzAcik: 'os.suz_acik', suzHam: 'os.suz_ham', suzIpucu: 'os.suz_ipucu', gunluk: 'os.gunluk', gunlukIpucu: 'os.gunluk_ipucu',
+  onTetik: 'os.on_tetik', onay: 'os.onay', gunluk: 'os.gunluk', gunlukIpucu: 'os.gunluk_ipucu',
   gunlukHerTetik: 'os.gunluk_her_tetik', gunlukHerN: 'os.gunluk_her_n', gunlukSaniye: 'os.gunluk_saniye',
   gunlukBaslat: 'os.gunluk_baslat', gunlukDurdur: 'os.gunluk_durdur', gunlukElleYok: 'os.gunluk_elle_yok',
   kalCikisi: 'os.kal_cikisi', calKapali: 'os.cal_kapali', gorev: 'os.gorev',
@@ -851,7 +851,7 @@ const OS_METIN = Object.freeze({
   arsiv: 'os.arsiv', canliyaDon: 'os.canliya_don', kaydaDon: 'os.kayda_don', kayitliYukleniyor: 'os.kayitli_yukleniyor',
   tuvalEtiket: 'os.tuval_etiket', spektrumEtiket: 'os.spektrum_etiket', tuvalBos: 'os.tuval_bos',
   harmonikTablo: 'os.harmonik_tablo', egriKayitta: 'os.egri_kayitta', egriYokKayitta: 'os.egri_yok_kayitta',
-  spektrumKlavye: 'os.spektrum_klavye', eskiArsiv: 'os.eski_arsiv', eskiArsivIpucu: 'os.eski_arsiv_ipucu',
+  spektrumKlavye: 'os.spektrum_klavye',
 });
 
 /* ═══ 3F — PIL TESTI (PL1-PL7) ═════════════════════════════════════════
@@ -1047,6 +1047,10 @@ createApp({
       loader: () => import('./ekran/imlec_aciklama.js').then((m) => m.ImlecAciklama),
     }),
     'pil-pt': defineAsyncComponent({ loader: () => import('./ekran/pil.js').then((m) => m.PilPt) }),   // PT7
+    /* SK1 / B35: osiloskobun tembel parcalari (Suzgec menusu, eski arsiv) — ekran modulu inince (skopDurum 'hazir')
+       cizilir, ayni modul (ek indirme yok). 5.12.118: EU31 acilis butcesi. */
+    'skop-suz': defineAsyncComponent({ loader: () => import('./ekran/osiloskop.js').then((m) => m.SkopSuz) }),
+    'skop-arsiv': defineAsyncComponent({ loader: () => import('./ekran/osiloskop.js').then((m) => m.SkopArsiv) }),
     /* 3G: Karsilastirma ekrani da ilk acilista iner (ayni desen, ayni gerekce). */
     'karsilastir-ekran': defineAsyncComponent({
       loader: () => import('./ekran/karsilastir.js').then((m) => m.KarsilastirEkrani),

@@ -1533,8 +1533,8 @@ MUTASYONLAR = [
      "arsiv kaydi AYRI bir cozucuden gecerse eski kayit canlidan BASKA "
      "cizilir — endian/olcek/ofset ayrisir ve hata SESSIZ olur"),
     ("B7", "test_arayuz3.js", "arayuz3/index.html",
-     '<section class="kart" v-if="skopArsivVar">',
-     '<section class="kart">',
+     '<skop-arsiv v-if="skopArsivVar && skopDurum === \'hazir\'"></skop-arsiv>',
+     '<skop-arsiv v-if="skopDurum === \'hazir\'"></skop-arsiv>',
      "kart dogrudan bagliyken (kayit YOK) bolum yine cizilir: OLU DUGME, "
      "DEVIR 4.15'in tam kendisi"),
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
@@ -1627,7 +1627,7 @@ MUTASYONLAR = [
     # ── B39 · heredoc `\b` backspace'e donmustu: bu iki iddianin yarisi
     #    ilk yazildiklari gunden beri KORDU. Artik canli; isirdiklarini
     #    kanitlayan mutasyonlar:
-    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+    ("B7", "test_arayuz3.js", "arayuz3/ekran/osiloskop.js",
      '<span v-if="!k.tam" class="kayit-etiket dikkat">',
      '<span v-if="!k.tam" class="kayit-etiket uyari">',
      "rozete emniyet-uyarisi KUTU stili bulasir (B35'te tarayicida "
@@ -1900,12 +1900,20 @@ MUTASYONLAR = [
     ("B7", "test_arayuz3.js", "arayuz3/app.js",
      " if (!this.skopKal) this.gonder('CT').catch(() => {}); }", " }",
      "SK1: suruculuk devralininca CT istenmezse skop ekseni kalibresiz kalir (kartta: 12 V, 4 V cizildi) — 22b kirmizi"),
-    ("B7", "test_arayuz3.js", "arayuz3/index.html",
-     "@change=\"skopKomut('tf' + skopSuz)\"", "@change=\"skopKomut('tn' + skopSuz)\"",
+    ("B7", "test_arayuz3.js", "arayuz3/ekran/osiloskop.js",
+     "@change=\"$root.skopKomut('tf' + $root.skopSuz)\"", "@change=\"$root.skopKomut('tn' + $root.skopSuz)\"",
      "SK1: suzgec menusu baska komut yollarsa tetik onayini bozar — 22b kirmizi"),
     ("B7", "test_arayuz3.js", "arayuz3/sahte-kart.js",
      "        if (k !== 'tf0' && k !== 'tf1') return ['! suzgec 0=ham 1=suzgecli (medyan-3 + ortalama)'];\n", "",
      "SK1: sahte kart ciplak `tf`i kabul ederse firmware'den ayrisir (suzgec sessizce kapanir) — 22b kirmizi"),
+    # ── 5.12.118: SK1 menusu ve eski skop arsivi TEMBEL (ekran/osiloskop.js SkopSuz / SkopArsiv + ortak/sozluk_skop.js)
+    ("B7", "test_arayuz3.js", "arayuz3/index.html",
+     "<skop-suz v-if=\"skopDurum === 'hazir'\"></skop-suz>", "<skop-suz></skop-suz>",
+     "SK1: menu ekran modulu inmeden cizilirse osiloskop.js her acilista iner (EU31 gercekte asilir) — 22b kirmizi"),
+    ("B73", "test_ortak.py", "ortak/src/sozluk.js",
+     '  "os.gunluk": S("Yakalama günlüğü", "Capture log"),',
+     '  "os.suzgec": S("Süzgeç", "Filter"),\n  "os.gunluk": S("Yakalama günlüğü", "Capture log"),',
+     "SK1: suzgec metni acilis sozlugune geri donerse (EU31 butcesi) sozluk_skop testi kirmizi"),
     # ── SK1 (2026-10-10): skop on suzgeci — yakalamaya baglanti (sim3_skop 6n)
     ("B19", "sim3_skop.py", "kod/olcum-karti-a3/olcum-karti-a3.ino",
      "static SkopAyar skop_ayar = { 5, 2048, 0, 40, 25, SKOP_KIP_OTO, 2, 1 };",
@@ -7262,11 +7270,11 @@ MUTASYONLAR = [
      "import { vtAc, idbDepo, akisHazirla, akislar, akisSil } from './depo_idb.js';",
      "import { vtAc, idbDepo, akisHazirla, akislar, akisSil } from './depo_idb.js';\nimport { pcDepo } from './depo_pc.js';",
      '4D: depo_pc.js esitleme zincirine STATIK girer — kart da indirir'),
-    ('B7', 'test_arayuz3.js', 'arayuz3/index.html',
-     '    <h2 data-skop-eski-arsiv>{{ os.eskiArsiv }}</h2>',
+    ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js',
+     "  <h2 data-skop-eski-arsiv>{{ m('sz.eski_arsiv') }}</h2>",
      '    <h2>Kayıtlar — geriye dönük dalga şekilleri</h2>',
      "4D: (PC12) B35 skop arsivi 'eski arsiv' basligi olmadan yeni skop gunlukleriyle karisir"),
-    ('B7', 'test_arayuz3.js', 'ortak/src/sozluk.js',
+    ('B7', 'test_arayuz3.js', 'ortak/src/sozluk_skop.js',
      "köprünün bu PC'deki satır günlüğüne (olcum-karti/satir) düşer",
      'köprünün satır günlüğüne (kopru/arsiv/<gün>.satir) düşer',
      "4D: (PC12) eski arsivin yeri bayat (kopru/arsiv — 4C'den beri kullanici veri dizini)"),
@@ -7310,8 +7318,8 @@ MUTASYONLAR = [
      '            "vekil": self._yerel() and vekil.wifi_al(k.kart) is not None,',
      '            "vekil": False,',
      '4D: gercek kopruda pil durumu vekilden alinmaz (egri yok)'),
-    ('T4D', 'tarayici_pc_kayit.py', 'arayuz3/index.html',
-     '    <h2 data-skop-eski-arsiv>{{ os.eskiArsiv }}</h2>',
+    ('T4D', 'tarayici_pc_kayit.py', 'arayuz3/ekran/osiloskop.js',
+     "  <h2 data-skop-eski-arsiv>{{ m('sz.eski_arsiv') }}</h2>",
      '    <h2>Kayıtlar — geriye dönük dalga şekilleri</h2>',
      '4D: gercek tarayicida eski skop arsivi basliksiz'),
     ('T4D', 'tarayici_pc_kayit.py', 'arayuz3/ekran/depo_pc.js',
