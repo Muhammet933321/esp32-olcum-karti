@@ -10,6 +10,7 @@ bakar. Sayfaya test kancasi EKLENMEDI — her sey disaridan, kara kutu.
 
     python kutu_ipucu_test.py            # ~40 s: belgeyi GECICI klasore uretir, sinar
     python kutu_ipucu_test.py --goruntu  # ek olarak _ipucu_*.png
+    python kutu_ipucu_test.py --dil en   # Ingilizce sayfa (BELGELER/en/8-kutu.html'in esi)
 
 Belge her kosuda KAYNAKTAN yeniden uretilir (BELGELER/'e dokunmaz). Boylece
 mutasyon kosucusu (adim B57) JS'i ya da kutu.py'yi bozdugunda test, bozulmus
@@ -28,17 +29,41 @@ from tarayici import Tarayici
 sys.stdout.reconfigure(encoding="utf-8")
 
 GORUNTU = "--goruntu" in sys.argv
+DIL = sys.argv[sys.argv.index("--dil") + 1] if "--dil" in sys.argv else "tr"
+if DIL not in ("tr", "en"):
+    raise SystemExit(f"--dil tr|en (verilen: {DIL})")
+
+# Testin sayfada ARADIGI arayuz metinleri. Ingilizce sayfa Turkceden kutu_en ile
+# cevriliyor; karttaki satir adlari ve JS dizgileri burada AYRICA yazili, boylece
+# ceviri bozulursa (ya da Turkce kalirsa) test onu da yakalar. Parca anahtarlari
+# (data-bi, "c:Dış kat — ön duvar…") iki dilde AYNI — cevrilmez.
+METIN = {"tr": {"Delik": "Delik", "Stok": "Stok", "sabitlendi": "sabitlendi", "Uzunluk": "Uzunluk",
+                "Adet": "Adet", "Kesim listesi": "Kesim listesi", "Kesim boyu": "Kesim boyu", "kablo": "kablo"},
+         "en": {"Delik": "Hole", "Stok": "Stock", "sabitlendi": "pinned", "Uzunluk": "Length",
+                "Adet": "Qty", "Kesim listesi": "Cut list", "Kesim boyu": "Cut length", "kablo": "cable"}}
+
+
+def L(tr: str) -> str:
+    """Testin aradigi metnin sinanan dildeki hali."""
+    return METIN[DIL][tr]
 
 
 def belge_uret() -> Path:
-    """Belgeyi GECICI bir klasore kaynaktan uret (denetimsiz; denetim kutu.py'nin isi)."""
+    """Belgeyi GECICI bir klasore kaynaktan uret (denetimsiz; denetim kutu.py'nin isi).
+    --dil en: Turkce sayfa uretilir ve kutu.py'nin ingilizce() cevirisinden gecer."""
     import tempfile
     import kutu
     import yerlesim3 as Y
     nl = Y.Netlist(Y.NETLIST)
     parcalar = Y.parcalari_yukle()
     hedef = Path(tempfile.mkdtemp(prefix="kutu-ipucu-")) / "8-kutu.html"
-    kutu.yaz(nl, parcalar, hedef)
+    if DIL == "tr":
+        kutu.yaz(nl, parcalar, hedef)
+    else:
+        en, DD = kutu.ingilizce(kutu.sayfa_uret(nl, parcalar))
+        if DD.kaldi:
+            raise SystemExit("Ingilizce sayfanin dil denetimi kirmizi — once kutu_en.py")
+        hedef.write_text(en, encoding="utf-8")
     return hedef
 gecti = kaldi = 0
 
@@ -119,7 +144,7 @@ def main() -> int:
     BELGE = belge_uret()
     bilgi = json.loads(__import__("re").search(r"var BILGI = (\{.*?\});\n", BELGE.read_text(encoding="utf-8"), 16)
                        .group(1).replace("<\\/", "</"))
-    print("  KUTU BELGESI — parca bilgi karti (gercek tarayici)")
+    print(f"  KUTU BELGESI — parca bilgi karti (gercek tarayici, {DIL})")
     with Tarayici(genislik=1280, yukseklik=900, auth_iptal=False) as t:
         t.git(BELGE.as_uri())
         t.bekle(1.5)
@@ -141,8 +166,10 @@ def main() -> int:
             kosul("Uzerine gelince kart ACILIYOR", k["gorunur"], k["baslik"])
             kosul("Kart dogru parcayi gosteriyor (baslik veriden)", k["baslik"] == beklenen, f"{k['baslik']!r} == {beklenen!r}")
             satir = dict(k["satir"])
-            kosul("Kartta delik capi ve stoktaki yeri var", "Ø8" in satir.get("Delik", "") and "Soketler" in satir.get("Stok", ""),
-                  f"Delik {satir.get('Delik')} · Stok {satir.get('Stok')}")
+            # "Soketler ..." envanterdeki KUTU ADI: veri, Ingilizce sayfada da ozgun haliyle
+            kosul("Kartta delik capi ve stoktaki yeri var",
+                  "Ø8" in satir.get(L("Delik"), "") and "Soketler" in satir.get(L("Stok"), ""),
+                  f"Delik {satir.get(L('Delik'))} · Stok {satir.get(L('Stok'))}")
             if GORUNTU:
                 t.goruntu("_ipucu_2b.png")
             fare(t, 5, 5)
@@ -151,7 +178,7 @@ def main() -> int:
             tikla(t, m["x"], m["y"])
             t.bekle(0.25)
             k = kart(t)
-            kosul("Tiklayinca kart SABITLENIYOR", k["gorunur"] and "sabitlendi" in k["ipucu"], k["ipucu"])
+            kosul("Tiklayinca kart SABITLENIYOR", k["gorunur"] and L("sabitlendi") in k["ipucu"], k["ipucu"])
             fare(t, 5, 5)
             t.bekle(0.25)
             kosul("Sabit kart fare uzaklasinca KALIYOR", kart(t)["gorunur"])
@@ -210,8 +237,9 @@ def main() -> int:
             t.bekle(0.25)
             k = kart(t)
             satir = dict(k["satir"])
-            kosul("Kesim satirinin kartinda UZUNLUK ve ADET var", k["gorunur"] and satir.get("Uzunluk", "").endswith("mm")
-                  and satir.get("Adet", "").startswith("×"), f"{k['baslik']}: {satir.get('Uzunluk')} {satir.get('Adet')}")
+            kosul("Kesim satirinin kartinda UZUNLUK ve ADET var", k["gorunur"] and satir.get(L("Uzunluk"), "").endswith("mm")
+                  and satir.get(L("Adet"), "").startswith("×"),
+                  f"{k['baslik']}: {satir.get(L('Uzunluk'))} {satir.get(L('Adet'))}")
             fare(t, 5, 5)
             t.bekle(0.2)
 
@@ -298,7 +326,7 @@ def main() -> int:
         tikla(t, cx, cy)
         t.bekle(0.3)
         k = kart(t)
-        kosul("3B: tiklayinca sabitlendi", k["gorunur"] and "sabitlendi" in k["ipucu"], k["ipucu"])
+        kosul("3B: tiklayinca sabitlendi", k["gorunur"] and L("sabitlendi") in k["ipucu"], k["ipucu"])
         t.js("document.getElementById('uc-tuval').focus()")
         tus(t, "n", 78, "n")
         t.bekle(0.3)
@@ -339,15 +367,16 @@ def main() -> int:
                 break
         satir = dict(k["satir"])
         kosul("3B: ondan duvara gelince CUBUK parcasi, kartta UZUNLUK var",
-              k["gorunur"] and k["k"].startswith("c:") and satir.get("Uzunluk", "").endswith("mm"),
-              f"{k['baslik']} · {satir.get('Uzunluk')}")
+              k["gorunur"] and k["k"].startswith("c:") and satir.get(L("Uzunluk"), "").endswith("mm"),
+              f"{k['baslik']} · {satir.get(L('Uzunluk'))}")
         # Onden bakista ayni noktayi DORT katman kapliyor: dis kat on (en yakin),
         # ic kat on, ic kat arka, dis kat arka. Isin EN YAKINI secmeli. Ustten
         # bakistaki kart A testi bunu ayiramiyor (orada en yakin = en son cizilen).
         kosul("3B: isin EN YAKIN katmani seciyor (on dis kat, arkadaki ic kat degil)",
               k["k"].startswith("c:Dış kat — ön duvar"), k["k"])
         kosul("3B: cubugun kartinda kesim listesindeki satiri yaziyor",
-              "Kesim listesi" in satir and "⚠" not in satir.get("Kesim listesi", ""), satir.get("Kesim listesi", ""))
+              L("Kesim listesi") in satir and "⚠" not in satir.get(L("Kesim listesi"), ""),
+              satir.get(L("Kesim listesi"), ""))
         # ── B73: kablolar — uzerine gel (kart) ve tablo satiri (cizimde secili) ──
         tus(t, "Escape", 27)
         adima_git(t, "10.4")
@@ -359,7 +388,7 @@ def main() -> int:
             kk = kart(t)
             kosul("B73: kablonun üzerine gelince kablo kartı açılıyor",
                   kk["gorunur"] and kk["k"].startswith("t:") and "→" in kk["baslik"]
-                  and any(r[0] == "Kesim boyu" for r in kk["satir"]), str(kk)[:160])
+                  and any(r[0] == L("Kesim boyu") for r in kk["satir"]), str(kk)[:160])
             tus(t, "Escape", 27)
         r = merkez(t, "tr.bi-satir")
         kosul("B73: 10.4'te kablo tablosu var", r is not None)
@@ -464,8 +493,8 @@ def main() -> int:
         t.bekle(0.4)
         beklenen_kablo = len(KU.adim_kablolari("10.3")) + len(KU.adim_kablolari("10.4"))
         ozet3 = t.js("document.getElementById('uc-bilgi').textContent")
-        kosul("B73: 3B özeti KABLO sayıyor (blok değil)", f"kablo {beklenen_kablo}" in ozet3,
-              f"beklenen 'kablo {beklenen_kablo}' · {ozet3[:120]}")
+        kosul("B73: 3B özeti KABLO sayıyor (blok değil)", f"{L('kablo')} {beklenen_kablo}" in ozet3,
+              f"beklenen '{L('kablo')} {beklenen_kablo}' · {ozet3[:120]}")
         t.js("document.getElementById('uc-tuval').focus()")
         goruldu, sira_ = {}, []
         for _ in range(40):
@@ -536,7 +565,7 @@ def main() -> int:
         gizli = kablo_durum()
         kosul("B73: 'kabloları göster' kapatılınca çizimde kablo, numara ve 'ön →' yazısı kalmıyor; 3B'de de kablo yok",
               once["cizgi"] > 0 and once["yazi"] > 0 and gizli["cizgi"] == 0 and gizli["yazi"] == 0
-              and not gizli["uc"] and "kablo" not in gizli["ozet"], f"önce {once['cizgi']}/{once['yazi']} · sonra {gizli}"[:220])
+              and not gizli["uc"] and L("kablo") not in gizli["ozet"], f"önce {once['cizgi']}/{once['yazi']} · sonra {gizli}"[:220])
         t.js("location.reload()")
         t.bekle(1.5)
         adima_git(t, "10.4")
@@ -546,7 +575,7 @@ def main() -> int:
         t.bekle(0.3)
         acik = kablo_durum()
         kosul("B73: 3B'deki 'kablolar' kutusu açınca çizimlerde de geri geliyor (tek ayar)",
-              acik["cizgi"] > 0 and acik["kutu"] is True and "kablo" in acik["ozet"], str(acik)[:160])
+              acik["cizgi"] > 0 and acik["kutu"] is True and L("kablo") in acik["ozet"], str(acik)[:160])
         kosul("Test boyunca JS hatasi yok", not t.hatalar(), "; ".join(t.hatalar())[:300])
 
     # ozet satiri sayim.py'nin bicimi: mutasyon kosucusu sayiyi buradan okur
