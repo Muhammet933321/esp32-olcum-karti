@@ -821,7 +821,7 @@ CEVIRI = [
       "Plug the USB cable into the devkit's Type-C socket <b>marked COM</b> (CH343 "
       'bridge). The other socket also opens a port, but the firmware stays silent there.'),
     M('Kılavuz <b>01 Vref</b> kapısı: TL431 katodu ve U3A çıkışı (U3 soketine LM358 tak).',
-      'Guide <b>01 Vref</b> gate: TL431 cathode and U3A output (fit an LM358 into the U3 socket).'),
+      'Guide <b>01 Vref</b> GATE: TL431 cathode and U3A output (fit an LM358 into the U3 socket).'),
     M('1×40 dişi header — 10 pin kes',
       '1×40 female header — cut 10 pins'),
     M('<b>Multilayer seramik</b> — yumru biçimli açık sarı gövde; disk (mercimek) değil.',

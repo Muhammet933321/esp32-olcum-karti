@@ -283,7 +283,7 @@ def main() -> int:
             (M("Osiloskop — en yavas", "Oscilloscope — slowest"), SKOP_ASGARI, G.S3),
             (M("Hizli akim (dalga sekli)", "Fast current (waveform)"),
              T.ESP_KANAL_SPS, G.S2),
-            (M("Pil testi egri kaydi", "Battery test curve log"),
+            (M("Pil testi egri kaydi", "Battery test curve recording"),
              T.PIL_KAYIT_HZ, G.S4)],
     }
     v_pc = PC.veri(KOK)

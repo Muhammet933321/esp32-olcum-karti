@@ -563,8 +563,8 @@ def sayfa_uret(dil):
 </header>""", f"""<header>
   <div class="ust-etiket">Measurement Board · Stage 3 · BIDIRECTIONAL front end</div>
   <h1>Stage 3 Bench Assembly</h1>
-  <p class="ozet">Seven steps, each ending in a measurement gate you don't
-     pass until it holds. If a gate doesn't hold, the fault is in that
+  <p class="ozet">Seven steps, each ending in a measurement GATE you don't
+     pass until it holds. If a GATE doesn't hold, the fault is in that
      step — building the next step hides it, it doesn't fix it.</p>
   <div class="kunye">
     <span>Verification <b>{D3.ADIM_SAYISI}-step chain</b></span>

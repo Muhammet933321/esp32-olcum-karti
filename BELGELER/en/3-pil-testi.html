@@ -91,11 +91,11 @@ doesn't end the test early.</p>
 
 <h2>Cable and contact drop (lead resistance)</h2>
 <p>The board measures the battery voltage inside the enclosure. The negative
-lead that carries the current (the <code>PİL 2</code> → COM link inside the
+lead that carries the current (the BATTERY 2 (<span lang="tr">PİL 2</span>) → COM link inside the
 enclosure, the cable, the crocodile clip contacts) has a small resistance, so
 under load the battery looks <b>lower</b> than it is: 0.15 Ω at 1.13 A is about
 <b>0.17 V</b>. COM can't be used as a separate sense wire (in the enclosure it is
-the same node as <code>PİL 2</code>); instead the board is told this <b>lead
+the same node as BATTERY 2); instead the board is told this <b>lead
 resistance</b> (0–1000 mΩ) and corrects the battery test voltage to
 <b>V + I × R</b>. A short, thick cable reduces the drop in the first place.</p>
 <ol>

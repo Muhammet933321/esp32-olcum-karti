@@ -347,17 +347,17 @@ JS_CEVIRI: list[tuple[str, str]] = [
      "               panel: 'panel', tasiyici: 'ayak/altlık', parca: 'parça', kablo: 'kablo', kapak: 'kapak'}",
      "{kutu: 'base', duvar: 'outer layer', duvar_ic: 'inner layer', direk: 'post', delik: 'hole',\n"
      "               panel: 'panel', tasiyici: 'foot/spacer', parca: 'part', kablo: 'cable', kapak: 'lid'}"),
-    ("'bitmiş kutu: '", "'finished box: '"),
+    ("'bitmiş kutu: '", "'finished enclosure: '"),
     ("'bu adıma kadar: '", "'up to this step: '"),
     ("' · soluk: bu adımda hazırlanan, henüz takılmamış parçalar'",
      "' · faded: parts prepared in this step, not fitted yet'"),
     ("' · soluk olanlar sırada'", "' · faded ones come next'"),
     ("'henüz parça yok'", "'no parts yet'"),
-    ("' — soluk çizgiler yapacağın kutuyu gösteriyor'", "' — the faded lines show the box you will build'"),
-    ("' — \"hedefi göster\" ile hedef kutuyu görebilirsin'", "' — with \"show target\" you can see the target box'"),
+    ("' — soluk çizgiler yapacağın kutuyu gösteriyor'", "' — the faded lines show the enclosure you will build'"),
+    ("' — \"hedefi göster\" ile hedef kutuyu görebilirsin'", "' — with \"show target\" you can see the target enclosure'"),
     ("' · bu adımın parçası duvarın arkasında: \"yakın olanlar saydam\" seç ya da üstten bak'",
      "' · this step\\'s part is behind a wall: choose \"near ones transparent\" or look from the top'"),
-    ("'bu adımda hazırlanıyor — kutuya henüz takılmadı'", "'prepared in this step — not fitted in the box yet'"),
+    ("'bu adımda hazırlanıyor — kutuya henüz takılmadı'", "'prepared in this step — not fitted in the enclosure yet'"),
     ("'⏳ henüz yok — ' + S[bl.gor].no + ' adımında takılır'", "'⏳ not yet — fitted in step ' + S[bl.gor].no"),
     ("'★ bu adımın parçası'", "'★ part of this step'"),
     ("' · parça '", "' · part '"),
@@ -458,7 +458,7 @@ en: The shunt itself and the Kelvin solder joints
 tr: <b>Yapıştırıcı yok — makaron + kablo bağı</b>
 en: <b>No glue — heat-shrink + cable tie</b>
 tr: Şönt {0} A'de ~{1} °C ısınır, kapalı kutuda {2} °C'yi geçer: sıcak silikon ~{3} °C'de yumuşayıp akar, üstelik şöntün soğumasını keser ({4} A sınırı açık havada soğumaya göre). {5} mΩ'a geçerken bu lehimler sökülür. Gerilmeyi kablo bağı alır ({6}: burgulu çift şönt altlığına); istersen lehimin üstüne makaron — bacağın klemense girecek alt ucu açık kalsın.
-en: At {0} A the shunt heats up by ~{1} °C and in a closed box it goes past {2} °C: hot glue softens and flows at ~{3} °C, and it also stops the shunt from cooling (the {4} A limit assumes cooling in open air). These joints are desoldered when changing to {5} mΩ. The strain is taken by a cable tie ({6}: the twisted pair to the shunt spacer); if you like, heat-shrink over the solder — leave the lower end of the leg that goes into the terminal block bare.
+en: At {0} A the shunt heats up by ~{1} °C and in a closed enclosure it goes past {2} °C: hot glue softens and flows at ~{3} °C, and it also stops the shunt from cooling (the {4} A limit assumes cooling in open air). These joints are desoldered when changing to {5} mΩ. The strain is taken by a cable tie ({6}: the twisted pair to the shunt spacer); if you like, heat-shrink over the solder — leave the lower end of the leg that goes into the terminal block bare.
 tr: Soğutucunun kendisine değen yerler (Q1'in tabı, kapı teli, mika pul)
 en: Places touching the heatsink itself (Q1's tab, the gate wire, the mica washer)
 tr: <b>Kablo bağı, yapıştırıcı yok</b>
@@ -502,11 +502,11 @@ en: Voltage input: high impedance ({0} kΩ, no current) — large for LOOKS, not
 tr: 4mm Born Jak Şeffaf Sarı (Büyük Boy)
 en: 4 mm banana jack, clear yellow (large)
 tr: {0} V'a kadar giriş: büyük boy jakın gövdesi/yalıtımı daha uzun, sağ kenarda ve öbür metalden ≥ {1} mm kaçak yolu (IEC {2} takviyeli). Kutudaki TEK SARI jak (B60): bütün jaklar aynı model olunca 'tek büyük kırmızı' ipucu kalktı, renk onun yerini aldı. Yanlışlıkla V'ye takılan {3} V R4'ü zamanla yakar (B15/A1) — HV'nin rengini başka hiçbir jak kullanmaz (denetimli). İç ucu makaronla.
-en: Input up to {0} V: the large jack has a longer body/insulation, it sits at the right edge with ≥ {1} mm creepage to other metal (IEC {2} reinforced). The ONLY YELLOW jack on the box (B60): once all jacks were the same model the 'one big red' cue was gone, colour took its place. {3} V plugged into V by mistake slowly burns R4 (B15/A1) — no other jack uses HV's colour (audited). Inner end heat-shrunk.
+en: Input up to {0} V: the large jack has a longer body/insulation, it sits at the right edge with ≥ {1} mm creepage to other metal (IEC {2} reinforced). The ONLY YELLOW jack on the enclosure (B60): once all jacks were the same model the 'one big red' cue was gone, colour took its place. {3} V plugged into V by mistake slowly burns R4 (B15/A1) — no other jack uses HV's colour (audited). Inner end heat-shrunk.
 tr: <b>AÇ / KAPA</b>
 en: <b>«AÇ / KAPA»</b>
 tr: Kutunun tek anahtarı: paketi {0} V yükselticiye bağlar. Paket tarafında olmalı — MT3608 boşta {1}–{2} mA çekip paketi haftalarda bitirir. KTS102 tek kutup yeter: eksi hat ortak, kesilmesi gerekmiyor.
-en: The box's only switch: connects the pack to the {0} V boost converter. It must sit on the pack side — an idle MT3608 draws {1}–{2} mA and empties the pack in weeks. A single-pole KTS102 is enough: the negative line is common and does not need to be broken.
+en: The enclosure's only switch: connects the pack to the {0} V boost converter. It must sit on the pack side — an idle MT3608 draws {1}–{2} mA and empties the pack in weeks. A single-pole KTS102 is enough: the negative line is common and does not need to be broken.
 tr: <b>GÜÇ</b>
 en: <b>«GÜÇ»</b>
 tr: 5mm LED Yeşil (şeffaf)
@@ -534,7 +534,7 @@ en: Lower inlet: when gas is vented the upper holes need an opposite opening to 
 tr: İkinci giriş, ilkinin karşı ucunda: tek delik tıkanırsa (toz, kablo) alt açıklık kalsın. Dört delik iki ayna çifti oluşturuyor, akış çaprazlama. x {0} iç kat çubuğunun ({1}–{2}) ortası.
 en: Second inlet, at the opposite end from the first: if one hole is blocked (dust, a cable) a lower opening remains. The four holes form two mirrored pairs, the flow runs diagonally. Centre of the inner-layer stick at x {0} ({1}–{2}).
 tr: Li-ion termal kaçağında gaz basınç yapmadan çıksın diye; kapak {0} cıvatayla sıkılı ve kutu {1} L. Üst sıra: gaz yukarı çıkar. x {2} iç kat çubuğunun ({3}–{4}) içinde (ortası x {5}).
-en: So that gas from a Li-ion thermal runaway gets out without building pressure; the lid is held by {0} bolts and the box is {1} L. Top row: gas rises. Inside the inner-layer stick at x {2} ({3}–{4}) (its centre at x {5}).
+en: So that gas from a Li-ion thermal runaway gets out without building pressure; the lid is held by {0} bolts and the enclosure is {1} L. Top row: gas rises. Inside the inner-layer stick at x {2} ({3}–{4}) (its centre at x {5}).
 tr: İkinci çıkış: tek delik tıkanırsa (toz, kablo) basınç yolu kapanmasın. HV1'in karşı ucunda — aynı engel ikisini birden kapatamaz. x {0} iç kat çubuğunun ({1}–{2}) içinde (ortası x {3}).
 en: Second outlet: if one hole is blocked (dust, a cable) the pressure path must not close. At the opposite end from HV1 — the same obstacle cannot block both. Inside the inner-layer stick at x {0} ({1}–{2}) (its centre at x {3}).
 tr: <b>Kapak cıvataları ×{0}</b>
@@ -644,9 +644,9 @@ en: <b>Heavy wire for the load path (≥{0} mm²)</b>
 tr: KBL003 karışık montaj kablosunda kalın damar varsa oradan (soyup ölç: çıplak iletken tek damarda ≥ {0} mm, çok damarlı demette ~{1} mm). Halka pabuç stokta YOK ve plan onu ŞART KOŞMUYOR: jakta lehim kulağı ya da iki somun arasında kalaysız halka, bariyerde kalaysız burulmuş uç ({2}). Pabuç almak isteğe bağlı: yalıtımsız pabucun borusu sıkılıp lehimlenir.
 en: If the KBL003 mixed hook-up wire has a heavy conductor, take it from there (strip and measure: bare conductor ≥ {0} mm for solid wire, ~{1} mm for a stranded bundle). Ring lugs are NOT in stock and the plan does NOT REQUIRE them: a solder lug on the jack or an untinned loop between two nuts, an untinned twisted end in the barrier block ({2}). Buying lugs is optional: the barrel of an uninsulated lug is crimped and soldered.
 tr: <b>Ölçüm kabloları (banana + krokodil)</b>
-en: <b>Test leads (banana + alligator clip)</b>
+en: <b>Test leads (banana + crocodile clip)</b>
 tr: Kalibrasyon adımları ({0}–{1}) panel jaklarına kablo istiyor: bir ucu {2} mm banana erkek (CON005/CON006, {3} adet), öbür ucu krokodil (CON065/{4}, {5} adet) — ikisi de stokta. CAL → SKOP için kısa bir banana–banana da aynı parçalardan yapılır.
-en: The calibration steps ({0}–{1}) need leads to the panel jacks: one end a {2} mm male banana plug (CON005/CON006, {3} pcs), the other an alligator clip (CON065/{4}, {5} pcs) — both in stock. A short banana–banana lead for CAL → «SKOP» is made from the same parts.
+en: The calibration steps ({0}–{1}) need leads to the panel jacks: one end a {2} mm male banana plug (CON005/CON006, {3} pcs), the other an crocodile clip (CON065/{4}, {5} pcs) — both in stock. A short banana–banana lead for CAL → «SKOP» is made from the same parts.
 tr: <b>{0} mA {1}×{2} cam sigorta (hızlı, F — stoktaki)</b>
 en: <b>{0} mA {1}×{2} glass fuse (fast, F — the one in stock)</b>
 tr: Bir tanesini ölç: gerçek {0} mA telin soğuk direnci {1}–{2} Ω (Littelfuse {3}/{4}); yuvadaki {5} Ω = {6} mA (FUS001). F {7} mA anahtar darbesinde atar → aşağıdaki T tipi gelene kadar yuvadaki {8} mA kalsın (stoktaki F'lerin hiçbiri darbeye ≥{9}× pay vermiyor).
@@ -658,7 +658,7 @@ en: Littelfuse {0} / ESKA {1}.5xx / Schurter; glass body (ceramic {2} mA has too
 tr: <b>Soğutucu boşaltma direnci: {0} MΩ</b>
 en: <b>Heatsink bleed resistor: {0} MΩ</b>
 tr: Q1'in soğutucusu mikayla yalıtık, yani kutuda yüzen bir metal plaka. {0} MΩ ile kart GND'ye bağlanıyor: statik akıyor ama mika delinirse PİL {1}'i GND'ye kısa etmiyor ({2} µA). Düz tel BAĞLAMA.
-en: Q1's heatsink is insulated with mica, i.e. a floating metal plate inside the box. It is tied to board GND through {0} MΩ: static drains away, but if the mica is punctured it does not short «PİL» {1} to GND ({2} µA). DO NOT use a plain wire.
+en: Q1's heatsink is insulated with mica, i.e. a floating metal plate inside the enclosure. It is tied to board GND through {0} MΩ: static drains away, but if the mica is punctured it does not short «PİL» {1} to GND ({2} µA). DO NOT use a plain wire.
 tr: <b>Hücre sigortası ×{0} (F1P, F2): {1} A F {2}×{3} cam</b>
 en: <b>Cell fuse ×{0} (F1P, F2): {1} A F {2}×{3} glass</b>
 tr: Her iki hücrenin ARTI ucuna birer tane. TP4056'nın koruma FET'i (FS8205) B−/OUT− arasında olduğu için hücre ucu ve H+/H− kablosundaki kısa devreyi DW01A kesemez; o kolu yalnız bu sigorta korur (kısa devre {0} A). ⚠ Anma neden yüksek: sigorta TP4056'nın BAT ucunda, yani ŞARJ akımının tamamı ({1} A, Rprog fabrika ayarı) buradan geçiyor — daha küçüğü ilk şarjda atar. Sürekli deşarj {2} mA; belirleyici olan şarj.
@@ -666,11 +666,11 @@ en: One on the POSITIVE end of each cell. The TP4056's protection FET (FS8205) s
 tr: <b>Sigorta yuvası ×{0}: {1}×{2} PCB klipsli (F1P, F2, F0)</b>
 en: <b>Fuse holder ×{0}: {1}×{2} PCB clips (F1P, F2, F0)</b>
 tr: Arka duvara, çubuk parçasına kablo bağıyla (F1P TP4056 rafının sağında, F2 sağ alt köşede, F0 sol uçta MT1'in yanında). Panel deliği YOK — kutu içi, servis için kapak açılır (hücre değişimi zaten kapak açtırıyor).
-en: On the back wall, held to a stick piece with a cable tie (F1P to the right of the TP4056 shelf, F2 in the bottom right corner, F0 at the left end next to MT1). NO panel hole — inside the box, the lid is opened for service (changing a cell needs the lid opened anyway).
+en: On the back wall, held to a stick piece with a cable tie (F1P to the right of the TP4056 shelf, F2 in the bottom right corner, F0 at the left end next to MT1). NO panel hole — inside the enclosure, the lid is opened for service (changing a cell needs the lid opened anyway).
 tr: <b>Q1 soğutucusu (plan {0} × {1} × {2} mm VARSAYIYOR)</b>
 en: <b>Q1 heatsink (the plan ASSUMES {0} × {1} × {2} mm)</b>
 tr: Kayıtta ölçü yok (MEK002 'muhtelif boyutlarda'). Plan {0} × {1} × {2} mm varsayıyor ve Q1 için bu ölçüyle yer ayırdı. Elindeki blok daha büyükse kutuya girer ama kart B'ye olan açıklığı daralır — o zaman bloğu küçült ya da Q1'i {3}–{4} mm sağa kaydır. Daha küçükse sorun yok: Q1 pil testinde {5} W harcıyor, bu blok fazlasıyla yeter (soğutucusuz bile Tj {6} °C, sınır {7}).
-en: The inventory has no size (MEK002 'various sizes'). The plan assumes {0} × {1} × {2} mm and reserved that space for Q1. If your block is bigger it still fits, but the clearance to board B shrinks — then make the block smaller or move Q1 {3}–{4} mm to the right. If it is smaller, no problem: Q1 dissipates {5} W in the battery test, this block is more than enough (even without a heatsink Tj {6} °C, limit {7}).
+en: The stock record has no size (MEK002 'various sizes'). The plan assumes {0} × {1} × {2} mm and reserved that space for Q1. If your block is bigger it still fits, but the clearance to board B shrinks — then make the block smaller or move Q1 {3}–{4} mm to the right. If it is smaller, no problem: Q1 dissipates {5} W in the battery test, this block is more than enough (even without a heatsink Tj {6} °C, limit {7}).
 tr: <b>TO-{0} yalıtım (mika/plastik izolatör + burç)</b>
 en: <b>TO-{0} insulation (mica/plastic insulator + bushing)</b>
 tr: Q1'i soğutucudan yalıtmak için; plastik delikli/deliksiz izolatörler de var (MEK037–{0})
@@ -706,7 +706,7 @@ en: PWR004 (motorobit) or PWR007 (direnc.net); {0}×{1}×{2} MEASURED (B52d) —
 tr: <b>TP4056 korumalı Type-C ×{0} (tek şarj girişi)</b>
 en: <b>TP4056 protected Type-C ×{0} (single charging input)</b>
 tr: İki paralel hücreyi birlikte doldurur. Rprog {0} kΩ fabrika ({1} A, hücre başına ~{2} A) → {3} kΩ ile {4} A, kutu daha az ısınır (isteğe bağlı)
-en: Charges both parallel cells together. Rprog {0} kΩ factory ({1} A, ~{2} A per cell) → with {3} kΩ, {4} A, the box heats up less (optional)
+en: Charges both parallel cells together. Rprog {0} kΩ factory ({1} A, ~{2} A per cell) → with {3} kΩ, {4} A, the enclosure heats up less (optional)
 tr: <b>MT3608 yükseltici ×{0}</b>
 en: <b>MT3608 boost converter ×{0}</b>
 tr: Biri {0} V ({1} V barası: ESP32 + analog girişi), biri {2} V (analog, girişi B0505S); {3}'de yüksüz ayarlanır
@@ -716,17 +716,17 @@ en: <b>{0} mm green LED + {1} kΩ resistor («GÜÇ» lamp)</b>
 tr: LED003 ×{0}, direnç R060 (10K) ×{1} — ikisi de stokta. Daha parlak istersen {2}.7K (R015): {3} mA
 en: LED003 ×{0}, resistor R060 (10K) ×{1} — both in stock. If you want it brighter, {2}.7K (R015): {3} mA
 tr: <b>KTS102 toggle ×{0} (PİL, kutunun tek anahtarı)</b>
-en: <b>KTS102 toggle ×{0} («PİL», the box's only switch)</b>
+en: <b>KTS102 toggle ×{0} («PİL», the enclosure's only switch)</b>
 tr: {0} ayak: orta + bir uç kullanılır (ON-OFF). Stokta {1}, biri yedek. Ortak (orta) ayağı ohmmetreyle doğrula, lehimde ayağı uzun ısıtma. B58'den beri KTS202 gerekmiyor
 en: {0} pins: the middle + one end are used (ON-OFF). {1} in stock, one is a spare. Confirm the common (middle) pin with an ohmmeter, do not heat the pin for long when soldering. Since B58 no KTS202 is needed
 tr: <b>F0 sigortası: {0} A {1}×{2} cam (hızlı)</b>
 en: <b>F0 fuse: {0} A {1}×{2} glass (fast)</b>
 tr: Ölçüm tarafının {0} V girişinde, kutu içinde (B58e). Yalnız iç arızada atar; atarsa kapağı aç, önce arızayı bul (B0505S, MT2, kart), sonra değiştir
-en: On the {0} V input of the measurement side, inside the box (B58e). It only blows on an internal fault; if it does, open the lid, find the fault first (B0505S, MT2, board), then replace it
+en: On the {0} V input of the measurement side, inside the enclosure (B58e). It only blows on an internal fault; if it does, open the lid, find the fault first (B0505S, MT2, board), then replace it
 tr: <b>B0505S-2WR3 ({0} W) yalıtılmış DC-DC, {1} V → {2} V (Hi-Link, motorobit) — {3} W DEĞİL</b>
 en: <b>B0505S-2WR3 ({0} W) isolated DC-DC, {1} V → {2} V (Hi-Link, motorobit) — NOT {3} W</b>
 tr: Kutunun iki toprağını ayıran tek parça (B58): analog {0} V bu modülün yalıtılmış çıkışından. Sürekli yük {1} W = %{2}; üreticinin en az %{3} yük şartı en düşük yükte %{4}. {5} W sürümünü (B0505S-1WR3) ALMA: sürekli yüke yeter (%{6}) ama açılışta yetmez — akım sınırında MT2'nin girişini ~{7} V'a çeker, kart {8} V'a çıkamaz (B58f benzetimi, sim3_kutu_besleme.py). {9} VDC yalıtımlı, kısa devre korumalı; gövde {10} × {11} × {12}, duvarda yeri ayrılı. Bacak sırası ada göre ({13}). {14}-{15}-{16}'de geldi (MOD013)
-en: The one part that separates the box's two grounds (B58): the analog {0} V comes from this module's isolated output. Continuous load {1} W = {2}%; the manufacturer's minimum-load requirement of {3}% is {4}% at the lowest load. DO NOT BUY the {5} W version (B0505S-1WR3): enough for the continuous load ({6}%) but not at power-up — in current limit it pulls MT2's input to ~{7} V and the board cannot reach {8} V (B58f simulation, sim3_kutu_besleme.py). {9} VDC isolation, short-circuit protected; body {10} × {11} × {12}, its place on the wall is reserved. Pin order by name ({13}). Arrived {14}-{15}-{16} (MOD013)
+en: The one part that separates the enclosure's two grounds (B58): the analog {0} V comes from this module's isolated output. Continuous load {1} W = {2}%; the manufacturer's minimum-load requirement of {3}% is {4}% at the lowest load. DO NOT BUY the {5} W version (B0505S-1WR3): enough for the continuous load ({6}%) but not at power-up — in current limit it pulls MT2's input to ~{7} V and the board cannot reach {8} V (B58f simulation, sim3_kutu_besleme.py). {9} VDC isolation, short-circuit protected; body {10} × {11} × {12}, its place on the wall is reserved. Pin order by name ({13}). Arrived {14}-{15}-{16} (MOD013)
 tr: <b>{0} µF {1} V elektrolitik ×{2} (MT2 girişi, CB)</b>
 en: <b>{0} µF {1} V electrolytic ×{2} (MT2 input, CB)</b>
 tr: B58f benzetimi: {0} µF her modelde yetiyor, {1} yetmiyor. Stokta {2}; {3} µF {4} V (C040) da olur
@@ -734,7 +734,7 @@ en: B58f simulation: {0} µF is enough for every model, {1} is not. In stock {2}
 tr: <b>{0} Ω {1} W direnç ×{2} — YALNIZ {3}'teki belirtide (yedek yol)</b>
 en: <b>{0} Ω {1} W resistor ×{2} — ONLY for the symptom in {3} (fallback)</b>
 tr: B0505S +Vo ile MT2 IN+ arasına seri {0} Ω. Varsayılan olarak TAKILMAZ: kutu dolu pilde açılmıyorsa takılır ({1}). Stokta {2}
-en: {0} Ω in series between B0505S +Vo and MT2 IN+. NOT FITTED by default: fitted if the box does not power up with a full battery ({1}). In stock {2}
+en: {0} Ω in series between B0505S +Vo and MT2 IN+. NOT FITTED by default: fitted if the enclosure does not power up with a full battery ({1}). In stock {2}
 tr: <b>HB950 {0} pin bariyer klemens ×{1} (güç düğümü)</b>
 en: <b>HB950 {0}-pin barrier terminal block ×{1} (power node)</b>
 tr: YÜK/PİL kalın kabloları burada birleşir, XP128'e tek köprü gider. Bariyerin vidası altına iki-üç kalaysız burulmuş uç sığar; şönt değiştirirken yalnız XP128'in iki vidası gevşer
@@ -774,7 +774,7 @@ en: cables
 tr: hepsini göster
 en: show all
 tr: 3B kutu görünümü
-en: 3D view of the box
+en: 3D view of the enclosure
 tr: <span class='ano'>{0}</span> <b>Çubuğunu ve parçaları ölç</b>
 en: <span class='ano'>{0}</span> <b>Measure your sticks and parts</b>
 tr: yaptım
@@ -784,7 +784,7 @@ en: Measure a stick with a ruler: <b>{0} × {1} × {2} mm</b>, with a <b>{3} mm<
 tr: Kumpasla doğrula: born jak gövde dişi (≈ {0} mm; B60'tan beri panelde TEK model, büyük şeffaf); jakların duvarın içine uzanan boyu ({1}-{2}-{3}): {4} mm. USB-C fiş gövdesi (≈ {5} × {6}), toggle dişi ({7}). <b>Tutmuyorsa delik tablosunu değil ölçtüğün sayıyı kullan:</b> delik = ölçülen diş + {8} mm, en yakın matkap ucuna yuvarla, deneyerek büyüt. Tablodaki çaplar nominal; asıl ölçüt parçanın somuna kadar geçmesi.
 en: Check with calipers: the thread of the banana jack body (≈ {0} mm; since B60 a SINGLE model on the panel, large clear); how far the jacks reach into the wall ({1}-{2}-{3}): {4} mm. USB-C plug body (≈ {5} × {6}), toggle thread ({7}). <b>If it does not match, use the number you measured, not the hole table:</b> hole = measured thread + {8} mm, round to the nearest drill bit, enlarge while testing. The diameters in the table are nominal; what counts is that the part goes in up to the nut.
 tr: <b>Kart ölçüleri ÖLÇÜLDÜ</b> ({0}-{1}-{2}), yeniden ölçmene gerek yok: kart A {3} × {4} (Adım {5}'te bu ölçüye kesiliyor), kart B fabrika {6} × {7} (kesilmiyor), devkit {8} × {9}. Plan bu sayılarla üretildi. Tek bakılacak şey: <b>B:O16 → A:C11 sarı telin boyu</b>. Kutuda (kart B {10}°) iki lehim noktası düz çizgide {11} mm, kenarlardan ~{12} mm: tel <b>{13} mm</b> olmalı. Yerleşimde daha kısa kestiysen: ucuna aynı kalınlıkta tel ekle, lehimle, makaronla kapla (~{14} V, tehlikesiz) — GND ile burma, B'de GND yok.
-en: <b>The board sizes WERE MEASURED</b> ({0}-{1}-{2}), no need to measure again: board A {3} × {4} (cut to this size in Step {5}), board B factory {6} × {7} (not cut), devkit {8} × {9}. The plan was generated with these numbers. The only thing to check: <b>the length of the yellow wire B:O16 → A:C11</b>. In the box (board B at {10}°) the two solder points are {11} mm apart in a straight line, ~{12} mm from the edges: the wire must be <b>{13} mm</b>. If you cut it shorter in the layout: splice on a wire of the same gauge, solder, cover with heat-shrink (~{14} V, harmless) — do not twist it to GND, there is no GND on B.
+en: <b>The board sizes WERE MEASURED</b> ({0}-{1}-{2}), no need to measure again: board A {3} × {4} (cut to this size in Step {5}), board B factory {6} × {7} (not cut), devkit {8} × {9}. The plan was generated with these numbers. The only thing to check: <b>the length of the yellow wire B:O16 → A:C11</b>. In the enclosure (board B at {10}°) the two solder points are {11} mm apart in a straight line, ~{12} mm from the edges: the wire must be <b>{13} mm</b>. If you cut it shorter in the layout: splice on a wire of the same gauge, solder, cover with heat-shrink (~{14} V, harmless) — do not twist it to GND, there is no GND on B.
 tr: <b>Bir sayı tutmazsa ne yapacaksın:</b> ±{0} mm'ye kadar hiçbir şey — Adım {1} zaten "ölç, kalanı kes" diyor ve iç kat / direk / ray boyları oradan gerçek ölçüne göre çıkıyor. Daha büyüğü için sayıyı tek yerden değiştir: <code>uretim/kutu_veri.py</code> içindeki ilgili alanı düzelt, <code>python kutu.py</code> koş — kesim listesi, delik tabloları, çizimler ve 3B sahne yeniden üretilir; tutarsız bir şey kaldıysa denetim kırmızı verir.
 en: <b>What to do if a number does not match:</b> up to ±{0} mm, nothing — Step {1} already says "measure, cut the rest", and the inner layer / post / rail lengths come from your real measurement there. For anything bigger, change the number in one place: fix the relevant field in <code>uretim/kutu_veri.py</code>, run <code>python kutu.py</code> — the cut list, hole tables, drawings and 3D scene are regenerated; if anything is left inconsistent the audit turns red.
 tr: Çubuklar düz mü, çatlak var mı? Eğri olanları kapak için ayır.
@@ -850,7 +850,7 @@ en: <span class='ano'>{0}</span> <b>Bring board A to {kart_a_en:.0f} × {kart_a_
 tr: Elindeki plaket <b>{0} × {1} mm</b> kesilmişti; plan <b>{2} × {3}</b> istiyor. Fazlalık <b>sağda ~{4} mm, önde ~{5} mm</b> (A1 köşesi sol-arkada kalıyor, lehimli bölgeye dokunmuyorsun).
 en: Your board was cut to <b>{0} × {1} mm</b>; the plan wants <b>{2} × {3}</b>. The excess is <b>~{4} mm on the right, ~{5} mm at the front</b> (corner A1 stays at the back left, you do not touch the soldered area).
 tr: <b>Neden şart:</b> kesmezsen kart sağda x {0}'e uzanır ve ESP32'nin (x {1}) üstüne biner. Kutuya sığmaz.
-en: <b>Why it is a must:</b> uncut, the board reaches x {0} on the right and runs over the ESP32 (x {1}). It does not fit in the box.
+en: <b>Why it is a must:</b> uncut, the board reaches x {0} on the right and runs over the ESP32 (x {1}). It does not fit in the enclosure.
 tr: <b>Nasıl:</b> kesilecek çizgiyi iki yüzden de maket bıçağıyla <b>delik sırasının ortasından</b> derin çiz ({0}–{1} geçiş), sonra masa kenarında kısa kenardan başlayarak kır. Zımparayla düzelt. Cam elyafı tozu için maske/ıslak bez.
 en: <b>How:</b> score the cut line deeply on both faces with a utility knife <b>through the middle of the hole row</b> ({0}–{1} passes), then snap it over the edge of the table starting from the short side. Clean up with sandpaper. Mask / damp cloth for the glass-fibre dust.
 tr: Kesmeden önce kesim çizgisinin lehimli bir ize ya da parçaya denk gelmediğini gözle kontrol et — yerleşim planı kenarda {0}×{1} delik boş bırakmıştı.
@@ -886,7 +886,7 @@ en: <span class='ano'>{0}</span> <b>Join from underneath with rails</b>
 tr: Rayları tabanın <b>altına</b>, sıralara dik (derinlik yönünde), uçlardan içeride yapıştır. Ray bütün sıraları birbirine bağlar.
 en: Glue the rails to the <b>underside</b> of the base, across the rows (front to back), set in from the ends. The rail ties all the rows together.
 tr: <b>Ray merkezleri: sol kenardan {0} mm ve {1} mm</b> (dış en {2} mm'nin ¼'ü ve ¾'ü). Kutu fiilen bu iki rayın üstünde duruyor: devrilme ve yük payı hesabı bu konumu varsayıyor, ±{3} mm'den fazla kaydırma.
-en: <b>Rail centres: {0} mm and {1} mm from the left edge</b> (¼ and ¾ of the {2} mm outer width). The box actually stands on these two rails: the tipping and load margin calculations assume this position, do not shift them more than ±{3} mm.
+en: <b>Rail centres: {0} mm and {1} mm from the left edge</b> (¼ and ¾ of the {2} mm outer width). The enclosure actually stands on these two rails: the tipping and load margin calculations assume this position, do not shift them more than ±{3} mm.
 tr: Sıcak silikonu ray boyunca sürekli çek, nokta nokta değil; {0} s içinde bastır. Sıralar arası derzleri isteğe bağlı ince japonla süz (maskeleme bandı üstten tutar).
 en: Run the hot glue continuously along the rail, not in dots; press within {0} s. Optionally run thin CA glue into the joints between rows (masking tape holds them from above).
 tr: Taban tek parça gibi kalkıyor mu? Ortadan tutup kaldır.
@@ -948,7 +948,7 @@ en: Same method; dimensions are again to the CENTRE of the hole, but <b>from the
 tr: USB ve ŞARJ yuvaları oval ({0} × {1}): merkezin {2} mm sağına ve soluna iki Ø{3} daire, arası maket bıçağıyla.
 en: The USB and «ŞARJ» slots are oval ({0} × {1}): two Ø{3} circles {2} mm to the right and left of the centre, the part between them cut with a utility knife.
 tr: <b>Deler delmez iki ovalin İÇ yüzüne kurşun kalemle adını yaz: ŞARJ / USB.</b> İkisi tıpatıp aynı ve etiketler {0}'e kadar yapıştırılmıyor; bu çizim arkadan bakana göre ters. Kutu kurulunca <b>önden (jak tarafından) bakınca ŞARJ solda, USB sağda</b>.
-en: <b>As soon as they are drilled, write the name on the INSIDE face of both ovals in pencil: «ŞARJ» / USB.</b> The two are identical and the labels are not stuck on until {0}; this drawing is mirrored for someone looking from behind. Once the box is built, <b>seen from the front (the jack side) «ŞARJ» is on the left, USB on the right</b>.
+en: <b>As soon as they are drilled, write the name on the INSIDE face of both ovals in pencil: «ŞARJ» / USB.</b> The two are identical and the labels are not stuck on until {0}; this drawing is mirrored for someone looking from behind. Once the enclosure is built, <b>seen from the front (the jack side) «ŞARJ» is on the left, USB on the right</b>.
 tr: Arka duvar — dışarıdan
 en: Back wall — from outside
 tr: arka duvar
@@ -968,7 +968,7 @@ en: <span class='ano'>{0}</span> <b>Row {1} — front and back</b>
 tr: Ön ve arka duvarın ilk sırasını tabanın kenarına, <b>dik</b> yapıştır. Geniş yüz dışa, delikli parçalar tablodaki yerde.
 en: Glue the first row of the front and back walls to the edge of the base, <b>upright</b>. Wide face outwards, the drilled pieces where the table says.
 tr: Her sıra iki parça; ek yeri tabloda yazan x'te. <b>Arka duvar parçaları "arkadan bakınca" adlandı:</b> önde durup yerleştiriyorsan "sol (arkadan)" parça senin SAĞINA gelir — şaşırmamak için arka sırayı kutunun arkasına geçip diz.
-en: Each row is two pieces; the joint is at the x given in the table. <b>The back wall pieces are named "as seen from behind":</b> if you place them standing at the front, the "left (from behind)" piece comes to YOUR RIGHT — to avoid confusion, go round to the back of the box to lay the back row.
+en: Each row is two pieces; the joint is at the x given in the table. <b>The back wall pieces are named "as seen from behind":</b> if you place them standing at the front, the "left (from behind)" piece comes to YOUR RIGHT — to avoid confusion, go round to the back of the enclosure to lay the back row.
 tr: {0}. sıra — izometrik
 en: Row {0} — isometric
 tr: {0}. sıra
@@ -1012,7 +1012,7 @@ en: Add all the remaining rows — the wall has {0} rows in total ({1} mm). Dril
 tr: Duvar yüksekliği her köşede aynı mı?
 en: Is the wall height the same at every corner?
 tr: Kutuyu ters çevir, sallanıyor mu?
-en: Turn the box upside down — does it rock?
+en: Turn the enclosure upside down — does it rock?
 tr: <span class='ano'>{0}</span> <b>Ölç, kalanı kes</b>
 en: <span class='ano'>{0}</span> <b>Measure, cut the rest</b>
 tr: Şimdi gerçek ölçüleri al: duvar yüksekliği (derz dahil), iç en, iç boy.
@@ -1108,11 +1108,11 @@ en: Press the wall with a finger: it should no longer flex.
 tr: Deliklerin arkasında çubuk ortası var, ek yeri yok.
 en: Behind every hole there is the middle of a stick, not a joint.
 tr: <span class='ano'>{0}</span> <b>Kapak cıvata deliklerini aç (kutu boşken)</b>
-en: <span class='ano'>{0}</span> <b>Drill the lid bolt holes (while the box is empty)</b>
+en: <span class='ano'>{0}</span> <b>Drill the lid bolt holes (while the enclosure is empty)</b>
 tr: Her yan duvarda iki nokta işaretle (aşağıdaki tablo: y arka dış köşeden, z tabandan), <b>Ø{0} del</b> — delik dış kat ({1} mm) + iç kat ({2} mm) boyunca geçer.
 en: Mark two points on each side wall (table below: y from the back outer corner, z from the base), <b>drill Ø{0}</b> — the hole goes through the outer layer ({1} mm) + inner layer ({2} mm).
 tr: <b>Neden şimdi:</b> kutu şu an boş. Adım {0}'dan sonra içeride lehimlenmiş kart A var ve havyayla delerken çıkan yanık talaşı doğrudan onun üstüne döküleceği için burada deliniyor. Kapağa henüz gerek yok: konumlar tablodan.
-en: <b>Why now:</b> the box is empty at this point. After Step {0} the soldered board A is inside, and the burnt shavings from piercing with the iron would fall right onto it, so it is done here. The lid is not needed yet: the positions come from the table.
+en: <b>Why now:</b> the enclosure is empty at this point. After Step {0} the soldered board A is inside, and the burnt shavings from piercing with the iron would fall right onto it, so it is done here. The lid is not needed yet: the positions come from the table.
 tr: Somun blokları kapak yapılınca ({0}) <b>cıvatanın üstüne merkezlenerek</b> yapıştırılacak — kendi kendine hizalanır.
 en: The nut blocks are glued once the lid is made ({0}), <b>centred over the bolt</b> — they align themselves.
 tr: Kapak — kuşbakışı
@@ -1146,7 +1146,7 @@ en: thin outline = the body of a panel part reaching inside · posts in the corn
 tr: aynı hizadaki jaklar: daireler soldan sağa, adlar alt alta = panelde üstten alta
 en: jacks at the same position: circles left to right, names one below the other = top to bottom on the panel
 tr: Kutuyu köşelerinden tutup bur: köşeler oynamamalı.
-en: Twist the box by its corners: the corners should not move.
+en: Twist the enclosure by its corners: the corners should not move.
 tr: Dört direğin üstü aynı seviyede.
 en: The tops of all four posts are level.
 tr: <span class='ano'>{0}</span> <b>İç katı deliklerden geçerek del</b>
@@ -1160,11 +1160,11 @@ en: Every hole goes straight through both layers; the jack body goes in easily.
 tr: <span class='ano'>{0}</span> <b>Born jakları tak ({1} adet)</b>
 en: <span class='ano'>{0}</span> <b>Fit the banana jacks ({1} pcs)</b>
 tr: Kutuya giren
-en: Going into the box
+en: Going into the enclosure
 tr: V girişi born jak çifti (panel): kırmızı = V girişi, siyah = COM (kart GND).
 en: V input banana jack pair (panel): red = V input, black = COM (board GND).
 tr: HV girişi born jakı (panel): AYRI, işaretli ve kutudaki TEK SARI jak (B60); COM, J1'in COM'uyla ortak.
-en: HV input banana jack (panel): SEPARATE, marked, and the ONLY YELLOW jack on the box (B60); its COM is shared with J1's COM.
+en: HV input banana jack (panel): SEPARATE, marked, and the ONLY YELLOW jack on the enclosure (B60); its COM is shared with J1's COM.
 tr: YÜK born jak çifti (büyük boy, yeşil ×{0}, panel): J3.1 → yük eksisi, J3.2 → kaynak eksisi. Jakların iç ucundan şöntün yanındaki bariyer klemense (HB950) kısa kalın kablo — jak tarafı lehim kulağı ya da iki somun arasında kalaysız halka, bariyer tarafı kalaysız burulmuş uç (kalay vida altında akar, gevşer; halka pabuç stokta yok, gerekmez); akım J3.1 → şönt → J3.2 yolunu izler.
 en: «YÜK» banana jack pair (large, green ×{0}, panel): J3.1 → load negative, J3.2 → source negative. A short heavy cable from the inner end of the jacks to the barrier terminal block (HB950) next to the shunt — on the jack side a solder lug or an untinned loop between two nuts, on the barrier side an untinned twisted end (solder creeps under a screw and loosens; ring lugs are not in stock and not needed); the current follows the path J3.1 → shunt → J3.2.
 tr: Skop girişi born jakı (panel); COM ortak.
@@ -1172,13 +1172,13 @@ en: Scope input banana jack (panel); COM shared.
 tr: PİL born jak çifti (büyük boy, mavi ×{0}, panel): J7.1 → yük direnci, J7.2 → pil eksisi; J3'ten AYRI — karıştırılırsa kesme çalışmaz.
 en: «PİL» banana jack pair (large, blue ×{0}, panel): J7.1 → load resistor, J7.2 → battery negative; SEPARATE from J3 — mix them up and the cut-off does not work.
 tr: Sekiz jakı deliklere tak, somunları içeriden sık. Hepsi AYNI model (büyük şeffaf, B60). Renkler: <b>YÜK</b> yeşil ×{0}, <b>PİL</b> mavi ×{1}, <b>V/SKOP</b> kırmızı, <b>COM</b> siyah, <b>HV sarı</b> — kutudaki tek sarı jak, yerini karıştırma.
-en: Fit the eight jacks into the holes, tighten the nuts from inside. All the SAME model (large clear, B60). Colours: <b>«YÜK»</b> green ×{0}, <b>«PİL»</b> blue ×{1}, <b>V/«SKOP»</b> red, <b>COM</b> black, <b>HV yellow</b> — the only yellow jack on the box, do not mix up its position.
+en: Fit the eight jacks into the holes, tighten the nuts from inside. All the SAME model (large clear, B60). Colours: <b>«YÜK»</b> green ×{0}, <b>«PİL»</b> blue ×{1}, <b>V/«SKOP»</b> red, <b>COM</b> black, <b>HV yellow</b> — the only yellow jack on the enclosure, do not mix up its position.
 tr: HV jakının içerideki ucuna somunu sıktıktan sonra <b>makaron geçir ama DARALTMA</b> — HV teli {0}'te bağlanacak (aşağıdaki ① ya da ② yöntemi); makaronu o zaman bağlantının üstüne çekip daraltacaksın.
 en: After tightening the nut, <b>slide heat-shrink over the inner end of the HV jack but DO NOT SHRINK it</b> — the HV wire is connected in {0} (method ① or ② below); that is when you pull the heat-shrink over the joint and shrink it.
 tr: <b>Jaka kablo nasıl bağlanır</b> (jakın arkasındaki metal saplamaya; bütün jaklarda aynı). Jakı panele tutan somunu kablo için kullanma — o somunu her sıktığında jak da döner. ① Pakette <b>lehim kulağı</b> (delikli, kulakçıklı ince pul) varsa: somun → kulak → ikinci somun; kabloyu kulağa lehimle, makaron geçir — en iyisi. ② Kulak yoksa: kabloyu ~{0} mm soy, telleri sıkıca bük ve <b>kalaylama</b>; yuvarlak uçlu kargaburunla halka yap, iki somunun arasına saplamanın çevresine <b>saat yönünde</b> sar (somunu sıktıkça halka kapanır), dış somunu sıkıca sık. Taşan tek tel kalmasın; somunun dışında kalan çıplak kısmı makaronla kapat. ③ Saplamada <b>tek somun</b> varsa o somun jakı tutuyor: <b>ikinci somun</b> gerekir — saplama M3 ise stoktaki M3 somun (MEK034), değilse hırdavattan saplamaya uyan somun. <b>Neden kalaysız:</b> kalay basınç altında zamanla akar, somun gevşer; {1} A'lik yolda gevşek bağlantı ısınır. Halka pabuç stokta yok ve gerekmez; almak istersen yalıtımsız pabucun borusunu sık ve lehimle (lehim boruda kalır, somunun altına girmez). Ertesi gün somunları bir kez daha sık.
 en: <b>How to connect a cable to a jack</b> (to the metal stud at the back of the jack; the same for all jacks). Do not use the nut that holds the jack to the panel for the cable — every time you tighten it the jack turns too. ① If the pack has a <b>solder lug</b> (a thin washer with a hole and a tab): nut → lug → second nut; solder the cable to the lug, slide heat-shrink over it — the best option. ② Without a lug: strip the cable ~{0} mm, twist the strands tightly and <b>do not tin them</b>; make a loop with round-nose pliers and wrap it around the stud between two nuts <b>clockwise</b> (the loop closes as you tighten the nut), tighten the outer nut firmly. No stray strands; cover the bare part outside the nut with heat-shrink. ③ If the stud has <b>only one nut</b>, that nut holds the jack: you need a <b>second nut</b> — the M3 nut from stock (MEK034) if the stud is M3, otherwise a nut that fits the stud from a hardware store. <b>Why untinned:</b> under pressure solder slowly creeps and the nut loosens; on a {1} A path a loose joint heats up. Ring lugs are not in stock and not needed; if you want to buy some, crimp and solder the barrel of an uninsulated lug (the solder stays in the barrel, it does not go under the nut). Tighten the nuts once more the next day.
 tr: <b>Kalın uçları ŞİMDİ hazırla (kutu boşken):</b> dört büyük jakın iç ucuna <b>≥{0} mm² pigtail</b> bağla (yukarıdaki yöntem; kalınlığı soyup ölçerek anla: çıplak iletken tek damarda ≥ {1} mm, çok damarlı demette ~{2} mm) ve <b>ucunu etiketle</b>. Boylar (kart A'nın çevresinden dolaşarak ölçüldü, {3}–{4} cm pay dahil):
-en: <b>Prepare the heavy leads NOW (while the box is empty):</b> connect a <b>≥{0} mm² pigtail</b> to the inner end of the four large jacks (method above; judge the gauge by stripping and measuring: bare conductor ≥ {1} mm for solid wire, ~{2} mm for a stranded bundle) and <b>label its end</b>. Lengths (measured going around board A, {3}–{4} cm slack included):
+en: <b>Prepare the heavy leads NOW (while the enclosure is empty):</b> connect a <b>≥{0} mm² pigtail</b> to the inner end of the four large jacks (method above; judge the gauge by stripping and measuring: bare conductor ≥ {1} mm for solid wire, ~{2} mm for a stranded bundle) and <b>label its end</b>. Lengths (measured going around board A, {3}–{4} cm slack included):
 tr: • <b>YÜK {0}</b> → {1}'de bariyerin {2}. kutbuna — <b>{3} cm</b>
 en: • <b>«YÜK» {0}</b> → to pole {2} of the barrier in {1} — <b>{3} cm</b>
 tr: • <b>PİL {0}</b> → {1}'de Q1'in savağına — <b>{2} cm</b> (en uzun yol)
@@ -1186,7 +1186,7 @@ en: • <b>«PİL» {0}</b> → to Q1's drain in {1} — <b>{2} cm</b> (the long
 tr: • <b>PİL {0}</b> → {1}'de bariyerin {2}. kutbuna — <b>{3} cm</b>
 en: • <b>«PİL» {0}</b> → to pole {2} of the barrier in {1} — <b>{3} cm</b>
 tr: <b>Neden şimdi:</b> {0}'de kart A takılı olacak ve bu jakların arkasında yalnız <b>{1} mm</b> kör boşluk kalıyor; havya oraya girmiyor. Pigtail'leri kutunun ortasına doğru kıvır, {2}'de yalnız uçlarını vidalayacaksın.
-en: <b>Why now:</b> in {0} board A will be fitted and there is only <b>{1} mm</b> of blind space behind these jacks; a soldering iron does not get in there. Bend the pigtails towards the middle of the box, in {2} you only screw down their ends.
+en: <b>Why now:</b> in {0} board A will be fitted and there is only <b>{1} mm</b> of blind space behind these jacks; a soldering iron does not get in there. Bend the pigtails towards the middle of the enclosure, in {2} you only screw down their ends.
 tr: Bu adımda taktığın jakların etiketlerini hemen yapıştır — <b>V</b> · <b>COM</b> · <b>HV ⚡</b> · <b>YÜK {0}</b> · <b>YÜK {1}</b> · <b>SKOP</b> · <b>PİL {2}</b> · <b>PİL {3}</b>; kalan etiketler {4}'de.
 en: Stick on the labels of the jacks you fitted in this step right away — <b>V</b> · <b>COM</b> · <b>HV ⚡</b> · <b>«YÜK» {0}</b> · <b>«YÜK» {1}</b> · <b>«SKOP»</b> · <b>«PİL» {2}</b> · <b>«PİL» {3}</b>; the remaining labels in {4}.
 tr: Kuşbakışı
@@ -1198,15 +1198,15 @@ en: The nuts are tight; the jack does not turn by hand.
 tr: <span class='ano'>{0}</span> <b>PİL anahtarı, CAL jakı ve GÜÇ lambası</b>
 en: <span class='ano'>{0}</span> <b>«PİL» switch, CAL jack and «GÜÇ» lamp</b>
 tr: PİL — KTS102: paket (TP1 OUT+) → MT1. Kutunun TEK anahtarı (B58e): ESP32 ve ölçüm tarafı birlikte açılır. Şarj ederken KAPALI; USB'yi PC'ye takarken AÇIK.
-en: «PİL» — KTS102: pack (TP1 OUT+) → MT1. The box's ONLY switch (B58e): the ESP32 and the measurement side switch on together. OFF while charging; ON when plugging the USB into the PC.
+en: «PİL» — KTS102: pack (TP1 OUT+) → MT1. The enclosure's ONLY switch (B58e): the ESP32 and the measurement side switch on together. OFF while charging; ON when plugging the USB into the PC.
 tr: CAL jakı: devkit GPIO10 → {0} kΩ (R059) → jak. Skop kapısı ve kapalı kutu testinde CAL → SKOP kısa kablo.
-en: CAL jack: devkit GPIO10 → {0} kΩ (R059) → jack. For the scope gate and the closed-box test, a short CAL → «SKOP» lead.
+en: CAL jack: devkit GPIO10 → {0} kΩ (R059) → jack. For the scope GATE and the closed-enclosure test, a short CAL → «SKOP» lead.
 tr: GÜÇ lambası: +{0} rayı (klemens +, KL.+) → {1} kΩ (R060) → LED anodu; katot kart GND'ye. PASİF — ESP32'ye bağlanmaz. Akım ~{2} mA ve GND'ye GİRER ({3} çeker). LED'i −{4} rayına BAĞLAMA: regülatör o yönde akım veremez. Direnci LED'in bacağına lehimle, makaronla kapat; karta dokunma.
 en: «GÜÇ» lamp: +{0} rail (terminal block +, KL.+) → {1} kΩ (R060) → LED anode; cathode to board GND. PASSIVE — not connected to the ESP32. Current ~{2} mA, flowing INTO GND ({3} sinks it). DO NOT connect the LED to the −{4} rail: the regulator cannot source current in that direction. Solder the resistor to the LED leg, cover it with heat-shrink; do not touch the board.
 tr: Bu adımda takılanlar: <b>AÇ / KAPA</b> · <b>CAL</b> · <b>GÜÇ</b>. Hepsi <b>ÖN</b> duvara; somunlar dıştan sıkılır. <b>PİL</b> anahtarı (KTS102, {0} ayak) kutunun tek AÇ/KAPA'sı — ayakları yere doğru baksın (kablolar aşağı iner).
-en: Fitted in this step: <b>«AÇ / KAPA»</b> · <b>CAL</b> · <b>«GÜÇ»</b>. All on the <b>FRONT</b> wall; nuts tightened from outside. The <b>«PİL»</b> switch (KTS102, {0} pins) is the box's only ON/OFF — pins pointing down (the cables run downwards).
+en: Fitted in this step: <b>«AÇ / KAPA»</b> · <b>CAL</b> · <b>«GÜÇ»</b>. All on the <b>FRONT</b> wall; nuts tightened from outside. The <b>«PİL»</b> switch (KTS102, {0} pins) is the enclosure's only on/off switch — pins pointing down (the cables run downwards).
 tr: <b>Konumlar aşağıdaki çizimden ve delik tablosundan okunur</b>, metinden değil. Dizilimin mantığı (B59): <b>sol üst</b> AÇ/KAPA + GÜÇ lambası, <b>orta sıra</b> COM · V · HV (ölçüm probu COM'un yanından), <b>sağ üst</b> CAL · SKOP (patch kablo kısa), <b>alt sıra</b> PİL çifti solda, YÜK çifti sağda. Hepsi {0} mm ızgarada ve {1}., {2}., {3}. çubuk sıralarının ortasında.
-en: <b>Read the positions from the drawing and the hole table below</b>, not from the text. The logic of the arrangement (B59): <b>top left</b> ON/OFF + «GÜÇ» lamp, <b>middle row</b> COM · V · HV (the measuring probe next to COM), <b>top right</b> CAL · «SKOP» (short patch lead), <b>bottom row</b> the «PİL» pair on the left, the «YÜK» pair on the right. All on a {0} mm grid, in the middle of stick rows {1}, {2} and {3}.
+en: <b>Read the positions from the drawing and the hole table below</b>, not from the text. The logic of the arrangement (B59): <b>top left</b> «AÇ / KAPA» + «GÜÇ» lamp, <b>middle row</b> COM · V · HV (the measuring probe next to COM), <b>top right</b> CAL · «SKOP» (short patch lead), <b>bottom row</b> the «PİL» pair on the left, the «YÜK» pair on the right. All on a {0} mm grid, in the middle of stick rows {1}, {2} and {3}.
 tr: ⚠ <b>CAL jakının iç ucuna (lehim kulağı ya da saplama) makaron geçir.</b> Panelde en yakın komşusuna <b>{0} mm</b> var; komşuları V ve SKOP ve onlarda {1} V'a kadar gerilim bulunabiliyor, panelin arkası da kalabalık. Makaron yoksa izole bant sar.
 en: ⚠ <b>Slide heat-shrink over the inner end of the CAL jack (solder lug or stud).</b> Its nearest neighbour on the panel is <b>{0} mm</b> away; its neighbours are V and «SKOP», which can carry up to {1} V, and the back of the panel is crowded. Without heat-shrink, wrap it in insulating tape.
 tr: <b>GÜÇ lambası (LED1):</b> {0} mm yeşil LED'i ön duvarın üst sırasındaki Ø{1} deliğe <b>dışarıdan içeri</b> it (sıkı geçer; gevşekse deliğin içine bir damla sıcak silikon). ⚠ <b>Bacak yönünü şimdi işaretle:</b> <b>uzun bacak = artı (anot)</b>, gövdenin yanındaki düzlük kısa bacağın (katot) tarafıdır. LED takılınca hangisinin uzun olduğu artık görünmüyor — kısa bacağı kıvır ya da üstüne makaron geçir. Kablolaması {2}'te: uzun bacak {3} kΩ üzerinden +{4} rayına, kısa bacak kart GND'ye.
@@ -1282,7 +1282,7 @@ en: The board's position is in the table (wired edge to the front). The foot blo
 tr: Ayak bloğu: <b>{0} parça çubuk üst üste = {1} mm</b> (kartın altındaki atlama telleri için bu yükseklik ÖLÇÜLDÜ). <b>{2}. kat Ø{3}</b> (vida girer), <b>{4}. ve {5}. kat Ø{6} = somun cebi</b> ({7} mm derin: M3 somun {8} mm, tam gömülür ve lamine düz kalır), <b>{9}. kat Ø{10}</b> — vidanın ucu oraya çıkar, altındaki katlar delinmez, sadece yükseltir; tahtaya dayanmaz. Cep çapı neden Ø{11}: M3 somun köşeden köşeye {12} mm, daha darına girmez.
 en: Foot block: <b>{0} stick pieces stacked = {1} mm</b> (this height was MEASURED for the jumper wires under the board). <b>Layer {2} Ø{3}</b> (the screw goes in), <b>layers {4} and {5} Ø{6} = nut pocket</b> ({7} mm deep: an M3 nut is {8} mm, fully embedded and the laminate stays flat), <b>layer {9} Ø{10}</b> — the screw tip comes out there, the layers below are not drilled, they only add height; the screw does not bottom out on wood. Why the pocket is Ø{11}: an M3 nut is {12} mm across the corners, it does not fit anything narrower.
 tr: <b>Somunu cebe koyarken dış yüzüne bir damla japon</b> (japon, somunun DIŞ yüzüne — dişine değil) — cep yuvarlak olduğu için dönmeyi tek başına engellemez; dönen somun vidayı ne sıkar ne söker. Somun kutuda kalıcıdır, sorun değil: sökülmesi gereken şey kart, somun değil.
-en: <b>When putting the nut into the pocket, a drop of CA glue on its outer face</b> (CA on the nut's OUTER face — not on its thread) — the pocket is round, so on its own it does not stop the nut from turning; a turning nut neither tightens nor releases the screw. The nut stays in the box for good, that is fine: what needs to come off is the board, not the nut.
+en: <b>When putting the nut into the pocket, a drop of CA glue on its outer face</b> (CA on the nut's OUTER face — not on its thread) — the pocket is round, so on its own it does not stop the nut from turning; a turning nut neither tightens nor releases the screw. The nut stays in the enclosure for good, that is fine: what needs to come off is the board, not the nut.
 tr: <b>Delikler nasıl üst üste gelir (sıra önemli):</b> ① Üstteki <b>{0} katı</b> üst üste koy, mandalla/bantla sık, hepsini birden <b>tek seferde Ø{1}</b> del — dört delik böyle eş eksenli çıkar, elle işaretleme yok. ② Yandan kurşun kalemle bir <b>hizalama çizgisi</b> çek (katlar geri aynı sırayla ve aynı yöne gelsin). ③ Katları ayır; {2}. ve {3}. katın deliğini Ø{4}'e büyüt (Ø{5} kılavuz matkabı ortalar), {6}. katı Ø{7}'e getir. ④ Önce {8}. + {9}. + {10}. katı japonla yapıştır — cep şimdi üstü açık bir kuyu. ⑤ Somunu kuyuya bırak (Ø{11} kuyuda {12} mm somun kendiliğinden ortalanır), dış yüzüne damla japon, üstüne {13}. katı çizgiye göre koy ve bastır. ⑥ <b>Japon kurumadan M3 vidayı sok-çıkar:</b> girmiyorsa katlar kaymıştır, hemen düzelt. ⑦ Kalan alt katları (yükseltici, deliksiz) bu başlığın altına yapıştır.
 en: <b>How the holes line up (order matters):</b> ① Stack the top <b>{0} layers</b>, clamp them with a peg/tape, drill all of them <b>at once Ø{1}</b> — that way the four holes come out coaxial, no marking by hand. ② Draw an <b>alignment line</b> on the side with a pencil (so the layers go back in the same order and the same way round). ③ Separate the layers; enlarge the hole in layers {2} and {3} to Ø{4} (the Ø{5} pilot centres the drill), bring layer {6} to Ø{7}. ④ First glue layers {8} + {9} + {10} with CA glue — the pocket is now a well open at the top. ⑤ Drop the nut into the well (a {12} mm nut centres itself in a Ø{11} well), a drop of CA glue on its outer face, put layer {13} on top following the line and press. ⑥ <b>Before the CA cures, screw an M3 screw in and out:</b> if it does not go in, the layers have shifted, fix it at once. ⑦ Glue the remaining lower layers (riser, no holes) under this head.
 tr: <b>Tabana yapıştırma — blok karta vidalıyken:</b> blokları M3 vidalarla <b>karta vidala</b>, kartı bloklarıyla birlikte tablodaki yere koy, blokların kartın dışına taşan kenarlarına sıcak silikonla fileto çek; silikon soğuyunca vidaları sök, kartı kaldır. Hizayı vida verir: kalemle işaretleyip tek tek yapıştırırsan {0}–{1} mm kayma vidayı somuna sokmaz. <b>Kart B için iki blok aynı yöntemle ama {2} kat ({3} mm)</b> — B'nin altında tel yok, alçak kalıyor.
@@ -1304,7 +1304,7 @@ en: The board does not rock, its underside touches nothing.
 tr: <span class='ano'>{0}</span> <b>Ana kartı vidala</b>
 en: <span class='ano'>{0}</span> <b>Screw down the main board</b>
 tr: <b>YÖN ÖNEMLİ — kare kart dört türlü oturur, ayaklar simetrik olduğu için yanlış yön de vidalanır:</b> tellerin sıra hâlinde çıktığı uzun kenar (<b>A–C sütunları</b>: V, COM, SKOP, HV alt, Kelvin/yıldız ve {0} V telleri) <b>ön panele, jaklara</b> baksın — kartın <b>A1 köşesi (ön-sol)</b> kutunun o köşesine gelir. Bu yönde J5 başlığı (ESP32 kablosu) kartın arka yarısında kalır.
-en: <b>ORIENTATION MATTERS — a square board sits four ways, and since the feet are symmetric the wrong way can be screwed down too:</b> the long edge where the wires come out in a row (<b>columns A–C</b>: V, COM, «SKOP», HV low, Kelvin/star and the {0} V wires) <b>faces the front panel, the jacks</b> — the board's <b>A1 corner (front-left)</b> goes into that corner of the box. In this orientation header J5 (ESP32 cable) is in the back half of the board.
+en: <b>ORIENTATION MATTERS — a square board sits four ways, and since the feet are symmetric the wrong way can be screwed down too:</b> the long edge where the wires come out in a row (<b>columns A–C</b>: V, COM, «SKOP», HV low, Kelvin/star and the {0} V wires) <b>faces the front panel, the jacks</b> — the board's <b>A1 corner (front-left)</b> goes into that corner of the enclosure. In this orientation header J5 (ESP32 cable) is in the back half of the board.
 tr: Kartın arka şeridinin altında TP4056 var: dört kablosu ayak ya da kart altında ezilmesin.
 en: The TP4056 is under the board's back strip: its four wires must not be crushed under a foot or the board.
 tr: Kart A'yı ayaklara oturt, dört M3x10 vidayla tuttur (pul ile). <b>Yapıştırma.</b>
@@ -1326,7 +1326,7 @@ en: Once the CA has cured, unplug the cable and pass the <b>cable tie</b> throug
 tr: <b>Kart B'yi takmadan önce kapla.</b> Zincirin tamamı ({0} → {1} V) bu kartta: iki yüzü de {2}–{3} ince kat tırnak cilası/konformal lak. T_HV ve T_N6 tellerini ÖNCE lehimle, sonra lehim noktalarını da kapla. Ayrıntı ve kaplanmayacak yerler: "Yalıtkan kaplama" bölümü.
 en: <b>Coat board B before fitting it.</b> The whole divider chain ({0} → {1} V) is on this board: {2}–{3} thin coats of nail varnish/conformal coating on both faces. Solder the T_HV and T_N6 wires FIRST, then coat the solder points too. Details and areas not to coat: the "Insulating coating" section.
 tr: Kart B'yi ayaklarına vidala. <b>YÖN ÖNEMLİ — dört türlü takılabilir:</b> kartın <b>A1 köşesi (ön-sol)</b> kutunun o köşesine baksın. Bu yönde {0} V'luk giriş düğümü kutudaki her iletkenden en uzakta kalıyor <i>ve</i> HV kablosu en kısa ({1} mm) oluyor; yanlış yön ikisini birden kötüleştirir.
-en: Screw board B onto its feet. <b>ORIENTATION MATTERS — it can be fitted four ways:</b> the board's <b>A1 corner (front-left)</b> faces that corner of the box. In this orientation the {0} V input node stays furthest from every conductor in the box <i>and</i> the HV cable is the shortest ({1} mm); the wrong orientation makes both worse.
+en: Screw board B onto its feet. <b>ORIENTATION MATTERS — it can be fitted four ways:</b> the board's <b>A1 corner (front-left)</b> faces that corner of the enclosure. In this orientation the {0} V input node stays furthest from every conductor in the enclosure <i>and</i> the HV cable is the shortest ({1} mm); the wrong orientation makes both worse.
 tr: USB-C fişi yuvadan girip sokete oturuyor.
 en: A USB-C plug goes through the slot and seats in the socket.
 tr: Kart B ile kart A arasındaki tel gergin değil.
@@ -1334,9 +1334,9 @@ en: The wire between board B and board A is not taut.
 tr: <span class='ano'>{0}</span> <b>Şönt demetini tezgahta lehimle</b>
 en: <span class='ano'>{0}</span> <b>Solder the shunt harness at the bench</b>
 tr: Kutuya <b>{0} mΩ {1} A şönt (R042)</b> takılır. Veri sayfası (YSR serisi): tek parça <b>manganin</b> tel Ø{2} mm, {3} mΩ ±%{4}, <b>{5} A</b>, bacaklar arası {6} ± {7} mm, bacaklardaki <b>basık yerin</b> (boncuk) altında bacak yalnız {8} mm. Aynı kutudaki öbür {9} mΩ'u (R043, akımı yazmayan) <b>KULLANMA</b>: veri sayfası genel katalog, alaşımı belirsiz (bakır-nikel olabilir, ±{10} ppm/°C) — {11} A'de şönt ~{12} °C ısınır, okuma bakır-nikelde ~%{13}, manganinde ~%{14} kayar. {15} mΩ (R044) {16} A'de kalıyor ama {17} kat ince okur — mA işleri için yedek; klemens vidasıyla değişir. Kalın yük kabloları bacağa LEHİMLENMEZ: bacaklar XP128 {18} mm klemensin (CON064) iki kutbuna — aralık zaten {19} mm, <b>önce bükmeden dene</b>, girmezse hafif bük; kalın kablolar XP128'e de girmez, <b>bariyer klemenste</b> (HB950) birleşir ve XP128'in her kutbuna tek köprü gider ({20}, {21}). Şöntün hangi bacağı RS.1 (YÜK {22} tarafı) hangisi RS.2 (YÜK {23}) — işaretle.
-en: The box gets a <b>{0} mΩ {1} A shunt (R042)</b>. Datasheet (YSR series): a single piece of <b>manganin</b> wire Ø{2} mm, {3} mΩ ±{4}%, <b>{5} A</b>, {6} ± {7} mm between legs, below the <b>crimp</b> (bead) on the legs only {8} mm of leg. DO NOT USE the other {9} mΩ in the same box (R043, no current rating printed): its datasheet is a generic catalogue and the alloy is unknown (it may be copper-nickel, ±{10} ppm/°C) — at {11} A the shunt heats up ~{12} °C, and the reading drifts ~{13}% with copper-nickel, ~{14}% with manganin. The {15} mΩ (R044) stays at {16} A but reads {17} times finer — the spare for mA work; it is swapped with the terminal screws. The heavy load cables are NOT SOLDERED to the legs: the legs go into the two poles of the XP128 {18} mm terminal block (CON064) — the spacing is already {19} mm, <b>try it before bending</b>, bend slightly if it does not fit; the heavy cables do not fit the XP128 either, they join at the <b>barrier terminal block</b> (HB950) and a single bridge goes to each XP128 pole ({20}, {21}). Mark which shunt leg is RS.1 («YÜK» {22} side) and which RS.2 («YÜK» {23}).
+en: The enclosure gets a <b>{0} mΩ {1} A shunt (R042)</b>. Datasheet (YSR series): a single piece of <b>manganin</b> wire Ø{2} mm, {3} mΩ ±{4}%, <b>{5} A</b>, {6} ± {7} mm between legs, below the <b>crimp</b> (bead) on the legs only {8} mm of leg. DO NOT USE the other {9} mΩ in the same storage box (R043, no current rating printed): its datasheet is a generic catalogue and the alloy is unknown (it may be copper-nickel, ±{10} ppm/°C) — at {11} A the shunt heats up ~{12} °C, and the reading drifts ~{13}% with copper-nickel, ~{14}% with manganin. The {15} mΩ (R044) stays at {16} A but reads {17} times finer — the spare for mA work; it is swapped with the terminal screws. The heavy load cables are NOT SOLDERED to the legs: the legs go into the two poles of the XP128 {18} mm terminal block (CON064) — the spacing is already {19} mm, <b>try it before bending</b>, bend slightly if it does not fit; the heavy cables do not fit the XP128 either, they join at the <b>barrier terminal block</b> (HB950) and a single bridge goes to each XP128 pole ({20}, {21}). Mark which shunt leg is RS.1 («YÜK» {22} side) and which RS.2 («YÜK» {23}).
 tr: <b>Kelvin telleri</b> = akım taşımayan iki ince ölçüm teli: şöntün gerilimini, klemens temasının direnci (birkaç mΩ — şöntün kendisi kadar) karışmadan okur. Onları bacaklardaki <b>basık yerin kendisine</b> lehimle: veri sayfası ölçüm noktasını orada gösteriyor, basığın altındaki {0} mm'lik bacak klemense girecek — onu çıplak bırak, vidaya lehim/temas YOK. Lehim yeri {1} mm kayarsa şöntün görünen değeri ~%{2} değişir; {3}'deki kalibrasyon bunu düzeltir. <b>Lehim:</b> havya ≤ {4} °C, her lehimde ≤ {5}–{6} s (veri sayfası {7} °C / {8} s'yi sınıyor); önce teli kalayla, flux kullan. <b>Lehimlere sıcak silikon SÜRME</b> — şönt tam akımda ~{9} °C ısınır, silikon yumuşar ve şöntün soğumasını keser; gerilmeyi {10}'deki kablo bağı alır, istersen lehimin üstüne makaron. Kelvin çifti S+ (RS.1) ve S− (RS.2) burgulu, yıldız GND RS.2'ye S− ile <b>aynı noktaya</b>. Teller ~{11} cm (kutuda şöntten kart A'nın ön kenarına ~{12} cm). Üç telin ucuna {13}'lü <b>dişi header</b> (CON018'den kes).
-en: <b>Kelvin wires</b> = two thin sense wires that carry no current: they read the shunt voltage without the contact resistance of the terminal block (a few mΩ — as much as the shunt itself) mixing in. Solder them to <b>the crimp itself</b> on the legs: the datasheet shows the measuring point there; the {0} mm of leg below the crimp goes into the terminal block — leave it bare, NO solder/contact at the screw. If the solder point moves {1} mm, the shunt's apparent value changes ~{2}%; the calibration in {3} corrects that. <b>Soldering:</b> iron ≤ {4} °C, ≤ {5}–{6} s per joint (the datasheet limits it to {7} °C / {8} s); tin the wire first, use flux. <b>DO NOT PUT hot glue on the joints</b> — at full current the shunt heats up ~{9} °C, the glue softens and stops the shunt from cooling; the cable tie in {10} takes the strain, heat-shrink over the joint if you like. The Kelvin pair S+ (RS.1) and S− (RS.2) twisted, the star GND to RS.2 at <b>the same point</b> as S−. Wires ~{11} cm (in the box ~{12} cm from the shunt to the front edge of board A). A {13}-way <b>female header</b> on the end of the three wires (cut from CON018).
+en: <b>Kelvin wires</b> = two thin sense wires that carry no current: they read the shunt voltage without the contact resistance of the terminal block (a few mΩ — as much as the shunt itself) mixing in. Solder them to <b>the crimp itself</b> on the legs: the datasheet shows the measuring point there; the {0} mm of leg below the crimp goes into the terminal block — leave it bare, NO solder/contact at the screw. If the solder point moves {1} mm, the shunt's apparent value changes ~{2}%; the calibration in {3} corrects that. <b>Soldering:</b> iron ≤ {4} °C, ≤ {5}–{6} s per joint (the datasheet limits it to {7} °C / {8} s); tin the wire first, use flux. <b>DO NOT PUT hot glue on the joints</b> — at full current the shunt heats up ~{9} °C, the glue softens and stops the shunt from cooling; the cable tie in {10} takes the strain, heat-shrink over the joint if you like. The Kelvin pair S+ (RS.1) and S− (RS.2) twisted, the star GND to RS.2 at <b>the same point</b> as S−. Wires ~{11} cm (in the enclosure ~{12} cm from the shunt to the front edge of board A). A {13}-way <b>female header</b> on the end of the three wires (cut from CON018).
 tr: Kart A'daki T_SP / T_SN / T_YILDIZ tellerinin uçlarına <b>erkek pin</b>: demet konnektörle takılır, kart sökülebilir kalır.
 en: <b>Male pins</b> on the ends of the T_SP / T_SN / T_YILDIZ wires on board A: the harness plugs in with a connector, the board stays removable.
 tr: S+ ↔ RS.1 bacağı, S− ↔ RS.2 bacağı: bip ötmeli.
@@ -1352,7 +1352,7 @@ en: Screw Q1 to the heatsink <b>insulated</b>: mica/silicone insulator + bushing
 tr: Soğutucuyu üç parça çubuktan köşebende M3 vida + somunla tuttur.
 en: Fasten the heatsink to the three-piece stick corner bracket with an M3 screw + nut.
 tr: <b>Soğutucuyu {0} MΩ ile kart GND'ye bağla</b> (R026): direncin bir ucunu soğutucunun vida somununun altına, diğer ucunu kart GND'ye (A:T_YILDIZ ya da şöntün RS.2 bacağı; ⚠ {1} V klemensinin siyah ucu DEĞİL — o −{2} rayı). Neden dirençle: mika soğutucuyu yalıttığı için soğutucu kapalı kutuda <b>yüzen</b> bir metal plaka kalıyor; direnç statik birikimini akıtıp potansiyelini tanımlıyor. Neden doğrudan tel DEĞİL: mika bir gün delinirse soğutucu Q1'in savağına, yani <b>PİL {3}</b>'e (pil testinde {4} V) bağlanır — düz tel bunu GND'ye kısa devre ederdi ve o yolda bizim koyduğumuz bir sigorta yok. {5} MΩ ile en kötü hâlde {6} µA akar.
-en: <b>Connect the heatsink to board GND through {0} MΩ</b> (R026): one end of the resistor under the heatsink's screw nut, the other end to board GND (A:T_YILDIZ or the shunt's RS.2 leg; ⚠ NOT the black end of the {1} V terminal block — that is the −{2} rail). Why a resistor: the mica insulates the heatsink, so it stays a <b>floating</b> metal plate in the closed box; the resistor drains static build-up and defines its potential. Why NOT a direct wire: if the mica is ever punctured, the heatsink is connected to Q1's drain, i.e. <b>«PİL» {3}</b> ({4} V in the battery test) — a plain wire would short that to GND, and there is no fuse of ours on that path. With {5} MΩ, {6} µA flows at worst.
+en: <b>Connect the heatsink to board GND through {0} MΩ</b> (R026): one end of the resistor under the heatsink's screw nut, the other end to board GND (A:T_YILDIZ or the shunt's RS.2 leg; ⚠ NOT the black end of the {1} V terminal block — that is the −{2} rail). Why a resistor: the mica insulates the heatsink, so it stays a <b>floating</b> metal plate in the closed enclosure; the resistor drains static build-up and defines its potential. Why NOT a direct wire: if the mica is ever punctured, the heatsink is connected to Q1's drain, i.e. <b>«PİL» {3}</b> ({4} V in the battery test) — a plain wire would short that to GND, and there is no fuse of ours on that path. With {5} MΩ, {6} µA flows at worst.
 tr: Q1 tabı ↔ soğutucu: ötmemeli.
 en: Q1 tab ↔ heatsink: should not beep.
 tr: Kapı ↔ kaynak: ötmemeli.
@@ -1360,11 +1360,11 @@ en: Gate ↔ source: should not beep.
 tr: Soğutucu ↔ kart GND: ötmemeli ama direnç kademesinde ≈ {0} MΩ okumalı ({1} Ω okursan mika delinmiş ya da vida tabı sıyırmış).
 en: Heatsink ↔ board GND: should not beep, but should read ≈ {0} MΩ on the resistance range (if you read {1} Ω the mica is punctured or the screw has scraped the tab).
 tr: <span class='ano'>{0}</span> <b>Şönt ve Q1'i kutuya al</b>
-en: <span class='ano'>{0}</span> <b>Bring the shunt and Q1 into the box</b>
+en: <span class='ano'>{0}</span> <b>Bring the shunt and Q1 into the enclosure</b>
 tr: Type-C şönt, kutuda {0} mΩ Ø{1} mm manganin (R042, {2} A sürekli) takılı; {3} mΩ Ø{4} mm (R044, {5} A, {6} mA adım) yedek. R042 veri sayfası: tek parça manganin tel Ø{7}, {8} mm aralık, {9} A; bacaklardaki basık yer = ölçüm noktası, altında {10} mm bacak. Plakete GİRMEZ; bacaklar XP128 {11} mm klemense (CON064); yük kabloları XP128'e girmez, yanındaki bariyer klemenste (HB950) birleşir, XP128'e tek köprü (B55n). Kelvin telleri bacaklardaki BASIK YERİN kendisine lehimlenir (veri sayfasının ölçüm noktası; altındaki {12} mm bacak klemense girer, vidaya lehim yok); 'RS.2' saydığın bacağa S−, yıldız GND ve J3.2 gider — tutarlı ol. Isıl sınır tel çapından (B53).
-en: Type-C shunt; the box has a {0} mΩ Ø{1} mm manganin fitted (R042, {2} A continuous); {3} mΩ Ø{4} mm (R044, {5} A, {6} mA step) is the spare. R042 datasheet: a single piece of manganin wire Ø{7}, {8} mm spacing, {9} A; the crimp on the legs = measuring point, {10} mm of leg below it. It does NOT GO on the perfboard; the legs go into the XP128 {11} mm terminal block (CON064); the load cables do not go into the XP128, they join at the barrier terminal block (HB950) next to it, a single bridge to the XP128 (B55n). The Kelvin wires are soldered to the CRIMP ITSELF on the legs (the datasheet's measuring point; the {12} mm of leg below it goes into the terminal block, no solder at the screw); S−, the star GND and J3.2 go to the leg you count as 'RS.2' — be consistent. Thermal limit from the wire diameter (B53).
+en: Type-C shunt; the enclosure has a {0} mΩ Ø{1} mm manganin fitted (R042, {2} A continuous); {3} mΩ Ø{4} mm (R044, {5} A, {6} mA step) is the spare. R042 datasheet: a single piece of manganin wire Ø{7}, {8} mm spacing, {9} A; the crimp on the legs = measuring point, {10} mm of leg below it. It does NOT GO on the perfboard; the legs go into the XP128 {11} mm terminal block (CON064); the load cables do not go into the XP128, they join at the barrier terminal block (HB950) next to it, a single bridge to the XP128 (B55n). The Kelvin wires are soldered to the CRIMP ITSELF on the legs (the datasheet's measuring point; the {12} mm of leg below it goes into the terminal block, no solder at the screw); S−, the star GND and J3.2 go to the leg you count as 'RS.2' — be consistent. Thermal limit from the wire diameter (B53).
 tr: IRFZ44N (Q006), kutuda: kaynağı bariyer klemensin {0}. kutbuna (= şöntün RS.1 düğümü, B55n), savağı J7.1'e (PİL {1}), kapısı karta tek telle (T_KAPI). Soğutucusuz {2} A'e kadar.
-en: IRFZ44N (Q006), in the box: source to pole {0} of the barrier terminal block (= the shunt's RS.1 node, B55n), drain to J7.1 («PİL» {1}), gate to the board with a single wire (T_KAPI). Up to {2} A without a heatsink.
+en: IRFZ44N (Q006), in the enclosure: source to pole {0} of the barrier terminal block (= the shunt's RS.1 node, B55n), drain to J7.1 («PİL» {1}), gate to the board with a single wire (T_KAPI). Up to {2} A without a heatsink.
 tr: Şönt altlığını (iki parça, aradaki <b>{0} mm kanal</b> kablo bağının geçtiği yer) ve Q1 köşebendini plandaki yere yapıştır; şöntü kanaldan geçen kablo bağıyla, köşebendi tabana silikonla (kutu parçası).
 en: Glue the shunt spacer (two pieces, the <b>{0} mm channel</b> between them is where the cable tie runs) and the Q1 corner bracket in the planned place; the shunt with a cable tie through the channel, the corner bracket to the base with hot glue (an enclosure part).
 tr: Parçaların hiçbirini doğrudan tabana yapıştırma.
@@ -1382,7 +1382,7 @@ en: The <b>heavy cable</b> of the «YÜK» {0} jack (≥{1} mm², fitted in {2})
 tr: Kısa tut: ölçülen bütün akım bu yoldan geçecek (sürekli ≤ {0} A, {1} mΩ şöntün ısıl sınırı; {2} mΩ takılıysa {3} A). Şöntü tutan XP128 klemensi {4} A: kısa süreli de olsa geçme.
 en: Keep it short: all the measured current flows through this path (continuous ≤ {0} A, the thermal limit of the {1} mΩ shunt; {3} A if the {2} mΩ is fitted). The XP128 terminal block holding the shunt is {4} A: do not exceed it, not even briefly.
 tr: <b>HB950'nin üstündeki baskıya bak</b> (ör. "300V 15A"): en az {0} A olmalı. Daha düşük yazıyorsa o sayıyı kutunun akım sınırı say ve panelde YÜK etiketinin altına yaz.
-en: <b>Check the print on top of the HB950</b> (e.g. "300V 15A"): it must be at least {0} A. If it says less, take that number as the box's current limit and write it on the panel under the «YÜK» label.
+en: <b>Check the print on top of the HB950</b> (e.g. "300V 15A"): it must be at least {0} A. If it says less, take that number as the enclosure's current limit and write it on the panel under the «YÜK» label.
 tr: Ön duvar
 en: Front wall
 tr: Bağlanacak kablolar
@@ -1516,7 +1516,7 @@ en: <b>Prerequisite:</b> side B of Layout {0} must be finished (HV soldered to B
 tr: HV jakı → kart B D8: <b>silikon prob kablosu</b> (KBL004). Kısa yoldan, diğer tellere paralel gitmesin.
 en: HV jack → board B D8: <b>silicone probe cable</b> (KBL004). By a short route, not running parallel to other wires.
 tr: <b>Kablonun gerilim sınıfı — kararı burada ver, sorma:</b> kılıfın üstündeki baskıyı oku ({0} V tam skala). ① <b>{1} V ve üstü yazıyorsa</b> (ör. {2} kV / {3} kV silikon prob kablosu): doğrudan kullan. ② <b>Daha düşük yazıyorsa ya da hiç baskı yoksa:</b> kabloyu <b>boydan boya makaronla</b> kapla (ikinci yalıtım; makaron uçlardan {4} mm taşsın) <b>ve</b> panelde HV etiketinin altına okuduğun değeri yaz — o değerin üstünde ölçüm yapma. Baskısız kablonun kılıfı tek başına {5} V sayılmaz; kaplarsan ikinci katman riski taşır, kutunun kendisi zaten yalıtkan. ③ Her iki halde de kablo <b>tek parça</b> olsun: ek yeri / lüstür klemens yok.
-en: <b>The cable's voltage class — decide here, do not ask:</b> read the print on the jacket ({0} V full scale). ① <b>If it says {1} V or more</b> (e.g. {2} kV / {3} kV silicone probe cable): use it as is. ② <b>If it says less, or there is no print at all:</b> cover the cable <b>with heat-shrink along its full length</b> (a second insulation; the heat-shrink overlapping {4} mm at the ends) <b>and</b> write the value you read on the panel under the HV label — do not measure above that value. The jacket of an unprinted cable alone does not count as {5} V; covered, the second layer carries the risk, and the box itself is an insulator anyway. ③ Either way the cable must be <b>one piece</b>: no splices / screw connectors.
+en: <b>The cable's voltage class — decide here, do not ask:</b> read the print on the jacket ({0} V full scale). ① <b>If it says {1} V or more</b> (e.g. {2} kV / {3} kV silicone probe cable): use it as is. ② <b>If it says less, or there is no print at all:</b> cover the cable <b>with heat-shrink along its full length</b> (a second insulation; the heat-shrink overlapping {4} mm at the ends) <b>and</b> write the value you read on the panel under the HV label — do not measure above that value. The jacket of an unprinted cable alone does not count as {5} V; covered, the second layer carries the risk, and the enclosure itself is an insulator anyway. ③ Either way the cable must be <b>one piece</b>: no splices / screw connectors.
 tr: Ankraj: üç çubuk parçasını üst üste yapıştırıp kart B'nin önüne, tabana dik yapıştır (plandaki yer); HV kablosunu buna kablo bağıyla tut — çekilince D8 lehimi değil bağ direnir.
 en: Anchor: glue three stick pieces on top of each other and glue them upright to the base in front of board B (the planned place); hold the HV cable to it with a cable tie — when the cable is pulled, the tie resists, not the D8 joint.
 tr: HV'nin dönüşü de COM jakıdır; ayrı tel yok.
@@ -1540,11 +1540,11 @@ en: <span class='ano'>{0}</span> <b>Set MT1 to {1} V and MT2 to {2} V with no lo
 tr: İki MT3608'i tezgahta, <b>yük takmadan</b> ayarla: çıkışı multimetreyle izle, trimpotu saat yönü tersine çevir. Fabrika ayarı {0} V'a kadar çıkabilir: <b>ayarlanmamış modülü ESP32'ye ya da karta bağlama</b> ({1} V ESP32'yi öldürür).
 en: Set the two MT3608s at the bench <b>with no load connected</b>: watch the output with a multimeter, turn the trimpot anticlockwise. The factory setting can go up to {0} V: <b>do not connect an unadjusted module to the ESP32 or the board</b> ({1} V kills the ESP32).
 tr: <b>MT1 → {0} V</b>: girişe bir {1} ({2}–{3} V). <b>MT2 → {4} V</b>: girişe {5} V ver — kutuda onu B0505S'in yalıtılmış {6} V'u besleyecek; tezgahta bir USB şarj adaptörü ya da az önce ayarladığın MT1'in çıkışı yeter.
-en: <b>MT1 → {0} V</b>: a {1} on the input ({2}–{3} V). <b>MT2 → {4} V</b>: feed {5} V to the input — in the box it is fed from the B0505S's isolated {6} V; at the bench a USB charger or the MT1 output you just set is enough.
+en: <b>MT1 → {0} V</b>: a {1} on the input ({2}–{3} V). <b>MT2 → {4} V</b>: feed {5} V to the input — in the enclosure it is fed from the B0505S's isolated {6} V; at the bench a USB charger or the MT1 output you just set is enough.
 tr: İkisini etiketle: MT1 ({0} V), MT2 ({1} V).
 en: Label both: MT1 ({0} V), MT2 ({1} V).
 tr: <b>B0505S'i de tezgahta dene</b> (duvara gitmeden). <b>Gövdede bacak adı yazmaz</b>: yazılı yüz sana dönük, bacaklar aşağıdayken noktanın altındaki en soldaki bacak {0}. Hi-Link veri sayfası: <b>{1} = +Vin, {2} = −Vin, {3} = −Vout, {4} = +Vout</b> ({5} ve {6} yok) — <b>yan yana duran iki bacak GİRİŞ</b>, aralıklı ikisi ÇIKIŞ. ⚠ Mornsun B0505S'te {7} = GND, {8} = Vin: başka markanın şemasına bakma; girişi ters beslemek modülü bozar (−{9} V sınırı). Bacaklara krokodil takma ({10}–{11} arası {12} mm): önce dört bacağa ince tel lehimle (havya ≤ {13} °C, gövdeden ≥ {14} mm), makaronla kapla — {15}'de modül zaten böyle takılıyor. Gövdede <b>2WR3</b> yazmalı ({16} W sürümü açılışta yetmez, B58f). Girişine {17} V (USB şarj adaptörü ya da ayarlı MT1), çıkışında {18}–{19} V oku (yüksüzken regülesiz modül biraz yüksek okur; kutuda MT2 onu yükler). Veri sayfası uzun süre yüksüz çalıştırmayı önermiyor: oku ve kapat.
-en: <b>Try the B0505S at the bench too</b> (before it goes on the wall). <b>The body has no pin names</b>: with the printed face towards you and the pins down, the leftmost pin under the dot is {0}. Hi-Link datasheet: <b>{1} = +Vin, {2} = −Vin, {3} = −Vout, {4} = +Vout</b> (no {5} and {6}) — <b>the two pins side by side are the INPUT</b>, the two spaced apart are the OUTPUT. ⚠ On the Mornsun B0505S {7} = GND, {8} = Vin: do not go by another brand's diagram; feeding the input reversed damages the module (−{9} V limit). Do not clip alligator clips onto the pins ({12} mm between {10}–{11}): first solder thin wire to all four pins (iron ≤ {13} °C, ≥ {14} mm from the body), cover with heat-shrink — that is how the module is fitted in {15} anyway. The body must say <b>2WR3</b> (the {16} W version is not enough at power-up, B58f). {17} V on its input (USB charger or the adjusted MT1), read {18}–{19} V on its output (with no load an unregulated module reads a little high; in the box MT2 loads it). The datasheet does not recommend running it unloaded for long: read and switch off.
+en: <b>Try the B0505S at the bench too</b> (before it goes on the wall). <b>The body has no pin names</b>: with the printed face towards you and the pins down, the leftmost pin under the dot is {0}. Hi-Link datasheet: <b>{1} = +Vin, {2} = −Vin, {3} = −Vout, {4} = +Vout</b> (no {5} and {6}) — <b>the two pins side by side are the INPUT</b>, the two spaced apart are the OUTPUT. ⚠ On the Mornsun B0505S {7} = GND, {8} = Vin: do not go by another brand's diagram; feeding the input reversed damages the module (−{9} V limit). Do not clip crocodile clips onto the pins ({12} mm between {10}–{11}): first solder thin wire to all four pins (iron ≤ {13} °C, ≥ {14} mm from the body), cover with heat-shrink — that is how the module is fitted in {15} anyway. The body must say <b>2WR3</b> (the {16} W version is not enough at power-up, B58f). {17} V on its input (USB charger or the adjusted MT1), read {18}–{19} V on its output (with no load an unregulated module reads a little high; in the enclosure MT2 loads it). The datasheet does not recommend running it unloaded for long: read and switch off.
 tr: MT1 çıkışı {0}–{1} V (giriş {2}–{3} V'ta).
 en: MT1 output {0}–{1} V (input at {2}–{3} V).
 tr: MT2 çıkışı {0}–{1} V (giriş {2}–{3} V'ta).
@@ -1554,7 +1554,7 @@ en: B0505S: output ({0} ↔ {1}) {2}–{3} V (no load); unpowered, pin {4} (−V
 tr: <span class='ano'>{0}</span> <b>Yuvaları, MT1/MT2'yi, B0505S'i ve hücre sigortalarını tak</b>
 en: <span class='ano'>{0}</span> <b>Fit the holders, MT1/MT2, the B0505S and the cell fuses</b>
 tr: {0} yuvası; iki hücre PARALEL (B58): eksiler TP4056'nın B−'sinde birleşir = kart GND (ESP32 ile ortak). Arka duvara sıcak silikonla yapıştırılır — kutu kuralının tek istisnası (cıvata deliği yok).
-en: {0} holder; the two cells in PARALLEL (B58): the negatives join at the TP4056's B− = board GND (shared with the ESP32). Hot-glued to the back wall — the only exception to the box rule (no bolt holes).
+en: {0} holder; the two cells in PARALLEL (B58): the negatives join at the TP4056's B− = board GND (shared with the ESP32). Hot-glued to the back wall — the only exception to the enclosure rule (no bolt holes).
 tr: {0} yuvası, hücre {1}'e PARALEL; artısı kendi sigortasından (F2). İlk takışta iki hücrenin gerilimi ±{2} V içinde olmalı ({3}).
 en: {0} holder, in PARALLEL with cell {1}; its positive through its own fuse (F2). At first insertion the two cell voltages must be within ±{2} V ({3}).
 tr: MT3608 yüksüz {0} V'a ayarlanır (fabrika ayarı {1} V'a kadar çıkabilir — önce ayar, sonra ESP32). Çıkış {2} V barası: ESP32'nin 5V (VIN) pini ve F0 (ölçüm tarafı); devkit USB'yle diyot-OR yapar.
@@ -1562,13 +1562,13 @@ en: The MT3608 is set to {0} V with no load (the factory setting can go up to {1
 tr: MT3608 yüksüz {0} V'a ayarlanır; girişi B0505S'in yalıtılmış {1} V'u. {2} V yükü {3}–{4} mA. Anahtarlama dalgalanması −{5} rayında skopla ölçülecek ({6}).
 en: The MT3608 is set to {0} V with no load; its input is the B0505S's isolated {1} V. {2} V load {3}–{4} mA. The switching ripple on the −{5} rail is to be measured with the scope ({6}).
 tr: B0505S-2WR3 ({0} V → {1} V yalıtılmış, {2} W): kutunun İKİ TOPRAĞINI ayıran tek parça. Giriş (bacak {3} +Vin, {4} −Vin) paket/ESP32 tarafı = kart GND; çıkış ({5} +Vout, {6} −Vout) MT2'ye — bacak {7} kartın −{8} rayı olur (gövdede ad yazmaz, numaralar {9}'de). İki tarafı birleştiren tek bir tel −{10}'yi GND'ye kısa eder. Yük {11} W (%{12}). {13} W sürümü sürekli yüke yeter ama açılışta kartı {14} V'a çıkaramayabilir (B58f benzetimi).
-en: B0505S-2WR3 ({0} V → {1} V isolated, {2} W): the one part that separates the box's TWO GROUNDS. Input (pin {3} +Vin, {4} −Vin) pack/ESP32 side = board GND; output ({5} +Vout, {6} −Vout) to MT2 — pin {7} becomes the board's −{8} rail (no names on the body, numbers in {9}). A single wire joining the two sides shorts −{10} to GND. Load {11} W ({12}%). The {13} W version is enough for the continuous load but may not bring the board up to {14} V at power-up (B58f simulation).
+en: B0505S-2WR3 ({0} V → {1} V isolated, {2} W): the one part that separates the enclosure's TWO GROUNDS. Input (pin {3} +Vin, {4} −Vin) pack/ESP32 side = board GND; output ({5} +Vout, {6} −Vout) to MT2 — pin {7} becomes the board's −{8} rail (no names on the body, numbers in {9}). A single wire joining the two sides shorts −{10} to GND. Load {11} W ({12}%). The {13} W version is enough for the continuous load but may not bring the board up to {14} V at power-up (B58f simulation).
 tr: MT2'nin giriş kondansatörü ({0} µF {1} V, C042): açılışta MT2'nin çektiği tepe akımı verir; yoksa MT2 girişini B0505S'ten çökertip yeniden başlar ve kart {2} V'a çıkamayabilir (B58f). B0505S'in çıkış tarafında = −{3} rayı tarafı: kart GND'ye DEĞMEZ.
 en: MT2's input capacitor ({0} µF {1} V, C042): supplies the peak current MT2 draws at power-up; without it MT2 collapses its input from the B0505S and restarts, and the board may not reach {2} V (B58f). On the B0505S's output side = the −{3} rail side: it DOES NOT TOUCH board GND.
 tr: {0} V iç klemens (CON007, {1}'li {2} mm): MT2'nin {3} V çıkışı ve kartın C34 (+) / C36 (−) telleri buraya; kart lehim sökmeden çıkar. Klemens − = kartın −{4} rayı: kart GND'ye hiçbir yoldan DEĞMEZ.
 en: {0} V internal terminal block (CON007, {1}-way {2} mm): MT2's {3} V output and the board's C34 (+) / C36 (−) wires go here; the board comes out without desoldering. Terminal − = the board's −{4} rail: it DOES NOT TOUCH board GND by any path.
 tr: Kutu içinde, PCB klipsli {0}×{1} yuva (FUS009) + {2} A hızlı (FUS003): {3} V barası → F0 → B0505S girişi. Yalnız iç arızada atar (B0505S, MT2, kart); panelde değil, çünkü ölçüm akımının (YÜK jakları, bilerek sigortasız) korunduğunu düşündürüyordu. Kartın F1'i {4} V tarafında.
-en: Inside the box, a {0}×{1} PCB-clip holder (FUS009) + {2} A fast (FUS003): {3} V bus → F0 → B0505S input. It only blows on an internal fault (B0505S, MT2, board); not on the panel, because there it suggested the measurement current (the «YÜK» jacks, deliberately unfused) was protected. The board's F1 is on the {4} V side.
+en: Inside the enclosure, a {0}×{1} PCB-clip holder (FUS009) + {2} A fast (FUS003): {3} V bus → F0 → B0505S input. It only blows on an internal fault (B0505S, MT2, board); not on the panel, because there it suggested the measurement current (the «YÜK» jacks, deliberately unfused) was protected. The board's F1 is on the {4} V side.
 tr: Hücre {0} sigortası: PCB klipsli {1}×{2} yuva (FUS009) + {3} A F (FUS004), hücrenin ARTI ucunda. TP4056'nın koruması hücre ucundaki kısayı kesemez (FET B−/OUT− arasında); o yolu yalnız bu korur.
 en: Cell {0} fuse: {1}×{2} PCB-clip holder (FUS009) + {3} A F (FUS004), on the cell's POSITIVE end. The TP4056's protection cannot interrupt a short at the cell end (the FET is between B−/OUT−); only this protects that path.
 tr: Hücre {0} sigortası: F1P'nin aynısı. Paralelde her hücrenin AYRI sigortası şart — biri içeriden kısa devre olursa öbürü onu sigortasız doldurmaya çalışır.
@@ -1578,7 +1578,7 @@ en: Back wall (from inside): two {0} holders one above the other — YUVA1 below
 tr: Şarj modülü (TP1) {0}'da, kart A'dan önce takıldı; burada ona dokunma.
 en: The charging module (TP1) was fitted in {0}, before board A; do not touch it here.
 tr: <b>Tezgahta önce:</b> MT1 ve MT2'ye kablolarını lehimle (TP1 gibi; kutuda pedlere havya rahat girmez): teli kartın parça yüzünden sok, alttan lehimle, taşan ucu kes — modülün arkası duvara düz otursun. Uçları etiketle. Hangi pede ne geldiği ve kesim boyları {0} / {1}'ün kablo tablosunda ve çiziminde (numaralı). MT2'nin IN− ucuna '−{2} tarafı' yaz.
-en: <b>At the bench first:</b> solder the wires to MT1 and MT2 (like TP1; in the box the iron does not reach the pads easily): push the wire in from the component side of the board, solder underneath, trim the excess — the back of the module must sit flat on the wall. Label the ends. Which wire goes to which pad and the cut lengths are in the cable table and drawing of {0} / {1} (numbered). Write '−{2} side' on MT2's IN− end.
+en: <b>At the bench first:</b> solder the wires to MT1 and MT2 (like TP1; in the enclosure the iron does not reach the pads easily): push the wire in from the component side of the board, solder underneath, trim the excess — the back of the module must sit flat on the wall. Label the ends. Which wire goes to which pad and the cut lengths are in the cable table and drawing of {0} / {1} (numbered). Write '−{2} side' on MT2's IN− end.
 tr: <b>Sigorta yuvası = iki ayrı klips</b> (FUS009), tek gövde değil: iki klipsi kart A'dan artan plaketten kestiğin en fazla <b>{0} mm</b>'lik bir şeride lehimle — önce sigortayı iki klipse tak, bacakları şeride geçir, lehimle; sigorta aralığı kendiliğinden doğru olur. Her klipsin iki bacağını altta birleştir; teli klipsin yanındaki boş delikten ön yüzden sok, arkada klips bacağına lehimle. Üç şerit: F0, F1P, F2. (Kapaklı KF-{1} denendi: {2} × {3} mm ölçüsüyle yerleşime sığmıyor — F1P kart A'nın altına giriyor, kapaklar üst üste geliyor.)
 en: <b>Fuse holder = two separate clips</b> (FUS009), not a single body: solder the two clips onto a strip of at most <b>{0} mm</b> cut from the perfboard left over from board A — first put the fuse into both clips, pass the legs through the strip, solder; the fuse spacing comes out right by itself. Join the two legs of each clip underneath; push the wire in from the front through the empty hole next to the clip and solder it to the clip leg at the back. Three strips: F0, F1P, F2. (A covered KF-{1} was tried: at {2} × {3} mm it does not fit the layout — F1P goes under board A and the covers overlap.)
 tr: <b>Tutturma — sıcak silikon</b> (kullanıcı kararı {0}-{1}-{2}): MT1, MT2, B0505S, {3} µF, KL ve üç sigorta şeridi duvara sıcak silikonla; sökmek için izopropil alkol damlat, plastik kartla kaldır. Silikon PCB'nin ARKASINA ya da kenarına — çipin ve bobinin üstüne değil (ısınan yerler). MT1/MT2'nin trimpotu içe ve erişilebilir kalsın. Kartlar, ESP32, şönt ve Q1 yapıştırılmaz.
@@ -1586,7 +1586,7 @@ en: <b>Fixing — hot glue</b> (user decision {0}-{1}-{2}): MT1, MT2, B0505S, {3
 tr: MT1 ve MT2 arka duvarın solunda, üst üste (x {0}–{1}; MT1 z {2}, MT2 z {3}). MT1'in OUT pedleri SOLA (F0 ve B0505S), MT2'nin IN pedleri SOLA (B0505S ve {4} µF).
 en: MT1 and MT2 on the left of the back wall, one above the other (x {0}–{1}; MT1 z {2}, MT2 z {3}). MT1's OUT pads to the LEFT (F0 and B0505S), MT2's IN pads to the LEFT (B0505S and {4} µF).
 tr: <b>B0505S (IZ)</b> MT2'nin soluna, bacaklar aşağı, gövdesinden yapıştır. ⚠ Bu modül kutunun <b>iki toprağını ayıran TEK parça</b>: giriş tarafı ({0} +Vin, {1} −Vin) ile çıkış tarafı ({2} −Vout, {3} +Vout) hiçbir telle birleşmesin.
-en: <b>B0505S (IZ)</b> to the left of MT2, pins down, glued by its body. ⚠ This module is the <b>ONLY part separating the box's two grounds</b>: the input side ({0} +Vin, {1} −Vin) and the output side ({2} −Vout, {3} +Vout) must not be joined by any wire.
+en: <b>B0505S (IZ)</b> to the left of MT2, pins down, glued by its body. ⚠ This module is the <b>ONLY part separating the enclosure's two grounds</b>: the input side ({0} +Vin, {1} −Vin) and the output side ({2} −Vout, {3} +Vout) must not be joined by any wire.
 tr: <b>MT2'nin giriş kondansatörü (CB, {0} µF {1} V, C042)</b> MT2'nin üstüne, yatık. Bacaklarını MT2'nin giriş pedlerine lehimle: uzun bacak IN+, ⚠ <b>şeritli bacak EKSİ → IN−</b>.
 en: <b>MT2's input capacitor (CB, {0} µF {1} V, C042)</b> above MT2, lying down. Solder its legs to MT2's input pads: long leg IN+, ⚠ <b>striped leg NEGATIVE → IN−</b>.
 tr: <b>{0} V iç klemensi (KL, CON007)</b> B0505S'in üstüne; vidalar içe. Hangi vidanın + olduğunu kalemle yaz: {1}'te MT2'nin çıkışı ve kartın {2} V telleri aynı kutupla buraya vidalanacak.
@@ -1614,7 +1614,7 @@ en: The cell wires are <b>the holder's own wires</b>: the red one (+, the end wi
 tr: TP4056'da paket <b>B±</b>'ye, yük <b>OUT±</b>'ye. En büyük akım şarjda {0} A (iki hücreye yarı yarıya); {1} mm² bunu rahat taşır, kalın kablo gerekmez.
 en: On the TP4056 the pack goes to <b>B±</b>, the load to <b>OUT±</b>. The largest current is {0} A while charging (half to each cell); {1} mm² carries that easily, no heavy wire needed.
 tr: <b>PİL anahtarı (SWP1)</b> paket tarafında: TP1.OUT+ → PİL → MT1 girişi. Kapalıyken MT1 hiç çekmez; kutunun tek anahtarı bu. KTS102'nin <b>orta</b> bacağı TP4056 OUT+'ya; öbür tel, anahtar AÇ konumundayken orta bacakla <b>öten</b> dış bacağa (multimetreyle bul).
-en: <b>«PİL» switch (SWP1)</b> on the pack side: TP1.OUT+ → «PİL» → MT1 input. When off, MT1 draws nothing; this is the box's only switch. The KTS102's <b>middle</b> pin to TP4056 OUT+; the other wire to the outer pin that <b>beeps</b> with the middle one when the switch is in the ON position (find it with a multimeter).
+en: <b>«PİL» switch (SWP1)</b> on the pack side: TP1.OUT+ → «PİL» → MT1 input. When off, MT1 draws nothing; this is the enclosure's only switch. The KTS102's <b>middle</b> pin to TP4056 OUT+; the other wire to the outer pin that <b>beeps</b> with the middle one when the switch is in the ON position (find it with a multimeter).
 tr: MT1'in {0} V çıkışı ESP32'ye: devkit'te tek 5V pini var ve {1}'de J5 kablosunun 5V teli de oraya takılacak — <b>çatal</b> yap: dişi header'dan (CON018) tek pinlik bir parça kes, MT1'in {2} V telini ve J5 kablosunun 5V telini İKİSİNİ BİRDEN onun kuyruğuna lehimle, makaronla kapla; bu tek dişi uç devkit'in 5V pinine geçer (erkek pine erkek header takılmaz). GND için devkit'in ikinci GND pini.
 en: MT1's {0} V output to the ESP32: the devkit has a single 5V pin and in {1} the 5V wire of the J5 cable also goes there — make a <b>Y-splice</b>: cut a single-pin piece off a female header (CON018), solder BOTH MT1's {2} V wire and the J5 cable's 5V wire to its tail, cover with heat-shrink; this single female end goes onto the devkit's 5V pin (a male header does not fit a male pin). For GND, the devkit's second GND pin.
 tr: ⚠ <b>İlk takışta iki hücre aynı gerilimde olmalı (±{0} V)</b>: farklıysa yüksek olan alçak olanı büyük akımla doldurur. Takmadan önce ikisini ayrı ayrı ölç; fark büyükse önce <b>yalnız birini</b> tak ve {1}'daki gibi tam doldur ({2} V), çıkar, ötekini tak ve doldur, sonra ikisini birlikte tak.
@@ -1740,15 +1740,15 @@ en: With F1P removed, H1+ ↔ TP1.B+ is open; with F2 removed, H2+ ↔ TP1.B+ is
 tr: <span class='ano'>{0}</span> <b>Analog beslemeyi kablola: {1} V → F0 → B0505S → MT2 → klemens → kart</b>
 en: <span class='ano'>{0}</span> <b>Wire the analog supply: {1} V → F0 → B0505S → MT2 → terminal block → board</b>
 tr: {0} V girişi. Tezgahta: XT30 (CON058) — kart tarafı ERKEK uç (pimli), güç kaynağı tarafı DİŞİ uç; gerilim taşıyan taraf kapalı soketli olsun. Kablo yalıtımlı, kırmızı = +, siyah = −. Kutuda (B58): XT30 kesilir, teller iç klemense (KL) — {1} V'u kutunun kendi pili (MT2) verir, dış besleme yok.
-en: {0} V input. At the bench: XT30 (CON058) — MALE end on the board side (with pins), FEMALE end on the power-supply side; the side carrying voltage should have the shrouded socket. Insulated wire, red = +, black = −. In the box (B58): the XT30 is cut off, the wires go to the internal terminal block (KL) — the {1} V comes from the box's own battery (MT2), no external supply.
+en: {0} V input. At the bench: XT30 (CON058) — MALE end on the board side (with pins), FEMALE end on the power-supply side; the side carrying voltage should have the shrouded socket. Insulated wire, red = +, black = −. In the enclosure (B58): the XT30 is cut off, the wires go to the internal terminal block (KL) — the {1} V comes from the enclosure's own battery (MT2), no external supply.
 tr: Kartın {0} V girişinin telleri (<b>J6</b>: C34 kırmızı, C36 siyah) klemense <b>vidalanır</b> — kart lehim sökmeden çıkar. Tellerin ucunda tezgahtan kalan <b>XT30 erkek</b> varsa kes: dış besleme yok, XT30 kullanılmıyor.
 en: The wires of the board's {0} V input (<b>J6</b>: C34 red, C36 black) are <b>screwed</b> into the terminal block — the board comes out without desoldering. If the wire ends still have the <b>XT30 male</b> from the bench, cut it off: no external supply, the XT30 is not used.
 tr: Aşağıdaki tabloya göre: {0} V barası (MT1 çıkışı) → <b>F0</b> ({1} A hızlı, FUS003, kutu içi, {2}) → B0505S bacak {3} (+Vin); bacak {4} (−Vin) → {5} V barasının eksisi. B0505S bacak {6} (+Vout) → MT2 IN+, bacak {7} (−Vout) → MT2 IN−; MT2 çıkışı → klemens (+ → C34, − → C36).
-en: Following the table below: {0} V bus (MT1 output) → <b>F0</b> ({1} A fast, FUS003, inside the box, {2}) → B0505S pin {3} (+Vin); pin {4} (−Vin) → the negative of the {5} V bus. B0505S pin {6} (+Vout) → MT2 IN+, pin {7} (−Vout) → MT2 IN−; MT2 output → terminal block (+ → C34, − → C36).
+en: Following the table below: {0} V bus (MT1 output) → <b>F0</b> ({1} A fast, FUS003, inside the enclosure, {2}) → B0505S pin {3} (+Vin); pin {4} (−Vin) → the negative of the {5} V bus. B0505S pin {6} (+Vout) → MT2 IN+, pin {7} (−Vout) → MT2 IN−; MT2 output → terminal block (+ → C34, − → C36).
 tr: <b>CB ({0} µF)</b> MT2'nin giriş uçlarına, B0505S'in telleriyle aynı noktaya: uzun bacak → IN+, şeritli bacak → IN−. Neden: açılışta MT2 kartın {1} µF'sini doldururken B0505S'in veremeyeceği tepe akımı çekiyor; kondansatör yoksa MT2 girişini çökertip baştan başlıyor ve kart {2} V'a çıkamayabilir (B58f benzetimi).
 en: <b>CB ({0} µF)</b> on MT2's input terminals, at the same point as the B0505S wires: long leg → IN+, striped leg → IN−. Why: at power-up, while charging the board's {1} µF, MT2 draws a peak current the B0505S cannot supply; without the capacitor MT2 collapses its input and starts over, and the board may not reach {2} V (B58f simulation).
 tr: <b>Kural (denetimli):</b> B0505S'in çıkış tarafı (MT2 girişi, klemens −, kartın −{0} rayı) kart GND'ye hiçbir yoldan <b>DEĞMEZ</b>. Kutunun iki toprağını ayıran tek parça B0505S: iki tarafı birleştiren tek bir tel −{1}'yi GND'ye kısa eder.
-en: <b>Rule (audited):</b> the B0505S's output side (MT2 input, terminal −, the board's −{0} rail) <b>DOES NOT TOUCH</b> board GND by any path. The B0505S is the only part separating the box's two grounds: a single wire joining the two sides shorts −{1} to GND.
+en: <b>Rule (audited):</b> the B0505S's output side (MT2 input, terminal −, the board's −{0} rail) <b>DOES NOT TOUCH</b> board GND by any path. The B0505S is the only part separating the enclosure's two grounds: a single wire joining the two sides shorts −{1} to GND.
 tr: Neden F0 {0} V tarafında: analog zincirindeki bir arıza (B0505S, MT2, kart) paketi ve {1} V barasını çekemesin. {2} V tarafını ayrıca korumaya gerek yok — kartın kendi F1'i orada, B0505S'in gücü de {3}–{4} W ile sınırlı ve kısa devrede kendini keser.
 en: Why F0 is on the {0} V side: a fault in the analog chain (B0505S, MT2, board) must not be able to pull down the pack and the {1} V bus. The {2} V side needs no separate protection — the board's own F1 is there, and the B0505S's power is limited to {3}–{4} W and it shuts itself off on a short.
 tr: Sigorta: kartta F1. Açılışta kartın {0} µF'si dolar; B58'den beri anahtar {1} V tarafında ve {2} V B0505S + MT2 üzerinden yükseliyor, yani darbe sert bir {3} V kaynağındakinden yumuşak — ama hesap en kötü hâli (sert kaynak) varsayıyor: gerçek bir {4} mA <b>hızlı</b> (F) sigortayı bu darbe <b>atar</b> (darbe I²t erime değerinin {5}–{6} katı — Littelfuse {7}/{8} veri sayfaları, denetim hesaplıyor). <b>Karar ({9}-{10}-{11}): takılı sigorta kalıyor, T sonraki plana.</b> Şu an yuvada '{12} mA' duruyor ve {13}+ açmada <b>hiç atmadı</b> — bu tek başına iyi haber ama <i>hangi</i> sigorta olduğunu söylemiyor: gerçek bir {14} mA F bu darbede atardı. B52'de ölçülen <b>{15} Ω</b>, {16} mA olamaz ({17} mA'lık tel {18}–{19} Ω okur) — {20} Ω <b>{21} mA</b> sınıfıdır. İkisi birlikte tek bir şey söylüyor: yuvadaki etikete bakma, <b>ohmmetreye bak</b>. Merak edersen sigortayı çıkar, soğukken direncini ölç: <b>{22}–{23} Ω</b> → gerçekten {24} mA (o zaman T tipidir, çünkü atmadı); <b>{25} Ω</b> civarı → {26} mA sınıfı (FUS001). Her iki hâlde de <b>kısa devre koruması var</b> ve kutu kurulumu beklemiyor. İleride <b>T (gecikmeli) {27} mA cam</b> (Littelfuse {28} / ESKA / Schurter, pay ≥ {29}×) alınırsa takılır ve {30} kez aç-kapa denenir: her açılışta +{31}/−{32} gelmeli. Stoktaki FUS010 F tipi, {33} mA F de darbeye pay vermiyor — ikisi de değiştirmeye değmez. TL072 kısmi arızasını hiçbir sigorta açmaz.
@@ -1768,7 +1768,7 @@ en: front → solder lug of the COM jack
 tr: <b>F0 klips {0}</b>
 en: <b>F0 clip {0}</b>
 tr: <span class='kucuk'>{0} V barası → F0 (kutu içi sigorta, {1} A)</span>
-en: <span class='kucuk'>{0} V bus → F0 (fuse inside the box, {1} A)</span>
+en: <span class='kucuk'>{0} V bus → F0 (fuse inside the enclosure, {1} A)</span>
 tr: <span class='kucuk'>B0505S GND — kart GND tarafı</span>
 en: <span class='kucuk'>B0505S GND — board GND side</span>
 tr: <span class='kucuk'>yalıtılmış {0} V (+Vo) → MT2</span>
@@ -1828,7 +1828,7 @@ en: With F0 fitted, the {0} V bus ↔ B0505S Vin is connected; with F0 removed, 
 tr: <b>CB kutbu (enerjiden ÖNCE):</b> kondansatörün şeritli bacağı ↔ MT2 IN− ötmeli; ters takılan elektrolitik ilk enerjide ısınır ve patlar.
 en: <b>CB polarity (BEFORE power):</b> the capacitor's striped leg ↔ MT2 IN− should beep; an electrolytic fitted backwards heats up and bursts at the first power-up.
 tr: <span class='ano'>{0}</span> <b>Kutuda ilk enerji — pilden</b>
-en: <span class='ano'>{0}</span> <b>First power-up in the box — from the battery</b>
+en: <span class='ano'>{0}</span> <b>First power-up in the enclosure — from the battery</b>
 tr: Soketlerdeki entegreler takılı değil ({0}'de takılacak), J5 kablosu takılı değil, PİL KAPALI, USB takılı değil, <b>F0 yuvasında sigorta YOK</b> (ölçüm tarafı önce kapalı kalsın).
 en: The socketed ICs are not fitted (they go in during {0}), the J5 cable is not connected, «PİL» OFF, no USB plugged in, <b>NO fuse in the F0 holder</b> (the measurement side stays off at first).
 tr: Hücreleri tak (kutuplara dikkat; ±{0} V kuralı {1}'te). <b>PİL AÇ</b>: {2} V barasında {3}–{4} V, ESP32 açılır. Klon devkit'te VBUS diyotu olmayabilir: USB soketinin VBUS ucunda <b>{5} V</b> oku. {6} V okursan MT1 USB'ye geri besliyor → ESP32'ye giden {7} V telinin arasına stoktaki Schottky <b>SR5100</b> (D004; çizgili uç ESP32'ye) koy, makaronla kapla ve MT1'i <b>{8} V</b>'a çıkar (diyotta ~{9} V düşer).
@@ -1836,7 +1836,7 @@ en: Insert the cells (mind the polarity; the ±{0} V rule is in {1}). <b>«PİL�
 tr: PİL'i kapat, <b>F0'ı tak</b> ({0} A), PİL'i yeniden aç: klemenste {1} V, kartta +{2} V / −{3} V (V35 / R33, GND: V36); GÜÇ lambası yanar.
 en: Switch «PİL» off, <b>fit F0</b> ({0} A), switch «PİL» back on: {1} V at the terminal block, +{2} V / −{3} V on the board (V35 / R33, GND: V36); the «GÜÇ» lamp lights.
 tr: <b>Kutu açılmazsa</b> (PİL açınca ESP32 hiç açılmıyor ya da bir an yanıp sönüyor, GÜÇ lambası yanmıyor): paketin koruması (DW01A) açılış akımında kesmiş. PİL'i kapat, {0} saniye bekle, yeniden aç. Sürerse pili {1}'daki gibi <b>doldur</b> ve dene — benzetimde dolu pilde B0505S'in dört davranış modelinin hepsi açılıyor. Dolu pilde de açılmıyorsa: PİL'i kapat, B0505S'in +Vo teli ile MT2'nin IN+ ucu arasına <b>{2} × {3} Ω {4} W</b> direnci (R052) seri lehimle, makaronla kapla, dene. Yine olmuyorsa TP4056 modülünü stoktaki yedekle değiştir (MOD002, {5}'daki gibi). <b>{6} V gelmiyorsa</b> (ESP32 açık ama klemenste {7} V yok ya da GÜÇ lambası yanıp sönüyor): seri direnç takılıysa <b>çıkar</b> — bu B0505S aşırı yükte kapanıp yeniden deneyen türden, direnç ona fazla gelir; takılı değilse CB'nin iki bacağının MT2 girişine lehimli olduğuna ve kutbuna bak.
-en: <b>If the box does not power up</b> (with «PİL» on the ESP32 does not start at all or flashes once, the «GÜÇ» lamp does not light): the pack protection (DW01A) has tripped on the inrush current. Switch «PİL» off, wait {0} seconds, switch it on again. If it persists, <b>charge</b> the battery as in {1} and try — in the simulation all four behaviour models of the B0505S start up with a full battery. If it does not start with a full battery either: switch «PİL» off, solder the <b>{2} × {3} Ω {4} W</b> resistor (R052) in series between the B0505S's +Vo wire and MT2's IN+ terminal, cover with heat-shrink, try. If it still fails, replace the TP4056 module with the spare from stock (MOD002, as in {5}). <b>If {6} V does not come up</b> (the ESP32 is on but there is no {7} V at the terminal block, or the «GÜÇ» lamp blinks): if the series resistor is fitted, <b>remove it</b> — this B0505S is the type that shuts down on overload and retries, the resistor is too much for it; if it is not fitted, check that both legs of CB are soldered to MT2's input and its polarity.
+en: <b>If the enclosure does not power up</b> (with «PİL» on the ESP32 does not start at all or flashes once, the «GÜÇ» lamp does not light): the pack protection (DW01A) has tripped on the inrush current. Switch «PİL» off, wait {0} seconds, switch it on again. If it persists, <b>charge</b> the battery as in {1} and try — in the simulation all four behaviour models of the B0505S start up with a full battery. If it does not start with a full battery either: switch «PİL» off, solder the <b>{2} × {3} Ω {4} W</b> resistor (R052) in series between the B0505S's +Vo wire and MT2's IN+ terminal, cover with heat-shrink, try. If it still fails, replace the TP4056 module with the spare from stock (MOD002, as in {5}). <b>If {6} V does not come up</b> (the ESP32 is on but there is no {7} V at the terminal block, or the «GÜÇ» lamp blinks): if the series resistor is fitted, <b>remove it</b> — this B0505S is the type that shuts down on overload and retries, the resistor is too much for it; if it is not fitted, check that both legs of CB are soldered to MT2's input and its polarity.
 tr: Skopla −{0} rayına bak (MT3608 + B0505S dalgalanması): {1} mV üstü görürsen MT2 çıkışına {2} µF {3} V (C035) + {4} nF (C008) ekle ({5}.23'ün gürültü endişesi burada ölçülür). ⚠ Stoktaki {6} µF'lerin çoğu {7} V — {8} V rayına TAKMA, patlar.
 en: Look at the −{0} rail with the scope (MT3608 + B0505S ripple): if you see more than {1} mV, add {2} µF {3} V (C035) + {4} nF (C008) at MT2's output (the noise concern of {5}.23 is measured here). ⚠ Most of the {6} µF capacitors in stock are {7} V — DO NOT FIT them on the {8} V rail, they burst.
 tr: 🛑 <b>Ölçtükten sonra PİL'i KAPAT.</b> Sıradaki adım ({0}) soketlere entegre, ADS modülü ve {1} telli J5 kablosu takıyor — bunlar <b>enerjili karta takılmaz</b>: yanlış oturan bir entegre ya da ters takılan bir modül anında ölür.
@@ -1850,13 +1850,13 @@ en: <span class='ano'>{0}</span> <b>Charging rule and label</b>
 tr: Şarj: <b>PİL anahtarını KAPAT</b>, sonra ŞARJ yuvasına <b>tek Type-C</b> tak — iki hücre birlikte dolar ({0} A, hücre başına yarısı). PİL açıkken şarj etme: TP4056 yük altında şarjı bitiremez.
 en: Charging: <b>switch the «PİL» switch OFF</b>, then plug <b>a single Type-C</b> into the «ŞARJ» slot — both cells charge together ({0} A, half per cell). Do not charge with «PİL» on: under load the TP4056 cannot finish charging.
 tr: ⚠ Şarj sırasında kutunun toprağı (COM) şarj cihazının toprağına bağlanır: <b>şarj ederken ölçüm yapma</b>, HV'de asla.
-en: ⚠ While charging, the box's ground (COM) is connected to the charger's ground: <b>do not measure while charging</b>, never on HV.
+en: ⚠ While charging, the enclosure's ground (COM) is connected to the charger's ground: <b>do not measure while charging</b>, never on HV.
 tr: Etiket (arka panele, ŞARJ yuvasının yanına): "ŞARJ: PİL kapalı · şarjda ölçüm yok".
 en: Label (on the back panel, next to the «ŞARJ» slot): "CHARGE: battery switch off · no measuring while charging".
 tr: TP4056'nın LED'i şarjda kırmızı, bitince mavi (kapak açıkken kart A'nın arka kenarından bakınca). Kapak kapalıyken ışık yuvanın kenarından ancak loş sızar — göremiyorsan ≈ {0} saat bekle.
 en: The TP4056's LED is red while charging and blue when done (seen from the back edge of board A with the lid open). With the lid closed the light only leaks dimly around the edge of the slot — if you cannot see it, wait ≈ {0} hours.
 tr: USB'yi çıkar, PİL AÇ: ESP32 açılıyor, WiFi paneli geliyor, GÜÇ lambası yanıyor — kutu tamamen kablosuz.
-en: Unplug the USB, «PİL» ON: the ESP32 starts, the WiFi panel comes up, the «GÜÇ» lamp lights — the box is completely wireless.
+en: Unplug the USB, «PİL» ON: the ESP32 starts, the WiFi panel comes up, the «GÜÇ» lamp lights — the enclosure is completely wireless.
 tr: <span class='ano'>{0}</span> <b>J5 kablosu ve entegreler</b>
 en: <span class='ano'>{0}</span> <b>J5 cable and ICs</b>
 tr: PİL KAPALI ({0}'te kapattın). Soketlere entegreleri tak: U3, U4 (LM358), U5, U8 (TL072). Çentik yönü.
@@ -1894,19 +1894,19 @@ en: {0} wires on the right pins.
 tr: J5 takılınca, hücreler takılı değilken: TP4056 OUT− ↔ kart GND (C29): ötmeli (paket eksisi = kart GND; bağ ESP32'nin GND'si ve J5 üzerinden).
 en: With J5 plugged in and the cells out: TP4056 OUT− ↔ board GND (C29): should beep (pack negative = board GND; joined through the ESP32's GND and J5).
 tr: <span class='ano'>{0}</span> <b>Vref ve I²C kapıları</b>
-en: <span class='ano'>{0}</span> <b>Vref and I²C gates</b>
+en: <span class='ano'>{0}</span> <b>Vref and I²C GATEs</b>
 tr: <b>Enerji:</b> PİL AÇ. Seri konsol için USB'yi PC'ye takabilirsin — PİL açıkken yükü pil taşır (MT1'in {0} V'u USB'nin ~{1} V'unu bastırır). <b>PİL kapalıyken USB takma:</b> ölçüm tarafı da PC'den beslenmeye çalışır (~{2} A, USB {3} portunun sınırına yakın).
 en: <b>Power:</b> «PİL» ON. You can plug the USB into the PC for the serial console — with «PİL» on the battery carries the load (MT1's {0} V overrides the USB's ~{1} V). <b>Do not plug in USB with «PİL» off:</b> the measurement side also tries to run from the PC (~{2} A, close to the limit of a USB {3} port).
 tr: <b>Kapı {0} — Vref.</b> Multimetre kart GND'ye referanslı: ① <b>TL431 katodu</b> = {1} V (±%{2} → {3}–{4} V). ② <b>U3'ün {5}. bacağı (delik A:R8)</b> = {6} V (±{7} mV). ③ Aynı ölçümü bölücüler bağlıyken tekrarla — <b>kaymıyorsa tampon çalışıyor.</b> <i>Tutmazsa:</i> ① yanlışsa TL431 yönü / 220R besleme; ① doğru ② yanlışsa U3 soketi, çentiği ya da U3'ün +{8} V beslemesi ({9} V'ta çıkış yeterince yükselmez).
-en: <b>Gate {0} — Vref.</b> Multimeter referenced to board GND: ① <b>TL431 cathode</b> = {1} V (±{2}% → {3}–{4} V). ② <b>Pin {5} of U3 (hole A:R8)</b> = {6} V (±{7} mV). ③ Repeat the same measurement with the dividers connected — <b>if it does not shift, the buffer works.</b> <i>If it fails:</i> ① wrong → TL431 orientation / 220R feed; ① right, ② wrong → U3's socket, its notch, or U3's +{8} V supply (at {9} V the output does not rise high enough).
+en: <b>GATE {0} — Vref.</b> Multimeter referenced to board GND: ① <b>TL431 cathode</b> = {1} V (±{2}% → {3}–{4} V). ② <b>Pin {5} of U3 (hole A:R8)</b> = {6} V (±{7} mV). ③ Repeat the same measurement with the dividers connected — <b>if it does not shift, the buffer works.</b> <i>If it fails:</i> ① wrong → TL431 orientation / 220R feed; ① right, ② wrong → U3's socket, its notch, or U3's +{8} V supply (at {9} V the output does not rise high enough).
 tr: <b>Kapı {0} — I²C.</b> Seri konsolda <code>#</code>: <b>0x48 ve 0x49 ikisi de</b> listede görünmeli. <i>Tutmazsa:</i> SDA/SCL ters, ADDR ucu boşta (0x48 = GND, 0x49 = +3V3) ya da pull-up yok. <b>Bir adres eksikken kalibrasyona geçme</b> — eksik olan kanal sessizce sıfır okur.
-en: <b>Gate {0} — I²C.</b> In the serial console <code>#</code>: <b>both 0x48 and 0x49</b> must appear in the list. <i>If it fails:</i> SDA/SCL swapped, ADDR pin floating (0x48 = GND, 0x49 = +3V3) or no pull-up. <b>Do not go on to calibration with an address missing</b> — the missing channel silently reads zero.
+en: <b>GATE {0} — I²C.</b> In the serial console <code>#</code>: <b>both 0x48 and 0x49</b> must appear in the list. <i>If it fails:</i> SDA/SCL swapped, ADDR pin floating (0x48 = GND, 0x49 = +3V3) or no pull-up. <b>Do not go on to calibration with an address missing</b> — the missing channel silently reads zero.
 tr: İki kapı da geçmeden Adım {0}'ye başlama.
-en: Do not start Step {0} until both gates have passed.
+en: Do not start Step {0} until both GATEs have passed.
 tr: WiFi ayarları seri konsoldan: <code>Ns&lt;web parolası&gt;</code>, <code>Na&lt;ssid&gt;</code>, <code>Np&lt;parola&gt;</code>; durum <code>N?</code>.
 en: WiFi settings from the serial console: <code>Ns&lt;web password&gt;</code>, <code>Na&lt;ssid&gt;</code>, <code>Np&lt;password&gt;</code>; status <code>N?</code>.
 tr: <b>KAPI {0}</b> — Kılavuz <b>{1} Vref</b> kapısı: TL431 katodu ve U3A çıkışı (U3 soketine LM358 tak).
-en: <b>GATE {0}</b> — Guide <b>{1} Vref</b> gate: TL431 cathode and U3A output (fit an LM358 in the U3 socket).
+en: <b>GATE {0}</b> — Guide <b>{1} Vref</b> GATE: TL431 cathode and U3A output (fit an LM358 in the U3 socket).
 tr: gerekli kart dışı parça: —
 en: off-board parts needed: —
 tr: <b>KAPI {0}</b> — Kılavuz <b>{1}</b>: firmware'de <code>#</code> — 0x48 ve 0x49 ikisi de görünmeli.
@@ -1960,9 +1960,9 @@ en: Print all settings
 tr: Kalibrasyon sonunda oku, bir yere not et.
 en: Read them at the end of calibration and note them down somewhere.
 tr: <span class='ano'>{0}</span> <b>Kapı {1} — akım (iki aşamalı)</b>
-en: <span class='ano'>{0}</span> <b>Gate {1} — current (two stages)</b>
+en: <span class='ano'>{0}</span> <b>GATE {1} — current (two stages)</b>
 tr: <b>Kural:</b> test kaynağı kutudan <b>bağımsız</b> olmalı. Kutunun kendi pil paketi OLAMAZ: paketin eksisi kart GND'dir, ondan YÜK'e akım çekersen dönüş akımı kart GND telinden (J5 kablosu) geçer — ölçüm bozulur, ince tel ısınır. Test kaynağı: <b>tezgah beslemesi</b> (WCT-{0}-{1} + MOD011 buck, <b>{2} V</b>'a ayarlı) → <b>{3} Ω {4} W (R049)</b> ≈ {5} A. WCT artık kutuya bağlı değil (B58): yalıtılmış bir test kaynağı.
-en: <b>Rule:</b> the test source must be <b>independent</b> of the box. It CANNOT be the box's own battery pack: the pack negative is board GND, so if you draw current from it through «YÜK» the return current flows through the board GND wire (J5 cable) — the measurement is corrupted and the thin wire heats up. Test source: <b>bench supply</b> (WCT-{0}-{1} + MOD011 buck, set to <b>{2} V</b>) → <b>{3} Ω {4} W (R049)</b> ≈ {5} A. The WCT is no longer connected to the box (B58): it is an isolated test source.
+en: <b>Rule:</b> the test source must be <b>independent</b> of the enclosure. It CANNOT be the enclosure's own battery pack: the pack negative is board GND, so if you draw current from it through «YÜK» the return current flows through the board GND wire (J5 cable) — the measurement is corrupted and the thin wire heats up. Test source: <b>bench supply</b> (WCT-{0}-{1} + MOD011 buck, set to <b>{2} V</b>) → <b>{3} Ω {4} W (R049)</b> ≈ {5} A. The WCT is no longer connected to the enclosure (B58): it is an isolated test source.
 tr: Firmware kazanç kalibrasyonunu tam skalanın %{0}'inin ({1} kod) altında reddeder: {2} mΩ ile bu {3} A demek, {4} A yetmez. Kazanç düzeltmesi (<code>i</code>) şöntten bağımsızdır → <b>önce {5} mΩ (R044) tak</b>, <code>s0.015</code>, <code>Z</code> yüksüzken; buck + {6} Ω YÜK {7}–{8}'den seri, multimetre {9} A kademesi seriye, <code>i&lt;ölçülen&gt;</code>.
 en: The firmware rejects a gain calibration below {0}% of full scale ({1} codes): with {2} mΩ that means {3} A, {4} A is not enough. The gain correction (<code>i</code>) is independent of the shunt → <b>fit the {5} mΩ (R044) first</b>, <code>s0.015</code>, <code>Z</code> with no load; buck + {6} Ω in series through «YÜK» {7}–{8}, multimeter on its {9} A range in series, <code>i&lt;measured&gt;</code>.
 tr: Sonra <b>{0} mΩ'u tak</b>, <code>s0.005</code>, <code>Z</code>; aynı ~{1} A'i ölç: multimetreyle ±%{2} tutmalı. ≥{3} A için: buck {4} V + üç {5} Ω paralel ({6} Ω, ≈{7} A, {8} s; MOD011 {9} A'lik) ile <code>i</code>. Kabloları ters çevir: işaret değişmeli.
@@ -1974,17 +1974,17 @@ en: <b>GATE {0}</b> — Guide <b>{1} Current channel</b>: <code>Z</code> zero, k
 tr: gerekli kart dışı parça: J3, RS
 en: off-board parts needed: J3, RS
 tr: <span class='ano'>{0}</span> <b>Kapı {1} — NORMAL gerilim</b>
-en: <span class='ano'>{0}</span> <b>Gate {1} — NORMAL voltage</b>
+en: <span class='ano'>{0}</span> <b>GATE {1} — NORMAL voltage</b>
 tr: <code>n</code>; <b>V jakını kısa bir kabloyla COM'a bağla</b> (gerçek {0} V) ve <code>z</code>, sonra kabloyu çıkar. ⚠ Boştaki V jakında <code>z</code> verme: giriş havada kalır ve okuma Vref civarına (~{1} V) oturur; sıfır o noktaya kurulursa bütün okumalar o kadar kayar ({2}-{3}-{4} kartta: boşta {5} V, kısa devrede −{6} V). Bilinen gerilimi (tezgah beslemesi {7}–{8} V — kutunun kendi pili DEĞİL, {9} kuralı) V–COM'a ver, multimetreyle kıyasla, <code>g&lt;ölçülen&gt;</code>; ters bağla: işaret değişmeli.
-en: <code>n</code>; <b>connect the V jack to COM with a short lead</b> (a real {0} V) and <code>z</code>, then remove the lead. ⚠ Do not give <code>z</code> with the V jack open: the input floats and the reading settles around Vref (~{1} V); if zero is set at that point every reading shifts by that much (on the {2}-{3}-{4} board: {5} V open, −{6} V shorted). Apply a known voltage (bench supply {7}–{8} V — NOT the box's own battery, rule {9}) to V–COM, compare with the multimeter, <code>g&lt;measured&gt;</code>; connect it reversed: the sign should change.
+en: <code>n</code>; <b>connect the V jack to COM with a short lead</b> (a real {0} V) and <code>z</code>, then remove the lead. ⚠ Do not give <code>z</code> with the V jack open: the input floats and the reading settles around Vref (~{1} V); if zero is set at that point every reading shifts by that much (on the {2}-{3}-{4} board: {5} V open, −{6} V shorted). Apply a known voltage (bench supply {7}–{8} V — NOT the enclosure's own battery, rule {9}) to V–COM, compare with the multimeter, <code>g&lt;measured&gt;</code>; connect it reversed: the sign should change.
 tr: <b>KAPI {0}</b> — Kılavuz <b>{1} NORMAL</b>: <code>z</code>, <code>g&lt;volt&gt;</code>, ters giriş.
 en: <b>GATE {0}</b> — Guide <b>{1} NORMAL</b>: <code>z</code>, <code>g&lt;volt&gt;</code>, reversed input.
 tr: gerekli kart dışı parça: J1
 en: off-board parts needed: J1
 tr: <span class='ano'>{0}</span> <b>Kapı {1} — YÜKSEK gerilim</b>
-en: <span class='ano'>{0}</span> <b>Gate {1} — HIGH voltage</b>
+en: <span class='ano'>{0}</span> <b>GATE {1} — HIGH voltage</b>
 tr: <code>y</code>; önce <b>HV jakını kısa bir kabloyla COM'a bağla</b>, <code>z</code>, kabloyu çıkar ({0}'teki gibi; boştayken sıfırlama yapma). Sonra {1} V (tezgah beslemesi), sonra {2} V (WCT'nin kendi çıkışı). Kutu B58'den beri yalnız kendi pilinden çalışıyor: WCT kutuya bağlı değil, burada serbestçe test kaynağı olur. (Eski düzende WCT kutuyu beslerdi ve eksisi −{3} rayıydı — o kural kalktı.)
-en: <code>y</code>; first <b>connect the HV jack to COM with a short lead</b>, <code>z</code>, remove the lead (as in {0}; do not zero it while open). Then {1} V (bench supply), then {2} V (the WCT's own output). Since B58 the box runs only from its own battery: the WCT is not connected to the box and can freely be the test source here. (In the old arrangement the WCT powered the box and its negative was the −{3} rail — that rule is gone.)
+en: <code>y</code>; first <b>connect the HV jack to COM with a short lead</b>, <code>z</code>, remove the lead (as in {0}; do not zero it while open). Then {1} V (bench supply), then {2} V (the WCT's own output). Since B58 the enclosure runs only from its own battery: the WCT is not connected to the enclosure and can freely be the test source here. (In the old arrangement the WCT powered the enclosure and its negative was the −{3} rail — that rule is gone.)
 tr: Kazanç kalibrasyonu ≥{0} V ister: iki <b>yalıtılmış</b> kaynağı seri bağla (varsa) ya da HV kazancını fabrika {1}'da bırak (bölücü %{2} metal film, hata ≤ %{3}). <b>Tek el kuralı.</b>
 en: The gain calibration needs ≥{0} V: connect two <b>isolated</b> supplies in series (if you have them) or leave the HV gain at the factory {1} (divider {2}% metal film, error ≤ {3}%). <b>One-hand rule.</b>
 tr: <b>KAPI {0}</b> — Kılavuz <b>{1} YÜKSEK</b>: <b>önce {2} V</b>, sonra kademeli. Tek el, eller uzakta.
@@ -1992,7 +1992,7 @@ en: <b>GATE {0}</b> — Guide <b>{1} HIGH</b>: <b>{2} V first</b>, then in steps
 tr: gerekli kart dışı parça: J2
 en: off-board parts needed: J2
 tr: <span class='ano'>{0}</span> <b>Kapı {1} — osiloskop</b>
-en: <span class='ano'>{0}</span> <b>Gate {1} — oscilloscope</b>
+en: <span class='ano'>{0}</span> <b>GATE {1} — oscilloscope</b>
 tr: Sinyal kaynağı: kartın CAL çıkışı — seri konsolda <code>X&lt;hz&gt;</code> ile aç, <code>x</code> ile kapat; panelde <b>CAL jakı → SKOP jakı</b> kısa kablo (COM zaten ortak). <code>t</code> komutlarıyla yakala; kare dalga ve frekans görünmeli. Genlik {0} V DEĞİL ≈{1} V görünür: CAL'in {2} kΩ seri direnci ile skop girişinin ~{3} kΩ'u (R20 {4} kΩ + R23 {5} kΩ) bölücü kurar, {6}/{7} ≈ %{8} (eski '{9} kΩ seri, ≤ %{10}' notu B55g'de {11} kΩ'a geçilince eskidi).
 en: Signal source: the board's CAL output — switch it on with <code>X&lt;hz&gt;</code> in the serial console, off with <code>x</code>; on the panel a short lead <b>CAL jack → «SKOP» jack</b> (COM is already common). Capture with the <code>t</code> commands; a square wave and its frequency should appear. The amplitude shows as ≈{1} V, NOT {0} V: CAL's {2} kΩ series resistor and the scope input's ~{3} kΩ (R20 {4} kΩ + R23 {5} kΩ) form a divider, {6}/{7} ≈ {8}% (the old '{9} kΩ series, ≤ {10}%' note went out of date when B55g moved to {11} kΩ).
 tr: <b>KAPI {0}</b> — Kılavuz <b>{1} Osiloskop</b>: bilinen kare dalga, <code>ta</code>.
@@ -2000,17 +2000,17 @@ en: <b>GATE {0}</b> — Guide <b>{1} Oscilloscope</b>: known square wave, <code>
 tr: gerekli kart dışı parça: J4
 en: off-board parts needed: J4
 tr: <span class='ano'>{0}</span> <b>Kapı {1} — hızlı akım yolu</b>
-en: <span class='ano'>{0}</span> <b>Gate {1} — fast current path</b>
+en: <span class='ano'>{0}</span> <b>GATE {1} — fast current path</b>
 tr: Dirençsel yük (tezgah beslemesi + {0} Ω, {1} kuralı) YÜK'ten; <code>w</code> → PF ≈ {2}.
 en: Resistive load (bench supply + {0} Ω, rule {1}) through «YÜK»; <code>w</code> → PF ≈ {2}.
 tr: <b>KAPI {0}</b> — Kılavuz <b>{1} Hızlı akım yolu</b>: dirençsel yükte <code>w</code> → PF ≈ {2}.
 en: <b>GATE {0}</b> — Guide <b>{1} Fast current path</b>: <code>w</code> on a resistive load → PF ≈ {2}.
 tr: <span class='ano'>{0}</span> <b>Kapı {1} — pil testi</b>
-en: <span class='ano'>{0}</span> <b>Gate {1} — battery test</b>
+en: <span class='ano'>{0}</span> <b>GATE {1} — battery test</b>
 tr: Failsafe: PİL kapalıyken ve RESET'te Q1 kapısı {0} V (PİL {1} ↔ PİL {2} ötmemeli).
 en: Failsafe: with «PİL» off and during RESET, Q1's gate is {0} V («PİL» {1} ↔ «PİL» {2} should not beep).
 tr: Pil yerine <b>tezgah beslemesi</b> (buck {0} V; kutudaki hücreler paketin parçası, çıkarma) + {1} Ω {2} W, PİL {3} – PİL {4} ve V jakıyla (KULLANIM: pil kapasitesi): <code>P3.5</code>, <code>p1</code> → ≈{5} A akmalı. Buck'ı yavaşça {6} V'a indir: kart testi <b>kesmeli</b> (akım {7}, Q1 kapısı {8} V). Kesme eşiğini böyle gerçek bir pilden daha kesin sınarsın.
-en: Instead of a battery, a <b>bench supply</b> (buck {0} V; the cells in the box are part of the pack, do not take them out) + {1} Ω {2} W, with «PİL» {3} – «PİL» {4} and the V jack (USE: battery capacity): <code>P3.5</code>, <code>p1</code> → ≈{5} A should flow. Slowly lower the buck to {6} V: the board <b>must stop</b> the test (current {7}, Q1 gate {8} V). This way you test the cut-off threshold more precisely than with a real battery.
+en: Instead of a battery, a <b>bench supply</b> (buck {0} V; the cells in the enclosure are part of the pack, do not take them out) + {1} Ω {2} W, with «PİL» {3} – «PİL» {4} and the V jack (USE: battery capacity): <code>P3.5</code>, <code>p1</code> → ≈{5} A should flow. Slowly lower the buck to {6} V: the board <b>must stop</b> the test (current {7}, Q1 gate {8} V). This way you test the cut-off threshold more precisely than with a real battery.
 tr: <b>KAPI {0}</b> — Pil testi: Q1 kapısı kart kapalıyken ve RESET'te <b>kapalı</b> kalmalı (tezgâh listesindeki failsafe kalemi).
 en: <b>GATE {0}</b> — Battery test: Q1's gate must stay <b>off</b> with the board off and during RESET (the failsafe item in the bench list).
 tr: gerekli kart dışı parça: J7, Q1, RS
@@ -2022,7 +2022,7 @@ en: Lay out the lid rows like the base (joints staggered), glue the two rails un
 tr: <b>Rayları del:</b> kapağı yerine koy, yan duvardaki dört Ø{0} deliğin arkasında {1} mm'lik kapak rayı var ve orada delik yok. Havya ucunu <b>dıştaki delikten geçirip rayı da del</b> — delik kılavuz olduğu için eş eksenli çıkar, işaretleme yok ({2}'deki iç kat yöntemi). Kapağı kaldırmadan yap.
 en: <b>Drill the rails:</b> put the lid in place; behind the four Ø{0} holes in the side wall there is the {1} mm lid rail, with no hole yet. <b>Pass the iron tip through the outer hole and drill the rail too</b> — the hole is the guide so they come out coaxial, no marking (the inner layer method from {2}). Do it without lifting the lid.
 tr: <b>Somunlu blokları KAPAK TEZGAHTAYKEN yapıştır — kutunun içinde değil.</b> Rayları deldikten sonra <b>kapağı kaldır</b> ve ters çevirip masaya koy (raylar yukarı). Her ray deliğine <b>dıştan</b> (rayın duvara bakan yüzünden) bir M3x12 cıvata sok; ucuna <b>gömme somunlu {0} katlı bloğu</b> ({1}. kat Ø{2} · {3}.–{4}. kat Ø{5} somun cebi · {6}. kat Ø{7}) — somunun dış yüzüne bir damla japon (japon, somunun DIŞ yüzüne — dişine değil), {8}'deki ayak bloğunun aynısı — vidala. Blok şimdi cıvatanın üstünde <b>kendi kendine merkezlenmiş</b> durumda: temas yüzüne japon sür, rayın iç yüzüne bastır. Kuruyunca cıvatayı sök. İki bağımsız ölçüm tutturmaya çalışmazsın; kapak kapalıyken içeride somun tutulamadığı için bu blok şart (B54).
-en: <b>Glue the nut blocks WITH THE LID ON THE BENCH — not inside the box.</b> After drilling the rails, <b>lift the lid off</b> and put it upside down on the table (rails up). Push an M3x12 bolt into each rail hole <b>from outside</b> (from the face of the rail that faces the wall); on its end screw the <b>{0}-layer block with its embedded nut</b> (layer {1} Ø{2} · layers {3}–{4} Ø{5} nut pocket · layer {6} Ø{7}) — a drop of CA glue on the nut's outer face (CA on the nut's OUTER face — not on its thread), the same as the foot block in {8}. The block is now <b>self-centred</b> on the bolt: put CA glue on the contact face and press it against the inner face of the rail. Once cured, take the bolt out. You do not have to match two independent measurements; since a nut cannot be held inside with the lid closed, this block is a must (B54).
+en: <b>Glue the nut blocks WITH THE LID ON THE BENCH — not inside the enclosure.</b> After drilling the rails, <b>lift the lid off</b> and put it upside down on the table (rails up). Push an M3x12 bolt into each rail hole <b>from outside</b> (from the face of the rail that faces the wall); on its end screw the <b>{0}-layer block with its embedded nut</b> (layer {1} Ø{2} · layers {3}–{4} Ø{5} nut pocket · layer {6} Ø{7}) — a drop of CA glue on the nut's outer face (CA on the nut's OUTER face — not on its thread), the same as the foot block in {8}. The block is now <b>self-centred</b> on the bolt: put CA glue on the contact face and press it against the inner face of the rail. Once cured, take the bolt out. You do not have to match two independent measurements; since a nut cannot be held inside with the lid closed, this block is a must (B54).
 tr: Kapağı yapıştırma.
 en: Do not glue the lid.
 tr: Kapak oturuyor, raylar yan duvarlara sürtmeden giriyor.
@@ -2032,13 +2032,13 @@ en: <span class='ano'>{0}</span> <b>Try the lid — then TAKE IT OFF</b>
 tr: Bloklar kuruyunca dört <b>M3x12</b> cıvatayı pul ile sık: bir kez tam sık, tak-çıkarı dene. Tahtada diş yok, içeriye el girmez. (Delikler {0}'de açıldı.)
 en: Once the blocks have cured, tighten the four <b>M3x12</b> bolts with washers: tighten fully once, try taking it on and off. No thread in the wood, no hand needs to go inside. (The holes were made in {0}.)
 tr: <b>Sonra cıvataları sök ve kapağı KALDIR — kapak Adım {0}'e kadar açık kalır.</b> Son toplama ({1}) kutunun içinde kablo bağı atıyor: kapak takılıyken yapılamaz.
-en: <b>Then take the bolts out and LIFT the lid off — the lid stays off until Step {0}.</b> The final tidy-up ({1}) puts cable ties inside the box: that cannot be done with the lid on.
+en: <b>Then take the bolts out and LIFT the lid off — the lid stays off until Step {0}.</b> The final tidy-up ({1}) puts cable ties inside the enclosure: that cannot be done with the lid on.
 tr: Kapak bu adımda <b>bitmiş ve denenmiş</b> oluyor; kutunun üstünde durmuyor. Kapatma Adım {0}'te.
-en: In this step the lid gets <b>finished and tried</b>; it does not stay on the box. Closing is in Step {0}.
+en: In this step the lid gets <b>finished and tried</b>; it does not stay on the enclosure. Closing is in Step {0}.
 tr: Cıvatalar takılıyken kapak elle çekince kalkmıyor.
 en: With the bolts in, the lid does not come off when pulled by hand.
 tr: Cıvatalar söküldü, <b>kapak kutunun üstünden alındı</b> — kutu yine açık.
-en: The bolts are out, <b>the lid is off the box</b> — the box is open again.
+en: The bolts are out, <b>the lid is off the enclosure</b> — the enclosure is open again.
 tr: Dört delik de rayın somun bloğuna denk geliyor (cıvata boşta dönmüyor).
 en: All four holes land on the rail's nut block (the bolt does not spin freely).
 tr: <span class='ano'>{0}</span> <b>Etiketle ve topla</b>
@@ -2052,9 +2052,9 @@ en: On the back panel, next to the «ŞARJ» slot, the charging rule label ({0})
 tr: Kabloları kablo bağıyla topla; HV kablosu tek başına ve diğerlerinden ≥ {0} mm.
 en: Tidy the cables with cable ties; the HV cable on its own and ≥ {0} mm from the others.
 tr: <b>Kutu prensibi:</b> değerli parçalar (kartlar, ESP32, şönt, Q1) yapıştırılmaz; {0} yuvaları, modüller (MT1, MT2, B0505S), {1} µF, KL ve sigorta şeritleri sıcak silikonla tutuyor. Başka kaba geçerken vidaları ve kablo bağlarını sök, konnektörleri ayır; silikonlu parçaları izopropil alkol damlatıp plastik kartla kaldır.
-en: <b>Box principle:</b> valuable parts (boards, ESP32, shunt, Q1) are not glued; the {0} holders, modules (MT1, MT2, B0505S), {1} µF, KL and the fuse strips are held with hot glue. When moving to another enclosure, take out the screws and cable ties, unplug the connectors; lift the hot-glued parts by dripping isopropyl alcohol and using a plastic card.
+en: <b>Enclosure principle:</b> valuable parts (boards, ESP32, shunt, Q1) are not glued; the {0} holders, modules (MT1, MT2, B0505S), {1} µF, KL and the fuse strips are held with hot glue. When moving to another enclosure, take out the screws and cable ties, unplug the connectors; lift the hot-glued parts by dripping isopropyl alcohol and using a plastic card.
 tr: Kutuyu salla: içeride oynayan bir şey yok.
-en: Shake the box: nothing moves inside.
+en: Shake the enclosure: nothing moves inside.
 tr: Kapak henüz açık: içeride unutulan alet, tel kırpıntısı, vida yok.
 en: The lid is still off: no tools, wire offcuts or screws left inside.
 tr: <span class='ano'>{0}</span> <b>Kapağı tak ve cıvatala</b>
@@ -2062,7 +2062,7 @@ en: <span class='ano'>{0}</span> <b>Fit the lid and bolt it down</b>
 tr: Kapağı ({0}'de yapıldı) yerine koy; {1}'de açılan dört delikten <b>M3x12</b> cıvatayı pulla dıştan tak, raydaki gömme somuna sık.
 en: Put the lid (made in {0}) in place; through the four holes made in {1}, fit the <b>M3x12</b> bolts with washers from outside and tighten them into the embedded nuts in the rail.
 tr: <b>Kutu burada kapanıyor:</b> bundan sonra kutunun içine giren iş yok. İçeride bir şey değiştirmek gerekirse dört cıvata sökülür, kapak kalkar — kartlar ve pil bloğu vida/kablo bağıyla tutulduğu için hiçbir şey kırılmaz.
-en: <b>The box closes here:</b> from now on there is no work inside the box. If something inside needs changing, the four bolts come out and the lid lifts off — nothing breaks, since the boards and the battery block are held with screws/cable ties.
+en: <b>The enclosure closes here:</b> from now on there is no work inside the enclosure. If something inside needs changing, the four bolts come out and the lid lifts off — nothing breaks, since the boards and the battery block are held with screws/cable ties.
 tr: Hücreler yerinde mi, son kez bak ({0}'te takılmıştı): yuvalar kapak altında kalıyor, hücre değiştirmek için kapağı açman gerekir. Şarj için gerekmez — ŞARJ yuvası dışarıda.
 en: Check one last time that the cells are in place (they were inserted in {0}): the holders are under the lid, to change a cell you have to open the lid. Not needed for charging — the «ŞARJ» slot is outside.
 tr: Kapak dört cıvatayla sıkı; elle çekince kalkmıyor.
@@ -2070,15 +2070,15 @@ en: The lid is tight with four bolts; it does not come off when pulled by hand.
 tr: Kapak ile en yüksek parça ({0} yuvası / Q1 soğutucusu) arasında boşluk var, kapak hiçbir şeye bastırmıyor.
 en: There is a gap between the lid and the tallest part ({0} holder / Q1 heatsink), the lid presses on nothing.
 tr: <span class='ano'>{0}</span> <b>Kapalı kutuda uçtan uca</b>
-en: <span class='ano'>{0}</span> <b>End to end in the closed box</b>
+en: <span class='ano'>{0}</span> <b>End to end in the closed enclosure</b>
 tr: Kapak kapalı, her şey panelden. Kutu <b>kendi pilinden</b>: PİL AÇ, USB takılı DEĞİL — okumaları WiFi panelinden al. Test kaynağı <b>tezgah beslemesi</b> (buck {0} V, {1} kuralı) → {2} Ω / {3} W → <b>YÜK {4} – YÜK {5}</b>; V jakını buck'ın artısına bağla. Kartın V ve I okuması multimetreyle <b>±%{6} / ±%{7}</b> içinde olmalı.
-en: Lid closed, everything from the panel. The box runs <b>from its own battery</b>: «PİL» ON, USB NOT plugged in — take the readings from the WiFi panel. Test source a <b>bench supply</b> (buck {0} V, rule {1}) → {2} Ω / {3} W → <b>«YÜK» {4} – «YÜK» {5}</b>; connect the V jack to the buck's positive. The board's V and I readings must be within <b>±{6}% / ±{7}%</b> of the multimeter.
+en: Lid closed, everything from the panel. The enclosure runs <b>from its own battery</b>: «PİL» ON, USB NOT plugged in — take the readings from the WiFi panel. Test source a <b>bench supply</b> (buck {0} V, rule {1}) → {2} Ω / {3} W → <b>«YÜK» {4} – «YÜK» {5}</b>; connect the V jack to the buck's positive. The board's V and I readings must be within <b>±{6}% / ±{7}%</b> of the multimeter.
 tr: CAL → SKOP kısa kabloyla: panelde kare dalga görünüyor.
 en: With the short CAL → «SKOP» lead: a square wave shows on the panel.
 tr: {0} dk sonra kutunun hiçbir yüzü elde ısı hissettirmiyor.
-en: After {0} min no face of the box feels warm to the hand.
+en: After {0} min no face of the enclosure feels warm to the hand.
 tr: <b>Pil kapasite testini gerçek bir pille sınamak istersen</b> (isteğe bağlı): kutudaki iki {0} paketin parçası, onları çıkarma — üçüncü bir hücre al.
-en: <b>If you want to try the battery capacity test with a real battery</b> (optional): the two {0} cells in the box are part of the pack, do not take them out — get a third cell.
+en: <b>If you want to try the battery capacity test with a real battery</b> (optional): the two {0} cells in the enclosure are part of the pack, do not take them out — get a third cell.
 tr: V okuması multimetreyle ±%{0} içinde.
 en: V reading within ±{0}% of the multimeter.
 tr: I okuması multimetreyle ±%{0} içinde.
@@ -2098,7 +2098,7 @@ en: Resolution
 tr: <b>V (kırmızı) + COM (siyah)</b>
 en: <b>V (red) + COM (black)</b>
 tr: Krokodil kabloyla devreye <b>paralel</b>. Menzil: <code>n</code>.
-en: With alligator-clip leads, in <b>parallel</b> with the circuit. Range: <code>n</code>.
+en: With crocodile-clip leads, in <b>parallel</b> with the circuit. Range: <code>n</code>.
 tr: <span class='kucuk'>{0} mV adım</span>
 en: <span class='kucuk'>{0} mV step</span>
 tr: <b>HV (SARI) + COM (siyah)</b>
@@ -2110,7 +2110,7 @@ en: <b>Current, ≤ {0} A continuous</b>
 tr: <b>YÜK {0} – YÜK {1}</b>
 en: <b>«YÜK» {0} – «YÜK» {1}</b>
 tr: Akım <b>eksi hattan</b> ölçülür: kaynağın + ucu yükün + ucuna <b>doğrudan</b> gider, kutuya girmez. Eksi hattı kes: yükün eksisi <b>YÜK {0}</b>, kaynağın eksisi <b>YÜK {1}</b>. Aynı anda gerilim için yalnız <b>V jakını</b> devrenin artısına bağla; <b>COM'a krokodil TAKMA</b> — COM zaten YÜK {2}'dir. COM'u devrenin eksisine (YÜK {3} tarafı) takarsan şönt baypas olur: okuma düşer, ince kablo ısınır. Sınır {4} mΩ şöntün <b>ısınması</b> (Ø{5} mm manganin, üretici {6} A; sürekli {7} A) ve şöntü tutan <b>XP128 klemensi ({8} A)</b>: kısa süreli de olsa {9} A'i GEÇME. mA hassasiyeti gerekirse {10} mΩ (R044) tak, <code>s0.015</code> + <code>Z</code>: {11} A sürekli, adım {12} mA.
-en: Current is measured <b>on the negative line</b>: the source's + goes <b>directly</b> to the load's +, it does not enter the box. Break the negative line: the load's negative to <b>«YÜK» {0}</b>, the source's negative to <b>«YÜK» {1}</b>. For voltage at the same time, connect only the <b>V jack</b> to the circuit's positive; <b>DO NOT clip anything to COM</b> — COM already is «YÜK» {2}. If you clip COM to the circuit's negative («YÜK» {3} side) the shunt is bypassed: the reading drops and the thin lead heats up. The limit is the <b>heating</b> of the {4} mΩ shunt (Ø{5} mm manganin, manufacturer {6} A; continuous {7} A) and the <b>XP128 terminal block ({8} A)</b> holding the shunt: DO NOT EXCEED {9} A, not even briefly. If you need mA resolution, fit the {10} mΩ (R044), <code>s0.015</code> + <code>Z</code>: {11} A continuous, {12} mA step.
+en: Current is measured <b>on the negative line</b>: the source's + goes <b>directly</b> to the load's +, it does not enter the enclosure. Break the negative line: the load's negative to <b>«YÜK» {0}</b>, the source's negative to <b>«YÜK» {1}</b>. For voltage at the same time, connect only the <b>V jack</b> to the circuit's positive; <b>DO NOT clip anything to COM</b> — COM already is «YÜK» {2}. If you clip COM to the circuit's negative («YÜK» {3} side) the shunt is bypassed: the reading drops and the thin lead heats up. The limit is the <b>heating</b> of the {4} mΩ shunt (Ø{5} mm manganin, manufacturer {6} A; continuous {7} A) and the <b>XP128 terminal block ({8} A)</b> holding the shunt: DO NOT EXCEED {9} A, not even briefly. If you need mA resolution, fit the {10} mΩ (R044), <code>s0.015</code> + <code>Z</code>: {11} A continuous, {12} mA step.
 tr: <span class='kucuk'>{0} mA adım</span>
 en: <span class='kucuk'>{0} mA step</span>
 tr: <b>Güç ve enerji (W, Wh)</b>
@@ -2128,11 +2128,11 @@ en: To see the waveform. Time base {0} µs – {1} ms/div. Asymmetric range: the
 tr: <span class='kucuk'>{0} kSa/s'e kadar</span>
 en: <span class='kucuk'>up to {0} kSa/s</span>
 tr: <b>Güç — kutunun kendi pili</b>
-en: <b>Power — the box's own battery</b>
+en: <b>Power — the enclosure's own battery</b>
 tr: <b>PİL AÇ (tek anahtar)</b>
 en: <b>«PİL» ON (single switch)</b>
 tr: Kutu yalnız kendi pilinden çalışır (B58: dış besleme yok). İki {0} paralel: süre ≈ {1} saat (ESP32 WiFi'de, analog açık). USB'siz kullanımda kutu tamamen yüzer: HV ölçümü için en güvenli hal. <b>Şarj:</b> PİL KAPALI, ŞARJ yuvasına tek Type-C — iki hücre birlikte dolar (≈ {2} saat). Şarj ederken ölçüm yapma: şarj kablosu COM'u şarj cihazının toprağına bağlar. <b>USB'yi PC'ye takarken PİL AÇIK olsun</b>: yükü pil taşır; kapalıyken ölçüm tarafı da PC'den beslenmeye çalışır (~{3} A).
-en: The box runs only from its own battery (B58: no external supply). Two {0} in parallel: runtime ≈ {1} hours (ESP32 on WiFi, analog on). Used without USB the box floats completely: the safest state for HV measurements. <b>Charging:</b> «PİL» OFF, a single Type-C into the «ŞARJ» slot — both cells charge together (≈ {2} hours). Do not measure while charging: the charging cable ties COM to the charger's ground. <b>Have «PİL» ON when plugging the USB into the PC</b>: the battery carries the load; when it is off, the measurement side also tries to run from the PC (~{3} A).
+en: The enclosure runs only from its own battery (B58: no external supply). Two {0} in parallel: runtime ≈ {1} hours (ESP32 on WiFi, analog on). Used without USB the enclosure floats completely: the safest state for HV measurements. <b>Charging:</b> «PİL» OFF, a single Type-C into the «ŞARJ» slot — both cells charge together (≈ {2} hours). Do not measure while charging: the charging cable ties COM to the charger's ground. <b>Have «PİL» ON when plugging the USB into the PC</b>: the battery carries the load; when it is off, the measurement side also tries to run from the PC (~{3} A).
 tr: <span class='kucuk'>{0} × {1} paralel</span>
 en: <span class='kucuk'>{0} × {1} in parallel</span>
 tr: <b>Pil kapasitesi (mAh)</b>
@@ -2144,11 +2144,11 @@ en: <b>Required:</b> V jack → battery + (COM already is battery −, no extra 
 tr: <span class='kucuk'>≤ {0} V pil</span>
 en: <span class='kucuk'>≤ {0} V battery</span>
 tr: <b>Kutu açılmıyorsa</b>
-en: <b>If the box does not power up</b>
+en: <b>If the enclosure does not power up</b>
 tr: <b>PİL anahtarı</b>
 en: <b>«PİL» switch</b>
 tr: PİL açınca kutu açılmıyorsa (ESP32 hiç açılmıyor ya da bir an yanıp sönüyor, GÜÇ lambası yanmıyor): pil azalmış — PİL'i kapat, pili <b>doldur</b> (ŞARJ, PİL kapalı), sonra yeniden aç. Açılışta kart {0} µF'sini doldururken paketten kısa bir süre {1}–{2} A çekiliyor; boşalmış pil bunu taşıyamaz. Dolu pilde de oluyorsa {3}'teki yordam ({4} × {5} Ω seri direnç).
-en: If the box does not power up when «PİL» is switched on (the ESP32 does not start at all or flashes once, the «GÜÇ» lamp does not light): the battery is low — switch «PİL» off, <b>charge</b> the battery («ŞARJ», «PİL» off), then switch it on again. At power-up, while the board charges its {0} µF, {1}–{2} A is drawn from the pack for a moment; a flat battery cannot deliver that. If it also happens with a full battery, the procedure in {3} ({4} × {5} Ω series resistor).
+en: If the enclosure does not power up when «PİL» is switched on (the ESP32 does not start at all or flashes once, the «GÜÇ» lamp does not light): the battery is low — switch «PİL» off, <b>charge</b> the battery («ŞARJ», «PİL» off), then switch it on again. At power-up, while the board charges its {0} µF, {1}–{2} A is drawn from the pack for a moment; a flat battery cannot deliver that. If it also happens with a full battery, the procedure in {3} ({4} × {5} Ω series resistor).
 tr: <span class='kucuk'>dolu pilde açılır</span>
 en: <span class='kucuk'>starts with a full battery</span>
 tr: <b>Şarj (ısıl kural)</b>
@@ -2156,7 +2156,7 @@ en: <b>Charging (thermal rule)</b>
 tr: <b>Kapak kapalı, PİL KAPALI</b>
 en: <b>Lid closed, «PİL» OFF</b>
 tr: {0}'nin <b>şarj tavanı {1} °C</b> (deşarjda {2} °C). Kutu kapalı ve havalandırmanın ısıl katkısı %{3} mertebesinde, yani içeride ne ısınırsa hücreye biner. İki kural: <b>({4}) şarj ederken ölçüm yapma</b> — kart ve ESP32 kapalıyken kutuya giren güç yarıya iniyor; <b>({5}) şarj modülünün kendisi ısınır</b> (TP4056 {6} A'de ~{7}–{8} W, arka duvarın dibinde). Sıcak bir odada (>{9} °C) kapağı açık şarj et. ⚠ Bu bir HESAP değil kural: kutu içi sıcaklık artışı ölçülmedi. İlk şarjda içeriye bir termometre koy, {10} saat sonra hücre gövdesine el sür. <b>Karar eşiği:</b> hücre gövdesi elinde <b>ılıktan sıcağa</b> geçiyorsa (yaklaşık {11} °C üstü, {12} °C tavanına yakın) kapağı açık şarj etmeye geç (ya da şarj akımını yarıya indir: Rprog {13} kΩ → {14} kΩ, {15} A); el sıcaklığında kalıyorsa kapalı şarj güvenli, bir daha ölçmeye gerek yok.
-en: The {0}'s <b>charging ceiling is {1} °C</b> ({2} °C when discharging). The box is closed and the thermal contribution of the ventilation is of the order of {3}%, so whatever heats up inside ends up on the cell. Two rules: <b>({4}) do not measure while charging</b> — with the board and the ESP32 off, the power going into the box halves; <b>({5}) the charging module itself heats up</b> (TP4056 at {6} A ~{7}–{8} W, at the bottom of the back wall). In a hot room (>{9} °C) charge with the lid open. ⚠ This is a rule, not a CALCULATION: the temperature rise inside the box has not been measured. On the first charge put a thermometer inside, touch the cell body after {10} hours. <b>Decision threshold:</b> if the cell body goes from <b>warm to hot</b> under your hand (roughly above {11} °C, close to the {12} °C ceiling), switch to charging with the lid open (or halve the charging current: Rprog {13} kΩ → {14} kΩ, {15} A); if it stays at hand temperature, charging closed is safe and there is no need to measure again.
+en: The {0}'s <b>charging ceiling is {1} °C</b> ({2} °C when discharging). The enclosure is closed and the thermal contribution of the ventilation is of the order of {3}%, so whatever heats up inside ends up on the cell. Two rules: <b>({4}) do not measure while charging</b> — with the board and the ESP32 off, the power going into the enclosure halves; <b>({5}) the charging module itself heats up</b> (TP4056 at {6} A ~{7}–{8} W, at the bottom of the back wall). In a hot room (>{9} °C) charge with the lid open. ⚠ This is a rule, not a CALCULATION: the temperature rise inside the enclosure has not been measured. On the first charge put a thermometer inside, touch the cell body after {10} hours. <b>Decision threshold:</b> if the cell body goes from <b>warm to hot</b> under your hand (roughly above {11} °C, close to the {12} °C ceiling), switch to charging with the lid open (or halve the charging current: Rprog {13} kΩ → {14} kΩ, {15} A); if it stays at hand temperature, charging closed is safe and there is no need to measure again.
 tr: <span class='kucuk'>tavan {0} °C</span>
 en: <span class='kucuk'>ceiling {0} °C</span>
 tr: Akım ve gerilim ölçümü — bağlantı
@@ -2176,7 +2176,7 @@ en: MEASUREMENT BOX
 tr: içeride: {0} mΩ şönt · COM = YÜK {1}
 en: inside: {0} mΩ shunt · COM = «YÜK» {1}
 tr: + hattı: kaynağın + → yükün + (kutuya girmez)
-en: + line: source + → load + (does not enter the box)
+en: + line: source + → load + (does not enter the enclosure)
 tr: yükün −
 en: load −
 tr: kaynağın −
@@ -2218,17 +2218,17 @@ en: The battery's + does NOT go to a jack: through the resistor to «PİL» {0},
 tr: Kart Q1 ile yükü açıp kapatır, kesme geriliminde keser. YÜK boş kalır.
 en: The board switches the load on and off with Q1 and cuts it off at the cut-off voltage. «YÜK» stays empty.
 tr: Ağırlık merkezi — kutu dengeli mi
-en: Centre of mass — is the box balanced
+en: Centre of mass — is the enclosure balanced
 tr: <b>Sonuç: kutu dengeli.</b> Ağırlık merkezi geometrik merkezden yanlara <b>+{0} mm</b>, öne-arkaya <b>-{1} mm</b> kaçıyor (kutu {2} × {3} mm). Bir taraf ağır değil: iki taban rayı yükün <b>%{4} / %{5}</b>'ünü taşıyor.
-en: <b>Result: the box is balanced.</b> The centre of mass is off the geometric centre by <b>+{0} mm</b> sideways and <b>-{1} mm</b> front-to-back (box {2} × {3} mm). No side is heavy: the two base rails carry <b>{4}% / {5}%</b> of the load.
+en: <b>Result: the enclosure is balanced.</b> The centre of mass is off the geometric centre by <b>+{0} mm</b> sideways and <b>-{1} mm</b> front-to-back (enclosure {2} × {3} mm). No side is heavy: the two base rails carry <b>{4}% / {5}%</b> of the load.
 tr: Devrilmeye pay bol: kutu her yönde <b>{0}°</b> eğilene kadar devrilmiyor (kütle tahminlerinin en kötü halinde bile {1}°). Ağırlık merkezi tabandan <b>{2} mm</b>, yani dış yüksekliğin yüzde {3}'ünde — alçak.
-en: Plenty of margin against tipping: the box does not tip over until it is tilted <b>{0}°</b> in any direction (even in the worst case of the mass estimates, {1}°). The centre of mass is <b>{2} mm</b> above the base, i.e. at {3} percent of the outer height — low.
+en: Plenty of margin against tipping: the enclosure does not tip over until it is tilted <b>{0}°</b> in any direction (even in the worst case of the mass estimates, {1}°). The centre of mass is <b>{2} mm</b> above the base, i.e. at {3} percent of the outer height — low.
 tr: Denge kendiliğinden değil, iki şeyden geliyor: kutunun kendi tahtası toplamın <b>%{0}</b>'si ve simetrik; ağır parçalar da zıt yanlarda (ana kart solda, Q1 soğutucusu ve {1}'ler sağda).
-en: The balance does not come by chance, but from two things: the box's own wood is <b>{0}%</b> of the total and symmetric; and the heavy parts are on opposite sides (the main board on the left, the Q1 heatsink and the {1}s on the right).
+en: The balance does not come by chance, but from two things: the enclosure's own wood is <b>{0}%</b> of the total and symmetric; and the heavy parts are on opposite sides (the main board on the left, the Q1 heatsink and the {1}s on the right).
 tr: <b>Hiçbiri tartılmadı</b> — sayılar hacim × yoğunluk ya da benzerinden kestirme. Bu yüzden denetim her sonucu bir de kütlelerin <i>en kötü</i> halinde hesaplıyor: her kalemi ağırlık merkezini en çok kaydıracak yönde sınırına itip tekrar bakıyor. Bir kalemi tartarsan söyle, <code>kutu_veri.KUTLE</code>'yi günceller, sayıları yeniden üretirim.
 en: <b>Nothing was weighed</b> — the numbers are estimates from volume × density or similar parts. That is why the audit also calculates every result for the <i>worst case</i> of the masses: it pushes each item to its limit in the direction that shifts the centre of mass the most and checks again. If you weigh an item, tell me: I update <code>kutu_veri.KUTLE</code> and regenerate the numbers.
 tr: Ölçüt neydi: her ray yükün en az %{0}'ini taşısın (kötü halde %{1}), ağırlık merkezi derinlikte orta bölgede kalsın, devrilme açısı her yönde ≥ {2}°, ağırlık merkezi kutunun yarı yüksekliğinin altında.
-en: What the criteria were: each rail carries at least {0}% of the load ({1}% in the worst case), the centre of mass stays in the middle zone in depth, the tipping angle is ≥ {2}° in every direction, the centre of mass is below half the box's height.
+en: What the criteria were: each rail carries at least {0}% of the load ({1}% in the worst case), the centre of mass stays in the middle zone in depth, the tipping angle is ≥ {2}° in every direction, the centre of mass is below half the enclosure's height.
 tr: Destek açıklığı ve ağırlık merkezi
 en: Support span and centre of mass
 tr: Ağırlık merkezi
@@ -2238,7 +2238,7 @@ en: cable bundle {0} g
 tr: Kuşbakışı — ağırlık merkezi, iki hücre ({0} g)
 en: Top view — centre of mass, two cells ({0} g)
 tr: sarı = kutunun üzerinde durduğu iki taban rayı (destek açıklığı) · kesikli daire = geometrik merkez · kırmızı = ağırlık merkezi
-en: yellow = the two base rails the box stands on (support span) · dashed circle = geometric centre · red = centre of mass
+en: yellow = the two base rails the enclosure stands on (support span) · dashed circle = geometric centre · red = centre of mass
 tr: üst kenar = ARKA duvar (pil bloğu) · alt kenar = ÖN panel (jaklar)
 en: top edge = BACK wall (battery block) · bottom edge = FRONT panel (jacks)
 tr: Yapılandırmaya göre
@@ -2268,7 +2268,7 @@ en: Where the mass goes
 tr: Kütle
 en: Mass
 tr: kutunun tahtası
-en: the box's wood
+en: the enclosure's wood
 tr: pil bloğu (hücreler dahil)
 en: battery block (cells included)
 tr: kartlar ve güç parçaları
@@ -2316,19 +2316,19 @@ en: estimate: {0} mm banana jack, large, brass body + nut
 tr: <b>jak_küçük</b>
 en: <b>small jack</b>
 tr: tahmin: {0} mm vidalı banana soket
-en: estimate: {0} mm screw banana socket
+en: estimate: {0} mm screw banana jack
 tr: <b>anahtar</b>
 en: <b>switch</b>
 tr: tahmin: KTS102 toggle + somun
 en: estimate: KTS102 toggle + nut
 tr: tahmin: 5x20 PCB klipsli sigorta yuvası + cam sigorta (B58e: kutu içi)
-en: estimate: 5x20 PCB-clip fuse holder + glass fuse (B58e: inside the box)
+en: estimate: 5x20 PCB-clip fuse holder + glass fuse (B58e: inside the enclosure)
 tr: tahmin: {0} mm LED + seri direnç + makaron + kısa tel
 en: estimate: {0} mm LED + series resistor + heat-shrink + short wire
 tr: tahmin: kutu içi kablo demeti + kablo bağları + makaron
-en: estimate: cable bundle inside the box + cable ties + heat-shrink
+en: estimate: cable bundle inside the enclosure + cable ties + heat-shrink
 tr: Çubuk yoğunluğu {0} g/cm³ varsayıldı → bir çubuk {1} g. <b>{2} çubuğu tartıp söyle</b> (÷{3}): kutunun tahtası toplamın en büyük parçası, en çok bu sayı önemli.
-en: Stick density assumed {0} g/cm³ → one stick {1} g. <b>Weigh {2} sticks and tell me</b> (÷{3}): the box's wood is the largest part of the total, this number matters most.
+en: Stick density assumed {0} g/cm³ → one stick {1} g. <b>Weigh {2} sticks and tell me</b> (÷{3}): the enclosure's wood is the largest part of the total, this number matters most.
 tr: Kutu arayüzü — 3D baskı / başka kap için
 en: Enclosure interface — for 3D printing / another enclosure
 tr: İleride 3D baskı ya da başka bir kaba geçersen ihtiyacın olan her sayı burada; aynı veri JSON olarak da gömülü (<code>&lt;script id='kutu-arayuz'&gt;</code>). Panel x'leri iç sol köşeden, önden bakınca — arka panel için de aynı eksen.
@@ -2354,7 +2354,7 @@ en: Insulating coating (nail varnish / conformal coating)
 tr: <b>B</b> — Kart B'nin İKİ YÜZÜ de — zincirin tamamı bu kartta
 en: <b>B</b> — BOTH FACES of board B — the whole divider chain is on this board
 tr: {0}'ten ÖNCE (kart kutuya girmeden, elde kolay)
-en: BEFORE {0} (before the board goes into the box, easy to handle)
+en: BEFORE {0} (before the board goes into the enclosure, easy to handle)
 tr: {0} × 820K seri zincir {1} → {2} V basamaklarıyla bu kartta; komşu pedler arası kaçak hem emniyet hem ORAN hatası. Lehim yüzü öncelikli: kaçak yolu orada. Kartın süreklilik/direnç ölçümleri geçmiş olmalı; kaplanmış pede prob değmez.
 en: The {0} × 820K series chain with its {1} → {2} V steps is on this board; leakage between neighbouring pads is both a safety issue and a RATIO error. The solder side comes first: that is where the leakage path is. The board's continuity/resistance checks must have passed; a probe does not contact a coated pad.
 tr: <b>B</b> — T_HV ve T_N6 tellerinin lehim noktaları + telin ilk {0} mm'si
@@ -2380,7 +2380,7 @@ en: The varnish cracks when the wire moves. There, heat-shrink or insulating tap
 tr: <b>Ölçüm noktaları ve test pedleri</b>
 en: <b>Measuring points and test pads</b>
 tr: Kaplanmış pede prob değmez; kapı ölçümleri önce.
-en: A probe does not contact a coated pad; do the gate measurements first.
+en: A probe does not contact a coated pad; do the GATE measurements first.
 tr: {0}–{1} <b>ince</b> kat, her kat kurusun (tek kalın kat çözücüyü içeride hapseder). Kaplama <b>yüzey kaçağını</b> keser, havadan atlamayı kesmez — mesafe yerine geçmez. Asıl kazanç doğrulukta: HV bölücüsü {2} MΩ olduğu için yüzey kaçağı orana paralel girer ({3} MΩ kirli yüzey ≈ %{4} okuma hatası). Sökmek gerekirse aseton çıkarır, ama aseton bazı plastiklere de saldırır.
 en: {0}–{1} <b>thin</b> coats, letting each coat dry (one thick coat traps the solvent inside). The coating stops <b>surface leakage</b>, not arcing through air — it does not replace distance. The real gain is accuracy: since the HV divider is {2} MΩ, surface leakage goes in parallel with the ratio ({3} MΩ of dirty surface ≈ {4}% reading error). If it has to come off, acetone removes it, but acetone also attacks some plastics.
 tr: Dar açıklıklar (&lt; {0} mm, iletken taraflı)
@@ -2392,7 +2392,7 @@ en: Pair
 tr: Sorun mu, ne yapmalı
 en: Is it a problem, what to do
 tr: {0} mm — devkit'in gövdesi kart B'nin ahşap ayağına değebilir; yalıtkan, yerinde ayarlanır. Anten bu uçta ama ✅ KAPANDI (kullanıcı kararı {1}-{2}-{3}): dahili anten kartın kendi kalınlığında küçük bir çıkıntı, yanındaki ahşap blok sorun değil. Ahşap {4} GHz'de düşük kayıplı ve kutunun tamamı zaten ahşap.
-en: {0} mm — the devkit's body can touch board B's wooden foot; it is an insulator, adjusted in place. The antenna is at this end, but ✅ CLOSED (user decision {1}-{2}-{3}): the internal antenna is a small tab the thickness of the board itself, the wooden block next to it is not a problem. Wood has low loss at {4} GHz and the whole box is wood anyway.
+en: {0} mm — the devkit's body can touch board B's wooden foot; it is an insulator, adjusted in place. The antenna is at this end, but ✅ CLOSED (user decision {1}-{2}-{3}): the internal antenna is a small tab the thickness of the board itself, the wooden block next to it is not a problem. Wood has low loss at {4} GHz and the whole enclosure is wood anyway.
 tr: B ↔ HV ankraj bloğu
 en: B ↔ HV anchor block
 tr: {0} mm — kart B ölçülünce {1}×{2} çıktı (model {3} delik alanıydı), ankraja {4}'dan {5}'e indi. Ankraj bilerek kartın önünde: HV kablosu çekilince D8 lehimi değil kablo bağı direniyor. Ahşap, iletken değil.
@@ -2416,7 +2416,7 @@ en: {0} mm — board A's wooden foot comes close to the devkit body; an insulato
 tr: Gerçek 3B boşluk (Öklid), parçanın kendi taşıyıcısı hariç. Liste <b>kilitli</b>: yeni bir iletken taraflı çift {0} mm'nin altına inerse denetim kırmızıya döner. Ayrıca <b>{1} ahşap–ahşap çift</b> {2} mm'nin altında — bunlar tek tek yazılmıyor, bıçakla yerinde ayarlanıyor; denetim yalnız çakışmadıklarına bakıyor.
 en: Real 3D clearance (Euclidean), excluding the part's own carrier. The list is <b>locked</b>: if a new pair with a conductive side goes below {0} mm, the audit turns red. In addition <b>{1} wood–wood pairs</b> are below {2} mm — they are not listed one by one, they are trimmed in place with a knife; the audit only checks that they do not collide.
 tr: Bu sayfa <code>uretim/kutu.py</code> tarafından, denetim geçtikten sonra üretildi. Kutu ölçüleri ve adımlar <code>kutu_veri.py</code>'den, kablolar <code>yerlesim3_veri.KABLOLAR</code>'dan, KAPI metinleri <code>yerlesim3_belge.KAPI</code>'dan, menziller <code>tasarim3_sabit</code>'ten; çizimler, tablolar ve 3B sahne aynı sayılardan üretiliyor.
-en: This page was generated by <code>uretim/kutu.py</code> after the audit passed. Box dimensions and steps come from <code>kutu_veri.py</code>, cables from <code>yerlesim3_veri.KABLOLAR</code>, GATE texts from <code>yerlesim3_belge.KAPI</code>, ranges from <code>tasarim3_sabit</code>; the drawings, tables and 3D scene are generated from the same numbers. The English text is translated from the Turkish page (the master) through <code>uretim/kutu_en.py</code>.
+en: This page was generated by <code>uretim/kutu.py</code> after the audit passed. Enclosure dimensions and steps come from <code>kutu_veri.py</code>, cables from <code>yerlesim3_veri.KABLOLAR</code>, GATE texts from <code>yerlesim3_belge.KAPI</code>, ranges from <code>tasarim3_sabit</code>; the drawings, tables and 3D scene are generated from the same numbers. The English text is translated from the Turkish page (the master) through <code>uretim/kutu_en.py</code>.
 tr: Çubuğunu ve parçaları ölç
 en: Measure your sticks and parts
 tr: Ölçü ve kesim
@@ -2446,7 +2446,7 @@ en: Measure, cut the rest
 tr: İç kat — dikey çubuklar
 en: Inner layer — vertical sticks
 tr: Kapak cıvata deliklerini aç (kutu boşken)
-en: Drill the lid bolt holes (while the box is empty)
+en: Drill the lid bolt holes (while the enclosure is empty)
 tr: Köşe direkleri
 en: Corner posts
 tr: İç katı deliklerden geçerek del
@@ -2472,7 +2472,7 @@ en: Solder the shunt harness at the bench
 tr: Q1 demeti ve soğutucu
 en: Q1 harness and heatsink
 tr: Şönt ve Q1'i kutuya al
-en: Bring the shunt and Q1 into the box
+en: Bring the shunt and Q1 into the enclosure
 tr: Yük yolunu bağla
 en: Connect the load path
 tr: Güç yolu — YÜK jakları, şönt, Kelvin
@@ -2502,29 +2502,29 @@ en: Wire the battery pack (two cells in parallel)
 tr: Analog beslemeyi kablola: {0} V → F0 → B0505S → MT2 → klemens → kart
 en: Wire the analog supply: {0} V → F0 → B0505S → MT2 → terminal block → board
 tr: Kutuda ilk enerji — pilden
-en: First power-up in the box — from the battery
+en: First power-up in the enclosure — from the battery
 tr: Şarj kuralı ve etiket
 en: Charging rule and label
 tr: J5 kablosu ve entegreler
 en: J5 cable and ICs
 tr: ESP32 ve ilk iki kapı
-en: ESP32 and the first two gates
+en: ESP32 and the first two GATEs
 tr: Vref ve I²C kapıları
-en: Vref and I²C gates
+en: Vref and I²C GATEs
 tr: Kalibrasyon ve kalan kapılar
-en: Calibration and the remaining gates
+en: Calibration and the remaining GATEs
 tr: Kapı {0} — akım (iki aşamalı)
-en: Gate {0} — current (two stages)
+en: GATE {0} — current (two stages)
 tr: Kapı {0} — NORMAL gerilim
-en: Gate {0} — NORMAL voltage
+en: GATE {0} — NORMAL voltage
 tr: Kapı {0} — YÜKSEK gerilim
-en: Gate {0} — HIGH voltage
+en: GATE {0} — HIGH voltage
 tr: Kapı {0} — osiloskop
-en: Gate {0} — oscilloscope
+en: GATE {0} — oscilloscope
 tr: Kapı {0} — hızlı akım yolu
-en: Gate {0} — fast current path
+en: GATE {0} — fast current path
 tr: Kapı {0} — pil testi
-en: Gate {0} — battery test
+en: GATE {0} — battery test
 tr: Kapağı yap
 en: Make the lid
 tr: Kapak — yap, del, dene (henüz kapatma)
@@ -2538,7 +2538,7 @@ en: Close and final check
 tr: Kapağı tak ve cıvatala
 en: Fit the lid and bolt it down
 tr: Kapalı kutuda uçtan uca
-en: End to end in the closed box
+en: End to end in the closed enclosure
 tr: A-ayak1 — A için
 en: A-foot1 — for A
 tr: ayak bloğu · gömme M3 somunlu
@@ -2618,7 +2618,7 @@ en: corner bracket
 tr: Köşebent parçası — Q1 ({0} kat) — {1} mm × {2}
 en: Corner bracket piece — Q1 ({0} layers) — {1} mm × {2}
 tr: {0} · Şönt ve Q1'i kutuya al
-en: {0} · Bring the shunt and Q1 into the box
+en: {0} · Bring the shunt and Q1 into the enclosure
 tr: RS-altlık1a — RS için
 en: RS-spacer1a — for RS
 tr: Altlık — RS — {0} mm × {1}
@@ -2684,7 +2684,7 @@ en: Lid row — long piece — {0} mm × {1}
 tr: Taban rayı — sağ ray, kısa parça
 en: Base rail — right rail, short piece
 tr: Tabanın altına, sıralara dik; kutu bu iki rayın üstünde durur.
-en: Under the base, across the rows; the box stands on these two rails.
+en: Under the base, across the rows; the enclosure stands on these two rails.
 tr: Taban rayı — kısa parça — {0} mm × {1}
 en: Base rail — short piece — {0} mm × {1}
 tr: {0} · Alttan raylarla bağla
@@ -2780,7 +2780,7 @@ en: CAL square-wave output (ESP32 GPIO10, with series resistor)
 tr: born jak · ön duvar
 en: banana jack · front wall
 tr: Kartın test sinyali (X ile açılır) kapak KAPALIYKEN de dışarıdan alınsın diye: skop kapısı ({0}) ve kapalı-kutu testi ({1}) CAL → SKOP kısa patch kablosuyla yapılır. GPIO10 J5'te yok; devkit'ten tek dişi jumper + {2} …
-en: So that the board's test signal (switched on with X) can be taken from outside even with the lid CLOSED: the scope gate ({0}) and the closed-box test ({1}) are done with a short CAL → «SKOP» patch lead. GPIO10 is not on J5; a single female jumper from the devkit + {2} …
+en: So that the board's test signal (switched on with X) can be taken from outside even with the lid CLOSED: the scope GATE ({0}) and the closed-enclosure test ({1}) are done with a short CAL → «SKOP» patch lead. GPIO10 is not on J5; a single female jumper from the devkit + {2} …
 tr: Panelde yazan
 en: Printed on the panel
 tr: CAL (→ SKOP'a kısa kablo)
@@ -2836,7 +2836,7 @@ en: At the right edge, in the middle row: COM · V · HV — the measuring probe
 tr: YÜK {0} — devrenin eksisi
 en: «YÜK» {0} — the circuit's negative
 tr: Akım buradan girer: ölçülen yükün EKSİ ucu. Yükün + ucu kutuya gelmez, doğrudan kaynağın +'sına.
-en: The current enters here: the NEGATIVE end of the load being measured. The load's + does not come to the box, it goes straight to the source's +.
+en: The current enters here: the NEGATIVE end of the load being measured. The load's + does not come to the enclosure, it goes straight to the source's +.
 tr: YÜK {0} (yükün −)
 en: «YÜK» {0} (load −)
 tr: YÜK {0} — kaynağın eksisi
@@ -2880,11 +2880,11 @@ en: «ŞARJ» (with «PİL» off)
 tr: {0} × {1} mm oval
 en: {0} × {1} mm oval
 tr: PİL anahtarı (kutunun tek AÇ/KAPA'sı)
-en: «PİL» switch (the box's only ON/OFF)
+en: «PİL» switch (the enclosure's only on/off switch)
 tr: anahtar / panel parçası · ön duvar
 en: switch / panel part · front wall
 tr: KTS102: paket (TP4056 OUT+) → MT1. Açınca ESP32 ve ölçüm tarafı (±{0} V) birlikte açılır; kapalıyken kutu tamamen enerjisiz ve MT1 hiç çekmez. Şarj ederken KAPALI; USB'yi PC'ye takarken AÇIK (yükü pil taşır). Sol üstte, …
-en: KTS102: pack (TP4056 OUT+) → MT1. Switched on, the ESP32 and the measurement side (±{0} V) come on together; switched off, the box is completely unpowered and MT1 draws nothing. OFF while charging; ON when plugging the USB into the PC (the battery carries the load). Top left, …
+en: KTS102: pack (TP4056 OUT+) → MT1. Switched on, the ESP32 and the measurement side (±{0} V) come on together; switched off, the enclosure is completely unpowered and MT1 draws nothing. OFF while charging; ON when plugging the USB into the PC (the battery carries the load). Top left, …
 tr: AÇ / KAPA (PİL)
 en: «AÇ / KAPA» («PİL»)
 tr: ESP32 USB yuvası
@@ -2896,7 +2896,7 @@ en: USB (⚡ unplug when measuring HV)
 tr: Köşe direği D1
 en: Corner post D1
 tr: kutu iskeleti · lamine çubuk
-en: box frame · laminated sticks
+en: enclosure frame · laminated sticks
 tr: Yükseklik
 en: Height
 tr: {0} × {1} mm ({2} çubuk üst üste)
@@ -2916,7 +2916,7 @@ en: cut list row
 tr: Ana kart ({0}×{1} delikli plaket, {2}×{3} kesilmiş)
 en: Main board ({0}×{1} perfboard, cut to {2}×{3})
 tr: kart / güç parçası · kutunun tabanında
-en: board / power part · on the box floor
+en: board / power part · on the enclosure floor
 tr: Dört köşede ahşap ayak bloğu (gömme M3 somunlu); plaket M3x10 vidayla ayaklara. YAPIŞTIRILMAZ — vidayı sök, kart çıkar. Telli kenarı (A–C sütunları) ÖN panele baksın.
 en: A wooden foot block in each of the four corners (with embedded M3 nut); the perfboard is screwed to the feet with M3x10 screws. NOT GLUED — take out the screws, the board comes out. The wired edge (columns A–C) faces the FRONT panel.
 tr: {0} mm (ayak / altlık üstünde)
@@ -2932,7 +2932,7 @@ en: {0} × foot, {1} layers
 tr: HV zinciri kartı ({0}×{1} cm)
 en: HV chain board ({0}×{1} cm)
 tr: İki ahşap ayak (gömme somunlu) + M3 vida. YÖN ÖNEMLİ: A1 köşesi (ön-sol) kutunun o köşesine baksın. Bu yönde {0} V'luk düğüm kutudaki her iletkenden en uzak ve HV kablosu ({1} mm) en kısa. Sökülebilir.
-en: Two wooden feet (with embedded nuts) + M3 screws. ORIENTATION MATTERS: the A1 corner (front-left) faces that corner of the box. In this orientation the {0} V node is furthest from every conductor in the box and the HV cable ({1} mm) is the shortest. Removable.
+en: Two wooden feet (with embedded nuts) + M3 screws. ORIENTATION MATTERS: the A1 corner (front-left) faces that corner of the enclosure. In this orientation the {0} V node is furthest from every conductor in the enclosure and the HV cable ({1} mm) is the shortest. Removable.
 tr: ESP32-S3 devkit
 en: ESP32-S3 devkit
 tr: Pinler yukarı, USB soketi ARKA duvara {0} mm. Altlık dört parça: iki sıra, her sıra ortadan bölük — aradaki {1} mm kanal kablo bağının geçtiği yer. Altlığın üstünde kızak: iki yanda dik raylar, anten ucunda anten …
@@ -3064,7 +3064,7 @@ en: {0} V → devkit 5V/VIN pin (Y-splice with the 5V wire of the J5 cable) · E
 tr: Kablo {0}: MT1 OUT+ → F0 klips {1}
 en: Cable {0}: MT1 OUT+ → F0 clip {1}
 tr: {0} V barası → F0 (kutu içi sigorta, {1} A) · Uç yerleri ±{2} mm tahmin; MT3608'de ped adı modülün üstünde yazılı (IN+ / IN− / OUT+ / OUT−).
-en: {0} V bus → F0 (fuse inside the box, {1} A) · End positions ±{2} mm estimate; on the MT3608 the pad names are printed on the module (IN+ / IN− / OUT+ / OUT−).
+en: {0} V bus → F0 (fuse inside the enclosure, {1} A) · End positions ±{2} mm estimate; on the MT3608 the pad names are printed on the module (IN+ / IN− / OUT+ / OUT−).
 tr: Kablo {0}: MT1 OUT− → ESP32 GND pini (ikinci)
 en: Cable {0}: MT1 OUT− → ESP32 GND pin (the second one)
 tr: = kart GND (ESP32 üzerinden). Paket eksisi bu düğümde. · Uç yerleri ±{0} mm tahmin; MT3608'de ped adı modülün üstünde yazılı (IN+ / IN− / OUT+ / OUT−).
@@ -3102,7 +3102,7 @@ en: M3x12 + nut + washer
 tr: Ø{0} mm, yan duvardan kapak rayına
 en: Ø{0} mm, through the side wall into the lid rail
 tr: {0} · Kapak cıvata deliklerini aç (kutu boşken)
-en: {0} · Drill the lid bolt holes (while the box is empty)
+en: {0} · Drill the lid bolt holes (while the enclosure is empty)
 tr: {0} · Kapağı tak ve cıvatala
 en: {0} · Fit the lid and bolt it down
 tr: Taban sırası {0}
@@ -3222,9 +3222,9 @@ en: Lid rail
 tr: Kayıt
 en: Record
 tr: <span class='kotu'>kayıtta yok</span>
-en: <span class='kotu'>not in inventory</span>
+en: <span class='kotu'>not in the stock records</span>
 tr: kayıtta yok
-en: not in inventory
+en: not in the stock records
 # tablo basliklari ve tek kelimelik etiketler
 tr: Delik
 en: Hole
