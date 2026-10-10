@@ -74,6 +74,7 @@
 
 #include "olcum3.h"
 #include "skop_olc.h"   // SkopOlcum, skop_olc (olcum2.h kopyasi)
+#include "skop_suz.h"   // SK1: on suzgec (medyan-3 + kutu ortalamasi) + hiz plani, platformsuz
 #include "tipler3.h"
 #include "pil_test.h"
 #include "web_satir.h"  // B22.4 — satir bolucu (AVR'de sinaniyor)
@@ -815,6 +816,12 @@ Okuma3 olcum_al() {
 // Artık gerçek osiloskoplardaki gibi saniye/bölme seçiliyor.
 static const uint32_t SKOP_HZ_AZAMI   = 83333;  // SOC_ADC_SAMPLE_FREQ_THRES_HIGH
 static const uint32_t SKOP_HZ_ASGARI  = 611;    // SOC_ADC_SAMPLE_FREQ_THRES_LOW
+/* SK1: surekli ADC'nin ornekleme saati (S3: APB 80 MHz / (15 + 1) / 2). Surucu ornekleme
+   araligini TAMSAYI kurar: hiz = saat / N. En kucuk N = 30 -> SKOP_HZ_AZAMI. */
+static const uint32_t SKOP_ADC_SAAT_HZ       = 2500000;
+static const uint16_t SKOP_ADC_ARALIK_ASGARI = 30;
+static_assert(SKOP_ADC_SAAT_HZ / SKOP_ADC_ARALIK_ASGARI == SOC_ADC_SAMPLE_FREQ_THRES_HIGH,
+              "SK1: ADC saati / en kucuk aralik = SOC ust ornekleme hizi olmali");
 static const uint16_t SKOP_AZAMI_ADET = 4000;   // 2 x 8 kB — CA-4: PSRAM'de (skop_tampon_ayir)
 // SKOP_TAVAN artik olcum2.h icinde: SKOP_ADC_TAVAN / SKOP_VOLT_ADIM
 static const uint8_t  SKOP_KANAL      = 3;      // GPIO4 = ADC1_CH3
@@ -854,9 +861,14 @@ struct SkopAyar {
        1'e alir. Ayrica ayni firmware'de iki kip A/B'lenebiliyor
        (tezgah_blokaj.py --onay). */
     uint8_t  onay;        // 1 ya da 2
+    /* 🔶 SK1 — ON SUZGEC (skop_suz.h). 1 = ADC ust hiza yakin kosar, her cikis ornegi
+       medyan-3'ten gecmis k ham ornegin ortalamasi (tek ornek igneler silinir, yavas
+       tabanda gurultu duser). 0 = HAM: eski yol aynen (ADC cikis hizinda, suzgec yok).
+       Ayarlanabilir: ayni firmware'de A/B (tezgah_skop_sinyal.py) ve 'ham gormek istiyorum'. */
+    uint8_t  suzgec;      // 0 ham · 1 suzgecli (varsayilan)
 };
 
-static SkopAyar skop_ayar = { 5, 2048, 0, 40, 25, SKOP_KIP_OTO, 2 };
+static SkopAyar skop_ayar = { 5, 2048, 0, 40, 25, SKOP_KIP_OTO, 2, 1 };
 
 static adc_continuous_handle_t skop_kulp = NULL;
 
@@ -1188,7 +1200,23 @@ static uint8_t skop_yakala()
     if (!skop_veri || !skop_gecici) return SKOP_SONUC_HATA;   /* CA-4: tampon ayrilamadi */
     if (skop_kilidi && xSemaphoreTake(skop_kilidi, 0) != pdTRUE)
         return SKOP_SONUC_KILIT;          /* /skop.bin okunuyor */
-    if (!skop_hiz_ayarla(hz)) { skop_kilidi_birak(); return SKOP_SONUC_HATA; }
+    /* 🔶 SK1 — ON SUZGEC. Kartta olculdu (2026-10-10): izdeki igneler HEP tek ornek (64-138 kod);
+       Arduino'nun 1000 Hz / 5 V karesinde frekans 20 yakalamanin 11'inde dogruydu, Vpp 9.2 V.
+       ADC ust hiza yakin kosar (plan N'yi kendisi secer: surucu hizi TAMSAYI aralikla kurar),
+       her cikis ornegi medyan-3'ten gecmis k ham ornegin ortalamasi. Asagidaki halka ve tetik
+       mantigi CIKIS orneklerini gorur — degismedi. `hz` artik GERCEK cikis hizi (basliga,
+       olcume ve zaman asimina o gider). suzgec = 0: k = 1, suzgec yok, hiz nominal (eski yol). */
+    const bool suz = (skop_ayar.suzgec != 0u);
+    SkopSuz suz_d;
+    uint32_t hz_adc = hz;
+    skop_suz_kur(&suz_d, 1u);
+    if (suz) {
+        const SkopSuzPlan pl = skop_suz_plan(hz, SKOP_ADC_SAAT_HZ, SKOP_ADC_ARALIK_ASGARI);
+        skop_suz_kur(&suz_d, pl.k);
+        hz_adc = pl.hz_adc;
+        hz = pl.hz_gercek;
+    }
+    if (!skop_hiz_ayarla(hz_adc)) { skop_kilidi_birak(); return SKOP_SONUC_HATA; }
     if (adc_baslat() != ESP_OK) { skop_kilidi_birak(); return SKOP_SONUC_HATA; }
 
     uint16_t on = (uint16_t)((uint32_t)n * skop_ayar.on_yuzde / 100u);
@@ -1250,6 +1278,8 @@ static uint8_t skop_yakala()
             adc_digi_output_data_t *o = (adc_digi_output_data_t *)&cerceve[b];
             if (o->type2.channel != SKOP_KANAL) continue;
             uint16_t v = o->type2.data;
+            /* SK1: cikis ornegi hazir degilse halkaya ve tetige HICBIR SEY gitmez */
+            if (suz && !skop_suz_besle(&suz_d, v, &v)) continue;
 
             skop_veri[w] = v;
             w = (uint16_t)((w + 1u) % n);
@@ -1771,7 +1801,8 @@ void skop_ayar_yaz()
     Serial.print(F(" hist="));   Serial.print(skop_ayar.histerezis);
     Serial.print(F(" on="));     Serial.print(skop_ayar.on_yuzde);
     Serial.print(F("% kip="));   Serial.print(skop_ayar.kip);
-    Serial.print(F(" onay="));   Serial.println(skop_ayar.onay);   /* B47 */
+    Serial.print(F(" onay="));   Serial.print(skop_ayar.onay);     /* B47 */
+    Serial.print(F(" suz="));    Serial.println(skop_ayar.suzgec); /* SK1 */
 }
 
 
@@ -1948,8 +1979,12 @@ void skop_komut(const char *s) {
         int v = atoi(s + 2);
         if (v == 1 || v == 2) { skop_ayar.onay = (uint8_t)v; skop_ayar_yaz(); }
         else Serial.println(F("! onay 1=tek ornek 2=iki ornek (gurultu reddi)"));
+      } else if (alt == 'f') {                    /* SK1: on suzgec */
+        int v = atoi(s + 2);
+        if ((v == 0 || v == 1) && s[2] != 0) { skop_ayar.suzgec = (uint8_t)v; skop_ayar_yaz(); }
+        else Serial.println(F("! suzgec 0=ham 1=suzgecli (medyan-3 + ortalama)"));
       } else {
-        Serial.println(F("! skop: t ta tb tl te th tp tm tn t? t+ t-"));
+        Serial.println(F("! skop: t ta tb tl te th tp tm tn tf t? t+ t-"));
       }
 }
 
@@ -4732,11 +4767,30 @@ void komut_sayfa() {
 // Dort kalibrasyon komutu da (z, g, Z, i) bunu kullaniyor — yani
 // sifir ve kazanc kalibrasyonlari tek bir gurultulu ornekle
 // yapiliyordu. Duzeltme: her turda donusumu KENDIMIZ baslatiyoruz.
-static int16_t ortalama_oku(uint8_t adres, uint8_t kez) {
+//
+// KALIB-ORT (2026-10-09, kartta V-COM kisa, 60 s): 0.2 s ortalamalarin
+// std'si 9.28 mV, 1 s'de 4.1, 5 s'de 1.7 mV. 16 okumalik (~33 ms) sifir
+// +-15 mV sasiyordu; duzeltilecek kayma -27 mV idi — "Gerilimi sifirla"
+// sansa kalmisti. 1536 okuma x ~2.05 ms = ~3.2 s: +-2.3 mV. Cekirdek 1 bu
+// sure OLCMEZ (D satiri yok): panelin 'kart yok' esigi 5 s, pil testinde
+// reddedilir (kalib_pil_engeli). Sayac ve `kez` uint16_t: uint8_t sayac
+// 255'ten 0'a doner, `i < 1536` hic bitmez — cekirdek 1 kilitlenirdi.
+// Sonuc YUVARLANIR (tamsayi bolmesi sifira dogru keser).
+#define KALIB_ORNEK 1536
+
+/* KALIB-ORT: kalibrasyon ortalamasi ~3 s cekirdek 1'i tutar. Pil testi
+   surerken olcum dongusu durmasin (EMA kesme, kayit) — guv_isle'nin PBKDF2
+   kurali gibi. Dort kalibrasyon komutu (z g Z i) once bunu sorar. */
+static bool kalib_pil_engeli() {
+  if (!pil_testi_suruyor()) return false;
+  Serial.println(F("! kalibrasyon: pil testi suruyor — once testi durdurun"));
+  return true;
+}
+static int16_t ortalama_oku(uint8_t adres, uint16_t kez) {
   int32_t t = 0;
   uint16_t mux = (adres == ADS_GERILIM) ? etkin_mux() : MUX_01;
   float   pga = (adres == ADS_GERILIM) ? etkin_kanal()->pga : ayar.i_pga;
-  for (uint8_t i = 0; i < kez; i++) {
+  for (uint16_t i = 0; i < kez; i++) {
     ads_tek_atis_baslat(adres, mux, pga);
     // RDY yalnizca AKIM cipinde telli; GERILIM cipinde bekleyecek
     // pin yok, donusum suresi kadar bekliyoruz (1/860 s + pay).
@@ -4747,7 +4801,8 @@ static int16_t ortalama_oku(uint8_t adres, uint8_t kez) {
     }
     t += ads_oku(adres);
   }
-  return (int16_t)(t / (int32_t)kez);
+  const int32_t n = (int32_t)kez, yarim = (int32_t)kez / 2;
+  return (int16_t)(t >= 0 ? (t + yarim) / n : -((-t + yarim) / n));
 }
 
 void ayar_yaz_seri() {
@@ -5156,7 +5211,8 @@ void komut_calistir(const char *s) {
 
     // --- gerilim SIFIR kalibrasyonu
     case 'z': {
-      int16_t ham = ortalama_oku(ADS_GERILIM, 16);
+      if (kalib_pil_engeli()) break;   /* KALIB-ORT: ~3 s olcmez */
+      int16_t ham = ortalama_oku(ADS_GERILIM, KALIB_ORNEK);
       kalibre_sifir(ham, etkin_kanal());
       ayar_kaydet();
       Serial.print(F("* gerilim sifiri ("));
@@ -5168,6 +5224,7 @@ void komut_calistir(const char *s) {
 
     // --- gerilim KAZANC kalibrasyonu
     case 'g': {
+      if (kalib_pil_engeli()) break;   /* KALIB-ORT: ~3 s olcmez */
       /* 🔴 B22.1 — K3. Eskiden `atof(s + 1)` idi ve `atof("")` = 0.0
          donuyordu. Ciplak `g` gonderilince kalibre_kazanc(ham, 0.0f, k)
          cagriliyor, `kazanc *= 0/s` ile kazanc SIFIRLANIYOR ve
@@ -5184,7 +5241,7 @@ void komut_calistir(const char *s) {
         Serial.println(F("! g: sifir gecerli bir kalibrasyon degeri degil"));
         break;
       }
-      int16_t ham = ortalama_oku(ADS_GERILIM, 16);
+      int16_t ham = ortalama_oku(ADS_GERILIM, KALIB_ORNEK);
       float once = olc_gerilim3(ham, etkin_kanal());
       kalibre_kazanc(ham, gercek, etkin_kanal());
       float sonra = olc_gerilim3(ham, etkin_kanal());
@@ -5221,7 +5278,8 @@ void komut_calistir(const char *s) {
 
     // --- akim sifiri
     case 'Z': {
-      ayar.i_ofset = ortalama_oku(ADS_AKIM, 32);
+      if (kalib_pil_engeli()) break;   /* KALIB-ORT: ~3 s olcmez */
+      ayar.i_ofset = ortalama_oku(ADS_AKIM, KALIB_ORNEK);
       ayar_kaydet();
       Serial.print(F("* akim sifiri ham="));
       Serial.println(ayar.i_ofset);
@@ -5229,6 +5287,7 @@ void komut_calistir(const char *s) {
     }
 
     case 'i': {
+      if (kalib_pil_engeli()) break;   /* KALIB-ORT: ~3 s olcmez */
       /* 🔴 B22.1 — K3, `g` ile ayni kusur: ciplak `i` -> atof("") = 0 ->
          `i_duzeltme *= 0/olculen` -> 0 -> NVS. Sonra olc_akim3 hep 0
          dondugu icin |olculen| > esik bir daha saglanmaz. */
@@ -5242,7 +5301,7 @@ void komut_calistir(const char *s) {
         Serial.println(F("! i: sifir gecerli bir kalibrasyon degeri degil"));
         break;
       }
-      int16_t ham = ortalama_oku(ADS_AKIM, 16);
+      int16_t ham = ortalama_oku(ADS_AKIM, KALIB_ORNEK);
       float olculen = olc_akim3(ham, ayar.i_ofset, ayar.i_pga,
                                 ayar.sont_ohm, ayar.i_duzeltme);
       float esik = 0.05f * ayar.i_pga / ayar.sont_ohm;

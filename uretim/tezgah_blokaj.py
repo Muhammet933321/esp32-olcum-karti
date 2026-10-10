@@ -8,6 +8,8 @@
     python tezgah_blokaj.py --tetik         # B42: yalniz tetik konumu (~1 dk)
     python tezgah_blokaj.py --olcum [--http olcum.local]   # B43: olcum satiri eksenle ayni mi, WiFi'de var mi
     python tezgah_blokaj.py --onay          # B47: gurultu reddi igneyi eliyor mu (tK8,9 ile A/B)
+    python tezgah_blokaj.py --sinyal 1000 [--duty 50 --genlik 5 --tekrar 20 --tb 2]
+                                            # SK1: bilinen kare dalgada ham / suzgecli A/B (Arduino kaynagi)
 
 🔴 NEDEN: bringup kosucusu tek bir 45 s penceresine bakiyor ve kartta
    ~50 s'de bir ~22 ms'lik periyodik bir olay var (B27 A4'te olculdu).
@@ -37,6 +39,7 @@ import kart_baglanti                                       # noqa: E402
 from arsiv import SkopCozucu                               # noqa: E402
 
 gecti = kaldi = 0
+INO_METIN = (KOK / "kod" / "olcum-karti-a3" / "olcum-karti-a3.ino").read_text(encoding="utf-8", errors="replace")
 
 
 def ok(ad: str, kosul: bool, ek: str = "") -> None:
@@ -393,6 +396,106 @@ def skop_tetik_onayi(k, tekrar=20) -> int:
     return 1 if kaldi else 0
 
 
+def skop_sinyal(k, hz_sinyal: float, duty: float = 50.0, genlik: float = 5.0, tekrar: int = 20,
+                tdiv_idx: int | None = None) -> int:
+    """SK1 — bilinen bir kare dalgada HAM / SUZGECLI yakalamanin A/B'si (ic ice).
+
+    Kaynak kartin DISINDA olmali ve frekansi bilinmeli: `uretim/arduino_sinyal/` (Uno/Nano, Timer1,
+    D9 ya da D13 -> SKOP, GND -> COM; `f<Hz>` `d<yuzde>` seri komutlari). CAL cikisi olmaz: 22 kohm
+    kaynak direnci ve 3.3 V genlik iz gurultusunun icinde kaliyor.
+
+    NEDEN A/B AYNI FIRMWARE'DE: `tf0` eski yolu birebir korur; "once / sonra" ayni kartta, ayni
+    dakikada, ic ice olculur (B44'un dersi: sirali kosular yaniltir).
+
+    Kartta olculdu (2026-10-10, A3-PT4 = suzgecsiz, 1000 Hz / 5 V / %50, 20 yakalama): frekans %1
+    icinde 11/20, Vpp ortanca 9.2 V, yukselme ortanca 373 us.
+    """
+    def komut(c, sn=0.6):
+        k.yaz(c)
+        bit = time.monotonic() + sn
+        son = None
+        while time.monotonic() < bit:
+            s = k.satir_oku(0.05)
+            if s is not None and (s.startswith("T ") or s.startswith("! ")):
+                son = s
+        return son
+
+    def igneler(kod):
+        """Iki komsusundan da AYNI yonde > 30 kod ayrilan tek ornekler (kenar sayilmaz)."""
+        n = 0
+        for i in range(1, len(kod) - 1):
+            a, b = kod[i] - kod[i - 1], kod[i] - kod[i + 1]
+            if (a > 30 and b > 30) or (a < -30 and b < -30):
+                n += 1
+        return n
+
+    print(f"  sinyal: {hz_sinyal:g} Hz, %{duty:g}, {genlik:g} V kare — {tekrar} x (ham, suzgecli) ic ice")
+    tdiv = [int(x) for x in re.search(r"SKOP_TDIV_US\[\] = \{([^}]*)\}", INO_METIN).group(1).replace("\n", " ").split(",")]
+    if tdiv_idx is None:                    # pencere (10 bolme) ~ 5 periyot
+        hedef = 1e6 / hz_sinyal / 2.0
+        tdiv_idx = min(range(len(tdiv)), key=lambda i: abs(tdiv[i] - hedef))
+    for c in ("tm0", "te0", "tn2", f"tb{tdiv_idx}", "tf1"):
+        komut(c)
+    b, _ = seri_yakala(k)
+    if not b or len(b["ornek"]) < 50:
+        ok("[!] Sinyalden yakalama alindi", False, "kart yakalamadi — SKOP/COM bagli mi, kaynak calisiyor mu")
+        return 1
+    orta = (min(b["ornek"]) + max(b["ornek"])) // 2
+    komut(f"tl{orta}")
+    print(f"  kurulum: tb{tdiv_idx} ({tdiv[tdiv_idx]} us/bolme), tetik kodu {orta}, cikis hizi {b['hz']} Sa/s")
+
+    kayit = {0: [], 1: []}
+    for _ in range(tekrar):
+        for suz in (0, 1):
+            t = komut(f"tf{suz}")
+            if not t or f"suz={suz}" not in t:
+                ok(f"`tf{suz}` kabul edildi ve T satirinda suz={suz}", False, str(t))
+                return 1
+            b, _ = seri_yakala(k)
+            if not b:
+                continue
+            m = m_coz(b.get("olcum"))
+            kayit[suz].append({"f": m.get("f", 0.0), "duty": m.get("duty", -1.0), "vpp": m.get("Vpp", 0.0),
+                               "tr": m.get("tr", 0.0), "hz": b["hz"], "n": len(b["ornek"]),
+                               "igne": igneler(b["ornek"])})
+    komut("tf1")                            # karti varsayilanda birak
+
+    def ozet(ad, liste):
+        if not liste:
+            print(f"  {ad}: yakalama yok")
+            return None
+        f_ok = sum(1 for x in liste if abs(x["f"] - hz_sinyal) <= 0.01 * hz_sinyal)
+        d_ok = sum(1 for x in liste if abs(x["duty"] - duty) <= 2.0)
+        vpp = sorted(x["vpp"] for x in liste)[len(liste) // 2]
+        tr = sorted(x["tr"] for x in liste)[len(liste) // 2]
+        igne = 1000.0 * sum(x["igne"] for x in liste) / max(sum(x["n"] for x in liste), 1)
+        print(f"  {ad:9s} {len(liste):2d} yakalama @ {liste[0]['hz']} Sa/s | frekans %1 icinde {f_ok}/{len(liste)}"
+              f" | doluluk +-2 puan {d_ok}/{len(liste)} | Vpp ortanca {vpp:.2f} V | yukselme ortanca {tr * 1e6:.0f} us"
+              f" | igne {igne:.2f}/1000")
+        return {"n": len(liste), "f_ok": f_ok, "d_ok": d_ok, "vpp": vpp, "tr": tr, "igne": igne}
+
+    ham, suzlu = ozet("HAM", kayit[0]), ozet("SUZGECLI", kayit[1])
+    if not ham or not suzlu:
+        ok("[!] Iki kolda da yakalama var", False)
+        return 1
+    ok("[!] SUZGECLI: frekans yakalamalarin en az %95'inde %1 icinde",
+       suzlu["f_ok"] >= 0.95 * suzlu["n"], f"{suzlu['f_ok']}/{suzlu['n']} (ham {ham['f_ok']}/{ham['n']})")
+    ok("[!] SUZGECLI: doluluk yakalamalarin en az %95'inde +-2 puan icinde",
+       suzlu["d_ok"] >= 0.95 * suzlu["n"], f"{suzlu['d_ok']}/{suzlu['n']} (ham {ham['d_ok']}/{ham['n']})")
+    # Kartta olculdu (2026-10-10, iki kat medyan-3): ortalamali tabanda (tb5, k = 4) 0.00/1000; ust hizda
+    # (tb2, k = 1 — ortalama yok) 0.12/1000, ham 33/1000. Esikler olculenin ~4 kati pay ile.
+    ortalamali = kayit[1][0]["hz"] != kayit[0][0]["hz"]
+    esik = 0.05 if ortalamali else 0.5
+    ok(f"[!] SUZGECLI: tek ornek igne <= {esik:g} / 1000 ornek"
+       + (" (ortalamali taban)" if ortalamali else " (ust hiz: yalniz medyan) VE ham'in en cok 1/20'si"),
+       suzlu["igne"] <= esik and (ortalamali or suzlu["igne"] * 20 <= ham["igne"] or ham["igne"] < 1.0),
+       f"{suzlu['igne']:.2f}/1000 (ham {ham['igne']:.2f}/1000)")
+    ok("SUZGECLI: Vpp ham'dan gercek genlige daha yakin (igne tepe degerini sisirmiyor)",
+       abs(suzlu["vpp"] - genlik) <= abs(ham["vpp"] - genlik) + 0.05,
+       f"suzgecli {suzlu['vpp']:.2f} V, ham {ham['vpp']:.2f} V, gercek {genlik:g} V")
+    return 1 if kaldi else 0
+
+
 def skop_blokaj(k, zaman_tabanlari=(3, 5, 7, 9, 10)) -> int:
     """B40/B41 — skop yakalamasi olcumu nasil etkiliyor.
 
@@ -562,8 +665,14 @@ def main() -> int:
     k.ac()
     time.sleep(1.0)
     http_host = secenek("--http", "olcum.local")
-    if "--tetik" in arg or "--olcum" in arg or "--onay" in arg:
+    if "--tetik" in arg or "--olcum" in arg or "--onay" in arg or "--sinyal" in arg:
         kod = 0
+        if "--sinyal" in arg:
+            print("SKOP ON SUZGECI — BILINEN SINYALDE HAM / SUZGECLI (SK1)")
+            tb = secenek("--tb", None)
+            kod = skop_sinyal(k, float(secenek("--sinyal", "1000")), float(secenek("--duty", "50")),
+                              float(secenek("--genlik", "5")), int(secenek("--tekrar", "20")),
+                              int(tb) if tb is not None else None) or kod
         if "--tetik" in arg:
             print("SKOP TETIK KONUMU (B42)")
             kod = skop_tetik_konumu(k) or kod

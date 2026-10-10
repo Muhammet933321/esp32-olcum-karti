@@ -707,6 +707,14 @@
           <option :value="1">Tek örnek</option>
         </select>
       </label>
+      <!-- SK1: ön süzgeç (medyan-3 + ortalama). Ham = ADC'nin okuduğu gibi (A/B için). -->
+      <label class="skop-alan">
+        <span>{{ os.suzgec }}</span>
+        <select v-model.number="skopSuz" @change="skopKomut('tf' + skopSuz)" :disabled="!bagli" :title="os.suzIpucu">
+          <option :value="1">{{ os.suzAcik }}</option>
+          <option :value="0">{{ os.suzHam }}</option>
+        </select>
+      </label>
     </fieldset>
 
     <!-- 3E (OS5): YAKALAMA GÜNLÜĞÜ — `Gt0` her tetikte, `Gt<ms>` N saniyede bir,

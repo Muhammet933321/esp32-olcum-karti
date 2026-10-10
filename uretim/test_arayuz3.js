@@ -2373,7 +2373,7 @@ console.log('\n--- 22. Tetik onayi — gurultu reddi (B47) ---');
                       + (onay === null ? '' : ' onay=' + onay);
   const u = ornek();
   ok('Varsayilan onay 2 (gurultu reddi) — kartin varsayilaniyla ayni', u.skopOnay === 2
-     && /SkopAyar skop_ayar = \{ 5, 2048, 0, 40, 25, SKOP_KIP_OTO, 2 \};/.test(fs.readFileSync(INO, 'utf8')));
+     && /SkopAyar skop_ayar = \{ 5, 2048, 0, 40, 25, SKOP_KIP_OTO, 2, 1 \};/.test(fs.readFileSync(INO, 'utf8')));
   u.satirIsle(T(1));
   ok('[!] `T ... onay=1` menuyu tek ornege aliyor', u.skopOnay === 1);
   u.satirIsle(T(2));
@@ -2393,6 +2393,49 @@ console.log('\n--- 22. Tetik onayi — gurultu reddi (B47) ---');
      /\bonay=1\b/.test(SK2.komut('tn1')[0]) && /\bonay=2\b/.test(SK2.komut('tn2')[0]));
   ok('Sahte kart gecersiz `tn3` reddediyor', SK2.komut('tn3')[0].startsWith('!'));
   /* Firmware tarafi (tetik_w/kalan, komut, T satiri) sim3_skop.py 6m'de. */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   22b. SKOP ON SUZGECI (SK1, 2026-10-10)
+
+   Kart `T` satirinda `suz=0|1` bildiriyor; menu `tf0` / `tf1` gonderiyor.
+   Eski firmware `suz=` gondermez -> menu dokunulmaz. Suzgecin kendisi
+   test_skop_suz.py'de (gercek kod, AVR), baglantisi sim3_skop.py 6n'de,
+   etkisi kartta (tezgah_blokaj.py --sinyal). Burada protokol, menu ve
+   "suruculuk devralininca eksen tablosu yeniden istenir" kurali.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 22b. Skop on suzgeci (SK1) ---');
+{
+  const T = (suz) => 'T tdiv=5/11 (5000 us/bolme) hz=20161 adet=1000 pencere_ms=49.60 esik=2048 kenar=yukselen hist=40 on=25% kip=0 onay=2'
+                     + (suz === null ? '' : ' suz=' + suz);
+  const u = ornek();
+  ok('SK1 Varsayilan suzgec ACIK — kartin varsayilaniyla ayni', u.skopSuz === 1);
+  u.satirIsle(T(0));
+  ok('[!] SK1 `T ... suz=0` menuyu HAM\'a aliyor', u.skopSuz === 0);
+  u.satirIsle(T(1));
+  ok('SK1 `T ... suz=1` geri aliyor', u.skopSuz === 1);
+  u.skopSuz = 0;
+  u.satirIsle(T(null));
+  ok('[!] SK1 Eski firmware (suz yok) menuye DOKUNMUYOR', u.skopSuz === 0,
+     'yoksa arayuz kartta olmayan suzgeci "acik" diye gosterirdi');
+  u.satirIsle(T(5));
+  ok('SK1 Gecersiz suz degeri yok sayiliyor', u.skopSuz === 0);
+  ok('[!] SK1 Menu `tf<suz>` gonderiyor, iki secenek var, etiket sozlukten',
+     /v-model\.number="skopSuz" @change="skopKomut\('tf' \+ skopSuz\)"/.test(htmlKaynak)
+     && /<option :value="1">\{\{ os\.suzAcik \}\}<\/option>/.test(htmlKaynak)
+     && /<option :value="0">\{\{ os\.suzHam \}\}<\/option>/.test(htmlKaynak)
+     && /\{\{ os\.suzgec \}\}/.test(htmlKaynak) && /:title="os\.suzIpucu"/.test(htmlKaynak));
+  const SK3 = require(path.join(ARAYUZ, 'sahte-kart.js'));
+  ok('SK1 Sahte kart `tf0` -> T satirinda suz=0, `tf1` -> suz=1',
+     /\bsuz=0\b/.test(SK3.komut('tf0')[0]) && /\bsuz=1\b/.test(SK3.komut('tf1')[0]));
+  ok('SK1 Sahte kart ciplak `tf` ve `tf2` reddediyor (firmware gibi)',
+     SK3.komut('tf')[0].startsWith('!') && SK3.komut('tf2')[0].startsWith('!'));
+  /* Kartta bulundu (2026-10-10): izleyici olarak acilan sekmede CT 403 aliyordu; suruculuk
+     sonradan devralinsa da eksen HAM kaliyor, 12 V'luk kaynak 4 V gibi ciziliyordu. */
+  const dv = /async devral\(\) \{[\s\S]*?\n    \},/.exec(appKaynak);
+  ok('[!] SK1 Suruculuk devralininca, tablo yoksa, CT YENIDEN isteniyor',
+     !!dv && /this\.surucuyum = true;[^\n]*if \(!this\.skopKal\) this\.gonder\('CT'\)/.test(dv[0]),
+     'yoksa sonradan surucu olan sekmede skop ekseni kalibresiz kalir');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

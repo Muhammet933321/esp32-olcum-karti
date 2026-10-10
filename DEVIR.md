@@ -10550,6 +10550,74 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.117 🟢 A3-SK1: OSİLOSKOP ÖN SÜZGECİ — İKİ KAT MEDYAN-3 + ORTALAMA + HIZ PLANI (2026-10-10, KARTTA)
+
+**Bulgu (README için gerçek yakalama alınırken):** kutudaki kartta skop izi iğnelerle dolu. CAL çıkışı (3.3 V, 22 kΩ)
+gürültünün içinde kayboldu; otomatik ölçüm 1 kHz'e 1.5 / 2.2 / 1.25 kHz, 100 Hz'e 976 Hz dedi. Ham kodlar köprü
+arşivinden çözüldü (12 yakalama, 50 kSa/s): iğneler HEP 1 (nadiren 2) örnek genişliğinde, 64–138 kod (1.8–4 V),
+iğneler atılınca kalan gürültü ~3 kod (85 mV). Ham hâlde yoğunluk **28–33 / 1000 örnek**, 2–3 örneklik patlamalar
+(aralıkların çoğu 1 ve 2 örnek), iki yönde eşit, periyodik değil. Kaynak BULUNMADI (B41'deki I²C susturması yerinde;
+kutuda MT3608 ×2, B0505S, Wi-Fi var) — açık işlerde SK-3.
+
+**Bağımsız kaynak:** Arduino Uno klonu, `uretim/arduino_sinyal/` (Timer1, D9 donanım çıkışı + D13 kesme kopyası,
+`f<Hz>` `d<yüzde>`), 1000.000 Hz / 5 V / %50. Süzgeçsiz (A3-PT4) 20 yakalama: frekans %1 içinde **11/20**, Vpp
+ortanca **9.2 V**, yükselme ortanca **373 µs** (gerçek < 20 µs).
+
+**Düzeltme (`skop_suz.h`, platformsuz, yalnız tamsayı):**
+- Her ham örnek art arda İKİ KEZ medyan-3'ten geçer. Tek kat "iğne, normal, iğne" dizisinde ortadaki pencereden
+  İĞNEYİ çıkarıyordu (kartta 2.4/1000 kaldı); ikinci kat onu da siler. Basamak ve iki örnekli darbe medyan-3'ün
+  köküdür — değişmeden geçer (medyan-5 iki örnekli darbeyi, yani 83 kSa/s'te 20 kHz kareyi silerdi).
+- ADC artık çıkış hızında değil ÜST hıza yakın koşar; çıkış örneği k ortancanın yuvarlanmış ortalamasıdır (k = 1'de
+  yalnız medyan). Eskiden yavaş tabanda ADC de yavaş örnekliyordu: her nokta TEK ham okuma.
+- **HIZ PLANI (tuzak):** S3'ün sürekli ADC'si hızı TAMSAYI aralıkla kurar (2.5 MHz / N; `adc_ll.h` 15 + 1, / 2).
+  "Nominal × k" istenseydi gerçek hız %3'e kadar sapar, zaman ekseni kayardı. `skop_suz_plan` N'yi kendisi seçer
+  (30…59) ve GERÇEK çıkış hızını döndürür; başlığa, M satırına ve zaman aşımına o gider (nominalden en çok %1.65;
+  5 ms/böl → 20 161 Sa/s). `static_assert` saat / 30 == SOC üst hızı.
+- `SkopAyar.suzgec` (varsayılan 1), `tf<0|1>` (çıplak `tf` REDDEDİLİR — atoi boş dizgede 0), `T … suz=`. `tf0` eski
+  yolu birebir korur → A/B aynı firmware'de, iç içe.
+- Panel: Tetik kümesinde "Süzgeç: Açık / Ham" (sözlükten, TR/EN); sürücülük DEVRALININCA tablo yoksa `CT` yeniden
+  istenir (izleyici olarak açılan sekmede CT 403 alıyor, eksen HAM kalıyor, 12 V'luk kaynak 4 V çiziliyordu).
+
+**Kartta (`tezgah_blokaj.py --sinyal`, A3-SK1, ham / süzgeçli iç içe):**
+
+| Arduino kare | kol | frekans %1 | doluluk ±2 | Vpp ortanca | yükselme ortanca | iğne /1000 |
+|---|---|---|---|---|---|---|
+| 1000 Hz, tb2, 83 333 Sa/s (k = 1) | ham | 12/20 | 20/20 | 9.74 V | 237 µs | 33.21 |
+| | süzgeçli | **20/20** | 20/20 | 6.26 V | **11 µs** | **0.12** |
+| 100 Hz, tb5, 20 161 Sa/s (k = 4) | ham | 5/12 | 11/12 | 11.15 V | 4713 µs | 26.58 |
+| | süzgeçli | **12/12** | 12/12 | 6.39 V | 90 µs | **0.00** |
+
+Panelden 20 yakalama (1 kHz): frekans 998.3…1001.3 Hz, doluluk 49.5…50.3, yükselme 10…31 µs; düşme 17/20'de
+10–36 µs, 3/20'de 63/77/123 µs (eşikler hâlâ en büyük / en küçük örnekten — SK-1).
+
+**Sınama:** `test_skop_suz.py` (gerçek kod, AVR emülatörü, 31 iddia; B6'ya bağlı) · `sim3_skop.py` 6n (7 iddia) ·
+`test_arayuz3.js` 22b (9 iddia) · mutasyon `SK1:` 19/19 (bir mutasyon EŞDEĞER çıktı, listede not olarak duruyor).
+İlk yazımda bir iddia boştu (aranan metin yokken `-1 < …` doğru çıkıyordu) — `0 <=` ile sıkılaştırıldı.
+Derleme uyarısız, statik DRAM 65 908 B (değişmedi). Yedek `tam-20261010-123008.bin` (A3-PT4).
+**Zincir tuzağı (aynı gün):** B73 `esitle.test.js` sonsuza dek takıldı — Windows'ta `python` adı 2026-10-09 19:25'ten
+beri mağaza yönlendiricisine (AppInstallerPythonRedirector) gidiyor; test yardımcı süreci o adla başlatıyordu.
+`test_ortak.py` artık `PYTHON=sys.executable` veriyor (16 s).
+
+#### 5.12.116 🟢 A3-PT4: KALİBRASYON ORTALAMASI 16 → 1536 OKUMA (KALIB-ORT) (2026-10-09, KARTTA)
+
+**Bulgu (kullanıcıyla sıfır ayarı yaparken):** V–COM kısa devreyken kayma −27 mV; ama "Gerilimi sıfırla" (`z`) sıfırı
+yalnız 16 okumadan (~33 ms) alıyordu. Kartta `/akis` ile 60 s ölçüldü: 0.2 s'lik ortalamaların std'si 9.28 mV, 1 s'de
+4.10, 2 s'de 2.66, 5 s'de 1.71 mV (0.2 s'nin üstünde beyaz gibi, √T). 16 okumalık sıfır ±15 mV şaşıyordu — düzeltilecek
+kaymanın yarısı; `g` / `Z` / `i` de aynı fonksiyonu kullanıyor (kazanç kalibrasyonunda ~%0.3'e varan rastgele hata).
+
+**Düzeltme:** `KALIB_ORNEK 1536` (~3.15 s; tek okuma ~2.05 ms — B29 çevrimi), `ortalama_oku(adres, uint16_t kez)`,
+sayaç `uint16_t` (uint8_t sayaç 255'ten döner, döngü hiç bitmez — çekirdek 1 kilitlenirdi), sonuç YUVARLANIR. Çekirdek 1
+bu sürede ölçmez → dört komut pil testi sürerken REDDEDİLİR (`kalib_pil_engeli`, `guv_isle`'nin PBKDF2 kuralı gibi);
+süre + 1 s pay panelin `KART_SESSIZ_MS` (5 s) eşiğinin altında (iddia eşiği app.js'ten okuyor). İlk deneme 768 okumaydı
+(beyaz gürültü varsayımıyla ±1.9 mV); kartta ölçülen modelle ±3.3 mV çıktı → 1536 (±2.34 mV). İki yükleme de `A3-PT4`
+adını taşıyor (768'lik sürüm ~15 dk kartta kaldı, kalibrasyon yapılmadı).
+
+**Sınama:** `sim3_bant.py` 7c (8 iddia), mutasyon B20 `KALIB-ORT:` 8/8 (ilk koşuda yuvarlama mutasyonu KAÇTI — iddia
+`kez / 2` metnini arıyordu, değişken tanımında duruyordu; return satırına bağlandı). Derleme uyarısız, statik DRAM
+65 908 B (değişmedi). Yedekler `tam-20261009-204758.bin` (PT3), `tam-20261009-205934.bin` (PT4/768).
+**Kartta:** kullanıcı V–COM kısa devreyle sıfırladı (n_sifir = −1891); ardından 18650 No 05 (1365.6 mAh) ve No 06
+(1432.1 mAh) testleri A3-PT4 ile kaydedildi. Kalan kayma kısa devreyle YENİDEN ölçülmedi (kullanıcı testlere geçti).
+
 #### 5.12.115 🟢 A3-PT3: PİL TESTİ HAT DİRENCİ TELAFİSİ (HT) (2026-10-08)
 
 **Teşhis (kullanıcı + kart, adım adım):** kart 2.99 V / 0.8 A okurken pil kutupları 4.0 V. Multimetre:

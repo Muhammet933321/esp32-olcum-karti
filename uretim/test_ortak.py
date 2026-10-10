@@ -13,6 +13,7 @@ Donanim gerekmiyor.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -101,8 +102,13 @@ def node_testleri(moduller: list[str]) -> None:
         if not t.exists():
             continue
         # TAP raporlayicisi ACIKCA: Node 24 varsayilani "ℹ pass N" basar, "# pass N" degil
+        # PYTHON: JS testleri yardimci surecleri (ortak_sahte_kart.py) `python` ADIYLA baslatiyordu. Windows'ta
+        # o ad magaza yonlendiricisine (AppInstallerPythonRedirector) dusebiliyor (2026-10-09 19:25'te bu makinede
+        # oldu): yonlendirici sessizce bekler, esitle.test.js SONSUZA dek takilir, B73 180 s'de zaman asimina duser.
+        # Zinciri kosturan yorumlayici acikca veriliyor (test dosyalari PYTHON'i zaten okuyor).
         r = subprocess.run(["node", "--test", "--test-reporter=tap", str(t)], cwd=KOK, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=1800)
+                           encoding="utf-8", errors="replace", timeout=1800,
+                           env=dict(os.environ, PYTHON=sys.executable))
         cik = r.stdout + r.stderr
         gec = re.search(r"^# pass (\d+)", cik, re.M)
         kal = re.search(r"^# fail (\d+)", cik, re.M)

@@ -448,9 +448,12 @@ def _b3_govde(cal):
 def _b6_govde(cal):
     # once ortak skop matematiginin iki kopyasi ayrismis mi
     a = cal([sys.executable, "test_skop_ayni.py"], timeout=300)
+    # SK1: skop on suzgeci (medyan-3 + ortalama + hiz plani) — gercek kod, AVR emulatorunde
+    z = cal([sys.executable, "test_skop_suz.py"], timeout=300)
     s = cal([sys.executable, "test_firmware3.py"], timeout=1800)
-    return (s.returncode == 0 and a.returncode == 0,
-            a.stdout.rstrip() + "\n" + s.stdout.rstrip(), a.stdout + s.stdout)
+    return (s.returncode == 0 and a.returncode == 0 and z.returncode == 0,
+            a.stdout.rstrip() + "\n" + z.stdout.rstrip() + "\n" + s.stdout.rstrip(),
+            a.stdout + z.stdout + s.stdout)
 
 
 def _b7_govde(cal):

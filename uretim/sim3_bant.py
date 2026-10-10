@@ -1013,6 +1013,69 @@ def bolum7(r):
             "z / g / Z / i — dordu de tek gurultulu ornekle "
             "kalibre ediyordu")
 
+    alt(r, "7c · kalibrasyon ortalamasi gurultuyu gercekten bastiriyor mu")
+    r.bilgi("     KALIB-ORT (2026-10-09, kartta V-COM kisa, 60 s /akis): 0.2 s'lik")
+    r.bilgi("     ortalamalarin std'si 9.28 mV; 1 / 2 / 5 s bloklarda 4.10 / 2.66 /")
+    r.bilgi("     1.71 mV — 0.2 s'nin ustunde beyaz gibi (sqrt T). 16 okumalik sifir")
+    r.bilgi("     ~33 ms -> +-15 mV sasiyordu (duzeltilecek kayma -27 mV). Tek okuma")
+    r.bilgi("     ~2.05 ms (B29 kartta: yazma 324 + donusum 1227 + okuma 504 us).")
+    r.bilgi("     Ust sinir: cekirdek 1 bu sure D satiri basmaz; panel KART_SESSIZ_MS")
+    r.bilgi("     sonra 'kart yok' der -> ortalama + bir satir araligi onun altinda.")
+    ino_y = yorumsuz(INO)
+    m_n = re.search(r"#define\s+KALIB_ORNEK\s+(\d+)", ino_y)
+    n_kalib = int(m_n.group(1)) if m_n else 0
+    okuma_s = 2.05e-3
+    sure_s = n_kalib * okuma_s
+    std_02_mv = 9.28                      # kartta olculen: 0.2 s ortalamalarin std'si
+    sifir_mv = std_02_mv * math.sqrt(0.2 / sure_s) if sure_s > 0 else float("inf")
+    _app = (KOK / "arayuz3" / "app.js").read_text(encoding="utf-8", errors="replace")
+    m_ses = re.search(r"const KART_SESSIZ_MS = (\d+);", _app)
+    sessiz_s = int(m_ses.group(1)) / 1000 if m_ses else 0.0
+    r.kosul(f"  7c: kalibrasyon ortalamasi {n_kalib} okuma ~{sure_s:.2f} s -> sifir hatasi "
+            f"+-{sifir_mv:.2f} mV (<= 2.5 mV; kartta olculen gurultu modeliyle)",
+            sifir_mv <= 2.5,
+            "16 okumada +-15 mV: 'Gerilimi sifirla' kaymayi sansla duzeltiyordu")
+    r.kosul(f"  7c: ortalama + 1 s pay panelin 'kart yok' esiginin ({sessiz_s:.1f} s) altinda",
+            m_ses is not None and 0 < sure_s + 1.0 < sessiz_s,
+            "cekirdek 1 ortalama sirasinda D satiri basmaz; uzun surerse panel kart koptu sanir")
+    g_engel = yorumsuz(govde(INO, "static bool kalib_pil_engeli")) if "static bool kalib_pil_engeli" in INO else ""
+    r.kosul("  7c: pil testi surerken kalibrasyon REDDEDILIYOR (cekirdek 1 saniyelerce olcmezdi)",
+            "pil_testi_suruyor()" in g_engel and "return true" in g_engel,
+            "guv_isle'nin PBKDF2 kurali gibi: pil testinde olcum dongusu durmamali")
+    korumasiz = []
+    for m in re.finditer(r"ortalama_oku\(\s*ADS_\w+\s*,", ino_y):
+        once = ino_y[:m.start()]
+        dal = once[once.rfind("case '"):]
+        if "kalib_pil_engeli()" not in dal:
+            korumasiz.append(dal[:12])
+    r.kosul(f"  7c: dort kalibrasyon komutunun dordu de once pil testini soruyor "
+            f"(korumasiz: {korumasiz or 'yok'})",
+            not korumasiz and len(re.findall(r"ortalama_oku\(\s*ADS_", ino_y)) >= 4,
+            "biri korumasiz kalirsa pil testinde ~3 s kesme denetimi yapilmaz")
+    tip_ust = {"uint8_t": 255, "int8_t": 127, "uint16_t": 65535, "int16_t": 32767,
+               "uint32_t": 2 ** 32 - 1, "int32_t": 2 ** 31 - 1, "int": 2 ** 31 - 1,
+               "unsigned": 2 ** 32 - 1, "size_t": 2 ** 32 - 1}
+    m_imza = re.search(r"static int16_t ortalama_oku\(\s*\w+\s+adres\s*,\s*(\w+)\s+kez\s*\)", ino_y)
+    m_dongu = re.search(r"for\s*\(\s*(\w+)\s+i\s*=\s*0\s*;\s*i\s*<\s*kez", g_ort)
+    r.kosul("  7c: `kez` parametresi KALIB_ORNEK'i tasiyor (uint8_t 255'te tasar)",
+            m_imza is not None and tip_ust.get(m_imza.group(1), 0) >= n_kalib > 0,
+            "uint8_t kez'e 768 verilince 0 olurdu: sifir/0 bolme")
+    r.kosul("  7c: dongu sayaci KALIB_ORNEK'e kadar sayabiliyor",
+            m_dongu is not None and tip_ust.get(m_dongu.group(1), 0) >= n_kalib > 0,
+            "uint8_t sayac 255'ten 0'a doner, i < 768 hic yanlis olmaz: "
+            "cekirdek 1 SONSUZA dek kilitlenir (olcum, pil kesmesi durur)")
+    cagrilar = re.findall(r"ortalama_oku\(\s*ADS_\w+\s*,\s*([^)]+?)\s*\)", ino_y)
+    r.kosul(f"  7c: kalibrasyon komutlarinin hepsi KALIB_ORNEK kullaniyor "
+            f"({len(cagrilar)} cagri)",
+            len(cagrilar) >= 4 and all(c == "KALIB_ORNEK" for c in cagrilar),
+            "biri 16'da kalirsa o kalibrasyon (z/g/Z/i) yine sansa bagli olur")
+    m_don = re.search(r"return\s+\(int16_t\)\s*\((.*?)\);", g_ort, re.S)
+    don = re.sub(r"\s+", "", m_don.group(1)) if m_don else ""
+    r.kosul("  7c: ortalama YUVARLANIYOR — return satiri iki isarette de yarimi ekliyor "
+            "(tamsayi bolmesi sifira dogru keser)",
+            "(t+yarim)/n" in don and "(-t+yarim)/n" in don and "yarim=(int32_t)kez/2" in re.sub(r"\s+", "", g_ort),
+            "kesmede sifir 1 LSB'ye (~1 mV) kadar yanli kalir")
+
 
 def main() -> int:
     r = spice.Rapor()

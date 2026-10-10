@@ -959,9 +959,50 @@ def bolum6(r):
             and "on + 3u > n" in _y2,
             "gecis + onay + en az 1 ornek sigmali (sonra >= 3)")
     r.kosul("  6m: varsayilan onay 2 (gurultu reddi); `tn` yalniz 1/2; T satirinda `onay=`",
-            "SKOP_KIP_OTO, 2 };" in ino
+            "SKOP_KIP_OTO, 2, 1 };" in ino
             and "if (v == 1 || v == 2) { skop_ayar.onay = (uint8_t)v;" in ino
             and 'F(" onay=")' in ino)
+
+    # ── SK1: ON SUZGEC (medyan-3 + kutu ortalamasi), AYARLANABILIR ─────
+    # Suzgecin kendisi GERCEK KODDA sinaniyor (test_skop_suz.py, AVR emulatoru);
+    # etkisi KARTTA (tezgah_blokaj.py --sinyal: bilinen kare dalgada ham / suzgecli
+    # A/B). Burada: yakalama dongusune DOGRU YERDE baglanmis mi.
+    #   Kartta olculdu (2026-10-10, Arduino 1000 Hz / 5 V, 20 yakalama, suzgecsiz):
+    #   frekans %1 icinde 11/20, Vpp ortanca 9.2 V, yukselme ortanca 373 us.
+    _besle = "if (suz && !skop_suz_besle(&suz_d, v, &v)) continue;"
+    r.kosul("  6n: [!] her ham ornek HALKADAN ve TETIKTEN ONCE suzgece giriyor",
+            _besle in _y2 and 0 <= _y2.find(_besle) < _y2.find("skop_veri[w] = v;")
+            and _y2.find("uint16_t v = o->type2.data;") < _y2.find(_besle),
+            "suzgec halkadan sonra olsaydi igne tetige ve kayda girerdi")
+    _plan = ("if (suz) { const SkopSuzPlan pl = skop_suz_plan(hz, SKOP_ADC_SAAT_HZ, "
+             "SKOP_ADC_ARALIK_ASGARI); skop_suz_kur(&suz_d, pl.k); hz_adc = pl.hz_adc; "
+             "hz = pl.hz_gercek; }")
+    r.kosul("  6n: [!] ADC plandaki hizda kosuyor, cikis hizi GERCEK deger (surucu araligi tamsayi)",
+            _plan in _y2 and "if (!skop_hiz_ayarla(hz_adc))" in _y2
+            and _y2.find(_plan) < _y2.find("if (!skop_hiz_ayarla(hz_adc))"),
+            "nominal x k istenseydi gercek hiz %3'e kadar sapar, zaman ekseni kayardi")
+    r.kosul("  6n: [!] gercek hiz basliga, olcume VE zaman asimina gidiyor",
+            0 <= _y2.find(_plan) < _y2.find("float pencere_ms = 1000.0f * (float)n / (float)hz;")
+            < _y2.find("skop_hz = hz;"),
+            "skop_hz nominal kalsaydi M satirindaki frekans %1.7'ye kadar yanlis olurdu")
+    r.kosul("  6n: [!] suzgec = 0 (HAM): plan yok, k = 1, ornek suzgece GIRMEZ (eski yol aynen)",
+            "const bool suz = (skop_ayar.suzgec != 0u);" in _y2
+            and "uint32_t hz_adc = hz; skop_suz_kur(&suz_d, 1u); if (suz) {" in _y2,
+            "A/B icin ham yol degismemeli; yoksa 'once / sonra' ayni firmware'de olculemez")
+    _saat = re.search(r"SKOP_ADC_SAAT_HZ\s*=\s*(\d+);", ino)
+    _aralik = re.search(r"SKOP_ADC_ARALIK_ASGARI\s*=\s*(\d+);", ino)
+    _azami = re.search(r"SKOP_HZ_AZAMI\s*=\s*(\d+);", ino)
+    r.kosul("  6n: ADC saati / en kucuk aralik = ust ornekleme hizi (derleme zamaninda da denetleniyor)",
+            bool(_saat and _aralik and _azami)
+            and int(_saat.group(1)) // int(_aralik.group(1)) == int(_azami.group(1))
+            and "static_assert(SKOP_ADC_SAAT_HZ / SKOP_ADC_ARALIK_ASGARI == "
+                "SOC_ADC_SAMPLE_FREQ_THRES_HIGH" in ino,
+            "saat yanlissa plan baska bir araliga duser, bildirilen hiz yalan olur")
+    r.kosul("  6n: varsayilan suzgec ACIK; `tf` yalniz 0/1 (ciplak `tf` reddedilir); T satirinda `suz=`",
+            "SKOP_KIP_OTO, 2, 1 };" in ino
+            and "if ((v == 0 || v == 1) && s[2] != 0) { skop_ayar.suzgec = (uint8_t)v;" in ino
+            and 'F(" suz=")' in ino and '#include "skop_suz.h"' in ino,
+            "ciplak `tf` atoi ile 0 olur ve suzgeci sessizce kapatirdi (B22.1 K3 deseni)")
 
     r.kosul("  6b: ham dogrusalsizlik skop tam olceginin %5'inden kucuk",
             HAM_INL_KOD * T.SKOP_ADIM

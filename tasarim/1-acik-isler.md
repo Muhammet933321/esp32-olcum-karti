@@ -324,3 +324,31 @@ rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşit
 - **PT-5 kart A3-PT2'de (2026-10-08 03:00):** açılış `Bellek (CA-4): skop=PSRAM`, `QH` ayirma_hata=0; skop yakalaması
   A3-PT1 ile A/B aynı (Vort −46.4 V — o an girişte kullanıcının bağlantısı vardı, V kanalı 11.2 V). Kartın kendi
   paneli yazıldı (`/kunye.json` d14bf5f80497).
+
+## Kalibrasyon ortalaması (A3-PT4, 2026-10-09) — kalanlar
+
+- **KO-1** sıfırlamadan sonraki kalan kayma V–COM kısa devreyle ölçülmedi (beklenen ±2.3 mV).
+- **KO-2** kalibrasyon komutu kayıt (özellikle ayrıntılı kip) sürerken verilirse ~3 s'lik boşluk kayıtta İŞARETSİZ
+  kalır (pil testinde reddediliyor, ölçüm oturumunda değil). Nadir; gerekirse `KA_SILME` benzeri bir bayrak.
+- **KO-3** No 05 testinde (2026-10-09 21:52) nokta içi V saçılması medyan 353 mV (No 06'da 51 mV); iki test arasında
+  kart yeniden başlamış — kutu pili zayıfken gürültü artışı belirtisi (PT teşhisindeki gibi). Kapasiteyi etkilemez.
+
+## Osiloskop (A3-SK1, 2026-10-10) — kalanlar
+
+- **SK-1 ölçüm eşikleri hâlâ uç değerlerden:** `skop_olc` %50 / %10–%90 eşiklerini en büyük / en küçük örnekten
+  hesaplıyor. Süzgeçten sonra frekans ve yükselme düzeldi (20/20), ama düşme süresi 3/20 yakalamada sapıyor (63–123 µs;
+  alt seviyedeki tek bir gürültü dibi %10 eşiğini kaydırıyor) ve Vpp gürültü tepelerini içeriyor (5 V kare 6.3 V).
+  Çözüm: alt / üst DURUM seviyeleri (histogram ya da yarı ortancaları). ⚠ `skop_olc` Aşama 2'nin `olcum2.h`'sinden
+  üretilen kopya; JS aynası `ortak/src/skop.js` ve çapraz vektörler birlikte değişmeli.
+- **SK-2 en hızlı tabanlarda (k = 1: 100 µs…2 ms/böl) iki örnekten DAR gerçek darbeler de silinir** (83 kSa/s'te
+  < 24 µs; ör. 20 kHz %20 PWM). Menüde "Ham" var ve ipucu bunu söylüyor; belgeye (1-ne-yapabilir) işlenmedi.
+- **SK-3 iğnelerin KAYNAĞI bulunmadı:** ham hâlde örneklerin ~%3'ü (B44'te çıplak kartta 0.1–2.2/1000 idi). Aday
+  ayrımlar: PİL anahtarı kapalıyken (analog + DC-DC'ler kapalı, ESP32 USB'den) say · Wi-Fi kapalı (`N0` + yeniden
+  başlat) say · USB'siz (pil) say. Kaynak bulunursa donanımda da azaltılabilir.
+- **SK-4 skop kanalının mutlak doğruluğu:** Arduino'nun 0 / 5 V karesi 0.3 / 5.85 V çiziliyor (ofset + ~%10 kazanç).
+  "Hızlı yol sıfır kalibrasyonu" eski açık işle aynı kök.
+- **SK-5 "Otomatik" (ta) yeni firmware'de kartta yeniden denenmedi** (süzgeçsizken taban seçemiyordu).
+- **SK-6 kartın kendi paneli ve telefon APK'sı eski:** "Süzgeç" menüsü ve devralınca-CT yalnız PC köprüsünün sunduğu
+  panelde. `arayuz-uret.py && arayuz-yaz.py` + APK yeniden derlenecek.
+- **SK-7 eski tezgah araçları** (`tezgah_blokaj.py --skop/--tetik/--olcum/--onay`) GPIO4–5 kısa devre + RC düzeneğini
+  ister; kart kutuda — yeni firmware ile koşulmadı. `--sinyal` (Arduino) bunların yerini tutmuyor (tetik KONUMU ölçmez).

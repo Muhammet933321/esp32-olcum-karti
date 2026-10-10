@@ -840,7 +840,7 @@ const OS_METIN = Object.freeze({
   zamanTabani: 'os.zaman_tabani', hizlandir: 'os.hizlandir', yavaslat: 'os.yavaslat', tetik: 'os.tetik',
   tetikKip: 'os.tetik_kip', kipOto: 'os.kip_oto', kipNormal: 'os.kip_normal', kipTek: 'os.kip_tek',
   kenar: 'os.kenar', kenarYukselen: 'os.kenar_yukselen', kenarDusen: 'os.kenar_dusen', seviye: 'os.seviye',
-  onTetik: 'os.on_tetik', onay: 'os.onay', gunluk: 'os.gunluk', gunlukIpucu: 'os.gunluk_ipucu',
+  onTetik: 'os.on_tetik', onay: 'os.onay', suzgec: 'os.suzgec', suzAcik: 'os.suz_acik', suzHam: 'os.suz_ham', suzIpucu: 'os.suz_ipucu', gunluk: 'os.gunluk', gunlukIpucu: 'os.gunluk_ipucu',
   gunlukHerTetik: 'os.gunluk_her_tetik', gunlukHerN: 'os.gunluk_her_n', gunlukSaniye: 'os.gunluk_saniye',
   gunlukBaslat: 'os.gunluk_baslat', gunlukDurdur: 'os.gunluk_durdur', gunlukElleYok: 'os.gunluk_elle_yok',
   kalCikisi: 'os.kal_cikisi', calKapali: 'os.cal_kapali', gorev: 'os.gorev',
@@ -1216,6 +1216,7 @@ createApp({
       skopTdiv: 5,           // zaman tabanı indeksi (0..11)
       skopKip: 0,            // 0 oto · 1 normal · 2 tek atış
       skopOnay: 2,           // B47: 1 tek örnek · 2 iki örnek (gürültü reddi); kart varsayılanı 2
+      skopSuz: 1,            // SK1: 1 ön süzgeç açık · 0 ham; kart varsayılanı 1
       skopKenar: 0,          // 0 yükselen · 1 düşen
       skopEsik: 2048,        // tetik seviyesi, ADC kodu
       skopOn: 25,            // ön-tetik yüzdesi
@@ -3358,6 +3359,7 @@ createApp({
         /* B47: eski firmware `onay=` göndermez → menü dokunulmaz, kartın
            davranışı o sürümde zaten tek örnek. */
         const on2 = sayi(a.onay);  if (on2 === 1 || on2 === 2) this.skopOnay = on2;
+        const sz = sayi(a.suz);    if (sz === 0 || sz === 1) this.skopSuz = sz;   // SK1; eski firmware göndermez
         if (a.kenar) this.skopKenar = a.kenar.startsWith('dus') ? 1 : 0;
         this.kaydet(satir);
         return;
@@ -3597,7 +3599,8 @@ createApp({
         method: 'POST',
         headers: { 'X-Olcum': '1', 'X-Jeton': this.jeton || '' },
       }).catch(() => null);
-      if (y && y.ok) { this.surucuyum = true; this.hata = ''; }
+      /* SK1: bağlanırken izleyiciydik → CT (skop eksen tablosu) 403 almıştı; eksen HAM kalıyordu */
+      if (y && y.ok) { this.surucuyum = true; this.hata = ''; if (!this.skopKal) this.gonder('CT').catch(() => {}); }
       else if (y && y.status === 409) this.hata = 'Devralınamadı (409): Başka bir sürücü etkin — o sekmeyi kapatıp yeniden deneyin.';
       else this.hata = (await this.lanUyarisi(y)) || ('Devralınamadı' + (y ? ' (' + y.status + ')' : '') + ' — köprünün çalıştığını denetleyip yeniden deneyin.');
     },
