@@ -1482,12 +1482,15 @@ static void skop_olc_kalibre(SkopOlcum *m)
         if (h < hmin) hmin = h;
         if (h > hmax) hmax = h;
     }
-    skop_olc(skop_gecici, n, skop_volt_adim(), (float)skop_hz, m);   /* zaman buyuklukleri */
+    float dur[2];                                                   /* SK2: durum seviyeleri (dogrusal kod) */
+    const uint8_t iki = skop_olc_d(skop_gecici, n, skop_volt_adim(), (float)skop_hz, m, dur);   /* zaman buyuklukleri */
     double ort = top / (double)n;
     double ac = kare / (double)n - ort * ort;
     m->vmax = kal_mv((float)hmax) * mv_v;
     m->vmin = kal_mv((float)hmin) * mv_v;
-    m->vpp  = m->vmax - m->vmin;
+    /* SK2: kare dalgada Vpp durum seviyeleri farki (dogrusal kod -> pin mV -> V); gercek tepeler
+       Vmax / Vmin'de kalir. Iki durum yoksa eskisi gibi uclar. JS: ortak/src/skop.js skopOlcKalibre. */
+    m->vpp  = iki ? (dur[1] / mv_kod) * mv_v - (dur[0] / mv_kod) * mv_v : m->vmax - m->vmin;
     m->vort = (float)ort;
     m->vac  = (ac > 0.0) ? (float)sqrt(ac) : 0.0f;
     m->vrms = (float)sqrt(kare / (double)n);

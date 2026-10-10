@@ -85,8 +85,84 @@ static float skop_u64_float(uint64_t x)
     return f;
 }
 
-static void skop_olc(const uint16_t *ham, uint16_t adet, float volt_adim,
-                     float ornekleme_hz, SkopOlcum *o)
+/* ── SK2 (2026-10-10): ALT / ÜST DURUM SEVİYELERİ (IEEE 181 histogram yöntemi) ────────────
+ * Eşikler (%50, %10–%90) ve kare dalganın genliği eskiden en küçük / en büyük ÖRNEKTEN
+ * kuruluyordu: tek bir gürültü tepesi Vpp'yi şişiriyordu (kartta 5 V kare 6.3 V), alt
+ * seviyedeki tek bir dip %10 eşiğini kaydırıp düşme süresini bozuyordu (3/20 yakalamada
+ * 63–123 µs). Şimdi:
+ *   - Histogram YIĞINDA (256 × uint16_t = 512 B; statik bellek yok). Kutu genişliği 2'nin
+ *     kuvveti: kutu = (h − hmin) >> k, k en küçük kaydırma (en çok 256 kutu) — örnek başına
+ *     bölme yok. Alt yarı [0, yarı), üst yarı [yarı, kutu_sayısı), yarı = ⌈kutu_sayısı / 2⌉.
+ *   - Her yarının en kalabalık kutusu (eşitlikte KÜÇÜK indis) çevresindeki ±bant kutu
+ *     (bant = kutu_sayısı / 16, yarının içinde kırpılır) o durumun bandıdır; bandaki
+ *     örneklerin ORTALAMASI (tam tamsayı toplam / sayı, tek bölme) durum seviyesidir.
+ *   - İKİ DURUM sayılması için her bant örneklerin en az 1/16'sını, iki bant birlikte en az
+ *     3/4'ünü tutmalı. Sinüs (iki bant ~%32), üçgen (~%12), DC, gürültü ve iğne kümesi bu
+ *     sınamayı GEÇEMEZ: seviyeler en küçük / en büyük örnek kalır ve skop_olc eski
+ *     davranışla BİT BİT aynıdır (test_skop_olcum.py SK2 (c), dondurulmuş çıktılarla).
+ * d[0] alt, d[1] üst seviye (kod, float32); dönüş 1 = iki durum. */
+static uint8_t skop_durum(const uint16_t *ham, uint16_t adet, uint16_t hmin, uint16_t hmax,
+                          float *d)
+{
+    uint16_t kutu[256];
+    const uint16_t aralik = (uint16_t)(hmax - hmin);
+    uint16_t i, b, kutu_say, yari, bant, la, lb, ua, ub, m_alt, m_ust;
+    uint8_t k = 0u;
+    uint32_t c_alt = 0u, c_ust = 0u, s_alt = 0u, s_ust = 0u;
+
+    d[0] = (float)hmin;
+    d[1] = (float)hmax;
+    while ((uint16_t)(aralik >> k) > 255u) k++;
+    kutu_say = (uint16_t)((uint16_t)(aralik >> k) + 1u);       /* 1 … 256 */
+    if (kutu_say < 2u) return 0u;
+    for (b = 0u; b < kutu_say; b++) kutu[b] = 0u;
+    for (i = 0u; i < adet; i++) kutu[(uint16_t)(ham[i] - hmin) >> k]++;
+    yari = (uint16_t)((kutu_say + 1u) / 2u);
+    m_alt = 0u;
+    for (b = 1u; b < yari; b++) if (kutu[b] > kutu[m_alt]) m_alt = b;
+    m_ust = yari;
+    for (b = (uint16_t)(yari + 1u); b < kutu_say; b++) if (kutu[b] > kutu[m_ust]) m_ust = b;
+    bant = (uint16_t)(kutu_say / 16u);
+    la = (m_alt > bant) ? (uint16_t)(m_alt - bant) : 0u;
+    lb = (uint16_t)(m_alt + bant);
+    if (lb >= yari) lb = (uint16_t)(yari - 1u);
+    ua = (m_ust >= (uint16_t)(yari + bant)) ? (uint16_t)(m_ust - bant) : yari;
+    ub = (uint16_t)(m_ust + bant);
+    if (ub >= kutu_say) ub = (uint16_t)(kutu_say - 1u);
+    for (i = 0u; i < adet; i++) {
+        const uint16_t h = ham[i];
+        b = (uint16_t)((uint16_t)(h - hmin) >> k);
+        if (b >= la && b <= lb)      { c_alt++; s_alt += h; }
+        else if (b >= ua && b <= ub) { c_ust++; s_ust += h; }
+    }
+    if (c_alt * 16u < (uint32_t)adet || c_ust * 16u < (uint32_t)adet
+        || (c_alt + c_ust) * 4u < 3u * (uint32_t)adet) return 0u;
+    d[0] = skop_u64_float(s_alt) / (float)c_alt;           /* c ≤ 65535: tam */
+    d[1] = skop_u64_float(s_ust) / (float)c_ust;
+    return 1u;
+}
+
+/* SK2: iki durumlu sinyalde bir geçiş ancak ÖNCEKİ durum en az üç örnek sürmüşse ve SONRAKİ
+ * durum en az üç örnek sürüyorsa kenardır: geçişi başlatan örnekten (a) önceki üç örnek ve
+ * tamamlayan örnekle (b) sonraki iki örnek orta seviyenin doğru yanında olmalı (üst yan
+ * s ≥ orta, alt yan s < orta — kesişim kuralıyla aynı). Değilse en çok iki örnek genişliğinde
+ * bir İĞNEDİR (ön süzgecin sildiği genişlik; ham kipte kartta ~%3) — kenar sayılmaz. Kaydın
+ * başında / sonunda var olan örneklere bakılır. yukari: 1 yükselen, 0 düşen. */
+static uint8_t skop_igne(const uint16_t *ham, uint16_t adet, uint16_t a, uint16_t b,
+                         float orta, uint8_t yukari)
+{
+    uint32_t j;
+    for (j = (a > 3u) ? (uint32_t)a - 3u : 0u; j < (uint32_t)a; j++)
+        if (((float)ham[j] >= orta) == (yukari != 0u)) return 1u;
+    for (j = (uint32_t)b; j <= (uint32_t)b + 2u && j < (uint32_t)adet; j++)
+        if (((float)ham[j] >= orta) != (yukari != 0u)) return 1u;
+    return 0u;
+}
+
+/* skop_olc + durum seviyeleri (kod): d[0] alt, d[1] üst; dönüş 1 = iki durum (SK2).
+ * Kartın eğri yolu (skop_olc_kalibre) Vpp'yi bu seviyelerden kurar. */
+static uint8_t skop_olc_d(const uint16_t *ham, uint16_t adet, float volt_adim,
+                          float ornekleme_hz, SkopOlcum *o, float *d)
 {
     uint16_t i;
     uint16_t hmin, hmax;
@@ -95,14 +171,15 @@ static void skop_olc(const uint16_t *ham, uint16_t adet, float volt_adim,
     float orta, hist, ust, alt;
     float ilk_kesim, son_kesim;
     uint16_t kesim_sayisi;
-    uint8_t hazir;
+    uint8_t hazir, iki;
     float onceki;
 
     o->vmax = o->vmin = o->vpp = o->vort = 0.0f;
     o->vrms = o->vac = o->frekans = o->periyot = 0.0f;
     o->duty = o->t_yuksel = o->t_dus = 0.0f;
     o->cevrim = 0;
-    if (adet == 0u || ornekleme_hz <= 0.0f) return;
+    d[0] = d[1] = 0.0f;
+    if (adet == 0u || ornekleme_hz <= 0.0f) return 0u;
 
     /* --- 1. geçiş: uçlar + TAM tamsayı toplamlar ------------------------
      * 1F (S1): eskiden float32'de Σv ve Σv² toplanıp Vac = √(kare_ort − ort²)
@@ -127,7 +204,11 @@ static void skop_olc(const uint16_t *ham, uint16_t adet, float volt_adim,
     }
     o->vmax = (float)hmax * volt_adim;
     o->vmin = (float)hmin * volt_adim;
-    o->vpp  = o->vmax - o->vmin;
+    /* SK2: Vpp = durum seviyeleri farkı (kare dalganın GENLİĞİ); iki durum yoksa seviyeler
+     * uç örneklerdir ve bu satır eskisiyle (vmax − vmin) aynı işlemdir. Gerçek tepeler
+     * (aşım, iğne) Vmax / Vmin'de kalır. */
+    iki = skop_durum(ham, adet, hmin, hmax, d);
+    o->vpp  = d[1] * volt_adim - d[0] * volt_adim;
     {
         const float n = (float)adet;                     /* tam: < 2^16 */
         /* RMS'ler işaretsiz: eksi volt_adim'de de ≥ 0 (eski sözleşme) */
@@ -143,9 +224,9 @@ static void skop_olc(const uint16_t *ham, uint16_t adet, float volt_adim,
     /* --- 2. geçiş: periyot, yükselen kenar kesişimleriyle -------------
      * Orta seviyede histerezisli kenar arıyoruz. Histerezis olmadan
      * gürültülü bir sinyalde her örnekte sahte kesişim sayardık. */
-    orta = ((float)hmin + (float)hmax) * 0.5f;
-    hist = ((float)hmax - (float)hmin) * 0.125f;   /* %12.5 */
-    if (hist < 1.0f) return;                       /* düz çizgi: ölçüm yok */
+    orta = (d[0] + d[1]) * 0.5f;                   /* SK2: durum seviyelerinden */
+    hist = (d[1] - d[0]) * 0.125f;                 /* %12.5 */
+    if (hist < 1.0f) return iki;                   /* düz çizgi: ölçüm yok */
 
     ilk_kesim = son_kesim = 0.0f;
     kesim_sayisi = 0u;
@@ -205,19 +286,25 @@ static void skop_olc(const uint16_t *ham, uint16_t adet, float volt_adim,
      * Kayıttaki İLK tam geçiş ölçülür; bulununca tarama biter. Eskiden %10
      * noktası hiç bırakılmıyordu: %90'a varmayan bir darbe yükselme süresini
      * bir SONRAKİ kenara kadar uzatıyordu. */
-    alt = (float)hmin + ((float)hmax - (float)hmin) * 0.1f;
-    ust = (float)hmin + ((float)hmax - (float)hmin) * 0.9f;
+    alt = d[0] + (d[1] - d[0]) * 0.1f;             /* SK2: durum seviyelerinden */
+    ust = d[0] + (d[1] - d[0]) * 0.9f;
     {
         float t10 = -1.0f, t90 = -1.0f;
+        uint16_t bas = 0u;                   /* SK2: geçişi başlatan örnek */
         onceki = (float)ham[0];
         for (i = 1u; i < adet && t90 < 0.0f; i++) {
             float s = (float)ham[i];
             if (t10 >= 0.0f && s < alt)
                 t10 = -1.0f;                 /* %90'a varmadan geri indi */
-            if (t10 < 0.0f && onceki < alt && s >= alt)
+            if (t10 < 0.0f && onceki < alt && s >= alt) {
                 t10 = (float)(i - 1u) + skop_kesisim(onceki, s, alt);
-            if (t10 >= 0.0f && onceki < ust && s >= ust)
+                bas = i;
+            }
+            if (t10 >= 0.0f && onceki < ust && s >= ust) {
                 t90 = (float)(i - 1u) + skop_kesisim(onceki, s, ust);
+                if (iki && skop_igne(ham, adet, bas, i, orta, 1u))
+                    t10 = t90 = -1.0f;       /* SK2: iğne, kenar değil */
+            }
             onceki = s;
         }
         if (t10 >= 0.0f && t90 > t10)
@@ -225,20 +312,34 @@ static void skop_olc(const uint16_t *ham, uint16_t adet, float volt_adim,
     }
     {
         float t90 = -1.0f, t10 = -1.0f;
+        uint16_t bas = 0u;
         onceki = (float)ham[0];
         for (i = 1u; i < adet && t10 < 0.0f; i++) {
             float s = (float)ham[i];
             if (t90 >= 0.0f && s > ust)
                 t90 = -1.0f;                 /* %10'a varmadan geri çıktı */
-            if (t90 < 0.0f && onceki > ust && s <= ust)
+            if (t90 < 0.0f && onceki > ust && s <= ust) {
                 t90 = (float)(i - 1u) + skop_kesisim(onceki, s, ust);
-            if (t90 >= 0.0f && onceki > alt && s <= alt)
+                bas = i;
+            }
+            if (t90 >= 0.0f && onceki > alt && s <= alt) {
                 t10 = (float)(i - 1u) + skop_kesisim(onceki, s, alt);
+                if (iki && skop_igne(ham, adet, bas, i, orta, 0u))
+                    t90 = t10 = -1.0f;       /* SK2: iğne, kenar değil */
+            }
             onceki = s;
         }
         if (t90 >= 0.0f && t10 > t90)
             o->t_dus = (t10 - t90) / ornekleme_hz;
     }
+    return iki;
+}
+
+static void skop_olc(const uint16_t *ham, uint16_t adet, float volt_adim,
+                     float ornekleme_hz, SkopOlcum *o)
+{
+    float d[2];
+    (void)skop_olc_d(ham, adet, volt_adim, ornekleme_hz, o, d);
 }
 
 #pragma GCC pop_options    /* 1F (S2): bloğun başındaki push_options'ın eşi */

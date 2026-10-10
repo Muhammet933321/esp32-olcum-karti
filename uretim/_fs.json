@@ -38,7 +38,7 @@
     "ortak/kripto.js": "9d10501342ff06184ef389389349fcc7bcc8e33c9d47f4600e3deb30a991489b",
     "ortak/ozet.js": "d163998b887f02e4608a12bddc66320f4fc26314864d7d2c2b7a3c4a6735a2ed",
     "ortak/rapor.js": "b8cce20a56f01788c52e1b8ec9ab011ac4c375209e1a2b4d7560efefc2b7a474",
-    "ortak/skop.js": "d45ea983029eed4356f551d0442c27f77d53fcd4a060a6bf391b60b2fcc8970f",
+    "ortak/skop.js": "828bad43c723f72c2846b765b842257375b29d808c12accd4a2513bb4f6a9c9b",
     "ortak/sozluk.js": "8e38f2acd83d526d31e7e03594f433068c9d1ddc55d6ec7ebfd71a77d8d6e0cc",
     "ortak/sozluk_ay.js": "f405e65e851b02ec96286e029561d5f2865b85f25012c611f52b053cc27692c5",
     "ortak/sozluk_es.js": "dcadc35fde2da9b7e386a9aabb9e55207ade6cc201e80bd4a2a8a03803c7fc66",
@@ -50,7 +50,7 @@
     "ortak/sozluk_skop.js": "4a1e71e7e3b7cca4e7ff9f82517cf90e7e56c62a677c260c04ddda10190c1f83",
     "ortak/zarf.js": "bd91be6fade85e82be49b8cdbccf447e4997c7949c561eff5559830fbe5f67c4"
   },
-  "panel_surum": "cb6a63d4b7fd",
+  "panel_surum": "9ff03ade5d60",
   "gz": [
     "index.html",
     "app.js",
@@ -100,7 +100,7 @@
   ],
   "ofset": "0x310000",
   "bolum_boyut": 1572864,
-  "icerik_bayt": 480924,
+  "icerik_bayt": 482154,
   "bayt": {
     "index.html": 26324,
     "app.js": 84995,
@@ -140,7 +140,7 @@
     "ortak/kripto.js": 7711,
     "ortak/ozet.js": 4785,
     "ortak/rapor.js": 6815,
-    "ortak/skop.js": 6074,
+    "ortak/skop.js": 7304,
     "ortak/sozluk.js": 19011,
     "ortak/sozluk_ay.js": 4700,
     "ortak/sozluk_es.js": 5301,
@@ -193,7 +193,7 @@
     "ortak/kripto.js": "24a07487a08b7789",
     "ortak/ozet.js": "bb95c078ce7ea9d1",
     "ortak/rapor.js": "35eee9410104c87b",
-    "ortak/skop.js": "f2b31ed92f600c21",
+    "ortak/skop.js": "da77c43e03de0d0e",
     "ortak/sozluk.js": "c5d055e5be37aeb2",
     "ortak/sozluk_ay.js": "6a60d580f389bd8b",
     "ortak/sozluk_es.js": "24d8e0387333bfed",
@@ -204,7 +204,7 @@
     "ortak/sozluk_pil.js": "d9d145041ebbbde0",
     "ortak/sozluk_skop.js": "14299c0347d774a6",
     "ortak/zarf.js": "0eb0d7867f117c16",
-    "kunye.json": "635e855dffcb525d"
+    "kunye.json": "a0b92edfd8f1198a"
   },
   "goruntu_bayt": 1572864,
   "blok": 4096,

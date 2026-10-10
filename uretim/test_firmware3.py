@@ -125,7 +125,8 @@ BULUNMAMALI = [
 # esikleri): kart AVR basvurusundan ayrisiyordu.
 KAYNASMIS = re.compile(r"\b(madd|msub|maddn|msubn)\.s\b")
 KAYAN_NOKTA = re.compile(r"\b[a-z0-9]+\.s\b")
-KAYNASMASIZ_FONKSIYONLAR = ("skop_olc", "skop_kesisim", "skop_u64_float")
+# SK2: olcumun govdesi skop_olc_d'de (skop_olc ona ince sarmalayici); durum seviyeleri skop_durum, igne skop_igne
+KAYNASMASIZ_FONKSIYONLAR = ("skop_olc", "skop_olc_d", "skop_durum", "skop_igne", "skop_kesisim", "skop_u64_float")
 
 
 def _xtensa_arac(ad: str) -> Path | None:
@@ -162,8 +163,8 @@ def kaynasma_denetimi(gec_dizin: Path) -> None:
         if len(p) == 4 and p[2] in ("t", "T") \
                 and any(f"{len(a)}{a}" in p[3] for a in KAYNASMASIZ_FONKSIYONLAR):
             semboller.append((p[3], int(p[0], 16), int(p[1], 16)))
-    ok("1F S2: skop_olc ikilide AYRI fonksiyon (gomulmedi — denetim bos degil)",
-       any("8skop_olc" in s[0] for s in semboller),
+    ok("1F S2: skop_olc_d (olcumun govdesi, SK2) ikilide AYRI fonksiyon (gomulmedi — denetim bos degil)",
+       any("10skop_olc_d" in s[0] for s in semboller),
        ", ".join(f"{s[0]} {s[2]} B" for s in semboller) or "sembol YOK")
     kaynasmis, kayan = [], 0
     for ad, adres, boy in semboller:

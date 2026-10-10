@@ -924,8 +924,14 @@ def bolum6(r):
     r.kosul("  6k: [!] toplamlar DOUBLE (Vac ~65 V'luk ortalamanin yaninda kaybolmasin)",
             "double top = 0.0, kare = 0.0;" in _kal)
     r.kosul("  6k: ZAMAN buyuklukleri skop_olc'tan, dogrusallastirilmis KODLARLA",
-            "skop_olc(skop_gecici, n," in _kal and "skop_gecici[i] =" in _kal,
+            "skop_olc_d(skop_gecici, n," in _kal and "skop_gecici[i] =" in _kal,
             "esikler eksenin gosterdigi orta seviyede")
+    # SK2 (A3-SK2): kalibre yolda da Vpp DURUM seviyelerinden (skop_olc_d'nin dondurdugu dogrusal kodlar
+    # -> pin mV -> V); iki durum yoksa uclar. JS ikizi ortak/src/skop.js skopOlcKalibre (B73 skop.test.js).
+    r.kosul("  6k: [!] SK2: kalibre yolda kare dalganin Vpp'si durum seviyeleri farki, tepeler Vmax / Vmin'de",
+            "const uint8_t iki = skop_olc_d(skop_gecici, n," in _kal
+            and "m->vpp  = iki ? (dur[1] / mv_kod) * mv_v - (dur[0] / mv_kod) * mv_v : m->vmax - m->vmin;" in _kal,
+            "yoksa egri gecerliyken (kartin olagan hali) M satirinin Vpp'si yine igne tepesinden olurdu")
     _isle_k = _kod(_isle)
     # ⚠ Yalniz bicimleyici cagrisinin yerine bakmak BOS iddiaydi: mutasyon
     #   `Serial.write`i sildi ve iddia yesil kaldi. Satiri BASAN cagri da

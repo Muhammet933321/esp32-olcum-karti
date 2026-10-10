@@ -229,7 +229,11 @@ def skop_olcum_kalibre(k, http_host="olcum.local", tol_v=0.002) -> int:
         komut(c)
 
     def karsilastir(ad, m, beklenen):
-        farklar = {a: m.get(a, float("nan")) - beklenen[a] for a in beklenen}
+        # SK2 (A3-SK2): iki durumlu sinyalde `M`in Vpp'si DURUM seviyeleri farki (uclar degil) — burada
+        # yalniz <= Vmax - Vmin sinanir; uc degerler (Vmax / Vmin) ve RMS'ler eksenle AYNI kalmali.
+        farklar = {a: m.get(a, float("nan")) - beklenen[a] for a in beklenen if a != "Vpp"}
+        if not m.get("Vpp", float("nan")) <= m.get("Vmax", float("nan")) - m.get("Vmin", float("nan")) + tol_v:
+            farklar["Vpp"] = float("inf")
         en = max(abs(x) if x == x else float("inf") for x in farklar.values())
         print(f"  {ad:<7} " + " ".join(
             f"{a}={m.get(a, float('nan')):+.4f}/{beklenen[a]:+.4f}" for a in ("Vmax", "Vmin", "Vpp", "Vort", "Vac")))
@@ -456,7 +460,7 @@ def skop_sinyal(k, hz_sinyal: float, duty: float = 50.0, genlik: float = 5.0, te
                 continue
             m = m_coz(b.get("olcum"))
             kayit[suz].append({"f": m.get("f", 0.0), "duty": m.get("duty", -1.0), "vpp": m.get("Vpp", 0.0),
-                               "tr": m.get("tr", 0.0), "hz": b["hz"], "n": len(b["ornek"]),
+                               "tr": m.get("tr", 0.0), "tf": m.get("tf", 0.0), "hz": b["hz"], "n": len(b["ornek"]),
                                "igne": igneler(b["ornek"])})
     komut("tf1")                            # karti varsayilanda birak
 
@@ -468,11 +472,15 @@ def skop_sinyal(k, hz_sinyal: float, duty: float = 50.0, genlik: float = 5.0, te
         d_ok = sum(1 for x in liste if abs(x["duty"] - duty) <= 2.0)
         vpp = sorted(x["vpp"] for x in liste)[len(liste) // 2]
         tr = sorted(x["tr"] for x in liste)[len(liste) // 2]
+        tf = sorted(x["tf"] for x in liste)[len(liste) // 2]
+        tf_sapan = sum(1 for x in liste if not 0 < x["tf"] <= 3 * max(tf, 1.0 / x["hz"]))
         igne = 1000.0 * sum(x["igne"] for x in liste) / max(sum(x["n"] for x in liste), 1)
         print(f"  {ad:9s} {len(liste):2d} yakalama @ {liste[0]['hz']} Sa/s | frekans %1 icinde {f_ok}/{len(liste)}"
               f" | doluluk +-2 puan {d_ok}/{len(liste)} | Vpp ortanca {vpp:.2f} V | yukselme ortanca {tr * 1e6:.0f} us"
               f" | igne {igne:.2f}/1000")
-        return {"n": len(liste), "f_ok": f_ok, "d_ok": d_ok, "vpp": vpp, "tr": tr, "igne": igne}
+        print(f"  {'':9s} dusme ortanca {tf * 1e6:.0f} us, ortancanin 3 katini asan / olculemeyen {tf_sapan}/{len(liste)}")
+        return {"n": len(liste), "f_ok": f_ok, "d_ok": d_ok, "vpp": vpp, "tr": tr, "tf": tf, "tf_sapan": tf_sapan,
+                "igne": igne}
 
     ham, suzlu = ozet("HAM", kayit[0]), ozet("SUZGECLI", kayit[1])
     if not ham or not suzlu:
@@ -493,6 +501,14 @@ def skop_sinyal(k, hz_sinyal: float, duty: float = 50.0, genlik: float = 5.0, te
     ok("SUZGECLI: Vpp ham'dan gercek genlige daha yakin (igne tepe degerini sisirmiyor)",
        abs(suzlu["vpp"] - genlik) <= abs(ham["vpp"] - genlik) + 0.05,
        f"suzgecli {suzlu['vpp']:.2f} V, ham {ham['vpp']:.2f} V, gercek {genlik:g} V")
+    # SK2 (A3-SK2): Vpp durum seviyelerinden — igne ve gurultu tepesi onu artik sisirmez, ham ve suzgecli
+    # kol AYNI genligi okur (A3-SK1'de 9.74 / 6.26 V). Mutlak deger SK-4 (skop kazanci ~%10) cozulene dek
+    # gercek genlikle sinanmaz. Dusme suresi: A3-SK1'de 3/20 yakalamada 63-123 us (alt seviyede tek dip).
+    ok("[!] SK2: ham ve suzgecli Vpp ortancasi %3 icinde ayni (igne / gurultu tepesi genligi sisirmiyor)",
+       abs(ham["vpp"] - suzlu["vpp"]) <= 0.03 * suzlu["vpp"],
+       f"ham {ham['vpp']:.3f} V, suzgecli {suzlu['vpp']:.3f} V")
+    ok("[!] SK2: SUZGECLI dusme suresi her yakalamada olculdu ve ortancanin 3 katini asmiyor",
+       suzlu["tf_sapan"] == 0, f"{suzlu['tf_sapan']}/{suzlu['n']} sapan, ortanca {suzlu['tf'] * 1e6:.0f} us")
     return 1 if kaldi else 0
 
 

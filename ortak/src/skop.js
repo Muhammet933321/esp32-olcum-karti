@@ -23,6 +23,11 @@
  *   S3 duty örnekleri (taban(ilk), taban(son)] — eskiden bir örnek fazlaydı.
  *   S4 tr/tf: %10 → %90 arasında karşı eşik geçilirse başlangıç bırakılır.
  *
+ * SK2 (2026-10-10) — eşikler (%50, %10–%90) ve Vpp ALT / ÜST DURUM seviyelerinden (IEEE 181
+ * histogram yöntemi, C `skop_durum`): iki durumlu sinyalde (kare) Vpp = durum seviyeleri farkı
+ * (gerçek tepeler Vmax / Vmin'de); tr/tf'de iki örnekten dar iğne kenar sayılmaz (C
+ * `skop_igne`). İki durum yoksa (sinüs, üçgen, DC) eski uç-değer davranışı, bit bit.
+ *
  * Bağımlılık yok, Node API'si yok (tarayıcı + Capacitor aynı dosyayı yükler).
  */
 
@@ -75,6 +80,51 @@ export function u64f(x) {
   return f;
 }
 
+/**
+ * C `skop_durum`: alt / üst DURUM seviyeleri (kod) — en çok 256 kutulu histogram (kutu genişliği
+ * 2'nin kuvveti), her yarının en kalabalık kutusu (eşitlikte küçük indis) ± kutu_sayısı/16 kutu
+ * bandının örnek ortalaması. İki durum: her bant ≥ n/16 ve ikisi birlikte ≥ 3n/4 örnek. Değilse
+ * seviyeler hmin / hmax (eski davranış). Tamsayı işlemleri C ile aynı (n ≤ 65535, toplam < 2^32).
+ * @returns {{iki: boolean, alt: number, ust: number}}
+ */
+function durum(h, n, hmin, hmax) {
+  const sonuc = { iki: false, alt: hmin, ust: hmax };
+  const aralik = hmax - hmin;
+  let k = 0;
+  while ((aralik >> k) > 255) k++;
+  const kutuSay = (aralik >> k) + 1;
+  if (kutuSay < 2) return sonuc;
+  const kutu = new Uint16Array(kutuSay);
+  for (let i = 0; i < n; i++) kutu[(h[i] - hmin) >> k]++;
+  const yari = (kutuSay + 1) >> 1;
+  let mAlt = 0;
+  for (let b = 1; b < yari; b++) if (kutu[b] > kutu[mAlt]) mAlt = b;
+  let mUst = yari;
+  for (let b = yari + 1; b < kutuSay; b++) if (kutu[b] > kutu[mUst]) mUst = b;
+  const bant = Math.floor(kutuSay / 16);
+  const la = mAlt > bant ? mAlt - bant : 0;
+  const lb = Math.min(mAlt + bant, yari - 1);
+  const ua = mUst >= yari + bant ? mUst - bant : yari;
+  const ub = Math.min(mUst + bant, kutuSay - 1);
+  let cAlt = 0, cUst = 0, sAlt = 0, sUst = 0;
+  for (let i = 0; i < n; i++) {
+    const b = (h[i] - hmin) >> k;
+    if (b >= la && b <= lb) { cAlt++; sAlt += h[i]; } else if (b >= ua && b <= ub) { cUst++; sUst += h[i]; }
+  }
+  if (cAlt * 16 < n || cUst * 16 < n || (cAlt + cUst) * 4 < 3 * n) return sonuc;
+  sonuc.iki = true;
+  sonuc.alt = f32(u64f(BigInt(sAlt)) / cAlt);
+  sonuc.ust = f32(u64f(BigInt(sUst)) / cUst);
+  return sonuc;
+}
+
+/** C `skop_igne`: geçiş (a başlatan, b tamamlayan örnek) öncesinde üç, sonrasında b dahil üç örnek doğru yanda değilse iğne. */
+function igne(h, n, a, b, orta, yukari) {
+  for (let j = a > 3 ? a - 3 : 0; j < a; j++) if ((h[j] >= orta) === yukari) return true;
+  for (let j = b; j <= b + 2 && j < n; j++) if ((h[j] >= orta) !== yukari) return true;
+  return false;
+}
+
 function sifir() {
   return { f: 0, T: 0, Vpp: 0, Vmax: 0, Vmin: 0, Vort: 0, Vrms: 0, Vac: 0, duty: 0, tr: 0, tf: 0, n: 0 };
 }
@@ -102,14 +152,20 @@ function sifir() {
  *   Atmaz: geçersiz girdide yukarıdaki sıfırları ya da NaN'ı (C de NaN üretir) döndürür.
  */
 export function skopOlc(ham, adet, voltAdim, orneklemeHz) {
+  return olcDurum(ham, adet, voltAdim, orneklemeHz).o;
+}
+
+/** C `skop_olc_d`: skopOlc + durum seviyeleri ({iki, alt, ust}, kod; adet 0 / hz <= 0: 0, 0). */
+function olcDurum(ham, adet, voltAdim, orneklemeHz) {
   const o = sifir();
+  let d = { iki: false, alt: 0, ust: 0 };
   const uzunluk = ham && typeof ham.length === 'number' ? ham.length : 0;
   let n = adet === undefined ? uzunluk : Math.floor(Number(adet));
   if (!(n > 0)) n = 0;
   n = Math.min(n, uzunluk, AZAMI_ADET);
   const hz = f32(orneklemeHz);
   const va = f32(voltAdim);
-  if (n === 0 || hz <= 0) return o;
+  if (n === 0 || hz <= 0) return { o, d };
 
   const h = new Uint16Array(n);
   for (let i = 0; i < n; i++) h[i] = ham[i];
@@ -128,7 +184,9 @@ export function skopOlc(ham, adet, voltAdim, orneklemeHz) {
   }
   o.Vmax = f32(hmax * va);
   o.Vmin = f32(hmin * va);
-  o.Vpp = f32(o.Vmax - o.Vmin);
+  /* SK2: Vpp = durum seviyeleri farkı; iki durum yoksa seviyeler uç örnekler (eski vmax − vmin) */
+  d = durum(h, n, hmin, hmax);
+  o.Vpp = f32(f32(d.ust * va) - f32(d.alt * va));
   /* n·S2 − S1² = n²·varyans (kod²) ≤ 65535⁴ < 2^64, ≥ 0 — TAM (BigInt), sonra tek karekök. */
   const pay = BigInt(n) * BigInt(s2) - BigInt(s1) * BigInt(s1);
   const vaMutlak = va < 0 ? -va : va; // RMS'ler işaretsiz (C ile aynı)
@@ -140,9 +198,9 @@ export function skopOlc(ham, adet, voltAdim, orneklemeHz) {
   o.Vrms = f32(f32(Math.sqrt(f32(f32(ort * ort) + f32(ac * ac)))) * vaMutlak);
 
   /* --- 2. geçiş: periyot, histerezisli yükselen kenarlar --------------- */
-  const orta = f32(f32(hmin + hmax) * 0.5);
-  const hist = f32(f32(hmax - hmin) * 0.125); // %12.5
-  if (hist < 1) return o; // düz çizgi: zaman ölçümü yok
+  const orta = f32(f32(d.alt + d.ust) * 0.5); // SK2: durum seviyelerinden
+  const hist = f32(f32(d.ust - d.alt) * 0.125); // %12.5
+  if (hist < 1) return { o, d }; // düz çizgi: zaman ölçümü yok
 
   const kurmaEsigi = f32(orta - hist);
   let ilkKesim = 0;
@@ -189,18 +247,22 @@ export function skopOlc(ham, adet, voltAdim, orneklemeHz) {
    * KURAL (1F S4): yükselme = %10'u yukarı geçiş → %90'ı yukarı geçiş, ARADA %10'un altına
    * (s < alt) inmeden; inerse başlangıç bırakılır, sonraki yukarı geçişte yeniden kurulur.
    * Düşme simetrik (arada s > ust olursa bırakılır). Kayıttaki İLK tam geçiş ölçülür. */
-  const aralik = f32(hmax - hmin);
-  const alt = f32(hmin + f32(aralik * ON));
-  const ust = f32(hmin + f32(aralik * DOKSAN));
+  const aralik = f32(d.ust - d.alt); // SK2: durum seviyelerinden
+  const alt = f32(d.alt + f32(aralik * ON));
+  const ust = f32(d.alt + f32(aralik * DOKSAN));
   {
     let t10 = -1;
     let t90 = -1;
+    let bas = 0;
     onceki = h[0];
     for (let i = 1; i < n && t90 < 0; i++) {
       const s = h[i];
       if (t10 >= 0 && s < alt) t10 = -1; // %90'a varmadan geri indi
-      if (t10 < 0 && onceki < alt && s >= alt) t10 = f32((i - 1) + kesisim(onceki, s, alt));
-      if (t10 >= 0 && onceki < ust && s >= ust) t90 = f32((i - 1) + kesisim(onceki, s, ust));
+      if (t10 < 0 && onceki < alt && s >= alt) { t10 = f32((i - 1) + kesisim(onceki, s, alt)); bas = i; }
+      if (t10 >= 0 && onceki < ust && s >= ust) {
+        t90 = f32((i - 1) + kesisim(onceki, s, ust));
+        if (d.iki && igne(h, n, bas, i, orta, true)) { t10 = -1; t90 = -1; } // SK2: iğne
+      }
       onceki = s;
     }
     if (t10 >= 0 && t90 > t10) o.tr = f32(f32(t90 - t10) / hz);
@@ -208,17 +270,21 @@ export function skopOlc(ham, adet, voltAdim, orneklemeHz) {
   {
     let t90 = -1;
     let t10 = -1;
+    let bas = 0;
     onceki = h[0];
     for (let i = 1; i < n && t10 < 0; i++) {
       const s = h[i];
       if (t90 >= 0 && s > ust) t90 = -1; // %10'a varmadan geri çıktı
-      if (t90 < 0 && onceki > ust && s <= ust) t90 = f32((i - 1) + kesisim(onceki, s, ust));
-      if (t90 >= 0 && onceki > alt && s <= alt) t10 = f32((i - 1) + kesisim(onceki, s, alt));
+      if (t90 < 0 && onceki > ust && s <= ust) { t90 = f32((i - 1) + kesisim(onceki, s, ust)); bas = i; }
+      if (t90 >= 0 && onceki > alt && s <= alt) {
+        t10 = f32((i - 1) + kesisim(onceki, s, alt));
+        if (d.iki && igne(h, n, bas, i, orta, false)) { t90 = -1; t10 = -1; } // SK2: iğne
+      }
       onceki = s;
     }
     if (t90 >= 0 && t10 > t90) o.tf = f32(f32(t10 - t90) / hz);
   }
-  return o;
+  return { o, d };
 }
 
 /* ═══ 3E — KARTIN `M` SATIRI (alt proje 3, karar OS4) ════════════════════════
@@ -317,12 +383,13 @@ export function skopOlcKalibre(ham, adet, voltAdim, orneklemeHz, egri) {
     if (h[i] < hmin) hmin = h[i];
     if (h[i] > hmax) hmax = h[i];
   }
-  const o = skopOlc(gecici, n, voltAdim, orneklemeHz);   // zaman buyuklukleri
+  const { o, d } = olcDurum(gecici, n, voltAdim, orneklemeHz);   // zaman buyuklukleri + durum seviyeleri
   const ort = top / n;
   const ac = kare / n - ort * ort;
   o.Vmax = f32(kalMvKart(egri, hmax) * mvV);
   o.Vmin = f32(kalMvKart(egri, hmin) * mvV);
-  o.Vpp = f32(o.Vmax - o.Vmin);
+  /* SK2: iki durumda Vpp durum seviyelerinin farki (dogrusal kod -> mV -> V); yoksa uclar */
+  o.Vpp = d.iki ? f32(f32(f32(d.ust / mvKod) * mvV) - f32(f32(d.alt / mvKod) * mvV)) : f32(o.Vmax - o.Vmin);
   o.Vort = f32(ort);
   o.Vac = ac > 0 ? f32(Math.sqrt(ac)) : 0;
   o.Vrms = f32(Math.sqrt(kare / n));

@@ -144,6 +144,38 @@ def kare(n, periyot, ust_pay, dusuk, yuksek, faz=0.0):
     return c
 
 
+def kare_gercek(n, periyot, doluluk, alt, ust, faz=0.0, kenar=0.8, tau=0.0, gurultu=0, tohum=1,
+                igne_binde=0.0, igne_min=0, igne_maks=0, dipler=()):
+    """SK2: gercekci kare — kesirli periyot, sonlu kenar, gurultu, igne, tek tek dipler.
+
+    Periyot icindeki konum t = (i + faz) mod periyot (ornek); yukselme t = 0'da, dusme
+    t = doluluk*periyot'ta baslar. tau > 0: ustel (RC) kenar, hedefe tau ornekte 1 - 1/e;
+    tau = 0: `kenar` ornek suren dogrusal rampa. gurultu: [-g, g] tamsayi (LCG). igne: her
+    ornekte binde `igne_binde` olasilikla bir ORNEKLIK +-[igne_min, igne_maks] kod (isaret de
+    rastgele; kartta olculen B44/SK1 iğneleri). dipler: (indis, kod) — o ornek o koda iner.
+    Sonuc 0..4095'e kirpilir (12 bit ADC). Ayni girdi ayni dizi (Lcg)."""
+    r = Lcg(tohum)
+    A = ust - alt
+    D = doluluk * periyot
+    c = []
+    for i in range(n):
+        t = (i + faz) % periyot
+        if t < D:
+            y = alt + A * (1.0 - math.exp(-t / tau)) if tau > 0 else alt + A * min(1.0, t / kenar)
+        else:
+            u = t - D
+            y = ust - A * (1.0 - math.exp(-u / tau)) if tau > 0 else ust - A * min(1.0, u / kenar)
+        k = int(math.floor(y + 0.5))
+        if gurultu:
+            k += r.tam(-gurultu, gurultu)
+        if igne_binde and r() < igne_binde / 1000.0:
+            k += (1 if r() < 0.5 else -1) * r.tam(igne_min, igne_maks)
+        c.append(min(max(k, 0), 4095))
+    for i, kod in dipler:
+        c[i] = kod
+    return c
+
+
 def vakalar() -> list[dict]:
     V = []
 
@@ -247,6 +279,45 @@ def vakalar() -> list[dict]:
     # 3999'luk gercek payi bozar -> BigInt sart (C: uint64_t).
     ekle("tavan_tek_fark_4000", "1F S1: 3999 x 65535 + 1 x 65534: varyans payi TAM 3999 (> 2^53 toplamlar)",
          [65535] * 2000 + [65534] + [65535] * 1999, va=0.001)
+
+    # ── SK2 (2026-10-10): alt / ust DURUM seviyeleri (histogram) — 1 kHz kare @ 83 333 Sa/s ──
+    # 0.3 V / 5.3 V'luk kare kodlari (va 0.0288 V/kod): alt 10, ust 184 -> genlik 174 kod = 5.009 V
+    # (kartta Arduino karesi). Kenar 0.8 ornek (~10 us). Gurultu +-3 kod (kartta ~85 mV).
+    ekle("sk2_kare_igneli", "SK2 (a): 1 kHz kare, +-3 kod gurultu + 4 seyrek igne (40..80 kod): Vpp genlik, tr/tf tutarli",
+         kare_gercek(4000, 83.333, 0.5, 10, 184, faz=11.0, gurultu=3, tohum=21,
+                     igne_binde=1.0, igne_min=40, igne_maks=80), hz=83333.0)
+    ekle("sk2_kare_ham_igne", "SK2 (a): ayni kare, SUZGECSIZ igne yogunlugu (binde 30, 64..138 kod)",
+         kare_gercek(4000, 83.333, 0.5, 10, 184, faz=11.0, gurultu=3, tohum=22,
+                     igne_binde=30.0, igne_min=64, igne_maks=138), hz=83333.0)
+    # (b) ustel (RC) kenarli kare, tau 3 ornek (tf %90->%10 = tau ln 9 = 6.59 ornek); alt 40 / ust 214
+    ekle("sk2_rc_kare", "SK2 (b): ustel kenarli kare, +-1 kod gurultu, dip YOK (karsilastirma)",
+         kare_gercek(2000, 200.0, 0.5, 40, 214, faz=30.0, tau=3.0, gurultu=1, tohum=31), hz=20161.0)
+    ekle("sk2_rc_kare_dip", "SK2 (b): ayni kare + alt seviyede TEK gurultu dibi (kod 0): tf bozulmaz",
+         kare_gercek(2000, 200.0, 0.5, 40, 214, faz=30.0, tau=3.0, gurultu=1, tohum=31,
+                     dipler=((150, 0),)), hz=20161.0)
+    # (d) %10 ve %90 doluluk (gurultu +-3, seyrek igne)
+    ekle("sk2_kare10", "SK2 (d): %10 doluluk, 1 kHz, gurultu + seyrek igne",
+         kare_gercek(4000, 83.333, 0.10, 10, 184, faz=5.0, gurultu=3, tohum=41,
+                     igne_binde=1.0, igne_min=40, igne_maks=80), hz=83333.0)
+    ekle("sk2_kare90", "SK2 (d): %90 doluluk, 1 kHz, gurultu + seyrek igne",
+         kare_gercek(4000, 83.333, 0.90, 10, 184, faz=5.0, gurultu=3, tohum=42,
+                     igne_binde=1.0, igne_min=40, igne_maks=80), hz=83333.0)
+    # (a) TAM genlikli igneler: alt seviyede 1 ve 2 ornekluk yukari, ust seviyede 1 ve 2 ornekluk asagi
+    # igne IKI esigi birden gecer; gercek kenar 4 ornek rampa (10 -> 184): tr = tf = 3.1998 ornek.
+    r4 = [int(math.floor(10 + 174 * j / 4 + 0.5)) for j in range(1, 4)]
+    k = [10] * 30 + r4 + [184] * 60 + r4[::-1] + [10] * 60
+    k[10] = 184
+    k[20] = k[21] = 184
+    k[33 + 15] = 10
+    k[33 + 30] = k[33 + 31] = 10
+    ekle("sk2_igne_tam", "SK2 (a): kenardan ONCE tam genlikli 1 / 2 ornek igneler: tr / tf yalniz gercek kenar", k)
+    # (c) iki durum DEGIL: sinus / ucgen / DC — eski (uc deger) davranis
+    ekle("sk2_ucgen_gurultu", "SK2 (c): ucgen + +-3 gurultu: tek durum, esikler uc degerden",
+         [kirp(int(200 + 3600 * min(i % 100, 100 - i % 100) / 50) + j)
+          for i, j in enumerate(lcg_dizi(800, -3, 3, 51))])
+    ekle("sk2_dc_igne", "SK2 (c): DC 2048 + binde 30 igne: tek durum (igneler bir bant olusturmaz)",
+         kare_gercek(2000, 100.0, 1.0, 2048, 2048, gurultu=2, tohum=52,
+                     igne_binde=30.0, igne_min=64, igne_maks=138), hz=83333.0)
 
     # ── kartin gercek boyutu ──────────────────────────────────────────
     ekle("sinus_4000", "4000 ornek @ 83333 Hz, ~1 kHz + gurultu (kartin azami adedi)",

@@ -118,6 +118,91 @@ def kostur() -> dict:
     return sonuc
 
 
+# ── SK2 (2026-10-10): alt / ust DURUM seviyeleri ──────────────────────────────────────
+# (c) "eski davranis": iki durumlu OLMAYAN dalgalarda (sinus, ucgen, DC) skop_olc'un ciktisi
+# SK2'DEN ONCEKI C'nin ciktisiyla BIT BIT ayni. Asagidaki desenler o C'nin (A3-SK1) urettigi
+# ortak/test/vektor/skop.json'dan DONDURULDU (f T Vpp Vmax Vmin Vort Vrms Vac duty tr tf, float32
+# bit deseni, buyuk endian; son sayi n). Vektor dosyasi SK2 ile yeniden uretildi — bu liste degil.
+SK2_ESKI = {
+    "sinus64": "431c4000 3bd1b717 42acba0e 42cc4738 417c6951 426bd462 4284ca78 41f44776 424e4000 3af7fb71 3af7fb71 4",
+    "ucgen": "42c80000 3c23d70a 42cf45aa 42dac989 40b83ded 42664d68 4281c7a3 41ef6ed6 424c0000 3b83126f 3b83126f 3",
+    "duz": "00000000 00000000 00000000 426bd462 426bd462 426bd462 426bd462 00000000 00000000 00000000 00000000 0",
+    "sinus_kesirli": "43536a7e 3b9afe36 42664d68 42acba0e 41e64d68 42664c2f 427467ef 41a3ac90 4247593a 3ab71219 3ab78693 13",
+    "sinus_hz_kesirli": "43481782 3ba3c3ca 42cf45aa 42e08b78 410a2e71 426d403f 428b3dcc 4211d2f4 42485c41 3ac174b5 3ac1a05e 9",
+    "sinus_gurultu": "42dc6dbd 3c14a7e3 4299705f 42c2600d 41a3beb7 426d2f75 4280632e 41c4bcd8 4245cb97 3b3378a7 3b3f4345 7",
+    "kirpik": "4326aaab 3bc49ba6 42ebc5a5 42ebc5a5 00000000 426bcd03 429975d7 424476df 424eaaab 3a90d3ba 3a90d3bb 8",
+    "sinus_4000": "447a01e9 3a83116e 42c6a2c3 42e1fbf4 415ac989 427d4d05 429053ba 420a6b52 42486899 399df805 399e9cf9 47",
+    "duz_4095_4000": "00000000 00000000 00000000 42ebc5a5 42ebc5a5 42ebc5a5 42ebc5a5 00000000 00000000 00000000 00000000 0",
+    "dc_ustu_kucuk_ac": "00000000 00000000 3e30e000 42ace646 42ac8dd6 42acbae4 42acbae7 3d6908e3 00000000 00000000 00000000 0",
+    "sabit_65535": "00000000 00000000 00000000 44498526 44498526 44498527 44498527 00000000 00000000 00000000 00000000 0",
+}
+SK2_ALAN = ("f", "T", "Vpp", "Vmax", "Vmin", "Vort", "Vrms", "Vac", "duty", "tr", "tf")
+
+
+def sk2() -> None:
+    """SK2: gercek C (skop_olc.h) AVR emulatorunde, ortak_vektor_skop.py'nin dalgalariyla.
+
+    Beklenenler ANALITIK (dalganin kurulus degerleri) — kartta gorulen iki kusurun tersi:
+      (a) gurultu + igne Vpp'yi sisirmez (5 V kare 6.3 V okunuyordu); tr ve tf tutarli
+      (b) alt seviyedeki TEK dip %10 esigini kaydirmaz (tf 3/20 yakalamada 63-123 us idi)
+      (c) iki durumlu olmayan dalga (sinus / ucgen / DC) eski uc-deger davranisinda (bit bit)
+      (d) %10 ve %90 doluluklu kare de iki durumlu sayilir (dar durum bandi elenmez)
+    """
+    import ortak_vektor_skop as OV                       # noqa: E402 (ayni dizin)
+    print("\n--- 11. SK2: alt / ust DURUM seviyeleri (histogram) ---------------")
+    flash = OV.derle()
+    V = {v["ad"]: v for v in OV.vakalar()}
+    R = {ad: OV.kostur(flash, V[ad]) for ad in V if ad.startswith("sk2_") or ad in SK2_ESKI}
+    va = OV.VA_A3
+    gen = 174 * va                                       # alt 10 / ust 184 kod
+
+    for ad in ("sk2_kare_igneli", "sk2_kare_ham_igne", "sk2_kare10", "sk2_kare90"):
+        r, hz = R[ad], V[ad]["hz"]
+        yakin(f"SK2 (a/d) {ad}: Vpp = durum seviyeleri farki (5.009 V) +-%3", r["Vpp"], gen, 0.03 * gen, " V")
+        ok(f"SK2 (a/d) {ad}: gercek tepe kaybolmaz — Vmax / Vmin uc ornekler (Vmax - Vmin >= Vpp)",
+           r["Vmax"] - r["Vmin"] >= r["Vpp"], f"Vmax {r['Vmax']:.3f} Vmin {r['Vmin']:.3f} V")
+        ok(f"SK2 (a/d) {ad}: yukselme VE dusme olculdu, ikisi de <= 3 ornek, farklari <= 1 ornek",
+           0 < r["tr"] <= 3 / hz and 0 < r["tf"] <= 3 / hz and abs(r["tr"] - r["tf"]) <= 1 / hz,
+           f"tr {r['tr'] * 1e6:.2f} us tf {r['tf'] * 1e6:.2f} us (ornek {1e6 / hz:.2f} us)")
+    for ad in ("sk2_kare_igneli", "sk2_kare10", "sk2_kare90"):
+        r = R[ad]
+        yakin(f"SK2 (a/d) {ad}: frekans 1 kHz +-%0.5", r["f"], 83333.0 / 83.333, 5.0, " Hz")
+    for ad, d in (("sk2_kare10", 10.0), ("sk2_kare90", 90.0), ("sk2_kare_igneli", 50.0)):
+        yakin(f"SK2 (d) {ad}: doluluk %{d:.0f} +-1", R[ad]["duty"], d, 1.0, " %")
+
+    r, hz = R["sk2_igne_tam"], V["sk2_igne_tam"]["hz"]
+    ok("[!] SK2 (a) iki esigi birden gecen 1 / 2 ornekluk igne kenar sayilmaz: tr = tf = gercek rampa (3.1998 ornek)",
+       abs(r["tr"] * hz - 3.1998) < 0.01 and abs(r["tf"] * hz - 3.1998) < 0.01,
+       f"tr {r['tr'] * hz:.4f} tf {r['tf'] * hz:.4f} ornek")
+
+    tf0, tf1 = R["sk2_rc_kare"]["tf"], R["sk2_rc_kare_dip"]["tf"]
+    hz = V["sk2_rc_kare"]["hz"]
+    ideal = 3.0 * math.log(9.0) / hz                     # tau ln 9
+    yakin("SK2 (b) ustel kenar: tf = tau ln 9 (dip yok) +-%10", tf0, ideal, 0.1 * ideal, " s")
+    yakin("SK2 (b) ustel kenar: tr = tau ln 9 +-%10", R["sk2_rc_kare"]["tr"], ideal, 0.1 * ideal, " s")
+    ok("[!] SK2 (b) alt seviyedeki TEK dip (kod 0) tf'yi bozmaz: dipli tf, dipsizin %2'si icinde",
+       tf0 > 0 and abs(tf1 - tf0) <= 0.02 * tf0, f"dipsiz {tf0 * 1e6:.1f} us, dipli {tf1 * 1e6:.1f} us")
+    yakin("SK2 (b) dip %50 esigini (doluluk) de kaydirmaz: dipli doluluk dipsizinkiyle ayni +-0.2 puan",
+          R["sk2_rc_kare_dip"]["duty"], R["sk2_rc_kare"]["duty"], 0.2, " %")
+    yakin("SK2 (b) dip Vpp'yi de sisirmez (durum seviyeleri)", R["sk2_rc_kare_dip"]["Vpp"],
+          R["sk2_rc_kare"]["Vpp"], 0.01 * R["sk2_rc_kare"]["Vpp"], " V")
+
+    bozuk = []
+    for ad, desen in SK2_ESKI.items():
+        p = desen.split()
+        eski = [struct.unpack(">f", bytes.fromhex(h))[0] for h in p[:11]]
+        yeni = [R[ad][a] for a in SK2_ALAN]
+        if any(struct.pack(">f", x) != struct.pack(">f", y) for x, y in zip(eski, yeni)) or R[ad]["n"] != int(p[11]):
+            bozuk.append(ad)
+    ok(f"[!] SK2 (c) iki durumlu OLMAYAN {len(SK2_ESKI)} dalga (sinus, ucgen, DC, kirpik sinus) SK2 oncesiyle BIT BIT ayni",
+       not bozuk, ", ".join(bozuk) or ", ".join(SK2_ESKI))
+    for ad in ("sk2_ucgen_gurultu", "sk2_dc_igne"):
+        r = R[ad]
+        ok(f"SK2 (c) {ad}: tek durum — Vpp uc ornek farki (Vmax - Vmin, float32'de ayni islem)",
+           struct.pack(">f", r["Vpp"]) == struct.pack(">f", OV.f32(r["Vmax"] - r["Vmin"])),
+           f"Vpp {r['Vpp']:.4f} Vmax-Vmin {r['Vmax'] - r['Vmin']:.4f}")
+
+
 def main() -> int:
     print("=" * 78)
     print("  A6  OSILOSKOP OLCUM MATEMATIGI  (gercek kod, AVR emulatorunde)")
@@ -233,6 +318,8 @@ def main() -> int:
           c["tf"], 8 / 10000.0, 1e-10, " s")
     ok("Tek yukselen kenar: periyot yok", c["f"] == 0.0 and c["cv"] == 0,
        f"f {c['f']} cv {c['cv']}")
+
+    sk2()
 
     print("\n" + "=" * 78)
     print(f"  A6: {gecti}/{gecti + kaldi} kosul gecti")

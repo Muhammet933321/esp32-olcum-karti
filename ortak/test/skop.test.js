@@ -104,9 +104,58 @@ test("1F S4: %90'a varmayan cuce darbe tr/tf'ye girmez — yalniz TAM kenar", ()
   assert.equal(b.cuce_iki_yon.tf, sekiz, "asagi cuce + tam dusen: 8 ornek");
   // cuce_darbe: tam kenar 200+400j, alt 560 / ust 3440 -> (8 + 0.1) - 0.9 = 7.2 ornek
   assert.ok(Math.abs(b.cuce_darbe.tr - 7.2e-4) < 1e-8, `cuce_darbe.tr ${b.cuce_darbe.tr} (eskiden 4.89 ms)`);
-  // geri seken: %10'u gecip geri inen ilk tepe sayilmaz; rampa 500+350j: 635 -> 3315
-  const sek = (8 + 15 / 350) - (135 / 350);
-  assert.ok(Math.abs(b.geri_seken_kenar.tr - sek / 1e4) < 1e-8, `geri_seken_kenar.tr ${b.geri_seken_kenar.tr}`);
+  // geri seken: %10'u gecip geri inen ilk tepe sayilmaz. SK2: iki durumlu — alt seviye 500'lerin bandi
+  // (50 x 500 + 700 + 400 + 300) / 53 = 498.11 (eskiden en kucuk ornek 300), ust 3650; rampa 500+350j (53 -> 62)
+  const L = 26400 / 53;
+  const a10 = L + 0.1 * (3650 - L);
+  const u90 = L + 0.9 * (3650 - L);
+  const sek = (61 + (u90 - 3300) / 350) - (53 + (a10 - 500) / 350);
+  assert.ok(Math.abs(b.geri_seken_kenar.tr - sek / 1e4) < 1e-8, `geri_seken_kenar.tr ${b.geri_seken_kenar.tr} ~ ${sek / 1e4}`);
+});
+
+// ── SK2 (2026-10-10): alt / ust DURUM seviyeleri ────────────────────────────────────────
+test("SK2: kare dalgada Vpp durum seviyeleri farki (5.009 V +-%3); gercek tepeler Vmax / Vmin'de; tr ve tf tutarli", () => {
+  const b = Object.fromEntries(V.vakalar.map((v) => [v.ad, v]));
+  const gen = 174 * KART_VOLT_ADIM;
+  for (const ad of ["sk2_kare_igneli", "sk2_kare_ham_igne", "sk2_kare10", "sk2_kare90"]) {
+    const o = b[ad].beklenen;
+    const hz = b[ad].hz;
+    assert.ok(Math.abs(o.Vpp - gen) <= 0.03 * gen, `${ad}.Vpp ${o.Vpp}`);
+    assert.ok(o.Vmax - o.Vmin > o.Vpp, `${ad}: tepeler kaybolmadi`);
+    assert.ok(o.tr > 0 && o.tf > 0 && o.tr <= 3 / hz && o.tf <= 3 / hz && Math.abs(o.tr - o.tf) <= 1 / hz, `${ad} tr ${o.tr} tf ${o.tf}`);
+  }
+  const t = b.sk2_igne_tam;
+  assert.ok(Math.abs(t.beklenen.tr * t.hz - 3.1998) < 0.01 && Math.abs(t.beklenen.tf * t.hz - 3.1998) < 0.01,
+    "iki esigi birden gecen 1/2 ornek igne kenar sayilmaz");
+});
+
+test("SK2 (b): alt seviyedeki tek dip tf'yi bozmaz; (c): tek durumlu dalgada Vpp = Vmax - Vmin (eski kural)", () => {
+  const b = Object.fromEntries(V.vakalar.map((v) => [v.ad, v.beklenen]));
+  assert.ok(Math.abs(b.sk2_rc_kare_dip.tf - b.sk2_rc_kare.tf) <= 0.02 * b.sk2_rc_kare.tf,
+    `${b.sk2_rc_kare_dip.tf} vs ${b.sk2_rc_kare.tf}`);
+  for (const ad of ["sinus64", "ucgen", "sinus_4000", "kirpik", "sk2_ucgen_gurultu", "sk2_dc_igne"]) {
+    assert.ok(Object.is(b[ad].Vpp, Math.fround(b[ad].Vmax - b[ad].Vmin)), ad);
+  }
+});
+
+test("SK2: kalibre yol — iki durumda Vpp durum seviyelerinden (egri ile bagimsiz double hesap), tepeler Vmax / Vmin'de", () => {
+  const e = ctEgri(FIKSTUR.ct);
+  /* 1 kHz kare @ 83 333: alt 1000, ust 3000 kod, +-3 gurultu, iki tepe igne (3400, 600) */
+  let x = 7;
+  const g = () => { x = (1103515245 * x + 12345) >>> 0; return (x >>> 16) % 7 - 3; };
+  const ham = Array.from({ length: 2000 }, (_, i) => ((i % 83.333) < 41.67 ? 3000 : 1000) + g());
+  ham[500] = 3400;
+  ham[1300] = 600;
+  const o = skopOlcKalibre(ham, undefined, KART_VOLT_ADIM, 83333, e);
+  const vSev = (kod) => mvRef(e, kod) * 38.03703704 / 1000;
+  const ref = vSev(3000) - vSev(1000);
+  assert.ok(Math.abs(o.Vpp - ref) <= 0.002 * ref, `Vpp ${o.Vpp} ~ ${ref}`);
+  assert.ok(Math.abs(o.Vmax - vSev(3400)) <= 1e-4 * Math.abs(vSev(3400)) && Math.abs(o.Vmin - vSev(600)) <= 1e-4 * Math.abs(vSev(600)),
+    `Vmax ${o.Vmax} Vmin ${o.Vmin}`);
+  /* tek durumlu (sinus) kalibre yol eskisi gibi: Vpp = Vmax - Vmin */
+  const sin = Array.from({ length: 1000 }, (_, i) => 2000 + Math.round(1500 * Math.sin(2 * Math.PI * i / 83.3)));
+  const os = skopOlcKalibre(sin, undefined, KART_VOLT_ADIM, 83333, e);
+  assert.ok(Object.is(os.Vpp, Math.fround(os.Vmax - os.Vmin)));
 });
 
 test("u64f: BigInt -> float32 DOGRU yuvarlar (Math.fround(Number(b)) 2^53 ustunde iki kez yuvarlar)", () => {
@@ -159,7 +208,8 @@ test("bos / null / undefined / sayi olmayan girdi atmaz, hepsi 0", () => {
 test("hz <= 0: gerilimler DAHIL hepsi 0 (C: erken donus); hz yok/NaN: atmaz, C gibi NaN", () => {
   for (const hz of [0, -0, -1, -Infinity, undefined]) {
     // undefined -> fround NaN; NaN <= 0 yanlis: C gibi devam eder ve NaN uretir (atmaz)
-    const o = skopOlc([0, 4000, 0, 4000, 0, 4000], 6, 0.01, hz);
+    /* SK2: durumlar uc ornek surer (1 ornekluk gidip gelme iki durumlu sinyalde igne sayilir) */
+    const o = skopOlc([0, 0, 0, 4000, 4000, 4000, 0, 0, 0, 4000, 4000, 4000], 12, 0.01, hz);
     if (hz === undefined) {
       assert.ok(Number.isNaN(o.f) && Number.isNaN(o.tr) && o.Vpp > 0, JSON.stringify(o));
     } else {

@@ -10584,6 +10584,63 @@ B35/4D arşiv iddiaları `SkopArsiv` şablonuna bağlandı), `test_ortak.py` 33/
 Linux zlib'iyle 6p/6q ortamdan kırmızı). Mutasyonlar: taşınan 7 girdi yeni yere bağlandı + 2 yeni (`<skop-suz>`
 v-if'siz; `os.suzgec` açılış sözlüğüne geri) — hepsi YAKALANDI.
 
+**İş 2 — SK-1 ölçüm eşikleri: ALT / ÜST DURUM seviyeleri (`A3-SK2`).** `skop_olc` (`olcum2.h` → `skop_olc.h`),
+JS ikizi `ortak/src/skop.js` ve kartın eğri yolu `skop_olc_kalibre` (.ino) birlikte değişti; çapraz vektörler
+(`ortak_vektor_skop.py`, AVR emülatörü) yeniden üretildi, JS hepsinde `Object.is`.
+
+Kararlar:
+- **Durum seviyesi (IEEE 181 histogram yöntemi, yalnız tamsayı):** en çok 256 kutu, kutu genişliği 2'nin kuvveti
+  (`(h − hmin) >> k`, örnek başına bölme yok), histogram YIĞINDA (512 B; statik DRAM 0). Her yarının en kalabalık
+  kutusu (eşitlikte küçük indis) ± kutu_sayısı/16 kutuluk bandın örnek ORTALAMASI = seviye (tam toplam, tek bölme,
+  `skop_u64_float`). **İki durum** ancak her bant ≥ n/16 ve ikisi birlikte ≥ 3n/4 örnek tutarsa. Değilse (sinüs ~%32,
+  üçgen ~%12, DC, gürültü, iğne kümesi) seviyeler en küçük / en büyük örnek → eski davranış BİT BİT (11 vektörün SK2
+  öncesi çıktısı `test_skop_olcum.py`'de donduruldu ve sınanıyor).
+- **%50 (frekans, doluluk, histerezis) ve %10/%90 eşikleri** durum seviyelerinden.
+- **Vpp'nin anlamı:** kare dalgada GENLİK = `Vüst − Valt`; tek durumda eskisi gibi `Vmax − Vmin`. **Vmax / Vmin
+  gerçek uç örnekler olarak kaldı** — aşım / iğne tepesi kaybolmadı (panel üçünü de gösteriyor). `M` satırı biçimi
+  DEĞİŞMEDİ: alan eklemek panel ayrıştırıcısı, sahte kart, köprü arşivi, tezgah ve vektör alan listesini değiştirirdi;
+  bilgi zaten satırda.
+- **İğne kuralı (yalnız iki durumda):** bir geçiş, başlatan örnekten önceki üç ve tamamlayan dahil sonraki üç örnek
+  orta seviyenin doğru yanında değilse kenar sayılmaz (≤ 2 örnek iğne). Tam genlikli ham iğne iki eşiği bir örnekte
+  geçip tr/tf'yi 0.8 örnek gösteriyordu; yalnız yükselmeye bakmak yetmedi — yukarı iğnenin ARKA kenarı düşme sanılıyordu.
+- **Yapı:** gövde `skop_olc_d(…, float d[2])` (seviyeleri döndürür), `skop_olc` ona ince sarmalayıcı. `SkopOlcum`
+  BÜYÜMEDİ (`static skop_dokum_m` → ek statik DRAM yok). Eğri yolu Vpp'yi seviyelerden kurar (doğrusal kod → mV → V).
+- **Süre:** iki ek tamsayı geçişi (çıkarma + kaydırma + sayaç) ve ≤ 256 kutu taraması; ölçülmedi, tahmin 4000 örnekte
+  ≪ 1 ms @ 240 MHz.
+
+Ölçülen (AVR emülatörü, 1 kHz kare @ 83 333 Sa/s, gerçek genlik 174 kod = 5.009 V):
+
+| vektör | Vpp önce → sonra | tr / tf önce → sonra |
+|---|---|---|
+| gürültü ±3 + seyrek iğne | 5.383 → **5.009 V** | 16 / 20 → 15 / 19 µs |
+| ham iğne (‰30, 64–138 kod) | 9.327 → **5.011 V** | 140 / 133 → **15 / 19 µs** |
+| %10 / %90 doluluk | 5.383 / 6.391 → 5.006 / 5.006 V | %90: 148 / 754 → 15 / 10 µs |
+| üstel kenar + alt seviyede TEK dip (0 kod) | 6.189 → 4.986 V | tf 3920 → **330 µs** (dipsiz 331, τ ln 9 = 327) |
+| tam genlikli 1 / 2 örnek iğne + 4 örnek rampa | — | tr = tf = 3.1999 örnek (iğnesiz değer) |
+
+Eski vektörlerden yalnız ikisi değişti (beklenen): `geri_seken_kenar` (alt seviye 300 değil 498.1 → Vpp, tr),
+`gurultulu_kare` (Vpp 86.94 → 83.41, tr/tf, f/T son bit). Gerçek kart fikstürü (CAL + RC, kenarlar periyodun ~%30'u)
+iki durum sayılmıyor → değişmedi.
+
+Testler: `test_skop_olcum.py` 45 → **72** (bölüm 11 SK2; artık zincirde B6'da da koşuyor), `ortak/test/skop.test.js`
+71 → 74 (+3 SK2; NaN testi ve `geri_seken_kenar` analitik değeri yeni kurala göre), `sim3_skop.py` 93 → **94** (6k SK2),
+B73 32 → 33 (İş 1: `sozluk_skop`), `test_kayit_esp.py` F25 `A3-SK2`, `test_firmware3.py` madd denetimi `skop_olc_d`,
+`skop_durum`, `skop_igne`'yi de söküyor (bulutta koşmadı). Tezgah `--sinyal`: SK2 iddiaları (ham ve süzgeçli Vpp %3
+içinde aynı; süzgeçli tf hiçbir yakalamada ortancanın 3 katını aşmıyor), B43 karşılaştırması Vpp'yi `≤ Vmax − Vmin`
+olarak sınıyor. Mutasyon `SK2:` **16/16** (15 koşucuda; B19 `.ino` mutasyonu bulutta ngspice DLL'i olmadığından elle,
+Linux libngspice ile: 6k kırmızı). İlk koşuda iki mutasyon `if (0)` ile `bas` değişkenini kullanılmaz bıraktı →
+derleme uyarısı koşumu düşürdü (iddiasız çöküş); desen değişkeni kullanır halde düzeltildi.
+
+⚠ **Bulut ortamı:** avr-gcc 7.3.0 (Ubuntu) + depo AVR emülatörü vektörleri bit bit yeniden üretti (önce eski
+`skop.json` `--denetle` ile "güncel" çıktı). `python` 3.11'de `os.path.isjunction` yok → mutasyon koşucusu 3.13 ile.
+
+**Açık kalan:** kartta ölçülmedi (`tezgah_blokaj.py --sinyal`); B6 `test_firmware3.py` (derleme, uyarı, statik DRAM,
+`skop_olc_d` ayrı sembol + madd yok) yerelde · eski skop arşivi görünümü (B35, `app.js skopArsivOlcum`) Vpp'yi hâlâ uç
+kodlardan kuruyor (canlıdan farklı olabilir) · `sahte-kart.js` demo Vpp uçlardan · ham kipte iğneler FREKANSI hâlâ
+bozar (histerezisli kenar sayımı; `sk2_kare_ham_igne` 1650 Hz — süzgeç açıkken sorun yok) · ≤ n/16 dar darbeler
+(%1 PWM) tek durum sayılır → eski davranış · `skop_otomatik` tetik genliğini Vpp'den aldığı için artık genliği kullanır
+(daha doğru), orta seviyeyi uçlardan.
+
 #### 5.12.117 🟢 A3-SK1: OSİLOSKOP ÖN SÜZGECİ — İKİ KAT MEDYAN-3 + ORTALAMA + HIZ PLANI (2026-10-10, KARTTA)
 
 **Bulgu (README için gerçek yakalama alınırken):** kutudaki kartta skop izi iğnelerle dolu. CAL çıkışı (3.3 V, 22 kΩ)

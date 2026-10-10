@@ -335,11 +335,11 @@ rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşit
 
 ## Osiloskop (A3-SK1, 2026-10-10) — kalanlar
 
-- **SK-1 ölçüm eşikleri hâlâ uç değerlerden:** `skop_olc` %50 / %10–%90 eşiklerini en büyük / en küçük örnekten
+- ~~**SK-1 ölçüm eşikleri hâlâ uç değerlerden:** `skop_olc` %50 / %10–%90 eşiklerini en büyük / en küçük örnekten
   hesaplıyor. Süzgeçten sonra frekans ve yükselme düzeldi (20/20), ama düşme süresi 3/20 yakalamada sapıyor (63–123 µs;
   alt seviyedeki tek bir gürültü dibi %10 eşiğini kaydırıyor) ve Vpp gürültü tepelerini içeriyor (5 V kare 6.3 V).
   Çözüm: alt / üst DURUM seviyeleri (histogram ya da yarı ortancaları). ⚠ `skop_olc` Aşama 2'nin `olcum2.h`'sinden
-  üretilen kopya; JS aynası `ortak/src/skop.js` ve çapraz vektörler birlikte değişmeli.
+  üretilen kopya; JS aynası `ortak/src/skop.js` ve çapraz vektörler birlikte değişmeli.~~ ✅ **5.12.118 (A3-SK2):** eşikler ve kare dalga Vpp'si alt / üst DURUM seviyelerinden (histogram); Vmax / Vmin gerçek tepeler; ≤ 2 örnek iğne kenar sayılmaz. Kartta ölçülmedi.
 - **SK-2 en hızlı tabanlarda (k = 1: 100 µs…2 ms/böl) iki örnekten DAR gerçek darbeler de silinir** (83 kSa/s'te
   < 24 µs; ör. 20 kHz %20 PWM). Menüde "Ham" var ve ipucu bunu söylüyor; belgeye (1-ne-yapabilir) işlenmedi.
 - **SK-3 iğnelerin KAYNAĞI bulunmadı:** ham hâlde örneklerin ~%3'ü (B44'te çıplak kartta 0.1–2.2/1000 idi). Aday

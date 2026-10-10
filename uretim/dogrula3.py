@@ -450,10 +450,13 @@ def _b6_govde(cal):
     a = cal([sys.executable, "test_skop_ayni.py"], timeout=300)
     # SK1: skop on suzgeci (medyan-3 + ortalama + hiz plani) — gercek kod, AVR emulatorunde
     z = cal([sys.executable, "test_skop_suz.py"], timeout=300)
+    # SK2: olcum esikleri / Vpp DURUM seviyelerinden — skop_olc.h AVR'de, analitik beklenenler + SK2
+    # oncesi dondurulmus cikti (bolum 11; 1-10 Asama 2'nin A6'si, ayni ikili)
+    o = cal([sys.executable, "test_skop_olcum.py"], timeout=600)
     s = cal([sys.executable, "test_firmware3.py"], timeout=1800)
-    return (s.returncode == 0 and a.returncode == 0 and z.returncode == 0,
-            a.stdout.rstrip() + "\n" + z.stdout.rstrip() + "\n" + s.stdout.rstrip(),
-            a.stdout + z.stdout + s.stdout)
+    return (s.returncode == 0 and a.returncode == 0 and z.returncode == 0 and o.returncode == 0,
+            a.stdout.rstrip() + "\n" + z.stdout.rstrip() + "\n" + o.stdout.rstrip() + "\n" + s.stdout.rstrip(),
+            a.stdout + z.stdout + o.stdout + s.stdout)
 
 
 def _b7_govde(cal):
