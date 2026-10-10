@@ -24,8 +24,57 @@ from pathlib import Path
 import belge_menu as MN
 import yerlesim3 as Y
 import yerlesim3_veri as V
+from belge_dil import dil_baglantisi
 
 BURASI = Path(__file__).parent
+SAYFA = "7-yerlesim.html"
+
+# ── iki dil ────────────────────────────────────────────────────────────
+# Turkce ANA dil: metin kodda Turkce yaziliyor ve T() Turkcede onu AYNEN
+# donduruyor (TR cikti bayt bayt eskisi gibi). Ingilizcede karsiligi
+# `yerlesim3_en.EN`'den (anahtar = Turkce metnin kendisi). Karsiligi
+# olmayan metin Turkce kalir ve EKSIK'e yazilir — denetim (yerlesim3.py,
+# "belge dili") bunu kirmizi yapar. Turkce metin degisirse ceviri
+# anahtari eskir ve yine kirmizi: ceviri sessizce bayatlamaz.
+DIL = "tr"
+EKSIK: set[str] = set()        # son Ingilizce sayfada karsiligi bulunamayanlar
+ISTENEN: set[str] = set()      # son Ingilizce sayfada cevirisi istenenlerin hepsi
+
+
+def T(metin: str, **yer) -> str:
+    """Dile gore metin; {ad} yer tutuculari `yer`den doldurulur (str.format
+    DEGIL — HTML/JS'teki suslu parantezlere dokunmaz)."""
+    if DIL != "tr" and metin:
+        import yerlesim3_en as EN
+        ISTENEN.add(metin)
+        if metin in EN.EN:
+            metin = EN.EN[metin]
+        else:
+            EKSIK.add(metin)
+    for ad, deger in yer.items():
+        metin = metin.replace("{" + ad + "}", str(deger))
+    return metin
+
+
+class _Dil:
+    """`with _Dil("tr"):` — siralama gibi dile bagli OLMAMASI gereken isler."""
+
+    def __init__(self, dil):
+        self.dil, self.eski = dil, None
+
+    def __enter__(self):
+        global DIL
+        self.eski, DIL = DIL, self.dil
+
+    def __exit__(self, *_):
+        global DIL
+        DIL = self.eski
+
+
+def tr_ozgun(metin: str) -> str:
+    """Cevrilemeyen ozgun Turkce veri (envanter kaydi): Ingilizce sayfada
+    lang="tr" ile isaretlenir — dil denetimi bunu bilerek atlar."""
+    return f'<span lang="tr">{metin}</span>' if DIL != "tr" and metin else metin
 P = 17          # bir delik adimi (px)
 K = 30          # cizim kenar payi (etiketler)
 
@@ -59,26 +108,39 @@ BACAK_AD = {"B": "baz", "C": "kollektör", "E": "emiter", "G": "kapı", "PadG": 
 def kisa_ag(ag: str) -> str:
     """Netlistin otomatik adini okunur yapar: Net-(U3A-+) -> 'U3A + girişi'."""
     if ag in AG_AD:
-        return AG_AD[ag]
+        return T(AG_AD[ag])
     ag = ag.split("@")[0]
     if ag in AG_AD:
-        return AG_AD[ag]
+        return T(AG_AD[ag])
     if ag in V.ZINCIR:
         k = V.ZINCIR.index(ag)
         son = len(V.ZINCIR) - 1
-        return ("HV girişi" if k == 0 else
-                "HV alt düğüm (~1.7 V)" if k == son else f"HV düğüm {k}")
+        return (T("HV girişi") if k == 0 else
+                T("HV alt düğüm (~1.7 V)") if k == son else T("HV düğüm {k}", k=k))
     m = re.fullmatch(r"Net-\((U\d+[A-Z])-([+-])\)", ag)
     if m:
-        return f"{m.group(1)} {'+' if m.group(2) == '+' else '−'} girişi"
+        return T("{u} {isaret} girişi", u=m.group(1), isaret='+' if m.group(2) == '+' else '−')
     m = re.fullmatch(r"Net-\(([A-Z]+\d+)-(B|C|E|G|PadG)\)", ag)
     if m:
-        return f"{m.group(1)} {BACAK_AD[m.group(2)]}"
+        return f"{m.group(1)} {T(BACAK_AD[m.group(2)])}"
     m = re.fullmatch(r"Net-\(([A-Z]+\d+)-Pad(\d+)\)", ag)
     if m:
         return f"{m.group(1)} pin {m.group(2)}"
     m = re.fullmatch(r"Net-\((.+)\)", ag)
     return m.group(1) if m else ag.lstrip("/")
+
+
+def deger_adi(deger: str) -> str:
+    """Semanin deger alani. Cogu parca degeri ("100nF", "LM358") cevrilmez;
+    aciklama yazilmis degerler ("Skop girisi", "ADS1115 #1 akim") cevrilir.
+    Olcut: en az dort kucuk harfli bir kelime (birim/parca adinda olmaz)."""
+    return T(deger) if re.search(r"[a-z]{4,}", deger) else deger
+
+
+def _ag_sirasi(ag: str) -> str:
+    """Ag siralama anahtari: Turkce ad — iki dilde de AYNI sira."""
+    with _Dil("tr"):
+        return kisa_ag(ag)
 
 
 def stil() -> str:
@@ -128,7 +190,7 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
          f'font-family="ui-monospace,Consolas,monospace" role="img" '
          f'data-w="{W}" data-h="{H}" data-p="{P}" data-k="{K}" data-alt="{int(alt)}" '
          f'data-cizgi="{kb.get("cizgi") or 0}" '
-         f'aria-label="Kart {kart} {"lehim" if alt else "parça"} yüzü">']
+         f'aria-label="{T("Kart {kart} lehim yüzü" if alt else "Kart {kart} parça yüzü", kart=kart)}">']
     pid = f"d{kart}{yuz}"
     o.append(f'<defs><pattern id="{pid}" x="{K}" y="{K}" width="{P}" height="{P}" '
              f'patternUnits="userSpaceOnUse">'
@@ -156,7 +218,7 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
 
     for cx, cy in Y.vida_merkezleri(kart):
         o.append(f'<circle cx="{X(cx)}" cy="{Yp(cy)}" r="{P * 0.95:.1f}" fill="#8a8a85" '
-                 f'stroke="#555" stroke-width="1"><title>vida (M3)</title></circle>')
+                 f'stroke="#555" stroke-width="1"><title>{T("vida (M3)")}</title></circle>')
     # eksen etiketleri (yakinlasinca JS gorunen kenara kendi etiketlerini koyar)
     o.append('<g class="eksen">')
     for x in range(W):
@@ -190,7 +252,7 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
                 nokta = " ".join(f"{X(h[0]):.1f},{Yp(h[1]):.1f}" for h in t["yol"])
                 o.append(f'<polyline {ds("iz", (kart, j), t["adim"])} points="{nokta}" fill="none" '
                          f'stroke="{c}" stroke-width="{P * 0.36:.1f}" stroke-linecap="round" '
-                         f'stroke-linejoin="round"><title>{e(ad)} · lehim izi · '
+                         f'stroke-linejoin="round"><title>{e(ad)} · {T("lehim izi")} · '
                          f'{Y.delik_adi(*t["yol"][0])} → {Y.delik_adi(*t["yol"][-1])}'
                          f'</title></polyline>')
             else:
@@ -202,7 +264,7 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
                 bx_, by_ = mx - dy / L * min(22, L * 0.25), my + dx / L * min(22, L * 0.25)
                 o.append(f'<g {ds("tel", (kart, j), t["adim"])}><path d="M{x1_:.1f},{y1_:.1f} '
                          f'Q{bx_:.1f},{by_:.1f} {x2_:.1f},{y2_:.1f}" fill="none" stroke="{c}" '
-                         f'stroke-width="2.6" stroke-dasharray="6 3"><title>{e(ad)} · YALITIMLI TEL · '
+                         f'stroke-width="2.6" stroke-dasharray="6 3"><title>{e(ad)} · {T("YALITIMLI TEL")} · '
                          f'{Y.delik_adi(ax, ay)} → {Y.delik_adi(bx, by)}</title></path>'
                          f'<circle cx="{x1_:.1f}" cy="{y1_:.1f}" r="3" fill="{c}"/>'
                          f'<circle cx="{x2_:.1f}" cy="{y2_:.1f}" r="3" fill="{c}"/></g>')
@@ -212,7 +274,7 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
         if p.kart != kart:
             continue
         g = [f'<g {ds("parca", p.ref, p.adim)} data-r="{e(p.ref)}">']
-        deger = nl.deger.get(p.ref, "")
+        deger = deger_adi(nl.deger.get(p.ref, ""))
         if not alt and p.ayak != "TEL":
             x0, y0, x1, y1 = p.govde()
             dolgu, cizgi = GOVDE_RENK[p.ayak]
@@ -245,8 +307,9 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
                          f'<title>{e(pid_)} · {e(kisa_ag(ag))} · {Y.delik_adi(*d)}</title></circle>')
         for d in p.bos_delikler():
             g.append(f'<circle cx="{X(d[0]):.1f}" cy="{Yp(d[1]):.1f}" r="{P * 0.2:.1f}" fill="none" '
-                     f'stroke="#555" stroke-width="1.2"><title>gerginlik deliği — telin '
-                     f'yalıtımı buradan geçer, lehimlenmez</title></circle>')
+                     f'stroke="#555" stroke-width="1.2"><title>'
+                     f'{T("gerginlik deliği — telin yalıtımı buradan geçer, lehimlenmez")}'
+                     f'</title></circle>')
         g.append("</g>")
         o += g
     # kart disi tel etiketleri EN USTTE — govdelerin altinda kalmasin
@@ -254,7 +317,7 @@ def kart_svg(kart: str, yuz: str, nl, parcalar, teller, kok_ag, ss) -> str:
         if p.kart != kart or p.ayak != "TEL":
             continue
         (d,) = p.delikler(nl)[f"{p.ref}.1"]
-        etiket = V.TEL_ETIKET.get(p.ref, p.ref)
+        etiket = T(V.TEL_ETIKET.get(p.ref, p.ref))
         yon = -1 if (X(d[0]) > K + W * P / 2) else 1
         o.append(f'<text {ds("parca", p.ref, p.adim)} x="{X(d[0]) + yon * 9:.1f}" y="{Yp(d[1]) - 7:.1f}" '
                  f'font-size="8.5" text-anchor="{"start" if yon > 0 else "end"}" fill="#1a1410" '
@@ -282,12 +345,12 @@ def _isaretler(p, X, Yp) -> list[str]:
         a = nokta(-0.45, 0.8)
         b = nokta(2.45, 0.8)
         out.append(f'<line x1="{a[0]:.1f}" y1="{a[1]:.1f}" x2="{b[0]:.1f}" y2="{b[1]:.1f}" '
-                   f'stroke="#f5c518" stroke-width="2.5"><title>düz (yazılı) yüz</title></line>')
+                   f'stroke="#f5c518" stroke-width="2.5"><title>{T("düz (yazılı) yüz")}</title></line>')
     elif p.ayak == "TO220":
         a = nokta(-1.0, -1.4)
         b = nokta(3.0, -1.4)
         out.append(f'<line x1="{a[0]:.1f}" y1="{a[1]:.1f}" x2="{b[0]:.1f}" y2="{b[1]:.1f}" '
-                   f'stroke="#bbb" stroke-width="4"><title>metal tab (arka)</title></line>')
+                   f'stroke="#bbb" stroke-width="4"><title>{T("metal tab (arka)")}</title></line>')
     elif p.ayak == "CE":
         cx, cy = nokta(0, -1.0)
         out.append(f'<text x="{cx:.1f}" y="{cy + 4:.1f}" font-size="11" text-anchor="middle" '
@@ -296,7 +359,7 @@ def _isaretler(p, X, Yp) -> list[str]:
         a = nokta(1.05, -0.4)
         b = nokta(1.05, 0.4)
         out.append(f'<line x1="{a[0]:.1f}" y1="{a[1]:.1f}" x2="{b[0]:.1f}" y2="{b[1]:.1f}" '
-                   f'stroke="#222" stroke-width="3"><title>katot bandı</title></line>')
+                   f'stroke="#222" stroke-width="3"><title>{T("katot bandı")}</title></line>')
     elif p.ayak in ("HDR10", "ADS"):
         px, py = nokta(0, 0)
         out.append(f'<rect x="{px - 5:.1f}" y="{py - 5:.1f}" width="10" height="10" fill="none" '
@@ -314,7 +377,7 @@ YON_AD = {(0, 1): "aşağı (satır no. artan)", (0, -1): "yukarı", (1, 0): "sa
 
 def _yon_adi(aci, dx, dy):
     rx, ry = Y.dondur(dx, dy, aci)
-    return YON_AD[(int(round(rx)), int(round(ry)))]
+    return T(YON_AD[(int(round(rx)), int(round(ry)))])
 
 
 def parca_satiri(p, nl) -> str:
@@ -336,35 +399,35 @@ def parca_satiri(p, nl) -> str:
         parcalar_.append(f"<b>{e(et)}</b> {yer}")
     notlar = []
     if p.ayak == "TO92":
-        notlar.append(f"düz yüz {_yon_adi(p.aci, 0, 1)}")
+        notlar.append(T("düz yüz {yon}", yon=_yon_adi(p.aci, 0, 1)))
     elif p.ayak == "TO220":
-        notlar.append(f"yazılı yüz {_yon_adi(p.aci, 0, 1)}, tab arkada")
+        notlar.append(T("yazılı yüz {yon}, tab arkada", yon=_yon_adi(p.aci, 0, 1)))
     elif p.ayak == "DIP8":
-        notlar.append(f"çentik {_yon_adi(p.aci, 0, -1)}")
+        notlar.append(T("çentik {yon}", yon=_yon_adi(p.aci, 0, -1)))
     elif p.ayak == "CE":
-        notlar.append("uzun bacak +")
+        notlar.append(T("uzun bacak +"))
     elif p.ayak == "D3":
-        notlar.append("bant = K")
+        notlar.append(T("bant = K"))
     elif p.ayak == "R1D":
-        notlar.append("dik: gövde 1'in üstünde")
+        notlar.append(T("dik: gövde 1'in üstünde"))
     elif p.ayak == "ADS":
-        notlar.append("dişi başlık — modül LEHİMLENMEZ, sonra takılır; VDD yazan pini "
-                      "tabloda VDD yazan deliğe (yuva simetrik, ters takılabilir)")
+        notlar.append(T("dişi başlık — modül LEHİMLENMEZ, sonra takılır; VDD yazan pini "
+                        "tabloda VDD yazan deliğe (yuva simetrik, ters takılabilir)"))
     elif p.ayak == "HDR10":
-        notlar.append("DİŞİ başlık; jumper kablonun erkek ucu buraya girer")
+        notlar.append(T("DİŞİ başlık; jumper kablonun erkek ucu buraya girer"))
     elif p.ayak == "C1x2":
-        notlar.append("iki ayrı 1nF, yan yana")
+        notlar.append(T("iki ayrı 1nF, yan yana"))
     if p.ref in V.PARCA_NOTU:
-        notlar.append(e(V.PARCA_NOTU[p.ref]))
+        notlar.append(e(T(V.PARCA_NOTU[p.ref])))
     if p.ref in V.KOND_GOREV:
         tip = kond_tipi(p.ref)
-        notlar.insert(0, f"<b>{e(tip)}</b> — {e(V.KOND_GOREV[p.ref])}")
+        notlar.insert(0, f"<b>{e(T(tip))}</b> — {e(T(V.KOND_GOREV[p.ref]))}")
     if p.ayak in GUC_SINIFI and p.ref in V.DIRENC_GOREV:
         tur = direnc_turu(p.ref)
         notlar.insert(0, f"<b>{GUC_SINIFI[p.ayak]}</b> · "
-                         f"{'<b>' if tur == 'zorunlu' else ''}{e(V.DIRENC_TURU_AD[tur])}"
-                         f"{'</b>' if tur == 'zorunlu' else ''} — {e(V.DIRENC_GOREV[p.ref])}")
-    return (f"<tr><td><b>{e(p.ref)}</b></td><td>{e(nl.deger.get(p.ref, ''))}</td>"
+                         f"{'<b>' if tur == 'zorunlu' else ''}{e(T(V.DIRENC_TURU_AD[tur]))}"
+                         f"{'</b>' if tur == 'zorunlu' else ''} — {e(T(V.DIRENC_GOREV[p.ref]))}")
+    return (f"<tr><td><b>{e(p.ref)}</b></td><td>{e(deger_adi(nl.deger.get(p.ref, '')))}</td>"
             f"<td>{' · '.join(parcalar_)}</td><td class='kucuk'>{' · '.join(notlar)}</td></tr>")
 
 
@@ -432,10 +495,12 @@ class Stok:
         elde = [r for r in bulunan if (r["adet"] or "").strip() != "0"]
         yeni = [r for r in elde if "sökme" not in r["ad"].lower()] or elde
         if not yeni:
-            return "<span class='kotu'>kayıtta yok</span>"
-        kutu = sorted({r["konum"] or "yeri kayıtta yok" for r in yeni})
+            return f"<span class='kotu'>{T('kayıtta yok')}</span>"
+        yok = "yeri kayıtta yok"
+        kutu = sorted({r["konum"] or yok for r in yeni})
         idler = ", ".join(r["id"] for r in yeni[:3]) + (" …" if len(yeni) > 3 else "")
-        return f"{e(idler)} <span class='kucuk'>· {e(' / '.join(kutu))}</span>"
+        yer = " / ".join(T("yeri kayıtta yok") if k == yok else tr_ozgun(e(k)) for k in kutu)
+        return f"{e(idler)} <span class='kucuk'>· {yer}</span>"
 
     def ad_ile(self, ad, kat, paket="") -> str:
         _t, bulunan, _s = self.B.stok_bul(self.kayit, ad, kat, paket)
@@ -454,7 +519,7 @@ class Stok:
                            if etiket.lower() in (r.get("etiket") or "").lower()]
                 if bulunan:
                     return self._yaz(bulunan)
-                return "<span class='kotu'>bu tipte kayıtta yok</span>"
+                return f"<span class='kotu'>{T('bu tipte kayıtta yok')}</span>"
             if pkt:
                 return self.ad_ile(ad, kat, pkt[0])
             if tercih:
@@ -470,7 +535,8 @@ class Stok:
             return self.ad_ile(ad, kat)
         if deger in self.B.BILINEN_DIS:
             durum, not_ = self.B.BILINEN_DIS[deger]
-            return f"<b>{e(durum)}</b> <span class='kucuk'>— {e(not_)}</span>"
+            return (f"<b>{tr_ozgun(e(durum))}</b> <span class='kucuk'>— "
+                    f"{tr_ozgun(e(not_))}</span>")
         return "—"
 
 
@@ -479,7 +545,7 @@ def gerekenler(k: int, nl, parcalar, aa, stok: Stok) -> str:
     ilk_kart = [s.kart for s in aa if s.adim == k and s.tur == "hazirlik"]
     for kart in ilk_kart:
         ad, kat = PLAKET_STOK[kart]
-        satir.append((f"Delikli plaket — kart {kart}", "1", V.KARTLAR[kart]["plaket"],
+        satir.append((T("Delikli plaket — kart {kart}", kart=kart), "1", T(V.KARTLAR[kart]["plaket"]),
                       stok.ad_ile(ad, kat) if stok.var else ""))
     ps = sorted((p for p in parcalar.values() if p.adim == k and p.ayak != "TEL"),
                 key=lambda p: Y_dogal(p.ref))
@@ -491,13 +557,13 @@ def gerekenler(k: int, nl, parcalar, aa, stok: Stok) -> str:
                             []).append(p.ref)
     for (deg, guc, tur), refs in degerler.items():
         if tur in V.KOND_TIPI:
-            ad = f"{deg} {tur}"
+            ad = f"{deger_adi(deg)} {T(tur)}"
             bul = (stok.deger_ile(deg, "", etiket=V.KOND_TIPI_ETIKET[tur],
                                   paket="15mm" if tur.startswith("film") else "")
                    if stok.var else "")
         else:
-            etiket = {"zorunlu": " metal film %1", "onerilir": " metal film (önerilir)"}.get(tur, "")
-            ad = f"{deg} {guc}{etiket}".strip()
+            etiket = {"zorunlu": T(" metal film %1"), "onerilir": T(" metal film (önerilir)")}.get(tur, "")
+            ad = f"{deger_adi(deg)} {guc}{etiket}".strip()
             bul = (stok.deger_ile(deg, guc, "metal film" if tur in ("zorunlu", "onerilir") else "")
                    if stok.var else "")
         # "2nF (2x1nF)": bir ref = IKI parca
@@ -509,26 +575,27 @@ def gerekenler(k: int, nl, parcalar, aa, stok: Stok) -> str:
             aks.setdefault(p.ayak, []).append(p.ref)
     for ayak, refs in aks.items():
         ad, env_ad, kat = AKSESUAR[ayak]
-        satir.append((ad, str(len(refs)), ", ".join(refs),
+        satir.append((T(ad), str(len(refs)), ", ".join(refs),
                       stok.ad_ile(env_ad, kat) if stok.var else ""))
     for ref, (_g, a) in V.KART_DISI.items():
         if a == k:
             deg = nl.deger.get(ref, "?")
-            satir.append((f"{deg} (kart dışı)", "1", ref,
+            satir.append((T("{deg} (kart dışı)", deg=deger_adi(deg)), "1", ref,
                           stok.deger_ile(deg) if stok.var else ""))
     turler = {c[2] for c in V.KABLOLAR if c[3] == k}
     for tur in sorted(turler & set(KABLO_STOK)):
         ad, env_ad, kat = KABLO_STOK[tur]
-        satir.append((ad, "", "kart dışı kablo", stok.ad_ile(env_ad, kat) if stok.var else ""))
+        satir.append((T(ad), "", T("kart dışı kablo"), stok.ad_ile(env_ad, kat) if stok.var else ""))
     if turler - set(KABLO_STOK) or any(s.adim == k and s.tur == "tel" for s in aa):
-        satir.append(("Yalıtımlı montaj kablosu", "", "teller / kart dışı kablolar",
+        satir.append((T("Yalıtımlı montaj kablosu"), "", T("teller / kart dışı kablolar"),
                       stok.ad_ile("Tek ve Çok Damarlı Montaj Kablosu", "Kablo") if stok.var else ""))
-    bas = "<tr><th>Ne</th><th class='s'>Adet</th><th>Nereye</th>" + \
-          ("<th>Stokta (kayıt · kutu)</th>" if stok.var else "") + "</tr>"
+    bas = T("<tr><th>Ne</th><th class='s'>Adet</th><th>Nereye</th>") + \
+          (T("<th>Stokta (kayıt · kutu)</th>") if stok.var else "") + "</tr>"
     govde = "".join(
         f"<tr><td><b>{e(a)}</b></td><td class='s'>{e(b)}</td><td class='kucuk'>{e(c)}</td>"
         + (f"<td>{d}</td>" if stok.var else "") + "</tr>" for a, b, c, d in satir)
-    return f"<details class='gerek' open><summary>Bu adım için gerekenler</summary><table>{bas}{govde}</table></details>"
+    return (f"<details class='gerek' open><summary>{T('Bu adım için gerekenler')}</summary>"
+            f"<table>{bas}{govde}</table></details>")
 
 
 def Y_dogal(ref: str) -> str:
@@ -559,10 +626,10 @@ def kondansator_tablosu(nl, parcalar, aa) -> str:
     for p in cs:
         t = kond_tipi(p.ref)
         satir.append(f"<tr><td><b>{e(p.ref)}</b></td><td>{e(nl.deger.get(p.ref, ''))}</td>"
-                     f"<td><span class='tur {sinif[t]}'>{e(t)}</span></td>"
-                     f"<td class='kucuk'>{e(V.KOND_GOREV[p.ref])}</td>"
+                     f"<td><span class='tur {sinif[t]}'>{e(T(t))}</span></td>"
+                     f"<td class='kucuk'>{e(T(V.KOND_GOREV[p.ref]))}</td>"
                      f"<td class='s'><a href='#s{adim_no.get(p.ref, '')}'>{adim_no.get(p.ref, '')}</a></td></tr>")
-    return f"""
+    return T("""
 <h2 id="kondansatorler">Kondansatörler — tip</h2>
 <p>Stokta iki çeşit küçük seramik var, ikisi aynı işi görmez:</p>
 <ul class="is">
@@ -579,7 +646,7 @@ kondansatörleri ve <b>süzgeçler</b> için: C2/C3'ün ve C19/C20'nin tolerans�
 multilayer'ın gövdesi kalın bir yumrudur ve bacaklar altından çıkar. Renk kutudan kutuya değişebilir —
 biçime bak. Disk 1nF'lerin bacak aralığı 5 mm olabilir; plan 2.5 mm istiyor, bacakları bükerek yaklaştır.</p>
 <table><tr><th>Kondansatör</th><th>Değer</th><th>Tip</th><th>Görevi</th><th class='s'>Adım</th></tr>
-{''.join(satir)}</table>"""
+{satir}</table>""", satir=''.join(satir))
 
 
 def direnc_tablosu(nl, parcalar, aa) -> str:
@@ -593,12 +660,12 @@ def direnc_tablosu(nl, parcalar, aa) -> str:
         t = direnc_turu(p.ref)
         satir.append(f"<tr><td><b>{e(p.ref)}</b></td><td>{e(nl.deger.get(p.ref, ''))}</td>"
                      f"<td>{GUC_SINIFI[p.ayak]}</td>"
-                     f"<td><span class='tur {sinif[t]}'>{e(V.DIRENC_TURU_AD[t])}</span></td>"
-                     f"<td class='kucuk'>{e(V.DIRENC_GOREV[p.ref])}</td>"
+                     f"<td><span class='tur {sinif[t]}'>{e(T(V.DIRENC_TURU_AD[t]))}</span></td>"
+                     f"<td class='kucuk'>{e(T(V.DIRENC_GOREV[p.ref]))}</td>"
                      f"<td class='s'><a href='#s{adim_no.get(p.ref, '')}'>{adim_no.get(p.ref, '')}</a></td></tr>")
     n_z = sum(1 for p in rs if direnc_turu(p.ref) == "zorunlu")
     n_o = sum(1 for p in rs if direnc_turu(p.ref) == "onerilir")
-    return (f"""
+    return T("""
 <h2 id="direncler">Dirençler — tür ve güç</h2>
 <p><b>Güç:</b> hepsi <b>1/4 W</b>, yalnız R40 <b>1/2 W</b>. Tasarım hesabı (tasarim3 §12): en çok
 yüklenen direnç R20, 1/4 W'ın %15'i; en yüksek gerilim 820K zincirinde 102 V (1/4 W'ın 200 V
@@ -609,7 +676,7 @@ filmin gerilime bağlı değeri ve 1000 saatte %1–3 sürüklenmesi kalibrasyon
 karbon olabilir. Stoktaki direnc.net paketleri (mavi gövde, 5 halka) metal film; motorobit
 paketleri ve dökme dirençler bej gövde, 4 halka = karbon.</p>
 <table><tr><th>Direnç</th><th>Değer</th><th>Güç</th><th>Tür</th><th>Görevi</th><th class='s'>Adım</th></tr>
-{''.join(satir)}</table>""")
+{satir}</table>""", n_z=n_z, n_o=n_o, satir=''.join(satir))
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -634,11 +701,11 @@ KART_EKI = {"A": "Kart A'yı", "B": "Kart B'yi"}
 
 def _baslik(s, parcalar, teller) -> str:
     if s.tur == "hazirlik":
-        return f"{KART_EKI[s.kart]} hazırla"
+        return T("{kart} hazırla", kart=T(KART_EKI[s.kart]))
     if s.tur == "parca":
         turler = []
         for r in s.parcalar:
-            ad = TUR_AD[parcalar[r].ayak][0]
+            ad = T(TUR_AD[parcalar[r].ayak][0])
             if ad not in turler:
                 turler.append(ad)
         return f"{', '.join(s.parcalar)} — {' + '.join(turler)}"
@@ -648,16 +715,16 @@ def _baslik(s, parcalar, teller) -> str:
             a = kisa_ag(teller[kart][j]["ag"])
             if a not in aglar:
                 aglar.append(a)
-        return "Lehim izleri — " + ", ".join(aglar)
+        return T("Lehim izleri — ") + ", ".join(aglar)
     if s.tur == "tel":
-        return f"Yalıtımlı teller ({len(s.teller)})"
+        return T("Yalıtımlı teller ({n})", n=len(s.teller))
     if s.tur == "kablo":
         bas = ", ".join(s.kart_disi) if s.kart_disi else ", ".join(
-            V.TEL_ETIKET.get(r, r) for r in s.parcalar)
-        return f"Kart dışı bağlantılar — {bas}"
+            T(V.TEL_ETIKET.get(r, r)) for r in s.parcalar)
+        return T("Kart dışı bağlantılar — {bas}", bas=bas)
     if s.tur == "esp32":
-        return f"{', '.join(s.ilgili)} → ESP32-S3 kablosu"
-    return "Kontrol ve KAPI"
+        return T("{j5} → ESP32-S3 kablosu", j5=', '.join(s.ilgili))
+    return T("Kontrol ve KAPI")
 
 
 def _madde(xs) -> str:
@@ -668,12 +735,13 @@ def kesim_talimati(kb) -> str:
     """Plaketin kaynak boyutundan hedef boyuta: hangi sutun/sira kesilecek."""
     ks, kr = kb["kaynak"]
     W, H = kb["sutun"], kb["satir"]
-    kes = ([f"{W + 1}. sütun"] if W < ks else []) + ([f"{H + 1}. sıra"] if H < kr else [])
+    kes = ([T("{n}. sütun", n=W + 1)] if W < ks else []) + ([T("{n}. sıra", n=H + 1)] if H < kr else [])
     if not kes:
-        return f"Plaketi ({W}×{H} delik) <b>kesmeden</b> kullan."
-    return (f"{ks}×{kr} deliklik plaketten <b>{W}×{H} delik</b> kes: {' ve '.join(kes)} "
-            "deliklerinin üstünden maket bıçağıyla iki yüzden çiz, kır; kenarı zımparala."
-            + (" <b>Tek kesim</b> — üç kenar fabrika kenarı kalır." if len(kes) == 1 else ""))
+        return T("Plaketi ({W}×{H} delik) <b>kesmeden</b> kullan.", W=W, H=H)
+    return (T("{ks}×{kr} deliklik plaketten <b>{W}×{H} delik</b> kes: {kes} "
+              "deliklerinin üstünden maket bıçağıyla iki yüzden çiz, kır; kenarı zımparala.",
+              ks=ks, kr=kr, W=W, H=H, kes=T(" ve ").join(kes))
+            + (T(" <b>Tek kesim</b> — üç kenar fabrika kenarı kalır.") if len(kes) == 1 else ""))
 
 
 def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
@@ -681,102 +749,104 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
     ic = []
     if s.tur == "hazirlik" and s.kart == "A":
         ks, kr = kb["kaynak"]
-        kesik = " ve ".join((["sağda"] if kb["sutun"] < ks else [])
-                            + (["altta"] if kb["satir"] < kr else []))
+        kesik = T(" ve ").join(([T("sağda")] if kb["sutun"] < ks else [])
+                               + ([T("altta")] if kb["satir"] < kr else []))
         ic.append(_madde([
             kesim_talimati(kb),
-            f"Köşelere M3 delik aç (her köşede {V.VIDA_KOSE}×{V.VIDA_KOSE} delik boş).",
-            *([f"Çizimdeki beyaz çizgiler plaketindeki {kb['cizgi']}'lik çizgilerin yerinde: "
-               f"A1'den sayınca ilk dikey çizgi <b>{Y.sutun_adi(kb['cizgi'] - 1)} ile "
-               f"{Y.sutun_adi(kb['cizgi'])}</b> sütunları, ilk yatay çizgi <b>{kb['cizgi']}. ile "
-               f"{kb['cizgi'] + 1}.</b> sıra arasında. Plaketinde öyle değilse dur, söyle."]
+            T("Köşelere M3 delik aç (her köşede {n}×{n} delik boş).", n=V.VIDA_KOSE),
+            *([T("Çizimdeki beyaz çizgiler plaketindeki {c}'lik çizgilerin yerinde: "
+                 "A1'den sayınca ilk dikey çizgi <b>{s1} ile "
+                 "{s2}</b> sütunları, ilk yatay çizgi <b>{c}. ile "
+                 "{c1}.</b> sıra arasında. Plaketinde öyle değilse dur, söyle.",
+                 c=kb['cizgi'], s1=Y.sutun_adi(kb['cizgi'] - 1), s2=Y.sutun_adi(kb['cizgi']),
+                 c1=kb['cizgi'] + 1)]
               if kb.get("cizgi") else []),
-            f"Ped çapını kumpasla ölç: plan <b>{V.PAD_ETKIN_MM:.2f} mm</b> varsayıyor; "
-            "büyük çıkarsa dur, söyle — denetim yeniden koşsun.",
-            "Plaketi <b>parça yüzü</b> sana bakacak koy; <b>A1</b> sol üst köşe"
-            + (f" (kesilen kenar {kesik} kalsın)" if kesik else "")
-            + ". Köşeye kalemle A1 yaz — bundan sonraki her delik adı buna göre.",
+            T("Ped çapını kumpasla ölç: plan <b>{pad} mm</b> varsayıyor; "
+              "büyük çıkarsa dur, söyle — denetim yeniden koşsun.", pad=f"{V.PAD_ETKIN_MM:.2f}"),
+            T("Plaketi <b>parça yüzü</b> sana bakacak koy; <b>A1</b> sol üst köşe")
+            + (T(" (kesilen kenar {kesik} kalsın)", kesik=kesik) if kesik else "")
+            + T(". Köşeye kalemle A1 yaz — bundan sonraki her delik adı buna göre."),
         ]))
     elif s.tur == "hazirlik":
         ic.append(_madde([
-            kesim_talimati(kb) + " Köşelere M3 delik aç.",
-            "Bu kart <b>615 V</b> taşır: parçaları takmadan önce plaketi temizle, "
-            "sonunda flux'ı IPA ile sil — lehim kalıntısı kaçak yoludur.",
-            "Parça yüzünden bakınca sol üst köşeye kalemle <b>B1</b> yaz.",
+            kesim_talimati(kb) + T(" Köşelere M3 delik aç."),
+            T("Bu kart <b>615 V</b> taşır: parçaları takmadan önce plaketi temizle, "
+              "sonunda flux'ı IPA ile sil — lehim kalıntısı kaçak yoludur."),
+            T("Parça yüzünden bakınca sol üst köşeye kalemle <b>B1</b> yaz."),
         ]))
     elif s.tur == "parca":
         ps = [parcalar[r] for r in s.parcalar]
-        m = ["Parçaları tablodaki deliklere <b>parça yüzünden</b> tak. Plaketi çevir, "
-             "bacakları lehimle, fazlasını kes (izi bacak artığıyla çekeceksen bir iki "
-             "delik boyu bırak)."]
+        m = [T("Parçaları tablodaki deliklere <b>parça yüzünden</b> tak. Plaketi çevir, "
+               "bacakları lehimle, fazlasını kes (izi bacak artığıyla çekeceksen bir iki "
+               "delik boyu bırak).")]
         ayaklar = {p.ayak for p in ps}
         if "CE" in ayaklar:
-            m.append("<b>Kutuplu:</b> uzun bacak (+) tabloda <b>+</b> yazan deliğe; gövdedeki "
-                     "şerit (−) tarafı.")
+            m.append(T("<b>Kutuplu:</b> uzun bacak (+) tabloda <b>+</b> yazan deliğe; gövdedeki "
+                       "şerit (−) tarafı."))
         if "D3" in ayaklar:
-            m.append("<b>Kutuplu:</b> gövdedeki bant = katot (<b>K</b>) — tabloda K yazan deliğe.")
+            m.append(T("<b>Kutuplu:</b> gövdedeki bant = katot (<b>K</b>) — tabloda K yazan deliğe."))
         for p in ps:
             if p.ayak in ("TO92", "TO220"):
-                m.append(f"<b>{e(p.ref)}</b>: önce multimetrenin diyot kademesiyle bacak sırasını "
-                         f"doğrula — <b>{'-'.join(V.BACAK[p.kod])}</b> (yazılı yüz sana dönük, "
-                         "bacaklar aşağı, soldan sağa).")
+                m.append(T("<b>{ref}</b>: önce multimetrenin diyot kademesiyle bacak sırasını "
+                           "doğrula — <b>{sira}</b> (yazılı yüz sana dönük, "
+                           "bacaklar aşağı, soldan sağa).", ref=e(p.ref), sira='-'.join(V.BACAK[p.kod])))
                 if p.kod == "L7912":
-                    m.append("7912'nin <b>tabı −12 V'ta</b>: soğutucuya ya da kutuya vidalama "
-                             "(soğutucu gerekmiyor).")
+                    m.append(T("7912'nin <b>tabı −12 V'ta</b>: soğutucuya ya da kutuya vidalama "
+                               "(soğutucu gerekmiyor)."))
                 if p.kod == "2N2222-331":
-                    m.append("Şemadaki sembol BC547'den (C-B-E); numarayla lehimlenirse C ile E yer "
-                             "değiştirir ve transistör <b>yarı çalışır</b>.")
+                    m.append(T("Şemadaki sembol BC547'den (C-B-E); numarayla lehimlenirse C ile E yer "
+                               "değiştirir ve transistör <b>yarı çalışır</b>."))
         if "DIP8" in ayaklar:
-            m.append("Soketin çentiği tabloda yazan yöne. Entegreyi lehim bitince, bu adımın "
-                     "KAPI ölçümünden önce tak (çentik aynı yöne).")
+            m.append(T("Soketin çentiği tabloda yazan yöne. Entegreyi lehim bitince, bu adımın "
+                       "KAPI ölçümünden önce tak (çentik aynı yöne)."))
         if "R1D" in ayaklar:
-            m.append("<b>Dik montaj:</b> gövde tabloda <b>1</b> yazan deliğin üstünde durur, "
-                     "diğer bacak kıvrılıp 2'ye iner.")
+            m.append(T("<b>Dik montaj:</b> gövde tabloda <b>1</b> yazan deliğin üstünde durur, "
+                       "diğer bacak kıvrılıp 2'ye iner."))
         if "SIG" in ayaklar:
-            m.append("Klipsleri <b>sigorta takılıyken</b> oturt (aralık kendiliğinden doğru "
-                     "olur), her bacağı kısa lehimle (2–3 sn — cam sigorta ısınmasın). Bacak "
-                     "delikleri tabloyla uymazsa dur, söyle.")
+            m.append(T("Klipsleri <b>sigorta takılıyken</b> oturt (aralık kendiliğinden doğru "
+                       "olur), her bacağı kısa lehimle (2–3 sn — cam sigorta ısınmasın). Bacak "
+                       "delikleri tabloyla uymazsa dur, söyle."))
         if "HDR10" in ayaklar:
-            m.append("<b>J5 dişi başlık</b> (erkek DEĞİL): 1×40 dişi header'dan 10'luk parça kes, "
-                     "plakete lehimle. ESP32'nin pinleri erkek olduğu için kablonun dişi ucu "
-                     "devkit'e, erkek ucu buraya girer — elindeki dişi-erkek jumper kablolar.")
+            m.append(T("<b>J5 dişi başlık</b> (erkek DEĞİL): 1×40 dişi header'dan 10'luk parça kes, "
+                       "plakete lehimle. ESP32'nin pinleri erkek olduğu için kablonun dişi ucu "
+                       "devkit'e, erkek ucu buraya girer — elindeki dişi-erkek jumper kablolar."))
         if "ADS" in ayaklar:
-            m.append("<b>Bu adımda yalnız dişi yuvalar lehimlenir; ADS modülleri lehimlenmez.</b> "
-                     "1×40 dişi header'dan 10'luk parçalar kes, plakete lehimle (lehimlerken "
-                     "yuvayı dik tutmak için modülü ya da bir erkek header'ı geçici takabilirsin).")
-            m.append("Modülleri bu adımın KAPI ölçümünden hemen önce yuvaya tak. Modül plakete "
-                     "<b>paralel (yatık)</b> durur, gövdesi yuvanın <b>sağına</b> uzanır — plan bu "
-                     "alanı boş bıraktı. Plan, pinleri modülün <b>lehim yüzünden</b> çıkan (bileşen "
-                     "yüzü yukarı, yazılar okunur) modül varsayıyor: o zaman üstten alta "
-                     f"{e(', '.join(V.ADS_MODUL))} sırası tablodaki deliklerle çakışır. "
-                     "<b>Pinler bileşen yüzüne lehimlenmişse</b> modül gövde-sağda ancak ters "
-                     "(bileşen yüzü aşağı) takılabilir ve sıra A3…VDD'ye döner — o zaman ya "
-                     "başlık öbür yüze taşınır ya da plan ters sıraya göre yeniden üretilir; "
-                     "yuvaya öylece takma.")
+            m.append(T("<b>Bu adımda yalnız dişi yuvalar lehimlenir; ADS modülleri lehimlenmez.</b> "
+                       "1×40 dişi header'dan 10'luk parçalar kes, plakete lehimle (lehimlerken "
+                       "yuvayı dik tutmak için modülü ya da bir erkek header'ı geçici takabilirsin)."))
+            m.append(T("Modülleri bu adımın KAPI ölçümünden hemen önce yuvaya tak. Modül plakete "
+                       "<b>paralel (yatık)</b> durur, gövdesi yuvanın <b>sağına</b> uzanır — plan bu "
+                       "alanı boş bıraktı. Plan, pinleri modülün <b>lehim yüzünden</b> çıkan (bileşen "
+                       "yüzü yukarı, yazılar okunur) modül varsayıyor: o zaman üstten alta "
+                       "{sira} sırası tablodaki deliklerle çakışır. "
+                       "<b>Pinler bileşen yüzüne lehimlenmişse</b> modül gövde-sağda ancak ters "
+                       "(bileşen yüzü aşağı) takılabilir ve sıra A3…VDD'ye döner — o zaman ya "
+                       "başlık öbür yüze taşınır ya da plan ters sıraya göre yeniden üretilir; "
+                       "yuvaya öylece takma.", sira=e(', '.join(V.ADS_MODUL))))
         if "C1x2" in ayaklar:
-            m.append("İki ayrı 1nF yan yana; paralel bağlantıyı lehim izi yapacak.")
+            m.append(T("İki ayrı 1nF yan yana; paralel bağlantıyı lehim izi yapacak."))
         tipler = {kond_tipi(p.ref) for p in ps if p.ref in V.KOND_GOREV}
         if "seramik disk (mercimek)" in tipler and "multilayer seramik" in tipler:
-            m.append("<b>İki çeşit seramik var:</b> tabloda hangisi disk (mercimek), hangisi "
-                     "multilayer yazıyor — karıştırma (bkz. <a href='#kondansatorler'>Kondansatörler</a>).")
+            m.append(T("<b>İki çeşit seramik var:</b> tabloda hangisi disk (mercimek), hangisi "
+                       "multilayer yazıyor — karıştırma (bkz. <a href='#kondansatorler'>Kondansatörler</a>)."))
         elif "seramik disk (mercimek)" in tipler:
-            m.append("<b>Disk (mercimek) seramik</b> — yassı turuncu disk; multilayer değil. Bacak "
-                     "aralığı 5 mm ise 2.5 mm'ye bük.")
+            m.append(T("<b>Disk (mercimek) seramik</b> — yassı turuncu disk; multilayer değil. Bacak "
+                       "aralığı 5 mm ise 2.5 mm'ye bük."))
         elif "multilayer seramik" in tipler:
-            m.append("<b>Multilayer seramik</b> — yumru biçimli açık sarı gövde; disk (mercimek) değil.")
+            m.append(T("<b>Multilayer seramik</b> — yumru biçimli açık sarı gövde; disk (mercimek) değil."))
         if s.kart == "B":
-            m.append("<b>HV zinciri:</b> gövdeler plakete yaslı; bacak artığını lehimin üstünden "
-                     "kısa kes — keskin uç ve lehim sivrisi kaçak yolunu kısaltır.")
+            m.append(T("<b>HV zinciri:</b> gövdeler plakete yaslı; bacak artığını lehimin üstünden "
+                       "kısa kes — keskin uç ve lehim sivrisi kaçak yolunu kısaltır."))
         ic.append(_madde(m))
-        ic.append("<table><tr><th>Parça</th><th>Değer</th><th>Bacak → delik</th><th>Yön</th></tr>"
+        ic.append(T("<table><tr><th>Parça</th><th>Değer</th><th>Bacak → delik</th><th>Yön</th></tr>")
                   + "".join(parca_satiri(p, nl) for p in ps) + "</table>")
     elif s.tur == "iz":
         ic.append(_madde([
-            "Plaketi çevir: <b>lehim yüzü</b> (çizim aynalı — aynı harf aynı deliğin üstünde).",
-            "Yol köşe noktalarıyla verildi: <code>A1 → A5 → C5</code> = A1'den A5'e düz, oradan "
-            "C5'e. Komşu pedleri lehimle köprüle; uzun yolda bacak artığı ya da kalaylı tel "
-            "yatırıp lehimle.",
-            "Başka renkteki (başka ağdaki) komşu pede lehim taşırma.",
+            T("Plaketi çevir: <b>lehim yüzü</b> (çizim aynalı — aynı harf aynı deliğin üstünde)."),
+            T("Yol köşe noktalarıyla verildi: <code>A1 → A5 → C5</code> = A1'den A5'e düz, oradan "
+              "C5'e. Komşu pedleri lehimle köprüle; uzun yolda bacak artığı ya da kalaylı tel "
+              "yatırıp lehimle."),
+            T("Başka renkteki (başka ağdaki) komşu pede lehim taşırma."),
         ]))
         satir = []
         for kart, j in s.izler:
@@ -784,12 +854,12 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
             satir.append(f"<tr><td><span style='color:{renk(t['ag'])}'>●</span> "
                          f"{e(kisa_ag(t['ag']))}</td><td>{yol_ozeti(t['yol'])}</td>"
                          f"<td class='s'>{len(t['yol']) - 1}</td></tr>")
-        ic.append("<table><tr><th>Ağ</th><th>Yol (köşeler)</th><th class='s'>Delik</th></tr>"
+        ic.append(T("<table><tr><th>Ağ</th><th>Yol (köşeler)</th><th class='s'>Delik</th></tr>")
                   + "".join(satir) + "</table>")
     elif s.tur == "tel":
         ic.append(_madde([
-            "Yalıtımlı tel, <b>lehim yüzünde</b> uçtan uca; uçları oradaki bacağa ya da pede lehimle.",
-            "Teli plakete yatır, çıplak ucu kısa tut; başka bir pedin üstünden geçirme.",
+            T("Yalıtımlı tel, <b>lehim yüzünde</b> uçtan uca; uçları oradaki bacağa ya da pede lehimle."),
+            T("Teli plakete yatır, çıplak ucu kısa tut; başka bir pedin üstünden geçirme."),
         ]))
         satir = []
         for kart, j in s.teller:
@@ -799,7 +869,7 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
                          f"{e(kisa_ag(t['ag']))}</td><td>{kart}:{Y.delik_adi(ax, ay)}</td>"
                          f"<td>{kart}:{Y.delik_adi(bx, by)}</td>"
                          f"<td class='s'>{abs(ax - bx) + abs(ay - by)}</td></tr>")
-        ic.append("<table><tr><th>Ağ</th><th>Uç 1</th><th>Uç 2</th><th class='s'>Delik</th></tr>"
+        ic.append(T("<table><tr><th>Ağ</th><th>Uç 1</th><th>Uç 2</th><th class='s'>Delik</th></tr>")
                   + "".join(satir) + "</table>")
     elif s.tur == "kablo":
         # Kullanici (2026-09-17): "burada ne yapacagimi anlamadim, sanki hicbir
@@ -838,98 +908,100 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
             uc = obur_uc(pp.ref)
             g1, l1 = gecir_lehimle(pp)
             if tur == "besleme":
-                nasil = "öbür ucu XT30'a (" + ("kırmızı, +" if "24P" in pp.ref else "siyah, −") + ")"
+                nasil = T("öbür ucu XT30'a (kırmızı, +)" if "24P" in pp.ref else "öbür ucu XT30'a (siyah, −)")
             elif uc[:2] in ("A:", "B:") and uc[2:] in parcalar:
                 # iki ucu da kartta olan TEK tel: iki lehim noktasini bir satirda goster
                 q = parcalar[uc[2:]]
                 islenen.add(q.ref)
                 g2, l2 = gecir_lehimle(q)
-                satir.append(f"<tr><td><b>{e(V.TEL_ETIKET.get(pp.ref, pp.ref))}</b> ↔ "
-                             f"<b>{e(V.TEL_ETIKET.get(q.ref, q.ref))}</b></td>"
+                satir.append(f"<tr><td><b>{e(T(V.TEL_ETIKET.get(pp.ref, pp.ref)))}</b> ↔ "
+                             f"<b>{e(T(V.TEL_ETIKET.get(q.ref, q.ref)))}</b></td>"
                              f"<td>{g1} · {g2}</td><td>{l1} · {l2}</td>"
-                             f"<td class='kucuk'>tek tel, iki ucu da lehimlenir — <b>{V.HVALT_TEL_KES_CM} cm</b> "
-                             f"kes (kutuda iki kart arası; daha kısası yetişmez)</td></tr>")
+                             "<td class='kucuk'>"
+                             + T("tek tel, iki ucu da lehimlenir — <b>{cm} cm</b> "
+                                 "kes (kutuda iki kart arası; daha kısası yetişmez)", cm=V.HVALT_TEL_KES_CM)
+                             + "</td></tr>")
                 continue
             else:
-                nasil = "öbür ucu <b>şimdilik boş</b>"
-            satir.append(f"<tr><td><b>{e(V.TEL_ETIKET.get(pp.ref, pp.ref))}</b></td>"
+                nasil = T("öbür ucu <b>şimdilik boş</b>")
+            satir.append(f"<tr><td><b>{e(T(V.TEL_ETIKET.get(pp.ref, pp.ref)))}</b></td>"
                          f"<td>{g1}</td><td>{l1}</td><td class='kucuk'>{nasil}</td></tr>")
         n = len(satir)
         if n:
-            m = [f"<b>Şimdi yap:</b> karta <b>{n} tel</b> lehimle. Teli önce gerginlik deliğinden "
-                 "(boş halka) geçir, sonra lehim noktasına lehimle; 15–20 cm bırak."]
+            m = [T("<b>Şimdi yap:</b> karta <b>{n} tel</b> lehimle. Teli önce gerginlik deliğinden "
+                   "(boş halka) geçir, sonra lehim noktasına lehimle; 15–20 cm bırak.", n=n)]
             if any(c[2] == "kelvin" for c in kab):
-                m.append("S+ ve S− tellerini birbirine bur (ince tel yeter).")
+                m.append(T("S+ ve S− tellerini birbirine bur (ince tel yeter)."))
             # 2026-09-17: kullanici 4.7'de sordu — sinyal teli + kendi COM'u
             # varsa burmak serbest (dongu alani kuculur), kelvin gibi zorunlu degil.
             sinyal_ag = {pp.ag for pp in pedler
                          if any(c[2] == "sinyal" for c in ped_kablo(pp.ref))}
             if "GND" in sinyal_ag and len(sinyal_ag) > 1:
-                m.append("Sinyal telini kendi COM/GND teliyle <b>burabilirsin</b> — "
-                         "zorunlu değil, gürültüye iyi.")
-            m.append("Lehimden sonra telleri, girdikleri deliğin <b>yanından sıcak "
-                     "silikonla</b> plakete sabitle: sallanan tel lehimi çatlatır. "
-                     "Silikonu komşu delikleri kapatacak kadar yayma.")
+                m.append(T("Sinyal telini kendi COM/GND teliyle <b>burabilirsin</b> — "
+                           "zorunlu değil, gürültüye iyi."))
+            m.append(T("Lehimden sonra telleri, girdikleri deliğin <b>yanından sıcak "
+                       "silikonla</b> plakete sabitle: sallanan tel lehimi çatlatır. "
+                       "Silikonu komşu delikleri kapatacak kadar yayma."))
             if any(c[2] == "hv" for c in kab):
                 # 2026-09-19 (5.12): silikon teli oldugu yerde dondurur -> HV
                 # kablosu ile "HV kablosundan uzak" denen tel once ayrilmali.
-                m.append("HV kablosunu silikondan <b>önce</b> öbür telden uzağa yatır — "
-                         "silikon konumu sabitler. HV kablosunu sağlam yapıştır: en çok "
-                         "çekilecek kablo o.")
+                m.append(T("HV kablosunu silikondan <b>önce</b> öbür telden uzağa yatır — "
+                           "silikon konumu sabitler. HV kablosunu sağlam yapıştır: en çok "
+                           "çekilecek kablo o."))
             if simdi_bagla:
-                m.append("Bu teller <b>hemen bağlanır</b>: öbür uçları XT30'un <b>erkek</b> "
-                         "ucuna (dişi uç güç kaynağının kablosuna) — bu adımın KAPI ölçümü "
-                         "24 V'u buradan alıyor.")
+                m.append(T("Bu teller <b>hemen bağlanır</b>: öbür uçları XT30'un <b>erkek</b> "
+                           "ucuna (dişi uç güç kaynağının kablosuna) — bu adımın KAPI ölçümü "
+                           "24 V'u buradan alıyor."))
             elif kart_kart:
-                m.append(f"Kart B'den kart A'ya giden tel <b>şimdi</b> lehimlenir: <b>{V.HVALT_TEL_KES_CM} cm</b> "
-                         "(kutuda iki kartın arası; daha kısası yetişmez).")
+                m.append(T("Kart B'den kart A'ya giden tel <b>şimdi</b> lehimlenir: <b>{cm} cm</b> "
+                           "(kutuda iki kartın arası; daha kısası yetişmez).", cm=V.HVALT_TEL_KES_CM))
             else:
-                m.append("Tellerin öbür uçları <b>boş kalır</b>; kutu/panel kurulunca aşağıdaki "
-                         "parçalara bağlanacak.")
+                m.append(T("Tellerin öbür uçları <b>boş kalır</b>; kutu/panel kurulunca aşağıdaki "
+                           "parçalara bağlanacak."))
             ic.append(_madde(m))
-            ic.append("<table><tr><th>Tel</th><th>Geçir</th><th>Lehimle</th><th>Öbür ucu</th></tr>"
+            ic.append(T("<table><tr><th>Tel</th><th>Geçir</th><th>Lehimle</th><th>Öbür ucu</th></tr>")
                       + "".join(satir) + "</table>")
         else:
-            ic.append(_madde(["<b>Şimdi karta lehimlenecek bir şey yok</b>; aşağısı kutu "
-                              "kurulunca yapılacak bağlantılar."]))
+            ic.append(_madde([T("<b>Şimdi karta lehimlenecek bir şey yok</b>; aşağısı kutu "
+                                "kurulunca yapılacak bağlantılar.")]))
         sonra = [c for c in kab if c[2] != "besleme" and not (c in kart_kart)]
         if sonra or s.kart_disi:
-            d = ["<details><summary>Sonra — kutu/panel kurulunca bu teller nereye gidiyor</summary>"]
+            d = [T("<details><summary>Sonra — kutu/panel kurulunca bu teller nereye gidiyor</summary>")]
             notlar = []
             for r in s.kart_disi:
                 if r in V.KART_DISI_NOTU:
-                    notlar.append(f"<b>{e(r)}</b> — {e(V.KART_DISI_NOTU[r])}")
+                    notlar.append(f"<b>{e(r)}</b> — {e(T(V.KART_DISI_NOTU[r]))}")
             if any(c[2] == "yuk" for c in kab):
-                notlar.append("<b>YÜK AKIMI</b> taşıyan kablolar plakete girmez: kutuda, klemensler "
-                              "arasında; kalın kablo (≥1.5 mm²).")
+                notlar.append(T("<b>YÜK AKIMI</b> taşıyan kablolar plakete girmez: kutuda, klemensler "
+                                "arasında; kalın kablo (≥1.5 mm²)."))
             if any(c[2] == "kelvin" for c in kab):
-                notlar.append("Kelvin telleri (S+, S−) şönt BACAĞINA lehimlenir, klemens vidasına "
-                              "değil — 15 mΩ'da vida temas direnci bile ölçüme girer.")
+                notlar.append(T("Kelvin telleri (S+, S−) şönt BACAĞINA lehimlenir, klemens vidasına "
+                                "değil — 15 mΩ'da vida temas direnci bile ölçüme girer."))
             if any(c[2] == "hv" for c in kab):
-                notlar.append("<b>HV kablosu</b>: yalıtımı sağlam, diğer kablolardan ayrı ve uzak.")
+                notlar.append(T("<b>HV kablosu</b>: yalıtımı sağlam, diğer kablolardan ayrı ve uzak."))
             if notlar:
                 d.append(_madde(notlar))
-            d.append("<table><tr><th>Nereden</th><th>Nereye</th><th>Tür</th><th>Not</th></tr>"
+            d.append(T("<table><tr><th>Nereden</th><th>Nereye</th><th>Tür</th><th>Not</th></tr>")
                      + "".join(
                          f"<tr><td>{e(_uc_adi(c[0]))}</td><td>{e(_uc_adi(c[1]))}</td>"
-                         f"<td>{'<b>YÜK AKIMI</b>' if c[2] == 'yuk' else e(c[2])}</td>"
-                         f"<td class='kucuk'>{e(c[4])}</td></tr>" for c in sonra)
+                         f"<td>{T('<b>YÜK AKIMI</b>') if c[2] == 'yuk' else e(T(c[2]))}</td>"
+                         f"<td class='kucuk'>{e(T(c[4]))}</td></tr>" for c in sonra)
                      + "</table></details>")
             ic.append("".join(d))
     elif s.tur == "esp32":
         ic.append(_madde([
-            "<b>ESP32 bu karta lehimlenmez.</b> Kutuda kartın yanında durur; J5 (dişi) "
-            "başlığına 10 adet <b>dişi-erkek</b> jumper kabloyla bağlanır: dişi uç devkit'in "
-            "erkek pinine, erkek uç J5'e. Bu adımın KAPI ölçümü +3V3 ve +5V'u ESP32'den, bu "
-            "kablo üzerinden alıyor.",
-            "Bağlamadan önce ESP32'nin pinlerinde başka tel kalmasın — tezgâh denemelerinden "
-            "kalan GPIO4–GPIO5 kısa devre teli ve RC düzeneği dahil.",
-            "Kabloyu tablodaki pin pin eşlemeyle tak; <b>3V3 ile 5V'u karıştırma</b>. "
-            "Kabloyu kısa tut: I²C ile iki analog sinyal (skop, hızlı akım) aynı demette gidiyor.",
-            "USB kablosunu devkit'in <b>COM yazan</b> Type-C soketine tak (CH343 köprüsü). "
-            "Öteki soket de port açar ama firmware orada sessiz kalır.",
+            T("<b>ESP32 bu karta lehimlenmez.</b> Kutuda kartın yanında durur; J5 (dişi) "
+              "başlığına 10 adet <b>dişi-erkek</b> jumper kabloyla bağlanır: dişi uç devkit'in "
+              "erkek pinine, erkek uç J5'e. Bu adımın KAPI ölçümü +3V3 ve +5V'u ESP32'den, bu "
+              "kablo üzerinden alıyor."),
+            T("Bağlamadan önce ESP32'nin pinlerinde başka tel kalmasın — tezgâh denemelerinden "
+              "kalan GPIO4–GPIO5 kısa devre teli ve RC düzeneği dahil."),
+            T("Kabloyu tablodaki pin pin eşlemeyle tak; <b>3V3 ile 5V'u karıştırma</b>. "
+              "Kabloyu kısa tut: I²C ile iki analog sinyal (skop, hızlı akım) aynı demette gidiyor."),
+            T("USB kablosunu devkit'in <b>COM yazan</b> Type-C soketine tak (CH343 köprüsü). "
+              "Öteki soket de port açar ama firmware orada sessiz kalır."),
         ]))
-        ic.append("<table><tr><th class='s'>J5</th><th>Ağ</th><th>ESP32-S3 devkit pini</th></tr>"
+        ic.append(T("<table><tr><th class='s'>J5</th><th>Ağ</th><th>ESP32-S3 devkit pini</th></tr>")
                   + "".join(j5_satirlari(nl)) + "</table>")
     else:
         # Kullanici (2026-09-19, 5.13): "gene kablo mu baglayacagim? tam
@@ -937,10 +1009,10 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
         # lehim/kablo YOK dendigi ilk satir + hangi iki delige degecegi ve ne
         # okuyacagi tablosu + KAPI simdi mi sonra mi, tek kutuda.
         aglar = sorted({teller[kart][j]["ag"] for x in aa if x.adim == s.adim
-                        for kart, j in x.izler + x.teller} & RAYLAR, key=kisa_ag)
+                        for kart, j in x.izler + x.teller} & RAYLAR, key=_ag_sirasi)
         ic.append(_madde([
-            "<b>Bu adımda lehim de kablo da yok</b> — yalnız multimetreyle kontrol. "
-            "Önce enerjiyi kes: 24 V bağlıysa çıkar, ESP32'nin USB'sini çıkar."]))
+            T("<b>Bu adımda lehim de kablo da yok</b> — yalnız multimetreyle kontrol. "
+              "Önce enerjiyi kes: 24 V bağlıysa çıkar, ESP32'nin USB'sini çıkar.")]))
         kart_s = _kontrol_karti(s.adim, parcalar)
         # 2026-09-19 (6.12): C36-C29 (-12V-GND) kisa devresi. Eskiden yalniz bu
         # adimin IZLERININ dokundugu raylar olculuyordu -> adim 3 GND izini
@@ -948,7 +1020,7 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
         # gostermedi. Simdi: o ana kadar kartta VAR OLAN her ray, her kontrolde.
         aglar = sorted({nl.pin_agi.get(k) for p in parcalar.values()
                         if p.kart == kart_s and p.adim <= s.adim
-                        for k in p.delikler(nl)} & RAYLAR, key=kisa_ag)
+                        for k in p.delikler(nl)} & RAYLAR, key=_ag_sirasi)
         satirlar = []
         zc = zincir_olcumu(s.adim, nl, parcalar)
         if zc:
@@ -957,49 +1029,53 @@ def alt_adim_html(s, nl, parcalar, teller, aa) -> str:
             uc = ray_uclari(a, s.adim, kart_s, nl, parcalar)
             if uc:
                 (r1, d1), (r2, d2) = uc
-                satirlar.append((f"<b>{e(kisa_ag(a))}</b> GND'ye kısa değil",
-                                 f"{r1} bacağı · {kart_s}:{Y.delik_adi(*d1)}",
-                                 f"{r2} bacağı · {kart_s}:{Y.delik_adi(*d2)} (GND)",
-                                 "bip <b>ötmemeli</b> (ilk anda kısa bir “cik” olabilir: "
-                                 "kondansatör doluyor). Emin değilsen ohm kademesine al: "
-                                 "kısa devre 0–1 Ω'da <b>sabit</b> kalır, kondansatörde "
-                                 "sayı hızla yükselir"))
+                satirlar.append((T("<b>{ag}</b> GND'ye kısa değil", ag=e(kisa_ag(a))),
+                                 T("{r} bacağı · {yer}", r=r1, yer=f"{kart_s}:{Y.delik_adi(*d1)}"),
+                                 T("{r} bacağı · {yer}", r=r2, yer=f"{kart_s}:{Y.delik_adi(*d2)}")
+                                 + " (GND)",
+                                 T("bip <b>ötmemeli</b> (ilk anda kısa bir “cik” olabilir: "
+                                   "kondansatör doluyor). Emin değilsen ohm kademesine al: "
+                                   "kısa devre 0–1 Ω'da <b>sabit</b> kalır, kondansatörde "
+                                   "sayı hızla yükselir")))
         if satirlar:
-            ic.append("<table><tr><th>Ne</th><th>Uç 1</th><th>Uç 2</th><th>Doğru sonuç</th></tr>"
+            ic.append(T("<table><tr><th>Ne</th><th>Uç 1</th><th>Uç 2</th><th>Doğru sonuç</th></tr>")
                       + "".join(f"<tr><td>{a}</td><td>{b}</td><td>{c}</td><td class='kucuk'>{d}</td></tr>"
                                 for a, b, c, d in satirlar) + "</table>")
         kc = kopru_ciftleri(s.adim, nl, parcalar, teller, kart_s)
         if kc:
             ic.append(
-                f"<details><summary>Köprü kontrolü — bu adımda lehimlediğin deliklerin "
-                f"<b>farklı ağa</b> ait komşuları ({len(kc)} çift)</summary>"
-                "<p class='kucuk'>Lehim köprüsü en çok buralarda olur. Bip kademesinde her çifti "
-                "ölç; “ötmemeli” yazan öterse aralarında lehim köprüsü var. Parantezdeki değer, "
-                "ohm kademesinde aradaki dirençlerden beklenen okuma (takılı entegre/modül "
-                "varsa biraz düşük çıkabilir). Ray–ray çiftlerinde ilk anda kısa bir “cik” normal: "
-                "kondansatör doluyor; sürekli öterse köprü.</p>"
-                "<table><tr><th>Delik</th><th>Komşu</th><th>Doğru sonuç</th></tr>"
+                T("<details><summary>Köprü kontrolü — bu adımda lehimlediğin deliklerin "
+                  "<b>farklı ağa</b> ait komşuları ({n} çift)</summary>"
+                  "<p class='kucuk'>Lehim köprüsü en çok buralarda olur. Bip kademesinde her çifti "
+                  "ölç; “ötmemeli” yazan öterse aralarında lehim köprüsü var. Parantezdeki değer, "
+                  "ohm kademesinde aradaki dirençlerden beklenen okuma (takılı entegre/modül "
+                  "varsa biraz düşük çıkabilir). Ray–ray çiftlerinde ilk anda kısa bir “cik” normal: "
+                  "kondansatör doluyor; sürekli öterse köprü.</p>"
+                  "<table><tr><th>Delik</th><th>Komşu</th><th>Doğru sonuç</th></tr>", n=len(kc))
                 + "".join(f"<tr><td>{kart_s}:{Y.delik_adi(*h)} <span class='kucuk'>({e(kisa_ag(a1))})</span></td>"
                           f"<td>{kart_s}:{Y.delik_adi(*q)} <span class='kucuk'>({e(kisa_ag(a2))})</span></td>"
                           f"<td class='kucuk'>{_kopru_sonuc(r)}</td></tr>"
                           for h, a1, q, a2, r in kc)
                 + "</table></details>")
         ic.append(_madde([
-            "Bu adımda çektiğin her izin iki ucu arasında bip <b>ötmeli</b>; yan yana iki "
-            "farklı iz/ped arasında <b>ötmemeli</b>.",
-            "Ölçerken iki metal uca birden parmakla dokunma — vücudun yüksek direnç "
-            "ölçümünü düşürür."]))
+            T("Bu adımda çektiğin her izin iki ucu arasında bip <b>ötmeli</b>; yan yana iki "
+              "farklı iz/ped arasında <b>ötmemeli</b>."),
+            T("Ölçerken iki metal uca birden parmakla dokunma — vücudun yüksek direnç "
+              "ölçümünü düşürür.")]))
         disi = sorted({r for x in aa if x.adim == s.adim and x.tur == "kablo" for r in x.kart_disi
                        if not any(V.KABLOLAR[j][2] == "besleme" for j in x.kablolar)})
         hv = any(V.KABLOLAR[j][2] == "hv" for x in aa if x.adim == s.adim for j in x.kablolar)
         if disi:
-            ic.append(f"<div class='uy'><b>Enerjili test (KAPI) şimdi değil:</b> {', '.join(disi)} "
-                      f"(kutu/panel parçası) gerekiyor, kutu kurulunca yapılacak — {KAPI.get(s.adim, '')} "
-                      "Yukarıdaki ölçümler tamamsa <b>sonraki adıma geç</b>."
-                      + ("" if hv else " (İstersen jak yerine tel ucuna krokodille geçici "
-                                       "bağlayıp şimdi de yapabilirsin.)") + "</div>")
+            ic.append("<div class='uy'>"
+                      + T("<b>Enerjili test (KAPI) şimdi değil:</b> {disi} "
+                          "(kutu/panel parçası) gerekiyor, kutu kurulunca yapılacak — {kapi} "
+                          "Yukarıdaki ölçümler tamamsa <b>sonraki adıma geç</b>.",
+                          disi=', '.join(disi), kapi=T(KAPI.get(s.adim, '')))
+                      + ("" if hv else T(" (İstersen jak yerine tel ucuna krokodille geçici "
+                                         "bağlayıp şimdi de yapabilirsin.)")) + "</div>")
         else:
-            ic.append(f"<div class='ok'><b>KAPI — geçmeden ilerleme:</b> {KAPI.get(s.adim, '')}</div>")
+            ic.append(f"<div class='ok'>{T('<b>KAPI — geçmeden ilerleme:</b>')} "
+                      f"{T(KAPI.get(s.adim, ''))}</div>")
             if s.adim == 0:
                 ic.append(ilk_enerji(nl, parcalar))
     return "".join(ic)
@@ -1020,20 +1096,20 @@ def ilk_enerji(nl, parcalar) -> str:
     arti = ray_uclari("+12V", 0, "A", nl, parcalar)
     eksi = ray_uclari("-12V", 0, "A", nl, parcalar)
     satir = [
-        "Sigorta yuvasında <b>50 mA</b> sigorta olsun (FUS010) — geçici 400 mA değil.",
-        "ESP32 bağlı olmasın, ADS modülleri takılı olmasın.",
-        "Kaynak: 24 V güç kaynağının çıkışı <b>doğrudan</b> (düşürücü modül gerekmez). "
-        "Akım sınırı yok; korumayı 50 mA sigorta yapıyor — kartın çekeceği ~15 mA.",
-        "Takmadan önce XT30'un <b>dişi</b> ucunu ölç: kırmızı prob kırmızı tele, "
-        "<b>+24 V</b> görmelisin. Eksi çıkarsa kaynaktaki kabloları yer değiştir.",
+        T("Sigorta yuvasında <b>50 mA</b> sigorta olsun (FUS010) — geçici 400 mA değil."),
+        T("ESP32 bağlı olmasın, ADS modülleri takılı olmasın."),
+        T("Kaynak: 24 V güç kaynağının çıkışı <b>doğrudan</b> (düşürücü modül gerekmez). "
+          "Akım sınırı yok; korumayı 50 mA sigorta yapıyor — kartın çekeceği ~15 mA."),
+        T("Takmadan önce XT30'un <b>dişi</b> ucunu ölç: kırmızı prob kırmızı tele, "
+          "<b>+24 V</b> görmelisin. Eksi çıkarsa kaynaktaki kabloları yer değiştir."),
         # 2026-09-20: kullanici krokodille sicak takti, kivilcim gordu. C16+C17
         # = 136 uF bos kondansator ilk anda kisa devre gibi: darbe 50 mA hizli
         # sigortayi attirabilir. Kaynagin yumusak kalkisi bunu onler.
-        "Kaynak <b>kapalıyken</b> XT30'u tak, sonra kaynağı aç; sökerken önce kaynağı "
-        "kapat. Enerjili kaynağa takmak (kıvılcım) 136 µF'yi bir anda doldurur ve "
-        "50 mA'lik hızlı sigortayı attırabilir.",
-        "Tak, 5 saniye bekle, çek. 7912, C16, C17 ve R40'a dokun: ısınmamış olmalı "
-        "(24 V'a dokunmak tehlikesiz).",
+        T("Kaynak <b>kapalıyken</b> XT30'u tak, sonra kaynağı aç; sökerken önce kaynağı "
+          "kapat. Enerjili kaynağa takmak (kıvılcım) 136 µF'yi bir anda doldurur ve "
+          "50 mA'lik hızlı sigortayı attırabilir."),
+        T("Tak, 5 saniye bekle, çek. 7912, C16, C17 ve R40'a dokun: ısınmamış olmalı "
+          "(24 V'a dokunmak tehlikesiz)."),
     ]
     # 2026-09-19: fotograftan elektrolitik yonu gorulemedi; ters elektrolitik
     # ilk enerjide isinir/patlar -> eksi (serit) bacagin deligi veriden.
@@ -1045,34 +1121,36 @@ def ilk_enerji(nl, parcalar) -> str:
     soketli = sorted((r for r, pp in parcalar.items() if pp.ayak == "DIP8"),
                      key=lambda r: (len(r), r))
     if soketli:
-        satir.insert(2, "Soketlerde entegre takılıysa <b>çıkar</b> (" + ", ".join(soketli)
-                     + ") — ilk elektrikte yalnız besleme bloğu çalışsın.")
+        satir.insert(2, T("Soketlerde entegre takılıysa <b>çıkar</b> ({refs}) — ilk elektrikte "
+                          "yalnız besleme bloğu çalışsın.", refs=", ".join(soketli)))
     if elek:
-        satir.insert(2, "Elektrolitiklerin <b>şeritli (−) bacağı</b> doğru delikte mi: "
-                     + ", ".join(f"{r} → <b>A:{Y.delik_adi(*parcalar[r].delikler(nl)[r + '.2'][0])}</b>"
-                                 for r in elek)
-                     + ". Ters takılı elektrolitik ilk elektrikte ısınır, patlayabilir.")
+        satir.insert(2, T("Elektrolitiklerin <b>şeritli (−) bacağı</b> doğru delikte mi: {liste}. "
+                          "Ters takılı elektrolitik ilk elektrikte ısınır, patlayabilir.",
+                          liste=", ".join(f"{r} → <b>A:{Y.delik_adi(*parcalar[r].delikler(nl)[r + '.2'][0])}</b>"
+                                          for r in elek)))
     if arti and eksi:
         (_, g), (_, a) = arti[1], arti[0]
         (_, e_) = eksi[0]
         gnd = f"A:{Y.delik_adi(*g)}"
-        satir.append(
-            f"Tekrar tak ve ölç — siyah prob <b>{gnd}</b> (GND): kırmızı prob "
-            f"<b>A:{Y.delik_adi(*a)}</b> → <b>+11.5 … +12.5 V</b>; kırmızı prob "
-            f"<b>A:{Y.delik_adi(*e_)}</b> → <b>yaklaşık −12 V</b> (−11 … −13).")
+        satir.append(T(
+            "Tekrar tak ve ölç — siyah prob <b>{gnd}</b> (GND): kırmızı prob "
+            "<b>A:{arti}</b> → <b>+11.5 … +12.5 V</b>; kırmızı prob "
+            "<b>A:{eksi}</b> → <b>yaklaşık −12 V</b> (−11 … −13).",
+            gnd=gnd, arti=Y.delik_adi(*a), eksi=Y.delik_adi(*e_)))
     # 2026-09-20: kullanici sigorta uzerinde 5 mV oktu (13 mA -> 0.4 ohm).
     # Gercek 50 mA'lik telin capi ~7 um mertebesinde, direnci onlarca ohm
     # (Preece: bakirda 0.4 ohm'luk tel ~0.5 A'de erir) -> etiket guvenilmez.
     f1 = next((pp for pp in parcalar.values() if pp.ayak == "SIG"), None)
     if f1:
         d = sorted({h for v in f1.delikler(nl).values() for h in v})
-        satir.append(f"Sigortanın iki ucu arasındaki düşümü ölç (A:{Y.delik_adi(*d[0])} ↔ "
-                     f"A:{Y.delik_adi(*d[-1])}): <b>0.1 V'un üzerinde</b> olmalı — gerçek 50 mA "
-                     "sigortanın direnci onlarca ohm, kart ~13 mA çekiyor. Birkaç mV okuyorsan "
-                     "sigortanın teli etiketinden çok kalın (ucuz sigortalarda olur): kart "
-                     "çalışır ama <b>koruma zayıf</b>, markalı sigorta al.")
-    satir.append("Sigorta atarsa, gerilim tutmazsa ya da bir şey ısınırsa: çek, "
-                 "devam etme, ölçtüğünü yaz.")
+        satir.append(T("Sigortanın iki ucu arasındaki düşümü ölç (A:{d1} ↔ "
+                       "A:{d2}): <b>0.1 V'un üzerinde</b> olmalı — gerçek 50 mA "
+                       "sigortanın direnci onlarca ohm, kart ~13 mA çekiyor. Birkaç mV okuyorsan "
+                       "sigortanın teli etiketinden çok kalın (ucuz sigortalarda olur): kart "
+                       "çalışır ama <b>koruma zayıf</b>, markalı sigorta al.",
+                       d1=Y.delik_adi(*d[0]), d2=Y.delik_adi(*d[-1])))
+    satir.append(T("Sigorta atarsa, gerilim tutmazsa ya da bir şey ısınırsa: çek, "
+                   "devam etme, ölçtüğünü yaz."))
     return "<ol class='is'>" + "".join(f"<li>{x}</li>" for x in satir) + "</ol>"
 
 
@@ -1130,12 +1208,13 @@ def zincir_olcumu(adim, nl, parcalar):
         return None
     (d_son,) = son.delikler(nl)[son.ref + ".1"]
     iki_kart = {parcalar[r].kart for r in zr if r in parcalar} != {son.kart}
-    return (f"HV zinciri: {zr[0]}–{zr[-1]} ({len(zr)} direnç)"
-            + (" + kartlar arası tel" if iki_kart else ""),
-            f"{e(V.TEL_ETIKET.get(bas.ref, bas.ref))} kablosunun boş (soyulmuş) ucu",
-            f"{e(V.TEL_ETIKET.get(son.ref, son.ref))} lehimi · {son.kart}:{Y.delik_adi(*d_son)}",
+    return (T("HV zinciri: {ilk}–{son} ({n} direnç)", ilk=zr[0], son=zr[-1], n=len(zr))
+            + (T(" + kartlar arası tel") if iki_kart else ""),
+            T("{ad} kablosunun boş (soyulmuş) ucu", ad=e(T(V.TEL_ETIKET.get(bas.ref, bas.ref)))),
+            T("{ad} lehimi · {yer}", ad=e(T(V.TEL_ETIKET.get(son.ref, son.ref))),
+              yer=f"{son.kart}:{Y.delik_adi(*d_son)}"),
             f"<b>≈ {_oku(toplam)}</b> ({_oku(toplam * 0.98)} – {_oku(toplam * 1.02)}); "
-            "20 MΩ kademesi. Çok büyük / OL = bir lehim kopuk")
+            + T("20 MΩ kademesi. Çok büyük / OL = bir lehim kopuk"))
 
 
 def ray_uclari(ag, adim, kart, nl, parcalar):
@@ -1175,10 +1254,10 @@ BIP_ESIGI_OHM = 100.0       # ucuz multimetrelerde bip esigi 30–100 ohm
 
 def _kopru_sonuc(r: float) -> str:
     if r == float("inf"):
-        return "bip <b>ötmemeli</b>"
+        return T("bip <b>ötmemeli</b>")
     if r < BIP_ESIGI_OHM:
-        return f"<b>öter — normal</b> (aralarında ≈ {_oku(r)})"
-    return f"bip <b>ötmemeli</b> (ohm kademesinde ≈ {_oku(r)})"
+        return T("<b>öter — normal</b> (aralarında ≈ {ohm})", ohm=_oku(r))
+    return T("bip <b>ötmemeli</b> (ohm kademesinde ≈ {ohm})", ohm=_oku(r))
 
 
 def _dc_direnc(adim, nl, parcalar):
@@ -1340,7 +1419,21 @@ def gorus(s, nl, parcalar, teller, aa) -> dict:
 #  SAYFA
 # ═══════════════════════════════════════════════════════════════════════
 
-def yaz(nl, parcalar, teller, bilgi, hedef: Path) -> None:
+def yaz(nl, parcalar, teller, bilgi, hedef: Path, dil: str = "tr") -> None:
+    hedef.parent.mkdir(parents=True, exist_ok=True)
+    hedef.write_text(sayfa(nl, parcalar, teller, bilgi, dil), encoding="utf-8")
+
+
+def sayfa(nl, parcalar, teller, bilgi, dil: str = "tr") -> str:
+    """Sayfanin tam HTML'i (`dil`: "tr" ya da "en"). Eksik ceviriler EKSIK'te."""
+    if dil != "tr":
+        EKSIK.clear()
+        ISTENEN.clear()
+    with _Dil(dil):
+        return _sayfa(nl, parcalar, teller, bilgi, dil)
+
+
+def _sayfa(nl, parcalar, teller, bilgi, dil: str) -> str:
     kok_ag = bilgi["delik_agi"]
     aa = bilgi["alt_adimlar"]
     son = max(s.adim for s in aa)
@@ -1359,16 +1452,16 @@ def yaz(nl, parcalar, teller, bilgi, hedef: Path) -> None:
             ss["tel"][x] = s.sira
 
     g = []
-    g.append(f"""
+    g.append(T("""
 <div class="kpi">
-  <div><span>Alt adım</span><b>{len(aa)}</b></div>
-  <div><span>Ana kart (A)</span><b>{kb_a['sutun']}×{kb_a['satir']}</b></div>
-  <div><span>HV kartı (B)</span><b>{kb_b['sutun']}×{kb_b['satir']}</b></div>
+  <div><span>Alt adım</span><b>{n_aa}</b></div>
+  <div><span>Ana kart (A)</span><b>{aW}×{aH}</b></div>
+  <div><span>HV kartı (B)</span><b>{bW}×{bH}</b></div>
   <div><span>Lehim izi · tel</span><b>{toplam_iz} · {toplam_tel}</b></div>
-  <div><span>Denetim</span><b>{bilgi['gecti']}/{bilgi['toplam']}</b></div>
+  <div><span>Denetim</span><b>{gecti}/{toplam}</b></div>
 </div>
 
-<p>Kurulum <b>LEGO kılavuzu gibi</b>: {son + 1} büyük adım ({', '.join(str(i) for i in range(son + 1))}),
+<p>Kurulum <b>LEGO kılavuzu gibi</b>: {n_adim} büyük adım ({adimlar}),
 her biri kendi içinde küçük alt adımlara bölünmüş. Her alt adımda birkaç parça ya da birkaç
 lehim izi var; her büyük adım bir <b>KAPI</b> ölçümüyle bitiyor ve o geçmeden sonrakine
 geçilmiyor. Sıra: <b>önce alçak parçalar, sonra yüksekler</b>; ters takılabilen parça
@@ -1376,8 +1469,8 @@ geçilmiyor. Sıra: <b>önce alçak parçalar, sonra yüksekler</b>; ters takıl
 parçalardan, kablolar izlerden sonra.</p>
 
 <p>Plaketler <b>her delikte ayrı pedli</b>. Ana kart (A), 13×23 cm plaketten
-({kb_a['kaynak'][0]}×{kb_a['kaynak'][1]} delik) <b>{kb_a['sutun']}×{kb_a['satir']} delik</b> kesilerek yapılıyor;
-HV zinciri (B) ayrı bir 5×5 cm plakette ({kb_b['sutun']}×{kb_b['satir']}). Şönt,
+({kaW}×{kaH} delik) <b>{aW}×{aH} delik</b> kesilerek yapılıyor;
+HV zinciri (B) ayrı bir 5×5 cm plakette ({bW}×{bH}). Şönt,
 J3, J7 ve Q1 <b>plakette değil</b>: 11.5 A'e varan yük akımını plaket bakırı
 taşımaz. Onlar kutuda (panel jakları, şönt altlığı, soğutucu); plakete yalnızca Kelvin
 uçları, tek yıldız toprak teli ve kapı teli geliyor. <b>615 V'luk giriş A kartına
@@ -1392,25 +1485,33 @@ bacağa ya da pede lehimlenir.</div>
 <table>
 <tr><th>Ne</th><th>Neden</th></tr>
 <tr><td><b>Bacak sırasını multimetreyle doğrula</b></td>
-<td>2N2222-331: <b>{'-'.join(V.BACAK['2N2222-331'])}</b> · BC557: <b>{'-'.join(V.BACAK['BC557'])}</b> ·
-TL431: <b>{'-'.join(V.BACAK['TL431'])}</b> · 7912: <b>{'-'.join(V.BACAK['L7912'])}</b>
+<td>2N2222-331: <b>{b_q2}</b> · BC557: <b>{b_q3}</b> ·
+TL431: <b>{b_u1}</b> · 7912: <b>{b_u9}</b>
 (yazılı yüz sana dönük, bacaklar aşağı, soldan sağa). Şemadaki Q2 sembolü
 BC547'den alınmış (C-B-E); numarayla lehimlenirse C ile E yer değiştirir ve
 transistör <b>yarı çalışır</b> — sessiz kusur. Diyot kademesinde baz, iki
 eklemin ortak ucudur. Her transistörün kendi alt adımında bu uyarı tekrar ediliyor.</td></tr>
-<tr><td><b>ADS modül pin sırası</b></td><td>Plan {', '.join(V.ADS_MODUL)} sırasını varsayıyor.
+<tr><td><b>ADS modül pin sırası</b></td><td>Plan {ads} sırasını varsayıyor.
 Modülün üstünde yazanla karşılaştır.</td></tr>
 <tr><td><b>Ped çapını kumpasla ölç</b></td><td>Kaçak yolu hesabı lehimli iletken
-çapını {V.PAD_ETKIN_MM:.2f} mm alıyor. Ölçtüğün daha büyükse söyle, denetim yeniden
+çapını {pad} mm alıyor. Ölçtüğün daha büyükse söyle, denetim yeniden
 koşsun.</td></tr>
 <tr><td><b>HV kartında aralık</b></td><td>615 V takviyeli yalıtım <b>bakırdan bakıra</b>
 ölçülür. Eski "5 delik atla" merkezden merkezeydi (12.70 mm); pedlerle bakırdan
-bakıra {5 * Y.ADIM_MM - V.PAD_ETKIN_MM:.2f} mm kalıyordu, yetmiyordu. Kılavuz ve
-bu plan artık <b>{bilgi['f9_adim']} adım</b> diyor. HV kartında 615 V ucu ile alt
+bakıra {bes} mm kalıyordu, yetmiyordu. Kılavuz ve
+bu plan artık <b>{f9} adım</b> diyor. HV kartında 615 V ucu ile alt
 düğüm zaten karşı köşelerde; en dar çift:
-{e(bilgi['en_dar'].get('B', ''))}.</td></tr>
+{en_dar}.</td></tr>
 </table>
-""")
+""", n_aa=len(aa), aW=kb_a['sutun'], aH=kb_a['satir'], bW=kb_b['sutun'], bH=kb_b['satir'],
+        toplam_iz=toplam_iz, toplam_tel=toplam_tel, gecti=bilgi['gecti'], toplam=bilgi['toplam'],
+        n_adim=son + 1, adimlar=', '.join(str(i) for i in range(son + 1)),
+        kaW=kb_a['kaynak'][0], kaH=kb_a['kaynak'][1],
+        b_q2='-'.join(V.BACAK['2N2222-331']), b_q3='-'.join(V.BACAK['BC557']),
+        b_u1='-'.join(V.BACAK['TL431']), b_u9='-'.join(V.BACAK['L7912']),
+        ads=', '.join(V.ADS_MODUL), pad=f"{V.PAD_ETKIN_MM:.2f}",
+        bes=f"{5 * Y.ADIM_MM - V.PAD_ETKIN_MM:.2f}", f9=bilgi['f9_adim'],
+        en_dar=e(bilgi['en_dar'].get('B', '').replace(" (pay ", T(" (pay ")))))
     g.append(direnc_tablosu(nl, parcalar, aa))
     g.append(kondansator_tablosu(nl, parcalar, aa))
     g.append(j5_tablosu(nl))
@@ -1424,7 +1525,7 @@ düğüm zaten karşı köşelerde; en dar çift:
                   "vb": gr["vb"], "baslik": _baslik(s, parcalar, teller), "anahtar": anahtar,
                   "vurgu": list(s.ilgili)})
 
-    dugmeler = "".join(f'<button data-git="{k}" title="{e(V.ADIM_ADLARI[k])}">{k}</button>'
+    dugmeler = "".join(f'<button data-git="{k}" title="{e(T(V.ADIM_ADLARI[k]))}">{k}</button>'
                        for k in range(son + 1))
     figurler = []
     for kart in V.KARTLAR:
@@ -1432,7 +1533,7 @@ düğüm zaten karşı köşelerde; en dar çift:
             figurler.append(f'<figure class="sahne-fig" data-kart="{kart}" data-yuz="{yuz}"'
                             f'{"" if (kart, yuz) == ("A", "ust") else " hidden"}>'
                             f'{kart_svg(kart, yuz, nl, parcalar, teller, kok_ag, ss)}</figure>')
-    g.append(f"""
+    g.append(T("""
 <h2 id="adimadim">Adım adım</h2>
 <p class="kucuk">Üstteki çizim seçili alt adıma yakınlaşır: o adımın parçaları <b>koyu ve
 parlak</b>, öncekiler soluk, sonrakiler görünmez. Parça takarken <b>parça yüzü</b>, iz ve tel
@@ -1446,7 +1547,7 @@ başlığına tıklamak da seçer. İmleci bir bacağın ya da izin üstünde tu
       <span class="rozet" id="g-yuz"></span></div>
     <button id="ileri" aria-label="Sonraki alt adım">▶</button>
   </div>
-  <div class="sahne" id="sahne">{''.join(figurler)}</div>
+  <div class="sahne" id="sahne">{figurler}</div>
   <div class="gorus-alt">
     <div class="adimsec">{dugmeler}</div>
     <label class="kucuk"><input type="checkbox" id="g-tum"> tüm plan</label>
@@ -1454,20 +1555,21 @@ başlığına tıklamak da seçer. İmleci bir bacağın ya da izin üstünde tu
   </div>
   <div class="cubuk"><div id="g-cubuk"></div></div>
 </div>
-""")
+""", dugmeler=dugmeler, figurler=''.join(figurler)))
     for k in range(son + 1):
-        g.append(f'<section class="buyuk" id="adim{k}"><h3>Adım {k} — {e(V.ADIM_ADLARI[k])}</h3>')
+        g.append(f'<section class="buyuk" id="adim{k}"><h3>'
+                 + T("Adım {k} — {ad}", k=k, ad=e(T(V.ADIM_ADLARI[k]))) + '</h3>')
         g.append(gerekenler(k, nl, parcalar, aa, stok))
         g.append('<ol class="altlar">')
         for s in (x for x in aa if x.adim == k):
             g.append(f'<li class="aa aa-{s.tur}" data-i="{s.sira}" id="s{s.no}">'
                      f'<div class="aa-bas"><span class="ano">{s.no}</span>'
                      f'<b class="aa-ad">{e(_baslik(s, parcalar, teller))}</b>'
-                     f'<label class="yaptim"><input type="checkbox"> yaptım</label></div>'
+                     f'<label class="yaptim"><input type="checkbox"> {T("yaptım")}</label></div>'
                      f'<div class="aa-ic">{alt_adim_html(s, nl, parcalar, teller, aa)}</div></li>')
         g.append("</ol></section>")
 
-    g.append("""
+    g.append(T("""
 <h2>Bu plan neyi garanti ediyor, neyi etmiyor</h2>
 <p>Denetim (<code>uretim/yerlesim3.py</code>) bakır bağlantıyı <b>geometriden</b>
 yeniden kurup şemanın netlistiyle birebir karşılaştırıyor: açık devre yok, kısa
@@ -1484,7 +1586,7 @@ bacak aralığı, 68 µF'ın çapı (8 mm varsayıldı), film C18'in bacak aral�
 (15 mm). Parça yükseklikleri de yaklaşık (yalnız sıralama için). Tezgâhta parçayı
 plakete oturtup delikleri kontrol et; uymayan olursa söyle, plan yeniden üretilsin.
 Bakırın <b>kalitesi</b> (soğuk lehim, köprü) ancak multimetreyle sınanır.</div>
-""")
+"""))
 
     js = """
 <script>
@@ -1617,6 +1719,8 @@ Bakırın <b>kalitesi</b> (soğuk lehim, köprü) ancak multimetreyle sınanır.
  goster(Math.max(0, bas), bas >= 0);
 })();
 </script>""".replace("__ALT_ADIMLAR__", json.dumps(S, ensure_ascii=False))
+    for parca in JS_METIN:
+        js = js.replace(parca, T(parca))
 
     ek_stil = """
 .kutu{max-width:1040px}
@@ -1676,21 +1780,38 @@ ul.is li{margin:3px 0}
   .adimsec button{padding:1px 8px;font-size:12px}
 }
 """
-    sayfa = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
+    serit = _serit(dil)
+    serit = serit[:-len("</nav>")] + dil_baglantisi(SAYFA, dil) + "</nav>"
+    return (f"""<!doctype html><html lang="{dil}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Yerleşim planı — Ölçüm Kartı</title><style>{stil()}{ek_stil}</style></head><body>
-<div class="kutu">{MN.serit('7-yerlesim.html')}
+<title>{T("Yerleşim planı — Ölçüm Kartı")}</title><style>{stil()}{ek_stil}</style></head><body>
+<div class="kutu">{serit}"""
+            + T("""
 <h1>Yerleşim planı</h1>
 <p class="alt">Delikli plakette hangi parça hangi deliğe, hangi tel nereden nereye —
 adım adım, LEGO kılavuzu sırasıyla.</p>
-{''.join(g)}
+""") + ''.join(g) + T("""
 <p class="kucuk" style="margin-top:60px;border-top:1px solid var(--cizgi);padding-top:14px">
 Bu sayfa <code>uretim/yerlesim3.py</code> tarafından, denetim geçtikten sonra üretildi.
 Delik adları <code>yerlesim3_veri.py</code> ve <code>yerlesim3_teller.json</code>'dan,
 alt adım sırası <code>yerlesim3_adim.py</code>'den geliyor, elle yazılmıyor.</p>
-</div>{js}</body></html>"""
-    hedef.parent.mkdir(parents=True, exist_ok=True)
-    hedef.write_text(sayfa, encoding="utf-8")
+""") + f"</div>{js}</body></html>")
+
+
+# Sayfa ici JS'teki arayuz metinleri (JS kodu Turkcede AYNEN kalsin diye
+# Ingilizcede parca parca degistiriliyor; tirnaklar parcanin icinde).
+JS_METIN = ("'Kart B · '", "'Kart A · '", "'lehim yüzü'", "'parça yüzü'", "' · yapılan '")
+
+
+def _serit(dil: str) -> str:
+    """Gezinme seridi. Ingilizce etiketleri `belge_menu` veriyorsa (serit(dil=))
+    onu kullan; bu dalda vermiyorsa etiketleri buradaki sozlukle cevir."""
+    if dil == "tr":
+        return MN.serit(SAYFA)
+    try:
+        return MN.serit(SAYFA, dil=dil)
+    except TypeError:
+        return re.sub(r">([^<>]+)</a>", lambda m: ">" + T(m.group(1)) + "</a>", MN.serit(SAYFA))
 
 
 # J5 pini -> ESP32 GPIO. Ag adi netlist'ten, GPIO numarasi FIRMWARE'den
@@ -1710,14 +1831,14 @@ def firmware_pinleri() -> dict[str, int]:
 
 
 def j5_tablosu(nl) -> str:
-    return ("<h2>J5 → ESP32-S3 kablosu</h2>"
-            "<p><b>ESP32 karta lehimlenmez</b>: kutuda kartın yanında durur, J5 <b>dişi</b> "
-            "başlığına 10 adet dişi-erkek jumper kabloyla bağlanır — dişi uç devkit'in erkek "
-            "pinine, erkek uç J5'e (Adım 1'de, KAPI'dan önce). J5 pin sırası "
-            "şemadan, GPIO numaraları firmware'deki <code>PIN_*</code> sabitlerinden. <b>Devkit'in "
-            "5V pini USB'den beslenir</b>; kart USB'siz çalışmaz (analog +5 V buradan). "
-            "İki Type-C soketinden <b>COM yazan</b> doğru olan (CH343 köprüsü).</p>"
-            "<table><tr><th class='s'>J5</th><th>Ağ</th><th>ESP32-S3 devkit pini</th></tr>"
+    return (T("<h2>J5 → ESP32-S3 kablosu</h2>"
+              "<p><b>ESP32 karta lehimlenmez</b>: kutuda kartın yanında durur, J5 <b>dişi</b> "
+              "başlığına 10 adet dişi-erkek jumper kabloyla bağlanır — dişi uç devkit'in erkek "
+              "pinine, erkek uç J5'e (Adım 1'de, KAPI'dan önce). J5 pin sırası "
+              "şemadan, GPIO numaraları firmware'deki <code>PIN_*</code> sabitlerinden. <b>Devkit'in "
+              "5V pini USB'den beslenir</b>; kart USB'siz çalışmaz (analog +5 V buradan). "
+              "İki Type-C soketinden <b>COM yazan</b> doğru olan (CH343 köprüsü).</p>")
+            + T("<table><tr><th class='s'>J5</th><th>Ağ</th><th>ESP32-S3 devkit pini</th></tr>")
             + "".join(j5_satirlari(nl)) + "</table>")
 
 
@@ -1741,4 +1862,39 @@ def _uc_adi(uc: str) -> str:
     yer, ad = uc.split(":", 1)
     if yer == "X":
         return ad
-    return f"{yer}:{V.TEL_ETIKET.get(ad, ad)}"
+    return f"{yer}:{T(V.TEL_ETIKET.get(ad, ad))}"
+
+
+def cevrilecek_veri() -> list[str]:
+    """Sayfaya giren Turkce VERI metinleri (sozlukler, tablolar). Dil denetimi
+    bunlarin HEPSININ Ingilizce karsiligini arar — o an hangi alt adimda
+    gorundugunden bagimsiz (bir veri degisip sayfadan dusse bile)."""
+    out = list(V.ADIM_ADLARI) + list(KAPI.values())
+    out += list(V.DIRENC_GOREV.values()) + list(V.DIRENC_TURU_AD.values())
+    out += list(V.KOND_GOREV.values()) + list(V.KOND_TIPI)
+    out += list(V.PARCA_NOTU.values()) + list(V.KART_DISI_NOTU.values())
+    out += list(V.TEL_ETIKET.values()) + [k["plaket"] for k in V.KARTLAR.values()]
+    out += [c[2] for c in V.KABLOLAR] + [c[4] for c in V.KABLOLAR]
+    out += list(AG_AD.values()) + list(BACAK_AD.values()) + list(YON_AD.values())
+    out += [a for a, _b in TUR_AD.values()] + list(KART_EKI.values())
+    out += [a[0] for a in AKSESUAR.values()] + [a[0] for a in KABLO_STOK.values()]
+    out += list(JS_METIN) + [a for _d, a in MN.MENU]
+    return out + kod_metinleri()
+
+
+def kod_metinleri() -> list[str]:
+    """Bu dosyadaki butun T("...") cagrilarinin Turkce metinleri (kaynaktan,
+    ast ile). Yalnizca bazi kosullarda cizilen metin de (envanter sutunu,
+    kesilmis kenar) sayfada o an gorunmese bile ceviri ister."""
+    import ast
+
+    def metin(n):        # T("a"), T("a" if x else "b")
+        if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value:
+            return [n.value]
+        if isinstance(n, ast.IfExp):
+            return metin(n.body) + metin(n.orelse)
+        return []
+    agac = ast.parse((BURASI / "yerlesim3_belge.py").read_text(encoding="utf-8"))
+    return [m for c in ast.walk(agac)
+            if isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == "T"
+            and c.args for m in metin(c.args[0])]

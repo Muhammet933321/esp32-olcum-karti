@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Delikli plaket YERLESIMI — ayak izleri, yol uretici, denetim, cizim.
 
-    python yerlesim3.py                  denetim (+ BELGELER/7-yerlesim.html)
+    python yerlesim3.py                  denetim (+ BELGELER/7-yerlesim.html ve en/ esi)
     python yerlesim3.py --ascii          yerlesimi konsola ciz (gelistirme)
     python yerlesim3.py --yol-uret       lehim yuzu tellerini YENIDEN uret
     python yerlesim3.py --belge-yok      yalnizca denetim
@@ -55,6 +55,7 @@ from netlist_dogrula import netleri_oku                 # noqa: E402
 from tezgah import tezgah                               # noqa: E402
 import tasarim3_sabit as T                              # noqa: E402
 import yerlesim3_veri as V                              # noqa: E402
+from belge_dil import DILLER, cikis_yolu                # noqa: E402
 
 NETLIST = BURASI / "netlist3.net"
 TELLER = BURASI / "yerlesim3_teller.json"
@@ -1303,10 +1304,97 @@ def main() -> int:
          "once komsu pedler arasi kisa, ag iclerinde sureklilik"),
     ])
     if not a.belge_yok and D.kaldi == 0:
-        import yerlesim3_belge
-        yerlesim3_belge.yaz(nl, parcalar, teller, bilgi, BELGE)
-        print(f"  belge: {BELGE.relative_to(KOK)}")
+        import yerlesim3_belge as YB
+        sayfalar = {dil: YB.sayfa(nl, parcalar, teller, bilgi, dil) for dil in DILLER}
+        DD = dil_denetimi(sayfalar)
+        # Turkce sayfa cevirilere bagli degil: her zaman yazilir. Ingilizce
+        # yalnizca dil denetimi gecerse (yarim cevrilmis sayfa yazilmaz).
+        for dil in DILLER:
+            if dil == "tr" or DD.kaldi == 0:
+                yol = cikis_yolu(BELGE.parent, BELGE.name, dil)
+                yol.write_text(sayfalar[dil], encoding="utf-8")
+                print(f"  belge: {yol.relative_to(KOK).as_posix()}")
+        return 0 if DD.kaldi == 0 else 1
     return 0 if D.kaldi == 0 else 1
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  BELGE DILI — Ingilizce sayfa eksiksiz cevrilmis mi
+# ═══════════════════════════════════════════════════════════════════════
+# Turkceye ozgu harf. Ingilizce sayfada gorunur metinde (ve JS arayuz
+# metinlerinde) bulunursa cevrilmemis metin var demektir.
+TR_HARF = re.compile(r"[çğıöşüÇĞİÖŞÜ]")
+# Izin listesi — Ingilizce sayfada Turkce harfle KALABILECEK kelimeler,
+# her biri gerekcesiyle. (lang="tr" ile isaretli ogeler zaten atlanir: dil
+# baglantisinin "Türkçe" etiketi ve envanter kaydindan gelen ozgun kutu/yer
+# adlari — bunlar ceviri degil VERI.)
+TR_IZIN = {
+    "Türkçe": "dil baglantisi etiketi: dil secici kendi dilinde yazilir (lang=\"tr\")",
+}
+
+
+def _gorunur_metin(sayfa: str) -> list[str]:
+    """Gorunur metin parcalari: metin dugumleri + title/alt/aria-label/
+    placeholder + <script> icerigi (JS arayuz metinleri, alt adim basliklari).
+    Atlananlar: <style>, <code>/<pre> (dosya adi, komut), lang="tr" ogeler."""
+    from html.parser import HTMLParser
+
+    class Ayir(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.yigin, self.out = [], []
+
+        def _atla(self):
+            return any(a for _e, a in self.yigin)
+
+        def handle_starttag(self, et, nit):
+            n = dict(nit)
+            atla = et in ("style", "code", "pre") or n.get("lang") == "tr"
+            if not (atla or self._atla()):
+                self.out += [n[k] for k in ("title", "alt", "aria-label", "placeholder")
+                             if n.get(k)]
+            if et not in ("br", "img", "meta", "link", "input", "hr", "wbr"):
+                self.yigin.append((et, atla))
+
+        def handle_endtag(self, et):
+            for i in range(len(self.yigin) - 1, -1, -1):
+                if self.yigin[i][0] == et:
+                    del self.yigin[i:]
+                    break
+
+        def handle_data(self, veri):
+            if not self._atla():
+                self.out.append(veri)
+
+    p = Ayir()
+    p.feed(sayfa)
+    p.close()
+    return p.out
+
+
+def dil_denetimi(sayfalar: dict[str, str]) -> Denetim:
+    import yerlesim3_belge as YB
+    import yerlesim3_en as EN
+    print()
+    print("  === BELGE DILI (TR ana, EN ceviri) ===")
+    DD = Denetim()
+    gereken = set(YB.cevrilecek_veri()) | YB.ISTENEN
+    eksik = sorted(s for s in gereken if s and s not in EN.EN)
+    DD.kosul("her Turkce metnin Ingilizce karsiligi var (yerlesim3_en)", not eksik and not EN.CIFT,
+             (f"{len(eksik)} eksik: " + " | ".join(repr(s[:50]) for s in eksik[:4]) if eksik else "")
+             + (f" {EN.CIFT} cift anahtar" if EN.CIFT else ""))
+    artik = [s for s in EN.EN if s not in gereken]
+    if artik:
+        # bilgi, kirmizi degil: Turkcesi degismis/silinmis metnin eski cevirisi
+        print(f"       bilgi: {len(artik)} kullanilmayan ceviri (yerlesim3_en'den silinebilir): "
+              + " | ".join(repr(s[:40]) for s in artik[:3]))
+    kelime = sorted({k for parca in _gorunur_metin(sayfalar["en"])
+                     for k in re.findall(r"[^\s<>()\[\]{},.;:!?\"'“”‘’«»/—–=+*|`]+", parca)
+                     if TR_HARF.search(k) and k not in TR_IZIN})
+    DD.kosul("Ingilizce sayfada Turkce harfli gorunur metin yok", not kelime,
+             f"{len(kelime)} kelime: " + ", ".join(kelime[:12]) if kelime else "")
+    print(f"  {DD.gecti}/{DD.gecti + DD.kaldi} dogrulama gecti")
+    return DD
 
 
 if __name__ == "__main__":
