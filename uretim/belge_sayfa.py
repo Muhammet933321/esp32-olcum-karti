@@ -68,11 +68,11 @@ USB ile bağlayıp oradan — <a href="6-ag.html">Bağlanma</a>.</p>
         class="rozet">isteğe bağlı</span></td></tr>
 </table>
 
-<div class="uy"><b>Kart kuruluyor.</b> Ölçüm kartı ESP32 ile çalışıyor; ADS
-modülleri henüz takılı değil, yani ölçülen değerler henüz anlamlı değil. Bütün
-tasarım bilgisayarda doğrulandı ({d['adim_sayisi']} adımlı bir zincir, binin
-üzerinde otomatik denetim). Bu sayfalardaki değerler <b>tasarımın vaadi</b>;
-tezgâhta ölçülecekler ayrı ayrı işaretli.</div>
+<div class="ok"><b>Kart kuruldu, kutusunda çalışıyor.</b> Bütün tasarım ayrıca
+bilgisayarda doğrulandı ({d['adim_sayisi']} adımlı bir zincir, binin üzerinde
+otomatik denetim). Bu sayfalardaki değerler <b>tasarımdan hesaplanıyor</b>;
+gerçek kartta ölçülenler bazı yerlerde biraz farklı (örneğin ölçüm hızı biraz
+daha düşük) — ölçülen değerler README'de ve <code>DEVIR.md</code>'de.</div>
 """
     # EN: sema.pdf BELGELER/'de, EN sayfa BELGELER/en/'de -> bir ust klasor
     en = f"""
@@ -126,12 +126,12 @@ into a computer over USB and working from there — see
         class="rozet">optional</span></td></tr>
 </table>
 
-<div class="uy"><b>The board is being built.</b> The Measurement Board runs on
-the ESP32; the ADS modules are not fitted yet, so the readings don't mean
-anything yet. The whole design has been verified on the computer (a
-{d['adim_sayisi']}-step chain, more than a thousand automated checks). The values
-on these pages are <b>what the design promises</b>; the ones still to be measured
-on the bench are marked individually.</div>
+<div class="ok"><b>The board is built and working in its enclosure.</b> The
+whole design was also verified on the computer (a {d['adim_sayisi']}-step chain,
+more than a thousand automated checks). The values on these pages are
+<b>computed from the design</b>; what the real board measures differs a little
+in places (the sample rate, for example, is somewhat lower) — the measured
+figures are in the README and in <code>DEVIR.md</code>.</div>
 """
     return sec(M(tr, en), dil)
 
@@ -861,7 +861,7 @@ gerekmiyor — merak edenler için.</p>
 <p>Tasarımın tamamı bilgisayarda sınanıyor. Her iddia <b>çalıştırılabilir
 bir testle</b> destekleniyor; hiçbir sayı elle yazılmıyor.</p>
 <div class="kpi">
-  <div><span>Doğrulama adımı</span><b>15</b></div>
+  <div><span>Doğrulama adımı</span><b>{d['adim_sayisi']}</b></div>
   <div><span>Otomatik denetim</span><b>900+</b></div>
   <div><span>Devre simülasyonu</span><b>ngspice</b></div>
   <div><span>Firmware</span><b>emülatörde koşuyor</b></div>
@@ -932,7 +932,7 @@ board — it's for the curious.</p>
 <p>The whole design is tested on the computer. Every claim is backed by
 <b>a test you can run</b>; no number is typed in by hand.</p>
 <div class="kpi">
-  <div><span>Verification steps</span><b>15</b></div>
+  <div><span>Verification steps</span><b>{d['adim_sayisi']}</b></div>
   <div><span>Automated checks</span><b>900+</b></div>
   <div><span>Circuit simulation</span><b>ngspice</b></div>
   <div><span>Firmware</span><b>runs in an emulator</b></div>
