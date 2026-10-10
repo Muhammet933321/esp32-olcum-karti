@@ -29,10 +29,18 @@ KOK = Path(__file__).resolve().parent.parent
 BELGELER = KOK / "BELGELER"
 EN = BELGELER / "en"
 
-# Baska uretecin (paralel calisan yerlesim/kutu rehberi) sayfalari: EN esi bu
-# dalda henuz yoksa ATLANIR (duyurularak), varsa butun denetimlere girer.
-BASKA_URETEC = {"7-yerlesim.html": "uretim/yerlesim3*.py",
-                "8-kutu.html": "uretim/kutu*.py"}
+# Baska uretecin sayfalari (yerlesim/kutu rehberi). Paralel dallarda EN esi
+# yoksa atlaniyordu; dallar birlesti (5.12.119), artik butun denetimlere
+# ATLANMADAN giriyorlar — EN esi eksikse KIRMIZI. Ad, hatada ureteci gosterir.
+BASKA_URETEC = {"7-yerlesim.html": "uretim/yerlesim3.py (yerlesim3_en.py)",
+                "8-kutu.html": "uretim/kutu.py (kutu_en.py)"}
+
+# Gezinme seridi: her sayfanin (iki dilde) ilk <nav>'i MENU'deki butun
+# sayfalara gitmeli (index + 1…9). Serit tek kaynaktan (belge_menu) ama
+# 4/7/8'i ayri ureteclerin yaziyor; biri eski seritle kalirsa burada yakalanir.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from belge_menu import MENU  # noqa: E402
+NAV = re.compile(r"<nav\b[^>]*>(.*?)</nav>", re.S)
 
 TR_HARF = re.compile(r"[çğıöşüÇĞİÖŞÜ]")
 
@@ -162,13 +170,16 @@ def main() -> int:
     ok("BELGELER/'de Turkce sayfa var", bool(tr_sayfalar), f"{len(tr_sayfalar)} sayfa")
     for ad in tr_sayfalar:
         en = EN / ad
-        if not en.exists() and ad in BASKA_URETEC:
-            print(f"  [--] {ad}: EN esi bu dalda yok, ATLANDI "
-                  f"(ureteci {BASKA_URETEC[ad]}, paralel is)")
-            continue
-        ok(f"{ad}: EN esi var", en.exists(), str(en.relative_to(KOK)))
+        ok(f"{ad}: EN esi var", en.exists(), str(en.relative_to(KOK))
+           + (f" (ureteci {BASKA_URETEC[ad]})" if ad in BASKA_URETEC else ""))
         if not en.exists():
             continue
+        for dil, yol in (("TR", BELGELER / ad), ("EN", en)):
+            nav = NAV.search(yol.read_text(encoding="utf-8"))
+            eksik = [d for d, _a in MENU
+                     if not nav or f'href="{d}"' not in nav.group(1)]
+            ok(f"{ad}: {dil} seridi butun sayfalara gidiyor", not eksik,
+               f"{len(MENU)} sayfa" if not eksik else "eksik: " + ", ".join(eksik))
         mt, me = coz(BELGELER / ad), coz(en)
         ok(f"{ad}: TR -> EN dil baglantisi",
            any(h == f"en/{ad}" for h, _t in mt.dil_bag), str(mt.dil_bag[:1]))
