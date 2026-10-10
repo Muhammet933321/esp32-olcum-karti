@@ -1,314 +1,241 @@
-# Ölçüm Kartı — a bench measurement card for ESP32-S3
+# Ölçüm Kartı
 
-A **voltmeter, ammeter, wattmeter, energy counter, oscilloscope and battery
-capacity tester** on one board. ESP32-S3 + two 16-bit ADCs, driven entirely
-from a web browser — from a phone with no computer involved, or from a PC
-over USB.
+**Kendin yapabileceğin, telefondan ve bilgisayardan kullanılan bir tezgâh ölçü aleti.**
+Tek kutuda voltmetre · ampermetre · wattmetre · enerji sayacı · osiloskop · pil kapasite test cihazı.
 
-> **Status: the design is verified, the hardware is not built yet.**
-> Nothing here has been measured on a physical board — every figure is
-> computed or simulated. What that means in practice is spelled out in
-> [What this repo does *not* prove](#what-this-repo-does-not-prove).
->
-> The **generated** documents under `BELGELER/` and `uretim/_tezgah.md` take
-> every number from the design files, so they cannot drift. This README is
-> written by hand and is checked against the sources rather than generated.
+<p align="center">
+  <img src="gorsel/readme/kutu-on.jpg" width="760" alt="Bitmiş Ölçüm Kartı kutusu, önden: ölçüm jakları, anahtar ve güç lambası">
+</p>
 
-> **Language note.** Everything except this file is in **Turkish**: code
-> comments, the web interface, the serial console, the engineering journal
-> ([`DEVIR.md`](DEVIR.md)), the user documentation ([`BELGELER/`](BELGELER))
-> and the bench list. That is the language the project was built in. This
-> README is the English entry point. Türkçe rehber: [README.tr.md](README.tr.md).
->
-> ℹ️ The `BELGELER/*.html` pages are **generated documents meant to be opened
-> in a browser** — GitHub shows them as source. Clone the repo (or download the
-> ZIP) and open `BELGELER/index.html` locally.
+<p align="center">
+  <a href="README.en.md">English</a> ·
+  <a href="#kendin-yap">Nasıl yapılır</a> ·
+  <a href="#uygulamalar">Uygulamalar</a> ·
+  <a href="#hızlı-başlangıç">Hızlı başlangıç</a> ·
+  <a href="GELISTIRICI.md">Geliştirici notları</a> ·
+  <a href="LICENSE">MIT lisansı</a>
+</p>
+
+Kutunun ekranı yok. Ölçümleri Wi-Fi ya da USB üzerinden **PC uygulamasında, Android
+uygulamasında ya da doğrudan tarayıcıda** görürsün. Kart ölçtüğünü kendi belleğine de
+kaydeder: telefon ya da bilgisayar kapalıyken de kayıt sürer, sonra kendiliğinden eşitlenir.
 
 ---
 
-## What it measures
+## Ne yapar
 
-| Capability | Range | Notes |
+| | Menzil | Kısaca |
 |---|---|---|
-| **Voltage** — normal channel | ±32.4 V | bidirectional, referenced to an internal VREF |
-| **Voltage** — high channel | ±613.7 V | 4.9 MΩ divider chain |
-| **Current** | up to ±11.55 A | four shunt options: 10 / 1 / 0.1 / 0.015 Ω |
-| **Power · energy** | V × I, signed | true power with per-range phase calibration |
-| **Sample rate** | **665 Sa/s** | two ADCs started back-to-back; the residual ~95 µs skew is removed in software |
-| **Oscilloscope** | −63.5 … +46.8 V | 611 – 83 333 Sa/s, 28.8 mV step |
-| **Battery test** | ≤ 38.5 V, 6.55 A | mAh **and** Wh, discharge curve, DC internal resistance |
+| ⚡ **Gerilim** | ±32 V · yüksek gerilim girişinde ±614 V | saniyede ~500 ölçüm, ~1 mV çözünürlük |
+| 🔌 **Akım** | ±9.5 A | iki yönlü, 5 mΩ şönt |
+| 💡 **Güç ve enerji** | her örnekte V × I | işaretli güç (geri beslemeyi de görür), Wh sayacı |
+| 📈 **Osiloskop** | −63 … +47 V | saniyede 83 000 örneğe kadar; frekans, doluluk, Vpp, yükselme süresi kendiliğinden; tek atış tetikleme, FFT |
+| 🔋 **Pil kapasite testi** | 38 V'a kadar piller | mAh ve Wh, deşarj eğrisi, kesme gerilimi, açık devre gerilimi, isteğe bağlı iç direnç |
+| 💾 **Kayıt** | kartın içinde ~11 MB | elektrik kesilse bile o ana kadarki kayıt korunur; kayda ad, etiket, not |
 
-The wattmeter is the reason for most of the engineering in here. Measuring
-power correctly means the voltage and current samples must describe *the same
-instant* and pass through *matched filters* — two things that turned out to be
-false in earlier revisions and cost a large fraction of this project's effort
-to fix.
+**Canlı ölçüm** — gerilim, akım, güç ve enerji aynı ekranda; grafik penceresi ve yenileme hızı seçilebilir.
 
-## Three ways to connect
+![Canlı ölçüm ekranı: gerilim, akım, güç, enerji kartları ve yükün takılıp çıkarıldığı grafik](gorsel/readme/pc-canli.png)
 
-The board has no screen. It is used from a browser, and there are three paths
-— all showing the same interface. Full explanation (in Turkish, with a
-diagram) in [`BELGELER/6-ag.html`](BELGELER/6-ag.html).
+<sub><b>Gerçek ölçüm:</b> bir 18650 hücre 3.3 Ω dirence bağlanıp çıkarılıyor — 3.10 V · 0.875 A · 2.72 W. Mavi gerilim, turuncu akım.</sub>
 
-| # | Mode | Address | When |
-|---|---|---|---|
-| 1 | **The board's own Wi-Fi** | `192.168.4.1` | No computer. The board serves the whole UI from its own flash |
-| 2 | **Board on your home Wi-Fi** | `http://olcum.local` | Board is out of cable reach. Falls back to mode 1 after 10 s |
-| 3 | **USB bridge** — *preferred, when USB is safe* | the address the bridge prints | A small Python program relays the board over USB and serves the UI |
+**Osiloskop** — dalga şeklini gösterir; frekansı, doluluğu ve kenar sürelerini kendisi ölçer.
 
-**Why the bridge is preferred:** every browser connected directly to the board
-slows the measurement down — the board runs both the sampling loop and an HTTP
-server. Up to **4** browsers can watch the board directly; while a bridge is
-registered, the board redirects direct clients to it, so only the bridge talks
-to the board. Readings are archived on the PC instead of being limited by the
-board's memory. The board's Wi-Fi does **not** turn itself off in this mode —
-send `N0` over the serial console if you want the measurement loop left alone.
+![Osiloskop ekranı: 1 kHz kare dalga ve kartın ölçtüğü frekans, doluluk, yükselme süresi](gorsel/readme/pc-skop.png)
 
-> ⚠️ **USB is not always an option, and Wi-Fi alone is not the answer either.**
-> The board is **not isolated**: with USB plugged in, its ground is your
-> computer's ground. Floating it on battery + Wi-Fi saves the computer but
-> **does not save you** — the board then sits at mains potential. See
-> [Safety](#safety) before measuring anything mains-referenced.
+<sub><b>Gerçek yakalama:</b> bir Arduino'nun ürettiği 1 kHz / 5 V kare dalga. Kartın ölçtüğü: 1.001 kHz, doluluk %49.9, yükselme 10 µs.</sub>
 
-## What's in this repository
+**Pil kapasite testi** — kesme gerilimini girersin; kart pili boşaltır, o gerilime inince yükü kendisi keser.
+İlk 5 saniye yük kapalıdır, açık devre gerilimi (OCV) grafikte ayrıca görünür.
 
-| Path | What |
+![Gerçek bir pil testi kaydı: 18650 hücre, deşarj eğrisi ve sonuç özeti — 1432 mAh](gorsel/readme/pc-pil.png)
+
+<sub><b>Gerçek ölçüm:</b> bir 18650 hücre, 3.3 Ω yük (~1.1 A), kesme 2.9 V → <b>1432 mAh · 5.22 Wh</b>, 1 saat 18 dakika. Mavi gerilim, turuncu akım; en baştaki kısa bölüm OCV.</sub>
+
+---
+
+## Uygulamalar
+
+Aynı panel üç yerde çalışır: kartın kendi web sayfası, **PC uygulaması** ve **Android uygulaması**.
+Üç görünümü var: koyu, açık ve ön panel. Türkçe ve İngilizce.
+
+### 💻 PC uygulaması (Windows)
+
+- Kartı **USB'den ya da Wi-Fi'den** kendisi bulur; panel `http://olcum.localhost:8770` adresinde açılır.
+- Kartın kayıtlarını **bilgisayara arşivler** (2 dakikada bir); arama, ad, etiket, çöp kutusu.
+- Kayıtları **karşılaştırır** (en çok 6 kayıt aynı grafikte), CSV ve rapor olarak dışa aktarır.
+- Konsol penceresi açmaz, bildirim alanında simgesi durur; istersen kartın bildirimlerini (MQTT) Windows bildirimi olarak gösterir.
+
+**Karşılaştırma** — iki 18650 hücrenin gerçek testleri aynı grafikte (1366 mAh ve 1432 mAh).
+
+![Karşılaştırma ekranı: iki 18650 hücrenin deşarj eğrileri aynı grafikte](gorsel/readme/pc-karsilastir.png)
+
+**ⓘ Bağlantı** — her ekranda resimli “hangi kablo hangi jaka” penceresi.
+
+<p align="center">
+  <img src="gorsel/readme/pc-baglanti.png" width="720" alt="Bağlantı penceresi: akım ölçerken kablolar hangi jaka takılır">
+</p>
+
+### 📱 Android uygulaması
+
+PC'deki panelin aynısı telefonda: canlı ölçüm, osiloskop, pil testi, kayıtlar ve karşılaştırma.
+Kayıtların bir kopyası telefonda durur; dosyaları **Paylaş** ile gönderebilir, raporu **yazdırabilirsin**.
+Telefon ve kart aynı Wi-Fi ağında olmalı (telefonun kendi hotspot'u da olur).
+
+<table>
+  <tr>
+    <td width="33%"><img src="gorsel/readme/tel-canli.png" alt="Telefonda canlı ölçüm"></td>
+    <td width="33%"><img src="gorsel/readme/tel-kayit.png" alt="Telefonda pil testi kaydının grafiği"></td>
+    <td width="33%"><img src="gorsel/readme/tel-pil.png" alt="Telefonda yeni pil testi formu"></td>
+  </tr>
+  <tr>
+    <td align="center">Canlı ölçüm</td>
+    <td align="center">Pil testi kaydı</td>
+    <td align="center">Yeni pil testi</td>
+  </tr>
+</table>
+
+---
+
+## Kendin yap
+
+Bu projede **PCB yok**: ana kart delikli plakete elle kuruluyor, kutu ahşap çubuklardan yapılıyor.
+Her adım [`BELGELER/`](BELGELER) klasöründeki HTML rehberlerde **çizimli** anlatılıyor.
+
+> **Rehberleri açmak için:** depoyu indir (**Code → Download ZIP**) ve `BELGELER/index.html` dosyasını
+> tarayıcıda aç. GitHub bu sayfaları yalnız kaynak kodu olarak gösterir.
+
+| Rehber | İçinde |
 |---|---|
-| [`kod/olcum-karti-a3/`](kod/olcum-karti-a3) | Firmware (Arduino / ESP32-S3). Measurement math, oscilloscope, battery test, web layer |
-| [`sema3/`](sema3) | KiCad schematic — the design of record |
-| [`arayuz3/`](arayuz3) | Web interface (Vue 3, no build step, vendored locally) |
-| [`kopru/`](kopru) | PC bridge — serial↔SSE relay, disk archive, driver arbitration. Python standard library only |
-| [`BELGELER/`](BELGELER) | **User documentation, generated** — HTML + PDF. Start at `index.html` |
-| [`uretim/`](uretim) | The verification chain, simulations, generators and the hardware bring-up harness |
-| [`uretim/_tezgah.md`](uretim/_tezgah.md) | **Generated** — everything that must be measured once the hardware exists |
-| [`DEVIR.md`](DEVIR.md) | Engineering journal. Long, chronological, Turkish — the record of how every decision was reached |
-| [`arsiv/`](arsiv) | Earlier stages (ATmega328P, then a first ESP32 revision), each with its own chain |
+| [Ne yapabilir](BELGELER/1-ne-yapabilir.html) | bütün yetenekler ve menziller |
+| [Malzemeler](BELGELER/2-malzemeler.html) | gereken her parça |
+| **[Yerleşim](BELGELER/7-yerlesim.html)** | **kurulum buradan başlar**: plakete adım adım lehim, hangi parça hangi deliğe; her adımın sonunda bir kontrol ölçümü |
+| **[Kutu](BELGELER/8-kutu.html)** | kutu, panel delikleri, kablolar — her adım 3B görünümlü |
+| [Pil testi](BELGELER/3-pil-testi.html) | pil nasıl bağlanır, sonuç nasıl okunur |
+| [Bağlanma](BELGELER/6-ag.html) | USB, kartın kendi Wi-Fi'si, ev ağı |
+| [PC uygulaması](BELGELER/9-pc-uygulamasi.html) | kurulum, eşleştirme, arşiv, bildirimler |
+| [Şema (PDF)](BELGELER/sema.pdf) | devrenin tamamı |
 
-## Building one
+**Yerleşim rehberi** — her alt adımda yalnız o adımın parçaları parlar; altında hangi bacağın hangi deliğe gittiği yazar.
 
-1. **Parts** — [`BELGELER/2-malzemeler.html`](BELGELER/2-malzemeler.html) is
-   generated from the schematic, so it can't drift from the design.
-2. **Assembly** — [`BELGELER/4-kurulum.html`](BELGELER/4-kurulum.html): seven
-   steps, each ending in a measurement gate you must pass before continuing.
-   ⚠️ **There is no PCB in this repository** — no gerbers, no layout. The board
-   is built on perfboard by hand, and the guide is written for that. The
-   schematic is the design of record.
-3. **Firmware** — the board must be an **ESP32-S3 N16R8** (16 MB flash,
-   8 MB octal PSRAM). The full FQBN matters; the defaults will not work:
+![Yerleşim rehberinden bir adım: dört direnç plaketteki yerleriyle ve bacak tablosuyla](gorsel/readme/belge-yerlesim.png)
 
-   ```bash
-   arduino-cli compile --warnings all \
-     --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=huge_app \
-     kod/olcum-karti-a3
+**Kutu rehberi** — her adımda o ana kadar yapılanlar 3B görünür; döndürebilir, parçanın üzerine gelip ölçüsünü görebilirsin.
+
+<table>
+  <tr>
+    <td width="50%"><img src="gorsel/readme/belge-kutu-3b.png" alt="Kutu rehberi 3B görünüm: bitmiş kutu"></td>
+    <td width="50%"><img src="gorsel/readme/belge-kutu-ici.png" alt="Kutu rehberi 3B görünüm: duvarlar saydamken kutunun içi ve kablolar"></td>
+  </tr>
+  <tr>
+    <td align="center">Bitmiş kutu</td>
+    <td align="center">Duvarlar saydam: içi ve kablolar</td>
+  </tr>
+</table>
+
+![Kutu rehberinden bir adım: adım gezgini, 3B görünüm ve adımın yazılı talimatı](gorsel/readme/belge-kutu-adim.png)
+
+**Gerçekte böyle görünüyor:**
+
+<table>
+  <tr>
+    <td width="41%"><img src="gorsel/readme/kart-a.jpg" alt="Delikli plakete kurulmuş ana kart"></td>
+    <td width="59%"><img src="gorsel/readme/kutu-ic.jpg" alt="Kapağı açık kutunun içi"></td>
+  </tr>
+  <tr>
+    <td align="center">Ana kart (delikli plaket)</td>
+    <td align="center">Kapak açıkken kutunun içi</td>
+  </tr>
+</table>
+
+---
+
+## İçi nasıl çalışıyor
+
+```mermaid
+flowchart LR
+  P["2 × 18650 pil<br/>USB-C ile şarj"] --> V5["5 V"]
+  V5 --> E["ESP32-S3"]
+  V5 --> Y["yalıtımlı DC-DC<br/>→ 24 V"] --> A["analog kart<br/>±12 V"]
+  J["ön panel jakları<br/>V · COM · HV · YÜK · PİL · SKOP"] --> A
+  A --> ADS["2 × ADS1115<br/>16 bit"] -->|I²C| E
+  A -->|osiloskop| E
+  E -->|"Wi-Fi / USB"| U["PC uygulaması<br/>Android · tarayıcı"]
+```
+
+- Kutu **kendi pilleriyle** çalışır. Analog taraf yalıtılmış bir dönüştürücüden beslenir; bu yüzden
+  şarj kablosu takılıyken de ölçüm devresi bozulmaz.
+- İki ADS1115 gerilimi ve akımı **aynı anda** okur; ESP32-S3 güç, enerji ve kapasiteyi her örnekte hesaplar.
+- Osiloskop ESP32'nin kendi hızlı ADC'sini kullanır.
+- ESP32'nin bir çekirdeği yalnız ölçer, öbürü Wi-Fi ve web işlerini yürütür; web trafiği ölçümü bekletmez.
+
+---
+
+## Hızlı başlangıç
+
+1. **Malzeme ve kurulum** — yukarıdaki rehberler: önce [Yerleşim](BELGELER/7-yerlesim.html), sonra [Kutu](BELGELER/8-kutu.html).
+2. **Firmware'i yükle** (kart: ESP32-S3 **N16R8**, kartın `COM` yazan USB soketi):
    ```
+   cd uretim
+   python yukle.py                                  # derle + yükle
+   python arayuz-uret.py && python arayuz-yaz.py    # paneli kartın belleğine yaz
+   ```
+   `arduino-cli` ve ESP32 çekirdeği gerekir; Arduino IDE ayarları [GELISTIRICI.md](GELISTIRICI.md)'de.
+3. **Ev Wi-Fi'sine tanıt** — seri konsolu 115200 baud ile aç ve yaz: `Na<ağ adı>`, ardından `Np<Wi-Fi parolası>`.
+   Kart 8 ağa kadar hatırlar; sonradan panelde **Ayarlar → Ağ**'dan eklenir ve seçilir. Bilinen ağ yoksa
+   kart kendi ağını açar (`OLCUM-KARTI-xxxx`, adres `192.168.4.1`). Ayrıntı: [Bağlanma](BELGELER/6-ag.html).
+4. **Web parolasını kur** — seri konsolda `Ns<parola>` (en az 12 karakter). Bu parola kartın komutlarını korur
+   ve Wi-Fi parolasından ayrıdır. Kurulana kadar ağındaki herkes karta komut gönderebilir.
+5. **PC uygulaması** — Python 3 kurulu olsun, `kopru\PC Baslat.bat` dosyasına çift tıkla. Bilgisayarı karta bir kez
+   eşleştirmek ve masaüstü kısayolu için: [PC uygulaması rehberi](BELGELER/9-pc-uygulamasi.html).
+6. **Android uygulaması** — hazır APK henüz yayınlanmıyor; `mobil/` klasöründen derlenir (Node.js, JDK 17, Android SDK):
+   ```
+   cd mobil
+   npm install
+   npm run esitle
+   npm run apk        # → android/app/build/outputs/apk/debug/app-debug.apk
+   ```
+   Uygulama aynı ağdaki kartı bulur; **Kartla eşleştir** ekranında web parolasını bir kez girersin (telefonda saklanmaz).
 
-   In the Arduino IDE that is board *ESP32S3 Dev Module* with **PSRAM: OPI
-   PSRAM**, **Flash Size: 16MB**, **Partition Scheme: Huge APP**. With the
-   default `FlashSize=4M` only the first 4 MB is visible and the LittleFS
-   image at `0x310000` lands on the partition boundary; without `PSRAM=opi`
-   the 8 MB PSRAM never comes up. It builds warning-free with `-Wall -Wextra`.
-   The single source for this string is
-   [`uretim/hedef2.py`](uretim/hedef2.py).
-4. **Interface onto the board** —
-   `cd uretim && python arayuz-uret.py && python arayuz-yaz.py` packs the UI
-   into a LittleFS image and flashes it at offset `0x310000`.
-5. **PC bridge (optional)** — double-click `Kopru Baslat.bat`.
+---
 
-**Footprint:** firmware **1 067 423 B**, which is 33 % of the 3 MB `huge_app`
-application partition (not of the 16 MB flash), plus **71 420 B RAM (21 %)**.
-The interface is **93 753 B** — 7 assets, 6 of them gzip-precompressed (the
-PNG icon is stored raw) — inside a 917 504 B LittleFS partition.
+## Güvenlik
 
-## When the hardware arrives
+- **Şebekeye (220 V) bağlama.** Kart yalıtımlı değil; yalnız pil ve DC-DC ile beslenen devreleri ölç.
+- Yüksek gerilim yalnız **HV** jakından ölçülür; HV ölçerken USB'yi bilgisayara takma.
+- Akım ölçerken **COM'a krokodil takma**: COM içeride YÜK 2'ye bağlı, şönt baypas olur.
+- Akım sürekli en fazla **9.5 A**; kısa süreliğine bile **10 A**'i geçme.
+- Pil testinde pilin artısı **doğrudan PİL jakına gitmez**: yük direncinin üstünden PİL 1'e gider. Pili ters bağlama — kart kesemez.
+- Ayrıntı: her ekrandaki **ⓘ Bağlantı** penceresi ve [Kutu rehberi](BELGELER/8-kutu.html)'ndeki kullanım kuralları.
 
-The design is verified but nothing has been built. There is a runnable
-bring-up harness for the day the board shows up — it automates everything
-that does not need a multimeter:
+---
 
-```bash
+## Geliştiriciler için
+
+Her tasarım iddiası çalıştırılabilir bir testle sınanıyor: devre benzetimi (ngspice), şema denetimi (KiCad),
+firmware'in ölçüm matematiği bir AVR emülatöründe, panel, PC köprüsü ve Android testleri. Testlerin gerçekten
+hata yakaladığı **mutasyon testiyle** ölçülüyor: kaynak bir kopyada bozulur, test kırmızıya dönmelidir.
+
+```
 cd uretim
-python tezgah_kart.py --liste                       # show what it checks
-python tezgah_kart.py --sifirla                     # stage 0: bare ESP32
-python tezgah_kart.py --sifirla --asama 1           # + ADS1115 modules
-python tezgah_kart.py --sifirla --http olcum.local  # + the web layer
+python dogrula3.py --tam     # bütün doğrulama zinciri
+python mutasyon.py           # testler bozulan kodu yakalıyor mu
 ```
 
-**27 checks** (`--liste` prints the current set), staged by what hardware
-you have: boot banner (PSRAM size,
-LittleFS, network mode), the command surface, the guards that once bricked a
-channel, the I²C scan, the `D` line's format, rate and **sample count**, and
-on the HTTP side CSRF, token, `p0`-always-free and the Host allowlist. Every
-expected string is read from the firmware source, so it cannot drift.
-
-It reads `loop_azami_us` from the board and compares it against the
-**20 000 µs** threshold — the single measurement that decides whether the
-sampling loop moves to its own core.
-
-🔴 **The harness never drives a load.** Starting a battery discharge is not
-something a test script may do on its own; that check stays manual.
-
-The harness itself is tested without hardware: `test_tezgah_kart.py` runs it
-against a scripted replay board — green on a healthy board, and each of **15
-deliberately broken boards** must turn the *right* check red. A wrong bring-up
-test is worse than none: it tells you a bad board is good.
-
-What still needs a multimeter is in
-[`uretim/_tezgah.md`](uretim/_tezgah.md) — the count and the day-one subset
-are at the top of that generated file.
-
-## The verification chain
-
-This is the part the project actually spends its time on. The design is
-checked by a chain of runnable steps rather than by review:
-
-```bash
-cd uretim
-python dogrula3.py     # current stage — 18 steps, ~6 min
-python dogrula2.py     # archived stage 2
-python dogrula.py      # archived stage 1
-```
-
-**18 steps.** Circuit behaviour is simulated with **ngspice**;
-the firmware's measurement math is executed as *real compiled code* inside a
-bit-verified **AVR emulator**; the schematic is checked node by node from the
-netlist (ERC only says "connected", not "correct"); the firmware is compiled
-with the real toolchain and the binary is searched for dead branches; and every
-command the UI can send is compared against the `case` labels the firmware
-actually implements.
-
-The chain finishes by writing two files:
-
-- **`uretim/_tezgah.md`** — the bench list (below).
-- **`uretim/beklenen_sayim.json`** — an assertion-count lock. If a step's
-  count changes **in either direction**, the chain goes red. Deliberate?
-  `python dogrula3.py --sayim-kilidi-yaz`.
-
-### A green test proves nothing
-
-That sentence is this project's operating rule, and it was earned. Four times
-the chain was fully green while something real and expensive was broken:
-
-| Found | While the chain said |
+| Klasör | İçinde |
 |---|---|
-| The web interface **never opened in a browser** — two assets 404'd | 15/15 green, UI tests 82/82 |
-| The board sampled at **500 Sa/s, not 665** — `WebServer` calls `delay(1)` internally when idle, and `CONFIG_FREERTOS_HZ=1000` quantised the loop | 15/15 green |
-| Phase calibration was stored in **samples** while correcting a fixed **time** — 1.74× the project's own error budget | 15/15 green |
-| A bare `g` command **permanently bricked a channel** (gain 0 written to NVS, recovery threshold then unsatisfiable) | 15/15 green |
+| `kod/olcum-karti-a3/` | firmware (ESP32-S3, Arduino) |
+| `arayuz3/` · `ortak/` | web paneli ve paylaşılan JS modülleri |
+| `kopru/` | PC uygulaması (yalnız Python standart kütüphanesi) |
+| `mobil/` | Android uygulaması (Capacitor) |
+| `sema3/` | KiCad şeması |
+| `BELGELER/` | kullanıcı rehberleri — üretiliyor, elle düzenlenmez |
+| `uretim/` | doğrulama zinciri, benzetimler, belge üreteçleri |
 
-So the chain is not trusted on its own. Assertions are tested by **breaking
-the source and checking that they turn red**:
+Ayrıntılar: [GELISTIRICI.md](GELISTIRICI.md) · mühendislik günlüğü [DEVIR.md](DEVIR.md) (Türkçe, uzun).
 
-```bash
-python mutasyon.py                 # light mutations, ~15 s
-python mutasyon.py --adim B22b     # target one step
-python mutasyon.py --liste         # show what it would run
-python mutasyon.py --adim B3       # runs the whole chain (~12 min):
-python mutasyon.py --adim B23      # these two test the chain's OWN guards
-```
+---
 
-Each mutation runs against a **copy** of the tree, never in place. The runner
-was written before this project was under version control, when an interrupted
-in-place mutation would have had no way back; copying is still the right
-default, because a mutation run must never be able to damage the tree you are
-working in. On the day it was built, the runner found
-**three empty assertions** (one matched a substring so a renamed call still
-passed; one constant had no assertion at all) and **two invisible
-dependencies** that only appear when the project is run from a clean tree.
+## Lisans
 
-## What this repo does *not* prove
-
-Everything here is computation and simulation. The board has never been built.
-The chain therefore ends by generating **[`uretim/_tezgah.md`](uretim/_tezgah.md)** —
-Every item is written next to the code that *cannot* verify it, with an
-acceptance criterion, and the ones marked for the first day are listed at the
-top. Among them:
-
-- the `+3V3` rail being back-fed through the clamps when USB is unplugged while
-  the ±12 V supply is on — expected rail **1.670 V**, i.e. **1930 mV** of
-  headroom below the ESP32's 3.60 V limit. (Before the B18 fix it was 18 mV;
-  if you measure anything near 3.6 V a series resistor is missing.)
-- the sample count in the live data line: is it really ~133 per 200 ms?
-- the battery-test failsafe: reset the board mid-discharge and confirm the load
-  actually disconnects
-- whether the interface renders correctly in a real browser at all
-
-That list is generated, not maintained by hand — a step that stops declaring
-its bench items turns the chain red.
-
-## Requirements
-
-| Tool | Used by |
-|---|---|
-| Python 3.14 (standard library only) | the whole chain, the bridge, all generators |
-| [KiCad 10](https://www.kicad.org/) | schematic, ERC, netlist — and its bundled **ngspice** for every simulation |
-| `arduino-cli` + ESP32 core 3.3.x | firmware compile step |
-| `avr-gcc` (from the Arduino AVR package) | runs the measurement math as real code |
-| Node.js | the interface / command-consistency step |
-
-Two things live **outside** this repository and are expected to be missing on a
-fresh clone — both are handled with an explicit message rather than a crash:
-
-- `arduino-cli.exe`, looked up at `../../.araclar/arduino-cli.exe` relative to
-  the project root (a hidden tools directory outside the repo)
-- the author's personal component inventory (`stok-takip/envanter.csv`), which
-  **three** steps compare the design against. B11 and B16 announce the skip and
-  keep their assertion counts intact, so they stay green; **B9 exits early and
-  the chain goes red** — it stops before declaring its bench items, and that
-  check is separate from the count lock, so `--sayim-kilidi-yaz` does not
-  silence it. Everything the inventory step would tell you is already in
-  [`BELGELER/2-malzemeler.html`](BELGELER/2-malzemeler.html).
-
-Tool paths are currently hard-coded for Windows (`C:\Program Files\KiCad\10.0\bin`).
-
-## Safety
-
-### Electrical — this is the part that can kill you
-
-**615 V is lethal, and this board is not isolated.** With USB connected, the
-board's ground is your computer's ground — connect it to a mains-referenced
-circuit (the primary side of a non-isolated SMPS, say) and you put mains on
-your computer.
-
-**Floating the board on battery + Wi-Fi is not the fix.** The failure analysis
-measured exactly this case (scenario D2): floating **saves the PC, not you** —
-the board itself then rises to mains potential and *every point on it* becomes
-dangerous. 615 V is **14.6×** the limit for a floating instrument. For any
-mains-referenced measurement you need an **insulated enclosure** with no
-reachable metal, **5 skipped holes (12.7 mm)** on perfboard for reinforced
-creepage, and no touching the board while it is live. The assembly guide
-spells this out first, before any construction step.
-
-The failure-mode analysis ([`uretim/sim3_ariza.py`](uretim/sim3_ariza.py),
-111 assertions) quantifies **27 abuse scenarios** — reverse voltage,
-overvoltage, supply loss, component failure, user error — against one
-acceptance criterion: *no single fault may kill the ESP32 or the PC.* That
-criterion is about **equipment**, not about you; scenario D2 is the reason
-the sentence above exists.
-
-### Over the network
-
-Dangerous commands over the network (starting a battery discharge, writing
-calibration) always require a session token plus a custom header, which stops
-another web page from driving your board. A **password is optional and is not
-set by default** — until you set one with `Ns<password>` over the serial
-console, anyone who can reach the board on your network can send those
-commands. The firmware says so loudly at boot.
-
-**Stopping a discharge requires neither** — no token, no password, always.
-Safety comes before convenience.
-
-The paragraph above describes the **board**. The PC bridge applies the same
-rule at its own endpoint, but there the token travels over your LAN in clear
-text like everything else — it keeps other pages from driving your board, not
-a listener on the network.
-
-## License
-
-**MIT** — see [LICENSE](LICENSE). Use it, change it, sell it; keep the notice.
-
-The vendored Vue 3.5.13 in `arayuz3/vendor/` is MIT as well, credited in the
-same file.
-
-⚠️ The licence disclaims warranty, and that matters more than usual here: this
-is a **615 V instrument whose design has never been built or measured**. You
-are responsible for your own safety.
+[MIT](LICENSE). Garanti yok: yüksek gerilim ölçebilen bir alet — kendi güvenliğinden sen sorumlusun.
