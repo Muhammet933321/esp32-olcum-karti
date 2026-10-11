@@ -10651,6 +10651,25 @@ tam koşuda doğrulanmalı.
   unreachable"da kalabiliyor; uygulamayı kapatıp açınca ~30 s'de bağlanıyor (aranmadı). Telefona özgü "Kart bulunamadı —
   aranıyor…" şeridi İngilizce kipte Türkçe. Çekirdek 1'e eklenen süre ölçülmedi.
 
+#### 5.12.122 ✅ TELEFON: KART YENİDEN BAŞLAYINCA 45 s → 16–23 s'DE BAĞLANIYOR (2026-10-11, `mobil/src/cekirdek/canli.js`)
+
+- **Ölçüm (Honor, kart RTS ile sıfırlanarak, 3'er deneme):** kart 9.3 s'de ağda; telefon önce 45.3 / 45.2 / 44.1 s'de,
+  sonra **22.8 / 16.1 / 16.3 s**'de "Kart bağlı".
+- **Sebep geri çekilme DEĞİLDİ** (ilk tahmin; yalnız o düzeltilince süre hiç değişmedi). Kart sıfırlanınca soket yarım
+  açık kalıyor (FIN yok), eklenti ölü bağlantıyı 40 s'lik okuma süresiyle fark ediyordu.
+- **Düzeltme:** (1) *veri bekçisi* — bu akışta D satırı görüldüyse `VERI_SESSIZ_MS` = 12 s sessizlik "sessiz" düşüşü
+  (D gelmemiş akışta eski 45 s); (2) 401 = kart yanıt verdi → büyümüş bekleme yerine ilk basamak (1 s), üst üste ikinci
+  401'de sıradan geri çekilme; (3) `YENIDEN_MS` 1-2-3-5-8-8-8-8-8-10-15-30 s (fırtına testleri: dakikada ≤ 10 imzalı
+  bağlantı ve 30 s tavanı korunuyor).
+- **12 s'nin payı kartta ölçüldü:** en yavaş zaman tabanında (500 ms/böl) yakalama sırasında D satırlarının en uzun
+  susması 0.57 s (seri port; tetiklenemeyen kiplerde 0.20 s). Wi-Fi akışında ayrıca ölçülmedi.
+- **Uykudan dönüş:** ekran 101 s kapalı → kilit açıldıktan ≤ 11.5 s sonra bağlı, sonraki 60 s'de kopma yok (tek deneme).
+- **Satır sonu:** mobil testlerinden 5'i (hedef.tsv vektörleri, MainActivity/Kotlin desenleri) Windows çıkışında CRLF
+  yüzünden kırmızıydı (değişiklikten bağımsız, geri alınarak doğrulandı). `.gitattributes`: `.tsv .kt .java .mjs .vue
+  .xml .gradle .sh` → `eol=lf`. Mobil 603/603, akış mutasyonu 41/41, tam zincir yeşil.
+- Açık: yalnız "kart sıfırlandı" ve "uykudan dönüş" ölçüldü; Wi-Fi kopması ve dil değişince kopma ölçülmedi. 16 s'nin
+  altı bu yolla olmaz (9 s kart açılışı + 12 s bekçi çakışması).
+
 #### 5.12.121 🟡 CE: İNGİLİZCE PANELDE TÜRKÇE KALAN METİNLER — ÖNCELİK 1 (README EKRANLARI) (2026-10-11, bulut oturumu, dal `ceviri-en`)
 
 **Sorun.** `olcum.dil = en` iken Canlı, Osiloskop, Pil testi ve üst şeritlerde şablona / koda gömülü Türkçe kalıyordu

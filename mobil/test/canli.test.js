@@ -6,7 +6,7 @@ import http from "node:http";
 import { akisUrl } from "@ortak/imza.js";
 import { agKur, KartAgHatasi } from "../src/cekirdek/ag.js";
 import {
-  CanliHatasi, DOLU_BEKLE_MS, GB_HIZLARI, KARARLI_MS, KAYIT_ESKI_MS, SERI_SURE_MS, SESSIZ_MS, YENIDEN_BUL_HER, YENIDEN_MS, canliKur, komutGecerli,
+  CanliHatasi, DOLU_BEKLE_MS, GB_HIZLARI, KARARLI_MS, KAYIT_ESKI_MS, SERI_SURE_MS, SESSIZ_MS, VERI_SESSIZ_MS, YENIDEN_BUL_HER, YENIDEN_MS, canliKur, komutGecerli,
 } from "../src/cekirdek/canli.js";
 import { kartKur } from "../src/cekirdek/kart.js";
 import { kasaKur } from "../src/cekirdek/kasa.js";
@@ -154,10 +154,12 @@ describe("canli: akis durum makinesi (elle saat)", () => {
     expect(haller).toEqual(["baglaniyor", "acik", "acik", "kapali"]);
   });
 
-  it("yeniden baglanma 1, 2, 4, 8, 16, 30, 30 s; her denemede YENI adres", async () => {
-    expect([...YENIDEN_MS]).toEqual([1000, 2000, 4000, 8000, 16000, 30000]);
+  it("yeniden baglanma ilk dakikada SIK (1, 2, 3, 5, sonra 8 s), sonra 10, 15, 30, 30 s; her denemede YENI adres", async () => {
+    // Kart yeniden baslayinca ~9 s'de agda; eski 1-2-4-8-16-30 dizisiyle telefon ~36 s GEC baglaniyordu (olculdu).
+    expect([...YENIDEN_MS]).toEqual([1000, 2000, 3000, 5000, 8000, 8000, 8000, 8000, 8000, 10000, 15000, 30000]);
+    expect(Math.max(...YENIDEN_MS.slice(0, 9))).toBeLessThanOrEqual(8000);   // ilk dakikada bekleme 8 s'yi gecmez
     const w = await acikDunya();
-    const beklenen = [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000];
+    const beklenen = [...YENIDEN_MS, 30000, 30000];
     for (let i = 0; i < beklenen.length; i++) {
       w.durumOlayi(`a${i + 1}`, "hata", { tur: "baglanti" });
       expect(w.canli.durum()).toMatchObject({ bagli: false, hal: "hata", sebep: "baglanti" });
@@ -187,8 +189,8 @@ describe("canli: akis durum makinesi (elle saat)", () => {
     await w.ilerlet(KARARLI_MS - 1);                             // 10 s'ye 1 ms kala koptu: geri cekilme SURER
     w.durumOlayi("a3", "kapandi");
     expect(w.canli.durum()).toMatchObject({ hal: "hata", sebep: "kapandi" });
-    expect(w.bekleyenler()).toEqual([4000]);
-    await w.ilerlet(4000);
+    expect(w.bekleyenler()).toEqual([3000]);
+    await w.ilerlet(3000);
     w.durumOlayi("a4", "acik");
     await w.ilerlet(KARARLI_MS);                                 // kararli: sonraki kopmada 1 s'den
     w.durumOlayi("a4", "kapandi");
@@ -205,7 +207,7 @@ describe("canli: akis durum makinesi (elle saat)", () => {
     w.canli.baslat({ koru: true });
     await bosalt();
     w.durumOlayi("a3", "kapandi");
-    expect(w.bekleyenler()).toEqual([4000]);
+    expect(w.bekleyenler()).toEqual([3000]);
     w.canli.durdur();
     w.canli.baslat();
     await bosalt();
@@ -355,11 +357,11 @@ describe("canli: akis durum makinesi (elle saat)", () => {
     expect(w.d.acilan.length).toBe(2);
   });
 
-  it("sessizlik bekcisi: 45 s hic olay gelmezse akis kapatilir ve yeniden denenir", async () => {
+  it("sessizlik bekcisi: OLCUM SATIRI gelmemis akista 45 s hic olay gelmezse akis kapatilir ve yeniden denenir", async () => {
     expect(SESSIZ_MS).toBe(45000);
     const w = await acikDunya();
     await w.ilerlet(30000);
-    w.satirOlayi("a1", D1);                                      // olay bekciyi kurar
+    w.satirOlayi("a1", "K 0 1200 0");                            // olay bekciyi kurar (D degil: uzun sure)
     await w.ilerlet(44999);
     expect(w.canli.durum().hal).toBe("acik");
     expect(w.d.kapanan).toEqual([]);
@@ -368,6 +370,33 @@ describe("canli: akis durum makinesi (elle saat)", () => {
     expect(w.canli.durum()).toMatchObject({ hal: "hata", sebep: "sessiz" });
     await w.ilerlet(1000);
     expect(w.d.acilan.length).toBe(2);
+  });
+
+  it("veri bekcisi: olcum satiri AKARKEN 12 s sessizlik = kart gitti; eklentinin 40 s'lik okuma suresi beklenmez", async () => {
+    // Kart sifirlaninca soket yarim acik kalir (FIN gelmez): telefon ~36 s GEC baglaniyordu (2026-10-11, Honor, 3/3).
+    expect(VERI_SESSIZ_MS).toBe(12000);
+    expect(VERI_SESSIZ_MS).toBeLessThan(SESSIZ_MS);
+    const w = await acikDunya();
+    for (let i = 0; i < 5; i++) {                                // 10 s arayla gelen satir akisi CANLI tutar
+      w.satirOlayi("a1", D1);
+      await w.ilerlet(10000);
+      expect(w.canli.durum().hal).toBe("acik");
+    }
+    w.satirOlayi("a1", D1);
+    w.satirOlayi("a1", "K 0 1200 0");                            // araya D olmayan satir girmesi sureyi UZATMAZ
+    await w.ilerlet(VERI_SESSIZ_MS - 1);
+    expect(w.canli.durum().hal).toBe("acik");
+    expect(w.d.kapanan).toEqual([]);
+    await w.ilerlet(1);
+    expect(w.d.kapanan).toEqual(["a1"]);
+    expect(w.canli.durum()).toMatchObject({ hal: "hata", sebep: "sessiz" });
+    await w.ilerlet(1000);                                       // akis kararliydi: 1 s sonra yeniden
+    expect(w.d.acilan.length).toBe(2);
+    // yeni akista henuz olcum satiri yok: kisa sure ONA tasinmaz
+    w.durumOlayi("a2", "acik");
+    await w.ilerlet(VERI_SESSIZ_MS + 5000);
+    expect(w.canli.durum().hal).toBe("acik");
+    expect(w.d.kapanan).toEqual(["a1"]);
   });
 
   it("sessizlik bekcisi baglanirken de calisir (eklenti 'acik' demezse)", async () => {
@@ -424,6 +453,26 @@ describe("canli: akis durum makinesi (elle saat)", () => {
     await w.ilerlet(2000);
     expect(w.d.istekler.length).toBe(once + 1);
     expect(w.d.acilan.length).toBe(3);
+  });
+
+  it("401 = kart YANIT VERDI: buyumus bekleme degil ILK basamak; ust uste ikinci 401'de siradan geri cekilme", async () => {
+    const w = await acikDunya();
+    for (let i = 0; i < 5; i++) {                                // kart kapali: 1, 2, 3, 5, 8 s
+      w.durumOlayi(`a${i + 1}`, "hata", { tur: "baglanti" });
+      await w.ilerlet(YENIDEN_MS[i]);
+    }
+    expect(w.d.acilan.length).toBe(6);
+    w.durumOlayi("a6", "hata", { tur: "http", kod: 401 });      // kart geri geldi, acilis degismis
+    expect(w.bekleyenler()).toEqual([YENIDEN_MS[0]]);            // 8 s degil 1 s
+    await w.ilerlet(YENIDEN_MS[0]);
+    expect(w.d.acilan.length).toBe(7);
+    w.durumOlayi("a7", "hata", { tur: "http", kod: 401 });      // yine 401: eslesme gecersiz olabilir
+    expect(w.bekleyenler()).toEqual([YENIDEN_MS[6]]);            // siradan geri cekilme (1 s'lik imza dongusu yok)
+    await w.ilerlet(YENIDEN_MS[6]);
+    w.durumOlayi("a8", "hata", { tur: "baglanti" });            // araya baska hata girdi
+    await w.ilerlet(YENIDEN_MS[7]);
+    w.durumOlayi("a9", "hata", { tur: "http", kod: 401 });      // yeni bir 401 yine hizli
+    expect(w.bekleyenler()).toEqual([YENIDEN_MS[0]]);
   });
 
   it("tazeleme istegi 'cihaz-silinmis' derse sebep odur; deneme surer", async () => {

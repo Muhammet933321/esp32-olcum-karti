@@ -13,6 +13,17 @@
 *.h     text eol=lf
 *.net   text eol=lf
 
+# Testlerin ve derleyicinin BAYT BAYT okudugu kaynaklar: Windows'ta CRLF'e donunce mobil testleri
+# (hedef.tsv vektorleri, MainActivity/Kotlin desenleri) kirmizi oluyordu (2026-10-11).
+*.tsv    text eol=lf
+*.kt     text eol=lf
+*.java   text eol=lf
+*.mjs    text eol=lf
+*.vue    text eol=lf
+*.xml    text eol=lf
+*.gradle text eol=lf
+*.sh     text eol=lf
+
 # Windows'ta cift tiklanan dosyalar — CRLF olmali
 *.bat   text eol=crlf
 

@@ -24,9 +24,18 @@
 
 import { satirAyir } from "./akis_ayir.js";
 
-export const YENIDEN_MS = Object.freeze([1000, 2000, 4000, 8000, 16000, 30000]);
+// Ilk dakika SIK (1, 2, 3, 5, sonra 8 s), sonra seyrek: kart yeniden baslayinca ~9 s'de agda. Eski 1-2-4-8-16-30
+// dizisinde kart donene dek bekleme 8-16 s'ye buyuyor, telefon ~36 s GEC baglaniyordu (2026-10-11, Honor).
+// Sinirlar (curutucu-5c/firtina): dakikada en cok 10 imzali baglanti, kart kapaliyken 30 s tavani —
+// her deneme bir imza + kasa yazimi.
+export const YENIDEN_MS = Object.freeze([1000, 2000, 3000, 5000, 8000, 8000, 8000, 8000, 8000, 10000, 15000, 30000]);
 export const DOLU_BEKLE_MS = 10000;
 export const SESSIZ_MS = 45000;                 // kart 15 s'de bir kalp atar; eklentinin okuma suresi 40 s
+// Olcum satiri (D) AKARKEN bu kadar sessizlik = kart gitti. Kart sifirlaninca soket yarim acik kalir (FIN yok)
+// ve eklenti ancak 40 s'lik okuma suresinde fark eder: telefon ~36 s gec baglaniyordu (2026-10-11, olculdu).
+// 12 s bol pay: kartta en yavas zaman tabaninda (500 ms/bol, 5 s pencere) yakalama sirasinda D satirlarinin en
+// uzun susmasi 0.57 s olculdu (seri port, 4 yakalama; tetiklenemeyen kiplerde 0.20 s).
+export const VERI_SESSIZ_MS = 12000;
 export const SERI_SURE_MS = 300000;
 export const SERI_KAPASITE = 16384;             // 5 dk x en hizli rapor (20 ms) = 15000 nokta
 export const OLAY_SATIR_AZAMI = 256;
@@ -81,6 +90,8 @@ export function canliKur({
   let akisKimlik = null;               // acik (ya da acilmakta olan) akisin eklentideki kimligi
   let bekleyen = null;                 // akisAc donene kadar gelen olaylar
   let deneme = 0, ardisik = 0;
+  let veriGeldi = false;               // BU akista olcum satiri goruldu mu (veri bekcisi)
+  let onceki401 = false;               // son dusus 401 miydi (ust uste 401'de hizli deneme yok)
   let yenidenZ = null, bekciZ = null, dinleniyor = false;
   let son = null, sonMs = 0, kayit = null, kayitMs = 0;
   let acikMs = null;                   // akisin "acik" oldugu an (kararlilik olcusu); kapaliyken null
@@ -195,7 +206,7 @@ export function canliKur({
       bekleyen = null;
       if (k !== null) kapatSessiz(k);
       dustu("sessiz");
-    }, SESSIZ_MS);
+    }, veriGeldi ? VERI_SESSIZ_MS : SESSIZ_MS);
   }
 
   function yenidenKur(ms, tazele) {
@@ -221,7 +232,12 @@ export function canliKur({
     ardisik += 1;
     // 401: kart yeniden baslamis olabilir (acilis degisti). Akis adresi eski acilisla imzalanir; siradan
     // imzali bir istek acilisi tazeler (kart.js kimligi yeniden dogrular) — sonra yeniden baglanilir.
-    yenidenKur(ms, yeniSebep === "http" && yeniKod === 401);
+    // 401 kartin YANIT VERDIGI demek: buyumus beklemeyle degil ilk basamakla denenir. Ust uste ikinci
+    // 401'de (eslesme gercekten gecersiz) siradan geri cekilme — 1 s'lik imza dongusu olmaz.
+    const dort01 = yeniSebep === "http" && yeniKod === 401;
+    const hizli = dort01 && !onceki401;
+    onceki401 = dort01;
+    yenidenKur(hizli ? YENIDEN_MS[0] : ms, dort01);
   }
 
   // ── olaylar ────────────────────────────────────────────────────────────
@@ -239,6 +255,7 @@ export function canliKur({
     } else if (s.tur !== "diger") {
       ayrinti[s.tur] = s;
     }
+    return s.tur;
   }
 
   function bizimMi(ad, veri) {
@@ -252,12 +269,12 @@ export function canliKur({
 
   function olayAkis(veri) {
     if (!bizimMi("akis", veri) || !Array.isArray(veri.satirlar)) return;
-    bekciKur();
     const n = Math.min(veri.satirlar.length, OLAY_SATIR_AZAMI);
     for (let i = 0; i < n; i++) {
-      satirIsle(veri.satirlar[i]);
+      if (satirIsle(veri.satirlar[i]) === "D") veriGeldi = true;
       hamYay(veri.satirlar[i]);
     }
+    bekciKur();
   }
 
   function olayDurum(veri) {
@@ -309,6 +326,7 @@ export function canliKur({
     nesil += 1;
     const n = nesil;
     akisKimlik = null;
+    veriGeldi = false;
     bekleyen = [];
     halYap("baglaniyor");
     bekciKur();

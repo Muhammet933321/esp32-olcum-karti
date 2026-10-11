@@ -50,6 +50,30 @@ export default [
     dosya: CANLI, bul: "const ms = YENIDEN_MS[Math.min(deneme, YENIDEN_MS.length - 1)];", koy: "const ms = YENIDEN_MS[0];", test: T_CANLI,
   },
   {
+    ad: "5C-akis: 401'de (kart yanit verdi) buyumus bekleme kullaniliyor",
+    dosya: CANLI, bul: "yenidenKur(hizli ? YENIDEN_MS[0] : ms, dort01);", koy: "yenidenKur(ms, dort01);", test: T_CANLI,
+  },
+  {
+    ad: "5C-akis: ust uste 401'de de 1 s'lik imza dongusu",
+    dosya: CANLI, bul: "const hizli = dort01 && !onceki401;", koy: "const hizli = dort01;", test: T_CANLI,
+  },
+  {
+    ad: "5C-akis: ilk dakikadaki sik deneme eski katlanan diziye donuyor",
+    dosya: CANLI, bul: "[1000, 2000, 3000, 5000, 8000, 8000, 8000, 8000, 8000, 10000, 15000, 30000]", koy: "[1000, 2000, 4000, 8000, 16000, 30000]", test: T_CANLI,
+  },
+  {
+    ad: "5C-akis: veri bekcisi yok (olu baglanti 45 s beklenir)",
+    dosya: CANLI, bul: "}, veriGeldi ? VERI_SESSIZ_MS : SESSIZ_MS);", koy: "}, SESSIZ_MS);", test: T_CANLI,
+  },
+  {
+    ad: "5C-akis: veri bekcisinin kisa suresi yeni akisa tasiniyor",
+    dosya: CANLI, bul: "    veriGeldi = false;", koy: "", test: T_CANLI,
+  },
+  {
+    ad: "5C-akis: D olmayan satir da veri bekcisini kuruyor",
+    dosya: CANLI, bul: 'if (satirIsle(veri.satirlar[i]) === "D") veriGeldi = true;', koy: "satirIsle(veri.satirlar[i]); veriGeldi = true;", test: T_CANLI,
+  },
+  {
     ad: "5C-akis: veri gelince bekleme 1 s'ye donmuyor",
     dosya: CANLI, bul: "      acikMs = simdiMs();", koy: "      acikMs = null;", test: T_CANLI,
   },
@@ -79,7 +103,7 @@ export default [
   },
   {
     ad: "5C-akis: sessizlik bekcisi fiilen yok",
-    dosya: CANLI, bul: "    }, SESSIZ_MS);", koy: "    }, SESSIZ_MS * 1000);", test: T_CANLI,
+    dosya: CANLI, bul: "    }, veriGeldi ? VERI_SESSIZ_MS : SESSIZ_MS);", koy: "    }, (veriGeldi ? VERI_SESSIZ_MS : SESSIZ_MS) * 1000);", test: T_CANLI,
   },
   {
     ad: "5C-akis: kart bagli degilken de akis aciliyor",
@@ -91,7 +115,7 @@ export default [
   },
   {
     ad: "5C-akis: akis 401'inde acilis tazelenmiyor",
-    dosya: CANLI, bul: 'yenidenKur(ms, yeniSebep === "http" && yeniKod === 401);', koy: "yenidenKur(ms, false);", test: T_CANLI,
+    dosya: CANLI, bul: "yenidenKur(hizli ? YENIDEN_MS[0] : ms, dort01);", koy: "yenidenKur(hizli ? YENIDEN_MS[0] : ms, false);", test: T_CANLI,
   },
   {
     ad: "5C-akis: acilinca kayit durumu (G?) sorulmuyor",
