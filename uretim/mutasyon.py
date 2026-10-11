@@ -9227,6 +9227,12 @@ MUTASYONLAR = [
     ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js', "      if (!ctsiz && !r.skopKal) r.gonder('CT').catch(() => {});", "", 'SZ: kalibrasyon yokken kume CT istemezse (tetik seviyesi yazisi ilk yakalamaya dek fabrika ofsetiyle) kirmizi'),
     ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js', "if (!ctsiz && !r.skopKal) r.gonder('CT')", "if (!ctsiz) r.gonder('CT')", 'SZ: kalibrasyon varken de CT istenirse kirmizi'),
     ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js', "'r.surucuyum'() { this.sorgula(1); }", "'r.surucuyum'() { this.sorgula(); }", 'SZ: devral ile birlikte ikinci bir CT giderse kirmizi'),
+    # ── AD (2026-10-12): kartin `dolu` olayi (4 izleyici siniri) panelde soylenir; "kart kapali" seridi cikmaz.
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "    uyg.akis.addEventListener('dolu', (e) => { uyg.akisDolu = +e.data || 4; });", "", 'AD: panel kartin dolu olayini dinlemezse kirmizi'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "uyg.akisDolu ? 'kk.akis_dolu' : 'kk.akis_koptu'", "'kk.akis_koptu'", 'AD: akis doluyken de "akis koptu" denirse kirmizi'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "        uyg.surucuyum = !!k.surucu;\n        uyg.akisDolu = 0;", "        uyg.surucuyum = !!k.surucu;", 'AD: akis kurulunca dolu durumu kalkmazsa kirmizi'),
+    ('B7', 'test_arayuz3.js', 'arayuz3/app.js', "this.kartDurum === 'yok' && !this.akisDolu && ", "this.kartDurum === 'yok' && ", 'AD: akis doluyken "kart kapali" seridi cikarsa kirmizi'),
+    ('B7', 'test_arayuz3.js', 'ortak/src/sozluk_kabuk.js', '(tarayıcı sekmesi, telefon, PC uygulaması). Birini kapatın;', '(tarayıcı sekmesi, telefon, PC uygulaması).', 'AD: dolu mesaji ne yapilacagini soylemezse kirmizi'),
     ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js', '      while (i > 0 && g[i - 1] !== this.son) i--;', '      i = g.length - 1;', 'SZ: ayni turda gelen satirlarin yalniz sonuncusu islenirse (sonuc + TZ + T) kirmizi'),
     ('B7', 'test_arayuz3.js', 'arayuz3/ekran/osiloskop.js', '<button v-if="kaynak === \'kullanici\'" type="button" @click="sor(\'sorK\')"', '<button type="button" @click="sor(\'sorK\')"', 'SZ: fabrikadayken "Sıfırlamayı kaldır" gorunurse kirmizi'),
     ('B7', 'test_arayuz3.js', 'arayuz3/sahte-kart.js', 'ofset=${ofsetKart().toFixed(6)} tavan_mv=3100.0', 'ofset=63.530090 tavan_mv=3100.0', 'SZ: sahte kart CT ofset= kullanici sifirini tasimazsa kirmizi'),

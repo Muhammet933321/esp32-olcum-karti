@@ -8419,6 +8419,39 @@ console.log('\n--- 32. p0 sagligi (yeniden deneme + parolasiz) ---');
      govdeIcinde(appKaynak, 'kopruYokla', "credentials: 'omit'") && govdeIcinde(appKaynak, 'kopruyuAlgila', "credentials: 'omit'"));
 }
 
+/* ═════════════════════════════════════════════════════════════════════
+   32b. AKIS DOLU (AD, 2026-10-12) — kart 5. izleyiciye `event: dolu` + `data: 4` yazip baglantiyi kapatir.
+   Panel bu olayi DINLEMIYORDU: kullanici "Akis koptu" + "Kart kapali ya da ulasilamiyor … PIL anahtari
+   acik mi?" goruyordu — kart acik ve calisiyorken. Simdi: sebep soylenir, "kart kapali" seridi cikmaz.
+   ═════════════════════════════════════════════════════════════════════ */
+SONRA.push(async () => {
+  console.log('--- 32b. Akis dolu (4 izleyici siniri) ---');
+  const TA = vm.runInContext('TasiyiciAkis', sandbox);
+  const eskiES = sandbox.EventSource, eskiZ = sandbox.setTimeout;
+  let es = null;
+  sandbox.EventSource = function (url) { es = this; this.url = url; this.l = {}; this.addEventListener = (ad, f) => { (this.l[ad] = this.l[ad] || []).push(f); }; this.yay = (ad, e) => (this.l[ad] || []).forEach((f) => f(e)); this.close = () => {}; };
+  sandbox.setTimeout = (f) => { f(); return 0; };
+  const uyg = { kartAdres: (y) => y, eslesmeHazirla: async () => null, satirIsle() {}, kaydet() {}, hata: '', akisDolu: 0, jeton: '', surucuyum: false,
+    tembelMetin: (aile, k, d) => `${k}${d ? JSON.stringify(d) : ''}` };
+  let hataAC = '';
+  try { await TA.ac(uyg); } catch (e) { hataAC = String(e); } finally { sandbox.EventSource = eskiES; sandbox.setTimeout = eskiZ; }
+  const dinliyor = !!(es && es.l.dolu && es.l.dolu.length);
+  if (dinliyor) { es.yay('dolu', { data: '4' }); es.onerror(); }
+  ok('[!] AD Kartin `dolu` olayi dinleniyor: sebep "akis dolu" (izleyici sayisiyla), "akis koptu" DEGIL',
+     dinliyor && uyg.akisDolu === 4 && /kk\.akis_dolu/.test(uyg.hata) && /"n":4/.test(uyg.hata) && !/akis_koptu/.test(uyg.hata), `${hataAC} ${uyg.hata}`);
+  if (dinliyor) { es.yay('kimlik', { data: '{"jeton":"x","surucu":true}' }); es.onerror(); }
+  ok('[!] AD Yer acilip akis kurulunca (`kimlik`) dolu durumu kalkar; sonraki kopma yine "akis koptu"',
+     dinliyor && uyg.akisDolu === 0 && /kk\.akis_koptu/.test(uyg.hata), uyg.hata);
+  ok('[!] AD Akis doluyken "Kart kapali ya da ulasilamiyor" seridi CIKMAZ ve rozet "kart kapali" demez (kart acik)',
+     govdeIcinde(appKaynak, 'kartYokGoster', '!this.akisDolu') && /akisDolu \? this\.tembelMetin\('kk', 'kk\.akis_dolu_kisa'/.test(appKaynak));
+  const kabuk = fs.readFileSync(path.join(KOK, 'ortak', 'src', 'sozluk_kabuk.js'), 'utf8');
+  const acilisSoz = fs.readFileSync(path.join(KOK, 'ortak', 'src', 'sozluk.js'), 'utf8');
+  const satirD = (/"kk\.akis_dolu": S\("([^"]+)",\s*"([^"]+)"\)/.exec(kabuk) || []);
+  ok('[!] AD Metinler TEMBEL kabuk sozlugunde (TR + EN), acilis sozlugunde YOK; siniri ve ne yapilacagini soyler',
+     /\{n\}/.test(satirD[1] || '') && /\{n\}/.test(satirD[2] || '') && /kapat/i.test(satirD[1] || '') && /close/i.test(satirD[2] || '')
+     && /"kk\.akis_dolu_kisa": S\(/.test(kabuk) && !/akis_dolu/.test(acilisSoz), JSON.stringify(satirD.slice(1)));
+});
+
 /* ═══════════════════════════════════════════════════════════════════════
    33. 4F (PC17) — PWA KABUGU: service worker, cevrimdisi sayfa, manifest
 

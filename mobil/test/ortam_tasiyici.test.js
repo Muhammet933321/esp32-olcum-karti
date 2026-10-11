@@ -167,9 +167,15 @@ describe("telefon tasiyicisi: sahte kartla uctan uca", () => {
     await bekle(() => u.uyari !== "");
     expect(u.uyari).toBe(metin("or.dolu", "tr"));
     expect(u.hata).toBe("");
+    // Panel "akis dolu"yu bu alandan ogrenir: "Kart kapali ya da ulasilamiyor" seridi ve rozeti CIKMAZ (kart acik).
+    // Honor'da goruldu (2026-10-12): dolu uyarisinin yaninda "kart kapali … PIL anahtari acik mi?" de duruyordu.
+    expect(u.akisDolu).toBe(4);
+    expect(metin("or.dolu", "tr")).toMatch(/Kart açık/);
+    expect(metin("or.dolu", "en")).toMatch(/board is on/i);
     iz[0].kapat();
     await bekle(() => u.satirlar.some((s) => s.startsWith("D ")), 6000);
     expect(u.uyari).toBe("");
+    expect(u.akisDolu).toBe(0);
   });
 
   it("arka plana gecis: akis HEMEN kapanir, hata YAZILMAZ; one donunce satirlar yeniden gelir (yeni imzali adres)", async () => {

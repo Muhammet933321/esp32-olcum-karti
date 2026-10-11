@@ -215,7 +215,8 @@ const TasiyiciAkis = {
     const imzali = ist ? await ist.akisAc() : null;
     uyg.akis = imzali || new EventSource(uyg.kartAdres('/akis'));
     uyg.akis.onmessage = (e) => uyg.satirIsle(String(e.data).trim());
-    uyg.akis.onerror = () => { uyg.hata = uyg.tembelMetin('kk', 'kk.akis_koptu'); };
+    uyg.akis.onerror = () => { uyg.hata = uyg.tembelMetin('kk', uyg.akisDolu ? 'kk.akis_dolu' : 'kk.akis_koptu', { n: uyg.akisDolu }); };
+    uyg.akis.addEventListener('dolu', (e) => { uyg.akisDolu = +e.data || 4; });
     /* Kart TEK sürücüye hizmet ediyor. Köprü kayıtlıysa ikinci istemci
        reddediliyor ve NEREYE gideceği söyleniyor — sessiz kapanma yok. */
     uyg.akis.addEventListener('kopru', (e) => {
@@ -232,6 +233,7 @@ const TasiyiciAkis = {
         const k = JSON.parse(e.data);
         uyg.jeton = k.jeton || '';
         uyg.surucuyum = !!k.surucu;
+        uyg.akisDolu = 0;
       } catch (err) { /* kimlik olayı yoksa varsayılan geçerli */ }
     });
     uyg.kaydet(uyg.tembelMetin('kk', 'kk.log_akis', { adres: uyg.kartAdres('/akis') }));
@@ -1114,6 +1116,7 @@ createApp({
       tasiyiciAdi: ORTAM ? 'telefon' : 'seri',
       kartTaban: '',        // '' = aynı köken; PC'den karta bağlanırken dolu
       kopruAdresi: '',      // kart "köprü şurada" derse
+      akisDolu: 0,
       /* PC köprüsünde N izleyici, BIR sürücü. Kart doğrudan bağlıysa
          hakem yok — o yüzden varsayılan `true`. */
       jeton: '',
@@ -1445,13 +1448,13 @@ createApp({
     rozetYazi() {
       const d = this.kartDurum;
       if (d === 'kapali') return this.m.cevrimdisi;
-      if (d === 'yok') return this.metin('kb.kart_yok');
+      if (d === 'yok') return this.akisDolu ? this.tembelMetin('kk', 'kk.akis_dolu_kisa') : this.metin('kb.kart_yok');
       if (d === 'bekleniyor') return this.metin('kb.kart_baglaniyor');
       const yol = this.baglantiKipi === 'kopru' ? this.kopruYol : this.baglantiKipi;
       const ad = { usb: 'kb.kip_usb', wifi: 'kb.kip_wifi', demo: 'kb.kip_demo' }[yol];
       return ad ? this.metin('kb.kart_bagli', { yol: this.metin(ad) }) : this.metin('kb.kart_bagli_yolsuz');
     },
-    kartYokGoster() { return this.kartDurum === 'yok' && ['canli', 'skop', 'pil'].includes(this.gorunum); },
+    kartYokGoster() { return this.kartDurum === 'yok' && !this.akisDolu && ['canli', 'skop', 'pil'].includes(this.gorunum); },
     kartYokSon() {
       const son = this._sonDZaman || 0;
       if (!son) return this.metin('kb.kart_yok_hic');

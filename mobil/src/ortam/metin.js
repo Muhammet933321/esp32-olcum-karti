@@ -25,8 +25,8 @@ export const ORTAM_METIN = Object.freeze({
     "Board not found — still searching. Check that the phone is on the same Wi-Fi network as the board.",
   ),
   "or.dolu": S(
-    "Kartın canlı akışı dolu: başka izleyiciler (PC köprüsü ya da başka bir telefon) bağlı. Yer açılınca kendiliğinden bağlanılacak; komutlar yine gider.",
-    "The board's live stream is full: other viewers (the PC bridge or another phone) are connected. It reconnects by itself when a slot frees up; commands still go through.",
+    "Kart açık ama canlı akışı dolu: aynı anda en çok 4 izleyici bağlanabilir (tarayıcı sekmesi, telefon, PC uygulaması). Birini kapatın; yer açılınca kendiliğinden bağlanılacak. Komutlar ve DURDUR yine gider.",
+    "The board is on, but its live stream is full: at most 4 viewers can connect at once (browser tab, phone, PC app). Close one of them; this reconnects by itself when a slot frees up. Commands and STOP still go through.",
   ),
   "or.koptu": S("Akış koptu — yeniden bağlanılıyor", "Stream lost — reconnecting"),
   "or.wifi_yok": S(

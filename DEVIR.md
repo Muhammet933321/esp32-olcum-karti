@@ -10658,6 +10658,24 @@ satırları akmalı (en uzun susma ~0.1 s). Ret: kısa devresiz bir sinyalle `tz
 seviyesi etiketini sabit fabrika ofsetiyle çiziyor (app.js — EU31 için dokunulmadı; ilk yakalamadan sonra doğru) ·
 boşta jak / temiz DC kısa devreden ayırt edilemiyor · kazanç hatası (SK-4'ün ~%10'u) ayrı iş.
 
+#### 5.12.124 ✅ AKIŞ DOLU (4 izleyici) ARTIK SÖYLENİYOR + SIFIR KÜMESİ İKİ DÜZELTME (2026-10-12)
+
+- **Akış dolu:** kart 5. izleyiciye `event: dolu` + `data: 4` yazıp kapatıyor; tarayıcı paneli bu olayı DİNLEMİYORDU →
+  "Akış koptu" + "Kart kapalı ya da ulaşılamıyor … PİL anahtarı açık mı?" (kart açıkken). Şimdi `uyg.akisDolu`:
+  hata kutusunda `kk.akis_dolu` (sınır + "birini kapatın"), rozet `kk.akis_dolu_kisa`, "kart kapalı" şeridi çıkmaz;
+  `kimlik` gelince kalkar. Metinler tembel `sozluk_kabuk.js`'te (TR + EN).
+- **Telefon ayrı yoldu:** `mobil/src/ortam/tasiyici.js` "dolu" uyarısını yazıyor ama panele bildirmiyordu (Honor'da
+  dolu uyarısının yanında "kart kapalı" şeridi de duruyordu). Artık `b.uyg.akisDolu = AKIS_AZAMI` (yeniden denemeler
+  arasında korunur); `or.dolu` metni "Kart açık ama …" diye başlıyor. Honor'da gerçek kartla gözle doğrulandı.
+- **Sıfır kümesi (A3-SK3 sonrası):** sıfır bilinmiyorsa küme kendisi `tz?` sorar (kartta "bilinmiyor" kalıyordu — bulut
+  testi günlüğe TZ satırını hazır koymuştu); kalibrasyon (`CT`) yoksa onu da ister (tetik seviyesi yazısı ilk
+  yakalamayı beklemez). Bazı açılışlarda CT iki kez gidiyor (zararsız).
+- **Bütçe:** `#/skop` açılışı 255 980 B — tavan 256 000, pay **20 B** (tavana dokunulmadı; app.js'e eklenen iki yorum
+  satırı sığdırmak için çıkarıldı). Bir sonraki eklemede tavan büyütülmeli ya da bir şey küçültülmeli.
+- test_arayuz3 1096/1096, mobil 603/603, mutasyon AD 6/6 + SZ 42/42 + mobil 3/3, tam zincir yeşil, kilit 5771.
+- Açık: tarayıcıda beş sekmeyle gözle doğrulama kullanıcıda; akış doluyken üstteki "Pil testi: bilinmiyor — karta
+  bağlanın" yazısı yanıltıcı (açılış paketinde, dokunulmadı).
+
 #### 5.12.119 🟡 BÜTÜNLEŞİK DAL: SK1 DÜZELTME + İKİ DİLLİ BELGELER (2026-10-10, bulut oturumu, dal `butunlesik`)
 
 **Ne birleşti.** Taban `sk1-duzeltme` (5.12.117–5.12.118: A3-SK2, EU31 açılış bütçesi). Üstüne sırayla, her biri ayrı

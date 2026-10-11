@@ -41,6 +41,8 @@ export class TasiyiciHatasi extends Error {
 }
 
 const kodla = (s) => new TextEncoder().encode(s);
+// Kartin canli akis yuvasi sayisi (firmware AKIS_AZAMI). Kart sayiyi `dolu` olayinda yollar ama eklenti iletmez.
+const AKIS_AZAMI = 4;
 
 export function tasiyiciKur({ arka, kartAl, p0 }) {
   if (!arka || typeof arka.baglan !== "function" || typeof kartAl !== "function" || typeof p0 !== "function") {
@@ -83,13 +85,18 @@ export function tasiyiciKur({ arka, kartAl, p0 }) {
     if (!b) return;
     const dil = dilAl(b.uyg);
     const hal = d.akis.hal;
+    // Panel "akis dolu"yu uyg.akisDolu'dan ogrenir (app.js): doluyken "Kart kapali ya da ulasilamiyor" seridi ve
+    // rozeti cikmaz. Yeniden denemeler arasinda ("baglaniyor") deger KORUNUR — serit yanip sonmesin.
     if (hal === "acik") {
+      b.uyg.akisDolu = 0;
       hataSil(b);
       uyariSil(b);
     } else if (hal === "dolu") {
+      b.uyg.akisDolu = AKIS_AZAMI;
       hataSil(b);
       uyariYaz(b, metin("or.dolu", dil));
     } else if (hal === "hata") {
+      b.uyg.akisDolu = 0;
       const anahtar = SEBEP_METNI[d.akis.sebep];
       const ek = anahtar ? ` — ${metin(anahtar, dil)}` : "";
       hataYaz(b, metin("or.koptu", dil) + ek);

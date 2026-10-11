@@ -11,6 +11,12 @@ const CEK = "test/ortam_cekirdek.test.js";
 export default [
   { ad: "5P-P3: tasiyici: akis dolu panelin uyarisina yazilmiyor", dosya: "src/ortam/tasiyici.js",
     bul: '      uyariYaz(b, metin("or.dolu", dil));\n', koy: "", test: TAS },
+  { ad: "5P-P3: tasiyici: akis doluyken panele bildirilmiyor (kart kapali seridi cikar)", dosya: "src/ortam/tasiyici.js",
+    bul: "      b.uyg.akisDolu = AKIS_AZAMI;", koy: "", test: TAS },
+  { ad: "5P-P3: tasiyici: akis acilinca dolu durumu kalkmiyor", dosya: "src/ortam/tasiyici.js",
+    bul: "      b.uyg.akisDolu = 0;\n      hataSil(b);\n      uyariSil(b);", koy: "      hataSil(b);\n      uyariSil(b);", test: TAS },
+  { ad: "5P-P3: dolu metni kartin acik oldugunu soylemiyor", dosya: "src/ortam/metin.js",
+    bul: "Kart açık ama canlı akışı dolu", koy: "Kartın canlı akışı dolu", test: TAS },
   { ad: "5P-P3: tasiyici: eslesmemis kart ac()'ta reddedilmiyor", dosya: "src/ortam/tasiyici.js",
     bul: "    if (red) {\n", koy: "    if (false) {\n", test: TAS },
   { ad: "5P-P3: tasiyici: komut hatasinda kartin sebebi kayboluyor", dosya: "src/ortam/tasiyici.js",
