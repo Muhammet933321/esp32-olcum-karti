@@ -10623,6 +10623,30 @@ tam koşuda doğrulanmalı.
 
 ---
 
+#### 5.12.120 ✅ BÜTÜNLEŞİK DAL YERELDE: TAM ZİNCİR, KARTTA A3-SK2, İNGİLİZCE GÖRÜNTÜLER (2026-10-11)
+
+- **Yeniden üretim (envanterle):** tek içerik farkı `BELGELER/en/7-yerlesim.html`'deki "In stock" sütunu (bulutta envanter
+  yoktu). `_fs.json` / `sw.js` DEĞİŞMEDİ — bulutta zlib-ng ile elle üretilen sayılar yerelle aynı.
+- **Tam zincir yeşil**, sayım kilidi yazıldı (5669 iddia): B19 87→94, B20 71→79, B73 32→33, B7 989→998, B6'ya 72'lik,
+  B9'a 2'lik yeni satır. Firmware A3-SK2 gerçek derleyiciyle 1 431 734 B.
+- **Kartta (yedek `tam-20261011-122142.bin`, sonra A3-SK2 + panel):** Arduino Uno D9, 1 kHz / 5 V kare,
+  `tezgah_blokaj.py --sinyal 1000`, 20 × (ham, süzgeçli):
+
+  | | A3-SK1 (yüklemeden önce, D13) | A3-SK2 (D13) | A3-SK2 (D9) |
+  |---|---|---|---|
+  | Vpp süzgeçli / ham | 8.47 / 11.02 V | 5.18 / 5.13 V | 5.13 / 5.12 V |
+  | düşme süresi sapan | 1/20 | 0/20 | 0/20 |
+  | araç | 4/6 | 6/6 | 6/6 |
+
+- ⚠ **D13'ten alınan sinyalde alt seviye ~1.7 V yukarıda okundu** (Vmin 1.72 V; genlik, frekans, süreler doğru). Kart
+  DEĞİL: SKOP–COM kısa devrede ortalama +0.32 V (≈ 10 kod, 1 kod = 32 mV), D9'da alt seviye 0.00 V / üst 5.27 V. Sebebi
+  aranmadı; osiloskop sınamasında sinyal D9'dan alınmalı. (Boş V jakının ~+1.8 V okuması da arıza değil: giriş VREF'e yüzer.)
+- **İngilizce README görüntüleri** `gorsel/readme/en/` (12/12, gerçek karttan): rehberler `cek_en_belge.js`, PC
+  `cek_en_pc.js` (köprü, `olcum.dil = en`; izleyici kalırsa "Sürücülüğü devral"), telefon Honor'dan adb + `uiautomator dump`
+  ile (WebView hata ayıklaması kapalıyken de metin ve konum veriyor; canlı ekranda döküm boş dönebiliyor).
+- **Açık:** İngilizce panelde çevrilmemiş etiketler görüntülerde Türkçe (osiloskop ölçüm tablosu, DİKEY/YATAY, "Geçen
+  süre", "Örnekleme", pil ekranındaki J7 uyarısı) — AY3 kilidindeki 272 metnin parçası. Çekirdek 1'e eklenen süre ölçülmedi.
+
 #### 5.12.118 🟡 SK1 DÜZELTME: EU31 AÇILIŞ BÜTÇESİ + SK-1 ÖLÇÜM EŞİKLERİ (2026-10-10, bulut oturumu, dal `sk1-duzeltme`)
 
 **İş 1 — açılış bütçesi (EU31 kırmızıydı, 262 381 / 262 144 B).** Süzgeç menüsü ve onun metinleri açılış paketinden

@@ -7,8 +7,11 @@ Turkish ones in `gorsel/readme/`, captured with the panel, the PC app and the gu
 Türkçe görüntülerle (`gorsel/readme/*.png`) **birebir aynı**; her biri Türkçesinin İngilizce karşılığı olmalı:
 aynı ekran, aynı ölçüm, aynı kırpma ve boyut — yalnız arayüz dili İngilizce.
 
-⚠ **Bu görüntüler henüz yok.** Yerel oturum onları gerçek karttan çekecek; o zamana kadar README.en.md'deki bu
-12 görsel bağlantısı GitHub'da kırık görünür.
+✅ **12 görüntünün hepsi 2026-10-11'de gerçek karttan çekildi** (firmware A3-SK2). PC ve rehber görüntüleri
+`uretim/readme_gorsel/cek_en_pc.js` ve `cek_en_belge.js` ile; telefon görüntüleri Honor'dan `adb` ile (Türkçeleri
+Xiaomi'dendi: başlık iki satıra kırılıyor, boyut aynı). Canlı ekranlarda ölçüm 18650 + 3.3 Ω (~3.77 V · 1.10 A ·
+4.14 W); Türkçesindeki yük çıkar-tak adımı İngilizce grafikte yok. İngilizce panelde henüz çevrilmemiş etiketler
+(osiloskop ölçüm tablosu, "Geçen süre", "Örnekleme" …) görüntülerde Türkçe duruyor — çevrilince yeniden çekilmeli.
 
 ## Neden yalnız PNG'ler?
 
