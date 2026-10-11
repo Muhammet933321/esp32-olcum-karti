@@ -49,6 +49,7 @@ export const SkopSifir = {
   created() {
     import('/ortak/sozluk_skop.js').then((s) => { this.s = s; }).catch(() => {});
     this.tara(true);
+    this.sorgula();
   },
   beforeUnmount() { clearTimeout(this.zm); },
   computed: {
@@ -64,9 +65,11 @@ export const SkopSifir = {
         : this.kaynak === 'kullanici' ? this.m('sz.kullanici', { v: this.sifir }) : this.m('sz.fabrika');
     },
   },
-  watch: { sonSatir() { this.tara(false); } },
+  watch: { sonSatir() { this.tara(false); }, 'r.bagli'() { this.sorgula(); }, 'r.surucuyum'() { this.sorgula(); } },
   methods: {
     m(a, d = null) { return this.s.ceviriSkop(a, this.r.dil, d); },
+    /* Kart TZ satirini yalniz sorulunca basar: sifir bilinmiyorsa `tz?` (salt okuma) — kartta "bilinmiyor" kaliyordu. */
+    sorgula() { const r = this.r; if (this.sifir === null && r.bagli && r.surucuyum) r.gonder('tz?').catch(() => {}); },
     tara(ilk) {
       const g = this.r.gunluk || [];
       let i = g.length;

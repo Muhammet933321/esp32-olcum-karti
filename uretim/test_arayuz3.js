@@ -2571,6 +2571,22 @@ SONRA.push(async () => {
     t = yazi(r);
     ok('[!] SZ Onay `tz0` gonderir; sonuc fabrika', gonderilen.includes('tz0') && /Şu anki sıfır: fabrika/.test(t)
        && /Fabrika sıfırına dönüldü/.test(t), t);
+    /* (c2) gunlukte TZ satiri YOKKEN (gercek kart: panel acilir, kimse sormamis) — kartta "bilinmiyor" kaliyordu */
+    {
+      const bos = kur({ gunluk: [] });
+      await bekle();
+      const tb = yazi(bos.r);
+      ok('[!] SZ Sifir bilinmiyorsa kume KENDISI `tz?` sorar (salt okuma) ve "fabrika" gosterir; `tz` GITMEZ',
+         bos.gonderilen.join() === 'tz?' && /Şu anki sıfır: fabrika/.test(tb) && !/bilinmiyor/.test(tb), `${bos.gonderilen} · ${tb}`);
+      const izl = kur({ gunluk: [], surucuyum: false });
+      await bekle();
+      ok('SZ Izleyici komut gonderemez: sormaz, "bilinmiyor" kalir', izl.gonderilen.length === 0 && /bilinmiyor/.test(yazi(izl.r)), `${izl.gonderilen}`);
+      const kop = kur({ gunluk: [], bagli: false });
+      await bekle();
+      kop.u.bagli = true;
+      await bekle();
+      ok('[!] SZ Kart SONRADAN baglaninca sorulur (acilista bagli degildi)', kop.gonderilen.join() === 'tz?' && /fabrika/.test(yazi(kop.r)), `${kop.gonderilen}`);
+    }
     /* (d) ret */
     u.$refs.sz.sor('sor');
     u.$refs.sz.asama = 'bekle';
