@@ -37,8 +37,8 @@
   ],
   "B19 Skop kanali cift yonlu": [
     [
-      87,
-      87
+      94,
+      94
     ]
   ],
   "B17 ADS es zamanliligi + suzgec duzeltmesi": [
@@ -49,8 +49,8 @@
   ],
   "B20 Ornekleme hizi + bant siniri + menzil": [
     [
-      71,
-      71
+      79,
+      79
     ]
   ],
   "B21 Pil kapasite testi (anahtar + kapi + tampon)": [
@@ -97,8 +97,8 @@
   ],
   "B73 ortak/ (JS hesap kodu, capraz vektorler)": [
     [
-      32,
-      32
+      33,
+      33
     ]
   ],
   "B3  Sema (ERC + netlist)": [
@@ -119,14 +119,18 @@
       7
     ],
     [
+      72,
+      72
+    ],
+    [
       85,
       85
     ]
   ],
   "B7  Arayuz + komut denetimi": [
     [
-      989,
-      989
+      998,
+      998
     ]
   ],
   "B9  Malzeme + kurulum kilavuzu": [
@@ -141,6 +145,10 @@
     [
       52,
       52
+    ],
+    [
+      2,
+      2
     ],
     [
       2421,
