@@ -40,11 +40,12 @@
    ÇİZİLMELİ; `degisti` geri çağrısı bunun için.
    ═══════════════════════════════════════════════════════════════════════ */
 
+/* 5.12.121 (CE): adlari ve aciklamalari sozlukte (ortak/sozluk_yonetim.js yn.tema_<id>, app.js TEMA_METIN) */
 export const TEMALAR = Object.freeze([
-  Object.freeze({ id: 'sistem',  ad: 'Sistem',   alt: 'işletim sisteminin açık/koyu tercihine uyar' }),
-  Object.freeze({ id: 'koyu',    ad: 'Koyu',     alt: 'varsayılan — tezgah aleti' }),
-  Object.freeze({ id: 'acik',    ad: 'Açık',     alt: 'aydınlık ortam' }),
-  Object.freeze({ id: 'onpanel', ad: 'Ön panel', alt: 'grafit + turuncu, cihaz ön paneli' }),
+  Object.freeze({ id: 'sistem' }),
+  Object.freeze({ id: 'koyu' }),
+  Object.freeze({ id: 'acik' }),
+  Object.freeze({ id: 'onpanel' }),
 ]);
 
 export const TEMA_ANAHTAR = 'olcum.tema';

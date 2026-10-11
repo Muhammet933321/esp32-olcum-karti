@@ -365,12 +365,17 @@ rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşit
   Karşılaştırma, "What plugs where", sol şerit, üst şeritler)~~ **Kapandı (Öncelik 1):** metinler tembel sözlüklerde
   (`sozluk_kabuk.js`, `sozluk_osilo.js`, `sozluk_skop.js`) + Canlı'nın 15 kısa etiketi açılış sözlüğünde; B7
   bölüm 36 iki dilde 25 senaryoyu gerçek Vue ile çizip tarıyor. AY3 272 → 124.
-- **CE-2 · Ayarlar (index.html kartları: Bağlantı, Kalibrasyon ve ayar, Ağ, Görünüm) ve Konsol hâlâ Türkçe** —
-  Öncelik 2 (aşağıda / DEVIR 5.12.121 sonu). Kalan AY3 listesi: `node uretim/test_arayuz3.js | grep EN?`.
+- ~~**CE-2 · Ayarlar (index.html kartları: Bağlantı, Kalibrasyon ve ayar, Ağ, Görünüm) ve Konsol hâlâ Türkçe**~~
+  **Kapandı (Öncelik 2):** `sozluk_yonetim.js` (Ayarlar / Konsol ilk görünür olunca iner); AY3 124 → 16.
+- **CE-6 · Kalan Türkçe (AY3 16'nın 6'sı):** `ekran/depo_idb.js`'in 4 hata iletisi (IndexedDB yok / sürüm bekliyor /
+  akış başka sekmede / zaten eşitleniyor) Kayıtlar'ın eşitleme sebebinde `{mesaj}` olarak Türkçe çıkar — çevirmek
+  eşitleme katmanına hata kodu ister. app.js `gecmisAciklama` hiçbir yerde kullanılmıyor (ölü kod, 2 dizge).
+  Demo kipindeki sahte kart sinyal adları sahte kartın dili (kapsam dışı).
 - **CE-3 · Tembel sözlük inerken metin anlık boş** (Türkçe kipte de): `sozluk_kabuk.js` kuruluşta, `sozluk_osilo.js`
   osiloskop ekranıyla iner. Şeritler ve Pil'in J7 uyarısı sözlük inene dek ÇİZİLMEZ; sözlük hiç inemezse (kart
   yeniden başlıyor) bağlanınca / ilk hatada yeniden denenir. Gerçek kartta süre ölçülmedi (tezgah kalemi).
 - **CE-4 · AY3 sayacının sezgisi:** metni sözlüğe taşınan satırlardan arta kalan teknik parçalar (`CT`, `DC offset`,
-  `J7 ≤ 38.5 V dss`, `bosluk`, `http://localhost …`) ve iki yorum sayılıyor (7 / 124). Sayaç gevşetilmedi.
+  `USB (Web Serial)`, `NORMAL ±32 V`, `J7 ≤ 38.5 V dss`, `bosluk`, `http://localhost …`) ve üç yorum sayılıyor
+  (10 / 16). Sayaç gevşetilmedi.
 - **CE-5 · Eski B7 boşluğu (önceden de vardı):** `hashchange` dinleyicisi (`gorunum = hashtenGorunum()`) silinse de
   B7 yeşil (mutasyon KACTI, değişiklik öncesi kodda da 998/998). Ayrı iş.

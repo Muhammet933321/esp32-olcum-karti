@@ -10708,6 +10708,57 @@ sahte kartın kendi demo sinyal adları (kartın dili); konsol hatası yalnız �
 (öncesi 601) · mutasyon `CE:` **20/20 YAKALANDI**; anahtarı değişen 7 eski mutasyonun deseni yeni koda taşındı
 (desen kaybı 32 → 32, hepsi önceden). Gizlilik temiz.
 
+**Öncelik 2 (ayrı commit) — Ayarlar ve Konsol.** Yeni tembel sözlük `ortak/src/sozluk_yonetim.js` (`yn.`, 86
+anahtar): Ayarlar'ın index.html kartları (Bağlantı, Kalibrasyon ve ayar, Ağ, Görünüm + tema adları; `ekran/tema.js`
+TEMALAR artık yalnız kimlik, adlar app.js `TEMA_METIN` → sözlük), Konsol ekranı, giriş denetimi hataları, şebeke
+uyarısı, kartın şönt değeri. Ayarlar ya da Konsol ilk görünür olunca iner (`yonetimGerekli`, ayarModGerekli deseni);
+`_html` anahtarları satır içi işaretleme (b / strong / em / code) taşır ve `v-html` ile çizilir — içerik SABİT, B73
+testi yalnız bu dört etiketi ve olay özniteliği yokluğunu sınar. Panelin Konsol'a düştüğü kendi satırları
+(`— bağlandı, 115200 baud —` …) `kk.log_*`; kartın ham satırları olduğu gibi. Kayıtlar / Karşılaştırma
+"yüklenemedi" metni açılışta tek anahtar `kb.ekran_yuklenemedi` ({ekran}). Vue / sözlük HİÇ yüklenemediğinde
+çıkan `#acilmadi` kutusu (index.html satır içi betik) `olcum.dil`e göre TR / EN.
+- B7 bölüm 36'ya 8 senaryo (Ayarlar ×6, Konsol ×2; iki dilde) → **33 senaryo**; Türkçe kip 33/33 eski kodla aynı
+  (metin içeriği + öznitelikler; v-html paragrafları bölütlemeden bağımsız karşılaştırıldı).
+- İzin listesine: kartın firmware ağ adı kalıbı `OLCUM-KARTI-XXXX`, Konsol senaryosunun iki kart satırı, dil
+  seçicideki `Türkçe` endonimi (AY3 kuralı: dil adı kendi dilinde).
+- Kalan AY3 **16**: Türkçe olanlar yalnız `ekran/depo_idb.js`'in 4 hata iletisi (IndexedDB kilit / sürüm; Kayıtlar
+  eşitleme sebebinin `{mesaj}` ayrıntısı — çevirmek eşitleme katmanına hata kodu ister) ve app.js'teki hiç
+  kullanılmayan `gecmisAciklama` hesabının 2 dizgesi (ölü kod). Geri kalan 10: 7 Türkçe olmayan teknik parça
+  (`CT`, `DC offset`, `USB (Web Serial)`, `NORMAL ±32 V`, `J7 ≤ 38.5 V dss`, `bosluk`, kod parçası) + 3 yorum.
+
+| ölçü (Öncelik 2 sonrası) | Öncelik 1 | Öncelik 2 | sınır (pay) |
+|---|---|---|---|
+| EU31 eşleşmiş açılış | 261 156 B | **260 482 B** | 262 144 (1 662) |
+| EU32 açılış sözlüğü | 19 341 B | **19 378 B** | 19 500 (122) |
+| `#/skop` açılışı | 254 959 B · 14 | **254 285 B · 14** | 256 000 · 14 (1 715) |
+| `sozluk_kabuk` / `sozluk_osilo` / `sozluk_yonetim` | 3 482 / 4 811 / — | 3 805 / 4 811 / 5 684 B | 4 / 5 / 6 KB (CE kilidi) |
+| AY3 | 124 | **16** | kilit 16 |
+
+Öncelik 2 testleri: `test_arayuz3.js` **1060/1060** (bölüm 36: 33 senaryo × 2 dil, yerleşim + açılmama kutusu +
+gizli ekran negatif çapası) · `test_ortak.py` **36/36** (+`sozluk_yonetim.test.js`; ortak node 580) · `sim3_web.py`
+162/162 (zlib-ng) · `sim3_bant.py` 77/78 · `test_belge_dil.py` 79/79 · mobil vitest 601/601 · mutasyon `CE:`
+**27/27 YAKALANDI** (Öncelik 2 +7; v-show mutasyonu metin çevrilince kaçınca gizli ekran negatif çapası eklendi) ·
+anahtarı değişen 9 eski mutasyonun deseni daha yeni koda taşındı (desen kaybı 32 → 32).
+
+**`dogrula3.py --artimli` (bulut, zlib-ng sitecustomize ile).** B1…B73 koştu, **B3'te durdu** (`kicad-cli.exe`
+yok — 5.12.119'daki gibi): B8 89/89 · B11 22/23 (B11-6 envanter) · B17 31/31 · B20 76/78 (1a-bis ortamdan + 9:
+Öncelik 1'in sim3_bant hatası — `e7fdc29` ile düzeldi, tek başına 77/78) · B21 85/85 (avr-gcc kurulu) · B58f 31/31 ·
+B22a 197/201 (PC3 ×4: `SeriKart` yalnız Windows) · B22b 160/162 (6p / 6q: zincir alt süreçleri ortamı süzüyor,
+Linux zlib; tek başına zlib-ng ile 162/162) · B25 50/50 · B71 382/382 · B72 257/259 (P1/P2: çekirdeğin
+`huge_app.csv`'si yok) · B73 36/36. B7 zincirde B3'ten sonra: tek başına 1060/1060. Kırmızıların hepsi ortamdan.
+B7 tam mutasyon taraması (Öncelik 1 anlık görüntüsü, 652): yalnız 2 KACTI, ikisi de değişiklik öncesi kodda da kaçıyor
+(hashchange dinleyicisi — açık iş CE-5; plan başlangıcı `+ 'Z'` — bulut UTC'de görünmez, İstanbul saat diliminde
+yakalanıyor).
+
+**Sayım kilidi YAZILMADI** (`beklenen_sayim.json`). İddia sayısı değişen adımlar: **B7** `test_arayuz3.js`
+998 → **1060** · **B73** `test_ortak.py` 33 → **36** (üç yeni sözlük testi) · B20 değişmedi (78; 9. adımın içeriği
+değişti) · B21 bulutta 85 (avr-gcc ile; kilitteki değer yerelde).
+
+**Yerelde yapılacaklar.** `python uretim/arayuz-uret.py` (mklittlefs, Windows zlib-ng: aynı `_fs.json` baytları
+beklenir) · tam `python uretim/dogrula3.py`, sonra `--sayim-kilidi-yaz` · karta panel yükleme (`arayuz-yaz.py`) ve
+İngilizce README görüntülerini yeniden çekme (`cek_en_pc.js`, telefon) · tarayıcı adımları (T3A…T4D, Edge) TR kipte
+— metinler tembel sözlükten indiği için bekleme gerekirse orada görülür.
+
 **Bulut ortamı.** `_fs.json` + `sw.js` 5.12.118'in yoluyla (arayuz-uret.py'nin AYNI fonksiyonları + `zlib_ng`):
 değişmeyen 44 dosya kayıttaki baytla BİREBİR (`etag` + `bayt`); `goruntu_bayt` önceki değer (mklittlefs yok).
 avr-gcc: Ubuntu `gcc-avr` 7.3.0, Windows yoluna ev klasöründe sembolik bağ (depo dışı).

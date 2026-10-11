@@ -303,6 +303,8 @@ export const SOZLUK = Object.freeze({
   "kb.baglanti": S("Bağlantı", "Wiring"),
   "kb.baglanti_ipucu": S("Bu ölçümde neyi nereye takacağın (kutunun ön paneli)",
     "What to plug where for this measurement (front panel of the box)"),
+  "kb.ekran_yuklenemedi": S("{ekran} ekranı yüklenemedi (modül inmedi) — kart yeniden başlıyor olabilir; birkaç saniye sonra sayfayı yenileyin.",
+    "The {ekran} screen did not load (module missing) — the board may be restarting; reload the page in a few seconds."),
   "kb.baglanti_yuklenemedi": S("Bağlantı bilgisi yüklenemedi (modül inmedi) — birkaç saniye sonra yeniden deneyin.",
     "The wiring guide could not be loaded (module did not arrive) — try again in a few seconds."),
   "kb.ayar_alt": S("bağlantı · ağ · kalibrasyon ve geçmişi · depolama · dil · görünüm", "connection · network · calibration and its history · storage · language · appearance"),

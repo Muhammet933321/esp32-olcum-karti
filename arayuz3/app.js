@@ -141,7 +141,7 @@ const TasiyiciSeri = {
   async ac(uyg) {
     uyg.port = await navigator.serial.requestPort();
     await uyg.port.open({ baudRate: 115200 });
-    uyg.kaydet('— bağlandı, 115200 baud —');
+    uyg.kaydet(uyg.tembelMetin('kk', 'kk.log_bagli'));
     this.oku(uyg);
   },
   async kapat(uyg) {
@@ -234,7 +234,7 @@ const TasiyiciAkis = {
         uyg.surucuyum = !!k.surucu;
       } catch (err) { /* kimlik olayı yoksa varsayılan geçerli */ }
     });
-    uyg.kaydet('— akış açıldı: ' + uyg.kartAdres('/akis') + ' —');
+    uyg.kaydet(uyg.tembelMetin('kk', 'kk.log_akis', { adres: uyg.kartAdres('/akis') }));
     /* 🔴 B27 A2 — `kimlik` GELMEDEN DÖNME. Kart komut ucunda önce jetona
        bakıyor (403), sonra parolaya (401). `ac()` hemen dönünce baglan()
        `?`yi BOŞ jetonla yolluyordu: gerçek kartta CDP ile ölçüldü, her
@@ -373,6 +373,11 @@ const KB_METIN = Object.freeze({
   baglantiBilgi: 'kb.baglanti', baglantiIpucu: 'kb.baglanti_ipucu',
   esitlenmemisYok: 'kb.esitlenmemis_yok', surumIpucu: 'kb.surum_ipucu',
   icerigeGec: 'kb.icerige_gec', esitlenmemisBagliDegil: 'kb.esitlenmemis_bagli_degil', pilCalisiyor: 'kb.pil_calisiyor',
+});
+/* 5.12.121 (CE): Gorunum kartinin tema adlari / aciklamalari (ekran/tema.js kimlikleri -> sozluk_yonetim.js) */
+const TEMA_METIN = Object.freeze({
+  sistem: ['yn.tema_sistem', 'yn.tema_sistem_alt'], koyu: ['yn.tema_koyu', 'yn.tema_koyu_alt'],
+  acik: ['yn.tema_acik', 'yn.tema_acik_alt'], onpanel: ['yn.tema_onpanel', 'yn.tema_onpanel_alt'],
 });
 const CN_METIN = Object.freeze({
   baslik: 'cn.baslik', okumalar: 'cn.okumalar', gerilim: 'cn.gerilim', akim: 'cn.akim', guc: 'cn.guc',
@@ -1027,7 +1032,15 @@ createApp({
       /* Modul inmezse (bayat goruntu, kart yeniden basliyor) sekme BOS kalmasin:
          sebep + care (DEVIR 4.15 dersi). Sozluk de o modullerle iniyor — bu
          metin bu yuzden burada. */
-      errorComponent: { template: '<p class="hata">Kayıtlar ekranı yüklenemedi (modül inmedi) — kart yeniden başlıyor olabilir; birkaç saniye sonra sayfayı yenileyin.</p>' },
+      errorComponent: {
+        template: '<p class="hata">{{ metin }}</p>',
+        data() {
+          let depo = null;
+          try { depo = window.localStorage; } catch (e) { depo = null; }
+          const dil = dilSec(depo);
+          return { metin: ceviri('kb.ekran_yuklenemedi', dil, { ekran: ceviri('kb.kayitlar', dil) }) };
+        },
+      },
     }),
     /* 2026-10-06: "ⓘ Baglanti" penceresi — KAPALI baslar, ilk acilista iner (resimler
        ortak/baglanti_veri.js'te, ~100 KB; acilis butcesine girmez). */
@@ -1056,7 +1069,15 @@ createApp({
     /* 3G: Karsilastirma ekrani da ilk acilista iner (ayni desen, ayni gerekce). */
     'karsilastir-ekran': defineAsyncComponent({
       loader: () => import('./ekran/karsilastir.js').then((m) => m.KarsilastirEkrani),
-      errorComponent: { template: '<p class="hata">Karşılaştırma ekranı yüklenemedi (modül inmedi) — kart yeniden başlıyor olabilir; birkaç saniye sonra sayfayı yenileyin.</p>' },
+      errorComponent: {
+        template: '<p class="hata">{{ metin }}</p>',
+        data() {
+          let depo = null;
+          try { depo = window.localStorage; } catch (e) { depo = null; }
+          const dil = dilSec(depo);
+          return { metin: ceviri('kb.ekran_yuklenemedi', dil, { ekran: ceviri('kb.karsilastir', dil) }) };
+        },
+      },
     }),
     /* 3H (AY2): Ayarlar'in kalibrasyon gecmisi / depolama / gelismis bolumleri; o bolum ILK
        acilinca iner (ayni desen). Hata metni secili dilde (sozluk acilista zaten inmis). */
@@ -1204,7 +1225,7 @@ createApp({
       skopAcik: hashtenGorunum() === 'skop',
       skopDurum: 'bekliyor',       // 'bekliyor' | 'yukleniyor' | 'hazir' | 'yuklenemedi'
       /* 5.12.121 (CE): tembel sozluk modulleri (ortak/sozluk_kabuk.js kurulunca, sozluk_osilo.js skopYukle'de) */
-      kkMod: null, skMod: null,
+      kkMod: null, skMod: null, ynMod: null,
       spektrumBilgi: null,         // SpektrumGrafik.ciz bilgisi (tepe, harmonikler, thd, df …)
       spektrumPencere: 'hann',     // OS3: 'hann' | 'dikdortgen' (tercih)
       spektrumBirim: 'v',          // OS3: 'v' (tepe) | 'dbv' (tercih)
@@ -1584,6 +1605,8 @@ createApp({
     os() { return metinHaritasi(OS_METIN, this.dil); },
     /** CE: ust seridin hata metni — dize ya da (sozluk henuz inmemisken kurulan) tembel betimleyici. */
     hataYazi() { return this.tembelYazi(this.hata); },
+    /** CE (Oncelik 2): Ayarlar ya da Konsol gorunur -> sozluk_yonetim.js gerekli (ayarModGerekli deseni). */
+    yonetimGerekli() { return this.gorunum === 'ayar' || this.gorunum === 'konsol'; },
     /** CE: osiloskop durum satiri ("417 örnek · 83.33 kSa/s · pencere 5.00 ms · tetiklendi"). */
     skopDurumYazi() {
       const o = this.osilo;
@@ -1700,20 +1723,16 @@ createApp({
       const f = parseFloat(this.sebekeHz);
       if (!isFinite(f)) return '';
       if (f <= 0) {
-        return 'Ölçek düzeltmesi KAPALI (DC). AC ölçerken güç |H|² kadar '
-             + 'düşük okunur — 50 Hz\'te yaklaşık %45.';
+        return this.ynMetin('yn.sebeke_kapali');
       }
       /* τ'lar olcum3.h ile aynı (TAU_NORMAL, TAU_AKIM) — bu bir GÖSTERGE,
          ölçüm değil; firmware kendi çarpanını kendisi hesaplıyor. */
       const w = (tau) => Math.sqrt(1 + Math.pow(2 * Math.PI * f * tau, 2));
       const k = w(0.00285957) * w(0.00290400);
-      let s = 'Güce uygulanan ölçek çarpanı: ×' + k.toFixed(3)
-            + '  (' + f.toFixed(0) + ' Hz ayarıyla)';
-      if (f < 40 || f > 70) {
-        s += '  ⚠ 40–70 Hz dışında faz kalibrasyonu (F) geçerliliğini yitirir.';
-      }
-      s += '  ⚠ DC ölçerken DC seçilmezse güç %82 yüksek okunur.';
-      return s;
+      if (!this.ynMod) return '';
+      let s = this.ynMetin('yn.sebeke_carpan', { k: k.toFixed(3), f: f.toFixed(0) });
+      if (f < 40 || f > 70) s += '  ' + this.ynMetin('yn.sebeke_faz');
+      return s + '  ' + this.ynMetin('yn.sebeke_dc_uyari');
     },
 
     /* ─────────────────────────────────────────── osiloskop göstergeleri */
@@ -2062,9 +2081,9 @@ createApp({
        ters çevrilmiş hâli. Kart bunu `D` satırının `durum` alanında söylüyor. */
     /* B27/K5 */
     kartSontYazi() {
-      if (this.kartSont === null) return 'kart: — (bağlanınca okunur)';
       const r = this.kartSont;
-      return 'kart: ' + (r < 1 ? (r * 1000).toFixed(r < 0.1 ? 0 : 1) + ' mΩ' : r + ' Ω');
+      return this.ynMetin('yn.kart_sont', { deger: r === null ? this.ynMetin('yn.sont_bilinmiyor')
+        : r < 1 ? (r * 1000).toFixed(r < 0.1 ? 0 : 1) + ' mΩ' : r + ' Ω' });
     },
     sontUyumsuz() {
       if (this.kartSont === null) return false;
@@ -2206,6 +2225,8 @@ createApp({
     dil(v) { dilUygula(v, this.gorunum); },
     /* 3H (AY2): tembel Ayarlar modulu BIR KEZ kurulur (sonra v-show'lu bolumleriyle kalir). */
     ayarModGerekli(v) { if (v) this.ayarModAcik = true; },
+    /* CE (Oncelik 2): Ayarlar / Konsol kabugunun metinleri o ekran ILK gorunur olunca (yonetimYukle bir kez) */
+    yonetimGerekli(v) { if (v) this.yonetimYukle(); },
     eslesmeModGerekli(v) { if (v) this.eslesmeModAcik = true; },
     /* Tasiyici degisince ONCE mevcut baglantiyi kapat — akis acikken
        seriye gecmek iki kaynagin ayni ayristiriciyi beslemesi demek. */
@@ -2216,7 +2237,7 @@ createApp({
         await TASIYICILAR[acik].kapat(this);
         this.bagli = false;
         this.bagliTasiyici = null;
-        this.kaydet('— taşıyıcı değişti, bağlantı kesildi —');
+        this.kaydet(this.tembelMetin('kk', 'kk.log_tasiyici'));
       }
       /* B27 A2: demo menüden de seçilebiliyor. Sahte kartın kurulumu
          `demoVeri()` içinde (betik indirme + ilk 300 nokta + akış), o
@@ -2227,6 +2248,7 @@ createApp({
 
   mounted() {
     this.kabukYukle();                 // CE: ust seritlerin / Pil kabugunun metinleri (tembel, beklenmez)
+    if (this.yonetimGerekli) this.yonetimYukle();
     this.tercihleriYukle();
     /* 3D (D8): dil — 3H secicisi gelene dek localStorage (3C ile ayni anahtar). */
     let depo = null;
@@ -2337,6 +2359,7 @@ createApp({
     /* ═══ 3D — KABUK (D1) ═══════════════════════════════════════════════ */
     metin(anahtar, degiskenler = null) { return ceviri(anahtar, this.dil, degiskenler); },
     /** CE: Canli yenileme seceneginin adi; varsayilanin eki sozlukten ("(varsayılan)" / "(default)"). */
+    temaYazi(t, i) { const k = TEMA_METIN[t.id]; return k ? this.ynMetin(k[i]) : t.id; },
     raporAd(s) { return s.varsayilan ? this.metin('cn.varsayilan', { ad: s.ad }) : s.ad; },
     /* ── 5.12.121 (CE): TEMBEL sozlukler. kk (ortak/sozluk_kabuk.js) kurulunca, sk (sozluk_osilo.js)
        osiloskop ekraniyla iner; ikisi de acilisi BEKLETMEZ (EU31 / EU32 / #/skop 14 dosya). Inmemisken metin
@@ -2344,16 +2367,25 @@ createApp({
        Inemezse (kart yeniden basliyor) bir sonraki istekte yeniden denenir. */
     kkMetin(anahtar, d = null) { return this.kkMod ? this.kkMod.ceviriKabuk(anahtar, this.dil, d) : ''; },
     skMetin(anahtar, d = null) { return this.skMod ? this.skMod.ceviriOsilo(anahtar, this.dil, d) : ''; },
+    ynMetin(anahtar, d = null) { return this.ynMod ? this.ynMod.ceviriYonetim(anahtar, this.dil, d) : ''; },
     tembelMetin(s, anahtar, d = null, ek = '') {
-      const mod = s === 'sk' ? this.skMod : this.kkMod;
-      if (mod) return (s === 'sk' ? this.skMetin(anahtar, d) : this.kkMetin(anahtar, d)) + ek;
-      if (s === 'sk') this.skopKabukYukle().catch(() => {}); else this.kabukYukle();
+      const mod = s === 'sk' ? this.skMod : s === 'yn' ? this.ynMod : this.kkMod;
+      if (mod) return this.tembelYazi({ s, a: anahtar, d, ek });
+      if (s === 'sk') this.skopKabukYukle().catch(() => {}); else if (s === 'yn') this.yonetimYukle(); else this.kabukYukle();
       return { s, a: anahtar, d, ek };
     },
     tembelYazi(h) {
       if (!h || typeof h !== 'object') return h || '';
-      const m = h.s === 'sk' ? this.skMetin(h.a, h.d) : this.kkMetin(h.a, h.d);
+      const m = h.s === 'sk' ? this.skMetin(h.a, h.d) : h.s === 'yn' ? this.ynMetin(h.a, h.d) : this.kkMetin(h.a, h.d);
       return m ? m + (h.ek || '') : '';
+    },
+    /* CE (Oncelik 2): Ayarlar / Konsol kabugunun metinleri (sozluk_yonetim.js) o ekran ILK gorunur olunca */
+    _yonetimAl() { return import('/ortak/sozluk_yonetim.js'); },
+    yonetimYukle() {
+      if (!this._ynIs) {
+        this._ynIs = this._yonetimAl().then((m) => { this.ynMod = m; return m; }, () => { this._ynIs = null; return null; });
+      }
+      return this._ynIs;
     },
     _kabukAl() { return import('/ortak/sozluk_kabuk.js'); },
     _skopKabukAl() { return import('/ortak/sozluk_osilo.js'); },
@@ -3049,7 +3081,7 @@ createApp({
                  || /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(k.hostname);
       if (!yerel) {
         this.tasiyiciAdi = 'akis';
-        this.kaydet('— sayfa ' + k.host + ' üzerinden geldi: akış kipi —');
+        this.kaydet(this.tembelMetin('kk', 'kk.log_sayfa', { host: k.host }));
         return;
       }
 
@@ -3059,7 +3091,7 @@ createApp({
         const d = await y.json();
         if (d && d.kart) {
           this.tasiyiciAdi = 'akis';
-          this.kaydet('— köprü algılandı: ' + d.kart + ' —');
+          this.kaydet(this.tembelMetin('kk', 'kk.log_kopru', { kart: d.kart }));
         }
       } catch (e) { /* köprü yok — seri kipte kal */ }
     },
@@ -3130,7 +3162,7 @@ createApp({
       this.tasiyiciAdi = 'demo';
       this.bagli = true;
       this.bagliTasiyici = 'demo';
-      this.kaydet('— DEMO KIPI: karta bagli degil, sahte kart calisiyor —');
+      this.kaydet(this.tembelMetin('kk', 'kk.log_demo'));
 
       // gecmis grafigi icin birikmis olcum akisi
       let j = 0;
@@ -3173,8 +3205,7 @@ createApp({
 
     demoSinyalDegisti() {
       SahteKart.sinyalSec(this.demoSinyal);
-      this.kaydet('— test sinyali: ' +
-                  SahteKart.sinyaller[this.demoSinyal].ad + ' —');
+      this.kaydet(this.tembelMetin('kk', 'kk.log_sinyal', { ad: SahteKart.sinyaller[this.demoSinyal].ad }));
       this.osiloOtomatik();
     },
 
@@ -3246,7 +3277,7 @@ createApp({
       this.bagliTasiyici = null;
       this.pilBayat = true;              // 3F: yeniden baglaninca pil durumu yeniden sorulur
       this.pilDurumBilinen = false;
-      this.kaydet('— bağlantı kesildi —');
+      this.kaydet(this.tembelMetin('kk', 'kk.log_kesildi'));
     },
 
     /* ⚠ ÇAĞRI YERLERİ DEĞİŞMEDİ: `gonder('z')`, `gonder('F' + d)` …
@@ -3594,19 +3625,19 @@ createApp({
        ⚠ Parolalar duz metin gidiyor. USB'de sorun degil; ag uzerinden
          kuruluyorsa sablondaki uyari bunu soyluyor (TLS yok). */
     agSsidGonder() {
-      if (!this.agSsid) { this.hata = 'Ağ adı boş olamaz'; return; }
+      if (!this.agSsid) { this.hata = this.tembelMetin('yn', 'yn.hata_ssid'); return; }
       this.gonder('Na' + this.agSsid);
     },
     /* WIG: bos ag parolasi GITMEZ — kart bir sonraki acilista WPA agina baglanamaz, AP'ye
        duser, geri donmek USB ister. Parolasiz (acik) ag gercekten isteniyorsa Konsol'dan `Np`. */
     agSifreGonder() {
-      if (!this.agSifre) { this.hata = 'Parola boş olamaz — parolasız (açık) ağ için Konsol\'dan Np gönderin.'; return; }
+      if (!this.agSifre) { this.hata = this.tembelMetin('yn', 'yn.hata_parola'); return; }
       this.gonder('Np' + this.agSifre); this.agSifre = '';
     },
     agWebSifreGonder() {
       /* WIG: bos gondermek parolayi KALDIRIR (firmware HEMEN uygular) — bos alan/Enter bunu
          artik yapmaz; koruma yalniz iki asamali "Korumayi kaldir" (agWebKorumaKaldir) ile kalkar. */
-      if (!this.agWebSifre) { this.hata = 'Web parolası boş olamaz — korumayı kaldırmak için “Korumayı kaldır”ı kullanın.'; return; }
+      if (!this.agWebSifre) { this.hata = this.tembelMetin('yn', 'yn.hata_web_parola'); return; }
       this.gonder('Ns' + this.agWebSifre);
       this.agWebSifre = '';
     },
@@ -3674,12 +3705,12 @@ createApp({
          kalibre edilebilir. Yalnizca sifira yakin deger anlamsiz —
          onu firmware zaten reddediyor (tam olcegin %5'i esigi). */
       if (isFinite(v) && v !== 0) { this.gonder('g' + v); this.kalibV = ''; }
-      else this.hata = 'Gerilim kalibrasyonu: sıfırdan farklı bir sayı girin (ör. 12.34 ya da −24).';
+      else this.hata = this.tembelMetin('yn', 'yn.hata_v');
     },
     kalibreA() {
       const a = parseFloat(this.kalibA.replace(',', '.'));
       if (isFinite(a) && a !== 0) { this.gonder('i' + a); this.kalibA = ''; }
-      else this.hata = 'Akım kalibrasyonu: sıfırdan farklı bir sayı girin, amper (ör. 0.250).';
+      else this.hata = this.tembelMetin('yn', 'yn.hata_a');
     },
     menzilSec(m) {
       this.gonder(m === 1 ? 'y' : 'n');
@@ -3703,9 +3734,9 @@ createApp({
        sayfasinda gorus alaninin disinda kaliyordu. */
     fazGonder() {
       const d = parseFloat(String(this.fazKal).replace(',', '.'));
-      if (!isFinite(d)) { this.fazHata = 'Faz kalibrasyonu: sayı girin (µs), ör. 120'; return; }
+      if (!isFinite(d)) { this.fazHata = this.tembelMetin('yn', 'yn.hata_faz'); return; }
       if (d < -2000 || d > 2000) {
-        this.fazHata = 'Faz kalibrasyonu −2000 … +2000 µs arası olmalı';
+        this.fazHata = this.tembelMetin('yn', 'yn.hata_faz_aralik');
         return;
       }
       this.fazHata = '';

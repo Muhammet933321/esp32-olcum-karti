@@ -48,6 +48,15 @@ export const SOZLUK_KABUK = Object.freeze({
     "Could not connect: {mesaj} — the port may be in use by another program (Arduino serial monitor, bench script); close it and connect again."),
   "kk.baglanamadi": S("Bağlanamadı: {mesaj} — kablo ve kartın açık olduğunu denetleyip yeniden deneyin.",
     "Could not connect: {mesaj} — check the cable and that the board is on, then try again."),
+  // ── panelin Konsol'a dustugu kendi satirlari (kartin satirlari DEGIL; onlar oldugu gibi)
+  "kk.log_bagli": S("— bağlandı, 115200 baud —", "— connected, 115200 baud —"),
+  "kk.log_akis": S("— akış açıldı: {adres} —", "— stream opened: {adres} —"),
+  "kk.log_tasiyici": S("— taşıyıcı değişti, bağlantı kesildi —", "— transport changed, disconnected —"),
+  "kk.log_sayfa": S("— sayfa {host} üzerinden geldi: akış kipi —", "— page came via {host}: stream mode —"),
+  "kk.log_kopru": S("— köprü algılandı: {kart} —", "— bridge detected: {kart} —"),
+  "kk.log_demo": S("— DEMO KIPI: karta bagli degil, sahte kart calisiyor —", "— DEMO MODE: not connected to a board, simulated board running —"),
+  "kk.log_sinyal": S("— test sinyali: {ad} —", "— test signal: {ad} —"),
+  "kk.log_kesildi": S("— bağlantı kesildi —", "— disconnected —"),
   // ── Canli
   "kk.yenileme_ipucu": S("Kart bu aralıkta bir D satırı yollar; her nokta o aralığın ortalaması. Sadece sürücü değiştirebilir.",
     "The board sends one D line per interval; each point is that interval's average. Only the driver can change it."),

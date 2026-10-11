@@ -911,10 +911,10 @@
 
   <!-- B27 Aşama 3: üst şeritten taşındı -->
   <section class="kart" v-show="ayarBolum === 'baglanti'" data-ay-bolum="baglanti">
-    <h2>Bağlantı</h2>
+    <h2>{{ metin('ay.b_baglanti') }}</h2>
     <div class="satir">
       <div class="alan">
-        <label for="ayar-tasiyici">Bağlantı yolu</label>
+        <label for="ayar-tasiyici">{{ ynMetin('yn.baglanti_yolu') }}</label>
         <!-- B22.2: TAŞIYICI SEÇİCİ. Modlar arasındaki fark kodda değil
              burada: aynı arayüz, farklı yol.
              B27 A2: `demo` seçeneği EKLENDİ — ?demo ile açınca taşıyıcı
@@ -922,65 +922,59 @@
              görünüyordu. -->
         <select id="ayar-tasiyici" v-model="tasiyiciAdi" :disabled="bagli">
           <option value="seri">USB (Web Serial)</option>
-          <option value="akis">WiFi / köprü (akış)</option>
-          <option value="demo">Demo — sahte kart</option>
+          <option value="akis">{{ ynMetin('yn.yol_akis') }}</option>
+          <option value="demo">{{ ynMetin('yn.yol_demo') }}</option>
         </select>
       </div>
       <div class="alan" v-if="tasiyiciAdi === 'akis'" style="flex:1">
-        <label for="ayar-kart-adres">Kart adresi</label>
+        <label for="ayar-kart-adres">{{ ynMetin('yn.kart_adresi') }}</label>
         <!-- WIG: type=url (telefonda URL klavyesi), büyük harf/düzeltme kapalı.
              Şemasız yazılan adrese app.js kartAdres() http:// ekliyor. -->
         <input id="ayar-kart-adres" type="url" inputmode="url" name="kart-adres" autocomplete="off"
                autocapitalize="off" autocorrect="off" spellcheck="false" v-model="kartTaban" :disabled="bagli"
-               placeholder="ör. http://192.168.1.50…" aria-describedby="ayar-kart-adres-ipucu">
-        <span class="ipucu" id="ayar-kart-adres-ipucu" style="margin:0">Boş = sayfayı sunan adres (aynı köken).</span>
+               :placeholder="ynMetin('yn.or') + ' http://192.168.1.50…'" aria-describedby="ayar-kart-adres-ipucu">
+        <span class="ipucu" id="ayar-kart-adres-ipucu" style="margin:0">{{ ynMetin('yn.adres_ipucu') }}</span>
       </div>
       <button v-if="!bagli" class="birincil" @click="baglan" :disabled="!destekli">
-        Karta bağlan
+        {{ m.baglan }}
       </button>
-      <button v-else @click="kes">Bağlantıyı kes</button>
+      <button v-else @click="kes">{{ m.kes }}</button>
     </div>
-    <p class="ipucu">
-      Sayfayı <b>kart sunuyorsa</b> yol kendiliğinden <em>akış</em> seçilir ve
-      bağlantı otomatik kurulur. <b>USB</b> yalnızca <code>http://localhost</code>
-      üzerinden açıldığında çalışır (Web Serial güvenli bağlam ister).
-      Telefonda <code>.local</code> adı Android'de çözülmez —
-      kartın <b>IP adresini</b> kullanın.
-    </p>
+    <p class="ipucu" v-html="ynMetin('yn.baglanti_ipucu_html')"></p>
   </section>
 
   <section class="kart" v-show="ayarBolum === 'kalibrasyon'" data-ay-bolum="kalibrasyon">
-    <h2>Kalibrasyon ve ayar</h2>
+    <h2>{{ ynMetin('yn.kal_baslik') }}</h2>
 
     <div class="satir" style="margin-bottom:14px">
       <div class="alan">
         <!-- WIG: <label> bir düğme grubunu adlandıramaz; grup adı aria-labelledby ile,
              seçili menzil aria-pressed ile (614 V menzili emniyet bilgisi). -->
-        <span class="alan-ad" id="menzil-etiket">Gerilim menzili</span>
+        <span class="alan-ad" id="menzil-etiket">{{ ynMetin('yn.menzil') }}</span>
         <div class="dugme-grup" role="group" aria-labelledby="menzil-etiket">
           <button @click="menzilSec(0)" :disabled="!bagli"
                   :class="{ etkin: menzil === 0 }" :aria-pressed="menzil === 0 ? 'true' : 'false'">NORMAL ±32 V</button>
           <button @click="menzilSec(1)" :disabled="!bagli"
-                  :class="{ etkin: menzil === 1 }" :aria-pressed="menzil === 1 ? 'true' : 'false'">YÜKSEK ±614 V</button>
+                  :class="{ etkin: menzil === 1 }" :aria-pressed="menzil === 1 ? 'true' : 'false'">{{ metin('cn.yuksek') }} ±614 V</button>
         </div>
       </div>
       <button @click="otoMenzilDegistir" :disabled="!bagli"
-              :class="{ etkin: otoMenzil }" :aria-pressed="otoMenzil ? 'true' : 'false'">Otomatik menzil</button>
+              :class="{ etkin: otoMenzil }" :aria-pressed="otoMenzil ? 'true' : 'false'">{{ ynMetin('yn.oto_menzil') }}</button>
     </div>
 
     <div class="satir" style="margin-bottom:14px">
       <div class="alan">
-        <label for="ayar-sont">Takılı şönt</label>
+        <label for="ayar-sont">{{ ynMetin('yn.sont') }}</label>
         <select id="ayar-sont" v-model="sontSecim" @change="sontGonder">
           <option value="10">10R — ±26 mA</option>
           <option value="1">1R — ±256 mA</option>
           <option value="0.1">0.1R — ±2.56 A</option>
-          <option value="0.015">15 mΩ — ±11.5 A (Kelvin şart)</option>
+          <option value="0.015">15 mΩ — ±11.5 A ({{ ynMetin('yn.kelvin') }})</option>
         </select>
-        <span class="ipucu" :class="{ 'uyari-metin': sontUyumsuz }">{{ kartSontYazi }}<template v-if="sontUyumsuz"> — menüyle UYUŞMUYOR, menü tercihini gösterir, kart bunu kullanıyor</template></span>
+        <span class="ipucu" :class="{ 'uyari-metin': sontUyumsuz }">{{ kartSontYazi }}<template v-if="sontUyumsuz">{{ ' ' + ynMetin('yn.sont_uyumsuz') }}</template></span>
       </div>
-      <button @click="komut('?')" :disabled="!bagli">Ayarları göster</button>
-      <button @click="komut('#')" :disabled="!bagli">I²C tara → Konsol</button>
+      <button @click="komut('?')" :disabled="!bagli">{{ ynMetin('yn.ayarlari_goster') }}</button>
+      <button @click="komut('#')" :disabled="!bagli">{{ ynMetin('yn.i2c_tara') }}</button>
     </div>
 
     <!-- WIG: SIFIRLAMALAR İKİ AŞAMALI ve "göster" düğmelerinden AYRI satırda. Sıfırlar
@@ -988,40 +982,40 @@
          bozar; enerji sayacının Wh'si geri gelmez. Onay metni ön koşulu söylüyor. -->
     <div class="satir" style="margin-bottom:14px">
       <button v-if="onay !== 'gerilimSifir'" data-onay-ac="gerilimSifir" @click="onayIste('gerilimSifir')"
-              :disabled="!bagli">Gerilimi sıfırla</button>
+              :disabled="!bagli">{{ ynMetin('yn.v_sifirla') }}</button>
       <template v-else>
-        <button class="tehlike" data-onay="gerilimSifir" @click="sifirlaV" :disabled="!bagli">Eminim — giriş 0 V'ta</button>
-        <button @click="onayVazgec('gerilimSifir')">Vazgeç</button>
+        <button class="tehlike" data-onay="gerilimSifir" @click="sifirlaV" :disabled="!bagli">{{ ynMetin('yn.v_sifirla_emin') }}</button>
+        <button @click="onayVazgec('gerilimSifir')">{{ m.vazgec }}</button>
       </template>
       <button v-if="onay !== 'akimSifir'" data-onay-ac="akimSifir" @click="onayIste('akimSifir')"
-              :disabled="!bagli">Akımı sıfırla</button>
+              :disabled="!bagli">{{ ynMetin('yn.a_sifirla') }}</button>
       <template v-else>
-        <button class="tehlike" data-onay="akimSifir" @click="sifirlaA" :disabled="!bagli">Eminim — yük çıkarıldı</button>
-        <button @click="onayVazgec('akimSifir')">Vazgeç</button>
+        <button class="tehlike" data-onay="akimSifir" @click="sifirlaA" :disabled="!bagli">{{ ynMetin('yn.a_sifirla_emin') }}</button>
+        <button @click="onayVazgec('akimSifir')">{{ m.vazgec }}</button>
       </template>
       <button v-if="onay !== 'enerjiSifir'" data-onay-ac="enerjiSifir" @click="onayIste('enerjiSifir')"
-              :disabled="!bagli">Enerjiyi sıfırla</button>
+              :disabled="!bagli">{{ ynMetin('yn.e_sifirla') }}</button>
       <template v-else>
-        <button class="tehlike" data-onay="enerjiSifir" @click="enerjiSifirla" :disabled="!bagli">Eminim, enerjiyi sıfırla</button>
-        <button @click="onayVazgec('enerjiSifir')">Vazgeç</button>
+        <button class="tehlike" data-onay="enerjiSifir" @click="enerjiSifirla" :disabled="!bagli">{{ ynMetin('yn.e_sifirla_emin') }}</button>
+        <button @click="onayVazgec('enerjiSifir')">{{ m.vazgec }}</button>
       </template>
     </div>
 
     <div class="satir">
 
       <div class="alan">
-        <label for="ayar-kalib-v">Gerçek gerilim (multimetre)</label>
-        <input id="ayar-kalib-v" type="text" v-model="kalibV" placeholder="12.34 · −24 da olur…"
+        <label for="ayar-kalib-v">{{ ynMetin('yn.gercek_v') }}</label>
+        <input id="ayar-kalib-v" type="text" v-model="kalibV" :placeholder="ynMetin('yn.gercek_v_ornek')"
                autocomplete="off" autocapitalize="off" spellcheck="false" @keyup.enter="kalibreV">
       </div>
-      <button @click="kalibreV" :disabled="!bagli || !kalibV">Gerilimi kalibre et</button>
+      <button @click="kalibreV" :disabled="!bagli || !kalibV">{{ ynMetin('yn.v_kalibre') }}</button>
 
       <div class="alan">
-        <label for="ayar-kalib-a">Gerçek akım, amper</label>
-        <input id="ayar-kalib-a" type="text" v-model="kalibA" placeholder="0.250 · −0.25 da olur…"
+        <label for="ayar-kalib-a">{{ ynMetin('yn.gercek_a') }}</label>
+        <input id="ayar-kalib-a" type="text" v-model="kalibA" :placeholder="ynMetin('yn.gercek_a_ornek')"
                autocomplete="off" autocapitalize="off" spellcheck="false" @keyup.enter="kalibreA">
       </div>
-      <button @click="kalibreA" :disabled="!bagli || !kalibA">Akımı kalibre et</button>
+      <button @click="kalibreA" :disabled="!bagli || !kalibA">{{ ynMetin('yn.a_kalibre') }}</button>
     </div>
 
     <!-- B20: `f` ve `F` komutları B17'de firmware'e eklenmiş ama arayüze
@@ -1030,53 +1024,41 @@
          güç %82 yüksek okunuyordu ve bunu düzeltecek bir denetim yoktu. -->
     <div class="satir" style="margin-top:14px">
       <div class="alan">
-        <label for="ayar-sebeke">Şebeke frekansı (ölçek düzeltmesi)</label>
+        <label for="ayar-sebeke">{{ ynMetin('yn.sebeke') }}</label>
         <select id="ayar-sebeke" v-model="sebekeHz" @change="sebekeGonder">
-          <option value="0">DC — düzeltme KAPALI</option>
-          <option value="50">50 Hz (Türkiye)</option>
+          <option value="0">{{ ynMetin('yn.sebeke_dc') }}</option>
+          <option value="50">{{ ynMetin('yn.sebeke_50') }}</option>
           <option value="60">60 Hz</option>
         </select>
       </div>
       <div class="alan">
-        <label for="ayar-faz">Faz kalibrasyonu, µs (−2000 … +2000)</label>
+        <label for="ayar-faz">{{ ynMetin('yn.faz') }}</label>
         <!-- WIG: talimat yer tutucuda değil (yazınca kayboluyordu) — altta; hata alanın yanında -->
-        <input id="ayar-faz" type="text" v-model="fazKal" placeholder="ör. 120…"
+        <input id="ayar-faz" type="text" v-model="fazKal" :placeholder="ynMetin('yn.or') + ' 120…'"
                autocomplete="off" autocapitalize="off" spellcheck="false"
                :aria-invalid="fazHata ? 'true' : 'false'" aria-describedby="faz-hata ayar-faz-ipucu"
                @keyup.enter="fazGonder">
-        <span class="ipucu" id="ayar-faz-ipucu" style="margin:0">Dirençli yükte PF'yi en büyük yapan değer.</span>
+        <span class="ipucu" id="ayar-faz-ipucu" style="margin:0">{{ ynMetin('yn.faz_ipucu') }}</span>
       </div>
-      <button @click="fazGonder" :disabled="!bagli || !fazKal">Fazı ayarla</button>
-      <button @click="komut('F')" :disabled="!bagli">Fazı sor → Konsol</button>
+      <button @click="fazGonder" :disabled="!bagli || !fazKal">{{ ynMetin('yn.faz_ayarla') }}</button>
+      <button @click="komut('F')" :disabled="!bagli">{{ ynMetin('yn.faz_sor') }}</button>
     </div>
-    <p v-if="fazHata" class="hata" role="alert" id="faz-hata">{{ fazHata }}</p>
+    <p v-if="fazHata" class="hata" role="alert" id="faz-hata">{{ tembelYazi(fazHata) }}</p>
 
     <p class="uyari" style="margin-top:12px">
-      ⚠ <b>Fabrika ayarları</b> tüm kalibrasyonu (gerilim/akım sıfırı ve
-      kazancı, şönt, faz) siler ve kartı varsayılanlara döndürür. Yalnızca
-      kalibrasyon bozulduysa kullanın — kart tekrar kalibre edilmelidir.
+      <span v-html="ynMetin('yn.fabrika_html')"></span>
       <button @click="fabrikaSifirla" :disabled="!bagli" data-onay-ac="fabrika"
               style="margin-left:8px">
-        {{ sifirlaOnay ? 'Eminim, sıfırla' : 'Fabrika ayarlarına dön' }}
+        {{ ynMetin(sifirlaOnay ? 'yn.fabrika_emin' : 'yn.fabrika') }}
       </button>
-      <button v-if="sifirlaOnay" @click="fabrikaVazgec">Vazgeç</button>
+      <button v-if="sifirlaOnay" @click="fabrikaVazgec">{{ m.vazgec }}</button>
     </p>
 
     <!-- B27 A1: bu iki paragraf yıllardır pil bölümünün ALTINDA duruyordu
          — tek kaydırmalı sayfada fark edilmiyordu; görünümler ayrılınca
          "Pil testi" sekmesinde kalibrasyon talimatı belirdi. Yerine geldi. -->
-    <p class="ipucu">
-      <strong>Sıra önemli.</strong> Önce girişi 0 V'a bağlayın ve
-      “Gerilimi sıfırla” — bu, Vref'in gerçek değerini ölçüp çıkarır.
-      Sonra <strong>yükü kesin</strong> ve “Akımı sıfırla”. En son bilinen bir
-      gerilim/akım uygulayıp multimetrenin okuduğu değeri girin.
-      Kalibrasyon her menzil için <em>ayrı</em> tutulur ve NVS'e yazılır.
-    </p>
-    <p class="ipucu">
-      Kalibrasyon değeri <strong>negatif de olabilir</strong> — kart çift
-      yönlü. Sıfıra çok yakın bir değerle kalibre etmeye çalışırsanız kart
-      reddeder (tam ölçeğin %5'i eşiği).
-    </p>
+    <p class="ipucu" v-html="ynMetin('yn.sira_html')"></p>
+    <p class="ipucu" v-html="ynMetin('yn.negatif_html')"></p>
 
     <p v-if="sebekeUyari" class="uyari" style="margin-top:8px">{{ sebekeUyari }}</p>
 
@@ -1084,20 +1066,10 @@
 
   <!-- ═══════════ B22.4 — AĞ KURULUMU ═══════════ -->
   <section class="kart" v-show="ayarBolum === 'ag'" data-ay-bolum="ag">
-    <h2>Ağ — kartı kablosuz yapma</h2>
+    <h2>{{ ynMetin('yn.ag_baslik') }}</h2>
 
-    <p class="ipucu">
-      <strong>Sıra:</strong> kartı <em>USB ile</em> bağlayın, ağı aşağıdan
-      listeye ekleyin (en çok 8). Kart açılışta kayıtlı ağlardan birine bağlanmayı
-      dener; 10 saniyede olmazsa <strong>kendi ağını kurar</strong>
-      (<code>OLCUM-KARTI-XXXX</code>). AP parolası ilk açılışta rastgele
-      üretilip <strong>seri konsola yazılır</strong> — oradan okuyun.
-    </p>
-    <p v-if="tasiyiciAdi !== 'seri'" class="uyari">
-      ⚠ Şu anda <b>ağ üzerinden</b> bağlısınız. Buraya yazacağınız parolalar
-      <b>şifrelenmeden</b> gidiyor (kartta TLS yok). Ağ kurulumunu
-      tercihen <b>USB ile</b> yapın.
-    </p>
+    <p class="ipucu" v-html="ynMetin('yn.ag_sira_html')"></p>
+    <p v-if="tasiyiciAdi !== 'seri'" class="uyari" v-html="ynMetin('yn.ag_uyari_html')"></p>
 
 
     <!-- coklu ag (2026-10-06, tasarim/2026-10-06-coklu-ag.md): kayitli aglar + tarama + gecis -->
@@ -1145,56 +1117,52 @@
       <div class="alan">
         <!-- WIG: SSID birebir eşleşmeli (büyük/küçük harf, sondaki boşluk): telefon
              klavyesinin otomatik büyük harfi / düzeltmesi KAPALI. -->
-        <label for="ayar-ssid">Eklenecek ağın adı (SSID)</label>
+        <label for="ayar-ssid">{{ ynMetin('yn.ssid') }}</label>
         <input id="ayar-ssid" type="text" name="ssid" autocomplete="off" autocapitalize="off"
                autocorrect="off" spellcheck="false" v-model="agSsid" @keyup.enter="agSsidGonder">
       </div>
-      <button @click="agSsidGonder" :disabled="!bagli || !agSsid">Listeye ekle</button>
+      <button @click="agSsidGonder" :disabled="!bagli || !agSsid">{{ ynMetin('yn.listeye_ekle') }}</button>
       <div class="alan">
         <!-- WIG: new-password — parola yöneticisi bunu giriş formu sanıp kart kökeninin
              kayıtlı parolasını doldurmasın. Boş parola GİTMEZ (kart ev ağına bağlanamazdı). -->
-        <label for="ayar-wifi-parola">Bu ağın parolası</label>
+        <label for="ayar-wifi-parola">{{ ynMetin('yn.ag_parola') }}</label>
         <input id="ayar-wifi-parola" type="password" name="wifi-parola" autocomplete="new-password"
                v-model="agSifre" @keyup.enter="agSifreGonder">
       </div>
-      <button @click="agSifreGonder" :disabled="!bagli || !agSifre">Parolayı yaz</button>
+      <button @click="agSifreGonder" :disabled="!bagli || !agSifre">{{ ynMetin('yn.parola_yaz') }}</button>
     </div>
 
     <div class="satir" style="margin-top:10px">
       <div class="alan">
-        <label for="ayar-web-parola">Yeni web parolası</label>
+        <label for="ayar-web-parola">{{ ynMetin('yn.web_parola') }}</label>
         <input id="ayar-web-parola" type="password" name="web-parola" autocomplete="new-password"
                v-model="agWebSifre" @keyup.enter="agWebSifreGonder">
       </div>
-      <button @click="agWebSifreGonder" :disabled="!bagli || !agWebSifre">Web parolasını yaz</button>
+      <button @click="agWebSifreGonder" :disabled="!bagli || !agWebSifre">{{ ynMetin('yn.web_parola_yaz') }}</button>
       <!-- WIG: korumayı kaldırmak boş alanla DEĞİL, ayrı ve iki aşamalı (Ns hemen geçerli) -->
       <button v-if="onay !== 'webKoruma'" data-onay-ac="webKoruma" @click="onayIste('webKoruma')"
-              :disabled="!bagli">Korumayı kaldır</button>
+              :disabled="!bagli">{{ ynMetin('yn.koruma_kaldir') }}</button>
       <template v-else>
-        <button class="tehlike" data-onay="webKoruma" @click="agWebKorumaKaldir" :disabled="!bagli">Eminim — komut ucu parolasız kalır</button>
-        <button @click="onayVazgec('webKoruma')">Vazgeç</button>
+        <button class="tehlike" data-onay="webKoruma" @click="agWebKorumaKaldir" :disabled="!bagli">{{ ynMetin('yn.koruma_kaldir_emin') }}</button>
+        <button @click="onayVazgec('webKoruma')">{{ m.vazgec }}</button>
       </template>
     </div>
 
     <div class="satir" style="margin-top:10px">
-      <button @click="komut('N?')" :disabled="!bagli">Ağ durumunu sor → Konsol</button>
-      <button @click="komut('N1')" :disabled="!bagli">Ağı aç</button>
+      <button @click="komut('N?')" :disabled="!bagli">{{ ynMetin('yn.ag_durum') }}</button>
+      <button @click="komut('N1')" :disabled="!bagli">{{ ynMetin('yn.ag_ac') }}</button>
       <!-- WIG: ağ üzerinden bağlıyken ağı kapatmak bir sonraki açılışta paneli
            kilitler (geri açmak USB ister): o zaman iki aşamalı. USB'de tek tık. -->
       <button v-if="tasiyiciAdi !== 'seri' && onay !== 'agKapat'" data-onay-ac="agKapat" @click="onayIste('agKapat')"
-              :disabled="!bagli">Ağı kapat</button>
+              :disabled="!bagli">{{ ynMetin('yn.ag_kapat') }}</button>
       <template v-else>
         <button data-onay="agKapat" :class="{ tehlike: tasiyiciAdi !== 'seri' }" @click="komut('N0')"
-                :disabled="!bagli">{{ tasiyiciAdi !== 'seri' ? 'Eminim — sonraki açılışta ağ kapanır, geri açmak USB ister' : 'Ağı kapat' }}</button>
-        <button v-if="tasiyiciAdi !== 'seri'" @click="onayVazgec('agKapat')">Vazgeç</button>
+                :disabled="!bagli">{{ ynMetin(tasiyiciAdi !== 'seri' ? 'yn.ag_kapat_emin' : 'yn.ag_kapat') }}</button>
+        <button v-if="tasiyiciAdi !== 'seri'" @click="onayVazgec('agKapat')">{{ m.vazgec }}</button>
       </template>
     </div>
 
-    <p class="ipucu">
-      Listeye eklenen ağ <strong>bir sonraki bağlantı denemesinde</strong> geçerli; “Bu ağa geç” hemen. Ağ
-      ayarları kalibrasyondan <em>ayrı</em> saklanıyor — WiFi parolası
-      değiştirmek kalibrasyonu silmez.
-    </p>
+    <p class="ipucu" v-html="ynMetin('yn.ag_son_html')"></p>
 
   </section>
 
@@ -1217,18 +1185,14 @@
   </section>
 
   <section class="kart" v-show="ayarBolum === 'dil-gorunum'" data-ay-bolum="dil-gorunum">
-    <h2>Görünüm</h2>
-    <div class="dugme-grup" role="group" aria-label="Görünüm">
+    <h2>{{ ynMetin('yn.gorunum') }}</h2>
+    <div class="dugme-grup" role="group" :aria-label="ynMetin('yn.gorunum')">
       <button v-for="t in temaSecenekleri" :key="t.id" type="button"
               :class="{ etkin: temaSecim === t.id }"
               :aria-pressed="temaSecim === t.id ? 'true' : 'false'"
-              :title="t.alt" @click="temaSecim = t.id">{{ t.ad }}</button>
+              :title="temaYazi(t, 1)" @click="temaSecim = t.id">{{ temaYazi(t, 0) }}</button>
     </div>
-    <p class="ipucu">
-      <b>Sistem</b> işletim sisteminin açık/koyu tercihine uyar ve o
-      değişince kendiliğinden geçer. Seçim bu tarayıcıda saklanır
-      (cihaz başına); grafikler yeni renklerle yeniden çizilir.
-    </p>
+    <p class="ipucu" v-html="ynMetin('yn.gorunum_ipucu_html')"></p>
   </section>
 
   <!-- 3H-1 (AY4-AY6): kalibrasyon geçmişi · depolama · gelişmiş — tembel modül -->
@@ -1452,30 +1416,24 @@
 
   <!-- ───────────────────────────────────────────── günlük -->
   <section class="kart">
-    <h1>Konsol — kartla ham konuşma</h1>
-    <p class="ipucu">
-      Karttan gelen her satır burada — saniyede 20 kez gelen <code>D</code>
-      ölçüm satırı, <code>W</code> hızlı ölçüm satırı ve skop dökümünün
-      ham örnekleri hariç (onlar panelde). <code>y</code> yazıp göndermek
-      komut listesini verir. Panelin gösterdiği her şey bu satırlardan
-      türetiliyor — bir değerden şüphelenirseniz kaynağı burada.
-    </p>
+    <h1>{{ ynMetin('yn.konsol_baslik') }}</h1>
+    <p class="ipucu" v-html="ynMetin('yn.konsol_ipucu_html')"></p>
       <div>
         <div class="satir" style="margin-bottom:10px">
           <div class="alan" style="flex:1">
             <!-- WIG: komutlar büyük/küçük harf DUYARLI (z gerilim / Z akım sıfırı, f50 şebeke /
                  F50 faz): telefonun otomatik büyük harfi ve düzeltmesi KAPALI. -->
-            <input type="text" v-model="elleKomut" placeholder="komut yazın (y = yardım)…"
+            <input type="text" v-model="elleKomut" :placeholder="ynMetin('yn.komut_yaz')"
                    name="komut" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-                   enterkeyhint="send" aria-label="Kart komutu" @keyup.enter="elleGonder">
+                   enterkeyhint="send" :aria-label="ynMetin('yn.kart_komutu')" @keyup.enter="elleGonder">
           </div>
-          <button @click="elleGonder" :disabled="!bagli || !elleKomut">Gönder</button>
-          <button @click="gunluk = []">Günlüğü temizle</button>
+          <button @click="elleGonder" :disabled="!bagli || !elleKomut">{{ ynMetin('yn.gonder') }}</button>
+          <button @click="gunluk = []">{{ ynMetin('yn.gunluk_temizle') }}</button>
         </div>
-        <p v-if="!gunluk.length" class="ipucu">Henüz satır yok — karta bağlanın.</p>
-        <div class="gunluk" ref="gunlukKutu" role="log" aria-live="off" :aria-label="'Kart satırları'" tabindex="0">
+        <p v-if="!gunluk.length" class="ipucu">{{ ynMetin('yn.satir_yok') }}</p>
+        <div class="gunluk" ref="gunlukKutu" role="log" aria-live="off" :aria-label="ynMetin('yn.kart_satirlari')" tabindex="0">
           <div v-for="(s, i) in gunluk" :key="i" :class="{ giden: s.giden }"
-            >{{ s.giden ? '> ' : '' }}{{ s.metin }}</div>
+            >{{ s.giden ? '> ' : '' }}{{ tembelYazi(s.metin) }}</div>
         </div>
       </div>
   </section>
@@ -1496,32 +1454,48 @@
      hemen, (2) 6 sn zaman aşımı — dosya geldi ama Vue mount edemediyse.
      Vue mount edince `#uyg`ün `v-cloak`u düşüyor; ölçüt bu. -->
 <div id="acilmadi" hidden class="hata" style="margin:20px">
-  <strong>Arayüz yüklenemedi.</strong>
-  Kart yeniden başlıyor olabilir — birkaç saniye sonra sayfayı yenileyin.
-  <button onclick="location.reload()" style="margin-left:8px">Yenile</button>
+  <strong id="acilmadi-baslik"></strong>
+  <span id="acilmadi-metin"></span>
+  <button id="acilmadi-yenile" onclick="location.reload()" style="margin-left:8px"></button>
   <div id="acilmadi-neden" style="margin-top:6px;font-size:12px;opacity:.8"></div>
 </div>
 <script>
   (function () {
     var kutu = document.getElementById('acilmadi');
     var neden = document.getElementById('acilmadi-neden');
+    /* 5.12.121 (CE): bu kutu Vue ve sozluk YUKLENEMEDIGINDE cikar — metni burada, `olcum.dil`e gore
+       (app.js dilSec ile ayni kural: JSON "en" ise Ingilizce, gerisi Turkce). */
+    var en = false;
+    try { en = JSON.parse(localStorage.getItem('olcum.dil')) === 'en'; } catch (e) { en = false; }
+    var M = en ? {
+      baslik: 'The interface did not load.', metin: 'The board may be restarting — reload the page in a few seconds.',
+      yenile: 'Reload', yuklenemedi: ' did not load.',
+      dosya: ' The page was opened from a file (file://) — the interface loads as an ES module and the browser does'
+        + ' not allow that from a file. Open it through a server: python arayuz3/sunucu.py (or the bridge / the board\'s address).',
+      basla: 'The scripts loaded but the interface did not start (', vueYok: 'no Vue', vueVar: 'Vue present'
+    } : {
+      baslik: 'Arayüz yüklenemedi.', metin: 'Kart yeniden başlıyor olabilir — birkaç saniye sonra sayfayı yenileyin.',
+      yenile: 'Yenile', yuklenemedi: ' yüklenemedi.',
+      dosya: ' Sayfa dosyadan (file://) açılmış — arayüz ES modülü olarak yükleniyor'
+        + ' ve tarayıcı bunu dosyadan izin vermiyor. Sunucuyla açın:'
+        + ' python arayuz3/sunucu.py (ya da köprü / kartın adresi).',
+      basla: 'Betikler indi ama arayüz başlamadı (', vueYok: 'Vue yok', vueVar: 'Vue var'
+    };
+    document.getElementById('acilmadi-baslik').textContent = M.baslik;
+    document.getElementById('acilmadi-metin').textContent = M.metin;
+    document.getElementById('acilmadi-yenile').textContent = M.yenile;
     window.arayuzHata = function (ne) {
       /* 3A: `app.js` artık ES MODÜLÜ. Tarayıcı modülü `file://`'dan
          YÜKLEMİYOR (köken `null`, CORS); o durumda "kart yeniden
          başlıyor" demek yanlış yere baktırırdı — sebebi ve çaresi yazılıyor. */
-      neden.textContent = ne + ' yüklenemedi.' + (location.protocol === 'file:'
-        ? ' Sayfa dosyadan (file://) açılmış — arayüz ES modülü olarak yükleniyor'
-          + ' ve tarayıcı bunu dosyadan izin vermiyor. Sunucuyla açın:'
-          + ' python arayuz3/sunucu.py (ya da köprü / kartın adresi).'
-        : '');
+      neden.textContent = ne + M.yuklenemedi + (location.protocol === 'file:' ? M.dosya : '');
       kutu.hidden = false;
     };
     setTimeout(function () {
       var u = document.getElementById('uyg');
       if (u && u.hasAttribute('v-cloak')) {
         neden.textContent = neden.textContent
-          || 'Betikler indi ama arayüz başlamadı (' +
-             (typeof Vue === 'undefined' ? 'Vue yok' : 'Vue var') + ').';
+          || M.basla + (typeof Vue === 'undefined' ? M.vueYok : M.vueVar) + ').';
         kutu.hidden = false;
       }
     }, 6000);

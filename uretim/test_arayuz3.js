@@ -122,8 +122,9 @@ function iceAktarmaGrafigi(bas = APP) {
    indiriyor; vm'de dinamik import yok — taklit ornek ikisini HAZIR alir (indirme yolu bolum 36'da). */
 const TEMBEL_KK = require(path.join(KOK, 'ortak', 'src', 'sozluk_kabuk.js'));
 const TEMBEL_SK = require(path.join(KOK, 'ortak', 'src', 'sozluk_osilo.js'));
+const TEMBEL_YN = require(path.join(KOK, 'ortak', 'src', 'sozluk_yonetim.js'));
 function ornek() {
-  const o = Object.assign({}, secenekler.data(), { kkMod: TEMBEL_KK, skMod: TEMBEL_SK });
+  const o = Object.assign({}, secenekler.data(), { kkMod: TEMBEL_KK, skMod: TEMBEL_SK, ynMod: TEMBEL_YN });
   Object.assign(o, secenekler.methods);
   o.$nextTick = () => {};
   o.$refs = {};
@@ -143,15 +144,18 @@ function trCoz(sablon) {
   const vmAl = (ad) => { try { return vm.runInContext(ad, sandbox); } catch (e) { return {}; } };
   const SZ0 = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
   const SZs = require(path.join(KOK, 'ortak', 'src', 'sozluk_skop.js'));
-  const tr = (k) => (TEMBEL_KK.SOZLUK_KABUK[k] || TEMBEL_SK.SOZLUK_OSILO[k] || SZs.SOZLUK_SKOP[k] || SZ0.SOZLUK[k] || { tr: k }).tr;
+  const tr = (k) => (TEMBEL_KK.SOZLUK_KABUK[k] || TEMBEL_SK.SOZLUK_OSILO[k] || TEMBEL_YN.SOZLUK_YONETIM[k] || SZs.SOZLUK_SKOP[k]
+    || SZ0.SOZLUK[k] || { tr: k }).tr;
   const harita = { os: vmAl('OS_METIN'), pl: vmAl('PL_METIN'),
     m: Object.assign({}, vmAl('KB_METIN'), vmAl('CN_METIN')) };
   const ad = (h, x) => (harita[h] && harita[h][x] ? tr(harita[h][x]) : null);
   return sablon
     .replace(/\{\{\s*(m|os|pl)\.(\w+)\s*\}\}/g, (t, h, x) => ad(h, x) ?? t)
     .replace(/:(title|aria-label)="(m|os|pl)\.(\w+)"/g, (t, o, h, x) => (ad(h, x) !== null ? `${o}="${ad(h, x)}"` : t))
-    .replace(/:(title|aria-label)="(?:kkMetin|skMetin)\('([a-z]+\.[a-z0-9_]+)'\)"/g, (t, o, k) => `${o}="${tr(k)}"`)
-    .replace(/\{\{\s*(?:kkMetin|skMetin|metin|m)\('([a-z]+\.[a-z0-9_]+)'[^\n]*?\)\s*\}\}/g, (t, k) => tr(k));
+
+    .replace(/\{\{\s*(?:kkMetin|skMetin|ynMetin|metin|m)\('([a-z]+\.[a-z0-9_]+)'[^\n]*?\)\s*\}\}/g, (t, k) => tr(k))
+    .replace(/:(title|aria-label|placeholder)="(?:kkMetin|skMetin|ynMetin)\('([a-z]+\.[a-z0-9_]+)'\)"/g, (t, o, k) => `${o}="${tr(k)}"`)
+    .replace(/\s+v-html="(?:kkMetin|skMetin|ynMetin)\('([a-z]+\.[a-z0-9_]+)'\)">(<\/\w+>)/g, (t, k, kap) => '>' + tr(k) + kap);
 }
 
 /* [!] ASENKRON IDDIA KUYRUGU (B27 A2).
@@ -452,14 +456,14 @@ ok('B22.1: faz kalibrasyonu arayuzde MIKROSANIYE',
    !govdeIcinde(appKaynak, 'fazGonder', 'd >= -1 && d <= 1'),
    'firmware siniri +-2000 us — arayuz ayni siniri kullanmali');
 ok('B22.1: faz birimi SABLONDA da us yaziyor',
-   /Faz kalibrasyonu[^<]*µs/.test(htmlKaynak) &&
-   !/Faz kalibrasyonu, örnek/.test(htmlKaynak),
+   /Faz kalibrasyonu[^<]*µs/.test(trCoz(htmlKaynak)) &&
+   !/Faz kalibrasyonu, örnek/.test(trCoz(htmlKaynak)),
    'etiket "ornek" derse kullanici 0.02 girer, 75 kat kucuk duzeltme');
 /* IKI ret yolu var: sayi degil, ve sinir disi. Tek `this.hata` aramak
    yetmiyordu — sinir disi dalinin mesajini silen mutasyon KACTI. */
 ok('B22.1: fazGonder HER ret yolunda sebebini soyluyor',
-   govdeIcinde(appKaynak, 'fazGonder', 'sayı girin') &&
-   govdeIcinde(appKaynak, 'fazGonder', '2000 µs arası olmalı'),
+   govdeIcinde(appKaynak, 'fazGonder', "'yn.hata_faz'") && /sayı girin/.test(TEMBEL_YN.SOZLUK_YONETIM['yn.hata_faz'].tr) &&
+   govdeIcinde(appKaynak, 'fazGonder', "'yn.hata_faz_aralik'") && /2000 µs arası olmalı/.test(TEMBEL_YN.SOZLUK_YONETIM['yn.hata_faz_aralik'].tr),
    'sayi-degil ve sinir-disi AYRI AYRI bildiriliyor; tek `this.hata` '
    + 'aramak yetmiyordu (mutasyon kacmisti)');
 
@@ -489,7 +493,7 @@ ok('B22.4: ag durumu ve ac/kapa sablonda',
 /* Parolalar duz metin gidiyor — kart TLS konusmuyor. Kullanici ag
    uzerinden kuruyorsa bunu BILMELI. */
 ok('B22.4: ag uzerinden kurulumda duz metin UYARISI var',
-   /tasiyiciAdi !== 'seri'[\s\S]{0,400}şifrelenmeden/.test(htmlKaynak),
+   /tasiyiciAdi !== 'seri'[\s\S]{0,400}şifrelenmeden/.test(trCoz(htmlKaynak)),
    'USB disinda parola duz metin gidiyor');
 
 /* ── B22.5: IKI COZUCU, TEK GOSTERICI ──────────────────────────────────
@@ -1131,8 +1135,8 @@ console.log('\n--- 10. Gorunumler: hash yonlendirme, v-show, yeniden cizim ---')
 
   // Kalibrasyon talimati pil sekmesinde DEGIL, ayar sekmesinde.
   // (Gorunumler ayrilinca ortaya cikan yerlesim kusuru — B27 A1.)
-  const ayarBlok = html.match(/v-show="gorunum === 'ayar'"([\s\S]*?)<\/main>/);
-  const pilBlok = html.match(/v-show="gorunum === 'pil'"([\s\S]*?)<\/main>/);
+  const ayarBlok = trCoz(html).match(/v-show="gorunum === 'ayar'"([\s\S]*?)<\/main>/);
+  const pilBlok = trCoz(html).match(/v-show="gorunum === 'pil'"([\s\S]*?)<\/main>/);
   ok('"Sira onemli" kalibrasyon talimati AYAR gorunumunde, pilde degil',
      !!ayarBlok && ayarBlok[1].includes('Sıra önemli') &&
        !!pilBlok && !pilBlok[1].includes('Sıra önemli'));
@@ -1611,7 +1615,7 @@ console.log('\n--- 13. Tasarim sistemi: temalar, kanal renkleri, hareket ---');
     const T = vm.runInContext('TASIYICILAR', sandbox);
     const eskiKapat = T.demo.kapat;
     T.demo.kapat = async () => { kapanan = 'demo'; };
-    const d = { ayarYaz() {}, kaydet() {}, bagli: true, bagliTasiyici: 'demo',
+    const d = { ayarYaz() {}, kaydet() {}, tembelMetin: (s, a) => a, bagli: true, bagliTasiyici: 'demo',
                 demoVeri() { this.demoCagrildi = true; } };
     SONRA.push(async () => {
       await w.call(d, 'demo', 'seri');
@@ -1619,7 +1623,7 @@ console.log('\n--- 13. Tasarim sistemi: temalar, kanal renkleri, hareket ---');
          d.bagli === true && kapanan === null, `bagli=${d.bagli} kapanan=${kapanan}`);
       ok('… ve demoVeri ikinci kez cagrilmiyor', !d.demoCagrildi);
 
-      const e2 = { ayarYaz() {}, kaydet() {}, bagli: true, bagliTasiyici: 'akis' };
+      const e2 = { ayarYaz() {}, kaydet() {}, tembelMetin: (s, a) => a, bagli: true, bagliTasiyici: 'akis' };
       const eskiAkisKapat = T.akis.kapat;
       T.akis.kapat = async () => { kapanan = 'akis'; };
       await w.call(e2, 'seri', 'akis');
@@ -1727,7 +1731,7 @@ console.log('\n--- 14. Telefon yerlesimi + acil durdurma ---');
   /* Telefonda `.local` tuzagi YAZILI olmali: Android mDNS cozmuyor ve
      kullanici "telefondan giremiyorum" diye takildi (2026-09-12). */
   ok('Baglanti karti Android `.local` tuzagini soyluyor',
-     /Android/.test(html) && /\.local/.test(html) && /IP adresini/.test(html));
+     /Android/.test(trCoz(html)) && /\.local/.test(trCoz(html)) && /IP adresini/.test(trCoz(html)));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2356,7 +2360,7 @@ console.log('\n--- 21. Tarayici gezisinde bulunanlar (B45) ---');
   ok('`D` satiri konsola DUSMUYOR (saniyede 20 kez, panelde)',
      !c.gunluk.some((x) => x.metin.startsWith('D ')));
   ok('Konsol aciklamasi disarida kalanlari SOYLUYOR',
-     /her satır burada[\s\S]{0,200}<code>D<\/code>[\s\S]{0,120}hariç/.test(htmlKaynak),
+     /her satır burada[\s\S]{0,200}<code>D<\/code>[\s\S]{0,120}hariç/.test(trCoz(htmlKaynak)),
      '"her satir burada" iddiasi D/W/skop dokumu icin dogru degildi');
 
   /* (e) arsiv kaydinin olcum satiri — GERCEK KART FIKSTURU ile */
@@ -2527,7 +2531,8 @@ console.log('\n--- 23. Gorunum (Koyu/Acik/On panel) + ES modul altyapisi (3A) --
   /* file:// artik modulu YUKLEMIYOR (koken null). Kutu "kart yeniden
      basliyor" deyip yanlis yere baktirmamali. */
   ok('Acilmama kutusu file:// sebebini ve caresini soyluyor',
-     /arayuzHata = function[\s\S]{0,400}location\.protocol === 'file:'[\s\S]{0,300}sunucu\.py/.test(html));
+     /arayuzHata = function[\s\S]{0,400}location\.protocol === 'file:' \? M\.dosya/.test(html)
+     && (html.match(/dosya: ' [^']*\(file:\/\/\)[\s\S]{0,260}?sunucu\.py/g) || []).length === 2);
 
   /* ── (b) renk takimlari ──────────────────────────────────────────── */
   const kural = (ad) => {
@@ -2750,7 +2755,7 @@ console.log('\n--- 23. Gorunum (Koyu/Acik/On panel) + ES modul altyapisi (3A) --
        && govdeIcinde(appKaynak, 'mounted', 'this.temaSecim = this._tema.secim'));
     const ayar = html.match(/v-show="gorunum === 'ayar'"([\s\S]*?)<\/main>/);
     ok('Ayarlar`da Gorunum secici: TEMALAR`dan, temaSecim`e bagli, aria-pressed',
-       !!ayar && /<h2>Görünüm<\/h2>/.test(ayar[1])
+       !!ayar && /<h2>Görünüm<\/h2>/.test(trCoz(ayar[1]))
        && /v-for="t in temaSecenekleri"/.test(ayar[1])
        && /@click="temaSecim = t\.id"/.test(ayar[1])
        && /:class="\{ etkin: temaSecim === t\.id \}"/.test(ayar[1])
@@ -2818,7 +2823,8 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
      && typeof KL.KayitlarEkrani === 'object' && typeof KL.KayitlarEkrani.template === 'string',
      String(secenek.loader));
   ok('[!] Modul inmezse sekme BOS kalmiyor: hata bileseni sebebi ve careyi (.hata) yaziyor',
-     !!secenek.errorComponent && /class="hata"[^>]*>[^<]*yüklenemedi[^<]*yenileyin/.test(secenek.errorComponent.template || ''));
+     !!secenek.errorComponent && /class="hata"/.test(secenek.errorComponent.template || '')
+     && /^Kayıtlar ekranı yüklenemedi[^<]*yenileyin/.test(secenek.errorComponent.data().metin));
   ok('[!] Kayitlar modulu ACILISTA inmiyor (statik ice aktarma grafiginde yok)',
      !iceAktarmaGrafigi().some((g) => /ekran\/(kayitlar|kayit_gorunum|esitleme|depo_idb)\.js$/.test(g.goruntu)),
      iceAktarmaGrafigi().map((g) => g.goruntu).join(' '));
@@ -4015,7 +4021,7 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
      sk.adsiz.length === 0 && sk.sahipsiz.length === 0, sk.adsiz.concat(sk.sahipsiz).join(' | '));
   const menzil = ana('ayar').match(/<div class="dugme-grup" role="group" aria-labelledby="([^"]+)">([\s\S]*?)<\/div>/);
   ok('[!] WIG a: menzil dugmeleri role=group + aria-labelledby (gorunen ad) + aria-pressed; Otomatik menzil aria-pressed',
-     !!menzil && new RegExp(`id="${menzil[1]}"[^>]*>Gerilim menzili<`).test(ana('ayar'))
+     !!menzil && new RegExp(`id="${menzil[1]}"[^>]*>Gerilim menzili<`).test(trCoz(ana('ayar')))
      && /:aria-pressed="menzil === 0 \? 'true' : 'false'"/.test(menzil[2]) && /:aria-pressed="menzil === 1 \? 'true' : 'false'"/.test(menzil[2])
      && /@click="otoMenzilDegistir"[^>]*:aria-pressed="otoMenzil \? 'true' : 'false'"|:aria-pressed="otoMenzil \? 'true' : 'false'"[^>]*@click="otoMenzilDegistir"/.test(ana('ayar')));
 
@@ -4036,7 +4042,7 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
   const adr = vmodel('kartTaban');
   ok('WIG d: kart adresi type=url + inputmode=url, buyuk harf/yazim kapali; yer tutucu ornek (…), talimat alanin altinda',
      nit(adr, 'type') === 'url' && nit(adr, 'inputmode') === 'url' && kapali(adr)
-     && /…$/.test(nit(adr, 'placeholder') || '') && !/boş = /.test(nit(adr, 'placeholder') || ''));
+     && /…'$/.test(nit(adr, ':placeholder') || '') && !/boş = /i.test(trCoz(adr)) && /ynMetin\('yn\.or'\)/.test(nit(adr, ':placeholder') || ''));
   ok('WIG d: kesme gerilimi inputmode=decimal; kalibrasyon/faz alanlarinda buyuk harf/yazim kapali; faz yer tutucusu talimat degil',
      nit(vmodel('pilKesmeGiris'), 'inputmode') === 'decimal' && ['kalibV', 'kalibA', 'fazKal'].every((v) => kapali(vmodel(v)))
      && !/PF en büyük/.test(nit(vmodel('fazKal'), 'placeholder') || ''));
@@ -4068,7 +4074,7 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
   ok('[!] WIG b: pil hata / veri alinamiyor role=alert',
      /v-if="pilHata && pilHata !== '-'[^"]*" class="hata" role="alert"/.test(html) && /v-if="pilHataMetni[^"]*" class="uyari" role="alert"/.test(html));
   ok('WIG b: Konsol gunlugu role=log, adli, klavyeyle odaklanir; bossa "henuz satir yok" (bos kutu degil)',
-     /<div class="gunluk" ref="gunlukKutu" role="log" aria-live="off" :aria-label="'Kart satırları'" tabindex="0">/.test(html)
+     /<div class="gunluk" ref="gunlukKutu" role="log" aria-live="off" aria-label="Kart satırları" tabindex="0">/.test(trCoz(html))
      && /<p v-if="!gunluk\.length" class="ipucu">/.test(ana('konsol')) && /\.gunluk:focus-visible\s*\{[^}]*outline:\s*2px/.test(cssKod));
   ok('[!] WIG b: Kayitlar esitleme sonucu/sebebi KALICI aria-live bolgede; esitle dugmesi aria-busy; disari aktarma hatasi role=alert',
      /<div class="kl-duyuru" aria-live="polite">\s*<p v-if="nedenMetni"[\s\S]*?<p v-if="sonuc"[\s\S]*?<\/div>/.test(KLm.KayitlarEkrani.template)
@@ -4248,9 +4254,9 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
        /eğri/.test(SZ.ceviri('kb.pil_alt', 'tr')) && /curve/.test(SZ.ceviri('kb.pil_alt', 'en'))
        && /<canvas ref="pilTuval" class="pil-grafik" role="img" :aria-label="pl\.grafikEtiket">/.test(ana('pil')));
     ok('WIG f: yaniti yalniz Konsol`a dusen dugmeler bunu soyluyor (Fazi / Ag durumunu ... Konsol)',
-       /komut\('F'\)[^>]*>[^<]*Konsol/.test(ana('ayar')) && /komut\('N\?'\)[^>]*>[^<]*Konsol/.test(ana('ayar')));
+       /komut\('F'\)[^>]*>[^<]*Konsol/.test(trCoz(ana('ayar'))) && /komut\('N\?'\)[^>]*>[^<]*Konsol/.test(trCoz(ana('ayar'))));
     ok('WIG f: Konsol "Temizle" -> "Gunlugu temizle"; kopya silme "Kopyayi sil"',
-       />Günlüğü temizle</.test(ana('konsol')) && SZ.ceviri('kl.sil', 'tr') === 'Kopyayı sil');
+       />Günlüğü temizle</.test(trCoz(ana('konsol'))) && SZ.ceviri('kl.sil', 'tr') === 'Kopyayı sil');
     ok('WIG f: ADC yanit vermiyor metinleri sozlukte ve sonraki adimi soyluyor (I²C tara)',
        /\{\{ m\.adcYokV \}\}/.test(ana('canli')) && /\{\{ m\.adcYokI \}\}/.test(ana('canli'))
        && /I²C tara/.test(SZ.ceviri('cn.adc_yok_v', 'tr')) && /I²C scan/.test(SZ.ceviri('cn.adc_yok_v', 'en')));
@@ -4319,7 +4325,8 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
     const harf = 'A-Za-zçğıöşüÇĞİÖŞÜ';
     const sen = new RegExp(['görüyorsun', 'gönderemezsin', 'bağlısın', 'yazacağın', 'şüphelenirsen', 'çalışırsan',
       'kullan[.]', 'bağla,', 'gir,', 'yap[.]', 'bağla ve'].map((x) => `(?<![${harf}])${x}(?![${harf}])`).join('|'));
-    const metin = html.replace(/<[^>]+>/g, ' ');
+    /* 5.12.121: metin artik tembel sozluklerde — sablon once Turkce metne cozulur (trCoz; v-html dahil) */
+    const metin = trCoz(html).replace(/<[^>]+>/g, ' ');
     ok('WIG f: gomulu metinlerde hitap "siz" (sen bicimi yok)', !sen.test(metin) && sen.test('ağ üzerinden bağlısın.'),
        (metin.match(sen) || [''])[0]);
   }
@@ -6117,7 +6124,8 @@ console.log('\n--- 29. Karsilastirma (3G) ---');
        !!b && b.__asenkron === true
        && /import\('\.\/ekran\/karsilastir\.js'\)\.then\(\(m\) => m\.KarsilastirEkrani\)/.test(String(sec.loader))
        && typeof KR.KarsilastirEkrani === 'object' && typeof KR.KarsilastirEkrani.template === 'string'
-       && !!sec.errorComponent && /class="hata"[^>]*>[^<]*yüklenemedi[^<]*yenileyin/.test(sec.errorComponent.template || ''),
+       && !!sec.errorComponent && /class="hata"/.test(sec.errorComponent.template || '')
+       && /^Karşılaştırma ekranı yüklenemedi[^<]*yenileyin/.test(sec.errorComponent.data().metin),
        String(sec.loader));
     const statik = iceAktarmaGrafigi().map((x) => x.goruntu);
     ok('[!] Karsilastirma modulu ACILISTA inmiyor (statik ice aktarma grafiginde yok)',
@@ -6640,7 +6648,7 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
   };
   /* KILIT: 3H-1'de olculen. Azalirsa (eski metin sozluge tasindi) kilidi dusur; artarsa
      yeni metni sozluge koy — gomulu Turkce metin bu kilidi kirmiziya dondurur. */
-  const EN_EKSIK_KILIT = 124;     /* 5.12.121 (CE): 272 -> 124 — Canli, ust seritler, Osiloskop, Pil kabugu, eski skop arsivi sozluge (bolum 36) */
+  const EN_EKSIK_KILIT = 16;      /* 5.12.121 (CE): 272 -> 124 (Oncelik 1: Canli, seritler, Osiloskop, Pil) -> 16 (Oncelik 2: Ayarlar, Konsol); bolum 36 */
 
   /* ── (a) KABLOLAMA (AY2) ────────────────────────────────────────── */
   {
@@ -6700,7 +6708,7 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
        !!nav && /<a v-for="b in ayarBolumListesi" :key="b\.id"/.test(nav[1]) && /:href="'#\/ayar\/' \+ b\.id"/.test(nav[1])
        && /:aria-current="ayarBolum === b\.id \? 'true' : null"/.test(nav[1]) && /class="ay-sekme" :class="\{ etkin: ayarBolum === b\.id \}"/.test(nav[1])
        && /:data-ay-git="b\.id"/.test(nav[1]));
-    const kartlar = [...ayar.matchAll(/<section class="kart"([^>]*)>\s*<h2>([^<]*)<\/h2>/g)].map((m) => ({
+    const kartlar = [...trCoz(ayar).matchAll(/<section class="kart"([^>]*)>\s*<h2>([^<]*)<\/h2>/g)].map((m) => ({
       bolum: (/v-show="ayarBolum === '([a-z-]+)'"/.exec(m[1]) || [])[1] || null, baslik: m[2].trim() }));
     const harita = Object.fromEntries(kartlar.map((k) => [k.baslik, k.bolum]));
     ok('[!] AY2: index.html`deki HER Ayarlar karti TEK bolumde (v-show); mevcut kartlar yerinde (AY1/AY7: hicbiri kalkmadi)',
@@ -9773,7 +9781,13 @@ console.log('\n--- 36. CE: Ingilizce kipte gorunur metin ---');
   ];
   /* KULLANICININ verdigi adlar / etiketler / notlar (bolum 24'un sentetik kaydi): cevrilmez — metinden cikarilip
      KALANI taranir (cevresindeki etiket yine Ingilizce olmali). */
-  const KULLANICI = ['Akü şarj — deneme', 'dalgalanma başladı', 'genel not', 'şarj', 'akü'];
+  const KULLANICI = ['Akü şarj — deneme', 'dalgalanma başladı', 'genel not', 'şarj', 'akü',
+    /* kartin firmware'deki ag adi kalibi (Ag karti; kartta boyle yazar) */
+    'OLCUM-KARTI-XXXX',
+    /* KARTIN ham satirlari (Konsol; kartin dili — cevrilmez, panelin kendi satirlari cevrilir) */
+    '* enerji sifirlandi', '* rapor araligi 200 ms',
+    /* dil secicide her dil KENDI adiyla (endonim; AY3 kurali: ay.dil_tr iki dilde de "Türkçe") */
+    'Türkçe'];
   /* Baglanti penceresinin (.bb-…) talimat satirlari kutudaki etiketi ADIYLA anar ("Battery − → PİL 2"): o
      ogelerde yalniz FIZIKSEL etiket sozcukleri cikarilip kalan taranir. */
   const FIZIKSEL = /(?:^|[^A-Za-zÇĞİÖŞÜçğıöşü])(?:AÇ|KAPA|PİL|YÜK|GÜÇ|ŞARJ|SKOP)(?=$|[^A-Za-zÇĞİÖŞÜçğıöşü])/g;
@@ -9813,7 +9827,7 @@ console.log('\n--- 36. CE: Ingilizce kipte gorunur metin ---');
           'pil-pt': ekr('pil.js').PilPt, 'skop-suz': OS.SkopSuz, 'skop-arsiv': OS.SkopArsiv,
         },
         methods: Object.assign({}, secenekler.methods, { osiloCiz() {}, grafikCiz() {}, spektrumCiz() {}, kaydet() {},
-          _kabukAl: async () => TEMBEL_KK, _skopKabukAl: async () => TEMBEL_SK }, ek.methods || {}),
+          _kabukAl: async () => TEMBEL_KK, _skopKabukAl: async () => TEMBEL_SK, _yonetimAl: async () => TEMBEL_YN }, ek.methods || {}),
       });
       for (const k of ['created', 'mounted', 'beforeUnmount', 'unmounted', 'watch']) delete sec[k];
       return GM.ciz(sec);
@@ -9902,6 +9916,30 @@ console.log('\n--- 36. CE: Ingilizce kipte gorunur metin ---');
     await topla('Pil testi (calisiyor)', async (u) => {
       u.gorunum = 'pil'; u.bagli = true; u.pilDurum = 'CALISIYOR'; u.pilMah = 12.3; u.pilKesme = 3.0;
     });
+    /* ── Oncelik 2: Ayarlar kartlari + Konsol (sozluk_yonetim.js o ekranla iner) ── */
+    const ayarKur = async (u, bolum) => { u.gorunum = 'ayar'; u.ayarBolum = bolum; await u.yonetimYukle(); };
+    await topla('Ayarlar: Baglanti (akis, kart adresi)', async (u) => { await ayarKur(u, 'baglanti'); u.tasiyiciAdi = 'akis'; });
+    await topla('Ayarlar: Kalibrasyon (bagli, sont uyumsuz, onaylar, faz / kalibrasyon hatasi, 60 Hz)', async (u) => {
+      await ayarKur(u, 'kalibrasyon'); u.bagli = true; u.menzil = 1; u.kartSont = 0.1; u.sontSecim = '1';
+      u.onay = 'gerilimSifir'; u.sifirlaOnay = true; u.fazKal = 'x'; u.fazGonder(); u.kalibV = 'abc'; u.kalibreV(); u.sebekeHz = '60';
+    });
+    await topla('Ayarlar: Kalibrasyon (DC, akim / enerji onayi)', async (u) => {
+      await ayarKur(u, 'kalibrasyon'); u.bagli = true; u.sebekeHz = '0'; u.onay = 'akimSifir'; u.fazKal = '5000'; u.fazGonder();
+    });
+    await topla('Ayarlar: Ag (ag uzerinden, onaylar, bos ag adi)', async (u) => {
+      await ayarKur(u, 'ag'); u.bagli = true; u.tasiyiciAdi = 'akis'; u.onay = 'webKoruma'; u.agSsid = ''; u.agSsidGonder();
+    });
+    await topla('Ayarlar: Ag (ag kapatma onayi)', async (u) => { await ayarKur(u, 'ag'); u.bagli = true; u.tasiyiciAdi = 'akis'; u.onay = 'agKapat'; });
+    await topla('Ayarlar: Dil ve gorunum', async (u) => { await ayarKur(u, 'dil-gorunum'); });
+    await topla('Konsol (kartin ham satirlari + panelin kendi satirlari)', async (u) => {
+      u.gorunum = 'konsol'; await u.yonetimYukle();
+      /* kokCiz'in kaydet'i susturulmus (cizim taklidi); gunluge app.js kaydet() gibi {metin, giden} */
+      const yaz = (metin, giden = false) => u.gunluk.push({ metin, giden });
+      yaz(u.tembelMetin('kk', 'kk.log_bagli')); yaz('* enerji sifirlandi'); yaz('e', true);
+      yaz(u.tembelMetin('kk', 'kk.log_kopru', { kart: 'COM5' })); yaz('* rapor araligi 200 ms');
+      yaz(u.tembelMetin('kk', 'kk.log_kesildi'));
+    });
+    await topla('Konsol (bos)', async (u) => { u.gorunum = 'konsol'; await u.yonetimYukle(); });
     for (const [ekran, gor] of [['canli', 'canli'], ['skop', 'skop'], ['pil', 'pil']]) {
       await topla(`"What plugs where" penceresi (${ekran})`, async (u) => {
         u.gorunum = gor; u.bilgi = ekran;
@@ -9986,13 +10024,31 @@ console.log('\n--- 36. CE: Ingilizce kipte gorunur metin ---');
       'Pil testi (bitmis': ['J7', 'Battery test:', 'Battery data unavailable: the board is not responding (HTTP 404)', 'gap', 'Yes, delete', 'Cancel'],
       'Pil testi (calisiyor)': ['Delete points in this browser'],
       '"What plugs where" penceresi (canli)': ['What plugs where'],
+      'Ayarlar: Baglanti': ['Connection', 'Connection path', 'Wi-Fi / bridge (stream)', 'Board address', 'e.g. http://',
+        'Empty = the address that served this page', 'board serves the page', 'IP address'],
+      'Ayarlar: Kalibrasyon (bagli': ['Calibration and settings', 'Voltage range', 'HIGH ±614 V', 'Auto range', 'Fitted shunt',
+        'Kelvin required', 'board: 100.0 mΩ — does NOT MATCH', 'Yes — the input is at 0 V', 'Phase calibration: enter a number',
+        'Voltage calibration: enter a non-zero number', 'Scale factor applied to power: ×', 'without selecting DC', 'Order matters.',
+        'can be negative', 'Factory reset', 'Yes, reset', 'Query phase → Console', '60 Hz', '50 Hz (Turkey)'],
+      'Ayarlar: Kalibrasyon (DC': ['Scale correction OFF (DC)', 'Yes — the load is removed', 'Reset energy', 'between −2000 … +2000 µs'],
+      'Ayarlar: Ag (ag uzerinden': ['Network — making the board wireless', 'sets up its own network', 'unencrypted',
+        'Yes — the command endpoint stays without a password', 'The network name cannot be empty', 'Write web password', 'Add to list'],
+      'Ayarlar: Ag (ag kapatma': ['Yes — the network is off from the next start'],
+      'Ayarlar: Dil ve gorunum': ['Appearance', 'System', 'Dark', 'Light', 'Front panel', 'bench instrument', 'charts are redrawn'],
+      'Konsol (kartin': ['Console — raw conversation with the board', 'Every line from the board', 'Send', 'Clear log',
+        '— connected, 115200 baud —', '— bridge detected: COM5 —', '— disconnected —', '* enerji sifirlandi', '> e'],
+      'Konsol (bos)': ['No lines yet — connect to the board.', 'type a command (y = help)…', 'Board command'],
       'Kayitlar (liste)': ['Recordings'],
       'Karsilastirma': ['Comparison', 'since start'],
     };
+    /* v-show ile GIZLI gorunumun metni taranmaz (tarayicida gorunmez): Canli'dayken Pil / Konsol kabugunun metni YOK */
+    const YOK = { 'Canli (bagli': ['Delete points in this browser', 'Connect the load to', 'Board command'] };
     for (const sn of senaryolar) {
       const hepsi = sn.metin.map((x) => x.metin).join(' \n ');
       const capaK = Object.keys(CAPA).find((k) => sn.ad.startsWith(k));
-      const eksik = (capaK ? CAPA[capaK] : []).filter((c) => !hepsi.includes(c));
+      const yokK = Object.keys(YOK).find((k) => sn.ad.startsWith(k));
+      const eksik = (capaK ? CAPA[capaK] : []).filter((c) => !hepsi.includes(c))
+        .concat((yokK ? YOK[yokK] : []).filter((c) => hepsi.includes(c)).map((c) => 'GIZLI ekrandan: ' + c));
       ok(`[!] CE: ${sn.ad} — Ingilizce kipte gorunur metinde Turkce YOK${capaK ? ' (capa: ' + CAPA[capaK].length + ')' : ''}`,
          !sn.hata && sn.n >= 25 && sn.kalan.length === 0 && eksik.length === 0,
          sn.hata ? 'HATA ' + (sn.hata.stack || sn.hata).toString().split('\n').slice(0, 3).join(' | ')
@@ -10023,6 +10079,23 @@ console.log('\n--- 36. CE: Ingilizce kipte gorunur metin ---');
       'Pil testi (bitmis': ['J7', "'ye bağlayın, J3'e değil. J3 doğrudan şönte gider; oraya bağlarsanız MOSFET", 'kesme çalışmaz',
         'Pil verisi alınamıyor: kart yanıt vermiyor (HTTP 404)', '3 nokta boşluk', 'Eminim, sil', 'Vazgeç'],
       'Pil testi (calisiyor)': ['Tarayıcıdaki noktaları sil'],
+      'Ayarlar: Baglanti': ['Bağlantı', 'Bağlantı yolu', 'WiFi / köprü (akış)', 'Kart adresi', 'ör. http://192.168.1.50…',
+        'Boş = sayfayı sunan adres (aynı köken).', 'kart sunuyorsa', 'IP adresini'],
+      'Ayarlar: Kalibrasyon (bagli': ['Kalibrasyon ve ayar', 'Gerilim menzili', 'YÜKSEK ±614 V', 'Otomatik menzil', 'Takılı şönt',
+        '15 mΩ — ±11.5 A (Kelvin şart)', 'kart: 100.0 mΩ — menüyle UYUŞMUYOR, menü tercihini gösterir, kart bunu kullanıyor',
+        "Eminim — giriş 0 V'ta", 'Faz kalibrasyonu: sayı girin (µs), ör. 120',
+        'Gerilim kalibrasyonu: sıfırdan farklı bir sayı girin (ör. 12.34 ya da −24).',
+        'Güce uygulanan ölçek çarpanı: ×', 'Sıra önemli.', 'negatif de olabilir', 'Fabrika ayarları', 'Eminim, sıfırla', 'Fazı sor → Konsol',
+        '50 Hz (Türkiye)'],
+      'Ayarlar: Kalibrasyon (DC': ["Ölçek düzeltmesi KAPALI (DC). AC ölçerken güç |H|² kadar düşük okunur — 50 Hz'te yaklaşık %45.",
+        'Eminim — yük çıkarıldı', 'Enerjiyi sıfırla', 'Faz kalibrasyonu −2000 … +2000 µs arası olmalı'],
+      'Ayarlar: Ag (ag uzerinden': ['Ağ — kartı kablosuz yapma', 'kendi ağını kurar', 'şifrelenmeden', 'Eminim — komut ucu parolasız kalır',
+        'Ağ adı boş olamaz', 'Web parolasını yaz', 'Listeye ekle'],
+      'Ayarlar: Ag (ag kapatma': ['Eminim — sonraki açılışta ağ kapanır, geri açmak USB ister'],
+      'Ayarlar: Dil ve gorunum': ['Görünüm', 'Sistem', 'Koyu', 'Açık', 'Ön panel', 'varsayılan — tezgah aleti', 'yeniden çizilir'],
+      'Konsol (kartin': ['Konsol — kartla ham konuşma', 'Karttan gelen her satır burada', 'Gönder', 'Günlüğü temizle',
+        '— bağlandı, 115200 baud —', '— köprü algılandı: COM5 —', '— bağlantı kesildi —'],
+      'Konsol (bos)': ['Henüz satır yok — karta bağlanın.', 'komut yazın (y = yardım)…', 'Kart komutu'],
     };
     for (const sn of senaryolarTr) {
       const capaK = Object.keys(CAPA_TR).find((k) => sn.ad.startsWith(k));
@@ -10036,11 +10109,22 @@ console.log('\n--- 36. CE: Ingilizce kipte gorunur metin ---');
     const statikA = iceAktarmaGrafigi().map((x) => x.goruntu);
     const skopZ = iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'osiloskop.js')).map((x) => x.goruntu);
     const canliZ2 = iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'canli.js')).map((x) => x.goruntu);
-    const tembelCE = ['ortak/sozluk_kabuk.js', 'ortak/sozluk_osilo.js'];
-    ok('[!] CE: tembel sozlukler (sozluk_kabuk.js, sozluk_osilo.js) acilisin, Canli zincirinin ve osiloskop zincirinin STATIK agacinda YOK; app.js ikisini de DINAMIK ister',
+    const tembelCE = ['ortak/sozluk_kabuk.js', 'ortak/sozluk_osilo.js', 'ortak/sozluk_yonetim.js'];
+    ok('[!] CE: tembel sozlukler (sozluk_kabuk.js, sozluk_osilo.js, sozluk_yonetim.js) acilisin, Canli zincirinin ve osiloskop zincirinin STATIK agacinda YOK; app.js ucunu de DINAMIK ister',
        tembelCE.every((x) => !statikA.includes(x) && !skopZ.includes(x) && !canliZ2.includes(x))
        && /_kabukAl\(\) \{ return import\('\/ortak\/sozluk_kabuk\.js'\); \}/.test(appKaynak)
-       && /_skopKabukAl\(\) \{ return import\('\/ortak\/sozluk_osilo\.js'\); \}/.test(appKaynak), statikA.filter((x) => /sozluk/.test(x)).join(' '));
+       && /_skopKabukAl\(\) \{ return import\('\/ortak\/sozluk_osilo\.js'\); \}/.test(appKaynak)
+       && /_yonetimAl\(\) \{ return import\('\/ortak\/sozluk_yonetim\.js'\); \}/.test(appKaynak), statikA.filter((x) => /sozluk/.test(x)).join(' '));
+    {
+      const g = secenekler.computed.yonetimGerekli;
+      const w = secenekler.watch.yonetimGerekli;
+      let n = 0;
+      const f = { yonetimYukle() { n++; } };
+      if (w) { w.call(f, true); w.call(f, false); }
+      ok('[!] CE: Ayarlar / Konsol metinleri (sozluk_yonetim.js) YALNIZ o ekran gorunurken istenir (yonetimGerekli); kurulus o ekrandaysa da',
+         !!g && g.call({ gorunum: 'ayar' }) === true && g.call({ gorunum: 'konsol' }) === true && g.call({ gorunum: 'canli' }) === false
+         && g.call({ gorunum: 'skop' }) === false && n === 1 && govdeIcinde(appKaynak, 'mounted', 'if (this.yonetimGerekli) this.yonetimYukle();'));
+    }
     ok('[!] CE: kabuk sozlugu KURULUSTA istenir (mounted, beklenmeden); osiloskop ekrani modulle BIRLIKTE (Promise.all) — ikisi inince hazir',
        govdeIcinde(appKaynak, 'mounted', 'this.kabukYukle();')
        && govdeIcinde(appKaynak, 'skopYukle', "await Promise.all([import('./ekran/osiloskop.js'), this.skopKabukYukle()])"));
@@ -10063,9 +10147,20 @@ console.log('\n--- 36. CE: Ingilizce kipte gorunur metin ---');
     }
     {
       const kunye = fs.existsSync(path.join(KOK, 'uretim', '_fs.json')) ? JSON.parse(fs.readFileSync(path.join(KOK, 'uretim', '_fs.json'), 'utf8')).bayt || {} : {};
-      ok('[!] CE: tembel sozlukler kunyede ve kucuk — sozluk_kabuk.js <= 4 KB, sozluk_osilo.js <= 5 KB gzip (buyume kilitli)',
+      ok('[!] CE: tembel sozlukler kunyede ve kucuk — sozluk_kabuk.js <= 4 KB, sozluk_osilo.js <= 5 KB, sozluk_yonetim.js <= 6 KB gzip (buyume kilitli)',
          kunye['ortak/sozluk_kabuk.js'] > 0 && kunye['ortak/sozluk_kabuk.js'] <= 4096 && kunye['ortak/sozluk_osilo.js'] > 0
-         && kunye['ortak/sozluk_osilo.js'] <= 5120, `sozluk_kabuk.js ${kunye['ortak/sozluk_kabuk.js']} B · sozluk_osilo.js ${kunye['ortak/sozluk_osilo.js']} B`);
+         && kunye['ortak/sozluk_osilo.js'] <= 5120 && kunye['ortak/sozluk_yonetim.js'] > 0 && kunye['ortak/sozluk_yonetim.js'] <= 6144,
+         `sozluk_kabuk.js ${kunye['ortak/sozluk_kabuk.js']} B · sozluk_osilo.js ${kunye['ortak/sozluk_osilo.js']} B · sozluk_yonetim.js ${kunye['ortak/sozluk_yonetim.js']} B`);
+    }
+    {
+      /* Vue / sozluk HIC yuklenemediginde cikan kutu (index.html satir ici betik): metin `olcum.dil`e gore, kutuda Turkce kalmaz */
+      const kutu = (htmlK.match(/<div id="acilmadi"[\s\S]*?<\/div>\s*<\/div>/) || [''])[0];
+      const betik = (htmlK.match(/<script>\s*\(function \(\) \{\s*var kutu = document\.getElementById\('acilmadi'\)[\s\S]*?<\/script>/) || [''])[0];
+      ok('[!] CE: acilmama kutusu dile gore (olcum.dil JSON "en" -> Ingilizce): baslik / metin / Yenile betikten, kutunun kendisinde Turkce YOK',
+         !!kutu && !/[çğıöşüÇĞİÖŞÜ]|Yenile/.test(kutu.replace(/<!--[\s\S]*?-->/g, '')) && /en = JSON\.parse\(localStorage\.getItem\('olcum\.dil'\)\) === 'en'/.test(betik)
+         && /var M = en \? \{/.test(betik) && /baslik: 'The interface did not load\.'/.test(betik) && /baslik: 'Arayüz yüklenemedi\.'/.test(betik)
+         && /yenile: 'Reload'/.test(betik) && /yenile: 'Yenile'/.test(betik)
+         && ['baslik', 'metin', 'yenile'].every((k) => betik.includes(`document.getElementById('acilmadi-${k}').textContent = M.${k};`)));
     }
     /* izin listesi gercekten yalniz baglanti cizimindeki fiziksel etiketlere uygulandi */
     const izinliler = senaryolar.flatMap((x) => x.metin.filter(izinli));
