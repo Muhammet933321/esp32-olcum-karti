@@ -353,11 +353,15 @@ rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşit
   panelde. `arayuz-uret.py && arayuz-yaz.py` + APK yeniden derlenecek.
 - **SK-7 eski tezgah araçları** (`tezgah_blokaj.py --skop/--tetik/--olcum/--onay`) GPIO4–5 kısa devre + RC düzeneğini
   ister; kart kutuda — yeni firmware ile koşulmadı. `--sinyal` (Arduino) bunların yerini tutmuyor (tetik KONUMU ölçmez).
-- **SK-8 Arduino Uno D13'ten alınan sinyalde alt seviye ~1.7 V yukarıda okunuyor (2026-10-11, A3-SK2):** 1 kHz / 5 V
-  karede Vmin 1.72 V, Vort 4.9 V; genlik (5.04 V), frekans ve süreler doğru. Kart DEĞİL: SKOP–COM kısa devrede
-  +0.32 V, aynı sinyal D9'dan alınınca alt 0.00 V / üst 5.27 V. Sebebi aranmadı (D13 kesmeyle üretilen kopya + kart
-  üstü LED devresi; bağlantı da olabilir). O zamana dek osiloskop sınamasında sinyal **D9**'dan alınır
-  (`uretim/arduino_sinyal/`); DEVIR 5.12.120.
+- **SK-8 Skop sıfırı kartın NASIL BESLENDİĞİNE bağlı: USB'siz (pilden) çalışırken ~+2.3 V kayıyor ve gürültü artıyor
+  (2026-10-11, A3-SK2).** SKOP–COM kısa devre, aynı dakika, yalnız kartın USB'si çıkarılıp takılarak: USB YOK → ortalama
+  2.58–2.72 V (tepe–tepe 2.2–3.9 V); USB VAR → 0.32–0.35 V. Kare dalgada genlik, frekans, süreler iki durumda da doğru;
+  kayan yalnız sıfır. İlk teşhis ("Arduino D13'e özgü") YANLIŞTI: USB'siz D13 ve D9 aynı (ortalama 5.2 V); sabahki
+  D13/D9 farkı o anki besleme durumuydu. Olası sebep (ölçülmedi): skop kanalı ESP32 ADC'sinde, 2.7 V giriş ≈ 70 mV;
+  USB'sizken ESP32'nin besleme akımı J5 kablosunun toprak telinden dönüyor, o teldeki düşüm ESP toprağını analog
+  topraktan ayırıyor (Wi-Fi darbeleri → gürültü). Adaylar: toprak telini kalınlaştır / çiftle; yakalamadan önce bilinen
+  0 V ile otomatik sıfır; panelde "skop sıfırla". Bağlantılı: SK-4 (mutlak doğruluk). README görüntüleri USB takılıyken
+  çekildi. DEVIR 5.12.120.
 
 ## İngilizce panel (CE, 5.12.121, 2026-10-11) — kalanlar
 
