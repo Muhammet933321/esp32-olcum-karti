@@ -966,9 +966,9 @@ def bolum7(r):
     _soz = (KOK / "ortak" / "src" / "sozluk_osilo.js").read_text(encoding="utf-8", errors="replace")
     _eksi = f"{T.SKOP_MENZIL_EKSI:.1f}".replace("-", "−")   # tipografik eksi
     _arti = f"+{T.SKOP_MENZIL_ARTI:.1f}"
-    r.kosul(f"  9: metin '{_eksi} … {_arti} V' diyor (sabitten; TR + EN, sablon sk.menzil1)",
+    r.kosul(f"  9: metin '{_eksi} … {_arti} V' diyor (sabitten; TR + EN, sablon sk.menzil_1)",
             f'"sk.menzil_1": S("Menzil {_eksi} … {_arti} V' in _soz
-            and f'"Range {_eksi} … {_arti} V' in _soz and "{{ sk.menzil1 }}" in _html,
+            and f'"Range {_eksi} … {_arti} V' in _soz and "skMetin('sk.menzil_1')" in _html,
             f"SKOP_MENZIL_EKSI={T.SKOP_MENZIL_EKSI:.1f} "
             f"SKOP_MENZIL_ARTI={T.SKOP_MENZIL_ARTI:.1f} — metin sapmis")
     # --- 10. B27/K3: BOS GIRISTEN 223 W BASILMASIN
