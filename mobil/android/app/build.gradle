@@ -8,8 +8,9 @@ android {
         applicationId "tr.olcumkarti.mobil"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Surum: MAJOR = donanim asamasi (A3 -> 3), sonra anlamsal surumleme. versionCode = M*10000 + m*100 + p.
+        versionCode 30000
+        versionName "3.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -23,8 +24,22 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+    // Yayin imzasi: anahtar deposu ve parolasi DEPODA YOK — yalniz ortam degiskenlerinden (araclar/surum_apk.ps1
+    // parolayi sorar, diske yazmaz). Degiskenler yoksa release derlemesi IMZASIZ cikar (kurulamaz, yayinlanmaz).
+    signingConfigs {
+        yayin {
+            def depo = System.getenv("OLCUM_IMZA_DEPO")
+            if (depo) {
+                storeFile file(depo)
+                storePassword System.getenv("OLCUM_IMZA_PAROLA")
+                keyAlias System.getenv("OLCUM_IMZA_AD") ?: "olcum-karti"
+                keyPassword System.getenv("OLCUM_IMZA_PAROLA")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (System.getenv("OLCUM_IMZA_DEPO")) signingConfig signingConfigs.yayin
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

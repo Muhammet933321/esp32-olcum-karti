@@ -10676,6 +10676,24 @@ boşta jak / temiz DC kısa devreden ayırt edilemiyor · kazanç hatası (SK-4'
 - Açık: tarayıcıda beş sekmeyle gözle doğrulama kullanıcıda; akış doluyken üstteki "Pil testi: bilinmiyor — karta
   bağlanın" yazısı yanıltıcı (açılış paketinde, dokunulmadı).
 
+#### 5.12.125 📦 İLK PAKETLENMİŞ SÜRÜM: v3.0.0 (2026-10-12)
+
+- **Numara:** anlamsal sürümleme, MAJOR = donanım aşaması (A3 → 3). Android `versionName 3.0.0`, `versionCode 30000`
+  (M·10000 + m·100 + p). Firmware A3-SK3.
+- **Android yayın imzası:** `mobil/android/app/build.gradle` `signingConfigs.yayin` — anahtar deposu ve parola DEPODA YOK,
+  yalnız ortam değişkeninden (`OLCUM_IMZA_DEPO/PAROLA/AD`). `mobil/araclar/surum_apk.ps1 -Depo <jks>` anahtarı oluşturur
+  (keytool parolayı sorar; sertifika "CN=Olcum Karti", kişisel bilgi yok), parolayı sorar (diske yazmaz), imzalı APK'yı
+  derler. Anahtar deposu depo dışında; kaybedilirse kurulu uygulama güncellenemez.
+- **Sürüm dosyaları** (depo dışı, GitHub Releases'e elle yüklenir): APK · PC zip (`git archive`: kopru, arayuz3,
+  ortak/src, LICENSE, README'ler) · firmware `.bin` (0x10000) · panel `.bin` (0x310000) · bootloader/partitions (yalnız
+  boş karta) · SHA256SUMS. `merged.bin` VERİLMEZ (0x0'a yazılınca NVS'i siler), tam yedekler ASLA (parola içerir).
+- 🔴 **Firmware ikilisi derleyen makinenin kullanıcı klasörü yolunu gömüyordu** (Arduino15 paket yolu, assert `__FILE__`
+  dizgilerinde 4 yer). Yayın derlemesi `--build-property compiler.{c,cpp}.extra_flags=-ffile-prefix-map=<kök>=…` ile
+  yapıldı (Arduino15, kullanıcı evi, çalışma alanı; ters ve düz bölü): taramada 0. Bu ikili karta yüklenip denendi
+  (ölçüm, kalibrasyon, kullanıcı sıfırı, Wi-Fi). ⚠ Henüz betik değil — bir sonraki sürümde elle yapılmazsa iz geri gelir.
+- APK tarandı: klasör yolu / e-posta / gerçek ağ adresi yok (iki örnek IP arayüz ipucu), `debuggable` kapalı.
+- Açık: PC zip'i temiz klasörde açılıp çalıştırılmadı; "sürüm paketle" betiği yazılmadı.
+
 #### 5.12.119 🟡 BÜTÜNLEŞİK DAL: SK1 DÜZELTME + İKİ DİLLİ BELGELER (2026-10-10, bulut oturumu, dal `butunlesik`)
 
 **Ne birleşti.** Taban `sk1-duzeltme` (5.12.117–5.12.118: A3-SK2, EU31 açılış bütçesi). Üstüne sırayla, her biri ayrı
