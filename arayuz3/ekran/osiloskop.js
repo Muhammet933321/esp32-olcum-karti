@@ -65,11 +65,17 @@ export const SkopSifir = {
         : this.kaynak === 'kullanici' ? this.m('sz.kullanici', { v: this.sifir }) : this.m('sz.fabrika');
     },
   },
-  watch: { sonSatir() { this.tara(false); }, 'r.bagli'() { this.sorgula(); }, 'r.surucuyum'() { this.sorgula(); } },
+  watch: { sonSatir() { this.tara(false); }, 'r.bagli'() { this.sorgula(); }, 'r.surucuyum'() { this.sorgula(1); } },
   methods: {
     m(a, d = null) { return this.s.ceviriSkop(a, this.r.dil, d); },
     /* Kart TZ satirini yalniz sorulunca basar: sifir bilinmiyorsa `tz?` (salt okuma) — kartta "bilinmiyor" kaliyordu. */
-    sorgula() { const r = this.r; if (this.sifir === null && r.bagli && r.surucuyum) r.gonder('tz?').catch(() => {}); },
+    sorgula(ctsiz) {
+      const r = this.r;
+      if (!r.bagli || !r.surucuyum) return;
+      if (this.sifir === null) r.gonder('tz?').catch(() => {});
+      /* CT yoksa tetik seviyesi yazisi fabrika ofsetiyle cizilir; devral() kendi ister (ctsiz) */
+      if (!ctsiz && !r.skopKal) r.gonder('CT').catch(() => {});
+    },
     tara(ilk) {
       const g = this.r.gunluk || [];
       let i = g.length;

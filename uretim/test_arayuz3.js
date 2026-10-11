@@ -2511,7 +2511,7 @@ SONRA.push(async () => {
       const gonderilen = [];
       const r = GMz.ciz({
         data() {
-          return Object.assign({ dil: 'tr', bagli: true, surucuyum: true, pilCalisiyor: false, skopGunlukAktif: false,
+          return Object.assign({ dil: 'tr', bagli: true, surucuyum: true, pilCalisiyor: false, skopGunlukAktif: false, skopKal: {},
             gunluk: [{ metin: 'TZ sifir=+0.0000 kaynak=fabrika ofset=63.530090 fabrika=63.530090', giden: false }] }, durum);
         },
         methods: {
@@ -2586,6 +2586,22 @@ SONRA.push(async () => {
       kop.u.bagli = true;
       await bekle();
       ok('[!] SZ Kart SONRADAN baglaninca sorulur (acilista bagli degildi)', kop.gonderilen.join() === 'tz?' && /fabrika/.test(yazi(kop.r)), `${kop.gonderilen}`);
+    }
+    /* (c3) kalibrasyon (CT) HENUZ gelmemisken: tetik seviyesi yazisi fabrika ofsetiyle ciziliyordu (ilk yakalamaya dek) */
+    {
+      const kalsiz = kur({ gunluk: [], skopKal: null });
+      await bekle();
+      ok('[!] SZ Kume acilirken kalibrasyon (skopKal) yoksa `CT` de istenir — tetik seviyesi yazisi ilk yakalamayi beklemez',
+         kalsiz.gonderilen.includes('CT') && kalsiz.gonderilen.includes('tz?') && !kalsiz.gonderilen.includes('tz'), `${kalsiz.gonderilen}`);
+      const kalli = kur({ gunluk: [] });
+      await bekle();
+      ok('SZ Kalibrasyon zaten varsa `CT` yeniden istenmez', !kalli.gonderilen.includes('CT'), `${kalli.gonderilen}`);
+      const izl2 = kur({ gunluk: [], skopKal: null, surucuyum: false });
+      await bekle();
+      izl2.u.surucuyum = true;                                  // devral(): CT'yi app.js kendisi ister
+      await bekle();
+      ok('[!] SZ Suruculuk SONRADAN gelince kume `CT` istemez (devral zaten istiyor: cift komut olmaz); `tz?` sorar',
+         izl2.gonderilen.join() === 'tz?', `${izl2.gonderilen}`);
     }
     /* (d) ret */
     u.$refs.sz.sor('sor');
