@@ -174,7 +174,7 @@ const TasiyiciSeri = {
         satirBol(uyg, value);
       }
     } catch (e) {
-      if (!uyg.durduruldu) uyg.hata = 'Okuma hatası: ' + e.message + ' — kablo çıkmış ya da kart yeniden başlamış olabilir; “Karta bağlan”a yeniden basın.';
+      if (!uyg.durduruldu) uyg.hata = uyg.tembelMetin('kk', 'kk.okuma_hatasi', { mesaj: e.message });
     } finally {
       uyg.okuyucu.releaseLock();
     }
@@ -215,7 +215,7 @@ const TasiyiciAkis = {
     const imzali = ist ? await ist.akisAc() : null;
     uyg.akis = imzali || new EventSource(uyg.kartAdres('/akis'));
     uyg.akis.onmessage = (e) => uyg.satirIsle(String(e.data).trim());
-    uyg.akis.onerror = () => { uyg.hata = 'Akış koptu — yeniden bağlanılıyor'; };
+    uyg.akis.onerror = () => { uyg.hata = uyg.tembelMetin('kk', 'kk.akis_koptu'); };
     /* Kart TEK sürücüye hizmet ediyor. Köprü kayıtlıysa ikinci istemci
        reddediliyor ve NEREYE gideceği söyleniyor — sessiz kapanma yok. */
     uyg.akis.addEventListener('kopru', (e) => {
@@ -293,9 +293,8 @@ const TasiyiciAkis = {
         uyg.hata = uyg.metin('kb.komut_kart_yok');
         return;
       }
-      uyg.hata = (await uyg.lanUyarisi(y)) || ('Komut gönderilemedi'
-               + (y ? ' (' + y.status + ')' : ' — bağlantı yok')
-               + (neden ? ': ' + neden : ''));
+      uyg.hata = (await uyg.lanUyarisi(y)) || uyg.tembelMetin('kk', y ? 'kk.komut_red' : 'kk.komut_baglanti_yok',
+        y ? { kod: y.status } : null, neden ? ': ' + neden : '');
       return;
     }
     /* Köprü 204 + boş gövde döndürüyor: kartın cevabı zaten SSE'den
@@ -370,7 +369,7 @@ const KB_METIN = Object.freeze({
   ad: 'kb.ad', gezinme: 'kb.gezinme', menuAc: 'kb.menu_ac', menuKapat: 'kb.menu_kapat',
   cevrimdisi: 'kb.cevrimdisi', baglan: 'kb.baglan', kes: 'kb.kes',
   kopruCalisiyor: 'kb.kopru_calisiyor', kartYokBaslik: 'kb.kart_yok_baslik', kartYokIpucu: 'kb.kart_yok_ipucu',
-  kartYokKendi: 'kb.kart_yok_kendi',
+  kartYokKendi: 'kb.kart_yok_kendi', acilKesme: 'kb.acil_kesme', pilDurdur: 'kb.pil_durdur',
   baglantiBilgi: 'kb.baglanti', baglantiIpucu: 'kb.baglanti_ipucu',
   esitlenmemisYok: 'kb.esitlenmemis_yok', surumIpucu: 'kb.surum_ipucu',
   icerigeGec: 'kb.icerige_gec', esitlenmemisBagliDegil: 'kb.esitlenmemis_bagli_degil', pilCalisiyor: 'kb.pil_calisiyor',
@@ -391,13 +390,16 @@ const CN_METIN = Object.freeze({
   durdur: 'cn.durdur', notEkle: 'cn.not_ekle', notMetin: 'cn.not_metin', notGonder: 'cn.not_gonder',
   vazgec: 'cn.vazgec', zamanla: 'cn.zamanla', planBas: 'cn.plan_bas', planSure: 'cn.plan_sure',
   planSureIpucu: 'cn.plan_sure_ipucu', planKur: 'cn.plan_kur', planIptal: 'cn.plan_iptal',
-  birimSa: 'cn.birim_sa', birimDk: 'cn.birim_dk', kayitSuruyor: 'cn.kayit_suruyor',
+  birimSa: 'cn.birim_sa', birimDk: 'cn.birim_dk', birimSn: 'cn.birim_sn', kayitSuruyor: 'cn.kayit_suruyor',
   aktifKayit: 'cn.aktif_kayit', kayitBilinmiyor: 'cn.kayit_bilinmiyor', sure: 'cn.sure', hiz: 'cn.hiz',
   kalanHesap: 'cn.kalan_hesap', planYok: 'cn.plan_yok', planSuresiz: 'cn.plan_suresiz',
   sonOlaylar: 'cn.son_olaylar', olayYok: 'cn.olay_yok',
   /* WIG (2026-10-02): iki asamali onaylar, mesgul not dugmesi, ADC yanit vermiyor */
   durdurEminim: 'cn.durdur_eminim', planIptalKayit: 'cn.plan_iptal_kayit', planIptalEminim: 'cn.plan_iptal_eminim',
   notGonderiliyor: 'cn.not_gonderiliyor', adcYokV: 'cn.adc_yok_v', adcYokI: 'cn.adc_yok_i',
+  /* 5.12.121 (CE) */
+  gecenSure: 'cn.gecen_sure', ornekleme: 'cn.ornekleme', grafikTemizle: 'cn.grafik_temizle',
+  grafikTemizleEminim: 'cn.grafik_temizle_eminim', csvIndir: 'cn.csv_indir',
 });
 
 /* WIG: iki asamali onayin omru — bayat bir "Eminim" saatler sonra tek tikla calismasin. */
@@ -569,7 +571,7 @@ const KART_SESSIZ_MS = 5000;
 const RAPOR_SECENEKLERI = [
   { ms: 50,   ad: '20 / s' },
   { ms: 100,  ad: '10 / s' },
-  { ms: 200,  ad: '5 / s (varsayılan)' },
+  { ms: 200,  ad: '5 / s', varsayilan: true },   // CE: "(default)" eki sozlukten (cn.varsayilan)
   { ms: 500,  ad: '2 / s' },
   { ms: 1000, ad: '1 / s' },
 ];
@@ -1201,6 +1203,8 @@ createApp({
       /* 3E: spektrum + kayitli yakalama modulu (ekran/osiloskop.js) ekran ILK acilinca iner. */
       skopAcik: hashtenGorunum() === 'skop',
       skopDurum: 'bekliyor',       // 'bekliyor' | 'yukleniyor' | 'hazir' | 'yuklenemedi'
+      /* 5.12.121 (CE): tembel sozluk modulleri (ortak/sozluk_kabuk.js kurulunca, sozluk_osilo.js skopYukle'de) */
+      kkMod: null, skMod: null,
       spektrumBilgi: null,         // SpektrumGrafik.ciz bilgisi (tepe, harmonikler, thd, df …)
       spektrumPencere: 'hann',     // OS3: 'hann' | 'dikdortgen' (tercih)
       spektrumBirim: 'v',          // OS3: 'v' (tepe) | 'dbv' (tercih)
@@ -1377,21 +1381,11 @@ createApp({
            ya da http://olcum.local üzerinde TANIMSIZDIR. Eski metin bunu
            "tarayıcın desteklemiyor" diye okutuyordu ve kullanıcı Chrome'da
            olduğu hâlde yanlış yere bakıyordu. */
-        if (typeof window !== 'undefined' && window.isSecureContext === false) {
-          return 'Bu sayfa güvenli bağlamda değil, o yüzden Web Serial '
-               + 'kapalı — tarayıcının suçu değil. Web Serial yalnızca '
-               + 'https:// ya da http://localhost üzerinde çalışır. Sayfa '
-               + 'kartın kendisinden geldiğine göre doğru kip WiFi (akış); '
-               + 'yukarıdan onu seçin.';
-        }
-        return 'Bu tarayıcı Web Serial desteklemiyor. Chrome veya Edge '
-             + 'gerekiyor; telefonda hiçbir tarayıcı desteklemiyor — '
-             + 'telefondan bağlanmak için WiFi (akış) kipini seçin.';
+        if (typeof window !== 'undefined' && window.isSecureContext === false) return this.kkMetin('kk.guvensiz');
+        return this.kkMetin('kk.serial_yok');
       }
-      if (this.tasiyiciAdi === 'akis') {
-        return 'Bu tarayıcı EventSource desteklemiyor.';
-      }
-      return 'Demo kartı yüklenmedi — adrese ?demo ekleyin.';
+      if (this.tasiyiciAdi === 'akis') return this.kkMetin('kk.eventsource_yok');
+      return this.kkMetin('kk.demo_yok');
     },
     gecmisAciklama() {
       const s = this.yetenek.gecmis_s;
@@ -1588,6 +1582,15 @@ createApp({
     /* ═══ 3E — OSILOSKOP ═══════════════════════════════════════════════ */
     /** OS8: osiloskop metinleri (sozluk `os.`). */
     os() { return metinHaritasi(OS_METIN, this.dil); },
+    /** CE: ust seridin hata metni — dize ya da (sozluk henuz inmemisken kurulan) tembel betimleyici. */
+    hataYazi() { return this.tembelYazi(this.hata); },
+    /** CE: osiloskop durum satiri ("417 örnek · 83.33 kSa/s · pencere 5.00 ms · tetiklendi"). */
+    skopDurumYazi() {
+      const o = this.osilo;
+      if (!o) return '';
+      return this.skMetin('sk.durum', { adet: o.adet, hz: (o.hz / 1000).toFixed(2), pencere: this.skopPencere,
+        tetik: this.skMetin(o.tetiklendi ? 'sk.tetiklendi' : 'sk.serbest') });
+    },
     /** OS5: gunluk suruyor mu — PASIF `GT` satirindan (kart elle yakalamayi reddeder). */
     skopGunlukAktif() { return !!(this.kayit.gt && this.kayit.gt.etkin); },
     skopGunlukDurumYazi() {
@@ -1718,7 +1721,7 @@ createApp({
     /* Seçili zaman tabanının okunabilir etiketi: "5 ms/böl" */
     tdivEtiket() {
       const us = SKOP_TDIV[this.skopTdiv];
-      return us === undefined ? '—' : muh(us * 1e-6, 's', us < 1000 ? 0 : 1) + '/böl';
+      return us === undefined ? '—' : muh(us * 1e-6, 's', us < 1000 ? 0 : 1) + this.skMetin('sk.bol');
     },
     demoSinyaller() {
       return typeof SahteKart !== 'undefined' ? SahteKart.sinyaller : {};
@@ -1735,11 +1738,11 @@ createApp({
       return { bas, son: bas + genislik };
     },
     yatayZoomEtiket() {
-      return this.yatayZoom <= 1 ? 'tam kayıt'
+      return this.yatayZoom <= 1 ? this.skMetin('sk.tam_kayit')
              : '×' + this.yatayZoom.toFixed(this.yatayZoom < 10 ? 1 : 0);
     },
     dikeyZoomEtiket() {
-      return this.dikeyOto ? 'oto'
+      return this.dikeyOto ? this.skMetin('sk.oto')
              : '×' + this.dikeyZoom.toFixed(this.dikeyZoom < 10 ? 1 : 0);
     },
     /* Tetik seviyesini ADC kodu yerine VOLT olarak göster — kullanıcı
@@ -1773,10 +1776,10 @@ createApp({
       if (!o) return [];
       const l = [];
       if (o.f > 0) {
-        l.push({ ad: 'Frekans', d: muh(o.f, 'Hz', 3), vurgu: true });
-        if (Number.isFinite(o.T)) l.push({ ad: 'Periyot', d: muh(o.T, 's', 3) });
+        l.push({ ad: this.metin('os.frekans'), d: muh(o.f, 'Hz', 3), vurgu: true });
+        if (Number.isFinite(o.T)) l.push({ ad: this.skMetin('sk.periyot'), d: muh(o.T, 's', 3) });
       } else {
-        l.push({ ad: 'Frekans', d: 'periyodik değil', vurgu: false });
+        l.push({ ad: this.metin('os.frekans'), d: this.skMetin('sk.periyodik_degil'), vurgu: false });
       }
       /* B45: gerilimler TEK birimde. `muh` her değeri kendi önekine
          çeviriyordu — aynı satırda "Vmax 348.200 mV" ile "Vmin -4.092 V"
@@ -1787,16 +1790,16 @@ createApp({
       l.push({ ad: 'Vpp', d: V(o.Vpp), vurgu: true });
       l.push({ ad: 'Vmax', d: V(o.Vmax) });
       l.push({ ad: 'Vmin', d: V(o.Vmin) });
-      l.push({ ad: 'Vort', d: V(o.Vort) });
+      l.push({ ad: this.skMetin('sk.vort'), d: V(o.Vort) });
       l.push({ ad: 'Vrms', d: V(o.Vrms) });
       l.push({ ad: 'Vac (RMS)', d: V(o.Vac) });
       /* B45: eksik alan render'ı düşürmesin — arşivdeki kısa bir `M`
          satırında `duty` yoksa `undefined.toFixed` bütün skop görünümünü
          çökertiyordu (tarayıcı testinde yakalandı). */
       if (o.f > 0 && Number.isFinite(o.duty)) l.push({ ad: 'Duty', d: o.duty.toFixed(1) + ' %' });
-      if (o.tr > 0) l.push({ ad: 'Yükselme', d: muh(o.tr, 's', 2) });
-      if (o.tf > 0) l.push({ ad: 'Düşme', d: muh(o.tf, 's', 2) });
-      if (o.n) l.push({ ad: 'Çevrim', d: String(o.n) });
+      if (o.tr > 0) l.push({ ad: this.skMetin('sk.yukselme'), d: muh(o.tr, 's', 2) });
+      if (o.tf > 0) l.push({ ad: this.skMetin('sk.dusme'), d: muh(o.tf, 's', 2) });
+      if (o.n) l.push({ ad: this.skMetin('sk.cevrim'), d: String(o.n) });
       return l;
     },
 
@@ -1804,13 +1807,13 @@ createApp({
     skopUyari() {
       if (!this.osilo) return '';
       if (!this.osilo.tetiklendi) {
-        return 'tetiklenemedi — serbest koşu, iz kayabilir';
+        return this.skMetin('sk.tetiklenemedi');
       }
       const o = this.osilo.olcum;
       if (o && o.f > 0 && this.osilo.adet && this.osilo.hz) {
         const cevrim = (this.osilo.adet / this.osilo.hz) * o.f;
-        if (cevrim < 1.5) return 'ekranda bir tam çevrim yok — zaman tabanını yavaşlat';
-        if (cevrim > 60) return 'çok fazla çevrim — zaman tabanını hızlandır';
+        if (cevrim < 1.5) return this.skMetin('sk.cevrim_az');
+        if (cevrim > 60) return this.skMetin('sk.cevrim_cok');
       }
       return '';
     },
@@ -1826,17 +1829,17 @@ createApp({
     orneklemeHizi() {
       if (!this.ornekAdet || !this.sonAralik) return '—';
       const hz = this.ornekAdet / (this.sonAralik / 1000);
-      return (hz >= 1000 ? (hz / 1000).toFixed(1) + 'k' : Math.round(hz)) + ' örnek/s';
+      return this.metin('cn.ornek_s', { n: hz >= 1000 ? (hz / 1000).toFixed(1) + 'k' : Math.round(hz) });
     },
     guncellemeHizi() {
       if (!this.sonAralik || this.sonAralik <= 0) return '';
       const hz = 1000 / this.sonAralik;
       // 5 -> "5", 0.2 -> "0.2", 4.98 -> "5": tam sayiya yakinsa ondalik yok
-      return String(hz >= 10 ? Math.round(hz) : Math.round(hz * 10) / 10) + ' güncelleme/s';
+      return this.metin('cn.guncelleme_s', { n: hz >= 10 ? Math.round(hz) : Math.round(hz * 10) / 10 });
     },
     gurultuBastirma() {
       return this.ornekAdet ? '√' + this.ornekAdet + ' ≈ ' +
-             Math.round(Math.sqrt(this.ornekAdet)) + '× bastırma' : '';
+             this.metin('cn.bastirma', { k: Math.round(Math.sqrt(this.ornekAdet)) }) : '';
     },
 
     // Akım ve güç mA/µA, mW/µW olarak ölçeklenir — küçük değerler okunsun.
@@ -1867,7 +1870,7 @@ createApp({
          YUKSEK  +-613.7 V  adim 18.78 mV */
     menzilAd() {
       if (this.menzil === null) return '—';
-      return this.menzil === 1 ? 'YÜKSEK' : 'NORMAL';
+      return this.menzil === 1 ? this.metin('cn.yuksek') : 'NORMAL';
     },
     menzilAralik() {
       if (this.menzil === null) return '';
@@ -2078,7 +2081,7 @@ createApp({
     gucYon() {
       if (this.gucGecersiz) return '';
       if (!isFinite(this.watt) || Math.abs(this.watt) < 1e-3) return '';
-      return this.watt > 0 ? 'yük çekiyor' : 'kaynak — geri besleme';
+      return this.metin(this.watt > 0 ? 'cn.yuk_cekiyor' : 'cn.geri_besleme');
     },
 
     /* Hizalayicinin ne kadar fark ettigi. Dirençsel yukte ~0, reaktif
@@ -2088,8 +2091,8 @@ createApp({
       const d = this.hizli.p - this.hizli.pHam;
       if (Math.abs(this.hizli.p) < 1e-9) return '';
       const y = d / Math.abs(this.hizli.p) * 100;
-      return (Math.abs(y) < 0.05) ? 'hizalama farkı yok (dirençsel)'
-                                  : `hizalama ${y > 0 ? '+' : ''}${y.toFixed(2)}% düzeltti`;
+      return (Math.abs(y) < 0.05) ? this.skMetin('sk.hizalama_yok')
+                                  : this.skMetin('sk.hizalama', { y: (y > 0 ? '+' : '') + y.toFixed(2) });
     },
     /* WIG: saat "sa" — eski "1s 5dk" panelin geri kalaninda 's' = saniye oldugu icin
        "1 saniye 5 dakika" okunuyordu. */
@@ -2097,7 +2100,8 @@ createApp({
       if (!this.gecmis.length) return '—';
       const s = Math.floor(this.gecmis[this.gecmis.length - 1].t);
       const sa = Math.floor(s / 3600), dk = Math.floor((s % 3600) / 60);
-      return sa ? `${sa} sa ${dk} dk` : dk ? `${dk} dk ${s % 60} sn` : `${s} sn`;
+      const m = this.m;
+      return sa ? `${sa} ${m.birimSa} ${dk} ${m.birimDk}` : dk ? `${dk} ${m.birimDk} ${s % 60} ${m.birimSn}` : `${s} ${m.birimSn}`;
     },
     /* ── WIG (2026-10-02) ── */
     /** Baglanti yok ya da ilk D gelmedi: okuma kartlari "0.000 V" degil "—". */
@@ -2154,6 +2158,7 @@ createApp({
     /* WIG: baglanti kopunca silahli onay duser (bagli degilken komut zaten gitmez). */
     bagli(v) {
       if (!v) this.onay = null;
+      if (v && !this.kkMod) this.kabukYukle();        // CE: kurulusta inemediyse (kart yeniden basliyordu) yeniden
       this.bagliZaman = v ? Date.now() : 0;
       this.kartYokNeden = '';
     },
@@ -2221,6 +2226,7 @@ createApp({
   },
 
   mounted() {
+    this.kabukYukle();                 // CE: ust seritlerin / Pil kabugunun metinleri (tembel, beklenmez)
     this.tercihleriYukle();
     /* 3D (D8): dil — 3H secicisi gelene dek localStorage (3C ile ayni anahtar). */
     let depo = null;
@@ -2330,6 +2336,39 @@ createApp({
 
     /* ═══ 3D — KABUK (D1) ═══════════════════════════════════════════════ */
     metin(anahtar, degiskenler = null) { return ceviri(anahtar, this.dil, degiskenler); },
+    /** CE: Canli yenileme seceneginin adi; varsayilanin eki sozlukten ("(varsayılan)" / "(default)"). */
+    raporAd(s) { return s.varsayilan ? this.metin('cn.varsayilan', { ad: s.ad }) : s.ad; },
+    /* ── 5.12.121 (CE): TEMBEL sozlukler. kk (ortak/sozluk_kabuk.js) kurulunca, sk (sozluk_osilo.js)
+       osiloskop ekraniyla iner; ikisi de acilisi BEKLETMEZ (EU31 / EU32 / #/skop 14 dosya). Inmemisken metin
+       bos (oge cizilmez); hata seridine betimleyici {s, a, d, ek} yazilir, sozluk inince hataYazi cevirir.
+       Inemezse (kart yeniden basliyor) bir sonraki istekte yeniden denenir. */
+    kkMetin(anahtar, d = null) { return this.kkMod ? this.kkMod.ceviriKabuk(anahtar, this.dil, d) : ''; },
+    skMetin(anahtar, d = null) { return this.skMod ? this.skMod.ceviriOsilo(anahtar, this.dil, d) : ''; },
+    tembelMetin(s, anahtar, d = null, ek = '') {
+      const mod = s === 'sk' ? this.skMod : this.kkMod;
+      if (mod) return (s === 'sk' ? this.skMetin(anahtar, d) : this.kkMetin(anahtar, d)) + ek;
+      if (s === 'sk') this.skopKabukYukle().catch(() => {}); else this.kabukYukle();
+      return { s, a: anahtar, d, ek };
+    },
+    tembelYazi(h) {
+      if (!h || typeof h !== 'object') return h || '';
+      const m = h.s === 'sk' ? this.skMetin(h.a, h.d) : this.kkMetin(h.a, h.d);
+      return m ? m + (h.ek || '') : '';
+    },
+    _kabukAl() { return import('/ortak/sozluk_kabuk.js'); },
+    _skopKabukAl() { return import('/ortak/sozluk_osilo.js'); },
+    kabukYukle() {
+      if (!this._kkIs) {
+        this._kkIs = this._kabukAl().then((m) => { this.kkMod = m; return m; }, () => { this._kkIs = null; return null; });
+      }
+      return this._kkIs;
+    },
+    skopKabukYukle() {
+      if (!this._skIs) {
+        this._skIs = this._skopKabukAl().then((m) => { this.skMod = m; return m; }, (h) => { this._skIs = null; throw h; });
+      }
+      return this._skIs;
+    },
     bilgiAc(ekran) { this.bilgi = this.bilgi === ekran ? '' : ekran; },
     /* Kapaninca odak dugmeye doner (Esc / x ile kapatan klavye kullanicisi yerini kaybetmesin). */
     bilgiKapat(ekran) {
@@ -2765,7 +2804,8 @@ createApp({
       if (this._skop || this.skopDurum === 'yukleniyor') return;
       this.skopDurum = 'yukleniyor';
       try {
-        const mod = await import('./ekran/osiloskop.js');
+        /* CE: ekranin kabuktaki metinleri (sozluk_osilo.js) modulle BIRLIKTE; ikisi inince 'hazir' */
+        const [mod] = await Promise.all([import('./ekran/osiloskop.js'), this.skopKabukYukle()]);
         await this.$nextTick();
         const tuval = this.$refs.spektrumTuval;
         if (!tuval) throw new Error('spektrum tuvali yok');
@@ -3080,7 +3120,7 @@ createApp({
       try {
         await this.betikYukle('sahte-kart.js');
       } catch (e) {
-        this.hata = 'Demo kipi açılamadı: ' + e.message + ' — sayfayı yenileyip yeniden deneyin.';
+        this.hata = this.tembelMetin('kk', 'kk.demo_hata', { mesaj: e.message });
         this.demoKurulu = false;
         return;
       }
@@ -3195,10 +3235,9 @@ createApp({
       const mesaj = (e && e.message) || String(e);
       if (ORTAM) return mesaj;           // 5P: telefon tasiyicisi sebebi ve care'yi kendisi yazar (kablo yok)
       if (ad === 'InvalidStateError' || ad === 'NetworkError') {
-        return 'Bağlanamadı: ' + mesaj + ' — port başka bir program (Arduino seri monitör, tezgah betiği) '
-          + 'tarafından kullanılıyor olabilir; onu kapatıp yeniden bağlanın.';
+        return this.tembelMetin('kk', 'kk.port_mesgul', { mesaj });
       }
-      return 'Bağlanamadı: ' + mesaj + ' — kablo ve kartın açık olduğunu denetleyip yeniden deneyin.';
+      return this.tembelMetin('kk', 'kk.baglanamadi', { mesaj });
     },
 
     async kes() {
@@ -3336,7 +3375,7 @@ createApp({
         this.skopKal = (kal.oran > 0 && kal.kod.length >= 2
                         && kal.kod.length === kal.mv.length
                         && sayiTamam) ? kal : null;
-        if (!this.skopKal) this.hata = 'Kalibrasyon tablosu okunamadı';
+        if (!this.skopKal) this.hata = this.tembelMetin('sk', 'sk.ct_yok');
         this.$nextTick(() => this.osiloCiz());
         this.kaydet(satir);          // B45: konsol "her satır" diyor
         return;
@@ -3605,8 +3644,8 @@ createApp({
       }).catch(() => null);
       /* SK1: bağlanırken izleyiciydik → CT (skop eksen tablosu) 403 almıştı; eksen HAM kalıyordu */
       if (y && y.ok) { this.surucuyum = true; this.hata = ''; if (!this.skopKal) this.gonder('CT').catch(() => {}); }
-      else if (y && y.status === 409) this.hata = 'Devralınamadı (409): Başka bir sürücü etkin — o sekmeyi kapatıp yeniden deneyin.';
-      else this.hata = (await this.lanUyarisi(y)) || ('Devralınamadı' + (y ? ' (' + y.status + ')' : '') + ' — köprünün çalıştığını denetleyip yeniden deneyin.');
+      else if (y && y.status === 409) this.hata = this.tembelMetin('kk', 'kk.devral_409');
+      else this.hata = (await this.lanUyarisi(y)) || this.tembelMetin('kk', 'kk.devral_hata', { durum: y ? ' (' + y.status + ')' : '' });
     },
     /* 4H: koprunun yerel ag reddi (403 + X-Kopru-Ret: lan) -> cevrilmis uyari (modul yalniz kopruda) */
     _pcKopruAl() { return import('./ekran/pc_kopru.js'); },
@@ -3782,17 +3821,17 @@ createApp({
               return;
             }
             if (!y.ok) {
-              this.pilHataMetni = 'kart yanıt vermiyor (HTTP ' + y.status + ')';
+              this.pilHataMetni = this.tembelMetin('kk', 'kk.pil_http', { kod: y.status });
               return;
             }
             m = await y.text();
           }
         } catch (e) {
-          this.pilHataMetni = 'karta ulaşılamıyor: ' + e.message;
+          this.pilHataMetni = this.tembelMetin('kk', 'kk.pil_ulasilamiyor', { mesaj: e.message });
           return;
         }
         if (m.indexOf('durum=') !== 0) {
-          this.pilHataMetni = 'beklenmeyen yanıt — kart adresi doğru mu?';
+          this.pilHataMetni = this.tembelMetin('kk', 'kk.pil_beklenmeyen');
           return;
         }
         this.pilHataMetni = '';
@@ -4312,9 +4351,7 @@ createApp({
       const y = await this.kartIstek('/skop.bin').catch(() => null);
       if (!y || !y.ok) {
         const neden = y ? await y.text().catch(() => '') : '';
-        this.hata = 'İkili skop dökümü alınamadı'
-                  + (y ? ' (' + y.status + ')' : '')
-                  + (neden ? ': ' + neden : '');
+        this.hata = this.tembelMetin('sk', 'sk.ikili_yok', null, (y ? ' (' + y.status + ')' : '') + (neden ? ': ' + neden : ''));
         this.osiloBekliyor = false;
         return false;
       }
@@ -4327,17 +4364,17 @@ createApp({
        (DEVIR 4.1, 4.15, B17). */
     skopIkiliCoz(b) {
       if (b.byteLength < 32) {
-        this.hata = 'skop.bin çok kısa'; this.osiloBekliyor = false; return false;
+        this.hata = this.tembelMetin('sk', 'sk.bin_kisa'); this.osiloBekliyor = false; return false;
       }
       const d = new DataView(b);
       /* İmza denetimi: kısmi/yanlış yanıt sessizce çizilmesin. */
       if (d.getUint8(0) !== 0x53 || d.getUint8(1) !== 0x33
           || d.getUint8(2) !== 0x42) {
-        this.hata = 'skop.bin imzası yanlış'; this.osiloBekliyor = false; return false;
+        this.hata = this.tembelMetin('sk', 'sk.bin_imza'); this.osiloBekliyor = false; return false;
       }
       const adet = d.getUint16(4, true);
       if (b.byteLength < 32 + adet * 2) {
-        this.hata = 'skop.bin eksik (' + b.byteLength + ' B, ' + adet + ' örnek)';
+        this.hata = this.tembelMetin('sk', 'sk.bin_eksik', { bayt: b.byteLength, adet });
         this.osiloBekliyor = false;
         return false;
       }
@@ -4399,7 +4436,7 @@ createApp({
         this.skopGun = d.gun || '';
         this.skopKayitlar = d.kayitlar || [];
       } catch (e) {
-        this.hata = 'Kayıt listesi alınamadı: ' + e.message;
+        this.hata = this.tembelMetin('sk', 'sk.liste_yok', { mesaj: e.message });
       } finally {
         this.skopKayitMesgul = false;
       }
@@ -4412,7 +4449,7 @@ createApp({
           '/skop/al?gun=' + encodeURIComponent(kyt.gun) + '&ms=' + kyt.ms),
           { cache: 'no-store' });
         if (!y.ok) {
-          this.hata = 'Kayıt açılamadı (' + y.status + ')';
+          this.hata = this.tembelMetin('sk', 'sk.acilamadi_kod', { kod: y.status });
           return;
         }
         /* AYNI çözücü — canlı yakalamayla tek satır bile farklı kod
@@ -4436,7 +4473,7 @@ createApp({
           if (this.surekli) this.surekliDegis();
         }
       } catch (e) {
-        this.hata = 'Kayıt açılamadı: ' + e.message;
+        this.hata = this.tembelMetin('sk', 'sk.acilamadi', { mesaj: e.message });
       } finally {
         this.skopKayitMesgul = false;
         this.skopArsivtenAciliyor = false;
@@ -4527,8 +4564,9 @@ createApp({
          "köprü açıldıktan sonra" diye yazılıyor. */
       const s = Math.floor(ms / 1000);
       const d = Math.floor(s / 60), sn = s % 60;
-      return d ? `${d} dk ${String(sn).padStart(2, '0')} sn`
-               : `${sn} sn`;
+      const m = this.m;
+      return d ? `${d} ${m.birimDk} ${String(sn).padStart(2, '0')} ${m.birimSn}`
+               : `${sn} ${m.birimSn}`;
     },
 
     osiloOtomatik() {

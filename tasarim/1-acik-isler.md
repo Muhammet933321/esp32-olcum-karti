@@ -319,7 +319,8 @@ rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşit
   denetimi yalnız `/pil` yolunda.
 - **PT-3 rapor (rapor.js)** PT alanlarını yazmıyor (açılış sözlüğünde yer yok); kayıt görünümü gösteriyor.
 - **PT-4 açılış bütçesi:** EU31 262 122 / 262 144 B, açılış sözlüğü ~19 493 / 19 500 B — yeni açılış metni tembel
-  modüle; bütçe kararı gerekebilir.
+  modüle; bütçe kararı gerekebilir. *(5.12.121 sonrası: EU31 261 156 B, açılış sözlüğü 19 341 B — CE'nin İngilizce
+  metinleri tembel sözlüklerde, açılışa yalnız Canlı'nın ilk karede görünen 15 kısa anahtarı girdi.)*
 - **CA-1 (A3-CA3)** hotspot kapatma süresi kartta ölçülmedi (CA2'de 2:30; hedef < 1 dk).
 - **PT-5 kart A3-PT2'de (2026-10-08 03:00):** açılış `Bellek (CA-4): skop=PSRAM`, `QH` ayirma_hata=0; skop yakalaması
   A3-PT1 ile A/B aynı (Vort −46.4 V — o an girişte kullanıcının bağlantısı vardı, V kanalı 11.2 V). Kartın kendi
@@ -357,3 +358,19 @@ rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşit
   +0.32 V, aynı sinyal D9'dan alınınca alt 0.00 V / üst 5.27 V. Sebebi aranmadı (D13 kesmeyle üretilen kopya + kart
   üstü LED devresi; bağlantı da olabilir). O zamana dek osiloskop sınamasında sinyal **D9**'dan alınır
   (`uretim/arduino_sinyal/`); DEVIR 5.12.120.
+
+## İngilizce panel (CE, 5.12.121, 2026-10-11) — kalanlar
+
+- ~~**CE-1 · README ekranlarında Türkçe etiket** (Canlı, Osiloskop, Pil testi, Kayıtlar / kayıt görünümü,
+  Karşılaştırma, "What plugs where", sol şerit, üst şeritler)~~ **Kapandı (Öncelik 1):** metinler tembel sözlüklerde
+  (`sozluk_kabuk.js`, `sozluk_osilo.js`, `sozluk_skop.js`) + Canlı'nın 15 kısa etiketi açılış sözlüğünde; B7
+  bölüm 36 iki dilde 25 senaryoyu gerçek Vue ile çizip tarıyor. AY3 272 → 124.
+- **CE-2 · Ayarlar (index.html kartları: Bağlantı, Kalibrasyon ve ayar, Ağ, Görünüm) ve Konsol hâlâ Türkçe** —
+  Öncelik 2 (aşağıda / DEVIR 5.12.121 sonu). Kalan AY3 listesi: `node uretim/test_arayuz3.js | grep EN?`.
+- **CE-3 · Tembel sözlük inerken metin anlık boş** (Türkçe kipte de): `sozluk_kabuk.js` kuruluşta, `sozluk_osilo.js`
+  osiloskop ekranıyla iner. Şeritler ve Pil'in J7 uyarısı sözlük inene dek ÇİZİLMEZ; sözlük hiç inemezse (kart
+  yeniden başlıyor) bağlanınca / ilk hatada yeniden denenir. Gerçek kartta süre ölçülmedi (tezgah kalemi).
+- **CE-4 · AY3 sayacının sezgisi:** metni sözlüğe taşınan satırlardan arta kalan teknik parçalar (`CT`, `DC offset`,
+  `J7 ≤ 38.5 V dss`, `bosluk`, `http://localhost …`) ve iki yorum sayılıyor (7 / 124). Sayaç gevşetilmedi.
+- **CE-5 · Eski B7 boşluğu (önceden de vardı):** `hashchange` dinleyicisi (`gorunum = hashtenGorunum()`) silinse de
+  B7 yeşil (mutasyon KACTI, değişiklik öncesi kodda da 998/998). Ayrı iş.

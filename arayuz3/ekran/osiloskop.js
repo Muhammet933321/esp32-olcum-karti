@@ -78,29 +78,29 @@ export const SkopArsiv = {
   data() { return { s: null }; },
   created() { import('/ortak/sozluk_skop.js').then((s) => { this.s = s; }).catch(() => {}); },
   computed: { r() { return this.$root; } },
-  methods: { m(a) { return this.s.ceviriSkop(a, this.r.dil); } },
+  methods: { m(a, d = null) { return this.s.ceviriSkop(a, this.r.dil, d); } },
   template: `<section v-if="s" class="kart">
   <h2 data-skop-eski-arsiv>{{ m('sz.eski_arsiv') }}</h2>
   <p class="ipucu">{{ m('sz.eski_arsiv_ipucu') }}</p>
 
   <div class="satir" style="margin-bottom:10px;gap:8px;align-items:center">
     <label v-if="r.skopGunler.length > 1" style="font-size:12px;color:var(--soluk)">
-      Gün
+      {{ m('sz.gun') }}
       <select v-model="r.skopGun" @change="r.skopKayitlariYukle(r.skopGun)"
               style="width:auto">
         <option v-for="g in r.skopGunler" :key="g" :value="g">{{ g }}</option>
       </select>
     </label>
     <button @click="r.skopKayitlariYukle(r.skopGun)" :disabled="r.skopKayitMesgul">
-      {{ r.skopKayitMesgul ? 'Yükleniyor…' : 'Yenile' }}
+      {{ m(r.skopKayitMesgul ? 'sz.yukleniyor' : 'sz.yenile') }}
     </button>
     <span class="ipucu" style="margin:0">
-      {{ r.skopKayitlar.length }} kayıt<template v-if="r.skopGun"> · {{ r.skopGun }}</template>
+      {{ m('sz.kayit_sayisi', { n: r.skopKayitlar.length }) }}<template v-if="r.skopGun"> · {{ r.skopGun }}</template>
     </span>
   </div>
 
   <p v-if="!r.skopKayitlar.length" class="ipucu">
-    Henüz kayıt yok — <strong>Yakala</strong>'ya bastığında buraya düşecek.
+    {{ m('sz.bos_1') }} <strong>{{ r.os.yakala }}</strong>{{ m('sz.bos_2') }}
   </p>
 
   <div v-else class="kayit-listesi">
@@ -110,18 +110,17 @@ export const SkopArsiv = {
             :disabled="r.skopKayitMesgul" @click="r.skopKayitAc(k)">
       <span class="kayit-zaman">{{ r.skopZaman(k.ms) }}</span>
       <span class="kayit-bilgi">
-        {{ k.adet }} örnek · {{ (k.hz / 1000).toFixed(2) }} kSa/s
+        {{ m('sz.ornek_hz', { adet: k.adet, hz: (k.hz / 1000).toFixed(2) }) }}
       </span>
       <span class="kayit-etiket">
-        {{ k.tetiklendi ? 'tetiklendi' : 'serbest koşu' }}
+        {{ m(k.tetiklendi ? 'sz.tetiklendi' : 'sz.serbest') }}
       </span>
-      <span v-if="!k.tam" class="kayit-etiket dikkat">kırpık</span>
+      <span v-if="!k.tam" class="kayit-etiket dikkat">{{ m('sz.kirpik') }}</span>
     </button>
   </div>
 
   <p class="ipucu">
-    Zaman damgası <strong>köprü açıldıktan sonra</strong> geçen süre —
-    duvar saati değil. Bir kaydı açmak kartı hiç meşgul etmez.
+    {{ m('sz.zaman_1') }} <strong>{{ m('sz.zaman_2') }}</strong> {{ m('sz.zaman_3') }}
   </p>
 </section>`,
 };

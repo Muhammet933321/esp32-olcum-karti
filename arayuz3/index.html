@@ -127,10 +127,10 @@
          nokta kendi satırında kalıyordu (390 px render'ı gösterdi). -->
     <div class="acil-bilgi">
       <span class="acil-nokta" aria-hidden="true"></span>
-      <span><b>Pil testi çalışıyor</b> — {{ acilMahYazi }} ·
-        {{ bicim(volt, 3) }} V, kesme {{ bicim(pilKesme, 2) }} V</span>
+      <span><b>{{ m.pilCalisiyor }}</b> — {{ acilMahYazi }} ·
+        {{ bicim(volt, 3) }} V, {{ m.acilKesme }} {{ bicim(pilKesme, 2) }} V</span>
     </div>
-    <button class="acil-dur" @click="pilDurdurKomut" aria-label="Pil testini durdur">DURDUR</button>
+    <button class="acil-dur" @click="pilDurdurKomut" :aria-label="m.pilDurdur">{{ metin('pl.durdur') }}</button>
   </div>
   <div v-else-if="acilTelefon" class="acil" data-acil-telefon>
     <!-- 5P (K9): yalniz telefonda — pil testinin SURMEDIGI kesin degilse (bilinmiyor) de DURDUR elde -->
@@ -151,20 +151,20 @@
   <div class="bildirimler">
   <!-- 🔴 Yetenek yoksa düğme kapalı ama NEDENİ görünür. Ölü düğme
        bırakmak DEVIR 4.15'in ta kendisiydi. -->
-  <div v-if="!destekli" class="hata" role="status">
-    <strong>Bu kipte bağlanılamıyor.</strong> {{ desteksizNeden }}
+  <div v-if="!destekli && kkMod" class="hata" role="status">
+    <strong>{{ kkMetin('kk.desteksiz') }}</strong> {{ desteksizNeden }}
     <template v-if="tasiyiciAdi === 'seri'">
-      Ayrıca sayfa <code>http://localhost</code> üzerinden açılmalı —
-      <code>file://</code> ile Web Serial çalışmaz.
-      Sunucuyu başlatmak için: <code>python arayuz3/sunucu.py</code>
+      {{ kkMetin('kk.localhost_1') }} <code>http://localhost</code> {{ kkMetin('kk.localhost_2') }}
+      <code>file://</code> {{ kkMetin('kk.localhost_3') }}
+      <code>python arayuz3/sunucu.py</code>
     </template>
   </div>
-  <div v-if="kopruAdresi" class="uyari">
-    Kart bir bilgisayara bağlı. Sınırsız geçmiş ve çoklu izleyici için
-    arayüzü <a :href="kopruAdresi">{{ kopruAdresi }}</a> üzerinden açın.
+  <div v-if="kopruAdresi && kkMod" class="uyari">
+    {{ kkMetin('kk.kopru_1') }}
+    <a :href="kopruAdresi">{{ kopruAdresi }}</a> {{ kkMetin('kk.kopru_2') }}
   </div>
   <div v-if="uyari" class="uyari" role="status">{{ uyari }}</div>
-  <div v-if="hata" class="hata" role="alert">{{ hata }}</div>
+  <div v-if="hataYazi" class="hata" role="alert">{{ hataYazi }}</div>
   <!-- 2026-10-06: kart kapali / erisilemiyor — panel (ya da kopru) ayakta olsa da kartin KENDISI yok -->
   <div v-if="kartYokGoster" class="kart-yok" role="alert" data-kart-yok>
     <b>{{ m.kartYokBaslik }}</b> <span data-kart-yok-son>{{ kartYokSon }}</span>
@@ -176,11 +176,10 @@
   <div v-if="eslesmeUyariMetni" class="uyari" role="alert" data-es-uyari>{{ eslesmeUyariMetni }} <a href="#/ayar/eslestirme">{{ eslesmeGit }}</a></div>
   <!-- B22.3: köprüde N izleyici, BIR sürücü. Yetki sunucuda; burası
        yalnızca durumu gösteriyor ve devri istiyor. -->
-  <div v-if="bagli && !surucuyum" class="uyari" role="status">
-    Bu oturum <b>izleyici</b> — ölçümü görüyorsunuz ama komut gönderemezsiniz.
-    Kalibrasyon ve pil testi sürücüdeyken tek elde olmalı.
-    <b>Durdurma (<code>p0</code>) her zaman açık.</b>
-    <button @click="devral" style="margin-left:8px">Sürücülüğü devral</button>
+  <div v-if="bagli && !surucuyum && kkMod" class="uyari" role="status">
+    {{ kkMetin('kk.izleyici_1') }} <b>{{ kkMetin('kk.izleyici_2') }}</b> {{ kkMetin('kk.izleyici_3') }}
+    <b>{{ kkMetin('kk.izleyici_4') }} (<code>p0</code>) {{ kkMetin('kk.izleyici_5') }}</b>
+    <button @click="devral" style="margin-left:8px">{{ kkMetin('kk.devral') }}</button>
   </div>
   </div><!-- /bildirimler -->
 
@@ -317,11 +316,11 @@
 
   <div class="ikincil">
     <div class="kutu">
-      <div class="ad">Geçen süre</div>
+      <div class="ad">{{ m.gecenSure }}</div>
       <div class="deger">{{ sureGoster }}</div>
     </div>
     <div class="kutu">
-      <div class="ad">Örnekleme</div>
+      <div class="ad">{{ m.ornekleme }}</div>
       <div class="deger">{{ orneklemeHizi }}</div>
       <!-- B27 A2: kartın içindeki ADC hızı ile ekrana düşen satır hızı
            AYRI şeyler; ikisi de ölçülüyor. "463 /sn" tek başına yanıltıcıydı. -->
@@ -365,18 +364,18 @@
         </template>
       </label>
       <div class="bosluk"></div>
-      <label title="Kart bu aralıkta bir D satırı yollar; her nokta o aralığın ortalaması. Sadece sürücü değiştirebilir.">{{ m.yenileme }}:
+      <label :title="kkMetin('kk.yenileme_ipucu')">{{ m.yenileme }}:
         <select v-model.number="raporMs" style="width:auto"
                 :disabled="bagli && !surucuyum">
-          <option v-for="s in raporSecenekleri" :key="s.ms" :value="s.ms">{{ s.ad }}</option>
+          <option v-for="s in raporSecenekleri" :key="s.ms" :value="s.ms">{{ raporAd(s) }}</option>
         </select>
       </label>
       <label>{{ m.pencere }}:
         <select v-model.number="pencere" style="width:auto">
-          <option :value="30">30 sn</option>
-          <option :value="60">1 dk</option>
-          <option :value="300">5 dk</option>
-          <option :value="1800">30 dk</option>
+          <option :value="30">30 {{ m.birimSn }}</option>
+          <option :value="60">1 {{ m.birimDk }}</option>
+          <option :value="300">5 {{ m.birimDk }}</option>
+          <option :value="1800">30 {{ m.birimDk }}</option>
         </select>
       </label>
     </div>
@@ -412,12 +411,12 @@
       <button v-if="donmus" type="button" @click="imlecTemizle" :disabled="!canliOkuma">{{ m.imlecSil }}</button>
       <!-- WIG: tarayıcıdaki iz (CSV'si alınmamış olabilir) geri alınamaz: iki aşamalı -->
       <button v-if="onay !== 'grafikTemizle'" data-onay-ac="grafikTemizle" @click="onayIste('grafikTemizle')"
-              :disabled="!gecmis.length">Grafiği temizle</button>
+              :disabled="!gecmis.length">{{ m.grafikTemizle }}</button>
       <template v-else>
-        <button class="tehlike" data-onay="grafikTemizle" @click="gecmisiTemizle">Eminim, grafiği temizle</button>
-        <button @click="onayVazgec('grafikTemizle')">Vazgeç</button>
+        <button class="tehlike" data-onay="grafikTemizle" @click="gecmisiTemizle">{{ m.grafikTemizleEminim }}</button>
+        <button @click="onayVazgec('grafikTemizle')">{{ m.vazgec }}</button>
       </template>
-      <button @click="csvIndir" :disabled="!gecmis.length">CSV indir</button>
+      <button @click="csvIndir" :disabled="!gecmis.length">{{ m.csvIndir }}</button>
     </div>
   </section>
 
@@ -485,12 +484,12 @@
   <div v-if="demo" class="demo-serit">
     <span class="demo-rozet">DEMO</span>
     <label>
-      Prob ucundaki test sinyali
+      {{ skMetin('sk.demo_sinyal') }}
       <select v-model="demoSinyal" @change="demoSinyalDegisti">
         <option v-for="(s, k) in demoSinyaller" :key="k" :value="k">{{ s.ad }}</option>
       </select>
     </label>
-    <span class="demo-not">karta bağlı değil — sahte kart aynı protokolü konuşuyor</span>
+    <span class="demo-not">{{ skMetin('sk.demo_not') }}</span>
   </div>
 
   <div class="skop-duzen">
@@ -502,11 +501,10 @@
          geçmişten. Söylenmeseydi kullanıcı eski bir dalgaya bakıp
          "kart şu anda bunu ölçüyor" sanırdı. -->
     <div v-if="skopAcikKayit" class="arsiv-serit">
-      <span class="rozet">Arşiv</span>
-      <span>{{ skopAcikKayit.gun }} · köprü açıldıktan
-        {{ skopZaman(skopAcikKayit.ms) }} sonra yakalandı — canlı değil</span>
+      <span class="rozet">{{ os.arsiv }}</span>
+      <span>{{ skMetin('sk.arsiv_serit', { gun: skopAcikKayit.gun, sure: skopZaman(skopAcikKayit.ms) }) }}</span>
       <button @click="osiloYakala" :disabled="!bagli || osiloBekliyor"
-              style="margin-left:auto">Canlıya dön</button>
+              style="margin-left:auto">{{ os.canliyaDon }}</button>
     </div>
     <!-- 3E (OS6): Kayıtlar'dan açılan yakalama — bu tarayıcının kopyasından,
          ölçümler kartın hesabıyla (skopOlcKart). Aynı şerit deseni. -->
@@ -528,27 +526,27 @@
          içinde gezinir. Gerçek osiloskoplardaki zoom penceresi. -->
     <div class="satir zoom-satir">
       <span class="zoom-grup">
-        <span class="zoom-ad">Dikey</span>
-        <button @click="dikeyBuyut(1/1.5)" title="Uzaklaştır" aria-label="Dikey uzaklaştır">−</button>
+        <span class="zoom-ad">{{ skMetin('sk.dikey') }}</span>
+        <button @click="dikeyBuyut(1/1.5)" :title="skMetin('sk.uzaklastir')" :aria-label="skMetin('sk.dikey_uzak')">−</button>
         <span class="skop-deger">{{ dikeyZoomEtiket }}</span>
-        <button @click="dikeyBuyut(1.5)" title="Yakınlaştır" aria-label="Dikey yakınlaştır">+</button>
-        <button @click="dikeyKaydirDegis(-0.25)" title="Yukarı kaydır" aria-label="Yukarı kaydır">▲</button>
-        <button @click="dikeyKaydirDegis(0.25)" title="Aşağı kaydır" aria-label="Aşağı kaydır">▼</button>
-        <button @click="dikeySifirla" title="Otomatik ölçeğe dön">oto</button>
+        <button @click="dikeyBuyut(1.5)" :title="skMetin('sk.yakinlastir')" :aria-label="skMetin('sk.dikey_yakin')">+</button>
+        <button @click="dikeyKaydirDegis(-0.25)" :title="skMetin('sk.yukari')" :aria-label="skMetin('sk.yukari')">▲</button>
+        <button @click="dikeyKaydirDegis(0.25)" :title="skMetin('sk.asagi')" :aria-label="skMetin('sk.asagi')">▼</button>
+        <button @click="dikeySifirla" :title="skMetin('sk.oto_olcek')">{{ skMetin('sk.oto') }}</button>
       </span>
 
       <span class="zoom-grup">
-        <span class="zoom-ad">Yatay</span>
-        <button @click="yatayBuyut(1/2)" :disabled="yatayZoom <= 1" title="Uzaklaştır" aria-label="Yatay uzaklaştır">−</button>
+        <span class="zoom-ad">{{ skMetin('sk.yatay') }}</span>
+        <button @click="yatayBuyut(1/2)" :disabled="yatayZoom <= 1" :title="skMetin('sk.uzaklastir')" :aria-label="skMetin('sk.yatay_uzak')">−</button>
         <span class="skop-deger">{{ yatayZoomEtiket }}</span>
-        <button @click="yatayBuyut(2)" title="Yakınlaştır" aria-label="Yatay yakınlaştır">+</button>
-        <button @click="yatayKaydirDegis(-0.5)" :disabled="yatayZoom <= 1" title="Sola" aria-label="Sola kaydır">◀</button>
-        <button @click="yatayKaydirDegis(0.5)" :disabled="yatayZoom <= 1" title="Sağa" aria-label="Sağa kaydır">▶</button>
-        <button @click="yatayTetigeGit" :disabled="yatayZoom <= 1" title="Tetik anına git">T</button>
-        <button @click="yatarSifirla" :disabled="yatayZoom <= 1" title="Tam kayda dön">tam</button>
+        <button @click="yatayBuyut(2)" :title="skMetin('sk.yakinlastir')" :aria-label="skMetin('sk.yatay_yakin')">+</button>
+        <button @click="yatayKaydirDegis(-0.5)" :disabled="yatayZoom <= 1" :title="skMetin('sk.sola')" :aria-label="skMetin('sk.sola_kaydir')">◀</button>
+        <button @click="yatayKaydirDegis(0.5)" :disabled="yatayZoom <= 1" :title="skMetin('sk.saga')" :aria-label="skMetin('sk.saga_kaydir')">▶</button>
+        <button @click="yatayTetigeGit" :disabled="yatayZoom <= 1" :title="skMetin('sk.tetige_git')">T</button>
+        <button @click="yatarSifirla" :disabled="yatayZoom <= 1" :title="skMetin('sk.tam_kayda')">{{ skMetin('sk.tam') }}</button>
       </span>
 
-      <span class="demo-not fare-ipucu">fare tekerleği: dikey · Shift+tekerlek: yatay</span>
+      <span class="demo-not fare-ipucu">{{ skMetin('sk.fare') }}</span>
     </div>
 
     <p v-if="skopUyari" class="skop-uyari">⚠ {{ skopUyari }}</p>
@@ -570,10 +568,8 @@
     </div>
 
     <p v-if="osilo" class="ipucu">
-      {{ osilo.adet }} örnek · {{ (osilo.hz/1000).toFixed(2) }} kSa/s ·
-      pencere {{ skopPencere }} ·
-      {{ osilo.tetiklendi ? 'tetiklendi' : 'serbest koşu' }}
-      <span v-if="surekli"> · {{ surekliHiz.toFixed(1) }} yakalama/sn</span>
+      {{ skopDurumYazi }}
+      <span v-if="surekli"> · {{ skMetin('sk.yakalama_sn', { n: surekliHiz.toFixed(1) }) }}</span>
       <!-- 🔴 GERİLİM EKSENİ KALİBRE Mİ — SUSMUYORUZ. Düzeltme yokken
            eksen yine çizilir ve "ölçülmüş" görünür; B34 o varsayımın
            girişte 9 V'a varan hata verdiğini ölçtü. Hangi eksende
@@ -581,41 +577,34 @@
            3E (OS6): kayıtlı yakalama KENDİ eğrisini taşıyor (osilo.kal). -->
       · <span v-if="skopKayitli" class="kal-rozet" :class="{ yok: !osilo.kal }">{{ osilo.kal ? os.egriKayitta : os.egriYokKayitta }}</span>
       <template v-else><span v-if="skopKal" class="kal-rozet"
-              title="Gerilim ekseni çipin kendi eFuse eğrisiyle düzeltiliyor">
-          eksen kalibre</span>
+              :title="skMetin('sk.eksen_kalibre_ipucu')">
+          {{ skMetin('sk.eksen_kalibre') }}</span>
         <span v-else class="kal-rozet yok"
-              title="Kart kalibrasyon tablosu vermedi — eksen sabit çarpanla çiziliyor">
-          eksen HAM</span></template>
+              :title="skMetin('sk.eksen_ham_ipucu')">
+          {{ skMetin('sk.eksen_ham') }}</span></template>
     </p>
     <!-- 3E (OS6): bu uyarı CANLI eksen (kartın CT'si) için; kayıtlı yakalama kendi
          eğrisini taşıyor ve rozeti onu söylüyor. -->
     <template v-if="!skopKayitli">
-    <p v-if="!skopKal" class="ipucu">
-      ⚠ Gerilim ekseni <strong>düzeltmesiz</strong>: ham ADC kodu sabit
-      bir çarpanla çevriliyor. Kartta ölçüldü — bu varsayım girişte
-      <strong>9 V'a varan</strong> sapma veriyor (tam ölçeğin %8'i).
-      Kart <code>CT</code> komutuna yanıt verirse düzeltme kendiliğinden
-      devreye girer.
+    <p v-if="!skopKal && skMod" class="ipucu">
+      {{ skMetin('sk.duz_1') }} <strong>{{ skMetin('sk.duz_2') }}</strong>{{ skMetin('sk.duz_3') }}
+      <strong>{{ skMetin('sk.duz_4') }}</strong> {{ skMetin('sk.duz_5') }}
+      <code>CT</code> {{ skMetin('sk.duz_6') }}
     </p>
     </template>
-    <p v-if="esikMenzilDisi" class="skop-uyari">
-      ⚠ Tetik seviyesi ({{ esikVolt.toFixed(2) }} V) sinyalin dışında —
-      hiçbir zaman tetiklenmez. Kaydırıcıyı dalganın içine getir ya da
-      <strong>Otomatik</strong>'e bas.
+    <p v-if="esikMenzilDisi && skMod" class="skop-uyari">
+      {{ skMetin('sk.esik_1', { v: esikVolt.toFixed(2) }) }}
+      <strong>{{ os.otomatik }}</strong>{{ skMetin('sk.esik_2') }}
     </p>
 
-    <p class="ipucu">
-<!-- B27/K4: bu sayilar tasarim3_sabit.SKOP_MENZIL_EKSI / _ARTI ile AYNI
-     olmali; sim3_bant.py her kosuda karsilastiriyor. Eski metin "0 – 48.7 V,
-     tek yönlü" diyordu — B19 skopu cift yonlu yapmisti (alt uc VREF'te),
-     metin bir yil geride kalmisti. -->
-      <strong>Menzil −63.5 … +46.8 V, çift yönlü.</strong> Alt uç GND'de
-      değil VREF'te; negatif sinyal de okunur. Menzil dışı kırpılır — sinyal
-      üretecinde <strong>DC offset</strong>
-      kullan. Örtüşme (aliasing) sınırı: girişteki 1 nF + 100 K süzgeci
-      25 kHz'te kesiyor, Nyquist 41.7 kHz. Bunun üstündeki bileşenler sahte,
-      yavaş bir sinyal olarak görünür.
-      <strong>Şebekeye bağlanamaz</strong> — kart izole değil.
+    <p v-if="skMod" class="ipucu">
+<!-- B27/K4: bu sayilar (ortak/src/sozluk_osilo.js sk.menzil_1, iki dil) tasarim3_sabit.SKOP_MENZIL_EKSI /
+     _ARTI ile AYNI olmali; sim3_bant.py her kosuda karsilastiriyor. Eski metin "0 – 48.7 V, tek yönlü" diyordu
+     — B19 skopu cift yonlu yapmisti (alt uc VREF'te), metin bir yil geride kalmisti. -->
+      <strong>{{ skMetin('sk.menzil_1') }}</strong> {{ skMetin('sk.menzil_2') }}
+      <strong>DC offset</strong>
+      {{ skMetin('sk.menzil_3') }}
+      <strong>{{ skMetin('sk.menzil_4') }}</strong> {{ skMetin('sk.menzil_5') }}
     </p>
   </section>
 
@@ -665,7 +654,7 @@
       <label class="skop-alan">
         <span>{{ os.tetikKip }}</span>
         <select v-model.number="skopKip" @change="skopKomut('tm' + skopKip)"
-                :disabled="!bagli" title="Tetikleme kipi">
+                :disabled="!bagli" :title="skMetin('sk.kip_ipucu')">
           <option :value="0">{{ os.kipOto }}</option>
           <option :value="1">{{ os.kipNormal }}</option>
           <option :value="2">{{ os.kipTek }}</option>
@@ -674,7 +663,7 @@
       <label class="skop-alan">
         <span>{{ os.kenar }}</span>
         <select v-model.number="skopKenar" @change="skopKomut('te' + skopKenar)"
-                :disabled="!bagli" title="Tetik kenarı">
+                :disabled="!bagli" :title="skMetin('sk.kenar_ipucu')">
           <option :value="0">{{ os.kenarYukselen }}</option>
           <option :value="1">{{ os.kenarDusen }}</option>
         </select>
@@ -692,7 +681,7 @@
         <span>{{ os.onTetik }}</span>
         <input type="range" min="0" max="90" step="5" v-model.number="skopOn"
                @change="skopKomut('tp' + skopOn)" :disabled="!bagli">
-        <span class="skop-deger">%{{ skopOn }}</span>
+        <span class="skop-deger">{{ skMetin('sk.yuzde', { n: skopOn }) }}</span>
       </label>
       <!-- B47: tetik onayı — gerçek skoplardaki "noise reject". İki örnek:
            eşiği geçen örneği bir sonraki de doğrulamalı; tek-örnek iğneler
@@ -702,9 +691,9 @@
         <span>{{ os.onay }}</span>
         <select v-model.number="skopOnay" @change="skopKomut('tn' + skopOnay)"
                 :disabled="!bagli"
-                title="Tetik onayı: iki örnek = gürültü reddi (tek-örnek iğne tetiklemez); tek örnek = yavaş tabanda tek örnek süren darbe için">
-          <option :value="2">Gürültü reddi (2 örnek)</option>
-          <option :value="1">Tek örnek</option>
+                :title="skMetin('sk.onay_ipucu')">
+          <option :value="2">{{ skMetin('sk.onay_iki') }}</option>
+          <option :value="1">{{ skMetin('sk.onay_tek') }}</option>
         </select>
       </label>
       <!-- SK1: ön süzgeç menüsü (tembel: ekran/osiloskop.js SkopSuz) -->
@@ -753,7 +742,7 @@
       <label class="skop-alan">
         <span>{{ os.frekans }}</span>
         <select v-model.number="calHz" @change="calGonder" :disabled="!bagli"
-                title="GPIO10'da %50 kare dalga">
+                :title="skMetin('sk.cal_ipucu')">
           <option :value="0">{{ os.calKapali }}</option>
           <option :value="100">100 Hz</option>
           <option :value="1000">1 kHz</option>
@@ -767,14 +756,13 @@
         <span>{{ os.gorev }}</span>
         <input type="range" min="0" max="1000" step="10" v-model.number="calGorev"
                @change="calGorevGonder" :disabled="!bagli">
-        <span class="skop-deger">%{{ (calGorev/10).toFixed(0) }}</span>
+        <span class="skop-deger">{{ skMetin('sk.yuzde', { n: (calGorev/10).toFixed(0) }) }}</span>
       </label>
       <p class="ipucu">
-        <template v-if="calGercek">kart {{ calGercek }} Hz üretiyor<template
-          v-if="calCozunurluk"> ({{ calCozunurluk }} bit görev)</template> —
-          skop ölçümünü <b>bununla</b> karşılaştır</template>
-        <template v-else>GPIO10 → GPIO4 tek tel; skop zincirini bilinen
-          sinyalle sınamak için</template>
+        <template v-if="calGercek">{{ skMetin('sk.cal_uretiyor', { hz: calGercek }) }}<template
+          v-if="calCozunurluk">{{ ' ' + skMetin('sk.cal_bit', { n: calCozunurluk }) }}</template>
+          {{ skMetin('sk.cal_1') }} <b>{{ skMetin('sk.cal_2') }}</b> {{ skMetin('sk.cal_3') }}</template>
+        <template v-else>{{ skMetin('sk.cal_yok') }}</template>
       </p>
     </fieldset>
   </aside>
@@ -852,32 +840,30 @@
   <!-- ───────────────────────────────────────────── denetimler -->
   <!-- ─────────────────────────────────── hızlı yol (B8) -->
   <section class="kart">
-    <h2>Hızlı ölçüm — gerçek güç ve güç faktörü</h2>
+    <h2>{{ skMetin('sk.hizli_baslik') }}</h2>
     <p class="ipucu">
-      ESP32'nin dahili ADC'si iki kanalı <strong>41.7 kSa/s</strong> ile
-      okuyup <code>ort(V×I)</code> hesaplıyor. Akım örnekleri yarım örnek
-      geç alındığı için Lagrange hizalayıcıyla geri kaydırılıyor —
-      reaktif yükte düzeltmesiz sonuç %78'e varan hata veriyor.
+      {{ skMetin('sk.hizli_1') }} <strong>41.7 kSa/s</strong> {{ skMetin('sk.hizli_2') }}
+      <code>{{ skMetin('sk.ort_vi') }}</code> {{ skMetin('sk.hizli_3') }}
     </p>
     <div class="satir" style="margin-bottom:12px">
-      <button @click="hizliOlc" :disabled="!bagli">Hızlı ölçüm yap</button>
+      <button @click="hizliOlc" :disabled="!bagli">{{ skMetin('sk.hizli_yap') }}</button>
     <div v-if="hizliHata" class="hata" style="margin-top:8px">{{ hizliHata }}</div>
     </div>
     <div v-if="hizli" class="olcumler">
       <div class="olcum w">
-        <div class="ad">Gerçek güç</div>
+        <div class="ad">{{ skMetin('sk.gercek_guc') }}</div>
         <div class="deger">{{ bicim(hizli.p, 4) }}<span class="birim">W</span></div>
         <div class="alt-bilgi">{{ hizalamaFarki }}</div>
       </div>
       <div class="olcum i">
-        <div class="ad">Güç faktörü</div>
+        <div class="ad">{{ skMetin('sk.guc_faktoru') }}</div>
         <div class="deger">{{ bicim(hizli.pf, 3) }}</div>
-        <div class="alt-bilgi">görünür {{ bicim(hizli.s, 3) }} VA</div>
+        <div class="alt-bilgi">{{ skMetin('sk.gorunur', { s: bicim(hizli.s, 3) }) }}</div>
       </div>
       <div class="olcum v">
         <div class="ad">Vrms / Irms</div>
         <div class="deger">{{ bicim(hizli.vRms, 3) }}<span class="birim">V</span></div>
-        <div class="alt-bilgi">{{ bicim(hizli.iRms * 1000, 2) }} mA · {{ hizli.n }} örnek</div>
+        <div class="alt-bilgi">{{ skMetin('sk.ma_ornek', { ma: bicim(hizli.iRms * 1000, 2), n: hizli.n }) }}</div>
       </div>
     </div>
     <!-- 🔴 B39 — ÖLÇEKLEME KALİBRE Mİ, SUSMUYORUZ. Doğrusal ADC modeli
@@ -886,21 +872,20 @@
          giriyordu (1 W dirençsel yükte P 3.56 W, PF 0.77). -->
     <p v-if="hizli" class="ipucu">
       <span v-if="hizli.kal === true" class="kal-rozet"
-            title="Ham kodlar çipin eFuse eğrisiyle mV'a çevrildi">ölçekleme kalibre</span>
+            :title="skMetin('sk.olcek_kalibre_ipucu')">{{ skMetin('sk.olcek_kalibre') }}</span>
       <span v-else-if="hizli.kal === false" class="kal-rozet yok"
-            title="Kart kalibrasyon tablosu kuramadı">ölçekleme HAM</span>
+            :title="skMetin('sk.olcek_ham_ipucu')">{{ skMetin('sk.olcek_ham') }}</span>
       <span v-else class="kal-rozet yok"
-            title="Eski firmware bu bilgiyi göndermiyor">ölçekleme bilinmiyor</span>
+            :title="skMetin('sk.olcek_yok_ipucu')">{{ skMetin('sk.olcek_yok') }}</span>
       <template v-if="hizli.kal !== true">
-        — doğrusal ADC modeli sıfır girişte <strong>-6.9 V / -397 mA</strong>
-        ofset veriyor; P, Vrms ve PF buna göre <strong>yanlış</strong>.
+        {{ skMetin('sk.ofset_1') }} <strong>-6.9 V / -397 mA</strong>
+        {{ skMetin('sk.ofset_2') }} <strong>{{ skMetin('sk.ofset_3') }}</strong>.
       </template>
     </p>
     <p v-if="hizli" class="ipucu">
-      ⚠️ Kalibrasyonla bile ön uç kurulunca bir <strong>sıfır
-      kalibrasyonu</strong> gerekecek: kalan belirsizlik girişte ~0.8 V /
-      ~47 mA. Mutlak watt değeri için yukarıdaki <strong>D satırı</strong>
-      (ADS1115) geçerli; burası <strong>güç faktörü ve dalga şekli</strong> için.
+      {{ skMetin('sk.sifir_1') }} <strong>{{ skMetin('sk.sifir_2') }}</strong> {{ skMetin('sk.sifir_3') }}
+      <strong>{{ skMetin('sk.sifir_4') }}</strong>
+      {{ skMetin('sk.sifir_5') }} <strong>{{ skMetin('sk.sifir_6') }}</strong> {{ skMetin('sk.sifir_7') }}
     </p>
   </section>
 
@@ -1283,19 +1268,18 @@
        değiştiği için canlı bölge DEĞİL. -->
   <p class="gorunmez" aria-live="polite">{{ pilDuyuru }}</p>
 
-  <p class="uyari">
-    ⚠ Yükü <b>J7</b>'ye bağlayın, J3'e değil. J3 doğrudan şönte gider;
-    oraya bağlarsanız MOSFET <b>baypas</b> olur ve <b>kesme çalışmaz</b>.
-    Kart bunu başlangıçta denetleyip testi reddediyor.
-    Pil gerilimi <b>≤ 38.5 V</b> olmalı (MOSFET V<sub>dss</sub> sınırı).
+  <p v-if="kkMod" class="uyari">
+    {{ kkMetin('kk.j7_1') }} <b>J7</b>{{ kkMetin('kk.j7_2') }}
+    <b>{{ kkMetin('kk.j7_3') }}</b> {{ kkMetin('kk.j7_4') }} <b>{{ kkMetin('kk.j7_5') }}</b>{{ kkMetin('kk.j7_6') }}
+    <b>≤ 38.5 V</b> {{ kkMetin('kk.j7_7') }}<sub>dss</sub> {{ kkMetin('kk.j7_8') }}
   </p>
   <!-- PL5 (E9 deseni): panelin reddi (geçersiz kesme / ad) ve kartın ret satırı OLDUĞU GİBİ -->
   <p v-if="pilUyari" class="hata" data-pil="uyari" role="alert" :data-tur="pilUyari.tur">{{ pilUyari.metin }}</p>
-  <p v-if="pilHata && pilHata !== '-'" class="hata" role="alert">
-      Pil testi: {{ pilHataYazi }}</p>
+  <p v-if="pilHata && pilHata !== '-' && kkMod" class="hata" role="alert">
+      {{ kkMetin('kk.pil_hata', { hata: pilHataYazi }) }}</p>
   <!-- B22.2: kart yanıt vermiyorsa SÖYLE. Eskiden 404 sessizce
        ayrıştırılıp tüm KPI'lar 0 gösteriliyordu. -->
-  <p v-if="pilHataMetni" class="uyari" role="alert">Pil verisi alınamıyor: {{ pilHataMetni }}</p>
+  <p v-if="pilHataMetni && kkMod" class="uyari" role="alert">{{ kkMetin('kk.pil_veri_yok', { mesaj: tembelYazi(pilHataMetni) }) }}</p>
   <p v-if="pilKayitYok" class="uyari" data-pil="kayit-yok">{{ pilKayitYokYazi }}</p>
   <pil-pt v-if="pilOcvEvresi" kip="evre" :d="$data"></pil-pt>
   <pil-pt v-if="pilCalisiyor && pilIstenen" kip="fark" :d="$data"></pil-pt>
@@ -1356,11 +1340,9 @@
         <span class="kpi-ad">{{ s.ad }}</span><span class="kpi-deger">{{ s.d }}</span>
       </div>
     </div>
-    <p v-if="pilBosluk" class="uyari">
-      ⚠ Kayıtta <b>{{ pilBosluk }} nokta boşluk</b> var — tarayıcı kartın
-      tuttuğu 1.5 saatlik pencereden daha uzun kapalı kaldı. Boşluk
-      eğride kesik, CSV'de işaretli (<code>bosluk</code> sütunu 1); <b>mAh ve Wh toplamları etkilenmedi</b>, çünkü
-      sayaçlar kartta kesintisiz birikiyor. Tam eğri kartın kaydında (Kayıtlar).</p>
+    <p v-if="pilBosluk && kkMod" class="uyari">
+      {{ kkMetin('kk.bosluk_1') }} <b>{{ kkMetin('kk.bosluk_2', { n: pilBosluk }) }}</b> {{ kkMetin('kk.bosluk_3') }}<code>bosluk</code> {{ kkMetin('kk.bosluk_4') }}
+      <b>{{ kkMetin('kk.bosluk_5') }}</b>{{ kkMetin('kk.bosluk_6') }}</p>
     <div class="satir" style="margin-top:12px">
       <button v-if="pilBilgi && pilBilgi.okuma" type="button" @click="pilImlecTemizle">{{ pl.imlecSil }}</button>
       <button type="button" data-pil="kayit-csv" @click="pilKayitCsv" :disabled="!pilKayitOzet">{{ pl.pilCsv }}</button>
@@ -1368,14 +1350,14 @@
       <!-- WIG: yalnız BU TARAYICININ noktaları (IndexedDB) silinir; kartın PİL oturumu
            Kayıtlar'da kalır. Yine de geri alınamaz: iki aşamalı. -->
       <button v-if="onay !== 'pilSil'" data-onay-ac="pilSil" @click="onayIste('pilSil')"
-              :disabled="!pilNokta.length">Tarayıcıdaki noktaları sil</button>
+              :disabled="!pilNokta.length">{{ kkMetin('kk.nokta_sil') }}</button>
       <template v-else>
-        <button class="tehlike" data-onay="pilSil" @click="pilTemizle" :disabled="!pilNokta.length">Eminim, sil</button>
-        <button @click="onayVazgec('pilSil')">Vazgeç</button>
+        <button class="tehlike" data-onay="pilSil" @click="pilTemizle" :disabled="!pilNokta.length">{{ kkMetin('kk.nokta_sil_eminim') }}</button>
+        <button @click="onayVazgec('pilSil')">{{ m.vazgec }}</button>
       </template>
     </div>
-    <p v-if="onay === 'pilSil'" class="uyari">Bu tarayıcıdaki pil noktaları silinir (geri gelmez);
-      kartın kaydı Kayıtlar'da kalır. Önce <b>{{ pl.noktaCsv }}</b>'ni kullanın.</p>
+    <p v-if="onay === 'pilSil' && kkMod" class="uyari">{{ kkMetin('kk.nokta_sil_1') }}
+      <b>{{ pl.noktaCsv }}</b>{{ kkMetin('kk.nokta_sil_2') }}</p>
   </section>
 
   <section class="iki-sutun">

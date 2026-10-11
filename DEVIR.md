@@ -10647,6 +10647,71 @@ tam koşuda doğrulanmalı.
 - **Açık:** İngilizce panelde çevrilmemiş etiketler görüntülerde Türkçe (osiloskop ölçüm tablosu, DİKEY/YATAY, "Geçen
   süre", "Örnekleme", pil ekranındaki J7 uyarısı) — AY3 kilidindeki 272 metnin parçası. Çekirdek 1'e eklenen süre ölçülmedi.
 
+#### 5.12.121 🟡 CE: İNGİLİZCE PANELDE TÜRKÇE KALAN METİNLER — ÖNCELİK 1 (README EKRANLARI) (2026-10-11, bulut oturumu, dal `ceviri-en`)
+
+**Sorun.** `olcum.dil = en` iken Canlı, Osiloskop, Pil testi ve üst şeritlerde şablona / koda gömülü Türkçe kalıyordu
+(5.12.120'deki İngilizce görüntüler). AY3 sayacı yalnız kaynaktaki Türkçe HARFLİ dizgeyi sayıyordu: ASCII Türkçe
+("oto", "tam", "dk", "sn") ve hesaplanan metin ("438 örnek/s") ona görünmezdi.
+
+**Test önce (B7 bölüm 36, kırmızıydı).** `uretim/gorunur_metin.js`: depodaki `vendor/vue.global.prod.js` kendi vm
+bağlamında + düz nesne ağacına çizen ÖZEL RENDERER (`Vue.createRenderer`). index.html kök şablonu ve ekran
+bileşenleri GERÇEK Vue derleyicisi/çalışma zamanıyla çiziliyor (v-if, v-for, v-show, `<teleport>`, v-html dahil);
+görünür metin + title / placeholder / aria-label / alt taranıyor. 25 senaryo, DOLU hâlleriyle (sahte kartın D
+satırları ve yakalaması): Canlı ×2, şeritler ×4 (izleyici + 403 + acil pil + köprü adresi; bağlantı yok; devral
+409 / 500), Osiloskop ×6 (yakalama, yakınlaştırma + sinyal dışı tetik + CAL, yakalama yok / eksen düzeltmesiz,
+serbest koşu + hızlı ölçüm, PC köprüsü eski arşiv dolu / boş), Pil ×2 (bitmiş + boşluk + silme onayı; çalışıyor),
+"What plugs where" ×3, Kayıtlar + 6 kayıt görünümü + Karşılaştırma (bölüm 24'ün sentetik akışı). Her senaryo İKİ
+dilde: EN'de (a) Türkçe harf, (b) 120+ ASCII Türkçe sözcük (`TR_SOZCUK`) YOK + İngilizce çapa metinleri VAR; TR'de
+eski metinler AYNEN (çapa). İzin listesi: yalnız bağlantı çizimindeki FİZİKSEL etiketler (svg `<text>` ve `.bb-`
+talimat satırlarındaki AÇ / KAPA, PİL, YÜK, GÜÇ, ŞARJ, SKOP) + bölüm 24'ün kullanıcı adları ("Akü şarj — deneme",
+etiket / notlar). Adres yolları (`/pil`, `olcum-karti/satir`) sözcük sayılmaz.
+
+**Çözüm — yeni metinler TEMBEL sözlüklere (açılış sözlüğüne değil):**
+- `ortak/src/sozluk_kabuk.js` (`kk.`, 49 anahtar): üst şeritler, hata metinleri, Canlı'nın yenileme ipucu, Pil
+  sekmesinin kabuktaki metinleri (J7 uyarısı, boşluk uyarısı, nokta silme, `/pil` hataları). app.js `mounted`'da
+  DİNAMİK ister, açılışı BEKLETMEZ; inene dek bu metni taşıyan şerit çizilmez (`v-if … && kkMod`). Kurulurken
+  inmemişse hata şeridine betimleyici `{s, a, d, ek}` yazılır, sözlük inince `hataYazi` çevirir (Türkçe anlık
+  görünüp İngilizceye dönmez — inene dek boş). İnemezse sonraki istekte / bağlanınca yeniden denenir.
+- `ortak/src/sozluk_osilo.js` (`sk.`, 104 anahtar): #/skop şablonunun ve app.js'in osiloskop metinleri (DİKEY /
+  YATAY, oto / tam, /böl → /div, ölçüm tablosu Period · Vmean · Rise · Fall · Cycles, durum satırı, eksen uyarıları,
+  tetik onayı, CAL, hızlı ölçüm, skop.bin hataları, `%25` → `25%`). `skopYukle` osiloskop modülüyle `Promise.all`
+  — ekran ikisi inince `hazir`. (Ad bilerek `sozluk_skop*` değil: B73 sozluk_skop.test'in yerleşim kuralı.)
+- `ortak/src/sozluk_skop.js` (`sz.`) +13: eski skop arşivinin (SkopArsiv) düz Türkçesi ("Yenile", "Gün", "kırpık"…).
+- Açılış sözlüğü (`ortak/src/sozluk.js`) +15 küçük anahtar: YALNIZ Canlı'nın ilk karede görünen etiketleri (Geçen
+  süre, Örnekleme, örnek/s, güncelleme/s, sn, varsayılan, güç yönü, YÜKSEK, Grafiği temizle, CSV indir) ve acil
+  şeridin `kb.acil_kesme` / `kb.pil_durdur`'u (PU1: DURDUR modülü/sözlüğü beklemez).
+- Fiziksel etiketler ve `ortak/src/baglanti_veri.js` (üretilmiş) DEĞİŞMEDİ. Kartın ham satırları çevrilmez
+  ("Komut gönderilemedi (403): <kartın metni>" — başlık çevrilir, sebep aynen).
+
+**Türkçe kip değişmedi — ölçüldü.** Aynı 25 senaryonun TR görünür metni değişiklikten ÖNCEKİ kodla (geçici
+çalışma ağacı, HEAD) birebir karşılaştırıldı: **25/25 aynı** (yalnız tembel sözlük inerken metin anlık boş).
+Gerçek tarayıcı (Chromium, `?demo`, `olcum.dil` en/tr) Canlı / Osiloskop / Pil: EN'de Türkçe harfli satır yalnız
+sahte kartın kendi demo sinyal adları (kartın dili); konsol hatası yalnız önceden de olan `/durum` 404'ü.
+
+| ölçü | önce | sonra | sınır (pay) |
+|---|---|---|---|
+| EU31 eşleşmiş açılış | 261 007 B | **261 156 B** | 262 144 (988) |
+| EU32 açılış sözlüğü | 19 011 B | **19 341 B** | 19 500 (159) |
+| `#/skop` açılışı | 254 901 B · 14 | **254 959 B · 14** | 256 000 · 14 (1 041) |
+| osiloskop zinciri | 45 477 B · 6 | 45 386 B · 6 | 48 KB · 6 |
+| `sozluk_kabuk.js` / `sozluk_osilo.js` (tembel) | — | 3 482 / 4 811 B | 4 / 5 KB (CE kilidi) |
+| AY3 (EN'de çevrilmemiş) | 272 | **124** | kilit 124 |
+
+(5.12.118'deki `#/skop` 253 671 B; ölçüm bu dalın başında 254 901 B idi.) Kalan 124'ün 5'i Türkçe değil (`CT`,
+`DC offset`, `J7 ≤ 38.5 V dss`, `bosluk`, kod parçası — sayacın sezgisi, metin satırlarından ayrılınca sayılıyor);
+2'si yorum (`köprü şurada`, `her satır`); Öncelik 1 ekranlarında Türkçe kalan YOK.
+
+**Testler.** `test_arayuz3.js` 998 → **1042/1042** (+40 CE, +4 yerleşim/betimleyici/kilit; eski metin iddiaları
+`trCoz` ile şablonu Türkçe metne çözerek AYNI güçte) · `test_ortak.py` 33 → **35/35** (yeni `sozluk_kabuk.test.js`,
+`sozluk_osilo.test.js`; ortak node testleri 564 → 574) · `sim3_bant.py` 9. adım metni sözlükten (TR + EN), 77/78
+(1a-bis ortamdan, öncesi de) · `sim3_web.py` 162/162 (zlib-ng) · `test_belge_dil.py` 79/79 · mobil vitest 601/601
+(öncesi 601) · mutasyon `CE:` **20/20 YAKALANDI**; anahtarı değişen 7 eski mutasyonun deseni yeni koda taşındı
+(desen kaybı 32 → 32, hepsi önceden). Gizlilik temiz.
+
+**Bulut ortamı.** `_fs.json` + `sw.js` 5.12.118'in yoluyla (arayuz-uret.py'nin AYNI fonksiyonları + `zlib_ng`):
+değişmeyen 44 dosya kayıttaki baytla BİREBİR (`etag` + `bayt`); `goruntu_bayt` önceki değer (mklittlefs yok).
+avr-gcc: Ubuntu `gcc-avr` 7.3.0, Windows yoluna ev klasöründe sembolik bağ (depo dışı).
+
 #### 5.12.118 🟡 SK1 DÜZELTME: EU31 AÇILIŞ BÜTÇESİ + SK-1 ÖLÇÜM EŞİKLERİ (2026-10-10, bulut oturumu, dal `sk1-duzeltme`)
 
 **İş 1 — açılış bütçesi (EU31 kırmızıydı, 262 381 / 262 144 B).** Süzgeç menüsü ve onun metinleri açılış paketinden

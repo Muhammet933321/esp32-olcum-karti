@@ -956,15 +956,19 @@ def bolum7(r):
     r.bilgi("     goremez (derleme yok) — o yuzden metin burada SABITLE")
     r.bilgi("     KARSILASTIRILIYOR. 'Ayni sayi kac dosyada duruyor?' dersi.")
     r.bilgi("")
+    # 5.12.121 (CE): metin index.html'den osiloskop kabugunun tembel sozlugune tasindi (sk.menzil_1, TR + EN).
+    #   Iki dil de sabitle ayni olmali; sablon o anahtari gostermeli.
     _html = (KOK / "arayuz3" / "index.html").read_text(encoding="utf-8",
                                                           errors="replace")
     # ⚠ HTML yorumlari CIKARILIYOR: aciklama yorumu eski ifadeyi ("tek
     #   yönlü") alintiliyor ve iddia ilk yazimda KENDI yorumunu yakaladi.
     _html = re.sub(r"<!--.*?-->", "", _html, flags=re.S)
+    _soz = (KOK / "ortak" / "src" / "sozluk_osilo.js").read_text(encoding="utf-8", errors="replace")
     _eksi = f"{T.SKOP_MENZIL_EKSI:.1f}".replace("-", "−")   # tipografik eksi
     _arti = f"+{T.SKOP_MENZIL_ARTI:.1f}"
-    r.kosul(f"  9: metin '{_eksi} … {_arti} V' diyor (sabitten)",
-            f"Menzil {_eksi} … {_arti} V" in _html,
+    r.kosul(f"  9: metin '{_eksi} … {_arti} V' diyor (sabitten; TR + EN, sablon sk.menzil1)",
+            f'"sk.menzil_1": S("Menzil {_eksi} … {_arti} V' in _soz
+            and f'"Range {_eksi} … {_arti} V' in _soz and "{{ sk.menzil1 }}" in _html,
             f"SKOP_MENZIL_EKSI={T.SKOP_MENZIL_EKSI:.1f} "
             f"SKOP_MENZIL_ARTI={T.SKOP_MENZIL_ARTI:.1f} — metin sapmis")
     # --- 10. B27/K3: BOS GIRISTEN 223 W BASILMASIN
@@ -993,7 +997,7 @@ def bolum7(r):
             "82 diye sabit yazilsaydi ADC bit derinligi degisince sessizce kayardi")
 
     r.kosul("  9: metin 'çift yönlü' diyor, 'tek yönlü' DEGIL",
-            "çift yönlü" in _html and "tek yönlü" not in _html,
+            "çift yönlü" in _soz and "bipolar" in _soz and "tek yönlü" not in _html + _soz,
             "B19 oncesi ifade geri gelmis olur")
     r.kosul("  7: baglanti kopunca istemci temizleniyor",
             "stop()" in yorumsuz(govde(INO, "static void akis_yolla")),

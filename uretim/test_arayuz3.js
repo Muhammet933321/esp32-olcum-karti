@@ -118,8 +118,12 @@ function iceAktarmaGrafigi(bas = APP) {
   return [...gorulen.values()];
 }
 
+/* 5.12.121 (CE): tarayici kurulusta ortak/sozluk_kabuk.js'i, osiloskop ekraninda sozluk_osilo.js'i DINAMIK
+   indiriyor; vm'de dinamik import yok — taklit ornek ikisini HAZIR alir (indirme yolu bolum 36'da). */
+const TEMBEL_KK = require(path.join(KOK, 'ortak', 'src', 'sozluk_kabuk.js'));
+const TEMBEL_SK = require(path.join(KOK, 'ortak', 'src', 'sozluk_osilo.js'));
 function ornek() {
-  const o = Object.assign({}, secenekler.data());
+  const o = Object.assign({}, secenekler.data(), { kkMod: TEMBEL_KK, skMod: TEMBEL_SK });
   Object.assign(o, secenekler.methods);
   o.$nextTick = () => {};
   o.$refs = {};
@@ -131,12 +135,33 @@ function ornek() {
   return o;
 }
 
+/* 5.12.121 (CE): sablonun metni artik tembel sozluklerde. METNE bakan eski iddialar sablonu once TURKCE metne
+   cozer — {{ m.x }} / {{ os.x }} / {{ pl.x }}, :title / :aria-label (haritayla ya da kkMetin / skMetin), kkMetin('kk.x', …) /
+   skMetin('sk.x', …) / metin('x', …) ve bilesendeki m('sz.x', …): yer tutuculu metin { } ile kalir. Ayni iddia,
+   ayni guc; yalniz metnin durdugu yer degisti. */
+function trCoz(sablon) {
+  const vmAl = (ad) => { try { return vm.runInContext(ad, sandbox); } catch (e) { return {}; } };
+  const SZ0 = require(path.join(KOK, 'ortak', 'src', 'sozluk.js'));
+  const SZs = require(path.join(KOK, 'ortak', 'src', 'sozluk_skop.js'));
+  const tr = (k) => (TEMBEL_KK.SOZLUK_KABUK[k] || TEMBEL_SK.SOZLUK_OSILO[k] || SZs.SOZLUK_SKOP[k] || SZ0.SOZLUK[k] || { tr: k }).tr;
+  const harita = { os: vmAl('OS_METIN'), pl: vmAl('PL_METIN'),
+    m: Object.assign({}, vmAl('KB_METIN'), vmAl('CN_METIN')) };
+  const ad = (h, x) => (harita[h] && harita[h][x] ? tr(harita[h][x]) : null);
+  return sablon
+    .replace(/\{\{\s*(m|os|pl)\.(\w+)\s*\}\}/g, (t, h, x) => ad(h, x) ?? t)
+    .replace(/:(title|aria-label)="(m|os|pl)\.(\w+)"/g, (t, o, h, x) => (ad(h, x) !== null ? `${o}="${ad(h, x)}"` : t))
+    .replace(/:(title|aria-label)="(?:kkMetin|skMetin)\('([a-z]+\.[a-z0-9_]+)'\)"/g, (t, o, k) => `${o}="${tr(k)}"`)
+    .replace(/\{\{\s*(?:kkMetin|skMetin|metin|m)\('([a-z]+\.[a-z0-9_]+)'[^\n]*?\)\s*\}\}/g, (t, k) => tr(k));
+}
+
 /* [!] ASENKRON IDDIA KUYRUGU (B27 A2).
    Bir `.then()` icinde yazilan `ok()` OZET SATIRINDAN SONRA kosuyordu:
    sayilmiyor, kirmizi olsa bile surec 0 ile cikiyordu — yani iddia
    degil, susleme. Asenkron iddialar buraya birakiliyor ve ozetten ONCE
    (bolum 12'nin zincirinde) bekleniyor. */
 const SONRA = [];
+/* 5.12.121 (CE): bolum 24'un sentetik kayit akisi — bolum 36 Kayitlar / kayit gorunumu / Karsilastirma'yi onunla cizer */
+let CE_KAYIT = null;
 
 let gecti = 0, kaldi = 0;
 /* 3C: asenkron zincir ASKIDA kalirsa (bir Promise hic cozulmez) node olay
@@ -406,7 +431,7 @@ ok('B21: [!] BOSLUK kullaniciya GOSTERILIYOR',
    'kart penceresinden uzun kopmada egride bosluk olur — sessizce '
    + 'interpolasyon YAPILMIYOR, sayilip isaretleniyor');
 ok('B21: [!] J7/J3 montaj tuzagi arayuzde YAZIYOR',
-   /J7/.test(htmlKaynak) && /J3/.test(htmlKaynak),
+   /J7/.test(trCoz(htmlKaynak)) && /J3/.test(trCoz(htmlKaynak)),
    'yuk J3\'e baglanirsa kesme calismaz — kullanici bunu gormeli');
 ok('B21: veri IndexedDB\'de (sekme kapansa da kalir)',
    appKaynak.includes('indexedDB.open'),
@@ -486,7 +511,7 @@ ok('B22.5: yakalama YETENEGE gore yol seciyor',
    B22.2'de kapatilan sessiz-sifir kusurunun ikili karsiligi. */
 ok('B22.5: ikili yanit IMZASI denetleniyor',
    govdeIcinde(appKaynak, 'skopIkiliCoz', '0x53') &&
-   govdeIcinde(appKaynak, 'skopIkiliCoz', 'imzası'),
+   govdeIcinde(appKaynak, 'skopIkiliCoz', "'sk.bin_imza'") && /imzası/.test(TEMBEL_SK.SOZLUK_OSILO['sk.bin_imza'].tr),
    'S3B degilse cizme, SEBEBINI soyle');
 ok('B22.5: ikili yanit UZUNLUGU denetleniyor',
    govdeIcinde(appKaynak, 'skopIkiliCoz', '32 + adet * 2'),
@@ -746,7 +771,7 @@ console.log('\n--- 7. Sablon: menzil ve guc yonu gosteriliyor mu ---');
   /* Hizli yolun MUTLAK dogrulugu sinirli — arayuz bunu SOYLEMELI,
      yoksa kullanici ADS'in degeri yerine bu sayiya guvenir. */
   ok('mutlak deger uyarisi sablonda',
-     htmlKaynak.includes('D satırı') && htmlKaynak.includes('ADS1115'));
+     trCoz(htmlKaynak).includes('D satırı') && trCoz(htmlKaynak).includes('ADS1115'));
   /* CSS tuzagi: display tanimlayan sinif [hidden] kuralini ezer. */
   ok('`button.etkin` icinde display kullanilmiyor ([hidden] tuzagi)',
      !/button\.etkin\s*\{[^}]*display/.test(cssOku()));
@@ -1101,7 +1126,7 @@ console.log('\n--- 10. Gorunumler: hash yonlendirme, v-show, yeniden cizim ---')
   //  <main> sinir: bildirim sarmali gorunumlerden ONCE bitmeli)
   const bildirimBlok = html.match(/<div class="bildirimler">([\s\S]*?)<main /);
   ok('Ust bildirimler tek .bildirimler sarmalinda',
-     !!bildirimBlok && ['!destekli', 'kopruAdresi', 'v-if="hata"', '!surucuyum']
+     !!bildirimBlok && ['!destekli', 'kopruAdresi', 'v-if="hataYazi"', '!surucuyum']
        .every((k) => bildirimBlok[1].includes(k)));
 
   // Kalibrasyon talimati pil sekmesinde DEGIL, ayar sekmesinde.
@@ -1876,7 +1901,7 @@ console.log('\n--- 16. Skop arsivi (geriye donuk kayit) ---');
   /* [!] Canli mi arsiv mi: tuvalde SOYLENMELI. */
   ok('[!] Arsiv kaydi cizilirken tuvalde ayirt edici serit var',
      /v-if="skopAcikKayit"[\s\S]{0,400}arsiv-serit|arsiv-serit[\s\S]{0,200}skopAcikKayit/
-       .test(html) && html.includes('canlı değil'),
+       .test(html) && trCoz(html).includes('canlı değil'),
      'yoksa gecmis dalga canli sanilir');
   ok('Serit CANLIYA DONME yolu sunuyor',
      /arsiv-serit[\s\S]{0,600}osiloYakala/.test(html));
@@ -1899,7 +1924,7 @@ console.log('\n--- 16. Skop arsivi (geriye donuk kayit) ---');
 
   /* Kirpik kayit SESSIZ kalmiyor — eksik dalga "olculmus" gorunmemeli. */
   ok('[!] Kirpik kayit listede isaretleniyor',
-     /v-if="!k\.tam"[\s\S]{0,120}kırpık/.test(arsiv),
+     /v-if="!k\.tam"[\s\S]{0,120}kırpık/.test(trCoz(arsiv)),
      'eksik dalga sessizce tam gorunmemeli');
   /* ⚠ `.uyari` bu projede emniyet uyarisinin KUTU stili; rozete
      uygulaninca rozet butona benziyor (tarayici goruntusunde yakalandi).
@@ -1910,7 +1935,7 @@ console.log('\n--- 16. Skop arsivi (geriye donuk kayit) ---');
      'emniyet uyarisi stili rozete bulasmamali');
   /* Zaman damgasi DUVAR SAATI DEGIL; oyle gosterilip yanlis okunmasin. */
   ok('Zaman damgasinin ne oldugu yaziyor (duvar saati degil)',
-     arsiv.includes('köprü açıldıktan') &&
+     trCoz(arsiv).includes('köprü açıldıktan') &&
      govdeIcinde(appKaynak, 'skopZaman', 'Math.floor(ms / 1000)'));
 
   /* 🔴 KOPRUDE ASCII, KARTTA IKILI — AYNI VERIYI IKI KEZ TASIMA.
@@ -2091,11 +2116,11 @@ console.log('\n--- 17. Skop gerilim ekseni kalibrasyonu ---');
      Yazmasaydi duzeltmesiz bir eksen "olculmus" gorunur ve sayilar
      sessizce yanlis okunurdu (B34: girisde 9 V'a varan sapma). */
   ok('[!] Eksenin kalibre olup olmadigi EKRANDA yaziyor',
-     /v-if="skopKal"[\s\S]{0,200}eksen kalibre/.test(html) &&
-     /v-else[\s\S]{0,200}eksen HAM/.test(html),
+     /v-if="skopKal"[\s\S]{0,200}eksen kalibre/.test(trCoz(html)) &&
+     /v-else[\s\S]{0,200}eksen HAM/.test(trCoz(html)),
      'duzeltmesiz eksen "kalibre" sanilmamali');
   ok('Tablo yokken SEBEBI ve buyuklugu yaziliyor',
-     /v-if="!skopKal"[\s\S]{0,400}9 V/.test(html),
+     /v-if="!skopKal[^"]*"[\s\S]{0,400}9 V/.test(trCoz(html)),
      '"ham" demek yetmez — ne kadar saptigi soylenmeli');
 
   /* Sahte kart GERCEK kartin protokolunu konusmali. */
@@ -2130,14 +2155,14 @@ console.log('\n--- 18. Hizli yol olceklemesi kalibre mi ---');
      c.hizli && c.hizli.kal === null && Math.abs(c.hizli.p - 0.36314) < 1e-9,
      'eski firmware bilinmiyor demek; "kalibre" sanmak YANLIS olurdu');
   ok('[!] Ekranda uc durum da ayri yaziyor (kalibre / HAM / bilinmiyor)',
-     /hizli\.kal === true[\s\S]{0,160}olçekleme kalibre|hizli\.kal === true[\s\S]{0,160}ölçekleme kalibre/.test(html)
-     && /hizli\.kal === false[\s\S]{0,160}ölçekleme HAM/.test(html)
-     && /ölçekleme bilinmiyor/.test(html));
+     /hizli\.kal === true[\s\S]{0,160}olçekleme kalibre|hizli\.kal === true[\s\S]{0,160}ölçekleme kalibre/.test(trCoz(html))
+     && /hizli\.kal === false[\s\S]{0,160}ölçekleme HAM/.test(trCoz(html))
+     && /ölçekleme bilinmiyor/.test(trCoz(html)));
   ok('Kalibresizken ofsetin BUYUKLUGU yaziyor',
      /hizli\.kal !== true[\s\S]{0,200}-6\.9 V/.test(html),
      '"ham" demek yetmez — ne kadar yanlis oldugu soylenmeli');
   ok('Sifir kalibrasyonunun HALA gerektigi yaziyor',
-     /sıfır[\s\S]{0,20}kalibrasyonu/.test(html),
+     /sıfır[\s\S]{0,20}kalibrasyonu/.test(trCoz(html)),
      'eFuse duzeltmesi on ucun sifir ofsetini gidermez');
 }
 
@@ -2396,8 +2421,8 @@ console.log('\n--- 22. Tetik onayi — gurultu reddi (B47) ---');
   ok('Gecersiz onay degeri yok sayiliyor', u.skopOnay === 1);
   ok('[!] Menu `tn<onay>` gonderiyor ve iki secenek var',
      /v-model\.number="skopOnay" @change="skopKomut\('tn' \+ skopOnay\)"/.test(htmlKaynak)
-     && /<option :value="2">Gürültü reddi \(2 örnek\)<\/option>/.test(htmlKaynak)
-     && /<option :value="1">Tek örnek<\/option>/.test(htmlKaynak));
+     && /<option :value="2">Gürültü reddi \(2 örnek\)<\/option>/.test(trCoz(htmlKaynak))
+     && /<option :value="1">Tek örnek<\/option>/.test(trCoz(htmlKaynak)));
   const SK2 = require(path.join(ARAYUZ, 'sahte-kart.js'));
   ok('Sahte kart `tn1` -> T satirinda onay=1, `tn2` -> onay=2',
      /\bonay=1\b/.test(SK2.komut('tn1')[0]) && /\bonay=2\b/.test(SK2.komut('tn2')[0]));
@@ -3038,6 +3063,7 @@ console.log('\n--- 24. Kayitlar + kayit gorunumu (3C) ---');
   const E = ot.get(NO.E);
   const P = ot.get(NO.P);
   const sonSira = ES.oturumSonSiralari(kayitlar);
+  CE_KAYIT = { kayitlar, ot, NO, bayt: AKIS.length, sonSira };     // bolum 36 (gorunur metin) ayni sentetik akisi cizer
   ok('Sentetik akis ortak/ ile cozuldu: alti oturum, A`nin adi/etiketi/notlari',
      ot.size === 6 && A.ad === 'Akü şarj — deneme' && A.etiketler.join('|') === 'akü|şarj|12V' && A.notlar.size === 2,
      `${ot.size} oturum`);
@@ -4031,16 +4057,16 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
 
   /* ── (b) duyurular ────────────────────────────────────────────────── */
   ok('[!] WIG b: bildirim hatasi role=alert; desteksiz kip ve izleyici role=status',
-     /<div v-if="hata" class="hata" role="alert">/.test(html) && /<div v-if="!destekli" class="hata" role="status">/.test(html)
-     && /<div v-if="bagli && !surucuyum" class="uyari" role="status">/.test(html));
+     /<div v-if="hataYazi" class="hata" role="alert">/.test(html) && /<div v-if="!destekli && kkMod" class="hata" role="status">/.test(html)
+     && /<div v-if="bagli && !surucuyum && kkMod" class="uyari" role="status">/.test(html));
   ok('[!] WIG b: baglanti rozeti (iki kopya) role=status, nokta aria-hidden; acil serit noktasi aria-hidden, DURDUR baglamli ad',
      (html.match(/<span class="rozet" role="status"/g) || []).length === 2 && (html.match(/<span class="nokta" aria-hidden="true">/g) || []).length === 2
-     && /<span class="acil-nokta" aria-hidden="true">/.test(html) && /class="acil-dur"[^>]*aria-label="Pil testini durdur"/.test(html));
+     && /<span class="acil-nokta" aria-hidden="true">/.test(html) && /class="acil-dur"[^>]*aria-label="Pil testini durdur"/.test(trCoz(html)));
   ok('[!] WIG b: kabuk duyurucusu (role=status) .icerik DISINDA ve kalici: pil testi baslayinca duyurulur',
      (() => { const k = html.indexOf('class="gorunmez" role="status"'); return k > 0 && k < html.indexOf('<div class="icerik"'); })()
      && (() => { const u = ornek(); const a = u.kabukDuyuru; u.pilDurum = 'CALISIYOR'; return a === '' && /Pil testi çalışıyor/.test(u.kabukDuyuru); })());
   ok('[!] WIG b: pil hata / veri alinamiyor role=alert',
-     /v-if="pilHata && pilHata !== '-'" class="hata" role="alert"/.test(html) && /v-if="pilHataMetni" class="uyari" role="alert"/.test(html));
+     /v-if="pilHata && pilHata !== '-'[^"]*" class="hata" role="alert"/.test(html) && /v-if="pilHataMetni[^"]*" class="uyari" role="alert"/.test(html));
   ok('WIG b: Konsol gunlugu role=log, adli, klavyeyle odaklanir; bossa "henuz satir yok" (bos kutu degil)',
      /<div class="gunluk" ref="gunlukKutu" role="log" aria-live="off" :aria-label="'Kart satırları'" tabindex="0">/.test(html)
      && /<p v-if="!gunluk\.length" class="ipucu">/.test(ana('konsol')) && /\.gunluk:focus-visible\s*\{[^}]*outline:\s*2px/.test(cssKod));
@@ -4141,7 +4167,7 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
        && /:disabled="!bagli \|\| !agSifre"/.test(ana('ayar')), wg.join(','));
   }
   ok('WIG c: pil "Kaydi sil" -> "Tarayicidaki noktalari sil" (kartin kaydini silmez), onayda neyin silinecegi yaziyor',
-     /Tarayıcıdaki noktaları sil/.test(ana('pil')) && !/>Kaydı sil</.test(ana('pil')) && /v-if="onay === 'pilSil'"[^>]*class="uyari"/.test(ana('pil')));
+     /Tarayıcıdaki noktaları sil/.test(trCoz(ana('pil'))) && !/>Kaydı sil</.test(trCoz(ana('pil'))) && /v-if="onay === 'pilSil'[^"]*"[^>]*class="uyari"/.test(ana('pil')));
   {
     const k = bilesen(KLm.KayitlarEkrani, { kartAdres: (y) => y, kartTaban: '', tasiyici: 'akis', bagli: true, gonder: null, etkin: true },
       { esitlenebilir: true });
@@ -4215,7 +4241,7 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
     const hYanlis = fwHata.filter((m) => { u.pilHata = m[2] + (m[3] || ''); return u.pilHataYazi !== SZ.ceviri('pil.hata.' + kodlar[m[1]], 'tr'); });
     ok('[!] WIG f: pil durumu ve hatasi SOZLUKTEN (CALISIYOR -> "çalışıyor", TERS POLARITE -> "ters polarite"); firmware`in 6 hata metninin hepsi eslesiyor',
        dYanlis.length === 0 && hYanlis.length === 0 && fwHata.length === 6 && /YENI/.test(bilinmeyen)
-       && /\{\{ pilDurumYazi \}\}/.test(ana('pil')) && /\{\{ pilHataYazi \}\}/.test(ana('pil')),
+       && /\{\{ pilDurumYazi \}\}/.test(ana('pil')) && /\{\{ kkMetin\('kk\.pil_hata', \{ hata: pilHataYazi \}\) \}\}/.test(ana('pil')),
        dYanlis.map((x) => x[0]).concat(hYanlis.map((m) => m[1])).join(',') || `${fwHata.length} hata`);
     /* 3F (PL3): ekran artik egriyi GERCEKTEN ciziyor — serit vaat ediyorsa sablonda tuval VAR */
     ok('[!] WIG f / PL3: serit "deşarj eğrisi" diyorsa Pil ekraninda egri tuvali VAR (vaat = icerik)',
@@ -4229,7 +4255,7 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
        /\{\{ m\.adcYokV \}\}/.test(ana('canli')) && /\{\{ m\.adcYokI \}\}/.test(ana('canli'))
        && /I²C tara/.test(SZ.ceviri('cn.adc_yok_v', 'tr')) && /I²C scan/.test(SZ.ceviri('cn.adc_yok_v', 'en')));
     ok('WIG f: izleyici bilgisi TEK yerde (bildirim + devral dugmesi); Canli`daki ikinci kopya yok',
-       !/m\.izleyici/.test(ana('canli')) && /Sürücülüğü devral/.test(html));
+       !/m\.izleyici/.test(ana('canli')) && /Sürücülüğü devral/.test(trCoz(html)));
     u.gecmis = [{ t: 3900 }];
     const s1 = u.sureGoster;
     u.gecmis = [{ t: 65 }];
@@ -4265,7 +4291,9 @@ console.log('\n--- 26. Web arayuz kurallari (WIG): kabuk, Canli, Pil, Ayarlar, K
        /başka bir program/.test(b('InvalidStateError', 'The port is already open.')) && /başka bir program/.test(b('NetworkError', 'Failed to open serial port.'))
        && /Failed to open/.test(b('NetworkError', 'Failed to open serial port.')) && b('NotFoundError', 'x') === '');
     ok('WIG f: "Demo kipi açılamadı" Turkce; Devralinamadi (409) eylem oneriyor; okuma hatasi sonraki adim',
-       /'Demo kipi açılamadı: '/.test(kod) && /Başka bir sürücü/.test(kod) && /Okuma hatası: ' \+ e\.message \+ ' — /.test(kod));
+       /'kk\.demo_hata', \{ mesaj: e\.message \}/.test(kod) && /^Demo kipi açılamadı: \{mesaj\} — /.test(TEMBEL_KK.SOZLUK_KABUK['kk.demo_hata'].tr)
+       && /'kk\.devral_409'/.test(kod) && /Başka bir sürücü/.test(TEMBEL_KK.SOZLUK_KABUK['kk.devral_409'].tr)
+       && /'kk\.okuma_hatasi', \{ mesaj: e\.message \}/.test(kod) && /^Okuma hatası: \{mesaj\} — /.test(TEMBEL_KK.SOZLUK_KABUK['kk.okuma_hatasi'].tr));
   }
   {
     const anah = (a) => SZ.ceviri(a, 'tr');
@@ -6612,7 +6640,7 @@ console.log('\n--- 30. Ayarlar (3H-1) ---');
   };
   /* KILIT: 3H-1'de olculen. Azalirsa (eski metin sozluge tasindi) kilidi dusur; artarsa
      yeni metni sozluge koy — gomulu Turkce metin bu kilidi kirmiziya dondurur. */
-  const EN_EKSIK_KILIT = 272;     /* 4D: skop eski arsiv basligi + aciklamasi sozluge (os.eski_arsiv*) */
+  const EN_EKSIK_KILIT = 124;     /* 5.12.121 (CE): 272 -> 124 — Canli, ust seritler, Osiloskop, Pil kabugu, eski skop arsivi sozluge (bolum 36) */
 
   /* ── (a) KABLOLAMA (AY2) ────────────────────────────────────────── */
   {
@@ -9702,6 +9730,347 @@ console.log('\n--- 35. 5P: panel telefonda (globalThis.__olcumOrtam) ---');
        ok1 === true && giden[n6] === 'Ge2 akü' && esitlendi === 1 && bild.anahtar === 'kg.duzen_esitlendi' && yabanci === false
        && ok2 === true && esitlendi === 1 && kl.bildirim.anahtar === 'kg.duzen_pc' && giden.length === n6 + 2,
        JSON.stringify({ giden: giden.slice(n6), esitlendi, bild, b2: kl.bildirim }));
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   36. CE (5.12.121): INGILIZCE KIPTE GORUNUR METIN — README ekranlari
+
+   AY3 (bolum 30) KAYNAKTAKI Turkce harfli dizgeleri sayar; ASCII Turkce
+   ("oto", "tam", "dk") ve hesaplanan metin ("438 örnek/s") ona gorunmez.
+   Burada sablonlar GERCEK Vue ile (uretim/gorunur_metin.js: depodaki
+   vue.global.prod.js + duz nesne agacina cizen renderer) `olcum.dil = en`
+   kipte, DOLU hallerinde cizilir ve EKRANDA kalan metin taranir:
+   (a) Turkceye ozgu harf (ç ğ ı ö ş ü İ, buyukleri) YOK,
+   (b) harfle yakalanamayan Turkce sozcukler (TR_SOZCUK) YOK.
+   Izin listesi yalniz kutunun FIZIKSEL etiketleri (baglanti cizimi) ve
+   kullanicinin verdigi adlar — her biri gerekceli.
+   ═══════════════════════════════════════════════════════════════════════ */
+console.log('\n--- 36. CE: Ingilizce kipte gorunur metin ---');
+{
+  const GM = require(path.join(__dirname, 'gorunur_metin.js'));
+  const SK = require(path.join(ARAYUZ, 'sahte-kart.js'));
+  const ekr = (ad) => require(path.join(ARAYUZ, 'ekran', ad));
+  const TR_HARF_CE = /[çğıöşüÇĞİÖŞÜ]/;
+  /* ASCII yazilan (ya da harfi tek basina yakalanmayan) Turkce sozcukler — tam sozcuk, buyuk/kucuk harf farksiz. */
+  const TR_SOZCUK = ['oto', 'tam', 'yenile', 'ornek', 'pencere', 'tetiklendi', 'dk', 'sn', 'varsayilan', 'kayit',
+    'kayitlar', 'sil', 'durdur', 'baslat', 'yakala', 'yakalama', 'eksen', 'kalibre', 'ham', 'bilinmiyor', 'kart',
+    'karta', 'kartin', 'bolme', 'bol', 'dikey', 'yatay', 'sola', 'saga', 'tetik', 'serbest', 'kosu', 'cevrim',
+    'frekans', 'periyot', 'ortalama', 'yukselme', 'dusme', 'doluluk', 'gerilim', 'akim', 'guc', 'enerji', 'suresi',
+    'gecen', 'yuk', 'pil', 'kesme', 'vazgec', 'eminim', 'temizle', 'indir', 'gonder', 'kapat', 'kapali',
+    'acik', 'arsiv', 'canli', 'saat', 'saniye', 'dakika', 'ile', 've', 'icin', 'yok', 'var', 'bu', 'bir',
+    'olarak', 'gore', 'degil', 'surucu', 'izleyici', 'devral', 'bagli', 'baglan', 'baglanti', 'hata', 'uyari',
+    'menzil', 'sifirla', 'olcum', 'olcek', 'guncelleme', 'bastirma', 'cekiyor', 'veriyor', 'ureti', 'uretiyor',
+    'gorev', 'tel', 'tek', 'iki', 'reddi', 'gurultu', 'yakinlastir', 'uzaklastir', 'kaydir', 'yukari', 'asagi',
+    'goster', 'gizle', 'secili', 'tumu', 'hepsi', 'sonra', 'simdi', 'ilk', 'yeni', 'eski',
+    'vort', 'periyodik', 'nokta', 'noktalar', 'sinyal', 'kip', 'kipi'];
+  /* `/pil`, `/skop` gibi adres yollari sozcuk sayilmaz (onunde / var) */
+  const SOZ_DESEN = new RegExp('(?:^|[^A-Za-z0-9_/])(' + TR_SOZCUK.join('|') + ')(?=$|[^A-Za-z0-9_])', 'i');
+  /* IZIN: { desen, neden } — yalniz bunlar EN kipte Turkce kalabilir. */
+  const IZIN = [
+    { yol: />svg>text$/, desen: /^(AÇ|KAPA|AÇ \/ KAPA|PİL [12]|YÜK [12]|GÜÇ|V|COM|SKOP|CAL|HV|ŞARJ)$/,
+      neden: 'kutunun on panelindeki FIZIKSEL etiketler — cizimde kutuda yazdigi gibi (ortak/src/baglanti_veri.js uretilmis)' },
+  ];
+  /* KULLANICININ verdigi adlar / etiketler / notlar (bolum 24'un sentetik kaydi): cevrilmez — metinden cikarilip
+     KALANI taranir (cevresindeki etiket yine Ingilizce olmali). */
+  const KULLANICI = ['Akü şarj — deneme', 'dalgalanma başladı', 'genel not', 'şarj', 'akü'];
+  /* Baglanti penceresinin (.bb-…) talimat satirlari kutudaki etiketi ADIYLA anar ("Battery − → PİL 2"): o
+     ogelerde yalniz FIZIKSEL etiket sozcukleri cikarilip kalan taranir. */
+  const FIZIKSEL = /(?:^|[^A-Za-zÇĞİÖŞÜçğıöşü])(?:AÇ|KAPA|PİL|YÜK|GÜÇ|ŞARJ|SKOP)(?=$|[^A-Za-zÇĞİÖŞÜçğıöşü])/g;
+  const izinli = (p) => IZIN.some((z) => (!z.yol || z.yol.test(p.yol)) && z.desen.test(p.metin));
+  const kullanicisiz = (m) => KULLANICI.reduce((x, k) => x.split(k).join(' '), m);
+  /* dosya / adres yolu ("/pil", "olcum-karti/satir") sozcuk degil */
+  const yolsuz = (m) => m.replace(/\S*\/\S*/g, ' ');
+  const turkce = (parcalar) => parcalar.filter((p) => {
+    if (izinli(p)) return false;
+    let m = yolsuz(kullanicisiz(p.metin));
+    if (/\.bb-/.test(p.yol)) m = m.replace(FIZIKSEL, ' ');
+    return TR_HARF_CE.test(m) || SOZ_DESEN.test(m);
+  });
+
+  const htmlK = fs.readFileSync(HTML, 'utf8');
+  const bas = htmlK.indexOf('<div id="uyg" v-cloak>');
+  const son = htmlK.indexOf('\n</div>\n\n<!-- ═══ B27 Aşama 4');
+  const kokSablon = htmlK.slice(bas + '<div id="uyg" v-cloak>'.length, son).replace(/<!--[\s\S]*?-->/g, '');
+  const bos = { template: '<span></span>' };
+
+  SONRA.push(async () => {
+    /* ekran modulleri node'un kendi alaninda kosuyor (vm degil): pencere / belge taklidi yalniz bu bolumde */
+    const eskiG = { window: globalThis.window, document: globalThis.document };
+    globalThis.window = { addEventListener() {}, removeEventListener() {}, localStorage: null, devicePixelRatio: 1 };
+    globalThis.document = { activeElement: null, body: { style: {} }, documentElement: {}, addEventListener() {}, removeEventListener() {} };
+    const OS = ekr('osiloskop.js');
+    /* sahte kartin gurultusu tekrarlanabilir olsun (dokumler karsilastirilabilir) */
+    const eskiRastgele = Math.random;
+    let tohum = 12345;
+    Math.random = () => { tohum = (tohum * 1103515245 + 12345) % 2147483648; return tohum / 2147483648; };
+    const kokCiz = (ek = {}) => {
+      const sec = Object.assign({}, secenekler, {
+        template: kokSablon,
+        components: {
+          'kayitlar-ekran': bos, 'karsilastir-ekran': bos, 'ayarlar-ekran': bos, 'eslestirme-ekran': bos,
+          'baglanti-bilgi': ekr('baglanti.js').BaglantiBilgi, 'imlec-aciklama': ekr('imlec_aciklama.js').ImlecAciklama,
+          'pil-pt': ekr('pil.js').PilPt, 'skop-suz': OS.SkopSuz, 'skop-arsiv': OS.SkopArsiv,
+        },
+        methods: Object.assign({}, secenekler.methods, { osiloCiz() {}, grafikCiz() {}, spektrumCiz() {}, kaydet() {},
+          _kabukAl: async () => TEMBEL_KK, _skopKabukAl: async () => TEMBEL_SK }, ek.methods || {}),
+      });
+      for (const k of ['created', 'mounted', 'beforeUnmount', 'unmounted', 'watch']) delete sec[k];
+      return GM.ciz(sec);
+    };
+    /* Senaryolar IKI dilde: EN'de Turkce kalmadi mi, TR'de eski metinler AYNEN mi (Turkce kip degismez). */
+    const kos = async (DIL) => {
+    const senaryolar = [];
+    const topla = async (ad, kur) => {
+      let r, hata = null;
+      try { r = kokCiz(); r.ornek.dil = DIL; await r.ornek.kabukYukle(); await kur(r.ornek); await GM.bekle(); }
+      catch (h) { hata = h; }
+      const metin = r && !hata ? r.metin() : [];
+      senaryolar.push({ ad, hata, kalan: turkce(metin), n: metin.length, metin });
+    };
+    const dBesle = (u, n = 12) => { for (let i = 1; i <= n; i++) u.satirIsle(SK.dSatiri(i * 200, i * 0.5).satir); };
+
+    const yanit = (status, govde = '') => ({ ok: false, status, headers: { get: () => null }, text: async () => govde });
+    const eskiFetch = sandbox.fetch;
+    await topla('Canli (bagli, olcum akiyor; guc yon iki isarette)', async (u) => {
+      u.gorunum = 'canli'; u.bagli = true; u.kartDurum = 'var'; dBesle(u);
+      u.onay = 'grafikTemizle';
+    });
+    await topla('Canli (kaynak — geri besleme, pencere 1 dk, YUKSEK menzil, 1 dk 4 sn)', async (u) => {
+      u.gorunum = 'canli'; u.bagli = true; u.kartDurum = 'var';
+      for (let i = 1; i <= 5; i++) u.satirIsle(SK.dSatiri(i * 200, 1).satir.replace(/^D (\S+) (\S+) (\S+)/, 'D $1 -0.5 -6.0').replace(/ 0 0$/, ' 1 0'));
+      u.gecmis.push({ t: 64, v: 12, i: -0.5, w: -6 });
+      u.pencere = 60;
+    });
+    await topla('Seritler: izleyici + komut reddi (403) + acil pil + kopru adresi', async (u) => {
+      u.gorunum = 'canli'; u.bagli = true; u.surucuyum = false; u.tasiyiciAdi = 'akis';
+      u.kopruAdresi = 'http://192.168.4.1:8000';
+      u.pilDurum = 'CALISIYOR';
+      u.kartIstek = async () => yanit(403, 'gecersiz oturum jetonu');
+      await u.gonder('?');
+    });
+    await topla('Seritler: komut gonderilemedi — baglanti yok', async (u) => {
+      u.gorunum = 'canli'; u.bagli = true; u.tasiyiciAdi = 'akis';
+      u.kartIstek = async () => null;
+      await u.gonder('?');
+    });
+    await topla('Seritler: devral 409', async (u) => {
+      u.gorunum = 'canli'; u.bagli = true; u.surucuyum = false;
+      sandbox.fetch = async () => yanit(409);
+      try { await u.devral(); } finally { sandbox.fetch = eskiFetch; }
+    });
+    await topla('Seritler: devral basarisiz (500)', async (u) => {
+      u.gorunum = 'canli'; u.bagli = true; u.surucuyum = false;
+      sandbox.fetch = async () => yanit(500);
+      try { await u.devral(); } finally { sandbox.fetch = eskiFetch; }
+    });
+    const skopKur = async (u, { yakala = true, kal = true } = {}) => {
+      u.gorunum = 'skop'; u.bagli = true; await u.skopKabukYukle(); u.skopDurum = 'hazir';
+      if (kal) for (const l of SK.komut('CT')) u.satirIsle(l);
+      if (yakala) for (const l of SK.komut('ta')) u.satirIsle(l);
+      if (u._skopSozluk) await u._skopSozluk;
+    };
+    await topla('Osiloskop (yakalama alinmis, eksen kalibre)', async (u) => { await skopKur(u); });
+    await topla('Osiloskop (yakalama alinmis, yakinlastirilmis, sinyal disi tetik)', async (u) => {
+      await skopKur(u); u.yatayZoom = 4; u.dikeyOto = false; u.dikeyZoom = 2; u.skopEsik = 4095; u.surekli = true; u.surekliHiz = 3.2;
+      u.calHz = 1000; u.calGercek = 1000; u.calCozunurluk = 14;
+    });
+    await topla('Osiloskop (yakalama YOK, eksen duzeltmesiz)', async (u) => { await skopKur(u, { yakala: false, kal: false }); });
+    await topla('Osiloskop (serbest kosu, periyodik degil)', async (u) => {
+      await skopKur(u, { yakala: false });
+      u.satirIsle('S2 4 83333 0.028 0 500 0 0 63.5'); u.satirIsle('M f=0 T=0 Vpp=0 Vmax=1 Vmin=1 Vort=1 Vrms=1 Vac=0 duty=0 tr=0 tf=0 n=0');
+      u.satirIsle('2048 2048 2048 2048'); u.satirIsle('E');
+      u.hizli = { p: 1.2, pHam: 1.1, pf: 0.9, s: 1.3, vRms: 12, iRms: 0.1, n: 400, kal: false };
+    });
+    await topla('Osiloskop (PC koprusu: eski arsiv listesi + arsivden acilan yakalama)', async (u) => {
+      await skopKur(u);
+      u.skopArsivVar = true; u.skopGunler = ['2026-10-10', '2026-10-11']; u.skopGun = '2026-10-11';
+      u.skopKayitlar = [{ gun: '2026-10-11', ms: 65000, adet: 417, hz: 83333, tetiklendi: 1, tam: 1 },
+        { gun: '2026-10-11', ms: 125000, adet: 400, hz: 10000, tetiklendi: 0, tam: 0 }];
+      u.skopAcikKayit = { gun: '2026-10-11', ms: 65000 };
+      await GM.bekle(20);
+    });
+    await topla('Osiloskop (PC koprusu: eski arsiv bos)', async (u) => {
+      await skopKur(u); u.skopArsivVar = true; u.skopKayitlar = []; await GM.bekle(20);
+    });
+    await topla('Pil testi (bitmis, noktalar, bosluk, silme onayi)', async (u) => {
+      u.gorunum = 'pil'; u.bagli = true; u.pilDurum = 'BITTI'; u.pilMah = 812.4; u.pilWh = 3.01; u.pilOcv = 4.15; u.pilVson = 3.0;
+      u.pilKesmeBilinen = true; u.pilNokta = [{ sira: 1, ms: 0, v: 4.1, i: 0.5 }, { sira: 2, ms: 1000, v: 4.0, i: 0.5 }];
+      u.pilBosluk = 3; u.pilOturum = { no: 7, gorulmedi: false }; u.onay = 'pilSil';
+      u.pilHata = 'yuk baglanmadi'; u.pilHataMetni = u.tembelMetin('kk', 'kk.pil_http', { kod: 404 });
+    });
+    await topla('Pil testi (calisiyor)', async (u) => {
+      u.gorunum = 'pil'; u.bagli = true; u.pilDurum = 'CALISIYOR'; u.pilMah = 12.3; u.pilKesme = 3.0;
+    });
+    for (const [ekran, gor] of [['canli', 'canli'], ['skop', 'skop'], ['pil', 'pil']]) {
+      await topla(`"What plugs where" penceresi (${ekran})`, async (u) => {
+        u.gorunum = gor; u.bilgi = ekran;
+        if (gor === 'skop') await u.skopKabukYukle();      // tarayicida ekran acilinca skopYukle indirir
+        await GM.bekle(20);
+      });
+    }
+    /* ── Kayitlar + tek kayit + Karsilastirma: bolum 24'un sentetik akisi (bu tarayicinin kopyasi) ── */
+    const KLm = ekr('kayitlar.js');
+    const KRm = ekr('karsilastir.js');
+    const eskiVue = globalThis.Vue;
+    globalThis.Vue = GM.kur().Vue;           // ekranlar markRaw'i kuresel Vue'dan aliyor (vueAl)
+    globalThis.MutationObserver = globalThis.MutationObserver || class { observe() {} disconnect() {} };
+    const C = CE_KAYIT;
+    const yerel = C ? { kimlik: 7, kart: 'k', bayt: C.bayt, olusma: 1, oturumlar: C.ot, kayitlar: C.kayitlar, sonSira: C.sonSira, kal: null } : null;
+    const bilesenCiz = (B, props, ek = {}) => {
+      const sec = Object.assign({}, B, { methods: Object.assign({}, B.methods, ek) });
+      for (const k of ['mounted', 'beforeUnmount', 'unmounted', 'watch']) delete sec[k];
+      return GM.ciz({ components: { 'x-ekran': sec }, data: () => ({ p: props }), template: '<x-ekran ref="x" v-bind="p"></x-ekran>' });
+    };
+    const bilesenTopla = async (ad, kur) => {
+      let r = null, hata = null;
+      try { r = await kur(); await GM.bekle(); } catch (h) { hata = h; }
+      const metin = r && !hata ? r.metin() : [];
+      senaryolar.push({ ad, hata, kalan: turkce(metin), n: metin.length, metin });
+    };
+    const kayitlarCiz = async (hash) => {
+      const r = bilesenCiz(KLm.KayitlarEkrani, { kartAdres: (y) => y, kartIstek: async () => null, kartTaban: '', tasiyici: 'akis',
+        bagli: true, gonder: async () => {}, kayitDuzen: null, etkin: true, dilSecim: DIL }, { grafikKur() {}, ciz() {} });
+      const vmK = r.ornek.$refs.x;
+      vmK.rota = KLm.rotaCoz(hash);
+      vmK._yereller = [yerel];
+      vmK.kartDurum = 'tamam';
+      vmK.listeKur();
+      await vmK.kayitAc();
+      return r;
+    };
+    if (C) {
+      await bilesenTopla('Kayitlar (liste)', () => kayitlarCiz('#/kayitlar'));
+      for (const [ad, no] of Object.entries(C.NO)) {
+        await bilesenTopla(`Kayit gorunumu (${ad}: #/kayit/${no})`, () => kayitlarCiz('#/kayit/' + no));
+      }
+      await bilesenTopla('Karsilastirma (A + B + P)', async () => {
+        const r = bilesenCiz(KRm.KarsilastirEkrani, { kartAdres: (y) => y, etkin: true, dilSecim: DIL }, { grafikGuncelle() {}, ciz() {} });
+        const vmR = r.ornek.$refs.x;
+        vmR._den = { akislar: async () => [yerel], akisVerisi: async () => yerel };
+        vmR.rota = KRm.karsilastirRotaCoz(`#/karsilastir/${C.NO.A}@7,${C.NO.P}@7,${C.NO.E}@7`);
+        await vmR.yukle();
+        return r;
+      });
+    } else senaryolar.push({ ad: 'Kayitlar', hata: new Error('bolum 24 sentetik akisi yok'), kalan: [], n: 0, metin: [] });
+    globalThis.Vue = eskiVue;
+    return senaryolar;
+    };
+    tohum = 12345;
+    const senaryolar = await kos('en');
+    tohum = 12345;
+    const senaryolarTr = await kos('tr');
+    Math.random = eskiRastgele;
+    globalThis.window = eskiG.window; globalThis.document = eskiG.document;
+    /* CE_DOKUM=<dosya> [CE_DIL=tr]: gorunur metnin dokumu (degisiklik oncesi / sonrasi karsilastirmasi icin) */
+    if (process.env.CE_DOKUM) {
+      const d = process.env.CE_DIL === 'tr' ? senaryolarTr : senaryolar;
+      fs.writeFileSync(process.env.CE_DOKUM, JSON.stringify(d.map((x) => ({ ad: x.ad, hata: x.hata ? String(x.hata) : null,
+        metin: x.metin.map((m) => m.tur + ': ' + m.metin) })), null, 1));
+    }
+    /* Her senaryonun cizildigini kanitlayan Ingilizce capa metinleri (bos bir cizim "Turkce yok" diye gecmesin) */
+    const CAPA = {
+      'Canli (bagli': ['Elapsed time', 'Sampling', 'samples/s', 'updates/s', 'Yes, clear the chart', 'Download CSV', '30 s', '1 min', '(default)', 'drawing power',
+        'The board sends one D line per interval'],
+      'Canli (kaynak': ['HIGH', '1 min 4 s', 'Clear chart', 'feeding back'],
+      'Seritler: izleyici': ['viewer', 'Take over as driver', 'Command not sent (403): gecersiz oturum jetonu', 'Battery test running', 'cut-off', 'STOP', 'unlimited history'],
+      'Seritler: komut': ['Command not sent — no connection', 'Cannot connect in this mode'],
+      'Seritler: devral 409': ['Could not take over (409)'],
+      'Seritler: devral basarisiz': ['Could not take over (500)'],
+      'Osiloskop (yakalama alinmis, eksen': ['Vertical', 'Horizontal', 'auto', 'full record', 'Frequency', 'Period', 'Vmean', 'Cycles', 'samples', 'window', 'triggered', 'axis calibrated', '/div', 'Noise reject (2 samples)', 'Range −63.5 … +46.8 V', '25%', 'Zoom out', 'Trigger mode', 'Vertical zoom in'],
+      'Osiloskop (yakalama alinmis, yakin': ['captures/s', 'outside the signal', 'the board outputs 1000 Hz', 'Fast measurement'],
+      'Osiloskop (yakalama YOK': ['Voltage axis', 'uncorrected', 'GPIO10 → GPIO4'],
+      'Osiloskop (serbest': ['not periodic', 'free-running', 'Real power', 'Power factor', 'scaling RAW'],
+      'Osiloskop (PC koprusu: eski arsiv listesi': ['Legacy archive', 'Day', 'Refresh', '2 captures', 'truncated', 'since the bridge started', 'not live'],
+      'Osiloskop (PC koprusu: eski arsiv bos)': ['No captures yet'],
+      'Pil testi (bitmis': ['J7', 'Battery test:', 'Battery data unavailable: the board is not responding (HTTP 404)', 'gap', 'Yes, delete', 'Cancel'],
+      'Pil testi (calisiyor)': ['Delete points in this browser'],
+      '"What plugs where" penceresi (canli)': ['What plugs where'],
+      'Kayitlar (liste)': ['Recordings'],
+      'Karsilastirma': ['Comparison', 'since start'],
+    };
+    for (const sn of senaryolar) {
+      const hepsi = sn.metin.map((x) => x.metin).join(' \n ');
+      const capaK = Object.keys(CAPA).find((k) => sn.ad.startsWith(k));
+      const eksik = (capaK ? CAPA[capaK] : []).filter((c) => !hepsi.includes(c));
+      ok(`[!] CE: ${sn.ad} — Ingilizce kipte gorunur metinde Turkce YOK${capaK ? ' (capa: ' + CAPA[capaK].length + ')' : ''}`,
+         !sn.hata && sn.n >= 25 && sn.kalan.length === 0 && eksik.length === 0,
+         sn.hata ? 'HATA ' + (sn.hata.stack || sn.hata).toString().split('\n').slice(0, 3).join(' | ')
+           : `${sn.n} parca · Turkce ${sn.kalan.length}${sn.kalan.length ? ': ' + sn.kalan.slice(0, 6).map((k) => '«' + k.metin.slice(0, 60) + '»').join(' ') : ''}`
+             + (eksik.length ? ' · capa yok: ' + eksik.join(' | ') : ''));
+      if (sn.kalan.length > 6 || process.env.CE_LISTE) for (const k of sn.kalan) console.log(`       [TR] ${k.tur}: ${k.metin.slice(0, 110)}`);
+    }
+    /* TURKCE kip: eski metinler AYNEN (tembel sozluge tasinan her Turkce metin birebir ayni dizge) */
+    const CAPA_TR = {
+      'Canli (bagli': ['Geçen süre', 'Örnekleme', '860 örnek/s', '5 güncelleme/s · √172 ≈ 13× bastırma', '5 / s (varsayılan)', '30 sn',
+        '1 dk', 'Eminim, grafiği temizle', 'Vazgeç', 'CSV indir', 'yük çekiyor'],
+      'Canli (kaynak': ['YÜKSEK', '1 dk 4 sn', 'Grafiği temizle', 'kaynak — geri besleme'],
+      'Seritler: izleyici': ['Bu oturum', 'izleyici', '— ölçümü görüyorsunuz ama komut gönderemezsiniz. Kalibrasyon ve pil testi sürücüdeyken tek elde olmalı.',
+        ') her zaman açık.', 'Sürücülüğü devral', 'Komut gönderilemedi (403): gecersiz oturum jetonu', 'Pil testi çalışıyor', 'V, kesme 3.00 V',
+        'DURDUR', 'Kart bir bilgisayara bağlı. Sınırsız geçmiş ve çoklu izleyici için arayüzü', 'üzerinden açın.'],
+      'Seritler: komut': ['Komut gönderilemedi — bağlantı yok', 'Bu kipte bağlanılamıyor.'],
+      'Seritler: devral 409': ['Devralınamadı (409): Başka bir sürücü etkin — o sekmeyi kapatıp yeniden deneyin.'],
+      'Seritler: devral basarisiz': ['Devralınamadı (500) — köprünün çalıştığını denetleyip yeniden deneyin.'],
+      'Osiloskop (yakalama alinmis, eksen': ['Dikey', 'Yatay', 'oto', 'tam kayıt', 'tam', 'Frekans', 'Periyot', 'Vort', 'Çevrim',
+        '1000 örnek · 10.00 kSa/s · pencere 100.00 ms · tetiklendi ·', 'eksen kalibre', 'ms/böl', 'Gürültü reddi (2 örnek)', 'Tek örnek',
+        'Menzil −63.5 … +46.8 V, çift yönlü.', 'fare tekerleği: dikey · Shift+tekerlek: yatay', '%25'],
+      'Osiloskop (yakalama alinmis, yakin': ['3.2 yakalama/sn', '⚠ Tetik seviyesi', 'kart 1000 Hz üretiyor (14 bit görev) — skop ölçümünü',
+        'bununla', 'karşılaştır', 'Hızlı ölçüm — gerçek güç ve güç faktörü', 'Hızlı ölçüm yap'],
+      'Osiloskop (yakalama YOK': ['⚠ Gerilim ekseni', 'düzeltmesiz', '9 V\'a varan', 'GPIO10 → GPIO4 tek tel; skop zincirini bilinen sinyalle sınamak için'],
+      'Osiloskop (serbest': ['periyodik değil', 'serbest koşu', 'Gerçek güç', 'Güç faktörü', 'ölçekleme HAM', '⚠ tetiklenemedi — serbest koşu, iz kayabilir'],
+      'Osiloskop (PC koprusu: eski arsiv listesi': ['Eski arşiv', 'Gün', 'Yenile', '2 kayıt', 'kırpık', 'köprü açıldıktan sonra', 'canlı değil', '417 örnek · 83.33 kSa/s'],
+      'Osiloskop (PC koprusu: eski arsiv bos)': ['Henüz kayıt yok —', "'ya bastığında buraya düşecek."],
+      'Pil testi (bitmis': ['J7', "'ye bağlayın, J3'e değil. J3 doğrudan şönte gider; oraya bağlarsanız MOSFET", 'kesme çalışmaz',
+        'Pil verisi alınamıyor: kart yanıt vermiyor (HTTP 404)', '3 nokta boşluk', 'Eminim, sil', 'Vazgeç'],
+      'Pil testi (calisiyor)': ['Tarayıcıdaki noktaları sil'],
+    };
+    for (const sn of senaryolarTr) {
+      const capaK = Object.keys(CAPA_TR).find((k) => sn.ad.startsWith(k));
+      if (!capaK) continue;
+      const parcalar = sn.metin.map((x) => x.metin);
+      const eksik = CAPA_TR[capaK].filter((c) => !parcalar.some((m) => m === c || m.includes(c)));
+      ok(`[!] CE: ${sn.ad} — TURKCE kipte eski metinler AYNEN (capa: ${CAPA_TR[capaK].length})`,
+         !sn.hata && eksik.length === 0, sn.hata ? String(sn.hata) : (eksik.length ? 'yok: ' + eksik.join(' | ') : `${sn.n} parca`));
+    }
+    /* ── yerlesim: tembel sozlukler acilisi BEKLETMEZ ve acilis kumelerine GIRMEZ ── */
+    const statikA = iceAktarmaGrafigi().map((x) => x.goruntu);
+    const skopZ = iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'osiloskop.js')).map((x) => x.goruntu);
+    const canliZ2 = iceAktarmaGrafigi(path.join(ARAYUZ, 'ekran', 'canli.js')).map((x) => x.goruntu);
+    const tembelCE = ['ortak/sozluk_kabuk.js', 'ortak/sozluk_osilo.js'];
+    ok('[!] CE: tembel sozlukler (sozluk_kabuk.js, sozluk_osilo.js) acilisin, Canli zincirinin ve osiloskop zincirinin STATIK agacinda YOK; app.js ikisini de DINAMIK ister',
+       tembelCE.every((x) => !statikA.includes(x) && !skopZ.includes(x) && !canliZ2.includes(x))
+       && /_kabukAl\(\) \{ return import\('\/ortak\/sozluk_kabuk\.js'\); \}/.test(appKaynak)
+       && /_skopKabukAl\(\) \{ return import\('\/ortak\/sozluk_osilo\.js'\); \}/.test(appKaynak), statikA.filter((x) => /sozluk/.test(x)).join(' '));
+    ok('[!] CE: kabuk sozlugu KURULUSTA istenir (mounted, beklenmeden); osiloskop ekrani modulle BIRLIKTE (Promise.all) — ikisi inince hazir',
+       govdeIcinde(appKaynak, 'mounted', 'this.kabukYukle();')
+       && govdeIcinde(appKaynak, 'skopYukle', "await Promise.all([import('./ekran/osiloskop.js'), this.skopKabukYukle()])"));
+    {
+      const u = ornek();
+      u.kkMod = null;
+      u._kabukAl = () => new Promise(() => {});          // inmemis
+      u.dil = 'en';
+      const h = u.tembelMetin('kk', 'kk.komut_red', { kod: 403 }, ': ret');
+      u.hata = h;
+      const once = u.hataYazi;
+      u.kkMod = TEMBEL_KK;
+      const sonra = u.hataYazi;
+      const v = ornek();
+      v.dil = 'en';
+      const dogrudan = v.tembelMetin('kk', 'kk.komut_red', { kod: 403 }, ': ret');
+      ok('[!] CE: sozluk inmeden kurulan hata BETIMLEYICI (bos serit, Turkce yok); sozluk inince secili dilde metin + kartin sebebi AYNEN; inmisse dogrudan dize',
+         typeof h === 'object' && once === '' && sonra === 'Command not sent (403): ret' && dogrudan === 'Command not sent (403): ret',
+         JSON.stringify({ h, once, sonra, dogrudan }));
+    }
+    {
+      const kunye = fs.existsSync(path.join(KOK, 'uretim', '_fs.json')) ? JSON.parse(fs.readFileSync(path.join(KOK, 'uretim', '_fs.json'), 'utf8')).bayt || {} : {};
+      ok('[!] CE: tembel sozlukler kunyede ve kucuk — sozluk_kabuk.js <= 4 KB, sozluk_osilo.js <= 5 KB gzip (buyume kilitli)',
+         kunye['ortak/sozluk_kabuk.js'] > 0 && kunye['ortak/sozluk_kabuk.js'] <= 4096 && kunye['ortak/sozluk_osilo.js'] > 0
+         && kunye['ortak/sozluk_osilo.js'] <= 5120, `sozluk_kabuk.js ${kunye['ortak/sozluk_kabuk.js']} B · sozluk_osilo.js ${kunye['ortak/sozluk_osilo.js']} B`);
+    }
+    /* izin listesi gercekten yalniz baglanti cizimindeki fiziksel etiketlere uygulandi */
+    const izinliler = senaryolar.flatMap((x) => x.metin.filter(izinli));
+    ok('CE: izin listesi yalniz baglanti cizimindeki (svg <text>) FIZIKSEL etiketler — baska yerde kullanilmadi',
+       izinliler.length > 0 && izinliler.every((x) => />svg>text$/.test(x.yol)), [...new Set(izinliler.map((x) => x.metin))].join(' '));
   });
 }
 
