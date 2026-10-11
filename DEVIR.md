@@ -10692,7 +10692,12 @@ boşta jak / temiz DC kısa devreden ayırt edilemiyor · kazanç hatası (SK-4'
   yapıldı (Arduino15, kullanıcı evi, çalışma alanı; ters ve düz bölü): taramada 0. Bu ikili karta yüklenip denendi
   (ölçüm, kalibrasyon, kullanıcı sıfırı, Wi-Fi). ⚠ Henüz betik değil — bir sonraki sürümde elle yapılmazsa iz geri gelir.
 - APK tarandı: klasör yolu / e-posta / gerçek ağ adresi yok (iki örnek IP arayüz ipucu), `debuggable` kapalı.
-- Açık: PC zip'i temiz klasörde açılıp çalıştırılmadı; "sürüm paketle" betiği yazılmadı.
+- **Sonradan (2026-10-12):** sürüm GitHub'da yayınlandı (yedi dosya indirilip özetle doğrulandı; adlar GitHub'ın
+  alfabetik dizilişine göre: `-android.apk`, `-bilgisayar.zip`, `-kart-1…4-*.bin`). PC zip'i kullanıcı temiz klasörde
+  çalıştırdı. **`uretim/surum_paketle.py <sürüm>`** yazıldı: firmware'i `-ffile-prefix-map` ile derler, paneli üretir,
+  PC zip'ini `git archive HEAD` ile alır, imzalı APK'yı kopyalar (imza bloğu + versionName denetimi), HER çıktıyı
+  kişisel iz için tarar (iz varsa dosyayı siler, kırmızı çıkar), SHA256SUMS yazar. Çıktı bayt bayt tekrarlanabilir
+  DEĞİL (firmware ve LittleFS görüntüsü her derlemede farklı özet veriyor) — yayınlanan dosya karta yüklenip denenir.
 
 #### 5.12.119 🟡 BÜTÜNLEŞİK DAL: SK1 DÜZELTME + İKİ DİLLİ BELGELER (2026-10-10, bulut oturumu, dal `butunlesik`)
 
