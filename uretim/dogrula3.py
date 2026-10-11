@@ -453,10 +453,14 @@ def _b6_govde(cal):
     # SK2: olcum esikleri / Vpp DURUM seviyelerinden — skop_olc.h AVR'de, analitik beklenenler + SK2
     # oncesi dondurulmus cikti (bolum 11; 1-10 Asama 2'nin A6'si, ayni ikili)
     o = cal([sys.executable, "test_skop_olcum.py"], timeout=600)
+    # SZ (A3-SK3): skop kullanici sifiri — skop_sifir.h AVR + host gcc, .ino kaynak denetimi
+    k = cal([sys.executable, "test_skop_sifir.py"], timeout=900)
     s = cal([sys.executable, "test_firmware3.py"], timeout=1800)
-    return (s.returncode == 0 and a.returncode == 0 and z.returncode == 0 and o.returncode == 0,
-            a.stdout.rstrip() + "\n" + z.stdout.rstrip() + "\n" + o.stdout.rstrip() + "\n" + s.stdout.rstrip(),
-            a.stdout + z.stdout + o.stdout + s.stdout)
+    return (s.returncode == 0 and a.returncode == 0 and z.returncode == 0 and o.returncode == 0
+            and k.returncode == 0,
+            a.stdout.rstrip() + "\n" + z.stdout.rstrip() + "\n" + o.stdout.rstrip() + "\n" + k.stdout.rstrip()
+            + "\n" + s.stdout.rstrip(),
+            a.stdout + z.stdout + o.stdout + k.stdout + s.stdout)
 
 
 def _b7_govde(cal):

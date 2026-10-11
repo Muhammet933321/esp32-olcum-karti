@@ -4146,7 +4146,7 @@ MUTASYONLAR = [
      '  const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin", "X-Cihaz", "X-Sayac", "X-Imza",', '  const char *toplanacak[] = {"X-Olcum", "X-Jeton", "Origin", "X-Cihaz", "X-Sayac",',
      '1D: X-Imza toplanmazsa her imzali istek imzasiz sanilir: F88 kirmizi'),
     ("B72", "test_kayit_esp.py", "kod/olcum-karti-a3/kayit_esp.h",
-     '#define KAYIT_FW_SURUM    "A3-SK2"', '#define KAYIT_FW_SURUM    "A3-SK1"',
+     '#define KAYIT_FW_SURUM    "A3-SK3"', '#define KAYIT_FW_SURUM    "A3-SK2"',
      "1D: surum adi degismezse PC eski firmware'i ayirt edemez: F25 kirmizi (W2: A3-W2)"),
     # ── W2 (2026-10-03): firmware kucukleri — G son_not, /saat, Ex<n>, rastgele eno, Qe, noktaci
     ("B71", "test_kayit.py", "kod/olcum-karti-a3/kayit_nokta.h",
@@ -9188,6 +9188,32 @@ MUTASYONLAR = [
      "      return t;",
      "KYI: telefonda kart-yok ipucu yine 'USB kablosu COM soketinde mi?' der (telefona kart USB ile baglanmaz): "
      "'telefonda kart-yok ipucu USB / COM DEMEZ' kirmizi"),
+    # ── SZ (2026-10-11, A3-SK3): osiloskop KULLANICI SIFIRI (`tz` / `tz0` / `tz?`).
+    #    python mutasyon.py --neden SZ --paralel 4   (B6 test_skop_sifir.py: AVR + host + kaynak; B7 paneli ayri)
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/skop_sifir.h', '    return pin_mv / 1000.0f * oran - fabrika_ofset;', '    return pin_mv / 1000.0f * oran;', 'SZ: kullanici sifiri fabrika ofsetini dusmezse (~63 V) bilinen ortalamadan volt / fabrika ~0 kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/skop_sifir.h', '    return (uint8_t)(isfinite(kul) && fabsf(kul) <= SKOP_SIFIR_SINIR_V);', '    return (uint8_t)(isfinite(kul) && fabsf(kul) <= 2.0f * SKOP_SIFIR_SINIR_V);', 'SZ: +-6 V siniri gevserse kisa devre olmayan giris sifir sayilir: SINIR+/- ve NVS gecerlilik kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/skop_sifir.h', '    if (!(r->sacilma_v <= SKOP_SIFIR_SACILMA_V)) return SKOP_SIFIR_E_SACILMA;\n', '', 'SZ: saçılma reddi yoksa sinyalli giris (5 V kare) sifir olur: SACILMA / KARE5V kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/skop_sifir.h', '    if (!(r->kayma_v <= SKOP_SIFIR_KAYMA_V)) return SKOP_SIFIR_E_KAYMA;\n', '', 'SZ: kayma reddi yoksa degisen giris sifir olur: KAYMA kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/skop_sifir.h', '    if (s->yakalama < SKOP_SIFIR_YAKALAMA) return SKOP_SIFIR_E_AZ;', '    if (s->yakalama < 1u) return SKOP_SIFIR_E_AZ;', 'SZ: eksik yakalamayla karar verilirse (9/10): AZ kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/skop_sifir.h', '    return fabrika_ofset + kul;', '    return fabrika_ofset + kul + 0.0001f;', 'SZ: kul = 0 iken ofset fabrika degerinin KENDISI olmazsa (tz0 / eski davranis bit bit degil) kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/skop_sifir.h', '    if (adet == 0u || s->n + adet > 65535u', '    if (s->n + adet > 65535u', 'SZ: bos yakalama eklenirse (0/0 ortalama) kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/skop_sifir.h', '    *vrms = sqrtf(vac * vac + *vort * *vort);', '    *vrms = sqrtf(vac * vac);', "SZ: skop_ofsetle Vrms'i duzeltilmis Vort ile kurmazsa kirmizi"),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/skop_sifir.h', '    return sqrtf(skop_sifir__u64f(a - b) / nf / nf);', '    return sqrtf(skop_sifir__u64f(a - b) / nf);', 'SZ: saçılma n^2 ile bolunmezse esikler anlamsiz: BILINEN / KISA_* kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', 'static float skop_volt_ofset() { return skop_sifir_ofset(skop_fabrika_ofset(), skop_kul_sifir); }', 'static float skop_volt_ofset() { return skop_fabrika_ofset(); }', 'SZ: kullanici sifiri ofsete girmezse tz hicbir seyi degistirmez: TEK KAYNAK kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '    skop_sifir_ofsetle(&m->vmax, &m->vmin, &m->vort, &m->vrms, m->vac, skop_volt_ofset());', '    skop_sifir_ofsetle(&m->vmax, &m->vmin, &m->vort, &m->vrms, m->vac, skop_fabrika_ofset());', 'SZ: M satiri (Vmax/Vmin/Vort) kullanici sifirini almazsa eksenle olcum ayrisir: skop_ofsetle kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '      Serial.print(F(" ofset="));   Serial.print(skop_volt_ofset(), 6);', '      Serial.print(F(" ofset="));   Serial.print(skop_fabrika_ofset(), 6);', 'SZ: CT ofset= kullanici sifirini tasimazsa panel ekseni eski sifirda: CT kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '  y->meta.ofset = skop_volt_ofset();', '  y->meta.ofset = skop_fabrika_ofset();', 'SZ: skop gunlugunun META ofseti kullanici sifirini tasimazsa kayitli yakalama yanlis cozulur: (e) kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '  if (pil_testi_suruyor()) {\n    Serial.println(F("! tz: pil testi suruyor', '  if (0) {\n    Serial.println(F("! tz: pil testi suruyor', 'SZ: pil testi surerken tz reddedilmezse (ADS susar, kesme denetimi durur): Ret pil testi kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '  if (skop_gunluk.aktif) { Serial.println(F("! tz: osiloskop gunlugu suruyor (once Gtd)")); return; }\n', '', 'SZ: skop gunlugu acikken tz reddedilmezse: Ret skop gunlugu kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '  skop_ayar = skop_sifir_is.eski;\n  skop_sifir_is.aktif = 0u;', '  skop_sifir_is.aktif = 0u;', 'SZ: tz kullanicinin zaman tabani / tetik ayarlarini geri yuklemezse kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '#define SKOP_NVS "skopayar"', '#define SKOP_NVS "kalgec"', 'SZ: kullanici sifiri kalibrasyon gecmisinin ad alanina yazilirsa (5.12.67 karari): NVS kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '      if (skop_sifir_is.aktif) {\n        Serial.println(F("! skop: sifirlama suruyor (tz) — tekrar dene"));\n        return;\n      }', '', 'SZ: tz surerken tb / tl / t yakalamasi gecici ayari bozar: skop_komut kapisi kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '  if (skop_sifir_is.aktif) { Serial.println(F("! G: osiloskop sifirlamasi suruyor (tz) — bitince tekrar")); return; }\n', '', 'SZ: tz surerken skop gunlugu baslarsa gecici ayarla yakalar: Gt reddi kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '    const bool hemen = (skop_is == SKOP_IS_SIFIR);', '    const bool hemen = false;', 'SZ: tz yakalamasi OTO zaman asimini (pencere x 1.2 + 300 ms) beklerse ADS 4 kat uzun susar: hemen kirmizi'),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', '        if (sonuc == SKOP_SONUC_OK && is != SKOP_IS_SIFIR) {', '        if (sonuc == SKOP_SONUC_OK) {', "SZ: tz yakalamasi skop_dokum_m'i (son olcum) ezerse: gorev kirmizi"),
+    ('B6', 'test_skop_sifir.py', 'kod/olcum-karti-a3/olcum-karti-a3.ino', "  if (s[2] == '?' && s[3] == 0) { skop_sifir_durum_yaz(); return; }", "  if (s[2] == '?' && s[3] == 0) { return; }", 'SZ: tz? durum basmazsa panel kullanici sifirini gormez: TZ satiri kirmizi'),
+    ('B73', 'test_ortak.py', 'ortak/src/skop.js', '  return f32(f32(fabrika) + f32(kul));', '  return f32(f32(fabrika) - f32(kul));', "SZ: JS toplam ofseti C'den ayrisirsa (isaret) capraz vektorler + eksen/olcum kaymasi kirmizi"),
+    ('B73', 'test_ortak.py', 'uretim/ortak_vektor_skop_sifir.py', 'KULLANICI = (0.0, 2.6, -0.33, 0.32, 5.999)', 'KULLANICI = (0.0, 2.6, -0.33, 0.32)', 'SZ: vektor dosyasi uretecten ayrisirsa --denetle kirmizi (B73.V.skop_sifir)'),
 ]
 
 

@@ -75,6 +75,7 @@
 #include "olcum3.h"
 #include "skop_olc.h"   // SkopOlcum, skop_olc (olcum2.h kopyasi)
 #include "skop_suz.h"   // SK1: on suzgec (medyan-3 + kutu ortalamasi) + hiz plani, platformsuz
+#include "skop_sifir.h" // SZ (A3-SK3): kullanici sifiri (`tz`) — karar ve hesap, platformsuz
 #include "tipler3.h"
 #include "pil_test.h"
 #include "web_satir.h"  // B22.4 — satir bolucu (AVR'de sinaniyor)
@@ -914,7 +915,17 @@ static bool     skop_tetiklendi = false;
 // Prob ucundaki volt/adım. Skop bölücüsü (R6/R7) ölçüm bölücüsüyle aynı
 // oranda: 100K/6.8K. 3.10 V / 4095 x 15.706 = 11.89 mV -> tam ölçek 48.7 V.
 static float skop_volt_adim() { return SKOP_VOLT_ADIM; }
-static float skop_volt_ofset() { return SKOP_VOLT_OFSET; }
+/* 🔶 SZ (A3-SK3) — KULLANICI SIFIRI (`tz`, skop_sifir.h). Fabrika sifiri SABIT (SKOP_VOLT_OFSET);
+   kartta SKOP-COM kisa devreyken ortalama beslemeye gore ~0.3 V (USB) / ~2.6 V (pilden) okundu
+   (SK-8, sebep acik). Kullanici kisa devre edip `tz` der; olculen fark buraya eklenir. Fabrika
+   ofsetinin uygulandigi HER yer `skop_volt_ofset()`ten okur: skop_ofsetle (M satiri), CT ofset=,
+   S2 / skop.bin basligi, skop gunlugu META'si, skop_otomatik — panel / telefon / kopru cozuculeri
+   degismeden dogru cizer. NVS `skopayar`/`sifir`; `tz0` siler (fabrika = eski davranis bit bit).
+   ⚠ Hizli yol (`w`, hizli_olcekle) kendi VREF modelini kullanir — kullanici sifiri ona GIRMEZ. */
+static float   skop_kul_sifir = 0.0f;   /* V, giris-referansli; 0 = fabrika */
+static uint8_t skop_kul_var = 0u;       /* NVS'te kullanici sifiri var */
+static float skop_fabrika_ofset() { return SKOP_VOLT_OFSET; }
+static float skop_volt_ofset() { return skop_sifir_ofset(skop_fabrika_ofset(), skop_kul_sifir); }
 
 /* B19: skop_olc() ham kodu `kod * volt_adim` diye ceviriyor ve OFSET
  * bilmiyor. O dosya Asama 2'den URETILEN birebir kopya (test_skop_ayni.py
@@ -927,11 +938,8 @@ static float skop_volt_ofset() { return SKOP_VOLT_OFSET; }
  * vrms yeniden kuruluyor: vrms^2 = vac^2 + vort^2 ozdesligi ofsetten
  * bagimsiz oldugu icin duzeltilmis vort ile tekrar hesaplanabiliyor. */
 static void skop_ofsetle(SkopOlcum *m) {
-    const float o = SKOP_VOLT_OFSET;
-    m->vmax -= o;
-    m->vmin -= o;
-    m->vort -= o;
-    m->vrms = sqrtf(m->vac * m->vac + m->vort * m->vort);
+    /* SZ: aritmetik skop_sifir.h'de (AVR + host + JS capraz vektoru); ofset kullanici sifiri DAHIL */
+    skop_sifir_ofsetle(&m->vmax, &m->vmin, &m->vort, &m->vrms, m->vac, skop_volt_ofset());
 }
 
 // Seçili zaman tabanı için örnekleme hızını ve örnek sayısını çözer.
@@ -1156,7 +1164,8 @@ static SkopOlcum skop_dokum_m;
    komutlari ve `skop_ayar`i degistiren ayar komutlari REDDEDILIYOR —
    gorev ikisini de kullaniyor. */
 enum : uint8_t { SKOP_IS_YOK = 0, SKOP_IS_DOKUM, SKOP_IS_IKILI, SKOP_IS_OTOMATIK,
-                 SKOP_IS_GUNLUK };   /* 1C-3: osiloskop gunlugu — dokumsuz, yuvaya */
+                 SKOP_IS_GUNLUK,     /* 1C-3: osiloskop gunlugu — dokumsuz, yuvaya */
+                 SKOP_IS_SIFIR };    /* SZ: `tz` yakalamasi — dokumsuz, akan toplama */
 enum : uint8_t { SKOP_SONUC_OK = 0, SKOP_SONUC_TETIK_YOK, SKOP_SONUC_KILIT,
                  SKOP_SONUC_HATA, SKOP_SONUC_OTO_YOK };
 static volatile uint8_t skop_is = SKOP_IS_YOK;
@@ -1207,6 +1216,9 @@ static uint8_t skop_yakala()
        mantigi CIKIS orneklerini gorur — degismedi. `hz` artik GERCEK cikis hizi (basliga,
        olcume ve zaman asimina o gider). suzgec = 0: k = 1, suzgec yok, hiz nominal (eski yol). */
     const bool suz = (skop_ayar.suzgec != 0u);
+    /* SZ: `tz` yakalamasi tetik ARAMAZ (esik 0) ve pencere dolunca biter — OTO'nun zaman asimini
+       (1.2 x pencere + 300 ms) beklemek ADS'yi bosuna susturur. Diger isler eskisi gibi. */
+    const bool hemen = (skop_is == SKOP_IS_SIFIR);
     SkopSuz suz_d;
     uint32_t hz_adc = hz;
     skop_suz_kur(&suz_d, 1u);
@@ -1284,6 +1296,7 @@ static uint8_t skop_yakala()
             skop_veri[w] = v;
             w = (uint16_t)((w + 1u) % n);
             if (dolu < n) dolu++;
+            if (hemen && dolu >= n) break;
 
             if (!bulundu) {
                 bool gecis = false;
@@ -1344,6 +1357,7 @@ static uint8_t skop_yakala()
             }
         }
         if (bulundu && kalan == 0u) break;
+        if (hemen && dolu >= n) break;
     }
     adc_durdur();
 
@@ -1517,13 +1531,14 @@ static void skop_gorevi(void *)
         uint8_t sonuc = SKOP_SONUC_HATA;
         if (is == SKOP_IS_OTOMATIK) {
             sonuc = skop_otomatik() ? skop_yakala() : (uint8_t)SKOP_SONUC_OTO_YOK;
-        } else if (is == SKOP_IS_DOKUM || is == SKOP_IS_IKILI || is == SKOP_IS_GUNLUK) {
+        } else if (is == SKOP_IS_DOKUM || is == SKOP_IS_IKILI || is == SKOP_IS_GUNLUK
+                   || is == SKOP_IS_SIFIR) {
             sonuc = skop_yakala();
         }
         /* 🔴 B43: ikili yolda da olculuyor — eskiden `is != SKOP_IS_IKILI`
            vardi ve WiFi'deki (tB + /skop.bin) HICBIR yakalamada olcum
            satiri (frekans, Vpp, duty…) gosterilemiyordu. */
-        if (sonuc == SKOP_SONUC_OK) {
+        if (sonuc == SKOP_SONUC_OK && is != SKOP_IS_SIFIR) {   /* SZ: tz olcum istemez */
             SkopOlcum &m = skop_dokum_m;
             skop_olc_kalibre(&m);
             skop_ofsetle(&m);
@@ -1693,6 +1708,166 @@ static void skop_gunluk_isle() {
 /* ── Cekirdek 1: sonucu isle (her loop turunda) ──────────────────────
    Eskiden ayni yerde senkron basilan metinler BURADA basiliyor; satir
    bicimleri degismedi. */
+/* ── 🔶 SZ (A3-SK3): KULLANICI SIFIRI — `tz` / `tz0` / `tz?` ─────────────────────────────
+   SK-8: SKOP-COM kisa devreyken ortalama kartin beslemesine gore ~0.3 V / ~2.6 V (sebep acik).
+   Duzeltme dugmesi: kullanici kisa devre eder, `tz` der; kart o anki ortalamayi sifir sayar.
+   PLAN (gerekce DEVIR 5.12.123): kullanicinin zaman tabanindan BAGIMSIZ, tetiklemesiz (OTO, esik 0),
+   suzgecli SKOP_SIFIR_YAKALAMA x 1000 ornek; 10 ms/bol (100 ms pencere = 5 x 50 Hz = 6 x 60 Hz),
+   yakalamalar arasi SKOP_SIFIR_ARA_MS: ~2.9 s'ye yayilmis 10 000 ornek (tek ornek sicramalari VE
+   Wi-Fi'yle oynayan yavas kayma ortalanir). Her yakalama AYRI is (SKOP_IS_SIFIR): ADS yalniz
+   yakalama boyunca (~100 ms) susar, aralarda olcum ve D satirlari surer. Tampon YOK: akan toplam
+   (skop_sifir.h). Ortalama kod -> eFuse egrisi (kal_mv; egri yoksa dogrusal) -> giris volt.
+   NVS ayri ad alani; kalibrasyon gecmisine GIRMEZ (DEVIR 5.12.67: sifir ofsetleri gecmise girmez).
+   Kullanicinin skop ayarlari (`skop_ayar`) her yolda AYNEN geri gelir (skop_sifir_bitir). */
+#define SKOP_NVS "skopayar"
+static const uint8_t SKOP_SIFIR_TDIV = 6;   /* SKOP_TDIV_US[6] = 10 000 us/bol (test_skop_sifir.py sinar) */
+static struct {
+  uint8_t  aktif, deneme;
+  uint32_t sonraki_ms;
+  SkopAyar eski;            /* kullanicinin ayarlari — bitince AYNEN */
+  SkopSifir top;            /* akan toplam */
+} skop_sifir_is = {};
+
+/* Acilista: bozuk / sinir disi kayit fabrika (skop_sifir_gecerli). */
+static void skop_sifir_yukle() {
+  Preferences p;
+  skop_kul_sifir = 0.0f;
+  skop_kul_var = 0u;
+  if (!p.begin(SKOP_NVS, true)) return;       /* ad alani yok = hic sifirlanmamis: fabrika */
+  if (p.isKey("sifir")) {
+    const float v = p.getFloat("sifir", 0.0f);
+    if (skop_sifir_gecerli(v)) { skop_kul_sifir = v; skop_kul_var = 1u; }
+  }
+  p.end();
+}
+
+/* var = 1: kullanici sifirini yaz; 0: sil (tz0, fabrika). Yazilamazsa bellekteki deger DEGISMEZ. */
+static bool skop_sifir_yaz(bool var, float v) {
+  Preferences p;
+  if (!p.begin(SKOP_NVS, false)) return false;
+  bool tamam;
+  if (var) tamam = (p.putFloat("sifir", v) == sizeof(float));
+  else     tamam = !p.isKey("sifir") || p.remove("sifir");
+  p.end();
+  if (!tamam) return false;
+  skop_kul_sifir = var ? v : 0.0f;
+  skop_kul_var = var ? 1u : 0u;
+  return true;
+}
+
+/* `TZ sifir=<V> kaynak=kullanici|fabrika ofset=<toplam> fabrika=<V>[ durum=sifirlaniyor]`
+   — tz?, `?` dokumu ve tz / tz0 sonunda. */
+static void skop_sifir_durum_yaz() {
+  char t[128];
+  snprintf(t, sizeof(t), "TZ sifir=%+.4f kaynak=%s ofset=%.6f fabrika=%.6f%s",
+           (double)skop_kul_sifir, skop_kul_var ? "kullanici" : "fabrika",
+           (double)skop_volt_ofset(), (double)skop_fabrika_ofset(),
+           skop_sifir_is.aktif ? " durum=sifirlaniyor" : "");
+  Serial.println(t);
+}
+
+static void skop_sifir_baslat() {
+  skop_sifir_is.eski = skop_ayar;
+  skop_ayar.kip = SKOP_KIP_OTO;
+  skop_ayar.esik = 0u;                  /* tetiklemesiz */
+  skop_ayar.histerezis = 0u;
+  skop_ayar.tdiv = SKOP_SIFIR_TDIV;
+  skop_ayar.suzgec = 1u;
+  skop_sifir_bas(&skop_sifir_is.top);
+  skop_sifir_is.deneme = 0u;
+  skop_sifir_is.sonraki_ms = millis();
+  skop_sifir_is.aktif = 1u;
+  Serial.println(F("* tz: sifirlaniyor — SKOP COM'a kisa devre olmali; ~3 s (10 yakalama x 1000 ornek, 10 ms/bol)"));
+}
+
+/* Her yol (basari, ret, iptal) BURADAN: kullanicinin skop ayarlari AYNEN geri gelir. iptal != 0:
+   sebep, karar verilmez. */
+static void skop_sifir_bitir(const char *iptal) {
+  skop_ayar = skop_sifir_is.eski;
+  skop_sifir_is.aktif = 0u;
+  if (iptal) {
+    Serial.print(F("! tz: "));
+    Serial.print(iptal);
+    Serial.println(F(" — sifirlama iptal, hicbir sey yazilmadi"));
+    skop_ayar_yaz();
+    return;
+  }
+  const SkopSifir &st = skop_sifir_is.top;
+  const float ort = skop_sifir_ort_kod(&st);
+  /* ham kod ortalamasi -> pin mV: eksenin ve M satirinin AYNI egrisi (B39 tek tablo); yoksa dogrusal */
+  const float mv = kal_tab_var ? kal_mv(ort) : ort * (SKOP_ADC_TAVAN * 1000.0f / SKOP_ADC_SAYIM);
+  SkopSifirSonuc r;
+  const uint8_t e = skop_sifir_karar(&st, mv, SKOP_ORAN, skop_fabrika_ofset(), skop_volt_adim(), &r);
+  char t[240];
+  if (e != SKOP_SIFIR_TAMAM) {
+    snprintf(t, sizeof(t), "! tz: %s (olculen %+.3f V, sacilma %.3f V, kayma %.3f V, %u yakalama) — hicbir sey yazilmadi",
+             skop_sifir_sebep(e), (double)skop_sifir_volt(mv, SKOP_ORAN, skop_fabrika_ofset()),
+             (double)r.sacilma_v, (double)r.kayma_v, (unsigned)st.yakalama);
+    Serial.println(t);
+    skop_ayar_yaz();
+    return;
+  }
+  if (!skop_sifir_yaz(true, r.sifir_v)) {
+    Serial.println(F("! tz: NVS'e yazilamadi — sifir degismedi"));
+    skop_ayar_yaz();
+    return;
+  }
+  snprintf(t, sizeof(t), "* tz: skop sifiri %+.4f V kaydedildi (ort %.2f kod, sacilma %.3f V, kayma %.3f V, "
+           "%u yakalama / %lu ornek, egri %s)", (double)r.sifir_v, (double)r.ort_kod, (double)r.sacilma_v,
+           (double)r.kayma_v, (unsigned)st.yakalama, (unsigned long)st.n, kal_tab_var ? "eFuse" : "YOK");
+  Serial.println(t);
+  skop_sifir_durum_yaz();
+  skop_ayar_yaz();
+}
+
+/* Cekirdek 1, her loop turunda: sirada yakalama varsa is ver; bitmisse karar. */
+static void skop_sifir_isle() {
+  if (!skop_sifir_is.aktif || skop_is != SKOP_IS_YOK) return;
+  if (pil_testi_suruyor()) { skop_sifir_bitir("pil testi basladi"); return; }
+  if (skop_gunluk.aktif)   { skop_sifir_bitir("osiloskop gunlugu basladi"); return; }
+  if (skop_sifir_is.top.yakalama >= SKOP_SIFIR_YAKALAMA || skop_sifir_is.deneme >= SKOP_SIFIR_DENEME) {
+    skop_sifir_bitir(nullptr);
+    return;
+  }
+  if ((int32_t)(millis() - skop_sifir_is.sonraki_ms) < 0 || skop_dokum.aktif) return;
+  skop_sifir_is.deneme++;
+  skop_sifir_is.sonraki_ms = millis() + SKOP_SIFIR_ARA_MS;   /* reddedilirse (sebebi basildi) sonra yine */
+  (void)skop_is_ver(SKOP_IS_SIFIR);
+}
+
+/* skop_sonuc_isle'den (cekirdek 1): yakalama bitti — akan toplama kat, bekleme yeniden basla. */
+static void skop_sifir_sonuc(uint8_t sonuc) {
+  if (!skop_sifir_is.aktif) return;
+  if (sonuc == SKOP_SONUC_OK) (void)skop_sifir_ekle(&skop_sifir_is.top, skop_veri, skop_adet);
+  skop_sifir_is.sonraki_ms = millis() + SKOP_SIFIR_ARA_MS;
+}
+
+/* `tz` sifirla · `tz0` kaldir (fabrika) · `tz?` durum. Ret: `! tz: <sebep>`, hicbir sey yazilmaz. */
+static void skop_sifir_komut(const char *s) {
+  if (s[2] == '?' && s[3] == 0) { skop_sifir_durum_yaz(); return; }
+  if (s[2] == '0' && s[3] == 0) {
+    if (skop_sifir_is.aktif) { Serial.println(F("! tz: sifirlama suruyor — bitince tekrar dene")); return; }
+    if (!skop_sifir_yaz(false, 0.0f)) { Serial.println(F("! tz: NVS'e yazilamadi — sifir degismedi")); return; }
+    Serial.println(F("* tz0: kullanici sifiri kaldirildi — fabrika sifiri"));
+    skop_sifir_durum_yaz();
+    return;
+  }
+  if (s[2] != 0) {
+    Serial.println(F("! tz: tz (SKOP COM'a kisa devre, sifirla) · tz0 (fabrika sifiri) · tz? (durum)"));
+    return;
+  }
+  if (skop_sifir_is.aktif) { Serial.println(F("! tz: sifirlama zaten suruyor")); return; }
+  if (pil_testi_suruyor()) {
+    Serial.println(F("! tz: pil testi suruyor — yakalama ADS'yi susturur, kesme denetimi durur"));
+    return;
+  }
+  if (skop_gunluk.aktif) { Serial.println(F("! tz: osiloskop gunlugu suruyor (once Gtd)")); return; }
+  if (skop_is != SKOP_IS_YOK) { Serial.println(F("! tz: yakalama suruyor — tekrar dene")); return; }
+  if (skop_dokum.aktif) { Serial.println(F("! tz: skop dokumu suruyor — tekrar dene")); return; }
+  if (!skop_gorev_kolu || !skop_sonuc_q || !skop_veri) { Serial.println(F("! tz: skop yok (gorev / tampon)")); return; }
+  skop_sifir_baslat();
+}
+
 static void skop_sonuc_isle()
 {
     uint8_t sonuc;
@@ -1702,6 +1877,10 @@ static void skop_sonuc_isle()
 
     if (is == SKOP_IS_GUNLUK) {         /* 1C-3: dokum yok, yuvaya (seri port sessiz) */
         skop_gunluk_sonuc(sonuc);
+        return;
+    }
+    if (is == SKOP_IS_SIFIR) {          /* SZ: dokum yok, akan toplama (seri port sessiz) */
+        skop_sifir_sonuc(sonuc);
         return;
     }
     if (is == SKOP_IS_OTOMATIK) {
@@ -1877,6 +2056,14 @@ static void kuplaj_bitir() {
 // GOVDE ASAMA 2 ILE AYNI — davranis degismedi.
 void skop_komut(const char *s) {
       char alt = s[1];
+      /* SZ: `tz` ailesi kendi denetimini yapar (tz? sifirlama surerken de okunur) */
+      if (alt == 'z') { skop_sifir_komut(s); return; }
+      /* SZ: sifirlama suruyorken skop_ayar tz'nin (yakalamalar arasinda bile): baska skop komutu
+         yok — `t?` dahil (gecici ayari panel kendi denetimlerine yazardi). */
+      if (skop_sifir_is.aktif) {
+        Serial.println(F("! skop: sifirlama suruyor (tz) — tekrar dene"));
+        return;
+      }
       /* 1C-3: gunluk surerken ELLE yakalama yok (yuvayi ve sirayi bozar);
          ayar komutlari serbest — her yakalamanin META'si ayari tasir. */
       if (skop_gunluk.aktif && (alt == 0 || (alt >= '0' && alt <= '9') || alt == 'B'
@@ -1987,7 +2174,7 @@ void skop_komut(const char *s) {
         if ((v == 0 || v == 1) && s[2] != 0) { skop_ayar.suzgec = (uint8_t)v; skop_ayar_yaz(); }
         else Serial.println(F("! suzgec 0=ham 1=suzgecli (medyan-3 + ortalama)"));
       } else {
-        Serial.println(F("! skop: t ta tb tl te th tp tm tn tf t? t+ t-"));
+        Serial.println(F("! skop: t ta tb tl te th tp tm tn tf tz t? t+ t-"));
       }
 }
 
@@ -4250,6 +4437,7 @@ static void kayit_skop_komut(const char *s) {
     Serial.println(F("! G: pil testi suruyor — yakalama ADS'i susturur, kesme denetimi durur"));
     return;
   }
+  if (skop_sifir_is.aktif) { Serial.println(F("! G: osiloskop sifirlamasi suruyor (tz) — bitince tekrar")); return; }
   if (!skop_gorev_kolu || skop_is != SKOP_IS_YOK || skop_dokum.aktif) {
     Serial.println(F("! G: skop mesgul (yakalama/dokum) — tekrar dene"));
     return;
@@ -4838,6 +5026,7 @@ void ayar_yaz_seri() {
   Serial.print(' ');       Serial.print(loop_azami_us);
   Serial.print(' ');       Serial.println(loop_uzun_adet);
   Serial.println(F("  (K = atlanan enerji ms · en uzun dongu us · >20ms tur)"));
+  skop_sifir_durum_yaz();   /* SZ: skop kullanici sifiri (TZ satiri, tz? ile ayni) */
   /* B28: cift cekirdek telemetrisi. Yigin dip degeri OLCULEN sayi —
      8 KB tahmin degil, kalan pay gorunur. `dusen` sifirdan buyukse
      akis kuyrugu tasmis demektir (satir kaybi). */
@@ -5005,6 +5194,7 @@ void yardim() {
   Serial.println(F("  wB hizli kanallar BOSTA mi (dahili cekme sinamasi)"));
   Serial.println(F("  R! fabrika ayarlari (kalibrasyonu SIFIRLAR)"));
   Serial.println(F("  t yakala  ta otomatik  tb<0-11> zaman tabani  t+ t-"));
+  Serial.println(F("  tz sifirla (SKOP COM'a kisa devre)  tz0 fabrika sifiri  tz? skop sifiri durumu"));
   Serial.println(F("  tl<0-4095> esik  te<0/1> kenar  th<hist>  tp<%>  tm<kip>  tn<1/2> onay  t?"));
   Serial.println(F("  Gb<ms> kayit baslat (0 = her ornek; 20/100/200/1000/10000/60000)  Gd durdur  G? durum"));
   Serial.println(F("  Gt<ms> osiloskop gunlugu (0 = her tetik; 1000..3600000 ms'de bir)  Gtd durdur"));
@@ -5114,8 +5304,10 @@ void komut_calistir(const char *s) {
       const uint8_t N = (uint8_t)KAL_N;  // 0, 256, ..., 4096-1
       Serial.print(F("CT ")); Serial.print(N);
       Serial.print(F(" oran="));    Serial.print(SKOP_ORAN, 6);
-      Serial.print(F(" ofset="));   Serial.print(SKOP_VOLT_OFSET, 6);
+      /* SZ: ofset kullanici sifiri DAHIL (panel ekseni bundan); sifir= kullanicinin payi (0 = fabrika) */
+      Serial.print(F(" ofset="));   Serial.print(skop_volt_ofset(), 6);
       Serial.print(F(" tavan_mv="));Serial.print(SKOP_ADC_TAVAN * 1000.0f, 1);
+      Serial.print(F(" sifir="));   Serial.print(skop_kul_sifir, 4);
       /* B39: hizli yolun kullandigi DIZININ KENDISI basiliyor — eFuse
          burada yeniden sorgulanmiyor; sorgulansaydi arayuzun gordugu
          tablo ile kartin olcekledigi tablo iki ayri temsil olurdu. */
@@ -5935,6 +6127,7 @@ void setup() {
   digitalWrite(PIN_PIL_KAPI, LOW);
   pil_sifirla(&pil);
   pil_ayar_yukle();   // PT5: DCIR ac/kapa (NVS `pilayar`, varsayilan KAPALI)
+  skop_sifir_yukle(); // SZ: skop kullanici sifiri (NVS `skopayar`, yoksa fabrika)
   // Halka tamponu burada DEGIL, PSRAM durumu ogrenildikten sonra
   // ayriliyor (asagida). pil_halka statik oldugu icin nokta=nullptr,
   // kapasite=0; pil_halka_ekle bu durumu zaten koruyor.
@@ -6210,6 +6403,7 @@ void loop() {
   komut_kuyrugu_bosalt();    // HTTP'den gelenler — TEK yazar, cekirdek 1
   skop_sonuc_isle();         // B40b: yakalama gorevinin sonucu
   skop_gunluk_isle();        // 1C-3: osiloskop gunlugu yeniden kurar (yuva bosken)
+  skop_sifir_isle();         // SZ: `tz` yakalamalari (aralikli) ve karar
   kayit_plan_isle();         // 1C-4: zamanlanmis kayit (saniyede bir)
   guv_isle();                // 1D: reddedilen eslestirmeleri bas
   skop_dokum_ilerle();       // B40: skop dokumu, TX'te yer oldugu kadar

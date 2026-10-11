@@ -354,6 +354,12 @@ export function skopOfsetle(o, ofset) {
   return o;
 }
 
+/** SZ (A3-SK3): C `skop_sifir_ofset` (skop_sifir.h) — uygulanan ofset = fabrika + kullanici sifiri
+ *  (`tz`), float32. kul = 0 iken fabrika degerinin kendisi. Kartin CT `ofset=` / S2 / META alani bu. */
+export function skopSifirOfset(fabrika, kul = 0) {
+  return f32(f32(fabrika) + f32(kul));
+}
+
 /**
  * C `skop_olc_kalibre` (egri GECERLI dali; ofsetsiz — ofseti `skopOfsetle` uygular).
  * Egri gecersizse kart gibi `skopOlc`a duser.

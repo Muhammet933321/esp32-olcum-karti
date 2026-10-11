@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import {
   skopOlc, u64f, ALANLAR, AZAMI_ADET, KART_SABIT, KART_VOLT_ADIM, KART_VOLT_OFSET, KAL_N, kalDugumKod,
-  egriGecerli, kalMvKart, skopOfsetle, skopOlcKalibre, skopOlcKart,
+  egriGecerli, kalMvKart, skopOfsetle, skopOlcKalibre, skopOlcKart, skopSifirOfset,
 } from "../src/skop.js";
 
 const V = JSON.parse(readFileSync(new URL("./vektor/skop.json", import.meta.url), "utf8"));
@@ -377,4 +377,54 @@ test("3E: skopOfsetle yerinde degistirir; Vrms = sqrt(Vac^2 + Vort^2)", () => {
   assert.equal(o.Vrms, Math.fround(Math.sqrt(5)));
   skopOfsetle(o, 2);
   assert.deepEqual([o.Vmax, o.Vmin, o.Vort, o.Vrms], [1, -1, 0, 1]);
+});
+
+// ── SZ (A3-SK3): KULLANICI SIFIRI (`tz`) — kod/olcum-karti-a3/skop_sifir.h ile BIT BIT ──────
+// Vektorler: uretim/ortak_vektor_skop_sifir.py (skop_olc + skop_sifir_ofsetle, AVR emulatoru).
+const VS = JSON.parse(readFileSync(new URL("./vektor/skop_sifir.json", import.meta.url), "utf8"));
+const SZ_ALAN = ["ofset", ...ALANLAR, "n"];
+
+for (const v of VS.vakalar) {
+  test(`SZ C vektoru ${v.ad}: toplam ofset ve M satirinin egrisiz yolu bit bit`, () => {
+    const of = skopSifirOfset(v.fabrika, v.kul);
+    assert.ok(Object.is(of, v.beklenen.ofset), `${v.ad}.ofset: JS ${of} != C ${v.beklenen.ofset}`);
+    const o = { ofset: of, ...skopOlcKart(v.ham, { adim: v.volt_adim, ofset: of, hz: v.hz, adet: v.adet }) };
+    for (const a of SZ_ALAN) assert.ok(Object.is(o[a], v.beklenen[a]), `${v.ad}.${a}: JS ${o[a]} != C ${v.beklenen[a]}`);
+  });
+}
+
+test("SZ vektorleri GUNCEL skop_olc.h + skop_sifir.h'den uretildi (sha256)", () => {
+  const h = createHash("sha256");
+  for (const ad of ["skop_olc.h", "skop_sifir.h"]) {
+    h.update(readFileSync(new URL(`../../kod/olcum-karti-a3/${ad}`, import.meta.url), "utf8").replace(/\r\n/g, "\n"));
+  }
+  assert.equal(h.digest("hex"), VS.kaynak_sha256, "python uretim/ortak_vektor_skop_sifir.py");
+  assert.ok(VS.vakalar.length >= 30 && VS.vakalar.some((v) => v.kul === 0) && VS.vakalar.some((v) => v.kul > 2));
+});
+
+test("[!] SZ: kullanici sifiri 0 iken toplam ofset fabrika degerinin KENDISI (tz0 / eski kayitlar degismez)", () => {
+  assert.ok(Object.is(skopSifirOfset(KART_VOLT_OFSET, 0), KART_VOLT_OFSET));
+  assert.ok(Object.is(skopSifirOfset(KART_VOLT_OFSET), KART_VOLT_OFSET), "varsayilan 0");
+  for (const v of VS.vakalar.filter((x) => x.kul === 0)) assert.ok(Object.is(v.beklenen.ofset, KART_VOLT_OFSET), v.ad);
+});
+
+test("[!] SZ: CT ofset= kullanici sifiri kadar degisince eksen ve olcum AYNI miktarda kayar; fark/zaman alanlari aynen", () => {
+  const ct = FIKSTUR.ct;
+  const egri = ctEgri(ct);
+  const s2 = FIKSTUR.s2.split(" ");
+  for (const kul of [0.32, 2.6, -1.5]) {
+    const of = skopSifirOfset(KART_VOLT_OFSET, kul);
+    const a = skopOlcKart(FIKSTUR.kodlar, { adim: KART_VOLT_ADIM, ofset: KART_VOLT_OFSET, hz: Number(s2[2]), egri });
+    const b = skopOlcKart(FIKSTUR.kodlar, { adim: KART_VOLT_ADIM, ofset: of, hz: Number(s2[2]), egri });
+    const kay = KART_VOLT_OFSET - of;                     // = -kul (float32 farki)
+    for (const alan of ["Vmax", "Vmin", "Vort"]) {
+      assert.ok(Math.abs((b[alan] - a[alan]) - kay) < 2e-5, `${alan} ${kul}: ${b[alan] - a[alan]} != ${kay}`);
+    }
+    // eksen: panelin kodVolt'u V = mv/1000*oran - ofset — ayni kod icin fark tam ofset farki
+    const eksen = (o) => (kod) => kalMvKart(egri, kod) / 1000 * KART_SABIT.ORAN - o;
+    for (const kod of [0, 1234, 2290, 4095]) {
+      assert.ok(Math.abs((eksen(of)(kod) - eksen(KART_VOLT_OFSET)(kod)) - kay) < 1e-9, `kod ${kod}`);
+    }
+    for (const alan of ["f", "T", "Vpp", "Vac", "duty", "tr", "tf", "n"]) assert.ok(Object.is(a[alan], b[alan]), alan);
+  }
 });
