@@ -10550,6 +10550,114 @@ cerrahiyle (yalnız bu dalın parçaları) alınmalı. 1D dalıyla çakışma: `
 
 ---
 
+#### 5.12.123 🟡 A3-SK3: OSİLOSKOP KULLANICI SIFIRI — `tz` / `tz0` / `tz?` (2026-10-11, bulut oturumu, dal `skop-sifir`)
+
+**Neden.** SK-8: SKOP–COM kısa devreyken ortalama kartın beslenmesine göre ~0.3 V (USB) / ~2.6 V (pilden). Sebep
+aranmadı (hâlâ açık); kullanıcı "kısa devre et, düğmeye bas, o anki ortalama sıfır olsun; besleme değişince yeniden
+sıfırlarım" istedi. Fabrika sıfırı (`SKOP_VOLT_OFSET`) sabit kalıyor; kullanıcının ölçtüğü fark ona EKLENİYOR.
+
+**Kararlar.**
+- **Komutlar:** `tz` sıfırla (giriş 0 V varsayılır) · `tz0` kullanıcı sıfırını sil (fabrika) · `tz?` durum. `z`
+  `t…` ailesinde boştu (t ta tb tl te th tp tm tn tf tK tB t? t+ t-). Seri + web aynı yol (`skop_komut`).
+  Çıktı: `* tz: sifirlaniyor …` → `* tz: skop sifiri +x.xxxx V kaydedildi (ort …, sacilma …, kayma …)` →
+  `TZ sifir=<V> kaynak=kullanici|fabrika ofset=<toplam> fabrika=<V>` → `T …` (geri yüklenen ayarlar). `TZ` satırı
+  `?` dökümünde de var; `CT`'ye `sifir=` alanı eklendi (tavan_mv'den sonra, kod:mv çiftlerinden önce).
+- **Yakalama planı:** kullanıcının zaman tabanından bağımsız, tetiksiz (OTO, eşik 0, histerezis 0), süzgeçli,
+  **N = 10 yakalama × 1000 örnek, 10 ms/böl (tdiv 6)**, yakalamalar arası **200 ms** → ~2.9 s'ye yayılmış
+  **10 000 örnek**. Pencere 100 ms = 5 × 50 Hz = 6 × 60 Hz (süzgeç planıyla gerçek hız 10 081 Sa/s → 99.2 ms).
+  Her yakalama AYRI iş (`SKOP_IS_SIFIR`): ADS yalnız yakalama boyunca susar; aralarda ölçüm ve D satırları akar.
+  `tz` yakalaması pencere dolunca biter (`hemen`): OTO'nun tetiksiz zaman aşımı (1.2 × pencere + 300 ms = 420 ms)
+  beklenseydi ADS her seferinde 4 kat uzun susardı. Yani ADS 10 kez ~100 ms susuyor — kullanıcının varsayılan
+  tabanındaki (5 ms/böl, tetiksiz 360 ms) tek bir yakalamadan daha kısa aralıklarla.
+- **Gürültü modeli → sıfır hatası** (kartta ölçülen, SK-8): yakalama ortalamaları arasında σ_c ≈ 0.06 V (ölçülen
+  0.14 V oynama ≈ 2.3 σ), örnek başına σ_s ≤ 0.6 V (tepe–tepe 2–4 V ≈ 6 σ, ham kip). Tek 1000 örneklik yakalamanın
+  ortalaması: √(0.06² + 0.6²/1000) = **±63 mV**; `tz`: √(0.06²/10 + 0.6²/10 000) = **±20 mV (1 σ) ≈ 0.6 kod**
+  (1 kod ≈ 29–32 mV). Varsayım: 300 ms arayla alınan yakalamaların ortalamaları bağımsız (Wi-Fi darbeleri);
+  ~3 s'den YAVAŞ kayma hiçbir 3 s'lik yöntemle ortalanmaz — kullanıcı yeniden sıfırlar. Şebeke uğultusu: pencere
+  50/60 Hz'in tam katının %0.8 dışında; kalan ≤ %0.8 × genlik, 10 rastgele fazda ≈ %0.26 (100 mV uğultuda < 0.3 mV).
+- **Ret** (`! tz: <sebep> (olculen …, sacilma …, kayma …, N yakalama) — hicbir sey yazilmadi`): pil testi sürerken,
+  skop günlüğü (`Gt`) açıkken, başka yakalama / döküm sürerken, zaten sürerken (komut dalında); yakalamalar arasında
+  pil testi ya da günlük başlarsa İPTAL. Karar çekirdekte: yakalama < 10; ölçülen sıfır fabrika değerinden **±6 V**
+  dışı (ya da sayı değil); **saçılma** (bütün örneklerin std'si) > **1.2 V** — kısa devrede ham kipte σ ≈ 0.5–0.7 V
+  (testteki model: ham 0.74 / USB'siz 0.79 V, süzgeçli 0.18 V), Arduino'nun 5 V karesi 2.5 V; **kayma** (yakalama
+  ortalamalarının en büyüğü − en küçüğü) > **0.6 V** — ölçülen 0.14 V'un ~4 katı (testte 1.04 V reddedildi, saçılması
+  0.33 V'ken). Eşikler V/kod için nominal `SKOP_VOLT_ADIM` (28.8 mV) kullanır; eşik payları bunu kaldırıyor.
+  ⚠ **Ayırt edilemeyen:** boştaki SKOP jakı VREF'e yüzer (~+1.7 V, gürültüsü düşük) ve ±6 V içindeki temiz bir DC
+  kaynak — ikisi de "kısa devre" sayılır. Panelin iki aşamalı talimatı buna karşı.
+- **Hesap:** ham kod ortalaması → eFuse eğrisi (`kal_mv`, eksenle ve M satırıyla AYNI tablo; yoksa doğrusal) →
+  `sifir = mv / 1000 × oran − fabrika` (giriş-referanslı V). Kullanıcının `skop_ayar`'ı her yolda (başarı, ret,
+  iptal) `skop_sifir_bitir`'de AYNEN geri yüklenir; tz sürerken diğer skop komutları (`t?` dahil) ve `Gt` reddedilir.
+- **Uygulandığı yer — tek kaynak `skop_volt_ofset()` = `skop_sifir_ofset(fabrika, kullanıcı)`:** `skop_ofsetle`
+  (M satırının Vmax/Vmin/Vort/Vrms'i), `CT ofset=`, S2'nin 9. alanı, `/skop.bin` başlığı, skop günlüğünün yakalama
+  META'sı, `skop_otomatik`'in tetik eşiği. `SKOP_VOLT_OFSET` .ino'da yalnız `skop_fabrika_ofset()`'te. Kullanıcı sıfırı
+  0 iken toplam ofset fabrika değerinin KENDİSİ (bit bit) → eski davranış ve eski vektörler aynen.
+- **`SKOP_KAL` olayı (en yakın çözüm):** olay yalnız eFuse eğrisini (17 × i16 mV) taşıyor, ofset alanı YOK; çözücüler
+  (`ortak/src/skop.js skopOlcKart`, `ekran/osiloskop.js`) ofseti her yakalamanın **META**'sından alıyor ve o zaten
+  `skop_volt_ofset()` — kullanıcı sıfırı dahil. Olay biçimini değiştirmek (C, Python, JS çözücüleri + vektörler) yerine
+  META yeterli; eski kayıtlar kendi META'larıyla aynen çözülür (vektör `kul = 0` vakaları fabrika bit bit).
+- **NVS:** ad alanı `skopayar`, anahtar `sifir` (float). Kalibrasyon geçmişine (`kalgec`) GİRMEZ (5.12.67).
+  Açılışta bozuk / ±6 V dışı kayıt fabrika. `R!` ona dokunmaz (`tz0` siler).
+- **Ek statik DRAM:** `skop_sifir_is` (~56 B: SkopAyar kopyası + akan toplam) + 5 B; tampon yok (host g++ ölçümü,
+  kartta derlenmedi).
+- **Hızlı yol (`w`, `hizli_olcekle`)** kendi VREF modeliyle ölçüyor, `SKOP_VOLT_OFSET`'i kullanmıyor → kullanıcı sıfırı
+  ona GİRMEZ (açık iş).
+
+**Panel.** `ekran/osiloskop.js SkopSifir` (tembel): Osiloskop denetimlerinin sonunda "Sıfır" kümesi — şu anki sıfır
+(`TZ`'den; yoksa "bilinmiyor"), iki aşamalı **Sıfırla** (talimat "SKOP jakını COM'a kısa devre edin, sonra onaylayın";
+eylem yalnız onay düğmesinde — WIG c), iki aşamalı **Sıfırlamayı kaldır** (yalnız kullanıcı sıfırı varken). Kartın
+`! tz:` reddi "Kart reddetti: …" olarak; kart "sifirlaniyor" deyince (Konsol'dan `tz` dahil) bekleme; başarıdan sonra
+`CT` yeniden istenir. Yalnız sürücüde; izleyicide, pil testi / skop günlüğü sürerken, bağlı değilken kapalı + sebep.
+**app.js / index.html / açılış sözlüğü DEĞİŞMEDİ:** bileşen `SkopSuz`'un çocuğu ve `<teleport to=".skop-denetim"
+defer>`; kart satırlarını `$root.gunluk`'ten (kaydet) okur. Metinler `ortak/sozluk_skop.js` (+24 `sz.`, TR + EN).
+Sahte kart `tz` / `tz0` / `tz?`'yi gerçek biçimle (anında; kısa devre = 0 V'un gürültülü ortalaması), CT `ofset=` /
+`sifir=` ve S2 ofseti kullanıcı sıfırıyla. `uretim/gorunur_metin.js` teleport hedefinde `.sınıf` arıyor → bölüm 36 (CE)
+kümeyi iki dilde tarıyor.
+
+| ölçü | önce | sonra | sınır (pay) |
+|---|---|---|---|
+| EU31 eşleşmiş açılış | 260 482 B | **260 482 B** | 262 144 (1 662) |
+| EU32 açılış sözlüğü | 19 378 B | **19 378 B** | 19 500 (122) |
+| `#/skop` açılışı | 254 285 B · 14 | **255 711 B · 14** | 256 000 · 14 (289) |
+| osiloskop zinciri | 45 386 B · 6 | **46 812 B · 6** | 48 KB · 6 (2 340) |
+| `sozluk_skop.js` (tembel) | 1 744 B | 2 601 B | — |
+| AY3 | 16 | **16** | kilit 16 |
+
+**Testler (bulut).** `test_skop_sifir.py` (yeni, B6) **57/57**: çekirdek AVR emülatörü + host gcc BİT BİT aynı,
+float32 başvurusuyla bit bit (bilinen ortalama → volt, ±6 V / NaN, eksik yakalama, boş yakalama, saçılma, 5 V kare,
+kayma, kartta ölçülen kısa devre modeli üç kipte KABUL, `tz0` = fabrika, NVS geçerlilik, ofsetle) + .ino kaynak
+denetimi (tek kaynak, M + CT ikisi birden, ret koşulları komut dalında, ayar geri yükleme, NVS ad alanı, `hemen`,
+günlük META, `?`/`tz?`, A3-SK3) · `ortak_vektor_skop_sifir.py` → `vektor/skop_sifir.json` (35 vaka: 7 dalga × 5
+kullanıcı sıfırı; C ↔ JS `Object.is`) · `skop.test.js` 74 → 112 (+35 vektör, sha, kul = 0 fabrika, CT ofseti
+değişince eksen ve ölçüm aynı miktarda kayar) · `sozluk_skop.test.js` 5 → 6 · `test_arayuz3.js` 1060 → **1086**
+(bölüm 22c: yerleşim, iki aşama, ret, kapalı ×4, EN, sahte kart biçimi) · `test_ortak.py` 36 → **37** · `test_skop_olcum.py`
+72/72 · `test_skop_suz.py` 31/31 · `sim3_skop.py` 94/94 · `test_kayit_esp.py` 257/259 (P1/P2: `huge_app.csv` yok,
+önceden de) · `sim3_web.py` 161/162 (6p ikon PNG'leri: Linux zlib, önceden de) · `test_belge_dil.py` 79/79 ·
+mobil vitest **603/603** · mutasyon **`SZ:` 36/36 YAKALANDI** (firmware/çekirdek 24, panel 12; ilk koşuda 2 kaçtı —
+`tz?` iddiası `tz0` dalındaki çağrıyla, kapalı-onay iddiası `sor`'un no-op'uyla doluyordu; ikisi sıkılaştırıldı) ·
+`gizlilik_dogrula.py` temiz (ilk panel commit'inde vektör adları `<dalga>@<kul>` biçimi e-posta sanıldı — kişisel veri DEĞİL;
+`kare50 kul=-0.33` yapıldı, ayrı commit).
+`dogrula3.py --artimli` (avr-gcc, libngspice + zlib-ng sitecustomize, depo dışı): B1…B73 koştu, **B3'te durdu** (`kicad-cli.exe` yok — 5.12.119/121'deki gibi): B11 22/23 (envanter) · B17 31/31 · B20 77/78 (1a-bis) · B21 85/85 · B58f 31/31 · B22a 197/201 (PC3 ×4 Windows) · B22b 160/162 (6p/6q zincir alt süreci Linux zlib; tek başına 161/162, yalnız 6p ikon PNG) · B25 50/50 · B71 382/382 · B72 257/259 (P1/P2) · B73 37/37. B6 ve B7 zincirde B3'ten sonra: betikleri tek tek yukarıda. Kırmızıların hepsi ortamdan, değişiklik öncesiyle aynı.
+
+**Sayım kilidi YAZILMADI** (`beklenen_sayim.json`). İddia sayısı değişen adımlar: **B6** yeni satır
+`test_skop_sifir.py` "SONUC: 57 gecti" · **B7** 1060 → 1086 · **B73** 36 → 37 (yeni `ortak_vektor_skop_sifir.py
+--denetle`; node test sayıları içeride) · B72 değişmedi (F25 artık A3-SK3).
+
+**Bulutta koşulamayan.** arduino-cli / ESP32 çekirdeği (gerçek derleme, uyarı, statik DRAM, `test_firmware3.py` madd
+denetimi), mklittlefs (`_fs.json` + `sw.js` 5.12.118'in yoluyla: aynı fonksiyonlar + `zlib_ng`; değişmeyen 50 dosya
+kayıttaki bayt + ETag ile BİREBİR, `goruntu_bayt` önceki değer), kicad-cli, Edge, envanter, kart. BELGELER'de
+komut listesi geçen sayfa yok (`t…` komutları yalnız 4-kurulum'da `ta` olarak) — belge değişmedi.
+
+**Yerelde yapılacaklar.** (1) Derle (`test_firmware3.py`: uyarısız, statik DRAM payı, `skop_sifir_*` madd'sız) ve
+karta yükle; afişte `A3-SK3`. (2) Kartta: SKOP–COM kısa devre, USB'li ve USB'siz `tz`; `TZ` sıfırı ~0.3 / ~2.6 V
+çıkmalı, ardından kısa devrede `t` ile Vort ≈ 0 ±0.05 V; Arduino D9 karesinde Vmin ≈ 0 V (SK-4). `tz` sürerken D
+satırları akmalı (en uzun susma ~0.1 s). Ret: kısa devresiz bir sinyalle `tz` → `! tz: ornek sacilmasi …`.
+(3) `python uretim/arayuz-uret.py` (aynı `_fs.json` baytları beklenir) + `arayuz-yaz.py`, APK. (4) Tam
+`dogrula3.py`, sonra `--sayim-kilidi-yaz`.
+
+**Açık kalan.** Sıfırın SEBEBİ (SK-8) · hızlı yola (`w`) kullanıcı sıfırı uygulanmıyor · panel yakalama yokken tetik
+seviyesi etiketini sabit fabrika ofsetiyle çiziyor (app.js — EU31 için dokunulmadı; ilk yakalamadan sonra doğru) ·
+boşta jak / temiz DC kısa devreden ayırt edilemiyor · kazanç hatası (SK-4'ün ~%10'u) ayrı iş.
+
 #### 5.12.119 🟡 BÜTÜNLEŞİK DAL: SK1 DÜZELTME + İKİ DİLLİ BELGELER (2026-10-10, bulut oturumu, dal `butunlesik`)
 
 **Ne birleşti.** Taban `sk1-duzeltme` (5.12.117–5.12.118: A3-SK2, EU31 açılış bütçesi). Üstüne sırayla, her biri ayrı

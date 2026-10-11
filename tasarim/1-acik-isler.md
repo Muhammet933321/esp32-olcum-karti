@@ -361,7 +361,9 @@ rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşit
   USB'sizken ESP32'nin besleme akımı J5 kablosunun toprak telinden dönüyor, o teldeki düşüm ESP toprağını analog
   topraktan ayırıyor (Wi-Fi darbeleri → gürültü). Adaylar: toprak telini kalınlaştır / çiftle; yakalamadan önce bilinen
   0 V ile otomatik sıfır; panelde "skop sıfırla". Bağlantılı: SK-4 (mutlak doğruluk). README görüntüleri USB takılıyken
-  çekildi. DEVIR 5.12.120.
+  çekildi. DEVIR 5.12.120. 🟡 **5.12.123 (A3-SK3): kullanıcı sıfırlaması eklendi (sebep hâlâ açık)** — `tz` (SKOP'u
+  COM'a kısa devre, ~3 s, 10 × 1000 örnek) / `tz0` fabrika / `tz?`; panelde Osiloskop → "Sıfır". Besleme değişince
+  yeniden sıfırlanmalı. Kartta denenmedi; hızlı yola (`w`) uygulanmıyor.
 
 ## İngilizce panel (CE, 5.12.121, 2026-10-11) — kalanlar
 
