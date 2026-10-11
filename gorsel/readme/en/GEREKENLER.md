@@ -7,11 +7,11 @@ Turkish ones in `gorsel/readme/`, captured with the panel, the PC app and the gu
 Türkçe görüntülerle (`gorsel/readme/*.png`) **birebir aynı**; her biri Türkçesinin İngilizce karşılığı olmalı:
 aynı ekran, aynı ölçüm, aynı kırpma ve boyut — yalnız arayüz dili İngilizce.
 
-✅ **12 görüntünün hepsi 2026-10-11'de gerçek karttan çekildi** (firmware A3-SK2). PC ve rehber görüntüleri
-`uretim/readme_gorsel/cek_en_pc.js` ve `cek_en_belge.js` ile; telefon görüntüleri Honor'dan `adb` ile (Türkçeleri
-Xiaomi'dendi: başlık iki satıra kırılıyor, boyut aynı). Canlı ekranlarda ölçüm 18650 + 3.3 Ω (~3.77 V · 1.10 A ·
-4.14 W); Türkçesindeki yük çıkar-tak adımı İngilizce grafikte yok. İngilizce panelde henüz çevrilmemiş etiketler
-(osiloskop ölçüm tablosu, "Geçen süre", "Örnekleme" …) görüntülerde Türkçe duruyor — çevrilince yeniden çekilmeli.
+✅ **12 görüntünün hepsi gerçek karttan çekildi** (2026-10-11, firmware A3-SK2, panel çevirisi tamamlandıktan sonra).
+PC ve rehber görüntüleri `uretim/readme_gorsel/cek_en_pc.js` ve `cek_en_belge.js` ile; telefon görüntüleri Honor'dan
+`adb` ile (Türkçeleri Xiaomi'dendi: başlık iki satıra kırılıyor, boyut aynı). Canlı ekranlarda ölçüm 18650 + 3.3 Ω
+(~3.82 V · 1.11 A · 4.23 W), grafikte yükün takılıp çıkarılması görünüyor. Osiloskopta sinyal Arduino Uno **D9**
+(D13'te alt seviye kayıyor — `tasarim/1-acik-isler.md` SK-8).
 
 ## Neden yalnız PNG'ler?
 

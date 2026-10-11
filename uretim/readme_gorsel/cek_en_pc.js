@@ -25,7 +25,7 @@ const ISLER = {
     await bekle(9000);
     for (let i = 0; i < 6; i++) {
       const m = await p.evaluate(() => {
-        const e = [...document.querySelectorAll('main *')].find((x) => x.children.length === 0 && /[µm]s\/böl/.test(x.textContent));
+        const e = [...document.querySelectorAll('main *')].find((x) => x.children.length === 0 && /[µm]s\s*\/\s*(böl|div)/.test(x.textContent));
         let k = e; while (k && k.querySelectorAll('button').length < 2) k = k.parentElement;
         const metin = e.textContent.trim();
         if (/500\s*µs/.test(metin)) return metin;
@@ -40,7 +40,7 @@ const ISLER = {
     await p.getByRole('button', { name: 'Capture', exact: true }).click();
     await bekle(7000);
     await blur(p);
-    console.log('  skop olcum:', (await p.locator('body').innerText()).replace(/\s+/g, ' ').match(/FREKANS.{0,230}/i)?.[0]);
+    console.log('  skop olcum:', (await p.locator('body').innerText()).replace(/\s+/g, ' ').match(/(FREKANS|FREQUENCY).{0,230}/i)?.[0]);
     await p.screenshot({ path: path.join(CIKIS, 'pc-skop.png') });
   },
   async kayit(t) {

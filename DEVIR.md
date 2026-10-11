@@ -10644,8 +10644,12 @@ tam koşuda doğrulanmalı.
 - **İngilizce README görüntüleri** `gorsel/readme/en/` (12/12, gerçek karttan): rehberler `cek_en_belge.js`, PC
   `cek_en_pc.js` (köprü, `olcum.dil = en`; izleyici kalırsa "Sürücülüğü devral"), telefon Honor'dan adb + `uiautomator dump`
   ile (WebView hata ayıklaması kapalıyken de metin ve konum veriyor; canlı ekranda döküm boş dönebiliyor).
-- **Açık:** İngilizce panelde çevrilmemiş etiketler görüntülerde Türkçe (osiloskop ölçüm tablosu, DİKEY/YATAY, "Geçen
-  süre", "Örnekleme", pil ekranındaki J7 uyarısı) — AY3 kilidindeki 272 metnin parçası. Çekirdek 1'e eklenen süre ölçülmedi.
+- **Çeviri sonrası (5.12.121, aynı gün):** `ceviri-en` yerelde alındı, tam zincir yeşil (kilit 5734 iddia), panel karta
+  yazıldı, APK yeniden derlenip Honor'a güncelleme olarak kuruldu (eşleştirme korundu). İngilizce kipte sekiz ekranın ilk
+  karelerinde ve oturmuş hâlinde Türkçe harfli metin yok (yalnız kullanıcının verdiği kayıt adları). `pc-skop`, `pc-canli`,
+  `tel-canli`, `tel-pil` yeniden çekildi. ⚠ Honor'da uygulama kart yeniden başlayınca ya da dil değişince "Board off /
+  unreachable"da kalabiliyor; uygulamayı kapatıp açınca ~30 s'de bağlanıyor (aranmadı). Telefona özgü "Kart bulunamadı —
+  aranıyor…" şeridi İngilizce kipte Türkçe. Çekirdek 1'e eklenen süre ölçülmedi.
 
 #### 5.12.121 🟡 CE: İNGİLİZCE PANELDE TÜRKÇE KALAN METİNLER — ÖNCELİK 1 (README EKRANLARI) (2026-10-11, bulut oturumu, dal `ceviri-en`)
 
