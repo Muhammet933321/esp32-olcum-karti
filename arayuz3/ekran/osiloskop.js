@@ -41,6 +41,85 @@ export const HARMONIK_ADET = 5;
 export const SPEKTRUM_BIRIMLER = Object.freeze(['v', 'dbv']);
 export const SPEKTRUM_PENCERELER = Object.freeze(['hann', 'dikdortgen']);
 
+/* SZ (A3-SK3) KULLANICI SIFIRI: `tz` / `tz0`; durum `TZ` satirindan. Satirlar $root.gunluk'ten (app.js /
+   index.html degismez, EU31); SkopSuz'un cocugu, .skop-denetim'e teleport. Eylem yalniz onayda (WIG c). */
+export const SkopSifir = {
+  name: 'SkopSifir',
+  data() { return { s: null, sifir: null, kaynak: '', asama: '', mesaj: null, son: null, zm: 0 }; },
+  created() {
+    import('/ortak/sozluk_skop.js').then((s) => { this.s = s; }).catch(() => {});
+    this.tara(true);
+  },
+  beforeUnmount() { clearTimeout(this.zm); },
+  computed: {
+    r() { return this.$root; },
+    kapali() {
+      const r = this.r;
+      return !r.bagli ? 'sz.kapali_bagli' : !r.surucuyum ? 'sz.kapali_izleyici'
+        : r.pilCalisiyor ? 'sz.kapali_pil' : r.skopGunlukAktif ? 'sz.kapali_gunluk' : '';
+    },
+    sonSatir() { const g = this.r.gunluk || []; return g[g.length - 1]; },
+    deger() {
+      return this.sifir === null ? this.m('sz.bilinmiyor')
+        : this.kaynak === 'kullanici' ? this.m('sz.kullanici', { v: this.sifir }) : this.m('sz.fabrika');
+    },
+  },
+  watch: { sonSatir() { this.tara(false); } },
+  methods: {
+    m(a, d = null) { return this.s.ceviriSkop(a, this.r.dil, d); },
+    tara(ilk) {
+      const g = this.r.gunluk || [];
+      let i = g.length;
+      while (i > 0 && g[i - 1] !== this.son) i--;
+      if (!i && !ilk) i = Math.max(0, g.length - 50);
+      this.son = g[g.length - 1];
+      for (const x of g.slice(i)) if (!x.giden) this.satir(x.metin, ilk);
+    },
+    satir(t, ilk) {
+      const z = /^TZ sifir=(\S+) kaynak=(\w+)/.exec(t);
+      if (z) { this.sifir = z[1]; this.kaynak = z[2]; }
+      if (ilk) return;
+      if (t.startsWith('* tz: sifirlaniyor')) this.bekle();
+      else if (this.asama !== 'bekle') return;
+      const k = /^\* tz: skop sifiri (\S+) V/.exec(t);
+      if (k) { this.bitti({ k: 'sz.tamam', d: { v: k[1] } }); this.r.gonder('CT').catch(() => {}); }
+      else if (t.startsWith('* tz0:')) this.bitti({ k: 'sz.kaldirildi' });
+      else if (t.startsWith('! tz')) this.bitti({ k: 'sz.ret', d: { satir: t }, hata: 1 });
+    },
+    sor(a) { if (!this.kapali) { this.asama = a; this.mesaj = null; } },
+    onay() {
+      const k = this.asama === 'sorK' ? 'tz0' : 'tz';
+      if (this.kapali || !this.asama.startsWith('sor')) return;
+      this.bekle();
+      this.r.gonder(k).catch(() => this.bitti(null));
+    },
+    bekle() {
+      this.asama = 'bekle';
+      clearTimeout(this.zm);
+      this.zm = setTimeout(() => this.bitti({ k: 'sz.yanit_yok', hata: 1 }), 20000);
+    },
+    bitti(msj) { clearTimeout(this.zm); this.asama = ''; this.mesaj = msj; },
+  },
+  template: `<teleport to=".skop-denetim" defer><fieldset v-if="s" class="kart skop-kume" data-kume="sifir">
+  <legend>{{ m('sz.sifir') }}</legend>
+  <p class="skop-gunluk-durum" data-sifir="deger">{{ m('sz.su_an') }} {{ deger }}</p>
+  <template v-if="asama === 'sor' || asama === 'sorK'">
+    <p class="ipucu" data-sifir="talimat">{{ m(asama === 'sor' ? 'sz.talimat' : 'sz.kaldir_talimat') }}</p>
+    <div class="skop-dugmeler">
+      <button type="button" @click="onay" :disabled="!!kapali" data-sifir="onay">{{ m(asama === 'sor' ? 'sz.onayla' : 'sz.kaldir_onay') }}</button>
+      <button type="button" @click="asama = ''" data-sifir="vazgec">{{ m('sz.vazgec') }}</button>
+    </div>
+  </template>
+  <div v-else class="skop-dugmeler">
+    <button type="button" @click="sor('sor')" :disabled="!!kapali || asama === 'bekle'" data-sifir="sifirla">{{ m(asama === 'bekle' ? 'sz.sifirlaniyor' : 'sz.sifirla') }}</button>
+    <button v-if="kaynak === 'kullanici'" type="button" @click="sor('sorK')" :disabled="!!kapali || asama === 'bekle'" data-sifir="kaldir">{{ m('sz.kaldir') }}</button>
+  </div>
+  <p v-if="kapali" class="ipucu" data-sifir="kapali">{{ m(kapali) }}</p>
+  <p class="ipucu">{{ m('sz.sifir_ipucu') }}</p>
+  <div class="kume-ret" role="status" aria-live="polite"><p v-if="mesaj" :class="mesaj.hata ? 'hata' : 'ipucu'" data-sifir="mesaj">{{ m(mesaj.k, mesaj.d) }}</p></div>
+</fieldset></teleport>`,
+};
+
 /* ── ON SUZGEC MENUSU (SK1) ─────────────────────────────────────────────
    Tetik kumesindeki "Süzgeç: Açık / Ham" (`tf1` / `tf0`; kart `T … suz=` ile bildirir, app.js
    satirIsle `skopSuz`'u gunceller). Durum ve komut app.js'te ($root); menu ve metinleri tembel:
@@ -49,6 +128,7 @@ export const SPEKTRUM_PENCERELER = Object.freeze(['hann', 'dikdortgen']);
    inene dek menu cizilmez, kart varsayilani (ACIK) gecerli. */
 export const SkopSuz = {
   name: 'SkopSuz',
+  components: { SkopSifir },
   data() { return { s: null }; },
   created() { import('/ortak/sozluk_skop.js').then((s) => { this.s = s; }).catch(() => {}); },
   methods: { m(a) { return this.s.ceviriSkop(a, this.$root.dil); } },
@@ -58,7 +138,7 @@ export const SkopSuz = {
     <option :value="1">{{ m('sz.acik') }}</option>
     <option :value="0">{{ m('sz.ham') }}</option>
   </select>
-</label>`,
+</label><skop-sifir></skop-sifir>`,
 };
 
 /* ── ESKI SKOP ARSIVI (B35; 4D PC12) ──────────────────────────────────────

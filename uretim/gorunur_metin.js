@@ -93,8 +93,20 @@ const dugumIslemleri = {
     if (!a) return null;
     return a.cocuk[a.cocuk.indexOf(d) + 1] || null;
   },
-  /* <teleport to="body"> (Baglanti penceresi): hedef bu cizimin govdesi */
-  querySelector: (secici) => (secici === 'body' ? GOVDE.dugum : null),
+  /* <teleport to="body"> (Baglanti penceresi): hedef bu cizimin govdesi. `.sinif` (SZ: Sifir kumesi
+     `.skop-denetim`e teleport, defer): cizimin agacinda (kok + govde) ilk eslesen oge. */
+  querySelector(secici) {
+    if (secici === 'body') return GOVDE.dugum;
+    const m = /^\.([\w-]+)$/.exec(secici);
+    if (!m) return null;
+    const ara = (d) => {
+      if (!d || d.tur !== 'oge') return null;
+      if ((d.ozn.class || '').split(/\s+/).includes(m[1])) return d;
+      for (const c of d.cocuk) { const x = ara(c); if (x) return x; }
+      return null;
+    };
+    return ara(GOVDE.kok) || ara(GOVDE.dugum);
+  },
   setScopeId() {},
   insertStaticContent() { throw new Error('statik icerik beklenmiyor'); },
 };
@@ -175,6 +187,7 @@ function ciz(secenek) {
   const kok = oge('div');
   const govde = oge('body');
   GOVDE.dugum = govde;
+  GOVDE.kok = kok;
   const uyg = createApp(secenek);
   uyg.config.warnHandler = () => {};
   uyg.config.errorHandler = (h) => { throw h; };

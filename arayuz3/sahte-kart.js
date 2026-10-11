@@ -28,6 +28,14 @@ const SahteKart = (() => {
   const VOLT_ADIM = ADC_TAVAN / ADC_SAYIM * BOLME_ORANI;
   // B19: ofset VREF*ORAN DEGIL, VREF*(ORAN-1) — bkz. olcum3.h
   const VOLT_OFSET = 1.71531250 * (BOLME_ORANI - 1);
+  /* SZ (A3-SK3): kullanici sifiri (`tz`) — firmware gibi fabrika ofsetine EKLENIR (M, S2, CT). Sinyal
+     uretimi (kod) fiziksel: fabrika ofsetiyle. */
+  let kulSifir = 0, kulVar = false;
+  const ofset = () => VOLT_OFSET + kulSifir;
+  /* CT / TZ: kartin float32 degeri (skop_sifir_ofset) — gercek kart 63.530090 basar */
+  const FAB_KART = Math.fround(Math.fround(1.7153125) * Math.fround(Math.fround(BOLME_ORANI) - 1));
+  const ofsetKart = () => Math.fround(FAB_KART + Math.fround(kulSifir));
+  const isaretli = (v) => (v < 0 ? '-' : '+') + Math.abs(v).toFixed(4);
 
   /* Skop ayarları — firmware'deki SkopAyar'ın aynısı */
   const ayar = { tdiv: 6, esik: 2048, kenar: 0, histerezis: 40,
@@ -129,13 +137,13 @@ const SahteKart = (() => {
     let mn = veri[0], mx = veri[0], top = 0, kt = 0;
     for (const v of veri) {
       if (v < mn) mn = v; if (v > mx) mx = v;
-      const x = v * VOLT_ADIM - VOLT_OFSET; top += x; kt += x * x;
+      const x = v * VOLT_ADIM - ofset(); top += x; kt += x * x;
     }
     const ort = top / n;
     const rms = Math.sqrt(kt / n);
     const acv = kt / n - ort * ort;
     const o = {
-      Vmax: mx * VOLT_ADIM - VOLT_OFSET, Vmin: mn * VOLT_ADIM - VOLT_OFSET,
+      Vmax: mx * VOLT_ADIM - ofset(), Vmin: mn * VOLT_ADIM - ofset(),
       Vpp: (mx - mn) * VOLT_ADIM, Vort: ort, Vrms: rms,
       Vac: acv > 0 ? Math.sqrt(acv) : 0,
       f: 0, T: 0, duty: 0, tr: 0, tf: 0, n: 0,
@@ -216,7 +224,7 @@ const SahteKart = (() => {
     const sat = [];
     sat.push(`S2 ${n} ${hz} ${VOLT_ADIM.toFixed(6)} ${tIdx} ` +
              `${TDIV_US[ayar.tdiv]} ${ayar.kip} ${tetiklendi ? 1 : 0} ` +
-             `${VOLT_OFSET.toFixed(6)}`);   // B19: 9. alan
+             `${ofset().toFixed(6)}`);   // B19: 9. alan (SZ: kullanici sifiri dahil)
     sat.push(`M f=${m.f.toFixed(3)} T=${m.T.toFixed(9)} ` +
              `Vpp=${m.Vpp.toFixed(4)} Vmax=${m.Vmax.toFixed(4)} ` +
              `Vmin=${m.Vmin.toFixed(4)} Vort=${m.Vort.toFixed(4)} ` +
@@ -540,6 +548,27 @@ const SahteKart = (() => {
     return l.join(SATIR) + SATIR;
   }
 
+  /* SZ: `TZ` satiri (firmware skop_sifir_durum_yaz) ve `tz` / `tz0` / `tz?`. Demo kart aninda yanitlar;
+     kisa devre giris = 0 V, 1000 gurultulu ornegin ortalamasi fabrika donusumuyle. */
+  function tzSatiri() {
+    return `TZ sifir=${isaretli(kulSifir)} kaynak=${kulVar ? 'kullanici' : 'fabrika'} `
+      + `ofset=${ofsetKart().toFixed(6)} fabrika=${FAB_KART.toFixed(6)}`;
+  }
+  function sifirKomut(k) {
+    if (k === 'tz?') return [tzSatiri()];
+    if (k === 'tz0') { kulSifir = 0; kulVar = false; return ['* tz0: kullanici sifiri kaldirildi — fabrika sifiri', tzSatiri()]; }
+    if (k !== 'tz') return ["! tz: tz (SKOP COM'a kisa devre, sifirla) · tz0 (fabrika sifiri) · tz? (durum)"];
+    if (pil.durum === 'CALISIYOR') return ["! tz: pil testi suruyor — yakalama ADS'yi susturur, kesme denetimi durur"];
+    if (gunluk.etkin) return ['! tz: osiloskop gunlugu suruyor (once Gtd)'];
+    let top = 0;
+    for (let i = 0; i < 1000; i++) top += kod(0);
+    kulSifir = Math.round(((top / 1000) * VOLT_ADIM - VOLT_OFSET) * 1e4) / 1e4;
+    kulVar = true;
+    return ["* tz: sifirlaniyor — SKOP COM'a kisa devre olmali; ~3 s (10 yakalama x 1000 ornek, 10 ms/bol)",
+      `* tz: skop sifiri ${isaretli(kulSifir)} V kaydedildi (ort ${(top / 1000).toFixed(2)} kod, sacilma 0.020 V, `
+        + 'kayma 0.005 V, 10 yakalama / 10000 ornek, egri eFuse)', tzSatiri(), ayarSatiri()];
+  }
+
   function komut(k) {
     k = String(k).trim();
     const c = k[0], alt = k[1];
@@ -552,7 +581,7 @@ const SahteKart = (() => {
        Değerler GERÇEK KARTTAN alındı (2026-09-12, ESP32-S3 N16R8
        eFuse eğrisi) — uydurulmadı. */
     if (c === 'C' && alt === 'T') {
-      return ['CT 17 oran=38.037037 ofset=63.530090 tavan_mv=3100.0'
+      return [`CT 17 oran=38.037037 ofset=${ofsetKart().toFixed(6)} tavan_mv=3100.0 sifir=${kulSifir.toFixed(4)}`
             + ' 0:0 256:229 512:452 768:667 1024:883 1280:1095'
             + ' 1536:1309 1792:1524 2048:1739 2304:1954 2560:2165'
             + ' 2816:2372 3072:2568 3328:2750 3584:2914 3840:3053'
@@ -560,6 +589,7 @@ const SahteKart = (() => {
     }
 
     if (c === 't') {
+      if (alt === 'z') return sifirKomut(k);   // SZ: firmware skop_sifir_komut ile ayni metinler
       /* 1C-3 / 3E: gunluk surerken ELLE yakalama yok (firmware skop_komut ile ayni metin) */
       if (gunluk.etkin && (!alt || (alt >= '0' && alt <= '9') || alt === 'B' || alt === 'a' || alt === 'K')) {
         return ['! skop: osiloskop gunlugu suruyor — elle yakalama yok (once Gtd)'];
@@ -591,7 +621,7 @@ const SahteKart = (() => {
         if (k !== 'tf0' && k !== 'tf1') return ['! suzgec 0=ham 1=suzgecli (medyan-3 + ortalama)'];
         ayar.suz = Number(k[2]); return [ayarSatiri()];
       }
-      return ['! skop: t ta tb tl te th tp tm tn tf t? t+ t-'];
+      return ['! skop: t ta tb tl te th tp tm tn tf tz t? t+ t-'];
     }
     /* ASAMA 3 komut kumesi — firmware'in komut_calistir()'i ile AYNI
        harfler. Yanlis harf gonderilirse burasi da "bilinmeyen komut"
@@ -603,7 +633,7 @@ const SahteKart = (() => {
               ' y_kazanc=1.000000 y_sifir=-91' +
               ' sont=0.100000 i_duz=1.000000 i_ofset=0 rapor=' + raporMs,
               'R normal=+-32.44 V/1.0424 mV  yuksek=+-613.71 V/18.781 mV',
-              'L normal -32.44 .. 35.87 V  yuksek -613.71 .. 617.14 V'];
+              'L normal -32.44 .. 35.87 V  yuksek -613.71 .. 617.14 V', tzSatiri()];
     }
     if (c === '#') {
       return ['I2C: 0x48 0x49',

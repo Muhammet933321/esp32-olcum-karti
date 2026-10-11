@@ -2488,6 +2488,175 @@ console.log('\n--- 22b. Skop on suzgeci (SK1) ---');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   22c. SKOP KULLANICI SIFIRI (SZ, A3-SK3, 2026-10-11)
+
+   Kart `tz` (SKOP COM'a kisa devre; ~3 s), `tz0` (fabrika), `tz?` (`TZ sifir=… kaynak=…` satiri; `?`
+   dokumunde de). Panel: Osiloskop'ta "Sıfır" kumesi — tembel bilesen ekran/osiloskop.js SkopSifir
+   (SkopSuz'un cocugu, `.skop-denetim`e teleport; app.js / index.html / acilis sozlugu DEGISMEZ),
+   metinleri ortak/sozluk_skop.js. IKI ASAMALI: once talimat, eylem YALNIZ onay dugmesinde (WIG c).
+   Kart satirlari $root.gunluk'ten okunur (kaydet); kartin `! tz:` reddi kullaniciya gosterilir.
+   ═══════════════════════════════════════════════════════════════════════ */
+SONRA.push(async () => {
+  const GMz = require(path.join(__dirname, 'gorunur_metin.js'));
+  const eskiG = { window: globalThis.window, document: globalThis.document };
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, localStorage: null, devicePixelRatio: 1 };
+  globalThis.document = { activeElement: null, body: { style: {} }, documentElement: {}, addEventListener() {}, removeEventListener() {} };
+  try {
+    const OS = require(path.join(ARAYUZ, 'ekran', 'osiloskop.js'));
+    const SKz = require(path.join(ARAYUZ, 'sahte-kart.js'));
+    const osK = fs.readFileSync(path.join(ARAYUZ, 'ekran', 'osiloskop.js'), 'utf8');
+    const ino = fs.readFileSync(path.join(KOK, 'kod', 'olcum-karti-a3', 'olcum-karti-a3.ino'), 'utf8');
+    const TZ_DESEN = /^TZ sifir=[+-]\d+\.\d{4} kaynak=(kullanici|fabrika) ofset=\d+\.\d{6} fabrika=\d+\.\d{6}$/;
+    const kur = (durum = {}) => {
+      const gonderilen = [];
+      const r = GMz.ciz({
+        data() {
+          return Object.assign({ dil: 'tr', bagli: true, surucuyum: true, pilCalisiyor: false, skopGunlukAktif: false,
+            gunluk: [{ metin: 'TZ sifir=+0.0000 kaynak=fabrika ofset=63.530090 fabrika=63.530090', giden: false }] }, durum);
+        },
+        methods: {
+          gonder(k) {
+            gonderilen.push(k);
+            this.gunluk.push({ metin: k, giden: true });
+            for (const sat of SKz.komut(k)) this.gunluk.push({ metin: sat, giden: false });
+            return Promise.resolve();
+          },
+        },
+        components: { SkopSifir: OS.SkopSifir },
+        template: '<aside class="skop-denetim"></aside><skop-sifir ref="sz"></skop-sifir>',
+      });
+      return { r, u: r.ornek, gonderilen };
+    };
+    const yazi = (r) => r.metin().map((p) => p.metin).join(' | ');
+    const bekle = () => GMz.bekle(8);
+
+    /* (a) yerlesim: acilis paketine bayt yok */
+    const suz = bilesenSablonu('SkopSuz');
+    ok('[!] SZ Sifir kumesi TEMBEL: ekran/osiloskop.js SkopSifir (SkopSuz cocugu, .skop-denetim`e teleport); app.js, index.html, acilis sozlugu tasimiyor',
+       /export const SkopSifir = \{/.test(osK) && /<skop-sifir><\/skop-sifir>/.test(suz)
+       && /components: \{ SkopSifir \}/.test(osK) && /<teleport to="\.skop-denetim" defer>/.test(osK)
+       && !/skop-sifir|SkopSifir|sz\.sifir/.test(appKaynak + htmlKaynak)
+       && !Object.keys(require(path.join(KOK, 'ortak', 'src', 'sozluk.js')).SOZLUK).some((a) => /^sz\./.test(a)));
+
+    /* (b) TR: durum + iki asamali Sifirla */
+    let { r, u, gonderilen } = kur();
+    await bekle();
+    let t = yazi(r);
+    ok('[!] SZ Kume cizildi (TR): baslik, su anki sifir "fabrika", Sifirla dugmesi; fabrikadayken "kaldir" YOK',
+       /Sıfır \|/.test(t) && /Şu anki sıfır: fabrika/.test(t) && /Sıfırla…/.test(t) && !/Sıfırlamayı kaldır/.test(t), t);
+    u.$refs.sz.sor('sor');
+    await bekle();
+    t = yazi(r);
+    ok('[!] SZ Iki asama: "Sıfırla" yalniz TALIMAT gosterir, komut GITMEZ (eylem onay dugmesinde — WIG c)',
+       /SKOP jakını COM'a kısa devre edin, sonra onaylayın/.test(t) && /Kısa devre ettim, sıfırla/.test(t)
+       && /Vazgeç/.test(t) && !gonderilen.includes('tz'), t);
+    u.$refs.sz.asama = '';
+    await bekle();
+    ok('SZ Vazgec: talimat kapanir, komut gitmez', !/kısa devre edin/.test(yazi(r)) && !gonderilen.includes('tz'));
+    u.$refs.sz.sor('sor');
+    u.$refs.sz.onay();
+    await bekle();
+    t = yazi(r);
+    ok('[!] SZ Onay `tz` gonderir; kartin sonucu: "Sıfır kaydedildi", su anki sifir kullanicinin, eksen icin CT yeniden istenir',
+       gonderilen[0] === 'tz' && gonderilen.includes('CT') && /Sıfır kaydedildi: [+-]\d+\.\d{4} V/.test(t)
+       && /Şu anki sıfır: [+-]\d+\.\d{4} V \(kullanıcı\)/.test(t) && /Sıfırlamayı kaldır…/.test(t), `${gonderilen} · ${t}`);
+    /* (c) kaldir — iki asamali */
+    u.$refs.sz.sor('sorK');
+    await bekle();
+    t = yazi(r);
+    ok('[!] SZ "Sıfırlamayı kaldır" iki asamali: talimat + onay; `tz0` henuz gitmez',
+       /Kullanıcı sıfırı silinir, fabrika sıfırına dönülür/.test(t) && /Fabrika sıfırına dön/.test(t) && !gonderilen.includes('tz0'), t);
+    u.$refs.sz.onay();
+    await bekle();
+    t = yazi(r);
+    ok('[!] SZ Onay `tz0` gonderir; sonuc fabrika', gonderilen.includes('tz0') && /Şu anki sıfır: fabrika/.test(t)
+       && /Fabrika sıfırına dönüldü/.test(t), t);
+    /* (d) ret */
+    u.$refs.sz.sor('sor');
+    u.$refs.sz.asama = 'bekle';
+    u.gunluk.push({ metin: "! tz: ornek sacilmasi buyuk — giris COM'a kisa devre degil (sinyal var) (olculen +2.401 V, sacilma 2.505 V, kayma 0.010 V, 10 yakalama) — hicbir sey yazilmadi", giden: false });
+    await bekle();
+    t = yazi(r);
+    ok('[!] SZ Kartin `! tz:` reddi kullaniciya gosterilir (hata), bekleme biter',
+       /Kart reddetti: ! tz: ornek sacilmasi buyuk/.test(t) && u.$refs.sz.asama === '' && /class/.test('class'), t);
+    u.$refs.sz.mesaj = null;
+    u.gunluk.push({ metin: "* tz: sifirlaniyor — SKOP COM'a kisa devre olmali; ~3 s (10 yakalama x 1000 ornek, 10 ms/bol)", giden: false });
+    await bekle();
+    ok('SZ Kart "sifirlaniyor" derse (Konsol\'dan `tz`) panel bekleme gosterir', /Sıfırlanıyor…/.test(yazi(r)) && u.$refs.sz.asama === 'bekle');
+    u.$refs.sz.bitti(null);
+    u.$refs.sz.sor('sor');
+    u.pilCalisiyor = true;
+    await bekle();
+    const onceSay = gonderilen.length;
+    u.$refs.sz.onay();
+    ok('[!] SZ Talimat acikken kosul bozulursa (pil testi basladi) onay komut GONDERMEZ',
+       gonderilen.length === onceSay && /Pil testi sürerken sıfırlanamaz/.test(yazi(r)), String(gonderilen));
+    r.uyg.unmount();
+
+    /* (e) izleyici / pil / gunluk / bagli degil: kapali + sebep */
+    for (const [ad, durum, metin] of [
+      ['izleyici', { surucuyum: false }, 'Yalnız sürücü oturumu sıfırlayabilir.'],
+      ['pil testi', { pilCalisiyor: true }, 'Pil testi sürerken sıfırlanamaz.'],
+      ['skop gunlugu', { skopGunlukAktif: true }, 'Osiloskop günlüğü sürerken sıfırlanamaz.'],
+      ['bagli degil', { bagli: false }, 'Kart bağlı değil.'],
+    ]) {
+      ({ r, u, gonderilen } = kur(durum));
+      await bekle();
+      const dugmeler = [];
+      const gez = (d) => { if (d.tur !== 'oge') return; if (d.etiket === 'button') dugmeler.push(d); d.cocuk.forEach(gez); };
+      gez(r.kok);
+      const sifirla = dugmeler.find((d) => d.ozn['data-sifir'] === 'sifirla');
+      ok(`[!] SZ ${ad}: Sifirla KAPALI ve sebebi yazili`, !!sifirla && 'disabled' in sifirla.ozn && yazi(r).includes(metin),
+         `${sifirla ? JSON.stringify(sifirla.ozn) : 'dugme yok'} · ${yazi(r)}`);
+      u.$refs.sz.sor('sor'); u.$refs.sz.onay();
+      ok(`SZ ${ad}: kapaliyken onay da komut GONDERMEZ`, !gonderilen.includes('tz'), String(gonderilen));
+      r.uyg.unmount();
+    }
+
+    /* (f) EN */
+    ({ r, u, gonderilen } = kur({ dil: 'en' }));
+    await bekle();
+    u.$refs.sz.sor('sor');
+    await bekle();
+    t = yazi(r);
+    ok('[!] SZ EN: metinler Ingilizce, Turkce harf YOK (iki asama dahil)',
+       /Zero \|/.test(t) && /Current zero: factory/.test(t) && /Short the SCOPE jack to COM, then confirm/.test(t)
+       && !/[çğıöşüÇĞİÖŞÜ]/.test(t), t);
+    u.$refs.sz.onay();
+    await bekle();
+    t = yazi(r);
+    ok('SZ EN: sonuc ve kullanici sifiri Ingilizce', /Zero saved: [+-]\d+\.\d{4} V/.test(t) && /\(user\)/.test(t)
+       && !/[çğıöşüÇĞİÖŞÜ]/.test(t), t);
+    r.uyg.unmount();
+
+    /* (g) sahte kart: gercek kartin bicimi */
+    const tzS = SKz.komut('tz?');
+    ok('[!] SZ Sahte kart `tz?` -> TZ satiri firmware bicimiyle (skop_sifir_durum_yaz snprintf)',
+       tzS.length === 1 && TZ_DESEN.test(tzS[0])
+       && ino.includes('"TZ sifir=%+.4f kaynak=%s ofset=%.6f fabrika=%.6f%s"'), tzS.join(' / '));
+    const tzA = SKz.komut('tz');
+    ok('[!] SZ Sahte kart `tz`: "sifirlaniyor", "skop sifiri … kaydedildi", TZ (kullanici), T satiri — firmware sirasi',
+       /^\* tz: sifirlaniyor/.test(tzA[0]) && /^\* tz: skop sifiri [+-]\d+\.\d{4} V kaydedildi/.test(tzA[1])
+       && TZ_DESEN.test(tzA[2]) && / kaynak=kullanici /.test(tzA[2]) && /^T tdiv=/.test(tzA[3])
+       && ino.includes('"* tz: skop sifiri %+.4f V kaydedildi') && ino.includes('F("* tz: sifirlaniyor'), tzA.join(' / '));
+    const kul = parseFloat(/sifir=(\S+)/.exec(tzA[2])[1]);
+    const ct = SKz.komut('CT')[0];
+    const ofsetCT = parseFloat(/ ofset=(\S+)/.exec(ct)[1]);
+    ok('[!] SZ Sahte kart CT ofset= kullanici sifirini tasir (fabrika + sifir) ve sifir= alani var',
+       Math.abs(ofsetCT - (63.53009 + kul)) < 1e-5 && / tavan_mv=\S+ sifir=[+-]?\d+\.\d{4} 0:/.test(ct), ct.slice(0, 80));
+    const tz0 = SKz.komut('tz0');
+    ok('SZ Sahte kart `tz0` -> "* tz0:" + TZ fabrika; CT ofset fabrikaya doner',
+       /^\* tz0: kullanici sifiri kaldirildi/.test(tz0[0]) && / kaynak=fabrika /.test(tz0[1])
+       && / ofset=63\.530090 /.test(SKz.komut('CT')[0]) && ino.includes('F("* tz0: kullanici sifiri kaldirildi'), tz0.join(' / '));
+    ok('SZ Sahte kart bilinmeyen `tz1` reddeder (firmware gibi)', SKz.komut('tz1')[0].startsWith('! tz:'));
+    ok('SZ Sahte kart `?` dokumunde TZ satiri (firmware ayar_yaz_seri gibi)', SKz.komut('?').some((x) => TZ_DESEN.test(x)));
+  } finally {
+    globalThis.window = eskiG.window;
+    globalThis.document = eskiG.document;
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════
    23. GORUNUM + ES MODUL ALTYAPISI (3A — alt proje 3, P1/P4)
 
    Kullanici birden cok tasarim arasinda gecis istedi; karar (P1): TEK

@@ -70,7 +70,7 @@ test("sz.: HER anahtari YALNIZ ekran/osiloskop.js kullanir; kullanilmayan yok; d
   const ithal = [...APP, ...EKRANLAR, ...ORTAK_SRC].filter((y) => !y.endsWith(DOSYA) && /sozluk_skop/.test(yorumsuz(oku(y))));
   assert.deepEqual(ithal.map((y) => y.split("/").pop()), [MODUL]);
   const m = yorumsuz(kod);
-  assert.equal((m.match(/import\('\/ortak\/sozluk_skop\.js'\)/g) || []).length, 2, "SkopSuz + SkopArsiv");
+  assert.equal((m.match(/import\('\/ortak\/sozluk_skop\.js'\)/g) || []).length, 3, "SkopSuz + SkopArsiv + SkopSifir (SZ)");
   assert.doesNotMatch(m, /from '\/ortak\/sozluk_skop\.js'/);
   assert.doesNotMatch(yorumsuz(oku("../src/sozluk.js")), /sozluk_skop/);
 });
@@ -93,4 +93,12 @@ test("sz.: icerik — Ham ADC'nin okudugu gibi; eski arsiv salt okuma, yeri olcu
   assert.match(SOZLUK_SKOP["sz.eski_arsiv_ipucu"].tr, /Salt okuma, dönüştürülmez/);
   assert.match(SOZLUK_SKOP["sz.eski_arsiv_ipucu"].tr, /olcum-karti\/satir/);
   assert.doesNotMatch(SOZLUK_SKOP["sz.eski_arsiv_ipucu"].tr, /kopru\/arsiv/);
+});
+
+test("sz.: SZ (kullanici sifiri) — talimat kisa devreyi ve onayi soyler; kartin reddi AYNEN ({satir}); iki asama metinleri ayri", () => {
+  assert.match(SOZLUK_SKOP["sz.talimat"].tr, /SKOP jakını COM'a kısa devre edin, sonra onaylayın/);
+  assert.match(SOZLUK_SKOP["sz.talimat"].en, /Short the SCOPE jack to COM, then confirm/);
+  assert.equal(ceviriSkop("sz.ret", "en", { satir: "! tz: x" }), "Board refused: ! tz: x");
+  assert.notEqual(SOZLUK_SKOP["sz.sifirla"].tr, SOZLUK_SKOP["sz.onayla"].tr);
+  assert.notEqual(SOZLUK_SKOP["sz.kaldir"].tr, SOZLUK_SKOP["sz.kaldir_onay"].tr);
 });
