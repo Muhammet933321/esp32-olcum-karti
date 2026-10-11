@@ -71,7 +71,7 @@ def vakalar() -> list[dict]:
         v = hepsi[ad]
         assert len(v["ham"]) <= 1024
         for kul in KULLANICI:
-            out.append({"ad": f"{ad}@{kul:+g}", "ham": v["ham"], "adet": v["adet"], "volt_adim": v["volt_adim"],
+            out.append({"ad": f"{ad} kul={kul:+g}", "ham": v["ham"], "adet": v["adet"], "volt_adim": v["volt_adim"],
                         "hz": v["hz"], "fabrika": FABRIKA, "kul": f32(kul)})
     return out
 
