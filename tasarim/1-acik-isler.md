@@ -352,3 +352,8 @@ rapor → Yazdır, kayıt başlat/durdur + anlık izleme sorusu + bitişte eşit
   panelde. `arayuz-uret.py && arayuz-yaz.py` + APK yeniden derlenecek.
 - **SK-7 eski tezgah araçları** (`tezgah_blokaj.py --skop/--tetik/--olcum/--onay`) GPIO4–5 kısa devre + RC düzeneğini
   ister; kart kutuda — yeni firmware ile koşulmadı. `--sinyal` (Arduino) bunların yerini tutmuyor (tetik KONUMU ölçmez).
+- **SK-8 Arduino Uno D13'ten alınan sinyalde alt seviye ~1.7 V yukarıda okunuyor (2026-10-11, A3-SK2):** 1 kHz / 5 V
+  karede Vmin 1.72 V, Vort 4.9 V; genlik (5.04 V), frekans ve süreler doğru. Kart DEĞİL: SKOP–COM kısa devrede
+  +0.32 V, aynı sinyal D9'dan alınınca alt 0.00 V / üst 5.27 V. Sebebi aranmadı (D13 kesmeyle üretilen kopya + kart
+  üstü LED devresi; bağlantı da olabilir). O zamana dek osiloskop sınamasında sinyal **D9**'dan alınır
+  (`uretim/arduino_sinyal/`); DEVIR 5.12.120.
